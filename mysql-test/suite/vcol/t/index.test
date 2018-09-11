@@ -79,3 +79,19 @@ commit;
 select pk, left(c, 10), length(c), i from t1;
 drop table t1;
 disconnect c1;
+
+#
+# MDEV-16961 Assertion `!table || (!table->read_set || bitmap_is_set(table->read_set, field_index))' failed upon concurrent DELETE and DDL with virtual blob column
+#
+
+CREATE TABLE t1 (b BLOB, vb TEXT AS (b) PERSISTENT, KEY(vb(64))) ENGINE=InnoDB;
+INSERT INTO t1 (b) VALUES ('foo');
+--connect (con1,localhost,root,,test)
+--send CREATE TABLE t2 LIKE t1
+--connection default
+DELETE FROM t1;
+--connection con1
+--reap
+--disconnect con1
+--connection default
+DROP TABLE t1, t2;

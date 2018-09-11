@@ -1075,3 +1075,51 @@ DELIMITER ;|
 
 --error ER_EMPTY_ROW_IN_TVC
 with t as (values (),()) select 1 from t;
+
+--echo #
+--echo # MDEV-17017: TVC in derived table
+--echo #
+
+create table t1 (a int);
+insert into t1 values (9), (3), (2);
+
+let $q1=
+select * from (values (7), (5), (8), (1), (3), (8), (1)) t;
+eval $q1;
+eval explain $q1;
+
+let $q2=
+select * from (values (1,11), (7,77), (3,31), (4,42)) t;
+eval $q2;
+eval explain $q2;
+
+let $q3=
+select * from (values (7), (5), (8), (1) union values (3), (8), (1)) t;
+eval $q3;
+eval explain $q3;
+
+let $q4=
+select * from (values (7), (5), (8), (1) union select * from t1) t;
+eval $q4;
+eval explain $q4;
+
+drop table t1;
+
+--echo #
+--echo # MDEV-16930: expression in the first row of TVC specifying derived table
+--echo #
+
+SELECT 1 + 1, 2, "abc";
+SELECT * FROM (SELECT 1 + 1, 2, "abc") t;
+WITH cte AS (SELECT 1 + 1, 2, "abc") SELECT * FROM cte; 
+SELECT 1 + 1, 2, "abc" UNION SELECT 3+4, 3, "abc";
+CREATE VIEW v1 AS SELECT 1 + 1, 2, "abc";
+SELECT * FROM v1;
+DROP VIEW v1;
+
+VALUES(1 + 1,2,"abc");
+SELECT * FROM (VALUES(1 + 1,2,"abc")) t;
+PREPARE stmt FROM "SELECT * FROM (VALUES(1 + 1,2,'abc')) t";
+EXECUTE stmt;
+EXECUTE stmt;
+DEALLOCATE PREPARE stmt;

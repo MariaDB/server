@@ -56,7 +56,7 @@ Rdb_tbl_prop_coll::Rdb_tbl_prop_coll(Rdb_ddl_manager *const ddl_manager,
     : m_cf_id(cf_id), m_ddl_manager(ddl_manager), m_last_stats(nullptr),
       m_rows(0l), m_window_pos(0l), m_deleted_rows(0l), m_max_deleted_rows(0l),
       m_file_size(0), m_params(params),
-      m_cardinality_collector(table_stats_sampling_pct) {
+      m_cardinality_collector(table_stats_sampling_pct), m_recorded(false) {
   DBUG_ASSERT(ddl_manager != nullptr);
 
   m_deleted_rows_window.resize(m_params.m_window, false);
@@ -212,28 +212,31 @@ Rdb_tbl_prop_coll::Finish(rocksdb::UserCollectedProperties *const properties) {
     num_sst_entry_other += it->m_entry_others;
   }
 
-  if (num_sst_entry_put > 0) {
-    rocksdb_num_sst_entry_put += num_sst_entry_put;
-  }
+  if (!m_recorded) {
+    if (num_sst_entry_put > 0) {
+      rocksdb_num_sst_entry_put += num_sst_entry_put;
+    }
 
-  if (num_sst_entry_delete > 0) {
-    rocksdb_num_sst_entry_delete += num_sst_entry_delete;
-  }
+    if (num_sst_entry_delete > 0) {
+      rocksdb_num_sst_entry_delete += num_sst_entry_delete;
+    }
 
-  if (num_sst_entry_singledelete > 0) {
-    rocksdb_num_sst_entry_singledelete += num_sst_entry_singledelete;
-  }
+    if (num_sst_entry_singledelete > 0) {
+      rocksdb_num_sst_entry_singledelete += num_sst_entry_singledelete;
+    }
 
-  if (num_sst_entry_merge > 0) {
-    rocksdb_num_sst_entry_merge += num_sst_entry_merge;
-  }
+    if (num_sst_entry_merge > 0) {
+      rocksdb_num_sst_entry_merge += num_sst_entry_merge;
+    }
 
-  if (num_sst_entry_other > 0) {
-    rocksdb_num_sst_entry_other += num_sst_entry_other;
-  }
+    if (num_sst_entry_other > 0) {
+      rocksdb_num_sst_entry_other += num_sst_entry_other;
+    }
 
-  for (Rdb_index_stats &stat : m_stats) {
-    m_cardinality_collector.AdjustStats(&stat);
+    for (Rdb_index_stats &stat : m_stats) {
+      m_cardinality_collector.AdjustStats(&stat);
+    }
+    m_recorded = true;
   }
   properties->insert({INDEXSTATS_KEY, Rdb_index_stats::materialize(m_stats)});
   return rocksdb::Status::OK();
@@ -443,15 +446,8 @@ void Rdb_index_stats::merge(const Rdb_index_stats &s, const bool &increment,
     m_entry_single_deletes += s.m_entry_single_deletes;
     m_entry_merges += s.m_entry_merges;
     m_entry_others += s.m_entry_others;
-    if (s.m_distinct_keys_per_prefix.size() > 0) {
-      for (i = 0; i < s.m_distinct_keys_per_prefix.size(); i++) {
-        m_distinct_keys_per_prefix[i] += s.m_distinct_keys_per_prefix[i];
-      }
-    } else {
-      for (i = 0; i < m_distinct_keys_per_prefix.size(); i++) {
-        m_distinct_keys_per_prefix[i] +=
-            s.m_rows >> (m_distinct_keys_per_prefix.size() - i - 1);
-      }
+    for (i = 0; i < s.m_distinct_keys_per_prefix.size(); i++) {
+      m_distinct_keys_per_prefix[i] += s.m_distinct_keys_per_prefix[i];
     }
   } else {
     m_rows -= s.m_rows;
@@ -462,15 +458,8 @@ void Rdb_index_stats::merge(const Rdb_index_stats &s, const bool &increment,
     m_entry_single_deletes -= s.m_entry_single_deletes;
     m_entry_merges -= s.m_entry_merges;
     m_entry_others -= s.m_entry_others;
-    if (s.m_distinct_keys_per_prefix.size() > 0) {
-      for (i = 0; i < s.m_distinct_keys_per_prefix.size(); i++) {
-        m_distinct_keys_per_prefix[i] -= s.m_distinct_keys_per_prefix[i];
-      }
-    } else {
-      for (i = 0; i < m_distinct_keys_per_prefix.size(); i++) {
-        m_distinct_keys_per_prefix[i] -=
-            s.m_rows >> (m_distinct_keys_per_prefix.size() - i - 1);
-      }
+    for (i = 0; i < s.m_distinct_keys_per_prefix.size(); i++) {
+      m_distinct_keys_per_prefix[i] -= s.m_distinct_keys_per_prefix[i];
     }
   }
 }

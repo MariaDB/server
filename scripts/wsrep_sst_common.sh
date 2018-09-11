@@ -27,6 +27,7 @@ WSREP_SST_OPT_PSWD=${WSREP_SST_OPT_PSWD:-}
 WSREP_SST_OPT_DEFAULT=""
 WSREP_SST_OPT_EXTRA_DEFAULT=""
 WSREP_SST_OPT_SUFFIX_DEFAULT=""
+WSREP_SST_OPT_SUFFIX_VALUE=""
 
 while [ $# -gt 0 ]; do
 case "$1" in
@@ -76,6 +77,7 @@ case "$1" in
         ;;
     '--defaults-group-suffix')
         readonly WSREP_SST_OPT_SUFFIX_DEFAULT="$1=$2"
+        readonly WSREP_SST_OPT_SUFFIX_VALUE="$2"
         shift
         ;;
     '--host')
@@ -272,8 +274,8 @@ parse_cnf()
     reval=$($MY_PRINT_DEFAULTS "${group}" | awk -v var="${var}" 'BEGIN { OFS=FS="=" } { gsub(/_/,"-",$1); if ( $1=="--"var) lastval=substr($0,length($1)+2) } END { print lastval}')
 
     # use default if we haven't found a value
-    if [ -z $reval ]; then
-        [ -n $3 ] && reval=$3
+    if [ -z "$reval" ]; then
+        [ -n "$3" ] && reval=$3
     fi
     echo $reval
 }

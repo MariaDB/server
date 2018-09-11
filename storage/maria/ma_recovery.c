@@ -49,7 +49,6 @@ static LSN current_group_end_lsn;
 /** Current group of REDOs is about this table and only this one */
 static MARIA_HA *current_group_table;
 #endif
-static TrID max_long_trid= 0; /**< max long trid seen by REDO phase */
 static my_bool skip_DDLs; /**< if REDO phase should skip DDL records */
 /** @brief to avoid writing a checkpoint if recovery did nothing. */
 static my_bool checkpoint_useful;
@@ -62,6 +61,7 @@ static uint recovery_warnings; /**< count of warnings */
 static uint recovery_found_crashed_tables;
 HASH tables_to_redo;                          /* For maria_read_log */
 ulong maria_recovery_force_crash_counter;
+TrID max_long_trid= 0; /**< max long trid seen by REDO phase */
 
 #define prototype_redo_exec_hook(R)                                          \
   static int exec_REDO_LOGREC_ ## R(const TRANSLOG_HEADER_BUFFER *rec)
@@ -473,6 +473,7 @@ int maria_apply_log(LSN from_lsn, LSN end_lsn,
     fflush(stderr);
   }
 
+  set_if_bigger(max_trid_in_control_file, max_long_trid);
   if (take_checkpoints && checkpoint_useful)
   {
     /* No dirty pages, all tables are closed, no active transactions, save: */
@@ -3560,8 +3561,8 @@ void _ma_tmp_disable_logging_for_table(MARIA_HA *info,
     info->state may point to a state that was deleted by
     _ma_trnman_end_trans_hook()
    */
-  share->state.common= *info->state;
-  info->state= &share->state.common;
+  share->state.no_logging= *info->state;
+  info->state= &share->state.no_logging;
   info->switched_transactional= TRUE;
 
   /*
@@ -3621,6 +3622,10 @@ my_bool _ma_reenable_logging_for_table(MARIA_HA *info, my_bool flush_pages)
     */
     _ma_copy_nontrans_state_information(info);
     _ma_reset_history(info->s);
+
+    /* Reset state to point to state.common, as on open() */
+    info->state=  &share->state.common;
+    *info->state=  share->state.state;
 
     if (flush_pages)
     {

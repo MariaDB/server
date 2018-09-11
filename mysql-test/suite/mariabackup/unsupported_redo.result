@@ -7,7 +7,7 @@ call mtr.add_suppression("InnoDB: Cannot open datafile for read-only: ");
 call mtr.add_suppression("Table .* in the InnoDB data dictionary has tablespace id .*, but tablespace with that id or name does not exist");
 CREATE TABLE t1(i INT PRIMARY KEY auto_increment, a int) ENGINE INNODB;
 ALTER TABLE t1 FORCE, ALGORITHM=INPLACE;
-# Fails during full backup
+# No longer fails during full backup
 DROP TABLE t1;
 CREATE TABLE t1(i INT PRIMARY KEY auto_increment, a int) ENGINE INNODB;
 INSERT INTO t1(a) select 1 union select 2 union select 3;

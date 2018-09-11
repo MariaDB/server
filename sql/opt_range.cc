@@ -14829,6 +14829,32 @@ void QUICK_GROUP_MIN_MAX_SELECT::add_keys_and_lengths(String *key_names,
 }
 
 
+/* Check whether the number for equality ranges exceeds the set threshold */ 
+
+bool eq_ranges_exceeds_limit(RANGE_SEQ_IF *seq, void *seq_init_param,
+                             uint limit)
+{
+  KEY_MULTI_RANGE range;
+  range_seq_t seq_it;
+  uint count = 0;
+
+  if (limit == 0)
+  {
+    /* 'Statistics instead of index dives' feature is turned off */
+   return false;
+  }
+  seq_it= seq->init(seq_init_param, 0, 0);
+  while (!seq->next(seq_it, &range))
+  {
+    if ((range.range_flag & EQ_RANGE) && !(range.range_flag & NULL_RANGE))
+    {
+      if (++count >= limit)
+        return true;
+    }
+  }
+  return false;
+}
+
 #ifndef DBUG_OFF
 
 static void print_sel_tree(PARAM *param, SEL_TREE *tree, key_map *tree_map,

@@ -1705,6 +1705,10 @@ DO TO_DAYS(SEC_TO_TIME(TIME(CEILING(UUID()))));
 DO TO_DAYS(SEC_TO_TIME(MAKEDATE('',RAND(~('')))));
 SELECT SEC_TO_TIME(MAKEDATE(0,RAND(~0)));
 
+#
+# MDEV-16810 AddressSanitizer: stack-buffer-overflow in int10_to_str
+#
+SELECT PERIOD_DIFF(2018, AES_ENCRYPT('Rae Bareli', 'Rae Bareli'));
 
 --echo #
 --echo # End of 5.5 tests
@@ -2158,6 +2162,7 @@ DROP TABLE t1;
 --echo # MDEV-15363 Wrong result for CAST(LAST_DAY(TIME'00:00:00') AS TIME)
 --echo #
 
+set timestamp=unix_timestamp('2018-08-02 10:10:10');
 SELECT
   LAST_DAY(TIME'00:00:00') AS c1,
   CAST(CAST(LAST_DAY(TIME'00:00:00') AS DATE) AS TIME) AS c2,

@@ -150,6 +150,8 @@ typedef struct st_maria_state_info
   MARIA_STATUS_INFO state;
   /* maria_ha->state points here for crash-safe but not versioned tables */
   MARIA_STATUS_INFO common;
+  /* State for a versioned table that is temporary non versioned */
+  MARIA_STATUS_INFO no_logging;
   ha_rows split;			/* number of split blocks */
   my_off_t dellink;			/* Link to next removed block */
   pgcache_page_no_t first_bitmap_with_space;

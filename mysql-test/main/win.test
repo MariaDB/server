@@ -2000,8 +2000,8 @@ DROP TABLE fv_test, fv_result;
 
 CREATE TABLE t1 (a int);
 INSERT INTO t1 VALUES (0),(1),(2);
-SELECT LEAD(a) OVER (PARTITION BY a) as lead,
-       a AND LEAD(a) OVER (PARTITION BY a) AS a_and_lead_part
+SELECT LEAD(a) OVER (PARTITION BY a ORDER BY a) as lead,
+       a AND LEAD(a) OVER (PARTITION BY a ORDER BY a) AS a_and_lead_part
 FROM t1;
 
 SELECT a OR LEAD(a) OVER (ORDER BY a) AS a_or_lead_order

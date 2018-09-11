@@ -7637,7 +7637,7 @@ Item_direct_view_ref::grouping_field_transformer_for_where(THD *thd,
 void Item_field::print(String *str, enum_query_type query_type)
 {
   if (field && field->table->const_table &&
-      !(query_type & QT_NO_DATA_EXPANSION))
+      !(query_type & (QT_NO_DATA_EXPANSION | QT_VIEW_INTERNAL)))
   {
     print_value(str);
     return;

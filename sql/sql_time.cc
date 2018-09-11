@@ -264,7 +264,7 @@ bool get_date_from_daynr(long daynr,uint *ret_year,uint *ret_month,
 ulong convert_period_to_month(ulong period)
 {
   ulong a,b;
-  if (period == 0)
+  if (period == 0 || period > 999912)
     return 0L;
   if ((a=period/100) < YY_PART_YEAR)
     a+=2000;

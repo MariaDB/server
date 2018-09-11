@@ -1130,6 +1130,150 @@ static std::string rdb_filename_without_path(const std::string &path) {
 }
 
 /*
+  Support for INFORMATION_SCHEMA.ROCKSDB_SST_PROPS dynamic table
+ */
+namespace RDB_SST_PROPS_FIELD {
+enum {
+  SST_NAME = 0,
+  COLUMN_FAMILY,
+  DATA_BLOCKS,
+  ENTRIES,
+  RAW_KEY_SIZE,
+  RAW_VALUE_SIZE,
+  DATA_BLOCK_SIZE,
+  INDEX_BLOCK_SIZE,
+  INDEX_PARTITIONS,
+  TOP_LEVEL_INDEX_SIZE,
+  FILTER_BLOCK_SIZE,
+  COMPRESSION_ALGO,
+  CREATION_TIME
+};
+}  // namespace RDB_SST_PROPS_FIELD
+
+static ST_FIELD_INFO rdb_i_s_sst_props_fields_info[] = {
+    ROCKSDB_FIELD_INFO("SST_NAME", NAME_LEN + 1, MYSQL_TYPE_STRING, 0),
+    ROCKSDB_FIELD_INFO("COLUMN_FAMILY", sizeof(uint32_t), MYSQL_TYPE_LONG, 0),
+    ROCKSDB_FIELD_INFO("DATA_BLOCKS", sizeof(int64_t), MYSQL_TYPE_LONGLONG, 0),
+    ROCKSDB_FIELD_INFO("ENTRIES", sizeof(int64_t), MYSQL_TYPE_LONGLONG, 0),
+    ROCKSDB_FIELD_INFO("RAW_KEY_SIZE", sizeof(int64_t), MYSQL_TYPE_LONGLONG, 0),
+    ROCKSDB_FIELD_INFO("RAW_VALUE_SIZE", sizeof(int64_t), MYSQL_TYPE_LONGLONG,
+                       0),
+    ROCKSDB_FIELD_INFO("DATA_BLOCK_SIZE", sizeof(int64_t), MYSQL_TYPE_LONGLONG,
+                       0),
+    ROCKSDB_FIELD_INFO("INDEX_BLOCK_SIZE", sizeof(int64_t), MYSQL_TYPE_LONGLONG,
+                       0),
+    ROCKSDB_FIELD_INFO("INDEX_PARTITIONS", sizeof(uint32_t), MYSQL_TYPE_LONG,
+                       0),
+    ROCKSDB_FIELD_INFO("TOP_LEVEL_INDEX_SIZE", sizeof(int64_t),
+                       MYSQL_TYPE_LONGLONG, 0),
+    ROCKSDB_FIELD_INFO("FILTER_BLOCK_SIZE", sizeof(int64_t),
+                       MYSQL_TYPE_LONGLONG, 0),
+    ROCKSDB_FIELD_INFO("COMPRESSION_ALGO", NAME_LEN + 1, MYSQL_TYPE_STRING, 0),
+    ROCKSDB_FIELD_INFO("CREATION_TIME", sizeof(int64_t), MYSQL_TYPE_LONGLONG,
+                       0),
+    ROCKSDB_FIELD_INFO_END};
+
+static int rdb_i_s_sst_props_fill_table(
+    my_core::THD *const thd, my_core::TABLE_LIST *const tables,
+    my_core::Item *const cond MY_ATTRIBUTE((__unused__))) {
+  DBUG_ENTER_FUNC();
+
+  DBUG_ASSERT(thd != nullptr);
+  DBUG_ASSERT(tables != nullptr);
+  DBUG_ASSERT(tables->table != nullptr);
+
+  int ret = 0;
+  Field **field = tables->table->field;
+  DBUG_ASSERT(field != nullptr);
+
+  /* Iterate over all the column families */
+  rocksdb::DB *const rdb = rdb_get_rocksdb_db();
+
+  if (!rdb) {
+    DBUG_RETURN(ret);
+  }
+
+  const Rdb_cf_manager &cf_manager = rdb_get_cf_manager();
+
+  for (const auto &cf_handle : cf_manager.get_all_cf()) {
+    /* Grab the the properties of all the tables in the column family */
+    rocksdb::TablePropertiesCollection table_props_collection;
+    const rocksdb::Status s =
+        rdb->GetPropertiesOfAllTables(cf_handle, &table_props_collection);
+
+    if (!s.ok()) {
+      continue;
+    }
+
+    /* Iterate over all the items in the collection, each of which contains a
+     * name and the actual properties */
+    for (const auto &props : table_props_collection) {
+      /* Add the SST name into the output */
+      const std::string sst_name = rdb_filename_without_path(props.first);
+
+      field[RDB_SST_PROPS_FIELD::SST_NAME]->store(
+          sst_name.data(), sst_name.size(), system_charset_info);
+
+      field[RDB_SST_PROPS_FIELD::COLUMN_FAMILY]->store(
+          props.second->column_family_id, true);
+      field[RDB_SST_PROPS_FIELD::DATA_BLOCKS]->store(
+          props.second->num_data_blocks, true);
+      field[RDB_SST_PROPS_FIELD::ENTRIES]->store(props.second->num_entries,
+                                                 true);
+      field[RDB_SST_PROPS_FIELD::RAW_KEY_SIZE]->store(
+          props.second->raw_key_size, true);
+      field[RDB_SST_PROPS_FIELD::RAW_VALUE_SIZE]->store(
+          props.second->raw_value_size, true);
+      field[RDB_SST_PROPS_FIELD::DATA_BLOCK_SIZE]->store(
+          props.second->data_size, true);
+      field[RDB_SST_PROPS_FIELD::INDEX_BLOCK_SIZE]->store(
+          props.second->index_size, true);
+      field[RDB_SST_PROPS_FIELD::INDEX_PARTITIONS]->store(
+          props.second->index_partitions, true);
+      field[RDB_SST_PROPS_FIELD::TOP_LEVEL_INDEX_SIZE]->store(
+          props.second->top_level_index_size, true);
+      field[RDB_SST_PROPS_FIELD::FILTER_BLOCK_SIZE]->store(
+          props.second->filter_size, true);
+      if (props.second->compression_name.empty()) {
+        field[RDB_SST_PROPS_FIELD::COMPRESSION_ALGO]->set_null();
+      } else {
+        field[RDB_SST_PROPS_FIELD::COMPRESSION_ALGO]->store(
+            props.second->compression_name.c_str(),
+            props.second->compression_name.size(), system_charset_info);
+      }
+      field[RDB_SST_PROPS_FIELD::CREATION_TIME]->store(
+          props.second->creation_time, true);
+
+      /* Tell MySQL about this row in the virtual table */
+      ret = static_cast<int>(
+          my_core::schema_table_store_record(thd, tables->table));
+
+      if (ret != 0) {
+        DBUG_RETURN(ret);
+      }
+    }
+  }
+
+  DBUG_RETURN(ret);
+}
+
+/* Initialize the information_schema.rocksdb_sst_props virtual table */
+static int rdb_i_s_sst_props_init(void *const p) {
+  DBUG_ENTER_FUNC();
+
+  DBUG_ASSERT(p != nullptr);
+
+  my_core::ST_SCHEMA_TABLE *schema;
+
+  schema = (my_core::ST_SCHEMA_TABLE *)p;
+
+  schema->fields_info = rdb_i_s_sst_props_fields_info;
+  schema->fill_table = rdb_i_s_sst_props_fill_table;
+
+  DBUG_RETURN(0);
+}
+
+/*
   Support for INFORMATION_SCHEMA.ROCKSDB_INDEX_FILE_MAP dynamic table
  */
 namespace RDB_INDEX_FILE_MAP_FIELD {
@@ -1519,19 +1663,21 @@ static int rdb_i_s_trx_info_init(void *const p) {
 namespace RDB_DEADLOCK_FIELD {
 enum {
   DEADLOCK_ID = 0,
+  TIMESTAMP,
   TRANSACTION_ID,
   CF_NAME,
   WAITING_KEY,
   LOCK_TYPE,
   INDEX_NAME,
   TABLE_NAME,
-  ROLLED_BACK
+  ROLLED_BACK,
 };
 } // namespace RDB_TRX_FIELD
 
 static ST_FIELD_INFO rdb_i_s_deadlock_info_fields_info[] = {
     ROCKSDB_FIELD_INFO("DEADLOCK_ID", sizeof(ulonglong), MYSQL_TYPE_LONGLONG,
                        0),
+    ROCKSDB_FIELD_INFO("TIMESTAMP", sizeof(ulonglong), MYSQL_TYPE_LONGLONG, 0),
     ROCKSDB_FIELD_INFO("TRANSACTION_ID", sizeof(ulonglong), MYSQL_TYPE_LONGLONG,
                        0),
     ROCKSDB_FIELD_INFO("CF_NAME", NAME_LEN + 1, MYSQL_TYPE_STRING, 0),
@@ -1568,8 +1714,11 @@ static int rdb_i_s_deadlock_info_fill_table(
 
   ulonglong id = 0;
   for (const auto &info : all_dl_info) {
+    auto deadlock_time = info.deadlock_time;
     for (const auto &trx_info : info.path) {
       tables->table->field[RDB_DEADLOCK_FIELD::DEADLOCK_ID]->store(id, true);
+      tables->table->field[RDB_DEADLOCK_FIELD::TIMESTAMP]->store(deadlock_time,
+                                                                 true);
       tables->table->field[RDB_DEADLOCK_FIELD::TRANSACTION_ID]->store(
           trx_info.trx_id, true);
       tables->table->field[RDB_DEADLOCK_FIELD::CF_NAME]->store(
@@ -1752,6 +1901,22 @@ struct st_maria_plugin rdb_i_s_ddl = {
     "RocksDB Data Dictionary",
     PLUGIN_LICENSE_GPL,
     rdb_i_s_ddl_init,
+    rdb_i_s_deinit,
+    0x0001,  /* version number (0.1) */
+    nullptr, /* status variables */
+    nullptr, /* system variables */
+    nullptr, /* config options */
+    MYROCKS_MARIADB_PLUGIN_MATURITY_LEVEL
+};
+
+struct st_maria_plugin rdb_i_s_sst_props = {
+    MYSQL_INFORMATION_SCHEMA_PLUGIN,
+    &rdb_i_s_info,
+    "ROCKSDB_SST_PROPS",
+    "Facebook",
+    "RocksDB SST Properties",
+    PLUGIN_LICENSE_GPL,
+    rdb_i_s_sst_props_init,
     rdb_i_s_deinit,
     0x0001,  /* version number (0.1) */
     nullptr, /* status variables */

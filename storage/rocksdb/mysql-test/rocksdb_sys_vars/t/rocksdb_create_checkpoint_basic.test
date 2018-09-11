@@ -21,7 +21,7 @@
 # Set back to original value
 # validate that DEFAULT causes failure in creating checkpoint since
 # DEFAULT == ''
---error ER_RDB_STATUS_GENERAL
+--error ER_GET_ERRMSG 
 --eval SET @@global.ROCKSDB_CREATE_CHECKPOINT = @start_value
 
 # clean up

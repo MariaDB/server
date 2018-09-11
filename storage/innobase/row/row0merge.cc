@@ -3934,17 +3934,6 @@ row_merge_drop_indexes(
 					ut_ad(prev);
 					ut_a(table->fts);
 					fts_drop_index(table, index, trx);
-					/* Since
-					INNOBASE_SHARE::idx_trans_tbl
-					is shared between all open
-					ha_innobase handles to this
-					table, no thread should be
-					accessing this dict_index_t
-					object. Also, we should be
-					holding LOCK=SHARED MDL on the
-					table even after the MDL
-					upgrade timeout. */
-
 					/* We can remove a DICT_FTS
 					index from the cache, because
 					we do not allow ADD FULLTEXT INDEX

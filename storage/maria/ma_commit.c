@@ -98,12 +98,7 @@ int maria_commit(MARIA_HA *info)
   if (!info->s->now_transactional)
     return 0;
   trn= info->trn;
-  /*
-    trn is reset as it's checked in maria_close
-    Note that info is still linked in info->trn->used_instances, as this is
-    used in ha_maria::implicit_commit()
-  */
-  info->trn= 0;
+  _ma_reset_trn_for_table(info);
   return ma_commit(trn);
 }
 

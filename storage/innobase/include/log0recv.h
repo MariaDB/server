@@ -139,10 +139,15 @@ bool recv_parse_log_recs(lsn_t checkpoint_lsn, store_t store, bool apply);
 /** Moves the parsing buffer data left to the buffer start. */
 void recv_sys_justify_left_parsing_buf();
 
-/** Report optimized DDL operation (without redo log), corresponding to MLOG_INDEX_LOAD.
+/** Report optimized DDL operation (without redo log),
+corresponding to MLOG_INDEX_LOAD.
 @param[in]	space_id	tablespace identifier
 */
-extern void(*log_optimized_ddl_op)(ulint space_id);
+extern void (*log_optimized_ddl_op)(ulint space_id);
+
+/** Report backup-unfriendly TRUNCATE operation (with separate log file),
+corresponding to MLOG_TRUNCATE. */
+extern void (*log_truncate)();
 
 /** Report an operation to create, delete, or rename a file during backup.
 @param[in]	space_id	tablespace identifier
@@ -179,32 +184,6 @@ struct recv_t{
 				this log record */
 	UT_LIST_NODE_T(recv_t)
 			rec_list;/*!< list of log records for this page */
-};
-
-/** States of recv_addr_t */
-enum recv_addr_state {
-	/** not yet processed */
-	RECV_NOT_PROCESSED,
-	/** page is being read */
-	RECV_BEING_READ,
-	/** log records are being applied on the page */
-	RECV_BEING_PROCESSED,
-	/** log records have been applied on the page */
-	RECV_PROCESSED,
-	/** log records have been discarded because the tablespace
-	does not exist */
-	RECV_DISCARDED
-};
-
-/** Hashed page file address struct */
-struct recv_addr_t{
-	enum recv_addr_state state;
-				/*!< recovery state of the page */
-	unsigned	space:32;/*!< space id */
-	unsigned	page_no:32;/*!< page number */
-	UT_LIST_BASE_NODE_T(recv_t)
-			rec_list;/*!< list of log records for this page */
-	hash_node_t	addr_hash;/*!< hash node in the hash bucket chain */
 };
 
 struct recv_dblwr_t {

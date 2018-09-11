@@ -6885,7 +6885,10 @@ void TABLE::mark_columns_used_by_virtual_fields(void)
     for (uint i= 0 ; i < s->fields ; i++)
     {
       if (bitmap_is_set(&tmp_set, i))
+      {
+        s->field[i]->flags|= PART_INDIRECT_KEY_FLAG;
         field[i]->flags|= PART_INDIRECT_KEY_FLAG;
+      }
     }
     bitmap_clear_all(&tmp_set);
   }
@@ -8335,7 +8338,7 @@ int TABLE_LIST::fetch_number_of_rows()
   }
   if (is_materialized_derived() && !fill_me)
   {
-    table->file->stats.records= ((select_unit*)(get_unit()->result))->records;
+    table->file->stats.records= get_unit()->result->est_records;
     set_if_bigger(table->file->stats.records, 2);
     table->used_stat_records= table->file->stats.records;
   }

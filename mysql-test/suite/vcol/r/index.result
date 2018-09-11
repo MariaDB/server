@@ -89,3 +89,13 @@ pk	left(c, 10)	length(c)	i
 1	bar bar ba	60000	11
 drop table t1;
 disconnect c1;
+CREATE TABLE t1 (b BLOB, vb TEXT AS (b) PERSISTENT, KEY(vb(64))) ENGINE=InnoDB;
+INSERT INTO t1 (b) VALUES ('foo');
+connect  con1,localhost,root,,test;
+CREATE TABLE t2 LIKE t1;
+connection default;
+DELETE FROM t1;
+connection con1;
+disconnect con1;
+connection default;
+DROP TABLE t1, t2;

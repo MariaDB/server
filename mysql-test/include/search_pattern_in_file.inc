@@ -18,6 +18,11 @@
 #    Optionally, SEARCH_ABORT can be set to "FOUND" or "NOT FOUND" and this
 #    will abort if the search result doesn't match the requested one.
 #
+#    Optionally, SEARCH_OUTPUT can be set to control the format of output.
+#    Supported formats:
+#     - (default)  : "FOUND n /pattern/ in FILE " or "NOT FOUND ..."
+#     - "matches"  : Each match is printed, on a separate line
+#
 #    In case of
 #    - SEARCH_FILE and/or SEARCH_PATTERN is not set
 #    - SEARCH_FILE cannot be opened
@@ -75,7 +80,14 @@ perl;
     my @matches=($content =~ m/$search_pattern/gs);
     my $res=@matches ? "FOUND " . scalar(@matches) : "NOT FOUND";
     $ENV{SEARCH_FILE} =~ s{^.*?([^/\\]+)$}{$1};
-    print "$res /$search_pattern/ in $ENV{SEARCH_FILE}\n";
+
+    if ($ENV{SEARCH_OUTPUT} eq "matches") {
+      foreach (@matches) {
+        print $_ . "\n";
+      }
+    } else {
+      print "$res /$search_pattern/ in $ENV{SEARCH_FILE}\n";
+    }
     die "$ENV{SEARCH_ABORT}\n"
-    if $ENV{SEARCH_ABORT} && $res =~ /^$ENV{SEARCH_ABORT}/;
+      if $ENV{SEARCH_ABORT} && $res =~ /^$ENV{SEARCH_ABORT}/;
 EOF

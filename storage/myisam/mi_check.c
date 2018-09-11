@@ -111,7 +111,7 @@ int chk_status(HA_CHECK *param, register MI_INFO *info)
   if (share->state.open_count != (uint) (info->s->global_changed ? 1 : 0))
   {
     /* Don't count this as a real warning, as check can correct this ! */
-    uint save=param->warning_printed;
+    my_bool save=param->warning_printed;
     mi_check_print_warning(param,
 			   share->state.open_count==1 ? 
 			   "%d client is using or hasn't closed the table properly" : 
@@ -526,7 +526,7 @@ int chk_key(HA_CHECK *param, register MI_INFO *info)
 		   (key_part_map)1, HA_READ_KEY_EXACT))
       {
 	/* Don't count this as a real warning, as myisamchk can't correct it */
-	uint save=param->warning_printed;
+	my_bool save=param->warning_printed;
         mi_check_print_warning(param, "Found row where the auto_increment "
                                "column has the value 0");
 	param->warning_printed=save;
@@ -1515,7 +1515,8 @@ int mi_repair(HA_CHECK *param, register MI_INFO *info,
   new_file= -1;
   sort_param.sort_info=&sort_info;
   param->retry_repair= 0;
-  param->warning_printed= param->error_printed= param->note_printed= 0;
+  param->warning_printed= param->note_printed= 0;
+  param->error_printed= 0;
 
   if (!(param->testflag & T_SILENT))
   {
@@ -2210,7 +2211,8 @@ int mi_repair_by_sort(HA_CHECK *param, register MI_INFO *info,
   }
   param->testflag|=T_REP_BY_SORT; /* for easy checking */
   param->retry_repair= 0;
-  param->warning_printed= param->error_printed= param->note_printed= 0;
+  param->warning_printed= param->note_printed= 0;
+  param->error_printed= 0;
 
   if (info->s->options & (HA_OPTION_CHECKSUM | HA_OPTION_COMPRESS_RECORD))
     param->testflag|=T_CALC_CHECKSUM;

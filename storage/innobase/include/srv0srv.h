@@ -1010,12 +1010,6 @@ struct export_var_t{
 						of used row log buffer */
 	ulint innodb_onlineddl_pct_progress;	/*!< Online alter progress */
 
-#ifdef UNIV_DEBUG
-	ulint innodb_ahi_drop_lookups;		/*!< number of adaptive hash
-						index lookups when freeing
-						file pages */
-#endif /* UNIV_DEBUG */
-
 	int64_t innodb_page_compression_saved;/*!< Number of bytes saved
 						by page compression */
 	int64_t innodb_index_pages_written;  /*!< Number of index pages

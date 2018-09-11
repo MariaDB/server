@@ -42,7 +42,7 @@ extern LSN last_checkpoint_lsn;
 */
 extern uint32 last_logno;
 
-extern TrID max_trid_in_control_file;
+extern TrID max_trid_in_control_file, max_long_trid;
 
 extern uint8 recovery_failures;
 

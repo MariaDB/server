@@ -58,6 +58,13 @@ bool wsrep_sst_method_update (sys_var *self, THD* thd, enum_var_type type)
     return 0;
 }
 
+static const char* data_home_dir = NULL;
+
+extern "C"
+void wsrep_set_data_home_dir(const char *data_dir)
+{
+  data_home_dir= (data_dir && *data_dir) ? data_dir : NULL;
+}
 
 static void make_wsrep_defaults_file()
 {
@@ -595,6 +602,29 @@ static int sst_append_auth_env(wsp::env& env, const char* sst_auth)
   return -env.error();
 }
 
+#define DATA_HOME_DIR_ENV "INNODB_DATA_HOME_DIR"
+
+static int sst_append_data_dir(wsp::env& env, const char* data_dir)
+{
+  int const data_dir_size= strlen(DATA_HOME_DIR_ENV) + 1 /* = */
+    + (data_dir ? strlen(data_dir) : 0) + 1 /* \0 */;
+
+  wsp::string data_dir_str(data_dir_size); // for automatic cleanup on return
+  if (!data_dir_str()) return -ENOMEM;
+
+  int ret= snprintf(data_dir_str(), data_dir_size, "%s=%s",
+                    DATA_HOME_DIR_ENV, data_dir ? data_dir : "");
+
+  if (ret < 0 || ret >= data_dir_size)
+  {
+    WSREP_ERROR("sst_append_data_dir(): snprintf() failed: %d", ret);
+    return (ret < 0 ? ret : -EMSGSIZE);
+  }
+
+  env.append(data_dir_str());
+  return -env.error();
+}
+
 static ssize_t sst_prepare_other (const char*  method,
                                   const char*  sst_auth,
                                   const char*  addr_in,
@@ -654,6 +684,16 @@ static ssize_t sst_prepare_other (const char*  method,
   {
     WSREP_ERROR("sst_prepare_other(): appending auth failed: %d", ret);
     return ret;
+  }
+
+  if (data_home_dir)
+  {
+    if ((ret= sst_append_data_dir(env, data_home_dir)))
+    {
+      WSREP_ERROR("sst_prepare_other(): appending data "
+                  "directory failed: %d", ret);
+      return ret;
+    }
   }
 
   pthread_t tmp;
@@ -1345,6 +1385,16 @@ wsrep_cb_status_t wsrep_sst_donate_cb (void* app_ctx, void* recv_ctx,
   {
     WSREP_ERROR("wsrep_sst_donate_cb(): appending auth env failed: %d", ret);
     return WSREP_CB_FAILURE;
+  }
+
+  if (data_home_dir)
+  {
+    if ((ret= sst_append_data_dir(env, data_home_dir)))
+    {
+      WSREP_ERROR("wsrep_sst_donate_cb(): appending data "
+                  "directory failed: %d", ret);
+      return WSREP_CB_FAILURE;
+    }
   }
 
   if (!strcmp (WSREP_SST_MYSQLDUMP, method))
