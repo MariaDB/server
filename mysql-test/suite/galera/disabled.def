@@ -31,6 +31,5 @@ MW-416 : MDEV-13549 Galera test failures
 galera_wan : MDEV-13549 Galera test failures
 MW-388 : MDEV-13549 Galera test failures
 galera_sst_mysqldump_with_key : MDEV-16890 Galera test failure
-galera.galera_binlog_stmt_autoinc : MDEV-17106 Test failure on galera.galera_binlog_stmt_autoinc
 galera.galera_kill_ddl : MDEV-17108 Test failure on galera.galera_kill_ddl
-galera.galera_var_node_address : MDEV-17151 Galera test failure on galera.galera_var_node_address
+
