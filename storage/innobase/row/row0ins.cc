@@ -2448,10 +2448,8 @@ row_ins_index_entry_big_rec(
 	const big_rec_t*	big_rec,
 	ulint*			offsets,
 	mem_heap_t**		heap,
-#ifndef DBUG_OFF
-	const void*		thd,
-#endif /* DBUG_OFF */
-	dict_index_t*		index)
+	dict_index_t*		index,
+	const void*		thd __attribute__((unused)))
 {
 	mtr_t		mtr;
 	btr_pcur_t	pcur;
@@ -2491,14 +2489,6 @@ row_ins_index_entry_big_rec(
 
 	return(error);
 }
-
-#ifdef DBUG_OFF
-# define row_ins_index_entry_big_rec(e,big,ofs,heap,index,thd) \
-	row_ins_index_entry_big_rec(e,big,ofs,heap,index)
-#else /* DBUG_OFF */
-# define row_ins_index_entry_big_rec(e,big,ofs,heap,index,thd) \
-	row_ins_index_entry_big_rec(e,big,ofs,heap,thd,index)
-#endif /* DBUG_OFF */
 
 /***************************************************************//**
 Tries to insert an entry into a clustered index, ignoring foreign key
