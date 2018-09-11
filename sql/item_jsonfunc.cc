@@ -1621,13 +1621,15 @@ String *Item_func_json_array_append::val_str(String *str)
 
     if (je.value_type == JSON_VALUE_ARRAY)
     {
-      if (json_skip_level(&je))
+      int n_items;
+      if (json_skip_level_and_count(&je, &n_items))
         goto js_error;
 
       ar_end= je.s.c_str - je.sav_c_len;
       str_rest_len= js->length() - (ar_end - (const uchar *) js->ptr());
       str->q_append(js->ptr(), ar_end-(const uchar *) js->ptr());
-      str->append(", ", 2);
+      if (n_items)
+        str->append(", ", 2);
       if (append_json_value(str, args[n_arg+1], &tmp_val))
         goto return_null; /* Out of memory. */
 

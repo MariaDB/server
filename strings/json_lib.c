@@ -1197,6 +1197,31 @@ int json_skip_to_level(json_engine_t *j, int level)
 }
 
 
+#define json_skip_level(json_engine) \
+  json_skip_to_level((json_engine), (json_engine)->stack_p)
+
+
+/*
+  works as json_skip_level() but also counts items on the current
+  level skipped.
+*/
+int json_skip_level_and_count(json_engine_t *j, int *n_items_skipped)
+{
+  int level= j->stack_p;
+
+  *n_items_skipped= 0;
+  while (json_scan_next(j) == 0)
+  {
+    if (j->stack_p < level)
+      return 0;
+    if (j->stack_p == level && j->state == JST_VALUE)
+      (*n_items_skipped)++;
+  }
+
+  return 1;
+}
+
+
 int json_skip_key(json_engine_t *j)
 {
   if (json_read_value(j))

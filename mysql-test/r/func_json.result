@@ -790,3 +790,9 @@ JSON_SET('{}', '$.a', _utf8 0xC3B6, '$.b', _utf8 0xC3B6)
 SELECT JSON_SET('{}', '$.a', _utf8 X'C3B6', '$.x', 1, '$.b', _utf8 X'C3B6');
 JSON_SET('{}', '$.a', _utf8 X'C3B6', '$.x', 1, '$.b', _utf8 X'C3B6')
 {"a": "ö", "x": 1, "b": "ö"}
+#
+# MDEV-17121 JSON_ARRAY_APPEND
+#
+select json_array_append('[             ]', '$', 'aue');
+json_array_append('[             ]', '$', 'aue')
+["aue"]
