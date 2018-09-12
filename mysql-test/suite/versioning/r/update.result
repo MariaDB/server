@@ -239,5 +239,20 @@ B1	salary
 select @tmp2 = sys_trx_start as B2, salary from t2;
 B2	salary
 1	2500
+#
+# MDEV-17089 Updating a System Versioned Table always causes a row to be updated,
+# regardless if the data is the same or not
+#
+create or replace table t1 (
+x int primary key,
+row_start SYS_DATATYPE as row start invisible,
+row_end SYS_DATATYPE as row end invisible,
+period for system_time (row_start, row_end))
+with system versioning;
+insert into t1 values (1);
+update t1 set x= 1;
+select * from t1 for system_time all;
+x
+1
 drop table t1;
 drop table t2;

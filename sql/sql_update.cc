@@ -65,7 +65,7 @@ bool records_are_comparable(const TABLE *table) {
    @return false otherwise.
 */
 
-bool compare_record(const TABLE *table)
+bool compare_record(const TABLE *table, uint32 skip_flags)
 {
   DBUG_ASSERT(records_are_comparable(table));
 
@@ -79,6 +79,8 @@ bool compare_record(const TABLE *table)
     for (Field **ptr= table->field ; *ptr != NULL; ptr++)
     {
       Field *field= *ptr;
+      if (skip_flags & field->flags)
+        continue;
       if (bitmap_is_set(table->write_set, field->field_index))
       {
         if (field->real_maybe_null())
@@ -101,7 +103,7 @@ bool compare_record(const TABLE *table)
      including those not in the write_set. This is cheaper than the
      field-by-field comparison done above.
   */ 
-  if (table->s->can_cmp_whole_record)
+  if (table->s->can_cmp_whole_record && !skip_flags)
     return cmp_record(table,record[1]);
   /* Compare null bits */
   if (memcmp(table->null_flags,
@@ -111,6 +113,8 @@ bool compare_record(const TABLE *table)
   /* Compare updated fields */
   for (Field **ptr= table->field ; *ptr ; ptr++)
   {
+    if (skip_flags & (*ptr)->flags)
+      continue;
     if (bitmap_is_set(table->write_set, (*ptr)->field_index) &&
 	(*ptr)->cmp_binary_offset(table->s->rec_buff_length))
       return TRUE;
@@ -408,6 +412,10 @@ int mysql_update(THD *thd,
     my_error(ER_NON_UPDATABLE_TABLE, MYF(0), table_list->alias.str, "UPDATE");
     DBUG_RETURN(1);
   }
+
+  uint32 skip_flags= 0;
+  if (thd->lex->sql_command == SQLCOM_UPDATE && table->versioned_write(VERS_TIMESTAMP))
+    skip_flags= VERS_SYSTEM_FIELD;
 
   if (table->default_field)
     table->mark_default_fields_for_write(false);
@@ -886,7 +894,7 @@ update_begin:
 
       found++;
 
-      if (!can_compare_record || compare_record(table))
+      if (!can_compare_record || compare_record(table, skip_flags))
       {
         if (table->default_field && table->update_default_fields(1, ignore))
         {
@@ -2329,6 +2337,10 @@ int multi_update::send_data(List<Item> &not_used_values)
       bool can_compare_record;
       can_compare_record= records_are_comparable(table);
 
+      uint32 skip_flags= 0;
+      if (table->versioned_write(VERS_TIMESTAMP))
+        skip_flags= VERS_SYSTEM_FIELD;
+
       table->status|= STATUS_UPDATED;
       store_record(table,record[1]);
 
@@ -2343,7 +2355,7 @@ int multi_update::send_data(List<Item> &not_used_values)
       */
       table->auto_increment_field_not_null= FALSE;
       found++;
-      if (!can_compare_record || compare_record(table))
+      if (!can_compare_record || compare_record(table, skip_flags))
       {
 	int error;
 
@@ -2559,6 +2571,11 @@ int multi_update::do_updates()
     table = cur_table->table;
     if (table == table_to_update)
       continue;					// Already updated
+
+    uint32 skip_flags= 0;
+    if (table->versioned_write(VERS_TIMESTAMP))
+      skip_flags= VERS_SYSTEM_FIELD;
+
     org_updated= updated;
     tmp_table= tmp_tables[cur_table->shared];
     tmp_table->file->extra(HA_EXTRA_CACHE);	// Change to read cache
@@ -2672,7 +2689,7 @@ int multi_update::do_updates()
                                             TRG_ACTION_BEFORE, TRUE))
         goto err2;
 
-      if (!can_compare_record || compare_record(table))
+      if (!can_compare_record || compare_record(table, skip_flags))
       {
         int error;
         if (table->default_field &&
