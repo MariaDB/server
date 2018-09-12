@@ -438,7 +438,7 @@ int federatedx_db_init(void *p)
   federatedx_hton->rollback= ha_federatedx::rollback;
   federatedx_hton->discover_table_structure= ha_federatedx::discover_assisted;
   federatedx_hton->create= federatedx_create_handler;
-  federatedx_hton->flags= HTON_ALTER_NOT_SUPPORTED;
+  federatedx_hton->flags= HTON_ALTER_NOT_SUPPORTED | HTON_NATIVE_SYS_VERSIONING;
   federatedx_hton->create_derived= create_federatedx_derived_handler;
   federatedx_hton->create_select= create_federatedx_select_handler;
 
@@ -2037,6 +2037,8 @@ int ha_federatedx::write_row(uchar *buf)
     {
       if ((*field)->is_null())
         values_string.append(STRING_WITH_LEN(" NULL "));
+      else if ((*field)->flags & VERS_SYSTEM_FIELD)
+        values_string.append(STRING_WITH_LEN(" DEFAULT "));
       else
       {
         bool needs_quote= (*field)->str_needs_quotes();
@@ -2381,6 +2383,8 @@ int ha_federatedx::update_row(const uchar *old_data, const uchar *new_data)
 
       if ((*field)->is_null())
         update_string.append(STRING_WITH_LEN(" NULL "));
+      else if ((*field)->flags & VERS_SYSTEM_FIELD)
+        update_string.append(STRING_WITH_LEN(" DEFAULT "));
       else
       {
         /* otherwise = */
@@ -3620,8 +3624,6 @@ int ha_federatedx::discover_assisted(handlerton *hton, THD* thd,
   MYSQL mysql;
   char buf[1024];
   String query(buf, sizeof(buf), cs);
-  static LEX_CSTRING cut_clause={STRING_WITH_LEN(" WITH SYSTEM VERSIONING")};
-  int cut_offset;
   MYSQL_RES *res;
   MYSQL_ROW rdata;
   ulong *rlen;
@@ -3656,10 +3658,6 @@ int ha_federatedx::discover_assisted(handlerton *hton, THD* thd,
     goto err2;
 
   query.copy(rdata[1], rlen[1], cs);
-  cut_offset= (int)query.length() - (int)cut_clause.length;
-  if (cut_offset > 0 && !memcmp(query.ptr() + cut_offset,
-                                cut_clause.str, cut_clause.length))
-    query.length(cut_offset);
   query.append(STRING_WITH_LEN(" CONNECTION='"), cs);
   query.append_for_single_quote(table_s->connect_string.str,
                                 table_s->connect_string.length);

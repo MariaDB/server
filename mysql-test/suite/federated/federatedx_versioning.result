@@ -9,9 +9,10 @@ show create table tf;
 Table	Create Table
 tf	CREATE TABLE `tf` (
   `x` int(11) DEFAULT NULL,
-  `row_start` SYS_TYPE NOT NULL INVISIBLE DEFAULT 0,
-  `row_end` SYS_TYPE NOT NULL INVISIBLE DEFAULT 0
-) ENGINE=FEDERATED DEFAULT CHARSET=latin1 CONNECTION='mysql://root@127.0.0.1:MASTER_MYPORT/test/t1'
+  `row_start` SYS_TYPE GENERATED ALWAYS AS ROW START INVISIBLE,
+  `row_end` SYS_TYPE GENERATED ALWAYS AS ROW END INVISIBLE,
+  PERIOD FOR SYSTEM_TIME (`row_start`, `row_end`)
+) ENGINE=FEDERATED DEFAULT CHARSET=latin1 CONNECTION='mysql://root@127.0.0.1:MASTER_MYPORT/test/t1' WITH SYSTEM VERSIONING
 # INSERT
 insert into t1 values (1);
 select * from tf;
@@ -50,7 +51,7 @@ x
 # and not covered by tests
 # As of standard, TRUNCATE on versioned tables is forbidden
 truncate tf;
-ERROR HY000: Got error 10000 'Error on remote system: 4137: System-versioned tables do not support TRUNCATE TABLE' from FEDERATED
+ERROR HY000: System-versioned tables do not support TRUNCATE TABLE
 delete history from t1;
 select * from t1 for system_time all;
 x
