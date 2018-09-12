@@ -548,3 +548,27 @@ DROP TABLE nonexisting_table, t1;
 ERROR 42S02: Unknown table 'temp_db.nonexisting_table'
 # Cleanup
 DROP DATABASE temp_db;
+USE test;
+#
+# MDEV-17167 - InnoDB: Failing assertion: table->get_ref_count() == 0
+#              upon truncating a temporary table
+#
+CREATE TEMPORARY TABLE t1(a INT) ENGINE=InnoDB;
+SELECT * FROM t1 AS t1a1, t1 AS t2a2;
+a	a
+TRUNCATE TABLE t1;
+LOCK TABLES t1 WRITE;
+TRUNCATE TABLE t1;
+SELECT * FROM t1;
+a
+UNLOCK TABLES;
+LOCK TABLES t1 AS t1a1 WRITE, t1 AS t1a2 WRITE;
+TRUNCATE TABLE t1;
+SELECT * FROM t1 AS t1a1, t1 AS t1a2;
+a	a
+UNLOCK TABLES;
+CREATE TABLE t2(a INT) ENGINE=InnoDB;
+LOCK TABLES t2 WRITE;
+TRUNCATE TABLE t1;
+UNLOCK TABLES;
+DROP TABLE t1, t2;
