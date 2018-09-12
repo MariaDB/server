@@ -771,6 +771,29 @@ public:
   Time(int *warn, const my_decimal *d)
    :Temporal(Time(warn, Sec6(d), Options()))
   { }
+
+  Time(int *warn, const MYSQL_TIME *from, long curdays, uint dec)
+   :Temporal(Time(warn, from, curdays))
+  {
+    trunc(dec);
+  }
+  Time(MYSQL_TIME_STATUS *status, const char *str, size_t len, CHARSET_INFO *cs,
+       const Options &opt, uint dec)
+   :Temporal(Time(status, str, len, cs, opt))
+  {
+    trunc(dec);
+  }
+  Time(int *warn, double nr, uint dec)
+   :Temporal(Time(warn, nr))
+  {
+    trunc(dec);
+  }
+  Time(int *warn, const my_decimal *d, uint dec)
+   :Temporal(Time(warn, d))
+  {
+    trunc(dec);
+  }
+
   static sql_mode_t flags_for_get_date()
   { return TIME_TIME_ONLY | TIME_INVALID_DATES; }
   static sql_mode_t comparison_flags_for_get_date()
@@ -846,11 +869,12 @@ public:
   {
     return is_valid_time() ? Temporal::to_packed() : 0;
   }
-  Time trunc(uint dec) const
+  Time &trunc(uint dec)
   {
-    Time tm(*this);
-    my_time_trunc(&tm, dec);
-    return tm;
+    if (is_valid_time())
+      my_time_trunc(this, dec);
+    DBUG_ASSERT(is_valid_value_slow());
+    return *this;
   }
 };
 
@@ -1101,6 +1125,30 @@ public:
     DBUG_ASSERT(is_valid_value_slow());
   }
 
+  Datetime(MYSQL_TIME_STATUS *status,
+           const char *str, size_t len, CHARSET_INFO *cs,
+           sql_mode_t fuzzydate, uint dec)
+   :Temporal_with_date(Datetime(status, str, len, cs, fuzzydate))
+  {
+    trunc(dec);
+  }
+  Datetime(int *warn, double nr, sql_mode_t fuzzydate, uint dec)
+   :Temporal_with_date(Datetime(warn, nr, fuzzydate))
+  {
+    trunc(dec);
+  }
+  Datetime(int *warn, const my_decimal *d, sql_mode_t fuzzydate, uint dec)
+   :Temporal_with_date(Datetime(warn, d, fuzzydate))
+  {
+    trunc(dec);
+  }
+  Datetime(THD *thd, int *warn, const MYSQL_TIME *from,
+           sql_mode_t fuzzydate, uint dec)
+   :Temporal_with_date(Datetime(thd, warn, from, fuzzydate))
+  {
+    trunc(dec);
+  }
+
   bool is_valid_datetime() const
   {
     /*
@@ -1173,11 +1221,12 @@ public:
   {
     return is_valid_datetime() ? Temporal::to_packed() : 0;
   }
-  Datetime trunc(uint dec) const
+  Datetime &trunc(uint dec)
   {
-    Datetime tm(*this);
-    my_time_trunc(&tm, dec);
-    return tm;
+    if (is_valid_datetime())
+      my_time_trunc(this, dec);
+    DBUG_ASSERT(is_valid_value_slow());
+    return *this;
   }
 };
 

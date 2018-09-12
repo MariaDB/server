@@ -5058,8 +5058,9 @@ int Field_timestamp::store_TIME_with_warning(THD *thd, const Datetime *dt,
     return 1; // date was fine but pointed to a DST gap
   }
 
-  // Adjust and store the value
-  store_TIMEVAL(Timeval(timestamp, l_time->second_part).trunc(decimals()));
+  // Store the value
+  DBUG_ASSERT(!dt->fraction_remainder(decimals()));
+  store_TIMEVAL(Timeval(timestamp, l_time->second_part));
 
   // Calculate return value and send warnings if needed
   if (unlikely(conversion_error)) // e.g. DATETIME in the DST gap
@@ -5084,7 +5085,7 @@ int Field_timestamp::store_time_dec(const MYSQL_TIME *ltime, uint dec)
   int warn;
   ErrConvTime str(ltime);
   THD *thd= get_thd();
-  Datetime dt(thd, &warn, ltime, sql_mode_for_timestamp(thd));
+  Datetime dt(thd, &warn, ltime, sql_mode_for_timestamp(thd), decimals());
   return store_TIME_with_warning(thd, &dt, &str, warn);
 }
 
@@ -5094,7 +5095,7 @@ int Field_timestamp::store(const char *from,size_t len,CHARSET_INFO *cs)
   ErrConvString str(from, len, cs);
   THD *thd= get_thd();
   MYSQL_TIME_STATUS st;
-  Datetime dt(&st, from, len, cs, sql_mode_for_timestamp(thd));
+  Datetime dt(&st, from, len, cs, sql_mode_for_timestamp(thd), decimals());
   return store_TIME_with_warning(thd, &dt, &str, st.warnings);
 }
 
@@ -5104,7 +5105,7 @@ int Field_timestamp::store(double nr)
   int error;
   ErrConvDouble str(nr);
   THD *thd= get_thd();
-  Datetime dt(&error, nr, sql_mode_for_timestamp(thd));
+  Datetime dt(&error, nr, sql_mode_for_timestamp(thd), decimals());
   return store_TIME_with_warning(thd, &dt, &str, error);
 }
 
@@ -5414,7 +5415,7 @@ int Field_timestamp::store_decimal(const my_decimal *d)
   int error;
   THD *thd= get_thd();
   ErrConvDecimal str(d);
-  Datetime dt(&error, d, sql_mode_for_timestamp(thd));
+  Datetime dt(&error, d, sql_mode_for_timestamp(thd), decimals());
   return store_TIME_with_warning(thd, &dt, &str, error);
 }
 
@@ -5556,20 +5557,11 @@ int Field_temporal_with_date::store_TIME_with_warning(const Datetime *dt,
     set_warnings(trunc_level, str, MYSQL_TIME_WARN_TRUNCATED, ts_type);
     return 1;
   }
-  // Adjust and store the value
-  if (ts_type == MYSQL_TIMESTAMP_DATE)
-  {
-    if (!dt->hhmmssff_is_zero())
-      was_cut|= MYSQL_TIME_NOTE_TRUNCATED;
-    store_TIME(dt->get_mysql_time());
-  }
-  else if (dt->fraction_remainder(decimals()))
-  {
-    Datetime truncated(dt->trunc(decimals()));
-    store_TIME(truncated.get_mysql_time());
-  }
-  else
-    store_TIME(dt->get_mysql_time());
+  // Store the value
+  DBUG_ASSERT(!dt->fraction_remainder(decimals()));
+  if (ts_type == MYSQL_TIMESTAMP_DATE && !dt->hhmmssff_is_zero())
+    was_cut|= MYSQL_TIME_NOTE_TRUNCATED;
+  store_TIME(dt->get_mysql_time());
   // Caclulate return value and send warnings if needed
   return store_TIME_return_code_with_warnings(was_cut, str, ts_type);
 }
@@ -5579,7 +5571,7 @@ int Field_temporal_with_date::store(const char *from, size_t len, CHARSET_INFO *
 {
   MYSQL_TIME_STATUS st;
   ErrConvString str(from, len, cs);
-  Datetime dt(&st, from, len, cs, sql_mode_for_dates(get_thd()));
+  Datetime dt(&st, from, len, cs, sql_mode_for_dates(get_thd()), decimals());
   return store_TIME_with_warning(&dt, &str, st.warnings);
 }
 
@@ -5587,7 +5579,7 @@ int Field_temporal_with_date::store(double nr)
 {
   int error;
   ErrConvDouble str(nr);
-  Datetime dt(&error, nr, sql_mode_for_dates(get_thd()));
+  Datetime dt(&error, nr, sql_mode_for_dates(get_thd()), decimals());
   return store_TIME_with_warning(&dt, &str, error);
 }
 
@@ -5605,7 +5597,7 @@ int Field_temporal_with_date::store_time_dec(const MYSQL_TIME *ltime, uint dec)
   int error;
   ErrConvTime str(ltime);
   THD *thd= get_thd();
-  Datetime dt(thd, &error, ltime, sql_mode_for_dates(thd));
+  Datetime dt(thd, &error, ltime, sql_mode_for_dates(thd), decimals());
   return store_TIME_with_warning(&dt, &str, error);
 }
 
@@ -5704,14 +5696,9 @@ int Field_time::store_TIME_with_warning(const Time *t,
     set_warnings(Sql_condition::WARN_LEVEL_WARN, str, MYSQL_TIME_WARN_TRUNCATED);
     return 1;
   }
-  // Adjust and store the value
-  if (t->fraction_remainder(decimals()))
-  {
-    Time truncated(t->trunc(decimals()));
-    store_TIME(truncated.get_mysql_time());
-  }
-  else
-    store_TIME(t->get_mysql_time());
+  // Store the value
+  DBUG_ASSERT(!t->fraction_remainder(decimals()));
+  store_TIME(t->get_mysql_time());
   // Calculate return value and send warnings if needed
   return store_TIME_return_code_with_warnings(warn, str, MYSQL_TIMESTAMP_TIME);
 }
@@ -5732,7 +5719,7 @@ int Field_time::store(const char *from,size_t len,CHARSET_INFO *cs)
 {
   ErrConvString str(from, len, cs);
   MYSQL_TIME_STATUS st;
-  Time tm(&st, from, len, cs, sql_mode_for_dates(get_thd()));
+  Time tm(&st, from, len, cs, sql_mode_for_dates(get_thd()), decimals());
   return store_TIME_with_warning(&tm, &str, st.warnings);
 }
 
@@ -5741,7 +5728,7 @@ int Field_time::store_time_dec(const MYSQL_TIME *ltime, uint dec)
 {
   ErrConvTime str(ltime);
   int warn;
-  Time tm(&warn, ltime, curdays);
+  Time tm(&warn, ltime, curdays, decimals());
   return store_TIME_with_warning(&tm, &str, warn);
 }
 
@@ -5750,7 +5737,7 @@ int Field_time::store(double nr)
 {
   ErrConvDouble str(nr);
   int was_cut;
-  Time tm(&was_cut, nr);
+  Time tm(&was_cut, nr, decimals());
   return store_TIME_with_warning(&tm, &str, was_cut);
 }
 
@@ -5917,7 +5904,7 @@ int Field_time::store_decimal(const my_decimal *d)
 {
   ErrConvDecimal str(d);
   int was_cut;
-  Time tm(&was_cut, d);
+  Time tm(&was_cut, d, decimals());
   return store_TIME_with_warning(&tm, &str, was_cut);
 }
 
@@ -6655,7 +6642,7 @@ int Field_temporal_with_date::store_decimal(const my_decimal *d)
 {
   int error;
   ErrConvDecimal str(d);
-  Datetime tm(&error, d, sql_mode_for_dates(get_thd()));
+  Datetime tm(&error, d, sql_mode_for_dates(get_thd()), decimals());
   return store_TIME_with_warning(&tm, &str, error);
 }
 
