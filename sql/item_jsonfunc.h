@@ -400,7 +400,7 @@ public:
 class Item_func_json_search: public Item_json_str_multipath
 {
 protected:
-  String tmp_js, esc_value;
+  String tmp_js, tmp_path, esc_value;
   bool mode_one;
   bool ooa_constant, ooa_parsed;
   int escape;

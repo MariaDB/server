@@ -3056,7 +3056,7 @@ static int append_json_path(String *str, const json_path_t *p)
 String *Item_func_json_search::val_str(String *str)
 {
   String *js= args[0]->val_json(&tmp_js);
-  String *s_str= args[2]->val_str(&tmp_js);
+  String *s_str= args[2]->val_str(&tmp_path);
   json_engine_t je;
   json_path_t p, sav_path;
   uint n_arg;
