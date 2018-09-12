@@ -1540,3 +1540,33 @@ void THD::unlock_temporary_tables()
   DBUG_VOID_RETURN;
 }
 
+
+/**
+  Close unused TABLE instances for given temporary table.
+
+  @param tl [IN]                      TABLE_LIST
+
+  Initial use case was TRUNCATE, which expects only one instance (which is used
+  by TRUNCATE itself) to be open. Most probably some ALTER TABLE variants and
+  REPAIR may have similar expectations.
+*/
+
+void THD::close_unused_temporary_table_instances(const TABLE_LIST *tl)
+{
+  TMP_TABLE_SHARE *share= find_tmp_table_share(tl);
+
+  if (share)
+  {
+    All_share_tables_list::Iterator tables_it(share->all_tmp_tables);
+
+     while (TABLE *table= tables_it++)
+     {
+       if (table->query_id == 0)
+       {
+         /* Note: removing current list element doesn't invalidate iterator. */
+         share->all_tmp_tables.remove(table);
+         free_temporary_table(table);
+       }
+     }
+  }
+}

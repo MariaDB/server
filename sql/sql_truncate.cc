@@ -401,6 +401,8 @@ bool Sql_cmd_truncate_table::truncate_table(THD *thd, TABLE_LIST *table_ref)
     /* In RBR, the statement is not binlogged if the table is temporary. */
     binlog_stmt= !thd->is_current_stmt_binlog_format_row();
 
+    thd->close_unused_temporary_table_instances(table_ref);
+
     error= handler_truncate(thd, table_ref, TRUE);
 
     /*
