@@ -5489,17 +5489,19 @@ uint Type_handler::Item_datetime_precision(Item *item) const
 uint Type_handler_string_result::Item_temporal_precision(Item *item,
                                                          bool is_time) const
 {
-  MYSQL_TIME ltime;
   StringBuffer<64> buf;
   String *tmp;
   MYSQL_TIME_STATUS status;
   DBUG_ASSERT(item->is_fixed());
   if ((tmp= item->val_str(&buf)) &&
-      !(is_time ?
-        str_to_time(tmp->charset(), tmp->ptr(), tmp->length(),
-                    &ltime, TIME_TIME_ONLY, &status) :
-        str_to_datetime(tmp->charset(), tmp->ptr(), tmp->length(),
-                        &ltime, TIME_FUZZY_DATES, &status)))
+      (is_time ?
+       Time(&status, tmp->ptr(), tmp->length(), tmp->charset(),
+            Time::Options(TIME_TIME_ONLY,
+                          Time::DATETIME_TO_TIME_YYYYMMDD_TRUNCATE)).
+         is_valid_time() :
+       Datetime(&status, tmp->ptr(), tmp->length(), tmp->charset(),
+                TIME_FUZZY_DATES).
+         is_valid_datetime()))
     return MY_MIN(status.precision, TIME_SECOND_PART_DIGITS);
   return MY_MIN(item->decimals, TIME_SECOND_PART_DIGITS);
 }
@@ -7208,7 +7210,7 @@ static bool have_important_literal_warnings(const MYSQL_TIME_STATUS *status)
 
 static void literal_warn(THD *thd, const Item *item,
                          const char *str, size_t length, CHARSET_INFO *cs,
-                         const MYSQL_TIME *ltime,
+                         timestamp_type time_type,
                          const MYSQL_TIME_STATUS *st,
                          const char *typestr, bool send_error)
 {
@@ -7219,7 +7221,7 @@ static void literal_warn(THD *thd, const Item *item,
       ErrConvString err(str, length, cs);
       make_truncated_value_warning(thd,
                                    Sql_condition::time_warn_level(st->warnings),
-                                   &err, ltime->time_type, 0);
+                                   &err, time_type, 0);
     }
   }
   else if (send_error)
@@ -7238,13 +7240,14 @@ Type_handler_date_common::create_literal_item(THD *thd,
                                               bool send_error) const
 {
   MYSQL_TIME_STATUS st;
-  MYSQL_TIME ltime;
   Item_literal *item= NULL;
-  sql_mode_t flags= sql_mode_for_dates(thd);
-  if (!str_to_datetime(cs, str, length, &ltime, flags, &st) &&
-      ltime.time_type == MYSQL_TIMESTAMP_DATE && !st.warnings)
-    item= new (thd->mem_root) Item_date_literal(thd, &ltime);
-  literal_warn(thd, item, str, length, cs, &ltime, &st, "DATE", send_error);
+  Temporal_hybrid tmp(&st, str, length, cs, sql_mode_for_dates(thd));
+  if (tmp.is_valid_temporal() &&
+      tmp.get_mysql_time()->time_type == MYSQL_TIMESTAMP_DATE &&
+      !have_important_literal_warnings(&st))
+    item= new (thd->mem_root) Item_date_literal(thd, tmp.get_mysql_time());
+  literal_warn(thd, item, str, length, cs, MYSQL_TIMESTAMP_DATE,
+               &st, "DATE", send_error);
   return item;
 }
 
@@ -7257,14 +7260,15 @@ Type_handler_temporal_with_date::create_literal_item(THD *thd,
                                                      bool send_error) const
 {
   MYSQL_TIME_STATUS st;
-  MYSQL_TIME ltime;
   Item_literal *item= NULL;
-  sql_mode_t flags= sql_mode_for_dates(thd);
-  if (!str_to_datetime(cs, str, length, &ltime, flags, &st) &&
-      ltime.time_type == MYSQL_TIMESTAMP_DATETIME &&
+  Temporal_hybrid tmp(&st, str, length, cs, sql_mode_for_dates(thd));
+  if (tmp.is_valid_temporal() &&
+      tmp.get_mysql_time()->time_type == MYSQL_TIMESTAMP_DATETIME &&
       !have_important_literal_warnings(&st))
-    item= new (thd->mem_root) Item_datetime_literal(thd, &ltime, st.precision);
-  literal_warn(thd, item, str, length, cs, &ltime, &st, "DATETIME", send_error);
+    item= new (thd->mem_root) Item_datetime_literal(thd, tmp.get_mysql_time(),
+                                                    st.precision);
+  literal_warn(thd, item, str, length, cs, MYSQL_TIMESTAMP_DATETIME,
+               &st, "DATETIME", send_error);
   return item;
 }
 
@@ -7277,12 +7281,14 @@ Type_handler_time_common::create_literal_item(THD *thd,
                                               bool send_error) const
 {
   MYSQL_TIME_STATUS st;
-  MYSQL_TIME ltime;
   Item_literal *item= NULL;
-  if (!str_to_time(cs, str, length, &ltime, 0, &st) &&
-      ltime.time_type == MYSQL_TIMESTAMP_TIME &&
+  Time::Options opt(TIME_TIME_ONLY, Time::DATETIME_TO_TIME_DISALLOW);
+  Time tmp(&st, str, length, cs, opt);
+  if (tmp.is_valid_time() &&
       !have_important_literal_warnings(&st))
-    item= new (thd->mem_root) Item_time_literal(thd, &ltime, st.precision);
-  literal_warn(thd, item, str, length, cs, &ltime, &st, "TIME", send_error);
+    item= new (thd->mem_root) Item_time_literal(thd, tmp.get_mysql_time(),
+                                                st.precision);
+  literal_warn(thd, item, str, length, cs, MYSQL_TIMESTAMP_TIME,
+               &st, "TIME", send_error);
   return item;
 }

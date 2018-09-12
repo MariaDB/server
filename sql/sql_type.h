@@ -446,12 +446,13 @@ public:
 
 class Temporal: protected MYSQL_TIME
 {
-protected:
+public:
   bool is_valid_temporal() const
   {
     DBUG_ASSERT(time_type != MYSQL_TIMESTAMP_ERROR);
     return time_type != MYSQL_TIMESTAMP_NONE;
   }
+protected:
   my_decimal *bad_to_decimal(my_decimal *to) const;
   my_decimal *to_decimal(my_decimal *to) const;
   static double to_double(bool negate, ulonglong num, ulong frac)
@@ -465,6 +466,10 @@ protected:
     *warn= MYSQL_TIME_WARN_OUT_OF_RANGE;
     time_type= MYSQL_TIMESTAMP_NONE;
   }
+  bool str_to_time(MYSQL_TIME_STATUS *st, const char *str, size_t length,
+                   CHARSET_INFO *cs, sql_mode_t fuzzydate);
+  bool str_to_datetime(MYSQL_TIME_STATUS *st, const char *str, size_t length,
+                       CHARSET_INFO *cs, sql_mode_t fuzzydate);
 public:
   long fraction_remainder(uint dec) const
   {
@@ -483,6 +488,12 @@ class Temporal_hybrid: public Temporal
 public:
   Temporal_hybrid(THD *thd, Item *item);
   Temporal_hybrid(Item *item) { *this= Temporal_hybrid(current_thd, item); }
+  Temporal_hybrid(MYSQL_TIME_STATUS *st, const char *str, size_t length,
+                  CHARSET_INFO *cs, sql_mode_t fuzzydate)
+  {
+    if (str_to_datetime(st, str, length, cs, fuzzydate))
+      time_type= MYSQL_TIMESTAMP_NONE;
+  }
   longlong to_longlong() const
   {
     if (!is_valid_temporal())
@@ -506,6 +517,11 @@ public:
     if (!str->alloc(MAX_DATE_STRING_REP_LENGTH))
       str->length(my_TIME_to_str(this, const_cast<char*>(str->ptr()), dec));
     return str;
+  }
+  const MYSQL_TIME *get_mysql_time() const
+  {
+    DBUG_ASSERT(is_valid_temporal());
+    return this;
   }
 };
 
@@ -533,6 +549,7 @@ class Time: public Temporal
 public:
   enum datetime_to_time_mode_t
   {
+    DATETIME_TO_TIME_DISALLOW,
     DATETIME_TO_TIME_YYYYMMDD_000000DD_MIX_TO_HOURS,
     DATETIME_TO_TIME_YYYYMMDD_TRUNCATE,
     DATETIME_TO_TIME_YYYYMMDD_00000000_ONLY,
@@ -674,6 +691,8 @@ private:
           DATETIME_TO_TIME_YYYYMMDD_00000000_ONLY &&
           (year || month || day))
         make_from_out_of_range(warn);
+      else if (opt.datetime_to_time_mode() == DATETIME_TO_TIME_DISALLOW)
+        make_from_out_of_range(warn);
       else
         valid_datetime_to_valid_time(warn, opt);
       break;
@@ -729,15 +748,13 @@ public:
     make_from_item(&warn, item, opt);
   }
   Time(int *warn, const MYSQL_TIME *from, long curdays);
-  Time(int *warn, const char *str, size_t len, CHARSET_INFO *cs,
+  Time(MYSQL_TIME_STATUS *status, const char *str, size_t len, CHARSET_INFO *cs,
        const Options opt)
   {
-    MYSQL_TIME_STATUS status;
-    if (str_to_time(cs, str, len, this, opt.get_date_flags(), &status))
+    if (str_to_time(status, str, len, cs, opt.get_date_flags()))
       time_type= MYSQL_TIMESTAMP_NONE;
     // The below call will optionally add notes to already collected warnings:
-    xxx_to_time_result_to_valid_value(&status.warnings, opt);
-    *warn= status.warnings;
+    xxx_to_time_result_to_valid_value(&status->warnings, opt);
   }
   Time(int *warn, const Sec6 &nr, const Options opt)
   {
@@ -885,14 +902,13 @@ protected:
     if (nr.to_datetime(this, flags, warn))
       time_type= MYSQL_TIMESTAMP_NONE;
   }
-  Temporal_with_date(int *warn, const char *str, size_t len, CHARSET_INFO *cs,
+  Temporal_with_date(MYSQL_TIME_STATUS *status,
+                     const char *str, size_t len, CHARSET_INFO *cs,
                      sql_mode_t flags)
   {
     DBUG_ASSERT((flags & TIME_TIME_ONLY) == 0);
-    MYSQL_TIME_STATUS status;
-    if (str_to_datetime(cs, str, len, this, flags, &status))
+    if (str_to_datetime(status, str, len, cs, flags))
       time_type= MYSQL_TIMESTAMP_NONE;
-    *warn= status.warnings;
   }
 public:
   bool check_date_with_warn(ulonglong flags)
@@ -1051,9 +1067,10 @@ public:
   {
     set_zero_time(this, MYSQL_TIMESTAMP_DATETIME);
   }
-  Datetime(int *warn, const char *str, size_t len, CHARSET_INFO *cs,
+  Datetime(MYSQL_TIME_STATUS *status,
+           const char *str, size_t len, CHARSET_INFO *cs,
            sql_mode_t flags)
-   :Temporal_with_date(warn, str, len, cs, flags)
+   :Temporal_with_date(status, str, len, cs, flags)
   {
     date_to_datetime_if_needed();
     DBUG_ASSERT(is_valid_value_slow());

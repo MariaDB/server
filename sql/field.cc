@@ -5093,9 +5093,9 @@ int Field_timestamp::store(const char *from,size_t len,CHARSET_INFO *cs)
 {
   ErrConvString str(from, len, cs);
   THD *thd= get_thd();
-  int error;
-  Datetime dt(&error, from, len, cs, sql_mode_for_timestamp(thd));
-  return store_TIME_with_warning(thd, &dt, &str, error);
+  MYSQL_TIME_STATUS st;
+  Datetime dt(&st, from, len, cs, sql_mode_for_timestamp(thd));
+  return store_TIME_with_warning(thd, &dt, &str, st.warnings);
 }
 
 
@@ -5577,10 +5577,10 @@ int Field_temporal_with_date::store_TIME_with_warning(const Datetime *dt,
 
 int Field_temporal_with_date::store(const char *from, size_t len, CHARSET_INFO *cs)
 {
-  int error;
+  MYSQL_TIME_STATUS st;
   ErrConvString str(from, len, cs);
-  Datetime dt(&error, from, len, cs, sql_mode_for_dates(get_thd()));
-  return store_TIME_with_warning(&dt, &str, error);
+  Datetime dt(&st, from, len, cs, sql_mode_for_dates(get_thd()));
+  return store_TIME_with_warning(&dt, &str, st.warnings);
 }
 
 int Field_temporal_with_date::store(double nr)
@@ -5731,9 +5731,9 @@ void Field_time::store_TIME(const MYSQL_TIME *ltime)
 int Field_time::store(const char *from,size_t len,CHARSET_INFO *cs)
 {
   ErrConvString str(from, len, cs);
-  int error;
-  Time tm(&error, from, len, cs, sql_mode_for_dates(get_thd()));
-  return store_TIME_with_warning(&tm, &str, error);
+  MYSQL_TIME_STATUS st;
+  Time tm(&st, from, len, cs, sql_mode_for_dates(get_thd()));
+  return store_TIME_with_warning(&tm, &str, st.warnings);
 }
 
 

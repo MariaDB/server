@@ -351,33 +351,43 @@ to_ascii(CHARSET_INFO *cs,
 }
 
 
-/* Character set-aware version of str_to_time() */
-bool
-str_to_time(CHARSET_INFO *cs, const char *str, size_t length,
-            MYSQL_TIME *l_time, ulonglong fuzzydate, MYSQL_TIME_STATUS *status)
+class TemporalAsciiBuffer: public LEX_CSTRING
 {
   char cnv[32];
-  if ((cs->state & MY_CS_NONASCII) != 0)
+public:
+  TemporalAsciiBuffer(const char *str, size_t length, CHARSET_INFO *cs)
   {
-    length= to_ascii(cs, str, length, cnv, sizeof(cnv));
-    str= cnv;
+    if ((cs->state & MY_CS_NONASCII) != 0)
+    {
+      LEX_CSTRING::str= cnv;
+      LEX_CSTRING::length= to_ascii(cs, str, length, cnv, sizeof(cnv));
+    }
+    else
+    {
+      LEX_CSTRING::str= str;
+      LEX_CSTRING::length= length;
+    }
   }
-  return str_to_time(str, length, l_time, fuzzydate, status);
+};
+
+
+/* Character set-aware version of str_to_time() */
+bool Temporal::str_to_time(MYSQL_TIME_STATUS *status,
+                           const char *str, size_t length, CHARSET_INFO *cs,
+                           sql_mode_t fuzzydate)
+{
+  TemporalAsciiBuffer tmp(str, length, cs);
+  return ::str_to_time(tmp.str, tmp.length, this, fuzzydate, status);
 }
 
 
 /* Character set-aware version of str_to_datetime() */
-bool str_to_datetime(CHARSET_INFO *cs, const char *str, size_t length,
-                     MYSQL_TIME *l_time, ulonglong flags,
-                     MYSQL_TIME_STATUS *status)
+bool Temporal::str_to_datetime(MYSQL_TIME_STATUS *status,
+                               const char *str, size_t length, CHARSET_INFO *cs,
+                               sql_mode_t flags)
 {
-  char cnv[32];
-  if ((cs->state & MY_CS_NONASCII) != 0)
-  {
-    length= to_ascii(cs, str, length, cnv, sizeof(cnv));
-    str= cnv;
-  }
-  return str_to_datetime(str, length, l_time, flags, status);
+  TemporalAsciiBuffer tmp(str, length, cs);
+  return ::str_to_datetime(tmp.str, tmp.length, this, flags, status);
 }
 
 
@@ -396,7 +406,8 @@ str_to_datetime_with_warn(CHARSET_INFO *cs,
 {
   MYSQL_TIME_STATUS status;
   THD *thd= current_thd;
-  bool ret_val= str_to_datetime(cs, str, length, l_time, flags, &status);
+  TemporalAsciiBuffer tmp(str, length, cs);
+  bool ret_val= str_to_datetime(tmp.str, tmp.length, l_time, flags, &status);
   if (ret_val || status.warnings)
   {
     const ErrConvString err(str, length, &my_charset_bin);
