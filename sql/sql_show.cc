@@ -2406,7 +2406,7 @@ int show_create_table(THD *thd, TABLE_LIST *table_list, String *packet,
                           hton->index_options);
   }
 
-  if (table->versioned())
+  if (table->s->versioned)
   {
     const Field *fs = table->vers_start_field();
     const Field *fe = table->vers_end_field();
@@ -2477,7 +2477,7 @@ int show_create_table(THD *thd, TABLE_LIST *table_list, String *packet,
     add_table_options(thd, table, create_info_arg,
                       table_list->schema_table != 0, 0, packet);
 
-  if (table->versioned())
+  if (table->s->versioned)
     packet->append(STRING_WITH_LEN(" WITH SYSTEM VERSIONING"));
 
 #ifdef WITH_PARTITION_STORAGE_ENGINE

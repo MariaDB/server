@@ -1557,6 +1557,8 @@ public:
   bool versioned() const
   {
     DBUG_ASSERT(s);
+    if (s->db_type()->db_type == DB_TYPE_FEDERATED_DB)
+      return false;
     return s->versioned;
   }
 
@@ -1564,12 +1566,13 @@ public:
   {
     DBUG_ASSERT(s);
     DBUG_ASSERT(type);
+    if (s->db_type()->db_type == DB_TYPE_FEDERATED_DB)
+      return false;
     return s->versioned == type;
   }
 
   bool versioned_write(vers_sys_type_t type= VERS_UNDEFINED) const
   {
-    DBUG_ASSERT(versioned() || !vers_write);
     return versioned(type) ? vers_write : false;
   }
 

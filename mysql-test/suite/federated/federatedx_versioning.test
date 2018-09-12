@@ -35,7 +35,7 @@ select * from tf;
 --echo # MDEV-15966: Behavior for TRUNCATE versioned table is not documented
 --echo # and not covered by tests
 --echo # As of standard, TRUNCATE on versioned tables is forbidden
---error ER_GET_ERRMSG
+--error ER_VERS_NOT_SUPPORTED
 truncate tf;
 
 delete history from t1;
