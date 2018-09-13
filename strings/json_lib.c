@@ -1197,10 +1197,6 @@ int json_skip_to_level(json_engine_t *j, int level)
 }
 
 
-#define json_skip_level(json_engine) \
-  json_skip_to_level((json_engine), (json_engine)->stack_p)
-
-
 /*
   works as json_skip_level() but also counts items on the current
   level skipped.

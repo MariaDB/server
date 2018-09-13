@@ -804,3 +804,9 @@ SELECT JSON_SEARCH(@`json`, 'one', @`value`);
 JSON_SEARCH(@`json`, 'one', @`value`)
 "$[2].C"
 SET @`json` := NULL, @`value` := NULL;
+#
+# MDEV-17001 JSON_MERGE returns nullwhen merging empty array.
+#
+SELECT JSON_MERGE('[1]', '[]');
+JSON_MERGE('[1]', '[]')
+[1]

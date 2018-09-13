@@ -463,3 +463,8 @@ SET @`json` := '["A", [{"B": "1"}], {"C": "AB"}, {"D": "BC"}]', @`value` := 'AB'
 SELECT JSON_SEARCH(@`json`, 'one', @`value`);
 SET @`json` := NULL, @`value` := NULL;
 
+--echo #
+--echo # MDEV-17001 JSON_MERGE returns nullwhen merging empty array.
+--echo #
+
+SELECT JSON_MERGE('[1]', '[]');
