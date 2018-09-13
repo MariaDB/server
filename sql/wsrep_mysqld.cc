@@ -1007,9 +1007,6 @@ bool wsrep_start_replication()
   int rcode;
   WSREP_DEBUG("wsrep_start_replication");
 
-  /* wsrep provider must be loaded. */
-  DBUG_ASSERT(wsrep);
-
   /*
     if provider is trivial, don't even try to connect,
     but resume local node operation
@@ -2769,7 +2766,7 @@ int wsrep_ordered_commit_if_no_binlog(THD* thd, bool all)
       && wsrep_thd_trx_seqno(thd) > 0)
   {
     wsrep_apply_error unused;
-    return wsrep_ordered_commit(thd, all, unused);
+    //return wsrep_ordered_commit(thd, all, unused);
   }
   return 0;
 }

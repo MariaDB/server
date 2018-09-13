@@ -257,8 +257,6 @@ end:
 
 static bool refresh_provider_options()
 {
-  DBUG_ASSERT(wsrep);
-
   WSREP_DEBUG("refresh_provider_options: %s", 
               (wsrep_provider_options) ? wsrep_provider_options : "null");
 
@@ -628,7 +626,6 @@ bool wsrep_desync_check (sys_var *self, THD* thd, set_var* var)
 
 bool wsrep_desync_update (sys_var *self, THD* thd, enum_var_type type)
 {
-  DBUG_ASSERT(wsrep);
   return false;
 }
 
@@ -683,8 +680,6 @@ bool wsrep_trx_fragment_size_update(sys_var* self, THD *thd, enum_var_type)
 
 bool wsrep_max_ws_size_update (sys_var *self, THD *thd, enum_var_type)
 {
-  DBUG_ASSERT(wsrep);
-
   char max_ws_size_opt[128];
   my_snprintf(max_ws_size_opt, sizeof(max_ws_size_opt),
               "repl.max_ws_size=%d", wsrep_max_ws_size);

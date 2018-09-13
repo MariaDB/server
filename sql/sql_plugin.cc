@@ -2839,7 +2839,6 @@ sys_var *find_sys_var_ex(THD *thd, const char *str, size_t length,
   plugin_ref plugin;
   DBUG_ENTER("find_sys_var_ex");
   DBUG_PRINT("enter", ("var '%.*s'", (int)length, str));
-
   if (!locked)
     mysql_mutex_lock(&LOCK_plugin);
   mysql_prlock_rdlock(&LOCK_system_variables_hash);

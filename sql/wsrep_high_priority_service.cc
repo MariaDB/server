@@ -180,6 +180,11 @@ Wsrep_high_priority_service::~Wsrep_high_priority_service()
   LEX_CSTRING db_str= { m_shadow.db, m_shadow.db_length };
   thd->reset_db(&db_str);
   thd->user_time              = m_shadow.user_time;
+  
+  delete thd->system_thread_info.rpl_sql_info;
+  delete thd->wsrep_rgi->rli->mi;
+  delete thd->wsrep_rgi->rli;
+  
   thd->set_row_count_func(m_shadow.row_count_func);
   thd->wsrep_applier          = m_shadow.wsrep_applier;
   delete m_rli;
@@ -541,7 +546,7 @@ Wsrep_replayer_service::Wsrep_replayer_service(THD* thd)
   DBUG_ASSERT(!thd->get_stmt_da()->is_sent());
   /* PS reprepare observer should have been removed already
      open_table() will fail if we have dangling observer here */
-  DBUG_ASSERT(!thd->get_reprepare_observer());
+  DBUG_ASSERT(!thd->m_reprepare_observer);
   /* Replaying should happen always from after_statement() hook
      after rollback, which should guarantee that there are no
      transactional locks */

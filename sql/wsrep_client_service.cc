@@ -38,7 +38,7 @@ namespace
 void debug_sync_caller(THD* thd, const char* sync_point)
 {
 #ifdef ENABLED_DEBUG_SYNC
-  debug_sync(thd, sync_point, strlen(sync_point));
+  debug_sync_set_action(thd, sync_point, strlen(sync_point));
 #endif
 }
 }

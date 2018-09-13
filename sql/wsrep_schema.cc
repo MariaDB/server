@@ -1090,7 +1090,7 @@ int Wsrep_schema::replay_transaction(THD* thd,
                                      const wsrep::ws_meta& ws_meta,
                                      const std::vector<wsrep::seqno>& fragments)
 {
-  DBUG_ENTER("Wsrep_schem::replay_transaction");
+  DBUG_ENTER("Wsrep_schema::replay_transaction");
   DBUG_ASSERT(!fragments.empty());
 
   Wsrep_schema_impl::wsrep_off  wsrep_off(thd);

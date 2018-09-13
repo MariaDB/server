@@ -1353,6 +1353,7 @@ void THD::init(bool skip_lock)
   wsrep_skip_locking= FALSE;
   wsrep_converted_lock_session= false;
   wsrep_retry_counter= 0;
+  wsrep_rgi= NULL;
   wsrep_PA_safe= true;
   wsrep_consistency_check = NO_CONSISTENCY_CHECK;
   wsrep_mysql_replicated  = 0;

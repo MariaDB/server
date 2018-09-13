@@ -79,6 +79,8 @@ wsrep_get_apply_format(THD* thd)
     return (Format_description_log_event*) thd->wsrep_apply_format;
   }
 
+  DBUG_ASSERT(thd->wsrep_rgi);
+
   return thd->wsrep_rgi->rli->relay_log.description_event_for_exec;
 }
 
@@ -209,7 +211,7 @@ int wsrep_apply_events(THD*        thd,
     }
     event++;
 
-    delete ev;
+    delete_or_keep_event_post_apply(thd->wsrep_rgi, typ, ev);
   }
 
 error:
@@ -218,123 +220,3 @@ error:
 
   DBUG_RETURN(rcode);
 }
-
-#if 0
-static void wsrep_apply_non_blocking(THD* thd, void* args)
-{
-  /* Go to BF mode */
-  wsrep_thd_shadow shadow;
-  wsrep_prepare_bf_thd(thd, &shadow);
-
-  Wsrep_nbo_ctx* nbo_ctx= (Wsrep_nbo_ctx*) args;
-
-  DBUG_ASSERT(nbo_ctx);
-
-  /*
-    Record context for synchronizing with applier thread once
-    MDL locks have been aquired.
-  */
-  thd->wsrep_nbo_ctx= nbo_ctx;
-
-  /* Must be applier thread */
-  assert(thd->wsrep_exec_mode == REPL_RECV);
-
-  /* Set OSU method for non blocking */
-  thd->variables.wsrep_OSU_method= WSREP_OSU_NBO;
-
-  /*
-    First apply TOI action as usual, wsrep_ptr->to_execute_start() will
-    be called at stmt commit. Applying is always assumed to succeed here.
-    Non-blocking operation end is supposed to sync the end result with
-    group and abort if the result does not match.
-  */
-  wsrep_apply_error err;
-  if (wsrep_apply_toi(thd, nbo_ctx->buf(), nbo_ctx->buf_len(), nbo_ctx->flags(),
-                      &nbo_ctx->meta(), err) != WSREP_CB_SUCCESS)
-  {
-    WSREP_DEBUG("Applying NBO failed");
-  }
-
-  /*
-    Applying did not cause action to signal slave thread. Wake up
-    the slave before exit.
-  */
-  if (!thd->wsrep_nbo_ctx->ready()) thd->wsrep_nbo_ctx->signal();
-
-  /* Non-blocking operation end. No need to take action on error here,
-     it is handled by provider. */
-  wsrep_buf_t const err_buf= err.get_buf();
-  if (thd->wsrep_trx_meta.gtid.seqno != WSREP_SEQNO_UNDEFINED &&
-      wsrep_ptr->to_execute_end(wsrep_ptr,
-                                thd->thread_id, &err_buf) != WSREP_OK)
-  {
-    WSREP_WARN("Non-blocking operation end failed");
-  }
-
-  if (wsrep_ptr->free_connection(wsrep_ptr, thd->thread_id) != WSREP_OK)
-  {
-    WSREP_WARN("Failed to free connection: %llu",
-               (long long unsigned)thd->thread_id);
-  }
-
-  thd->wsrep_nbo_ctx= NULL;
-  delete nbo_ctx;
-
-  /* Return from BF mode before syncing with group */
-  wsrep_return_from_bf_mode(thd, &shadow);
-}
-
-static int start_nbo_thd(const void*             const buf,
-                         size_t                  const buf_len,
-                         uint32_t                const flags,
-                         const wsrep_trx_meta_t* const meta)
-{
-  int rcode= WSREP_RET_SUCCESS;
-
-  // Non-blocking operation start
-  Wsrep_nbo_ctx* nbo_ctx= 0;
-  Wsrep_thd_args* args= 0;
-  try
-  {
-    nbo_ctx= new Wsrep_nbo_ctx(buf, buf_len, flags, *meta);
-    args= new Wsrep_thd_args(wsrep_apply_non_blocking, nbo_ctx);
-    pthread_t th;
-    int err;
-    int max_tries= 1000;
-    while ((err= pthread_create(&th, &connection_attrib, start_wsrep_THD,
-                                args)) == EAGAIN)
-    {
-      --max_tries;
-      if (max_tries == 0)
-      {
-        delete nbo_ctx;
-        delete args;
-        WSREP_ERROR("Failed to create thread for non-blocking operation: %d",
-                    err);
-        return WSREP_ERR_FAILED;
-      }
-      else
-      {
-        usleep(1000);
-      }
-    }
-
-    // Detach thread and wait until worker signals that it has locked
-    // required resources.
-    pthread_detach(th);
-    nbo_ctx->wait_sync();
-    // nbo_ctx will be deleted by worker thread
-  }
-  catch (...)
-  {
-    delete nbo_ctx;
-    delete args;
-    WSREP_ERROR("Caught exception while trying to create thread for "
-                "non-blocking operation");
-    rcode= WSREP_ERR_FAILED;
-  }
-
-  return rcode;
-}
-
-#endif

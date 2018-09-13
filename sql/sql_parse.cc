@@ -1822,7 +1822,7 @@ bool dispatch_command(enum enum_server_command command, THD *thd,
         thd->mysys_var->abort     = 0;
         thd->wsrep_retry_counter  = 0;
         mysql_mutex_unlock(&thd->LOCK_thd_data);
-#ifdef WSREP_TODOa
+#ifdef WSREP_TODO
         /*
           Increment threads running to compensate dec_thread_running() called
           after dispatch_end label.
@@ -2395,6 +2395,27 @@ com_multi_end:
                          wsrep_current_error_status(thd));
     WSREP_LOG_THD(thd, "leave");
   }
+  if (WSREP(thd))
+  {
+    /*
+      MDEV-10812
+      In the case of COM_QUIT/COM_STMT_CLOSE thread status should be disabled.
+    */
+    DBUG_ASSERT((command != COM_QUIT && command != COM_STMT_CLOSE)
+                  || thd->get_stmt_da()->is_disabled());
+    /* wsrep BF abort in query exec phase */
+    mysql_mutex_lock(&thd->LOCK_thd_data);
+    do_end_of_statement=
+      thd->wsrep_trx().state() != wsrep::transaction::s_replaying;
+#ifdef TODO
+            thd->wsrep_conflict_state != REPLAYING &&
+	    thd->wsrep_conflict_state != RETRY_AUTOCOMMIT;
+#endif
+    mysql_mutex_unlock(&thd->LOCK_thd_data);
+  }
+  else
+    do_end_of_statement= true;
+
 #endif /* WITH_WSREP */
 
   if (do_end_of_statement)
@@ -2403,8 +2424,14 @@ com_multi_end:
                (thd->open_tables == NULL ||
                (thd->locked_tables_mode == LTM_LOCK_TABLES)));
 
+    thd_proc_info(thd, "Updating status");
     /* Finalize server status flags after executing a command. */
     thd->update_server_status();
+    if (command != COM_MULTI)
+    {
+      thd->protocol->end_statement();
+      query_cache_end_of_result(thd);
+    }
   }
  
   if (likely(!thd->is_error() && !thd->killed_errno()))
@@ -3710,7 +3737,8 @@ mysql_execute_command(THD *thd)
     implicit commit took care of committing previous transaction
     above and a new transaction should not be started.
    */
-  if (wsrep_thd_is_local(thd) &&
+  if (WSREP(thd)                       &&
+      wsrep_thd_is_local(thd)          &&
       lex->sql_command != SQLCOM_BEGIN &&
       !(sql_command_flags[lex->sql_command] & CF_AUTO_COMMIT_TRANS))
   {
@@ -3779,7 +3807,6 @@ mysql_execute_command(THD *thd)
   case SQLCOM_SELECT:
    {
 #ifdef WITH_WSREP
-    DBUG_ASSERT(thd->wsrep_exec_mode != REPL_RECV);
     if (lex->sql_command == SQLCOM_SELECT)
     {
       WSREP_SYNC_WAIT(thd, WSREP_SYNC_WAIT_BEFORE_READ);

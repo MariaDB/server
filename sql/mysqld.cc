@@ -1848,8 +1848,10 @@ static void close_connections(void)
   end_slave();
 #ifdef WITH_WSREP
   if (wsrep_inited == 1)
+  {
     wsrep_deinit();
-  wsrep_deinit_server();
+    wsrep_deinit_server();
+  }
 #endif
   /* All threads has now been aborted */
   DBUG_PRINT("quit",("Waiting for threads to die (count=%u)",thread_count));
@@ -2042,10 +2044,12 @@ static void __cdecl kill_server(int sig_ptr)
 
   close_connections();
 
-  if (wsrep_inited == 1)
-    wsrep_deinit();
 #ifdef WITH_WSREP
-  wsrep_deinit_server();
+  if (wsrep_inited == 1)
+  {
+    wsrep_deinit();
+    wsrep_deinit_server();
+  }
 #endif
   if (sig != MYSQL_KILL_SIGNAL &&
       sig != 0)
@@ -2163,8 +2167,10 @@ extern "C" void unireg_abort(int exit_code)
 
     /* In bootstrap mode we deinitialize wsrep here. */
     if (opt_bootstrap && wsrep_inited)
+    {
       wsrep_deinit();
-    wsrep_deinit_server();
+      wsrep_deinit_server();
+    }
   }
 #endif // WITH_WSREP
 
@@ -2209,7 +2215,9 @@ static void mysqld_exit(int exit_code)
 #ifdef SAFEMALLOC
     sf_report_leaked_memory(0);
 #endif
+#ifdef TODO
     DBUG_SLOW_ASSERT(global_status_var.global_memory_used == 0);
+#endif
   }
   cleanup_tls();
   DBUG_LEAVE;
