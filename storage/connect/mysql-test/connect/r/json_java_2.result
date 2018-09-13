@@ -1,4 +1,3 @@
-SET GLOBAL connect_class_path='C:/MariaDB-10.2/MariaDB/storage/connect/mysql-test/connect/std_data/Mongo2.jar';
 set connect_enable_mongo=1;
 #
 # Test the MONGO table type
