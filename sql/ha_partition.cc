@@ -9131,6 +9131,56 @@ int ha_partition::check_for_upgrade(HA_CHECK_OPT *check_opt)
 }
 
 
+/**
+  Push an engine condition to the condition stack of the storage engine
+  for each partition.
+
+  @param  cond              Pointer to the engine condition to be pushed.
+
+  @return NULL              Underlying engine will not return rows that
+                            do not match the passed condition.
+          <> NULL           'Remainder' condition that the caller must use
+                            to filter out records.
+*/
+
+const COND *ha_partition::cond_push(const COND *cond)
+{
+  handler **file= m_file;
+  COND *res_cond= NULL;
+  DBUG_ENTER("ha_partition::cond_push");
+
+  do
+  {
+    if ((*file)->pushed_cond != cond)
+    {
+      if ((*file)->cond_push(cond))
+        res_cond= (COND *) cond;
+      else
+        (*file)->pushed_cond= cond;
+    }
+  } while (*(++file));
+  DBUG_RETURN(res_cond);
+}
+
+
+/**
+  Pop the top condition from the condition stack of the storage engine
+  for each partition.
+*/
+
+void ha_partition::cond_pop()
+{
+  handler **file= m_file;
+  DBUG_ENTER("ha_partition::cond_pop");
+
+  do
+  {
+    (*file)->cond_pop();
+  } while (*(++file));
+  DBUG_VOID_RETURN;
+}
+
+
 struct st_mysql_storage_engine partition_storage_engine=
 { MYSQL_HANDLERTON_INTERFACE_VERSION };
 
