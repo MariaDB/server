@@ -310,6 +310,8 @@ CREATE TABLE t1 (a INT);
 CREATE TRIGGER tr1_bi BEFORE INSERT ON t1 FOR EACH ROW SET @a:=1;
 CREATE TRIGGER tr2_bi BEFORE INSERT ON t1 FOR EACH ROW SET @a:=2;
 CREATE TRIGGER tr1_bu BEFORE UPDATE ON t1 FOR EACH ROW SET @a:=3;
+/*!40103 SET @OLD_TIME_ZONE      = @@time_zone */ ;
+/*!40103 SET time_zone             = '+00:00' */ ;
 /*!40101 SET @saved_cs_client     = @@character_set_client */;
 /*!40101 SET character_set_client = utf8 */;
 CREATE TABLE `t1` (
@@ -361,6 +363,7 @@ DELIMITER ;
 /*!50003 SET character_set_client  = @saved_cs_client */ ;
 /*!50003 SET character_set_results = @saved_cs_results */ ;
 /*!50003 SET collation_connection  = @saved_col_connection */ ;
+/*!40103 SET time_zone             = @OLD_TIME_ZONE */ ;
 DROP TABLE t1;
 #
 # Test 18. Check that table's triggers are dumped in right order
@@ -372,6 +375,8 @@ CREATE TRIGGER tr2_bi BEFORE INSERT ON t1 FOR EACH ROW SET @a:=2;
 CREATE TRIGGER tr0_bi BEFORE INSERT ON t1 FOR EACH ROW PRECEDES tr1_bi SET @a:=0;
 CREATE TRIGGER tr1_1_bi BEFORE INSERT ON t1 FOR EACH ROW FOLLOWS tr1_bi SET @a:=0;
 # Expected order of triggers in the dump is: tr0_bi, tr1_bi, tr1_1_bi, tr2_i.
+/*!40103 SET @OLD_TIME_ZONE      = @@time_zone */ ;
+/*!40103 SET time_zone             = '+00:00' */ ;
 /*!40101 SET @saved_cs_client     = @@character_set_client */;
 /*!40101 SET character_set_client = utf8 */;
 CREATE TABLE `t1` (
@@ -438,6 +443,7 @@ DELIMITER ;
 /*!50003 SET character_set_client  = @saved_cs_client */ ;
 /*!50003 SET character_set_results = @saved_cs_results */ ;
 /*!50003 SET collation_connection  = @saved_col_connection */ ;
+/*!40103 SET time_zone             = @OLD_TIME_ZONE */ ;
 DROP TABLE t1;
 #
 # Test 19. Check that table's triggers are dumped correctly in xml.

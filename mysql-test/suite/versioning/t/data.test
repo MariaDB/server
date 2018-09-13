@@ -1,0 +1,132 @@
+--source suite/versioning/common.inc
+create or replace table t1 (x int) with system versioning;
+insert into t1 values (1), (2);
+delete from t1 where x = 1;
+select row_start, row_end from t1 for system_time all where x = 1 into @s1, @e1;
+select row_start, row_end from t1 for system_time all where x = 2 into @s2, @e2;
+
+eval
+create or replace function check_fields(x int, row_start $sys_datatype_expl, row_end $sys_datatype_expl)
+    returns char(50) deterministic
+    return if (x = 1,
+              if (row_start = @s1 and row_end = @e1, '[CORRECT]', '[WRONG]'),
+              if (x = 2 and row_start = @s2 and row_end = @e2, '[CORRECT]', '[WRONG]'));
+
+replace_result $sys_datatype_expl SYS_TYPE;
+eval
+create or replace table t2 (
+  x int,
+  row_start $sys_datatype_expl as row start invisible,
+  row_end $sys_datatype_expl as row end invisible,
+  period for system_time (row_start, row_end))
+with system versioning;
+
+set system_versioning_modify_history= ON;
+insert into t2 (x, row_start, row_end) select x, row_start, row_end from t1 for system_time all;
+set system_versioning_modify_history= OFF;
+--echo # t2 has the same data as t1
+select x, check_fields(x, row_start, row_end) from t2 for system_time all order by x;
+
+--let TMP= $MYSQLTEST_VARDIR/tmp
+
+--exec $MYSQL_DUMP --dump-history --databases test > $TMP/dump_history.sql
+--exec $MYSQL_DUMP --databases test > $TMP/dump_no_history.sql
+--exec $MYSQL_DUMP --dump-history --compact --databases test > $TMP/dump_compact.sql
+--exec $MYSQL_DUMP --dump-history --no-create-info --skip-comments --databases test > $TMP/dump_only_data.sql
+--exec $MYSQL_DUMP --dump-history --compact --no-create-info --skip-comments --databases test > $TMP/dump_compact_only_data.sql
+# TODO: MDEV-16766 mysqldump: dump history in XML
+if (0)
+{
+--exec $MYSQL_DUMP --dump-history --xml --databases test > $TMP/dump_history.xml
+}
+--exec $MYSQL_DUMP --dump-history --tab=$TMP test
+
+--echo # SQL dump with/without history
+--echo ## With history
+drop tables t1, t2;
+--exec $MYSQL test < $TMP/dump_history.sql
+select x, check_fields(x, row_start, row_end) from t1 for system_time all order by x;
+select x, check_fields(x, row_start, row_end) from t2 for system_time all order by x;
+--echo ## Without history
+drop tables t1, t2;
+--exec $MYSQL test < $TMP/dump_no_history.sql
+select x, check_row(row_start, row_end) from t1 for system_time all order by x;
+select x, check_row(row_start, row_end) from t2 for system_time all order by x;
+
+--echo ## Compact mode with history
+drop tables t1, t2;
+--exec $MYSQL test < $TMP/dump_compact.sql
+select x, check_fields(x, row_start, row_end) from t1 for system_time all order by x;
+select x, check_fields(x, row_start, row_end) from t2 for system_time all order by x;
+
+--echo ## History and --no-create-info --skip-comments with/without --compact
+create or replace table t1 (x int) with system versioning;
+delete from t2; delete history from t2;
+--exec $MYSQL test < $TMP/dump_only_data.sql
+select x, check_fields(x, row_start, row_end) from t1 for system_time all order by x;
+select x, check_fields(x, row_start, row_end) from t2 for system_time all order by x;
+create or replace table t1 (x int) with system versioning;
+delete from t2; delete history from t2;
+--exec $MYSQL test < $TMP/dump_compact_only_data.sql
+select x, check_fields(x, row_start, row_end) from t1 for system_time all order by x;
+select x, check_fields(x, row_start, row_end) from t2 for system_time all order by x;
+
+# TODO: MDEV-16766 mysqldump: dump history in XML
+if (0)
+{
+--echo # XML with history
+drop table t1;
+create or replace table t1 (x int) with system versioning;
+delete from t2;
+delete history from t2;
+set system_versioning_modify_history= ON;
+--replace_result $TMP TMP
+eval load xml infile '$TMP/dump_history.xml' into table t1;
+--exec cp $TMP/dump_history.xml /tmp
+set system_versioning_modify_history= OFF;
+--echo ## History is now loaded as current data (TODO)
+select *, check_row(row_start, row_end) from t1 for system_time all;
+# TODO: check mysqlimport
+# --exec $MYSQL_IMPORT test $TMP/dump_history.xml
+}
+
+--echo # --tab with history
+drop tables t1, t2;
+--exec $MYSQL test < $TMP/t1.sql
+--exec $MYSQL test < $TMP/t2.sql
+--replace_result $default_engine DEFAULT_ENGINE
+show create table t1;
+--replace_result $default_engine DEFAULT_ENGINE $sys_datatype_expl SYS_DATATYPE
+show create table t2;
+set system_versioning_modify_history= ON;
+--replace_result $TMP tmp
+eval load data infile '$TMP/t1.txt' into table t1 (x, row_start, row_end);
+--replace_result $TMP tmp
+eval load data infile '$TMP/t2.txt' into table t2 (x, row_start, row_end);
+set system_versioning_modify_history= OFF;
+select *, check_row(row_start, row_end) from t1 for system_time all;
+select *, check_row(row_start, row_end) from t2 for system_time all;
+
+--remove_files_wildcard $TMP *.sql
+--remove_files_wildcard $TMP *.txt
+--remove_files_wildcard $TMP *.xml
+
+--echo #
+--echo # MDEV-15330 Server crash or assertion `table->insert_values' failure in write_record upon LOAD DATA
+--echo #
+CREATE OR REPLACE TABLE t1 (a INT, b INT, c INT, vc INT AS (c), UNIQUE(a), UNIQUE(b)) WITH SYSTEM VERSIONING;
+INSERT IGNORE INTO t1 (a,b,c) VALUES (1,2,3);
+
+--replace_result $TMP tmp
+eval SELECT a, b, c FROM t1 INTO OUTFILE '$TMP/15330.data';
+--replace_result $TMP tmp
+eval LOAD DATA INFILE '$TMP/15330.data' IGNORE INTO TABLE t1 (a,b,c);
+--replace_result $TMP tmp
+eval LOAD DATA INFILE '$TMP/15330.data' REPLACE INTO TABLE t1 (a,b,c);
+
+--remove_file $TMP/15330.data
+
+# Cleanup
+drop tables t1, t2;
+drop function check_fields;
+--source suite/versioning/common_finish.inc

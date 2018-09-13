@@ -719,6 +719,8 @@ ca	cb
 utf8_general_ci	utf8_general_ci
 
 ---> Dump of mysqltest1
+/*!40103 SET @OLD_TIME_ZONE      = @@time_zone */ ;
+/*!40103 SET time_zone             = '+00:00' */ ;
 
 CREATE DATABASE /*!32312 IF NOT EXISTS*/ `mysqltest1` /*!40100 DEFAULT CHARACTER SET cp866 */;
 
@@ -791,10 +793,13 @@ DELIMITER ;
 /*!50003 SET character_set_results = @saved_cs_results */ ;
 /*!50003 SET collation_connection  = @saved_col_connection */ ;
 ALTER DATABASE `mysqltest1` CHARACTER SET cp866 COLLATE cp866_general_ci ;
+/*!40103 SET time_zone             = @OLD_TIME_ZONE */ ;
 
 ---> Dumping mysqltest1 to ddl_i18n_koi8r.sp.mysqltest1.sql
 
 ---> Dump of mysqltest2
+/*!40103 SET @OLD_TIME_ZONE      = @@time_zone */ ;
+/*!40103 SET time_zone             = '+00:00' */ ;
 
 CREATE DATABASE /*!32312 IF NOT EXISTS*/ `mysqltest2` /*!40100 DEFAULT CHARACTER SET cp866 */;
 
@@ -867,6 +872,7 @@ DELIMITER ;
 /*!50003 SET character_set_results = @saved_cs_results */ ;
 /*!50003 SET collation_connection  = @saved_col_connection */ ;
 ALTER DATABASE `mysqltest2` CHARACTER SET cp866 COLLATE cp866_general_ci ;
+/*!40103 SET time_zone             = @OLD_TIME_ZONE */ ;
 
 ---> Dumping mysqltest2 to ddl_i18n_koi8r.sp.mysqltest2.sql
 
@@ -1723,6 +1729,8 @@ koi8r_general_ci	utf8_general_ci	koi8r_general_ci	koi8r_general_ci	utf8_general_
 DELETE FROM mysqltest2.log|
 
 ---> Dump of mysqltest1
+/*!40103 SET @OLD_TIME_ZONE      = @@time_zone */ ;
+/*!40103 SET time_zone             = '+00:00' */ ;
 
 CREATE DATABASE /*!32312 IF NOT EXISTS*/ `mysqltest1` /*!40100 DEFAULT CHARACTER SET cp866 */;
 
@@ -1798,10 +1806,13 @@ DELIMITER ;
 /*!50003 SET character_set_results = @saved_cs_results */ ;
 /*!50003 SET collation_connection  = @saved_col_connection */ ;
 ALTER DATABASE `mysqltest1` CHARACTER SET cp866 COLLATE cp866_general_ci ;
+/*!40103 SET time_zone             = @OLD_TIME_ZONE */ ;
 
 ---> Dumping mysqltest1 to ddl_i18n_koi8r.triggers.mysqltest1.sql
 
 ---> Dump of mysqltest2
+/*!40103 SET @OLD_TIME_ZONE      = @@time_zone */ ;
+/*!40103 SET time_zone             = '+00:00' */ ;
 
 CREATE DATABASE /*!32312 IF NOT EXISTS*/ `mysqltest2` /*!40100 DEFAULT CHARACTER SET cp866 */;
 
@@ -1877,6 +1888,7 @@ DELIMITER ;
 /*!50003 SET character_set_results = @saved_cs_results */ ;
 /*!50003 SET collation_connection  = @saved_col_connection */ ;
 ALTER DATABASE `mysqltest2` CHARACTER SET cp866 COLLATE cp866_general_ci ;
+/*!40103 SET time_zone             = @OLD_TIME_ZONE */ ;
 
 ---> Dumping mysqltest2 to ddl_i18n_koi8r.triggers.mysqltest2.sql
 
@@ -2477,6 +2489,8 @@ COLLATION( 'ÔÅËÓÔ') AS c4,
 END	ONE TIME	2030-01-01 00:00:00	NULL	NULL		NULL	NULL	ENABLED	NOT PRESERVE	CREATED	LAST_ALTERED	NULL		1	koi8r	koi8r_general_ci	utf8_unicode_ci
 
 ---> Dump of mysqltest1
+/*!40103 SET @OLD_TIME_ZONE      = @@time_zone */ ;
+/*!40103 SET time_zone             = '+00:00' */ ;
 
 CREATE DATABASE /*!32312 IF NOT EXISTS*/ `mysqltest1` /*!40100 DEFAULT CHARACTER SET cp866 */;
 
@@ -2492,8 +2506,8 @@ ALTER DATABASE `mysqltest1` CHARACTER SET utf8 COLLATE utf8_unicode_ci ;;
 /*!50003 SET collation_connection  = koi8r_general_ci */ ;;
 /*!50003 SET @saved_sql_mode       = @@sql_mode */ ;;
 /*!50003 SET sql_mode              = '' */ ;;
-/*!50003 SET @saved_time_zone      = @@time_zone */ ;;
-/*!50003 SET time_zone             = 'SYSTEM' */ ;;
+/*!40103 SET @saved_time_zone      = @@time_zone */ ;;
+/*!40103 SET time_zone             = 'SYSTEM' */ ;;
 /*!50106 CREATE*/ /*!50117 DEFINER=`root`@`localhost`*/ /*!50106 EVENT `ev1` ON SCHEDULE AT '2030-01-01 00:00:00' ON COMPLETION NOT PRESERVE ENABLE DO BEGIN
 DECLARE ÐÅÒÅÍ1 CHAR(10);
 SELECT
@@ -2504,7 +2518,7 @@ COLLATION(_utf8 'Ñ‚ÐµÐºÑÑ‚') AS c4,
 @@collation_connection AS c5,
 @@character_set_client AS c6;
 END */ ;;
-/*!50003 SET time_zone             = @saved_time_zone */ ;;
+/*!40103 SET time_zone             = @saved_time_zone */ ;;
 /*!50003 SET sql_mode              = @saved_sql_mode */ ;;
 /*!50003 SET character_set_client  = @saved_cs_client */ ;;
 /*!50003 SET character_set_results = @saved_cs_results */ ;;
@@ -2520,8 +2534,8 @@ ALTER DATABASE `mysqltest1` CHARACTER SET utf8 COLLATE utf8_unicode_ci ;;
 /*!50003 SET collation_connection  = koi8r_general_ci */ ;;
 /*!50003 SET @saved_sql_mode       = @@sql_mode */ ;;
 /*!50003 SET sql_mode              = '' */ ;;
-/*!50003 SET @saved_time_zone      = @@time_zone */ ;;
-/*!50003 SET time_zone             = 'SYSTEM' */ ;;
+/*!40103 SET @saved_time_zone      = @@time_zone */ ;;
+/*!40103 SET time_zone             = 'SYSTEM' */ ;;
 /*!50106 CREATE*/ /*!50117 DEFINER=`root`@`localhost`*/ /*!50106 EVENT `ev2` ON SCHEDULE AT '2030-01-01 00:00:00' ON COMPLETION NOT PRESERVE ENABLE DO BEGIN
 DECLARE ÐÅÒÅÍ1 CHAR(10) CHARACTER SET utf8;
 SELECT
@@ -2532,7 +2546,7 @@ COLLATION(_utf8 'Ñ‚ÐµÐºÑÑ‚') AS c4,
 @@collation_connection AS c5,
 @@character_set_client AS c6;
 END */ ;;
-/*!50003 SET time_zone             = @saved_time_zone */ ;;
+/*!40103 SET time_zone             = @saved_time_zone */ ;;
 /*!50003 SET sql_mode              = @saved_sql_mode */ ;;
 /*!50003 SET character_set_client  = @saved_cs_client */ ;;
 /*!50003 SET character_set_results = @saved_cs_results */ ;;
@@ -2540,10 +2554,13 @@ END */ ;;
 ALTER DATABASE `mysqltest1` CHARACTER SET cp866 COLLATE cp866_general_ci ;;
 DELIMITER ;
 /*!50106 SET TIME_ZONE= @save_time_zone */ ;
+/*!40103 SET time_zone             = @OLD_TIME_ZONE */ ;
 
 ---> Dumping mysqltest1 to ddl_i18n_koi8r.events.mysqltest1.sql
 
 ---> Dump of mysqltest2
+/*!40103 SET @OLD_TIME_ZONE      = @@time_zone */ ;
+/*!40103 SET time_zone             = '+00:00' */ ;
 
 CREATE DATABASE /*!32312 IF NOT EXISTS*/ `mysqltest2` /*!40100 DEFAULT CHARACTER SET cp866 */;
 
@@ -2559,8 +2576,8 @@ ALTER DATABASE `mysqltest2` CHARACTER SET utf8 COLLATE utf8_unicode_ci ;;
 /*!50003 SET collation_connection  = koi8r_general_ci */ ;;
 /*!50003 SET @saved_sql_mode       = @@sql_mode */ ;;
 /*!50003 SET sql_mode              = '' */ ;;
-/*!50003 SET @saved_time_zone      = @@time_zone */ ;;
-/*!50003 SET time_zone             = 'SYSTEM' */ ;;
+/*!40103 SET @saved_time_zone      = @@time_zone */ ;;
+/*!40103 SET time_zone             = 'SYSTEM' */ ;;
 /*!50106 CREATE*/ /*!50117 DEFINER=`root`@`localhost`*/ /*!50106 EVENT `ev3` ON SCHEDULE AT '2030-01-01 00:00:00' ON COMPLETION NOT PRESERVE ENABLE DO BEGIN
 DECLARE ÐÅÒÅÍ1 CHAR(10) CHARACTER SET utf8;
 SELECT
@@ -2571,7 +2588,7 @@ COLLATION(_utf8 'Ñ‚ÐµÐºÑÑ‚') AS c4,
 @@collation_connection AS c5,
 @@character_set_client AS c6;
 END */ ;;
-/*!50003 SET time_zone             = @saved_time_zone */ ;;
+/*!40103 SET time_zone             = @saved_time_zone */ ;;
 /*!50003 SET sql_mode              = @saved_sql_mode */ ;;
 /*!50003 SET character_set_client  = @saved_cs_client */ ;;
 /*!50003 SET character_set_results = @saved_cs_results */ ;;
@@ -2587,8 +2604,8 @@ ALTER DATABASE `mysqltest2` CHARACTER SET utf8 COLLATE utf8_unicode_ci ;;
 /*!50003 SET collation_connection  = koi8r_general_ci */ ;;
 /*!50003 SET @saved_sql_mode       = @@sql_mode */ ;;
 /*!50003 SET sql_mode              = '' */ ;;
-/*!50003 SET @saved_time_zone      = @@time_zone */ ;;
-/*!50003 SET time_zone             = 'SYSTEM' */ ;;
+/*!40103 SET @saved_time_zone      = @@time_zone */ ;;
+/*!40103 SET time_zone             = 'SYSTEM' */ ;;
 /*!50106 CREATE*/ /*!50117 DEFINER=`root`@`localhost`*/ /*!50106 EVENT `ev4` ON SCHEDULE AT '2030-01-01 00:00:00' ON COMPLETION NOT PRESERVE ENABLE DO BEGIN
 DECLARE ÐÅÒÅÍ1 CHAR(10) CHARACTER SET utf8;
 SELECT
@@ -2599,7 +2616,7 @@ COLLATION(_utf8 'Ñ‚ÐµÐºÑÑ‚') AS c4,
 @@collation_connection AS c5,
 @@character_set_client AS c6;
 END */ ;;
-/*!50003 SET time_zone             = @saved_time_zone */ ;;
+/*!40103 SET time_zone             = @saved_time_zone */ ;;
 /*!50003 SET sql_mode              = @saved_sql_mode */ ;;
 /*!50003 SET character_set_client  = @saved_cs_client */ ;;
 /*!50003 SET character_set_results = @saved_cs_results */ ;;
@@ -2607,6 +2624,7 @@ END */ ;;
 ALTER DATABASE `mysqltest2` CHARACTER SET cp866 COLLATE cp866_general_ci ;;
 DELIMITER ;
 /*!50106 SET TIME_ZONE= @save_time_zone */ ;
+/*!40103 SET time_zone             = @OLD_TIME_ZONE */ ;
 
 ---> Dumping mysqltest2 to ddl_i18n_koi8r.events.mysqltest2.sql
 

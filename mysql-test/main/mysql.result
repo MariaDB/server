@@ -552,6 +552,8 @@ Table	Create Table
 a1\`b1	CREATE TABLE `a1\``b1` (
   `a` int(11) DEFAULT NULL
 ) ENGINE=MyISAM DEFAULT CHARSET=latin1
+/*!40103 SET @OLD_TIME_ZONE      = @@time_zone */ ;
+/*!40103 SET time_zone             = '+00:00' */ ;
 /*!40101 SET @saved_cs_client     = @@character_set_client */;
 /*!40101 SET character_set_client = utf8 */;
 CREATE TABLE `a1\``b1` (
@@ -559,6 +561,7 @@ CREATE TABLE `a1\``b1` (
 ) ENGINE=MyISAM DEFAULT CHARSET=latin1;
 /*!40101 SET character_set_client = @saved_cs_client */;
 INSERT INTO `a1\``b1` VALUES (1),(2);
+/*!40103 SET time_zone             = @OLD_TIME_ZONE */ ;
 insert `a1\``b1` values (4),(5);
 show create table `a1\``b1`;
 Table	Create Table
@@ -581,6 +584,8 @@ Table	Create Table
 a1\"b1	CREATE TABLE "a1\""b1" (
   "a" int(11) DEFAULT NULL
 ) ENGINE=MyISAM DEFAULT CHARSET=latin1
+/*!40103 SET @OLD_TIME_ZONE      = @@time_zone */ ;
+/*!40103 SET time_zone             = '+00:00' */ ;
 /*!40101 SET @saved_cs_client     = @@character_set_client */;
 /*!40101 SET character_set_client = utf8 */;
 CREATE TABLE "a1\""b1" (
@@ -588,6 +593,7 @@ CREATE TABLE "a1\""b1" (
 );
 /*!40101 SET character_set_client = @saved_cs_client */;
 INSERT INTO "a1\""b1" VALUES (1),(2);
+/*!40103 SET time_zone             = @OLD_TIME_ZONE */ ;
 insert "a1\""b1" values (4),(5);
 show create table "a1\""b1";
 Table	Create Table
