@@ -74,6 +74,11 @@ private:
     It used to build clones of the specification if they are needed.
   */
   LEX_STRING unparsed_spec;
+  /* Offset of the specification in the input string */
+  uint unparsed_spec_offset;
+
+  /* True if the with element is used a prepared statement */
+  bool stmt_prepare_mode;
 
   /* Return the map where 1 is set only in the position for this element */
   table_map get_elem_map() { return (table_map) 1 << number; }
@@ -174,7 +179,8 @@ public:
 
   TABLE_LIST *find_first_sq_rec_ref_in_select(st_select_lex *sel);
 
-  bool set_unparsed_spec(THD *thd, char *spec_start, char *spec_end);
+  bool set_unparsed_spec(THD *thd, char *spec_start, char *spec_end,
+                         uint spec_offset);
 
   st_select_lex_unit *clone_parsed_spec(THD *thd, TABLE_LIST *with_table);
 

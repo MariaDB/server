@@ -2552,6 +2552,11 @@ struct LEX: public Query_tables_list
      with clause in the current statement
   */
   With_clause **with_clauses_list_last_next;
+  /*
+    When a copy of a with element is parsed this is set to the offset of
+    the with element in the input string, otherwise it's set to 0
+  */
+  uint clone_spec_offset;
 
   /* Query Plan Footprint of a currently running select  */
   Explain_query *explain;

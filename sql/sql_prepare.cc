@@ -947,6 +947,7 @@ static bool insert_params(Prepared_statement *stmt, uchar *null_array,
       DBUG_RETURN(1);
     if (param->convert_str_value(stmt->thd))
       DBUG_RETURN(1);                           /* out of memory */
+    param->sync_clones();
   }
   DBUG_RETURN(0);
 }
@@ -995,6 +996,7 @@ static bool insert_bulk_params(Prepared_statement *stmt,
     }
     else
       DBUG_RETURN(1); // long is not supported here
+    param->sync_clones();
   }
   DBUG_RETURN(0);
 }
@@ -1023,6 +1025,7 @@ static bool set_conversion_functions(Prepared_statement *stmt,
     read_pos+= 2;
     (**it).unsigned_flag= MY_TEST(typecode & signed_bit);
     setup_one_conversion_function(thd, *it, (uchar) (typecode & 0xff));
+    (*it)->sync_clones();
   }
   *data= read_pos;
   DBUG_RETURN(0);
@@ -1093,6 +1096,7 @@ static bool emb_insert_params(Prepared_statement *stmt, String *expanded_query)
         if (param->has_no_value())
           DBUG_RETURN(1);
       }
+      param->sync_clones();
     }
     if (param->convert_str_value(thd))
       DBUG_RETURN(1);                           /* out of memory */
@@ -1135,6 +1139,7 @@ static bool emb_insert_params_with_log(Prepared_statement *stmt, String *query)
 
     if (param->convert_str_value(thd))
       DBUG_RETURN(1);                           /* out of memory */
+    param->sync_clones();
   }
   if (acc.finalize())
     DBUG_RETURN(1);
@@ -1190,7 +1195,11 @@ swap_parameter_array(Item_param **param_array_dst,
   Item_param **end= param_array_dst + param_count;
 
   for (; dst < end; ++src, ++dst)
+  {
     (*dst)->set_param_type_and_swap_value(*src);
+    (*dst)->sync_clones();
+    (*src)->sync_clones();
+  }
 }
 
 
@@ -1221,6 +1230,7 @@ insert_params_from_actual_params(Prepared_statement *stmt,
     if (ps_param->save_in_param(stmt->thd, param) ||
         param->convert_str_value(stmt->thd))
       DBUG_RETURN(1);
+    param->sync_clones();
   }
   DBUG_RETURN(0);
 }
@@ -1269,6 +1279,8 @@ insert_params_from_actual_params_with_log(Prepared_statement *stmt,
 
     if (param->convert_str_value(thd))
       DBUG_RETURN(1);
+
+    param->sync_clones();
   }
   if (acc.finalize())
     DBUG_RETURN(1);

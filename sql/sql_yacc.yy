@@ -1751,7 +1751,8 @@ bool my_yyoverflow(short **a, YYSTYPE **b, ulong *yystacksize);
         table_ident_opt_wild create_like
 
 %type <simple_string>
-        remember_name remember_end opt_db remember_tok_start
+        remember_name remember_end opt_db
+        remember_tok_start remember_tok_end
         wild_and_where
         field_length opt_field_length opt_field_length_default_1
 
@@ -8750,6 +8751,12 @@ remember_tok_start:
           }
         ;
 
+remember_tok_end:
+          {
+            $$= (char*) YYLIP->get_tok_end();
+          }
+        ;
+
 remember_name:
           {
             $$= (char*) YYLIP->get_cpp_tok_start();
@@ -11828,10 +11835,18 @@ limit_option:
           sp_pcontext *spc = lex->spcont;
           if (spc && (spv = spc->find_variable($1, false)))
           {
+            uint pos_in_query= 0;
+            uint len_in_query= 0;
+            if (!lex->clone_spec_offset)
+            {
+              pos_in_query= (uint)(lip->get_tok_start() -
+                                   lex->sphead->m_tmp_query);
+              len_in_query= (uint)(lip->get_ptr() -
+                                   lip->get_tok_start());
+            }
             splocal= new (thd->mem_root)
               Item_splocal(thd, $1, spv->offset, spv->sql_type(),
-                  (uint)(lip->get_tok_start() - lex->sphead->m_tmp_query),
-                  (uint)(lip->get_ptr() - lip->get_tok_start()));
+                           pos_in_query, len_in_query);
             if (splocal == NULL)
               MYSQL_YYABORT;
 #ifndef DBUG_OFF
@@ -13842,14 +13857,23 @@ param_marker:
             LEX *lex= thd->lex;
             Lex_input_stream *lip= YYLIP;
             Item_param *item;
+            bool rc;
             if (! lex->parsing_options.allows_variable)
               my_yyabort_error((ER_VIEW_SELECT_VARIABLE, MYF(0)));
-            const char *query_start= lex->sphead ? lex->sphead->m_tmp_query
-                                                 : thd->query();
-            item= new (thd->mem_root) Item_param(thd, (uint)(lip->get_tok_start() -
-                                                      query_start));
-            if (!($$= item) || lex->param_list.push_back(item, thd->mem_root))
+            const char *query_start= lex->sphead && !lex->clone_spec_offset ?
+                                     lex->sphead->m_tmp_query : lip->get_buf();
+            item= new (thd->mem_root) Item_param(thd,
+                                                 (uint)(lip->get_tok_start() -
+                                                        query_start));
+            if (!($$= item))
+              MYSQL_YYABORT;
+            if (!lex->clone_spec_offset)
+              rc= lex->param_list.push_back(item, thd->mem_root);
+            else
+              rc= item->add_as_clone(thd);
+            if (rc)
               my_yyabort_error((ER_OUT_OF_RESOURCES, MYF(0)));
+
           }
         ;
 
@@ -14045,12 +14069,17 @@ with_list_element:
               MYSQL_YYABORT;
             Lex->with_column_list.empty();
           }
-          AS '(' remember_name subselect remember_end ')'
+          AS '(' remember_tok_start subselect remember_tok_end ')'
  	  {
+            LEX *lex= thd->lex;
+            const char *query_start= lex->sphead ? lex->sphead->m_tmp_query
+                                                 : thd->query();
+            char *spec_start= $6 + 1;
             With_element *elem= new With_element($1, *$2, $7->master_unit());
 	    if (elem == NULL || Lex->curr_with_clause->add_with_element(elem))
 	      MYSQL_YYABORT;
-	    if (elem->set_unparsed_spec(thd, $6+1, $8))
+            if (elem->set_unparsed_spec(thd, spec_start, $8,
+                                        spec_start - query_start))
               MYSQL_YYABORT;
 	  }
 	;
@@ -14140,10 +14169,18 @@ simple_ident:
                 my_yyabort_error((ER_VIEW_SELECT_VARIABLE, MYF(0)));
 
               Item_splocal *splocal;
+              uint pos_in_query= 0;
+              uint len_in_query= 0;
+              if (!lex->clone_spec_offset)
+              {
+                pos_in_query= (uint)(lip->get_tok_start_prev() -
+                                     lex->sphead->m_tmp_query);
+                len_in_query= (uint)(lip->get_tok_end() -
+                                     lip->get_tok_start_prev());
+              }
               splocal= new (thd->mem_root)
                          Item_splocal(thd, $1, spv->offset, spv->sql_type(),
-                                      (uint)(lip->get_tok_start_prev() - lex->sphead->m_tmp_query),
-                                      (uint)(lip->get_tok_end() - lip->get_tok_start_prev()));
+                                      pos_in_query, len_in_query);
               if (splocal == NULL)
                 MYSQL_YYABORT;
 #ifndef DBUG_OFF

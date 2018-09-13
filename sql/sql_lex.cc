@@ -671,6 +671,7 @@ void lex_start(THD *thd)
   lex->curr_with_clause= 0;
   lex->with_clauses_list= 0;
   lex->with_clauses_list_last_next= &lex->with_clauses_list;
+  lex->clone_spec_offset= 0;
   lex->value_list.empty();
   lex->update_list.empty();
   lex->set_var_list.empty();
