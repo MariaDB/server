@@ -10910,6 +10910,18 @@ TABLE_LIST *ha_partition::get_next_global_for_child()
 }
 
 
+/**
+  Push an engine condition to the condition stack of the storage engine
+  for each partition.
+
+  @param  cond              Pointer to the engine condition to be pushed.
+
+  @return NULL              Underlying engine will not return rows that
+                            do not match the passed condition.
+          <> NULL           'Remainder' condition that the caller must use
+                            to filter out records.
+*/
+
 const COND *ha_partition::cond_push(const COND *cond)
 {
   handler **file= m_file;
@@ -10946,10 +10958,15 @@ const COND *ha_partition::cond_push(const COND *cond)
 }
 
 
+/**
+  Pop the top condition from the condition stack of the storage engine
+  for each partition.
+*/
+
 void ha_partition::cond_pop()
 {
   handler **file= m_file;
-  DBUG_ENTER("ha_partition::cond_push");
+  DBUG_ENTER("ha_partition::cond_pop");
 
   do
   {
