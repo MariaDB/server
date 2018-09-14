@@ -8380,7 +8380,9 @@ void Field_blob::sort_string(uchar *to,uint length)
         Store length of blob last in blob to shorter blobs before longer blobs
       */
       length-= packlength;
-      store_bigendian(buf.length(), to + length, packlength);
+
+      uint key_length = MY_MIN(buf.length(), length);
+      store_bigendian(key_length, to + length, packlength);
     }
 
 #ifdef DBUG_ASSERT_EXISTS

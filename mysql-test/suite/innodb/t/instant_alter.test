@@ -338,6 +338,9 @@ ALGORITHM=INSTANT;
 SET foreign_key_checks=1;
 ALTER TABLE t2 COMMENT 'domestic keys only', DROP FOREIGN KEY fk;
 ALTER TABLE t1 DROP FOREIGN KEY t1_ibfk_1;
+ALTER TABLE t1 ADD COLUMN big BLOB NOT NULL
+DEFAULT REPEAT('a', @@GLOBAL.innodb_page_size * .75);
+CHECK TABLE t2, t1;
 DROP TABLE t2, t1;
 
 dec $format;
