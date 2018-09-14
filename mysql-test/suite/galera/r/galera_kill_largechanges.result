@@ -1,3 +1,4 @@
+call mtr.add_suppression("WSREP: Last Applied Action message in non-primary configuration from member .*");
 SET GLOBAL wsrep_provider_options = 'pc.ignore_sb=true';
 CREATE TABLE ten (f1 INTEGER);
 INSERT INTO ten VALUES (1), (2), (3), (4), (5), (6), (7), (8), (9), (10);

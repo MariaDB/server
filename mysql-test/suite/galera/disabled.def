@@ -38,6 +38,5 @@ galera_suspend_slave: MDEV-13873 galera.galera_suspend_slave failed in buildbot 
 galera_wan : MDEV-13879 galera.galera_wan fails in buildbot with Stray state UUID msg or with "Transport endpoint is not connected" or with a failure to start a node
 partition : MDEV-13881 galera.partition failed in buildbot with wrong result
 galera_transaction_read_only : MDEV-14142 galera.galera_transaction_read_only fails in buildbot with wrong result
-galera_kill_smallchanges : MDEV-14143 galera.galera_kill_smallchanges, galera.galera_kill_ddl fail in buildbot with "Last Applied Action message in non-primary configuration from member 0"
 galera_as_slave_replication_budle : MDEV-15785 Test case galera_as_slave_replication_bundle caused debug assertion
 
