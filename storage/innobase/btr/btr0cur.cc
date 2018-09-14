@@ -4764,6 +4764,7 @@ btr_cur_pessimistic_update(
 			know the size of the freed record. */
 			btr_page_reorganize(page_cursor, index, mtr);
 			rec = page_cursor->rec;
+			rec_offs_make_valid(rec, index, true, *offsets);
 		} else if (!dict_table_is_locking_disabled(index->table)) {
 			lock_rec_restore_from_page_infimum(
 				btr_cur_get_block(cursor), rec, block);

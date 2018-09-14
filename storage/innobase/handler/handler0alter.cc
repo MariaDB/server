@@ -4379,6 +4379,7 @@ innobase_add_instant_try(
 	que_thr_t* thr = pars_complete_graph_for_exec(
 		NULL, trx, ctx->heap, NULL);
 
+	dberr_t err;
 	if (rec_is_default_row(rec, index)) {
 		ut_ad(page_rec_is_user_rec(rec));
 		if (!page_has_next(block->frame)
@@ -4403,14 +4404,15 @@ innobase_add_instant_try(
 		ulint* offsets = NULL;
 		mem_heap_t* offsets_heap = NULL;
 		big_rec_t* big_rec;
-		dberr_t error = btr_cur_pessimistic_update(
-			BTR_NO_LOCKING_FLAG, btr_pcur_get_btr_cur(&pcur),
+		err = btr_cur_pessimistic_update(
+			BTR_NO_LOCKING_FLAG | BTR_KEEP_POS_FLAG,
+			btr_pcur_get_btr_cur(&pcur),
 			&offsets, &offsets_heap, ctx->heap,
 			&big_rec, update, UPD_NODE_NO_ORD_CHANGE,
 			thr, trx->id, &mtr);
 		if (big_rec) {
-			if (error == DB_SUCCESS) {
-				error = btr_store_big_rec_extern_fields(
+			if (err == DB_SUCCESS) {
+				err = btr_store_big_rec_extern_fields(
 					&pcur, offsets, big_rec, &mtr,
 					BTR_STORE_UPDATE);
 			}
@@ -4421,8 +4423,7 @@ innobase_add_instant_try(
 			mem_heap_free(offsets_heap);
 		}
 		btr_pcur_close(&pcur);
-		mtr.commit();
-		return error != DB_SUCCESS;
+		goto func_exit;
 	} else if (page_rec_is_supremum(rec)) {
 empty_table:
 		/* The table is empty. */
@@ -4438,7 +4439,6 @@ empty_table:
 	mtr.commit();
 	mtr.start();
 	index->set_modified(mtr);
-	dberr_t err;
 	if (page_t* root = btr_root_get(index, &mtr)) {
 		switch (fil_page_get_type(root)) {
 		case FIL_PAGE_TYPE_INSTANT:
@@ -4451,8 +4451,7 @@ empty_table:
 			break;
 		default:
 			DBUG_ASSERT(!"wrong page type");
-			mtr.commit();
-			return true;
+			goto func_exit;
 		}
 
 		mlog_write_ulint(root + FIL_PAGE_TYPE,
@@ -4469,8 +4468,16 @@ empty_table:
 		err = DB_CORRUPTION;
 	}
 
+func_exit:
 	mtr.commit();
-	return err != DB_SUCCESS;
+
+	if (err != DB_SUCCESS) {
+		my_error_innodb(err, table->s->table_name.str,
+				user_table->flags);
+		return true;
+	}
+
+	return false;
 }
 
 /** Update INNODB SYS_COLUMNS on new virtual column's position
