@@ -588,7 +588,7 @@ std::string filename_to_spacename(const byte *filename, size_t len)
 @param[in]	len		length of name, in bytes
 @param[in]	new_name	new file name (NULL if not rename)
 @param[in]	new_len		length of new_name, in bytes (0 if NULL) */
-void backup_file_op(ulint space_id, const byte* flags,
+static void backup_file_op(ulint space_id, const byte* flags,
 	const byte* name, ulint len,
 	const byte* new_name, ulint new_len)
 {
@@ -616,18 +616,70 @@ void backup_file_op(ulint space_id, const byte* flags,
 }
 
 
+/*
+ This callback is called if DDL operation is detected,
+ at the end of backup
+
+ Normally, DDL operations are blocked due to FTWRL,
+ but in rare cases of --no-lock, they are not.
+
+ We will abort backup in this case.
+*/
+static void backup_file_op_fail(ulint space_id, const byte* flags,
+	const byte* name, ulint len,
+	const byte* new_name, ulint new_len)
+{
+	ut_a(opt_no_lock);
+	bool fail;
+	if (flags) {
+		msg("DDL tracking :  create %zu \"%.*s\": %x\n",
+			space_id, int(len), name, mach_read_from_4(flags));
+		std::string  spacename = filename_to_spacename(name, len);
+		fail = !check_if_skip_table(spacename.c_str());
+	}
+	else if (new_name) {
+		msg("DDL tracking : rename %zu \"%.*s\",\"%.*s\"\n",
+			space_id, int(len), name, int(new_len), new_name);
+		std::string  spacename = filename_to_spacename(name, len);
+		std::string  new_spacename = filename_to_spacename(new_name, new_len);
+		fail = !check_if_skip_table(spacename.c_str()) || !check_if_skip_table(new_spacename.c_str());
+	}
+	else {
+		std::string  spacename = filename_to_spacename(name, len);
+		fail = !check_if_skip_table(spacename.c_str());
+		msg("DDL tracking : delete %zu \"%.*s\"\n", space_id, int(len), name);
+	}
+	if (fail) {
+		msg("ERROR : DDL operation detected in the late phase of backup."
+			"Backup is inconsistent. Remove --no-lock option to fix.\n");
+		exit(EXIT_FAILURE);
+	}
+}
+
+
 /** Callback whenever MLOG_INDEX_LOAD happens.
 @param[in]	space_id	space id to check */
 static void backup_optimized_ddl_op(ulint space_id)
 {
-	// TODO : handle incremental
-	if (xtrabackup_incremental)
-		return;
-
 	pthread_mutex_lock(&backup_mutex);
 	ddl_tracker.optimized_ddl.insert(space_id);
 	pthread_mutex_unlock(&backup_mutex);
 }
+
+/*
+  Optimized DDL callback at the end of backup that
+  run with --no-lock. Usually aborts the backup.
+*/
+static void backup_optimized_ddl_op_fail(ulint space_id) {
+	ut_a(opt_no_lock);
+	msg("DDL tracking : optimized DDL on space %zu\n");
+	if (ddl_tracker.tables_in_backup.find(space_id) != ddl_tracker.tables_in_backup.end()) {
+		msg("ERROR : Optimized DDL operation detected in the late phase of backup."
+			"Backup is inconsistent. Remove --no-lock option to fix.\n");
+		exit(EXIT_FAILURE);
+	}
+}
+
 
 /** Callback whenever MLOG_TRUNCATE happens. */
 static void backup_truncate_fail()
@@ -4382,6 +4434,14 @@ void backup_fix_ddl(void)
 	std::set<std::string> new_tables;
 	std::set<std::string> dropped_tables;
 	std::map<std::string, std::string> renamed_tables;
+
+	/* Disable further DDL on backed up tables (only needed for --no-lock).*/
+	pthread_mutex_lock(&backup_mutex);
+	log_file_op = backup_file_op_fail;
+	log_optimized_ddl_op = backup_optimized_ddl_op_fail;
+	pthread_mutex_unlock(&backup_mutex);
+
+	DBUG_MARIABACKUP_EVENT("backup_fix_ddl",0);
 
 	for (space_id_to_name_t::iterator iter = ddl_tracker.tables_in_backup.begin();
 		iter != ddl_tracker.tables_in_backup.end();

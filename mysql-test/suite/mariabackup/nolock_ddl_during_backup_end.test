@@ -1,0 +1,14 @@
+--source include/have_debug.inc
+let $targetdir=$MYSQLTEST_VARDIR/tmp/backup;
+mkdir $targetdir;
+
+CREATE TABLE t1(i int) ENGINE=INNODB;
+
+# this will table and populate it, after backup has list of tables to be copied
+--let backup_fix_ddl=BEGIN NOT ATOMIC DROP TABLE test.t1;DO SLEEP(10000); END
+echo # xtrabackup backup;
+--disable_result_log
+error 1;
+exec $XTRABACKUP --defaults-file=$MYSQLTEST_VARDIR/my.cnf  --backup  --target-dir=$targetdir  --no-lock --dbug=+d,mariabackup_events;
+--enable_result_log
+rmdir $targetdir;

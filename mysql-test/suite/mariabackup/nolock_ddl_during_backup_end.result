@@ -1,0 +1,2 @@
+CREATE TABLE t1(i int) ENGINE=INNODB;
+# xtrabackup backup
