@@ -35,12 +35,9 @@ galera_gc_fc_limit : MDEV-17061 Test failure on galera.galera_gc_fc_limit
 galera_applier_ftwrl_table_after : MDEV-13738 galera_applier_ftwrl_table_alter may fail with '2006: MySQL server has gone away'
 galra_unicode_identifiers: MDEV-13871 galera.galera_unicode_identifiers failed in buildbot with 'Unknown database'
 galera_suspend_slave: MDEV-13873 galera.galera_suspend_slave failed in buildbot with wrong error code
-MW-328A : MDEV-13876 galera.MW-328A failed in buildbot with wrong result or timeout
 galera_wan : MDEV-13879 galera.galera_wan fails in buildbot with Stray state UUID msg or with "Transport endpoint is not connected" or with a failure to start a node
 partition : MDEV-13881 galera.partition failed in buildbot with wrong result
 galera_transaction_read_only : MDEV-14142 galera.galera_transaction_read_only fails in buildbot with wrong result
 galera_kill_smallchanges : MDEV-14143 galera.galera_kill_smallchanges, galera.galera_kill_ddl fail in buildbot with "Last Applied Action message in non-primary configuration from member 0"
-MW-328B : MDEV-14145 galera.MW-328B failed in buildbot with a timeout
-MW-328C : MDEV-14149 galera.MW-328A, galera.MW-328C failed with "Found wrong usage of mutex"
 galera_as_slave_replication_budle : MDEV-15785 Test case galera_as_slave_replication_bundle caused debug assertion
 
