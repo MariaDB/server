@@ -25446,7 +25446,7 @@ void TABLE_LIST::print(THD *thd, table_map eliminated_tables, String *str,
       const char *t_alias= alias;
 
       str->append(' ');
-      if (lower_case_table_names== 1)
+      if (lower_case_table_names == 1)
       {
         if (alias && alias[0])
         {

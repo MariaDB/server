@@ -43,7 +43,7 @@ Copyright (c) 2006, 2015, Percona and/or its affiliates. All rights reserved.
 #include "ydb.h"
 #include <toku_assert.h>
 
-#if defined(__GNUC__)
+#if 0 && defined(__GNUC__)
 
 static void __attribute__((constructor)) libtokuft_init(void) {
     int r = toku_ydb_init();

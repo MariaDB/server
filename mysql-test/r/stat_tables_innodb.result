@@ -605,6 +605,19 @@ db_name	table_name	column_name	min_value	max_value	nulls_ratio	avg_length	avg_fr
 DROP TABLE t1;
 set use_stat_tables=@save_use_stat_tables;
 #
+# MDEV-17023: Crash during read_histogram_for_table with optimizer_use_condition_selectivity set to 4
+#
+set @save_optimizer_use_condition_selectivity=@@optimizer_use_condition_selectivity;
+set @@optimizer_use_condition_selectivity=4;
+set @@use_stat_tables= PREFERABLY;
+explain
+SELECT * FROM INFORMATION_SCHEMA.PROFILING, mysql.user;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	PROFILING	ALL	NULL	NULL	NULL	NULL	NULL	
+1	SIMPLE	user	ALL	NULL	NULL	NULL	NULL	4	Using join buffer (flat, BNL join)
+set @@optimizer_use_condition_selectivity=@save_optimizer_use_condition_selectivity;
+set use_stat_tables=@save_use_stat_tables;
+#
 # MDEV-16757: manual addition of min/max statistics for BLOB
 #
 SET use_stat_tables= PREFERABLY;

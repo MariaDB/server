@@ -69,7 +69,7 @@ Copyright (c) 2006, 2015, Percona and/or its affiliates. All rights reserved.
 #include <sys/stat.h>
 #include <stdio.h>
 
-#if __FreeBSD__
+#if defined(__FreeBSD__)
 #include <stdarg.h>
 #endif
 

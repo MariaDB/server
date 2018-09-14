@@ -15,6 +15,7 @@
 
 #include "wsrep_sst.h"
 
+#include <inttypes.h>
 #include <mysqld.h>
 #include <m_ctype.h>
 #include <my_sys.h>
@@ -37,8 +38,14 @@ static char wsrep_defaults_file[FN_REFLEN * 2 + 10 + 30 +
                                 sizeof(WSREP_SST_OPT_CONF_SUFFIX) +
                                 sizeof(WSREP_SST_OPT_CONF_EXTRA)] = {0};
 
+const char* wsrep_sst_method          = WSREP_SST_DEFAULT;
+const char* wsrep_sst_receive_address = WSREP_SST_ADDRESS_AUTO;
+const char* wsrep_sst_donor           = "";
+const char* wsrep_sst_auth            = NULL;
+
 // container for real auth string
 static const char* sst_auth_real      = NULL;
+my_bool wsrep_sst_donor_rejects_queries = FALSE;
 
 bool wsrep_sst_method_check (sys_var *self, THD* thd, set_var* var)
 {
@@ -61,7 +68,6 @@ bool wsrep_sst_method_update (sys_var *self, THD* thd, enum_var_type type)
 
 static const char* data_home_dir = NULL;
 
-extern "C"
 void wsrep_set_data_home_dir(const char *data_dir)
 {
   data_home_dir= (data_dir && *data_dir) ? data_dir : NULL;
@@ -157,7 +163,7 @@ void wsrep_sst_auth_free()
 
 bool wsrep_sst_auth_update (sys_var *self, THD* thd, enum_var_type type)
 {
-    return sst_auth_real_set (wsrep_sst_auth);
+  return sst_auth_real_set (wsrep_sst_auth);
 }
 
 void wsrep_sst_auth_init ()
@@ -172,8 +178,10 @@ bool  wsrep_sst_donor_check (sys_var *self, THD* thd, set_var* var)
 
 bool wsrep_sst_donor_update (sys_var *self, THD* thd, enum_var_type type)
 {
-    return 0;
+  return 0;
 }
+
+static wsrep_uuid_t cluster_uuid = WSREP_UUID_UNDEFINED;
 
 bool wsrep_before_SE()
 {
@@ -218,7 +226,7 @@ bool wsrep_sst_wait ()
     if (!sst_complete)
     {
       total_wtime += difftime(end_time, start_time);
-      WSREP_DEBUG("Waiting for SST to complete. current seqno: %ld waited %f secs.", local_seqno, total_wtime);
+      WSREP_DEBUG("Waiting for SST to complete. current seqno: %" PRId64 " waited %f secs.", local_seqno, total_wtime);
       service_manager_extend_timeout(WSREP_EXTEND_TIMEOUT_INTERVAL,
         "WSREP state transfer ongoing, current seqno: %ld waited %f secs", local_seqno, total_wtime);
     }
@@ -304,7 +312,7 @@ bool wsrep_sst_received (wsrep_t*            const wsrep,
   }
 
   if (memcmp(&local_uuid, &uuid, sizeof(wsrep_uuid_t)) ||
-      local_seqno < seqno)
+      local_seqno < seqno || seqno < 0)
   {
     do_update= true;
   }
@@ -446,6 +454,22 @@ static int generate_binlog_opt_val(char** ret)
     assert(opt_bin_logname);
     *ret= strcmp(opt_bin_logname, "0") ?
       my_strdup(opt_bin_logname, MYF(0)) : my_strdup("", MYF(0));
+  }
+  else
+  {
+    *ret= my_strdup("", MYF(0));
+  }
+  if (!*ret) return -ENOMEM;
+  return 0;
+}
+
+static int generate_binlog_index_opt_val(char** ret)
+{
+  DBUG_ASSERT(ret);
+  *ret= NULL;
+  if (opt_binlog_index_name) {
+    *ret= strcmp(opt_binlog_index_name, "0") ?
+      my_strdup(opt_binlog_index_name, MYF(0)) : my_strdup("", MYF(0));
   }
   else
   {
@@ -642,7 +666,9 @@ static ssize_t sst_prepare_other (const char*  method,
   }
 
   const char* binlog_opt= "";
+  const char* binlog_index_opt= "";
   char* binlog_opt_val= NULL;
+  char* binlog_index_opt_val= NULL;
 
   int ret;
   if ((ret= generate_binlog_opt_val(&binlog_opt_val)))
@@ -651,7 +677,15 @@ static ssize_t sst_prepare_other (const char*  method,
                 ret);
     return ret;
   }
+
+  if ((ret= generate_binlog_index_opt_val(&binlog_index_opt_val)))
+  {
+    WSREP_ERROR("sst_prepare_other(): generate_binlog_index_opt_val() failed %d",
+                ret);
+  }
+
   if (strlen(binlog_opt_val)) binlog_opt= WSREP_SST_OPT_BINLOG;
+  if (strlen(binlog_index_opt_val)) binlog_index_opt= WSREP_SST_OPT_BINLOG_INDEX;
 
   make_wsrep_defaults_file();
 
@@ -662,11 +696,14 @@ static ssize_t sst_prepare_other (const char*  method,
                  WSREP_SST_OPT_DATA " '%s' "
                  " %s "
                  WSREP_SST_OPT_PARENT " '%d'"
-                 " %s '%s' ",
+                 " %s '%s'"
+	         " %s '%s'",
                  method, addr_in, mysql_real_data_home,
                  wsrep_defaults_file,
-                 (int)getpid(), binlog_opt, binlog_opt_val);
+                 (int)getpid(), binlog_opt, binlog_opt_val,
+                 binlog_index_opt, binlog_index_opt_val);
   my_free(binlog_opt_val);
+  my_free(binlog_index_opt_val);
 
   if (ret < 0 || ret >= cmd_len)
   {
@@ -1432,7 +1469,7 @@ void wsrep_SE_init_wait()
     if (!SE_initialized)
     {
       total_wtime += difftime(end_time, start_time);
-      WSREP_DEBUG("Waiting for SST to complete. current seqno: %ld waited %f secs.", local_seqno, total_wtime);
+      WSREP_DEBUG("Waiting for SST to complete. current seqno: %" PRId64 " waited %f secs.", local_seqno, total_wtime);
       service_manager_extend_timeout(WSREP_EXTEND_TIMEOUT_INTERVAL,
         "WSREP state transfer ongoing, current seqno: %ld waited %f secs", local_seqno, total_wtime);
     }

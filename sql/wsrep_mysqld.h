@@ -159,7 +159,6 @@ extern "C" time_t wsrep_thd_query_start(THD *thd);
 extern "C" query_id_t wsrep_thd_query_id(THD *thd);
 extern "C" query_id_t wsrep_thd_wsrep_last_query_id(THD *thd);
 extern "C" void wsrep_thd_set_wsrep_last_query_id(THD *thd, query_id_t id);
-extern "C" void wsrep_set_data_home_dir(const char *data_dir);
 
 extern void wsrep_close_client_connections(my_bool wait_to_end);
 extern int  wsrep_wait_committing_connections_close(int wait_time);
@@ -291,8 +290,10 @@ extern PSI_mutex_key key_LOCK_wsrep_desync;
 extern PSI_file_key key_file_wsrep_gra_log;
 #endif /* HAVE_PSI_INTERFACE */
 struct TABLE_LIST;
+class Alter_info;
 int wsrep_to_isolation_begin(THD *thd, char *db_, char *table_,
-                             const TABLE_LIST* table_list);
+                             const TABLE_LIST* table_list,
+                             Alter_info* alter_info = NULL);
 void wsrep_to_isolation_end(THD *thd);
 void wsrep_cleanup_transaction(THD *thd);
 int wsrep_to_buf_helper(

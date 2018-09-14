@@ -37,3 +37,6 @@ galera_ist_progress: MDEV-15236 galera_ist_progress fails when trying to read tr
 pxc-421: Lock timeout exceeded
 galera_sst_mysqldump_with_key : MDEV-16890 Galera test failure
 galera.galera_kill_ddl : MDEV-17108 Test failure on galera.galera_kill_ddl
+galera.galera_binlog_stmt_autoinc : MDEV-17106 Test failure on galera.galera_binlog_stmt_autoinc
+galera.galera_kill_ddl : MDEV-17108 Test failure on galera.galera_kill_ddl
+galera.galera_var_node_address : MDEV-17151 Galera test failure on galera.galera_var_node_address

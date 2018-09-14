@@ -358,6 +358,18 @@ DROP TABLE t1;
 set use_stat_tables=@save_use_stat_tables;
 
 --echo #
+--echo # MDEV-17023: Crash during read_histogram_for_table with optimizer_use_condition_selectivity set to 4
+--echo #
+
+set @save_optimizer_use_condition_selectivity=@@optimizer_use_condition_selectivity;
+set @@optimizer_use_condition_selectivity=4;
+set @@use_stat_tables= PREFERABLY;
+explain
+SELECT * FROM INFORMATION_SCHEMA.PROFILING, mysql.user;
+set @@optimizer_use_condition_selectivity=@save_optimizer_use_condition_selectivity;
+set use_stat_tables=@save_use_stat_tables;
+
+--echo #
 --echo # MDEV-16757: manual addition of min/max statistics for BLOB
 --echo #
 

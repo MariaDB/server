@@ -431,6 +431,7 @@ void TABLE_SHARE::destroy()
     ha_share= NULL;                             // Safety
   }
 
+  delete_stat_values_for_table_share(this);
   free_root(&stats_cb.mem_root, MYF(0));
   stats_cb.stats_can_be_read= FALSE;
   stats_cb.stats_is_read= FALSE;
@@ -8470,4 +8471,10 @@ LEX_CSTRING *fk_option_name(enum_fk_option opt)
     { STRING_WITH_LEN("SET DEFAULT") }
   };
   return names + opt;
+}
+
+bool fk_modifies_child(enum_fk_option opt)
+{
+  static bool can_write[]= { false, false, true, true, false, true };
+  return can_write[opt];
 }

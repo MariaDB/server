@@ -1,0 +1,9 @@
+--echo This test does not produce any output on success
+--disable_query_log
+--disable_result_log
+--let $old_include_silent= $include_silent
+--let $include_silent= 1
+--source fast_update_gen_footer.inc
+--let $include_silent= $old_include_silent
+--enable_query_log
+--enable_result_log

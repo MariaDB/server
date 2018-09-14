@@ -14963,7 +14963,7 @@ get_foreign_key_info(
 
 	/* Referenced (parent) table name */
 	ptr = dict_remove_db_name(foreign->referenced_table_name);
-	len = filename_to_tablename(ptr, name_buff, sizeof(name_buff));
+	len = filename_to_tablename(ptr, name_buff, sizeof(name_buff), 1);
 	f_key_info.referenced_table = thd_make_lex_string(
 		thd, 0, name_buff, len, 1);
 
@@ -14979,7 +14979,7 @@ get_foreign_key_info(
 
 	/* Dependent (child) table name */
 	ptr = dict_remove_db_name(foreign->foreign_table_name);
-	len = filename_to_tablename(ptr, name_buff, sizeof(name_buff));
+	len = filename_to_tablename(ptr, name_buff, sizeof(name_buff), 1);
 	f_key_info.foreign_table = thd_make_lex_string(
 		thd, 0, name_buff, len, 1);
 
@@ -19395,7 +19395,7 @@ wsrep_innobase_kill_one_trx(
 		    thd_get_thread_id(thd),
 		    victim_trx->id);
 
-	WSREP_DEBUG("Aborting query: %s conf %d trx: %lu",
+	WSREP_DEBUG("Aborting query: %s conf %d trx: %" PRId64,
 		    (thd && wsrep_thd_query(thd)) ? wsrep_thd_query(thd) : "void",
 		    wsrep_thd_conflict_state(thd, FALSE),
 		    wsrep_thd_ws_handle(thd)->trx_id);
