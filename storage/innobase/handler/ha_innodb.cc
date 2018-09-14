@@ -275,10 +275,10 @@ void set_my_errno(int err)
 	errno = err;
 }
 
-static uint mysql_fields(const TABLE *table)
+static uint omits_virtual_cols(const TABLE_SHARE &share)
 {
-	return table->s->frm_version < FRM_VER_EXPRESSSIONS
-		? table->s->stored_fields : table->s->fields;
+	return share.frm_version < FRM_VER_EXPRESSSIONS &&
+	       share.virtual_fields;
 }
 
 /** Checks whether the file name belongs to a partition of a table.
@@ -6247,12 +6247,13 @@ no_such_table:
 		DBUG_RETURN(HA_ERR_NO_SUCH_TABLE);
 	}
 
-	uint n_fields = mysql_fields(table);
+	uint n_fields = omits_virtual_cols(*table_share)
+		? table_share->stored_fields : table_share->fields;
 	uint n_cols = dict_table_get_n_user_cols(ib_table)
 		+ dict_table_get_n_v_cols(ib_table)
 		- !!DICT_TF2_FLAG_IS_SET(ib_table, DICT_TF2_FTS_HAS_DOC_ID);
 
-	if (n_cols != n_fields) {
+	if (UNIV_UNLIKELY(n_cols != n_fields)) {
 		ib::warn() << "Table " << norm_name << " contains "
 			<< n_cols << " user"
 			" defined columns in InnoDB, but " << n_fields
@@ -7459,6 +7460,10 @@ build_template_needs_field(
 {
 	const Field*	field	= table->field[i];
 
+	if (innobase_is_v_fld(field) && omits_virtual_cols(*table->s)) {
+		return NULL;
+	}
+
 	if (!index_contains) {
 		if (read_just_key) {
 			/* If this is a 'key read', we do not need
@@ -7483,7 +7488,6 @@ build_template_needs_field(
 	if (fetch_primary_key_cols
 	    && dict_table_col_in_clustered_key(index->table, i - num_v)) {
 		/* This field is needed in the query */
-
 		return(field);
 	}
 
@@ -7536,17 +7540,11 @@ build_template_field(
 
 	templ = prebuilt->mysql_template + prebuilt->n_template++;
 	UNIV_MEM_INVALID(templ, sizeof *templ);
-
-	if (innobase_is_v_fld(field)) {
-		templ->is_virtual = true;
-		col = &dict_table_get_nth_v_col(index->table, v_no)->m_col;
-	} else {
-		templ->is_virtual = false;
-		col = dict_table_get_nth_col(index->table, i);
-	}
+	templ->is_virtual = innobase_is_v_fld(field);
 
 	if (!templ->is_virtual) {
 		templ->col_no = i;
+		col = dict_table_get_nth_col(index->table, i);
 		templ->clust_rec_field_no = dict_col_get_clust_pos(
 						col, clust_index);
 		/* If clustered index record field is not found, lets print out
@@ -7585,7 +7583,7 @@ build_template_field(
 					<< table->field[j]->field_name;
 			}
 
-			ib::error() << "Clustered record field for column " << i
+			ib::fatal() << "Clustered record field for column " << i
 				<< " not found table n_user_defined "
 				<< clust_index->n_user_defined_cols
 				<< " index n_user_defined "
@@ -7602,8 +7600,6 @@ build_template_field(
 				<< table->s->stored_fields
 				<< " query "
 				<< innobase_get_stmt_unsafe(current_thd, &size);
-
-			ut_a(templ->clust_rec_field_no != ULINT_UNDEFINED);
 		}
 		templ->rec_field_is_prefix = FALSE;
 		templ->rec_prefix_field_no = ULINT_UNDEFINED;
@@ -7621,6 +7617,8 @@ build_template_field(
 						&templ->rec_prefix_field_no);
 		}
 	} else {
+		ut_ad(!omits_virtual_cols(*table->s));
+		col = &dict_table_get_nth_v_col(index->table, v_no)->m_col;
 		templ->clust_rec_field_no = v_no;
 		templ->rec_prefix_field_no = ULINT_UNDEFINED;
 
@@ -7704,10 +7702,8 @@ ha_innobase::build_template(
 {
 	dict_index_t*	index;
 	dict_index_t*	clust_index;
-	ulint		n_fields;
 	ibool		fetch_all_in_key	= FALSE;
 	ibool		fetch_primary_key_cols	= FALSE;
-	ulint		i;
 
 	if (m_prebuilt->select_lock_type == LOCK_X) {
 		/* We always retrieve the whole clustered index record if we
@@ -7760,7 +7756,8 @@ ha_innobase::build_template(
 	/* Below we check column by column if we need to access
 	the clustered index. */
 
-	n_fields = (ulint) mysql_fields(table);
+	const bool skip_virtual = omits_virtual_cols(*table_share);
+	const ulint n_fields = table_share->fields;
 
 	if (!m_prebuilt->mysql_template) {
 		m_prebuilt->mysql_template = (mysql_row_templ_t*)
@@ -7780,25 +7777,25 @@ ha_innobase::build_template(
 	/* Note that in InnoDB, i is the column number in the table.
 	MySQL calls columns 'fields'. */
 
+	ulint num_v = 0;
+
 	if (active_index != MAX_KEY
 	    && active_index == pushed_idx_cond_keyno) {
-		ulint	num_v = 0;
-
 		/* Push down an index condition or an end_range check. */
-		for (i = 0; i < n_fields; i++) {
-			ibool		index_contains;
-
-			if (innobase_is_v_fld(table->field[i])) {
-				index_contains = dict_index_contains_col_or_prefix(
-					index, num_v, true);
-                                if (index_contains)
-                                {
-                                        m_prebuilt->n_template = 0;
-                                        goto no_icp;
-                                }
-			} else {
-				index_contains = dict_index_contains_col_or_prefix(
-					index, i - num_v, false);
+		for (ulint i = 0; i < n_fields; i++) {
+			const Field* field = table->field[i];
+			const bool is_v = innobase_is_v_fld(field);
+			if (is_v && skip_virtual) {
+				num_v++;
+				continue;
+			}
+			ibool index_contains
+				= dict_index_contains_col_or_prefix(
+					index, is_v ? num_v : i - num_v, is_v);
+			if (is_v && index_contains) {
+				m_prebuilt->n_template = 0;
+				num_v = 0;
+				goto no_icp;
 			}
 
 			/* Test if an end_range or an index condition
@@ -7816,17 +7813,10 @@ ha_innobase::build_template(
 			the subset
 			field->part_of_key.is_set(active_index)
 			which would be acceptable if end_range==NULL. */
-			bool	is_v = innobase_is_v_fld(table->field[i]);
 			if (build_template_needs_field_in_icp(
 				    index, m_prebuilt, index_contains,
 				    is_v ? num_v : i - num_v, is_v)) {
-				/* Needed in ICP */
-				const Field*		field;
-				mysql_row_templ_t*	templ;
-
-				if (whole_row) {
-					field = table->field[i];
-				} else {
+				if (!whole_row) {
 					field = build_template_needs_field(
 						index_contains,
 						m_prebuilt->read_just_key,
@@ -7834,15 +7824,16 @@ ha_innobase::build_template(
 						fetch_primary_key_cols,
 						index, table, i, num_v);
 					if (!field) {
-						if (innobase_is_v_fld(
-							table->field[i])) {
+						if (is_v) {
 							num_v++;
 						}
 						continue;
 					}
 				}
 
-				templ = build_template_field(
+				ut_ad(!is_v);
+
+				mysql_row_templ_t* templ= build_template_field(
 					m_prebuilt, clust_index, index,
 					table, field, i - num_v, 0);
 
@@ -7917,7 +7908,8 @@ ha_innobase::build_template(
 				      < m_prebuilt->index->n_uniq);
 				*/
 			}
-			if (innobase_is_v_fld(table->field[i])) {
+
+			if (is_v) {
 				num_v++;
 			}
 		}
@@ -7929,29 +7921,24 @@ ha_innobase::build_template(
 
 		/* Include the fields that are not needed in index condition
 		pushdown. */
-		for (i = 0; i < n_fields; i++) {
+		for (ulint i = 0; i < n_fields; i++) {
 			mysql_row_templ_t*	templ;
-			ibool			index_contains;
-
-			if (innobase_is_v_fld(table->field[i])) {
-				index_contains = dict_index_contains_col_or_prefix(
-					index, num_v, true);
-			} else {
-				index_contains = dict_index_contains_col_or_prefix(
-					index, i - num_v, false);
+			const Field*		field = table->field[i];
+			const bool is_v = innobase_is_v_fld(field);
+			if (is_v && skip_virtual) {
+				num_v++;
+				continue;
 			}
 
-			bool	is_v = innobase_is_v_fld(table->field[i]);
+			ibool index_contains
+				= dict_index_contains_col_or_prefix(
+					index, is_v ? num_v : i - num_v, is_v);
 
 			if (!build_template_needs_field_in_icp(
 				    index, m_prebuilt, index_contains,
 				    is_v ? num_v : i - num_v, is_v)) {
 				/* Not needed in ICP */
-				const Field*	field;
-
-				if (whole_row) {
-					field = table->field[i];
-				} else {
+				if (!whole_row) {
 					field = build_template_needs_field(
 						index_contains,
 						m_prebuilt->read_just_key,
@@ -7959,7 +7946,7 @@ ha_innobase::build_template(
 						fetch_primary_key_cols,
 						index, table, i, num_v);
 					if (!field) {
-						if (innobase_is_v_fld(table->field[i])) {
+						if (is_v) {
 							num_v++;
 						}
 						continue;
@@ -7969,8 +7956,9 @@ ha_innobase::build_template(
 				templ = build_template_field(
 					m_prebuilt, clust_index, index,
 					table, field, i - num_v, num_v);
+				ut_ad(templ->is_virtual == is_v);
 
-				if (templ->is_virtual) {
+				if (is_v) {
 					num_v++;
 				}
 			}
@@ -7980,21 +7968,26 @@ ha_innobase::build_template(
 	} else {
 no_icp:
 		mysql_row_templ_t*	templ;
-		ulint			num_v = 0;
 		/* No index condition pushdown */
 		m_prebuilt->idx_cond = NULL;
+		ut_ad(num_v == 0);
 
-		for (i = 0; i < n_fields; i++) {
-			const Field*	field;
+		for (ulint i = 0; i < n_fields; i++) {
+			const Field*	field = table->field[i];
+			const bool is_v = innobase_is_v_fld(field);
 
 			if (whole_row) {
+				if (is_v && skip_virtual) {
+					num_v++;
+					continue;
+				}
 				/* Even this is whole_row, if the seach is
 				on a virtual column, and read_just_key is
 				set, and field is not in this index, we
 				will not try to fill the value since they
 				are not stored in such index nor in the
 				cluster index. */
-				if (innobase_is_v_fld(table->field[i])
+				if (is_v
 				    && m_prebuilt->read_just_key
 				    && !dict_index_contains_col_or_prefix(
 					m_prebuilt->index, num_v, true))
@@ -8005,12 +7998,10 @@ no_icp:
 					num_v++;
 					continue;
 				}
-
-				field = table->field[i];
 			} else {
 				ibool	contain;
 
-				if (!innobase_is_v_fld(table->field[i])) {
+				if (!is_v) {
 					contain = dict_index_contains_col_or_prefix(
 						index, i - num_v,
 						false);
@@ -8029,7 +8020,7 @@ no_icp:
 					fetch_primary_key_cols,
 					index, table, i, num_v);
 				if (!field) {
-					if (innobase_is_v_fld(table->field[i])) {
+					if (is_v) {
 						num_v++;
 					}
 					continue;
@@ -8039,7 +8030,8 @@ no_icp:
 			templ = build_template_field(
 				m_prebuilt, clust_index, index,
 				table, field, i - num_v, num_v);
-			if (templ->is_virtual) {
+			ut_ad(templ->is_virtual == is_v);
+			if (is_v) {
 				num_v++;
 			}
 		}
@@ -8048,8 +8040,7 @@ no_icp:
 	if (index != clust_index && m_prebuilt->need_to_access_clustered) {
 		/* Change rec_field_no's to correspond to the clustered index
 		record */
-		for (i = 0; i < m_prebuilt->n_template; i++) {
-
+		for (ulint i = 0; i < m_prebuilt->n_template; i++) {
 			mysql_row_templ_t*	templ
 				= &m_prebuilt->mysql_template[i];
 
@@ -8482,13 +8473,12 @@ calc_row_difference(
 	ulint		n_changed = 0;
 	dfield_t	dfield;
 	dict_index_t*	clust_index;
-	uint		i;
 	ibool		changes_fts_column = FALSE;
 	ibool		changes_fts_doc_col = FALSE;
 	trx_t* const	trx = prebuilt->trx;
 	doc_id_t	doc_id = FTS_NULL_DOC_ID;
 	ulint		num_v = 0;
-	uint		n_fields = mysql_fields(table);
+	const bool 	skip_virtual = omits_virtual_cols(*table->s);
 
 	ut_ad(!srv_read_only_mode);
 
@@ -8498,16 +8488,15 @@ calc_row_difference(
 	/* We use upd_buff to convert changed fields */
 	buf = (byte*) upd_buff;
 
-	for (i = 0; i < n_fields; i++) {
+	for (uint i = 0; i < table->s->fields; i++) {
 		field = table->field[i];
-		bool		is_virtual = innobase_is_v_fld(field);
-		dict_col_t*	col;
-
-		if (is_virtual) {
-			col = &prebuilt->table->v_cols[num_v].m_col;
-		} else {
-			col = &prebuilt->table->cols[i - num_v];
+		const bool is_virtual = innobase_is_v_fld(field);
+		if (is_virtual && skip_virtual) {
+			continue;
 		}
+		dict_col_t* col = is_virtual
+			? &prebuilt->table->v_cols[num_v].m_col
+			: &prebuilt->table->cols[i - num_v];
 
 		o_ptr = (const byte*) old_row + get_field_offset(table, field);
 		n_ptr = (const byte*) new_row + get_field_offset(table, field);
@@ -8864,33 +8853,25 @@ wsrep_calc_row_hash(
 	row_prebuilt_t*	prebuilt,	/*!< in: InnoDB prebuilt struct */
 	THD*		thd)		/*!< in: user thread */
 {
-	Field*		field;
-	enum_field_types field_mysql_type;
-	uint		n_fields;
 	ulint		len;
 	const byte*	ptr;
-	ulint		col_type;
-	uint		i;
 
 	void *ctx = alloca(my_md5_context_size());
 	my_md5_init(ctx);
 
-	n_fields = mysql_fields(table);
-
-	for (i = 0; i < n_fields; i++) {
+	for (uint i = 0; i < table->s->fields; i++) {
 		byte null_byte=0;
 		byte true_byte=1;
 
-		field = table->field[i];
+		const Field* field = table->field[i];
+		if (innobase_is_v_fld(field)) {
+			continue;
+		}
 
 		ptr = (const byte*) row + get_field_offset(table, field);
 		len = field->pack_length();
 
-		field_mysql_type = field->type();
-
-		col_type = prebuilt->table->cols[i].mtype;
-
-		switch (col_type) {
+		switch (prebuilt->table->cols[i].mtype) {
 
 		case DATA_BLOB:
 			ptr = row_mysql_read_blob_ref(&len, ptr, len);
@@ -8900,7 +8881,7 @@ wsrep_calc_row_hash(
 		case DATA_VARCHAR:
 		case DATA_BINARY:
 		case DATA_VARMYSQL:
-			if (field_mysql_type == MYSQL_TYPE_VARCHAR) {
+			if (field->type() == MYSQL_TYPE_VARCHAR) {
 				/* This is a >= 5.0.3 type true VARCHAR where
 				the real payload data length is stored in
 				1 or 2 bytes */
@@ -10786,9 +10767,9 @@ create_table_check_doc_id_col(
 					ULINT_UNDEFINED if column is of the
 					wrong type/name/size */
 {
-	uint		n_fields = mysql_fields(form);
+	ut_ad(!omits_virtual_cols(*form->s));
 
-	for (ulint i = 0; i < n_fields; i++) {
+	for (ulint i = 0; i < form->s->fields; i++) {
 		const Field*	field;
 		ulint		col_type;
 		ulint		col_len;
