@@ -267,6 +267,13 @@ void TABLE::deny_splitting()
 }
 
 
+double TABLE::get_materialization_cost()
+{
+  DBUG_ASSERT(spl_opt_info != NULL);
+  return spl_opt_info->unsplit_cost;
+}
+
+
 /* This structure is auxiliary and used only in the function that follows it */
 struct SplM_field_ext_info: public SplM_field_info
 {
