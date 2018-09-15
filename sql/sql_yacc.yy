@@ -14079,7 +14079,7 @@ with_list_element:
 	    if (elem == NULL || Lex->curr_with_clause->add_with_element(elem))
 	      MYSQL_YYABORT;
             if (elem->set_unparsed_spec(thd, spec_start, $8,
-                                        spec_start - query_start))
+                                        (uint) (spec_start - query_start)))
               MYSQL_YYABORT;
 	  }
 	;
