@@ -3007,6 +3007,8 @@ enum open_frm_error open_table_from_share(THD *thd, TABLE_SHARE *share,
 {
   enum open_frm_error error;
   uint records, i, bitmap_size, bitmap_count;
+  size_t tmp_length;
+  const char *tmp_alias;
   bool error_reported= FALSE;
   uchar *record, *bitmaps;
   Field **field_ptr;
@@ -3033,8 +3035,15 @@ enum open_frm_error open_table_from_share(THD *thd, TABLE_SHARE *share,
   }
   init_sql_alloc(&outparam->mem_root, TABLE_ALLOC_BLOCK_SIZE, 0, MYF(0));
 
-  if (outparam->alias.copy(alias, strlen(alias), table_alias_charset))
+  /*
+    We have to store the original alias in mem_root as constraints and virtual
+    functions may store pointers to it
+  */
+  tmp_length= strlen(alias);
+  if (!(tmp_alias= strmake_root(&outparam->mem_root, alias, tmp_length)))
     goto err;
+
+  outparam->alias.set(tmp_alias, tmp_length, table_alias_charset);
   outparam->quick_keys.init();
   outparam->covering_keys.init();
   outparam->intersect_keys.init();
@@ -4487,7 +4496,7 @@ void TABLE::init(THD *thd, TABLE_LIST *tl)
                                    s->table_name.str,
                                    tl->alias);
   /* Fix alias if table name changes. */
-  if (strcmp(alias.c_ptr(), tl->alias))
+  if (!alias.alloced_length() || strcmp(alias.c_ptr(), tl->alias))
     alias.copy(tl->alias, strlen(tl->alias), alias.charset());
 
   tablenr= thd->current_tablenr++;
