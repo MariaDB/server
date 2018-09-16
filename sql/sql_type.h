@@ -476,6 +476,7 @@ public:
     DBUG_ASSERT(size == sizeof(MYSQL_TIME));
     return ltime;
   }
+  static void operator delete(void *ptr, MYSQL_TIME *ltime) { }
 
   long fraction_remainder(uint dec) const
   {
