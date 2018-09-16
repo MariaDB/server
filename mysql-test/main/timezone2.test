@@ -308,3 +308,22 @@ SELECT CONVERT_TZ('2001-10-08 00:00:00', MAKE_SET(0,'+01:00'), '+00:00' );
 --echo #
 --echo # End of 5.3 tests
 --echo #
+
+--echo #
+--echo # Start of 10.4 tests
+--echo #
+
+--echo #
+--echo # MDEV-17203 Move fractional second truncation from Item_xxx_typecast::get_date() to Time and Datetime constructors
+--echo # (an addition for the test for MDEV-4653)
+
+SET timestamp=unix_timestamp('2001-02-03 10:20:30');
+SET old_mode=ZERO_DATE_TIME_CAST;
+SELECT CONVERT_TZ(TIME('00:00:00'),'+00:00','+7:5');
+SELECT CONVERT_TZ(TIME('2010-01-01 00:00:00'),'+00:00','+7:5');
+SET old_mode=DEFAULT;
+SET timestamp=DEFAULT;
+
+--echo #
+--echo # End of 10.4 tests
+--echo #

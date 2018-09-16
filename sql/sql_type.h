@@ -471,6 +471,12 @@ protected:
   bool str_to_datetime(MYSQL_TIME_STATUS *st, const char *str, size_t length,
                        CHARSET_INFO *cs, sql_mode_t fuzzydate);
 public:
+  static void *operator new(size_t size, MYSQL_TIME *ltime) throw()
+  {
+    DBUG_ASSERT(size == sizeof(MYSQL_TIME));
+    return ltime;
+  }
+
   long fraction_remainder(uint dec) const
   {
     return my_time_fraction_remainder(second_part, dec);
@@ -772,6 +778,11 @@ public:
    :Temporal(Time(warn, Sec6(d), Options()))
   { }
 
+  Time(Item *item, const Options opt, uint dec)
+   :Temporal(Time(item, opt))
+  {
+    trunc(dec);
+  }
   Time(int *warn, const MYSQL_TIME *from, long curdays, uint dec)
    :Temporal(Time(warn, from, curdays))
   {
@@ -1125,6 +1136,11 @@ public:
     DBUG_ASSERT(is_valid_value_slow());
   }
 
+  Datetime(THD *thd, Item *item, sql_mode_t flags, uint dec)
+   :Temporal_with_date(Datetime(thd, item, flags))
+  {
+    trunc(dec);
+  }
   Datetime(MYSQL_TIME_STATUS *status,
            const char *str, size_t len, CHARSET_INFO *cs,
            sql_mode_t fuzzydate, uint dec)
