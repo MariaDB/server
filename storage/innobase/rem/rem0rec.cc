@@ -260,9 +260,8 @@ static inline unsigned rec_get_n_add_field(const byte*& header)
 enum rec_leaf_format {
 	/** Temporary file record */
 	REC_LEAF_TEMP,
-	/** Temporary file record, with added columns
-	(REC_STATUS_INSTANT) */
-	REC_LEAF_TEMP_COLUMNS_ADDED,
+	/** Temporary file record, with added columns (REC_STATUS_INSTANT) */
+	REC_LEAF_TEMP_INSTANT,
 	/** Normal (REC_STATUS_ORDINARY) */
 	REC_LEAF_ORDINARY,
 	/** With add or drop columns (REC_STATUS_INSTANT) */
@@ -300,9 +299,9 @@ rec_init_offsets_comp_ordinary(
 	ut_ad(n_core > 0);
 	ut_ad(index->n_fields >= n_core);
 	ut_ad(index->n_core_null_bytes <= UT_BITS_IN_BYTES(index->n_nullable));
-	ut_ad(format == REC_LEAF_TEMP || format == REC_LEAF_TEMP_COLUMNS_ADDED
+	ut_ad(format == REC_LEAF_TEMP || format == REC_LEAF_TEMP_INSTANT
 	      || dict_table_is_comp(index->table));
-	ut_ad(format != REC_LEAF_TEMP_COLUMNS_ADDED
+	ut_ad(format != REC_LEAF_TEMP_INSTANT
 	      || index->n_fields == rec_offs_n_fields(offsets));
 	ut_d(ulint n_null= 0);
 
@@ -328,7 +327,7 @@ ordinary:
 		nulls -= REC_N_NEW_EXTRA_BYTES;
 		ut_ad(index->is_instant());
 		/* fall through */
-	case REC_LEAF_TEMP_COLUMNS_ADDED:
+	case REC_LEAF_TEMP_INSTANT:
 
 		if (index->is_drop_field_exist()
 		    && !rec_is_default_row(rec, index)) {
@@ -2215,7 +2214,7 @@ rec_init_offsets_temp(
 	ut_ad(index->n_core_fields >= n_core);
 	rec_init_offsets_comp_ordinary(rec, index, offsets, n_core, def_val,
 				       status == REC_STATUS_INSTANT
-				       ? REC_LEAF_TEMP_COLUMNS_ADDED
+				       ? REC_LEAF_TEMP_INSTANT
 				       : REC_LEAF_TEMP);
 }
 
