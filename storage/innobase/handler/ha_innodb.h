@@ -461,8 +461,6 @@ protected:
 	this is set in external_lock function */
 	THD*			m_user_thd;
 
-	THR_LOCK_DATA	lock;
-
 	/** buffer used in updates */
 	uchar*			m_upd_buf;
 
