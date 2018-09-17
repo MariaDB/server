@@ -176,7 +176,7 @@ rec_get_n_extern_new(
 	ut_ad(!index->table->supports_instant() || index->is_dummy);
 	ut_ad(!index->is_instant());
 	ut_ad(rec_get_status(rec) == REC_STATUS_ORDINARY
-	      || rec_get_status(rec) == REC_STATUS_COLUMNS_INSTANT);
+	      || rec_get_status(rec) == REC_STATUS_INSTANT);
 	ut_ad(n == ULINT_UNDEFINED || n <= dict_index_get_n_fields(index));
 
 	if (n == ULINT_UNDEFINED) {
@@ -238,8 +238,8 @@ rec_get_n_extern_new(
 	return(n_extern);
 }
 
-/** Get the added field count in a REC_STATUS_COLUMNS_INSTANT record.
-@param[in,out]	header	variable header of a REC_STATUS_COLUMNS_INSTANT record
+/** Get the added field count in a REC_STATUS_INSTANT record.
+@param[in,out]	header	variable header of a REC_STATUS_INSTANT record
 @return	number of added fields */
 static inline unsigned rec_get_n_add_field(const byte*& header)
 {
@@ -261,12 +261,12 @@ enum rec_leaf_format {
 	/** Temporary file record */
 	REC_LEAF_TEMP,
 	/** Temporary file record, with added columns
-	(REC_STATUS_COLUMNS_INSTANT) */
+	(REC_STATUS_INSTANT) */
 	REC_LEAF_TEMP_COLUMNS_ADDED,
 	/** Normal (REC_STATUS_ORDINARY) */
 	REC_LEAF_ORDINARY,
-	/** With add or drop columns (REC_STATUS_COLUMNS_INSTANT) */
-	REC_LEAF_COLUMNS_INSTANT
+	/** With add or drop columns (REC_STATUS_INSTANT) */
+	REC_LEAF_INSTANT
 };
 
 /** Determine the offset to each field in a leaf-page record
@@ -322,7 +322,7 @@ ordinary:
 		ut_d(n_null = std::min(index->n_core_null_bytes * 8U,
 				       index->n_nullable));
 		break;
-	case REC_LEAF_COLUMNS_INSTANT:
+	case REC_LEAF_INSTANT:
 		/* We would have !index->is_instant() when rolling back
 		an instant ADD COLUMN operation. */
 		nulls -= REC_N_NEW_EXTRA_BYTES;
@@ -552,7 +552,7 @@ rec_offs_validate(
 			dict_index_get_n_unique_in_tree(index) + 1);
 		if (comp && rec) {
 			switch (rec_get_status(rec)) {
-			case REC_STATUS_COLUMNS_INSTANT:
+			case REC_STATUS_INSTANT:
 			case REC_STATUS_ORDINARY:
 				break;
 			case REC_STATUS_NODE_PTR:
@@ -857,12 +857,12 @@ rec_init_offsets(
 				= dict_index_get_n_unique_in_tree_nonleaf(
 					index);
 			break;
-		case REC_STATUS_COLUMNS_INSTANT:
+		case REC_STATUS_INSTANT:
 			ut_ad(leaf);
 			rec_init_offsets_comp_ordinary(rec, index, offsets,
 						       index->n_core_fields,
 						       NULL,
-						       REC_LEAF_COLUMNS_INSTANT);
+						       REC_LEAF_INSTANT);
 			return;
 		case REC_STATUS_ORDINARY:
 			ut_ad(leaf);
@@ -1048,7 +1048,7 @@ rec_get_offsets_func(
 	if (dict_table_is_comp(index->table)) {
 		switch (UNIV_EXPECT(rec_get_status(rec),
 				    REC_STATUS_ORDINARY)) {
-		case REC_STATUS_COLUMNS_INSTANT:
+		case REC_STATUS_INSTANT:
 
 			if (UNIV_UNLIKELY(rec_get_info_bits(rec, true)
 					  == (REC_INFO_MIN_REC_FLAG
@@ -1431,9 +1431,9 @@ rec_get_converted_size_comp_prefix_low(
 	ut_ad(n_fields <= dict_index_get_n_fields(index));
 	ut_d(ulint n_null = index->n_nullable);
 	ut_ad(status == REC_STATUS_ORDINARY || status == REC_STATUS_NODE_PTR
-	      || status == REC_STATUS_COLUMNS_INSTANT);
+	      || status == REC_STATUS_INSTANT);
 
-	if (status == REC_STATUS_COLUMNS_INSTANT
+	if (status == REC_STATUS_INSTANT
 	    && (!temp || n_fields > index->n_core_fields)) {
 		ut_ad(index->is_instant());
 		ut_ad(UT_BITS_IN_BYTES(n_null) >= index->n_core_null_bytes);
@@ -1599,10 +1599,10 @@ rec_get_converted_size_comp(
 	case REC_STATUS_ORDINARY:
 		if (n_fields > index->n_core_fields) {
 			ut_ad(index->is_instant());
-			status = REC_STATUS_COLUMNS_INSTANT;
+			status = REC_STATUS_INSTANT;
 		}
 		/* fall through */
-	case REC_STATUS_COLUMNS_INSTANT:
+	case REC_STATUS_INSTANT:
 		ut_ad(n_fields >= index->n_core_fields);
 		/** In case of default row with drop column info, there
 		is a possiblity of n_fields can be higher than
@@ -1824,7 +1824,7 @@ rec_convert_dtuple_to_default_rec_comp(
 
 	rec_set_heap_no_new(rec, PAGE_HEAP_NO_USER_LOW);
 
-	rec_set_status(rec, REC_STATUS_COLUMNS_INSTANT);
+	rec_set_status(rec, REC_STATUS_INSTANT);
 
 	lens = nulls - n_null_bytes;
 
@@ -1943,7 +1943,7 @@ rec_convert_dtuple_to_rec_comp(
 	ut_d(ulint n_null = index->n_nullable);
 
 	switch (status) {
-	case REC_STATUS_COLUMNS_INSTANT:
+	case REC_STATUS_INSTANT:
 		ut_ad(index->is_instant());
 
 		if (index->is_drop_field_exist()) {
@@ -1963,7 +1963,7 @@ rec_convert_dtuple_to_rec_comp(
 			rec_set_status(
 				rec, n_fields == index->n_core_fields
 				     ? REC_STATUS_ORDINARY
-				     : REC_STATUS_COLUMNS_INSTANT);
+				     : REC_STATUS_INSTANT);
 		}
 
 		if (dict_table_is_comp(index->table)) {
@@ -2113,7 +2113,7 @@ rec_convert_dtuple_to_rec_new(
 	if (status == REC_STATUS_ORDINARY
 	    && dtuple->n_fields > index->n_core_fields) {
 		ut_ad(index->is_instant());
-		status = REC_STATUS_COLUMNS_INSTANT;
+		status = REC_STATUS_INSTANT;
 	}
 
 	ulint	extra_size;
@@ -2177,7 +2177,7 @@ rec_convert_dtuple_to_rec(
 @param[in]	fields		data fields
 @param[in]	n_fields	number of data fields
 @param[out]	extra		record header size
-@param[in]	status		REC_STATUS_ORDINARY or REC_STATUS_COLUMNS_INSTANT
+@param[in]	status		REC_STATUS_ORDINARY or REC_STATUS_INSTANT
 @return	total size, in bytes */
 ulint
 rec_get_converted_size_temp(
@@ -2197,7 +2197,7 @@ rec_get_converted_size_temp(
 @param[in,out]	offsets	offsets to the fields; in: rec_offs_n_fields(offsets)
 @param[in]	n_core	number of core fields (index->n_core_fields)
 @param[in]	def_val	default values for non-core fields
-@param[in]	status	REC_STATUS_ORDINARY or REC_STATUS_COLUMNS_INSTANT */
+@param[in]	status	REC_STATUS_ORDINARY or REC_STATUS_INSTANT */
 void
 rec_init_offsets_temp(
 	const rec_t*		rec,
@@ -2208,13 +2208,13 @@ rec_init_offsets_temp(
 	rec_comp_status_t	status)
 {
 	ut_ad(status == REC_STATUS_ORDINARY
-	      || status == REC_STATUS_COLUMNS_INSTANT);
+	      || status == REC_STATUS_INSTANT);
 	/* The table may have been converted to plain format
 	if it was emptied during an ALTER TABLE operation. */
 	ut_ad(index->n_core_fields == n_core || !index->is_instant());
 	ut_ad(index->n_core_fields >= n_core);
 	rec_init_offsets_comp_ordinary(rec, index, offsets, n_core, def_val,
-				       status == REC_STATUS_COLUMNS_INSTANT
+				       status == REC_STATUS_INSTANT
 				       ? REC_LEAF_TEMP_COLUMNS_ADDED
 				       : REC_LEAF_TEMP);
 }
@@ -2241,7 +2241,7 @@ rec_init_offsets_temp(
 @param[in]	index		clustered or secondary index
 @param[in]	fields		data fields
 @param[in]	n_fields	number of data fields
-@param[in]	status		REC_STATUS_ORDINARY or REC_STATUS_COLUMNS_INSTANT
+@param[in]	status		REC_STATUS_ORDINARY or REC_STATUS_INSTANT
 */
 void
 rec_convert_dtuple_to_temp(
@@ -2411,7 +2411,7 @@ rec_copy_prefix_to_buf(
 		ut_ad(n_fields
 		      <= dict_index_get_n_unique_in_tree_nonleaf(index));
 		break;
-	case REC_STATUS_COLUMNS_INSTANT:
+	case REC_STATUS_INSTANT:
 		/* We would have !index->is_instant() when rolling back
 		an instant ADD COLUMN operation. */
 		ut_ad(index->is_instant() || page_rec_is_default_row(rec));
@@ -2526,7 +2526,7 @@ rec_copy_prefix_to_buf(
 		/* copy the fixed-size header and the record prefix */
 		memcpy(b - REC_N_NEW_EXTRA_BYTES, rec - REC_N_NEW_EXTRA_BYTES,
 		       prefix_len + REC_N_NEW_EXTRA_BYTES);
-		ut_ad(rec_get_status(b) == REC_STATUS_COLUMNS_INSTANT);
+		ut_ad(rec_get_status(b) == REC_STATUS_INSTANT);
 		rec_set_status(b, REC_STATUS_ORDINARY);
 		return b;
 	} else {

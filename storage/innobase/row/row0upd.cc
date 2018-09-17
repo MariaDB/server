@@ -682,7 +682,7 @@ row_upd_rec_in_place(
 		switch (rec_get_status(rec)) {
 		case REC_STATUS_ORDINARY:
 			break;
-		case REC_STATUS_COLUMNS_INSTANT:
+		case REC_STATUS_INSTANT:
 			ut_ad(index->is_instant());
 			break;
 		case REC_STATUS_NODE_PTR:

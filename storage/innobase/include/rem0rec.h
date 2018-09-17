@@ -67,19 +67,19 @@ enum rec_comp_status_t {
 	REC_STATUS_SUPREMUM = 3,
 	/** Clustered index record that has been inserted or updated
 	after instant ADD COLUMN (more than dict_index_t::n_core_fields) */
-	REC_STATUS_COLUMNS_INSTANT = 4
+	REC_STATUS_INSTANT = 4
 };
 
 /** The dtuple_t::info_bits of the 'default row' record.
 @see rec_is_default_row() */
 static const byte REC_INFO_DEFAULT_ROW
-	= REC_INFO_MIN_REC_FLAG | REC_STATUS_COLUMNS_INSTANT;
+	= REC_INFO_MIN_REC_FLAG | REC_STATUS_INSTANT;
 
 /** The dtuple_t::info_bits of the 'default row' record with dropped
 column information. */
 static const byte REC_INFO_DEFAULT_ROW_DROP
 	= REC_INFO_MIN_REC_FLAG | REC_INFO_DELETED_FLAG
-	  | REC_STATUS_COLUMNS_INSTANT;
+	  | REC_STATUS_INSTANT;
 
 #define REC_NEW_STATUS		3	/* This is single byte bit-field */
 #define REC_NEW_STATUS_MASK	0x7UL
@@ -308,7 +308,7 @@ rec_comp_status_t
 rec_get_status(const rec_t* rec)
 {
 	byte bits = rec[-REC_NEW_STATUS] & REC_NEW_STATUS_MASK;
-	ut_ad(bits <= REC_STATUS_COLUMNS_INSTANT);
+	ut_ad(bits <= REC_STATUS_INSTANT);
 	return static_cast<rec_comp_status_t>(bits);
 }
 
@@ -319,12 +319,12 @@ inline
 void
 rec_set_status(rec_t* rec, byte bits)
 {
-	ut_ad(bits <= REC_STATUS_COLUMNS_INSTANT);
+	ut_ad(bits <= REC_STATUS_INSTANT);
 	rec[-REC_NEW_STATUS] = (rec[-REC_NEW_STATUS] & ~REC_NEW_STATUS_MASK)
 		| bits;
 }
 
-/** Get the length of added field count in a REC_STATUS_COLUMNS_INSTANT record.
+/** Get the length of added field count in a REC_STATUS_INSTANT record.
 @param[in]	n_add_field	number of added fields, minus one
 @return	storage size of the field count, in bytes */
 inline unsigned rec_get_n_add_field_len(ulint n_add_field)
@@ -333,8 +333,8 @@ inline unsigned rec_get_n_add_field_len(ulint n_add_field)
 	return n_add_field < 0x80 ? 1 : 2;
 }
 
-/** Set the added field count in a REC_STATUS_COLUMNS_INSTANT record.
-@param[in,out]	header	variable header of a REC_STATUS_COLUMNS_INSTANT record
+/** Set the added field count in a REC_STATUS_INSTANT record.
+@param[in,out]	header	variable header of a REC_STATUS_INSTANT record
 @param[in]	n_add	number of added fields, minus 1
 @return	record header before the number of added fields */
 inline void rec_set_n_add_field(byte*& header, ulint n_add)
@@ -830,7 +830,7 @@ rec_is_default_row(const rec_t* rec, const dict_index_t* index)
 		& REC_INFO_MIN_REC_FLAG;
 	ut_ad(!is || index->is_instant());
 	ut_ad(!is || !dict_table_is_comp(index->table)
-	      || rec_get_status(rec) == REC_STATUS_COLUMNS_INSTANT);
+	      || rec_get_status(rec) == REC_STATUS_INSTANT);
 	return is;
 }
 
@@ -848,7 +848,7 @@ rec_is_new_default_row(const rec_t* rec, const dict_index_t* index)
 	is = is && rec_get_deleted_flag(rec, dict_table_is_comp(index->table));
 	ut_ad(!is || index->is_instant());
 	ut_ad(!is || !dict_table_is_comp(index->table)
-	      || rec_get_status(rec) == REC_STATUS_COLUMNS_INSTANT);
+	      || rec_get_status(rec) == REC_STATUS_INSTANT);
 	return is;
 }
 
@@ -1045,7 +1045,7 @@ rec_copy(
 @param[in]	fields		data fields
 @param[in]	n_fields	number of data fields
 @param[out]	extra		record header size
-@param[in]	status		REC_STATUS_ORDINARY or REC_STATUS_COLUMNS_INSTANT
+@param[in]	status		REC_STATUS_ORDINARY or REC_STATUS_INSTANT
 @return	total size, in bytes */
 ulint
 rec_get_converted_size_temp(
@@ -1062,7 +1062,7 @@ rec_get_converted_size_temp(
 @param[in,out]	offsets	offsets to the fields; in: rec_offs_n_fields(offsets)
 @param[in]	n_core	number of core fields (index->n_core_fields)
 @param[in]	def_val	default values for non-core fields
-@param[in]	status	REC_STATUS_ORDINARY or REC_STATUS_COLUMNS_INSTANT */
+@param[in]	status	REC_STATUS_ORDINARY or REC_STATUS_INSTANT */
 void
 rec_init_offsets_temp(
 	const rec_t*		rec,
@@ -1089,7 +1089,7 @@ rec_init_offsets_temp(
 @param[in]	index		clustered or secondary index
 @param[in]	fields		data fields
 @param[in]	n_fields	number of data fields
-@param[in]	status		REC_STATUS_ORDINARY or REC_STATUS_COLUMNS_INSTANT */
+@param[in]	status		REC_STATUS_ORDINARY or REC_STATUS_INSTANT */
 void
 rec_convert_dtuple_to_temp(
 	rec_t*			rec,

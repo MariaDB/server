@@ -1370,7 +1370,7 @@ use_heap:
 			switch (rec_get_status(current_rec)) {
 			case REC_STATUS_ORDINARY:
 			case REC_STATUS_NODE_PTR:
-			case REC_STATUS_COLUMNS_INSTANT:
+			case REC_STATUS_INSTANT:
 			case REC_STATUS_INFIMUM:
 				break;
 			case REC_STATUS_SUPREMUM:
@@ -1379,7 +1379,7 @@ use_heap:
 			switch (rec_get_status(insert_rec)) {
 			case REC_STATUS_ORDINARY:
 			case REC_STATUS_NODE_PTR:
-			case REC_STATUS_COLUMNS_INSTANT:
+			case REC_STATUS_INSTANT:
 				break;
 			case REC_STATUS_INFIMUM:
 			case REC_STATUS_SUPREMUM:

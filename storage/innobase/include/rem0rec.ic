@@ -67,7 +67,7 @@ most significant bytes and bits are written below less significant.
 					001=REC_STATUS_NODE_PTR
 					010=REC_STATUS_INFIMUM
 					011=REC_STATUS_SUPREMUM
-					100=REC_STATUS_COLUMNS_INSTANT
+					100=REC_STATUS_INSTANT
 					1xx=reserved
 				5 bits heap number
 			4	8 bits heap number
@@ -453,7 +453,7 @@ rec_get_n_fields(
 	}
 
 	switch (rec_get_status(rec)) {
-	case REC_STATUS_COLUMNS_INSTANT:
+	case REC_STATUS_INSTANT:
 	case REC_STATUS_ORDINARY:
 		return(dict_index_get_n_fields(index));
 	case REC_STATUS_NODE_PTR:

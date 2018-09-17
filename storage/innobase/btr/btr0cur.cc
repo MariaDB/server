@@ -652,7 +652,7 @@ btr_cur_instant_init_low(dict_index_t* index, mtr_t* mtr)
 
 	if (dict_table_is_comp(index->table)) {
 		if (rec_get_info_bits(rec, true) != REC_INFO_MIN_REC_FLAG
-		    && rec_get_status(rec) != REC_STATUS_COLUMNS_INSTANT) {
+		    && rec_get_status(rec) != REC_STATUS_INSTANT) {
 incompatible:
 			ib::error() << "Table " << index->table->name
 				<< " contains unrecognizable "
