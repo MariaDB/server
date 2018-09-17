@@ -704,7 +704,7 @@ row_upd_rec_in_place(
 		switch (rec_get_status(rec)) {
 		case REC_STATUS_ORDINARY:
 			break;
-		case REC_STATUS_COLUMNS_ADDED:
+		case REC_STATUS_COLUMNS_INSTANT:
 			ut_ad(index->is_instant());
 			break;
 		case REC_STATUS_NODE_PTR:
@@ -1278,7 +1278,7 @@ row_upd_index_replace_new_col_val(
 	len = dfield_get_len(dfield);
 	data = static_cast<const byte*>(dfield_get_data(dfield));
 
-	if (field->prefix_len > 0) {
+	if (field && field->prefix_len > 0) {
 		ibool		fetch_ext = dfield_is_ext(dfield)
 			&& len < (ulint) field->prefix_len
 			+ BTR_EXTERN_FIELD_REF_SIZE;
@@ -1344,6 +1344,47 @@ row_upd_index_replace_new_col_val(
 	}
 }
 
+/** Apply an update vector to an default row entry.
+@param[in,out]	entry	index entry to be updated; the clustered index default
+			row record
+@param[in]	index	index of the entry
+@param[in]	update	update vector built for the entry
+@param[in,out]	heap	memory heap for copying off-page columns */
+static
+void
+row_upd_index_replace_default_rec_pos(
+	dtuple_t*		entry,
+	const dict_index_t*	index,
+	const upd_t*		update,
+	mem_heap_t*		heap)
+{
+	ut_ad(!index->table->skip_alter_undo);
+
+	const page_size_t&	page_size = dict_table_page_size(index->table);
+
+	dtuple_set_info_bits(entry, update->info_bits);
+
+	for (unsigned i = entry->n_fields;
+	     i >= unsigned(index->n_uniq + DATA_ROLL_PTR); i--) {
+		const dict_field_t*	field = NULL;
+		const dict_col_t*	col = NULL;
+		const upd_field_t*	uf;
+
+		uf = upd_get_field_by_field_no(update, i -1, false);
+
+		if (uf) {
+			if (i > unsigned(index->n_uniq + DATA_ROLL_PTR)) {
+				field = dict_index_get_nth_field(index, i - 1);
+				col = dict_field_get_col(field);
+			}
+
+			row_upd_index_replace_new_col_val(
+				dtuple_get_nth_field(entry, i),
+				field, col, uf, heap, page_size);
+		}
+	}
+}
+
 /** Apply an update vector to an index entry.
 @param[in,out]	entry	index entry to be updated; the clustered index record
 			must be covered by a lock or a page latch to prevent
@@ -1363,6 +1404,11 @@ row_upd_index_replace_new_col_vals_index_pos(
 	const page_size_t&	page_size = dict_table_page_size(index->table);
 
 	dtuple_set_info_bits(entry, update->info_bits);
+
+	if (UNIV_UNLIKELY(entry->info_bits == REC_INFO_DEFAULT_ROW_DROP)) {
+		row_upd_index_replace_default_rec_pos(entry, index, update, heap);
+		return;
+	}
 
 	for (unsigned i = index->n_fields; i--; ) {
 		const dict_field_t*	field;

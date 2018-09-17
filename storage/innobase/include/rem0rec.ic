@@ -67,7 +67,7 @@ most significant bytes and bits are written below less significant.
 					001=REC_STATUS_NODE_PTR
 					010=REC_STATUS_INFIMUM
 					011=REC_STATUS_SUPREMUM
-					100=REC_STATUS_COLUMNS_ADDED
+					100=REC_STATUS_COLUMNS_INSTANT
 					1xx=reserved
 				5 bits heap number
 			4	8 bits heap number
@@ -453,7 +453,7 @@ rec_get_n_fields(
 	}
 
 	switch (rec_get_status(rec)) {
-	case REC_STATUS_COLUMNS_ADDED:
+	case REC_STATUS_COLUMNS_INSTANT:
 	case REC_STATUS_ORDINARY:
 		return(dict_index_get_n_fields(index));
 	case REC_STATUS_NODE_PTR:
@@ -894,17 +894,25 @@ rec_get_nth_field_offs(
 				if SQL null; UNIV_SQL_DEFAULT is default value */
 {
 	ulint	offs;
-	ulint	length;
 	ut_ad(n < rec_offs_n_fields(offsets));
 	ut_ad(len);
 
 	if (n == 0) {
 		offs = 0;
 	} else {
-		offs = rec_offs_base(offsets)[n] & REC_OFFS_MASK;
+		offs = rec_offs_base(offsets)[n];
+		if (offs & REC_OFFS_DROP_COL
+		    || offs & REC_OFFS_DROP_SQL_NULL) {
+			ulint len;
+			offs  = offs & REC_OFFS_MASK;
+			rec_get_nth_field_offs(offsets, n-1, &len);
+			offs -= len;
+		} else {
+			offs = offs & REC_OFFS_MASK;
+		}
 	}
 
-	length = rec_offs_base(offsets)[1 + n];
+	ulint length = rec_offs_base(offsets)[1 + n];
 
 	if (length & REC_OFFS_SQL_NULL) {
 		length = UNIV_SQL_NULL;
@@ -1278,8 +1286,15 @@ rec_offs_data_size(
 	ulint	size;
 
 	ut_ad(rec_offs_validate(NULL, NULL, offsets));
-	size = rec_offs_base(offsets)[rec_offs_n_fields(offsets)]
-		& REC_OFFS_MASK;
+
+	ulint n = rec_offs_n_fields(offsets);
+
+	while (rec_offs_base(offsets)[n] & REC_OFFS_DROP_COL
+	       || rec_offs_base(offsets)[n] & REC_OFFS_DROP_SQL_NULL) {
+		n--;
+	}
+
+	size = rec_offs_base(offsets)[n] & REC_OFFS_MASK;
 	ut_ad(size < srv_page_size);
 	return(size);
 }
@@ -1426,11 +1441,19 @@ rec_get_converted_size(
 		      == DICT_FLD__SYS_INDEXES__MERGE_THRESHOLD);
 	} else {
 		ut_ad(dtuple->n_fields >= index->n_core_fields);
-		ut_ad(dtuple->n_fields <= index->n_fields);
+		ut_ad(dtuple->n_fields <= index->n_fields
+		      || dtuple->info_bits == REC_INFO_DEFAULT_ROW_DROP);
 	}
 #endif
 
 	if (dict_table_is_comp(index->table)) {
+
+		if (UNIV_UNLIKELY(dtuple_get_info_bits(dtuple)
+					== REC_INFO_DEFAULT_ROW_DROP)) {
+			return (rec_get_default_rec_converted_size(
+					index, dtuple, NULL));
+		}
+
 		return(rec_get_converted_size_comp(
 			       index,
 			       static_cast<rec_comp_status_t>(

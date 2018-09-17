@@ -383,6 +383,217 @@ btr_cur_latch_leaves(
 	return(latch_leaves);
 }
 
+
+/** Initialize the clustered index from the new default row meta data
+of an instant alter
+@param[in]	rec	default row record
+@param[in,out]	index	clustered index definition
+@param[in]	heap	memory heap to store all the fields
+@return	error code
+@retval	DB_SUCCESS	if no error occurred
+@retval	DB_CORRUPTION	if any corruption was noticed */
+static
+void
+btr_cur_instant_init_clust_index(
+	const rec_t*	rec,
+	dict_index_t*	index,
+	mem_heap_t*	heap)
+{
+	dict_index_t*	dummy_index;
+	dict_field_t*	field;
+
+	dummy_index = dict_mem_index_create(
+			index->table, index->name, index->type,
+			index->n_uniq + DATA_ROLL_PTR);
+	dummy_index->n_user_defined_cols = dummy_index->n_fields;
+	dummy_index->id = index->id;
+	dummy_index->n_uniq = index->n_uniq;
+	dummy_index->n_core_fields = index->n_core_fields;
+	dummy_index->instant = true;
+	for (ulint i = 0; i < unsigned(index->n_uniq + DATA_ROLL_PTR); i++) {
+		field = dict_index_get_nth_field(index, i);
+		dict_index_add_col(dummy_index, index->table, field->col,
+				field->prefix_len);
+	}
+
+	ulint		len;
+	ulint		blob_len;
+	const byte*	field_data;
+	byte*		blob_data;
+
+	ulint*	rec_offsets = rec_get_offsets(rec, dummy_index, NULL,
+			true, ULINT_UNDEFINED, &heap);
+	ut_ad(rec_offs_any_extern(rec_offsets));
+
+	field_data = rec_get_nth_field(
+			rec, rec_offsets,
+			unsigned(index->n_uniq + DATA_ROLL_PTR), &len);
+
+	if (rec_offs_nth_extern(
+		rec_offsets,
+		unsigned(index->n_uniq + DATA_ROLL_PTR))) {
+		blob_data = btr_copy_externally_stored_field(
+			&blob_len, field_data,
+			dict_table_page_size(index->table),
+			len, index->table->heap);
+	}
+
+	dict_mem_index_free(dummy_index);
+
+	index->table->construct_dropped_columns(blob_data);
+
+	index->reconstruct_fields();
+}
+
+/** Initialize the clustered index from the new default row meta data
+of an instant alter and store the length of the dropped column and
+default value for the instantly added columns.
+@param[in]	rec	default row record
+@param[in,out]	index	clustered index definition
+@return	error code
+@retval	DB_SUCCESS	if no error occurred
+@retval	DB_CORRUPTION	if any corruption was noticed */
+static
+dberr_t
+btr_cur_instant_init_new_default_rec(
+	const rec_t*	rec,
+	dict_index_t*	index)
+{
+	ulint		n_drop_nullable = 0;
+	ulint*		offsets;
+	ulint		len;
+	mem_heap_t*	heap = NULL;
+
+	/** Construct dummy index to fetch till default row blob. */
+	btr_cur_instant_init_clust_index(rec, index, heap);
+
+	offsets = rec_get_offsets(rec, index, NULL, true,
+			ULINT_UNDEFINED, &heap);
+
+	for (unsigned i = index->n_uniq + DATA_ROLL_PTR;
+	     i < index->n_fields; i++) {
+		const byte* data = rec_get_nth_field(
+				rec, offsets, i + 1, &len);
+		dict_col_t* col = index->fields[i].col;
+
+		switch (len) {
+			case UNIV_SQL_NULL:
+				continue;
+			case 0:
+				col->def_val.data = field_ref_zero;
+				continue;
+		}
+
+		ut_ad(len != UNIV_SQL_DEFAULT);
+
+		if (col->is_dropped()) {
+			col->def_val.data = field_ref_zero;
+			col->len = len;
+			index->fields[i].fixed_len = len;
+
+			if (!rec_offs_nth_drop_sql_null(offsets, i + 1)) {
+				col->prtype = DATA_NOT_NULL;
+			} else {
+				n_drop_nullable++;
+			}
+		} else if (!rec_offs_nth_extern(offsets, i)) {
+			col->def_val.len = len;
+			col->def_val.data = mem_heap_dup(
+					index->table->heap, data, len);
+		} else {
+			col->def_val.data = btr_copy_externally_stored_field(
+					&col->def_val.len, data,
+					dict_table_page_size(index->table),
+					len, index->table->heap);
+		}
+	}
+
+	ulint	n_core_null = 0;
+	for (unsigned i = 0; i < index->n_core_fields; i++) {
+		if (index->fields[i].col->is_nullable()) {
+			n_core_null++;
+		}
+	}
+
+	index->n_core_null_bytes = UT_BITS_IN_BYTES(n_core_null);
+	mem_heap_free(heap);
+	return DB_SUCCESS;
+}
+
+/** Initialize the clustered index from the old default row meta data
+of an instant alter and store the default value for the
+instantly added columns.
+@param[in]	rec	default row record
+@param[in,out]	index	clustered index definition
+@return	error code
+@retval	DB_SUCCESS	if no error occurred
+@retval	DB_CORRUPTION	if any corruption was noticed */
+static
+dberr_t
+btr_cur_instant_init_old_default_rec(
+	const rec_t*	rec,
+	dict_index_t*	index)
+{
+	mem_heap_t* heap = NULL;
+	ulint* offsets = rec_get_offsets(rec, index, NULL, true,
+					 ULINT_UNDEFINED, &heap);
+	if (rec_offs_any_default(offsets)) {
+inconsistent:
+		mem_heap_free(heap);
+		ib::error() << "Table " << index->table->name
+			<< " contains unrecognizable "
+			"instant ALTER metadata";
+		index->table->corrupted = true;
+		return DB_CORRUPTION;
+	}
+
+	/* In fact, because we only ever append fields to the 'default
+	value' record, it is also OK to perform READ UNCOMMITTED and
+	then ignore any extra fields, provided that
+	trx_sys.is_registered(DB_TRX_ID). */
+	if (rec_offs_n_fields(offsets) > index->n_fields
+	    && !trx_sys.is_registered(current_trx(),
+				      row_get_rec_trx_id(rec, index,
+							 offsets))) {
+		goto inconsistent;
+	}
+
+	for (unsigned i = index->n_core_fields; i < index->n_fields; i++) {
+		ulint len;
+		const byte* data = rec_get_nth_field(rec, offsets, i, &len);
+		dict_col_t* col = index->fields[i].col;
+		ut_ad(!col->is_instant_add());
+		ut_ad(!col->def_val.data);
+		col->def_val.len = len;
+		switch (len) {
+		case UNIV_SQL_NULL:
+			continue;
+		case 0:
+			col->def_val.data = field_ref_zero;
+			continue;
+		}
+		ut_ad(len != UNIV_SQL_DEFAULT);
+		if (!rec_offs_nth_extern(offsets, i)) {
+			col->def_val.data = mem_heap_dup(
+				index->table->heap, data, len);
+		} else if (len < BTR_EXTERN_FIELD_REF_SIZE
+			   || !memcmp(data + len - BTR_EXTERN_FIELD_REF_SIZE,
+				      field_ref_zero,
+				      BTR_EXTERN_FIELD_REF_SIZE)) {
+			col->def_val.len = UNIV_SQL_DEFAULT;
+			goto inconsistent;
+		} else {
+			col->def_val.data = btr_copy_externally_stored_field(
+				&col->def_val.len, data,
+				dict_table_page_size(index->table),
+				len, index->table->heap);
+		}
+	}
+
+	mem_heap_free(heap);
+	return DB_SUCCESS;
+}
+
 /** Load the instant ALTER TABLE metadata from the clustered index
 when loading a table definition.
 @param[in,out]	index	clustered index definition
@@ -408,6 +619,7 @@ btr_cur_instant_init_low(dict_index_t* index, mtr_t* mtr)
 		return DB_CORRUPTION;
 	}
 
+	index->n_core_null_bytes = UT_BITS_IN_BYTES(unsigned(index->n_nullable));
 	ut_ad(index->n_core_null_bytes != dict_index_t::NO_CORE_NULL_BYTES);
 
 	if (!index->is_instant()) {
@@ -438,7 +650,7 @@ btr_cur_instant_init_low(dict_index_t* index, mtr_t* mtr)
 
 	if (dict_table_is_comp(index->table)) {
 		if (rec_get_info_bits(rec, true) != REC_INFO_MIN_REC_FLAG
-		    && rec_get_status(rec) != REC_STATUS_COLUMNS_ADDED) {
+		    && rec_get_status(rec) != REC_STATUS_COLUMNS_INSTANT) {
 incompatible:
 			ib::error() << "Table " << index->table->name
 				<< " contains unrecognizable "
@@ -460,60 +672,14 @@ incompatible:
 	concurrent operations on the table, including table eviction
 	from the cache. */
 
-	mem_heap_t* heap = NULL;
-	ulint* offsets = rec_get_offsets(rec, index, NULL, true,
-					 ULINT_UNDEFINED, &heap);
-	if (rec_offs_any_default(offsets)) {
-inconsistent:
-		mem_heap_free(heap);
-		goto incompatible;
+	if (rec_is_new_default_row(rec, index)) {
+		return btr_cur_instant_init_new_default_rec(rec, index);
 	}
 
-	/* In fact, because we only ever append fields to the 'default
-	value' record, it is also OK to perform READ UNCOMMITTED and
-	then ignore any extra fields, provided that
-	trx_sys.is_registered(DB_TRX_ID). */
-	if (rec_offs_n_fields(offsets) > index->n_fields
-	    && !trx_sys.is_registered(current_trx(),
-				      row_get_rec_trx_id(rec, index,
-							 offsets))) {
-		goto inconsistent;
-	}
+	index->n_core_null_bytes = UT_BITS_IN_BYTES(
+			index->get_n_nullable(index->n_core_fields));
 
-	for (unsigned i = index->n_core_fields; i < index->n_fields; i++) {
-		ulint len;
-		const byte* data = rec_get_nth_field(rec, offsets, i, &len);
-		dict_col_t* col = index->fields[i].col;
-		ut_ad(!col->is_instant());
-		ut_ad(!col->def_val.data);
-		col->def_val.len = len;
-		switch (len) {
-		case UNIV_SQL_NULL:
-			continue;
-		case 0:
-			col->def_val.data = field_ref_zero;
-			continue;
-		}
-		ut_ad(len != UNIV_SQL_DEFAULT);
-		if (!rec_offs_nth_extern(offsets, i)) {
-			col->def_val.data = mem_heap_dup(
-				index->table->heap, data, len);
-		} else if (len < BTR_EXTERN_FIELD_REF_SIZE
-			   || !memcmp(data + len - BTR_EXTERN_FIELD_REF_SIZE,
-				      field_ref_zero,
-				      BTR_EXTERN_FIELD_REF_SIZE)) {
-			col->def_val.len = UNIV_SQL_DEFAULT;
-			goto inconsistent;
-		} else {
-			col->def_val.data = btr_copy_externally_stored_field(
-				&col->def_val.len, data,
-				dict_table_page_size(index->table),
-				len, index->table->heap);
-		}
-	}
-
-	mem_heap_free(heap);
-	return DB_SUCCESS;
+	return btr_cur_instant_init_old_default_rec(rec, index);
 }
 
 /** Load the instant ALTER TABLE metadata from the clustered index
@@ -572,7 +738,7 @@ btr_cur_instant_root_init(dict_index_t* index, const page_t* page)
 	}
 
 	uint16_t n = page_get_instant(page);
-	if (n < index->n_uniq + DATA_ROLL_PTR || n > index->n_fields) {
+	if (n < index->n_uniq + DATA_ROLL_PTR) {
 		/* The PRIMARY KEY (or hidden DB_ROW_ID) and
 		DB_TRX_ID,DB_ROLL_PTR columns must always be present
 		as 'core' fields. All fields, including those for
@@ -580,13 +746,9 @@ btr_cur_instant_root_init(dict_index_t* index, const page_t* page)
 		dictionary. */
 		return true;
 	}
+
+	index->instant = true;
 	index->n_core_fields = n;
-	ut_ad(!index->is_dummy);
-	ut_d(index->is_dummy = true);
-	index->n_core_null_bytes = n == index->n_fields
-		? UT_BITS_IN_BYTES(unsigned(index->n_nullable))
-		: UT_BITS_IN_BYTES(index->get_n_nullable(n));
-	ut_d(index->is_dummy = false);
 	return false;
 }
 
@@ -2162,7 +2324,10 @@ need_opposite_intention:
 			/* This may be a search tuple for
 			btr_pcur_restore_position(). */
 			ut_ad(tuple->info_bits == REC_INFO_DEFAULT_ROW
-			      || tuple->info_bits == REC_INFO_MIN_REC_FLAG);
+			      || tuple->info_bits == REC_INFO_DEFAULT_ROW_DROP
+			      || tuple->info_bits == REC_INFO_MIN_REC_FLAG
+			      || tuple->info_bits == (REC_INFO_MIN_REC_FLAG
+						      | REC_INFO_DELETED_FLAG));
 		} else if (rec_is_default_row(btr_cur_get_rec(cursor),
 					      index)) {
 			/* Only user records belong in the adaptive
@@ -3131,7 +3296,8 @@ btr_cur_optimistic_insert(
 	rec_size = rec_get_converted_size(index, entry, n_ext);
 
 	if (page_zip_rec_needs_ext(rec_size, page_is_comp(page),
-				   dtuple_get_n_fields(entry), page_size)) {
+				   dtuple_get_n_fields(entry), page_size)
+	    || UNIV_UNLIKELY(entry->is_new_default_row())) {
 
 		/* The record is so big that we have to store some fields
 		externally on separate database pages */
@@ -3303,7 +3469,8 @@ fail_err:
 	} else if (index->disable_ahi) {
 # endif
 	} else if (entry->info_bits & REC_INFO_MIN_REC_FLAG) {
-		ut_ad(entry->info_bits == REC_INFO_DEFAULT_ROW);
+		ut_ad(entry->info_bits == REC_INFO_DEFAULT_ROW
+		      || entry->info_bits == REC_INFO_DEFAULT_ROW_DROP);
 		ut_ad(index->is_instant());
 		ut_ad(flags == BTR_NO_LOCKING_FLAG);
 	} else {
@@ -3511,7 +3678,8 @@ btr_cur_pessimistic_insert(
 		if (index->disable_ahi); else
 # endif
 		if (entry->info_bits & REC_INFO_MIN_REC_FLAG) {
-			ut_ad(entry->info_bits == REC_INFO_DEFAULT_ROW);
+			ut_ad(entry->info_bits == REC_INFO_DEFAULT_ROW
+			      || entry->info_bits == REC_INFO_DEFAULT_ROW_DROP);
 			ut_ad(index->is_instant());
 			ut_ad((flags & ulint(~BTR_KEEP_IBUF_BITMAP))
 			      == BTR_NO_LOCKING_FLAG);
@@ -4010,13 +4178,12 @@ btr_cur_trim(
 	const que_thr_t*	thr)
 {
 	if (!index->is_instant()) {
-	} else if (UNIV_UNLIKELY(update->info_bits == REC_INFO_DEFAULT_ROW)) {
+	} else if (UNIV_UNLIKELY(update->info_bits == REC_INFO_DEFAULT_ROW
+				 || update->info_bits == REC_INFO_DEFAULT_ROW_DROP)) {
 		/* We are either updating a 'default row'
 		(instantly adding columns to a table where instant ADD was
 		already executed) or rolling back such an operation. */
 		ut_ad(!upd_get_nth_field(update, 0)->orig_len);
-		ut_ad(upd_get_nth_field(update, 0)->field_no
-		      > index->n_core_fields);
 
 		if (thr->graph->trx->in_rollback) {
 			/* This rollback can occur either as part of
@@ -4119,8 +4286,11 @@ btr_cur_optimistic_update(
 #endif /* UNIV_DEBUG || UNIV_BLOB_LIGHT_DEBUG */
 
 	const bool is_default_row = update->info_bits == REC_INFO_DEFAULT_ROW;
+	const bool is_new_default_row = update->info_bits ==
+				(REC_INFO_DEFAULT_ROW | REC_INFO_DELETED_FLAG);
 
 	if (UNIV_LIKELY(!is_default_row)
+	    && UNIV_LIKELY(!is_new_default_row)
 	    && !row_upd_changes_field_size_or_external(index, *offsets,
 						       update)) {
 
@@ -4144,6 +4314,11 @@ any_extern:
 		btr_cur_prefetch_siblings(block);
 
 		return(DB_OVERFLOW);
+	}
+
+	if (rec_is_default_row(rec, index)
+	    && index->n_dropped_fields > 0) {
+		goto any_extern;
 	}
 
 	for (i = 0; i < upd_get_n_fields(update); i++) {
@@ -4204,10 +4379,10 @@ any_extern:
 	}
 
 	/* We limit max record size to 16k even for 64k page size. */
-  if (new_rec_size >= COMPRESSED_REC_MAX_DATA_SIZE ||
-      (!dict_table_is_comp(index->table)
-       && new_rec_size >= REDUNDANT_REC_MAX_DATA_SIZE)) {
-          err = DB_OVERFLOW;
+	if (new_rec_size >= COMPRESSED_REC_MAX_DATA_SIZE ||
+			(!dict_table_is_comp(index->table)
+			 && new_rec_size >= REDUNDANT_REC_MAX_DATA_SIZE)) {
+		err = DB_OVERFLOW;
 
 		goto func_exit;
 	}
@@ -4280,8 +4455,9 @@ any_extern:
 		lock_rec_store_on_page_infimum(block, rec);
 	}
 
-	if (UNIV_UNLIKELY(is_default_row)) {
-		ut_ad(new_entry->info_bits == REC_INFO_DEFAULT_ROW);
+	if (UNIV_UNLIKELY(is_default_row || is_new_default_row)) {
+		ut_ad(new_entry->info_bits == REC_INFO_DEFAULT_ROW
+		      || new_entry->info_bits == REC_INFO_DEFAULT_ROW_DROP);
 		ut_ad(index->is_instant());
 		/* This can be innobase_add_instant_try() performing a
 		subsequent instant ADD COLUMN, or its rollback by
@@ -4547,7 +4723,8 @@ btr_cur_pessimistic_update(
 			rec_get_converted_size(index, new_entry, n_ext),
 			page_is_comp(page),
 			dict_index_get_n_fields(index),
-			block->page.size)) {
+			block->page.size)
+	    || UNIV_UNLIKELY(rec_is_new_default_row(rec, index))) {
 
 		big_rec_vec = dtuple_convert_big_rec(index, update, new_entry, &n_ext);
 		if (UNIV_UNLIKELY(big_rec_vec == NULL)) {
@@ -4609,7 +4786,8 @@ btr_cur_pessimistic_update(
 	}
 
 	if (UNIV_UNLIKELY(is_default_row)) {
-		ut_ad(new_entry->info_bits == REC_INFO_DEFAULT_ROW);
+		ut_ad(new_entry->info_bits == REC_INFO_DEFAULT_ROW
+		      || new_entry->info_bits == REC_INFO_DEFAULT_ROW_DROP);
 		ut_ad(index->is_instant());
 		/* This can be innobase_add_instant_try() performing a
 		subsequent instant ADD COLUMN, or its rollback by
@@ -4660,7 +4838,8 @@ btr_cur_pessimistic_update(
 				btr_cur_get_block(cursor), rec, block);
 		}
 
-		if (!rec_get_deleted_flag(rec, rec_offs_comp(*offsets))) {
+		if (!rec_get_deleted_flag(rec, rec_offs_comp(*offsets))
+		    || rec_is_new_default_row(rec, index)) {
 			/* The new inserted record owns its possible externally
 			stored fields */
 			btr_cur_unmark_extern_fields(

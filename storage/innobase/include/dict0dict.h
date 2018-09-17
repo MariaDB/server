@@ -1112,6 +1112,20 @@ dict_index_get_n_fields(
 					the dictionary cache) */
 	MY_ATTRIBUTE((nonnull, warn_unused_result));
 
+/** Get the number of the dropped fields in the internal representation of
+an index.
+@param[in]	index	internal representation of index
+@return number of dropped fields. */
+UNIV_INLINE
+ulint dict_index_get_n_dropped_fields(const dict_index_t* index);
+
+/** Get the number of non-dropped fields in the internal representation of
+an index.
+@param[in]	index	internal representation of index
+@return number of non-dropped fields. */
+UNIV_INLINE
+ulint dict_index_get_n_non_dropped_fields(const dict_index_t* index);
+
 /********************************************************************//**
 Gets the number of fields in the internal representation of an index
 that uniquely determine the position of an index entry in the index, if

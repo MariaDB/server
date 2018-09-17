@@ -607,6 +607,15 @@ struct dfield_t{
 		ut_ad(0);
 		return false;
 	}
+
+	void init_new_default_blob(void* value, ulint val_len)
+	{
+		data = value;
+		len = val_len;
+		type.mtype = DATA_BLOB;
+		type.prtype = DATA_NOT_NULL;
+		ext = 1;
+	}
 };
 
 /** Structure for an SQL data tuple of fields (logical record) */
@@ -644,6 +653,9 @@ struct dtuple_t {
 	inserted or updated.
 	@param[in]	index	index possibly with instantly added columns */
 	void trim(const dict_index_t& index);
+
+	/** Default row data tuple with drop column information.*/
+	bool is_new_default_row() const;
 };
 
 /** A slot for a field in a big rec vector */

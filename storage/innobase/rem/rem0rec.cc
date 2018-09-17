@@ -35,6 +35,7 @@ Created 5/30/1994 Heikki Tuuri
 #include "gis0geo.h"
 #include "trx0sys.h"
 #include "mach0data.h"
+#include "btr0cur.h"
 
 /*			PHYSICAL RECORD (OLD STYLE)
 			===========================
@@ -175,7 +176,7 @@ rec_get_n_extern_new(
 	ut_ad(!index->table->supports_instant() || index->is_dummy);
 	ut_ad(!index->is_instant());
 	ut_ad(rec_get_status(rec) == REC_STATUS_ORDINARY
-	      || rec_get_status(rec) == REC_STATUS_COLUMNS_ADDED);
+	      || rec_get_status(rec) == REC_STATUS_COLUMNS_INSTANT);
 	ut_ad(n == ULINT_UNDEFINED || n <= dict_index_get_n_fields(index));
 
 	if (n == ULINT_UNDEFINED) {
@@ -237,7 +238,7 @@ rec_get_n_extern_new(
 	return(n_extern);
 }
 
-/** Get the length of added field count in a REC_STATUS_COLUMNS_ADDED record.
+/** Get the length of added field count in a REC_STATUS_COLUMNS_INSTANT record.
 @param[in]	n_add_field	number of added fields, minus one
 @return	storage size of the field count, in bytes */
 static inline unsigned rec_get_n_add_field_len(ulint n_add_field)
@@ -246,8 +247,8 @@ static inline unsigned rec_get_n_add_field_len(ulint n_add_field)
 	return n_add_field < 0x80 ? 1 : 2;
 }
 
-/** Get the added field count in a REC_STATUS_COLUMNS_ADDED record.
-@param[in,out]	header	variable header of a REC_STATUS_COLUMNS_ADDED record
+/** Get the added field count in a REC_STATUS_COLUMNS_INSTANT record.
+@param[in,out]	header	variable header of a REC_STATUS_COLUMNS_INSTANT record
 @return	number of added fields */
 static inline unsigned rec_get_n_add_field(const byte*& header)
 {
@@ -264,8 +265,8 @@ static inline unsigned rec_get_n_add_field(const byte*& header)
 	return n_fields_add;
 }
 
-/** Set the added field count in a REC_STATUS_COLUMNS_ADDED record.
-@param[in,out]	header	variable header of a REC_STATUS_COLUMNS_ADDED record
+/** Set the added field count in a REC_STATUS_COLUMNS_INSTANT record.
+@param[in,out]	header	variable header of a REC_STATUS_COLUMNS_INSTANT record
 @param[in]	n_add	number of added fields, minus 1
 @return	record header before the number of added fields */
 static inline void rec_set_n_add_field(byte*& header, ulint n_add)
@@ -285,12 +286,12 @@ enum rec_leaf_format {
 	/** Temporary file record */
 	REC_LEAF_TEMP,
 	/** Temporary file record, with added columns
-	(REC_STATUS_COLUMNS_ADDED) */
+	(REC_STATUS_COLUMNS_INSTANT) */
 	REC_LEAF_TEMP_COLUMNS_ADDED,
 	/** Normal (REC_STATUS_ORDINARY) */
 	REC_LEAF_ORDINARY,
-	/** With added columns (REC_STATUS_COLUMNS_ADDED) */
-	REC_LEAF_COLUMNS_ADDED
+	/** With add or drop columns (REC_STATUS_COLUMNS_INSTANT) */
+	REC_LEAF_COLUMNS_INSTANT
 };
 
 /** Determine the offset to each field in a leaf-page record
@@ -343,14 +344,21 @@ ordinary:
 		ut_d(n_null = std::min(index->n_core_null_bytes * 8U,
 				       index->n_nullable));
 		break;
-	case REC_LEAF_COLUMNS_ADDED:
+	case REC_LEAF_COLUMNS_INSTANT:
 		/* We would have !index->is_instant() when rolling back
 		an instant ADD COLUMN operation. */
 		nulls -= REC_N_NEW_EXTRA_BYTES;
 		ut_ad(index->is_instant());
 		/* fall through */
 	case REC_LEAF_TEMP_COLUMNS_ADDED:
-		n_fields = n_core + 1 + rec_get_n_add_field(nulls);
+
+		if (index->is_drop_field_exist()
+		    && !rec_is_default_row(rec, index)) {
+			n_fields = n_core + rec_get_n_add_field(nulls);
+		} else {
+			n_fields = n_core + 1 + rec_get_n_add_field(nulls);
+		}
+
 		ut_ad(n_fields <= index->n_fields);
 		const ulint n_nullable = index->get_n_nullable(n_fields);
 		const ulint n_null_bytes = UT_BITS_IN_BYTES(n_nullable);
@@ -371,22 +379,30 @@ ordinary:
 
 	/* read the lengths of fields 0..n_fields */
 	ulint i = 0;
+
 	do {
-		const dict_field_t*	field
-			= dict_index_get_nth_field(index, i);
-		const dict_col_t*	col
-			= dict_field_get_col(field);
+		const dict_field_t*	field;
+		const dict_col_t*	col;
 		ulint			len;
+
+		field = dict_index_get_nth_field(index, i);
+		col = dict_field_get_col(field);
 
 		/* set default value flag */
 		if (i >= n_fields) {
-			ulint dlen;
-			if (!index->instant_field_value(i, &dlen)) {
-				len = offs | REC_OFFS_SQL_NULL;
-				ut_ad(dlen == UNIV_SQL_NULL);
+
+			if (col->is_dropped()) {
+				len = offs | REC_OFFS_DROP_COL;
+				any |= REC_OFFS_DROP_COL;
 			} else {
-				len = offs | REC_OFFS_DEFAULT;
-				any |= REC_OFFS_DEFAULT;
+				ulint dlen;
+				if (!index->instant_field_value(i, &dlen)) {
+					len = offs | REC_OFFS_SQL_NULL;
+					ut_ad(dlen == UNIV_SQL_NULL);
+				} else {
+					len = offs | REC_OFFS_DEFAULT;
+					any |= REC_OFFS_DEFAULT;
+				}
 			}
 
 			goto resolved;
@@ -446,6 +462,7 @@ ordinary:
 		} else {
 			len = offs += field->fixed_len;
 		}
+
 resolved:
 		rec_offs_base(offsets)[i + 1] = len;
 	} while (++i < rec_offs_n_fields(offsets));
@@ -471,7 +488,9 @@ rec_offs_make_valid(
 	      <= (leaf
 		  ? dict_index_get_n_fields(index)
 		  : dict_index_get_n_unique_in_tree_nonleaf(index) + 1)
-	      || index->is_dummy || dict_index_is_ibuf(index));
+	      || index->is_dummy || dict_index_is_ibuf(index)
+	      || (rec_get_info_bits(rec, dict_table_is_comp(index->table))
+			== (REC_INFO_MIN_REC_FLAG | REC_INFO_DELETED_FLAG)));
 	const bool is_user_rec = (dict_table_is_comp(index->table)
 				  ? rec_get_heap_no_new(rec)
 				  : rec_get_heap_no_old(rec))
@@ -485,7 +504,9 @@ rec_offs_make_valid(
 	      || n >= rec_offs_n_fields(offsets));
 	for (; n < rec_offs_n_fields(offsets); n++) {
 		ut_ad(leaf);
-		ut_ad(rec_offs_base(offsets)[1 + n] & REC_OFFS_DEFAULT);
+		ut_ad(rec_offs_base(offsets)[1 + n] & REC_OFFS_DEFAULT
+		      || (rec_get_info_bits(rec, dict_table_is_comp(index->table))
+				== (REC_INFO_MIN_REC_FLAG | REC_INFO_DELETED_FLAG)));
 	}
 	offsets[2] = ulint(rec);
 	offsets[3] = ulint(index);
@@ -532,7 +553,7 @@ rec_offs_validate(
 			dict_index_get_n_unique_in_tree(index) + 1);
 		if (comp && rec) {
 			switch (rec_get_status(rec)) {
-			case REC_STATUS_COLUMNS_ADDED:
+			case REC_STATUS_COLUMNS_INSTANT:
 			case REC_STATUS_ORDINARY:
 				break;
 			case REC_STATUS_NODE_PTR:
@@ -549,7 +570,9 @@ rec_offs_validate(
 		}
 		/* index->n_def == 0 for dummy indexes if !comp */
 		ut_a(!comp || index->n_def);
-		ut_a(!index->n_def || i <= max_n_fields);
+		ut_a(!index->n_def || i <= max_n_fields
+		     || (rec_get_info_bits(rec, dict_table_is_comp(index->table))
+			 == (REC_INFO_MIN_REC_FLAG | REC_INFO_DELETED_FLAG)));
 	}
 	while (i--) {
 		ulint	curr = rec_offs_base(offsets)[1 + i] & REC_OFFS_MASK;
@@ -559,6 +582,227 @@ rec_offs_validate(
 	return(TRUE);
 }
 #endif /* UNIV_DEBUG */
+
+/** Determine the offsets to each field in the default row record.
+ The offsets are written to a previously allocated array of
+ulint, where rec_offs_n_fields(offsets) has been initialized to the
+number of fields in the record.	 The rest of the array will be
+initialized by this function.  rec_offs_base(offsets)[0] will be set
+to the extra size (if REC_OFFS_COMPACT is set, the record is in the
+new format; if REC_OFFS_EXTERNAL is set, the record contains externally
+stored columns; if REC_OFFS_DROP_SQL_NULL is set, the field for the dropped
+column is NULLABLE or length for the column is also maintained), and
+rec_offs_base(offsets)[1..n_fields] will be set to
+offsets past the end of fields 0..n_fields, or to the beginning of
+fields 1..n_fields+1.  When the high-order bit of the offset at [i+1]
+is set (REC_OFFS_SQL_NULL), the field i is NULL.  When the second
+high-order bit of the offset at [i+1] is set (REC_OFFS_EXTERNAL), the
+field i is being stored externally.
+@param[in]	rec	record
+@param[in]	index	the index that the record belongs in
+@param[in,out]	offsets	array of offsets, with valid rec_offs_n_fields() */
+static
+void
+rec_init_offsets_for_default_row(
+	const rec_t*		rec,
+	const dict_index_t*	index,
+	ulint*			offsets)
+{
+	ulint offs		= 0;
+	ulint prev_offs		= 0;
+	ulint any		= 0;
+	const byte* nulls	= rec;
+	const byte* lens	= NULL;
+	dict_table_t*	table = index->table;
+	unsigned pk_fields = index->n_uniq + DATA_ROLL_PTR + 1;
+	dict_field_t*		field;
+	const dict_col_t*	col;
+
+	nulls -= REC_N_NEW_EXTRA_BYTES;
+	ut_ad(index->is_instant());
+
+#ifdef UNIV_DEBUG
+	offsets[2] = (ulint) rec;
+	offsets[3] = (ulint) index;
+#endif /* UNIV_DEBUG */
+
+	ulint len;
+	ulint i = 0;
+	ulint non_drop_nullable_fields = 0;
+
+	for (; i < rec_offs_n_fields(offsets) && i < pk_fields; i++) {
+
+		if (i == pk_fields - 1) {
+			/* Default row blob. */
+			offs += FIELD_REF_SIZE;
+			any |= REC_OFFS_EXTERNAL;
+			len = offs | REC_OFFS_EXTERNAL;
+		} else {
+			field = dict_index_get_nth_field(index, i);
+			col = dict_field_get_col(field);
+			ut_ad(!col->is_dropped());
+
+			if (col->is_nullable()) {
+				non_drop_nullable_fields++;
+			}
+
+			len = offs += field->fixed_len;
+		}
+
+		rec_offs_base(offsets)[i + 1] = len;
+	}
+
+	*rec_offs_base(offsets)
+		= ulint(rec - 1) | REC_OFFS_COMPACT | any;
+
+	if (rec_offs_n_fields(offsets) <= pk_fields) {
+		return;
+	}
+
+	const byte* field_data;
+	byte*	blob_data;
+	ulint 	blob_len;
+
+	field_data = rec_get_nth_field(rec, offsets, (pk_fields - 1), &len);
+
+	bool 	is_insert_row = (memcmp(field_data, field_ref_zero, len) == 0);
+
+	ulint 			n_dropped_columns = 0;
+	ulint			n_null_bytes = 0;
+	ulint			non_pk_fields = 0;
+	std::vector<ulint>	dropped_cols_list;
+
+	if (is_insert_row) {
+		non_pk_fields = index->n_fields;
+		n_dropped_columns = table->n_dropped_cols;
+		n_null_bytes = UT_BITS_IN_BYTES(
+			index->n_non_drop_nullable_fields + n_dropped_columns);
+	} else {
+
+		blob_data = btr_copy_externally_stored_field(
+				&blob_len, field_data,
+				dict_table_page_size(table),
+				len, table->heap);
+
+		table->read_default_row_blob(
+				blob_data, &non_pk_fields,
+				&non_drop_nullable_fields, dropped_cols_list);
+
+		n_dropped_columns = dropped_cols_list.size();
+
+		n_null_bytes = UT_BITS_IN_BYTES(
+			non_drop_nullable_fields + n_dropped_columns);
+	}
+
+	lens = --nulls - n_null_bytes;
+	int null_mask = 1;
+
+	while(i < rec_offs_n_fields(offsets))
+	{
+		bool is_dropped = false;
+		bool is_nullable = false;
+		bool is_drop_null = false;
+
+		if (i >= non_pk_fields + pk_fields) {
+			ulint dlen;
+			if (!index->instant_field_value(i - 1, &dlen)) {
+				len = offs | REC_OFFS_SQL_NULL;
+				ut_ad(dlen == UNIV_SQL_NULL);
+			} else {
+				len = offs | REC_OFFS_DEFAULT;
+				any |= REC_OFFS_DEFAULT;
+			}
+
+			goto resolved;
+		}
+
+		field = dict_index_get_nth_field(index, i - 1);
+		col = dict_field_get_col(field);
+
+		if (is_insert_row) {
+			is_dropped = col->is_dropped();
+		} else {
+			if (std::find(
+				dropped_cols_list.begin(), dropped_cols_list.end(),
+				i - pk_fields) != dropped_cols_list.end()) {
+				is_dropped = true;
+			}
+		}
+
+		is_nullable = !(col->prtype & DATA_NOT_NULL);
+
+		/* Maintain null bit for dropped column. */
+		if (is_dropped) {
+			if (*nulls & null_mask) {
+				is_drop_null = true;
+			}
+
+			null_mask <<= 1;
+		} else if (is_nullable) {
+			if (*nulls & null_mask) {
+				null_mask <<= 1;
+				len = offs | REC_OFFS_SQL_NULL;
+				goto resolved;
+			}
+
+			null_mask <<= 1;
+		}
+
+		/* If the previous field column is dropped then
+		   store the previous offset as the current offset. */
+		if (prev_offs > 0) {
+			offs = prev_offs;
+		}
+
+		if (field->fixed_len > 0 && !is_dropped) {
+			len = offs += field->fixed_len;
+			goto resolved;
+		}
+
+		/* Get the length for the droppable column. */
+		len = *lens--;
+
+		if (len & 0x80) {
+			len <<= 8;
+			len |= *lens--;
+
+			prev_offs = offs;
+			offs += len & 0x3fff;
+			if (UNIV_UNLIKELY(len & 0x4000)) {
+				any |= REC_OFFS_EXTERNAL;
+				len = offs | REC_OFFS_EXTERNAL;
+			} else {
+				len = offs;
+			}
+
+			goto resolved;
+		}
+
+		prev_offs = offs;
+		len = offs += len;
+
+		if (is_drop_null) {
+			/* Set the REC_OFFS_DROP_SQL_NULL flag if
+			the column is dropped and it is nullable. */
+			len = offs | REC_OFFS_DROP_SQL_NULL;
+		}
+resolved:
+		if (is_dropped && !is_drop_null) {
+			len = offs | REC_OFFS_DROP_COL;
+		}
+
+		if (!is_dropped) {
+			/* Initialize previous offset if the column
+			is not dropped. */
+			prev_offs = 0;
+		}
+
+		rec_offs_base(offsets)[++i] = len;
+	}
+
+	*rec_offs_base(offsets)
+		= ulint(rec - (lens + 1)) | REC_OFFS_COMPACT | any;
+}
 
 /** Determine the offsets to each field in the record.
  The offsets are written to a previously allocated array of
@@ -614,11 +858,11 @@ rec_init_offsets(
 				= dict_index_get_n_unique_in_tree_nonleaf(
 					index);
 			break;
-		case REC_STATUS_COLUMNS_ADDED:
+		case REC_STATUS_COLUMNS_INSTANT:
 			ut_ad(leaf);
 			rec_init_offsets_comp_ordinary(rec, index, offsets,
 						       index->n_core_fields,
-						       REC_LEAF_COLUMNS_ADDED);
+						       REC_LEAF_COLUMNS_INSTANT);
 			return;
 		case REC_STATUS_ORDINARY:
 			ut_ad(leaf);
@@ -794,6 +1038,7 @@ rec_get_offsets_func(
 {
 	ulint	n;
 	ulint	size;
+	bool	new_default_row = false;
 
 	ut_ad(rec);
 	ut_ad(index);
@@ -802,7 +1047,16 @@ rec_get_offsets_func(
 	if (dict_table_is_comp(index->table)) {
 		switch (UNIV_EXPECT(rec_get_status(rec),
 				    REC_STATUS_ORDINARY)) {
-		case REC_STATUS_COLUMNS_ADDED:
+		case REC_STATUS_COLUMNS_INSTANT:
+
+			if (UNIV_UNLIKELY(rec_get_info_bits(rec, true)
+					  == (REC_INFO_MIN_REC_FLAG
+					      | REC_INFO_DELETED_FLAG))) {
+				n = dict_index_get_n_fields(index) + 1;
+				new_default_row = true;
+				break;
+			}
+
 		case REC_STATUS_ORDINARY:
 			ut_ad(leaf);
 			n = dict_index_get_n_fields(index);
@@ -879,6 +1133,12 @@ rec_get_offsets_func(
 	}
 
 	rec_offs_set_n_fields(offsets, n);
+
+	if (UNIV_UNLIKELY(new_default_row && dict_table_is_comp(index->table))) {
+		rec_init_offsets_for_default_row(rec, index, offsets);
+		return offsets;
+	}
+
 	rec_init_offsets(rec, index, leaf, offsets);
 	return(offsets);
 }
@@ -1058,24 +1318,110 @@ rec_get_nth_field_offs_old(
 	return(os);
 }
 
-/**********************************************************//**
-Determines the size of a data tuple prefix in ROW_FORMAT=COMPACT.
+/** Determines the size of a new default tuple prefix in ROW_FORMAT=COMPACT.
+@param[in]	index		record descriptor; dict_table_is_comp()
+				is assumed to hold, even if it doesn't
+@param[in]	tuple		data tuple for default row record
+@param[out]	extra		extra size
+@return total size */
+ulint
+rec_get_default_rec_converted_size(
+	const dict_index_t*	clust_index,
+	const dtuple_t*		tuple,
+	ulint*			extra)
+{
+	ut_ad(dict_index_is_clust(clust_index));
+	ut_ad(clust_index);
+	ut_ad(tuple);
+	ut_ad(dtuple_check_typed(tuple));
+
+	ulint	data_size;
+        ulint	extra_size;
+        ulint	n_fields;
+
+	n_fields = dtuple_get_n_fields(tuple);
+
+	extra_size = REC_N_NEW_EXTRA_BYTES;
+
+	/* Allocate the null bytes for non-drop nullable fields
+	and number of dropped fields. */
+	int	n_null_bytes = UT_BITS_IN_BYTES(
+				clust_index->n_non_drop_nullable_fields
+				+ clust_index->n_dropped_fields);
+
+	extra_size += n_null_bytes;
+	data_size = 0;
+	ulint   field_no;
+	ulint   ind_field_no = 0;
+
+	for (field_no = 0; field_no < n_fields; field_no++) {
+		const dict_field_t*	ind_field;
+		ulint			len;
+		ulint			fixed_len;
+		const dict_col_t*	col;
+		bool			is_dropped = false;
+		dfield_t*		field = &tuple->fields[field_no];
+
+		len = dfield_get_len(field);
+
+		if (field_no == unsigned(clust_index->n_uniq + DATA_ROLL_PTR)) {
+			ut_ad(dfield_is_ext(field));
+			len = FIELD_REF_SIZE;
+			goto data_write;
+		} else {
+			ind_field = dict_index_get_nth_field(
+					clust_index, ind_field_no++);
+			col = dict_field_get_col(ind_field);
+			is_dropped = col->is_dropped();
+			fixed_len = ind_field->fixed_len;
+		}
+
+		if (dfield_is_null(field) && !is_dropped) {
+			continue;
+		}
+
+		/** Calculate the size for the dropped column too. */
+		if (fixed_len && !is_dropped) {
+		} else if (dfield_is_ext(field)) {
+			extra_size += 2;
+		} else if (len < 128 || !DATA_BIG_COL(col)) {
+			extra_size++;
+		} else {
+			extra_size += 2;
+		}
+
+data_write:
+		if (!is_dropped) {
+			data_size += len;
+		}
+	}
+
+	if (extra) {
+		*extra = extra_size;
+	}
+
+	return data_size + extra_size;
+}
+
+/** Determines the size of a data tuple prefix in ROW_FORMAT=COMPACT.
+@param[in]	index		record descriptor; dict_table_is_comp()
+				is assumed to hold, even if it doesn't
+@param[in]	fields		array of data fields
+@param[in]	n_fields	number of data fields
+@param[out]	extra		extra size
+@param[in]	status		status flags
+@param[in]	temp		whether this is a temporary file record
 @return total size */
 MY_ATTRIBUTE((warn_unused_result, nonnull(1,2)))
 static inline
 ulint
 rec_get_converted_size_comp_prefix_low(
-/*===================================*/
-	const dict_index_t*	index,	/*!< in: record descriptor;
-					dict_table_is_comp() is
-					assumed to hold, even if
-					it does not */
-	const dfield_t*		fields,	/*!< in: array of data fields */
-	ulint			n_fields,/*!< in: number of data fields */
-	ulint*			extra,	/*!< out: extra size */
-	rec_comp_status_t	status,	/*!< in: status flags */
-	bool			temp)	/*!< in: whether this is a
-					temporary file record */
+	const dict_index_t*	index,
+	const dfield_t*		fields,
+	ulint			n_fields,
+	ulint*			extra,
+	rec_comp_status_t	status,
+	bool			temp)
 {
 	ulint	extra_size = temp ? 0 : REC_N_NEW_EXTRA_BYTES;
 	ulint	data_size;
@@ -1084,15 +1430,23 @@ rec_get_converted_size_comp_prefix_low(
 	ut_ad(n_fields <= dict_index_get_n_fields(index));
 	ut_d(ulint n_null = index->n_nullable);
 	ut_ad(status == REC_STATUS_ORDINARY || status == REC_STATUS_NODE_PTR
-	      || status == REC_STATUS_COLUMNS_ADDED);
+	      || status == REC_STATUS_COLUMNS_INSTANT);
 
-	if (status == REC_STATUS_COLUMNS_ADDED
+	if (status == REC_STATUS_COLUMNS_INSTANT
 	    && (!temp || n_fields > index->n_core_fields)) {
 		ut_ad(index->is_instant());
 		ut_ad(UT_BITS_IN_BYTES(n_null) >= index->n_core_null_bytes);
-		extra_size += UT_BITS_IN_BYTES(index->get_n_nullable(n_fields))
-			+ rec_get_n_add_field_len(n_fields - 1
-						  - index->n_core_fields);
+
+		extra_size += UT_BITS_IN_BYTES(
+				index->get_n_nullable(n_fields));
+
+		if (index->is_drop_field_exist()) {
+			extra_size += rec_get_n_add_field_len(
+					index->get_n_instant_cols(n_fields));
+		} else {
+			extra_size += rec_get_n_add_field_len(
+				n_fields - 1 - index->n_core_fields);
+		}
 	} else {
 		ut_ad(n_fields <= index->n_core_fields);
 		extra_size += index->n_core_null_bytes;
@@ -1112,10 +1466,12 @@ rec_get_converted_size_comp_prefix_low(
 		ulint			len;
 		ulint			fixed_len;
 		const dict_col_t*	col;
+		bool			is_dropped = false;
 
-		field = dict_index_get_nth_field(index, i);
 		len = dfield_get_len(&fields[i]);
+		field = dict_index_get_nth_field(index, i);
 		col = dict_field_get_col(field);
+		is_dropped = col->is_dropped();
 
 #ifdef UNIV_DEBUG
 		dtype_t*	type;
@@ -1129,7 +1485,8 @@ rec_get_converted_size_comp_prefix_low(
 				      || dict_col_type_assert_equal(col, type));
 			}
 		} else {
-			ut_ad(dict_col_type_assert_equal(col, type));
+			ut_ad(is_dropped
+			      || dict_col_type_assert_equal(col, type));
 		}
 #endif
 
@@ -1150,6 +1507,7 @@ rec_get_converted_size_comp_prefix_low(
 		    && !dict_col_get_fixed_size(col, temp)) {
 			fixed_len = 0;
 		}
+
 		/* If the maximum length of a variable-length field
 		is up to 255 bytes, the actual length is always stored
 		in one byte. If the maximum length is more than 255
@@ -1168,9 +1526,10 @@ rec_get_converted_size_comp_prefix_low(
 				      * fixed_len / col->mbmaxlen);
 			} else {
 				ut_ad(type->mtype != DATA_SYS_CHILD);
-				ut_ad(!col->mbmaxlen
+
+				ut_ad(is_dropped || !col->mbmaxlen
 				      || len >= col->mbminlen
-				      * fixed_len / col->mbmaxlen);
+					* fixed_len / col->mbmaxlen);
 			}
 
 			/* dict_index_add_col() should guarantee this */
@@ -1189,6 +1548,7 @@ rec_get_converted_size_comp_prefix_low(
 			this will waste one byte. */
 			extra_size += 2;
 		}
+
 		data_size += len;
 	}
 
@@ -1216,20 +1576,21 @@ rec_get_converted_size_comp_prefix(
 		       REC_STATUS_ORDINARY, false));
 }
 
-/**********************************************************//**
-Determines the size of a data tuple in ROW_FORMAT=COMPACT.
+/** Determines the size of a data tuple in ROW_FORMAT=COMPACT.
+@param[in]	index		record descriptor. dict_table_is_comp()
+				is assumed to hold, even if it doesn't
+@param[in]	status		status bits of the record
+@param[in]	fields		array of data fields
+@param[in]	n_fields	number of data fields
+@param[out]	extra		extra size
 @return total size */
 ulint
 rec_get_converted_size_comp(
-/*========================*/
-	const dict_index_t*	index,	/*!< in: record descriptor;
-					dict_table_is_comp() is
-					assumed to hold, even if
-					it does not */
-	rec_comp_status_t	status,	/*!< in: status bits of the record */
-	const dfield_t*		fields,	/*!< in: array of data fields */
-	ulint			n_fields,/*!< in: number of data fields */
-	ulint*			extra)	/*!< out: extra size */
+	const dict_index_t*	index,
+	rec_comp_status_t	status,
+	const dfield_t*		fields,
+	ulint			n_fields,
+	ulint*			extra)
 {
 	ut_ad(n_fields > 0);
 
@@ -1237,11 +1598,14 @@ rec_get_converted_size_comp(
 	case REC_STATUS_ORDINARY:
 		if (n_fields > index->n_core_fields) {
 			ut_ad(index->is_instant());
-			status = REC_STATUS_COLUMNS_ADDED;
+			status = REC_STATUS_COLUMNS_INSTANT;
 		}
 		/* fall through */
-	case REC_STATUS_COLUMNS_ADDED:
+	case REC_STATUS_COLUMNS_INSTANT:
 		ut_ad(n_fields >= index->n_core_fields);
+		/** In case of default row with drop column info, there
+		is a possiblity of n_fields can be higher than
+		index->n_fields. */
 		ut_ad(n_fields <= index->n_fields);
 		return rec_get_converted_size_comp_prefix_low(
 			index, fields, n_fields, extra, status, false);
@@ -1429,6 +1793,118 @@ rec_convert_dtuple_to_rec_old(
 	return(rec);
 }
 
+/** Convert a data tuple into a default ROW_FORMAT=COMPACT record
+for instant alter operation.
+@param[out]	rec		converted record
+@param[in]	clust_index	clustered index
+@param[in]	fields		data fields to convert
+@param[in]	n_fields	number of data fields */
+static
+void
+rec_convert_dtuple_to_default_rec_comp(
+	rec_t*			rec,
+	const dict_index_t*	clust_index,
+	const dfield_t*		fields,
+	ulint			n_fields)
+{
+	const dfield_t*	field;
+	const dtype_t*	type;
+	byte*		end;
+	byte*		nulls = rec - (REC_N_NEW_EXTRA_BYTES + 1);
+	byte*		UNINIT_VAR(lens);
+	ulint		len;
+	ulint		fixed_len;
+	ulint		null_mask	= 1;
+
+	/* Nullable non-dropped fields + number of dropped fields. */
+	int		n_null_bytes = UT_BITS_IN_BYTES(
+				(clust_index->n_non_drop_nullable_fields
+				 + clust_index->n_dropped_fields));
+
+	rec_set_heap_no_new(rec, PAGE_HEAP_NO_USER_LOW);
+
+	rec_set_status(rec, REC_STATUS_COLUMNS_INSTANT);
+
+	lens = nulls - n_null_bytes;
+
+	end = rec;
+	/* clear the SQL-null flags */
+	memset(lens + 1, 0, ulint(nulls - lens));
+
+	ulint 	i;
+	ulint	field_no = 0;
+	/* Store the data and the offsets */
+	for (i = 0; i < n_fields; i++) {
+		const dict_field_t*	ifield;
+		dict_col_t*		col = NULL;
+		bool			is_dropped = false;
+		bool			is_nullable = false;
+
+		field = &fields[i];
+		type = dfield_get_type(field);
+		len = dfield_get_len(field);
+
+		if (i == unsigned(clust_index->n_uniq + DATA_ROLL_PTR)) {
+			/* Default row blob. */
+			fixed_len = 0;
+			goto data_write;
+		} else {
+			ifield = dict_index_get_nth_field(clust_index, field_no++);
+			fixed_len = ifield->fixed_len;
+			col = ifield->col;
+			is_dropped = col->is_dropped();
+		}
+
+		is_nullable = !(dtype_get_prtype(type) & DATA_NOT_NULL);
+
+		if (is_dropped) {
+			if (is_nullable) {
+				/* Set the nullable flag for
+				dropped column */
+				*nulls |= null_mask;
+			}
+
+			null_mask <<= 1;
+		} else if (is_nullable) {
+			if (dfield_is_null(field)) {
+				*nulls |= null_mask;
+				null_mask <<= 1;
+				continue;
+			}
+
+			null_mask <<= 1;
+		}
+
+		ut_ad(!dfield_is_null(field) || is_dropped);
+
+		/* Set the length for the dropped column. */
+		if (fixed_len && !is_dropped) {
+			ut_ad(len <= fixed_len);
+			ut_ad(!dfield_is_ext(field));
+		} else if (dfield_is_ext(field)) {
+			*lens-- = (byte) (len >> 8) | 0xc0;
+			*lens-- = (byte) len;
+		} else {
+			if (len < 128 || !DATA_BIG_LEN_MTYPE(
+				dtype_get_len(type), dtype_get_mtype(type))) {
+
+				*lens-- = (byte) len;
+			} else {
+				ut_ad(len < 16384);
+				*lens-- = (byte) (len >> 8) | 0x80;
+				*lens-- = (byte) len;
+			}
+		}
+
+data_write:
+		/* Store the record only non-dropped column. */
+		if (len && !is_dropped) {
+			memcpy(end, dfield_get_data(field), len);
+			end += len;
+		}
+	}
+}
+
 /** Convert a data tuple into a ROW_FORMAT=COMPACT record.
 @param[out]	rec		converted record
 @param[in]	index		index
@@ -1466,29 +1942,40 @@ rec_convert_dtuple_to_rec_comp(
 	ut_d(ulint n_null = index->n_nullable);
 
 	switch (status) {
-	case REC_STATUS_COLUMNS_ADDED:
+	case REC_STATUS_COLUMNS_INSTANT:
 		ut_ad(index->is_instant());
-		ut_ad(n_fields > index->n_core_fields);
-		rec_set_n_add_field(nulls, n_fields - 1
-				    - index->n_core_fields);
+
+		if (index->is_drop_field_exist()) {
+			rec_set_n_add_field(
+				nulls, index->get_n_instant_cols(n_fields));
+		} else {
+			rec_set_n_add_field(nulls, n_fields - 1
+					    - index->n_core_fields);
+		}
+
 		/* fall through */
 	case REC_STATUS_ORDINARY:
 		ut_ad(n_fields <= dict_index_get_n_fields(index));
 		if (!temp) {
 			rec_set_heap_no_new(rec, PAGE_HEAP_NO_USER_LOW);
-			rec_set_status(rec, n_fields == index->n_core_fields
-				       ? REC_STATUS_ORDINARY
-				       : REC_STATUS_COLUMNS_ADDED);
-		} if (dict_table_is_comp(index->table)) {
+
+			rec_set_status(
+				rec, n_fields == index->n_core_fields
+				     ? REC_STATUS_ORDINARY
+				     : REC_STATUS_COLUMNS_INSTANT);
+		}
+
+		if (dict_table_is_comp(index->table)) {
 			/* No need to do adjust fixed_len=0. We only
 			need to adjust it for ROW_FORMAT=REDUNDANT. */
 			temp = false;
 		}
 
 		n_node_ptr_field = ULINT_UNDEFINED;
+
 		lens = nulls - (index->is_instant()
 				? UT_BITS_IN_BYTES(index->get_n_nullable(
-							   n_fields))
+					n_fields))
 				: UT_BITS_IN_BYTES(
 					unsigned(index->n_nullable)));
 		break;
@@ -1514,7 +2001,6 @@ rec_convert_dtuple_to_rec_comp(
 	memset(lens + 1, 0, ulint(nulls - lens));
 
 	/* Store the data and the offsets */
-
 	for (i = 0; i < n_fields; i++) {
 		const dict_field_t*	ifield;
 		dict_col_t*		col = NULL;
@@ -1558,6 +2044,7 @@ rec_convert_dtuple_to_rec_comp(
 		ifield = dict_index_get_nth_field(index, i);
 		fixed_len = ifield->fixed_len;
 		col = ifield->col;
+
 		if (temp && fixed_len
 		    && !dict_col_get_fixed_size(col, temp)) {
 			fixed_len = 0;
@@ -1578,7 +2065,7 @@ rec_convert_dtuple_to_rec_comp(
 		} else if (dfield_is_ext(field)) {
 			ut_ad(DATA_BIG_COL(col));
 			ut_ad(len <= REC_ANTELOPE_MAX_INDEX_COL_LEN
-			      + BTR_EXTERN_FIELD_REF_SIZE);
+					+ BTR_EXTERN_FIELD_REF_SIZE);
 			*lens-- = (byte) (len >> 8) | 0xc0;
 			*lens-- = (byte) len;
 		} else {
@@ -1625,17 +2112,30 @@ rec_convert_dtuple_to_rec_new(
 	if (status == REC_STATUS_ORDINARY
 	    && dtuple->n_fields > index->n_core_fields) {
 		ut_ad(index->is_instant());
-		status = REC_STATUS_COLUMNS_ADDED;
+		status = REC_STATUS_COLUMNS_INSTANT;
 	}
 
 	ulint	extra_size;
+	rec_t*	rec;
+
+	if (UNIV_UNLIKELY(dtuple->is_new_default_row()
+			  && dict_table_is_comp(index->table))) {
+		rec_get_default_rec_converted_size(index, dtuple, &extra_size);
+		rec = buf + extra_size;
+		rec_convert_dtuple_to_default_rec_comp(
+			rec, index, dtuple->fields, dtuple->n_fields);
+		rec_set_info_bits_new(
+			rec, dtuple->info_bits & ~REC_NEW_STATUS_MASK);
+		return rec;
+	}
 
 	rec_get_converted_size_comp(
 		index, status, dtuple->fields, dtuple->n_fields, &extra_size);
-	rec_t* rec = buf + extra_size;
+	rec = buf + extra_size;
 
 	rec_convert_dtuple_to_rec_comp(
 		rec, index, dtuple->fields, dtuple->n_fields, status, false);
+
 	rec_set_info_bits_new(rec, dtuple->info_bits & ~REC_NEW_STATUS_MASK);
 	return(rec);
 }
@@ -1676,7 +2176,7 @@ rec_convert_dtuple_to_rec(
 @param[in]	fields		data fields
 @param[in]	n_fields	number of data fields
 @param[out]	extra		record header size
-@param[in]	status		REC_STATUS_ORDINARY or REC_STATUS_COLUMNS_ADDED
+@param[in]	status		REC_STATUS_ORDINARY or REC_STATUS_COLUMNS_INSTANT
 @return	total size, in bytes */
 ulint
 rec_get_converted_size_temp(
@@ -1695,7 +2195,7 @@ rec_get_converted_size_temp(
 @param[in]	index	index of that the record belongs to
 @param[in,out]	offsets	offsets to the fields; in: rec_offs_n_fields(offsets)
 @param[in]	n_core	number of core fields (index->n_core_fields)
-@param[in]	status	REC_STATUS_ORDINARY or REC_STATUS_COLUMNS_ADDED */
+@param[in]	status	REC_STATUS_ORDINARY or REC_STATUS_COLUMNS_INSTANT */
 void
 rec_init_offsets_temp(
 	const rec_t*		rec,
@@ -1705,13 +2205,13 @@ rec_init_offsets_temp(
 	rec_comp_status_t	status)
 {
 	ut_ad(status == REC_STATUS_ORDINARY
-	      || status == REC_STATUS_COLUMNS_ADDED);
+	      || status == REC_STATUS_COLUMNS_INSTANT);
 	/* The table may have been converted to plain format
 	if it was emptied during an ALTER TABLE operation. */
 	ut_ad(index->n_core_fields == n_core || !index->is_instant());
 	ut_ad(index->n_core_fields >= n_core);
 	rec_init_offsets_comp_ordinary(rec, index, offsets, n_core,
-				       status == REC_STATUS_COLUMNS_ADDED
+				       status == REC_STATUS_COLUMNS_INSTANT
 				       ? REC_LEAF_TEMP_COLUMNS_ADDED
 				       : REC_LEAF_TEMP);
 }
@@ -1737,7 +2237,7 @@ rec_init_offsets_temp(
 @param[in]	index		clustered or secondary index
 @param[in]	fields		data fields
 @param[in]	n_fields	number of data fields
-@param[in]	status		REC_STATUS_ORDINARY or REC_STATUS_COLUMNS_ADDED
+@param[in]	status		REC_STATUS_ORDINARY or REC_STATUS_COLUMNS_INSTANT
 */
 void
 rec_convert_dtuple_to_temp(
@@ -1907,18 +2407,38 @@ rec_copy_prefix_to_buf(
 		ut_ad(n_fields
 		      <= dict_index_get_n_unique_in_tree_nonleaf(index));
 		break;
-	case REC_STATUS_COLUMNS_ADDED:
+	case REC_STATUS_COLUMNS_INSTANT:
 		/* We would have !index->is_instant() when rolling back
 		an instant ADD COLUMN operation. */
 		ut_ad(index->is_instant() || page_rec_is_default_row(rec));
 		nulls++;
-		const ulint n_rec = ulint(index->n_core_fields) + 1
-			+ rec_get_n_add_field(nulls);
-		instant_omit = ulint(&rec[-REC_N_NEW_EXTRA_BYTES] - nulls);
-		ut_ad(instant_omit == 1 || instant_omit == 2);
-		nullf = nulls;
-		const uint nb = UT_BITS_IN_BYTES(index->get_n_nullable(n_rec));
-		instant_omit += nb - index->n_core_null_bytes;
+
+		ulint	n_rec = 0;
+		uint	nb = 0;
+
+		if (UNIV_UNLIKELY(rec_is_new_default_row(rec, index))) {
+			nb += rec_get_n_add_field_len(index->n_dropped_fields);
+
+			nb += UT_BITS_IN_BYTES(
+				index->n_non_drop_nullable_fields
+				+ index->n_dropped_fields);
+		} else {
+			if (index->is_drop_field_exist()) {
+				n_rec = ulint(index->n_core_fields)
+					+ rec_get_n_add_field(nulls);
+			} else {
+				n_rec = ulint(index->n_core_fields) + 1
+					+ rec_get_n_add_field(nulls);
+			}
+
+			instant_omit = ulint(&rec[-REC_N_NEW_EXTRA_BYTES] - nulls);
+			ut_ad(instant_omit == 1 || instant_omit == 2);
+			nullf = nulls;
+			nb = UT_BITS_IN_BYTES(
+				index->get_n_nullable(n_rec));
+			instant_omit += nb - index->n_core_null_bytes;
+		}
+
 		lens = --nulls - nb;
 	}
 
@@ -2002,7 +2522,7 @@ rec_copy_prefix_to_buf(
 		/* copy the fixed-size header and the record prefix */
 		memcpy(b - REC_N_NEW_EXTRA_BYTES, rec - REC_N_NEW_EXTRA_BYTES,
 		       prefix_len + REC_N_NEW_EXTRA_BYTES);
-		ut_ad(rec_get_status(b) == REC_STATUS_COLUMNS_ADDED);
+		ut_ad(rec_get_status(b) == REC_STATUS_COLUMNS_INSTANT);
 		rec_set_status(b, REC_STATUS_ORDINARY);
 		return b;
 	} else {
@@ -2092,7 +2612,11 @@ rec_validate(
 					<< " len " << len;
 				return(FALSE);
 			}
-			len_sum += len;
+
+			if (!rec_offs_nth_drop_col(offsets, i)
+			    && !rec_offs_nth_drop_sql_null(offsets, i)) {
+				len_sum += len;
+			}
 			break;
 		case UNIV_SQL_DEFAULT:
 			break;

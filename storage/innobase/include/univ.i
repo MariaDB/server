@@ -220,6 +220,7 @@ and the insert buffer must be empty when the database is started */
 						adaptive hash index */
 #define UNIV_SRV_PRINT_LATCH_WAITS		/* enable diagnostic output
 						in sync0sync.cc */
+
 #define UNIV_BTR_PRINT				/* enable functions for
 						printing B-trees */
 #define UNIV_ZIP_DEBUG				/* extensive consistency checks

@@ -194,6 +194,8 @@ dict_mem_table_create(
 		table->fts = NULL;
 	}
 
+	table->n_dropped_cols = 0;
+	table->dropped_cols = NULL;
 	new(&table->foreign_set) dict_foreign_set();
 	new(&table->referenced_set) dict_foreign_set();
 
@@ -717,6 +719,7 @@ dict_mem_fill_column_struct(
 	column->mbmaxlen = mbmaxlen;
 	column->def_val.data = NULL;
 	column->def_val.len = UNIV_SQL_DEFAULT;
+	column->dropped = false;
 }
 
 /**********************************************************************//**
@@ -1192,10 +1195,55 @@ operator<< (std::ostream& out, const dict_foreign_set& fk_set)
 	out << "]" << std::endl;
 	return(out);
 }
+/** Reconstruct the fields of the clustered index with dropped column
+fields. */
+void dict_index_t::reconstruct_fields()
+{
+	n_dropped_fields = table->n_dropped_cols;
+	n_fields += n_dropped_fields;
+	n_def += n_dropped_fields;
 
-/** Adjust clustered index metadata for instant ADD COLUMN.
-@param[in]	clustered index definition after instant ADD COLUMN */
-inline void dict_index_t::instant_add_field(const dict_index_t& instant)
+	unsigned	n_pk_fields = unsigned(n_uniq + DATA_ROLL_PTR);
+
+	dict_field_t	field;
+	dict_field_t*	temp_fields = static_cast<dict_field_t*>(
+			mem_heap_zalloc(heap, n_fields * sizeof *temp_fields));
+
+	memcpy(temp_fields, fields, n_pk_fields * sizeof(dict_field_t));
+
+	ulint	old_field_no = n_pk_fields;
+	ulint	j = 0;
+
+	for (ulint i = n_pk_fields; i < n_fields; i++) {
+		ulint	col_no = table->non_pk_col_map[i - n_pk_fields];
+		if (col_no == 0) {
+			/* Dropped Column */
+			temp_fields[i].col = &table->dropped_cols[j++];
+			ut_ad(i == unsigned(temp_fields[i].col->ind));
+		} else {
+			field = fields[old_field_no++];
+			temp_fields[i].col = &table->cols[col_no - 1];
+			temp_fields[i].name = dict_table_get_col_name(
+					table, dict_col_get_no(
+						temp_fields[i].col));
+			temp_fields[i].fixed_len = field.fixed_len;
+			temp_fields[i].prefix_len = field.prefix_len;
+		}
+	}
+
+	fields = temp_fields;
+}
+
+/** Adjust clustered index metadata for instant ADD/DROP COLUMN.
+@param[in]	instant		clustered index definition after instant ADD COLUMN
+@param[in]	n_newly_add	number of newly added columns
+@param[in]	n_newly_drop	number of newly dropped columns
+@param[in]	col_map		mapping of old table cols to new table cols */
+inline void dict_index_t::instant_op_field(
+	const dict_index_t&	instant,
+	ulint			n_newly_add,
+	ulint			n_newly_drop,
+	const ulint*		col_map)
 {
 	DBUG_ASSERT(is_primary());
 	DBUG_ASSERT(instant.is_primary());
@@ -1207,44 +1255,330 @@ inline void dict_index_t::instant_add_field(const dict_index_t& instant)
 	DBUG_ASSERT(trx_id_offset == instant.trx_id_offset);
 	DBUG_ASSERT(n_user_defined_cols == instant.n_user_defined_cols);
 	DBUG_ASSERT(n_uniq == instant.n_uniq);
-	DBUG_ASSERT(instant.n_fields > n_fields);
-	DBUG_ASSERT(instant.n_def > n_def);
-	DBUG_ASSERT(instant.n_nullable >= n_nullable);
-	DBUG_ASSERT(instant.n_core_fields >= n_core_fields);
-	DBUG_ASSERT(instant.n_core_null_bytes >= n_core_null_bytes);
 
-	n_fields = instant.n_fields;
-	n_def = instant.n_def;
-	n_nullable = instant.n_nullable;
-	fields = static_cast<dict_field_t*>(
-		mem_heap_dup(heap, instant.fields, n_fields * sizeof *fields));
+	ulint	old_n_fields = n_fields;
 
-	ut_d(unsigned n_null = 0);
+	n_dropped_fields += n_newly_drop;
+	n_fields = instant.n_fields + n_dropped_fields;
+	n_def = instant.n_def + n_dropped_fields;
+
+	unsigned	n_null = 0;
+	unsigned	n_non_drop_null = 0;
+	ulint		old_field_no = 0;
+	ulint		new_field_no = 0;
+
+	dict_field_t*	temp_fields = static_cast<dict_field_t*>(mem_heap_zalloc(
+				heap, n_fields * sizeof *temp_fields));
 
 	for (unsigned i = 0; i < n_fields; i++) {
-		DBUG_ASSERT(fields[i].same(instant.fields[i]));
-		const dict_col_t* icol = instant.fields[i].col;
-		DBUG_ASSERT(!icol->is_virtual());
-		dict_col_t* col = fields[i].col = &table->cols[
-			icol - instant.table->cols];
-		fields[i].name = col->name(*table);
-		ut_d(n_null += col->is_nullable());
+		dict_field_t	field = fields[old_field_no];
+		dict_field_t	instant_field = instant.fields[new_field_no];
+		dict_field_t&	temp_field = temp_fields[i];
+		bool		is_dropped = false;
+		ulint		new_col_offset = 0;
+
+		for (unsigned j = 0; j < table->n_dropped_cols; j++) {
+			if (table->dropped_cols[j].ind == i) {
+				temp_field.col = &table->dropped_cols[j];
+				is_dropped = true;
+				break;
+			}
+		}
+
+		if (is_dropped) {
+			old_field_no++;
+			temp_field.fixed_len = temp_field.col->len;
+		} else {
+
+			if (i >= old_n_fields) {
+
+				new_col_offset = i - (DATA_N_SYS_COLS + n_dropped_fields);
+
+				if (!dict_index_is_auto_gen_clust(this)) {
+					new_col_offset += 1;
+				}
+
+				field = instant_field;
+			} else {
+				new_col_offset = col_map[field.col->ind];
+				old_field_no++;
+			}
+
+			new_field_no++;
+
+			temp_fields[i].prefix_len = field.prefix_len;
+			temp_fields[i].fixed_len = field.fixed_len;
+
+			const char* end = table->col_names;
+			for (unsigned col = 0; col < new_col_offset; col++) {
+				end += strlen(end) + 1;
+			}
+
+			temp_fields[i].name = end;
+			temp_fields[i].col = &table->cols[new_col_offset];
+		}
+
+		if (temp_fields[i].col->is_nullable()) {
+			n_null++;
+
+			if (!is_dropped) {
+				n_non_drop_null++;
+			}
+		}
 	}
 
-	ut_ad(n_null == n_nullable);
+	fields = temp_fields;
+	n_nullable = n_null;
+	n_non_drop_nullable_fields = n_non_drop_null;
 }
 
-/** Adjust metadata for instant ADD COLUMN.
-@param[in]	table	table definition after instant ADD COLUMN */
-void dict_table_t::instant_add_column(const dict_table_t& table)
+/** Build non primary fields to column number in the table. */
+void dict_table_t::build_non_pk_map()
+{
+	dict_index_t*	index = dict_table_get_first_index(this);
+
+	ulint		num_non_pk =
+		index->n_fields - (index->n_uniq + DATA_N_SYS_COLS - 1);
+
+	non_pk_col_map = static_cast<ulint*>(mem_heap_zalloc(
+				heap, num_non_pk * sizeof *non_pk_col_map));
+
+	unsigned last_sys_field = index->n_uniq + DATA_ROLL_PTR;
+	ulint j = 0;
+
+	for (ulint i = last_sys_field; i < index->n_fields; i++) {
+		dict_field_t*   field = dict_index_get_nth_field(index, i);
+
+		if (!field->col->is_dropped()) {
+			non_pk_col_map[j] =
+				dict_index_get_nth_col_no(index, i) + 1;
+		}
+
+		j++;
+	}
+}
+
+/** Read the default row blob and fill the non primary fields,
+non-drop nullable fields and fill the drop columns in the vector.
+
+@param[in]	blob_data               blob data which contains
+					drop column information
+@param[out]	non_pk_fields		number of non-primary key fields
+@param[out]	non_drop_nullable_fieldsnumber of non-drop nullable fields
+@param[out]	dropped_col_list	dropped column list */
+void dict_table_t::read_default_row_blob(
+	byte*			blob_data,
+	ulint*			non_pk_fields,
+	ulint*			non_drop_nullable_fields,
+	std::vector<ulint>&	dropped_col_list)
+{
+	*non_pk_fields = mach_read_from_4(blob_data);
+	dict_index_t*	clust_index = dict_table_get_first_index(this);
+	unsigned	n_pk_fields = clust_index->n_uniq + DATA_ROLL_PTR;
+	const byte*	field_data = blob_data + INSTANT_NON_PK_FIELDS_LEN;
+
+	for (ulint i = 0; i < *non_pk_fields; i++) {
+
+		unsigned col_no = mach_read_from_2(field_data);
+		col_no >>= INSTANT_FIELD_COL_NO_SHIFT;
+
+		if (col_no == 0) {
+			dropped_col_list.push_back(i);
+		} else {
+			dict_field_t*	field = dict_index_get_nth_field(
+					clust_index, (i + n_pk_fields));
+
+			if (field->col->is_nullable()) {
+				(*non_drop_nullable_fields)++;
+			}
+		}
+
+		field_data += INSTANT_FIELD_LEN;
+	}
+}
+
+/** Construct the blob with contains the non-primary key for
+the clustered index.
+@param[in,out]	heap	memory heap to allocate the blob
+@param[out]	len	length of the blob data
+@return blob data. */
+byte* dict_table_t::construct_default_row_blob(
+	mem_heap_t*	heap,
+	unsigned*	len)
+{
+	dict_index_t* clust_index = dict_table_get_first_index(this);
+	unsigned num_pk_fields = clust_index->n_uniq + DATA_ROLL_PTR;
+	unsigned num_non_pk_fields = clust_index->n_fields - num_pk_fields;
+
+	*len = INSTANT_NON_PK_FIELDS_LEN
+		+ num_non_pk_fields * INSTANT_FIELD_LEN;
+
+	byte* data = static_cast<byte*>(mem_heap_zalloc(heap, *len));
+
+	mach_write_to_4(data, num_non_pk_fields);
+
+	byte* field_data = data + INSTANT_NON_PK_FIELDS_LEN;
+
+	for (ulint i = 0; i < num_non_pk_fields; i++) {
+		unsigned col_no = non_pk_col_map[i];
+		col_no <<= INSTANT_FIELD_COL_NO_SHIFT;
+
+		for (ulint j = 0; col_no == 0 && j < n_dropped_cols;
+		     j++) {
+			if (dropped_cols[j].ind == i + num_pk_fields) {
+				col_no |= INSTANT_DROP_COL_FIXED;
+				break;
+			}
+		}
+
+		mach_write_to_2(field_data, col_no);
+		field_data += INSTANT_FIELD_LEN;
+	}
+
+	return data;
+}
+
+/** Construct dropped columns for the table using default row
+blob data.
+@param[in]	data	default row blob data */
+void dict_table_t::construct_dropped_columns(const byte* data)
+{
+	unsigned num_non_pk_fields = mach_read_from_4(data);
+	dict_index_t*	clust_index = dict_table_get_first_index(this);
+
+	non_pk_col_map = static_cast<ulint*>(mem_heap_zalloc(
+				heap, num_non_pk_fields * sizeof *non_pk_col_map));
+
+	const byte*	field_data = data + INSTANT_NON_PK_FIELDS_LEN;
+	std::vector<ulint>	fixed_dcols;
+
+	for (ulint i = 0; i < num_non_pk_fields; i++) {
+
+		unsigned col_no = mach_read_from_2(field_data);
+		bool is_fixed = col_no | INSTANT_DROP_COL_FIXED;
+		col_no >>= INSTANT_FIELD_COL_NO_SHIFT;
+
+		if (col_no == 0) {
+			n_dropped_cols++;
+
+			if (is_fixed)
+				fixed_dcols.push_back(i);
+		}
+
+		non_pk_col_map[i] = col_no;
+		field_data += INSTANT_FIELD_LEN;
+	}
+
+
+	dropped_cols = static_cast<dict_col_t*>(mem_heap_zalloc(
+		heap, n_dropped_cols * sizeof(dict_col_t)));
+
+	ulint j = 0;
+	for (ulint i = 0; i < n_dropped_cols; i++) {
+		dict_col_t&	drop_col = dropped_cols[i];
+		bool		is_fixed = false;
+		drop_col.set_dropped();
+
+		while (j < num_non_pk_fields) {
+			if (non_pk_col_map[j] == 0) {
+			    drop_col.ind = unsigned(
+				j + clust_index->n_uniq + DATA_ROLL_PTR);
+				j++;
+				break;
+			}
+
+			j++;
+		}
+
+		is_fixed = (std::find(fixed_dcols.begin(), fixed_dcols.end(),
+				      j) != fixed_dcols.end());
+		if (is_fixed) {
+			drop_col.mtype = DATA_FIXBINARY;
+		} else {
+			drop_col.mtype = DATA_BINARY;
+		}
+	}
+}
+
+/** Adjust table metadata for instant drop operation.
+@param[in]	table		instant table
+@param[in]	col_map		mapping of old table columns to new table
+@param[in]	n_newly_drop	number of instant drop column */
+void dict_table_t::fill_dropped_column(
+	const dict_table_t&	table,
+	const ulint*		col_map,
+	ulint			n_newly_drop)
+{
+	ulint	n_total_drop_col = n_dropped_cols + n_newly_drop;
+	dict_col_t*	temp_drop_cols;
+
+	temp_drop_cols = static_cast<dict_col_t*>(mem_heap_zalloc(
+		heap, n_total_drop_col * sizeof(dict_col_t)));
+
+	memcpy(temp_drop_cols, dropped_cols, n_dropped_cols * sizeof(dict_col_t));
+
+	int j = n_dropped_cols;
+
+	for (int i = 0; i < n_def; i++) {
+		if (col_map[i] != ULINT_UNDEFINED) {
+			continue;
+		}
+
+		dict_col_t&	drop_col = temp_drop_cols[j++];
+		dict_col_t	col = cols[i];
+
+		drop_col.set_dropped();
+
+		drop_col.ind = dict_col_get_clust_pos(
+				&cols[i], dict_table_get_first_index(this));
+
+		if (col.prtype & DATA_NOT_NULL) {
+			drop_col.prtype = DATA_NOT_NULL;
+		}
+
+		drop_col.len = dict_col_get_fixed_size(
+				&col, dict_table_is_comp(this));
+
+		if (drop_col.len == 0) {
+			drop_col.mtype = DATA_BINARY;
+		} else {
+			drop_col.mtype = DATA_FIXBINARY;
+		}
+	}
+
+	n_t_def -= n_newly_drop;
+	n_def -= n_newly_drop;
+	n_cols -= n_newly_drop;
+	n_t_cols -= n_newly_drop;
+	n_dropped_cols += n_newly_drop;
+
+	dropped_cols = temp_drop_cols;
+}
+
+/** Adjust table metadata for instant operation.
+@param[in]	table		instant table
+@param[in]	col_map		mapping of old table cols to
+				new table cols
+@param[in]	n_newly_add	number of newly added column
+@param[in]	n_newly_drop	number of newly dropped column */
+void dict_table_t::instant_op_column(
+	const dict_table_t&	table,
+	const ulint*		col_map,
+	ulint			n_newly_add,
+	ulint			n_newly_drop)
 {
 	DBUG_ASSERT(!table.cached);
 	DBUG_ASSERT(table.n_def == table.n_cols);
 	DBUG_ASSERT(table.n_t_def == table.n_t_cols);
 	DBUG_ASSERT(n_def == n_cols);
 	DBUG_ASSERT(n_t_def == n_t_cols);
-	DBUG_ASSERT(table.n_cols > n_cols);
 	ut_ad(mutex_own(&dict_sys->mutex));
+
+	ulint	old_n_cols = n_cols;
+
+	if (n_newly_drop > 0) {
+		fill_dropped_column(table, col_map, n_newly_drop);
+	}
 
 	const char* end = table.col_names;
 	for (unsigned i = table.n_cols; i--; ) end += strlen(end) + 1;
@@ -1260,14 +1594,19 @@ void dict_table_t::instant_add_column(const dict_table_t& table)
 
 	/* Preserve the default values of previously instantly
 	added columns. */
-	for (unsigned i = unsigned(n_cols) - DATA_N_SYS_COLS; i--; ) {
-		cols[i].def_val = old_cols[i].def_val;
+	for (unsigned i = unsigned(old_n_cols - DATA_N_SYS_COLS); i--; ) {
+		if (col_map[i] == ULINT_UNDEFINED) {
+			continue;
+		}
+
+		ulint	new_offset = col_map[i];
+		cols[new_offset].def_val = old_cols[i].def_val;
 	}
 
 	/* Copy the new default values to this->heap. */
 	for (unsigned i = n_cols; i < table.n_cols; i++) {
 		dict_col_t& c = cols[i - DATA_N_SYS_COLS];
-		DBUG_ASSERT(c.is_instant());
+		DBUG_ASSERT(c.is_instant_add());
 		if (c.def_val.len == 0) {
 			c.def_val.data = field_ref_zero;
 		} else if (const void*& d = c.def_val.data) {
@@ -1277,8 +1616,8 @@ void dict_table_t::instant_add_column(const dict_table_t& table)
 		}
 	}
 
-	const unsigned old_n_cols = n_cols;
-	const unsigned n_add = unsigned(table.n_cols - n_cols);
+	const unsigned n_add = unsigned(table.n_cols -
+					(old_n_cols - n_newly_drop));
 
 	n_t_def += n_add;
 	n_t_cols += n_add;
@@ -1291,7 +1630,7 @@ void dict_table_t::instant_add_column(const dict_table_t& table)
 			dict_col_t*& base = v.base_col[n];
 			if (!base->is_virtual()) {
 				DBUG_ASSERT(base >= old_cols);
-				size_t n = size_t(base - old_cols);
+				size_t n = col_map[(base - old_cols)];
 				DBUG_ASSERT(n + DATA_N_SYS_COLS < old_n_cols);
 				base = &cols[n];
 			}
@@ -1300,7 +1639,12 @@ void dict_table_t::instant_add_column(const dict_table_t& table)
 
 	dict_index_t* index = dict_table_get_first_index(this);
 
-	index->instant_add_field(*dict_table_get_first_index(&table));
+	index->instant_op_field(*dict_table_get_first_index(&table),
+				n_newly_add, n_newly_drop, col_map);
+
+	build_non_pk_map();
+
+	index->instant = true;
 
 	while ((index = dict_table_get_next_index(index)) != NULL) {
 		for (unsigned i = 0; i < index->n_fields; i++) {
@@ -1314,12 +1658,7 @@ void dict_table_t::instant_add_column(const dict_table_t& table)
 				GEN_CLUST_INDEX instead of PRIMARY KEY),
 				but not DB_TRX_ID,DB_ROLL_PTR. */
 				DBUG_ASSERT(field.col >= old_cols);
-				size_t n = size_t(field.col - old_cols);
-				DBUG_ASSERT(n + DATA_N_SYS_COLS <= old_n_cols);
-				if (n + DATA_N_SYS_COLS >= old_n_cols) {
-					/* Replace DB_ROW_ID */
-					n += n_add;
-				}
+				size_t n = col_map[(field.col - old_cols)];
 				field.col = &cols[n];
 				DBUG_ASSERT(!field.col->is_virtual());
 				field.name = field.col->name(*this);
@@ -1336,7 +1675,8 @@ void
 dict_table_t::rollback_instant(
 	unsigned	old_n_cols,
 	dict_col_t*	old_cols,
-	const char*	old_col_names)
+	const char*	old_col_names,
+	bool		old_instant)
 {
 	ut_ad(mutex_own(&dict_sys->mutex));
 	dict_index_t* index = indexes.start;
@@ -1373,6 +1713,7 @@ dict_table_t::rollback_instant(
 	n_def = old_n_cols;
 	n_t_def -= n_remove;
 	n_t_cols -= n_remove;
+	index->instant = old_instant;
 
 	for (unsigned i = n_v_def; i--; ) {
 		const dict_v_col_t& v = v_cols[i];

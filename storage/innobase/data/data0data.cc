@@ -43,8 +43,8 @@ byte	data_error;
 #endif /* UNIV_DEBUG */
 
 /** Trim the tail of an index tuple before insert or update.
-After instant ADD COLUMN, if the last fields of a clustered index tuple
-match the 'default row', there will be no need to store them.
+After instant COLUMN operation, if the last fields of a clustered index tuple
+match the 'default row' or it is dropped, there will be no need to store them.
 NOTE: A page latch in the index must be held, so that the index
 may not lose 'instantness' before the trimmed tuple has been
 inserted or updated.
@@ -59,7 +59,12 @@ void dtuple_t::trim(const dict_index_t& index)
 	for (; i > index.n_core_fields; i--) {
 		const dfield_t* dfield = dtuple_get_nth_field(this, i - 1);
 		const dict_col_t* col = dict_index_get_nth_col(&index, i - 1);
-		ut_ad(col->is_instant());
+
+		if (col->is_dropped()) {
+			continue;
+		}
+
+		ut_ad(col->is_instant_add());
 		ulint len = dfield_get_len(dfield);
 		if (len != col->def_val.len) {
 			break;
@@ -73,6 +78,13 @@ void dtuple_t::trim(const dict_index_t& index)
 	}
 
 	n_fields = i;
+}
+
+/** Whether the dtuple represnets default row with drop column info.
+@return true if it is default row with drop column or false. */
+bool dtuple_t::is_new_default_row() const
+{
+	return info_bits == REC_INFO_DEFAULT_ROW_DROP;
 }
 
 /** Compare two data tuples.
@@ -638,23 +650,38 @@ dtuple_convert_big_rec(
 
 	n_fields = 0;
 
+	bool	drop_column_blob = true;
+	bool	new_default_row = entry->is_new_default_row();
+
 	while (page_zip_rec_needs_ext(rec_get_converted_size(index, entry,
 							     *n_ext),
 				      dict_table_is_comp(index->table),
 				      dict_index_get_n_fields(index),
-				      dict_table_page_size(index->table))) {
-
+				      dict_table_page_size(index->table))
+	       || UNIV_UNLIKELY(new_default_row && drop_column_blob)) {
 		ulint			i;
 		ulint			longest		= 0;
 		ulint			longest_i	= ULINT_MAX;
 		byte*			data;
+		ulint			field_no	= 0;
 
 		for (i = dict_index_get_n_unique_in_tree(index);
 		     i < dtuple_get_n_fields(entry); i++) {
 			ulint	savings;
 
 			dfield = dtuple_get_nth_field(entry, i);
-			ifield = dict_index_get_nth_field(index, i);
+
+			if (UNIV_UNLIKELY(new_default_row
+				&& i == unsigned(index->n_uniq + DATA_ROLL_PTR))) {
+				longest_i = i;
+				dfield->data =
+					index->table->construct_default_row_blob(
+						heap, &dfield->len);
+				drop_column_blob = false;
+				goto ext_write;
+			}
+
+			ifield = dict_index_get_nth_field(index, field_no++);
 
 			/* Skip fixed-length, NULL, externally stored,
 			or short columns */
@@ -709,9 +736,8 @@ skip_field:
 		We store the first bytes locally to the record. Then
 		we can calculate all ordering fields in all indexes
 		from locally stored data. */
-
+ext_write:
 		dfield = dtuple_get_nth_field(entry, longest_i);
-		ifield = dict_index_get_nth_field(index, longest_i);
 		local_prefix_len = local_len - BTR_EXTERN_FIELD_REF_SIZE;
 
 		vector->append(
@@ -736,7 +762,6 @@ skip_field:
 		UNIV_MEM_ALLOC(data + local_prefix_len,
 			       BTR_EXTERN_FIELD_REF_SIZE);
 #endif
-
 		dfield_set_data(dfield, data, local_len);
 		dfield_set_ext(dfield);
 

@@ -136,7 +136,8 @@ dberr_t
 row_ins_index_entry_set_vals(
 	const dict_index_t*	index,
 	dtuple_t*		entry,
-	const dtuple_t*		row);
+	const dtuple_t*		row,
+	mem_heap_t*		heap);
 
 /***************************************************************//**
 Inserts an entry into a clustered index. Tries first optimistic,

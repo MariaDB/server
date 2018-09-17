@@ -490,7 +490,7 @@ dict_table_get_nth_v_col(
 	ut_ad(table);
 	ut_ad(pos < table->n_v_def);
 	ut_ad(table->magic_n == DICT_TABLE_MAGIC_N);
-	ut_ad(!table->v_cols[pos].m_col.is_instant());
+	ut_ad(!table->v_cols[pos].m_col.is_instant_add());
 	return &table->v_cols[pos];
 }
 
@@ -914,6 +914,26 @@ dict_index_get_n_fields(
 	ut_ad(index->magic_n == DICT_INDEX_MAGIC_N);
 
 	return(index->n_fields);
+}
+
+/** Get the number of the dropped fields in the internal representation of
+an index.
+@param[in]	index	internal representation of index
+@return number of dropped fields. */
+UNIV_INLINE
+ulint dict_index_get_n_dropped_fields(const dict_index_t* index)
+{
+	ut_ad(index);
+	ut_ad(index->magic_n == DICT_INDEX_MAGIC_N);
+	return index->n_dropped_fields;
+}
+
+UNIV_INLINE
+ulint dict_index_get_n_non_dropped_fields(const dict_index_t* index)
+{
+	ut_ad(index);
+	ut_ad(index->magic_n == DICT_INDEX_MAGIC_N);
+	return index->n_fields - index->n_dropped_fields;
 }
 
 /********************************************************************//**

@@ -841,7 +841,7 @@ row_log_table_low_redundant(
 
 	const bool is_instant = index->online_log->is_instant(index);
 	rec_comp_status_t status = is_instant
-		? REC_STATUS_COLUMNS_ADDED : REC_STATUS_ORDINARY;
+		? REC_STATUS_COLUMNS_INSTANT : REC_STATUS_ORDINARY;
 
 	size = rec_get_converted_size_temp(
 		index, tuple->fields, tuple->n_fields, &extra_size, status);
@@ -895,7 +895,7 @@ row_log_table_low_redundant(
 			*b++ = static_cast<byte>(extra_size);
 		}
 
-		if (status == REC_STATUS_COLUMNS_ADDED) {
+		if (status == REC_STATUS_COLUMNS_INSTANT) {
 			ut_ad(is_instant);
 			if (n_fields <= index->online_log->n_core_fields) {
 				status = REC_STATUS_ORDINARY;
@@ -982,7 +982,7 @@ row_log_table_low(
 
 	ut_ad(page_is_comp(page_align(rec)));
 	ut_ad(rec_get_status(rec) == REC_STATUS_ORDINARY
-	      || rec_get_status(rec) == REC_STATUS_COLUMNS_ADDED);
+	      || rec_get_status(rec) == REC_STATUS_COLUMNS_INSTANT);
 
 	const ulint omit_size = REC_N_NEW_EXTRA_BYTES;
 

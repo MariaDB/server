@@ -2652,7 +2652,8 @@ row_ins_clust_index_entry_low(
 #endif /* UNIV_DEBUG */
 
 	if (UNIV_UNLIKELY(entry->info_bits != 0)) {
-		ut_ad(entry->info_bits == REC_INFO_DEFAULT_ROW);
+		ut_ad(entry->info_bits == REC_INFO_DEFAULT_ROW
+		      || entry->info_bits == REC_INFO_DEFAULT_ROW_DROP);
 		ut_ad(flags == BTR_NO_LOCKING_FLAG);
 		ut_ad(index->is_instant());
 		ut_ad(!dict_index_is_online_ddl(index));
@@ -3433,7 +3434,8 @@ dberr_t
 row_ins_index_entry_set_vals(
 	const dict_index_t*	index,
 	dtuple_t*		entry,
-	const dtuple_t*		row)
+	const dtuple_t*		row,
+	mem_heap_t*		heap)
 {
 	ulint	n_fields;
 	ulint	i;
@@ -3465,6 +3467,32 @@ row_ins_index_entry_set_vals(
 			ut_ad(dtuple_get_n_fields(row)
 			      == dict_table_get_n_cols(index->table));
 			row_field = dtuple_get_nth_v_field(row, v_col->v_pos);
+
+		} else if (col->is_dropped()) {
+
+			ut_ad(dict_index_is_clust(index));
+
+			field->type.prtype = DATA_NOT_NULL;
+
+			if (!(col->prtype & DATA_NOT_NULL)) {
+				field->data = 0x00;
+				field->len = UNIV_SQL_NULL;
+				field->type.prtype = DATA_BINARY_TYPE;
+			} else if (col->len > 0) {
+				field->data = mem_heap_zalloc(heap, col->len);
+				field->len = col->len;
+			} else {
+				field->data = 0x00;
+				field->len = 0;
+			}
+
+			if (col->len > 0) {
+				field->type.mtype = DATA_FIXBINARY;
+			} else {
+				field->type.mtype = DATA_BINARY;
+			}
+
+			continue;
 		} else {
 			row_field = dtuple_get_nth_field(
 				row, ind_field->col->ind);
@@ -3474,7 +3502,7 @@ row_ins_index_entry_set_vals(
 
 		/* Check column prefix indexes */
 		if (ind_field != NULL && ind_field->prefix_len > 0
-		    && dfield_get_len(row_field) != UNIV_SQL_NULL) {
+		    && len != UNIV_SQL_NULL) {
 
 			const	dict_col_t*	col
 				= dict_field_get_col(ind_field);
@@ -3528,7 +3556,8 @@ row_ins_index_entry_step(
 
 	ut_ad(dtuple_check_typed(node->row));
 
-	err = row_ins_index_entry_set_vals(node->index, node->entry, node->row);
+	err = row_ins_index_entry_set_vals(node->index, node->entry, node->row,
+					   node->entry_sys_heap);
 
 	if (err != DB_SUCCESS) {
 		DBUG_RETURN(err);

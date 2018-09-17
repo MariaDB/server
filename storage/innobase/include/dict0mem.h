@@ -588,6 +588,9 @@ struct dict_col_t{
 					3072 (REC_VERSION_56_MAX_INDEX_COL_LEN)
 					bytes. */
 
+	/** Whether the column is deleted. */
+	bool		dropped;
+
 	/** Detach the column from an index.
 	@param[in]	index	index to be detached from */
 	inline void detach(const dict_index_t& index);
@@ -608,6 +611,17 @@ struct dict_col_t{
 	bool is_virtual() const { return prtype & DATA_VIRTUAL; }
 	/** @return whether NULL is an allowed value for this column */
 	bool is_nullable() const { return !(prtype & DATA_NOT_NULL); }
+
+	/** Construct dfield for the data tuple.
+	@param[out]	dfield	data field of the tuple
+	@param[out]	heap	memory heap */
+	inline void construct_dropped_field(
+		dfield_t*	dfield,
+		mem_heap_t*	heap) const;
+
+	inline void construct_dropped_default_field(
+		dfield_t*	dfield,
+		mem_heap_t*	heap) const;
 
 	/** @return whether table of this system field is TRX_ID-based */
 	bool vers_native() const
@@ -630,7 +644,7 @@ struct dict_col_t{
 	}
 
 	/** @return whether this is an instantly-added column */
-	bool is_instant() const
+	bool is_instant_add() const
 	{
 		DBUG_ASSERT(def_val.len != UNIV_SQL_DEFAULT || !def_val.data);
 		return def_val.len != UNIV_SQL_DEFAULT;
@@ -641,7 +655,7 @@ struct dict_col_t{
 	@retval	NULL	if the default value is SQL NULL (len=UNIV_SQL_NULL) */
 	const byte* instant_value(ulint* len) const
 	{
-		DBUG_ASSERT(is_instant());
+		DBUG_ASSERT(is_instant_add());
 		*len = def_val.len;
 		return static_cast<const byte*>(def_val.data);
 	}
@@ -649,9 +663,21 @@ struct dict_col_t{
 	/** Remove the 'instant ADD' status of the column */
 	void remove_instant()
 	{
-		DBUG_ASSERT(is_instant());
+		DBUG_ASSERT(is_instant_add());
 		def_val.len = UNIV_SQL_DEFAULT;
 		def_val.data = NULL;
+	}
+
+	/** @return whether the column is dropped  */
+	bool is_dropped() const
+	{
+		return dropped;
+	}
+
+	/** Set the dropped flag. */
+	void set_dropped()
+	{
+		dropped = true;
 	}
 };
 
@@ -850,7 +876,7 @@ to start with. */
 
 /** Data structure for an index.  Most fields will be
 initialized to 0, NULL or FALSE in dict_mem_index_create(). */
-struct dict_index_t{
+struct dict_index_t {
 	index_id_t	id;	/*!< id of the index */
 	mem_heap_t*	heap;	/*!< memory heap */
 	id_name_t	name;	/*!< index name */
@@ -900,6 +926,10 @@ struct dict_index_t{
 	records; usually equal to UT_BITS_IN_BYTES(n_nullable), but
 	can be less in clustered indexes with instant ADD COLUMN */
 	unsigned	n_core_null_bytes:8;
+	/** Number of dropped fields. */
+	unsigned	n_dropped_fields:10;
+	/** Number of non dropped field nullable fields. */
+	unsigned	n_non_drop_nullable_fields:10;
 	/** magic value signalling that n_core_null_bytes was not
 	initialized yet */
 	static const unsigned NO_CORE_NULL_BYTES = 0xff;
@@ -922,6 +952,8 @@ struct dict_index_t{
 				that have not been committed to the
 				data dictionary yet */
 
+	/* Index operation undergone instant operation. */
+	bool		instant;
 #ifdef UNIV_DEBUG
 	/** whether this is a dummy index object */
 	bool		is_dummy;
@@ -1055,6 +1087,12 @@ struct dict_index_t{
 	/** @return whether the index is corrupted */
 	inline bool is_corrupted() const;
 
+	/** Whether the index has dropped fields. */
+	bool is_drop_field_exist() const
+	{
+		return n_dropped_fields > 0;
+	}
+
 	/** Detach the columns from the index that is to be freed. */
 	void detach_columns()
 	{
@@ -1084,6 +1122,53 @@ struct dict_index_t{
 		return n;
 	}
 
+	/** Determine the number of non-core instant columns present
+	in the clustered index.
+	@param[in]	n_prefix	number of fields in the prefix
+	@return number of fields n_core_fields...n_prefix-1 that undergoes
+	instant operation. */
+	unsigned get_n_instant_cols(ulint n_prefix) const
+	{
+		DBUG_ASSERT(n_prefix > 0);
+		DBUG_ASSERT(n_prefix <= n_fields);
+		unsigned n = 0;
+		for (ulint i = n_core_fields; i < n_prefix; i++) {
+			const dict_col_t* col = fields[i].col;
+
+			if (col->is_dropped()
+			    || col->is_instant_add()) {
+				n++;
+				continue;
+			}
+		}
+
+		DBUG_ASSERT(n < n_def);
+		return n;
+	}
+
+	/** Determine the number of non-core instant add columns present
+	in the clustered index.
+	@param[in]	n_prefix	number of fields in the prefix
+	@return number of fields n_core_fields...n_prefix-1 that undergoes
+	instant add operation. */
+	unsigned get_n_non_drop_cols(ulint n_prefix) const
+	{
+		DBUG_ASSERT(n_prefix > 0);
+		DBUG_ASSERT(n_prefix <= n_fields);
+		unsigned n = 0;
+		for (ulint i = n_core_fields; i < n_prefix; i++) {
+			const dict_col_t* col = fields[i].col;
+
+			if (!col->is_dropped()) {
+				n++;
+				continue;
+			}
+		}
+
+		DBUG_ASSERT(n < n_def);
+		return n;
+	}
+
 	/** Get the default value of an instantly-added clustered index field.
 	@param[in]	n	instantly added field position
 	@param[out]	len	value length (in bytes), or UNIV_SQL_NULL
@@ -1096,6 +1181,19 @@ struct dict_index_t{
 		DBUG_ASSERT(n < n_fields);
 		return fields[n].col->instant_value(len);
 	}
+
+	/** Adjust clustered index metadata for instant ADD/DROP COLUMN.
+	@param[in]	instant	clustered index definition
+					after instant ADD/DROP COLUM
+	@param[in]	n_newly_add	number of newly added columns
+	@param[in]	n_newly_drop	number of newly dropped columns
+	@param[in]	col_map	mapping of old table cols
+					to new table cols */
+	void instant_op_field(
+		const dict_index_t&	instant,
+		ulint			n_newly_add,
+		ulint			n_newly_drop,
+		const ulint*		col_map);
 
 	/** Adjust clustered index metadata for instant ADD COLUMN.
 	@param[in]	clustered index definition after instant ADD COLUMN */
@@ -1129,6 +1227,10 @@ struct dict_index_t{
 	@return true on error */
 	bool
 	vers_history_row(const rec_t* rec, bool &history_row);
+
+	/** Reconstruct the fields of the clustered index with
+	dropped column fields. */
+	void reconstruct_fields();
 };
 
 /** Detach a column from an index.
@@ -1148,6 +1250,52 @@ inline void dict_col_t::detach(const dict_index_t& index)
 				return;
 			}
 		}
+	}
+}
+
+inline void dict_col_t::construct_dropped_default_field(
+	dfield_t*	dfield,
+	mem_heap_t*	heap) const
+{
+	dfield->type.prtype = DATA_BINARY_TYPE;
+	if (prtype & DATA_NOT_NULL) {
+		dfield->type.prtype |= DATA_NOT_NULL;
+	}
+
+	dfield_set_data(dfield, field_ref_zero, len);
+
+	if (len > 0) {
+		dfield->type.mtype = DATA_FIXBINARY;
+	} else {
+		dfield->type.mtype = DATA_BINARY;
+	}
+}
+
+/** Construct dfield for the data tuple.
+@param[out]	dfield	data field of the tuple
+@param[out]	heap	memory heap */
+inline void dict_col_t::construct_dropped_field(
+	dfield_t*	dfield,
+	mem_heap_t*	heap) const
+{
+	dfield->type.prtype = DATA_NOT_NULL;
+
+	if (!(prtype & DATA_NOT_NULL)) {
+		dfield->data = 0x00;
+		dfield->len = UNIV_SQL_NULL;
+		dfield->type.prtype = DATA_BINARY_TYPE;
+	} else if (len > 0) {
+		dfield->data = mem_heap_zalloc(heap, len);
+		dfield->len = len;
+	} else {
+		dfield->data = 0x00;
+		dfield->len = 0;
+	}
+
+	if (len > 0) {
+		dfield->type.mtype = DATA_FIXBINARY;
+	} else {
+		dfield->type.mtype = DATA_BINARY;
 	}
 }
 
@@ -1528,6 +1676,56 @@ struct dict_table_t {
 		return(!(flags & DICT_TF_MASK_ZIP_SSIZE));
 	}
 
+	/** Read the default row blob and fill the non primary fields,
+	non-drop nullable fields and fill the drop columns in the
+	vector.
+	@param[in]	blob_data		blob data which contains
+						drop column information
+	@param[out]	non_pk_fields		number of non-primary key fields
+	@param[out]	non_drop_nullable_fields number of non-drop nullable fields
+	@param[out]	dropped_col_list	 dropped column list */
+	void read_default_row_blob(
+		byte*			blob_data,
+		ulint*			non_pk_fields,
+		ulint*			non_drop_nullable_fields,
+		std::vector<ulint>&	dropped_col_list);
+
+	/** Construct the blob with contains the non-primary key for
+	the clustered index.
+	@param[in,out]	heap	memory heap to allocate the blob
+	@param[out]	len	length of the blob data
+	@return blob data. */
+	byte* construct_default_row_blob(
+		mem_heap_t*	heap,
+		unsigned*	len);
+
+	/** Construct dropped columns for the table using the
+	default row blob data.
+	@param[in]	data	default row blob data. */
+	void construct_dropped_columns(const byte* data);
+
+	/** Fill the dropped column in dropped_cols
+	@param[in]	table		instant table
+	@param[in]	col_map		mapping of cols from old table
+					to new table
+	@param[in]	n_newly_drop	number of newly drop column */
+	void fill_dropped_column(
+		const dict_table_t&	table,
+		const ulint*		col_map,
+		ulint			n_newly_drop);
+
+	/** Adjust table metadat for instant operation.
+	@param[in]	table		instant table
+	@param[in]	col_map		mapping of cols from old table
+					to new table
+	@param[in]	n_newly_add	number of newly added column
+	@param[in]	n_newly_drop	number of newly drop column */
+	void instant_op_column(
+		const dict_table_t&	table,
+		const ulint*		col_map,
+		ulint			n_newly_add,
+		ulint			n_newly_drop);
+
 	/** Adjust metadata for instant ADD COLUMN.
 	@param[in]	table	table definition after instant ADD COLUMN */
 	void instant_add_column(const dict_table_t& table);
@@ -1539,7 +1737,8 @@ struct dict_table_t {
 	void rollback_instant(
 		unsigned	old_n_cols,
 		dict_col_t*	old_cols,
-		const char*	old_col_names);
+		const char*	old_col_names,
+		bool		old_instant);
 
 	/** Trim the instantly added columns when an insert into SYS_COLUMNS
 	is rolled back during ALTER TABLE or recovery.
@@ -1571,6 +1770,9 @@ struct dict_table_t {
 		my_atomic_addlint(&n_foreign_key_checks_running, ulint(-1));
 		ut_ad(fk_checks > 0);
 	}
+
+	/** Build the mapping of non-pk to column in the table. */
+	void build_non_pk_map();
 
 	/** Id of the table. */
 	table_id_t				id;
@@ -1685,6 +1887,12 @@ struct dict_table_t {
 	and need to preserve till rename table operation. That is the
 	reason s_cols is a part of dict_table_t */
 	dict_s_col_list*			s_cols;
+
+	/** List of dropped columns. */
+	dict_col_t*				dropped_cols;
+
+	/** Number of dropped columns. */
+	unsigned				n_dropped_cols:10;
 
 	/** Column names packed in a character string
 	"name1\0name2\0...nameN\0". Until the string contains n_cols, it will
@@ -1932,6 +2140,9 @@ struct dict_table_t {
 	It is protected by lock_sys.mutex. */
 	ulint					n_rec_locks;
 
+	/** Mapping the non-pk field to column of the table. */
+	ulint*					non_pk_col_map;
+
 private:
 	/** Count of how many handles are opened to this table. Dropping of the
 	table is NOT allowed until this count gets to zero. MySQL does NOT
@@ -1955,6 +2166,12 @@ public:
 	/** mysql_row_templ_t for base columns used for compute the virtual
 	columns */
 	dict_vcol_templ_t*			vc_templ;
+
+	/** Default row blob column fields. */
+	static const unsigned INSTANT_NON_PK_FIELDS_LEN = 4;
+	static const unsigned INSTANT_FIELD_LEN = 2;
+	static const unsigned INSTANT_FIELD_COL_NO_SHIFT = 6;
+	static const unsigned INSTANT_DROP_COL_FIXED = 1;
 };
 
 inline void dict_index_t::set_modified(mtr_t& mtr) const
@@ -1967,12 +2184,12 @@ inline bool dict_index_t::is_readable() const { return table->is_readable(); }
 inline bool dict_index_t::is_instant() const
 {
 	ut_ad(n_core_fields > 0);
-	ut_ad(n_core_fields <= n_fields);
 	ut_ad(n_core_fields == n_fields
 	      || (type & ~(DICT_UNIQUE | DICT_CORRUPT)) == DICT_CLUSTERED);
 	ut_ad(n_core_fields == n_fields || table->supports_instant());
 	ut_ad(n_core_fields == n_fields || !table->is_temporary());
-	return(n_core_fields != n_fields);
+
+	return (n_core_fields != n_fields || instant);
 }
 
 inline bool dict_index_t::is_corrupted() const

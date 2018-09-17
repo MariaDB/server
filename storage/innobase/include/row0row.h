@@ -77,6 +77,19 @@ row_get_rec_roll_ptr(
 #define ROW_BUILD_FOR_PURGE	1	/*!< build row for purge. */
 #define ROW_BUILD_FOR_UNDO	2	/*!< build row for undo. */
 #define ROW_BUILD_FOR_INSERT	3	/*!< build row for insert. */
+
+void
+row_construct_default_row_blob(
+	dict_table_t*	table,
+	dfield_t*	dfield,
+	mem_heap_t*	heap);
+
+dtuple_t*
+row_build_clust_default_entry(
+        const dtuple_t*         row,
+        dict_index_t*           index,
+        mem_heap_t*             heap);
+
 /*****************************************************************//**
 When an insert or purge to a table is performed, this function builds
 the entry to be inserted into or purged from an index on the table.

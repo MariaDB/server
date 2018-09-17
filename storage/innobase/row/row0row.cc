@@ -46,6 +46,233 @@ Created 4/20/1996 Heikki Tuuri
 #include "gis0geo.h"
 #include "row0mysql.h"
 
+/** Build the entry for the default row receord for instant alter operation.
+@param[in]	row		row which should be inserted for instant alter
+@param[in]	clust_index	clustered index
+@param[in]	heap		memory heap from which memory for the index
+				entry is allocated
+@return tuple for default row with drop column information*/
+dtuple_t*
+row_build_clust_default_entry(
+	const dtuple_t*		row,
+	dict_index_t*		clust_index,
+	mem_heap_t*		heap)
+{
+	ut_a(dict_index_is_clust(clust_index));
+
+	ulint		entry_n_fields = dict_index_get_n_fields(clust_index) + 1;
+	dtuple_t*	entry = dtuple_create(heap, entry_n_fields);
+
+	dtuple_set_n_fields_cmp(
+		entry, dict_index_get_n_unique_in_tree(clust_index));
+
+	ulint	ind_field_no = 0;
+	ulint	field_no = 0;
+
+	for (field_no = 0; field_no < entry_n_fields; field_no++) {
+		const dict_field_t*	ind_field = NULL;
+		const dict_col_t*	col;
+		ulint			col_no = 0;
+		dfield_t*		dfield;
+		dfield_t*		dfield2;
+		ulint			len;
+
+		dfield = dtuple_get_nth_field(entry, field_no);
+
+		if (field_no == unsigned(clust_index->n_uniq + DATA_ROLL_PTR)) {
+			/* Reference to store the non-pk column info blob. */
+			void* data = mem_heap_zalloc(
+					heap, BTR_EXTERN_FIELD_REF_SIZE);
+			dfield->init_new_default_blob(
+					data, BTR_EXTERN_FIELD_REF_SIZE);
+			continue;
+		}
+
+		ind_field = dict_index_get_nth_field(clust_index, ind_field_no++);
+		col = ind_field->col;
+
+		if (col->is_dropped()) {
+			col->construct_dropped_default_field(dfield, heap);
+			continue;
+		} else {
+			col_no = dict_col_get_no(col);
+			dfield2 = dtuple_get_nth_field(row, col_no);
+			ut_ad(dfield_get_type(dfield2)->mtype == DATA_MISSING
+			      || (!(dfield_get_type(dfield2)->prtype
+				    & DATA_VIRTUAL)));
+
+			len = dfield_get_len(dfield2);
+
+			dfield_copy(dfield, dfield2);
+		}
+
+		if (dfield_is_null(dfield)) {
+			continue;
+		}
+
+		if (ind_field->prefix_len == 0 && !dfield_is_ext(dfield)) {
+			/* The dfield_copy() above suffices for
+			columns that are stored in-page, or for
+			clustered index record columns that are not
+			part of a column prefix in the PRIMARY KEY. */
+			continue;
+		}
+
+		ut_ad(col->ord_part);
+
+		if (dfield_is_ext(dfield)) {
+			ut_a(len >= BTR_EXTERN_FIELD_REF_SIZE);
+			len -= BTR_EXTERN_FIELD_REF_SIZE;
+			dfield_set_len(dfield, len);
+		}
+
+		/* If a column prefix index, take only the prefix. */
+		if (ind_field->prefix_len) {
+			len = dtype_get_at_most_n_mbchars(
+				col->prtype, col->mbminlen, col->mbmaxlen,
+				ind_field->prefix_len, len,
+				static_cast<char*>(dfield_get_data(dfield)));
+			dfield_set_len(dfield, len);
+		}
+	}
+
+	return entry;
+}
+
+/** Build spatial index first field for the entry.
+@param[in]	index	spatial index
+@param[in]	ext	externally stored column prefixes
+@param[in,out]	dfield	field of the tuple to be copied
+@param[in,out]	dfield2	field of the tuple to copy
+@param[in]	flag	ROW_BUILD_NORMAL, ROW_BUILD_FOR_PURGE or
+			ROW_BUILD_FOR_UNDO
+@param[in]	heap	memory heap from which the memory
+			of the field entry is allocated.
+@retval false if undo log is logged before spatial index creation. */
+static
+bool row_build_spatial_index_first_field(
+	dict_index_t*		index,
+	const row_ext_t*	ext,
+	dfield_t*		dfield,
+	dfield_t*		dfield2,
+	ulint			flag,
+	mem_heap_t*		heap)
+{
+	double*			mbr;
+
+	const page_size_t	page_size = (ext != NULL) ? ext->page_size
+					    : dict_table_page_size(
+						index->table);
+	dfield_copy(dfield, dfield2);
+	dfield->type.prtype |= DATA_GIS_MBR;
+
+	/* Allocate memory for mbr field */
+	ulint mbr_len = DATA_MBR_LEN;
+	mbr = static_cast<double*>(mem_heap_alloc(heap, mbr_len));
+
+	/* Set mbr field data. */
+	dfield_set_data(dfield, mbr, mbr_len);
+
+	if (dfield2->data == NULL) {
+		return true;
+	}
+
+	uchar*	dptr = NULL;
+	ulint	dlen = 0;
+	ulint	flen = 0;
+	double	tmp_mbr[SPDIMS * 2];
+	mem_heap_t*	temp_heap = NULL;
+
+	if (!dfield_is_ext(dfield2)) {
+		dptr = static_cast<uchar*>(
+				dfield_get_data(dfield2));
+		dlen = dfield_get_len(dfield2);
+		goto write_mbr;
+	}
+
+	if (flag == ROW_BUILD_FOR_PURGE) {
+		byte*	ptr = NULL;
+
+		spatial_status_t spatial_status;
+		spatial_status =
+			dfield_get_spatial_status(
+					dfield2);
+
+		switch (spatial_status) {
+			case SPATIAL_ONLY:
+				ptr = static_cast<byte*>(
+						dfield_get_data(
+							dfield2));
+				ut_ad(dfield_get_len(dfield2)
+						== DATA_MBR_LEN);
+				break;
+
+			case SPATIAL_MIXED:
+				ptr = static_cast<byte*>(
+						dfield_get_data(
+							dfield2))
+					+ dfield_get_len(
+							dfield2);
+				break;
+
+			case SPATIAL_UNKNOWN:
+				ut_ad(0);
+				/* fall through */
+			case SPATIAL_NONE:
+				/* Undo record is logged before
+				   spatial index is created.*/
+				return false;
+		}
+
+		memcpy(mbr, ptr, DATA_MBR_LEN);
+		return true;
+	}
+
+	if (flag == ROW_BUILD_FOR_UNDO
+	    && dict_table_has_atomic_blobs(index->table)) {
+		/* For build entry for undo, and
+		   the table is Barrcuda, we need
+		   to skip the prefix data. */
+		flen = BTR_EXTERN_FIELD_REF_SIZE;
+		ut_ad(dfield_get_len(dfield2) >=
+				BTR_EXTERN_FIELD_REF_SIZE);
+		dptr = static_cast<byte*>(
+				dfield_get_data(dfield2))
+			+ dfield_get_len(dfield2)
+			- BTR_EXTERN_FIELD_REF_SIZE;
+	} else {
+		flen = dfield_get_len(dfield2);
+		dptr = static_cast<byte*>(
+				dfield_get_data(dfield2));
+	}
+
+	temp_heap = mem_heap_create(1000);
+
+	dptr = btr_copy_externally_stored_field(&dlen, dptr,
+						page_size, flen, temp_heap);
+
+write_mbr:
+
+	if (dlen <= GEO_DATA_HEADER_SIZE) {
+		for (uint i = 0; i < SPDIMS; ++i) {
+			tmp_mbr[i * 2] = DBL_MAX;
+			tmp_mbr[i * 2 + 1] = -DBL_MAX;
+		}
+	} else {
+		rtree_mbr_from_wkb(dptr + GEO_DATA_HEADER_SIZE,
+				static_cast<uint>(dlen
+					- GEO_DATA_HEADER_SIZE),
+				SPDIMS, tmp_mbr);
+	}
+
+	dfield_write_mbr(dfield, tmp_mbr);
+	if (temp_heap) {
+		mem_heap_free(temp_heap);
+	}
+
+	return true;
+}
+
 /*****************************************************************//**
 When an insert or purge to a table is performed, this function builds
 the entry to be inserted into or purged from an index on the table.
@@ -110,8 +337,16 @@ row_build_index_entry_low(
 		} else {
 			ind_field = dict_index_get_nth_field(index, i);
 			col = ind_field->col;
-			col_no = dict_col_get_no(col);
 			dfield = dtuple_get_nth_field(entry, i);
+		}
+
+		if (col->is_dropped()) {
+			ut_ad(dict_index_is_clust(index));
+			ut_ad(!col->is_virtual());
+			col->construct_dropped_field(dfield, heap);
+			continue;
+		} else {
+			col_no = dict_col_get_no(col);
 		}
 
 		compile_time_assert(DATA_MISSING == 0);
@@ -149,119 +384,13 @@ row_build_index_entry_low(
 		/* Special handle spatial index, set the first field
 		which is for store MBR. */
 		if (dict_index_is_spatial(index) && i == 0) {
-			double*			mbr;
 
-			dfield_copy(dfield, dfield2);
-			dfield->type.prtype |= DATA_GIS_MBR;
-
-			/* Allocate memory for mbr field */
-			ulint mbr_len = DATA_MBR_LEN;
-			mbr = static_cast<double*>(mem_heap_alloc(heap, mbr_len));
-
-			/* Set mbr field data. */
-			dfield_set_data(dfield, mbr, mbr_len);
-
-			if (dfield2->data) {
-				uchar*	dptr = NULL;
-				ulint	dlen = 0;
-				ulint	flen = 0;
-				double	tmp_mbr[SPDIMS * 2];
-				mem_heap_t*	temp_heap = NULL;
-
-				if (dfield_is_ext(dfield2)) {
-					if (flag == ROW_BUILD_FOR_PURGE) {
-						byte*	ptr = NULL;
-
-						spatial_status_t spatial_status;
-						spatial_status =
-							dfield_get_spatial_status(
-								dfield2);
-
-						switch (spatial_status) {
-						case SPATIAL_ONLY:
-						ptr = static_cast<byte*>(
-							dfield_get_data(
-								dfield2));
-						ut_ad(dfield_get_len(dfield2)
-						      == DATA_MBR_LEN);
-						break;
-
-						case SPATIAL_MIXED:
-						ptr = static_cast<byte*>(
-							dfield_get_data(
-								dfield2))
-							+ dfield_get_len(
-								dfield2);
-						break;
-
-						case SPATIAL_UNKNOWN:
-							ut_ad(0);
-							/* fall through */
-						case SPATIAL_NONE:
-						/* Undo record is logged before
-						spatial index is created.*/
-						return(NULL);
-						}
-
-						memcpy(mbr, ptr, DATA_MBR_LEN);
-						continue;
-					}
-
-					if (flag == ROW_BUILD_FOR_UNDO
-					    && dict_table_has_atomic_blobs(
-						    index->table)) {
-						/* For build entry for undo, and
-						the table is Barrcuda, we need
-						to skip the prefix data. */
-						flen = BTR_EXTERN_FIELD_REF_SIZE;
-						ut_ad(dfield_get_len(dfield2) >=
-						      BTR_EXTERN_FIELD_REF_SIZE);
-						dptr = static_cast<byte*>(
-							dfield_get_data(dfield2))
-							+ dfield_get_len(dfield2)
-							- BTR_EXTERN_FIELD_REF_SIZE;
-					} else {
-						flen = dfield_get_len(dfield2);
-						dptr = static_cast<byte*>(
-							dfield_get_data(dfield2));
-					}
-
-					temp_heap = mem_heap_create(1000);
-
-					const page_size_t	page_size
-						= (ext != NULL)
-						? ext->page_size
-						: dict_table_page_size(
-							index->table);
-
-					dptr = btr_copy_externally_stored_field(
-						&dlen, dptr,
-						page_size,
-						flen,
-						temp_heap);
-				} else {
-					dptr = static_cast<uchar*>(
-						dfield_get_data(dfield2));
-					dlen = dfield_get_len(dfield2);
-
-				}
-
-				if (dlen <= GEO_DATA_HEADER_SIZE) {
-					for (uint i = 0; i < SPDIMS; ++i) {
-						tmp_mbr[i * 2] = DBL_MAX;
-						tmp_mbr[i * 2 + 1] = -DBL_MAX;
-					}
-				} else {
-					rtree_mbr_from_wkb(dptr + GEO_DATA_HEADER_SIZE,
-							   static_cast<uint>(dlen
-							   - GEO_DATA_HEADER_SIZE),
-							   SPDIMS, tmp_mbr);
-				}
-				dfield_write_mbr(dfield, tmp_mbr);
-				if (temp_heap) {
-					mem_heap_free(temp_heap);
-				}
+			if (!row_build_spatial_index_first_field(
+					index, ext, dfield, dfield2,
+					flag, heap)) {
+				return NULL;
 			}
+
 			continue;
 		}
 
@@ -493,8 +622,12 @@ row_build_low(
 
 		const dict_col_t*	col
 			= dict_field_get_col(ind_field);
-		ulint			col_no
-			= dict_col_get_no(col);
+
+		if (col->is_dropped()) {
+			continue;
+		}
+
+		ulint	col_no = dict_col_get_no(col);
 
 		if (col_map) {
 			col_no = col_map[col_no];
@@ -506,6 +639,7 @@ row_build_low(
 		}
 
 		dfield_t*	dfield = dtuple_get_nth_field(row, col_no);
+
 		const void*	field = rec_get_nth_field(
 			copy, offsets, i, &len);
 		if (len == UNIV_SQL_DEFAULT) {
@@ -648,6 +782,105 @@ row_build_w_add_vcol(
 			     defaults, add_v, col_map, ext, heap));
 }
 
+/** Convert the rec to new default row with drop column info.
+@param[in]	rec	index record
+@param[in]	index	index
+@param[in]	offsets	rec_get_offsets(rec, index)
+@param[out]	n_ext	number of externally stored columns
+@param[in,out]	heap	memory heap for allocations
+@return index entry built; does not set info_bits, and the data fields
+in the entry will point directly to rec */
+static inline
+dtuple_t*
+row_def_rec_to_index_entry_impl(
+	const rec_t*		rec,
+	const dict_index_t*	index,
+	const ulint*		offsets,
+	ulint*			n_ext,
+	mem_heap_t*		heap)
+{
+	dtuple_t*		entry;
+	dfield_t*		dfield;
+	ulint			i;
+	const byte*		field;
+	ulint			len;
+	ulint			rec_len;
+	const dict_field_t*	ifield;
+	const dict_col_t*	col;
+
+	ut_ad(rec != NULL);
+	ut_ad(heap != NULL);
+	ut_ad(index != NULL);
+
+	/* Because this function may be invoked by row0merge.cc
+	on a record whose header is in different format, the check
+	rec_offs_validate(rec, index, offsets) must be avoided here. */
+	ut_ad(n_ext);
+	*n_ext = 0;
+
+	rec_len = index->n_fields + 1;
+
+	entry = dtuple_create(heap, rec_len);
+
+	dtuple_set_n_fields_cmp(entry,
+				dict_index_get_n_unique_in_tree(index));
+	ulint	field_no = 0;
+	bool	is_new_default_rec = rec_is_new_default_row(rec, index);
+
+	for (i = 0; i < rec_len; i++) {
+
+		dfield = dtuple_get_nth_field(entry, i);
+		if (i == unsigned(index->n_uniq + DATA_ROLL_PTR)) {
+			dfield->type.mtype = DATA_BLOB;
+			dfield->type.prtype = DATA_NOT_NULL;
+
+			if (!is_new_default_rec) {
+				dfield_set_data(dfield, field_ref_zero,
+						FIELD_REF_SIZE);
+				dfield->len = FIELD_REF_SIZE;
+				dfield_set_ext(dfield);
+				(*n_ext)++;
+				continue;
+			}
+
+			goto fetch_rec;
+		}
+
+		ifield = dict_index_get_nth_field(index, field_no++);
+		col = ifield->col;
+
+		dict_col_copy_type(col, dfield_get_type(dfield));
+fetch_rec:
+		ulint field_no = i;
+
+		if (is_new_default_rec) {
+			field = rec_get_nth_def_field(
+				rec, index, offsets, field_no, &len);
+		} else {
+			if (i > unsigned(index->n_uniq + DATA_ROLL_PTR)) {
+				field_no = i - 1;
+			}
+
+			field = rec_get_nth_def_field(
+					rec, index, offsets, field_no, &len);
+		}
+
+		if (col->is_dropped()) {
+			dfield_set_data(dfield, field_ref_zero, len);
+		} else {
+			dfield_set_data(dfield, field, len);
+		}
+
+		if (rec_offs_nth_extern(offsets, field_no)) {
+			dfield_set_ext(dfield);
+			(*n_ext)++;
+		}
+	}
+
+	ut_ad(dtuple_check_typed(entry));
+	return(entry);
+}
+
 /** Convert an index record to a data tuple.
 @tparam def whether the index->instant_field_value() needs to be accessed
 @param[in]	rec	index record
@@ -768,8 +1001,18 @@ row_rec_to_index_entry(
 
 	rec_offs_make_valid(copy_rec, index, true,
 			    const_cast<ulint*>(offsets));
-	entry = row_rec_to_index_entry_impl<true>(
-		copy_rec, index, offsets, n_ext, heap);
+
+	if (rec_is_new_default_row(copy_rec, index)
+	    || (rec_is_default_row(copy_rec, index)
+		&& index->n_dropped_fields > 0)) {
+
+		entry = row_def_rec_to_index_entry_impl(
+			copy_rec, index, offsets, n_ext, heap);
+	} else {
+		entry = row_rec_to_index_entry_impl<true>(
+			copy_rec, index, offsets, n_ext, heap);
+	}
+
 	rec_offs_make_valid(rec, index, true,
 			    const_cast<ulint*>(offsets));
 
@@ -1013,7 +1256,8 @@ row_search_on_row_ref(
 	index = dict_table_get_first_index(table);
 
 	if (UNIV_UNLIKELY(ref->info_bits != 0)) {
-		ut_ad(ref->info_bits == REC_INFO_DEFAULT_ROW);
+		ut_ad(ref->info_bits == REC_INFO_DEFAULT_ROW
+		      || ref->info_bits == REC_INFO_DEFAULT_ROW_DROP);
 		ut_ad(ref->n_fields <= index->n_uniq);
 		btr_pcur_open_at_index_side(true, index, mode, pcur, true, 0,
 					    mtr);

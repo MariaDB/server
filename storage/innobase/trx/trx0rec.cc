@@ -506,7 +506,8 @@ trx_undo_page_report_insert(
 	/* Store then the fields required to uniquely determine the record
 	to be inserted in the clustered index */
 	if (UNIV_UNLIKELY(clust_entry->info_bits != 0)) {
-		ut_ad(clust_entry->info_bits == REC_INFO_DEFAULT_ROW);
+		ut_ad(clust_entry->info_bits == REC_INFO_DEFAULT_ROW
+		      || clust_entry->info_bits == REC_INFO_DEFAULT_ROW_DROP);
 		ut_ad(index->is_instant());
 		ut_ad(undo_block->frame[first_free + 2]
 		      == TRX_UNDO_INSERT_REC);
@@ -922,7 +923,8 @@ trx_undo_page_report_modify(
 	if (!update) {
 		ut_ad(!rec_get_deleted_flag(rec, dict_table_is_comp(table)));
 		type_cmpl = TRX_UNDO_DEL_MARK_REC;
-	} else if (rec_get_deleted_flag(rec, dict_table_is_comp(table))) {
+	} else if (rec_get_deleted_flag(rec, dict_table_is_comp(table))
+		   && !rec_is_new_default_row(rec, index)) {
 		/* In delete-marked records, DB_TRX_ID must
 		always refer to an existing update_undo log record. */
 		ut_ad(row_get_rec_trx_id(rec, index, offsets));
@@ -1094,8 +1096,14 @@ trx_undo_page_report_modify(
 						flen, max_v_log_len);
 				}
 			} else {
-				field = rec_get_nth_cfield(
-					rec, index, offsets, pos, &flen);
+				if (UNIV_UNLIKELY(rec_is_new_default_row(
+							rec, index))) {
+					field = rec_get_nth_def_field(
+						rec, index, offsets, pos, &flen);
+				} else {
+					field = rec_get_nth_cfield(
+						rec, index, offsets, pos, &flen);
+				}
 			}
 
 			if (trx_undo_left(undo_block, ptr) < 15) {

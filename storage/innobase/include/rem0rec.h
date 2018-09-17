@@ -67,13 +67,19 @@ enum rec_comp_status_t {
 	REC_STATUS_SUPREMUM = 3,
 	/** Clustered index record that has been inserted or updated
 	after instant ADD COLUMN (more than dict_index_t::n_core_fields) */
-	REC_STATUS_COLUMNS_ADDED = 4
+	REC_STATUS_COLUMNS_INSTANT = 4
 };
 
 /** The dtuple_t::info_bits of the 'default row' record.
 @see rec_is_default_row() */
 static const byte REC_INFO_DEFAULT_ROW
-	= REC_INFO_MIN_REC_FLAG | REC_STATUS_COLUMNS_ADDED;
+	= REC_INFO_MIN_REC_FLAG | REC_STATUS_COLUMNS_INSTANT;
+
+/** The dtuple_t::info_bits of the 'default row' record with dropped
+column information. */
+static const byte REC_INFO_DEFAULT_ROW_DROP
+	= REC_INFO_MIN_REC_FLAG | REC_INFO_DELETED_FLAG
+	  | REC_STATUS_COLUMNS_INSTANT;
 
 #define REC_NEW_STATUS		3	/* This is single byte bit-field */
 #define REC_NEW_STATUS_MASK	0x7UL
@@ -124,10 +130,16 @@ const ulint REC_OFFS_COMPACT = ~(ulint(~0) >> 1);
 const ulint REC_OFFS_SQL_NULL = REC_OFFS_COMPACT;
 /** External flag in offsets returned by rec_get_offsets() */
 const ulint REC_OFFS_EXTERNAL = REC_OFFS_COMPACT >> 1;
+
 /** Default value flag in offsets returned by rec_get_offsets() */
 const ulint REC_OFFS_DEFAULT = REC_OFFS_COMPACT >> 2;
+
+const ulint REC_OFFS_DROP_COL = REC_OFFS_COMPACT >> 3;
+
+const ulint REC_OFFS_DROP_SQL_NULL = REC_OFFS_COMPACT >> 4;
+
 /** Mask for offsets returned by rec_get_offsets() */
-const ulint REC_OFFS_MASK = REC_OFFS_DEFAULT - 1;
+const ulint REC_OFFS_MASK = REC_OFFS_DROP_SQL_NULL - 1;
 
 #ifndef UNIV_INNOCHECKSUM
 /******************************************************//**
@@ -296,7 +308,7 @@ rec_comp_status_t
 rec_get_status(const rec_t* rec)
 {
 	byte bits = rec[-REC_NEW_STATUS] & REC_NEW_STATUS_MASK;
-	ut_ad(bits <= REC_STATUS_COLUMNS_ADDED);
+	ut_ad(bits <= REC_STATUS_COLUMNS_INSTANT);
 	return static_cast<rec_comp_status_t>(bits);
 }
 
@@ -307,7 +319,7 @@ inline
 void
 rec_set_status(rec_t* rec, byte bits)
 {
-	ut_ad(bits <= REC_STATUS_COLUMNS_ADDED);
+	ut_ad(bits <= REC_STATUS_COLUMNS_INSTANT);
 	rec[-REC_NEW_STATUS] = (rec[-REC_NEW_STATUS] & ~REC_NEW_STATUS_MASK)
 		| bits;
 }
@@ -711,6 +723,20 @@ rec_offs_nth_sql_null(const ulint* offsets, ulint n)
 	return rec_offs_nth_flag(offsets, n, REC_OFFS_SQL_NULL);
 }
 
+inline
+ulint
+rec_offs_nth_drop_sql_null(const ulint* offsets, ulint n)
+{
+	return rec_offs_nth_flag(offsets, n, REC_OFFS_DROP_SQL_NULL);
+}
+
+inline
+ulint
+rec_offs_nth_drop_col(const ulint* offsets, ulint n)
+{
+	return rec_offs_nth_flag(offsets, n, REC_OFFS_DROP_COL);
+}
+
 /** Determine if a record field is stored off-page.
 @param[in]	offsets	rec_get_offsets()
 @param[in]	n	nth field
@@ -779,8 +805,50 @@ rec_is_default_row(const rec_t* rec, const dict_index_t* index)
 		& REC_INFO_MIN_REC_FLAG;
 	ut_ad(!is || index->is_instant());
 	ut_ad(!is || !dict_table_is_comp(index->table)
-	      || rec_get_status(rec) == REC_STATUS_COLUMNS_ADDED);
+	      || rec_get_status(rec) == REC_STATUS_COLUMNS_INSTANT);
 	return is;
+}
+
+/** Determine if the record is the 'new default row' pseudo-record
+in the clustered index.
+@param[in]	rec	leaf page record
+@param[in]	index	index of the record
+@return	whether the record is the 'new default row' pseudo-record */
+inline
+bool
+rec_is_new_default_row(const rec_t* rec, const dict_index_t* index)
+{
+	bool is = rec_get_info_bits(rec, dict_table_is_comp(index->table))
+			& REC_INFO_MIN_REC_FLAG;
+	is = is && rec_get_deleted_flag(rec, dict_table_is_comp(index->table));
+	ut_ad(!is || index->is_instant());
+	ut_ad(!is || !dict_table_is_comp(index->table)
+	      || rec_get_status(rec) == REC_STATUS_COLUMNS_INSTANT);
+	return is;
+}
+
+/** Get the nth field from an index.
+@param[in]	rec	index record
+@param[in]	index	index
+@param[in]	offsets	rec_get_offsets(rec, index)
+@param[in]	n	field number
+@param[out]	len	length of the field in bytes, or UNIV_SQL_NULL
+@return a read-only copy of the index field */
+inline
+const byte*
+rec_get_nth_def_field(
+	const rec_t*		rec,
+	const dict_index_t*	index,
+	const ulint*		offsets,
+	ulint			n,
+	ulint*			len)
+{
+	ut_ad(rec_offs_validate(rec, index, offsets));
+	if (!rec_offs_nth_default(offsets, n)) {
+		return rec_get_nth_field(rec, offsets, n, len);
+	}
+
+	return index->instant_field_value(n - 1, len);
 }
 
 /** Get the nth field from an index.
@@ -800,6 +868,12 @@ rec_get_nth_cfield(
 	ulint*			len)
 {
 	ut_ad(rec_offs_validate(rec, index, offsets));
+
+	if (rec_offs_nth_drop_col(offsets, n)) {
+		*len = index->fields[n].col->len;
+		return field_ref_zero;
+	}
+
 	if (!rec_offs_nth_default(offsets, n)) {
 		return rec_get_nth_field(rec, offsets, n, len);
 	}
@@ -946,7 +1020,7 @@ rec_copy(
 @param[in]	fields		data fields
 @param[in]	n_fields	number of data fields
 @param[out]	extra		record header size
-@param[in]	status		REC_STATUS_ORDINARY or REC_STATUS_COLUMNS_ADDED
+@param[in]	status		REC_STATUS_ORDINARY or REC_STATUS_COLUMNS_INSTANT
 @return	total size, in bytes */
 ulint
 rec_get_converted_size_temp(
@@ -962,7 +1036,7 @@ rec_get_converted_size_temp(
 @param[in]	index	index of that the record belongs to
 @param[in,out]	offsets	offsets to the fields; in: rec_offs_n_fields(offsets)
 @param[in]	n_core	number of core fields (index->n_core_fields)
-@param[in]	status	REC_STATUS_ORDINARY or REC_STATUS_COLUMNS_ADDED */
+@param[in]	status	REC_STATUS_ORDINARY or REC_STATUS_COLUMNS_INSTANT */
 void
 rec_init_offsets_temp(
 	const rec_t*		rec,
@@ -988,8 +1062,7 @@ rec_init_offsets_temp(
 @param[in]	index		clustered or secondary index
 @param[in]	fields		data fields
 @param[in]	n_fields	number of data fields
-@param[in]	status		REC_STATUS_ORDINARY or REC_STATUS_COLUMNS_ADDED
-*/
+@param[in]	status		REC_STATUS_ORDINARY or REC_STATUS_COLUMNS_INSTANT */
 void
 rec_convert_dtuple_to_temp(
 	rec_t*			rec,
@@ -1052,21 +1125,44 @@ rec_get_converted_size_comp_prefix(
 	ulint			n_fields,/*!< in: number of data fields */
 	ulint*			extra)	/*!< out: extra size */
 	MY_ATTRIBUTE((warn_unused_result, nonnull(1,2)));
-/**********************************************************//**
-Determines the size of a data tuple in ROW_FORMAT=COMPACT.
+
+/** Determines the size of a data tuple in ROW_FORMAT=COMPACT.
+@param[in]	index		record descriptor. dict_table_is_comp()
+				is assumed to hold, even if it doesn't
+@param[in]	status		status bits of the record
+@param[in]	fields		array of data fields
+@param[in]	n_fields	number of data fields
+@param[out]	extra		extra size
+@param[in]	new_default_row	default row with drop column info
 @return total size */
 ulint
 rec_get_converted_size_comp(
-/*========================*/
-	const dict_index_t*	index,	/*!< in: record descriptor;
-					dict_table_is_comp() is
-					assumed to hold, even if
-					it does not */
-	rec_comp_status_t	status,	/*!< in: status bits of the record */
-	const dfield_t*		fields,	/*!< in: array of data fields */
-	ulint			n_fields,/*!< in: number of data fields */
-	ulint*			extra)	/*!< out: extra size */
+	const dict_index_t*	index,
+	rec_comp_status_t	status,
+	const dfield_t*		fields,
+	ulint			n_fields,
+	ulint*			extra)
 	MY_ATTRIBUTE((nonnull(1,3)));
+
+/** Determines the size of a data tupel in ROW_FORMAT=COMPACT.
+@param[in]	index		clustered index
+@param[in]	fields		array of data fields
+@param[in]	n_fields	number of data fields
+@param[out]	extra		extra size
+@return total size of default row with drop column info. */
+ulint
+rec_get_def_converted_size_comp(
+	const dict_index_t*	index,
+	const dfield_t*		fields,
+	ulint			n_fields,
+	ulint*			extra);
+
+ulint
+rec_get_default_rec_converted_size(
+	const dict_index_t*	clust_index,
+	const dtuple_t*		dtuple,
+	ulint*			ext);
+
 /**********************************************************//**
 The following function returns the size of a data tuple when converted to
 a physical record.
