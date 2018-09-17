@@ -29,22 +29,27 @@ https://mariadb.com/kb/en/
 
 https://mariadb.com/kb/en/mariadb-vs-mysql-features/
 
-https://mariadb.com/kb/en/mariadb-versus-mysql-features/
-
 https://mariadb.com/kb/en/mariadb-versus-mysql-compatibility/
 
 As MariaDB is a full replacement of MySQL, the MySQL manual at
 http://dev.mysql.com/doc is generally applicable.
 
-Help:
+Help
 -----
 
 More help is available from the Maria Discuss mailing list
 https://launchpad.net/~maria-discuss
 and the #maria IRC channel on Freenode.
 
+Live QA for beginner contributors
+----
+MariaDB has a dedicated time each week when we answer new contributor questions live on Zulip and IRC.
+From 8:00 to 10:00 UTC on Mondays, and 10:00 to 12:00 UTC on Thursdays,
+anyone can ask any questions they’d like, and a live developer will be available to assist.
 
-License:
+New contributors can ask questions any time, but we will provide immediate feedback during that interval.
+
+License
 --------
 
 ***************************************************************************
@@ -61,7 +66,7 @@ and COPYING.thirdparty files.
 
 ***************************************************************************
 
-Bug Reports:
+Bug Reports
 ------------
 
 Bug and/or error reports regarding MariaDB should be submitted at:
