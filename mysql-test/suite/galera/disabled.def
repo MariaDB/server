@@ -34,4 +34,4 @@ galra_unicode_identifiers: MDEV-13871 galera.galera_unicode_identifiers failed i
 galera_suspend_slave: MDEV-13873 galera.galera_suspend_slave failed in buildbot with wrong error code
 partition : MDEV-13881 galera.partition failed in buildbot with wrong result
 galera_as_slave_replication_budle : MDEV-15785 Test case galera_as_slave_replication_bundle caused debug assertion
-
+query_cache : MDEV-15805 Test failure on galera.query_cache
