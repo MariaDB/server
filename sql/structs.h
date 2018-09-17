@@ -235,6 +235,7 @@ struct LEX_USER: public AUTHID
     pwtext.str= pwhash.str= 0;
     plugin.str= auth.str= "";
   }
+  void to_str(class String &str);
 };
 
 /*
@@ -267,6 +268,7 @@ typedef struct user_resources {
   enum {QUERIES_PER_HOUR= 1, UPDATES_PER_HOUR= 2, CONNECTIONS_PER_HOUR= 4,
         USER_CONNECTIONS= 8, MAX_STATEMENT_TIME= 16};
   uint specified_limits;
+  void to_str(class String &str);
 } USER_RESOURCES;
 
 

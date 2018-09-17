@@ -1,0 +1,16 @@
+--source include/have_binlog_format_row.inc
+--source include/master-slave.inc
+
+CREATE TEMPORARY TABLE t1 (a INT);
+CREATE TEMPORARY TABLE t2 (a INT);
+CREATE TABLE t4 (a INT);
+drop table t4;
+
+drop temporary table if exists t2;
+drop temporary table if exists t1;
+#--error 0,1146
+#RENAME TABLE t1 TO tmp;
+
+--sync_slave_with_master
+--connection master
+--source include/rpl_end.inc

@@ -1,0 +1,7 @@
+--source include/master-slave.inc
+--source include/have_binlog_format_statement.inc
+create table t1(a int);
+create temporary table t2(b int);
+
+drop table t1,t2;
+--source include/rpl_end.inc

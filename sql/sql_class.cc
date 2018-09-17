@@ -7651,6 +7651,84 @@ void AUTHID::parse(const char *str, size_t length)
     host.length= HOSTNAME_LENGTH;
 }
 
+void LEX_USER::to_str(String &str)
+{
+  str.append("'");
+  str.append(user.str, user.length);
+  str.append("'");
+  if (host.length)
+  {
+    str.append("@");
+    str.append("'");
+    str.append(host.str, host.length);
+    str.append("'");
+  }
+  str.append(" IDENTIFIED ");
+  if (pwtext.length)
+  {
+    str.append(" BY '");
+    str.append(pwtext.str, pwtext.length);
+    str.append("' ");
+  }
+  else if (pwhash.length)
+  {
+    str.append(" BY PASSWORD '");
+    str.append(pwhash.str, pwhash.length);
+    str.append("' ");
+  }
+  if (plugin.length)
+  {
+    str.append(" WITH ");
+    str.append(plugin.str, pwhash.length);
+    str.append("' ");
+    if (auth.length)
+    {
+      str.append(" USING '");
+      str.append(auth.str, auth.length);
+      str.append("' ");
+    }
+  }
+}
+
+void USER_RESOURCES::to_str(String &str)
+{
+  str.append(" WITH ");
+  if (specified_limits & USER_RESOURCES::QUERIES_PER_HOUR)
+  {
+    char num[10];
+    sprintf(num, "%d", questions);
+    str.append(" MAX_QUERIES_PER_HOUR ");
+    str.append((const char *)&num);
+  }
+  if (specified_limits & USER_RESOURCES::UPDATES_PER_HOUR)
+  {
+    char num[10];
+    sprintf(num, "%d", updates);
+    str.append(" MAX_UPDATES_PER_HOUR ");
+    str.append((const char *)&num);
+  }
+  if (specified_limits & USER_RESOURCES::CONNECTIONS_PER_HOUR)
+  {
+    char num[10];
+    sprintf(num, "%d", conn_per_hour);
+    str.append(" MAX_CONNECTIONS_PER_HOUR ");
+    str.append((const char *)&num);
+  }
+  if (specified_limits & USER_RESOURCES::USER_CONNECTIONS)
+  {
+    char num[10];
+    sprintf(num, "%d", user_conn);
+    str.append(" MAX_USER_CONNECTIONS ");
+    str.append((const char *)&num);
+  }
+  if (specified_limits & USER_RESOURCES::MAX_STATEMENT_TIME)
+  {
+    char num[20];
+    sprintf(num, "%f", max_statement_time);
+    str.append(" MAX_QUERY_PER_HOUR ");
+    str.append((const char *)&num);
+  }
+}
 
 void Database_qualified_name::copy(MEM_ROOT *mem_root,
                                    const LEX_CSTRING &db,

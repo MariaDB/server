@@ -160,12 +160,12 @@ create table t1 (a int);
 grant ALL PRIVILEGES on *.* to drop_user2@localhost with GRANT OPTION;
 show grants for drop_user2@localhost;
 revoke all privileges, grant option from drop_user2@localhost;
-drop user drop_user2@localhost;
 
-grant ALL PRIVILEGES on *.* to drop_user@localhost with GRANT OPTION;
+grant ALL PRIVILEGES on *.* to drop_user@localhost , drop_user2@localhost with GRANT OPTION, ;
 grant ALL PRIVILEGES on test.* to drop_user@localhost with GRANT OPTION;
 grant select(a) on test.t1 to drop_user@localhost;
 show grants for drop_user@localhost;
+drop user drop_user2@localhost;
 
 #
 # Bug#3086 SHOW GRANTS doesn't follow ANSI_QUOTES

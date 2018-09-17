@@ -50,9 +50,9 @@ create user if not exists foo, foo2 identified by 'password2'
 select * from mysql.user where user like 'foo';
 drop user foo, foo2;
 
-create user foo with MAX_QUERIES_PER_HOUR 10
+create user foo ,foo2 with MAX_QUERIES_PER_HOUR 10
                      MAX_UPDATES_PER_HOUR 20
                      MAX_CONNECTIONS_PER_HOUR 30
                      MAX_USER_CONNECTIONS 40;
-select * from mysql.user where user like 'foo';
-drop user foo;
+select * from mysql.user where user like 'foo%';
+drop user foo, foo2;

@@ -1,0 +1,7 @@
+--source include/have_binlog_format_row.inc
+create user foo identified by password "2470C0C06DEE42FD1618BB99005ADCA2EC9D1E919", foo2 identified by 'password' require CIPHER 'cipher' 
+                                                   AND SUBJECT 'subject'
+                                                   AND ISSUER 'issuer'
+                     with MAX_UPDATES_PER_HOUR 20;
+select * from mysql.user where user like 'foo%';
+drop user foo, foo2;
