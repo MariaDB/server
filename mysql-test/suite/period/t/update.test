@@ -1,0 +1,163 @@
+source suite/versioning/engines.inc;
+source suite/versioning/common.inc;
+
+create or replace table t (id int, s date, e date, period for apptime(s,e));
+
+insert into t values(1, '1999-01-01', '2018-12-12');
+insert into t values(1, '1999-01-01', '2017-01-01');
+insert into t values(1, '2017-01-01', '2019-01-01');
+insert into t values(2, '1998-01-01', '2018-12-12');
+insert into t values(3, '1997-01-01', '2015-01-01');
+insert into t values(4, '2016-01-01', '2020-01-01');
+insert into t values(5, '2010-01-01', '2015-01-01');
+
+create or replace table t1 (id int, s date, e date, period for apptime(s,e));
+insert t1 select * from t;
+create or replace table t2 (id int, s date, e date, period for apptime(s,e));
+insert t2 select * from t;
+
+update t for portion of apptime from '2000-01-01' to '2018-01-01'
+       set id=id + 6;
+--sorted_result
+select * from t;
+
+--echo # Check triggers
+--let $trig_cols=id, s, e
+--let $trig_table=t1
+--source suite/period/create_triggers.inc
+
+update t1 for portion of apptime from '2000-01-01' to '2018-01-01'
+       set id=id + 6;
+--sorted_result
+select * from t1;
+select * from log_tbl order by id;
+
+--echo # INSERT trigger only also works
+--let $trig_cols=id, s, e
+--let $trig_table=t2
+--source suite/period/create_triggers.inc
+drop trigger tr1upd_t2;
+drop trigger tr2upd_t2;
+update t2 for portion of apptime from '2000-01-01' to '2018-01-01'
+       set id=id + 6;
+--sorted_result
+select * from t2;
+select * from log_tbl order by id;
+
+--error ER_PARSE_ERROR
+select * from t for portion of apptime from 0 to 1 for system_time all;
+--error ER_PARSE_ERROR
+update t for portion of apptime from 0 to 1 for system_time all set id=1;
+
+--echo # Modifying period start/end fields is forbidden.
+--echo # SQL16: 14.14 <update statement: searched>, Syntax Rules, 7)a)ii)
+--echo # Neither BSTARTCOL nor BENDCOL shall be an explicit <object column>
+--echo # contained in the <set clause list>.
+--error ER_PERIOD_COLUMNS_UPDATED
+update t for portion of apptime from '2000-01-01' to '2018-01-01'
+       set id= id + 6, s=subdate(s, 5), e=adddate(e, 5);
+
+--echo # Precision timestamps
+create or replace table t (id int, s timestamp(5), e timestamp(5),
+                           period for apptime(s,e));
+insert into t values(1, '1999-01-01', '2018-12-12');
+insert into t values(1, '1999-01-01', '2017-01-01');
+update t for portion of apptime from '2000-01-01 00:00:00.00015'
+                                to '2018-01-01 12:34:56.31415'
+         set id= id + 5;
+--sorted_result
+select * from t;
+
+-- echo # Strings
+create or replace table t (id int, str text, s date, e date,
+                           period for apptime(s,e));
+
+insert into t values(1, 'data', '1999-01-01', '2018-12-12');
+insert into t values(1, 'other data', '1999-01-01', '2018-12-12');
+update t for portion of apptime from '2000-01-01' to '2018-01-01'
+       set id= id + 5;
+--sorted_result
+select * from t;
+
+--echo # multi-table UPDATE is impossible
+create or replace table t1(x int);
+--error ER_PARSE_ERROR
+update t for portion of apptime from '2000-01-01' to '2018-01-01', t1
+       set t.id= t.id + 5;
+
+--error ER_PARSE_ERROR
+update t1 set x= (select id from t for portion of apptime from '2000-01-01' to '2018-01-01');
+
+--echo # SQL16: 14.14 <update statement: searched>, Syntax Rules, 7)a) iii-iv)
+--echo # Let FROMVAL be <point in time 1>. FROMVAL shall not generally contain a
+--echo # reference to a column of T or a <routine invocation>
+--echo # whose subject routine is an SQL-invoked routine that
+--echo # is possibly non-deterministic or that possibly modifies SQL-data.
+--echo # ...Same for <point in time 2> (TOVAL)
+--error ER_NOT_CONSTANT_EXPRESSION
+update t for portion of apptime from 5*(5+s) to 1 set t.id= t.id + 5;
+--error ER_NOT_CONSTANT_EXPRESSION
+update t for portion of apptime from 1 to e set t.id= t.id + 5;
+
+set @s= '2000-01-01';
+set @e= '2018-01-01';
+
+create or replace function f() returns date return @e;
+create or replace function g() returns date not deterministic return @e;
+create or replace function h() returns date deterministic return @e;
+
+--error ER_NOT_CONSTANT_EXPRESSION
+update t for portion of apptime from @s to f() set t.id= t.id + 5;
+--error ER_NOT_CONSTANT_EXPRESSION
+update t for portion of apptime from @s to g() set t.id= t.id + 5;
+
+--echo # success
+update t for portion of apptime from @s to h() set t.id= t.id + 5;
+--echo # select value is cached
+update t for portion of apptime from (select s from t2 limit 1) to h() set t.id= t.id + 5;
+
+--echo # auto_inrement field is updated
+create or replace table t (id int primary key auto_increment, x int,
+                           s date, e date, period for apptime(s, e));
+insert into t values (default, 1, '1999-01-01', '2018-12-12');
+update t for portion of apptime from '2000-01-01' to '2018-01-01' set x= x + 5;
+--sorted_result
+select * from t;
+
+truncate t;
+insert into t values (default, 1, '1999-01-01', '2018-12-12');
+update t for portion of apptime from '2000-01-01' to '2018-01-01' set x= 1;
+--sorted_result
+select * from t;
+
+--echo # generated columns are updated
+create or replace table t (x int, s date, e date,
+                           xs date as (s) stored, xe date as (e) stored,
+                           period for apptime(s, e));
+insert into t values(1, '1999-01-01', '2018-12-12', default, default);
+--sorted_result
+select * from t;
+update t for portion of apptime from '2000-01-01' to '2018-01-01' set x= x + 5;
+--sorted_result
+select *, xs=s and xe=e from t;
+
+--echo # system_time columns are updated
+--replace_result $sys_datatype_expl SYS_TYPE
+eval create or replace table t (x int, s date, e date,
+    row_start $sys_datatype_expl as row start invisible,
+    row_end $sys_datatype_expl as row end invisible,
+    period for apptime(s, e),
+    period for system_time(row_start, row_end)) with system versioning;
+insert into t values(1, '1999-01-01', '2018-12-12'),
+                    (2, '1999-01-01', '1999-12-12');
+
+select row_start into @ins_time from t limit 1;
+--sorted_result
+select * from t;
+
+update t for portion of apptime from '2000-01-01' to '2018-01-01' set x= x + 5;
+select *, if(row_start = @ins_time, "OLD", "NEW"), check_row(row_start, row_end)
+       from t for system_time all
+       order by x, s, e, row_start;
+
+create or replace database test;

@@ -5838,10 +5838,10 @@ ER_WRONG_EXPR_IN_PARTITION_FUNC_ERROR
         eng "Constant, random or timezone-dependent expressions in (sub)partitioning function are not allowed"
         ger "Konstante oder Random-Ausdrücke in (Unter-)Partitionsfunktionen sind nicht erlaubt"
         swe "Konstanta uttryck eller slumpmässiga uttryck är inte tillåtna (sub)partitioneringsfunktioner"
-ER_NO_CONST_EXPR_IN_RANGE_OR_LIST_ERROR
-        eng "Expression in RANGE/LIST VALUES must be constant"
-        ger "Ausdrücke in RANGE/LIST VALUES müssen konstant sein"
-        swe "Uttryck i RANGE/LIST VALUES måste vara ett konstant uttryck"
+ER_NOT_CONSTANT_EXPRESSION
+        eng "Expression in %s must be constant"
+        ger "Ausdrücke in %s müssen konstant sein"
+        swe "Uttryck i %s måste vara ett konstant uttryck"
 ER_FIELD_NOT_FOUND_PART_ERROR
         eng "Field in list of fields for partition function not found in table"
         ger "Felder in der Feldliste der Partitionierungsfunktion wurden in der Tabelle nicht gefunden"
@@ -7946,3 +7946,5 @@ ER_PERIOD_FIELD_WRONG_ATTRIBUTES
         eng "Period field %`s cannot be %s"
 ER_PERIOD_NOT_FOUND
         eng "Period %`s is not found in table"
+ER_PERIOD_COLUMNS_UPDATED
+        eng "Column %`s used in period %`s specified in update SET list"
