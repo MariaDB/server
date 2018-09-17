@@ -672,7 +672,7 @@ static void backup_optimized_ddl_op(ulint space_id)
 */
 static void backup_optimized_ddl_op_fail(ulint space_id) {
 	ut_a(opt_no_lock);
-	msg("DDL tracking : optimized DDL on space %lu\n", space_id);
+	msg("DDL tracking : optimized DDL on space %zu\n", space_id);
 	if (ddl_tracker.tables_in_backup.find(space_id) != ddl_tracker.tables_in_backup.end()) {
 		msg("ERROR : Optimized DDL operation detected in the late phase of backup."
 			"Backup is inconsistent. Remove --no-lock option to fix.\n");
