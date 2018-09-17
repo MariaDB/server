@@ -1218,9 +1218,10 @@ close_table:
 			ut_ad(!"wrong info_bits in undo log record");
 			goto close_table;
 		}
-		node->update->info_bits = REC_INFO_DEFAULT_ROW;
+		// FIXME: Could be REC_INFO_DEFAULT_ROW_ALTER as well?
+		node->update->info_bits = REC_INFO_DEFAULT_ROW_ADD;
 		const_cast<dtuple_t*>(node->ref)->info_bits
-			= REC_INFO_DEFAULT_ROW;
+			= REC_INFO_DEFAULT_ROW_ADD;
 	}
 
 	if (!row_undo_search_clust_to_pcur(node)) {
@@ -1297,7 +1298,7 @@ row_undo_mod(
 	ut_ad(dict_index_is_clust(node->index));
 
 	if (node->ref->info_bits) {
-		ut_ad(node->ref->info_bits == REC_INFO_DEFAULT_ROW);
+		ut_ad(node->ref->is_default_row());
 		goto rollback_clust;
 	}
 

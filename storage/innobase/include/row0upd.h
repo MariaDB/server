@@ -490,6 +490,12 @@ struct upd_t{
 		return false;
 	}
 
+	/** @return whether this is for a hidden 'default row' record
+	for instant ADD COLUMN or ALTER TABLE */
+	bool is_default_row() const {
+		return dtuple_t::is_default_row(info_bits);
+	}
+
 #ifdef UNIV_DEBUG
         bool validate() const
         {
@@ -503,7 +509,6 @@ struct upd_t{
                 return(true);
         }
 #endif // UNIV_DEBUG
-
 };
 
 /** Kinds of update operation */

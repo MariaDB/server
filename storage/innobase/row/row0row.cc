@@ -1256,8 +1256,7 @@ row_search_on_row_ref(
 	index = dict_table_get_first_index(table);
 
 	if (UNIV_UNLIKELY(ref->info_bits != 0)) {
-		ut_ad(ref->info_bits == REC_INFO_DEFAULT_ROW
-		      || ref->info_bits == REC_INFO_DEFAULT_ROW_DROP);
+		ut_ad(ref->is_default_row());
 		ut_ad(ref->n_fields <= index->n_uniq);
 		btr_pcur_open_at_index_side(true, index, mode, pcur, true, 0,
 					    mtr);

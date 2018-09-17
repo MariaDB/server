@@ -2432,11 +2432,10 @@ need_opposite_intention:
 			ut_ad(index->is_instant());
 			/* This may be a search tuple for
 			btr_pcur_restore_position(). */
-			ut_ad(tuple->info_bits == REC_INFO_DEFAULT_ROW
-			      || tuple->info_bits == REC_INFO_DEFAULT_ROW_DROP
-			      || tuple->info_bits == REC_INFO_MIN_REC_FLAG
-			      || tuple->info_bits == (REC_INFO_MIN_REC_FLAG
-						      | REC_INFO_DELETED_FLAG));
+			ut_ad(tuple->is_default_row()
+			      || (tuple->is_default_row(
+					  tuple->info_bits
+					  ^ REC_STATUS_INSTANT)));
 		} else if (rec_is_default_row(btr_cur_get_rec(cursor),
 					      index)) {
 			/* Only user records belong in the adaptive
@@ -3578,8 +3577,7 @@ fail_err:
 	} else if (index->disable_ahi) {
 # endif
 	} else if (entry->info_bits & REC_INFO_MIN_REC_FLAG) {
-		ut_ad(entry->info_bits == REC_INFO_DEFAULT_ROW
-		      || entry->info_bits == REC_INFO_DEFAULT_ROW_DROP);
+		ut_ad(entry->is_default_row());
 		ut_ad(index->is_instant());
 		ut_ad(flags == BTR_NO_LOCKING_FLAG);
 	} else {
@@ -3787,8 +3785,7 @@ btr_cur_pessimistic_insert(
 		if (index->disable_ahi); else
 # endif
 		if (entry->info_bits & REC_INFO_MIN_REC_FLAG) {
-			ut_ad(entry->info_bits == REC_INFO_DEFAULT_ROW
-			      || entry->info_bits == REC_INFO_DEFAULT_ROW_DROP);
+			ut_ad(entry->is_default_row());
 			ut_ad(index->is_instant());
 			ut_ad((flags & ulint(~BTR_KEEP_IBUF_BITMAP))
 			      == BTR_NO_LOCKING_FLAG);
@@ -4287,8 +4284,7 @@ btr_cur_trim(
 	const que_thr_t*	thr)
 {
 	if (!index->is_instant()) {
-	} else if (UNIV_UNLIKELY(update->info_bits == REC_INFO_DEFAULT_ROW
-				 || update->info_bits == REC_INFO_DEFAULT_ROW_DROP)) {
+	} else if (UNIV_UNLIKELY(update->is_default_row())) {
 		/* We are either updating a 'default row'
 		(instantly adding columns to a table where instant ADD was
 		already executed) or rolling back such an operation. */
@@ -4394,12 +4390,7 @@ btr_cur_optimistic_update(
 	     || trx_is_recv(thr_get_trx(thr)));
 #endif /* UNIV_DEBUG || UNIV_BLOB_LIGHT_DEBUG */
 
-	const bool is_default_row = update->info_bits == REC_INFO_DEFAULT_ROW;
-	const bool is_new_default_row = update->info_bits ==
-				(REC_INFO_DEFAULT_ROW | REC_INFO_DELETED_FLAG);
-
-	if (UNIV_LIKELY(!is_default_row)
-	    && UNIV_LIKELY(!is_new_default_row)
+	if (UNIV_LIKELY(!update->is_default_row())
 	    && !row_upd_changes_field_size_or_external(index, *offsets,
 						       update)) {
 
@@ -4564,9 +4555,8 @@ any_extern:
 		lock_rec_store_on_page_infimum(block, rec);
 	}
 
-	if (UNIV_UNLIKELY(is_default_row || is_new_default_row)) {
-		ut_ad(new_entry->info_bits == REC_INFO_DEFAULT_ROW
-		      || new_entry->info_bits == REC_INFO_DEFAULT_ROW_DROP);
+	if (UNIV_UNLIKELY(update->is_default_row())) {
+		ut_ad(new_entry->is_default_row());
 		ut_ad(index->is_instant());
 		/* This can be innobase_add_instant_try() performing a
 		subsequent instant ADD COLUMN, or its rollback by
@@ -4592,7 +4582,7 @@ any_extern:
 		cursor, new_entry, offsets, heap, 0/*n_ext*/, mtr);
 	ut_a(rec); /* <- We calculated above the insert would fit */
 
-	if (UNIV_UNLIKELY(is_default_row)) {
+	if (UNIV_UNLIKELY(update->is_default_row())) {
 		/* We must empty the PAGE_FREE list, because if this
 		was a rollback, the shortened 'default row' record
 		would have too many fields, and we would be unable to
@@ -4895,8 +4885,7 @@ btr_cur_pessimistic_update(
 	}
 
 	if (UNIV_UNLIKELY(is_default_row)) {
-		ut_ad(new_entry->info_bits == REC_INFO_DEFAULT_ROW
-		      || new_entry->info_bits == REC_INFO_DEFAULT_ROW_DROP);
+		ut_ad(new_entry->is_default_row());
 		ut_ad(index->is_instant());
 		/* This can be innobase_add_instant_try() performing a
 		subsequent instant ADD COLUMN, or its rollback by

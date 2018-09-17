@@ -39,47 +39,12 @@ Created 5/30/1994 Heikki Tuuri
 #include <ostream>
 #include <sstream>
 
-/* Info bit denoting the predefined minimum record: this bit is set
-if and only if the record is the first user record on a non-leaf
-B-tree page that is the leftmost page on its level
-(PAGE_LEVEL is nonzero and FIL_PAGE_PREV is FIL_NULL). */
-#define REC_INFO_MIN_REC_FLAG	0x10UL
-/* The deleted flag in info bits */
-#define REC_INFO_DELETED_FLAG	0x20UL	/* when bit is set to 1, it means the
-					record has been delete marked */
-
 /* Number of extra bytes in an old-style record,
 in addition to the data and the offsets */
 #define REC_N_OLD_EXTRA_BYTES	6
 /* Number of extra bytes in a new-style record,
 in addition to the data and the offsets */
 #define REC_N_NEW_EXTRA_BYTES	5
-
-/** Record status values for ROW_FORMAT=COMPACT,DYNAMIC,COMPRESSED */
-enum rec_comp_status_t {
-	/** User record (PAGE_LEVEL=0, heap>=PAGE_HEAP_NO_USER_LOW) */
-	REC_STATUS_ORDINARY = 0,
-	/** Node pointer record (PAGE_LEVEL>=0, heap>=PAGE_HEAP_NO_USER_LOW) */
-	REC_STATUS_NODE_PTR = 1,
-	/** The page infimum pseudo-record (heap=PAGE_HEAP_NO_INFIMUM) */
-	REC_STATUS_INFIMUM = 2,
-	/** The page supremum pseudo-record (heap=PAGE_HEAP_NO_SUPREMUM) */
-	REC_STATUS_SUPREMUM = 3,
-	/** Clustered index record that has been inserted or updated
-	after instant ADD COLUMN (more than dict_index_t::n_core_fields) */
-	REC_STATUS_INSTANT = 4
-};
-
-/** The dtuple_t::info_bits of the 'default row' record.
-@see rec_is_default_row() */
-static const byte REC_INFO_DEFAULT_ROW
-	= REC_INFO_MIN_REC_FLAG | REC_STATUS_INSTANT;
-
-/** The dtuple_t::info_bits of the 'default row' record with dropped
-column information. */
-static const byte REC_INFO_DEFAULT_ROW_DROP
-	= REC_INFO_MIN_REC_FLAG | REC_INFO_DELETED_FLAG
-	  | REC_STATUS_INSTANT;
 
 #define REC_NEW_STATUS		3	/* This is single byte bit-field */
 #define REC_NEW_STATUS_MASK	0x7UL
@@ -822,9 +787,7 @@ in the clustered index.
 @param[in]	rec	leaf page record
 @param[in]	index	index of the record
 @return	whether the record is the 'default row' pseudo-record */
-inline
-bool
-rec_is_default_row(const rec_t* rec, const dict_index_t* index)
+inline bool rec_is_default_row(const rec_t* rec, const dict_index_t* index)
 {
 	bool is = rec_get_info_bits(rec, dict_table_is_comp(index->table))
 		& REC_INFO_MIN_REC_FLAG;

@@ -4539,10 +4539,10 @@ innobase_op_instant_try(
 
 	if (index->is_drop_field_exist()) {
 		entry = row_build_clust_default_entry(row, index, ctx->heap);
-		entry->info_bits = REC_INFO_DEFAULT_ROW_DROP;
+		entry->info_bits = REC_INFO_DEFAULT_ROW_ALTER;
 	} else {
 		entry = row_build_index_entry(row, NULL, index, ctx->heap);
-		entry->info_bits = REC_INFO_DEFAULT_ROW;
+		entry->info_bits = REC_INFO_DEFAULT_ROW_ADD;
 	}
 
 	mtr_t mtr;
@@ -4582,14 +4582,13 @@ innobase_op_instant_try(
 		/* Reserve room for DB_TRX_ID,DB_ROLL_PTR and any
 		non-updated off-page columns in case they are moved off
 		page as a result of the update. */
+		const unsigned f = index->n_dropped_fields
+			|| ctx->n_instant_drop_cols;
 		upd_t* update = upd_create(index->n_fields, ctx->heap);
 		update->n_fields = n;
-		if (index->n_dropped_fields > 0 || ctx->n_instant_drop_cols > 0) {
-			update->info_bits = (REC_INFO_DEFAULT_ROW
-					     | REC_INFO_DELETED_FLAG);
-		} else {
-			update->info_bits = REC_INFO_DEFAULT_ROW;
-		}
+		update->info_bits == f
+			? REC_INFO_DEFAULT_ROW_ALTER
+			: REC_INFO_DEFAULT_ROW_ADD;
 
 		/* Add the default values for instantly added columns */
 		unsigned j = 0;
@@ -4597,35 +4596,26 @@ innobase_op_instant_try(
 
 		for (unsigned i = 0; i < user_table->n_cols; i++) {
 			if (ctx->col_map[i] == ULINT_UNDEFINED) {
-				ulint field_no = user_table->dropped_cols[
-							drop_cols_offset++].ind;
+				unsigned field_no = user_table->dropped_cols[
+					drop_cols_offset++].ind;
 				upd_field_t* uf = upd_get_nth_field(
-							update, j++);
+					update, j++);
 				uf->field_no = field_no;
-				if (update->info_bits == REC_INFO_DEFAULT_ROW) {
-					uf->new_val = entry->fields[field_no];
-				} else {
-					uf->new_val = entry->fields[field_no + 1];
-				}
+				uf->new_val = entry->fields[field_no + f];
 			}
 
 			ut_ad(j <= n);
 		}
 
-		unsigned k = n_old_fields;
-		while (k < index->n_fields) {
+		for (unsigned k = n_old_fields; k < index->n_fields; k++) {
 			upd_field_t* uf = upd_get_nth_field(update, j++);
 			uf->field_no = k;
+			uf->new_val = entry->fields[k + f];
 
-			if (update->info_bits == REC_INFO_DEFAULT_ROW) {
-				uf->new_val = entry->fields[k];
-			} else {
-				uf->new_val = entry->fields[k + 1];
-			}
-
-			k++;
 			ut_ad(j <= n);
 		}
+
+		ut_ad(j == n);
 
 		ulint* offsets = NULL;
 		mem_heap_t* offsets_heap = NULL;

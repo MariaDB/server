@@ -80,13 +80,6 @@ void dtuple_t::trim(const dict_index_t& index)
 	n_fields = i;
 }
 
-/** Whether the dtuple represnets default row with drop column info.
-@return true if it is default row with drop column or false. */
-bool dtuple_t::is_new_default_row() const
-{
-	return info_bits == REC_INFO_DEFAULT_ROW_DROP;
-}
-
 /** Compare two data tuples.
 @param[in] tuple1 first data tuple
 @param[in] tuple2 second data tuple

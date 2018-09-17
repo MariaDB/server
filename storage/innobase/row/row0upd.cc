@@ -1383,7 +1383,7 @@ row_upd_index_replace_new_col_vals_index_pos(
 
 	dtuple_set_info_bits(entry, update->info_bits);
 
-	if (UNIV_UNLIKELY(entry->info_bits == REC_INFO_DEFAULT_ROW_DROP)) {
+	if (UNIV_UNLIKELY(entry->is_new_default_row())) {
 		row_upd_index_replace_default_rec_pos(entry, index, update, heap);
 		return;
 	}

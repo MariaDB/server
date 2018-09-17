@@ -1,7 +1,7 @@
 /*****************************************************************************
 
 Copyright (c) 1994, 2016, Oracle and/or its affiliates. All Rights Reserved.
-Copyright (c) 2017, MariaDB Corporation.
+Copyright (c) 2017, 2018, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -654,8 +654,26 @@ struct dtuple_t {
 	@param[in]	index	index possibly with instantly added columns */
 	void trim(const dict_index_t& index);
 
-	/** Default row data tuple with drop column information.*/
-	bool is_new_default_row() const;
+	/** @return whether this is a hidden 'default row' record
+	for instant ALTER TABLE (not only ADD COLUMN) */
+	bool is_new_default_row() const
+	{
+		return UNIV_UNLIKELY(info_bits == REC_INFO_DEFAULT_ROW_ALTER);
+	}
+
+	/**
+	@param info_bits	the info_bits of a data tuple
+	@return whether this is a hidden 'default row' record
+	for instant ADD COLUMN or ALTER TABLE */
+	static bool is_default_row(ulint info_bits)
+	{
+		return UNIV_UNLIKELY((info_bits & ~REC_INFO_DELETED_FLAG)
+				     == REC_INFO_DEFAULT_ROW_ADD);
+	}
+
+	/** @return whether this is a hidden 'default row' record
+	for instant ADD COLUMN or ALTER TABLE */
+	bool is_default_row() const { return is_default_row(info_bits); }
 };
 
 /** A slot for a field in a big rec vector */

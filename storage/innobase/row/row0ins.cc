@@ -2652,8 +2652,7 @@ row_ins_clust_index_entry_low(
 #endif /* UNIV_DEBUG */
 
 	if (UNIV_UNLIKELY(entry->info_bits != 0)) {
-		ut_ad(entry->info_bits == REC_INFO_DEFAULT_ROW
-		      || entry->info_bits == REC_INFO_DEFAULT_ROW_DROP);
+		ut_ad(entry->is_default_row());
 		ut_ad(flags == BTR_NO_LOCKING_FLAG);
 		ut_ad(index->is_instant());
 		ut_ad(!dict_index_is_online_ddl(index));
