@@ -231,7 +231,7 @@ struct ha_innobase_inplace_ctx : public inplace_alter_handler_ctx
 				ulonglong autoinc_col_max_value_arg,
 				bool allow_not_null_flag,
 				bool page_compressed,
-				uint page_compression_level_arg) :
+				ulonglong page_compression_level_arg) :
 		inplace_alter_handler_ctx(),
 		prebuilt (prebuilt_arg),
 		add_index (0), add_key_numbers (0), num_to_add_index (0),
@@ -262,7 +262,7 @@ struct ha_innobase_inplace_ctx : public inplace_alter_handler_ctx
 		allow_not_null(allow_not_null_flag),
 		page_compression_level(page_compressed
 				       ? (page_compression_level_arg
-					  ? page_compression_level_arg
+					  ? uint(page_compression_level_arg)
 					  : page_zip_level)
 				       : 0)
 	{
