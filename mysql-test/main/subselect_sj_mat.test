@@ -2157,6 +2157,85 @@ eval $q;
 DROP TABLE t1,t2,t3;
 set optimizer_switch=@save_optimizer_switch;
 
+--echo #
+--echo # MDEV-16751: Server crashes in st_join_table::cleanup or 
+--echo # TABLE_LIST::is_with_table_recursive_reference with join_cache_level>2
+--echo #
+
+set @save_join_cache_level= @@join_cache_level;
+set join_cache_level=4;
+CREATE TABLE t1 ( id int NOT NULL);
+INSERT INTO t1 VALUES (11),(12),(13),(14),(15),(16),(17),(18),(19);
+ 
+CREATE TABLE t2 (i1 int NOT NULL, i2 int NOT NULL) ;
+INSERT INTO t2 VALUES  (11,11),(12,12),(13,13);
+
+explain
+SELECT 1 FROM t1 where t1.id IN (SELECT t2.i1 FROM t2 WHERE t2.i1 = t2.i2);
+SELECT 1 FROM t1 where t1.id IN (SELECT t2.i1 FROM t2 WHERE t2.i1 = t2.i2);
+
+set @@join_cache_level= @save_join_cache_level;
+alter table t1 add key(id);
+
+explain
+SELECT 1 FROM t1 where t1.id IN (SELECT t2.i1 FROM t2 WHERE t2.i1 = t2.i2);
+SELECT 1 FROM t1 where t1.id IN (SELECT t2.i1 FROM t2 WHERE t2.i1 = t2.i2);
+
+drop table t1,t2;
+
+--echo #
+--echo # MDEV-15454: Nested SELECT IN returns wrong results
+--echo #
+
+CREATE TABLE t1 ( a int NOT NULL PRIMARY KEY);
+
+CREATE TABLE t2 ( a int, b int );
+INSERT INTO t2  VALUES (7878, 96),(3465, 96),(1403, 96),(4189, 96),(8732, 96), (5,96);
+
+CREATE TABLE t3 (c int unsigned NOT NULL, b int unsigned NOT NULL, PRIMARY KEY (c,b));
+INSERT INTO t3 (c, b) VALUES (27, 96);
+
+DELIMITER $$;
+CREATE PROCEDURE prepare_data()
+BEGIN
+  DECLARE i INT DEFAULT 1;
+  WHILE i < 1000 DO
+    INSERT INTO t1 (a) VALUES (i);
+    INSERT INTO t2 (a,b) VALUES (i,56);
+    INSERT INTO t3 (c,b) VALUES (i,i);
+    SET i = i + 1;
+  END WHILE;
+END$$
+DELIMITER ;$$
+
+CALL prepare_data();
+
+SELECT t2.a FROM t2 WHERE t2.b IN (SELECT t3.b FROM t3 WHERE t3.c= 27);
+
+set @save_optimizer_switch= @@optimizer_switch;
+SET optimizer_switch='materialization=off';
+
+SELECT t1.a FROM t1
+WHERE t1.a IN (SELECT t2.a FROM t2 WHERE t2.b IN (SELECT t3.b FROM t3 WHERE t3.c= 27)) LIMIT 5;
+
+SET optimizer_switch='materialization=on';
+
+SELECT t1.a FROM t1
+WHERE t1.a IN (SELECT t2.a FROM t2 WHERE t2.b IN (SELECT t3.b FROM t3 WHERE t3.c= 27)) LIMIT 5;
+
+drop procedure prepare_data;
+set @@optimizer_switch= @save_optimizer_switch;
+drop table t1,t2,t3;
+
+CREATE TABLE t1 ( id int NOT NULL, key(id));
+INSERT INTO t1 VALUES (11),(12),(13),(14),(15),(16),(17),(18),(19);
+CREATE TABLE t2 (i1 int NOT NULL, i2 int NOT NULL);
+INSERT INTO t2 VALUES  (11,11),(12,12),(13,13);
+CREATE VIEW v1 AS SELECT t2.i1 FROM t2 where t2.i1 = t2.i2;
+explain SELECT 1 FROM t1 where t1.id IN (SELECT v1.i1 from v1);
+SELECT 1 FROM t1 where t1.id IN (SELECT v1.i1 from v1);
+drop table t1,t2;
+drop view v1;
 --echo # End of 5.5 tests
 --echo #
 --echo # MDEV-7220: Materialization strategy is not used for REPLACE ... SELECT

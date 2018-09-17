@@ -238,15 +238,6 @@ rec_get_n_extern_new(
 	return(n_extern);
 }
 
-/** Get the length of added field count in a REC_STATUS_COLUMNS_INSTANT record.
-@param[in]	n_add_field	number of added fields, minus one
-@return	storage size of the field count, in bytes */
-static inline unsigned rec_get_n_add_field_len(ulint n_add_field)
-{
-	ut_ad(n_add_field < REC_MAX_N_FIELDS);
-	return n_add_field < 0x80 ? 1 : 2;
-}
-
 /** Get the added field count in a REC_STATUS_COLUMNS_INSTANT record.
 @param[in,out]	header	variable header of a REC_STATUS_COLUMNS_INSTANT record
 @return	number of added fields */
@@ -263,22 +254,6 @@ static inline unsigned rec_get_n_add_field(const byte*& header)
 	ut_ad(n_fields_add < REC_MAX_N_FIELDS);
 	ut_ad(rec_get_n_add_field_len(n_fields_add) == 2);
 	return n_fields_add;
-}
-
-/** Set the added field count in a REC_STATUS_COLUMNS_INSTANT record.
-@param[in,out]	header	variable header of a REC_STATUS_COLUMNS_INSTANT record
-@param[in]	n_add	number of added fields, minus 1
-@return	record header before the number of added fields */
-static inline void rec_set_n_add_field(byte*& header, ulint n_add)
-{
-	ut_ad(n_add < REC_MAX_N_FIELDS);
-
-	if (n_add < 0x80) {
-		*header-- = byte(n_add);
-	} else {
-		*header-- = byte(n_add) | 0x80;
-		*header-- = byte(n_add >> 7);
-	}
 }
 
 /** Format of a leaf-page ROW_FORMAT!=REDUNDANT record */
@@ -300,6 +275,8 @@ This is a special case of rec_init_offsets() and rec_get_offsets_func().
 @param[in]	rec	leaf-page record
 @param[in]	index	the index that the record belongs in
 @param[in]	n_core	number of core fields (index->n_core_fields)
+@param[in]	def_val	default values for non-core fields, or
+			NULL to refer to index->fields[].col->def_val
 @param[in,out]	offsets	offsets, with valid rec_offs_n_fields(offsets)
 @param[in]	format	record format */
 static inline
@@ -309,6 +286,7 @@ rec_init_offsets_comp_ordinary(
 	const dict_index_t*	index,
 	ulint*			offsets,
 	ulint			n_core,
+	const dict_col_t::def_t*def_val,
 	rec_leaf_format		format)
 {
 	ulint		offs		= 0;
@@ -381,19 +359,40 @@ ordinary:
 	ulint i = 0;
 
 	do {
-		const dict_field_t*	field;
-		const dict_col_t*	col;
+		const dict_field_t*	field
+			= dict_index_get_nth_field(index, i);
+		const dict_col_t*	col
+			= dict_field_get_col(field);
 		ulint			len;
 
-		field = dict_index_get_nth_field(index, i);
-		col = dict_field_get_col(field);
-
 		/* set default value flag */
-		if (i >= n_fields) {
+		if (i < n_fields) {
+		} else if (def_val) {
+			/* FIXME: Fix the MDEV-16131 scenario when
+			instant DROP COLUMN was followed by
+			ALTER TABLE...FORCE, LOCK=NONE and the
+			table was emptied during row_log_table_apply().
+			Currently, def_val!=NULL only signals that
+			instant ADD had been used, but it is not
+			telling which columns were dropped. */
+			const dict_col_t::def_t& d = def_val[i - n_core];
+			if (!d.data) {
+				len = offs | REC_OFFS_SQL_NULL;
+				ut_ad(d.len == UNIV_SQL_NULL);
+			} else {
+				len = offs | REC_OFFS_DEFAULT;
+				any |= REC_OFFS_DEFAULT;
+			}
 
+			goto resolved;
+		} else {
+			ulint dlen;
 			if (col->is_dropped()) {
 				len = offs | REC_OFFS_DROP_COL;
 				any |= REC_OFFS_DROP_COL;
+			} else if (!index->instant_field_value(i, &dlen)) {
+				len = offs | REC_OFFS_SQL_NULL;
+				ut_ad(dlen == UNIV_SQL_NULL);
 			} else {
 				ulint dlen;
 				if (!index->instant_field_value(i, &dlen)) {
@@ -862,12 +861,14 @@ rec_init_offsets(
 			ut_ad(leaf);
 			rec_init_offsets_comp_ordinary(rec, index, offsets,
 						       index->n_core_fields,
+						       NULL,
 						       REC_LEAF_COLUMNS_INSTANT);
 			return;
 		case REC_STATUS_ORDINARY:
 			ut_ad(leaf);
 			rec_init_offsets_comp_ordinary(rec, index, offsets,
 						       index->n_core_fields,
+						       NULL,
 						       REC_LEAF_ORDINARY);
 			return;
 		}
@@ -2195,6 +2196,7 @@ rec_get_converted_size_temp(
 @param[in]	index	index of that the record belongs to
 @param[in,out]	offsets	offsets to the fields; in: rec_offs_n_fields(offsets)
 @param[in]	n_core	number of core fields (index->n_core_fields)
+@param[in]	def_val	default values for non-core fields
 @param[in]	status	REC_STATUS_ORDINARY or REC_STATUS_COLUMNS_INSTANT */
 void
 rec_init_offsets_temp(
@@ -2202,6 +2204,7 @@ rec_init_offsets_temp(
 	const dict_index_t*	index,
 	ulint*			offsets,
 	ulint			n_core,
+	const dict_col_t::def_t*def_val,
 	rec_comp_status_t	status)
 {
 	ut_ad(status == REC_STATUS_ORDINARY
@@ -2210,7 +2213,7 @@ rec_init_offsets_temp(
 	if it was emptied during an ALTER TABLE operation. */
 	ut_ad(index->n_core_fields == n_core || !index->is_instant());
 	ut_ad(index->n_core_fields >= n_core);
-	rec_init_offsets_comp_ordinary(rec, index, offsets, n_core,
+	rec_init_offsets_comp_ordinary(rec, index, offsets, n_core, def_val,
 				       status == REC_STATUS_COLUMNS_INSTANT
 				       ? REC_LEAF_TEMP_COLUMNS_ADDED
 				       : REC_LEAF_TEMP);
@@ -2229,7 +2232,8 @@ rec_init_offsets_temp(
 {
 	ut_ad(!index->is_instant());
 	rec_init_offsets_comp_ordinary(rec, index, offsets,
-				       index->n_core_fields, REC_LEAF_TEMP);
+				       index->n_core_fields, NULL,
+				       REC_LEAF_TEMP);
 }
 
 /** Convert a data tuple prefix to the temporary file format.

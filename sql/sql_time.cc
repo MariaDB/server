@@ -264,7 +264,7 @@ bool get_date_from_daynr(long daynr,uint *ret_year,uint *ret_month,
 ulong convert_period_to_month(ulong period)
 {
   ulong a,b;
-  if (period == 0)
+  if (period == 0 || period > 999912)
     return 0L;
   if ((a=period/100) < YY_PART_YEAR)
     a+=2000;
@@ -351,33 +351,43 @@ to_ascii(CHARSET_INFO *cs,
 }
 
 
-/* Character set-aware version of str_to_time() */
-bool
-str_to_time(CHARSET_INFO *cs, const char *str, size_t length,
-            MYSQL_TIME *l_time, ulonglong fuzzydate, MYSQL_TIME_STATUS *status)
+class TemporalAsciiBuffer: public LEX_CSTRING
 {
   char cnv[32];
-  if ((cs->state & MY_CS_NONASCII) != 0)
+public:
+  TemporalAsciiBuffer(const char *str, size_t length, CHARSET_INFO *cs)
   {
-    length= to_ascii(cs, str, length, cnv, sizeof(cnv));
-    str= cnv;
+    if ((cs->state & MY_CS_NONASCII) != 0)
+    {
+      LEX_CSTRING::str= cnv;
+      LEX_CSTRING::length= to_ascii(cs, str, length, cnv, sizeof(cnv));
+    }
+    else
+    {
+      LEX_CSTRING::str= str;
+      LEX_CSTRING::length= length;
+    }
   }
-  return str_to_time(str, length, l_time, fuzzydate, status);
+};
+
+
+/* Character set-aware version of str_to_time() */
+bool Temporal::str_to_time(MYSQL_TIME_STATUS *status,
+                           const char *str, size_t length, CHARSET_INFO *cs,
+                           sql_mode_t fuzzydate)
+{
+  TemporalAsciiBuffer tmp(str, length, cs);
+  return ::str_to_time(tmp.str, tmp.length, this, fuzzydate, status);
 }
 
 
 /* Character set-aware version of str_to_datetime() */
-bool str_to_datetime(CHARSET_INFO *cs, const char *str, size_t length,
-                     MYSQL_TIME *l_time, ulonglong flags,
-                     MYSQL_TIME_STATUS *status)
+bool Temporal::str_to_datetime(MYSQL_TIME_STATUS *status,
+                               const char *str, size_t length, CHARSET_INFO *cs,
+                               sql_mode_t flags)
 {
-  char cnv[32];
-  if ((cs->state & MY_CS_NONASCII) != 0)
-  {
-    length= to_ascii(cs, str, length, cnv, sizeof(cnv));
-    str= cnv;
-  }
-  return str_to_datetime(str, length, l_time, flags, status);
+  TemporalAsciiBuffer tmp(str, length, cs);
+  return ::str_to_datetime(tmp.str, tmp.length, this, flags, status);
 }
 
 
@@ -396,7 +406,8 @@ str_to_datetime_with_warn(CHARSET_INFO *cs,
 {
   MYSQL_TIME_STATUS status;
   THD *thd= current_thd;
-  bool ret_val= str_to_datetime(cs, str, length, l_time, flags, &status);
+  TemporalAsciiBuffer tmp(str, length, cs);
+  bool ret_val= str_to_datetime(tmp.str, tmp.length, l_time, flags, &status);
   if (ret_val || status.warnings)
   {
     const ErrConvString err(str, length, &my_charset_bin);
@@ -1174,36 +1185,6 @@ bool time_to_datetime(MYSQL_TIME *ltime)
 }
 
 
-/**
-  Return a valid DATE or DATETIME value from an arbitrary MYSQL_TIME.
-  If ltime is TIME, it's first converted to DATETIME.
-  If ts_type is DATE, hhmmss is set to zero.
-  The date part of the result is checked against fuzzy_date.
-
-  @param   ltime       The value to convert.
-  @param   fuzzy_date  Flags to check date.
-  @param   ts_type     The type to convert to.
-  @return  false on success, true of error (negative time).*/
-bool
-make_date_with_warn(MYSQL_TIME *ltime, ulonglong fuzzy_date,
-                    timestamp_type ts_type)
-{
-  DBUG_ASSERT(ts_type == MYSQL_TIMESTAMP_DATE ||
-              ts_type == MYSQL_TIMESTAMP_DATETIME);
-  if (ltime->time_type == MYSQL_TIMESTAMP_TIME && time_to_datetime(ltime))
-  {
-    /* e.g. negative time */
-    ErrConvTime str(ltime);
-    make_truncated_value_warning(current_thd, Sql_condition::WARN_LEVEL_WARN,
-                                 &str, ts_type, 0);
-    return true;
-  }
-  if ((ltime->time_type= ts_type) == MYSQL_TIMESTAMP_DATE)
-    ltime->hour= ltime->minute= ltime->second= ltime->second_part= 0;
-  return check_date_with_warn(ltime, fuzzy_date, ts_type);
-}
-
-
 /*
   Convert a TIME value to DAY-TIME interval, e.g. for extraction:
     EXTRACT(DAY FROM x), EXTRACT(HOUR FROM x), etc.
@@ -1362,26 +1343,6 @@ time_to_datetime_with_warn(THD *thd,
     return true;
   }
   return false;
-}
-
-
-bool datetime_to_time_with_warn(THD *thd, const MYSQL_TIME *dt,
-                                MYSQL_TIME *tm, uint dec)
-{
-  if (thd->variables.old_behavior & OLD_MODE_ZERO_DATE_TIME_CAST)
-  {
-    *tm= *dt;
-    datetime_to_time(tm);
-    return false;
-  }
-  else /* new mode */
-  {
-    MYSQL_TIME current_date;
-    set_current_date(thd, &current_date);
-    calc_time_diff(dt, &current_date, 1, tm, 0);
-  }
-  int warnings= 0;
-  return check_time_range(tm, dec, &warnings);
 }
 
 

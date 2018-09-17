@@ -126,6 +126,8 @@ row_vers_impl_x_locked_low(
 		DBUG_RETURN(0);
 	}
 
+	ut_ad(!clust_index->table->is_temporary());
+
 	trx_t*	trx;
 
 	if (trx_id == caller_trx->id) {
@@ -450,6 +452,7 @@ row_vers_build_clust_v_col(
 	byte*		record= 0;
 
 	ut_ad(dict_index_has_virtual(index));
+	ut_ad(index->table == clust_index->table);
 
 	if (vcol_info != NULL) {
 		vcol_info->set_used();

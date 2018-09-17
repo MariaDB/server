@@ -1086,6 +1086,11 @@ static void get_options(int argc, char **argv)
 	fprintf(stderr,"record count must be >= 10 (if testflag > 2)\n");
 	exit(1);
       }
+      if (recant <= 1)
+      {
+	fprintf(stderr,"record count must be >= 2\n");
+	exit(1);
+      }
       break;
     case 'e':				/* maria_block_length */
     case 'E':

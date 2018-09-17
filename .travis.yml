@@ -111,8 +111,8 @@ addons:
   apt:
     sources:
       - ubuntu-toolchain-r-test
-      - sourceline: 'deb http://apt.llvm.org/trusty/ llvm-toolchain-trusty-5.0 main'
-      - sourceline: 'deb http://apt.llvm.org/trusty/ llvm-toolchain-trusty-6.0 main'
+      - llvm-toolchain-trusty-5.0
+      - llvm-toolchain-trusty-6.0
     packages: # make sure these include all compilers and all build dependencies (see list above)
       - gcc-5
       - g++-5

@@ -85,18 +85,6 @@ enum page_cur_mode_t {
 	PAGE_CUR_RTREE_GET_FATHER	= 14
 };
 
-
-/** The information used for compressing a page when applying
-TRUNCATE log record during recovery */
-struct redo_page_compress_t {
-	ulint		type;		/*!< index type */
-	index_id_t	index_id;	/*!< index id */
-	ulint		n_fields;	/*!< number of index fields */
-	ulint		field_len;	/*!< the length of index field */
-	const byte*	fields;		/*!< index field information */
-	ulint		trx_id_pos;	/*!< position of trx-id column. */
-};
-
 /** Compressed page descriptor */
 struct page_zip_des_t
 {

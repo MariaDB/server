@@ -10028,8 +10028,8 @@ static MY_CHARSET_HANDLER my_charset_handler=
   my_mb_ctype_mb,
   my_caseup_str_mb,
   my_casedn_str_mb,
-  my_caseup_mb_varlen, /* UPPER() can reduce length: Turkish DOTLESS i -> I */
-  my_casedn_mb,        /* LOWER() does not change length, use simple version*/
+  my_caseup_mb,        /* UPPER() can reduce length: Turkish DOTLESS i -> I */
+  my_casedn_mb,        /* LOWER() does not change length */
   my_snprintf_8bit,
   my_long10_to_str_8bit,
   my_longlong10_to_str_8bit,

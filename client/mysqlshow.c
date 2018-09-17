@@ -39,9 +39,6 @@ static uint opt_verbose=0;
 static char *default_charset= (char*) MYSQL_AUTODETECT_CHARSET_NAME;
 static char *opt_plugin_dir= 0, *opt_default_auth= 0;
 
-#ifdef HAVE_SMEM 
-static char *shared_memory_base_name=0;
-#endif
 static uint opt_protocol=0;
 
 static void get_options(int *argc,char ***argv);
@@ -131,10 +128,7 @@ int main(int argc, char **argv)
 #endif
   if (opt_protocol)
     mysql_options(&mysql,MYSQL_OPT_PROTOCOL,(char*)&opt_protocol);
-#ifdef HAVE_SMEM
-  if (shared_memory_base_name)
-    mysql_options(&mysql,MYSQL_SHARED_MEMORY_BASE_NAME,shared_memory_base_name);
-#endif
+
   mysql_options(&mysql, MYSQL_SET_CHARSET_NAME, default_charset);
 
   if (opt_plugin_dir && *opt_plugin_dir)
@@ -177,9 +171,6 @@ error:
   mysql_close(&mysql);			/* Close & free connection */
   my_free(opt_password);
   mysql_server_end();
-#ifdef HAVE_SMEM
-  my_free(shared_memory_base_name);
-#endif
   free_defaults(defaults_argv);
   my_end(my_end_arg);
   exit(error ? 1 : 0);
@@ -243,14 +234,8 @@ static struct my_option my_long_options[] =
    NO_ARG, 0, 0, 0, 0, 0, 0},
 #endif
   {"protocol", OPT_MYSQL_PROTOCOL, 
-   "The protocol to use for connection (tcp, socket, pipe, memory).",
+   "The protocol to use for connection (tcp, socket, pipe).",
    0, 0, 0, GET_STR,  REQUIRED_ARG, 0, 0, 0, 0, 0, 0},
-#ifdef HAVE_SMEM
-  {"shared-memory-base-name", OPT_SHARED_MEMORY_BASE_NAME,
-   "Base name of shared memory.", &shared_memory_base_name,
-   &shared_memory_base_name, 0, GET_STR_ALLOC, REQUIRED_ARG,
-   0, 0, 0, 0, 0, 0},
-#endif
   {"show-table-type", 't', "Show table type column.",
    &opt_table_type, &opt_table_type, 0, GET_BOOL,
    NO_ARG, 0, 0, 0, 0, 0, 0},

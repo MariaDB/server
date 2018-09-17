@@ -294,6 +294,10 @@ SELECT a, CAST(a AS DATE), CAST(COALESCE(a) AS DATE) FROM t1;
 SELECT MIN(a), MAX(a) FROM t1;
 DROP TABLE t1;
 
+--echo #
+--echo # MDEV-17015 Assertion `m_year <= 9999' failed in Year::Year upon bad argument to MAKEDATE
+--echo #
+SELECT MAKEDATE(18446744073709551615, 1);
 
 --echo #
 --echo # End of 10.4 tests

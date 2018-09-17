@@ -471,6 +471,10 @@ bool check_has_super(sys_var *self, THD *thd, set_var *var)
   return false;
 }
 
+static Sys_var_bit Sys_core_file("core_file", "write a core-file on crashes",
+          READ_ONLY GLOBAL_VAR(test_flags), NO_CMD_LINE,
+          TEST_CORE_ON_SIGNAL, DEFAULT(FALSE), NO_MUTEX_GUARD, NOT_IN_BINLOG,
+          0,0,0);
 
 static bool binlog_format_check(sys_var *self, THD *thd, set_var *var)
 {
@@ -2668,6 +2672,16 @@ static Sys_var_ulong Sys_div_precincrement(
        SESSION_VAR(div_precincrement), CMD_LINE(REQUIRED_ARG),
        VALID_RANGE(0, DECIMAL_MAX_SCALE), DEFAULT(4), BLOCK_SIZE(1));
 
+static Sys_var_uint Sys_eq_range_index_dive_limit(
+       "eq_range_index_dive_limit",
+       "The optimizer will use existing index statistics instead of "
+       "doing index dives for equality ranges if the number of equality "
+       "ranges for the index is larger than or equal to this number. "
+       "If set to 0, index dives are always used.",
+       SESSION_VAR(eq_range_index_dive_limit), CMD_LINE(REQUIRED_ARG),
+       VALID_RANGE(0, UINT_MAX32), DEFAULT(0),
+       BLOCK_SIZE(1));
+
 static Sys_var_ulong Sys_range_alloc_block_size(
        "range_alloc_block_size",
        "Allocation block size for storing ranges during optimization",
@@ -2707,17 +2721,6 @@ static Sys_var_ulong Sys_query_prealloc_size(
        BLOCK_SIZE(1024), NO_MUTEX_GUARD, NOT_IN_BINLOG, ON_CHECK(0),
        ON_UPDATE(fix_thd_mem_root));
 
-#ifdef HAVE_SMEM
-static Sys_var_mybool Sys_shared_memory(
-       "shared_memory", "Enable the shared memory",
-       READ_ONLY GLOBAL_VAR(opt_enable_shared_memory), CMD_LINE(OPT_ARG),
-       DEFAULT(FALSE));
-
-static Sys_var_charptr Sys_shared_memory_base_name(
-       "shared_memory_base_name", "Base name of shared memory",
-       READ_ONLY GLOBAL_VAR(shared_memory_base_name), CMD_LINE(REQUIRED_ARG),
-       IN_FS_CHARSET, DEFAULT(0));
-#endif
 
 // this has to be NO_CMD_LINE as the command-line option has a different name
 static Sys_var_mybool Sys_skip_external_locking(
@@ -4039,6 +4042,16 @@ static bool fix_sql_log_bin_after_update(sys_var *self, THD *thd,
   return FALSE;
 }
 
+static bool check_session_only_variable(sys_var *self, THD *,set_var *var)
+{
+  if (unlikely(var->type == OPT_GLOBAL))
+  {
+    my_error(ER_INCORRECT_GLOBAL_LOCAL_VAR, MYF(0), self->name.str, "SESSION");
+    return true;
+  }
+  return false;
+}
+
 /**
   This function checks if the sql_log_bin can be changed,
   what is possible if:
@@ -4054,20 +4067,17 @@ static bool fix_sql_log_bin_after_update(sys_var *self, THD *thd,
 static bool check_sql_log_bin(sys_var *self, THD *thd, set_var *var)
 {
   if (check_has_super(self, thd, var))
-    return TRUE;
+    return true;
 
-  if (unlikely(var->type == OPT_GLOBAL))
-  {
-    my_error(ER_INCORRECT_GLOBAL_LOCAL_VAR, MYF(0), self->name.str, "SESSION");
-    return TRUE;
-  }
+  if (check_session_only_variable(self, thd, var))
+    return true;
 
   if (unlikely(error_if_in_trans_or_substatement(thd,
                                                  ER_STORED_FUNCTION_PREVENTS_SWITCH_SQL_LOG_BIN,
                                                  ER_INSIDE_TRANSACTION_PREVENTS_SWITCH_SQL_LOG_BIN)))
-    return TRUE;
+    return true;
 
-  return FALSE;
+  return false;
 }
 
 static Sys_var_mybool Sys_log_binlog(	
@@ -5578,6 +5588,27 @@ static Sys_var_int Sys_keepalive_probes(
        DEFAULT(0),
        BLOCK_SIZE(1),
        NO_MUTEX_GUARD, NOT_IN_BINLOG, ON_CHECK(NULL));
+
+
+static bool update_tcp_nodelay(sys_var *self, THD *thd,
+  enum_var_type type)
+{
+  DBUG_ASSERT(thd);
+
+  Vio *vio = thd->net.vio;
+  if (vio)
+    return (MY_TEST(vio_nodelay(vio, thd->variables.tcp_nodelay)));
+
+  return false;
+}
+
+static Sys_var_mybool Sys_tcp_nodelay(
+       "tcp_nodelay",
+       "Set option TCP_NODELAY (disable Nagle's algorithm) on socket",
+       SESSION_VAR(tcp_nodelay), CMD_LINE(OPT_ARG),
+       DEFAULT(TRUE),NO_MUTEX_GUARD, NOT_IN_BINLOG,
+       ON_CHECK(check_session_only_variable),
+       ON_UPDATE(update_tcp_nodelay));
 
 static Sys_var_charptr Sys_ignore_db_dirs(
        "ignore_db_dirs",

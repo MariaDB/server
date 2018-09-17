@@ -15960,3 +15960,491 @@ f	c
 9	1
 DROP VIEW v1;
 DROP TABLE t1;
+#
+# MDEV-15087: error from inexpensive subquery before check
+#                   for condition pushdown into derived 
+#
+CREATE TABLE t1 (i1 int, v1 varchar(1));
+INSERT INTO t1 VALUES (7,'x');
+CREATE TABLE t2 (i1 int);
+INSERT INTO t2 VALUES (8);
+CREATE TABLE t3 (i1 int ,v1 varchar(1), v2 varchar(1));
+INSERT INTO t3 VALUES (4, 'v','v'),(62,'v','k'),(7, 'n', NULL);
+SELECT 1
+FROM (t1 AS a1
+JOIN (((SELECT  DISTINCT t3.*
+FROM t3) AS a2
+JOIN t1 ON (t1.v1 = a2.v2))) ON (t1.v1 = a2.v1))
+WHERE (SELECT  BIT_COUNT(t2.i1)
+FROM (t2 JOIN t3)) IS NULL;
+ERROR 21000: Subquery returns more than 1 row
+DROP TABLE t1, t2, t3;
+#
+# MDEV-16614 signal 7 after calling stored procedure, that uses regexp
+#
+CREATE PROCEDURE p1(m1 varchar(5), m2 varchar(5))
+BEGIN
+SELECT a FROM
+(SELECT "aa" a) t
+JOIN (SELECT "aa" b) t1 on t.a=t1.b
+WHERE t.a regexp m1 and t1.b regexp m2
+GROUP BY a;
+END$$
+CALL p1('a','a');
+a
+aa
+DROP PROCEDURE p1;
+CREATE PROCEDURE p1(m1 varchar(5))
+BEGIN
+SELECT a FROM (SELECT "aa" a) t WHERE t.a regexp m1;
+END$$
+CALL p1('a');
+a
+aa
+DROP PROCEDURE p1;
+SELECT a FROM (SELECT "aa" a) t WHERE REGEXP_INSTR(t.a, (SELECT MAX('aa') FROM DUAL LIMIT 1));
+a
+aa
+CREATE OR REPLACE FUNCTION f1(a VARCHAR(10), b VARCHAR(10)) RETURNS INT
+BEGIN
+RETURN 1;
+END;$$
+CREATE OR REPLACE PROCEDURE p1(m1 varchar(5))
+BEGIN
+SELECT a FROM (SELECT "aa" a) t WHERE f1(t.a, m1);
+END$$
+CALL p1('a');
+a
+aa
+DROP PROCEDURE p1;
+DROP FUNCTION f1;
+CREATE OR REPLACE FUNCTION f1(a VARCHAR(10), b VARCHAR(10)) RETURNS INT
+BEGIN
+RETURN 1;
+END;$$
+SELECT a FROM (SELECT "aa" a) t WHERE f1(t.a, (SELECT MAX('aa') FROM DUAL LIMIT 1));
+a
+aa
+DROP FUNCTION f1;
+#
+# MDEV-17011: condition pushdown into materialized derived used
+#             in INSERT SELECT, multi-table UPDATE and DELETE
+#
+CREATE TABLE t1 (a int ,b int) ENGINE=MyISAM;
+INSERT INTO t1 VALUES
+(1, 1), (1, 2), (2, 1), (2, 2), (3,1), (3,3), (4,2);
+CREATE TABLE t2 (a int) ENGINE MYISAM;
+INSERT INTO t2 VALUES
+(3), (7), (1), (4), (1);
+CREATE TABLE t3 (a int, b int) ENGINE MYISAM;
+EXPLAIN FORMAT=JSON INSERT INTO t3
+SELECT * FROM (SELECT a, count(*) as c FROM t1 GROUP BY a) t WHERE a<=2;
+EXPLAIN
+{
+  "query_block": {
+    "select_id": 1,
+    "table": {
+      "table_name": "<derived2>",
+      "access_type": "ALL",
+      "rows": 7,
+      "filtered": 100,
+      "attached_condition": "t.a <= 2",
+      "materialized": {
+        "query_block": {
+          "select_id": 2,
+          "filesort": {
+            "sort_key": "t1.a",
+            "temporary_table": {
+              "table": {
+                "table_name": "t1",
+                "access_type": "ALL",
+                "rows": 7,
+                "filtered": 100,
+                "attached_condition": "t1.a <= 2"
+              }
+            }
+          }
+        }
+      }
+    }
+  }
+}
+INSERT INTO t3
+SELECT * FROM (SELECT a, count(*) as c FROM t1 GROUP BY a) t WHERE a<=2;
+SELECT * FROM t3;
+a	b
+1	2
+2	2
+EXPLAIN FORMAT=JSON UPDATE t2, (SELECT a, count(*) as c FROM t1 GROUP BY a) t SET t2.a=t.c+10
+WHERE t2.a= t.c and t.a>=3;
+EXPLAIN
+{
+  "query_block": {
+    "select_id": 1,
+    "table": {
+      "table_name": "t2",
+      "access_type": "ALL",
+      "rows": 5,
+      "filtered": 100,
+      "attached_condition": "t2.a is not null"
+    },
+    "table": {
+      "table_name": "<derived2>",
+      "access_type": "ref",
+      "possible_keys": ["key0"],
+      "key": "key0",
+      "key_length": "8",
+      "used_key_parts": ["c"],
+      "ref": ["test.t2.a"],
+      "rows": 2,
+      "filtered": 100,
+      "attached_condition": "t2.a = t.c and t.a >= 3",
+      "materialized": {
+        "query_block": {
+          "select_id": 2,
+          "filesort": {
+            "sort_key": "t1.a",
+            "temporary_table": {
+              "table": {
+                "table_name": "t1",
+                "access_type": "ALL",
+                "rows": 7,
+                "filtered": 100,
+                "attached_condition": "t1.a >= 3"
+              }
+            }
+          }
+        }
+      }
+    }
+  }
+}
+UPDATE t2, (SELECT a, count(*) as c FROM t1 GROUP BY a) t SET t2.a=t.c+10
+WHERE t2.a= t.c and t.a>=3;
+SELECT * FROM t2;
+a
+3
+7
+11
+4
+11
+EXPLAIN FORMAT=JSON DELETE t2 FROM t2, (SELECT a, count(*) as c FROM t1 GROUP BY a) t
+WHERE t2.a= t.c+9 and t.a=2;
+EXPLAIN
+{
+  "query_block": {
+    "select_id": 1,
+    "table": {
+      "table_name": "t2",
+      "access_type": "ALL",
+      "rows": 5,
+      "filtered": 100
+    },
+    "table": {
+      "table_name": "<derived2>",
+      "access_type": "ALL",
+      "rows": 7,
+      "filtered": 100,
+      "attached_condition": "t.a = 2 and t2.a = t.c + 9",
+      "materialized": {
+        "query_block": {
+          "select_id": 2,
+          "table": {
+            "table_name": "t1",
+            "access_type": "ALL",
+            "rows": 7,
+            "filtered": 100,
+            "attached_condition": "t1.a = 2"
+          }
+        }
+      }
+    }
+  }
+}
+DELETE t2 FROM t2, (SELECT a, count(*) as c FROM t1 GROUP BY a) t
+WHERE t2.a= t.c+9 and t.a=2;
+SELECT * FROM t2;
+a
+3
+7
+4
+DROP TABLE t1,t2,t3;
+#
+# MDEV-16765: pushdown condition with the CASE structure
+#             defined with Item_cond item
+#
+CREATE TABLE t1(a INT, b INT);
+INSERT INTO t1 VALUES (1,2), (3,4), (2,3);
+SELECT *
+FROM
+(
+SELECT CASE WHEN ((tab2.max_a=1) OR (tab2.max_a=2))
+THEN 1 ELSE 0 END AS max_a,b
+FROM (SELECT MAX(a) as max_a,b FROM t1 GROUP BY t1.b) AS tab2
+) AS tab1
+WHERE (tab1.max_a=1);
+max_a	b
+1	2
+1	3
+EXPLAIN FORMAT=JSON SELECT *
+FROM
+(
+SELECT CASE WHEN ((tab2.max_a=1) OR (tab2.max_a=2))
+THEN 1 ELSE 0 END AS max_a,b
+FROM (SELECT MAX(a) as max_a,b FROM t1 GROUP BY t1.b) AS tab2
+) AS tab1
+WHERE (tab1.max_a=1);
+EXPLAIN
+{
+  "query_block": {
+    "select_id": 1,
+    "table": {
+      "table_name": "<derived3>",
+      "access_type": "ALL",
+      "rows": 3,
+      "filtered": 100,
+      "attached_condition": "case when (tab2.max_a = 1 or tab2.max_a = 2) then 1 else 0 end = 1",
+      "materialized": {
+        "query_block": {
+          "select_id": 3,
+          "having_condition": "case when (max_a = 1 or max_a = 2) then 1 else 0 end = 1",
+          "filesort": {
+            "sort_key": "t1.b",
+            "temporary_table": {
+              "table": {
+                "table_name": "t1",
+                "access_type": "ALL",
+                "rows": 3,
+                "filtered": 100
+              }
+            }
+          }
+        }
+      }
+    }
+  }
+}
+SELECT *
+FROM
+(
+SELECT CASE WHEN ((tab2.max_a=1) OR ((tab2.max_a>2) AND (tab2.max_a<4)))
+THEN 1 ELSE 0 END AS max_a,b
+FROM (SELECT MAX(a) as max_a,b FROM t1 GROUP BY t1.b) AS tab2
+) AS tab1
+WHERE (tab1.max_a=1);
+max_a	b
+1	2
+1	4
+EXPLAIN FORMAT=JSON SELECT *
+FROM
+(
+SELECT CASE WHEN ((tab2.max_a=1) OR ((tab2.max_a>2) AND (tab2.max_a<4)))
+THEN 1 ELSE 0 END AS max_a,b
+FROM (SELECT MAX(a) as max_a,b FROM t1 GROUP BY t1.b) AS tab2
+) AS tab1
+WHERE (tab1.max_a=1);
+EXPLAIN
+{
+  "query_block": {
+    "select_id": 1,
+    "table": {
+      "table_name": "<derived3>",
+      "access_type": "ALL",
+      "rows": 3,
+      "filtered": 100,
+      "attached_condition": "case when (tab2.max_a = 1 or tab2.max_a > 2 and tab2.max_a < 4) then 1 else 0 end = 1",
+      "materialized": {
+        "query_block": {
+          "select_id": 3,
+          "having_condition": "case when (max_a = 1 or max_a > 2 and max_a < 4) then 1 else 0 end = 1",
+          "filesort": {
+            "sort_key": "t1.b",
+            "temporary_table": {
+              "table": {
+                "table_name": "t1",
+                "access_type": "ALL",
+                "rows": 3,
+                "filtered": 100
+              }
+            }
+          }
+        }
+      }
+    }
+  }
+}
+SELECT *
+FROM
+(
+SELECT CASE WHEN ((tab2.max_a>1) AND ((tab2.max_a=2) OR (tab2.max_a>2)))
+THEN 1 ELSE 0 END AS max_a,b
+FROM (SELECT MAX(a) as max_a,b FROM t1 GROUP BY t1.b) AS tab2
+) AS tab1
+WHERE (tab1.max_a=1);
+max_a	b
+1	3
+1	4
+EXPLAIN FORMAT=JSON SELECT *
+FROM
+(
+SELECT CASE WHEN ((tab2.max_a>1) AND ((tab2.max_a=2) OR (tab2.max_a>2)))
+THEN 1 ELSE 0 END AS max_a,b
+FROM (SELECT MAX(a) as max_a,b FROM t1 GROUP BY t1.b) AS tab2
+) AS tab1
+WHERE (tab1.max_a=1);
+EXPLAIN
+{
+  "query_block": {
+    "select_id": 1,
+    "table": {
+      "table_name": "<derived3>",
+      "access_type": "ALL",
+      "rows": 3,
+      "filtered": 100,
+      "attached_condition": "case when (tab2.max_a > 1 and (tab2.max_a = 2 or tab2.max_a > 2)) then 1 else 0 end = 1",
+      "materialized": {
+        "query_block": {
+          "select_id": 3,
+          "having_condition": "case when (max_a > 1 and (max_a = 2 or max_a > 2)) then 1 else 0 end = 1",
+          "filesort": {
+            "sort_key": "t1.b",
+            "temporary_table": {
+              "table": {
+                "table_name": "t1",
+                "access_type": "ALL",
+                "rows": 3,
+                "filtered": 100
+              }
+            }
+          }
+        }
+      }
+    }
+  }
+}
+SELECT *
+FROM
+(
+SELECT CASE WHEN ((tab2.b=2) OR (tab2.b=4))
+THEN 1 ELSE 0 END AS max_a,b
+FROM (SELECT MAX(a) as max_a,b FROM t1 GROUP BY t1.b) AS tab2
+) AS tab1
+WHERE (tab1.max_a=1);
+max_a	b
+1	2
+1	4
+EXPLAIN FORMAT=JSON SELECT *
+FROM
+(
+SELECT CASE WHEN ((tab2.b=2) OR (tab2.b=4))
+THEN 1 ELSE 0 END AS max_a,b
+FROM (SELECT MAX(a) as max_a,b FROM t1 GROUP BY t1.b) AS tab2
+) AS tab1
+WHERE (tab1.max_a=1);
+EXPLAIN
+{
+  "query_block": {
+    "select_id": 1,
+    "table": {
+      "table_name": "<derived3>",
+      "access_type": "ALL",
+      "rows": 3,
+      "filtered": 100,
+      "attached_condition": "case when (tab2.b = 2 or tab2.b = 4) then 1 else 0 end = 1",
+      "materialized": {
+        "query_block": {
+          "select_id": 3,
+          "filesort": {
+            "sort_key": "t1.b",
+            "temporary_table": {
+              "table": {
+                "table_name": "t1",
+                "access_type": "ALL",
+                "rows": 3,
+                "filtered": 100,
+                "attached_condition": "case when (t1.b = 2 or t1.b = 4) then 1 else 0 end = 1"
+              }
+            }
+          }
+        }
+      }
+    }
+  }
+}
+DROP TABLE t1;
+#
+# MDEV-16803: pushdown condition with IN predicate in the derived table
+#             defined with several SELECT statements
+#
+CREATE TABLE t1 (a INT, b INT);
+INSERT INTO t1 VALUES (1,2),(3,2),(1,1);
+SELECT * FROM
+(
+SELECT a,b,1 as c
+FROM t1
+UNION ALL
+SELECT a,b,2 as c
+FROM t1
+) AS tab
+WHERE ((a,b) IN ((1,2),(3,2)));
+a	b	c
+1	2	1
+3	2	1
+1	2	2
+3	2	2
+DROP TABLE t1;
+# Start of 10.3 tests
+#
+# MDEV-16801: splittable materialized derived/views with
+#             one grouping field from table without keys
+#
+CREATE TABLE t1 (a int, b int, INDEX idx_a(a), INDEX idx_b(b)) ENGINE=MYISAM;
+CREATE TABLE t2 (c int) ENGINE=MYISAM;
+CREATE TABLE t3 (d int) ENGINE=MYISAM;
+INSERT INTO t1 VALUES
+(77,7), (11,1), (33,3), (44,4), (8,88),
+(78,7), (98,9), (38,3), (28,2), (79,7),
+(58,5), (42,4), (71,7), (27,2), (91,9);
+INSERT INTO t1 SELECT a+100, b+10 FROM t1;
+INSERT INTO t2 VALUES
+(100), (700), (200), (100), (200);
+INSERT INTO t3 VALUES
+(3), (4), (1), (8), (3);
+ANALYZE tables t1,t2,t3;
+Table	Op	Msg_type	Msg_text
+test.t1	analyze	status	OK
+test.t2	analyze	status	OK
+test.t3	analyze	status	OK
+SELECT *
+FROM t3,
+(SELECT t1.b, t2.c
+FROM  t1, t2
+GROUP BY t1.b,t2.c) dt
+WHERE t3.d = dt.b;
+d	b	c
+3	3	700
+3	3	200
+3	3	100
+4	4	700
+4	4	200
+4	4	100
+1	1	700
+1	1	200
+1	1	100
+3	3	700
+3	3	200
+3	3	100
+EXPLAIN EXTENDED SELECT *
+FROM t3,
+(SELECT t1.b, t2.c
+FROM  t1, t2
+GROUP BY t1.b,t2.c) dt
+WHERE t3.d = dt.b;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	PRIMARY	t3	ALL	NULL	NULL	NULL	NULL	5	100.00	Using where
+1	PRIMARY	<derived2>	ref	key0	key0	5	test.t3.d	2	100.00	
+2	LATERAL DERIVED	t1	ref	idx_b	idx_b	5	test.t3.d	2	100.00	Using index; Using temporary; Using filesort
+2	LATERAL DERIVED	t2	ALL	NULL	NULL	NULL	NULL	5	100.00	Using join buffer (flat, BNL join)
+Warnings:
+Note	1003	/* select#1 */ select `test`.`t3`.`d` AS `d`,`dt`.`b` AS `b`,`dt`.`c` AS `c` from `test`.`t3` join (/* select#2 */ select `test`.`t1`.`b` AS `b`,`test`.`t2`.`c` AS `c` from `test`.`t1` join `test`.`t2` where `test`.`t1`.`b` = `test`.`t3`.`d` group by `test`.`t1`.`b`,`test`.`t2`.`c`) `dt` where `dt`.`b` = `test`.`t3`.`d`
+DROP TABLE t1,t2,t3;

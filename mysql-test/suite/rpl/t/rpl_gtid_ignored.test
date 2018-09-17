@@ -129,7 +129,7 @@ SELECT * FROM t1 ORDER BY a;
 # Clean up.
 --connection server_1
 DROP TABLE t1;
-ALTER TABLE mysql.gtid_slave_pos ENGINE=MyISAM;
+ALTER TABLE mysql.gtid_slave_pos ENGINE=Aria;
 SET GLOBAL gtid_strict_mode= @old_gtid_strict_mode;
 SET debug_sync = "reset";
 

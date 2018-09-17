@@ -94,7 +94,6 @@ packaging/rpm-oel/mysql.spec
 packaging/rpm-uln/mysql.10.0.11.spec
 packaging/solaris/postinstall-solaris
 pcre/config.h
-pcre/pcre*test.sh
 pcre/pcre.h
 pcre/pcre_chartables.c
 pcre/pcregrep

@@ -117,16 +117,6 @@ my_bool str_to_datetime(const char *str, size_t length, MYSQL_TIME *l_time,
 longlong number_to_datetime(longlong nr, ulong sec_part, MYSQL_TIME *time_res,
                             ulonglong flags, int *was_cut);
 
-static inline
-longlong double_to_datetime(double nr, MYSQL_TIME *ltime, ulonglong flags, int *cut)
-{
-  if (nr < 0 || nr > LONGLONG_MAX)
-    nr= (double)LONGLONG_MAX;
-  return number_to_datetime((longlong) floor(nr),
-                            (ulong)((nr-floor(nr))*TIME_SECOND_PART_FACTOR),
-                            ltime, flags, cut);
-}
-
 int number_to_time(my_bool neg, ulonglong nr, ulong sec_part,
                    MYSQL_TIME *ltime, int *was_cut);
 ulonglong TIME_to_ulonglong_datetime(const MYSQL_TIME *);

@@ -54,50 +54,6 @@ bool time_to_datetime(THD *thd, const MYSQL_TIME *tm, MYSQL_TIME *dt);
 bool time_to_datetime_with_warn(THD *thd,
                                 const MYSQL_TIME *tm, MYSQL_TIME *dt,
                                 ulonglong fuzzydate);
-/*
-  Simply truncate the YYYY-MM-DD part to 0000-00-00
-  and change time_type to MYSQL_TIMESTAMP_TIME
-*/
-inline void datetime_to_time(MYSQL_TIME *ltime)
-{
-  DBUG_ASSERT(ltime->time_type == MYSQL_TIMESTAMP_DATE ||
-              ltime->time_type == MYSQL_TIMESTAMP_DATETIME);
-  DBUG_ASSERT(ltime->neg == 0);
-  ltime->year= ltime->month= ltime->day= 0;
-  ltime->time_type= MYSQL_TIMESTAMP_TIME;
-}
-
-
-/**
-  Convert DATE/DATETIME to TIME(dec)
-  using CURRENT_DATE in a non-old mode,
-  or using simple truncation in old mode (OLD_MODE_ZERO_DATE_TIME_CAST).
-
-  @param      thd - the thread to get the variables.old_behaviour value from
-  @param      dt  - the DATE of DATETIME value to convert
-  @param[out] tm  - store result here
-  @param      dec - the desired scale. The fractional part of the result
-                    is checked according to this parameter before returning
-                    the conversion result. "dec" is important in the corner
-                    cases near the max/min limits.
-                    If the result is '838:59:59.999999' and the desired scale
-                    is less than 6, an error is returned.
-                    Note, dec is not important in the
-                    OLD_MODE_ZERO_DATE_TIME_CAST old mode.
-
-  - in case of OLD_MODE_ZERO_DATE_TIME_CAST
-    the TIME part is simply truncated and "false" is returned.
-  - otherwise, the result is calculated effectively similar to:
-    TIMEDIFF(dt, CAST(CURRENT_DATE AS DATETIME))
-    If the difference fits into the supported TIME range, "false" is returned,
-    otherwise a warning is issued and "true" is returned.
-
-  @return false - on success
-  @return true  - on error
-*/
-bool datetime_to_time_with_warn(THD *, const MYSQL_TIME *dt,
-                                MYSQL_TIME *tm, uint dec);
-
 
 inline void datetime_to_date(MYSQL_TIME *ltime)
 {
@@ -170,15 +126,6 @@ int calc_weekday(long daynr,bool sunday_first_day_of_week);
 bool parse_date_time_format(timestamp_type format_type, 
                             const char *format, uint format_length,
                             DATE_TIME_FORMAT *date_time_format);
-/* Character set-aware version of str_to_time() */
-bool str_to_time(CHARSET_INFO *cs, const char *str,size_t length,
-                 MYSQL_TIME *l_time, ulonglong fuzzydate,
-                 MYSQL_TIME_STATUS *status);
-/* Character set-aware version of str_to_datetime() */
-bool str_to_datetime(CHARSET_INFO *cs,
-                     const char *str, size_t length,
-                     MYSQL_TIME *l_time, ulonglong flags,
-                     MYSQL_TIME_STATUS *status);
 
 /* convenience wrapper */
 inline bool parse_date_time_format(timestamp_type format_type, 
@@ -221,8 +168,6 @@ check_date(const MYSQL_TIME *ltime, ulonglong flags, int *was_cut)
 }
 bool check_date_with_warn(const MYSQL_TIME *ltime, ulonglong fuzzy_date,
                           timestamp_type ts_type);
-bool make_date_with_warn(MYSQL_TIME *ltime,
-                         ulonglong fuzzy_date, timestamp_type ts_type);
 bool adjust_time_range_with_warn(MYSQL_TIME *ltime, uint dec);
 
 longlong pack_time(const MYSQL_TIME *my_time);

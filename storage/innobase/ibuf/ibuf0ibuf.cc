@@ -916,10 +916,7 @@ ibuf_set_free_bits_func(
 		ut_ad(0);
 		break;
 	case FIL_TYPE_TABLESPACE:
-		/* Avoid logging while fixing up truncate of table. */
-		if (!srv_is_tablespace_truncated(block->page.id.space())) {
-			break;
-		}
+		break;
 		/* fall through */
 	case FIL_TYPE_TEMPORARY:
 	case FIL_TYPE_IMPORT:
@@ -4779,7 +4776,7 @@ reset_bit:
 
 /*********************************************************************//**
 Deletes all entries in the insert buffer for a given space id. This is used
-in DISCARD TABLESPACE, IMPORT TABLESPACE and TRUNCATE TABLESPACE.
+in DISCARD TABLESPACE, IMPORT TABLESPACE, and 5.7 TRUNCATE TABLE recovery.
 NOTE: this does not update the page free bitmaps in the space. The space will
 become CORRUPT when you call this function! */
 void

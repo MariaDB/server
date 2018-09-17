@@ -4260,11 +4260,9 @@ mysql_prepare_create_table(THD *thd, HA_CREATE_INFO *create_info,
   }
 
   /* Give warnings for not supported table options */
-#if defined(WITH_ARIA_STORAGE_ENGINE)
   extern handlerton *maria_hton;
-  if (file->partition_ht() != maria_hton)
-#endif
-    if (create_info->transactional)
+  if (file->partition_ht() != maria_hton && create_info->transactional &&
+      !file->has_transaction_manager())
       push_warning_printf(thd, Sql_condition::WARN_LEVEL_WARN,
                           ER_ILLEGAL_HA_CREATE_OPTION,
                           ER_THD(thd, ER_ILLEGAL_HA_CREATE_OPTION),
@@ -4862,6 +4860,8 @@ int create_table_impl(THD *thd,
     {
       if (options.or_replace())
       {
+        (void) delete_statistics_for_table(thd, db, table_name);
+
         TABLE_LIST table_list;
         table_list.init_one_table(db, table_name, 0, TL_WRITE_ALLOW_WRITE);
         table_list.table= create_info->table;
@@ -5485,13 +5485,13 @@ mysql_rename_table(handlerton *base, const LEX_CSTRING *old_db,
   }
   delete file;
 
-  if (unlikely(error))
-  {
-    if (error == HA_ERR_WRONG_COMMAND)
-      my_error(ER_NOT_SUPPORTED_YET, MYF(0), "ALTER TABLE");
-    else
-      my_error(ER_ERROR_ON_RENAME, MYF(0), from, to, error);
-  }
+  if (error == HA_ERR_WRONG_COMMAND)
+    my_error(ER_NOT_SUPPORTED_YET, MYF(0), "ALTER TABLE");
+  else if (error ==  ENOTDIR)
+    my_error(ER_BAD_DB_ERROR, MYF(0), new_db->str);
+  else if (error)
+    my_error(ER_ERROR_ON_RENAME, MYF(0), from, to, error);
+
   else if (!(flags & FN_IS_TMP))
     mysql_audit_rename_table(thd, old_db, old_name, new_db, new_name);
 
@@ -9563,8 +9563,6 @@ bool mysql_alter_table(THD *thd, const LEX_CSTRING *new_db,
   }
 
   DEBUG_SYNC(thd, "alter_table_before_create_table_no_lock");
-  /* We can abort alter table for any table type */
-  thd->abort_on_warning= !ignore && thd->is_strict_mode();
 
   /*
     Create .FRM for new version of table with a temporary name.
@@ -9594,7 +9592,6 @@ bool mysql_alter_table(THD *thd, const LEX_CSTRING *new_db,
                            C_ALTER_TABLE_FRM_ONLY, NULL,
                            &key_info, &key_count, &frm);
   reenable_binlog(thd);
-  thd->abort_on_warning= false;
   if (unlikely(error))
   {
     my_free(const_cast<uchar*>(frm.str));

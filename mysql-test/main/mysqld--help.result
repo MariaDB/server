@@ -231,6 +231,11 @@ The following specify which files/extra groups are read (specified before remain
  cache, etc)
  --enforce-storage-engine=name 
  Force the use of a storage engine for new tables
+ --eq-range-index-dive-limit=# 
+ The optimizer will use existing index statistics instead
+ of doing index dives for equality ranges if the number of
+ equality ranges for the index is larger than or equal to
+ this number. If set to 0, index dives are always used.
  --event-scheduler[=name] 
  Enable the event scheduler. Possible values are ON, OFF,
  and DISABLED (keep the event scheduler completely
@@ -1265,6 +1270,9 @@ The following specify which files/extra groups are read (specified before remain
  first TCP keep-alive packet is sent.If set to 0, system
  dependent default is used. (Automatically configured
  unless set explicitly)
+ --tcp-nodelay       Set option TCP_NODELAY (disable Nagle's algorithm) on
+ socket
+ (Defaults to on; use --skip-tcp-nodelay to disable.)
  --thread-cache-size=# 
  How many threads we should keep in a cache for reuse.
  These are freed after 5 minutes of idle time
@@ -1401,6 +1409,7 @@ encrypt-binlog FALSE
 encrypt-tmp-disk-tables FALSE
 encrypt-tmp-files FALSE
 enforce-storage-engine (No default value)
+eq-range-index-dive-limit 0
 event-scheduler OFF
 expensive-subquery-limit 100
 expire-logs-days 0
@@ -1679,6 +1688,7 @@ tc-heuristic-recover OFF
 tcp-keepalive-interval 0
 tcp-keepalive-probes 0
 tcp-keepalive-time 0
+tcp-nodelay TRUE
 thread-cache-size 151
 thread-pool-idle-timeout 60
 thread-pool-max-threads 65536

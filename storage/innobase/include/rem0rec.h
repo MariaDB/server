@@ -1,7 +1,7 @@
 /*****************************************************************************
 
 Copyright (c) 1994, 2016, Oracle and/or its affiliates. All Rights Reserved.
-Copyright (c) 2017, MariaDB Corporation.
+Copyright (c) 2017, 2018, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -322,6 +322,31 @@ rec_set_status(rec_t* rec, byte bits)
 	ut_ad(bits <= REC_STATUS_COLUMNS_INSTANT);
 	rec[-REC_NEW_STATUS] = (rec[-REC_NEW_STATUS] & ~REC_NEW_STATUS_MASK)
 		| bits;
+}
+
+/** Get the length of added field count in a REC_STATUS_COLUMNS_INSTANT record.
+@param[in]	n_add_field	number of added fields, minus one
+@return	storage size of the field count, in bytes */
+inline unsigned rec_get_n_add_field_len(ulint n_add_field)
+{
+	ut_ad(n_add_field < REC_MAX_N_FIELDS);
+	return n_add_field < 0x80 ? 1 : 2;
+}
+
+/** Set the added field count in a REC_STATUS_COLUMNS_INSTANT record.
+@param[in,out]	header	variable header of a REC_STATUS_COLUMNS_INSTANT record
+@param[in]	n_add	number of added fields, minus 1
+@return	record header before the number of added fields */
+inline void rec_set_n_add_field(byte*& header, ulint n_add)
+{
+	ut_ad(n_add < REC_MAX_N_FIELDS);
+
+	if (n_add < 0x80) {
+		*header-- = byte(n_add);
+	} else {
+		*header-- = byte(n_add) | 0x80;
+		*header-- = byte(n_add >> 7);
+	}
 }
 
 /******************************************************//**
@@ -1036,6 +1061,7 @@ rec_get_converted_size_temp(
 @param[in]	index	index of that the record belongs to
 @param[in,out]	offsets	offsets to the fields; in: rec_offs_n_fields(offsets)
 @param[in]	n_core	number of core fields (index->n_core_fields)
+@param[in]	def_val	default values for non-core fields
 @param[in]	status	REC_STATUS_ORDINARY or REC_STATUS_COLUMNS_INSTANT */
 void
 rec_init_offsets_temp(
@@ -1043,6 +1069,7 @@ rec_init_offsets_temp(
 	const dict_index_t*	index,
 	ulint*			offsets,
 	ulint			n_core,
+	const dict_col_t::def_t*def_val,
 	rec_comp_status_t	status = REC_STATUS_ORDINARY)
 	MY_ATTRIBUTE((nonnull));
 /** Determine the offset to each field in temporary file.

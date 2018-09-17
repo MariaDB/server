@@ -1,5 +1,5 @@
 /*
-   Copyright (c) 2000, 2016, Oracle and/or its affiliates.
+   Copyright (c) 2000, 2018, Oracle and/or its affiliates.
    Copyright (c) 2010, 2018, MariaDB Corporation
 
    This program is free software; you can redistribute it and/or modify
@@ -125,50 +125,6 @@ longlong Item::val_datetime_packed_result()
   if ((null_value= time_to_datetime_with_warn(current_thd, &ltime, &tmp, 0)))
     return 0;
   return pack_time(&tmp);
-}
-
-
-/**
-  Get date/time/datetime.
-  If DATETIME or DATE result is returned, it's converted to TIME.
-*/
-bool Item::get_time_with_conversion(THD *thd, MYSQL_TIME *ltime,
-                                    ulonglong fuzzydate)
-{
-  if (get_date(ltime, fuzzydate))
-    return true;
-  if (ltime->time_type != MYSQL_TIMESTAMP_TIME)
-  {
-    MYSQL_TIME ltime2;
-    if ((thd->variables.old_behavior & OLD_MODE_ZERO_DATE_TIME_CAST) &&
-        (ltime->year || ltime->day || ltime->month))
-    {
-      /*
-        Old mode conversion from DATETIME with non-zero YYYYMMDD part
-        to TIME works very inconsistently. Possible variants:
-        - truncate the YYYYMMDD part
-        - add (MM*33+DD)*24 to hours
-        - add (MM*31+DD)*24 to hours
-        Let's return TRUE here, to disallow equal field propagation.
-        Note, If we start to use this method in more pieces of the code other
-        than equal field propagation, we should probably return
-        TRUE only if some flag in fuzzydate is set.
-      */
-      return true;
-    }
-    if (datetime_to_time_with_warn(thd, ltime, &ltime2, TIME_SECOND_PART_DIGITS))
-    {
-      /*
-        If the time difference between CURRENT_DATE and ltime
-        did not fit into the supported TIME range, then we set the
-        difference to the maximum possible value in the supported TIME range
-      */
-      DBUG_ASSERT(0);
-      return (null_value= true);
-    }
-    *ltime= ltime2;
-  }
-  return false;
 }
 
 
@@ -2004,51 +1960,22 @@ Item_name_const::Item_name_const(THD *thd, Item *name_arg, Item *val):
   Item_fixed_hybrid(thd), value_item(val), name_item(name_arg)
 {
   Item::maybe_null= TRUE;
-  valid_args= true;
-  if (!name_item->basic_const_item())
-    goto err;
-
-  if (value_item->basic_const_item())
-    return; // ok
-
-  if (value_item->type() == FUNC_ITEM)
-  {
-    Item_func *value_func= (Item_func *) value_item;
-    if (value_func->functype() != Item_func::COLLATE_FUNC &&
-        value_func->functype() != Item_func::NEG_FUNC)
-      goto err;
-
-    if (value_func->key_item()->basic_const_item())
-      return; // ok
-  }
-
-err:
-  valid_args= false;
-  my_error(ER_WRONG_ARGUMENTS, MYF(0), "NAME_CONST");
 }
 
 
 Item::Type Item_name_const::type() const
 {
   /*
-    As 
-    1. one can try to create the Item_name_const passing non-constant 
-    arguments, although it's incorrect and 
-    2. the type() method can be called before the fix_fields() to get
-    type information for a further type cast, e.g. 
-    if (item->type() == FIELD_ITEM) 
-      ((Item_field *) item)->... 
-    we return NULL_ITEM in the case to avoid wrong casting.
 
-    valid_args guarantees value_item->basic_const_item(); if type is
-    FUNC_ITEM, then we have a fudged item_func_neg() on our hands
-    and return the underlying type.
+    We are guarenteed that value_item->basic_const_item(), if not
+    an error is thrown that WRONG ARGUMENTS are supplied to
+    NAME_CONST function.
+    If type is FUNC_ITEM, then we have a fudged item_func_neg()
+    on our hands and return the underlying type.
     For Item_func_set_collation()
     e.g. NAME_CONST('name', 'value' COLLATE collation) we return its
     'value' argument type. 
   */
-  if (!valid_args)
-    return NULL_ITEM;
   Item::Type value_type= value_item->type();
   if (value_type == FUNC_ITEM)
   {
@@ -7710,7 +7637,7 @@ Item_direct_view_ref::grouping_field_transformer_for_where(THD *thd,
 void Item_field::print(String *str, enum_query_type query_type)
 {
   if (field && field->table->const_table &&
-      !(query_type & QT_NO_DATA_EXPANSION))
+      !(query_type & (QT_NO_DATA_EXPANSION | QT_VIEW_INTERNAL)))
   {
     print_value(str);
     return;

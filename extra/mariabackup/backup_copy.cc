@@ -471,6 +471,21 @@ struct datafile_cur_t {
 	size_t		buf_size;
 	size_t		buf_read;
 	size_t		buf_offset;
+
+	explicit datafile_cur_t(const char* filename = NULL) :
+		file(), thread_n(0), orig_buf(NULL), buf(NULL), buf_size(0),
+		buf_read(0), buf_offset(0)
+	{
+		memset(rel_path, 0, sizeof rel_path);
+		if (filename) {
+			strncpy(abs_path, filename, sizeof abs_path);
+			abs_path[(sizeof abs_path) - 1] = 0;
+		} else {
+			abs_path[0] = '\0';
+		}
+		rel_path[0] = '\0';
+		memset(&statinfo, 0, sizeof statinfo);
+	}
 };
 
 static
@@ -489,9 +504,7 @@ datafile_open(const char *file, datafile_cur_t *cursor, uint thread_n)
 {
 	bool		success;
 
-	memset(cursor, 0, sizeof(datafile_cur_t));
-
-	strncpy(cursor->abs_path, file, sizeof(cursor->abs_path));
+	new (cursor) datafile_cur_t(file);
 
 	/* Get the relative path for the destination tablespace name, i.e. the
 	one that can be appended to the backup root directory. Non-system
@@ -630,32 +643,36 @@ static
 int
 mkdirp(const char *pathname, int Flags, myf MyFlags)
 {
-	char parent[PATH_MAX], *p;
+	char *parent, *p;
 
 	/* make a parent directory path */
-	strncpy(parent, pathname, sizeof(parent));
-	parent[sizeof(parent) - 1] = 0;
+	if (!(parent= strdup(pathname)))
+          return(-1);
 
 	for (p = parent + strlen(parent);
-	    !is_path_separator(*p) && p != parent; p--);
+	    !is_path_separator(*p) && p != parent; p--) ;
 
 	*p = 0;
 
 	/* try to make parent directory */
 	if (p != parent && mkdirp(parent, Flags, MyFlags) != 0) {
+		free(parent);
 		return(-1);
 	}
 
 	/* make this one if parent has been made */
 	if (my_mkdir(pathname, Flags, MyFlags) == 0) {
+		free(parent);
 		return(0);
 	}
 
 	/* if it already exists that is fine */
 	if (errno == EEXIST) {
+		free(parent);
 		return(0);
 	}
 
+	free(parent);
 	return(-1);
 }
 
@@ -665,17 +682,24 @@ bool
 equal_paths(const char *first, const char *second)
 {
 #ifdef HAVE_REALPATH
-	char real_first[PATH_MAX];
-	char real_second[PATH_MAX];
+	char *real_first, *real_second;
+	int result;
 
-	if (realpath(first, real_first) == NULL) {
-		return false;
-	}
-	if (realpath(second, real_second) == NULL) {
+	real_first = realpath(first, 0);
+	if (real_first == NULL) {
 		return false;
 	}
 
-	return (strcmp(real_first, real_second) == 0);
+	real_second = realpath(second, 0);
+	if (real_second == NULL) {
+		free(real_first);
+		return false;
+	}
+
+	result = strcmp(real_first, real_second);
+	free(real_first);
+	free(real_second);
+	return result == 0;
 #else
 	return strcmp(first, second) == 0;
 #endif
@@ -1360,6 +1384,30 @@ out:
 	return(ret);
 }
 
+void backup_fix_ddl(void);
+
+#define LSN_PREFIX_IN_SHOW_STATUS  "\nLog sequence number "
+static lsn_t get_current_lsn(MYSQL *connection) {
+	MYSQL_RES *res = xb_mysql_query(connection, "SHOW ENGINE INNODB STATUS", true, false);
+	if (!res)
+		return 0;
+	MYSQL_ROW row = mysql_fetch_row(res);
+	DBUG_ASSERT(row);
+	if (row) {
+		const char *p = strstr(row[2],LSN_PREFIX_IN_SHOW_STATUS);
+		DBUG_ASSERT(p);
+		if (p)
+		{
+			p += sizeof(LSN_PREFIX_IN_SHOW_STATUS) - 1;
+			return (lsn_t)strtoll(p, NULL, 10);
+		}
+	}
+	mysql_free_result(res);
+	return 0;
+}
+
+lsn_t server_lsn_after_lock;
+extern void backup_wait_for_lsn(lsn_t lsn);
 /** Start --backup */
 bool backup_start()
 {
@@ -1379,6 +1427,7 @@ bool backup_start()
 		if (!lock_tables(mysql_connection)) {
 			return(false);
 		}
+		server_lsn_after_lock = get_current_lsn(mysql_connection);
 	}
 
 	if (!backup_files(fil_path_to_mysql_datadir, false)) {
@@ -1392,6 +1441,10 @@ bool backup_start()
 	if (has_rocksdb_plugin()) {
 		rocksdb_create_checkpoint();
 	}
+
+	msg_ts("Waiting for log copy thread to read lsn %llu\n", (ulonglong)server_lsn_after_lock);
+	backup_wait_for_lsn(server_lsn_after_lock);
+	backup_fix_ddl();
 
 	// There is no need to stop slave thread before coping non-Innodb data when
 	// --no-lock option is used because --no-lock option requires that no DDL or
@@ -2202,6 +2255,7 @@ static void rocksdb_lock_checkpoint()
 		msg_ts("Could not obtain rocksdb checkpont lock\n");
 		exit(EXIT_FAILURE);
 	}
+	mysql_free_result(res);
 }
 
 static void rocksdb_unlock_checkpoint()

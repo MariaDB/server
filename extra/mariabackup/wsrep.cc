@@ -75,8 +75,7 @@ xb_write_galera_info(bool incremental_prepare)
 		return;
 	}
 
-	memset(&xid, 0, sizeof(xid));
-	xid.formatID = -1;
+	xid.null();
 
 	if (!trx_rseg_read_wsrep_checkpoint(xid)) {
 

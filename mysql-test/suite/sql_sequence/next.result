@@ -519,3 +519,18 @@ create temporary table tmp (i int);
 select next value for tmp;
 ERROR 42S02: 'test.tmp' is not a SEQUENCE
 drop table tmp;
+#
+# Test negative numbers
+#
+create sequence s start with 1 minvalue=-1000 maxvalue=1000 increment -1;
+select next value for s;
+next value for s
+1
+select next value for s;
+next value for s
+0
+flush tables;
+select next value for s;
+next value for s
+-999
+drop sequence s;

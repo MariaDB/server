@@ -1,6 +1,7 @@
 /*****************************************************************************
 
-Copyright (c) 2007, 2016, Oracle and/or its affiliates. All Rights Reserved.
+Copyright (c) 2007, 2018, Oracle and/or its affiliates. All Rights Reserved.
+Copyright (c) 2018, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -28,6 +29,7 @@ Created 2007/3/16 Sunny Bains.
 #include "fts0ast.h"
 #include "fts0pars.h"
 #include "fts0fts.h"
+#include "row0sel.h"
 
 /* The FTS ast visit pass. */
 enum fts_ast_visit_pass_t {
@@ -602,6 +604,7 @@ fts_ast_visit(
 	bool			revisit = false;
 	bool			will_be_ignored = false;
 	fts_ast_visit_pass_t	visit_pass = FTS_PASS_FIRST;
+	const trx_t*		trx = node->trx;
 
 	start_node = node->list.head;
 
@@ -698,6 +701,10 @@ fts_ast_visit(
 				node->visited = true;
 			}
 		}
+	}
+
+	if (trx_is_interrupted(trx)) {
+		return DB_INTERRUPTED;
 	}
 
 	if (revisit) {

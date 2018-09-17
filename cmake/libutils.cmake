@@ -139,17 +139,17 @@ MACRO(MERGE_STATIC_LIBS TARGET OUTPUT_NAME LIBS_TO_MERGE)
 
   SET(OSLIBS)
   FOREACH(LIB ${LIBS_TO_MERGE})
-    GET_TARGET_PROPERTY(LIB_LOCATION ${LIB} LOCATION)
-    GET_TARGET_PROPERTY(LIB_TYPE ${LIB} TYPE)
-    IF(NOT LIB_LOCATION)
+    IF(NOT TARGET ${LIB})
        # 3rd party library like libz.so. Make sure that everything
        # that links to our library links to this one as well.
        LIST(APPEND OSLIBS ${LIB})
     ELSE()
+      GET_TARGET_PROPERTY(LIB_TYPE ${LIB} TYPE)
       # This is a target in current project
       # (can be a static or shared lib)
       IF(LIB_TYPE STREQUAL "STATIC_LIBRARY")
-        SET(STATIC_LIBS ${STATIC_LIBS} ${LIB_LOCATION})
+        SET(STATIC_TGTS ${STATIC_TGTS} ${LIB})
+        SET(STATIC_LIBS ${STATIC_LIBS} $<TARGET_FILE:${LIB}>)
         ADD_DEPENDENCIES(${TARGET} ${LIB})
         # Extract dependent OS libraries
         GET_DEPENDEND_OS_LIBS(${LIB} LIB_OSLIBS)
@@ -171,7 +171,7 @@ MACRO(MERGE_STATIC_LIBS TARGET OUTPUT_NAME LIBS_TO_MERGE)
   ADD_CUSTOM_COMMAND( 
     OUTPUT  ${SOURCE_FILE}
     COMMAND ${CMAKE_COMMAND}  -E touch ${SOURCE_FILE}
-    DEPENDS ${STATIC_LIBS})
+    DEPENDS ${STATIC_TGTS})
 
   IF(MSVC)
     # To merge libs, just pass them to lib.exe command line.
@@ -182,29 +182,27 @@ MACRO(MERGE_STATIC_LIBS TARGET OUTPUT_NAME LIBS_TO_MERGE)
     SET_TARGET_PROPERTIES(${TARGET} PROPERTIES STATIC_LIBRARY_FLAGS 
       "${LINKER_EXTRA_FLAGS}")
   ELSE()
-    GET_TARGET_PROPERTY(TARGET_LOCATION ${TARGET} LOCATION)  
     IF(APPLE)
       # Use OSX's libtool to merge archives (ihandles universal 
       # binaries properly)
       ADD_CUSTOM_COMMAND(TARGET ${TARGET} POST_BUILD
-        COMMAND rm ${TARGET_LOCATION}
-        COMMAND libtool -static -o ${TARGET_LOCATION} 
+        COMMAND rm $<TARGET_FILE:${TARGET}>
+        COMMAND libtool -static -o $<TARGET_FILE:${TARGET}>
         ${STATIC_LIBS}
       )  
     ELSE()
       # Generic Unix, Cygwin or MinGW. In post-build step, call
       # script, that extracts objects from archives with "ar x" 
       # and repacks them with "ar r"
-      SET(TARGET ${TARGET})
-      CONFIGURE_FILE(
-        ${MYSQL_CMAKE_SCRIPT_DIR}/merge_archives_unix.cmake.in
-        ${CMAKE_CURRENT_BINARY_DIR}/merge_archives_${TARGET}.cmake 
-        @ONLY
-      )
       ADD_CUSTOM_COMMAND(TARGET ${TARGET} POST_BUILD
-        COMMAND rm ${TARGET_LOCATION}
-        COMMAND ${CMAKE_COMMAND} -P 
-        ${CMAKE_CURRENT_BINARY_DIR}/merge_archives_${TARGET}.cmake
+        COMMAND ${CMAKE_COMMAND}
+          -DTARGET_LOCATION="$<TARGET_FILE:${TARGET}>"
+          -DTARGET="${TARGET}"
+          -DSTATIC_LIBS="${STATIC_LIBS}"
+          -DCMAKE_CURRENT_BINARY_DIR="${CMAKE_CURRENT_BINARY_DIR}"
+          -DCMAKE_AR="${CMAKE_AR}"
+          -DCMAKE_RANLIB="${CMAKE_RANLIB}"
+          -P "${MYSQL_CMAKE_SCRIPT_DIR}/merge_archives_unix.cmake"
       )
     ENDIF()
   ENDIF()
@@ -269,7 +267,7 @@ MACRO(MERGE_LIBRARIES)
     IF (ARG_SOVERSION)
       SET_TARGET_PROPERTIES(${TARGET} PROPERTIES SOVERSION  ${ARG_VERSION})
     ENDIF()
-    TARGET_LINK_LIBRARIES(${TARGET} ${LIBS})
+    TARGET_LINK_LIBRARIES(${TARGET} LINK_PRIVATE ${LIBS})
     IF(ARG_OUTPUT_NAME)
       SET_TARGET_PROPERTIES(${TARGET} PROPERTIES OUTPUT_NAME "${ARG_OUTPUT_NAME}")
     ENDIF()
@@ -282,7 +280,6 @@ MACRO(MERGE_LIBRARIES)
     ENDIF()
     MYSQL_INSTALL_TARGETS(${TARGET} DESTINATION "${INSTALL_LIBDIR}" ${COMP})
   ENDIF()
-  SET_TARGET_PROPERTIES(${TARGET} PROPERTIES LINK_INTERFACE_LIBRARIES "")
   IF(ARG_SHARED AND LINK_FLAG_NO_UNDEFINED)
     # Do not allow undefined symbols in shared libraries
     GET_TARGET_PROPERTY(TARGET_LINK_FLAGS ${TARGET} LINK_FLAGS)
@@ -295,18 +292,11 @@ MACRO(MERGE_LIBRARIES)
 ENDMACRO()
 
 FUNCTION(GET_DEPENDEND_OS_LIBS target result)
-  SET(deps ${${target}_LIB_DEPENDS})
-  IF(deps)
-   FOREACH(lib ${deps})
-    # Filter out keywords for used for debug vs optimized builds
-    IF(NOT lib MATCHES "general" AND NOT lib MATCHES "debug" AND NOT lib MATCHES "optimized")
-      GET_TARGET_PROPERTY(lib_location ${lib} LOCATION)
-      IF(NOT lib_location)
-        SET(ret ${ret} ${lib})
-      ENDIF()
+  FOREACH(lib ${${target}_LIB_DEPENDS})
+    IF(NOT TARGET ${lib})
+      SET(ret ${ret} ${lib})
     ENDIF()
-   ENDFOREACH()
-  ENDIF()
+  ENDFOREACH()
   SET(${result} ${ret} PARENT_SCOPE)
 ENDFUNCTION()
 

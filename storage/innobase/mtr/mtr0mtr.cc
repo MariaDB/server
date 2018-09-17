@@ -32,7 +32,6 @@ Created 11/26/1995 Heikki Tuuri
 #include "page0types.h"
 #include "mtr0log.h"
 #include "log0log.h"
-#include "row0trunc.h"
 
 #include "log0recv.h"
 
@@ -695,8 +694,7 @@ mtr_t::x_lock_space(ulint space_id, const char* file, unsigned line)
 		ut_ad(get_log_mode() != MTR_LOG_NO_REDO
 		      || space->purpose == FIL_TYPE_TEMPORARY
 		      || space->purpose == FIL_TYPE_IMPORT
-		      || my_atomic_loadlint(&space->redo_skipped_count) > 0
-		      || srv_is_tablespace_truncated(space->id));
+		      || my_atomic_loadlint(&space->redo_skipped_count) > 0);
 	}
 
 	ut_ad(space);

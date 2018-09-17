@@ -1,7 +1,7 @@
 /*****************************************************************************
 
-Copyright (c) 2011, 2016, Oracle and/or its affiliates. All Rights Reserved.
-Copyright (c) 2017, MariaDB Corporation.
+Copyright (c) 2011, 2018, Oracle and/or its affiliates. All Rights Reserved.
+Copyright (c) 2017, 2018, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -510,13 +510,6 @@ fts_get_table_id(
 					FTS_AUX_MIN_TABLE_ID_LENGTH bytes
 					long */
 	MY_ATTRIBUTE((warn_unused_result));
-
-/******************************************************************//**
-Add the table to add to the OPTIMIZER's list. */
-void
-fts_optimize_add_table(
-/*===================*/
-	dict_table_t*	table);		/*!< in: table to add */
 
 /******************************************************************//**
 Construct the prefix name of an FTS table.

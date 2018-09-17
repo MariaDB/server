@@ -2390,7 +2390,6 @@ public:
   {
     return unpack_int64(to, from, from_end);
   }
-
   void set_max();
   bool is_max();
 };
@@ -2595,6 +2594,20 @@ class Field_temporal: public Field {
 protected:
   Item *get_equal_const_item_datetime(THD *thd, const Context &ctx,
                                       Item *const_item);
+  int store_TIME_return_code_with_warnings(int warn, const ErrConv *str,
+                                           timestamp_type ts_type)
+  {
+    if (!MYSQL_TIME_WARN_HAVE_WARNINGS(warn) &&
+        MYSQL_TIME_WARN_HAVE_NOTES(warn))
+    {
+      set_warnings(Sql_condition::WARN_LEVEL_NOTE, str,
+                   warn | MYSQL_TIME_WARN_TRUNCATED, ts_type);
+      return 3;
+    }
+    set_warnings(Sql_condition::WARN_LEVEL_WARN, str, warn, ts_type);
+    return warn ? 2 : 0;
+  }
+
 public:
   Field_temporal(uchar *ptr_arg,uint32 len_arg, uchar *null_ptr_arg,
                  uchar null_bit_arg, utype unireg_check_arg,
@@ -2660,9 +2673,10 @@ public:
 */
 class Field_temporal_with_date: public Field_temporal {
 protected:
-  int store_TIME_with_warning(MYSQL_TIME *ltime, const ErrConv *str,
+  int store_TIME_with_warning(const Datetime *ltime, const ErrConv *str,
                               int was_cut);
-  virtual void store_TIME(MYSQL_TIME *ltime) = 0;
+  void store_TIME_with_trunc(const Time *);
+  virtual void store_TIME(const MYSQL_TIME *ltime) = 0;
   virtual bool get_TIME(MYSQL_TIME *ltime, const uchar *pos,
                         ulonglong fuzzydate) const = 0;
   bool validate_MMDD(bool not_zero_date, uint month, uint day,
@@ -2694,7 +2708,12 @@ public:
 class Field_timestamp :public Field_temporal {
 protected:
   sql_mode_t sql_mode_for_timestamp(THD *thd) const;
-  int store_TIME_with_warning(THD *, MYSQL_TIME *, const ErrConv *, int warn);
+  int store_TIME_with_warning(THD *, const Datetime *,
+                              const ErrConv *, int warn);
+  virtual void store_TIMEVAL(const timeval &tv)
+  {
+    int4store(ptr, tv.tv_sec);
+  }
 public:
   Field_timestamp(uchar *ptr_arg, uint32 len_arg,
                   uchar *null_ptr_arg, uchar null_bit_arg,
@@ -2734,9 +2753,9 @@ public:
   {
     return get_timestamp(ptr, sec_part);
   }
-  virtual void store_TIME(my_time_t timestamp, ulong sec_part)
+  void store_TIME(my_time_t timestamp, ulong sec_part)
   {
-    int4store(ptr,timestamp);
+    store_TIMEVAL(Timeval(timestamp, sec_part).trunc(decimals()));
   }
   bool get_date(MYSQL_TIME *ltime, ulonglong fuzzydate);
   uchar *pack(uchar *to, const uchar *from,
@@ -2806,6 +2825,7 @@ class Field_timestamp_hires :public Field_timestamp_with_dec {
   {
     return Type_handler_timestamp::sec_part_bytes(dec);
   }
+  void store_TIMEVAL(const timeval &tv);
 public:
   Field_timestamp_hires(uchar *ptr_arg,
                         uchar *null_ptr_arg, uchar null_bit_arg,
@@ -2818,7 +2838,6 @@ public:
     DBUG_ASSERT(dec);
   }
   my_time_t get_timestamp(const uchar *pos, ulong *sec_part) const;
-  void store_TIME(my_time_t timestamp, ulong sec_part);
   int cmp(const uchar *,const uchar *);
   uint32 pack_length() const { return 4 + sec_part_bytes(dec); }
   uint size_of() const { return sizeof(*this); }
@@ -2834,6 +2853,7 @@ class Field_timestampf :public Field_timestamp_with_dec {
     *metadata_ptr= (uchar) decimals();
     return 1;
   }
+  void store_TIMEVAL(const timeval &tv);
 public:
   Field_timestampf(uchar *ptr_arg,
                    uchar *null_ptr_arg, uchar null_bit_arg,
@@ -2862,7 +2882,6 @@ public:
   }
   void set_max();
   bool is_max();
-  void store_TIME(my_time_t timestamp, ulong sec_part);
   my_time_t get_timestamp(const uchar *pos, ulong *sec_part) const;
   my_time_t get_timestamp(ulong *sec_part) const
   {
@@ -2948,7 +2967,7 @@ public:
 
 class Field_date :public Field_date_common
 {
-  void store_TIME(MYSQL_TIME *ltime);
+  void store_TIME(const MYSQL_TIME *ltime);
   bool get_TIME(MYSQL_TIME *ltime, const uchar *pos, ulonglong fuzzydate) const;
 public:
   Field_date(uchar *ptr_arg, uchar *null_ptr_arg, uchar null_bit_arg,
@@ -2984,7 +3003,7 @@ public:
 
 class Field_newdate :public Field_date_common
 {
-  void store_TIME(MYSQL_TIME *ltime);
+  void store_TIME(const MYSQL_TIME *ltime);
   bool get_TIME(MYSQL_TIME *ltime, const uchar *pos, ulonglong fuzzydate) const;
 public:
   Field_newdate(uchar *ptr_arg, uchar *null_ptr_arg, uchar null_bit_arg,
@@ -3019,7 +3038,7 @@ class Field_time :public Field_temporal {
   long curdays;
 protected:
   virtual void store_TIME(const MYSQL_TIME *ltime);
-  int store_TIME_with_warning(MYSQL_TIME *ltime, const ErrConv *str, int warn);
+  int store_TIME_with_warning(const Time *ltime, const ErrConv *str, int warn);
   void set_warnings(Sql_condition::enum_warning_level level,
                     const ErrConv *str, int was_cut)
   {
@@ -3177,7 +3196,7 @@ public:
 
 
 class Field_datetime :public Field_temporal_with_date {
-  void store_TIME(MYSQL_TIME *ltime);
+  void store_TIME(const MYSQL_TIME *ltime);
   bool get_TIME(MYSQL_TIME *ltime, const uchar *pos, ulonglong fuzzydate) const;
 public:
   Field_datetime(uchar *ptr_arg, uint length_arg, uchar *null_ptr_arg,
@@ -3270,7 +3289,7 @@ public:
   DATETIME(1..6)
 */
 class Field_datetime_hires :public Field_datetime_with_dec {
-  void store_TIME(MYSQL_TIME *ltime);
+  void store_TIME(const MYSQL_TIME *ltime);
   bool get_TIME(MYSQL_TIME *ltime, const uchar *pos, ulonglong fuzzydate) const;
 public:
   Field_datetime_hires(uchar *ptr_arg, uchar *null_ptr_arg,
@@ -3293,7 +3312,7 @@ public:
   DATETIME(0..6) - MySQL56 version
 */
 class Field_datetimef :public Field_datetime_with_dec {
-  void store_TIME(MYSQL_TIME *ltime);
+  void store_TIME(const MYSQL_TIME *ltime);
   bool get_TIME(MYSQL_TIME *ltime, const uchar *pos, ulonglong fuzzydate) const;
   int save_field_metadata(uchar *metadata_ptr)
   {

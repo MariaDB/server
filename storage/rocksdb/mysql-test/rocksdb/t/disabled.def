@@ -21,7 +21,9 @@ mysqldump2 : MariaDB's mysqldump doesn't support --print-ordering-key
 native_procedure : Not supported in MariaDB
 slow_query_log: MDEV-11480
 select_for_update_skip_locked_nowait: MDEV-11481
-
+create_no_primary_key_table: MariaDB doesn't have --block_create_no_primary_key
+explicit_snapshot: MariaDB doesn't support Shared/Explicit snapshots
+percona_nonflushing_analyze_debug : Requires Percona Server's Non-flushing ANALYZE feature
 
 ##
 ##  Tests that do not fit MariaDB's test environment. Upstream seems to test
@@ -34,7 +36,7 @@ rqg_transactions : Test that use RQG are disabled
 allow_no_pk_concurrent_insert: stress test
 rocksdb_deadlock_stress_rc: stress test
 rocksdb_deadlock_stress_rr: stress test
-
+use_direct_reads: Direct IO is not supported on all filesystems
 
 ##
 ##  Tests which hit a problem elsewhere (Upstream, SQL layer, etc)
@@ -76,4 +78,7 @@ information_schema: MDEV-14372: unstable testcase
 ##
 
 mysqlbinlog_gtid_skip_empty_trans_rocksdb : MariaRocks: requires GTIDs
-
+autoinc_debug: Fails with wrong results
+drop_table: Hangs on shutdown
+allow_to_start_after_corruption : result difference and assertion failure
+index_merge_rocksdb2 : result difference

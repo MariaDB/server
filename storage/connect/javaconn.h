@@ -90,6 +90,7 @@ public:
 
 	// Java operations
 protected:
+	char *GetUTFString(jstring s);
 	bool gmID(PGLOBAL g, jmethodID& mid, const char *name, const char *sig);
 	bool Check(jint rc = 0);
 

@@ -2846,16 +2846,7 @@ public:
   bool fix_length_and_dec();
   const char *func_name() const { return "regexp"; }
   enum precedence precedence() const { return CMP_PRECEDENCE; }
-  Item *get_copy(THD *thd)
-  { return get_item_copy<Item_func_regex>(thd, this); }
-  Item *build_clone(THD *thd)
-  {
-    Item_func_regex *clone= (Item_func_regex*) Item_bool_func::build_clone(thd);
-    if (clone)
-      clone->re.reset();
-    return clone;
-  }
-
+  Item *get_copy(THD *) { return 0; }
   void print(String *str, enum_query_type query_type)
   {
     print_op(str, query_type);
@@ -2895,8 +2886,7 @@ public:
   bool fix_fields(THD *thd, Item **ref);
   bool fix_length_and_dec();
   const char *func_name() const { return "regexp_instr"; }
-  Item *get_copy(THD *thd)
-  { return get_item_copy<Item_func_regexp_instr>(thd, this); }
+  Item *get_copy(THD *thd) { return 0; }
 };
 
 
@@ -2974,6 +2964,7 @@ public:
                 Item_transformer transformer, uchar *arg_t);
   bool eval_not_null_tables(void *opt_arg);
   Item *build_clone(THD *thd);
+  bool excl_dep_on_grouping_fields(st_select_lex *sel);
 };
 
 template <template<class> class LI, class T> class Item_equal_iterator;
@@ -3313,11 +3304,8 @@ public:
 
 inline bool is_cond_and(Item *item)
 {
-  if (item->type() != Item::COND_ITEM)
-    return FALSE;
-
-  Item_cond *cond_item= (Item_cond*) item;
-  return (cond_item->functype() == Item_func::COND_AND_FUNC);
+  Item_func *func_item= item->get_item_func();
+  return func_item && func_item->functype() == Item_func::COND_AND_FUNC;
 }
 
 class Item_cond_or :public Item_cond
@@ -3418,11 +3406,8 @@ public:
 
 inline bool is_cond_or(Item *item)
 {
-  if (item->type() != Item::COND_ITEM)
-    return FALSE;
-
-  Item_cond *cond_item= (Item_cond*) item;
-  return (cond_item->functype() == Item_func::COND_OR_FUNC);
+  Item_func *func_item= item->get_item_func();
+  return func_item && func_item->functype() == Item_func::COND_OR_FUNC;
 }
 
 Item *and_expressions(Item *a, Item *b, Item **org_item);

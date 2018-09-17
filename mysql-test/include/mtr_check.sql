@@ -85,7 +85,6 @@ BEGIN
     mysql.help_category,
     mysql.help_keyword,
     mysql.help_relation,
-    mysql.host,
     mysql.plugin,
     mysql.proc,
     mysql.procs_priv,

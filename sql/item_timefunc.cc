@@ -2474,43 +2474,26 @@ void Item_char_typecast::fix_length_and_dec_internal(CHARSET_INFO *from_cs)
 
 bool Item_time_typecast::get_date(MYSQL_TIME *ltime, ulonglong fuzzy_date)
 {
-  Time tm(args[0], Time::Options_for_cast());
-  if ((null_value= !tm.is_valid_time()))
-    return true;
-  tm.copy_to_mysql_time(ltime);
-  if (decimals < TIME_SECOND_PART_DIGITS)
-    my_time_trunc(ltime, decimals);
-  return (fuzzy_date & TIME_TIME_ONLY) ? 0 :
-         (null_value= check_date_with_warn(ltime, fuzzy_date,
-                                           MYSQL_TIMESTAMP_ERROR)); 
+  Time *tm= new(ltime) Time(args[0], Time::Options_for_cast(),
+                            MY_MIN(decimals, TIME_SECOND_PART_DIGITS));
+  return (null_value= !tm->is_valid_time());
 }
 
 
 bool Item_date_typecast::get_date(MYSQL_TIME *ltime, ulonglong fuzzy_date)
 {
-  fuzzy_date |= sql_mode_for_dates(current_thd);
-  if (get_arg0_date(ltime, fuzzy_date & ~TIME_TIME_ONLY))
-    return 1;
-
-  if (make_date_with_warn(ltime, fuzzy_date, MYSQL_TIMESTAMP_DATE))
-    return (null_value= 1);
-
-  return 0;
+  fuzzy_date= (fuzzy_date | sql_mode_for_dates(current_thd)) & ~TIME_TIME_ONLY;
+  Date *d= new(ltime) Date(current_thd, args[0], fuzzy_date);
+  return (null_value= !d->is_valid_date());
 }
 
 
 bool Item_datetime_typecast::get_date(MYSQL_TIME *ltime, ulonglong fuzzy_date)
 {
-  fuzzy_date |= sql_mode_for_dates(current_thd);
-  if (get_arg0_date(ltime, fuzzy_date & ~TIME_TIME_ONLY))
-    return 1;
-
-  if (decimals < TIME_SECOND_PART_DIGITS)
-    my_time_trunc(ltime, decimals);
-
-  DBUG_ASSERT(ltime->time_type != MYSQL_TIMESTAMP_TIME);
-  ltime->time_type= MYSQL_TIMESTAMP_DATETIME;
-  return 0;
+  fuzzy_date= (fuzzy_date | sql_mode_for_dates(current_thd)) & ~TIME_TIME_ONLY;
+  Datetime *dt= new(ltime) Datetime(current_thd, args[0], fuzzy_date,
+                                    MY_MIN(decimals, TIME_SECOND_PART_DIGITS));
+  return (null_value= !dt->is_valid_datetime());
 }
 
 

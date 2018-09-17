@@ -1,3 +1,4 @@
+create table t1(a serial) engine=innoDB;
 set global innodb_encrypt_tables=ON;
 show variables like 'innodb_encrypt%';
 Variable_name	Value
@@ -13,5 +14,13 @@ set global debug_key_management_version=10;
 select count(*) from information_schema.innodb_tablespaces_encryption where current_key_version <> 10;
 count(*)
 0
+SET GLOBAL debug_dbug = '+d,ib_log';
+SET GLOBAL innodb_log_checkpoint_now = 1;
+SET GLOBAL innodb_flush_log_at_trx_commit = 1;
+INSERT INTO t1 VALUES(NULL);
 set global innodb_encrypt_tables=OFF;
 set global debug_key_management_version=1;
+select * from t1;
+a
+1
+drop table t1;

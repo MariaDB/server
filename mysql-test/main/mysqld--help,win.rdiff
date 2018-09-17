@@ -1,6 +1,6 @@
---- a/mysql-test/r/mysqld--help.result
-+++ b/mysql-test/r/mysqld--help.result
-@@ -381,7 +381,6 @@ The following options may be given as the first argument:
+--- mysqld--help.result	2018-08-12 00:10:13.694793500 +0100
++++ mysqld--help,win.reject	2018-08-16 20:31:08.353317200 +0100
+@@ -386,7 +386,6 @@
   The number of segments in a key cache
   -L, --language=name Client error messages in given language. May be given as
   a full path. Deprecated. Use --lc-messages-dir instead.
@@ -8,7 +8,7 @@
   --lc-messages=name  Set the language used for the error messages.
   -L, --lc-messages-dir=name 
   Directory where error messages are
-@@ -603,6 +602,7 @@ The following options may be given as the first argument:
+@@ -608,6 +607,7 @@
   Use MySQL-5.6 (instead of MariaDB-5.3) format for TIME,
   DATETIME, TIMESTAMP columns.
   (Defaults to on; use --skip-mysql56-temporal-format to disable.)
@@ -16,17 +16,7 @@
   --net-buffer-length=# 
   Buffer length for TCP/IP and socket communication
   --net-read-timeout=# 
-@@ -1048,6 +1048,9 @@ The following options may be given as the first argument:
-  characteristics (isolation level, read only/read
-  write,snapshot - but not any work done / data modified
-  within the transaction).
-+ --shared-memory     Enable the shared memory
-+ --shared-memory-base-name=name 
-+ Base name of shared memory
-  --show-slave-auth-info 
-  Show user and password in SHOW SLAVE HOSTS on this
-  master.
-@@ -1171,6 +1174,10 @@ The following options may be given as the first argument:
+@@ -1188,6 +1188,10 @@
   Log slow queries to given log file. Defaults logging to
   'hostname'-slow.log. Must be enabled to activate other
   slow log options
@@ -37,7 +27,7 @@
   --socket=name       Socket file to use for connection
   --sort-buffer-size=# 
   Each thread that needs to do a sort allocates a buffer of
-@@ -1190,6 +1197,7 @@ The following options may be given as the first argument:
+@@ -1207,6 +1211,7 @@
   EMPTY_STRING_IS_NULL, SIMULTANEOUS_ASSIGNMENT
   --stack-trace       Print a symbolic stack trace on failure
   (Defaults to on; use --skip-stack-trace to disable.)
@@ -45,7 +35,7 @@
   --standard-compliant-cte 
   Allow only CTEs compliant to SQL standard
   (Defaults to on; use --skip-standard-compliant-cte to disable.)
-@@ -1257,6 +1265,11 @@ The following options may be given as the first argument:
+@@ -1277,6 +1282,11 @@
   --thread-pool-max-threads=# 
   Maximum allowed number of worker threads in the thread
   pool
@@ -57,7 +47,7 @@
   --thread-pool-oversubscribe=# 
   How many additional active worker threads in a group are
   allowed.
-@@ -1295,8 +1308,8 @@ The following options may be given as the first argument:
+@@ -1315,8 +1325,8 @@
   automatically convert it to an on-disk MyISAM or Aria
   table.
   -t, --tmpdir=name   Path for temporary files. Several paths may be specified,
@@ -68,7 +58,7 @@
   --transaction-alloc-block-size=# 
   Allocation block size for transactions to be stored in
   binary log
-@@ -1430,7 +1443,6 @@ key-cache-block-size 1024
+@@ -1451,7 +1461,6 @@
  key-cache-division-limit 100
  key-cache-file-hash-size 512
  key-cache-segments 0
@@ -76,7 +66,7 @@
  lc-messages en_US
  lc-messages-dir MYSQL_SHAREDIR/
  lc-time-names en_US
-@@ -1502,6 +1514,7 @@ myisam-sort-buffer-size 134216704
+@@ -1523,6 +1532,7 @@
  myisam-stats-method NULLS_UNEQUAL
  myisam-use-mmap FALSE
  mysql56-temporal-format TRUE
@@ -84,16 +74,7 @@
  net-buffer-length 16384
  net-read-timeout 30
  net-retry-count 10
-@@ -1612,6 +1625,8 @@ session-track-schema TRUE
- session-track-state-change FALSE
- session-track-system-variables autocommit,character_set_client,character_set_connection,character_set_results,time_zone
- session-track-transaction-info OFF
-+shared-memory FALSE
-+shared-memory-base-name MYSQL
- show-slave-auth-info FALSE
- silent-startup FALSE
- skip-grant-tables TRUE
-@@ -1638,6 +1653,7 @@ slave-transaction-retry-interval 0
+@@ -1660,6 +1670,7 @@
  slave-type-conversions 
  slow-launch-time 2
  slow-query-log FALSE
@@ -101,7 +82,7 @@
  sort-buffer-size 2097152
  sql-mode STRICT_TRANS_TABLES,ERROR_FOR_DIVISION_BY_ZERO,NO_AUTO_CREATE_USER,NO_ENGINE_SUBSTITUTION
  stack-trace TRUE
-@@ -1652,9 +1668,9 @@ sync-relay-log 10000
+@@ -1674,9 +1685,9 @@
  sync-relay-log-info 10000
  sysdate-is-now FALSE
  system-versioning-alter-history ERROR
@@ -113,7 +94,7 @@
  table-open-cache-instances 8
  tc-heuristic-recover OFF
  tcp-keepalive-interval 0
-@@ -1663,6 +1679,8 @@ tcp-keepalive-time 0
+@@ -1686,6 +1697,8 @@
  thread-cache-size 151
  thread-pool-idle-timeout 60
  thread-pool-max-threads 65536

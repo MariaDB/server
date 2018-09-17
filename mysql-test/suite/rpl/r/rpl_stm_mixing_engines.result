@@ -12916,6 +12916,10 @@ ROLLBACK;
 SET AUTOCOMMIT=1;
 connection slave;
 include/diff_tables.inc [master:t1, slave:t1]
+Warnings:
+Warning	1287	'<select expression> INTO <destination>;' is deprecated and will be removed in a future release. Please use 'SELECT <select list> INTO <destination> FROM...' instead
+Warnings:
+Warning	1287	'<select expression> INTO <destination>;' is deprecated and will be removed in a future release. Please use 'SELECT <select list> INTO <destination> FROM...' instead
 connection master;
 DROP TABLE `t1`;
 connection slave;

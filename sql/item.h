@@ -820,6 +820,10 @@ protected:
     return tmp_table_field_from_field_type(table);
   }
   Field *create_tmp_field_int(TABLE *table, uint convert_int_length);
+  Field *tmp_table_field_from_field_type_maybe_null(TABLE *table,
+                                            Tmp_field_src *src,
+                                            const Tmp_field_param *param,
+                                            bool is_explicit_null);
 
   void push_note_converted_to_negative_complement(THD *thd);
   void push_note_converted_to_positive_complement(THD *thd);
@@ -876,6 +880,7 @@ public:
     expressions with subqueries in the ORDER/GROUP clauses.
   */
   String *val_str() { return val_str(&str_value); }
+  virtual Item_func *get_item_func() { return NULL; }
 
   const MY_LOCALE *locale_from_val_str();
 
@@ -1611,40 +1616,6 @@ public:
   bool get_date_from_string(MYSQL_TIME *ltime, ulonglong fuzzydate);
   bool get_time(MYSQL_TIME *ltime)
   { return get_date(ltime, Time::flags_for_get_date()); }
-  /*
-    Get time with automatic DATE/DATETIME to TIME conversion,
-    by subtracting CURRENT_DATE.
-
-    Performce a reverse operation to CAST(time AS DATETIME)
-    Suppose:
-    - we have a set of items (typically with the native MYSQL_TYPE_TIME type)
-      whose item->get_date() return TIME1 value, and
-    - CAST(AS DATETIME) for the same Items return DATETIME1,
-      after applying time-to-datetime conversion to TIME1.
-
-    then all items (typically of the native MYSQL_TYPE_{DATE|DATETIME} types)
-    whose get_date() return DATETIME1 must also return TIME1 from
-    get_time_with_conversion()
-
-    @param thd        - the thread, its variables.old_mode is checked
-                        to decide if use simple YYYYMMDD truncation (old mode),
-                        or perform full DATETIME-to-TIME conversion with
-                        CURRENT_DATE subtraction.
-    @param[out] ltime - store the result here
-    @param fuzzydate  - flags to be used for the get_date() call.
-                        Normally, should include TIME_TIME_ONLY, to let
-                        the called low-level routines, e.g. str_to_date(),
-                        know that we prefer TIME rather that DATE/DATETIME
-                        and do less conversion outside of the low-level
-                        routines.
-
-    @returns true     - on error, e.g. get_date() returned NULL value,
-                        or get_date() returned DATETIME/DATE with non-zero
-                        YYYYMMDD part.
-    @returns false    - on success
-  */
-  bool get_time_with_conversion(THD *thd, MYSQL_TIME *ltime,
-                                ulonglong fuzzydate);
   // Get a DATE or DATETIME value in numeric packed format for comparison
   virtual longlong val_datetime_packed()
   {
@@ -1794,6 +1765,11 @@ public:
   virtual bool limit_index_condition_pushdown_processor(void *arg) { return 0; }
   virtual bool exists2in_processor(void *arg) { return 0; }
   virtual bool find_selective_predicates_list_processor(void *arg) { return 0; }
+  bool cleanup_is_expensive_cache_processor(void *arg)
+  {
+    is_expensive_cache= (int8)(-1);
+    return 0;
+  }
 
   /* 
     TRUE if the expression depends only on the table indicated by tab_map
@@ -2608,7 +2584,20 @@ protected:
   Item_basic_value(THD *thd): Item(thd) {}
 public:
   Field *create_tmp_field_ex(TABLE *table, Tmp_field_src *src,
-                             const Tmp_field_param *param);
+                             const Tmp_field_param *param)
+  {
+
+    /*
+      create_tmp_field_ex() for this type of Items is called for:
+      - CREATE TABLE ... SELECT
+      - In ORDER BY: SELECT max(a) FROM t1 GROUP BY a ORDER BY 'const';
+      - In CURSORS:
+          DECLARE c CURSOR FOR SELECT 'test';
+          OPEN c;
+    */
+    return tmp_table_field_from_field_type_maybe_null(table, src, param,
+                                            type() == Item::NULL_ITEM);
+  }
   bool eq(const Item *item, bool binary_cmp) const;
   const Type_all_attributes *get_type_all_attributes_from_const() const
   { return this; }
@@ -2949,7 +2938,6 @@ class Item_name_const : public Item_fixed_hybrid
 {
   Item *value_item;
   Item *name_item;
-  bool valid_args;
 public:
   Item_name_const(THD *thd, Item *name_arg, Item *val);
 
@@ -2982,7 +2970,8 @@ public:
         DECLARE c CURSOR FOR SELECT NAME_CONST('x','y') FROM t1;
         OPEN c;
     */
-    return create_tmp_field_ex_simple(table, src, param);
+    return tmp_table_field_from_field_type_maybe_null(table, src, param,
+                                              type() == Item::NULL_ITEM);
   }
   int save_in_field(Field *field, bool no_conversions)
   {

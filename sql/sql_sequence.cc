@@ -542,7 +542,8 @@ void sequence_definition::adjust_values(longlong next_value)
 
     if ((real_increment= global_system_variables.auto_increment_increment)
         != 1)
-      offset= global_system_variables.auto_increment_offset;
+      offset= (global_system_variables.auto_increment_offset %
+               global_system_variables.auto_increment_increment);
 
     /*
       Ensure that next_free_value has the right offset, so that we
@@ -564,7 +565,7 @@ void sequence_definition::adjust_values(longlong next_value)
     else
     {
       next_free_value+= to_add;
-      DBUG_ASSERT(next_free_value % real_increment == offset);
+      DBUG_ASSERT(llabs(next_free_value % real_increment) == offset);
     }
   }
 }

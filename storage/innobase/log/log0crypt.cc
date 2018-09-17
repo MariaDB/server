@@ -82,66 +82,6 @@ log_block_get_start_lsn(
 	return start_lsn;
 }
 
-/** Encrypt or decrypt log blocks.
-@param[in,out]	buf	log blocks to encrypt or decrypt
-@param[in]	lsn	log sequence number of the start of the buffer
-@param[in]	size	size of the buffer, in bytes
-@param[in]	decrypt	whether to decrypt instead of encrypting */
-UNIV_INTERN
-void
-log_crypt(byte* buf, lsn_t lsn, ulint size, bool decrypt)
-{
-	ut_ad(size % OS_FILE_LOG_BLOCK_SIZE == 0);
-	ut_a(info.key_version);
-
-	uint dst_len;
-	uint32_t aes_ctr_iv[MY_AES_BLOCK_SIZE / sizeof(uint32_t)];
-	compile_time_assert(sizeof(uint32_t) == 4);
-
-#define LOG_CRYPT_HDR_SIZE 4
-	lsn &= ~lsn_t(OS_FILE_LOG_BLOCK_SIZE - 1);
-
-	for (const byte* const end = buf + size; buf != end;
-	     buf += OS_FILE_LOG_BLOCK_SIZE, lsn += OS_FILE_LOG_BLOCK_SIZE) {
-		uint32_t dst[(OS_FILE_LOG_BLOCK_SIZE - LOG_CRYPT_HDR_SIZE)
-			     / sizeof(uint32_t)];
-
-		/* The log block number is not encrypted. */
-		*aes_ctr_iv =
-#ifdef WORDS_BIGENDIAN
-			~LOG_BLOCK_FLUSH_BIT_MASK
-#else
-			~(LOG_BLOCK_FLUSH_BIT_MASK >> 24)
-#endif
-			& (*dst = *reinterpret_cast<const uint32_t*>(
-				   buf + LOG_BLOCK_HDR_NO));
-#if LOG_BLOCK_HDR_NO + 4 != LOG_CRYPT_HDR_SIZE
-# error "LOG_BLOCK_HDR_NO has been moved; redo log format affected!"
-#endif
-		aes_ctr_iv[1] = info.crypt_nonce.word;
-		mach_write_to_8(reinterpret_cast<byte*>(aes_ctr_iv + 2), lsn);
-		ut_ad(log_block_get_start_lsn(lsn,
-					      log_block_get_hdr_no(buf))
-		      == lsn);
-
-		int rc = encryption_crypt(
-			buf + LOG_CRYPT_HDR_SIZE, sizeof dst,
-			reinterpret_cast<byte*>(dst), &dst_len,
-			const_cast<byte*>(info.crypt_key.bytes),
-			sizeof info.crypt_key,
-			reinterpret_cast<byte*>(aes_ctr_iv), sizeof aes_ctr_iv,
-			decrypt
-			? ENCRYPTION_FLAG_DECRYPT | ENCRYPTION_FLAG_NOPAD
-			: ENCRYPTION_FLAG_ENCRYPT | ENCRYPTION_FLAG_NOPAD,
-			LOG_DEFAULT_ENCRYPTION_KEY,
-			info.key_version);
-
-		ut_a(rc == MY_AES_OK);
-		ut_a(dst_len == sizeof dst);
-		memcpy(buf + LOG_CRYPT_HDR_SIZE, dst, sizeof dst);
-	}
-}
-
 /** Generate crypt key from crypt msg.
 @param[in,out]	info	encryption key
 @param[in]	upgrade	whether to use the key in MariaDB 10.1 format
@@ -181,6 +121,107 @@ static bool init_crypt_key(crypt_info_t* info, bool upgrade = false)
 		ib::error() << "Getting redo log crypto key failed: err = "
 			<< err << ", len = " << dst_len;
 		return false;
+	}
+
+	return true;
+}
+
+/** Encrypt or decrypt log blocks.
+@param[in,out]	buf	log blocks to encrypt or decrypt
+@param[in]	lsn	log sequence number of the start of the buffer
+@param[in]	size	size of the buffer, in bytes
+@param[in]	op	whether to decrypt, encrypt, or rotate key and encrypt
+@return	whether the operation succeeded (encrypt always does) */
+bool log_crypt(byte* buf, lsn_t lsn, ulint size, log_crypt_t op)
+{
+	ut_ad(size % OS_FILE_LOG_BLOCK_SIZE == 0);
+	ut_ad(ulint(buf) % OS_FILE_LOG_BLOCK_SIZE == 0);
+	ut_a(info.key_version);
+
+	uint32_t aes_ctr_iv[MY_AES_BLOCK_SIZE / sizeof(uint32_t)];
+	compile_time_assert(sizeof(uint32_t) == 4);
+
+#define LOG_CRYPT_HDR_SIZE 4
+	lsn &= ~lsn_t(OS_FILE_LOG_BLOCK_SIZE - 1);
+
+	for (const byte* const end = buf + size; buf != end;
+	     buf += OS_FILE_LOG_BLOCK_SIZE, lsn += OS_FILE_LOG_BLOCK_SIZE) {
+		uint32_t dst[(OS_FILE_LOG_BLOCK_SIZE - LOG_CRYPT_HDR_SIZE
+			      - LOG_BLOCK_CHECKSUM)
+			     / sizeof(uint32_t)];
+
+		/* The log block number is not encrypted. */
+		*aes_ctr_iv =
+#ifdef WORDS_BIGENDIAN
+			~LOG_BLOCK_FLUSH_BIT_MASK
+#else
+			~(LOG_BLOCK_FLUSH_BIT_MASK >> 24)
+#endif
+			& (*dst = *reinterpret_cast<const uint32_t*>(
+				   buf + LOG_BLOCK_HDR_NO));
+#if LOG_BLOCK_HDR_NO + 4 != LOG_CRYPT_HDR_SIZE
+# error "LOG_BLOCK_HDR_NO has been moved; redo log format affected!"
+#endif
+		aes_ctr_iv[1] = info.crypt_nonce.word;
+		mach_write_to_8(reinterpret_cast<byte*>(aes_ctr_iv + 2), lsn);
+		ut_ad(log_block_get_start_lsn(lsn,
+					      log_block_get_hdr_no(buf))
+		      == lsn);
+		byte* key_ver = &buf[OS_FILE_LOG_BLOCK_SIZE - LOG_BLOCK_KEY
+				     - LOG_BLOCK_CHECKSUM];
+		const uint dst_size
+			= log_sys.log.format == LOG_HEADER_FORMAT_ENC_10_4
+			? sizeof dst - LOG_BLOCK_KEY
+			: sizeof dst;
+		if (log_sys.log.format == LOG_HEADER_FORMAT_ENC_10_4) {
+			const uint key_version = info.key_version;
+			switch (op) {
+			case LOG_ENCRYPT_ROTATE_KEY:
+				info.key_version
+					= encryption_key_get_latest_version(
+						LOG_DEFAULT_ENCRYPTION_KEY);
+				if (key_version != info.key_version
+				    && !init_crypt_key(&info)) {
+					info.key_version = key_version;
+				}
+				/* fall through */
+			case LOG_ENCRYPT:
+				mach_write_to_4(key_ver, info.key_version);
+				break;
+			case LOG_DECRYPT:
+				info.key_version = mach_read_from_4(key_ver);
+				if (key_version != info.key_version
+				    && !init_crypt_key(&info)) {
+					return false;
+				}
+			}
+#ifndef DBUG_OFF
+			if (key_version != info.key_version) {
+				DBUG_PRINT("ib_log", ("key_version: %x -> %x",
+						      key_version,
+						      info.key_version));
+			}
+#endif /* !DBUG_OFF */
+		}
+
+		ut_ad(LOG_CRYPT_HDR_SIZE + dst_size
+		      == log_sys.trailer_offset());
+
+		uint dst_len;
+		int rc = encryption_crypt(
+			buf + LOG_CRYPT_HDR_SIZE, dst_size,
+			reinterpret_cast<byte*>(dst), &dst_len,
+			const_cast<byte*>(info.crypt_key.bytes),
+			sizeof info.crypt_key,
+			reinterpret_cast<byte*>(aes_ctr_iv), sizeof aes_ctr_iv,
+			op == LOG_DECRYPT
+			? ENCRYPTION_FLAG_DECRYPT | ENCRYPTION_FLAG_NOPAD
+			: ENCRYPTION_FLAG_ENCRYPT | ENCRYPTION_FLAG_NOPAD,
+			LOG_DEFAULT_ENCRYPTION_KEY,
+			info.key_version);
+		ut_a(rc == MY_AES_OK);
+		ut_a(dst_len == dst_size);
+		memcpy(buf + LOG_CRYPT_HDR_SIZE, dst, dst_size);
 	}
 
 	return true;

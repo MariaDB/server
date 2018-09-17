@@ -831,4 +831,20 @@ public:
 };
 
 
+class Timeval: public timeval
+{
+public:
+  Timeval(my_time_t sec, ulong usec)
+  {
+    tv_sec= sec;
+    tv_usec= usec;
+  }
+  Timeval &trunc(uint dec)
+  {
+    my_timeval_trunc(this, dec);
+    return *this;
+  }
+};
+
+
 #endif /* STRUCTS_INCLUDED */

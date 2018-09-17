@@ -2600,7 +2600,8 @@ static my_bool free_full_page_range(MARIA_HA *info, pgcache_page_no_t page,
    @param  record          Record we should write
    @param  row             Statistics about record (calculated by
                            calc_record_size())
-   @param  map_blocks      On which pages the record should be stored
+   @param  bitmap_blocks   On which pages the record should be stored
+   @param  head_block_is_read  1 if head block existed. 0 if new block.
    @param  row_pos         Position on head page where to put head part of
                            record
    @param  undo_lsn	   <> LSN_ERROR if we are executing an UNDO

@@ -2258,7 +2258,7 @@ buf_page_realloc(
 		mutex_enter(&new_block->mutex);
 
 		memcpy(new_block->frame, block->frame, srv_page_size);
-		memcpy(&new_block->page, &block->page, sizeof block->page);
+		new (&new_block->page) buf_page_t(block->page);
 
 		/* relocate LRU list */
 		ut_ad(block->page.in_LRU_list);
@@ -3389,7 +3389,7 @@ buf_relocate(
 	}
 #endif /* UNIV_DEBUG */
 
-	memcpy(dpage, bpage, sizeof *dpage);
+	new (dpage) buf_page_t(*bpage);
 
 	/* Important that we adjust the hazard pointer before
 	removing bpage from LRU list. */
@@ -6248,7 +6248,6 @@ database_corrupted:
 		    && !recv_no_ibuf_operations
 		    && (bpage->id.space() == 0
 			|| !is_predefined_tablespace(bpage->id.space()))
-		    && !srv_is_tablespace_truncated(bpage->id.space())
 		    && fil_page_get_type(frame) == FIL_PAGE_INDEX
 		    && page_is_leaf(frame)) {
 

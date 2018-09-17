@@ -413,6 +413,7 @@ my_bool trnman_end_trn(TRN *trn, my_bool commit)
   /* if a rollback, all UNDO records should have been executed */
   DBUG_ASSERT(commit || trn->undo_lsn == 0);
   DBUG_ASSERT(trn != &dummy_transaction_object);
+  DBUG_ASSERT(trn->locked_tables == 0 && trn->used_instances == 0);
   DBUG_PRINT("info", ("mysql_mutex_lock LOCK_trn_list"));
 
   mysql_mutex_lock(&LOCK_trn_list);
@@ -528,6 +529,8 @@ static void trnman_free_trn(TRN *trn)
      modifies the value of tmp.
   */
   union { TRN *trn; void *v; } tmp;
+
+  DBUG_ASSERT(trn != &dummy_transaction_object);
 
   mysql_mutex_lock(&trn->state_lock);
   trn->short_id= 0;

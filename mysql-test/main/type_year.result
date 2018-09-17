@@ -554,5 +554,11 @@ MIN(a)	MAX(a)
 70	69
 DROP TABLE t1;
 #
+# MDEV-17015 Assertion `m_year <= 9999' failed in Year::Year upon bad argument to MAKEDATE
+#
+SELECT MAKEDATE(18446744073709551615, 1);
+MAKEDATE(18446744073709551615, 1)
+NULL
+#
 # End of 10.4 tests
 #

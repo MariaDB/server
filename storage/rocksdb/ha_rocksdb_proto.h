@@ -39,7 +39,12 @@ enum RDB_IO_ERROR_TYPE {
 const char *get_rdb_io_error_string(const RDB_IO_ERROR_TYPE err_type);
 
 void rdb_handle_io_error(const rocksdb::Status status,
-                         const RDB_IO_ERROR_TYPE err_type);
+                         const RDB_IO_ERROR_TYPE err_type)
+#if defined(__clang__)
+    MY_ATTRIBUTE((optnone));
+#else
+    MY_ATTRIBUTE((optimize("O0")));
+#endif
 
 int rdb_normalize_tablename(const std::string &tablename, std::string *str)
     MY_ATTRIBUTE((__nonnull__, __warn_unused_result__));

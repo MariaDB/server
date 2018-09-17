@@ -319,22 +319,15 @@ MY_TIMER_INFO sys_timer_info;
 /* static variables */
 
 #ifdef HAVE_PSI_INTERFACE
-#if (defined(_WIN32) || defined(HAVE_SMEM)) && !defined(EMBEDDED_LIBRARY)
+#if defined(_WIN32) && !defined(EMBEDDED_LIBRARY)
 static PSI_thread_key key_thread_handle_con_namedpipes;
 static PSI_cond_key key_COND_handler_count;
-#endif /* _WIN32 || HAVE_SMEM && !EMBEDDED_LIBRARY */
-
-#if defined(HAVE_SMEM) && !defined(EMBEDDED_LIBRARY)
-static PSI_thread_key key_thread_handle_con_sharedmem;
-#endif /* HAVE_SMEM && !EMBEDDED_LIBRARY */
-
-#if (defined(_WIN32) || defined(HAVE_SMEM)) && !defined(EMBEDDED_LIBRARY)
 static PSI_thread_key key_thread_handle_con_sockets;
-#endif /* _WIN32 || HAVE_SMEM && !EMBEDDED_LIBRARY */
+#endif /* _WIN32 |&& !EMBEDDED_LIBRARY */
 
-#ifdef __WIN__
+#ifdef _WIN32
 static PSI_thread_key key_thread_handle_shutdown;
-#endif /* __WIN__ */
+#endif
 
 #ifdef HAVE_OPENSSL10
 static PSI_rwlock_key key_rwlock_openssl;
@@ -484,7 +477,7 @@ my_bool opt_master_verify_checksum= 0;
 my_bool opt_slave_sql_verify_checksum= 1;
 const char *binlog_format_names[]= {"MIXED", "STATEMENT", "ROW", NullS};
 volatile sig_atomic_t calling_initgroups= 0; /**< Used in SIGSEGV handler. */
-uint mysqld_port, test_flags, select_errors, dropping_tables, ha_open_options;
+uint mysqld_port, select_errors, dropping_tables, ha_open_options;
 uint mysqld_extra_port;
 uint mysqld_port_timeout;
 ulong delay_key_write_options;
@@ -512,6 +505,7 @@ ulonglong max_binlog_cache_size=0;
 ulong slave_max_allowed_packet= 0;
 ulonglong binlog_stmt_cache_size=0;
 ulonglong  max_binlog_stmt_cache_size=0;
+ulonglong test_flags;
 ulonglong query_cache_size=0;
 ulong query_cache_limit=0;
 ulong executed_events=0;
@@ -1097,9 +1091,9 @@ PSI_cond_key key_COND_ack_receiver;
 
 static PSI_cond_info all_server_conds[]=
 {
-#if (defined(_WIN32) || defined(HAVE_SMEM)) && !defined(EMBEDDED_LIBRARY)
+#if defined(_WIN32) && !defined(EMBEDDED_LIBRARY)
   { &key_COND_handler_count, "COND_handler_count", PSI_FLAG_GLOBAL},
-#endif /* _WIN32 || HAVE_SMEM && !EMBEDDED_LIBRARY */
+#endif /* _WIN32  && !EMBEDDED_LIBRARY */
 #ifdef HAVE_MMAP
   { &key_PAGE_cond, "PAGE::cond", 0},
   { &key_COND_active, "TC_LOG_MMAP::COND_active", 0},
@@ -1160,21 +1154,11 @@ PSI_thread_key key_thread_ack_receiver;
 
 static PSI_thread_info all_server_threads[]=
 {
-#if (defined(_WIN32) || defined(HAVE_SMEM)) && !defined(EMBEDDED_LIBRARY)
+#if (defined (_WIN32) && !defined (EMBEDDED_LIBRARY))
   { &key_thread_handle_con_namedpipes, "con_named_pipes", PSI_FLAG_GLOBAL},
-#endif /* _WIN32 || HAVE_SMEM && !EMBEDDED_LIBRARY */
-
-#if defined(HAVE_SMEM) && !defined(EMBEDDED_LIBRARY)
-  { &key_thread_handle_con_sharedmem, "con_shared_mem", PSI_FLAG_GLOBAL},
-#endif /* HAVE_SMEM && !EMBEDDED_LIBRARY */
-
-#if (defined(_WIN32) || defined(HAVE_SMEM)) && !defined(EMBEDDED_LIBRARY)
   { &key_thread_handle_con_sockets, "con_sockets", PSI_FLAG_GLOBAL},
-#endif /* _WIN32 || HAVE_SMEM && !EMBEDDED_LIBRARY */
-
-#ifdef __WIN__
   { &key_thread_handle_shutdown, "shutdown", PSI_FLAG_GLOBAL},
-#endif /* __WIN__ */
+#endif
 
   { &key_thread_bootstrap, "bootstrap", PSI_FLAG_GLOBAL},
   { &key_thread_delayed_insert, "delayed_insert", 0},
@@ -1492,9 +1476,9 @@ static	 NTService  Service;	      ///< Service object for WinNT
 #endif /* __WIN__ */
 
 #ifdef _WIN32
+#include <sddl.h> /* ConvertStringSecurityDescriptorToSecurityDescriptor */
 static char pipe_name[512];
 static SECURITY_ATTRIBUTES saPipeSecurity;
-static SECURITY_DESCRIPTOR sdPipeDescriptor;
 static HANDLE hPipe = INVALID_HANDLE_VALUE;
 #endif
 
@@ -1518,11 +1502,7 @@ int deny_severity = LOG_WARNING;
 ulong query_cache_min_res_unit= QUERY_CACHE_MIN_RESULT_DATA_SIZE;
 Query_cache query_cache;
 #endif
-#ifdef HAVE_SMEM
-const char *shared_memory_base_name= default_shared_memory_base_name;
-my_bool opt_enable_shared_memory;
-HANDLE smem_event_connect_request= 0;
-#endif
+
 
 my_bool opt_use_ssl  = 0;
 char *opt_ssl_ca= NULL, *opt_ssl_capath= NULL, *opt_ssl_cert= NULL,
@@ -1583,9 +1563,6 @@ static void bootstrap(MYSQL_FILE *file);
 static bool read_init_file(char *file_name);
 #ifdef _WIN32
 pthread_handler_t handle_connections_namedpipes(void *arg);
-#endif
-#ifdef HAVE_SMEM
-pthread_handler_t handle_connections_shared_memory(void *arg);
 #endif
 pthread_handler_t handle_slave(void *arg);
 static void clean_up(bool print_message);
@@ -2009,21 +1986,6 @@ static void __cdecl kill_server(int sig_ptr)
   }
   else
     sql_print_error(ER_DEFAULT(ER_GOT_SIGNAL),my_progname,sig); /* purecov: inspected */
-
-#ifdef HAVE_SMEM
-  /*
-    Send event to smem_event_connect_request for aborting
-  */
-  if (opt_enable_shared_memory)
-  {
-    if (!SetEvent(smem_event_connect_request))
-    {
-      DBUG_PRINT("error",
-                 ("Got error: %ld from SetEvent of smem_event_connect_request",
-                  GetLastError()));
-    }
-  }
-#endif
 
   /* Stop wsrep threads in case they are running. */
   if (wsrep_running_threads > 0)
@@ -2749,21 +2711,20 @@ static void network_init(void)
 
     strxnmov(pipe_name, sizeof(pipe_name)-1, "\\\\.\\pipe\\",
 	     mysqld_unix_port, NullS);
-    bzero((char*) &saPipeSecurity, sizeof(saPipeSecurity));
-    bzero((char*) &sdPipeDescriptor, sizeof(sdPipeDescriptor));
-    if (!InitializeSecurityDescriptor(&sdPipeDescriptor,
-				      SECURITY_DESCRIPTOR_REVISION))
+    /*
+      Create a security descriptor for pipe.
+      - Use low integrity level, so that it is possible to connect
+      from any process.
+      - Give Everyone read/write access to pipe.
+    */
+    if (!ConvertStringSecurityDescriptorToSecurityDescriptor(
+         "S:(ML;; NW;;; LW) D:(A;; FRFW;;; WD)",
+         SDDL_REVISION_1, &saPipeSecurity.lpSecurityDescriptor, NULL))
     {
       sql_perror("Can't start server : Initialize security descriptor");
       unireg_abort(1);
     }
-    if (!SetSecurityDescriptorDacl(&sdPipeDescriptor, TRUE, NULL, FALSE))
-    {
-      sql_perror("Can't start server : Set security descriptor");
-      unireg_abort(1);
-    }
     saPipeSecurity.nLength = sizeof(SECURITY_ATTRIBUTES);
-    saPipeSecurity.lpSecurityDescriptor = &sdPipeDescriptor;
     saPipeSecurity.bInheritHandle = FALSE;
     if ((hPipe= CreateNamedPipe(pipe_name,
         PIPE_ACCESS_DUPLEX | FILE_FLAG_OVERLAPPED | FILE_FLAG_FIRST_PIPE_INSTANCE,
@@ -5628,7 +5589,7 @@ static int init_server_components()
 
 
 #ifndef EMBEDDED_LIBRARY
-
+#ifdef _WIN32
 static void create_shutdown_thread()
 {
 #ifdef __WIN__
@@ -5646,19 +5607,14 @@ static void create_shutdown_thread()
 #endif /* __WIN__ */
 }
 
-#endif /* EMBEDDED_LIBRARY */
-
-#if (defined(_WIN32) || defined(HAVE_SMEM)) && !defined(EMBEDDED_LIBRARY)
 static void handle_connections_methods()
 {
   pthread_t hThread;
   int error;
   DBUG_ENTER("handle_connections_methods");
-  if (hPipe == INVALID_HANDLE_VALUE &&
-      (!have_tcpip || opt_disable_networking) &&
-      !opt_enable_shared_memory)
+  if (hPipe == INVALID_HANDLE_VALUE && opt_disable_networking)
   {
-    sql_print_error("TCP/IP, --shared-memory, or --named-pipe should be configured on NT OS");
+    sql_print_error("TCP/IP, or --named-pipe should be configured on Windows");
     unireg_abort(1);				// Will not return
   }
 
@@ -5689,20 +5645,6 @@ static void handle_connections_methods()
       handler_count--;
     }
   }
-#ifdef HAVE_SMEM
-  if (opt_enable_shared_memory)
-  {
-    handler_count++;
-    if ((error= mysql_thread_create(key_thread_handle_con_sharedmem,
-                                    &hThread, &connection_attrib,
-                                    handle_connections_shared_memory, 0)))
-    {
-      sql_print_warning("Can't create thread to handle shared memory",
-                        " (errno= %d)", error);
-      handler_count--;
-    }
-  }
-#endif
 
   while (handler_count > 0)
     mysql_cond_wait(&COND_handler_count, &LOCK_start_thread);
@@ -5718,10 +5660,11 @@ void decrement_handler_count()
   mysql_mutex_unlock(&LOCK_start_thread);
   my_thread_end();
 }
-#else
+#else /* WIN32*/
+#define create_shutdown_thread()
 #define decrement_handler_count()
-#endif /* defined(_WIN32) || defined(HAVE_SMEM) */
-
+#endif
+#endif /* EMBEDDED_LIBRARY */
 
 #ifndef EMBEDDED_LIBRARY
 
@@ -5769,6 +5712,11 @@ int win_main(int argc, char **argv)
 int mysqld_main(int argc, char **argv)
 #endif
 {
+#ifndef _WIN32
+  /* We can't close stdin just now, because it may be booststrap mode. */
+  bool please_close_stdin= fcntl(STDIN_FILENO, F_GETFD) >= 0;
+#endif
+
   /*
     Perform basic thread library and malloc initialization,
     to be able to read defaults files and parse options.
@@ -6166,7 +6114,7 @@ int mysqld_main(int argc, char **argv)
 
 #ifndef _WIN32
   // try to keep fd=0 busy
-  if (!freopen("/dev/null", "r", stdin))
+  if (please_close_stdin && !freopen("/dev/null", "r", stdin))
   {
     // fall back on failure
     fclose(stdin);
@@ -6188,11 +6136,11 @@ int mysqld_main(int argc, char **argv)
   /* Memory used when everything is setup */
   start_memory_used= global_status_var.global_memory_used;
 
-#if defined(_WIN32) || defined(HAVE_SMEM)
+#ifdef _WIN32
   handle_connections_methods();
 #else
   handle_connections_sockets();
-#endif /* _WIN32 || HAVE_SMEM */
+#endif /* _WIN32 */
 
   /* (void) pthread_attr_destroy(&connection_attrib); */
 
@@ -7016,6 +6964,7 @@ pthread_handler_t handle_connections_namedpipes(void *arg)
     connect->host= my_localhost;
     create_new_thread(connect);
   }
+  LocalFree(saPipeSecurity.lpSecurityDescriptor);
   CloseHandle(connectOverlapped.hEvent);
   DBUG_LEAVE;
   decrement_handler_count();
@@ -7023,250 +6972,6 @@ pthread_handler_t handle_connections_namedpipes(void *arg)
 }
 #endif /* _WIN32 */
 
-
-#ifdef HAVE_SMEM
-
-/**
-  Thread of shared memory's service.
-
-  @param arg                              Arguments of thread
-*/
-pthread_handler_t handle_connections_shared_memory(void *arg)
-{
-  /* file-mapping object, use for create shared memory */
-  HANDLE handle_connect_file_map= 0;
-  char  *handle_connect_map= 0;                 // pointer on shared memory
-  HANDLE event_connect_answer= 0;
-  ulong smem_buffer_length= shared_memory_buffer_length + 4;
-  ulong connect_number= 1;
-  char *tmp= NULL;
-  char *suffix_pos;
-  char connect_number_char[22], *p;
-  const char *errmsg= 0;
-  SECURITY_ATTRIBUTES *sa_event= 0, *sa_mapping= 0;
-  my_thread_init();
-  DBUG_ENTER("handle_connections_shared_memorys");
-  DBUG_PRINT("general",("Waiting for allocated shared memory."));
-
-  /*
-     get enough space base-name + '_' + longest suffix we might ever send
-   */
-  if (!(tmp= (char *)my_malloc(strlen(shared_memory_base_name) + 32L,
-                               MYF(MY_FAE))))
-    goto error;
-
-  if (my_security_attr_create(&sa_event, &errmsg,
-                              GENERIC_ALL, SYNCHRONIZE | EVENT_MODIFY_STATE))
-    goto error;
-
-  if (my_security_attr_create(&sa_mapping, &errmsg,
-                             GENERIC_ALL, FILE_MAP_READ | FILE_MAP_WRITE))
-    goto error;
-
-  /*
-    The name of event and file-mapping events create agree next rule:
-      shared_memory_base_name+unique_part
-    Where:
-      shared_memory_base_name is unique value for each server
-      unique_part is unique value for each object (events and file-mapping)
-  */
-  suffix_pos= strxmov(tmp,shared_memory_base_name,"_",NullS);
-  strmov(suffix_pos, "CONNECT_REQUEST");
-  if ((smem_event_connect_request= CreateEvent(sa_event,
-                                               FALSE, FALSE, tmp)) == 0)
-  {
-    errmsg= "Could not create request event";
-    goto error;
-  }
-  strmov(suffix_pos, "CONNECT_ANSWER");
-  if ((event_connect_answer= CreateEvent(sa_event, FALSE, FALSE, tmp)) == 0)
-  {
-    errmsg="Could not create answer event";
-    goto error;
-  }
-  strmov(suffix_pos, "CONNECT_DATA");
-  if ((handle_connect_file_map=
-       CreateFileMapping(INVALID_HANDLE_VALUE, sa_mapping,
-                         PAGE_READWRITE, 0, sizeof(connect_number), tmp)) == 0)
-  {
-    errmsg= "Could not create file mapping";
-    goto error;
-  }
-  if ((handle_connect_map= (char *)MapViewOfFile(handle_connect_file_map,
-						  FILE_MAP_WRITE,0,0,
-						  sizeof(DWORD))) == 0)
-  {
-    errmsg= "Could not create shared memory service";
-    goto error;
-  }
-
-  while (!abort_loop)
-  {
-    /* Wait a request from client */
-    WaitForSingleObject(smem_event_connect_request,INFINITE);
-
-    /*
-       it can be after shutdown command
-    */
-    if (abort_loop)
-      goto error;
-
-    HANDLE handle_client_file_map= 0;
-    char  *handle_client_map= 0;
-    HANDLE event_client_wrote= 0;
-    HANDLE event_client_read= 0;    // for transfer data server <-> client
-    HANDLE event_server_wrote= 0;
-    HANDLE event_server_read= 0;
-    HANDLE event_conn_closed= 0;
-    CONNECT *connect= 0;
-
-    p= int10_to_str(connect_number, connect_number_char, 10);
-    /*
-      The name of event and file-mapping events create agree next rule:
-        shared_memory_base_name+unique_part+number_of_connection
-        Where:
-	  shared_memory_base_name is uniquel value for each server
-	  unique_part is unique value for each object (events and file-mapping)
-	  number_of_connection is connection-number between server and client
-    */
-    suffix_pos= strxmov(tmp,shared_memory_base_name,"_",connect_number_char,
-			 "_",NullS);
-    strmov(suffix_pos, "DATA");
-    if ((handle_client_file_map=
-         CreateFileMapping(INVALID_HANDLE_VALUE, sa_mapping,
-                           PAGE_READWRITE, 0, smem_buffer_length, tmp)) == 0)
-    {
-      errmsg= "Could not create file mapping";
-      goto errorconn;
-    }
-    if ((handle_client_map= (char*)MapViewOfFile(handle_client_file_map,
-						  FILE_MAP_WRITE,0,0,
-						  smem_buffer_length)) == 0)
-    {
-      errmsg= "Could not create memory map";
-      goto errorconn;
-    }
-    strmov(suffix_pos, "CLIENT_WROTE");
-    if ((event_client_wrote= CreateEvent(sa_event, FALSE, FALSE, tmp)) == 0)
-    {
-      errmsg= "Could not create client write event";
-      goto errorconn;
-    }
-    strmov(suffix_pos, "CLIENT_READ");
-    if ((event_client_read= CreateEvent(sa_event, FALSE, FALSE, tmp)) == 0)
-    {
-      errmsg= "Could not create client read event";
-      goto errorconn;
-    }
-    strmov(suffix_pos, "SERVER_READ");
-    if ((event_server_read= CreateEvent(sa_event, FALSE, FALSE, tmp)) == 0)
-    {
-      errmsg= "Could not create server read event";
-      goto errorconn;
-    }
-    strmov(suffix_pos, "SERVER_WROTE");
-    if ((event_server_wrote= CreateEvent(sa_event,
-                                         FALSE, FALSE, tmp)) == 0)
-    {
-      errmsg= "Could not create server write event";
-      goto errorconn;
-    }
-    strmov(suffix_pos, "CONNECTION_CLOSED");
-    if ((event_conn_closed= CreateEvent(sa_event,
-                                        TRUE, FALSE, tmp)) == 0)
-    {
-      errmsg= "Could not create closed connection event";
-      goto errorconn;
-    }
-    if (abort_loop)
-      goto errorconn;
-
-    if (!(connect= new CONNECT))
-    {
-      errmsg= "Could not create CONNECT object";
-      goto errorconn;
-    }
-
-    /* Send number of connection to client */
-    int4store(handle_connect_map, connect_number);
-    if (!SetEvent(event_connect_answer))
-    {
-      errmsg= "Could not send answer event";
-      goto errorconn;
-    }
-    /* Set event that client should receive data */
-    if (!SetEvent(event_client_read))
-    {
-      errmsg= "Could not set client to read mode";
-      goto errorconn;
-    }
-    if (!(connect->vio= vio_new_win32shared_memory(handle_client_file_map,
-                                                   handle_client_map,
-                                                   event_client_wrote,
-                                                   event_client_read,
-                                                   event_server_wrote,
-                                                   event_server_read,
-                                                   event_conn_closed)))
-    {
-      errmsg= "Could not create VIO object";
-      goto errorconn;
-    }
-    connect->host= my_localhost;                /* Host is unknown */
-    create_new_thread(connect);
-    connect_number++;
-    continue;
-
-errorconn:
-    /* Could not form connection;  Free used handlers/memort and retry */
-    if (errmsg)
-    {
-      char buff[180];
-      strxmov(buff, "Can't create shared memory connection: ", errmsg, ".",
-	      NullS);
-      sql_perror(buff);
-    }
-    if (handle_client_file_map)
-      CloseHandle(handle_client_file_map);
-    if (handle_client_map)
-      UnmapViewOfFile(handle_client_map);
-    if (event_server_wrote)
-      CloseHandle(event_server_wrote);
-    if (event_server_read)
-      CloseHandle(event_server_read);
-    if (event_client_wrote)
-      CloseHandle(event_client_wrote);
-    if (event_client_read)
-      CloseHandle(event_client_read);
-    if (event_conn_closed)
-      CloseHandle(event_conn_closed);
-
-    delete connect;
-    statistic_increment(aborted_connects,&LOCK_status);
-    statistic_increment(connection_errors_internal, &LOCK_status);
-  }
-
-  /* End shared memory handling */
-error:
-  if (tmp)
-    my_free(tmp);
-
-  if (errmsg)
-  {
-    char buff[180];
-    strxmov(buff, "Can't create shared memory service: ", errmsg, ".", NullS);
-    sql_perror(buff);
-  }
-  my_security_attr_free(sa_event);
-  my_security_attr_free(sa_mapping);
-  if (handle_connect_map)	UnmapViewOfFile(handle_connect_map);
-  if (handle_connect_file_map)	CloseHandle(handle_connect_file_map);
-  if (event_connect_answer)	CloseHandle(event_connect_answer);
-  if (smem_event_connect_request) CloseHandle(smem_event_connect_request);
-  DBUG_LEAVE;
-  decrement_handler_count();
-  return 0;
-}
-#endif /* HAVE_SMEM */
 #endif /* EMBEDDED_LIBRARY */
 
 
@@ -8330,7 +8035,7 @@ my_asn1_time_to_string(const ASN1_TIME *time, char *buf, size_t len)
   if (bio == NULL)
     return NULL;
 
-  if (!ASN1_TIME_print(bio, time))
+  if (!ASN1_TIME_print(bio, const_cast<ASN1_TIME*>(time)))
     goto end;
 
   n_read= BIO_read(bio, buf, (int) (len - 1));
@@ -9070,9 +8775,6 @@ static int mysql_init_variables(void)
   ssl_acceptor_fd= 0;
 #endif /* ! EMBEDDED_LIBRARY */
 #endif /* HAVE_OPENSSL */
-#ifdef HAVE_SMEM
-  shared_memory_base_name= default_shared_memory_base_name;
-#endif
 
 #if defined(__WIN__)
   /* Allow Win32 users to move MySQL anywhere */
