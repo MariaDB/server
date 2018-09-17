@@ -7880,7 +7880,8 @@ int TABLE::period_make_insert(Item *src, Field *dst)
 }
 
 int TABLE::insert_portion_of_time(THD *thd,
-                                  const vers_select_conds_t &period_conds)
+                                  const vers_select_conds_t &period_conds,
+                                  ha_rows *rows_inserted)
 {
   bool lcond= period_conds.field_start->val_datetime_packed(thd)
               < period_conds.start.item->val_datetime_packed(thd);
@@ -7889,11 +7890,19 @@ int TABLE::insert_portion_of_time(THD *thd,
 
   int res= 0;
   if (lcond)
+  {
     res= period_make_insert(period_conds.start.item,
                             field[s->period.end_fieldno]);
+    if (likely(!res))
+      ++*rows_inserted;
+  }
   if (likely(!res) && rcond)
+  {
     res= period_make_insert(period_conds.end.item,
                             field[s->period.start_fieldno]);
+    if (likely(!res))
+      ++*rows_inserted;
+  }
 
   return res;
 }

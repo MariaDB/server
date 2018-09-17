@@ -1917,6 +1917,7 @@ bool my_yyoverflow(short **a, YYSTYPE **b, size_t *yystacksize);
         table_primary_ident table_primary_derived
         derived_table_list table_reference_list_parens
         nested_table_reference_list join_table_parens
+        update_table_list
 %type <date_time_type> date_time_type;
 %type <interval> interval
 
@@ -9296,20 +9297,26 @@ history_point:
             $$= Vers_history_point($1, $2);
           }
         ;
-opt_for_portion_of_time_clause:
-          /* empty */
-          {
-            $$= false;
-          }
-        | FOR_SYM PORTION_SYM OF_SYM ident FROM history_point TO_SYM history_point
+
+for_portion_of_time_clause:
+          FOR_SYM PORTION_SYM OF_SYM ident FROM history_point TO_SYM history_point
           {
             if (unlikely(0 == strcasecmp($4.str, "SYSTEM_TIME")))
             {
               thd->parse_error(ER_SYNTAX_ERROR, $4.str);
               MYSQL_YYABORT;
             }
-            $$= true;
             Lex->period_conditions.init(SYSTEM_TIME_FROM_TO, $6, $8, $4);
+          }
+
+opt_for_portion_of_time_clause:
+          /* empty */
+          {
+            $$= false;
+          }
+        | for_portion_of_time_clause
+          {
+            $$= true;
           }
         ;
 
@@ -13339,6 +13346,24 @@ opt_insert_update:
           }
         ;
 
+update_table_list:
+          table_ident opt_use_partition for_portion_of_time_clause
+          opt_table_alias_clause opt_key_definition
+          {
+            SELECT_LEX *sel= Select;
+            sel->table_join_options= 0;
+            if (!($$= Select->add_table_to_list(thd, $1, $4,
+                                                Select->get_table_join_options(),
+                                                YYPS->m_lock_type,
+                                                YYPS->m_mdl_type,
+                                                Select->pop_index_hints(),
+                                                $2)))
+              MYSQL_YYABORT;
+            $$->period_conditions= Lex->period_conditions;
+          }
+        | join_table_list { $$= $1; }
+        ;
+
 /* Update rows in a table */
 
 update:
@@ -13351,7 +13376,7 @@ update:
             lex->sql_command= SQLCOM_UPDATE;
             lex->duplicates= DUP_ERROR; 
           }
-          opt_low_priority opt_ignore join_table_list
+          opt_low_priority opt_ignore update_table_list
           SET update_list
           {
             LEX *lex= Lex;

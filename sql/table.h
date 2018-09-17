@@ -1552,8 +1552,12 @@ public:
 
   int update_generated_fields();
   int period_make_insert(Item *src, Field *dst);
-  int update_portion_of_time(THD *thd, const vers_select_conds_t &period_conds, bool *inside_period);
-  int insert_portion_of_time(THD *thd, const vers_select_conds_t &period_conds);
+  int cut_fields_for_portion_of_time(THD *thd,
+                                     const vers_select_conds_t &period_conds);
+  int update_portion_of_time(THD *thd, const vers_select_conds_t &period_conds,
+                             bool *inside_period);
+  int insert_portion_of_time(THD *thd, const vers_select_conds_t &period_conds,
+                             ha_rows *rows_inserted);
   int delete_row();
   void vers_update_fields();
   void vers_update_end();

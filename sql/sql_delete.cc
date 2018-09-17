@@ -855,9 +855,11 @@ bool mysql_delete(THD *thd, TABLE_LIST *table_list, COND *conds,
           break;
       }
 
+      ha_rows rows_inserted;
       if (likely(!error) && table_list->has_period()
           && !portion_of_time_through_update)
-        error= table->insert_portion_of_time(thd, table_list->period_conditions);
+        error= table->insert_portion_of_time(thd, table_list->period_conditions,
+                                             &rows_inserted);
 
       if (unlikely(error) && error != 1 && error != -1)
       {
