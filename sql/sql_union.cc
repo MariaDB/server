@@ -1274,6 +1274,7 @@ bool st_select_lex_unit::exec_recursive()
   for (st_select_lex *sl= start ; sl != end; sl= sl->next_select())
   {
     thd->lex->current_select= sl;
+    set_limit(sl);
     sl->join->exec();
     saved_error= sl->join->error;
     if (!saved_error)

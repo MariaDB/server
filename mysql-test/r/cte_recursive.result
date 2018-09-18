@@ -3393,3 +3393,51 @@ select * from cte1, cte2 where cte1.c1 = 3;
 c1	c2
 drop procedure p;
 drop table t1,t2;
+#
+# MDEV-17201: recursive part with LIMIT
+#
+CREATE TABLE purchases (
+id int unsigned NOT NULL AUTO_INCREMENT,
+pdate date NOT NULL,
+quantity int unsigned NOT NULL,
+p_id int unsigned NOT NULL,
+PRIMARY KEY (id)
+);
+INSERT INTO purchases(pdate, quantity, p_id) VALUES
+('2014-11-01',5 ,1),('2014-11-03', 3 ,1),
+('2014-11-01',2 ,2),('2014-11-03', 4 ,2);
+CREATE TABLE expired (
+edate date NOT NULL,
+quantity int unsigned NOT NULL,
+p_id int unsigned NOT NULL,
+PRIMARY KEY (edate,p_id)
+);
+INSERT INTO expired VALUES ('2014-11-12', 5 ,1),('2014-11-08', 1 ,2);
+WITH RECURSIVE expired_map AS (
+SELECT edate AS expired_date,
+CAST(NULL AS date) AS purchase_date,
+0 AS quantity,
+e.p_id,
+(SELECT MAX(id)+1 FROM purchases p
+WHERE pdate <= edate AND p.p_id =p_id) AS purchase_processed,
+quantity AS unresolved
+FROM expired e
+UNION
+( SELECT expired_date,
+pdate,
+IF(p.quantity < m.unresolved, p.quantity, m.unresolved),
+p.p_id,
+p.id,
+IF(p.quantity < m.unresolved, m.unresolved - p.quantity, 0)
+FROM purchases p JOIN expired_map m ON p.p_id = m.p_id
+WHERE p.id < m.purchase_processed AND m.unresolved > 0
+ORDER BY p.id DESC
+LIMIT 1
+)
+)
+SELECT  * FROM expired_map;
+expired_date	purchase_date	quantity	p_id	purchase_processed	unresolved
+2014-11-12	NULL	0	1	5	5
+2014-11-08	NULL	0	2	5	1
+2014-11-08	2014-11-03	1	2	4	0
+DROP TABLE purchases, expired;
