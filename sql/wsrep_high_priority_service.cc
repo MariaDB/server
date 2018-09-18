@@ -181,13 +181,13 @@ Wsrep_high_priority_service::~Wsrep_high_priority_service()
   thd->reset_db(&db_str);
   thd->user_time              = m_shadow.user_time;
   
-  delete thd->system_thread_info.rpl_sql_info;
-  delete thd->wsrep_rgi->rli->mi;
-  delete thd->wsrep_rgi->rli;
+  if (thd->wsrep_rgi && thd->wsrep_rgi->rli)
+    delete thd->wsrep_rgi->rli->mi;
+  if (thd->wsrep_rgi && thd->wsrep_rgi)
+    delete thd->wsrep_rgi->rli;
   
   thd->set_row_count_func(m_shadow.row_count_func);
   thd->wsrep_applier          = m_shadow.wsrep_applier;
-  delete m_rli;
 }
 
 int Wsrep_high_priority_service::start_transaction(
@@ -293,9 +293,14 @@ int Wsrep_high_priority_service::commit(const wsrep::ws_handle& ws_handle,
      path for applier. Therefore run wsrep_before_commit()
      and wsrep_after_commit() here. wsrep_ordered_commit()
      will be called from wsrep_ordered_commit_if_no_binlog(). */
-  if (!opt_log_slave_updates && is_ordered)
+  if (!opt_log_slave_updates && is_ordered && false)
   {
-    ret= wsrep_before_commit(thd, true);
+    if (m_thd->transaction.all.no_2pc == false)
+    {
+      ret= wsrep_before_prepare(thd, true);
+      ret= ret || wsrep_after_prepare(thd, true);
+    }
+    ret= ret || wsrep_before_commit(thd, true);
   }
   ret= ret || trans_commit(thd);
 
@@ -304,7 +309,7 @@ int Wsrep_high_priority_service::commit(const wsrep::ws_handle& ws_handle,
     m_rgi->cleanup_context(thd, 0);
   }
 
-  if (ret == 0 && !opt_log_slave_updates && is_ordered)
+  if (ret == 0 && !opt_log_slave_updates && is_ordered && false)
   {
     ret= wsrep_after_commit(thd, true);
   }
@@ -449,6 +454,7 @@ Wsrep_applier_service::Wsrep_applier_service(THD* thd)
   thd->wsrep_cs().open(wsrep::client_id(thd->thread_id));
   thd->wsrep_cs().before_command();
   thd->wsrep_cs().debug_log_level(wsrep_debug);
+
 }
 
 Wsrep_applier_service::~Wsrep_applier_service()
@@ -465,6 +471,8 @@ int Wsrep_applier_service::apply_write_set(const wsrep::ws_meta& ws_meta,
   DBUG_ENTER("Wsrep_applier_service::apply_write_set");
   THD* thd= m_thd;
 
+  thd->variables.option_bits |= OPTION_BEGIN;
+  thd->variables.option_bits |= OPTION_NOT_AUTOCOMMIT;
   DBUG_ASSERT(thd->wsrep_trx().active());
   DBUG_ASSERT(thd->wsrep_trx().state() == wsrep::transaction::s_executing);
 

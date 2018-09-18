@@ -1192,6 +1192,12 @@ int ha_prepare(THD *thd)
   THD_TRANS *trans=all ? &thd->transaction.all : &thd->transaction.stmt;
   Ha_trx_info *ha_info= trans->ha_list;
   DBUG_ENTER("ha_prepare");
+#ifdef WITH_WSREP
+  if (wsrep_before_prepare(thd, all))
+  {
+    DBUG_RETURN(1);
+  }
+#endif /* WITH_WSREP */
 
   if (ha_info)
   {
@@ -1217,6 +1223,12 @@ int ha_prepare(THD *thd)
       }
     }
   }
+#ifdef WITH_WSREP
+  if (wsrep_after_prepare(thd, all))
+  {
+    DBUG_RETURN(1);
+  }
+#endif /* WITH_WSREP */
 
   DBUG_RETURN(error);
 }
@@ -1383,6 +1395,7 @@ int ha_commit_trans(THD *thd, bool all)
     thd->stmt_map.close_transient_cursors();
 
   uint rw_ha_count= ha_check_and_coalesce_trx_read_only(thd, ha_info, all);
+  trans->rw_ha_count= rw_ha_count;
   /* rw_trans is TRUE when we in a transaction changing data */
   bool rw_trans= is_real_trans &&
                  (rw_ha_count > (thd->is_current_stmt_binlog_disabled()?0U:1U));
@@ -1472,13 +1485,6 @@ int ha_commit_trans(THD *thd, bool all)
   need_prepare_ordered= FALSE;
   need_commit_ordered= FALSE;
   xid= thd->transaction.xid_state.xid.get_my_xid();
-#ifdef WITH_WSREP
-  if (WSREP(thd) && wsrep_before_prepare(thd, all))
-  {
-    wsrep_override_error(thd, ER_ERROR_DURING_COMMIT);
-    goto wsrep_err;
-  }
-#endif /* WITH_WSREP */
 
   for (Ha_trx_info *hi= ha_info; hi; hi= hi->next())
   {
@@ -1502,13 +1508,6 @@ int ha_commit_trans(THD *thd, bool all)
   }
   DEBUG_SYNC(thd, "ha_commit_trans_after_prepare");
   DBUG_EXECUTE_IF("crash_commit_after_prepare", DBUG_SUICIDE(););
-#ifdef WITH_WSREP
-  if (WSREP(thd) && wsrep_after_prepare(thd, all))
-  {
-    wsrep_override_error(thd, ER_ERROR_DURING_COMMIT);
-    goto err;
-  }
-#endif /* WITH_WSREP */
 
 #ifdef WITH_WSREP
   if (!error && WSREP_ON && wsrep_is_wsrep_xid(&thd->transaction.xid_state.xid))
@@ -1523,15 +1522,15 @@ int ha_commit_trans(THD *thd, bool all)
     error= commit_one_phase_2(thd, all, trans, is_real_trans);
     goto done;
   }
-
+  
   DEBUG_SYNC(thd, "ha_commit_trans_before_log_and_order");
   cookie= tc_log->log_and_order(thd, xid, all, need_prepare_ordered,
                                 need_commit_ordered);
   if (!cookie)
-    {
-      WSREP_DEBUG("log_and_order has failed %lu %d", thd->thread_id, cookie);
-      goto err;
-    }
+  {
+    WSREP_DEBUG("log_and_order has failed %lu %d", thd->thread_id, cookie);
+    goto err;
+  }
 
   DEBUG_SYNC(thd, "ha_commit_trans_after_log_and_order");
   DBUG_EXECUTE_IF("crash_commit_after_log", DBUG_SUICIDE(););
@@ -1548,7 +1547,7 @@ int ha_commit_trans(THD *thd, bool all)
       goto wsrep_err;
     }
     mysql_mutex_unlock(&thd->LOCK_thd_data);
-}
+  }
 #endif /* WITH_WSREP */
   DBUG_EXECUTE_IF("crash_commit_before_unlog", DBUG_SUICIDE(););
   if (tc_log->unlog(cookie, xid))
@@ -1557,7 +1556,7 @@ int ha_commit_trans(THD *thd, bool all)
     goto end;
   }
 
-done:
+ done:
   DBUG_EXECUTE_IF("crash_commit_after", DBUG_SUICIDE(););
 
   mysql_mutex_assert_not_owner(&LOCK_prepare_ordered);
@@ -1594,9 +1593,9 @@ done:
   if (!(thd->rgi_slave && thd->rgi_slave->is_parallel_exec))
     ha_rollback_trans(thd, all);
   else
-    {
-      WSREP_DEBUG("rollback skipped %d %d",thd->rgi_slave, thd->rgi_slave->is_parallel_exec);
-    }
+  {
+    WSREP_DEBUG("rollback skipped %d %d",thd->rgi_slave, thd->rgi_slave->is_parallel_exec);
+  }
 end:
   if (rw_trans && mdl_request.ticket)
   {
@@ -1689,6 +1688,7 @@ commit_one_phase_2(THD *thd, bool all, THD_TRANS *trans, bool is_real_trans)
     }
     trans->ha_list= 0;
     trans->no_2pc=0;
+    trans->rw_ha_count= 0;
     if (all)
     {
 #ifdef HAVE_QUERY_CACHE
@@ -1800,6 +1800,7 @@ int ha_rollback_trans(THD *thd, bool all)
     }
     trans->ha_list= 0;
     trans->no_2pc=0;
+    trans->rw_ha_count= 0;
   }
 
   /*
@@ -2343,6 +2344,7 @@ int ha_rollback_to_savepoint(THD *thd, SAVEPOINT *sv)
   DBUG_ENTER("ha_rollback_to_savepoint");
 
   trans->no_2pc=0;
+  trans->rw_ha_count= 0;
   /*
     rolling back to savepoint in all storage engines that were part of the
     transaction when the savepoint was set

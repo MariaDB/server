@@ -8982,8 +8982,17 @@ int TC_LOG_MMAP::log_and_order(THD *thd, my_xid xid, bool all,
     if (cookie)
     {
 #ifdef WITH_WSREP
-      if (WSREP(thd) &&
-          wsrep_before_commit(thd, all))
+      if (WSREP(thd) && wsrep_before_prepare(thd, all))
+      {
+	wsrep_override_error(thd, ER_ERROR_DURING_COMMIT);
+	return(0);
+      }
+      if (WSREP(thd) && wsrep_after_prepare(thd, all))
+      {
+	wsrep_override_error(thd, ER_ERROR_DURING_COMMIT);
+	return(0);
+      }
+      if (WSREP(thd) && wsrep_before_commit(thd, all))
       {
         return(0);
       }
@@ -9695,6 +9704,19 @@ TC_LOG_BINLOG::log_and_order(THD *thd, my_xid xid, bool all,
     DBUG_RETURN(0);
   }
 
+#ifdef WITH_WSREP
+  if (WSREP(thd) && wsrep_before_prepare(thd, all))
+  {
+    wsrep_override_error(thd, ER_ERROR_DURING_COMMIT);
+    DBUG_RETURN(0);
+  }
+  if (WSREP(thd) && wsrep_after_prepare(thd, all))
+  {
+    wsrep_override_error(thd, ER_ERROR_DURING_COMMIT);
+    DBUG_RETURN(0);
+  }
+#endif /* WITH_WSREP */
+
   cache_mngr->using_xa= TRUE;
   cache_mngr->xa_xid= xid;
   err= binlog_commit_flush_xid_caches(thd, cache_mngr, all, xid);
@@ -9704,16 +9726,23 @@ TC_LOG_BINLOG::log_and_order(THD *thd, my_xid xid, bool all,
   if (err)
     DBUG_RETURN(0);
 #ifdef WITH_WSREP
-  if (WSREP(thd) && 
-      thd->wsrep_cs().mode() == wsrep::client_state::m_local &&
-      wsrep_before_commit(thd, all))
+  /*
+    if binary logging is on and transaction happened by group commit, no need for commit hooks
+    here any more
+   */
+    if (WSREP(thd)                                                                      &&
+        thd->wsrep_cs().transaction().state() != wsrep::transaction::state::s_committed &&
+        thd->wsrep_cs().mode() != wsrep::client_state::m_local                          &&
+        wsrep_before_commit(thd, all))
   {
     return(0);
   }
+
 #endif /* WITH_WSREP */
 #ifdef WITH_WSREP
-  if (WSREP(thd) && 
-      thd->wsrep_cs().mode() == wsrep::client_state::m_local)
+  if (WSREP(thd)                                                                      &&
+      thd->wsrep_cs().transaction().state() != wsrep::transaction::state::s_committed &&
+      thd->wsrep_cs().mode() != wsrep::client_state::m_local)
   {
     /*
       TODO: Ordered commit should be done after the transaction
@@ -9725,6 +9754,7 @@ TC_LOG_BINLOG::log_and_order(THD *thd, my_xid xid, bool all,
       (void) wsrep_after_commit(thd, all);
     }
   }
+ 
 #endif /* WITH_WSREP */
 
   bool need_unlog= cache_mngr->need_unlog;

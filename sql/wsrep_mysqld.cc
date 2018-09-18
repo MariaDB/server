@@ -2622,8 +2622,8 @@ void wsrep_wait_appliers_close(THD *thd)
 {
   /* Wait for wsrep appliers to gracefully exit */
   mysql_mutex_lock(&LOCK_thread_count);
-  while (wsrep_running_threads > 1)
-  // 1 is for rollbacker thread which needs to be killed explicitly.
+  while (wsrep_running_threads > 2)
+  // 2 is for rollbacker thread which needs to be killed explicitly.
   // This gotta be fixed in a more elegant manner if we gonna have arbitrary
   // number of non-applier wsrep threads.
   {
@@ -2761,12 +2761,16 @@ bool wsrep_provider_is_SR_capable()
 
 int wsrep_ordered_commit_if_no_binlog(THD* thd, bool all)
 {
+  return 0;
+
+  /* skip this logic for mariadb... */
+  
   if (((wsrep_thd_is_local(thd) && WSREP_EMULATE_BINLOG(thd)) ||
        (wsrep_thd_is_applying(thd) && !opt_log_slave_updates))
       && wsrep_thd_trx_seqno(thd) > 0)
   {
     wsrep_apply_error unused;
-    //return wsrep_ordered_commit(thd, all, unused);
+    return wsrep_ordered_commit(thd, all, unused);
   }
   return 0;
 }
