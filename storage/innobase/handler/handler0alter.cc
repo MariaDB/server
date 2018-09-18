@@ -4586,7 +4586,7 @@ innobase_op_instant_try(
 			|| ctx->n_instant_drop_cols;
 		upd_t* update = upd_create(index->n_fields, ctx->heap);
 		update->n_fields = n;
-		update->info_bits == f
+		update->info_bits = f
 			? REC_INFO_DEFAULT_ROW_ALTER
 			: REC_INFO_DEFAULT_ROW_ADD;
 
