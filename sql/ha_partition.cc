@@ -419,7 +419,7 @@ const char *ha_partition::table_type() const
 
 ha_partition::~ha_partition()
 {
-  DBUG_ENTER("ha_partition::~ha_partition()");
+  DBUG_ENTER("ha_partition::~ha_partition");
   if (m_new_partitions_share_refs.elements)
     m_new_partitions_share_refs.delete_elements();
   if (m_file != NULL)
@@ -634,7 +634,7 @@ int ha_partition::create_partitioning_metadata(const char *path,
                                        const char *old_path,
                                        int action_flag)
 {
-  DBUG_ENTER("ha_partition::create_partitioning_metadata()");
+  DBUG_ENTER("ha_partition::create_partitioning_metadata");
 
   /*
     We need to update total number of parts since we might write the handler
@@ -9008,7 +9008,7 @@ int ha_partition::reset(void)
   DBUG_RETURN(result);
 }
 
-/*
+/**
   Special extra method with additional parameter
   See @ref ha_partition::extra
 
@@ -9060,7 +9060,7 @@ int ha_partition::extra_opt(enum ha_extra_function operation, ulong arg)
 
 void ha_partition::prepare_extra_cache(uint cachesize)
 {
-  DBUG_ENTER("ha_partition::prepare_extra_cache()");
+  DBUG_ENTER("ha_partition::prepare_extra_cache");
   DBUG_PRINT("enter", ("cachesize %u", cachesize));
 
   m_extra_cache= TRUE;
@@ -9090,7 +9090,7 @@ int ha_partition::loop_extra_alter(enum ha_extra_function operation)
 {
   int result= 0, tmp;
   handler **file;
-  DBUG_ENTER("ha_partition::loop_extra_alter()");
+  DBUG_ENTER("ha_partition::loop_extra_alter");
   DBUG_ASSERT(operation == HA_EXTRA_PREPARE_FOR_RENAME ||
               operation == HA_EXTRA_FORCE_REOPEN);
 
