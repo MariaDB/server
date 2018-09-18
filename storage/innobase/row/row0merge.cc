@@ -1875,7 +1875,7 @@ row_merge_read_clustered_index(
 	btr_pcur_move_to_next_user_rec(&pcur, &mtr);
 	if (rec_is_default_row(btr_pcur_get_rec(&pcur), clust_index)) {
 		ut_ad(btr_pcur_is_on_user_rec(&pcur));
-		/* Skip the 'default row' pseudo-record. */
+		/* Skip the metadata pseudo-record. */
 	} else {
 		ut_ad(!clust_index->is_instant());
 		btr_pcur_move_to_prev_on_page(&pcur);

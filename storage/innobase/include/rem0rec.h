@@ -782,11 +782,11 @@ rec_offs_comp(const ulint* offsets)
 	return(*rec_offs_base(offsets) & REC_OFFS_COMPACT);
 }
 
-/** Determine if the record is the 'default row' pseudo-record
+/** Determine if the record is the metadata pseudo-record
 in the clustered index.
 @param[in]	rec	leaf page record
 @param[in]	index	index of the record
-@return	whether the record is the 'default row' pseudo-record */
+@return	whether the record is the metadata pseudo-record */
 inline bool rec_is_default_row(const rec_t* rec, const dict_index_t* index)
 {
 	bool is = rec_get_info_bits(rec, dict_table_is_comp(index->table))
@@ -797,11 +797,11 @@ inline bool rec_is_default_row(const rec_t* rec, const dict_index_t* index)
 	return is;
 }
 
-/** Determine if the record is the 'new default row' pseudo-record
+/** Determine if the record is the 'new metadata' pseudo-record
 in the clustered index.
 @param[in]	rec	leaf page record
 @param[in]	index	index of the record
-@return	whether the record is the 'new default row' pseudo-record */
+@return	whether the record is the 'new metadata' pseudo-record */
 inline
 bool
 rec_is_new_default_row(const rec_t* rec, const dict_index_t* index)
@@ -1123,7 +1123,7 @@ rec_get_converted_size_comp_prefix(
 @param[in]	fields		array of data fields
 @param[in]	n_fields	number of data fields
 @param[out]	extra		extra size
-@param[in]	new_default_row	default row with drop column info
+@param[in]	new_default_row	metadata with drop column info
 @return total size */
 ulint
 rec_get_converted_size_comp(
@@ -1139,7 +1139,7 @@ rec_get_converted_size_comp(
 @param[in]	fields		array of data fields
 @param[in]	n_fields	number of data fields
 @param[out]	extra		extra size
-@return total size of default row with drop column info. */
+@return total size of metadata with drop column info. */
 ulint
 rec_get_def_converted_size_comp(
 	const dict_index_t*	index,

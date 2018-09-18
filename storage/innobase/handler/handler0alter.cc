@@ -4379,7 +4379,7 @@ static bool innobase_instant_update_pos(
 	return false;
 }
 
-/** Insert into SYS_COLUMNS and insert/update the 'default row'
+/** Insert into SYS_COLUMNS and insert/update the metadata
 for instant ADD COLUMN.
 @param[in,out]	ctx		ALTER TABLE context for the current partition
 @param[in]	altered_table	MySQL table that is being altered
@@ -4475,7 +4475,7 @@ innobase_op_instant_try(
 				/* For fixed-length NOT NULL 'core' columns,
 				get a dummy default value from SQL. Note that
 				we will preserve the old values of these
-				columns when updating the 'default row'
+				columns when updating the metadata
 				record, to avoid unnecessary updates. */
 				ulint len = (*af)->pack_length();
 				DBUG_ASSERT(d->type.mtype != DATA_INT

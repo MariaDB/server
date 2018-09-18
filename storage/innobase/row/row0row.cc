@@ -46,12 +46,12 @@ Created 4/20/1996 Heikki Tuuri
 #include "gis0geo.h"
 #include "row0mysql.h"
 
-/** Build the entry for the default row receord for instant alter operation.
+/** Build the entry for the metadata receord for instant alter operation.
 @param[in]	row		row which should be inserted for instant alter
 @param[in]	clust_index	clustered index
 @param[in]	heap		memory heap from which memory for the index
 				entry is allocated
-@return tuple for default row with drop column information*/
+@return tuple for metadata with drop column information*/
 dtuple_t*
 row_build_clust_default_entry(
 	const dtuple_t*		row,
@@ -782,7 +782,7 @@ row_build_w_add_vcol(
 			     defaults, add_v, col_map, ext, heap));
 }
 
-/** Convert the rec to new default row with drop column info.
+/** Convert the rec to new metadata with drop column info.
 @param[in]	rec	index record
 @param[in]	index	index
 @param[in]	offsets	rec_get_offsets(rec, index)

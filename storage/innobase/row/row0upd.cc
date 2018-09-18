@@ -1322,7 +1322,7 @@ row_upd_index_replace_new_col_val(
 	}
 }
 
-/** Apply an update vector to an default row entry.
+/** Apply an update vector to an metadata entry.
 @param[in,out]	entry	index entry to be updated; the clustered index default
 			row record
 @param[in]	index	index of the entry

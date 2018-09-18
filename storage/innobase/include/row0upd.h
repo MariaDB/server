@@ -490,7 +490,7 @@ struct upd_t{
 		return false;
 	}
 
-	/** @return whether this is for a hidden 'default row' record
+	/** @return whether this is for a hidden metadata record
 	for instant ADD COLUMN or ALTER TABLE */
 	bool is_default_row() const {
 		return dtuple_t::is_default_row(info_bits);

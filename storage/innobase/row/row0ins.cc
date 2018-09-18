@@ -2667,7 +2667,7 @@ row_ins_clust_index_entry_low(
 			err = DB_DUPLICATE_KEY;
 			goto err_exit;
 		case REC_INFO_MIN_REC_FLAG | REC_INFO_DELETED_FLAG:
-			/* The 'default row' is never delete-marked.
+			/* The metadata is never delete-marked.
 			If a table loses its 'instantness', it happens
 			by the rollback of this first-time insert, or
 			by a call to btr_page_empty() on the root page

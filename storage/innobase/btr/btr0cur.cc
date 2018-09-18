@@ -386,9 +386,8 @@ btr_cur_latch_leaves(
 }
 
 
-/** Initialize the clustered index from the new default row meta data
-of an instant alter
-@param[in]	rec	default row record
+/** Initialize the clustered index from the hidden metadata record.
+@param[in]	rec	metadata record
 @param[in,out]	index	clustered index definition
 @param[in]	heap	memory heap to store all the fields
 @return	error code
@@ -447,17 +446,17 @@ btr_cur_instant_init_clust_index(
 	index->reconstruct_fields();
 }
 
-/** Initialize the clustered index from the new default row meta data
+/** Initialize the clustered index from the hidden metadata record
 of an instant alter and store the length of the dropped column and
 default value for the instantly added columns.
-@param[in]	rec	default row record
+@param[in]	rec	metadata record
 @param[in,out]	index	clustered index definition
 @return	error code
 @retval	DB_SUCCESS	if no error occurred
 @retval	DB_CORRUPTION	if any corruption was noticed */
 static
 dberr_t
-btr_cur_instant_init_new_default_rec(
+btr_cur_instant_init_metadata(
 	const rec_t*	rec,
 	dict_index_t*	index)
 {
@@ -466,7 +465,7 @@ btr_cur_instant_init_new_default_rec(
 	ulint		len;
 	mem_heap_t*	heap = NULL;
 
-	/** Construct dummy index to fetch till default row blob. */
+	/** Construct dummy index to fetch till metadata blob. */
 	btr_cur_instant_init_clust_index(rec, index, heap);
 
 	offsets = rec_get_offsets(rec, index, NULL, true,
@@ -522,17 +521,16 @@ btr_cur_instant_init_new_default_rec(
 	return DB_SUCCESS;
 }
 
-/** Initialize the clustered index from the old default row meta data
-of an instant alter and store the default value for the
-instantly added columns.
-@param[in]	rec	default row record
+/** Initialize the clustered index from the ADD COLUMN metadata
+and store the default value for the instantly added columns.
+@param[in]	rec	metadata record
 @param[in,out]	index	clustered index definition
 @return	error code
 @retval	DB_SUCCESS	if no error occurred
 @retval	DB_CORRUPTION	if any corruption was noticed */
 static
 dberr_t
-btr_cur_instant_init_old_default_rec(
+btr_cur_instant_init_add_column(
 	const rec_t*	rec,
 	dict_index_t*	index)
 {
@@ -549,8 +547,8 @@ inconsistent:
 		return DB_CORRUPTION;
 	}
 
-	/* In fact, because we only ever append fields to the 'default
-	value' record, it is also OK to perform READ UNCOMMITTED and
+	/* In fact, because we only ever append fields to the metadata
+	record, it is also OK to perform READ UNCOMMITTED and
 	then ignore any extra fields, provided that
 	trx_sys.is_registered(DB_TRX_ID). */
 	if (rec_offs_n_fields(offsets) > index->n_fields
@@ -664,7 +662,7 @@ incompatible:
 		goto incompatible;
 	}
 
-	/* Read the 'default row'. We can get here on server restart
+	/* Read the metadata. We can get here on server restart
 	or when the table was evicted from the data dictionary cache
 	and is now being accessed again.
 
@@ -675,13 +673,13 @@ incompatible:
 	from the cache. */
 
 	if (rec_is_new_default_row(rec, index)) {
-		return btr_cur_instant_init_new_default_rec(rec, index);
+		return btr_cur_instant_init_metadata(rec, index);
 	}
 
 	index->n_core_null_bytes = UT_BITS_IN_BYTES(
 			index->get_n_nullable(index->n_core_fields));
 
-	return btr_cur_instant_init_old_default_rec(rec, index);
+	return btr_cur_instant_init_add_column(rec, index);
 }
 
 /** Load the instant ALTER TABLE metadata from the clustered index
@@ -4265,9 +4263,9 @@ func_exit:
 
 /** Trim an update tuple due to instant ADD COLUMN, if needed.
 For normal records, the trailing instantly added fields that match
-the 'default row' are omitted.
+the metadata are omitted.
 
-For the special 'default row' record on a table on which instant
+For the special metadata record on a table on which instant
 ADD COLUMN has already been executed, both ADD COLUMN and the
 rollback of ADD COLUMN need to be handled specially.
 
@@ -4285,7 +4283,7 @@ btr_cur_trim(
 {
 	if (!index->is_instant()) {
 	} else if (UNIV_UNLIKELY(update->is_default_row())) {
-		/* We are either updating a 'default row'
+		/* We are either updating a metadata
 		(instantly adding columns to a table where instant ADD was
 		already executed) or rolling back such an operation. */
 		ut_ad(!upd_get_nth_field(update, 0)->orig_len);
@@ -4584,7 +4582,7 @@ any_extern:
 
 	if (UNIV_UNLIKELY(update->is_default_row())) {
 		/* We must empty the PAGE_FREE list, because if this
-		was a rollback, the shortened 'default row' record
+		was a rollback, the shortened metadata record
 		would have too many fields, and we would be unable to
 		know the size of the freed record. */
 		btr_page_reorganize(page_cursor, index, mtr);
@@ -4926,7 +4924,7 @@ btr_cur_pessimistic_update(
 
 		if (UNIV_UNLIKELY(is_default_row)) {
 			/* We must empty the PAGE_FREE list, because if this
-			was a rollback, the shortened 'default row' record
+			was a rollback, the shortened metadata record
 			would have too many fields, and we would be unable to
 			know the size of the freed record. */
 			btr_page_reorganize(page_cursor, index, mtr);
@@ -5083,7 +5081,7 @@ btr_cur_pessimistic_update(
 
 	if (UNIV_UNLIKELY(is_default_row)) {
 		/* We must empty the PAGE_FREE list, because if this
-		was a rollback, the shortened 'default row' record
+		was a rollback, the shortened metadata record
 		would have too many fields, and we would be unable to
 		know the size of the freed record. */
 		btr_page_reorganize(page_cursor, index, mtr);
@@ -5584,9 +5582,9 @@ btr_cur_optimistic_delete_func(
 			     && !rec_is_default_row(rec, cursor->index)))) {
 		/* The whole index (and table) becomes logically empty.
 		Empty the whole page. That is, if we are deleting the
-		only user record, also delete the 'default row' record
+		only user record, also delete the metadata record
 		if one exists (it exists if and only if is_instant()).
-		If we are deleting the 'default row' record and the
+		If we are deleting the metadata record and the
 		table becomes empty, clean up the whole page. */
 		dict_index_t* index = cursor->index;
 		ut_ad(!index->is_instant()
@@ -5643,7 +5641,7 @@ btr_cur_optimistic_delete_func(
 			page_cur_delete_rec(btr_cur_get_page_cur(cursor),
 					    cursor->index, offsets, mtr);
 			/* We must empty the PAGE_FREE list, because
-			after rollback, this deleted 'default row' record
+			after rollback, this deleted metadata record
 			would have too many fields, and we would be
 			unable to know the size of the freed record. */
 			btr_page_reorganize(btr_cur_get_page_cur(cursor),
@@ -5819,9 +5817,9 @@ btr_cur_pessimistic_delete(
 			      && !rec_is_default_row(rec, index))) {
 			/* The whole index (and table) becomes logically empty.
 			Empty the whole page. That is, if we are deleting the
-			only user record, also delete the 'default row' record
+			only user record, also delete the metadata record
 			if one exists (it exists if and only if is_instant()).
-			If we are deleting the 'default row' record and the
+			If we are deleting the metadata record and the
 			table becomes empty, clean up the whole page. */
 			ut_ad(!index->is_instant()
 			      || rec_is_default_row(
@@ -5847,7 +5845,7 @@ btr_cur_pessimistic_delete(
 			page_cur_delete_rec(btr_cur_get_page_cur(cursor),
 					    index, offsets, mtr);
 			/* We must empty the PAGE_FREE list, because
-			after rollback, this deleted 'default row' record
+			after rollback, this deleted metadata record
 			would carry too many fields, and we would be
 			unable to know the size of the freed record. */
 			btr_page_reorganize(btr_cur_get_page_cur(cursor),

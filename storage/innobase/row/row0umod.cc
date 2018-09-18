@@ -1211,8 +1211,7 @@ close_table:
 
 	if (node->update->info_bits & REC_INFO_MIN_REC_FLAG) {
 		/* This must be an undo log record for a subsequent
-		instant ADD COLUMN on a table, extending the
-		'default value' record. */
+		instant ALTER TABLE, extending the metadata record. */
 		ut_ad(clust_index->is_instant());
 		if (node->update->info_bits != REC_INFO_MIN_REC_FLAG) {
 			ut_ad(!"wrong info_bits in undo log record");

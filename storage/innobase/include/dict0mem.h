@@ -1679,7 +1679,7 @@ struct dict_table_t {
 		return(!(flags & DICT_TF_MASK_ZIP_SSIZE));
 	}
 
-	/** Read the default row blob and fill the non primary fields,
+	/** Read the metadata blob and fill the non primary fields,
 	non-drop nullable fields and fill the drop columns in the
 	vector.
 	@param[in]	blob_data		blob data which contains
@@ -1703,8 +1703,8 @@ struct dict_table_t {
 		unsigned*	len);
 
 	/** Construct dropped columns for the table using the
-	default row blob data.
-	@param[in]	data	default row blob data. */
+	metadata blob data.
+	@param[in]	data	metadata blob data. */
 	void construct_dropped_columns(const byte* data);
 
 	/** Fill the dropped column in dropped_cols

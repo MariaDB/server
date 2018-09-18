@@ -581,7 +581,7 @@ rec_offs_validate(
 }
 #endif /* UNIV_DEBUG */
 
-/** Determine the offsets to each field in the default row record.
+/** Determine the offsets to each field in the metadata record.
  The offsets are written to a previously allocated array of
 ulint, where rec_offs_n_fields(offsets) has been initialized to the
 number of fields in the record.	 The rest of the array will be
@@ -1321,7 +1321,7 @@ rec_get_nth_field_offs_old(
 /** Determines the size of a new default tuple prefix in ROW_FORMAT=COMPACT.
 @param[in]	index		record descriptor; dict_table_is_comp()
 				is assumed to hold, even if it doesn't
-@param[in]	tuple		data tuple for default row record
+@param[in]	tuple		data tuple for metadata record
 @param[out]	extra		extra size
 @return total size */
 ulint
@@ -1603,7 +1603,7 @@ rec_get_converted_size_comp(
 		/* fall through */
 	case REC_STATUS_INSTANT:
 		ut_ad(n_fields >= index->n_core_fields);
-		/** In case of default row with drop column info, there
+		/** In case of metadata with drop column info, there
 		is a possiblity of n_fields can be higher than
 		index->n_fields. */
 		ut_ad(n_fields <= index->n_fields);

@@ -1464,7 +1464,7 @@ IndexPurge::open() UNIV_NOTHROW
 	btr_pcur_move_to_next_user_rec(&m_pcur, &m_mtr);
 	if (rec_is_default_row(btr_pcur_get_rec(&m_pcur), m_index)) {
 		ut_ad(btr_pcur_is_on_user_rec(&m_pcur));
-		/* Skip the 'default row' pseudo-record. */
+		/* Skip the metadata pseudo-record. */
 	} else {
 		btr_pcur_move_to_prev_on_page(&m_pcur);
 	}
@@ -2268,7 +2268,7 @@ row_import_set_sys_max_row_id(
 		/* The table is empty. */
 		err = DB_SUCCESS;
 	} else if (rec_is_default_row(rec, index)) {
-		/* The clustered index contains the 'default row',
+		/* The clustered index contains the metadata,
 		that is, the table is empty. */
 		err = DB_SUCCESS;
 	} else {

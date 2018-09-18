@@ -582,13 +582,13 @@ enum rec_comp_status_t {
 	REC_STATUS_INSTANT = 4
 };
 
-/** The dtuple_t::info_bits of the hidden 'default row' of instant ADD COLUMN.
+/** The dtuple_t::info_bits of the hidden metadata of instant ADD COLUMN.
 @see rec_is_default_row()
 @see rec_is_new_default_row() */
 static const byte REC_INFO_DEFAULT_ROW_ADD
 	= REC_INFO_MIN_REC_FLAG | REC_STATUS_INSTANT;
 
-/** The dtuple_t::info_bits of the hidden 'default row' of instant ALTER TABLE.
+/** The dtuple_t::info_bits of the hidden metadata of instant ALTER TABLE.
 @see rec_is_default_row() */
 static const byte REC_INFO_DEFAULT_ROW_ALTER
 	= REC_INFO_DEFAULT_ROW_ADD | REC_INFO_DELETED_FLAG;

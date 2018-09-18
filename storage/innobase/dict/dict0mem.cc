@@ -1358,7 +1358,7 @@ void dict_table_t::build_non_pk_map()
 	}
 }
 
-/** Read the default row blob and fill the non primary fields,
+/** Read the metadata blob and fill the non primary fields,
 non-drop nullable fields and fill the drop columns in the vector.
 
 @param[in]	blob_data               blob data which contains
@@ -1438,9 +1438,9 @@ byte* dict_table_t::construct_default_row_blob(
 	return data;
 }
 
-/** Construct dropped columns for the table using default row
+/** Construct dropped columns for the table using metadata
 blob data.
-@param[in]	data	default row blob data */
+@param[in]	data	metadata blob data */
 void dict_table_t::construct_dropped_columns(const byte* data)
 {
 	unsigned num_non_pk_fields = mach_read_from_4(data);

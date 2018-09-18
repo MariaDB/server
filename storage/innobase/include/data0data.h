@@ -647,14 +647,14 @@ struct dtuple_t {
 
 	/** Trim the tail of an index tuple before insert or update.
 	After instant ADD COLUMN, if the last fields of a clustered index tuple
-	match the 'default row', there will be no need to store them.
+	match the metadata, there will be no need to store them.
 	NOTE: A page latch in the index must be held, so that the index
 	may not lose 'instantness' before the trimmed tuple has been
 	inserted or updated.
 	@param[in]	index	index possibly with instantly added columns */
 	void trim(const dict_index_t& index);
 
-	/** @return whether this is a hidden 'default row' record
+	/** @return whether this is a hidden metadata record
 	for instant ALTER TABLE (not only ADD COLUMN) */
 	bool is_new_default_row() const
 	{
@@ -663,7 +663,7 @@ struct dtuple_t {
 
 	/**
 	@param info_bits	the info_bits of a data tuple
-	@return whether this is a hidden 'default row' record
+	@return whether this is a hidden metadata record
 	for instant ADD COLUMN or ALTER TABLE */
 	static bool is_default_row(ulint info_bits)
 	{
@@ -671,7 +671,7 @@ struct dtuple_t {
 				     == REC_INFO_DEFAULT_ROW_ADD);
 	}
 
-	/** @return whether this is a hidden 'default row' record
+	/** @return whether this is a hidden metadata record
 	for instant ADD COLUMN or ALTER TABLE */
 	bool is_default_row() const { return is_default_row(info_bits); }
 };

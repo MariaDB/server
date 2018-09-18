@@ -142,7 +142,7 @@ row_undo_ins_remove_clust_rec(
 		/* This is rolling back an INSERT into SYS_COLUMNS.
 		If it was part of an instant ADD COLUMN operation, we
 		must modify the table definition. At this point, any
-		corresponding operation to the 'default row' will have
+		corresponding operation to the metadata record will have
 		been rolled back. */
 		ut_ad(!online);
 		ut_ad(node->trx->dict_operation_lock_mode == RW_X_LATCH);

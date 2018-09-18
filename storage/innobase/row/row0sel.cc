@@ -1790,7 +1790,7 @@ skip_lock:
 	}
 
 	if (rec_is_default_row(rec, index)) {
-		/* Skip the 'default row' pseudo-record. */
+		/* Skip the metadata pseudo-record. */
 		cost_counter++;
 		goto next_rec;
 	}
@@ -3011,7 +3011,7 @@ row_sel_store_mysql_field_func(
 		}
 	} else {
 		/* The field is stored in the index record, or
-		in the 'default row' for instant ADD COLUMN. */
+		in the metadata for instant ADD COLUMN. */
 
 		if (rec_offs_nth_default(offsets, field_no)) {
 			ut_ad(dict_index_is_clust(index));
@@ -4758,7 +4758,7 @@ rec_loop:
 
 	if (comp) {
 		if (rec_get_info_bits(rec, true) & REC_INFO_MIN_REC_FLAG) {
-			/* Skip the 'default row' pseudo-record. */
+			/* Skip the metadata pseudo-record. */
 			ut_ad(index->is_instant());
 			goto next_rec;
 		}
@@ -4770,7 +4770,7 @@ rec_loop:
 		}
 	} else {
 		if (rec_get_info_bits(rec, false) & REC_INFO_MIN_REC_FLAG) {
-			/* Skip the 'default row' pseudo-record. */
+			/* Skip the metadata pseudo-record. */
 			ut_ad(index->is_instant());
 			goto next_rec;
 		}
