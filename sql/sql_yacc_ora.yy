@@ -281,7 +281,7 @@ void ORAerror(THD *thd, const char *s)
   enum Window_frame::Frame_exclusion frame_exclusion;
   enum trigger_order_type trigger_action_order_type;
   DDL_options_st object_ddl_options;
-  enum vers_sys_type_t vers_range_unit;
+  enum vers_kind_t vers_range_unit;
   enum Column_definition::enum_column_versioning vers_column_versioning;
   enum plsql_cursor_attr_t plsql_cursor_attr;
 }

@@ -32,7 +32,7 @@
 #include "filesort_utils.h"
 #include "parse_file.h"
 #include "sql_i_s.h"
-#include "sql_type.h"               /* vers_sys_type_t */
+#include "sql_type.h"               /* vers_kind_t */
 
 /* Structs that defines the TABLE */
 
@@ -809,7 +809,7 @@ struct TABLE_SHARE
     }
   };
 
-  vers_sys_type_t versioned;
+  vers_kind_t versioned;
   period_info_t vers;
   period_info_t period;
 
@@ -1582,14 +1582,14 @@ public:
     return s->versioned;
   }
 
-  bool versioned(vers_sys_type_t type) const
+  bool versioned(vers_kind_t type) const
   {
     DBUG_ASSERT(s);
     DBUG_ASSERT(type);
     return s->versioned == type;
   }
 
-  bool versioned_write(vers_sys_type_t type= VERS_UNDEFINED) const
+  bool versioned_write(vers_kind_t type= VERS_UNDEFINED) const
   {
     DBUG_ASSERT(versioned() || !vers_write);
     return versioned(type) ? vers_write : false;
@@ -1820,7 +1820,7 @@ class Item_in_subselect;
 /* trivial class, for %union in sql_yacc.yy */
 struct vers_history_point_t
 {
-  vers_sys_type_t unit;
+  vers_kind_t unit;
   Item *item;
 };
 
@@ -1830,7 +1830,7 @@ class Vers_history_point : public vers_history_point_t
 
 public:
   Vers_history_point() { empty(); }
-  Vers_history_point(vers_sys_type_t unit_arg, Item *item_arg)
+  Vers_history_point(vers_kind_t unit_arg, Item *item_arg)
   {
     unit= unit_arg;
     item= item_arg;
