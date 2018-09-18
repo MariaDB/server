@@ -4441,8 +4441,8 @@ empty_table:
 		ut_ad(page_is_root(block->frame));
 		btr_page_empty(block, NULL, index, 0, &mtr);
 		index->remove_instant();
-		mtr.commit();
-		return false;
+		err = DB_SUCCESS;
+		goto func_exit;
 	}
 
 	/* Convert the table to the instant ADD COLUMN format. */
@@ -4451,20 +4451,12 @@ empty_table:
 	mtr.start();
 	index->set_modified(mtr);
 	if (page_t* root = btr_root_get(index, &mtr)) {
-		switch (fil_page_get_type(root)) {
-		case FIL_PAGE_TYPE_INSTANT:
-			DBUG_ASSERT(page_get_instant(root)
-				    == index->n_core_fields);
-			break;
-		case FIL_PAGE_INDEX:
-			DBUG_ASSERT(!page_is_comp(root)
-				    || !page_get_instant(root));
-			break;
-		default:
+		if (fil_page_get_type(root) != FIL_PAGE_INDEX) {
 			DBUG_ASSERT(!"wrong page type");
-			goto func_exit;
+			goto err_exit;
 		}
 
+		DBUG_ASSERT(!page_is_comp(root) || !page_get_instant(root));
 		mlog_write_ulint(root + FIL_PAGE_TYPE,
 				 FIL_PAGE_TYPE_INSTANT, MLOG_2BYTES,
 				 &mtr);
@@ -4476,6 +4468,7 @@ empty_table:
 			BTR_NO_LOCKING_FLAG, BTR_MODIFY_TREE, index,
 			index->n_uniq, entry, 0, thr, false);
 	} else {
+err_exit:
 		err = DB_CORRUPTION;
 	}
 
