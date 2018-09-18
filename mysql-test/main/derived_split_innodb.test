@@ -24,3 +24,32 @@ eval $q;
 
 DROP TABLE t1;
 
+--echo #
+--echo # MDEV-17211: splittable materialized derived joining 3 tables with
+--echo #             GROUP BY list containing fields from 2 of them
+--echo #
+
+CREATE TABLE t1 (
+  id1 int, i1 int, id2 int,
+  PRIMARY KEY (id1), KEY (i1), KEY (id2)
+) ENGINE=InnoDB;
+INSERT INTO t1 VALUES (1,1,1);
+
+CREATE TABLE t2 (id2 int, i2 int) ENGINE=InnoDB;
+INSERT INTO t2  VALUES (1, 1);
+
+CREATE TABLE t3 (id3 int, i3 int, PRIMARY KEY (id3)) ENGINE=InnoDB;
+INSERT INTO t3 VALUES (1,1);
+
+let $q=
+SELECT id3
+  FROM (SELECT t3.id3, t2.i2, t1.id2  FROM t3,t1,t2
+          WHERE t3.i3=t1.id1 AND t2.id2=t1.id2
+            GROUP BY t3.id3, t1.id2) AS t,
+        t2
+    WHERE t2.id2=t.id2;
+
+eval EXPLAIN $q;
+eval $q;
+
+DROP TABLE t1,t2,t3;

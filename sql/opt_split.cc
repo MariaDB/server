@@ -895,6 +895,8 @@ SplM_plan_info * JOIN_TAB::choose_best_splitting(double record_count,
       continue;
     JOIN_TAB *tab= join->map2table[tablenr];
     TABLE *table= tab->table;
+    if (keyuse_ext->table != table)
+      continue;
     do
     {
       uint key= keyuse_ext->key;

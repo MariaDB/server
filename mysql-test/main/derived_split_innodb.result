@@ -24,3 +24,37 @@ n1
 0
 1
 DROP TABLE t1;
+#
+# MDEV-17211: splittable materialized derived joining 3 tables with
+#             GROUP BY list containing fields from 2 of them
+#
+CREATE TABLE t1 (
+id1 int, i1 int, id2 int,
+PRIMARY KEY (id1), KEY (i1), KEY (id2)
+) ENGINE=InnoDB;
+INSERT INTO t1 VALUES (1,1,1);
+CREATE TABLE t2 (id2 int, i2 int) ENGINE=InnoDB;
+INSERT INTO t2  VALUES (1, 1);
+CREATE TABLE t3 (id3 int, i3 int, PRIMARY KEY (id3)) ENGINE=InnoDB;
+INSERT INTO t3 VALUES (1,1);
+EXPLAIN SELECT id3
+FROM (SELECT t3.id3, t2.i2, t1.id2  FROM t3,t1,t2
+WHERE t3.i3=t1.id1 AND t2.id2=t1.id2
+GROUP BY t3.id3, t1.id2) AS t,
+t2
+WHERE t2.id2=t.id2;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	PRIMARY	t2	ALL	NULL	NULL	NULL	NULL	1	Using where
+1	PRIMARY	<derived2>	ref	key0	key0	5	test.t2.id2	2	
+2	DERIVED	t3	ALL	NULL	NULL	NULL	NULL	1	Using where; Using temporary; Using filesort
+2	DERIVED	t1	eq_ref	PRIMARY,id2	PRIMARY	4	test.t3.i3	1	
+2	DERIVED	t2	ALL	NULL	NULL	NULL	NULL	1	Using where; Using join buffer (flat, BNL join)
+SELECT id3
+FROM (SELECT t3.id3, t2.i2, t1.id2  FROM t3,t1,t2
+WHERE t3.i3=t1.id1 AND t2.id2=t1.id2
+GROUP BY t3.id3, t1.id2) AS t,
+t2
+WHERE t2.id2=t.id2;
+id3
+1
+DROP TABLE t1,t2,t3;
