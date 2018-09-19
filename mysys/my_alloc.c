@@ -184,6 +184,7 @@ void *alloc_root(MEM_ROOT *mem_root, size_t length)
   uchar* point;
   reg1 USED_MEM *next= 0;
   reg2 USED_MEM **prev;
+  size_t original_length = length;
   DBUG_ENTER("alloc_root");
   DBUG_PRINT("enter",("root: 0x%lx", (long) mem_root));
   DBUG_ASSERT(alloc_root_inited(mem_root));
@@ -241,7 +242,7 @@ void *alloc_root(MEM_ROOT *mem_root, size_t length)
     mem_root->used= next;
     mem_root->first_block_usage= 0;
   }
-  TRASH_ALLOC(point, length);
+  TRASH_ALLOC(point, original_length);
   DBUG_PRINT("exit",("ptr: 0x%lx", (ulong) point));
   DBUG_RETURN((void*) point);
 #endif
