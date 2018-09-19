@@ -13073,7 +13073,7 @@ is_duplicate_key_error(int errcode)
 
 int
 Rows_log_event::write_row(rpl_group_info *rgi,
-                          const bool overwrite)
+                          bool overwrite)
 {
   DBUG_ENTER("write_row");
   DBUG_ASSERT(m_table != NULL && thd != NULL);
@@ -13134,13 +13134,26 @@ Rows_log_event::write_row(rpl_group_info *rgi,
   }
 
   // Handle INSERT.
-  if (table->versioned(VERS_TIMESTAMP))
+  if (table->versioned())
   {
-    ulong sec_part;
-    bitmap_set_bit(table->read_set, table->vers_start_field()->field_index);
-    // Check whether a row came from unversioned table and fix vers fields.
-    if (table->vers_start_field()->get_timestamp(&sec_part) == 0 && sec_part == 0)
-      table->vers_update_fields();
+    if (table->versioned(VERS_TIMESTAMP))
+    {
+      // Set vers fields when replicating from not system-versioned table.
+      ulong sec_part;
+      bitmap_set_bit(table->read_set, table->vers_start_field()->field_index);
+      // Check whether a row came from unversioned table and fix vers fields.
+      if (table->vers_start_field()->get_timestamp(&sec_part) == 0 && sec_part == 0)
+        table->vers_update_fields();
+      else
+        goto overwrite_historical_row;
+    }
+    else
+    {
+overwrite_historical_row:
+      bitmap_set_bit(table->read_set, table->vers_end_field()->field_index);
+      if (!overwrite && !table->vers_end_field()->is_max())
+        overwrite= true;
+    }
   }
 
   /* 
