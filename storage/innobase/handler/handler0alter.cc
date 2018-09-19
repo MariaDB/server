@@ -682,12 +682,10 @@ instant_alter_column_possible(
 		return false;
 	}
 
-	if (ha_alter_info->handler_flags
-	    & ~(ALTER_ADD_STORED_BASE_COLUMN
-		| ALTER_DROP_STORED_COLUMN
-		| INNOBASE_ALTER_INSTANT
-		| INNOBASE_INPLACE_IGNORE
-		| ALTER_STORED_COLUMN_ORDER)) {
+	if (!(ha_alter_info->handler_flags
+	      & (ALTER_ADD_STORED_BASE_COLUMN
+		 | ALTER_DROP_STORED_COLUMN
+		 | ALTER_STORED_COLUMN_ORDER))) {
 		return false;
 	}
 
