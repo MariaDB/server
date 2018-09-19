@@ -1647,6 +1647,9 @@ void dict_table_t::instant_op_column(
 	index->instant = true;
 
 	while ((index = dict_table_get_next_index(index)) != NULL) {
+		if (index->to_be_dropped) {
+			continue;
+		}
 		for (unsigned i = 0; i < index->n_fields; i++) {
 			dict_field_t& field = index->fields[i];
 			if (field.col < old_cols
