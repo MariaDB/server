@@ -8415,8 +8415,8 @@ void TABLE::vers_update_fields()
 
 void TABLE::vers_update_end()
 {
-  if (vers_end_field()->store_timestamp(in_use->query_start(),
-                                        in_use->query_start_sec_part()))
+  bitmap_set_bit(write_set, vers_end_field()->field_index);
+  if (vers_end_field()->set_time())
     DBUG_ASSERT(0);
 }
 
