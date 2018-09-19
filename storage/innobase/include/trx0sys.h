@@ -790,7 +790,7 @@ class trx_sys_t
     The smallest number not yet assigned as a transaction id or transaction
     number. Accessed and updated with atomic operations.
   */
-  MY_ALIGNED(CACHE_LINE_SIZE) trx_id_t m_max_trx_id;
+  MY_ALIGNED(CACHE_LINE_SIZE) Atomic_counter<trx_id_t> m_max_trx_id;
 
 
   /**
@@ -887,9 +887,7 @@ public:
 
   trx_id_t get_max_trx_id()
   {
-    return static_cast<trx_id_t>
-           (my_atomic_load64_explicit(reinterpret_cast<int64*>(&m_max_trx_id),
-                                      MY_MEMORY_ORDER_RELAXED));
+    return m_max_trx_id;
   }
 
 
@@ -1195,8 +1193,7 @@ private:
 
   trx_id_t get_new_trx_id_no_refresh()
   {
-    return static_cast<trx_id_t>(my_atomic_add64_explicit(
-      reinterpret_cast<int64*>(&m_max_trx_id), 1, MY_MEMORY_ORDER_RELAXED));
+    return m_max_trx_id++;
   }
 };
 
