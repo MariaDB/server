@@ -326,3 +326,27 @@ SELECT * FROM mysql.column_stats;
 DROP TABLE t1;
 
 set use_stat_tables=@save_use_stat_tables;
+
+--echo #
+--echo # MDEV-16757: manual addition of min/max statistics for BLOB
+--echo #
+
+SET use_stat_tables= PREFERABLY;
+
+CREATE TABLE t1 (pk INT PRIMARY KEY, t TEXT);
+INSERT INTO t1 VALUES (1,'foo'),(2,'bar');
+ANALYZE TABLE t1;
+--sorted_result
+SELECT * FROM mysql.column_stats;
+DELETE FROM mysql.column_stats
+  WHERE db_name='test' AND table_name='t1' AND column_name='t';
+INSERT INTO mysql.column_stats VALUES
+  ('test','t1','t','bar','foo', 0.0, 3.0, 1.0, 0, NULL, NULL);
+--sorted_result
+SELECT * FROM mysql.column_stats;
+
+SELECT pk FROM t1;
+
+DROP TABLE t1;
+
+set use_stat_tables=@save_use_stat_tables;
