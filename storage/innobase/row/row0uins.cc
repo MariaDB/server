@@ -227,7 +227,7 @@ retry:
 
 func_exit:
 	btr_pcur_commit_specify_mtr(&node->pcur, &mtr);
-	if (err == DB_SUCCESS && node->rec_type == TRX_UNDO_INSERT_DEFAULT) {
+	if (err == DB_SUCCESS && node->rec_type == TRX_UNDO_INSERT_METADATA) {
 		/* When rolling back the very first instant ADD COLUMN
 		operation, reset the root page to the basic state. */
 		ut_ad(!index->table->is_temporary());
@@ -422,7 +422,7 @@ row_undo_ins_parse_undo_rec(
 	default:
 		ut_ad(!"wrong undo record type");
 		goto close_table;
-	case TRX_UNDO_INSERT_DEFAULT:
+	case TRX_UNDO_INSERT_METADATA:
 	case TRX_UNDO_INSERT_REC:
 		break;
 	case TRX_UNDO_RENAME_TABLE:
@@ -464,7 +464,7 @@ close_table:
 					ptr, clust_index, &node->ref,
 					node->heap);
 			} else {
-				node->ref = &trx_undo_default_rec;
+				node->ref = &trx_undo_metadata;
 			}
 
 			if (!row_undo_search_clust_to_pcur(node)) {
@@ -596,7 +596,7 @@ row_undo_ins(
 		}
 
 		/* fall through */
-	case TRX_UNDO_INSERT_DEFAULT:
+	case TRX_UNDO_INSERT_METADATA:
 		log_free_check();
 
 		if (node->table->id == DICT_INDEXES_ID) {
