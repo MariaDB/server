@@ -840,7 +840,7 @@ static void row_purge_reset_trx_id(purge_node_t* node, mtr_t* mtr)
 		    == row_get_rec_roll_ptr(rec, index, offsets)) {
 			ut_ad(!rec_get_deleted_flag(
 					rec, rec_offs_comp(offsets))
-			      || rec_is_new_default_row(rec, index));
+			      || rec_is_alter_metadata(rec, index));
 			DBUG_LOG("purge", "reset DB_TRX_ID="
 				 << ib::hex(row_get_rec_trx_id(
 						    rec, index, offsets)));

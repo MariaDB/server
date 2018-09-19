@@ -1366,7 +1366,7 @@ non-drop nullable fields and fill the drop columns in the vector.
 @param[out]	non_pk_fields		number of non-primary key fields
 @param[out]	non_drop_nullable_fieldsnumber of non-drop nullable fields
 @param[out]	dropped_col_list	dropped column list */
-void dict_table_t::read_default_row_blob(
+void dict_table_t::read_metadata_blob(
 	byte*			blob_data,
 	ulint*			non_pk_fields,
 	ulint*			non_drop_nullable_fields,
@@ -1402,7 +1402,7 @@ the clustered index.
 @param[in,out]	heap	memory heap to allocate the blob
 @param[out]	len	length of the blob data
 @return blob data. */
-byte* dict_table_t::construct_default_row_blob(
+byte* dict_table_t::construct_metadata_blob(
 	mem_heap_t*	heap,
 	unsigned*	len)
 {

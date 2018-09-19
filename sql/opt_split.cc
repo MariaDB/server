@@ -267,6 +267,13 @@ void TABLE::deny_splitting()
 }
 
 
+double TABLE::get_materialization_cost()
+{
+  DBUG_ASSERT(spl_opt_info != NULL);
+  return spl_opt_info->unsplit_cost;
+}
+
+
 /* This structure is auxiliary and used only in the function that follows it */
 struct SplM_field_ext_info: public SplM_field_info
 {
@@ -888,6 +895,8 @@ SplM_plan_info * JOIN_TAB::choose_best_splitting(double record_count,
       continue;
     JOIN_TAB *tab= join->map2table[tablenr];
     TABLE *table= tab->table;
+    if (keyuse_ext->table != table)
+      continue;
     do
     {
       uint key= keyuse_ext->key;

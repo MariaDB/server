@@ -82,9 +82,9 @@ row_build_clust_default_entry(
 		if (field_no == unsigned(clust_index->n_uniq + DATA_ROLL_PTR)) {
 			/* Reference to store the non-pk column info blob. */
 			void* data = mem_heap_zalloc(
-					heap, BTR_EXTERN_FIELD_REF_SIZE);
-			dfield->init_new_default_blob(
-					data, BTR_EXTERN_FIELD_REF_SIZE);
+				heap, BTR_EXTERN_FIELD_REF_SIZE);
+			dfield->init_metadata_blob(
+				data, BTR_EXTERN_FIELD_REF_SIZE);
 			continue;
 		}
 
@@ -825,7 +825,7 @@ row_def_rec_to_index_entry_impl(
 	dtuple_set_n_fields_cmp(entry,
 				dict_index_get_n_unique_in_tree(index));
 	ulint	field_no = 0;
-	bool	is_new_default_rec = rec_is_new_default_row(rec, index);
+	const bool is_alter_metadata = rec_is_alter_metadata(rec, index);
 
 	for (i = 0; i < rec_len; i++) {
 
@@ -834,7 +834,7 @@ row_def_rec_to_index_entry_impl(
 			dfield->type.mtype = DATA_BLOB;
 			dfield->type.prtype = DATA_NOT_NULL;
 
-			if (!is_new_default_rec) {
+			if (!is_alter_metadata) {
 				dfield_set_data(dfield, field_ref_zero,
 						FIELD_REF_SIZE);
 				dfield->len = FIELD_REF_SIZE;
@@ -853,7 +853,7 @@ row_def_rec_to_index_entry_impl(
 fetch_rec:
 		ulint field_no = i;
 
-		if (is_new_default_rec) {
+		if (is_alter_metadata) {
 			field = rec_get_nth_def_field(
 				rec, index, offsets, field_no, &len);
 		} else {
@@ -1002,8 +1002,8 @@ row_rec_to_index_entry(
 	rec_offs_make_valid(copy_rec, index, true,
 			    const_cast<ulint*>(offsets));
 
-	if (rec_is_new_default_row(copy_rec, index)
-	    || (rec_is_default_row(copy_rec, index)
+	if (rec_is_alter_metadata(copy_rec, index)
+	    || (rec_is_metadata(copy_rec, index)
 		&& index->n_dropped_fields > 0)) {
 
 		entry = row_def_rec_to_index_entry_impl(
@@ -1256,7 +1256,7 @@ row_search_on_row_ref(
 	index = dict_table_get_first_index(table);
 
 	if (UNIV_UNLIKELY(ref->info_bits != 0)) {
-		ut_ad(ref->is_default_row());
+		ut_ad(ref->is_metadata());
 		ut_ad(ref->n_fields <= index->n_uniq);
 		btr_pcur_open_at_index_side(true, index, mode, pcur, true, 0,
 					    mtr);
@@ -1264,7 +1264,7 @@ row_search_on_row_ref(
 		/* We do not necessarily have index->is_instant() here,
 		because we could be executing a rollback of an
 		instant ADD COLUMN operation. The function
-		rec_is_default_row() asserts index->is_instant();
+		rec_is_metadata() asserts index->is_instant();
 		we do not want to call it here. */
 		return rec_get_info_bits(btr_pcur_get_rec(pcur),
 					 dict_table_is_comp(index->table))

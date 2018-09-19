@@ -79,7 +79,7 @@ row_get_rec_roll_ptr(
 #define ROW_BUILD_FOR_INSERT	3	/*!< build row for insert. */
 
 void
-row_construct_default_row_blob(
+row_construct_metadata_blob(
 	dict_table_t*	table,
 	dfield_t*	dfield,
 	mem_heap_t*	heap);

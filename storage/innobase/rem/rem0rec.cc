@@ -330,7 +330,7 @@ ordinary:
 	case REC_LEAF_TEMP_INSTANT:
 
 		if (index->is_drop_field_exist()
-		    && !rec_is_default_row(rec, index)) {
+		    && !rec_is_metadata(rec, index)) {
 			n_fields = n_core + rec_get_n_add_field(nulls);
 		} else {
 			n_fields = n_core + 1 + rec_get_n_add_field(nulls);
@@ -601,7 +601,7 @@ field i is being stored externally.
 @param[in,out]	offsets	array of offsets, with valid rec_offs_n_fields() */
 static
 void
-rec_init_offsets_for_default_row(
+rec_init_offsets_for_metadata(
 	const rec_t*		rec,
 	const dict_index_t*	index,
 	ulint*			offsets)
@@ -682,7 +682,7 @@ rec_init_offsets_for_default_row(
 				dict_table_page_size(table),
 				len, table->heap);
 
-		table->read_default_row_blob(
+		table->read_metadata_blob(
 				blob_data, &non_pk_fields,
 				&non_drop_nullable_fields, dropped_cols_list);
 
@@ -1038,7 +1038,7 @@ rec_get_offsets_func(
 {
 	ulint	n;
 	ulint	size;
-	bool	new_default_row = false;
+	bool	alter_metadata = false;
 
 	ut_ad(rec);
 	ut_ad(index);
@@ -1053,7 +1053,7 @@ rec_get_offsets_func(
 					  == (REC_INFO_MIN_REC_FLAG
 					      | REC_INFO_DELETED_FLAG))) {
 				n = dict_index_get_n_fields(index) + 1;
-				new_default_row = true;
+				alter_metadata = true;
 				break;
 			}
 
@@ -1134,8 +1134,9 @@ rec_get_offsets_func(
 
 	rec_offs_set_n_fields(offsets, n);
 
-	if (UNIV_UNLIKELY(new_default_row && dict_table_is_comp(index->table))) {
-		rec_init_offsets_for_default_row(rec, index, offsets);
+	if (UNIV_UNLIKELY(alter_metadata
+			  && dict_table_is_comp(index->table))) {
+		rec_init_offsets_for_metadata(rec, index, offsets);
 		return offsets;
 	}
 
@@ -1318,14 +1319,14 @@ rec_get_nth_field_offs_old(
 	return(os);
 }
 
-/** Determines the size of a new default tuple prefix in ROW_FORMAT=COMPACT.
-@param[in]	index		record descriptor; dict_table_is_comp()
+/** Determines the size of instant ALTER TABLE metadata tuple.
+@param[in]	clust_index	record descriptor; dict_table_is_comp()
 				is assumed to hold, even if it doesn't
 @param[in]	tuple		data tuple for metadata record
 @param[out]	extra		extra size
 @return total size */
 ulint
-rec_get_default_rec_converted_size(
+rec_get_metadata_converted_size(
 	const dict_index_t*	clust_index,
 	const dtuple_t*		tuple,
 	ulint*			extra)
@@ -2118,9 +2119,9 @@ rec_convert_dtuple_to_rec_new(
 	ulint	extra_size;
 	rec_t*	rec;
 
-	if (UNIV_UNLIKELY(dtuple->is_new_default_row()
+	if (UNIV_UNLIKELY(dtuple->is_alter_metadata()
 			  && dict_table_is_comp(index->table))) {
-		rec_get_default_rec_converted_size(index, dtuple, &extra_size);
+		rec_get_metadata_converted_size(index, dtuple, &extra_size);
 		rec = buf + extra_size;
 		rec_convert_dtuple_to_default_rec_comp(
 			rec, index, dtuple->fields, dtuple->n_fields);
@@ -2413,13 +2414,13 @@ rec_copy_prefix_to_buf(
 	case REC_STATUS_INSTANT:
 		/* We would have !index->is_instant() when rolling back
 		an instant ADD COLUMN operation. */
-		ut_ad(index->is_instant() || page_rec_is_default_row(rec));
+		ut_ad(index->is_instant() || page_rec_is_metadata(rec));
 		nulls++;
 
 		ulint	n_rec = 0;
 		uint	nb = 0;
 
-		if (UNIV_UNLIKELY(rec_is_new_default_row(rec, index))) {
+		if (UNIV_UNLIKELY(rec_is_alter_metadata(rec, index))) {
 			nb += rec_get_n_add_field_len(index->n_dropped_fields);
 
 			nb += UT_BITS_IN_BYTES(

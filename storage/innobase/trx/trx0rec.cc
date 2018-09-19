@@ -42,9 +42,9 @@ Created 3/26/1996 Heikki Tuuri
 
 /** The search tuple corresponding to TRX_UNDO_INSERT_DEFAULT. */
 const dtuple_t trx_undo_default_rec = {
-	/* This also works for REC_INFO_DEFAULT_ROW_ALTER, because the
+	/* This also works for REC_INFO_METADATA_ALTER, because the
 	delete-mark (REC_INFO_DELETED_FLAG) is ignored when searching. */
-	REC_INFO_DEFAULT_ROW_ADD,
+	REC_INFO_METADATA_ADD,
 	0, 0,
 	NULL, 0, NULL,
 	UT_LIST_NODE_T(dtuple_t)()
@@ -509,7 +509,7 @@ trx_undo_page_report_insert(
 	/* Store then the fields required to uniquely determine the record
 	to be inserted in the clustered index */
 	if (UNIV_UNLIKELY(clust_entry->info_bits != 0)) {
-		ut_ad(clust_entry->is_default_row());
+		ut_ad(clust_entry->is_metadata());
 		ut_ad(index->is_instant());
 		ut_ad(undo_block->frame[first_free + 2]
 		      == TRX_UNDO_INSERT_REC);
@@ -923,10 +923,9 @@ trx_undo_page_report_modify(
 	/* Store first some general parameters to the undo log */
 
 	if (!update) {
-		ut_ad(!rec_get_deleted_flag(rec, dict_table_is_comp(table)));
+		ut_ad(!rec_is_delete_marked(rec, dict_table_is_comp(table)));
 		type_cmpl = TRX_UNDO_DEL_MARK_REC;
-	} else if (rec_get_deleted_flag(rec, dict_table_is_comp(table))
-		   && !rec_is_new_default_row(rec, index)) {
+	} else if (rec_is_delete_marked(rec, dict_table_is_comp(table))) {
 		/* In delete-marked records, DB_TRX_ID must
 		always refer to an existing update_undo log record. */
 		ut_ad(row_get_rec_trx_id(rec, index, offsets));
@@ -1098,8 +1097,8 @@ trx_undo_page_report_modify(
 						flen, max_v_log_len);
 				}
 			} else {
-				if (UNIV_UNLIKELY(rec_is_new_default_row(
-							rec, index))) {
+				if (UNIV_UNLIKELY(rec_is_alter_metadata(
+							  rec, index))) {
 					field = rec_get_nth_def_field(
 						rec, index, offsets, pos, &flen);
 				} else {

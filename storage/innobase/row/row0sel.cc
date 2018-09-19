@@ -1489,7 +1489,7 @@ row_sel_try_search_shortcut(
 
 	const rec_t* rec = btr_pcur_get_rec(&(plan->pcur));
 
-	if (!page_rec_is_user_rec(rec) || rec_is_default_row(rec, index)) {
+	if (!page_rec_is_user_rec(rec) || rec_is_metadata(rec, index)) {
 retry:
 		rw_lock_s_unlock(ahi_latch);
 		return(SEL_RETRY);
@@ -1789,7 +1789,7 @@ skip_lock:
 		goto next_rec;
 	}
 
-	if (rec_is_default_row(rec, index)) {
+	if (rec_is_metadata(rec, index)) {
 		/* Skip the metadata pseudo-record. */
 		cost_counter++;
 		goto next_rec;
@@ -3563,8 +3563,8 @@ sel_restore_position_for_mysql(
 		if (!success && moves_up) {
 next:
 			if (btr_pcur_move_to_next(pcur, mtr)
-			    && rec_is_default_row(btr_pcur_get_rec(pcur),
-						  pcur->btr_cur.index)) {
+			    && rec_is_metadata(btr_pcur_get_rec(pcur),
+					       pcur->btr_cur.index)) {
 				btr_pcur_move_to_next(pcur, mtr);
 			}
 
@@ -3579,8 +3579,8 @@ next:
 		pcur->pos_state = BTR_PCUR_IS_POSITIONED;
 prev:
 		if (btr_pcur_is_on_user_rec(pcur) && !moves_up
-		    && !rec_is_default_row(btr_pcur_get_rec(pcur),
-					   pcur->btr_cur.index)) {
+		    && !rec_is_metadata(btr_pcur_get_rec(pcur),
+					pcur->btr_cur.index)) {
 			btr_pcur_move_to_prev(pcur, mtr);
 		}
 		return true;
@@ -3857,7 +3857,7 @@ row_sel_try_search_shortcut_for_mysql(
 				   BTR_SEARCH_LEAF, pcur, ahi_latch, mtr);
 	rec = btr_pcur_get_rec(pcur);
 
-	if (!page_rec_is_user_rec(rec) || rec_is_default_row(rec, index)) {
+	if (!page_rec_is_user_rec(rec) || rec_is_metadata(rec, index)) {
 retry:
 		rw_lock_s_unlock(ahi_latch);
 		return(SEL_RETRY);

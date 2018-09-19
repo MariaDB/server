@@ -78,7 +78,7 @@ static const alter_table_operations INNOBASE_ALTER_REBUILD
 	= ALTER_ADD_PK_INDEX
 	| ALTER_DROP_PK_INDEX
 	| ALTER_OPTIONS
-	/* ALTER_OPTIONS needs to check create_option_need_rebuild() */
+	/* ALTER_OPTIONS needs to check alter_options_need_rebuild() */
 	| ALTER_COLUMN_NULLABLE
 	| INNOBASE_DEFAULTS
 	| ALTER_STORED_COLUMN_ORDER
@@ -210,6 +210,9 @@ struct ha_innobase_inplace_ctx : public inplace_alter_handler_ctx
 	(3) Allow the conversion only in non-strict mode. */
 	const bool	allow_not_null;
 
+	/** The page_compression_level attribute, or 0 */
+	const uint	page_compression_level;
+
 	/** Number of instant add columns */
 	ulint		n_instant_add_cols;
 	/** Number of instant drop columns */
@@ -234,7 +237,9 @@ struct ha_innobase_inplace_ctx : public inplace_alter_handler_ctx
 				ulint add_autoinc_arg,
 				ulonglong autoinc_col_min_value_arg,
 				ulonglong autoinc_col_max_value_arg,
-				bool allow_not_null_flag) :
+				bool allow_not_null_flag,
+				bool page_compressed,
+				ulonglong page_compression_level_arg) :
 		inplace_alter_handler_ctx(),
 		prebuilt (prebuilt_arg),
 		add_index (0), add_key_numbers (0), num_to_add_index (0),
@@ -263,11 +268,17 @@ struct ha_innobase_inplace_ctx : public inplace_alter_handler_ctx
 		old_cols(prebuilt_arg->table->cols),
 		old_col_names(prebuilt_arg->table->col_names),
 		allow_not_null(allow_not_null_flag),
+		page_compression_level(page_compressed
+				       ? (page_compression_level_arg
+					  ? uint(page_compression_level_arg)
+					  : page_zip_level)
+				       : 0),
 		n_instant_add_cols(0),
 		n_instant_drop_cols(0),
 		old_instant(prebuilt_arg->table->indexes.start->instant)
 	{
 		ut_ad(old_n_cols >= DATA_N_SYS_COLS);
+		ut_ad(page_compression_level <= 9);
 #ifdef UNIV_DEBUG
 		for (ulint i = 0; i < num_to_add_index; i++) {
 			ut_ad(!add_index[i]->to_be_dropped);
@@ -500,11 +511,11 @@ innobase_spatial_exist(
 	return(false);
 }
 
-/** Determine if CHANGE_CREATE_OPTION requires rebuilding the table.
+/** Determine if ALTER_OPTIONS requires rebuilding the table.
 @param[in] ha_alter_info	the ALTER TABLE operation
 @param[in] table		metadata before ALTER TABLE
 @return whether it is mandatory to rebuild the table */
-static bool create_option_need_rebuild(
+static bool alter_options_need_rebuild(
 	const Alter_inplace_info*	ha_alter_info,
 	const TABLE*			table)
 {
@@ -523,12 +534,12 @@ static bool create_option_need_rebuild(
 	}
 
 	const ha_table_option_struct& alt_opt=
-		*ha_alter_info->create_info->option_struct;
+			*ha_alter_info->create_info->option_struct;
 	const ha_table_option_struct& opt= *table->s->option_struct;
 
-	if (alt_opt.page_compressed != opt.page_compressed
-	    || alt_opt.page_compression_level
-	    != opt.page_compression_level
+	/* Allow an instant change to enable page_compressed,
+	and any change of page_compression_level. */
+	if ((!alt_opt.page_compressed && opt.page_compressed)
 	    || alt_opt.encryption != opt.encryption
 	    || alt_opt.encryption_key_id != opt.encryption_key_id) {
 		return(true);
@@ -551,7 +562,7 @@ innobase_need_rebuild(
 	if ((ha_alter_info->handler_flags & ~(INNOBASE_INPLACE_IGNORE
 					      | INNOBASE_ALTER_INSTANT))
 	    == ALTER_OPTIONS) {
-		return create_option_need_rebuild(ha_alter_info, table);
+		return alter_options_need_rebuild(ha_alter_info, table);
 	}
 
 	return !!(ha_alter_info->handler_flags & INNOBASE_ALTER_REBUILD);
@@ -705,7 +716,7 @@ instant_alter_column_possible(
 	}
 
 	return !(ha_alter_info->handler_flags & ALTER_OPTIONS)
-		|| !create_option_need_rebuild(ha_alter_info, table);
+		|| !alter_options_need_rebuild(ha_alter_info, table);
 }
 
 /** Check whether the non-const default value for the field
@@ -865,9 +876,11 @@ ha_innobase::check_if_supported_inplace_alter(
 {
 	DBUG_ENTER("check_if_supported_inplace_alter");
 
-	if ((table->versioned(VERS_TIMESTAMP)
-	     || altered_table->versioned(VERS_TIMESTAMP))
-	    && innobase_need_rebuild(ha_alter_info, table)) {
+	const bool need_rebuild = innobase_need_rebuild(ha_alter_info, table);
+
+	if (need_rebuild
+	    && (table->versioned(VERS_TIMESTAMP)
+		|| altered_table->versioned(VERS_TIMESTAMP))) {
 		ha_alter_info->unsupported_reason =
 			"Not implemented for system-versioned tables";
 		DBUG_RETURN(HA_ALTER_INPLACE_NOT_SUPPORTED);
@@ -923,15 +936,15 @@ ha_innobase::check_if_supported_inplace_alter(
 		DBUG_RETURN(HA_ALTER_INPLACE_NOT_SUPPORTED);
 	}
 
-#if 0
-	if (altered_table->file->ht != ht) {
-		/* Non-native partitioning table engine. No longer supported,
-		due to implementation of native InnoDB partitioning. */
-		DBUG_RETURN(HA_ALTER_INPLACE_NOT_SUPPORTED);
-	}
-#endif
-
-	if (!(ha_alter_info->handler_flags & ~INNOBASE_INPLACE_IGNORE)) {
+	switch (ha_alter_info->handler_flags & ~INNOBASE_INPLACE_IGNORE) {
+	case ALTER_OPTIONS:
+		if (alter_options_need_rebuild(ha_alter_info, table)) {
+			ha_alter_info->unsupported_reason = my_get_err_msg(
+				ER_ALTER_OPERATION_TABLE_OPTIONS_NEED_REBUILD);
+			break;
+		}
+		/* fall through */
+	case 0:
 		DBUG_RETURN(HA_ALTER_INPLACE_INSTANT);
 	}
 
@@ -1342,9 +1355,8 @@ next_column:
 	if (!online) {
 		/* We already determined that only a non-locking
 		operation is possible. */
-	} else if (((ha_alter_info->handler_flags
-		     & ALTER_ADD_PK_INDEX)
-		    || innobase_need_rebuild(ha_alter_info, table))
+	} else if ((need_rebuild || (ha_alter_info->handler_flags
+				     & ALTER_ADD_PK_INDEX))
 		   && (innobase_fulltext_exist(altered_table)
 		       || innobase_spatial_exist(altered_table)
 		       || innobase_indexed_virtual_exist(altered_table))) {
@@ -1442,10 +1454,9 @@ cannot_create_many_fulltext_index:
 	}
 
 	// FIXME: implement Online DDL for system-versioned tables
-	if ((table->versioned(VERS_TRX_ID)
-	     || altered_table->versioned(VERS_TRX_ID))
-	    && innobase_need_rebuild(ha_alter_info, table)) {
-
+	if (need_rebuild &&
+	    (table->versioned(VERS_TRX_ID)
+	     || altered_table->versioned(VERS_TRX_ID))) {
 		if (ha_alter_info->online) {
 			ha_alter_info->unsupported_reason =
 				"Not implemented for system-versioned tables";
@@ -1454,7 +1465,7 @@ cannot_create_many_fulltext_index:
 		online = false;
 	}
 
-	if (fts_need_rebuild || innobase_need_rebuild(ha_alter_info, table)) {
+	if (need_rebuild || fts_need_rebuild) {
 		DBUG_RETURN(online
 			    ? HA_ALTER_INPLACE_COPY_NO_LOCK
 			    : HA_ALTER_INPLACE_COPY_LOCK);
@@ -4379,8 +4390,8 @@ static bool innobase_instant_update_pos(
 	return false;
 }
 
-/** Insert into SYS_COLUMNS and insert/update the metadata
-for instant ADD COLUMN.
+/** Insert or update SYS_COLUMNS and the hidden metadata record
+for instant ALTER TABLE.
 @param[in,out]	ctx		ALTER TABLE context for the current partition
 @param[in]	altered_table	MySQL table that is being altered
 @param[in]	table		MySQL table as it is before the ALTER operation
@@ -4539,10 +4550,10 @@ innobase_op_instant_try(
 
 	if (index->is_drop_field_exist()) {
 		entry = row_build_clust_default_entry(row, index, ctx->heap);
-		entry->info_bits = REC_INFO_DEFAULT_ROW_ALTER;
+		entry->info_bits = REC_INFO_METADATA_ALTER;
 	} else {
 		entry = row_build_index_entry(row, NULL, index, ctx->heap);
-		entry->info_bits = REC_INFO_DEFAULT_ROW_ADD;
+		entry->info_bits = REC_INFO_METADATA_ADD;
 	}
 
 	mtr_t mtr;
@@ -4563,7 +4574,7 @@ innobase_op_instant_try(
 		NULL, trx, ctx->heap, NULL);
 
 	dberr_t err;
-	if (rec_is_default_row(rec, index)) {
+	if (rec_is_metadata(rec, index)) {
 		ut_ad(page_rec_is_user_rec(rec));
 		if (!page_has_next(block->frame)
 		    && page_rec_is_last(rec, block->frame)) {
@@ -4587,8 +4598,8 @@ innobase_op_instant_try(
 		upd_t* update = upd_create(index->n_fields, ctx->heap);
 		update->n_fields = n;
 		update->info_bits = f
-			? REC_INFO_DEFAULT_ROW_ALTER
-			: REC_INFO_DEFAULT_ROW_ADD;
+			? REC_INFO_METADATA_ALTER
+			: REC_INFO_METADATA_ADD;
 
 		/* Add the default values for instantly added columns */
 		unsigned j = 0;
@@ -4649,8 +4660,8 @@ empty_table:
 		ut_ad(page_is_root(block->frame));
 		btr_page_empty(block, NULL, index, 0, &mtr);
 		index->remove_instant();
-		mtr.commit();
-		return false;
+		err = DB_SUCCESS;
+		goto func_exit;
 	}
 
 	/* Convert the table to the instant ADD COLUMN format. */
@@ -4659,20 +4670,12 @@ empty_table:
 	mtr.start();
 	index->set_modified(mtr);
 	if (page_t* root = btr_root_get(index, &mtr)) {
-		switch (fil_page_get_type(root)) {
-		case FIL_PAGE_TYPE_INSTANT:
-			DBUG_ASSERT(page_get_instant(root)
-				    == index->n_core_fields);
-			break;
-		case FIL_PAGE_INDEX:
-			DBUG_ASSERT(!page_is_comp(root)
-				    || !page_get_instant(root));
-			break;
-		default:
+		if (fil_page_get_type(root) != FIL_PAGE_INDEX) {
 			DBUG_ASSERT(!"wrong page type");
-			goto func_exit;
+			goto err_exit;
 		}
 
+		DBUG_ASSERT(!page_is_comp(root) || !page_get_instant(root));
 		mlog_write_ulint(root + FIL_PAGE_TYPE,
 				 FIL_PAGE_TYPE_INSTANT, MLOG_2BYTES,
 				 &mtr);
@@ -4684,6 +4687,7 @@ empty_table:
 			BTR_NO_LOCKING_FLAG, BTR_MODIFY_TREE, index,
 			index->n_uniq, entry, 0, thr, false);
 	} else {
+err_exit:
 		err = DB_CORRUPTION;
 	}
 
@@ -7055,11 +7059,14 @@ err_exit:
 		}
 	}
 
+	const ha_table_option_struct& alt_opt=
+		*ha_alter_info->create_info->option_struct;
+
 	if (!(ha_alter_info->handler_flags & INNOBASE_ALTER_DATA)
 	    || ((ha_alter_info->handler_flags & ~(INNOBASE_INPLACE_IGNORE
 						  | INNOBASE_ALTER_INSTANT))
 		== ALTER_OPTIONS
-		&& !create_option_need_rebuild(ha_alter_info, table))) {
+		&& !alter_options_need_rebuild(ha_alter_info, table))) {
 
 		if (heap) {
 			ha_alter_info->handler_ctx
@@ -7073,7 +7080,9 @@ err_exit:
 					heap, indexed_table,
 					col_names, ULINT_UNDEFINED, 0, 0,
 					(ha_alter_info->ignore
-					 || !thd_is_strict_mode(m_user_thd)));
+					 || !thd_is_strict_mode(m_user_thd)),
+					alt_opt.page_compressed,
+					alt_opt.page_compression_level);
 		}
 
 		DBUG_ASSERT(m_prebuilt->trx->dict_operation_lock_mode == 0);
@@ -7202,7 +7211,8 @@ found_col:
 		add_autoinc_col_no,
 		ha_alter_info->create_info->auto_increment_value,
 		autoinc_col_max_value,
-		ha_alter_info->ignore || !thd_is_strict_mode(m_user_thd));
+		ha_alter_info->ignore || !thd_is_strict_mode(m_user_thd),
+		alt_opt.page_compressed, alt_opt.page_compression_level);
 
 	DBUG_RETURN(prepare_inplace_alter_table_dict(
 			    ha_alter_info, altered_table, table,
@@ -7341,7 +7351,7 @@ ok_exit:
 	if ((ha_alter_info->handler_flags & ~(INNOBASE_INPLACE_IGNORE
 					      | INNOBASE_ALTER_INSTANT))
 	    == ALTER_OPTIONS
-	    && !create_option_need_rebuild(ha_alter_info, table)) {
+	    && !alter_options_need_rebuild(ha_alter_info, table)) {
 		goto ok_exit;
 	}
 
@@ -9052,6 +9062,58 @@ get_col_list_to_be_dropped(
 	}
 }
 
+/** Change PAGE_COMPRESSED to ON or change the PAGE_COMPRESSION_LEVEL.
+@param[in]	level		PAGE_COMPRESSION_LEVEL
+@param[in]	table		table before the change
+@param[in,out]	trx		data dictionary transaction
+@param[in]	table_name	table name in MariaDB
+@return	whether the operation succeeded */
+MY_ATTRIBUTE((nonnull, warn_unused_result))
+static
+bool
+innobase_page_compression_try(
+	uint			level,
+	const dict_table_t*	table,
+	trx_t*			trx,
+	const char*		table_name)
+{
+	DBUG_ENTER("innobase_page_compression_try");
+	DBUG_ASSERT(level >= 1);
+	DBUG_ASSERT(level <= 9);
+
+	unsigned flags = table->flags
+		& ~(0xFU << DICT_TF_POS_PAGE_COMPRESSION_LEVEL);
+	flags |= 1U << DICT_TF_POS_PAGE_COMPRESSION
+		| level << DICT_TF_POS_PAGE_COMPRESSION_LEVEL;
+
+	if (table->flags == flags) {
+		DBUG_RETURN(false);
+	}
+
+	pars_info_t* info = pars_info_create();
+
+	pars_info_add_ull_literal(info, "id", table->id);
+	pars_info_add_int4_literal(info, "type",
+				   dict_tf_to_sys_tables_type(flags));
+
+	dberr_t error = que_eval_sql(info,
+				     "PROCEDURE CHANGE_COMPRESSION () IS\n"
+				     "BEGIN\n"
+				     "UPDATE SYS_TABLES SET TYPE=:type\n"
+				     "WHERE ID=:id;\n"
+				     "END;\n",
+				     false, trx);
+
+	if (error != DB_SUCCESS) {
+		my_error_innodb(error, table_name, 0);
+		trx->error_state = DB_SUCCESS;
+		trx->op_info = "";
+		DBUG_RETURN(true);
+	}
+
+	DBUG_RETURN(false);
+}
+
 /** Commit the changes made during prepare_inplace_alter_table()
 and inplace_alter_table() inside the data dictionary tables,
 when not rebuilding the table.
@@ -9084,6 +9146,13 @@ commit_try_norebuild(
 		    == ha_alter_info->alter_info->drop_list.elements
 		    || ctx->num_to_drop_vcol
 		       == ha_alter_info->alter_info->drop_list.elements);
+
+	if (ctx->page_compression_level
+	    && innobase_page_compression_try(ctx->page_compression_level,
+					     ctx->new_table, trx,
+					     table_name)) {
+		DBUG_RETURN(true);
+	}
 
 	for (ulint i = 0; i < ctx->num_to_add_index; i++) {
 		dict_index_t*	index = ctx->add_index[i];
@@ -9230,6 +9299,57 @@ commit_cache_norebuild(
 {
 	DBUG_ENTER("commit_cache_norebuild");
 	DBUG_ASSERT(!ctx->need_rebuild());
+	DBUG_ASSERT(ctx->new_table->space != fil_system.temp_space);
+	DBUG_ASSERT(!ctx->new_table->is_temporary());
+
+	if (ctx->page_compression_level) {
+		DBUG_ASSERT(ctx->new_table->space != fil_system.sys_space);
+		ctx->new_table->flags &=
+			~(0xFU << DICT_TF_POS_PAGE_COMPRESSION_LEVEL);
+		ctx->new_table->flags |= 1 << DICT_TF_POS_PAGE_COMPRESSION
+			| (ctx->page_compression_level
+			   << DICT_TF_POS_PAGE_COMPRESSION_LEVEL);
+
+		if (fil_space_t* space = ctx->new_table->space) {
+			bool update = !(space->flags
+					& FSP_FLAGS_MASK_PAGE_COMPRESSION);
+			mutex_enter(&fil_system.mutex);
+			space->flags = (~FSP_FLAGS_MASK_MEM_COMPRESSION_LEVEL
+					& (space->flags
+					   | FSP_FLAGS_MASK_PAGE_COMPRESSION))
+				| ctx->page_compression_level
+				<< FSP_FLAGS_MEM_COMPRESSION_LEVEL;
+			mutex_exit(&fil_system.mutex);
+
+			if (update) {
+				/* Maybe we should introduce an undo
+				log record for updating tablespace
+				flags, and perform the update already
+				in innobase_page_compression_try().
+
+				If the server is killed before the
+				following mini-transaction commit
+				becomes durable, fsp_flags_try_adjust()
+				will perform the equivalent adjustment
+				and warn "adjusting FSP_SPACE_FLAGS". */
+				mtr_t	mtr;
+				mtr.start();
+				if (buf_block_t* b = buf_page_get(
+					    page_id_t(space->id, 0),
+					    page_size_t(space->flags),
+					    RW_X_LATCH, &mtr)) {
+					mtr.set_named_space(space);
+					mlog_write_ulint(
+						FSP_HEADER_OFFSET
+						+ FSP_SPACE_FLAGS + b->frame,
+						space->flags
+						& ~FSP_FLAGS_MEM_MASK,
+						MLOG_4BYTES, &mtr);
+				}
+				mtr.commit();
+			}
+		}
+	}
 
 	col_set			drop_list;
 	col_set			v_drop_list;

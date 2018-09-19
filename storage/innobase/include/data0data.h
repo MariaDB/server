@@ -608,7 +608,7 @@ struct dfield_t{
 		return false;
 	}
 
-	void init_new_default_blob(void* value, ulint val_len)
+	void init_metadata_blob(void* value, ulint val_len)
 	{
 		data = value;
 		len = val_len;
@@ -647,7 +647,8 @@ struct dtuple_t {
 
 	/** Trim the tail of an index tuple before insert or update.
 	After instant ADD COLUMN, if the last fields of a clustered index tuple
-	match the metadata, there will be no need to store them.
+	match the default values that were explicitly specified or implied
+	during ADD COLUMN, there will be no need to store them.
 	NOTE: A page latch in the index must be held, so that the index
 	may not lose 'instantness' before the trimmed tuple has been
 	inserted or updated.
@@ -656,24 +657,24 @@ struct dtuple_t {
 
 	/** @return whether this is a hidden metadata record
 	for instant ALTER TABLE (not only ADD COLUMN) */
-	bool is_new_default_row() const
+	bool is_alter_metadata() const
 	{
-		return UNIV_UNLIKELY(info_bits == REC_INFO_DEFAULT_ROW_ALTER);
+		return UNIV_UNLIKELY(info_bits == REC_INFO_METADATA_ALTER);
 	}
 
 	/**
 	@param info_bits	the info_bits of a data tuple
 	@return whether this is a hidden metadata record
 	for instant ADD COLUMN or ALTER TABLE */
-	static bool is_default_row(ulint info_bits)
+	static bool is_metadata(ulint info_bits)
 	{
 		return UNIV_UNLIKELY((info_bits & ~REC_INFO_DELETED_FLAG)
-				     == REC_INFO_DEFAULT_ROW_ADD);
+				     == REC_INFO_METADATA_ADD);
 	}
 
 	/** @return whether this is a hidden metadata record
 	for instant ADD COLUMN or ALTER TABLE */
-	bool is_default_row() const { return is_default_row(info_bits); }
+	bool is_metadata() const { return is_metadata(info_bits); }
 };
 
 /** A slot for a field in a big rec vector */

@@ -491,10 +491,8 @@ struct upd_t{
 	}
 
 	/** @return whether this is for a hidden metadata record
-	for instant ADD COLUMN or ALTER TABLE */
-	bool is_default_row() const {
-		return dtuple_t::is_default_row(info_bits);
-	}
+	for instant ALTER TABLE */
+	bool is_metadata() const { return dtuple_t::is_metadata(info_bits); }
 
 #ifdef UNIV_DEBUG
         bool validate() const

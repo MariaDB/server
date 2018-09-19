@@ -1330,7 +1330,7 @@ row_upd_index_replace_new_col_val(
 @param[in,out]	heap	memory heap for copying off-page columns */
 static
 void
-row_upd_index_replace_default_rec_pos(
+row_upd_index_replace_metadata_pos(
 	dtuple_t*		entry,
 	const dict_index_t*	index,
 	const upd_t*		update,
@@ -1383,8 +1383,8 @@ row_upd_index_replace_new_col_vals_index_pos(
 
 	dtuple_set_info_bits(entry, update->info_bits);
 
-	if (UNIV_UNLIKELY(entry->is_new_default_row())) {
-		row_upd_index_replace_default_rec_pos(entry, index, update, heap);
+	if (UNIV_UNLIKELY(entry->is_alter_metadata())) {
+		row_upd_index_replace_metadata_pos(entry, index, update, heap);
 		return;
 	}
 

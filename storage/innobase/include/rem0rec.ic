@@ -1442,15 +1442,15 @@ rec_get_converted_size(
 	} else {
 		ut_ad(dtuple->n_fields >= index->n_core_fields);
 		ut_ad(dtuple->n_fields <= index->n_fields
-		      || dtuple->is_new_default_row());
+		      || dtuple->is_alter_metadata());
 	}
 #endif
 
 	if (dict_table_is_comp(index->table)) {
 
-		if (UNIV_UNLIKELY(dtuple->is_new_default_row())) {
-			return (rec_get_default_rec_converted_size(
-					index, dtuple, NULL));
+		if (UNIV_UNLIKELY(dtuple->is_alter_metadata())) {
+			return rec_get_metadata_converted_size(
+				index, dtuple, NULL);
 		}
 
 		return(rec_get_converted_size_comp(

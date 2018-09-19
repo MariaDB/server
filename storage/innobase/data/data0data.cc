@@ -43,8 +43,9 @@ byte	data_error;
 #endif /* UNIV_DEBUG */
 
 /** Trim the tail of an index tuple before insert or update.
-After instant COLUMN operation, if the last fields of a clustered index tuple
-match the metadata or it is dropped, there will be no need to store them.
+After instant ADD COLUMN, if the last fields of a clustered index tuple
+match the default values that were explicitly specified or implied during
+ADD COLUMN, there will be no need to store them.
 NOTE: A page latch in the index must be held, so that the index
 may not lose 'instantness' before the trimmed tuple has been
 inserted or updated.
@@ -644,14 +645,14 @@ dtuple_convert_big_rec(
 	n_fields = 0;
 
 	bool	drop_column_blob = true;
-	bool	new_default_row = entry->is_new_default_row();
+	const bool ext_metadata = entry->is_alter_metadata();
 
 	while (page_zip_rec_needs_ext(rec_get_converted_size(index, entry,
 							     *n_ext),
 				      dict_table_is_comp(index->table),
 				      dict_index_get_n_fields(index),
 				      dict_table_page_size(index->table))
-	       || UNIV_UNLIKELY(new_default_row && drop_column_blob)) {
+	       || UNIV_UNLIKELY(ext_metadata && drop_column_blob)) {
 		ulint			i;
 		ulint			longest		= 0;
 		ulint			longest_i	= ULINT_MAX;
@@ -664,11 +665,11 @@ dtuple_convert_big_rec(
 
 			dfield = dtuple_get_nth_field(entry, i);
 
-			if (UNIV_UNLIKELY(new_default_row
+			if (UNIV_UNLIKELY(ext_metadata
 				&& i == unsigned(index->n_uniq + DATA_ROLL_PTR))) {
 				longest_i = i;
 				dfield->data =
-					index->table->construct_default_row_blob(
+					index->table->construct_metadata_blob(
 						heap, &dfield->len);
 				drop_column_blob = false;
 				goto ext_write;

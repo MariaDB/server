@@ -783,11 +783,11 @@ rec_offs_comp(const ulint* offsets)
 }
 
 /** Determine if the record is the metadata pseudo-record
-in the clustered index.
+in the clustered index for instant ADD COLUMN or ALTER TABLE.
 @param[in]	rec	leaf page record
 @param[in]	index	index of the record
 @return	whether the record is the metadata pseudo-record */
-inline bool rec_is_default_row(const rec_t* rec, const dict_index_t* index)
+inline bool rec_is_metadata(const rec_t* rec, const dict_index_t* index)
 {
 	bool is = rec_get_info_bits(rec, dict_table_is_comp(index->table))
 		& REC_INFO_MIN_REC_FLAG;
@@ -797,22 +797,28 @@ inline bool rec_is_default_row(const rec_t* rec, const dict_index_t* index)
 	return is;
 }
 
-/** Determine if the record is the 'new metadata' pseudo-record
-in the clustered index.
+/** Determine if the record is the metadata pseudo-record
+in the clustered index for instant ALTER TABLE (not plain ADD COLUMN).
 @param[in]	rec	leaf page record
 @param[in]	index	index of the record
-@return	whether the record is the 'new metadata' pseudo-record */
-inline
-bool
-rec_is_new_default_row(const rec_t* rec, const dict_index_t* index)
+@return	whether the record is the ALTER TABLE metadata pseudo-record */
+inline bool rec_is_alter_metadata(const rec_t* rec, const dict_index_t* index)
 {
-	bool is = rec_get_info_bits(rec, dict_table_is_comp(index->table))
-			& REC_INFO_MIN_REC_FLAG;
-	is = is && rec_get_deleted_flag(rec, dict_table_is_comp(index->table));
-	ut_ad(!is || index->is_instant());
-	ut_ad(!is || !dict_table_is_comp(index->table)
-	      || rec_get_status(rec) == REC_STATUS_INSTANT);
+	bool is = !(~rec_get_info_bits(rec, dict_table_is_comp(index->table))
+		    & (REC_INFO_MIN_REC_FLAG | REC_INFO_DELETED_FLAG));
+	ut_ad(!is || rec_is_metadata(rec, index));
 	return is;
+}
+
+/** Determine if a record is delete-marked (not a metadata pseudo-record).
+@param[in]	rec	record
+@param[in]	comp	nonzero if ROW_FORMAT!=REDUNDANT
+@return	whether the record is a delete-marked user record */
+inline bool rec_is_delete_marked(const rec_t* rec, ulint comp)
+{
+	return (rec_get_info_bits(rec, comp)
+		& (REC_INFO_MIN_REC_FLAG | REC_INFO_DELETED_FLAG))
+		== REC_INFO_DELETED_FLAG;
 }
 
 /** Get the nth field from an index.
@@ -1123,7 +1129,6 @@ rec_get_converted_size_comp_prefix(
 @param[in]	fields		array of data fields
 @param[in]	n_fields	number of data fields
 @param[out]	extra		extra size
-@param[in]	new_default_row	metadata with drop column info
 @return total size */
 ulint
 rec_get_converted_size_comp(
@@ -1134,21 +1139,8 @@ rec_get_converted_size_comp(
 	ulint*			extra)
 	MY_ATTRIBUTE((nonnull(1,3)));
 
-/** Determines the size of a data tupel in ROW_FORMAT=COMPACT.
-@param[in]	index		clustered index
-@param[in]	fields		array of data fields
-@param[in]	n_fields	number of data fields
-@param[out]	extra		extra size
-@return total size of metadata with drop column info. */
 ulint
-rec_get_def_converted_size_comp(
-	const dict_index_t*	index,
-	const dfield_t*		fields,
-	ulint			n_fields,
-	ulint*			extra);
-
-ulint
-rec_get_default_rec_converted_size(
+rec_get_metadata_converted_size(
 	const dict_index_t*	clust_index,
 	const dtuple_t*		dtuple,
 	ulint*			ext);

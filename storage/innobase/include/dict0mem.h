@@ -1687,7 +1687,7 @@ struct dict_table_t {
 	@param[out]	non_pk_fields		number of non-primary key fields
 	@param[out]	non_drop_nullable_fields number of non-drop nullable fields
 	@param[out]	dropped_col_list	 dropped column list */
-	void read_default_row_blob(
+	void read_metadata_blob(
 		byte*			blob_data,
 		ulint*			non_pk_fields,
 		ulint*			non_drop_nullable_fields,
@@ -1698,7 +1698,7 @@ struct dict_table_t {
 	@param[in,out]	heap	memory heap to allocate the blob
 	@param[out]	len	length of the blob data
 	@return blob data. */
-	byte* construct_default_row_blob(
+	byte* construct_metadata_blob(
 		mem_heap_t*	heap,
 		unsigned*	len);
 
