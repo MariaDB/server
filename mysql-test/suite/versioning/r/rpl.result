@@ -164,4 +164,23 @@ update t1 set i = 0;
 connection slave;
 connection master;
 drop table t1;
+# MDEV-16370 row-based binlog events (updates by primary key)
+# can not be applied multiple times to system versioned tables
+create or replace table t1 (pk int primary key, x int) with system versioning;
+insert into t1 values (1, 1);
+connection slave;
+flush logs;
+connection master;
+update t1 set x= 2;
+connection slave;
+select * from t1;
+pk	x
+1	2
+# Replaying binlog...
+select * from t1;
+pk	x
+1	2
+connection master;
+drop database test;
+create database test;
 include/rpl_end.inc
