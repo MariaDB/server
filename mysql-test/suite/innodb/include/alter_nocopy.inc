@@ -14,16 +14,16 @@ SELECT @@alter_algorithm;
 
 --enable_info
 --error $error_code
---eval ALTER TABLE t1 ADD INDEX idx1(f4)
+--eval ALTER TABLE t1 ADD INDEX idx1(f4), page_compressed=1
 
 --error $error_code
---eval ALTER TABLE t1 DROP INDEX idx
+--eval ALTER TABLE t1 DROP INDEX idx, page_compression_level=5
 
 --error $error_code
 --eval ALTER TABLE t1 ADD UNIQUE INDEX u1(f2)
 
 --error $error_code
---eval ALTER TABLE t1 DROP INDEX f4
+--eval ALTER TABLE t1 DROP INDEX f4, page_compression_level=9
 
 SET foreign_key_checks = 0;
 --error $error_code
