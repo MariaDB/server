@@ -369,7 +369,7 @@ struct rw_trx_hash_element_t
 
 
   trx_id_t id; /* lf_hash_init() relies on this to be first in the struct */
-  trx_id_t no;
+  Atomic_counter<trx_id_t> no;
   trx_t *trx;
   ib_mutex_t mutex;
 };
@@ -929,9 +929,7 @@ public:
   void assign_new_trx_no(trx_t *trx)
   {
     trx->no= get_new_trx_id_no_refresh();
-    my_atomic_store64_explicit(reinterpret_cast<int64*>
-                               (&trx->rw_trx_hash_element->no),
-                               trx->no, MY_MEMORY_ORDER_RELAXED);
+    trx->rw_trx_hash_element->no= trx->no;
     refresh_rw_trx_hash_version();
   }
 
@@ -1151,8 +1149,7 @@ private:
   {
     if (element->id < arg->m_id)
     {
-      trx_id_t no= static_cast<trx_id_t>(my_atomic_load64_explicit(
-        reinterpret_cast<int64*>(&element->no), MY_MEMORY_ORDER_RELAXED));
+      trx_id_t no= element->no;
       arg->m_ids->push_back(element->id);
       if (no < arg->m_no)
         arg->m_no= no;
