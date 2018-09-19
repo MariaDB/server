@@ -1215,6 +1215,7 @@ struct dict_index_t {
 		}
 		n_core_fields = n_fields;
 		n_core_null_bytes = UT_BITS_IN_BYTES(unsigned(n_nullable));
+		instant = false;
 	}
 
 	/** Check if record in clustered index is historical row.
