@@ -2652,7 +2652,7 @@ row_ins_clust_index_entry_low(
 #endif /* UNIV_DEBUG */
 
 	if (UNIV_UNLIKELY(entry->info_bits != 0)) {
-		ut_ad(entry->info_bits == REC_INFO_DEFAULT_ROW);
+		ut_ad(entry->info_bits == REC_INFO_METADATA);
 		ut_ad(flags == BTR_NO_LOCKING_FLAG);
 		ut_ad(index->is_instant());
 		ut_ad(!dict_index_is_online_ddl(index));
@@ -2667,7 +2667,8 @@ row_ins_clust_index_entry_low(
 			err = DB_DUPLICATE_KEY;
 			goto err_exit;
 		case REC_INFO_MIN_REC_FLAG | REC_INFO_DELETED_FLAG:
-			/* The 'default row' is never delete-marked.
+			/* The metadata record never carries the delete-mark
+			in MariaDB Server 10.3.
 			If a table loses its 'instantness', it happens
 			by the rollback of this first-time insert, or
 			by a call to btr_page_empty() on the root page
@@ -2682,7 +2683,7 @@ row_ins_clust_index_entry_low(
 
 	if (index->is_instant()) entry->trim(*index);
 
-	if (rec_is_default_row(btr_cur_get_rec(cursor), index)) {
+	if (rec_is_metadata(btr_cur_get_rec(cursor), index)) {
 		goto do_insert;
 	}
 

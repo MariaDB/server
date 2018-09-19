@@ -70,9 +70,9 @@ enum rec_comp_status_t {
 	REC_STATUS_COLUMNS_ADDED = 4
 };
 
-/** The dtuple_t::info_bits of the 'default row' record.
-@see rec_is_default_row() */
-static const byte REC_INFO_DEFAULT_ROW
+/** The dtuple_t::info_bits of the metadata pseudo-record.
+@see rec_is_metadata() */
+static const byte REC_INFO_METADATA
 	= REC_INFO_MIN_REC_FLAG | REC_STATUS_COLUMNS_ADDED;
 
 #define REC_NEW_STATUS		3	/* This is single byte bit-field */
@@ -791,14 +791,12 @@ rec_offs_comp(const ulint* offsets)
 	return(*rec_offs_base(offsets) & REC_OFFS_COMPACT);
 }
 
-/** Determine if the record is the 'default row' pseudo-record
+/** Determine if the record is the metadata pseudo-record
 in the clustered index.
 @param[in]	rec	leaf page record
 @param[in]	index	index of the record
-@return	whether the record is the 'default row' pseudo-record */
-inline
-bool
-rec_is_default_row(const rec_t* rec, const dict_index_t* index)
+@return	whether the record is the metadata pseudo-record */
+inline bool rec_is_metadata(const rec_t* rec, const dict_index_t* index)
 {
 	bool is = rec_get_info_bits(rec, dict_table_is_comp(index->table))
 		& REC_INFO_MIN_REC_FLAG;

@@ -2810,7 +2810,7 @@ page_find_rec_max_not_deleted(
 	const rec_t*	prev_rec = NULL; // remove warning
 
 	/* Because the page infimum is never delete-marked
-	and never the 'default row' pseudo-record (MIN_REC_FLAG)),
+	and never the metadata pseudo-record (MIN_REC_FLAG)),
 	prev_rec will always be assigned to it first. */
 	ut_ad(!rec_get_info_bits(rec, page_rec_is_comp(rec)));
 	ut_ad(page_is_leaf(page));

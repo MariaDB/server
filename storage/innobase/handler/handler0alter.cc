@@ -4236,7 +4236,7 @@ innobase_add_virtual_try(
 	return innodb_update_n_cols(user_table, new_n, trx);
 }
 
-/** Insert into SYS_COLUMNS and insert/update the 'default row'
+/** Insert into SYS_COLUMNS and insert/update the hidden metadata record
 for instant ADD COLUMN.
 @param[in,out]	ctx		ALTER TABLE context for the current partition
 @param[in]	altered_table	MySQL table that is being altered
@@ -4304,7 +4304,7 @@ innobase_add_instant_try(
 				/* For fixed-length NOT NULL 'core' columns,
 				get a dummy default value from SQL. Note that
 				we will preserve the old values of these
-				columns when updating the 'default row'
+				columns when updating the metadata
 				record, to avoid unnecessary updates. */
 				ulint len = (*af)->pack_length();
 				DBUG_ASSERT(d->type.mtype != DATA_INT
@@ -4371,7 +4371,7 @@ innobase_add_instant_try(
 	memset(roll_ptr, 0, sizeof roll_ptr);
 
 	dtuple_t* entry = row_build_index_entry(row, NULL, index, ctx->heap);
-	entry->info_bits = REC_INFO_DEFAULT_ROW;
+	entry->info_bits = REC_INFO_METADATA;
 
 	mtr_t mtr;
 	mtr.start();
@@ -4391,7 +4391,7 @@ innobase_add_instant_try(
 		NULL, trx, ctx->heap, NULL);
 
 	dberr_t err;
-	if (rec_is_default_row(rec, index)) {
+	if (rec_is_metadata(rec, index)) {
 		ut_ad(page_rec_is_user_rec(rec));
 		if (!page_has_next(block->frame)
 		    && page_rec_is_last(rec, block->frame)) {
@@ -4404,7 +4404,7 @@ innobase_add_instant_try(
 		page as a result of the update. */
 		upd_t* update = upd_create(index->n_fields, ctx->heap);
 		update->n_fields = n;
-		update->info_bits = REC_INFO_DEFAULT_ROW;
+		update->info_bits = REC_INFO_METADATA;
 		/* Add the default values for instantly added columns */
 		for (unsigned i = 0; i < n; i++) {
 			upd_field_t* uf = upd_get_nth_field(update, i);

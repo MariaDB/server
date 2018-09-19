@@ -1084,7 +1084,7 @@ dict_stats_analyze_index_level(
 		    btr_pcur_get_rec(&pcur), page_is_comp(page))) {
 		ut_ad(btr_pcur_is_on_user_rec(&pcur));
 		if (level == 0) {
-			/* Skip the 'default row' pseudo-record */
+			/* Skip the metadata pseudo-record */
 			ut_ad(index->is_instant());
 			btr_pcur_move_to_next_user_rec(&pcur, mtr);
 		}

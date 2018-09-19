@@ -431,7 +431,7 @@ btr_cur_instant_init_low(dict_index_t* index, mtr_t* mtr)
 
 	const rec_t* rec = cur.page_cur.rec;
 
-	if (page_rec_is_supremum(rec) || !rec_is_default_row(rec, index)) {
+	if (page_rec_is_supremum(rec) || !rec_is_metadata(rec, index)) {
 		ib::error() << "Table " << index->table->name
 			    << " is missing instant ALTER metadata";
 		index->table->corrupted = true;
@@ -452,7 +452,7 @@ incompatible:
 		goto incompatible;
 	}
 
-	/* Read the 'default row'. We can get here on server restart
+	/* Read the metadata. We can get here on server restart
 	or when the table was evicted from the data dictionary cache
 	and is now being accessed again.
 
@@ -471,8 +471,8 @@ inconsistent:
 		goto incompatible;
 	}
 
-	/* In fact, because we only ever append fields to the 'default
-	value' record, it is also OK to perform READ UNCOMMITTED and
+	/* In fact, because we only ever append fields to the metadata
+	record, it is also OK to perform READ UNCOMMITTED and
 	then ignore any extra fields, provided that
 	trx_sys.is_registered(DB_TRX_ID). */
 	if (rec_offs_n_fields(offsets) > index->n_fields
@@ -2270,10 +2270,9 @@ need_opposite_intention:
 			ut_ad(index->is_instant());
 			/* This may be a search tuple for
 			btr_pcur_restore_position(). */
-			ut_ad(tuple->info_bits == REC_INFO_DEFAULT_ROW
+			ut_ad(tuple->info_bits == REC_INFO_METADATA
 			      || tuple->info_bits == REC_INFO_MIN_REC_FLAG);
-		} else if (rec_is_default_row(btr_cur_get_rec(cursor),
-					      index)) {
+		} else if (rec_is_metadata(btr_cur_get_rec(cursor), index)) {
 			/* Only user records belong in the adaptive
 			hash index. */
 		} else {
@@ -3412,7 +3411,7 @@ fail_err:
 	} else if (index->disable_ahi) {
 # endif
 	} else if (entry->info_bits & REC_INFO_MIN_REC_FLAG) {
-		ut_ad(entry->info_bits == REC_INFO_DEFAULT_ROW);
+		ut_ad(entry->info_bits == REC_INFO_METADATA);
 		ut_ad(index->is_instant());
 		ut_ad(flags == BTR_NO_LOCKING_FLAG);
 	} else {
@@ -3620,7 +3619,7 @@ btr_cur_pessimistic_insert(
 		if (index->disable_ahi); else
 # endif
 		if (entry->info_bits & REC_INFO_MIN_REC_FLAG) {
-			ut_ad(entry->info_bits == REC_INFO_DEFAULT_ROW);
+			ut_ad(entry->info_bits == REC_INFO_METADATA);
 			ut_ad(index->is_instant());
 			ut_ad((flags & ulint(~BTR_KEEP_IBUF_BITMAP))
 			      == BTR_NO_LOCKING_FLAG);
@@ -4100,9 +4099,9 @@ func_exit:
 
 /** Trim an update tuple due to instant ADD COLUMN, if needed.
 For normal records, the trailing instantly added fields that match
-the 'default row' are omitted.
+the initial default values are omitted.
 
-For the special 'default row' record on a table on which instant
+For the special metadata record on a table on which instant
 ADD COLUMN has already been executed, both ADD COLUMN and the
 rollback of ADD COLUMN need to be handled specially.
 
@@ -4119,8 +4118,8 @@ btr_cur_trim(
 	const que_thr_t*	thr)
 {
 	if (!index->is_instant()) {
-	} else if (UNIV_UNLIKELY(update->info_bits == REC_INFO_DEFAULT_ROW)) {
-		/* We are either updating a 'default row'
+	} else if (UNIV_UNLIKELY(update->info_bits == REC_INFO_METADATA)) {
+		/* We are either updating a metadata record
 		(instantly adding columns to a table where instant ADD was
 		already executed) or rolling back such an operation. */
 		ut_ad(!upd_get_nth_field(update, 0)->orig_len);
@@ -4227,9 +4226,9 @@ btr_cur_optimistic_update(
 	     || trx_is_recv(thr_get_trx(thr)));
 #endif /* UNIV_DEBUG || UNIV_BLOB_LIGHT_DEBUG */
 
-	const bool is_default_row = update->info_bits == REC_INFO_DEFAULT_ROW;
+	const bool is_metadata = update->info_bits == REC_INFO_METADATA;
 
-	if (UNIV_LIKELY(!is_default_row)
+	if (UNIV_LIKELY(!is_metadata)
 	    && !row_upd_changes_field_size_or_external(index, *offsets,
 						       update)) {
 
@@ -4389,8 +4388,8 @@ any_extern:
 		lock_rec_store_on_page_infimum(block, rec);
 	}
 
-	if (UNIV_UNLIKELY(is_default_row)) {
-		ut_ad(new_entry->info_bits == REC_INFO_DEFAULT_ROW);
+	if (UNIV_UNLIKELY(is_metadata)) {
+		ut_ad(new_entry->info_bits == REC_INFO_METADATA);
 		ut_ad(index->is_instant());
 		/* This can be innobase_add_instant_try() performing a
 		subsequent instant ADD COLUMN, or its rollback by
@@ -4416,9 +4415,9 @@ any_extern:
 		cursor, new_entry, offsets, heap, 0/*n_ext*/, mtr);
 	ut_a(rec); /* <- We calculated above the insert would fit */
 
-	if (UNIV_UNLIKELY(is_default_row)) {
+	if (UNIV_UNLIKELY(is_metadata)) {
 		/* We must empty the PAGE_FREE list, because if this
-		was a rollback, the shortened 'default row' record
+		was a rollback, the shortened metadata record
 		would have too many fields, and we would be unable to
 		know the size of the freed record. */
 		btr_page_reorganize(page_cursor, index, mtr);
@@ -4623,7 +4622,7 @@ btr_cur_pessimistic_update(
 						     entry_heap);
 	btr_cur_trim(new_entry, index, update, thr);
 
-	const bool is_default_row = new_entry->info_bits
+	const bool is_metadata = new_entry->info_bits
 		& REC_INFO_MIN_REC_FLAG;
 
 	/* We have to set appropriate extern storage bits in the new
@@ -4717,8 +4716,8 @@ btr_cur_pessimistic_update(
 				page, 1);
 	}
 
-	if (UNIV_UNLIKELY(is_default_row)) {
-		ut_ad(new_entry->info_bits == REC_INFO_DEFAULT_ROW);
+	if (UNIV_UNLIKELY(is_metadata)) {
+		ut_ad(new_entry->info_bits == REC_INFO_METADATA);
 		ut_ad(index->is_instant());
 		/* This can be innobase_add_instant_try() performing a
 		subsequent instant ADD COLUMN, or its rollback by
@@ -4757,9 +4756,9 @@ btr_cur_pessimistic_update(
 	if (rec) {
 		page_cursor->rec = rec;
 
-		if (UNIV_UNLIKELY(is_default_row)) {
+		if (UNIV_UNLIKELY(is_metadata)) {
 			/* We must empty the PAGE_FREE list, because if this
-			was a rollback, the shortened 'default row' record
+			was a rollback, the shortened metadata record
 			would have too many fields, and we would be unable to
 			know the size of the freed record. */
 			btr_page_reorganize(page_cursor, index, mtr);
@@ -4913,9 +4912,9 @@ btr_cur_pessimistic_update(
 		ut_ad(row_get_rec_trx_id(rec, index, *offsets));
 	}
 
-	if (UNIV_UNLIKELY(is_default_row)) {
+	if (UNIV_UNLIKELY(is_metadata)) {
 		/* We must empty the PAGE_FREE list, because if this
-		was a rollback, the shortened 'default row' record
+		was a rollback, the shortened metadata record
 		would have too many fields, and we would be unable to
 		know the size of the freed record. */
 		btr_page_reorganize(page_cursor, index, mtr);
@@ -5413,16 +5412,16 @@ btr_cur_optimistic_delete_func(
 	if (UNIV_UNLIKELY(page_is_root(block->frame)
 			  && page_get_n_recs(block->frame) == 1
 			  + (cursor->index->is_instant()
-			     && !rec_is_default_row(rec, cursor->index)))) {
+			     && !rec_is_metadata(rec, cursor->index)))) {
 		/* The whole index (and table) becomes logically empty.
 		Empty the whole page. That is, if we are deleting the
-		only user record, also delete the 'default row' record
+		only user record, also delete the metadata record
 		if one exists (it exists if and only if is_instant()).
-		If we are deleting the 'default row' record and the
+		If we are deleting the metadata record and the
 		table becomes empty, clean up the whole page. */
 		dict_index_t* index = cursor->index;
 		ut_ad(!index->is_instant()
-		      || rec_is_default_row(
+		      || rec_is_metadata(
 			      page_rec_get_next_const(
 				      page_get_infimum_rec(block->frame)),
 			      index));
@@ -5475,7 +5474,7 @@ btr_cur_optimistic_delete_func(
 			page_cur_delete_rec(btr_cur_get_page_cur(cursor),
 					    cursor->index, offsets, mtr);
 			/* We must empty the PAGE_FREE list, because
-			after rollback, this deleted 'default row' record
+			after rollback, this deleted metadata record
 			would have too many fields, and we would be
 			unable to know the size of the freed record. */
 			btr_page_reorganize(btr_cur_get_page_cur(cursor),
@@ -5628,9 +5627,9 @@ btr_cur_pessimistic_delete(
 	}
 
 	if (page_is_leaf(page)) {
-		const bool is_default_row = rec_get_info_bits(
+		const bool is_metadata = rec_get_info_bits(
 			rec, page_rec_is_comp(rec)) & REC_INFO_MIN_REC_FLAG;
-		if (UNIV_UNLIKELY(is_default_row)) {
+		if (UNIV_UNLIKELY(is_metadata)) {
 			/* This should be rolling back instant ADD COLUMN.
 			If this is a recovered transaction, then
 			index->is_instant() will hold until the
@@ -5648,15 +5647,15 @@ btr_cur_pessimistic_delete(
 			}
 		} else if (page_get_n_recs(page) == 1
 			   + (index->is_instant()
-			      && !rec_is_default_row(rec, index))) {
+			      && !rec_is_metadata(rec, index))) {
 			/* The whole index (and table) becomes logically empty.
 			Empty the whole page. That is, if we are deleting the
-			only user record, also delete the 'default row' record
+			only user record, also delete the metadata record
 			if one exists (it exists if and only if is_instant()).
-			If we are deleting the 'default row' record and the
+			If we are deleting the metadata record and the
 			table becomes empty, clean up the whole page. */
 			ut_ad(!index->is_instant()
-			      || rec_is_default_row(
+			      || rec_is_metadata(
 				      page_rec_get_next_const(
 					      page_get_infimum_rec(page)),
 					      index));
@@ -5673,13 +5672,13 @@ btr_cur_pessimistic_delete(
 			goto return_after_reservations;
 		}
 
-		if (UNIV_LIKELY(!is_default_row)) {
+		if (UNIV_LIKELY(!is_metadata)) {
 			btr_search_update_hash_on_delete(cursor);
 		} else {
 			page_cur_delete_rec(btr_cur_get_page_cur(cursor),
 					    index, offsets, mtr);
 			/* We must empty the PAGE_FREE list, because
-			after rollback, this deleted 'default row' record
+			after rollback, this deleted metadata record
 			would carry too many fields, and we would be
 			unable to know the size of the freed record. */
 			btr_page_reorganize(btr_cur_get_page_cur(cursor),
