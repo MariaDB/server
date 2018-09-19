@@ -13404,7 +13404,7 @@ is_duplicate_key_error(int errcode)
 
 int
 Rows_log_event::write_row(rpl_group_info *rgi,
-                          const bool overwrite)
+                          bool overwrite)
 {
   DBUG_ENTER("write_row");
   DBUG_ASSERT(m_table != NULL && thd != NULL);
@@ -13415,6 +13415,7 @@ Rows_log_event::write_row(rpl_group_info *rgi,
   const bool invoke_triggers=
     slave_run_triggers_for_rbr && !master_had_triggers && table->triggers;
   auto_afree_ptr<char> key(NULL);
+  bool vers_ignore_dup= false;
 
   prepare_record(table, m_width, true);
 
@@ -13465,13 +13466,29 @@ Rows_log_event::write_row(rpl_group_info *rgi,
   }
 
   // Handle INSERT.
-  if (table->versioned(VERS_TIMESTAMP))
+  if (table->versioned())
   {
-    ulong sec_part;
-    bitmap_set_bit(table->read_set, table->vers_start_field()->field_index);
-    // Check whether a row came from unversioned table and fix vers fields.
-    if (table->vers_start_field()->get_timestamp(&sec_part) == 0 && sec_part == 0)
-      table->vers_update_fields();
+    if (table->versioned(VERS_TIMESTAMP))
+    {
+      // Set vers fields when replicating from not system-versioned table.
+      ulong sec_part;
+      bitmap_set_bit(table->read_set, table->vers_start_field()->field_index);
+      // Check whether a row came from unversioned table and fix vers fields.
+      if (table->vers_start_field()->get_timestamp(&sec_part) == 0 && sec_part == 0)
+        table->vers_update_fields();
+      else
+        goto ignore_historical_row;
+    }
+    else
+    {
+ignore_historical_row:
+      bitmap_set_bit(table->read_set, table->vers_end_field()->field_index);
+      if (!overwrite && !table->vers_end_field()->is_max())
+      {
+        vers_ignore_dup= true;
+        overwrite= true;
+      }
+    }
   }
 
   /* 
@@ -13501,6 +13518,11 @@ Rows_log_event::write_row(rpl_group_info *rgi,
       */
       table->file->print_error(error, MYF(0));
       DBUG_RETURN(error);
+    }
+    if (vers_ignore_dup)
+    {
+      error= 0;
+      break;
     }
     /*
        We need to retrieve the old row into record[1] to be able to
@@ -14400,10 +14422,8 @@ int Delete_rows_log_event::do_exec_row(rpl_group_info *rgi)
       m_table->mark_columns_per_binlog_row_image();
       if (m_vers_from_plain && m_table->versioned(VERS_TIMESTAMP))
       {
-        Field *end= m_table->vers_end_field();
-        bitmap_set_bit(m_table->write_set, end->field_index);
         store_record(m_table, record[1]);
-        end->set_time();
+        m_table->vers_update_end();
         error= m_table->file->ha_update_row(m_table->record[1],
                                             m_table->record[0]);
       }
@@ -14682,6 +14702,8 @@ Update_rows_log_event::do_exec_row(rpl_group_info *rgi)
   {
     store_record(m_table, record[2]);
     error= m_table->vers_insert_history_row();
+    if (unlikely(error == HA_ERR_FOUND_DUPP_KEY))
+      error= 0;
     restore_record(m_table, record[2]);
   }
   m_table->default_column_bitmaps();
