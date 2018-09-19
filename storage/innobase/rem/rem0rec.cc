@@ -1905,7 +1905,7 @@ rec_copy_prefix_to_buf(
 	case REC_STATUS_COLUMNS_ADDED:
 		/* We would have !index->is_instant() when rolling back
 		an instant ADD COLUMN operation. */
-		ut_ad(index->is_instant() || page_rec_is_default_row(rec));
+		ut_ad(index->is_instant() || page_rec_is_metadata(rec));
 		nulls++;
 		const ulint n_rec = ulint(index->n_core_fields) + 1
 			+ rec_get_n_add_field(nulls);

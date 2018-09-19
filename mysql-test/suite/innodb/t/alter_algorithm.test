@@ -3,7 +3,7 @@ let $algorithm = `SELECT @@ALTER_ALGORITHM`;
 let $error_code = 0;
 
 if ($algorithm == "NOCOPY") {
- let $error_code = ER_ALTER_OPERATION_NOT_SUPPORTED;
+ let $error_code = ER_ALTER_OPERATION_NOT_SUPPORTED, ER_ALTER_OPERATION_NOT_SUPPORTED_REASON;
 }
 
 if ($algorithm == "INSTANT") {

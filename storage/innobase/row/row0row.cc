@@ -1013,7 +1013,7 @@ row_search_on_row_ref(
 	index = dict_table_get_first_index(table);
 
 	if (UNIV_UNLIKELY(ref->info_bits != 0)) {
-		ut_ad(ref->info_bits == REC_INFO_DEFAULT_ROW);
+		ut_ad(ref->info_bits == REC_INFO_METADATA);
 		ut_ad(ref->n_fields <= index->n_uniq);
 		btr_pcur_open_at_index_side(true, index, mode, pcur, true, 0,
 					    mtr);
@@ -1021,7 +1021,7 @@ row_search_on_row_ref(
 		/* We do not necessarily have index->is_instant() here,
 		because we could be executing a rollback of an
 		instant ADD COLUMN operation. The function
-		rec_is_default_row() asserts index->is_instant();
+		rec_is_metadata() asserts index->is_instant();
 		we do not want to call it here. */
 		return rec_get_info_bits(btr_pcur_get_rec(pcur),
 					 dict_table_is_comp(index->table))

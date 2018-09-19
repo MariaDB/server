@@ -688,7 +688,7 @@ struct row_prebuilt_t {
 					to the Innobase format from the MySQL
 					format */
 	const byte*	default_rec;	/*!< the default values of all columns
-					(a "default row") in MySQL format */
+					(a "metadata") in MySQL format */
 	ulint		hint_need_to_fetch_extra_cols;
 					/*!< normally this is set to 0; if this
 					is set to ROW_RETRIEVE_PRIMARY_KEY,
