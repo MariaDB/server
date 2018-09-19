@@ -31,7 +31,6 @@ Created 1/8/1996 Heikki Tuuri
 #include "data0data.h"
 #include "dict0mem.h"
 #include "fsp0fsp.h"
-#include <atomic>
 #include <deque>
 
 extern bool innodb_table_stats_not_found;

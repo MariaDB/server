@@ -29,7 +29,6 @@ Created 2012/04/12 by Sunny Bains
 #define ut0counter_h
 
 #include "os0thread.h"
-#include <atomic>
 #include "my_rdtsc.h"
 
 /** CPU cache line size */
