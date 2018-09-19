@@ -1043,7 +1043,7 @@ row_purge_parse_undo_rec(
 	switch (type) {
 	case TRX_UNDO_RENAME_TABLE:
 		return false;
-	case TRX_UNDO_INSERT_DEFAULT:
+	case TRX_UNDO_INSERT_METADATA:
 	case TRX_UNDO_INSERT_REC:
 		break;
 	default:
@@ -1080,7 +1080,7 @@ try_again:
 	}
 
 	switch (type) {
-	case TRX_UNDO_INSERT_DEFAULT:
+	case TRX_UNDO_INSERT_METADATA:
 	case TRX_UNDO_INSERT_REC:
 		break;
 	default:
@@ -1118,8 +1118,8 @@ err_exit:
 		return(false);
 	}
 
-	if (type == TRX_UNDO_INSERT_DEFAULT) {
-		node->ref = &trx_undo_default_rec;
+	if (type == TRX_UNDO_INSERT_METADATA) {
+		node->ref = &trx_undo_metadata;
 		return(true);
 	}
 
@@ -1186,7 +1186,7 @@ row_purge_record_func(
 			MONITOR_INC(MONITOR_N_DEL_ROW_PURGE);
 		}
 		break;
-	case TRX_UNDO_INSERT_DEFAULT:
+	case TRX_UNDO_INSERT_METADATA:
 	case TRX_UNDO_INSERT_REC:
 		node->roll_ptr |= 1ULL << ROLL_PTR_INSERT_FLAG_POS;
 		/* fall through */
