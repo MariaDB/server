@@ -603,7 +603,6 @@ dtuple_convert_big_rec(
 	mem_heap_t*	heap;
 	big_rec_t*	vector;
 	dfield_t*	dfield;
-	dict_field_t*	ifield;
 	ulint		size;
 	ulint		n_fields;
 	ulint		local_len;
@@ -612,6 +611,8 @@ dtuple_convert_big_rec(
 	if (!dict_index_is_clust(index)) {
 		return(NULL);
 	}
+
+	ut_ad(index->n_uniq > 0);
 
 	if (!dict_table_has_atomic_blobs(index->table)) {
 		/* up to MySQL 5.1: store a 768-byte prefix locally */
@@ -643,39 +644,30 @@ dtuple_convert_big_rec(
 	stored externally */
 
 	n_fields = 0;
+	ulint longest_i;
 
-	bool	drop_column_blob = true;
-	const bool ext_metadata = entry->is_alter_metadata();
+	if (entry->is_alter_metadata()) {
+		longest_i = index->n_uniq + DATA_ROLL_PTR;
+		dfield = dtuple_get_nth_field(entry, longest_i);
+		dfield->data = index->table->construct_metadata_blob(
+			heap, &dfield->len);
+		goto ext_write;
+	}
 
 	while (page_zip_rec_needs_ext(rec_get_converted_size(index, entry,
 							     *n_ext),
 				      dict_table_is_comp(index->table),
 				      dict_index_get_n_fields(index),
-				      dict_table_page_size(index->table))
-	       || UNIV_UNLIKELY(ext_metadata && drop_column_blob)) {
-		ulint			i;
-		ulint			longest		= 0;
-		ulint			longest_i	= ULINT_MAX;
-		byte*			data;
-		ulint			field_no	= 0;
+				      dict_table_page_size(index->table))) {
+		longest_i = 0;
 
-		for (i = dict_index_get_n_unique_in_tree(index);
-		     i < dtuple_get_n_fields(entry); i++) {
+		for (ulint i = index->n_uniq + 2, longest = 0;
+		     i < entry->n_fields; i++) {
 			ulint	savings;
-
 			dfield = dtuple_get_nth_field(entry, i);
 
-			if (UNIV_UNLIKELY(ext_metadata
-				&& i == unsigned(index->n_uniq + DATA_ROLL_PTR))) {
-				longest_i = i;
-				dfield->data =
-					index->table->construct_metadata_blob(
-						heap, &dfield->len);
-				drop_column_blob = false;
-				goto ext_write;
-			}
-
-			ifield = dict_index_get_nth_field(index, field_no++);
+			const dict_field_t* ifield = dict_index_get_nth_field(
+				index, i);
 
 			/* Skip fixed-length, NULL, externally stored,
 			or short columns */
@@ -717,7 +709,7 @@ skip_field:
 			continue;
 		}
 
-		if (!longest) {
+		if (!longest_i) {
 			/* Cannot shorten more */
 
 			mem_heap_free(heap);
@@ -742,7 +734,8 @@ ext_write:
 				+ local_prefix_len));
 
 		/* Allocate the locally stored part of the column. */
-		data = static_cast<byte*>(mem_heap_alloc(heap, local_len));
+		byte* data = static_cast<byte*>(
+			mem_heap_alloc(heap, local_len));
 
 		/* Copy the local prefix. */
 		memcpy(data, dfield_get_data(dfield), local_prefix_len);
