@@ -9008,11 +9008,7 @@ int TC_LOG_MMAP::log_and_order(THD *thd, my_xid xid, bool all,
           TODO: Ordered commit should be done after the transaction
           has been queued for group commit.
         */
-        int error= wsrep_ordered_commit(thd, all, wsrep_apply_error());
-        if (!error)
-        {
-          (void) wsrep_after_commit(thd, all);
-        }
+	(void) wsrep_after_commit(thd, all);
       }
 #endif /* WITH_WSREP */
     }

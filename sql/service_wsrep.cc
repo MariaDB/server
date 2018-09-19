@@ -207,9 +207,9 @@ extern "C" void wsrep_thd_awake(const void* thd_ptr, my_bool signal)
   THD* thd= (THD*)thd_ptr;
   if (signal)
   {
-    mysql_mutex_lock(&thd->LOCK_thd_data);
+    //mysql_mutex_lock(&thd->LOCK_thd_data);
     thd->awake(KILL_QUERY);
-    mysql_mutex_unlock(&thd->LOCK_thd_data);
+    //mysql_mutex_unlock(&thd->LOCK_thd_data);
   }
   else
   {

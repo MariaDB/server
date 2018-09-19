@@ -193,17 +193,21 @@ Wsrep_high_priority_service::~Wsrep_high_priority_service()
 int Wsrep_high_priority_service::start_transaction(
   const wsrep::ws_handle& ws_handle, const wsrep::ws_meta& ws_meta)
 {
-  return m_thd->wsrep_cs().start_transaction(ws_handle, ws_meta);
+  DBUG_ENTER(" Wsrep_high_priority_service::start_transaction");
+  DBUG_RETURN(m_thd->wsrep_cs().start_transaction(ws_handle, ws_meta));
 }
 
 const wsrep::transaction& Wsrep_high_priority_service::transaction() const
 {
-  return m_thd->wsrep_trx();
+  DBUG_ENTER(" Wsrep_high_priority_service::transaction");
+  DBUG_RETURN(m_thd->wsrep_trx());
 }
 
 void Wsrep_high_priority_service::adopt_transaction(const wsrep::transaction& transaction)
 {
+  DBUG_ENTER(" Wsrep_high_priority_service::adopt_transaction");
   m_thd->wsrep_cs().adopt_transaction(transaction);
+  DBUG_VOID_RETURN;
 }
 
 
@@ -293,7 +297,7 @@ int Wsrep_high_priority_service::commit(const wsrep::ws_handle& ws_handle,
      path for applier. Therefore run wsrep_before_commit()
      and wsrep_after_commit() here. wsrep_ordered_commit()
      will be called from wsrep_ordered_commit_if_no_binlog(). */
-  if (!opt_log_slave_updates && is_ordered && false)
+  if (!opt_log_slave_updates && !opt_bin_log && is_ordered)
   {
     if (m_thd->transaction.all.no_2pc == false)
     {
@@ -309,7 +313,7 @@ int Wsrep_high_priority_service::commit(const wsrep::ws_handle& ws_handle,
     m_rgi->cleanup_context(thd, 0);
   }
 
-  if (ret == 0 && !opt_log_slave_updates && is_ordered && false)
+  if (ret == 0 && !opt_log_slave_updates && !opt_bin_log && is_ordered)
   {
     ret= wsrep_after_commit(thd, true);
   }

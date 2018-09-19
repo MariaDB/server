@@ -2761,12 +2761,8 @@ bool wsrep_provider_is_SR_capable()
 
 int wsrep_ordered_commit_if_no_binlog(THD* thd, bool all)
 {
-  return 0;
-
-  /* skip this logic for mariadb... */
-  
   if (((wsrep_thd_is_local(thd) && WSREP_EMULATE_BINLOG(thd)) ||
-       (wsrep_thd_is_applying(thd) && !opt_log_slave_updates))
+       (wsrep_thd_is_applying(thd) && !opt_log_slave_updates && !opt_bin_log))
       && wsrep_thd_trx_seqno(thd) > 0)
   {
     wsrep_apply_error unused;

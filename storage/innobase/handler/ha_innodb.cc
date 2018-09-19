@@ -5067,8 +5067,8 @@ UNIV_INTERN void lock_cancel_waiting_and_release(lock_t* lock);
 static void innobase_kill_query(handlerton*, THD* thd, enum thd_kill_levels)
 {
 	DBUG_ENTER("innobase_kill_query");
-#ifdef WITH_WSREP_NOT_MERGED
-	if (wsrep_thd_is_wsrep(thd) && wsrep_thd_is_aborting(thd)) {
+#ifdef WITH_WSREP
+	if (wsrep_on(thd) && wsrep_thd_is_aborting(thd)) {
 		/* if victim has been signaled by BF thread and/or aborting
 		   is already progressing, following query aborting is not necessary
 		   any more.
@@ -18744,6 +18744,7 @@ wsrep_innobase_kill_one_trx(
 		    wsrep_thd_transaction_state_str(thd),
 		    wsrep_thd_transaction_id(thd));
 
+	wsrep_thd_UNLOCK(thd);
 	if (wsrep_thd_bf_abort(bf_thd, thd, signal))
 	{
 		victim_trx->lock.was_chosen_as_deadlock_victim= TRUE;
@@ -18758,7 +18759,6 @@ wsrep_innobase_kill_one_trx(
 				victim_trx->lock.was_chosen_as_deadlock_victim= TRUE;
 				lock_cancel_waiting_and_release(wait_lock);
 			}
-			wsrep_thd_UNLOCK(thd);
 			wsrep_thd_awake((const void*)thd, signal); 
 		} else {
 			/* abort currently executing query */
@@ -18768,13 +18768,8 @@ wsrep_innobase_kill_one_trx(
 				thd_get_thread_id(thd));
 			/* Note that innobase_kill_query will take lock_mutex
 			and trx_mutex */
-			wsrep_thd_UNLOCK((const void*)thd);
 			wsrep_thd_awake((const void*)thd, signal);
 		}
-	}
-	else
-	{
-		wsrep_thd_UNLOCK((const void*)thd);
 	}
 
 	DBUG_RETURN(0);
