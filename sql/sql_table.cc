@@ -4660,6 +4660,10 @@ int create_table_impl(THD *thd,
     {
       if (options.or_replace())
       {
+        LEX_CSTRING db_name= {db, strlen(db)};
+        LEX_CSTRING tab_name= {table_name, strlen(table_name)};
+        (void) delete_statistics_for_table(thd, &db_name, &tab_name);
+
         TABLE_LIST table_list;
         table_list.init_one_table(db, strlen(db), table_name,
                                   strlen(table_name), table_name,
