@@ -40,8 +40,8 @@ Created 3/26/1996 Heikki Tuuri
 #include "fsp0sysspace.h"
 #include "row0mysql.h"
 
-/** The search tuple corresponding to TRX_UNDO_INSERT_DEFAULT. */
-const dtuple_t trx_undo_default_rec = {
+/** The search tuple corresponding to TRX_UNDO_INSERT_METADATA. */
+const dtuple_t trx_undo_metadata = {
 	/* This also works for REC_INFO_METADATA_ALTER, because the
 	delete-mark (REC_INFO_DELETED_FLAG) is ignored when searching. */
 	REC_INFO_METADATA_ADD,
@@ -513,7 +513,7 @@ trx_undo_page_report_insert(
 		ut_ad(index->is_instant());
 		ut_ad(undo_block->frame[first_free + 2]
 		      == TRX_UNDO_INSERT_REC);
-		undo_block->frame[first_free + 2] = TRX_UNDO_INSERT_DEFAULT;
+		undo_block->frame[first_free + 2] = TRX_UNDO_INSERT_METADATA;
 		goto done;
 	}
 

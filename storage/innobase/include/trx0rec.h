@@ -311,7 +311,7 @@ compilation info multiplied by 16 is ORed to this value in an undo log
 record */
 
 #define	TRX_UNDO_RENAME_TABLE	9	/*!< RENAME TABLE */
-#define	TRX_UNDO_INSERT_DEFAULT	10	/*!< insert a "default value"
+#define	TRX_UNDO_INSERT_METADATA 10	/*!< insert a metadata
 					pseudo-record for instant ALTER */
 #define	TRX_UNDO_INSERT_REC	11	/* fresh insert into clustered index */
 #define	TRX_UNDO_UPD_EXIST_REC	12	/* update of a non-delete-marked
@@ -328,8 +328,8 @@ record */
 					storage fields: used by purge to
 					free the external storage */
 
-/** The search tuple corresponding to TRX_UNDO_INSERT_DEFAULT */
-extern const dtuple_t trx_undo_default_rec;
+/** The search tuple corresponding to TRX_UNDO_INSERT_METADATA */
+extern const dtuple_t trx_undo_metadata;
 
 #include "trx0rec.ic"
 

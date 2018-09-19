@@ -110,20 +110,23 @@ static const alter_table_operations INNOBASE_FOREIGN_OPERATIONS
 	= ALTER_DROP_FOREIGN_KEY
 	| ALTER_ADD_FOREIGN_KEY;
 
+/** Operations that InnoDB cares about and can perform without creating data */
+static const alter_table_operations INNOBASE_ALTER_NOCREATE
+	= ALTER_DROP_NON_UNIQUE_NON_PRIM_INDEX
+	| ALTER_DROP_UNIQUE_INDEX;
+
 /** Operations that InnoDB cares about and can perform without rebuild */
 static const alter_table_operations INNOBASE_ALTER_NOREBUILD
 	= INNOBASE_ONLINE_CREATE
-	| ALTER_DROP_NON_UNIQUE_NON_PRIM_INDEX
-	| ALTER_DROP_UNIQUE_INDEX
-#ifdef MYSQL_RENAME_INDEX
-	| ALTER_RENAME_INDEX
-#endif
-	;
+	| INNOBASE_ALTER_NOCREATE;
 
 /** Operations that can be performed instantly, without inplace_alter_table() */
 static const alter_table_operations INNOBASE_ALTER_INSTANT
 	= ALTER_VIRTUAL_COLUMN_ORDER
 	| ALTER_COLUMN_NAME
+#ifdef MYSQL_RENAME_INDEX
+	| ALTER_RENAME_INDEX
+#endif
 	| ALTER_ADD_VIRTUAL_COLUMN
 	| INNOBASE_FOREIGN_OPERATIONS
 	| ALTER_COLUMN_EQUAL_PACK_LENGTH
@@ -560,6 +563,7 @@ innobase_need_rebuild(
 	const TABLE*			table)
 {
 	if ((ha_alter_info->handler_flags & ~(INNOBASE_INPLACE_IGNORE
+					      | INNOBASE_ALTER_NOREBUILD
 					      | INNOBASE_ALTER_INSTANT))
 	    == ALTER_OPTIONS) {
 		return alter_options_need_rebuild(ha_alter_info, table);
@@ -7062,6 +7066,7 @@ err_exit:
 
 	if (!(ha_alter_info->handler_flags & INNOBASE_ALTER_DATA)
 	    || ((ha_alter_info->handler_flags & ~(INNOBASE_INPLACE_IGNORE
+						  | INNOBASE_ALTER_NOCREATE
 						  | INNOBASE_ALTER_INSTANT))
 		== ALTER_OPTIONS
 		&& !alter_options_need_rebuild(ha_alter_info, table))) {
@@ -7347,6 +7352,7 @@ ok_exit:
 	}
 
 	if ((ha_alter_info->handler_flags & ~(INNOBASE_INPLACE_IGNORE
+					      | INNOBASE_ALTER_NOCREATE
 					      | INNOBASE_ALTER_INSTANT))
 	    == ALTER_OPTIONS
 	    && !alter_options_need_rebuild(ha_alter_info, table)) {

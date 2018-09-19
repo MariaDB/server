@@ -61,11 +61,11 @@
  @@alter_algorithm
 -COPY
 +INSTANT
- ALTER TABLE t1 ADD INDEX idx1(f4);
+ ALTER TABLE t1 ADD INDEX idx1(f4), page_compressed=1;
 -affected rows: 1
 -info: Records: 1  Duplicates: 0  Warnings: 0
 +ERROR 0A000: ALGORITHM=INSTANT is not supported. Reason: ADD INDEX. Try ALGORITHM=NOCOPY
- ALTER TABLE t1 DROP INDEX idx;
+ ALTER TABLE t1 DROP INDEX idx, page_compression_level=5;
 -affected rows: 1
 -info: Records: 1  Duplicates: 0  Warnings: 0
 +ERROR 0A000: ALGORITHM=INSTANT is not supported. Reason: DROP INDEX. Try ALGORITHM=NOCOPY
@@ -73,7 +73,7 @@
 -affected rows: 1
 -info: Records: 1  Duplicates: 0  Warnings: 0
 +ERROR 0A000: ALGORITHM=INSTANT is not supported. Reason: ADD INDEX. Try ALGORITHM=NOCOPY
- ALTER TABLE t1 DROP INDEX f4;
+ ALTER TABLE t1 DROP INDEX f4, page_compression_level=9;
 -affected rows: 1
 -info: Records: 1  Duplicates: 0  Warnings: 0
 +ERROR 0A000: ALGORITHM=INSTANT is not supported. Reason: DROP INDEX. Try ALGORITHM=NOCOPY
