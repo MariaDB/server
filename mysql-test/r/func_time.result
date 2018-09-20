@@ -2706,5 +2706,118 @@ Warning	1292	Truncated incorrect time value: '9223372036854775807:00:00'
 Warning	1292	Truncated incorrect time value: '-9223372036854775808:00:00'
 DROP TABLE t1;
 #
+# MDEV-17244 MAKETIME(900,0,0.111) returns a wrong result
+#
+SELECT MAKETIME(900,0,0);
+MAKETIME(900,0,0)
+838:59:59
+Warnings:
+Warning	1292	Truncated incorrect time value: '900:00:00'
+SELECT MAKETIME(900,0,0.1);
+MAKETIME(900,0,0.1)
+838:59:59.9
+Warnings:
+Warning	1292	Truncated incorrect time value: '900:00:00'
+SELECT MAKETIME(900,0,0.11);
+MAKETIME(900,0,0.11)
+838:59:59.99
+Warnings:
+Warning	1292	Truncated incorrect time value: '900:00:00'
+SELECT MAKETIME(900,0,0.111);
+MAKETIME(900,0,0.111)
+838:59:59.999
+Warnings:
+Warning	1292	Truncated incorrect time value: '900:00:00'
+SELECT MAKETIME(900,0,0.1111);
+MAKETIME(900,0,0.1111)
+838:59:59.9999
+Warnings:
+Warning	1292	Truncated incorrect time value: '900:00:00'
+SELECT MAKETIME(900,0,0.11111);
+MAKETIME(900,0,0.11111)
+838:59:59.99999
+Warnings:
+Warning	1292	Truncated incorrect time value: '900:00:00'
+SELECT MAKETIME(900,0,0.111111);
+MAKETIME(900,0,0.111111)
+838:59:59.999999
+Warnings:
+Warning	1292	Truncated incorrect time value: '900:00:00'
+SELECT MAKETIME(900,0,0.1111111);
+MAKETIME(900,0,0.1111111)
+838:59:59.999999
+Warnings:
+Warning	1292	Truncated incorrect time value: '900:00:00'
+SELECT MAKETIME(900,0,0.11111111);
+MAKETIME(900,0,0.11111111)
+838:59:59.999999
+Warnings:
+Warning	1292	Truncated incorrect time value: '900:00:00'
+SELECT MAKETIME(900,0,0.111111111);
+MAKETIME(900,0,0.111111111)
+838:59:59.999999
+Warnings:
+Warning	1292	Truncated incorrect time value: '900:00:00'
+SELECT MAKETIME(900,0,EXP(1));
+MAKETIME(900,0,EXP(1))
+838:59:59.999999
+Warnings:
+Warning	1292	Truncated incorrect time value: '900:00:02'
+SELECT MAKETIME(-900,0,0);
+MAKETIME(-900,0,0)
+-838:59:59
+Warnings:
+Warning	1292	Truncated incorrect time value: '-900:00:00'
+SELECT MAKETIME(-900,0,0.1);
+MAKETIME(-900,0,0.1)
+-838:59:59.9
+Warnings:
+Warning	1292	Truncated incorrect time value: '-900:00:00'
+SELECT MAKETIME(-900,0,0.11);
+MAKETIME(-900,0,0.11)
+-838:59:59.99
+Warnings:
+Warning	1292	Truncated incorrect time value: '-900:00:00'
+SELECT MAKETIME(-900,0,0.111);
+MAKETIME(-900,0,0.111)
+-838:59:59.999
+Warnings:
+Warning	1292	Truncated incorrect time value: '-900:00:00'
+SELECT MAKETIME(-900,0,0.1111);
+MAKETIME(-900,0,0.1111)
+-838:59:59.9999
+Warnings:
+Warning	1292	Truncated incorrect time value: '-900:00:00'
+SELECT MAKETIME(-900,0,0.11111);
+MAKETIME(-900,0,0.11111)
+-838:59:59.99999
+Warnings:
+Warning	1292	Truncated incorrect time value: '-900:00:00'
+SELECT MAKETIME(-900,0,0.111111);
+MAKETIME(-900,0,0.111111)
+-838:59:59.999999
+Warnings:
+Warning	1292	Truncated incorrect time value: '-900:00:00'
+SELECT MAKETIME(-900,0,0.1111111);
+MAKETIME(-900,0,0.1111111)
+-838:59:59.999999
+Warnings:
+Warning	1292	Truncated incorrect time value: '-900:00:00'
+SELECT MAKETIME(-900,0,0.11111111);
+MAKETIME(-900,0,0.11111111)
+-838:59:59.999999
+Warnings:
+Warning	1292	Truncated incorrect time value: '-900:00:00'
+SELECT MAKETIME(-900,0,0.111111111);
+MAKETIME(-900,0,0.111111111)
+-838:59:59.999999
+Warnings:
+Warning	1292	Truncated incorrect time value: '-900:00:00'
+SELECT MAKETIME(-900,0,EXP(1));
+MAKETIME(-900,0,EXP(1))
+-838:59:59.999999
+Warnings:
+Warning	1292	Truncated incorrect time value: '-900:00:02'
+#
 # End of 5.5 tests
 #

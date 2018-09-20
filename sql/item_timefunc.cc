@@ -2765,9 +2765,10 @@ bool Item_func_maketime::get_date(MYSQL_TIME *ltime, ulonglong fuzzy_date)
   }
   else
   {
-    ltime->hour= TIME_MAX_HOUR;
-    ltime->minute= TIME_MAX_MINUTE;
-    ltime->second= TIME_MAX_SECOND;
+    // use check_time_range() to set ltime to the max value depending on dec
+    int unused;
+    ltime->hour= TIME_MAX_HOUR + 1;
+    check_time_range(ltime, decimals, &unused);
     char buf[28];
     char *ptr= longlong10_to_str(hour.value(), buf, hour.is_unsigned() ? 10 : -10);
     int len = (int)(ptr - buf) + sprintf(ptr, ":%02u:%02u", (uint)minute, (uint)second);
