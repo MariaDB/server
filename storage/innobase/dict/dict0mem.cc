@@ -1267,13 +1267,13 @@ void dict_index_t::remove_instant()
 		temp_field.fixed_len = field.fixed_len;
 		temp_field.name = dict_table_get_col_name(
 				table, dict_col_get_no(field.col));
-		temp_field.col = &table->cols[new_field];
+		temp_field.col = &table->cols[field.col->ind];
 
 		if (temp_field.col->is_instant_add()) {
 			temp_field.col->remove_instant();
 		}
 
-		if (temp_fields[i].col->is_nullable()) {
+		if (temp_field.col->is_nullable()) {
 			n_null++;
 		}
 	}
@@ -1285,6 +1285,8 @@ void dict_index_t::remove_instant()
 	n_non_drop_nullable_fields = n_null;
 	n_core_null_bytes = UT_BITS_IN_BYTES(n_null);
 	table->dropped_cols = NULL;
+	table->n_dropped_cols = 0;
+	table->non_pk_col_map = NULL;
 }
 
 /** Adjust clustered index metadata for instant ADD/DROP COLUMN.
