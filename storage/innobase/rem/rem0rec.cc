@@ -482,13 +482,14 @@ rec_offs_make_valid(
 	bool			leaf,
 	ulint*			offsets)
 {
-	ut_ad(rec_offs_n_fields(offsets)
+	const bool is_alter_metadata = leaf
+		&& rec_is_alter_metadata(rec, index);
+	ut_ad(is_alter_metadata
+	      || rec_offs_n_fields(offsets)
 	      <= (leaf
 		  ? dict_index_get_n_fields(index)
 		  : dict_index_get_n_unique_in_tree_nonleaf(index) + 1)
-	      || index->is_dummy || dict_index_is_ibuf(index)
-	      || (rec_get_info_bits(rec, dict_table_is_comp(index->table))
-			== (REC_INFO_MIN_REC_FLAG | REC_INFO_DELETED_FLAG)));
+	      || index->is_dummy || dict_index_is_ibuf(index));
 	const bool is_user_rec = (dict_table_is_comp(index->table)
 				  ? rec_get_heap_no_new(rec)
 				  : rec_get_heap_no_old(rec))
@@ -502,9 +503,8 @@ rec_offs_make_valid(
 	      || n >= rec_offs_n_fields(offsets));
 	for (; n < rec_offs_n_fields(offsets); n++) {
 		ut_ad(leaf);
-		ut_ad(rec_offs_base(offsets)[1 + n] & REC_OFFS_DEFAULT
-		      || (rec_get_info_bits(rec, dict_table_is_comp(index->table))
-				== (REC_INFO_MIN_REC_FLAG | REC_INFO_DELETED_FLAG)));
+		ut_ad(is_alter_metadata
+		      || rec_offs_base(offsets)[1 + n] & REC_OFFS_DEFAULT);
 	}
 	offsets[2] = ulint(rec);
 	offsets[3] = ulint(index);
@@ -567,14 +567,14 @@ rec_offs_validate(
 			}
 		}
 		/* index->n_def == 0 for dummy indexes if !comp */
-		ut_a(!comp || index->n_def);
-		ut_a(!index->n_def || i <= max_n_fields
-		     || (rec_get_info_bits(rec, dict_table_is_comp(index->table))
-			 == (REC_INFO_MIN_REC_FLAG | REC_INFO_DELETED_FLAG)));
+		ut_ad(!comp || index->n_def);
+#if 0 /* FIXME: enable this for node pointers, not for the metadata rec */
+		ut_ad(!index->n_def || i <= max_n_fields);
+#endif
 	}
 	while (i--) {
 		ulint	curr = rec_offs_base(offsets)[1 + i] & REC_OFFS_MASK;
-		ut_a(curr <= last);
+		ut_ad(curr <= last);
 		last = curr;
 	}
 	return(TRUE);
@@ -1068,15 +1068,12 @@ rec_get_offsets_func(
 		switch (UNIV_EXPECT(rec_get_status(rec),
 				    REC_STATUS_ORDINARY)) {
 		case REC_STATUS_INSTANT:
-
-			if (UNIV_UNLIKELY(rec_get_info_bits(rec, true)
-					  == (REC_INFO_MIN_REC_FLAG
-					      | REC_INFO_DELETED_FLAG))) {
+			if (UNIV_UNLIKELY(rec_is_alter_metadata(rec, true))) {
 				n = dict_index_get_n_fields(index) + 1;
 				alter_metadata = true;
 				break;
 			}
-
+			/* fall through */
 		case REC_STATUS_ORDINARY:
 			ut_ad(leaf);
 			n = dict_index_get_n_fields(index);

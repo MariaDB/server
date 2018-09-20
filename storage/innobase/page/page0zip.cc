@@ -2130,6 +2130,10 @@ page_zip_apply_log(
 		rec_get_offsets_reverse(data, index,
 					hs & REC_STATUS_NODE_PTR,
 					offsets);
+		/* Silence a debug assertion in rec_offs_make_valid().
+		This will be overwritten in page_zip_set_extra_bytes(),
+		called by page_zip_decompress_low(). */
+		ut_d(rec[-REC_NEW_INFO_BITS] = 0);
 		rec_offs_make_valid(rec, index, is_leaf, offsets);
 
 		/* Copy the extra bytes (backwards). */

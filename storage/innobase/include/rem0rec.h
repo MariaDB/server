@@ -785,15 +785,37 @@ rec_offs_comp(const ulint* offsets)
 /** Determine if the record is the metadata pseudo-record
 in the clustered index for instant ADD COLUMN or ALTER TABLE.
 @param[in]	rec	leaf page record
+@param[in]	comp	0 if ROW_FORMAT=REDUNDANT, else nonzero
+@return	whether the record is the metadata pseudo-record */
+inline bool rec_is_metadata(const rec_t* rec, ulint comp)
+{
+	bool is = !!(rec_get_info_bits(rec, comp) & REC_INFO_MIN_REC_FLAG);
+	ut_ad(!is || !comp || rec_get_status(rec) == REC_STATUS_INSTANT);
+	return is;
+}
+
+/** Determine if the record is the metadata pseudo-record
+in the clustered index for instant ADD COLUMN or ALTER TABLE.
+@param[in]	rec	leaf page record
 @param[in]	index	index of the record
 @return	whether the record is the metadata pseudo-record */
 inline bool rec_is_metadata(const rec_t* rec, const dict_index_t* index)
 {
-	bool is = rec_get_info_bits(rec, dict_table_is_comp(index->table))
-		& REC_INFO_MIN_REC_FLAG;
+	bool is = rec_is_metadata(rec, dict_table_is_comp(index->table));
 	ut_ad(!is || index->is_instant());
-	ut_ad(!is || !dict_table_is_comp(index->table)
-	      || rec_get_status(rec) == REC_STATUS_INSTANT);
+	return is;
+}
+
+/** Determine if the record is the metadata pseudo-record
+in the clustered index for instant ALTER TABLE (not plain ADD COLUMN).
+@param[in]	rec	leaf page record
+@param[in]	comp	0 if ROW_FORMAT=REDUNDANT, else nonzero
+@return	whether the record is the ALTER TABLE metadata pseudo-record */
+inline bool rec_is_alter_metadata(const rec_t* rec, ulint comp)
+{
+	bool is = !(~rec_get_info_bits(rec, comp)
+		    & (REC_INFO_MIN_REC_FLAG | REC_INFO_DELETED_FLAG));
+	ut_ad(!is || rec_is_metadata(rec, comp));
 	return is;
 }
 
@@ -804,9 +826,8 @@ in the clustered index for instant ALTER TABLE (not plain ADD COLUMN).
 @return	whether the record is the ALTER TABLE metadata pseudo-record */
 inline bool rec_is_alter_metadata(const rec_t* rec, const dict_index_t* index)
 {
-	bool is = !(~rec_get_info_bits(rec, dict_table_is_comp(index->table))
-		    & (REC_INFO_MIN_REC_FLAG | REC_INFO_DELETED_FLAG));
-	ut_ad(!is || rec_is_metadata(rec, index));
+	bool is = rec_is_alter_metadata(rec, dict_table_is_comp(index->table));
+	ut_ad(!is || index->is_instant());
 	return is;
 }
 
