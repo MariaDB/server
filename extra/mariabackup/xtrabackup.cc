@@ -3233,35 +3233,24 @@ the first slot rollback segments of TRX_SYS_PAGE_NO.
 @retval DB_SUCCESS if srv_undo_space_id assigned successfully. */
 static dberr_t xb_assign_undo_space_start()
 {
-	ulint		dirnamelen;
-	char		name[1000];
+
 	pfs_os_file_t	file;
 	byte*		buf;
 	byte*		page;
 	bool		ret;
 	dberr_t		error = DB_SUCCESS;
 	ulint		space, page_no;
+	int n_retries = 5;
 
 	if (srv_undo_tablespaces == 0) {
 		return error;
 	}
 
-	os_normalize_path(srv_data_home);
-	dirnamelen = strlen(srv_data_home);
-	memcpy(name, srv_data_home, dirnamelen);
-
-	if (dirnamelen && name[dirnamelen - 1] != OS_PATH_SEPARATOR) {
-		name[dirnamelen++] = OS_PATH_SEPARATOR;
-	}
-
-	snprintf(name + dirnamelen, (sizeof name) - dirnamelen,
-		 "%s", srv_sys_space.first_datafile()->name());
-
-	file = os_file_create(0, name, OS_FILE_OPEN,
-			      OS_FILE_NORMAL, OS_DATA_FILE, true, &ret);
+	file = os_file_create(0, srv_sys_space.first_datafile()->filepath(),
+		OS_FILE_OPEN, OS_FILE_NORMAL, OS_DATA_FILE, true, &ret);
 
 	if (!ret) {
-		msg("mariabackup: Error in opening %s\n", name);
+		msg("mariabackup: Error in opening %s\n", srv_sys_space.first_datafile()->filepath());
 		return DB_ERROR;
 	}
 
@@ -3278,7 +3267,14 @@ retry:
 
 	/* TRX_SYS page can't be compressed or encrypted. */
 	if (buf_page_is_corrupted(false, page, univ_page_size)) {
-		goto retry;
+		if (n_retries--) {
+			os_thread_sleep(1000);
+			goto retry;
+		} else {
+			msg("mariabackup: TRX_SYS page corrupted.\n");
+			error = DB_ERROR;
+			goto func_exit;
+		}
 	}
 
 	/* 0th slot always points to system tablespace.
