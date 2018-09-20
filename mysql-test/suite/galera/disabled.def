@@ -30,8 +30,6 @@ MW-388 : MDEV-13549 Galera test failures
 galera_sst_mysqldump_with_key : MDEV-16890 Galera test failure
 galera_binlog_stmt_autoinc: MDEV-17106 Test failure on galera.galera_binlog_stmt_autoinc
 galera_gc_fc_limit : MDEV-17061 Test failure on galera.galera_gc_fc_limit
-galra_unicode_identifiers: MDEV-13871 galera.galera_unicode_identifiers failed in buildbot with 'Unknown database'
-galera_suspend_slave: MDEV-13873 galera.galera_suspend_slave failed in buildbot with wrong error code
 partition : MDEV-13881 galera.partition failed in buildbot with wrong result
 galera_as_slave_replication_budle : MDEV-15785 Test case galera_as_slave_replication_bundle caused debug assertion
-query_cache : MDEV-15805 Test failure on galera.query_cache
+galera_wan : MDEV-17259: Test failure on galera.galera_wan
