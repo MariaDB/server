@@ -1234,6 +1234,59 @@ void dict_index_t::reconstruct_fields()
 	fields = temp_fields;
 }
 
+/** Remove the instant fields from the index. */
+void dict_index_t::remove_instant()
+{
+	DBUG_ASSERT(is_primary());
+
+	if (!is_instant()) {
+		return;
+	}
+
+	ulint	old_n_fields = n_fields;
+	n_fields -= n_dropped_fields;
+	n_def -= n_dropped_fields;
+	n_dropped_fields = 0;
+
+	unsigned	n_null = 0;
+	unsigned	new_field = 0;
+	dict_field_t*	temp_fields = static_cast<dict_field_t*>(mem_heap_zalloc(
+				heap, n_fields * sizeof *temp_fields));
+
+	for (unsigned i = 0; i < old_n_fields; i++) {
+		dict_field_t&	temp_field = temp_fields[new_field];
+		dict_field_t	field = fields[i];
+
+		if (field.col->is_dropped()) {
+			continue;
+		}
+
+		new_field++;
+
+		temp_field.prefix_len = field.prefix_len;
+		temp_field.fixed_len = field.fixed_len;
+		temp_field.name = dict_table_get_col_name(
+				table, dict_col_get_no(field.col));
+		temp_field.col = &table->cols[new_field];
+
+		if (temp_field.col->is_instant_add()) {
+			temp_field.col->remove_instant();
+		}
+
+		if (temp_fields[i].col->is_nullable()) {
+			n_null++;
+		}
+	}
+
+	ut_ad(n_fields == new_field);
+	fields = temp_fields;
+	n_core_fields = n_fields;
+	n_nullable = n_null;
+	n_non_drop_nullable_fields = n_null;
+	n_core_null_bytes = UT_BITS_IN_BYTES(n_null);
+	table->dropped_cols = NULL;
+}
+
 /** Adjust clustered index metadata for instant ADD/DROP COLUMN.
 @param[in]	instant		clustered index definition after instant ADD COLUMN
 @param[in]	n_newly_add	number of newly added columns

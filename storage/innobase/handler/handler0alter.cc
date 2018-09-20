@@ -1352,7 +1352,9 @@ next_column:
 	n_exist_cols += n_add_cols;
 	n_exist_cols -= n_drop_cols;
 
-	if (is_instant && n_exist_cols != n_stored_cols) {
+	if ((is_instant && n_exist_cols != n_stored_cols)
+	    || (innobase_fulltext_exist(table)
+		&& !innobase_fulltext_exist(altered_table))) {
 		is_instant = false;
 	}
 
@@ -4620,7 +4622,7 @@ innobase_op_instant_try(
 		unsigned j = 0;
 		unsigned drop_cols_offset = n_old_drop_cols;
 
-		for (unsigned i = 0; i < user_table->n_cols; i++) {
+		for (unsigned i = 0; i < ctx->old_n_cols; i++) {
 			if (ctx->col_map[i] == ULINT_UNDEFINED) {
 				unsigned field_no = user_table->dropped_cols[
 					drop_cols_offset++].ind;
@@ -5527,7 +5529,9 @@ new_clustered_failed:
 	}
 
 	if (ctx->need_rebuild() && user_table->supports_instant()) {
-		if (!instant_alter_column_possible(ha_alter_info, old_table)) {
+		if (!instant_alter_column_possible(ha_alter_info, old_table)
+		    || (innobase_fulltext_exist(old_table)
+			&& !innobase_fulltext_exist(altered_table))) {
 			goto not_instant_add_column;
 		}
 
@@ -5554,6 +5558,7 @@ new_clustered_failed:
 				&error, add_v);
 			ut_a(error == DB_SUCCESS);
 		}
+#if 0
 		DBUG_ASSERT(ha_alter_info->key_count
 			    /* hidden GEN_CLUST_INDEX in InnoDB */
 			    + dict_index_is_auto_gen_clust(
@@ -5565,6 +5570,7 @@ new_clustered_failed:
 				       altered_table->key_info)
 			       != FTS_EXIST_DOC_ID_INDEX)
 			    == ctx->num_to_add_index);
+#endif
 		ctx->num_to_add_index = 0;
 		ctx->add_index = NULL;
 

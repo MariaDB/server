@@ -1219,20 +1219,9 @@ struct dict_index_t {
 	@param[in]	clustered index definition after instant ADD COLUMN */
 	void instant_add_field(const dict_index_t& instant);
 
-	/** Remove the 'instant ADD' status of a clustered index.
+	/** Remove instant fields from the clustered index.
 	Protected by index root page x-latch or table X-lock. */
-	void remove_instant()
-	{
-		DBUG_ASSERT(is_primary());
-		if (!is_instant()) {
-			return;
-		}
-		for (unsigned i = n_core_fields; i < n_fields; i++) {
-			fields[i].col->remove_instant();
-		}
-		n_core_fields = n_fields;
-		n_core_null_bytes = UT_BITS_IN_BYTES(unsigned(n_nullable));
-	}
+	void remove_instant();
 
 	/** Check if record in clustered index is historical row.
 	@param[in]	rec	clustered row
