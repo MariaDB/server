@@ -429,6 +429,7 @@ public:
   bool copy();					// Alloc string if not alloced
   bool copy(const String &s);			// Allocate new string
   bool copy(const char *s,size_t arg_length, CHARSET_INFO *cs);	// Allocate new string
+  bool copy_or_move(const char *s,size_t arg_length, CHARSET_INFO *cs);
   static bool needs_conversion(uint32 arg_length,
   			       CHARSET_INFO *cs_from, CHARSET_INFO *cs_to,
 			       uint32 *offset);
