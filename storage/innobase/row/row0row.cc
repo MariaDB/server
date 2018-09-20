@@ -141,12 +141,12 @@ row_build_clust_default_entry(
 
 /** Build spatial index first field for the entry.
 @param[in]	index	spatial index
-@param[in]	ext	externally stored column prefixes
+@param[in]	ext	externally stored column prefixes, or NULL
 @param[in,out]	dfield	field of the tuple to be copied
-@param[in,out]	dfield2	field of the tuple to copy
+@param[in]	dfield2	field of the tuple to copy
 @param[in]	flag	ROW_BUILD_NORMAL, ROW_BUILD_FOR_PURGE or
 			ROW_BUILD_FOR_UNDO
-@param[in]	heap	memory heap from which the memory
+@param[in,out]	heap	memory heap from which the memory
 			of the field entry is allocated.
 @retval false if undo log is logged before spatial index creation. */
 static
@@ -154,15 +154,12 @@ bool row_build_spatial_index_first_field(
 	dict_index_t*		index,
 	const row_ext_t*	ext,
 	dfield_t*		dfield,
-	dfield_t*		dfield2,
+	const dfield_t*		dfield2,
 	ulint			flag,
 	mem_heap_t*		heap)
 {
 	double*			mbr;
 
-	const page_size_t	page_size = (ext != NULL) ? ext->page_size
-					    : dict_table_page_size(
-						index->table);
 	dfield_copy(dfield, dfield2);
 	dfield->type.prtype |= DATA_GIS_MBR;
 
@@ -173,7 +170,9 @@ bool row_build_spatial_index_first_field(
 	/* Set mbr field data. */
 	dfield_set_data(dfield, mbr, mbr_len);
 
-	if (dfield2->data == NULL) {
+	const fil_space_t* space = index->table->space;
+
+	if (UNIV_UNLIKELY(!dfield2->data || !space)) {
 		return true;
 	}
 
@@ -191,37 +190,24 @@ bool row_build_spatial_index_first_field(
 	}
 
 	if (flag == ROW_BUILD_FOR_PURGE) {
-		byte*	ptr = NULL;
+		byte*	ptr = static_cast<byte*>(dfield_get_data(dfield2));
 
-		spatial_status_t spatial_status;
-		spatial_status =
-			dfield_get_spatial_status(
-					dfield2);
+		switch (dfield_get_spatial_status(dfield2)) {
+		case SPATIAL_ONLY:
+			ut_ad(dfield_get_len(dfield2) == DATA_MBR_LEN);
+			break;
 
-		switch (spatial_status) {
-			case SPATIAL_ONLY:
-				ptr = static_cast<byte*>(
-						dfield_get_data(
-							dfield2));
-				ut_ad(dfield_get_len(dfield2)
-						== DATA_MBR_LEN);
-				break;
+		case SPATIAL_MIXED:
+			ptr += dfield_get_len(dfield2);
+			break;
 
-			case SPATIAL_MIXED:
-				ptr = static_cast<byte*>(
-						dfield_get_data(
-							dfield2))
-					+ dfield_get_len(
-							dfield2);
-				break;
-
-			case SPATIAL_UNKNOWN:
-				ut_ad(0);
-				/* fall through */
-			case SPATIAL_NONE:
-				/* Undo record is logged before
-				   spatial index is created.*/
-				return false;
+		case SPATIAL_UNKNOWN:
+			ut_ad(0);
+			/* fall through */
+		case SPATIAL_NONE:
+			/* Undo record is logged before
+			spatial index is created.*/
+			return false;
 		}
 
 		memcpy(mbr, ptr, DATA_MBR_LEN);
@@ -234,35 +220,31 @@ bool row_build_spatial_index_first_field(
 		   the table is Barrcuda, we need
 		   to skip the prefix data. */
 		flen = BTR_EXTERN_FIELD_REF_SIZE;
-		ut_ad(dfield_get_len(dfield2) >=
-				BTR_EXTERN_FIELD_REF_SIZE);
-		dptr = static_cast<byte*>(
-				dfield_get_data(dfield2))
+		ut_ad(dfield_get_len(dfield2) >= BTR_EXTERN_FIELD_REF_SIZE);
+		dptr = static_cast<byte*>(dfield_get_data(dfield2))
 			+ dfield_get_len(dfield2)
 			- BTR_EXTERN_FIELD_REF_SIZE;
 	} else {
 		flen = dfield_get_len(dfield2);
-		dptr = static_cast<byte*>(
-				dfield_get_data(dfield2));
+		dptr = static_cast<byte*>(dfield_get_data(dfield2));
 	}
 
 	temp_heap = mem_heap_create(1000);
 
-	dptr = btr_copy_externally_stored_field(&dlen, dptr,
-						page_size, flen, temp_heap);
+	dptr = btr_copy_externally_stored_field(
+		&dlen, dptr, ext ? ext->page_size : page_size_t(space->flags),
+		flen, temp_heap);
 
 write_mbr:
-
 	if (dlen <= GEO_DATA_HEADER_SIZE) {
-		for (uint i = 0; i < SPDIMS; ++i) {
-			tmp_mbr[i * 2] = DBL_MAX;
-			tmp_mbr[i * 2 + 1] = -DBL_MAX;
+		for (uint i = 0; i < SPDIMS; i += 2) {
+			tmp_mbr[i] = DBL_MAX;
+			tmp_mbr[i + 1] = -DBL_MAX;
 		}
 	} else {
 		rtree_mbr_from_wkb(dptr + GEO_DATA_HEADER_SIZE,
-				static_cast<uint>(dlen
-					- GEO_DATA_HEADER_SIZE),
-				SPDIMS, tmp_mbr);
+				   uint(dlen - GEO_DATA_HEADER_SIZE),
+				   SPDIMS, tmp_mbr);
 	}
 
 	dfield_write_mbr(dfield, tmp_mbr);
@@ -384,10 +366,8 @@ row_build_index_entry_low(
 		/* Special handle spatial index, set the first field
 		which is for store MBR. */
 		if (dict_index_is_spatial(index) && i == 0) {
-
 			if (!row_build_spatial_index_first_field(
-					index, ext, dfield, dfield2,
-					flag, heap)) {
+				    index, ext, dfield, dfield2, flag, heap)) {
 				return NULL;
 			}
 
