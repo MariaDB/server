@@ -2638,11 +2638,7 @@ rec_validate(
 					<< " len " << len;
 				return(FALSE);
 			}
-
-			if (!rec_offs_nth_drop_col(offsets, i)
-			    && !rec_offs_nth_drop_sql_null(offsets, i)) {
-				len_sum += len;
-			}
+			len_sum += len;
 			break;
 		case UNIV_SQL_DEFAULT:
 			break;
