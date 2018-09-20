@@ -696,7 +696,7 @@ typedef struct {
 	datafiles_iter_t 	*it;
 	uint			num;
 	uint			*count;
-	pthread_mutex_t		count_mutex;
+	pthread_mutex_t*	count_mutex;
 	os_thread_id_t		id;
 } data_thread_ctxt_t;
 
@@ -2874,9 +2874,9 @@ data_copy_thread_func(
 
 	}
 
-	pthread_mutex_lock(&ctxt->count_mutex);
+	pthread_mutex_lock(ctxt->count_mutex);
 	(*ctxt->count)--;
-	pthread_mutex_unlock(&ctxt->count_mutex);
+	pthread_mutex_unlock(ctxt->count_mutex);
 
 	my_thread_end();
 	os_thread_exit();
@@ -4338,7 +4338,7 @@ fail_before_log_copying_thread_start:
 		data_threads[i].it = it;
 		data_threads[i].num = i+1;
 		data_threads[i].count = &count;
-		data_threads[i].count_mutex = count_mutex;
+		data_threads[i].count_mutex = &count_mutex;
 		os_thread_create(data_copy_thread_func, data_threads + i,
 				 &data_threads[i].id);
 	}

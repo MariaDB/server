@@ -124,7 +124,7 @@ struct datadir_thread_ctxt_t {
 	datadir_iter_t		*it;
 	uint			n_thread;
 	uint			*count;
-	pthread_mutex_t		count_mutex;
+	pthread_mutex_t*	count_mutex;
 	os_thread_id_t		id;
 	bool			ret;
 };
@@ -965,7 +965,7 @@ run_data_threads(datadir_iter_t *it, os_thread_func_t func, uint n)
 		data_threads[i].it = it;
 		data_threads[i].n_thread = i + 1;
 		data_threads[i].count = &count;
-		data_threads[i].count_mutex = count_mutex;
+		data_threads[i].count_mutex = &count_mutex;
 		os_thread_create(func, data_threads + i, &data_threads[i].id);
 	}
 
@@ -2042,9 +2042,9 @@ cleanup:
 
 	datadir_node_free(&node);
 
-	pthread_mutex_lock(&ctxt->count_mutex);
+	pthread_mutex_lock(ctxt->count_mutex);
 	--(*ctxt->count);
-	pthread_mutex_unlock(&ctxt->count_mutex);
+	pthread_mutex_unlock(ctxt->count_mutex);
 
 	ctxt->ret = ret;
 
