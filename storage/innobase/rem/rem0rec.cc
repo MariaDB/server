@@ -581,7 +581,7 @@ rec_offs_validate(
 }
 #endif /* UNIV_DEBUG */
 
-/** Determine the offsets to each field in the metadata record.
+/** Determine the offsets to each field for the metadata record.
  The offsets are written to a previously allocated array of
 ulint, where rec_offs_n_fields(offsets) has been initialized to the
 number of fields in the record.	 The rest of the array will be
@@ -596,114 +596,58 @@ fields 1..n_fields+1.  When the high-order bit of the offset at [i+1]
 is set (REC_OFFS_SQL_NULL), the field i is NULL.  When the second
 high-order bit of the offset at [i+1] is set (REC_OFFS_EXTERNAL), the
 field i is being stored externally.
-@param[in]	rec	record
-@param[in]	index	the index that the record belongs in
-@param[in,out]	offsets	array of offsets, with valid rec_offs_n_fields() */
+@param[in]	rec		record
+@param[in]	index		the index that the record belongs in
+@param[in]	limit		get offset upto this limit
+@param[in]	n_exist_fields	number of existing fields
+@param[in]	dropped_cols	dropped columns list
+@param[in,out]	offsets		array of offsets, with valid rec_offs_n_fields() */
 static
 void
-rec_init_offsets_for_metadata(
+rec_init_offsets_for_metadata_low(
 	const rec_t*		rec,
 	const dict_index_t*	index,
+	ulint			limit,
+	ulint			n_exist_fields,
+	std::vector<ulint>*	dropped_cols,
 	ulint*			offsets)
 {
-	ulint offs		= 0;
-	ulint prev_offs		= 0;
-	ulint any		= 0;
+	ulint	n_pk_fields = unsigned(index->n_uniq + DATA_ROLL_PTR);
+	ulint	len;
 	const byte* nulls	= rec;
 	const byte* lens	= NULL;
-	dict_table_t*	table = index->table;
-	unsigned pk_fields = index->n_uniq + DATA_ROLL_PTR + 1;
 	dict_field_t*		field;
-	const dict_col_t*	col;
+	const dict_col_t* col;
+	int	null_mask	= 1;
+	ulint	prev_offs	= 0;
+	ulint	offs		= 0;
+	ulint	any		= 0;
+	ulint	pos		= 0;
+
 
 	nulls -= REC_N_NEW_EXTRA_BYTES;
+	ulint n_null_bytes = rec_get_n_add_field(nulls);
+	lens = --nulls - n_null_bytes;
+
 	ut_ad(index->is_instant());
 
-#ifdef UNIV_DEBUG
-	offsets[2] = (ulint) rec;
-	offsets[3] = (ulint) index;
-#endif /* UNIV_DEBUG */
-
-	ulint len;
-	ulint i = 0;
-	ulint non_drop_nullable_fields = 0;
-
-	for (; i < rec_offs_n_fields(offsets) && i < pk_fields; i++) {
-
-		if (i == pk_fields - 1) {
-			/* Default row blob. */
-			offs += FIELD_REF_SIZE;
-			any |= REC_OFFS_EXTERNAL;
-			len = offs | REC_OFFS_EXTERNAL;
-		} else {
-			field = dict_index_get_nth_field(index, i);
-			col = dict_field_get_col(field);
-			ut_ad(!col->is_dropped());
-
-			if (col->is_nullable()) {
-				non_drop_nullable_fields++;
-			}
-
-			len = offs += field->fixed_len;
-		}
-
-		rec_offs_base(offsets)[i + 1] = len;
-	}
-
-	*rec_offs_base(offsets)
-		= ulint(rec - 1) | REC_OFFS_COMPACT | any;
-
-	if (rec_offs_n_fields(offsets) <= pk_fields) {
-		return;
-	}
-
-	const byte* field_data;
-	byte*	blob_data;
-	ulint 	blob_len;
-
-	field_data = rec_get_nth_field(rec, offsets, (pk_fields - 1), &len);
-
-	bool 	is_insert_row = (memcmp(field_data, field_ref_zero, len) == 0);
-
-	ulint 			n_dropped_columns = 0;
-	ulint			n_null_bytes = 0;
-	ulint			non_pk_fields = 0;
-	std::vector<ulint>	dropped_cols_list;
-
-	if (is_insert_row) {
-		non_pk_fields = index->n_fields;
-		n_dropped_columns = table->n_dropped_cols;
-		n_null_bytes = UT_BITS_IN_BYTES(
-			index->n_non_drop_nullable_fields + n_dropped_columns);
-	} else {
-
-		blob_data = btr_copy_externally_stored_field(
-				&blob_len, field_data,
-				dict_table_page_size(table),
-				len, table->heap);
-
-		table->read_metadata_blob(
-				blob_data, &non_pk_fields,
-				&non_drop_nullable_fields, dropped_cols_list);
-
-		n_dropped_columns = dropped_cols_list.size();
-
-		n_null_bytes = UT_BITS_IN_BYTES(
-			non_drop_nullable_fields + n_dropped_columns);
-	}
-
-	lens = --nulls - n_null_bytes;
-	int null_mask = 1;
-
-	while(i < rec_offs_n_fields(offsets))
+	while(pos < rec_offs_n_fields(offsets) && pos < limit)
 	{
 		bool is_dropped = false;
 		bool is_nullable = false;
 		bool is_drop_null = false;
 
-		if (i >= non_pk_fields + pk_fields) {
+		if (pos == n_pk_fields) {
+			/* Default row blob. */
+			offs += FIELD_REF_SIZE;
+			any |= REC_OFFS_EXTERNAL;
+			len = offs | REC_OFFS_EXTERNAL;
+			goto resolved;
+		}
+
+		if (pos >= n_exist_fields) {
 			ulint dlen;
-			if (!index->instant_field_value(i - 1, &dlen)) {
+			if (!index->instant_field_value(pos - 1, &dlen)) {
 				len = offs | REC_OFFS_SQL_NULL;
 				ut_ad(dlen == UNIV_SQL_NULL);
 			} else {
@@ -714,15 +658,16 @@ rec_init_offsets_for_metadata(
 			goto resolved;
 		}
 
-		field = dict_index_get_nth_field(index, i - 1);
+		field = dict_index_get_nth_field(
+				index, (pos > n_pk_fields) ? pos - 1 : pos);
 		col = dict_field_get_col(field);
 
-		if (is_insert_row) {
+		if (dropped_cols == NULL) {
 			is_dropped = col->is_dropped();
 		} else {
 			if (std::find(
-				dropped_cols_list.begin(), dropped_cols_list.end(),
-				i - pk_fields) != dropped_cols_list.end()) {
+				dropped_cols->begin(), dropped_cols->end(),
+				pos - n_pk_fields) != dropped_cols->end()) {
 				is_dropped = true;
 			}
 		}
@@ -795,11 +740,86 @@ resolved:
 			prev_offs = 0;
 		}
 
-		rec_offs_base(offsets)[++i] = len;
+		rec_offs_base(offsets)[++pos] = len;
 	}
 
 	*rec_offs_base(offsets)
 		= ulint(rec - (lens + 1)) | REC_OFFS_COMPACT | any;
+}
+
+/** Determine the offsets to each field in the metadata record.
+ The offsets are written to a previously allocated array of
+ulint, where rec_offs_n_fields(offsets) has been initialized to the
+number of fields in the record.	 The rest of the array will be
+initialized by this function.  rec_offs_base(offsets)[0] will be set
+to the extra size (if REC_OFFS_COMPACT is set, the record is in the
+new format; if REC_OFFS_EXTERNAL is set, the record contains externally
+stored columns; if REC_OFFS_DROP_SQL_NULL is set, the field for the dropped
+column is NULLABLE or length for the column is also maintained), and
+rec_offs_base(offsets)[1..n_fields] will be set to
+offsets past the end of fields 0..n_fields, or to the beginning of
+fields 1..n_fields+1.  When the high-order bit of the offset at [i+1]
+is set (REC_OFFS_SQL_NULL), the field i is NULL.  When the second
+high-order bit of the offset at [i+1] is set (REC_OFFS_EXTERNAL), the
+field i is being stored externally.
+@param[in]	rec	record
+@param[in]	index	the index that the record belongs in
+@param[in,out]	offsets	array of offsets, with valid rec_offs_n_fields() */
+static
+void
+rec_init_offsets_for_metadata(
+	const rec_t*		rec,
+	const dict_index_t*	index,
+	ulint*			offsets)
+{
+	unsigned pk_fields = index->n_uniq + DATA_ROLL_PTR + 1;
+
+#ifdef UNIV_DEBUG
+	offsets[2] = (ulint) rec;
+	offsets[3] = (ulint) index;
+#endif /* UNIV_DEBUG */
+
+	rec_init_offsets_for_metadata_low(rec, index, pk_fields,
+					  (pk_fields + 1), NULL,
+					  offsets);
+
+	if (rec_offs_n_fields(offsets) <= pk_fields) {
+		return;
+	}
+
+	const byte* field_data;
+	byte*	blob_data;
+	ulint 	blob_len;
+	ulint	len;
+
+	field_data = rec_get_nth_field(rec, offsets, (pk_fields - 1), &len);
+
+	bool 	is_insert_row = (memcmp(field_data, field_ref_zero, len) == 0);
+
+	ulint			non_pk_fields = 0;
+	std::vector<ulint>	dropped_cols_list;
+	dict_table_t*		table = index->table;
+
+	if (is_insert_row) {
+		non_pk_fields = index->n_fields + 1;
+	} else {
+
+		blob_data = btr_copy_externally_stored_field(
+				&blob_len, field_data,
+				dict_table_page_size(table),
+				len, table->heap);
+
+		table->read_metadata_blob(
+				blob_data, &non_pk_fields,
+				dropped_cols_list);
+
+		non_pk_fields += pk_fields;
+	}
+
+	rec_init_offsets_for_metadata_low(rec, index, rec_offs_n_fields(offsets),
+					  non_pk_fields,
+					  is_insert_row ? NULL: &dropped_cols_list,
+					  offsets);
 }
 
 /** Determine the offsets to each field in the record.
@@ -1351,6 +1371,9 @@ rec_get_metadata_converted_size(
 				+ clust_index->n_dropped_fields);
 
 	extra_size += n_null_bytes;
+
+	extra_size += rec_get_n_add_field_len(n_null_bytes);
+
 	data_size = 0;
 	ulint   field_no;
 	ulint   ind_field_no = 0;
@@ -1821,6 +1844,8 @@ rec_convert_dtuple_to_default_rec_comp(
 	int		n_null_bytes = UT_BITS_IN_BYTES(
 				(clust_index->n_non_drop_nullable_fields
 				 + clust_index->n_dropped_fields));
+
+	rec_set_n_add_field(nulls, n_null_bytes);
 
 	rec_set_heap_no_new(rec, PAGE_HEAP_NO_USER_LOW);
 

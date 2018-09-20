@@ -57,423 +57,6 @@ WHERE variable_name = 'innodb_instant_alter_column');
 CREATE TABLE t1
 (id INT PRIMARY KEY, c2 INT UNIQUE,
 c3 POINT NOT NULL DEFAULT ST_GeomFromText('POINT(3 4)'),
-SPATIAL INDEX(c3)) ENGINE=InnoDB ROW_FORMAT=REDUNDANT;
-INSERT INTO t1 (id, c2) values(1,1);
-SELECT id,c2,ST_AsText(c3) c3 FROM t1;
-id	c2	c3
-1	1	POINT(3 4)
-ALTER TABLE t1 ADD COLUMN (
-d1 INT, d2 INT UNSIGNED DEFAULT 10, d3 VARCHAR(20) NOT NULL DEFAULT 'abcde',
-d4 TIMESTAMP NOT NULL DEFAULT current_timestamp());
-affected rows: 0
-info: Records: 0  Duplicates: 0  Warnings: 0
-ALTER TABLE t1 ADD INDEX(d3);
-affected rows: 0
-info: Records: 0  Duplicates: 0  Warnings: 0
-BEGIN;
-UPDATE t1 SET d3='';
-ROLLBACK;
-SELECT id,c2,ST_AsText(c3) c3, d1, d2, d3, d4 FROM t1;
-id	c2	c3	d1	d2	d3	d4
-1	1	POINT(3 4)	NULL	10	abcde	1970-01-01 03:00:42
-INSERT INTO t1 (id) VALUES(2),(3),(4),(5),(6);
-ALTER TABLE t1 CHANGE d1 d1 INT DEFAULT 5, CHANGE d2 d2 INT DEFAULT 15,
-CHANGE d3 d3 VARCHAR(20) NOT NULL DEFAULT 'fghij',
-CHANGE d4 dfour TIMESTAMP NOT NULL DEFAULT now();
-affected rows: 6
-info: Records: 6  Duplicates: 0  Warnings: 0
-UPDATE t1 SET d3='foo' WHERE id = 2;
-UPDATE t1 SET d3=DEFAULT WHERE id = 4;
-INSERT INTO t1 SET id = 7;
-SELECT id,c2,ST_AsText(c3) c3, d1, d2, d3, dfour FROM t1;
-id	c2	c3	d1	d2	d3	dfour
-1	1	POINT(3 4)	NULL	10	abcde	1970-01-01 03:00:42
-2	NULL	POINT(3 4)	NULL	10	foo	1970-01-01 03:00:42
-3	NULL	POINT(3 4)	NULL	10	abcde	1970-01-01 03:00:42
-4	NULL	POINT(3 4)	NULL	10	fghij	1970-01-01 03:00:42
-5	NULL	POINT(3 4)	NULL	10	abcde	1970-01-01 03:00:42
-6	NULL	POINT(3 4)	NULL	10	abcde	1970-01-01 03:00:42
-7	NULL	POINT(3 4)	5	15	fghij	1970-01-01 03:00:42
-CHECK TABLE t1;
-Table	Op	Msg_type	Msg_text
-test.t1	check	status	OK
-ALTER TABLE t1 ADD COLUMN e1 INT AS (id * 3);
-affected rows: 0
-info: Records: 0  Duplicates: 0  Warnings: 0
-ALTER TABLE t1 ADD COLUMN e2 VARCHAR(30) AS (d3);
-affected rows: 0
-info: Records: 0  Duplicates: 0  Warnings: 0
-ALTER TABLE t1 ADD COLUMN e3 INT AS (id * 2);
-affected rows: 0
-info: Records: 0  Duplicates: 0  Warnings: 0
-ALTER TABLE t1 CHANGE d3 d3 VARCHAR(20) NOT NULL DEFAULT 'foobar',
-ADD COLUMN (d5 CHAR(20) DEFAULT 'hijkl', d6 INT DEFAULT -12345, d7 INT),
-DROP INDEX d3;
-affected rows: 0
-info: Records: 0  Duplicates: 0  Warnings: 0
-INSERT INTO t1 SET id = 8;
-UPDATE t1 SET d3 = 'yyyyy' WHERE id = 1;
-UPDATE t1 SET d3 = 'xxxxx' WHERE id = 2;
-BEGIN;
-UPDATE t1 SET d3 = 'xxxxx' WHERE id = 3;
-SELECT id, c2, ST_AsText(c3) c3, d1, d2, d3, dfour, e1, e2, e3, d5, d6, d7 FROM t1 WHERE id = 3;
-id	c2	c3	d1	d2	d3	dfour	e1	e2	e3	d5	d6	d7
-3	NULL	POINT(3 4)	NULL	10	xxxxx	1970-01-01 03:00:42	9	xxxxx	6	hijkl	-12345	NULL
-ROLLBACK;
-SELECT id, c2, ST_AsText(c3) c3, d1, d2, d3, dfour, e1, e2, e3, d5, d6, d7 FROM t1 WHERE id = 3;
-id	c2	c3	d1	d2	d3	dfour	e1	e2	e3	d5	d6	d7
-3	NULL	POINT(3 4)	NULL	10	abcde	1970-01-01 03:00:42	9	abcde	6	hijkl	-12345	NULL
-BEGIN;
-UPDATE t1 SET d7 = NULL WHERE ID = 5;
-ROLLBACK;
-BEGIN;
-UPDATE t1 SET d7 = NULL, d6 = 10 WHERE id = 5;
-SELECT id, c2, ST_AsText(c3) c3, d1, d2, d3, dfour, e1, e2, e3, d5, d6, d7 FROM t1 WHERE id = 5;
-id	c2	c3	d1	d2	d3	dfour	e1	e2	e3	d5	d6	d7
-5	NULL	POINT(3 4)	NULL	10	abcde	1970-01-01 03:00:42	15	abcde	10	hijkl	10	NULL
-ROLLBACK;
-SELECT id, c2, ST_AsText(c3) c3, d1, d2, d3, dfour, e1, e2, e3, d5, d6, d7 FROM t1 WHERE id = 5;
-id	c2	c3	d1	d2	d3	dfour	e1	e2	e3	d5	d6	d7
-5	NULL	POINT(3 4)	NULL	10	abcde	1970-01-01 03:00:42	15	abcde	10	hijkl	-12345	NULL
-ALTER TABLE t1 ADD COLUMN (f1 VARCHAR(20) AS (concat('x', e2)) STORED);
-affected rows: 8
-info: Records: 8  Duplicates: 0  Warnings: 0
-ALTER TABLE t1 ADD COLUMN (d8 VARCHAR(20) DEFAULT 'omnopq');
-affected rows: 0
-info: Records: 0  Duplicates: 0  Warnings: 0
-SELECT id, c2, ST_AsText(c3) c3, d1, d2, d3, dfour, e1, e2, e3, d5, d6, d7, f1, d8 FROM t1;
-id	c2	c3	d1	d2	d3	dfour	e1	e2	e3	d5	d6	d7	f1	d8
-1	1	POINT(3 4)	NULL	10	yyyyy	1970-01-01 03:00:42	3	yyyyy	2	hijkl	-12345	NULL	xyyyyy	omnopq
-2	NULL	POINT(3 4)	NULL	10	xxxxx	1970-01-01 03:00:42	6	xxxxx	4	hijkl	-12345	NULL	xxxxxx	omnopq
-3	NULL	POINT(3 4)	NULL	10	abcde	1970-01-01 03:00:42	9	abcde	6	hijkl	-12345	NULL	xabcde	omnopq
-4	NULL	POINT(3 4)	NULL	10	fghij	1970-01-01 03:00:42	12	fghij	8	hijkl	-12345	NULL	xfghij	omnopq
-5	NULL	POINT(3 4)	NULL	10	abcde	1970-01-01 03:00:42	15	abcde	10	hijkl	-12345	NULL	xabcde	omnopq
-6	NULL	POINT(3 4)	NULL	10	abcde	1970-01-01 03:00:42	18	abcde	12	hijkl	-12345	NULL	xabcde	omnopq
-7	NULL	POINT(3 4)	5	15	fghij	1970-01-01 03:00:42	21	fghij	14	hijkl	-12345	NULL	xfghij	omnopq
-8	NULL	POINT(3 4)	5	15	foobar	1970-01-01 03:00:42	24	foobar	16	hijkl	-12345	NULL	xfoobar	omnopq
-SHOW CREATE TABLE t1;
-Table	Create Table
-t1	CREATE TABLE `t1` (
-  `id` int(11) NOT NULL,
-  `c2` int(11) DEFAULT NULL,
-  `c3` point NOT NULL DEFAULT st_geometryfromtext('POINT(3 4)'),
-  `d1` int(11) DEFAULT 5,
-  `d2` int(11) DEFAULT 15,
-  `d3` varchar(20) NOT NULL DEFAULT 'foobar',
-  `dfour` timestamp NOT NULL DEFAULT current_timestamp(),
-  `e1` int(11) GENERATED ALWAYS AS (`id` * 3) VIRTUAL,
-  `e2` varchar(30) GENERATED ALWAYS AS (`d3`) VIRTUAL,
-  `e3` int(11) GENERATED ALWAYS AS (`id` * 2) VIRTUAL,
-  `d5` char(20) DEFAULT 'hijkl',
-  `d6` int(11) DEFAULT -12345,
-  `d7` int(11) DEFAULT NULL,
-  `f1` varchar(20) GENERATED ALWAYS AS (concat('x',`e2`)) STORED,
-  `d8` varchar(20) DEFAULT 'omnopq',
-  PRIMARY KEY (`id`),
-  UNIQUE KEY `c2` (`c2`),
-  SPATIAL KEY `c3` (`c3`)
-) ENGINE=InnoDB DEFAULT CHARSET=latin1 ROW_FORMAT=REDUNDANT
-ALTER TABLE t1
-CHANGE c2 c2 INT DEFAULT 42,
-CHANGE d1 d1 INT DEFAULT 1,
-CHANGE d2 d2 INT DEFAULT 20,
-CHANGE d3 d3 VARCHAR(20) NOT NULL DEFAULT 'boofar';
-affected rows: 0
-info: Records: 0  Duplicates: 0  Warnings: 0
-INSERT INTO t1 SET id=9;
-ALTER TABLE t1 DROP c3;
-affected rows: 9
-info: Records: 9  Duplicates: 0  Warnings: 0
-SHOW CREATE TABLE t1;
-Table	Create Table
-t1	CREATE TABLE `t1` (
-  `id` int(11) NOT NULL,
-  `c2` int(11) DEFAULT 42,
-  `d1` int(11) DEFAULT 1,
-  `d2` int(11) DEFAULT 20,
-  `d3` varchar(20) NOT NULL DEFAULT 'boofar',
-  `dfour` timestamp NOT NULL DEFAULT current_timestamp(),
-  `e1` int(11) GENERATED ALWAYS AS (`id` * 3) VIRTUAL,
-  `e2` varchar(30) GENERATED ALWAYS AS (`d3`) VIRTUAL,
-  `e3` int(11) GENERATED ALWAYS AS (`id` * 2) VIRTUAL,
-  `d5` char(20) DEFAULT 'hijkl',
-  `d6` int(11) DEFAULT -12345,
-  `d7` int(11) DEFAULT NULL,
-  `f1` varchar(20) GENERATED ALWAYS AS (concat('x',`e2`)) STORED,
-  `d8` varchar(20) DEFAULT 'omnopq',
-  PRIMARY KEY (`id`),
-  UNIQUE KEY `c2` (`c2`)
-) ENGINE=InnoDB DEFAULT CHARSET=latin1 ROW_FORMAT=REDUNDANT
-SELECT * FROM t1;
-id	c2	d1	d2	d3	dfour	e1	e2	e3	d5	d6	d7	f1	d8
-1	1	NULL	10	yyyyy	1970-01-01 03:00:42	3	yyyyy	2	hijkl	-12345	NULL	xyyyyy	omnopq
-2	NULL	NULL	10	xxxxx	1970-01-01 03:00:42	6	xxxxx	4	hijkl	-12345	NULL	xxxxxx	omnopq
-3	NULL	NULL	10	abcde	1970-01-01 03:00:42	9	abcde	6	hijkl	-12345	NULL	xabcde	omnopq
-4	NULL	NULL	10	fghij	1970-01-01 03:00:42	12	fghij	8	hijkl	-12345	NULL	xfghij	omnopq
-5	NULL	NULL	10	abcde	1970-01-01 03:00:42	15	abcde	10	hijkl	-12345	NULL	xabcde	omnopq
-6	NULL	NULL	10	abcde	1970-01-01 03:00:42	18	abcde	12	hijkl	-12345	NULL	xabcde	omnopq
-7	NULL	5	15	fghij	1970-01-01 03:00:42	21	fghij	14	hijkl	-12345	NULL	xfghij	omnopq
-8	NULL	5	15	foobar	1970-01-01 03:00:42	24	foobar	16	hijkl	-12345	NULL	xfoobar	omnopq
-9	42	1	20	boofar	1970-01-01 03:00:42	27	boofar	18	hijkl	-12345	NULL	xboofar	omnopq
-CREATE TABLE t2
-(id INT primary key, c1 VARCHAR(4000),
-p GEOMETRY NOT NULL DEFAULT ST_GeomFromText('LINESTRING(0 0,0 1,1 1)'),
-SPATIAL INDEX(p))
-ENGINE=InnoDB ROW_FORMAT=REDUNDANT;
-BEGIN;
-INSERT INTO t2 SET id=1, c1=REPEAT('a', 4000);
-INSERT INTO t2 SET id=2, c1=REPEAT('a', 4000), p=ST_GeomFromText('POINT(1 1)');
-COMMIT;
-ALTER TABLE t2 ADD COLUMN d1 VARCHAR(2000) DEFAULT REPEAT('asdf',500);
-affected rows: 0
-info: Records: 0  Duplicates: 0  Warnings: 0
-SELECT id, c1, ST_AsText(p) p, d1 FROM t2;
-id	c1	p	d1
-1	aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa	LINESTRING(0 0,0 1,1 1)	asdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdf
-2	aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa	POINT(1 1)	asdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdf
-BEGIN;
-UPDATE t2 SET c1 = repeat(id, 4000);
-connection analyze;
-ANALYZE TABLE t2;
-Table	Op	Msg_type	Msg_text
-test.t2	analyze	status	OK
-SELECT clust_index_size FROM INFORMATION_SCHEMA.INNODB_SYS_TABLESTATS
-WHERE name = 'test/t2';
-clust_index_size
-1
-connection default;
-ROLLBACK;
-connection analyze;
-ANALYZE TABLE t2;
-Table	Op	Msg_type	Msg_text
-test.t2	analyze	status	OK
-SELECT clust_index_size FROM INFORMATION_SCHEMA.INNODB_SYS_TABLESTATS
-WHERE name = 'test/t2';
-clust_index_size
-1
-connection default;
-BEGIN;
-UPDATE t2 SET d1 = repeat(id, 200);
-connection analyze;
-ANALYZE TABLE t2;
-Table	Op	Msg_type	Msg_text
-test.t2	analyze	status	OK
-SELECT clust_index_size FROM INFORMATION_SCHEMA.INNODB_SYS_TABLESTATS
-WHERE name = 'test/t2';
-clust_index_size
-1
-connection default;
-ROLLBACK;
-connection analyze;
-ANALYZE TABLE t2;
-Table	Op	Msg_type	Msg_text
-test.t2	analyze	status	OK
-SELECT clust_index_size FROM INFORMATION_SCHEMA.INNODB_SYS_TABLESTATS
-WHERE name = 'test/t2';
-clust_index_size
-1
-connection default;
-ALTER TABLE t2 DROP p;
-affected rows: 0
-info: Records: 0  Duplicates: 0  Warnings: 0
-SELECT * FROM t2;
-id	c1	d1
-1	aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa	asdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdf
-2	aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa	asdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdf
-CREATE TABLE t3
-(id INT PRIMARY KEY, c2 INT UNSIGNED NOT NULL UNIQUE,
-c3 POLYGON NOT NULL DEFAULT ST_PolyFromText('POLYGON((1 1,2 2,3 3,1 1))'),
-SPATIAL INDEX(c3))
-ENGINE=InnoDB ROW_FORMAT=REDUNDANT;
-INSERT INTO t3(id,c2) VALUES(1,1),(2,2),(3,3);
-SELECT id, c2, ST_AsText(c3) c3 FROM t3;
-id	c2	c3
-1	1	POLYGON((1 1,2 2,3 3,1 1))
-2	2	POLYGON((1 1,2 2,3 3,1 1))
-3	3	POLYGON((1 1,2 2,3 3,1 1))
-ALTER TABLE t3 ADD COLUMN
-(c4 DATETIME DEFAULT current_timestamp(),
-c5 TIMESTAMP NOT NULL DEFAULT current_timestamp(),
-c6 POINT);
-affected rows: 0
-info: Records: 0  Duplicates: 0  Warnings: 0
-SELECT id, c2, ST_AsText(c3) c3, c4, c5, c6 FROM t3;
-id	c2	c3	c4	c5	c6
-1	1	POLYGON((1 1,2 2,3 3,1 1))	1970-01-01 03:00:42	1970-01-01 03:00:42	NULL
-2	2	POLYGON((1 1,2 2,3 3,1 1))	1970-01-01 03:00:42	1970-01-01 03:00:42	NULL
-3	3	POLYGON((1 1,2 2,3 3,1 1))	1970-01-01 03:00:42	1970-01-01 03:00:42	NULL
-affected rows: 3
-ALTER TABLE t3 ADD COLUMN c7 TIME NOT NULL DEFAULT current_timestamp();
-affected rows: 0
-info: Records: 0  Duplicates: 0  Warnings: 0
-ALTER TABLE t3 ADD COLUMN c8 DATE NOT NULL DEFAULT current_timestamp();
-affected rows: 0
-info: Records: 0  Duplicates: 0  Warnings: 0
-SELECT id, c2, ST_AsText(c3) c3, c4, c5, c6, c7, c8 FROM t3;
-id	c2	c3	c4	c5	c6	c7	c8
-1	1	POLYGON((1 1,2 2,3 3,1 1))	1970-01-01 03:00:42	1970-01-01 03:00:42	NULL	03:00:42	1970-01-01
-2	2	POLYGON((1 1,2 2,3 3,1 1))	1970-01-01 03:00:42	1970-01-01 03:00:42	NULL	03:00:42	1970-01-01
-3	3	POLYGON((1 1,2 2,3 3,1 1))	1970-01-01 03:00:42	1970-01-01 03:00:42	NULL	03:00:42	1970-01-01
-ALTER TABLE t3 ADD COLUMN t TEXT CHARSET utf8
-DEFAULT 'The quick brown fox jumps over the lazy dog';
-affected rows: 0
-info: Records: 0  Duplicates: 0  Warnings: 0
-ALTER TABLE t3 ADD COLUMN b BLOB NOT NULL;
-affected rows: 0
-info: Records: 0  Duplicates: 0  Warnings: 0
-INSERT INTO t3 SET id=4;
-ERROR HY000: Field 'c2' doesn't have a default value
-INSERT INTO t3 SET id=4, c2=0, b=0xf09f98b1;
-affected rows: 1
-Warnings:
-Note	1265	Data truncated for column 'c7' at row 1
-Note	1265	Data truncated for column 'c8' at row 1
-ALTER TABLE t3 CHANGE t phrase TEXT DEFAULT 0xc3a4c3a448,
-CHANGE b b BLOB NOT NULL DEFAULT 'binary line of business';
-affected rows: 4
-info: Records: 4  Duplicates: 0  Warnings: 0
-INSERT INTO t3 SET id=5, c2=9;
-Warnings:
-Note	1265	Data truncated for column 'c7' at row 1
-Note	1265	Data truncated for column 'c8' at row 1
-SELECT id, c2, ST_AsText(c3) c3, c4, c5, c6, c7, c8, phrase, b FROM t3;
-id	c2	c3	c4	c5	c6	c7	c8	phrase	b
-1	1	POLYGON((1 1,2 2,3 3,1 1))	1970-01-01 03:00:42	1970-01-01 03:00:42	NULL	03:00:42	1970-01-01	The quick brown fox jumps over the lazy dog	
-2	2	POLYGON((1 1,2 2,3 3,1 1))	1970-01-01 03:00:42	1970-01-01 03:00:42	NULL	03:00:42	1970-01-01	The quick brown fox jumps over the lazy dog	
-3	3	POLYGON((1 1,2 2,3 3,1 1))	1970-01-01 03:00:42	1970-01-01 03:00:42	NULL	03:00:42	1970-01-01	The quick brown fox jumps over the lazy dog	
-4	0	POLYGON((1 1,2 2,3 3,1 1))	1970-01-01 03:00:42	1970-01-01 03:00:42	NULL	03:00:42	1970-01-01	The quick brown fox jumps over the lazy dog	😱
-5	9	POLYGON((1 1,2 2,3 3,1 1))	1970-01-01 03:00:42	1970-01-01 03:00:42	NULL	03:00:42	1970-01-01	ääH	binary line of business
-ALTER TABLE t3 DROP c3, DROP c7;
-affected rows: 0
-info: Records: 0  Duplicates: 0  Warnings: 0
-SELECT * FROM t3;
-id	c2	c4	c5	c6	c8	phrase	b
-1	1	1970-01-01 03:00:42	1970-01-01 03:00:42	NULL	1970-01-01	The quick brown fox jumps over the lazy dog	
-2	2	1970-01-01 03:00:42	1970-01-01 03:00:42	NULL	1970-01-01	The quick brown fox jumps over the lazy dog	
-3	3	1970-01-01 03:00:42	1970-01-01 03:00:42	NULL	1970-01-01	The quick brown fox jumps over the lazy dog	
-4	0	1970-01-01 03:00:42	1970-01-01 03:00:42	NULL	1970-01-01	The quick brown fox jumps over the lazy dog	😱
-5	9	1970-01-01 03:00:42	1970-01-01 03:00:42	NULL	1970-01-01	ääH	binary line of business
-CREATE TABLE t4
-(id INT, foo INT DEFAULT 0, c1 VARCHAR(4000),
-p GEOMETRY NOT NULL DEFAULT ST_GeomFromText('LINESTRING(0 0,0 1,1 1)'),
-PRIMARY KEY(id,foo))
-ENGINE=InnoDB ROW_FORMAT=REDUNDANT;
-INSERT INTO t4 (id,c1) VALUES (1, REPEAT('a', 4000)), (2, REPEAT('a', 4000));
-ALTER TABLE t4 ADD COLUMN d1 INT;
-BEGIN;
-UPDATE t4 SET c1 = repeat('1', 4000), foo=1 WHERE id=1;
-INSERT INTO t4 (id,c1) VALUES (1, REPEAT('a', 4000));
-UPDATE t4 SET c1 = repeat('2', 4000), foo=1 WHERE id=2;
-ROLLBACK;
-BEGIN;
-UPDATE t4 SET d1 = 1,foo=2 WHERE id=1;
-INSERT INTO t4 (id,foo,c1) VALUES (1, 1, REPEAT('1', 4000));
-COMMIT;
-CREATE TABLE big
-(id INT PRIMARY KEY, c1 VARCHAR(4000), c2 VARCHAR(4000), c3 VARCHAR(1000),
-p POINT NOT NULL DEFAULT ST_GeomFromText('POINT(0 0)'), SPATIAL INDEX(p))
-ENGINE=InnoDB ROW_FORMAT=REDUNDANT;
-BEGIN;
-INSERT INTO big
-SET id=1, c1=REPEAT('a', 200), c2=REPEAT('b', 200), c3=REPEAT('c', 159);
-SET @i:=1;
-INSERT INTO big SELECT @i:=@i+1, c1, c2, c3, p FROM big;
-INSERT INTO big SELECT @i:=@i+1, c1, c2, c3, p FROM big;
-INSERT INTO big SELECT @i:=@i+1, c1, c2, c3, p FROM big;
-INSERT INTO big SELECT @i:=@i+1, c1, c2, c3, p FROM big;
-INSERT INTO big SELECT @i:=@i+1, c1, c2, c3, p FROM big;
-COMMIT;
-connection analyze;
-ANALYZE TABLE big;
-Table	Op	Msg_type	Msg_text
-test.big	analyze	status	OK
-SELECT clust_index_size FROM INFORMATION_SCHEMA.INNODB_SYS_TABLESTATS
-WHERE name = 'test/big';
-clust_index_size
-3
-connection default;
-ALTER TABLE big ADD COLUMN
-(d1 INT DEFAULT 0, d2 VARCHAR(20) DEFAULT 'abcde',
-d3 TIMESTAMP NOT NULL DEFAULT current_timestamp ON UPDATE current_timestamp);
-affected rows: 0
-info: Records: 0  Duplicates: 0  Warnings: 0
-CHECKSUM TABLE big;
-Table	Checksum
-test.big	1705165209
-BEGIN;
-INSERT INTO big(id, c1, c2, c3) SELECT @i:=@i+1, c1, c2, c3 FROM big;
-INSERT INTO big(id, c1, c2, c3) SELECT @i:=@i+1, c1, c2, c3 FROM big;
-CHECKSUM TABLE big;
-Table	Checksum
-test.big	385477733
-connection analyze;
-ANALYZE TABLE big;
-Table	Op	Msg_type	Msg_text
-test.big	analyze	status	OK
-SELECT clust_index_size FROM INFORMATION_SCHEMA.INNODB_SYS_TABLESTATS
-WHERE name = 'test/big';
-clust_index_size
-7
-connection default;
-ROLLBACK;
-CHECKSUM TABLE big;
-Table	Checksum
-test.big	1705165209
-connection analyze;
-ANALYZE TABLE big;
-Table	Op	Msg_type	Msg_text
-test.big	analyze	status	OK
-SELECT clust_index_size FROM INFORMATION_SCHEMA.INNODB_SYS_TABLESTATS
-WHERE name = 'test/big';
-clust_index_size
-3
-connection default;
-InnoDB		0 transactions not purged
-DROP TABLE t1,t2,t3,t4,big;
-CREATE TABLE t1 (a VARCHAR(1) PRIMARY KEY) ENGINE=InnoDB ROW_FORMAT=REDUNDANT;
-INSERT INTO t1 SET a='a';
-ALTER TABLE t1 ADD COLUMN b INT NOT NULL DEFAULT 0;
-UPDATE t1 SET b = 1;
-INSERT INTO t1 SET a='a';
-ERROR 23000: Duplicate entry 'a' for key 'PRIMARY'
-SELECT * FROM t1;
-a	b
-a	1
-DROP TABLE t1;
-CREATE TABLE t1 (a INT, b VARCHAR(8), PRIMARY KEY(b,a)) ENGINE=InnoDB ROW_FORMAT=REDUNDANT;
-INSERT INTO t1 VALUES (1,'foo');
-ALTER TABLE t1 ADD COLUMN c INT;
-UPDATE t1 SET c = 1;
-UPDATE t1 SET c = 2;
-DROP TABLE t1;
-CREATE TABLE t1 (a INT PRIMARY KEY) ENGINE=InnoDB ROW_FORMAT=REDUNDANT;
-CREATE TABLE t2 (b INT PRIMARY KEY, FOREIGN KEY(b) REFERENCES t1(a))
-ENGINE=InnoDB ROW_FORMAT=REDUNDANT;
-INSERT INTO t1 SET a=1;
-INSERT INTO t2 SET b=1;
-ALTER TABLE t2 ADD COLUMN a INT, DROP FOREIGN KEY t2_ibfk_1;
-ALTER TABLE t2 ADD INDEX(a);
-ALTER TABLE t1 ADD COLUMN b INT, ADD FOREIGN KEY(a) REFERENCES t2(a),
-ALGORITHM=INSTANT;
-ERROR 0A000: ALGORITHM=INSTANT is not supported. Reason: Adding foreign keys needs foreign_key_checks=OFF. Try ALGORITHM=COPY
-SET foreign_key_checks=0;
-ALTER TABLE t1 ADD COLUMN b INT, ADD FOREIGN KEY(a) REFERENCES t2(a),
-ALGORITHM=INSTANT;
-ALTER TABLE t2 ADD CONSTRAINT fk FOREIGN KEY(b) REFERENCES t1(a),
-ALGORITHM=INSTANT;
-SET foreign_key_checks=1;
-ALTER TABLE t2 COMMENT 'domestic keys only', DROP FOREIGN KEY fk;
-ALTER TABLE t1 DROP FOREIGN KEY t1_ibfk_1;
-ALTER TABLE t1 ADD COLUMN big BLOB NOT NULL
-DEFAULT REPEAT('a', @@GLOBAL.innodb_page_size * .75);
-CHECK TABLE t2, t1;
-Table	Op	Msg_type	Msg_text
-test.t2	check	status	OK
-test.t1	check	status	OK
-DROP TABLE t2, t1;
-CREATE TABLE t1
-(id INT PRIMARY KEY, c2 INT UNIQUE,
-c3 POINT NOT NULL DEFAULT ST_GeomFromText('POINT(3 4)'),
 SPATIAL INDEX(c3)) ENGINE=InnoDB ROW_FORMAT=COMPACT;
 INSERT INTO t1 (id, c2) values(1,1);
 SELECT id,c2,ST_AsText(c3) c3 FROM t1;
@@ -657,7 +240,7 @@ test.t2	analyze	status	OK
 SELECT clust_index_size FROM INFORMATION_SCHEMA.INNODB_SYS_TABLESTATS
 WHERE name = 'test/t2';
 clust_index_size
-1
+5
 connection default;
 ROLLBACK;
 connection analyze;
@@ -667,7 +250,7 @@ test.t2	analyze	status	OK
 SELECT clust_index_size FROM INFORMATION_SCHEMA.INNODB_SYS_TABLESTATS
 WHERE name = 'test/t2';
 clust_index_size
-1
+3
 connection default;
 BEGIN;
 UPDATE t2 SET d1 = repeat(id, 200);
@@ -678,7 +261,7 @@ test.t2	analyze	status	OK
 SELECT clust_index_size FROM INFORMATION_SCHEMA.INNODB_SYS_TABLESTATS
 WHERE name = 'test/t2';
 clust_index_size
-1
+3
 connection default;
 ROLLBACK;
 connection analyze;
@@ -688,7 +271,7 @@ test.t2	analyze	status	OK
 SELECT clust_index_size FROM INFORMATION_SCHEMA.INNODB_SYS_TABLESTATS
 WHERE name = 'test/t2';
 clust_index_size
-1
+3
 connection default;
 ALTER TABLE t2 DROP p;
 affected rows: 0
@@ -807,7 +390,7 @@ test.big	analyze	status	OK
 SELECT clust_index_size FROM INFORMATION_SCHEMA.INNODB_SYS_TABLESTATS
 WHERE name = 'test/big';
 clust_index_size
-3
+5
 connection default;
 ALTER TABLE big ADD COLUMN
 (d1 INT DEFAULT 0, d2 VARCHAR(20) DEFAULT 'abcde',
@@ -830,7 +413,7 @@ test.big	analyze	status	OK
 SELECT clust_index_size FROM INFORMATION_SCHEMA.INNODB_SYS_TABLESTATS
 WHERE name = 'test/big';
 clust_index_size
-7
+13
 connection default;
 ROLLBACK;
 CHECKSUM TABLE big;
@@ -843,7 +426,7 @@ test.big	analyze	status	OK
 SELECT clust_index_size FROM INFORMATION_SCHEMA.INNODB_SYS_TABLESTATS
 WHERE name = 'test/big';
 clust_index_size
-3
+5
 connection default;
 InnoDB		0 transactions not purged
 DROP TABLE t1,t2,t3,t4,big;
@@ -1074,7 +657,7 @@ test.t2	analyze	status	OK
 SELECT clust_index_size FROM INFORMATION_SCHEMA.INNODB_SYS_TABLESTATS
 WHERE name = 'test/t2';
 clust_index_size
-1
+5
 connection default;
 ROLLBACK;
 connection analyze;
@@ -1084,7 +667,7 @@ test.t2	analyze	status	OK
 SELECT clust_index_size FROM INFORMATION_SCHEMA.INNODB_SYS_TABLESTATS
 WHERE name = 'test/t2';
 clust_index_size
-1
+3
 connection default;
 BEGIN;
 UPDATE t2 SET d1 = repeat(id, 200);
@@ -1095,7 +678,7 @@ test.t2	analyze	status	OK
 SELECT clust_index_size FROM INFORMATION_SCHEMA.INNODB_SYS_TABLESTATS
 WHERE name = 'test/t2';
 clust_index_size
-1
+3
 connection default;
 ROLLBACK;
 connection analyze;
@@ -1105,7 +688,7 @@ test.t2	analyze	status	OK
 SELECT clust_index_size FROM INFORMATION_SCHEMA.INNODB_SYS_TABLESTATS
 WHERE name = 'test/t2';
 clust_index_size
-1
+3
 connection default;
 ALTER TABLE t2 DROP p;
 affected rows: 0
@@ -1224,7 +807,7 @@ test.big	analyze	status	OK
 SELECT clust_index_size FROM INFORMATION_SCHEMA.INNODB_SYS_TABLESTATS
 WHERE name = 'test/big';
 clust_index_size
-3
+5
 connection default;
 ALTER TABLE big ADD COLUMN
 (d1 INT DEFAULT 0, d2 VARCHAR(20) DEFAULT 'abcde',
@@ -1247,7 +830,7 @@ test.big	analyze	status	OK
 SELECT clust_index_size FROM INFORMATION_SCHEMA.INNODB_SYS_TABLESTATS
 WHERE name = 'test/big';
 clust_index_size
-7
+13
 connection default;
 ROLLBACK;
 CHECKSUM TABLE big;
@@ -1260,7 +843,7 @@ test.big	analyze	status	OK
 SELECT clust_index_size FROM INFORMATION_SCHEMA.INNODB_SYS_TABLESTATS
 WHERE name = 'test/big';
 clust_index_size
-3
+5
 connection default;
 InnoDB		0 transactions not purged
 DROP TABLE t1,t2,t3,t4,big;
@@ -1310,5 +893,5 @@ SELECT variable_value-@old_instant instants
 FROM information_schema.global_status
 WHERE variable_name = 'innodb_instant_alter_column';
 instants
-48
+36
 SET GLOBAL innodb_purge_rseg_truncate_frequency= @saved_frequency;

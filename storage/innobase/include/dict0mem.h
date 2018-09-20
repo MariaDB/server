@@ -1686,12 +1686,10 @@ struct dict_table_t {
 	@param[in]	blob_data		blob data which contains
 						drop column information
 	@param[out]	non_pk_fields		number of non-primary key fields
-	@param[out]	non_drop_nullable_fields number of non-drop nullable fields
 	@param[out]	dropped_col_list	 dropped column list */
 	void read_metadata_blob(
 		byte*			blob_data,
 		ulint*			non_pk_fields,
-		ulint*			non_drop_nullable_fields,
 		std::vector<ulint>&	dropped_col_list);
 
 	/** Construct the blob with contains the non-primary key for

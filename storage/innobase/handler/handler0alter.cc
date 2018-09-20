@@ -1256,6 +1256,11 @@ ha_innobase::check_if_supported_inplace_alter(
 		}
 
 		if (f) {
+
+			if (n_add_cols > 0) {
+				add_column_not_last = true;
+			}
+
 			/* This could be changing an existing column
 			from NULL to NOT NULL. */
 			switch ((*af)->type()) {
@@ -1326,7 +1331,7 @@ next_column:
 	}
 
 	/** Last few columns are dropped. */
-	while (*uf++ != NULL) {
+	while (uf++ < uf_end) {
 		n_drop_cols++;
 	}
 
@@ -1344,6 +1349,14 @@ next_column:
 	    && m_prebuilt->table->supports_instant()
 	    && instant_alter_column_possible(ha_alter_info, table)) {
 		is_instant = true;
+	}
+
+	ulint	n_exist_cols = uint(m_prebuilt->table->n_cols) - DATA_N_SYS_COLS;
+	n_exist_cols += n_add_cols;
+	n_exist_cols -= n_drop_cols;
+
+	if (is_instant && n_exist_cols != n_stored_cols) {
+		is_instant = false;
 	}
 
 	if (is_instant
@@ -4433,7 +4446,12 @@ innobase_op_instant_try(
 	Field**	uf = table->field;
 	Field** const uf_end = table->field + table->s->fields;
 
+	bool	update_pos = false;
 	for (ulint i = 0; uf < uf_end; uf++) {
+		if (!(*uf)->stored_in_db()) {
+			continue;
+		}
+
 		if (ctx->col_map[i] == ULINT_UNDEFINED) {
 
 			/* Remove this column entry from sys_column */
@@ -4442,13 +4460,11 @@ innobase_op_instant_try(
 				return true;
 			}
 
-			/* Update the consecutive position of the columns. */
-			for (ulint j = i + 1; j < ctx->old_n_cols; j++) {
-
-				if (innobase_instant_update_pos(
-					user_table->id, j, j-1, trx)) {
-					return true;
-				}
+			update_pos = true;
+		} else if (update_pos) {
+			if (innobase_instant_update_pos(
+				user_table->id, i, i - 1, trx)) {
+				return true;
 			}
 		}
 

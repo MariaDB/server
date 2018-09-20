@@ -614,15 +614,6 @@ dtuple_convert_big_rec(
 
 	ut_ad(index->n_uniq > 0);
 
-	if (!dict_table_has_atomic_blobs(index->table)) {
-		/* up to MySQL 5.1: store a 768-byte prefix locally */
-		local_len = BTR_EXTERN_FIELD_REF_SIZE
-			+ DICT_ANTELOPE_MAX_INDEX_COL_LEN;
-	} else {
-		/* new-format table: do not store any BLOB prefix locally */
-		local_len = BTR_EXTERN_FIELD_REF_SIZE;
-	}
-
 	ut_a(dtuple_check_typed_no_assert(entry));
 
 	size = rec_get_converted_size(index, entry, *n_ext);
@@ -651,7 +642,17 @@ dtuple_convert_big_rec(
 		dfield = dtuple_get_nth_field(entry, longest_i);
 		dfield->data = index->table->construct_metadata_blob(
 			heap, &dfield->len);
+		local_len = BTR_EXTERN_FIELD_REF_SIZE;
 		goto ext_write;
+	}
+
+	if (!dict_table_has_atomic_blobs(index->table)) {
+		/* up to MySQL 5.1: store a 768-byte prefix locally */
+		local_len = BTR_EXTERN_FIELD_REF_SIZE
+			+ DICT_ANTELOPE_MAX_INDEX_COL_LEN;
+	} else {
+		/* new-format table: do not store any BLOB prefix locally */
+		local_len = BTR_EXTERN_FIELD_REF_SIZE;
 	}
 
 	while (page_zip_rec_needs_ext(rec_get_converted_size(index, entry,

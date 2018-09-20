@@ -1364,12 +1364,10 @@ non-drop nullable fields and fill the drop columns in the vector.
 @param[in]	blob_data               blob data which contains
 					drop column information
 @param[out]	non_pk_fields		number of non-primary key fields
-@param[out]	non_drop_nullable_fieldsnumber of non-drop nullable fields
 @param[out]	dropped_col_list	dropped column list */
 void dict_table_t::read_metadata_blob(
 	byte*			blob_data,
 	ulint*			non_pk_fields,
-	ulint*			non_drop_nullable_fields,
 	std::vector<ulint>&	dropped_col_list)
 {
 	*non_pk_fields = mach_read_from_4(blob_data);
@@ -1384,13 +1382,6 @@ void dict_table_t::read_metadata_blob(
 
 		if (col_no == 0) {
 			dropped_col_list.push_back(i);
-		} else {
-			dict_field_t*	field = dict_index_get_nth_field(
-					clust_index, (i + n_pk_fields));
-
-			if (field->col->is_nullable()) {
-				(*non_drop_nullable_fields)++;
-			}
 		}
 
 		field_data += INSTANT_FIELD_LEN;
