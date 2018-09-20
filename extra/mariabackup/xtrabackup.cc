@@ -3255,7 +3255,7 @@ static dberr_t xb_assign_undo_space_start()
 	}
 
 	snprintf(name + dirnamelen, (sizeof name) - dirnamelen,
-		 "%s", "ibdata1");
+		 "%s", srv_sys_space.first_datafile()->name());
 
 	file = os_file_create(0, name, OS_FILE_OPEN,
 			      OS_FILE_NORMAL, OS_DATA_FILE, true, &ret);
