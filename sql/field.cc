@@ -3948,7 +3948,8 @@ longlong Field_float::val_int(void)
 {
   float j;
   float4get(j,ptr);
-  return (longlong) rint(j);
+  bool error;
+  return double_to_longlong(j, false, &error);
 }
 
 

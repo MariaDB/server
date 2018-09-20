@@ -3692,7 +3692,10 @@ longlong Item_param::val_int()
 { 
   switch (state) {
   case REAL_VALUE:
-    return (longlong) rint(value.real);
+  {
+    bool error;
+    return double_to_longlong(value.real, unsigned_flag, &error);
+  }
   case INT_VALUE:
     return value.integer;
   case DECIMAL_VALUE:
@@ -9231,7 +9234,8 @@ longlong Item_cache_real::val_int()
   DBUG_ASSERT(fixed == 1);
   if (!has_value())
     return 0;
-  return (longlong) rint(value);
+  bool error;
+  return double_to_longlong(value, unsigned_flag, &error);
 }
 
 

@@ -1434,7 +1434,8 @@ longlong Item_sum_sum::val_int()
                    &result);
     return result;
   }
-  return (longlong) rint(val_real());
+  bool error;
+  return double_to_longlong(val_real(), unsigned_flag, &error);
 }
 
 
@@ -2648,7 +2649,8 @@ double Item_avg_field::val_real()
 
 longlong Item_avg_field::val_int()
 {
-  return (longlong) rint(val_real());
+  bool error;
+  return double_to_longlong(val_real(), unsigned_flag, &error);
 }
 
 
