@@ -221,9 +221,6 @@ struct ha_innobase_inplace_ctx : public inplace_alter_handler_ctx
 	/** Number of instant drop columns */
 	ulint		n_instant_drop_cols;
 
-	/** Orginal instant value */
-	bool		old_instant;
-
 	ha_innobase_inplace_ctx(row_prebuilt_t*& prebuilt_arg,
 				dict_index_t** drop_arg,
 				ulint num_to_drop_arg,
@@ -277,8 +274,7 @@ struct ha_innobase_inplace_ctx : public inplace_alter_handler_ctx
 					  : page_zip_level)
 				       : 0),
 		n_instant_add_cols(0),
-		n_instant_drop_cols(0),
-		old_instant(prebuilt_arg->table->indexes.start->instant)
+		n_instant_drop_cols(0)
 	{
 		ut_ad(old_n_cols >= DATA_N_SYS_COLS);
 		ut_ad(page_compression_level <= 9);
@@ -343,7 +339,7 @@ struct ha_innobase_inplace_ctx : public inplace_alter_handler_ctx
 	{
 		if (!is_instant()) return;
 		old_table->rollback_instant(old_n_cols,
-					    old_cols, old_col_names, old_instant);
+					    old_cols, old_col_names);
 	}
 
 	/** @return whether this is instant ALTER TABLE */

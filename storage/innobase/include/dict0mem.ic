@@ -66,7 +66,6 @@ dict_mem_fill_index_struct(
 	index->nulls_equal = false;
 	index->n_dropped_fields = 0;
 	index->n_non_drop_nullable_fields = 0;
-	index->instant = false;
 #ifdef BTR_CUR_HASH_ADAPT
 #ifdef MYSQL_INDEX_DISABLE_AHI
 	index->disable_ahi = false;

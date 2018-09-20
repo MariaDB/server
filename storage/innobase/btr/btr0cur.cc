@@ -410,7 +410,6 @@ btr_cur_instant_init_clust_index(
 	dummy_index->id = index->id;
 	dummy_index->n_uniq = index->n_uniq;
 	dummy_index->n_core_fields = index->n_core_fields;
-	dummy_index->instant = true;
 	for (ulint i = 0; i < unsigned(index->n_uniq + DATA_ROLL_PTR); i++) {
 		field = dict_index_get_nth_field(index, i);
 		dict_index_add_col(dummy_index, index->table, field->col,
@@ -747,7 +746,6 @@ btr_cur_instant_root_init(dict_index_t* index, const page_t* page)
 		return true;
 	}
 
-	index->instant = true;
 	index->n_core_fields = n;
 	return false;
 }

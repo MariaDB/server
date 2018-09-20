@@ -955,8 +955,6 @@ struct dict_index_t {
 				that have not been committed to the
 				data dictionary yet */
 
-	/* Index operation undergone instant operation. */
-	bool		instant;
 #ifdef UNIV_DEBUG
 	/** whether this is a dummy index object */
 	bool		is_dummy;
@@ -1172,6 +1170,23 @@ struct dict_index_t {
 		return n;
 	}
 
+	/** Get the number of exist fields from the index.
+	@return number of non-dropped fields in the index. */
+	unsigned get_n_exist_fields() const
+	{
+		unsigned n = 0;
+		for (ulint i = 0; i < n_fields; i++) {
+			const dict_col_t* col = fields[i].col;
+
+			if (!col->is_dropped()) {
+				n++;
+			}
+		}
+
+		DBUG_ASSERT(n <= n_def);
+		return n;
+	}
+
 	/** Get the default value of an instantly-added clustered index field.
 	@param[in]	n	instantly added field position
 	@param[out]	len	value length (in bytes), or UNIV_SQL_NULL
@@ -1215,7 +1230,6 @@ struct dict_index_t {
 		}
 		n_core_fields = n_fields;
 		n_core_null_bytes = UT_BITS_IN_BYTES(unsigned(n_nullable));
-		instant = false;
 	}
 
 	/** Check if record in clustered index is historical row.
@@ -1739,8 +1753,7 @@ struct dict_table_t {
 	void rollback_instant(
 		unsigned	old_n_cols,
 		dict_col_t*	old_cols,
-		const char*	old_col_names,
-		bool		old_instant);
+		const char*	old_col_names);
 
 	/** Trim the instantly added columns when an insert into SYS_COLUMNS
 	is rolled back during ALTER TABLE or recovery.
@@ -2191,7 +2204,15 @@ inline bool dict_index_t::is_instant() const
 	ut_ad(n_core_fields == n_fields || table->supports_instant());
 	ut_ad(n_core_fields == n_fields || !table->is_temporary());
 
-	return (n_core_fields != n_fields || instant);
+	if (type & DICT_IBUF) {
+		return false;
+	}
+
+	if (n_core_fields == n_fields) {
+		return n_core_fields != get_n_exist_fields();
+	}
+
+	return true;
 }
 
 inline bool dict_index_t::is_corrupted() const

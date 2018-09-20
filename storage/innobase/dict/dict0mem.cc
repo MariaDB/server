@@ -1371,8 +1371,6 @@ void dict_table_t::read_metadata_blob(
 	std::vector<ulint>&	dropped_col_list)
 {
 	*non_pk_fields = mach_read_from_4(blob_data);
-	dict_index_t*	clust_index = dict_table_get_first_index(this);
-	unsigned	n_pk_fields = clust_index->n_uniq + DATA_ROLL_PTR;
 	const byte*	field_data = blob_data + INSTANT_NON_PK_FIELDS_LEN;
 
 	for (ulint i = 0; i < *non_pk_fields; i++) {
@@ -1635,8 +1633,6 @@ void dict_table_t::instant_op_column(
 
 	build_non_pk_map();
 
-	index->instant = true;
-
 	while ((index = dict_table_get_next_index(index)) != NULL) {
 		if (index->to_be_dropped) {
 			continue;
@@ -1669,8 +1665,7 @@ void
 dict_table_t::rollback_instant(
 	unsigned	old_n_cols,
 	dict_col_t*	old_cols,
-	const char*	old_col_names,
-	bool		old_instant)
+	const char*	old_col_names)
 {
 	ut_ad(mutex_own(&dict_sys->mutex));
 	dict_index_t* index = indexes.start;
@@ -1707,7 +1702,6 @@ dict_table_t::rollback_instant(
 	n_def = old_n_cols;
 	n_t_def -= n_remove;
 	n_t_cols -= n_remove;
-	index->instant = old_instant;
 
 	for (unsigned i = n_v_def; i--; ) {
 		const dict_v_col_t& v = v_cols[i];
