@@ -933,8 +933,6 @@ err:
      @retval 1      Error
 */
 
-long my_counter= 0;
-
 uint _ma_apply_redo_index(MARIA_HA *info,
                           LSN lsn, const uchar *header, uint head_length)
 {
