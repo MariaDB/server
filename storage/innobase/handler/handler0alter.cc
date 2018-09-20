@@ -708,7 +708,8 @@ instant_alter_column_possible(
 	columns. */
 	if (ha_alter_info->handler_flags
 	    & ((INNOBASE_ALTER_REBUILD | INNOBASE_ONLINE_CREATE)
-	       & ~ALTER_DROP_STORED_COLUMN & ~ALTER_STORED_COLUMN_ORDER
+	       & ~ALTER_DROP_STORED_COLUMN
+	       /* & ~ALTER_STORED_COLUMN_ORDER // MDEV-15562 TODO: implement */
 	       & ~ALTER_ADD_STORED_BASE_COLUMN & ~ALTER_OPTIONS)) {
 		return false;
 	}
