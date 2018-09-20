@@ -1072,7 +1072,7 @@ struct dict_index_t {
 			page cannot be read or decrypted */
 	inline bool is_readable() const;
 
-	/** @return whether instant ADD COLUMN is in effect */
+	/** @return whether instant ALTER TABLE is in effect */
 	inline bool is_instant() const;
 
 	/** @return whether the index is the primary key index
@@ -1091,6 +1091,8 @@ struct dict_index_t {
 	/** Whether the index has dropped fields. */
 	bool is_drop_field_exist() const
 	{
+		ut_ad(!n_dropped_fields || is_instant());
+		ut_ad(!n_dropped_fields || is_primary());
 		return n_dropped_fields > 0;
 	}
 
@@ -1682,13 +1684,13 @@ struct dict_table_t {
 		return(UNIV_LIKELY(!file_unreadable));
 	}
 
-	/** @return whether instant ADD COLUMN is in effect */
+	/** @return whether instant ALTER TABLE is in effect */
 	bool is_instant() const
 	{
 		return(UT_LIST_GET_FIRST(indexes)->is_instant());
 	}
 
-	/** @return whether the table supports instant ADD COLUMN */
+	/** @return whether the table supports instant ALTER TABLE */
 	bool supports_instant() const
 	{
 		return(!(flags & DICT_TF_MASK_ZIP_SSIZE));
