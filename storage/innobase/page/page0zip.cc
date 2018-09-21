@@ -100,11 +100,11 @@ Compare at most sizeof(field_ref_zero) bytes.
 @param s in: size of the memory block, in bytes */
 #define ASSERT_ZERO(b, s)			\
 	ut_ad(!memcmp(b, field_ref_zero,	\
-		      ut_min(static_cast<size_t>(s), sizeof field_ref_zero)));
+		      std::min<size_t>(s, sizeof field_ref_zero)));
 /** Assert that a BLOB pointer is filled with zero bytes.
 @param b in: BLOB pointer */
 #define ASSERT_ZERO_BLOB(b) \
-	ut_ad(!memcmp(b, field_ref_zero, sizeof field_ref_zero))
+	ut_ad(!memcmp(b, field_ref_zero, FIELD_REF_SIZE))
 
 /* Enable some extra debugging output.  This code can be enabled
 independently of any UNIV_ debugging conditions. */
