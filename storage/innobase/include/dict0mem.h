@@ -1130,23 +1130,6 @@ struct dict_index_t {
 		return n;
 	}
 
-	/** Get the number of exist fields from the index.
-	@return number of non-dropped fields in the index. */
-	unsigned get_n_exist_fields() const
-	{
-		unsigned n = 0;
-		for (ulint i = 0; i < n_fields; i++) {
-			const dict_col_t* col = fields[i].col;
-
-			if (!col->is_dropped()) {
-				n++;
-			}
-		}
-
-		DBUG_ASSERT(n <= n_def);
-		return n;
-	}
-
 	/** Get the number of non-drop nullable fields from the index.
 	@return number of non-drop nullable fields in the index. */
 	unsigned get_n_non_drop_nullable_fields() const
@@ -2165,20 +2148,14 @@ inline bool dict_index_t::is_readable() const { return table->is_readable(); }
 inline bool dict_index_t::is_instant() const
 {
 	ut_ad(n_core_fields > 0);
+	ut_ad(n_core_fields <= n_fields || is_drop_field_exist());
 	ut_ad(n_core_fields == n_fields
 	      || (type & ~(DICT_UNIQUE | DICT_CORRUPT)) == DICT_CLUSTERED);
 	ut_ad(n_core_fields == n_fields || table->supports_instant());
 	ut_ad(n_core_fields == n_fields || !table->is_temporary());
 
-	if (type & DICT_IBUF) {
-		return false;
-	}
-
-	if (n_core_fields == n_fields) {
-		return n_core_fields != get_n_exist_fields();
-	}
-
-	return true;
+	/* MDEV-15562 FIXME: reordered columns */
+	return n_core_fields != n_fields || is_drop_field_exist();
 }
 
 inline bool dict_index_t::is_corrupted() const
@@ -2192,7 +2169,6 @@ inline bool dict_index_t::is_corrupted() const
 /** Whether the index has dropped fields. */
 inline bool dict_index_t::is_drop_field_exist() const
 {
-	ut_ad(!table->n_dropped_cols || is_instant());
 	ut_ad(!table->n_dropped_cols || is_primary());
 	return table->n_dropped_cols > 0;
 }
