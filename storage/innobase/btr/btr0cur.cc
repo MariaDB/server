@@ -4410,7 +4410,7 @@ any_extern:
 		return(DB_OVERFLOW);
 	}
 
-	if (rec_is_metadata(rec, index) && index->n_dropped_fields) {
+	if (rec_is_metadata(rec, index) && index->table->n_dropped_cols) {
 		goto any_extern;
 	}
 

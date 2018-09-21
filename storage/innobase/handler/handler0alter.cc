@@ -4610,8 +4610,8 @@ innobase_op_instant_try(
 		/* Reserve room for DB_TRX_ID,DB_ROLL_PTR and any
 		non-updated off-page columns in case they are moved off
 		page as a result of the update. */
-		const unsigned f = index->n_dropped_fields
-			|| ctx->n_instant_drop_cols;
+		const unsigned f = user_table->n_dropped_cols > 0
+				   || ctx->n_instant_drop_cols;
 		upd_t* update = upd_create(index->n_fields, ctx->heap);
 		update->n_fields = n;
 		update->info_bits = f

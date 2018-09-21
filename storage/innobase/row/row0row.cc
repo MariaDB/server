@@ -984,7 +984,7 @@ row_rec_to_index_entry(
 
 	if (rec_is_alter_metadata(copy_rec, index)
 	    || (rec_is_metadata(copy_rec, index)
-		&& index->n_dropped_fields > 0)) {
+		&& index->table->n_dropped_cols > 0)) {
 
 		entry = row_def_rec_to_index_entry_impl(
 			copy_rec, index, offsets, n_ext, heap);

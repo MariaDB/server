@@ -929,10 +929,6 @@ struct dict_index_t {
 	records; usually equal to UT_BITS_IN_BYTES(n_nullable), but
 	can be less in clustered indexes with instant ADD COLUMN */
 	unsigned	n_core_null_bytes:8;
-	/** Number of dropped fields. */
-	unsigned	n_dropped_fields:10;
-	/** Number of non dropped field nullable fields. */
-	unsigned	n_non_drop_nullable_fields:10;
 	/** magic value signalling that n_core_null_bytes was not
 	initialized yet */
 	static const unsigned NO_CORE_NULL_BYTES = 0xff;
@@ -1089,12 +1085,7 @@ struct dict_index_t {
 	inline bool is_corrupted() const;
 
 	/** Whether the index has dropped fields. */
-	bool is_drop_field_exist() const
-	{
-		ut_ad(!n_dropped_fields || is_instant());
-		ut_ad(!n_dropped_fields || is_primary());
-		return n_dropped_fields > 0;
-	}
+	bool is_drop_field_exist() const;
 
 	/** Detach the columns from the index that is to be freed. */
 	void detach_columns()
@@ -1149,29 +1140,6 @@ struct dict_index_t {
 		return n;
 	}
 
-	/** Determine the number of non-core instant add columns present
-	in the clustered index.
-	@param[in]	n_prefix	number of fields in the prefix
-	@return number of fields n_core_fields...n_prefix-1 that undergoes
-	instant add operation. */
-	unsigned get_n_non_drop_cols(ulint n_prefix) const
-	{
-		DBUG_ASSERT(n_prefix > 0);
-		DBUG_ASSERT(n_prefix <= n_fields);
-		unsigned n = 0;
-		for (ulint i = n_core_fields; i < n_prefix; i++) {
-			const dict_col_t* col = fields[i].col;
-
-			if (!col->is_dropped()) {
-				n++;
-				continue;
-			}
-		}
-
-		DBUG_ASSERT(n < n_def);
-		return n;
-	}
-
 	/** Get the number of exist fields from the index.
 	@return number of non-dropped fields in the index. */
 	unsigned get_n_exist_fields() const
@@ -1181,6 +1149,23 @@ struct dict_index_t {
 			const dict_col_t* col = fields[i].col;
 
 			if (!col->is_dropped()) {
+				n++;
+			}
+		}
+
+		DBUG_ASSERT(n <= n_def);
+		return n;
+	}
+
+	/** Get the number of non-drop nullable fields from the index.
+	@return number of non-drop nullable fields in the index. */
+	unsigned get_n_non_drop_nullable_fields() const
+	{
+		unsigned n = 0;
+		for (ulint i = 0; i < n_fields; i++) {
+			const dict_col_t* col = fields[i].col;
+
+			if (!col->is_nullable()) {
 				n++;
 			}
 		}
@@ -2211,6 +2196,15 @@ inline bool dict_index_t::is_corrupted() const
 	return UNIV_UNLIKELY(online_status >= ONLINE_INDEX_ABORTED
 			     || (type & DICT_CORRUPT)
 			     || (table && table->corrupted));
+}
+
+
+/** Whether the index has dropped fields. */
+inline bool dict_index_t::is_drop_field_exist() const
+{
+	ut_ad(!table->n_dropped_cols || is_instant());
+	ut_ad(!table->n_dropped_cols || is_primary());
+	return table->n_dropped_cols > 0;
 }
 
 /*******************************************************************//**

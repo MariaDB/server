@@ -1199,9 +1199,8 @@ operator<< (std::ostream& out, const dict_foreign_set& fk_set)
 fields. */
 void dict_index_t::reconstruct_fields()
 {
-	n_dropped_fields = table->n_dropped_cols;
-	n_fields += n_dropped_fields;
-	n_def += n_dropped_fields;
+	n_fields += table->n_dropped_cols;
+	n_def += table->n_dropped_cols;
 
 	unsigned	n_pk_fields = unsigned(n_uniq + DATA_ROLL_PTR);
 
@@ -1243,10 +1242,21 @@ void dict_index_t::remove_instant()
 		return;
 	}
 
+	if (table->n_dropped_cols == 0) {
+
+		for (unsigned i = n_core_fields; i < n_fields; i++) {
+			fields[i].col->remove_instant();
+		}
+
+		n_core_fields = n_fields;
+		n_core_null_bytes = UT_BITS_IN_BYTES(n_nullable);
+		table->non_pk_col_map = NULL;
+		return;
+	}
+
 	ulint	old_n_fields = n_fields;
-	n_fields -= n_dropped_fields;
-	n_def -= n_dropped_fields;
-	n_dropped_fields = 0;
+	n_fields -= table->n_dropped_cols;
+	n_def -= table->n_dropped_cols;
 
 	unsigned	n_null = 0;
 	unsigned	new_field = 0;
@@ -1282,7 +1292,6 @@ void dict_index_t::remove_instant()
 	fields = temp_fields;
 	n_core_fields = n_fields;
 	n_nullable = n_null;
-	n_non_drop_nullable_fields = n_null;
 	n_core_null_bytes = UT_BITS_IN_BYTES(n_null);
 	table->dropped_cols = NULL;
 	table->n_dropped_cols = 0;
@@ -1313,9 +1322,8 @@ inline void dict_index_t::instant_op_field(
 
 	ulint	old_n_fields = n_fields;
 
-	n_dropped_fields += n_newly_drop;
-	n_fields = instant.n_fields + n_dropped_fields;
-	n_def = instant.n_def + n_dropped_fields;
+	n_fields = instant.n_fields + table->n_dropped_cols;
+	n_def = instant.n_def + table->n_dropped_cols;
 
 	unsigned	n_null = 0;
 	unsigned	n_non_drop_null = 0;
@@ -1347,7 +1355,7 @@ inline void dict_index_t::instant_op_field(
 
 			if (i >= old_n_fields) {
 
-				new_col_offset = i - (DATA_N_SYS_COLS + n_dropped_fields);
+				new_col_offset = i - (DATA_N_SYS_COLS + table->n_dropped_cols);
 
 				if (!dict_index_is_auto_gen_clust(this)) {
 					new_col_offset += 1;
@@ -1384,7 +1392,6 @@ inline void dict_index_t::instant_op_field(
 
 	fields = temp_fields;
 	n_nullable = n_null;
-	n_non_drop_nullable_fields = n_non_drop_null;
 }
 
 /** Build non primary fields to column number in the table. */

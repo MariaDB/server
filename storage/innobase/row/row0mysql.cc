@@ -830,7 +830,7 @@ row_create_prebuilt(
 
 	/* Make sure that search_tuple is long enough for clustered index */
 	ut_a(2 * table->n_cols >= clust_index->n_fields
-	     - clust_index->n_dropped_fields);
+	     - clust_index->table->n_dropped_cols);
 
 	ref_len = dict_index_get_n_unique(clust_index);
 

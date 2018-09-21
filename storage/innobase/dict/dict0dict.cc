@@ -2707,7 +2707,6 @@ dict_index_add_col(
 
 	if (!(col->prtype & DATA_NOT_NULL)) {
 		index->n_nullable++;
-		index->n_non_drop_nullable_fields++;
 	}
 }
 

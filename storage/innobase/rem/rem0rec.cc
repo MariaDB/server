@@ -1364,8 +1364,8 @@ rec_get_metadata_converted_size(
 	/* Allocate the null bytes for non-drop nullable fields
 	and number of dropped fields. */
 	int	n_null_bytes = UT_BITS_IN_BYTES(
-				clust_index->n_non_drop_nullable_fields
-				+ clust_index->n_dropped_fields);
+				clust_index->get_n_non_drop_nullable_fields()
+				+ clust_index->table->n_dropped_cols);
 
 	extra_size += n_null_bytes;
 
@@ -1839,8 +1839,8 @@ rec_convert_dtuple_to_default_rec_comp(
 
 	/* Nullable non-dropped fields + number of dropped fields. */
 	int		n_null_bytes = UT_BITS_IN_BYTES(
-				(clust_index->n_non_drop_nullable_fields
-				 + clust_index->n_dropped_fields));
+				(clust_index->get_n_non_drop_nullable_fields()
+				 + clust_index->table->n_dropped_cols));
 
 	rec_set_n_add_field(nulls, n_null_bytes);
 
@@ -2443,11 +2443,12 @@ rec_copy_prefix_to_buf(
 		uint	nb = 0;
 
 		if (UNIV_UNLIKELY(rec_is_alter_metadata(rec, index))) {
-			nb += rec_get_n_add_field_len(index->n_dropped_fields);
+			ulint	n_null_bytes = UT_BITS_IN_BYTES(
+				index->get_n_non_drop_nullable_fields()
+				+ index->table->n_dropped_cols);
+			nb += rec_get_n_add_field_len(n_null_bytes);
 
-			nb += UT_BITS_IN_BYTES(
-				index->n_non_drop_nullable_fields
-				+ index->n_dropped_fields);
+			nb += n_null_bytes;
 		} else {
 			if (index->is_drop_field_exist()) {
 				n_rec = ulint(index->n_core_fields)

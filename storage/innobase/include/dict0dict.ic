@@ -916,26 +916,6 @@ dict_index_get_n_fields(
 	return(index->n_fields);
 }
 
-/** Get the number of the dropped fields in the internal representation of
-an index.
-@param[in]	index	internal representation of index
-@return number of dropped fields. */
-UNIV_INLINE
-ulint dict_index_get_n_dropped_fields(const dict_index_t* index)
-{
-	ut_ad(index);
-	ut_ad(index->magic_n == DICT_INDEX_MAGIC_N);
-	return index->n_dropped_fields;
-}
-
-UNIV_INLINE
-ulint dict_index_get_n_non_dropped_fields(const dict_index_t* index)
-{
-	ut_ad(index);
-	ut_ad(index->magic_n == DICT_INDEX_MAGIC_N);
-	return index->n_fields - index->n_dropped_fields;
-}
-
 /********************************************************************//**
 Gets the number of fields in the internal representation of an index
 that uniquely determine the position of an index entry in the index, if
