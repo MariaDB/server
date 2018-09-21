@@ -3608,7 +3608,7 @@ public:
   Base class to implement typed value caching Item classes
 
   Item_copy_ classes are very similar to the corresponding Item_
-  classes (e.g. Item_copy_int is similar to Item_int) but they add
+  classes (e.g. Item_copy_string is similar to Item_string) but they add
   the following additional functionality to Item_ :
     1. Nullability
     2. Possibility to store the value not only on instantiation time,
