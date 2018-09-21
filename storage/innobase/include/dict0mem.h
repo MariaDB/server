@@ -664,7 +664,7 @@ struct dict_col_t{
 	}
 
 	/** Remove the 'instant ADD' status of the column */
-	void remove_instant()
+	void add_to_core()
 	{
 		DBUG_ASSERT(is_added());
 		def_val.len = UNIV_SQL_DEFAULT;

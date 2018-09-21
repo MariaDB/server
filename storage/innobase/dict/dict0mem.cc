@@ -1242,7 +1242,7 @@ void dict_index_t::remove_instant()
 	if (table->n_dropped_cols == 0) {
 
 		for (unsigned i = n_core_fields; i < n_fields; i++) {
-			fields[i].col->remove_instant();
+			fields[i].col->add_to_core();
 		}
 
 		n_core_fields = n_fields;
@@ -1277,7 +1277,7 @@ void dict_index_t::remove_instant()
 		temp_field.col = &table->cols[field.col->ind];
 
 		if (temp_field.col->is_added()) {
-			temp_field.col->remove_instant();
+			temp_field.col->add_to_core();
 		}
 
 		if (temp_field.col->is_nullable()) {
