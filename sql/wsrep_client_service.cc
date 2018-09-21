@@ -30,16 +30,20 @@
 #include "slave.h"   /* opt_log_slave_updates */
 #include "transaction.h" /* trans_commit()... */
 #include "log.h"      /* stmt_has_updated_trans_table() */
-#include "debug_sync.h"
-
+//#include "debug_sync.h"
+#include "mysql/service_debug_sync.h"
 namespace
 {
 
 void debug_sync_caller(THD* thd, const char* sync_point)
 {
-#ifdef ENABLED_DEBUG_SYNC
+#ifdef ENABLED_DEBUG_SYNC_OUT
   debug_sync_set_action(thd, sync_point, strlen(sync_point));
 #endif
+#ifdef ENABLED_DEBUG_SYNC
+  debug_sync_service(thd, sync_point, strlen(sync_point));
+#endif
+
 }
 }
 

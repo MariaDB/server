@@ -1173,7 +1173,11 @@ Sql_condition* THD::raise_condition(uint sql_errno,
       errors are ignored.
      */
     if (!is_fatal_error &&
+	no_errors       &&
         (wsrep_trx().bf_aborted() || wsrep_retry_counter))
+    {
+      WSREP_DEBUG("BF abort error converted to warning");
+    }
 #else
     if (!da->is_error())
 #endif /* WITH_WSREP */

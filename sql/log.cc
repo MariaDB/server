@@ -8984,12 +8984,12 @@ int TC_LOG_MMAP::log_and_order(THD *thd, my_xid xid, bool all,
 #ifdef WITH_WSREP
       if (WSREP(thd) && wsrep_before_prepare(thd, all))
       {
-	wsrep_override_error(thd, ER_ERROR_DURING_COMMIT);
+	//wsrep_override_error(thd, ER_ERROR_DURING_COMMIT);
 	return(0);
       }
       if (WSREP(thd) && wsrep_after_prepare(thd, all))
       {
-	wsrep_override_error(thd, ER_ERROR_DURING_COMMIT);
+	//wsrep_override_error(thd, ER_ERROR_DURING_COMMIT);
 	return(0);
       }
       if (WSREP(thd) && wsrep_before_commit(thd, all))
@@ -9703,12 +9703,12 @@ TC_LOG_BINLOG::log_and_order(THD *thd, my_xid xid, bool all,
 #ifdef WITH_WSREP
   if (WSREP(thd) && wsrep_before_prepare(thd, all))
   {
-    wsrep_override_error(thd, ER_ERROR_DURING_COMMIT);
+    //wsrep_override_error(thd, ER_ERROR_DURING_COMMIT);
     DBUG_RETURN(0);
   }
   if (WSREP(thd) && wsrep_after_prepare(thd, all))
   {
-    wsrep_override_error(thd, ER_ERROR_DURING_COMMIT);
+    //wsrep_override_error(thd, ER_ERROR_DURING_COMMIT);
     DBUG_RETURN(0);
   }
 #endif /* WITH_WSREP */
