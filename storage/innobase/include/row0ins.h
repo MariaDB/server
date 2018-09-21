@@ -127,18 +127,6 @@ row_ins_sec_index_entry_low(
 				/*!< in: if true, just do duplicate check
 				and return. don't execute actual insert. */
 	MY_ATTRIBUTE((warn_unused_result));
-/** Sets the values of the dtuple fields in entry from the values of appropriate
-columns in row.
-@param[in]	index	index handler
-@param[out]	entry	index entry to make
-@param[in]	row	row */
-dberr_t
-row_ins_index_entry_set_vals(
-	const dict_index_t*	index,
-	dtuple_t*		entry,
-	const dtuple_t*		row,
-	mem_heap_t*		heap);
-
 /***************************************************************//**
 Inserts an entry into a clustered index. Tries first optimistic,
 then pessimistic descent down the tree. If the entry matches enough

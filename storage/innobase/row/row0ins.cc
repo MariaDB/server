@@ -3423,14 +3423,13 @@ columns in row.
 @param[in]	index	index handler
 @param[out]	entry	index entry to make
 @param[in]	row	row
-
 @return DB_SUCCESS if the set is successful */
+static
 dberr_t
 row_ins_index_entry_set_vals(
 	const dict_index_t*	index,
 	dtuple_t*		entry,
-	const dtuple_t*		row,
-	mem_heap_t*		heap)
+	const dtuple_t*		row)
 {
 	ulint	n_fields;
 	ulint	i;
@@ -3462,31 +3461,22 @@ row_ins_index_entry_set_vals(
 			ut_ad(dtuple_get_n_fields(row)
 			      == dict_table_get_n_cols(index->table));
 			row_field = dtuple_get_nth_v_field(row, v_col->v_pos);
-
 		} else if (col->is_dropped()) {
-
-			ut_ad(dict_index_is_clust(index));
-
-			field->type.prtype = DATA_NOT_NULL;
+			ut_ad(index->is_primary());
 
 			if (!(col->prtype & DATA_NOT_NULL)) {
-				field->data = 0x00;
+				field->data = NULL;
 				field->len = UNIV_SQL_NULL;
 				field->type.prtype = DATA_BINARY_TYPE;
-			} else if (col->len > 0) {
-				field->data = mem_heap_zalloc(heap, col->len);
-				field->len = col->len;
 			} else {
-				field->data = 0x00;
-				field->len = 0;
+				ut_ad(col->len <= sizeof field_ref_zero);
+				dfield_set_data(field, field_ref_zero,
+						col->len);
+				field->type.prtype = DATA_NOT_NULL;
 			}
 
-			if (col->len > 0) {
-				field->type.mtype = DATA_FIXBINARY;
-			} else {
-				field->type.mtype = DATA_BINARY;
-			}
-
+			field->type.mtype = col->len
+				? DATA_FIXBINARY : DATA_BINARY;
 			continue;
 		} else {
 			row_field = dtuple_get_nth_field(
@@ -3551,8 +3541,8 @@ row_ins_index_entry_step(
 
 	ut_ad(dtuple_check_typed(node->row));
 
-	err = row_ins_index_entry_set_vals(node->index, node->entry, node->row,
-					   node->entry_sys_heap);
+	err = row_ins_index_entry_set_vals(node->index, node->entry,
+					   node->row);
 
 	if (err != DB_SUCCESS) {
 		DBUG_RETURN(err);
