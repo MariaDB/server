@@ -618,7 +618,9 @@ SELECT 1	latin1	latin1_swedish_ci	latin1_swedish_ci
 DROP USER user2@localhost;
 DROP DATABASE db1;
 create user foo@local_ost;
-create user foo@`local\_ost` identified by 'nevermore';
+create user foo@`local\_ost`;
+update mysql.user set plugin='foobar' where host='local\\_ost';
+flush privileges;
 create database foodb;
 grant create routine on foodb.* to foo@local_ost;
 select user(), current_user();
