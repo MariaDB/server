@@ -1351,7 +1351,8 @@ backup_files(const char *from, bool prep_mode)
 			if (rsync_tmpfile == NULL) {
 				msg("Error: can't open file %s\n",
 					rsync_tmpfile_name);
-				return(false);
+				ret = false;
+				goto out;
 			}
 
 			while (fgets(path, sizeof(path), rsync_tmpfile)) {
@@ -1390,24 +1391,22 @@ out:
 
 void backup_fix_ddl(void);
 
-#define LSN_PREFIX_IN_SHOW_STATUS  "\nLog sequence number "
-static lsn_t get_current_lsn(MYSQL *connection) {
-	MYSQL_RES *res = xb_mysql_query(connection, "SHOW ENGINE INNODB STATUS", true, false);
-	if (!res)
-		return 0;
-	MYSQL_ROW row = mysql_fetch_row(res);
-	DBUG_ASSERT(row);
-	if (row) {
-		const char *p = strstr(row[2],LSN_PREFIX_IN_SHOW_STATUS);
-		DBUG_ASSERT(p);
-		if (p)
-		{
-			p += sizeof(LSN_PREFIX_IN_SHOW_STATUS) - 1;
-			return (lsn_t)strtoll(p, NULL, 10);
+static lsn_t get_current_lsn(MYSQL *connection)
+{
+	static const char lsn_prefix[] = "\nLog sequence number ";
+	lsn_t lsn = 0;
+	if (MYSQL_RES *res = xb_mysql_query(connection,
+					    "SHOW ENGINE INNODB STATUS",
+					    true, false)) {
+		if (MYSQL_ROW row = mysql_fetch_row(res)) {
+			if (const char *p = strstr(row[2], lsn_prefix)) {
+				p += sizeof lsn_prefix - 1;
+				lsn = lsn_t(strtoll(p, NULL, 10));
+			}
 		}
+		mysql_free_result(res);
 	}
-	mysql_free_result(res);
-	return 0;
+	return lsn;
 }
 
 lsn_t server_lsn_after_lock;

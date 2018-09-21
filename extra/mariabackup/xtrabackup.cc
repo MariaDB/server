@@ -523,7 +523,9 @@ static os_event_t dbug_start_query_thread(
 		mysql_thread_id(par->con), wait_state);
 	for (;;) {
 		MYSQL_RES *result = xb_mysql_query(mysql_connection,q, true, true);
-		if (mysql_fetch_row(result)) {
+		bool exists = mysql_fetch_row(result) != NULL;
+		mysql_free_result(result);
+		if (exists) {
 			goto end;
 		}
 		msg_ts("Waiting for query '%s' on connection %lu to "
@@ -578,7 +580,9 @@ std::string filename_to_spacename(const byte *filename, size_t len)
 	char *db = strrchr(f, '/');
 	ut_a(db);
 	*table = '/';
-	return std::string(db+1);
+	std::string s(db+1);
+	free(f);
+	return s;
 }
 
 /** Report an operation to create, delete, or rename a file during backup.
@@ -4164,7 +4168,6 @@ fail:
 
 	/* start back ground thread to copy newer log */
 	os_thread_id_t log_copying_thread_id;
-	datafiles_iter_t *it;
 
 	/* get current checkpoint_lsn */
 	/* Look for the latest checkpoint from any of the log groups */
@@ -4322,7 +4325,7 @@ fail_before_log_copying_thread_start:
 				"Waiting for table metadata lock", 1, ER_QUERY_INTERRUPTED););
 	}
 
-	it = datafiles_iter_new(fil_system);
+	datafiles_iter_t *it = datafiles_iter_new(fil_system);
 	if (it == NULL) {
 		msg("mariabackup: Error: datafiles_iter_new() failed.\n");
 		goto fail;
@@ -4531,7 +4534,7 @@ void backup_fix_ddl(void)
 		fil_space_close(n->space->name);
 		fil_space_free(n->space->id, false);
 	}
-
+	datafiles_iter_free(it);
 
 	for (std::set<std::string>::iterator iter = new_tables.begin();
 		iter != new_tables.end(); iter++) {
@@ -4578,6 +4581,8 @@ void backup_fix_ddl(void)
 #endif
 		xtrabackup_copy_datafile(node, 0, dest_name.c_str()/*, do_full_copy ? ULONGLONG_MAX:UNIV_PAGE_SIZE */);
 	}
+
+	datafiles_iter_free(it);
 }
 
 /* ================= prepare ================= */

@@ -916,6 +916,7 @@ DECLARE_THREAD(kill_mdl_waiters_thread(void *))
 				exit(EXIT_FAILURE);
 			}
 		}
+		mysql_free_result(result);
 	}
 
 	mysql_close(mysql);
