@@ -33,7 +33,11 @@ public:
   bool neg() const { return m_value < 0 && !m_unsigned; }
   ulonglong abs() const
   {
-    return neg() ? (ulonglong) -m_value : (ulonglong) m_value;
+    if (m_unsigned)
+      return (ulonglong) m_value;
+    if (m_value == LONGLONG_MIN) // avoid undefined behavior
+      return ((ulonglong) LONGLONG_MAX) + 1;
+    return m_value < 0 ? -m_value : m_value;
   }
 };
 
