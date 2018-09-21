@@ -190,12 +190,8 @@ dict_mem_table_create(
 	    || DICT_TF2_FLAG_IS_SET(table, DICT_TF2_FTS_ADD_DOC_ID)) {
 		table->fts = fts_create(table);
 		table->fts->cache = fts_cache_create(table);
-	} else {
-		table->fts = NULL;
 	}
 
-	table->n_dropped_cols = 0;
-	table->dropped_cols = NULL;
 	new(&table->foreign_set) dict_foreign_set();
 	new(&table->referenced_set) dict_foreign_set();
 
