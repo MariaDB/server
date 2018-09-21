@@ -713,9 +713,9 @@ dict_mem_fill_column_struct(
 	dtype_get_mblen(mtype, prtype, &mbminlen, &mbmaxlen);
 	column->mbminlen = mbminlen;
 	column->mbmaxlen = mbmaxlen;
+	column->dropped = false;
 	column->def_val.data = NULL;
 	column->def_val.len = UNIV_SQL_DEFAULT;
-	column->dropped = false;
 }
 
 /**********************************************************************//**
@@ -1229,7 +1229,8 @@ void dict_index_t::reconstruct_fields()
 	fields = temp_fields;
 }
 
-/** Remove the instant fields from the index. */
+/** Remove instant ALTER TABLE metadata.
+Protected by index root page x-latch or table X-lock. */
 void dict_index_t::remove_instant()
 {
 	DBUG_ASSERT(is_primary());
@@ -1275,7 +1276,7 @@ void dict_index_t::remove_instant()
 				table, dict_col_get_no(field.col));
 		temp_field.col = &table->cols[field.col->ind];
 
-		if (temp_field.col->is_instant_add()) {
+		if (temp_field.col->is_added()) {
 			temp_field.col->remove_instant();
 		}
 
@@ -1516,7 +1517,6 @@ void dict_table_t::construct_dropped_columns(const byte* data)
 		field_data += INSTANT_FIELD_LEN;
 	}
 
-
 	dropped_cols = static_cast<dict_col_t*>(mem_heap_zalloc(
 		heap, n_dropped_cols * sizeof(dict_col_t)));
 
@@ -1524,7 +1524,7 @@ void dict_table_t::construct_dropped_columns(const byte* data)
 	for (ulint i = 0; i < n_dropped_cols; i++) {
 		dict_col_t&	drop_col = dropped_cols[i];
 		bool		is_fixed = false;
-		drop_col.set_dropped();
+		drop_col.dropped = true;
 
 		while (j < num_non_pk_fields) {
 			if (non_pk_col_map[j] == 0) {
@@ -1574,7 +1574,7 @@ void dict_table_t::fill_dropped_column(
 		dict_col_t&	drop_col = temp_drop_cols[j++];
 		dict_col_t	col = cols[i];
 
-		drop_col.set_dropped();
+		drop_col.dropped = true;
 
 		drop_col.ind = dict_col_get_clust_pos(
 				&cols[i], dict_table_get_first_index(this));
@@ -1653,7 +1653,7 @@ void dict_table_t::instant_op_column(
 	/* Copy the new default values to this->heap. */
 	for (unsigned i = n_cols; i < table.n_cols; i++) {
 		dict_col_t& c = cols[i - DATA_N_SYS_COLS];
-		DBUG_ASSERT(c.is_instant_add());
+		DBUG_ASSERT(c.is_added());
 		if (c.def_val.len == 0) {
 			c.def_val.data = field_ref_zero;
 		} else if (const void*& d = c.def_val.data) {

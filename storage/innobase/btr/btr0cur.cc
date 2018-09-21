@@ -561,7 +561,7 @@ inconsistent:
 		ulint len;
 		const byte* data = rec_get_nth_field(rec, offsets, i, &len);
 		dict_col_t* col = index->fields[i].col;
-		ut_ad(!col->is_instant_add());
+		ut_ad(!col->is_added());
 		ut_ad(!col->def_val.data);
 		col->def_val.len = len;
 		switch (len) {

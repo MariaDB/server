@@ -4481,7 +4481,7 @@ innobase_op_instant_try(
 
 		dfield_t* d = dtuple_get_nth_field(row, i);
 
-		if (col->is_instant_add()) {
+		if (col->is_added()) {
 			dfield_set_data(d, col->def_val.data,
 					col->def_val.len);
 		} else if ((*af)->real_maybe_null()) {
@@ -5601,7 +5601,7 @@ new_clustered_failed:
 			DBUG_ASSERT(!strcmp((*af)->field_name.str,
 				    dict_table_get_col_name(ctx->new_table,
 							    i)));
-			DBUG_ASSERT(!col->is_instant_add());
+			DBUG_ASSERT(!col->is_added());
 
 			if (new_field->field) {
 #if 0

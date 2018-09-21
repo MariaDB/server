@@ -588,8 +588,8 @@ struct dict_col_t{
 					3072 (REC_VERSION_56_MAX_INDEX_COL_LEN)
 					bytes. */
 
-	/** Whether the column is deleted. */
-	bool		dropped;
+	/** Whether the column has been instantly dropped. */
+	unsigned	dropped:1;
 
 	/** Detach the column from an index.
 	@param[in]	index	index to be detached from */
@@ -644,18 +644,21 @@ struct dict_col_t{
 	}
 
 	/** @return whether this is an instantly-added column */
-	bool is_instant_add() const
+	bool is_added() const
 	{
 		DBUG_ASSERT(def_val.len != UNIV_SQL_DEFAULT || !def_val.data);
 		return def_val.len != UNIV_SQL_DEFAULT;
 	}
+	/** @return whether the column was instantly dropped  */
+	bool is_dropped() const { return dropped; }
+
 	/** Get the default value of an instantly-added column.
 	@param[out]	len	value length (in bytes), or UNIV_SQL_NULL
 	@return	default value
 	@retval	NULL	if the default value is SQL NULL (len=UNIV_SQL_NULL) */
 	const byte* instant_value(ulint* len) const
 	{
-		DBUG_ASSERT(is_instant_add());
+		DBUG_ASSERT(is_added());
 		*len = def_val.len;
 		return static_cast<const byte*>(def_val.data);
 	}
@@ -663,21 +666,9 @@ struct dict_col_t{
 	/** Remove the 'instant ADD' status of the column */
 	void remove_instant()
 	{
-		DBUG_ASSERT(is_instant_add());
+		DBUG_ASSERT(is_added());
 		def_val.len = UNIV_SQL_DEFAULT;
 		def_val.data = NULL;
-	}
-
-	/** @return whether the column is dropped  */
-	bool is_dropped() const
-	{
-		return dropped;
-	}
-
-	/** Set the dropped flag. */
-	void set_dropped()
-	{
-		dropped = true;
 	}
 };
 
@@ -1129,8 +1120,7 @@ struct dict_index_t {
 		for (ulint i = n_core_fields; i < n_prefix; i++) {
 			const dict_col_t* col = fields[i].col;
 
-			if (col->is_dropped()
-			    || col->is_instant_add()) {
+			if (col->is_dropped() || col->is_added()) {
 				n++;
 				continue;
 			}
@@ -1204,7 +1194,7 @@ struct dict_index_t {
 	@param[in]	clustered index definition after instant ADD COLUMN */
 	void instant_add_field(const dict_index_t& instant);
 
-	/** Remove instant fields from the clustered index.
+	/** Remove instant ALTER TABLE metadata.
 	Protected by index root page x-latch or table X-lock. */
 	void remove_instant();
 

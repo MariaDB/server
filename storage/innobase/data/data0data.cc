@@ -65,7 +65,7 @@ void dtuple_t::trim(const dict_index_t& index)
 			continue;
 		}
 
-		ut_ad(col->is_instant_add());
+		ut_ad(col->is_added());
 		ulint len = dfield_get_len(dfield);
 		if (len != col->def_val.len) {
 			break;
