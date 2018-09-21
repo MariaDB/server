@@ -30,7 +30,6 @@
 #include "strfunc.h"    // find_type2, find_set
 #include "sql_truncate.h"                       // regenerate_locked_table 
 #include "sql_partition.h"                      // mem_alloc_error,
-                                                // generate_partition_syntax,
                                                 // partition_info
                                                 // NOT_A_PARTITION_ID
 #include "sql_db.h"                             // load_db_opt_by_name
@@ -1820,13 +1819,10 @@ bool mysql_write_frm(ALTER_PARTITION_PARAM_TYPE *lpt, uint flags)
       partition_info *part_info= lpt->table->part_info;
       if (part_info)
       {
-        if (!(part_syntax_buf= generate_partition_syntax(lpt->thd, part_info,
-                                                         &syntax_len, TRUE,
-                                                         lpt->create_info,
-                                                         lpt->alter_info)))
-        {
+        part_syntax_buf= generate_partition_syntax_for_frm(lpt->thd, part_info,
+                               &syntax_len, lpt->create_info, lpt->alter_info);
+        if (!part_syntax_buf)
           DBUG_RETURN(TRUE);
-        }
         part_info->part_info_string= part_syntax_buf;
         part_info->part_info_len= syntax_len;
       }
@@ -1902,10 +1898,9 @@ bool mysql_write_frm(ALTER_PARTITION_PARAM_TYPE *lpt, uint flags)
     {
       TABLE_SHARE *share= lpt->table->s;
       char *tmp_part_syntax_str;
-      if (!(part_syntax_buf= generate_partition_syntax(lpt->thd, part_info,
-                                                       &syntax_len, TRUE,
-                                                       lpt->create_info,
-                                                       lpt->alter_info)))
+      part_syntax_buf= generate_partition_syntax_for_frm(lpt->thd,
+                   part_info, &syntax_len, lpt->create_info, lpt->alter_info);
+      if (!part_syntax_buf)
       {
         error= 1;
         goto err;
@@ -4564,11 +4559,8 @@ handler *mysql_create_frm_image(THD *thd,
       We reverse the partitioning parser and generate a standard format
       for syntax stored in frm file.
     */
-    sql_mode_t old_mode= thd->variables.sql_mode;
-    thd->variables.sql_mode &= ~MODE_ANSI_QUOTES;
-    part_syntax_buf= generate_partition_syntax(thd, part_info, &syntax_len,
-                                               true, create_info, alter_info);
-    thd->variables.sql_mode= old_mode;
+    part_syntax_buf= generate_partition_syntax_for_frm(thd, part_info,
+                                      &syntax_len, create_info, alter_info);
     if (!part_syntax_buf)
       goto err;
     part_info->part_info_string= part_syntax_buf;

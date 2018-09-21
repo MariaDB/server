@@ -47,5 +47,6 @@ create table t1 (a int) partition by range(a) (partition p0 values less than (5)
 set sql_mode='ansi_quotes';
 alter table t1 add partition (partition p1 values less than (10));
 set sql_mode= default;
+--replace_column 12 X 13 X
 show table status;
 drop table t1;

@@ -9092,11 +9092,9 @@ int ha_partition::check_for_upgrade(HA_CHECK_OPT *check_opt)
           }
           m_part_info->key_algorithm= partition_info::KEY_ALGORITHM_51;
           if (skip_generation ||
-              !(part_buf= generate_partition_syntax(thd, m_part_info,
+              !(part_buf= generate_partition_syntax_for_frm(thd, m_part_info,
                                                     &part_buf_len,
-                                                    true,
-                                                    NULL,
-                                                    NULL)) ||
+                                                    NULL, NULL)) ||
 	      print_admin_msg(thd, SQL_ADMIN_MSG_TEXT_SIZE + 1, "error",
 	                      table_share->db.str,
 	                      table->alias,

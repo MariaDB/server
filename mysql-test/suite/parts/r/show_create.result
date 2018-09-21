@@ -109,9 +109,5 @@ alter table t1 add partition (partition p1 values less than (10));
 set sql_mode= default;
 show table status;
 Name	Engine	Version	Row_format	Rows	Avg_row_length	Data_length	Max_data_length	Index_length	Data_free	Auto_increment	Create_time	Update_time	Check_time	Collation	Checksum	Create_options	Comment
-t1	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near '"p0" VALUES LESS THAN (5) ENGINE = MyISAM,
- PARTITION "p1" VALUES LESS THAN (10)' at line 2
-Warnings:
-Warning	1064	You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near '"p0" VALUES LESS THAN (5) ENGINE = MyISAM,
- PARTITION "p1" VALUES LESS THAN (10)' at line 2
+t1	MyISAM	10	Fixed	0	0	0	0	2048	0	NULL	X	X	NULL	latin1_swedish_ci	NULL	partitioned	
 drop table t1;
