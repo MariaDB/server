@@ -139,7 +139,7 @@ row_build_clust_default_entry(
 	return entry;
 }
 
-/** Build spatial index first field for the entry.
+/** Build a spatial index key.
 @param[in]	index	spatial index
 @param[in]	ext	externally stored column prefixes, or NULL
 @param[in,out]	dfield	field of the tuple to be copied
@@ -149,8 +149,7 @@ row_build_clust_default_entry(
 @param[in,out]	heap	memory heap from which the memory
 			of the field entry is allocated.
 @retval false if undo log is logged before spatial index creation. */
-static
-bool row_build_spatial_index_first_field(
+static bool row_build_spatial_index_key(
 	dict_index_t*		index,
 	const row_ext_t*	ext,
 	dfield_t*		dfield,
@@ -164,15 +163,18 @@ bool row_build_spatial_index_first_field(
 	dfield->type.prtype |= DATA_GIS_MBR;
 
 	/* Allocate memory for mbr field */
-	ulint mbr_len = DATA_MBR_LEN;
-	mbr = static_cast<double*>(mem_heap_alloc(heap, mbr_len));
+	mbr = static_cast<double*>(mem_heap_alloc(heap, DATA_MBR_LEN));
 
 	/* Set mbr field data. */
-	dfield_set_data(dfield, mbr, mbr_len);
+	dfield_set_data(dfield, mbr, DATA_MBR_LEN);
 
 	const fil_space_t* space = index->table->space;
 
 	if (UNIV_UNLIKELY(!dfield2->data || !space)) {
+		/* FIXME: dfield contains uninitialized data,
+		but row_build_index_entry_low() will not return NULL.
+		This bug is inherited from MySQL 5.7.5
+		commit b66ad511b61fffe75c58d0a607cdb837c6e6c821. */
 		return true;
 	}
 
@@ -183,8 +185,7 @@ bool row_build_spatial_index_first_field(
 	mem_heap_t*	temp_heap = NULL;
 
 	if (!dfield_is_ext(dfield2)) {
-		dptr = static_cast<uchar*>(
-				dfield_get_data(dfield2));
+		dptr = static_cast<uchar*>(dfield_get_data(dfield2));
 		dlen = dfield_get_len(dfield2);
 		goto write_mbr;
 	}
@@ -216,9 +217,22 @@ bool row_build_spatial_index_first_field(
 
 	if (flag == ROW_BUILD_FOR_UNDO
 	    && dict_table_has_atomic_blobs(index->table)) {
-		/* For build entry for undo, and
-		   the table is Barrcuda, we need
-		   to skip the prefix data. */
+		/* For ROW_FORMAT=DYNAMIC or COMPRESSED, a prefix of
+		off-page records is stored in the undo log record (for
+		any column prefix indexes). For SPATIAL INDEX, we
+		must ignore this prefix. The full column value is
+		stored in the BLOB.  For non-spatial index, we would
+		have already fetched a necessary prefix of the BLOB,
+		available in the "ext" parameter.
+
+		Here, for SPATIAL INDEX, we are fetching the full
+		column, which is potentially wasting a lot of I/O,
+		memory, and possibly involving a concurrency problem,
+		similar to ones that existed before the introduction
+		of row_ext_t.
+
+		MDEV-11657 FIXME: write the MBR directly to the undo
+		log record, and avoid recomputing it here! */
 		flen = BTR_EXTERN_FIELD_REF_SIZE;
 		ut_ad(dfield_get_len(dfield2) >= BTR_EXTERN_FIELD_REF_SIZE);
 		dptr = static_cast<byte*>(dfield_get_data(dfield2))
@@ -366,7 +380,7 @@ row_build_index_entry_low(
 		/* Special handle spatial index, set the first field
 		which is for store MBR. */
 		if (dict_index_is_spatial(index) && i == 0) {
-			if (!row_build_spatial_index_first_field(
+			if (!row_build_spatial_index_key(
 				    index, ext, dfield, dfield2, flag, heap)) {
 				return NULL;
 			}

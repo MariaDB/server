@@ -1839,8 +1839,31 @@ row_upd_changes_ord_field_binary_func(
 				if (flag == ROW_BUILD_FOR_UNDO
 				    && dict_table_has_atomic_blobs(
 					    index->table)) {
-					/* For undo, and the table is Barrcuda,
-					we need to skip the prefix data. */
+					/* For ROW_FORMAT=DYNAMIC
+					or COMPRESSED, a prefix of
+					off-page records is stored
+					in the undo log record
+					(for any column prefix indexes).
+					For SPATIAL INDEX, we must
+					ignore this prefix. The
+					full column value is stored in
+					the BLOB.
+					For non-spatial index, we
+					would have already fetched a
+					necessary prefix of the BLOB,
+					available in the "ext" parameter.
+
+					Here, for SPATIAL INDEX, we are
+					fetching the full column, which is
+					potentially wasting a lot of I/O,
+					memory, and possibly involving a
+					concurrency problem, similar to ones
+					that existed before the introduction
+					of row_ext_t.
+
+					MDEV-11657 FIXME: write the MBR
+					directly to the undo log record,
+					and avoid recomputing it here! */
 					flen = BTR_EXTERN_FIELD_REF_SIZE;
 					ut_ad(dfield_get_len(new_field) >=
 					      BTR_EXTERN_FIELD_REF_SIZE);
