@@ -318,7 +318,6 @@ int Wsrep_high_priority_service::commit(const wsrep::ws_handle& ws_handle,
     ret= wsrep_after_commit(thd, true);
   }
 
-  wsrep_set_apply_format(thd, 0);
   m_thd->mdl_context.release_transactional_locks();
 
   thd_proc_info(thd, "wsrep applier committed");

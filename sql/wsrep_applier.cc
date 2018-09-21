@@ -218,5 +218,7 @@ error:
   if (thd->killed == KILL_CONNECTION)
     WSREP_INFO("applier aborted: %lld", (long long)wsrep_thd_trx_seqno(thd));
 
+  wsrep_set_apply_format(thd, NULL);
+
   DBUG_RETURN(rcode);
 }
