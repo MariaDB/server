@@ -1024,6 +1024,9 @@ ha_innobase::check_if_supported_inplace_alter(
 		DBUG_RETURN(HA_ALTER_INPLACE_NOT_SUPPORTED);
 	}
 
+	const bool supports_instant = m_prebuilt->table->supports_instant()
+		&& instant_alter_column_possible(ha_alter_info, table);
+
 	bool	add_drop_v_cols = false;
 
 	/* If there is add or drop virtual columns, we will support operations
@@ -1051,7 +1054,13 @@ ha_innobase::check_if_supported_inplace_alter(
 		*/
 			   | ALTER_ADD_NON_UNIQUE_NON_PRIM_INDEX
 			   | ALTER_DROP_NON_UNIQUE_NON_PRIM_INDEX);
-
+#if 0 /* MDEV-15562 FIXME: enable this */
+		if (supports_instant) {
+			flags &= ~(ALTER_ADD_STORED_BASE_COLUMN
+				   | ALTER_DROP_STORED_COLUMN
+				   | ALTER_STORED_COLUMN_ORDER);
+		}
+#endif
 		if (flags != 0
 		    || IF_PARTITIONING((altered_table->s->partition_info_str
 			&& altered_table->s->partition_info_str_len), 0)
@@ -1232,32 +1241,13 @@ ha_innobase::check_if_supported_inplace_alter(
 	constant DEFAULT expression. */
 	cf_it.rewind();
 	Field **af = altered_table->field;
-	Field **uf = table->field;
-	Field **uf_end = table->field + table_share->fields;
-	bool add_column_not_last = false;
-	uint n_stored_cols = 0, n_add_cols = 0, n_drop_cols = 0;
 
 	while (Create_field* cf = cf_it++) {
 		DBUG_ASSERT(cf->field
 			    || (ha_alter_info->handler_flags
 				& ALTER_ADD_COLUMN));
 
-		const Field* f = cf->field;
-
-		/** Find the number of dropped columns. */
-		while (f && *uf) {
-			if (f == *uf++) {
-				break;
-			}
-			n_drop_cols++;
-		}
-
-		if (f) {
-
-			if (n_add_cols > 0) {
-				add_column_not_last = true;
-			}
-
+		if (const Field* f = cf->field) {
 			/* This could be changing an existing column
 			from NULL to NOT NULL. */
 			switch ((*af)->type()) {
@@ -1298,70 +1288,27 @@ ha_innobase::check_if_supported_inplace_alter(
 				goto next_column;
 			}
 
-			ha_alter_info->unsupported_reason
-				= my_get_err_msg(
-					ER_ALTER_OPERATION_NOT_SUPPORTED_REASON_NOT_NULL);
-		} else if (!is_non_const_value(*af)) {
-
-			n_add_cols++;
-
-			/** Newly added column should be at the end of the
-			table. */
-			while (uf++ < uf_end) {
-				n_drop_cols++;
-			}
-
-			if (af < &altered_table->field[
-				table_share->fields - n_drop_cols]) {
-				add_column_not_last = true;
-			}
-
-			if (set_default_value(*af)) {
-				goto next_column;
-			}
+			ha_alter_info->unsupported_reason = my_get_err_msg(
+				ER_ALTER_OPERATION_NOT_SUPPORTED_REASON_NOT_NULL);
+		} else if (!is_non_const_value(*af)
+			   && set_default_value(*af)) {
+			goto next_column;
 		}
 
 		DBUG_RETURN(HA_ALTER_INPLACE_NOT_SUPPORTED);
 
 next_column:
-		n_stored_cols += (*af++)->stored_in_db();
+		af++;
 	}
 
-	/** Last few columns are dropped. */
-	while (uf++ < uf_end) {
-		n_drop_cols++;
-	}
-
-	bool is_instant = false;
-
-	if (!add_column_not_last
-	    && n_add_cols > 0
-	    && m_prebuilt->table->supports_instant()
-	    && instant_alter_column_possible(ha_alter_info, table)) {
-		is_instant = true;
-	}
-
-	if ((n_add_cols == 0 || is_instant)
-	    && n_drop_cols > 0
-	    && m_prebuilt->table->supports_instant()
-	    && instant_alter_column_possible(ha_alter_info, table)) {
-		is_instant = true;
-	}
-
-	ulint	n_exist_cols = uint(m_prebuilt->table->n_cols) - DATA_N_SYS_COLS;
-	n_exist_cols += n_add_cols;
-	n_exist_cols -= n_drop_cols;
-
-	if ((is_instant && n_exist_cols != n_stored_cols)
-	    || (innobase_fulltext_exist(table)
-		&& !innobase_fulltext_exist(altered_table))) {
-		is_instant = false;
-	}
-
-	if (is_instant
-	    || !(ha_alter_info->handler_flags & ~(INNOBASE_ALTER_INSTANT
-						  | INNOBASE_INPLACE_IGNORE))) {
-		DBUG_RETURN(HA_ALTER_INPLACE_INSTANT);
+	if (supports_instant
+	    || !(ha_alter_info->handler_flags
+		 & ~(INNOBASE_ALTER_INSTANT | INNOBASE_INPLACE_IGNORE))) {
+		/* MDEV-15526 FIXME: remove the condition below */
+		if (!innobase_fulltext_exist(table)
+		    || innobase_fulltext_exist(altered_table)) {
+			DBUG_RETURN(HA_ALTER_INPLACE_INSTANT);
+		}
 	}
 
 	bool	fts_need_rebuild = false;
@@ -4364,11 +4311,11 @@ static bool innobase_instant_drop_col(table_id_t id, ulint pos, trx_t* trx)
 	return false;
 }
 
-/** Update the column position in the system column table.
-@param[in]      table_id        table id
-@param[in]      old_pos         old position of the column
-@param[in]      new_pos         new position of the column
-@param[in]      trx             transaction
+/** Update SYS_COLUMNS.POS for a stored column during instant ALTER TABLE
+@param[in]	table_id	table id
+@param[in]	old_pos		old position of the column
+@param[in]	new_pos		new position of the column
+@param[in,out]	trx		data dictionary transaction
 @retval true Failure
 @retval false Success. */
 static bool innobase_instant_update_pos(
@@ -4383,15 +4330,15 @@ static bool innobase_instant_update_pos(
 	pars_info_add_int4_literal(info, "new_pos", new_pos);
 
 	dberr_t err = que_eval_sql(
-			info,
-			"PROCEDURE UPDATE_COL () IS\n"
-			"BEGIN\n"
-			"UPDATE SYS_COLUMNS SET POS = :new_pos WHERE \n"
-			"TABLE_ID = :id AND POS = :old_pos;\n"
-			"END;\n", FALSE, trx);
+		info,
+		"PROCEDURE UPDATE_COL () IS\n"
+		"BEGIN\n"
+		"UPDATE SYS_COLUMNS SET POS = :new_pos WHERE\n"
+		"TABLE_ID = :id AND POS = :old_pos;\n"
+		"END;\n", FALSE, trx);
 	if (err != DB_SUCCESS) {
 		my_error(ER_INTERNAL_ERROR, MYF(0),
-				"InnoDB: Change position SYS_COLUMNS failed");
+			 "InnoDB: Updating SYS_COLUMNS.POS failed");
 		return true;
 	}
 
@@ -4453,15 +4400,16 @@ innobase_op_instant_try(
 			if (!next_pos) {
 				next_pos = i + 1;
 			}
-		} else if (next_pos) {
-			if (innobase_instant_update_pos(
-				user_table->id, i, next_pos++ - 1, trx)) {
-				return true;
-			}
+		} else if (next_pos && innobase_instant_update_pos(
+				   user_table->id, i, next_pos++ - 1, trx)) {
+			return true;
 		}
 
 		i++;
 	}
+
+	/* FIXME: adjust SYS_COLUMNS.POS for old (not added/dropped)
+	virtual columns */
 
 	for (uint i = 0; af < end; af++) {
 		if (!(*af)->stored_in_db()) {
