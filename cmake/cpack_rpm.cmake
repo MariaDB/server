@@ -81,7 +81,8 @@ SET(CPACK_RPM_SPEC_MORE_DEFINE "
 %define _bindir     ${INSTALL_BINDIRABS}
 %define _sbindir    ${INSTALL_SBINDIRABS}
 %define _sysconfdir ${INSTALL_SYSCONFDIR}
-%define restart_flag %{_localstatedir}/lib/rpm-state/mariadb-restart
+%define restart_flag_dir %{_localstatedir}/lib/rpm-state/mariadb
+%define restart_flag %{restart_flag_dir}/need-restart
 ")
 
 # this creative hack is described here: http://www.cmake.org/pipermail/cmake/2012-January/048416.html
