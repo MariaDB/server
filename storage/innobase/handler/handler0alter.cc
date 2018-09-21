@@ -4329,7 +4329,7 @@ static bool innobase_instant_add_col(
 			"END;\n", FALSE, trx);
 	if (err != DB_SUCCESS) {
 		my_error(ER_INTERNAL_ERROR, MYF(0),
-				"InnoDB: Insert into SYS_COLUMNS failed");
+			 "InnoDB: Insert into SYS_COLUMNS failed");
 		return(true);
 	}
 
@@ -4337,33 +4337,27 @@ static bool innobase_instant_add_col(
 }
 
 /** Delete the column from the sys_columns system table.
-@param[in]	table_id	table id
-@param[in]	pos		position of the column
-@param[in]	field_name	field name
-@param[in]	trx		transaction
+@param[in]	id	table id
+@param[in]	pos	SYS_COLUMNS.POS
+@param[in,out]	trx	data dictionary transaction
 @retval true Failure
-@retval false success. */
-static bool innobase_instant_drop_col(
-	table_id_t	table_id,
-	ulint		pos,
-	const char*	field_name,
-	trx_t*		trx)
+@retval false Success. */
+static bool innobase_instant_drop_col(table_id_t id, ulint pos, trx_t* trx)
 {
 	pars_info_t*	info = pars_info_create();
-	pars_info_add_ull_literal(info, "id", table_id);
+	pars_info_add_ull_literal(info, "id", id);
 	pars_info_add_int4_literal(info, "pos", pos);
-	pars_info_add_str_literal(info, "name", field_name);
 
 	dberr_t err = que_eval_sql(
 			info,
 			"PROCEDURE DELETE_COL () IS\n"
 			"BEGIN\n"
 			"DELETE FROM SYS_COLUMNS WHERE \n"
-			"TABLE_ID = :id AND NAME = :name;\n"
+			"TABLE_ID = :id AND POS = :pos;\n"
 			"END;\n", FALSE, trx);
 	if (err != DB_SUCCESS) {
 		my_error(ER_INTERNAL_ERROR, MYF(0),
-				"InnoDB: DELETE from SYS_COLUMNS failed");
+			 "InnoDB: DELETE from SYS_COLUMNS failed");
 		return true;
 	}
 
@@ -4435,7 +4429,7 @@ innobase_op_instant_try(
 
 	dict_index_t* index = dict_table_get_first_index(user_table);
 	/* The table may have been emptied and may have lost its
-	'instant-add-ness' during this instant ADD COLUMN. */
+	'instantness' during this ALTER TABLE. */
 
 	/* Construct a table row of default values for the stored columns. */
 	dtuple_t* row = dtuple_create(ctx->heap, user_table->n_cols);
@@ -4445,24 +4439,23 @@ innobase_op_instant_try(
 	Field**	uf = table->field;
 	Field** const uf_end = table->field + table->s->fields;
 
-	bool	update_pos = false;
-	for (ulint i = 0; uf < uf_end; uf++) {
+	for (ulint i = 0, next_pos = 0; uf < uf_end; uf++) {
 		if (!(*uf)->stored_in_db()) {
 			continue;
 		}
 
 		if (ctx->col_map[i] == ULINT_UNDEFINED) {
-
-			/* Remove this column entry from sys_column */
-			if (innobase_instant_drop_col(
-				user_table->id, i, (*uf)->field_name.str, trx)) {
+			if (innobase_instant_drop_col(user_table->id, i,
+						      trx)) {
 				return true;
 			}
 
-			update_pos = true;
-		} else if (update_pos) {
+			if (!next_pos) {
+				next_pos = i + 1;
+			}
+		} else if (next_pos) {
 			if (innobase_instant_update_pos(
-				user_table->id, i, i - 1, trx)) {
+				user_table->id, i, next_pos++ - 1, trx)) {
 				return true;
 			}
 		}
