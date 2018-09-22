@@ -5536,38 +5536,24 @@ void Field_temporal::set_warnings(Sql_condition::enum_warning_level trunc_level,
     3  Datetime value that was cut (warning level NOTE)
        This is used by opt_range.cc:get_mm_leaf().
 */
-int Field_temporal_with_date::store_TIME_with_warning(const Datetime *dt,
-                                                      const ErrConv *str,
-                                                      int was_cut)
+int Field_datetime::store_TIME_with_warning(const Datetime *dt,
+                                            const ErrConv *str,
+                                            int was_cut)
 {
-  Sql_condition::enum_warning_level trunc_level= Sql_condition::WARN_LEVEL_WARN;
-  timestamp_type ts_type= type_handler()->mysql_timestamp_type();
-  
   ASSERT_COLUMN_MARKED_FOR_WRITE;
   // Handle totally bad values
   if (!dt->is_valid_datetime())
-  {
-    static const Datetime zero;
-    store_TIME(zero.get_mysql_time());
-    if (was_cut == 0) // special case: zero date
-    {
-      set_warnings(trunc_level, str, MYSQL_TIME_WARN_OUT_OF_RANGE, ts_type);
-      return 2;
-    }
-    set_warnings(trunc_level, str, MYSQL_TIME_WARN_TRUNCATED, ts_type);
-    return 1;
-  }
+    return store_invalid_with_warning(str, was_cut, MYSQL_TIMESTAMP_DATETIME);
   // Store the value
   DBUG_ASSERT(!dt->fraction_remainder(decimals()));
-  if (ts_type == MYSQL_TIMESTAMP_DATE && !dt->hhmmssff_is_zero())
-    was_cut|= MYSQL_TIME_NOTE_TRUNCATED;
   store_TIME(dt->get_mysql_time());
   // Caclulate return value and send warnings if needed
-  return store_TIME_return_code_with_warnings(was_cut, str, ts_type);
+  return store_TIME_return_code_with_warnings(was_cut, str,
+                                              MYSQL_TIMESTAMP_DATETIME);
 }
 
 
-int Field_temporal_with_date::store(const char *from, size_t len, CHARSET_INFO *cs)
+int Field_datetime::store(const char *from, size_t len, CHARSET_INFO *cs)
 {
   MYSQL_TIME_STATUS st;
   ErrConvString str(from, len, cs);
@@ -5575,7 +5561,7 @@ int Field_temporal_with_date::store(const char *from, size_t len, CHARSET_INFO *
   return store_TIME_with_warning(&dt, &str, st.warnings);
 }
 
-int Field_temporal_with_date::store(double nr)
+int Field_datetime::store(double nr)
 {
   int error;
   ErrConvDouble str(nr);
@@ -5584,7 +5570,7 @@ int Field_temporal_with_date::store(double nr)
 }
 
 
-int Field_temporal_with_date::store(longlong nr, bool unsigned_val)
+int Field_datetime::store(longlong nr, bool unsigned_val)
 {
   int error;
   ErrConvInteger str(nr, unsigned_val);
@@ -5592,7 +5578,7 @@ int Field_temporal_with_date::store(longlong nr, bool unsigned_val)
   return store_TIME_with_warning(&dt, &str, error);
 }
 
-int Field_temporal_with_date::store_time_dec(const MYSQL_TIME *ltime, uint dec)
+int Field_datetime::store_time_dec(const MYSQL_TIME *ltime, uint dec)
 {
   int error;
   ErrConvTime str(ltime);
@@ -5601,6 +5587,14 @@ int Field_temporal_with_date::store_time_dec(const MYSQL_TIME *ltime, uint dec)
   return store_TIME_with_warning(&dt, &str, error);
 }
 
+
+int Field_datetime::store_decimal(const my_decimal *d)
+{
+  int error;
+  ErrConvDecimal str(d);
+  Datetime tm(&error, d, sql_mode_for_dates(get_thd()), decimals());
+  return store_TIME_with_warning(&tm, &str, error);
+}
 
 bool
 Field_temporal_with_date::validate_value_in_record(THD *thd,
@@ -5690,12 +5684,7 @@ int Field_time::store_TIME_with_warning(const Time *t,
   ASSERT_COLUMN_MARKED_FOR_WRITE;
   // Handle totally bad values
   if (!t->is_valid_time())
-  {
-    static const Datetime zero;
-    store_TIME(zero.get_mysql_time());
-    set_warnings(Sql_condition::WARN_LEVEL_WARN, str, MYSQL_TIME_WARN_TRUNCATED);
-    return 1;
-  }
+    return store_invalid_with_warning(str, warn, MYSQL_TIMESTAMP_TIME);
   // Store the value
   DBUG_ASSERT(!t->fraction_remainder(decimals()));
   store_TIME(t->get_mysql_time());
@@ -6236,6 +6225,67 @@ void Field_year::sql_type(String &res) const
 }
 
 
+/*****************************************************************************/
+
+int Field_date_common::store_TIME_with_warning(const Datetime *dt,
+                                               const ErrConv *str,
+                                               int was_cut)
+{
+  ASSERT_COLUMN_MARKED_FOR_WRITE;
+  // Handle totally bad values
+  if (!dt->is_valid_datetime())
+    return store_invalid_with_warning(str, was_cut, MYSQL_TIMESTAMP_DATE);
+  // Store the value
+  if (!dt->hhmmssff_is_zero())
+    was_cut|= MYSQL_TIME_NOTE_TRUNCATED;
+  store_TIME(dt->get_mysql_time());
+  // Caclulate return value and send warnings if needed
+  return store_TIME_return_code_with_warnings(was_cut, str,
+                                              MYSQL_TIMESTAMP_DATE);
+}
+
+int Field_date_common::store(const char *from, size_t len, CHARSET_INFO *cs)
+{
+  MYSQL_TIME_STATUS st;
+  ErrConvString str(from, len, cs);
+  Datetime dt(&st, from, len, cs, sql_mode_for_dates(get_thd()));
+  return store_TIME_with_warning(&dt, &str, st.warnings);
+}
+
+int Field_date_common::store(double nr)
+{
+  int error;
+  ErrConvDouble str(nr);
+  Datetime dt(&error, nr, sql_mode_for_dates(get_thd()));
+  return store_TIME_with_warning(&dt, &str, error);
+}
+
+int Field_date_common::store(longlong nr, bool unsigned_val)
+{
+  int error;
+  ErrConvInteger str(nr, unsigned_val);
+  Datetime dt(&error, nr, unsigned_val, sql_mode_for_dates(get_thd()));
+  return store_TIME_with_warning(&dt, &str, error);
+}
+
+int Field_date_common::store_time_dec(const MYSQL_TIME *ltime, uint dec)
+{
+  int error;
+  ErrConvTime str(ltime);
+  THD *thd= get_thd();
+  Datetime dt(thd, &error, ltime, sql_mode_for_dates(thd));
+  return store_TIME_with_warning(&dt, &str, error);
+}
+
+int Field_date_common::store_decimal(const my_decimal *d)
+{
+  int error;
+  ErrConvDecimal str(d);
+  Datetime tm(&error, d, sql_mode_for_dates(get_thd()));
+  return store_TIME_with_warning(&tm, &str, error);
+}
+
+
 /****************************************************************************
 ** date type
 ** In string context: YYYY-MM-DD
@@ -6636,14 +6686,6 @@ void Field_datetime_hires::store_TIME(const MYSQL_TIME *ltime)
 {
   ulonglong packed= sec_part_shift(pack_time(ltime), dec);
   store_bigendian(packed, ptr, Field_datetime_hires::pack_length());
-}
-
-int Field_temporal_with_date::store_decimal(const my_decimal *d)
-{
-  int error;
-  ErrConvDecimal str(d);
-  Datetime tm(&error, d, sql_mode_for_dates(get_thd()), decimals());
-  return store_TIME_with_warning(&tm, &str, error);
 }
 
 bool Field_datetime_with_dec::send_binary(Protocol *protocol)

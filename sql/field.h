@@ -2594,6 +2594,8 @@ class Field_temporal: public Field {
 protected:
   Item *get_equal_const_item_datetime(THD *thd, const Context &ctx,
                                       Item *const_item);
+  void set_warnings(Sql_condition::enum_warning_level trunc_level,
+                    const ErrConv *str, int was_cut, timestamp_type ts_type);
   int store_TIME_return_code_with_warnings(int warn, const ErrConv *str,
                                            timestamp_type ts_type)
   {
@@ -2607,7 +2609,20 @@ protected:
     set_warnings(Sql_condition::WARN_LEVEL_WARN, str, warn, ts_type);
     return warn ? 2 : 0;
   }
-
+  int store_invalid_with_warning(const ErrConv *str, int was_cut,
+                                 timestamp_type ts_type)
+  {
+    reset();
+    Sql_condition::enum_warning_level level= Sql_condition::WARN_LEVEL_WARN;
+    if (was_cut == 0) // special case: zero date
+    {
+      DBUG_ASSERT(ts_type != MYSQL_TIMESTAMP_TIME);
+      set_warnings(level, str, MYSQL_TIME_WARN_OUT_OF_RANGE, ts_type);
+      return 2;
+    }
+    set_warnings(level, str, MYSQL_TIME_WARN_TRUNCATED, ts_type);
+    return 1;
+  }
 public:
   Field_temporal(uchar *ptr_arg,uint32 len_arg, uchar *null_ptr_arg,
                  uchar null_bit_arg, utype unireg_check_arg,
@@ -2642,8 +2657,6 @@ public:
     return (Field::eq_def(field) && decimals() == field->decimals());
   }
   my_decimal *val_decimal(my_decimal*);
-  void set_warnings(Sql_condition::enum_warning_level trunc_level,
-                    const ErrConv *str, int was_cut, timestamp_type ts_type);
   double pos_in_interval(Field *min, Field *max)
   {
     return pos_in_interval_val_real(min, max);
@@ -2673,9 +2686,6 @@ public:
 */
 class Field_temporal_with_date: public Field_temporal {
 protected:
-  int store_TIME_with_warning(const Datetime *ltime, const ErrConv *str,
-                              int was_cut);
-  void store_TIME_with_trunc(const Time *);
   virtual void store_TIME(const MYSQL_TIME *ltime) = 0;
   virtual bool get_TIME(MYSQL_TIME *ltime, const uchar *pos,
                         ulonglong fuzzydate) const = 0;
@@ -2696,11 +2706,6 @@ public:
     :Field_temporal(ptr_arg, len_arg, null_ptr_arg, null_bit_arg,
                     unireg_check_arg, field_name_arg)
     {}
-  int  store(const char *to, size_t length, CHARSET_INFO *charset);
-  int  store(double nr);
-  int  store(longlong nr, bool unsigned_val);
-  int  store_time_dec(const MYSQL_TIME *ltime, uint dec);
-  int  store_decimal(const my_decimal *);
   bool validate_value_in_record(THD *thd, const uchar *record) const;
 };
 
@@ -2951,6 +2956,9 @@ public:
 
 class Field_date_common: public Field_temporal_with_date
 {
+protected:
+  int store_TIME_with_warning(const Datetime *ltime, const ErrConv *str,
+                              int was_cut);
 public:
   Field_date_common(uchar *ptr_arg, uchar *null_ptr_arg, uchar null_bit_arg,
                     enum utype unireg_check_arg,
@@ -2962,6 +2970,11 @@ public:
   SEL_ARG *get_mm_leaf(RANGE_OPT_PARAM *param, KEY_PART *key_part,
                        const Item_bool_func *cond,
                        scalar_comparison_op op, Item *value);
+  int  store(const char *to, size_t length, CHARSET_INFO *charset);
+  int  store(double nr);
+  int  store(longlong nr, bool unsigned_val);
+  int  store_time_dec(const MYSQL_TIME *ltime, uint dec);
+  int  store_decimal(const my_decimal *);
 };
 
 
@@ -3039,11 +3052,6 @@ class Field_time :public Field_temporal {
 protected:
   virtual void store_TIME(const MYSQL_TIME *ltime);
   int store_TIME_with_warning(const Time *ltime, const ErrConv *str, int warn);
-  void set_warnings(Sql_condition::enum_warning_level level,
-                    const ErrConv *str, int was_cut)
-  {
-    Field_temporal::set_warnings(level, str, was_cut, MYSQL_TIMESTAMP_TIME);
-  }
   bool check_zero_in_date_with_warn(ulonglong fuzzydate);
   static void do_field_time(Copy_field *copy);
 public:
@@ -3198,6 +3206,9 @@ public:
 class Field_datetime :public Field_temporal_with_date {
   void store_TIME(const MYSQL_TIME *ltime);
   bool get_TIME(MYSQL_TIME *ltime, const uchar *pos, ulonglong fuzzydate) const;
+protected:
+  int store_TIME_with_warning(const Datetime *ltime, const ErrConv *str,
+                              int was_cut);
 public:
   Field_datetime(uchar *ptr_arg, uint length_arg, uchar *null_ptr_arg,
                  uchar null_bit_arg, enum utype unireg_check_arg,
@@ -3211,6 +3222,11 @@ public:
     }
   const Type_handler *type_handler() const { return &type_handler_datetime; }
   enum ha_base_keytype key_type() const { return HA_KEYTYPE_ULONGLONG; }
+  int  store(const char *to, size_t length, CHARSET_INFO *charset);
+  int  store(double nr);
+  int  store(longlong nr, bool unsigned_val);
+  int  store_time_dec(const MYSQL_TIME *ltime, uint dec);
+  int  store_decimal(const my_decimal *);
   double val_real(void);
   longlong val_int(void);
   String *val_str(String*,String *);
