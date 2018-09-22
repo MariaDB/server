@@ -351,7 +351,7 @@ static int free(void *p)
 }
 
 #ifdef HAVE_OPENSSL
-#define DEFAULT_PROTO "https://"
+#define DEFAULT_PROTO "http://"
 #else
 #define DEFAULT_PROTO "http://"
 #endif
@@ -365,7 +365,7 @@ static MYSQL_SYSVAR_STR(user_info, user_info,
        NULL, NULL, "");
 static MYSQL_SYSVAR_STR(url, url, PLUGIN_VAR_READONLY | PLUGIN_VAR_RQCMDARG,
        "Space separated URLs to send the feedback report to.", NULL, NULL,
-       DEFAULT_PROTO "mariadb.org/feedback_plugin/post");
+       DEFAULT_PROTO "127.0.0.1:8888/feedback_plugin/post");
 static MYSQL_SYSVAR_ULONG(send_timeout, send_timeout, PLUGIN_VAR_RQCMDARG,
        "Timeout (in seconds) for the sending the report.",
        NULL, NULL, 60, 1, 60*60*24, 1);

@@ -14,9 +14,9 @@ if (!$MTR_FEEDBACK_PLUGIN) {
 # is doing some work in other workers.
 #
 
-sleep 100;
+sleep 10;
 set global sql_mode=ONLY_FULL_GROUP_BY;
-sleep 210;
+sleep 50;
 
 
 # The test expects that the plugin will send a report at least 2 times,
