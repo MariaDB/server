@@ -43,7 +43,7 @@ void rdb_handle_io_error(const rocksdb::Status status,
 #if defined(__clang__)
     MY_ATTRIBUTE((optnone));
 #else
-    MY_ATTRIBUTE((optimize("O0")));
+    MY_ATTRIBUTE((noinline,noclone));
 #endif
 
 int rdb_normalize_tablename(const std::string &tablename, std::string *str)
