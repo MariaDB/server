@@ -1005,6 +1005,34 @@ disconnect con2;
 DROP USER user2@localhost;
 DROP DATABASE db1;
 
+#
+# Bug#27407480: AUTOMATIC_SP_PRIVILEGES REQUIRES NEED THE INSERT PRIVILEGES FOR MYSQL.USER TABLE
+#
+create user foo@local_ost;
+#
+# Create a user with an authentification plugin 'foobar'.
+# Instead of using a normal "CREATE USER <user> IDENTIFIED VIA <plugin>"
+# we do CREATE (without VIA) followed by UPDATE and FLUSH.
+# This is to avoid installing a real plugin and thus avoid the test dependency.
+# We won't login under this user in the below test, so this is fine.
+#
+create user foo@`local\_ost`;
+update mysql.user set plugin='foobar' where host='local\\_ost';
+flush privileges;
+create database foodb;
+grant create routine on foodb.* to foo@local_ost;
+connect con1,localhost,foo;
+select user(), current_user();
+show grants;
+create procedure fooproc() select 'i am fooproc';
+show grants;
+disconnect con1;
+connection default;
+drop user foo@local_ost;
+drop user foo@`local\_ost`;
+drop procedure fooproc;
+drop database foodb;
+
 --echo #
 --echo # Test for bug#12602983 - User without privilege on routine can discover
 --echo # its existence by executing "select non_existing_func();" or by 

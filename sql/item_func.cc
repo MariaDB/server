@@ -940,7 +940,10 @@ longlong Item_func_hybrid_field_type::val_int()
   case INT_RESULT:
     return int_op();
   case REAL_RESULT:
-    return (longlong) rint(real_op());
+  {
+    bool error;
+    return double_to_longlong(real_op(), unsigned_flag, &error);
+  }
   case TIME_RESULT:
   {
     MYSQL_TIME ltime;

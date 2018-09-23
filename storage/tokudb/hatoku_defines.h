@@ -290,23 +290,23 @@ inline uint tokudb_uint3korr(const uchar *a) {
 typedef unsigned int pfs_key_t;
 
 #if defined(SAFE_MUTEX) || defined(HAVE_PSI_MUTEX_INTERFACE)
-#define mutex_t_lock(M) M.lock(__FILE__, __LINE__)
+#define mutex_t_lock(M) (M).lock(__FILE__, __LINE__)
 #else  // SAFE_MUTEX || HAVE_PSI_MUTEX_INTERFACE
-#define mutex_t_lock(M) M.lock()
+#define mutex_t_lock(M) (M).lock()
 #endif  // SAFE_MUTEX || HAVE_PSI_MUTEX_INTERFACE
 
 #if defined(SAFE_MUTEX)
-#define mutex_t_unlock(M) M.unlock(__FILE__, __LINE__)
+#define mutex_t_unlock(M) (M).unlock(__FILE__, __LINE__)
 #else  // SAFE_MUTEX
-#define mutex_t_unlock(M) M.unlock()
+#define mutex_t_unlock(M) (M).unlock()
 #endif  // SAFE_MUTEX
 
 #if defined(HAVE_PSI_RWLOCK_INTERFACE)
-#define rwlock_t_lock_read(M) M.lock_read(__FILE__, __LINE__)
-#define rwlock_t_lock_write(M) M.lock_write(__FILE__, __LINE__)
+#define rwlock_t_lock_read(M) (M).lock_read(__FILE__, __LINE__)
+#define rwlock_t_lock_write(M) (M).lock_write(__FILE__, __LINE__)
 #else  // HAVE_PSI_RWLOCK_INTERFACE
-#define rwlock_t_lock_read(M) M.lock_read()
-#define rwlock_t_lock_write(M) M.lock_write()
+#define rwlock_t_lock_read(M) (M).lock_read()
+#define rwlock_t_lock_write(M) (M).lock_write()
 #endif  // HAVE_PSI_RWLOCK_INTERFACE
 
 #endif  // _HATOKU_DEFINES_H

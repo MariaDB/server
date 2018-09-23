@@ -48,7 +48,7 @@ static inline uint get_ext_key_parts(const KEY *key) {
 #endif  // defined(TOKU_INCLUDE_EXTENDED_KEYS) && TOKU_INCLUDE_EXTENDED_KEYS
 
 std::unordered_map<std::string, TOKUDB_SHARE*> TOKUDB_SHARE::_open_tables;
-tokudb::thread::mutex_t TOKUDB_SHARE::_open_tables_mutex;
+tokudb::thread::mutex_t* TOKUDB_SHARE::_open_tables_mutex;
 
 static const char* ha_tokudb_exts[] = {
     ha_tokudb_ext,
@@ -154,6 +154,7 @@ static void free_key_and_col_info (KEY_AND_COL_INFO* kc_info) {
 
 void TOKUDB_SHARE::static_init() {
     assert_always(_open_tables.size() == 0);
+   _open_tables_mutex = new tokudb::thread::mutex_t();
 }
 void TOKUDB_SHARE::static_destroy() {
     for (auto it = _open_tables.cbegin(); it != _open_tables.cend(); it++) {
@@ -164,6 +165,7 @@ void TOKUDB_SHARE::static_destroy() {
     }
     _open_tables.clear();
     assert_always(_open_tables.size() == 0);
+    delete _open_tables_mutex;
 }
 const char* TOKUDB_SHARE::get_state_string(share_state_t state) {
     static const char* state_string[] = {
@@ -218,7 +220,7 @@ TOKUDB_SHARE* TOKUDB_SHARE::get_share(const char* table_name,
                                       THR_LOCK_DATA* data,
                                       bool create_new) {
     std::string find_table_name(table_name);
-    mutex_t_lock(_open_tables_mutex);
+    mutex_t_lock(*_open_tables_mutex);
     auto it = _open_tables.find(find_table_name);
     TOKUDB_SHARE *share = nullptr;
     if (it != _open_tables.end()) {
@@ -251,7 +253,7 @@ TOKUDB_SHARE* TOKUDB_SHARE::get_share(const char* table_name,
         thr_lock_data_init(&(share->_thr_lock), data, NULL);
 
 exit:
-    mutex_t_unlock(_open_tables_mutex);
+    mutex_t_unlock(*_open_tables_mutex);
     return share;
 }
 void TOKUDB_SHARE::drop_share(TOKUDB_SHARE* share) {
@@ -262,12 +264,12 @@ void TOKUDB_SHARE::drop_share(TOKUDB_SHARE* share) {
                            get_state_string(share->_state),
                            share->_use_count);
 
-    mutex_t_lock(_open_tables_mutex);
+    mutex_t_lock(*_open_tables_mutex);
     size_t n = _open_tables.erase(std::string(share->full_table_name()));
     assert_always(n == 1);
     share->destroy();
     delete share;
-    mutex_t_unlock(_open_tables_mutex);
+    mutex_t_unlock(*_open_tables_mutex);
 }
 TOKUDB_SHARE::share_state_t TOKUDB_SHARE::addref() {
     TOKUDB_SHARE_TRACE_FOR_FLAGS((TOKUDB_DEBUG_ENTER & TOKUDB_DEBUG_SHARE),
