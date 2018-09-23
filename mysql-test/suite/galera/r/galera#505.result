@@ -1,3 +1,5 @@
+SET SESSION wsrep_sync_wait=0;
+SET SESSION wsrep_sync_wait=DEFAULT;
 SET GLOBAL wsrep_provider_options = 'pc.weight=3';
 SHOW GLOBAL VARIABLES LIKE 'wsrep_provider_options';
 Variable_name	Value
