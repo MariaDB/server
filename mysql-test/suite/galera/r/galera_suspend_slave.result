@@ -7,9 +7,11 @@ disconnect node_2;
 connection node_1;
 Suspending node_2 ...
 SET SESSION wsrep_sync_wait = 0;
+SET SESSION wsrep_sync_wait = 15;
 INSERT INTO t1 VALUES (1);
 Got one of the listed errors
 Resuming node_2 ...
+SET SESSION wsrep_sync_wait = 0;
 INSERT INTO t1 VALUES (1);
 connection node_2a;
 SET SESSION wsrep_sync_wait = 0;

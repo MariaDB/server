@@ -694,6 +694,38 @@ static void backup_truncate_fail()
 	    : " Use --lock-ddl-per-table to lock all tables before backup.");
 }
 
+
+/*
+  Retrieve default data directory, to be used with --copy-back.
+
+  On Windows, default datadir is ..\data, relative to the
+  directory where mariabackup.exe is located(usually "bin")
+
+  Elsewhere, the compiled-in constant MYSQL_DATADIR is used.
+*/
+static char *get_default_datadir() {
+	static char ddir[] = MYSQL_DATADIR;
+#ifdef _WIN32
+	static char buf[MAX_PATH];
+	DWORD size = (DWORD)sizeof(buf) - 1;
+	if (GetModuleFileName(NULL, buf, size) <= size)
+	{
+		char *p;
+		if ((p = strrchr(buf, '\\')))
+		{
+			*p = 0;
+			if ((p = strrchr(buf, '\\')))
+			{
+				strncpy(p + 1, "data", buf + MAX_PATH - p);
+				return buf;
+			}
+		}
+	}
+#endif
+	return ddir;
+}
+
+
 /* ======== Date copying thread context ======== */
 
 typedef struct {
@@ -6313,8 +6345,7 @@ static int main_low(char** argv)
 
 	if (xtrabackup_copy_back || xtrabackup_move_back) {
 		if (!check_if_param_set("datadir")) {
-			msg("Error: datadir must be specified.\n");
-			return(EXIT_FAILURE);
+			mysql_data_home = get_default_datadir();
 		}
 		if (!copy_back())
 			return(EXIT_FAILURE);

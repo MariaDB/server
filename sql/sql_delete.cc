@@ -1025,6 +1025,7 @@ multi_delete::~multi_delete()
   {
     TABLE *table= table_being_deleted->table;
     table->no_keyread=0;
+    table->no_cache= 0;
   }
 
   for (uint counter= 0; counter < num_of_tables; counter++)

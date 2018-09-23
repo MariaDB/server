@@ -450,6 +450,7 @@ void tc_release_table(TABLE *table)
   uint32 i= table->instance;
   DBUG_ASSERT(table->in_use);
   DBUG_ASSERT(table->file);
+  DBUG_ASSERT(!table->pos_in_locked_tables);
 
   mysql_mutex_lock(&tc[i].LOCK_table_cache);
   if (table->needs_reopen() || table->s->tdc->flushed ||

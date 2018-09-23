@@ -5,6 +5,8 @@
 --source include/galera_cluster.inc
 --source include/have_innodb.inc
 
+call mtr.add_suppression("WSREP: Last Applied Action message in non-primary configuration from member .*");
+
 --connection node_1
 
 # Enable the master to continue running during the split-brain situation that

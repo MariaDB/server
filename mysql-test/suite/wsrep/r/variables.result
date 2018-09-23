@@ -60,6 +60,8 @@ wsrep_local_send_queue_min	#
 wsrep_local_state	#
 wsrep_local_state_comment	#
 wsrep_local_state_uuid	#
+wsrep_open_connections	#
+wsrep_open_transactions	#
 wsrep_protocol_version	#
 wsrep_provider_name	#
 wsrep_provider_vendor	#

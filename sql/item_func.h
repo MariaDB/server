@@ -396,7 +396,10 @@ public:
   String *val_str(String*str);
   my_decimal *val_decimal(my_decimal *decimal_value);
   longlong val_int()
-    { DBUG_ASSERT(fixed == 1); return (longlong) rint(val_real()); }
+  {
+    DBUG_ASSERT(fixed == 1);
+    return Converter_double_to_longlong(val_real(), unsigned_flag).result();
+  }
   enum Item_result result_type () const { return REAL_RESULT; }
   enum_field_types field_type() const { return MYSQL_TYPE_DOUBLE; }
   bool fix_length_and_dec()
@@ -1643,7 +1646,8 @@ class Item_func_udf_float :public Item_udf_func
   longlong val_int()
   {
     DBUG_ASSERT(fixed == 1);
-    return (longlong) rint(Item_func_udf_float::val_real());
+    return Converter_double_to_longlong(Item_func_udf_float::val_real(),
+                                        unsigned_flag).result();
   }
   my_decimal *val_decimal(my_decimal *dec_buf)
   {

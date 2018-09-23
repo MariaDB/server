@@ -57,9 +57,18 @@ case "$1" in
         readonly WSREP_SST_OPT_MODULE=${remain%%/*}
         readonly WSREP_SST_OPT_PATH=${WSREP_SST_OPT_ADDR#*/}
         remain=${WSREP_SST_OPT_PATH#*/}
-        readonly WSREP_SST_OPT_LSN=${remain%%/*}
-        remain=${remain#*/}
-        readonly WSREP_SST_OPT_SST_VER=${remain%%/*}
+        if [ "$remain" != "${WSREP_SST_OPT_PATH}" ]; then
+            readonly WSREP_SST_OPT_LSN=${remain%%/*}
+            remain=${remain#*/}
+            if [ "$remain" != "${WSREP_SST_OPT_LSN}" ]; then
+                readonly WSREP_SST_OPT_SST_VER=${remain%%/*}
+            else
+                readonly WSREP_SST_OPT_SST_VER=""
+            fi
+        else
+            readonly WSREP_SST_OPT_LSN=""
+            readonly WSREP_SST_OPT_SST_VER=""
+        fi
         shift
         ;;
     '--bypass')

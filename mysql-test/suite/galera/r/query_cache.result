@@ -421,24 +421,6 @@ Qcache_queries_in_cache	1
 set query_cache_type=on;
 # On node-1
 connection node_1;
-reset query cache;
-show status like "Qcache_queries_in_cache";
-Variable_name	Value
-Qcache_queries_in_cache	0
-show status like "Qcache_hits";
-Variable_name	Value
-Qcache_hits	4
-# On node-2
-connection node_2;
-reset query cache;
-show status like "Qcache_queries_in_cache";
-Variable_name	Value
-Qcache_queries_in_cache	0
-show status like "Qcache_hits";
-Variable_name	Value
-Qcache_hits	3
-# On node-1
-connection node_1;
 select sql_no_cache * from t1;
 a
 1
@@ -1318,9 +1300,6 @@ Qcache_queries_in_cache	0
 show status like "Qcache_hits";
 Variable_name	Value
 Qcache_hits	12
-select count(*) from t1;
-count(*)
-70
 # On node-2
 connection node_2;
 select count(*) from t1;
@@ -1328,7 +1307,7 @@ count(*)
 70
 show status like "Qcache_queries_in_cache";
 Variable_name	Value
-Qcache_queries_in_cache	1
+Qcache_queries_in_cache	2
 show status like "Qcache_hits";
 Variable_name	Value
 Qcache_hits	11
@@ -1515,7 +1494,7 @@ Variable_name	Value
 Qcache_hits	11
 show status like "Qcache_inserts";
 Variable_name	Value
-Qcache_inserts	34
+Qcache_inserts	35
 unlock table;
 drop view v1;
 set query_cache_wlock_invalidate=default;
@@ -1626,7 +1605,7 @@ Variable_name	Value
 Qcache_hits	11
 show status like "Qcache_inserts";
 Variable_name	Value
-Qcache_inserts	36
+Qcache_inserts	37
 set character_set_client=cp1251;
 SELECT a,'Â','â'='Â' FROM t1;
 a	??	'??'='?�'
@@ -1640,7 +1619,7 @@ Variable_name	Value
 Qcache_hits	11
 show status like "Qcache_inserts";
 Variable_name	Value
-Qcache_inserts	37
+Qcache_inserts	38
 set character_set_results=cp1251;
 SELECT a,'Â','â'='Â' FROM t1;
 a	�?	'â'='Â'
@@ -1654,7 +1633,7 @@ Variable_name	Value
 Qcache_hits	11
 show status like "Qcache_inserts";
 Variable_name	Value
-Qcache_inserts	38
+Qcache_inserts	39
 drop table t1;
 #
 # Comments before command
@@ -1665,9 +1644,6 @@ create table t1 (a int) engine=innodb;
 show status like "Qcache_queries_in_cache";
 Variable_name	Value
 Qcache_queries_in_cache	0
-show status like "Qcache_inserts";
-Variable_name	Value
-Qcache_inserts	46
 show status like "Qcache_hits";
 Variable_name	Value
 Qcache_hits	12
@@ -1678,9 +1654,6 @@ a
 show status like "Qcache_queries_in_cache";
 Variable_name	Value
 Qcache_queries_in_cache	1
-show status like "Qcache_inserts";
-Variable_name	Value
-Qcache_inserts	47
 show status like "Qcache_hits";
 Variable_name	Value
 Qcache_hits	13
@@ -1689,9 +1662,6 @@ connection node_2;
 show status like "Qcache_queries_in_cache";
 Variable_name	Value
 Qcache_queries_in_cache	0
-show status like "Qcache_inserts";
-Variable_name	Value
-Qcache_inserts	38
 show status like "Qcache_hits";
 Variable_name	Value
 Qcache_hits	11
@@ -1702,9 +1672,6 @@ a
 show status like "Qcache_queries_in_cache";
 Variable_name	Value
 Qcache_queries_in_cache	1
-show status like "Qcache_inserts";
-Variable_name	Value
-Qcache_inserts	39
 show status like "Qcache_hits";
 Variable_name	Value
 Qcache_hits	12

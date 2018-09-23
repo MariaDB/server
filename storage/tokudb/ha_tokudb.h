@@ -274,7 +274,7 @@ public:
 
 private:
     static std::unordered_map<std::string, TOKUDB_SHARE*> _open_tables;
-    static tokudb::thread::mutex_t _open_tables_mutex;
+    static tokudb::thread::mutex_t* _open_tables_mutex;
 
     //*********************************
     // Spans open-close-open

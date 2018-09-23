@@ -10,14 +10,13 @@ TRUNCATE TABLE mysql.general_log;
 
 --sleep 1
 --connection node_2
-TRUNCATE TABLE mysql.general_log;
---let $wait_condition = SELECT COUNT(*) = 0 FROM mysql.general_log WHERE argument LIKE 'TRUNCATE%';
+--let $wait_condition = SELECT COUNT(*) = 0 FROM mysql.general_log;
 --source include/wait_condition.inc
-SELECT Argument FROM mysql.general_log;
+TRUNCATE TABLE mysql.general_log;
 
 --sleep 1
 --connection node_1
---let $wait_condition = SELECT COUNT(*) = 0 FROM mysql.general_log WHERE argument LIKE 'TRUNCATE%';
+--let $wait_condition = SELECT COUNT(*) = 0 FROM mysql.general_log;
 --source include/wait_condition.inc
 SELECT Argument FROM mysql.general_log;
 
@@ -34,7 +33,10 @@ SET SESSION wsrep_osu_method=TOI;
 SELECT argument FROM mysql.general_log WHERE argument LIKE 'CREATE%' OR argument LIKE 'ALTER%';
 
 --connection node_2
-SET GLOBAL general_log='ON';
-SELECT COUNT(*) = 0 FROM mysql.general_log WHERE argument NOT LIKE 'SELECT%';
+SELECT Argument FROM mysql.general_log;
 DROP TABLE t1;
+SET GLOBAL general_log='OFF';
+
+--connection node_1
+SET GLOBAL general_log='OFF';
 

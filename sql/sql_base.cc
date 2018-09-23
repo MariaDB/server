@@ -646,6 +646,7 @@ close_all_tables_for_name(THD *thd, TABLE_SHARE *share,
   uint key_length= share->table_cache_key.length;
   const char *db= key;
   const char *table_name= db + share->db.length + 1;
+  bool remove_from_locked_tables= extra != HA_EXTRA_NOT_USED;
 
   memcpy(key, share->table_cache_key.str, key_length);
 
@@ -659,7 +660,7 @@ close_all_tables_for_name(THD *thd, TABLE_SHARE *share,
     {
       thd->locked_tables_list.unlink_from_list(thd,
                                                table->pos_in_locked_tables,
-                                               extra != HA_EXTRA_NOT_USED);
+                                               remove_from_locked_tables);
       /* Inform handler that there is a drop table or a rename going on */
       if (extra != HA_EXTRA_NOT_USED && table->db_stat)
       {
@@ -3745,6 +3746,10 @@ lock_table_names(THD *thd, const DDL_options_st &options,
     mdl_requests.push_front(&global_request);
 
     if (create_table)
+    #ifdef WITH_WSREP
+      if (thd->lex->sql_command != SQLCOM_CREATE_TABLE &&
+          thd->wsrep_exec_mode != REPL_RECV)
+    #endif
       lock_wait_timeout= 0;                     // Don't wait for timeout
   }
 
