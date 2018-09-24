@@ -1075,9 +1075,6 @@ struct dict_index_t {
 	/** @return whether the index is corrupted */
 	inline bool is_corrupted() const;
 
-	/** Whether the index has dropped fields. */
-	bool is_drop_field_exist() const;
-
 	/** Detach the columns from the index that is to be freed. */
 	void detach_columns()
 	{
@@ -1134,16 +1131,12 @@ struct dict_index_t {
 	@return number of non-drop nullable fields in the index. */
 	unsigned get_n_non_drop_nullable_fields() const
 	{
+		DBUG_ASSERT(n_fields <= n_def);
 		unsigned n = 0;
-		for (ulint i = 0; i < n_fields; i++) {
-			const dict_col_t* col = fields[i].col;
-
-			if (!col->is_nullable()) {
-				n++;
-			}
+		for (unsigned i = 0; i < n_fields; i++) {
+			n += !fields[i].col->is_nullable();
 		}
 
-		DBUG_ASSERT(n <= n_def);
 		return n;
 	}
 
@@ -1574,6 +1567,15 @@ struct dict_vcol_templ_t {
 	dict_vcol_templ_t() : vtempl(0), mysql_table_query_id(~0ULL) {}
 };
 
+/** Instantly dropped or reordered columns */
+struct dict_instant_t
+{
+	/** Number of dropped columns */
+	unsigned n_dropped;
+	/** Dropped columns */
+	dict_col_t* dropped;
+};
+
 /** These are used when MySQL FRM and InnoDB data dictionary are
 in inconsistent state. */
 typedef enum {
@@ -1639,6 +1641,9 @@ struct dict_table_t {
 		return(!(flags & DICT_TF_MASK_ZIP_SSIZE));
 	}
 
+	/** @return the number of instantly dropped columns */
+	unsigned n_dropped() const { return instant ? instant->n_dropped : 0; }
+
 	/** Read the metadata blob and fill the non primary fields,
 	non-drop nullable fields and fill the drop columns in the
 	vector.
@@ -1670,7 +1675,7 @@ struct dict_table_t {
 	@param[in]	col_map		mapping of cols from old table
 					to new table
 	@param[in]	n_newly_drop	number of newly drop column */
-	void fill_dropped_column(
+	inline void fill_dropped_column(
 		const dict_table_t&	table,
 		const ulint*		col_map,
 		ulint			n_newly_drop);
@@ -1844,11 +1849,8 @@ struct dict_table_t {
 	reason s_cols is a part of dict_table_t */
 	dict_s_col_list*			s_cols;
 
-	/** List of dropped columns. */
-	dict_col_t*				dropped_cols;
-
-	/** Number of dropped columns. */
-	unsigned				n_dropped_cols:10;
+	/** Instantly dropped or reordered columns, or NULL if none */
+	dict_instant_t*				instant;
 
 	/** Column names packed in a character string
 	"name1\0name2\0...nameN\0". Until the string contains n_cols, it will
@@ -2140,14 +2142,13 @@ inline bool dict_index_t::is_readable() const { return table->is_readable(); }
 inline bool dict_index_t::is_instant() const
 {
 	ut_ad(n_core_fields > 0);
-	ut_ad(n_core_fields <= n_fields || is_drop_field_exist());
+	ut_ad(n_core_fields <= n_fields || table->n_dropped());
 	ut_ad(n_core_fields == n_fields
 	      || (type & ~(DICT_UNIQUE | DICT_CORRUPT)) == DICT_CLUSTERED);
 	ut_ad(n_core_fields == n_fields || table->supports_instant());
 	ut_ad(n_core_fields == n_fields || !table->is_temporary());
 
-	/* MDEV-15562 FIXME: reordered columns */
-	return n_core_fields != n_fields || is_drop_field_exist();
+	return n_core_fields != n_fields || table->instant;
 }
 
 inline bool dict_index_t::is_corrupted() const
@@ -2155,14 +2156,6 @@ inline bool dict_index_t::is_corrupted() const
 	return UNIV_UNLIKELY(online_status >= ONLINE_INDEX_ABORTED
 			     || (type & DICT_CORRUPT)
 			     || (table && table->corrupted));
-}
-
-
-/** Whether the index has dropped fields. */
-inline bool dict_index_t::is_drop_field_exist() const
-{
-	ut_ad(!table->n_dropped_cols || is_primary());
-	return table->n_dropped_cols > 0;
 }
 
 /*******************************************************************//**

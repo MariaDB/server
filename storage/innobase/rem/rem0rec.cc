@@ -328,14 +328,9 @@ ordinary:
 		ut_ad(index->is_instant());
 		/* fall through */
 	case REC_LEAF_TEMP_INSTANT:
-
-		if (index->is_drop_field_exist()
-		    && !rec_is_metadata(rec, index)) {
-			n_fields = n_core + rec_get_n_add_field(nulls);
-		} else {
-			n_fields = n_core + 1 + rec_get_n_add_field(nulls);
-		}
-
+		n_fields = n_core + rec_get_n_add_field(nulls)
+			+ (!index->table->instant
+			   || rec_is_metadata(rec, index));
 		ut_ad(n_fields <= index->n_fields);
 		const ulint n_nullable = index->get_n_nullable(n_fields);
 		const ulint n_null_bytes = UT_BITS_IN_BYTES(n_nullable);
@@ -1121,7 +1116,8 @@ rec_get_offsets_func(
 		      || n == n_fields /* btr_pcur_restore_position() */
 		      || (n + (index->id == DICT_INDEXES_ID)
 			  >= index->n_core_fields && n <= index->n_fields
-			  + index->table->n_dropped_cols));
+			  + (index->table->instant
+			     ? index->table->instant->n_dropped : 0)));
 
 		if (is_user_rec && leaf && n < index->n_fields) {
 			ut_ad(!index->is_dummy);
@@ -1350,7 +1346,7 @@ rec_get_metadata_converted_size(
 	ulint*			extra)
 {
 	ut_ad(dict_index_is_clust(clust_index));
-	ut_ad(clust_index);
+	ut_ad(clust_index->table->instant);
 	ut_ad(tuple);
 	ut_ad(dtuple_check_typed(tuple));
 
@@ -1366,7 +1362,7 @@ rec_get_metadata_converted_size(
 	and number of dropped fields. */
 	int	n_null_bytes = UT_BITS_IN_BYTES(
 				clust_index->get_n_non_drop_nullable_fields()
-				+ clust_index->table->n_dropped_cols);
+				+ clust_index->table->instant->n_dropped);
 
 	extra_size += n_null_bytes;
 
@@ -1462,9 +1458,9 @@ rec_get_converted_size_comp_prefix_low(
 		extra_size += UT_BITS_IN_BYTES(
 				index->get_n_nullable(n_fields));
 
-		if (index->is_drop_field_exist()) {
+		if (index->table->instant) {
 			extra_size += rec_get_n_add_field_len(
-					index->get_n_instant_cols(n_fields));
+				index->get_n_instant_cols(n_fields));
 		} else {
 			extra_size += rec_get_n_add_field_len(
 				n_fields - 1 - index->n_core_fields);
@@ -1839,9 +1835,9 @@ rec_convert_dtuple_to_default_rec_comp(
 	ulint		null_mask	= 1;
 
 	/* Nullable non-dropped fields + number of dropped fields. */
-	int		n_null_bytes = UT_BITS_IN_BYTES(
-				(clust_index->get_n_non_drop_nullable_fields()
-				 + clust_index->table->n_dropped_cols));
+	unsigned	n_null_bytes = UT_BITS_IN_BYTES(
+		(clust_index->get_n_non_drop_nullable_fields()
+				 + clust_index->table->instant->n_dropped));
 
 	rec_set_n_add_field(nulls, n_null_bytes);
 
@@ -1969,7 +1965,7 @@ rec_convert_dtuple_to_rec_comp(
 	case REC_STATUS_INSTANT:
 		ut_ad(index->is_instant());
 
-		if (index->is_drop_field_exist()) {
+		if (index->table->instant) {
 			rec_set_n_add_field(
 				nulls, index->get_n_instant_cols(n_fields));
 		} else {
@@ -2446,12 +2442,12 @@ rec_copy_prefix_to_buf(
 		if (UNIV_UNLIKELY(rec_is_alter_metadata(rec, index))) {
 			ulint	n_null_bytes = UT_BITS_IN_BYTES(
 				index->get_n_non_drop_nullable_fields()
-				+ index->table->n_dropped_cols);
+				+ index->table->instant->n_dropped);
 			nb += rec_get_n_add_field_len(n_null_bytes);
 
 			nb += n_null_bytes;
 		} else {
-			if (index->is_drop_field_exist()) {
+			if (index->table->instant) {
 				n_rec = ulint(index->n_core_fields)
 					+ rec_get_n_add_field(nulls);
 			} else {

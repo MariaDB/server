@@ -4363,7 +4363,8 @@ innobase_op_instant_try(
 
 	dict_table_t* user_table = ctx->old_table;
 
-	ulint	n_old_drop_cols = ctx->old_table->n_dropped_cols;
+	unsigned n_old_drop_cols = user_table->instant
+		? user_table->instant->n_dropped : 0;
 	ulint	n_old_fields = dict_table_get_first_index(user_table)->n_fields;
 
 	user_table->instant_op_column(
@@ -4502,7 +4503,7 @@ innobase_op_instant_try(
 
 	dtuple_t* entry;
 
-	if (index->is_drop_field_exist()) {
+	if (index->table->instant) {
 		entry = row_build_clust_default_entry(row, index, ctx->heap);
 		entry->info_bits = REC_INFO_METADATA_ALTER;
 	} else {
@@ -4535,20 +4536,14 @@ innobase_op_instant_try(
 			goto empty_table;
 		}
 
-		unsigned n = 0;
-
-		if (index->is_drop_field_exist()) {
-			n = ctx->n_instant_add_cols;
-			n += ctx->n_instant_drop_cols;
-		} else {
-			/* Extend the record with the instantly added columns. */
-			n = user_table->n_cols - ctx->old_n_cols;
-		}
+		/* Extend the record with the instantly added columns. */
+		unsigned n = user_table->instant
+			? ctx->n_instant_add_cols + ctx->n_instant_drop_cols
+			: user_table->n_cols - ctx->old_n_cols;
 		/* Reserve room for DB_TRX_ID,DB_ROLL_PTR and any
 		non-updated off-page columns in case they are moved off
 		page as a result of the update. */
-		const unsigned f = user_table->n_dropped_cols > 0
-				   || ctx->n_instant_drop_cols;
+		const unsigned f = user_table->instant != NULL;
 		upd_t* update = upd_create(index->n_fields, ctx->heap);
 		update->n_fields = n;
 		update->info_bits = f
@@ -4561,8 +4556,8 @@ innobase_op_instant_try(
 
 		for (unsigned i = 0; i < ctx->old_n_cols; i++) {
 			if (ctx->col_map[i] == ULINT_UNDEFINED) {
-				unsigned field_no = user_table->dropped_cols[
-					drop_cols_offset++].ind;
+				unsigned field_no = user_table->instant
+					->dropped[drop_cols_offset++].ind;
 				upd_field_t* uf = upd_get_nth_field(
 					update, j++);
 				uf->field_no = field_no;

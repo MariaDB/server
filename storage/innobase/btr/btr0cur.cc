@@ -4370,7 +4370,7 @@ any_extern:
 		return(DB_OVERFLOW);
 	}
 
-	if (rec_is_metadata(rec, index) && index->table->n_dropped_cols) {
+	if (rec_is_metadata(rec, index) && index->table->instant) {
 		goto any_extern;
 	}
 

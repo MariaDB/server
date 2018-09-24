@@ -1195,8 +1195,8 @@ operator<< (std::ostream& out, const dict_foreign_set& fk_set)
 fields. */
 void dict_index_t::reconstruct_fields()
 {
-	n_fields += table->n_dropped_cols;
-	n_def += table->n_dropped_cols;
+	n_fields += table->instant->n_dropped;
+	n_def += table->instant->n_dropped;
 
 	unsigned	n_pk_fields = unsigned(n_uniq + DATA_ROLL_PTR);
 
@@ -1213,7 +1213,7 @@ void dict_index_t::reconstruct_fields()
 		ulint	col_no = table->non_pk_col_map[i - n_pk_fields];
 		if (col_no == 0) {
 			/* Dropped Column */
-			temp_fields[i].col = &table->dropped_cols[j++];
+			temp_fields[i].col = &table->instant->dropped[j++];
 			ut_ad(i == unsigned(temp_fields[i].col->ind));
 		} else {
 			field = fields[old_field_no++];
@@ -1239,8 +1239,9 @@ void dict_index_t::remove_instant()
 		return;
 	}
 
-	if (table->n_dropped_cols == 0) {
-
+	const unsigned n_dropped = table->n_dropped();
+	if (!n_dropped) {
+		/* FIXME: reorder columns too! */
 		for (unsigned i = n_core_fields; i < n_fields; i++) {
 			fields[i].col->add_to_core();
 		}
@@ -1252,8 +1253,8 @@ void dict_index_t::remove_instant()
 	}
 
 	ulint	old_n_fields = n_fields;
-	n_fields -= table->n_dropped_cols;
-	n_def -= table->n_dropped_cols;
+	n_fields -= n_dropped;
+	n_def -= n_dropped;
 
 	unsigned	n_null = 0;
 	unsigned	new_field = 0;
@@ -1290,8 +1291,7 @@ void dict_index_t::remove_instant()
 	n_core_fields = n_fields;
 	n_nullable = n_null;
 	n_core_null_bytes = UT_BITS_IN_BYTES(n_null);
-	table->dropped_cols = NULL;
-	table->n_dropped_cols = 0;
+	table->instant = NULL;
 	table->non_pk_col_map = NULL;
 }
 
@@ -1319,8 +1319,8 @@ inline void dict_index_t::instant_op_field(
 
 	ulint	old_n_fields = n_fields;
 
-	n_fields = instant.n_fields + table->n_dropped_cols;
-	n_def = instant.n_def + table->n_dropped_cols;
+	n_fields = instant.n_fields + table->n_dropped();
+	n_def = instant.n_def + table->n_dropped();
 
 	unsigned	n_null = 0;
 	unsigned	n_non_drop_null = 0;
@@ -1337,9 +1337,10 @@ inline void dict_index_t::instant_op_field(
 		bool		is_dropped = false;
 		ulint		new_col_offset = 0;
 
-		for (unsigned j = 0; j < table->n_dropped_cols; j++) {
-			if (table->dropped_cols[j].ind == i) {
-				temp_field.col = &table->dropped_cols[j];
+		for (unsigned j = 0; j < table->n_dropped(); j++) {
+			dict_col_t* col = &table->instant->dropped[j];
+			if (col->ind == i) {
+				temp_field.col = col;
 				is_dropped = true;
 				break;
 			}
@@ -1352,7 +1353,8 @@ inline void dict_index_t::instant_op_field(
 
 			if (i >= old_n_fields) {
 
-				new_col_offset = i - (DATA_N_SYS_COLS + table->n_dropped_cols);
+				new_col_offset = i - DATA_N_SYS_COLS
+					- table->n_dropped();
 
 				if (!dict_index_is_auto_gen_clust(this)) {
 					new_col_offset += 1;
@@ -1471,9 +1473,9 @@ byte* dict_table_t::construct_metadata_blob(
 		unsigned col_no = non_pk_col_map[i];
 		col_no <<= INSTANT_FIELD_COL_NO_SHIFT;
 
-		for (ulint j = 0; col_no == 0 && j < n_dropped_cols;
+		for (ulint j = 0; col_no == 0 && j < instant->n_dropped;
 		     j++) {
-			if (dropped_cols[j].ind == i + num_pk_fields) {
+			if (instant->dropped[j].ind == i + num_pk_fields) {
 				col_no |= INSTANT_DROP_COL_FIXED;
 				break;
 			}
@@ -1491,6 +1493,7 @@ blob data.
 @param[in]	data	metadata blob data */
 void dict_table_t::construct_dropped_columns(const byte* data)
 {
+	ut_ad(!instant);
 	unsigned num_non_pk_fields = mach_read_from_4(data);
 	dict_index_t*	clust_index = dict_table_get_first_index(this);
 
@@ -1499,9 +1502,9 @@ void dict_table_t::construct_dropped_columns(const byte* data)
 
 	const byte*	field_data = data + INSTANT_NON_PK_FIELDS_LEN;
 	std::vector<ulint>	fixed_dcols;
+	unsigned n_dropped_cols = 0;
 
-	for (ulint i = 0; i < num_non_pk_fields; i++) {
-
+	for (unsigned i = 0; i < num_non_pk_fields; i++) {
 		unsigned col_no = mach_read_from_2(field_data);
 		bool is_fixed = col_no & INSTANT_DROP_COL_FIXED;
 		col_no >>= INSTANT_FIELD_COL_NO_SHIFT;
@@ -1517,24 +1520,23 @@ void dict_table_t::construct_dropped_columns(const byte* data)
 		field_data += INSTANT_FIELD_LEN;
 	}
 
-	dropped_cols = static_cast<dict_col_t*>(mem_heap_zalloc(
+	dict_col_t* dropped_cols = static_cast<dict_col_t*>(mem_heap_zalloc(
 		heap, n_dropped_cols * sizeof(dict_col_t)));
+	instant = new (mem_heap_alloc(heap, sizeof instant)) dict_instant_t();
+	instant->n_dropped = n_dropped_cols;
+	instant->dropped = dropped_cols;
 
-	ulint j = 0;
-	for (ulint i = 0; i < n_dropped_cols; i++) {
+	unsigned j = 0;
+	for (unsigned i = 0; i < n_dropped_cols; i++) {
 		dict_col_t&	drop_col = dropped_cols[i];
 		bool		is_fixed = false;
 		drop_col.dropped = true;
 
 		while (j < num_non_pk_fields) {
-			if (non_pk_col_map[j] == 0) {
-			    drop_col.ind = unsigned(
-				j + clust_index->n_uniq + DATA_ROLL_PTR);
-				j++;
+			if (non_pk_col_map[j++] == 0) {
+				drop_col.ind = j + clust_index->n_uniq + 1;
 				break;
 			}
-
-			j++;
 		}
 
 		is_fixed = (std::find(fixed_dcols.begin(), fixed_dcols.end(),
@@ -1551,22 +1553,24 @@ void dict_table_t::construct_dropped_columns(const byte* data)
 @param[in]	table		instant table
 @param[in]	col_map		mapping of old table columns to new table
 @param[in]	n_newly_drop	number of instant drop column */
-void dict_table_t::fill_dropped_column(
+inline void dict_table_t::fill_dropped_column(
 	const dict_table_t&	table,
 	const ulint*		col_map,
 	ulint			n_newly_drop)
 {
-	ulint	n_total_drop_col = n_dropped_cols + n_newly_drop;
+	unsigned j = instant ? instant->n_dropped : 0;
+	ulint	n_total_drop_col = j + n_newly_drop;
 	dict_col_t*	temp_drop_cols;
 
 	temp_drop_cols = static_cast<dict_col_t*>(mem_heap_zalloc(
 		heap, n_total_drop_col * sizeof(dict_col_t)));
 
-	memcpy(temp_drop_cols, dropped_cols, n_dropped_cols * sizeof(dict_col_t));
+	if (j) {
+		memcpy(temp_drop_cols, instant->dropped, j
+		       * sizeof *instant->dropped);
+	}
 
-	int j = n_dropped_cols;
-
-	for (int i = 0; i < n_def; i++) {
+	for (unsigned i = 0; i < n_def; i++) {
 		if (col_map[i] != ULINT_UNDEFINED) {
 			continue;
 		}
@@ -1597,9 +1601,14 @@ void dict_table_t::fill_dropped_column(
 	n_def -= n_newly_drop;
 	n_cols -= n_newly_drop;
 	n_t_cols -= n_newly_drop;
-	n_dropped_cols += n_newly_drop;
 
-	dropped_cols = temp_drop_cols;
+	if (!instant) {
+		instant = new (mem_heap_alloc(heap, sizeof *instant))
+			dict_instant_t();
+	}
+
+	instant->n_dropped = n_total_drop_col;
+	instant->dropped = temp_drop_cols;
 }
 
 /** Adjust table metadata for instant operation.
