@@ -1691,11 +1691,7 @@ struct dict_table_t {
 		ulint			n_newly_add,
 		ulint			n_newly_drop);
 
-	/** Adjust metadata for instant ADD COLUMN.
-	@param[in]	table	table definition after instant ADD COLUMN */
-	void instant_add_column(const dict_table_t& table);
-
-	/** Roll back instant_add_column().
+	/** Roll back instant_op_column().
 	@param[in]	old_n_cols	original n_cols
 	@param[in]	old_cols	original cols
 	@param[in]	old_col_names	original col_names */

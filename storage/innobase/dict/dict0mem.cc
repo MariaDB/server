@@ -1715,7 +1715,7 @@ void dict_table_t::instant_op_column(
 	}
 }
 
-/** Roll back instant_add_column().
+/** Roll back instant_op_column().
 @param[in]	old_n_cols	original n_cols
 @param[in]	old_cols	original cols
 @param[in]	old_col_names	original col_names */
