@@ -66,10 +66,8 @@ row_build_clust_default_entry(
 	dtuple_set_n_fields_cmp(
 		entry, dict_index_get_n_unique_in_tree(clust_index));
 
-	ulint	ind_field_no = 0;
-	ulint	field_no = 0;
-
-	for (field_no = 0; field_no < entry_n_fields; field_no++) {
+	for (ulint field_no = 0, ind_field_no = 0;
+	     field_no < entry_n_fields; field_no++) {
 		const dict_field_t*	ind_field = NULL;
 		const dict_col_t*	col;
 		ulint			col_no = 0;
@@ -79,12 +77,14 @@ row_build_clust_default_entry(
 
 		dfield = dtuple_get_nth_field(entry, field_no);
 
-		if (field_no == unsigned(clust_index->n_uniq + DATA_ROLL_PTR)) {
-			/* Reference to store the non-pk column info blob. */
-			void* data = mem_heap_zalloc(
-				heap, BTR_EXTERN_FIELD_REF_SIZE);
-			dfield->init_metadata_blob(
-				data, BTR_EXTERN_FIELD_REF_SIZE);
+		if (field_no == clust_index->n_uniq + 2) {
+			dfield_set_data(dfield, mem_heap_zalloc(
+						heap,
+						BTR_EXTERN_FIELD_REF_SIZE),
+					BTR_EXTERN_FIELD_REF_SIZE);
+			dfield_set_ext(dfield);
+			dfield->type.mtype = DATA_BLOB;
+			dfield->type.prtype = DATA_NOT_NULL;
 			continue;
 		}
 

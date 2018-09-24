@@ -607,15 +607,6 @@ struct dfield_t{
 		ut_ad(0);
 		return false;
 	}
-
-	void init_metadata_blob(void* value, ulint val_len)
-	{
-		data = value;
-		len = val_len;
-		type.mtype = DATA_BLOB;
-		type.prtype = DATA_NOT_NULL;
-		ext = 1;
-	}
 };
 
 /** Structure for an SQL data tuple of fields (logical record) */
