@@ -1319,7 +1319,6 @@ inline void dict_index_t::instant_op_field(
 	n_def = instant.n_def + table->n_dropped();
 
 	unsigned	n_null = 0;
-	unsigned	n_non_drop_null = 0;
 	ulint		old_field_no = 0;
 	ulint		new_field_no = 0;
 
@@ -1327,8 +1326,9 @@ inline void dict_index_t::instant_op_field(
 				heap, n_fields * sizeof *temp_fields));
 
 	for (unsigned i = 0; i < n_fields; i++) {
-		dict_field_t	field = fields[old_field_no];
-		dict_field_t	instant_field = instant.fields[new_field_no];
+		const dict_field_t* field = &fields[old_field_no];
+		const dict_field_t& instant_field
+			= instant.fields[new_field_no];
 		dict_field_t&	temp_field = temp_fields[i];
 		bool		is_dropped = false;
 		ulint		new_col_offset = 0;
@@ -1356,16 +1356,16 @@ inline void dict_index_t::instant_op_field(
 					new_col_offset += 1;
 				}
 
-				field = instant_field;
+				field = &instant_field;
 			} else {
-				new_col_offset = col_map[field.col->ind];
+				new_col_offset = col_map[field->col->ind];
 				old_field_no++;
 			}
 
 			new_field_no++;
 
-			temp_fields[i].prefix_len = field.prefix_len;
-			temp_fields[i].fixed_len = field.fixed_len;
+			temp_fields[i].prefix_len = field->prefix_len;
+			temp_fields[i].fixed_len = field->fixed_len;
 
 			const char* end = table->col_names;
 			for (unsigned col = 0; col < new_col_offset; col++) {
@@ -1376,13 +1376,7 @@ inline void dict_index_t::instant_op_field(
 			temp_fields[i].col = &table->cols[new_col_offset];
 		}
 
-		if (temp_fields[i].col->is_nullable()) {
-			n_null++;
-
-			if (!is_dropped) {
-				n_non_drop_null++;
-			}
-		}
+		n_null += temp_fields[i].col->is_nullable();
 	}
 
 	fields = temp_fields;
