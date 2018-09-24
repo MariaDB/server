@@ -1120,7 +1120,8 @@ rec_get_offsets_func(
 		      || dict_index_is_ibuf(index)
 		      || n == n_fields /* btr_pcur_restore_position() */
 		      || (n + (index->id == DICT_INDEXES_ID)
-			  >= index->n_core_fields && n <= index->n_fields));
+			  >= index->n_core_fields && n <= index->n_fields
+			  + index->table->n_dropped_cols));
 
 		if (is_user_rec && leaf && n < index->n_fields) {
 			ut_ad(!index->is_dummy);
