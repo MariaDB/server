@@ -1167,15 +1167,11 @@ struct dict_index_t {
 	@param[in]	n_newly_drop	number of newly dropped columns
 	@param[in]	col_map	mapping of old table cols
 					to new table cols */
-	void instant_op_field(
+	inline void instant_op_field(
 		const dict_index_t&	instant,
 		ulint			n_newly_add,
 		ulint			n_newly_drop,
 		const ulint*		col_map);
-
-	/** Adjust clustered index metadata for instant ADD COLUMN.
-	@param[in]	clustered index definition after instant ADD COLUMN */
-	void instant_add_field(const dict_index_t& instant);
 
 	/** Remove instant ALTER TABLE metadata.
 	Protected by index root page x-latch or table X-lock. */
