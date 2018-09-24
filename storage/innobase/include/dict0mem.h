@@ -1574,6 +1574,8 @@ struct dict_instant_t
 	unsigned n_dropped;
 	/** Dropped columns */
 	dict_col_t* dropped;
+	/** Mapping the non-pk field to column of the table. */
+	unsigned* non_pk_col_map;
 };
 
 /** These are used when MySQL FRM and InnoDB data dictionary are
@@ -1731,9 +1733,6 @@ struct dict_table_t {
 		my_atomic_addlint(&n_foreign_key_checks_running, ulint(-1));
 		ut_ad(fk_checks > 0);
 	}
-
-	/** Build the mapping of non-pk to column in the table. */
-	void build_non_pk_map();
 
 	/** Id of the table. */
 	table_id_t				id;
@@ -2097,9 +2096,6 @@ struct dict_table_t {
 	determine whether we can evict the table from the dictionary cache.
 	It is protected by lock_sys.mutex. */
 	ulint					n_rec_locks;
-
-	/** Mapping the non-pk field to column of the table. */
-	ulint*					non_pk_col_map;
 
 private:
 	/** Count of how many handles are opened to this table. Dropping of the

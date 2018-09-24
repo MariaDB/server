@@ -1202,25 +1202,22 @@ void dict_index_t::reconstruct_fields()
 
 	dict_field_t	field;
 	dict_field_t*	temp_fields = static_cast<dict_field_t*>(
-			mem_heap_zalloc(heap, n_fields * sizeof *temp_fields));
+		mem_heap_zalloc(heap, n_fields * sizeof *temp_fields));
 
 	memcpy(temp_fields, fields, n_pk_fields * sizeof(dict_field_t));
 
-	ulint	old_field_no = n_pk_fields;
-	ulint	j = 0;
-
-	for (ulint i = n_pk_fields; i < n_fields; i++) {
-		ulint	col_no = table->non_pk_col_map[i - n_pk_fields];
+	for (unsigned i = n_pk_fields, o = i, j = 0; i < n_fields; i++) {
+		unsigned col_no = table->instant->non_pk_col_map[
+			i - n_pk_fields];
 		if (col_no == 0) {
 			/* Dropped Column */
 			temp_fields[i].col = &table->instant->dropped[j++];
 			ut_ad(i == unsigned(temp_fields[i].col->ind));
 		} else {
-			field = fields[old_field_no++];
+			field = fields[o++];
 			temp_fields[i].col = &table->cols[col_no - 1];
 			temp_fields[i].name = dict_table_get_col_name(
-					table, dict_col_get_no(
-						temp_fields[i].col));
+				table, dict_col_get_no(temp_fields[i].col));
 			temp_fields[i].fixed_len = field.fixed_len;
 			temp_fields[i].prefix_len = field.prefix_len;
 		}
@@ -1248,7 +1245,7 @@ void dict_index_t::remove_instant()
 
 		n_core_fields = n_fields;
 		n_core_null_bytes = UT_BITS_IN_BYTES(n_nullable);
-		table->non_pk_col_map = NULL;
+		table->instant = NULL;
 		return;
 	}
 
@@ -1292,7 +1289,6 @@ void dict_index_t::remove_instant()
 	n_nullable = n_null;
 	n_core_null_bytes = UT_BITS_IN_BYTES(n_null);
 	table->instant = NULL;
-	table->non_pk_col_map = NULL;
 }
 
 /** Adjust clustered index metadata for instant ADD/DROP COLUMN.
@@ -1393,32 +1389,6 @@ inline void dict_index_t::instant_op_field(
 	n_nullable = n_null;
 }
 
-/** Build non primary fields to column number in the table. */
-void dict_table_t::build_non_pk_map()
-{
-	dict_index_t*	index = dict_table_get_first_index(this);
-
-	ulint		num_non_pk =
-		index->n_fields - (index->n_uniq + DATA_N_SYS_COLS - 1);
-
-	non_pk_col_map = static_cast<ulint*>(mem_heap_zalloc(
-				heap, num_non_pk * sizeof *non_pk_col_map));
-
-	unsigned last_sys_field = index->n_uniq + DATA_ROLL_PTR;
-	ulint j = 0;
-
-	for (ulint i = last_sys_field; i < index->n_fields; i++) {
-		dict_field_t*   field = dict_index_get_nth_field(index, i);
-
-		if (!field->col->is_dropped()) {
-			non_pk_col_map[j] =
-				dict_index_get_nth_col_no(index, i) + 1;
-		}
-
-		j++;
-	}
-}
-
 /** Read the metadata blob and fill the non primary fields,
 non-drop nullable fields and fill the drop columns in the vector.
 
@@ -1457,7 +1427,7 @@ byte* dict_table_t::construct_metadata_blob(
 	unsigned*	len)
 {
 	dict_index_t* clust_index = dict_table_get_first_index(this);
-	unsigned num_pk_fields = clust_index->n_uniq + DATA_ROLL_PTR;
+	unsigned num_pk_fields = clust_index->n_uniq + 2;
 	unsigned num_non_pk_fields = clust_index->n_fields - num_pk_fields;
 
 	*len = INSTANT_NON_PK_FIELDS_LEN
@@ -1470,11 +1440,10 @@ byte* dict_table_t::construct_metadata_blob(
 	byte* field_data = data + INSTANT_NON_PK_FIELDS_LEN;
 
 	for (ulint i = 0; i < num_non_pk_fields; i++) {
-		unsigned col_no = non_pk_col_map[i];
-		col_no <<= INSTANT_FIELD_COL_NO_SHIFT;
+		unsigned col_no = instant->non_pk_col_map[i]
+			<< INSTANT_FIELD_COL_NO_SHIFT;
 
-		for (ulint j = 0; col_no == 0 && j < instant->n_dropped;
-		     j++) {
+		for (ulint j = 0; col_no == 0 && j < instant->n_dropped; j++) {
 			if (instant->dropped[j].ind == i + num_pk_fields) {
 				col_no |= INSTANT_DROP_COL_FIXED;
 				break;
@@ -1497,11 +1466,12 @@ void dict_table_t::construct_dropped_columns(const byte* data)
 	unsigned num_non_pk_fields = mach_read_from_4(data);
 	dict_index_t*	clust_index = dict_table_get_first_index(this);
 
-	non_pk_col_map = static_cast<ulint*>(mem_heap_zalloc(
-				heap, num_non_pk_fields * sizeof *non_pk_col_map));
+	unsigned* non_pk_col_map = static_cast<unsigned*>(
+		mem_heap_zalloc(heap,
+				num_non_pk_fields * sizeof *non_pk_col_map));
 
 	const byte*	field_data = data + INSTANT_NON_PK_FIELDS_LEN;
-	std::vector<ulint>	fixed_dcols;
+	std::vector<unsigned> fixed_dcols;
 	unsigned n_dropped_cols = 0;
 
 	for (unsigned i = 0; i < num_non_pk_fields; i++) {
@@ -1522,9 +1492,10 @@ void dict_table_t::construct_dropped_columns(const byte* data)
 
 	dict_col_t* dropped_cols = static_cast<dict_col_t*>(mem_heap_zalloc(
 		heap, n_dropped_cols * sizeof(dict_col_t)));
-	instant = new (mem_heap_alloc(heap, sizeof instant)) dict_instant_t();
+	instant = new (mem_heap_alloc(heap, sizeof *instant)) dict_instant_t();
 	instant->n_dropped = n_dropped_cols;
 	instant->dropped = dropped_cols;
+	instant->non_pk_col_map = non_pk_col_map;
 
 	unsigned j = 0;
 	for (unsigned i = 0; i < n_dropped_cols; i++) {
@@ -1603,7 +1574,7 @@ inline void dict_table_t::fill_dropped_column(
 	n_t_cols -= n_newly_drop;
 
 	if (!instant) {
-		instant = new (mem_heap_alloc(heap, sizeof *instant))
+		instant = new (mem_heap_zalloc(heap, sizeof *instant))
 			dict_instant_t();
 	}
 
@@ -1698,7 +1669,28 @@ void dict_table_t::instant_op_column(
 	index->instant_op_field(*dict_table_get_first_index(&table),
 				n_newly_add, n_newly_drop, col_map);
 
-	build_non_pk_map();
+	if (instant || n_newly_drop || n_dropped()) {
+		unsigned num_non_pk = index->n_fields - (index->n_uniq + 2);
+		unsigned* non_pk_col_map = static_cast<unsigned*>(
+			mem_heap_zalloc(heap, num_non_pk
+					* sizeof *non_pk_col_map));
+		for (unsigned i = index->n_uniq + 2, j = 0;
+		     i < index->n_fields; i++) {
+			if (!dict_index_get_nth_col(index, i)->is_dropped()) {
+				non_pk_col_map[j] =
+					dict_index_get_nth_col_no(index, i) + 1;
+			}
+
+			j++;
+		}
+
+		if (!instant) {
+			instant = new (mem_heap_zalloc(heap, sizeof *instant))
+				dict_instant_t();
+		}
+
+		instant->non_pk_col_map = non_pk_col_map;
+	}
 
 	while ((index = dict_table_get_next_index(index)) != NULL) {
 		if (index->to_be_dropped) {
@@ -1715,7 +1707,7 @@ void dict_table_t::instant_op_column(
 				GEN_CLUST_INDEX instead of PRIMARY KEY),
 				but not DB_TRX_ID,DB_ROLL_PTR. */
 				DBUG_ASSERT(field.col >= old_cols);
-				size_t n = col_map[(field.col - old_cols)];
+				ulint n = col_map[field.col - old_cols];
 				field.col = &cols[n];
 				DBUG_ASSERT(!field.col->is_virtual());
 				field.name = field.col->name(*this);
