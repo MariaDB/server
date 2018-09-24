@@ -709,7 +709,7 @@ instant_alter_column_possible(
 	if (ha_alter_info->handler_flags
 	    & ((INNOBASE_ALTER_REBUILD | INNOBASE_ONLINE_CREATE)
 	       & ~ALTER_DROP_STORED_COLUMN
-	       /* & ~ALTER_STORED_COLUMN_ORDER // MDEV-15562 TODO: implement */
+	       & ~ALTER_STORED_COLUMN_ORDER
 	       & ~ALTER_ADD_STORED_BASE_COLUMN & ~ALTER_OPTIONS)) {
 		return false;
 	}
@@ -1304,11 +1304,7 @@ next_column:
 	if (supports_instant
 	    || !(ha_alter_info->handler_flags
 		 & ~(INNOBASE_ALTER_INSTANT | INNOBASE_INPLACE_IGNORE))) {
-		/* MDEV-15526 FIXME: remove the condition below */
-		if (!innobase_fulltext_exist(table)
-		    || innobase_fulltext_exist(altered_table)) {
-			DBUG_RETURN(HA_ALTER_INPLACE_INSTANT);
-		}
+		DBUG_RETURN(HA_ALTER_INPLACE_INSTANT);
 	}
 
 	bool	fts_need_rebuild = false;
