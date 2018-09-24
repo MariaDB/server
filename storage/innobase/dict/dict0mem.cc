@@ -1503,7 +1503,7 @@ void dict_table_t::construct_dropped_columns(const byte* data)
 	for (ulint i = 0; i < num_non_pk_fields; i++) {
 
 		unsigned col_no = mach_read_from_2(field_data);
-		bool is_fixed = col_no | INSTANT_DROP_COL_FIXED;
+		bool is_fixed = col_no & INSTANT_DROP_COL_FIXED;
 		col_no >>= INSTANT_FIELD_COL_NO_SHIFT;
 
 		if (col_no == 0) {
