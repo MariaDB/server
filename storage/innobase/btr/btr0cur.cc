@@ -385,66 +385,6 @@ btr_cur_latch_leaves(
 	return(latch_leaves);
 }
 
-
-/** Initialize the clustered index from the hidden metadata record.
-@param[in]	rec	metadata record
-@param[in,out]	index	clustered index definition
-@param[in]	heap	memory heap to store all the fields
-@return	error code
-@retval	DB_SUCCESS	if no error occurred
-@retval	DB_CORRUPTION	if any corruption was noticed */
-static
-void
-btr_cur_instant_init_clust_index(
-	const rec_t*	rec,
-	dict_index_t*	index,
-	mem_heap_t*	heap)
-{
-	dict_index_t*	dummy_index;
-	dict_field_t*	field;
-
-	dummy_index = dict_mem_index_create(
-			index->table, index->name, index->type,
-			index->n_uniq + DATA_ROLL_PTR);
-	dummy_index->n_user_defined_cols = dummy_index->n_fields;
-	dummy_index->id = index->id;
-	dummy_index->n_uniq = index->n_uniq;
-	dummy_index->n_core_fields = index->n_core_fields;
-	for (ulint i = 0; i < unsigned(index->n_uniq + DATA_ROLL_PTR); i++) {
-		field = dict_index_get_nth_field(index, i);
-		dict_index_add_col(dummy_index, index->table, field->col,
-				field->prefix_len);
-	}
-
-	ulint		len;
-	ulint		blob_len;
-	const byte*	field_data;
-	byte*		blob_data;
-
-	ulint*	rec_offsets = rec_get_offsets(rec, dummy_index, NULL,
-			true, ULINT_UNDEFINED, &heap);
-	ut_ad(rec_offs_any_extern(rec_offsets));
-
-	field_data = rec_get_nth_field(
-			rec, rec_offsets,
-			unsigned(index->n_uniq + DATA_ROLL_PTR), &len);
-
-	if (rec_offs_nth_extern(
-		rec_offsets,
-		unsigned(index->n_uniq + DATA_ROLL_PTR))) {
-		blob_data = btr_copy_externally_stored_field(
-			&blob_len, field_data,
-			dict_table_page_size(index->table),
-			len, index->table->heap);
-	}
-
-	dict_mem_index_free(dummy_index);
-
-	index->table->construct_dropped_columns(blob_data);
-
-	index->reconstruct_fields();
-}
-
 /** Initialize the clustered index from the hidden metadata record
 of an instant alter and store the length of the dropped column and
 default value for the instantly added columns.
@@ -462,13 +402,33 @@ btr_cur_instant_init_metadata(
 	ulint		n_drop_nullable = 0;
 	ulint*		offsets;
 	ulint		len;
-	mem_heap_t*	heap = NULL;
+	mem_heap_t*	heap = mem_heap_create(UNIV_PAGE_SIZE_MAX);
 
-	/** Construct dummy index to fetch till metadata blob. */
-	btr_cur_instant_init_clust_index(rec, index, heap);
+	ulint trx_id_offset = index->trx_id_offset;
+	if (!trx_id_offset) {
+		ulint*	offsets = rec_get_offsets(
+			rec, index, NULL, true, index->n_uniq, &heap);
+		trx_id_offset = rec_offs_size(offsets);
+		mem_heap_empty(heap);
+	}
 
+	const byte* data = btr_copy_externally_stored_field(
+		&len, rec + trx_id_offset
+		+ (DATA_TRX_ID_LEN + DATA_ROLL_PTR_LEN),
+		dict_table_page_size(index->table),
+		BTR_EXTERN_FIELD_REF_SIZE, heap);
+	/* FIXME: validate len; check that the end of the last BLOB
+	page is filled with zero bytes */
+
+	index->table->construct_dropped_columns(data);
+	mem_heap_empty(heap);
+
+	index->reconstruct_fields();
+
+	/* FIXME: Do we really need rec_get_offsets() here?
+	Better read the metadata record header directly. */
 	offsets = rec_get_offsets(rec, index, NULL, true,
-			ULINT_UNDEFINED, &heap);
+				  ULINT_UNDEFINED, &heap);
 
 	for (unsigned i = index->n_uniq + DATA_ROLL_PTR;
 	     i < index->n_fields; i++) {
