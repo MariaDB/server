@@ -1,0 +1,17 @@
+--source include/have_innodb.inc
+
+CREATE TABLE t (a SERIAL) ENGINE=InnoDB;
+
+connect (dml,localhost,root);
+# At the end of this statement, close_thread_tables()
+# should add the open table handle to the table definition cache (tdc).
+select * from t;
+
+connection default;
+# This should purge the handle from the tdc;
+# otherwise ha_innobase::truncate() would hang,
+# waiting for the reference count to drop to 0.
+TRUNCATE TABLE t;
+disconnect dml;
+
+DROP TABLE t;

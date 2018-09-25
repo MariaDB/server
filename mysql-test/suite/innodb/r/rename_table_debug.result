@@ -1,0 +1,13 @@
+FLUSH TABLES;
+CREATE TABLE t1 (a SERIAL, b INT, c INT, d INT) ENGINE=InnoDB;
+INSERT INTO t1 () VALUES ();
+connect  con1,localhost,root,,test;
+SET DEBUG_SYNC='before_rename_table_commit SIGNAL renamed WAIT_FOR ever';
+RENAME TABLE t1 TO t2;
+connection default;
+SET DEBUG_SYNC='now WAIT_FOR renamed';
+disconnect con1;
+SELECT * FROM t1;
+a	b	c	d
+1	NULL	NULL	NULL
+DROP TABLE t1;

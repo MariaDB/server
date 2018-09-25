@@ -88,8 +88,4 @@ CHECK TABLE t1;
 DROP TABLE t1,t;
 
 # Work around missing crash recovery at the SQL layer.
-let $temp_table_name = `SELECT SUBSTRING(name,6)
-	FROM information_schema.innodb_sys_tables
-	WHERE name LIKE "test/#sql-%"`;
---replace_regex /#sql-[0-9a-f_]*/#sql-temporary/
-eval DROP TABLE `#mysql50#$temp_table_name`;
+--remove_files_wildcard $datadir/test #sql-*.frm

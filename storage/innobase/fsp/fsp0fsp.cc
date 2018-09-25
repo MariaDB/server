@@ -639,7 +639,6 @@ fsp_space_modify_check(
 		ut_ad(space->purpose == FIL_TYPE_TEMPORARY
 		      || space->purpose == FIL_TYPE_IMPORT
 		      || space->redo_skipped_count
-		      || space->is_being_truncated
 		      || srv_is_tablespace_truncated(space->id));
 		return;
 	case MTR_LOG_ALL:

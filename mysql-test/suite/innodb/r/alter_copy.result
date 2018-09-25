@@ -183,7 +183,6 @@ CHECK TABLE t1;
 Table	Op	Msg_type	Msg_text
 test.t1	check	status	OK
 #sql-temporary.frm
-#sql-temporary.ibd
 FTS_INDEX_1.ibd
 FTS_INDEX_2.ibd
 FTS_INDEX_3.ibd
@@ -212,4 +211,3 @@ t.ibd
 t1.frm
 t1.ibd
 DROP TABLE t1,t;
-DROP TABLE `#mysql50##sql-temporary`;

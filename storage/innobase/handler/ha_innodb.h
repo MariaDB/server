@@ -26,6 +26,9 @@ extern const char innobase_index_reserve_name[];
 /** Prebuilt structures in an InnoDB table handle used within MySQL */
 struct row_prebuilt_t;
 
+/** InnoDB transaction */
+struct trx_t;
+
 /** Engine specific table options are defined using this struct */
 struct ha_table_option_struct
 {
@@ -196,6 +199,13 @@ public:
 
 	void update_create_info(HA_CREATE_INFO* create_info);
 
+	inline int create(
+		const char*		name,
+		TABLE*			form,
+		HA_CREATE_INFO*		create_info,
+		bool			file_per_table,
+		trx_t*			trx = NULL);
+
 	int create(
 		const char*		name,
 		TABLE*			form,
@@ -203,6 +213,8 @@ public:
 
 	const char* check_table_options(THD *thd, TABLE* table,
 		HA_CREATE_INFO*	create_info, const bool use_tablespace, const ulint file_format);
+
+	inline int delete_table(const char* name, enum_sql_command sqlcom);
 
 	int truncate();
 
@@ -639,13 +651,16 @@ public:
 		TABLE*		form,
 		HA_CREATE_INFO*	create_info,
 		char*		table_name,
-		char*		remote_path)
+		char*		remote_path,
+		bool		file_per_table,
+		trx_t*		trx = NULL)
 	:m_thd(thd),
+	m_trx(trx),
 	m_form(form),
 	m_create_info(create_info),
 	m_table_name(table_name),
 	m_remote_path(remote_path),
-	m_innodb_file_per_table(srv_file_per_table)
+	m_innodb_file_per_table(file_per_table)
 	{}
 
 	/** Initialize the object. */
@@ -654,8 +669,9 @@ public:
 	/** Set m_tablespace_type. */
 	void set_tablespace_type(bool table_being_altered_is_file_per_table);
 
-	/** Create the internal innodb table. */
-	int create_table();
+	/** Create the internal innodb table.
+	@param create_fk	whether to add FOREIGN KEY constraints */
+	int create_table(bool create_fk = true);
 
 	/** Update the internal data dictionary. */
 	int create_table_update_dict();
@@ -684,7 +700,7 @@ public:
 	bool create_option_tablespace_is_valid();
 
 	/** Prepare to create a table. */
-	int prepare_create_table(const char*		name);
+	int prepare_create_table(const char* name, bool strict = true);
 
 	void allocate_trx();
 
