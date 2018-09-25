@@ -1554,26 +1554,14 @@ bool dispatch_command(enum enum_server_command command, THD *thd,
     DBUG_ASSERT(!thd->mdl_context.has_locks());
     DBUG_ASSERT(!thd->get_stmt_da()->is_set());
     /* We let COM_QUIT and COM_STMT_CLOSE to execute even if wsrep aborted. */
-    if (command == COM_STMT_PREPARE          ||
-        command == COM_STMT_FETCH            ||
-        command == COM_STMT_SEND_LONG_DATA   ||
-	command == COM_STMT_CLOSE
-        )
+    if (command != COM_STMT_CLOSE && 
+        command != COM_QUIT)
     {
-      WSREP_DEBUG("Prepared Statement bail out");
-    }
-    else
-    {
-      thd->killed               = NOT_KILLED;
+      my_error(ER_LOCK_DEADLOCK, MYF(0));
+      WSREP_DEBUG("Deadlock error for: %s", thd->query());
+      thd->reset_killed();
       thd->mysys_var->abort     = 0;
       thd->wsrep_retry_counter  = 0;
-#ifdef WSREP_TODO
-      /*
-        Increment threads running to compensate dec_thread_running() called
-        after dispatch_end label.
-      */
-      inc_thread_running();
-#endif
       goto dispatch_end;
     }
   }
