@@ -649,8 +649,11 @@ struct dict_col_t{
 		DBUG_ASSERT(def_val.len != UNIV_SQL_DEFAULT || !def_val.data);
 		return def_val.len != UNIV_SQL_DEFAULT;
 	}
-	/** @return whether the column was instantly dropped  */
+	/** @return whether the column was instantly dropped */
 	bool is_dropped() const { return dropped; }
+	/** @return whether the column was instantly dropped
+	@param[in] index	the clustered index */
+	inline bool is_dropped(const dict_index_t& index) const;
 
 	/** Get the default value of an instantly-added column.
 	@param[out]	len	value length (in bytes), or UNIV_SQL_NULL
@@ -2152,6 +2155,18 @@ inline bool dict_index_t::is_corrupted() const
 	return UNIV_UNLIKELY(online_status >= ONLINE_INDEX_ABORTED
 			     || (type & DICT_CORRUPT)
 			     || (table && table->corrupted));
+}
+
+/** @return whether the column was instantly dropped
+@param[in] index	the clustered index */
+inline bool dict_col_t::is_dropped(const dict_index_t& index) const
+{
+	DBUG_ASSERT(index.is_primary());
+	DBUG_ASSERT(!is_dropped() == !index.table->instant);
+	DBUG_ASSERT(!is_dropped() || (this >= index.table->instant->dropped
+				      && this < index.table->instant->dropped
+				      + index.table->instant->n_dropped));
+	return is_dropped();
 }
 
 /*******************************************************************//**

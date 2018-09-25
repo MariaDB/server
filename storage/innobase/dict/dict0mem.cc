@@ -1771,7 +1771,8 @@ dict_table_t::rollback_instant(
 			dict_field_t& field = index->fields[i];
 			if (field.col < new_cols
 			    || field.col >= new_cols_end) {
-				DBUG_ASSERT(field.col->is_virtual());
+				DBUG_ASSERT(field.col->is_virtual()
+					    || field.col->is_dropped(*index));
 			} else {
 				DBUG_ASSERT(field.col >= new_cols);
 				size_t n = size_t(field.col - new_cols);
