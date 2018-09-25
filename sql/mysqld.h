@@ -24,6 +24,7 @@
 #include "mysql_com.h"                     /* SERVER_VERSION_LENGTH */
 #include "my_atomic.h"
 #include "mysql/psi/mysql_file.h"          /* MYSQL_FILE */
+#include "mysql/psi/mysql_socket.h"        /* MYSQL_SOCKET */
 #include "sql_list.h"                      /* I_List */
 #include "sql_cmd.h"
 #include <my_rnd.h>
@@ -92,6 +93,8 @@ void refresh_status(THD *thd);
 bool is_secure_file_path(char *path);
 void dec_connection_count(scheduler_functions *scheduler);
 extern void init_net_server_extension(THD *thd);
+extern void handle_accepted_socket(MYSQL_SOCKET new_sock, MYSQL_SOCKET sock);
+extern void create_new_thread(CONNECT *connect);
 
 extern "C" MYSQL_PLUGIN_IMPORT CHARSET_INFO *system_charset_info;
 extern MYSQL_PLUGIN_IMPORT CHARSET_INFO *files_charset_info ;
@@ -152,6 +155,7 @@ extern ulong opt_replicate_events_marked_for_skip;
 extern char *default_tz_name;
 extern Time_zone *default_tz;
 extern char *my_bind_addr_str;
+extern int server_socket_ai_family;
 extern char *default_storage_engine, *default_tmp_storage_engine;
 extern char *enforced_storage_engine;
 extern char *gtid_pos_auto_engines;
@@ -759,7 +763,7 @@ enum enum_query_type
 /* query_id */
 extern query_id_t global_query_id;
 
-ATTRIBUTE_NORETURN void unireg_end(void);
+void unireg_end(void);
 
 /* increment query_id and return it.  */
 inline __attribute__((warn_unused_result)) query_id_t next_query_id()
