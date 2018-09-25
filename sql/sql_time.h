@@ -120,7 +120,7 @@ int my_time_compare(const MYSQL_TIME *a, const MYSQL_TIME *b);
 void localtime_to_TIME(MYSQL_TIME *to, struct tm *from);
 
 void calc_time_from_sec(MYSQL_TIME *to, ulong seconds, ulong microseconds);
-uint calc_week(MYSQL_TIME *l_time, uint week_behaviour, uint *year);
+uint calc_week(const MYSQL_TIME *l_time, uint week_behaviour, uint *year);
 
 int calc_weekday(long daynr,bool sunday_first_day_of_week);
 bool parse_date_time_format(timestamp_type format_type, 

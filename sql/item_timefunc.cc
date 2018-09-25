@@ -809,10 +809,8 @@ longlong Item_func_period_diff::val_int()
 longlong Item_func_to_days::val_int()
 {
   DBUG_ASSERT(fixed == 1);
-  MYSQL_TIME ltime;
-  if (get_arg0_date(&ltime, TIME_NO_ZERO_DATE | TIME_NO_ZERO_IN_DATE))
-    return 0;
-  return (longlong) calc_daynr(ltime.year,ltime.month,ltime.day);
+  Date d(current_thd, args[0], TIME_NO_ZERO_DATE | TIME_NO_ZERO_IN_DATE);
+  return (null_value= !d.is_valid_date()) ? 0 : d.daynr();
 }
 
 
@@ -820,42 +818,26 @@ longlong Item_func_to_seconds::val_int_endpoint(bool left_endp,
                                                 bool *incl_endp)
 {
   DBUG_ASSERT(fixed == 1);
-  MYSQL_TIME ltime;
-  longlong seconds;
-  longlong days;
-  int dummy;                                /* unused */
-  if (get_arg0_date(&ltime, TIME_FUZZY_DATES))
+  Datetime dt(current_thd, args[0], TIME_FUZZY_DATES);
+  if ((null_value= !dt.is_valid_datetime()))
   {
     /* got NULL, leave the incl_endp intact */
     return LONGLONG_MIN;
   }
-  seconds= ltime.hour * 3600L + ltime.minute * 60 + ltime.second;
-  seconds= ltime.neg ? -seconds : seconds;
-  days= (longlong) calc_daynr(ltime.year, ltime.month, ltime.day);
-  seconds+= days * 24L * 3600L;
   /* Set to NULL if invalid date, but keep the value */
-  null_value= check_date(&ltime,
-                         (ltime.year || ltime.month || ltime.day),
-                         (TIME_NO_ZERO_IN_DATE | TIME_NO_ZERO_DATE),
-                         &dummy);
+  null_value= dt.check_date(TIME_NO_ZERO_IN_DATE | TIME_NO_ZERO_DATE);
   /*
     Even if the evaluation return NULL, seconds is useful for pruning
   */
-  return seconds;
+  return dt.to_seconds();
 }
 
 longlong Item_func_to_seconds::val_int()
 {
   DBUG_ASSERT(fixed == 1);
-  MYSQL_TIME ltime;
-  longlong seconds;
-  longlong days;
-  if (get_arg0_date(&ltime, TIME_NO_ZERO_DATE | TIME_NO_ZERO_IN_DATE))
-    return 0;
-  seconds= ltime.hour * 3600L + ltime.minute * 60 + ltime.second;
-  seconds=ltime.neg ? -seconds : seconds;
-  days= (longlong) calc_daynr(ltime.year, ltime.month, ltime.day);
-  return seconds + days * 24L * 3600L;
+  THD *thd= current_thd;
+  Datetime dt(thd, args[0], TIME_NO_ZERO_DATE | TIME_NO_ZERO_IN_DATE);
+  return (null_value= !dt.is_valid_datetime()) ? 0 : dt.to_seconds();
 }
 
 /*
@@ -899,19 +881,16 @@ enum_monotonicity_info Item_func_to_seconds::get_monotonicity_info() const
 longlong Item_func_to_days::val_int_endpoint(bool left_endp, bool *incl_endp)
 {
   DBUG_ASSERT(fixed == 1);
-  MYSQL_TIME ltime;
+  Datetime dt(current_thd, args[0], 0);
   longlong res;
-  int dummy;                                /* unused */
-  if (get_arg0_date(&ltime, 0))
+  if ((null_value= !dt.is_valid_datetime()))
   {
     /* got NULL, leave the incl_endp intact */
     return LONGLONG_MIN;
   }
-  res=(longlong) calc_daynr(ltime.year,ltime.month,ltime.day);
+  res= (longlong) dt.daynr();
   /* Set to NULL if invalid date, but keep the value */
-  null_value= check_date(&ltime,
-                         (TIME_NO_ZERO_IN_DATE | TIME_NO_ZERO_DATE),
-                         &dummy);
+  null_value= dt.check_date(TIME_NO_ZERO_IN_DATE | TIME_NO_ZERO_DATE);
   if (null_value)
   {
     /*
@@ -940,8 +919,8 @@ longlong Item_func_to_days::val_int_endpoint(bool left_endp, bool *incl_endp)
 
       col < '2007-09-15 12:34:56'  -> TO_DAYS(col) <= TO_DAYS('2007-09-15')
   */
-  if ((!left_endp && !(ltime.hour || ltime.minute || ltime.second ||
-                       ltime.second_part)) ||
+  const MYSQL_TIME &ltime= dt.get_mysql_time()[0];
+  if ((!left_endp && dt.hhmmssff_is_zero()) ||
        (left_endp && ltime.hour == 23 && ltime.minute == 59 &&
         ltime.second == 59))
     /* do nothing */
@@ -955,25 +934,22 @@ longlong Item_func_to_days::val_int_endpoint(bool left_endp, bool *incl_endp)
 longlong Item_func_dayofyear::val_int()
 {
   DBUG_ASSERT(fixed == 1);
-  MYSQL_TIME ltime;
-  if (get_arg0_date(&ltime, TIME_NO_ZERO_IN_DATE | TIME_NO_ZERO_DATE))
-    return 0;
-  return (longlong) calc_daynr(ltime.year,ltime.month,ltime.day) -
-    calc_daynr(ltime.year,1,1) + 1;
+  Date d(current_thd, args[0], TIME_NO_ZERO_IN_DATE | TIME_NO_ZERO_DATE);
+  return (null_value= !d.is_valid_date()) ? 0 : d.dayofyear();
 }
 
 longlong Item_func_dayofmonth::val_int()
 {
   DBUG_ASSERT(fixed == 1);
-  MYSQL_TIME ltime;
-  return get_arg0_date(&ltime, 0) ? 0 : (longlong) ltime.day;
+  Date d(current_thd, args[0], 0);
+  return (null_value= !d.is_valid_date()) ? 0 : d.get_mysql_time()->day;
 }
 
 longlong Item_func_month::val_int()
 {
   DBUG_ASSERT(fixed == 1);
-  MYSQL_TIME ltime;
-  return get_arg0_date(&ltime, 0) ? 0 : (longlong) ltime.month;
+  Date d(current_thd, args[0], 0);
+  return (null_value= !d.is_valid_date()) ? 0 : d.get_mysql_time()->month;
 }
 
 
@@ -995,12 +971,12 @@ String* Item_func_monthname::val_str(String* str)
   DBUG_ASSERT(fixed == 1);
   const char *month_name;
   uint err;
-  MYSQL_TIME ltime;
+  Date d(current_thd, args[0], 0);
 
-  if ((null_value= (get_arg0_date(&ltime, 0) || !ltime.month)))
+  if ((null_value= (!d.is_valid_date() || !d.get_mysql_time()->month)))
     return (String *) 0;
 
-  month_name= locale->month_names->type_names[ltime.month - 1];
+  month_name= locale->month_names->type_names[d.get_mysql_time()->month - 1];
   str->copy(month_name, (uint) strlen(month_name), &my_charset_utf8_bin,
 	    collation.collation, &err);
   return str;
@@ -1014,10 +990,8 @@ String* Item_func_monthname::val_str(String* str)
 longlong Item_func_quarter::val_int()
 {
   DBUG_ASSERT(fixed == 1);
-  MYSQL_TIME ltime;
-  if (get_arg0_date(&ltime, 0))
-    return 0;
-  return (longlong) ((ltime.month+2)/3);
+  Date d(current_thd, args[0], 0);
+  return (null_value= !d.is_valid_date()) ? 0 : d.quarter();
 }
 
 longlong Item_func_hour::val_int()
@@ -1087,43 +1061,33 @@ uint week_mode(uint mode)
 longlong Item_func_week::val_int()
 {
   DBUG_ASSERT(fixed == 1);
-  uint year, week_format;
-  MYSQL_TIME ltime;
-  if (get_arg0_date(&ltime, TIME_NO_ZERO_DATE | TIME_NO_ZERO_IN_DATE))
+  uint week_format;
+  Date d(current_thd, args[0], TIME_NO_ZERO_DATE | TIME_NO_ZERO_IN_DATE);
+  if ((null_value= !d.is_valid_date()))
     return 0;
   if (arg_count > 1)
     week_format= (uint)args[1]->val_int();
   else
     week_format= current_thd->variables.default_week_format;
-  return (longlong) calc_week(&ltime, week_mode(week_format), &year);
+  return d.week(week_mode(week_format));
 }
 
 
 longlong Item_func_yearweek::val_int()
 {
   DBUG_ASSERT(fixed == 1);
-  uint year,week;
-  MYSQL_TIME ltime;
-  if (get_arg0_date(&ltime, TIME_NO_ZERO_DATE | TIME_NO_ZERO_IN_DATE))
-    return 0;
-  week= calc_week(&ltime, 
-		  (week_mode((uint) args[1]->val_int()) | WEEK_YEAR),
-		  &year);
-  return week+year*100;
+  Date d(current_thd, args[0], TIME_NO_ZERO_DATE | TIME_NO_ZERO_IN_DATE);
+  return (null_value= !d.is_valid_date()) ? 0 :
+         d.yearweek((week_mode((uint) args[1]->val_int()) | WEEK_YEAR));
 }
 
 
 longlong Item_func_weekday::val_int()
 {
   DBUG_ASSERT(fixed == 1);
-  MYSQL_TIME ltime;
-  
-  if (get_arg0_date(&ltime, TIME_NO_ZERO_DATE | TIME_NO_ZERO_IN_DATE))
-    return 0;
-
-  return (longlong) calc_weekday(calc_daynr(ltime.year, ltime.month,
-                                            ltime.day),
-                                 odbc_type) + MY_TEST(odbc_type);
+  Date d(current_thd, args[0], TIME_NO_ZERO_DATE | TIME_NO_ZERO_IN_DATE);
+  return ((null_value= !d.is_valid_date())) ? 0 :
+         calc_weekday(d.daynr(), odbc_type) + MY_TEST(odbc_type);
 }
 
 bool Item_func_dayname::fix_length_and_dec()
@@ -1159,8 +1123,8 @@ String* Item_func_dayname::val_str(String* str)
 longlong Item_func_year::val_int()
 {
   DBUG_ASSERT(fixed == 1);
-  MYSQL_TIME ltime;
-  return get_arg0_date(&ltime, 0) ? 0 : (longlong) ltime.year;
+  Date d(current_thd, args[0], 0);
+  return (null_value= !d.is_valid_date()) ? 0 : d.get_mysql_time()->year;
 }
 
 
@@ -1191,8 +1155,8 @@ enum_monotonicity_info Item_func_year::get_monotonicity_info() const
 longlong Item_func_year::val_int_endpoint(bool left_endp, bool *incl_endp)
 {
   DBUG_ASSERT(fixed == 1);
-  MYSQL_TIME ltime;
-  if (get_arg0_date(&ltime, 0))
+  Datetime dt(current_thd, args[0], 0);
+  if ((null_value= !dt.is_valid_datetime()))
   {
     /* got NULL, leave the incl_endp intact */
     return LONGLONG_MIN;
@@ -1209,8 +1173,9 @@ longlong Item_func_year::val_int_endpoint(bool left_endp, bool *incl_endp)
 
       col < '2007-09-15 23:00:00'  -> YEAR(col) <= 2007
   */
+  const MYSQL_TIME &ltime= dt.get_mysql_time()[0];
   if (!left_endp && ltime.day == 1 && ltime.month == 1 && 
-      !(ltime.hour || ltime.minute || ltime.second || ltime.second_part))
+      dt.hhmmssff_is_zero())
     ; /* do nothing */
   else
     *incl_endp= TRUE;
@@ -1234,13 +1199,14 @@ bool Item_func_unix_timestamp::get_timestamp_value(my_time_t *seconds,
     }
   }
 
-  MYSQL_TIME ltime;
-  if (get_arg0_date(&ltime, TIME_NO_ZERO_IN_DATE))
-    return 1;
+  THD *thd= current_thd;
+  Datetime dt(thd, args[0], TIME_NO_ZERO_IN_DATE);
+  if ((null_value= !dt.is_valid_datetime()))
+    return true;
 
   uint error_code;
-  *seconds= TIME_to_timestamp(current_thd, &ltime, &error_code);
-  *second_part= ltime.second_part;
+  *seconds= TIME_to_timestamp(thd, dt.get_mysql_time(), &error_code);
+  *second_part= dt.get_mysql_time()->second_part;
   return (null_value= (error_code == ER_WARN_DATA_OUT_OF_RANGE));
 }
 
@@ -1984,9 +1950,12 @@ bool Item_func_convert_tz::get_date(MYSQL_TIME *ltime,
     to_tz_cached= args[2]->const_item();
   }
 
-  if (from_tz==0 || to_tz==0 ||
-      get_arg0_date(ltime, TIME_NO_ZERO_DATE | TIME_NO_ZERO_IN_DATE))
-    return (null_value= 1);
+  if ((null_value= (from_tz == 0 || to_tz == 0)))
+    return true;
+
+  Datetime *dt= new(ltime) Datetime(thd, args[0], TIME_NO_ZERO_DATE | TIME_NO_ZERO_IN_DATE);
+  if ((null_value= !dt->is_valid_datetime()))
+    return true;
 
   {
     uint not_used;
@@ -3016,9 +2985,9 @@ bool Item_func_str_to_date::get_date_common(MYSQL_TIME *ltime,
 
 bool Item_func_last_day::get_date(MYSQL_TIME *ltime, ulonglong fuzzy_date)
 {
-  if (get_arg0_date(ltime, fuzzy_date & ~TIME_TIME_ONLY) ||
-      (ltime->month == 0))
-    return (null_value=1);
+  Date *d= new(ltime) Date(current_thd, args[0], fuzzy_date & ~TIME_TIME_ONLY);
+  if ((null_value= (!d->is_valid_date() || ltime->month == 0)))
+    return true;
   uint month_idx= ltime->month-1;
   ltime->day= days_in_month[month_idx];
   if ( month_idx == 1 && calc_days_in_year(ltime->year) == 366)

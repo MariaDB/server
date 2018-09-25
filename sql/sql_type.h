@@ -920,6 +920,31 @@ protected:
   void check_date_or_invalidate(int *warn, sql_mode_t flags);
   void make_from_item(THD *thd, Item *item, sql_mode_t flags);
   void make_from_item(THD *thd, Item *item);
+
+  ulong daynr() const
+  {
+    return (ulong) ::calc_daynr((uint) year, (uint) month, (uint) day);
+  }
+  ulong dayofyear() const
+  {
+    return (ulong) (daynr() - ::calc_daynr(year, 1, 1) + 1);
+  }
+  uint quarter() const
+  {
+    return (month + 2) / 3;
+  }
+  uint week(uint week_behaviour) const
+  {
+    uint year;
+    return calc_week(this, week_behaviour, &year);
+  }
+  uint yearweek(uint week_behaviour) const
+  {
+    uint year;
+    uint week= calc_week(this, week_behaviour, &year);
+    return week + year * 100;
+  }
+
   Temporal_with_date()
   {
     time_type= MYSQL_TIMESTAMP_NONE;
@@ -1025,6 +1050,32 @@ public:
     *ltime= *this;
     return false;
   }
+  ulong daynr() const
+  {
+    DBUG_ASSERT(is_valid_date_slow());
+    return Temporal_with_date::daynr();
+  }
+  ulong dayofyear() const
+  {
+    DBUG_ASSERT(is_valid_date_slow());
+    return Temporal_with_date::dayofyear();
+  }
+  uint quarter() const
+  {
+    DBUG_ASSERT(is_valid_date_slow());
+    return Temporal_with_date::quarter();
+  }
+  uint week(uint week_behaviour) const
+  {
+    DBUG_ASSERT(is_valid_date_slow());
+    return Temporal_with_date::week(week_behaviour);
+  }
+  uint yearweek(uint week_behaviour) const
+  {
+    DBUG_ASSERT(is_valid_date_slow());
+    return Temporal_with_date::yearweek(week_behaviour);
+  }
+
   longlong to_longlong() const
   {
     return is_valid_date() ? (longlong) TIME_to_ulonglong_date(this) : 0LL;
@@ -1175,11 +1226,40 @@ public:
     DBUG_ASSERT(is_valid_value_slow());
     return time_type == MYSQL_TIMESTAMP_DATETIME;
   }
+  bool check_date(longlong flags, int *warnings) const
+  {
+    DBUG_ASSERT(is_valid_datetime_slow());
+    return ::check_date(this, (year || month || day), flags, warnings);
+  }
+  bool check_date(longlong flags) const
+  {
+    int dummy; /* unused */
+    return check_date(flags, &dummy);
+  }
   bool hhmmssff_is_zero() const
   {
     DBUG_ASSERT(is_valid_datetime_slow());
     return hour == 0 && minute == 0 && second == 0 && second_part == 0;
   }
+  ulong daynr() const
+  {
+    DBUG_ASSERT(is_valid_datetime_slow());
+    return Temporal_with_date::daynr();
+  }
+  longlong hhmmss_to_seconds_abs() const
+  {
+    DBUG_ASSERT(is_valid_datetime_slow());
+    return hour * 3600L + minute * 60 + second;
+  }
+  longlong hhmmss_to_seconds() const
+  {
+    return neg ? -hhmmss_to_seconds_abs() : hhmmss_to_seconds_abs();
+  }
+  longlong to_seconds() const
+  {
+    return hhmmss_to_seconds() + (longlong) daynr() * 24L * 3600L;
+  }
+
   const MYSQL_TIME *get_mysql_time() const
   {
     DBUG_ASSERT(is_valid_datetime_slow());

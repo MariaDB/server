@@ -175,7 +175,7 @@ int calc_weekday(long daynr,bool sunday_first_day_of_week)
 	next week is week 1.
 */
 
-uint calc_week(MYSQL_TIME *l_time, uint week_behaviour, uint *year)
+uint calc_week(const MYSQL_TIME *l_time, uint week_behaviour, uint *year)
 {
   uint days;
   ulong daynr=calc_daynr(l_time->year,l_time->month,l_time->day);
