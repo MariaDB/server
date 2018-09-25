@@ -183,8 +183,10 @@ Wsrep_high_priority_service::~Wsrep_high_priority_service()
   
   if (thd->wsrep_rgi && thd->wsrep_rgi->rli)
     delete thd->wsrep_rgi->rli->mi;
-  if (thd->wsrep_rgi && thd->wsrep_rgi)
+  if (thd->wsrep_rgi)
     delete thd->wsrep_rgi->rli;
+  delete thd->wsrep_rgi;
+  thd->wsrep_rgi= NULL;
   
   thd->set_row_count_func(m_shadow.row_count_func);
   thd->wsrep_applier          = m_shadow.wsrep_applier;

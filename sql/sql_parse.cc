@@ -7956,7 +7956,6 @@ static bool wsrep_mysql_parse(THD *thd, char *rawbuf, uint length,
                               bool is_com_multi,
                               bool is_next_command)
 {
-#ifdef WITH_WSREP
   bool is_autocommit=
     !thd->in_multi_stmt_transaction_mode()                  &&
     wsrep_read_only_option(thd, thd->lex->query_tables);
@@ -7980,6 +7979,10 @@ static bool wsrep_mysql_parse(THD *thd, char *rawbuf, uint length,
          !thd->get_stmt_da()->is_set()) &&
         thd->wsrep_trx().bf_aborted())
     {
+      WSREP_DEBUG("overriding error: %d with DEADLOCK",
+                  (thd->get_stmt_da()->is_error()) ?
+                   thd->get_stmt_da()->sql_errno() : 0);
+
       thd->killed = NOT_KILLED;
       wsrep_override_error(thd, ER_LOCK_DEADLOCK);
     }
@@ -9011,6 +9014,7 @@ kill_one_thread(THD *thd, longlong id, killed_state kill_signal, killed_type typ
   DBUG_ENTER("kill_one_thread");
   DBUG_PRINT("enter", ("id: %lld  signal: %u", id, (uint) kill_signal));
   WSREP_DEBUG("kill_one_thread %lu", thd->thread_id);
+#ifdef WITH_WSREP
   if (id && (tmp= find_thread_by_id(id, type == KILL_TYPE_QUERY)))
   {
     /*
@@ -9036,7 +9040,7 @@ kill_one_thread(THD *thd, longlong id, killed_state kill_signal, killed_type typ
 
     if (((thd->security_ctx->master_access & SUPER_ACL) ||
         thd->security_ctx->user_matches(tmp->security_ctx)) &&
-        !wsrep_thd_is_BF((void *)tmp, true) && !tmp->wsrep_applier)
+        !wsrep_thd_is_BF((void *)tmp, false) && !tmp->wsrep_applier)
 #else
     if ((thd->security_ctx->master_access & SUPER_ACL) ||
         thd->security_ctx->user_matches(tmp->security_ctx))
