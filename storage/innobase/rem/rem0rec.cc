@@ -381,10 +381,7 @@ ordinary:
 			goto resolved;
 		} else {
 			ulint dlen;
-			if (col->is_dropped()) {
-				len = offs | REC_OFFS_DROP_COL;
-				any |= REC_OFFS_DROP_COL;
-			} else if (!index->instant_field_value(i, &dlen)) {
+			if (!index->instant_field_value(i, &dlen)) {
 				len = offs | REC_OFFS_SQL_NULL;
 				ut_ad(dlen == UNIV_SQL_NULL);
 			} else {
@@ -583,11 +580,7 @@ number of fields in the record.	 The rest of the array will be
 initialized by this function.  rec_offs_base(offsets)[0] will be set
 to the extra size (if REC_OFFS_COMPACT is set, the record is in the
 new format; if REC_OFFS_EXTERNAL is set, the record contains externally
-stored columns; if REC_OFFS_DROP_SQL_NULL is set, the field for the dropped
-column is NULLABLE or length for the column is also maintained), and
-rec_offs_base(offsets)[1..n_fields] will be set to
-offsets past the end of fields 0..n_fields, or to the beginning of
-fields 1..n_fields+1.  When the high-order bit of the offset at [i+1]
+stored columns); When the high-order bit of the offset at [i+1]
 is set (REC_OFFS_SQL_NULL), the field i is NULL.  When the second
 high-order bit of the offset at [i+1] is set (REC_OFFS_EXTERNAL), the
 field i is being stored externally.
@@ -629,8 +622,6 @@ rec_init_offsets_for_metadata_low(
 	while(pos < rec_offs_n_fields(offsets) && pos < limit)
 	{
 		bool is_dropped = false;
-		bool is_nullable = false;
-		bool is_drop_null = false;
 
 		if (pos == n_pk_fields) {
 			/* Default row blob. */
@@ -667,16 +658,7 @@ rec_init_offsets_for_metadata_low(
 			}
 		}
 
-		is_nullable = !(col->prtype & DATA_NOT_NULL);
-
-		/* Maintain null bit for dropped column. */
-		if (is_dropped) {
-			if (*nulls & null_mask) {
-				is_drop_null = true;
-			}
-
-			null_mask <<= 1;
-		} else if (is_nullable) {
+		if (!(col->prtype & DATA_NOT_NULL)) {
 			if (*nulls & null_mask) {
 				null_mask <<= 1;
 				len = offs | REC_OFFS_SQL_NULL;
@@ -718,17 +700,7 @@ rec_init_offsets_for_metadata_low(
 
 		prev_offs = offs;
 		len = offs += len;
-
-		if (is_drop_null) {
-			/* Set the REC_OFFS_DROP_SQL_NULL flag if
-			the column is dropped and it is nullable. */
-			len = offs | REC_OFFS_DROP_SQL_NULL;
-		}
 resolved:
-		if (is_dropped && !is_drop_null) {
-			len = offs | REC_OFFS_DROP_COL;
-		}
-
 		if (!is_dropped) {
 			/* Initialize previous offset if the column
 			is not dropped. */
@@ -749,8 +721,7 @@ number of fields in the record.	 The rest of the array will be
 initialized by this function.  rec_offs_base(offsets)[0] will be set
 to the extra size (if REC_OFFS_COMPACT is set, the record is in the
 new format; if REC_OFFS_EXTERNAL is set, the record contains externally
-stored columns; if REC_OFFS_DROP_SQL_NULL is set, the field for the dropped
-column is NULLABLE or length for the column is also maintained), and
+stored columns), and
 rec_offs_base(offsets)[1..n_fields] will be set to
 offsets past the end of fields 0..n_fields, or to the beginning of
 fields 1..n_fields+1.  When the high-order bit of the offset at [i+1]

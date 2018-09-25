@@ -95,16 +95,10 @@ const ulint REC_OFFS_COMPACT = ~(ulint(~0) >> 1);
 const ulint REC_OFFS_SQL_NULL = REC_OFFS_COMPACT;
 /** External flag in offsets returned by rec_get_offsets() */
 const ulint REC_OFFS_EXTERNAL = REC_OFFS_COMPACT >> 1;
-
 /** Default value flag in offsets returned by rec_get_offsets() */
 const ulint REC_OFFS_DEFAULT = REC_OFFS_COMPACT >> 2;
-
-const ulint REC_OFFS_DROP_COL = REC_OFFS_COMPACT >> 3;
-
-const ulint REC_OFFS_DROP_SQL_NULL = REC_OFFS_COMPACT >> 4;
-
 /** Mask for offsets returned by rec_get_offsets() */
-const ulint REC_OFFS_MASK = REC_OFFS_DROP_SQL_NULL - 1;
+const ulint REC_OFFS_MASK = REC_OFFS_DEFAULT - 1;
 
 #ifndef UNIV_INNOCHECKSUM
 /******************************************************//**
@@ -713,20 +707,6 @@ rec_offs_nth_sql_null(const ulint* offsets, ulint n)
 	return rec_offs_nth_flag(offsets, n, REC_OFFS_SQL_NULL);
 }
 
-inline
-ulint
-rec_offs_nth_drop_sql_null(const ulint* offsets, ulint n)
-{
-	return rec_offs_nth_flag(offsets, n, REC_OFFS_DROP_SQL_NULL);
-}
-
-inline
-ulint
-rec_offs_nth_drop_col(const ulint* offsets, ulint n)
-{
-	return rec_offs_nth_flag(offsets, n, REC_OFFS_DROP_COL);
-}
-
 /** Determine if a record field is stored off-page.
 @param[in]	offsets	rec_get_offsets()
 @param[in]	n	nth field
@@ -883,11 +863,6 @@ rec_get_nth_cfield(
 	ulint*			len)
 {
 	ut_ad(rec_offs_validate(rec, index, offsets));
-
-	if (rec_offs_nth_drop_col(offsets, n)) {
-		*len = index->fields[n].col->len;
-		return field_ref_zero;
-	}
 
 	if (!rec_offs_nth_default(offsets, n)) {
 		return rec_get_nth_field(rec, offsets, n, len);

@@ -399,7 +399,6 @@ btr_cur_instant_init_metadata(
 	const rec_t*	rec,
 	dict_index_t*	index)
 {
-	ulint		n_drop_nullable = 0;
 	ulint*		offsets;
 	ulint		len;
 	mem_heap_t*	heap = mem_heap_create(UNIV_PAGE_SIZE_MAX);
@@ -451,10 +450,8 @@ btr_cur_instant_init_metadata(
 			col->len = len;
 			index->fields[i].fixed_len = len;
 
-			if (!rec_offs_nth_drop_sql_null(offsets, i + 1)) {
+			if (!rec_offs_nth_sql_null(offsets, i + 1)) {
 				col->prtype = DATA_NOT_NULL;
-			} else {
-				n_drop_nullable++;
 			}
 		} else if (!rec_offs_nth_extern(offsets, i)) {
 			col->def_val.len = len;
