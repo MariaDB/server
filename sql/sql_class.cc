@@ -1178,12 +1178,14 @@ Sql_condition* THD::raise_condition(uint sql_errno,
     {
       WSREP_DEBUG("BF abort error converted to warning");
     }
-#else
-    if (!da->is_error())
 #endif /* WITH_WSREP */
+    else
     {
-      set_row_count_func(-1);
-      da->set_error_status(sql_errno, msg, sqlstate, ucid, cond);
+      if (!da->is_error())
+      {
+	set_row_count_func(-1);
+	da->set_error_status(sql_errno, msg, sqlstate, ucid, cond);
+      }
     }
   }
 
