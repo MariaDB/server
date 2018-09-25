@@ -1627,6 +1627,8 @@ void dict_table_t::instant_op_column(
 	/* Copy the new default values to this->heap. */
 	for (unsigned i = n_cols; i < table.n_cols; i++) {
 		dict_col_t& c = cols[i - DATA_N_SYS_COLS];
+		/* FIXME: Allow adding columns other than LAST,
+		and take col_map[] into account. */
 		DBUG_ASSERT(c.is_added());
 		if (c.def_val.len == 0) {
 			c.def_val.data = field_ref_zero;
