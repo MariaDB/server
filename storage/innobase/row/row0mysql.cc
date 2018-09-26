@@ -330,6 +330,7 @@ row_mysql_read_geometry(
 	ulint		col_len)	/*!< in: MySQL format length */
 {
 	byte*		data;
+	ut_ad(col_len > 8);
 
 	*len = mach_read_from_n_little_endian(ref, col_len - 8);
 
