@@ -902,7 +902,7 @@ String *Item_func_hybrid_field_type::val_str_from_real_op(String *str)
 
 longlong Item_func_hybrid_field_type::val_int_from_real_op()
 {
-  return (longlong) rint(real_op());
+  return Converter_double_to_longlong(real_op(), unsigned_flag).result();
 }
 
 my_decimal *

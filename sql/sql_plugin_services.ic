@@ -181,7 +181,8 @@ static struct wsrep_service_st wsrep_handler = {
   wsrep_thd_ws_handle,
   wsrep_trx_is_aborting,
   wsrep_trx_order_before,
-  wsrep_unlock_rollback
+  wsrep_unlock_rollback,
+  wsrep_set_data_home_dir
 };
 
 static struct thd_specifics_service_st thd_specifics_handler=

@@ -299,7 +299,7 @@ bool Sql_cmd_truncate_table::lock_table(THD *thd, TABLE_LIST *table_ref,
   if (thd->locked_tables_mode)
   {
     if (!(table= find_table_for_mdl_upgrade(thd, table_ref->db.str,
-                                            table_ref->table_name.str, FALSE)))
+                                            table_ref->table_name.str, NULL)))
       DBUG_RETURN(TRUE);
 
     *hton_can_recreate= ha_check_storage_engine_flag(table->file->ht,

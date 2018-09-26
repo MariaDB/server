@@ -431,6 +431,7 @@ void TABLE_SHARE::destroy()
     ha_share= NULL;                             // Safety
   }
 
+  delete_stat_values_for_table_share(this);
   delete sequence;
   free_root(&stats_cb.mem_root, MYF(0));
   stats_cb.stats_can_be_read= FALSE;
@@ -3122,6 +3123,7 @@ enum open_frm_error open_table_from_share(THD *thd, TABLE_SHARE *share,
 {
   enum open_frm_error error;
   uint records, i, bitmap_size, bitmap_count;
+  const char *tmp_alias;
   bool error_reported= FALSE;
   uchar *record, *bitmaps;
   Field **field_ptr;
@@ -3149,8 +3151,14 @@ enum open_frm_error open_table_from_share(THD *thd, TABLE_SHARE *share,
   init_sql_alloc(&outparam->mem_root, "table", TABLE_ALLOC_BLOCK_SIZE, 0,
                  MYF(0));
 
-  if (outparam->alias.copy(alias->str, alias->length, table_alias_charset))
+  /*
+    We have to store the original alias in mem_root as constraints and virtual
+    functions may store pointers to it
+  */
+  if (!(tmp_alias= strmake_root(&outparam->mem_root, alias->str, alias->length)))
     goto err;
+
+  outparam->alias.set(tmp_alias, alias->length, table_alias_charset);
   outparam->quick_keys.init();
   outparam->covering_keys.init();
   outparam->intersect_keys.init();
@@ -4585,7 +4593,7 @@ void TABLE::init(THD *thd, TABLE_LIST *tl)
                                    s->table_name.str,
                                    tl->alias.str);
   /* Fix alias if table name changes. */
-  if (strcmp(alias.c_ptr(), tl->alias.str))
+  if (!alias.alloced_length() || strcmp(alias.c_ptr(), tl->alias.str))
     alias.copy(tl->alias.str, tl->alias.length, alias.charset());
 
   tablenr= thd->current_tablenr++;

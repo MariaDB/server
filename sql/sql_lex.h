@@ -2803,6 +2803,11 @@ struct LEX: public Query_tables_list
      with clause in the current statement
   */
   With_clause **with_clauses_list_last_next;
+  /*
+    When a copy of a with element is parsed this is set to the offset of
+    the with element in the input string, otherwise it's set to 0
+  */
+  my_ptrdiff_t clone_spec_offset;
 
   Create_view_info *create_view;
 

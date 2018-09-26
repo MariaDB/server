@@ -2,18 +2,15 @@ set global innodb_table_locks=1;
 select @@innodb_table_locks;
 @@innodb_table_locks
 1
-connect  con1,localhost,root,,;
-connect  con2,localhost,root,,;
-drop table if exists t1;
 set @@innodb_table_locks=1;
-connection con1;
+connect  con1,localhost,root,,;
 create table t1 (id integer, x integer) engine=INNODB;
 insert into t1 values(0, 0);
 set autocommit=0;
 SELECT * from t1 where id = 0 FOR UPDATE;
 id	x
 0	0
-connection con2;
+connect  con2,localhost,root,,;
 set autocommit=0;
 lock table t1 write;
 connection con1;
@@ -116,13 +113,49 @@ Warnings:
 Warning	1062	Duplicate entry '3' for key 'PRIMARY'
 SELECT * FROM t1 FOR UPDATE;
 connection con2;
+disconnect con2;
 connection default;
 COMMIT;
 connection con1;
 a	b
 3	1
 COMMIT;
-disconnect con1;
-disconnect con2;
 connection default;
 DROP TABLE t1;
+#
+# MDEV-11080 InnoDB: Failing assertion:
+# table->n_waiting_or_granted_auto_inc_locks > 0
+#
+CREATE TABLE t1 (pk INTEGER AUTO_INCREMENT PRIMARY KEY) ENGINE=InnoDB;
+INSERT INTO t1 VALUES (NULL),(NULL);
+CREATE TABLE t2 LIKE t1;
+BEGIN;
+connection con1;
+BEGIN;
+DELETE FROM t2;
+connection default;
+LOCK TABLE t2 READ;;
+connection con1;
+SET innodb_lock_wait_timeout= 1, lock_wait_timeout= 2;
+INSERT INTO t2 SELECT * FROM t1;
+COMMIT;
+connection default;
+UNLOCK TABLES;
+DROP TABLE t1, t2;
+#
+# MDEV-16709 InnoDB: Error: trx already had an AUTO-INC lock
+#
+CREATE TABLE t1 (pk INT AUTO_INCREMENT PRIMARY KEY) ENGINE=InnoDB
+PARTITION BY key (pk) PARTITIONS 2;
+CREATE TABLE t2 (a INT) ENGINE=InnoDB;
+INSERT INTO t2 VALUES (1),(2),(3),(4),(5),(6);
+CREATE TABLE t3 (b INT) ENGINE=InnoDB;
+INSERT INTO t3 VALUES (1),(2),(3),(4),(5),(6),(7),(8),(9);
+connection con1;
+INSERT t1 SELECT NULL FROM t2;
+connection default;
+INSERT t1 SELECT NULL FROM t3;
+connection con1;
+disconnect con1;
+connection default;
+DROP TABLE t1, t2, t3;

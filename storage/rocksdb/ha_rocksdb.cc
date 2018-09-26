@@ -3753,12 +3753,13 @@ static int rocksdb_commit(handlerton* hton, THD* thd, bool commit_tx)
 
       //  First, commit without syncing. This establishes the commit order
       tx->set_sync(false);
+      bool tx_had_writes = tx->get_write_count()? true : false ;
       if (tx->commit()) {
         DBUG_RETURN(HA_ERR_ROCKSDB_COMMIT_FAILED);
       }
       thd_wakeup_subsequent_commits(thd, 0);
 
-      if (rocksdb_flush_log_at_trx_commit == FLUSH_LOG_SYNC)
+      if (tx_had_writes && rocksdb_flush_log_at_trx_commit == FLUSH_LOG_SYNC)
       {
         rocksdb::Status s= rdb->FlushWAL(true);
         if (!s.ok())

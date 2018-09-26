@@ -90,6 +90,11 @@ private:
     It used to build clones of the specification if they are needed.
   */
   LEX_CSTRING unparsed_spec;
+  /* Offset of the specification in the input string */
+  my_ptrdiff_t unparsed_spec_offset;
+
+  /* True if the with element is used a prepared statement */
+  bool stmt_prepare_mode;
 
   /* Return the map where 1 is set only in the position for this element */
   table_map get_elem_map() { return (table_map) 1 << number; }
@@ -114,7 +119,14 @@ public:
     for the definition of this element
   */
   bool is_recursive;
-
+  /*
+    For a simple recursive CTE: the number of references to the CTE from
+    outside of the CTE specification.
+    For a CTE mutually recursive with other CTEs : the total number of
+    references to all these CTEs outside of their specification.
+    Each of these mutually recursive CTEs has the same value in this field.
+  */
+  uint rec_outer_references;
   /*
     Any non-recursive select in the specification of a recursive
     with element is a called anchor. In the case mutually recursive
@@ -158,7 +170,7 @@ public:
       top_level_dep_map(0), sq_rec_ref(NULL),
       next_mutually_recursive(NULL), references(0), 
       query_name(name), column_list(list), spec(unit),
-      is_recursive(false), with_anchor(false),
+      is_recursive(false), rec_outer_references(0), with_anchor(false),
       level(0), rec_result(NULL)
   { unit->with_element= this; }
 
@@ -185,7 +197,8 @@ public:
 
   TABLE_LIST *find_first_sq_rec_ref_in_select(st_select_lex *sel);
 
-  bool set_unparsed_spec(THD *thd, char *spec_start, char *spec_end);
+  bool set_unparsed_spec(THD *thd, char *spec_start, char *spec_end,
+                         my_ptrdiff_t spec_offset);
 
   st_select_lex_unit *clone_parsed_spec(THD *thd, TABLE_LIST *with_table);
 

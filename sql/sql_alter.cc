@@ -476,15 +476,17 @@ bool Sql_cmd_alter_table::execute(THD *thd)
   thd->work_part_info= 0;
 #endif
 
-#ifdef WITH_WSREP
-  if ((!thd->is_current_stmt_binlog_format_row() ||
+  if (WSREP(thd) &&
+      (!thd->is_current_stmt_binlog_format_row() ||
        !thd->find_temporary_table(first_table)))
   {
-    WSREP_TO_ISOLATION_BEGIN(((lex->name.str) ? select_lex->db.str : NULL),
-                             ((lex->name.str) ? lex->name.str : NULL),
-                             first_table);
+    WSREP_TO_ISOLATION_BEGIN_ALTER((lex->name.str ? select_lex->db.str : NULL),
+                                   (lex->name.str ? lex->name.str : NULL),
+                                   first_table, &alter_info);
+
+    thd->variables.auto_increment_offset = 1;
+    thd->variables.auto_increment_increment = 1;
   }
-#endif /* WITH_WSREP */
 
   result= mysql_alter_table(thd, &select_lex->db, &lex->name,
                             &create_info,
@@ -497,10 +499,12 @@ bool Sql_cmd_alter_table::execute(THD *thd)
   DBUG_RETURN(result);
 
 #ifdef WITH_WSREP
-error:
-  WSREP_WARN("ALTER TABLE isolation failure");
-  DBUG_RETURN(TRUE);
-#endif /* WITH_WSREP */
+error: /* Used by WSREP_TO_ISOLATION_BEGIN_ALTER */
+#endif
+  {
+    WSREP_WARN("ALTER TABLE isolation failure");
+    DBUG_RETURN(TRUE);
+  }
 }
 
 bool Sql_cmd_discard_import_tablespace::execute(THD *thd)

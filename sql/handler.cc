@@ -21,6 +21,7 @@
 */
 
 #include "mariadb.h"
+#include <inttypes.h>
 #include "sql_priv.h"
 #include "unireg.h"
 #include "rpl_rli.h"
@@ -4618,6 +4619,7 @@ handler::ha_create_partitioning_metadata(const char *name,
               (!old_name && strcmp(name, table_share->path.str)));
 
 
+  mark_trx_read_write();
   return create_partitioning_metadata(name, old_name, action_flag);
 }
 
@@ -6546,7 +6548,7 @@ void ha_fake_trx_id(THD *thd)
 
   if (thd->wsrep_ws_handle.trx_id != WSREP_UNDEFINED_TRX_ID)
   {
-    WSREP_DEBUG("fake trx id skipped: %lu", thd->wsrep_ws_handle.trx_id);
+    WSREP_DEBUG("fake trx id skipped: %" PRIu64, thd->wsrep_ws_handle.trx_id);
     DBUG_VOID_RETURN;
   }
 

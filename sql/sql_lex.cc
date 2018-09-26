@@ -669,6 +669,7 @@ void LEX::start(THD *thd_arg)
   curr_with_clause= 0;
   with_clauses_list= 0;
   with_clauses_list_last_next= &with_clauses_list;
+  clone_spec_offset= 0;
   create_view= NULL;
   value_list.empty();
   update_list.empty();
@@ -6660,6 +6661,14 @@ Item *LEX::make_item_sysvar(THD *thd,
 }
 
 
+static bool param_push_or_clone(THD *thd, LEX *lex, Item_param *item)
+{
+  return !lex->clone_spec_offset ?
+         lex->param_list.push_back(item, thd->mem_root) :
+         item->add_as_clone(thd);
+}
+
+
 Item_param *LEX::add_placeholder(THD *thd, const LEX_CSTRING *name,
                                  const char *start, const char *end)
 {
@@ -6677,7 +6686,7 @@ Item_param *LEX::add_placeholder(THD *thd, const LEX_CSTRING *name,
   Query_fragment pos(thd, sphead, start, end);
   Item_param *item= new (thd->mem_root) Item_param(thd, name,
                                                    pos.pos(), pos.length());
-  if (unlikely(!item) || unlikely(param_list.push_back(item, thd->mem_root)))
+  if (unlikely(!item) || unlikely(param_push_or_clone(thd, this, item)))
   {
     my_error(ER_OUT_OF_RESOURCES, MYF(0));
     return NULL;

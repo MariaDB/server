@@ -382,5 +382,9 @@ SELECT ST_RELATE(
     'F*FFFF**F'
     ) as relate_res;
 
+# MDEV- 16050 cte + geometry functions lead to crash.
+
+with cte1 as(   select (st_symdifference(point(1,1),point(1,1))) as a1 ), cte2 as(select 1 as a2)  select 1 from cte1 where cte1.a1 < '1';
+
 --source include/gis_debug.inc
 

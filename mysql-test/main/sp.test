@@ -9344,6 +9344,27 @@ where 1=1;
 drop function if exists f1;
 drop table t1,t2;
 
+--echo #
+--echo # MDEV-16957: Server crashes in Field_iterator_natural_join::next
+--echo # upon 2nd execution of SP
+--echo #
+
+CREATE TABLE t1 (a INT, b VARCHAR(32));
+CREATE PROCEDURE sp() SELECT * FROM t1 AS t1x JOIN t1 AS t1y USING (c);
+--error ER_BAD_FIELD_ERROR
+CALL sp;
+--error ER_BAD_FIELD_ERROR
+CALL sp;
+--error ER_BAD_FIELD_ERROR
+CALL sp;
+alter table t1 add column c int;
+CALL sp;
+
+# Cleanup
+DROP PROCEDURE sp;
+DROP TABLE t1;
+
+
 --echo # End of 5.5 test
 
 --echo #

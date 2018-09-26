@@ -791,6 +791,26 @@ SELECT JSON_SET('{}', '$.a', _utf8 X'C3B6', '$.x', 1, '$.b', _utf8 X'C3B6');
 JSON_SET('{}', '$.a', _utf8 X'C3B6', '$.x', 1, '$.b', _utf8 X'C3B6')
 {"a": "ö", "x": 1, "b": "ö"}
 #
+# MDEV-17121 JSON_ARRAY_APPEND
+#
+select json_array_append('[             ]', '$', 'aue');
+json_array_append('[             ]', '$', 'aue')
+["aue"]
+#
+# MDEV-17018 JSON_SEARCH and User-Defined Variables.
+#
+SET @`json` := '["A", [{"B": "1"}], {"C": "AB"}, {"D": "BC"}]', @`value` := 'AB';
+SELECT JSON_SEARCH(@`json`, 'one', @`value`);
+JSON_SEARCH(@`json`, 'one', @`value`)
+"$[2].C"
+SET @`json` := NULL, @`value` := NULL;
+#
+# MDEV-17001 JSON_MERGE returns nullwhen merging empty array.
+#
+SELECT JSON_MERGE('[1]', '[]');
+JSON_MERGE('[1]', '[]')
+[1]
+#
 # End of 10.2 tests
 #
 #

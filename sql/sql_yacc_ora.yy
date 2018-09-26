@@ -1212,7 +1212,8 @@ bool my_yyoverflow(short **a, YYSTYPE **b, size_t *yystacksize);
         optionally_qualified_column_ident
 
 %type <simple_string>
-        remember_name remember_end remember_end_opt remember_tok_start
+        remember_name remember_end remember_end_opt
+        remember_tok_start remember_tok_end
         wild_and_where
         colon_with_pos
 
@@ -9466,6 +9467,12 @@ remember_tok_start:
           }
         ;
 
+remember_tok_end:
+          {
+            $$= (char*) YYLIP->get_tok_end();
+          }
+        ;
+
 remember_name:
           {
             $$= (char*) YYLIP->get_cpp_tok_start();
@@ -15148,13 +15155,18 @@ with_list_element:
               MYSQL_YYABORT;
             Lex->with_column_list.empty();
           }
-          AS '(' remember_name subselect remember_end ')'
+          AS '(' remember_tok_start subselect remember_tok_end ')'
  	  {
+            LEX *lex= thd->lex;
+            const char *query_start= lex->sphead ? lex->sphead->m_tmp_query
+                                                 : thd->query();
+            char *spec_start= $6 + 1;
             With_element *elem= new With_element($1, *$2, $7->master_unit());
 	    if (unlikely(elem == NULL) ||
                 unlikely(Lex->curr_with_clause->add_with_element(elem)))
 	      MYSQL_YYABORT;
-	    if (unlikely(elem->set_unparsed_spec(thd, $6+1, $8)))
+            if (elem->set_unparsed_spec(thd, spec_start, $8,
+                                        spec_start - query_start))
               MYSQL_YYABORT;
 	  }
 	;

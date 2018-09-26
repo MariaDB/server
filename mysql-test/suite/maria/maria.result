@@ -2791,6 +2791,10 @@ id	name
 -1	dog
 2	cat
 DROP TABLE t1;
+CREATE TABLE t1 (pk int, i2 int) ENGINE=Aria;
+INSERT INTO t1 VALUES (1,2), (2,3),(3,4);
+DELETE FROM tt.*, t1.* USING t1 AS tt LEFT JOIN t1 ON (tt.i2 = t1.pk);
+DROP TABLE t1;
 #
 # End of 5.5 tests
 #

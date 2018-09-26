@@ -393,7 +393,10 @@ public:
   String *val_str(String*str);
   my_decimal *val_decimal(my_decimal *decimal_value);
   longlong val_int()
-    { DBUG_ASSERT(fixed == 1); return (longlong) rint(val_real()); }
+  {
+    DBUG_ASSERT(fixed == 1);
+    return Converter_double_to_longlong(val_real(), unsigned_flag).result();
+  }
   bool get_date(MYSQL_TIME *ltime, ulonglong fuzzydate)
   { return get_date_from_real(ltime, fuzzydate); }
   const Type_handler *type_handler() const { return &type_handler_double; }
@@ -2096,7 +2099,8 @@ class Item_func_udf_float :public Item_udf_func
   longlong val_int()
   {
     DBUG_ASSERT(fixed == 1);
-    return (longlong) rint(Item_func_udf_float::val_real());
+    return Converter_double_to_longlong(Item_func_udf_float::val_real(),
+                                        unsigned_flag).result();
   }
   my_decimal *val_decimal(my_decimal *dec_buf)
   {
