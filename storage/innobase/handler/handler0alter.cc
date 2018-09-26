@@ -205,7 +205,10 @@ struct ha_innobase_inplace_ctx : public inplace_alter_handler_ctx
 	dict_col_t* const old_cols;
 	/** original column names of the table */
 	const char* const old_col_names;
-
+	/** original instant dropped or reordered columns */
+	dict_instant_t*	const	old_instant;
+	/** original clustered index fields */
+	dict_field_t* const	old_clust_fields;
 	/** Allow non-null conversion.
 	(1) Alter ignore should allow the conversion
 	irrespective of sql mode.
@@ -267,6 +270,8 @@ struct ha_innobase_inplace_ctx : public inplace_alter_handler_ctx
 		old_n_cols(prebuilt_arg->table->n_cols),
 		old_cols(prebuilt_arg->table->cols),
 		old_col_names(prebuilt_arg->table->col_names),
+		old_instant(prebuilt_arg->table->instant),
+		old_clust_fields(prebuilt_arg->table->indexes.start->fields),
 		allow_not_null(allow_not_null_flag),
 		page_compression_level(page_compressed
 				       ? (page_compression_level_arg
@@ -339,7 +344,9 @@ struct ha_innobase_inplace_ctx : public inplace_alter_handler_ctx
 	{
 		if (!is_instant()) return;
 		old_table->rollback_instant(old_n_cols,
-					    old_cols, old_col_names);
+					    old_cols, old_col_names,
+					    old_instant, old_clust_fields,
+					    col_map);
 	}
 
 	/** @return whether this is instant ALTER TABLE */
@@ -1054,7 +1061,7 @@ ha_innobase::check_if_supported_inplace_alter(
 		*/
 			   | ALTER_ADD_NON_UNIQUE_NON_PRIM_INDEX
 			   | ALTER_DROP_NON_UNIQUE_NON_PRIM_INDEX);
-#if 0 /* MDEV-15562 FIXME: enable this, and adjust dict_v_col_t::m_col.ind */
+#if 1 /* MDEV-15562 FIXME: enable this, and adjust dict_v_col_t::m_col.ind */
 		if (supports_instant) {
 			flags &= ~(ALTER_ADD_STORED_BASE_COLUMN
 				   | ALTER_DROP_STORED_COLUMN

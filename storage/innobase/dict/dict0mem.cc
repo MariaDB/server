@@ -1647,8 +1647,10 @@ void dict_table_t::instant_op_column(
 	n_cols = table.n_cols;
 	n_def = n_cols;
 
-	for (unsigned i = n_v_def; i--; ) {
-		const dict_v_col_t& v = v_cols[i];
+	for (unsigned i = 0; i < n_v_def; i++) {
+		dict_v_col_t& v = v_cols[i];
+		v.m_col.ind = (n_def - DATA_N_SYS_COLS) + i;
+
 		for (ulint n = v.num_base; n--; ) {
 			dict_col_t*& base = v.base_col[n];
 			if (!base->is_virtual()) {
@@ -1712,35 +1714,76 @@ void dict_table_t::instant_op_column(
 	}
 }
 
+/** Find the old column number for the given new column position.
+@param[in]	col_map	column map from old column to new column
+@param[in]	pos	new column position
+@param[in]	n_cols	number of columns present in the column map
+@return old column position for the given new column position. */
+static
+ulint find_old_col_no(
+	const ulint*	col_map,
+	ulint		pos,
+	ulint		n_cols)
+{
+	for (unsigned i = 0; i < n_cols; i++) {
+		if (col_map[i] == pos) {
+			return i;
+		}
+	}
+
+	return ULINT_UNDEFINED;
+}
+
 /** Roll back instant_op_column().
-@param[in]	old_n_cols	original n_cols
-@param[in]	old_cols	original cols
-@param[in]	old_col_names	original col_names */
+@param[in]	old_n_cols		original n_cols
+@param[in]	old_cols		original cols
+@param[in]	old_col_names		original col_names
+@param[in]	old_instant		original instant structure
+@param[in]	old_clust_fields	original clustered fields
+@param[in]	col_map			column map */
 void
 dict_table_t::rollback_instant(
 	unsigned	old_n_cols,
 	dict_col_t*	old_cols,
-	const char*	old_col_names)
+	const char*	old_col_names,
+	dict_instant_t*	old_instant,
+	dict_field_t*	old_clust_fields,
+	const ulint*	col_map)
 {
 	ut_ad(mutex_own(&dict_sys->mutex));
 	dict_index_t* index = indexes.start;
 	/* index->is_instant() does not necessarily hold here, because
 	the table may have been emptied */
 	DBUG_ASSERT(old_n_cols >= DATA_N_SYS_COLS);
-	DBUG_ASSERT(n_cols >= old_n_cols);
 	DBUG_ASSERT(n_cols == n_def);
 	DBUG_ASSERT(index->n_def == index->n_fields);
 
-	const unsigned n_remove = n_cols - old_n_cols;
+	unsigned n_remove = 0;
+	unsigned n_add = 0;
 
-	for (unsigned i = index->n_fields - n_remove; i < index->n_fields;
-	     i++) {
-		if (index->fields[i].col->is_nullable()) {
-			index->n_nullable--;
+	if (n_cols > old_n_cols) {
+		n_remove = n_cols - old_n_cols;
+	} else {
+		n_add = old_n_cols - n_cols;
+	}
+
+	instant = old_instant;
+
+	index->n_nullable = 0;
+
+	ulint	old_n_clust_fields = old_n_cols;
+
+	if (old_instant) {
+		old_n_clust_fields += old_instant->n_dropped;
+	}
+
+	for (unsigned i = 0; i < old_n_clust_fields; i++) {
+		if (old_clust_fields[i].col->is_nullable()) {
+			index->n_nullable++;
 		}
 	}
 
-	index->n_fields -= n_remove;
+	index->n_fields = old_n_clust_fields;
 	index->n_def = index->n_fields;
 	if (index->n_core_fields > index->n_fields) {
 		index->n_core_fields = index->n_fields;
@@ -1757,18 +1800,35 @@ dict_table_t::rollback_instant(
 	n_def = old_n_cols;
 	n_t_def -= n_remove;
 	n_t_cols -= n_remove;
+	n_t_def += n_add;
+	n_t_cols += n_add;
 
-	for (unsigned i = n_v_def; i--; ) {
-		const dict_v_col_t& v = v_cols[i];
+	ulint	old_col_no = 0;
+
+	for (unsigned i = 0; i < n_v_def; i++) {
+		dict_v_col_t&	v = v_cols[i];
+		v.m_col.ind = (n_def - DATA_N_SYS_COLS) + i;
 		for (ulint n = v.num_base; n--; ) {
 			dict_col_t*& base = v.base_col[n];
 			if (!base->is_virtual()) {
-				base = &cols[base - new_cols];
+				old_col_no = find_old_col_no(
+					col_map, (base - new_cols),
+					n_cols);
+
+				ut_ad(old_col_no != ULINT_UNDEFINED);
+				base = &cols[old_col_no];
 			}
 		}
 	}
 
-	do {
+	index->fields = old_clust_fields;
+
+	while ((index = dict_table_get_next_index(index)) != NULL) {
+
+		if (index->to_be_dropped) {
+			continue;
+		}
+
 		for (unsigned i = 0; i < index->n_fields; i++) {
 			dict_field_t& field = index->fields[i];
 			if (field.col < new_cols
@@ -1779,15 +1839,15 @@ dict_table_t::rollback_instant(
 				DBUG_ASSERT(field.col >= new_cols);
 				size_t n = size_t(field.col - new_cols);
 				DBUG_ASSERT(n <= n_cols);
-				if (n + DATA_N_SYS_COLS >= n_cols) {
-					n -= n_remove;
-				}
-				field.col = &cols[n];
+
+				old_col_no = find_old_col_no(col_map, n, n_cols);
+				ut_ad(old_col_no != ULINT_UNDEFINED);
+				field.col = &cols[old_col_no];
 				DBUG_ASSERT(!field.col->is_virtual());
 				field.name = field.col->name(*this);
 			}
 		}
-	} while ((index = dict_table_get_next_index(index)) != NULL);
+	}
 }
 
 /** Trim the instantly added columns when an insert into SYS_COLUMNS

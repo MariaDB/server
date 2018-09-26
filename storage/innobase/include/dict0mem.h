@@ -1698,13 +1698,19 @@ struct dict_table_t {
 		ulint			n_newly_drop);
 
 	/** Roll back instant_op_column().
-	@param[in]	old_n_cols	original n_cols
-	@param[in]	old_cols	original cols
-	@param[in]	old_col_names	original col_names */
+	@param[in]	old_n_cols		original n_cols
+	@param[in]	old_cols		original cols
+	@param[in]	old_col_names		original col_names
+	@param[in]	old_instant		original instant structure
+	@param[in]	old_clust_fields	original clustered fields
+	@param[in]	col_map			column map */
 	void rollback_instant(
 		unsigned	old_n_cols,
 		dict_col_t*	old_cols,
-		const char*	old_col_names);
+		const char*	old_col_names,
+		dict_instant_t*	old_instant,
+		dict_field_t*	old_clust_fields,
+		const ulint*	col_map);
 
 	/** Trim the instantly added columns when an insert into SYS_COLUMNS
 	is rolled back during ALTER TABLE or recovery.
