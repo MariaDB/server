@@ -5735,7 +5735,8 @@ int Field_time::store(longlong nr, bool unsigned_val)
 {
   ErrConvInteger str(nr, unsigned_val);
   int was_cut;
-  Time tm(&was_cut, nr, unsigned_val);
+  // Need fractional digit truncation if nr overflows to '838:59:59.999999'
+  Time tm(&was_cut, nr, unsigned_val, decimals());
   return store_TIME_with_warning(&tm, &str, was_cut);
 }
 

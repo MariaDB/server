@@ -800,6 +800,15 @@ public:
   {
     trunc(dec);
   }
+  Time(int *warn, longlong nr, bool unsigned_val, uint dec)
+   :Time(warn, nr, unsigned_val)
+  {
+    /*
+      Decimal digit truncation is needed here in case if nr was out
+      of the supported TIME range, so "this" was set to '838:59:59.999999'.
+    */
+    trunc(dec);
+  }
   Time(int *warn, const my_decimal *d, uint dec)
    :Temporal(Time(warn, d))
   {
