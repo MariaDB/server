@@ -727,6 +727,7 @@ int wsrep_init()
   assert(wsrep_provider);
 
   wsrep_init_position();
+  wsrep_sst_auth_init();
 
   if (strlen(wsrep_provider)== 0 ||
       !strcmp(wsrep_provider, WSREP_NONE))

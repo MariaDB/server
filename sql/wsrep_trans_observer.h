@@ -352,11 +352,12 @@ static inline void wsrep_commit_empty(THD* thd, bool all)
       wsrep_thd_is_local(thd) &&
       thd->wsrep_trx().active())
   {
+    bool have_error= wsrep_current_error(thd);
     int ret= wsrep_before_rollback(thd, all) ||
       wsrep_after_rollback(thd, all) ||
       wsrep_after_statement(thd);
     DBUG_ASSERT(!ret);
-    DBUG_ASSERT(!wsrep_current_error(thd));
+    DBUG_ASSERT(have_error || !wsrep_current_error(thd));
     if (ret)
     {
       WSREP_WARN("wsrep_commit_empty failed: %d", wsrep_current_error(thd));
