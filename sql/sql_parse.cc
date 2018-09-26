@@ -1554,8 +1554,7 @@ bool dispatch_command(enum enum_server_command command, THD *thd,
     if (command != COM_STMT_CLOSE && 
         command != COM_QUIT)
     {
-      my_message(ER_LOCK_DEADLOCK, "Deadlock: wsrep aborted transaction",
-                 MYF(0));
+      my_error(ER_LOCK_DEADLOCK, MYF(0));
       WSREP_DEBUG("Deadlock error for: %s", thd->query());
       thd->reset_killed();
       thd->mysys_var->abort     = 0;
