@@ -2431,7 +2431,7 @@ static inline bool is_committing_connection(THD *thd)
   bool ret;
 
   mysql_mutex_lock(&thd->LOCK_thd_data);
-  ret=  (thd->wsrep_trx().state() != wsrep::transaction::s_committing) ? true : false;
+  ret=  (thd->wsrep_trx().state() == wsrep::transaction::s_committing) ? true : false;
   mysql_mutex_unlock(&thd->LOCK_thd_data);
 
   return ret;
@@ -2486,6 +2486,7 @@ static my_bool have_committing_connections()
 
     if (is_committing_connection(tmp))
     {
+      mysql_mutex_unlock(&LOCK_thread_count);
       return TRUE;
     }
   }
