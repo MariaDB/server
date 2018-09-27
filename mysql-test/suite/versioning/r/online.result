@@ -1,34 +1,34 @@
 set system_versioning_alter_history=keep;
-create or replace table t (a int, b int) engine=innodb;
+create or replace table t (a int);
 alter table t add system versioning, lock=none;
-ERROR 0A000: LOCK=NONE is not supported. Reason: Not implemented for system-versioned tables. Try LOCK=SHARED
+ERROR 0A000: LOCK=NONE is not supported. Reason: Not implemented for system-versioned timestamp tables. Try LOCK=SHARED
+alter table t add system versioning, algorithm=inplace;
+ERROR 0A000: ALGORITHM=INPLACE is not supported. Reason: Not implemented for system-versioned timestamp tables. Try ALGORITHM=COPY
 alter table t add system versioning, lock=shared;
-alter table t drop column b, lock=none;
-ERROR 0A000: LOCK=NONE is not supported. Reason: Not implemented for system-versioned tables. Try LOCK=SHARED
-alter table t drop column b, algorithm=inplace;
-ERROR 0A000: ALGORITHM=INPLACE is not supported. Reason: Not implemented for system-versioned tables. Try ALGORITHM=COPY
-alter table t add index idx(a), lock=none;
+alter table t add column b int, change column a a int without system versioning, lock=none;
 alter table t drop system versioning, lock=none;
-ERROR 0A000: LOCK=NONE is not supported. Reason: Not implemented for system-versioned tables. Try LOCK=SHARED
+ERROR 0A000: LOCK=NONE is not supported. Reason: Not implemented for system-versioned operations. Try LOCK=SHARED
 alter table t drop system versioning, algorithm=inplace;
-ERROR 0A000: ALGORITHM=INPLACE is not supported. Reason: Not implemented for system-versioned tables. Try ALGORITHM=COPY
-create or replace table t (a int, b int) engine=innodb;
-alter table t
-add s bigint unsigned as row start,
-add e bigint unsigned as row end,
-add period for system_time(s, e),
-add system versioning,
-lock=none;
-ERROR 0A000: LOCK=NONE is not supported. Reason: Not implemented for system-versioned tables. Try LOCK=SHARED
-alter table t
-add s bigint unsigned as row start,
-add e bigint unsigned as row end,
-add period for system_time(s, e),
-add system versioning;
+create or replace table t (
+a int, b int,
+row_start SYS_DATATYPE as row start invisible,
+row_end SYS_DATATYPE as row end invisible,
+period for system_time (row_start, row_end)
+) with system versioning;
+insert into t values (1, 0);
+insert into t values (2, 0);
+delete from t where a = 2;
 alter table t drop column b, lock=none;
-ERROR 0A000: LOCK=NONE is not supported. Reason: Not implemented for system-versioned tables. Try LOCK=SHARED
 alter table t add index idx(a), lock=none;
-alter table t drop column s, drop column e;
-alter table t drop system versioning, lock=none;
-ERROR 0A000: LOCK=NONE is not supported. Reason: Not implemented for system-versioned tables. Try LOCK=SHARED
-drop table t;
+select a, check_row(row_start, row_end) from t for system_time all order by a;
+a	check_row(row_start, row_end)
+1	CURRENT ROW
+2	HISTORICAL ROW
+# MDEV-17038 ALTER TABLE CHANGE COLUMN c1 c1 bigint NOT NULL -
+# generates error if table uses SYSTEM VERSIONING [tempesta-tech/mariadb#540]
+create or replace table t1 (a int, key(a)) with system versioning;
+create or replace table t2 like t;
+alter table t2 add foreign key(a) references t1(a);
+alter table t2 modify column a int not null, lock=none;
+drop database test;
+create database test;

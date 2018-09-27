@@ -73,6 +73,12 @@ static const alter_table_operations INNOBASE_DEFAULTS
 	= ALTER_COLUMN_NOT_NULLABLE
 	| ALTER_ADD_STORED_BASE_COLUMN;
 
+
+/** Operations that require knowledge about row_start, row_end values */
+static const alter_table_operations INNOBASE_ALTER_VERSIONED_REBUILD
+	= ALTER_ADD_SYSTEM_VERSIONING
+	| ALTER_DROP_SYSTEM_VERSIONING;
+
 /** Operations for rebuilding a table in place */
 static const alter_table_operations INNOBASE_ALTER_REBUILD
 	= ALTER_ADD_PK_INDEX
@@ -87,8 +93,7 @@ static const alter_table_operations INNOBASE_ALTER_REBUILD
 	/*
 	| ALTER_STORED_COLUMN_TYPE
 	*/
-	| ALTER_ADD_SYSTEM_VERSIONING
-	| ALTER_DROP_SYSTEM_VERSIONING
+	| INNOBASE_ALTER_VERSIONED_REBUILD
 	;
 
 /** Operations that require changes to data */
@@ -866,11 +871,10 @@ ha_innobase::check_if_supported_inplace_alter(
 
 	const bool need_rebuild = innobase_need_rebuild(ha_alter_info, table);
 
-	if (need_rebuild
-	    && (table->versioned(VERS_TIMESTAMP)
-		|| altered_table->versioned(VERS_TIMESTAMP))) {
+	if (altered_table->versioned(VERS_TIMESTAMP)
+	    && (ha_alter_info->handler_flags & INNOBASE_ALTER_VERSIONED_REBUILD)) {
 		ha_alter_info->unsupported_reason =
-			"Not implemented for system-versioned tables";
+			"Not implemented for system-versioned timestamp tables";
 		DBUG_RETURN(HA_ALTER_INPLACE_NOT_SUPPORTED);
 	}
 
@@ -1409,13 +1413,12 @@ cannot_create_many_fulltext_index:
 		}
 	}
 
-	// FIXME: implement Online DDL for system-versioned tables
-	if (need_rebuild &&
-	    (table->versioned(VERS_TRX_ID)
-	     || altered_table->versioned(VERS_TRX_ID))) {
+	// FIXME: implement Online DDL for system-versioned operations
+	if (ha_alter_info->handler_flags & INNOBASE_ALTER_VERSIONED_REBUILD) {
+
 		if (ha_alter_info->online) {
 			ha_alter_info->unsupported_reason =
-				"Not implemented for system-versioned tables";
+				"Not implemented for system-versioned operations";
 		}
 
 		online = false;
@@ -5366,7 +5369,9 @@ new_clustered_failed:
 				ut_d(const dict_index_t* index
 				     = user_table->indexes.start);
 				DBUG_SLOW_ASSERT(col->mtype == old_col->mtype);
-				DBUG_SLOW_ASSERT(col->prtype == old_col->prtype);
+				ut_ad(col->prtype == old_col->prtype
+				      || col->prtype
+				      == (old_col->prtype & ~DATA_VERSIONED));
 				DBUG_SLOW_ASSERT(col->mbminlen
 					    == old_col->mbminlen);
 				DBUG_SLOW_ASSERT(col->mbmaxlen
@@ -8519,6 +8524,9 @@ change_fields_versioning_try(
 	    ha_alter_info->alter_info->create_list);
 
 	while (const Create_field* create_field = it++) {
+		if (!create_field->field) {
+			continue;
+		}
 		if (create_field->versioning
 		    == Column_definition::VERSIONING_NOT_SET) {
 			continue;
@@ -8569,6 +8577,9 @@ change_fields_versioning_cache(
 	    ha_alter_info->alter_info->create_list);
 
 	while (const Create_field* create_field = it++) {
+		if (!create_field->field) {
+			continue;
+		}
 		dict_col_t* col = dict_table_get_nth_col(
 		    ctx->new_table, innodb_col_no(create_field->field));
 
@@ -8959,7 +8970,8 @@ commit_try_norebuild(
 		DBUG_RETURN(true);
 	}
 
-	if (change_fields_versioning_try(ha_alter_info, ctx, trx, old_table)) {
+	if ((ha_alter_info->handler_flags & ALTER_COLUMN_UNVERSIONED)
+	    && change_fields_versioning_try(ha_alter_info, ctx, trx, old_table)) {
 		DBUG_RETURN(true);
 	}
 

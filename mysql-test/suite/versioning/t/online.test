@@ -1,42 +1,41 @@
---source include/have_innodb.inc
+--source suite/versioning/innodb.inc
+--source suite/versioning/common.inc
 
 set system_versioning_alter_history=keep;
 
-create or replace table t (a int, b int) engine=innodb;
-
+create or replace table t (a int);
 --error ER_ALTER_OPERATION_NOT_SUPPORTED_REASON
 alter table t add system versioning, lock=none;
+--error ER_ALTER_OPERATION_NOT_SUPPORTED_REASON
+alter table t add system versioning, algorithm=inplace;
 alter table t add system versioning, lock=shared;
---error ER_ALTER_OPERATION_NOT_SUPPORTED_REASON
-alter table t drop column b, lock=none;
---error ER_ALTER_OPERATION_NOT_SUPPORTED_REASON
-alter table t drop column b, algorithm=inplace;
-alter table t add index idx(a), lock=none;
+
+alter table t add column b int, change column a a int without system versioning, lock=none;
 --error ER_ALTER_OPERATION_NOT_SUPPORTED_REASON
 alter table t drop system versioning, lock=none;
---error ER_ALTER_OPERATION_NOT_SUPPORTED_REASON
 alter table t drop system versioning, algorithm=inplace;
 
-
-create or replace table t (a int, b int) engine=innodb;
-
---error ER_ALTER_OPERATION_NOT_SUPPORTED_REASON
-alter table t
-  add s bigint unsigned as row start,
-  add e bigint unsigned as row end,
-  add period for system_time(s, e),
-  add system versioning,
-  lock=none;
-alter table t
-  add s bigint unsigned as row start,
-  add e bigint unsigned as row end,
-  add period for system_time(s, e),
-  add system versioning;
---error ER_ALTER_OPERATION_NOT_SUPPORTED_REASON
+--replace_result $sys_datatype_expl SYS_DATATYPE
+eval create or replace table t (
+  a int, b int,
+  row_start $sys_datatype_expl as row start invisible,
+  row_end $sys_datatype_expl as row end invisible,
+  period for system_time (row_start, row_end)
+) with system versioning;
+insert into t values (1, 0);
+insert into t values (2, 0);
+delete from t where a = 2;
 alter table t drop column b, lock=none;
 alter table t add index idx(a), lock=none;
-alter table t drop column s, drop column e;
---error ER_ALTER_OPERATION_NOT_SUPPORTED_REASON
-alter table t drop system versioning, lock=none;
 
-drop table t;
+select a, check_row(row_start, row_end) from t for system_time all order by a;
+
+--echo # MDEV-17038 ALTER TABLE CHANGE COLUMN c1 c1 bigint NOT NULL -
+--echo # generates error if table uses SYSTEM VERSIONING [tempesta-tech/mariadb#540]
+create or replace table t1 (a int, key(a)) with system versioning;
+create or replace table t2 like t;
+alter table t2 add foreign key(a) references t1(a);
+alter table t2 modify column a int not null, lock=none;
+
+drop database test;
+create database test;
