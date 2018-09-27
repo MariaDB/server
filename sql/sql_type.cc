@@ -215,60 +215,34 @@ void Sec6::make_truncated_warning(THD *thd, const char *type_str) const
 }
 
 
-bool Sec6::to_time_with_warn(MYSQL_TIME *to, const ErrConv *str,
-                             const char *field_name) const
-{
-  int was_cut;
-  bool res= to_time(to, &was_cut);
-  if (res || MYSQL_TIME_WARN_HAVE_WARNINGS(was_cut))
-    current_thd->
-      push_warning_wrong_or_truncated_value(Sql_condition::WARN_LEVEL_WARN,
-                                            res, "time", str->ptr(),
-                                            field_name);
-  return res;
-}
-
-
-bool Sec6::to_datetime_with_warn(MYSQL_TIME *to, ulonglong fuzzydate,
-                                 const ErrConv *str,
-                                 const char *field_name) const
-{
-  bool res, have_warnings= false;
-  int was_cut;
-  res= to_datetime(to, fuzzydate, &was_cut);
-  have_warnings= was_cut && (fuzzydate & TIME_NO_ZERO_IN_DATE);
-  if (res || have_warnings)
-    current_thd->
-      push_warning_wrong_or_truncated_value(Sql_condition::WARN_LEVEL_WARN,
-                                            res, "datetime", str->ptr(),
-                                            field_name);
-  return res;
-}
-
-
 bool Sec6::convert_to_mysql_time(MYSQL_TIME *ltime, ulonglong fuzzydate,
                                  const ErrConv *str, const char *field_name)
                                  const
 {
+  int warn;
   bool is_time= fuzzydate & TIME_TIME_ONLY;
+  const char *typestr= is_time ? "time" : "datetime";
+  bool rc= is_time ? to_time(ltime, &warn) :
+                     to_datetime(ltime, fuzzydate, &warn);
   if (truncated())
   {
-    /*
-      The value was already truncated at the constructor call time,
-      and a truncation warning was issued. Here we convert silently
-      to avoid double warnings.
-    */
+    // The value was already truncated at the constructor call time
     current_thd->
       push_warning_wrong_or_truncated_value(Sql_condition::WARN_LEVEL_WARN,
-                                            !is_time,
-                                            is_time ? "time" : "datetime",
+                                            !is_time, typestr,
                                             str->ptr(), field_name);
-    int warn;
-    return is_time ? to_time(ltime, &warn) :
-                     to_datetime(ltime, fuzzydate, &warn);
   }
-  return is_time ? to_time_with_warn(ltime, str, field_name) :
-                   to_datetime_with_warn(ltime, fuzzydate, str, field_name);
+  else if (rc || MYSQL_TIME_WARN_HAVE_WARNINGS(warn))
+    current_thd->
+      push_warning_wrong_or_truncated_value(Sql_condition::WARN_LEVEL_WARN,
+                                            rc, typestr, str->ptr(),
+                                            field_name);
+  else if (MYSQL_TIME_WARN_HAVE_NOTES(warn))
+    current_thd->
+      push_warning_wrong_or_truncated_value(Sql_condition::WARN_LEVEL_NOTE,
+                                            rc, typestr, str->ptr(),
+                                            field_name);
+  return rc;
 }
 
 

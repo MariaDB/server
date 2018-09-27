@@ -273,8 +273,6 @@ public:
   {
     return number_to_time(m_neg, m_sec, m_usec, to, warn);
   }
-  bool to_time_with_warn(MYSQL_TIME *to, const ErrConv *str,
-                         const char *field_name) const;
   /*
     Convert a number in format YYYYMMDDhhmmss.ff to
     TIMESTAMP'YYYY-MM-DD hh:mm:ss.ff'
@@ -288,8 +286,6 @@ public:
     }
     return number_to_datetime(m_sec, m_usec, to, flags, warn) == -1;
   }
-  bool to_datetime_with_warn(MYSQL_TIME *to, ulonglong fuzzydate,
-                             const ErrConv *str, const char *field_name) const;
   // Convert elapsed seconds to TIME
   bool sec_to_time(MYSQL_TIME *ltime, uint dec) const
   {
