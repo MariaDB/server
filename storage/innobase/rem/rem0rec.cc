@@ -1087,8 +1087,7 @@ rec_get_offsets_func(
 		      || n == n_fields /* btr_pcur_restore_position() */
 		      || (n + (index->id == DICT_INDEXES_ID)
 			  >= index->n_core_fields && n <= index->n_fields
-			  + (index->table->instant
-			     ? index->table->instant->n_dropped : 0)));
+			  + unsigned(rec_is_alter_metadata(rec, false))));
 
 		if (is_user_rec && leaf && n < index->n_fields) {
 			ut_ad(!index->is_dummy);
@@ -1782,33 +1781,30 @@ rec_convert_dtuple_to_rec_old(
 	return(rec);
 }
 
-/** Convert a data tuple into a default ROW_FORMAT=COMPACT record
+/** Convert a data tuple into a ROW_FORMAT=COMPACT metadata record
 for instant alter operation.
 @param[out]	rec		converted record
 @param[in]	clust_index	clustered index
 @param[in]	fields		data fields to convert
 @param[in]	n_fields	number of data fields */
-static
+ATTRIBUTE_COLD static
 void
-rec_convert_dtuple_to_default_rec_comp(
+rec_convert_dtuple_to_metadata_comp(
 	rec_t*			rec,
 	const dict_index_t*	clust_index,
 	const dfield_t*		fields,
 	ulint			n_fields)
 {
-	const dfield_t*	field;
-	const dtype_t*	type;
 	byte*		end;
 	byte*		nulls = rec - (REC_N_NEW_EXTRA_BYTES + 1);
 	byte*		UNINIT_VAR(lens);
-	ulint		len;
-	ulint		fixed_len;
 	ulint		null_mask	= 1;
 
 	/* Nullable non-dropped fields + number of dropped fields. */
 	unsigned	n_null_bytes = UT_BITS_IN_BYTES(
 		(clust_index->get_n_non_drop_nullable_fields()
 				 + clust_index->table->instant->n_dropped));
+	ut_ad(n_fields == ulint(clust_index->n_fields) + 1);
 
 	rec_set_n_add_field(nulls, n_null_bytes);
 
@@ -1822,41 +1818,24 @@ rec_convert_dtuple_to_default_rec_comp(
 	/* clear the SQL-null flags */
 	memset(lens + 1, 0, ulint(nulls - lens));
 
-	ulint 	i;
-	ulint	field_no = 0;
 	/* Store the data and the offsets */
-	for (i = 0; i < n_fields; i++) {
-		const dict_field_t*	ifield;
-		dict_col_t*		col = NULL;
-		bool			is_dropped = false;
-		bool			is_nullable = false;
+	for (ulint i = 0, j = 0; i < n_fields; i++) {
+		const dfield_t*	field = &fields[i];
+		ulint len = dfield_get_len(field);
+		ulint fixed_len;
 
-		field = &fields[i];
-		type = dfield_get_type(field);
-		len = dfield_get_len(field);
-
-		if (i == unsigned(clust_index->n_uniq + DATA_ROLL_PTR)) {
-			/* Default row blob. */
+		if (i == unsigned(clust_index->n_uniq + 2)) {
+			/* Metadata blob */
 			fixed_len = 0;
+			ut_ad(dfield_is_ext(field));
+			ut_ad(dtype_get_prtype(&field->type) & DATA_NOT_NULL);
 			goto data_write;
 		} else {
-			ifield = dict_index_get_nth_field(clust_index, field_no++);
-			fixed_len = ifield->fixed_len;
-			col = ifield->col;
-			is_dropped = col->is_dropped();
+			fixed_len = dict_index_get_nth_field(
+				clust_index, j++)->fixed_len;
 		}
 
-		is_nullable = !(dtype_get_prtype(type) & DATA_NOT_NULL);
-
-		if (is_dropped) {
-			if (is_nullable) {
-				/* Set the nullable flag for
-				dropped column */
-				*nulls |= null_mask;
-			}
-
-			null_mask <<= 1;
-		} else if (is_nullable) {
+		if (!(dtype_get_prtype(&field->type) & DATA_NOT_NULL)) {
 			if (dfield_is_null(field)) {
 				*nulls |= null_mask;
 				null_mask <<= 1;
@@ -1866,19 +1845,13 @@ rec_convert_dtuple_to_default_rec_comp(
 			null_mask <<= 1;
 		}
 
-		ut_ad(!dfield_is_null(field) || is_dropped);
-
-		/* Set the length for the dropped column. */
-		if (fixed_len && !is_dropped) {
-			ut_ad(len <= fixed_len);
-			ut_ad(!dfield_is_ext(field));
+		if (fixed_len) {
 		} else if (dfield_is_ext(field)) {
 			*lens-- = (byte) (len >> 8) | 0xc0;
 			*lens-- = (byte) len;
 		} else {
 			if (len < 128 || !DATA_BIG_LEN_MTYPE(
-				dtype_get_len(type), dtype_get_mtype(type))) {
-
+				    field->type.len, field->type.mtype)) {
 				*lens-- = (byte) len;
 			} else {
 				ut_ad(len < 16384);
@@ -1888,8 +1861,9 @@ rec_convert_dtuple_to_default_rec_comp(
 		}
 
 data_write:
-		/* Store the record only non-dropped column. */
-		if (len && !is_dropped) {
+		ut_ad(!fixed_len || len <= fixed_len);
+		ut_ad(!fixed_len || !dfield_is_ext(field));
+		if (len) {
 			memcpy(end, dfield_get_data(field), len);
 			end += len;
 		}
@@ -2113,7 +2087,7 @@ rec_convert_dtuple_to_rec_new(
 			  && dict_table_is_comp(index->table))) {
 		rec_get_metadata_converted_size(index, dtuple, &extra_size);
 		rec = buf + extra_size;
-		rec_convert_dtuple_to_default_rec_comp(
+		rec_convert_dtuple_to_metadata_comp(
 			rec, index, dtuple->fields, dtuple->n_fields);
 		rec_set_info_bits_new(
 			rec, dtuple->info_bits & ~REC_NEW_STATUS_MASK);

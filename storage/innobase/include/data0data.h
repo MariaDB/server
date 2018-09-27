@@ -646,9 +646,11 @@ struct dtuple_t {
 	@param[in]	index	index possibly with instantly added columns */
 	void trim(const dict_index_t& index);
 
-	/** @return whether this is a hidden metadata record
-	for instant ALTER TABLE (not only ADD COLUMN) */
-	bool is_alter_metadata() const
+	/**
+	@param info_bits	the info_bits of a data tuple
+	@return whether this is a hidden metadata record
+	for instant ADD COLUMN or ALTER TABLE */
+	static bool is_alter_metadata(ulint info_bits)
 	{
 		return UNIV_UNLIKELY(info_bits == REC_INFO_METADATA_ALTER);
 	}
@@ -662,6 +664,10 @@ struct dtuple_t {
 		return UNIV_UNLIKELY((info_bits & ~REC_INFO_DELETED_FLAG)
 				     == REC_INFO_METADATA_ADD);
 	}
+
+	/** @return whether this is a hidden metadata record
+	for instant ALTER TABLE (not only ADD COLUMN) */
+	bool is_alter_metadata() const { return is_alter_metadata(info_bits); }
 
 	/** @return whether this is a hidden metadata record
 	for instant ADD COLUMN or ALTER TABLE */

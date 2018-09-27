@@ -1323,43 +1323,46 @@ row_upd_index_replace_new_col_val(
 }
 
 /** Apply an update vector to an metadata entry.
-@param[in,out]	entry	index entry to be updated; the clustered index default
-			row record
+@param[in,out]	entry	clustered index metadata record to be updated
 @param[in]	index	index of the entry
 @param[in]	update	update vector built for the entry
 @param[in,out]	heap	memory heap for copying off-page columns */
 static
 void
-row_upd_index_replace_metadata_pos(
+row_upd_index_replace_metadata(
 	dtuple_t*		entry,
 	const dict_index_t*	index,
 	const upd_t*		update,
 	mem_heap_t*		heap)
 {
 	ut_ad(!index->table->skip_alter_undo);
+	ut_ad(update->is_alter_metadata());
+	ut_ad(entry->info_bits == update->info_bits);
+	ut_ad(entry->n_fields == ulint(index->n_fields) + 1);
+	const page_size_t& page_size = dict_table_page_size(index->table);
+	const ulint first = index->n_uniq + 2;
 
-	const page_size_t&	page_size = dict_table_page_size(index->table);
+	for (ulint i = upd_get_n_fields(update); i--; ) {
+		const upd_field_t* uf = upd_get_nth_field(update, i);
+		ut_ad(!upd_fld_is_virtual_col(uf));
+		ut_ad(uf->field_no >= first);
+		ulint f = uf->field_no;
+		dfield_t* dfield = dtuple_get_nth_field(entry, f);
 
-	dtuple_set_info_bits(entry, update->info_bits);
-
-	for (unsigned i = entry->n_fields;
-	     i >= unsigned(index->n_uniq + DATA_ROLL_PTR); i--) {
-		const dict_field_t*	field = NULL;
-		const dict_col_t*	col = NULL;
-		const upd_field_t*	uf;
-
-		uf = upd_get_field_by_field_no(update, i -1, false);
-
-		if (uf) {
-			if (i > unsigned(index->n_uniq + DATA_ROLL_PTR)) {
-				field = dict_index_get_nth_field(index, i - 1);
-				col = dict_field_get_col(field);
-			}
-
-			row_upd_index_replace_new_col_val(
-				dtuple_get_nth_field(entry, i),
-				field, col, uf, heap, page_size);
+		if (f-- == first) {
+			ut_ad(dfield_is_ext(&uf->new_val));
+			ut_ad(dfield_get_len(&uf->new_val) == FIELD_REF_SIZE);
+			ut_ad(!dfield_is_null(&uf->new_val));
+			ut_ad(dfield_is_ext(dfield));
+			ut_ad(dfield_get_len(dfield) == FIELD_REF_SIZE);
+			ut_ad(!dfield_is_null(dfield));
+			dfield->data = uf->new_val.data;
+			continue;
 		}
+
+		const dict_field_t* field = dict_index_get_nth_field(index, f);
+		row_upd_index_replace_new_col_val(dfield, field, field->col,
+						  uf, heap, page_size);
 	}
 }
 
@@ -1378,15 +1381,16 @@ row_upd_index_replace_new_col_vals_index_pos(
 	mem_heap_t*		heap)
 {
 	ut_ad(!index->table->skip_alter_undo);
+	ut_ad(!entry->is_metadata() || entry->info_bits == update->info_bits);
+
+	if (UNIV_UNLIKELY(entry->is_alter_metadata())) {
+		row_upd_index_replace_metadata(entry, index, update, heap);
+		return;
+	}
 
 	const page_size_t&	page_size = dict_table_page_size(index->table);
 
 	dtuple_set_info_bits(entry, update->info_bits);
-
-	if (UNIV_UNLIKELY(entry->is_alter_metadata())) {
-		row_upd_index_replace_metadata_pos(entry, index, update, heap);
-		return;
-	}
 
 	for (unsigned i = index->n_fields; i--; ) {
 		const dict_field_t*	field;

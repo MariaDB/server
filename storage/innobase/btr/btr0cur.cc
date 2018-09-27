@@ -4726,8 +4726,14 @@ btr_cur_pessimistic_update(
 		rec, index, *offsets, page_is_leaf(page),
 		ULINT_UNDEFINED, offsets_heap);
 
-	dtuple_t*	new_entry = row_rec_to_index_entry(
-		rec, index, *offsets, &n_ext, entry_heap);
+	const bool is_metadata = rec_is_metadata(rec, index);
+	ut_ad(!is_metadata || (flags & BTR_NO_LOCKING_FLAG));
+
+	dtuple_t* new_entry = is_metadata
+		? row_metadata_to_tuple(rec, index, *offsets, &n_ext,
+					entry_heap, update->info_bits)
+		: row_rec_to_index_entry(rec, index, *offsets, &n_ext,
+					 entry_heap);
 
 	/* The page containing the clustered index record
 	corresponding to new_entry is latched in mtr.  If the
@@ -4738,9 +4744,6 @@ btr_cur_pessimistic_update(
 	row_upd_index_replace_new_col_vals_index_pos(new_entry, index, update,
 						     entry_heap);
 	btr_cur_trim(new_entry, index, update, thr);
-
-	const bool is_metadata = new_entry->info_bits
-		& REC_INFO_MIN_REC_FLAG;
 
 	/* We have to set appropriate extern storage bits in the new
 	record to be inserted: we have to remember which fields were such */
@@ -4769,10 +4772,10 @@ btr_cur_pessimistic_update(
 	}
 
 	if (page_zip_rec_needs_ext(
-			rec_get_converted_size(index, new_entry, n_ext),
-			page_is_comp(page),
-			dict_index_get_n_fields(index),
-			block->page.size)
+		    rec_get_converted_size(index, new_entry, n_ext),
+		    page_is_comp(page),
+		    dict_index_get_n_fields(index),
+		    block->page.size)
 	    || UNIV_UNLIKELY(rec_is_alter_metadata(rec, index))) {
 
 		big_rec_vec = dtuple_convert_big_rec(index, update, new_entry, &n_ext);
@@ -4838,7 +4841,7 @@ btr_cur_pessimistic_update(
 		ut_ad(new_entry->is_metadata());
 		ut_ad(index->is_instant());
 		/* This can be innobase_add_instant_try() performing a
-		subsequent instant ADD COLUMN, or its rollback by
+		subsequent instant ALTER TABLE, or its rollback by
 		row_undo_mod_clust_low(). */
 		ut_ad(flags & BTR_NO_LOCKING_FLAG);
 	} else {

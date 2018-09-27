@@ -1291,96 +1291,197 @@ void dict_index_t::remove_instant()
 	table->instant = NULL;
 }
 
-/** Adjust clustered index metadata for instant ADD/DROP COLUMN.
-@param[in]	instant		clustered index definition after instant ADD COLUMN
-@param[in]	n_newly_add	number of newly added columns
-@param[in]	n_newly_drop	number of newly dropped columns
-@param[in]	col_map		mapping of old table cols to new table cols */
-inline void dict_index_t::instant_op_field(
-	const dict_index_t&	instant,
-	ulint			n_newly_add,
-	ulint			n_newly_drop,
-	const ulint*		col_map)
+/** Adjust index metadata for instant ADD/DROP/reorder COLUMN.
+@param[in]	clustered index definition after instant ALTER TABLE */
+inline void dict_index_t::instant_add_field(const dict_index_t& instant)
 {
 	DBUG_ASSERT(is_primary());
 	DBUG_ASSERT(instant.is_primary());
-	DBUG_ASSERT(!instant.is_instant());
+	DBUG_ASSERT(!has_virtual());
+	DBUG_ASSERT(!instant.has_virtual());
+	DBUG_ASSERT(instant.n_core_fields == instant.n_fields);
 	DBUG_ASSERT(n_def == n_fields);
 	DBUG_ASSERT(instant.n_def == instant.n_fields);
-
 	DBUG_ASSERT(type == instant.type);
 	DBUG_ASSERT(trx_id_offset == instant.trx_id_offset);
 	DBUG_ASSERT(n_user_defined_cols == instant.n_user_defined_cols);
 	DBUG_ASSERT(n_uniq == instant.n_uniq);
+	DBUG_ASSERT(instant.n_fields >= n_fields);
+	DBUG_ASSERT(instant.n_nullable >= n_nullable);
+	DBUG_ASSERT(instant.n_core_fields >= n_core_fields);
+	DBUG_ASSERT(instant.n_core_null_bytes >= n_core_null_bytes);
 
-	ulint	old_n_fields = n_fields;
+	/* instant will have all fields (including ones for columns
+	that have been or are being instantly dropped) in the same position
+	as this index. Fields for any added columns are appended at the end. */
+#ifndef DBUG_OFF
+	for (unsigned i = 0; i < n_fields; i++) {
+		DBUG_ASSERT(fields[i].same(instant.fields[i]));
+		DBUG_ASSERT(fields[i].col->is_nullable()
+			    == instant.fields[i].col->is_nullable());
+	}
+#endif
+	n_fields = instant.n_fields;
+	n_def = instant.n_def;
+	n_nullable = instant.n_nullable;
+	fields = static_cast<dict_field_t*>(
+		mem_heap_dup(heap, instant.fields, n_fields * sizeof *fields));
 
-	n_fields = instant.n_fields + table->n_dropped();
-	n_def = instant.n_def + table->n_dropped();
-
-	unsigned	n_null = 0;
-	ulint		old_field_no = 0;
-	ulint		new_field_no = 0;
-
-	dict_field_t*	temp_fields = static_cast<dict_field_t*>(mem_heap_zalloc(
-				heap, n_fields * sizeof *temp_fields));
+	ut_d(unsigned n_null = 0);
+	ut_d(unsigned n_dropped = 0);
 
 	for (unsigned i = 0; i < n_fields; i++) {
-		const dict_field_t* field = &fields[old_field_no];
-		const dict_field_t& instant_field
-			= instant.fields[new_field_no];
-		dict_field_t&	temp_field = temp_fields[i];
-		bool		is_dropped = false;
-		ulint		new_col_offset = 0;
-
-		for (unsigned j = 0; j < table->n_dropped(); j++) {
-			dict_col_t* col = &table->instant->dropped[j];
-			if (col->ind == i) {
-				temp_field.col = col;
-				is_dropped = true;
-				break;
-			}
-		}
-
-		if (is_dropped) {
-			old_field_no++;
-			temp_field.fixed_len = temp_field.col->len;
+		const dict_col_t* icol = instant.fields[i].col;
+		dict_field_t& f = fields[i];
+		ut_d(n_null += icol->is_nullable());
+		DBUG_ASSERT(!icol->is_virtual());
+		if (icol->is_dropped()) {
+			ut_d(n_dropped++);
+			f.col->dropped = true;
+			f.col->ind = 0;
+			f.name = NULL;
 		} else {
-
-			if (i >= old_n_fields) {
-
-				new_col_offset = i - DATA_N_SYS_COLS
-					- table->n_dropped();
-
-				if (!dict_index_is_auto_gen_clust(this)) {
-					new_col_offset += 1;
-				}
-
-				field = &instant_field;
-			} else {
-				new_col_offset = col_map[field->col->ind];
-				old_field_no++;
-			}
-
-			new_field_no++;
-
-			temp_fields[i].prefix_len = field->prefix_len;
-			temp_fields[i].fixed_len = field->fixed_len;
-
-			const char* end = table->col_names;
-			for (unsigned col = 0; col < new_col_offset; col++) {
-				end += strlen(end) + 1;
-			}
-
-			temp_fields[i].name = end;
-			temp_fields[i].col = &table->cols[new_col_offset];
+			f.col = &table->cols[icol - instant.table->cols];
+			f.name = f.col->name(*table);
 		}
-
-		n_null += temp_fields[i].col->is_nullable();
 	}
 
-	fields = temp_fields;
-	n_nullable = n_null;
+	ut_ad(n_null == n_nullable);
+	ut_ad(n_dropped == instant.table->n_dropped());
+}
+
+/** Adjust table metadata for instant ADD/DROP/reorder COLUMN.
+@param[in]	table		altered table (with dropped columns)
+@param[in]	map		mapping from cols[] to table.cols[] */
+void dict_table_t::instant_column(const dict_table_t& table, const ulint* map)
+{
+	DBUG_ASSERT(!table.cached);
+	DBUG_ASSERT(table.n_def == table.n_cols);
+	DBUG_ASSERT(table.n_t_def == table.n_t_cols);
+	DBUG_ASSERT(n_def == n_cols);
+	DBUG_ASSERT(n_t_def == n_t_cols);
+	DBUG_ASSERT(n_v_def == n_v_cols);
+	DBUG_ASSERT(table.n_v_def == table.n_v_cols);
+	DBUG_ASSERT(table.n_cols + table.n_dropped() >= n_cols + n_dropped());
+	ut_ad(mutex_own(&dict_sys->mutex));
+
+	const char* end = table.col_names;
+	for (unsigned i = table.n_cols; i--; ) end += strlen(end) + 1;
+
+	col_names = static_cast<char*>(
+		mem_heap_dup(heap, table.col_names,
+			     ulint(end - table.col_names)));
+	const dict_col_t* const old_cols = cols;
+	const dict_col_t* const old_cols_end = cols + n_cols;
+	cols = static_cast<dict_col_t*>(mem_heap_dup(heap, table.cols,
+						     table.n_cols
+						     * sizeof *cols));
+
+	/* Preserve the default values of previously instantly added
+	columns, or copy the new default values to this->heap. */
+	for (ulint i = 0; i < ulint(table.n_cols); i++) {
+		dict_col_t& c = cols[i];
+
+		if (const dict_col_t* old = dict_table_t::find(old_cols, map,
+							       n_cols, i)) {
+			c.def_val = old->def_val;
+			continue;
+		}
+
+		DBUG_ASSERT(c.is_added());
+		if (c.def_val.len <= sizeof field_ref_zero
+		    && !memcmp(c.def_val.data, field_ref_zero,
+			       c.def_val.len)) {
+			c.def_val.data = field_ref_zero;
+		} else if (const void*& d = c.def_val.data) {
+			d = mem_heap_dup(heap, d, c.def_val.len);
+		} else {
+			DBUG_ASSERT(c.def_val.len == UNIV_SQL_NULL);
+		}
+	}
+
+	n_t_def += table.n_cols - n_cols;
+	n_t_cols += table.n_cols - n_cols;
+	n_def = table.n_cols;
+
+	/* FIXME: copy v_col_names[] and v_cols[] from table to this
+	(that is, support ADD/DROP/reorder/rename of VIRTUAL COLUMN).
+	Here, we wrongly assume that the virtual columns were unchanged. */
+	DBUG_ASSERT(n_v_def == table.n_v_def);
+
+	for (unsigned i = 0; i < n_v_def; i++) {
+		dict_v_col_t& v = v_cols[i];
+		v.m_col.ind = (n_def - DATA_N_SYS_COLS) + i;
+
+		for (ulint n = v.num_base; n--; ) {
+			dict_col_t*& base = v.base_col[n];
+			if (base->is_virtual()) {
+			} else if (base >= table.cols
+				   && base <= table.cols + table.n_cols) {
+				/* The base column was instantly added. */
+				base += cols - table.cols;
+			} else {
+				DBUG_ASSERT(base >= old_cols);
+				DBUG_ASSERT(base + DATA_N_SYS_COLS
+					    <= old_cols_end);
+				size_t n = map[base - old_cols];
+				DBUG_ASSERT(n + DATA_N_SYS_COLS < n_cols);
+				base = &cols[n];
+			}
+		}
+	}
+
+	n_cols = table.n_cols;
+
+	dict_index_t* index = dict_table_get_first_index(this);
+
+	index->instant_add_field(*dict_table_get_first_index(&table));
+
+	if (instant || table.instant) {
+		unsigned num_non_pk = index->n_fields - (index->n_uniq + 2);
+		unsigned* non_pk_col_map = static_cast<unsigned*>(
+			mem_heap_zalloc(heap, num_non_pk
+					* sizeof *non_pk_col_map));
+		const uint u = index->n_uniq + 2;
+		for (unsigned i = 0; i + u < index->n_fields; i++) {
+			const dict_col_t* col = dict_index_get_nth_col(
+				index, i + u);
+			if (!col->is_dropped()) {
+				non_pk_col_map[i] = col->ind + 1;
+			}
+		}
+
+		if (!instant) {
+			instant = new (mem_heap_zalloc(heap, sizeof *instant))
+				dict_instant_t();
+		}
+
+		instant->non_pk_col_map = non_pk_col_map;
+	}
+
+	while ((index = dict_table_get_next_index(index)) != NULL) {
+		if (index->to_be_dropped) {
+			continue;
+		}
+		for (unsigned i = 0; i < index->n_fields; i++) {
+			dict_field_t& field = index->fields[i];
+			if (field.col >= table.cols
+			    && field.col <= table.cols + n_cols) {
+				/* This is an instantly added column
+				in a newly added index. */
+				DBUG_ASSERT(!field.col->is_virtual());
+				field.col += cols - table.cols;
+				field.name = field.col->name(*this);
+			} else if (field.col < old_cols
+				 || field.col >= old_cols_end) {
+				DBUG_ASSERT(field.col->is_virtual());
+			} else {
+				field.col = &cols[map[field.col - old_cols]];
+				DBUG_ASSERT(!field.col->is_virtual());
+				field.name = field.col->name(*this);
+			}
+		}
+	}
 }
 
 /** Read the metadata blob and fill the non primary fields,
@@ -1514,206 +1615,6 @@ void dict_table_t::construct_dropped_columns(const byte* data)
 	}
 }
 
-/** Adjust table metadata for instant drop operation.
-@param[in]	table		instant table
-@param[in]	col_map		mapping of old table columns to new table
-@param[in]	n_newly_drop	number of instant drop column */
-inline void dict_table_t::fill_dropped_column(
-	const dict_table_t&	table,
-	const ulint*		col_map,
-	ulint			n_newly_drop)
-{
-	unsigned j = instant ? instant->n_dropped : 0;
-	ulint	n_total_drop_col = j + n_newly_drop;
-	dict_col_t*	temp_drop_cols;
-
-	temp_drop_cols = static_cast<dict_col_t*>(mem_heap_zalloc(
-		heap, n_total_drop_col * sizeof(dict_col_t)));
-
-	if (j) {
-		memcpy(temp_drop_cols, instant->dropped, j
-		       * sizeof *instant->dropped);
-	}
-
-	for (unsigned i = 0; i < n_def; i++) {
-		if (col_map[i] != ULINT_UNDEFINED) {
-			continue;
-		}
-
-		dict_col_t&	drop_col = temp_drop_cols[j++];
-		dict_col_t	col = cols[i];
-
-		drop_col.dropped = true;
-
-		drop_col.ind = dict_col_get_clust_pos(
-				&cols[i], dict_table_get_first_index(this));
-
-		if (col.prtype & DATA_NOT_NULL) {
-			drop_col.prtype = DATA_NOT_NULL;
-		}
-
-		drop_col.len = dict_col_get_fixed_size(
-				&col, dict_table_is_comp(this));
-
-		if (drop_col.len == 0) {
-			drop_col.mtype = DATA_BINARY;
-		} else {
-			drop_col.mtype = DATA_FIXBINARY;
-		}
-	}
-
-	n_t_def -= n_newly_drop;
-	n_def -= n_newly_drop;
-	n_cols -= n_newly_drop;
-	n_t_cols -= n_newly_drop;
-
-	if (!instant) {
-		instant = new (mem_heap_zalloc(heap, sizeof *instant))
-			dict_instant_t();
-	}
-
-	instant->n_dropped = n_total_drop_col;
-	instant->dropped = temp_drop_cols;
-}
-
-/** Adjust table metadata for instant operation.
-@param[in]	table		instant table
-@param[in]	col_map		mapping of old table cols to
-				new table cols
-@param[in]	n_newly_add	number of newly added column
-@param[in]	n_newly_drop	number of newly dropped column */
-void dict_table_t::instant_op_column(
-	const dict_table_t&	table,
-	const ulint*		col_map,
-	ulint			n_newly_add,
-	ulint			n_newly_drop)
-{
-	DBUG_ASSERT(!table.cached);
-	DBUG_ASSERT(table.n_def == table.n_cols);
-	DBUG_ASSERT(table.n_t_def == table.n_t_cols);
-	DBUG_ASSERT(n_def == n_cols);
-	DBUG_ASSERT(n_t_def == n_t_cols);
-	ut_ad(mutex_own(&dict_sys->mutex));
-
-	ulint	old_n_cols = n_cols;
-
-	if (n_newly_drop > 0) {
-		fill_dropped_column(table, col_map, n_newly_drop);
-	}
-
-	const char* end = table.col_names;
-	for (unsigned i = table.n_cols; i--; ) end += strlen(end) + 1;
-
-	col_names = static_cast<char*>(
-		mem_heap_dup(heap, table.col_names,
-			     ulint(end - table.col_names)));
-	const dict_col_t* const old_cols = cols;
-	const dict_col_t* const old_cols_end = cols + n_cols;
-	cols = static_cast<dict_col_t*>(mem_heap_dup(heap, table.cols,
-						     table.n_cols
-						     * sizeof *cols));
-
-	/* Preserve the default values of previously instantly
-	added columns. */
-	for (unsigned i = unsigned(old_n_cols - DATA_N_SYS_COLS); i--; ) {
-		if (col_map[i] == ULINT_UNDEFINED) {
-			continue;
-		}
-
-		ulint	new_offset = col_map[i];
-		cols[new_offset].def_val = old_cols[i].def_val;
-	}
-
-	/* Copy the new default values to this->heap. */
-	for (unsigned i = n_cols; i < table.n_cols; i++) {
-		dict_col_t& c = cols[i - DATA_N_SYS_COLS];
-		/* FIXME: Allow adding columns other than LAST,
-		and take col_map[] into account. */
-		DBUG_ASSERT(c.is_added());
-		if (c.def_val.len == 0) {
-			c.def_val.data = field_ref_zero;
-		} else if (const void*& d = c.def_val.data) {
-			d = mem_heap_dup(heap, d, c.def_val.len);
-		} else {
-			DBUG_ASSERT(c.def_val.len == UNIV_SQL_NULL);
-		}
-	}
-
-	const unsigned n_add = unsigned(table.n_cols -
-					(old_n_cols - n_newly_drop));
-
-	n_t_def += n_add;
-	n_t_cols += n_add;
-	n_cols = table.n_cols;
-	n_def = n_cols;
-
-	for (unsigned i = 0; i < n_v_def; i++) {
-		dict_v_col_t& v = v_cols[i];
-		v.m_col.ind = (n_def - DATA_N_SYS_COLS) + i;
-
-		for (ulint n = v.num_base; n--; ) {
-			dict_col_t*& base = v.base_col[n];
-			if (!base->is_virtual()) {
-				DBUG_ASSERT(base >= old_cols);
-				size_t n = col_map[(base - old_cols)];
-				DBUG_ASSERT(n + DATA_N_SYS_COLS < old_n_cols);
-				base = &cols[n];
-			}
-		}
-	}
-
-	dict_index_t* index = dict_table_get_first_index(this);
-
-	index->instant_op_field(*dict_table_get_first_index(&table),
-				n_newly_add, n_newly_drop, col_map);
-
-	if (instant || n_newly_drop || n_dropped()) {
-		unsigned num_non_pk = index->n_fields - (index->n_uniq + 2);
-		unsigned* non_pk_col_map = static_cast<unsigned*>(
-			mem_heap_zalloc(heap, num_non_pk
-					* sizeof *non_pk_col_map));
-		for (unsigned i = index->n_uniq + 2, j = 0;
-		     i < index->n_fields; i++) {
-			if (!dict_index_get_nth_col(index, i)->is_dropped()) {
-				non_pk_col_map[j] =
-					dict_index_get_nth_col_no(index, i) + 1;
-			}
-
-			j++;
-		}
-
-		if (!instant) {
-			instant = new (mem_heap_zalloc(heap, sizeof *instant))
-				dict_instant_t();
-		}
-
-		instant->non_pk_col_map = non_pk_col_map;
-	}
-
-	while ((index = dict_table_get_next_index(index)) != NULL) {
-		if (index->to_be_dropped) {
-			continue;
-		}
-		for (unsigned i = 0; i < index->n_fields; i++) {
-			dict_field_t& field = index->fields[i];
-			if (field.col < old_cols
-			    || field.col >= old_cols_end) {
-				DBUG_ASSERT(field.col->is_virtual());
-			} else {
-				/* Secondary indexes may contain user
-				columns and DB_ROW_ID (if there is
-				GEN_CLUST_INDEX instead of PRIMARY KEY),
-				but not DB_TRX_ID,DB_ROLL_PTR. */
-				DBUG_ASSERT(field.col >= old_cols);
-				ulint n = col_map[field.col - old_cols];
-				field.col = &cols[n];
-				DBUG_ASSERT(!field.col->is_virtual());
-				field.name = field.col->name(*this);
-			}
-		}
-	}
-}
-
 /** Find the old column number for the given new column position.
 @param[in]	col_map	column map from old column to new column
 @param[in]	pos	new column position
@@ -1734,7 +1635,7 @@ ulint find_old_col_no(
 	return ULINT_UNDEFINED;
 }
 
-/** Roll back instant_op_column().
+/** Roll back instant_column().
 @param[in]	old_n_cols		original n_cols
 @param[in]	old_cols		original cols
 @param[in]	old_col_names		original col_names

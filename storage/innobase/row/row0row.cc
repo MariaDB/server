@@ -77,14 +77,13 @@ row_build_clust_default_entry(
 
 		dfield = dtuple_get_nth_field(entry, field_no);
 
-		if (field_no == clust_index->n_uniq + 2) {
+		if (field_no == ulint(clust_index->n_uniq) + 2) {
 			dfield_set_data(dfield, mem_heap_zalloc(
 						heap,
 						BTR_EXTERN_FIELD_REF_SIZE),
 					BTR_EXTERN_FIELD_REF_SIZE);
 			dfield_set_ext(dfield);
-			dfield->type.mtype = DATA_BLOB;
-			dfield->type.prtype = DATA_NOT_NULL;
+			dfield->type.metadata_blob_init();
 			continue;
 		}
 
@@ -776,115 +775,19 @@ row_build_w_add_vcol(
 			     defaults, add_v, col_map, ext, heap));
 }
 
-/** Convert the rec to new metadata with drop column info.
-@param[in]	rec	index record
-@param[in]	index	index
-@param[in]	offsets	rec_get_offsets(rec, index)
-@param[out]	n_ext	number of externally stored columns
-@param[in,out]	heap	memory heap for allocations
-@return index entry built; does not set info_bits, and the data fields
-in the entry will point directly to rec */
-static inline
-dtuple_t*
-row_def_rec_to_index_entry_impl(
-	const rec_t*		rec,
-	const dict_index_t*	index,
-	const ulint*		offsets,
-	ulint*			n_ext,
-	mem_heap_t*		heap)
-{
-	dtuple_t*		entry;
-	dfield_t*		dfield;
-	ulint			i;
-	const byte*		field;
-	ulint			len;
-	ulint			rec_len;
-	const dict_field_t*	ifield;
-	const dict_col_t*	col;
-
-	ut_ad(rec != NULL);
-	ut_ad(heap != NULL);
-	ut_ad(index != NULL);
-
-	/* Because this function may be invoked by row0merge.cc
-	on a record whose header is in different format, the check
-	rec_offs_validate(rec, index, offsets) must be avoided here. */
-	ut_ad(n_ext);
-	*n_ext = 0;
-
-	rec_len = index->n_fields + 1;
-
-	entry = dtuple_create(heap, rec_len);
-
-	dtuple_set_n_fields_cmp(entry,
-				dict_index_get_n_unique_in_tree(index));
-	ulint	field_no = 0;
-	const bool is_alter_metadata = rec_is_alter_metadata(rec, index);
-
-	for (i = 0; i < rec_len; i++) {
-
-		dfield = dtuple_get_nth_field(entry, i);
-		if (i == unsigned(index->n_uniq + DATA_ROLL_PTR)) {
-			dfield->type.mtype = DATA_BLOB;
-			dfield->type.prtype = DATA_NOT_NULL;
-
-			if (!is_alter_metadata) {
-				dfield_set_data(dfield, field_ref_zero,
-						FIELD_REF_SIZE);
-				dfield->len = FIELD_REF_SIZE;
-				dfield_set_ext(dfield);
-				(*n_ext)++;
-				continue;
-			}
-
-			goto fetch_rec;
-		}
-
-		ifield = dict_index_get_nth_field(index, field_no++);
-		col = ifield->col;
-
-		dict_col_copy_type(col, dfield_get_type(dfield));
-fetch_rec:
-		ulint field_no = i;
-
-		if (is_alter_metadata) {
-			field = rec_get_nth_def_field(
-				rec, index, offsets, field_no, &len);
-		} else {
-			if (i > unsigned(index->n_uniq + DATA_ROLL_PTR)) {
-				field_no = i - 1;
-			}
-
-			field = rec_get_nth_def_field(
-					rec, index, offsets, field_no, &len);
-		}
-
-		if (col->is_dropped()) {
-			dfield_set_data(dfield, field_ref_zero, len);
-		} else {
-			dfield_set_data(dfield, field, len);
-		}
-
-		if (rec_offs_nth_extern(offsets, field_no)) {
-			dfield_set_ext(dfield);
-			(*n_ext)++;
-		}
-	}
-
-	ut_ad(dtuple_check_typed(entry));
-	return(entry);
-}
-
 /** Convert an index record to a data tuple.
-@tparam def whether the index->instant_field_value() needs to be accessed
-@param[in]	rec	index record
-@param[in]	index	index
-@param[in]	offsets	rec_get_offsets(rec, index)
-@param[out]	n_ext	number of externally stored columns
-@param[in,out]	heap	memory heap for allocations
+@tparam metadata whether the index->instant_field_value() needs to be accessed
+@tparam mblob 1 if rec_is_alter_metadata();
+2 if we want converted metadata corresponding to info_bits
+@param[in]	rec		index record
+@param[in]	index		index
+@param[in]	offsets		rec_get_offsets(rec, index)
+@param[out]	n_ext		number of externally stored columns
+@param[in,out]	heap		memory heap for allocations
+@param[in]	info_bits	(only used if mblob=2)
 @return index entry built; does not set info_bits, and the data fields
 in the entry will point directly to rec */
-template<bool def>
+template<bool metadata, int mblob = 0>
 static inline
 dtuple_t*
 row_rec_to_index_entry_impl(
@@ -892,44 +795,57 @@ row_rec_to_index_entry_impl(
 	const dict_index_t*	index,
 	const ulint*		offsets,
 	ulint*			n_ext,
-	mem_heap_t*		heap)
+	mem_heap_t*		heap,
+	ulint			info_bits = 0)
 {
-	dtuple_t*	entry;
-	dfield_t*	dfield;
-	ulint		i;
-	const byte*	field;
-	ulint		len;
-	ulint		rec_len;
-
 	ut_ad(rec != NULL);
 	ut_ad(heap != NULL);
 	ut_ad(index != NULL);
-	ut_ad(def || !rec_offs_any_default(offsets));
-
+	ut_ad(!mblob || metadata);
+	ut_ad(!mblob || index->is_primary());
+	ut_ad(!mblob || !dict_index_is_spatial(index));
+	compile_time_assert(mblob <= 2);
+	ut_ad(mblob != 2 || dtuple_t::is_metadata(info_bits));
+	ut_ad(mblob == 2 || info_bits == 0);
 	/* Because this function may be invoked by row0merge.cc
 	on a record whose header is in different format, the check
 	rec_offs_validate(rec, index, offsets) must be avoided here. */
 	ut_ad(n_ext);
 	*n_ext = 0;
 
-	rec_len = rec_offs_n_fields(offsets);
+	ut_ad(mblob != 2
+	      || rec_offs_n_fields(offsets)
+	      == ulint(index->n_fields + rec_is_alter_metadata(rec, index)));
 
-	entry = dtuple_create(heap, rec_len);
+	ulint rec_len = mblob == 2
+		? ulint(index->n_fields
+			+ (info_bits == REC_INFO_METADATA_ALTER))
+		: rec_offs_n_fields(offsets);
+
+	dtuple_t* entry = dtuple_create(heap, rec_len);
+	dfield_t* dfield = entry->fields;
 
 	dtuple_set_n_fields_cmp(entry,
 				dict_index_get_n_unique_in_tree(index));
-	ut_ad(rec_len == dict_index_get_n_fields(index)
+	ut_ad(mblob == 2
+	      || rec_len == dict_index_get_n_fields(index) + uint(mblob == 1)
 	      /* a record for older SYS_INDEXES table
 	      (missing merge_threshold column) is acceptable. */
 	      || (index->table->id == DICT_INDEXES_ID
 		  && rec_len == dict_index_get_n_fields(index) - 1));
 
-	dict_index_copy_types(entry, index, rec_len);
+	ulint i;
+	for (i = 0; i < (mblob ? index->n_uniq + 2 : rec_len); i++, dfield++) {
+		dict_col_copy_type(dict_index_get_nth_col(index, i),
+				   &dfield->type);
+		if (!mblob
+		    && dict_index_is_spatial(index)
+		    && DATA_GEOMETRY_MTYPE(dfield->type.mtype)) {
+			dfield->type.prtype |= DATA_GIS_MBR;
+		}
 
-	for (i = 0; i < rec_len; i++) {
-
-		dfield = dtuple_get_nth_field(entry, i);
-		field = def
+		ulint len;
+		const byte* field = metadata
 			? rec_get_nth_cfield(rec, index, offsets, i, &len)
 			: rec_get_nth_field(rec, offsets, i, &len);
 
@@ -937,12 +853,68 @@ row_rec_to_index_entry_impl(
 
 		if (rec_offs_nth_extern(offsets, i)) {
 			dfield_set_ext(dfield);
-			(*n_ext)++;
+			++*n_ext;
 		}
 	}
 
+	if (mblob) {
+		ulint len;
+		const byte* field;
+		ulint j = i;
+
+		if (mblob == 2) {
+			const bool got = rec_is_alter_metadata(rec, index);
+			const bool want = info_bits == REC_INFO_METADATA_ALTER;
+			if (got == want) {
+				if (got) {
+					goto copy_metadata;
+				}
+			} else {
+				if (want) {
+					/* Allocate a placeholder for
+					adding metadata in an update. */
+					len = FIELD_REF_SIZE;
+					field = static_cast<byte*>(
+						mem_heap_zalloc(heap, len));
+					/* In reality there is one fewer
+					field present in the record. */
+					rec_len--;
+					goto init_metadata;
+				}
+
+				/* Skip the undesired metadata blob
+				(for example, when rolling back an
+				instant ALTER TABLE). */
+				i++;
+			}
+			goto copy_user_fields;
+		}
+copy_metadata:
+		ut_ad(rec_offs_nth_extern(offsets, i));
+		field = rec_get_nth_field(rec, offsets, i++, &len);
+init_metadata:
+		dfield->type.metadata_blob_init();
+		ut_ad(len == FIELD_REF_SIZE);
+		dfield_set_data(dfield, field, len);
+		dfield_set_ext(dfield++);
+		++*n_ext;
+copy_user_fields:
+		for (; i < rec_len; i++, dfield++) {
+			dict_col_copy_type(dict_index_get_nth_col(index, j++),
+					   &dfield->type);
+			field = rec_get_nth_field(rec, offsets, i, &len);
+			dfield_set_data(dfield, field, len);
+
+			if (rec_offs_nth_extern(offsets, i)) {
+				dfield_set_ext(dfield);
+				++*n_ext;
+			}
+		}
+	}
+
+	ut_ad(dfield == entry->fields + entry->n_fields);
 	ut_ad(dtuple_check_typed(entry));
-	return(entry);
+	return entry;
 }
 
 /** Convert an index record to a data tuple.
@@ -978,34 +950,25 @@ row_rec_to_index_entry(
 	mem_heap_t*		heap)	/*!< in: memory heap from which
 					the memory needed is allocated */
 {
-	dtuple_t*	entry;
-	byte*		buf;
-	const rec_t*	copy_rec;
-
 	ut_ad(rec != NULL);
 	ut_ad(heap != NULL);
 	ut_ad(index != NULL);
 	ut_ad(rec_offs_validate(rec, index, offsets));
 
 	/* Take a copy of rec to heap */
-	buf = static_cast<byte*>(
-		mem_heap_alloc(heap, rec_offs_size(offsets)));
-
-	copy_rec = rec_copy(buf, rec, offsets);
+	const rec_t* copy_rec = rec_copy(
+		static_cast<byte*>(mem_heap_alloc(heap,
+						  rec_offs_size(offsets))),
+		rec, offsets);
 
 	rec_offs_make_valid(copy_rec, index, true,
 			    const_cast<ulint*>(offsets));
 
-	if (rec_is_alter_metadata(copy_rec, index)
-	    || (rec_is_metadata(copy_rec, index)
-		&& index->table->instant)) {
-
-		entry = row_def_rec_to_index_entry_impl(
+	dtuple_t* entry = rec_is_alter_metadata(copy_rec, index)
+		? row_rec_to_index_entry_impl<true,1>(
+			copy_rec, index, offsets, n_ext, heap)
+		: row_rec_to_index_entry_impl<true>(
 			copy_rec, index, offsets, n_ext, heap);
-	} else {
-		entry = row_rec_to_index_entry_impl<true>(
-			copy_rec, index, offsets, n_ext, heap);
-	}
 
 	rec_offs_make_valid(rec, index, true,
 			    const_cast<ulint*>(offsets));
@@ -1014,6 +977,49 @@ row_rec_to_index_entry(
 			     rec_get_info_bits(rec, rec_offs_comp(offsets)));
 
 	return(entry);
+}
+
+/** Convert a metadata record to a data tuple.
+@param[in]	rec		metadata record
+@param[in]	index		clustered index after instant ALTER TABLE
+@param[in]	offsets		rec_get_offsets(rec)
+@param[out]	n_ext		number of externally stored fields
+@param[in,out]	heap		memory heap for allocations
+@param[in]	info_bits	the info_bits after an update */
+dtuple_t*
+row_metadata_to_tuple(
+	const rec_t*		rec,
+	const dict_index_t*	index,
+	const ulint*		offsets,
+	ulint*			n_ext,
+	mem_heap_t*		heap,
+	ulint			info_bits)
+{
+	ut_ad(info_bits == REC_INFO_METADATA_ALTER
+	      || info_bits == REC_INFO_METADATA_ADD);
+	ut_ad(rec_is_metadata(rec, index));
+	ut_ad(rec_offs_validate(rec, index, offsets));
+
+	const rec_t* copy_rec = rec_copy(
+		static_cast<byte*>(mem_heap_alloc(heap,
+						  rec_offs_size(offsets))),
+		rec, offsets);
+
+	rec_offs_make_valid(copy_rec, index, true,
+			    const_cast<ulint*>(offsets));
+
+	dtuple_t* entry = info_bits == REC_INFO_METADATA_ALTER
+		|| rec_is_alter_metadata(copy_rec, index)
+		? row_rec_to_index_entry_impl<true,2>(
+			copy_rec, index, offsets, n_ext, heap, info_bits)
+		: row_rec_to_index_entry_impl<true>(
+			copy_rec, index, offsets, n_ext, heap);
+
+	rec_offs_make_valid(rec, index, true,
+			    const_cast<ulint*>(offsets));
+
+	dtuple_set_info_bits(entry, info_bits);
+	return entry;
 }
 
 /*******************************************************************//**

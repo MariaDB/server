@@ -1156,18 +1156,9 @@ struct dict_index_t {
 		return fields[n].col->instant_value(len);
 	}
 
-	/** Adjust clustered index metadata for instant ADD/DROP COLUMN.
-	@param[in]	instant	clustered index definition
-					after instant ADD/DROP COLUM
-	@param[in]	n_newly_add	number of newly added columns
-	@param[in]	n_newly_drop	number of newly dropped columns
-	@param[in]	col_map	mapping of old table cols
-					to new table cols */
-	inline void instant_op_field(
-		const dict_index_t&	instant,
-		ulint			n_newly_add,
-		ulint			n_newly_drop,
-		const ulint*		col_map);
+	/** Adjust index metadata for instant ADD/DROP/reorder COLUMN.
+	@param[in]	clustered index definition after instant ALTER TABLE */
+	inline void instant_add_field(const dict_index_t& instant);
 
 	/** Remove instant ALTER TABLE metadata.
 	Protected by index root page x-latch or table X-lock. */
@@ -1649,6 +1640,25 @@ struct dict_table_t {
 	/** @return the number of instantly dropped columns */
 	unsigned n_dropped() const { return instant ? instant->n_dropped : 0; }
 
+	/** Look up an old column.
+	@param[in]	cols	the old columns of the table
+	@param[in]	col_map	map from old table columns to altered ones
+	@param[in]	n_cols	number of old columns
+	@param[in]	i	the number of the new column
+	@return	old column
+	@retval	NULL	if column i was added to the table */
+	static const dict_col_t* find(const dict_col_t* cols,
+				      const ulint* col_map, ulint n_cols,
+				      ulint i)
+	{
+		for (ulint o = n_cols; o--; ) {
+			if (col_map[o] == i) {
+				return &cols[o];
+			}
+		}
+		return NULL;
+	}
+
 	/** Read the metadata blob and fill the non primary fields,
 	non-drop nullable fields and fill the drop columns in the
 	vector.
@@ -1675,29 +1685,12 @@ struct dict_table_t {
 	@param[in]	data	metadata blob data. */
 	void construct_dropped_columns(const byte* data);
 
-	/** Fill the dropped column in dropped_cols
-	@param[in]	table		instant table
-	@param[in]	col_map		mapping of cols from old table
-					to new table
-	@param[in]	n_newly_drop	number of newly drop column */
-	inline void fill_dropped_column(
-		const dict_table_t&	table,
-		const ulint*		col_map,
-		ulint			n_newly_drop);
+	/** Adjust table metadata for instant ADD/DROP/reorder COLUMN.
+	@param[in]	table		altered table (with dropped columns)
+	@param[in]	map		mapping from cols[] to table.cols[] */
+	void instant_column(const dict_table_t& table, const ulint* map);
 
-	/** Adjust table metadat for instant operation.
-	@param[in]	table		instant table
-	@param[in]	col_map		mapping of cols from old table
-					to new table
-	@param[in]	n_newly_add	number of newly added column
-	@param[in]	n_newly_drop	number of newly drop column */
-	void instant_op_column(
-		const dict_table_t&	table,
-		const ulint*		col_map,
-		ulint			n_newly_add,
-		ulint			n_newly_drop);
-
-	/** Roll back instant_op_column().
+	/** Roll back instant_column().
 	@param[in]	old_n_cols		original n_cols
 	@param[in]	old_cols		original cols
 	@param[in]	old_col_names		original col_names

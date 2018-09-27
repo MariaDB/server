@@ -182,8 +182,8 @@ affected rows: 0
 info: Records: 0  Duplicates: 0  Warnings: 0
 INSERT INTO t1 SET id=9;
 ALTER TABLE t1 DROP c3;
-affected rows: 9
-info: Records: 9  Duplicates: 0  Warnings: 0
+affected rows: 0
+info: Records: 0  Duplicates: 0  Warnings: 0
 SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
@@ -599,8 +599,8 @@ affected rows: 0
 info: Records: 0  Duplicates: 0  Warnings: 0
 INSERT INTO t1 SET id=9;
 ALTER TABLE t1 DROP c3;
-affected rows: 9
-info: Records: 9  Duplicates: 0  Warnings: 0
+affected rows: 0
+info: Records: 0  Duplicates: 0  Warnings: 0
 SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
@@ -1016,8 +1016,8 @@ affected rows: 0
 info: Records: 0  Duplicates: 0  Warnings: 0
 INSERT INTO t1 SET id=9;
 ALTER TABLE t1 DROP c3;
-affected rows: 9
-info: Records: 9  Duplicates: 0  Warnings: 0
+affected rows: 0
+info: Records: 0  Duplicates: 0  Warnings: 0
 SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
@@ -1310,5 +1310,5 @@ SELECT variable_value-@old_instant instants
 FROM information_schema.global_status
 WHERE variable_name = 'innodb_instant_alter_column';
 instants
-54
+57
 SET GLOBAL innodb_purge_rseg_truncate_frequency= @saved_frequency;

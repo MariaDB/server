@@ -493,6 +493,10 @@ struct upd_t{
 	/** @return whether this is for a hidden metadata record
 	for instant ALTER TABLE */
 	bool is_metadata() const { return dtuple_t::is_metadata(info_bits); }
+	/** @return whether this is for a hidden metadata record
+	for instant ALTER TABLE (not only ADD COLUMN) */
+	bool is_alter_metadata() const
+	{ return dtuple_t::is_alter_metadata(info_bits); }
 
 #ifdef UNIV_DEBUG
         bool validate() const

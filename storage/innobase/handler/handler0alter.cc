@@ -171,7 +171,7 @@ struct ha_innobase_inplace_ctx : public inplace_alter_handler_ctx
 	dict_table_t*	old_table;
 	/** table where the indexes are being created or dropped */
 	dict_table_t*	new_table;
-	/** table definition for instant ADD COLUMN */
+	/** table definition for instant ADD/DROP/reorder COLUMN */
 	dict_table_t*	instant_table;
 	/** mapping of old column numbers to new ones, or NULL */
 	const ulint*	col_map;
@@ -218,11 +218,6 @@ struct ha_innobase_inplace_ctx : public inplace_alter_handler_ctx
 
 	/** The page_compression_level attribute, or 0 */
 	const uint	page_compression_level;
-
-	/** Number of instant add columns */
-	ulint		n_instant_add_cols;
-	/** Number of instant drop columns */
-	ulint		n_instant_drop_cols;
 
 	ha_innobase_inplace_ctx(row_prebuilt_t*& prebuilt_arg,
 				dict_index_t** drop_arg,
@@ -277,9 +272,7 @@ struct ha_innobase_inplace_ctx : public inplace_alter_handler_ctx
 				       ? (page_compression_level_arg
 					  ? uint(page_compression_level_arg)
 					  : page_zip_level)
-				       : 0),
-		n_instant_add_cols(0),
-		n_instant_drop_cols(0)
+				       : 0)
 	{
 		ut_ad(old_n_cols >= DATA_N_SYS_COLS);
 		ut_ad(page_compression_level <= 9);
@@ -330,13 +323,136 @@ struct ha_innobase_inplace_ctx : public inplace_alter_handler_ctx
 	{
 		DBUG_ASSERT(need_rebuild());
 		DBUG_ASSERT(!is_instant());
+		DBUG_ASSERT(!new_table->is_instant());
+		DBUG_ASSERT(new_table->n_dropped() == 0);
 		DBUG_ASSERT(old_table->n_cols == old_table->n_def);
 		DBUG_ASSERT(new_table->n_cols == new_table->n_def);
 		DBUG_ASSERT(old_table->n_cols == old_n_cols);
-		instant_table = new_table;
 
+		instant_table = new_table;
 		new_table = old_table;
 		export_vars.innodb_instant_alter_column++;
+
+		if (old_table->instant) {
+add_metadata:
+			const unsigned n_old_drop = old_table->n_dropped();
+			unsigned n_drop = n_old_drop;
+			for (unsigned i = old_table->n_cols; i--; ) {
+				if (col_map[i] == ULINT_UNDEFINED) {
+					DBUG_ASSERT(i + DATA_N_SYS_COLS
+						    < uint(old_table->n_cols));
+					n_drop++;
+				}
+			}
+
+			instant_table->instant = new
+				(mem_heap_alloc(instant_table->heap,
+						sizeof(dict_instant_t)))
+				dict_instant_t();
+			instant_table->instant->n_dropped = n_drop;
+			instant_table->instant->dropped
+				= static_cast<dict_col_t*>(
+					mem_heap_alloc(instant_table->heap,
+						       n_drop
+						       * sizeof(dict_col_t)));
+			if (n_old_drop) {
+				memcpy(instant_table->instant->dropped,
+				       old_table->instant->dropped,
+				       n_old_drop * sizeof(dict_col_t));
+			}
+
+			unsigned d = n_old_drop;
+
+			for (unsigned i = 0; i < old_table->n_cols; i++) {
+				if (col_map[i] == ULINT_UNDEFINED) {
+					dict_col_t* drop = new
+						(&instant_table->instant
+						 ->dropped[d++])
+						dict_col_t(old_table->cols[i]);
+					drop->dropped = true;
+					drop->ind = 0;
+				}
+			}
+#ifndef DBUG_OFF
+			for (unsigned i = 0; i < n_drop; i++) {
+				DBUG_ASSERT(instant_table->instant
+					    ->dropped[i].is_dropped());
+			}
+#endif
+			DBUG_ASSERT(d == n_drop);
+			dict_index_t* old = UT_LIST_GET_FIRST(
+				old_table->indexes);
+			dict_index_t* instant = UT_LIST_GET_FIRST(
+				instant_table->indexes);
+			const uint n_fields = instant->n_fields
+				+ instant_table->n_dropped();
+
+			DBUG_ASSERT(n_fields
+				    >= old->n_fields + old_table->n_dropped());
+			dict_field_t* fields = static_cast<dict_field_t*>(
+				mem_heap_zalloc(instant_table->heap,
+						n_fields * sizeof *fields));
+			d = n_old_drop;
+			uint j = 0;
+			for (uint i = 0; i < n_fields; i++) {
+				DBUG_ASSERT(j <= i);
+				if (i >= old->n_fields) {
+existing_field:
+					fields[i] = instant->fields[j++];
+					DBUG_ASSERT(!fields[i].col
+						    ->is_dropped());
+					DBUG_ASSERT(fields[i].name
+						    == fields[i].col->name(
+							    *instant_table));
+					continue;
+				}
+
+				dict_field_t&f = fields[i] = old->fields[i];
+				if (f.col->is_dropped()) {
+					/* The column has been instantly
+					dropped earlier. */
+					DBUG_ASSERT(f.col >= old_table->instant
+						    ->dropped);
+					DBUG_ASSERT(f.col < old_table->instant
+						    ->dropped + n_old_drop);
+					f.col += instant_table->instant->dropped
+						- old_table->instant->dropped;
+					f.name = f.col->name(*instant_table);
+					continue;
+				}
+
+				if (col_map[f.col->ind] != ULINT_UNDEFINED) {
+					DBUG_ASSERT(col_map[f.col->ind]
+						    == instant->fields[j].col
+						    ->ind);
+					goto existing_field;
+				}
+
+				/* This column is being dropped. */
+				DBUG_ASSERT(d < n_drop);
+				f.col = &instant_table->instant->dropped[d++];
+				f.name = NULL;
+			}
+
+			DBUG_ASSERT(d == n_drop);
+			DBUG_ASSERT(j == instant->n_fields);
+			instant->n_fields = instant->n_core_fields =
+				instant->n_def = n_fields;
+			instant->fields = fields;
+		} else {
+			for (unsigned i = old_table->n_cols - DATA_N_SYS_COLS;
+			     i--; ) {
+				if (col_map[i] != i) {
+					goto add_metadata;
+				}
+			}
+		}
+
+		DBUG_ASSERT(instant_table->n_cols
+			    + instant_table->n_dropped()
+			    >= old_table->n_cols + old_table->n_dropped());
+		DBUG_ASSERT(instant_table->n_dropped()
+			    >= old_table->n_dropped());
 	}
 
 	/** Revert prepare_instant() if the transaction is rolled back. */
@@ -4541,15 +4657,14 @@ static bool innobase_instant_try(
 
 	dict_table_t* user_table = ctx->old_table;
 
-	unsigned n_old_drop_cols = user_table->instant
-		? user_table->instant->n_dropped : 0;
-	ulint	n_old_fields = dict_table_get_first_index(user_table)->n_fields;
-
-	user_table->instant_op_column(
-			*ctx->instant_table, ctx->col_map,
-			ctx->n_instant_add_cols, ctx->n_instant_drop_cols);
-
 	dict_index_t* index = dict_table_get_first_index(user_table);
+	uint n_old_fields = index->n_fields;
+	const dict_col_t* old_cols = user_table->cols;
+	DBUG_ASSERT(user_table->n_cols == ctx->old_n_cols);
+
+	user_table->instant_column(*ctx->instant_table, ctx->col_map);
+
+	DBUG_ASSERT(index->n_fields >= n_old_fields);
 	/* The table may have been emptied and may have lost its
 	'instantness' during this ALTER TABLE. */
 
@@ -4558,60 +4673,36 @@ static bool innobase_instant_try(
 	dict_table_copy_types(row, user_table);
 	Field** af = altered_table->field;
 	Field** const end = altered_table->field + altered_table->s->fields;
-	List_iterator_fast<Create_field> cf_it(
-		ha_alter_info->alter_info->create_list);
+	ut_d(List_iterator_fast<Create_field> cf_it(
+		     ha_alter_info->alter_info->create_list));
 	bool rebuild_metadata = false;
-	for (uint i = 0, dropped = 0;;) {
-		if (af < end && !(*af)->stored_in_db()) {
-			af++; cf_it++;
+	for (uint i = 0; af < end; af++) {
+		if (!(*af)->stored_in_db()) {
+			ut_d(cf_it++);
 			continue;
 		}
 
-		if (i + ctx->n_instant_add_cols >= user_table->n_cols) {
-			/* Avoid out-of-bounds access of ctx->col_map[].
-			It is only defined for the pre-existing columns
-			of the table, excluding any ADD COLUMN of this
-			ALTER TABLE operation. */
-		} else if (ctx->col_map[i] != i) {
-			const bool not_last = user_table->n_cols
-				+ ctx->n_instant_drop_cols > i
-				+ ctx->n_instant_add_cols + DATA_N_SYS_COLS;
-			/* System columns cannot be dropped. */
-			DBUG_ASSERT(not_last
-				    || ctx->col_map[i] != ULINT_UNDEFINED);
-			if (!rebuild_metadata && not_last) {
-				rebuild_metadata = true;
-				if (innobase_instant_drop_cols(user_table->id,
-							       i, trx)) {
-					return true;
-				}
+		const dict_col_t* old = dict_table_t::find(old_cols,
+							   ctx->col_map,
+							   ctx->old_n_cols, i);
+		if (old && i < ctx->old_n_cols - DATA_N_SYS_COLS
+		    && old->ind != i) {
+			if (!rebuild_metadata
+			    && innobase_instant_drop_cols(user_table->id,
+							  i, trx)) {
+				return true;
 			}
-
-			if (ctx->col_map[i] == ULINT_UNDEFINED) {
-				DBUG_ASSERT(dropped
-					    < user_table->instant->n_dropped);
-				DBUG_ASSERT(user_table->instant->dropped[
-						    dropped].is_dropped());
-				dropped++;
-				i++;
-				continue;
-			}
+			rebuild_metadata = true;
 		}
 
-		const uint c = i - dropped;
-		dfield_t* d = dtuple_get_nth_field(row, c);
-		const dict_col_t* col = dict_table_get_nth_col(user_table, c);
+		dfield_t* d = dtuple_get_nth_field(row, i);
+		const dict_col_t* col = dict_table_get_nth_col(user_table, i);
 		DBUG_ASSERT(!col->is_virtual());
 		DBUG_ASSERT(!col->is_dropped());
-
-		if (col->mtype == DATA_SYS) {
-			DBUG_ASSERT(!col->is_added());
-			break;
-		}
-
-		DBUG_ASSERT(af < end);
+		DBUG_ASSERT(col->mtype != DATA_SYS);
 		DBUG_ASSERT(!strcmp((*af)->field_name.str,
-				    dict_table_get_col_name(user_table, c)));
+				    dict_table_get_col_name(user_table, i)));
+		DBUG_ASSERT(old || col->is_added());
 
 		if (col->is_added()) {
 			dfield_set_data(d, col->def_val.data,
@@ -4649,22 +4740,20 @@ static bool innobase_instant_try(
 			}
 		}
 
-		const Create_field* new_field = cf_it++;
+		ut_d(const Create_field* new_field = cf_it++);
 		/* new_field->field would point to an existing column.
 		If it is NULL, the column was added by this ALTER TABLE. */
-		DBUG_ASSERT(new_field->field || col->is_added());
+		ut_ad(!new_field->field == !old);
 
-		if (!rebuild_metadata && new_field->field) {
+		if (!rebuild_metadata && old) {
 			/* The record is already present in SYS_COLUMNS. */
-			DBUG_ASSERT(!col->is_dropped());
-		} else if (innobase_instant_add_col(user_table->id, c,
+		} else if (innobase_instant_add_col(user_table->id, i,
 						    (*af)->field_name.str,
 						    d->type, trx)) {
 			return true;
 		}
 
 		i++;
-		af++;
 	}
 
 	if (innodb_update_cols(user_table, dict_table_encode_n_col(
@@ -4748,46 +4837,38 @@ static bool innobase_instant_try(
 			goto empty_table;
 		}
 
-		/* Extend the record with the instantly added columns. */
-		unsigned n = user_table->instant
-			? ctx->n_instant_add_cols + ctx->n_instant_drop_cols
-			: user_table->n_cols - ctx->old_n_cols;
+		/* Extend the record with any added columns. */
+		uint n = uint(index->n_fields) - n_old_fields;
 		/* Reserve room for DB_TRX_ID,DB_ROLL_PTR and any
 		non-updated off-page columns in case they are moved off
 		page as a result of the update. */
 		const unsigned f = user_table->instant != NULL;
-		upd_t* update = upd_create(index->n_fields, ctx->heap);
-		update->n_fields = n;
+		upd_t* update = upd_create(index->n_fields + f, ctx->heap);
+		update->n_fields = n + f;
 		update->info_bits = f
 			? REC_INFO_METADATA_ALTER
 			: REC_INFO_METADATA_ADD;
+		if (f) {
+			upd_field_t* uf = upd_get_nth_field(update, 0);
+			uf->field_no = index->n_uniq + 2;
+			uf->new_val = entry->fields[uf->field_no];
+			DBUG_ASSERT(dfield_is_ext(&uf->new_val));
+			DBUG_ASSERT(dfield_get_len(&uf->new_val)
+				    == BTR_EXTERN_FIELD_REF_SIZE);
+		}
 
 		/* Add the default values for instantly added columns */
-		unsigned j = 0;
-		unsigned drop_cols_offset = n_old_drop_cols;
-
-		for (unsigned i = 0; i < ctx->old_n_cols; i++) {
-			if (ctx->col_map[i] == ULINT_UNDEFINED) {
-				unsigned field_no = user_table->instant
-					->dropped[drop_cols_offset++].ind;
-				upd_field_t* uf = upd_get_nth_field(
-					update, j++);
-				uf->field_no = field_no;
-				uf->new_val = entry->fields[field_no + f];
-			}
-
-			ut_ad(j <= n);
-		}
+		unsigned j = f;
 
 		for (unsigned k = n_old_fields; k < index->n_fields; k++) {
 			upd_field_t* uf = upd_get_nth_field(update, j++);
-			uf->field_no = k;
+			uf->field_no = k + f;
 			uf->new_val = entry->fields[k + f];
 
-			ut_ad(j <= n);
+			ut_ad(j <= n + f);
 		}
 
-		ut_ad(j == n);
+		ut_ad(j == n + f);
 
 		ulint* offsets = NULL;
 		mem_heap_t* offsets_heap = NULL;
@@ -5461,23 +5542,7 @@ new_clustered_failed:
 		if (!instant_alter_column_possible(ha_alter_info, old_table)
 		    || (innobase_fulltext_exist(old_table)
 			&& !innobase_fulltext_exist(altered_table))) {
-			goto not_instant_add_column;
-		}
-
-		for (int i = 0; i < ctx->old_table->n_cols; i++) {
-			if (ctx->col_map[i] == ULINT_UNDEFINED) {
-				ctx->n_instant_drop_cols++;
-			}
-		}
-
-		int n_exist_old_col = user_table->n_cols + user_table->n_v_cols
-					- ctx->n_instant_drop_cols;
-
-		for (int i = n_exist_old_col;
-		     i < ctx->new_table->n_cols + ctx->new_table->n_v_cols;
-		     i++) {
-			ut_ad(ctx->col_map[i] != ULINT_UNDEFINED);
-			ctx->n_instant_add_cols++;
+			goto not_instant_column;
 		}
 
 		for (uint a = 0; a < ctx->num_to_add_index; a++) {
@@ -5621,7 +5686,7 @@ new_clustered_failed:
 	}
 
 	if (ctx->need_rebuild()) {
-not_instant_add_column:
+not_instant_column:
 		DBUG_ASSERT(ctx->need_rebuild());
 		DBUG_ASSERT(!ctx->is_instant());
 		DBUG_ASSERT(num_fts_index <= 1);

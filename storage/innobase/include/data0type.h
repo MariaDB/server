@@ -554,6 +554,16 @@ struct dtype_t{
 	{
 		return (prtype & DATA_VERSIONED) == DATA_VERS_END;
 	}
+
+	/** Set the type of the BLOB in the hidden metadata record. */
+	void metadata_blob_init()
+	{
+		prtype = DATA_NOT_NULL;
+		mtype = DATA_BLOB;
+		len = 0;
+		mbminlen = 0;
+		mbmaxlen = 0;
+	}
 };
 
 /** The DB_TRX_ID,DB_ROLL_PTR values for "no history is available" */
