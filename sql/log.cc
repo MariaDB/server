@@ -10784,6 +10784,8 @@ uint wsrep_get_trans_cache_position(THD *thd)
 
 void wsrep_thd_binlog_trx_reset(THD * thd)
 {
+  DBUG_ENTER("wsrep_thd_binlog_trx_reset");
+  WSREP_DEBUG("wsrep_thd_binlog_reset");
   /*
     todo: fix autocommit select to not call the caller
   */
@@ -10802,6 +10804,7 @@ void wsrep_thd_binlog_trx_reset(THD * thd)
     }
   }
   thd->clear_binlog_table_maps();
+  DBUG_VOID_RETURN;
 }
 
 

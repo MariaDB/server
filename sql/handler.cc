@@ -1385,6 +1385,13 @@ int ha_commit_trans(THD *thd, bool all)
     */
     if (is_real_trans)
       thd->transaction.cleanup();
+#ifdef WITH_WSREP
+    if (WSREP(thd) && all && !error && trans_was_empty)
+    {
+      WSREP_DEBUG("was empty handler");
+      wsrep_commit_empty(thd, all);
+    }
+#endif /* WITH_WSREP */
     DBUG_RETURN(0);
   }
 
