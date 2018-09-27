@@ -2861,7 +2861,7 @@ end:
   close_mysql_tables(thd);
 
 #ifdef WITH_WSREP
-error: // this label is used in WSREP_TO_ISOLATION_BEGIN
+WSREP_ERROR_LABEL:
   if (WSREP(thd) && !thd->wsrep_applier)
   {
     WSREP_TO_ISOLATION_END;
@@ -3014,7 +3014,7 @@ end:
   close_mysql_tables(thd);
 
 #ifdef WITH_WSREP
-error: // this label is used in WSREP_TO_ISOLATION_END
+WSREP_ERROR_LABEL:
   if (WSREP(thd) && !thd->wsrep_applier)
   {
     WSREP_TO_ISOLATION_END;

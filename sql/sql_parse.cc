@@ -5712,6 +5712,7 @@ end_with_restore_list:
   goto finish;
 
 error:
+WSREP_ERROR_LABEL:
   res= TRUE;
 
 finish:

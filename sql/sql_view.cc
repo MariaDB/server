@@ -691,10 +691,10 @@ bool mysql_create_view(THD *thd, TABLE_LIST *views,
   lex->link_first_table_back(view, link_to_local);
   DBUG_RETURN(0);
 
-#ifdef WITH_WSREP
- error:
+
+WSREP_ERROR_LABEL:
   res= TRUE;
-#endif /* WITH_WSREP */
+
 err:
   THD_STAGE_INFO(thd, stage_end);
   lex->link_first_table_back(view, link_to_local);

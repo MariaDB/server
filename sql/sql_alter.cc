@@ -330,13 +330,10 @@ bool Sql_cmd_alter_table::execute(THD *thd)
                             lex->ignore);
 
   DBUG_RETURN(result);
-#ifdef WITH_WSREP
-error:
-  {
-    WSREP_WARN("ALTER TABLE isolation failure");
-    DBUG_RETURN(TRUE);
-  }
-#endif /* WITH_WSREP */
+
+WSREP_ERROR_LABEL:
+  WSREP_WARN("ALTER TABLE isolation failure");
+  DBUG_RETURN(TRUE);
 }
 
 bool Sql_cmd_discard_import_tablespace::execute(THD *thd)

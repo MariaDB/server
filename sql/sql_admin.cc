@@ -1262,6 +1262,7 @@ bool Sql_cmd_analyze_table::execute(THD *thd)
   m_lex->query_tables= first_table;
 
 error:
+WSREP_ERROR_LABEL:
   DBUG_RETURN(res);
 }
 
@@ -1320,6 +1321,7 @@ bool Sql_cmd_optimize_table::execute(THD *thd)
   m_lex->query_tables= first_table;
 
 error:
+WSREP_ERROR_LABEL:
   DBUG_RETURN(res);
 }
 
@@ -1354,5 +1356,6 @@ bool Sql_cmd_repair_table::execute(THD *thd)
   m_lex->query_tables= first_table;
 
 error:
+WSREP_ERROR_LABEL:
   DBUG_RETURN(res);
 }
