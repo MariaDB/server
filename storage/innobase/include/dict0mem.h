@@ -587,9 +587,10 @@ struct dict_col_t{
 					this column. Our current max limit is
 					3072 (REC_VERSION_56_MAX_INDEX_COL_LEN)
 					bytes. */
-
-	/** Whether the column has been instantly dropped. */
-	unsigned	dropped:1;
+private:
+	/** Special value of ind for a dropped column */
+	static const unsigned DROPPED = 1023;
+public:
 
 	/** Detach the column from an index.
 	@param[in]	index	index to be detached from */
@@ -649,8 +650,10 @@ struct dict_col_t{
 		DBUG_ASSERT(def_val.len != UNIV_SQL_DEFAULT || !def_val.data);
 		return def_val.len != UNIV_SQL_DEFAULT;
 	}
+	/** Flag the column instantly dropped */
+	void set_dropped() { ind = DROPPED; }
 	/** @return whether the column was instantly dropped */
-	bool is_dropped() const { return dropped; }
+	bool is_dropped() const { return ind == DROPPED; }
 	/** @return whether the column was instantly dropped
 	@param[in] index	the clustered index */
 	inline bool is_dropped(const dict_index_t& index) const;

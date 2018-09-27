@@ -713,9 +713,9 @@ dict_mem_fill_column_struct(
 	dtype_get_mblen(mtype, prtype, &mbminlen, &mbmaxlen);
 	column->mbminlen = mbminlen;
 	column->mbmaxlen = mbmaxlen;
-	column->dropped = false;
 	column->def_val.data = NULL;
 	column->def_val.len = UNIV_SQL_DEFAULT;
+	ut_ad(!column->is_dropped());
 }
 
 /**********************************************************************//**
@@ -1337,8 +1337,7 @@ inline void dict_index_t::instant_add_field(const dict_index_t& instant)
 		DBUG_ASSERT(!icol->is_virtual());
 		if (icol->is_dropped()) {
 			ut_d(n_dropped++);
-			f.col->dropped = true;
-			f.col->ind = 0;
+			f.col->set_dropped();
 			f.name = NULL;
 		} else {
 			f.col = &table->cols[icol - instant.table->cols];
@@ -1596,11 +1595,10 @@ void dict_table_t::construct_dropped_columns(const byte* data)
 	for (unsigned i = 0; i < n_dropped_cols; i++) {
 		dict_col_t&	drop_col = dropped_cols[i];
 		bool		is_fixed = false;
-		drop_col.dropped = true;
+		drop_col.set_dropped();
 
 		while (j < num_non_pk_fields) {
 			if (non_pk_col_map[j++] == 0) {
-				drop_col.ind = j + clust_index->n_uniq + 1;
 				break;
 			}
 		}

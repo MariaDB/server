@@ -369,8 +369,7 @@ add_metadata:
 						(&instant_table->instant
 						 ->dropped[d++])
 						dict_col_t(old_table->cols[i]);
-					drop->dropped = true;
-					drop->ind = 0;
+					drop->set_dropped();
 				}
 			}
 #ifndef DBUG_OFF
