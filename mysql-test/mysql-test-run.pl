@@ -5680,7 +5680,7 @@ EOF
     mtr_tofile($gdb_init_file,
       join("\n",
         "set args @$$args $input",
-        split /;/, $opt_gdb
+        split /;/, $opt_gdb || ""
         ));
   }
 
