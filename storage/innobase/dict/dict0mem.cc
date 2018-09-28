@@ -1410,7 +1410,7 @@ void dict_table_t::instant_column(const dict_table_t& table, const ulint* map)
 
 	for (unsigned i = 0; i < n_v_def; i++) {
 		dict_v_col_t& v = v_cols[i];
-		v.m_col.ind = map[v.m_col.ind];
+		v.m_col.ind = v.m_col.ind - get_n_drop_cols(map, v.m_col.ind);
 
 		for (ulint n = v.num_base; n--; ) {
 			dict_col_t*& base = v.base_col[n];

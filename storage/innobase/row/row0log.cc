@@ -1559,11 +1559,15 @@ row_log_table_apply_convert_mrec(
 		const dict_col_t*	col
 			= dict_field_get_col(ind_field);
 
+		if (col->is_dropped()) {
+			ut_ad(index->is_instant());
+			continue;
+		}
+
 		ulint			col_no
 			= log->col_map[dict_col_get_no(col)];
 
 		if (col_no == ULINT_UNDEFINED) {
-			/* dropped column */
 			continue;
 		}
 
