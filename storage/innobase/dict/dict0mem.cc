@@ -1410,7 +1410,7 @@ void dict_table_t::instant_column(const dict_table_t& table, const ulint* map)
 
 	for (unsigned i = 0; i < n_v_def; i++) {
 		dict_v_col_t& v = v_cols[i];
-		v.m_col.ind = (n_def - DATA_N_SYS_COLS) + i;
+		v.m_col.ind = map[v.m_col.ind];
 
 		for (ulint n = v.num_base; n--; ) {
 			dict_col_t*& base = v.base_col[n];
@@ -1558,7 +1558,6 @@ void dict_table_t::construct_dropped_columns(const byte* data)
 {
 	ut_ad(!instant);
 	unsigned num_non_pk_fields = mach_read_from_4(data);
-	dict_index_t*	clust_index = dict_table_get_first_index(this);
 
 	unsigned* non_pk_col_map = static_cast<unsigned*>(
 		mem_heap_zalloc(heap,
@@ -1706,7 +1705,7 @@ dict_table_t::rollback_instant(
 
 	for (unsigned i = 0; i < n_v_def; i++) {
 		dict_v_col_t&	v = v_cols[i];
-		v.m_col.ind = (n_def - DATA_N_SYS_COLS) + i;
+		v.m_col.ind =find_old_col_no(col_map, v.m_col.ind, n_cols);
 		for (ulint n = v.num_base; n--; ) {
 			dict_col_t*& base = v.base_col[n];
 			if (!base->is_virtual()) {

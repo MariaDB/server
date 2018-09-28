@@ -1087,7 +1087,7 @@ rec_get_offsets_func(
 		      || n == n_fields /* btr_pcur_restore_position() */
 		      || (n + (index->id == DICT_INDEXES_ID)
 			  >= index->n_core_fields && n <= index->n_fields
-			  + unsigned(rec_is_alter_metadata(rec, false))));
+			  + unsigned(rec_is_alter_metadata(rec, ulint(0)))));
 
 		if (is_user_rec && leaf && n < index->n_fields) {
 			ut_ad(!index->is_dummy);
