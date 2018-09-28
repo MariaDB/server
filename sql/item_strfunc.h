@@ -62,8 +62,8 @@ public:
   longlong val_int();
   double val_real();
   my_decimal *val_decimal(my_decimal *);
-  bool get_date(MYSQL_TIME *ltime, ulonglong fuzzydate)
-  { return get_date_from_string(ltime, fuzzydate); }
+  bool get_date(THD *thd, MYSQL_TIME *ltime, date_mode_t fuzzydate)
+  { return get_date_from_string(thd, ltime, fuzzydate); }
   const Type_handler *type_handler() const { return string_type_handler(); }
   void left_right_max_length();
   bool fix_fields(THD *thd, Item **ref);
@@ -1465,11 +1465,11 @@ public:
       return NULL;
     return res;
   }
-  bool get_date(MYSQL_TIME *ltime, ulonglong fuzzydate)
+  bool get_date(THD *thd, MYSQL_TIME *ltime, date_mode_t fuzzydate)
   {
     if (args[0]->result_type() == STRING_RESULT)
-      return Item_str_func::get_date(ltime, fuzzydate);
-    bool res= args[0]->get_date(ltime, fuzzydate);
+      return Item_str_func::get_date(thd, ltime, fuzzydate);
+    bool res= args[0]->get_date(thd, ltime, fuzzydate);
     if ((null_value= args[0]->null_value))
       return 1;
     return res;
@@ -1764,7 +1764,7 @@ public:
   double val_real();
   my_decimal *val_decimal(my_decimal *);
   bool get_dyn_value(THD *thd, DYNAMIC_COLUMN_VALUE *val, String *tmp);
-  bool get_date(MYSQL_TIME *ltime, ulonglong fuzzydate);
+  bool get_date(THD *thd, MYSQL_TIME *ltime, date_mode_t fuzzydate);
   void print(String *str, enum_query_type query_type);
   Item *get_copy(THD *thd)
   { return get_item_copy<Item_dyncol_get>(thd, this); }

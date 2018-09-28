@@ -8642,7 +8642,7 @@ bool TR_table::query(MYSQL_TIME &commit_time, bool backwards)
     if (res > 0)
     {
       MYSQL_TIME commit_ts;
-      if ((*this)[FLD_COMMIT_TS]->get_date(&commit_ts, 0))
+      if ((*this)[FLD_COMMIT_TS]->get_date(&commit_ts, date_mode_t(0)))
       {
         found= false;
         break;

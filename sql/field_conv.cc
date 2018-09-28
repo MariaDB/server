@@ -429,7 +429,7 @@ void Field::do_field_temporal(Copy_field *copy)
 {
   MYSQL_TIME ltime;
   // TODO: we now need to check result
-  if (copy->from_field->get_date(&ltime, 0))
+  if (copy->from_field->get_date(&ltime, date_mode_t(0)))
     copy->to_field->reset();
   else
     copy->to_field->store_time_dec(&ltime, copy->from_field->decimals());

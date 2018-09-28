@@ -439,12 +439,12 @@ Item_sum_hybrid_simple::val_str(String *str)
   return retval;
 }
 
-bool Item_sum_hybrid_simple::get_date(MYSQL_TIME *ltime, ulonglong fuzzydate)
+bool Item_sum_hybrid_simple::get_date(THD *thd, MYSQL_TIME *ltime, date_mode_t fuzzydate)
 {
   DBUG_ASSERT(fixed == 1);
   if (null_value)
     return true;
-  bool retval= value->get_date(ltime, fuzzydate);
+  bool retval= value->get_date(thd, ltime, fuzzydate);
   if ((null_value= value->null_value))
     DBUG_ASSERT(retval == true);
   return retval;

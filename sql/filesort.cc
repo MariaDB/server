@@ -1057,7 +1057,7 @@ Type_handler_temporal_result::make_sort_key(uchar *to, Item *item,
                                             Sort_param *param) const
 {
   MYSQL_TIME buf;
-  if (item->get_date_result(&buf, TIME_INVALID_DATES))
+  if (item->get_date_result(current_thd, &buf, TIME_INVALID_DATES))
   {
     DBUG_ASSERT(item->maybe_null);
     DBUG_ASSERT(item->null_value);

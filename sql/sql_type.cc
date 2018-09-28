@@ -154,10 +154,10 @@ VDec_op::VDec_op(Item_func_hybrid_field_type *item)
 }
 
 
-bool Dec_ptr::to_datetime_with_warn(MYSQL_TIME *to, ulonglong fuzzydate,
-                                    Item *item)
+bool Dec_ptr::to_datetime_with_warn(THD *thd, MYSQL_TIME *to,
+                                    date_mode_t fuzzydate, Item *item)
 {
-  if (to_datetime_with_warn(to, fuzzydate, item->field_name_or_null()))
+  if (to_datetime_with_warn(thd, to, fuzzydate, item->field_name_or_null()))
     return item->null_value|= item->make_zero_date(to, fuzzydate);
   return item->null_value= false;
 }
@@ -178,7 +178,7 @@ my_decimal *Temporal::bad_to_decimal(my_decimal *to) const
 
 Temporal_hybrid::Temporal_hybrid(THD *thd, Item *item)
 {
-  if (item->get_date(this, sql_mode_for_dates(thd)))
+  if (item->get_date(thd, this, sql_mode_for_dates(thd)))
     time_type= MYSQL_TIMESTAMP_NONE;
 }
 
@@ -211,42 +211,39 @@ void Sec6::make_truncated_warning(THD *thd, const char *type_str) const
 {
   char buff[1 + MAX_BIGINT_WIDTH + 1 + 6 + 1]; // '-' int '.' frac '\0'
   to_string(buff, sizeof(buff));
-  current_thd->push_warning_truncated_wrong_value(type_str, buff);
+  thd->push_warning_truncated_wrong_value(type_str, buff);
 }
 
 
-bool Sec6::convert_to_mysql_time(MYSQL_TIME *ltime, ulonglong fuzzydate,
-                                 const ErrConv *str, const char *field_name)
-                                 const
+bool Sec6::convert_to_mysql_time(THD *thd, MYSQL_TIME *ltime,
+                                 date_mode_t fuzzydate, const ErrConv *str,
+                                 const char *field_name) const
 {
   int warn;
-  bool is_time= fuzzydate & TIME_TIME_ONLY;
+  bool is_time= bool(fuzzydate & TIME_TIME_ONLY);
   const char *typestr= is_time ? "time" : "datetime";
   bool rc= is_time ? to_time(ltime, &warn) :
                      to_datetime(ltime, fuzzydate, &warn);
   if (truncated())
   {
     // The value was already truncated at the constructor call time
-    current_thd->
-      push_warning_wrong_or_truncated_value(Sql_condition::WARN_LEVEL_WARN,
-                                            !is_time, typestr,
-                                            str->ptr(), field_name);
+    thd->push_warning_wrong_or_truncated_value(Sql_condition::WARN_LEVEL_WARN,
+                                               !is_time, typestr,
+                                               str->ptr(), field_name);
   }
   else if (rc || MYSQL_TIME_WARN_HAVE_WARNINGS(warn))
-    current_thd->
-      push_warning_wrong_or_truncated_value(Sql_condition::WARN_LEVEL_WARN,
-                                            rc, typestr, str->ptr(),
-                                            field_name);
+    thd->push_warning_wrong_or_truncated_value(Sql_condition::WARN_LEVEL_WARN,
+                                               rc, typestr, str->ptr(),
+                                               field_name);
   else if (MYSQL_TIME_WARN_HAVE_NOTES(warn))
-    current_thd->
-      push_warning_wrong_or_truncated_value(Sql_condition::WARN_LEVEL_NOTE,
-                                            rc, typestr, str->ptr(),
-                                            field_name);
+    thd->push_warning_wrong_or_truncated_value(Sql_condition::WARN_LEVEL_NOTE,
+                                               rc, typestr, str->ptr(),
+                                               field_name);
   return rc;
 }
 
 
-VSec6::VSec6(Item *item, const char *type_str, ulonglong limit)
+VSec6::VSec6(THD *thd, Item *item, const char *type_str, ulonglong limit)
 {
   if (item->decimals == 0)
   { // optimize for an important special case
@@ -258,7 +255,7 @@ VSec6::VSec6(Item *item, const char *type_str, ulonglong limit)
       m_sec= limit;
       m_truncated= true;
       ErrConvInteger err(nr, item->unsigned_flag);
-      current_thd->push_warning_truncated_wrong_value(type_str, err.ptr());
+      thd->push_warning_truncated_wrong_value(type_str, err.ptr());
     }
   }
   else if (item->cmp_type() == REAL_RESULT)
@@ -274,7 +271,7 @@ VSec6::VSec6(Item *item, const char *type_str, ulonglong limit)
     if (m_truncated)
     {
       ErrConvDouble err(nr);
-      current_thd->push_warning_truncated_wrong_value(type_str, err.ptr());
+      thd->push_warning_truncated_wrong_value(type_str, err.ptr());
     }   
   }
   else
@@ -289,7 +286,7 @@ VSec6::VSec6(Item *item, const char *type_str, ulonglong limit)
     if (m_truncated)
     {
       ErrConvDecimal err(tmp.ptr());
-      current_thd->push_warning_truncated_wrong_value(type_str, err.ptr());
+      thd->push_warning_truncated_wrong_value(type_str, err.ptr());
     }
   }
 }
@@ -334,13 +331,13 @@ VYear_op::VYear_op(Item_func_hybrid_field_type *item)
 { }
 
 
-void Time::make_from_item(int *warn, Item *item, const Options opt)
+void Time::make_from_item(THD *thd, int *warn, Item *item, const Options opt)
 {
   *warn= 0;
-  if (item->get_date(this, opt.get_date_flags()))
+  if (item->get_date(thd, this, opt.get_date_flags()))
     time_type= MYSQL_TIMESTAMP_NONE;
   else
-    valid_MYSQL_TIME_to_valid_value(warn, opt);
+    valid_MYSQL_TIME_to_valid_value(thd, warn, opt);
 }
 
 
@@ -449,7 +446,7 @@ Time::Time(int *warn, const MYSQL_TIME *from, long curdays)
 }
 
 
-void Temporal_with_date::make_from_item(THD *thd, Item *item, sql_mode_t flags)
+void Temporal_with_date::make_from_item(THD *thd, Item *item, date_mode_t flags)
 {
   flags&= ~TIME_TIME_ONLY;
   /*
@@ -459,10 +456,10 @@ void Temporal_with_date::make_from_item(THD *thd, Item *item, sql_mode_t flags)
     In the legacy time->datetime conversion mode we do not add TIME_TIME_ONLY
     and leave it to get_date() to check date.
   */
-  ulonglong time_flag= (item->field_type() == MYSQL_TYPE_TIME &&
-           !(thd->variables.old_behavior & OLD_MODE_ZERO_DATE_TIME_CAST)) ?
-           TIME_TIME_ONLY : 0;
-  if (item->get_date(this, flags | time_flag))
+  date_mode_t time_flag= (item->field_type() == MYSQL_TYPE_TIME &&
+              !(thd->variables.old_behavior & OLD_MODE_ZERO_DATE_TIME_CAST)) ?
+              TIME_TIME_ONLY : date_mode_t(0);
+  if (item->get_date(thd, this, flags | time_flag))
     time_type= MYSQL_TIMESTAMP_NONE;
   else if (time_type == MYSQL_TIMESTAMP_TIME)
   {
@@ -481,15 +478,15 @@ void Temporal_with_date::make_from_item(THD *thd, Item *item)
 }
 
 
-void Temporal_with_date::check_date_or_invalidate(int *warn, sql_mode_t flags)
+void Temporal_with_date::check_date_or_invalidate(int *warn, date_mode_t flags)
 {
-  if (check_date(this, pack_time(this) != 0, flags, warn))
+  if (check_date(this, pack_time(this) != 0, ulonglong(flags), warn))
     time_type= MYSQL_TIMESTAMP_NONE;
 }
 
 
 void Datetime::make_from_time(THD *thd, int *warn, const MYSQL_TIME *from,
-                              sql_mode_t flags)
+                              date_mode_t flags)
 {
   DBUG_ASSERT(from->time_type == MYSQL_TIMESTAMP_TIME);
   if (time_to_datetime(thd, from, this))
@@ -503,7 +500,7 @@ void Datetime::make_from_time(THD *thd, int *warn, const MYSQL_TIME *from,
 
 
 void Datetime::make_from_datetime(THD *thd, int *warn, const MYSQL_TIME *from,
-                                 sql_mode_t flags)
+                                  date_mode_t flags)
 {
   DBUG_ASSERT(from->time_type == MYSQL_TIMESTAMP_DATE ||
               from->time_type == MYSQL_TIMESTAMP_DATETIME);
@@ -520,9 +517,9 @@ void Datetime::make_from_datetime(THD *thd, int *warn, const MYSQL_TIME *from,
 
 
 Datetime::Datetime(THD *thd, int *warn, const MYSQL_TIME *from,
-                   sql_mode_t flags)
+                   date_mode_t flags)
 {
-  DBUG_ASSERT((flags & TIME_TIME_ONLY) == 0);
+  DBUG_ASSERT(bool(flags & TIME_TIME_ONLY) == false);
   switch (from->time_type) {
   case MYSQL_TIMESTAMP_ERROR:
   case MYSQL_TIMESTAMP_NONE:
@@ -3004,14 +3001,14 @@ void Type_handler_row::Item_update_null_value(Item *item) const
 void Type_handler_time_common::Item_update_null_value(Item *item) const
 {
   MYSQL_TIME ltime;
-  (void) item->get_date(&ltime, TIME_TIME_ONLY);
+  (void) item->get_date(current_thd, &ltime, TIME_TIME_ONLY);
 }
 
 
 void Type_handler_temporal_with_date::Item_update_null_value(Item *item) const
 {
   MYSQL_TIME ltime;
-  (void) item->get_date(&ltime, sql_mode_for_dates(current_thd));
+  (void) item->get_date(current_thd, &ltime, sql_mode_for_dates(current_thd));
 }
 
 
@@ -3781,38 +3778,42 @@ bool Type_handler_string_result::Item_val_bool(Item *item) const
 
 /*************************************************************************/
 
-bool Type_handler_int_result::Item_get_date(Item *item, MYSQL_TIME *ltime,
-                                             ulonglong fuzzydate) const
+bool Type_handler_int_result::Item_get_date(THD *thd, Item *item,
+                                            MYSQL_TIME *ltime,
+                                            date_mode_t fuzzydate) const
 {
-  return item->get_date_from_int(ltime, fuzzydate);
+  return item->get_date_from_int(thd, ltime, fuzzydate);
 }
 
 
-bool Type_handler_year::Item_get_date(Item *item, MYSQL_TIME *ltime,
-                                             ulonglong fuzzydate) const
+bool Type_handler_year::Item_get_date(THD *thd, Item *item, MYSQL_TIME *ltime,
+                                      date_mode_t fuzzydate) const
 {
   return item->null_value=
-    VYear(item).to_mysql_time_with_warn(ltime, fuzzydate,
+    VYear(item).to_mysql_time_with_warn(thd, ltime, fuzzydate,
                                         item->field_name_or_null());
 }
 
 
-bool Type_handler_real_result::Item_get_date(Item *item, MYSQL_TIME *ltime,
-                                             ulonglong fuzzydate) const
+bool Type_handler_real_result::Item_get_date(THD *thd, Item *item,
+                                             MYSQL_TIME *ltime,
+                                             date_mode_t fuzzydate) const
 {
-  return item->get_date_from_real(ltime, fuzzydate);
+  return item->get_date_from_real(thd, ltime, fuzzydate);
 }
 
 
-bool Type_handler_string_result::Item_get_date(Item *item, MYSQL_TIME *ltime,
-                                             ulonglong fuzzydate) const
+bool Type_handler_string_result::Item_get_date(THD *thd, Item *item,
+                                               MYSQL_TIME *ltime,
+                                               date_mode_t fuzzydate) const
 {
-  return item->get_date_from_string(ltime, fuzzydate);
+  return item->get_date_from_string(thd, ltime, fuzzydate);
 }
 
 
-bool Type_handler_temporal_result::Item_get_date(Item *item, MYSQL_TIME *ltime,
-                                             ulonglong fuzzydate) const
+bool Type_handler_temporal_result::Item_get_date(THD *thd, Item *item,
+                                                 MYSQL_TIME *ltime,
+                                                 date_mode_t fuzzydate) const
 {
   DBUG_ASSERT(0); // Temporal type items must implement native get_date()
   item->null_value= true;
@@ -3960,22 +3961,24 @@ Type_handler_decimal_result::Item_func_hybrid_field_type_val_decimal(
 
 bool
 Type_handler_decimal_result::Item_func_hybrid_field_type_get_date(
+                                             THD *thd,
                                              Item_func_hybrid_field_type *item,
                                              MYSQL_TIME *ltime,
-                                             ulonglong fuzzydate) const
+                                             date_mode_t fuzzydate) const
 {
-  return VDec_op(item).to_datetime_with_warn(ltime, fuzzydate, item);
+  return VDec_op(item).to_datetime_with_warn(thd, ltime, fuzzydate, item);
 }
 
 
 bool
 Type_handler_year::Item_func_hybrid_field_type_get_date(
+                                             THD *thd,
                                              Item_func_hybrid_field_type *item,
                                              MYSQL_TIME *ltime,
-                                             ulonglong fuzzydate) const
+                                             date_mode_t fuzzydate) const
 {
   return item->null_value=
-    VYear_op(item).to_mysql_time_with_warn(ltime, fuzzydate, NULL);
+    VYear_op(item).to_mysql_time_with_warn(thd, ltime, fuzzydate, NULL);
 }
 
 
@@ -4020,11 +4023,12 @@ Type_handler_int_result::Item_func_hybrid_field_type_val_decimal(
 
 bool
 Type_handler_int_result::Item_func_hybrid_field_type_get_date(
+                                          THD *thd,
                                           Item_func_hybrid_field_type *item,
                                           MYSQL_TIME *ltime,
-                                          ulonglong fuzzydate) const
+                                          date_mode_t fuzzydate) const
 {
-  return item->get_date_from_int_op(ltime, fuzzydate);
+  return item->get_date_from_int_op(thd, ltime, fuzzydate);
 }
 
 
@@ -4069,11 +4073,12 @@ Type_handler_real_result::Item_func_hybrid_field_type_val_decimal(
 
 bool
 Type_handler_real_result::Item_func_hybrid_field_type_get_date(
+                                             THD *thd,
                                              Item_func_hybrid_field_type *item,
                                              MYSQL_TIME *ltime,
-                                             ulonglong fuzzydate) const
+                                             date_mode_t fuzzydate) const
 {
-  return item->get_date_from_real_op(ltime, fuzzydate);
+  return item->get_date_from_real_op(thd, ltime, fuzzydate);
 }
 
 
@@ -4117,11 +4122,12 @@ Type_handler_temporal_result::Item_func_hybrid_field_type_val_decimal(
 
 bool
 Type_handler_temporal_result::Item_func_hybrid_field_type_get_date(
+                                        THD *thd,
                                         Item_func_hybrid_field_type *item,
                                         MYSQL_TIME *ltime,
-                                        ulonglong fuzzydate) const
+                                        date_mode_t fuzzydate) const
 {
-  return item->date_op(ltime, fuzzydate);
+  return item->date_op(thd, ltime, fuzzydate);
 }
 
 
@@ -4165,11 +4171,12 @@ Type_handler_time_common::Item_func_hybrid_field_type_val_decimal(
 
 bool
 Type_handler_time_common::Item_func_hybrid_field_type_get_date(
+                                    THD *thd,
                                     Item_func_hybrid_field_type *item,
                                     MYSQL_TIME *ltime,
-                                    ulonglong fuzzydate) const
+                                    date_mode_t fuzzydate) const
 {
-  return item->time_op(ltime);
+  return item->time_op(thd, ltime);
 }
 
 
@@ -4213,11 +4220,12 @@ Type_handler_string_result::Item_func_hybrid_field_type_val_decimal(
 
 bool
 Type_handler_string_result::Item_func_hybrid_field_type_get_date(
+                                             THD *thd,
                                              Item_func_hybrid_field_type *item,
                                              MYSQL_TIME *ltime,
-                                             ulonglong fuzzydate) const
+                                             date_mode_t fuzzydate) const
 {
-  return item->get_date_from_str_op(ltime, fuzzydate);
+  return item->get_date_from_str_op(thd, ltime, fuzzydate);
 }
 
 /***************************************************************************/
@@ -4544,7 +4552,7 @@ double Type_handler_temporal_result::
          Item_func_min_max_val_real(Item_func_min_max *func) const
 {
   MYSQL_TIME ltime;
-  if (func->get_date(&ltime, 0))
+  if (func->get_date(current_thd, &ltime, date_mode_t(0)))
     return 0;
   return TIME_to_double(&ltime);
 }
@@ -4568,7 +4576,7 @@ longlong Type_handler_temporal_result::
          Item_func_min_max_val_int(Item_func_min_max *func) const
 {
   MYSQL_TIME ltime;
-  if (func->get_date(&ltime, 0))
+  if (func->get_date(current_thd, &ltime, date_mode_t(0)))
     return 0;
   return TIME_to_ulonglong(&ltime);
 }
@@ -4602,15 +4610,15 @@ my_decimal *Type_handler_temporal_result::
                                           my_decimal *dec) const
 {
   MYSQL_TIME ltime;
-  if (func->get_date(&ltime, 0))
+  if (func->get_date(current_thd, &ltime, date_mode_t(0)))
     return 0;
   return date2my_decimal(&ltime, dec);
 }
 
 
 bool Type_handler_string_result::
-       Item_func_min_max_get_date(Item_func_min_max *func,
-                                  MYSQL_TIME *ltime, ulonglong fuzzydate) const
+       Item_func_min_max_get_date(THD *thd, Item_func_min_max *func,
+                                  MYSQL_TIME *ltime, date_mode_t fuzzydate) const
 {
   /*
     just like ::val_int() method of a string item can be called,
@@ -4618,30 +4626,30 @@ bool Type_handler_string_result::
     ::get_date() can be called for non-temporal values,
     for example, SELECT MONTH(GREATEST("2011-11-21", "2010-10-09"))
   */
-  return func->get_date_from_string(ltime, fuzzydate);
+  return func->get_date_from_string(thd, ltime, fuzzydate);
 }
 
 
 bool Type_handler_numeric::
-       Item_func_min_max_get_date(Item_func_min_max *func,
-                                  MYSQL_TIME *ltime, ulonglong fuzzydate) const
+       Item_func_min_max_get_date(THD *thd, Item_func_min_max *func,
+                                  MYSQL_TIME *ltime, date_mode_t fuzzydate) const
 {
-  return Item_get_date(func, ltime, fuzzydate);
+  return Item_get_date(thd, func, ltime, fuzzydate);
 }
 
 
 bool Type_handler_temporal_result::
-       Item_func_min_max_get_date(Item_func_min_max *func,
-                                  MYSQL_TIME *ltime, ulonglong fuzzydate) const
+       Item_func_min_max_get_date(THD *thd, Item_func_min_max *func,
+                                  MYSQL_TIME *ltime, date_mode_t fuzzydate) const
 {
-  return func->get_date_native(ltime, fuzzydate);
+  return func->get_date_native(thd, ltime, fuzzydate);
 }
 
 bool Type_handler_time_common::
-       Item_func_min_max_get_date(Item_func_min_max *func,
-                                  MYSQL_TIME *ltime, ulonglong fuzzydate) const
+       Item_func_min_max_get_date(THD *thd, Item_func_min_max *func,
+                                  MYSQL_TIME *ltime, date_mode_t fuzzydate) const
 {
-  return func->get_time_native(ltime);
+  return func->get_time_native(thd, ltime);
 }
 
 /***************************************************************************/
@@ -5106,7 +5114,7 @@ bool Type_handler::
        Item_time_typecast_fix_length_and_dec(Item_time_typecast *item) const
 {
   uint dec= item->decimals == NOT_FIXED_DEC ?
-            item->arguments()[0]->time_precision() :
+            item->arguments()[0]->time_precision(current_thd) :
             item->decimals;
   item->fix_attributes_temporal(MIN_TIME_WIDTH, dec);
   item->maybe_null= true;
@@ -5128,7 +5136,7 @@ bool Type_handler::
                                                  const
 {
   uint dec= item->decimals == NOT_FIXED_DEC ?
-            item->arguments()[0]->datetime_precision() :
+            item->arguments()[0]->datetime_precision(current_thd) :
             item->decimals;
   item->fix_attributes_temporal(MAX_DATETIME_WIDTH, dec);
   item->maybe_null= true;
@@ -5448,19 +5456,19 @@ bool Type_handler_string_result::
 
 /***************************************************************************/
 
-uint Type_handler::Item_time_precision(Item *item) const
+uint Type_handler::Item_time_precision(THD *thd, Item *item) const
 {
   return MY_MIN(item->decimals, TIME_SECOND_PART_DIGITS);
 }
 
 
-uint Type_handler::Item_datetime_precision(Item *item) const
+uint Type_handler::Item_datetime_precision(THD *thd, Item *item) const
 {
   return MY_MIN(item->decimals, TIME_SECOND_PART_DIGITS);
 }
 
 
-uint Type_handler_string_result::Item_temporal_precision(Item *item,
+uint Type_handler_string_result::Item_temporal_precision(THD *thd, Item *item,
                                                          bool is_time) const
 {
   StringBuffer<64> buf;
@@ -5469,7 +5477,7 @@ uint Type_handler_string_result::Item_temporal_precision(Item *item,
   DBUG_ASSERT(item->is_fixed());
   if ((tmp= item->val_str(&buf)) &&
       (is_time ?
-       Time(&status, tmp->ptr(), tmp->length(), tmp->charset(),
+       Time(thd, &status, tmp->ptr(), tmp->length(), tmp->charset(),
             Time::Options(TIME_TIME_ONLY,
                           Time::DATETIME_TO_TIME_YYYYMMDD_TRUNCATE)).
          is_valid_time() :
@@ -5664,7 +5672,7 @@ bool Type_handler::check_null(const Item *item, st_value *value) const
 
 
 bool Type_handler_null::
-       Item_save_in_value(Item *item, st_value *value) const
+       Item_save_in_value(THD *thd, Item *item, st_value *value) const
 {
   value->m_type= DYN_COL_NULL;
   return true;
@@ -5672,7 +5680,7 @@ bool Type_handler_null::
 
 
 bool Type_handler_row::
-       Item_save_in_value(Item *item, st_value *value) const
+       Item_save_in_value(THD *thd, Item *item, st_value *value) const
 {
   DBUG_ASSERT(0);
   value->m_type= DYN_COL_NULL;
@@ -5681,7 +5689,7 @@ bool Type_handler_row::
 
 
 bool Type_handler_int_result::
-       Item_save_in_value(Item *item, st_value *value) const
+       Item_save_in_value(THD *thd, Item *item, st_value *value) const
 {
   value->m_type= item->unsigned_flag ? DYN_COL_UINT : DYN_COL_INT;
   value->value.m_longlong= item->val_int();
@@ -5690,7 +5698,7 @@ bool Type_handler_int_result::
 
 
 bool Type_handler_real_result::
-       Item_save_in_value(Item *item, st_value *value) const
+       Item_save_in_value(THD *thd, Item *item, st_value *value) const
 {
   value->m_type= DYN_COL_DOUBLE;
   value->value.m_double= item->val_real();
@@ -5699,7 +5707,7 @@ bool Type_handler_real_result::
 
 
 bool Type_handler_decimal_result::
-       Item_save_in_value(Item *item, st_value *value) const
+       Item_save_in_value(THD *thd, Item *item, st_value *value) const
 {
   value->m_type= DYN_COL_DECIMAL;
   my_decimal *dec= item->val_decimal(&value->m_decimal);
@@ -5710,7 +5718,7 @@ bool Type_handler_decimal_result::
 
 
 bool Type_handler_string_result::
-       Item_save_in_value(Item *item, st_value *value) const
+       Item_save_in_value(THD *thd, Item *item, st_value *value) const
 {
   value->m_type= DYN_COL_STRING;
   String *str= item->val_str(&value->m_string);
@@ -5721,19 +5729,19 @@ bool Type_handler_string_result::
 
 
 bool Type_handler_temporal_with_date::
-       Item_save_in_value(Item *item, st_value *value) const
+       Item_save_in_value(THD *thd, Item *item, st_value *value) const
 {
   value->m_type= DYN_COL_DATETIME;
-  item->get_date(&value->value.m_time, sql_mode_for_dates(current_thd));
+  item->get_date(thd, &value->value.m_time, sql_mode_for_dates(thd));
   return check_null(item, value);
 }
 
 
 bool Type_handler_time_common::
-       Item_save_in_value(Item *item, st_value *value) const
+       Item_save_in_value(THD *thd, Item *item, st_value *value) const
 {
   value->m_type= DYN_COL_DATETIME;
-  item->get_time(&value->value.m_time);
+  item->get_time(thd, &value->value.m_time);
   return check_null(item, value);
 }
 
@@ -5917,7 +5925,8 @@ bool Type_handler::
 bool Type_handler::
        Item_send_datetime(Item *item, Protocol *protocol, st_value *buf) const
 {
-  item->get_date(&buf->value.m_time, sql_mode_for_dates(current_thd));
+  item->get_date(protocol->thd, &buf->value.m_time,
+                 sql_mode_for_dates(protocol->thd));
   if (!item->null_value)
     return protocol->store(&buf->value.m_time, item->decimals);
   return protocol->store_null();
@@ -5927,7 +5936,8 @@ bool Type_handler::
 bool Type_handler::
        Item_send_date(Item *item, Protocol *protocol, st_value *buf) const
 {
-  item->get_date(&buf->value.m_time, sql_mode_for_dates(current_thd));
+  item->get_date(protocol->thd, &buf->value.m_time,
+                 sql_mode_for_dates(protocol->thd));
   if (!item->null_value)
     return protocol->store_date(&buf->value.m_time);
   return protocol->store_null();
@@ -5937,7 +5947,7 @@ bool Type_handler::
 bool Type_handler::
        Item_send_time(Item *item, Protocol *protocol, st_value *buf) const
 {
-  item->get_time(&buf->value.m_time);
+  item->get_time(protocol->thd, &buf->value.m_time);
   if (!item->null_value)
     return protocol->store_time(&buf->value.m_time, item->decimals);
   return protocol->store_null();
@@ -5996,7 +6006,7 @@ Item *Type_handler_time_common::
   make_const_item_for_comparison(THD *thd, Item *item, const Item *cmp) const
 {
   Item_cache_temporal *cache;
-  longlong value= item->val_time_packed();
+  longlong value= item->val_time_packed(thd);
   if (item->null_value)
     return new (thd->mem_root) Item_null(thd, item->name.str);
   cache= new (thd->mem_root) Item_cache_time(thd);
@@ -6010,7 +6020,7 @@ Item *Type_handler_temporal_with_date::
   make_const_item_for_comparison(THD *thd, Item *item, const Item *cmp) const
 {
   Item_cache_temporal *cache;
-  longlong value= item->val_datetime_packed();
+  longlong value= item->val_datetime_packed(thd);
   if (item->null_value)
     return new (thd->mem_root) Item_null(thd, item->name.str);
   cache= new (thd->mem_root) Item_cache_datetime(thd);
@@ -7029,8 +7039,8 @@ bool Type_handler_time_common::Item_eq_value(THD *thd,
                                              const Type_cmp_attributes *attr,
                                              Item *a, Item *b) const
 {
-  longlong value0= a->val_time_packed();
-  longlong value1= b->val_time_packed();
+  longlong value0= a->val_time_packed(thd);
+  longlong value1= b->val_time_packed(thd);
   return !a->null_value && !b->null_value && value0 == value1;
 }
 
@@ -7039,8 +7049,8 @@ bool Type_handler_temporal_with_date::Item_eq_value(THD *thd,
                                                     const Type_cmp_attributes *attr,
                                                     Item *a, Item *b) const
 {
-  longlong value0= a->val_datetime_packed();
-  longlong value1= b->val_datetime_packed();
+  longlong value0= a->val_datetime_packed(thd);
+  longlong value1= b->val_datetime_packed(thd);
   return !a->null_value && !b->null_value && value0 == value1;
 }
 
@@ -7106,7 +7116,7 @@ int Type_handler_temporal_with_date::stored_field_cmp_to_item(THD *thd,
 {
   MYSQL_TIME field_time, item_time, item_time2, *item_time_cmp= &item_time;
   field->get_date(&field_time, TIME_INVALID_DATES);
-  item->get_date(&item_time, TIME_INVALID_DATES);
+  item->get_date(thd, &item_time, TIME_INVALID_DATES);
   if (item_time.time_type == MYSQL_TIMESTAMP_TIME &&
       time_to_datetime(thd, &item_time, item_time_cmp= &item_time2))
     return 1;
@@ -7120,7 +7130,7 @@ int Type_handler_time_common::stored_field_cmp_to_item(THD *thd,
 {
   MYSQL_TIME field_time, item_time;
   field->get_time(&field_time);
-  item->get_time(&item_time);
+  item->get_time(thd, &item_time);
   return my_time_compare(&field_time, &item_time);
 }
 
@@ -7257,7 +7267,7 @@ Type_handler_time_common::create_literal_item(THD *thd,
   MYSQL_TIME_STATUS st;
   Item_literal *item= NULL;
   Time::Options opt(TIME_TIME_ONLY, Time::DATETIME_TO_TIME_DISALLOW);
-  Time tmp(&st, str, length, cs, opt);
+  Time tmp(thd, &st, str, length, cs, opt);
   if (tmp.is_valid_time() &&
       !have_important_literal_warnings(&st))
     item= new (thd->mem_root) Item_time_literal(thd, tmp.get_mysql_time(),

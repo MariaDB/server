@@ -216,7 +216,7 @@ Event_parse_data::init_execute_at(THD *thd)
                       (starts_null && ends_null)));
   DBUG_ASSERT(starts_null && ends_null);
 
-  if (item_execute_at->get_date(&ltime, TIME_NO_ZERO_DATE))
+  if (item_execute_at->get_date(thd, &ltime, TIME_NO_ZERO_DATE))
     goto wrong_value;
 
   ltime_utc= TIME_to_timestamp(thd,&ltime,&not_used);
@@ -275,7 +275,7 @@ Event_parse_data::init_interval(THD *thd)
   if (item_expression->fix_fields(thd, &item_expression))
     goto wrong_value;
 
-  if (get_interval_value(item_expression, interval, &interval_tmp))
+  if (get_interval_value(thd, item_expression, interval, &interval_tmp))
     goto wrong_value;
 
   expression= 0;
@@ -378,7 +378,7 @@ Event_parse_data::init_starts(THD *thd)
   if (item_starts->fix_fields(thd, &item_starts))
     goto wrong_value;
 
-  if (item_starts->get_date(&ltime, TIME_NO_ZERO_DATE))
+  if (item_starts->get_date(thd, &ltime, TIME_NO_ZERO_DATE))
     goto wrong_value;
 
   ltime_utc= TIME_to_timestamp(thd, &ltime, &not_used);
@@ -433,7 +433,7 @@ Event_parse_data::init_ends(THD *thd)
     goto error_bad_params;
 
   DBUG_PRINT("info", ("convert to TIME"));
-  if (item_ends->get_date(&ltime, TIME_NO_ZERO_DATE))
+  if (item_ends->get_date(thd, &ltime, TIME_NO_ZERO_DATE))
     goto error_bad_params;
 
   ltime_utc= TIME_to_timestamp(thd, &ltime, &not_used);

@@ -834,12 +834,13 @@ Item_func_hybrid_field_type::val_decimal_from_int_op(my_decimal *dec)
   return dec;
 }
 
-bool Item_func_hybrid_field_type::get_date_from_int_op(MYSQL_TIME *ltime,
-                                                       ulonglong fuzzydate)
+bool Item_func_hybrid_field_type::get_date_from_int_op(THD *thd,
+                                                       MYSQL_TIME *ltime,
+                                                       date_mode_t fuzzydate)
 {
   longlong value= int_op();
   bool neg= !unsigned_flag && value < 0;
-  if (null_value || int_to_datetime_with_warn(neg, neg ? -value : value,
+  if (null_value || int_to_datetime_with_warn(thd, neg, neg ? -value : value,
                                               ltime, fuzzydate, NULL))
     return make_zero_mysql_time(ltime, fuzzydate);
   return (null_value= 0);
@@ -870,11 +871,13 @@ Item_func_hybrid_field_type::val_decimal_from_real_op(my_decimal *dec)
   return dec;
 }
 
-bool Item_func_hybrid_field_type::get_date_from_real_op(MYSQL_TIME *ltime,
-                                                        ulonglong fuzzydate)
+bool Item_func_hybrid_field_type::get_date_from_real_op(THD *thd,
+                                                        MYSQL_TIME *ltime,
+                                                        date_mode_t fuzzydate)
 {
   double value= real_op();
-  if (null_value || double_to_datetime_with_warn(value, ltime, fuzzydate, NULL))
+  if (null_value ||
+      double_to_datetime_with_warn(thd, value, ltime, fuzzydate, NULL))
     return make_zero_mysql_time(ltime, fuzzydate);
   return (null_value= 0);
 }
@@ -883,7 +886,7 @@ bool Item_func_hybrid_field_type::get_date_from_real_op(MYSQL_TIME *ltime,
 String *Item_func_hybrid_field_type::val_str_from_date_op(String *str)
 {
   MYSQL_TIME ltime;
-  if (date_op_with_null_check(&ltime) ||
+  if (date_op_with_null_check(current_thd, &ltime) ||
       (null_value= str->alloc(MAX_DATE_STRING_REP_LENGTH)))
     return (String *) 0;
   str->length(my_TIME_to_str(&ltime, const_cast<char*>(str->ptr()), decimals));
@@ -895,7 +898,7 @@ String *Item_func_hybrid_field_type::val_str_from_date_op(String *str)
 double Item_func_hybrid_field_type::val_real_from_date_op()
 {
   MYSQL_TIME ltime;
-  if (date_op_with_null_check(&ltime))
+  if (date_op_with_null_check(current_thd, &ltime))
     return 0;
   return TIME_to_double(&ltime);
 }
@@ -903,7 +906,7 @@ double Item_func_hybrid_field_type::val_real_from_date_op()
 longlong Item_func_hybrid_field_type::val_int_from_date_op()
 {
   MYSQL_TIME ltime;
-  if (date_op_with_null_check(&ltime))
+  if (date_op_with_null_check(current_thd, &ltime))
     return 0;
   return TIME_to_ulonglong(&ltime);
 }
@@ -912,7 +915,7 @@ my_decimal *
 Item_func_hybrid_field_type::val_decimal_from_date_op(my_decimal *dec)
 {
   MYSQL_TIME ltime;
-  if (date_op_with_null_check(&ltime))
+  if (date_op_with_null_check(current_thd, &ltime))
   {
     my_decimal_set_zero(dec);
     return 0;
@@ -924,7 +927,7 @@ Item_func_hybrid_field_type::val_decimal_from_date_op(my_decimal *dec)
 String *Item_func_hybrid_field_type::val_str_from_time_op(String *str)
 {
   MYSQL_TIME ltime;
-  if (time_op_with_null_check(&ltime) ||
+  if (time_op_with_null_check(current_thd, &ltime) ||
       (null_value= my_TIME_to_str(&ltime, str, decimals)))
     return NULL;
   return str;
@@ -933,20 +936,22 @@ String *Item_func_hybrid_field_type::val_str_from_time_op(String *str)
 double Item_func_hybrid_field_type::val_real_from_time_op()
 {
   MYSQL_TIME ltime;
-  return time_op_with_null_check(&ltime) ? 0 : TIME_to_double(&ltime);
+  return time_op_with_null_check(current_thd, &ltime) ? 0 :
+         TIME_to_double(&ltime);
 }
 
 longlong Item_func_hybrid_field_type::val_int_from_time_op()
 {
   MYSQL_TIME ltime;
-  return time_op_with_null_check(&ltime) ? 0 : TIME_to_ulonglong(&ltime);
+  return time_op_with_null_check(current_thd, &ltime) ? 0 :
+         TIME_to_ulonglong(&ltime);
 }
 
 my_decimal *
 Item_func_hybrid_field_type::val_decimal_from_time_op(my_decimal *dec)
 {
   MYSQL_TIME ltime;
-  if (time_op_with_null_check(&ltime))
+  if (time_op_with_null_check(current_thd, &ltime))
   {
     my_decimal_set_zero(dec);
     return 0;
@@ -974,13 +979,14 @@ Item_func_hybrid_field_type::val_decimal_from_str_op(my_decimal *decimal_value)
   return res ? decimal_from_string_with_check(decimal_value, res) : 0;
 }
 
-bool Item_func_hybrid_field_type::get_date_from_str_op(MYSQL_TIME *ltime,
-                                                       ulonglong fuzzydate)
+bool Item_func_hybrid_field_type::get_date_from_str_op(THD *thd,
+                                                       MYSQL_TIME *ltime,
+                                                       date_mode_t fuzzydate)
 {
   StringBuffer<40> tmp;
   String *res;
   if (!(res= str_op_with_null_check(&tmp)) ||
-      str_to_datetime_with_warn(res->charset(), res->ptr(), res->length(),
+      str_to_datetime_with_warn(thd, res->charset(), res->ptr(), res->length(),
                                 ltime, fuzzydate))
     return make_zero_mysql_time(ltime, fuzzydate);
   return (null_value= 0);
@@ -2611,14 +2617,15 @@ bool Item_func_min_max::fix_attributes(Item **items, uint nitems)
    0    Otherwise
 */
 
-bool Item_func_min_max::get_date_native(MYSQL_TIME *ltime, ulonglong fuzzy_date)
+bool Item_func_min_max::get_date_native(THD *thd, MYSQL_TIME *ltime,
+                                        date_mode_t fuzzydate)
 {
   longlong UNINIT_VAR(min_max);
   DBUG_ASSERT(fixed == 1);
 
   for (uint i=0; i < arg_count ; i++)
   {
-    longlong res= args[i]->val_datetime_packed();
+    longlong res= args[i]->val_datetime_packed(thd);
 
     /* Check if we need to stop (because of error or KILL) and stop the loop */
     if (unlikely(args[i]->null_value))
@@ -2629,8 +2636,8 @@ bool Item_func_min_max::get_date_native(MYSQL_TIME *ltime, ulonglong fuzzy_date)
   }
   unpack_time(min_max, ltime, mysql_timestamp_type());
 
-  if (!(fuzzy_date & TIME_TIME_ONLY) &&
-      unlikely((null_value= check_date_with_warn(ltime, fuzzy_date,
+  if (!(fuzzydate & TIME_TIME_ONLY) &&
+      unlikely((null_value= check_date_with_warn(thd, ltime, fuzzydate,
                                          MYSQL_TIMESTAMP_ERROR))))
     return true;
 
@@ -2638,17 +2645,17 @@ bool Item_func_min_max::get_date_native(MYSQL_TIME *ltime, ulonglong fuzzy_date)
 }
 
 
-bool Item_func_min_max::get_time_native(MYSQL_TIME *ltime)
+bool Item_func_min_max::get_time_native(THD *thd, MYSQL_TIME *ltime)
 {
   DBUG_ASSERT(fixed == 1);
 
-  Time value(args[0]);
+  Time value(thd, args[0]);
   if (!value.is_valid_time())
     return (null_value= true);
 
   for (uint i= 1; i < arg_count ; i++)
   {
-    Time tmp(args[i]);
+    Time tmp(thd, args[i]);
     if (!tmp.is_valid_time())
       return (null_value= true);
 
@@ -5416,7 +5423,8 @@ my_decimal* Item_user_var_as_out_param::val_decimal(my_decimal *decimal_buffer)
 }
 
 
-bool Item_user_var_as_out_param::get_date(MYSQL_TIME *ltime, ulonglong fuzzy)
+bool Item_user_var_as_out_param::get_date(THD *thd, MYSQL_TIME *ltime,
+                                          date_mode_t fuzzydate)
 {
   DBUG_ASSERT(0);
   return true;
@@ -6512,10 +6520,10 @@ my_decimal *Item_func_last_value::val_decimal(my_decimal *decimal_value)
 }
 
 
-bool Item_func_last_value::get_date(MYSQL_TIME *ltime, ulonglong fuzzydate)
+bool Item_func_last_value::get_date(THD *thd, MYSQL_TIME *ltime, date_mode_t fuzzydate)
 {
   evaluate_sideeffects();
-  bool tmp= last_value->get_date(ltime, fuzzydate);
+  bool tmp= last_value->get_date(thd, ltime, fuzzydate);
   null_value= last_value->null_value;
   return tmp;
 }

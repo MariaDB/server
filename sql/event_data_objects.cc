@@ -654,7 +654,7 @@ my_time_t
 add_interval(MYSQL_TIME *ltime, const Time_zone *time_zone,
              interval_type scale, INTERVAL interval)
 {
-  if (date_add_interval(ltime, scale, interval))
+  if (date_add_interval(current_thd, ltime, scale, interval))
     return 0;
 
   uint not_used;

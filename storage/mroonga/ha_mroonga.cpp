@@ -11624,7 +11624,7 @@ int ha_mroonga::storage_encode_key_timestamp(Field *field, const uchar *key,
     field->ptr = (uchar *)key;
     field->null_ptr = (uchar *)(key - 1);
     field->table = table;
-    timestamp_hires_field->get_date(&mysql_time, fuzzy_date);
+    timestamp_hires_field->get_date(&mysql_time, date_mode_t(fuzzy_date));
     field->ptr = ptr_backup;
     field->null_ptr = null_ptr_backup;
     field->table = table_backup;
@@ -11680,7 +11680,7 @@ int ha_mroonga::storage_encode_key_time(Field *field, const uchar *key,
     uchar *null_ptr_backup = field->null_ptr;
     field->ptr = (uchar *)key;
     field->null_ptr = (uchar *)(key - 1);
-    time_hires_field->get_date(&mysql_time, fuzzy_date);
+    time_hires_field->get_date(&mysql_time, date_mode_t(fuzzy_date));
     field->ptr = ptr_backup;
     field->null_ptr = null_ptr_backup;
   }
@@ -11754,7 +11754,7 @@ int ha_mroonga::storage_encode_key_datetime(Field *field, const uchar *key,
     uchar *null_ptr_backup = field->null_ptr;
     field->ptr = (uchar *)key;
     field->null_ptr = (uchar *)(key - 1);
-    datetime_hires_field->get_date(&mysql_time, fuzzy_date);
+    datetime_hires_field->get_date(&mysql_time, date_mode_t(fuzzy_date));
     field->ptr = ptr_backup;
     field->null_ptr = null_ptr_backup;
     mrn::TimeConverter time_converter;

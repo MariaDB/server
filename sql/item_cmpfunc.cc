@@ -684,10 +684,11 @@ Item** Arg_comparator::cache_converted_constant(THD *thd_arg, Item **value,
 
 int Arg_comparator::compare_time()
 {
-  longlong val1= (*a)->val_time_packed();
+  THD *thd= current_thd;
+  longlong val1= (*a)->val_time_packed(thd);
   if (!(*a)->null_value)
   {
-    longlong val2= (*b)->val_time_packed();
+    longlong val2= (*b)->val_time_packed(thd);
     if (!(*b)->null_value)
       return compare_not_null_values(val1, val2);
   }
@@ -699,8 +700,9 @@ int Arg_comparator::compare_time()
 
 int Arg_comparator::compare_e_time()
 {
-  longlong val1= (*a)->val_time_packed();
-  longlong val2= (*b)->val_time_packed();
+  THD *thd= current_thd;
+  longlong val1= (*a)->val_time_packed(thd);
+  longlong val2= (*b)->val_time_packed(thd);
   if ((*a)->null_value || (*b)->null_value)
     return MY_TEST((*a)->null_value && (*b)->null_value);
   return MY_TEST(val1 == val2);
@@ -710,10 +712,11 @@ int Arg_comparator::compare_e_time()
 
 int Arg_comparator::compare_datetime()
 {
-  longlong val1= (*a)->val_datetime_packed();
+  THD *thd= current_thd;
+  longlong val1= (*a)->val_datetime_packed(thd);
   if (!(*a)->null_value)
   {
-    longlong val2= (*b)->val_datetime_packed();
+    longlong val2= (*b)->val_datetime_packed(thd);
     if (!(*b)->null_value)
       return compare_not_null_values(val1, val2);
   }
@@ -725,8 +728,9 @@ int Arg_comparator::compare_datetime()
 
 int Arg_comparator::compare_e_datetime()
 {
-  longlong val1= (*a)->val_datetime_packed();
-  longlong val2= (*b)->val_datetime_packed();
+  THD *thd= current_thd;
+  longlong val1= (*a)->val_datetime_packed(thd);
+  longlong val2= (*b)->val_datetime_packed(thd);
   if ((*a)->null_value || (*b)->null_value)
     return MY_TEST((*a)->null_value && (*b)->null_value);
   return MY_TEST(val1 == val2);
@@ -2099,22 +2103,24 @@ bool Item_func_between::fix_length_and_dec_temporal(THD *thd)
 
 longlong Item_func_between::val_int_cmp_datetime()
 {
-  longlong value= args[0]->val_datetime_packed(), a, b;
+  THD *thd= current_thd;
+  longlong value= args[0]->val_datetime_packed(thd), a, b;
   if ((null_value= args[0]->null_value))
     return 0;
-  a= args[1]->val_datetime_packed();
-  b= args[2]->val_datetime_packed();
+  a= args[1]->val_datetime_packed(thd);
+  b= args[2]->val_datetime_packed(thd);
   return val_int_cmp_int_finalize(value, a, b);
 }
 
 
 longlong Item_func_between::val_int_cmp_time()
 {
-  longlong value= args[0]->val_time_packed(), a, b;
+  THD *thd= current_thd;
+  longlong value= args[0]->val_time_packed(thd), a, b;
   if ((null_value= args[0]->null_value))
     return 0;
-  a= args[1]->val_time_packed();
-  b= args[2]->val_time_packed();
+  a= args[1]->val_time_packed(thd);
+  b= args[2]->val_time_packed(thd);
   return val_int_cmp_int_finalize(value, a, b);
 }
 
@@ -2296,12 +2302,12 @@ Item_func_ifnull::str_op(String *str)
 }
 
 
-bool Item_func_ifnull::date_op(MYSQL_TIME *ltime, ulonglong fuzzydate)
+bool Item_func_ifnull::date_op(THD *thd, MYSQL_TIME *ltime, date_mode_t fuzzydate)
 {
   DBUG_ASSERT(fixed == 1);
   for (uint i= 0; i < 2; i++)
   {
-    Datetime dt(current_thd, args[i], fuzzydate & ~TIME_FUZZY_DATES);
+    Datetime dt(thd, args[i], fuzzydate & ~TIME_FUZZY_DATES);
     if (!(dt.copy_to_mysql_time(ltime, mysql_timestamp_type())))
       return (null_value= false);
   }
@@ -2309,12 +2315,12 @@ bool Item_func_ifnull::date_op(MYSQL_TIME *ltime, ulonglong fuzzydate)
 }
 
 
-bool Item_func_ifnull::time_op(MYSQL_TIME *ltime)
+bool Item_func_ifnull::time_op(THD *thd, MYSQL_TIME *ltime)
 {
   DBUG_ASSERT(fixed == 1);
   for (uint i= 0; i < 2; i++)
   {
-    if (!Time(args[i]).copy_to_mysql_time(ltime))
+    if (!Time(thd, args[i]).copy_to_mysql_time(ltime))
       return (null_value= false);
   }
   return (null_value= true);
@@ -2796,23 +2802,23 @@ Item_func_nullif::decimal_op(my_decimal * decimal_value)
 
 
 bool
-Item_func_nullif::date_op(MYSQL_TIME *ltime, ulonglong fuzzydate)
+Item_func_nullif::date_op(THD *thd, MYSQL_TIME *ltime, date_mode_t fuzzydate)
 {
   DBUG_ASSERT(fixed == 1);
   if (!compare())
     return (null_value= true);
-  Datetime dt(current_thd, args[2], fuzzydate);
+  Datetime dt(thd, args[2], fuzzydate);
   return (null_value= dt.copy_to_mysql_time(ltime, mysql_timestamp_type()));
 }
 
 
 bool
-Item_func_nullif::time_op(MYSQL_TIME *ltime)
+Item_func_nullif::time_op(THD *thd, MYSQL_TIME *ltime)
 {
   DBUG_ASSERT(fixed == 1);
   if (!compare())
     return (null_value= true);
-  return (null_value= Time(args[2]).copy_to_mysql_time(ltime));
+  return (null_value= Time(thd, args[2]).copy_to_mysql_time(ltime));
 
 }
 
@@ -2894,7 +2900,7 @@ Item *Item_func_case_simple::find_item()
 Item *Item_func_decode_oracle::find_item()
 {
   uint idx;
-  if (!Predicant_to_list_comparator::cmp_nulls_equal(this, &idx))
+  if (!Predicant_to_list_comparator::cmp_nulls_equal(current_thd, this, &idx))
     return args[idx + when_count()];
   Item **pos= Item_func_decode_oracle::else_expr_addr();
   return pos ? pos[0] : 0;
@@ -2970,24 +2976,24 @@ my_decimal *Item_func_case::decimal_op(my_decimal *decimal_value)
 }
 
 
-bool Item_func_case::date_op(MYSQL_TIME *ltime, ulonglong fuzzydate)
+bool Item_func_case::date_op(THD *thd, MYSQL_TIME *ltime, date_mode_t fuzzydate)
 {
   DBUG_ASSERT(fixed == 1);
   Item *item= find_item();
   if (!item)
     return (null_value= true);
-  Datetime dt(current_thd, item, fuzzydate);
+  Datetime dt(thd, item, fuzzydate);
   return (null_value= dt.copy_to_mysql_time(ltime, mysql_timestamp_type()));
 }
 
 
-bool Item_func_case::time_op(MYSQL_TIME *ltime)
+bool Item_func_case::time_op(THD *thd, MYSQL_TIME *ltime)
 {
   DBUG_ASSERT(fixed == 1);
   Item *item= find_item();
   if (!item)
     return (null_value= true);
-  return (null_value= Time(item).copy_to_mysql_time(ltime));
+  return (null_value= Time(thd, item).copy_to_mysql_time(ltime));
 }
 
 
@@ -3323,12 +3329,12 @@ double Item_func_coalesce::real_op()
 }
 
 
-bool Item_func_coalesce::date_op(MYSQL_TIME *ltime, ulonglong fuzzydate)
+bool Item_func_coalesce::date_op(THD *thd, MYSQL_TIME *ltime, date_mode_t fuzzydate)
 {
   DBUG_ASSERT(fixed == 1);
   for (uint i= 0; i < arg_count; i++)
   {
-    Datetime dt(current_thd, args[i], fuzzydate & ~TIME_FUZZY_DATES);
+    Datetime dt(thd, args[i], fuzzydate & ~TIME_FUZZY_DATES);
     if (!dt.copy_to_mysql_time(ltime, mysql_timestamp_type()))
       return (null_value= false);
   }
@@ -3336,12 +3342,12 @@ bool Item_func_coalesce::date_op(MYSQL_TIME *ltime, ulonglong fuzzydate)
 }
 
 
-bool Item_func_coalesce::time_op(MYSQL_TIME *ltime)
+bool Item_func_coalesce::time_op(THD *thd, MYSQL_TIME *ltime)
 {
   DBUG_ASSERT(fixed == 1);
   for (uint i= 0; i < arg_count; i++)
   {
-    if (!Time(args[i]).copy_to_mysql_time(ltime))
+    if (!Time(thd, args[i]).copy_to_mysql_time(ltime))
       return (null_value= false);
   }
   return (null_value= true);
@@ -3629,7 +3635,7 @@ void in_datetime::set(uint pos,Item *item)
 {
   struct packed_longlong *buff= &((packed_longlong*) base)[pos];
 
-  buff->val= item->val_datetime_packed();
+  buff->val= item->val_datetime_packed(current_thd);
   buff->unsigned_flag= 1L;
 }
 
@@ -3637,13 +3643,13 @@ void in_time::set(uint pos,Item *item)
 {
   struct packed_longlong *buff= &((packed_longlong*) base)[pos];
 
-  buff->val= item->val_time_packed();
+  buff->val= item->val_time_packed(current_thd);
   buff->unsigned_flag= 1L;
 }
 
 uchar *in_datetime::get_value(Item *item)
 {
-  tmp.val= item->val_datetime_packed();
+  tmp.val= item->val_datetime_packed(current_thd);
   if (item->null_value)
     return 0;
   tmp.unsigned_flag= 1L;
@@ -3652,7 +3658,7 @@ uchar *in_datetime::get_value(Item *item)
 
 uchar *in_time::get_value(Item *item)
 {
-  tmp.val= item->val_time_packed();
+  tmp.val= item->val_time_packed(current_thd);
   if (item->null_value)
     return 0;
   tmp.unsigned_flag= 1L;
@@ -3993,7 +3999,7 @@ int cmp_item_datetime::cmp_not_null(const Value *val)
 
 int cmp_item_datetime::cmp(Item *arg)
 {
-  const bool rc= value != arg->val_datetime_packed();
+  const bool rc= value != arg->val_datetime_packed(current_thd);
   return (m_null_value || arg->null_value) ? UNKNOWN : rc;
 }
 
@@ -4008,7 +4014,7 @@ int cmp_item_time::cmp_not_null(const Value *val)
 
 int cmp_item_time::cmp(Item *arg)
 {
-  const bool rc= value != arg->val_time_packed();
+  const bool rc= value != arg->val_time_packed(current_thd);
   return (m_null_value || arg->null_value) ? UNKNOWN : rc;
 }
 

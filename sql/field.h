@@ -1342,7 +1342,7 @@ public:
   }
   void copy_from_tmp(int offset);
   uint fill_cache_field(struct st_cache_field *copy);
-  virtual bool get_date(MYSQL_TIME *ltime, ulonglong fuzzydate);
+  virtual bool get_date(MYSQL_TIME *ltime, date_mode_t fuzzydate);
   bool get_time(MYSQL_TIME *ltime) { return get_date(ltime, TIME_TIME_ONLY); }
   virtual TYPELIB *get_typelib() const { return NULL; }
   virtual CHARSET_INFO *charset(void) const { return &my_charset_bin; }
@@ -1958,7 +1958,7 @@ public:
   }
   int store_decimal(const my_decimal *dec) { return store(dec->to_double()); }
   int  store_time_dec(const MYSQL_TIME *ltime, uint dec);
-  bool get_date(MYSQL_TIME *ltime, ulonglong fuzzydate);
+  bool get_date(MYSQL_TIME *ltime, date_mode_t fuzzydate);
   my_decimal *val_decimal(my_decimal *);
   bool val_bool() { return val_real() != 0e0; }
   uint32 max_display_length() const { return field_length; }
@@ -2075,10 +2075,10 @@ public:
     return my_decimal(ptr, precision, dec).
              to_string(val_buffer, fixed_precision, dec, '0');
   }
-  bool get_date(MYSQL_TIME *ltime, ulonglong fuzzydate)
+  bool get_date(MYSQL_TIME *ltime, date_mode_t fuzzydate)
   {
     return my_decimal(ptr, precision, dec).
-             to_datetime_with_warn(ltime, fuzzydate, field_name.str);
+             to_datetime_with_warn(get_thd(), ltime, fuzzydate, field_name.str);
   }
   bool val_bool()
   {
@@ -2127,7 +2127,7 @@ public:
     return nr < 0 && !unsigned_flag ? 0 : (ulonglong) nr;
   }
   int  store_time_dec(const MYSQL_TIME *ltime, uint dec);
-  bool get_date(MYSQL_TIME *ltime, ulonglong fuzzydate);
+  bool get_date(MYSQL_TIME *ltime, date_mode_t fuzzydate);
   virtual const Type_limits_int *type_limits_int() const= 0;
   uint32 max_display_length() const
   {
@@ -2410,8 +2410,8 @@ public:
   {}
   const Type_handler *type_handler() const { return &type_handler_vers_trx_id; }
   uint size_of() const { return sizeof(*this); }
-  bool get_date(MYSQL_TIME *ltime, ulonglong fuzzydate, ulonglong trx_id);
-  bool get_date(MYSQL_TIME *ltime, ulonglong fuzzydate)
+  bool get_date(MYSQL_TIME *ltime, date_mode_t fuzzydate, ulonglong trx_id);
+  bool get_date(MYSQL_TIME *ltime, date_mode_t fuzzydate)
   {
     return get_date(ltime, fuzzydate, (ulonglong) val_int());
   }
@@ -2638,7 +2638,7 @@ public:
   int save_in_field(Field *to)
   {
     MYSQL_TIME ltime;
-    if (get_date(&ltime, 0))
+    if (get_date(&ltime, date_mode_t(0)))
       return to->reset();
     return to->store_time_dec(&ltime, decimals());
   }
@@ -2688,14 +2688,14 @@ class Field_temporal_with_date: public Field_temporal {
 protected:
   virtual void store_TIME(const MYSQL_TIME *ltime) = 0;
   virtual bool get_TIME(MYSQL_TIME *ltime, const uchar *pos,
-                        ulonglong fuzzydate) const = 0;
+                        date_mode_t fuzzydate) const = 0;
   bool validate_MMDD(bool not_zero_date, uint month, uint day,
-                     ulonglong fuzzydate) const
+                     date_mode_t fuzzydate) const
   {
     if (!not_zero_date)
-      return fuzzydate & TIME_NO_ZERO_DATE;
+      return bool(fuzzydate & TIME_NO_ZERO_DATE);
     if (!month || !day)
-      return fuzzydate & TIME_NO_ZERO_IN_DATE;
+      return bool(fuzzydate & TIME_NO_ZERO_IN_DATE);
     return false;
   }
 public:
@@ -2712,7 +2712,7 @@ public:
 
 class Field_timestamp :public Field_temporal {
 protected:
-  sql_mode_t sql_mode_for_timestamp(THD *thd) const;
+  date_mode_t sql_mode_for_timestamp(THD *thd) const;
   int store_TIME_with_warning(THD *, const Datetime *,
                               const ErrConv *, int warn);
   virtual void store_TIMEVAL(const timeval &tv)
@@ -2762,7 +2762,7 @@ public:
   {
     store_TIMEVAL(Timeval(timestamp, sec_part).trunc(decimals()));
   }
-  bool get_date(MYSQL_TIME *ltime, ulonglong fuzzydate);
+  bool get_date(MYSQL_TIME *ltime, date_mode_t fuzzydate);
   uchar *pack(uchar *to, const uchar *from,
               uint max_length __attribute__((unused)))
   {
@@ -2942,7 +2942,7 @@ public:
   double val_real(void);
   longlong val_int(void);
   String *val_str(String*,String *);
-  bool get_date(MYSQL_TIME *ltime, ulonglong fuzzydate);
+  bool get_date(MYSQL_TIME *ltime, date_mode_t fuzzydate);
   bool send_binary(Protocol *protocol);
   Information_schema_numeric_attributes
     information_schema_numeric_attributes() const
@@ -2981,7 +2981,7 @@ public:
 class Field_date :public Field_date_common
 {
   void store_TIME(const MYSQL_TIME *ltime);
-  bool get_TIME(MYSQL_TIME *ltime, const uchar *pos, ulonglong fuzzydate) const;
+  bool get_TIME(MYSQL_TIME *ltime, const uchar *pos, date_mode_t fuzzydate) const;
 public:
   Field_date(uchar *ptr_arg, uchar *null_ptr_arg, uchar null_bit_arg,
 	     enum utype unireg_check_arg, const LEX_CSTRING *field_name_arg)
@@ -2990,7 +2990,7 @@ public:
   const Type_handler *type_handler() const { return &type_handler_date; }
   enum ha_base_keytype key_type() const { return HA_KEYTYPE_ULONG_INT; }
   int reset(void) { ptr[0]=ptr[1]=ptr[2]=ptr[3]=0; return 0; }
-  bool get_date(MYSQL_TIME *ltime, ulonglong fuzzydate)
+  bool get_date(MYSQL_TIME *ltime, date_mode_t fuzzydate)
   { return Field_date::get_TIME(ltime, ptr, fuzzydate); }
   double val_real(void);
   longlong val_int(void);
@@ -3017,7 +3017,7 @@ public:
 class Field_newdate :public Field_date_common
 {
   void store_TIME(const MYSQL_TIME *ltime);
-  bool get_TIME(MYSQL_TIME *ltime, const uchar *pos, ulonglong fuzzydate) const;
+  bool get_TIME(MYSQL_TIME *ltime, const uchar *pos, date_mode_t fuzzydate) const;
 public:
   Field_newdate(uchar *ptr_arg, uchar *null_ptr_arg, uchar null_bit_arg,
 		enum utype unireg_check_arg, const LEX_CSTRING *field_name_arg)
@@ -3035,7 +3035,7 @@ public:
   void sort_string(uchar *buff,uint length);
   uint32 pack_length() const { return 3; }
   void sql_type(String &str) const;
-  bool get_date(MYSQL_TIME *ltime, ulonglong fuzzydate)
+  bool get_date(MYSQL_TIME *ltime, date_mode_t fuzzydate)
   { return Field_newdate::get_TIME(ltime, ptr, fuzzydate); }
   uint size_of() const { return sizeof(*this); }
   Item *get_equal_const_item(THD *thd, const Context &ctx, Item *const_item);
@@ -3052,7 +3052,7 @@ class Field_time :public Field_temporal {
 protected:
   virtual void store_TIME(const MYSQL_TIME *ltime);
   int store_TIME_with_warning(const Time *ltime, const ErrConv *str, int warn);
-  bool check_zero_in_date_with_warn(ulonglong fuzzydate);
+  bool check_zero_in_date_with_warn(date_mode_t fuzzydate);
   static void do_field_time(Copy_field *copy);
 public:
   Field_time(uchar *ptr_arg, uint length_arg, uchar *null_ptr_arg,
@@ -3086,7 +3086,7 @@ public:
   double val_real(void);
   longlong val_int(void);
   String *val_str(String*,String *);
-  bool get_date(MYSQL_TIME *ltime, ulonglong fuzzydate);
+  bool get_date(MYSQL_TIME *ltime, date_mode_t fuzzydate);
   bool send_binary(Protocol *protocol);
   int cmp(const uchar *,const uchar *);
   void sort_string(uchar *buff,uint length);
@@ -3147,7 +3147,7 @@ public:
                    ((TIME_MAX_VALUE_SECONDS+1LL)*TIME_SECOND_PART_FACTOR), dec);
   }
   int reset(void);
-  bool get_date(MYSQL_TIME *ltime, ulonglong fuzzydate);
+  bool get_date(MYSQL_TIME *ltime, date_mode_t fuzzydate);
   int cmp(const uchar *,const uchar *);
   void sort_string(uchar *buff,uint length);
   uint32 pack_length() const { return Type_handler_time::hires_bytes(dec); }
@@ -3198,14 +3198,14 @@ public:
     return memcmp(a_ptr, b_ptr, pack_length());
   }
   int reset();
-  bool get_date(MYSQL_TIME *ltime, ulonglong fuzzydate);
+  bool get_date(MYSQL_TIME *ltime, date_mode_t fuzzydate);
   uint size_of() const { return sizeof(*this); }
 };
 
 
 class Field_datetime :public Field_temporal_with_date {
   void store_TIME(const MYSQL_TIME *ltime);
-  bool get_TIME(MYSQL_TIME *ltime, const uchar *pos, ulonglong fuzzydate) const;
+  bool get_TIME(MYSQL_TIME *ltime, const uchar *pos, date_mode_t fuzzydate) const;
 protected:
   int store_TIME_with_warning(const Datetime *ltime, const ErrConv *str,
                               int was_cut);
@@ -3235,7 +3235,7 @@ public:
   void sort_string(uchar *buff,uint length);
   uint32 pack_length() const { return 8; }
   void sql_type(String &str) const;
-  bool get_date(MYSQL_TIME *ltime, ulonglong fuzzydate)
+  bool get_date(MYSQL_TIME *ltime, date_mode_t fuzzydate)
   { return Field_datetime::get_TIME(ltime, ptr, fuzzydate); }
   int set_time();
   int evaluate_update_default_function()
@@ -3306,7 +3306,7 @@ public:
 */
 class Field_datetime_hires :public Field_datetime_with_dec {
   void store_TIME(const MYSQL_TIME *ltime);
-  bool get_TIME(MYSQL_TIME *ltime, const uchar *pos, ulonglong fuzzydate) const;
+  bool get_TIME(MYSQL_TIME *ltime, const uchar *pos, date_mode_t fuzzydate) const;
 public:
   Field_datetime_hires(uchar *ptr_arg, uchar *null_ptr_arg,
                        uchar null_bit_arg, enum utype unireg_check_arg,
@@ -3318,7 +3318,7 @@ public:
   }
   int cmp(const uchar *,const uchar *);
   uint32 pack_length() const { return Type_handler_datetime::hires_bytes(dec); }
-  bool get_date(MYSQL_TIME *ltime, ulonglong fuzzydate)
+  bool get_date(MYSQL_TIME *ltime, date_mode_t fuzzydate)
   { return Field_datetime_hires::get_TIME(ltime, ptr, fuzzydate); }
   uint size_of() const { return sizeof(*this); }
 };
@@ -3329,7 +3329,7 @@ public:
 */
 class Field_datetimef :public Field_datetime_with_dec {
   void store_TIME(const MYSQL_TIME *ltime);
-  bool get_TIME(MYSQL_TIME *ltime, const uchar *pos, ulonglong fuzzydate) const;
+  bool get_TIME(MYSQL_TIME *ltime, const uchar *pos, date_mode_t fuzzydate) const;
   int save_field_metadata(uchar *metadata_ptr)
   {
     *metadata_ptr= (uchar) decimals();
@@ -3360,7 +3360,7 @@ public:
     return memcmp(a_ptr, b_ptr, pack_length());
   }
   int reset();
-  bool get_date(MYSQL_TIME *ltime, ulonglong fuzzydate)
+  bool get_date(MYSQL_TIME *ltime, date_mode_t fuzzydate)
   { return Field_datetimef::get_TIME(ltime, ptr, fuzzydate); }
   uint size_of() const { return sizeof(*this); }
 };

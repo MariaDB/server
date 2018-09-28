@@ -1559,7 +1559,7 @@ static bool check_vers_constants(THD *thd, partition_info *part_info)
   my_tz_OFFSET0->gmt_sec_to_TIME(&ltime, vers_info->interval.start);
   while ((el= it++)->id < hist_parts)
   {
-    if (date_add_interval(&ltime, vers_info->interval.type,
+    if (date_add_interval(thd, &ltime, vers_info->interval.type,
                           vers_info->interval.step))
       goto err;
     uint error= 0;
@@ -8205,7 +8205,7 @@ static int get_part_iter_for_interval_via_mapping(partition_info *part_info,
              field->type() == MYSQL_TYPE_DATETIME))
         {
           /* Monotonic, but return NULL for dates with zeros in month/day. */
-          zero_in_start_date= field->get_date(&start_date, 0);
+          zero_in_start_date= field->get_date(&start_date, date_mode_t(0));
           DBUG_PRINT("info", ("zero start %u %04d-%02d-%02d",
                               zero_in_start_date, start_date.year,
                               start_date.month, start_date.day));
@@ -8229,7 +8229,7 @@ static int get_part_iter_for_interval_via_mapping(partition_info *part_info,
         !part_info->part_expr->null_value)
     {
       MYSQL_TIME end_date;
-      bool zero_in_end_date= field->get_date(&end_date, 0);
+      bool zero_in_end_date= field->get_date(&end_date, date_mode_t(0));
       /*
         This is an optimization for TO_DAYS()/TO_SECONDS() to avoid scanning
         the NULL partition for ranges that cannot include a date with 0 as

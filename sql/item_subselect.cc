@@ -1388,15 +1388,15 @@ bool Item_singlerow_subselect::val_bool()
 }
 
 
-bool Item_singlerow_subselect::get_date(MYSQL_TIME *ltime,ulonglong fuzzydate)
+bool Item_singlerow_subselect::get_date(THD *thd, MYSQL_TIME *ltime, date_mode_t fuzzydate)
 {
   DBUG_ASSERT(fixed == 1);
   if (forced_const)
-    return value->get_date(ltime, fuzzydate);
+    return value->get_date(thd, ltime, fuzzydate);
   if (!exec() && !value->null_value)
   {
     null_value= FALSE;
-    return value->get_date(ltime, fuzzydate);
+    return value->get_date(thd, ltime, fuzzydate);
   }
   else
   {

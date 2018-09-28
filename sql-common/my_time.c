@@ -86,9 +86,9 @@ my_bool check_date(const MYSQL_TIME *ltime, my_bool not_zero_date,
     return FALSE;
   if (not_zero_date)
   {
-    if (((flags & TIME_NO_ZERO_IN_DATE) &&
+    if (((flags & C_TIME_NO_ZERO_IN_DATE) &&
          (ltime->month == 0 || ltime->day == 0)) || ltime->neg ||
-        (!(flags & TIME_INVALID_DATES) &&
+        (!(flags & C_TIME_INVALID_DATES) &&
          ltime->month && ltime->day > days_in_month[ltime->month-1] &&
          (ltime->month != 2 || calc_days_in_year(ltime->year) != 366 ||
           ltime->day != 29)))
@@ -97,7 +97,7 @@ my_bool check_date(const MYSQL_TIME *ltime, my_bool not_zero_date,
       return TRUE;
     }
   }
-  else if (flags & TIME_NO_ZERO_DATE)
+  else if (flags & C_TIME_NO_ZERO_DATE)
   {
     /*
       We don't set *was_cut here to signal that the problem was a zero date
@@ -168,7 +168,7 @@ static int get_date_time_separator(uint *number_of_fields, ulonglong flags,
   */
   if (my_ispunct(&my_charset_latin1, *s))
   {
-    if (flags & TIME_DATETIME_ONLY)
+    if (flags & C_TIME_DATETIME_ONLY)
     {
       /* see above, returning 1 is not enough, we need hard abort here */
       *number_of_fields= 0;
@@ -255,7 +255,6 @@ static void get_microseconds(ulong *val, MYSQL_TIME_STATUS *status,
     length              Length of string
     l_time              Date is stored here
     flags               Bitmap of following items
-                        TIME_FUZZY_DATE
                         TIME_DATETIME_ONLY Set if we only allow full datetimes.
                         TIME_NO_ZERO_IN_DATE	Don't allow partial dates
                         TIME_NO_ZERO_DATE	Don't allow 0000-00-00 date
@@ -301,7 +300,7 @@ str_to_datetime(const char *str, size_t length, MYSQL_TIME *l_time,
   DBUG_ENTER("str_to_datetime");
   bzero(l_time, sizeof(*l_time));
 
-  if (flags & TIME_TIME_ONLY)
+  if (flags & C_TIME_TIME_ONLY)
   {
     my_bool ret= str_to_time(str, length, l_time, flags, status);
     DBUG_RETURN(ret);
@@ -485,7 +484,7 @@ my_bool str_to_time(const char *str, size_t length, MYSQL_TIME *l_time,
   if (length >= 12)
   {                                             /* Probably full timestamp */
     (void) str_to_datetime(str, length, l_time,
-                           (fuzzydate & ~TIME_TIME_ONLY) | TIME_DATETIME_ONLY,
+                           (fuzzydate & ~C_TIME_TIME_ONLY) | C_TIME_DATETIME_ONLY,
                             status);
     if (l_time->time_type >= MYSQL_TIMESTAMP_ERROR)
       return l_time->time_type == MYSQL_TIMESTAMP_ERROR;
@@ -1279,7 +1278,7 @@ longlong number_to_datetime(longlong nr, ulong sec_part, MYSQL_TIME *time_res,
   }
 
   /* Don't want to have was_cut get set if NO_ZERO_DATE was violated. */
-  if (nr || !(flags & TIME_NO_ZERO_DATE))
+  if (nr || !(flags & C_TIME_NO_ZERO_DATE))
     *was_cut= 1;
   return -1;
 
@@ -1315,7 +1314,7 @@ int number_to_time(my_bool neg, ulonglong nr, ulong sec_part,
 {
   if (nr > 9999999 && nr < 99991231235959ULL && neg == 0)
     return number_to_datetime(nr, sec_part, ltime,
-                              TIME_INVALID_DATES, was_cut) < 0 ? -1 : 0;
+                              C_TIME_INVALID_DATES, was_cut) < 0 ? -1 : 0;
 
   *was_cut= 0;
   ltime->year= ltime->month= ltime->day= 0;
