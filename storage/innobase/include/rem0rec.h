@@ -642,17 +642,6 @@ rec_offs_any_null_extern(
 	const ulint*	offsets)	/*!< in: rec_get_offsets(rec) */
 	MY_ATTRIBUTE((warn_unused_result));
 
-/******************************************************//**
-Returns nonzero if the extern bit is set in nth field of rec.
-@return nonzero if externally stored */
-UNIV_INLINE
-ulint
-rec_offs_nth_extern_old(
-/*================*/
-	const rec_t*	rec,	/*!< in: record */
-	ulint		    n	/*!< in: index of the field */)
-	MY_ATTRIBUTE((warn_unused_result));
-
 /** Mark the nth field as externally stored.
 @param[in]	offsets		array returned by rec_get_offsets()
 @param[in]	n		nth field */

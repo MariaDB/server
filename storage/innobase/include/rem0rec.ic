@@ -956,21 +956,6 @@ rec_offs_any_null_extern(
 }
 
 /******************************************************//**
-Returns nonzero if the extern bit is set in nth field of rec.
-@return nonzero if externally stored */
-UNIV_INLINE
-ulint
-rec_offs_nth_extern_old(
-/*================*/
-	const rec_t*	rec,	/*!< in: record */
-	ulint		    n	/*!< in: index of the field */)
-{
-	if(rec_get_1byte_offs_flag(rec))
-		return 0;
-	return (rec_2_get_field_end_info(rec,n) & REC_2BYTE_EXTERN_MASK);
-}
-
-/******************************************************//**
 Gets the physical size of a field.
 @return length of field */
 UNIV_INLINE
