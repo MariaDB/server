@@ -536,9 +536,9 @@ rec_offs_validate(
 		}
 	}
 	if (index) {
-		ulint max_n_fields;
 		ut_ad(ulint(index) == offsets[3]);
-		max_n_fields = ut_max(
+#if 0 /* FIXME: enable this for node pointers, not for the metadata rec */
+		ulint max_n_fields = ut_max(
 			dict_index_get_n_fields(index),
 			dict_index_get_n_unique_in_tree(index) + 1);
 		if (comp && rec) {
@@ -558,11 +558,10 @@ rec_offs_validate(
 				ut_error;
 			}
 		}
-		/* index->n_def == 0 for dummy indexes if !comp */
-		ut_ad(!comp || index->n_def);
-#if 0 /* FIXME: enable this for node pointers, not for the metadata rec */
 		ut_ad(!index->n_def || i <= max_n_fields);
 #endif
+		/* index->n_def == 0 for dummy indexes if !comp */
+		ut_ad(!comp || index->n_def);
 	}
 	while (i--) {
 		ulint	curr = rec_offs_base(offsets)[1 + i] & REC_OFFS_MASK;

@@ -1593,7 +1593,6 @@ void dict_table_t::construct_dropped_columns(const byte* data)
 	unsigned j = 0;
 	for (unsigned i = 0; i < n_dropped_cols; i++) {
 		dict_col_t&	drop_col = dropped_cols[i];
-		bool		is_fixed = false;
 		drop_col.set_dropped();
 
 		while (j < num_non_pk_fields) {
@@ -1602,13 +1601,10 @@ void dict_table_t::construct_dropped_columns(const byte* data)
 			}
 		}
 
-		is_fixed = (std::find(fixed_dcols.begin(), fixed_dcols.end(),
-				      j) != fixed_dcols.end());
-		if (is_fixed) {
-			drop_col.mtype = DATA_FIXBINARY;
-		} else {
-			drop_col.mtype = DATA_BINARY;
-		}
+		drop_col.mtype = std::find(fixed_dcols.begin(),
+					   fixed_dcols.end(), j)
+			!= fixed_dcols.end()
+			? DATA_FIXBINARY : DATA_BINARY;
 	}
 }
 
