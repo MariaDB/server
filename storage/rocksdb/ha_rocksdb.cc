@@ -5438,6 +5438,9 @@ static int rocksdb_done_func(void *const p) {
   //rocksdb_tbl_options = nullptr;
   rocksdb_stats = nullptr;
 
+  my_free(rocksdb_update_cf_options);
+  rocksdb_update_cf_options = nullptr;
+
   my_error_unregister(HA_ERR_ROCKSDB_FIRST, HA_ERR_ROCKSDB_LAST);
 
   /*
@@ -14001,6 +14004,8 @@ rocksdb_set_update_cf_options(THD *const /* unused */,
   const char *const val = *static_cast<const char *const *>(save);
 
   RDB_MUTEX_LOCK_CHECK(rdb_sysvars_mutex);
+
+  my_free(*reinterpret_cast<char **>(var_ptr));
 
   if (!val) {
     *reinterpret_cast<char **>(var_ptr) = nullptr;
