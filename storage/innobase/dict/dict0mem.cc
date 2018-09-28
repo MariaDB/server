@@ -1442,18 +1442,36 @@ void dict_table_t::instant_column(const dict_table_t& table, const ulint* map)
 		unsigned* non_pk_col_map = static_cast<unsigned*>(
 			mem_heap_zalloc(heap, num_non_pk
 					* sizeof *non_pk_col_map));
-		for (unsigned i = 0; i + u < index->n_fields; i++) {
-			const dict_col_t* col = dict_index_get_nth_col(
-				index, i + u);
-			if (!col->is_dropped()) {
-				non_pk_col_map[i] = col->ind + 1;
-			}
-		}
-
+		/* FIXME: add instant->heap, and transfer ownership here */
 		if (!instant) {
 			instant = new (mem_heap_zalloc(heap, sizeof *instant))
 				dict_instant_t();
+			goto dup_dropped;
+		} else if (n_dropped() < table.n_dropped()) {
+dup_dropped:
+			instant->dropped = static_cast<dict_col_t*>(
+				mem_heap_dup(heap, table.instant->dropped,
+					     table.instant->n_dropped
+					     * sizeof *instant->dropped));
+			instant->n_dropped = table.instant->n_dropped;
+		} else if (table.instant->n_dropped) {
+			memcpy(instant->dropped, table.instant->dropped,
+			       table.instant->n_dropped
+			       * sizeof *instant->dropped);
 		}
+
+		ut_d(unsigned n_drop = 0);
+		for (unsigned i = u; i < index->n_fields; i++) {
+			dict_field_t* field = &index->fields[i];
+			if (!field->col->is_dropped()) {
+				non_pk_col_map[i - u] = field->col->ind + 1;
+				continue;
+			}
+			ut_ad(field->col == table.instant->dropped + n_drop++);
+			field->col += instant->dropped
+				- table.instant->dropped;
+		}
+		ut_ad(n_drop == n_dropped());
 
 		instant->non_pk_col_map = non_pk_col_map;
 	}
