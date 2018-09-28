@@ -4849,7 +4849,7 @@ static bool innobase_instant_try(
 			: REC_INFO_METADATA_ADD;
 		if (f) {
 			upd_field_t* uf = upd_get_nth_field(update, 0);
-			uf->field_no = index->n_uniq + 2;
+			uf->field_no = index->first_user_field();
 			uf->new_val = entry->fields[uf->field_no];
 			DBUG_ASSERT(dfield_is_ext(&uf->new_val));
 			DBUG_ASSERT(dfield_get_len(&uf->new_val)

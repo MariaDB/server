@@ -374,7 +374,7 @@ start:
 	const dict_field_t* field = index->fields;
 
 	do {
-		if (mblob && i == ulint(index->n_uniq) + 2) {
+		if (mblob && i == index->first_user_field()) {
 			offs += FIELD_REF_SIZE;
 			len = offs | REC_OFFS_EXTERNAL;
 			any |= REC_OFFS_EXTERNAL;
@@ -1176,7 +1176,7 @@ rec_get_converted_size_comp_prefix_low(
 	for (ulint i = 0; dfield < end; i++, dfield++) {
 		ulint len = dfield_get_len(dfield);
 
-		if (mblob && i == ulint(index->n_uniq) + 2) {
+		if (mblob && i == index->first_user_field()) {
 			ut_ad(len == FIELD_REF_SIZE);
 			ut_ad(dfield_is_ext(dfield));
 			data_size += len;
@@ -1615,7 +1615,7 @@ rec_convert_dtuple_to_rec_comp(
 		ulint len = dfield_get_len(field);
 
 		if (mblob) {
-			if (i == ulint(index->n_uniq) + 2) {
+			if (i == index->first_user_field()) {
 				ut_ad(len == FIELD_REF_SIZE);
 				ut_ad(dfield_is_ext(field));
 				memcpy(end, dfield_get_data(field), len);
@@ -2026,7 +2026,7 @@ rec_copy_prefix_to_buf(
 		/* We would have !index->is_instant() when rolling back
 		an instant ADD COLUMN operation. */
 		ut_ad(index->is_instant() || page_rec_is_metadata(rec));
-		ut_ad(n_fields <= ulint(index->n_uniq) + 2);
+		ut_ad(n_fields <= index->first_user_field());
 		nulls++;
 		const ulint n_rec = ulint(index->n_core_fields) + 1
 			+ rec_get_n_add_field(nulls)

@@ -684,9 +684,9 @@ row_log_table_delete(
 		fields of the record. */
 		heap = mem_heap_create(
 			DATA_TRX_ID_LEN
-			+ DTUPLE_EST_ALLOC(unsigned(new_index->n_uniq) + 2));
-		old_pk = tuple = dtuple_create(
-			heap, unsigned(new_index->n_uniq) + 2);
+			+ DTUPLE_EST_ALLOC(new_index->first_user_field()));
+		old_pk = tuple = dtuple_create(heap,
+					       new_index->first_user_field());
 		dict_index_copy_types(tuple, new_index, tuple->n_fields);
 		dtuple_set_n_fields_cmp(tuple, new_index->n_uniq);
 
@@ -1919,8 +1919,7 @@ row_log_table_apply_delete(
 	btr_pcur_t	pcur;
 	ulint*		offsets;
 
-	ut_ad(rec_offs_n_fields(moffsets)
-	      == dict_index_get_n_unique(index) + 2);
+	ut_ad(rec_offs_n_fields(moffsets) == index->first_user_field());
 	ut_ad(!rec_offs_any_extern(moffsets));
 
 	/* Convert the row to a search tuple. */
@@ -2483,8 +2482,7 @@ row_log_table_apply_op(
 		/* The ROW_T_DELETE record was converted by
 		rec_convert_dtuple_to_temp() using new_index. */
 		ut_ad(!new_index->is_instant());
-		rec_offs_set_n_fields(offsets,
-				      unsigned(new_index->n_uniq) + 2);
+		rec_offs_set_n_fields(offsets, new_index->first_user_field());
 		rec_init_offsets_temp(mrec, new_index, offsets);
 		next_mrec = mrec + rec_offs_data_size(offsets);
 		if (next_mrec > mrec_end) {
@@ -2576,7 +2574,7 @@ row_log_table_apply_op(
 			rec_convert_dtuple_to_temp() using new_index. */
 			ut_ad(!new_index->is_instant());
 			rec_offs_set_n_fields(offsets,
-					      unsigned(new_index->n_uniq) + 2);
+					      new_index->first_user_field());
 			rec_init_offsets_temp(mrec, new_index, offsets);
 
 			next_mrec = mrec + rec_offs_data_size(offsets);
@@ -2586,13 +2584,12 @@ row_log_table_apply_op(
 
 			/* Copy the PRIMARY KEY fields and
 			DB_TRX_ID, DB_ROLL_PTR from mrec to old_pk. */
-			old_pk = dtuple_create(
-				heap, unsigned(new_index->n_uniq) + 2);
+			old_pk = dtuple_create(heap,
+					       new_index->first_user_field());
 			dict_index_copy_types(old_pk, new_index,
 					      old_pk->n_fields);
 
-			for (ulint i = 0;
-			     i < dict_index_get_n_unique(new_index) + 2;
+			for (ulint i = 0; i < new_index->first_user_field();
 			     i++) {
 				const void*	field;
 				ulint		len;
@@ -2743,8 +2740,8 @@ row_log_table_apply_ops(
 	dict_index_t*	new_index	= dict_table_get_first_index(
 		new_table);
 	const ulint	i		= 1 + REC_OFFS_HEADER_SIZE
-		+ ut_max(dict_index_get_n_fields(index),
-			 dict_index_get_n_unique(new_index) + 2);
+		+ std::max<ulint>(index->n_fields,
+				  new_index->first_user_field());
 	const ulint	new_trx_id_col	= dict_col_get_clust_pos(
 		dict_table_get_sys_col(new_table, DATA_TRX_ID), new_index);
 	trx_t*		trx		= thr_get_trx(thr);

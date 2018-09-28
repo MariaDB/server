@@ -1078,6 +1078,13 @@ struct dict_index_t {
 	/** @return whether the index includes virtual columns */
 	bool has_virtual() const { return type & DICT_VIRTUAL; }
 
+	/** @return the offset of the metadata BLOB field,
+	or the first user field after the PRIMARY KEY,DB_TRX_ID,DB_ROLL_PTR */
+	unsigned first_user_field() const {
+		ut_ad(is_primary());
+		return n_uniq + 2;
+	}
+
 	/** @return whether the index is corrupted */
 	inline bool is_corrupted() const;
 

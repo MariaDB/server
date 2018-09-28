@@ -1340,7 +1340,7 @@ row_upd_index_replace_metadata(
 	ut_ad(entry->info_bits == update->info_bits);
 	ut_ad(entry->n_fields == ulint(index->n_fields) + 1);
 	const page_size_t& page_size = dict_table_page_size(index->table);
-	const ulint first = index->n_uniq + 2;
+	const ulint first = index->first_user_field();
 
 	for (ulint i = upd_get_n_fields(update); i--; ) {
 		const upd_field_t* uf = upd_get_nth_field(update, i);

@@ -1437,11 +1437,11 @@ void dict_table_t::instant_column(const dict_table_t& table, const ulint* map)
 	index->instant_add_field(*dict_table_get_first_index(&table));
 
 	if (instant || table.instant) {
-		unsigned num_non_pk = index->n_fields - (index->n_uniq + 2);
+		const unsigned u = index->first_user_field();
+		unsigned num_non_pk = index->n_fields - u;
 		unsigned* non_pk_col_map = static_cast<unsigned*>(
 			mem_heap_zalloc(heap, num_non_pk
 					* sizeof *non_pk_col_map));
-		const uint u = index->n_uniq + 2;
 		for (unsigned i = 0; i + u < index->n_fields; i++) {
 			const dict_col_t* col = dict_index_get_nth_col(
 				index, i + u);
@@ -1521,7 +1521,7 @@ byte* dict_table_t::construct_metadata_blob(
 	unsigned*	len)
 {
 	dict_index_t* clust_index = dict_table_get_first_index(this);
-	unsigned num_pk_fields = clust_index->n_uniq + 2;
+	unsigned num_pk_fields = clust_index->first_user_field();
 	unsigned num_non_pk_fields = clust_index->n_fields - num_pk_fields;
 
 	*len = INSTANT_NON_PK_FIELDS_LEN

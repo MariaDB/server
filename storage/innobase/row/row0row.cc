@@ -77,7 +77,7 @@ row_build_clust_default_entry(
 
 		dfield = dtuple_get_nth_field(entry, field_no);
 
-		if (field_no == ulint(clust_index->n_uniq) + 2) {
+		if (field_no == clust_index->first_user_field()) {
 			dfield_set_data(dfield, mem_heap_zalloc(
 						heap,
 						BTR_EXTERN_FIELD_REF_SIZE),
@@ -835,7 +835,8 @@ row_rec_to_index_entry_impl(
 		  && rec_len == dict_index_get_n_fields(index) - 1));
 
 	ulint i;
-	for (i = 0; i < (mblob ? index->n_uniq + 2 : rec_len); i++, dfield++) {
+	for (i = 0; i < (mblob ? index->first_user_field() : rec_len);
+	     i++, dfield++) {
 		dict_col_copy_type(dict_index_get_nth_col(index, i),
 				   &dfield->type);
 		if (!mblob

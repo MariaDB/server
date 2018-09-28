@@ -662,7 +662,7 @@ dtuple_convert_big_rec(
 				      dict_table_page_size(index->table))) {
 		longest_i = 0;
 
-		for (ulint i = index->n_uniq + 2, longest = 0;
+		for (ulint i = index->first_user_field(), longest = 0;
 		     i < entry->n_fields; i++) {
 			ulint	savings;
 			dfield = dtuple_get_nth_field(entry, i);
