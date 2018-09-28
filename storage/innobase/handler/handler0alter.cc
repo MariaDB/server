@@ -392,7 +392,7 @@ add_metadata:
 				mem_heap_zalloc(instant_table->heap,
 						n_fields * sizeof *fields));
 			d = n_old_drop;
-			uint j = 0;
+			uint j = 0, n_nullable = 0;
 			for (uint i = 0; i < n_fields; i++) {
 				DBUG_ASSERT(j <= i);
 				if (i >= old->n_fields) {
@@ -403,6 +403,8 @@ existing_field:
 					DBUG_ASSERT(fields[i].name
 						    == fields[i].col->name(
 							    *instant_table));
+					n_nullable += fields[i].col
+						->is_nullable();
 					continue;
 				}
 
@@ -417,6 +419,7 @@ existing_field:
 					f.col += instant_table->instant->dropped
 						- old_table->instant->dropped;
 					f.name = f.col->name(*instant_table);
+					n_nullable += f.col->is_nullable();
 					continue;
 				}
 
@@ -431,6 +434,7 @@ existing_field:
 				DBUG_ASSERT(d < n_drop);
 				f.col = &instant_table->instant->dropped[d++];
 				f.name = NULL;
+				n_nullable += f.col->is_nullable();
 			}
 
 			DBUG_ASSERT(d == n_drop);
@@ -438,6 +442,9 @@ existing_field:
 			instant->n_fields = instant->n_core_fields =
 				instant->n_def = n_fields;
 			instant->fields = fields;
+			DBUG_ASSERT(n_nullable >= instant->n_nullable);
+			DBUG_ASSERT(n_nullable >= old->n_nullable);
+			instant->n_nullable = n_nullable;
 		} else {
 			for (unsigned i = old_table->n_cols - DATA_N_SYS_COLS;
 			     i--; ) {
