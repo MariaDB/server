@@ -1416,19 +1416,7 @@ rec_get_converted_size(
 #endif
 
 	if (dict_table_is_comp(index->table)) {
-
-		if (UNIV_UNLIKELY(dtuple->is_alter_metadata())) {
-			return rec_get_metadata_converted_size(
-				index, dtuple, NULL);
-		}
-
-		return(rec_get_converted_size_comp(
-			       index,
-			       static_cast<rec_comp_status_t>(
-				       dtuple->info_bits
-				       & REC_NEW_STATUS_MASK),
-			       dtuple->fields,
-			       dtuple->n_fields, NULL));
+		return rec_get_converted_size_comp(index, dtuple, NULL);
 	}
 
 	data_size = dtuple_get_data_size(dtuple, 0);

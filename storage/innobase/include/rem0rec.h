@@ -1118,28 +1118,18 @@ rec_get_converted_size_comp_prefix(
 	ulint*			extra)	/*!< out: extra size */
 	MY_ATTRIBUTE((warn_unused_result, nonnull(1,2)));
 
-/** Determines the size of a data tuple in ROW_FORMAT=COMPACT.
+/** Determine the size of a record in ROW_FORMAT=COMPACT.
 @param[in]	index		record descriptor. dict_table_is_comp()
 				is assumed to hold, even if it doesn't
-@param[in]	status		status bits of the record
-@param[in]	fields		array of data fields
-@param[in]	n_fields	number of data fields
+@param[in]	tuple		logical record
 @param[out]	extra		extra size
 @return total size */
 ulint
 rec_get_converted_size_comp(
 	const dict_index_t*	index,
-	rec_comp_status_t	status,
-	const dfield_t*		fields,
-	ulint			n_fields,
+	const dtuple_t*		tuple,
 	ulint*			extra)
-	MY_ATTRIBUTE((nonnull(1,3)));
-
-ulint
-rec_get_metadata_converted_size(
-	const dict_index_t*	clust_index,
-	const dtuple_t*		dtuple,
-	ulint*			ext);
+	MY_ATTRIBUTE((nonnull(1,2)));
 
 /**********************************************************//**
 The following function returns the size of a data tuple when converted to

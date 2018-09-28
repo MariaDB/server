@@ -1110,42 +1110,6 @@ struct dict_index_t {
 		return n;
 	}
 
-	/** Determine the number of non-core instant columns present
-	in the clustered index.
-	@param[in]	n_prefix	number of fields in the prefix
-	@return number of fields n_core_fields...n_prefix-1 that undergoes
-	instant operation. */
-	unsigned get_n_instant_cols(ulint n_prefix) const
-	{
-		DBUG_ASSERT(n_prefix > 0);
-		DBUG_ASSERT(n_prefix <= n_fields);
-		unsigned n = 0;
-		for (ulint i = n_core_fields; i < n_prefix; i++) {
-			const dict_col_t* col = fields[i].col;
-
-			if (col->is_dropped() || col->is_added()) {
-				n++;
-				continue;
-			}
-		}
-
-		DBUG_ASSERT(n < n_def);
-		return n;
-	}
-
-	/** Get the number of non-drop nullable fields from the index.
-	@return number of non-drop nullable fields in the index. */
-	unsigned get_n_non_drop_nullable_fields() const
-	{
-		DBUG_ASSERT(n_fields <= n_def);
-		unsigned n = 0;
-		for (unsigned i = 0; i < n_fields; i++) {
-			n += !fields[i].col->is_nullable();
-		}
-
-		return n;
-	}
-
 	/** Get the default value of an instantly-added clustered index field.
 	@param[in]	n	instantly added field position
 	@param[out]	len	value length (in bytes), or UNIV_SQL_NULL
