@@ -340,8 +340,8 @@ rec_init_offsets_comp_ordinary(
 ordinary:
 		lens = --nulls - index->n_core_null_bytes;
 
-		ut_d(n_null = std::min(index->n_core_null_bytes * 8U,
-				       index->n_nullable));
+		ut_d(n_null = std::min<uint>(index->n_core_null_bytes * 8U,
+					     index->n_nullable));
 		break;
 	case REC_LEAF_INSTANT:
 		nulls -= REC_N_NEW_EXTRA_BYTES;
@@ -1593,8 +1593,8 @@ rec_convert_dtuple_to_rec_comp(
 		rec_set_status(rec, status);
 		ut_ad(n_fields
 		      == dict_index_get_n_unique_in_tree_nonleaf(index) + 1);
-		ut_d(n_null = std::min(index->n_core_null_bytes * 8U,
-				       index->n_nullable));
+		ut_d(n_null = std::min<uint>(index->n_core_null_bytes * 8U,
+					     index->n_nullable));
 		n_node_ptr_field = n_fields - 1;
 		lens = nulls - index->n_core_null_bytes;
 		break;
