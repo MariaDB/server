@@ -2417,7 +2417,9 @@ static bool srv_purge_should_exit()
 		return(true);
 	}
 	/* Slow shutdown was requested. */
-	if (ulint history_size = trx_sys.history_size()) {
+	ulint history_size = trx_sys.history_size();
+
+	if (history_size) {
 #if defined HAVE_SYSTEMD && !defined EMBEDDED_LIBRARY
 		static ib_time_t progress_time;
 		ib_time_t time = ut_time();
