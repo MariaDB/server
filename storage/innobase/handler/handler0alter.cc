@@ -8462,14 +8462,14 @@ innobase_update_foreign_cache(
 @retval false	on success */
 static
 bool
-change_field_versioning_try(
+vers_change_field_try(
 	trx_t* trx,
 	const char* table_name,
 	const table_id_t tableid,
 	const ulint pos,
 	const ulint prtype)
 {
-	DBUG_ENTER("change_field_versioning_try");
+	DBUG_ENTER("vers_change_field_try");
 
 	pars_info_t* info = pars_info_create();
 
@@ -8505,20 +8505,16 @@ change_field_versioning_try(
 @retval false	on success */
 static
 bool
-change_fields_versioning_try(
+vers_change_fields_try(
 	const Alter_inplace_info* ha_alter_info,
 	const ha_innobase_inplace_ctx* ctx,
 	trx_t* trx,
 	const TABLE* table)
 {
-	DBUG_ENTER("change_fields_versioning_try");
+	DBUG_ENTER("vers_change_fields_try");
 
 	DBUG_ASSERT(ha_alter_info);
 	DBUG_ASSERT(ctx);
-
-	if (!(ha_alter_info->handler_flags & ALTER_COLUMN_UNVERSIONED)){
-		DBUG_RETURN(false);
-	}
 
 	List_iterator_fast<Create_field> it(
 	    ha_alter_info->alter_info->create_list);
@@ -8545,9 +8541,9 @@ change_fields_versioning_try(
 			  ? col->prtype & ~DATA_VERSIONED
 			  : col->prtype | DATA_VERSIONED;
 
-		if (change_field_versioning_try(trx, table->s->table_name.str,
-						new_table->id, pos,
-						new_prtype)) {
+		if (vers_change_field_try(trx, table->s->table_name.str,
+					  new_table->id, pos,
+					  new_prtype)) {
 			DBUG_RETURN(true);
 		}
 	}
@@ -8562,12 +8558,12 @@ in the data dictionary cache.
 @param table MySQL table as it is before the ALTER operation */
 static
 void
-change_fields_versioning_cache(
+vers_change_fields_cache(
 	Alter_inplace_info*		ha_alter_info,
 	const ha_innobase_inplace_ctx*	ctx,
 	const TABLE*			table)
 {
-	DBUG_ENTER("change_fields_versioning");
+	DBUG_ENTER("vers_change_fields_cache");
 
 	DBUG_ASSERT(ha_alter_info);
 	DBUG_ASSERT(ctx);
@@ -8971,7 +8967,7 @@ commit_try_norebuild(
 	}
 
 	if ((ha_alter_info->handler_flags & ALTER_COLUMN_UNVERSIONED)
-	    && change_fields_versioning_try(ha_alter_info, ctx, trx, old_table)) {
+	    && vers_change_fields_try(ha_alter_info, ctx, trx, old_table)) {
 		DBUG_RETURN(true);
 	}
 
@@ -9232,7 +9228,7 @@ commit_cache_norebuild(
 	}
 
 	if (ha_alter_info->handler_flags & ALTER_COLUMN_UNVERSIONED) {
-		change_fields_versioning_cache(ha_alter_info, ctx, table);
+		vers_change_fields_cache(ha_alter_info, ctx, table);
 	}
 
 #ifdef MYSQL_RENAME_INDEX
