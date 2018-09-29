@@ -3480,6 +3480,97 @@ bool Type_handler::
 }
 
 
+bool Type_handler_temporal_result::
+       Item_func_min_max_fix_attributes(THD *thd, Item_func_min_max *func,
+                                        Item **items, uint nitems) const
+{
+  bool rc= Type_handler::Item_func_min_max_fix_attributes(thd, func,
+                                                          items, nitems);
+  if (rc || func->maybe_null)
+    return rc;
+  /*
+    LEAST/GREATES(non-temporal, temporal) can return NULL.
+    CAST functions Item_{time|datetime|date}_typecast always set maybe_full
+    to true. Here we try to detect nullability more thoroughly.
+    Perhaps CAST functions should also reuse this idea eventually.
+  */
+  const Type_handler *hf= func->type_handler();
+  for (uint i= 0; i < nitems; i++)
+  {
+    /*
+      If items[i] does not need conversion to the current temporal data
+      type, then we trust items[i]->maybe_null, which was already ORred
+      to func->maybe_null in the argument loop in fix_fields().
+      If items[i] requires conversion to the current temporal data type,
+      then conversion can fail and return NULL even for NOT NULL items.
+    */
+    const Type_handler *ha= items[i]->type_handler();
+    if (hf == ha)
+      continue; // No conversion.
+    if (ha->cmp_type() != TIME_RESULT)
+    {
+      func->maybe_null= true; // Conversion from non-temporal is not safe
+      break;
+    }
+    timestamp_type tf= hf->mysql_timestamp_type();
+    timestamp_type ta= ha->mysql_timestamp_type();
+    if (tf == ta ||
+        (tf == MYSQL_TIMESTAMP_DATETIME && ta == MYSQL_TIMESTAMP_DATE))
+    {
+      /*
+        If handlers have the same mysql_timestamp_type(),
+        then conversion is NULL safe. Conversion from DATE to DATETIME
+        is also safe. This branch includes data type pairs:
+        Function return type Argument type  Comment
+        -------------------- -------------  -------------
+        TIMESTAMP            TIMESTAMP      no conversion
+        TIMESTAMP            DATETIME       not possible
+        TIMESTAMP            DATE           not possible
+        DATETIME             DATETIME       no conversion
+        DATETIME             TIMESTAMP      safe conversion
+        DATETIME             DATE           safe conversion
+        DATE                 DATE           no conversion
+        TIME                 TIME           no conversion
+
+        Note, a function cannot return TIMESTAMP if it has non-TIMESTAMP
+        arguments (it would return DATETIME in such case).
+      */
+      DBUG_ASSERT(hf->field_type() != MYSQL_TYPE_TIMESTAMP || tf == ta);
+      continue;
+    }
+    /*
+      Here we have the following data type pairs that did not match
+      the condition above:
+
+      Function return type Argument type Comment
+      -------------------- ------------- -------
+      TIMESTAMP            TIME          Not possible
+      DATETIME             TIME          depends on OLD_MODE_ZERO_DATE_TIME_CAST
+      DATE                 TIMESTAMP     Not possible
+      DATE                 DATETIME      Not possible
+      DATE                 TIME          Not possible
+      TIME                 TIMESTAMP     Not possible
+      TIME                 DATETIME      Not possible
+      TIME                 DATE          Not possible
+
+      Most pairs are not possible, because the function data type
+      would be DATETIME (according to LEAST/GREATEST aggregation rules).
+      Conversion to DATETIME from TIME is not safe when
+      OLD_MODE_ZERO_DATE_TIME_CAST is set:
+      - negative TIME values cannot be converted to not-NULL DATETIME values
+      - TIME values can produce DATETIME values that do not pass
+        NO_ZERO_DATE and NO_ZERO_IN_DATE tests.
+    */
+    DBUG_ASSERT(hf->field_type() == MYSQL_TYPE_DATETIME);
+    if (!(thd->variables.old_behavior & OLD_MODE_ZERO_DATE_TIME_CAST))
+      continue;
+    func->maybe_null= true;
+    break;
+  }
+  return rc;
+}
+
+
 bool Type_handler_real_result::
        Item_func_min_max_fix_attributes(THD *thd, Item_func_min_max *func,
                                         Item **items, uint nitems) const
