@@ -333,6 +333,10 @@ struct ha_innobase_inplace_ctx : public inplace_alter_handler_ctx
 		new_table = old_table;
 		export_vars.innodb_instant_alter_column++;
 
+		dict_index_t* old = dict_table_get_first_index(old_table);
+		dict_index_t* instant = dict_table_get_first_index(
+			instant_table);
+
 		if (old_table->instant) {
 add_metadata:
 			const unsigned n_old_drop = old_table->n_dropped();
@@ -379,10 +383,6 @@ add_metadata:
 			}
 #endif
 			DBUG_ASSERT(d == n_drop);
-			dict_index_t* old = UT_LIST_GET_FIRST(
-				old_table->indexes);
-			dict_index_t* instant = UT_LIST_GET_FIRST(
-				instant_table->indexes);
 			const uint n_fields = instant->n_fields
 				+ instant_table->n_dropped();
 
@@ -393,6 +393,7 @@ add_metadata:
 						n_fields * sizeof *fields));
 			d = n_old_drop;
 			uint j = 0, n_nullable = 0;
+			ut_d(uint n_core_null = 0);
 			for (uint i = 0; i < n_fields; i++) {
 				DBUG_ASSERT(j <= i);
 				if (i >= old->n_fields) {
@@ -403,8 +404,12 @@ existing_field:
 					DBUG_ASSERT(fields[i].name
 						    == fields[i].col->name(
 							    *instant_table));
-					n_nullable += fields[i].col
-						->is_nullable();
+					if (fields[i].col->is_nullable()) {
+found_nullable:
+						n_nullable++;
+						ut_d(n_core_null += i
+						     < old->n_core_fields);
+					}
 					continue;
 				}
 
@@ -419,7 +424,9 @@ existing_field:
 					f.col += instant_table->instant->dropped
 						- old_table->instant->dropped;
 					f.name = f.col->name(*instant_table);
-					n_nullable += f.col->is_nullable();
+					if (f.col->is_nullable()) {
+						goto found_nullable;
+					}
 					continue;
 				}
 
@@ -434,17 +441,23 @@ existing_field:
 				DBUG_ASSERT(d < n_drop);
 				f.col = &instant_table->instant->dropped[d++];
 				f.name = NULL;
-				n_nullable += f.col->is_nullable();
+				if (f.col->is_nullable()) {
+					goto found_nullable;
+				}
 			}
 
 			DBUG_ASSERT(d == n_drop);
 			DBUG_ASSERT(j == instant->n_fields);
-			instant->n_fields = instant->n_core_fields =
-				instant->n_def = n_fields;
+			DBUG_ASSERT(n_fields >= old->n_fields);
+			DBUG_ASSERT(n_fields >= old->n_core_fields);
+			ut_ad(UT_BITS_IN_BYTES(n_core_null)
+			      == old->n_core_null_bytes);
+			instant->n_fields = instant->n_def = n_fields;
 			instant->fields = fields;
 			DBUG_ASSERT(n_nullable >= instant->n_nullable);
 			DBUG_ASSERT(n_nullable >= old->n_nullable);
 			instant->n_nullable = n_nullable;
+			goto set_core_fields;
 		} else {
 			for (unsigned i = old_table->n_cols - DATA_N_SYS_COLS;
 			     i--; ) {
@@ -452,6 +465,13 @@ existing_field:
 					goto add_metadata;
 				}
 			}
+
+			/* Columns were not dropped or reordered.
+			Therefore columns must have been added at the end. */
+			DBUG_ASSERT(instant->n_fields > old->n_fields);
+set_core_fields:
+			instant->n_core_fields = old->n_core_fields;
+			instant->n_core_null_bytes = old->n_core_null_bytes;
 		}
 
 		DBUG_ASSERT(instant_table->n_cols
@@ -459,6 +479,9 @@ existing_field:
 			    >= old_table->n_cols + old_table->n_dropped());
 		DBUG_ASSERT(instant_table->n_dropped()
 			    >= old_table->n_dropped());
+		DBUG_ASSERT(instant->n_core_fields == old->n_core_fields);
+		DBUG_ASSERT(instant->n_core_null_bytes
+			    == old->n_core_null_bytes);
 	}
 
 	/** Revert prepare_instant() if the transaction is rolled back. */

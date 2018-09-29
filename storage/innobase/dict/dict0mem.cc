@@ -1299,7 +1299,7 @@ inline void dict_index_t::instant_add_field(const dict_index_t& instant)
 	DBUG_ASSERT(instant.is_primary());
 	DBUG_ASSERT(!has_virtual());
 	DBUG_ASSERT(!instant.has_virtual());
-	DBUG_ASSERT(instant.n_core_fields == instant.n_fields);
+	DBUG_ASSERT(instant.n_core_fields <= instant.n_fields);
 	DBUG_ASSERT(n_def == n_fields);
 	DBUG_ASSERT(instant.n_def == instant.n_fields);
 	DBUG_ASSERT(type == instant.type);
@@ -1308,8 +1308,8 @@ inline void dict_index_t::instant_add_field(const dict_index_t& instant)
 	DBUG_ASSERT(n_uniq == instant.n_uniq);
 	DBUG_ASSERT(instant.n_fields >= n_fields);
 	DBUG_ASSERT(instant.n_nullable >= n_nullable);
-	DBUG_ASSERT(instant.n_core_fields >= n_core_fields);
-	DBUG_ASSERT(instant.n_core_null_bytes >= n_core_null_bytes);
+	DBUG_ASSERT(instant.n_core_fields == n_core_fields);
+	DBUG_ASSERT(instant.n_core_null_bytes == n_core_null_bytes);
 
 	/* instant will have all fields (including ones for columns
 	that have been or are being instantly dropped) in the same position
