@@ -3308,10 +3308,6 @@ public:
                                             Item_func_hybrid_field_type *,
                                             MYSQL_TIME *,
                                             date_mode_t fuzzydate) const;
-  double Item_func_min_max_val_real(Item_func_min_max *) const;
-  longlong Item_func_min_max_val_int(Item_func_min_max *) const;
-  my_decimal *Item_func_min_max_val_decimal(Item_func_min_max *,
-                                            my_decimal *) const;
   bool Item_func_min_max_get_date(THD *thd, Item_func_min_max*,
                                   MYSQL_TIME *, date_mode_t fuzzydate) const;
   bool Item_func_between_fix_length_and_dec(Item_func_between *func) const;
@@ -3939,6 +3935,10 @@ public:
                                             MYSQL_TIME *,
                                             date_mode_t fuzzydate) const;
   String *Item_func_min_max_val_str(Item_func_min_max *, String *) const;
+  double Item_func_min_max_val_real(Item_func_min_max *) const;
+  longlong Item_func_min_max_val_int(Item_func_min_max *) const;
+  my_decimal *Item_func_min_max_val_decimal(Item_func_min_max *,
+                                            my_decimal *) const;
   bool Item_func_min_max_get_date(THD *thd, Item_func_min_max*,
                                   MYSQL_TIME *, date_mode_t fuzzydate) const;
   longlong Item_func_between_val_int(Item_func_between *func) const;
@@ -4056,6 +4056,10 @@ public:
   String *print_item_value(THD *thd, Item *item, String *str) const;
   Item_cache *Item_get_cache(THD *thd, const Item *item) const;
   String *Item_func_min_max_val_str(Item_func_min_max *, String *) const;
+  double Item_func_min_max_val_real(Item_func_min_max *) const;
+  longlong Item_func_min_max_val_int(Item_func_min_max *) const;
+  my_decimal *Item_func_min_max_val_decimal(Item_func_min_max *,
+                                            my_decimal *) const;
   bool Item_hybrid_func_fix_attributes(THD *thd,
                                        const char *name,
                                        Type_handler_hybrid_field_type *,
@@ -4152,6 +4156,10 @@ public:
   String *print_item_value(THD *thd, Item *item, String *str) const;
   Item_cache *Item_get_cache(THD *thd, const Item *item) const;
   String *Item_func_min_max_val_str(Item_func_min_max *, String *) const;
+  double Item_func_min_max_val_real(Item_func_min_max *) const;
+  longlong Item_func_min_max_val_int(Item_func_min_max *) const;
+  my_decimal *Item_func_min_max_val_decimal(Item_func_min_max *,
+                                            my_decimal *) const;
   bool Item_hybrid_func_fix_attributes(THD *thd,
                                        const char *name,
                                        Type_handler_hybrid_field_type *,
@@ -4252,6 +4260,10 @@ public:
   String *print_item_value(THD *thd, Item *item, String *str) const;
   Item_cache *Item_get_cache(THD *thd, const Item *item) const;
   String *Item_func_min_max_val_str(Item_func_min_max *, String *) const;
+  double Item_func_min_max_val_real(Item_func_min_max *) const;
+  longlong Item_func_min_max_val_int(Item_func_min_max *) const;
+  my_decimal *Item_func_min_max_val_decimal(Item_func_min_max *,
+                                            my_decimal *) const;
   bool Item_hybrid_func_fix_attributes(THD *thd,
                                        const char *name,
                                        Type_handler_hybrid_field_type *,

@@ -3873,5 +3873,75 @@ t1	CREATE TABLE `t1` (
 DROP TABLE t1;
 SET sql_mode=DEFAULT;
 #
+# MDEV-17318 CAST(LEAST(zero_date,non_zero_date) AS numeric_data_type) returns a wrong result
+#
+SET sql_mode='NO_ZERO_DATE,NO_ZERO_IN_DATE';
+SELECT
+LEAST('0000-00-00',DATE'2001-01-01') AS c0,
+CAST(LEAST('0000-00-00',DATE'2001-01-01') AS CHAR) AS string,
+CAST(LEAST('0000-00-00',DATE'2001-01-01') AS DATE) AS date,
+CAST(LEAST('0000-00-00',DATE'2001-01-01') AS DATETIME) AS datetime,
+CAST(LEAST('0000-00-00',DATE'2001-01-01') AS TIME) AS time,
+CAST(LEAST('0000-00-00',DATE'2001-01-01') AS DECIMAL) AS dc,
+CAST(LEAST('0000-00-00',DATE'2001-01-01') AS DOUBLE) AS dbl,
+CAST(LEAST('0000-00-00',DATE'2001-01-01') AS SIGNED) AS sint,
+CAST(LEAST('0000-00-00',DATE'2001-01-01') AS UNSIGNED) AS uint;
+c0	string	date	datetime	time	dc	dbl	sint	uint
+NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL
+Warnings:
+Warning	1292	Incorrect datetime value: '0000-00-00'
+Warning	1292	Incorrect datetime value: '0000-00-00'
+Warning	1292	Incorrect datetime value: '0000-00-00'
+Warning	1292	Incorrect datetime value: '0000-00-00'
+Warning	1292	Incorrect datetime value: '0000-00-00'
+Warning	1292	Incorrect datetime value: '0000-00-00'
+Warning	1292	Incorrect datetime value: '0000-00-00'
+Warning	1292	Incorrect datetime value: '0000-00-00'
+Warning	1292	Incorrect datetime value: '0000-00-00'
+CREATE TABLE t1 AS SELECT
+LEAST('0000-00-00',DATE'2001-01-01') AS c0,
+CAST(LEAST('0000-00-00',DATE'2001-01-01') AS CHAR) AS string,
+CAST(LEAST('0000-00-00',DATE'2001-01-01') AS DATE) AS date,
+CAST(LEAST('0000-00-00',DATE'2001-01-01') AS DATETIME) AS datetime,
+CAST(LEAST('0000-00-00',DATE'2001-01-01') AS TIME) AS time,
+CAST(LEAST('0000-00-00',DATE'2001-01-01') AS DECIMAL) AS dc,
+CAST(LEAST('0000-00-00',DATE'2001-01-01') AS DOUBLE) AS dbl,
+CAST(LEAST('0000-00-00',DATE'2001-01-01') AS SIGNED) AS sint,
+CAST(LEAST('0000-00-00',DATE'2001-01-01') AS UNSIGNED) AS uint;
+Warnings:
+Warning	1292	Incorrect datetime value: '0000-00-00'
+Warning	1292	Incorrect datetime value: '0000-00-00'
+Warning	1292	Incorrect datetime value: '0000-00-00'
+Warning	1292	Incorrect datetime value: '0000-00-00'
+Warning	1292	Incorrect datetime value: '0000-00-00'
+Warning	1292	Incorrect datetime value: '0000-00-00'
+Warning	1292	Incorrect datetime value: '0000-00-00'
+Warning	1292	Incorrect datetime value: '0000-00-00'
+Warning	1292	Incorrect datetime value: '0000-00-00'
+SELECT * FROM t1;
+c0	string	date	datetime	time	dc	dbl	sint	uint
+NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL
+SHOW CREATE TABLE t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `c0` date DEFAULT NULL,
+  `string` varchar(10) DEFAULT NULL,
+  `date` date DEFAULT NULL,
+  `datetime` datetime DEFAULT NULL,
+  `time` time DEFAULT NULL,
+  `dc` decimal(10,0) DEFAULT NULL,
+  `dbl` double DEFAULT NULL,
+  `sint` bigint(10) DEFAULT NULL,
+  `uint` bigint(20) unsigned DEFAULT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=latin1
+DROP TABLE t1;
+SET sql_mode=DEFAULT;
+#
+# MDEV-17330 Wrong result for 0 + LEAST(TIME'-10:00:00',TIME'10:00:00')
+#
+SELECT 0 + LEAST(TIME'-10:00:00',TIME'10:00:00') AS c;
+c
+-100000
+#
 # End of 10.4 tests
 #

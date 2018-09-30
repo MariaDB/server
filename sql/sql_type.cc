@@ -4639,13 +4639,30 @@ double Type_handler_string_result::
 }
 
 
-double Type_handler_temporal_result::
+double Type_handler_time_common::
          Item_func_min_max_val_real(Item_func_min_max *func) const
 {
-  MYSQL_TIME ltime;
-  if (func->get_date(current_thd, &ltime, date_mode_t(0)))
-    return 0;
-  return TIME_to_double(&ltime);
+  return Time(current_thd, func).to_double();
+}
+
+
+double Type_handler_date_common::
+         Item_func_min_max_val_real(Item_func_min_max *func) const
+{
+  return Date(current_thd, func).to_double();
+}
+
+
+double Type_handler_datetime_common::
+         Item_func_min_max_val_real(Item_func_min_max *func) const
+{
+  return Datetime(current_thd, func).to_double();
+}
+
+double Type_handler_timestamp_common::
+         Item_func_min_max_val_real(Item_func_min_max *func) const
+{
+  return Datetime(current_thd, func).to_double();
 }
 
 
@@ -4663,13 +4680,31 @@ longlong Type_handler_string_result::
 }
 
 
-longlong Type_handler_temporal_result::
+longlong Type_handler_time_common::
          Item_func_min_max_val_int(Item_func_min_max *func) const
 {
-  MYSQL_TIME ltime;
-  if (func->get_date(current_thd, &ltime, date_mode_t(0)))
-    return 0;
-  return TIME_to_ulonglong(&ltime);
+  return Time(current_thd, func).to_longlong();
+}
+
+
+longlong Type_handler_date_common::
+         Item_func_min_max_val_int(Item_func_min_max *func) const
+{
+  return Date(current_thd, func).to_longlong();
+}
+
+
+longlong Type_handler_datetime_common::
+         Item_func_min_max_val_int(Item_func_min_max *func) const
+{
+  return Datetime(current_thd, func).to_longlong();
+}
+
+
+longlong Type_handler_timestamp_common::
+         Item_func_min_max_val_int(Item_func_min_max *func) const
+{
+  return Datetime(current_thd, func).to_longlong();
 }
 
 
@@ -4696,14 +4731,35 @@ my_decimal *Type_handler_numeric::
 }
 
 
-my_decimal *Type_handler_temporal_result::
+my_decimal *Type_handler_time_common::
             Item_func_min_max_val_decimal(Item_func_min_max *func,
                                           my_decimal *dec) const
 {
-  MYSQL_TIME ltime;
-  if (func->get_date(current_thd, &ltime, date_mode_t(0)))
-    return 0;
-  return date2my_decimal(&ltime, dec);
+  return Time(current_thd, func).to_decimal(dec);
+}
+
+
+my_decimal *Type_handler_date_common::
+            Item_func_min_max_val_decimal(Item_func_min_max *func,
+                                          my_decimal *dec) const
+{
+  return Date(current_thd, func).to_decimal(dec);
+}
+
+
+my_decimal *Type_handler_datetime_common::
+            Item_func_min_max_val_decimal(Item_func_min_max *func,
+                                          my_decimal *dec) const
+{
+  return Datetime(current_thd, func).to_decimal(dec);
+}
+
+
+my_decimal *Type_handler_timestamp_common::
+            Item_func_min_max_val_decimal(Item_func_min_max *func,
+                                          my_decimal *dec) const
+{
+  return Datetime(current_thd, func).to_decimal(dec);
 }
 
 
@@ -4733,7 +4789,19 @@ bool Type_handler_temporal_result::
        Item_func_min_max_get_date(THD *thd, Item_func_min_max *func,
                                   MYSQL_TIME *ltime, date_mode_t fuzzydate) const
 {
-  return func->get_date_native(thd, ltime, fuzzydate);
+  /*
+    - If the caller specified TIME_TIME_ONLY, then it's going to convert
+      a DATETIME or DATE to TIME. So we pass the default flags for date. This is
+      exactly the same with what Item_func_min_max_val_{int|real|decimal|str} or
+      Item_send_datetime() do. We return the value in accordance with the
+      current session date flags and let the caller further convert it to TIME.
+    - If the caller did not specify TIME_TIME_ONLY, then return the value
+      according to the flags supplied by the caller.
+  */
+  return func->get_date_native(thd, ltime,
+                               fuzzydate & TIME_TIME_ONLY ?
+                               sql_mode_for_dates(thd) :
+                               fuzzydate);
 }
 
 bool Type_handler_time_common::
