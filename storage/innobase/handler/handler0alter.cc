@@ -205,10 +205,12 @@ struct ha_innobase_inplace_ctx : public inplace_alter_handler_ctx
 	dict_col_t* const old_cols;
 	/** original column names of the table */
 	const char* const old_col_names;
-	/** original instant dropped or reordered columns */
+	/** original instantly dropped or reordered columns */
 	dict_instant_t*	const	old_instant;
 	/** original clustered index fields */
 	dict_field_t* const	old_clust_fields;
+	/** 0, or 1 + first column whose position changes in instant ALTER */
+	unsigned	first_alter_pos;
 	/** Allow non-null conversion.
 	(1) Alter ignore should allow the conversion
 	irrespective of sql mode.
@@ -267,6 +269,7 @@ struct ha_innobase_inplace_ctx : public inplace_alter_handler_ctx
 		old_col_names(prebuilt_arg->table->col_names),
 		old_instant(prebuilt_arg->table->instant),
 		old_clust_fields(prebuilt_arg->table->indexes.start->fields),
+		first_alter_pos(0),
 		allow_not_null(allow_not_null_flag),
 		page_compression_level(page_compressed
 				       ? (page_compression_level_arg
@@ -336,6 +339,14 @@ struct ha_innobase_inplace_ctx : public inplace_alter_handler_ctx
 		dict_index_t* old = dict_table_get_first_index(old_table);
 		dict_index_t* instant = dict_table_get_first_index(
 			instant_table);
+
+		for (unsigned i = 0; i + DATA_N_SYS_COLS < old_table->n_cols;
+		     i++) {
+			if (col_map[i] != i) {
+				first_alter_pos = 1 + i;
+				goto add_metadata;
+			}
+		}
 
 		if (old_table->instant) {
 add_metadata:
@@ -430,10 +441,19 @@ found_nullable:
 					continue;
 				}
 
-				if (col_map[f.col->ind] != ULINT_UNDEFINED) {
-					DBUG_ASSERT(col_map[f.col->ind]
-						    == instant->fields[j].col
-						    ->ind);
+				const ulint col_ind = col_map[f.col->ind];
+				if (col_ind != ULINT_UNDEFINED) {
+					if (instant->fields[j].col->ind
+					    != col_ind) {
+						/* The fields for instantly
+						added columns must be placed
+						last in the clustered index. */
+						std::swap(instant->fields[j],
+							  instant->fields[
+								  j + 1]);
+					}
+					DBUG_ASSERT(instant->fields[j].col->ind
+						    == col_ind);
 					goto existing_field;
 				}
 
@@ -459,13 +479,6 @@ found_nullable:
 			instant->n_nullable = n_nullable;
 			goto set_core_fields;
 		} else {
-			for (unsigned i = old_table->n_cols - DATA_N_SYS_COLS;
-			     i--; ) {
-				if (col_map[i] != i) {
-					goto add_metadata;
-				}
-			}
-
 			/* Columns were not dropped or reordered.
 			Therefore columns must have been added at the end. */
 			DBUG_ASSERT(instant->n_fields > old->n_fields);
@@ -1393,6 +1406,7 @@ ha_innobase::check_if_supported_inplace_alter(
 	constant DEFAULT expression. */
 	cf_it.rewind();
 	Field **af = altered_table->field;
+	bool fts_need_rebuild = false;
 
 	while (Create_field* cf = cf_it++) {
 		DBUG_ASSERT(cf->field
@@ -1444,6 +1458,17 @@ ha_innobase::check_if_supported_inplace_alter(
 				ER_ALTER_OPERATION_NOT_SUPPORTED_REASON_NOT_NULL);
 		} else if (!is_non_const_value(*af)
 			   && set_default_value(*af)) {
+			if (m_prebuilt->table->fts
+			    && innobase_fulltext_exist(altered_table)
+			    && !my_strcasecmp(system_charset_info,
+					      (*af)->field_name.str,
+					      FTS_DOC_ID_COL_NAME)) {
+				/* If a hidden FTS_DOC_ID column exists
+				(because of FULLTEXT INDEX), it cannot
+				be replaced with a user-created one
+				except when using ALGORITHM=COPY. */
+				goto cannot_create_many_fulltext_index;
+			}
 			goto next_column;
 		}
 
@@ -1458,8 +1483,6 @@ next_column:
 		 & ~(INNOBASE_ALTER_INSTANT | INNOBASE_INPLACE_IGNORE))) {
 		DBUG_RETURN(HA_ALTER_INPLACE_INSTANT);
 	}
-
-	bool	fts_need_rebuild = false;
 
 	if (!online) {
 		/* We already determined that only a non-locking
@@ -4788,7 +4811,11 @@ static bool innobase_instant_try(
 	Field** const end = altered_table->field + altered_table->s->fields;
 	ut_d(List_iterator_fast<Create_field> cf_it(
 		     ha_alter_info->alter_info->create_list));
-	bool rebuild_metadata = false;
+	if (ctx->first_alter_pos
+	    && innobase_instant_drop_cols(user_table->id,
+					  ctx->first_alter_pos - 1, trx)) {
+		return true;
+	}
 	for (uint i = 0; af < end; af++) {
 		if (!(*af)->stored_in_db()) {
 			ut_d(cf_it++);
@@ -4798,15 +4825,10 @@ static bool innobase_instant_try(
 		const dict_col_t* old = dict_table_t::find(old_cols,
 							   ctx->col_map,
 							   ctx->old_n_cols, i);
-		if (old && i < ctx->old_n_cols - DATA_N_SYS_COLS
-		    && old->ind != i) {
-			if (!rebuild_metadata
-			    && innobase_instant_drop_cols(user_table->id,
-							  i, trx)) {
-				return true;
-			}
-			rebuild_metadata = true;
-		}
+		DBUG_ASSERT(!old || i >= ctx->old_n_cols - DATA_N_SYS_COLS
+			    || old->ind == i
+			    || (ctx->first_alter_pos
+				&& old->ind >= ctx->first_alter_pos - 1));
 
 		dfield_t* d = dtuple_get_nth_field(row, i);
 		const dict_col_t* col = dict_table_get_nth_col(user_table, i);
@@ -4858,7 +4880,8 @@ static bool innobase_instant_try(
 		If it is NULL, the column was added by this ALTER TABLE. */
 		ut_ad(!new_field->field == !old);
 
-		if (!rebuild_metadata && old) {
+		if (old && (!ctx->first_alter_pos
+			    || i < ctx->first_alter_pos - 1)) {
 			/* The record is already present in SYS_COLUMNS. */
 		} else if (innobase_instant_add_col(user_table->id, i,
 						    (*af)->field_name.str,
@@ -4878,7 +4901,7 @@ static bool innobase_instant_try(
 		return true;
 	}
 
-	if (rebuild_metadata) {
+	if (ctx->first_alter_pos) {
 		for (uint i = 0; i < user_table->n_v_cols; i++) {
 			if (innobase_add_one_virtual(
 				    user_table,
@@ -4902,6 +4925,17 @@ static bool innobase_instant_try(
         }
 
 	unsigned i = unsigned(user_table->n_cols) - DATA_N_SYS_COLS;
+	DBUG_ASSERT(i >= altered_table->s->stored_fields);
+	DBUG_ASSERT(i <= altered_table->s->stored_fields + 1);
+	if (i > altered_table->s->fields) {
+		const dict_col_t& fts_doc_id = user_table->cols[i - 1];
+		DBUG_ASSERT(!strcmp(fts_doc_id.name(*user_table),
+				    FTS_DOC_ID_COL_NAME));
+		DBUG_ASSERT(!fts_doc_id.is_nullable());
+		DBUG_ASSERT(fts_doc_id.len == 8);
+		dfield_set_data(dtuple_get_nth_field(row, i - 1),
+				field_ref_zero, fts_doc_id.len);
+	}
 	byte trx_id[DATA_TRX_ID_LEN], roll_ptr[DATA_ROLL_PTR_LEN];
 	dfield_set_data(dtuple_get_nth_field(row, i++), field_ref_zero,
 			DATA_ROW_ID_LEN);
@@ -4915,7 +4949,7 @@ static bool innobase_instant_try(
 	row_ins_clust_index_entry_low() searches for the insert position. */
 	memset(roll_ptr, 0, sizeof roll_ptr);
 
-	dtuple_t* entry = instant_metadata(*row, *index, ctx->heap);;
+	dtuple_t* entry = instant_metadata(*row, *index, ctx->heap);
 	mtr_t mtr;
 	mtr.start();
 	index->set_modified(mtr);
