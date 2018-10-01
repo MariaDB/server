@@ -366,7 +366,7 @@ int Wsrep_high_priority_service::apply_toi(const wsrep::ws_meta& ws_meta,
   int ret= wsrep_apply_events(thd, m_rli, data.data(), data.size());
   if (ret != 0 || thd->wsrep_has_ignored_error)
   {
-    wsrep_dump_rbr_buf(thd, data.data(), data.size());
+    wsrep_dump_rbr_buf_with_header(thd, data.data(), data.size());
     thd->wsrep_has_ignored_error= false;
     /* todo: error voting */
   }
@@ -502,7 +502,7 @@ int Wsrep_applier_service::apply_write_set(const wsrep::ws_meta& ws_meta,
 
   if (ret || thd->wsrep_has_ignored_error)
   {
-    wsrep_dump_rbr_buf(thd, data.data(), data.size());
+    wsrep_dump_rbr_buf_with_header(thd, data.data(), data.size());
   }
 
   thd->close_temporary_tables();
@@ -656,7 +656,7 @@ int Wsrep_replayer_service::apply_write_set(const wsrep::ws_meta& ws_meta,
 
   if (ret || thd->wsrep_has_ignored_error)
   {
-    wsrep_dump_rbr_buf(thd, data.data(), data.size());
+    wsrep_dump_rbr_buf_with_header(thd, data.data(), data.size());
   }
 
   thd->close_temporary_tables();
