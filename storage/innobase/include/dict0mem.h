@@ -2076,8 +2076,10 @@ inline bool dict_index_t::is_instant() const
 	      || (type & ~(DICT_UNIQUE | DICT_CORRUPT)) == DICT_CLUSTERED);
 	ut_ad(n_core_fields == n_fields || table->supports_instant());
 	ut_ad(n_core_fields == n_fields || !table->is_temporary());
+	ut_ad(!table->instant || !table->is_temporary());
 
-	return n_core_fields != n_fields || table->instant;
+	return n_core_fields != n_fields
+		|| (is_primary() && table->instant);
 }
 
 inline bool dict_index_t::is_corrupted() const
