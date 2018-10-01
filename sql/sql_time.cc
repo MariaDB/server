@@ -293,7 +293,7 @@ check_date_with_warn(THD *thd, const MYSQL_TIME *ltime, date_mode_t fuzzydate,
                      timestamp_type ts_type)
 {
   int unused;
-  if (check_date(ltime, ulonglong(fuzzydate), &unused))
+  if (check_date(ltime, fuzzydate, &unused))
   {
     ErrConvTime str(ltime);
     make_truncated_value_warning(thd, Sql_condition::WARN_LEVEL_WARN,
@@ -377,7 +377,9 @@ bool Temporal::str_to_time(MYSQL_TIME_STATUS *status,
                            date_mode_t fuzzydate)
 {
   TemporalAsciiBuffer tmp(str, length, cs);
-  return ::str_to_time(tmp.str, tmp.length, this, ulonglong(fuzzydate), status);
+  return ::str_to_time(tmp.str, tmp.length, this,
+                       ulonglong(fuzzydate & TIME_MODE_FOR_XXX_TO_DATE),
+                       status);
 }
 
 
@@ -387,7 +389,9 @@ bool Temporal::str_to_datetime(MYSQL_TIME_STATUS *status,
                                date_mode_t flags)
 {
   TemporalAsciiBuffer tmp(str, length, cs);
-  return ::str_to_datetime(tmp.str, tmp.length, this, ulonglong(flags), status);
+  return ::str_to_datetime(tmp.str, tmp.length, this,
+                           ulonglong(flags & TIME_MODE_FOR_XXX_TO_DATE),
+                           status);
 }
 
 
@@ -407,7 +411,8 @@ str_to_datetime_with_warn(THD *thd, CHARSET_INFO *cs,
   MYSQL_TIME_STATUS status;
   TemporalAsciiBuffer tmp(str, length, cs);
   bool ret_val= str_to_datetime(tmp.str, tmp.length, l_time,
-                                ulonglong(flags), &status);
+                                ulonglong(flags & TIME_MODE_FOR_XXX_TO_DATE),
+                                &status);
   if (ret_val || status.warnings)
   {
     const ErrConvString err(str, length, &my_charset_bin);
@@ -1339,7 +1344,7 @@ time_to_datetime_with_warn(THD *thd,
   */
   if (time_to_datetime(thd, from, to) ||
       ((thd->variables.old_behavior & OLD_MODE_ZERO_DATE_TIME_CAST) &&
-        check_date(to, ulonglong(fuzzydate), &warn)))
+        check_date(to, fuzzydate, &warn)))
   {
     ErrConvTime str(from);
     thd->push_warning_truncated_wrong_value("datetime", str.ptr());

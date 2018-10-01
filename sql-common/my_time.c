@@ -58,6 +58,20 @@ uint calc_days_in_year(uint year)
           366 : 365);
 }
 
+
+#ifndef DBUG_OFF
+
+static const ulonglong C_KNOWN_FLAGS= C_TIME_NO_ZERO_IN_DATE |
+                                      C_TIME_NO_ZERO_DATE    |
+                                      C_TIME_INVALID_DATES   |
+                                      C_TIME_TIME_ONLY       |
+                                      C_TIME_DATETIME_ONLY;
+
+#define C_FLAGS_OK(flags)             (((flags) & ~C_KNOWN_FLAGS) == 0)
+
+#endif
+
+
 /**
   @brief Check datetime value for validity according to flags.
 
@@ -82,6 +96,7 @@ uint calc_days_in_year(uint year)
 my_bool check_date(const MYSQL_TIME *ltime, my_bool not_zero_date,
                    ulonglong flags, int *was_cut)
 {
+  DBUG_ASSERT(C_FLAGS_OK(flags));
   if (ltime->time_type == MYSQL_TIMESTAMP_TIME)
     return FALSE;
   if (not_zero_date)
@@ -298,6 +313,7 @@ str_to_datetime(const char *str, size_t length, MYSQL_TIME *l_time,
   const char *end=str+length, *pos;
   uint number_of_fields= 0, digits, year_length, not_zero_date;
   DBUG_ENTER("str_to_datetime");
+  DBUG_ASSERT(C_FLAGS_OK(flags));
   bzero(l_time, sizeof(*l_time));
 
   if (flags & C_TIME_TIME_ONLY)
@@ -464,6 +480,7 @@ my_bool str_to_time(const char *str, size_t length, MYSQL_TIME *l_time,
   const char *end=str+length, *end_of_days;
   my_bool found_days,found_hours, neg= 0;
   uint UNINIT_VAR(state);
+  DBUG_ASSERT(C_FLAGS_OK(fuzzydate));
 
   my_time_status_init(status);
   for (; str != end && my_isspace(&my_charset_latin1,*str) ; str++)
@@ -1209,6 +1226,7 @@ longlong number_to_datetime(longlong nr, ulong sec_part, MYSQL_TIME *time_res,
                             ulonglong flags, int *was_cut)
 {
   long part1,part2;
+  DBUG_ASSERT(C_FLAGS_OK(flags));
 
   *was_cut= 0;
   time_res->time_type=MYSQL_TIMESTAMP_DATE;

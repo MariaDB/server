@@ -98,5 +98,11 @@ const date_mode_t
   TIME_NO_ZERO_DATE           (date_mode_t::value_t::NO_ZERO_DATE),
   TIME_INVALID_DATES          (date_mode_t::value_t::INVALID_DATES);
 
+// Flags understood by str_to_datetime, str_to_time, number_to_time, check_date
+static const date_mode_t
+  TIME_MODE_FOR_XXX_TO_DATE   (date_mode_t::NO_ZERO_IN_DATE |
+                               date_mode_t::NO_ZERO_DATE    |
+                               date_mode_t::INVALID_DATES   |
+                               date_mode_t::TIME_ONLY);
 
 #endif

@@ -167,9 +167,10 @@ non_zero_date(const MYSQL_TIME *ltime)
           non_zero_hhmmssuu(ltime));
 }
 static inline bool
-check_date(const MYSQL_TIME *ltime, ulonglong flags, int *was_cut)
+check_date(const MYSQL_TIME *ltime, date_mode_t flags, int *was_cut)
 {
- return check_date(ltime, non_zero_date(ltime), flags, was_cut);
+ return check_date(ltime, non_zero_date(ltime),
+                   ulonglong(flags & TIME_MODE_FOR_XXX_TO_DATE), was_cut);
 }
 bool check_date_with_warn(THD *thd, const MYSQL_TIME *ltime, date_mode_t fuzzy_date,
                           timestamp_type ts_type);

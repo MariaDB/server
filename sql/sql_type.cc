@@ -480,7 +480,8 @@ void Temporal_with_date::make_from_item(THD *thd, Item *item)
 
 void Temporal_with_date::check_date_or_invalidate(int *warn, date_mode_t flags)
 {
-  if (check_date(this, pack_time(this) != 0, ulonglong(flags), warn))
+  if (check_date(this, pack_time(this) != 0,
+                 ulonglong(flags & TIME_MODE_FOR_XXX_TO_DATE), warn))
     time_type= MYSQL_TIMESTAMP_NONE;
 }
 

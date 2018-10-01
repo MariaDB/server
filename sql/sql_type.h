@@ -285,7 +285,9 @@ public:
       *warn= MYSQL_TIME_WARN_OUT_OF_RANGE;
       return true;
     }
-    return number_to_datetime(m_sec, m_usec, to, ulonglong(flags), warn) == -1;
+    return number_to_datetime(m_sec, m_usec, to,
+                              ulonglong(flags & TIME_MODE_FOR_XXX_TO_DATE),
+                              warn) == -1;
   }
   // Convert elapsed seconds to TIME
   bool sec_to_time(MYSQL_TIME *ltime, uint dec) const
@@ -1230,7 +1232,9 @@ public:
   bool check_date(date_mode_t flags, int *warnings) const
   {
     DBUG_ASSERT(is_valid_datetime_slow());
-    return ::check_date(this, (year || month || day), ulonglong(flags), warnings);
+    return ::check_date(this, (year || month || day),
+                        ulonglong(flags & TIME_MODE_FOR_XXX_TO_DATE),
+                        warnings);
   }
   bool check_date(date_mode_t flags) const
   {
