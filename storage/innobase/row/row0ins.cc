@@ -1909,6 +1909,23 @@ do_possible_lock_wait:
 		check_table->inc_fk_checks();
 
 		lock_wait_suspend_thread(thr);
+#ifdef WITH_WSREP
+		ut_ad(!trx_mutex_own(trx));
+		switch (trx->error_state) {
+		case DB_DEADLOCK:
+			if (wsrep_debug) {
+				ib::info() <<
+				"WSREP: innodb trx state changed during wait "
+				<< " trx: " << trx->id << " with error_state: "
+				<< trx->error_state << " err: " << err;
+			}
+			err = trx->error_state;
+			break;
+		default:
+			break;
+		}
+
+#endif /* WITH_WSREP */
 
 		thr->lock_state = QUE_THR_LOCK_NOLOCK;
 
