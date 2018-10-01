@@ -57,7 +57,7 @@ Created 4/20/1996 Heikki Tuuri
 			of the field entry is allocated.
 @retval false if undo log is logged before spatial index creation. */
 static bool row_build_spatial_index_key(
-	dict_index_t*		index,
+	const dict_index_t*	index,
 	const row_ext_t*	ext,
 	dfield_t*		dfield,
 	const dfield_t*		dfield2,
@@ -189,8 +189,8 @@ row_build_index_entry_low(
 					inserted or purged */
 	const row_ext_t*	ext,	/*!< in: externally stored column
 					prefixes, or NULL */
-	dict_index_t*		index,	/*!< in: index on the table */
-	mem_heap_t*		heap,	/*!< in: memory heap from which
+	const dict_index_t*	index,	/*!< in: index on the table */
+	mem_heap_t*		heap,	/*!< in,out: memory heap from which
 					the memory for the index entry
 					is allocated */
 	ulint			flag)	/*!< in: ROW_BUILD_NORMAL,

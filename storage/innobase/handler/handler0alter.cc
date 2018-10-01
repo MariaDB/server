@@ -4678,7 +4678,7 @@ static dtuple_t* instant_metadata(
 	dtuple_t* entry;
 
 	if (!index.table->instant) {
-		entry = row_build_index_entry(&row, NULL, &const_cast<dict_index_t&>(index), heap);
+		entry = row_build_index_entry(&row, NULL, &index, heap);
 		entry->info_bits = REC_INFO_METADATA_ADD;
 		return entry;
 	}
