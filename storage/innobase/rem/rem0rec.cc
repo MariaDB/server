@@ -315,7 +315,7 @@ rec_init_offsets_comp_ordinary(
 		ut_ad(!def_val);
 		ut_ad(format == REC_LEAF_INSTANT);
 		nulls -= REC_N_NEW_EXTRA_BYTES;
-		n_fields = n_core + rec_get_n_add_field(nulls);
+		n_fields = n_core + 1 + rec_get_n_add_field(nulls);
 		ut_ad(n_fields <= ulint(index->n_fields) + 1);
 		const ulint n_nullable = index->get_n_nullable(n_fields - 1);
 		const ulint n_null_bytes = UT_BITS_IN_BYTES(n_nullable);
@@ -423,7 +423,7 @@ start:
 
 		const dict_col_t* col = field->col;
 
-		if (!(col->prtype & DATA_NOT_NULL)) {
+		if (col->is_nullable()) {
 			/* nullable field => read the null flag */
 			ut_ad(n_null--);
 
@@ -1201,11 +1201,11 @@ rec_get_converted_size_comp_prefix_low(
 #endif
 
 		/* All NULLable fields must be included in the n_null count. */
-		ut_ad((field->col->prtype & DATA_NOT_NULL) || n_null--);
+		ut_ad(!field->col->is_nullable() || n_null--);
 
 		if (dfield_is_null(dfield)) {
 			/* No length is stored for NULL fields. */
-			ut_ad(!(field->col->prtype & DATA_NOT_NULL));
+			ut_ad(field->col->is_nullable());
 			continue;
 		}
 
