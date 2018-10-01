@@ -4664,6 +4664,90 @@ innobase_drop_virtual_try(
 	return innodb_update_cols(user_table, new_n, trx);
 }
 
+/** Construct the metadata record for instant ALTER TABLE.
+@param[in]	row	dummy or default values for existing columns
+@param[in]	index	clustered index
+@param[in,out]	heap	memory heap for allocations
+@return	metadata record */
+static dtuple_t* instant_metadata(
+	const dtuple_t&		row,
+	const dict_index_t&	index,
+	mem_heap_t*		heap)
+{
+	ut_ad(index.is_primary());
+	dtuple_t* entry;
+
+	if (!index.table->instant) {
+		entry = row_build_index_entry(&row, NULL, &const_cast<dict_index_t&>(index), heap);
+		entry->info_bits = REC_INFO_METADATA_ADD;
+		return entry;
+	}
+
+	entry = dtuple_create(heap, index.n_fields + 1);
+	entry->n_fields_cmp = index.n_uniq;
+	entry->info_bits = REC_INFO_METADATA_ALTER;
+
+	const dict_field_t* field = index.fields;
+
+	for (uint i = 0; i <= index.n_fields; i++, field++) {
+		dfield_t* dfield = dtuple_get_nth_field(entry, i);
+
+		if (i == index.first_user_field()) {
+			dfield_set_data(dfield,
+					mem_heap_zalloc(heap, FIELD_REF_SIZE),
+					FIELD_REF_SIZE);
+			dfield_set_ext(dfield);
+			dfield->type.metadata_blob_init();
+			field--;
+			continue;
+		}
+
+		ut_ad(!field->col->is_virtual());
+
+		if (field->col->is_dropped()) {
+			dict_col_copy_type(field->col, &dfield->type);
+			if (field->col->is_nullable()) {
+				dfield_set_null(dfield);
+			} else {
+				dfield_set_data(dfield, field_ref_zero,
+						field->col->len);
+			}
+			continue;
+		}
+
+		const dfield_t* s = dtuple_get_nth_field(&row, field->col->ind);
+		ut_ad(dict_col_type_assert_equal(field->col, &s->type));
+		*dfield = *s;
+
+		if (dfield_is_null(dfield)) {
+			continue;
+		}
+
+		if (dfield_is_ext(dfield)) {
+			ut_ad(i > index.first_user_field());
+			ut_ad(!field->prefix_len);
+			ut_ad(dfield->len >= FIELD_REF_SIZE);
+			dfield_set_len(dfield, dfield->len - FIELD_REF_SIZE);
+		}
+
+		if (!field->prefix_len) {
+			continue;
+		}
+
+		ut_ad(field->col->ord_part);
+		ut_ad(i < index.n_uniq);
+
+		ulint len = dtype_get_at_most_n_mbchars(
+			field->col->prtype,
+			field->col->mbminlen, field->col->mbmaxlen,
+			field->prefix_len, dfield->len,
+			static_cast<char*>(dfield_get_data(dfield)));
+		dfield_set_len(dfield, len);
+	}
+
+	return entry;
+}
+
 /** Insert or update SYS_COLUMNS and the hidden metadata record
 for instant ALTER TABLE.
 @param[in,out]	ha_alter_info	ALTER TABLE context for the current partition
@@ -4831,16 +4915,7 @@ static bool innobase_instant_try(
 	row_ins_clust_index_entry_low() searches for the insert position. */
 	memset(roll_ptr, 0, sizeof roll_ptr);
 
-	dtuple_t* entry;
-
-	if (index->table->instant) {
-		entry = row_build_clust_default_entry(row, index, ctx->heap);
-		entry->info_bits = REC_INFO_METADATA_ALTER;
-	} else {
-		entry = row_build_index_entry(row, NULL, index, ctx->heap);
-		entry->info_bits = REC_INFO_METADATA_ADD;
-	}
-
+	dtuple_t* entry = instant_metadata(*row, *index, ctx->heap);;
 	mtr_t mtr;
 	mtr.start();
 	index->set_modified(mtr);
