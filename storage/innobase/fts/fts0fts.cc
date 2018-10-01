@@ -2762,7 +2762,7 @@ retry:
 	mutex_enter(&cache->doc_id_lock);
 	/* For each sync operation, we will add next_doc_id by 1,
 	so to mark a sync operation */
-	if (cache->next_doc_id < cache->synced_doc_id + 1) {
+	if (cache->next_doc_id <= cache->synced_doc_id) {
 		cache->next_doc_id = cache->synced_doc_id + 1;
 	}
 	mutex_exit(&cache->doc_id_lock);
@@ -6665,7 +6665,6 @@ fts_rename_aux_tables_to_hex_format(
 			"All the fts index associated with the table are "
 			"marked as corrupted. Please rebuild the "
 			"index again.", parent_table->name);
-		fts_sql_rollback(trx_rename);
 
 		/* Corrupting the fts index related to parent table. */
 		trx_t*	trx_corrupt;
@@ -7042,7 +7041,27 @@ fts_check_and_drop_orphaned_tables(
 		/* If the aux table is in decimal format, we should
 		rename it, so push it to aux_tables_to_rename */
 		if (!drop && rename) {
-			ib_vector_push(aux_tables_to_rename, aux_table);
+			/* It is necessary to check that the table with
+			this name is missing in the vector - otherwise it
+			can be renamed twice: */
+			bool	rename_table = true;
+			for (ulint count = 0;
+			     count < ib_vector_size(aux_tables_to_rename);
+			     count++) {
+				fts_aux_table_t*	rename_aux =
+					static_cast<fts_aux_table_t*>(
+					ib_vector_get(aux_tables_to_rename,
+						      count));
+					if (strcmp(rename_aux->name,
+						   aux_table->name) == 0) {
+						rename_table = false;
+						break;
+					}
+			}
+			if (rename_table) {
+				ib_vector_push(aux_tables_to_rename,
+					       aux_table);
+			}
 		}
 
 		if (i + 1 < ib_vector_size(tables)) {
