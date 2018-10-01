@@ -55,16 +55,16 @@ Created 4/20/1996 Heikki Tuuri
 dtuple_t*
 row_build_clust_default_entry(
 	const dtuple_t*		row,
-	dict_index_t*		clust_index,
+	dict_index_t*		index,
 	mem_heap_t*		heap)
 {
-	ut_a(dict_index_is_clust(clust_index));
+	ut_ad(index->is_primary());
+	ut_ad(index->is_instant());
 
-	ulint		entry_n_fields = dict_index_get_n_fields(clust_index) + 1;
+	ulint		entry_n_fields = index->n_fields + 1;
 	dtuple_t*	entry = dtuple_create(heap, entry_n_fields);
 
-	dtuple_set_n_fields_cmp(
-		entry, dict_index_get_n_unique_in_tree(clust_index));
+	dtuple_set_n_fields_cmp(entry, index->n_uniq);
 
 	for (ulint field_no = 0, ind_field_no = 0;
 	     field_no < entry_n_fields; field_no++) {
@@ -77,7 +77,7 @@ row_build_clust_default_entry(
 
 		dfield = dtuple_get_nth_field(entry, field_no);
 
-		if (field_no == clust_index->first_user_field()) {
+		if (field_no == index->first_user_field()) {
 			dfield_set_data(dfield, mem_heap_zalloc(
 						heap,
 						BTR_EXTERN_FIELD_REF_SIZE),
@@ -87,11 +87,18 @@ row_build_clust_default_entry(
 			continue;
 		}
 
-		ind_field = dict_index_get_nth_field(clust_index, ind_field_no++);
+		ind_field = dict_index_get_nth_field(index, ind_field_no++);
 		col = ind_field->col;
+		ut_ad(!col->is_virtual());
 
 		if (col->is_dropped()) {
-			col->construct_dropped_default_field(dfield, heap);
+			dict_col_copy_type(col, &dfield->type);
+			if (col->is_nullable()) {
+				dfield_set_null(dfield);
+			} else {
+				dfield_set_data(dfield, field_ref_zero,
+						col->len);
+			}
 			continue;
 		} else {
 			col_no = dict_col_get_no(col);
@@ -336,9 +343,16 @@ row_build_index_entry_low(
 		}
 
 		if (col->is_dropped()) {
-			ut_ad(dict_index_is_clust(index));
+			ut_ad(index->is_primary());
+			ut_ad(index->is_instant());
 			ut_ad(!col->is_virtual());
-			col->construct_dropped_field(dfield, heap);
+			dict_col_copy_type(col, &dfield->type);
+			if (col->is_nullable()) {
+				dfield_set_null(dfield);
+			} else {
+				dfield_set_data(dfield, field_ref_zero,
+						col->len);
+			}
 			continue;
 		} else {
 			col_no = dict_col_get_no(col);

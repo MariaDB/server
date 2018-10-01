@@ -613,17 +613,6 @@ public:
 	/** @return whether NULL is an allowed value for this column */
 	bool is_nullable() const { return !(prtype & DATA_NOT_NULL); }
 
-	/** Construct dfield for the data tuple.
-	@param[out]	dfield	data field of the tuple
-	@param[out]	heap	memory heap */
-	inline void construct_dropped_field(
-		dfield_t*	dfield,
-		mem_heap_t*	heap) const;
-
-	inline void construct_dropped_default_field(
-		dfield_t*	dfield,
-		mem_heap_t*	heap) const;
-
 	/** @return whether table of this system field is TRX_ID-based */
 	bool vers_native() const
 	{
@@ -1174,52 +1163,6 @@ inline void dict_col_t::detach(const dict_index_t& index)
 				return;
 			}
 		}
-	}
-}
-
-inline void dict_col_t::construct_dropped_default_field(
-	dfield_t*	dfield,
-	mem_heap_t*	heap) const
-{
-	dfield->type.prtype = DATA_BINARY_TYPE;
-	if (prtype & DATA_NOT_NULL) {
-		dfield->type.prtype |= DATA_NOT_NULL;
-	}
-
-	dfield_set_data(dfield, field_ref_zero, len);
-
-	if (len > 0) {
-		dfield->type.mtype = DATA_FIXBINARY;
-	} else {
-		dfield->type.mtype = DATA_BINARY;
-	}
-}
-
-/** Construct dfield for the data tuple.
-@param[out]	dfield	data field of the tuple
-@param[out]	heap	memory heap */
-inline void dict_col_t::construct_dropped_field(
-	dfield_t*	dfield,
-	mem_heap_t*	heap) const
-{
-	dfield->type.prtype = DATA_NOT_NULL;
-
-	if (!(prtype & DATA_NOT_NULL)) {
-		dfield->data = 0x00;
-		dfield->len = UNIV_SQL_NULL;
-		dfield->type.prtype = DATA_BINARY_TYPE;
-	} else if (len > 0) {
-		dfield->data = mem_heap_zalloc(heap, len);
-		dfield->len = len;
-	} else {
-		dfield->data = 0x00;
-		dfield->len = 0;
-	}
-
-	if (len > 0) {
-		dfield->type.mtype = DATA_FIXBINARY;
-	} else {
-		dfield->type.mtype = DATA_BINARY;
 	}
 }
 
