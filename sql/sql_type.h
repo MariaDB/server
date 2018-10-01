@@ -500,6 +500,12 @@ public:
     if (str_to_datetime(st, str, length, cs, fuzzydate))
       time_type= MYSQL_TIMESTAMP_NONE;
   }
+  Temporal_hybrid(THD *thd, const Sec6 &sec, date_mode_t fuzzydate,
+                  const ErrConv *str, const char *field_name)
+  {
+    if (sec.convert_to_mysql_time(thd, this, fuzzydate, str, field_name))
+      time_type= MYSQL_TIMESTAMP_NONE;
+  }
   longlong to_longlong() const
   {
     if (!is_valid_temporal())
