@@ -963,7 +963,7 @@ void wsrep_stop_replication(THD *thd)
      make transaction to rollback
   */
   if (thd && !thd->wsrep_applier) trans_rollback(thd);
-  wsrep_close_client_connections(TRUE);
+  wsrep_close_client_connections(TRUE, thd);
  
   /* wait until appliers have stopped */
   wsrep_wait_appliers_close(thd);
@@ -2568,7 +2568,8 @@ void wsrep_close_client_connections(my_bool wait_to_end, THD* except_caller_thd)
 #ifndef __bsdi__				// Bug in BSDI kernel
     if (is_client_connection(tmp) &&
         !abort_replicated(tmp)    &&
-	!is_replaying_connection(tmp))
+        !is_replaying_connection(tmp) &&
+        tmp != except_caller_thd)
     {
       WSREP_INFO("killing local connection: %lld", (longlong) tmp->thread_id);
       close_connection(tmp,0);
