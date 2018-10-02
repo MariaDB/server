@@ -1115,9 +1115,8 @@ trx_undo_page_report_modify(
 				goto store_len;
 			}
 
-			ut_ad(pos >= index->first_user_field());
-
 			if (UNIV_UNLIKELY(update->is_metadata())) {
+				ut_ad(pos >= index->first_user_field());
 				ut_ad(rec_is_metadata(rec, index));
 
 				if (rec_is_alter_metadata(rec, index)) {
