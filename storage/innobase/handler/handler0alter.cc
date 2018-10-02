@@ -397,8 +397,7 @@ add_metadata:
 			const uint n_fields = instant->n_fields
 				+ instant_table->n_dropped();
 
-			DBUG_ASSERT(n_fields
-				    >= old->n_fields + old_table->n_dropped());
+			DBUG_ASSERT(n_fields >= old->n_fields);
 			dict_field_t* fields = static_cast<dict_field_t*>(
 				mem_heap_zalloc(instant_table->heap,
 						n_fields * sizeof *fields));

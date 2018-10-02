@@ -1467,7 +1467,10 @@ dup_dropped:
 				non_pk_col_map[i - u] = field->col->ind + 1;
 				continue;
 			}
-			ut_ad(field->col == table.instant->dropped + n_drop++);
+			ut_ad(field->col >= table.instant->dropped);
+			ut_ad(field->col < table.instant->dropped
+			      + table.instant->n_dropped);
+			ut_d(n_drop++);
 			field->col += instant->dropped
 				- table.instant->dropped;
 		}
