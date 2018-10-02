@@ -374,17 +374,21 @@ start:
 	const dict_field_t* field = index->fields;
 
 	do {
-		if (mblob && i == index->first_user_field()) {
-			offs += FIELD_REF_SIZE;
-			len = offs | REC_OFFS_EXTERNAL;
-			any |= REC_OFFS_EXTERNAL;
-			field--;
-			continue;
-		}
-
-		/* set default value flag */
-		if (i < n_fields + mblob) {
-		} else if (def_val) {
+		if (mblob) {
+			if (i == index->first_user_field()) {
+				offs += FIELD_REF_SIZE;
+				len = offs | REC_OFFS_EXTERNAL;
+				any |= REC_OFFS_EXTERNAL;
+				field--;
+				continue;
+			} else if (i >= n_fields) {
+				len = offs | REC_OFFS_DEFAULT;
+				any |= REC_OFFS_DEFAULT;
+				continue;
+			}
+		} else if (i < n_fields) {
+			/* The field is present, and will be covered below. */
+		} else if (!mblob && def_val) {
 			/* FIXME: Fix the MDEV-16131 scenario when
 			instant DROP COLUMN was followed by
 			ALTER TABLE...FORCE, LOCK=NONE and the
@@ -403,19 +407,12 @@ start:
 
 			continue;
 		} else {
-			ulint dlen;
-			if (!index->instant_field_value(i, &dlen)) {
+			if (!index->instant_field_value(i, &len)) {
+				ut_ad(len == UNIV_SQL_NULL);
 				len = offs | REC_OFFS_SQL_NULL;
-				ut_ad(dlen == UNIV_SQL_NULL);
 			} else {
-				ulint dlen;
-				if (!index->instant_field_value(i, &dlen)) {
-					len = offs | REC_OFFS_SQL_NULL;
-					ut_ad(dlen == UNIV_SQL_NULL);
-				} else {
-					len = offs | REC_OFFS_DEFAULT;
-					any |= REC_OFFS_DEFAULT;
-				}
+				len = offs | REC_OFFS_DEFAULT;
+				any |= REC_OFFS_DEFAULT;
 			}
 
 			continue;
