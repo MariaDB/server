@@ -1122,9 +1122,17 @@ trx_undo_page_report_modify(
 
 				if (rec_is_alter_metadata(rec, index)) {
 					ut_ad(update->is_alter_metadata());
-					field = rec_get_nth_def_field(
-						rec, index, offsets, pos,
-						&flen);
+
+					field = rec_offs_n_fields(offsets)
+						> pos
+						&& !rec_offs_nth_default(
+							offsets, pos)
+						? rec_get_nth_field(
+							rec, offsets,
+							pos, &flen)
+						: index->instant_field_value(
+							pos - 1, &flen);
+
 					if (pos == index->first_user_field()) {
 						ut_ad(rec_offs_nth_extern(
 							offsets, pos));

@@ -831,31 +831,6 @@ inline bool rec_is_delete_marked(const rec_t* rec, ulint comp)
 @return a read-only copy of the index field */
 inline
 const byte*
-rec_get_nth_def_field(
-	const rec_t*		rec,
-	const dict_index_t*	index,
-	const ulint*		offsets,
-	ulint			n,
-	ulint*			len)
-{
-	ut_ad(rec_offs_validate(rec, index, offsets));
-	if (rec_offs_n_fields(offsets) > n
-	    && !rec_offs_nth_default(offsets, n)) {
-		return rec_get_nth_field(rec, offsets, n, len);
-	}
-
-	return index->instant_field_value(n - 1, len);
-}
-
-/** Get the nth field from an index.
-@param[in]	rec	index record
-@param[in]	index	index
-@param[in]	offsets	rec_get_offsets(rec, index)
-@param[in]	n	field number
-@param[out]	len	length of the field in bytes, or UNIV_SQL_NULL
-@return a read-only copy of the index field */
-inline
-const byte*
 rec_get_nth_cfield(
 	const rec_t*		rec,
 	const dict_index_t*	index,
