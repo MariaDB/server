@@ -839,7 +839,8 @@ rec_get_nth_def_field(
 	ulint*			len)
 {
 	ut_ad(rec_offs_validate(rec, index, offsets));
-	if (!rec_offs_nth_default(offsets, n)) {
+	if (rec_offs_n_fields(offsets) > n
+	    && !rec_offs_nth_default(offsets, n)) {
 		return rec_get_nth_field(rec, offsets, n, len);
 	}
 
