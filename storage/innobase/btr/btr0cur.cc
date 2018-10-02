@@ -4726,14 +4726,23 @@ btr_cur_pessimistic_update(
 		rec, index, *offsets, page_is_leaf(page),
 		ULINT_UNDEFINED, offsets_heap);
 
-	const bool is_metadata = rec_is_metadata(rec, index);
-	ut_ad(!is_metadata || (flags & BTR_NO_LOCKING_FLAG));
+	dtuple_t* new_entry;
 
-	dtuple_t* new_entry = is_metadata
-		? row_metadata_to_tuple(rec, index, *offsets, &n_ext,
-					entry_heap, update->info_bits)
-		: row_rec_to_index_entry(rec, index, *offsets, &n_ext,
-					 entry_heap);
+	const bool is_metadata = rec_is_metadata(rec, index);
+
+	if (UNIV_UNLIKELY(is_metadata)) {
+		ut_ad(update->is_metadata());
+		ut_ad(flags & BTR_NO_LOCKING_FLAG);
+		ut_ad(index->is_instant());
+		new_entry = row_metadata_to_tuple(rec, index, *offsets,
+						  &n_ext, entry_heap,
+						  update->info_bits);
+		ut_ad(new_entry->n_fields
+		      == index->n_fields + update->is_alter_metadata());
+	} else {
+		new_entry = row_rec_to_index_entry(rec, index, *offsets,
+						   &n_ext, entry_heap);
+	}
 
 	/* The page containing the clustered index record
 	corresponding to new_entry is latched in mtr.  If the
