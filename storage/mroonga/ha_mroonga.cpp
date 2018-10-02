@@ -11800,7 +11800,8 @@ int ha_mroonga::storage_encode_key_timestamp2(Field *field, const uchar *key,
 #endif
 
 #ifdef MRN_HAVE_MYSQL_TYPE_DATETIME2
-int ha_mroonga::storage_encode_key_datetime2(Field *field, const uchar *key,
+int ha_mroonga::storage_encode_key_datetime2(Field *field, bool is_null,
+                                             const uchar *key,
                                              uchar *buf, uint *size)
 {
   MRN_DBUG_ENTER_METHOD();
@@ -11808,7 +11809,7 @@ int ha_mroonga::storage_encode_key_datetime2(Field *field, const uchar *key,
   bool truncated = false;
 
   Field_datetimef *datetime2_field = (Field_datetimef *)field;
-  longlong packed_time =
+  longlong packed_time = is_null ? 0 :
     my_datetime_packed_from_binary(key, datetime2_field->decimals());
   MYSQL_TIME mysql_time;
   TIME_from_longlong_datetime_packed(&mysql_time, packed_time);
@@ -11935,6 +11936,7 @@ int ha_mroonga::storage_encode_key(Field *field, const uchar *key,
   MRN_DBUG_ENTER_METHOD();
   int error;
   bool truncated = false;
+  bool is_null = false;
   const uchar *ptr = key;
 
   error = mrn_change_encoding(ctx, field->charset());
@@ -11942,6 +11944,7 @@ int ha_mroonga::storage_encode_key(Field *field, const uchar *key,
     DBUG_RETURN(error);
 
   if (field->null_bit) {
+    is_null = *ptr;
     ptr += 1;
   }
 
@@ -12039,7 +12042,7 @@ int ha_mroonga::storage_encode_key(Field *field, const uchar *key,
 #endif
 #ifdef MRN_HAVE_MYSQL_TYPE_DATETIME2
   case MYSQL_TYPE_DATETIME2:
-    error = storage_encode_key_datetime2(field, ptr, buf, size);
+    error = storage_encode_key_datetime2(field, is_null, ptr, buf, size);
     break;
 #endif
 #ifdef MRN_HAVE_MYSQL_TYPE_TIME2
