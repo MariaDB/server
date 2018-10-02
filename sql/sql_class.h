@@ -4753,7 +4753,6 @@ public:
    */
   void set_wsrep_next_trx_id(query_id_t query_id)
   {
-    WSREP_DEBUG("set_wsrep_next_trx_id %lld", query_id);
     m_wsrep_next_trx_id = (wsrep_trx_id_t) query_id;
   }
   /*
@@ -4761,7 +4760,6 @@ public:
    */
   wsrep_trx_id_t wsrep_next_trx_id() const
   {
-    WSREP_DEBUG("wsrep_next_trx_id %lld", m_wsrep_next_trx_id);
     return m_wsrep_next_trx_id;
   }
 

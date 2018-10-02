@@ -7930,11 +7930,12 @@ static void wsrep_prepare_for_autocommit_retry(THD* thd,
                     &thd->security_ctx->priv_user[0],
                     (char *) thd->security_ctx->host_or_ip);
 
-  /* PSI begin */
-  thd->m_statement_psi= MYSQL_START_STATEMENT(&thd->m_statement_state,
-                                              com_statement_info[thd->get_command()].m_key,
-                                              thd->db.str, thd->db.length,
-                                              thd->charset());
+  /* Performance Schema Interface instrumentation, begin */
+  thd->m_statement_psi= MYSQL_REFINE_STATEMENT(thd->m_statement_psi,
+                                               com_statement_info[thd->get_command()].m_key);
+  MYSQL_SET_STATEMENT_TEXT(thd->m_statement_psi, thd->query(),
+                           thd->query_length());
+ 
   DBUG_ASSERT(thd->wsrep_trx().active() == false);
   thd->wsrep_cs().reset_error();
   thd->set_query_id(next_query_id());
@@ -7952,6 +7953,14 @@ static bool wsrep_mysql_parse(THD *thd, char *rawbuf, uint length,
   do
   {
     retry_autocommit= false;
+    DBUG_EXECUTE_IF("sync.wsrep_retry_autocommit",
+                    {
+                      const char act[]=
+                        "now "
+                        "SIGNAL wsrep_retry_autocommit_reached "
+       	                "WAIT_FOR wsrep_retry_autocommit_continue";
+       	              DBUG_ASSERT(!debug_sync_set_action(thd, STRING_WITH_LEN(act)));
+                    });
     mysql_parse(thd, rawbuf, length, parser_state, is_com_multi, is_next_command);
 
     /*
@@ -7987,6 +7996,8 @@ static bool wsrep_mysql_parse(THD *thd, char *rawbuf, uint length,
         WSREP_DEBUG("wsrep retrying AC query: %lu  %s",
                     thd->wsrep_retry_counter, WSREP_QUERY(thd));
         wsrep_prepare_for_autocommit_retry(thd, rawbuf, length, parser_state);
+        if (thd->lex->explain)
+          delete_explain_query(thd->lex);
         retry_autocommit= true;
       }
       else
