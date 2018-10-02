@@ -42,6 +42,7 @@ pool_of_threads: WSREP has not yet prepared node for application use
 galera_var_innodb_disallow_writes : Timeout
 galera.galera_kill_ddl : MDEV-17108 Test failure on galera.galera_kill_ddl
 MW-336 : nondeterministic wsrep_thread_count
+galera_sst_xtrabackup-v2  : MDEV-17304 Replace use of XtraBackup with MariaDB Backup
 galera_autoinc_sst_xtrabackup : MDEV-17304 Replace use of XtraBackup with MariaDB Backup
 galera_ist_innodb_flush_logs : MDEV-17304 Replace use of XtraBackup with MariaDB Backup
 galera_ist_xtrabackup-v2 : MDEV-17304 Replace use of XtraBackup with MariaDB Backup; will duplicate galera_sst_mariabackup test
