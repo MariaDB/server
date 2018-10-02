@@ -432,9 +432,9 @@ found_nullable:
 						    ->dropped);
 					DBUG_ASSERT(f.col < old_table->instant
 						    ->dropped + n_old_drop);
+					DBUG_ASSERT(!f.name);
 					f.col += instant_table->instant->dropped
 						- old_table->instant->dropped;
-					f.name = f.col->name(*instant_table);
 					if (f.col->is_nullable()) {
 						goto found_nullable;
 					}
