@@ -768,6 +768,7 @@ versioning.truncate                                                : Modified in
 
 wsrep.foreign_key                                                  : MDEV-14725 - WSREP has not yet prepared node
 wsrep.mdev_6832                                                    : MDEV-14195 - Check testcase failed
+wsrep.pool_of_threads                                              : MDEV-17345 - WSREP has not yet prepared node for application use
 wsrep.variables                                                    : MDEV-14311 - Wrong result; modified in 10.3.10
 
 #-----------------------------------------------------------------------
