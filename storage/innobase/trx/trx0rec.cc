@@ -1540,14 +1540,12 @@ trx_undo_update_rec_get_update(
 
 		const byte*	field;
 		ulint		len;
-		ulint		field_no;
 		ulint		orig_len;
-		bool		is_virtual;
 
 		upd_field = upd_get_nth_field(update, i);
-		field_no = mach_read_next_compressed(&ptr);
+		ulint field_no = mach_read_next_compressed(&ptr);
 
-		is_virtual = (field_no >= REC_MAX_N_FIELDS);
+		const bool is_virtual = (field_no >= REC_MAX_N_FIELDS);
 
 		if (is_virtual) {
 			/* If new version, we need to check index list to figure
@@ -1570,15 +1568,33 @@ trx_undo_update_rec_get_update(
 			}
 
 			upd_field_set_v_field_no(upd_field, field_no, index);
+		} else if (UNIV_UNLIKELY((update->info_bits
+					  & ~REC_INFO_DELETED_FLAG)
+					 == REC_INFO_MIN_REC_FLAG)
+			   && index->is_instant()) {
+			const ulint uf = index->first_user_field();
+			ut_ad(field_no >= uf);
+
+			if (update->info_bits != REC_INFO_MIN_REC_FLAG) {
+				if (field_no == uf) {
+					upd_field->new_val.type
+						.metadata_blob_init();
+				} else {
+					ut_ad(field_no > uf);
+					dict_col_copy_type(
+						dict_index_get_nth_col(
+							index, field_no - 1),
+						&upd_field->new_val.type);
+				}
+			} else {
+				dict_col_copy_type(
+					dict_index_get_nth_col(index,
+							       field_no),
+					&upd_field->new_val.type);
+			}
+			upd_field->field_no = field_no;
 		} else if (field_no < index->n_fields) {
 			upd_field_set_field_no(upd_field, field_no, index);
-		} else if (update->info_bits == REC_INFO_MIN_REC_FLAG
-			   && index->is_instant()) {
-			/* This must be a rollback of a subsequent
-			instant ADD COLUMN operation. This will be
-			detected and handled by btr_cur_trim(). */
-			upd_field->field_no = field_no;
-			upd_field->orig_len = 0;
 		} else {
 			ib::error() << "Trying to access update undo rec"
 				" field " << field_no
@@ -1610,6 +1626,12 @@ trx_undo_update_rec_get_update(
 			dfield_set_data(&upd_field->new_val, field, len);
 			dfield_set_ext(&upd_field->new_val);
 		}
+
+		ut_ad(update->info_bits != (REC_INFO_DELETED_FLAG
+					    | REC_INFO_MIN_REC_FLAG)
+		      || field_no != index->first_user_field()
+		      || (upd_field->new_val.ext
+			  && upd_field->new_val.len == FIELD_REF_SIZE));
 
 		if (is_virtual) {
 			upd_field->old_v_val = static_cast<dfield_t*>(
