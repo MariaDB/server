@@ -1039,20 +1039,35 @@ trx_undo_page_report_modify(
 			}
 		}
 
+		i = 0;
+
+		if (UNIV_UNLIKELY(update->is_alter_metadata())) {
+			ut_ad(update->n_fields >= 1);
+			ut_ad(!upd_fld_is_virtual_col(&update->fields[0]));
+			ut_ad(update->fields[0].field_no
+			      == index->first_user_field());
+			ut_ad(update->fields[0].new_val.ext);
+			ut_ad(update->fields[0].new_val.len == FIELD_REF_SIZE);
+			/* The instant ADD COLUMN metadata record does not
+			contain the BLOB. Do not write anything for it. */
+			i = !rec_is_alter_metadata(rec, index);
+			n_updated -= i;
+		}
+
 		ptr += mach_write_compressed(ptr, n_updated);
 
-		for (i = 0; i < upd_get_n_fields(update); i++) {
+		for (; i < upd_get_n_fields(update); i++) {
+			if (trx_undo_left(undo_block, ptr) < 5) {
+				return 0;
+			}
+
 			upd_field_t*	fld = upd_get_nth_field(update, i);
 
 			bool	is_virtual = upd_fld_is_virtual_col(fld);
 			ulint	max_v_log_len = 0;
 
-			ulint	pos = fld->field_no;
-
-			/* Write field number to undo log */
-			if (trx_undo_left(undo_block, ptr) < 5) {
-				return(0);
-			}
+			ulint pos = fld->field_no;
+			const dict_col_t* col = NULL;
 
 			if (is_virtual) {
 				/* Skip the non-indexed column, during
@@ -1065,13 +1080,13 @@ trx_undo_page_report_modify(
 
 				/* add REC_MAX_N_FIELDS to mark this
 				is a virtual col */
-				pos += REC_MAX_N_FIELDS;
-			}
+				ptr += mach_write_compressed(
+					ptr, pos + REC_MAX_N_FIELDS);
 
-			ptr += mach_write_compressed(ptr, pos);
+				if (trx_undo_left(undo_block, ptr) < 15) {
+					return 0;
+				}
 
-			/* Save the old value of field */
-			if (is_virtual) {
 				ut_ad(fld->field_no < table->n_v_def);
 
 				ptr = trx_undo_log_v_idx(undo_block, table,
@@ -1096,34 +1111,69 @@ trx_undo_page_report_modify(
 					flen = ut_min(
 						flen, max_v_log_len);
 				}
-			} else {
-				if (UNIV_UNLIKELY(rec_is_alter_metadata(
-							  rec, index))) {
-					field = rec_get_nth_def_field(
-						rec, index, offsets, pos, &flen);
-				} else {
-					field = rec_get_nth_cfield(
-						rec, index, offsets, pos, &flen);
-				}
+
+				goto store_len;
 			}
+
+			ut_ad(pos >= index->first_user_field());
+
+			if (UNIV_UNLIKELY(update->is_metadata())) {
+				ut_ad(rec_is_metadata(rec, index));
+
+				if (rec_is_alter_metadata(rec, index)) {
+					ut_ad(update->is_alter_metadata());
+					field = rec_get_nth_def_field(
+						rec, index, offsets, pos,
+						&flen);
+					if (pos == index->first_user_field()) {
+						ut_ad(rec_offs_nth_extern(
+							offsets, pos));
+						ut_ad(flen == FIELD_REF_SIZE);
+						goto write_field;
+					}
+					col = dict_index_get_nth_col(index,
+								     pos - 1);
+				} else if (!update->is_alter_metadata()) {
+					goto get_field;
+				} else {
+					/* We are converting an ADD COLUMN
+					metadata record to an ALTER TABLE
+					metadata record, with BLOB. Subtract
+					the missing metadata BLOB field. */
+					ut_ad(pos > index->first_user_field());
+					--pos;
+					goto get_field;
+				}
+			} else {
+get_field:
+				col = dict_index_get_nth_col(index, pos);
+				field = rec_get_nth_cfield(
+					rec, index, offsets, pos, &flen);
+			}
+write_field:
+			/* Write field number to undo log */
+			ptr += mach_write_compressed(ptr, pos);
 
 			if (trx_undo_left(undo_block, ptr) < 15) {
-				return(0);
+				return 0;
 			}
 
-			if (!is_virtual && rec_offs_nth_extern(offsets, pos)) {
-				const dict_col_t*	col
-					= dict_index_get_nth_col(index, pos);
-				ulint			prefix_len
-					= dict_max_field_len_store_undo(
-						table, col);
+			if (rec_offs_nth_extern(offsets, pos)) {
+				ut_ad(col || pos == index->first_user_field());
+				ut_ad(col || update->is_alter_metadata());
+				ut_ad(col || rec_is_alter_metadata(rec,index));
+				ulint prefix_len = col
+					? dict_max_field_len_store_undo(
+						table, col)
+					: 0;
 
 				ut_ad(prefix_len + BTR_EXTERN_FIELD_REF_SIZE
 				      <= sizeof ext_buf);
 
 				ptr = trx_undo_page_report_modify_ext(
 					ptr,
-					col->ord_part
+					col
+					&& col->ord_part
 					&& !ignore_prefix
 					&& flen < REC_ANTELOPE_MAX_INDEX_COL_LEN
 					? ext_buf : NULL, prefix_len,
@@ -1132,6 +1182,7 @@ trx_undo_page_report_modify(
 
 				*type_cmpl_ptr |= TRX_UNDO_UPD_EXTERN;
 			} else {
+store_len:
 				ptr += mach_write_compressed(ptr, flen);
 			}
 
