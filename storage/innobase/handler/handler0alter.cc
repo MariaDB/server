@@ -4772,7 +4772,8 @@ static dtuple_t* instant_metadata(
 
 /** Insert or update SYS_COLUMNS and the hidden metadata record
 for instant ALTER TABLE.
-@param[in,out]	ha_alter_info	ALTER TABLE context for the current partition
+@param[in]	ha_alter_info	ALTER TABLE context
+@param[in,out]	ctx		ALTER TABLE context for the current partition
 @param[in]	altered_table	MySQL table that is being altered
 @param[in]	table		MySQL table as it is before the ALTER operation
 @param[in,out]	trx		dictionary transaction
@@ -4780,12 +4781,11 @@ for instant ALTER TABLE.
 @retval	false	success */
 static bool innobase_instant_try(
 	const Alter_inplace_info*	ha_alter_info,
+	ha_innobase_inplace_ctx*	ctx,
 	const TABLE*			altered_table,
 	const TABLE*			table,
 	trx_t*				trx)
 {
-	ha_innobase_inplace_ctx* ctx = static_cast<ha_innobase_inplace_ctx*>(
-		ha_alter_info->handler_ctx);
 	DBUG_ASSERT(!ctx->need_rebuild());
 
 	if (!ctx->is_instant()) return false;
@@ -9427,7 +9427,7 @@ commit_try_norebuild(
 		DBUG_RETURN(true);
 	}
 
-	DBUG_RETURN(innobase_instant_try(ha_alter_info, altered_table,
+	DBUG_RETURN(innobase_instant_try(ha_alter_info, ctx, altered_table,
 					 old_table, trx));
 }
 
