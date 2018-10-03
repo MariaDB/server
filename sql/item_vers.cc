@@ -37,9 +37,8 @@ Item_func_trt_ts::Item_func_trt_ts(THD *thd, Item* a, TR_table::field_id_t _trt_
 
 
 bool
-Item_func_trt_ts::get_date(MYSQL_TIME *res, ulonglong fuzzy_date)
+Item_func_trt_ts::get_date(THD *thd, MYSQL_TIME *res, date_mode_t fuzzydate)
 {
-  THD *thd= current_thd; // can it differ from constructor's?
   DBUG_ASSERT(thd);
   DBUG_ASSERT(args[0]);
   if (args[0]->result_type() != INT_RESULT)
@@ -67,7 +66,7 @@ Item_func_trt_ts::get_date(MYSQL_TIME *res, ulonglong fuzzy_date)
     return true;
   }
 
-  return trt[trt_field]->get_date(res, fuzzy_date);
+  return trt[trt_field]->get_date(res, fuzzydate);
 }
 
 
@@ -143,7 +142,7 @@ Item_func_trt_id::val_int()
   else
   {
     MYSQL_TIME commit_ts;
-    if (args[0]->get_date(&commit_ts, 0))
+    if (args[0]->get_date(current_thd, &commit_ts, date_mode_t(0)))
     {
       null_value= true;
       return 0;

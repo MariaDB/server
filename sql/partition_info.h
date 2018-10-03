@@ -394,12 +394,13 @@ public:
   bool has_unique_name(partition_element *element);
 
   bool vers_init_info(THD *thd);
-  bool vers_set_interval(Item *item, interval_type int_type, my_time_t start)
+  bool vers_set_interval(THD *thd, Item *item,
+                         interval_type int_type, my_time_t start)
   {
     DBUG_ASSERT(part_type == VERSIONING_PARTITION);
     vers_info->interval.type= int_type;
     vers_info->interval.start= start;
-    return get_interval_value(item, int_type, &vers_info->interval.step) ||
+    return get_interval_value(thd, item, int_type, &vers_info->interval.step) ||
            vers_info->interval.step.neg || vers_info->interval.step.second_part ||
           !(vers_info->interval.step.year || vers_info->interval.step.month ||
             vers_info->interval.step.day || vers_info->interval.step.hour ||

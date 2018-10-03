@@ -3410,7 +3410,7 @@ public:
   }
   const Type_handler *type_handler_for_date() const;
   bool timestamp_to_TIME(MYSQL_TIME *ltime, my_time_t ts,
-                         ulong sec_part, ulonglong fuzzydate);
+                         ulong sec_part, date_mode_t fuzzydate);
   inline my_time_t query_start() { return start_time; }
   inline ulong query_start_sec_part()
   { query_start_sec_part_used=1; return start_time_sec_part; }
@@ -4952,10 +4952,17 @@ my_eof(THD *thd)
   (A)->variables.sql_log_bin_off= 0;}
 
 
-inline sql_mode_t sql_mode_for_dates(THD *thd)
+inline date_mode_t sql_mode_for_dates(THD *thd)
 {
-  return thd->variables.sql_mode &
-          (MODE_NO_ZERO_DATE | MODE_NO_ZERO_IN_DATE | MODE_INVALID_DATES);
+  static_assert(C_TIME_FUZZY_DATES   == date_mode_t::FUZZY_DATES &&
+                C_TIME_TIME_ONLY     == date_mode_t::TIME_ONLY,
+                "sql_mode_t and pure C library date flags must be equal");
+  static_assert(MODE_NO_ZERO_DATE    == date_mode_t::NO_ZERO_DATE &&
+                MODE_NO_ZERO_IN_DATE == date_mode_t::NO_ZERO_IN_DATE &&
+                MODE_INVALID_DATES   == date_mode_t::INVALID_DATES,
+                "sql_mode_t and date_mode_t values must be equal");
+  return date_mode_t(thd->variables.sql_mode &
+          (MODE_NO_ZERO_DATE | MODE_NO_ZERO_IN_DATE | MODE_INVALID_DATES));
 }
 
 /*

@@ -319,7 +319,7 @@ class Item_sum_hybrid_simple : public Item_sum,
   my_decimal *val_decimal(my_decimal *);
   void reset_field();
   String *val_str(String *);
-  bool get_date(MYSQL_TIME *ltime, ulonglong fuzzydate);
+  bool get_date(THD *thd, MYSQL_TIME *ltime, date_mode_t fuzzydate);
   const Type_handler *type_handler() const
   { return Type_handler_hybrid_field_type::type_handler(); }
   void update_field();
@@ -1272,7 +1272,7 @@ public:
     return res;
   }
 
-  bool get_date(MYSQL_TIME *ltime, ulonglong fuzzydate)
+  bool get_date(THD *thd, MYSQL_TIME *ltime, date_mode_t fuzzydate)
   {
     bool res;
     if (force_return_blank)
@@ -1289,7 +1289,7 @@ public:
     }
     else
     {
-      res= window_func()->get_date(ltime, fuzzydate);
+      res= window_func()->get_date(thd, ltime, fuzzydate);
       null_value= window_func()->null_value;
     }
     return res;

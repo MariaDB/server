@@ -61,12 +61,12 @@ extern uchar days_in_month[];
   TIME_FUZZY_DATES is used for the result will only be used for comparison
   purposes. Conversion is as relaxed as possible.
 */
-#define TIME_FUZZY_DATES        1U
-#define TIME_DATETIME_ONLY	2U
-#define TIME_TIME_ONLY	        4U
-#define TIME_NO_ZERO_IN_DATE    (1UL << 23) /* == MODE_NO_ZERO_IN_DATE */
-#define TIME_NO_ZERO_DATE	(1UL << 24) /* == MODE_NO_ZERO_DATE    */
-#define TIME_INVALID_DATES	(1UL << 25) /* == MODE_INVALID_DATES   */
+#define C_TIME_FUZZY_DATES      1U
+#define C_TIME_DATETIME_ONLY    2U
+#define C_TIME_TIME_ONLY        4U
+#define C_TIME_NO_ZERO_IN_DATE  (1UL << 23) /* == MODE_NO_ZERO_IN_DATE */
+#define C_TIME_NO_ZERO_DATE     (1UL << 24) /* == MODE_NO_ZERO_DATE    */
+#define C_TIME_INVALID_DATES    (1UL << 25) /* == MODE_INVALID_DATES   */
 
 #define MYSQL_TIME_WARN_TRUNCATED    1U
 #define MYSQL_TIME_WARN_OUT_OF_RANGE 2U

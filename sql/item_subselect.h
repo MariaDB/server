@@ -308,7 +308,7 @@ public:
   String *val_str (String *);
   my_decimal *val_decimal(my_decimal *);
   bool val_bool();
-  bool get_date(MYSQL_TIME *ltime, ulonglong fuzzydate);
+  bool get_date(THD *thd, MYSQL_TIME *ltime, date_mode_t fuzzydate);
   const Type_handler *type_handler() const;
   bool fix_length_and_dec();
 
@@ -405,8 +405,8 @@ public:
   String *val_str(String*);
   my_decimal *val_decimal(my_decimal *);
   bool val_bool();
-  bool get_date(MYSQL_TIME *ltime, ulonglong fuzzydate)
-  { return get_date_from_int(ltime, fuzzydate); }
+  bool get_date(THD *thd, MYSQL_TIME *ltime, date_mode_t fuzzydate)
+  { return get_date_from_int(thd, ltime, fuzzydate); }
   bool fix_fields(THD *thd, Item **ref);
   bool fix_length_and_dec();
   void print(String *str, enum_query_type query_type);

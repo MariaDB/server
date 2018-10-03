@@ -5965,7 +5965,7 @@ opt_versioning_rotation:
        | INTERVAL_SYM expr interval opt_versioning_interval_start
          {
            partition_info *part_info= Lex->part_info;
-           if (unlikely(part_info->vers_set_interval($2, $3, $4)))
+           if (unlikely(part_info->vers_set_interval(thd, $2, $3, $4)))
            {
              my_error(ER_PART_WRONG_VALUE, MYF(0),
                       Lex->create_last_non_select_table->table_name.str,

@@ -17,6 +17,7 @@
 #ifndef SQL_TIME_INCLUDED
 #define SQL_TIME_INCLUDED
 
+#include "sql_basic_types.h"
 #include "my_time.h"
 #include "mysql_time.h"                         /* timestamp_type */
 #include "sql_error.h"                          /* Sql_condition */
@@ -38,22 +39,26 @@ bool time_to_datetime(MYSQL_TIME *ltime);
 void time_to_daytime_interval(MYSQL_TIME *l_time);
 bool get_date_from_daynr(long daynr,uint *year, uint *month, uint *day);
 my_time_t TIME_to_timestamp(THD *thd, const MYSQL_TIME *t, uint *error_code);
-bool str_to_datetime_with_warn(CHARSET_INFO *cs, const char *str, size_t length, MYSQL_TIME *l_time,
-                               ulonglong flags);
-bool double_to_datetime_with_warn(double value, MYSQL_TIME *ltime,
-                                  ulonglong fuzzydate,
+bool str_to_datetime_with_warn(THD *thd,
+                               CHARSET_INFO *cs, const char *str, size_t length,
+                               MYSQL_TIME *l_time,
+                               date_mode_t flags);
+bool double_to_datetime_with_warn(THD *thd, double value, MYSQL_TIME *ltime,
+                                  date_mode_t fuzzydate,
                                   const char *name);
-bool decimal_to_datetime_with_warn(const my_decimal *value, MYSQL_TIME *ltime,
-                                   ulonglong fuzzydate,
+bool decimal_to_datetime_with_warn(THD *thd,
+                                   const my_decimal *value, MYSQL_TIME *ltime,
+                                   date_mode_t fuzzydate,
                                    const char *name);
-bool int_to_datetime_with_warn(bool neg, ulonglong value, MYSQL_TIME *ltime,
-                               ulonglong fuzzydate,
+bool int_to_datetime_with_warn(THD *thd, bool neg, ulonglong value,
+                               MYSQL_TIME *ltime,
+                               date_mode_t fuzzydate,
                                const char *name);
 
 bool time_to_datetime(THD *thd, const MYSQL_TIME *tm, MYSQL_TIME *dt);
 bool time_to_datetime_with_warn(THD *thd,
                                 const MYSQL_TIME *tm, MYSQL_TIME *dt,
-                                ulonglong fuzzydate);
+                                date_mode_t fuzzydate);
 
 inline void datetime_to_date(MYSQL_TIME *ltime)
 {
@@ -86,7 +91,7 @@ const char *get_date_time_format_str(KNOWN_DATE_TIME_FORMAT *format,
 bool my_TIME_to_str(const MYSQL_TIME *ltime, String *str, uint dec);
 
 /* MYSQL_TIME operations */
-bool date_add_interval(MYSQL_TIME *ltime, interval_type int_type,
+bool date_add_interval(THD *thd, MYSQL_TIME *ltime, interval_type int_type,
                        const INTERVAL &interval);
 bool calc_time_diff(const MYSQL_TIME *l_time1, const MYSQL_TIME *l_time2,
                     int l_sign, ulonglong *seconds_out, ulong *microseconds_out);
@@ -115,7 +120,7 @@ int append_interval(String *str, interval_type int_type,
   @return false        - otherwise
 */
 bool calc_time_diff(const MYSQL_TIME *l_time1, const MYSQL_TIME *l_time2,
-                    int lsign, MYSQL_TIME *l_time3, ulonglong fuzzydate);
+                    int lsign, MYSQL_TIME *l_time3, date_mode_t fuzzydate);
 int my_time_compare(const MYSQL_TIME *a, const MYSQL_TIME *b);
 void localtime_to_TIME(MYSQL_TIME *to, struct tm *from);
 
@@ -162,13 +167,14 @@ non_zero_date(const MYSQL_TIME *ltime)
           non_zero_hhmmssuu(ltime));
 }
 static inline bool
-check_date(const MYSQL_TIME *ltime, ulonglong flags, int *was_cut)
+check_date(const MYSQL_TIME *ltime, date_mode_t flags, int *was_cut)
 {
- return check_date(ltime, non_zero_date(ltime), flags, was_cut);
+ return check_date(ltime, non_zero_date(ltime),
+                   ulonglong(flags & TIME_MODE_FOR_XXX_TO_DATE), was_cut);
 }
-bool check_date_with_warn(const MYSQL_TIME *ltime, ulonglong fuzzy_date,
+bool check_date_with_warn(THD *thd, const MYSQL_TIME *ltime, date_mode_t fuzzy_date,
                           timestamp_type ts_type);
-bool adjust_time_range_with_warn(MYSQL_TIME *ltime, uint dec);
+bool adjust_time_range_with_warn(THD *thd, MYSQL_TIME *ltime, uint dec);
 
 longlong pack_time(const MYSQL_TIME *my_time);
 void unpack_time(longlong packed, MYSQL_TIME *my_time,
