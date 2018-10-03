@@ -1025,13 +1025,6 @@ page_get_direction(const page_t* page)
 inline
 uint16_t
 page_get_instant(const page_t* page);
-/** Assign the PAGE_INSTANT field.
-@param[in,out]	page	clustered index root page
-@param[in]	n	original number of clustered index fields
-@param[in,out]	mtr	mini-transaction */
-inline
-void
-page_set_instant(page_t* page, unsigned n, mtr_t* mtr);
 
 /**********************************************************//**
 Create an uncompressed B-tree index page.

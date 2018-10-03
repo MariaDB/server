@@ -5044,22 +5044,19 @@ empty_table:
 		goto func_exit;
 	}
 
-	/* Convert the table to the instant ADD COLUMN format. */
+	/* Convert the table to the instant ALTER TABLE format. */
 	ut_ad(user_table->is_instant());
 	mtr.commit();
 	mtr.start();
 	index->set_modified(mtr);
-	if (page_t* root = btr_root_get(index, &mtr)) {
-		if (fil_page_get_type(root) != FIL_PAGE_INDEX) {
+	if (buf_block_t* root = btr_root_block_get(index, RW_SX_LATCH, &mtr)) {
+		if (root->page.encrypted
+		    || fil_page_get_type(root->frame) != FIL_PAGE_INDEX) {
 			DBUG_ASSERT(!"wrong page type");
 			goto err_exit;
 		}
 
-		DBUG_ASSERT(!page_is_comp(root) || !page_get_instant(root));
-		mlog_write_ulint(root + FIL_PAGE_TYPE,
-				 FIL_PAGE_TYPE_INSTANT, MLOG_2BYTES,
-				 &mtr);
-		page_set_instant(root, index->n_core_fields, &mtr);
+		btr_set_instant(root, *index, &mtr);
 		mtr.commit();
 		mtr.start();
 		index->set_modified(mtr);

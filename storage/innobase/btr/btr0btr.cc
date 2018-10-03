@@ -1895,6 +1895,42 @@ btr_page_empty(
 	}
 }
 
+/** Write instant ALTER TABLE metadata to a root page.
+@param[in,out]	root	clustered index root page
+@param[in]	index	clustered index with instant ALTER TABLE
+@param[in,out]	mtr	mini-transaction */
+void btr_set_instant(buf_block_t* root, const dict_index_t& index, mtr_t* mtr)
+{
+	ut_ad(index.n_core_fields > 0);
+	ut_ad(index.n_core_fields < REC_MAX_N_FIELDS);
+	ut_ad(index.is_instant());
+	ut_ad(page_is_root(root->frame));
+	ut_ad(!page_is_comp(root->frame) || !page_get_instant(root->frame));
+
+	rec_t* infimum = page_get_infimum_rec(root->frame);
+	rec_t* supremum = page_get_supremum_rec(root->frame);
+	ut_ad(!memcmp(infimum, "infimum", 8));
+	ut_ad(!memcmp(supremum, "supremum", 8));
+
+	byte* page_type = root->frame + FIL_PAGE_TYPE;
+	ut_ad(mach_read_from_2(page_type) == FIL_PAGE_INDEX);
+	mlog_write_ulint(page_type, FIL_PAGE_TYPE_INSTANT,
+			 MLOG_2BYTES, mtr);
+
+	uint16_t i = page_header_get_field(root->frame, PAGE_INSTANT);
+	ut_ad(i <= PAGE_NO_DIRECTION);
+	i |= index.n_core_fields << 3;
+	mlog_write_ulint(PAGE_HEADER + PAGE_INSTANT + root->frame, i,
+			 MLOG_2BYTES, mtr);
+
+	if (index.table->instant) {
+		mlog_memset(root, infimum - root->frame, 8, 0, mtr);
+		mlog_memset(root, supremum - root->frame, 7, 0, mtr);
+		mlog_write_ulint(&supremum[7], index.n_core_null_bytes,
+				 MLOG_1BYTE, mtr);
+	}
+}
+
 /*************************************************************//**
 Makes tree one level higher by splitting the root, and inserts
 the tuple. It is assumed that mtr contains an x-latch on the tree.
@@ -2080,11 +2116,7 @@ btr_root_raise_and_insert(
 
 	if (index->is_instant()) {
 		ut_ad(!root_page_zip);
-		byte* page_type = root_block->frame + FIL_PAGE_TYPE;
-		ut_ad(mach_read_from_2(page_type) == FIL_PAGE_INDEX);
-		mlog_write_ulint(page_type, FIL_PAGE_TYPE_INSTANT,
-				 MLOG_2BYTES, mtr);
-		page_set_instant(root_block->frame, index->n_core_fields, mtr);
+		btr_set_instant(root_block, *index, mtr);
 	}
 
 	/* Set the next node and previous node fields, although
@@ -3569,12 +3601,7 @@ btr_lift_page_up(
 
 	if (page_level == 0 && index->is_instant()) {
 		ut_ad(!father_page_zip);
-		byte* page_type = father_block->frame + FIL_PAGE_TYPE;
-		ut_ad(mach_read_from_2(page_type) == FIL_PAGE_INDEX);
-		mlog_write_ulint(page_type, FIL_PAGE_TYPE_INSTANT,
-				 MLOG_2BYTES, mtr);
-		page_set_instant(father_block->frame,
-				 index->n_core_fields, mtr);
+		btr_set_instant(father_block, *index, mtr);
 	}
 
 	page_level++;

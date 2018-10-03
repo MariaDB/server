@@ -399,18 +399,19 @@ btr_cur_instant_init_metadata(
 	const rec_t*	rec,
 	dict_index_t*	index)
 {
-	ulint*		offsets;
-	ulint		len;
-	mem_heap_t*	heap = mem_heap_create(UNIV_PAGE_SIZE_MAX);
-
 	ulint trx_id_offset = index->trx_id_offset;
 	if (!trx_id_offset) {
-		ulint*	offsets = rec_get_offsets(
-			rec, index, NULL, true, index->n_uniq, &heap);
-		trx_id_offset = rec_offs_size(offsets);
-		mem_heap_empty(heap);
+		/* The PRIMARY KEY contains variable-length columns.
+		For the metadata record, variable-length columns are
+		always written with zero length. The DB_TRX_ID will
+		start right after any fixed-length columns. */
+		for (uint i = index->n_uniq; i--; ) {
+			trx_id_offset += index->fields[0].fixed_len;
+		}
 	}
 
+	mem_heap_t* heap = mem_heap_create(UNIV_PAGE_SIZE_MAX);
+	ulint len;
 	const byte* data = btr_copy_externally_stored_field(
 		&len, rec + trx_id_offset
 		+ (DATA_TRX_ID_LEN + DATA_ROLL_PTR_LEN),
@@ -426,10 +427,10 @@ btr_cur_instant_init_metadata(
 
 	/* FIXME: Do we really need rec_get_offsets() here?
 	Better read the metadata record header directly. */
-	offsets = rec_get_offsets(rec, index, NULL, true,
-				  ULINT_UNDEFINED, &heap);
+	ulint* offsets = rec_get_offsets(rec, index, NULL, true,
+					 ULINT_UNDEFINED, &heap);
 
-	for (unsigned i = index->n_uniq + DATA_ROLL_PTR;
+	for (unsigned i = index->first_user_field();
 	     i < index->n_fields; i++) {
 		const byte* data = rec_get_nth_field(
 				rec, offsets, i + 1, &len);
@@ -477,30 +478,93 @@ btr_cur_instant_init_metadata(
 	return DB_SUCCESS;
 }
 
-/** Initialize the clustered index from the ADD COLUMN metadata
-and store the default value for the instantly added columns.
-@param[in]	rec	metadata record
+/** Load the instant ALTER TABLE metadata from the clustered index
+when loading a table definition.
 @param[in,out]	index	clustered index definition
+@param[in,out]	mtr	mini-transaction
 @return	error code
 @retval	DB_SUCCESS	if no error occurred
 @retval	DB_CORRUPTION	if any corruption was noticed */
 static
 dberr_t
-btr_cur_instant_init_add_column(
-	const rec_t*	rec,
-	dict_index_t*	index)
+btr_cur_instant_init_low(dict_index_t* index, mtr_t* mtr)
 {
+	ut_ad(index->is_primary());
+	ut_ad(index->n_core_null_bytes == dict_index_t::NO_CORE_NULL_BYTES);
+	ut_ad(index->table->supports_instant());
+	ut_ad(index->table->is_readable());
+
+	page_t* root = btr_root_get(index, mtr);
+
+	if (!root || btr_cur_instant_root_init(index, root)) {
+		ib::error() << "Table " << index->table->name
+			    << " has an unreadable root page";
+		index->table->corrupted = true;
+		return DB_CORRUPTION;
+	}
+
+	ut_ad(index->n_core_null_bytes != dict_index_t::NO_CORE_NULL_BYTES);
+
+	if (fil_page_get_type(root) == FIL_PAGE_INDEX) {
+		ut_ad(!index->is_instant());
+		return DB_SUCCESS;
+	}
+
+	btr_cur_t cur;
+	dberr_t err = btr_cur_open_at_index_side(true, index, BTR_SEARCH_LEAF,
+						 &cur, 0, mtr);
+	if (err != DB_SUCCESS) {
+		index->table->corrupted = true;
+		return err;
+	}
+
+	ut_ad(page_cur_is_before_first(&cur.page_cur));
+	ut_ad(page_is_leaf(cur.page_cur.block->frame));
+
+	page_cur_move_to_next(&cur.page_cur);
+
+	const rec_t* rec = cur.page_cur.rec;
+	const ulint comp = dict_table_is_comp(index->table);
+	const ulint info_bits = rec_get_info_bits(rec, comp);
+
+	if (page_rec_is_supremum(rec)
+	    || !(info_bits & REC_INFO_MIN_REC_FLAG)) {
+		ib::error() << "Table " << index->table->name
+			    << " is missing instant ALTER metadata";
+		index->table->corrupted = true;
+		return DB_CORRUPTION;
+	}
+
+	if ((info_bits & ~REC_INFO_DELETED_FLAG) != REC_INFO_MIN_REC_FLAG
+	    || (comp && rec_get_status(rec) != REC_STATUS_INSTANT)) {
+incompatible:
+		ib::error() << "Table " << index->table->name
+			<< " contains unrecognizable instant ALTER metadata";
+		index->table->corrupted = true;
+		return DB_CORRUPTION;
+	}
+
+	/* Read the metadata. We can get here on server restart
+	or when the table was evicted from the data dictionary cache
+	and is now being accessed again.
+
+	Here, READ COMMITTED and REPEATABLE READ should be equivalent.
+	Committing the ADD COLUMN operation would acquire
+	MDL_EXCLUSIVE and LOCK_X|LOCK_TABLE, which would prevent any
+	concurrent operations on the table, including table eviction
+	from the cache. */
+
+	if (info_bits & REC_INFO_DELETED_FLAG) {
+		return btr_cur_instant_init_metadata(rec, index);
+	}
+
 	mem_heap_t* heap = NULL;
 	ulint* offsets = rec_get_offsets(rec, index, NULL, true,
 					 ULINT_UNDEFINED, &heap);
 	if (rec_offs_any_default(offsets)) {
 inconsistent:
 		mem_heap_free(heap);
-		ib::error() << "Table " << index->table->name
-			<< " contains unrecognizable "
-			"instant ALTER metadata";
-		index->table->corrupted = true;
-		return DB_CORRUPTION;
+		goto incompatible;
 	}
 
 	/* In fact, because we only ever append fields to the metadata
@@ -548,94 +612,6 @@ inconsistent:
 
 	mem_heap_free(heap);
 	return DB_SUCCESS;
-}
-
-/** Load the instant ALTER TABLE metadata from the clustered index
-when loading a table definition.
-@param[in,out]	index	clustered index definition
-@param[in,out]	mtr	mini-transaction
-@return	error code
-@retval	DB_SUCCESS	if no error occurred
-@retval	DB_CORRUPTION	if any corruption was noticed */
-static
-dberr_t
-btr_cur_instant_init_low(dict_index_t* index, mtr_t* mtr)
-{
-	ut_ad(index->is_primary());
-	ut_ad(index->n_core_null_bytes == dict_index_t::NO_CORE_NULL_BYTES);
-	ut_ad(index->table->supports_instant());
-	ut_ad(index->table->is_readable());
-
-	page_t* root = btr_root_get(index, mtr);
-
-	if (!root || btr_cur_instant_root_init(index, root)) {
-		ib::error() << "Table " << index->table->name
-			    << " has an unreadable root page";
-		index->table->corrupted = true;
-		return DB_CORRUPTION;
-	}
-
-	index->n_core_null_bytes = UT_BITS_IN_BYTES(unsigned(index->n_nullable));
-	ut_ad(index->n_core_null_bytes != dict_index_t::NO_CORE_NULL_BYTES);
-
-	if (!index->is_instant()) {
-		return DB_SUCCESS;
-	}
-
-	btr_cur_t cur;
-	dberr_t err = btr_cur_open_at_index_side(true, index, BTR_SEARCH_LEAF,
-						 &cur, 0, mtr);
-	if (err != DB_SUCCESS) {
-		index->table->corrupted = true;
-		return err;
-	}
-
-	ut_ad(page_cur_is_before_first(&cur.page_cur));
-	ut_ad(page_is_leaf(cur.page_cur.block->frame));
-
-	page_cur_move_to_next(&cur.page_cur);
-
-	const rec_t* rec = cur.page_cur.rec;
-
-	if (page_rec_is_supremum(rec) || !rec_is_metadata(rec, index)) {
-		ib::error() << "Table " << index->table->name
-			    << " is missing instant ALTER metadata";
-		index->table->corrupted = true;
-		return DB_CORRUPTION;
-	}
-
-	if (dict_table_is_comp(index->table)) {
-		if (rec_get_info_bits(rec, true) != REC_INFO_MIN_REC_FLAG
-		    && rec_get_status(rec) != REC_STATUS_INSTANT) {
-incompatible:
-			ib::error() << "Table " << index->table->name
-				<< " contains unrecognizable "
-				"instant ALTER metadata";
-			index->table->corrupted = true;
-			return DB_CORRUPTION;
-		}
-	} else if (rec_get_info_bits(rec, false) != REC_INFO_MIN_REC_FLAG) {
-		goto incompatible;
-	}
-
-	/* Read the metadata. We can get here on server restart
-	or when the table was evicted from the data dictionary cache
-	and is now being accessed again.
-
-	Here, READ COMMITTED and REPEATABLE READ should be equivalent.
-	Committing the ADD COLUMN operation would acquire
-	MDL_EXCLUSIVE and LOCK_X|LOCK_TABLE, which would prevent any
-	concurrent operations on the table, including table eviction
-	from the cache. */
-
-	if (rec_is_alter_metadata(rec, index)) {
-		return btr_cur_instant_init_metadata(rec, index);
-	}
-
-	index->n_core_null_bytes = UT_BITS_IN_BYTES(
-			index->get_n_nullable(index->n_core_fields));
-
-	return btr_cur_instant_init_add_column(rec, index);
 }
 
 /** Load the instant ALTER TABLE metadata from the clustered index
@@ -693,18 +669,46 @@ btr_cur_instant_root_init(dict_index_t* index, const page_t* page)
 		break;
 	}
 
-	uint16_t n = page_get_instant(page);
+	const uint16_t n = page_get_instant(page);
+
 	if (n < index->n_uniq + DATA_ROLL_PTR) {
 		/* The PRIMARY KEY (or hidden DB_ROW_ID) and
 		DB_TRX_ID,DB_ROLL_PTR columns must always be present
-		as 'core' fields. All fields, including those for
-		instantly added columns, must be present in the data
-		dictionary. */
+		as 'core' fields. */
 		return true;
 	}
 
-	index->n_core_fields = n;
-	return false;
+	const rec_t* infimum = page_get_infimum_rec(page);
+	const rec_t* supremum = page_get_supremum_rec(page);
+
+	if (!memcmp(infimum, "infimum", 8)
+	    && !memcmp(supremum, "supremum", 8)) {
+		if (n > index->n_fields) {
+			/* All fields, including those for instantly
+			added columns, must be present in the
+			data dictionary. */
+			return true;
+		}
+
+		index->n_core_fields = n;
+		ut_ad(!index->is_dummy);
+		ut_d(index->is_dummy = true);
+		index->n_core_null_bytes = UT_BITS_IN_BYTES(
+			index->get_n_nullable(n));
+		ut_d(index->is_dummy = false);
+		return false;
+	}
+
+	if (memcmp(infimum, field_ref_zero, 8)
+	    || memcmp(supremum, field_ref_zero, 7)) {
+		/* The infimum and supremum records must either contain
+		the original strings, or they must be filled with zero
+		bytes, except for the bytes that we have repurposed. */
+		return true;
+	}
+
+	index->n_core_null_bytes = supremum[7];
+	return index->n_core_null_bytes > 128;
 }
 
 /** Optimistically latches the leaf page or pages requested.
@@ -4738,7 +4742,8 @@ btr_cur_pessimistic_update(
 						  &n_ext, entry_heap,
 						  update->info_bits);
 		ut_ad(new_entry->n_fields
-		      == index->n_fields + update->is_alter_metadata());
+		      == ulint(index->n_fields)
+		      + update->is_alter_metadata());
 	} else {
 		new_entry = row_rec_to_index_entry(rec, index, *offsets,
 						   &n_ext, entry_heap);

@@ -1212,7 +1212,7 @@ void dict_index_t::reconstruct_fields()
 		if (col_no == 0) {
 			/* Dropped Column */
 			temp_fields[i].col = &table->instant->dropped[j++];
-			ut_ad(i == unsigned(temp_fields[i].col->ind));
+			ut_ad(temp_fields[i].col->is_dropped());
 		} else {
 			field = fields[o++];
 			temp_fields[i].col = &table->cols[col_no - 1];
