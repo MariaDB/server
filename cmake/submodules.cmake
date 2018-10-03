@@ -1,4 +1,10 @@
 # update submodules automatically
+
+OPTION(UPDATE_SUBMODULES "Update submodules automatically" ON)
+IF(NOT UPDATE_SUBMODULES)
+  RETURN()
+ENDIF()
+
 IF(GIT_EXECUTABLE AND EXISTS "${CMAKE_SOURCE_DIR}/.git")
   EXECUTE_PROCESS(COMMAND "${GIT_EXECUTABLE}" config --get cmake.update-submodules
                   WORKING_DIRECTORY "${CMAKE_SOURCE_DIR}"
