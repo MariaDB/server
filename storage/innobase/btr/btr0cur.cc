@@ -413,7 +413,14 @@ btr_cur_instant_init_low(dict_index_t* index, mtr_t* mtr)
 	ut_ad(index->n_core_null_bytes != dict_index_t::NO_CORE_NULL_BYTES);
 
 	if (!index->is_instant()) {
-		return DB_SUCCESS;
+		if (fil_page_get_type(root) == FIL_PAGE_INDEX) {
+			return DB_SUCCESS;
+		}
+incompatible:
+		ib::error() << "Table " << index->table->name
+			<< " contains unrecognizable instant ALTER metadata";
+		index->table->corrupted = true;
+		return DB_CORRUPTION;
 	}
 
 	btr_cur_t cur;
@@ -430,25 +437,19 @@ btr_cur_instant_init_low(dict_index_t* index, mtr_t* mtr)
 	page_cur_move_to_next(&cur.page_cur);
 
 	const rec_t* rec = cur.page_cur.rec;
+	const ulint comp = dict_table_is_comp(index->table);
+	const ulint info_bits = rec_get_info_bits(rec, comp);
 
-	if (page_rec_is_supremum(rec) || !rec_is_metadata(rec, index)) {
+	if (page_rec_is_supremum(rec)
+	    || !(info_bits & REC_INFO_MIN_REC_FLAG)) {
 		ib::error() << "Table " << index->table->name
 			    << " is missing instant ALTER metadata";
 		index->table->corrupted = true;
 		return DB_CORRUPTION;
 	}
 
-	if (dict_table_is_comp(index->table)) {
-		if (rec_get_info_bits(rec, true) != REC_INFO_MIN_REC_FLAG
-		    && rec_get_status(rec) != REC_STATUS_COLUMNS_ADDED) {
-incompatible:
-			ib::error() << "Table " << index->table->name
-				<< " contains unrecognizable "
-				"instant ALTER metadata";
-			index->table->corrupted = true;
-			return DB_CORRUPTION;
-		}
-	} else if (rec_get_info_bits(rec, false) != REC_INFO_MIN_REC_FLAG) {
+	if (info_bits != REC_INFO_MIN_REC_FLAG
+	    || (comp && rec_get_status(rec) != REC_STATUS_COLUMNS_ADDED)) {
 		goto incompatible;
 	}
 
