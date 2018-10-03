@@ -412,10 +412,15 @@ btr_cur_instant_init_low(dict_index_t* index, mtr_t* mtr)
 
 	ut_ad(index->n_core_null_bytes != dict_index_t::NO_CORE_NULL_BYTES);
 
-	if (!index->is_instant()) {
-		if (fil_page_get_type(root) == FIL_PAGE_INDEX) {
-			return DB_SUCCESS;
-		}
+	if (fil_page_get_type(root) == FIL_PAGE_INDEX) {
+		ut_ad(!index->is_instant());
+		return DB_SUCCESS;
+	}
+
+	/* In a later format, these fields in a FIL_PAGE_TYPE_INSTANT
+	root page could be repurposed for something else. */
+	if (memcmp(page_get_infimum_rec(root), "infimum", 8)
+	    || memcmp(page_get_supremum_rec(root), "supremum", 8)) {
 incompatible:
 		ib::error() << "Table " << index->table->name
 			<< " contains unrecognizable instant ALTER metadata";
@@ -442,6 +447,17 @@ incompatible:
 
 	if (page_rec_is_supremum(rec)
 	    || !(info_bits & REC_INFO_MIN_REC_FLAG)) {
+		if (!index->is_instant()) {
+			/* The FIL_PAGE_TYPE_INSTANT and PAGE_INSTANT may be
+			assigned even if instant ADD COLUMN was not
+			committed. Changes to these page header fields are not
+			undo-logged, but changes to the hidden metadata record
+			are. If the server is killed and restarted, the page
+			header fields could remain set even though no metadata
+			record is present. */
+			return DB_SUCCESS;
+		}
+
 		ib::error() << "Table " << index->table->name
 			    << " is missing instant ALTER metadata";
 		index->table->corrupted = true;
