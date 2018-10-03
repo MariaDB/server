@@ -1590,17 +1590,6 @@ struct dict_table_t {
 
 		return n_drop_cols;
 	}
-	/** Read the metadata blob and fill the non primary fields,
-	non-drop nullable fields and fill the drop columns in the
-	vector.
-	@param[in]	blob_data		blob data which contains
-						drop column information
-	@param[out]	non_pk_fields		number of non-primary key fields
-	@param[out]	dropped_col_list	 dropped column list */
-	void read_metadata_blob(
-		byte*			blob_data,
-		ulint*			non_pk_fields,
-		std::vector<ulint>&	dropped_col_list);
 
 	/** Construct the blob with contains the non-primary key for
 	the clustered index.
