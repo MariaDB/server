@@ -1191,39 +1191,46 @@ operator<< (std::ostream& out, const dict_foreign_set& fk_set)
 	out << "]" << std::endl;
 	return(out);
 }
-/** Reconstruct the fields of the clustered index with dropped column
-fields. */
-void dict_index_t::reconstruct_fields()
+
+/** Reconstruct the clustered index fields. */
+inline void dict_index_t::reconstruct_fields()
 {
+	DBUG_ASSERT(is_primary());
+
 	n_fields += table->instant->n_dropped;
 	n_def += table->instant->n_dropped;
 
-	unsigned	n_pk_fields = unsigned(n_uniq + DATA_ROLL_PTR);
+	const unsigned n_first = first_user_field();
 
-	dict_field_t	field;
-	dict_field_t*	temp_fields = static_cast<dict_field_t*>(
-		mem_heap_zalloc(heap, n_fields * sizeof *temp_fields));
+	dict_field_t* tfields = static_cast<dict_field_t*>(
+		mem_heap_alloc(heap, n_fields * sizeof *fields));
 
-	memcpy(temp_fields, fields, n_pk_fields * sizeof(dict_field_t));
+	memcpy(tfields, fields, n_first * sizeof *fields);
 
-	for (unsigned i = n_pk_fields, o = i, j = 0; i < n_fields; i++) {
-		unsigned col_no = table->instant->non_pk_col_map[
-			i - n_pk_fields];
-		if (col_no == 0) {
-			/* Dropped Column */
-			temp_fields[i].col = &table->instant->dropped[j++];
-			ut_ad(temp_fields[i].col->is_dropped());
+	n_nullable = 0;
+	ulint n_core_null = 0;
+
+	for (unsigned i = n_first, o = i, j = 0; i < n_fields; ) {
+		dict_field_t& f = tfields[i++];
+		unsigned c = table->instant->non_pk_col_map[i - n_first];
+		if (c == 0) {
+			f.col = &table->instant->dropped[j++];
+			ut_ad(f.col->is_dropped());
 		} else {
-			field = fields[o++];
-			temp_fields[i].col = &table->cols[col_no - 1];
-			temp_fields[i].name = dict_table_get_col_name(
-				table, dict_col_get_no(temp_fields[i].col));
-			temp_fields[i].fixed_len = field.fixed_len;
-			temp_fields[i].prefix_len = field.prefix_len;
+			f = fields[o++];
+			f.col = &table->cols[c - 1];
+			f.name = f.col->name(*table);
+		}
+
+		f.col->clear_instant();
+		if (f.col->is_nullable()) {
+			n_nullable++;
+			n_core_null += i < n_core_fields;
 		}
 	}
 
-	fields = temp_fields;
+	fields = tfields;
+	n_core_null_bytes = UT_BITS_IN_BYTES(n_core_null);
 }
 
 /** Remove instant ALTER TABLE metadata.
@@ -1240,7 +1247,7 @@ void dict_index_t::remove_instant()
 	if (!n_dropped) {
 		/* FIXME: reorder columns too! */
 		for (unsigned i = n_core_fields; i < n_fields; i++) {
-			fields[i].col->add_to_core();
+			fields[i].col->clear_instant();
 		}
 
 		n_core_fields = n_fields;
@@ -1274,9 +1281,7 @@ void dict_index_t::remove_instant()
 				table, dict_col_get_no(field.col));
 		temp_field.col = &table->cols[field.col->ind];
 
-		if (temp_field.col->is_added()) {
-			temp_field.col->add_to_core();
-		}
+		temp_field.col->clear_instant();
 
 		if (temp_field.col->is_nullable()) {
 			n_null++;
@@ -1544,19 +1549,21 @@ byte* dict_table_t::construct_metadata_blob(
 	return data;
 }
 
-/** Construct dropped columns for the table using metadata
-blob data.
-@param[in]	data	metadata blob data */
-void dict_table_t::construct_dropped_columns(const byte* data)
+/** Reconstruct dropped columns.
+@param[in]	metadata	data about dropped and reordered columns
+@param[in]	len		length of the metadata, in bytes
+@return whether parsing the metadata failed */
+bool dict_table_t::reconstruct_columns(const byte* metadata, ulint len)
 {
 	ut_ad(!instant);
-	unsigned num_non_pk_fields = mach_read_from_4(data);
+
+	unsigned num_non_pk_fields = mach_read_from_4(metadata);
 
 	unsigned* non_pk_col_map = static_cast<unsigned*>(
 		mem_heap_zalloc(heap,
 				num_non_pk_fields * sizeof *non_pk_col_map));
 
-	const byte*	field_data = data + INSTANT_NON_PK_FIELDS_LEN;
+	const byte*	field_data = metadata + INSTANT_NON_PK_FIELDS_LEN;
 	std::vector<unsigned> fixed_dcols;
 	unsigned n_dropped_cols = 0;
 
@@ -1599,6 +1606,9 @@ void dict_table_t::construct_dropped_columns(const byte* data)
 			!= fixed_dcols.end()
 			? DATA_FIXBINARY : DATA_BINARY;
 	}
+
+	UT_LIST_GET_FIRST(indexes)->reconstruct_fields();
+	return false;
 }
 
 /** Find the old column number for the given new column position.

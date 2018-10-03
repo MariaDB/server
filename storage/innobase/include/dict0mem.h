@@ -659,9 +659,8 @@ public:
 	}
 
 	/** Remove the 'instant ADD' status of the column */
-	void add_to_core()
+	void clear_instant()
 	{
-		DBUG_ASSERT(is_added());
 		def_val.len = UNIV_SQL_DEFAULT;
 		def_val.data = NULL;
 	}
@@ -1141,9 +1140,8 @@ struct dict_index_t {
 	bool
 	vers_history_row(const rec_t* rec, bool &history_row);
 
-	/** Reconstruct the fields of the clustered index with
-	dropped column fields. */
-	void reconstruct_fields();
+	/** Reconstruct the clustered index fields. */
+	inline void reconstruct_fields();
 };
 
 /** Detach a column from an index.
@@ -1600,10 +1598,11 @@ struct dict_table_t {
 		mem_heap_t*	heap,
 		unsigned*	len);
 
-	/** Construct dropped columns for the table using the
-	metadata blob data.
-	@param[in]	data	metadata blob data. */
-	void construct_dropped_columns(const byte* data);
+	/** Reconstruct dropped columns.
+	@param[in]	metadata	data about dropped and reordered columns
+	@param[in]	len		length of the metadata, in bytes
+	@return whether parsing the metadata failed */
+	bool reconstruct_columns(const byte* metadata, ulint len);
 
 	/** Adjust table metadata for instant ADD/DROP/reorder COLUMN.
 	@param[in]	table		altered table (with dropped columns)

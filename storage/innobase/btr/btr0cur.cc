@@ -385,99 +385,6 @@ btr_cur_latch_leaves(
 	return(latch_leaves);
 }
 
-/** Initialize the clustered index from the hidden metadata record
-of an instant alter and store the length of the dropped column and
-default value for the instantly added columns.
-@param[in]	rec	metadata record
-@param[in,out]	index	clustered index definition
-@return	error code
-@retval	DB_SUCCESS	if no error occurred
-@retval	DB_CORRUPTION	if any corruption was noticed */
-static
-dberr_t
-btr_cur_instant_init_metadata(
-	const rec_t*	rec,
-	dict_index_t*	index)
-{
-	ulint trx_id_offset = index->trx_id_offset;
-	if (!trx_id_offset) {
-		/* The PRIMARY KEY contains variable-length columns.
-		For the metadata record, variable-length columns are
-		always written with zero length. The DB_TRX_ID will
-		start right after any fixed-length columns. */
-		for (uint i = index->n_uniq; i--; ) {
-			trx_id_offset += index->fields[0].fixed_len;
-		}
-	}
-
-	mem_heap_t* heap = mem_heap_create(UNIV_PAGE_SIZE_MAX);
-	ulint len;
-	const byte* data = btr_copy_externally_stored_field(
-		&len, rec + trx_id_offset
-		+ (DATA_TRX_ID_LEN + DATA_ROLL_PTR_LEN),
-		dict_table_page_size(index->table),
-		BTR_EXTERN_FIELD_REF_SIZE, heap);
-	/* FIXME: validate len; check that the end of the last BLOB
-	page is filled with zero bytes */
-
-	index->table->construct_dropped_columns(data);
-	mem_heap_empty(heap);
-
-	index->reconstruct_fields();
-
-	/* FIXME: Do we really need rec_get_offsets() here?
-	Better read the metadata record header directly. */
-	ulint* offsets = rec_get_offsets(rec, index, NULL, true,
-					 ULINT_UNDEFINED, &heap);
-
-	for (unsigned i = index->first_user_field();
-	     i < index->n_fields; i++) {
-		const byte* data = rec_get_nth_field(
-				rec, offsets, i + 1, &len);
-		dict_col_t* col = index->fields[i].col;
-
-		switch (len) {
-			case UNIV_SQL_NULL:
-				continue;
-			case 0:
-				col->def_val.data = field_ref_zero;
-				continue;
-		}
-
-		ut_ad(len != UNIV_SQL_DEFAULT);
-
-		if (col->is_dropped()) {
-			col->def_val.data = field_ref_zero;
-			col->len = len;
-			index->fields[i].fixed_len = len;
-
-			if (!rec_offs_nth_sql_null(offsets, i + 1)) {
-				col->prtype = DATA_NOT_NULL;
-			}
-		} else if (!rec_offs_nth_extern(offsets, i)) {
-			col->def_val.len = len;
-			col->def_val.data = mem_heap_dup(
-					index->table->heap, data, len);
-		} else {
-			col->def_val.data = btr_copy_externally_stored_field(
-					&col->def_val.len, data,
-					dict_table_page_size(index->table),
-					len, index->table->heap);
-		}
-	}
-
-	ulint	n_core_null = 0;
-	for (unsigned i = 0; i < index->n_core_fields; i++) {
-		if (index->fields[i].col->is_nullable()) {
-			n_core_null++;
-		}
-	}
-
-	index->n_core_null_bytes = UT_BITS_IN_BYTES(n_core_null);
-	mem_heap_free(heap);
-	return DB_SUCCESS;
-}
-
 /** Load the instant ALTER TABLE metadata from the clustered index
 when loading a table definition.
 @param[in,out]	index	clustered index definition
@@ -494,13 +401,19 @@ btr_cur_instant_init_low(dict_index_t* index, mtr_t* mtr)
 	ut_ad(index->table->supports_instant());
 	ut_ad(index->table->is_readable());
 
-	page_t* root = btr_root_get(index, mtr);
-
-	if (!root || btr_cur_instant_root_init(index, root)) {
+	const fil_space_t* space = index->table->space;
+	if (!space) {
+unreadable:
 		ib::error() << "Table " << index->table->name
 			    << " has an unreadable root page";
 		index->table->corrupted = true;
 		return DB_CORRUPTION;
+	}
+
+	page_t* root = btr_root_get(index, mtr);
+
+	if (!root || btr_cur_instant_root_init(index, root)) {
+		goto unreadable;
 	}
 
 	ut_ad(index->n_core_null_bytes != dict_index_t::NO_CORE_NULL_BYTES);
@@ -555,7 +468,69 @@ incompatible:
 	from the cache. */
 
 	if (info_bits & REC_INFO_DELETED_FLAG) {
-		return btr_cur_instant_init_metadata(rec, index);
+		/* This metadata record includes a BLOB that identifies
+		any dropped or reordered columns. */
+		ulint trx_id_offset = index->trx_id_offset;
+		if (!trx_id_offset) {
+			/* The PRIMARY KEY contains variable-length columns.
+			For the metadata record, variable-length columns are
+			always written with zero length. The DB_TRX_ID will
+			start right after any fixed-length columns. */
+			for (uint i = index->n_uniq; i--; ) {
+				trx_id_offset += index->fields[0].fixed_len;
+			}
+		}
+
+		const byte* ptr = rec + trx_id_offset
+			+ (DATA_TRX_ID_LEN + DATA_ROLL_PTR_LEN);
+
+		if (mach_read_from_4(ptr + BTR_EXTERN_LEN)) {
+			goto incompatible;
+		}
+
+		uint len = mach_read_from_4(ptr + BTR_EXTERN_LEN + 4);
+		if (!len
+		    || mach_read_from_4(ptr + BTR_EXTERN_OFFSET)
+		    != FIL_PAGE_DATA
+		    || mach_read_from_4(ptr + BTR_EXTERN_SPACE_ID)
+		    != space->id) {
+			goto incompatible;
+		}
+
+		buf_block_t* block = buf_page_get(
+			page_id_t(space->id,
+				  mach_read_from_4(ptr + BTR_EXTERN_PAGE_NO)),
+			univ_page_size, RW_S_LATCH, mtr);
+		buf_block_dbg_add_level(block, SYNC_EXTERN_STORAGE);
+		if (fil_page_get_type(block->frame) != FIL_PAGE_TYPE_BLOB
+		    || mach_read_from_4(&block->frame[FIL_PAGE_DATA
+						      + BTR_BLOB_HDR_NEXT_PAGE_NO])
+		    != FIL_NULL
+		    || mach_read_from_4(&block->frame[FIL_PAGE_DATA
+						      + BTR_BLOB_HDR_PART_LEN])
+		    != len) {
+			goto incompatible;
+		}
+
+		/* The unused part of the BLOB page should be zero-filled. */
+		for (const byte* b = block->frame
+		       + (FIL_PAGE_DATA + BTR_BLOB_HDR_SIZE) + len,
+		       * const end = block->frame + srv_page_size
+		       - BTR_EXTERN_LEN;
+		     b < end; ) {
+			if (*b++) {
+				goto incompatible;
+			}
+		}
+
+		if (index->table->reconstruct_columns(
+			    &block->frame[FIL_PAGE_DATA + BTR_BLOB_HDR_SIZE],
+			    len)) {
+			goto incompatible;
+		}
+
+		/* Proceed to initialize the default values of
+		any instantly added columns. */
 	}
 
 	mem_heap_t* heap = NULL;
@@ -571,7 +546,8 @@ inconsistent:
 	record, it is also OK to perform READ UNCOMMITTED and
 	then ignore any extra fields, provided that
 	trx_sys.is_registered(DB_TRX_ID). */
-	if (rec_offs_n_fields(offsets) > index->n_fields
+	if (rec_offs_n_fields(offsets)
+	    > ulint(index->n_fields) + !!index->table->instant
 	    && !trx_sys.is_registered(current_trx(),
 				      row_get_rec_trx_id(rec, index,
 							 offsets))) {
@@ -579,9 +555,10 @@ inconsistent:
 	}
 
 	for (unsigned i = index->n_core_fields; i < index->n_fields; i++) {
-		ulint len;
-		const byte* data = rec_get_nth_field(rec, offsets, i, &len);
 		dict_col_t* col = index->fields[i].col;
+		const unsigned o = i + !!index->table->instant;
+		ulint len;
+		const byte* data = rec_get_nth_field(rec, offsets, o, &len);
 		ut_ad(!col->is_added());
 		ut_ad(!col->def_val.data);
 		col->def_val.len = len;
@@ -593,7 +570,7 @@ inconsistent:
 			continue;
 		}
 		ut_ad(len != UNIV_SQL_DEFAULT);
-		if (!rec_offs_nth_extern(offsets, i)) {
+		if (!rec_offs_nth_extern(offsets, o)) {
 			col->def_val.data = mem_heap_dup(
 				index->table->heap, data, len);
 		} else if (len < BTR_EXTERN_FIELD_REF_SIZE
