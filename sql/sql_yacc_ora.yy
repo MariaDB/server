@@ -282,10 +282,10 @@ bool my_yyoverflow(short **a, YYSTYPE **b, size_t *yystacksize);
 %parse-param { THD *thd }
 %lex-param { THD *thd }
 /*
-  Currently there are 63 shift/reduce conflicts.
+  Currently there are 57 shift/reduce conflicts.
   We should not introduce new conflicts any more.
 */
-%expect 63
+%expect 57
 
 /*
    Comments for TOKENS.
@@ -1044,6 +1044,16 @@ bool my_yyoverflow(short **a, YYSTYPE **b, size_t *yystacksize);
 %left   JOIN_SYM INNER_SYM STRAIGHT_JOIN CROSS LEFT RIGHT
 /* A dummy token to force the priority of table_ref production in a join. */
 %left   TABLE_REF_PRIORITY
+
+/*
+  Give ESCAPE (in LIKE) a very low precedence.
+  This allows the concatenation operator || to be used on the right
+  side of "LIKE" with sql_mode=PIPES_AS_CONCAT (without ORACLE):
+    SELECT 'ab' LIKE 'a'||'b'||'c';
+*/
+%left   PREC_BELOW_ESCAPE
+%left   ESCAPE_SYM
+
 %left   SET_VAR
 %left   OR_SYM OR2_SYM
 %left   XOR
@@ -1053,7 +1063,7 @@ bool my_yyoverflow(short **a, YYSTYPE **b, size_t *yystacksize);
 %left   NOT_SYM
 
 %left   BETWEEN_SYM CASE_SYM WHEN_SYM THEN_SYM ELSE
-%left   '=' EQUAL_SYM GE '>' LE '<' NE IS LIKE REGEXP IN_SYM
+%left   '=' EQUAL_SYM GE '>' LE '<' NE IS LIKE SOUNDS_SYM REGEXP IN_SYM
 %left   '|'
 %left   '&'
 %left   SHIFT_LEFT SHIFT_RIGHT
@@ -1084,6 +1094,10 @@ bool my_yyoverflow(short **a, YYSTYPE **b, size_t *yystacksize);
   - SYSTEM: identifier, system versioning:
       SELECT system FROM t1;
       ALTER TABLE DROP SYSTEM VERSIONIONG;
+
+  - USER: identifier, user:
+      SELECT user FROM t1;
+      KILL USER foo;
 
    Note, we need here only tokens that cause shirt/reduce conflicts
    with keyword identifiers. For example:
@@ -1123,7 +1137,7 @@ bool my_yyoverflow(short **a, YYSTYPE **b, size_t *yystacksize);
    and until NEXT_SYM / PREVIOUS_SYM.
 */
 %left   PREC_BELOW_IDENTIFIER_OPT_SPECIAL_CASE
-%left   TRANSACTION_SYM TIMESTAMP PERIOD_SYM SYSTEM
+%left   TRANSACTION_SYM TIMESTAMP PERIOD_SYM SYSTEM USER
 
 
 /*
@@ -12404,7 +12418,7 @@ opt_escape:
             Lex->escape_used= TRUE;
             $$= $2;
           }
-        | /* empty */
+        | /* empty */        %prec PREC_BELOW_ESCAPE
           {
             Lex->escape_used= FALSE;
             $$= ((thd->variables.sql_mode & MODE_NO_BACKSLASH_ESCAPES) ?
@@ -16108,7 +16122,7 @@ keyword_sp_var_and_label:
         | UNDOFILE_SYM
         | UNKNOWN_SYM
         | UNTIL_SYM
-        | USER_SYM
+        | USER_SYM           %prec PREC_BELOW_CONTRACTION_TOKEN2
         | USE_FRM
         | VARIABLES
         | VIEW_SYM
