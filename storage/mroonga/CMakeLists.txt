@@ -65,7 +65,7 @@ set(MRN_BUNDLED_GROONGA_DIR
 if(EXISTS "${MRN_BUNDLED_GROONGA_DIR}")
   set(MRN_GROONGA_BUNDLED TRUE)
   if(MSVC)
-    message(STATUS "Bundled Mroonga does not support MSVC yet")
+    # Bundled Mroonga does not support MSVC yet
     return()
   endif()
 else()
