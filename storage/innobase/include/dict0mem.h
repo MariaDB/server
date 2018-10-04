@@ -641,6 +641,11 @@ public:
 	}
 	/** Flag the column instantly dropped */
 	void set_dropped() { ind = DROPPED; }
+	/** Flag the column instantly dropped.
+	@param[in]	not_null	whether the column was NOT NULL
+	@param[in]	len2		whether the length exceeds 255 bytes
+	@param[in]	fixed_len	the fixed length in bytes, or 0 */
+	inline void set_dropped(bool not_null, bool len2, unsigned fixed);
 	/** @return whether the column was instantly dropped */
 	bool is_dropped() const { return ind == DROPPED; }
 	/** @return whether the column was instantly dropped
@@ -1589,20 +1594,16 @@ struct dict_table_t {
 		return n_drop_cols;
 	}
 
-	/** Construct the blob with contains the non-primary key for
-	the clustered index.
-	@param[in,out]	heap	memory heap to allocate the blob
-	@param[out]	len	length of the blob data
-	@return blob data. */
-	byte* construct_metadata_blob(
-		mem_heap_t*	heap,
-		unsigned*	len);
+	/** Serialise metadata of dropped or reordered columns.
+	@param[in,out]	heap	memory heap for allocation
+	@param[out]	field	data field with the metadata */
+	void serialise_columns(mem_heap_t* heap, dfield_t* field) const;
 
-	/** Reconstruct dropped columns.
-	@param[in]	metadata	data about dropped and reordered columns
+	/** Reconstruct dropped or reordered columns.
+	@param[in]	metadata	data from serialise_columns()
 	@param[in]	len		length of the metadata, in bytes
 	@return whether parsing the metadata failed */
-	bool reconstruct_columns(const byte* metadata, ulint len);
+	bool deserialise_columns(const byte* metadata, ulint len);
 
 	/** Adjust table metadata for instant ADD/DROP/reorder COLUMN.
 	@param[in]	table		altered table (with dropped columns)
@@ -2041,12 +2042,6 @@ public:
 	/** mysql_row_templ_t for base columns used for compute the virtual
 	columns */
 	dict_vcol_templ_t*			vc_templ;
-
-	/** Default row blob column fields. */
-	static const unsigned INSTANT_NON_PK_FIELDS_LEN = 4;
-	static const unsigned INSTANT_FIELD_LEN = 2;
-	static const unsigned INSTANT_FIELD_COL_NO_SHIFT = 6;
-	static const unsigned INSTANT_DROP_COL_FIXED = 1;
 };
 
 inline void dict_index_t::set_modified(mtr_t& mtr) const

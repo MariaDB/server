@@ -523,7 +523,7 @@ incompatible:
 			}
 		}
 
-		if (index->table->reconstruct_columns(
+		if (index->table->deserialise_columns(
 			    &block->frame[FIL_PAGE_DATA + BTR_BLOB_HDR_SIZE],
 			    len)) {
 			goto incompatible;

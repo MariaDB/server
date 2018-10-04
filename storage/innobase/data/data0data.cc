@@ -640,8 +640,7 @@ dtuple_convert_big_rec(
 	if (entry->is_alter_metadata()) {
 		longest_i = index->n_uniq + DATA_ROLL_PTR;
 		dfield = dtuple_get_nth_field(entry, longest_i);
-		dfield->data = index->table->construct_metadata_blob(
-			heap, &dfield->len);
+		index->table->serialise_columns(heap, dfield);
 		local_len = BTR_EXTERN_FIELD_REF_SIZE;
 		goto ext_write;
 	}
@@ -723,8 +722,8 @@ skip_field:
 		We store the first bytes locally to the record. Then
 		we can calculate all ordering fields in all indexes
 		from locally stored data. */
-ext_write:
 		dfield = dtuple_get_nth_field(entry, longest_i);
+ext_write:
 		local_prefix_len = local_len - BTR_EXTERN_FIELD_REF_SIZE;
 
 		vector->append(
