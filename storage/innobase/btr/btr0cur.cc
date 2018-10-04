@@ -4769,7 +4769,7 @@ btr_cur_pessimistic_update(
 		    page_is_comp(page),
 		    dict_index_get_n_fields(index),
 		    block->page.size)
-	    || UNIV_UNLIKELY(rec_is_alter_metadata(rec, index))) {
+	    || UNIV_UNLIKELY(rec_is_alter_metadata(rec, *index))) {
 
 		big_rec_vec = dtuple_convert_big_rec(index, update, new_entry, &n_ext);
 		if (UNIV_UNLIKELY(big_rec_vec == NULL)) {
@@ -4884,7 +4884,7 @@ btr_cur_pessimistic_update(
 		}
 
 		if (!rec_get_deleted_flag(rec, rec_offs_comp(*offsets))
-		    || rec_is_alter_metadata(rec, index)) {
+		    || rec_is_alter_metadata(rec, *index)) {
 			/* The new inserted record owns its possible externally
 			stored fields */
 			btr_cur_unmark_extern_fields(

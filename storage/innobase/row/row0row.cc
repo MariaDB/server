@@ -730,7 +730,7 @@ row_rec_to_index_entry_impl(
 
 	ut_ad(mblob != 2
 	      || rec_offs_n_fields(offsets)
-	      == ulint(index->n_fields + rec_is_alter_metadata(rec, index)));
+	      == ulint(index->n_fields + rec_is_alter_metadata(rec, *index)));
 
 	ulint rec_len = mblob == 2
 		? ulint(index->n_fields
@@ -779,7 +779,7 @@ row_rec_to_index_entry_impl(
 		ulint j = i;
 
 		if (mblob == 2) {
-			const bool got = rec_is_alter_metadata(rec, index);
+			const bool got = rec_is_alter_metadata(rec, *index);
 			const bool want = info_bits == REC_INFO_METADATA_ALTER;
 			if (got == want) {
 				if (got) {
@@ -880,7 +880,7 @@ row_rec_to_index_entry(
 	rec_offs_make_valid(copy_rec, index, true,
 			    const_cast<ulint*>(offsets));
 
-	dtuple_t* entry = rec_is_alter_metadata(copy_rec, index)
+	dtuple_t* entry = rec_is_alter_metadata(copy_rec, *index)
 		? row_rec_to_index_entry_impl<true,1>(
 			copy_rec, index, offsets, n_ext, heap)
 		: row_rec_to_index_entry_impl<true>(
@@ -925,7 +925,7 @@ row_metadata_to_tuple(
 			    const_cast<ulint*>(offsets));
 
 	dtuple_t* entry = info_bits == REC_INFO_METADATA_ALTER
-		|| rec_is_alter_metadata(copy_rec, index)
+		|| rec_is_alter_metadata(copy_rec, *index)
 		? row_rec_to_index_entry_impl<true,2>(
 			copy_rec, index, offsets, n_ext, heap, info_bits)
 		: row_rec_to_index_entry_impl<true>(
