@@ -151,45 +151,6 @@ f3	f6
 drop table t1;
 create table t1(f1 int, f2 int not null) engine=innodb;
 insert into t1(f1, f2) values(1, 2);
-select * from information_schema.innodb_sys_columns;
-TABLE_ID	NAME	POS	MTYPE	PRTYPE	LEN
-11	ID	0	1	524292	0
-11	FOR_NAME	1	1	524292	0
-11	REF_NAME	2	1	524292	0
-11	N_COLS	3	6	0	4
-12	ID	0	1	524292	0
-12	POS	1	6	0	4
-12	FOR_COL_NAME	2	1	524292	0
-12	REF_COL_NAME	3	1	524292	0
-13	SPACE	0	6	0	4
-13	NAME	1	1	524292	0
-13	FLAGS	2	6	0	4
-14	SPACE	0	6	0	4
-14	PATH	1	1	524292	0
-15	TABLE_ID	0	6	0	8
-15	POS	1	6	0	4
-15	BASE_POS	2	6	0	4
-16	database_name	0	12	5439759	192
-16	table_name	1	12	5439759	192
-16	last_update	2	3	526087	4
-16	n_rows	3	6	1800	8
-16	clustered_index_size	4	6	1800	8
-16	sum_of_other_index_sizes	5	6	1800	8
-17	database_name	0	12	5439759	192
-17	table_name	1	12	5439759	192
-17	index_name	2	12	5439759	192
-17	last_update	3	3	526087	4
-17	stat_name	4	12	5439759	192
-17	stat_value	5	6	1800	8
-17	sample_size	6	6	1544	8
-17	stat_description	7	12	5443855	3072
-18	transaction_id	0	6	1800	8
-18	commit_id	1	6	1800	8
-18	begin_timestamp	2	3	526087	7
-18	commit_timestamp	3	3	526087	7
-18	isolation_level	4	6	1022	1
-26	f1	0	6	1027	4
-26	f2	1	6	1283	4
 alter table t1 drop column f2, add column f4 varchar(100) default repeat('a', 20), add column f5 int default 10,  algorithm=instant;
 select * from t1;
 f1	f4	f5

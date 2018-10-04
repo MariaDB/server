@@ -392,9 +392,7 @@ when loading a table definition.
 @return	error code
 @retval	DB_SUCCESS	if no error occurred
 @retval	DB_CORRUPTION	if any corruption was noticed */
-static
-dberr_t
-btr_cur_instant_init_low(dict_index_t* index, mtr_t* mtr)
+static dberr_t btr_cur_instant_init_low(dict_index_t* index, mtr_t* mtr)
 {
 	ut_ad(index->is_primary());
 	ut_ad(index->n_core_null_bytes == dict_index_t::NO_CORE_NULL_BYTES);
@@ -655,6 +653,11 @@ btr_cur_instant_root_init(dict_index_t* index, const page_t* page)
 		return true;
 	}
 
+	if (n > REC_MAX_N_FIELDS) {
+		return true;
+	}
+
+	index->n_core_fields = n;
 	const rec_t* infimum = page_get_infimum_rec(page);
 	const rec_t* supremum = page_get_supremum_rec(page);
 
@@ -667,7 +670,6 @@ btr_cur_instant_root_init(dict_index_t* index, const page_t* page)
 			return true;
 		}
 
-		index->n_core_fields = n;
 		ut_ad(!index->is_dummy);
 		ut_d(index->is_dummy = true);
 		index->n_core_null_bytes = UT_BITS_IN_BYTES(

@@ -76,7 +76,6 @@ drop table t1;
 
 create table t1(f1 int, f2 int not null) engine=innodb;
 insert into t1(f1, f2) values(1, 2);
-select * from information_schema.innodb_sys_columns;
 alter table t1 drop column f2, add column f4 varchar(100) default repeat('a', 20), add column f5 int default 10,  algorithm=instant;
 select * from t1;
 show create table t1;

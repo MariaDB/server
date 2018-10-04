@@ -1583,7 +1583,7 @@ bool dict_table_t::deserialise_columns(const byte* metadata, ulint len)
 	unsigned num_non_pk_fields = mach_read_from_4(metadata);
 	metadata += 4;
 
-	if (num_non_pk_fields >= REC_MAX_N_FIELDS) {
+	if (num_non_pk_fields >= REC_MAX_N_FIELDS - 3) {
 		return true;
 	}
 
