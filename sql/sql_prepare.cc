@@ -3224,7 +3224,7 @@ static void mysql_stmt_execute_common(THD *thd,
   sp_cache_enforce_limit(thd->sp_func_cache, stored_program_cache_size);
 
   /* Close connection socket; for use with client testing (Bug#43560). */
-  DBUG_EXECUTE_IF("close_conn_after_stmt_execute", vio_close(thd->net.vio););
+  DBUG_EXECUTE_IF("close_conn_after_stmt_execute", vio_shutdown(thd->net.vio,SHUT_RD););
 
   DBUG_VOID_RETURN;
 }

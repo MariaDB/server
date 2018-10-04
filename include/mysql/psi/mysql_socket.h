@@ -735,7 +735,7 @@ inline_mysql_socket_send
  MYSQL_SOCKET mysql_socket, const SOCKBUF_T *buf, size_t n, int flags)
 {
   ssize_t result;
-
+  DBUG_ASSERT(mysql_socket.fd != INVALID_SOCKET);
 #ifdef HAVE_PSI_SOCKET_INTERFACE
   if (mysql_socket.m_psi != NULL)
   {
@@ -776,7 +776,7 @@ inline_mysql_socket_recv
  MYSQL_SOCKET mysql_socket,  SOCKBUF_T *buf, size_t n, int flags)
 {
   ssize_t result;
-
+  DBUG_ASSERT(mysql_socket.fd != INVALID_SOCKET);
 #ifdef HAVE_PSI_SOCKET_INTERFACE
   if (mysql_socket.m_psi != NULL)
   {
