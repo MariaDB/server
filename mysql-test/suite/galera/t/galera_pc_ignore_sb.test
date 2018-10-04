@@ -41,10 +41,11 @@ SET GLOBAL wsrep_cluster_address = @wsrep_cluster_address_orig;
 --connection node_2
 --source include/start_mysqld.inc
 
+
+--connection node_1
 --let $wait_condition = SELECT VARIABLE_VALUE = 2 FROM INFORMATION_SCHEMA.GLOBAL_STATUS WHERE VARIABLE_NAME = 'wsrep_cluster_size'
 --source include/wait_condition.inc
 
---connection node_1
 SET GLOBAL wsrep_provider_options = @wsrep_provider_options_orig;
 
 # Restore original auto_increment_offset values.
