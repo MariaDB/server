@@ -348,9 +348,7 @@ ordinary:
 		ut_ad(index->is_instant());
 		/* fall through */
 	case REC_LEAF_TEMP_INSTANT:
-		n_fields = n_core + rec_get_n_add_field(nulls)
-			+ (!index->table->instant
-			   || rec_is_metadata(rec, index));
+		n_fields = n_core + rec_get_n_add_field(nulls) + 1;
 		ut_ad(n_fields <= index->n_fields);
 		const ulint n_nullable = index->get_n_nullable(n_fields);
 		const ulint n_null_bytes = UT_BITS_IN_BYTES(n_nullable);
