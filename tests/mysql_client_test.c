@@ -16348,6 +16348,7 @@ static void test_change_user()
   const char *db= "mysqltest_user_test_database";
   int rc;
   MYSQL*       conn;
+  MYSQL_RES* res;
   DBUG_ENTER("test_change_user");
   myheader("test_change_user");
 
@@ -16483,6 +16484,20 @@ static void test_change_user()
 
   rc= mysql_change_user(conn, user_pw, pw, "");
   myquery(rc);
+
+  /* MDEV-14581 : Check that there are no warnings after change user.*/
+  rc = mysql_query(conn,"SIGNAL SQLSTATE '01000'");
+  myquery(rc);
+
+  rc = mysql_change_user(conn, user_pw, pw, "");
+  myquery(rc);
+
+  rc = mysql_query(conn, "SHOW WARNINGS");
+  myquery(rc);
+  res = mysql_store_result(conn);
+  rc = my_process_result_set(res);
+  DIE_UNLESS(rc == 0);
+  mysql_free_result(res);
 
   rc= mysql_change_user(conn, user_no_pw, pw, db);
   DIE_UNLESS(rc);

@@ -1332,6 +1332,11 @@ void THD::change_user(void)
   cleanup_done= 0;
   reset_killed();
   thd_clear_errors(this);
+
+  /* Clear warnings. */
+  if (!get_stmt_da()->is_warning_info_empty())
+    get_stmt_da()->clear_warning_info(0);
+
   init();
   stmt_map.reset();
   my_hash_init(&user_vars, system_charset_info, USER_VARS_HASH_SIZE, 0, 0,
