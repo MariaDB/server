@@ -457,7 +457,7 @@ unreadable:
 		return DB_CORRUPTION;
 	}
 
-	if (info_bits != REC_INFO_MIN_REC_FLAG
+	if ((info_bits & ~REC_INFO_DELETED_FLAG) != REC_INFO_MIN_REC_FLAG
 	    || (comp && rec_get_status(rec) != REC_STATUS_INSTANT)) {
 incompatible:
 		ib::error() << "Table " << index->table->name
