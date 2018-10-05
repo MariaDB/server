@@ -3345,13 +3345,17 @@ btr_cur_optimistic_insert(
 
 	leaf = page_is_leaf(page);
 
+	if (UNIV_UNLIKELY(entry->is_alter_metadata())) {
+		ut_ad(leaf);
+		goto convert_big_rec;
+	}
+
 	/* Calculate the record size when entry is converted to a record */
 	rec_size = rec_get_converted_size(index, entry, n_ext);
 
 	if (page_zip_rec_needs_ext(rec_size, page_is_comp(page),
-				   dtuple_get_n_fields(entry), page_size)
-	    || UNIV_UNLIKELY(entry->is_alter_metadata())) {
-
+				   dtuple_get_n_fields(entry), page_size)) {
+convert_big_rec:
 		/* The record is so big that we have to store some fields
 		externally on separate database pages */
 		big_rec_vec = dtuple_convert_big_rec(index, 0, entry, &n_ext);
@@ -4780,7 +4784,7 @@ btr_cur_pessimistic_update(
 		    page_is_comp(page),
 		    dict_index_get_n_fields(index),
 		    block->page.size)
-	    || UNIV_UNLIKELY(rec_is_alter_metadata(rec, *index))) {
+	    || UNIV_UNLIKELY(update->is_alter_metadata())) {
 
 		big_rec_vec = dtuple_convert_big_rec(index, update, new_entry, &n_ext);
 		if (UNIV_UNLIKELY(big_rec_vec == NULL)) {

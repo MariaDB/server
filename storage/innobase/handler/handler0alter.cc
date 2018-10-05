@@ -4744,10 +4744,7 @@ static dtuple_t* instant_metadata(
 		dfield_t* dfield = dtuple_get_nth_field(entry, i);
 
 		if (i == index.first_user_field()) {
-			dfield_set_data(dfield,
-					mem_heap_zalloc(heap, FIELD_REF_SIZE),
-					FIELD_REF_SIZE);
-			dfield_set_ext(dfield);
+			index.table->serialise_columns(heap, dfield);
 			dfield->type.metadata_blob_init();
 			field--;
 			continue;
@@ -5031,9 +5028,8 @@ static bool innobase_instant_try(
 			upd_field_t* uf = upd_get_nth_field(update, 0);
 			uf->field_no = index->first_user_field();
 			uf->new_val = entry->fields[uf->field_no];
-			DBUG_ASSERT(dfield_is_ext(&uf->new_val));
-			DBUG_ASSERT(dfield_get_len(&uf->new_val)
-				    == BTR_EXTERN_FIELD_REF_SIZE);
+			DBUG_ASSERT(!dfield_is_ext(&uf->new_val));
+			DBUG_ASSERT(!dfield_is_null(&uf->new_val));
 		}
 
 		/* Add the default values for instantly added columns */

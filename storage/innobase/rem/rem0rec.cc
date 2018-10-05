@@ -1169,14 +1169,12 @@ rec_get_converted_size_comp_prefix_low(
 	const dfield_t* const end = dfield + n_fields;
 	/* read the lengths of fields 0..n */
 	for (ulint i = 0; dfield < end; i++, dfield++) {
-		ulint len = dfield_get_len(dfield);
-
 		if (mblob && i == index->first_user_field()) {
-			ut_ad(len == FIELD_REF_SIZE);
-			ut_ad(dfield_is_ext(dfield));
-			data_size += len;
-			len = dfield_get_len(++dfield);
+			data_size += FIELD_REF_SIZE;
+			++dfield;
 		}
+
+		ulint len = dfield_get_len(dfield);
 
 		const dict_field_t* field = dict_index_get_nth_field(index, i);
 #ifdef UNIV_DEBUG

@@ -1046,8 +1046,8 @@ trx_undo_page_report_modify(
 			ut_ad(!upd_fld_is_virtual_col(&update->fields[0]));
 			ut_ad(update->fields[0].field_no
 			      == index->first_user_field());
-			ut_ad(update->fields[0].new_val.ext);
-			ut_ad(update->fields[0].new_val.len == FIELD_REF_SIZE);
+			ut_ad(!dfield_is_ext(&update->fields[0].new_val));
+			ut_ad(!dfield_is_null(&update->fields[0].new_val));
 			/* The instant ADD COLUMN metadata record does not
 			contain the BLOB. Do not write anything for it. */
 			i = !rec_is_alter_metadata(rec, *index);

@@ -1350,8 +1350,7 @@ row_upd_index_replace_metadata(
 		dfield_t* dfield = dtuple_get_nth_field(entry, f);
 
 		if (f-- == first) {
-			ut_ad(dfield_is_ext(&uf->new_val));
-			ut_ad(dfield_get_len(&uf->new_val) == FIELD_REF_SIZE);
+			ut_ad(!dfield_is_ext(&uf->new_val));
 			ut_ad(!dfield_is_null(&uf->new_val));
 			ut_ad(dfield_is_ext(dfield));
 			ut_ad(dfield_get_len(dfield) == FIELD_REF_SIZE);
