@@ -365,15 +365,20 @@ add_metadata:
 						sizeof(dict_instant_t)))
 				dict_instant_t();
 			instant_table->instant->n_dropped = n_drop;
-			instant_table->instant->dropped
-				= static_cast<dict_col_t*>(
-					mem_heap_alloc(instant_table->heap,
-						       n_drop
-						       * sizeof(dict_col_t)));
-			if (n_old_drop) {
-				memcpy(instant_table->instant->dropped,
-				       old_table->instant->dropped,
-				       n_old_drop * sizeof(dict_col_t));
+			if (n_drop) {
+				instant_table->instant->dropped
+					= static_cast<dict_col_t*>(
+						mem_heap_alloc(
+							instant_table->heap,
+							n_drop
+							* sizeof(dict_col_t)));
+				if (n_old_drop) {
+					memcpy(instant_table->instant->dropped,
+					       old_table->instant->dropped,
+					       n_old_drop * sizeof(dict_col_t));
+				}
+			} else {
+				instant_table->instant->dropped = NULL;
 			}
 
 			unsigned d = n_old_drop;
@@ -446,10 +451,23 @@ found_nullable:
 					    != col_ind) {
 						/* The fields for instantly
 						added columns must be placed
-						last in the clustered index. */
+						last in the clustered index.
+						Keep pre-existing fields in
+						the same position. */
+						uint k;
+						for (k = j + 1;
+						     k < instant->n_fields;
+						     k++) {
+							if (instant->fields[k]
+							    .col->ind
+							    == col_ind) {
+								goto found_j;
+							}
+						}
+						DBUG_ASSERT(!"no such col");
+found_j:
 						std::swap(instant->fields[j],
-							  instant->fields[
-								  j + 1]);
+							  instant->fields[k]);
 					}
 					DBUG_ASSERT(instant->fields[j].col->ind
 						    == col_ind);
