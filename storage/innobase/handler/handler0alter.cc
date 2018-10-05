@@ -409,9 +409,20 @@ add_metadata:
 			d = n_old_drop;
 			uint j = 0, n_nullable = 0;
 			ut_d(uint n_core_null = 0);
+			ut_d(uint max_new_col = 0);
 			for (uint i = 0; i < n_fields; i++) {
 				DBUG_ASSERT(j <= i);
 				if (i >= old->n_fields) {
+					{
+						/* Ensure that newly added
+						columns are at the end of the
+						index in the same order as
+						in the table definition. */
+						ut_d(uint ni = instant->fields[
+							     j].col->ind);
+						ut_ad(max_new_col <= ni);
+						max_new_col = ni +1;
+					}
 existing_field:
 					fields[i] = instant->fields[j++];
 					DBUG_ASSERT(!fields[i].col
