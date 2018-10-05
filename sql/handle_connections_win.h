@@ -1,4 +1,4 @@
-/* Copyright (c) 2006, 2010, Oracle and/or its affiliates. All rights reserved.
+/* Copyright (c) 2018 MariaDB Corporation.
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -11,12 +11,10 @@
 
    You should have received a copy of the GNU General Public License
    along with this program; if not, write to the Free Software
-   Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA  02110-1301  USA */
+   Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA */
 
-#ifndef INIT_INCLUDED
-#define INIT_INCLUDED
-
-void unireg_init(ulong options);
-void unireg_end(void);
-
-#endif /* INIT_INCLUDED */
+/**
+  Handles incoming socket and pipe connections, on Windows.
+  Creates new (THD) connections..
+*/
+extern void handle_connections_win();
