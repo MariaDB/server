@@ -5003,6 +5003,19 @@ static bool innobase_instant_try(
 			goto empty_table;
 		}
 
+		/* Ensure that the root page is in the correct format. */
+		buf_block_t* root = btr_root_block_get(index, RW_X_LATCH,
+						       &mtr);
+		DBUG_ASSERT(root);
+		DBUG_ASSERT(!root->page.encrypted);
+		if (fil_page_get_type(root->frame) != FIL_PAGE_TYPE_INSTANT) {
+			DBUG_ASSERT(!"wrong page type");
+			err = DB_CORRUPTION;
+			goto func_exit;
+		}
+
+		btr_set_instant(root, *index, &mtr);
+
 		/* Extend the record with any added columns. */
 		uint n = uint(index->n_fields) - n_old_fields;
 		/* Reserve room for DB_TRX_ID,DB_ROLL_PTR and any

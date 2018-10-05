@@ -1905,23 +1905,40 @@ void btr_set_instant(buf_block_t* root, const dict_index_t& index, mtr_t* mtr)
 	ut_ad(index.n_core_fields < REC_MAX_N_FIELDS);
 	ut_ad(index.is_instant());
 	ut_ad(page_is_root(root->frame));
-	ut_ad(!page_is_comp(root->frame) || !page_get_instant(root->frame));
 
 	rec_t* infimum = page_get_infimum_rec(root->frame);
 	rec_t* supremum = page_get_supremum_rec(root->frame);
-	ut_ad(!memcmp(infimum, "infimum", 8));
-	ut_ad(!memcmp(supremum, "supremum", 8));
-
 	byte* page_type = root->frame + FIL_PAGE_TYPE;
-	ut_ad(mach_read_from_2(page_type) == FIL_PAGE_INDEX);
-	mlog_write_ulint(page_type, FIL_PAGE_TYPE_INSTANT,
-			 MLOG_2BYTES, mtr);
-
 	uint16_t i = page_header_get_field(root->frame, PAGE_INSTANT);
-	ut_ad(i <= PAGE_NO_DIRECTION);
-	i |= index.n_core_fields << 3;
-	mlog_write_ulint(PAGE_HEADER + PAGE_INSTANT + root->frame, i,
-			 MLOG_2BYTES, mtr);
+
+	switch (mach_read_from_2(page_type)) {
+	case FIL_PAGE_TYPE_INSTANT:
+		ut_ad(page_get_instant(root->frame) == index.n_core_fields);
+		if (memcmp(infimum, "infimum", 8)
+		    || memcmp(supremum, "supremum", 8)) {
+			ut_ad(index.table->instant);
+			ut_ad(!memcmp(infimum, field_ref_zero, 8));
+			ut_ad(!memcmp(supremum, field_ref_zero, 7));
+			ut_ad(supremum[7] == index.n_core_null_bytes);
+			return;
+		}
+		break;
+	default:
+		ut_ad(!"wrong page type");
+		/* fall through */
+	case FIL_PAGE_INDEX:
+		ut_ad(!page_is_comp(root->frame)
+		      || !page_get_instant(root->frame));
+		ut_ad(!memcmp(infimum, "infimum", 8));
+		ut_ad(!memcmp(supremum, "supremum", 8));
+		mlog_write_ulint(page_type, FIL_PAGE_TYPE_INSTANT,
+				 MLOG_2BYTES, mtr);
+		ut_ad(i <= PAGE_NO_DIRECTION);
+		i |= index.n_core_fields << 3;
+		mlog_write_ulint(PAGE_HEADER + PAGE_INSTANT + root->frame, i,
+				 MLOG_2BYTES, mtr);
+		break;
+	}
 
 	if (index.table->instant) {
 		mlog_memset(root, infimum - root->frame, 8, 0, mtr);
