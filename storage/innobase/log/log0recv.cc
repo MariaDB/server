@@ -3582,6 +3582,8 @@ skip_apply:
 		then there is a possiblity that hash table will not contain
 		all space ids redo logs. Rescan the remaining unstored
 		redo logs for the validation of missing tablespace. */
+		ut_ad(rescan || !missing_tablespace);
+
 		while (missing_tablespace) {
 			DBUG_PRINT("ib_log", ("Rescan of redo log to validate "
 					      "the missing tablespace. Scan "
@@ -3606,6 +3608,8 @@ skip_apply:
 				log_mutex_exit();
 				return err;
 			}
+
+			rescan = true;
 		}
 
 		if (srv_operation == SRV_OPERATION_NORMAL) {
