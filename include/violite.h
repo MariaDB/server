@@ -68,13 +68,6 @@ Vio* vio_new(my_socket sd, enum enum_vio_type type, uint flags);
 Vio*  mysql_socket_vio_new(MYSQL_SOCKET mysql_socket, enum enum_vio_type type, uint flags);
 #ifdef __WIN__
 Vio* vio_new_win32pipe(HANDLE hPipe);
-Vio* vio_new_win32shared_memory(HANDLE handle_file_map,
-                                HANDLE handle_map,
-                                HANDLE event_server_wrote,
-                                HANDLE event_server_read,
-                                HANDLE event_client_wrote,
-                                HANDLE event_client_read,
-                                HANDLE event_conn_closed);
 #else
 #define HANDLE void *
 #endif /* __WIN__ */
@@ -268,8 +261,6 @@ struct st_vio
 #ifdef _WIN32
   HANDLE hPipe;
   OVERLAPPED overlapped;
-  DWORD read_timeout_ms;
-  DWORD write_timeout_ms;
 #endif
 };
 #endif /* vio_violite_h_ */
