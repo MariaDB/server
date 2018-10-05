@@ -522,7 +522,9 @@ static os_event_t dbug_start_query_thread(
 		mysql_thread_id(par->con), wait_state);
 	for (;;) {
 		MYSQL_RES *result = xb_mysql_query(mysql_connection,q, true, true);
-		if (mysql_fetch_row(result)) {
+		bool exists = mysql_fetch_row(result) != NULL;
+		mysql_free_result(result);
+		if (exists) {
 			goto end;
 		}
 		msg_ts("Waiting for query '%s' on connection %lu to "
@@ -577,7 +579,9 @@ std::string filename_to_spacename(const byte *filename, size_t len)
 	char *db = strrchr(f, '/');
 	ut_a(db);
 	*table = '/';
-	return std::string(db+1);
+	std::string s(db+1);
+	free(f);
+	return s;
 }
 
 /** Report an operation to create, delete, or rename a file during backup.
@@ -587,7 +591,7 @@ std::string filename_to_spacename(const byte *filename, size_t len)
 @param[in]	len		length of name, in bytes
 @param[in]	new_name	new file name (NULL if not rename)
 @param[in]	new_len		length of new_name, in bytes (0 if NULL) */
-void backup_file_op(ulint space_id, const byte* flags,
+static void backup_file_op(ulint space_id, const byte* flags,
 	const byte* name, ulint len,
 	const byte* new_name, ulint new_len)
 {
@@ -615,18 +619,102 @@ void backup_file_op(ulint space_id, const byte* flags,
 }
 
 
+/*
+ This callback is called if DDL operation is detected,
+ at the end of backup
+
+ Normally, DDL operations are blocked due to FTWRL,
+ but in rare cases of --no-lock, they are not.
+
+ We will abort backup in this case.
+*/
+static void backup_file_op_fail(ulint space_id, const byte* flags,
+	const byte* name, ulint len,
+	const byte* new_name, ulint new_len)
+{
+	ut_a(opt_no_lock);
+	bool fail;
+	if (flags) {
+		msg("DDL tracking :  create %zu \"%.*s\": %x\n",
+			space_id, int(len), name, mach_read_from_4(flags));
+		std::string  spacename = filename_to_spacename(name, len);
+		fail = !check_if_skip_table(spacename.c_str());
+	}
+	else if (new_name) {
+		msg("DDL tracking : rename %zu \"%.*s\",\"%.*s\"\n",
+			space_id, int(len), name, int(new_len), new_name);
+		std::string  spacename = filename_to_spacename(name, len);
+		std::string  new_spacename = filename_to_spacename(new_name, new_len);
+		fail = !check_if_skip_table(spacename.c_str()) || !check_if_skip_table(new_spacename.c_str());
+	}
+	else {
+		std::string  spacename = filename_to_spacename(name, len);
+		fail = !check_if_skip_table(spacename.c_str());
+		msg("DDL tracking : delete %zu \"%.*s\"\n", space_id, int(len), name);
+	}
+	if (fail) {
+		msg("ERROR : DDL operation detected in the late phase of backup."
+			"Backup is inconsistent. Remove --no-lock option to fix.\n");
+		log_mutex_exit();
+		exit(EXIT_FAILURE);
+	}
+}
+
+
 /** Callback whenever MLOG_INDEX_LOAD happens.
 @param[in]	space_id	space id to check */
 static void backup_optimized_ddl_op(ulint space_id)
 {
-	// TODO : handle incremental
-	if (xtrabackup_incremental)
-		return;
-
 	pthread_mutex_lock(&backup_mutex);
 	ddl_tracker.optimized_ddl.insert(space_id);
 	pthread_mutex_unlock(&backup_mutex);
 }
+
+/*
+  Optimized DDL callback at the end of backup that
+  run with --no-lock. Usually aborts the backup.
+*/
+static void backup_optimized_ddl_op_fail(ulint space_id) {
+	ut_a(opt_no_lock);
+	msg("DDL tracking : optimized DDL on space %zu\n", space_id);
+	if (ddl_tracker.tables_in_backup.find(space_id) != ddl_tracker.tables_in_backup.end()) {
+		msg("ERROR : Optimized DDL operation detected in the late phase of backup."
+			"Backup is inconsistent. Remove --no-lock option to fix.\n");
+		exit(EXIT_FAILURE);
+	}
+}
+
+
+/*
+  Retrieve default data directory, to be used with --copy-back.
+
+  On Windows, default datadir is ..\data, relative to the
+  directory where mariabackup.exe is located(usually "bin")
+
+  Elsewhere, the compiled-in constant MYSQL_DATADIR is used.
+*/
+static char *get_default_datadir() {
+	static char ddir[] = MYSQL_DATADIR;
+#ifdef _WIN32
+	static char buf[MAX_PATH];
+	DWORD size = (DWORD)sizeof(buf) - 1;
+	if (GetModuleFileName(NULL, buf, size) <= size)
+	{
+		char *p;
+		if ((p = strrchr(buf, '\\')))
+		{
+			*p = 0;
+			if ((p = strrchr(buf, '\\')))
+			{
+				strncpy(p + 1, "data", buf + MAX_PATH - p);
+				return buf;
+			}
+		}
+	}
+#endif
+	return ddir;
+}
+
 
 /* ======== Date copying thread context ======== */
 
@@ -634,7 +722,7 @@ typedef struct {
 	datafiles_iter_t 	*it;
 	uint			num;
 	uint			*count;
-	pthread_mutex_t		count_mutex;
+	pthread_mutex_t*	count_mutex;
 	os_thread_id_t		id;
 } data_thread_ctxt_t;
 
@@ -2805,9 +2893,9 @@ DECLARE_THREAD(data_copy_thread_func)(
 
 	}
 
-	pthread_mutex_lock(&ctxt->count_mutex);
+	pthread_mutex_lock(ctxt->count_mutex);
 	(*ctxt->count)--;
-	pthread_mutex_unlock(&ctxt->count_mutex);
+	pthread_mutex_unlock(ctxt->count_mutex);
 
 	my_thread_end();
 	os_thread_exit();
@@ -3163,35 +3251,24 @@ the first slot rollback segments of TRX_SYS_PAGE_NO.
 @retval DB_SUCCESS if srv_undo_space_id assigned successfully. */
 static dberr_t xb_assign_undo_space_start()
 {
-	ulint		dirnamelen;
-	char		name[1000];
+
 	pfs_os_file_t	file;
 	byte*		buf;
 	byte*		page;
 	bool		ret;
 	dberr_t		error = DB_SUCCESS;
 	ulint		space, page_no __attribute__((unused));
+	int n_retries = 5;
 
 	if (srv_undo_tablespaces == 0) {
 		return error;
 	}
 
-	os_normalize_path(srv_data_home);
-	dirnamelen = strlen(srv_data_home);
-	memcpy(name, srv_data_home, dirnamelen);
-
-	if (dirnamelen && name[dirnamelen - 1] != OS_PATH_SEPARATOR) {
-		name[dirnamelen++] = OS_PATH_SEPARATOR;
-	}
-
-	snprintf(name + dirnamelen, (sizeof name) - dirnamelen,
-		 "%s", "ibdata1");
-
-	file = os_file_create(0, name, OS_FILE_OPEN,
-			      OS_FILE_NORMAL, OS_DATA_FILE, true, &ret);
+	file = os_file_create(0, srv_sys_space.first_datafile()->filepath(),
+		OS_FILE_OPEN, OS_FILE_NORMAL, OS_DATA_FILE, true, &ret);
 
 	if (!ret) {
-		msg("mariabackup: Error in opening %s\n", name);
+		msg("mariabackup: Error in opening %s\n", srv_sys_space.first_datafile()->filepath());
 		return DB_ERROR;
 	}
 
@@ -3209,7 +3286,14 @@ retry:
 
 	/* TRX_SYS page can't be compressed or encrypted. */
 	if (buf_page_is_corrupted(false, page, univ_page_size)) {
-		goto retry;
+		if (n_retries--) {
+			os_thread_sleep(1000);
+			goto retry;
+		} else {
+			msg("mariabackup: TRX_SYS page corrupted.\n");
+			error = DB_ERROR;
+			goto func_exit;
+		}
 	}
 
 	/* 0th slot always points to system tablespace.
@@ -4048,7 +4132,6 @@ fail:
 
 	/* start back ground thread to copy newer log */
 	os_thread_id_t log_copying_thread_id;
-	datafiles_iter_t *it;
 
 	/* get current checkpoint_lsn */
 	/* Look for the latest checkpoint from any of the log groups */
@@ -4183,19 +4266,6 @@ fail_before_log_copying_thread_start:
 	}
 	debug_sync_point("xtrabackup_suspend_at_start");
 
-	if (xtrabackup_incremental) {
-		if (!xtrabackup_incremental_force_scan) {
-			changed_page_bitmap = xb_page_bitmap_init();
-		}
-		if (!changed_page_bitmap) {
-			msg("mariabackup: using the full scan for incremental "
-			    "backup\n");
-		} else if (incremental_lsn != checkpoint_lsn_start) {
-			/* Do not print that bitmaps are used when dummy bitmap
-			is build for an empty LSN range. */
-			msg("mariabackup: using the changed page bitmap\n");
-		}
-	}
 
 	ut_a(xtrabackup_parallel > 0);
 
@@ -4213,7 +4283,7 @@ fail_before_log_copying_thread_start:
 				"Waiting for table metadata lock", 1, ER_QUERY_INTERRUPTED););
 	}
 
-	it = datafiles_iter_new();
+	datafiles_iter_t *it = datafiles_iter_new();
 	if (it == NULL) {
 		msg("mariabackup: Error: datafiles_iter_new() failed.\n");
 		goto fail;
@@ -4229,7 +4299,7 @@ fail_before_log_copying_thread_start:
 		data_threads[i].it = it;
 		data_threads[i].num = i+1;
 		data_threads[i].count = &count;
-		data_threads[i].count_mutex = count_mutex;
+		data_threads[i].count_mutex = &count_mutex;
 		os_thread_create(data_copy_thread_func, data_threads + i,
 				 &data_threads[i].id);
 	}
@@ -4321,6 +4391,14 @@ void backup_fix_ddl(void)
 	std::set<std::string> new_tables;
 	std::set<std::string> dropped_tables;
 	std::map<std::string, std::string> renamed_tables;
+
+	/* Disable further DDL on backed up tables (only needed for --no-lock).*/
+	pthread_mutex_lock(&backup_mutex);
+	log_file_op = backup_file_op_fail;
+	log_optimized_ddl_op = backup_optimized_ddl_op_fail;
+	pthread_mutex_unlock(&backup_mutex);
+
+	DBUG_MARIABACKUP_EVENT("backup_fix_ddl",0);
 
 	for (space_id_to_name_t::iterator iter = ddl_tracker.tables_in_backup.begin();
 		iter != ddl_tracker.tables_in_backup.end();
@@ -4418,7 +4496,7 @@ void backup_fix_ddl(void)
 		}
 		fil_space_free(n->space->id, false);
 	}
-
+	datafiles_iter_free(it);
 
 	for (std::set<std::string>::iterator iter = new_tables.begin();
 		iter != new_tables.end(); iter++) {
@@ -4465,6 +4543,8 @@ void backup_fix_ddl(void)
 #endif
 		xtrabackup_copy_datafile(node, 0, dest_name.c_str()/*, do_full_copy ? ULONGLONG_MAX:UNIV_PAGE_SIZE */);
 	}
+
+	datafiles_iter_free(it);
 }
 
 /* ================= prepare ================= */
@@ -6184,8 +6264,7 @@ static int main_low(char** argv)
 
 	if (xtrabackup_copy_back || xtrabackup_move_back) {
 		if (!check_if_param_set("datadir")) {
-			msg("Error: datadir must be specified.\n");
-			return(EXIT_FAILURE);
+			mysql_data_home = get_default_datadir();
 		}
 		if (!copy_back())
 			return(EXIT_FAILURE);

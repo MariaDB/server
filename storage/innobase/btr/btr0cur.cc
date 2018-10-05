@@ -392,27 +392,32 @@ when loading a table definition.
 @return	error code
 @retval	DB_SUCCESS	if no error occurred
 @retval	DB_CORRUPTION	if any corruption was noticed */
-static
-dberr_t
-btr_cur_instant_init_low(dict_index_t* index, mtr_t* mtr)
+static dberr_t btr_cur_instant_init_low(dict_index_t* index, mtr_t* mtr)
 {
 	ut_ad(index->is_primary());
 	ut_ad(index->n_core_null_bytes == dict_index_t::NO_CORE_NULL_BYTES);
 	ut_ad(index->table->supports_instant());
 	ut_ad(index->table->is_readable());
 
-	page_t* root = btr_root_get(index, mtr);
-
-	if (!root || btr_cur_instant_root_init(index, root)) {
+	const fil_space_t* space = index->table->space;
+	if (!space) {
+unreadable:
 		ib::error() << "Table " << index->table->name
 			    << " has an unreadable root page";
 		index->table->corrupted = true;
 		return DB_CORRUPTION;
 	}
 
+	page_t* root = btr_root_get(index, mtr);
+
+	if (!root || btr_cur_instant_root_init(index, root)) {
+		goto unreadable;
+	}
+
 	ut_ad(index->n_core_null_bytes != dict_index_t::NO_CORE_NULL_BYTES);
 
-	if (!index->is_instant()) {
+	if (fil_page_get_type(root) == FIL_PAGE_INDEX) {
+		ut_ad(!index->is_instant());
 		return DB_SUCCESS;
 	}
 
@@ -430,26 +435,35 @@ btr_cur_instant_init_low(dict_index_t* index, mtr_t* mtr)
 	page_cur_move_to_next(&cur.page_cur);
 
 	const rec_t* rec = cur.page_cur.rec;
+	const ulint comp = dict_table_is_comp(index->table);
+	const ulint info_bits = rec_get_info_bits(rec, comp);
 
-	if (page_rec_is_supremum(rec) || !rec_is_metadata(rec, index)) {
+	if (page_rec_is_supremum(rec)
+	    || !(info_bits & REC_INFO_MIN_REC_FLAG)) {
+		if (!index->is_instant()) {
+			/* The FIL_PAGE_TYPE_INSTANT and PAGE_INSTANT may be
+			assigned even if instant ADD COLUMN was not
+			committed. Changes to these page header fields are not
+			undo-logged, but changes to the hidden metadata record
+			are. If the server is killed and restarted, the page
+			header fields could remain set even though no metadata
+			record is present. */
+			return DB_SUCCESS;
+		}
+
 		ib::error() << "Table " << index->table->name
 			    << " is missing instant ALTER metadata";
 		index->table->corrupted = true;
 		return DB_CORRUPTION;
 	}
 
-	if (dict_table_is_comp(index->table)) {
-		if (rec_get_info_bits(rec, true) != REC_INFO_MIN_REC_FLAG
-		    && rec_get_status(rec) != REC_STATUS_COLUMNS_ADDED) {
+	if (info_bits != REC_INFO_MIN_REC_FLAG
+	    || (comp && rec_get_status(rec) != REC_STATUS_COLUMNS_ADDED)) {
 incompatible:
-			ib::error() << "Table " << index->table->name
-				<< " contains unrecognizable "
-				"instant ALTER metadata";
-			index->table->corrupted = true;
-			return DB_CORRUPTION;
-		}
-	} else if (rec_get_info_bits(rec, false) != REC_INFO_MIN_REC_FLAG) {
-		goto incompatible;
+		ib::error() << "Table " << index->table->name
+			<< " contains unrecognizable instant ALTER metadata";
+		index->table->corrupted = true;
+		return DB_CORRUPTION;
 	}
 
 	/* Read the metadata. We can get here on server restart
@@ -541,8 +555,7 @@ index root page.
 @param[in]	index	clustered index that is on its first access
 @param[in]	page	clustered index root page
 @return	whether the page is corrupted */
-bool
-btr_cur_instant_root_init(dict_index_t* index, const page_t* page)
+bool btr_cur_instant_root_init(dict_index_t* index, const page_t* page)
 {
 	ut_ad(page_is_root(page));
 	ut_ad(!page_is_comp(page) == !dict_table_is_comp(index->table));
@@ -573,7 +586,8 @@ btr_cur_instant_root_init(dict_index_t* index, const page_t* page)
 		break;
 	}
 
-	uint16_t n = page_get_instant(page);
+	const uint16_t n = page_get_instant(page);
+
 	if (n < index->n_uniq + DATA_ROLL_PTR || n > index->n_fields) {
 		/* The PRIMARY KEY (or hidden DB_ROW_ID) and
 		DB_TRX_ID,DB_ROLL_PTR columns must always be present
@@ -582,6 +596,14 @@ btr_cur_instant_root_init(dict_index_t* index, const page_t* page)
 		dictionary. */
 		return true;
 	}
+
+	if (memcmp(page_get_infimum_rec(page), "infimum", 8)
+	    || memcmp(page_get_supremum_rec(page), "supremum", 8)) {
+		/* In a later format, these fields in a FIL_PAGE_TYPE_INSTANT
+		root page could be repurposed for something else. */
+		return true;
+	}
+
 	index->n_core_fields = n;
 	ut_ad(!index->is_dummy);
 	ut_d(index->is_dummy = true);

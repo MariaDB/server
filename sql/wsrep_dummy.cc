@@ -139,3 +139,6 @@ int wsrep_trx_is_aborting(THD *)
 
 void wsrep_unlock_rollback()
 { }
+
+void wsrep_set_data_home_dir(const char *)
+{ }

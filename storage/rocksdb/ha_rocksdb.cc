@@ -3753,12 +3753,13 @@ static int rocksdb_commit(handlerton* hton, THD* thd, bool commit_tx)
 
       //  First, commit without syncing. This establishes the commit order
       tx->set_sync(false);
+      bool tx_had_writes = tx->get_write_count()? true : false ;
       if (tx->commit()) {
         DBUG_RETURN(HA_ERR_ROCKSDB_COMMIT_FAILED);
       }
       thd_wakeup_subsequent_commits(thd, 0);
 
-      if (rocksdb_flush_log_at_trx_commit == FLUSH_LOG_SYNC)
+      if (tx_had_writes && rocksdb_flush_log_at_trx_commit == FLUSH_LOG_SYNC)
       {
         rocksdb::Status s= rdb->FlushWAL(true);
         if (!s.ok())
@@ -5436,6 +5437,9 @@ static int rocksdb_done_func(void *const p) {
   rocksdb_db_options->statistics = nullptr;
   //rocksdb_tbl_options = nullptr;
   rocksdb_stats = nullptr;
+
+  my_free(rocksdb_update_cf_options);
+  rocksdb_update_cf_options = nullptr;
 
   my_error_unregister(HA_ERR_ROCKSDB_FIRST, HA_ERR_ROCKSDB_LAST);
 
@@ -14000,6 +14004,8 @@ rocksdb_set_update_cf_options(THD *const /* unused */,
   const char *const val = *static_cast<const char *const *>(save);
 
   RDB_MUTEX_LOCK_CHECK(rdb_sysvars_mutex);
+
+  my_free(*reinterpret_cast<char **>(var_ptr));
 
   if (!val) {
     *reinterpret_cast<char **>(var_ptr) = nullptr;

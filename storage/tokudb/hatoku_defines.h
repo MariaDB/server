@@ -35,7 +35,7 @@ Copyright (c) 2006, 2015, Percona and/or its affiliates. All rights reserved.
 #include "log.h"
 #include "sql_class.h"
 #include "sql_show.h"
-#include "discover.h"
+#include "item_cmpfunc.h"
 //#include <binlog.h>
 #include "debug_sync.h"
 
@@ -54,11 +54,16 @@ Copyright (c) 2006, 2015, Percona and/or its affiliates. All rights reserved.
 
 #include <ctype.h>
 #include <stdint.h>
+#if !defined(__STDC_FORMAT_MACROS)
 #define __STDC_FORMAT_MACROS
+#endif  // !defined(__STDC_FORMAT_MACROS)
 #include <inttypes.h>
 #if defined(_WIN32)
 #include "misc.h"
 #endif
+
+#include <string>
+#include <unordered_map>
 
 #include "db.h"
 #include "toku_os.h"
@@ -69,15 +74,28 @@ Copyright (c) 2006, 2015, Percona and/or its affiliates. All rights reserved.
 #pragma interface               /* gcc class implementation */
 #endif
 
-#if 100000 <= MYSQL_VERSION_ID
+// TOKU_INCLUDE_WRITE_FRM_DATA, TOKU_PARTITION_WRITE_FRM_DATA, and
+// TOKU_INCLUDE_DISCOVER_FRM all work together as two opposing sides
+// of the same functionality. The 'WRITE' includes functionality to
+// write a copy of every tables .frm data into the tables status dictionary on
+// CREATE or ALTER. When WRITE is in, the .frm data is also verified whenever a
+// table is opened.
+//
+// The 'DISCOVER' then implements the MySQL table discovery API which reads
+// this same data and returns it back to MySQL.
+// In most cases, they should all be in or out without mixing. There may be
+// extreme cases though where one side (WRITE) is supported but perhaps
+// 'DISCOVERY' may not be, thus the need for individual indicators.
 
+#if 100000 <= MYSQL_VERSION_ID
 // mariadb 10.0
 #define TOKU_USE_DB_TYPE_TOKUDB 1
 #define TOKU_INCLUDE_ALTER_56 1
 #define TOKU_INCLUDE_ROW_TYPE_COMPRESSION 0
 #define TOKU_INCLUDE_XA 1
-#define TOKU_INCLUDE_WRITE_FRM_DATA 0
+#define TOKU_INCLUDE_WRITE_FRM_DATA 1
 #define TOKU_PARTITION_WRITE_FRM_DATA 0
+#define TOKU_INCLUDE_DISCOVER_FRM 1
 #if defined(MARIADB_BASE_VERSION)
 #define TOKU_INCLUDE_EXTENDED_KEYS 1
 #endif
@@ -91,7 +109,10 @@ Copyright (c) 2006, 2015, Percona and/or its affiliates. All rights reserved.
 #define TOKU_USE_DB_TYPE_UNKNOWN 1
 #define TOKU_INCLUDE_ALTER_56 1
 #define TOKU_INCLUDE_ROW_TYPE_COMPRESSION 0
+#define TOKU_INCLUDE_WRITE_FRM_DATA 1
 #define TOKU_PARTITION_WRITE_FRM_DATA 0
+#define TOKU_INCLUDE_DISCOVER_FRM 1
+#define TOKU_INCLUDE_RFR 1
 #else
 #error
 #endif
@@ -103,21 +124,25 @@ Copyright (c) 2006, 2015, Percona and/or its affiliates. All rights reserved.
 #define TOKU_INCLUDE_ALTER_56 1    
 #define TOKU_INCLUDE_ROW_TYPE_COMPRESSION 0
 #define TOKU_INCLUDE_XA 0
+#define TOKU_INCLUDE_WRITE_FRM_DATA 1
 #define TOKU_PARTITION_WRITE_FRM_DATA 0
+#define TOKU_INCLUDE_DISCOVER_FRM 1
 #else
 // mysql 5.6 with tokutek patches
 #define TOKU_USE_DB_TYPE_TOKUDB 1           // has DB_TYPE_TOKUDB patch
 #define TOKU_INCLUDE_ALTER_56 1
 #define TOKU_INCLUDE_ROW_TYPE_COMPRESSION 1 // has tokudb row format compression patch
 #define TOKU_INCLUDE_XA 1                   // has patch that fixes TC_LOG_MMAP code
+#define TOKU_INCLUDE_WRITE_FRM_DATA 1
 #define TOKU_PARTITION_WRITE_FRM_DATA 0
-#define TOKU_INCLUDE_WRITE_FRM_DATA 0
+#define TOKU_INCLUDE_DISCOVER_FRM 1
 #define TOKU_INCLUDE_UPSERT 1               // has tokudb upsert patch
 #if defined(HTON_SUPPORTS_EXTENDED_KEYS)
 #define TOKU_INCLUDE_EXTENDED_KEYS 1
 #endif
 #endif
 #define TOKU_OPTIMIZE_WITH_RECREATE 1
+#define TOKU_INCLUDE_RFR 1
 
 #elif 50500 <= MYSQL_VERSION_ID && MYSQL_VERSION_ID <= 50599
 #define TOKU_USE_DB_TYPE_TOKUDB 1
@@ -127,6 +152,7 @@ Copyright (c) 2006, 2015, Percona and/or its affiliates. All rights reserved.
 #define TOKU_INCLUDE_XA 1
 #define TOKU_PARTITION_WRITE_FRM_DATA 0 /* MariaDB 5.5 */
 #define TOKU_INCLUDE_WRITE_FRM_DATA 0   /* MariaDB 5.5 */
+#define TOKU_INCLUDE_DISCOVER_FRM 1
 #define TOKU_INCLUDE_UPSERT 0           /* MariaDB 5.5 */
 #if defined(MARIADB_BASE_VERSION)
 #define TOKU_INCLUDE_EXTENDED_KEYS 1
@@ -142,6 +168,11 @@ Copyright (c) 2006, 2015, Percona and/or its affiliates. All rights reserved.
 #error
 
 #endif
+
+#if defined(TOKU_INCLUDE_DISCOVER_FRM) && TOKU_INCLUDE_DISCOVER_FRM
+#include "discover.h"
+#endif  // defined(TOKU_INCLUDE_DISCOVER_FRM) && TOKU_INCLUDE_DISCOVER_FRM
+
 
 #ifdef MARIADB_BASE_VERSION
 // In MariaDB 5.3, thread progress reporting was introduced.
@@ -258,20 +289,24 @@ inline uint tokudb_uint3korr(const uchar *a) {
 
 typedef unsigned int pfs_key_t;
 
-#if defined(HAVE_PSI_MUTEX_INTERFACE)
-#define mutex_t_lock(M) M.lock(__FILE__, __LINE__)
-#define mutex_t_unlock(M) M.unlock(__FILE__, __LINE__)
-#else  // HAVE_PSI_MUTEX_INTERFACE
-#define mutex_t_lock(M) M.lock()
-#define mutex_t_unlock(M) M.unlock()
-#endif  // HAVE_PSI_MUTEX_INTERFACE
+#if defined(SAFE_MUTEX) || defined(HAVE_PSI_MUTEX_INTERFACE)
+#define mutex_t_lock(M) (M).lock(__FILE__, __LINE__)
+#else  // SAFE_MUTEX || HAVE_PSI_MUTEX_INTERFACE
+#define mutex_t_lock(M) (M).lock()
+#endif  // SAFE_MUTEX || HAVE_PSI_MUTEX_INTERFACE
+
+#if defined(SAFE_MUTEX)
+#define mutex_t_unlock(M) (M).unlock(__FILE__, __LINE__)
+#else  // SAFE_MUTEX
+#define mutex_t_unlock(M) (M).unlock()
+#endif  // SAFE_MUTEX
 
 #if defined(HAVE_PSI_RWLOCK_INTERFACE)
-#define rwlock_t_lock_read(M) M.lock_read(__FILE__, __LINE__)
-#define rwlock_t_lock_write(M) M.lock_write(__FILE__, __LINE__)
+#define rwlock_t_lock_read(M) (M).lock_read(__FILE__, __LINE__)
+#define rwlock_t_lock_write(M) (M).lock_write(__FILE__, __LINE__)
 #else  // HAVE_PSI_RWLOCK_INTERFACE
-#define rwlock_t_lock_read(M) M.lock_read()
-#define rwlock_t_lock_write(M) M.lock_write()
+#define rwlock_t_lock_read(M) (M).lock_read()
+#define rwlock_t_lock_write(M) (M).lock_write()
 #endif  // HAVE_PSI_RWLOCK_INTERFACE
 
 #endif  // _HATOKU_DEFINES_H

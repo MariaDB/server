@@ -28,6 +28,7 @@
 #include "field.h"                              /* Derivation */
 #include "sql_type.h"
 #include "sql_time.h"
+#include "mem_root_array.h"
 
 C_MODE_START
 #include <ma_dyncol.h>
@@ -3910,6 +3911,10 @@ public:
   bool check_vcol_func_processor(void *int_arg) {return FALSE;}
   Item *get_copy(THD *thd) { return 0; }
 
+  bool add_as_clone(THD *thd);
+  void sync_clones();
+  bool register_clone(Item_param *i) { return m_clones.push_back(i); }
+
 private:
   void invalid_default_param() const;
 
@@ -3927,6 +3932,12 @@ public:
 private:
   Send_field *m_out_param_info;
   bool m_is_settable_routine_parameter;
+  /*
+    Array of all references of this parameter marker used in a CTE to its clones
+    created for copies of this marker used the CTE's copies. It's used to
+    synchronize the actual value of the parameter with the values of the clones.
+  */
+  Mem_root_array<Item_param *, true> m_clones;
 };
 
 
@@ -5722,7 +5733,7 @@ public:
   Base class to implement typed value caching Item classes
 
   Item_copy_ classes are very similar to the corresponding Item_
-  classes (e.g. Item_copy_int is similar to Item_int) but they add
+  classes (e.g. Item_copy_string is similar to Item_string) but they add
   the following additional functionality to Item_ :
     1. Nullability
     2. Possibility to store the value not only on instantiation time,
@@ -5769,13 +5780,6 @@ protected:
   }
 
 public:
-  /** 
-    Factory method to create the appropriate subclass dependent on the type of 
-    the original item.
-
-    @param item      the original item.
-  */  
-  static Item_copy *create(THD *thd, Item *item);
 
   /** 
     Update the cache with the value of the original item
@@ -5846,107 +5850,6 @@ public:
   int save_in_field(Field *field, bool no_conversions);
   Item *get_copy(THD *thd)
   { return get_item_copy<Item_copy_string>(thd, this); }
-};
-
-
-class Item_copy_int : public Item_copy
-{
-protected:  
-  longlong cached_value; 
-public:
-  Item_copy_int(THD *thd, Item *i): Item_copy(thd, i) {}
-  int save_in_field(Field *field, bool no_conversions);
-
-  virtual String *val_str(String*);
-  virtual my_decimal *val_decimal(my_decimal *);
-  virtual double val_real()
-  {
-    return null_value ? 0.0 : (double) cached_value;
-  }
-  virtual longlong val_int()
-  {
-    return null_value ? 0 : cached_value;
-  }
-  bool get_date(THD *thd, MYSQL_TIME *ltime, date_mode_t fuzzydate)
-  { return get_date_from_int(thd, ltime, fuzzydate); }
-  virtual void copy();
-  Item *get_copy(THD *thd)
-  { return get_item_copy<Item_copy_int>(thd, this); }
-};
-
-
-class Item_copy_uint : public Item_copy_int
-{
-public:
-  Item_copy_uint(THD *thd, Item *item_arg): Item_copy_int(thd, item_arg)
-  {
-    unsigned_flag= 1;
-  }
-
-  String *val_str(String*);
-  double val_real()
-  {
-    return null_value ? 0.0 : (double) (ulonglong) cached_value;
-  }
-  Item *get_copy(THD *thd)
-  { return get_item_copy<Item_copy_uint>(thd, this); }
-};
-
-
-class Item_copy_float : public Item_copy
-{
-protected:  
-  double cached_value; 
-public:
-  Item_copy_float(THD *thd, Item *i): Item_copy(thd, i) {}
-  int save_in_field(Field *field, bool no_conversions);
-
-  String *val_str(String*);
-  my_decimal *val_decimal(my_decimal *);
-  double val_real()
-  {
-    return null_value ? 0.0 : cached_value;
-  }
-  longlong val_int()
-  {
-    return (longlong) rint(val_real());
-  }
-  bool get_date(THD *thd, MYSQL_TIME *ltime, date_mode_t fuzzydate)
-  {
-    return get_date_from_real(thd, ltime, fuzzydate);
-  }
-  void copy()
-  {
-    cached_value= item->val_real();
-    null_value= item->null_value;
-  }
-  Item *get_copy(THD *thd)
-  { return get_item_copy<Item_copy_float>(thd, this); }
-};
-
-
-class Item_copy_decimal : public Item_copy
-{
-protected:  
-  my_decimal cached_value;
-public:
-  Item_copy_decimal(THD *thd, Item *i): Item_copy(thd, i) {}
-  int save_in_field(Field *field, bool no_conversions);
-
-  String *val_str(String*);
-  my_decimal *val_decimal(my_decimal *) 
-  { 
-    return null_value ? NULL: &cached_value; 
-  }
-  double val_real();
-  longlong val_int();
-  bool get_date(THD *thd, MYSQL_TIME *ltime, date_mode_t fuzzydate)
-  {
-    return VDec(this).to_datetime_with_warn(thd, ltime, fuzzydate, this);
-  }
-  void copy();
-  Item *get_copy(THD *thd)
-  { return get_item_copy<Item_copy_decimal>(thd, this); }
 };
 
 

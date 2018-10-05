@@ -211,10 +211,6 @@ extern "C" {
 #  define MRN_FOREIGN_KEY_USE_CONST_STRING
 #endif
 
-#if MYSQL_VERSION_ID >= 100203 && defined(MRN_MARIADB_P)
-#  define MRN_FOREIGN_KEY_USE_METHOD_ENUM
-#endif
-
 #if MYSQL_VERSION_ID < 50706 || defined(MRN_MARIADB_P)
 #  define MRN_HANDLER_IS_FATAL_ERROR_HAVE_FLAGS
 #endif
