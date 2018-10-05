@@ -161,16 +161,18 @@ static void do_test(size_t ct_size, int num_keys)
 
     r = env->txn_begin(env, nullptr, &txn, 0);
     CKERR(r);
-    DBT key, value;
-    for (i = 0; i < num_keys; i++) {
-        int v, k = toku_htonl(i);
-        dbt_init(&key, &k, sizeof(int));
-        dbt_init(&value, &v, sizeof(int));
-        get_value_by_key(&key, &value);
-        r = db->put(db, txn, &key, &value, 0);
-        CKERR(r);
+    {
+        DBT key, value;
+        for (i = 0; i < num_keys; i++) {
+            int v, k = toku_htonl(i);
+            dbt_init(&key, &k, sizeof(int));
+            dbt_init(&value, &v, sizeof(int));
+            get_value_by_key(&key, &value);
+            if (0) printf("put %d\n", k);
+            r = db->put(db, txn, &key, &value, 0);
+            CKERR(r);
+        }
     }
-    CKERR(r);
 
     int expect_r = num_keys == 0 ? DB_NOTFOUND : 0;
     check_last_key_matches(db, expect_r, num_keys - 1);
@@ -186,13 +188,23 @@ static void do_test(size_t ct_size, int num_keys)
     r = env->txn_begin(env, nullptr, &txn, 0);
     CKERR(r);
 
-    r = db->del(db, txn, &key, 0);
+    // Delete the last key
+    {
+        DBT key;
+        int k = toku_htonl(num_keys - 1);
+        dbt_init(&key, &k, sizeof(int));
+        if (0) printf("del %d\n", *(int*)key.data);
+        r = db->del(db, txn, &key, 0);
+        CKERR(r);
+    }
     check_last_key_matches(db, 0, num_keys - 1);
 
     r = txn->commit(txn, 0);
+    CKERR(r);
     check_last_key_matches(db, 0, num_keys - 1);
 
     r = txn2->commit(txn2, 0);
+    CKERR(r);
     check_last_key_matches(db, 0, num_keys - 1);
 
     //Run Garbage collection (NOTE does not work when everything fits in root??? WHY)

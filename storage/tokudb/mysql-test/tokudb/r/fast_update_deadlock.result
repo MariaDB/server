@@ -1,13 +1,18 @@
-drop table if exists t;
-set default_storage_engine='tokudb';
-create table t (id bigint primary key, b bigint not null default 0);
+set tokudb_enable_fast_update=1;
+set session sql_mode=(select replace(@@sql_mode,'STRICT_TRANS_TABLES',''));
+set session sql_mode=(select replace(@@sql_mode,'STRICT_ALL_TABLES',''));
+create table t (id bigint primary key,
+b bigint not null default 0) engine = tokudb;
 insert into t (id) values (1),(2);
+set tokudb_enable_fast_update=1;
+set session sql_mode=(select replace(@@sql_mode,'STRICT_TRANS_TABLES',''));
+set session sql_mode=(select replace(@@sql_mode,'STRICT_ALL_TABLES',''));
 begin;
-update noar t set b=b+1 where id=1;
+update t set b=b+1 where id=1;
 begin;
-update noar t set b=b-1 where id=2;
-update noar t set b=b+1 where id=2;
-update noar t set b=b-1 where id=1;
+update t set b=b-1 where id=2;
+update t set b=b+1 where id=2;
+update t set b=b-1 where id=1;
 Got one of the listed errors
 rollback;
 commit;

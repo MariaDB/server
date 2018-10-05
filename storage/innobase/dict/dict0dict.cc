@@ -611,7 +611,7 @@ dict_table_has_column(
 }
 
 /** Retrieve the column name.
-@param[in]	table	table name */
+@param[in]	table	the table of this column */
 const char* dict_col_t::name(const dict_table_t& table) const
 {
 	ut_ad(table.magic_n == DICT_TABLE_MAGIC_N);

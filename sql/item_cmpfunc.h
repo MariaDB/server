@@ -1011,8 +1011,8 @@ public:
   longlong int_op();
   String *str_op(String *);
   my_decimal *decimal_op(my_decimal *);
-  bool date_op(MYSQL_TIME *ltime, ulonglong fuzzydate);
-  bool time_op(MYSQL_TIME *ltime);
+  bool date_op(THD *thd, MYSQL_TIME *ltime, date_mode_t fuzzydate);
+  bool time_op(THD *thd, MYSQL_TIME *ltime);
   bool fix_length_and_dec()
   {
     if (aggregate_for_result(func_name(), args, arg_count, true))
@@ -1090,8 +1090,8 @@ public:
   longlong int_op();
   String *str_op(String *str);
   my_decimal *decimal_op(my_decimal *);
-  bool date_op(MYSQL_TIME *ltime, ulonglong fuzzydate);
-  bool time_op(MYSQL_TIME *ltime);
+  bool date_op(THD *thd, MYSQL_TIME *ltime, date_mode_t fuzzydate);
+  bool time_op(THD *thd, MYSQL_TIME *ltime);
   bool fix_length_and_dec()
   {
     if (Item_func_case_abbreviation2::fix_length_and_dec2(args))
@@ -1125,12 +1125,12 @@ public:
     :Item_func_case_abbreviation2(thd, a, b, c)
   { }
 
-  bool date_op(MYSQL_TIME *ltime, ulonglong fuzzydate)
+  bool date_op(THD *thd, MYSQL_TIME *ltime, date_mode_t fuzzydate)
   {
-    Datetime dt(current_thd, find_item(), fuzzydate);
+    Datetime dt(thd, find_item(), fuzzydate);
     return (null_value= dt.copy_to_mysql_time(ltime, mysql_timestamp_type()));
   }
-  bool time_op(MYSQL_TIME *ltime)
+  bool time_op(THD *thd, MYSQL_TIME *ltime)
   {
     return (null_value= Time(find_item()).copy_to_mysql_time(ltime));
   }
@@ -1243,8 +1243,8 @@ public:
     Item_func_hybrid_field_type::cleanup();
     arg_count= 2; // See the comment to the constructor
   }
-  bool date_op(MYSQL_TIME *ltime, ulonglong fuzzydate);
-  bool time_op(MYSQL_TIME *ltime);
+  bool date_op(THD *thd, MYSQL_TIME *ltime, date_mode_t fuzzydate);
+  bool time_op(THD *thd, MYSQL_TIME *ltime);
   double real_op();
   longlong int_op();
   String *str_op(String *str);
@@ -1641,7 +1641,7 @@ public:
   { }
   void store_value(Item *item)
   {
-    value= item->val_datetime_packed();
+    value= item->val_datetime_packed(current_thd);
     m_null_value= item->null_value;
   }
   int cmp_not_null(const Value *val);
@@ -1658,7 +1658,7 @@ public:
   { }
   void store_value(Item *item)
   {
-    value= item->val_time_packed();
+    value= item->val_time_packed(current_thd);
     m_null_value= item->null_value;
   }
   int cmp_not_null(const Value *val);
@@ -1897,7 +1897,7 @@ class Predicant_to_list_comparator
       return UNKNOWN;
     return in_item->cmp(args->arguments()[m_comparators[i].m_arg_index]);
   }
-  int cmp_args_nulls_equal(Item_args *args, uint i)
+  int cmp_args_nulls_equal(THD *thd, Item_args *args, uint i)
   {
     Predicant_to_value_comparator *cmp=
       &m_comparators[m_comparators[i].m_handler_index];
@@ -1908,7 +1908,7 @@ class Predicant_to_list_comparator
     ValueBuffer<MAX_FIELD_WIDTH> val;
     if (m_comparators[i].m_handler_index == i)
       in_item->store_value(predicant);
-    m_comparators[i].m_handler->Item_save_in_value(arg, &val);
+    m_comparators[i].m_handler->Item_save_in_value(thd, arg, &val);
     if (predicant->null_value && val.is_null())
       return FALSE; // Two nulls are equal
     if (predicant->null_value || val.is_null())
@@ -2089,12 +2089,12 @@ public:
   /*
     Same as above, but treats two NULLs as equal, e.g. as in DECODE_ORACLE().
   */
-  bool cmp_nulls_equal(Item_args *args, uint *idx)
+  bool cmp_nulls_equal(THD *thd, Item_args *args, uint *idx)
   {
     for (uint i= 0 ; i < m_comparator_count ; i++)
     {
       DBUG_ASSERT(m_comparators[i].m_handler != NULL);
-      if (cmp_args_nulls_equal(args, i) == FALSE)
+      if (cmp_args_nulls_equal(thd, args, i) == FALSE)
       {
         *idx= m_comparators[i].m_arg_index;
         return false; // Found a matching value
@@ -2130,8 +2130,8 @@ public:
   longlong int_op();
   String *str_op(String *);
   my_decimal *decimal_op(my_decimal *);
-  bool date_op(MYSQL_TIME *ltime, ulonglong fuzzydate);
-  bool time_op(MYSQL_TIME *ltime);
+  bool date_op(THD *thd, MYSQL_TIME *ltime, date_mode_t fuzzydate);
+  bool time_op(THD *thd, MYSQL_TIME *ltime);
   bool fix_fields(THD *thd, Item **ref);
   table_map not_null_tables() const { return 0; }
   const char *func_name() const { return "case"; }

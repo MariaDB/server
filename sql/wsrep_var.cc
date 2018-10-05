@@ -595,7 +595,7 @@ void wsrep_node_address_init (const char* value)
 static void wsrep_slave_count_change_update ()
 {
   wsrep_slave_count_change = (wsrep_slave_threads - wsrep_prev_slave_threads);
-  WSREP_DEBUG("Change on slave threads: New %lu old %lu difference %lu",
+  WSREP_DEBUG("Change on slave threads: New %lu old %lu difference %d",
 	  wsrep_slave_threads, wsrep_prev_slave_threads, wsrep_slave_count_change);
   wsrep_prev_slave_threads = wsrep_slave_threads;
 }
@@ -758,4 +758,3 @@ int wsrep_show_status (THD *thd, SHOW_VAR *var, char *buff,
   v->name= 0;                                   // terminator
   return 0;
 }
-

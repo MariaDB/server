@@ -3410,7 +3410,7 @@ public:
   }
   const Type_handler *type_handler_for_date() const;
   bool timestamp_to_TIME(MYSQL_TIME *ltime, my_time_t ts,
-                         ulong sec_part, ulonglong fuzzydate);
+                         ulong sec_part, date_mode_t fuzzydate);
   inline my_time_t query_start() { return start_time; }
   inline ulong query_start_sec_part()
   { query_start_sec_part_used=1; return start_time_sec_part; }
@@ -4695,6 +4695,7 @@ public:
 
   TMP_TABLE_SHARE* save_tmp_table_share(TABLE *table);
   void restore_tmp_table_share(TMP_TABLE_SHARE *share);
+  void close_unused_temporary_table_instances(const TABLE_LIST *tl);
 
 private:
   /* Whether a lock has been acquired? */
@@ -4952,10 +4953,17 @@ my_eof(THD *thd)
   (A)->variables.sql_log_bin_off= 0;}
 
 
-inline sql_mode_t sql_mode_for_dates(THD *thd)
+inline date_mode_t sql_mode_for_dates(THD *thd)
 {
-  return thd->variables.sql_mode &
-          (MODE_NO_ZERO_DATE | MODE_NO_ZERO_IN_DATE | MODE_INVALID_DATES);
+  static_assert(C_TIME_FUZZY_DATES   == date_mode_t::FUZZY_DATES &&
+                C_TIME_TIME_ONLY     == date_mode_t::TIME_ONLY,
+                "sql_mode_t and pure C library date flags must be equal");
+  static_assert(MODE_NO_ZERO_DATE    == date_mode_t::NO_ZERO_DATE &&
+                MODE_NO_ZERO_IN_DATE == date_mode_t::NO_ZERO_IN_DATE &&
+                MODE_INVALID_DATES   == date_mode_t::INVALID_DATES,
+                "sql_mode_t and date_mode_t values must be equal");
+  return date_mode_t(thd->variables.sql_mode &
+          (MODE_NO_ZERO_DATE | MODE_NO_ZERO_IN_DATE | MODE_INVALID_DATES));
 }
 
 /*
@@ -5647,10 +5655,16 @@ class select_union_recursive :public select_unit
   TABLE *first_rec_table_to_update;
   /* The temporary tables used for recursive table references */
   List<TABLE> rec_tables;
+  /*
+    The count of how many times cleanup() was called with cleaned==false
+    for the unit specifying the recursive CTE for which this object was created
+    or for the unit specifying a CTE that mutually recursive with this CTE.
+  */
+  uint cleanup_count;
 
   select_union_recursive(THD *thd_arg):
     select_unit(thd_arg),
-    incr_table(0), first_rec_table_to_update(0) {};
+    incr_table(0), first_rec_table_to_update(0), cleanup_count(0) {};
 
   int send_data(List<Item> &items);
   bool create_result_table(THD *thd, List<Item> *column_types,

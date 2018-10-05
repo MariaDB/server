@@ -742,9 +742,9 @@ public:
   longlong val_int() { return val_int_from_real();  /* Real as default */ }
   String *val_str(String*str);
   my_decimal *val_decimal(my_decimal *);
-  bool get_date(MYSQL_TIME *ltime, ulonglong fuzzydate)
+  bool get_date(THD *thd, MYSQL_TIME *ltime, date_mode_t fuzzydate)
   {
-    return type_handler()->Item_get_date(this, ltime, fuzzydate);
+    return type_handler()->Item_get_date(thd, this, ltime, fuzzydate);
   }
   void reset_field();
 };
@@ -1067,7 +1067,7 @@ protected:
   double val_real();
   longlong val_int();
   my_decimal *val_decimal(my_decimal *);
-  bool get_date(MYSQL_TIME *ltime, ulonglong fuzzydate);
+  bool get_date(THD *thd, MYSQL_TIME *ltime, date_mode_t fuzzydate);
   void reset_field();
   String *val_str(String *);
   const Type_handler *real_type_handler() const
@@ -1363,7 +1363,7 @@ public:
   void update_field(){DBUG_ASSERT(0);}
   void clear();
   void cleanup();
-  bool get_date(MYSQL_TIME *ltime, ulonglong fuzzydate)
+  bool get_date(THD *thd, MYSQL_TIME *ltime, date_mode_t fuzzydate)
   {
     return execute() || sp_result_field->get_date(ltime, fuzzydate);
   }
@@ -1403,9 +1403,9 @@ public:
   {
     return mark_unsupported_function(name.str, arg, VCOL_IMPOSSIBLE);
   }
-  bool get_date(MYSQL_TIME *ltime, ulonglong fuzzydate)
+  bool get_date(THD *thd, MYSQL_TIME *ltime, date_mode_t fuzzydate)
   {
-    return type_handler()->Item_get_date(this, ltime, fuzzydate);
+    return type_handler()->Item_get_date(thd, this, ltime, fuzzydate);
   }
 };
 
@@ -1565,9 +1565,9 @@ public:
   void update_field() {};
   void cleanup();
   virtual void print(String *str, enum_query_type query_type);
-  bool get_date(MYSQL_TIME *ltime, ulonglong fuzzydate)
+  bool get_date(THD *thd, MYSQL_TIME *ltime, date_mode_t fuzzydate)
   {
-    return type_handler()->Item_get_date(this, ltime, fuzzydate);
+    return type_handler()->Item_get_date(thd, this, ltime, fuzzydate);
   }
 };
 
@@ -1874,9 +1874,9 @@ public:
   {
     return val_decimal_from_string(decimal_value);
   }
-  bool get_date(MYSQL_TIME *ltime, ulonglong fuzzydate)
+  bool get_date(THD *thd, MYSQL_TIME *ltime, date_mode_t fuzzydate)
   {
-    return get_date_from_string(ltime, fuzzydate);
+    return get_date_from_string(thd, ltime, fuzzydate);
   }
   String* val_str(String* str);
   Item *copy_or_same(THD* thd);

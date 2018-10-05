@@ -962,5 +962,31 @@ Warnings:
 Note	1003	select `test`.`t1`.`a` AS `a` from `test`.`t1` where coalesce(<cache>(DATE'2001-01-02'),`test`.`t1`.`a`) <=> coalesce(DATE'2001-01-01',`test`.`t1`.`a`)
 DROP TABLE t1;
 #
+# MDEV-15406 NO_ZERO_IN_DATE erroneously affects how CAST(AS DATE) warns about fractional digit truncation
+#
+SET sql_mode='';
+CREATE TABLE t1 (a DATE);
+SELECT CAST(20061108.01 AS DATE);
+CAST(20061108.01 AS DATE)
+2006-11-08
+Warnings:
+Note	1292	Truncated incorrect datetime value: '20061108.01'
+INSERT INTO t1 VALUES (20061108.01);
+Warnings:
+Note	1265	Data truncated for column 'a' at row 1
+DROP TABLE t1;
+SET sql_mode=NO_ZERO_IN_DATE;
+SELECT CAST(20061108.01 AS DATE);
+CAST(20061108.01 AS DATE)
+2006-11-08
+Warnings:
+Note	1292	Truncated incorrect datetime value: '20061108.01'
+CREATE TABLE t1 (a DATE);
+INSERT INTO t1 VALUES (20061108.01);
+Warnings:
+Note	1265	Data truncated for column 'a' at row 1
+DROP TABLE t1;
+SET sql_mode=DEFAULT;
+#
 # End of 10.4 tests
 #

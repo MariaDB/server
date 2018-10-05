@@ -343,39 +343,39 @@ read_retry:
 	     page += page_size, i++) {
 		ulint page_no = cursor->buf_page_no + i;
 
-		if (cursor->space_id == TRX_SYS_SPACE &&
-		    page_no >= FSP_EXTENT_SIZE &&
-		    page_no < FSP_EXTENT_SIZE * 3) {
-			/* We ignore the doublewrite buffer pages */
-		} else if (!fil_space_verify_crypt_checksum(
-				   page, cursor->page_size, space->id, page_no)
-			   && buf_page_is_corrupted(true, page,
-						    cursor->page_size,
-						    space)) {
-			retry_count--;
-			if (retry_count == 0) {
-				msg("[%02u] mariabackup: "
-				    "Error: failed to read page after "
-				    "10 retries. File %s seems to be "
-				    "corrupted.\n", cursor->thread_n,
-				    cursor->abs_path);
-				ret = XB_FIL_CUR_ERROR;
-				break;
-			}
+                if (cursor->space_id == TRX_SYS_SPACE &&
+                    page_no >= FSP_EXTENT_SIZE &&
+                    page_no < FSP_EXTENT_SIZE * 3) {
+                        /* We ignore the doublewrite buffer pages */
+                } else if (!fil_space_verify_crypt_checksum(
+                                   page, cursor->page_size, space->id, page_no)
+                           && buf_page_is_corrupted(true, page,
+                                                    cursor->page_size,
+                                                    space)) {
+                        retry_count--;
+                        if (retry_count == 0) {
+                                msg("[%02u] mariabackup: "
+                                    "Error: failed to read page after "
+                                    "10 retries. File %s seems to be "
+                                    "corrupted.\n", cursor->thread_n,
+                                    cursor->abs_path);
+                                ret = XB_FIL_CUR_ERROR;
+                                break;
+                        }
 
-			if (retry_count == 9) {
-				msg("[%02u] mariabackup: "
-				    "Database page corruption detected at page "
-				    ULINTPF ", retrying...\n",
-				    cursor->thread_n, page_no);
-			}
+                        if (retry_count == 9) {
+                                msg("[%02u] mariabackup: "
+                                    "Database page corruption detected at page "
+                                    ULINTPF ", retrying...\n",
+                                    cursor->thread_n, page_no);
+                        }
 
-			os_thread_sleep(100000);
+                        os_thread_sleep(100000);
 
-			goto read_retry;
-		}
-		cursor->buf_read += page_size;
-		cursor->buf_npages++;
+                        goto read_retry;
+                }
+                cursor->buf_read += page_size;
+                cursor->buf_npages++;
 	}
 
 	posix_fadvise(cursor->file, offset, to_read, POSIX_FADV_DONTNEED);

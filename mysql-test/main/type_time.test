@@ -1352,5 +1352,16 @@ UPDATE (t1 JOIN t2 ON (t2.d1 = t1.t1)) SET t1.d1 = '2018-07-07' WHERE (t1.d1 > 7
 DROP TABLE t1,t2;
 
 --echo #
+--echo # MDEV-17219 Assertion `!t->fraction_remainder(decimals())' failed in Field_time::store_TIME_with_warning
+--echo #
+SET optimizer_use_condition_selectivity=3;
+CREATE TABLE t1 (it TIME NOT NULL);
+INSERT INTO t1 VALUES ('07:25:13'),('05:15:55'),('09:58:01'),('04:23:57'),('19:37:28'),('01:38:05'),('20:50:52');
+SELECT 1 FROM t1 WHERE it < -7487797330456870912;
+DROP TABLE t1;
+SET optimizer_use_condition_selectivity=DEFAULT;
+
+
+--echo #
 --echo # End of 10.4 tests
 --echo #

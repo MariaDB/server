@@ -177,6 +177,17 @@ Gcalc_dyn_list::Gcalc_dyn_list(size_t blk_size, size_t sizeof_item):
 {}
 
 
+Gcalc_dyn_list::Gcalc_dyn_list(const Gcalc_dyn_list &dl)
+{
+  m_blk_size= dl.m_blk_size;
+  m_sizeof_item= dl.m_sizeof_item;
+  m_points_per_blk= dl.m_points_per_blk;
+  m_blk_hook= &m_first_blk;
+  m_free= NULL;
+  m_keep= NULL;
+}
+
+
 void Gcalc_dyn_list::format_blk(void* block)
 {
   Item *pi_end, *cur_pi, *first_pi;

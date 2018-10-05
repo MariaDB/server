@@ -47,7 +47,7 @@ Copyright (c) 2006, 2015, Percona and/or its affiliates. All rights reserved.
 #include <cassert>
 #include <cstdlib>
 
-#ifdef HAVE_BITS_FUNCTEXCEPT_H
+#if defined(HAVE_BITS_FUNCTEXCEPT_H) && HAVE_BITS_FUNCTEXCEPT_H
 
 # include <bits/functexcept.h>
 

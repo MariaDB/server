@@ -440,13 +440,24 @@ unreadable:
 
 	if (page_rec_is_supremum(rec)
 	    || !(info_bits & REC_INFO_MIN_REC_FLAG)) {
+		if (!index->is_instant()) {
+			/* The FIL_PAGE_TYPE_INSTANT and PAGE_INSTANT may be
+			assigned even if instant ADD COLUMN was not
+			committed. Changes to these page header fields are not
+			undo-logged, but changes to the hidden metadata record
+			are. If the server is killed and restarted, the page
+			header fields could remain set even though no metadata
+			record is present. */
+			return DB_SUCCESS;
+		}
+
 		ib::error() << "Table " << index->table->name
 			    << " is missing instant ALTER metadata";
 		index->table->corrupted = true;
 		return DB_CORRUPTION;
 	}
 
-	if ((info_bits & ~REC_INFO_DELETED_FLAG) != REC_INFO_MIN_REC_FLAG
+	if (info_bits != REC_INFO_MIN_REC_FLAG
 	    || (comp && rec_get_status(rec) != REC_STATUS_INSTANT)) {
 incompatible:
 		ib::error() << "Table " << index->table->name
@@ -612,8 +623,7 @@ index root page.
 @param[in]	index	clustered index that is on its first access
 @param[in]	page	clustered index root page
 @return	whether the page is corrupted */
-bool
-btr_cur_instant_root_init(dict_index_t* index, const page_t* page)
+bool btr_cur_instant_root_init(dict_index_t* index, const page_t* page)
 {
 	ut_ad(page_is_root(page));
 	ut_ad(!page_is_comp(page) == !dict_table_is_comp(index->table));
@@ -658,6 +668,7 @@ btr_cur_instant_root_init(dict_index_t* index, const page_t* page)
 	}
 
 	index->n_core_fields = n;
+
 	const rec_t* infimum = page_get_infimum_rec(page);
 	const rec_t* supremum = page_get_supremum_rec(page);
 

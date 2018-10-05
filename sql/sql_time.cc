@@ -175,7 +175,7 @@ int calc_weekday(long daynr,bool sunday_first_day_of_week)
 	next week is week 1.
 */
 
-uint calc_week(MYSQL_TIME *l_time, uint week_behaviour, uint *year)
+uint calc_week(const MYSQL_TIME *l_time, uint week_behaviour, uint *year)
 {
   uint days;
   ulong daynr=calc_daynr(l_time->year,l_time->month,l_time->day);
@@ -289,14 +289,14 @@ ulong convert_month_to_period(ulong month)
 
 
 bool
-check_date_with_warn(const MYSQL_TIME *ltime, ulonglong fuzzy_date,
+check_date_with_warn(THD *thd, const MYSQL_TIME *ltime, date_mode_t fuzzydate,
                      timestamp_type ts_type)
 {
   int unused;
-  if (check_date(ltime, fuzzy_date, &unused))
+  if (check_date(ltime, fuzzydate, &unused))
   {
     ErrConvTime str(ltime);
-    make_truncated_value_warning(current_thd, Sql_condition::WARN_LEVEL_WARN,
+    make_truncated_value_warning(thd, Sql_condition::WARN_LEVEL_WARN,
                                  &str, ts_type, 0);
     return true;
   }
@@ -305,7 +305,7 @@ check_date_with_warn(const MYSQL_TIME *ltime, ulonglong fuzzy_date,
 
 
 bool
-adjust_time_range_with_warn(MYSQL_TIME *ltime, uint dec)
+adjust_time_range_with_warn(THD *thd, MYSQL_TIME *ltime, uint dec)
 {
   MYSQL_TIME copy= *ltime;
   ErrConvTime str(&copy);
@@ -313,7 +313,7 @@ adjust_time_range_with_warn(MYSQL_TIME *ltime, uint dec)
   if (check_time_range(ltime, dec, &warnings))
     return true;
   if (warnings)
-    current_thd->push_warning_truncated_wrong_value("time", str.ptr());
+    thd->push_warning_truncated_wrong_value("time", str.ptr());
   return false;
 }
 
@@ -374,20 +374,24 @@ public:
 /* Character set-aware version of str_to_time() */
 bool Temporal::str_to_time(MYSQL_TIME_STATUS *status,
                            const char *str, size_t length, CHARSET_INFO *cs,
-                           sql_mode_t fuzzydate)
+                           date_mode_t fuzzydate)
 {
   TemporalAsciiBuffer tmp(str, length, cs);
-  return ::str_to_time(tmp.str, tmp.length, this, fuzzydate, status);
+  return ::str_to_time(tmp.str, tmp.length, this,
+                       ulonglong(fuzzydate & TIME_MODE_FOR_XXX_TO_DATE),
+                       status);
 }
 
 
 /* Character set-aware version of str_to_datetime() */
 bool Temporal::str_to_datetime(MYSQL_TIME_STATUS *status,
                                const char *str, size_t length, CHARSET_INFO *cs,
-                               sql_mode_t flags)
+                               date_mode_t flags)
 {
   TemporalAsciiBuffer tmp(str, length, cs);
-  return ::str_to_datetime(tmp.str, tmp.length, this, flags, status);
+  return ::str_to_datetime(tmp.str, tmp.length, this,
+                           ulonglong(flags & TIME_MODE_FOR_XXX_TO_DATE),
+                           status);
 }
 
 
@@ -399,53 +403,73 @@ bool Temporal::str_to_datetime(MYSQL_TIME_STATUS *status,
     See description of str_to_datetime() for more information.
 */
 
-bool
-str_to_datetime_with_warn(CHARSET_INFO *cs,
+static bool
+str_to_datetime_with_warn(THD *thd, CHARSET_INFO *cs,
                           const char *str, size_t length, MYSQL_TIME *l_time,
-                          ulonglong flags)
+                          date_mode_t flags, MYSQL_TIME_STATUS *status)
 {
-  MYSQL_TIME_STATUS status;
-  THD *thd= current_thd;
-  TemporalAsciiBuffer tmp(str, length, cs);
-  bool ret_val= str_to_datetime(tmp.str, tmp.length, l_time, flags, &status);
-  if (ret_val || status.warnings)
+  Temporal_hybrid *t= new(l_time) Temporal_hybrid(status, str, length, cs, flags);
+  if (!t->is_valid_temporal() || status->warnings)
   {
     const ErrConvString err(str, length, &my_charset_bin);
     make_truncated_value_warning(thd,
-                                 ret_val ? Sql_condition::WARN_LEVEL_WARN :
-                                 Sql_condition::time_warn_level(status.warnings),
+                                 !t->is_valid_temporal() ?
+                                 Sql_condition::WARN_LEVEL_WARN :
+                                 Sql_condition::time_warn_level(status->warnings),
                                  &err, flags & TIME_TIME_ONLY ?
                                  MYSQL_TIMESTAMP_TIME : l_time->time_type, NullS);
   }
   DBUG_EXECUTE_IF("str_to_datetime_warn",
                   push_warning(thd, Sql_condition::WARN_LEVEL_NOTE,
                                ER_YES, str););
-  return ret_val;
+  return !t->is_valid_temporal();
 }
 
 
-bool double_to_datetime_with_warn(double value, MYSQL_TIME *ltime,
-                                  ulonglong fuzzydate, const char *field_name)
+bool
+str_to_datetime_with_warn(THD *thd, CHARSET_INFO *cs,
+                          const char *str, size_t length, MYSQL_TIME *l_time,
+                          date_mode_t flags)
+{
+  MYSQL_TIME_STATUS status;
+  return str_to_datetime_with_warn(thd, cs, str, length, l_time, flags, &status);
+}
+
+
+bool double_to_datetime_with_warn(THD *thd, double value, MYSQL_TIME *ltime,
+                                  date_mode_t fuzzydate, const char *field_name)
 {
   const ErrConvDouble str(value);
-  return Sec6(value).convert_to_mysql_time(ltime, fuzzydate, &str, field_name);
+  Temporal_hybrid *t= new (ltime) Temporal_hybrid(thd, Sec6(value), fuzzydate,
+                                                  &str, field_name);
+  return !t->is_valid_temporal();
 }
 
 
-bool decimal_to_datetime_with_warn(const my_decimal *value, MYSQL_TIME *ltime,
-                                   ulonglong fuzzydate, const char *field_name)
+bool decimal_to_datetime_with_warn(THD *thd, const my_decimal *value,
+                                   MYSQL_TIME *ltime,
+                                   date_mode_t fuzzydate, const char *field_name)
 {
   const ErrConvDecimal str(value);
-  return Sec6(value).convert_to_mysql_time(ltime, fuzzydate, &str, field_name);
+  Temporal_hybrid *t= new (ltime) Temporal_hybrid(thd, Sec6(value), fuzzydate,
+                                                  &str, field_name);
+  return !t->is_valid_temporal();
 }
 
 
-bool int_to_datetime_with_warn(bool neg, ulonglong value, MYSQL_TIME *ltime,
-                               ulonglong fuzzydate, const char *field_name)
+bool int_to_datetime_with_warn(THD *thd, bool neg, ulonglong value,
+                               MYSQL_TIME *ltime,
+                               date_mode_t fuzzydate, const char *field_name)
 {
   const ErrConvInteger str(neg ? - (longlong) value : (longlong) value, !neg);
-  Sec6 sec(neg, value, 0);
-  return sec.convert_to_mysql_time(ltime, fuzzydate, &str, field_name);
+  /*
+    Note: conversion from an integer to TIME can overflow to '838:59:59.999999',
+    so the conversion result can have fractional digits.
+  */
+  Temporal_hybrid *t= new (ltime)
+                      Temporal_hybrid(thd, Sec6(neg, value, 0),
+                                      fuzzydate, &str, field_name);
+  return !t->is_valid_temporal();
 }
 
 
@@ -902,7 +926,7 @@ void make_truncated_value_warning(THD *thd,
                    (X)->second_part)
 #define GET_PART(X, N) X % N ## LL; X/= N ## LL
 
-bool date_add_interval(MYSQL_TIME *ltime, interval_type int_type,
+bool date_add_interval(THD *thd, MYSQL_TIME *ltime, interval_type int_type,
                        const INTERVAL &interval)
 {
   long period, sign;
@@ -1017,7 +1041,6 @@ bool date_add_interval(MYSQL_TIME *ltime, interval_type int_type,
 
 invalid_date:
   {
-    THD *thd= current_thd;
     push_warning_printf(thd, Sql_condition::WARN_LEVEL_WARN,
                         ER_DATETIME_FUNCTION_OVERFLOW,
                         ER_THD(thd, ER_DATETIME_FUNCTION_OVERFLOW),
@@ -1106,7 +1129,7 @@ calc_time_diff(const MYSQL_TIME *l_time1, const MYSQL_TIME *l_time2,
 
 
 bool calc_time_diff(const MYSQL_TIME *l_time1, const MYSQL_TIME *l_time2,
-                    int l_sign, MYSQL_TIME *l_time3, ulonglong fuzzydate)
+                    int l_sign, MYSQL_TIME *l_time3, date_mode_t fuzzydate)
 {
   ulonglong seconds;
   ulong microseconds;
@@ -1323,7 +1346,7 @@ time_to_datetime(THD *thd, const MYSQL_TIME *from, MYSQL_TIME *to)
 bool
 time_to_datetime_with_warn(THD *thd,
                            const MYSQL_TIME *from, MYSQL_TIME *to,
-                           ulonglong fuzzydate)
+                           date_mode_t fuzzydate)
 {
   int warn= 0;
   DBUG_ASSERT(from->time_type == MYSQL_TIMESTAMP_TIME);
@@ -1389,8 +1412,9 @@ void unpack_time(longlong packed, MYSQL_TIME *my_time,
 }
 
 
-bool my_decimal::to_datetime_with_warn(MYSQL_TIME *to, ulonglong fuzzydate,
+bool my_decimal::to_datetime_with_warn(THD *thd, MYSQL_TIME *to,
+                                       date_mode_t fuzzydate,
                                        const char *field_name)
 {
-  return decimal_to_datetime_with_warn(this, to, fuzzydate, field_name);
+  return decimal_to_datetime_with_warn(thd, this, to, fuzzydate, field_name);
 }

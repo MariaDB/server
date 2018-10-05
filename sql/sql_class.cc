@@ -7696,7 +7696,7 @@ Query_arena_stmt::~Query_arena_stmt()
 
 
 bool THD::timestamp_to_TIME(MYSQL_TIME *ltime, my_time_t ts,
-                            ulong sec_part, ulonglong fuzzydate)
+                            ulong sec_part, date_mode_t fuzzydate)
 {
   time_zone_used= 1;
   if (ts == 0 && sec_part == 0)

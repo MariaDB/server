@@ -33,26 +33,17 @@ FUNCTION (INSTALL_DEBUG_SYMBOLS)
   SET(targets ${ARG_UNPARSED_ARGUMENTS})
   FOREACH(target ${targets})
     GET_TARGET_PROPERTY(target_type ${target} TYPE)
-
+    IF(target_type MATCHES "STATIC")
+      RETURN()
+    ENDIF()
     set(comp "")
-   
-    IF(target MATCHES "mysqld" OR type MATCHES "MODULE")
-      #MESSAGE("PDB: ${targets}")
+
+    IF((target STREQUAL "mysqld"))
       SET(comp Server)
     ENDIF()
- 
-    IF(NOT comp MATCHES Server)
-      IF(ARG_COMPONENT MATCHES Development
-        OR ARG_COMPONENT MATCHES SharedLibraries
-        OR ARG_COMPONENT MATCHES Embedded)
-        SET(comp Debuginfo)
-      ENDIF()
-    ENDIF()
 
-    IF(NOT comp)
-      SET(comp Debuginfo_archive_only) # not in MSI
-    ENDIF()
-    IF(NOT target_type MATCHES "STATIC")
+    INSTALL(FILES $<TARGET_PDB_FILE:${target}> DESTINATION symbols COMPONENT Debuginfo)
+    IF(comp)
       INSTALL(FILES $<TARGET_PDB_FILE:${target}> DESTINATION ${ARG_INSTALL_LOCATION} COMPONENT ${comp})
     ENDIF()
   ENDFOREACH()

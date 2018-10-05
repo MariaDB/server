@@ -115,14 +115,15 @@ void Item::push_note_converted_to_positive_complement(THD *thd)
 }
 
 
-longlong Item::val_datetime_packed_result()
+longlong Item::val_datetime_packed_result(THD *thd)
 {
   MYSQL_TIME ltime, tmp;
-  if (get_date_result(&ltime, Datetime::comparison_flags_for_get_date()))
+  if (get_date_result(thd, &ltime, Datetime::comparison_flags_for_get_date()))
     return 0;
   if (ltime.time_type != MYSQL_TIMESTAMP_TIME)
     return pack_time(&ltime);
-  if ((null_value= time_to_datetime_with_warn(current_thd, &ltime, &tmp, 0)))
+  if ((null_value= time_to_datetime_with_warn(thd, &ltime,
+                                              &tmp, date_mode_t(0))))
     return 0;
   return pack_time(&tmp);
 }
@@ -293,7 +294,7 @@ my_decimal *Item::val_decimal_from_string(my_decimal *decimal_value)
 int Item::save_time_in_field(Field *field, bool no_conversions)
 {
   MYSQL_TIME ltime;
-  if (get_time(&ltime))
+  if (get_time(field->table->in_use, &ltime))
     return set_field_to_null_with_conversions(field, no_conversions);
   field->set_notnull();
   return field->store_time_dec(&ltime, decimals);
@@ -303,7 +304,8 @@ int Item::save_time_in_field(Field *field, bool no_conversions)
 int Item::save_date_in_field(Field *field, bool no_conversions)
 {
   MYSQL_TIME ltime;
-  if (get_date(&ltime, sql_mode_for_dates(field->table->in_use)))
+  THD *thd= field->table->in_use;
+  if (get_date(thd, &ltime, sql_mode_for_dates(thd)))
     return set_field_to_null_with_conversions(field, no_conversions);
   field->set_notnull();
   return field->store_time_dec(&ltime, decimals);
@@ -1272,11 +1274,11 @@ Item *Item_param::safe_charset_converter(THD *thd, CHARSET_INFO *tocs)
   As a extra convenience the time structure is reset on error or NULL values!
 */
 
-bool Item::get_date_from_int(MYSQL_TIME *ltime, ulonglong fuzzydate)
+bool Item::get_date_from_int(THD *thd, MYSQL_TIME *ltime, date_mode_t fuzzydate)
 {
   longlong value= val_int();
   bool neg= !unsigned_flag && value < 0;
-  if (null_value || int_to_datetime_with_warn(neg, neg ? -value : value,
+  if (null_value || int_to_datetime_with_warn(thd, neg, neg ? -value : value,
                                               ltime, fuzzydate,
                                               field_name_or_null()))
     return null_value|= make_zero_date(ltime, fuzzydate);
@@ -1284,29 +1286,29 @@ bool Item::get_date_from_int(MYSQL_TIME *ltime, ulonglong fuzzydate)
 }
 
 
-bool Item::get_date_from_real(MYSQL_TIME *ltime, ulonglong fuzzydate)
+bool Item::get_date_from_real(THD *thd, MYSQL_TIME *ltime, date_mode_t fuzzydate)
 {
   double value= val_real();
-  if (null_value || double_to_datetime_with_warn(value, ltime, fuzzydate,
+  if (null_value || double_to_datetime_with_warn(thd, value, ltime, fuzzydate,
                                                  field_name_or_null()))
     return null_value|= make_zero_date(ltime, fuzzydate);
   return null_value= false;
 }
 
 
-bool Item::get_date_from_string(MYSQL_TIME *ltime, ulonglong fuzzydate)
+bool Item::get_date_from_string(THD *thd, MYSQL_TIME *ltime, date_mode_t fuzzydate)
 {
   char buff[40];
   String tmp(buff,sizeof(buff), &my_charset_bin),*res;
   if (!(res=val_str(&tmp)) ||
-      str_to_datetime_with_warn(res->charset(), res->ptr(), res->length(),
+      str_to_datetime_with_warn(thd, res->charset(), res->ptr(), res->length(),
                                 ltime, fuzzydate))
     return null_value|= make_zero_date(ltime, fuzzydate);
   return null_value= false;
 }
 
 
-bool Item::make_zero_date(MYSQL_TIME *ltime, ulonglong fuzzydate)
+bool Item::make_zero_date(MYSQL_TIME *ltime, date_mode_t fuzzydate)
 {
   /*
     if the item was not null and convertion failed, we return a zero date
@@ -1429,7 +1431,14 @@ Query_fragment::Query_fragment(THD *thd, sp_head *sphead,
                                const char *start, const char *end)
 {
   DBUG_ASSERT(start <= end);
-  if (sphead)
+  if (thd->lex->clone_spec_offset)
+  {
+    Lex_input_stream *lip= (& thd->m_parser_state->m_lip);
+    DBUG_ASSERT(lip->get_buf() <= start);
+    DBUG_ASSERT(end <= lip->get_end_of_query());
+    set(start - lip->get_buf(), end - start);
+  }
+  else if (sphead)
   {
     if (sphead->m_tmp_query)
     {
@@ -1561,11 +1570,11 @@ my_decimal *Item_sp_variable::val_decimal(my_decimal *decimal_value)
 }
 
 
-bool Item_sp_variable::get_date(MYSQL_TIME *ltime, ulonglong fuzzydate)
+bool Item_sp_variable::get_date(THD *thd, MYSQL_TIME *ltime, date_mode_t fuzzydate)
 {
   DBUG_ASSERT(fixed);
   Item *it= this_item();
-  bool val= it->get_date(ltime, fuzzydate);
+  bool val= it->get_date(thd, ltime, fuzzydate);
   null_value= it->null_value;
   return val;
 }
@@ -1942,10 +1951,10 @@ my_decimal *Item_name_const::val_decimal(my_decimal *decimal_value)
   return val;
 }
 
-bool Item_name_const::get_date(MYSQL_TIME *ltime, ulonglong fuzzydate)
+bool Item_name_const::get_date(THD *thd, MYSQL_TIME *ltime, date_mode_t fuzzydate)
 {
   DBUG_ASSERT(fixed);
-  bool rc= value_item->get_date(ltime, fuzzydate);
+  bool rc= value_item->get_date(thd, ltime, fuzzydate);
   null_value= value_item->null_value;
   return rc;
 }
@@ -3182,7 +3191,7 @@ String *Item_field::str_result(String *str)
   return result_field->val_str(str,&str_value);
 }
 
-bool Item_field::get_date(MYSQL_TIME *ltime,ulonglong fuzzydate)
+bool Item_field::get_date(THD *thd, MYSQL_TIME *ltime,date_mode_t fuzzydate)
 {
   if ((null_value=field->is_null()) || field->get_date(ltime,fuzzydate))
   {
@@ -3192,7 +3201,7 @@ bool Item_field::get_date(MYSQL_TIME *ltime,ulonglong fuzzydate)
   return 0;
 }
 
-bool Item_field::get_date_result(MYSQL_TIME *ltime, ulonglong fuzzydate)
+bool Item_field::get_date_result(THD *thd, MYSQL_TIME *ltime, date_mode_t fuzzydate)
 {
   if (result_field->is_null() || result_field->get_date(ltime,fuzzydate))
   {
@@ -3725,7 +3734,7 @@ my_decimal *Item_null::val_decimal(my_decimal *decimal_value)
 }
 
 
-bool Item_null::get_date(MYSQL_TIME *ltime, ulonglong fuzzydate)
+bool Item_null::get_date(THD *thd, MYSQL_TIME *ltime, date_mode_t fuzzydate)
 {
   make_zero_date(ltime, fuzzydate);
   return (null_value= true);
@@ -3786,7 +3795,8 @@ Item_param::Item_param(THD *thd, const LEX_CSTRING *name_arg,
     For dynamic SQL, settability depends on the type of Item passed
     as an actual parameter. See Item_param::set_from_item().
   */
-  m_is_settable_routine_parameter(true)
+  m_is_settable_routine_parameter(true),
+  m_clones(thd->mem_root)
 {
   name= *name_arg;
   /*
@@ -3795,6 +3805,59 @@ Item_param::Item_param(THD *thd, const LEX_CSTRING *name_arg,
     value is set.
   */
   maybe_null= 1;
+}
+
+
+/* Add reference to Item_param used in a copy of CTE to its master as a clone */
+
+bool Item_param::add_as_clone(THD *thd)
+{
+  LEX *lex= thd->lex;
+  my_ptrdiff_t master_pos= pos_in_query + lex->clone_spec_offset;
+  List_iterator_fast<Item_param> it(lex->param_list);
+  Item_param *master_param;
+  while ((master_param = it++))
+  {
+    if (master_pos == master_param->pos_in_query)
+      return master_param->register_clone(this);
+  }
+  DBUG_ASSERT(false);
+  return false;
+}
+
+
+/* Update all clones of Item_param to sync their values with the item's value */
+
+void Item_param::sync_clones()
+{
+  Item_param **c_ptr= m_clones.begin();
+  Item_param **end= m_clones.end();
+  for ( ; c_ptr < end; c_ptr++)
+  {
+    Item_param *c= *c_ptr;
+    /* Scalar-type members: */
+    c->maybe_null= maybe_null;
+    c->null_value= null_value;
+    c->Type_std_attributes::operator=(*this);
+    c->Type_handler_hybrid_field_type::operator=(*this);
+    c->Type_geometry_attributes::operator=(*this);
+
+    c->state= state;
+    c->m_empty_string_is_null= m_empty_string_is_null;
+
+    c->value.PValue_simple::operator=(value);
+    c->value.Type_handler_hybrid_field_type::operator=(value);
+    type_handler()->Item_param_setup_conversion(current_thd, c);
+
+    /* Class-type members: */
+    c->value.m_decimal= value.m_decimal;
+    /*
+      Note that String's assignment op properly sets m_is_alloced to 'false',
+      which is correct here: c->str_value doesn't own anything.
+    */
+    c->value.m_string= value.m_string;
+    c->value.m_string_ptr= value.m_string_ptr;
+  }
 }
 
 
@@ -4082,7 +4145,7 @@ bool Item_param::set_from_item(THD *thd, Item *item)
     }
   }
   struct st_value tmp;
-  if (!item->save_in_value(&tmp))
+  if (!item->save_in_value(thd, &tmp))
   {
     const Type_handler *h= item->type_handler();
     set_handler(h);
@@ -4185,7 +4248,7 @@ void Item_param::invalid_default_param() const
 }
 
 
-bool Item_param::get_date(MYSQL_TIME *res, ulonglong fuzzydate)
+bool Item_param::get_date(THD *thd, MYSQL_TIME *res, date_mode_t fuzzydate)
 {
   /*
     LIMIT clause parameter should not call get_date()
@@ -4199,7 +4262,7 @@ bool Item_param::get_date(MYSQL_TIME *res, ulonglong fuzzydate)
     *res= value.time;
     return 0;
   }
-  return type_handler()->Item_get_date(this, res, fuzzydate);
+  return type_handler()->Item_get_date(thd, this, res, fuzzydate);
 }
 
 
@@ -4232,7 +4295,7 @@ longlong Item_param::PValue::val_int(const Type_std_attributes *attr) const
 {
   switch (type_handler()->cmp_type()) {
   case REAL_RESULT:
-    return (longlong) rint(real);
+    return Converter_double_to_longlong(real, attr->unsigned_flag).result();
   case INT_RESULT:
     return integer;
   case DECIMAL_RESULT:
@@ -4615,7 +4678,7 @@ Item_param::set_value(THD *thd, sp_rcontext *ctx, Item **it)
     correctly fetches the value from the client-server protocol,
     using set_param_func().
   */
-  if (arg->save_in_value(&tmp) ||
+  if (arg->save_in_value(thd, &tmp) ||
       set_value(thd, arg, &tmp, arg->type_handler()))
   {
     set_null();
@@ -4700,32 +4763,6 @@ bool Item_param::append_for_log(THD *thd, String *str)
   return str->append(*val);
 }
 
-/****************************************************************************
-  Item_copy
-****************************************************************************/
-
-Item_copy *Item_copy::create(THD *thd, Item *item)
-{
-  MEM_ROOT *mem_root= thd->mem_root;
-  switch (item->result_type())
-  {
-    case STRING_RESULT:
-      return new (mem_root) Item_copy_string(thd, item);
-    case REAL_RESULT:
-      return new (mem_root) Item_copy_float(thd, item);
-    case INT_RESULT:
-      return item->unsigned_flag ?
-        new (mem_root) Item_copy_uint(thd, item) :
-        new (mem_root) Item_copy_int(thd, item);
-    case DECIMAL_RESULT:
-      return new (mem_root) Item_copy_decimal(thd, item);
-    case TIME_RESULT:
-    case ROW_RESULT:
-      DBUG_ASSERT (0);
-  }
-  /* should not happen */
-  return NULL;
-}
 
 /****************************************************************************
   Item_copy_string
@@ -4780,138 +4817,6 @@ my_decimal *Item_copy_string::val_decimal(my_decimal *decimal_value)
     return (my_decimal *) 0;
   string2my_decimal(E_DEC_FATAL_ERROR, &str_value, decimal_value);
   return (decimal_value);
-}
-
-
-/****************************************************************************
-  Item_copy_int
-****************************************************************************/
-
-void Item_copy_int::copy()
-{
-  cached_value= item->val_int();
-  null_value=item->null_value;
-}
-
-static int save_int_value_in_field (Field *, longlong, bool, bool);
-
-int Item_copy_int::save_in_field(Field *field, bool no_conversions)
-{
-  return save_int_value_in_field(field, cached_value, 
-                                 null_value, unsigned_flag);
-}
-
-
-String *Item_copy_int::val_str(String *str)
-{
-  if (null_value)
-    return (String *) 0;
-
-  str->set(cached_value, &my_charset_bin);
-  return str;
-}
-
-
-my_decimal *Item_copy_int::val_decimal(my_decimal *decimal_value)
-{
-  if (null_value)
-    return (my_decimal *) 0;
-
-  int2my_decimal(E_DEC_FATAL_ERROR, cached_value, unsigned_flag, decimal_value);
-  return decimal_value;
-}
-
-
-/****************************************************************************
-  Item_copy_uint
-****************************************************************************/
-
-String *Item_copy_uint::val_str(String *str)
-{
-  if (null_value)
-    return (String *) 0;
-
-  str->set((ulonglong) cached_value, &my_charset_bin);
-  return str;
-}
-
-
-/****************************************************************************
-  Item_copy_float
-****************************************************************************/
-
-String *Item_copy_float::val_str(String *str)
-{
-  if (null_value)
-    return (String *) 0;
-  else
-  {
-    double nr= val_real();
-    str->set_real(nr,decimals, &my_charset_bin);
-    return str;
-  }
-}
-
-
-my_decimal *Item_copy_float::val_decimal(my_decimal *decimal_value)
-{
-  if (null_value)
-    return (my_decimal *) 0;
-  else
-  {
-    double nr= val_real();
-    double2my_decimal(E_DEC_FATAL_ERROR, nr, decimal_value);
-    return decimal_value;
-  }
-}
-
-
-int Item_copy_float::save_in_field(Field *field, bool no_conversions)
-{
-  if (null_value)
-    return set_field_to_null(field);
-  field->set_notnull();
-  return field->store(cached_value);
-}
-
-
-/****************************************************************************
-  Item_copy_decimal
-****************************************************************************/
-
-int Item_copy_decimal::save_in_field(Field *field, bool no_conversions)
-{
-  if (null_value)
-    return set_field_to_null(field);
-  field->set_notnull();
-  return field->store_decimal(&cached_value);
-}
-
-
-String *Item_copy_decimal::val_str(String *result)
-{
-  return null_value ? NULL : cached_value.to_string(result);
-}
-
-
-double Item_copy_decimal::val_real()
-{
-  return null_value ? 0.0 : cached_value.to_double();
-}
-
-
-longlong Item_copy_decimal::val_int()
-{
-  return null_value ? 0 : cached_value.to_longlong(unsigned_flag);
-}
-
-
-void Item_copy_decimal::copy()
-{
-  my_decimal *nr= item->val_decimal(&cached_value);
-  if (nr && nr != &cached_value)
-    my_decimal2decimal (nr, &cached_value);
-  null_value= item->null_value;
 }
 
 
@@ -4972,9 +4877,9 @@ String* Item_ref_null_helper::val_str(String* s)
 }
 
 
-bool Item_ref_null_helper::get_date(MYSQL_TIME *ltime, ulonglong fuzzydate)
+bool Item_ref_null_helper::get_date(THD *thd, MYSQL_TIME *ltime, date_mode_t fuzzydate)
 {  
-  return (owner->was_null|= null_value= (*ref)->get_date_result(ltime, fuzzydate));
+  return (owner->was_null|= null_value= (*ref)->get_date_result(thd, ltime, fuzzydate));
 }
 
 
@@ -7013,11 +6918,11 @@ Item *Item_date_literal::clone_item(THD *thd)
 }
 
 
-bool Item_date_literal::get_date(MYSQL_TIME *ltime, ulonglong fuzzy_date)
+bool Item_date_literal::get_date(THD *thd, MYSQL_TIME *ltime, date_mode_t fuzzydate)
 {
-  fuzzy_date |= sql_mode_for_dates(current_thd);
+  fuzzydate |= sql_mode_for_dates(thd);
   *ltime= cached_time;
-  return (null_value= check_date_with_warn(ltime, fuzzy_date,
+  return (null_value= check_date_with_warn(thd, ltime, fuzzydate,
                                            MYSQL_TIMESTAMP_ERROR));
 }
 
@@ -7038,11 +6943,11 @@ Item *Item_datetime_literal::clone_item(THD *thd)
 }
 
 
-bool Item_datetime_literal::get_date(MYSQL_TIME *ltime, ulonglong fuzzy_date)
+bool Item_datetime_literal::get_date(THD *thd, MYSQL_TIME *ltime, date_mode_t fuzzydate)
 {
-  fuzzy_date |= sql_mode_for_dates(current_thd);
+  fuzzydate |= sql_mode_for_dates(thd);
   *ltime= cached_time;
-  return (null_value= check_date_with_warn(ltime, fuzzy_date,
+  return (null_value= check_date_with_warn(thd, ltime, fuzzydate,
                                            MYSQL_TIMESTAMP_ERROR));
 }
 
@@ -7063,12 +6968,12 @@ Item *Item_time_literal::clone_item(THD *thd)
 }
 
 
-bool Item_time_literal::get_date(MYSQL_TIME *ltime, ulonglong fuzzy_date)
+bool Item_time_literal::get_date(THD *thd, MYSQL_TIME *ltime, date_mode_t fuzzydate)
 {
   *ltime= cached_time;
-  if (fuzzy_date & TIME_TIME_ONLY)
+  if (fuzzydate & TIME_TIME_ONLY)
     return (null_value= false);
-  return (null_value= check_date_with_warn(ltime, fuzzy_date,
+  return (null_value= check_date_with_warn(thd, ltime, fuzzydate,
                                            MYSQL_TIMESTAMP_ERROR));
 }
 
@@ -8294,9 +8199,9 @@ bool Item_ref::is_null()
 }
 
 
-bool Item_ref::get_date(MYSQL_TIME *ltime,ulonglong fuzzydate)
+bool Item_ref::get_date(THD *thd, MYSQL_TIME *ltime, date_mode_t fuzzydate)
 {
-  return (null_value=(*ref)->get_date_result(ltime,fuzzydate));
+  return (null_value=(*ref)->get_date_result(thd, ltime, fuzzydate));
 }
 
 
@@ -8431,9 +8336,9 @@ bool Item_direct_ref::is_null()
 }
 
 
-bool Item_direct_ref::get_date(MYSQL_TIME *ltime,ulonglong fuzzydate)
+bool Item_direct_ref::get_date(THD *thd, MYSQL_TIME *ltime, date_mode_t fuzzydate)
 {
-  return (null_value=(*ref)->get_date(ltime,fuzzydate));
+  return (null_value=(*ref)->get_date(thd, ltime, fuzzydate));
 }
 
 
@@ -8810,18 +8715,18 @@ bool Item_cache_wrapper::is_null()
   Get the date value of the possibly cached item
 */
 
-bool Item_cache_wrapper::get_date(MYSQL_TIME *ltime, ulonglong fuzzydate)
+bool Item_cache_wrapper::get_date(THD *thd, MYSQL_TIME *ltime, date_mode_t fuzzydate)
 {
   Item *cached_value;
   DBUG_ENTER("Item_cache_wrapper::get_date");
   if (!expr_cache)
-    DBUG_RETURN((null_value= orig_item->get_date(ltime, fuzzydate)));
+    DBUG_RETURN((null_value= orig_item->get_date(thd, ltime, fuzzydate)));
 
   if ((cached_value= check_cache()))
-    DBUG_RETURN((null_value= cached_value->get_date(ltime, fuzzydate)));
+    DBUG_RETURN((null_value= cached_value->get_date(thd, ltime, fuzzydate)));
 
   cache();
-  DBUG_RETURN((null_value= expr_value->get_date(ltime, fuzzydate)));
+  DBUG_RETURN((null_value= expr_value->get_date(thd, ltime, fuzzydate)));
 }
 
 
@@ -9238,10 +9143,10 @@ my_decimal *Item_default_value::val_decimal(my_decimal *decimal_value)
   return Item_field::val_decimal(decimal_value);
 }
 
-bool Item_default_value::get_date(MYSQL_TIME *ltime,ulonglong fuzzydate)
+bool Item_default_value::get_date(THD *thd, MYSQL_TIME *ltime,date_mode_t fuzzydate)
 {
   calculate();
-  return Item_field::get_date(ltime, fuzzydate);
+  return Item_field::get_date(thd, ltime, fuzzydate);
 }
 
 bool Item_default_value::send(Protocol *protocol, st_value *buffer)
@@ -9344,7 +9249,7 @@ my_decimal *Item_ignore_value::val_decimal(my_decimal *decimal_value)
   return 0;
 }
 
-bool Item_ignore_value::get_date(MYSQL_TIME *ltime, ulonglong fuzzydate)
+bool Item_ignore_value::get_date(THD *thd, MYSQL_TIME *ltime, date_mode_t fuzzydate)
 {
   DBUG_ASSERT(0); // never should be called
   null_value= 1;
@@ -9586,13 +9491,11 @@ void Item_trigger_field::cleanup()
 
 Item_result item_cmp_type(Item_result a,Item_result b)
 {
-  if (a == STRING_RESULT && b == STRING_RESULT)
-    return STRING_RESULT;
-  if (a == INT_RESULT && b == INT_RESULT)
-    return INT_RESULT;
-  else if (a == ROW_RESULT || b == ROW_RESULT)
+  if (a == b)
+    return a;
+  if (a == ROW_RESULT || b == ROW_RESULT)
     return ROW_RESULT;
-  else if (a == TIME_RESULT || b == TIME_RESULT)
+  if (a == TIME_RESULT || b == TIME_RESULT)
     return TIME_RESULT;
   if ((a == INT_RESULT || a == DECIMAL_RESULT) &&
       (b == INT_RESULT || b == DECIMAL_RESULT))
@@ -9779,7 +9682,7 @@ bool Item_cache_temporal::cache_value()
   if (!example)
     return false;
   value_cached= true;
-  value= example->val_datetime_packed_result();
+  value= example->val_datetime_packed_result(current_thd);
   null_value= example->null_value;
   return true;
 }
@@ -9790,13 +9693,13 @@ bool Item_cache_time::cache_value()
   if (!example)
     return false;
   value_cached= true;
-  value= example->val_time_packed_result();
+  value= example->val_time_packed_result(current_thd);
   null_value= example->null_value;
   return true;
 }
 
 
-bool Item_cache_temporal::get_date(MYSQL_TIME *ltime, ulonglong fuzzydate)
+bool Item_cache_temporal::get_date(THD *thd, MYSQL_TIME *ltime, date_mode_t fuzzydate)
 {
   ErrConvInteger str(value);
 
@@ -9814,7 +9717,7 @@ bool Item_cache_temporal::get_date(MYSQL_TIME *ltime, ulonglong fuzzydate)
 int Item_cache_temporal::save_in_field(Field *field, bool no_conversions)
 {
   MYSQL_TIME ltime;
-  if (get_date(&ltime, 0))
+  if (get_date(field->get_thd(), &ltime, date_mode_t(0)))
     return set_field_to_null_with_conversions(field, no_conversions);
   field->set_notnull();
   int error= field->store_time_dec(&ltime, decimals);
@@ -9857,21 +9760,21 @@ Item *Item_cache_temporal::convert_to_basic_const_item(THD *thd)
 Item *Item_cache_datetime::make_literal(THD *thd)
 {
   MYSQL_TIME ltime;
-  unpack_time(val_datetime_packed(), &ltime, MYSQL_TIMESTAMP_DATETIME);
+  unpack_time(val_datetime_packed(thd), &ltime, MYSQL_TIMESTAMP_DATETIME);
   return new (thd->mem_root) Item_datetime_literal(thd, &ltime, decimals);
 }
 
 Item *Item_cache_date::make_literal(THD *thd)
 {
   MYSQL_TIME ltime;
-  unpack_time(val_datetime_packed(), &ltime, MYSQL_TIMESTAMP_DATE);
+  unpack_time(val_datetime_packed(thd), &ltime, MYSQL_TIMESTAMP_DATE);
   return new (thd->mem_root) Item_date_literal(thd, &ltime);
 }
 
 Item *Item_cache_time::make_literal(THD *thd)
 {
   MYSQL_TIME ltime;
-  unpack_time(val_time_packed(), &ltime, MYSQL_TIMESTAMP_TIME);
+  unpack_time(val_time_packed(thd), &ltime, MYSQL_TIMESTAMP_TIME);
   return new (thd->mem_root) Item_time_literal(thd, &ltime, decimals);
 }
 
@@ -9897,7 +9800,7 @@ longlong Item_cache_real::val_int()
 {
   if (!has_value())
     return 0;
-  return (longlong) rint(value);
+  return Converter_double_to_longlong(value, unsigned_flag).result();
 }
 
 
@@ -10219,7 +10122,7 @@ String *Item_type_holder::val_str(String*)
   return 0;
 }
 
-bool Item_type_holder::get_date(MYSQL_TIME *ltime, ulonglong fuzzydate)
+bool Item_type_holder::get_date(THD *thd, MYSQL_TIME *ltime, date_mode_t fuzzydate)
 {
   DBUG_ASSERT(0); // should never be called
   return true;
