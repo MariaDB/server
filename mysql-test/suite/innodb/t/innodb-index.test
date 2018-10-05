@@ -1084,6 +1084,7 @@ drop table t1;
 --echo #
 
 --source include/no_checkpoint_start.inc
+SET GLOBAL DEBUG_DBUG='+d,fil_names_write_bogus';
 CREATE TABLE t1(f1 INT PRIMARY KEY)ENGINE=InnoDB;
 
 CREATE TABLE t2(f1 INT PRIMARY KEY)ENGINE=InnoDB;
