@@ -4290,15 +4290,42 @@ btr_discard_only_page_on_level(
 	}
 #endif /* UNIV_BTR_DEBUG */
 
+	mem_heap_t* heap = NULL;
+	const rec_t* rec = NULL;
+	ulint* offsets = NULL;
+	if (index->table->instant) {
+		const rec_t* r = page_rec_get_next(page_get_infimum_rec(
+							   block->frame));
+		ut_ad(rec_is_metadata(r, *index) == index->is_instant());
+		if (rec_is_alter_metadata(r, *index)) {
+			heap = mem_heap_create(srv_page_size);
+			offsets = rec_get_offsets(r, index, NULL, true,
+						  ULINT_UNDEFINED, &heap);
+			rec = rec_copy(mem_heap_alloc(heap,
+						      rec_offs_size(offsets)),
+				       r, offsets);
+			rec_offs_make_valid(rec, index, true, offsets);
+		}
+	}
+
 	btr_page_empty(block, buf_block_get_page_zip(block), index, 0, mtr);
 	ut_ad(page_is_leaf(buf_block_get_frame(block)));
 	/* btr_page_empty() is supposed to zero-initialize the field. */
 	ut_ad(!page_get_instant(block->frame));
 
 	if (index->is_primary()) {
-		/* Concurrent access is prevented by the root_block->lock
-		X-latch, so this should be safe. */
-		index->remove_instant();
+		if (rec) {
+			DBUG_ASSERT(index->table->instant);
+			DBUG_ASSERT(rec_is_alter_metadata(rec, *index));
+			btr_set_instant(block, *index, mtr);
+			rec = page_cur_insert_rec_low(
+				page_get_infimum_rec(block->frame),
+				index, rec, offsets, mtr);
+			ut_ad(rec);
+			mem_heap_free(heap);
+		} else if (index->is_instant()) {
+			index->clear_instant_add();
+		}
 	} else if (!index->table->is_temporary()) {
 		/* We play it safe and reset the free bits for the root */
 		ibuf_reset_free_bits(block);

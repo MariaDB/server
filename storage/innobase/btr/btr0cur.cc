@@ -5546,37 +5546,35 @@ btr_cur_optimistic_delete_func(
 		/* The whole index (and table) becomes logically empty.
 		Empty the whole page. That is, if we are deleting the
 		only user record, also delete the metadata record
-		if one exists (it exists if and only if is_instant()).
+		if one exists for instant ADD COLUMN (not generic ALTER TABLE).
 		If we are deleting the metadata record and the
 		table becomes empty, clean up the whole page. */
 		dict_index_t* index = cursor->index;
+		const rec_t* first_rec = page_rec_get_next_const(
+			page_get_infimum_rec(block->frame));
 		ut_ad(!index->is_instant()
-		      || rec_is_metadata(
-			      page_rec_get_next_const(
-				      page_get_infimum_rec(block->frame)),
-			      *index));
-		if (UNIV_UNLIKELY(rec_get_info_bits(rec, page_rec_is_comp(rec))
-				  & REC_INFO_MIN_REC_FLAG)) {
-			/* This should be rolling back instant ADD COLUMN.
-			If this is a recovered transaction, then
-			index->is_instant() will hold until the
-			insert into SYS_COLUMNS is rolled back. */
-			ut_ad(index->table->supports_instant());
-			ut_ad(index->is_primary());
-		} else {
+		      || rec_is_metadata(first_rec, *index));
+		const bool is_metadata = rec_is_metadata(rec, *index);
+		/* We can remove the metadata when rolling back an
+		instant ALTER TABLE operation, or when deleting the
+		last user record on the page such that only metadata for
+		instant ADD COLUMN (not generic ALTER TABLE) remains. */
+		const bool empty_table = is_metadata
+			|| !index->is_instant()
+			|| (first_rec != rec
+			    && rec_is_add_metadata(first_rec, *index));
+		if (UNIV_LIKELY(!is_metadata)) {
 			lock_update_delete(block, rec);
 		}
-		btr_page_empty(block, buf_block_get_page_zip(block),
-			       index, 0, mtr);
-		page_cur_set_after_last(block, btr_cur_get_page_cur(cursor));
-
-		if (index->is_primary()) {
-			/* Concurrent access is prevented by
-			root_block->lock X-latch, so this should be
-			safe. */
-			index->remove_instant();
+		if (UNIV_LIKELY(empty_table)) {
+			btr_page_empty(block, buf_block_get_page_zip(block),
+				       index, 0, mtr);
+			if (index->is_instant()) {
+				/* FIXME: free metadata BLOBs */
+				index->clear_instant_alter();
+			}
 		}
-
+		page_cur_set_after_last(block, btr_cur_get_page_cur(cursor));
 		return true;
 	}
 
@@ -5757,10 +5755,10 @@ btr_cur_pessimistic_delete(
 	}
 
 	if (page_is_leaf(page)) {
-		const bool is_metadata = rec_get_info_bits(
-			rec, page_rec_is_comp(rec)) & REC_INFO_MIN_REC_FLAG;
+		const bool is_metadata = rec_is_metadata(
+			rec, page_rec_is_comp(rec));
 		if (UNIV_UNLIKELY(is_metadata)) {
-			/* This should be rolling back instant ADD COLUMN.
+			/* This should be rolling back instant ALTER TABLE.
 			If this is a recovered transaction, then
 			index->is_instant() will hold until the
 			insert into SYS_COLUMNS is rolled back. */
@@ -5776,28 +5774,30 @@ btr_cur_pessimistic_delete(
 				goto discard_page;
 			}
 		} else if (page_get_n_recs(page) == 1
-			   + (index->is_instant()
-			      && !rec_is_metadata(rec, *index))) {
+			   + (index->is_instant() && !is_metadata)) {
 			/* The whole index (and table) becomes logically empty.
 			Empty the whole page. That is, if we are deleting the
 			only user record, also delete the metadata record
-			if one exists (it exists if and only if is_instant()).
+			if one exists for instant ADD COLUMN
+			(not generic ALTER TABLE).
 			If we are deleting the metadata record and the
 			table becomes empty, clean up the whole page. */
+
+			const rec_t* first_rec = page_rec_get_next_const(
+				page_get_infimum_rec(page));
 			ut_ad(!index->is_instant()
-			      || rec_is_metadata(
-				      page_rec_get_next_const(
-					      page_get_infimum_rec(page)),
-				      *index));
-			btr_page_empty(block, page_zip, index, 0, mtr);
+			      || rec_is_metadata(first_rec, *index));
+			if (is_metadata || !index->is_instant()
+			    || (first_rec != rec
+				&& rec_is_add_metadata(first_rec, *index))) {
+				btr_page_empty(block, page_zip, index, 0, mtr);
+				if (index->is_instant()) {
+					/* FIXME: free metadata BLOBs */
+					index->clear_instant_alter();
+				}
+			}
 			page_cur_set_after_last(block,
 						btr_cur_get_page_cur(cursor));
-			if (index->is_primary()) {
-				/* Concurrent access is prevented by
-				index->lock and root_block->lock
-				X-latch, so this should be safe. */
-				index->remove_instant();
-			}
 			ret = TRUE;
 			goto return_after_reservations;
 		}

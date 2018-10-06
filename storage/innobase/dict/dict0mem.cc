@@ -1235,69 +1235,6 @@ inline void dict_index_t::reconstruct_fields()
 	n_core_null_bytes = UT_BITS_IN_BYTES(n_core_null);
 }
 
-/** Remove instant ALTER TABLE metadata.
-Protected by index root page x-latch or table X-lock. */
-void dict_index_t::remove_instant()
-{
-	DBUG_ASSERT(is_primary());
-
-	if (!is_instant()) {
-		return;
-	}
-
-	const unsigned n_dropped = table->n_dropped();
-	if (!n_dropped) {
-		/* FIXME: reorder columns too! */
-		for (unsigned i = n_core_fields; i < n_fields; i++) {
-			fields[i].col->clear_instant();
-		}
-
-		n_core_fields = n_fields;
-		n_core_null_bytes = UT_BITS_IN_BYTES(n_nullable);
-		table->instant = NULL;
-		return;
-	}
-
-	ulint	old_n_fields = n_fields;
-	n_fields -= n_dropped;
-	n_def -= n_dropped;
-
-	unsigned	n_null = 0;
-	unsigned	new_field = 0;
-	dict_field_t*	temp_fields = static_cast<dict_field_t*>(mem_heap_zalloc(
-				heap, n_fields * sizeof *temp_fields));
-
-	for (unsigned i = 0; i < old_n_fields; i++) {
-		dict_field_t&	temp_field = temp_fields[new_field];
-		dict_field_t	field = fields[i];
-
-		if (field.col->is_dropped()) {
-			continue;
-		}
-
-		new_field++;
-
-		temp_field.prefix_len = field.prefix_len;
-		temp_field.fixed_len = field.fixed_len;
-		temp_field.name = dict_table_get_col_name(
-				table, dict_col_get_no(field.col));
-		temp_field.col = &table->cols[field.col->ind];
-
-		temp_field.col->clear_instant();
-
-		if (temp_field.col->is_nullable()) {
-			n_null++;
-		}
-	}
-
-	ut_ad(n_fields == new_field);
-	fields = temp_fields;
-	n_core_fields = n_fields;
-	n_nullable = n_null;
-	n_core_null_bytes = UT_BITS_IN_BYTES(n_null);
-	table->instant = NULL;
-}
-
 /** Adjust index metadata for instant ADD/DROP/reorder COLUMN.
 @param[in]	clustered index definition after instant ALTER TABLE */
 inline void dict_index_t::instant_add_field(const dict_index_t& instant)

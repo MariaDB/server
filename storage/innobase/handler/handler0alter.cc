@@ -5075,7 +5075,7 @@ empty_table:
 		/* The table is empty. */
 		ut_ad(page_is_root(block->frame));
 		btr_page_empty(block, NULL, index, 0, &mtr);
-		index->remove_instant();
+		index->clear_instant_alter();
 		err = DB_SUCCESS;
 		goto func_exit;
 	}

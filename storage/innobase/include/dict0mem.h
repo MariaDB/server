@@ -1126,6 +1126,10 @@ struct dict_index_t {
 	/** Adjust index metadata for instant ADD/DROP/reorder COLUMN.
 	@param[in]	clustered index definition after instant ALTER TABLE */
 	inline void instant_add_field(const dict_index_t& instant);
+	/** Remove instant ADD COLUMN metadata. */
+	inline void clear_instant_add();
+	/** Remove instant ALTER TABLE metadata. */
+	inline void clear_instant_alter();
 
 	/** Construct the metadata record for instant ALTER TABLE.
 	@param[in]	row	dummy or default values for existing columns
@@ -1133,10 +1137,6 @@ struct dict_index_t {
 	@return	metadata record */
 	inline dtuple_t*
 	instant_metadata(const dtuple_t& row, mem_heap_t* heap) const;
-
-	/** Remove instant ALTER TABLE metadata.
-	Protected by index root page x-latch or table X-lock. */
-	void remove_instant();
 
 	/** Check if record in clustered index is historical row.
 	@param[in]	rec	clustered row
@@ -2077,6 +2077,62 @@ inline bool dict_index_t::is_corrupted() const
 	return UNIV_UNLIKELY(online_status >= ONLINE_INDEX_ABORTED
 			     || (type & DICT_CORRUPT)
 			     || (table && table->corrupted));
+}
+
+inline void dict_index_t::clear_instant_add()
+{
+	DBUG_ASSERT(is_primary());
+	DBUG_ASSERT(is_instant());
+	DBUG_ASSERT(!table->instant);
+	for (unsigned i = n_core_fields; i < n_fields; i++) {
+		fields[i].col->clear_instant();
+	}
+	n_core_fields = n_fields;
+	n_core_null_bytes = UT_BITS_IN_BYTES(unsigned(n_nullable));
+}
+
+inline void dict_index_t::clear_instant_alter()
+{
+	DBUG_ASSERT(is_primary());
+
+	if (!table->instant) {
+		if (is_instant()) {
+			clear_instant_add();
+		}
+		return;
+	}
+
+	const unsigned n_dropped = table->n_dropped();
+
+	unsigned old_n_fields = n_fields;
+	n_fields -= n_dropped;
+	n_def -= n_dropped;
+
+	unsigned        n_null = 0;
+	unsigned        new_field = 0;
+	dict_field_t*   temp_fields = static_cast<dict_field_t*>(
+		mem_heap_alloc(heap, n_fields * sizeof *temp_fields));
+
+	for (unsigned i = 0; i < old_n_fields; i++) {
+		dict_field_t    field = fields[i];
+
+		if (field.col->is_dropped()) {
+			continue;
+		}
+
+		dict_field_t& f = temp_fields[new_field++];
+		f = field;
+		f.col->clear_instant();
+
+		n_null += f.col->is_nullable();
+	}
+
+	ut_ad(n_fields == new_field);
+	fields = temp_fields;
+	n_core_fields = n_fields;
+	n_nullable = n_null;
+	n_core_null_bytes = UT_BITS_IN_BYTES(n_null);
+	table->instant = NULL;
 }
 
 /** @return whether the column was instantly dropped
