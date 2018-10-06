@@ -4717,34 +4717,32 @@ innobase_drop_virtual_try(
 
 /** Construct the metadata record for instant ALTER TABLE.
 @param[in]	row	dummy or default values for existing columns
-@param[in]	index	clustered index
 @param[in,out]	heap	memory heap for allocations
 @return	metadata record */
-static dtuple_t* instant_metadata(
-	const dtuple_t&		row,
-	const dict_index_t&	index,
-	mem_heap_t*		heap)
+inline
+dtuple_t*
+dict_index_t::instant_metadata(const dtuple_t& row, mem_heap_t* heap) const
 {
-	ut_ad(index.is_primary());
+	ut_ad(is_primary());
 	dtuple_t* entry;
 
-	if (!index.table->instant) {
-		entry = row_build_index_entry(&row, NULL, &index, heap);
+	if (!table->instant) {
+		entry = row_build_index_entry(&row, NULL, this, heap);
 		entry->info_bits = REC_INFO_METADATA_ADD;
 		return entry;
 	}
 
-	entry = dtuple_create(heap, index.n_fields + 1);
-	entry->n_fields_cmp = index.n_uniq;
+	entry = dtuple_create(heap, n_fields + 1);
+	entry->n_fields_cmp = n_uniq;
 	entry->info_bits = REC_INFO_METADATA_ALTER;
 
-	const dict_field_t* field = index.fields;
+	const dict_field_t* field = fields;
 
-	for (uint i = 0; i <= index.n_fields; i++, field++) {
+	for (uint i = 0; i <= n_fields; i++, field++) {
 		dfield_t* dfield = dtuple_get_nth_field(entry, i);
 
-		if (i == index.first_user_field()) {
-			index.table->serialise_columns(heap, dfield);
+		if (i == first_user_field()) {
+			table->serialise_columns(heap, dfield);
 			dfield->type.metadata_blob_init();
 			field--;
 			continue;
@@ -4772,7 +4770,7 @@ static dtuple_t* instant_metadata(
 		}
 
 		if (dfield_is_ext(dfield)) {
-			ut_ad(i > index.first_user_field());
+			ut_ad(i > first_user_field());
 			ut_ad(!field->prefix_len);
 			ut_ad(dfield->len >= FIELD_REF_SIZE);
 			dfield_set_len(dfield, dfield->len - FIELD_REF_SIZE);
@@ -4783,7 +4781,7 @@ static dtuple_t* instant_metadata(
 		}
 
 		ut_ad(field->col->ord_part);
-		ut_ad(i < index.n_uniq);
+		ut_ad(i < n_uniq);
 
 		ulint len = dtype_get_at_most_n_mbchars(
 			field->col->prtype,
@@ -4974,7 +4972,7 @@ static bool innobase_instant_try(
 	row_ins_clust_index_entry_low() searches for the insert position. */
 	memset(roll_ptr, 0, sizeof roll_ptr);
 
-	dtuple_t* entry = instant_metadata(*row, *index, ctx->heap);
+	dtuple_t* entry = index->instant_metadata(*row, ctx->heap);
 	mtr_t mtr;
 	mtr.start();
 	index->set_modified(mtr);

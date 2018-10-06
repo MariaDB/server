@@ -1127,6 +1127,13 @@ struct dict_index_t {
 	@param[in]	clustered index definition after instant ALTER TABLE */
 	inline void instant_add_field(const dict_index_t& instant);
 
+	/** Construct the metadata record for instant ALTER TABLE.
+	@param[in]	row	dummy or default values for existing columns
+	@param[in,out]	heap	memory heap for allocations
+	@return	metadata record */
+	inline dtuple_t*
+	instant_metadata(const dtuple_t& row, mem_heap_t* heap) const;
+
 	/** Remove instant ALTER TABLE metadata.
 	Protected by index root page x-latch or table X-lock. */
 	void remove_instant();
