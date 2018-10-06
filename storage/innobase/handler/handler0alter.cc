@@ -8121,8 +8121,10 @@ err_exit:
 	     index = dict_table_get_next_index(index)) {
 
 		for (ulint i = 0; i < dict_index_get_n_fields(index); i++) {
-			if (strcmp(dict_index_get_nth_field(index, i)->name,
-				   from)) {
+			const dict_field_t& f = index->fields[i];
+			DBUG_ASSERT(!f.name == f.col->is_dropped());
+
+			if (!f.name || strcmp(f.name, from)) {
 				continue;
 			}
 
