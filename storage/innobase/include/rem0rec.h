@@ -768,10 +768,10 @@ in the clustered index for instant ADD COLUMN or ALTER TABLE.
 @param[in]	rec	leaf page record
 @param[in]	index	index of the record
 @return	whether the record is the metadata pseudo-record */
-inline bool rec_is_metadata(const rec_t* rec, const dict_index_t* index)
+inline bool rec_is_metadata(const rec_t* rec, const dict_index_t& index)
 {
-	bool is = rec_is_metadata(rec, dict_table_is_comp(index->table));
-	ut_ad(!is || index->is_instant());
+	bool is = rec_is_metadata(rec, dict_table_is_comp(index.table));
+	ut_ad(!is || index.is_instant());
 	return is;
 }
 

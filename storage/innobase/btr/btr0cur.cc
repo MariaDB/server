@@ -2382,7 +2382,7 @@ need_opposite_intention:
 			ut_ad(tuple->is_metadata()
 			      || (tuple->is_metadata(tuple->info_bits
 						     ^ REC_STATUS_INSTANT)));
-		} else if (rec_is_metadata(btr_cur_get_rec(cursor), index)) {
+		} else if (rec_is_metadata(btr_cur_get_rec(cursor), *index)) {
 			/* Only user records belong in the adaptive
 			hash index. */
 		} else {
@@ -4365,7 +4365,7 @@ any_extern:
 		return(DB_OVERFLOW);
 	}
 
-	if (rec_is_metadata(rec, index) && index->table->instant) {
+	if (rec_is_metadata(rec, *index) && index->table->instant) {
 		goto any_extern;
 	}
 
@@ -4726,7 +4726,7 @@ btr_cur_pessimistic_update(
 
 	dtuple_t* new_entry;
 
-	const bool is_metadata = rec_is_metadata(rec, index);
+	const bool is_metadata = rec_is_metadata(rec, *index);
 
 	if (UNIV_UNLIKELY(is_metadata)) {
 		ut_ad(update->is_metadata());
@@ -5542,7 +5542,7 @@ btr_cur_optimistic_delete_func(
 	if (UNIV_UNLIKELY(page_is_root(block->frame)
 			  && page_get_n_recs(block->frame) == 1
 			  + (cursor->index->is_instant()
-			     && !rec_is_metadata(rec, cursor->index)))) {
+			     && !rec_is_metadata(rec, *cursor->index)))) {
 		/* The whole index (and table) becomes logically empty.
 		Empty the whole page. That is, if we are deleting the
 		only user record, also delete the metadata record
@@ -5554,7 +5554,7 @@ btr_cur_optimistic_delete_func(
 		      || rec_is_metadata(
 			      page_rec_get_next_const(
 				      page_get_infimum_rec(block->frame)),
-			      index));
+			      *index));
 		if (UNIV_UNLIKELY(rec_get_info_bits(rec, page_rec_is_comp(rec))
 				  & REC_INFO_MIN_REC_FLAG)) {
 			/* This should be rolling back instant ADD COLUMN.
@@ -5777,7 +5777,7 @@ btr_cur_pessimistic_delete(
 			}
 		} else if (page_get_n_recs(page) == 1
 			   + (index->is_instant()
-			      && !rec_is_metadata(rec, index))) {
+			      && !rec_is_metadata(rec, *index))) {
 			/* The whole index (and table) becomes logically empty.
 			Empty the whole page. That is, if we are deleting the
 			only user record, also delete the metadata record
@@ -5788,7 +5788,7 @@ btr_cur_pessimistic_delete(
 			      || rec_is_metadata(
 				      page_rec_get_next_const(
 					      page_get_infimum_rec(page)),
-					      index));
+				      *index));
 			btr_page_empty(block, page_zip, index, 0, mtr);
 			page_cur_set_after_last(block,
 						btr_cur_get_page_cur(cursor));

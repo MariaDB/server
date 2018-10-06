@@ -337,7 +337,7 @@ lock_report_trx_id_insanity(
 	trx_id_t	max_trx_id)	/*!< in: trx_sys.get_max_trx_id() */
 {
 	ut_ad(rec_offs_validate(rec, index, offsets));
-	ut_ad(!rec_is_metadata(rec, index));
+	ut_ad(!rec_is_metadata(rec, *index));
 
 	ib::error()
 		<< "Transaction id " << trx_id
@@ -360,7 +360,7 @@ lock_check_trx_id_sanity(
 	const ulint*	offsets)	/*!< in: rec_get_offsets(rec, index) */
 {
 	ut_ad(rec_offs_validate(rec, index, offsets));
-	ut_ad(!rec_is_metadata(rec, index));
+	ut_ad(!rec_is_metadata(rec, *index));
 
 	trx_id_t	max_trx_id = trx_sys.get_max_trx_id();
 	ut_ad(max_trx_id || srv_force_recovery >= SRV_FORCE_NO_UNDO_LOG_SCAN);
@@ -389,7 +389,7 @@ lock_clust_rec_cons_read_sees(
 	ut_ad(dict_index_is_clust(index));
 	ut_ad(page_rec_is_user_rec(rec));
 	ut_ad(rec_offs_validate(rec, index, offsets));
-	ut_ad(!rec_is_metadata(rec, index));
+	ut_ad(!rec_is_metadata(rec, *index));
 
 	/* Temp-tables are not shared across connections and multiple
 	transactions from different connections cannot simultaneously
@@ -428,7 +428,7 @@ lock_sec_rec_cons_read_sees(
 {
 	ut_ad(page_rec_is_user_rec(rec));
 	ut_ad(!index->is_primary());
-	ut_ad(!rec_is_metadata(rec, index));
+	ut_ad(!rec_is_metadata(rec, *index));
 
 	/* NOTE that we might call this function while holding the search
 	system latch. */
@@ -1222,7 +1222,7 @@ lock_sec_rec_some_has_impl(
 	ut_ad(!dict_index_is_clust(index));
 	ut_ad(page_rec_is_user_rec(rec));
 	ut_ad(rec_offs_validate(rec, index, offsets));
-	ut_ad(!rec_is_metadata(rec, index));
+	ut_ad(!rec_is_metadata(rec, *index));
 
 	max_trx_id = page_get_max_trx_id(page);
 
@@ -5312,7 +5312,7 @@ lock_rec_insert_check_and_lock(
 	trx_t*		trx = thr_get_trx(thr);
 	const rec_t*	next_rec = page_rec_get_next_const(rec);
 	ulint		heap_no = page_rec_get_heap_no(next_rec);
-	ut_ad(!rec_is_metadata(next_rec, index));
+	ut_ad(!rec_is_metadata(next_rec, *index));
 
 	lock_mutex_enter();
 	/* Because this code is invoked for a running transaction by
@@ -5440,7 +5440,7 @@ lock_rec_convert_impl_to_expl_for_trx(
 {
 	ut_ad(trx->is_referenced());
 	ut_ad(page_rec_is_leaf(rec));
-	ut_ad(!rec_is_metadata(rec, index));
+	ut_ad(!rec_is_metadata(rec, *index));
 
 	DEBUG_SYNC_C("before_lock_rec_convert_impl_to_expl_for_trx");
 
@@ -5564,7 +5564,7 @@ lock_rec_convert_impl_to_expl(
 	ut_ad(rec_offs_validate(rec, index, offsets));
 	ut_ad(!page_rec_is_comp(rec) == !rec_offs_comp(offsets));
 	ut_ad(page_rec_is_leaf(rec));
-	ut_ad(!rec_is_metadata(rec, index));
+	ut_ad(!rec_is_metadata(rec, *index));
 
 	if (dict_index_is_clust(index)) {
 		trx_id_t	trx_id;
@@ -5641,7 +5641,7 @@ lock_clust_rec_modify_check_and_lock(
 
 		return(DB_SUCCESS);
 	}
-	ut_ad(!rec_is_metadata(rec, index));
+	ut_ad(!rec_is_metadata(rec, *index));
 	ut_ad(!index->table->is_temporary());
 
 	heap_no = rec_offs_comp(offsets)
@@ -5697,7 +5697,7 @@ lock_sec_rec_modify_check_and_lock(
 	ut_ad(block->frame == page_align(rec));
 	ut_ad(mtr->is_named_space(index->table->space));
 	ut_ad(page_rec_is_leaf(rec));
-	ut_ad(!rec_is_metadata(rec, index));
+	ut_ad(!rec_is_metadata(rec, *index));
 
 	if (flags & BTR_NO_LOCKING_FLAG) {
 
@@ -5791,7 +5791,7 @@ lock_sec_rec_read_check_and_lock(
 		return(DB_SUCCESS);
 	}
 
-	ut_ad(!rec_is_metadata(rec, index));
+	ut_ad(!rec_is_metadata(rec, *index));
 	heap_no = page_rec_get_heap_no(rec);
 
 	/* Some transaction may have an implicit x-lock on the record only
@@ -5853,7 +5853,7 @@ lock_clust_rec_read_check_and_lock(
 	      || gap_mode == LOCK_REC_NOT_GAP);
 	ut_ad(rec_offs_validate(rec, index, offsets));
 	ut_ad(page_rec_is_leaf(rec));
-	ut_ad(!rec_is_metadata(rec, index));
+	ut_ad(!rec_is_metadata(rec, *index));
 
 	if ((flags & BTR_NO_LOCKING_FLAG)
 	    || srv_read_only_mode

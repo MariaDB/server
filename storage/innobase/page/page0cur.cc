@@ -737,7 +737,7 @@ up_slot_match:
 				  & REC_INFO_MIN_REC_FLAG)) {
 			ut_ad(!page_has_prev(page_align(mid_rec)));
 			ut_ad(!page_rec_is_leaf(mid_rec)
-			      || rec_is_metadata(mid_rec, index));
+			      || rec_is_metadata(mid_rec, *index));
 			cmp = 1;
 			goto low_rec_match;
 		}

@@ -1873,7 +1873,7 @@ row_merge_read_clustered_index(
 	btr_pcur_open_at_index_side(
 		true, clust_index, BTR_SEARCH_LEAF, &pcur, true, 0, &mtr);
 	btr_pcur_move_to_next_user_rec(&pcur, &mtr);
-	if (rec_is_metadata(btr_pcur_get_rec(&pcur), clust_index)) {
+	if (rec_is_metadata(btr_pcur_get_rec(&pcur), *clust_index)) {
 		ut_ad(btr_pcur_is_on_user_rec(&pcur));
 		/* Skip the metadata pseudo-record. */
 	} else {

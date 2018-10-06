@@ -4993,7 +4993,7 @@ static bool innobase_instant_try(
 		NULL, trx, ctx->heap, NULL);
 
 	dberr_t err;
-	if (rec_is_metadata(rec, index)) {
+	if (rec_is_metadata(rec, *index)) {
 		ut_ad(page_rec_is_user_rec(rec));
 		if (!page_has_next(block->frame)
 		    && page_rec_is_last(rec, block->frame)) {

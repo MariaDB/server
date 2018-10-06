@@ -913,7 +913,7 @@ row_metadata_to_tuple(
 {
 	ut_ad(info_bits == REC_INFO_METADATA_ALTER
 	      || info_bits == REC_INFO_METADATA_ADD);
-	ut_ad(rec_is_metadata(rec, index));
+	ut_ad(rec_is_metadata(rec, *index));
 	ut_ad(rec_offs_validate(rec, index, offsets));
 
 	const rec_t* copy_rec = rec_copy(

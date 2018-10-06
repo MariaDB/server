@@ -2668,7 +2668,7 @@ row_ins_clust_index_entry_low(
 
 	if (index->is_instant()) entry->trim(*index);
 
-	if (rec_is_metadata(btr_cur_get_rec(cursor), index)) {
+	if (rec_is_metadata(btr_cur_get_rec(cursor), *index)) {
 		goto do_insert;
 	}
 
