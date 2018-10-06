@@ -367,6 +367,8 @@ extern void dump_page(uchar *buffer, File handler);
 extern my_bool translog_log_debug_info(TRN *trn,
                                        enum translog_debug_info_type type,
                                        uchar *info, size_t length);
+extern void translog_disable_purge(void);
+extern void translog_enable_purge(void);
 
 enum enum_translog_status
 {
@@ -520,6 +522,7 @@ typedef enum
 } enum_maria_translog_purge_type;
 extern ulong log_purge_type;
 extern ulong log_file_size;
+extern uint  log_purge_disabled;                /* For backup */
 
 typedef enum
 {

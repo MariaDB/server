@@ -3443,6 +3443,21 @@ int maria_checkpoint_state(handlerton *hton, bool disabled)
 }
 
 
+/*
+  Handle backup calls
+*/
+
+void maria_prepare_for_backup()
+{
+  translog_disable_purge();
+}
+
+void maria_end_backup()
+{
+  translog_enable_purge();
+}
+
+
 
 #define SHOW_MSG_LEN (FN_REFLEN + 20)
 /**
@@ -3643,6 +3658,9 @@ static int ha_maria_init(void *p)
 #endif
   maria_hton->flush_logs= maria_flush_logs;
   maria_hton->show_status= maria_show_status;
+  maria_hton->prepare_for_backup= maria_prepare_for_backup;
+  maria_hton->end_backup= maria_end_backup;
+
   /* TODO: decide if we support Maria being used for log tables */
   maria_hton->flags= HTON_CAN_RECREATE | HTON_SUPPORT_LOG_TABLES;
   bzero(maria_log_pagecache, sizeof(*maria_log_pagecache));

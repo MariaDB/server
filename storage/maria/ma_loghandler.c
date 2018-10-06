@@ -56,6 +56,8 @@ static mysql_cond_t  COND_soft_sync;
 static MA_SERVICE_THREAD_CONTROL soft_sync_control=
   {0, FALSE, FALSE, &LOCK_soft_sync, &COND_soft_sync};
 
+uint log_purge_disabled= 0;
+
 
 /* transaction log file descriptor */
 typedef struct st_translog_file
@@ -3620,6 +3622,7 @@ my_bool translog_init_with_table(const char *directory,
   translog_syncs= 0;
   flush_start= 0;
   id_to_share= NULL;
+  log_purge_disabled= 0;
 
   log_descriptor.directory_fd= -1;
   log_descriptor.is_everything_flushed= 1;
@@ -8668,7 +8671,7 @@ my_bool translog_purge(TRANSLOG_ADDRESS low)
         mysql_rwlock_unlock(&log_descriptor.open_files_lock);
         translog_close_log_file(file);
       }
-      if (log_purge_type == TRANSLOG_PURGE_IMMIDIATE)
+      if (log_purge_type == TRANSLOG_PURGE_IMMIDIATE && ! log_purge_disabled)
       {
         char path[FN_REFLEN], *file_name;
         file_name= translog_filename_by_fileno(i, path);
@@ -8721,7 +8724,7 @@ my_bool translog_purge_at_flush()
 
   mysql_mutex_lock(&log_descriptor.purger_lock);
 
-  if (unlikely(log_descriptor.min_need_file == 0))
+  if (unlikely(log_descriptor.min_need_file == 0 || log_purge_disabled))
   {
     DBUG_PRINT("info", ("No info about min need file => exit"));
     mysql_mutex_unlock(&log_descriptor.purger_lock);
@@ -9284,4 +9287,23 @@ void dump_page(uchar *buffer, File handler)
     dump_header_page(buffer);
   }
   dump_datapage(buffer, handler);
+}
+
+
+/*
+  Handle backup calls
+*/
+
+void translog_disable_purge()
+{
+  mysql_mutex_lock(&log_descriptor.purger_lock);
+  log_purge_disabled++;
+  mysql_mutex_unlock(&log_descriptor.purger_lock);
+}
+
+void translog_enable_purge()
+{
+  mysql_mutex_lock(&log_descriptor.purger_lock);
+  log_purge_disabled--;
+  mysql_mutex_unlock(&log_descriptor.purger_lock);
 }
