@@ -4749,14 +4749,32 @@ btr_index_rec_validate(
 		return(FALSE);
 	}
 
+	const bool is_alter_metadata = page_is_leaf(page)
+		&& !page_has_prev(page)
+		&& index->is_primary() && index->table->instant
+		&& rec == page_rec_get_next_const(page_get_infimum_rec(page));
+
+	if (is_alter_metadata
+	    && !rec_is_alter_metadata(rec, page_is_comp(page))) {
+		btr_index_rec_validate_report(page, rec, index);
+
+		ib::error() << "First record is not ALTER TABLE metadata";
+		return FALSE;
+	}
+
 	if (!page_is_comp(page)) {
 		const ulint n_rec_fields = rec_get_n_fields_old(rec);
 		if (n_rec_fields == DICT_FLD__SYS_INDEXES__MERGE_THRESHOLD
 		    && index->id == DICT_INDEXES_ID) {
 			/* A record for older SYS_INDEXES table
 			(missing merge_threshold column) is acceptable. */
+		} else if (is_alter_metadata) {
+			if (n_rec_fields != ulint(index->n_fields) + 1) {
+				goto n_field_mismatch;
+			}
 		} else if (n_rec_fields < index->n_core_fields
 			   || n_rec_fields > index->n_fields) {
+n_field_mismatch:
 			btr_index_rec_validate_report(page, rec, index);
 
 			ib::error() << "Has " << rec_get_n_fields_old(rec)
@@ -4775,14 +4793,27 @@ btr_index_rec_validate(
 
 	offsets = rec_get_offsets(rec, index, offsets, page_is_leaf(page),
 				  ULINT_UNDEFINED, &heap);
+	const dict_field_t* field = index->fields;
+	ut_ad(rec_offs_n_fields(offsets)
+	      == ulint(index->n_fields) + is_alter_metadata);
 
-	for (unsigned i = 0; i < index->n_fields; i++) {
-		dict_field_t*	field = dict_index_get_nth_field(index, i);
-		ulint		fixed_size = dict_col_get_fixed_size(
-						dict_field_get_col(field),
-						page_is_comp(page));
-
+	for (unsigned i = 0; i < rec_offs_n_fields(offsets); i++) {
 		rec_get_nth_field_offs(offsets, i, &len);
+
+		ulint fixed_size;
+
+		if (is_alter_metadata && i == index->first_user_field()) {
+			fixed_size = FIELD_REF_SIZE;
+			if (len != FIELD_REF_SIZE
+			    || !rec_offs_nth_extern(offsets, i)) {
+				goto len_mismatch;
+			}
+
+			continue;
+		} else {
+			fixed_size = dict_col_get_fixed_size(
+				field->col, page_is_comp(page));
+		}
 
 		/* Note that if fixed_size != 0, it equals the
 		length of a fixed-size column in the clustered index.
@@ -4795,8 +4826,8 @@ btr_index_rec_validate(
 		    && (field->prefix_len
 			? len > field->prefix_len
 			: (fixed_size && len != fixed_size))) {
+len_mismatch:
 			btr_index_rec_validate_report(page, rec, index);
-
 			ib::error	error;
 
 			error << "Field " << i << " len is " << len
@@ -4814,6 +4845,8 @@ btr_index_rec_validate(
 			}
 			return(FALSE);
 		}
+
+		field++;
 	}
 
 #ifdef VIRTUAL_INDEX_DEBUG
