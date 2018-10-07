@@ -820,7 +820,7 @@ in the clustered index for instant ALTER TABLE (not plain ADD COLUMN).
 inline bool rec_is_alter_metadata(const rec_t* rec, const dict_index_t& index)
 {
 	bool is = rec_is_alter_metadata(rec, dict_table_is_comp(index.table));
-	ut_ad(!is || index.is_instant());
+	ut_ad(!is || index.is_dummy || index.is_instant());
 	return is;
 }
 

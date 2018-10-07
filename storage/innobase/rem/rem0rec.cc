@@ -308,8 +308,8 @@ rec_init_offsets_comp_ordinary(
 	ut_d(ulint n_null= 0);
 
 	if (mblob) {
-		ut_ad(index->table->instant);
-		ut_ad(index->is_instant());
+		ut_ad(index->is_dummy || index->table->instant);
+		ut_ad(index->is_dummy || index->is_instant());
 		ut_ad(rec_offs_n_fields(offsets)
 		      <= ulint(index->n_fields) + 1);
 		ut_ad(!def_val);
@@ -920,8 +920,8 @@ rec_get_offsets_func(
 		ut_d(offsets[2] = ulint(rec));
 		ut_d(offsets[3] = ulint(index));
 		ut_ad(leaf);
-		ut_ad(index->table->instant);
-		ut_ad(index->is_instant());
+		ut_ad(index->is_dummy || index->table->instant);
+		ut_ad(index->is_dummy || index->is_instant());
 		ut_ad(rec_offs_n_fields(offsets)
 		      <= ulint(index->n_fields) + 1);
 		rec_init_offsets_comp_ordinary<true>(rec, index, offsets,
