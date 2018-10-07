@@ -363,5 +363,43 @@ set join_cache_level=@tmp_jcl;
 set optimizer_switch=@tmp_os;
 drop table t1, t2;
 
+--echo #
+--echo # Bug mdev-17382: equi-join of derived table with join_cache_level=4
+--echo #
+
+CREATE TABLE t1 (
+  id int NOT NULL,
+  amount decimal DEFAULT NULL,
+PRIMARY KEY (id)
+);
+
+CREATE TABLE t2 (
+  id int NOT NULL,
+  name varchar(50) DEFAULT NULL,
+PRIMARY KEY (id)
+);
+
+INSERT INTO t1 VALUES
+(1, 10.0000), (2, 20.0000), (3, 30.0000), (4, 40.0000),
+(5, NULL), (6, NULL), (7, 70.0000), (8, 80.0000);
+
+INSERT INTO t2 VALUES
+(1,'A'), (2,'B'), (3,'C'), (4,'D'), (5, NULL), (6, NULL),
+(7,'E'), (8,'F'), (9,'G'), (10,'H'), (11, NULL), (12, NULL);
+
+set join_cache_level=4;
+
+EXPLAIN
+SELECT t2.id,t2.name,t.total_amt
+  FROM  t2
+        LEFT JOIN
+        (SELECT id, sum(amount) total_amt FROM t1 GROUP BY id) AS t
+        ON t2.id=t.id
+  WHERE t2.id < 3;
+
+set join_cache_level=default;
+
+DROP TABLE t1,t2;
+
 # The following command must be the last one the file 
 set optimizer_switch=@exit_optimizer_switch;
