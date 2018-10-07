@@ -549,5 +549,22 @@ SET GLOBAL slave_parallel_threads=@old_parallel_threads;
 
 --connection server_1
 DROP TABLE t1, t2, t3;
+--source include/save_master_gtid.inc
 
+--connection server_2
+--source include/sync_with_master_gtid.inc
+# Check for left-over rows in table mysql.gtid_slave_pos (MDEV-12147).
+#
+# There was a bug when a transaction got a conflict and was rolled back. It
+# might have also handled deletion of some old rows, and these deletions would
+# then also be rolled back. And since the deletes were never re-tried, old no
+# longer needed rows would accumulate in the table without limit.
+# 
+# The earlier part of this test file have plenty of transactions being rolled
+# back. But the last DROP TABLE statement runs on its own and should never
+# conflict, thus at this point the mysql.gtid_slave_pos table should be clean.
+--echo Check that no more than the expected last two GTIDs are in mysql.gtid_slave_pos
+select count(*) from mysql.gtid_slave_pos order by domain_id, sub_id;
+
+--connection server_1
 --source include/rpl_end.inc

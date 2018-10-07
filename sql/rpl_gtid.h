@@ -182,7 +182,7 @@ struct rpl_slave_state
              uint64 seq_no, rpl_group_info *rgi);
   int truncate_state_table(THD *thd);
   int record_gtid(THD *thd, const rpl_gtid *gtid, uint64 sub_id,
-                  bool in_transaction, bool in_statement);
+                  rpl_group_info *rgi, bool in_statement);
   uint64 next_sub_id(uint32 domain_id);
   int iterate(int (*cb)(rpl_gtid *, void *), void *data,
               rpl_gtid *extra_gtids, uint32 num_extra,
