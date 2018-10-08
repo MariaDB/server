@@ -1435,7 +1435,7 @@ dict_make_room_in_cache(
 					ut_ad(0);
 				  }
 			};);
-			dict_table_remove_from_cache_low(table, TRUE);
+			dict_table_remove_from_cache(table, true);
 
 			++n_evicted;
 		}
@@ -1969,14 +1969,11 @@ dict_table_change_id_in_cache(
 		    ut_fold_ull(table->id), table);
 }
 
-/**********************************************************************//**
-Removes a table object from the dictionary cache. */
-void
-dict_table_remove_from_cache_low(
-/*=============================*/
-	dict_table_t*	table,		/*!< in, own: table */
-	ibool		lru_evict)	/*!< in: TRUE if table being evicted
-					to make room in the table LRU list */
+/** Evict a table definition from the InnoDB data dictionary cache.
+@param[in,out]	table	cached table definition to be evicted
+@param[in]	lru	whether this is part of least-recently-used eviction
+@param[in]	keep	whether to keep (not free) the object */
+void dict_table_remove_from_cache(dict_table_t* table, bool lru, bool keep)
 {
 	dict_foreign_t*	foreign;
 	dict_index_t*	index;
@@ -2009,7 +2006,7 @@ dict_table_remove_from_cache_low(
 	     index != NULL;
 	     index = UT_LIST_GET_LAST(table->indexes)) {
 
-		dict_index_remove_from_cache_low(table, index, lru_evict);
+		dict_index_remove_from_cache_low(table, index, lru);
 	}
 
 	/* Remove table from the hash tables of tables */
@@ -2031,7 +2028,7 @@ dict_table_remove_from_cache_low(
 
 	ut_ad(dict_lru_validate());
 
-	if (lru_evict && table->drop_aborted) {
+	if (lru && table->drop_aborted) {
 		/* When evicting the table definition,
 		drop the orphan indexes from the data dictionary
 		and free the index pages. */
@@ -2056,17 +2053,9 @@ dict_table_remove_from_cache_low(
 		UT_DELETE(table->vc_templ);
 	}
 
-	dict_mem_table_free(table);
-}
-
-/**********************************************************************//**
-Removes a table object from the dictionary cache. */
-void
-dict_table_remove_from_cache(
-/*=========================*/
-	dict_table_t*	table)	/*!< in, own: table */
-{
-	dict_table_remove_from_cache_low(table, FALSE);
+	if (!keep) {
+		dict_mem_table_free(table);
+	}
 }
 
 /****************************************************************//**

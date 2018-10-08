@@ -17213,7 +17213,7 @@ innodb_internal_table_validate(
 
 		DBUG_EXECUTE_IF("innodb_evict_autoinc_table",
 			mutex_enter(&dict_sys->mutex);
-			dict_table_remove_from_cache_low(user_table, TRUE);
+			dict_table_remove_from_cache(user_table, true);
 			mutex_exit(&dict_sys->mutex);
 		);
 	}

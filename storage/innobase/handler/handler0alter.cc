@@ -207,8 +207,10 @@ struct ha_innobase_inplace_ctx : public inplace_alter_handler_ctx
 	const char* const old_col_names;
 	/** original instantly dropped or reordered columns */
 	dict_instant_t*	const	old_instant;
-	/** original clustered index fields */
-	dict_field_t* const	old_clust_fields;
+	/** original index fields */
+	dict_field_t* const	old_fields;
+	/** size of old_fields */
+	const unsigned		old_n_fields;
 	/** 0, or 1 + first column whose position changes in instant ALTER */
 	unsigned	first_alter_pos;
 	/** Allow non-null conversion.
@@ -268,7 +270,8 @@ struct ha_innobase_inplace_ctx : public inplace_alter_handler_ctx
 		old_cols(prebuilt_arg->table->cols),
 		old_col_names(prebuilt_arg->table->col_names),
 		old_instant(prebuilt_arg->table->instant),
-		old_clust_fields(prebuilt_arg->table->indexes.start->fields),
+		old_fields(prebuilt_arg->table->indexes.start->fields),
+		old_n_fields(prebuilt_arg->table->indexes.start->n_fields),
 		first_alter_pos(0),
 		allow_not_null(allow_not_null_flag),
 		page_compression_level(page_compressed
@@ -531,7 +534,8 @@ set_core_fields:
 		if (!is_instant()) return;
 		old_table->rollback_instant(old_n_cols,
 					    old_cols, old_col_names,
-					    old_instant, old_clust_fields,
+					    old_instant,
+					    old_fields, old_n_fields,
 					    col_map);
 	}
 

@@ -1622,20 +1622,17 @@ struct dict_table_t {
 	@param[in]	old_cols		original cols
 	@param[in]	old_col_names		original col_names
 	@param[in]	old_instant		original instant structure
-	@param[in]	old_clust_fields	original clustered fields
+	@param[in]	old_fields		original fields
+	@param[in]	old_n_fields		original number of fields
 	@param[in]	col_map			column map */
 	void rollback_instant(
 		unsigned	old_n_cols,
 		dict_col_t*	old_cols,
 		const char*	old_col_names,
 		dict_instant_t*	old_instant,
-		dict_field_t*	old_clust_fields,
+		dict_field_t*	old_fields,
+		unsigned	old_n_fields,
 		const ulint*	col_map);
-
-	/** Trim the instantly added columns when an insert into SYS_COLUMNS
-	is rolled back during ALTER TABLE or recovery.
-	@param[in]	n	number of surviving non-system columns */
-	void rollback_instant(unsigned n);
 
 	/** Add the table definition to the data dictionary cache */
 	void add_to_cache();

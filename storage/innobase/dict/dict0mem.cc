@@ -1601,7 +1601,8 @@ ulint find_old_col_no(
 @param[in]	old_cols		original cols
 @param[in]	old_col_names		original col_names
 @param[in]	old_instant		original instant structure
-@param[in]	old_clust_fields	original clustered fields
+@param[in]	old_fields		original fields
+@param[in]	old_n_fields		original number of fields
 @param[in]	col_map			column map */
 void
 dict_table_t::rollback_instant(
@@ -1609,7 +1610,8 @@ dict_table_t::rollback_instant(
 	dict_col_t*	old_cols,
 	const char*	old_col_names,
 	dict_instant_t*	old_instant,
-	dict_field_t*	old_clust_fields,
+	dict_field_t*	old_fields,
+	unsigned	old_n_fields,
 	const ulint*	col_map)
 {
 	ut_ad(mutex_own(&dict_sys->mutex));
@@ -1619,6 +1621,9 @@ dict_table_t::rollback_instant(
 	DBUG_ASSERT(old_n_cols >= DATA_N_SYS_COLS);
 	DBUG_ASSERT(n_cols == n_def);
 	DBUG_ASSERT(index->n_def == index->n_fields);
+	DBUG_ASSERT(index->n_core_fields <= old_n_fields);
+	DBUG_ASSERT(index->n_core_fields <= index->n_fields);
+	DBUG_ASSERT(instant || !old_instant);
 
 	unsigned n_remove = 0;
 	unsigned n_add = 0;
@@ -1633,25 +1638,13 @@ dict_table_t::rollback_instant(
 
 	index->n_nullable = 0;
 
-	ulint	old_n_clust_fields = old_n_cols;
-
-	if (old_instant) {
-		old_n_clust_fields += old_instant->n_dropped;
-	}
-
-	for (unsigned i = 0; i < old_n_clust_fields; i++) {
-		if (old_clust_fields[i].col->is_nullable()) {
+	for (unsigned i = 0; i < old_n_fields; i++) {
+		if (old_fields[i].col->is_nullable()) {
 			index->n_nullable++;
 		}
 	}
 
-	index->n_fields = old_n_clust_fields;
-	index->n_def = index->n_fields;
-	if (index->n_core_fields > index->n_fields) {
-		index->n_core_fields = index->n_fields;
-		index->n_core_null_bytes
-			= UT_BITS_IN_BYTES(unsigned(index->n_nullable));
-	}
+	index->n_def = index->n_fields = old_n_fields;
 
 	const dict_col_t* const new_cols = cols;
 	const dict_col_t* const new_cols_end = cols + n_cols;
@@ -1683,7 +1676,7 @@ dict_table_t::rollback_instant(
 		}
 	}
 
-	index->fields = old_clust_fields;
+	index->fields = old_fields;
 
 	while ((index = dict_table_get_next_index(index)) != NULL) {
 
@@ -1711,81 +1704,6 @@ dict_table_t::rollback_instant(
 		}
 	}
 }
-
-/** Trim the instantly added columns when an insert into SYS_COLUMNS
-is rolled back during ALTER TABLE or recovery.
-@param[in]	n	number of surviving non-system columns */
-void dict_table_t::rollback_instant(unsigned n)
-{
-	ut_ad(mutex_own(&dict_sys->mutex));
-	dict_index_t* index = indexes.start;
-	DBUG_ASSERT(index->is_instant());
-	DBUG_ASSERT(index->n_def == index->n_fields);
-	DBUG_ASSERT(n_cols == n_def);
-	DBUG_ASSERT(n >= index->n_uniq);
-	DBUG_ASSERT(n_cols > n + DATA_N_SYS_COLS);
-	const unsigned n_remove = n_cols - n - DATA_N_SYS_COLS;
-
-	char* names = const_cast<char*>(dict_table_get_col_name(this, n));
-	const char* sys = names;
-	for (unsigned i = n_remove; i--; ) {
-		sys += strlen(sys) + 1;
-	}
-	static const char system[] = "DB_ROW_ID\0DB_TRX_ID\0DB_ROLL_PTR";
-	DBUG_ASSERT(!memcmp(sys, system, sizeof system));
-	for (unsigned i = index->n_fields - n_remove; i < index->n_fields;
-	     i++) {
-		if (index->fields[i].col->is_nullable()) {
-			index->n_nullable--;
-		}
-	}
-	index->n_fields -= n_remove;
-	index->n_def = index->n_fields;
-	memmove(names, sys, sizeof system);
-	memmove(cols + n, cols + n_cols - DATA_N_SYS_COLS,
-		DATA_N_SYS_COLS * sizeof *cols);
-	n_cols -= n_remove;
-	n_def = n_cols;
-	n_t_cols -= n_remove;
-	n_t_def -= n_remove;
-
-	for (unsigned i = DATA_N_SYS_COLS; i--; ) {
-		cols[n_cols - i].ind--;
-	}
-
-	if (dict_index_is_auto_gen_clust(index)) {
-		DBUG_ASSERT(index->n_uniq == 1);
-		dict_field_t* field = index->fields;
-		field->name = sys;
-		field->col = dict_table_get_sys_col(this, DATA_ROW_ID);
-		field++;
-		field->name = sys + sizeof "DB_ROW_ID";
-		field->col = dict_table_get_sys_col(this, DATA_TRX_ID);
-		field++;
-		field->name = sys + sizeof "DB_ROW_ID\0DB_TRX_ID";
-		field->col = dict_table_get_sys_col(this, DATA_ROLL_PTR);
-
-		/* Replace the DB_ROW_ID column in secondary indexes. */
-		while ((index = dict_table_get_next_index(index)) != NULL) {
-			field = &index->fields[index->n_fields - 1];
-			DBUG_ASSERT(field->col->mtype == DATA_SYS);
-			DBUG_ASSERT(field->col->prtype
-				    == DATA_NOT_NULL + DATA_TRX_ID);
-			field->col--;
-			field->name = sys;
-		}
-
-		return;
-	}
-
-	dict_field_t* field = &index->fields[index->n_uniq];
-	field->name = sys + sizeof "DB_ROW_ID";
-	field->col = dict_table_get_sys_col(this, DATA_TRX_ID);
-	field++;
-	field->name = sys + sizeof "DB_ROW_ID\0DB_TRX_ID";
-	field->col = dict_table_get_sys_col(this, DATA_ROLL_PTR);
-}
-
 
 /** Check if record in clustered index is historical row.
 @param[in]	rec	clustered row
