@@ -514,11 +514,23 @@ row_build_low(
 
 	j = 0;
 
-	for (ulint i = 0; i < rec_offs_n_fields(offsets); i++) {
-		const dict_field_t*	ind_field
-			= dict_index_get_nth_field(index, i);
+	const dict_field_t* ind_field = index->fields;
 
-		if (ind_field->prefix_len) {
+	for (ulint i = 0; i < rec_offs_n_fields(offsets); i++) {
+		if (i == index->first_user_field()
+		    && rec_is_alter_metadata(rec, *index)) {
+			ut_ad(rec_offs_nth_extern(offsets, i));
+			ut_d(ulint len);
+			ut_d(rec_get_nth_field_offs(offsets, i, &len));
+			ut_ad(len == FIELD_REF_SIZE);
+			continue;
+		}
+
+		ut_ad(ind_field < &index->fields[index->n_fields]);
+
+		const dict_col_t* col = dict_field_get_col(ind_field);
+
+		if ((ind_field++)->prefix_len) {
 			/* Column prefixes can only occur in key
 			fields, which cannot be stored externally. For
 			a column prefix, there should also be the full
@@ -527,9 +539,6 @@ row_build_low(
 			ut_ad(!rec_offs_nth_extern(offsets, i));
 			continue;
 		}
-
-		const dict_col_t*	col
-			= dict_field_get_col(ind_field);
 
 		if (col->is_dropped()) {
 			continue;
