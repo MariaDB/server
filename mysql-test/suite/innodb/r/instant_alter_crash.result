@@ -29,6 +29,31 @@ BEGIN;
 DELETE FROM t1;
 ROLLBACK;
 InnoDB		0 transactions not purged
+INSERT INTO t2 VALUES
+(16,1551,'Omnium enim rerum'),(128,1571,' principia parva sunt');
+connect ddl, localhost, root;
+SET DEBUG_SYNC='innodb_alter_inplace_before_commit SIGNAL ddl WAIT_FOR ever';
+ALTER TABLE t2 DROP COLUMN c3, ADD COLUMN c5 TEXT DEFAULT 'naturam abhorrere';
+connection default;
+SET DEBUG_SYNC='now WAIT_FOR ddl';
+SET GLOBAL innodb_flush_log_at_trx_commit=1;
+DELETE FROM t1;
+# Kill the server
+disconnect ddl;
+SET @saved_frequency= @@GLOBAL.innodb_purge_rseg_truncate_frequency;
+SET GLOBAL innodb_purge_rseg_truncate_frequency=1;
+SELECT * FROM t1;
+id	c2
+SELECT * FROM t2;
+id	c2	c3
+2	1	De finibus bonorum
+16	1551	Omnium enim rerum
+128	1571	 principia parva sunt
+BEGIN;
+INSERT INTO t1 SET id=1;
+DELETE FROM t2;
+ROLLBACK;
+InnoDB		0 transactions not purged
 INSERT INTO t2 VALUES (64,42,'De finibus bonorum'), (347,33101,' et malorum');
 connect ddl, localhost, root;
 SET DEBUG_SYNC='innodb_alter_inplace_before_commit SIGNAL ddl WAIT_FOR ever';
@@ -46,7 +71,9 @@ id	c2
 SELECT * FROM t2;
 id	c2	c3
 2	1	De finibus bonorum
+16	1551	Omnium enim rerum
 64	42	De finibus bonorum
+128	1571	 principia parva sunt
 347	33101	 et malorum
 BEGIN;
 INSERT INTO t1 SET id=1;
@@ -59,27 +86,37 @@ N_RECS=0; LEVEL=0
 header=0x010000030074 (id=0x696e66696d756d00)
 header=0x010008030000 (id=0x73757072656d756d00)
 t2 clustered index root page(type 18):
-N_RECS=4; LEVEL=0
+N_RECS=6; LEVEL=0
 header=0x010000030088 (id=0x696e66696d756d00)
 header=0x1000100b00b9 (id=0x80000000,
  DB_TRX_ID=0x000000000000,
  DB_ROLL_PTR=0x80000000000000,
  c2=NULL(4 bytes),
  c3=0x44652066696e6962757320626f6e6f72756d)
-header=0x0000180900d8 (id=0x80000002,
+header=0x0000180900d9 (id=0x80000002,
  DB_TRX_ID=0x000000000000,
  DB_ROLL_PTR=0x80000000000000,
  c2=0x80000001)
-header=0x0000200900f8 (id=0x80000040,
+header=0x0000200b013e (id=0x80000010,
+ DB_TRX_ID=0x000000000000,
+ DB_ROLL_PTR=0x80000000000000,
+ c2=0x8000060f,
+ c3=0x4f6d6e69756d20656e696d20726572756d)
+header=0x00003009010a (id=0x80000040,
  DB_TRX_ID=0x000000000000,
  DB_ROLL_PTR=0x80000000000000,
  c2=0x8000002a)
-header=0x0000280b0074 (id=0x8000015b,
+header=0x0000280b015e (id=0x80000080,
+ DB_TRX_ID=0x000000000000,
+ DB_ROLL_PTR=0x80000000000000,
+ c2=0x80000623,
+ c3=0x207072696e63697069612070617276612073756e74)
+header=0x0000380b0074 (id=0x8000015b,
  DB_TRX_ID=0x000000000000,
  DB_ROLL_PTR=0x80000000000000,
  c2=0x8000814d,
  c3=0x206574206d616c6f72756d)
-header=0x050008030000 (id=0x73757072656d756d00)
+header=0x070008030000 (id=0x73757072656d756d00)
 UNLOCK TABLES;
 DELETE FROM t2;
 InnoDB		0 transactions not purged

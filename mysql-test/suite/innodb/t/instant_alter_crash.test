@@ -43,6 +43,34 @@ DELETE FROM t1;
 ROLLBACK;
 --source include/wait_all_purged.inc
 
+INSERT INTO t2 VALUES
+(16,1551,'Omnium enim rerum'),(128,1571,' principia parva sunt');
+
+connect ddl, localhost, root;
+SET DEBUG_SYNC='innodb_alter_inplace_before_commit SIGNAL ddl WAIT_FOR ever';
+--send
+ALTER TABLE t2 DROP COLUMN c3, ADD COLUMN c5 TEXT DEFAULT 'naturam abhorrere';
+
+connection default;
+SET DEBUG_SYNC='now WAIT_FOR ddl';
+SET GLOBAL innodb_flush_log_at_trx_commit=1;
+DELETE FROM t1;
+
+--source include/kill_mysqld.inc
+disconnect ddl;
+--source include/start_mysqld.inc
+
+SET @saved_frequency= @@GLOBAL.innodb_purge_rseg_truncate_frequency;
+SET GLOBAL innodb_purge_rseg_truncate_frequency=1;
+
+SELECT * FROM t1;
+SELECT * FROM t2;
+BEGIN;
+INSERT INTO t1 SET id=1;
+DELETE FROM t2;
+ROLLBACK;
+--source include/wait_all_purged.inc
+
 INSERT INTO t2 VALUES (64,42,'De finibus bonorum'), (347,33101,' et malorum');
 
 connect ddl, localhost, root;
