@@ -1765,6 +1765,8 @@ struct TABLE_LIST
       mdl_type= MDL_SHARED_READ;
 
     bzero((char*) this, sizeof(*this));
+    DBUG_ASSERT(!db_name_arg || strlen(db_name_arg) == db_length_arg);
+    DBUG_ASSERT(!table_name_arg || strlen(table_name_arg) == table_name_length_arg);
     db= (char*) db_name_arg;
     db_length= db_length_arg;
     table_name= (char*) table_name_arg;
