@@ -1227,7 +1227,7 @@ inline void dict_index_t::reconstruct_fields()
 		f.col->clear_instant();
 		if (f.col->is_nullable()) {
 			n_nullable++;
-			n_core_null += i < n_core_fields;
+			n_core_null += i <= n_core_fields;
 		}
 	}
 
