@@ -73,17 +73,16 @@ row_quiesce_write_index_fields(
 			return(DB_IO_ERROR);
 		}
 
+		const char* field_name = field->name ? field->name : "";
 		/* Include the NUL byte in the length. */
-		ib_uint32_t	len = static_cast<ib_uint32_t>(strlen(field->name) + 1);
-		ut_a(len > 1);
-
+		ib_uint32_t	len = static_cast<ib_uint32_t>(strlen(field_name) + 1);
 		mach_write_to_4(row, len);
 
 		DBUG_EXECUTE_IF("ib_export_io_write_failure_10",
 				close(fileno(file)););
 
 		if (fwrite(row, 1,  sizeof(len), file) != sizeof(len)
-		    || fwrite(field->name, 1, len, file) != len) {
+		    || fwrite(field_name, 1, len, file) != len) {
 
 			ib_senderrf(
 				thd, IB_LOG_LEVEL_WARN, ER_IO_WRITE_ERROR,

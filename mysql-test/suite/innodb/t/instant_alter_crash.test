@@ -74,6 +74,7 @@ ROLLBACK;
 INSERT INTO t2 VALUES (64,42,'De finibus bonorum'), (347,33101,' et malorum');
 
 connect ddl, localhost, root;
+ALTER TABLE t2 DROP COLUMN c3;
 SET DEBUG_SYNC='innodb_alter_inplace_before_commit SIGNAL ddl WAIT_FOR ever';
 --send
 ALTER TABLE t2 ADD COLUMN (c4 TEXT NOT NULL DEFAULT ' et malorum');
@@ -124,16 +125,38 @@ for (my $offset= 0x65; $offset;
     my $n_fields= unpack("n", substr($page,$offset-4,2)) >> 1 & 0x3ff;
     my $start= 0;
     my $name;
-    for (my $i= 0; $i < $n_fields; $i++) {
-	my $end= unpack("C", substr($page, $offset-7-$i, 1));
-	print ",\n " if $i;
-	print "$fields[$i]=";
-	if ($end & 0x80) {
-	    print "NULL(", ($end & 0x7f) - $start, " bytes)"
-	} else {
-	    print "0x", unpack("H*", substr($page,$offset+$start,$end-$start))
+    if (unpack("C", substr($page,$offset-3,1)) & 1) {
+	for (my $i= 0; $i < $n_fields; $i++) {
+	    my $end= unpack("C", substr($page, $offset-7-$i, 1));
+	    print ",\n " if $i;
+	    print "$fields[$i]=";
+	    if ($end & 0x80) {
+		print "NULL(", ($end & 0x7f) - $start, " bytes)"
+	    } else {
+		print "0x", unpack("H*", substr($page,$offset+$start,$end-$start))
+	    }
+	    $start= $end & 0x7f;
 	}
-	$start= $end & 0x7f;
+    } else {
+	for (my $i= 0; $i < $n_fields; $i++) {
+	    my $end= unpack("n", substr($page, $offset-8-2*$i, 2));
+	    print ",\n " if $i;
+	    if ($i > 2 && !(~unpack("C",substr($page,$offset-6,1)) & 0x30)) {
+		if ($i == 3) {
+		    print "BLOB=";
+		} else {
+		    print "$fields[$i - 1]=";
+		}
+	    } else {
+		print "$fields[$i]=";
+	    }
+	    if ($end & 0x8000) {
+		print "NULL(", ($end & 0x7fff) - $start, " bytes)"
+	    } else {
+		print "0x", unpack("H*", substr($page,$offset+$start,($end-$start) & 0x3fff))
+	    }
+	    $start= $end & 0x3fff;
+	}
     }
     print ")\n";
 }

@@ -1165,7 +1165,8 @@ write_field:
 				return 0;
 			}
 
-			if (rec_offs_nth_extern(offsets, pos)) {
+			if (rec_offs_n_fields(offsets) > pos
+			    && rec_offs_nth_extern(offsets, pos)) {
 				ut_ad(col || pos == index->first_user_field());
 				ut_ad(col || update->is_alter_metadata());
 				ut_ad(col

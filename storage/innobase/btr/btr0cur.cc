@@ -4732,9 +4732,10 @@ btr_cur_pessimistic_update(
 		ut_ad(update->is_metadata());
 		ut_ad(flags & BTR_NO_LOCKING_FLAG);
 		ut_ad(index->is_instant());
-		new_entry = row_metadata_to_tuple(rec, index, *offsets,
-						  &n_ext, entry_heap,
-						  update->info_bits);
+		new_entry = row_metadata_to_tuple(
+			rec, index, *offsets,
+			&n_ext, entry_heap,
+			update->info_bits, !thr_get_trx(thr)->in_rollback);
 		ut_ad(new_entry->n_fields
 		      == ulint(index->n_fields)
 		      + update->is_alter_metadata());

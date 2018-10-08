@@ -238,7 +238,8 @@ row_rec_to_index_entry(
 @param[in]	offsets		rec_get_offsets(rec)
 @param[out]	n_ext		number of externally stored fields
 @param[in,out]	heap		memory heap for allocations
-@param[in]	info_bits	the info_bits after an update */
+@param[in]	info_bits	the info_bits after an update
+@param[in]	pad		whether to pad to index->n_fields */
 dtuple_t*
 row_metadata_to_tuple(
 	const rec_t*		rec,
@@ -246,7 +247,8 @@ row_metadata_to_tuple(
 	const ulint*		offsets,
 	ulint*			n_ext,
 	mem_heap_t*		heap,
-	ulint			info_bits)
+	ulint			info_bits,
+	bool			pad)
 	MY_ATTRIBUTE((nonnull,warn_unused_result));
 
 /*******************************************************************//**

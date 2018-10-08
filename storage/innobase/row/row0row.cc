@@ -709,6 +709,7 @@ row_build_w_add_vcol(
 @param[out]	n_ext		number of externally stored columns
 @param[in,out]	heap		memory heap for allocations
 @param[in]	info_bits	(only used if mblob=2)
+@param[in]	pad		(only used if mblob=2)
 @return index entry built; does not set info_bits, and the data fields
 in the entry will point directly to rec */
 template<bool metadata, int mblob = 0>
@@ -720,7 +721,8 @@ row_rec_to_index_entry_impl(
 	const ulint*		offsets,
 	ulint*			n_ext,
 	mem_heap_t*		heap,
-	ulint			info_bits = 0)
+	ulint			info_bits = 0,
+	bool			pad = false)
 {
 	ut_ad(rec != NULL);
 	ut_ad(heap != NULL);
@@ -741,9 +743,15 @@ row_rec_to_index_entry_impl(
 		ut_ad(info_bits == REC_INFO_METADATA_ALTER
 		      || info_bits == REC_INFO_METADATA_ADD);
 		ut_ad(rec_len <= ulint(index->n_fields + got));
-		rec_len += !got && info_bits == REC_INFO_METADATA_ALTER;
+		if (pad) {
+			rec_len = ulint(index->n_fields)
+				+ (info_bits == REC_INFO_METADATA_ALTER);
+		} else if (!got && info_bits == REC_INFO_METADATA_ALTER) {
+			rec_len++;
+		}
 	} else {
 		ut_ad(info_bits == 0);
+		ut_ad(!pad);
 	}
 	dtuple_t* entry = dtuple_create(heap, rec_len);
 	dfield_t* dfield = entry->fields;
@@ -825,6 +833,14 @@ copy_user_fields:
 		for (; i < rec_len; i++, dfield++) {
 			dict_col_copy_type(dict_index_get_nth_col(index, j++),
 					   &dfield->type);
+			if (mblob == 2 && pad
+			    && i >= rec_offs_n_fields(offsets)) {
+				field = index->instant_field_value(j - 1,
+								   &len);
+				dfield_set_data(dfield, field, len);
+				continue;
+			}
+
 			field = rec_get_nth_field(rec, offsets, i, &len);
 			dfield_set_data(dfield, field, len);
 
@@ -913,7 +929,8 @@ row_rec_to_index_entry(
 @param[in]	offsets		rec_get_offsets(rec)
 @param[out]	n_ext		number of externally stored fields
 @param[in,out]	heap		memory heap for allocations
-@param[in]	info_bits	the info_bits after an update */
+@param[in]	info_bits	the info_bits after an update
+@param[in]	pad		whether to pad to index->n_fields */
 dtuple_t*
 row_metadata_to_tuple(
 	const rec_t*		rec,
@@ -921,7 +938,8 @@ row_metadata_to_tuple(
 	const ulint*		offsets,
 	ulint*			n_ext,
 	mem_heap_t*		heap,
-	ulint			info_bits)
+	ulint			info_bits,
+	bool			pad)
 {
 	ut_ad(info_bits == REC_INFO_METADATA_ALTER
 	      || info_bits == REC_INFO_METADATA_ADD);
@@ -939,7 +957,7 @@ row_metadata_to_tuple(
 	dtuple_t* entry = info_bits == REC_INFO_METADATA_ALTER
 		|| rec_is_alter_metadata(copy_rec, *index)
 		? row_rec_to_index_entry_impl<true,2>(
-			copy_rec, index, offsets, n_ext, heap, info_bits)
+			copy_rec, index, offsets, n_ext, heap, info_bits, pad)
 		: row_rec_to_index_entry_impl<true>(
 			copy_rec, index, offsets, n_ext, heap);
 
