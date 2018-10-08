@@ -395,6 +395,16 @@ bool Temporal::str_to_datetime(MYSQL_TIME_STATUS *status,
 }
 
 
+/* Character set-aware version of str_to_DDhhmmssff() */
+bool Interval_DDhhmmssff::str_to_DDhhmmssff(MYSQL_TIME_STATUS *status,
+                                            const char *str, size_t length,
+                                            CHARSET_INFO *cs, ulong max_hour)
+{
+  TemporalAsciiBuffer tmp(str, length, cs);
+  return ::str_to_DDhhmmssff(tmp.str, tmp.length, this, UINT_MAX32, status);
+}
+
+
 /*
   Convert a timestamp string to a MYSQL_TIME value and produce a warning 
   if string was truncated during conversion.

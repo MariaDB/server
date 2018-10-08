@@ -446,6 +446,7 @@ public:
 class Temporal: protected MYSQL_TIME
 {
 public:
+  static date_mode_t sql_mode_for_dates(THD *thd);
   bool is_valid_temporal() const
   {
     DBUG_ASSERT(time_type != MYSQL_TIMESTAMP_ERROR);
@@ -469,6 +470,16 @@ protected:
                    CHARSET_INFO *cs, date_mode_t fuzzydate);
   bool str_to_datetime(MYSQL_TIME_STATUS *st, const char *str, size_t length,
                        CHARSET_INFO *cs, date_mode_t fuzzydate);
+  bool has_valid_mmssff() const
+  {
+    return minute <= TIME_MAX_MINUTE &&
+           second <= TIME_MAX_SECOND &&
+           second_part <= TIME_MAX_SECOND_PART;
+  }
+  bool has_zero_YYYYMMDD() const
+  {
+    return year == 0 && month == 0 && day == 0;
+  }
 public:
   static void *operator new(size_t size, MYSQL_TIME *ltime) throw()
   {
@@ -492,8 +503,13 @@ public:
 class Temporal_hybrid: public Temporal
 {
 public:
-  Temporal_hybrid(THD *thd, Item *item);
-  Temporal_hybrid(Item *item): Temporal_hybrid(current_thd, item) { }
+  Temporal_hybrid(THD *thd, Item *item, date_mode_t fuzzydate);
+  Temporal_hybrid(THD *thd, Item *item)
+   :Temporal_hybrid(thd, item, sql_mode_for_dates(thd))
+  { }
+  Temporal_hybrid(Item *item)
+   :Temporal_hybrid(current_thd, item)
+  { }
   Temporal_hybrid(MYSQL_TIME_STATUS *st, const char *str, size_t length,
                   CHARSET_INFO *cs, date_mode_t fuzzydate)
   {
@@ -534,6 +550,63 @@ public:
   {
     DBUG_ASSERT(is_valid_temporal());
     return this;
+  }
+};
+
+
+class Interval_DDhhmmssff: public Temporal
+{
+  static const LEX_CSTRING m_type_name;
+  bool str_to_DDhhmmssff(MYSQL_TIME_STATUS *status,
+                         const char *str, size_t length, CHARSET_INFO *cs,
+                         ulong max_hour);
+  void push_warning_wrong_or_truncated_value(THD *thd,
+                                             const ErrConv &str,
+                                             int warnings);
+  bool is_valid_interval_DDhhmmssff_slow() const
+  {
+    return time_type == MYSQL_TIMESTAMP_TIME &&
+           has_zero_YYYYMMDD() && has_valid_mmssff();
+  }
+  bool is_valid_value_slow() const
+  {
+    return time_type == MYSQL_TIMESTAMP_NONE ||
+           is_valid_interval_DDhhmmssff_slow();
+  }
+public:
+  // Get fractional second precision from an Item
+  static uint fsp(THD *thd, Item *item);
+  /*
+    Maximum useful HOUR value:
+    TIMESTAMP'0001-01-01 00:00:00' + '87649415:59:59' = '9999-12-31 23:59:59'
+    This gives maximum possible interval values:
+    - '87649415:59:59.999999'   (in 'hh:mm:ss.ff' format)
+    - '3652058 23:59:59.999999' (in 'DD hh:mm:ss.ff' format)
+  */
+  static uint max_useful_hour()
+  {
+    return 87649415;
+  }
+public:
+  Interval_DDhhmmssff(THD *thd, MYSQL_TIME_STATUS *st, bool push_warnings,
+                      Item *item, ulong max_hour);
+  Interval_DDhhmmssff(THD *thd, Item *item)
+  {
+    MYSQL_TIME_STATUS st;
+    new(this) Interval_DDhhmmssff(thd, &st, true, item, max_useful_hour());
+  }
+  const MYSQL_TIME *get_mysql_time() const
+  {
+    DBUG_ASSERT(is_valid_interval_DDhhmmssff_slow());
+    return this;
+  }
+  bool is_valid_interval_DDhhmmssff() const
+  {
+    return time_type == MYSQL_TIMESTAMP_TIME;
+  }
+  bool is_valid_value() const
+  {
+    return time_type == MYSQL_TIMESTAMP_NONE || is_valid_interval_DDhhmmssff();
   }
 };
 
@@ -609,10 +682,7 @@ private:
   bool is_valid_time_slow() const
   {
     return time_type == MYSQL_TIMESTAMP_TIME &&
-           year == 0 && month == 0 && day == 0 &&
-           minute <= TIME_MAX_MINUTE &&
-           second <= TIME_MAX_SECOND &&
-           second_part <= TIME_MAX_SECOND_PART;
+           has_zero_YYYYMMDD() && has_valid_mmssff();
   }
   void hhmmssff_copy(const MYSQL_TIME *from)
   {

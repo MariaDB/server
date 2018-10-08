@@ -2519,7 +2519,7 @@ TIMESTAMP('2001-01-01','10:10:10.12345'),
 TIMESTAMP('2001-01-01','10:10:10.123456'),
 TIMESTAMP('2001-01-01','10:10:10.1234567');
 Warnings:
-Note	1292	Truncated incorrect time value: '10:10:10.1234567'
+Note	1292	Truncated incorrect INTERVAL DAY TO SECOND value: '10:10:10.1234567'
 SHOW COLUMNS FROM t1;
 Field	Type	Null	Key	Default	Extra
 TIMESTAMP('2001-01-01','10:10:10')	datetime	YES		NULL	
@@ -3577,6 +3577,11 @@ ADDTIME(TIME'10:20:30', DATE'2001-01-01') AS c3,
 ADDTIME(TIME'10:20:30', COALESCE(DATE'2001-01-01',TIMESTAMP'2001-01-01 00:00:00')) AS c4;
 c1	c2	c3	c4
 NULL	NULL	NULL	NULL
+Warnings:
+Warning	1292	Incorrect INTERVAL DAY TO SECOND value: '2001-01-01 00:00:00'
+Warning	1292	Incorrect INTERVAL DAY TO SECOND value: '2001-01-01 00:00:00'
+Warning	1292	Incorrect INTERVAL DAY TO SECOND value: '2001-01-01'
+Warning	1292	Incorrect INTERVAL DAY TO SECOND value: '2001-01-01 00:00:00'
 SELECT
 HOUR(TIMESTAMP'0000-00-01 10:00:00') AS h0,
 TIME_TO_SEC(TIMESTAMP'0000-00-01 10:00:00') AS tts0,
@@ -3778,3 +3783,2318 @@ a
 f1 was called
 DROP TABLE t1;
 DROP FUNCTION f1;
+#
+# MDEV-17351 MICROSECOND(XXX(int_number_out_of_range)) erroneously returns 999999
+#
+# Reject anything that's parsed as DATETIME or DATE
+CREATE TABLE t1 (a VARCHAR(64));
+INSERT INTO t1 VALUES
+('2001-01-01 10:20:30'),
+('01-01-01 10:20:30'),
+('2001-01-01       '),
+('20010101102030'),
+('010101102030');
+SELECT ADDTIME(DATE'2001-01-01',a), a FROM t1;
+ADDTIME(DATE'2001-01-01',a)	a
+NULL	2001-01-01 10:20:30
+NULL	01-01-01 10:20:30
+NULL	2001-01-01       
+NULL	20010101102030
+NULL	010101102030
+Warnings:
+Warning	1292	Incorrect INTERVAL DAY TO SECOND value: '2001-01-01 10:20:30'
+Warning	1292	Incorrect INTERVAL DAY TO SECOND value: '01-01-01 10:20:30'
+Warning	1292	Incorrect INTERVAL DAY TO SECOND value: '2001-01-01       '
+Warning	1292	Incorrect INTERVAL DAY TO SECOND value: '20010101102030'
+Warning	1292	Incorrect INTERVAL DAY TO SECOND value: '010101102030'
+DROP TABLE t1;
+# GREATEST(decimal, time)
+SELECT
+GREATEST(8395959, TIME'00:00:00') AS c0,
+GREATEST(8395959.0, TIME'00:00:00') AS c1,
+GREATEST(8395959.00, TIME'00:00:00') AS c2,
+GREATEST(8395959.000, TIME'00:00:00') AS c3,
+GREATEST(8395959.0000, TIME'00:00:00') AS c4,
+GREATEST(8395959.00000, TIME'00:00:00') AS c5,
+GREATEST(8395959.000000, TIME'00:00:00') AS c6,
+GREATEST(8395959.0000000, TIME'00:00:00') AS c7;
+c0	838:59:59
+c1	838:59:59.9
+c2	838:59:59.99
+c3	838:59:59.999
+c4	838:59:59.9999
+c5	838:59:59.99999
+c6	838:59:59.999999
+c7	838:59:59.999999
+Warnings:
+Level	Warning
+Code	1292
+Message	Truncated incorrect time value: '8395959'
+Level	Warning
+Code	1292
+Message	Truncated incorrect time value: '8395959.0'
+Level	Warning
+Code	1292
+Message	Truncated incorrect time value: '8395959.00'
+Level	Warning
+Code	1292
+Message	Truncated incorrect time value: '8395959.000'
+Level	Warning
+Code	1292
+Message	Truncated incorrect time value: '8395959.0000'
+Level	Warning
+Code	1292
+Message	Truncated incorrect time value: '8395959.00000'
+Level	Warning
+Code	1292
+Message	Truncated incorrect time value: '8395959.000000'
+Level	Warning
+Code	1292
+Message	Truncated incorrect time value: '8395959.0000000'
+SELECT
+MICROSECOND(GREATEST(8395959, TIME'00:00:00')) AS c0,
+MICROSECOND(GREATEST(8395959.0, TIME'00:00:00')) AS c1,
+MICROSECOND(GREATEST(8395959.00, TIME'00:00:00')) AS c2,
+MICROSECOND(GREATEST(8395959.000, TIME'00:00:00')) AS c3,
+MICROSECOND(GREATEST(8395959.0000, TIME'00:00:00')) AS c4,
+MICROSECOND(GREATEST(8395959.00000, TIME'00:00:00')) AS c5,
+MICROSECOND(GREATEST(8395959.000000, TIME'00:00:00')) AS c6,
+MICROSECOND(GREATEST(8395959.0000000, TIME'00:00:00')) AS c7;
+c0	0
+c1	900000
+c2	990000
+c3	999000
+c4	999900
+c5	999990
+c6	999999
+c7	999999
+Warnings:
+Level	Warning
+Code	1292
+Message	Truncated incorrect time value: '8395959'
+Level	Warning
+Code	1292
+Message	Truncated incorrect time value: '8395959.0'
+Level	Warning
+Code	1292
+Message	Truncated incorrect time value: '8395959.00'
+Level	Warning
+Code	1292
+Message	Truncated incorrect time value: '8395959.000'
+Level	Warning
+Code	1292
+Message	Truncated incorrect time value: '8395959.0000'
+Level	Warning
+Code	1292
+Message	Truncated incorrect time value: '8395959.00000'
+Level	Warning
+Code	1292
+Message	Truncated incorrect time value: '8395959.000000'
+Level	Warning
+Code	1292
+Message	Truncated incorrect time value: '8395959.0000000'
+SELECT
+CAST(GREATEST(8395959, TIME'00:00:00') AS SIGNED) AS ci,
+CAST(GREATEST(8395959, TIME'00:00:00') AS DECIMAL(30,0)) AS c0,
+CAST(GREATEST(8395959, TIME'00:00:00') AS DECIMAL(30,1)) AS c1,
+CAST(GREATEST(8395959, TIME'00:00:00') AS DECIMAL(30,2)) AS c2,
+CAST(GREATEST(8395959, TIME'00:00:00') AS DECIMAL(30,3)) AS c3,
+CAST(GREATEST(8395959, TIME'00:00:00') AS DECIMAL(30,4)) AS c4,
+CAST(GREATEST(8395959, TIME'00:00:00') AS DECIMAL(30,5)) AS c5,
+CAST(GREATEST(8395959, TIME'00:00:00') AS DECIMAL(30,6)) AS c6,
+CAST(GREATEST(8395959, TIME'00:00:00') AS DECIMAL(30,7)) AS c7;
+ci	8385959
+c0	8385959
+c1	8385959.0
+c2	8385959.00
+c3	8385959.000
+c4	8385959.0000
+c5	8385959.00000
+c6	8385959.000000
+c7	8385959.0000000
+Warnings:
+Level	Warning
+Code	1292
+Message	Truncated incorrect time value: '8395959'
+Level	Warning
+Code	1292
+Message	Truncated incorrect time value: '8395959'
+Level	Warning
+Code	1292
+Message	Truncated incorrect time value: '8395959'
+Level	Warning
+Code	1292
+Message	Truncated incorrect time value: '8395959'
+Level	Warning
+Code	1292
+Message	Truncated incorrect time value: '8395959'
+Level	Warning
+Code	1292
+Message	Truncated incorrect time value: '8395959'
+Level	Warning
+Code	1292
+Message	Truncated incorrect time value: '8395959'
+Level	Warning
+Code	1292
+Message	Truncated incorrect time value: '8395959'
+Level	Warning
+Code	1292
+Message	Truncated incorrect time value: '8395959'
+SELECT
+GREATEST(8395959, TIME'00:00:00') AS ci,
+GREATEST(8395959, TIME'00:00:00')+0 AS c0,
+GREATEST(8395959, TIME'00:00:00')+0.0 AS c1,
+GREATEST(8395959, TIME'00:00:00')+0.00 AS c2,
+GREATEST(8395959, TIME'00:00:00')+0.000 AS c3,
+GREATEST(8395959, TIME'00:00:00')+0.0000 AS c4,
+GREATEST(8395959, TIME'00:00:00')+0.00000 AS c5,
+GREATEST(8395959, TIME'00:00:00')+0.000000 AS c6,
+GREATEST(8395959, TIME'00:00:00')+0.0000000 AS c7;
+ci	838:59:59
+c0	8385959
+c1	8385959.0
+c2	8385959.00
+c3	8385959.000
+c4	8385959.0000
+c5	8385959.00000
+c6	8385959.000000
+c7	8385959.0000000
+Warnings:
+Level	Warning
+Code	1292
+Message	Truncated incorrect time value: '8395959'
+Level	Warning
+Code	1292
+Message	Truncated incorrect time value: '8395959'
+Level	Warning
+Code	1292
+Message	Truncated incorrect time value: '8395959'
+Level	Warning
+Code	1292
+Message	Truncated incorrect time value: '8395959'
+Level	Warning
+Code	1292
+Message	Truncated incorrect time value: '8395959'
+Level	Warning
+Code	1292
+Message	Truncated incorrect time value: '8395959'
+Level	Warning
+Code	1292
+Message	Truncated incorrect time value: '8395959'
+Level	Warning
+Code	1292
+Message	Truncated incorrect time value: '8395959'
+Level	Warning
+Code	1292
+Message	Truncated incorrect time value: '8395959'
+# GREATEST(string, time)
+SELECT
+GREATEST('839:59:59', TIME'00:00:00') AS ci,
+GREATEST('839:59:59.0', TIME'00:00:00') AS c1,
+GREATEST('839:59:59.00', TIME'00:00:00') AS c2,
+GREATEST('839:59:59.000', TIME'00:00:00') AS c3,
+GREATEST('839:59:59.0000', TIME'00:00:00') AS c4,
+GREATEST('839:59:59.00000', TIME'00:00:00') AS c5,
+GREATEST('839:59:59.000000', TIME'00:00:00') AS c6,
+GREATEST('839:59:59.0000000', TIME'00:00:00') AS c7;
+ci	838:59:59
+c1	838:59:59.9
+c2	838:59:59.99
+c3	838:59:59.999
+c4	838:59:59.9999
+c5	838:59:59.99999
+c6	838:59:59.999999
+c7	838:59:59.999999
+Warnings:
+Level	Warning
+Code	1292
+Message	Truncated incorrect time value: '839:59:59'
+Level	Warning
+Code	1292
+Message	Truncated incorrect time value: '839:59:59.0'
+Level	Warning
+Code	1292
+Message	Truncated incorrect time value: '839:59:59.00'
+Level	Warning
+Code	1292
+Message	Truncated incorrect time value: '839:59:59.000'
+Level	Warning
+Code	1292
+Message	Truncated incorrect time value: '839:59:59.0000'
+Level	Warning
+Code	1292
+Message	Truncated incorrect time value: '839:59:59.00000'
+Level	Warning
+Code	1292
+Message	Truncated incorrect time value: '839:59:59.000000'
+Level	Warning
+Code	1292
+Message	Truncated incorrect time value: '839:59:59.0000000'
+SELECT
+MICROSECOND(GREATEST('839:59:59', TIME'00:00:00')) AS ci,
+MICROSECOND(GREATEST('839:59:59.0', TIME'00:00:00')) AS c1,
+MICROSECOND(GREATEST('839:59:59.00', TIME'00:00:00')) AS c2,
+MICROSECOND(GREATEST('839:59:59.000', TIME'00:00:00')) AS c3,
+MICROSECOND(GREATEST('839:59:59.0000', TIME'00:00:00')) AS c4,
+MICROSECOND(GREATEST('839:59:59.00000', TIME'00:00:00')) AS c5,
+MICROSECOND(GREATEST('839:59:59.000000', TIME'00:00:00')) AS c6,
+MICROSECOND(GREATEST('839:59:59.0000000', TIME'00:00:00')) AS c7;
+ci	0
+c1	900000
+c2	990000
+c3	999000
+c4	999900
+c5	999990
+c6	999999
+c7	999999
+Warnings:
+Level	Warning
+Code	1292
+Message	Truncated incorrect time value: '839:59:59'
+Level	Warning
+Code	1292
+Message	Truncated incorrect time value: '839:59:59.0'
+Level	Warning
+Code	1292
+Message	Truncated incorrect time value: '839:59:59.00'
+Level	Warning
+Code	1292
+Message	Truncated incorrect time value: '839:59:59.000'
+Level	Warning
+Code	1292
+Message	Truncated incorrect time value: '839:59:59.0000'
+Level	Warning
+Code	1292
+Message	Truncated incorrect time value: '839:59:59.00000'
+Level	Warning
+Code	1292
+Message	Truncated incorrect time value: '839:59:59.000000'
+Level	Warning
+Code	1292
+Message	Truncated incorrect time value: '839:59:59.0000000'
+SELECT
+CAST(GREATEST('839:59:59', TIME'00:00:00') AS SIGNED) AS ci,
+CAST(GREATEST('839:59:59', TIME'00:00:00') AS DECIMAL(30,0)) AS c0,
+CAST(GREATEST('839:59:59', TIME'00:00:00') AS DECIMAL(30,1)) AS c1,
+CAST(GREATEST('839:59:59', TIME'00:00:00') AS DECIMAL(30,2)) AS c2,
+CAST(GREATEST('839:59:59', TIME'00:00:00') AS DECIMAL(30,3)) AS c3,
+CAST(GREATEST('839:59:59', TIME'00:00:00') AS DECIMAL(30,4)) AS c4,
+CAST(GREATEST('839:59:59', TIME'00:00:00') AS DECIMAL(30,5)) AS c5,
+CAST(GREATEST('839:59:59', TIME'00:00:00') AS DECIMAL(30,6)) AS c6,
+CAST(GREATEST('839:59:59', TIME'00:00:00') AS DECIMAL(30,7)) AS c7;
+ci	8385959
+c0	8385959
+c1	8385959.0
+c2	8385959.00
+c3	8385959.000
+c4	8385959.0000
+c5	8385959.00000
+c6	8385959.000000
+c7	8385959.0000000
+Warnings:
+Level	Warning
+Code	1292
+Message	Truncated incorrect time value: '839:59:59'
+Level	Warning
+Code	1292
+Message	Truncated incorrect time value: '839:59:59'
+Level	Warning
+Code	1292
+Message	Truncated incorrect time value: '839:59:59'
+Level	Warning
+Code	1292
+Message	Truncated incorrect time value: '839:59:59'
+Level	Warning
+Code	1292
+Message	Truncated incorrect time value: '839:59:59'
+Level	Warning
+Code	1292
+Message	Truncated incorrect time value: '839:59:59'
+Level	Warning
+Code	1292
+Message	Truncated incorrect time value: '839:59:59'
+Level	Warning
+Code	1292
+Message	Truncated incorrect time value: '839:59:59'
+Level	Warning
+Code	1292
+Message	Truncated incorrect time value: '839:59:59'
+SELECT
+GREATEST('839:59:59', TIME'00:00:00') AS ci,
+GREATEST('839:59:59', TIME'00:00:00')+0 AS c0,
+GREATEST('839:59:59', TIME'00:00:00')+0.0 AS c1,
+GREATEST('839:59:59', TIME'00:00:00')+0.00 AS c2,
+GREATEST('839:59:59', TIME'00:00:00')+0.000 AS c3,
+GREATEST('839:59:59', TIME'00:00:00')+0.0000 AS c4,
+GREATEST('839:59:59', TIME'00:00:00')+0.00000 AS c5,
+GREATEST('839:59:59', TIME'00:00:00')+0.000000 AS c6,
+GREATEST('839:59:59', TIME'00:00:00')+0.0000000 AS c7;
+ci	838:59:59
+c0	8385959
+c1	8385959.0
+c2	8385959.00
+c3	8385959.000
+c4	8385959.0000
+c5	8385959.00000
+c6	8385959.000000
+c7	8385959.0000000
+Warnings:
+Level	Warning
+Code	1292
+Message	Truncated incorrect time value: '839:59:59'
+Level	Warning
+Code	1292
+Message	Truncated incorrect time value: '839:59:59'
+Level	Warning
+Code	1292
+Message	Truncated incorrect time value: '839:59:59'
+Level	Warning
+Code	1292
+Message	Truncated incorrect time value: '839:59:59'
+Level	Warning
+Code	1292
+Message	Truncated incorrect time value: '839:59:59'
+Level	Warning
+Code	1292
+Message	Truncated incorrect time value: '839:59:59'
+Level	Warning
+Code	1292
+Message	Truncated incorrect time value: '839:59:59'
+Level	Warning
+Code	1292
+Message	Truncated incorrect time value: '839:59:59'
+Level	Warning
+Code	1292
+Message	Truncated incorrect time value: '839:59:59'
+# ADDTIME(datetime, decimal)
+SELECT
+ADDTIME(TIMESTAMP'2001-01-01 00:00:00', 8395959) AS c0,
+ADDTIME(TIMESTAMP'2001-01-01 00:00:00', 8395959.0) AS c1,
+ADDTIME(TIMESTAMP'2001-01-01 00:00:00', 8395959.00) AS c2,
+ADDTIME(TIMESTAMP'2001-01-01 00:00:00', 8395959.000) AS c3,
+ADDTIME(TIMESTAMP'2001-01-01 00:00:00', 8395959.0000) AS c4,
+ADDTIME(TIMESTAMP'2001-01-01 00:00:00', 8395959.00000) AS c5,
+ADDTIME(TIMESTAMP'2001-01-01 00:00:00', 8395959.000000) AS c6,
+ADDTIME(TIMESTAMP'2001-01-01 00:00:00', 8395959.0000000) AS c7;
+c0	2001-02-04 23:59:59
+c1	2001-02-04 23:59:59.0
+c2	2001-02-04 23:59:59.00
+c3	2001-02-04 23:59:59.000
+c4	2001-02-04 23:59:59.0000
+c5	2001-02-04 23:59:59.00000
+c6	2001-02-04 23:59:59.000000
+c7	2001-02-04 23:59:59.000000
+Warnings:
+Level	Note
+Code	1292
+Message	Truncated incorrect INTERVAL DAY TO SECOND value: '8395959.0000000'
+SELECT
+MICROSECOND(ADDTIME(TIMESTAMP'2001-01-01 00:00:00', 8395959)) AS c0,
+MICROSECOND(ADDTIME(TIMESTAMP'2001-01-01 00:00:00', 8395959.0)) AS c1,
+MICROSECOND(ADDTIME(TIMESTAMP'2001-01-01 00:00:00', 8395959.00)) AS c2,
+MICROSECOND(ADDTIME(TIMESTAMP'2001-01-01 00:00:00', 8395959.000)) AS c3,
+MICROSECOND(ADDTIME(TIMESTAMP'2001-01-01 00:00:00', 8395959.0000)) AS c4,
+MICROSECOND(ADDTIME(TIMESTAMP'2001-01-01 00:00:00', 8395959.00000)) AS c5,
+MICROSECOND(ADDTIME(TIMESTAMP'2001-01-01 00:00:00', 8395959.000000)) AS c6,
+MICROSECOND(ADDTIME(TIMESTAMP'2001-01-01 00:00:00', 8395959.0000000)) AS c7;
+c0	0
+c1	0
+c2	0
+c3	0
+c4	0
+c5	0
+c6	0
+c7	0
+Warnings:
+Level	Note
+Code	1292
+Message	Truncated incorrect INTERVAL DAY TO SECOND value: '8395959.0000000'
+SELECT
+CAST(ADDTIME(TIMESTAMP'2001-01-01 00:00:00', 8395959) AS SIGNED) AS ci,
+CAST(ADDTIME(TIMESTAMP'2001-01-01 00:00:00', 8395959) AS DECIMAL(30,0)) AS c0,
+CAST(ADDTIME(TIMESTAMP'2001-01-01 00:00:00', 8395959) AS DECIMAL(30,1)) AS c1,
+CAST(ADDTIME(TIMESTAMP'2001-01-01 00:00:00', 8395959) AS DECIMAL(30,2)) AS c2,
+CAST(ADDTIME(TIMESTAMP'2001-01-01 00:00:00', 8395959) AS DECIMAL(30,3)) AS c3,
+CAST(ADDTIME(TIMESTAMP'2001-01-01 00:00:00', 8395959) AS DECIMAL(30,4)) AS c4,
+CAST(ADDTIME(TIMESTAMP'2001-01-01 00:00:00', 8395959) AS DECIMAL(30,5)) AS c5,
+CAST(ADDTIME(TIMESTAMP'2001-01-01 00:00:00', 8395959) AS DECIMAL(30,6)) AS c6,
+CAST(ADDTIME(TIMESTAMP'2001-01-01 00:00:00', 8395959) AS DECIMAL(30,7)) AS c7;
+ci	20010204235959
+c0	20010204235959
+c1	20010204235959.0
+c2	20010204235959.00
+c3	20010204235959.000
+c4	20010204235959.0000
+c5	20010204235959.00000
+c6	20010204235959.000000
+c7	20010204235959.0000000
+SELECT
+ADDTIME(TIMESTAMP'2001-01-01 00:00:00', 8395959) AS ci,
+ADDTIME(TIMESTAMP'2001-01-01 00:00:00', 8395959)+0 AS c0,
+ADDTIME(TIMESTAMP'2001-01-01 00:00:00', 8395959)+0.0 AS c1,
+ADDTIME(TIMESTAMP'2001-01-01 00:00:00', 8395959)+0.00 AS c2,
+ADDTIME(TIMESTAMP'2001-01-01 00:00:00', 8395959)+0.000 AS c3,
+ADDTIME(TIMESTAMP'2001-01-01 00:00:00', 8395959)+0.0000 AS c4,
+ADDTIME(TIMESTAMP'2001-01-01 00:00:00', 8395959)+0.00000 AS c5,
+ADDTIME(TIMESTAMP'2001-01-01 00:00:00', 8395959)+0.000000 AS c6,
+ADDTIME(TIMESTAMP'2001-01-01 00:00:00', 8395959)+0.0000000 AS c7;
+ci	2001-02-04 23:59:59
+c0	20010204235959
+c1	20010204235959.0
+c2	20010204235959.00
+c3	20010204235959.000
+c4	20010204235959.0000
+c5	20010204235959.00000
+c6	20010204235959.000000
+c7	20010204235959.0000000
+# ADDTIME(datetime, string)
+SELECT
+ADDTIME(TIMESTAMP'2001-01-01 00:00:00', '839:59:59') AS c0,
+ADDTIME(TIMESTAMP'2001-01-01 00:00:00', '839:59:59.0') AS c1,
+ADDTIME(TIMESTAMP'2001-01-01 00:00:00', '839:59:59.00') AS c2,
+ADDTIME(TIMESTAMP'2001-01-01 00:00:00', '839:59:59.000') AS c3,
+ADDTIME(TIMESTAMP'2001-01-01 00:00:00', '839:59:59.0000') AS c4,
+ADDTIME(TIMESTAMP'2001-01-01 00:00:00', '839:59:59.00000') AS c5,
+ADDTIME(TIMESTAMP'2001-01-01 00:00:00', '839:59:59.000000') AS c6,
+ADDTIME(TIMESTAMP'2001-01-01 00:00:00', '839:59:59.0000000') AS c7;
+c0	2001-02-04 23:59:59
+c1	2001-02-04 23:59:59.0
+c2	2001-02-04 23:59:59.00
+c3	2001-02-04 23:59:59.000
+c4	2001-02-04 23:59:59.0000
+c5	2001-02-04 23:59:59.00000
+c6	2001-02-04 23:59:59.000000
+c7	2001-02-04 23:59:59.000000
+Warnings:
+Level	Note
+Code	1292
+Message	Truncated incorrect INTERVAL DAY TO SECOND value: '839:59:59.0000000'
+SELECT
+MICROSECOND(ADDTIME(TIMESTAMP'2001-01-01 00:00:00', '839:59:59')) AS c0,
+MICROSECOND(ADDTIME(TIMESTAMP'2001-01-01 00:00:00', '839:59:59.0')) AS c1,
+MICROSECOND(ADDTIME(TIMESTAMP'2001-01-01 00:00:00', '839:59:59.00')) AS c2,
+MICROSECOND(ADDTIME(TIMESTAMP'2001-01-01 00:00:00', '839:59:59.000')) AS c3,
+MICROSECOND(ADDTIME(TIMESTAMP'2001-01-01 00:00:00', '839:59:59.0000')) AS c4,
+MICROSECOND(ADDTIME(TIMESTAMP'2001-01-01 00:00:00', '839:59:59.00000')) AS c5,
+MICROSECOND(ADDTIME(TIMESTAMP'2001-01-01 00:00:00', '839:59:59.000000')) AS c6,
+MICROSECOND(ADDTIME(TIMESTAMP'2001-01-01 00:00:00', '839:59:59.0000000')) AS c7;
+c0	0
+c1	0
+c2	0
+c3	0
+c4	0
+c5	0
+c6	0
+c7	0
+Warnings:
+Level	Note
+Code	1292
+Message	Truncated incorrect INTERVAL DAY TO SECOND value: '839:59:59.0000000'
+SELECT
+CAST(ADDTIME(TIMESTAMP'2001-01-01 00:00:00', '839:59:59') AS SIGNED) AS ci,
+CAST(ADDTIME(TIMESTAMP'2001-01-01 00:00:00', '839:59:59') AS DECIMAL(30,0)) AS c0,
+CAST(ADDTIME(TIMESTAMP'2001-01-01 00:00:00', '839:59:59') AS DECIMAL(30,1)) AS c1,
+CAST(ADDTIME(TIMESTAMP'2001-01-01 00:00:00', '839:59:59') AS DECIMAL(30,2)) AS c2,
+CAST(ADDTIME(TIMESTAMP'2001-01-01 00:00:00', '839:59:59') AS DECIMAL(30,3)) AS c3,
+CAST(ADDTIME(TIMESTAMP'2001-01-01 00:00:00', '839:59:59') AS DECIMAL(30,4)) AS c4,
+CAST(ADDTIME(TIMESTAMP'2001-01-01 00:00:00', '839:59:59') AS DECIMAL(30,5)) AS c5,
+CAST(ADDTIME(TIMESTAMP'2001-01-01 00:00:00', '839:59:59') AS DECIMAL(30,6)) AS c6,
+CAST(ADDTIME(TIMESTAMP'2001-01-01 00:00:00', '839:59:59') AS DECIMAL(30,7)) AS c7;
+ci	20010204235959
+c0	20010204235959
+c1	20010204235959.0
+c2	20010204235959.00
+c3	20010204235959.000
+c4	20010204235959.0000
+c5	20010204235959.00000
+c6	20010204235959.000000
+c7	20010204235959.0000000
+SELECT
+ADDTIME(TIMESTAMP'2001-01-01 00:00:00', '839:59:59') AS ci,
+ADDTIME(TIMESTAMP'2001-01-01 00:00:00', '839:59:59')+0 AS c0,
+ADDTIME(TIMESTAMP'2001-01-01 00:00:00', '839:59:59')+0.0 AS c1,
+ADDTIME(TIMESTAMP'2001-01-01 00:00:00', '839:59:59')+0.00 AS c2,
+ADDTIME(TIMESTAMP'2001-01-01 00:00:00', '839:59:59')+0.000 AS c3,
+ADDTIME(TIMESTAMP'2001-01-01 00:00:00', '839:59:59')+0.0000 AS c4,
+ADDTIME(TIMESTAMP'2001-01-01 00:00:00', '839:59:59')+0.00000 AS c5,
+ADDTIME(TIMESTAMP'2001-01-01 00:00:00', '839:59:59')+0.000000 AS c6,
+ADDTIME(TIMESTAMP'2001-01-01 00:00:00', '839:59:59')+0.0000000 AS c7;
+ci	2001-02-04 23:59:59
+c0	20010204235959
+c1	20010204235959.0
+c2	20010204235959.00
+c3	20010204235959.000
+c4	20010204235959.0000
+c5	20010204235959.00000
+c6	20010204235959.000000
+c7	20010204235959.0000000
+# ADDTIME(time, decimal)
+SELECT
+ADDTIME(TIME'00:00:00', 8395959) AS c0,
+ADDTIME(TIME'00:00:00', 8395959.0) AS c1,
+ADDTIME(TIME'00:00:00', 8395959.00) AS c2,
+ADDTIME(TIME'00:00:00', 8395959.000) AS c3,
+ADDTIME(TIME'00:00:00', 8395959.0000) AS c4,
+ADDTIME(TIME'00:00:00', 8395959.00000) AS c5,
+ADDTIME(TIME'00:00:00', 8395959.000000) AS c6,
+ADDTIME(TIME'00:00:00', 8395959.0000000) AS c7;
+c0	838:59:59
+c1	838:59:59.9
+c2	838:59:59.99
+c3	838:59:59.999
+c4	838:59:59.9999
+c5	838:59:59.99999
+c6	838:59:59.999999
+c7	838:59:59.999999
+Warnings:
+Level	Warning
+Code	1292
+Message	Truncated incorrect time value: '839:59:59'
+Level	Warning
+Code	1292
+Message	Truncated incorrect time value: '839:59:59'
+Level	Warning
+Code	1292
+Message	Truncated incorrect time value: '839:59:59'
+Level	Warning
+Code	1292
+Message	Truncated incorrect time value: '839:59:59'
+Level	Warning
+Code	1292
+Message	Truncated incorrect time value: '839:59:59'
+Level	Warning
+Code	1292
+Message	Truncated incorrect time value: '839:59:59'
+Level	Warning
+Code	1292
+Message	Truncated incorrect time value: '839:59:59'
+Level	Note
+Code	1292
+Message	Truncated incorrect INTERVAL DAY TO SECOND value: '8395959.0000000'
+Level	Warning
+Code	1292
+Message	Truncated incorrect time value: '839:59:59'
+SELECT
+MICROSECOND(ADDTIME(TIME'00:00:00', 8395959)) AS c0,
+MICROSECOND(ADDTIME(TIME'00:00:00', 8395959.0)) AS c1,
+MICROSECOND(ADDTIME(TIME'00:00:00', 8395959.00)) AS c2,
+MICROSECOND(ADDTIME(TIME'00:00:00', 8395959.000)) AS c3,
+MICROSECOND(ADDTIME(TIME'00:00:00', 8395959.0000)) AS c4,
+MICROSECOND(ADDTIME(TIME'00:00:00', 8395959.00000)) AS c5,
+MICROSECOND(ADDTIME(TIME'00:00:00', 8395959.000000)) AS c6,
+MICROSECOND(ADDTIME(TIME'00:00:00', 8395959.0000000)) AS c7;
+c0	0
+c1	900000
+c2	990000
+c3	999000
+c4	999900
+c5	999990
+c6	999999
+c7	999999
+Warnings:
+Level	Warning
+Code	1292
+Message	Truncated incorrect time value: '839:59:59'
+Level	Warning
+Code	1292
+Message	Truncated incorrect time value: '839:59:59'
+Level	Warning
+Code	1292
+Message	Truncated incorrect time value: '839:59:59'
+Level	Warning
+Code	1292
+Message	Truncated incorrect time value: '839:59:59'
+Level	Warning
+Code	1292
+Message	Truncated incorrect time value: '839:59:59'
+Level	Warning
+Code	1292
+Message	Truncated incorrect time value: '839:59:59'
+Level	Warning
+Code	1292
+Message	Truncated incorrect time value: '839:59:59'
+Level	Note
+Code	1292
+Message	Truncated incorrect INTERVAL DAY TO SECOND value: '8395959.0000000'
+Level	Warning
+Code	1292
+Message	Truncated incorrect time value: '839:59:59'
+SELECT
+CAST(ADDTIME(TIME'00:00:00', 8395959) AS SIGNED) AS ci,
+CAST(ADDTIME(TIME'00:00:00', 8395959) AS DECIMAL(30,0)) AS c0,
+CAST(ADDTIME(TIME'00:00:00', 8395959) AS DECIMAL(30,1)) AS c1,
+CAST(ADDTIME(TIME'00:00:00', 8395959) AS DECIMAL(30,2)) AS c2,
+CAST(ADDTIME(TIME'00:00:00', 8395959) AS DECIMAL(30,3)) AS c3,
+CAST(ADDTIME(TIME'00:00:00', 8395959) AS DECIMAL(30,4)) AS c4,
+CAST(ADDTIME(TIME'00:00:00', 8395959) AS DECIMAL(30,5)) AS c5,
+CAST(ADDTIME(TIME'00:00:00', 8395959) AS DECIMAL(30,6)) AS c6,
+CAST(ADDTIME(TIME'00:00:00', 8395959) AS DECIMAL(30,7)) AS c7;
+ci	8385959
+c0	8385959
+c1	8385959.0
+c2	8385959.00
+c3	8385959.000
+c4	8385959.0000
+c5	8385959.00000
+c6	8385959.000000
+c7	8385959.0000000
+Warnings:
+Level	Warning
+Code	1292
+Message	Truncated incorrect time value: '839:59:59'
+Level	Warning
+Code	1292
+Message	Truncated incorrect time value: '839:59:59'
+Level	Warning
+Code	1292
+Message	Truncated incorrect time value: '839:59:59'
+Level	Warning
+Code	1292
+Message	Truncated incorrect time value: '839:59:59'
+Level	Warning
+Code	1292
+Message	Truncated incorrect time value: '839:59:59'
+Level	Warning
+Code	1292
+Message	Truncated incorrect time value: '839:59:59'
+Level	Warning
+Code	1292
+Message	Truncated incorrect time value: '839:59:59'
+Level	Warning
+Code	1292
+Message	Truncated incorrect time value: '839:59:59'
+Level	Warning
+Code	1292
+Message	Truncated incorrect time value: '839:59:59'
+SELECT
+ADDTIME(TIME'00:00:00', 8395959) AS ci,
+ADDTIME(TIME'00:00:00', 8395959)+0 AS c0,
+ADDTIME(TIME'00:00:00', 8395959)+0.0 AS c1,
+ADDTIME(TIME'00:00:00', 8395959)+0.00 AS c2,
+ADDTIME(TIME'00:00:00', 8395959)+0.000 AS c3,
+ADDTIME(TIME'00:00:00', 8395959)+0.0000 AS c4,
+ADDTIME(TIME'00:00:00', 8395959)+0.00000 AS c5,
+ADDTIME(TIME'00:00:00', 8395959)+0.000000 AS c6,
+ADDTIME(TIME'00:00:00', 8395959)+0.0000000 AS c7;
+ci	838:59:59
+c0	8385959
+c1	8385959.0
+c2	8385959.00
+c3	8385959.000
+c4	8385959.0000
+c5	8385959.00000
+c6	8385959.000000
+c7	8385959.0000000
+Warnings:
+Level	Warning
+Code	1292
+Message	Truncated incorrect time value: '839:59:59'
+Level	Warning
+Code	1292
+Message	Truncated incorrect time value: '839:59:59'
+Level	Warning
+Code	1292
+Message	Truncated incorrect time value: '839:59:59'
+Level	Warning
+Code	1292
+Message	Truncated incorrect time value: '839:59:59'
+Level	Warning
+Code	1292
+Message	Truncated incorrect time value: '839:59:59'
+Level	Warning
+Code	1292
+Message	Truncated incorrect time value: '839:59:59'
+Level	Warning
+Code	1292
+Message	Truncated incorrect time value: '839:59:59'
+Level	Warning
+Code	1292
+Message	Truncated incorrect time value: '839:59:59'
+Level	Warning
+Code	1292
+Message	Truncated incorrect time value: '839:59:59'
+# ADDTIME(time,string)
+SELECT
+ADDTIME(TIME'00:00:00', '839:59:59') AS c0,
+ADDTIME(TIME'00:00:00', '839:59:59.0') AS c1,
+ADDTIME(TIME'00:00:00', '839:59:59.00') AS c2,
+ADDTIME(TIME'00:00:00', '839:59:59.000') AS c3,
+ADDTIME(TIME'00:00:00', '839:59:59.0000') AS c4,
+ADDTIME(TIME'00:00:00', '839:59:59.00000') AS c5,
+ADDTIME(TIME'00:00:00', '839:59:59.000000') AS c6,
+ADDTIME(TIME'00:00:00', '839:59:59.0000000') AS c7;
+c0	838:59:59
+c1	838:59:59.9
+c2	838:59:59.99
+c3	838:59:59.999
+c4	838:59:59.9999
+c5	838:59:59.99999
+c6	838:59:59.999999
+c7	838:59:59.999999
+Warnings:
+Level	Warning
+Code	1292
+Message	Truncated incorrect time value: '839:59:59'
+Level	Warning
+Code	1292
+Message	Truncated incorrect time value: '839:59:59'
+Level	Warning
+Code	1292
+Message	Truncated incorrect time value: '839:59:59'
+Level	Warning
+Code	1292
+Message	Truncated incorrect time value: '839:59:59'
+Level	Warning
+Code	1292
+Message	Truncated incorrect time value: '839:59:59'
+Level	Warning
+Code	1292
+Message	Truncated incorrect time value: '839:59:59'
+Level	Warning
+Code	1292
+Message	Truncated incorrect time value: '839:59:59'
+Level	Note
+Code	1292
+Message	Truncated incorrect INTERVAL DAY TO SECOND value: '839:59:59.0000000'
+Level	Warning
+Code	1292
+Message	Truncated incorrect time value: '839:59:59'
+SELECT
+MICROSECOND(ADDTIME(TIME'00:00:00', '839:59:59')) AS c0,
+MICROSECOND(ADDTIME(TIME'00:00:00', '839:59:59.0')) AS c1,
+MICROSECOND(ADDTIME(TIME'00:00:00', '839:59:59.00')) AS c2,
+MICROSECOND(ADDTIME(TIME'00:00:00', '839:59:59.000')) AS c3,
+MICROSECOND(ADDTIME(TIME'00:00:00', '839:59:59.0000')) AS c4,
+MICROSECOND(ADDTIME(TIME'00:00:00', '839:59:59.00000')) AS c5,
+MICROSECOND(ADDTIME(TIME'00:00:00', '839:59:59.000000')) AS c6,
+MICROSECOND(ADDTIME(TIME'00:00:00', '839:59:59.0000000')) AS c7;
+c0	0
+c1	900000
+c2	990000
+c3	999000
+c4	999900
+c5	999990
+c6	999999
+c7	999999
+Warnings:
+Level	Warning
+Code	1292
+Message	Truncated incorrect time value: '839:59:59'
+Level	Warning
+Code	1292
+Message	Truncated incorrect time value: '839:59:59'
+Level	Warning
+Code	1292
+Message	Truncated incorrect time value: '839:59:59'
+Level	Warning
+Code	1292
+Message	Truncated incorrect time value: '839:59:59'
+Level	Warning
+Code	1292
+Message	Truncated incorrect time value: '839:59:59'
+Level	Warning
+Code	1292
+Message	Truncated incorrect time value: '839:59:59'
+Level	Warning
+Code	1292
+Message	Truncated incorrect time value: '839:59:59'
+Level	Note
+Code	1292
+Message	Truncated incorrect INTERVAL DAY TO SECOND value: '839:59:59.0000000'
+Level	Warning
+Code	1292
+Message	Truncated incorrect time value: '839:59:59'
+SELECT
+CAST(ADDTIME(TIME'00:00:00', '839:59:59') AS SIGNED) AS ci,
+CAST(ADDTIME(TIME'00:00:00', '839:59:59') AS DECIMAL(30,0)) AS c0,
+CAST(ADDTIME(TIME'00:00:00', '839:59:59') AS DECIMAL(30,1)) AS c1,
+CAST(ADDTIME(TIME'00:00:00', '839:59:59') AS DECIMAL(30,2)) AS c2,
+CAST(ADDTIME(TIME'00:00:00', '839:59:59') AS DECIMAL(30,3)) AS c3,
+CAST(ADDTIME(TIME'00:00:00', '839:59:59') AS DECIMAL(30,4)) AS c4,
+CAST(ADDTIME(TIME'00:00:00', '839:59:59') AS DECIMAL(30,5)) AS c5,
+CAST(ADDTIME(TIME'00:00:00', '839:59:59') AS DECIMAL(30,6)) AS c6,
+CAST(ADDTIME(TIME'00:00:00', '839:59:59') AS DECIMAL(30,7)) AS c7;
+ci	8385959
+c0	8385959
+c1	8385959.0
+c2	8385959.00
+c3	8385959.000
+c4	8385959.0000
+c5	8385959.00000
+c6	8385959.000000
+c7	8385959.0000000
+Warnings:
+Level	Warning
+Code	1292
+Message	Truncated incorrect time value: '839:59:59'
+Level	Warning
+Code	1292
+Message	Truncated incorrect time value: '839:59:59'
+Level	Warning
+Code	1292
+Message	Truncated incorrect time value: '839:59:59'
+Level	Warning
+Code	1292
+Message	Truncated incorrect time value: '839:59:59'
+Level	Warning
+Code	1292
+Message	Truncated incorrect time value: '839:59:59'
+Level	Warning
+Code	1292
+Message	Truncated incorrect time value: '839:59:59'
+Level	Warning
+Code	1292
+Message	Truncated incorrect time value: '839:59:59'
+Level	Warning
+Code	1292
+Message	Truncated incorrect time value: '839:59:59'
+Level	Warning
+Code	1292
+Message	Truncated incorrect time value: '839:59:59'
+SELECT
+ADDTIME(TIME'00:00:00', '839:59:59') AS ci,
+ADDTIME(TIME'00:00:00', '839:59:59')+0 AS c0,
+ADDTIME(TIME'00:00:00', '839:59:59')+0.0 AS c1,
+ADDTIME(TIME'00:00:00', '839:59:59')+0.00 AS c2,
+ADDTIME(TIME'00:00:00', '839:59:59')+0.000 AS c3,
+ADDTIME(TIME'00:00:00', '839:59:59')+0.0000 AS c4,
+ADDTIME(TIME'00:00:00', '839:59:59')+0.00000 AS c5,
+ADDTIME(TIME'00:00:00', '839:59:59')+0.000000 AS c6,
+ADDTIME(TIME'00:00:00', '839:59:59')+0.0000000 AS c7;
+ci	838:59:59
+c0	8385959
+c1	8385959.0
+c2	8385959.00
+c3	8385959.000
+c4	8385959.0000
+c5	8385959.00000
+c6	8385959.000000
+c7	8385959.0000000
+Warnings:
+Level	Warning
+Code	1292
+Message	Truncated incorrect time value: '839:59:59'
+Level	Warning
+Code	1292
+Message	Truncated incorrect time value: '839:59:59'
+Level	Warning
+Code	1292
+Message	Truncated incorrect time value: '839:59:59'
+Level	Warning
+Code	1292
+Message	Truncated incorrect time value: '839:59:59'
+Level	Warning
+Code	1292
+Message	Truncated incorrect time value: '839:59:59'
+Level	Warning
+Code	1292
+Message	Truncated incorrect time value: '839:59:59'
+Level	Warning
+Code	1292
+Message	Truncated incorrect time value: '839:59:59'
+Level	Warning
+Code	1292
+Message	Truncated incorrect time value: '839:59:59'
+Level	Warning
+Code	1292
+Message	Truncated incorrect time value: '839:59:59'
+# ADDTIME(int,int)
+SELECT
+ADDTIME(0, 8395959) AS c,
+MICROSECOND(ADDTIME(0, 8395959)) AS cm,
+CAST(ADDTIME(0, 8395959) AS SIGNED) AS cs_fixme_mdev_17384,
+CAST(ADDTIME(0, 8395959) AS DECIMAL(30,0)) AS cd300;
+c	838:59:59
+cm	0
+cs_fixme_mdev_17384	838
+cd300	8385959
+Warnings:
+Level	Warning
+Code	1292
+Message	Truncated incorrect time value: '839:59:59'
+Level	Warning
+Code	1292
+Message	Truncated incorrect time value: '839:59:59'
+Level	Warning
+Code	1292
+Message	Truncated incorrect time value: '839:59:59'
+Level	Warning
+Code	1292
+Message	Truncated incorrect INTEGER value: '838:59:59'
+Level	Warning
+Code	1292
+Message	Truncated incorrect time value: '839:59:59'
+SELECT
+ADDTIME(20010101000000, 8395959) AS c,
+MICROSECOND(ADDTIME(20010101000000, 8395959)) AS cm,
+CAST(ADDTIME(20010101000000, 8395959) AS SIGNED) AS cs_fixme_mdev_17384,
+CAST(ADDTIME(20010101000000, 8395959) AS DECIMAL(30,0)) AS cd300;
+c	2001-02-04 23:59:59
+cm	0
+cs_fixme_mdev_17384	2001
+cd300	20010204235959
+Warnings:
+Level	Warning
+Code	1292
+Message	Truncated incorrect INTEGER value: '2001-02-04 23:59:59'
+# ADDTIME(decimal,int)
+# 8385960 in cd300 is correct: addtime returns '838:59:59.9'
+# which is further *rounded* to a decimals(30,0)
+SELECT
+ADDTIME(0.0, 8395959) AS c,
+MICROSECOND(ADDTIME(0.0, 8395959)) AS cm,
+CAST(ADDTIME(0.0, 8395959) AS SIGNED) AS cs_fixme_mdev_17384,
+CAST(ADDTIME(0.0, 8395959) AS DECIMAL(30,0)) AS cd300;
+c	838:59:59.9
+cm	900000
+cs_fixme_mdev_17384	838
+cd300	8385960
+Warnings:
+Level	Warning
+Code	1292
+Message	Truncated incorrect time value: '839:59:59'
+Level	Warning
+Code	1292
+Message	Truncated incorrect time value: '839:59:59'
+Level	Warning
+Code	1292
+Message	Truncated incorrect time value: '839:59:59'
+Level	Warning
+Code	1292
+Message	Truncated incorrect INTEGER value: '838:59:59.9'
+Level	Warning
+Code	1292
+Message	Truncated incorrect time value: '839:59:59'
+SELECT
+ADDTIME(20010101000000.0, 8395959) AS c,
+MICROSECOND(ADDTIME(20010101000000.0, 8395959)) AS cm,
+CAST(ADDTIME(20010101000000.0, 8395959) AS SIGNED) AS cs_fixme_mdev_17384,
+CAST(ADDTIME(20010101000000.0, 8395959) AS DECIMAL(30,0)) AS cd300;
+c	2001-02-04 23:59:59.0
+cm	0
+cs_fixme_mdev_17384	2001
+cd300	20010204235959
+Warnings:
+Level	Warning
+Code	1292
+Message	Truncated incorrect INTEGER value: '2001-02-04 23:59:59.0'
+# ADDTIME(decimal,decimal)
+SELECT
+ADDTIME(0.0, 8395959.0) AS c1,
+ADDTIME(0.0, 8395959.00) AS c2,
+ADDTIME(0.0, 8395959.000) AS c3,
+ADDTIME(0.0, 8395959.0000) AS c4,
+ADDTIME(0.0, 8395959.00000) AS c5,
+ADDTIME(0.0, 8395959.000000) AS c6,
+ADDTIME(0.0, 8395959.0000000) AS c7;
+c1	838:59:59.9
+c2	838:59:59.99
+c3	838:59:59.999
+c4	838:59:59.9999
+c5	838:59:59.99999
+c6	838:59:59.999999
+c7	838:59:59.999999
+Warnings:
+Level	Warning
+Code	1292
+Message	Truncated incorrect time value: '839:59:59'
+Level	Warning
+Code	1292
+Message	Truncated incorrect time value: '839:59:59'
+Level	Warning
+Code	1292
+Message	Truncated incorrect time value: '839:59:59'
+Level	Warning
+Code	1292
+Message	Truncated incorrect time value: '839:59:59'
+Level	Warning
+Code	1292
+Message	Truncated incorrect time value: '839:59:59'
+Level	Warning
+Code	1292
+Message	Truncated incorrect time value: '839:59:59'
+Level	Note
+Code	1292
+Message	Truncated incorrect INTERVAL DAY TO SECOND value: '8395959.0000000'
+Level	Warning
+Code	1292
+Message	Truncated incorrect time value: '839:59:59'
+SELECT
+MICROSECOND(ADDTIME(0.0, 8395959.0)) AS c1,
+MICROSECOND(ADDTIME(0.0, 8395959.00)) AS c2,
+MICROSECOND(ADDTIME(0.0, 8395959.000)) AS c3,
+MICROSECOND(ADDTIME(0.0, 8395959.0000)) AS c4,
+MICROSECOND(ADDTIME(0.0, 8395959.00000)) AS c5,
+MICROSECOND(ADDTIME(0.0, 8395959.000000)) AS c6,
+MICROSECOND(ADDTIME(0.0, 8395959.0000000)) AS c7;
+c1	900000
+c2	990000
+c3	999000
+c4	999900
+c5	999990
+c6	999999
+c7	999999
+Warnings:
+Level	Warning
+Code	1292
+Message	Truncated incorrect time value: '839:59:59'
+Level	Warning
+Code	1292
+Message	Truncated incorrect time value: '839:59:59'
+Level	Warning
+Code	1292
+Message	Truncated incorrect time value: '839:59:59'
+Level	Warning
+Code	1292
+Message	Truncated incorrect time value: '839:59:59'
+Level	Warning
+Code	1292
+Message	Truncated incorrect time value: '839:59:59'
+Level	Warning
+Code	1292
+Message	Truncated incorrect time value: '839:59:59'
+Level	Note
+Code	1292
+Message	Truncated incorrect INTERVAL DAY TO SECOND value: '8395959.0000000'
+Level	Warning
+Code	1292
+Message	Truncated incorrect time value: '839:59:59'
+# 8385960 in c1 is correct: addtime returns '838:59:59.9'
+# which is further *rounded* to a decimals(30,0)
+SELECT
+CAST(ADDTIME(0.0, 8395959) AS DECIMAL(30,0)) AS c0,
+CAST(ADDTIME(0.0, 8395959) AS DECIMAL(30,1)) AS c1,
+CAST(ADDTIME(0.0, 8395959) AS DECIMAL(30,2)) AS c2,
+CAST(ADDTIME(0.0, 8395959) AS DECIMAL(30,3)) AS c3,
+CAST(ADDTIME(0.0, 8395959) AS DECIMAL(30,4)) AS c4,
+CAST(ADDTIME(0.0, 8395959) AS DECIMAL(30,5)) AS c5,
+CAST(ADDTIME(0.0, 8395959) AS DECIMAL(30,6)) AS c6,
+CAST(ADDTIME(0.0, 8395959) AS DECIMAL(30,7)) AS c7;
+c0	8385960
+c1	8385959.9
+c2	8385959.90
+c3	8385959.900
+c4	8385959.9000
+c5	8385959.90000
+c6	8385959.900000
+c7	8385959.9000000
+Warnings:
+Level	Warning
+Code	1292
+Message	Truncated incorrect time value: '839:59:59'
+Level	Warning
+Code	1292
+Message	Truncated incorrect time value: '839:59:59'
+Level	Warning
+Code	1292
+Message	Truncated incorrect time value: '839:59:59'
+Level	Warning
+Code	1292
+Message	Truncated incorrect time value: '839:59:59'
+Level	Warning
+Code	1292
+Message	Truncated incorrect time value: '839:59:59'
+Level	Warning
+Code	1292
+Message	Truncated incorrect time value: '839:59:59'
+Level	Warning
+Code	1292
+Message	Truncated incorrect time value: '839:59:59'
+Level	Warning
+Code	1292
+Message	Truncated incorrect time value: '839:59:59'
+SELECT
+ADDTIME(0.0, 8395959)+0 AS c0,
+ADDTIME(0.0, 8395959)+0.0 AS c1,
+ADDTIME(0.0, 8395959)+0.00 AS c2,
+ADDTIME(0.0, 8395959)+0.000 AS c3,
+ADDTIME(0.0, 8395959)+0.0000 AS c4,
+ADDTIME(0.0, 8395959)+0.00000 AS c5,
+ADDTIME(0.0, 8395959)+0.000000 AS c6,
+ADDTIME(0.0, 8395959)+0.0000000 AS c7;
+c0	8385959.9
+c1	8385959.9
+c2	8385959.90
+c3	8385959.900
+c4	8385959.9000
+c5	8385959.90000
+c6	8385959.900000
+c7	8385959.9000000
+Warnings:
+Level	Warning
+Code	1292
+Message	Truncated incorrect time value: '839:59:59'
+Level	Warning
+Code	1292
+Message	Truncated incorrect time value: '839:59:59'
+Level	Warning
+Code	1292
+Message	Truncated incorrect time value: '839:59:59'
+Level	Warning
+Code	1292
+Message	Truncated incorrect time value: '839:59:59'
+Level	Warning
+Code	1292
+Message	Truncated incorrect time value: '839:59:59'
+Level	Warning
+Code	1292
+Message	Truncated incorrect time value: '839:59:59'
+Level	Warning
+Code	1292
+Message	Truncated incorrect time value: '839:59:59'
+Level	Warning
+Code	1292
+Message	Truncated incorrect time value: '839:59:59'
+# TIMESTAMP(string,decimal)
+SELECT
+TIMESTAMP('2001-01-01', 8395959) AS ci,
+TIMESTAMP('2001-01-01', 8395959.0) AS c1,
+TIMESTAMP('2001-01-01', 8395959.00) AS c2,
+TIMESTAMP('2001-01-01', 8395959.000) AS c3,
+TIMESTAMP('2001-01-01', 8395959.0000) AS c4,
+TIMESTAMP('2001-01-01', 8395959.00000) AS c5,
+TIMESTAMP('2001-01-01', 8395959.000000) AS c6,
+TIMESTAMP('2001-01-01', 8395959.0000000) AS c7;
+ci	2001-02-04 23:59:59
+c1	2001-02-04 23:59:59.0
+c2	2001-02-04 23:59:59.00
+c3	2001-02-04 23:59:59.000
+c4	2001-02-04 23:59:59.0000
+c5	2001-02-04 23:59:59.00000
+c6	2001-02-04 23:59:59.000000
+c7	2001-02-04 23:59:59.000000
+Warnings:
+Level	Note
+Code	1292
+Message	Truncated incorrect INTERVAL DAY TO SECOND value: '8395959.0000000'
+SELECT
+MICROSECOND(TIMESTAMP('2001-01-01', 8395959)) AS ci,
+MICROSECOND(TIMESTAMP('2001-01-01', 8395959.0)) AS c1,
+MICROSECOND(TIMESTAMP('2001-01-01', 8395959.00)) AS c2,
+MICROSECOND(TIMESTAMP('2001-01-01', 8395959.000)) AS c3,
+MICROSECOND(TIMESTAMP('2001-01-01', 8395959.0000)) AS c4,
+MICROSECOND(TIMESTAMP('2001-01-01', 8395959.00000)) AS c5,
+MICROSECOND(TIMESTAMP('2001-01-01', 8395959.000000)) AS c6,
+MICROSECOND(TIMESTAMP('2001-01-01', 8395959.0000000)) AS c7;
+ci	0
+c1	0
+c2	0
+c3	0
+c4	0
+c5	0
+c6	0
+c7	0
+Warnings:
+Level	Note
+Code	1292
+Message	Truncated incorrect INTERVAL DAY TO SECOND value: '8395959.0000000'
+SELECT
+CAST(TIMESTAMP('2001-01-01', 8395959) AS SIGNED) AS ci,
+CAST(TIMESTAMP('2001-01-01', 8395959) AS DECIMAL(30,0)) AS c0,
+CAST(TIMESTAMP('2001-01-01', 8395959) AS DECIMAL(30,1)) AS c1,
+CAST(TIMESTAMP('2001-01-01', 8395959) AS DECIMAL(30,2)) AS c2,
+CAST(TIMESTAMP('2001-01-01', 8395959) AS DECIMAL(30,3)) AS c3,
+CAST(TIMESTAMP('2001-01-01', 8395959) AS DECIMAL(30,4)) AS c4,
+CAST(TIMESTAMP('2001-01-01', 8395959) AS DECIMAL(30,5)) AS c5,
+CAST(TIMESTAMP('2001-01-01', 8395959) AS DECIMAL(30,6)) AS c6;
+ci	20010204235959
+c0	20010204235959
+c1	20010204235959.0
+c2	20010204235959.00
+c3	20010204235959.000
+c4	20010204235959.0000
+c5	20010204235959.00000
+c6	20010204235959.000000
+SELECT
+TIMESTAMP('2001-01-01', 8395959) AS ci,
+TIMESTAMP('2001-01-01', 8395959)+0 AS c0,
+TIMESTAMP('2001-01-01', 8395959)+0.0 AS c1,
+TIMESTAMP('2001-01-01', 8395959)+0.00 AS c2,
+TIMESTAMP('2001-01-01', 8395959)+0.000 AS c3,
+TIMESTAMP('2001-01-01', 8395959)+0.0000 AS c4,
+TIMESTAMP('2001-01-01', 8395959)+0.00000 AS c5,
+TIMESTAMP('2001-01-01', 8395959)+0.000000 AS c6,
+TIMESTAMP('2001-01-01', 8395959)+0.0000000 AS c7;
+ci	2001-02-04 23:59:59
+c0	20010204235959
+c1	20010204235959.0
+c2	20010204235959.00
+c3	20010204235959.000
+c4	20010204235959.0000
+c5	20010204235959.00000
+c6	20010204235959.000000
+c7	20010204235959.0000000
+# TIMESTAMP(string,string)
+SELECT
+TIMESTAMP('2001-01-01', '839:59:59') AS ci,
+TIMESTAMP('2001-01-01', '839:59:59.0') AS c1,
+TIMESTAMP('2001-01-01', '839:59:59.00') AS c2,
+TIMESTAMP('2001-01-01', '839:59:59.000') AS c3,
+TIMESTAMP('2001-01-01', '839:59:59.0000') AS c4,
+TIMESTAMP('2001-01-01', '839:59:59.00000') AS c5,
+TIMESTAMP('2001-01-01', '839:59:59.000000') AS c6,
+TIMESTAMP('2001-01-01', '839:59:59.0000000') AS c7;
+ci	2001-02-04 23:59:59
+c1	2001-02-04 23:59:59.0
+c2	2001-02-04 23:59:59.00
+c3	2001-02-04 23:59:59.000
+c4	2001-02-04 23:59:59.0000
+c5	2001-02-04 23:59:59.00000
+c6	2001-02-04 23:59:59.000000
+c7	2001-02-04 23:59:59.000000
+Warnings:
+Level	Note
+Code	1292
+Message	Truncated incorrect INTERVAL DAY TO SECOND value: '839:59:59.0000000'
+SELECT
+MICROSECOND(TIMESTAMP('2001-01-01', '839:59:59')) AS ci,
+MICROSECOND(TIMESTAMP('2001-01-01', '839:59:59.0')) AS c1,
+MICROSECOND(TIMESTAMP('2001-01-01', '839:59:59.00')) AS c2,
+MICROSECOND(TIMESTAMP('2001-01-01', '839:59:59.000')) AS c3,
+MICROSECOND(TIMESTAMP('2001-01-01', '839:59:59.0000')) AS c4,
+MICROSECOND(TIMESTAMP('2001-01-01', '839:59:59.00000')) AS c5,
+MICROSECOND(TIMESTAMP('2001-01-01', '839:59:59.000000')) AS c6,
+MICROSECOND(TIMESTAMP('2001-01-01', '839:59:59.0000000')) AS c7;
+ci	0
+c1	0
+c2	0
+c3	0
+c4	0
+c5	0
+c6	0
+c7	0
+Warnings:
+Level	Note
+Code	1292
+Message	Truncated incorrect INTERVAL DAY TO SECOND value: '839:59:59.0000000'
+SELECT
+CAST(TIMESTAMP('2001-01-01', '839:59:59') AS SIGNED) AS ci,
+CAST(TIMESTAMP('2001-01-01', '839:59:59') AS DECIMAL(30,0)) AS c0,
+CAST(TIMESTAMP('2001-01-01', '839:59:59') AS DECIMAL(30,1)) AS c1,
+CAST(TIMESTAMP('2001-01-01', '839:59:59') AS DECIMAL(30,2)) AS c2,
+CAST(TIMESTAMP('2001-01-01', '839:59:59') AS DECIMAL(30,3)) AS c3,
+CAST(TIMESTAMP('2001-01-01', '839:59:59') AS DECIMAL(30,4)) AS c4,
+CAST(TIMESTAMP('2001-01-01', '839:59:59') AS DECIMAL(30,5)) AS c5,
+CAST(TIMESTAMP('2001-01-01', '839:59:59') AS DECIMAL(30,6)) AS c6;
+ci	20010204235959
+c0	20010204235959
+c1	20010204235959.0
+c2	20010204235959.00
+c3	20010204235959.000
+c4	20010204235959.0000
+c5	20010204235959.00000
+c6	20010204235959.000000
+SELECT
+TIMESTAMP('2001-01-01', '839:59:59') AS ci,
+TIMESTAMP('2001-01-01', '839:59:59')+0 AS c0,
+TIMESTAMP('2001-01-01', '839:59:59')+0.0 AS c1,
+TIMESTAMP('2001-01-01', '839:59:59')+0.00 AS c2,
+TIMESTAMP('2001-01-01', '839:59:59')+0.000 AS c3,
+TIMESTAMP('2001-01-01', '839:59:59')+0.0000 AS c4,
+TIMESTAMP('2001-01-01', '839:59:59')+0.00000 AS c5,
+TIMESTAMP('2001-01-01', '839:59:59')+0.000000 AS c6,
+TIMESTAMP('2001-01-01', '839:59:59')+0.0000000 AS c7;
+ci	2001-02-04 23:59:59
+c0	20010204235959
+c1	20010204235959.0
+c2	20010204235959.00
+c3	20010204235959.000
+c4	20010204235959.0000
+c5	20010204235959.00000
+c6	20010204235959.000000
+c7	20010204235959.0000000
+# Corner cases for TIMESTAMP(timestamp,xxx)
+# HOUR is outside of supported INTERVAL DAYS TO SECONDS range
+# Expect NULL with INTERVAL warnings
+CREATE TABLE t1 (a VARCHAR(64), b VARCHAR(64));
+INSERT INTO t1 VALUES ('4294967296:00:00', '178956970 16:00:00');
+INSERT INTO t1 VALUES ('4294967295:59:59', '178956970 15:59:59');
+INSERT INTO t1 VALUES ('4294967294:59:59', '178956970 14:59:59');
+INSERT INTO t1 VALUES ('87649416:00:00', '3652059 00:00:00');
+SELECT TIMESTAMP('0001-01-01 00:00:00', a) AS ta, TIMESTAMP('0001-01-01 00:00:00', b) AS tb FROM t1;
+ta	tb
+NULL	NULL
+NULL	NULL
+NULL	NULL
+NULL	NULL
+Warnings:
+Warning	1292	Incorrect INTERVAL DAY TO SECOND value: '4294967296:00:00'
+Warning	1292	Incorrect INTERVAL DAY TO SECOND value: '178956970 16:00:00'
+Warning	1292	Incorrect INTERVAL DAY TO SECOND value: '4294967295:59:59'
+Warning	1292	Incorrect INTERVAL DAY TO SECOND value: '178956970 15:59:59'
+Warning	1292	Incorrect INTERVAL DAY TO SECOND value: '4294967294:59:59'
+Warning	1292	Incorrect INTERVAL DAY TO SECOND value: '178956970 14:59:59'
+Warning	1292	Incorrect INTERVAL DAY TO SECOND value: '87649416:00:00'
+Warning	1292	Incorrect INTERVAL DAY TO SECOND value: '3652059 00:00:00'
+DROP TABLE t1;
+CREATE TABLE t1 (a VARCHAR(64), b VARCHAR(64));
+INSERT INTO t1 VALUES ('-4294967296:00:00', '-178956970 16:00:00');
+INSERT INTO t1 VALUES ('-4294967295:59:59', '-178956970 15:59:59');
+INSERT INTO t1 VALUES ('-4294967294:59:59', '-178956970 14:59:59');
+INSERT INTO t1 VALUES ('-87649416:00:00', '-3652059 00:00:00');
+SELECT TIMESTAMP('9999-12-31 23:59:59', a) AS ta, TIMESTAMP('9999-12-31 23:59:59.999999', b) AS tb FROM t1;
+ta	tb
+NULL	NULL
+NULL	NULL
+NULL	NULL
+NULL	NULL
+Warnings:
+Warning	1292	Incorrect INTERVAL DAY TO SECOND value: '-4294967296:00:00'
+Warning	1292	Incorrect INTERVAL DAY TO SECOND value: '-178956970 16:00:00'
+Warning	1292	Incorrect INTERVAL DAY TO SECOND value: '-4294967295:59:59'
+Warning	1292	Incorrect INTERVAL DAY TO SECOND value: '-178956970 15:59:59'
+Warning	1292	Incorrect INTERVAL DAY TO SECOND value: '-4294967294:59:59'
+Warning	1292	Incorrect INTERVAL DAY TO SECOND value: '-178956970 14:59:59'
+Warning	1292	Incorrect INTERVAL DAY TO SECOND value: '-87649416:00:00'
+Warning	1292	Incorrect INTERVAL DAY TO SECOND value: '-3652059 00:00:00'
+DROP TABLE t1;
+# HOUR is OK
+# Expect max or near-max DATETIME value + no INTERVAL warnings
+CREATE TABLE t1 (a VARCHAR(64), b VARCHAR(64));
+INSERT INTO t1 VALUES ('87649415:59:59.999999', '3652058 23:59:59.999999');
+INSERT INTO t1 VALUES ('87649415:59:59', '3652058 23:59:59');
+SELECT TIMESTAMP('0001-01-01 00:00:00', a) AS ta, TIMESTAMP('0001-01-01 00:00:00', b) AS tb FROM t1;
+ta	tb
+9999-12-31 23:59:59.999999	9999-12-31 23:59:59.999999
+9999-12-31 23:59:59.000000	9999-12-31 23:59:59.000000
+DROP TABLE t1;
+# HOUR is OK
+# Expect near '0001-01-01 00:00:00' DATETIME value + no INTERVAL warnings
+CREATE TABLE t1 (a VARCHAR(64), b VARCHAR(64));
+INSERT INTO t1 VALUES ('-87649415:59:59.999999', '-3652058 23:59:59.999999');
+INSERT INTO t1 VALUES ('-87649415:59:59', '-3652058 23:59:59');
+SELECT TIMESTAMP('9999-12-31 23:59:59', a) AS ta, TIMESTAMP('9999-12-31 23:59:59.999999', b) AS tb FROM t1;
+ta	tb
+NULL	0001-01-01 00:00:00.000000
+0001-01-01 00:00:00.000000	0001-01-01 00:00:00.999999
+DROP TABLE t1;
+# HOUR is OK
+# Expect NULL on datetime arithmetic overflow + no INTERVAL warnings
+CREATE TABLE t1 (a VARCHAR(64), b VARCHAR(64));
+INSERT INTO t1 VALUES ('-00:00:00.000001', '-0 00:00:00.000001');
+SELECT TIMESTAMP('0001-01-01 00:00:00', a) AS ta, TIMESTAMP('0001-01-01 00:00:00', b) AS tb FROM t1;
+ta	tb
+NULL	NULL
+DROP TABLE t1;
+# Corner cases for ADDTIME(timestamp,xxx)
+# HOUR is outside of UINT_MAX32 range
+# Expect NULL + "Incorrect INTERVAL DAY TO SECOND value"
+SELECT
+ADDTIME(TIMESTAMP'2001-01-01 00:00:00', 42949672965959) AS ci,
+ADDTIME(TIMESTAMP'2001-01-01 00:00:00', 42949672965959)+0 AS c0,
+ADDTIME(TIMESTAMP'2001-01-01 00:00:00', 42949672965959)+0.0 AS c1,
+ADDTIME(TIMESTAMP'2001-01-01 00:00:00', 42949672965959)+0.00 AS c2,
+ADDTIME(TIMESTAMP'2001-01-01 00:00:00', 42949672965959)+0.000 AS c3,
+ADDTIME(TIMESTAMP'2001-01-01 00:00:00', 42949672965959)+0.0000 AS c4,
+ADDTIME(TIMESTAMP'2001-01-01 00:00:00', 42949672965959)+0.00000 AS c5,
+ADDTIME(TIMESTAMP'2001-01-01 00:00:00', 42949672965959)+0.000000 AS c6,
+ADDTIME(TIMESTAMP'2001-01-01 00:00:00', 42949672965959)+0.0000000 AS c7;
+ci	NULL
+c0	NULL
+c1	NULL
+c2	NULL
+c3	NULL
+c4	NULL
+c5	NULL
+c6	NULL
+c7	NULL
+Warnings:
+Level	Warning
+Code	1292
+Message	Incorrect INTERVAL DAY TO SECOND value: '42949672965959'
+Level	Warning
+Code	1292
+Message	Incorrect INTERVAL DAY TO SECOND value: '42949672965959'
+Level	Warning
+Code	1292
+Message	Incorrect INTERVAL DAY TO SECOND value: '42949672965959'
+Level	Warning
+Code	1292
+Message	Incorrect INTERVAL DAY TO SECOND value: '42949672965959'
+Level	Warning
+Code	1292
+Message	Incorrect INTERVAL DAY TO SECOND value: '42949672965959'
+Level	Warning
+Code	1292
+Message	Incorrect INTERVAL DAY TO SECOND value: '42949672965959'
+Level	Warning
+Code	1292
+Message	Incorrect INTERVAL DAY TO SECOND value: '42949672965959'
+Level	Warning
+Code	1292
+Message	Incorrect INTERVAL DAY TO SECOND value: '42949672965959'
+Level	Warning
+Code	1292
+Message	Incorrect INTERVAL DAY TO SECOND value: '42949672965959'
+SELECT
+ADDTIME(TIMESTAMP'2001-01-01 00:00:00', '4294967296:59:59') AS ci,
+ADDTIME(TIMESTAMP'2001-01-01 00:00:00', '4294967296:59:59')+0 AS c0,
+ADDTIME(TIMESTAMP'2001-01-01 00:00:00', '4294967296:59:59')+0.0 AS c1,
+ADDTIME(TIMESTAMP'2001-01-01 00:00:00', '4294967296:59:59')+0.00 AS c2,
+ADDTIME(TIMESTAMP'2001-01-01 00:00:00', '4294967296:59:59')+0.000 AS c3,
+ADDTIME(TIMESTAMP'2001-01-01 00:00:00', '4294967296:59:59')+0.0000 AS c4,
+ADDTIME(TIMESTAMP'2001-01-01 00:00:00', '4294967296:59:59')+0.00000 AS c5,
+ADDTIME(TIMESTAMP'2001-01-01 00:00:00', '4294967296:59:59')+0.000000 AS c6,
+ADDTIME(TIMESTAMP'2001-01-01 00:00:00', '4294967296:59:59')+0.0000000 AS c7;
+ci	NULL
+c0	NULL
+c1	NULL
+c2	NULL
+c3	NULL
+c4	NULL
+c5	NULL
+c6	NULL
+c7	NULL
+Warnings:
+Level	Warning
+Code	1292
+Message	Incorrect INTERVAL DAY TO SECOND value: '4294967296:59:59'
+Level	Warning
+Code	1292
+Message	Incorrect INTERVAL DAY TO SECOND value: '4294967296:59:59'
+Level	Warning
+Code	1292
+Message	Incorrect INTERVAL DAY TO SECOND value: '4294967296:59:59'
+Level	Warning
+Code	1292
+Message	Incorrect INTERVAL DAY TO SECOND value: '4294967296:59:59'
+Level	Warning
+Code	1292
+Message	Incorrect INTERVAL DAY TO SECOND value: '4294967296:59:59'
+Level	Warning
+Code	1292
+Message	Incorrect INTERVAL DAY TO SECOND value: '4294967296:59:59'
+Level	Warning
+Code	1292
+Message	Incorrect INTERVAL DAY TO SECOND value: '4294967296:59:59'
+Level	Warning
+Code	1292
+Message	Incorrect INTERVAL DAY TO SECOND value: '4294967296:59:59'
+Level	Warning
+Code	1292
+Message	Incorrect INTERVAL DAY TO SECOND value: '4294967296:59:59'
+# HOUR UINT_MAX32
+# Expect NULL + "Incorrect INTERVAL DAY TO SECOND value"
+SELECT
+ADDTIME(TIMESTAMP'2001-01-01 00:00:00', 42949672955959) AS ci,
+ADDTIME(TIMESTAMP'2001-01-01 00:00:00', 42949672955959)+0 AS c0,
+ADDTIME(TIMESTAMP'2001-01-01 00:00:00', 42949672955959)+0.0 AS c1,
+ADDTIME(TIMESTAMP'2001-01-01 00:00:00', 42949672955959)+0.00 AS c2,
+ADDTIME(TIMESTAMP'2001-01-01 00:00:00', 42949672955959)+0.000 AS c3,
+ADDTIME(TIMESTAMP'2001-01-01 00:00:00', 42949672955959)+0.0000 AS c4,
+ADDTIME(TIMESTAMP'2001-01-01 00:00:00', 42949672955959)+0.00000 AS c5,
+ADDTIME(TIMESTAMP'2001-01-01 00:00:00', 42949672955959)+0.000000 AS c6,
+ADDTIME(TIMESTAMP'2001-01-01 00:00:00', 42949672955959)+0.0000000 AS c7;
+ci	NULL
+c0	NULL
+c1	NULL
+c2	NULL
+c3	NULL
+c4	NULL
+c5	NULL
+c6	NULL
+c7	NULL
+Warnings:
+Level	Warning
+Code	1292
+Message	Incorrect INTERVAL DAY TO SECOND value: '42949672955959'
+Level	Warning
+Code	1292
+Message	Incorrect INTERVAL DAY TO SECOND value: '42949672955959'
+Level	Warning
+Code	1292
+Message	Incorrect INTERVAL DAY TO SECOND value: '42949672955959'
+Level	Warning
+Code	1292
+Message	Incorrect INTERVAL DAY TO SECOND value: '42949672955959'
+Level	Warning
+Code	1292
+Message	Incorrect INTERVAL DAY TO SECOND value: '42949672955959'
+Level	Warning
+Code	1292
+Message	Incorrect INTERVAL DAY TO SECOND value: '42949672955959'
+Level	Warning
+Code	1292
+Message	Incorrect INTERVAL DAY TO SECOND value: '42949672955959'
+Level	Warning
+Code	1292
+Message	Incorrect INTERVAL DAY TO SECOND value: '42949672955959'
+Level	Warning
+Code	1292
+Message	Incorrect INTERVAL DAY TO SECOND value: '42949672955959'
+SELECT
+ADDTIME(TIMESTAMP'2001-01-01 00:00:00', '4294967295:59:59') AS ci,
+ADDTIME(TIMESTAMP'2001-01-01 00:00:00', '4294967295:59:59')+0 AS c0,
+ADDTIME(TIMESTAMP'2001-01-01 00:00:00', '4294967295:59:59')+0.0 AS c1,
+ADDTIME(TIMESTAMP'2001-01-01 00:00:00', '4294967295:59:59')+0.00 AS c2,
+ADDTIME(TIMESTAMP'2001-01-01 00:00:00', '4294967295:59:59')+0.000 AS c3,
+ADDTIME(TIMESTAMP'2001-01-01 00:00:00', '4294967295:59:59')+0.0000 AS c4,
+ADDTIME(TIMESTAMP'2001-01-01 00:00:00', '4294967295:59:59')+0.00000 AS c5,
+ADDTIME(TIMESTAMP'2001-01-01 00:00:00', '4294967295:59:59')+0.000000 AS c6,
+ADDTIME(TIMESTAMP'2001-01-01 00:00:00', '4294967295:59:59')+0.0000000 AS c7;
+ci	NULL
+c0	NULL
+c1	NULL
+c2	NULL
+c3	NULL
+c4	NULL
+c5	NULL
+c6	NULL
+c7	NULL
+Warnings:
+Level	Warning
+Code	1292
+Message	Incorrect INTERVAL DAY TO SECOND value: '4294967295:59:59'
+Level	Warning
+Code	1292
+Message	Incorrect INTERVAL DAY TO SECOND value: '4294967295:59:59'
+Level	Warning
+Code	1292
+Message	Incorrect INTERVAL DAY TO SECOND value: '4294967295:59:59'
+Level	Warning
+Code	1292
+Message	Incorrect INTERVAL DAY TO SECOND value: '4294967295:59:59'
+Level	Warning
+Code	1292
+Message	Incorrect INTERVAL DAY TO SECOND value: '4294967295:59:59'
+Level	Warning
+Code	1292
+Message	Incorrect INTERVAL DAY TO SECOND value: '4294967295:59:59'
+Level	Warning
+Code	1292
+Message	Incorrect INTERVAL DAY TO SECOND value: '4294967295:59:59'
+Level	Warning
+Code	1292
+Message	Incorrect INTERVAL DAY TO SECOND value: '4294967295:59:59'
+Level	Warning
+Code	1292
+Message	Incorrect INTERVAL DAY TO SECOND value: '4294967295:59:59'
+# HOUR is max_useful_hour()+1
+# Expect NULL + "Incorrect INTERVAL DAY TO SECOND value"
+SELECT
+ADDTIME(TIMESTAMP'2001-01-01 00:00:00', 876494165959) AS ci,
+ADDTIME(TIMESTAMP'2001-01-01 00:00:00', 876494165959)+0 AS c0,
+ADDTIME(TIMESTAMP'2001-01-01 00:00:00', 876494165959)+0.0 AS c1,
+ADDTIME(TIMESTAMP'2001-01-01 00:00:00', 876494165959)+0.00 AS c2,
+ADDTIME(TIMESTAMP'2001-01-01 00:00:00', 876494165959)+0.000 AS c3,
+ADDTIME(TIMESTAMP'2001-01-01 00:00:00', 876494165959)+0.0000 AS c4,
+ADDTIME(TIMESTAMP'2001-01-01 00:00:00', 876494165959)+0.00000 AS c5,
+ADDTIME(TIMESTAMP'2001-01-01 00:00:00', 876494165959)+0.000000 AS c6,
+ADDTIME(TIMESTAMP'2001-01-01 00:00:00', 876494165959)+0.0000000 AS c7;
+ci	NULL
+c0	NULL
+c1	NULL
+c2	NULL
+c3	NULL
+c4	NULL
+c5	NULL
+c6	NULL
+c7	NULL
+Warnings:
+Level	Warning
+Code	1292
+Message	Incorrect INTERVAL DAY TO SECOND value: '876494165959'
+Level	Warning
+Code	1292
+Message	Incorrect INTERVAL DAY TO SECOND value: '876494165959'
+Level	Warning
+Code	1292
+Message	Incorrect INTERVAL DAY TO SECOND value: '876494165959'
+Level	Warning
+Code	1292
+Message	Incorrect INTERVAL DAY TO SECOND value: '876494165959'
+Level	Warning
+Code	1292
+Message	Incorrect INTERVAL DAY TO SECOND value: '876494165959'
+Level	Warning
+Code	1292
+Message	Incorrect INTERVAL DAY TO SECOND value: '876494165959'
+Level	Warning
+Code	1292
+Message	Incorrect INTERVAL DAY TO SECOND value: '876494165959'
+Level	Warning
+Code	1292
+Message	Incorrect INTERVAL DAY TO SECOND value: '876494165959'
+Level	Warning
+Code	1292
+Message	Incorrect INTERVAL DAY TO SECOND value: '876494165959'
+SELECT
+ADDTIME(TIMESTAMP'2001-01-01 00:00:00', '87649416:59:59') AS ci,
+ADDTIME(TIMESTAMP'2001-01-01 00:00:00', '87649416:59:59')+0 AS c0,
+ADDTIME(TIMESTAMP'2001-01-01 00:00:00', '87649416:59:59')+0.0 AS c1,
+ADDTIME(TIMESTAMP'2001-01-01 00:00:00', '87649416:59:59')+0.00 AS c2,
+ADDTIME(TIMESTAMP'2001-01-01 00:00:00', '87649416:59:59')+0.000 AS c3,
+ADDTIME(TIMESTAMP'2001-01-01 00:00:00', '87649416:59:59')+0.0000 AS c4,
+ADDTIME(TIMESTAMP'2001-01-01 00:00:00', '87649416:59:59')+0.00000 AS c5,
+ADDTIME(TIMESTAMP'2001-01-01 00:00:00', '87649416:59:59')+0.000000 AS c6,
+ADDTIME(TIMESTAMP'2001-01-01 00:00:00', '87649416:59:59')+0.0000000 AS c7;
+ci	NULL
+c0	NULL
+c1	NULL
+c2	NULL
+c3	NULL
+c4	NULL
+c5	NULL
+c6	NULL
+c7	NULL
+Warnings:
+Level	Warning
+Code	1292
+Message	Incorrect INTERVAL DAY TO SECOND value: '87649416:59:59'
+Level	Warning
+Code	1292
+Message	Incorrect INTERVAL DAY TO SECOND value: '87649416:59:59'
+Level	Warning
+Code	1292
+Message	Incorrect INTERVAL DAY TO SECOND value: '87649416:59:59'
+Level	Warning
+Code	1292
+Message	Incorrect INTERVAL DAY TO SECOND value: '87649416:59:59'
+Level	Warning
+Code	1292
+Message	Incorrect INTERVAL DAY TO SECOND value: '87649416:59:59'
+Level	Warning
+Code	1292
+Message	Incorrect INTERVAL DAY TO SECOND value: '87649416:59:59'
+Level	Warning
+Code	1292
+Message	Incorrect INTERVAL DAY TO SECOND value: '87649416:59:59'
+Level	Warning
+Code	1292
+Message	Incorrect INTERVAL DAY TO SECOND value: '87649416:59:59'
+Level	Warning
+Code	1292
+Message	Incorrect INTERVAL DAY TO SECOND value: '87649416:59:59'
+# HOUR is max_useful_hour()
+# Expect NULL (calc_time_diff overflows ) + no INTERVAL warnings
+SELECT
+ADDTIME(TIMESTAMP'2001-01-01 00:00:00', 876494155959) AS ci,
+ADDTIME(TIMESTAMP'2001-01-01 00:00:00', 876494155959)+0 AS c0,
+ADDTIME(TIMESTAMP'2001-01-01 00:00:00', 876494155959)+0.0 AS c1,
+ADDTIME(TIMESTAMP'2001-01-01 00:00:00', 876494155959)+0.00 AS c2,
+ADDTIME(TIMESTAMP'2001-01-01 00:00:00', 876494155959)+0.000 AS c3,
+ADDTIME(TIMESTAMP'2001-01-01 00:00:00', 876494155959)+0.0000 AS c4,
+ADDTIME(TIMESTAMP'2001-01-01 00:00:00', 876494155959)+0.00000 AS c5,
+ADDTIME(TIMESTAMP'2001-01-01 00:00:00', 876494155959)+0.000000 AS c6,
+ADDTIME(TIMESTAMP'2001-01-01 00:00:00', 876494155959)+0.0000000 AS c7;
+ci	NULL
+c0	NULL
+c1	NULL
+c2	NULL
+c3	NULL
+c4	NULL
+c5	NULL
+c6	NULL
+c7	NULL
+SELECT
+ADDTIME(TIMESTAMP'2001-01-01 00:00:00', '87649415:59:59') AS ci,
+ADDTIME(TIMESTAMP'2001-01-01 00:00:00', '87649415:59:59')+0 AS c0,
+ADDTIME(TIMESTAMP'2001-01-01 00:00:00', '87649415:59:59')+0.0 AS c1,
+ADDTIME(TIMESTAMP'2001-01-01 00:00:00', '87649415:59:59')+0.00 AS c2,
+ADDTIME(TIMESTAMP'2001-01-01 00:00:00', '87649415:59:59')+0.000 AS c3,
+ADDTIME(TIMESTAMP'2001-01-01 00:00:00', '87649415:59:59')+0.0000 AS c4,
+ADDTIME(TIMESTAMP'2001-01-01 00:00:00', '87649415:59:59')+0.00000 AS c5,
+ADDTIME(TIMESTAMP'2001-01-01 00:00:00', '87649415:59:59')+0.000000 AS c6,
+ADDTIME(TIMESTAMP'2001-01-01 00:00:00', '87649415:59:59')+0.0000000 AS c7;
+ci	NULL
+c0	NULL
+c1	NULL
+c2	NULL
+c3	NULL
+c4	NULL
+c5	NULL
+c6	NULL
+c7	NULL
+# HOUR is max_useful_hour()
+# Expect non-NULL + no warnings
+SELECT
+ADDTIME(TIMESTAMP'0001-01-01 00:00:00', 876494155959) AS ci,
+ADDTIME(TIMESTAMP'0001-01-01 00:00:00', 876494155959)+0 AS c0,
+ADDTIME(TIMESTAMP'0001-01-01 00:00:00', 876494155959)+0.0 AS c1,
+ADDTIME(TIMESTAMP'0001-01-01 00:00:00', 876494155959)+0.00 AS c2,
+ADDTIME(TIMESTAMP'0001-01-01 00:00:00', 876494155959)+0.000 AS c3,
+ADDTIME(TIMESTAMP'0001-01-01 00:00:00', 876494155959)+0.0000 AS c4,
+ADDTIME(TIMESTAMP'0001-01-01 00:00:00', 876494155959)+0.00000 AS c5,
+ADDTIME(TIMESTAMP'0001-01-01 00:00:00', 876494155959)+0.000000 AS c6,
+ADDTIME(TIMESTAMP'0001-01-01 00:00:00', 876494155959)+0.0000000 AS c7;
+ci	9999-12-31 23:59:59
+c0	99991231235959
+c1	99991231235959.0
+c2	99991231235959.00
+c3	99991231235959.000
+c4	99991231235959.0000
+c5	99991231235959.00000
+c6	99991231235959.000000
+c7	99991231235959.0000000
+SELECT
+ADDTIME(TIMESTAMP'0001-01-01 00:00:00', '87649415:59:59') AS ci,
+ADDTIME(TIMESTAMP'0001-01-01 00:00:00', '87649415:59:59')+0 AS c0,
+ADDTIME(TIMESTAMP'0001-01-01 00:00:00', '87649415:59:59')+0.0 AS c1,
+ADDTIME(TIMESTAMP'0001-01-01 00:00:00', '87649415:59:59')+0.00 AS c2,
+ADDTIME(TIMESTAMP'0001-01-01 00:00:00', '87649415:59:59')+0.000 AS c3,
+ADDTIME(TIMESTAMP'0001-01-01 00:00:00', '87649415:59:59')+0.0000 AS c4,
+ADDTIME(TIMESTAMP'0001-01-01 00:00:00', '87649415:59:59')+0.00000 AS c5,
+ADDTIME(TIMESTAMP'0001-01-01 00:00:00', '87649415:59:59')+0.000000 AS c6,
+ADDTIME(TIMESTAMP'0001-01-01 00:00:00', '87649415:59:59')+0.0000000 AS c7;
+ci	9999-12-31 23:59:59
+c0	99991231235959
+c1	99991231235959.0
+c2	99991231235959.00
+c3	99991231235959.000
+c4	99991231235959.0000
+c5	99991231235959.00000
+c6	99991231235959.000000
+c7	99991231235959.0000000
+# Corner cases for ADDTIME(time,xxx)
+# HOUR outside of UINT32 range
+# Expect NULL + "Incorrect INTERVAL DAY TO SECOND value"
+SELECT
+ADDTIME(TIME'00:00:00', 42949672965959) AS ci,
+ADDTIME(TIME'00:00:00', 42949672965959)+0 AS c0,
+ADDTIME(TIME'00:00:00', 42949672965959)+0.0 AS c1,
+ADDTIME(TIME'00:00:00', 42949672965959)+0.00 AS c2,
+ADDTIME(TIME'00:00:00', 42949672965959)+0.000 AS c3,
+ADDTIME(TIME'00:00:00', 42949672965959)+0.0000 AS c4,
+ADDTIME(TIME'00:00:00', 42949672965959)+0.00000 AS c5,
+ADDTIME(TIME'00:00:00', 42949672965959)+0.000000 AS c6,
+ADDTIME(TIME'00:00:00', 42949672965959)+0.0000000 AS c7;
+ci	NULL
+c0	NULL
+c1	NULL
+c2	NULL
+c3	NULL
+c4	NULL
+c5	NULL
+c6	NULL
+c7	NULL
+Warnings:
+Level	Warning
+Code	1292
+Message	Incorrect INTERVAL DAY TO SECOND value: '42949672965959'
+Level	Warning
+Code	1292
+Message	Incorrect INTERVAL DAY TO SECOND value: '42949672965959'
+Level	Warning
+Code	1292
+Message	Incorrect INTERVAL DAY TO SECOND value: '42949672965959'
+Level	Warning
+Code	1292
+Message	Incorrect INTERVAL DAY TO SECOND value: '42949672965959'
+Level	Warning
+Code	1292
+Message	Incorrect INTERVAL DAY TO SECOND value: '42949672965959'
+Level	Warning
+Code	1292
+Message	Incorrect INTERVAL DAY TO SECOND value: '42949672965959'
+Level	Warning
+Code	1292
+Message	Incorrect INTERVAL DAY TO SECOND value: '42949672965959'
+Level	Warning
+Code	1292
+Message	Incorrect INTERVAL DAY TO SECOND value: '42949672965959'
+Level	Warning
+Code	1292
+Message	Incorrect INTERVAL DAY TO SECOND value: '42949672965959'
+SELECT
+ADDTIME(TIME'00:00:00', '4294967296:59:59') AS ci,
+ADDTIME(TIME'00:00:00', '4294967296:59:59')+0 AS c0,
+ADDTIME(TIME'00:00:00', '4294967296:59:59')+0.0 AS c1,
+ADDTIME(TIME'00:00:00', '4294967296:59:59')+0.00 AS c2,
+ADDTIME(TIME'00:00:00', '4294967296:59:59')+0.000 AS c3,
+ADDTIME(TIME'00:00:00', '4294967296:59:59')+0.0000 AS c4,
+ADDTIME(TIME'00:00:00', '4294967296:59:59')+0.00000 AS c5,
+ADDTIME(TIME'00:00:00', '4294967296:59:59')+0.000000 AS c6,
+ADDTIME(TIME'00:00:00', '4294967296:59:59')+0.0000000 AS c7;
+ci	NULL
+c0	NULL
+c1	NULL
+c2	NULL
+c3	NULL
+c4	NULL
+c5	NULL
+c6	NULL
+c7	NULL
+Warnings:
+Level	Warning
+Code	1292
+Message	Incorrect INTERVAL DAY TO SECOND value: '4294967296:59:59'
+Level	Warning
+Code	1292
+Message	Incorrect INTERVAL DAY TO SECOND value: '4294967296:59:59'
+Level	Warning
+Code	1292
+Message	Incorrect INTERVAL DAY TO SECOND value: '4294967296:59:59'
+Level	Warning
+Code	1292
+Message	Incorrect INTERVAL DAY TO SECOND value: '4294967296:59:59'
+Level	Warning
+Code	1292
+Message	Incorrect INTERVAL DAY TO SECOND value: '4294967296:59:59'
+Level	Warning
+Code	1292
+Message	Incorrect INTERVAL DAY TO SECOND value: '4294967296:59:59'
+Level	Warning
+Code	1292
+Message	Incorrect INTERVAL DAY TO SECOND value: '4294967296:59:59'
+Level	Warning
+Code	1292
+Message	Incorrect INTERVAL DAY TO SECOND value: '4294967296:59:59'
+Level	Warning
+Code	1292
+Message	Incorrect INTERVAL DAY TO SECOND value: '4294967296:59:59'
+# HOUR is UINT_MAX32 (outside of INTERVAL DAY TO SECOND range)
+# Expect NULL + "Incorrect INTERVAL DAY TO SECOND value"
+SELECT
+ADDTIME(TIME'00:00:00', 42949672955959) AS ci,
+ADDTIME(TIME'00:00:00', 42949672955959)+0 AS c0,
+ADDTIME(TIME'00:00:00', 42949672955959)+0.0 AS c1,
+ADDTIME(TIME'00:00:00', 42949672955959)+0.00 AS c2,
+ADDTIME(TIME'00:00:00', 42949672955959)+0.000 AS c3,
+ADDTIME(TIME'00:00:00', 42949672955959)+0.0000 AS c4,
+ADDTIME(TIME'00:00:00', 42949672955959)+0.00000 AS c5,
+ADDTIME(TIME'00:00:00', 42949672955959)+0.000000 AS c6,
+ADDTIME(TIME'00:00:00', 42949672955959)+0.0000000 AS c7;
+ci	NULL
+c0	NULL
+c1	NULL
+c2	NULL
+c3	NULL
+c4	NULL
+c5	NULL
+c6	NULL
+c7	NULL
+Warnings:
+Level	Warning
+Code	1292
+Message	Incorrect INTERVAL DAY TO SECOND value: '42949672955959'
+Level	Warning
+Code	1292
+Message	Incorrect INTERVAL DAY TO SECOND value: '42949672955959'
+Level	Warning
+Code	1292
+Message	Incorrect INTERVAL DAY TO SECOND value: '42949672955959'
+Level	Warning
+Code	1292
+Message	Incorrect INTERVAL DAY TO SECOND value: '42949672955959'
+Level	Warning
+Code	1292
+Message	Incorrect INTERVAL DAY TO SECOND value: '42949672955959'
+Level	Warning
+Code	1292
+Message	Incorrect INTERVAL DAY TO SECOND value: '42949672955959'
+Level	Warning
+Code	1292
+Message	Incorrect INTERVAL DAY TO SECOND value: '42949672955959'
+Level	Warning
+Code	1292
+Message	Incorrect INTERVAL DAY TO SECOND value: '42949672955959'
+Level	Warning
+Code	1292
+Message	Incorrect INTERVAL DAY TO SECOND value: '42949672955959'
+SELECT
+ADDTIME(TIME'00:00:00', '4294967295:59:59') AS ci,
+ADDTIME(TIME'00:00:00', '4294967295:59:59')+0 AS c0,
+ADDTIME(TIME'00:00:00', '4294967295:59:59')+0.0 AS c1,
+ADDTIME(TIME'00:00:00', '4294967295:59:59')+0.00 AS c2,
+ADDTIME(TIME'00:00:00', '4294967295:59:59')+0.000 AS c3,
+ADDTIME(TIME'00:00:00', '4294967295:59:59')+0.0000 AS c4,
+ADDTIME(TIME'00:00:00', '4294967295:59:59')+0.00000 AS c5,
+ADDTIME(TIME'00:00:00', '4294967295:59:59')+0.000000 AS c6,
+ADDTIME(TIME'00:00:00', '4294967295;00:00')+0.0000000 AS c7;
+ci	NULL
+c0	NULL
+c1	NULL
+c2	NULL
+c3	NULL
+c4	NULL
+c5	NULL
+c6	NULL
+c7	NULL
+Warnings:
+Level	Warning
+Code	1292
+Message	Incorrect INTERVAL DAY TO SECOND value: '4294967295:59:59'
+Level	Warning
+Code	1292
+Message	Incorrect INTERVAL DAY TO SECOND value: '4294967295:59:59'
+Level	Warning
+Code	1292
+Message	Incorrect INTERVAL DAY TO SECOND value: '4294967295:59:59'
+Level	Warning
+Code	1292
+Message	Incorrect INTERVAL DAY TO SECOND value: '4294967295:59:59'
+Level	Warning
+Code	1292
+Message	Incorrect INTERVAL DAY TO SECOND value: '4294967295:59:59'
+Level	Warning
+Code	1292
+Message	Incorrect INTERVAL DAY TO SECOND value: '4294967295:59:59'
+Level	Warning
+Code	1292
+Message	Incorrect INTERVAL DAY TO SECOND value: '4294967295:59:59'
+Level	Warning
+Code	1292
+Message	Incorrect INTERVAL DAY TO SECOND value: '4294967295:59:59'
+Level	Warning
+Code	1292
+Message	Incorrect INTERVAL DAY TO SECOND value: '4294967295;00:00'
+# HOUR is max_useful_hour()+1 (outside of INTERVAL DAY TO SECOND range)
+# Expect NULL + "Incorrect INTERVAL DAY TO SECOND value"
+SELECT
+ADDTIME(TIME'00:00:00', 876494165959) AS ci,
+ADDTIME(TIME'00:00:00', 876494165959)+0 AS c0,
+ADDTIME(TIME'00:00:00', 876494165959)+0.0 AS c1,
+ADDTIME(TIME'00:00:00', 876494165959)+0.00 AS c2,
+ADDTIME(TIME'00:00:00', 876494165959)+0.000 AS c3,
+ADDTIME(TIME'00:00:00', 876494165959)+0.0000 AS c4,
+ADDTIME(TIME'00:00:00', 876494165959)+0.00000 AS c5,
+ADDTIME(TIME'00:00:00', 876494165959)+0.000000 AS c6,
+ADDTIME(TIME'00:00:00', 876494165959)+0.0000000 AS c7;
+ci	NULL
+c0	NULL
+c1	NULL
+c2	NULL
+c3	NULL
+c4	NULL
+c5	NULL
+c6	NULL
+c7	NULL
+Warnings:
+Level	Warning
+Code	1292
+Message	Incorrect INTERVAL DAY TO SECOND value: '876494165959'
+Level	Warning
+Code	1292
+Message	Incorrect INTERVAL DAY TO SECOND value: '876494165959'
+Level	Warning
+Code	1292
+Message	Incorrect INTERVAL DAY TO SECOND value: '876494165959'
+Level	Warning
+Code	1292
+Message	Incorrect INTERVAL DAY TO SECOND value: '876494165959'
+Level	Warning
+Code	1292
+Message	Incorrect INTERVAL DAY TO SECOND value: '876494165959'
+Level	Warning
+Code	1292
+Message	Incorrect INTERVAL DAY TO SECOND value: '876494165959'
+Level	Warning
+Code	1292
+Message	Incorrect INTERVAL DAY TO SECOND value: '876494165959'
+Level	Warning
+Code	1292
+Message	Incorrect INTERVAL DAY TO SECOND value: '876494165959'
+Level	Warning
+Code	1292
+Message	Incorrect INTERVAL DAY TO SECOND value: '876494165959'
+SELECT
+ADDTIME(TIME'00:00:00', '87649416:59:59') AS ci,
+ADDTIME(TIME'00:00:00', '87649416:59:59')+0 AS c0,
+ADDTIME(TIME'00:00:00', '87649416:59:59')+0.0 AS c1,
+ADDTIME(TIME'00:00:00', '87649416:59:59')+0.00 AS c2,
+ADDTIME(TIME'00:00:00', '87649416:59:59')+0.000 AS c3,
+ADDTIME(TIME'00:00:00', '87649416:59:59')+0.0000 AS c4,
+ADDTIME(TIME'00:00:00', '87649416:59:59')+0.00000 AS c5,
+ADDTIME(TIME'00:00:00', '87649416:59:59')+0.000000 AS c6,
+ADDTIME(TIME'00:00:00', '87649416:59:59')+0.0000000 AS c7;
+ci	NULL
+c0	NULL
+c1	NULL
+c2	NULL
+c3	NULL
+c4	NULL
+c5	NULL
+c6	NULL
+c7	NULL
+Warnings:
+Level	Warning
+Code	1292
+Message	Incorrect INTERVAL DAY TO SECOND value: '87649416:59:59'
+Level	Warning
+Code	1292
+Message	Incorrect INTERVAL DAY TO SECOND value: '87649416:59:59'
+Level	Warning
+Code	1292
+Message	Incorrect INTERVAL DAY TO SECOND value: '87649416:59:59'
+Level	Warning
+Code	1292
+Message	Incorrect INTERVAL DAY TO SECOND value: '87649416:59:59'
+Level	Warning
+Code	1292
+Message	Incorrect INTERVAL DAY TO SECOND value: '87649416:59:59'
+Level	Warning
+Code	1292
+Message	Incorrect INTERVAL DAY TO SECOND value: '87649416:59:59'
+Level	Warning
+Code	1292
+Message	Incorrect INTERVAL DAY TO SECOND value: '87649416:59:59'
+Level	Warning
+Code	1292
+Message	Incorrect INTERVAL DAY TO SECOND value: '87649416:59:59'
+Level	Warning
+Code	1292
+Message	Incorrect INTERVAL DAY TO SECOND value: '87649416:59:59'
+# HOUR is max_useful_hour()+1 (outside of INTERVAL DAY TO SECOND range)
+# Expect NULL + "Incorrect INTERVAL DAY TO SECOND value"
+SELECT
+ADDTIME(TIME'-838:59:59', 876494165959) AS ci,
+ADDTIME(TIME'-838:59:59.9', 876494165959) AS c1,
+ADDTIME(TIME'-838:59:59.99', 876494165959) AS c2,
+ADDTIME(TIME'-838:59:59.999', 876494165959) AS c3,
+ADDTIME(TIME'-838:59:59.9999', 876494165959) AS c4,
+ADDTIME(TIME'-838:59:59.99999', 876494165959) AS c5,
+ADDTIME(TIME'-838:59:59.999999', 876494165959) AS c6;
+ci	NULL
+c1	NULL
+c2	NULL
+c3	NULL
+c4	NULL
+c5	NULL
+c6	NULL
+Warnings:
+Level	Warning
+Code	1292
+Message	Incorrect INTERVAL DAY TO SECOND value: '876494165959'
+Level	Warning
+Code	1292
+Message	Incorrect INTERVAL DAY TO SECOND value: '876494165959'
+Level	Warning
+Code	1292
+Message	Incorrect INTERVAL DAY TO SECOND value: '876494165959'
+Level	Warning
+Code	1292
+Message	Incorrect INTERVAL DAY TO SECOND value: '876494165959'
+Level	Warning
+Code	1292
+Message	Incorrect INTERVAL DAY TO SECOND value: '876494165959'
+Level	Warning
+Code	1292
+Message	Incorrect INTERVAL DAY TO SECOND value: '876494165959'
+Level	Warning
+Code	1292
+Message	Incorrect INTERVAL DAY TO SECOND value: '876494165959'
+SELECT
+ADDTIME(TIME'-838:59:59', '87649416:59:59') AS ci,
+ADDTIME(TIME'-838:59:59.9', '87649416:59:59') AS c1,
+ADDTIME(TIME'-838:59:59.99', '87649416:59:59') AS c2,
+ADDTIME(TIME'-838:59:59.999', '87649416:59:59') AS c3,
+ADDTIME(TIME'-838:59:59.9999', '87649416:59:59') AS c4,
+ADDTIME(TIME'-838:59:59.99999', '87649416:59:59') AS c5,
+ADDTIME(TIME'-838:59:59.999999', '87649416:59:59') AS c6,
+ADDTIME(TIME'-838:59:59.9999999', '87649416:59:59') AS c7;
+ci	NULL
+c1	NULL
+c2	NULL
+c3	NULL
+c4	NULL
+c5	NULL
+c6	NULL
+c7	NULL
+Warnings:
+Level	Note
+Code	1292
+Message	Truncated incorrect time value: '-838:59:59.9999999'
+Level	Warning
+Code	1292
+Message	Incorrect INTERVAL DAY TO SECOND value: '87649416:59:59'
+Level	Warning
+Code	1292
+Message	Incorrect INTERVAL DAY TO SECOND value: '87649416:59:59'
+Level	Warning
+Code	1292
+Message	Incorrect INTERVAL DAY TO SECOND value: '87649416:59:59'
+Level	Warning
+Code	1292
+Message	Incorrect INTERVAL DAY TO SECOND value: '87649416:59:59'
+Level	Warning
+Code	1292
+Message	Incorrect INTERVAL DAY TO SECOND value: '87649416:59:59'
+Level	Warning
+Code	1292
+Message	Incorrect INTERVAL DAY TO SECOND value: '87649416:59:59'
+Level	Warning
+Code	1292
+Message	Incorrect INTERVAL DAY TO SECOND value: '87649416:59:59'
+Level	Warning
+Code	1292
+Message	Incorrect INTERVAL DAY TO SECOND value: '87649416:59:59'
+# HOUR is max_useful_hour() (inside INTERVAL DAY TO SECOND range)
+# Expect max TIME(0) + zero fraction + TIME warnings + no INTEVAL warnings
+SELECT
+ADDTIME(TIME'00:00:00', 876494155959) AS ci,
+ADDTIME(TIME'00:00:00', 876494155959)+0 AS c0,
+ADDTIME(TIME'00:00:00', 876494155959)+0.0 AS c1,
+ADDTIME(TIME'00:00:00', 876494155959)+0.00 AS c2,
+ADDTIME(TIME'00:00:00', 876494155959)+0.000 AS c3,
+ADDTIME(TIME'00:00:00', 876494155959)+0.0000 AS c4,
+ADDTIME(TIME'00:00:00', 876494155959)+0.00000 AS c5,
+ADDTIME(TIME'00:00:00', 876494155959)+0.000000 AS c6,
+ADDTIME(TIME'00:00:00', 876494155959)+0.0000000 AS c7;
+ci	838:59:59
+c0	8385959
+c1	8385959.0
+c2	8385959.00
+c3	8385959.000
+c4	8385959.0000
+c5	8385959.00000
+c6	8385959.000000
+c7	8385959.0000000
+Warnings:
+Level	Warning
+Code	1292
+Message	Truncated incorrect time value: '87649415:59:59'
+Level	Warning
+Code	1292
+Message	Truncated incorrect time value: '87649415:59:59'
+Level	Warning
+Code	1292
+Message	Truncated incorrect time value: '87649415:59:59'
+Level	Warning
+Code	1292
+Message	Truncated incorrect time value: '87649415:59:59'
+Level	Warning
+Code	1292
+Message	Truncated incorrect time value: '87649415:59:59'
+Level	Warning
+Code	1292
+Message	Truncated incorrect time value: '87649415:59:59'
+Level	Warning
+Code	1292
+Message	Truncated incorrect time value: '87649415:59:59'
+Level	Warning
+Code	1292
+Message	Truncated incorrect time value: '87649415:59:59'
+Level	Warning
+Code	1292
+Message	Truncated incorrect time value: '87649415:59:59'
+SELECT
+ADDTIME(TIME'00:00:00', '87649415:59:59') AS ci,
+ADDTIME(TIME'00:00:00', '87649415:59:59')+0 AS c0,
+ADDTIME(TIME'00:00:00', '87649415:59:59')+0.0 AS c1,
+ADDTIME(TIME'00:00:00', '87649415:59:59')+0.00 AS c2,
+ADDTIME(TIME'00:00:00', '87649415:59:59')+0.000 AS c3,
+ADDTIME(TIME'00:00:00', '87649415:59:59')+0.0000 AS c4,
+ADDTIME(TIME'00:00:00', '87649415:59:59')+0.00000 AS c5,
+ADDTIME(TIME'00:00:00', '87649415:59:59')+0.000000 AS c6,
+ADDTIME(TIME'00:00:00', '87649415:59:59')+0.0000000 AS c7;
+ci	838:59:59
+c0	8385959
+c1	8385959.0
+c2	8385959.00
+c3	8385959.000
+c4	8385959.0000
+c5	8385959.00000
+c6	8385959.000000
+c7	8385959.0000000
+Warnings:
+Level	Warning
+Code	1292
+Message	Truncated incorrect time value: '87649415:59:59'
+Level	Warning
+Code	1292
+Message	Truncated incorrect time value: '87649415:59:59'
+Level	Warning
+Code	1292
+Message	Truncated incorrect time value: '87649415:59:59'
+Level	Warning
+Code	1292
+Message	Truncated incorrect time value: '87649415:59:59'
+Level	Warning
+Code	1292
+Message	Truncated incorrect time value: '87649415:59:59'
+Level	Warning
+Code	1292
+Message	Truncated incorrect time value: '87649415:59:59'
+Level	Warning
+Code	1292
+Message	Truncated incorrect time value: '87649415:59:59'
+Level	Warning
+Code	1292
+Message	Truncated incorrect time value: '87649415:59:59'
+Level	Warning
+Code	1292
+Message	Truncated incorrect time value: '87649415:59:59'
+# HOUR is max_useful_hour() (inside INTERVAL DAY TO SECOND range)
+# Expect max TIME(N) + TIME warnings + no INTERVAL warnings
+SELECT
+ADDTIME(TIME'-838:59:59', 876494155959) AS ci,
+ADDTIME(TIME'-838:59:59.9', 876494155959) AS c1,
+ADDTIME(TIME'-838:59:59.99', 876494155959) AS c2,
+ADDTIME(TIME'-838:59:59.999', 876494155959) AS c3,
+ADDTIME(TIME'-838:59:59.9999', 876494155959) AS c4,
+ADDTIME(TIME'-838:59:59.99999', 876494155959) AS c5,
+ADDTIME(TIME'-838:59:59.999999', 876494155959) AS c6;
+ci	838:59:59
+c1	838:59:59.9
+c2	838:59:59.99
+c3	838:59:59.999
+c4	838:59:59.9999
+c5	838:59:59.99999
+c6	838:59:59.999999
+Warnings:
+Level	Warning
+Code	1292
+Message	Truncated incorrect time value: '87648577:00:00'
+Level	Warning
+Code	1292
+Message	Truncated incorrect time value: '87648576:59:59.100000'
+Level	Warning
+Code	1292
+Message	Truncated incorrect time value: '87648576:59:59.010000'
+Level	Warning
+Code	1292
+Message	Truncated incorrect time value: '87648576:59:59.001000'
+Level	Warning
+Code	1292
+Message	Truncated incorrect time value: '87648576:59:59.000100'
+Level	Warning
+Code	1292
+Message	Truncated incorrect time value: '87648576:59:59.000010'
+Level	Warning
+Code	1292
+Message	Truncated incorrect time value: '87648576:59:59.000001'
+SELECT
+ADDTIME(TIME'-838:59:59', '87649415:59:59') AS ci,
+ADDTIME(TIME'-838:59:59.9', '87649415:59:59') AS c1,
+ADDTIME(TIME'-838:59:59.99', '87649415:59:59') AS c2,
+ADDTIME(TIME'-838:59:59.999', '87649415:59:59') AS c3,
+ADDTIME(TIME'-838:59:59.9999', '87649415:59:59') AS c4,
+ADDTIME(TIME'-838:59:59.99999', '87649415:59:59') AS c5,
+ADDTIME(TIME'-838:59:59.999999', '87649415:59:59') AS c6,
+ADDTIME(TIME'-838:59:59.9999999', '87649415:59:59') AS c7;
+ci	838:59:59
+c1	838:59:59.9
+c2	838:59:59.99
+c3	838:59:59.999
+c4	838:59:59.9999
+c5	838:59:59.99999
+c6	838:59:59.999999
+c7	838:59:59.999999
+Warnings:
+Level	Note
+Code	1292
+Message	Truncated incorrect time value: '-838:59:59.9999999'
+Level	Warning
+Code	1292
+Message	Truncated incorrect time value: '87648577:00:00'
+Level	Warning
+Code	1292
+Message	Truncated incorrect time value: '87648576:59:59.100000'
+Level	Warning
+Code	1292
+Message	Truncated incorrect time value: '87648576:59:59.010000'
+Level	Warning
+Code	1292
+Message	Truncated incorrect time value: '87648576:59:59.001000'
+Level	Warning
+Code	1292
+Message	Truncated incorrect time value: '87648576:59:59.000100'
+Level	Warning
+Code	1292
+Message	Truncated incorrect time value: '87648576:59:59.000010'
+Level	Warning
+Code	1292
+Message	Truncated incorrect time value: '87648576:59:59.000001'
+Level	Warning
+Code	1292
+Message	Truncated incorrect time value: '87648576:59:59.000001'
