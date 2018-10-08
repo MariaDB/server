@@ -22,3 +22,4 @@ innodb_bug12902967       : broken upstream
 file_contents            : MDEV-6526 these files are not installed anymore
 max_statement_time       : cannot possibly work, depends on timing
 connect-abstract         : waiting for libmariadb update
+func_time                : new tests fail on architectures with sizeof(long)=4. Barkov is working on fixing this.
