@@ -725,27 +725,26 @@ row_rec_to_index_entry_impl(
 	ut_ad(rec != NULL);
 	ut_ad(heap != NULL);
 	ut_ad(index != NULL);
-	ut_ad(!mblob || metadata);
 	ut_ad(!mblob || index->is_primary());
 	ut_ad(!mblob || !dict_index_is_spatial(index));
+	compile_time_assert(!mblob || metadata);
 	compile_time_assert(mblob <= 2);
-	ut_ad(mblob != 2 || dtuple_t::is_metadata(info_bits));
-	ut_ad(mblob == 2 || info_bits == 0);
 	/* Because this function may be invoked by row0merge.cc
 	on a record whose header is in different format, the check
 	rec_offs_validate(rec, index, offsets) must be avoided here. */
 	ut_ad(n_ext);
 	*n_ext = 0;
 
-	ut_ad(mblob != 2
-	      || rec_offs_n_fields(offsets)
-	      == ulint(index->n_fields + rec_is_alter_metadata(rec, *index)));
-
-	ulint rec_len = mblob == 2
-		? ulint(index->n_fields
-			+ (info_bits == REC_INFO_METADATA_ALTER))
-		: rec_offs_n_fields(offsets);
-
+	const bool got = mblob == 2 && rec_is_alter_metadata(rec, *index);
+	ulint rec_len = rec_offs_n_fields(offsets);
+	if (mblob == 2) {
+		ut_ad(info_bits == REC_INFO_METADATA_ALTER
+		      || info_bits == REC_INFO_METADATA_ADD);
+		ut_ad(rec_len <= ulint(index->n_fields + got));
+		rec_len += !got && info_bits == REC_INFO_METADATA_ALTER;
+	} else {
+		ut_ad(info_bits == 0);
+	}
 	dtuple_t* entry = dtuple_create(heap, rec_len);
 	dfield_t* dfield = entry->fields;
 
@@ -788,7 +787,6 @@ row_rec_to_index_entry_impl(
 		ulint j = i;
 
 		if (mblob == 2) {
-			const bool got = rec_is_alter_metadata(rec, *index);
 			const bool want = info_bits == REC_INFO_METADATA_ALTER;
 			if (got == want) {
 				if (got) {
@@ -837,6 +835,11 @@ copy_user_fields:
 		}
 	}
 
+	if (mblob == 2) {
+		ulint n_fields = ulint(dfield - entry->fields);
+		ut_ad(entry->n_fields >= n_fields);
+		entry->n_fields = n_fields;
+	}
 	ut_ad(dfield == entry->fields + entry->n_fields);
 	ut_ad(dtuple_check_typed(entry));
 	return entry;
