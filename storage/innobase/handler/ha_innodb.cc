@@ -20373,6 +20373,7 @@ static bool table_name_parse(
 
 	if (char *is_part = strchr(tbl_buf, '#')) {
 		*is_part = '\0';
+		tblnamelen = is_part - tbl_buf;
 	}
 
 	filename_to_tablename(tbl_buf, tblname, MAX_TABLE_NAME_LEN + 1, true);
