@@ -318,7 +318,7 @@ int opt_sum_query(THD *thd,
       error= tl->table->file->info(HA_STATUS_VARIABLE | HA_STATUS_NO_LOCK);
       if (unlikely(error))
       {
-        tl->table->file->print_error(error, MYF(ME_FATALERROR));
+        tl->table->file->print_error(error, MYF(ME_FATAL));
         DBUG_RETURN(error);
       }
       count*= tl->table->file->stats.records;

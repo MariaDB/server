@@ -628,6 +628,27 @@ SELECT
 SET sql_mode=DEFAULT;
 
 --echo #
+--echo # MDEV-12574 MAX(old_decimal) produces a column of the old DECIMAL type
+--echo #
+
+let $MYSQLD_DATADIR= `select @@datadir`;
+--copy_file std_data/old_decimal/t1dec102.frm $MYSQLD_DATADIR/test/t1dec102.frm
+--copy_file std_data/old_decimal/t1dec102.MYD $MYSQLD_DATADIR/test/t1dec102.MYD
+--copy_file std_data/old_decimal/t1dec102.MYI $MYSQLD_DATADIR/test/t1dec102.MYI
+
+SHOW CREATE TABLE t1dec102;
+
+CREATE TABLE t1 AS SELECT a, MAX(a), COALESCE(a) FROM t1dec102;
+SHOW CREATE TABLE t1;
+DROP TABLE t1;
+
+CREATE TABLE t1 AS SELECT a FROM t1dec102 UNION SELECT a FROM t1dec102;
+SHOW CREATE TABLE t1;
+DROP TABLE t1;
+
+DROP TABLE t1dec102;
+
+--echo #
 --echo # End of 10.2 tests
 --echo #
 
@@ -673,3 +694,67 @@ DROP TABLE t2;
 DROP TABLE t1;
 
 DROP TABLE t1dec102;
+
+--echo #
+--echo # End of 10.3 tests
+--echo #
+
+
+--echo #
+--echo # Start of 10.4 tests
+--echo #
+
+--echo #
+--echo # MDEV-11362 True condition elimination does not work for DECIMAL dynamic SQL parameters
+--echo #
+
+CREATE TABLE t1 (a DECIMAL(10,1));
+INSERT INTO t1 VALUES (1),(2),(3);
+--echo # Equal values
+EXPLAIN EXTENDED SELECT * FROM t1 WHERE 1.0+a<=>1.0+a;
+EXECUTE IMMEDIATE 'EXPLAIN EXTENDED SELECT * FROM t1 WHERE ?+a<=>?+a' USING 1.0,1.0;
+EXECUTE IMMEDIATE 'EXPLAIN EXTENDED SELECT * FROM t1 WHERE 1.0+a<=>?+a' USING 1.0;
+EXECUTE IMMEDIATE 'EXPLAIN EXTENDED SELECT * FROM t1 WHERE ?+a<=>1.0+a' USING 1.0;
+--echo # Not equal values
+EXPLAIN EXTENDED SELECT * FROM t1 WHERE 1.0+a<=>1.1+a;
+EXECUTE IMMEDIATE 'EXPLAIN EXTENDED SELECT * FROM t1 WHERE ?+a<=>?+a' USING 1.0,1.1;
+EXECUTE IMMEDIATE 'EXPLAIN EXTENDED SELECT * FROM t1 WHERE 1.0+a<=>?+a' USING 1.1;
+EXECUTE IMMEDIATE 'EXPLAIN EXTENDED SELECT * FROM t1 WHERE ?+a<=>1.0+a' USING 1.1;
+DROP TABLE t1;
+
+--echo #
+--echo # MDEV-16426 Optimizer erroneously treats equal constants of different formats as same
+--echo #
+
+CREATE TABLE t1 (a DECIMAL(10,3));
+INSERT INTO t1 VALUES (10.0),(10.1);
+
+--echo Equal values
+SELECT * FROM t1 WHERE LENGTH(10.0)+a<=>LENGTH(10.0)+a;
+EXPLAIN EXTENDED SELECT * FROM t1 WHERE LENGTH(10.0)+a<=>LENGTH(10.0)+a;
+EXECUTE IMMEDIATE 'SELECT * FROM t1 WHERE LENGTH(10.0)+a<=>LENGTH(?)+a' USING 10.0;
+EXECUTE IMMEDIATE 'EXPLAIN EXTENDED SELECT * FROM t1 WHERE LENGTH(10.0)+a<=>LENGTH(?)+a' USING 10.0;
+
+--echo Values with different formats
+SELECT * FROM t1 WHERE LENGTH(10.0)+a<=>LENGTH(10.00)+a;
+EXPLAIN EXTENDED SELECT * FROM t1 WHERE LENGTH(10.0)+a<=>LENGTH(10.00)+a;
+EXECUTE IMMEDIATE 'SELECT * FROM t1 WHERE LENGTH(10.0)+a<=>LENGTH(?)+a' USING 10.00;
+EXECUTE IMMEDIATE 'EXPLAIN EXTENDED SELECT * FROM t1 WHERE LENGTH(10.0)+a<=>LENGTH(?)+a' USING 10.00;
+
+DROP TABLE t1;
+
+
+--echo #
+--echo # MDEV-16984 Assertion `dec' failed in Dec_ptr::cmp
+--echo #
+SET sql_mode='';
+CREATE TABLE t1 (dc decimal(10));
+INSERT INTO t1 VALUES (0000000),(NULL);
+SELECT 1 FROM t1 GROUP BY 'm' <=> dc;
+DROP TABLE t1;
+SET sql_mode=DEFAULT;
+
+
+--echo #
+--echo # End of 10.4 tests
+--echo #

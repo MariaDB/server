@@ -170,7 +170,7 @@
 #define JSONMAX      10             // JSON Default max grp size
 
 extern "C" {
-       char version[]= "Version 1.06.0007 March 11, 2018";
+       char version[]= "Version 1.06.0007 August 06, 2018";
 #if defined(__WIN__)
        char compver[]= "Version 1.06.0007 " __DATE__ " "  __TIME__;
        char slash= '\\';
@@ -2085,9 +2085,8 @@ int ha_connect::MakeRecord(char *buf)
   DBUG_ENTER("ha_connect::MakeRecord");
 
   if (trace(2))
-    htrc("Maps: read=%08X write=%08X vcol=%08X defr=%08X defw=%08X\n",
+    htrc("Maps: read=%08X write=%08X defr=%08X defw=%08X\n",
             *table->read_set->bitmap, *table->write_set->bitmap,
-            (table->vcol_set) ? *table->vcol_set->bitmap : 0,
             *table->def_read_set.bitmap, *table->def_write_set.bitmap);
 
   // Avoid asserts in field::store() for columns that are not updated
@@ -2727,37 +2726,40 @@ PFIL ha_connect::CondFilter(PGLOBAL g, Item *cond)
         if (!i && (ismul))
           return NULL;
 
-				switch (args[i]->real_type()) {
-          case COND::STRING_ITEM:
-						res= pval->val_str(&tmp);
-						pp->Value= PlugSubAllocStr(g, NULL, res->ptr(), res->length());
-            pp->Type= (pp->Value) ? TYPE_STRING : TYPE_ERROR;
-            break;
-          case COND::INT_ITEM:
-            pp->Type= TYPE_INT;
-            pp->Value= PlugSubAlloc(g, NULL, sizeof(int));
-            *((int*)pp->Value)= (int)pval->val_int();
-            break;
-          case COND::DATE_ITEM:
-            pp->Type= TYPE_DATE;
-            pp->Value= PlugSubAlloc(g, NULL, sizeof(int));
-            *((int*)pp->Value)= (int)pval->val_int_from_date();
-            break;
-          case COND::REAL_ITEM:
-            pp->Type= TYPE_DOUBLE;
-            pp->Value= PlugSubAlloc(g, NULL, sizeof(double));
-            *((double*)pp->Value)= pval->val_real();
-            break;
-          case COND::DECIMAL_ITEM:
-            pp->Type= TYPE_DOUBLE;
-            pp->Value= PlugSubAlloc(g, NULL, sizeof(double));
-            *((double*)pp->Value)= pval->val_real_from_decimal();
-            break;
+        switch (args[i]->real_type()) {
+          case COND::CONST_ITEM:
+          switch (args[i]->cmp_type()) {
+            case STRING_RESULT:
+              res= pval->val_str(&tmp);
+              pp->Value= PlugSubAllocStr(g, NULL, res->ptr(), res->length());
+              pp->Type= (pp->Value) ? TYPE_STRING : TYPE_ERROR;
+              break;
+            case INT_RESULT:
+              pp->Type= TYPE_INT;
+              pp->Value= PlugSubAlloc(g, NULL, sizeof(int));
+              *((int*)pp->Value)= (int)pval->val_int();
+              break;
+            case TIME_RESULT:
+              pp->Type= TYPE_DATE;
+              pp->Value= PlugSubAlloc(g, NULL, sizeof(int));
+              *((int*)pp->Value)= (int) Temporal_hybrid(pval).to_longlong();
+              break;
+            case REAL_RESULT:
+            case DECIMAL_RESULT:
+              pp->Type= TYPE_DOUBLE;
+              pp->Value= PlugSubAlloc(g, NULL, sizeof(double));
+              *((double*)pp->Value)= pval->val_real();
+              break;
+            case ROW_RESULT:
+              DBUG_ASSERT(0);
+              return NULL;
+          }
+          break;
           case COND::CACHE_ITEM:    // Possible ???
           case COND::NULL_ITEM:     // TODO: handle this
           default:
             return NULL;
-          } // endswitch type
+        } // endswitch type
 
 				if (trace(1))
           htrc("Value type=%hd\n", pp->Type);
@@ -3009,12 +3011,8 @@ PCFIL ha_connect::CheckCond(PGLOBAL g, PCFIL filp, const Item *cond)
         Item::Type type= args[i]->real_type();
 
         switch (type) {
-          case COND::STRING_ITEM:
-          case COND::INT_ITEM:
-          case COND::REAL_ITEM:
+          case COND::CONST_ITEM:
           case COND::NULL_ITEM:
-          case COND::DECIMAL_ITEM:
-          case COND::DATE_ITEM:
           case COND::CACHE_ITEM:
             break;
           default:
@@ -3301,23 +3299,15 @@ bool ha_connect::get_error_message(int error, String* buf)
 {
   DBUG_ENTER("ha_connect::get_error_message");
 
-  if (xp && xp->g) {
-    PGLOBAL g= xp->g;
-    char    msg[3072];         // MAX_STR * 3
-    uint    dummy_errors;
-    uint32  len= copy_and_convert(msg, strlen(g->Message) * 3,
-                               system_charset_info,
-                               g->Message, strlen(g->Message),
-                               &my_charset_latin1,
-                               &dummy_errors);
+	if (xp && xp->g) {
+		PGLOBAL g = xp->g;
 
-    if (trace(1))
-      htrc("GEM(%d): len=%u %s\n", error, len, g->Message);
+		if (trace(1))
+			htrc("GEM(%d): %s\n", error, g->Message);
 
-    msg[len]= '\0';
-    buf->copy(msg, (uint)strlen(msg), system_charset_info);
-  } else
-    buf->copy("Cannot retrieve msg", 19, system_charset_info);
+		buf->append(g->Message);
+	} else
+    buf->append("Cannot retrieve error message");
 
   DBUG_RETURN(false);
 } // end of get_error_message

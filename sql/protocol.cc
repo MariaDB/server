@@ -727,7 +727,7 @@ uchar *net_store_data(uchar *to, const uchar *from, size_t length)
 
 uchar *net_store_data(uchar *to,int32 from)
 {
-  char buff[20];
+  char buff[22];
   uint length=(uint) (int10_to_str(from,buff,10)-buff);
   to=net_store_length_fast(to,length);
   memcpy(to,buff,length);
@@ -1153,7 +1153,7 @@ bool Protocol_text::store_tiny(longlong from)
   DBUG_ASSERT(field_types == 0 || field_types[field_pos] == MYSQL_TYPE_TINY);
   field_pos++;
 #endif
-  char buff[20];
+  char buff[22];
   return net_store_data((uchar*) buff,
 			(size_t) (int10_to_str((int) from, buff, -10) - buff));
 }
@@ -1167,7 +1167,7 @@ bool Protocol_text::store_short(longlong from)
 	      field_types[field_pos] == MYSQL_TYPE_SHORT);
   field_pos++;
 #endif
-  char buff[20];
+  char buff[22];
   return net_store_data((uchar*) buff,
 			(size_t) (int10_to_str((int) from, buff, -10) -
                                   buff));
@@ -1182,7 +1182,7 @@ bool Protocol_text::store_long(longlong from)
               field_types[field_pos] == MYSQL_TYPE_LONG);
   field_pos++;
 #endif
-  char buff[20];
+  char buff[22];
   return net_store_data((uchar*) buff,
 			(size_t) (int10_to_str((long int)from, buff,
                                                (from <0)?-10:10)-buff));
@@ -1211,9 +1211,8 @@ bool Protocol_text::store_decimal(const my_decimal *d)
               field_types[field_pos] == MYSQL_TYPE_NEWDECIMAL);
   field_pos++;
 #endif
-  char buff[DECIMAL_MAX_STR_LENGTH];
-  String str(buff, sizeof(buff), &my_charset_bin);
-  (void) my_decimal2string(E_DEC_FATAL_ERROR, d, 0, 0, 0, &str);
+  StringBuffer<DECIMAL_MAX_STR_LENGTH> str;
+  (void) d->to_string(&str);
   return net_store_data((uchar*) str.ptr(), str.length());
 }
 
@@ -1462,9 +1461,8 @@ bool Protocol_binary::store_decimal(const my_decimal *d)
               field_types[field_pos] == MYSQL_TYPE_NEWDECIMAL);
   field_pos++;
 #endif
-  char buff[DECIMAL_MAX_STR_LENGTH];
-  String str(buff, sizeof(buff), &my_charset_bin);
-  (void) my_decimal2string(E_DEC_FATAL_ERROR, d, 0, 0, 0, &str);
+  StringBuffer<DECIMAL_MAX_STR_LENGTH> str;
+  (void) d->to_string(&str);
   return store(str.ptr(), str.length(), str.charset());
 }
 

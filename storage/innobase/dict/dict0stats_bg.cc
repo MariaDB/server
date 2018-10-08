@@ -1,7 +1,7 @@
 /*****************************************************************************
 
 Copyright (c) 2012, 2017, Oracle and/or its affiliates. All Rights Reserved.
-Copyright (c) 2017, MariaDB Corporation.
+Copyright (c) 2017, 2018, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -32,6 +32,12 @@ Created Apr 25, 2012 Vasil Dimov
 #include "srv0start.h"
 #include "ut0new.h"
 #include "fil0fil.h"
+#ifdef WITH_WSREP
+# include "mysql/service_wsrep.h"
+# include "wsrep.h"
+# include "log.h"
+# include "wsrep_mysqld.h"
+#endif
 
 #include <vector>
 
@@ -76,41 +82,31 @@ typedef recalc_pool_t::iterator
 
 /** Pool where we store information on which tables are to be processed
 by background statistics gathering. */
-static recalc_pool_t*		recalc_pool;
-
-
-/*****************************************************************//**
-Initialize the recalc pool, called once during thread initialization. */
-static
-void
-dict_stats_recalc_pool_init()
-/*=========================*/
-{
-	ut_ad(!srv_read_only_mode);
-	/* JAN: TODO: MySQL 5.7 PSI
-	const PSI_memory_key	key = mem_key_dict_stats_bg_recalc_pool_t;
-
-	recalc_pool = UT_NEW(recalc_pool_t(recalc_pool_allocator_t(key)), key);
-
-	recalc_pool->reserve(RECALC_POOL_INITIAL_SLOTS);
-	*/
-	recalc_pool = new std::vector<table_id_t, recalc_pool_allocator_t>();
-}
+static recalc_pool_t		recalc_pool;
+/** Whether the global data structures have been initialized */
+static bool			stats_initialised;
 
 /*****************************************************************//**
 Free the resources occupied by the recalc pool, called once during
 thread de-initialization. */
-static
-void
-dict_stats_recalc_pool_deinit()
-/*===========================*/
+static void dict_stats_recalc_pool_deinit()
 {
 	ut_ad(!srv_read_only_mode);
 
-	recalc_pool->clear();
-
-	UT_DELETE(recalc_pool);
-	recalc_pool = NULL;
+	recalc_pool.clear();
+	defrag_pool.clear();
+        /*
+          recalc_pool may still have its buffer allocated. It will free it when
+          its destructor is called.
+          The problem is, memory leak detector is run before the recalc_pool's
+          destructor is invoked, and will report recalc_pool's buffer as leaked
+          memory.  To avoid that, we force recalc_pool to surrender its buffer
+          to empty_pool object, which will free it when leaving this function:
+        */
+	recalc_pool_t recalc_empty_pool;
+	defrag_pool_t defrag_empty_pool;
+	recalc_pool.swap(recalc_empty_pool);
+	defrag_pool.swap(defrag_empty_pool);
 }
 
 /*****************************************************************//**
@@ -130,8 +126,8 @@ dict_stats_recalc_pool_add(
 	mutex_enter(&recalc_pool_mutex);
 
 	/* quit if already in the list */
-	for (recalc_pool_iterator_t iter = recalc_pool->begin();
-	     iter != recalc_pool->end();
+	for (recalc_pool_iterator_t iter = recalc_pool.begin();
+	     iter != recalc_pool.end();
 	     ++iter) {
 
 		if (*iter == table->id) {
@@ -140,18 +136,25 @@ dict_stats_recalc_pool_add(
 		}
 	}
 
-	recalc_pool->push_back(table->id);
+	recalc_pool.push_back(table->id);
 
 	mutex_exit(&recalc_pool_mutex);
 
 	os_event_set(dict_stats_event);
 }
 
+#ifdef WITH_WSREP
+/** Update the table modification counter and if necessary,
+schedule new estimates for table and index statistics to be calculated.
+@param[in,out]	table	persistent or temporary table
+@param[in]	thd	current session */
+void dict_stats_update_if_needed(dict_table_t* table, THD* thd)
+#else
 /** Update the table modification counter and if necessary,
 schedule new estimates for table and index statistics to be calculated.
 @param[in,out]	table	persistent or temporary table */
-void
-dict_stats_update_if_needed(dict_table_t* table)
+void dict_stats_update_if_needed_func(dict_table_t* table)
+#endif
 {
 	ut_ad(table->stat_initialized);
 	ut_ad(!mutex_own(&dict_sys->mutex));
@@ -162,6 +165,15 @@ dict_stats_update_if_needed(dict_table_t* table)
 	if (dict_stats_is_persistent_enabled(table)) {
 		if (counter > n_rows / 10 /* 10% */
 		    && dict_stats_auto_recalc_is_enabled(table)) {
+
+#ifdef WITH_WSREP
+			if (thd && wsrep_on(thd) && wsrep_thd_is_BF(thd, 0)) {
+				WSREP_DEBUG("Avoiding background statistics"
+					    " calculation for table %s",
+					    table->name.m_name);
+				return;
+			}
+#endif /* WITH_WSREP */
 
 			dict_stats_recalc_pool_add(table);
 			table->stat_modified_counter = 0;
@@ -200,14 +212,14 @@ dict_stats_recalc_pool_get(
 
 	mutex_enter(&recalc_pool_mutex);
 
-	if (recalc_pool->empty()) {
+	if (recalc_pool.empty()) {
 		mutex_exit(&recalc_pool_mutex);
 		return(false);
 	}
 
-	*id = recalc_pool->at(0);
+	*id = recalc_pool.at(0);
 
-	recalc_pool->erase(recalc_pool->begin());
+	recalc_pool.erase(recalc_pool.begin());
 
 	mutex_exit(&recalc_pool_mutex);
 
@@ -229,13 +241,13 @@ dict_stats_recalc_pool_del(
 
 	ut_ad(table->id > 0);
 
-	for (recalc_pool_iterator_t iter = recalc_pool->begin();
-	     iter != recalc_pool->end();
+	for (recalc_pool_iterator_t iter = recalc_pool.begin();
+	     iter != recalc_pool.end();
 	     ++iter) {
 
 		if (*iter == table->id) {
 			/* erase() invalidates the iterator */
-			recalc_pool->erase(iter);
+			recalc_pool.erase(iter);
 			break;
 		}
 	}
@@ -274,7 +286,6 @@ dict_stats_thread_init()
 
 	dict_stats_event = os_event_create(0);
 	dict_stats_shutdown_event = os_event_create(0);
-
 	ut_d(dict_stats_disabled_event = os_event_create(0));
 
 	/* The recalc_pool_mutex is acquired from:
@@ -293,9 +304,8 @@ dict_stats_thread_init()
 
 	mutex_create(LATCH_ID_RECALC_POOL, &recalc_pool_mutex);
 
-	dict_stats_recalc_pool_init();
 	dict_defrag_pool_init();
-
+	stats_initialised = true;
 }
 
 /*****************************************************************//**
@@ -308,9 +318,11 @@ dict_stats_thread_deinit()
 	ut_a(!srv_read_only_mode);
 	ut_ad(!srv_dict_stats_thread_active);
 
-	if (recalc_pool == NULL) {
+	if (!stats_initialised) {
 		return;
 	}
+
+	stats_initialised = false;
 
 	dict_stats_recalc_pool_deinit();
 	dict_defrag_pool_deinit();

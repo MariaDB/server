@@ -51,6 +51,36 @@ static void add_to_plugin_load_list(const char *plugin_def)
 
 static char XTRABACKUP_EXE[] = "xtrabackup";
 
+/*
+  Read "plugin-load" value (encryption plugin) from backup-my.cnf during
+  prepare phase.
+  The value is stored during backup phase.
+*/
+static std::string get_encryption_plugin_from_cnf()
+{
+  FILE *f = fopen("backup-my.cnf", "r");
+  if (!f)
+  {
+    msg("cannot open backup-my.cnf for reading\n");
+    exit(EXIT_FAILURE);
+  }
+  char line[512];
+  std::string plugin_load;
+  while (fgets(line, sizeof(line), f))
+  {
+    if (strncmp(line, "plugin_load=", 12) == 0)
+    {
+      plugin_load = line + 12;
+      // remote \n at the end of string
+      plugin_load.resize(plugin_load.size() - 1);
+      break;
+    }
+  }
+  fclose(f);
+  return plugin_load;
+}
+
+
 void encryption_plugin_backup_init(MYSQL *mysql)
 {
   MYSQL_RES *result;
@@ -78,7 +108,17 @@ void encryption_plugin_backup_init(MYSQL *mysql)
 
   std::string plugin_load(name);
   if (library)
+  {
+    /* Remove shared library suffixes, in case we'll prepare on different OS.*/
+    const char *extensions[] = { ".dll", ".so", 0 };
+    for (size_t i = 0; extensions[i]; i++)
+    {
+      const char *ext = extensions[i];
+      if (ends_with(library, ext))
+        library[strlen(library) - strlen(ext)] = 0;
+    }
     plugin_load += std::string("=") + library;
+  }
 
   oss << "plugin_load=" << plugin_load << std::endl;
 
@@ -140,14 +180,18 @@ extern int finalize_encryption_plugin(st_plugin_int *plugin);
 
 void encryption_plugin_prepare_init(int argc, char **argv)
 {
-
-  if (!xb_plugin_load)
+  std::string plugin_load= get_encryption_plugin_from_cnf();
+  if (plugin_load.size())
+  {
+    msg("Loading encryption plugin from %s\n", plugin_load.c_str());
+  }
+  else
   {
     finalize_encryption_plugin(0);
     return;
   }
 
-  add_to_plugin_load_list(xb_plugin_load);
+  add_to_plugin_load_list(plugin_load.c_str());
 
   if (xb_plugin_dir)
     strncpy(opt_plugin_dir, xb_plugin_dir, FN_REFLEN);

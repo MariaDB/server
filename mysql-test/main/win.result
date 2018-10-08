@@ -3219,8 +3219,8 @@ DROP TABLE fv_test, fv_result;
 #
 CREATE TABLE t1 (a int);
 INSERT INTO t1 VALUES (0),(1),(2);
-SELECT LEAD(a) OVER (PARTITION BY a) as lead,
-a AND LEAD(a) OVER (PARTITION BY a) AS a_and_lead_part
+SELECT LEAD(a) OVER (PARTITION BY a ORDER BY a) as lead,
+a AND LEAD(a) OVER (PARTITION BY a ORDER BY a) AS a_and_lead_part
 FROM t1;
 lead	a_and_lead_part
 NULL	0
@@ -3317,3 +3317,31 @@ DROP TABLE t1,t2;
 #
 # Start of 10.3 tests
 #
+#
+# MDEV-16489 when lead() returns null on a datetime field, the result is treated as the literal string '[NULL]'
+#
+CREATE TABLE t1 (d datetime);
+INSERT INTO t1 VALUES ('2018-01-01 00:00:00'),('2018-02-01 00:00:00');
+SELECT *, LEAD(d) OVER (ORDER BY d) AS x FROM t1;
+d	x
+2018-01-01 00:00:00	2018-02-01 00:00:00
+2018-02-01 00:00:00	NULL
+DROP TABLE t1;
+CREATE TABLE t1 (d time);
+INSERT INTO t1 VALUES ('00:00:01'),('00:00:02');
+SELECT *, LEAD(d) OVER (ORDER BY d) AS x FROM t1;
+d	x
+00:00:01	00:00:02
+00:00:02	NULL
+DROP TABLE t1;
+#
+# MDEV-16722: Assertion `type() != NULL_ITEM' failed
+#
+create table t1 (a int);
+insert into t1 values (1),(2),(3);
+SELECT  row_number() OVER (order by a) FROM t1  order by NAME_CONST('myname',NULL);
+row_number() OVER (order by a)
+1
+2
+3
+drop table t1;

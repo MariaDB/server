@@ -1655,3 +1655,283 @@ Note	1105	DBUG: [1] arg=2 handler=0 (time)
 Note	1105	DBUG: [2] arg=3 handler=2 (datetime)
 SET SESSION debug_dbug="-d,Predicant_to_list_comparator";
 SET SESSION debug_dbug="-d,Item_func_in";
+#
+#  MDEV-16408 Remove tests for Item::type() in Item_basic_value::eq()
+#
+SET SESSION debug_dbug="+d,Item_basic_value";
+CREATE TABLE t1 (a INT);
+INSERT INTO t1 VALUES (1),(2),(3);
+SELECT * FROM t1 WHERE a BETWEEN 1 AND 1.0;
+a
+1
+Warnings:
+Note	1105	bin_eq=0 a=(int)1 b=(decimal)1.0
+SELECT * FROM t1 WHERE a BETWEEN 1 AND 1;
+a
+1
+Warnings:
+Note	1105	bin_eq=1 a=(int)1 b=(int)1
+SELECT * FROM t1 WHERE a BETWEEN 0 AND 1;
+a
+1
+Warnings:
+Note	1105	bin_eq=0 a=(int)0 b=(int)1
+SELECT * FROM t1 WHERE a BETWEEN 0 AND -1;
+a
+Warnings:
+Note	1105	bin_eq=0 a=(int)0 b=(int)-1
+SELECT * FROM t1 WHERE a BETWEEN -1 AND -1;
+a
+Warnings:
+Note	1105	bin_eq=1 a=(int)-1 b=(int)-1
+SELECT * FROM t1 WHERE a BETWEEN -0000000000000001 AND -1;
+a
+Warnings:
+Note	1105	bin_eq=1 a=(bigint)-1 b=(int)-1
+SELECT * FROM t1 WHERE a BETWEEN -1 AND 18446744073709551615;
+a
+1
+2
+3
+Warnings:
+Note	1105	bin_eq=0 a=(int)-1 b=(bigint)18446744073709551615
+SELECT * FROM t1 WHERE a BETWEEN -1 AND 18446744073709551616;
+a
+1
+2
+3
+Warnings:
+Note	1105	bin_eq=0 a=(int)-1 b=(decimal)18446744073709551616
+SELECT * FROM t1 WHERE a BETWEEN 1e2 AND 100e0;
+a
+Warnings:
+Note	1105	bin_eq=1 a=(double)1e2 b=(double)100e0
+EXECUTE IMMEDIATE 'SELECT * FROM t1 WHERE a BETWEEN 1 AND ?' USING 1;
+a
+1
+Warnings:
+Note	1105	bin_eq=1 a=(int)1 b=(int)1
+EXECUTE IMMEDIATE 'SELECT * FROM t1 WHERE a BETWEEN -1 AND ?' USING 18446744073709551615;
+a
+1
+2
+3
+Warnings:
+Note	1105	bin_eq=0 a=(int)-1 b=(bigint)18446744073709551615
+EXECUTE IMMEDIATE 'SELECT * FROM t1 WHERE a BETWEEN -1 AND ?' USING 18446744073709551616;
+a
+1
+2
+3
+Warnings:
+Note	1105	bin_eq=0 a=(int)-1 b=(decimal)18446744073709551616
+DROP TABLE t1;
+CREATE TABLE t1 (a VARCHAR(10));
+INSERT INTO t1 VALUES ('0'),('1'),('2');
+SELECT * FROM t1 WHERE a BETWEEN '0' AND '0';
+a
+0
+Warnings:
+Note	1105	eq=1 a=(varchar)'0' b=(varchar)'0'
+SELECT * FROM t1 WHERE a BETWEEN '0' AND ' 0';
+a
+Warnings:
+Note	1105	eq=0 a=(varchar)'0' b=(varchar)' 0'
+SELECT * FROM t1 WHERE a BETWEEN '0' AND '0 ';
+a
+0
+Warnings:
+Note	1105	eq=1 a=(varchar)'0' b=(varchar)'0 '
+DROP TABLE t1;
+SET SESSION debug_dbug="-d,Item_basic_value";
+#
+# MDEV-11362 True condition elimination does not work for DECIMAL and temporal dynamic SQL parameters
+#
+SET SESSION debug_dbug="+d,Item_basic_value";
+CREATE TABLE t1 (a DECIMAL(10,3));
+INSERT INTO t1 VALUES (1),(2),(3);
+SELECT * FROM t1 WHERE a BETWEEN 1.0 AND 1.0;
+a
+1.000
+Warnings:
+Note	1105	bin_eq=1 a=(decimal)1.0 b=(decimal)1.0
+EXECUTE IMMEDIATE 'SELECT * FROM t1 WHERE a BETWEEN 1.0 AND ?' USING 1.0;
+a
+1.000
+Warnings:
+Note	1105	bin_eq=1 a=(decimal)1.0 b=(decimal)1.0
+DROP TABLE t1;
+CREATE TABLE t1 (a TIME);
+INSERT INTO t1 VALUES ('00:00:00'),('00:00:01');
+SELECT * FROM t1 WHERE a BETWEEN TIME'00:00:00' AND TIME'00:00:00';
+a
+00:00:00
+Warnings:
+Note	1105	bin_eq=1 a=(time)TIME'00:00:00' b=(time)TIME'00:00:00'
+EXECUTE IMMEDIATE 'SELECT * FROM t1 WHERE a BETWEEN TIME''00:00:00'' AND ?' USING TIME'00:00:00';
+a
+00:00:00
+Warnings:
+Note	1105	bin_eq=1 a=(time)TIME'00:00:00' b=(time)TIME'00:00:00'
+DROP TABLE t1;
+CREATE TABLE t1 (a DATE);
+INSERT INTO t1 VALUES ('2001-01-01'),('2001-01-02');
+SELECT * FROM t1 WHERE a BETWEEN DATE'2001-01-01' AND DATE'2001-01-01';
+a
+2001-01-01
+Warnings:
+Note	1105	bin_eq=1 a=(date)DATE'2001-01-01' b=(date)DATE'2001-01-01'
+EXECUTE IMMEDIATE 'SELECT * FROM t1 WHERE a BETWEEN DATE''2001-01-01'' AND ?' USING DATE'2001-01-01';
+a
+2001-01-01
+Warnings:
+Note	1105	bin_eq=1 a=(date)DATE'2001-01-01' b=(date)DATE'2001-01-01'
+DROP TABLE t1;
+CREATE TABLE t1 (a DATETIME);
+INSERT INTO t1 VALUES ('2001-01-01 00:00:00'),('2001-01-01 00:00:00');
+SELECT * FROM t1 WHERE a BETWEEN TIMESTAMP'2001-01-01 00:00:00' AND TIMESTAMP'2001-01-01 00:00:00';
+a
+2001-01-01 00:00:00
+2001-01-01 00:00:00
+Warnings:
+Note	1105	bin_eq=1 a=(datetime)TIMESTAMP'2001-01-01 00:00:00' b=(datetime)TIMESTAMP'2001-01-01 00:00:00'
+EXECUTE IMMEDIATE 'SELECT * FROM t1 WHERE a BETWEEN TIMESTAMP''2001-01-01 00:00:00'' AND ?' USING TIMESTAMP'2001-01-01 00:00:00';
+a
+2001-01-01 00:00:00
+2001-01-01 00:00:00
+Warnings:
+Note	1105	bin_eq=1 a=(datetime)TIMESTAMP'2001-01-01 00:00:00' b=(datetime)TIMESTAMP'2001-01-01 00:00:00'
+DROP TABLE t1;
+SET SESSION debug_dbug="-d,Item_basic_value";
+#
+# MDEV-16426 Optimizer erroneously treats equal constants of different formats as same
+#
+SET SESSION debug_dbug="+d,Item_basic_value";
+CREATE TABLE t1 (a VARCHAR(10));
+INSERT INTO t1 VALUES ('a'),('b'),('c');
+SELECT * FROM t1 WHERE a BETWEEN 'a' AND 0x61;
+a
+a
+Warnings:
+Note	1105	eq=0 a=(varchar)'a' b=(hex_hybrid)0x61
+EXECUTE IMMEDIATE 'SELECT * FROM t1 WHERE a BETWEEN ''a'' AND ?' USING 0x61;
+a
+a
+Warnings:
+Note	1105	eq=0 a=(varchar)'a' b=(hex_hybrid)'a'
+DROP TABLE t1;
+SET SESSION debug_dbug="-d,Item_basic_value";
+#
+# MDEV-16454 Bad results for IN with ROW
+#
+SET SESSION debug_dbug="+d,cmp_item";
+SET SESSION debug_dbug="+d,Item_func_in";
+SET SESSION debug_dbug="+d,Predicant_to_list_comparator";
+SELECT (18446744073709551615,0) IN ((18446744073709551614,0),(-1,0));
+(18446744073709551615,0) IN ((18446744073709551614,0),(-1,0))
+0
+Warnings:
+Note	1105	DBUG: [0] arg=1 handler=0 (row)
+Note	1105	DBUG: [1] arg=2 handler=0 (row)
+Note	1105	DBUG: ROW(3 args) level=0
+Note	1105	DBUG:  [0,0] handler=bigint
+Note	1105	DBUG:  [0,1] handler=bigint
+Note	1105	DBUG:  [0,2] handler=int
+Note	1105	DBUG:  => handler=decimal
+Note	1105	DBUG:  [1,0] handler=int
+Note	1105	DBUG:  [1,1] handler=int
+Note	1105	DBUG:  [1,2] handler=int
+Note	1105	DBUG:  => handler=bigint
+Note	1105	DBUG: types_compatible=yes bisect=yes
+SELECT (1,(0,0)) IN ((1,(1,0)),(0,(0,0)));
+(1,(0,0)) IN ((1,(1,0)),(0,(0,0)))
+0
+Warnings:
+Note	1105	DBUG: [0] arg=1 handler=0 (row)
+Note	1105	DBUG: [1] arg=2 handler=0 (row)
+Note	1105	DBUG: ROW(3 args) level=0
+Note	1105	DBUG:  [0,0] handler=int
+Note	1105	DBUG:  [0,1] handler=int
+Note	1105	DBUG:  [0,2] handler=int
+Note	1105	DBUG:  => handler=bigint
+Note	1105	DBUG:  [1,0] handler=row
+Note	1105	DBUG:  [1,1] handler=row
+Note	1105	DBUG:  [1,2] handler=row
+Note	1105	DBUG:  => handler=row
+Note	1105	DBUG:  ROW(3 args) level=1
+Note	1105	DBUG:   [0,0] handler=int
+Note	1105	DBUG:   [0,1] handler=int
+Note	1105	DBUG:   [0,2] handler=int
+Note	1105	DBUG:   => handler=bigint
+Note	1105	DBUG:   [1,0] handler=int
+Note	1105	DBUG:   [1,1] handler=int
+Note	1105	DBUG:   [1,2] handler=int
+Note	1105	DBUG:   => handler=bigint
+Note	1105	DBUG: types_compatible=yes bisect=yes
+SELECT (1,(0,0),3) IN ((1,(1,0),3),(0,(0,0),3));
+(1,(0,0),3) IN ((1,(1,0),3),(0,(0,0),3))
+0
+Warnings:
+Note	1105	DBUG: [0] arg=1 handler=0 (row)
+Note	1105	DBUG: [1] arg=2 handler=0 (row)
+Note	1105	DBUG: ROW(3 args) level=0
+Note	1105	DBUG:  [0,0] handler=int
+Note	1105	DBUG:  [0,1] handler=int
+Note	1105	DBUG:  [0,2] handler=int
+Note	1105	DBUG:  => handler=bigint
+Note	1105	DBUG:  [1,0] handler=row
+Note	1105	DBUG:  [1,1] handler=row
+Note	1105	DBUG:  [1,2] handler=row
+Note	1105	DBUG:  => handler=row
+Note	1105	DBUG:  ROW(3 args) level=1
+Note	1105	DBUG:   [0,0] handler=int
+Note	1105	DBUG:   [0,1] handler=int
+Note	1105	DBUG:   [0,2] handler=int
+Note	1105	DBUG:   => handler=bigint
+Note	1105	DBUG:   [1,0] handler=int
+Note	1105	DBUG:   [1,1] handler=int
+Note	1105	DBUG:   [1,2] handler=int
+Note	1105	DBUG:   => handler=bigint
+Note	1105	DBUG:  [2,0] handler=int
+Note	1105	DBUG:  [2,1] handler=int
+Note	1105	DBUG:  [2,2] handler=int
+Note	1105	DBUG:  => handler=bigint
+Note	1105	DBUG: types_compatible=yes bisect=yes
+SELECT '0x' IN (0);
+'0x' IN (0)
+1
+Warnings:
+Warning	1292	Truncated incorrect DOUBLE value: '0x'
+SELECT '0x' IN (0,1);
+'0x' IN (0,1)
+1
+Warnings:
+Note	1105	DBUG: [0] arg=1 handler=0 (double)
+Note	1105	DBUG: [1] arg=2 handler=0 (double)
+Note	1105	DBUG: types_compatible=yes bisect=yes
+Warning	1292	Truncated incorrect DOUBLE value: '0x'
+SELECT ('0x',1) IN ((0,1));
+('0x',1) IN ((0,1))
+1
+Warnings:
+Warning	1292	Truncated incorrect DOUBLE value: '0x'
+SELECT ('0x',1) IN ((0,1),(1,1));
+('0x',1) IN ((0,1),(1,1))
+1
+Warnings:
+Note	1105	DBUG: [0] arg=1 handler=0 (row)
+Note	1105	DBUG: [1] arg=2 handler=0 (row)
+Note	1105	DBUG: ROW(3 args) level=0
+Note	1105	DBUG:  [0,0] handler=varchar
+Note	1105	DBUG:  [0,1] handler=int
+Note	1105	DBUG:  [0,2] handler=int
+Note	1105	DBUG:  => handler=double
+Note	1105	DBUG:  [1,0] handler=int
+Note	1105	DBUG:  [1,1] handler=int
+Note	1105	DBUG:  [1,2] handler=int
+Note	1105	DBUG:  => handler=bigint
+Note	1105	DBUG: types_compatible=yes bisect=yes
+Warning	1292	Truncated incorrect DOUBLE value: '0x'
+SET SESSION debug_dbug="-d,Predicant_to_list_comparator";
+SET SESSION debug_dbug="-d,Item_func_in";
+SET SESSION debug_dbug="-d,cmp_item";

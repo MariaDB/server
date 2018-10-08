@@ -290,29 +290,7 @@ row_upd_check_references_constraints(
 					FALSE, FALSE, DICT_ERR_IGNORE_NONE);
 			}
 
-			/* dict_operation_lock is held both here
-			(UPDATE or DELETE with FOREIGN KEY) and by TRUNCATE
-			TABLE operations.
-			If a TRUNCATE TABLE operation is in progress,
-			there can be 2 possible conditions:
-			1) row_truncate_table_for_mysql() is not yet called.
-			2) Truncate releases dict_operation_lock
-			during eviction of pages from buffer pool
-			for a file-per-table tablespace.
-
-			In case of (1), truncate will wait for FK operation
-			to complete.
-			In case of (2), truncate will be rolled forward even
-			if it is interrupted. So if the foreign table is
-			undergoing a truncate, ignore the FK check. */
-
 			if (foreign_table) {
-				if (foreign_table->space
-				    && foreign_table->space
-				    ->is_being_truncated) {
-					continue;
-				}
-
 				foreign_table->inc_fk_checks();
 			}
 
@@ -585,7 +563,7 @@ row_upd_changes_field_size_or_external(
 		/* We should ignore virtual field if the index is not
 		a virtual index */
 		if (upd_fld_is_virtual_col(upd_field)
-		    && dict_index_has_virtual(index) != DICT_VIRTUAL) {
+		    && !index->has_virtual()) {
 			continue;
 		}
 
@@ -1047,6 +1025,7 @@ row_upd_build_sec_rec_difference_binary(
 	return(update);
 }
 
+
 /** Builds an update vector from those fields, excluding the roll ptr and
 trx id fields, which in an index entry differ from a record that has
 the equal ordering fields. NOTE: we compare the fields as binary strings!
@@ -1146,6 +1125,9 @@ row_upd_build_difference_binary(
 	if (n_v_fld > 0) {
 		row_ext_t*	ext;
 		mem_heap_t*	v_heap = NULL;
+		byte*		record;
+		VCOL_STORAGE*	vcol_storage;
+
 		THD*		thd;
 
 		if (trx == NULL) {
@@ -1155,6 +1137,10 @@ row_upd_build_difference_binary(
 		}
 
 		ut_ad(!update->old_vrow);
+
+		innobase_allocate_row_for_vcol(thd, index, &v_heap,
+					       &mysql_table,
+					       &record, &vcol_storage);
 
 		for (i = 0; i < n_v_fld; i++) {
 			const dict_v_col_t*     col
@@ -1174,7 +1160,7 @@ row_upd_build_difference_binary(
 
 			dfield_t*	vfield = innobase_get_computed_value(
 				update->old_vrow, col, index,
-				&v_heap, heap, NULL, thd, mysql_table,
+				&v_heap, heap, NULL, thd, mysql_table, record,
 				NULL, NULL, NULL);
 
 			if (!dfield_data_is_binary_equal(
@@ -1200,6 +1186,8 @@ row_upd_build_difference_binary(
 		}
 
 		if (v_heap) {
+			if (vcol_storage)
+				innobase_free_row_for_vcol(vcol_storage);
 			mem_heap_free(v_heap);
 		}
 	}
@@ -1809,8 +1797,31 @@ row_upd_changes_ord_field_binary_func(
 				if (flag == ROW_BUILD_FOR_UNDO
 				    && dict_table_has_atomic_blobs(
 					    index->table)) {
-					/* For undo, and the table is Barrcuda,
-					we need to skip the prefix data. */
+					/* For ROW_FORMAT=DYNAMIC
+					or COMPRESSED, a prefix of
+					off-page records is stored
+					in the undo log record
+					(for any column prefix indexes).
+					For SPATIAL INDEX, we must
+					ignore this prefix. The
+					full column value is stored in
+					the BLOB.
+					For non-spatial index, we
+					would have already fetched a
+					necessary prefix of the BLOB,
+					available in the "ext" parameter.
+
+					Here, for SPATIAL INDEX, we are
+					fetching the full column, which is
+					potentially wasting a lot of I/O,
+					memory, and possibly involving a
+					concurrency problem, similar to ones
+					that existed before the introduction
+					of row_ext_t.
+
+					MDEV-11657 FIXME: write the MBR
+					directly to the undo log record,
+					and avoid recomputing it here! */
 					flen = BTR_EXTERN_FIELD_REF_SIZE;
 					ut_ad(dfield_get_len(new_field) >=
 					      BTR_EXTERN_FIELD_REF_SIZE);
@@ -2126,6 +2137,12 @@ row_upd_store_v_row(
 {
 	mem_heap_t*	heap = NULL;
 	dict_index_t*	index = dict_table_get_first_index(node->table);
+        byte*           record= 0;
+	VCOL_STORAGE	*vcol_storage= 0;
+
+	if (!update)
+	  innobase_allocate_row_for_vcol(thd, index, &heap, &mysql_table,
+					 &record, &vcol_storage);
 
 	for (ulint col_no = 0; col_no < dict_table_get_n_v_cols(node->table);
 	     col_no++) {
@@ -2178,7 +2195,7 @@ row_upd_store_v_row(
 					innobase_get_computed_value(
 						node->row, col, index,
 						&heap, node->heap, NULL,
-						thd, mysql_table, NULL,
+						thd, mysql_table, record, NULL,
 						NULL, NULL);
 				}
 			}
@@ -2186,8 +2203,11 @@ row_upd_store_v_row(
 	}
 
 	if (heap) {
+		if (vcol_storage)
+			innobase_free_row_for_vcol(vcol_storage);
 		mem_heap_free(heap);
 	}
+
 }
 
 /** Stores to the heap the row on which the node->pcur is positioned.
@@ -3086,9 +3106,7 @@ row_upd_clust_step(
 
 	ulint	mode;
 
-	DEBUG_SYNC_C_IF_THD(
-		thr_get_trx(thr)->mysql_thd,
-		"innodb_row_upd_clust_step_enter");
+	DEBUG_SYNC_C_IF_THD(trx->mysql_thd, "innodb_row_upd_clust_step_enter");
 
 	if (dict_index_is_online_ddl(index)) {
 		ut_ad(node->table->id != DICT_INDEXES_ID);
@@ -3150,10 +3168,11 @@ row_upd_clust_step(
 		}
 	}
 
-	ut_ad(index->table->no_rollback()
-	      || lock_trx_has_rec_x_lock(thr_get_trx(thr), index->table,
-					 btr_pcur_get_block(pcur),
-					 page_rec_get_heap_no(rec)));
+	ut_ad(index->table->no_rollback() || index->table->is_temporary()
+	      || row_get_rec_trx_id(rec, index, offsets) == trx->id
+	      || lock_trx_has_expl_x_lock(trx, index->table,
+					  btr_pcur_get_block(pcur),
+					  page_rec_get_heap_no(rec)));
 
 	/* NOTE: the following function calls will also commit mtr */
 

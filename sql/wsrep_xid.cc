@@ -139,12 +139,14 @@ void wsrep_get_SE_checkpoint(XID& xid)
 wsrep::gtid wsrep_get_SE_checkpoint()
 {
   XID xid;
-  memset(&xid, 0, sizeof(xid));
-  xid.formatID= -1;
+  xid.null();
 
   wsrep_get_SE_checkpoint(xid);
 
-  if (xid.formatID == -1) return wsrep::gtid::undefined(); // nil XID
+  if (xid.is_null())
+  {
+    return wsrep::gtid();
+  }
 
   if (!wsrep_is_wsrep_xid(&xid))
   {

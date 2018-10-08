@@ -1,0 +1,24 @@
+#
+# Start of 10.4 tests
+#
+#
+# MDEV-16426 Optimizer erroneously treats equal constants of different formats as same
+#
+SET NAMES utf8;
+CREATE TABLE t1 (a DECIMAL(10,3));
+INSERT INTO t1 VALUES (10.0),(10.1);
+SELECT CHARSET('a'),CHARSET(0x61),LENGTH(CHARSET('a'))+a,LENGTH(CHARSET(0x61))+a FROM t1;
+CHARSET('a')	CHARSET(0x61)	LENGTH(CHARSET('a'))+a	LENGTH(CHARSET(0x61))+a
+utf8	binary	14.000	16.000
+utf8	binary	14.100	16.100
+SELECT * FROM t1 WHERE LENGTH(CHARSET('a'))+a<=>LENGTH(CHARSET(0x61))+a;
+a
+EXPLAIN EXTENDED SELECT * FROM t1 WHERE LENGTH(CHARSET('a'))+a<=>LENGTH(CHARSET(0x61))+a;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	2	100.00	Using where
+Warnings:
+Note	1003	select `test`.`t1`.`a` AS `a` from `test`.`t1` where <cache>(octet_length(charset('a'))) + `test`.`t1`.`a` <=> <cache>(octet_length(charset(0x61))) + `test`.`t1`.`a`
+DROP TABLE t1;
+#
+# End of 10.4 tests
+#

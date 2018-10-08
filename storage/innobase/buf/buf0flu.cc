@@ -967,7 +967,7 @@ buf_flush_init_for_writing(
 		}
 	}
 
-	uint32_t checksum= 0;
+	uint32_t checksum = BUF_NO_CHECKSUM_MAGIC;
 
 	switch (srv_checksum_algorithm_t(srv_checksum_algorithm)) {
 	case SRV_CHECKSUM_ALGORITHM_INNODB:
@@ -990,7 +990,6 @@ buf_flush_init_for_writing(
 		break;
 	case SRV_CHECKSUM_ALGORITHM_NONE:
 	case SRV_CHECKSUM_ALGORITHM_STRICT_NONE:
-		checksum = BUF_NO_CHECKSUM_MAGIC;
 		mach_write_to_4(page + FIL_PAGE_SPACE_OR_CHKSUM,
 				checksum);
 		break;
@@ -3770,18 +3769,12 @@ FlushObserver::~FlushObserver()
 	DBUG_LOG("flush", "~FlushObserver(): trx->id=" << m_trx->id);
 }
 
-/** Check whether trx is interrupted
-@return true if trx is interrupted */
-bool
-FlushObserver::check_interrupted()
+/** Check whether the operation has been interrupted */
+void FlushObserver::check_interrupted()
 {
 	if (trx_is_interrupted(m_trx)) {
 		interrupted();
-
-		return(true);
 	}
-
-	return(false);
 }
 
 /** Notify observer of a flush

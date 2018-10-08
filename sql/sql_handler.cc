@@ -433,8 +433,6 @@ bool mysql_ha_open(THD *thd, TABLE_LIST *tables, SQL_HANDLER *reopen)
 
   /* Always read all columns */
   table->read_set= &table->s->all_set;
-  if (table->vcol_set)
-    table->vcol_set= &table->s->all_set;
 
   /* Restore the state. */
   thd->set_open_tables(backup_open_tables);
@@ -630,8 +628,7 @@ mysql_ha_fix_cond_and_key(SQL_HANDLER *handler,
     /* This can only be true for temp tables */
     if (table->query_id != thd->query_id)
       cond->cleanup();                          // File was reopened
-    if ((!cond->fixed &&
-	 cond->fix_fields(thd, &cond)) || cond->check_cols(1))
+    if (cond->fix_fields_if_needed_for_bool(thd, &cond))
       return 1;
   }
 
@@ -695,10 +692,9 @@ mysql_ha_fix_cond_and_key(SQL_HANDLER *handler,
       {
         my_bitmap_map *old_map;
 	/* note that 'item' can be changed by fix_fields() call */
-        if ((!item->fixed &&
-             item->fix_fields(thd, it_ke.ref())) ||
-	    (item= *it_ke.ref())->check_cols(1))
+        if (item->fix_fields_if_needed_for_scalar(thd, it_ke.ref()))
           return 1;
+        item= *it_ke.ref();
 	if (item->used_tables() & ~(RAND_TABLE_BIT | PARAM_TABLE_BIT))
         {
           my_error(ER_WRONG_ARGUMENTS,MYF(0),"HANDLER ... READ");
@@ -1033,6 +1029,7 @@ SQL_HANDLER *mysql_ha_read_prepare(THD *thd, TABLE_LIST *tables,
   if (!(handler= mysql_ha_find_handler(thd, &tables->alias)))
     DBUG_RETURN(0);
   tables->table= handler->table;         // This is used by fix_fields
+  handler->table->pos_in_table_list= tables;
   if (mysql_ha_fix_cond_and_key(handler, mode, keyname, key_expr,
                                 ha_rkey_mode, cond, 1))
     DBUG_RETURN(0);

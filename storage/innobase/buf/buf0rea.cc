@@ -1,7 +1,7 @@
 /*****************************************************************************
 
 Copyright (c) 1995, 2017, Oracle and/or its affiliates. All Rights Reserved.
-Copyright (c) 2015, 2017, MariaDB Corporation.
+Copyright (c) 2015, 2018, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -95,11 +95,9 @@ buffer buf_pool if it is not already there, in which case does nothing.
 Sets the io_fix flag and sets an exclusive lock on the buffer frame. The
 flag is cleared and the x-lock released by an i/o-handler thread.
 
-@param[out] err		DB_SUCCESS, DB_TABLESPACE_DELETED or
-			DB_TABLESPACE_TRUNCATED if we are trying
-			to read from a non-existent tablespace, a
-			tablespace which is just now being dropped,
-			or a tablespace which is truncated
+@param[out] err		DB_SUCCESS or DB_TABLESPACE_DELETED
+			if we are trying
+			to read from a non-existent tablespace
 @param[in] sync		true if synchronous aio is desired
 @param[in] type		IO type, SIMULATED, IGNORE_MISSING
 @param[in] mode		BUF_READ_IBUF_PAGES_ONLY, ...,
@@ -176,17 +174,6 @@ buf_read_page_low(
 		dst = ((buf_block_t*) bpage)->frame;
 	}
 
-	DBUG_EXECUTE_IF(
-		"innodb_invalid_read_after_truncate",
-		if (fil_space_t* space = fil_space_acquire(page_id.space())) {
-			if (!strcmp(space->name, "test/t1")
-			    && page_id.page_no() == space->size - 1) {
-				type = 0;
-				sync = true;
-			}
-			space->release();
-		});
-
 	IORequest	request(type | IORequest::READ);
 
 	*err = fil_io(
@@ -198,20 +185,8 @@ buf_read_page_low(
 	}
 
 	if (*err != DB_SUCCESS) {
-		if (*err == DB_TABLESPACE_TRUNCATED) {
-			/* Remove the page which is outside the
-			truncated tablespace bounds when recovering
-			from a crash happened during a truncation */
-			buf_read_page_handle_error(bpage);
-			if (recv_recovery_on) {
-				mutex_enter(&recv_sys->mutex);
-				ut_ad(recv_sys->n_addrs > 0);
-				recv_sys->n_addrs--;
-				mutex_exit(&recv_sys->mutex);
-			}
-			return(0);
-		} else if (IORequest::ignore_missing(type)
-			   || *err == DB_TABLESPACE_DELETED) {
+		if (IORequest::ignore_missing(type)
+		    || *err == DB_TABLESPACE_DELETED) {
 			buf_read_page_handle_error(bpage);
 			return(0);
 		}
@@ -332,19 +307,6 @@ buf_read_ahead_random(
 	that is, reside near the start of the LRU list. */
 
 	for (i = low; i < high; i++) {
-		DBUG_EXECUTE_IF(
-			"innodb_invalid_read_after_truncate",
-			if (fil_space_t* space = fil_space_acquire(
-				    page_id.space())) {
-				bool skip = !strcmp(space->name, "test/t1");
-				space->release();
-				if (skip) {
-					high = space->size;
-					buf_pool_mutex_exit(buf_pool);
-					goto read_ahead;
-				}
-			});
-
 		const buf_page_t*	bpage = buf_page_hash_get(
 			buf_pool, page_id_t(page_id.space(), i));
 
@@ -393,7 +355,6 @@ read_ahead:
 
 			switch (err) {
 			case DB_SUCCESS:
-			case DB_TABLESPACE_TRUNCATED:
 			case DB_ERROR:
 				break;
 			case DB_TABLESPACE_DELETED:
@@ -496,7 +457,6 @@ buf_read_page_background(
 
 	switch (err) {
 	case DB_SUCCESS:
-	case DB_TABLESPACE_TRUNCATED:
 	case DB_ERROR:
 		break;
 	case DB_TABLESPACE_DELETED:
@@ -779,7 +739,6 @@ buf_read_ahead_linear(
 
 			switch (err) {
 			case DB_SUCCESS:
-			case DB_TABLESPACE_TRUNCATED:
 			case DB_TABLESPACE_DELETED:
 			case DB_ERROR:
 				break;
@@ -877,7 +836,6 @@ tablespace_deleted:
 
 		switch(err) {
 		case DB_SUCCESS:
-		case DB_TABLESPACE_TRUNCATED:
 		case DB_ERROR:
 			break;
 		case DB_TABLESPACE_DELETED:

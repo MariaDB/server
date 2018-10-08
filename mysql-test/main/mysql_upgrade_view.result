@@ -76,7 +76,6 @@ mysql.help_category                                OK
 mysql.help_keyword                                 OK
 mysql.help_relation                                OK
 mysql.help_topic                                   OK
-mysql.host                                         OK
 mysql.index_stats                                  OK
 mysql.innodb_index_stats
 Error    : Unknown storage engine 'InnoDB'
@@ -226,7 +225,6 @@ mysql.help_category                                OK
 mysql.help_keyword                                 OK
 mysql.help_relation                                OK
 mysql.help_topic                                   OK
-mysql.host                                         OK
 mysql.index_stats                                  OK
 mysql.innodb_index_stats
 Error    : Unknown storage engine 'InnoDB'
@@ -351,7 +349,6 @@ mysql.help_category                                OK
 mysql.help_keyword                                 OK
 mysql.help_relation                                OK
 mysql.help_topic                                   OK
-mysql.host                                         OK
 mysql.index_stats                                  OK
 mysql.innodb_index_stats
 Error    : Unknown storage engine 'InnoDB'

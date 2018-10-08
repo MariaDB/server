@@ -193,7 +193,7 @@ static mysql_mutex_t *mrn_LOCK_open;
 #if MYSQL_VERSION_ID >= 50706 && !defined(MRN_MARIADB_P)
 #  define MRN_LEX_GET_TABLE_LIST(lex) (lex)->select_lex->table_list.first
 #else
-#  define MRN_LEX_GET_TABLE_LIST(lex) (lex)->select_lex.table_list.first
+#  define MRN_LEX_GET_TABLE_LIST(lex) (lex)->first_select_lex()->table_list.first
 #endif
 
 #if MYSQL_VERSION_ID >= 50706 && !defined(MRN_MARIADB_P)
@@ -11624,7 +11624,7 @@ int ha_mroonga::storage_encode_key_timestamp(Field *field, const uchar *key,
     field->ptr = (uchar *)key;
     field->null_ptr = (uchar *)(key - 1);
     field->table = table;
-    timestamp_hires_field->get_date(&mysql_time, fuzzy_date);
+    timestamp_hires_field->get_date(&mysql_time, date_mode_t(fuzzy_date));
     field->ptr = ptr_backup;
     field->null_ptr = null_ptr_backup;
     field->table = table_backup;
@@ -11680,7 +11680,7 @@ int ha_mroonga::storage_encode_key_time(Field *field, const uchar *key,
     uchar *null_ptr_backup = field->null_ptr;
     field->ptr = (uchar *)key;
     field->null_ptr = (uchar *)(key - 1);
-    time_hires_field->get_date(&mysql_time, fuzzy_date);
+    time_hires_field->get_date(&mysql_time, date_mode_t(fuzzy_date));
     field->ptr = ptr_backup;
     field->null_ptr = null_ptr_backup;
   }
@@ -11754,7 +11754,7 @@ int ha_mroonga::storage_encode_key_datetime(Field *field, const uchar *key,
     uchar *null_ptr_backup = field->null_ptr;
     field->ptr = (uchar *)key;
     field->null_ptr = (uchar *)(key - 1);
-    datetime_hires_field->get_date(&mysql_time, fuzzy_date);
+    datetime_hires_field->get_date(&mysql_time, date_mode_t(fuzzy_date));
     field->ptr = ptr_backup;
     field->null_ptr = null_ptr_backup;
     mrn::TimeConverter time_converter;
@@ -12874,12 +12874,21 @@ int ha_mroonga::delete_all_rows()
 int ha_mroonga::wrapper_truncate()
 {
   int error = 0;
+  MRN_SHARE *tmp_share;
   MRN_DBUG_ENTER_METHOD();
+
+  if (!(tmp_share = mrn_get_share(table->s->table_name.str, table, &error)))
+    DBUG_RETURN(error);
+
   MRN_SET_WRAP_SHARE_KEY(share, table->s);
   MRN_SET_WRAP_TABLE_KEY(this, table);
-  error = wrap_handler->ha_truncate();
+  error = parse_engine_table_options(ha_thd(), tmp_share->hton, table->s)
+    ? MRN_GET_ERROR_NUMBER
+    : wrap_handler->ha_truncate();
   MRN_SET_BASE_SHARE_KEY(share, table->s);
   MRN_SET_BASE_TABLE_KEY(this, table);
+
+  mrn_free_share(tmp_share);
 
   if (!error && wrapper_have_target_index()) {
     error = wrapper_truncate_index();

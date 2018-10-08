@@ -23,25 +23,7 @@ File-based list utilities
 Created 11/28/1995 Heikki Tuuri
 ***********************************************************************/
 
-#include "fut0fut.h"
-#include "mtr0log.h"
 #include "buf0buf.h"
-
-/* We define the field offsets of a node for the list */
-#define FLST_PREV	0	/* 6-byte address of the previous list element;
-				the page part of address is FIL_NULL, if no
-				previous element */
-#define FLST_NEXT	FIL_ADDR_SIZE	/* 6-byte address of the next
-				list element; the page part of address
-				is FIL_NULL, if no next element */
-
-/* We define the field offsets of a base node for the list */
-#define FLST_LEN	0	/* 32-bit list length field */
-#define	FLST_FIRST	4	/* 6-byte address of the first element
-				of the list; undefined if empty list */
-#define	FLST_LAST	(4 + FIL_ADDR_SIZE) /* 6-byte address of the
-				last element of the list; undefined
-				if empty list */
 
 /********************************************************************//**
 Writes a file address. */
@@ -101,8 +83,8 @@ flst_init(
 					     | MTR_MEMO_PAGE_SX_FIX));
 
 	mlog_write_ulint(base + FLST_LEN, 0, MLOG_4BYTES, mtr);
-	flst_write_addr(base + FLST_FIRST, fil_addr_null, mtr);
-	flst_write_addr(base + FLST_LAST, fil_addr_null, mtr);
+	flst_zero_addr(base + FLST_FIRST, mtr);
+	flst_zero_addr(base + FLST_LAST, mtr);
 }
 
 /** Get the length of a list.

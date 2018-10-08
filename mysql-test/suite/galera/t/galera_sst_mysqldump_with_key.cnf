@@ -16,10 +16,6 @@ wsrep_sync_wait=0
 [mysqld]
 wsrep_debug=ON
 
-ssl-ca=@ENV.MYSQL_TEST_DIR/std_data/galera-cert.pem
-ssl-cert=@ENV.MYSQL_TEST_DIR/std_data/galera-cert.pem
-ssl-key=@ENV.MYSQL_TEST_DIR/std_data/galera-key.pem
-
 [client]
 ssl-ca=@ENV.MYSQL_TEST_DIR/std_data/cacert.pem
 ssl-cert=@ENV.MYSQL_TEST_DIR/std_data/client-cert.pem 

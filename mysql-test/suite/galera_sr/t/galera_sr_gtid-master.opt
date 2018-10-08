@@ -1,1 +1,1 @@
---gtid-mode=ON --log-bin --log-slave-updates --enforce-gtid-consistency --loose-galera-sr-gtid-unique
+ --log-bin --log-slave-updates --loose-galera-sr-gtid-unique

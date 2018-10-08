@@ -564,12 +564,15 @@ SET NAMES DEFAULT;
 # Bug #31160: MAKETIME() crashes server when returning NULL in ORDER BY using 
 # filesort
 #
+SET TIMESTAMP=UNIX_TIMESTAMP('2001-01-01 11:22:33');
 CREATE TABLE t1 (
   a TIMESTAMP
 );
 INSERT INTO t1 VALUES (now()), (now());
 SELECT 1 FROM t1 ORDER BY MAKETIME(1, 1, a);
 DROP TABLE t1;
+SET TIMESTAMP=DEFAULT;
+
 #
 # Bug #19844 time_format in Union truncates values
 #
@@ -1702,6 +1705,10 @@ DO TO_DAYS(SEC_TO_TIME(TIME(CEILING(UUID()))));
 DO TO_DAYS(SEC_TO_TIME(MAKEDATE('',RAND(~('')))));
 SELECT SEC_TO_TIME(MAKEDATE(0,RAND(~0)));
 
+#
+# MDEV-16810 AddressSanitizer: stack-buffer-overflow in int10_to_str
+#
+SELECT PERIOD_DIFF(2018, AES_ENCRYPT('Rae Bareli', 'Rae Bareli'));
 
 --echo #
 --echo # End of 5.5 tests
@@ -2135,3 +2142,52 @@ DROP TABLE t_ts, t_trig;
 #
 # End of MDEV-13727
 ###################
+
+
+--echo #
+--echo # MDEV-16878 Functions ADDTIME and SUBTIME get wrongly removed from WHERE by the equal expression optimizer
+--echo #
+
+CREATE TABLE t1 (a TIME);
+INSERT INTO t1 VALUES ('00:00:10'),('00:00:20');
+SELECT a, SUBTIME(a,TIME'00:00:01'), ADDTIME(a,TIME'00:00:01') FROM t1;
+SELECT * FROM t1 WHERE SUBTIME(a,TIME'00:00:01')=TIME'00:00:09';
+SELECT * FROM t1 WHERE ADDTIME(a,TIME'00:00:01')<=TIME'00:00:09'; 
+SELECT * FROM t1 WHERE SUBTIME(a,TIME'00:00:01')=TIME'00:00:09' AND ADDTIME(a,TIME'00:00:01')<=TIME'00:00:09'; 
+EXPLAIN EXTENDED SELECT * FROM t1 WHERE SUBTIME(a,TIME'00:00:01')=TIME'00:00:09' AND ADDTIME(a,TIME'00:00:01')<=TIME'00:00:09'; 
+DROP TABLE t1;
+
+
+--echo #
+--echo # MDEV-15363 Wrong result for CAST(LAST_DAY(TIME'00:00:00') AS TIME)
+--echo #
+
+set timestamp=unix_timestamp('2018-08-02 10:10:10');
+SELECT
+  LAST_DAY(TIME'00:00:00') AS c1,
+  CAST(CAST(LAST_DAY(TIME'00:00:00') AS DATE) AS TIME) AS c2,
+  CAST(LAST_DAY(TIME'00:00:00') AS TIME) AS c3;
+
+--echo # End of 10.3 tests
+
+--echo #
+--echo # MDEV-14032 SEC_TO_TIME executes side effect two times
+--echo #
+
+SET @a=10000000;
+SELECT SEC_TO_TIME(@a:=@a+1);
+SELECT @a;
+
+CREATE TABLE t1 (a TEXT);
+DELIMITER $$;
+CREATE FUNCTION f1() RETURNS INT
+BEGIN
+  INSERT INTO t1 VALUES ('f1 was called');
+  RETURN 10000000;
+END;
+$$
+DELIMITER ;$$
+SELECT SEC_TO_TIME(f1());
+SELECT * FROM t1;
+DROP TABLE t1;
+DROP FUNCTION f1;

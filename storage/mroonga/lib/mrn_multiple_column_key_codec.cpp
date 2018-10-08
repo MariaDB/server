@@ -624,9 +624,10 @@ namespace mrn {
     long long int long_long_value;
     mrn_byte_order_network_to_host(&long_long_value, grn_key, grn_key_size);
     int max_bit = (grn_key_size * 8 - 1);
-    *((long long int *)mysql_key) =
+    long_long_value =
       long_long_value ^ (((long_long_value ^ (1LL << max_bit)) >> max_bit) |
                          (1LL << max_bit));
+    memcpy(mysql_key, &long_long_value, sizeof(long_long_value));
     DBUG_VOID_RETURN;
   }
 

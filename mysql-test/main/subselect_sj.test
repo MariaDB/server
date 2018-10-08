@@ -1462,7 +1462,7 @@ INSERT IGNORE INTO t3 VALUES (0);
 
 SELECT alias1.f11 AS field2
 FROM ( t3 AS alias2 JOIN t1 AS alias3 ON alias3.f10 = 1)
-LEFT JOIN ( t2 AS alias1 ) ON alias3.f11 = 1
+LEFT JOIN t2 AS alias1 ON alias3.f11 = 1
 WHERE alias2.f11 IN ( SELECT f11 FROM t2 )
 GROUP BY field2 ;
 

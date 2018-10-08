@@ -1385,7 +1385,7 @@ int ha_tina::rnd_end()
         if (mysql_file_write(update_temp_file,
                              (uchar*) (file_buff->ptr() +
                                        (write_begin - file_buff->start())),
-                             (size_t)write_length, MYF_RW))
+                             (size_t)write_length, MYF(MY_WME+MY_NABP)))
           goto error;
         temp_file_length+= write_length;
       }
@@ -1571,7 +1571,7 @@ int ha_tina::repair(THD* thd, HA_CHECK_OPT* check_opt)
     write_end= MY_MIN(file_buff->end(), current_position);
     if ((write_end - write_begin) &&
         (mysql_file_write(repair_file, (uchar*)file_buff->ptr(),
-                          (size_t) (write_end - write_begin), MYF_RW)))
+                          (size_t) (write_end - write_begin), MYF(MY_WME+MY_NABP))))
       DBUG_RETURN(-1);
 
     write_begin= write_end;
@@ -1788,7 +1788,7 @@ maria_declare_plugin(csv)
   &csv_storage_engine,
   "CSV",
   "Brian Aker, MySQL AB",
-  "CSV storage engine",
+  "Stores tables as CSV files",
   PLUGIN_LICENSE_GPL,
   tina_init_func, /* Plugin Init */
   tina_done_func, /* Plugin Deinit */

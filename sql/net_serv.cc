@@ -47,6 +47,12 @@
 #include "probes_mysql.h"
 #include "proxy_protocol.h"
 
+#ifdef EMBEDDED_LIBRARY
+#undef MYSQL_SERVER
+#undef MYSQL_CLIENT
+#define MYSQL_CLIENT
+#endif /*EMBEDDED_LIBRARY */
+
 /*
   to reduce the number of ifdef's in the code
 */
@@ -104,7 +110,7 @@ void sql_print_error(const char *format,...);
   extern, but as it's hard to include sql_priv.h here, we have to
   live with this for a while.
 */
-extern uint test_flags;
+extern ulonglong test_flags;
 extern ulong bytes_sent, bytes_received, net_big_packet_count;
 #ifdef HAVE_QUERY_CACHE
 #define USE_QUERY_CACHE

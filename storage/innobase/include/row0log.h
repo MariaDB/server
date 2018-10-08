@@ -61,7 +61,9 @@ row_log_allocate(
 	const ulint*	col_map,/*!< in: mapping of old column
 				numbers to new ones, or NULL if !table */
 	const char*	path,	/*!< in: where to create temporary file */
-	bool		ignore) /*!< in: Whether alter ignore issued */
+	const TABLE*	old_table,	/*!< in:table definition before alter */
+	bool		allow_not_null) /*!< in: allow null to non-null
+					conversion */
 	MY_ATTRIBUTE((nonnull(1), warn_unused_result));
 
 /******************************************************//**
@@ -209,13 +211,15 @@ row_log_table_blob_alloc(
 @param[in,out]	stage		performance schema accounting object, used by
 ALTER TABLE. stage->begin_phase_log_table() will be called initially and then
 stage->inc() will be called for each block of log that is applied.
+@param[in]	new_table	Altered table
 @return DB_SUCCESS, or error code on failure */
 dberr_t
 row_log_table_apply(
 	que_thr_t*		thr,
 	dict_table_t*		old_table,
 	struct TABLE*		table,
-	ut_stage_alter_t*	stage)
+	ut_stage_alter_t*	stage,
+	dict_table_t*		new_table)
 	MY_ATTRIBUTE((warn_unused_result));
 
 /******************************************************//**

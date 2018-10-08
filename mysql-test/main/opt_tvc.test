@@ -255,7 +255,7 @@ deallocate prepare stmt;
 
 --echo # use inside out access from tvc rows
 
-let $query= select * from t3 where a in (1,4,10);
+let $query= select * from t3 where a in (1,4);
 set @@in_predicate_conversion_threshold= default;
 eval $query;
 eval explain extended $query;

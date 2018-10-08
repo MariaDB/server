@@ -1468,7 +1468,7 @@ log:
                           log_query.ptr(), log_query.length(),
                           FALSE, FALSE, FALSE, 0))
     {
-      my_error(ER_ERROR_ON_WRITE, MYF(MY_WME), "binary log", -1);
+      my_error(ER_ERROR_ON_WRITE, MYF(0), "binary log", -1);
       goto done;
     }
     thd->variables.sql_mode= 0;

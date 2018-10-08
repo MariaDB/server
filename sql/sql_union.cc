@@ -68,7 +68,7 @@ void select_unit::change_select()
   curr_sel= current_select_number;
   /* New SELECT processing starts */
   DBUG_ASSERT(table->file->inited == 0);
-  step= thd->lex->current_select->linkage;
+  step= thd->lex->current_select->get_linkage();
   switch (step)
   {
   case INTERSECT_TYPE:
@@ -248,7 +248,7 @@ bool select_unit::send_eof()
 {
   if (step != INTERSECT_TYPE ||
       (thd->lex->current_select->next_select() &&
-       thd->lex->current_select->next_select()->linkage == INTERSECT_TYPE))
+       thd->lex->current_select->next_select()->get_linkage() == INTERSECT_TYPE))
   {
     /*
       it is not INTESECT or next SELECT in the sequence is INTERSECT so no
@@ -377,7 +377,7 @@ select_unit::create_result_table(THD *thd_arg, List<Item> *column_types,
 
   table->keys_in_use_for_query.clear_all();
   for (uint i=0; i < table->s->fields; i++)
-    table->field[i]->flags &= ~PART_KEY_FLAG;
+    table->field[i]->flags &= ~(PART_KEY_FLAG | PART_INDIRECT_KEY_FLAG);
 
   if (create_table)
   {
@@ -413,7 +413,7 @@ select_union_recursive::create_result_table(THD *thd_arg,
 
   incr_table->keys_in_use_for_query.clear_all();
   for (uint i=0; i < table->s->fields; i++)
-    incr_table->field[i]->flags &= ~PART_KEY_FLAG;
+    incr_table->field[i]->flags &= ~(PART_KEY_FLAG | PART_INDIRECT_KEY_FLAG);
 
   TABLE *rec_table= 0;
   if (! (rec_table= create_tmp_table(thd_arg, &tmp_table_param, *column_types,
@@ -424,7 +424,7 @@ select_union_recursive::create_result_table(THD *thd_arg,
 
   rec_table->keys_in_use_for_query.clear_all();
   for (uint i=0; i < table->s->fields; i++)
-    rec_table->field[i]->flags &= ~PART_KEY_FLAG;
+    rec_table->field[i]->flags &= ~(PART_KEY_FLAG | PART_INDIRECT_KEY_FLAG);
 
   if (rec_tables.push_back(rec_table))
     return true;
@@ -752,11 +752,11 @@ bool st_select_lex_unit::join_union_type_attributes(THD *thd_arg,
         been fixed yet. An Item_type_holder must be created based on a fixed
         Item, so use the inner Item instead.
       */
-      DBUG_ASSERT(item_tmp->fixed ||
+      DBUG_ASSERT(item_tmp->is_fixed() ||
                   (item_tmp->type() == Item::REF_ITEM &&
                    ((Item_ref *)(item_tmp))->ref_type() ==
                    Item_ref::OUTER_REF));
-      if (!item_tmp->fixed)
+      if (!item_tmp->is_fixed())
         item_tmp= item_tmp->real_item();
       holders[holder_pos].add_argument(item_tmp);
     }
@@ -1008,7 +1008,7 @@ bool st_select_lex_unit::prepare(TABLE_LIST *derived_arg,
     {
       if (with_element)
       {
-        if (derived_arg->with->rename_columns_of_derived_unit(thd, this))
+        if (with_element->rename_columns_of_derived_unit(thd, this))
           goto err;
         if (check_duplicate_names(thd, sl->item_list, 0))
           goto err;
@@ -1321,6 +1321,8 @@ bool st_select_lex_unit::optimize()
           thd->lex->current_select= lex_select_save;
           DBUG_RETURN(TRUE);
         }
+        if (derived)
+	  sl->increase_derived_records(sl->tvc->get_records());
 	continue;
       }
       thd->lex->current_select= sl;
@@ -1417,7 +1419,7 @@ bool st_select_lex_unit::exec()
         union_result->change_select();
       if (fake_select_lex)
       {
-        if (sl != &thd->lex->select_lex)
+        if (sl != thd->lex->first_select_lex())
           fake_select_lex->uncacheable|= sl->uncacheable;
         else
           fake_select_lex->uncacheable= 0;

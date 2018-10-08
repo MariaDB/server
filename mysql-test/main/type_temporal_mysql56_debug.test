@@ -1,0 +1,107 @@
+--source include/have_debug.inc
+
+--echo #
+--echo # Start of 10.4 tests
+--echo #
+
+--echo #
+--echo #  MDEV-16542 Fix ALTER TABLE FORCE to upgrade temporal types
+--echo #
+
+DELIMITER $$;
+CREATE PROCEDURE mdev16542_create_select()
+BEGIN
+  SELECT '# CREATE..SELECT and SHOW' AS ``;
+  CREATE TABLE t2 AS SELECT
+    a0, a1, a2, a3, a4, a5, a6,
+    COALESCE(a0),
+    COALESCE(a1),
+    COALESCE(a2),
+    COALESCE(a3),
+    COALESCE(a4),
+    COALESCE(a5),
+    COALESCE(a6)
+  FROM t1;
+  SHOW CREATE TABLE t2;
+  DROP TABLE t2;
+END;
+$$
+
+CREATE PROCEDURE mdev16542_alter_force_and_show()
+BEGIN
+  SELECT '# ALTER..FORCE and SHOW' AS ``;
+  ALTER TABLE t1 FORCE;
+  SHOW CREATE TABLE t1;
+END;
+$$
+
+CREATE PROCEDURE mdev16542()
+BEGIN
+  SET SESSION debug_dbug="+d,sql_type";
+  SELECT '# Original table' AS ``;
+  SHOW CREATE TABLE t1;
+  CALL mdev16542_create_select();
+  CALL mdev16542_alter_force_and_show();
+
+  SELECT '# Setting @@global.mysql56_temporal_format=false' AS ``;
+  SET @@global.mysql56_temporal_format=false;
+  CALL mdev16542_create_select();
+  CALL mdev16542_alter_force_and_show();
+
+  SELECT '# Setting @@global.mysql56_temporal_format=true' AS ``;
+  SET @@global.mysql56_temporal_format=true;
+  CALL mdev16542_create_select();
+  CALL mdev16542_alter_force_and_show();
+  SET SESSION debug_dbug="-d,sql_type";
+END;
+$$
+DELIMITER ;$$
+
+SET @@global.mysql56_temporal_format=true;
+
+CREATE TABLE t1 (
+  a0 TIME,
+  a1 TIME(1),
+  a2 TIME(2),
+  a3 TIME(3),
+  a4 TIME(4),
+  a5 TIME(5),
+  a6 TIME(6)
+);
+CALL mdev16542;
+DROP TABLE t1;
+
+
+CREATE TABLE t1 (
+  a0 DATETIME,
+  a1 DATETIME(1),
+  a2 DATETIME(2),
+  a3 DATETIME(3),
+  a4 DATETIME(4),
+  a5 DATETIME(5),
+  a6 DATETIME(6)
+);
+CALL mdev16542;
+DROP TABLE t1;
+
+
+CREATE TABLE t1 (
+  a0 TIMESTAMP,
+  a1 TIMESTAMP(1),
+  a2 TIMESTAMP(2),
+  a3 TIMESTAMP(3),
+  a4 TIMESTAMP(4),
+  a5 TIMESTAMP(5),
+  a6 TIMESTAMP(6)
+);
+CALL mdev16542;
+DROP TABLE t1;
+
+SET @@global.mysql56_temporal_format=DEFAULT;
+DROP PROCEDURE mdev16542;
+DROP PROCEDURE mdev16542_create_select;
+DROP PROCEDURE mdev16542_alter_force_and_show;
+
+--echo #
+--echo # End of 10.4 tests
+--echo #

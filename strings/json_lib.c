@@ -1643,6 +1643,8 @@ int json_escape(CHARSET_INFO *str_cs,
         return -1;
       }
     }
+    else /* c_len == 0, an illegal symbol. */
+      return -1;
   }
 
   return (int)(json - json_start);

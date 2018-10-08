@@ -720,6 +720,10 @@ public:
     *this= other;
   }
   bool is_for_loop_cursor() const { return m_upper_bound == NULL; }
+  bool is_for_loop_explicit_cursor() const
+  {
+    return is_for_loop_cursor() && !m_implicit_cursor;
+  }
 };
 
 
@@ -754,6 +758,43 @@ public:
 };
 
 
+class st_select_lex;
+
+class Lex_select_lock
+{
+public:
+  struct
+  {
+    uint defined_lock:1;
+    uint update_lock:1;
+    uint defined_timeout:1;
+  };
+  ulong timeout;
+
+
+  void empty()
+  {
+    defined_lock= update_lock= defined_timeout= FALSE;
+    timeout= 0;
+  }
+  void set_to(st_select_lex *sel);
+};
+
+class Lex_select_limit
+{
+public:
+  bool explicit_limit;
+  Item *select_limit, *offset_limit;
+
+  void empty()
+  {
+    explicit_limit= FALSE;
+    select_limit= offset_limit= NULL;
+  }
+};
+
+struct st_order;
+
 class Load_data_param
 {
 protected:
@@ -787,6 +828,22 @@ public:
   virtual void load_data_print_for_log_event(THD *thd, class String *to) const= 0;
   virtual bool load_data_add_outvar(THD *thd, Load_data_param *param) const= 0;
   virtual uint load_data_fixed_length() const= 0;
+};
+
+
+class Timeval: public timeval
+{
+public:
+  Timeval(my_time_t sec, ulong usec)
+  {
+    tv_sec= sec;
+    tv_usec= usec;
+  }
+  Timeval &trunc(uint dec)
+  {
+    my_timeval_trunc(this, dec);
+    return *this;
+  }
 };
 
 

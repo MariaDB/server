@@ -2228,28 +2228,24 @@ flush tables;
 --sorted_result
 show open tables from mysql;
 select Host, User from mysql.user limit 0;
-select Host, Db from mysql.host limit 0;
 --sorted_result
 show open tables from mysql;
 call proc_1();
 --sorted_result
 show open tables from mysql;
 select Host, User from mysql.user limit 0;
-select Host, Db from mysql.host limit 0;
 --sorted_result
 show open tables from mysql;
 call proc_1();
 --sorted_result
 show open tables from mysql;
 select Host, User from mysql.user limit 0;
-select Host, Db from mysql.host limit 0;
 --sorted_result
 show open tables from mysql;
 call proc_1();
 --sorted_result
 show open tables from mysql;
 select Host, User from mysql.user limit 0;
-select Host, Db from mysql.host limit 0;
 --sorted_result
 show open tables from mysql;
 flush tables;
@@ -2269,7 +2265,6 @@ drop procedure proc_1;
 --disable_ps_protocol
 flush tables;
 select Host, User from mysql.user limit 0;
-select Host, Db from mysql.host limit 0;
 --sorted_result
 show open tables from mysql;
 --enable_ps_protocol
@@ -2279,21 +2274,18 @@ execute abc;
 --sorted_result
 show open tables from mysql;
 select Host, User from mysql.user limit 0;
-select Host, Db from mysql.host limit 0;
 --sorted_result
 show open tables from mysql;
 execute abc;
 --sorted_result
 show open tables from mysql;
 select Host, User from mysql.user limit 0;
-select Host, Db from mysql.host limit 0;
 --sorted_result
 show open tables from mysql;
 execute abc;
 --sorted_result
 show open tables from mysql;
 select Host, User from mysql.user limit 0;
-select Host, Db from mysql.host limit 0;
 --sorted_result
 show open tables from mysql;
 flush tables;
@@ -3875,7 +3867,58 @@ drop table t1;
 --echo # End of 5.5 tests
 
 --echo #
---echo # Start of 10.2 tests
+--echo # End of 10.0 tests
+--echo #
+
+--echo #
+--echo # MDEV-12060 Crash in EXECUTE IMMEDIATE with an expression returning a GRANT command
+--echo # (the 10.1 part)
+--echo #
+
+DELIMITER /;
+CREATE PROCEDURE p2 ()
+BEGIN
+  SET STATEMENT join_cache_level=CAST(CONCAT(_utf8'6',_latin1'') AS INT) FOR PREPARE stmt FROM 'SELECT 1';
+  EXECUTE stmt;
+  DEALLOCATE PREPARE stmt;
+END;
+/
+DELIMITER ;/
+CALL p2();
+DROP PROCEDURE p2;
+
+
+DELIMITER /;
+BEGIN NOT ATOMIC
+  SET STATEMENT join_cache_level=CAST(CONCAT(_utf8'6',_latin1'') AS INT) FOR PREPARE stmt FROM 'SELECT 1';
+  EXECUTE stmt;
+  DEALLOCATE PREPARE stmt;
+END;
+/
+DELIMITER ;/
+
+
+DELIMITER /;
+BEGIN NOT ATOMIC
+  SET STATEMENT join_cache_level=CAST(CONCAT(_utf8'6',_latin1'') AS INT) FOR PREPARE stmt FROM 'SELECT 1';
+  DEALLOCATE PREPARE stmt;
+END;
+/
+DELIMITER ;/
+
+
+DELIMITER /;
+BEGIN NOT ATOMIC
+  PREPARE stmt FROM 'SELECT 1';
+  SET STATEMENT join_cache_level=CAST(CONCAT(_utf8'6',_latin1'') AS INT) FOR EXECUTE stmt;
+  DEALLOCATE PREPARE stmt;
+END;
+/
+DELIMITER ;/
+
+
+--echo #
+--echo # End of 10.1 tests
 --echo #
 
 --echo #
@@ -4386,9 +4429,6 @@ DROP TABLE t1;
 --echo # End of MDEV-10866 Extend PREPARE and EXECUTE IMMEDIATE to understand expressions
 --echo #
 
---echo #
---echo # End of 10.2 tests
---echo #
 
 
 --echo #
@@ -4687,3 +4727,101 @@ execute stmt;
 execute stmt;
 execute stmt;
 drop table t1;
+
+
+--echo #
+--echo # MDEV-12060 Crash in EXECUTE IMMEDIATE with an expression returning a GRANT command
+--echo #
+
+CREATE ROLE testrole;
+DELIMITER /;
+CREATE OR REPLACE PROCEDURE p1() 
+BEGIN
+END;
+/
+DELIMITER ;/
+
+DELIMITER /;
+CREATE PROCEDURE p2 (wgrp VARCHAR(10))
+BEGIN
+  EXECUTE IMMEDIATE concat('GRANT EXECUTE ON PROCEDURE p1 TO ',wgrp);
+END;
+/
+DELIMITER ;/
+CALL p2('testrole');
+DROP PROCEDURE p2;
+
+DELIMITER /;
+CREATE PROCEDURE p2 ()
+BEGIN
+  EXECUTE IMMEDIATE concat(_utf8'GRANT EXECUTE ON PROCEDURE p1 TO ',_latin1'testrole');
+END;
+/
+DELIMITER ;/
+CALL p2();
+DROP PROCEDURE p2;
+
+DELIMITER /;
+CREATE PROCEDURE p2 ()
+BEGIN
+  PREPARE stmt FROM concat(_utf8'GRANT EXECUTE ON PROCEDURE p1 TO ',_latin1' testrole');
+  EXECUTE stmt;
+  DEALLOCATE PREPARE stmt;
+END;
+/
+DELIMITER ;/
+CALL p2();
+DROP PROCEDURE p2;
+
+DROP PROCEDURE p1;
+DROP ROLE testrole;
+
+--echo #
+--echo # MDEV-16992: prepare of CREATE TABLE, CREATE VIEW, DO, SET, CALL
+--echo #             statements with CTE containing materialized derived
+--echo # (the bug is reproducible on 10.4)        
+--echo #
+
+--enable_result_log
+
+prepare stmt from 
+"CREATE TABLE  t1  AS 
+ WITH cte(a) AS (SELECT * FROM (SELECT 1) AS t) SELECT * FROM cte;";
+execute stmt;
+select * from t1;
+
+prepare stmt from
+"CREATE VIEW  v1  AS 
+ WITH cte(a) AS (SELECT * FROM (SELECT 1) AS t) SELECT * FROM cte;";
+execute stmt;
+select * from v1;
+
+prepare stmt from 
+"DO (SELECT 1 
+     FROM (WITH cte AS (SELECT * FROM (SELECT 1) AS t)
+           SELECT * FROM cte) AS tt);";
+execute stmt;
+
+prepare stmt from 
+"SET @a = (SELECT 1
+           FROM (WITH cte AS (SELECT * FROM (SELECT 1) AS t)
+           SELECT * FROM cte) AS t);";
+execute stmt;
+
+create procedure p (i int) insert into t1 values(i);
+
+prepare stmt from 
+"CALL p       
+ ((SELECT 1
+   FROM (WITH cte AS (SELECT * FROM (SELECT 1) AS t)
+         SELECT * FROM cte) AS tt));";
+execute stmt;
+select * from t1;
+
+drop procedure p;
+drop view v1;
+drop table t1;
+
+--echo #
+--echo # End of 10.2 tests
+--echo #

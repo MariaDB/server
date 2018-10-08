@@ -948,6 +948,9 @@ row_ins_foreign_fill_virtual(
 		rec_get_offsets(rec, index, offsets_, true,
 				ULINT_UNDEFINED, &cascade->heap);
 	mem_heap_t*	v_heap = NULL;
+	TABLE*		mysql_table= NULL;
+	VCOL_STORAGE*	vcol_storage= NULL;
+	byte*		record;
 	upd_t*		update = cascade->update;
 	ulint		n_v_fld = index->table->n_v_def;
 	ulint		n_diff;
@@ -967,6 +970,14 @@ row_ins_foreign_fill_virtual(
 		innobase_init_vc_templ(index->table);
 	}
 
+	if (innobase_allocate_row_for_vcol(thd, index, &v_heap,
+                                           &mysql_table,
+                                           &record, &vcol_storage))
+        {
+		*err = DB_OUT_OF_MEMORY;
+                goto func_exit;
+        }
+
 	for (ulint i = 0; i < n_v_fld; i++) {
 
 		dict_v_col_t*     col = dict_table_get_nth_v_col(
@@ -980,8 +991,8 @@ row_ins_foreign_fill_virtual(
 
 		dfield_t*	vfield = innobase_get_computed_value(
 				update->old_vrow, col, index,
-				&v_heap, update->heap, NULL, thd, NULL,
-				NULL, NULL, NULL);
+				&v_heap, update->heap, NULL, thd, mysql_table,
+                                record, NULL, NULL, NULL);
 
 		if (vfield == NULL) {
 			*err = DB_COMPUTE_VALUE_FAILED;
@@ -1011,7 +1022,8 @@ row_ins_foreign_fill_virtual(
 			dfield_t* new_vfield = innobase_get_computed_value(
 					update->old_vrow, col, index,
 					&v_heap, update->heap, NULL, thd,
-					NULL, NULL, node->update, foreign);
+					mysql_table, record, NULL,
+					node->update, foreign);
 
 			if (new_vfield == NULL) {
 				*err = DB_COMPUTE_VALUE_FAILED;
@@ -1029,6 +1041,8 @@ row_ins_foreign_fill_virtual(
 
 func_exit:
 	if (v_heap) {
+		if (vcol_storage)
+			innobase_free_row_for_vcol(vcol_storage);
 		mem_heap_free(v_heap);
 	}
 }
@@ -2665,7 +2679,7 @@ row_ins_clust_index_entry_low(
 #endif /* UNIV_DEBUG */
 
 	if (UNIV_UNLIKELY(entry->info_bits != 0)) {
-		ut_ad(entry->info_bits == REC_INFO_DEFAULT_ROW);
+		ut_ad(entry->info_bits == REC_INFO_METADATA);
 		ut_ad(flags == BTR_NO_LOCKING_FLAG);
 		ut_ad(index->is_instant());
 		ut_ad(!dict_index_is_online_ddl(index));
@@ -2680,7 +2694,8 @@ row_ins_clust_index_entry_low(
 			err = DB_DUPLICATE_KEY;
 			goto err_exit;
 		case REC_INFO_MIN_REC_FLAG | REC_INFO_DELETED_FLAG:
-			/* The 'default row' is never delete-marked.
+			/* The metadata record never carries the delete-mark
+			in MariaDB Server 10.3.
 			If a table loses its 'instantness', it happens
 			by the rollback of this first-time insert, or
 			by a call to btr_page_empty() on the root page
@@ -2695,7 +2710,7 @@ row_ins_clust_index_entry_low(
 
 	if (index->is_instant()) entry->trim(*index);
 
-	if (rec_is_default_row(btr_cur_get_rec(cursor), index)) {
+	if (rec_is_metadata(btr_cur_get_rec(cursor), index)) {
 		goto do_insert;
 	}
 
@@ -3893,7 +3908,7 @@ row_ins_step(
 		/* No-rollback tables should only be written to by a
 		single thread at a time, but there can be multiple
 		concurrent readers. We must hold an open table handle. */
-		DBUG_ASSERT(node->table->n_ref_count > 0);
+		DBUG_ASSERT(node->table->get_ref_count() > 0);
 		DBUG_ASSERT(node->ins_type == INS_DIRECT);
 		/* No-rollback tables can consist only of a single index. */
 		DBUG_ASSERT(UT_LIST_GET_LEN(node->entry_list) == 1);

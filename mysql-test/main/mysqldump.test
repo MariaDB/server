@@ -2360,7 +2360,7 @@ USE BUG52792;
 SET NAMES utf8;
 CREATE FUNCTION `straße` ( c1 CHAR(20))
   RETURNS CHAR(50) DETERMINISTIC
-RETURN CONCAT(']]>, ', s, '!');
+RETURN CONCAT(']]>, ', c1, '!');
 
 --exec $MYSQL_DUMP --character-sets-dir=$CHARSETSDIR --skip-comments --default-character-set=utf8 --compatible=mysql323 -R -X BUG52792
 
@@ -2643,6 +2643,28 @@ let SEARCH_FILE=$MYSQLTEST_VARDIR/tmp/bug11505.sql;
 let SEARCH_PATTERN=Database: mysql;
 exec $MYSQL_DUMP mysql func  > $SEARCH_FILE;
 source include/search_pattern_in_file.inc;
+
+--echo #
+--echo # MDEV-15021: Fix the order in which routines are called
+--echo #
+use test;
+CREATE FUNCTION f() RETURNS INT RETURN 1;
+CREATE VIEW v1 AS SELECT f();
+
+--echo # Running mysqldump -uroot test --routines --tables v1 > **vardir**/test.dmp
+--exec $MYSQL_DUMP -uroot test --routines --tables v1 > $MYSQLTEST_VARDIR/test.dmp
+
+DROP VIEW v1;
+DROP FUNCTION f;
+
+--echo # Running mysql -uroot test < **vardir**/test.dmp
+--exec $MYSQL -uroot test < $MYSQLTEST_VARDIR/test.dmp
+
+--echo #
+--echo # Cleanup after succesful import.
+--echo #
+DROP VIEW v1;
+DROP FUNCTION f;
 
 --echo #
 --echo # Test for --add-drop-trigger

@@ -94,7 +94,7 @@ insert into t2 values(0, 0), (1, 20), (2, 30);
 commit;
 
 connection con1;
-select a,b from t2 UNION SELECT id, x from t1 FOR UPDATE;
+select a,b from t2 UNION (SELECT id, x from t1 FOR UPDATE);
 select * from t2;
 select * from t1;
 

@@ -319,7 +319,7 @@ class Item_sum_hybrid_simple : public Item_sum,
   my_decimal *val_decimal(my_decimal *);
   void reset_field();
   String *val_str(String *);
-  bool get_date(MYSQL_TIME *ltime, ulonglong fuzzydate);
+  bool get_date(THD *thd, MYSQL_TIME *ltime, date_mode_t fuzzydate);
   const Type_handler *type_handler() const
   { return Type_handler_hybrid_field_type::type_handler(); }
   void update_field();
@@ -526,10 +526,11 @@ class Item_sum_percent_rank: public Item_sum_window_with_row_count
   bool add();
   const Type_handler *type_handler() const { return &type_handler_double; }
 
-  void fix_length_and_dec()
+  bool fix_length_and_dec()
   {
     decimals = 10;  // TODO-cvicentiu find out how many decimals the standard
                     // requires.
+    return FALSE;
   }
 
   void setup_window_func(THD *thd, Window_spec *window_spec);
@@ -614,10 +615,11 @@ class Item_sum_cume_dist: public Item_sum_window_with_row_count
   void update_field() {}
   const Type_handler *type_handler() const { return &type_handler_double; }
 
-  void fix_length_and_dec()
+  bool fix_length_and_dec()
   {
     decimals = 10;  // TODO-cvicentiu find out how many decimals the standard
                     // requires.
+    return FALSE;
   }
   
   Item *get_copy(THD *thd)
@@ -820,10 +822,11 @@ public:
   const Type_handler *type_handler() const
   {return Type_handler_hybrid_field_type::type_handler();}
 
-  void fix_length_and_dec()
+  bool fix_length_and_dec()
   {
     decimals = 10;  // TODO-cvicentiu find out how many decimals the standard
                     // requires.
+    return FALSE;
   }
 
   Item *get_copy(THD *thd)
@@ -950,10 +953,11 @@ public:
   const Type_handler *type_handler() const
   {return Type_handler_hybrid_field_type::type_handler();}
 
-  void fix_length_and_dec()
+  bool fix_length_and_dec()
   {
     decimals = 10;  // TODO-cvicentiu find out how many decimals the standard
                     // requires.
+    return FALSE;
   }
 
   Item *get_copy(THD *thd)
@@ -1081,6 +1085,8 @@ public:
     case Item_sum::DENSE_RANK_FUNC:
     case Item_sum::PERCENT_RANK_FUNC:
     case Item_sum::CUME_DIST_FUNC:
+    case Item_sum::LAG_FUNC:
+    case Item_sum::LEAD_FUNC:
     case Item_sum::PERCENTILE_CONT_FUNC:
     case Item_sum::PERCENTILE_DISC_FUNC:
       return true;
@@ -1266,7 +1272,7 @@ public:
     return res;
   }
 
-  bool get_date(MYSQL_TIME *ltime, ulonglong fuzzydate)
+  bool get_date(THD *thd, MYSQL_TIME *ltime, date_mode_t fuzzydate)
   {
     bool res;
     if (force_return_blank)
@@ -1283,7 +1289,7 @@ public:
     }
     else
     {
-      res= window_func()->get_date(ltime, fuzzydate);
+      res= window_func()->get_date(thd, ltime, fuzzydate);
       null_value= window_func()->null_value;
     }
     return res;
@@ -1292,9 +1298,10 @@ public:
   void split_sum_func(THD *thd, Ref_ptr_array ref_pointer_array,
                               List<Item> &fields, uint flags);
 
-  void fix_length_and_dec()
+  bool fix_length_and_dec()
   {
     decimals = window_func()->decimals;
+    return FALSE;
   }
 
   const char* func_name() const { return "WF"; }

@@ -2158,8 +2158,6 @@ bool mysql_install_plugin(THD *thd, const LEX_CSTRING *name,
     DBUG_RETURN(TRUE);
   WSREP_TO_ISOLATION_BEGIN(WSREP_MYSQL_DB, NULL, NULL);
 
-  WSREP_TO_ISOLATION_BEGIN(WSREP_MYSQL_DB, NULL, NULL)
-
   /* need to open before acquiring LOCK_plugin or it will deadlock */
   if (! (table = open_ltable(thd, &tables, TL_WRITE,
                              MYSQL_LOCK_IGNORE_TIMEOUT)))

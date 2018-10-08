@@ -911,6 +911,35 @@ SPIDER_TABLE_HOLDER *spider_fields::add_table(
   DBUG_RETURN(return_table_holder);
 }
 
+/**
+  Verify that all fields in the query are members of tables that are in the
+  query.
+
+  @return TRUE              All fields in the query are members of tables
+                            that are in the query.
+          FALSE             At least one field in the query is not a
+                            member of a table that is in the query.
+*/
+
+bool spider_fields::all_query_fields_are_query_table_members()
+{
+  SPIDER_FIELD_HOLDER *field_holder;
+  DBUG_ENTER("spider_fields::all_fields_are_query_table_fields");
+  DBUG_PRINT("info", ("spider this=%p", this));
+
+  set_pos_to_first_field_holder();
+  while ((field_holder = get_next_field_holder()))
+  {
+    if (!field_holder->spider)
+    {
+      DBUG_PRINT("info", ("spider field is not a member of a query table"));
+      DBUG_RETURN(FALSE);
+    }
+  }
+
+  DBUG_RETURN(TRUE);
+}
+
 int spider_fields::create_table_holder(
   uint table_count_arg
 ) {
@@ -1727,8 +1756,8 @@ group_by_handler *spider_create_group_by_handler(
       while ((item = it++))
       {
         DBUG_PRINT("info",("spider select item=%p", item));
-        if (spider_db_print_item_type(item, spider, NULL, NULL, 0,
-          roop_count, TRUE, fields_arg))
+        if (spider_db_print_item_type(item, NULL, spider, NULL, NULL, 0,
+                                      roop_count, TRUE, fields_arg))
         {
           DBUG_PRINT("info",("spider dbton_id=%d can't create select", roop_count));
           spider_clear_bit(dbton_bitmap, roop_count);
@@ -1741,8 +1770,9 @@ group_by_handler *spider_create_group_by_handler(
         DBUG_PRINT("info",("spider query->where=%p", query->where));
         if (query->where)
         {
-          if (spider_db_print_item_type(query->where, spider, NULL, NULL, 0,
-            roop_count, TRUE, fields_arg))
+          if (spider_db_print_item_type(query->where, NULL, spider, NULL,
+                                        NULL, 0, roop_count,
+                                        TRUE, fields_arg))
           {
             DBUG_PRINT("info",("spider dbton_id=%d can't create where", roop_count));
             spider_clear_bit(dbton_bitmap, roop_count);
@@ -1757,8 +1787,9 @@ group_by_handler *spider_create_group_by_handler(
         {
           for (order = query->group_by; order; order = order->next)
           {
-            if (spider_db_print_item_type((*order->item), spider, NULL, NULL, 0,
-              roop_count, TRUE, fields_arg))
+            if (spider_db_print_item_type((*order->item), NULL, spider, NULL,
+                                          NULL, 0, roop_count,
+                                          TRUE, fields_arg))
             {
               DBUG_PRINT("info",("spider dbton_id=%d can't create group by", roop_count));
               spider_clear_bit(dbton_bitmap, roop_count);
@@ -1775,8 +1806,9 @@ group_by_handler *spider_create_group_by_handler(
         {
           for (order = query->order_by; order; order = order->next)
           {
-            if (spider_db_print_item_type((*order->item), spider, NULL, NULL, 0,
-              roop_count, TRUE, fields_arg))
+            if (spider_db_print_item_type((*order->item), NULL, spider, NULL,
+                                          NULL, 0, roop_count,
+                                          TRUE, fields_arg))
             {
               DBUG_PRINT("info",("spider dbton_id=%d can't create order by", roop_count));
               spider_clear_bit(dbton_bitmap, roop_count);
@@ -1791,8 +1823,9 @@ group_by_handler *spider_create_group_by_handler(
         DBUG_PRINT("info",("spider query->having=%p", query->having));
         if (query->having)
         {
-          if (spider_db_print_item_type(query->having, spider, NULL, NULL, 0,
-            roop_count, TRUE, fields_arg))
+          if (spider_db_print_item_type(query->having, NULL, spider, NULL,
+                                        NULL, 0, roop_count,
+                                        TRUE, fields_arg))
           {
             DBUG_PRINT("info",("spider dbton_id=%d can't create having", roop_count));
             spider_clear_bit(dbton_bitmap, roop_count);
@@ -1991,6 +2024,13 @@ group_by_handler *spider_create_group_by_handler(
       delete fields;
       DBUG_RETURN(NULL);
     }
+  }
+
+  if (!fields->all_query_fields_are_query_table_members())
+  {
+    DBUG_PRINT("info", ("spider found a query field that is not a query table member"));
+    delete fields;
+    DBUG_RETURN(NULL);
   }
 
   fields->check_support_dbton(dbton_bitmap);

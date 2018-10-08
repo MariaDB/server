@@ -1,0 +1,47 @@
+# see unsupported_redo.test for the opposite (default) case
+--source include/have_innodb.inc
+--source include/have_sequence.inc
+
+SET GLOBAL innodb_log_optimize_ddl=OFF;
+
+CREATE TABLE tz(id BIGINT PRIMARY KEY, i INT)
+ENGINE=InnoDB ROW_FORMAT=COMPRESSED;
+INSERT INTO tz(id) select * from seq_1_to_10000;
+CREATE TABLE tr(id BIGINT PRIMARY KEY, i INT)
+ENGINE=InnoDB ROW_FORMAT=REDUNDANT;
+INSERT INTO tr(id) select * from seq_1_to_10000;
+CREATE TABLE td(id BIGINT PRIMARY KEY, i INT)
+ENGINE=InnoDB;
+INSERT INTO td(id) select * from seq_1_to_10000;
+
+DELIMITER //;
+CREATE PROCEDURE a()
+BEGIN
+ ALTER TABLE tz ADD INDEX(i);
+ ALTER TABLE tr ADD INDEX(i);
+ ALTER TABLE td ADD INDEX(i);
+END //
+DELIMITER ;//
+
+let $targetdir=$MYSQLTEST_VARDIR/tmp/backup;
+
+send call a();
+
+--disable_result_log
+exec $XTRABACKUP --defaults-file=$MYSQLTEST_VARDIR/my.cnf --backup --target-dir=$targetdir;
+--enable_result_log
+exec $XTRABACKUP  --prepare --target-dir=$targetdir;
+
+reap;
+
+-- source include/restart_and_restore.inc
+--rmdir $targetdir
+
+DROP PROCEDURE a;
+
+CHECK TABLE tz,tr,td;
+SELECT COUNT(*) FROM tz;
+SELECT COUNT(*) FROM tr;
+SELECT COUNT(*) FROM td;
+
+DROP TABLE tz,tr,td;

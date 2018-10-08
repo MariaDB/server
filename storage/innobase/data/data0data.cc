@@ -44,7 +44,8 @@ byte	data_error;
 
 /** Trim the tail of an index tuple before insert or update.
 After instant ADD COLUMN, if the last fields of a clustered index tuple
-match the 'default row', there will be no need to store them.
+match the default values that were explicitly specified or implied during
+ADD COLUMN, there will be no need to store them.
 NOTE: A page latch in the index must be held, so that the index
 may not lose 'instantness' before the trimmed tuple has been
 inserted or updated.

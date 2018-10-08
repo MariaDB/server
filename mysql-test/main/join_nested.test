@@ -683,7 +683,7 @@ SELECT t2.a,t2.b,t3.a,t3.b
     WHERE t2.a = 4 OR (t2.a > 4 AND t3.a IS NULL);
 
 SELECT t2.a,t2.b,t3.a,t3.b
-  FROM t2 LEFT JOIN (t3) ON t2.b=t3.b
+  FROM t2 LEFT JOIN t3 ON t2.b=t3.b
     WHERE t2.a = 4 OR (t2.a > 4 AND t3.a IS NULL);
 
 ALTER TABLE t3

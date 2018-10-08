@@ -96,6 +96,6 @@ int my_chsize(File fd, my_off_t newlength, int filler, myf MyFlags)
 err:
   DBUG_PRINT("error", ("errno: %d", errno));
   if (MyFlags & MY_WME)
-    my_error(EE_CANT_CHSIZE, MYF(ME_BELL+ME_WAITTANG), my_errno);
+    my_error(EE_CANT_CHSIZE, MYF(ME_BELL), my_errno);
   DBUG_RETURN(1);
 } /* my_chsize */

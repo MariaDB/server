@@ -1,7 +1,7 @@
 call mtr.add_suppression("Can't find record in '.*'");
 select * from INFORMATION_SCHEMA.ENGINES where ENGINE="ARIA";
 ENGINE	SUPPORT	COMMENT	TRANSACTIONS	XA	SAVEPOINTS
-Aria	YES	Crash-safe tables with MyISAM heritage	NO	NO	NO
+Aria	YES	Crash-safe tables with MyISAM heritage. Used for internal temporary tables and privilege tables	NO	NO	NO
 set global storage_engine=aria;
 set session storage_engine=aria;
 set global aria_page_checksum=0;
@@ -2227,9 +2227,9 @@ Block_size:                      8192
 Recordlength:                      99
 
 Table description:
-Key Start Len Index   Type
-1   2     30  multip. varchar                
-2   33    30  multip. char NULL              
+Key Start Len Index    Type
+1   2     30  multip.  varchar                
+2   33    30  multip.  char NULL              
 DROP TABLE t1;
 create table t1 (n int not null, c char(1)) transactional=1;
 show create table t1;
@@ -2765,6 +2765,35 @@ ALTER TABLE t1 DISABLE KEYS;
 INSERT INTO t1 (b) VALUES ('');
 ALTER TABLE t1 ENABLE KEYS;
 DROP TABLE t1;
+#
+# Start of 5.5 tests
+#
+#
+# MDEV-16534 PPC64: Unexpected error with a negative values into auto-increment columns in HEAP, MyISAM, ARIA
+#
+CREATE TABLE t1 (
+id TINYINT NOT NULL AUTO_INCREMENT,
+name CHAR(30) NOT NULL,
+PRIMARY KEY (id)
+) ENGINE=ARIA;
+SHOW CREATE TABLE t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `id` tinyint(4) NOT NULL AUTO_INCREMENT,
+  `name` char(30) NOT NULL,
+  PRIMARY KEY (`id`)
+) ENGINE=Aria DEFAULT CHARSET=latin1 PAGE_CHECKSUM=0
+INSERT INTO t1 (name) VALUES ('dog');
+UPDATE t1 SET id=-1 WHERE id=1;
+INSERT INTO t1 (name) VALUES ('cat');
+SELECT * FROM t1;
+id	name
+-1	dog
+2	cat
+DROP TABLE t1;
+#
+# End of 5.5 tests
+#
 #
 # BUG#47444 - --myisam_repair_threads > 1 can result in all index
 #             cardinalities=1

@@ -218,16 +218,9 @@ int Sql_cmd_common_signal::eval_signal_informations(THD *thd, Sql_condition *con
        i <= LAST_DIAG_SET_PROPERTY;
        i++)
   {
-    set= m_set_signal_information.m_item[i];
-    if (set)
-    {
-      if (! set->fixed)
-      {
-        if (set->fix_fields(thd, & set))
-          goto end;
-        m_set_signal_information.m_item[i]= set;
-      }
-    }
+    if ((set= m_set_signal_information.m_item[i]) &&
+        set->fix_fields_if_needed(thd, &m_set_signal_information.m_item[i]))
+      goto end;
   }
 
   /*
@@ -330,7 +323,7 @@ end:
     set= m_set_signal_information.m_item[i];
     if (set)
     {
-      if (set->fixed)
+      if (set->is_fixed())
         set->cleanup();
     }
   }

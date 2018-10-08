@@ -15723,6 +15723,7 @@ Testcase 4.3.7:
 DROP PROCEDURE IF EXISTS sp7;
 CREATE PROCEDURE sp7()
 BEGIN
+DECLARE count INT DEFAULT 100;
 label1: loop
 set @dummystring = 'temp value';
 if count > 10 then leave label1;
@@ -15732,7 +15733,7 @@ END label1 loop;
 END//
 ERROR 42000: You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near 'iterate;
 END label1 loop;
-END' at line 7
+END' at line 8
 DROP PROCEDURE IF EXISTS sp7;
 CREATE PROCEDURE sp7()
 BEGIN

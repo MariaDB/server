@@ -2572,6 +2572,7 @@ static int send_events(binlog_send_info *info, IO_CACHE* log, LOG_INFO* linfo,
   linfo->pos= my_b_tell(log);
   info->last_pos= my_b_tell(log);
 
+  log->end_of_file= end_pos;
   while (linfo->pos < end_pos)
   {
     if (should_stop(info))
@@ -3840,8 +3841,7 @@ int reset_master(THD* thd, rpl_gtid *init_state, uint32 init_state_len,
   if (!mysql_bin_log.is_open())
   {
     my_message(ER_FLUSH_MASTER_BINLOG_CLOSED,
-               ER_THD(thd, ER_FLUSH_MASTER_BINLOG_CLOSED),
-               MYF(ME_BELL+ME_WAITTANG));
+               ER_THD(thd, ER_FLUSH_MASTER_BINLOG_CLOSED), MYF(0));
     return 1;
   }
 

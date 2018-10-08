@@ -21,7 +21,7 @@ enum enum_use_stat_tables_mode
 {
   NEVER,
   COMPLEMENTARY,
-  PEFERABLY,
+  PREFERABLY,
 } Use_stat_tables_mode;
 
 typedef
@@ -92,9 +92,10 @@ int read_statistics_for_tables_if_needed(THD *thd, TABLE_LIST *tables);
 int collect_statistics_for_table(THD *thd, TABLE *table);
 int alloc_statistics_for_table_share(THD* thd, TABLE_SHARE *share,
                                      bool is_safe);
+void delete_stat_values_for_table_share(TABLE_SHARE *table_share);
 int alloc_statistics_for_table(THD *thd, TABLE *table);
 int update_statistics_for_table(THD *thd, TABLE *table);
-int delete_statistics_for_table(THD *thd, LEX_CSTRING *db, LEX_CSTRING *tab);
+int delete_statistics_for_table(THD *thd, const LEX_CSTRING *db, const LEX_CSTRING *tab);
 int delete_statistics_for_column(THD *thd, TABLE *tab, Field *col);
 int delete_statistics_for_index(THD *thd, TABLE *tab, KEY *key_info,
                                 bool ext_prefixes_only);

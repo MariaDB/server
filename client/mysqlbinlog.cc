@@ -82,7 +82,7 @@ ulong bytes_sent = 0L, bytes_received = 0L;
 ulong mysqld_net_retry_count = 10L;
 ulong open_files_limit;
 ulong opt_binlog_rows_event_max_size;
-uint test_flags = 0; 
+ulonglong test_flags = 0;
 static uint opt_protocol= 0;
 static FILE *result_file;
 static char *result_file_name= 0;
@@ -124,9 +124,6 @@ static uint my_end_arg;
 static const char* sock= 0;
 static char *opt_plugindir= 0, *opt_default_auth= 0;
 
-#ifdef HAVE_SMEM
-static const char *shared_memory_base_name= 0;
-#endif
 static char* user = 0;
 static char* pass = 0;
 static char *charset= 0;
@@ -1644,7 +1641,7 @@ static struct my_option my_options[] =
    &port, &port, 0, GET_INT, REQUIRED_ARG,
    0, 0, 0, 0, 0, 0},
   {"protocol", OPT_MYSQL_PROTOCOL,
-   "The protocol to use for connection (tcp, socket, pipe, memory).",
+   "The protocol to use for connection (tcp, socket, pipe).",
    0, 0, 0, GET_STR,  REQUIRED_ARG, 0, 0, 0, 0, 0, 0},
   {"read-from-remote-server", 'R', "Read binary logs from a MySQL server.",
    &remote_opt, &remote_opt, 0, GET_BOOL, NO_ARG, 0, 0, 0, 0,
@@ -1685,12 +1682,6 @@ static struct my_option my_options[] =
   {"set-charset", OPT_SET_CHARSET,
    "Add 'SET NAMES character_set' to the output.", &charset,
    &charset, 0, GET_STR, REQUIRED_ARG, 0, 0, 0, 0, 0, 0},
-#ifdef HAVE_SMEM
-  {"shared-memory-base-name", OPT_SHARED_MEMORY_BASE_NAME,
-   "Base name of shared memory.", &shared_memory_base_name,
-   &shared_memory_base_name,
-   0, GET_STR, REQUIRED_ARG, 0, 0, 0, 0, 0, 0},
-#endif
   {"short-form", 's', "Just show regular queries: no extra info, no "
    "row-based events and no row counts. This is mainly for testing only, "
    "and should not be used to feed to the MariaDB server. "
@@ -2134,11 +2125,6 @@ static Exit_status safe_connect()
 
   if (opt_protocol)
     mysql_options(mysql, MYSQL_OPT_PROTOCOL, (char*) &opt_protocol);
-#ifdef HAVE_SMEM
-  if (shared_memory_base_name)
-    mysql_options(mysql, MYSQL_SHARED_MEMORY_BASE_NAME,
-                  shared_memory_base_name);
-#endif
   mysql_options(mysql, MYSQL_OPT_CONNECT_ATTR_RESET, 0);
   mysql_options4(mysql, MYSQL_OPT_CONNECT_ATTR_ADD,
                  "program_name", "mysqlbinlog");

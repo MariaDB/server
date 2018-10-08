@@ -1,0 +1,21 @@
+CREATE DATABASE db_rpc;
+USE db_rpc;
+CREATE TABLE t1(pk INT PRIMARY KEY) ENGINE=rocksdb;
+SET GLOBAL rocksdb_enable_2pc=1;
+SET autocommit = 0;
+SET autocommit = 0;
+BEGIN;
+BEGIN;
+SELECT * from t1;
+pk
+SELECT * from t1;
+pk
+INSERT INTO t1 VALUES(1);
+INSERT INTO t1 VALUES(2);
+COMMIT;
+COMMIT;
+SELECT * from db_rpc.t1;
+pk
+1
+2
+DROP DATABASE db_rpc;

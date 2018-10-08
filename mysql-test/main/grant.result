@@ -1440,6 +1440,8 @@ declare tmp varchar(30);
 select col1 from test limit 1 into tmp;
 return '1';
 end|
+Warnings:
+Warning	1287	'<select expression> INTO <destination>;' is deprecated and will be removed in a future release. Please use 'SELECT <select list> INTO <destination> FROM...' instead
 create view v1 as select test.* from test where test.col1=test_function();
 grant update (col1) on v1 to 'greg'@'localhost';
 drop user 'greg'@'localhost';
@@ -1451,6 +1453,7 @@ CURRENT_USER()
 root@localhost
 SET PASSWORD FOR CURRENT_USER() = PASSWORD("admin");
 SET PASSWORD FOR CURRENT_USER() = PASSWORD("");
+update mysql.user set plugin='';
 
 # Bug#57952
 
@@ -1756,6 +1759,7 @@ drop user mysqltest@localhost;
 disconnect user1;
 drop database mysqltest;
 use test;
+call mtr.add_suppression("Can't open and lock privilege tables");
 FLUSH PRIVILEGES without procs_priv table.
 RENAME TABLE mysql.procs_priv TO mysql.procs_gone;
 FLUSH PRIVILEGES;
@@ -1849,8 +1853,6 @@ BEGIN
 SET @x = 0;
 REPEAT SET @x = @x + 1; UNTIL @x > p1 END REPEAT;
 END ;||
-Warnings:
-Warning	1404	Failed to grant EXECUTE and ALTER ROUTINE privileges
 connection default;
 SHOW GRANTS FOR 'user1'@'localhost';
 Grants for user1@localhost
@@ -1861,6 +1863,7 @@ SHOW GRANTS FOR 'user2';
 Grants for user2@%
 GRANT USAGE ON *.* TO 'user2'@'%'
 GRANT CREATE, CREATE ROUTINE ON `db1`.* TO 'user2'@'%'
+GRANT EXECUTE, ALTER ROUTINE ON PROCEDURE `db1`.`proc2` TO 'user2'@'%'
 disconnect con1;
 disconnect con2;
 DROP PROCEDURE db1.proc1;

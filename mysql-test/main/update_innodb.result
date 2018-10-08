@@ -65,3 +65,57 @@ SELECT * FROM t1;
 a_id	b_id	c_id
 1	NULL	NULL
 drop table t1,t2;
+CREATE OR REPLACE TABLE t1 (a INT NOT NULL PRIMARY KEY) engine=innodb;
+CREATE OR REPLACE TABLE t2 (a INT NOT NULL PRIMARY KEY) engine=innodb;
+INSERT INTO t1 VALUES (1);
+INSERT INTO t2 VALUES (2);
+BEGIN;
+SELECT * FROM t1 UNION 
+SELECT * FROM t2 FOR UPDATE;
+a
+1
+2
+connect con2,localhost,root,,;
+BEGIN;
+SELECT * FROM t2 FOR UPDATE;;
+connection default;
+select * from t2;
+a
+2
+update t2 set a=a+100;
+commit;
+connection con2;
+a
+102
+commit;
+connection default;
+drop table t1,t2;
+CREATE OR REPLACE TABLE t1 (a INT NOT NULL PRIMARY KEY) engine=innodb;
+CREATE OR REPLACE TABLE t2 (a INT NOT NULL PRIMARY KEY) engine=innodb;
+INSERT INTO t1 VALUES (1);
+INSERT INTO t2 VALUES (2);
+BEGIN;
+SELECT * FROM (
+SELECT * FROM t1 UNION 
+SELECT * FROM t2 FOR UPDATE
+) t;
+a
+1
+2
+connection con2;
+BEGIN;
+SELECT * FROM t2 FOR UPDATE;;
+connection default;
+select * from t2;
+a
+2
+update t2 set a=a+100;
+commit;
+connection con2;
+a
+102
+commit;
+connection default;
+disconnect con2;
+drop table t1,t2;
+# End of 10.4 tests

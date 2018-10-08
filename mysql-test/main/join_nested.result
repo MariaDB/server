@@ -1150,7 +1150,7 @@ a	b	a	b
 4	2	2	2
 5	3	NULL	NULL
 SELECT t2.a,t2.b,t3.a,t3.b
-FROM t2 LEFT JOIN (t3) ON t2.b=t3.b
+FROM t2 LEFT JOIN t3 ON t2.b=t3.b
 WHERE t2.a = 4 OR (t2.a > 4 AND t3.a IS NULL);
 a	b	a	b
 4	2	1	2

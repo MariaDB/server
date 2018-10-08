@@ -102,7 +102,7 @@ int my_copystat(const char *from, const char *to, int MyFlags)
   {
     my_errno= errno;
     if (MyFlags & (MY_FAE+MY_WME))
-      my_error(EE_CHANGE_PERMISSIONS, MYF(ME_BELL+ME_WAITTANG), from, errno);
+      my_error(EE_CHANGE_PERMISSIONS, MYF(ME_BELL), from, errno);
     return -1;
   }
 
@@ -110,14 +110,14 @@ int my_copystat(const char *from, const char *to, int MyFlags)
   if (statbuf.st_nlink > 1 && MyFlags & MY_LINK_WARNING)
   {
     if (MyFlags & MY_LINK_WARNING)
-      my_error(EE_LINK_WARNING,MYF(ME_BELL+ME_WAITTANG),from,statbuf.st_nlink);
+      my_error(EE_LINK_WARNING,MYF(ME_BELL),from,statbuf.st_nlink);
   }
   /* Copy ownership */
   if (chown(to, statbuf.st_uid, statbuf.st_gid))
   {
     my_errno= errno;
     if (MyFlags & MY_WME)
-      my_error(EE_CHANGE_OWNERSHIP, MYF(ME_BELL+ME_WAITTANG), from, errno);
+      my_error(EE_CHANGE_OWNERSHIP, MYF(ME_BELL), from, errno);
     if (MyFlags & MY_FAE)
       return -1;
   }

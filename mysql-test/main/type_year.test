@@ -254,3 +254,51 @@ DROP TABLE t1;
 --echo #
 --echo # End of 10.2 tests
 --echo #
+
+
+--echo #
+--echo # Start of 10.4 tests
+--echo #
+
+--echo #
+--echo # MDEV-16451 Split Item_equal::add_const() into a virtual method in type_handler()
+--echo #
+
+CREATE TABLE t1 (a YEAR(4));
+INSERT INTO t1 VALUES (93),(94);
+SELECT * FROM t1;
+SELECT * FROM t1 WHERE a=1993 and a=93;
+EXPLAIN EXTENDED SELECT * FROM t1 WHERE a=1993 and a=93;
+DROP TABLE t1;
+
+CREATE TABLE t1 (a YEAR(2));
+INSERT INTO t1 VALUES (93),(94);
+SELECT * FROM t1;
+SELECT * FROM t1 WHERE a=1993 and a=93;
+EXPLAIN EXTENDED SELECT * FROM t1 WHERE a=1993 and a=93;
+DROP TABLE t1;
+
+--echo #
+--echo # MDEV-16926 CAST(COALESCE(year_field)) returns wrong value
+--echo #
+
+CREATE OR REPLACE TABLE t1 (a YEAR);
+INSERT INTO t1 VALUES (1970),(1978),(2000),(2069);
+SELECT a, CAST(a AS DATE), CAST(COALESCE(a) AS DATE) FROM t1;
+SELECT MIN(a), MAX(a) FROM t1;
+DROP TABLE t1;
+
+CREATE OR REPLACE TABLE t1 (a YEAR(2));
+INSERT INTO t1 VALUES (1970),(1978),(2000),(2069);
+SELECT a, CAST(a AS DATE), CAST(COALESCE(a) AS DATE) FROM t1;
+SELECT MIN(a), MAX(a) FROM t1;
+DROP TABLE t1;
+
+--echo #
+--echo # MDEV-17015 Assertion `m_year <= 9999' failed in Year::Year upon bad argument to MAKEDATE
+--echo #
+SELECT MAKEDATE(18446744073709551615, 1);
+
+--echo #
+--echo # End of 10.4 tests
+--echo #

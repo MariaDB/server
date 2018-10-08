@@ -107,4 +107,17 @@ select pk, a, b, a+b,
 from t1
 order by pk asc;
 
+--echo #
+--echo # MDEV-15204 - LAG function doesn't require ORDER BY in OVER clause
+--echo #
+--error ER_NO_ORDER_LIST_IN_WINDOW_SPEC
+select pk,
+       lag(pk, 1) over ()
+from t1;
+
+--error ER_NO_ORDER_LIST_IN_WINDOW_SPEC
+select pk,
+       lead(pk, 1) over ()
+from t1;
+
 drop table t1;

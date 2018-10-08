@@ -33,10 +33,11 @@
    Item which stores (x,y,...) and ROW(x,y,...).
    Note that this can be recursive: ((x,y),(z,t)) is a ROW of ROWs.
 */
-class Item_row: public Item,
+class Item_row: public Item_fixed_hybrid,
                 private Item_args,
                 private Used_tables_and_const_cache,
-                private With_subquery_cache
+                private With_subquery_cache,
+                private With_sum_func_cache
 {
   table_map not_null_tables_cache;
   /**
@@ -45,11 +46,14 @@ class Item_row: public Item,
   */
   bool with_null;
 public:
-  Item_row(THD *thd, List<Item> &list):
-  Item(thd), Item_args(thd, list), not_null_tables_cache(0), with_null(0)
+  Item_row(THD *thd, List<Item> &list)
+   :Item_fixed_hybrid(thd), Item_args(thd, list),
+    not_null_tables_cache(0), with_null(0)
   { }
-  Item_row(THD *thd, Item_row *row):
-    Item(thd), Item_args(thd, static_cast<Item_args*>(row)), Used_tables_and_const_cache(),
+  Item_row(THD *thd, Item_row *row)
+   :Item_fixed_hybrid(thd), Item_args(thd, static_cast<Item_args*>(row)),
+    Used_tables_and_const_cache(),
+    With_sum_func_cache(*row),
     not_null_tables_cache(0), with_null(0)
   { }
 
@@ -87,7 +91,7 @@ public:
     illegal_method_call((const char*)"val_decimal");
     return 0;
   };
-  bool get_date(MYSQL_TIME *ltime, ulonglong fuzzydate)
+  bool get_date(THD *thd, MYSQL_TIME *ltime, date_mode_t fuzzydate)
   {
     illegal_method_call((const char*)"get_date");
     return true;
@@ -97,6 +101,8 @@ public:
   void cleanup();
   void split_sum_func(THD *thd, Ref_ptr_array ref_pointer_array,
                       List<Item> &fields, uint flags);
+  bool with_sum_func() const { return m_with_sum_func; }
+  With_sum_func_cache* get_with_sum_func_cache() { return this; }
   table_map used_tables() const { return used_tables_cache; };
   bool const_item() const { return const_item_cache; };
   void update_used_tables()

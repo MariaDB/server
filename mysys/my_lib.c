@@ -185,7 +185,7 @@ MY_DIR	*my_dir(const char *path, myf MyFlags)
     (void) closedir(dirp);
   my_dirend(&dirh->dir);
   if (MyFlags & (MY_FAE | MY_WME))
-    my_error(EE_DIR, MYF(ME_BELL | ME_WAITTANG), path, my_errno);
+    my_error(EE_DIR, MYF(ME_BELL), path, my_errno);
   DBUG_RETURN(NULL);
 } /* my_dir */
 
@@ -308,7 +308,7 @@ error:
       _findclose(handle);
   my_dirend(&dirh->dir);
   if (MyFlags & (MY_FAE | MY_WME))
-    my_error(EE_DIR,MYF(ME_BELL | ME_WAITTANG), path, errno);
+    my_error(EE_DIR,MYF(ME_BELL), path, errno);
   DBUG_RETURN(NULL);
 } /* my_dir */
 
@@ -358,7 +358,7 @@ MY_STAT *my_stat(const char *path, MY_STAT *stat_area, myf my_flags)
 error:
   if (my_flags & (MY_FAE+MY_WME))
   {
-    my_error(EE_STAT, MYF(ME_BELL+ME_WAITTANG),path,my_errno);
+    my_error(EE_STAT, MYF(ME_BELL), path, my_errno);
     DBUG_RETURN((MY_STAT *) NULL);
   }
   DBUG_RETURN((MY_STAT *) NULL);

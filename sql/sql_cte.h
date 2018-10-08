@@ -279,8 +279,7 @@ private:
   */
   With_clause *next_with_clause;
   /* Set to true if dependencies between with elements have been checked */
-  bool dependencies_are_checked; 
-
+  bool dependencies_are_checked;
   /* 
     The bitmap of all recursive with elements whose specifications
     are not complied with restrictions imposed by the SQL standards
@@ -304,9 +303,8 @@ public:
   bool with_recursive;
 
   With_clause(bool recursive_fl, With_clause *emb_with_clause)
-    : owner(NULL),
-      embedding_with_clause(emb_with_clause), next_with_clause(NULL),
-      dependencies_are_checked(false),  unrestricted(0),
+    : owner(NULL), embedding_with_clause(emb_with_clause),
+      next_with_clause(NULL), dependencies_are_checked(false), unrestricted(0),
       with_prepared_anchor(0), cleaned(0), stabilized(0),
       with_recursive(recursive_fl)
   { }
@@ -320,7 +318,11 @@ public:
     last_next= &this->next_with_clause;
   }
 
+  st_select_lex_unit *get_owner() { return owner; }
+
   void set_owner(st_select_lex_unit *unit) { owner= unit; }
+
+  void attach_to(st_select_lex *select_lex);
 
   With_clause *pop() { return embedding_with_clause; }
       
@@ -354,7 +356,6 @@ bool With_element::is_unrestricted()
 }
 
 inline
-
 bool With_element::is_with_prepared_anchor() 
 {
   return owner->with_prepared_anchor & get_elem_map();
@@ -436,11 +437,14 @@ void With_element::prepare_for_next_iteration()
 
 
 inline
-void  st_select_lex_unit::set_with_clause(With_clause *with_cl)
-{ 
-    with_clause= with_cl;
-    if (with_clause)
-      with_clause->set_owner(this);
+void With_clause::attach_to(st_select_lex *select_lex)
+{
+  for (With_element *with_elem= with_list.first;
+       with_elem;
+       with_elem= with_elem->next)
+  {
+    select_lex->register_unit(with_elem->spec, NULL);
+  }
 }
 
 

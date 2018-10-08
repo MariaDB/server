@@ -6,6 +6,7 @@
 
 --source include/have_innodb.inc
 --source include/galera_cluster.inc
+--source include/galera_have_debug_sync.inc
 
 # Force node_2 gcomm background thread to terminate via exception.
 --connection node_2

@@ -616,7 +616,7 @@ public:
       @retval pointer to trx
   */
 
-  trx_t *find(trx_t *caller_trx, trx_id_t trx_id, bool do_ref_count= false)
+  trx_t *find(trx_t *caller_trx, trx_id_t trx_id, bool do_ref_count)
   {
     /*
       In MariaDB 10.3, purge will reset DB_TRX_ID to 0
@@ -624,9 +624,10 @@ public:
       always have a nonzero trx_t::id; there the value 0 is
       reserved for transactions that did not write or lock
       anything yet.
+
+      The caller should already have handled trx_id==0 specially.
     */
-    if (!trx_id)
-      return NULL;
+    ut_ad(trx_id);
     if (caller_trx && caller_trx->id == trx_id)
     {
       if (do_ref_count)
@@ -645,8 +646,11 @@ public:
     {
       mutex_enter(&element->mutex);
       lf_hash_search_unpin(pins);
-      if ((trx= element->trx))
-      {
+      trx= element->trx;
+      if (!trx);
+      else if (UNIV_UNLIKELY(trx_id != trx->id))
+        trx= NULL;
+      else {
         if (do_ref_count)
           trx->reference();
         ut_d(validate_element(trx));
@@ -1044,13 +1048,13 @@ public:
 
   bool is_registered(trx_t *caller_trx, trx_id_t id)
   {
-    return rw_trx_hash.find(caller_trx, id);
+    return id && find(caller_trx, id, false);
   }
 
 
-  trx_t *find(trx_t *caller_trx, trx_id_t id)
+  trx_t *find(trx_t *caller_trx, trx_id_t id, bool do_ref_count= true)
   {
-    return rw_trx_hash.find(caller_trx, id, true);
+    return rw_trx_hash.find(caller_trx, id, do_ref_count);
   }
 
 

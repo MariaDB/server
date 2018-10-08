@@ -1,0 +1,97 @@
+--source include/have_innodb.inc
+--source include/have_log_bin.inc
+
+--echo #
+--echo # Test table with a key that consists of indirect virtual fields
+--echo #
+
+CREATE TABLE t1 (a int, b int as (a+1) virtual, c int as (b+1) virtual, index(c)) engine=myisam;
+insert into t1 (a) values (1),(2),(3);
+update t1 set a=5 where a=3;
+delete from t1 where a=1;
+select * from t1;
+select * from t1 where c=7;
+check table t1;
+select * from t1;
+drop table t1;
+
+CREATE TABLE t1 (a int, b int as (a+1) virtual, c int as (b+1) virtual, index(c)) engine=innodb;
+insert into t1 (a) values (1),(2),(3);
+update t1 set a=5 where a=3;
+delete from t1 where a=1;
+select * from t1;
+select * from t1 where c=7;
+check table t1;
+select * from t1;
+drop table t1;
+
+--echo #
+--echo # MDEV-15114
+--echo # ASAN heap-use-after-free in mem_heap_dup or
+--echo # dfield_data_is_binary_equal
+--echo #
+
+CREATE TABLE t1 (
+  pk INT,
+  extra tinyint,
+  c TEXT,
+  vc LONGTEXT AS (c) VIRTUAL,
+  i INT,
+  PRIMARY KEY(pk),
+  UNIQUE(i),
+  INDEX(vc(64))
+) ENGINE=InnoDB;
+
+INSERT INTO t1 (pk,extra, c, i) VALUES (1, 10, REPEAT('foo ',15000),0);
+REPLACE INTO t1 (pk,extra, c,i) SELECT pk,extra+10, c,i FROM t1;
+select pk, extra, left(c, 10), length(c), left(vc,10), length(vc), extra from t1;
+DROP TABLE t1;
+
+--echo #
+--echo # Update of deleted row with binary logging enabled
+--echo #
+
+SET BINLOG_FORMAT=row;
+
+CREATE TABLE t1 (
+ pk INT,
+ c TEXT,
+ vc LONGTEXT AS (c) VIRTUAL,
+ i INT,
+ PRIMARY KEY(pk),
+ UNIQUE(i),
+ INDEX(vc(64))
+) ENGINE=InnoDB;
+
+INSERT INTO t1 (pk,c,i) VALUES (1,REPEAT('foo ',15000),10);
+INSERT INTO t1 (pk,c,i) VALUES (2,REPEAT('bar ',15000),11);
+
+--connect (c1,localhost,root,,)
+--connection c1
+begin;
+DELETE from t1 WHERE pk=1;
+--connection default
+--send update t1 set pk=1 where pk=2
+--connection c1
+commit;
+--connection default
+--reap
+select pk, left(c, 10), length(c), i from t1;
+drop table t1;
+disconnect c1;
+
+#
+# MDEV-16961 Assertion `!table || (!table->read_set || bitmap_is_set(table->read_set, field_index))' failed upon concurrent DELETE and DDL with virtual blob column
+#
+
+CREATE TABLE t1 (b BLOB, vb TEXT AS (b) PERSISTENT, KEY(vb(64))) ENGINE=InnoDB;
+INSERT INTO t1 (b) VALUES ('foo');
+--connect (con1,localhost,root,,test)
+--send CREATE TABLE t2 LIKE t1
+--connection default
+DELETE FROM t1;
+--connection con1
+--reap
+--disconnect con1
+--connection default
+DROP TABLE t1, t2;

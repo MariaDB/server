@@ -2735,9 +2735,7 @@ log_event_print_value(IO_CACHE *file, PRINT_EVENT_INFO *print_event_info,
         goto return_null;
 
       uint bin_size= my_decimal_get_binary_size(precision, decimals);
-      my_decimal dec;
-      binary2my_decimal(E_DEC_FATAL_ERROR, (uchar*) ptr, &dec,
-                        precision, decimals);
+      my_decimal dec((const uchar *) ptr, precision, decimals);
       int length= DECIMAL_MAX_STR_LENGTH;
       char buff[DECIMAL_MAX_STR_LENGTH + 1];
       decimal2string(&dec, buff, &length, 0, 0, 0);
@@ -4393,7 +4391,7 @@ Query_log_event::Query_log_event(THD* thd_arg, const char* query_arg, size_t que
         have to use the transactional cache to ensure we don't
         calculate any checksum for the CREATE part.
       */
-      trx_cache= (lex->select_lex.item_list.elements &&
+      trx_cache= (lex->first_select_lex()->item_list.elements &&
                   thd->is_current_stmt_binlog_format_row()) ||
                   (thd->variables.option_bits & OPTION_GTID_BEGIN);
       use_cache= (lex->tmp_table() &&
@@ -5552,22 +5550,6 @@ int Query_log_event::do_apply_event(rpl_group_info *rgi,
       }
       else
         thd->variables.collation_database= thd->db_charset;
-
-      {
-        const CHARSET_INFO *cs= thd->charset();
-        /*
-          We cannot ask for parsing a statement using a character set
-          without state_maps (parser internal data).
-        */
-        if (!cs->state_map)
-        {
-          rli->report(ERROR_LEVEL, ER_SLAVE_FATAL_ERROR,
-                      ER_THD(thd, ER_SLAVE_FATAL_ERROR),
-                      "character_set cannot be parsed");
-          thd->is_slave_error= true;
-          goto end;
-        }
-      }
 
       /*
         Record any GTID in the same transaction, so slave state is
@@ -7409,8 +7391,9 @@ int Load_log_event::do_apply_event(NET* net, rpl_group_info *rgi,
 
       ex.skip_lines = skip_lines;
       List<Item> field_list;
-      thd->lex->select_lex.context.resolve_in_table_list_only(&tables);
-      set_fields(tables.db.str, field_list, &thd->lex->select_lex.context);
+      thd->lex->first_select_lex()->context.resolve_in_table_list_only(&tables);
+      set_fields(tables.db.str,
+                 field_list, &thd->lex->first_select_lex()->context);
       thd->variables.pseudo_thread_id= thread_id;
       if (net)
       {
@@ -9064,11 +9047,8 @@ void User_var_log_event::pack_info(Protocol* protocol)
       String buf(buf_mem, sizeof(buf_mem), system_charset_info);
       char buf2[DECIMAL_MAX_STR_LENGTH+1];
       String str(buf2, sizeof(buf2), &my_charset_bin);
-      my_decimal dec;
       buf.length(0);
-      binary2my_decimal(E_DEC_FATAL_ERROR, (uchar*) (val+2), &dec, val[0],
-                        val[1]);
-      my_decimal2string(E_DEC_FATAL_ERROR, &dec, 0, 0, 0, &str);
+      my_decimal((const uchar *) (val + 2), val[0], val[1]).to_string(&str);
       if (user_var_append_name_part(protocol->thd, &buf, name, name_len) ||
           buf.append(buf2))
         return;
@@ -13173,8 +13153,7 @@ Rows_log_event::write_row(rpl_group_info *rgi,
   }
 
   // Handle INSERT.
-  // Set vers fields when replicating from not system-versioned table.
-  if (m_type == WRITE_ROWS_EVENT_V1 && table->versioned(VERS_TIMESTAMP))
+  if (table->versioned(VERS_TIMESTAMP))
   {
     ulong sec_part;
     bitmap_set_bit(table->read_set, table->vers_start_field()->field_index);
@@ -13655,6 +13634,16 @@ void issue_long_find_row_warning(Log_event_type type,
 }
 
 
+/*
+  HA_ERR_KEY_NOT_FOUND is a fatal error normally, but it's an expected
+  error in speculate optimistic mode, so use something non-fatal instead
+*/
+static int row_not_found_error(rpl_group_info *rgi)
+{
+  return rgi->speculation != rpl_group_info::SPECULATE_OPTIMISTIC
+         ? HA_ERR_KEY_NOT_FOUND : HA_ERR_RECORD_CHANGED;
+}
+
 /**
   Locate the current row in event's table.
 
@@ -13752,14 +13741,12 @@ int Rows_log_event::find_row(rpl_group_info *rgi)
     int error;
     DBUG_PRINT("info",("locating record using primary key (position)"));
 
-    if (!table->file->inited &&
-        (error= table->file->ha_rnd_init_with_error(0)))
-      DBUG_RETURN(error);
-
     error= table->file->ha_rnd_pos_by_record(table->record[0]);
     if (unlikely(error))
     {
       DBUG_PRINT("info",("rnd_pos returns error %d",error));
+      if (error == HA_ERR_KEY_NOT_FOUND)
+        error= row_not_found_error(rgi);
       table->file->print_error(error, MYF(0));
     }
     DBUG_RETURN(error);
@@ -13825,6 +13812,8 @@ int Rows_log_event::find_row(rpl_group_info *rgi)
                                                         HA_READ_KEY_EXACT))))
     {
       DBUG_PRINT("info",("no record matching the key found in the table"));
+      if (error == HA_ERR_KEY_NOT_FOUND)
+        error= row_not_found_error(rgi);
       table->file->print_error(error, MYF(0));
       table->file->ha_index_end();
       goto end;

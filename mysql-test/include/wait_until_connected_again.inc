@@ -11,7 +11,7 @@ let $counter= 5000;
 let $mysql_errno= 9999;
 while ($mysql_errno)
 {
-  --error 0,1205,ER_SERVER_SHUTDOWN,ER_CONNECTION_KILLED,2002,2006,2013
+  --error 0,1205,ER_SERVER_SHUTDOWN,ER_CONNECTION_KILLED,ER_LOCK_WAIT_TIMEOUT,2002,2006,2013
   show status;
 
   dec $counter;

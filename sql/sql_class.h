@@ -591,6 +591,7 @@ typedef struct system_variables
   ha_rows max_join_size;
   ha_rows expensive_subquery_limit;
   ulong auto_increment_increment, auto_increment_offset;
+  uint eq_range_index_dive_limit;
   ulong column_compression_zlib_strategy;
   ulong lock_wait_timeout;
   ulong join_cache_level;
@@ -729,6 +730,7 @@ typedef struct system_variables
   ulong session_track_transaction_info;
   my_bool session_track_schema;
   my_bool session_track_state_change;
+  my_bool tcp_nodelay;
 
   ulong threadpool_priority;
 
@@ -986,10 +988,6 @@ public:
 
   enum_state state;
 
-protected:
-  friend class sp_head;
-  bool is_stored_procedure;
-
 public:
   /* We build without RTTI, so dynamic_cast can't be used. */
   enum Type
@@ -998,8 +996,7 @@ public:
   };
 
   Query_arena(MEM_ROOT *mem_root_arg, enum enum_state state_arg) :
-    free_list(0), mem_root(mem_root_arg), state(state_arg),
-    is_stored_procedure(state_arg == STMT_INITIALIZED_FOR_SP ? true : false)
+    free_list(0), mem_root(mem_root_arg), state(state_arg)
   { INIT_ARENA_DBUG_INFO; }
   /*
     This constructor is used only when Query_arena is created as
@@ -1019,8 +1016,6 @@ public:
   { return state == STMT_PREPARED || state == STMT_EXECUTED; }
   inline bool is_conventional() const
   { return state == STMT_CONVENTIONAL_EXECUTION; }
-  inline bool is_sp_execute() const
-  { return is_stored_procedure; }
 
   inline void* alloc(size_t size) { return alloc_root(mem_root,size); }
   inline void* calloc(size_t size)
@@ -3141,6 +3136,9 @@ public:
     it returned an error on master, and this is OK on the slave.
   */
   bool       is_slave_error;
+  /* True if we have printed something to the error log for this statement */
+  bool       error_printed_to_log;
+
   /*
     True when a transaction is queued up for binlog group commit.
     Used so that if another transaction needs to wait for a row lock held by
@@ -3428,7 +3426,7 @@ public:
   }
   const Type_handler *type_handler_for_date() const;
   bool timestamp_to_TIME(MYSQL_TIME *ltime, my_time_t ts,
-                         ulong sec_part, ulonglong fuzzydate);
+                         ulong sec_part, date_mode_t fuzzydate);
   inline my_time_t query_start() { return start_time; }
   inline ulong query_start_sec_part()
   { query_start_sec_part_used=1; return start_time_sec_part; }
@@ -3692,6 +3690,10 @@ public:
     tmp[length]= 0;
     lex_str->length= length;
     return lex_str;
+  }
+  LEX_CSTRING *make_clex_string(const LEX_CSTRING from)
+  {
+    return make_clex_string(from.str, from.length);
   }
 
   // Allocate LEX_STRING for character set conversion
@@ -4054,6 +4056,10 @@ public:
     *format= (enum_binlog_format) variables.binlog_format;
     *current_format= current_stmt_binlog_format;
   }
+  inline enum_binlog_format get_current_stmt_binlog_format()
+  {
+    return current_stmt_binlog_format;
+  }
   inline void set_binlog_format(enum_binlog_format format,
                                 enum_binlog_format current_format)
   {
@@ -4097,11 +4103,6 @@ public:
       set_current_stmt_binlog_format_row();
 
     DBUG_VOID_RETURN;
-  }
-
-  inline enum_binlog_format get_current_stmt_binlog_format()
-  {
-    return current_stmt_binlog_format;
   }
 
   inline void set_current_stmt_binlog_format(enum_binlog_format format)
@@ -4199,18 +4200,33 @@ public:
   {
     if (db.str == NULL)
     {
-      my_message(ER_NO_DB_ERROR, ER(ER_NO_DB_ERROR), MYF(0));
-      return TRUE;
+      /*
+        No default database is set. In this case if it's guaranteed that
+        no CTE can be used in the statement then we can throw an error right
+        now at the parser stage. Otherwise the decision about throwing such
+        a message must be postponed until a post-parser stage when we are able
+        to resolve all CTE names as we don't need this message to be thrown
+        for any CTE references.
+      */
+      if (!lex->with_clauses_list)
+      {
+        my_message(ER_NO_DB_ERROR, ER(ER_NO_DB_ERROR), MYF(0));
+        return TRUE;
+      }
+      /* This will allow to throw an error later for non-CTE references */
+      to->str= NULL;
+      to->length= 0;
+      return FALSE;
     }
+
     to->str= strmake(db.str, db.length);
     to->length= db.length;
     return to->str == NULL;                     /* True on error */
   }
   /* Get db name or "". Use for printing current db */
   const char *get_db()
-  {
-    return db.str ? db.str : "";
-  }
+  { return safe_str(db.str); }
+
   thd_scheduler event_scheduler;
 
 public:
@@ -4374,6 +4390,69 @@ private:
     if (raised)
       raised->copy_opt_attributes(cond);
     return raised;
+  }
+
+private:
+  void push_warning_truncated_priv(Sql_condition::enum_warning_level level,
+                                   uint sql_errno,
+                                   const char *type_str, const char *val)
+  {
+    DBUG_ASSERT(sql_errno == ER_TRUNCATED_WRONG_VALUE ||
+                sql_errno == ER_WRONG_VALUE);
+    char buff[MYSQL_ERRMSG_SIZE];
+    CHARSET_INFO *cs= &my_charset_latin1;
+    cs->cset->snprintf(cs, buff, sizeof(buff),
+                       ER_THD(this, sql_errno), type_str, val);
+    /*
+      Note: the format string can vary between ER_TRUNCATED_WRONG_VALUE
+      and ER_WRONG_VALUE, but the code passed to push_warning() is
+      always ER_TRUNCATED_WRONG_VALUE. This is intentional.
+    */
+    push_warning(this, level, ER_TRUNCATED_WRONG_VALUE, buff);
+  }
+public:
+  void push_warning_truncated_wrong_value(Sql_condition::enum_warning_level level,
+                                          const char *type_str, const char *val)
+  {
+    return push_warning_truncated_priv(level, ER_TRUNCATED_WRONG_VALUE,
+                                       type_str, val);
+  }
+  void push_warning_wrong_value(Sql_condition::enum_warning_level level,
+                                const char *type_str, const char *val)
+  {
+    return push_warning_truncated_priv(level, ER_WRONG_VALUE, type_str, val);
+  }
+  void push_warning_truncated_wrong_value(const char *type_str, const char *val)
+  {
+    return push_warning_truncated_wrong_value(Sql_condition::WARN_LEVEL_WARN,
+                                              type_str, val);
+  }
+  void push_warning_truncated_value_for_field(Sql_condition::enum_warning_level
+                                              level, const char *type_str,
+                                              const char *val, const char *name)
+  {
+    DBUG_ASSERT(name);
+    char buff[MYSQL_ERRMSG_SIZE];
+    CHARSET_INFO *cs= &my_charset_latin1;
+    cs->cset->snprintf(cs, buff, sizeof(buff),
+                       ER_THD(this, ER_TRUNCATED_WRONG_VALUE_FOR_FIELD),
+                       type_str, val, name,
+                       (ulong) get_stmt_da()->current_row_for_warning());
+    push_warning(this, level, ER_TRUNCATED_WRONG_VALUE, buff);
+
+  }
+  void push_warning_wrong_or_truncated_value(Sql_condition::enum_warning_level level,
+                                             bool totally_useless_value,
+                                             const char *type_str,
+                                             const char *val,
+                                             const char *field_name)
+  {
+    if (field_name)
+      push_warning_truncated_value_for_field(level, type_str, val, field_name);
+    else if (totally_useless_value)
+      push_warning_wrong_value(level, type_str, val);
+    else
+      push_warning_truncated_wrong_value(level, type_str, val);
   }
 
 public:
@@ -4584,7 +4663,13 @@ public:
     The GTID assigned to the last commit. If no GTID was assigned to any commit
     so far, this is indicated by last_commit_gtid.seq_no == 0.
   */
-  rpl_gtid last_commit_gtid;
+private:
+  rpl_gtid m_last_commit_gtid;
+
+public:
+  rpl_gtid get_last_commit_gtid() { return m_last_commit_gtid; }
+  void set_last_commit_gtid(rpl_gtid &gtid);
+
 
   LF_PINS *tdc_hash_pins;
   LF_PINS *xid_hash_pins;
@@ -4954,10 +5039,17 @@ my_eof(THD *thd)
   (A)->variables.sql_log_bin_off= 0;}
 
 
-inline sql_mode_t sql_mode_for_dates(THD *thd)
+inline date_mode_t sql_mode_for_dates(THD *thd)
 {
-  return thd->variables.sql_mode &
-          (MODE_NO_ZERO_DATE | MODE_NO_ZERO_IN_DATE | MODE_INVALID_DATES);
+  static_assert(C_TIME_FUZZY_DATES   == date_mode_t::FUZZY_DATES &&
+                C_TIME_TIME_ONLY     == date_mode_t::TIME_ONLY,
+                "sql_mode_t and pure C library date flags must be equal");
+  static_assert(MODE_NO_ZERO_DATE    == date_mode_t::NO_ZERO_DATE &&
+                MODE_NO_ZERO_IN_DATE == date_mode_t::NO_ZERO_IN_DATE &&
+                MODE_INVALID_DATES   == date_mode_t::INVALID_DATES,
+                "sql_mode_t and date_mode_t values must be equal");
+  return date_mode_t(thd->variables.sql_mode &
+          (MODE_NO_ZERO_DATE | MODE_NO_ZERO_IN_DATE | MODE_INVALID_DATES));
 }
 
 /*
@@ -4999,6 +5091,7 @@ public:
   */
   virtual int send_data(List<Item> &items)=0;
   virtual ~select_result_sink() {};
+  void reset(THD *thd_arg) { thd= thd_arg; }
 };
 
 
@@ -5025,7 +5118,8 @@ protected:
   SELECT_LEX_UNIT *unit;
   /* Something used only by the parser: */
 public:
-  select_result(THD *thd_arg): select_result_sink(thd_arg) {}
+  ha_rows est_records;  /* estimated number of records in the result */
+ select_result(THD *thd_arg): select_result_sink(thd_arg), est_records(0) {}
   void set_unit(SELECT_LEX_UNIT *unit_arg) { unit= unit_arg; }
   virtual ~select_result() {};
   /**
@@ -5076,6 +5170,11 @@ public:
   */
   virtual void cleanup();
   void set_thd(THD *thd_arg) { thd= thd_arg; }
+  void reset(THD *thd_arg)
+  {
+    select_result_sink::reset(thd_arg);
+    unit= NULL;
+  }
 #ifdef EMBEDDED_LIBRARY
   virtual void begin_dataset() {}
 #else
@@ -5172,8 +5271,111 @@ public:
     elsewhere. (this is used by ANALYZE $stmt feature).
   */
   void disable_my_ok_calls() { suppress_my_ok= true; }
+  void reset(THD *thd_arg)
+  {
+    select_result::reset(thd_arg);
+    suppress_my_ok= false;
+  }
 protected:
   bool suppress_my_ok;
+};
+
+
+class sp_cursor_statistics
+{
+protected:
+  ulonglong m_fetch_count; // Number of FETCH commands since last OPEN
+  ulonglong m_row_count;   // Number of successful FETCH since last OPEN
+  bool m_found;            // If last FETCH fetched a row
+public:
+  sp_cursor_statistics()
+   :m_fetch_count(0),
+    m_row_count(0),
+    m_found(false)
+  { }
+  bool found() const
+  { return m_found; }
+
+  ulonglong row_count() const
+  { return m_row_count; }
+
+  ulonglong fetch_count() const
+  { return m_fetch_count; }
+  void reset() { *this= sp_cursor_statistics(); }
+};
+
+
+/* A mediator between stored procedures and server side cursors */
+class sp_lex_keeper;
+class sp_cursor: public sp_cursor_statistics
+{
+private:
+  /// An interceptor of cursor result set used to implement
+  /// FETCH <cname> INTO <varlist>.
+  class Select_fetch_into_spvars: public select_result_interceptor
+  {
+    List<sp_variable> *spvar_list;
+    uint field_count;
+    bool send_data_to_variable_list(List<sp_variable> &vars, List<Item> &items);
+  public:
+    Select_fetch_into_spvars(THD *thd_arg): select_result_interceptor(thd_arg) {}
+    void reset(THD *thd_arg)
+    {
+      select_result_interceptor::reset(thd_arg);
+      spvar_list= NULL;
+      field_count= 0;
+    }
+    uint get_field_count() { return field_count; }
+    void set_spvar_list(List<sp_variable> *vars) { spvar_list= vars; }
+
+    virtual bool send_eof() { return FALSE; }
+    virtual int send_data(List<Item> &items);
+    virtual int prepare(List<Item> &list, SELECT_LEX_UNIT *u);
+};
+
+public:
+  sp_cursor()
+   :result(NULL),
+    m_lex_keeper(NULL),
+    server_side_cursor(NULL)
+  { }
+  sp_cursor(THD *thd_arg, sp_lex_keeper *lex_keeper)
+   :result(thd_arg),
+    m_lex_keeper(lex_keeper),
+    server_side_cursor(NULL)
+  {}
+
+  virtual ~sp_cursor()
+  { destroy(); }
+
+  sp_lex_keeper *get_lex_keeper() { return m_lex_keeper; }
+
+  int open(THD *thd);
+
+  int open_view_structure_only(THD *thd);
+
+  int close(THD *thd);
+
+  my_bool is_open()
+  { return MY_TEST(server_side_cursor); }
+
+  int fetch(THD *, List<sp_variable> *vars, bool error_on_no_data);
+
+  bool export_structure(THD *thd, Row_definition_list *list);
+
+  void reset(THD *thd_arg, sp_lex_keeper *lex_keeper)
+  {
+    sp_cursor_statistics::reset();
+    result.reset(thd_arg);
+    m_lex_keeper= lex_keeper;
+    server_side_cursor= NULL;
+  }
+
+private:
+  Select_fetch_into_spvars result;
+  sp_lex_keeper *m_lex_keeper;
+  Server_side_cursor *server_side_cursor;
+  void destroy();
 };
 
 
@@ -5489,7 +5691,6 @@ public:
   TMP_TABLE_PARAM tmp_table_param;
   int write_err; /* Error code from the last send_data->ha_write_row call. */
   TABLE *table;
-  ha_rows records;
 
   select_unit(THD *thd_arg):
     select_result_interceptor(thd_arg),
@@ -5527,7 +5728,6 @@ public:
     curr_sel= UINT_MAX;
     step= UNION_TYPE;
     write_err= 0;
-    records= 0;
   }
   void change_select();
 };
@@ -6040,6 +6240,7 @@ public:
   void prepare_to_read_rows();
 };
 
+class my_var_sp;
 class my_var : public Sql_alloc  {
 public:
   const LEX_CSTRING name;
@@ -6048,7 +6249,7 @@ public:
   my_var(const LEX_CSTRING *j, enum type s) : name(*j), scope(s) { }
   virtual ~my_var() {}
   virtual bool set(THD *thd, Item *val) = 0;
-  virtual class my_var_sp *get_my_var_sp() { return NULL; }
+  virtual my_var_sp *get_my_var_sp() { return NULL; }
 };
 
 class my_var_sp: public my_var {
@@ -6285,7 +6486,8 @@ public:
 
 inline bool add_item_to_list(THD *thd, Item *item)
 {
-  return thd->lex->current_select->add_item_to_list(thd, item);
+  bool res= thd->lex->current_select->add_item_to_list(thd, item);
+  return res;
 }
 
 inline bool add_value_to_list(THD *thd, Item *value)
@@ -6341,8 +6543,6 @@ inline int handler::ha_ft_read(uchar *buf)
 inline int handler::ha_rnd_pos_by_record(uchar *buf)
 {
   int error= rnd_pos_by_record(buf);
-  if (!error)
-    update_rows_read();
   table->status=error ? STATUS_NOT_FOUND: 0;
   return error;
 }

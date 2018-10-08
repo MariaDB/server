@@ -50,11 +50,11 @@ static int MDL_and_TDC(THD *thd,
     table_arg.str = const_cast<char *>(table);
     table_arg.length = strlen(table);
     Table_ident table_ident(thd, &db_arg, &table_arg, true);;
-    thd->lex->select_lex.add_table_to_list(
+    thd->lex->first_select_lex()->add_table_to_list(
         thd, &table_ident, NULL, 1, TL_UNLOCK, MDL_EXCLUSIVE, 0, 0, 0);
     /* The lock will be released at the end of mysq_execute_command() */
     error = lock_table_names(thd,
-                             thd->lex->select_lex.table_list.first,
+                             thd->lex->first_select_lex()->table_list.first,
                              NULL,
                              thd->variables.lock_wait_timeout,
                              0);

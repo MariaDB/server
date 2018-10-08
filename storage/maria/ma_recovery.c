@@ -49,7 +49,6 @@ static LSN current_group_end_lsn;
 /** Current group of REDOs is about this table and only this one */
 static MARIA_HA *current_group_table;
 #endif
-static TrID max_long_trid= 0; /**< max long trid seen by REDO phase */
 static my_bool skip_DDLs; /**< if REDO phase should skip DDL records */
 /** @brief to avoid writing a checkpoint if recovery did nothing. */
 static my_bool checkpoint_useful;
@@ -62,6 +61,7 @@ static uint recovery_warnings; /**< count of warnings */
 static uint recovery_found_crashed_tables;
 HASH tables_to_redo;                          /* For maria_read_log */
 ulong maria_recovery_force_crash_counter;
+TrID max_long_trid= 0; /**< max long trid seen by REDO phase */
 
 #define prototype_redo_exec_hook(R)                                          \
   static int exec_REDO_LOGREC_ ## R(const TRANSLOG_HEADER_BUFFER *rec)
@@ -184,7 +184,7 @@ void maria_recover_error_handler_hook(uint error, const char *str,
 
 static void print_preamble()
 {
-  ma_message_no_user(ME_JUST_INFO, "starting recovery");
+  ma_message_no_user(ME_NOTE, "starting recovery");
 }
 
 
@@ -473,6 +473,7 @@ int maria_apply_log(LSN from_lsn, LSN end_lsn,
     fflush(stderr);
   }
 
+  set_if_bigger(max_trid_in_control_file, max_long_trid);
   if (take_checkpoints && checkpoint_useful)
   {
     /* No dirty pages, all tables are closed, no active transactions, save: */
@@ -516,7 +517,7 @@ end:
     }
     if (!error)
     {
-      ma_message_no_user(ME_JUST_INFO, "recovery done");
+      ma_message_no_user(ME_NOTE, "recovery done");
       maria_recovery_changed_data= 1;
     }
   }
@@ -1356,6 +1357,7 @@ static int new_table(uint16 sid, const char *name, LSN lsn_of_file_id)
       silently pass in the "info == NULL" test below.
     */
     tprint(tracef, ", record is corrupted");
+    eprint(tracef, "\n***WARNING: %s may be corrupted", name ? name : "NULL");
     info= NULL;
     recovery_warnings++;
     goto end;
@@ -1368,7 +1370,11 @@ static int new_table(uint16 sid, const char *name, LSN lsn_of_file_id)
            " or its header is so corrupted that we cannot open it;"
            " we skip it");
     if (my_errno != ENOENT)
+    {
       recovery_found_crashed_tables++;
+      eprint(tracef, "\n***WARNING: %s could not be opened: Error: %d",
+             name ? name : "NULL", (int) my_errno);
+    }
     error= 0;
     goto end;
   }
@@ -1397,6 +1403,7 @@ static int new_table(uint16 sid, const char *name, LSN lsn_of_file_id)
       not transactional table
     */
     tprint(tracef, ", is not transactional.  Ignoring open request");
+    eprint(tracef, "\n***WARNING: '%s' may be crashed", name);
     error= -1;
     recovery_warnings++;
     goto end;
@@ -1407,6 +1414,7 @@ static int new_table(uint16 sid, const char *name, LSN lsn_of_file_id)
            " LOGREC_FILE_ID's LSN " LSN_FMT ", ignoring open request",
            LSN_IN_PARTS(share->state.create_rename_lsn),
            LSN_IN_PARTS(lsn_of_file_id));
+    eprint(tracef, "\n***WARNING: '%s' may be crashed", name);
     recovery_warnings++;
     error= -1;
     goto end;
@@ -1438,6 +1446,8 @@ static int new_table(uint16 sid, const char *name, LSN lsn_of_file_id)
       (kfile_len == MY_FILEPOS_ERROR))
   {
     tprint(tracef, ", length unknown\n");
+    eprint(tracef, "\n***WARNING: Can't read length of file '%s'",
+           share->open_file_name.str);
     recovery_warnings++;
     goto end;
   }
@@ -3551,8 +3561,8 @@ void _ma_tmp_disable_logging_for_table(MARIA_HA *info,
     info->state may point to a state that was deleted by
     _ma_trnman_end_trans_hook()
    */
-  share->state.common= *info->state;
-  info->state= &share->state.common;
+  share->state.no_logging= *info->state;
+  info->state= &share->state.no_logging;
   info->switched_transactional= TRUE;
 
   /*
@@ -3561,7 +3571,12 @@ void _ma_tmp_disable_logging_for_table(MARIA_HA *info,
     should be now. info->trn may be NULL in maria_chk.
   */
   if (info->trn == NULL)
+  {
     info->trn= &dummy_transaction_object;
+    info->trn_next= 0;
+    info->trn_prev= 0;
+  }
+
   DBUG_ASSERT(info->trn->rec_lsn == LSN_IMPOSSIBLE);
   share->page_type= PAGECACHE_PLAIN_PAGE;
   /* Functions below will pick up now_transactional and change callbacks */
@@ -3607,6 +3622,10 @@ my_bool _ma_reenable_logging_for_table(MARIA_HA *info, my_bool flush_pages)
     */
     _ma_copy_nontrans_state_information(info);
     _ma_reset_history(info->s);
+
+    /* Reset state to point to state.common, as on open() */
+    info->state=  &share->state.common;
+    *info->state=  share->state.state;
 
     if (flush_pages)
     {

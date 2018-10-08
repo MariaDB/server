@@ -2285,17 +2285,13 @@ begin
 DECLARE foo CONDITION FOR SQLSTATE '12345';
 SIGNAL foo SET MYSQL_ERRNO = `65`; /* illegal */
 end $$
-call test_signal $$
 ERROR 42S22: Unknown column '65' in 'field list'
-drop procedure test_signal $$
 create procedure test_signal()
 begin
 DECLARE foo CONDITION FOR SQLSTATE '12345';
 SIGNAL foo SET MYSQL_ERRNO = `A`; /* illegal */
 end $$
-call test_signal $$
 ERROR 42S22: Unknown column 'A' in 'field list'
-drop procedure test_signal $$
 create procedure test_signal()
 begin
 DECLARE foo CONDITION FOR SQLSTATE '12345';
@@ -2346,9 +2342,7 @@ DECLARE foo CONDITION FOR SQLSTATE '12345';
 SIGNAL foo SET MYSQL_ERRNO = 1000,
 MESSAGE_TEXT = `Hello`;
 end $$
-call test_signal $$
 ERROR 42S22: Unknown column 'Hello' in 'field list'
-drop procedure test_signal $$
 create procedure test_signal()
 begin
 DECLARE foo CONDITION FOR SQLSTATE '12345';

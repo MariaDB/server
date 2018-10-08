@@ -414,6 +414,7 @@ sub main {
   }
   check_ssl_support();
   check_debug_support();
+  check_wsrep_support();
 
   if (!$opt_suites) {
     $opt_suites= join ',', collect_default_suites(@DEFAULT_SUITES);
@@ -2603,8 +2604,22 @@ sub setup_vardir() {
         unlink "$plugindir/symlink_test";
       }
 
+      for (<$bindir/plugin/auth_pam/auth_pam_tool>)
+      {
+        mkpath("$plugindir/auth_pam_tool_dir");
+        if ($opt_use_copy)
+        {
+          copy rel2abs($_), "$plugindir/auth_pam_tool_dir/auth_pam_tool"
+        }
+        else
+        {
+          symlink rel2abs($_), "$plugindir/auth_pam_tool_dir/auth_pam_tool";
+        }
+      }
+
       for (<$bindir/storage/*/*.so>,
            <$bindir/plugin/*/*.so>,
+           <$bindir/plugin/*/auth_pam_tool_dir>,
            <$bindir/libmariadb/plugins/*/*.so>,
            <$bindir/libmariadb/*.so>,
            <$bindir/sql/*.so>)
@@ -3275,8 +3290,8 @@ sub mysql_install_db {
                             $bootstrap_sql_file);
 
       # mysql.gtid_slave_pos was created in InnoDB, but many tests
-      # run without InnoDB. Alter it to MyISAM now
-      mtr_tofile($bootstrap_sql_file, "ALTER TABLE gtid_slave_pos ENGINE=MyISAM;\n");
+      # run without InnoDB. Alter it to Aria now
+      mtr_tofile($bootstrap_sql_file, "ALTER TABLE gtid_slave_pos ENGINE=Aria transactional=0;\n");
     }
     else
     {
@@ -4567,6 +4582,7 @@ sub extract_warning_lines ($$) {
      qr|Access denied for user|,
      qr|Aborted connection|,
      qr|table.*is full|,
+     qr|\[ERROR\] mysqld: \Z|,  # Warning from Aria recovery
      qr|Linux Native AIO|, # warning that aio does not work on /dev/shm
      qr|InnoDB: io_setup\(\) attempt|,
      qr|InnoDB: io_setup\(\) failed with EAGAIN|,
@@ -5851,7 +5867,7 @@ sub lldb_arguments {
   $input = $input ? "< $input" : "";
 
   # write init file for mysqld or client
-  mtr_tofile($lldb_init_file, "set args $str $input\n");
+  mtr_tofile($lldb_init_file, "process launch --stop-at-entry -- $str $input\n");
 
     print "\nTo start lldb for $type, type in another window:\n";
     print "cd $glob_mysql_test_dir && lldb -s $lldb_init_file $$exe\n";

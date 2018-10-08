@@ -90,11 +90,11 @@ size_t my_read(File Filedes, uchar *Buffer, size_t Count, myf MyFlags)
       {
         if (readbytes == (size_t) -1)
           my_error(EE_READ,
-                   MYF(ME_BELL | ME_WAITTANG | (MyFlags & (ME_JUST_INFO | ME_NOREFRESH))),
+                   MYF(ME_BELL | (MyFlags & (ME_NOTE | ME_ERROR_LOG))),
                    my_filename(Filedes), got_errno);
         else if (MyFlags & (MY_NABP | MY_FNABP))
           my_error(EE_EOFERR,
-                   MYF(ME_BELL | ME_WAITTANG | (MyFlags & (ME_JUST_INFO | ME_NOREFRESH))),
+                   MYF(ME_BELL | (MyFlags & (ME_NOTE | ME_ERROR_LOG))),
                    my_filename(Filedes), got_errno);
       }
       if (readbytes == (size_t) -1 ||

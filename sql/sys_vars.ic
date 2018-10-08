@@ -147,9 +147,10 @@ public:
     option.min_value= min_val;
     option.max_value= max_val;
     option.block_size= block_size;
-    option.u_max_value= (uchar**)max_var_ptr();
-    if (max_var_ptr())
-      *max_var_ptr()= max_val;
+    if ((option.u_max_value= (uchar**) max_var_ptr()))
+    {
+      *((T*) option.u_max_value)= max_val;
+    }
 
     global_var(T)= def_val;
     SYSVAR_ASSERT(size == sizeof(T));
@@ -181,8 +182,8 @@ public:
       var->save_result.ulonglong_value=
         getopt_ull_limit_value(uv, &option, &unused);
 
-      if (max_var_ptr() && (T)var->save_result.ulonglong_value > *max_var_ptr())
-        var->save_result.ulonglong_value= *max_var_ptr();
+      if (max_var_ptr() && (T)var->save_result.ulonglong_value > get_max_var())
+        var->save_result.ulonglong_value= get_max_var();
 
       fixed= fixed || var->save_result.ulonglong_value != uv;
     }
@@ -198,8 +199,8 @@ public:
       var->save_result.longlong_value=
         getopt_ll_limit_value(v, &option, &unused);
 
-      if (max_var_ptr() && (T)var->save_result.longlong_value > *max_var_ptr())
-        var->save_result.longlong_value= *max_var_ptr();
+      if (max_var_ptr() && (T)var->save_result.longlong_value > get_max_var())
+        var->save_result.longlong_value= get_max_var();
 
       fixed= fixed || var->save_result.longlong_value != v;
     }
@@ -221,11 +222,7 @@ public:
   void global_save_default(THD *thd, set_var *var)
   { var->save_result.ulonglong_value= option.def_value; }
   private:
-  T *max_var_ptr()
-  {
-    return scope() == SESSION ? (T*)(((uchar*)&max_system_variables) + offset)
-                              : 0;
-  }
+  T get_max_var() { return *((T*) max_var_ptr()); }
   uchar *default_value_ptr(THD *thd) { return (uchar*) &option.def_value; }
 };
 
@@ -269,6 +266,9 @@ class Sys_var_typelib: public sys_var
 {
 protected:
   TYPELIB typelib;
+  virtual bool check_maximum(THD *thd, set_var *var,
+                             const char *c_val, longlong i_val)
+    { return FALSE; }
 public:
   Sys_var_typelib(const char *name_arg,
           const char *comment, int flag_args, ptrdiff_t off,
@@ -304,17 +304,14 @@ public:
         return true;
       else
         var->save_result.ulonglong_value--;
-    }
-    else
-    {
-      longlong tmp=var->value->val_int();
-      if (tmp < 0 || tmp >= typelib.count)
-        return true;
-      else
-        var->save_result.ulonglong_value= tmp;
+      return check_maximum(thd, var, res->ptr(), 0);
     }
 
-    return false;
+    longlong tmp=var->value->val_int();
+    if (tmp < 0 || tmp >= typelib.count)
+      return true;
+    var->save_result.ulonglong_value= tmp;
+    return check_maximum(thd, var, 0, tmp);
   }
 };
 
@@ -349,9 +346,27 @@ public:
                       substitute)
   {
     option.var_type|= GET_ENUM;
+    option.min_value= 0;
+    option.max_value= ULONG_MAX;
     global_var(ulong)= def_val;
+    if ((option.u_max_value= (uchar**)max_var_ptr()))
+    {
+      *((ulong *) option.u_max_value)= ULONG_MAX;
+    }
     SYSVAR_ASSERT(def_val < typelib.count);
     SYSVAR_ASSERT(size == sizeof(ulong));
+  }
+  bool check_maximum(THD *thd, set_var *var,
+                     const char *c_val, longlong i_val)
+  {
+    if (!max_var_ptr() ||
+        var->save_result.ulonglong_value <= get_max_var())
+      return FALSE;
+    var->save_result.ulonglong_value= get_max_var();
+
+    return c_val ? throw_bounds_warning(thd, name.str, c_val) :
+                   throw_bounds_warning(thd, name.str, TRUE,
+                                        var->value->unsigned_flag, i_val);
   }
   bool session_update(THD *thd, set_var *var)
   {
@@ -375,6 +390,8 @@ public:
   { return valptr(thd, global_var(ulong)); }
   uchar *default_value_ptr(THD *thd)
   { return valptr(thd, (ulong)option.def_value); }
+
+  ulong get_max_var() { return *((ulong *) max_var_ptr()); }
 };
 
 /**
@@ -1341,11 +1358,29 @@ public:
                       substitute)
   {
     option.var_type|= GET_SET;
+    option.min_value= 0;
+    option.max_value= ~0ULL;
     global_var(ulonglong)= def_val;
+    if ((option.u_max_value= (uchar**)max_var_ptr()))
+    {
+      *((ulonglong*) option.u_max_value)= ~0ULL;
+    }
     SYSVAR_ASSERT(typelib.count > 0);
     SYSVAR_ASSERT(typelib.count <= 64);
     SYSVAR_ASSERT(def_val <= my_set_bits(typelib.count));
     SYSVAR_ASSERT(size == sizeof(ulonglong));
+  }
+  bool check_maximum(THD *thd, set_var *var,
+                     const char *c_val, longlong i_val)
+  {
+    if (!max_var_ptr() ||
+        (var->save_result.ulonglong_value & ~(get_max_var())) == 0)
+      return FALSE;
+    var->save_result.ulonglong_value&= get_max_var();
+
+    return c_val ? throw_bounds_warning(thd, name.str, c_val) :
+                   throw_bounds_warning(thd, name.str, TRUE,
+                                        var->value->unsigned_flag, i_val);
   }
   bool do_check(THD *thd, set_var *var)
   {
@@ -1354,41 +1389,38 @@ public:
 
     if (var->value->result_type() == STRING_RESULT)
     {
-      if (!(res=var->value->val_str_ascii(&str)))
+      char *error;
+      uint error_len;
+      bool not_used;
+
+      if (!(res= var->value->val_str_ascii_revert_empty_string_is_null(thd,
+                                                                       &str)))
         return true;
-      else
+
+      var->save_result.ulonglong_value=
+            find_set(&typelib, res->ptr(), res->length(), NULL,
+                    &error, &error_len, &not_used);
+      /*
+        note, we only issue an error if error_len > 0.
+        That is even while empty (zero-length) values are considered
+        errors by find_set(), these errors are ignored here
+      */
+      if (error_len)
       {
-        char *error;
-        uint error_len;
-        bool not_used;
-
-        var->save_result.ulonglong_value=
-              find_set(&typelib, res->ptr(), res->length(), NULL,
-                      &error, &error_len, &not_used);
-        /*
-          note, we only issue an error if error_len > 0.
-          That is even while empty (zero-length) values are considered
-          errors by find_set(), these errors are ignored here
-        */
-        if (unlikely(error_len))
-        {
-          ErrConvString err(error, error_len, res->charset());
-          my_error(ER_WRONG_VALUE_FOR_VAR, MYF(0), name.str, err.ptr());
-          return true;
-        }
-      }
-    }
-    else
-    {
-      longlong tmp=var->value->val_int();
-      if ((tmp < 0 && ! var->value->unsigned_flag)
-          || (ulonglong)tmp > my_set_bits(typelib.count))
+        ErrConvString err(error, error_len, res->charset());
+        my_error(ER_WRONG_VALUE_FOR_VAR, MYF(0), name.str, err.ptr());
         return true;
-      else
-        var->save_result.ulonglong_value= tmp;
+      }
+      return check_maximum(thd, var, res->ptr(), 0);
     }
 
-    return false;
+    longlong tmp=var->value->val_int();
+    if ((tmp < 0 && ! var->value->unsigned_flag)
+        || (ulonglong)tmp > my_set_bits(typelib.count))
+      return true;
+
+    var->save_result.ulonglong_value= tmp;
+    return check_maximum(thd, var, 0, tmp);
   }
   bool session_update(THD *thd, set_var *var)
   {
@@ -1412,6 +1444,8 @@ public:
   { return valptr(thd, global_var(ulonglong)); }
   uchar *default_value_ptr(THD *thd)
   { return valptr(thd, option.def_value); }
+
+  ulonglong get_max_var() { return *((ulonglong*) max_var_ptr()); }
 };
 
 /**
@@ -2625,7 +2659,7 @@ public:
     if (!Sys_var_enum::do_check(thd, var))
       return false;
     MYSQL_TIME ltime;
-    bool res= var->value->get_date(&ltime, 0);
+    bool res= var->value->get_date(thd, &ltime, date_mode_t(0));
     if (!res)
     {
       var->save_result.ulonglong_value= SYSTEM_TIME_AS_OF;
@@ -2642,7 +2676,7 @@ private:
     {
       if (var->value)
       {
-        res= var->value->get_date(&out.ltime, 0);
+        res= var->value->get_date(current_thd, &out.ltime, date_mode_t(0));
       }
       else // set DEFAULT from global var
       {

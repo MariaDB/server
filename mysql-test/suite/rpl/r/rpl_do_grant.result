@@ -20,21 +20,21 @@ GRANT DROP ON `test`.* TO 'rpl_do_grant'@'localhost'
 connection master;
 set password for rpl_do_grant@localhost=password("does it work?");
 connection slave;
-select password<>_binary'' from mysql.user where user=_binary'rpl_do_grant';
-password<>_binary''
+select authentication_string<>_binary'' from mysql.user where user=_binary'rpl_do_grant';
+authentication_string<>_binary''
 1
 connection master;
-update mysql.user set password='' where user='rpl_do_grant';
+update mysql.user set authentication_string='' where user='rpl_do_grant';
 flush privileges;
-select password<>'' from mysql.user where user='rpl_do_grant';
-password<>''
+select authentication_string<>'' from mysql.user where user='rpl_do_grant';
+authentication_string<>''
 0
 set sql_mode='ANSI_QUOTES';
 set password for rpl_do_grant@localhost=password('does it work?');
 set sql_mode='';
 connection slave;
-select password<>'' from mysql.user where user='rpl_do_grant';
-password<>''
+select authentication_string<>'' from mysql.user where user='rpl_do_grant';
+authentication_string<>''
 1
 connection master;
 delete from mysql.user where user=_binary'rpl_do_grant';

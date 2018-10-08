@@ -74,6 +74,18 @@ SELECT * FROM t1;
 DROP TABLE t1;
 
 --echo #
+--echo # MDEV-9334 ALTER from DECIMAL to BIGINT UNSIGNED returns a wrong result
+--echo #
+
+CREATE TABLE t1 (a DECIMAL(30,0));
+INSERT INTO t1 VALUES (CAST(0xFFFFFFFFFFFFFFFF AS UNSIGNED));
+SELECT * FROM t1;
+ALTER TABLE t1 MODIFY a BIGINT UNSIGNED;
+SELECT * FROM t1;
+DROP TABLE t1;
+
+
+--echo #
 --echo # End of 10.2 tests
 --echo #
 
@@ -166,4 +178,35 @@ DROP FUNCTION sint64;
 
 --echo #
 --echo # End of 10.3 tests
+--echo #
+
+--echo #
+--echo # Start of 10.4 tests
+--echo #
+
+--echo #
+--echo # MDEV-11362 True condition elimination does not work for DECIMAL and temporal dynamic SQL parameters
+--echo #
+
+CREATE TABLE t1 (a INT);
+INSERT INTO t1 VALUES (1),(2),(3);
+EXPLAIN EXTENDED SELECT * FROM t1 WHERE 1+a<=>1+a;
+EXECUTE IMMEDIATE 'EXPLAIN EXTENDED SELECT * FROM t1 WHERE ?+a<=>?+a' USING 1,1;
+EXECUTE IMMEDIATE 'EXPLAIN EXTENDED SELECT * FROM t1 WHERE ?+a<=>1+a' USING 1;
+EXECUTE IMMEDIATE 'EXPLAIN EXTENDED SELECT * FROM t1 WHERE 1+a<=>?+a' USING 1;
+DROP TABLE t1;
+
+--echo #
+--echo # MDEV-15759 Expect "Impossible WHERE" for indexed_int_column=out_of_range_int_constant
+--echo #
+
+CREATE TABLE t1 (a TINYINT, KEY(a));
+INSERT INTO t1 VALUES (1),(2),(3),(4),(5);
+EXPLAIN SELECT * FROM t1 WHERE a=200;
+EXPLAIN SELECT * FROM t1 WHERE a<=>200;
+DROP TABLE t1;
+
+
+--echo #
+--echo # End of 10.4 tests
 --echo #

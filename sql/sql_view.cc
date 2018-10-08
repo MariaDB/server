@@ -254,7 +254,7 @@ bool create_view_precheck(THD *thd, TABLE_LIST *tables, TABLE_LIST *view,
   LEX *lex= thd->lex;
   /* first table in list is target VIEW name => cut off it */
   TABLE_LIST *tbl;
-  SELECT_LEX *select_lex= &lex->select_lex;
+  SELECT_LEX *select_lex= lex->first_select_lex();
   SELECT_LEX *sl;
   bool res= TRUE;
   DBUG_ENTER("create_view_precheck");
@@ -323,7 +323,6 @@ bool create_view_precheck(THD *thd, TABLE_LIST *tables, TABLE_LIST *view,
     }
   }
 
-  if (&lex->select_lex != lex->all_selects_list)
   {
     /* check tables of subqueries */
     for (tbl= tables; tbl; tbl= tbl->next_global)
@@ -399,7 +398,7 @@ bool mysql_create_view(THD *thd, TABLE_LIST *views,
   TABLE_LIST *view= lex->unlink_first_table(&link_to_local);
   TABLE_LIST *tables= lex->query_tables;
   TABLE_LIST *tbl;
-  SELECT_LEX *select_lex= &lex->select_lex;
+  SELECT_LEX *select_lex= lex->first_select_lex();
   SELECT_LEX *sl;
   SELECT_LEX_UNIT *unit= &lex->unit;
   bool res= FALSE;
@@ -435,7 +434,7 @@ bool mysql_create_view(THD *thd, TABLE_LIST *views,
     goto err;
   }
 
-  WSREP_TO_ISOLATION_BEGIN(WSREP_MYSQL_DB, NULL, NULL)
+  WSREP_TO_ISOLATION_BEGIN(WSREP_MYSQL_DB, NULL, NULL);
 
   /*
     ignore lock specs for CREATE statement
@@ -711,14 +710,14 @@ bool mysql_create_view(THD *thd, TABLE_LIST *views,
   lex->link_first_table_back(view, link_to_local);
   DBUG_RETURN(0);
 
+#ifdef WITH_WSREP
+ error:
+  res= TRUE;
+#endif /* WITH_WSREP */
 err:
   lex->link_first_table_back(view, link_to_local);
   unit->cleanup();
   DBUG_RETURN(res || thd->is_error());
-#ifdef WITH_WSREP
- error:
-  DBUG_RETURN(true);
-#endif /* WITH_WSREP */
 }
 
 
@@ -995,7 +994,7 @@ static int mysql_register_view(THD *thd, TABLE_LIST *view,
                               view->algorithm != VIEW_ALGORITHM_TMPTABLE)))
   {
     /* TODO: change here when we will support UNIONs */
-    for (TABLE_LIST *tbl= lex->select_lex.table_list.first;
+    for (TABLE_LIST *tbl= lex->first_select_lex()->table_list.first;
 	 tbl;
 	 tbl= tbl->next_local)
     {
@@ -1114,8 +1113,8 @@ loop_out:
     UNION
   */
   if (view->updatable_view &&
-      !lex->select_lex.master_unit()->is_unit_op() &&
-      !(lex->select_lex.table_list.first)->next_local &&
+      !lex->first_select_lex()->master_unit()->is_unit_op() &&
+      !(lex->first_select_lex()->table_list.first)->next_local &&
       find_table_in_global_list(lex->query_tables->next_global,
 				&lex->query_tables->db,
 				&lex->query_tables->table_name))
@@ -1162,7 +1161,8 @@ err:
 bool mysql_make_view(THD *thd, TABLE_SHARE *share, TABLE_LIST *table,
                      bool open_view_no_parse)
 {
-  SELECT_LEX *end, *UNINIT_VAR(view_select);
+  SELECT_LEX_NODE *end;
+  SELECT_LEX *UNINIT_VAR(view_select);
   LEX *old_lex, *lex;
   Query_arena *arena, backup;
   TABLE_LIST *top_view= table->top_table();
@@ -1361,8 +1361,6 @@ bool mysql_make_view(THD *thd, TABLE_SHARE *share, TABLE_LIST *table,
 
     lex_start(thd);
     lex->stmt_lex= old_lex;
-    view_select= &lex->select_lex;
-    view_select->select_number= ++thd->lex->stmt_lex->current_select_number;
 
     sql_mode_t saved_mode= thd->variables.sql_mode;
     /* switch off modes which can prevent normal parsing of VIEW
@@ -1396,6 +1394,8 @@ bool mysql_make_view(THD *thd, TABLE_SHARE *share, TABLE_LIST *table,
     /* Parse the query. */
 
     parse_status= parse_sql(thd, & parser_state, table->view_creation_ctx);
+
+    view_select= lex->first_select_lex();
 
     /* Restore environment. */
 
@@ -1546,7 +1546,7 @@ bool mysql_make_view(THD *thd, TABLE_SHARE *share, TABLE_LIST *table,
         This may change in future, for example if we enable merging of
         views with subqueries in select list.
       */
-      view_main_select_tables= lex->select_lex.table_list.first;
+      view_main_select_tables= lex->first_select_lex()->table_list.first;
 
       /*
         Let us set proper lock type for tables of the view's main
@@ -1574,7 +1574,7 @@ bool mysql_make_view(THD *thd, TABLE_SHARE *share, TABLE_LIST *table,
 
       /* Fields in this view can be used in upper select in case of merge.  */
       if (table->select_lex)
-        table->select_lex->add_where_field(&lex->select_lex);
+        table->select_lex->add_where_field(lex->first_select_lex());
     }
     /*
       This method has a dependency on the proper lock type being set,
@@ -1596,8 +1596,8 @@ bool mysql_make_view(THD *thd, TABLE_SHARE *share, TABLE_LIST *table,
     old_lex->safe_to_cache_query= (old_lex->safe_to_cache_query &&
 				   lex->safe_to_cache_query);
     /* move SQL_CACHE to whole query */
-    if (view_select->options & OPTION_TO_QUERY_CACHE)
-      old_lex->select_lex.options|= OPTION_TO_QUERY_CACHE;
+    if (lex->first_select_lex()->options & OPTION_TO_QUERY_CACHE)
+      old_lex->first_select_lex()->options|= OPTION_TO_QUERY_CACHE;
 
 #ifndef NO_EMBEDDED_ACCESS_CHECKS
     if (table->view_suid)
@@ -1679,9 +1679,10 @@ bool mysql_make_view(THD *thd, TABLE_SHARE *share, TABLE_LIST *table,
         tbl->grant.want_privilege= top_view->grant.orig_want_privilege;
 
       /* prepare view context */
-      lex->select_lex.context.resolve_in_table_list_only(view_main_select_tables);
-      lex->select_lex.context.outer_context= 0;
-      lex->select_lex.select_n_having_items+=
+      lex->first_select_lex()->
+        context.resolve_in_table_list_only(view_main_select_tables);
+      lex->first_select_lex()->context.outer_context= 0;
+      lex->first_select_lex()->select_n_having_items+=
         table->select_lex->select_n_having_items;
 
       table->where= view_select->where;
@@ -1692,12 +1693,13 @@ bool mysql_make_view(THD *thd, TABLE_SHARE *share, TABLE_LIST *table,
       */
       if (!table->select_lex->master_unit()->is_unit_op() &&
           table->select_lex->order_list.elements == 0)
-        table->select_lex->order_list.push_back(&lex->select_lex.order_list);
+        table->select_lex->order_list.
+          push_back(&lex->first_select_lex()->order_list);
       else
       {
         if (old_lex->sql_command == SQLCOM_SELECT &&
             (old_lex->describe & DESCRIBE_EXTENDED) &&
-            lex->select_lex.order_list.elements &&
+            lex->first_select_lex()->order_list.elements &&
             !table->select_lex->master_unit()->is_unit_op())
         {
           push_warning_printf(thd, Sql_condition::WARN_LEVEL_NOTE,
@@ -1732,7 +1734,11 @@ ok:
   lex->unit.include_down(table->select_lex);
   lex->unit.slave= view_select; // fix include_down initialisation
   /* global SELECT list linking */
-  end= view_select;	// primary SELECT_LEX is always last
+  /*
+    The primary SELECT_LEX is always last (because parsed first) if WITH not
+    used, otherwise it is good start point for last element finding
+  */
+  for (end= view_select; end->link_next; end= end->link_next);
   end->link_next= old_lex->all_selects_list;
   old_lex->all_selects_list->link_prev= &end->link_next;
   old_lex->all_selects_list= lex->all_selects_list;
@@ -1917,7 +1923,7 @@ bool check_key_in_view(THD *thd, TABLE_LIST *view)
   */
   if ((!view->view && !view->belong_to_view) ||
       thd->lex->sql_command == SQLCOM_INSERT ||
-      thd->lex->select_lex.select_limit == 0)
+      thd->lex->first_select_lex()->select_limit == 0)
     DBUG_RETURN(FALSE); /* it is normal table or query without LIMIT */
   table= view->table;
   view= view->top_table();
@@ -1938,7 +1944,7 @@ bool check_key_in_view(THD *thd, TABLE_LIST *view)
     DBUG_PRINT("info", ("thd->column_usage: %d", thd->column_usage));
     for (Field_translator *fld= trans; fld < end_of_trans; fld++)
     {
-      if (!fld->item->fixed && fld->item->fix_fields(thd, &fld->item))
+      if (fld->item->fix_fields_if_needed(thd, &fld->item))
       {
         thd->column_usage= saved_column_usage;
         DBUG_RETURN(TRUE);

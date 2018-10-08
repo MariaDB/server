@@ -81,47 +81,19 @@ if (!$tmp) {
   SHOW SLAVE STATUS;
 }
 
-if (`SELECT COUNT(*) = 1 FROM INFORMATION_SCHEMA.SCHEMATA WHERE SCHEMA_NAME='wsrep_schema'`) {
-    if (`SELECT COUNT(*) > 0 FROM wsrep_schema.SR`) {
-    --die The wsrep_schema.SR table is not empty at the end of the test
-    }
-}
+#
+# Ensure that we don't get warnings from mysql.proc (used by check_mysqld)
+#
 
---let $mysql_port= `SELECT @@port`
-# The state file is used to distinguish whether this execution of
-# check-testcase.test is before or after a particular test.
-# * If it does not exist, then this is a "before" execution and we create it,
-# * If it exists, then this is an "after" execution and we delete it.
---let _STATE_FILE= $MYSQL_TMP_DIR/check_testcase_state_$mysql_port
---let _INC_FILE= $MYSQL_TMP_DIR/check_testcase_state_$mysql_port.inc
---perl
-use strict;
-my $state_file= $ENV{'_STATE_FILE'};
-my $before= 1;
-if (-e $state_file) {
-  $before= 0;
-}
-my $fh;
-my $inc_file= $ENV{'_INC_FILE'};
-if (!open($fh, ">", $inc_file)) {
-  die "Unable to open '$inc_file' for writing: $!";
-}
-print $fh "--let \$before= $before\n";
-close $fh;
-if ($before) {
-  if (!open($fh, ">", $state_file)) {
-    die "Unable to open '$state_file' for writing: $!";
-  }
-  close $fh;
-} else {
-  if (!unlink($state_file)) {
-    die "Unable to delete '$state_file': $!";
-  }
-}
-EOF
---source $_INC_FILE
---remove_file $_INC_FILE
-# Now $before is set to 1 if we are executing before the test and 0 if after the test.
+--disable_query_log
+--disable_warnings
+--disable_result_log
+select count(*) from mysql.proc;
+--enable_result_log
+--enable_warnings
+--enable_query_log
+
+call mtr.check_testcase();
 
 let $datadir=`select @@datadir`;
 list_files $datadir mysql_upgrade_info;

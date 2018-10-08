@@ -403,6 +403,8 @@ rpl_slave_state::truncate_state_table(THD *thd)
   tlist.init_one_table(&MYSQL_SCHEMA_NAME, &rpl_gtid_slave_state_table_name, NULL, TL_WRITE);
   if (!(err= open_and_lock_tables(thd, &tlist, FALSE, 0)))
   {
+    tdc_remove_table(thd, TDC_RT_REMOVE_UNUSED, "mysql",
+                     rpl_gtid_slave_state_table_name.str, false);
     err= tlist.table->file->ha_truncate();
 
     if (err)

@@ -109,11 +109,6 @@ then
   DROP PREPARE stmt;"
 fi
 
-# Retrieve the donor's @@global.gtid_binlog_state.
-GTID_BINLOG_STATE=$(echo "SHOW GLOBAL VARIABLES LIKE 'gtid_binlog_state'" |\
-$MYSQL_CLIENT $AUTH -S$WSREP_SST_OPT_SOCKET --disable-reconnect --connect_timeout=10 |\
-tail -1 | awk -F ' ' '{ print $2 }')
-
 MYSQL="$MYSQL_CLIENT $WSREP_SST_OPT_CONF "\
 "$AUTH -h${WSREP_SST_OPT_HOST_UNESCAPED} "\
 "-P$WSREP_SST_OPT_PORT --disable-reconnect --connect_timeout=10"
@@ -127,12 +122,16 @@ tail -1 | awk -F ' ' '{ print $2 }')
 SERVER_VERSION=$(echo "set statement wsrep_sync_wait=0 for SHOW VARIABLES LIKE 'version'" | $MYSQL |\
 tail -1 | awk -F ' ' '{ print $2 }')
 
+# Retrieve the donor's @@global.gtid_binlog_state.
+GTID_BINLOG_STATE=$(echo "SHOW GLOBAL VARIABLES LIKE 'gtid_binlog_state'" | $MYSQL |\
+tail -1 | awk -F ' ' '{ print $2 }')
+
 RESET_MASTER=""
 SET_GTID_BINLOG_STATE=""
 SQL_LOG_BIN_OFF=""
 
 # Safety check
-if echo $SERVER_VERSION | grep '^10.' > /dev/null
+if [ "${SERVER_VERSION%%.*}" != '5' ]
 then
   # If binary logging is enabled on the joiner node, we need to copy donor's
   # gtid_binlog_state to joiner. In order to do that, a RESET MASTER must be
@@ -147,7 +146,7 @@ then
 fi
 
 # NOTE: we don't use --routines here because we're dumping mysql.proc table
-MYSQLDUMP="$MYSQLDUMP $AUTH -S$WSREP_SST_OPT_SOCKET \
+MYSQLDUMP="$MYSQLDUMP $WSREP_SST_OPT_CONF $AUTH -S$WSREP_SST_OPT_SOCKET \
 --add-drop-database --add-drop-table --skip-add-locks --create-options \
 --disable-keys --extended-insert --skip-lock-tables --quick --set-charset \
 --skip-comments --flush-privileges --all-databases --events"

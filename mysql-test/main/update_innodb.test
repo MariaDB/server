@@ -75,3 +75,62 @@ SELECT t2.b_id FROM t1,t2 WHERE t2.c_id = t1.c_id;
 UPDATE t1 SET b_id = (SELECT t2.b_id FROM t2 t2 WHERE t2.c_id = t1.c_id);
 SELECT * FROM t1;
 drop table t1,t2;
+
+
+--source include/have_innodb.inc
+
+CREATE OR REPLACE TABLE t1 (a INT NOT NULL PRIMARY KEY) engine=innodb;
+CREATE OR REPLACE TABLE t2 (a INT NOT NULL PRIMARY KEY) engine=innodb;
+INSERT INTO t1 VALUES (1);
+INSERT INTO t2 VALUES (2);
+BEGIN;
+SELECT * FROM t1 UNION 
+SELECT * FROM t2 FOR UPDATE;
+
+--connect(con2,localhost,root,,)
+BEGIN;
+--send SELECT * FROM t2 FOR UPDATE;
+--connection default
+
+select * from t2;
+update t2 set a=a+100;
+commit;
+
+--connection con2
+--reap
+
+commit;
+
+--connection default
+drop table t1,t2;
+
+
+CREATE OR REPLACE TABLE t1 (a INT NOT NULL PRIMARY KEY) engine=innodb;
+CREATE OR REPLACE TABLE t2 (a INT NOT NULL PRIMARY KEY) engine=innodb;
+INSERT INTO t1 VALUES (1);
+INSERT INTO t2 VALUES (2);
+BEGIN;
+SELECT * FROM (
+  SELECT * FROM t1 UNION 
+  SELECT * FROM t2 FOR UPDATE
+  ) t;
+
+--connection con2
+BEGIN;
+--send SELECT * FROM t2 FOR UPDATE;
+--connection default
+
+select * from t2;
+update t2 set a=a+100;
+commit;
+
+--connection con2
+--reap
+
+commit;
+
+--connection default
+disconnect con2;
+drop table t1,t2;
+
+--echo # End of 10.4 tests

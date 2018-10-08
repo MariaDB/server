@@ -1034,9 +1034,9 @@ find_files(THD *thd, Dynamic_array<LEX_CSTRING*> *files, LEX_CSTRING *db,
   if (!(dirp = my_dir(path, MY_THREAD_SPECIFIC | (db ? 0 : MY_WANT_STAT))))
   {
     if (my_errno == ENOENT)
-      my_error(ER_BAD_DB_ERROR, MYF(ME_BELL | ME_WAITTANG), db->str);
+      my_error(ER_BAD_DB_ERROR, MYF(0), db->str);
     else
-      my_error(ER_CANT_READ_DIR, MYF(ME_BELL | ME_WAITTANG), path, my_errno);
+      my_error(ER_CANT_READ_DIR, MYF(0), path, my_errno);
     DBUG_RETURN(FIND_FILES_DIR);
   }
 
@@ -2184,6 +2184,12 @@ int show_create_table(THD *thd, TABLE_LIST *table_list, String *packet,
     field->sql_type(type);
     packet->append(type.ptr(), type.length(), system_charset_info);
 
+    DBUG_EXECUTE_IF("sql_type",
+                    packet->append(" /* ");
+                    packet->append(field->type_handler()->version().ptr());
+                    packet->append(" */ ");
+                    );
+
     if (field->has_charset() && !(sql_mode & (MODE_MYSQL323 | MODE_MYSQL40)))
     {
       if (field->charset() != share->table_charset)
@@ -2610,7 +2616,7 @@ static int show_create_view(THD *thd, TABLE_LIST *table, String *buff)
     We can't just use table->query, because our SQL_MODE may trigger
     a different syntax, like when ANSI_QUOTES is defined.
   */
-  table->view->unit.print(buff, enum_query_type(QT_ORDINARY |
+  table->view->unit.print(buff, enum_query_type(QT_VIEW_INTERNAL |
                                                 QT_ITEM_ORIGINAL_FUNC_NULLIF));
 
   if (table->with_check != VIEW_CHECK_NONE)
@@ -2707,6 +2713,9 @@ static const char *thread_state_info(THD *tmp)
       return "";
     return "Reading from net";
   }
+#else
+  if (tmp->get_command() == COM_SLEEP)
+    return "";
 #endif
 
   if (tmp->proc_info)
@@ -4140,8 +4149,9 @@ bool get_lookup_field_values(THD *thd, COND *cond, TABLE_LIST *tables,
   case SQLCOM_SHOW_TABLE_STATUS:
   case SQLCOM_SHOW_TRIGGERS:
   case SQLCOM_SHOW_EVENTS:
-    thd->make_lex_string(&lookup_field_values->db_value, 
-                         lex->select_lex.db.str, lex->select_lex.db.length);
+    thd->make_lex_string(&lookup_field_values->db_value,
+                         lex->first_select_lex()->db.str,
+                         lex->first_select_lex()->db.length);
     if (wild)
     {
       thd->make_lex_string(&lookup_field_values->table_value, 
@@ -4534,10 +4544,10 @@ fill_schema_table_by_open(THD *thd, MEM_ROOT *mem_root,
     temporary LEX. The latter is required to correctly open views and
     produce table describing their structure.
   */
-  if (make_table_list(thd, &lex->select_lex, &db_name, &table_name))
+  if (make_table_list(thd, lex->first_select_lex(), &db_name, &table_name))
     goto end;
 
-  table_list= lex->select_lex.table_list.first;
+  table_list= lex->first_select_lex()->table_list.first;
 
   if (is_show_fields_or_keys)
   {
@@ -6712,7 +6722,7 @@ static int get_schema_views_record(THD *thd, TABLE_LIST *tables,
           & 'field_translation_end' are uninitialized is this
           case.
         */
-        List<Item> *fields= &tables->view->select_lex.item_list;
+        List<Item> *fields= &tables->view->first_select_lex()->item_list;
         List_iterator<Item> it(*fields);
         Item *item;
         Item_field *field;
@@ -6785,6 +6795,42 @@ store_constraints(THD *thd, TABLE *table, const LEX_CSTRING *db_name,
   return schema_table_store_record(thd, table);
 }
 
+static int get_check_constraints_record(THD *thd, TABLE_LIST *tables,
+                                        TABLE *table, bool res,
+                                        const LEX_CSTRING *db_name,
+                                        const LEX_CSTRING *table_name)
+{
+  DBUG_ENTER("get_check_constraints_record");
+  if (res)
+  {
+    if (thd->is_error())
+      push_warning(thd, Sql_condition::WARN_LEVEL_WARN,
+                   thd->get_stmt_da()->sql_errno(),
+                   thd->get_stmt_da()->message());
+    thd->clear_error();
+    DBUG_RETURN(0);
+  }
+  else if (!tables->view)
+  {
+    if (tables->table->s->table_check_constraints)
+    {
+      for (uint i= 0; i < tables->table->s->table_check_constraints; i++)
+      {
+        StringBuffer<MAX_FIELD_WIDTH> str(system_charset_info);
+        Virtual_column_info *check= tables->table->check_constraints[i];
+        restore_record(table, s->default_values);
+        table->field[0]->store(STRING_WITH_LEN("def"), system_charset_info);
+        table->field[1]->store(db_name->str, db_name->length, system_charset_info);
+        table->field[2]->store(check->name.str, check->name.length, system_charset_info);
+        table->field[3]->store(table_name->str, table_name->length, system_charset_info);
+        check->print(&str);
+        table->field[4]->store(str.ptr(), str.length(), system_charset_info);
+        schema_table_store_record(thd, table);
+      }
+    }
+  }
+  DBUG_RETURN(res);
+}
 
 static int get_schema_constraints_record(THD *thd, TABLE_LIST *tables,
 					 TABLE *table, bool res,
@@ -7329,7 +7375,7 @@ static int get_schema_partitions_record(THD *thd, TABLE_LIST *tables,
       break;
     default:
       DBUG_ASSERT(0);
-      my_error(ER_OUT_OF_RESOURCES, MYF(ME_FATALERROR));
+      my_error(ER_OUT_OF_RESOURCES, MYF(ME_FATAL));
       DBUG_RETURN(1);
     }
     table->field[7]->set_notnull();
@@ -7691,9 +7737,9 @@ int fill_open_tables(THD *thd, TABLE_LIST *tables, COND *cond)
   TABLE *table= tables->table;
   CHARSET_INFO *cs= system_charset_info;
   OPEN_TABLE_LIST *open_list;
-  if (unlikely(!(open_list= list_open_tables(thd, thd->lex->select_lex.db.str,
-                                             wild))) &&
-      unlikely(thd->is_fatal_error))
+  if (!(open_list= list_open_tables(thd, thd->lex->first_select_lex()->db.str,
+                                    wild))
+            && thd->is_fatal_error)
     DBUG_RETURN(1);
 
   for (; open_list ; open_list=open_list->next)
@@ -8187,7 +8233,7 @@ TABLE *create_schema_table(THD *thd, TABLE_LIST *table_list)
   tmp_table_param->table_charset= cs;
   tmp_table_param->field_count= field_count;
   tmp_table_param->schema_table= 1;
-  SELECT_LEX *select_lex= thd->lex->current_select;
+  SELECT_LEX *select_lex= table_list->select_lex;
   bool keep_row_order= is_show_command(thd);
   if (!(table= create_tmp_table(thd, tmp_table_param,
                                 field_list, (ORDER*) 0, 0, 0, 
@@ -8224,7 +8270,7 @@ TABLE *create_schema_table(THD *thd, TABLE_LIST *table_list)
 static int make_old_format(THD *thd, ST_SCHEMA_TABLE *schema_table)
 {
   ST_FIELD_INFO *field_info= schema_table->fields_info;
-  Name_resolution_context *context= &thd->lex->select_lex.context;
+  Name_resolution_context *context= &thd->lex->first_select_lex()->context;
   for (; field_info->field_name; field_info++)
   {
     if (field_info->old_name)
@@ -8284,14 +8330,14 @@ int make_table_names_old_format(THD *thd, ST_SCHEMA_TABLE *schema_table)
   char tmp[128];
   String buffer(tmp,sizeof(tmp), thd->charset());
   LEX *lex= thd->lex;
-  Name_resolution_context *context= &lex->select_lex.context;
+  Name_resolution_context *context= &lex->first_select_lex()->context;
   ST_FIELD_INFO *field_info= &schema_table->fields_info[2];
   LEX_CSTRING field_name= {field_info->field_name,
                            strlen(field_info->field_name) };
 
   buffer.length(0);
   buffer.append(field_info->old_name);
-  buffer.append(&lex->select_lex.db);
+  buffer.append(&lex->first_select_lex()->db);
   if (lex->wild && lex->wild->ptr())
   {
     buffer.append(STRING_WITH_LEN(" ("));
@@ -8324,7 +8370,7 @@ int make_columns_old_format(THD *thd, ST_SCHEMA_TABLE *schema_table)
   int fields_arr[]= {3, 15, 14, 6, 16, 5, 17, 18, 19, -1};
   int *field_num= fields_arr;
   ST_FIELD_INFO *field_info;
-  Name_resolution_context *context= &thd->lex->select_lex.context;
+  Name_resolution_context *context= &thd->lex->first_select_lex()->context;
 
   for (; *field_num >= 0; field_num++)
   {
@@ -8355,7 +8401,7 @@ int make_character_sets_old_format(THD *thd, ST_SCHEMA_TABLE *schema_table)
   int fields_arr[]= {0, 2, 1, 3, -1};
   int *field_num= fields_arr;
   ST_FIELD_INFO *field_info;
-  Name_resolution_context *context= &thd->lex->select_lex.context;
+  Name_resolution_context *context= &thd->lex->first_select_lex()->context;
 
   for (; *field_num >= 0; field_num++)
   {
@@ -8382,7 +8428,7 @@ int make_proc_old_format(THD *thd, ST_SCHEMA_TABLE *schema_table)
   int fields_arr[]= {2, 3, 4, 27, 24, 23, 22, 26, 28, 29, 30, -1};
   int *field_num= fields_arr;
   ST_FIELD_INFO *field_info;
-  Name_resolution_context *context= &thd->lex->select_lex.context;
+  Name_resolution_context *context= &thd->lex->first_select_lex()->context;
 
   for (; *field_num >= 0; field_num++)
   {
@@ -8455,8 +8501,7 @@ int mysql_schema_table(THD *thd, LEX *lex, TABLE_LIST *table_list)
       Field_translator *end= table_list->field_translation_end;
       for (transl= table_list->field_translation; transl < end; transl++)
       {
-        if (!transl->item->fixed &&
-            transl->item->fix_fields(thd, &transl->item))
+        if (transl->item->fix_fields_if_needed(thd, &transl->item))
           DBUG_RETURN(1);
       }
       DBUG_RETURN(0);
@@ -8473,10 +8518,8 @@ int mysql_schema_table(THD *thd, LEX *lex, TABLE_LIST *table_list)
     {
       transl->item= item;
       transl->name= item->name;
-      if (!item->fixed && item->fix_fields(thd, &transl->item))
-      {
+      if (item->fix_fields_if_needed(thd, &transl->item))
         DBUG_RETURN(1);
-      }
     }
     table_list->field_translation= org_transl;
     table_list->field_translation_end= transl;
@@ -9708,6 +9751,18 @@ ST_FIELD_INFO spatial_ref_sys_fields_info[]=
 #endif /*HAVE_SPATIAL*/
 
 
+ST_FIELD_INFO check_constraints_fields_info[]=
+{
+  {"CONSTRAINT_CATALOG", FN_REFLEN, MYSQL_TYPE_STRING, 0, 0, 0, OPEN_FULL_TABLE},
+  {"CONSTRAINT_SCHEMA", NAME_CHAR_LEN, MYSQL_TYPE_STRING, 0, 0, 0,
+   OPEN_FULL_TABLE},
+  {"CONSTRAINT_NAME", NAME_CHAR_LEN, MYSQL_TYPE_STRING, 0, 0, 0,
+   OPEN_FULL_TABLE},
+  {"TABLE_NAME", NAME_CHAR_LEN, MYSQL_TYPE_STRING, 0, 0, 0, OPEN_FULL_TABLE},
+  {"CHECK_CLAUSE", NAME_CHAR_LEN, MYSQL_TYPE_STRING, 0, 0, 0,
+   OPEN_FULL_TABLE},
+  {0, 0, MYSQL_TYPE_STRING, 0, 0, 0, SKIP_OPEN_TABLE}
+};
 /*
   Description of ST_FIELD_INFO in table.h
 
@@ -9723,6 +9778,8 @@ ST_SCHEMA_TABLE schema_tables[]=
    fill_schema_applicable_roles, 0, 0, -1, -1, 0, 0},
   {"CHARACTER_SETS", charsets_fields_info, 0,
    fill_schema_charsets, make_character_sets_old_format, 0, -1, -1, 0, 0},
+  {"CHECK_CONSTRAINTS", check_constraints_fields_info, 0,
+   get_all_tables, 0, get_check_constraints_record, 1, 2, 0, OPTIMIZE_I_S_TABLE|OPEN_TABLE_ONLY},
   {"COLLATIONS", collation_fields_info, 0,
    fill_schema_collation, make_old_format, 0, -1, -1, 0, 0},
   {"COLLATION_CHARACTER_SET_APPLICABILITY", coll_charset_app_fields_info,
@@ -10319,3 +10376,85 @@ static void get_cs_converted_string_value(THD *thd,
   return;
 }
 #endif
+
+/**
+  Dumps a text description of a thread, its security context
+  (user, host) and the current query.
+
+  @param thd thread context
+  @param buffer pointer to preferred result buffer
+  @param length length of buffer
+  @param max_query_len how many chars of query to copy (0 for all)
+
+  @return Pointer to string
+*/
+
+extern "C"
+char *thd_get_error_context_description(THD *thd, char *buffer,
+                                        unsigned int length,
+                                        unsigned int max_query_len)
+{
+  String str(buffer, length, &my_charset_latin1);
+  const Security_context *sctx= &thd->main_security_ctx;
+  char header[256];
+  size_t len;
+
+  len= my_snprintf(header, sizeof(header),
+                   "MySQL thread id %u, OS thread handle %lu, query id %llu",
+                   (uint)thd->thread_id, (ulong) thd->real_id, (ulonglong) thd->query_id);
+  str.length(0);
+  str.append(header, len);
+
+  if (sctx->host)
+  {
+    str.append(' ');
+    str.append(sctx->host);
+  }
+
+  if (sctx->ip)
+  {
+    str.append(' ');
+    str.append(sctx->ip);
+  }
+
+  if (sctx->user)
+  {
+    str.append(' ');
+    str.append(sctx->user);
+  }
+
+  /* Don't wait if LOCK_thd_data is used as this could cause a deadlock */
+  if (!mysql_mutex_trylock(&thd->LOCK_thd_data))
+  {
+    if (const char *info= thread_state_info(thd))
+    {
+      str.append(' ');
+      str.append(info);
+    }
+
+    if (thd->query())
+    {
+      if (max_query_len < 1)
+        len= thd->query_length();
+      else
+        len= MY_MIN(thd->query_length(), max_query_len);
+      str.append('\n');
+      str.append(thd->query(), len);
+    }
+    mysql_mutex_unlock(&thd->LOCK_thd_data);
+  }
+
+  if (str.c_ptr_safe() == buffer)
+    return buffer;
+
+  /*
+    We have to copy the new string to the destination buffer because the string
+    was reallocated to a larger buffer to be able to fit.
+  */
+  DBUG_ASSERT(buffer != NULL);
+  length= MY_MIN(str.length(), length-1);
+  memcpy(buffer, str.c_ptr_quick(), length);
+  /* Make sure that the new string is null terminated */
+  buffer[length]= '\0';
+  return buffer;
+}

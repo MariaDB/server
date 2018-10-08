@@ -1992,6 +1992,54 @@ select * from t1 t
  on t.id=r.id ;
 drop table t1, t2;
 
+--echo #
+--echo # MDEV-16726: SELECT with STRAGHT JOIN containing NESTED RIGHT JOIN
+--echo #             converted to INNER JOIN with first constant inner table
+--echo #
+
+CREATE TABLE t1 (
+  pk int PRIMARY KEY, i1 int, v1 varchar(1), v2 varchar(1), KEY v1 (v1,i1)
+) engine=MyISAM;
+INSERT INTO t1 VALUES
+  (8,3,'c','c'),(9,4,'z','z'),(10,3,'i','i'),(11,186,'x','x'),
+  (14,226,'m','m'),(15,133,'p','p');
+
+CREATE TABLE t2 (
+  pk int PRIMARY KEY, i1 int, v1 varchar(1), v2 varchar(1)
+) engine=MyISAM;
+INSERT INTO t2 VALUES (10,6,'p','p');
+
+EXPLAIN EXTENDED
+SELECT STRAIGHT_JOIN t2.v2
+FROM
+  (t1 as tb1 LEFT JOIN t1 AS tb2 ON tb2.v1 = tb1.v2)
+  RIGHT JOIN
+  (t2,t1)
+  ON t1.pk = t2.pk AND t2.v2 = tb1.v1
+WHERE tb1.pk = 40
+ORDER BY tb1.i1;
+
+EXPLAIN EXTENDED
+SELECT STRAIGHT_JOIN t2.v2
+FROM
+    (t2,t1)
+    LEFT JOIN
+    (t1 as tb1 LEFT JOIN t1 AS tb2 ON tb2.v1 = tb1.v2)
+   ON t1.pk = t2.pk AND t2.v2 = tb1.v1
+WHERE tb1.pk = 40
+ORDER BY tb1.i1;
+
+SELECT STRAIGHT_JOIN DISTINCT t2.v2
+FROM
+  (t1 as tb1 LEFT JOIN t1 AS tb2 ON tb2.v1 = tb1.v2)
+  RIGHT JOIN
+  (t2,t1)
+  ON t1.pk = t2.pk AND t2.v2 = tb1.v1
+WHERE tb1.pk = 40
+ORDER BY tb1.i1;
+
+DROP TABLE t1,t2;
+
 --echo # end of 5.5 tests
 
 SET optimizer_switch=@save_optimizer_switch;

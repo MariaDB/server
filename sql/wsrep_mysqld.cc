@@ -13,8 +13,8 @@
    along with this program; if not, write to the Free Software
    Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02111-1301 USA */
 
+#include "sql_plugin.h"                         /* wsrep_plugins_pre_init() */
 #include "my_global.h"
-#include <sql_plugin.h> // SHOW_MY_BOOL
 #include "wsrep_server_state.h"
 
 #include "mariadb.h"
@@ -48,7 +48,6 @@
 #include <string>
 #include "log_event.h"
 #include <slave.h>
-#include "sql_plugin.h"                         /* wsrep_plugins_pre_init() */
 
 #include <sstream>
 
@@ -421,21 +420,6 @@ void wsrep_verify_SE_checkpoint(const wsrep_uuid_t& uuid,
   // wsrep_init_sidno(local_uuid);
 }
 
-my_bool wsrep_ready_set (my_bool x)
-{
-  WSREP_DEBUG("Setting wsrep_ready to %d", x);
-  if (mysql_mutex_lock (&LOCK_wsrep_ready)) abort();
-  my_bool ret= (wsrep_ready != x);
-  if (ret)
-  {
-    wsrep_ready= x;
-    mysql_cond_signal (&COND_wsrep_ready);
-  }
-  mysql_mutex_unlock (&LOCK_wsrep_ready);
-  return ret;
-}
-
-
 /*
   Wsrep is considered ready if
   1) Provider is not loaded (native mode)
@@ -446,29 +430,18 @@ my_bool wsrep_ready_set (my_bool x)
  */
 my_bool wsrep_ready_get (void)
 {
-  return (!WSREP_ON || wsrep_ready);
+  if (mysql_mutex_lock (&LOCK_wsrep_ready)) abort();
+  my_bool ret= wsrep_ready;
+  mysql_mutex_unlock (&LOCK_wsrep_ready);
+  return ret;
 }
-
 
 int wsrep_show_ready(THD *thd, SHOW_VAR *var, char *buff)
 {
-  var->type= SHOW_BOOL;
+  var->type= SHOW_MY_BOOL;
   var->value= buff;
   *((my_bool *)buff)= wsrep_ready_get();
   return 0;
-}
-
-// Wait until wsrep has reached ready state
-void wsrep_ready_wait ()
-{
-  if (mysql_mutex_lock (&LOCK_wsrep_ready)) abort();
-  while (!wsrep_ready)
-  {
-    WSREP_INFO("Waiting to reach ready state");
-    mysql_cond_wait (&COND_wsrep_ready, &LOCK_wsrep_ready);
-  }
-  WSREP_INFO("ready state reached");
-  mysql_mutex_unlock (&LOCK_wsrep_ready);
 }
 
 void wsrep_update_cluster_state_uuid(const char* uuid)
@@ -1063,6 +1036,8 @@ bool wsrep_must_sync_wait (THD* thd, uint mask)
   mysql_mutex_lock(&thd->LOCK_thd_data);
   ret= (thd->variables.wsrep_sync_wait & mask) &&
     thd->variables.wsrep_on &&
+    !(thd->variables.wsrep_dirty_reads &&
+      !is_update_query(thd->lex->sql_command)) &&
     !thd->in_active_multi_stmt_transaction() &&
     thd->wsrep_trx().state() !=
     wsrep::transaction::s_replaying &&
@@ -1202,11 +1177,7 @@ static bool wsrep_prepare_key_for_isolation(const char* db,
     return true;
 }
 
-/*
- * Prepare key list from db/table and table_list
- *
- * Return zero in case of success, 1 in case of failure.
- */
+/* Prepare key list from db/table and table_list */
 bool wsrep_prepare_keys_for_isolation(THD*              thd,
                                       const char*       db,
                                       const char*       table,
@@ -1486,7 +1457,7 @@ static int
 create_view_query(THD *thd, uchar** buf, size_t* buf_len)
 {
     LEX *lex= thd->lex;
-    SELECT_LEX *select_lex= &lex->select_lex;
+    SELECT_LEX *select_lex= lex->first_select_lex();
     TABLE_LIST *first_table= select_lex->table_list.first;
     TABLE_LIST *views = first_table;
     LEX_USER *definer;
@@ -1570,7 +1541,7 @@ static int wsrep_drop_table_query(THD* thd, uchar** buf, size_t* buf_len)
 {
 
   LEX* lex= thd->lex;
-  SELECT_LEX* select_lex= &lex->select_lex;
+  SELECT_LEX* select_lex= lex->first_select_lex();
   TABLE_LIST* first_table= select_lex->table_list.first;
   String buff;
 
@@ -1633,7 +1604,7 @@ static bool wsrep_can_run_in_toi(THD *thd, const char *db, const char *table,
   DBUG_ASSERT(table_list || db);
 
   LEX* lex= thd->lex;
-  SELECT_LEX* select_lex= &lex->select_lex;
+  SELECT_LEX* select_lex= lex->first_select_lex();
   TABLE_LIST* first_table= select_lex->table_list.first;
 
   switch (lex->sql_command)
@@ -1692,6 +1663,25 @@ static bool wsrep_can_run_in_toi(THD *thd, const char *db, const char *table,
     }
     return !(table || table_list);
   }
+}
+
+static const char* wsrep_get_query_or_msg(const THD* thd)
+{
+  switch(thd->lex->sql_command)
+  {
+    case SQLCOM_CREATE_USER:
+      return "CREATE USER";
+    case SQLCOM_GRANT:
+      return "GRANT";
+    case SQLCOM_REVOKE:
+      return "REVOKE";
+    case SQLCOM_SET_OPTION:
+      if (thd->lex->definer)
+	return "SET PASSWORD";
+      /* fallthrough */
+    default:
+      return thd->query();
+   }
 }
 
 static bool wsrep_can_run_in_nbo(THD *thd)

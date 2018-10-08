@@ -220,8 +220,8 @@ bool check_sequence_fields(LEX *lex, List<Create_field> *fields)
 
 err:
   my_error(ER_SEQUENCE_INVALID_TABLE_STRUCTURE, MYF(0),
-           lex->select_lex.table_list.first->db.str,
-           lex->select_lex.table_list.first->table_name.str, reason);
+           lex->first_select_lex()->table_list.first->db.str,
+           lex->first_select_lex()->table_list.first->table_name.str, reason);
   DBUG_RETURN(TRUE);
 }
 
@@ -542,7 +542,8 @@ void sequence_definition::adjust_values(longlong next_value)
 
     if ((real_increment= global_system_variables.auto_increment_increment)
         != 1)
-      offset= global_system_variables.auto_increment_offset;
+      offset= (global_system_variables.auto_increment_offset %
+               global_system_variables.auto_increment_increment);
 
     /*
       Ensure that next_free_value has the right offset, so that we
@@ -564,7 +565,7 @@ void sequence_definition::adjust_values(longlong next_value)
     else
     {
       next_free_value+= to_add;
-      DBUG_ASSERT(next_free_value % real_increment == offset);
+      DBUG_ASSERT(llabs(next_free_value % real_increment) == offset);
     }
   }
 }

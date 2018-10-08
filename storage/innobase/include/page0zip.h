@@ -2,7 +2,7 @@
 
 Copyright (c) 2005, 2016, Oracle and/or its affiliates. All Rights Reserved.
 Copyright (c) 2012, Facebook Inc.
-Copyright (c) 2017, MariaDB Corporation.
+Copyright (c) 2017, 2018, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -164,10 +164,6 @@ page_zip_compress(
 	dict_index_t*		index,		/*!< in: index of the B-tree
 						node */
 	ulint			level,		/*!< in: commpression level */
-	const redo_page_compress_t* page_comp_info,
-						/*!< in: used for applying
-						TRUNCATE log
-						record during recovery */
 	mtr_t*			mtr);		/*!< in/out: mini-transaction,
 						or NULL */
 

@@ -156,7 +156,7 @@ ma_crypt_read(MARIA_SHARE* share, uchar *buff)
   {
     my_printf_error(HA_ERR_UNSUPPORTED,
              "Unsupported crypt scheme! type: %d iv_length: %d\n",
-             MYF(ME_FATALERROR|ME_NOREFRESH),
+             MYF(ME_FATAL|ME_ERROR_LOG),
              type, iv_length);
     return 0;
   }
@@ -464,7 +464,7 @@ static int ma_encrypt(MARIA_SHARE *share, MARIA_CRYPT_DATA *crypt_data,
     my_errno= HA_ERR_DECRYPTION_FAILED;
     my_printf_error(HA_ERR_DECRYPTION_FAILED,
                     "Unknown key id %u. Can't continue!",
-                    MYF(ME_FATALERROR|ME_NOREFRESH),
+                    MYF(ME_FATAL|ME_ERROR_LOG),
                     crypt_data->scheme.key_id);
     return 1;
   }
@@ -481,7 +481,7 @@ static int ma_encrypt(MARIA_SHARE *share, MARIA_CRYPT_DATA *crypt_data,
     my_errno= HA_ERR_DECRYPTION_FAILED;
     my_printf_error(HA_ERR_DECRYPTION_FAILED,
                     "failed to encrypt '%s'  rc: %d  dstlen: %u  size: %u\n",
-                    MYF(ME_FATALERROR|ME_NOREFRESH),
+                    MYF(ME_FATAL|ME_ERROR_LOG),
                     share->open_file_name.str, rc, dstlen, size);
     return 1;
   }
@@ -508,7 +508,7 @@ static int ma_decrypt(MARIA_SHARE *share, MARIA_CRYPT_DATA *crypt_data,
     my_errno= HA_ERR_DECRYPTION_FAILED;
     my_printf_error(HA_ERR_DECRYPTION_FAILED,
                     "failed to decrypt '%s'  rc: %d  dstlen: %u  size: %u\n",
-                    MYF(ME_FATALERROR|ME_NOREFRESH),
+                    MYF(ME_FATAL|ME_ERROR_LOG),
                     share->open_file_name.str, rc, dstlen, size);
     return 1;
   }

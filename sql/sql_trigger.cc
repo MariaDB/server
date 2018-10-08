@@ -797,8 +797,7 @@ bool Table_triggers_list::create_trigger(THD *thd, TABLE_LIST *tables,
     */
     trg_field->setup_field(thd, table, NULL);
 
-    if (!trg_field->fixed &&
-        trg_field->fix_fields(thd, (Item **)0))
+    if (trg_field->fix_fields_if_needed(thd, (Item **)0))
       DBUG_RETURN(true);
   }
 
@@ -2312,12 +2311,10 @@ void Table_triggers_list::mark_fields_used(trg_event_type event)
         if (trg_field->field_idx != (uint)-1)
         {
           DBUG_PRINT("info", ("marking field: %d", trg_field->field_idx));
-          bitmap_set_bit(trigger_table->read_set, trg_field->field_idx);
           if (trg_field->get_settable_routine_parameter())
             bitmap_set_bit(trigger_table->write_set, trg_field->field_idx);
-          if (trigger_table->field[trg_field->field_idx]->vcol_info)
-            trigger_table->mark_virtual_col(trigger_table->
-                                            field[trg_field->field_idx]);
+          trigger_table->mark_column_with_deps(
+                                  trigger_table->field[trg_field->field_idx]);
         }
       }
     }

@@ -175,8 +175,34 @@ SET DEBUG_SYNC='now WAIT_FOR halfway';
 COMMIT;
 InnoDB		0 transactions not purged
 SET DEBUG_SYNC='now SIGNAL purged';
-disconnect prevent_purge;
 connection default;
 DROP TABLE t1;
+CREATE TABLE t1 (y YEAR, vy YEAR AS (y) VIRTUAL UNIQUE, pk INT PRIMARY KEY)
+ENGINE=InnoDB;
+INSERT INTO t1 (pk,y) VALUES (1,2022);
+CREATE TABLE t2(f1 INT NOT NULL, PRIMARY KEY(f1))ENGINE=InnoDB;
+SET GLOBAL debug_dbug = '+d,ib_purge_virtual_index_callback';
+BEGIN;
+INSERT INTO t2(f1) VALUES(1);
+connection prevent_purge;
+SET DEBUG_SYNC=RESET;
+start transaction with consistent snapshot;
+connection default;
+COMMIT;
+connect truncate,localhost,root,,;
+REPLACE INTO t1(pk, y) SELECT pk,y FROM t1;
+TRUNCATE TABLE t1;
+connection prevent_purge;
+COMMIT;
+SET DEBUG_SYNC='now SIGNAL purge_start';
+disconnect prevent_purge;
+connection default;
+SET DEBUG_SYNC='now WAIT_FOR purge_start';
+InnoDB		0 transactions not purged
+SET GLOBAL debug_dbug=@old_dbug;
+connection truncate;
+disconnect truncate;
+connection default;
+DROP TABLE t1, t2;
 set debug_sync=reset;
 SET GLOBAL innodb_purge_rseg_truncate_frequency = @saved_frequency;

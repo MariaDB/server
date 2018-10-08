@@ -5720,7 +5720,8 @@ err_during_init:
        wsrep_restart_slave_activated= TRUE;
      }
    }
-  wsrep_close(thd);
+  // TODO 10.4 has deleted following line:
+  //wsrep_close(thd);
 #endif /* WITH_WSREP */
 
  /*

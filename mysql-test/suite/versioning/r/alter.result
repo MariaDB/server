@@ -19,6 +19,10 @@ t	CREATE TABLE `t` (
 ) ENGINE=MyISAM DEFAULT CHARSET=latin1 WITH SYSTEM VERSIONING
 alter table t add column y int;
 ERROR HY000: Not allowed for system-versioned `test`.`t`. Change @@system_versioning_alter_history to proceed with ALTER.
+alter table t add primary key (a);
+ERROR HY000: Not allowed for system-versioned `test`.`t`. Change @@system_versioning_alter_history to proceed with ALTER.
+alter table t add unique key (a);
+ERROR HY000: Not allowed for system-versioned `test`.`t`. Change @@system_versioning_alter_history to proceed with ALTER.
 alter table t engine innodb;
 ERROR HY000: Not allowed for system-versioned `test`.`t`. Change to/from native system versioning engine is not supported.
 alter table t drop system versioning;
@@ -191,6 +195,8 @@ a
 2
 1
 select row_start from t where a=3 into @tm;
+Warnings:
+Warning	1287	'<select expression> INTO <destination>;' is deprecated and will be removed in a future release. Please use 'SELECT <select list> INTO <destination> FROM...' instead
 alter table t add column b int;
 select @tm=row_start from t where a=3;
 @tm=row_start
@@ -528,5 +534,15 @@ use test;
 create or replace table t1 (i int, j int as (i), s timestamp(6) as row start, e timestamp(6) as row end, period for system_time(s,e)) with system versioning;
 alter table t1 modify s timestamp(6) as row start;
 ERROR HY000: Can not change system versioning field `s`
+# ignore CHECK for historical rows
+create or replace table t (a int) with system versioning;
+insert into t values (0), (1);
+delete from t where a = 0;
+alter table t add check (a > 1);
+ERROR 23000: CONSTRAINT `CONSTRAINT_1` failed for `test`.`t`
+alter table t add check (a > 0);
+insert into t values (0);
+ERROR 23000: CONSTRAINT `CONSTRAINT_1` failed for `test`.`t`
+insert into t values (2);
 drop database test;
 create database test;

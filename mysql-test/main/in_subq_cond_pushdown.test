@@ -757,3 +757,67 @@ EVAL EXPLAIN FORMAT=JSON $query;
 
 DROP TABLE t1,t2,t3;
 DROP VIEW v1,v2;
+
+--echo #
+--echo # MDEV-16721: IN-subquery defined with the AUTO-INCREMENT column
+--echo #             and used with the ZEROFILL column
+--echo #
+
+CREATE TABLE t1 (a INT AUTO_INCREMENT PRIMARY KEY);
+CREATE TABLE t2 (b INT ZEROFILL);
+
+INSERT INTO t2 VALUES (2), (3);
+
+SELECT *
+FROM t2
+WHERE t2.b IN (SELECT MIN(t1.a) from t1);
+
+DROP TABLE t1, t2;
+
+--echo #
+--echo # MDEV-16730: server fault caused by pushdown into the derived table
+--echo #             condition that joins IN subquery and parent select
+--echo #
+
+CREATE TABLE t1 (a INT);
+INSERT INTO t1 VALUES (1), (2), (3);
+
+SELECT *
+FROM (SELECT DISTINCT * FROM t1) AS tbl
+WHERE tbl.a IN
+(
+  SELECT COUNT(t1.a)
+  FROM t1
+  WHERE (t1.a!=1)
+);
+
+DROP TABLE t1;
+
+--echo #
+--echo # MDEV-16727: failure assertion caused by the lamely saved list
+--echo #             of multiple equalities
+--echo #
+
+CREATE TABLE t1 (a varchar(1));
+INSERT INTO `t1` VALUES ('x'), ('y'), ('z');
+
+CREATE TABLE t2 (b varchar(1));
+INSERT INTO t2 VALUES ('x');
+
+CREATE TABLE t3 (c varchar(1));
+INSERT INTO t3 VALUES ('y');
+
+CREATE TABLE t4 (d varchar(1));
+INSERT INTO t4 VALUES ('x'), ('z');
+
+SELECT * FROM t1
+JOIN t2 ON (t1.a=t2.b)
+LEFT JOIN t3 ON (t1.a=t3.c)
+WHERE (t1.a) IN
+(
+  SELECT t4.d
+  FROM t4
+  ORDER BY t4.d
+);
+
+DROP TABLE t1,t2,t3,t4;

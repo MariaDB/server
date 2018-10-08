@@ -1693,7 +1693,7 @@ void Explain_table_access::print_explain_json(Explain_query *query,
     {
       /* Get r_filtered value from filesort */
       if (pre_join_sort->tracker.get_r_loops())
-        writer->add_double(pre_join_sort->tracker.get_r_filtered());
+        writer->add_double(pre_join_sort->tracker.get_r_filtered()*100);
       else
         writer->add_null();
     }
@@ -2516,4 +2516,3 @@ void Explain_range_checked_fer::print_json(Json_writer *writer,
     writer->end_object();
   }
 }
-

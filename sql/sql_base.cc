@@ -601,6 +601,7 @@ bool close_cached_connection_tables(THD *thd, LEX_CSTRING *connection)
 
 static void mark_used_tables_as_free_for_reuse(THD *thd, TABLE *table)
 {
+  DBUG_ENTER("mark_used_tables_as_free_for_reuse");
   for (; table ; table= table->next)
   {
     DBUG_ASSERT(table->pos_in_locked_tables == NULL ||
@@ -611,6 +612,7 @@ static void mark_used_tables_as_free_for_reuse(THD *thd, TABLE *table)
       table->file->ha_reset();
     }
   }
+  DBUG_VOID_RETURN;
 }
 
 
@@ -1052,6 +1054,12 @@ retry:
     if (res->table && (res->table == table->table))
       continue;
 
+    /* Skip if table is tmp table */
+    if (check_flag & CHECK_DUP_SKIP_TEMP_TABLE &&
+        res->table && res->table->s->tmp_table != NO_TMP_TABLE)
+    {
+      continue;
+    }
     if (check_flag & CHECK_DUP_FOR_CREATE)
       DBUG_RETURN(res);
 
@@ -1582,6 +1590,12 @@ bool open_table(THD *thd, TABLE_LIST *table_list, Open_table_context *ot_ctx)
       !(flags & (MYSQL_LOCK_LOG_TABLE | MYSQL_OPEN_HAS_MDL_LOCK)))
   {
     my_error(ER_CANT_EXECUTE_IN_READ_ONLY_TRANSACTION, MYF(0));
+    DBUG_RETURN(true);
+  }
+
+  if (!table_list->db.str)
+  {
+    my_error(ER_NO_DB_ERROR, MYF(0));
     DBUG_RETURN(true);
   }
 
@@ -3814,6 +3828,10 @@ lock_table_names(THD *thd, const DDL_options_st &options,
     mdl_requests.push_front(&global_request);
 
     if (create_table)
+    #ifdef WITH_WSREP
+      if (thd->lex->sql_command != SQLCOM_CREATE_TABLE && 
+          !thd->wsrep_applier)
+    #endif
       lock_wait_timeout= 0;                     // Don't wait for timeout
   }
 
@@ -5428,43 +5446,27 @@ static void update_field_dependencies(THD *thd, Field *field, TABLE *table)
   DBUG_ENTER("update_field_dependencies");
   if (should_mark_column(thd->column_usage))
   {
-    MY_BITMAP *bitmap;
-
     /*
       We always want to register the used keys, as the column bitmap may have
       been set for all fields (for example for view).
     */
-      
     table->covering_keys.intersect(field->part_of_key);
 
-    if (field->vcol_info)
-      table->mark_virtual_col(field);
-
     if (thd->column_usage == MARK_COLUMNS_READ)
-      bitmap= table->read_set;
-    else
-      bitmap= table->write_set;
-
-    /* 
-       The test-and-set mechanism in the bitmap is not reliable during
-       multi-UPDATE statements under MARK_COLUMNS_READ mode
-       (thd->column_usage == MARK_COLUMNS_READ), as this bitmap contains
-       only those columns that are used in the SET clause. I.e they are being
-       set here. See multi_update::prepare()
-    */
-    if (bitmap_fast_test_and_set(bitmap, field->field_index))
     {
-      if (thd->column_usage == MARK_COLUMNS_WRITE)
+      if (table->mark_column_with_deps(field))
+        DBUG_VOID_RETURN; // Field was already marked
+    }
+    else
+    {
+      if (bitmap_fast_test_and_set(table->write_set, field->field_index))
       {
         DBUG_PRINT("warning", ("Found duplicated field"));
         thd->dup_field= field;
+        DBUG_VOID_RETURN;
       }
-      else
-      {
-        DBUG_PRINT("note", ("Field found before"));
-      }
-      DBUG_VOID_RETURN;
     }
+
     table->used_fields++;
   }
   if (table->get_fields_in_item_tree)
@@ -5617,6 +5619,9 @@ find_field_in_natural_join(THD *thd, TABLE_LIST *table_ref, const char *name, si
       column reference. See create_view_field() for details.
     */
     item= nj_col->create_item(thd);
+    if (!item)
+      DBUG_RETURN(NULL);
+
     /*
      *ref != NULL means that *ref contains the item that we need to
      replace. If the item was aliased by the user, set the alias to
@@ -5657,8 +5662,7 @@ find_field_in_natural_join(THD *thd, TABLE_LIST *table_ref, const char *name, si
       calls fix_fields on that item), it's just a check during table
       reopening for columns that was dropped by the concurrent connection.
     */
-    if (!nj_col->table_field->fixed &&
-        nj_col->table_field->fix_fields(thd, &ref))
+    if (nj_col->table_field->fix_fields_if_needed(thd, &ref))
     {
       DBUG_PRINT("info", ("column '%s' was dropped by the concurrent connection",
                           nj_col->table_field->name.str));
@@ -6853,6 +6857,7 @@ store_natural_using_join_columns(THD *thd, TABLE_LIST *natural_using_join,
   Query_arena *arena, backup;
   bool result= TRUE;
   List<Natural_join_column> *non_join_columns;
+  List<Natural_join_column> *join_columns;
   DBUG_ENTER("store_natural_using_join_columns");
 
   DBUG_ASSERT(!natural_using_join->join_columns);
@@ -6860,7 +6865,7 @@ store_natural_using_join_columns(THD *thd, TABLE_LIST *natural_using_join,
   arena= thd->activate_stmt_arena_if_needed(&backup);
 
   if (!(non_join_columns= new List<Natural_join_column>) ||
-      !(natural_using_join->join_columns= new List<Natural_join_column>))
+      !(join_columns= new List<Natural_join_column>))
     goto err;
 
   /* Append the columns of the first join operand. */
@@ -6869,7 +6874,7 @@ store_natural_using_join_columns(THD *thd, TABLE_LIST *natural_using_join,
     nj_col_1= it_1.get_natural_column_ref();
     if (nj_col_1->is_common)
     {
-      natural_using_join->join_columns->push_back(nj_col_1, thd->mem_root);
+      join_columns->push_back(nj_col_1, thd->mem_root);
       /* Reset the common columns for the next call to mark_common_columns. */
       nj_col_1->is_common= FALSE;
     }
@@ -6890,7 +6895,7 @@ store_natural_using_join_columns(THD *thd, TABLE_LIST *natural_using_join,
     {
       const char *using_field_name_ptr= using_field_name->c_ptr();
       List_iterator_fast<Natural_join_column>
-        it(*(natural_using_join->join_columns));
+        it(*join_columns);
       Natural_join_column *common_field;
 
       for (;;)
@@ -6923,7 +6928,8 @@ store_natural_using_join_columns(THD *thd, TABLE_LIST *natural_using_join,
   }
 
   if (non_join_columns->elements > 0)
-    natural_using_join->join_columns->append(non_join_columns);
+    join_columns->append(non_join_columns);
+  natural_using_join->join_columns= join_columns;
   natural_using_join->is_join_columns_complete= TRUE;
 
   result= FALSE;
@@ -7155,7 +7161,6 @@ static bool setup_natural_join_row_types(THD *thd,
     DBUG_PRINT("info", ("using cached setup_natural_join_row_types"));
     DBUG_RETURN(false);
   }
-  context->select_lex->first_natural_join_processing= false;
 
   List_iterator_fast<TABLE_LIST> table_ref_it(*from_clause);
   TABLE_LIST *table_ref; /* Current table reference. */
@@ -7200,6 +7205,7 @@ static bool setup_natural_join_row_types(THD *thd,
     change on re-execution
   */
   context->natural_join_first_table= context->first_name_resolution_table;
+  context->select_lex->first_natural_join_processing= false;
   DBUG_RETURN (false);
 }
 
@@ -7359,8 +7365,7 @@ bool setup_fields(THD *thd, Ref_ptr_array ref_pointer_array,
     if (make_pre_fix)
       pre_fix->push_back(item, thd->stmt_arena->mem_root);
 
-    if ((!item->fixed && item->fix_fields(thd, it.ref())) ||
-	(item= *(it.ref()))->check_cols(1))
+    if (item->fix_fields_if_needed_for_scalar(thd, it.ref()))
     {
       thd->lex->current_select->is_item_list_lookup= save_is_item_list_lookup;
       thd->lex->allow_sum_func= save_allow_sum_func;
@@ -7368,6 +7373,7 @@ bool setup_fields(THD *thd, Ref_ptr_array ref_pointer_array,
       DBUG_PRINT("info", ("thd->column_usage: %d", thd->column_usage));
       DBUG_RETURN(TRUE); /* purecov: inspected */
     }
+    item= *(it.ref()); // Item might have changed in fix_fields()
     if (!ref.is_null())
     {
       ref[0]= item;
@@ -7378,7 +7384,7 @@ bool setup_fields(THD *thd, Ref_ptr_array ref_pointer_array,
       Item_window_func::split_sum_func.
     */
     if (sum_func_list &&
-         ((item->with_sum_func && item->type() != Item::SUM_FUNC_ITEM) ||
+         ((item->with_sum_func() && item->type() != Item::SUM_FUNC_ITEM) ||
           item->with_window_func))
     {
       item->split_sum_func(thd, ref_pointer_array, *sum_func_list,
@@ -7486,7 +7492,7 @@ bool setup_tables(THD *thd, Name_resolution_context *context,
   TABLE_LIST *first_select_table= (select_insert ?
                                    tables->next_local:
                                    0);
-  SELECT_LEX *select_lex= select_insert ? &thd->lex->select_lex :
+  SELECT_LEX *select_lex= select_insert ? thd->lex->first_select_lex() :
                                           thd->lex->current_select;
   if (select_lex->first_cond_optimization)
   {
@@ -7514,7 +7520,7 @@ bool setup_tables(THD *thd, Name_resolution_context *context,
       {
         /* new counting for SELECT of INSERT ... SELECT command */
         first_select_table= 0;
-        thd->lex->select_lex.insert_tables= tablenr;
+        thd->lex->first_select_lex()->insert_tables= tablenr;
         tablenr= 0;
       }
       if(table_list->jtbm_subselect)
@@ -7881,18 +7887,9 @@ insert_fields(THD *thd, Name_resolution_context *context, const char *db_name,
 
       if ((field= field_iterator.field()))
       {
-        /* Mark fields as used to allow storage engine to optimze access */
-        bitmap_set_bit(field->table->read_set, field->field_index);
-        /*
-          Mark virtual fields for write and others that the virtual fields
-          depend on for read.
-        */
-        if (field->vcol_info)
-          field->table->mark_virtual_col(field);
+        field->table->mark_column_with_deps(field);
         if (table)
-        {
           table->covering_keys.intersect(field->part_of_key);
-        }
         if (tables->is_natural_join)
         {
           TABLE *field_table;
@@ -7998,9 +7995,8 @@ bool setup_on_expr(THD *thd, TABLE_LIST *table, bool is_update)
       {
         thd->where="on clause";
         embedded->on_expr->mark_as_condition_AND_part(embedded);
-        if ((!embedded->on_expr->fixed &&
-             embedded->on_expr->fix_fields(thd, &embedded->on_expr)) ||
-            embedded->on_expr->check_cols(1))
+        if (embedded->on_expr->fix_fields_if_needed_for_bool(thd,
+                                                           &embedded->on_expr))
           return TRUE;
       }
       /*
@@ -8010,7 +8006,7 @@ bool setup_on_expr(THD *thd, TABLE_LIST *table, bool is_update)
       if (embedded->sj_subq_pred)
       {
         Item **left_expr= &embedded->sj_subq_pred->left_expr;
-        if (!(*left_expr)->fixed && (*left_expr)->fix_fields(thd, left_expr))
+        if ((*left_expr)->fix_fields_if_needed(thd, left_expr))
           return TRUE;
       }
 
@@ -8071,7 +8067,7 @@ int setup_conds(THD *thd, TABLE_LIST *tables, List<TABLE_LIST> &leaves,
     from subquery of VIEW, because tables of subquery belongs to VIEW
     (see condition before prepare_check_option() call)
   */
-  bool it_is_update= (select_lex == &thd->lex->select_lex) &&
+  bool it_is_update= (select_lex == thd->lex->first_select_lex()) &&
     thd->lex->which_check_option_applicable();
   bool save_is_item_list_lookup= select_lex->is_item_list_lookup;
   TABLE_LIST *derived= select_lex->master_unit()->derived;
@@ -8087,7 +8083,7 @@ int setup_conds(THD *thd, TABLE_LIST *tables, List<TABLE_LIST> &leaves,
 
   for (table= tables; table; table= table->next_local)
   {
-    if (select_lex == &thd->lex->select_lex &&
+    if (select_lex == thd->lex->first_select_lex() &&
         select_lex->first_cond_optimization &&
         table->merged_for_insert &&
         table->prepare_where(thd, conds, FALSE))
@@ -8108,8 +8104,7 @@ int setup_conds(THD *thd, TABLE_LIST *tables, List<TABLE_LIST> &leaves,
     if ((*conds)->type() == Item::FIELD_ITEM && !derived)
       wrap_ident(thd, conds);
     (*conds)->mark_as_condition_AND_part(NO_JOIN_NEST);
-    if ((!(*conds)->fixed && (*conds)->fix_fields(thd, conds)) ||
-	(*conds)->check_cols(1))
+    if ((*conds)->fix_fields_if_needed_for_bool(thd, conds))
       goto err_no_arena;
   }
 
@@ -8695,7 +8690,7 @@ int init_ftfuncs(THD *thd, SELECT_LEX *select_lex, bool no_order)
     Item_func_match *ifm;
 
     while ((ifm=li++))
-      if (unlikely(!ifm->fixed))
+      if (unlikely(!ifm->is_fixed()))
         /*
           it mean that clause where was FT function was removed, so we have
           to remove the function from the list.
@@ -8797,6 +8792,13 @@ open_system_tables_for_read(THD *thd, TABLE_LIST *table_list,
 void
 close_system_tables(THD *thd, Open_tables_backup *backup)
 {
+  /*
+    Inform the transaction handler that we are closing the
+    system tables and we don't need the read view anymore.
+  */
+  for (TABLE *table= thd->open_tables ; table ; table= table->next)
+    table->file->extra(HA_EXTRA_PREPARE_FOR_FORCED_CLOSE);
+
   close_thread_tables(thd);
   thd->restore_backup_open_tables_state(backup);
 }
@@ -8930,7 +8932,7 @@ void unfix_fields(List<Item> &fields)
   List_iterator<Item> li(fields);
   Item *item;
   while ((item= li++))
-    item->fixed= 0;
+    item->unfix_fields();
 }
 
 

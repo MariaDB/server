@@ -4128,17 +4128,17 @@ ERROR HY000: Illegal parameter data types geometry and interval for operation 'd
 SELECT INTERVAL 10 DAY + POINT(1,1);
 ERROR HY000: Illegal parameter data types geometry and interval for operation 'date_add_interval'
 SELECT ADDTIME(POINT(1,1), '10:10:10');
-ERROR HY000: Illegal parameter data types geometry and varchar for operation 'add_time'
+ERROR HY000: Illegal parameter data types geometry and varchar for operation 'addtime'
 SELECT ADDTIME('10:10:10', POINT(1,1));
-ERROR HY000: Illegal parameter data types varchar and geometry for operation 'add_time'
+ERROR HY000: Illegal parameter data types varchar and geometry for operation 'addtime'
 SELECT ADDTIME(POINT(1,1), TIME'10:10:10');
-ERROR HY000: Illegal parameter data types geometry and time for operation 'add_time'
+ERROR HY000: Illegal parameter data types geometry and time for operation 'addtime'
 SELECT ADDTIME(TIME'10:10:10', POINT(1,1));
-ERROR HY000: Illegal parameter data types time and geometry for operation 'add_time'
+ERROR HY000: Illegal parameter data types time and geometry for operation 'addtime'
 SELECT ADDTIME(POINT(1,1), TIMESTAMP'2001-01-01 10:10:10');
-ERROR HY000: Illegal parameter data types geometry and datetime for operation 'add_time'
+ERROR HY000: Illegal parameter data types geometry and datetime for operation 'addtime'
 SELECT ADDTIME(TIMESTAMP'2001-01-01 10:10:10', POINT(1,1));
-ERROR HY000: Illegal parameter data types datetime and geometry for operation 'add_time'
+ERROR HY000: Illegal parameter data types datetime and geometry for operation 'addtime'
 SELECT STR_TO_DATE(POINT(1,1),'%M %d,%Y');
 ERROR HY000: Illegal parameter data types geometry and varchar for operation 'str_to_date'
 SELECT STR_TO_DATE('2001-01-01', POINT(1,1));
@@ -4939,6 +4939,37 @@ ERROR HY000: Illegal parameter data type boolean for operation 'srid'
 SELECT ST_SRID((SELECT MAX(a>3) FROM t1));
 ERROR HY000: Illegal parameter data type boolean for operation 'srid'
 DROP TABLE t1;
+#
+# Mixing GEOMETRY with HEX hybrid
+#
+SELECT 0x60=POINT(1,1), POINT(1,1)=0x60;
+0x60=POINT(1,1)	POINT(1,1)=0x60
+0	0
+CREATE TABLE t1 AS SELECT
+COALESCE(0x60,POINT(1,1)),
+COALESCE(POINT(1,1),0x60),
+LEAST(0x60,POINT(1,1)),
+LEAST(POINT(1,1),0x60);
+SHOW CREATE TABLE t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `COALESCE(0x60,POINT(1,1))` longblob DEFAULT NULL,
+  `COALESCE(POINT(1,1),0x60)` longblob DEFAULT NULL,
+  `LEAST(0x60,POINT(1,1))` longblob DEFAULT NULL,
+  `LEAST(POINT(1,1),0x60)` longblob DEFAULT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=latin1
+DROP TABLE t1;
+SELECT 0x60+POINT(1,1);
+ERROR HY000: Illegal parameter data types bigint and geometry for operation '+'
+SELECT POINT(1,1)+0x60;
+ERROR HY000: Illegal parameter data types geometry and bigint for operation '+'
+#
+# MDEV-16454 Bad results for IN with ROW
+#
+SELECT (1,0) IN ((POINT(1,1),0),(0,0));
+ERROR HY000: Illegal parameter data types int and geometry for operation 'in'
+SELECT (1,(0,0)) IN ((1,(POINT(1,1),0)),(0,(0,0)));
+ERROR HY000: Illegal parameter data types int and geometry for operation 'in'
 #
 # End of 10.4 tests
 #

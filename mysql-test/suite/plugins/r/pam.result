@@ -20,6 +20,13 @@ Challenge input first.
 Enter: not very secret challenge
 Now, the magic number!
 PIN: ****
+#
+# athentication is unsuccessful
+#
+Challenge input first.
+Enter: crash pam module
+Now, the magic number!
+PIN: ***
 drop user test_pam;
 drop user pam_test;
 uninstall plugin pam;

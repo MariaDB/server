@@ -55,6 +55,14 @@ bool With_clause::add_with_element(With_element *elem)
 }
 
 
+void  st_select_lex_unit::set_with_clause(With_clause *with_cl)
+{ 
+  with_clause= with_cl;
+  if (with_clause)
+    with_clause->set_owner(this);
+}
+
+
 /**
   @brief
     Check dependencies between tables defined in a list of with clauses
@@ -682,7 +690,7 @@ void With_element::move_anchors_ahead()
 {
   st_select_lex *next_sl;
   st_select_lex *new_pos= spec->first_select();
-  new_pos->linkage= UNION_TYPE;
+  new_pos->set_linkage(UNION_TYPE);
   for (st_select_lex *sl= new_pos; sl; sl= next_sl)
   {
     next_sl= sl->next_select(); 
@@ -691,9 +699,9 @@ void With_element::move_anchors_ahead()
       sl->move_node(new_pos);
       if (new_pos == spec->first_select())
       {
-        enum sub_select_type type= new_pos->linkage;
-        new_pos->linkage= sl->linkage;
-        sl->linkage= type;
+        enum sub_select_type type= new_pos->get_linkage();
+        new_pos->set_linkage(sl->get_linkage());
+        sl->set_linkage(type);
         new_pos->with_all_modifier= sl->with_all_modifier;
         sl->with_all_modifier= false;
       }
@@ -764,7 +772,7 @@ bool With_element::set_unparsed_spec(THD *thd, char *spec_start, char *spec_end)
 
   if (!unparsed_spec.str)
   {
-    my_error(ER_OUTOFMEMORY, MYF(ME_FATALERROR), 
+    my_error(ER_OUTOFMEMORY, MYF(ME_FATAL), 
              static_cast<int>(unparsed_spec.length));
     return true;
   }
@@ -834,9 +842,8 @@ st_select_lex_unit *With_element::clone_parsed_spec(THD *thd,
     goto err;
   lex_start(thd);
   lex->stmt_lex= old_lex;
-  with_select= &lex->select_lex;
-  with_select->select_number= ++thd->lex->stmt_lex->current_select_number;
   parse_status= parse_sql(thd, &parser_state, 0);
+  with_select= lex->first_select_lex();
   if (parse_status)
     goto err;
 
@@ -987,7 +994,7 @@ bool With_element::prepare_unreferenced(THD *thd)
        rename_columns_of_derived_unit(thd, spec) ||
        check_duplicate_names(thd, first_sl->item_list, 1)))
     rc= true;
- 
+
   thd->lex->context_analysis_only&= ~CONTEXT_ANALYSIS_ONLY_DERIVED;
   return rc;
 }
@@ -1098,7 +1105,8 @@ bool TABLE_LIST::set_as_with_table(THD *thd, With_element *with_elem)
     if(!(derived= with_elem->clone_parsed_spec(thd, this)))
       return true;
   }
-  derived->first_select()->linkage= DERIVED_TABLE_TYPE;
+  derived->first_select()->set_linkage(DERIVED_TABLE_TYPE);
+  select_lex->add_statistics(derived);
   with_elem->inc_references();
   return false;
 }

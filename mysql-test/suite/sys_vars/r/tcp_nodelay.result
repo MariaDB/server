@@ -1,0 +1,5 @@
+SET tcp_nodelay=0;
+SET tcp_nodelay=1;
+SET tcp_nodelay=default;
+SET GLOBAL tcp_nodelay=0;
+ERROR HY000: Variable 'tcp_nodelay' is a SESSION variable

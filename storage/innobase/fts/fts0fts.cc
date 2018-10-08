@@ -1,6 +1,6 @@
 /*****************************************************************************
 
-Copyright (c) 2011, 2017, Oracle and/or its affiliates. All Rights Reserved.
+Copyright (c) 2011, 2018, Oracle and/or its affiliates. All Rights Reserved.
 Copyright (c) 2016, 2018, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
@@ -202,7 +202,7 @@ FTS auxiliary INDEX table and clear the cache at the end.
 @param[in,out]	sync		sync state
 @param[in]	unlock_cache	whether unlock cache lock when write node
 @param[in]	wait		whether wait when a sync is in progress
-@param[in]      has_dict        whether has dict operation lock
+@param[in]	has_dict	whether has dict operation lock
 @return DB_SUCCESS if all OK */
 static
 dberr_t
@@ -860,37 +860,28 @@ fts_drop_index(
 
 			err = fts_drop_index_tables(trx, index);
 
-			for(;;) {
-				bool retry = false;
-				if (index->index_fts_syncing) {
-					retry = true;
-				}
-				if (!retry){
-					fts_free(table);
-					break;
-				}
+			while (index->index_fts_syncing
+				&& !trx_is_interrupted(trx)) {
 				DICT_BG_YIELD(trx);
 			}
+
+			fts_free(table);
+
 			return(err);
 		}
 
-		for(;;) {
-			bool retry = false;
-			if (index->index_fts_syncing) {
-				retry = true;
-			}
-			if (!retry){
-				current_doc_id = table->fts->cache->next_doc_id;
-				first_doc_id = table->fts->cache->first_doc_id;
-				fts_cache_clear(table->fts->cache);
-				fts_cache_destroy(table->fts->cache);
-				table->fts->cache = fts_cache_create(table);
-				table->fts->cache->next_doc_id = current_doc_id;
-				table->fts->cache->first_doc_id = first_doc_id;
-				break;
-			}
+		while (index->index_fts_syncing
+		       && !trx_is_interrupted(trx)) {
 			DICT_BG_YIELD(trx);
 		}
+
+		current_doc_id = table->fts->cache->next_doc_id;
+		first_doc_id = table->fts->cache->first_doc_id;
+		fts_cache_clear(table->fts->cache);
+		fts_cache_destroy(table->fts->cache);
+		table->fts->cache = fts_cache_create(table);
+		table->fts->cache->next_doc_id = current_doc_id;
+		table->fts->cache->first_doc_id = first_doc_id;
 	} else {
 		fts_cache_t*            cache = table->fts->cache;
 		fts_index_cache_t*      index_cache;
@@ -900,17 +891,13 @@ fts_drop_index(
 		index_cache = fts_find_index_cache(cache, index);
 
 		if (index_cache != NULL) {
-			for(;;) {
-				bool retry = false;
-				if (index->index_fts_syncing) {
-					retry = true;
-				}
-				if (!retry && index_cache->words) {
-					fts_words_free(index_cache->words);
-					rbt_free(index_cache->words);
-					break;
-				}
+			while (index->index_fts_syncing
+			       && !trx_is_interrupted(trx)) {
 				DICT_BG_YIELD(trx);
+			}
+			if (index_cache->words) {
+				fts_words_free(index_cache->words);
+				rbt_free(index_cache->words);
 			}
 
 			ib_vector_remove(cache->indexes, *(void**) index_cache);
@@ -1482,7 +1469,8 @@ fts_drop_table(
 		/* Pass nonatomic=false (dont allow data dict unlock),
 		because the transaction may hold locks on SYS_* tables from
 		previous calls to fts_drop_table(). */
-		error = row_drop_table_for_mysql(table_name, trx, true, false, false);
+		error = row_drop_table_for_mysql(table_name, trx,
+						 SQLCOM_DROP_DB, false, false);
 
 		if (error != DB_SUCCESS) {
 			ib::error() << "Unable to drop FTS index aux table "
@@ -1956,8 +1944,8 @@ func_exit:
 	if (error != DB_SUCCESS) {
 		for (it = common_tables.begin(); it != common_tables.end();
 		     ++it) {
-			row_drop_table_for_mysql(
-				(*it)->name.m_name, trx, true, FALSE);
+			row_drop_table_for_mysql((*it)->name.m_name, trx,
+						 SQLCOM_DROP_DB);
 		}
 	}
 
@@ -2126,8 +2114,8 @@ fts_create_index_tables(trx_t* trx, const dict_index_t* index, table_id_t id)
 
 		for (it = aux_idx_tables.begin(); it != aux_idx_tables.end();
 		     ++it) {
-			row_drop_table_for_mysql(
-				(*it)->name.m_name, trx, true, FALSE);
+			row_drop_table_for_mysql((*it)->name.m_name, trx,
+						 SQLCOM_DROP_DB);
 		}
 	}
 
@@ -3745,7 +3733,7 @@ fts_get_max_doc_id(
 			goto func_exit;
 		}
 
-		ut_ad(!rec_is_default_row(rec, index));
+		ut_ad(!rec_is_metadata(rec, index));
 		offsets = rec_get_offsets(
 			rec, index, offsets, true, ULINT_UNDEFINED, &heap);
 
@@ -4048,6 +4036,9 @@ fts_sync_write_words(
 
 		word = rbt_value(fts_tokenizer_word_t, rbt_node);
 
+		DBUG_EXECUTE_IF("fts_instrument_write_words_before_select_index",
+				os_thread_sleep(300000););
+
 		selected = fts_select_index(
 			index_cache->charset, word->text.f_str,
 			word->text.f_len);
@@ -4332,7 +4323,7 @@ FTS auxiliary INDEX table and clear the cache at the end.
 @param[in,out]	sync		sync state
 @param[in]	unlock_cache	whether unlock cache lock when write node
 @param[in]	wait		whether wait when a sync is in progress
-@param[in]      has_dict        whether has dict operation lock
+@param[in]	has_dict	whether has dict operation lock
 @return DB_SUCCESS if all OK */
 static
 dberr_t
@@ -4398,15 +4389,13 @@ begin_sync:
 			continue;
 		}
 
+		DBUG_EXECUTE_IF("fts_instrument_sync_before_syncing",
+				os_thread_sleep(300000););
 		index_cache->index->index_fts_syncing = true;
-		DBUG_EXECUTE_IF("fts_instrument_sync_sleep_drop_waits",
-				os_thread_sleep(10000000);
-				);
 
 		error = fts_sync_index(sync, index_cache);
 
-		if (error != DB_SUCCESS && !sync->interrupted) {
-
+		if (error != DB_SUCCESS) {
 			goto end_sync;
 		}
 	}
@@ -4441,8 +4430,8 @@ end_sync:
 	}
 
 	rw_lock_x_lock(&cache->lock);
-	/* Clear fts syncing flags of any indexes incase sync is
-	interrupeted */
+	/* Clear fts syncing flags of any indexes in case sync is
+	interrupted */
 	for (i = 0; i < ib_vector_size(cache->indexes); ++i) {
 		static_cast<fts_index_cache_t*>(
 			ib_vector_get(cache->indexes, i))
@@ -6701,7 +6690,8 @@ fts_drop_obsolete_aux_table_from_vector(
 		trx_start_for_ddl(trx_drop, TRX_DICT_OP_TABLE);
 
 		err = row_drop_table_for_mysql(
-			aux_drop_table->name, trx_drop, false, true);
+			aux_drop_table->name, trx_drop,
+			SQLCOM_DROP_TABLE, true);
 
 		trx_drop->dict_operation_lock_mode = 0;
 

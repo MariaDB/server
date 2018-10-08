@@ -34,6 +34,8 @@ Created 03/11/2014 Shaohua Wang
 
 /** Innodb B-tree index fill factor for bulk load. */
 extern	uint	innobase_fill_factor;
+/** whether to reduce redo logging during ALTER TABLE */
+extern	my_bool	innodb_log_optimize_ddl;
 
 /*
 The proper function call sequence of PageBulk is as below:
@@ -63,7 +65,7 @@ public:
 		:
 		m_heap(NULL),
 		m_index(index),
-		m_mtr(NULL),
+		m_mtr(),
 		m_trx_id(trx_id),
 		m_block(NULL),
 		m_page(NULL),
@@ -84,6 +86,7 @@ public:
 		m_err(DB_SUCCESS)
 	{
 		ut_ad(!dict_index_is_spatial(m_index));
+		ut_ad(!m_index->table->is_temporary());
 	}
 
 	/** Deconstructor */
@@ -145,11 +148,11 @@ public:
 
 	/** Set next page
 	@param[in]	next_page_no	next page no */
-	void setNext(ulint	next_page_no);
+	inline void setNext(ulint next_page_no);
 
 	/** Set previous page
 	@param[in]	prev_page_no	previous page no */
-	void setPrev(ulint	prev_page_no);
+	inline void setPrev(ulint prev_page_no);
 
 	/** Release block by commiting mtr */
 	inline void release();
@@ -205,8 +208,8 @@ private:
 	/** The index B-tree */
 	dict_index_t*	m_index;
 
-	/** The min-transaction */
-	mtr_t*		m_mtr;
+	/** The mini-transaction */
+	mtr_t		m_mtr;
 
 	/** The transaction id */
 	trx_id_t	m_trx_id;
@@ -256,7 +259,7 @@ private:
 	when the block is re-pinned */
 	ib_uint64_t     m_modify_clock;
 
-	/** Flush observer */
+	/** Flush observer, or NULL if redo logging is enabled */
 	FlushObserver*	m_flush_observer;
 
 	/** Operation result DB_SUCCESS or error code */
@@ -271,41 +274,32 @@ class BtrBulk
 public:
 	/** Constructor
 	@param[in]	index		B-tree index
-	@param[in]	trx_id		transaction id
+	@param[in]	trx		transaction
 	@param[in]	observer	flush observer */
 	BtrBulk(
 		dict_index_t*	index,
-		trx_id_t	trx_id,
+		const trx_t*	trx,
 		FlushObserver*	observer)
 		:
-		m_heap(NULL),
 		m_index(index),
-		m_trx_id(trx_id),
+		m_trx(trx),
 		m_flush_observer(observer)
 	{
-		ut_ad(m_flush_observer != NULL);
-		ut_d(my_atomic_addlint(
-			     &m_index->table->space->redo_skipped_count, 1));
+#ifdef UNIV_DEBUG
+		if (m_flush_observer)
+		my_atomic_addlint(&m_index->table->space->redo_skipped_count,
+				  1);
+#endif /* UNIV_DEBUG */
 	}
 
 	/** Destructor */
 	~BtrBulk()
 	{
-		mem_heap_free(m_heap);
-		UT_DELETE(m_page_bulks);
-		ut_d(my_atomic_addlint(
-			     &m_index->table->space->redo_skipped_count,
-			     ulint(-1)));
-	}
-
-	/** Initialization
-	Note: must be called right after constructor. */
-	void init()
-	{
-		ut_ad(m_heap == NULL);
-		m_heap = mem_heap_create(1000);
-
-		m_page_bulks = UT_NEW_NOKEY(page_bulk_vector());
+#ifdef UNIV_DEBUG
+		if (m_flush_observer)
+		my_atomic_addlint(&m_index->table->space->redo_skipped_count,
+				  ulint(-1));
+#endif /* UNIV_DEBUG */
 	}
 
 	/** Insert a tuple
@@ -365,26 +359,23 @@ private:
 	}
 
 	/** Log free check */
-	void logFreeCheck();
+	inline void logFreeCheck();
 
 private:
-	/** Memory heap for allocation */
-	mem_heap_t*		m_heap;
-
 	/** B-tree index */
-	dict_index_t*		m_index;
+	dict_index_t*const	m_index;
 
-	/** Transaction id */
-	trx_id_t		m_trx_id;
+	/** Transaction */
+	const trx_t*const	m_trx;
 
 	/** Root page level */
 	ulint			m_root_level;
 
-	/** Flush observer */
-	FlushObserver*		m_flush_observer;
+	/** Flush observer, or NULL if redo logging is enabled */
+	FlushObserver*const	m_flush_observer;
 
 	/** Page cursor vector for all level */
-	page_bulk_vector*	m_page_bulks;
+	page_bulk_vector	m_page_bulks;
 };
 
 #endif

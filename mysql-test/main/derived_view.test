@@ -1949,6 +1949,30 @@ eval EXPLAIN EXTENDED $q;
 
 DROP TABLE t1, t2;
 
+--echo #
+--echo # Bug mdev-16420: materialized view that renames columns
+--echo #                 in inner part of outer join
+--echo #
+
+CREATE TABLE t1 (id int, PRIMARY KEY (id));
+INSERT INTO t1 VALUES (2), (3), (7), (1);
+
+CREATE VIEW v1 AS SELECT * FROM t1;
+CREATE  VIEW v2 AS SELECT v1.id AS order_pk FROM v1 GROUP BY v1.id;
+CREATE  VIEW v3 AS
+SELECT t.id AS order_pk FROM (SELECT * FROM t1) AS t GROUP BY t.id;
+
+SELECT * FROM t1  LEFT JOIN v2  ON t1.id=v2.order_pk;
+EXPLAIN EXTENDED
+SELECT * FROM t1  LEFT JOIN v2  ON t1.id=v2.order_pk;
+
+SELECT * FROM t1  LEFT JOIN v3  ON t1.id=v3.order_pk;
+EXPLAIN EXTENDED
+SELECT * FROM t1  LEFT JOIN v3  ON t1.id=v3.order_pk;
+
+DROP VIEW v1,v2,v3;
+DROP TABLE t1;
+
 # The following command must be the last one the file 
 set optimizer_switch=@exit_optimizer_switch;
 set join_cache_level=@exit_join_cache_level;

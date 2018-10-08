@@ -258,7 +258,7 @@ SORT_INFO *filesort(THD *thd, TABLE *table, Filesort *filesort,
     }
     if (memory_available < min_sort_memory)
     {
-      my_error(ER_OUT_OF_SORTMEMORY,MYF(ME_ERROR + ME_FATALERROR));
+      my_error(ER_OUT_OF_SORTMEMORY,MYF(ME_ERROR_LOG + ME_FATAL));
       goto err;
     }
     tracker->report_sort_buffer_size(sort->sort_buffer_size());
@@ -710,7 +710,7 @@ static ha_rows find_all_keys(THD *thd, Sort_param *param, SQL_SELECT *select,
   uchar *ref_pos, *next_pos, ref_buff[MAX_REFLENGTH];
   TABLE *sort_form;
   handler *file;
-  MY_BITMAP *save_read_set, *save_write_set, *save_vcol_set;
+  MY_BITMAP *save_read_set, *save_write_set;
   Item *sort_cond;
   ha_rows retval;
   DBUG_ENTER("find_all_keys");
@@ -745,13 +745,11 @@ static ha_rows find_all_keys(THD *thd, Sort_param *param, SQL_SELECT *select,
   /* Remember original bitmaps */
   save_read_set=  sort_form->read_set;
   save_write_set= sort_form->write_set;
-  save_vcol_set=  sort_form->vcol_set;
 
   /* Set up temporary column read map for columns used by sort */
   DBUG_ASSERT(save_read_set != &sort_form->tmp_set);
   bitmap_clear_all(&sort_form->tmp_set);
-  sort_form->column_bitmaps_set(&sort_form->tmp_set, &sort_form->tmp_set, 
-                                &sort_form->tmp_set);
+  sort_form->column_bitmaps_set(&sort_form->tmp_set, &sort_form->tmp_set);
   register_used_fields(param);
   if (quick_select)
     select->quick->add_used_key_part_to_set();
@@ -809,16 +807,12 @@ static ha_rows find_all_keys(THD *thd, Sort_param *param, SQL_SELECT *select,
         */
         MY_BITMAP *tmp_read_set= sort_form->read_set;
         MY_BITMAP *tmp_write_set= sort_form->write_set;
-        MY_BITMAP *tmp_vcol_set= sort_form->vcol_set;
 
         if (select->cond->with_subquery())
-          sort_form->column_bitmaps_set(save_read_set, save_write_set,
-                                        save_vcol_set);
+          sort_form->column_bitmaps_set(save_read_set, save_write_set);
         write_record= (select->skip_record(thd) > 0);
         if (select->cond->with_subquery())
-          sort_form->column_bitmaps_set(tmp_read_set,
-                                        tmp_write_set,
-                                        tmp_vcol_set);
+          sort_form->column_bitmaps_set(tmp_read_set, tmp_write_set);
       }
       else
         write_record= true;
@@ -864,7 +858,7 @@ static ha_rows find_all_keys(THD *thd, Sort_param *param, SQL_SELECT *select,
   }
 
   /* Signal we should use orignal column read and write maps */
-  sort_form->column_bitmaps_set(save_read_set, save_write_set, save_vcol_set);
+  sort_form->column_bitmaps_set(save_read_set, save_write_set);
 
   if (unlikely(thd->is_error()))
     DBUG_RETURN(HA_POS_ERROR);
@@ -872,8 +866,8 @@ static ha_rows find_all_keys(THD *thd, Sort_param *param, SQL_SELECT *select,
   DBUG_PRINT("test",("error: %d  indexpos: %d",error,indexpos));
   if (unlikely(error != HA_ERR_END_OF_FILE))
   {
-    file->print_error(error,MYF(ME_ERROR | ME_WAITTANG)); // purecov: inspected
-    DBUG_RETURN(HA_POS_ERROR);			/* purecov: inspected */
+    file->print_error(error,MYF(ME_ERROR_LOG));
+    DBUG_RETURN(HA_POS_ERROR);
   }
   if (indexpos && idx &&
       write_keys(param, fs_info, idx, buffpek_pointers, tempfile))
@@ -885,7 +879,7 @@ static ha_rows find_all_keys(THD *thd, Sort_param *param, SQL_SELECT *select,
   DBUG_RETURN(retval);
 
 err:
-  sort_form->column_bitmaps_set(save_read_set, save_write_set, save_vcol_set);
+  sort_form->column_bitmaps_set(save_read_set, save_write_set);
   DBUG_RETURN(HA_POS_ERROR);
 } /* find_all_keys */
 
@@ -1010,7 +1004,9 @@ Type_handler_string_result::make_sort_key(uchar *to, Item *item,
 
   if (use_strnxfrm(cs))
   {
-    IF_DBUG(size_t tmp_length= ,)
+#ifdef DBUG_ASSERT_EXISTS
+    size_t tmp_length=
+#endif
     cs->coll->strnxfrm(cs, to, sort_field->length,
                                    item->max_char_length() *
                                    cs->strxfrm_multiply,
@@ -1061,7 +1057,7 @@ Type_handler_temporal_result::make_sort_key(uchar *to, Item *item,
                                             Sort_param *param) const
 {
   MYSQL_TIME buf;
-  if (item->get_date_result(&buf, TIME_INVALID_DATES))
+  if (item->get_date_result(current_thd, &buf, TIME_INVALID_DATES))
   {
     DBUG_ASSERT(item->maybe_null);
     DBUG_ASSERT(item->null_value);
@@ -1120,9 +1116,8 @@ Type_handler_decimal_result::make_sort_key(uchar *to, Item *item,
     }
     *to++= 1;
   }
-  my_decimal2binary(E_DEC_FATAL_ERROR, dec_val, to,
-                    item->max_length - (item->decimals ? 1 : 0),
-                    item->decimals);
+  dec_val->to_binary(to, item->max_length - (item->decimals ? 1 : 0),
+                     item->decimals);
 }
 
 

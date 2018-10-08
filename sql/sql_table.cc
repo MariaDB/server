@@ -4260,11 +4260,9 @@ mysql_prepare_create_table(THD *thd, HA_CREATE_INFO *create_info,
   }
 
   /* Give warnings for not supported table options */
-#if defined(WITH_ARIA_STORAGE_ENGINE)
   extern handlerton *maria_hton;
-  if (file->partition_ht() != maria_hton)
-#endif
-    if (create_info->transactional)
+  if (file->partition_ht() != maria_hton && create_info->transactional &&
+      !file->has_transaction_manager())
       push_warning_printf(thd, Sql_condition::WARN_LEVEL_WARN,
                           ER_ILLEGAL_HA_CREATE_OPTION,
                           ER_THD(thd, ER_ILLEGAL_HA_CREATE_OPTION),
@@ -4862,6 +4860,8 @@ int create_table_impl(THD *thd,
     {
       if (options.or_replace())
       {
+        (void) delete_statistics_for_table(thd, db, table_name);
+
         TABLE_LIST table_list;
         table_list.init_one_table(db, table_name, 0, TL_WRITE_ALLOW_WRITE);
         table_list.table= create_info->table;
@@ -4890,7 +4890,7 @@ int create_table_impl(THD *thd,
         /*
           Restart statement transactions for the case of CREATE ... SELECT.
         */
-        if (thd->lex->select_lex.item_list.elements &&
+        if (thd->lex->first_select_lex()->item_list.elements &&
             restart_trans_for_tables(thd, thd->lex->query_tables))
           goto err;
       }
@@ -4961,7 +4961,12 @@ int create_table_impl(THD *thd,
     file= mysql_create_frm_image(thd, orig_db, orig_table_name, create_info,
                                  alter_info, create_table_mode, key_info,
                                  key_count, frm);
-    if (!file)
+    /*
+    TODO: remove this check of thd->is_error() (now it intercept
+    errors in some val_*() methoids and bring some single place to
+    such error interception).
+    */
+    if (!file || thd->is_error())
       goto err;
     if (rea_create_table(thd, frm, path, db->str, table_name->str, create_info,
                          file, frm_only))
@@ -5480,13 +5485,13 @@ mysql_rename_table(handlerton *base, const LEX_CSTRING *old_db,
   }
   delete file;
 
-  if (unlikely(error))
-  {
-    if (error == HA_ERR_WRONG_COMMAND)
-      my_error(ER_NOT_SUPPORTED_YET, MYF(0), "ALTER TABLE");
-    else
-      my_error(ER_ERROR_ON_RENAME, MYF(0), from, to, error);
-  }
+  if (error == HA_ERR_WRONG_COMMAND)
+    my_error(ER_NOT_SUPPORTED_YET, MYF(0), "ALTER TABLE");
+  else if (error ==  ENOTDIR)
+    my_error(ER_BAD_DB_ERROR, MYF(0), new_db->str);
+  else if (error)
+    my_error(ER_ERROR_ON_RENAME, MYF(0), from, to, error);
+
   else if (!(flags & FN_IS_TMP))
     mysql_audit_rename_table(thd, old_db, old_name, new_db, new_name);
 
@@ -6232,8 +6237,11 @@ drop_create_field:
         continue;
 
       /* Check if the table already has a PRIMARY KEY */
-      bool dup_primary_key= key->type == Key::PRIMARY &&
-                            table->s->primary_key != MAX_KEY;
+      bool dup_primary_key=
+            key->type == Key::PRIMARY &&
+            table->s->primary_key != MAX_KEY &&
+            (keyname= table->s->key_info[table->s->primary_key].name.str) &&
+            my_strcasecmp(system_charset_info, keyname, primary_key_name) == 0;
       if (dup_primary_key)
         goto remove_key;
 
@@ -6332,7 +6340,6 @@ remove_key:
   }
 
 #ifdef WITH_PARTITION_STORAGE_ENGINE
-  DBUG_ASSERT(thd->work_part_info == 0);
   partition_info *tab_part_info= table->part_info;
   thd->work_part_info= thd->lex->part_info;
   if (tab_part_info)
@@ -6530,15 +6537,15 @@ static bool fill_alter_inplace_info(THD *thd,
     ALTER_DROP_INDEX are replaced with versions that have higher granuality.
   */
 
-  ha_alter_info->handler_flags|= (alter_info->flags &
-                                  ~(ALTER_ADD_INDEX |
-                                    ALTER_DROP_INDEX |
-                                    ALTER_PARSER_ADD_COLUMN |
-                                    ALTER_PARSER_DROP_COLUMN |
-                                    ALTER_COLUMN_ORDER |
-                                    ALTER_RENAME_COLUMN |
-                                    ALTER_CHANGE_COLUMN |
-                                    ALTER_COLUMN_UNVERSIONED));
+  alter_table_operations flags_to_remove=
+      ALTER_ADD_INDEX | ALTER_DROP_INDEX | ALTER_PARSER_ADD_COLUMN |
+      ALTER_PARSER_DROP_COLUMN | ALTER_COLUMN_ORDER | ALTER_RENAME_COLUMN |
+      ALTER_CHANGE_COLUMN;
+
+  if (!table->file->native_versioned())
+    flags_to_remove|= ALTER_COLUMN_UNVERSIONED;
+
+  ha_alter_info->handler_flags|= (alter_info->flags & ~flags_to_remove);
   /*
     Comparing new and old default values of column is cumbersome.
     So instead of using such a comparison for detecting if default
@@ -7407,6 +7414,11 @@ static bool mysql_inplace_alter_table(THD *thd,
   bool reopen_tables= false;
   bool res;
 
+  /*
+    Set the truncated column values of thd as warning
+    for alter table.
+  */
+  thd->count_cuted_fields = CHECK_FIELD_WARN;
   DBUG_ENTER("mysql_inplace_alter_table");
 
   /*
@@ -7634,10 +7646,15 @@ static bool mysql_inplace_alter_table(THD *thd,
   /*
     Replace the old .FRM with the new .FRM, but keep the old name for now.
     Rename to the new name (if needed) will be handled separately below.
+
+    TODO: remove this check of thd->is_error() (now it intercept
+    errors in some val_*() methoids and bring some single place to
+    such error interception).
   */
   if (mysql_rename_table(db_type, &alter_ctx->new_db, &alter_ctx->tmp_name,
                          &alter_ctx->db, &alter_ctx->alias,
-                         FN_FROM_IS_TMP | NO_HA_TABLE))
+                         FN_FROM_IS_TMP | NO_HA_TABLE) ||
+                         thd->is_error())
   {
     // Since changes were done in-place, we can't revert them.
     (void) quick_rm_table(thd, db_type,
@@ -9052,10 +9069,6 @@ bool mysql_alter_table(THD *thd, const LEX_CSTRING *new_db,
 {
   DBUG_ENTER("mysql_alter_table");
 
-#ifdef WITH_PARTITION_STORAGE_ENGINE
-  thd->work_part_info= 0;                       // Used by partitioning
-#endif
-
   /*
     Check if we attempt to alter mysql.slow_log or
     mysql.general_log table and return an error if
@@ -9128,8 +9141,7 @@ bool mysql_alter_table(THD *thd, const LEX_CSTRING *new_db,
         DBUG_RETURN(true);
       }
     }
-    if (alter_info->data_modifying() && !thd->slave_thread &&
-        thd->variables.vers_alter_history == VERS_ALTER_HISTORY_ERROR)
+    if (alter_info->vers_prohibited(thd))
     {
       my_error(ER_VERS_ALTER_NOT_ALLOWED, MYF(0),
                table_list->db.str, table_list->table_name.str);
@@ -9564,8 +9576,6 @@ bool mysql_alter_table(THD *thd, const LEX_CSTRING *new_db,
   }
 
   DEBUG_SYNC(thd, "alter_table_before_create_table_no_lock");
-  /* We can abort alter table for any table type */
-  thd->abort_on_warning= !ignore && thd->is_strict_mode();
 
   /*
     Create .FRM for new version of table with a temporary name.
@@ -9595,7 +9605,6 @@ bool mysql_alter_table(THD *thd, const LEX_CSTRING *new_db,
                            C_ALTER_TABLE_FRM_ONLY, NULL,
                            &key_info, &key_count, &frm);
   reenable_binlog(thd);
-  thd->abort_on_warning= false;
   if (unlikely(error))
   {
     my_free(const_cast<uchar*>(frm.str));
@@ -10079,19 +10088,17 @@ err_new_table_cleanup:
   if (unlikely(alter_ctx.error_if_not_empty &&
                thd->get_stmt_da()->current_row_for_warning()))
   {
-    const char *f_val= 0;
-    enum enum_mysql_timestamp_type t_type= MYSQL_TIMESTAMP_DATE;
+    const char *f_val= "0000-00-00";
+    const char *f_type= "date";
     switch (alter_ctx.datetime_field->real_field_type())
     {
       case MYSQL_TYPE_DATE:
       case MYSQL_TYPE_NEWDATE:
-        f_val= "0000-00-00";
-        t_type= MYSQL_TIMESTAMP_DATE;
         break;
       case MYSQL_TYPE_DATETIME:
       case MYSQL_TYPE_DATETIME2:
         f_val= "0000-00-00 00:00:00";
-        t_type= MYSQL_TIMESTAMP_DATETIME;
+        f_type= "datetime";
         break;
       default:
         /* Shouldn't get here. */
@@ -10099,9 +10106,10 @@ err_new_table_cleanup:
     }
     bool save_abort_on_warning= thd->abort_on_warning;
     thd->abort_on_warning= true;
-    make_truncated_value_warning(thd, Sql_condition::WARN_LEVEL_WARN,
-                                 f_val, strlength(f_val), t_type,
-                                 alter_ctx.datetime_field->field_name.str);
+    thd->push_warning_truncated_value_for_field(Sql_condition::WARN_LEVEL_WARN,
+                                                f_type, f_val,
+                                                alter_ctx.datetime_field->
+                                                field_name.str);
     thd->abort_on_warning= save_abort_on_warning;
   }
 
@@ -10230,10 +10238,7 @@ copy_data_between_tables(THD *thd, TABLE *from, TABLE *to,
 
   alter_table_manage_keys(to, from->file->indexes_are_disabled(), keys_onoff);
 
-  /* Set read map for all fields in from table */
   from->default_column_bitmaps();
-  bitmap_set_all(from->read_set);
-  from->file->column_bitmaps_signal();
 
   /* We can abort alter table for any table type */
   thd->abort_on_warning= !ignore && thd->is_strict_mode();
@@ -10263,7 +10268,11 @@ copy_data_between_tables(THD *thd, TABLE *from, TABLE *to,
         if (def->field == from->found_next_number_field)
           thd->variables.sql_mode|= MODE_NO_AUTO_VALUE_ON_ZERO;
       }
-      (copy_end++)->set(*ptr,def->field,0);
+      if (!(*ptr)->vcol_info)
+      {
+        bitmap_set_bit(from->read_set, def->field->field_index);
+        (copy_end++)->set(*ptr,def->field,0);
+      }
     }
     else
     {
@@ -10306,8 +10315,8 @@ copy_data_between_tables(THD *thd, TABLE *from, TABLE *to,
       Filesort_tracker dummy_tracker(false);
       Filesort fsort(order, HA_POS_ERROR, true, NULL);
 
-      if (thd->lex->select_lex.setup_ref_array(thd, order_num) ||
-          setup_order(thd, thd->lex->select_lex.ref_pointer_array,
+      if (thd->lex->first_select_lex()->setup_ref_array(thd, order_num) ||
+          setup_order(thd, thd->lex->first_select_lex()->ref_pointer_array,
                       &tables, fields, all_fields, order))
         goto err;
 
@@ -10331,6 +10340,11 @@ copy_data_between_tables(THD *thd, TABLE *from, TABLE *to,
   {
     from_row_end= from->vers_end_field();
   }
+
+  if (from_row_end)
+    bitmap_set_bit(from->read_set, from_row_end->field_index);
+
+  from->file->column_bitmaps_signal();
 
   THD_STAGE_INFO(thd, stage_copy_to_tmp_table);
   /* Tell handler that we have values for all columns in the to table */
@@ -10681,7 +10695,7 @@ bool mysql_checksum_table(THD *thd, TABLE_LIST *tables,
         ha_checksum crc= 0;
         uchar null_mask=256 -  (1 << t->s->last_null_bit_pos);
 
-        t->use_all_columns();
+        t->use_all_stored_columns();
 
         if (t->file->ha_rnd_init(1))
           protocol->store_null();

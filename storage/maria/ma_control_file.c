@@ -277,7 +277,7 @@ CONTROL_FILE_ERROR ma_control_file_open(my_bool create_if_missing,
     " file is probably in use by another process";
   uint new_cf_create_time_size, new_cf_changeable_size, new_block_size;
   my_off_t file_size;
-  int open_flags= O_BINARY | /*O_DIRECT |*/ O_RDWR;
+  int open_flags= O_BINARY | /*O_DIRECT |*/ O_RDWR | O_CLOEXEC;
   int error= CONTROL_FILE_UNKNOWN_ERROR;
   DBUG_ENTER("ma_control_file_open");
 
@@ -531,7 +531,7 @@ int ma_control_file_write_and_force(LSN last_checkpoint_lsn_arg,
                 "Control file must be from a newer version; zero-ing out %u"
                 " unknown bytes in control file at offset %u", zeroed,
                 cf_changeable_size + cf_create_time_size);
-    ma_message_no_user(ME_JUST_WARNING, msg);
+    ma_message_no_user(ME_WARNING, msg);
   }
   else
   {
@@ -583,8 +583,8 @@ int ma_control_file_end(void)
 
   close_error= mysql_file_close(control_file_fd, MYF(MY_WME));
   /*
-    As mysql_file_close() frees structures even if close() fails, we do the same,
-    i.e. we mark the file as closed in all cases.
+    As mysql_file_close() frees structures even if close() fails, we do the
+    same, i.e. we mark the file as closed in all cases.
   */
   control_file_fd= -1;
   /*

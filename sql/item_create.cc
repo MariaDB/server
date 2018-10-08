@@ -3526,12 +3526,11 @@ Create_sp_func::create_with_db(THD *thd, LEX_CSTRING *db, LEX_CSTRING *name,
   sph->add_used_routine(lex, thd, qname);
   if (pkgname.m_name.length)
     sp_handler_package_body.add_used_routine(lex, thd, &pkgname);
+  Name_resolution_context *ctx= lex->current_context();
   if (arg_count > 0)
-    func= new (thd->mem_root) Item_func_sp(thd, lex->current_context(),
-                                           qname, sph, *item_list);
+    func= new (thd->mem_root) Item_func_sp(thd, ctx, qname, sph, *item_list);
   else
-    func= new (thd->mem_root) Item_func_sp(thd, lex->current_context(),
-                                           qname, sph);
+    func= new (thd->mem_root) Item_func_sp(thd, ctx, qname, sph);
 
   lex->safe_to_cache_query= 0;
   return func;
@@ -3676,7 +3675,7 @@ Create_func_addtime Create_func_addtime::s_singleton;
 Item*
 Create_func_addtime::create_2_arg(THD *thd, Item *arg1, Item *arg2)
 {
-  return new (thd->mem_root) Item_func_add_time(thd, arg1, arg2, 0, 0);
+  return new (thd->mem_root) Item_func_add_time(thd, arg1, arg2, false);
 }
 
 
@@ -6143,7 +6142,26 @@ Create_func_name_const Create_func_name_const::s_singleton;
 Item*
 Create_func_name_const::create_2_arg(THD *thd, Item *arg1, Item *arg2)
 {
-  return new (thd->mem_root) Item_name_const(thd, arg1, arg2);
+  if (!arg1->basic_const_item())
+    goto err;
+
+  if (arg2->basic_const_item())
+    return new (thd->mem_root) Item_name_const(thd, arg1, arg2);
+
+  if (arg2->type() == Item::FUNC_ITEM)
+  {
+    Item_func *value_func= (Item_func *) arg2;
+    if (value_func->functype() != Item_func::COLLATE_FUNC &&
+        value_func->functype() != Item_func::NEG_FUNC)
+      goto err;
+
+    if (!value_func->key_item()->basic_const_item())
+      goto err;
+    return new (thd->mem_root) Item_name_const(thd, arg1, arg2);
+  }
+err:
+  my_error(ER_WRONG_ARGUMENTS, MYF(0), "NAME_CONST");
+  return NULL;
 }
 
 
@@ -6697,7 +6715,7 @@ Create_func_subtime Create_func_subtime::s_singleton;
 Item*
 Create_func_subtime::create_2_arg(THD *thd, Item *arg1, Item *arg2)
 {
-  return new (thd->mem_root) Item_func_add_time(thd, arg1, arg2, 0, 1);
+  return new (thd->mem_root) Item_func_add_time(thd, arg1, arg2, true);
 }
 
 
@@ -7531,84 +7549,6 @@ Create_qfunc *
 find_qualified_function_builder(THD *thd)
 {
   return & Create_sp_func::s_singleton;
-}
-
-
-static bool
-have_important_literal_warnings(const MYSQL_TIME_STATUS *status)
-{
-  return (status->warnings & ~MYSQL_TIME_NOTE_TRUNCATED) != 0;
-}
-
-
-/**
-  Builder for datetime literals:
-    TIME'00:00:00', DATE'2001-01-01', TIMESTAMP'2001-01-01 00:00:00'.
-  @param thd          The current thread
-  @param str          Character literal
-  @param length       Length of str
-  @param type         Type of literal (TIME, DATE or DATETIME)
-  @param send_error   Whether to generate an error on failure
-*/
-
-Item *create_temporal_literal(THD *thd,
-                              const char *str, size_t length,
-                              CHARSET_INFO *cs,
-                              enum_field_types type,
-                              bool send_error)
-{
-  MYSQL_TIME_STATUS status;
-  MYSQL_TIME ltime;
-  Item *item= NULL;
-  sql_mode_t flags= sql_mode_for_dates(thd);
-
-  switch(type)
-  {
-  case MYSQL_TYPE_DATE:
-  case MYSQL_TYPE_NEWDATE:
-    if (!str_to_datetime(cs, str, length, &ltime, flags, &status) &&
-        ltime.time_type == MYSQL_TIMESTAMP_DATE && !status.warnings)
-      item= new (thd->mem_root) Item_date_literal(thd, &ltime);
-    break;
-  case MYSQL_TYPE_DATETIME:
-    if (!str_to_datetime(cs, str, length, &ltime, flags, &status) &&
-        ltime.time_type == MYSQL_TIMESTAMP_DATETIME &&
-        !have_important_literal_warnings(&status))
-      item= new (thd->mem_root) Item_datetime_literal(thd, &ltime,
-                                                      status.precision);
-    break;
-  case MYSQL_TYPE_TIME:
-    if (!str_to_time(cs, str, length, &ltime, 0, &status) &&
-        ltime.time_type == MYSQL_TIMESTAMP_TIME &&
-        !have_important_literal_warnings(&status))
-      item= new (thd->mem_root) Item_time_literal(thd, &ltime,
-                                                  status.precision);
-    break;
-  default:
-    DBUG_ASSERT(0);
-  }
-
-  if (likely(item))
-  {
-    if (status.warnings) // e.g. a note on nanosecond truncation
-    {
-      ErrConvString err(str, length, cs);
-      make_truncated_value_warning(thd,
-                                   Sql_condition::time_warn_level(status.warnings),
-                                   &err, ltime.time_type, 0);
-    }
-    return item;
-  }
-
-  if (send_error)
-  {
-    const char *typestr=
-      (type == MYSQL_TYPE_DATE) ? "DATE" :
-      (type == MYSQL_TYPE_TIME) ? "TIME" : "DATETIME";
-    ErrConvString err(str, length, thd->variables.character_set_client);
-    my_error(ER_WRONG_VALUE, MYF(0), typestr, err.ptr());
-  }
-  return NULL;
 }
 
 

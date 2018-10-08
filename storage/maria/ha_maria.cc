@@ -387,6 +387,10 @@ static void init_aria_psi_keys(void)
 #define init_aria_psi_keys() /* no-op */
 #endif /* HAVE_PSI_INTERFACE */
 
+const char *MA_CHECK_INFO= "info";
+const char *MA_CHECK_WARNING= "warning";
+const char *MA_CHECK_ERROR= "error";
+
 /*****************************************************************************
 ** MARIA tables
 *****************************************************************************/
@@ -396,6 +400,20 @@ static handler *maria_create_handler(handlerton *hton,
                                      MEM_ROOT *mem_root)
 {
   return new (mem_root) ha_maria(hton, table);
+}
+
+
+static void _ma_check_print(HA_CHECK *param, const char* msg_type,
+                            const char *msgbuf)
+{
+  if (msg_type == MA_CHECK_INFO)
+    sql_print_information("%s.%s: %s", param->db_name, param->table_name,
+                          msgbuf);
+  else if (msg_type == MA_CHECK_WARNING)
+    sql_print_warning("%s.%s: %s", param->db_name, param->table_name,
+                      msgbuf);
+  else
+    sql_print_error("%s.%s: %s", param->db_name, param->table_name, msgbuf);
 }
 
 
@@ -420,16 +438,21 @@ static void _ma_check_print_msg(HA_CHECK *param, const char *msg_type,
 
   if (!thd->vio_ok())
   {
-    sql_print_error("%s.%s: %s", param->db_name, param->table_name, msgbuf);
+    _ma_check_print(param, msg_type, msgbuf);
     return;
   }
 
   if (param->testflag &
       (T_CREATE_MISSING_KEYS | T_SAFE_REPAIR | T_AUTO_REPAIR))
   {
-    my_message(ER_NOT_KEYFILE, msgbuf, MYF(MY_WME));
+    myf flag= 0;
+    if (msg_type == MA_CHECK_INFO)
+      flag= ME_NOTE;
+    else if (msg_type == MA_CHECK_WARNING)
+      flag= ME_WARNING;
+    my_message(ER_NOT_KEYFILE, msgbuf, MYF(flag));
     if (thd->variables.log_warnings > 2)
-      sql_print_error("%s.%s: %s", param->db_name, param->table_name, msgbuf);
+      _ma_check_print(param, msg_type, msgbuf);
     return;
   }
   length= (uint) (strxmov(name, param->db_name, ".", param->table_name,
@@ -451,7 +474,7 @@ static void _ma_check_print_msg(HA_CHECK *param, const char *msg_type,
     sql_print_error("Failed on my_net_write, writing to stderr instead: %s.%s: %s\n",
                     param->db_name, param->table_name, msgbuf);
   else if (thd->variables.log_warnings > 2)
-    sql_print_error("%s.%s: %s", param->db_name, param->table_name, msgbuf);
+    _ma_check_print(param, msg_type, msgbuf);
 
   return;
 }
@@ -879,7 +902,7 @@ void _ma_check_print_error(HA_CHECK *param, const char *fmt, ...)
   if (param->testflag & T_SUPPRESS_ERR_HANDLING)
     DBUG_VOID_RETURN;
   va_start(args, fmt);
-  _ma_check_print_msg(param, "error", fmt, args);
+  _ma_check_print_msg(param, MA_CHECK_ERROR, fmt, args);
   va_end(args);
   DBUG_VOID_RETURN;
 }
@@ -890,7 +913,7 @@ void _ma_check_print_info(HA_CHECK *param, const char *fmt, ...)
   va_list args;
   DBUG_ENTER("_ma_check_print_info");
   va_start(args, fmt);
-  _ma_check_print_msg(param, "info", fmt, args);
+  _ma_check_print_msg(param, MA_CHECK_INFO, fmt, args);
   va_end(args);
   DBUG_VOID_RETURN;
 }
@@ -903,7 +926,7 @@ void _ma_check_print_warning(HA_CHECK *param, const char *fmt, ...)
   param->warning_printed= 1;
   param->out_flag |= O_DATA_LOST;
   va_start(args, fmt);
-  _ma_check_print_msg(param, "warning", fmt, args);
+  _ma_check_print_msg(param, MA_CHECK_WARNING, fmt, args);
   va_end(args);
   DBUG_VOID_RETURN;
 }
@@ -1006,6 +1029,8 @@ handler *ha_maria::clone(const char *name, MEM_ROOT *mem_root)
     new_handler->file->state= file->state;
     /* maria_create_trn_for_mysql() is never called for clone() tables */
     new_handler->file->trn= file->trn;
+    DBUG_ASSERT(new_handler->file->trn_prev == 0 &&
+                new_handler->file->trn_next == 0);
   }
   return new_handler;
 }
@@ -1271,6 +1296,8 @@ int ha_maria::close(void)
   MARIA_HA *tmp= file;
   if (!tmp)
     return 0;
+  DBUG_ASSERT(file->trn == 0 || file->trn == &dummy_transaction_object);
+  DBUG_ASSERT(file->trn_next == 0 && file->trn_prev == 0);
   file= 0;
   return maria_close(tmp);
 }
@@ -1386,6 +1413,16 @@ int ha_maria::check(THD * thd, HA_CHECK_OPT * check_opt)
       mysql_mutex_unlock(&share->intern_lock);
       info(HA_STATUS_NO_LOCK | HA_STATUS_TIME | HA_STATUS_VARIABLE |
            HA_STATUS_CONST);
+
+      /*
+        Write a 'table is ok' message to error log if table is ok and
+        we have written to error log that table was getting checked
+      */
+      if (!error && !(table->db_stat & HA_READ_ONLY) &&
+          !maria_is_crashed(file) && thd->error_printed_to_log &&
+          (param->warning_printed || param->error_printed ||
+           param->note_printed))
+        _ma_check_print_info(param, "Table is fixed");
     }
   }
   else if (!maria_is_crashed(file) && !thd->killed)
@@ -1396,7 +1433,10 @@ int ha_maria::check(THD * thd, HA_CHECK_OPT * check_opt)
 
   /* Reset trn, that may have been set by repair */
   if (old_trn && old_trn != file->trn)
+  {
+    DBUG_ASSERT(old_trn->used_instances == 0);
     _ma_set_trn_for_table(file, old_trn);
+  }
   thd_proc_info(thd, old_proc_info);
   thd_progress_end(thd);
   return error ? HA_ADMIN_CORRUPT : HA_ADMIN_OK;
@@ -1472,6 +1512,7 @@ int ha_maria::repair(THD * thd, HA_CHECK_OPT *check_opt)
   while ((error= repair(thd, param, 0)) && param->retry_repair)
   {
     param->retry_repair= 0;
+    file->state->records= start_records;
     if (test_all_bits(param->testflag,
                       (uint) (T_RETRY_WITHOUT_QUICK | T_QUICK)))
     {
@@ -1976,6 +2017,7 @@ int ha_maria::disable_indexes(uint mode)
 int ha_maria::enable_indexes(uint mode)
 {
   int error;
+  ha_rows start_rows= file->state->records;
   DBUG_PRINT("info", ("ha_maria::enable_indexes mode: %d", mode));
   if (maria_is_all_keys_active(file->s->state.key_map, file->s->base.keys))
   {
@@ -2038,6 +2080,7 @@ int ha_maria::enable_indexes(uint mode)
       DBUG_ASSERT(thd->killed != 0);
       /* Repairing by sort failed. Now try standard repair method. */
       param->testflag &= ~T_REP_BY_SORT;
+      file->state->records= start_rows;
       error= (repair(thd, param, 0) != HA_ADMIN_OK);
       /*
         If the standard repair succeeded, clear all error messages which
@@ -2612,14 +2655,20 @@ int ha_maria::extra(enum ha_extra_function operation)
        operation == HA_EXTRA_PREPARE_FOR_FORCED_CLOSE))
   {
     THD *thd= table->in_use;
-    TRN *trn= THD_TRN;
-    _ma_set_tmp_trn_for_table(file, trn);
+    file->trn= THD_TRN;
   }
   DBUG_ASSERT(file->s->base.born_transactional || file->trn == 0 ||
               file->trn == &dummy_transaction_object);
 
   tmp= maria_extra(file, operation, 0);
-  file->trn= old_trn;                           // Reset trn if was used
+  /*
+    Restore trn if it was changed above.
+    Note that table could be removed from trn->used_tables and
+    trn->used_instances if trn was set and some of the above operations
+    was used. This is ok as the table should not be part of any transaction
+    after this and thus doesn't need to be part of any of the above lists.
+  */
+  file->trn= old_trn;
   return tmp;
 }
 
@@ -2855,9 +2904,12 @@ static void reset_thd_trn(THD *thd, MARIA_HA *first_table)
 {
   DBUG_ENTER("reset_thd_trn");
   THD_TRN= NULL;
-  for (MARIA_HA *table= first_table; table ;
-       table= table->trn_next)
+  MARIA_HA *next;
+  for (MARIA_HA *table= first_table; table ; table= next)
+  {
+    next= table->trn_next;
     _ma_reset_trn_for_table(table);
+  }
   DBUG_VOID_RETURN;
 }
 
@@ -2904,9 +2956,11 @@ int ha_maria::implicit_commit(THD *thd, bool new_trn)
     DBUG_RETURN(0);
   }
 
+  /* Prepare to move used_instances and locked tables to new TRN object */
   locked_tables= trnman_has_locked_tables(trn);
+  trnman_reset_locked_tables(trn, 0);
+  relink_trn_used_instances(&used_tables, trn);
 
-  used_tables= (MARIA_HA*) trn->used_instances;
   error= 0;
   if (unlikely(ma_commit(trn)))
     error= 1;
@@ -3331,6 +3385,8 @@ static int maria_commit(handlerton *hton __attribute__ ((unused)),
 {
   TRN *trn= THD_TRN;
   DBUG_ENTER("maria_commit");
+
+  DBUG_ASSERT(trnman_has_locked_tables(trn) == 0);
   trnman_reset_locked_tables(trn, 0);
   trnman_set_flags(trn, trnman_get_flags(trn) & ~TRN_STATE_INFO_LOGGED);
 
@@ -3348,9 +3404,12 @@ static int maria_rollback(handlerton *hton __attribute__ ((unused)),
 {
   TRN *trn= THD_TRN;
   DBUG_ENTER("maria_rollback");
+
+  DBUG_ASSERT(trnman_has_locked_tables(trn) == 0);
   trnman_reset_locked_tables(trn, 0);
   /* statement or transaction ? */
-  if ((thd->variables.option_bits & (OPTION_NOT_AUTOCOMMIT | OPTION_BEGIN)) && !all)
+  if ((thd->variables.option_bits & (OPTION_NOT_AUTOCOMMIT | OPTION_BEGIN)) &&
+      !all)
   {
     trnman_rollback_statement(trn);
     DBUG_RETURN(0); // end of statement
@@ -3506,7 +3565,7 @@ static int mark_recovery_start(const char* log_dir)
   int res;
   DBUG_ENTER("mark_recovery_start");
   if (!(maria_recover_options & HA_RECOVER_ANY))
-    ma_message_no_user(ME_JUST_WARNING, "Please consider using option"
+    ma_message_no_user(ME_WARNING, "Please consider using option"
                        " --aria-recover-options[=...] to automatically check and"
                        " repair tables when logs are removed by option"
                        " --aria-force-start-after-recovery-failures=#");
@@ -3524,7 +3583,7 @@ static int mark_recovery_start(const char* log_dir)
                 " recovery from logs",
                 (res ? "failed to remove some" : "removed all"),
                 recovery_failures);
-    ma_message_no_user((res ? 0 : ME_JUST_WARNING), msg);
+    ma_message_no_user((res ? 0 : ME_WARNING), msg);
   }
   else
     res= ma_control_file_write_and_force(last_checkpoint_lsn, last_logno,
@@ -3984,8 +4043,8 @@ maria_declare_plugin(aria)
   MYSQL_STORAGE_ENGINE_PLUGIN,
   &maria_storage_engine,
   "Aria",
-  "Monty Program Ab",
-  "Crash-safe tables with MyISAM heritage",
+  "MariaDB Corporation Ab",
+  "Crash-safe tables with MyISAM heritage. Used for internal temporary tables and privilege tables",
   PLUGIN_LICENSE_GPL,
   ha_maria_init,                /* Plugin Init      */
   NULL,                         /* Plugin Deinit    */

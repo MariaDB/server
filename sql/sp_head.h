@@ -39,9 +39,6 @@
   @{
 */
 
-Item::Type
-sp_map_item_type(const Type_handler *handler);
-
 uint
 sp_get_flags_for_command(LEX *lex);
 
@@ -592,7 +589,8 @@ public:
     if (!oldlex)
       DBUG_RETURN(false); // Nothing to restore
     LEX *sublex= thd->lex;
-    if (thd->restore_from_local_lex_to_old_lex(oldlex))// This restores thd->lex
+    // This restores thd->lex and thd->stmt_lex
+    if (thd->restore_from_local_lex_to_old_lex(oldlex))
       DBUG_RETURN(true);
     if (!sublex->sp_lex_in_use)
     {
@@ -1004,12 +1002,10 @@ public:
 
 class sp_lex_cursor: public sp_lex_local, public Query_arena
 {
-  LEX_CSTRING m_cursor_name;
 public:
   sp_lex_cursor(THD *thd, const LEX *oldlex, MEM_ROOT *mem_root_arg)
    :sp_lex_local(thd, oldlex),
-    Query_arena(mem_root_arg, STMT_INITIALIZED_FOR_SP),
-    m_cursor_name(null_clex_str)
+    Query_arena(mem_root_arg, STMT_INITIALIZED_FOR_SP)
   { }
   sp_lex_cursor(THD *thd, const LEX *oldlex)
    :sp_lex_local(thd, oldlex),
@@ -1037,8 +1033,6 @@ public:
     thd->free_list= NULL;
     return false;
   }
-  const LEX_CSTRING *cursor_name() const { return &m_cursor_name; }
-  void set_cursor_name(const LEX_CSTRING *name) { m_cursor_name= *name; }
 };
 
 
@@ -1213,10 +1207,6 @@ public:
     m_lex->safe_to_cache_query= 0;
   }
 
-  const LEX_CSTRING *cursor_name() const
-  {
-    return m_lex->cursor_name();
-  }
 private:
 
   LEX *m_lex;
@@ -1685,8 +1675,6 @@ public:
   { return m_handler; }
 
 private:
-
-private:
   /// Handler.
   sp_handler *m_handler;
 
@@ -1765,7 +1753,8 @@ private:
 
 
 /** This is DECLARE CURSOR */
-class sp_instr_cpush : public sp_instr
+class sp_instr_cpush : public sp_instr,
+                       public sp_cursor
 {
   sp_instr_cpush(const sp_instr_cpush &); /**< Prevent use of these */
   void operator=(sp_instr_cpush &);
@@ -1864,11 +1853,14 @@ class sp_instr_cursor_copy_struct: public sp_instr
   sp_instr_cursor_copy_struct(const sp_instr_cursor_copy_struct &);
   void operator=(sp_instr_cursor_copy_struct &);
   sp_lex_keeper m_lex_keeper;
+  uint m_cursor;
   uint m_var;
 public:
-  sp_instr_cursor_copy_struct(uint ip, sp_pcontext *ctx,
+  sp_instr_cursor_copy_struct(uint ip, sp_pcontext *ctx, uint coffs,
                               sp_lex_cursor *lex, uint voffs)
-    : sp_instr(ip, ctx), m_lex_keeper(lex, FALSE), m_var(voffs)
+    : sp_instr(ip, ctx), m_lex_keeper(lex, FALSE),
+      m_cursor(coffs),
+      m_var(voffs)
   {}
   virtual ~sp_instr_cursor_copy_struct()
   {}

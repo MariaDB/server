@@ -161,19 +161,16 @@ bool
 log_set_capacity(ulonglong file_size)
 	MY_ATTRIBUTE((warn_unused_result));
 
-/******************************************************//**
-This function is called, e.g., when a transaction wants to commit. It checks
-that the log has been written to the log file up to the last log entry written
-by the transaction. If there is a flush running, it waits and checks if the
-flush flushed enough. If not, starts a new flush. */
-void
-log_write_up_to(
-/*============*/
-	lsn_t	lsn,	/*!< in: log sequence number up to which
-			the log should be written, LSN_MAX if not specified */
-	bool	flush_to_disk);
-			/*!< in: true if we want the written log
-			also to be flushed to disk */
+/** Ensure that the log has been written to the log file up to a given
+log entry (such as that of a transaction commit). Start a new write, or
+wait and check if an already running write is covering the request.
+@param[in]	lsn		log sequence number that should be
+included in the redo log file write
+@param[in]	flush_to_disk	whether the written log should also
+be flushed to the file system
+@param[in]	rotate_key	whether to rotate the encryption key */
+void log_write_up_to(lsn_t lsn, bool flush_to_disk, bool rotate_key = false);
+
 /** write to the log file up to the last log entry.
 @param[in]	sync	whether we want the written log
 also to be flushed to disk. */
@@ -415,13 +412,14 @@ extern my_bool	innodb_log_checksums;
 #define LOG_BLOCK_HDR_SIZE	12	/* size of the log block header in
 					bytes */
 
-/* Offsets of a log block trailer from the end of the block */
+#define	LOG_BLOCK_KEY		4	/* encryption key version
+					before LOG_BLOCK_CHECKSUM;
+					in LOG_HEADER_FORMAT_ENC_10_4 only */
 #define	LOG_BLOCK_CHECKSUM	4	/* 4 byte checksum of the log block
 					contents; in InnoDB versions
 					< 3.23.52 this did not contain the
 					checksum but the same value as
-					.._HDR_NO */
-#define	LOG_BLOCK_TRL_SIZE	4	/* trailer size in bytes */
+					LOG_BLOCK_HDR_NO */
 
 /** Offsets inside the checkpoint pages (redo log format version 1) @{ */
 /** Checkpoint number */
@@ -450,10 +448,12 @@ to this checkpoint, or 0 if the information has not been written */
 This used to be called LOG_GROUP_ID and always written as 0,
 because InnoDB never supported more than one copy of the redo log. */
 #define LOG_HEADER_FORMAT	0
-/** 4 unused (zero-initialized) bytes. In format version 0, the
+/** Redo log subformat (originally 0). In format version 0, the
 LOG_FILE_START_LSN started here, 4 bytes earlier than LOG_HEADER_START_LSN,
-which the LOG_FILE_START_LSN was renamed to. */
-#define LOG_HEADER_PAD1		4
+which the LOG_FILE_START_LSN was renamed to.
+Subformat 1 is for the fully redo-logged TRUNCATE
+(no MLOG_TRUNCATE records or extra log checkpoints or log files) */
+#define LOG_HEADER_SUBFORMAT	4
 /** LSN of the start of data in this log file (with format version 1;
 in format version 0, it was called LOG_FILE_START_LSN and at offset 4). */
 #define LOG_HEADER_START_LSN	8
@@ -474,11 +474,16 @@ or the MySQL version that created the redo log file. */
 #define LOG_HEADER_FORMAT_3_23		0
 /** The MySQL 5.7.9/MariaDB 10.2.2 log format */
 #define LOG_HEADER_FORMAT_10_2		1
-/** The MariaDB 10.3.2 log format */
+/** The MariaDB 10.3.2 log format.
+To prevent crash-downgrade to earlier 10.2 due to the inability to
+roll back a retroactively introduced TRX_UNDO_RENAME_TABLE undo log record,
+MariaDB 10.2.18 and later will use the 10.3 format, but LOG_HEADER_SUBFORMAT
+1 instead of 0. MariaDB 10.3 will use subformat 0 (5.7-style TRUNCATE) or 2
+(MDEV-13564 backup-friendly TRUNCATE). */
 #define LOG_HEADER_FORMAT_10_3		103
-/** The redo log format identifier corresponding to the current format version.
-Stored in LOG_HEADER_FORMAT. */
-#define LOG_HEADER_FORMAT_CURRENT	LOG_HEADER_FORMAT_10_3
+#define LOG_HEADER_FORMAT_10_4		104
+/** The MariaDB 10.4.0 log format (only with innodb_encrypt_log=ON) */
+#define LOG_HEADER_FORMAT_ENC_10_4	(104U | 1U << 31)
 /** Encrypted MariaDB redo log */
 #define LOG_HEADER_FORMAT_ENCRYPTED	(1U<<31)
 
@@ -494,14 +499,6 @@ Stored in LOG_HEADER_FORMAT. */
 					/* second checkpoint field in the log
 					header */
 #define LOG_FILE_HDR_SIZE	(4 * OS_FILE_LOG_BLOCK_SIZE)
-
-/** The state of a log group */
-enum log_group_state_t {
-	/** No corruption detected */
-	LOG_GROUP_OK,
-	/** Corrupted */
-	LOG_GROUP_CORRUPTED
-};
 
 typedef ib_mutex_t	LogSysMutex;
 typedef ib_mutex_t	FlushOrderMutex;
@@ -556,12 +553,13 @@ struct log_t{
   struct files {
     /** number of files */
     ulint				n_files;
-    /** format of the redo log: e.g., LOG_HEADER_FORMAT_CURRENT */
-    ulint				format;
+    /** format of the redo log: e.g., LOG_HEADER_FORMAT_10_4 */
+    uint32_t				format;
+    /** redo log subformat: 0 with separately logged TRUNCATE,
+    2 with fully redo-logged TRUNCATE (1 in MariaDB 10.2) */
+    uint32_t				subformat;
     /** individual log file size in bytes, including the header */
     lsn_t				file_size;
-    /** corruption status */
-    log_group_state_t		state;
     /** lsn used to fix coordinates within the log group */
     lsn_t				lsn;
     /** the byte offset of the above lsn */
@@ -712,10 +710,33 @@ public:
   /** @return whether the redo log is encrypted */
   bool is_encrypted() const { return(log.is_encrypted()); }
 
-  bool is_initialised() { return m_initialised; }
+  bool is_initialised() const { return m_initialised; }
 
   /** Complete an asynchronous checkpoint write. */
   void complete_checkpoint();
+
+  /** @return the log block header + trailer size */
+  unsigned framing_size() const
+  {
+    return log.format == LOG_HEADER_FORMAT_ENC_10_4
+      ? LOG_BLOCK_HDR_SIZE + LOG_BLOCK_KEY + LOG_BLOCK_CHECKSUM
+      : LOG_BLOCK_HDR_SIZE + LOG_BLOCK_CHECKSUM;
+  }
+  /** @return the log block payload size */
+  unsigned payload_size() const
+  {
+    return log.format == LOG_HEADER_FORMAT_ENC_10_4
+      ? OS_FILE_LOG_BLOCK_SIZE - LOG_BLOCK_HDR_SIZE - LOG_BLOCK_CHECKSUM -
+      LOG_BLOCK_KEY
+      : OS_FILE_LOG_BLOCK_SIZE - LOG_BLOCK_HDR_SIZE - LOG_BLOCK_CHECKSUM;
+  }
+  /** @return the log block trailer offset */
+  unsigned trailer_offset() const
+  {
+    return log.format == LOG_HEADER_FORMAT_ENC_10_4
+      ? OS_FILE_LOG_BLOCK_SIZE - LOG_BLOCK_CHECKSUM - LOG_BLOCK_KEY
+      : OS_FILE_LOG_BLOCK_SIZE - LOG_BLOCK_CHECKSUM;
+  }
 
   /** Initialise the redo log subsystem. */
   void create();

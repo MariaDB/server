@@ -99,7 +99,8 @@ select (select a from t3), a from t2;
 select * from t2 where t2.a=(select a from t1);
 insert into t3 values (6),(7),(3);
 select * from t2 where t2.b=(select a from t3 order by 1 desc limit 1);
-(select * from t2 where t2.b=(select a from t3 order by 1 desc limit 1)) union (select * from t4 order by a limit 2) limit 3;
+(select * from t2 where t2.b=(select a from t3 order by 1 desc limit 1))
+union (select * from t4 order by a limit 2) order by a limit 3;
 (select * from t2 where t2.b=(select a from t3 order by 1 desc limit 1)) union (select * from t4 where t4.b=(select max(t2.a)*4 from t2) order by a);
 explain extended (select * from t2 where t2.b=(select a from t3 order by 1 desc limit 1)) union (select * from t4 where t4.b=(select max(t2.a)*4 from t2) order by a);
 select (select a from t3 where a<t2.a*4 order by 1 desc limit 1), a from t2;
@@ -2604,8 +2605,6 @@ SELECT sql_no_cache * FROM t1 WHERE NOT EXISTS
    (SELECT i FROM t1)
   );
 
-#TODO:not supported
---error ER_PARSE_ERROR
 SELECT * FROM t1
 WHERE NOT EXISTS (((SELECT i FROM t1) UNION (SELECT i FROM t1)));
 
@@ -4313,7 +4312,7 @@ SELECT * FROM (SELECT 1 a UNION SELECT 1 a ORDER BY a LIMIT 1) t1a;
 # aliases after.
 # 
 SELECT * FROM t1 JOIN  (SELECT 1 UNION SELECT 1) alias ON 1;
---error ER_DERIVED_MUST_HAVE_ALIAS
+--error ER_PARSE_ERROR
 SELECT * FROM t1 JOIN ((SELECT 1 UNION SELECT 1)) ON 1;
 --error ER_PARSE_ERROR
 SELECT * FROM t1 JOIN  (t1 t1a UNION SELECT 1)  ON 1;
@@ -4324,10 +4323,14 @@ SELECT * FROM t1 JOIN  (t1 t1a)  t1a ON 1;
 --error ER_PARSE_ERROR
 SELECT * FROM t1 JOIN ((t1 t1a)) t1a ON 1;
 
+--error ER_PARSE_ERROR
 SELECT * FROM t1 JOIN  (t1 t1a)  ON 1;
+--error ER_PARSE_ERROR
 SELECT * FROM t1 JOIN ((t1 t1a)) ON 1;
 
+--error ER_PARSE_ERROR
 SELECT * FROM (t1 t1a);
+--error ER_PARSE_ERROR
 SELECT * FROM ((t1 t1a));
 
 SELECT * FROM t1 JOIN  (SELECT 1 t1a) alias ON 1;
@@ -4391,12 +4394,9 @@ SELECT * FROM t2 WHERE (a, b) IN (SELECT a, b FROM t2);
 
 # Make sure the parser does not allow nested UNIONs anywhere
 
---error ER_PARSE_ERROR
 SELECT 1 UNION ( SELECT 1 UNION SELECT 1 );
---error ER_PARSE_ERROR
 ( SELECT 1 UNION SELECT 1 ) UNION SELECT 1;
 
---error ER_PARSE_ERROR
 SELECT ( SELECT 1 UNION ( SELECT 1 UNION SELECT 1 ) );
 --error ER_PARSE_ERROR
 SELECT ( ( SELECT 1 UNION SELECT 1 ) UNION SELECT 1;
@@ -4405,25 +4405,19 @@ SELECT ((SELECT 1 UNION SELECT 1 UNION SELECT 1));
 
 --error ER_PARSE_ERROR
 SELECT * FROM ( SELECT 1 UNION ( SELECT 1 UNION SELECT 1 ) );
---error ER_DERIVED_MUST_HAVE_ALIAS
+--error ER_PARSE_ERROR
 SELECT * FROM ( ( SELECT 1 UNION SELECT 1 ) UNION SELECT 1 );
 SELECT * FROM ( ( SELECT 1 UNION SELECT 1 ) UNION SELECT 1 ) a;
 SELECT * FROM ( SELECT 1 UNION SELECT 1 UNION SELECT 1 ) a;
 
---error ER_PARSE_ERROR
 SELECT * FROM t1 WHERE a =     ( SELECT 1 UNION ( SELECT 1 UNION SELECT 1 ) );
---error ER_PARSE_ERROR
 SELECT * FROM t1 WHERE a = ALL ( SELECT 1 UNION ( SELECT 1 UNION SELECT 1 ) );
---error ER_PARSE_ERROR
 SELECT * FROM t1 WHERE a = ANY ( SELECT 1 UNION ( SELECT 1 UNION SELECT 1 ) );
---error ER_PARSE_ERROR
 SELECT * FROM t1 WHERE a IN    ( SELECT 1 UNION ( SELECT 1 UNION SELECT 1 ) );
 
 --error ER_PARSE_ERROR
 SELECT * FROM t1 WHERE a =     ( ( SELECT 1 UNION SELECT 1 )  UNION SELECT 1 );
---error ER_PARSE_ERROR
 SELECT * FROM t1 WHERE a = ALL ( ( SELECT 1 UNION SELECT 1 )  UNION SELECT 1 );
---error ER_PARSE_ERROR
 SELECT * FROM t1 WHERE a = ANY ( ( SELECT 1 UNION SELECT 1 )  UNION SELECT 1 );
 --error ER_PARSE_ERROR
 SELECT * FROM t1 WHERE a IN    ( ( SELECT 1 UNION SELECT 1 )  UNION SELECT 1 );
@@ -5933,13 +5927,6 @@ call procedure2();
 drop procedure procedure2;
 
 
-SELECT
-  (SELECT user FROM mysql.user
-    WHERE h.host in (SELECT host FROM mysql.user)
-  ) AS sq
-FROM mysql.host h GROUP BY h.host;
-
-
 --echo #
 --echo # MDEV-7846:Server crashes in Item_subselect::fix
 --echo #_fields or fails with Thread stack overrun
@@ -6104,6 +6091,21 @@ and t1.a in (select `test`.`t3`.`c` from `test`.`t3`);
 SET @@optimizer_switch= @optimiser_switch_save;
 DROP TABLE t1, t2, t3;
 
+--echo #
+--echo # MDEV-16820: impossible where with inexpensive subquery
+--echo #
+
+create table t1 (a int) engine=myisam;
+insert into t1 values (3), (1), (7);
+
+create table t2 (b int, index idx(b));
+insert into t2 values (2), (5), (3), (2);
+
+explain select * from t1 where (select max(b) from t2) = 10;
+explain select * from t1 where (select max(b) from t2) = 10 and t1.a > 3;
+
+drop table t1,t2;
+
 --echo End of 5.5 tests
 --echo # End of 10.0 tests
 
@@ -6151,3 +6153,23 @@ SELECT * FROM t t1 RIGHT JOIN t t2 ON (t2.pk = t1.pk)
 DROP TABLE t;
 
 --echo # End of 10.2 tests
+
+
+--echo #
+--echo # Start of 10.4 tests
+--echo #
+
+--echo #
+--echo # MDEV-16861 Split Item::update_null_value() into a new virtual method in Type_handler
+--echo #
+
+--error ER_ILLEGAL_PARAMETER_DATA_TYPES2_FOR_OPERATION
+SELECT ROW(1,2) = EXISTS (SELECT 1);
+--error ER_ILLEGAL_PARAMETER_DATA_TYPES2_FOR_OPERATION
+SELECT ROW(1,2) = 1 IN (SELECT 1 UNION SELECT 2);
+--error ER_ILLEGAL_PARAMETER_DATA_TYPES2_FOR_OPERATION
+SELECT ROW(1,2) = (1 = ANY (SELECT 1 UNION SELECT 2));
+
+--echo #
+--echo # End of 10.4 tests
+--echo #

@@ -21,6 +21,8 @@ delete from t1 where x = 3;
 delete from t1 where x > 7;
 insert into t1(x, y) values(3, 33);
 select sys_trx_start from t1 where x = 3 and y = 33 into @t1;
+Warnings:
+Warning	1287	'<select expression> INTO <destination>;' is deprecated and will be removed in a future release. Please use 'SELECT <select list> INTO <destination> FROM...' instead
 select x, y from t1;
 x	y
 0	100
@@ -330,6 +332,8 @@ insert into t1 values (1);
 set @ts= now(6);
 delete from t1;
 select sys_trx_start from t1 for system_time all into @trx_start;
+Warnings:
+Warning	1287	'<select expression> INTO <destination>;' is deprecated and will be removed in a future release. Please use 'SELECT <select list> INTO <destination> FROM...' instead
 ## ensure @trx_start is much lower than unix timestamp
 select @trx_start < unix_timestamp(@ts) - 100 as trx_start_good;
 trx_start_good
@@ -526,7 +530,11 @@ period for system_time (row_start, row_end)
 insert into t1 values (1);
 delete from t1;
 select row_start from t1 for system_time all into @t1;
+Warnings:
+Warning	1287	'<select expression> INTO <destination>;' is deprecated and will be removed in a future release. Please use 'SELECT <select list> INTO <destination> FROM...' instead
 select row_end from t1 for system_time all into @t2;
+Warnings:
+Warning	1287	'<select expression> INTO <destination>;' is deprecated and will be removed in a future release. Please use 'SELECT <select list> INTO <destination> FROM...' instead
 select * from t1 for system_time between @t1 and @t2;
 a
 1
@@ -537,6 +545,39 @@ a
 1
 select * from t1 for system_time from @t2 to @t1;
 a
+drop table t1;
+#
+# MDEV-15991 Server crashes in setup_on_expr upon calling SP or function executing DML on versioned tables
+#
+create or replace table t1 (i int);
+insert into t1 values (1);
+create or replace procedure p(n int)
+begin
+select * from t1;
+end $
+call p(1);
+i
+1
+alter table t1 add system versioning;
+call p(2);
+i
+1
+call p(3);
+i
+1
+#
+# MDEV-15947 ASAN heap-use-after-free in Item_ident::print or in my_strcasecmp_utf8 or unexpected ER_BAD_FIELD_ERROR upon call of stored procedure reading from versioned table
+#
+create or replace table t1 (i int) with system versioning;
+create or replace procedure p() select * from t1;
+call p;
+i
+flush tables;
+call p;
+i
+call p;
+i
+drop procedure p;
 drop table t1;
 call verify_trt_dummy(34);
 No	A	B	C	D

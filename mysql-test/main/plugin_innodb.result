@@ -7,5 +7,5 @@ create table t1(a int) engine=example;
 select * from t1;
 a
 drop table t1;
-alter table mysql.plugin engine=myisam;
+alter table mysql.plugin engine=aria;
 uninstall plugin example;

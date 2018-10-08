@@ -1265,6 +1265,9 @@ SELECT CURRENT_USER();
 SET PASSWORD FOR CURRENT_USER() = PASSWORD("admin");
 SET PASSWORD FOR CURRENT_USER() = PASSWORD("");
 
+#cleanup after MDEV-16238
+update mysql.user set plugin='';
+
 #
 # Bug#57952: privilege change is not taken into account by EXECUTE.
 #
@@ -1595,6 +1598,9 @@ use test;
 #
 # Bug#16470 crash on grant if old grant tables
 #
+
+call mtr.add_suppression("Can't open and lock privilege tables");
+
 --echo FLUSH PRIVILEGES without procs_priv table.
 RENAME TABLE mysql.procs_priv TO mysql.procs_gone;
 FLUSH PRIVILEGES;

@@ -441,6 +441,7 @@ bool subquery_types_allow_materialization(Item_in_subselect *in_subs);
 static bool replace_where_subcondition(JOIN *, Item **, Item *, Item *, bool);
 static int subq_sj_candidate_cmp(Item_in_subselect* el1, Item_in_subselect* el2,
                                  void *arg);
+static void reset_equality_number_for_subq_conds(Item * cond);
 static bool convert_subq_to_sj(JOIN *parent_join, Item_in_subselect *subq_pred);
 static bool convert_subq_to_jtbm(JOIN *parent_join, 
                                  Item_in_subselect *subq_pred, bool *remove);
@@ -518,6 +519,7 @@ bool is_materialization_applicable(THD *thd, Item_in_subselect *in_subs,
   if (optimizer_flag(thd, OPTIMIZER_SWITCH_MATERIALIZATION) &&      // 0
         !child_select->is_part_of_union() &&                          // 1
         parent_unit->first_select()->leaf_tables.elements &&          // 2
+        child_select->outer_select() &&
         child_select->outer_select()->leaf_tables.elements &&         // 2A
         subquery_types_allow_materialization(in_subs) &&
         (in_subs->is_top_level_item() ||                               //3
@@ -620,8 +622,8 @@ int check_and_do_in_subquery_rewrites(JOIN *join)
       char const *save_where= thd->where;
       thd->where= "IN/ALL/ANY subquery";
 
-      bool failure= !in_subs->left_expr->fixed &&
-                     in_subs->left_expr->fix_fields(thd, &in_subs->left_expr);
+      bool failure= in_subs->left_expr->fix_fields_if_needed(thd,
+                                                          &in_subs->left_expr);
       thd->lex->current_select= current;
       thd->where= save_where;
       if (failure)
@@ -815,6 +817,9 @@ int check_and_do_in_subquery_rewrites(JOIN *join)
           details)
         * require that compared columns have exactly the same type. This is
           a temporary measure to avoid BUG#36752-type problems.
+
+    JOIN_TAB::keyuse_is_valid_for_access_in_chosen_plan expects that for Semi Join Materialization
+    Scan all the items in the select list of the IN Subquery are of the type Item::FIELD_ITEM.
 */
 
 static 
@@ -822,7 +827,7 @@ bool subquery_types_allow_materialization(Item_in_subselect *in_subs)
 {
   DBUG_ENTER("subquery_types_allow_materialization");
 
-  DBUG_ASSERT(in_subs->left_expr->fixed);
+  DBUG_ASSERT(in_subs->left_expr->is_fixed());
 
   List_iterator<Item> it(in_subs->unit->first_select()->item_list);
   uint elements= in_subs->unit->first_select()->item_list.elements;
@@ -898,7 +903,7 @@ bool make_in_exists_conversion(THD *thd, JOIN *join, Item_in_subselect *item)
   /* 
     We're going to finalize IN->EXISTS conversion. 
     Normally, IN->EXISTS conversion takes place inside the 
-    Item_subselect::fix_fields() call, where item_subselect->fixed==FALSE (as
+    Item_subselect::fix_fields() call, where item_subselect->is_fixed()==FALSE (as
     fix_fields() haven't finished yet) and item_subselect->changed==FALSE (as 
     the conversion haven't been finalized)
 
@@ -925,7 +930,7 @@ bool make_in_exists_conversion(THD *thd, JOIN *join, Item_in_subselect *item)
   item->fixed= 1;
 
   Item *substitute= item->substitution;
-  bool do_fix_fields= !item->substitution->fixed;
+  bool do_fix_fields= !item->substitution->is_fixed();
   /*
     The Item_subselect has already been wrapped with Item_in_optimizer, so we
     should search for item->optimizer, not 'item'.
@@ -1261,7 +1266,7 @@ bool convert_join_subqueries_to_semijoins(JOIN *join)
     in_subq->fixed= 1;
 
     Item *substitute= in_subq->substitution;
-    bool do_fix_fields= !in_subq->substitution->fixed;
+    bool do_fix_fields= !in_subq->substitution->is_fixed();
     Item **tree= (in_subq->emb_on_expr_nest == NO_JOIN_NEST)?
                    &join->conds : &(in_subq->emb_on_expr_nest->on_expr);
     Item *replace_me= in_subq->original_item();
@@ -1428,6 +1433,67 @@ static int subq_sj_candidate_cmp(Item_in_subselect* el1, Item_in_subselect* el2,
          ( (el1->sj_convert_priority == el2->sj_convert_priority)? 0 : 1);
 }
 
+
+/**
+    @brief
+    reset the value of the field in_eqaulity_no for all Item_func_eq
+    items in the where clause of the subquery.
+
+    Look for in_equality_no description in Item_func_eq class
+
+    DESCRIPTION
+    Lets have an example:
+    SELECT t1.a FROM t1 WHERE t1.a IN
+      (SELECT t2.a FROM t2 where t2.b IN
+          (select t3.b from t3 where t3.c=27 ))
+
+    So for such a query we have the parent, child and
+    grandchild select.
+
+    So for the equality t2.b = t3.b we set the value for in_equality_no to
+    0 according to its description. Wewe do the same for t1.a = t2.a.
+    But when we look at the child select (with the grandchild select merged),
+    the query would be
+
+    SELECT t1.a FROM t1 WHERE t1.a IN
+      (SELECT t2.a FROM t2 where t2.b = t3.b and t3.c=27)
+
+    and then when the child select is merged into the parent select the query
+    would look like
+
+    SELECT t1.a FROM t1, semi-join-nest(t2,t3)
+            WHERE t1.a =t2.a and t2.b = t3.b and t3.c=27
+
+    Still we would have in_equality_no set for t2.b = t3.b
+    though it does not take part in the semi-join equality for the parent select,
+    so we should reset its value to UINT_MAX.
+
+    @param cond WHERE clause of the subquery
+*/
+
+static void reset_equality_number_for_subq_conds(Item * cond)
+{
+  if (!cond)
+    return;
+  if (cond->type() == Item::COND_ITEM)
+  {
+    List_iterator<Item> li(*((Item_cond*) cond)->argument_list());
+    Item *item;
+    while ((item=li++))
+    {
+      if (item->type() == Item::FUNC_ITEM &&
+      ((Item_func*)item)->functype()== Item_func::EQ_FUNC)
+        ((Item_func_eq*)item)->in_equality_no= UINT_MAX;
+    }
+  }
+  else
+  {
+    if (cond->type() == Item::FUNC_ITEM &&
+      ((Item_func*)cond)->functype()== Item_func::EQ_FUNC)
+        ((Item_func_eq*)cond)->in_equality_no= UINT_MAX;
+  }
+  return;
+}
 
 /*
   Convert a subquery predicate into a TABLE_LIST semi-join nest
@@ -1666,8 +1732,7 @@ static bool convert_subq_to_sj(JOIN *parent_join, Item_in_subselect *subq_pred)
   */
   SELECT_LEX *save_lex= thd->lex->current_select;
   thd->lex->current_select=subq_lex;
-  if (!subq_pred->left_expr->fixed &&
-       subq_pred->left_expr->fix_fields(thd, &subq_pred->left_expr))
+  if (subq_pred->left_expr->fix_fields_if_needed(thd, &subq_pred->left_expr))
     DBUG_RETURN(TRUE);
   thd->lex->current_select=save_lex;
 
@@ -1694,6 +1759,7 @@ static bool convert_subq_to_sj(JOIN *parent_join, Item_in_subselect *subq_pred)
   */
   sj_nest->sj_in_exprs= subq_pred->left_expr->cols();
   sj_nest->nested_join->sj_outer_expr_list.empty();
+  reset_equality_number_for_subq_conds(sj_nest->sj_on_expr);
 
   if (subq_pred->left_expr->cols() == 1)
   {
@@ -1735,7 +1801,7 @@ static bool convert_subq_to_sj(JOIN *parent_join, Item_in_subselect *subq_pred)
                      subq_lex->ref_pointer_array[i]);
       if (!item_eq)
         DBUG_RETURN(TRUE);
-      DBUG_ASSERT(subq_pred->left_expr->element_index(i)->fixed);
+      DBUG_ASSERT(subq_pred->left_expr->element_index(i)->is_fixed());
       if (subq_pred->left_expr_orig->element_index(i) !=
           subq_pred->left_expr->element_index(i))
         thd->change_item_tree(item_eq->arguments(),
@@ -1777,8 +1843,7 @@ static bool convert_subq_to_sj(JOIN *parent_join, Item_in_subselect *subq_pred)
     to check for this at name resolution stage, but as a legacy of IN->EXISTS
     we have in here).
   */
-  if (!sj_nest->sj_on_expr->fixed &&
-      sj_nest->sj_on_expr->fix_fields(thd, &sj_nest->sj_on_expr))
+  if (sj_nest->sj_on_expr->fix_fields_if_needed(thd, &sj_nest->sj_on_expr))
   {
     DBUG_RETURN(TRUE);
   }
@@ -1804,9 +1869,8 @@ static bool convert_subq_to_sj(JOIN *parent_join, Item_in_subselect *subq_pred)
     emb_tbl_nest->on_expr= and_items(thd, emb_tbl_nest->on_expr,
                                      sj_nest->sj_on_expr);
     emb_tbl_nest->on_expr->top_level_item();
-    if (!emb_tbl_nest->on_expr->fixed &&
-         emb_tbl_nest->on_expr->fix_fields(thd,
-                                           &emb_tbl_nest->on_expr))
+    if (emb_tbl_nest->on_expr->fix_fields_if_needed(thd,
+                                                    &emb_tbl_nest->on_expr))
     {
       DBUG_RETURN(TRUE);
     }
@@ -1822,9 +1886,7 @@ static bool convert_subq_to_sj(JOIN *parent_join, Item_in_subselect *subq_pred)
     */
     save_lex= thd->lex->current_select;
     thd->lex->current_select=parent_join->select_lex;
-    if (!parent_join->conds->fixed &&
-         parent_join->conds->fix_fields(thd,
-                                        &parent_join->conds))
+    if (parent_join->conds->fix_fields_if_needed(thd, &parent_join->conds))
     {
       DBUG_RETURN(1);
     }
@@ -3510,7 +3572,8 @@ void fix_semijoin_strategies_for_picked_join_order(JOIN *join)
       first= tablenr - sjm->tables + 1;
       join->best_positions[first].n_sj_tables= sjm->tables;
       join->best_positions[first].sj_strategy= SJ_OPT_MATERIALIZE;
-      join->sjm_lookup_tables|= s->table->map;
+      for (uint i= first; i < first+ sjm->tables; i++)
+        join->sjm_lookup_tables |= join->best_positions[i].table->table->map;
     }
     else if (pos->sj_strategy == SJ_OPT_MATERIALIZE_SCAN)
     {
@@ -3724,7 +3787,7 @@ bool setup_sj_materialization_part1(JOIN_TAB *sjm_tab)
       re-executing it will not be prepared. To use the Items from its
       select list we have to prepare (fix_fields) them
     */
-    if (!item->fixed && item->fix_fields(thd, it.ref()))
+    if (item->fix_fields_if_needed(thd, it.ref()))
       DBUG_RETURN(TRUE);
     item= *(it.ref()); // it can be changed by fix_fields
     DBUG_ASSERT(!item->name.length || item->name.length == strlen(item->name.str));
@@ -5587,7 +5650,7 @@ Item *and_new_conditions_to_optimized_cond(THD *thd, Item *cond,
       li.rewind();
       while ((item=li++))
       {
-        if (!item->fixed && item->fix_fields(thd, NULL))
+        if (item->fix_fields_if_needed(thd, NULL))
           return NULL;
         if (item->const_item() && !item->val_int())
           is_simplified_cond= true;
@@ -5628,7 +5691,7 @@ Item *and_new_conditions_to_optimized_cond(THD *thd, Item *cond,
           if (equality->fix_fields(thd, NULL))
             return NULL;
         }
-        *cond_eq= &new_cond_equal;
+        (*cond_eq)->copy(new_cond_equal);
       }
       new_conds_list.append((List<Item> *)&new_cond_equal.current_level);
     }
@@ -5648,7 +5711,7 @@ Item *and_new_conditions_to_optimized_cond(THD *thd, Item *cond,
       cond= iter++;
     }
 
-    if (!cond->fixed && cond->fix_fields(thd, NULL))
+    if (cond->fix_fields_if_needed(thd, NULL))
       return NULL;
 
     if (new_cond_equal.current_level.elements > 0)
@@ -5742,7 +5805,8 @@ bool execute_degenerate_jtbm_semi_join(THD *thd,
         new (thd->mem_root) Item_func_eq(thd,
                                          subq_pred->left_expr->element_index(i),
                                          new_sink->row[i]);
-      if (!eq_cond || eq_list.push_back(eq_cond, thd->mem_root))
+      if (!eq_cond || eq_cond->fix_fields(thd, NULL) ||
+          eq_list.push_back(eq_cond, thd->mem_root))
         DBUG_RETURN(TRUE);
     }
   }
@@ -5927,6 +5991,7 @@ bool setup_jtbm_semi_joins(JOIN *join, List<TABLE_LIST> *join_list,
         Item *item;
         while ((item=li++))
         {
+          item->update_used_tables();
           if (eq_list.push_back(item, thd->mem_root))
             DBUG_RETURN(TRUE);
         }
@@ -6043,8 +6108,8 @@ bool JOIN::choose_subquery_plan(table_map join_tables)
   /* A strategy must be chosen earlier. */
   DBUG_ASSERT(in_subs->has_strategy());
   DBUG_ASSERT(in_to_exists_where || in_to_exists_having);
-  DBUG_ASSERT(!in_to_exists_where || in_to_exists_where->fixed);
-  DBUG_ASSERT(!in_to_exists_having || in_to_exists_having->fixed);
+  DBUG_ASSERT(!in_to_exists_where || in_to_exists_where->is_fixed());
+  DBUG_ASSERT(!in_to_exists_having || in_to_exists_having->is_fixed());
 
   /* The original QEP of the subquery. */
   Join_plan_state save_qep(table_count);
@@ -6296,6 +6361,7 @@ bool JOIN::choose_tableless_subquery_plan()
           functions produce empty subquery result. There is no need to further
           rewrite the subquery because it will not be executed at all.
         */
+        exec_const_cond= 0;
         return FALSE;
       }
 
@@ -6327,7 +6393,7 @@ bool JOIN::choose_tableless_subquery_plan()
       tmp_having= having;
     }
   }
-  exec_const_cond= conds;
+  exec_const_cond= zero_result_cause ? 0 : conds;
   return FALSE;
 }
 

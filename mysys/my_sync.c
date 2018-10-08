@@ -122,7 +122,7 @@ int my_sync(File fd, myf my_flags)
       res= 0;
     }
     else if (my_flags & MY_WME)
-      my_error(EE_SYNC, MYF(ME_BELL+ME_WAITTANG), my_filename(fd), my_errno);
+      my_error(EE_SYNC, MYF(ME_BELL), my_filename(fd), my_errno);
   }
   else
   {

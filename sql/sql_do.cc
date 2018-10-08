@@ -33,7 +33,7 @@ bool mysql_do(THD *thd, List<Item> &values)
     DBUG_RETURN(TRUE);
   while ((value = li++))
     (void) value->is_null();
-  free_underlaid_joins(thd, &thd->lex->select_lex);
+  free_underlaid_joins(thd, thd->lex->first_select_lex());
 
   if (unlikely(thd->is_error()))
   {

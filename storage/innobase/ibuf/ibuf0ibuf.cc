@@ -185,7 +185,7 @@ it uses synchronous aio, it can access any pages, as long as it obeys the
 access order rules. */
 
 /** Operations that can currently be buffered. */
-ibuf_use_t	ibuf_use		= IBUF_USE_ALL;
+ulong	innodb_change_buffering;
 
 #if defined UNIV_DEBUG || defined UNIV_IBUF_DEBUG
 /** Flag to control insert buffer debugging. */
@@ -916,10 +916,7 @@ ibuf_set_free_bits_func(
 		ut_ad(0);
 		break;
 	case FIL_TYPE_TABLESPACE:
-		/* Avoid logging while fixing up truncate of table. */
-		if (!srv_is_tablespace_truncated(block->page.id.space())) {
-			break;
-		}
+		break;
 		/* fall through */
 	case FIL_TYPE_TEMPORARY:
 	case FIL_TYPE_IMPORT:
@@ -3695,9 +3692,9 @@ ibuf_insert(
 	dberr_t		err;
 	ulint		entry_size;
 	ibool		no_counter;
-	/* Read the settable global variable ibuf_use only once in
+	/* Read the settable global variable only once in
 	this function, so that we will have a consistent view of it. */
-	ibuf_use_t	use		= ibuf_use;
+	ibuf_use_t	use		= ibuf_use_t(innodb_change_buffering);
 	DBUG_ENTER("ibuf_insert");
 
 	DBUG_PRINT("ibuf", ("op: %d, space: " UINT32PF ", page_no: " UINT32PF,
@@ -4779,7 +4776,7 @@ reset_bit:
 
 /*********************************************************************//**
 Deletes all entries in the insert buffer for a given space id. This is used
-in DISCARD TABLESPACE, IMPORT TABLESPACE and TRUNCATE TABLESPACE.
+in DISCARD TABLESPACE, IMPORT TABLESPACE, and 5.7 TRUNCATE TABLE recovery.
 NOTE: this does not update the page free bitmaps in the space. The space will
 become CORRUPT when you call this function! */
 void
@@ -5010,6 +5007,11 @@ dberr_t ibuf_check_bitmap_on_import(const trx_t* trx, fil_space_t* space)
 			ibuf_exit(&mtr);
 			mtr_commit(&mtr);
 			continue;
+		}
+
+		if (!bitmap_page) {
+			mutex_exit(&ibuf_mutex);
+			return DB_CORRUPTION;
 		}
 
 		for (i = FSP_IBUF_BITMAP_OFFSET + 1;

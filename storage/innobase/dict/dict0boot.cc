@@ -214,7 +214,7 @@ dict_hdr_create(
 	/*--------------------------*/
 	root_page_no = btr_create(DICT_CLUSTERED | DICT_UNIQUE,
 				  fil_system.sys_space, DICT_TABLES_ID,
-				  dict_ind_redundant, NULL, mtr);
+				  dict_ind_redundant, mtr);
 	if (root_page_no == FIL_NULL) {
 
 		return(FALSE);
@@ -225,7 +225,7 @@ dict_hdr_create(
 	/*--------------------------*/
 	root_page_no = btr_create(DICT_UNIQUE,
 				  fil_system.sys_space, DICT_TABLE_IDS_ID,
-				  dict_ind_redundant, NULL, mtr);
+				  dict_ind_redundant, mtr);
 	if (root_page_no == FIL_NULL) {
 
 		return(FALSE);
@@ -236,7 +236,7 @@ dict_hdr_create(
 	/*--------------------------*/
 	root_page_no = btr_create(DICT_CLUSTERED | DICT_UNIQUE,
 				  fil_system.sys_space, DICT_COLUMNS_ID,
-				  dict_ind_redundant, NULL, mtr);
+				  dict_ind_redundant, mtr);
 	if (root_page_no == FIL_NULL) {
 
 		return(FALSE);
@@ -247,7 +247,7 @@ dict_hdr_create(
 	/*--------------------------*/
 	root_page_no = btr_create(DICT_CLUSTERED | DICT_UNIQUE,
 				  fil_system.sys_space, DICT_INDEXES_ID,
-				  dict_ind_redundant, NULL, mtr);
+				  dict_ind_redundant, mtr);
 	if (root_page_no == FIL_NULL) {
 
 		return(FALSE);
@@ -258,7 +258,7 @@ dict_hdr_create(
 	/*--------------------------*/
 	root_page_no = btr_create(DICT_CLUSTERED | DICT_UNIQUE,
 				  fil_system.sys_space, DICT_FIELDS_ID,
-				  dict_ind_redundant, NULL, mtr);
+				  dict_ind_redundant, mtr);
 	if (root_page_no == FIL_NULL) {
 
 		return(FALSE);

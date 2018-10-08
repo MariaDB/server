@@ -1,7 +1,7 @@
 /*****************************************************************************
 
 Copyright (c) 2007, 2015, Oracle and/or its affiliates. All Rights Reserved.
-Copyright (c) 2017, MariaDB Corporation.
+Copyright (c) 2017, 2018, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -1468,26 +1468,20 @@ cache_select_table(
 	trx_i_s_cache_t*	cache,	/*!< in: whole cache */
 	enum i_s_table		table)	/*!< in: which table */
 {
-	i_s_table_cache_t*	table_cache;
-
-	ut_ad(rw_lock_own(cache->rw_lock, RW_LOCK_S)
-	      || rw_lock_own(cache->rw_lock, RW_LOCK_X));
+	ut_ad(rw_lock_own_flagged(cache->rw_lock,
+				  RW_LOCK_FLAG_X | RW_LOCK_FLAG_S));
 
 	switch (table) {
 	case I_S_INNODB_TRX:
-		table_cache = &cache->innodb_trx;
-		break;
+		return &cache->innodb_trx;
 	case I_S_INNODB_LOCKS:
-		table_cache = &cache->innodb_locks;
-		break;
+		return &cache->innodb_locks;
 	case I_S_INNODB_LOCK_WAITS:
-		table_cache = &cache->innodb_lock_waits;
-		break;
-	default:
-		ut_error;
+		return &cache->innodb_lock_waits;
 	}
 
-	return(table_cache);
+	ut_error;
+	return NULL;
 }
 
 /*******************************************************************//**

@@ -50,10 +50,9 @@ i
 3
 insert into t values (4), (1);
 ERROR 40001: Deadlock found when trying to get lock; try restarting transaction
-# Statement should be rolled back
+# Transaction should be rolled back
 select * from t;
 i
-3
 rollback;
 connection con2;
 i
@@ -61,6 +60,26 @@ rollback;
 connection con1;
 i
 rollback;
+connection default;
+create table t1 (id int primary key, value int, value2 int, index(value)) engine=rocksdb;
+insert into t1 values (1,1,1),(2,2,2),(3,3,3),(4,4,4),(5,5,5),(6,6,6),(7,7,7),(8,8,8),(9,9,9),(10,10,10);
+connection con1;
+begin;
+update t1 force index (value) set value2=value2+1 where value=3;
+connection con2;
+begin;
+update t1 force index (value) set value2=value2+1 where value=2;
+update t1 force index (value) set value2=value2+1 where value=4;
+connection con1;
+update t1 force index (value) set value2=value2+1 where value=4;
+connection con2;
+update t1 force index (value) set value2=value2+1 where value=3;
+ERROR 40001: Deadlock found when trying to get lock; try restarting transaction
+connection con1;
+rollback;
+connection con2;
+rollback;
+drop table t1;
 connection default;
 disconnect con1;
 disconnect con2;

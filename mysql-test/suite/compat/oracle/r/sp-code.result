@@ -1084,23 +1084,26 @@ Pos	Instruction
 10	stmt 0 "SELECT rec1.a, rec1.b"
 11	cfetch cur1@1 rec1@0
 12	jump 6
-13	cursor_copy_struct cur0 rec0@1
-14	copen cur0@0
-15	cfetch cur0@0 rec0@1
-16	jump_if_not 21(21) "cur0"%FOUND
-17	set rec0.a@1["a"] 10
-18	set rec0.b@1["b"] 'b0'
-19	cfetch cur0@0 rec0@1
-20	jump 16
-21	cursor_copy_struct cur2 rec2@2
-22	copen cur2@2
-23	cfetch cur2@2 rec2@2
-24	jump_if_not 29(29) "cur2"%FOUND
-25	set rec2.a@2["a"] 10
-26	set rec2.b@2["b"] 'b0'
-27	cfetch cur2@2 rec2@2
-28	jump 24
-29	cpop 3
+13	cclose cur1@1
+14	cursor_copy_struct cur0 rec0@1
+15	copen cur0@0
+16	cfetch cur0@0 rec0@1
+17	jump_if_not 22(22) "cur0"%FOUND
+18	set rec0.a@1["a"] 10
+19	set rec0.b@1["b"] 'b0'
+20	cfetch cur0@0 rec0@1
+21	jump 17
+22	cclose cur0@0
+23	cursor_copy_struct cur2 rec2@2
+24	copen cur2@2
+25	cfetch cur2@2 rec2@2
+26	jump_if_not 31(31) "cur2"%FOUND
+27	set rec2.a@2["a"] 10
+28	set rec2.b@2["b"] 'b0'
+29	cfetch cur2@2 rec2@2
+30	jump 26
+31	cclose cur2@2
+32	cpop 3
 DROP PROCEDURE p1;
 CREATE PROCEDURE p1
 AS
@@ -1137,14 +1140,14 @@ Pos	Instruction
 1	cursor_copy_struct cur0 rec0@0
 2	copen cur0@0
 3	cfetch cur0@0 rec0@0
-4	jump_if_not 29(29) "cur0"%FOUND
+4	jump_if_not 31(31) "cur0"%FOUND
 5	cpush cur1@1
 6	set rec0.a@0["a"] 11
 7	set rec0.b@0["b"] 'b0'
 8	cursor_copy_struct cur1 rec1@1
 9	copen cur1@1
 10	cfetch cur1@1 rec1@1
-11	jump_if_not 26(26) "cur1"%FOUND
+11	jump_if_not 27(27) "cur1"%FOUND
 12	set rec1.a@1["a"] 11
 13	set rec1.b@1["b"] 'b1'
 14	cpush cur2@2
@@ -1156,13 +1159,16 @@ Pos	Instruction
 20	set rec2.b@2["b"] 'b2'
 21	cfetch cur2@2 rec2@2
 22	jump 18
-23	cpop 1
-24	cfetch cur1@1 rec1@1
-25	jump 11
-26	cpop 1
-27	cfetch cur0@0 rec0@0
-28	jump 4
-29	cpop 1
+23	cclose cur2@2
+24	cpop 1
+25	cfetch cur1@1 rec1@1
+26	jump 11
+27	cclose cur1@1
+28	cpop 1
+29	cfetch cur0@0 rec0@0
+30	jump 4
+31	cclose cur0@0
+32	cpop 1
 DROP PROCEDURE p1;
 #
 # MDEV-12098 sql_mode=ORACLE: Implicit cursor FOR loop

@@ -64,11 +64,19 @@ INSERT INTO t VALUES (18, 1, DEFAULT, 'mm');
 INSERT INTO t VALUES (28, 1, DEFAULT, 'mm');
 INSERT INTO t VALUES (null, null, DEFAULT, 'mm');
 CREATE INDEX idx_1 on t(c);
-SET SESSION debug_dbug="+d,create_index_fail";
-ALTER TABLE t ADD COLUMN x INT GENERATED ALWAYS AS(a+b), ADD INDEX idx (x);
+SET @saved_dbug = @@SESSION.debug_dbug;
+SET debug_dbug = '+d,create_index_fail';
+ALTER TABLE t ADD COLUMN x INT GENERATED ALWAYS AS(a+b), ADD INDEX idx (x),
+ADD INDEX idcx (c,x);
 ERROR 23000: Duplicate entry '' for key '*UNKNOWN*'
-SET SESSION debug_dbug="";
+UPDATE t SET a=a+1;
+affected rows: 3
+info: Rows matched: 4  Changed: 3  Warnings: 0
+ALTER TABLE t ADD INDEX idc(c);
+ERROR 23000: Duplicate entry '' for key '*UNKNOWN*'
+SET debug_dbug = @saved_dbug;
 affected rows: 0
+UPDATE t SET b=b-1;
 SHOW CREATE TABLE t;
 Table	Create Table
 t	CREATE TABLE `t` (

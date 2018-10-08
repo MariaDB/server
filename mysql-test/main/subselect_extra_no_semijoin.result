@@ -482,3 +482,25 @@ DROP TABLE t1,t2;
 set optimizer_switch= @tmp_subselect_extra_derived;
 set optimizer_switch= @subselect_extra_no_sj_tmp;
 set @optimizer_switch_for_subselect_extra_test=null;
+#
+# MDEV-6439: Server crashes in Explain_union::print_explain with explain in slow log, tis620 charset
+#
+connect con1,localhost,root,,;
+SET NAMES tis620;
+set @tmp= @@global.slow_query_log;
+SET GLOBAL slow_query_log = 1;
+SET long_query_time = 0.000001;
+SET log_slow_verbosity = 'explain';
+CREATE TABLE t1 (a VARCHAR(3)) ENGINE=MyISAM;
+SELECT * FROM t1 WHERE a >= ANY ( SELECT 'foo');
+a
+SELECT * FROM t1 WHERE a >= ANY ( SELECT 'foo' UNION SELECT 'bar' );
+ERROR HY000: Illegal mix of collations (tis620_thai_ci,COERCIBLE) and (latin1_swedish_ci,IMPLICIT) for operation '<='
+create table t2 (b int);
+insert into t2 values (1),(2),(3);
+SELECT * FROM t1 WHERE a >= ANY ( SELECT 'foo' FROM t2);
+ERROR HY000: Illegal mix of collations (tis620_thai_ci,COERCIBLE) and (latin1_swedish_ci,IMPLICIT) for operation '<='
+drop table t1,t2;
+SET GLOBAL slow_query_log=@tmp;
+disconnect con1;
+connection default;

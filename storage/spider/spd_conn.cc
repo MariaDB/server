@@ -88,6 +88,9 @@ extern PSI_thread_key spd_key_thd_bg_mon;
 #endif
 #endif
 
+/* UTC time zone for timestamp columns */
+extern Time_zone *UTC;
+
 HASH spider_open_connections;
 uint spider_open_connections_id;
 HASH spider_ipport_conns;
@@ -453,6 +456,13 @@ SPIDER_CONN *spider_create_conn(
   char *tmp_wrapper, *tmp_ssl_ca, *tmp_ssl_capath, *tmp_ssl_cert;
   char *tmp_ssl_cipher, *tmp_ssl_key, *tmp_default_file, *tmp_default_group;
   DBUG_ENTER("spider_create_conn");
+
+  if (unlikely(!UTC))
+  {
+    /* UTC time zone for timestamp columns */
+    String tz_00_name(STRING_WITH_LEN("+00:00"), &my_charset_bin);
+    UTC = my_tz_find(current_thd, &tz_00_name);
+  }
 
 #if defined(HS_HAS_SQLCOM) && defined(HAVE_HANDLERSOCKET)
   if (conn_kind == SPIDER_CONN_KIND_MYSQL)
@@ -1426,6 +1436,14 @@ void spider_conn_queue_time_zone(
   DBUG_PRINT("info", ("spider conn=%p", conn));
   conn->queued_time_zone = TRUE;
   conn->queued_time_zone_val = time_zone;
+  DBUG_VOID_RETURN;
+}
+
+void spider_conn_queue_UTC_time_zone(SPIDER_CONN *conn)
+{
+  DBUG_ENTER("spider_conn_queue_time_zone");
+  DBUG_PRINT("info", ("spider conn=%p", conn));
+  spider_conn_queue_time_zone(conn, UTC);
   DBUG_VOID_RETURN;
 }
 

@@ -142,7 +142,7 @@ row_undo_ins_remove_clust_rec(
 		/* This is rolling back an INSERT into SYS_COLUMNS.
 		If it was part of an instant ADD COLUMN operation, we
 		must modify the table definition. At this point, any
-		corresponding operation to the 'default row' will have
+		corresponding operation to the metadata record will have
 		been rolled back. */
 		ut_ad(!online);
 		ut_ad(node->trx->dict_operation_lock_mode == RW_X_LATCH);
@@ -227,7 +227,7 @@ retry:
 
 func_exit:
 	btr_pcur_commit_specify_mtr(&node->pcur, &mtr);
-	if (err == DB_SUCCESS && node->rec_type == TRX_UNDO_INSERT_DEFAULT) {
+	if (err == DB_SUCCESS && node->rec_type == TRX_UNDO_INSERT_METADATA) {
 		/* When rolling back the very first instant ADD COLUMN
 		operation, reset the root page to the basic state. */
 		ut_ad(!index->table->is_temporary());
@@ -272,8 +272,6 @@ row_undo_ins_remove_sec_low(
 	mtr_t			mtr;
 	enum row_search_result	search_result;
 	const bool		modify_leaf = mode == BTR_MODIFY_LEAF;
-
-	memset(&pcur, 0, sizeof(pcur));
 
 	row_mtr_start(&mtr, index, !modify_leaf);
 
@@ -424,7 +422,7 @@ row_undo_ins_parse_undo_rec(
 	default:
 		ut_ad(!"wrong undo record type");
 		goto close_table;
-	case TRX_UNDO_INSERT_DEFAULT:
+	case TRX_UNDO_INSERT_METADATA:
 	case TRX_UNDO_INSERT_REC:
 		break;
 	case TRX_UNDO_RENAME_TABLE:
@@ -437,7 +435,8 @@ row_undo_ins_parse_undo_rec(
 		ptr[len] = 0;
 		const char* name = reinterpret_cast<char*>(ptr);
 		if (strcmp(table->name.m_name, name)) {
-			dict_table_rename_in_cache(table, name, false);
+			dict_table_rename_in_cache(table, name, false,
+						   table_id != 0);
 		}
 		goto close_table;
 	}
@@ -446,8 +445,8 @@ row_undo_ins_parse_undo_rec(
 close_table:
 		/* Normally, tables should not disappear or become
 		unaccessible during ROLLBACK, because they should be
-		protected by InnoDB table locks. TRUNCATE TABLE
-		or table corruption could be valid exceptions.
+		protected by InnoDB table locks. Corruption could be
+		a valid exception.
 
 		FIXME: When running out of temporary tablespace, it
 		would probably be better to just drop all temporary
@@ -465,7 +464,7 @@ close_table:
 					ptr, clust_index, &node->ref,
 					node->heap);
 			} else {
-				node->ref = &trx_undo_default_rec;
+				node->ref = &trx_undo_metadata;
 			}
 
 			if (!row_undo_search_clust_to_pcur(node)) {
@@ -597,7 +596,7 @@ row_undo_ins(
 		}
 
 		/* fall through */
-	case TRX_UNDO_INSERT_DEFAULT:
+	case TRX_UNDO_INSERT_METADATA:
 		log_free_check();
 
 		if (node->table->id == DICT_INDEXES_ID) {
@@ -631,7 +630,8 @@ row_undo_ins(
 			already be holding dict_sys->mutex, which
 			would be acquired when updating statistics. */
 			if (!dict_locked) {
-				dict_stats_update_if_needed(node->table);
+				dict_stats_update_if_needed(
+					node->table, node->trx->mysql_thd);
 			}
 		}
 	}

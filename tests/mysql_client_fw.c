@@ -50,9 +50,6 @@ static char *opt_user= 0;
 static char *opt_password= 0;
 static char *opt_host= 0;
 static char *opt_unix_socket= 0;
-#ifdef HAVE_SMEM
-static char *shared_memory_base_name= 0;
-#endif
 static unsigned int  opt_port;
 static my_bool tty_password= 0, opt_silent= 0;
 
@@ -253,10 +250,6 @@ static void print_st_error(MYSQL_STMT *stmt, const char *msg)
 static MYSQL *mysql_client_init(MYSQL* con)
 {
   MYSQL* res = mysql_init(con);
-#ifdef HAVE_SMEM
-  if (res && shared_memory_base_name)
-    mysql_options(res, MYSQL_SHARED_MEMORY_BASE_NAME, shared_memory_base_name);
-#endif
   if (res && non_blocking_api_enabled)
     mysql_options(res, MYSQL_OPT_NONBLOCK, 0);
   if (opt_plugin_dir && *opt_plugin_dir)
@@ -1229,11 +1222,6 @@ static struct my_option client_test_long_options[] =
    0, 0, 0, 0, 0, 0},
   {"silent", 's', "Be more silent", 0, 0, 0, GET_NO_ARG, NO_ARG, 0, 0, 0, 0, 0,
    0},
-#ifdef HAVE_SMEM
-  {"shared-memory-base-name", 'm', "Base name of shared memory.", 
-  &shared_memory_base_name, (uchar**)&shared_memory_base_name, 0, 
-  GET_STR, REQUIRED_ARG, 0, 0, 0, 0, 0, 0},
-#endif
   {"socket", 'S', "Socket file to use for connection",
    &opt_unix_socket, &opt_unix_socket, 0, GET_STR,
    REQUIRED_ARG, 0, 0, 0, 0, 0, 0},

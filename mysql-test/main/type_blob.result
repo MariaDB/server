@@ -1063,3 +1063,19 @@ DROP TABLE t1;
 #
 # End of 5.5 tests
 #
+#
+# Start of 10.2 test
+#
+#
+# MDEV-12809 Bad column type created for TEXT(1431655798) CHARACTER SET utf8
+#
+CREATE TABLE t1 (a TEXT(1431655798) CHARACTER SET utf8);
+SHOW CREATE TABLE t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `a` longtext CHARACTER SET utf8 DEFAULT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=latin1
+DROP TABLE t1;
+#
+# End of 10.2 test
+#

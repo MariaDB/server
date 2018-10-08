@@ -687,8 +687,11 @@ struct TABLE_SHARE
   */
   uint null_bytes_for_compare;
   uint fields;                          /* number of fields */
-  uint stored_fields;                   /* number of stored fields, purely virtual not included */
+  /* number of stored fields, purely virtual not included */
+  uint stored_fields;
   uint virtual_fields;                  /* number of purely virtual fields */
+  /* number of purely virtual not stored blobs */
+  uint virtual_not_stored_blob_fields;
   uint null_fields;                     /* number of null fields */
   uint blob_fields;                     /* number of blob fields */
   uint varchar_fields;                  /* number of varchar fields */
@@ -1150,8 +1153,6 @@ public:
   MY_BITMAP     cond_set;   /* used to mark fields from sargable conditions*/
   /* Active column sets */
   MY_BITMAP     *read_set, *write_set, *rpl_write_set;
-  /* Set if using virtual fields */
-  MY_BITMAP     *vcol_set, *def_vcol_set;
   /* On INSERT: fields that the user specified a value for */
   MY_BITMAP	has_value_set;
 
@@ -1372,12 +1373,14 @@ public:
   void mark_columns_needed_for_delete(void);
   void mark_columns_needed_for_insert(void);
   void mark_columns_per_binlog_row_image(void);
-  bool mark_virtual_col(Field *field);
+  inline bool mark_column_with_deps(Field *field);
+  inline bool mark_virtual_column_with_deps(Field *field);
+  inline void mark_virtual_column_deps(Field *field);
   bool mark_virtual_columns_for_write(bool insert_fl);
   bool check_virtual_columns_marked_for_read();
   bool check_virtual_columns_marked_for_write();
   void mark_default_fields_for_write(bool insert_fl);
-  void mark_columns_used_by_check_constraints(void);
+  void mark_columns_used_by_virtual_fields(void);
   void mark_check_constraint_columns_for_read(void);
   int verify_constraints(bool ignore_failure);
   inline void column_bitmaps_set(MY_BITMAP *read_set_arg)
@@ -1394,39 +1397,21 @@ public:
     if (file)
       file->column_bitmaps_signal();
   }
-  inline void column_bitmaps_set(MY_BITMAP *read_set_arg,
-                                 MY_BITMAP *write_set_arg,
-                                 MY_BITMAP *vcol_set_arg)
-  {
-    read_set= read_set_arg;
-    write_set= write_set_arg;
-    vcol_set= vcol_set_arg;
-    if (file)
-      file->column_bitmaps_signal();
-  }
   inline void column_bitmaps_set_no_signal(MY_BITMAP *read_set_arg,
                                            MY_BITMAP *write_set_arg)
   {
     read_set= read_set_arg;
     write_set= write_set_arg;
   }
-  inline void column_bitmaps_set_no_signal(MY_BITMAP *read_set_arg,
-                                           MY_BITMAP *write_set_arg,
-                                           MY_BITMAP *vcol_set_arg)
-  {
-    read_set= read_set_arg;
-    write_set= write_set_arg;
-    vcol_set= vcol_set_arg;
-  }
   inline void use_all_columns()
   {
     column_bitmaps_set(&s->all_set, &s->all_set);
   }
+  inline void use_all_stored_columns();
   inline void default_column_bitmaps()
   {
     read_set= &def_read_set;
     write_set= &def_write_set;
-    vcol_set= def_vcol_set;                     /* Note that this may be 0 */
     rpl_write_set= 0;
   }
   /** Should this instance of the table be reopened? */
@@ -1477,6 +1462,8 @@ public:
   { return (my_ptrdiff_t) (s->default_values - record[0]); }
 
   void move_fields(Field **ptr, const uchar *to, const uchar *from);
+  void remember_blob_values(String *blob_storage);
+  void restore_blob_values(String *blob_storage);
 
   uint actual_n_key_parts(KEY *keyinfo);
   ulong actual_key_flags(KEY *keyinfo);
@@ -1502,6 +1489,7 @@ public:
   bool is_splittable() { return spl_opt_info != NULL; }
   void set_spl_opt_info(SplM_opt_info *spl_info);
   void deny_splitting();
+  double get_materialization_cost(); // Now used only if is_splittable()==true
   void add_splitting_info_for_key_field(struct KEY_FIELD *key_field);
 
   /**
@@ -1848,7 +1836,6 @@ public:
 struct vers_select_conds_t
 {
   vers_system_time_t type;
-  bool from_query:1;
   bool used:1;
   Vers_history_point start;
   Vers_history_point end;
@@ -1856,7 +1843,7 @@ struct vers_select_conds_t
   void empty()
   {
     type= SYSTEM_TIME_UNSPECIFIED;
-    used= from_query= false;
+    used= false;
     start.empty();
     end.empty();
   }
@@ -1866,7 +1853,7 @@ struct vers_select_conds_t
             Vers_history_point _end= Vers_history_point())
   {
     type= _type;
-    used= from_query= false;
+    used= false;
     start= _start;
     end= _end;
   }
@@ -1880,10 +1867,6 @@ struct vers_select_conds_t
     return type != SYSTEM_TIME_UNSPECIFIED;
   }
   bool resolve_units(THD *thd);
-  bool user_defined() const
-  {
-    return !from_query && type != SYSTEM_TIME_UNSPECIFIED;
-  }
   bool eq(const vers_select_conds_t &conds) const;
 };
 

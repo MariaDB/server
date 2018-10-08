@@ -45,7 +45,6 @@ Created 10/25/1995 Heikki Tuuri
 #include "os0file.h"
 #include "page0zip.h"
 #include "row0mysql.h"
-#include "row0trunc.h"
 #include "srv0start.h"
 #include "trx0purge.h"
 #include "ut0new.h"
@@ -74,12 +73,14 @@ if that the old filepath exists and the new filepath does not exist.
 @param[in]	old_path	old filepath
 @param[in]	new_path	new filepath
 @param[in]	is_discarded	whether the tablespace is discarded
+@param[in]	replace_new	whether to ignore the existence of new_path
 @return innodb error code */
 static dberr_t
 fil_rename_tablespace_check(
 	const char*	old_path,
 	const char*	new_path,
-	bool		is_discarded);
+	bool		is_discarded,
+	bool		replace_new = false);
 /** Rename a single-table tablespace.
 The tablespace must exist in the memory cache.
 @param[in]	id		tablespace identifier
@@ -170,9 +171,6 @@ ulint	fil_n_pending_tablespace_flushes	= 0;
 
 /** Number of files currently open */
 ulint	fil_n_file_opened			= 0;
-
-/** The null file address */
-const fil_addr_t	fil_addr_null = {FIL_NULL, 0};
 
 /** The tablespace memory cache. This variable is NULL before the module is
 initialized. */
@@ -551,8 +549,7 @@ fil_node_open_file(
 	if (first_time_open
 	    || (space->purpose == FIL_TYPE_TABLESPACE
 		&& node == UT_LIST_GET_FIRST(space->chain)
-		&& srv_startup_is_before_trx_rollback_phase
-		&& !undo::Truncate::was_tablespace_truncated(space->id))) {
+		&& srv_startup_is_before_trx_rollback_phase)) {
 		/* We do not know the size of the file yet. First we
 		open the file in the normal mode, no async I/O here,
 		for simplicity. Then do some checks, and close the
@@ -738,42 +735,35 @@ retry:
 	return(true);
 }
 
-/** Close a file node.
-@param[in,out]	node	File node */
-static
-void
-fil_node_close_file(
-	fil_node_t*	node)
+/** Close the file handle. */
+void fil_node_t::close()
 {
 	bool	ret;
 
-	ut_ad(mutex_own(&(fil_system.mutex)));
-	ut_a(node->is_open());
-	ut_a(node->n_pending == 0);
-	ut_a(node->n_pending_flushes == 0);
-	ut_a(!node->being_extended);
-	ut_a(node->modification_counter == node->flush_counter
-	     || node->space->purpose == FIL_TYPE_TEMPORARY
+	ut_ad(mutex_own(&fil_system.mutex));
+	ut_a(is_open());
+	ut_a(n_pending == 0);
+	ut_a(n_pending_flushes == 0);
+	ut_a(!being_extended);
+	ut_a(modification_counter == flush_counter
+	     || space->purpose == FIL_TYPE_TEMPORARY
 	     || srv_fast_shutdown == 2
 	     || !srv_was_started);
 
-	ret = os_file_close(node->handle);
+	ret = os_file_close(handle);
 	ut_a(ret);
 
-	/* printf("Closing file %s\n", node->name); */
+	/* printf("Closing file %s\n", name); */
 
-	node->handle = OS_FILE_CLOSED;
-	ut_ad(!node->is_open());
+	handle = OS_FILE_CLOSED;
+	ut_ad(!is_open());
 	ut_a(fil_system.n_open > 0);
 	fil_system.n_open--;
 	fil_n_file_opened--;
 
-	if (fil_space_belongs_in_lru(node->space)) {
-
+	if (fil_space_belongs_in_lru(space)) {
 		ut_a(UT_LIST_GET_LEN(fil_system.LRU) > 0);
-
-		/* The node is in the LRU list, remove it */
-		UT_LIST_REMOVE(fil_system.LRU, node);
+		UT_LIST_REMOVE(fil_system.LRU, this);
 	}
 }
 
@@ -809,7 +799,7 @@ fil_try_to_close_file_in_LRU(
 		    && node->n_pending_flushes == 0
 		    && !node->being_extended) {
 
-			fil_node_close_file(node);
+			node->close();
 
 			return(true);
 		}
@@ -1105,7 +1095,7 @@ fil_mutex_enter_and_prepare_for_io(
 /*===============================*/
 	ulint	space_id)	/*!< in: space id */
 {
-	for (ulint count = 0, count2 = 0;;) {
+	for (ulint count = 0;;) {
 		mutex_enter(&fil_system.mutex);
 
 		if (space_id >= SRV_LOG_SPACE_FIRST_ID) {
@@ -1117,41 +1107,6 @@ fil_mutex_enter_and_prepare_for_io(
 
 		if (space == NULL) {
 			break;
-		}
-
-		if (space->stop_ios) {
-			ut_ad(space->id != 0);
-			/* We are going to do a rename file and want to stop
-			new i/o's for a while. */
-
-			if (count2 > 20000) {
-				ib::warn() << "Tablespace " << space->name
-					<< " has i/o ops stopped for a long"
-					" time " << count2;
-			}
-
-			mutex_exit(&fil_system.mutex);
-
-			/* Wake the i/o-handler threads to make sure pending
-			i/o's are performed */
-			os_aio_simulated_wake_handler_threads();
-
-			/* The sleep here is just to give IO helper threads a
-			bit of time to do some work. It is not required that
-			all IO related to the tablespace being renamed must
-			be flushed here as we do fil_flush() in
-			fil_rename_tablespace() as well. */
-			os_thread_sleep(20000);
-
-			/* Flush tablespaces so that we can close modified
-			files in the LRU list */
-			fil_flush_file_spaces(FIL_TYPE_TABLESPACE);
-
-			os_thread_sleep(20000);
-
-			count2++;
-
-			continue;
 		}
 
 		fil_node_t*	node = UT_LIST_GET_LAST(space->chain);
@@ -1274,7 +1229,7 @@ fil_node_close_to_free(
 	ut_a(!node->being_extended);
 
 	if (node->is_open()) {
-		/* We fool the assertion in fil_node_close_file() to think
+		/* We fool the assertion in fil_node_t::close() to think
 		there are no unflushed modifications in the file */
 
 		node->modification_counter = node->flush_counter;
@@ -1293,7 +1248,7 @@ fil_node_close_to_free(
 			UT_LIST_REMOVE(fil_system.unflushed_spaces, space);
 		}
 
-		fil_node_close_file(node);
+		node->close();
 	}
 }
 
@@ -1514,7 +1469,6 @@ fil_space_create(
 	rw_lock_create(fil_space_latch_key, &space->latch, SYNC_FSP);
 
 	if (space->purpose == FIL_TYPE_TEMPORARY) {
-		ut_d(space->latch.set_temp_fsp());
 		/* SysTablespace::open_or_create() would pass
 		size!=0 to fil_node_create(), so first_time_open
 		would not hold in fil_node_open_file(), and we
@@ -1785,7 +1739,7 @@ void fil_space_t::close()
 	     node != NULL;
 	     node = UT_LIST_GET_NEXT(chain, node)) {
 		if (node->is_open()) {
-			fil_node_close_file(node);
+			node->close();
 		}
 	}
 
@@ -1946,7 +1900,7 @@ fil_close_all_files(void)
 		     node = UT_LIST_GET_NEXT(chain, node)) {
 
 			if (node->is_open()) {
-				fil_node_close_file(node);
+				node->close();
 			}
 		}
 
@@ -1993,7 +1947,7 @@ fil_close_log_files(
 		     node = UT_LIST_GET_NEXT(chain, node)) {
 
 			if (node->is_open()) {
-				fil_node_close_file(node);
+				node->close();
 			}
 		}
 
@@ -2173,13 +2127,14 @@ fil_op_write_log(
 	byte*		log_ptr;
 	ulint		len;
 
-	ut_ad(first_page_no == 0);
+	ut_ad(first_page_no == 0 || type == MLOG_FILE_CREATE2);
 	ut_ad(fsp_flags_is_valid(flags, space_id));
 
 	/* fil_name_parse() requires that there be at least one path
 	separator and that the file path end with ".ibd". */
 	ut_ad(strchr(path, OS_PATH_SEPARATOR) != NULL);
-	ut_ad(strcmp(&path[strlen(path) - strlen(DOT_IBD)], DOT_IBD) == 0);
+	ut_ad(first_page_no /* trimming an undo tablespace */
+	      || !strcmp(&path[strlen(path) - strlen(DOT_IBD)], DOT_IBD));
 
 	log_ptr = mlog_open(mtr, 11 + 4 + 2 + 1);
 
@@ -2393,7 +2348,7 @@ fil_op_replay_rename(
 enum fil_operation_t {
 	FIL_OPERATION_DELETE,	/*!< delete a single-table tablespace */
 	FIL_OPERATION_CLOSE,	/*!< close a single-table tablespace */
-	FIL_OPERATION_TRUNCATE	/*!< truncate a single-table tablespace */
+	FIL_OPERATION_TRUNCATE	/*!< truncate an undo tablespace */
 };
 
 /** Check for pending operations.
@@ -2526,8 +2481,6 @@ fil_check_pending_operations(
 
 	/* Check for pending IO. */
 
-	*path = 0;
-
 	for (;;) {
 		sp = fil_space_get_by_id(id);
 
@@ -2540,7 +2493,7 @@ fil_check_pending_operations(
 
 		count = fil_check_pending_io(operation, sp, &node, count);
 
-		if (count == 0) {
+		if (count == 0 && path) {
 			*path = mem_strdup(node->name);
 		}
 
@@ -2628,7 +2581,8 @@ fil_close_tablespace(
 not (necessarily) protected by meta-data locks.
 (Rollback would generally be protected, but rollback of
 FOREIGN KEY CASCADE/SET NULL is not protected by meta-data locks
-but only by InnoDB table locks, which may be broken by TRUNCATE TABLE.)
+but only by InnoDB table locks, which may be broken by
+lock_remove_all_on_table().)
 @param[in]	table	persistent table
 checked @return whether the table is accessible */
 bool
@@ -2770,85 +2724,33 @@ fil_delete_tablespace(
 	return(err);
 }
 
-/** Truncate the tablespace to needed size.
-@param[in,out]	space		tablespace truncate
-@param[in]	size_in_pages	truncate size.
-@return true if truncate was successful. */
-bool fil_truncate_tablespace(fil_space_t* space, ulint size_in_pages)
+/** Prepare to truncate an undo tablespace.
+@param[in]	space_id	undo tablespace id
+@return	the tablespace
+@retval	NULL if tablespace not found */
+fil_space_t* fil_truncate_prepare(ulint space_id)
 {
-	/* Step-1: Prepare tablespace for truncate. This involves
-	stopping all the new operations + IO on that tablespace
-	and ensuring that related pages are flushed to disk. */
-	if (fil_prepare_for_truncate(space->id) != DB_SUCCESS) {
-		return(false);
+	/* Stop all I/O on the tablespace and ensure that related
+	pages are flushed to disk. */
+	fil_space_t* space;
+	if (fil_check_pending_operations(space_id, FIL_OPERATION_TRUNCATE,
+					 &space, NULL) != DB_SUCCESS) {
+		return NULL;
 	}
-
-	/* Step-2: Invalidate buffer pool pages belonging to the tablespace
-	to re-create. Remove all insert buffer entries for the tablespace */
-	buf_LRU_flush_or_remove_pages(space->id, NULL);
-
-	/* Step-3: Truncate the tablespace and accordingly update
-	the fil_space_t handler that is used to access this tablespace. */
-	mutex_enter(&fil_system.mutex);
-
-	/* The following code must change when InnoDB supports
-	multiple datafiles per tablespace. */
-	ut_a(UT_LIST_GET_LEN(space->chain) == 1);
-
-	fil_node_t*	node = UT_LIST_GET_FIRST(space->chain);
-
-	ut_ad(node->is_open());
-
-	space->size = node->size = size_in_pages;
-
-	bool success = os_file_truncate(node->name, node->handle, 0);
-	if (success) {
-
-		os_offset_t	size = os_offset_t(size_in_pages)
-			<< srv_page_size_shift;
-
-		success = os_file_set_size(
-			node->name, node->handle, size,
-			FSP_FLAGS_HAS_PAGE_COMPRESSION(space->flags));
-
-		if (success) {
-			space->stop_new_ops = false;
-			space->is_being_truncated = false;
-		}
-	}
-
-	mutex_exit(&fil_system.mutex);
-
-	return(success);
+	ut_ad(space != NULL);
+	return space;
 }
 
-/*******************************************************************//**
-Prepare for truncating a single-table tablespace.
-1) Check pending operations on a tablespace;
-2) Remove all insert buffer entries for the tablespace;
-@return DB_SUCCESS or error */
-dberr_t
-fil_prepare_for_truncate(
-/*=====================*/
-	ulint	id)		/*!< in: space id */
+/** Write log about an undo tablespace truncate operation. */
+void fil_truncate_log(fil_space_t* space, ulint size, mtr_t* mtr)
 {
-	char*		path = 0;
-	fil_space_t*	space = 0;
-
-	ut_a(!is_system_tablespace(id));
-
-	dberr_t	err = fil_check_pending_operations(
-		id, FIL_OPERATION_TRUNCATE, &space, &path);
-
-	ut_free(path);
-
-	if (err == DB_TABLESPACE_NOT_FOUND) {
-		ib::error() << "Cannot truncate tablespace " << id
-			<< " because it is not found in the tablespace"
-			" memory cache.";
-	}
-
-	return(err);
+	/* Write a MLOG_FILE_CREATE2 record with the new size, so that
+	recovery and backup will ignore any preceding redo log records
+	for writing pages that are after the new end of the tablespace. */
+	ut_ad(UT_LIST_GET_LEN(space->chain) == 1);
+	const fil_node_t* file = UT_LIST_GET_FIRST(space->chain);
+	fil_op_write_log(MLOG_FILE_CREATE2, space->id, size, file->name,
+			 NULL, space->flags & ~FSP_FLAGS_MEM_MASK, mtr);
 }
 
 /*******************************************************************//**
@@ -2960,12 +2862,14 @@ if that the old filepath exists and the new filepath does not exist.
 @param[in]	old_path	old filepath
 @param[in]	new_path	new filepath
 @param[in]	is_discarded	whether the tablespace is discarded
+@param[in]	replace_new	whether to ignore the existence of new_path
 @return innodb error code */
 static dberr_t
 fil_rename_tablespace_check(
 	const char*	old_path,
 	const char*	new_path,
-	bool		is_discarded)
+	bool		is_discarded,
+	bool		replace_new)
 {
 	bool	exists = false;
 	os_file_type_t	ftype;
@@ -2981,7 +2885,11 @@ fil_rename_tablespace_check(
 	}
 
 	exists = false;
-	if (!os_file_status(new_path, &exists, &ftype) || exists) {
+	if (os_file_status(new_path, &exists, &ftype) && !exists) {
+		return DB_SUCCESS;
+	}
+
+	if (!replace_new) {
 		ib::error() << "Cannot rename '" << old_path
 			<< "' to '" << new_path
 			<< "' because the target file exists."
@@ -2989,17 +2897,46 @@ fil_rename_tablespace_check(
 		return(DB_TABLESPACE_EXISTS);
 	}
 
+	/* This must be during the ROLLBACK of TRUNCATE TABLE.
+	Because InnoDB only allows at most one data dictionary
+	transaction at a time, and because this incomplete TRUNCATE
+	would have created a new tablespace file, we must remove
+	a possibly existing tablespace that is associated with the
+	new tablespace file. */
+retry:
+	mutex_enter(&fil_system.mutex);
+	for (fil_space_t* space = UT_LIST_GET_FIRST(fil_system.space_list);
+	     space; space = UT_LIST_GET_NEXT(space_list, space)) {
+		ulint id = space->id;
+		if (id && id < SRV_LOG_SPACE_FIRST_ID
+		    && space->purpose == FIL_TYPE_TABLESPACE
+		    && !strcmp(new_path,
+			       UT_LIST_GET_FIRST(space->chain)->name)) {
+			ib::info() << "TRUNCATE rollback: " << id
+				<< "," << new_path;
+			mutex_exit(&fil_system.mutex);
+			dberr_t err = fil_delete_tablespace(id);
+			if (err != DB_SUCCESS) {
+				return err;
+			}
+			goto retry;
+		}
+	}
+	mutex_exit(&fil_system.mutex);
+	fil_delete_file(new_path);
+
 	return(DB_SUCCESS);
 }
 
-dberr_t fil_space_t::rename(const char* name, const char* path, bool log)
+dberr_t fil_space_t::rename(const char* name, const char* path, bool log,
+			    bool replace)
 {
 	ut_ad(UT_LIST_GET_LEN(chain) == 1);
 	ut_ad(!is_system_tablespace(id));
 
 	if (log) {
 		dberr_t err = fil_rename_tablespace_check(
-			chain.start->name, path, false);
+			chain.start->name, path, false, replace);
 		if (err != DB_SUCCESS) {
 			return(err);
 		}
@@ -3026,86 +2963,33 @@ fil_rename_tablespace(
 	const char*	new_name,
 	const char*	new_path_in)
 {
-	bool		sleep		= false;
-	bool		flush		= false;
 	fil_space_t*	space;
 	fil_node_t*	node;
-	ulint		count		= 0;
 	ut_a(id != 0);
 
 	ut_ad(strchr(new_name, '/') != NULL);
-retry:
-	count++;
-
-	if (!(count % 1000)) {
-		ib::warn() << "Cannot rename file " << old_path
-			<< " (space id " << id << "), retried " << count
-			<< " times."
-			" There are either pending IOs or flushes or"
-			" the file is being extended.";
-	}
 
 	mutex_enter(&fil_system.mutex);
 
 	space = fil_space_get_by_id(id);
-
-	DBUG_EXECUTE_IF("fil_rename_tablespace_failure_1", space = NULL; );
 
 	if (space == NULL) {
 		ib::error() << "Cannot find space id " << id
 			<< " in the tablespace memory cache, though the file '"
 			<< old_path
 			<< "' in a rename operation should have that id.";
-func_exit:
 		mutex_exit(&fil_system.mutex);
 		return(false);
 	}
-
-	if (count > 25000) {
-		space->stop_ios = false;
-		goto func_exit;
-	}
-
-	/* We temporarily close the .ibd file because we do not trust that
-	operating systems can rename an open file. For the closing we have to
-	wait until there are no pending i/o's or flushes on the file. */
-
-	space->stop_ios = true;
 
 	/* The following code must change when InnoDB supports
 	multiple datafiles per tablespace. */
 	ut_a(UT_LIST_GET_LEN(space->chain) == 1);
 	node = UT_LIST_GET_FIRST(space->chain);
-
-	if (node->n_pending > 0
-	    || node->n_pending_flushes > 0
-	    || node->being_extended) {
-		/* There are pending i/o's or flushes or the file is
-		currently being extended, sleep for a while and
-		retry */
-		sleep = true;
-	} else if (node->modification_counter > node->flush_counter) {
-		/* Flush the space */
-		sleep = flush = true;
-	} else if (node->is_open()) {
-		/* Close the file */
-
-		fil_node_close_file(node);
-	}
+	space->n_pending_ops++;
 
 	mutex_exit(&fil_system.mutex);
 
-	if (sleep) {
-		os_thread_sleep(20000);
-
-		if (flush) {
-			fil_flush(id);
-		}
-
-		sleep = flush = false;
-		goto retry;
-	}
-	ut_ad(space->stop_ios);
 	char*	new_file_name = new_path_in == NULL
 		? fil_make_filepath(NULL, new_name, IBD, false)
 		: mem_strdup(new_path_in);
@@ -3124,19 +3008,13 @@ func_exit:
 	/* log_sys.mutex is above fil_system.mutex in the latching order */
 	ut_ad(log_mutex_own());
 	mutex_enter(&fil_system.mutex);
+	ut_ad(space->n_pending_ops);
+	space->n_pending_ops--;
 	ut_ad(space->name == old_space_name);
 	ut_ad(node->name == old_file_name);
 
-	bool	success;
-
-	DBUG_EXECUTE_IF("fil_rename_tablespace_failure_2",
-			goto skip_rename; );
-
-	success = os_file_rename(
+	bool	success = os_file_rename(
 		innodb_data_file_key, old_file_name, new_file_name);
-
-	DBUG_EXECUTE_IF("fil_rename_tablespace_failure_2",
-			skip_rename: success = false; );
 
 	ut_ad(node->name == old_file_name);
 
@@ -3158,8 +3036,6 @@ func_exit:
 		old_space_name = new_space_name;
 	}
 
-	ut_ad(space->stop_ios);
-	space->stop_ios = false;
 	mutex_exit(&fil_system.mutex);
 
 	ut_free(old_file_name);
@@ -4360,7 +4236,7 @@ fil_report_invalid_page_access(
 @param[in] message	message for aio handler if non-sync aio
 			used, else ignored
 @param[in] ignore_missing_space true=ignore missing space duging read
-@return DB_SUCCESS, DB_TABLESPACE_DELETED or DB_TABLESPACE_TRUNCATED
+@return DB_SUCCESS, or DB_TABLESPACE_DELETED
 	if we are trying to do i/o on a tablespace which does not exist */
 dberr_t
 fil_io(
@@ -4492,20 +4368,6 @@ fil_io(
 			break;
 
 		} else {
-			if (space->id != TRX_SYS_SPACE
-			    && UT_LIST_GET_LEN(space->chain) == 1
-			    && (srv_is_tablespace_truncated(space->id)
-				|| space->is_being_truncated
-				|| srv_was_tablespace_truncated(space))
-			    && req_type.is_read()) {
-
-				/* Handle page which is outside the truncated
-				tablespace bounds when recovering from a crash
-				happened during a truncation */
-				mutex_exit(&fil_system.mutex);
-				return(DB_TABLESPACE_TRUNCATED);
-			}
-
 			cur_page_no -= node->size;
 
 			node = UT_LIST_GET_NEXT(chain, node);
@@ -5107,7 +4969,7 @@ fil_space_validate_for_mtr_commit(
 	fil_space_t::release() after mtr_commit(). This is why
 	n_pending_ops should not be zero if stop_new_ops is set. */
 	ut_ad(!space->stop_new_ops
-	      || space->is_being_truncated /* TRUNCATE sets stop_new_ops */
+	      || space->is_being_truncated /* fil_truncate_prepare() */
 	      || space->referenced());
 }
 #endif /* UNIV_DEBUG */
@@ -5244,117 +5106,6 @@ fil_names_clear(
 	}
 
 	return(do_write);
-}
-
-/** Truncate a single-table tablespace. The tablespace must be cached
-in the memory cache.
-@param space_id			space id
-@param dir_path			directory path
-@param tablename		the table name in the usual
-				databasename/tablename format of InnoDB
-@param flags			tablespace flags
-@param trunc_to_default		truncate to default size if tablespace
-				is being newly re-initialized.
-@return DB_SUCCESS or error */
-dberr_t
-truncate_t::truncate(
-/*=================*/
-	ulint		space_id,
-	const char*	dir_path,
-	const char*	tablename,
-	ulint		flags,
-	bool		trunc_to_default)
-{
-	dberr_t		err = DB_SUCCESS;
-	char*		path;
-
-	ut_a(!is_system_tablespace(space_id));
-
-	if (FSP_FLAGS_HAS_DATA_DIR(flags)) {
-		ut_ad(dir_path != NULL);
-		path = fil_make_filepath(dir_path, tablename, IBD, true);
-	} else {
-		path = fil_make_filepath(NULL, tablename, IBD, false);
-	}
-
-	if (path == NULL) {
-		return(DB_OUT_OF_MEMORY);
-	}
-
-	mutex_enter(&fil_system.mutex);
-
-	fil_space_t*	space = fil_space_get_by_id(space_id);
-
-	/* The following code must change when InnoDB supports
-	multiple datafiles per tablespace. */
-	ut_a(UT_LIST_GET_LEN(space->chain) == 1);
-
-	fil_node_t*	node = UT_LIST_GET_FIRST(space->chain);
-
-	if (trunc_to_default) {
-		space->size = node->size = FIL_IBD_FILE_INITIAL_SIZE;
-	}
-
-	const bool already_open = node->is_open();
-
-	if (!already_open) {
-
-		bool	ret;
-
-		node->handle = os_file_create_simple_no_error_handling(
-			innodb_data_file_key, path, OS_FILE_OPEN,
-			OS_FILE_READ_WRITE,
-			space->purpose != FIL_TYPE_TEMPORARY
-			&& srv_read_only_mode, &ret);
-
-		if (!ret) {
-			ib::error() << "Failed to open tablespace file "
-				<< path << ".";
-
-			ut_free(path);
-
-			return(DB_ERROR);
-		}
-
-		ut_a(node->is_open());
-	}
-
-	os_offset_t	trunc_size = trunc_to_default
-		? FIL_IBD_FILE_INITIAL_SIZE
-		: space->size;
-
-	const bool success = os_file_truncate(
-		path, node->handle, trunc_size << srv_page_size_shift);
-
-	if (!success) {
-		ib::error() << "Cannot truncate file " << path
-			<< " in TRUNCATE TABLESPACE.";
-		err = DB_ERROR;
-	}
-
-	space->stop_new_ops = false;
-	space->is_being_truncated = false;
-
-	/* If we opened the file in this function, close it. */
-	if (!already_open) {
-		bool	closed = os_file_close(node->handle);
-
-		if (!closed) {
-
-			ib::error() << "Failed to close tablespace file "
-				<< path << ".";
-
-			err = DB_ERROR;
-		} else {
-			node->handle = OS_FILE_CLOSED;
-		}
-	}
-
-	mutex_exit(&fil_system.mutex);
-
-	ut_free(path);
-
-	return(err);
 }
 
 /* Unit Tests */
@@ -5508,7 +5259,7 @@ fil_space_keyrotate_next(
 	}
 
 	/* Skip spaces that are being created by fil_ibd_create(),
-	or dropped or truncated. Note that rotation_list contains only
+	or dropped. Note that rotation_list contains only
 	space->purpose == FIL_TYPE_TABLESPACE. */
 	while (space != NULL
 	       && (UT_LIST_GET_LEN(space->chain) == 0

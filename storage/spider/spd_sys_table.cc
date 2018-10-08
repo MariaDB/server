@@ -2386,7 +2386,7 @@ void spider_get_sys_table_sts_info(
   *index_file_length = (ulonglong) table->field[4]->val_int();
   *records = (ha_rows) table->field[5]->val_int();
   *mean_rec_length = (ulong) table->field[6]->val_int();
-  table->field[7]->get_date(&mysql_time, 0);
+  table->field[7]->get_date(&mysql_time, date_mode_t(0));
 #ifdef MARIADB_BASE_VERSION
   *check_time = (time_t) my_system_gmt_sec(&mysql_time,
     &not_used_long, &not_used_uint);
@@ -2394,7 +2394,7 @@ void spider_get_sys_table_sts_info(
   *check_time = (time_t) my_system_gmt_sec(&mysql_time,
     &not_used_long, &not_used_my_bool);
 #endif
-  table->field[8]->get_date(&mysql_time, 0);
+  table->field[8]->get_date(&mysql_time, date_mode_t(0));
 #ifdef MARIADB_BASE_VERSION
   *create_time = (time_t) my_system_gmt_sec(&mysql_time,
     &not_used_long, &not_used_uint);
@@ -2402,7 +2402,7 @@ void spider_get_sys_table_sts_info(
   *create_time = (time_t) my_system_gmt_sec(&mysql_time,
     &not_used_long, &not_used_my_bool);
 #endif
-  table->field[9]->get_date(&mysql_time, 0);
+  table->field[9]->get_date(&mysql_time, date_mode_t(0));
 #ifdef MARIADB_BASE_VERSION
   *update_time = (time_t) my_system_gmt_sec(&mysql_time,
     &not_used_long, &not_used_uint);

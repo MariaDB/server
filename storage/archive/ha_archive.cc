@@ -802,7 +802,7 @@ int ha_archive::create(const char *name, TABLE *table_arg,
 #endif /* HAVE_READLINK */
   {
     if (create_info->data_file_name)
-      my_error(WARN_OPTION_IGNORED, MYF(ME_JUST_WARNING), "DATA DIRECTORY");
+      my_error(WARN_OPTION_IGNORED, MYF(ME_WARNING), "DATA DIRECTORY");
 
     fn_format(name_buff, name, "", ARZ,
               MY_REPLACE_EXT | MY_UNPACK_FILENAME);
@@ -811,7 +811,7 @@ int ha_archive::create(const char *name, TABLE *table_arg,
 
   /* Archive engine never uses INDEX DIRECTORY. */
   if (create_info->index_file_name)
-      my_error(WARN_OPTION_IGNORED, MYF(ME_JUST_WARNING), "INDEX DIRECTORY");
+      my_error(WARN_OPTION_IGNORED, MYF(ME_WARNING), "INDEX DIRECTORY");
 
   /*
     There is a chance that the file was "discovered". In this case
@@ -1909,7 +1909,7 @@ maria_declare_plugin(archive)
   &archive_storage_engine,
   "ARCHIVE",
   "Brian Aker, MySQL AB",
-  "Archive storage engine",
+  "gzip-compresses tables for a low storage footprint",
   PLUGIN_LICENSE_GPL,
   archive_db_init, /* Plugin Init */
   NULL, /* Plugin Deinit */

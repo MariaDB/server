@@ -1342,7 +1342,7 @@ static int mysql_test_update(Prepared_statement *stmt,
   THD *thd= stmt->thd;
   uint table_count= 0;
   TABLE_LIST *update_source_table;
-  SELECT_LEX *select= &stmt->lex->select_lex;
+  SELECT_LEX *select= stmt->lex->first_select_lex();
 #ifndef NO_EMBEDDED_ACCESS_CHECKS
   uint          want_privilege;
 #endif
@@ -1398,10 +1398,10 @@ static int mysql_test_update(Prepared_statement *stmt,
   table_list->table->grant.want_privilege= want_privilege;
   table_list->register_want_access(want_privilege);
 #endif
-  thd->lex->select_lex.no_wrap_view_item= TRUE;
+  thd->lex->first_select_lex()->no_wrap_view_item= TRUE;
   res= setup_fields(thd, Ref_ptr_array(),
                     select->item_list, MARK_COLUMNS_READ, 0, NULL, 0);
-  thd->lex->select_lex.no_wrap_view_item= FALSE;
+  thd->lex->first_select_lex()->no_wrap_view_item= FALSE;
   if (res)
     goto error;
 #ifndef NO_EMBEDDED_ACCESS_CHECKS
@@ -1466,10 +1466,10 @@ static bool mysql_test_delete(Prepared_statement *stmt,
     goto error;
   }
 
-  DBUG_RETURN(mysql_prepare_delete(thd, table_list, 
-                                   lex->select_lex.with_wild, 
-                                   lex->select_lex.item_list,
-                                   &lex->select_lex.where,
+  DBUG_RETURN(mysql_prepare_delete(thd, table_list,
+                                   lex->first_select_lex()->with_wild,
+                                   lex->first_select_lex()->item_list,
+                                   &lex->first_select_lex()->where,
                                    &delete_while_scanning));
 error:
   DBUG_RETURN(TRUE);
@@ -1501,7 +1501,7 @@ static int mysql_test_select(Prepared_statement *stmt,
   SELECT_LEX_UNIT *unit= &lex->unit;
   DBUG_ENTER("mysql_test_select");
 
-  lex->select_lex.context.resolve_in_select_list= TRUE;
+  lex->first_select_lex()->context.resolve_in_select_list= TRUE;
 
   ulong privilege= lex->exchange ? SELECT_ACL | FILE_ACL : SELECT_ACL;
   if (tables)
@@ -1514,7 +1514,7 @@ static int mysql_test_select(Prepared_statement *stmt,
 
   if (!lex->result && !(lex->result= new (stmt->mem_root) select_send(thd)))
   {
-    my_error(ER_OUTOFMEMORY, MYF(ME_FATALERROR), 
+    my_error(ER_OUTOFMEMORY, MYF(ME_FATAL),
              static_cast<int>(sizeof(select_send)));
     goto error;
   }
@@ -1535,7 +1535,7 @@ static int mysql_test_select(Prepared_statement *stmt,
   if (!lex->describe && !thd->lex->analyze_stmt && !stmt->is_sql_prepare())
   {
     /* Make copy of item list, as change_columns may change it */
-    List<Item> fields(lex->select_lex.item_list);
+    List<Item> fields(lex->first_select_lex()->item_list);
 
     /* Change columns if a procedure like analyse() */
     if (unit->last_procedure && unit->last_procedure->change_columns(thd, fields))
@@ -1582,7 +1582,7 @@ static bool mysql_test_do_fields(Prepared_statement *stmt,
     DBUG_RETURN(TRUE);
 
   if (open_normal_and_derived_tables(thd, tables, MYSQL_OPEN_FORCE_SHARED_MDL,
-                                     DT_PREPARE | DT_CREATE))
+                                     DT_INIT | DT_PREPARE | DT_CREATE))
     DBUG_RETURN(TRUE);
   DBUG_RETURN(setup_fields(thd, Ref_ptr_array(),
                            *values, COLUMNS_READ, 0, NULL, 0));
@@ -1614,7 +1614,7 @@ static bool mysql_test_set_fields(Prepared_statement *stmt,
   if ((tables &&
        check_table_access(thd, SELECT_ACL, tables, FALSE, UINT_MAX, FALSE)) ||
       open_normal_and_derived_tables(thd, tables, MYSQL_OPEN_FORCE_SHARED_MDL,
-                                     DT_PREPARE | DT_CREATE))
+                                     DT_INIT | DT_PREPARE | DT_CREATE))
     goto error;
 
   while ((var= it++))
@@ -1651,13 +1651,13 @@ static bool mysql_test_call_fields(Prepared_statement *stmt,
 
   if ((tables &&
        check_table_access(thd, SELECT_ACL, tables, FALSE, UINT_MAX, FALSE)) ||
-      open_normal_and_derived_tables(thd, tables, MYSQL_OPEN_FORCE_SHARED_MDL, DT_PREPARE))
+      open_normal_and_derived_tables(thd, tables, MYSQL_OPEN_FORCE_SHARED_MDL,
+                                     DT_INIT | DT_PREPARE))
     goto err;
 
   while ((item= it++))
   {
-    if ((!item->fixed && item->fix_fields(thd, it.ref())) ||
-        item->check_cols(1))
+    if (item->fix_fields_if_needed_for_scalar(thd, it.ref()))
       goto err;
   }
   DBUG_RETURN(FALSE);
@@ -1693,7 +1693,7 @@ static bool select_like_stmt_test(Prepared_statement *stmt,
   THD *thd= stmt->thd;
   LEX *lex= stmt->lex;
 
-  lex->select_lex.context.resolve_in_select_list= TRUE;
+  lex->first_select_lex()->context.resolve_in_select_list= TRUE;
 
   if (specific_prepare && (*specific_prepare)(thd))
     DBUG_RETURN(TRUE);
@@ -1761,7 +1761,7 @@ static bool mysql_test_create_table(Prepared_statement *stmt)
   DBUG_ENTER("mysql_test_create_table");
   THD *thd= stmt->thd;
   LEX *lex= stmt->lex;
-  SELECT_LEX *select_lex= &lex->select_lex;
+  SELECT_LEX *select_lex= lex->first_select_lex();
   bool res= FALSE;
   bool link_to_local;
   TABLE_LIST *create_table= lex->query_tables;
@@ -1778,7 +1778,7 @@ static bool mysql_test_create_table(Prepared_statement *stmt)
 
     if (open_normal_and_derived_tables(stmt->thd, lex->query_tables,
                                        MYSQL_OPEN_FORCE_SHARED_MDL,
-                                       DT_PREPARE | DT_CREATE))
+                                       DT_INIT | DT_PREPARE | DT_CREATE))
       DBUG_RETURN(TRUE);
 
     select_lex->context.resolve_in_select_list= TRUE;
@@ -1799,7 +1799,7 @@ static bool mysql_test_create_table(Prepared_statement *stmt)
     */
     if (open_normal_and_derived_tables(stmt->thd, lex->query_tables,
                                        MYSQL_OPEN_FORCE_SHARED_MDL,
-                                       DT_PREPARE))
+                                       DT_INIT | DT_PREPARE))
       DBUG_RETURN(TRUE);
   }
 
@@ -2026,7 +2026,7 @@ static bool mysql_test_create_view(Prepared_statement *stmt)
 
   lex->context_analysis_only|= CONTEXT_ANALYSIS_ONLY_VIEW;
   if (open_normal_and_derived_tables(thd, tables, MYSQL_OPEN_FORCE_SHARED_MDL,
-                                     DT_PREPARE))
+                                     DT_INIT | DT_PREPARE))
     goto err;
 
   res= select_like_stmt_test(stmt, 0, 0);
@@ -2081,11 +2081,11 @@ static bool mysql_test_multidelete(Prepared_statement *stmt,
 {
   THD *thd= stmt->thd;
 
-  thd->lex->current_select= &thd->lex->select_lex;
+  thd->lex->current_select= thd->lex->first_select_lex();
   if (add_item_to_list(thd, new (thd->mem_root)
                        Item_null(thd)))
   {
-    my_error(ER_OUTOFMEMORY, MYF(ME_FATALERROR), 0);
+    my_error(ER_OUTOFMEMORY, MYF(ME_FATAL), 0);
     goto error;
   }
 
@@ -2120,13 +2120,14 @@ error:
 
 static int mysql_insert_select_prepare_tester(THD *thd)
 {
-  SELECT_LEX *first_select= &thd->lex->select_lex;
+  SELECT_LEX *first_select= thd->lex->first_select_lex();
   TABLE_LIST *second_table= first_select->table_list.first->next_local;
 
   /* Skip first table, which is the table we are inserting in */
   first_select->table_list.first= second_table;
-  thd->lex->select_lex.context.table_list=
-    thd->lex->select_lex.context.first_name_resolution_table= second_table;
+  thd->lex->first_select_lex()->context.table_list=
+    thd->lex->first_select_lex()->context.first_name_resolution_table=
+    second_table;
 
   return mysql_insert_select_prepare(thd);
 }
@@ -2161,7 +2162,7 @@ static bool mysql_test_insert_select(Prepared_statement *stmt,
     return 1;
 
   /* store it, because mysql_insert_select_prepare_tester change it */
-  first_local_table= lex->select_lex.table_list.first;
+  first_local_table= lex->first_select_lex()->table_list.first;
   DBUG_ASSERT(first_local_table != 0);
 
   res=
@@ -2169,7 +2170,7 @@ static bool mysql_test_insert_select(Prepared_statement *stmt,
                                     &mysql_insert_select_prepare_tester,
                                     OPTION_SETUP_TABLES_DONE);
   /* revert changes  made by mysql_insert_select_prepare_tester */
-  lex->select_lex.table_list.first= first_local_table;
+  lex->first_select_lex()->table_list.first= first_local_table;
   return res;
 }
 
@@ -2195,7 +2196,7 @@ static int mysql_test_handler_read(Prepared_statement *stmt,
   SQL_HANDLER *ha_table;
   DBUG_ENTER("mysql_test_handler_read");
 
-  lex->select_lex.context.resolve_in_select_list= TRUE;
+  lex->first_select_lex()->context.resolve_in_select_list= TRUE;
 
   /*
     We don't have to test for permissions as this is already done during
@@ -2205,7 +2206,7 @@ static int mysql_test_handler_read(Prepared_statement *stmt,
                                         lex->ident.str,
                                         lex->insert_list,
                                         lex->ha_rkey_mode,
-                                        lex->select_lex.where)))
+                                        lex->first_select_lex()->where)))
     DBUG_RETURN(1);
 
   if (!stmt->is_sql_prepare())
@@ -2244,7 +2245,7 @@ static bool check_prepared_statement(Prepared_statement *stmt)
 {
   THD *thd= stmt->thd;
   LEX *lex= stmt->lex;
-  SELECT_LEX *select_lex= &lex->select_lex;
+  SELECT_LEX *select_lex= lex->first_select_lex();
   TABLE_LIST *tables;
   enum enum_sql_command sql_command= lex->sql_command;
   int res= 0;
@@ -2253,10 +2254,11 @@ static bool check_prepared_statement(Prepared_statement *stmt)
                       sql_command, stmt->param_count));
 
   lex->first_lists_tables_same();
+  lex->fix_first_select_number();
   tables= lex->query_tables;
 
   /* set context for commands which do not use setup_tables */
-  lex->select_lex.context.resolve_in_table_list_only(select_lex->
+  lex->first_select_lex()->context.resolve_in_table_list_only(select_lex->
                                                      get_table_list());
 
   /* Reset warning count for each query that uses tables */
@@ -2665,8 +2667,7 @@ end:
 
 bool LEX::get_dynamic_sql_string(LEX_CSTRING *dst, String *buffer)
 {
-  if (prepared_stmt_code->fix_fields(thd, NULL) ||
-      prepared_stmt_code->check_cols(1))
+  if (prepared_stmt_code->fix_fields_if_needed_for_scalar(thd, NULL))
     return true;
 
   const String *str= prepared_stmt_code->val_str(buffer);
@@ -3022,7 +3023,7 @@ void reinit_stmt_before_use(THD *thd, LEX *lex)
   {
     tables->reinit_before_use(thd);
   }
-  lex->current_select= &lex->select_lex;
+  lex->current_select= lex->first_select_lex();
 
 
   if (lex->result)
@@ -4512,8 +4513,8 @@ bool Prepared_statement::validate_metadata(Prepared_statement *copy)
   if (is_sql_prepare() || lex->describe)
     return FALSE;
 
-  if (lex->select_lex.item_list.elements !=
-      copy->lex->select_lex.item_list.elements)
+  if (lex->first_select_lex()->item_list.elements !=
+      copy->lex->first_select_lex()->item_list.elements)
   {
     /** Column counts mismatch, update the client */
     thd->server_status|= SERVER_STATUS_METADATA_CHANGED;
@@ -4670,7 +4671,7 @@ bool Prepared_statement::execute(String *expanded_query, bool open_cursor)
       alloc_query(thd, (char*) expanded_query->ptr(),
                   expanded_query->length()))
   {
-    my_error(ER_OUTOFMEMORY, MYF(ME_FATALERROR), expanded_query->length());
+    my_error(ER_OUTOFMEMORY, MYF(ME_FATAL), expanded_query->length());
     goto error;
   }
   /*
@@ -5250,16 +5251,8 @@ bool Protocol_local::store_longlong(longlong value, bool unsigned_flag)
 
 bool Protocol_local::store_decimal(const my_decimal *value)
 {
-  char buf[DECIMAL_MAX_STR_LENGTH];
-  String str(buf, sizeof (buf), &my_charset_bin);
-  int rc;
-
-  rc= my_decimal2string(E_DEC_FATAL_ERROR, value, 0, 0, 0, &str);
-
-  if (rc)
-    return TRUE;
-
-  return store_column(str.ptr(), str.length());
+  StringBuffer<DECIMAL_MAX_STR_LENGTH> str;
+  return value->to_string(&str) ? store_column(str.ptr(), str.length()) : true;
 }
 
 

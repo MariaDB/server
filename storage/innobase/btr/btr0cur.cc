@@ -1,6 +1,6 @@
 /*****************************************************************************
 
-Copyright (c) 1994, 2016, Oracle and/or its affiliates. All Rights Reserved.
+Copyright (c) 1994, 2018, Oracle and/or its affiliates. All Rights Reserved.
 Copyright (c) 2008, Google Inc.
 Copyright (c) 2012, Facebook Inc.
 Copyright (c) 2015, 2018, MariaDB Corporation.
@@ -65,6 +65,8 @@ Created 10/16/1994 Heikki Tuuri
 #include "lock0lock.h"
 #include "zlib.h"
 #include "srv0start.h"
+#include "mysql_com.h"
+#include "dict0stats.h"
 
 /** Buffered B-tree operation types, introduced as part of delete buffering. */
 enum btr_op_t {
@@ -429,7 +431,7 @@ btr_cur_instant_init_low(dict_index_t* index, mtr_t* mtr)
 
 	const rec_t* rec = cur.page_cur.rec;
 
-	if (page_rec_is_supremum(rec) || !rec_is_default_row(rec, index)) {
+	if (page_rec_is_supremum(rec) || !rec_is_metadata(rec, index)) {
 		ib::error() << "Table " << index->table->name
 			    << " is missing instant ALTER metadata";
 		index->table->corrupted = true;
@@ -450,7 +452,7 @@ incompatible:
 		goto incompatible;
 	}
 
-	/* Read the 'default row'. We can get here on server restart
+	/* Read the metadata. We can get here on server restart
 	or when the table was evicted from the data dictionary cache
 	and is now being accessed again.
 
@@ -469,8 +471,8 @@ inconsistent:
 		goto incompatible;
 	}
 
-	/* In fact, because we only ever append fields to the 'default
-	value' record, it is also OK to perform READ UNCOMMITTED and
+	/* In fact, because we only ever append fields to the metadata
+	record, it is also OK to perform READ UNCOMMITTED and
 	then ignore any extra fields, provided that
 	trx_sys.is_registered(DB_TRX_ID). */
 	if (rec_offs_n_fields(offsets) > index->n_fields
@@ -781,13 +783,15 @@ btr_cur_will_modify_tree(
 	first record and following compress might delete the record and causes
 	the uppper level node_ptr modification. */
 
+	const ulint n_recs = page_get_n_recs(page);
+
 	if (lock_intention <= BTR_INTENTION_BOTH) {
 		ulint	margin;
 
 		/* check delete will cause. (BTR_INTENTION_BOTH
 		or BTR_INTENTION_DELETE) */
 		/* first, 2nd, 2nd-last and last records are 4 records */
-		if (page_get_n_recs(page) < 5) {
+		if (n_recs < 5) {
 			return(true);
 		}
 
@@ -833,8 +837,7 @@ btr_cur_will_modify_tree(
 		/* Once we invoke the btr_cur_limit_optimistic_insert_debug,
 		we should check it here in advance, since the max allowable
 		records in a page is limited. */
-		LIMIT_OPTIMISTIC_INSERT_DEBUG(page_get_n_recs(page),
-					      return(true));
+		LIMIT_OPTIMISTIC_INSERT_DEBUG(n_recs, return true);
 
 		/* needs 2 records' space for the case the single split and
 		insert cannot fit.
@@ -847,18 +850,16 @@ btr_cur_will_modify_tree(
 		    || max_size < rec_size * 2) {
 			return(true);
 		}
-		/* TODO: optimize this condition for compressed page.
-		this is based on the worst compress rate.
-		currently looking only uncompressed page, but we can look
-		also compressed page page_zip_available() if already in the
-		buffer pool */
+
+		/* TODO: optimize this condition for ROW_FORMAT=COMPRESSED.
+		This is based on the worst case, and we could invoke
+		page_zip_available() on the block->page.zip. */
 		/* needs 2 records' space also for worst compress rate. */
 		if (page_size.is_compressed()
 		    && page_zip_empty_size(index->n_fields,
 					   page_size.physical())
-		       < rec_size * 2 + page_get_data_size(page)
-			 + page_dir_calc_reserved_space(
-				 ulint(page_get_n_recs(page)) + 2) + 1) {
+		    <= rec_size * 2 + page_get_data_size(page)
+		    + page_dir_calc_reserved_space(n_recs + 2)) {
 			return(true);
 		}
 	}
@@ -891,6 +892,114 @@ btr_cur_need_opposite_intention(
 
 	ut_error;
 	return(false);
+}
+
+/**
+@param[in]	index b-tree
+@return maximum size of a node pointer record in bytes */
+static ulint btr_node_ptr_max_size(const dict_index_t* index)
+{
+	if (dict_index_is_ibuf(index)) {
+		/* cannot estimate accurately */
+		/* This is universal index for change buffer.
+		The max size of the entry is about max key length * 2.
+		(index key + primary key to be inserted to the index)
+		(The max key length is UNIV_PAGE_SIZE / 16 * 3 at
+		 ha_innobase::max_supported_key_length(),
+		 considering MAX_KEY_LENGTH = 3072 at MySQL imposes
+		 the 3500 historical InnoDB value for 16K page size case.)
+		For the universal index, node_ptr contains most of the entry.
+		And 512 is enough to contain ibuf columns and meta-data */
+		return srv_page_size / 8 * 3 + 512;
+	}
+
+	/* Each record has page_no, length of page_no and header. */
+	ulint comp = dict_table_is_comp(index->table);
+	ulint rec_max_size = comp
+		? REC_NODE_PTR_SIZE + 1 + REC_N_NEW_EXTRA_BYTES
+		+ UT_BITS_IN_BYTES(index->n_nullable)
+		: REC_NODE_PTR_SIZE + 2 + REC_N_OLD_EXTRA_BYTES
+		+ 2 * index->n_fields;
+
+	/* Compute the maximum possible record size. */
+	for (ulint i = 0; i < dict_index_get_n_unique_in_tree(index); i++) {
+		const dict_field_t*	field
+			= dict_index_get_nth_field(index, i);
+		const dict_col_t*	col
+			= dict_field_get_col(field);
+		ulint			field_max_size;
+		ulint			field_ext_max_size;
+
+		/* Determine the maximum length of the index field. */
+
+		field_max_size = dict_col_get_fixed_size(col, comp);
+		if (field_max_size) {
+			/* dict_index_add_col() should guarantee this */
+			ut_ad(!field->prefix_len
+			      || field->fixed_len == field->prefix_len);
+			/* Fixed lengths are not encoded
+			in ROW_FORMAT=COMPACT. */
+			rec_max_size += field_max_size;
+			continue;
+		}
+
+		field_max_size = dict_col_get_max_size(col);
+		if (UNIV_UNLIKELY(!field_max_size)) {
+			/* SYS_FOREIGN.ID is defined as CHAR in the
+			InnoDB internal SQL parser, which translates
+			into the incorrect VARCHAR(0).  InnoDB does
+			not enforce maximum lengths of columns, so
+			that is why any data can be inserted in the
+			first place.
+
+			Likewise, SYS_FOREIGN.FOR_NAME,
+			SYS_FOREIGN.REF_NAME, SYS_FOREIGN_COLS.ID, are
+			defined as CHAR, and also they are part of a key. */
+
+			ut_ad(!strcmp(index->table->name.m_name,
+				      "SYS_FOREIGN")
+			      || !strcmp(index->table->name.m_name,
+					 "SYS_FOREIGN_COLS"));
+			ut_ad(!comp);
+
+			rec_max_size += (srv_page_size == UNIV_PAGE_SIZE_MAX)
+				? REDUNDANT_REC_MAX_DATA_SIZE
+				: page_get_free_space_of_empty(FALSE) / 2;
+		} else if (field_max_size == NAME_LEN && i == 1
+			   && (!strcmp(index->table->name.m_name,
+				       TABLE_STATS_NAME)
+			       || !strcmp(index->table->name.m_name,
+					  INDEX_STATS_NAME))) {
+			ut_ad(!strcmp(field->name, "table_name"));
+			/* Interpret "table_name" as VARCHAR(199) even
+			if it was incorrectly defined as VARCHAR(64).
+			While the caller of ha_innobase enforces the
+			maximum length on any data written, the InnoDB
+			internal SQL parser will happily write as much
+			data as is provided. The purpose of this hack
+			is to avoid InnoDB hangs after persistent
+			statistics on partitioned tables are
+			deleted. */
+			field_max_size = 199 * SYSTEM_CHARSET_MBMAXLEN;
+		}
+		field_ext_max_size = field_max_size < 256 ? 1 : 2;
+
+		if (field->prefix_len
+		    && field->prefix_len < field_max_size) {
+			field_max_size = field->prefix_len;
+		}
+
+		if (comp) {
+			/* Add the extra size for ROW_FORMAT=COMPACT.
+			For ROW_FORMAT=REDUNDANT, these bytes were
+			added to rec_max_size before this loop. */
+			rec_max_size += field_ext_max_size;
+		}
+
+		rec_max_size += field_max_size;
+	}
+
+	return rec_max_size;
 }
 
 /********************************************************************//**
@@ -1218,7 +1327,7 @@ btr_cur_search_to_nth_level_func(
 	page_id_t		page_id(index->table->space->id, index->page);
 
 	if (root_leaf_rw_latch == RW_X_LATCH) {
-		node_ptr_max_size = dict_index_node_ptr_max_size(index);
+		node_ptr_max_size = btr_node_ptr_max_size(index);
 	}
 
 	up_match = 0;
@@ -2161,10 +2270,9 @@ need_opposite_intention:
 			ut_ad(index->is_instant());
 			/* This may be a search tuple for
 			btr_pcur_restore_position(). */
-			ut_ad(tuple->info_bits == REC_INFO_DEFAULT_ROW
+			ut_ad(tuple->info_bits == REC_INFO_METADATA
 			      || tuple->info_bits == REC_INFO_MIN_REC_FLAG);
-		} else if (rec_is_default_row(btr_cur_get_rec(cursor),
-					      index)) {
+		} else if (rec_is_metadata(btr_cur_get_rec(cursor), index)) {
 			/* Only user records belong in the adaptive
 			hash index. */
 		} else {
@@ -2327,7 +2435,7 @@ btr_cur_open_at_index_side_func(
 	const page_size_t	page_size(index->table->space->flags);
 
 	if (root_leaf_rw_latch == RW_X_LATCH) {
-		node_ptr_max_size = dict_index_node_ptr_max_size(index);
+		node_ptr_max_size = btr_node_ptr_max_size(index);
 	}
 
 	height = ULINT_UNDEFINED;
@@ -2685,7 +2793,7 @@ btr_cur_open_at_rnd_pos_func(
 	dberr_t			err = DB_SUCCESS;
 
 	if (root_leaf_rw_latch == RW_X_LATCH) {
-		node_ptr_max_size = dict_index_node_ptr_max_size(index);
+		node_ptr_max_size = btr_node_ptr_max_size(index);
 	}
 
 	height = ULINT_UNDEFINED;
@@ -3303,7 +3411,7 @@ fail_err:
 	} else if (index->disable_ahi) {
 # endif
 	} else if (entry->info_bits & REC_INFO_MIN_REC_FLAG) {
-		ut_ad(entry->info_bits == REC_INFO_DEFAULT_ROW);
+		ut_ad(entry->info_bits == REC_INFO_METADATA);
 		ut_ad(index->is_instant());
 		ut_ad(flags == BTR_NO_LOCKING_FLAG);
 	} else {
@@ -3511,7 +3619,7 @@ btr_cur_pessimistic_insert(
 		if (index->disable_ahi); else
 # endif
 		if (entry->info_bits & REC_INFO_MIN_REC_FLAG) {
-			ut_ad(entry->info_bits == REC_INFO_DEFAULT_ROW);
+			ut_ad(entry->info_bits == REC_INFO_METADATA);
 			ut_ad(index->is_instant());
 			ut_ad((flags & ulint(~BTR_KEEP_IBUF_BITMAP))
 			      == BTR_NO_LOCKING_FLAG);
@@ -3991,9 +4099,9 @@ func_exit:
 
 /** Trim an update tuple due to instant ADD COLUMN, if needed.
 For normal records, the trailing instantly added fields that match
-the 'default row' are omitted.
+the initial default values are omitted.
 
-For the special 'default row' record on a table on which instant
+For the special metadata record on a table on which instant
 ADD COLUMN has already been executed, both ADD COLUMN and the
 rollback of ADD COLUMN need to be handled specially.
 
@@ -4010,8 +4118,8 @@ btr_cur_trim(
 	const que_thr_t*	thr)
 {
 	if (!index->is_instant()) {
-	} else if (UNIV_UNLIKELY(update->info_bits == REC_INFO_DEFAULT_ROW)) {
-		/* We are either updating a 'default row'
+	} else if (UNIV_UNLIKELY(update->info_bits == REC_INFO_METADATA)) {
+		/* We are either updating a metadata record
 		(instantly adding columns to a table where instant ADD was
 		already executed) or rolling back such an operation. */
 		ut_ad(!upd_get_nth_field(update, 0)->orig_len);
@@ -4118,9 +4226,9 @@ btr_cur_optimistic_update(
 	     || trx_is_recv(thr_get_trx(thr)));
 #endif /* UNIV_DEBUG || UNIV_BLOB_LIGHT_DEBUG */
 
-	const bool is_default_row = update->info_bits == REC_INFO_DEFAULT_ROW;
+	const bool is_metadata = update->info_bits == REC_INFO_METADATA;
 
-	if (UNIV_LIKELY(!is_default_row)
+	if (UNIV_LIKELY(!is_metadata)
 	    && !row_upd_changes_field_size_or_external(index, *offsets,
 						       update)) {
 
@@ -4280,8 +4388,8 @@ any_extern:
 		lock_rec_store_on_page_infimum(block, rec);
 	}
 
-	if (UNIV_UNLIKELY(is_default_row)) {
-		ut_ad(new_entry->info_bits == REC_INFO_DEFAULT_ROW);
+	if (UNIV_UNLIKELY(is_metadata)) {
+		ut_ad(new_entry->info_bits == REC_INFO_METADATA);
 		ut_ad(index->is_instant());
 		/* This can be innobase_add_instant_try() performing a
 		subsequent instant ADD COLUMN, or its rollback by
@@ -4307,9 +4415,9 @@ any_extern:
 		cursor, new_entry, offsets, heap, 0/*n_ext*/, mtr);
 	ut_a(rec); /* <- We calculated above the insert would fit */
 
-	if (UNIV_UNLIKELY(is_default_row)) {
+	if (UNIV_UNLIKELY(is_metadata)) {
 		/* We must empty the PAGE_FREE list, because if this
-		was a rollback, the shortened 'default row' record
+		was a rollback, the shortened metadata record
 		would have too many fields, and we would be unable to
 		know the size of the freed record. */
 		btr_page_reorganize(page_cursor, index, mtr);
@@ -4514,7 +4622,7 @@ btr_cur_pessimistic_update(
 						     entry_heap);
 	btr_cur_trim(new_entry, index, update, thr);
 
-	const bool is_default_row = new_entry->info_bits
+	const bool is_metadata = new_entry->info_bits
 		& REC_INFO_MIN_REC_FLAG;
 
 	/* We have to set appropriate extern storage bits in the new
@@ -4608,8 +4716,8 @@ btr_cur_pessimistic_update(
 				page, 1);
 	}
 
-	if (UNIV_UNLIKELY(is_default_row)) {
-		ut_ad(new_entry->info_bits == REC_INFO_DEFAULT_ROW);
+	if (UNIV_UNLIKELY(is_metadata)) {
+		ut_ad(new_entry->info_bits == REC_INFO_METADATA);
 		ut_ad(index->is_instant());
 		/* This can be innobase_add_instant_try() performing a
 		subsequent instant ADD COLUMN, or its rollback by
@@ -4648,13 +4756,14 @@ btr_cur_pessimistic_update(
 	if (rec) {
 		page_cursor->rec = rec;
 
-		if (UNIV_UNLIKELY(is_default_row)) {
+		if (UNIV_UNLIKELY(is_metadata)) {
 			/* We must empty the PAGE_FREE list, because if this
-			was a rollback, the shortened 'default row' record
+			was a rollback, the shortened metadata record
 			would have too many fields, and we would be unable to
 			know the size of the freed record. */
 			btr_page_reorganize(page_cursor, index, mtr);
 			rec = page_cursor->rec;
+			rec_offs_make_valid(rec, index, true, *offsets);
 		} else if (!dict_table_is_locking_disabled(index->table)) {
 			lock_rec_restore_from_page_infimum(
 				btr_cur_get_block(cursor), rec, block);
@@ -4803,9 +4912,9 @@ btr_cur_pessimistic_update(
 		ut_ad(row_get_rec_trx_id(rec, index, *offsets));
 	}
 
-	if (UNIV_UNLIKELY(is_default_row)) {
+	if (UNIV_UNLIKELY(is_metadata)) {
 		/* We must empty the PAGE_FREE list, because if this
-		was a rollback, the shortened 'default row' record
+		was a rollback, the shortened metadata record
 		would have too many fields, and we would be unable to
 		know the size of the freed record. */
 		btr_page_reorganize(page_cursor, index, mtr);
@@ -5303,16 +5412,16 @@ btr_cur_optimistic_delete_func(
 	if (UNIV_UNLIKELY(page_is_root(block->frame)
 			  && page_get_n_recs(block->frame) == 1
 			  + (cursor->index->is_instant()
-			     && !rec_is_default_row(rec, cursor->index)))) {
+			     && !rec_is_metadata(rec, cursor->index)))) {
 		/* The whole index (and table) becomes logically empty.
 		Empty the whole page. That is, if we are deleting the
-		only user record, also delete the 'default row' record
+		only user record, also delete the metadata record
 		if one exists (it exists if and only if is_instant()).
-		If we are deleting the 'default row' record and the
+		If we are deleting the metadata record and the
 		table becomes empty, clean up the whole page. */
 		dict_index_t* index = cursor->index;
 		ut_ad(!index->is_instant()
-		      || rec_is_default_row(
+		      || rec_is_metadata(
 			      page_rec_get_next_const(
 				      page_get_infimum_rec(block->frame)),
 			      index));
@@ -5365,7 +5474,7 @@ btr_cur_optimistic_delete_func(
 			page_cur_delete_rec(btr_cur_get_page_cur(cursor),
 					    cursor->index, offsets, mtr);
 			/* We must empty the PAGE_FREE list, because
-			after rollback, this deleted 'default row' record
+			after rollback, this deleted metadata record
 			would have too many fields, and we would be
 			unable to know the size of the freed record. */
 			btr_page_reorganize(btr_cur_get_page_cur(cursor),
@@ -5518,9 +5627,9 @@ btr_cur_pessimistic_delete(
 	}
 
 	if (page_is_leaf(page)) {
-		const bool is_default_row = rec_get_info_bits(
+		const bool is_metadata = rec_get_info_bits(
 			rec, page_rec_is_comp(rec)) & REC_INFO_MIN_REC_FLAG;
-		if (UNIV_UNLIKELY(is_default_row)) {
+		if (UNIV_UNLIKELY(is_metadata)) {
 			/* This should be rolling back instant ADD COLUMN.
 			If this is a recovered transaction, then
 			index->is_instant() will hold until the
@@ -5538,15 +5647,15 @@ btr_cur_pessimistic_delete(
 			}
 		} else if (page_get_n_recs(page) == 1
 			   + (index->is_instant()
-			      && !rec_is_default_row(rec, index))) {
+			      && !rec_is_metadata(rec, index))) {
 			/* The whole index (and table) becomes logically empty.
 			Empty the whole page. That is, if we are deleting the
-			only user record, also delete the 'default row' record
+			only user record, also delete the metadata record
 			if one exists (it exists if and only if is_instant()).
-			If we are deleting the 'default row' record and the
+			If we are deleting the metadata record and the
 			table becomes empty, clean up the whole page. */
 			ut_ad(!index->is_instant()
-			      || rec_is_default_row(
+			      || rec_is_metadata(
 				      page_rec_get_next_const(
 					      page_get_infimum_rec(page)),
 					      index));
@@ -5563,13 +5672,13 @@ btr_cur_pessimistic_delete(
 			goto return_after_reservations;
 		}
 
-		if (UNIV_LIKELY(!is_default_row)) {
+		if (UNIV_LIKELY(!is_metadata)) {
 			btr_search_update_hash_on_delete(cursor);
 		} else {
 			page_cur_delete_rec(btr_cur_get_page_cur(cursor),
 					    index, offsets, mtr);
 			/* We must empty the PAGE_FREE list, because
-			after rollback, this deleted 'default row' record
+			after rollback, this deleted metadata record
 			would carry too many fields, and we would be
 			unable to know the size of the freed record. */
 			btr_page_reorganize(btr_cur_get_page_cur(cursor),
@@ -5657,22 +5766,44 @@ discard_page:
 		}
 	}
 
-	page_cur_delete_rec(btr_cur_get_page_cur(cursor), index, offsets, mtr);
+	/* SPATIAL INDEX never use SX locks; we can allow page merges
+	while holding X lock on the spatial index tree.
+	Do not allow merges of non-leaf B-tree pages unless it is
+	safe to do so. */
+	{
+		const bool allow_merge = page_is_leaf(page)
+			|| dict_index_is_spatial(index)
+			|| btr_cur_will_modify_tree(
+				index, page, BTR_INTENTION_DELETE, rec,
+				btr_node_ptr_max_size(index),
+				block->page.size, mtr);
+		page_cur_delete_rec(btr_cur_get_page_cur(cursor), index,
+				    offsets, mtr);
 #ifdef UNIV_ZIP_DEBUG
-	ut_a(!page_zip || page_zip_validate(page_zip, page, index));
+		ut_a(!page_zip || page_zip_validate(page_zip, page, index));
 #endif /* UNIV_ZIP_DEBUG */
 
-return_after_reservations:
-	/* btr_check_node_ptr() needs parent block latched */
-	ut_ad(!parent_latched || btr_check_node_ptr(index, block, mtr));
+		ut_ad(!parent_latched
+		      || btr_check_node_ptr(index, block, mtr));
 
+		if (!ret && btr_cur_compress_recommendation(cursor, mtr)) {
+			if (UNIV_LIKELY(allow_merge)) {
+				ret = btr_cur_compress_if_useful(
+					cursor, FALSE, mtr);
+			} else {
+				ib::warn() << "Not merging page "
+					   << block->page.id
+					   << " in index " << index->name
+					   << " of " << index->table->name;
+				ut_ad(!"MDEV-14637");
+			}
+		}
+	}
+
+return_after_reservations:
 	*err = DB_SUCCESS;
 
 	mem_heap_free(heap);
-
-	if (ret == FALSE) {
-		ret = btr_cur_compress_if_useful(cursor, FALSE, mtr);
-	}
 
 	if (!srv_read_only_mode
 	    && page_is_leaf(page)
@@ -7368,16 +7499,20 @@ btr_store_big_rec_extern_fields(
 						 + FIL_PAGE_FILE_FLUSH_LSN_OR_KEY_VERSION + 4,
 						 rec_page_no,
 						 MLOG_4BYTES, &mtr);
-
-				/* Zero out the unused part of the page. */
-				memset(page + page_zip_get_size(page_zip)
-				       - c_stream.avail_out,
-				       0, c_stream.avail_out);
 				mlog_log_string(page
 						+ FIL_PAGE_FILE_FLUSH_LSN_OR_KEY_VERSION,
 						page_zip_get_size(page_zip)
-						- FIL_PAGE_FILE_FLUSH_LSN_OR_KEY_VERSION,
+						- FIL_PAGE_FILE_FLUSH_LSN_OR_KEY_VERSION
+						- c_stream.avail_out,
 						&mtr);
+				/* Zero out the unused part of the page. */
+				if (c_stream.avail_out) {
+					mlog_memset(block,
+						    page_zip_get_size(page_zip)
+						    - c_stream.avail_out,
+						    c_stream.avail_out,
+						    0, &mtr);
+				}
 				/* Copy the page to compressed storage,
 				because it will be flushed to disk
 				from there. */

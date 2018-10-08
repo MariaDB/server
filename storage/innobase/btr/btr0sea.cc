@@ -111,7 +111,7 @@ rec_fold(
 	ut_ad(rec_offs_validate(rec, NULL, offsets));
 	ut_ad(rec_validate(rec, offsets));
 	ut_ad(page_rec_is_leaf(rec));
-	ut_ad(!page_rec_is_default_row(rec));
+	ut_ad(!page_rec_is_metadata(rec));
 	ut_ad(n_fields > 0 || n_bytes > 0);
 
 	n_fields_rec = rec_offs_n_fields(offsets);
@@ -570,10 +570,9 @@ static
 bool
 btr_search_update_block_hash_info(btr_search_t* info, buf_block_t* block)
 {
-	ut_ad(!btr_search_own_any(RW_LOCK_S));
-	ut_ad(!btr_search_own_any(RW_LOCK_X));
-	ut_ad(rw_lock_own(&block->lock, RW_LOCK_S)
-	      || rw_lock_own(&block->lock, RW_LOCK_X));
+	ut_ad(!btr_search_own_any());
+	ut_ad(rw_lock_own_flagged(&block->lock,
+				  RW_LOCK_FLAG_X | RW_LOCK_FLAG_S));
 
 	info->last_hash_succ = FALSE;
 
@@ -648,8 +647,8 @@ btr_search_update_hash_ref(
 
 	ut_ad(cursor->flag == BTR_CUR_HASH_FAIL);
 	ut_ad(rw_lock_own(btr_get_search_latch(cursor->index), RW_LOCK_X));
-	ut_ad(rw_lock_own(&(block->lock), RW_LOCK_S)
-	      || rw_lock_own(&(block->lock), RW_LOCK_X));
+	ut_ad(rw_lock_own_flagged(&block->lock,
+				  RW_LOCK_FLAG_X | RW_LOCK_FLAG_S));
 	ut_ad(page_align(btr_cur_get_rec(cursor)) == block->frame);
 	ut_ad(page_is_leaf(block->frame));
 	assert_block_ahi_valid(block);
@@ -887,8 +886,8 @@ btr_search_guess_on_hash(
 	btr_cur_t	cursor2;
 	btr_pcur_t	pcur;
 #endif
-	ut_ad(!ahi_latch || rw_lock_own(ahi_latch, RW_LOCK_S)
-	      || rw_lock_own(ahi_latch, RW_LOCK_X));
+	ut_ad(!ahi_latch || rw_lock_own_flagged(
+		      ahi_latch, RW_LOCK_FLAG_X | RW_LOCK_FLAG_S));
 
 	if (!btr_search_enabled) {
 		return(FALSE);
@@ -1109,8 +1108,8 @@ retry:
 
 	ut_ad(block->page.buf_fix_count == 0
 	      || buf_block_get_state(block) == BUF_BLOCK_REMOVE_HASH
-	      || rw_lock_own(&block->lock, RW_LOCK_S)
-	      || rw_lock_own(&block->lock, RW_LOCK_X));
+	      || rw_lock_own_flagged(&block->lock,
+				     RW_LOCK_FLAG_X | RW_LOCK_FLAG_S));
 	ut_ad(page_is_leaf(block->frame));
 
 	/* We must not dereference index here, because it could be freed
@@ -1191,7 +1190,7 @@ retry:
 
 	rec = page_get_infimum_rec(page);
 	rec = page_rec_get_next_low(rec, page_is_comp(page));
-	if (rec_is_default_row(rec, index)) {
+	if (rec_is_metadata(rec, index)) {
 		rec = page_rec_get_next_low(rec, page_is_comp(page));
 	}
 
@@ -1280,8 +1279,6 @@ void btr_search_drop_page_hash_when_freed(const page_id_t& page_id)
 	mtr_t		mtr;
 	dberr_t		err = DB_SUCCESS;
 
-	ut_d(export_vars.innodb_ahi_drop_lookups++);
-
 	mtr_start(&mtr);
 
 	/* If the caller has a latch on the page, then the caller must
@@ -1307,7 +1304,7 @@ void btr_search_drop_page_hash_when_freed(const page_id_t& page_id)
 			/* In all our callers, the table handle should
 			be open, or we should be in the process of
 			dropping the table (preventing eviction). */
-			ut_ad(index->table->n_ref_count > 0
+			ut_ad(index->table->get_ref_count() > 0
 			      || mutex_own(&dict_sys->mutex));
 			btr_search_drop_page_hash_index(block);
 		}
@@ -1363,8 +1360,8 @@ btr_search_build_page_hash_index(
 	ut_a(!dict_index_is_ibuf(index));
 	ut_ad(page_is_leaf(block->frame));
 
-	ut_ad(rw_lock_own(&(block->lock), RW_LOCK_S)
-	      || rw_lock_own(&(block->lock), RW_LOCK_X));
+	ut_ad(rw_lock_own_flagged(&block->lock,
+				  RW_LOCK_FLAG_X | RW_LOCK_FLAG_S));
 
 	rw_lock_s_lock(ahi_latch);
 
@@ -1401,7 +1398,7 @@ btr_search_build_page_hash_index(
 
 	rec = page_rec_get_next_const(page_get_infimum_rec(page));
 
-	if (rec_is_default_row(rec, index)) {
+	if (rec_is_metadata(rec, index)) {
 		rec = page_rec_get_next_const(rec);
 		if (!--n_recs) return;
 	}
@@ -1531,8 +1528,8 @@ btr_search_info_update_slow(btr_search_t* info, btr_cur_t* cursor)
 {
 	rw_lock_t*	ahi_latch = btr_get_search_latch(cursor->index);
 
-	ut_ad(!rw_lock_own(ahi_latch, RW_LOCK_S));
-	ut_ad(!rw_lock_own(ahi_latch, RW_LOCK_X));
+	ut_ad(!rw_lock_own_flagged(ahi_latch,
+				   RW_LOCK_FLAG_X | RW_LOCK_FLAG_S));
 
 	buf_block_t*	block = btr_cur_get_block(cursor);
 
@@ -1865,7 +1862,7 @@ btr_search_update_hash_on_insert(btr_cur_t* cursor, rw_lock_t* ahi_latch)
 				     n_bytes, index->id);
 	}
 
-	if (!page_rec_is_infimum(rec) && !rec_is_default_row(rec, index)) {
+	if (!page_rec_is_infimum(rec) && !rec_is_metadata(rec, index)) {
 		offsets = rec_get_offsets(
 			rec, index, offsets, true,
 			btr_search_get_n_fields(n_fields, n_bytes), &heap);

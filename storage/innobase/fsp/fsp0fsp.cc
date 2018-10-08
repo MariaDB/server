@@ -624,9 +624,7 @@ fsp_space_modify_check(
 	case MTR_LOG_NO_REDO:
 		ut_ad(space->purpose == FIL_TYPE_TEMPORARY
 		      || space->purpose == FIL_TYPE_IMPORT
-		      || my_atomic_loadlint(&space->redo_skipped_count)
-		      || space->is_being_truncated
-		      || srv_is_tablespace_truncated(space->id));
+		      || my_atomic_loadlint(&space->redo_skipped_count));
 		return;
 	case MTR_LOG_ALL:
 		/* We may only write redo log for a persistent tablespace. */
@@ -732,23 +730,23 @@ void fsp_header_init(fil_space_t* space, ulint size, mtr_t* mtr)
 
 	mlog_write_ulint(FSP_HEADER_OFFSET + FSP_SPACE_ID + block->frame,
 			 space->id, MLOG_4BYTES, mtr);
-	mlog_write_ulint(FSP_HEADER_OFFSET + FSP_NOT_USED + block->frame, 0,
-			 MLOG_4BYTES, mtr);
+	ut_ad(0 == mach_read_from_4(FSP_HEADER_OFFSET + FSP_NOT_USED
+				    + block->frame));
 	mlog_write_ulint(FSP_HEADER_OFFSET + FSP_SIZE + block->frame, size,
 			 MLOG_4BYTES, mtr);
-	mlog_write_ulint(FSP_HEADER_OFFSET + FSP_FREE_LIMIT + block->frame, 0,
-			 MLOG_4BYTES, mtr);
+	ut_ad(0 == mach_read_from_4(FSP_HEADER_OFFSET + FSP_FREE_LIMIT
+				    + block->frame));
 	mlog_write_ulint(FSP_HEADER_OFFSET + FSP_SPACE_FLAGS + block->frame,
 			 space->flags & ~FSP_FLAGS_MEM_MASK,
 			 MLOG_4BYTES, mtr);
-	mlog_write_ulint(FSP_HEADER_OFFSET + FSP_FRAG_N_USED + block->frame, 0,
-			 MLOG_4BYTES, mtr);
+	ut_ad(0 == mach_read_from_4(FSP_HEADER_OFFSET + FSP_FRAG_N_USED
+				    + block->frame));
 
-	flst_init(FSP_HEADER_OFFSET + FSP_FREE + block->frame, mtr);
-	flst_init(FSP_HEADER_OFFSET + FSP_FREE_FRAG + block->frame, mtr);
-	flst_init(FSP_HEADER_OFFSET + FSP_FULL_FRAG + block->frame, mtr);
-	flst_init(FSP_HEADER_OFFSET + FSP_SEG_INODES_FULL + block->frame, mtr);
-	flst_init(FSP_HEADER_OFFSET + FSP_SEG_INODES_FREE + block->frame, mtr);
+	flst_init(block, FSP_HEADER_OFFSET + FSP_FREE, mtr);
+	flst_init(block, FSP_HEADER_OFFSET + FSP_FREE_FRAG, mtr);
+	flst_init(block, FSP_HEADER_OFFSET + FSP_FULL_FRAG, mtr);
+	flst_init(block, FSP_HEADER_OFFSET + FSP_SEG_INODES_FULL, mtr);
+	flst_init(block, FSP_HEADER_OFFSET + FSP_SEG_INODES_FREE, mtr);
 
 	mlog_write_ull(FSP_HEADER_OFFSET + FSP_SEG_ID + block->frame, 1, mtr);
 
@@ -1065,13 +1063,6 @@ fsp_fill_free_list(
 
 				mtr_start(&ibuf_mtr);
 				ibuf_mtr.set_named_space(space);
-
-				/* Avoid logging while truncate table
-				fix-up is active. */
-				if (srv_is_tablespace_truncated(space->id)) {
-					mtr_set_log_mode(
-						&ibuf_mtr, MTR_LOG_NO_REDO);
-				}
 
 				const page_id_t	page_id(
 					space->id,

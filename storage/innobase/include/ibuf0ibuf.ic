@@ -124,7 +124,7 @@ ibuf_should_try(
 						a secondary index when we
 						decide */
 {
-	return(ibuf_use != IBUF_USE_NONE
+	return(innodb_change_buffering
 	       && ibuf->max_size != 0
 	       && !dict_index_is_clust(index)
 	       && !dict_index_is_spatial(index)

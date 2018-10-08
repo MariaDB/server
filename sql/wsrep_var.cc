@@ -45,6 +45,7 @@ int wsrep_init_vars()
 linking will succeed even if the server is built with a dynamically
 linked InnoDB. */
 ulong innodb_lock_schedule_algorithm __attribute__((weak));
+struct handlerton* innodb_hton_ptr __attribute__((weak));
 
 bool wsrep_on_update (sys_var *self, THD* thd, enum_var_type var_type)
 {
@@ -60,7 +61,10 @@ bool wsrep_on_check(sys_var *self, THD* thd, set_var* var)
 {
   bool new_wsrep_on= (bool)var->save_result.ulonglong_value;
 
-  if (new_wsrep_on && innodb_lock_schedule_algorithm != 0) {
+  if (check_has_super(self, thd, var))
+    return true;
+
+  if (new_wsrep_on && innodb_hton_ptr && innodb_lock_schedule_algorithm != 0) {
     my_message(ER_WRONG_ARGUMENTS, " WSREP (galera) can't be enabled "
 	    "if innodb_lock_schedule_algorithm=VATS. Please configure"
 	    " innodb_lock_schedule_algorithm=FCFS and restart.", MYF(0));
@@ -575,6 +579,8 @@ static void wsrep_slave_count_change_update ()
 {
   // wsrep_running_threads = appliers threads + 2 rollbacker threads
   wsrep_slave_count_change = (wsrep_slave_threads - wsrep_running_threads + 2);
+  WSREP_DEBUG("Change on slave threads: New %lu old %lu difference %lu",
+	  wsrep_slave_threads, wsrep_running_threads, wsrep_slave_count_change);
 }
 
 bool wsrep_slave_threads_update (sys_var *self, THD* thd, enum_var_type type)
@@ -590,6 +596,18 @@ bool wsrep_slave_threads_update (sys_var *self, THD* thd, enum_var_type type)
 
 bool wsrep_desync_check (sys_var *self, THD* thd, set_var* var)
 {
+  if (!WSREP_ON)
+  {
+    my_message(ER_WRONG_ARGUMENTS, "WSREP (galera) not started", MYF(0));
+    return true;
+  }
+
+  if (thd->global_read_lock.is_acquired())
+  {
+    my_message (ER_CANNOT_USER, "Global read lock acquired. Can't set 'wsrep_desync'", MYF(0));
+    return true;
+  }
+
   bool new_wsrep_desync= (bool) var->save_result.ulonglong_value;
   if (wsrep_desync == new_wsrep_desync) {
     if (new_wsrep_desync) {

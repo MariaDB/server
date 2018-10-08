@@ -30,6 +30,8 @@
 #include <cstdlib>
 
 const char wsrep_defaults_group_suffix[256] = {0};
+#include <my_service_manager.h>
+
 static char wsrep_defaults_file[FN_REFLEN * 2 + 10 + 30 +
                                 sizeof(WSREP_SST_OPT_CONF) +
                                 sizeof(WSREP_SST_OPT_CONF_SUFFIX) +
@@ -57,6 +59,13 @@ bool wsrep_sst_method_update (sys_var *self, THD* thd, enum_var_type type)
     return 0;
 }
 
+static const char* data_home_dir = NULL;
+
+extern "C"
+void wsrep_set_data_home_dir(const char *data_dir)
+{
+  data_home_dir= (data_dir && *data_dir) ? data_dir : NULL;
+}
 
 static void make_wsrep_defaults_file()
 {
@@ -185,7 +194,7 @@ void wsrep_sst_complete (const wsrep_uuid_t* sst_uuid,
   Wsrep_server_state::instance().sst_received(gtid, 0);
 }
 
-/*
+  /*
   If wsrep provider is loaded, inform that the new state snapshot
   has been received. Also update the local checkpoint.
 
@@ -490,6 +499,29 @@ static int sst_append_auth_env(wsp::env& env, const char* sst_auth)
   return -env.error();
 }
 
+#define DATA_HOME_DIR_ENV "INNODB_DATA_HOME_DIR"
+
+static int sst_append_data_dir(wsp::env& env, const char* data_dir)
+{
+  int const data_dir_size= strlen(DATA_HOME_DIR_ENV) + 1 /* = */
+    + (data_dir ? strlen(data_dir) : 0) + 1 /* \0 */;
+
+  wsp::string data_dir_str(data_dir_size); // for automatic cleanup on return
+  if (!data_dir_str()) return -ENOMEM;
+
+  int ret= snprintf(data_dir_str(), data_dir_size, "%s=%s",
+                    DATA_HOME_DIR_ENV, data_dir ? data_dir : "");
+
+  if (ret < 0 || ret >= data_dir_size)
+  {
+    WSREP_ERROR("sst_append_data_dir(): snprintf() failed: %d", ret);
+    return (ret < 0 ? ret : -EMSGSIZE);
+  }
+
+  env.append(data_dir_str());
+  return -env.error();
+}
+
 static ssize_t sst_prepare_other (const char*  method,
                                   const char*  sst_auth,
                                   const char*  addr_in,
@@ -521,11 +553,11 @@ static ssize_t sst_prepare_other (const char*  method,
 
   ret= snprintf (cmd_str(), cmd_len,
                  "wsrep_sst_%s "
-                 WSREP_SST_OPT_ROLE" 'joiner' "
-                 WSREP_SST_OPT_ADDR" '%s' "
-                 WSREP_SST_OPT_DATA" '%s' "
+                 WSREP_SST_OPT_ROLE " 'joiner' "
+                 WSREP_SST_OPT_ADDR " '%s' "
+                 WSREP_SST_OPT_DATA " '%s' "
                  " %s "
-                 WSREP_SST_OPT_PARENT" '%d'"
+                 WSREP_SST_OPT_PARENT " '%d'"
                  " %s '%s' ",
                  method, addr_in, mysql_real_data_home,
                  wsrep_defaults_file,
@@ -549,6 +581,16 @@ static ssize_t sst_prepare_other (const char*  method,
   {
     WSREP_ERROR("sst_prepare_other(): appending auth failed: %d", ret);
     return ret;
+  }
+
+  if (data_home_dir)
+  {
+    if ((ret= sst_append_data_dir(env, data_home_dir)))
+    {
+      WSREP_ERROR("sst_prepare_other(): appending data "
+                  "directory failed: %d", ret);
+      return ret;
+    }
   }
 
   pthread_t tmp;
@@ -617,8 +659,12 @@ static ssize_t sst_prepare_mysqldump (const char*  addr_in,
   return ret;
 }
 
+static bool SE_initialized = false;
+
 std::string wsrep_sst_prepare()
 {
+  const ssize_t ip_max= 256;
+  char ip_buf[ip_max];
   const char* addr_in=  NULL;
   const char* addr_out= NULL;
 
@@ -630,9 +676,6 @@ std::string wsrep_sst_prepare()
   /*
     Figure out SST receive address. Common for all SST methods.
   */
-  char ip_buf[256];
-  const ssize_t ip_max= sizeof(ip_buf);
-
   // Attempt 1: wsrep_sst_receive_address
   if (wsrep_sst_receive_address &&
       strcmp (wsrep_sst_receive_address, WSREP_SST_ADDRESS_AUTO))
@@ -795,13 +838,13 @@ static int sst_donate_mysqldump (const char*         addr,
   uuid_oss << gtid.id();
   int ret= snprintf (cmd_str(), cmd_len,
                      "wsrep_sst_mysqldump "
-                     WSREP_SST_OPT_ADDR" '%s' "
-                     WSREP_SST_OPT_PORT" '%d' "
-                     WSREP_SST_OPT_LPORT" '%u' "
-                     WSREP_SST_OPT_SOCKET" '%s' "
-                     " '%s' "
-                     WSREP_SST_OPT_GTID" '%s:%lld' "
-                     WSREP_SST_OPT_GTID_DOMAIN_ID" '%d'"
+                     WSREP_SST_OPT_ADDR " '%s' "
+                     WSREP_SST_OPT_PORT " '%d' "
+                     WSREP_SST_OPT_LPORT " '%u' "
+                     WSREP_SST_OPT_SOCKET " '%s' "
+                     " %s "
+                     WSREP_SST_OPT_GTID " '%s:%lld' "
+                     WSREP_SST_OPT_GTID_DOMAIN_ID " '%d'"
                      "%s",
                      addr, mysqld_port, mysqld_unix_port,
                      wsrep_defaults_file, uuid_oss.str().c_str(),
@@ -1186,14 +1229,14 @@ static int sst_donate_other (const char*        method,
   uuid_oss << gtid.id();
   ret= snprintf (cmd_str(), cmd_len,
                  "wsrep_sst_%s "
-                 WSREP_SST_OPT_ROLE" 'donor' "
-                 WSREP_SST_OPT_ADDR" '%s' "
-                 WSREP_SST_OPT_SOCKET" '%s' "
-                 WSREP_SST_OPT_DATA" '%s' "
+                 WSREP_SST_OPT_ROLE " 'donor' "
+                 WSREP_SST_OPT_ADDR " '%s' "
+                 WSREP_SST_OPT_SOCKET " '%s' "
+                 WSREP_SST_OPT_DATA " '%s' "
                  " %s "
                  " %s '%s' "
-                 WSREP_SST_OPT_GTID" '%s:%lld' "
-                 WSREP_SST_OPT_GTID_DOMAIN_ID" '%d'"
+                 WSREP_SST_OPT_GTID " '%s:%lld' "
+                 WSREP_SST_OPT_GTID_DOMAIN_ID " '%d'"
                  "%s",
                  method, addr, mysqld_unix_port, mysql_real_data_home,
                  wsrep_defaults_file,
@@ -1254,6 +1297,16 @@ int wsrep_sst_donate(const std::string& msg,
     return WSREP_CB_FAILURE;
   }
 
+  if (data_home_dir)
+  {
+    if ((ret= sst_append_data_dir(env, data_home_dir)))
+    {
+      WSREP_ERROR("wsrep_sst_donate_cb(): appending data "
+                  "directory failed: %d", ret);
+      return WSREP_CB_FAILURE;
+    }
+  }
+
   if (!strcmp (WSREP_SST_MYSQLDUMP, method))
   {
     ret = sst_donate_mysqldump(data, current_gtid, bypass, env());
@@ -1266,4 +1319,3 @@ int wsrep_sst_donate(const std::string& msg,
   return (ret >= 0 ? 0 : 1);
 }
   
-

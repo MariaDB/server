@@ -119,13 +119,22 @@ INSERT INTO t VALUES (null, null, DEFAULT, 'mm');
 
 CREATE INDEX idx_1 on t(c);
 
-SET SESSION debug_dbug="+d,create_index_fail";
+SET @saved_dbug = @@SESSION.debug_dbug;
+SET debug_dbug = '+d,create_index_fail';
 
 --enable_info
 --error ER_DUP_ENTRY
-ALTER TABLE t ADD COLUMN x INT GENERATED ALWAYS AS(a+b), ADD INDEX idx (x);
-SET SESSION debug_dbug="";
+ALTER TABLE t ADD COLUMN x INT GENERATED ALWAYS AS(a+b), ADD INDEX idx (x),
+ADD INDEX idcx (c,x);
+
+UPDATE t SET a=a+1;
+
+--error ER_DUP_ENTRY
+ALTER TABLE t ADD INDEX idc(c);
+SET debug_dbug = @saved_dbug;
 --disable_info
+
+UPDATE t SET b=b-1;
 
 SHOW CREATE TABLE t;
 

@@ -133,11 +133,6 @@
 #define F_UNLCK 3
 #define F_TO_EOF 0x3FFFFFFF
 
-/* Shared memory and named pipe connections are supported. */
-#define HAVE_SMEM 1
-#define HAVE_NAMED_PIPE 1
-#define shared_memory_buffer_length 16000
-#define default_shared_memory_base_name "MYSQL"
 #endif /* _WIN32*/
 
 
@@ -619,6 +614,8 @@ typedef SOCKET_SIZE_TYPE size_socket;
 #endif
 #ifndef SOCK_CLOEXEC
 #define SOCK_CLOEXEC    0
+#else
+#define HAVE_SOCK_CLOEXEC
 #endif
 
 /* additional file share flags for win32 */
@@ -1183,8 +1180,6 @@ typedef struct { const char *dli_fname, dli_fbase; } Dl_info;
 
 /* Things we don't need in the embedded version of MySQL */
 /* TODO HF add #undef HAVE_VIO if we don't want client in embedded library */
-
-#undef HAVE_SMEM				/* No shared memory */
 
 #else
 #define HAVE_REPLICATION

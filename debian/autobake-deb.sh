@@ -16,19 +16,25 @@ export DEB_BUILD_OPTIONS="nocheck $DEB_BUILD_OPTIONS"
 if [[ $TRAVIS ]]
 then
   # On Travis-CI, the log must stay under 4MB so make the build less verbose
-  sed -i -e '/Add support for verbose builds/,+2d' debian/rules
+  sed -i -e '/Add support for verbose builds/,/^$/d' debian/rules
 
   # Don't include test suite package on Travis-CI to make the build time shorter
-  sed '/Package: mariadb-test-data/,+28d' -i debian/control
-  sed '/Package: mariadb-test/,+36d' -i debian/control
+  sed '/Package: mariadb-test-data/,/^$/d' -i debian/control
+  sed '/Package: mariadb-test$/,/^$/d' -i debian/control
 
   # Don't build the test package at all to save time and disk space
   sed 's|DINSTALL_MYSQLTESTDIR=share/mysql/mysql-test|DINSTALL_MYSQLTESTDIR=false|' -i debian/rules
 
   # Also skip building RocksDB and TokuDB to save even more time and disk space
-  sed 's|-DDEB|-DWITHOUT_TOKUDB_STORAGE_ENGINE=true -DWITHOUT_MROONGA_STORAGE_ENGINE=true -DWITHOUT_ROCKSDB_STORAGE_ENGINE=true -DDEB|' -i debian/rules
+  sed 's|-DDEB|-DPLUGIN_TOKUDB=NO -DPLUGIN_MROONGA=NO -DPLUGIN_ROCKSDB=NO -DPLUGIN_SPIDER=NO -DPLUGIN_OQGRAPH=NO -DPLUGIN_PERFSCHEMA=NO -DPLUGIN_SPHINX=NO -WITH_EMBEDDED_SERVER=OFF -DDEB|' -i debian/rules
 fi
 
+# Convert gcc version to numberical value. Format is Mmmpp where M is Major
+# version, mm is minor version and p is patch.
+# -dumpfullversion & -dumpversion to make it uniform across old and new (>=7)
+GCCVERSION=$(gcc -dumpfullversion -dumpversion | sed -e 's/\.\([0-9][0-9]\)/\1/g' \
+                                                     -e 's/\.\([0-9]\)/0\1/g'     \
+                                                     -e 's/^[0-9]\{3,4\}$/&00/')
 
 # Look up distro-version specific stuff
 #
@@ -36,19 +42,12 @@ fi
 # Debian policy and targeting Debian Sid. Then case-by-case run in autobake-deb.sh
 # tests for backwards compatibility and strip away parts on older builders.
 
-# If iproute2 is not available (before Debian Jessie and Ubuntu Trusty)
-# fall back to the old iproute package.
-if ! apt-cache madison iproute2 | grep 'iproute2 *|' >/dev/null 2>&1
-then
- sed 's/iproute2/iproute/' -i debian/control
-fi
-
 # If libcrack2 (>= 2.9.0) is not available (before Debian Jessie and Ubuntu Trusty)
 # clean away the cracklib stanzas so the package can build without them.
 if ! apt-cache madison libcrack2-dev | grep 'libcrack2-dev *| *2\.9' >/dev/null 2>&1
 then
   sed '/libcrack2-dev/d' -i debian/control
-  sed '/Package: mariadb-plugin-cracklib/,+11d' -i debian/control
+  sed '/Package: mariadb-plugin-cracklib/,/^$/d' -i debian/control
 fi
 
 # If libpcre3-dev (>= 2:8.35-3.2~) is not available (before Debian Jessie or Ubuntu Wily)
@@ -68,9 +67,9 @@ then
   sed 's/ --with systemd//' -i debian/rules
   sed '/systemd/d' -i debian/rules
   sed '/\.service/d' -i debian/rules
-  sed '/galera_new_cluster/d' -i debian/mariadb-server-10.3.install
-  sed '/galera_recovery/d' -i debian/mariadb-server-10.3.install
-  sed '/mariadb-service-convert/d' -i debian/mariadb-server-10.3.install
+  sed '/galera_new_cluster/d' -i debian/mariadb-server-10.4.install
+  sed '/galera_recovery/d' -i debian/mariadb-server-10.4.install
+  sed '/mariadb-service-convert/d' -i debian/mariadb-server-10.4.install
 fi
 
 # If libzstd-dev is not available (before Debian Stretch and Ubuntu Xenial)
@@ -81,18 +80,21 @@ then
   sed '/libzstd1/d' -i debian/control
 fi
 
+# The binaries should be fully hardened by default. However TokuDB compilation seems to fail on
+# Debian Jessie and older and on Ubuntu Xenial and older with the following error message:
+#   /usr/bin/ld.bfd.real: /tmp/ccOIwjFo.ltrans0.ltrans.o: relocation R_X86_64_PC32 against symbol
+#   `toku_product_name_strings' can not be used when making a shared object; recompile with -fPIC
+# Therefore we need to disable PIE on those releases using gcc as proxy for detection.
+if [[ $GCCVERSION -lt 60000 ]]
+then
+  sed 's/hardening=+all$/hardening=+all,-pie/' -i debian/rules
+fi
 
-# Convert gcc version to numberical value. Format is Mmmpp where M is Major
-# version, mm is minor version and p is patch.
-# -dumpfullversion & -dumpversion to make it uniform across old and new (>=7)
-GCCVERSION=$(gcc -dumpfullversion -dumpversion | sed -e 's/\.\([0-9][0-9]\)/\1/g' \
-                                                     -e 's/\.\([0-9]\)/0\1/g'     \
-						     -e 's/^[0-9]\{3,4\}$/&00/')
 # Don't build rocksdb package if gcc version is less than 4.8 or we are running on
 # x86 32 bit.
 if [[ $GCCVERSION -lt 40800 ]] || [[ $(arch) =~ i[346]86 ]] || [[ $TRAVIS ]]
 then
-  sed '/Package: mariadb-plugin-rocksdb/,+14d' -i debian/control
+  sed '/Package: mariadb-plugin-rocksdb/,/^$/d' -i debian/control
 fi
 
 # AWS SDK requires c++11 -capable compiler.
@@ -110,8 +112,7 @@ Breaks: mariadb-aws-key-management-10.1,
         mariadb-aws-key-management-10.2
 Replaces: mariadb-aws-key-management-10.1,
           mariadb-aws-key-management-10.2
-Depends: libcurl3,
-         mariadb-server-10.3,
+Depends: mariadb-server-10.4,
          \${misc:Depends},
          \${shlibs:Depends}
 Description: Amazon Web Service Key Management Service Plugin for MariaDB
@@ -119,13 +120,19 @@ Description: Amazon Web Service Key Management Service Plugin for MariaDB
  Services Key Management Service for managing encryption keys used for MariaDB
  data-at-rest encryption.
 EOF
+
+  sed -i -e "/-DPLUGIN_AWS_KEY_MANAGEMENT=NO/d" debian/rules
 fi
 
 # Mroonga, TokuDB never built on Travis CI anyway, see build flags above
 if [[ $TRAVIS ]]
 then
-  sed -i -e "/Package: mariadb-plugin-tokudb/,+17d" debian/control
-  sed -i -e "/Package: mariadb-plugin-mroonga/,+16d" debian/control
+  sed -i -e "/Package: mariadb-plugin-tokudb/,/^$/d" debian/control
+  sed -i -e "/Package: mariadb-plugin-mroonga/,/^$/d" debian/control
+  sed -i -e "/Package: mariadb-plugin-spider/,/^$/d" debian/control
+  sed -i -e "/Package: mariadb-plugin-oqgraph/,/^$/d" debian/control
+  sed -i -e "/usr\/lib\/mysql\/plugin\/ha_sphinx.so/d" debian/mariadb-server-10.4.install
+  sed -i -e "/Package: libmariadbd-dev/,/^$/d" debian/control
 fi
 
 # Adjust changelog, add new version
@@ -153,7 +160,7 @@ fi
 # Build the package
 # Pass -I so that .git and other unnecessary temporary and source control files
 # will be ignored by dpkg-source when creating the tar.gz source package.
-fakeroot dpkg-buildpackage -us -uc -I $BUILDPACKAGE_FLAGS
+fakeroot dpkg-buildpackage -us -uc -I $BUILDPACKAGE_FLAGS -j$(nproc)
 
 # If the step above fails due to missing dependencies, you can manually run
 #   sudo mk-build-deps debian/control -r -i

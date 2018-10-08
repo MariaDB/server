@@ -40,9 +40,9 @@ Created 3/26/1996 Heikki Tuuri
 #include "fsp0sysspace.h"
 #include "row0mysql.h"
 
-/** The search tuple corresponding to TRX_UNDO_INSERT_DEFAULT */
-const dtuple_t trx_undo_default_rec = {
-	REC_INFO_DEFAULT_ROW, 0, 0,
+/** The search tuple corresponding to TRX_UNDO_INSERT_METADATA */
+const dtuple_t trx_undo_metadata = {
+	REC_INFO_METADATA, 0, 0,
 	NULL, 0, NULL,
 	UT_LIST_NODE_T(dtuple_t)()
 #ifdef UNIV_DEBUG
@@ -506,11 +506,11 @@ trx_undo_page_report_insert(
 	/* Store then the fields required to uniquely determine the record
 	to be inserted in the clustered index */
 	if (UNIV_UNLIKELY(clust_entry->info_bits != 0)) {
-		ut_ad(clust_entry->info_bits == REC_INFO_DEFAULT_ROW);
+		ut_ad(clust_entry->info_bits == REC_INFO_METADATA);
 		ut_ad(index->is_instant());
 		ut_ad(undo_block->frame[first_free + 2]
 		      == TRX_UNDO_INSERT_REC);
-		undo_block->frame[first_free + 2] = TRX_UNDO_INSERT_DEFAULT;
+		undo_block->frame[first_free + 2] = TRX_UNDO_INSERT_METADATA;
 		goto done;
 	}
 

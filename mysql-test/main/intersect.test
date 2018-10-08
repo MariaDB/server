@@ -59,13 +59,13 @@ drop tables t1,t2,t3;
 
 select 1 as a from dual intersect select 1 from dual;
 (select 1 from dual) intersect (select 1 from dual);
---error ER_WRONG_USAGE
+--error ER_PARSE_ERROR
 (select 1 from dual into @v) intersect (select 1 from dual);
 --error ER_PARSE_ERROR
 select 1 from dual ORDER BY 1 intersect select 1 from dual;
 
 select 1 as a from dual union all select 1 from dual;
---error ER_WRONG_USAGE
+--error ER_PARSE_ERROR
 select 1 from dual intersect all select 1 from dual;
 
 

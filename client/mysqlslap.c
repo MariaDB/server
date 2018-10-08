@@ -98,9 +98,6 @@ TODO:
 #define snprintf _snprintf
 #endif
 
-#ifdef HAVE_SMEM 
-static char *shared_memory_base_name=0;
-#endif
 
 /* Global Thread counter */
 uint thread_counter;
@@ -309,10 +306,6 @@ void set_mysql_connect_options(MYSQL *mysql)
 #endif
   if (opt_protocol)
     mysql_options(mysql,MYSQL_OPT_PROTOCOL,(char*)&opt_protocol);
-#ifdef HAVE_SMEM
-  if (shared_memory_base_name)
-    mysql_options(mysql,MYSQL_SHARED_MEMORY_BASE_NAME,shared_memory_base_name);
-#endif
   mysql_options(mysql, MYSQL_SET_CHARSET_NAME, default_charset);
 }
 
@@ -423,10 +416,6 @@ int main(int argc, char **argv)
   statement_cleanup(pre_statements);
   statement_cleanup(post_statements);
   option_cleanup(engine_options);
-
-#ifdef HAVE_SMEM
-  my_free(shared_memory_base_name);
-#endif
   free_defaults(defaults_argv);
   mysql_library_end();
   my_end(my_end_arg);
@@ -689,17 +678,11 @@ static struct my_option my_long_options[] =
     &pre_system, &pre_system,
     0, GET_STR, REQUIRED_ARG, 0, 0, 0, 0, 0, 0},
   {"protocol", OPT_MYSQL_PROTOCOL,
-    "The protocol to use for connection (tcp, socket, pipe, memory).",
+    "The protocol to use for connection (tcp, socket, pipe).",
     0, 0, 0, GET_STR,  REQUIRED_ARG, 0, 0, 0, 0, 0, 0},
   {"query", 'q', "Query to run or file containing query to run.",
     &user_supplied_query, &user_supplied_query,
     0, GET_STR, REQUIRED_ARG, 0, 0, 0, 0, 0, 0},
-#ifdef HAVE_SMEM
-  {"shared-memory-base-name", OPT_SHARED_MEMORY_BASE_NAME,
-    "Base name of shared memory.", &shared_memory_base_name,
-    &shared_memory_base_name, 0, GET_STR_ALLOC, REQUIRED_ARG,
-    0, 0, 0, 0, 0, 0},
-#endif
   {"silent", 's', "Run program in silent mode - no output.",
     &opt_silent, &opt_silent, 0, GET_BOOL,  NO_ARG,
     0, 0, 0, 0, 0, 0},
@@ -850,7 +833,7 @@ build_table_string(void)
 
   if (auto_generate_sql_guid_primary)
   {
-    dynstr_append(&table_string, "id varchar(32) primary key");
+    dynstr_append(&table_string, "id varchar(36) primary key");
 
     if (num_int_cols || num_char_cols || auto_generate_sql_guid_primary)
       dynstr_append(&table_string, ",");
@@ -865,7 +848,7 @@ build_table_string(void)
       if (count) /* Except for the first pass we add a comma */
         dynstr_append(&table_string, ",");
 
-      if (snprintf(buf, HUGE_STRING_LENGTH, "id%d varchar(32) unique key", count) 
+      if (snprintf(buf, HUGE_STRING_LENGTH, "id%d varchar(36) unique key", count)
           > HUGE_STRING_LENGTH)
       {
         fprintf(stderr, "Memory Allocation error in create table\n");

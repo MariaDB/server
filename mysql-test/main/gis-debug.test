@@ -111,3 +111,39 @@ CREATE TABLE t1 AS SELECT '0'/POINT(0,0) LIMIT 0;
 CREATE TABLE t1 AS SELECT '0' MOD POINT(0,0) LIMIT 0;
 
 SET debug_dbug='-d,num_op';
+
+--echo #
+--echo # End of 10.3 tests
+--echo #
+
+
+--echo #
+--echo # Start of 10.4 tests
+--echo #
+
+--echo #
+--echo # MDEV-16454 Bad results for IN with ROW
+--echo #
+
+SET SESSION debug_dbug="+d,cmp_item";
+SET SESSION debug_dbug="+d,Item_func_in";
+SET SESSION debug_dbug="+d,Predicant_to_list_comparator";
+
+SELECT (POINT(1,1),0) IN ((POINT(1,1),0),((POINT(1,1)),1));
+SELECT (1,(POINT(1,1),0)) IN ((1,(POINT(1,1),0)),(0,(POINT(1,1),0)));
+
+--error ER_ILLEGAL_PARAMETER_DATA_TYPES2_FOR_OPERATION
+SELECT (1,0) IN ((POINT(1,1),0),(0,0));
+SHOW WARNINGS;
+
+--error ER_ILLEGAL_PARAMETER_DATA_TYPES2_FOR_OPERATION
+SELECT (1,(0,0)) IN ((1,(POINT(1,1),0)),(0,(0,0)));
+SHOW WARNINGS;
+
+SET SESSION debug_dbug="-d,Predicant_to_list_comparator";
+SET SESSION debug_dbug="-d,Item_func_in";
+SET SESSION debug_dbug="-d,cmp_item";
+
+--echo #
+--echo # End of 10.4 tests
+--echo #

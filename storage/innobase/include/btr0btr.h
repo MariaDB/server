@@ -121,7 +121,15 @@ enum btr_latch_mode {
 	/** Attempt to purge a secondary index record
 	while holding the dict_index_t::lock S-latch. */
 	BTR_PURGE_LEAF_ALREADY_S_LATCHED = BTR_PURGE_LEAF
-	| BTR_ALREADY_S_LATCHED
+	| BTR_ALREADY_S_LATCHED,
+
+	/** In the case of BTR_MODIFY_TREE, the caller specifies
+	the intention to delete record only. It is used to optimize
+	block->lock range.*/
+	BTR_LATCH_FOR_DELETE = 65536,
+
+	/** Attempt to purge a secondary index record in the tree. */
+	BTR_PURGE_TREE = BTR_MODIFY_TREE | BTR_LATCH_FOR_DELETE
 };
 
 /** This flag ORed to btr_latch_mode says that we do the search in query
@@ -136,10 +144,6 @@ the insert buffer to speed up inserts */
 /** In the case of BTR_MODIFY_TREE, the caller specifies the intention
 to insert record only. It is used to optimize block->lock range.*/
 #define BTR_LATCH_FOR_INSERT	32768U
-
-/** In the case of BTR_MODIFY_TREE, the caller specifies the intention
-to delete record only. It is used to optimize block->lock range.*/
-#define BTR_LATCH_FOR_DELETE	65536U
 
 /** This flag is for undo insert of rtree. For rtree, we need this flag
 to find proper rec to undo insert.*/
@@ -357,19 +361,16 @@ btr_node_ptr_get_child_page_no(
 @param[in]	type			type of the index
 @param[in,out]	space			tablespace where created
 @param[in]	index_id		index id
-@param[in]	index			index, or NULL when applying TRUNCATE
-log record during recovery
-@param[in]	btr_redo_create_info	used for applying TRUNCATE log
-@param[in]	mtr			mini-transaction handle
-record during recovery
-@return page number of the created root, FIL_NULL if did not succeed */
+@param[in]	index			index
+@param[in,out]	mtr			mini-transaction
+@return	page number of the created root
+@retval	FIL_NULL	if did not succeed */
 ulint
 btr_create(
 	ulint			type,
 	fil_space_t*		space,
 	index_id_t		index_id,
 	dict_index_t*		index,
-	const btr_create_t*	btr_redo_create_info,
 	mtr_t*			mtr);
 
 /** Free a persistent index tree if it exists.

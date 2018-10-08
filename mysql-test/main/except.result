@@ -24,7 +24,7 @@ id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
 3	EXCEPT	t2	ALL	NULL	NULL	NULL	NULL	2	100.00	
 NULL	EXCEPT RESULT	<except2,3>	ALL	NULL	NULL	NULL	NULL	NULL	NULL	
 Warnings:
-Note	1003	/* select#1 */ select `a`.`a` AS `a`,`a`.`b` AS `b` from ((/* select#2 */ select `test`.`t1`.`a` AS `a`,`test`.`t1`.`b` AS `b` from `test`.`t1`) except (/* select#3 */ select `test`.`t2`.`c` AS `c`,`test`.`t2`.`d` AS `d` from `test`.`t2`)) `a`
+Note	1003	/* select#1 */ select `a`.`a` AS `a`,`a`.`b` AS `b` from (/* select#2 */ select `test`.`t1`.`a` AS `a`,`test`.`t1`.`b` AS `b` from `test`.`t1` except (/* select#3 */ select `test`.`t2`.`c` AS `c`,`test`.`t2`.`d` AS `d` from `test`.`t2`)) `a`
 EXPLAIN format=json (select a,b from t1) except (select c,d from t2);
 EXPLAIN
 {
@@ -229,7 +229,7 @@ id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
 3	EXCEPT	t4	ALL	NULL	NULL	NULL	NULL	2	100.00	Using join buffer (flat, BNL join)
 NULL	EXCEPT RESULT	<except2,3>	ALL	NULL	NULL	NULL	NULL	NULL	NULL	
 Warnings:
-Note	1003	/* select#1 */ select `a`.`a` AS `a`,`a`.`b` AS `b`,`a`.`e` AS `e`,`a`.`f` AS `f` from ((/* select#2 */ select `test`.`t1`.`a` AS `a`,`test`.`t1`.`b` AS `b`,`test`.`t3`.`e` AS `e`,`test`.`t3`.`f` AS `f` from `test`.`t1` join `test`.`t3`) except (/* select#3 */ select `test`.`t2`.`c` AS `c`,`test`.`t2`.`d` AS `d`,`test`.`t4`.`g` AS `g`,`test`.`t4`.`h` AS `h` from `test`.`t2` join `test`.`t4`)) `a`
+Note	1003	/* select#1 */ select `a`.`a` AS `a`,`a`.`b` AS `b`,`a`.`e` AS `e`,`a`.`f` AS `f` from (/* select#2 */ select `test`.`t1`.`a` AS `a`,`test`.`t1`.`b` AS `b`,`test`.`t3`.`e` AS `e`,`test`.`t3`.`f` AS `f` from `test`.`t1` join `test`.`t3` except (/* select#3 */ select `test`.`t2`.`c` AS `c`,`test`.`t2`.`d` AS `d`,`test`.`t4`.`g` AS `g`,`test`.`t4`.`h` AS `h` from `test`.`t2` join `test`.`t4`)) `a`
 EXPLAIN format=json (select a,b,e,f from t1,t3) except (select c,d,g,h from t2,t4);
 EXPLAIN
 {
@@ -500,7 +500,7 @@ a
 (select 1 from dual) except (select 1 from dual);
 1
 (select 1 from dual into @v) except (select 1 from dual);
-ERROR HY000: Incorrect usage of EXCEPT and INTO
+ERROR 42000: You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near 'into @v) except (select 1 from dual)' at line 1
 select 1 from dual ORDER BY 1 except select 1 from dual;
 ERROR 42000: You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near 'except select 1 from dual' at line 1
 select 1 as a from dual union all select 1 from dual;
@@ -508,7 +508,7 @@ a
 1
 1
 select 1 from dual except all select 1 from dual;
-ERROR HY000: Incorrect usage of EXCEPT and ALL
+ERROR 42000: You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near 'all select 1 from dual' at line 1
 create table t1 (a int, b blob, a1 int, b1 blob) engine=MyISAM;
 create table t2 (c int, d blob, c1 int, d1 blob) engine=MyISAM;
 insert into t1 values (1,"ddd", 1, "sdfrrwwww"),(2, "fgh", 2, "dffggtt");

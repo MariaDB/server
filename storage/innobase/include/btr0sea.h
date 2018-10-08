@@ -171,6 +171,9 @@ static inline bool btr_search_own_all(ulint mode);
 @retval true if owns any of them
 @retval false if owns no search latch */
 static inline bool btr_search_own_any(ulint mode);
+
+/** @return whether this thread holds any of the search latches */
+static inline bool btr_search_own_any();
 #endif /* UNIV_DEBUG */
 
 /** Unlock all search latches from shared mode. */

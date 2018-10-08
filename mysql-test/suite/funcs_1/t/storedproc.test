@@ -18861,6 +18861,7 @@ delimiter //;
 --error ER_PARSE_ERROR
 CREATE PROCEDURE sp7()
 BEGIN
+  DECLARE count INT DEFAULT 100;
   label1: loop
     set @dummystring = 'temp value';
     if count > 10 then leave label1;

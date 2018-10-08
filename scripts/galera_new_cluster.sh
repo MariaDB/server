@@ -27,4 +27,8 @@ COMPILATION_COMMENT="@COMPILATION_COMMENT@"
 systemctl set-environment _WSREP_NEW_CLUSTER='--wsrep-new-cluster' && \
     systemctl start ${1:-mariadb}
 
+extcode=$?
+
 systemctl set-environment _WSREP_NEW_CLUSTER=''
+
+return $extcode

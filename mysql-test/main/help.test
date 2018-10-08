@@ -98,10 +98,10 @@ help 'impossible_function_1';
 help 'impossible_category_1';
 ##############
 
-alter table mysql.help_relation engine=myisam;
-alter table mysql.help_keyword engine=myisam;
-alter table mysql.help_topic engine=myisam;
-alter table mysql.help_category engine=myisam;
+alter table mysql.help_relation engine=aria;
+alter table mysql.help_keyword engine=aria;
+alter table mysql.help_topic engine=aria;
+alter table mysql.help_category engine=aria;
 
 delete from mysql.help_topic where help_topic_id=@topic1_id;
 delete from mysql.help_topic where help_topic_id=@topic2_id;

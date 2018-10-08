@@ -44,6 +44,8 @@
 #include <my_dir.h>
 #include <m_ctype.h>				// For test_if_number
 
+#include <set_var.h> // for Sys_last_gtid_ptr
+
 #ifdef _WIN32
 #include "message.h"
 #endif
@@ -866,10 +868,10 @@ bool Log_to_csv_event_handler::
   Open_tables_backup open_tables_backup;
   CHARSET_INFO *client_cs= thd->variables.character_set_client;
   bool save_time_zone_used;
-  long query_time= (long) MY_MIN(query_utime/1000000, TIME_MAX_VALUE_SECONDS);
-  long lock_time=  (long) MY_MIN(lock_utime/1000000, TIME_MAX_VALUE_SECONDS);
-  long query_time_micro= (long) (query_utime % 1000000);
-  long lock_time_micro=  (long) (lock_utime % 1000000);
+  ulong query_time= (ulong) MY_MIN(query_utime/1000000, TIME_MAX_VALUE_SECONDS);
+  ulong lock_time=  (ulong) MY_MIN(lock_utime/1000000, TIME_MAX_VALUE_SECONDS);
+  ulong query_time_micro= (ulong) (query_utime % 1000000);
+  ulong lock_time_micro=  (ulong) (lock_utime % 1000000);
 
   DBUG_ENTER("Log_to_csv_event_handler::log_slow");
 
@@ -1162,6 +1164,10 @@ bool LOGGER::error_log_print(enum loglevel level, const char *format,
 {
   bool error= FALSE;
   Log_event_handler **current_handler;
+  THD *thd= current_thd;
+
+  if (likely(thd))
+    thd->error_printed_to_log= 1;
 
   /* currently we don't need locking here as there is no error_log table */
   for (current_handler= error_log_handler_list ; *current_handler ;)
@@ -2184,16 +2190,16 @@ void MYSQL_BIN_LOG::set_write_error(THD *thd, bool is_transactional)
   {
     if (is_transactional)
     {
-      my_message(ER_TRANS_CACHE_FULL, ER_THD(thd, ER_TRANS_CACHE_FULL), MYF(MY_WME));
+      my_message(ER_TRANS_CACHE_FULL, ER_THD(thd, ER_TRANS_CACHE_FULL), MYF(0));
     }
     else
     {
-      my_message(ER_STMT_CACHE_FULL, ER_THD(thd, ER_STMT_CACHE_FULL), MYF(MY_WME));
+      my_message(ER_STMT_CACHE_FULL, ER_THD(thd, ER_STMT_CACHE_FULL), MYF(0));
     }
   }
   else
   {
-    my_error(ER_ERROR_ON_WRITE, MYF(MY_WME), name, errno);
+    my_error(ER_ERROR_ON_WRITE, MYF(0), name, errno);
   }
 
   DBUG_VOID_RETURN;
@@ -2618,7 +2624,7 @@ bool MYSQL_LOG::open(
   File file= -1;
   my_off_t seek_offset;
   bool is_fifo = false;
-  int open_flags= O_CREAT | O_BINARY;
+  int open_flags= O_CREAT | O_BINARY | O_CLOEXEC;
   DBUG_ENTER("MYSQL_LOG::open");
   DBUG_PRINT("enter", ("log_type: %d", (int) log_type_arg));
 
@@ -2659,7 +2665,7 @@ bool MYSQL_LOG::open(
 #endif
 
   if ((file= mysql_file_open(log_file_key, log_file_name, open_flags,
-                             MYF(MY_WME | ME_WAITTANG))) < 0)
+                             MYF(MY_WME))) < 0)
     goto err;
 
   if (is_fifo)
@@ -2756,14 +2762,14 @@ void MYSQL_LOG::close(uint exiting)
     if (log_type == LOG_BIN && mysql_file_sync(log_file.file, MYF(MY_WME)) && ! write_error)
     {
       write_error= 1;
-      sql_print_error(ER_THD_OR_DEFAULT(current_thd, ER_ERROR_ON_WRITE), name, errno);
+      sql_print_error(ER_DEFAULT(ER_ERROR_ON_WRITE), name, errno);
     }
 
     if (!(exiting & LOG_CLOSE_DELAYED_CLOSE) &&
         mysql_file_close(log_file.file, MYF(MY_WME)) && ! write_error)
     {
       write_error= 1;
-      sql_print_error(ER_THD_OR_DEFAULT(current_thd, ER_ERROR_ON_WRITE), name, errno);
+      sql_print_error(ER_DEFAULT(ER_ERROR_ON_WRITE), name, errno);
     }
   }
 
@@ -2801,7 +2807,7 @@ int MYSQL_LOG::generate_new_name(char *new_name, const char *log_name,
       {
         THD *thd= current_thd;
         if (unlikely(thd))
-          my_error(ER_NO_UNIQUE_LOGFILE, MYF(ME_FATALERROR), log_name);
+          my_error(ER_NO_UNIQUE_LOGFILE, MYF(ME_FATAL), log_name);
         sql_print_error(ER_DEFAULT(ER_NO_UNIQUE_LOGFILE), log_name);
 	return 1;
       }
@@ -2947,7 +2953,7 @@ err:
   if (!write_error)
   {
     write_error= 1;
-    sql_print_error(ER(ER_ERROR_ON_WRITE), name, errno);
+    sql_print_error(ER_DEFAULT(ER_ERROR_ON_WRITE), name, errno);
   }
   mysql_mutex_unlock(&LOCK_log);
   return TRUE;
@@ -3355,7 +3361,7 @@ bool MYSQL_BIN_LOG::open_index_file(const char *index_file_name_arg,
             ".index", opt);
   if ((index_file_nr= mysql_file_open(m_key_file_log_index,
                                       index_file_name,
-                                      O_RDWR | O_CREAT | O_BINARY,
+                                      O_RDWR | O_CREAT | O_BINARY | O_CLOEXEC,
                                       MYF(MY_WME))) < 0 ||
        mysql_file_sync(index_file_nr, MYF(MY_WME)) ||
        init_io_cache(&index_file, index_file_nr,
@@ -4637,7 +4643,7 @@ int MYSQL_BIN_LOG::open_purge_index_file(bool destroy)
   if (!my_b_inited(&purge_index_file))
   {
     if ((file= my_open(purge_index_file_name, O_RDWR | O_CREAT | O_BINARY,
-                       MYF(MY_WME | ME_WAITTANG))) < 0  ||
+                       MYF(MY_WME))) < 0  ||
         init_io_cache(&purge_index_file, file, IO_SIZE,
                       (destroy ? WRITE_CACHE : READ_CACHE),
                       0, 0, MYF(MY_WME | MY_NABP | MY_WAIT_IF_FULL)))
@@ -5206,7 +5212,7 @@ int MYSQL_BIN_LOG::new_file_impl(bool need_lock)
         close_on_error= TRUE;
         my_printf_error(ER_ERROR_ON_WRITE,
                         ER_THD_OR_DEFAULT(current_thd, ER_CANT_OPEN_FILE),
-                        MYF(ME_FATALERROR), name, errno);
+                        MYF(ME_FATAL), name, errno);
         goto end;
       }
       bytes_written += r.data_written;
@@ -5275,7 +5281,7 @@ int MYSQL_BIN_LOG::new_file_impl(bool need_lock)
   /* handle reopening errors */
   if (unlikely(error))
   {
-    my_error(ER_CANT_OPEN_FILE, MYF(ME_FATALERROR), file_to_open, error);
+    my_error(ER_CANT_OPEN_FILE, MYF(ME_FATAL), file_to_open, error);
     close_on_error= TRUE;
   }
 
@@ -6024,7 +6030,8 @@ MYSQL_BIN_LOG::write_gtid_event(THD *thd, bool standalone,
   }
   if (err)
     DBUG_RETURN(true);
-  thd->last_commit_gtid= gtid;
+
+  thd->set_last_commit_gtid(gtid);
 
   Gtid_log_event gtid_event(thd, seq_no, domain_id, standalone,
                             LOG_EVENT_SUPPRESS_USE_F, is_transactional,
@@ -7782,10 +7789,10 @@ MYSQL_BIN_LOG::write_transaction_to_binlog_events(group_commit_entry *entry)
   switch (entry->error)
   {
   case ER_ERROR_ON_WRITE:
-    my_error(ER_ERROR_ON_WRITE, MYF(ME_NOREFRESH), name, entry->commit_errno);
+    my_error(ER_ERROR_ON_WRITE, MYF(ME_ERROR_LOG), name, entry->commit_errno);
     break;
   case ER_ERROR_ON_READ:
-    my_error(ER_ERROR_ON_READ, MYF(ME_NOREFRESH),
+    my_error(ER_ERROR_ON_READ, MYF(ME_ERROR_LOG),
              entry->error_cache->file_name, entry->commit_errno);
     break;
   default:
@@ -7796,7 +7803,7 @@ MYSQL_BIN_LOG::write_transaction_to_binlog_events(group_commit_entry *entry)
     */
     my_printf_error(entry->error,
                     "Error writing transaction to binary log: %d",
-                    MYF(ME_NOREFRESH), entry->error);
+                    MYF(ME_ERROR_LOG), entry->error);
   }
 
   /*
@@ -8019,7 +8026,7 @@ MYSQL_BIN_LOG::trx_group_commit_leader(group_commit_entry *leader)
         when the transaction has been safely committed in the engine.
       */
       leader->cache_mngr->delayed_error= true;
-      my_error(ER_ERROR_ON_WRITE, MYF(ME_NOREFRESH), name, errno);
+      my_error(ER_ERROR_ON_WRITE, MYF(ME_ERROR_LOG), name, errno);
       check_purge= false;
     }
     /* In case of binlog rotate, update the correct current binlog offset. */
@@ -8532,8 +8539,7 @@ void MYSQL_BIN_LOG::close(uint exiting)
         ! write_error)
     {
       write_error= 1;
-      sql_print_error(ER_THD_OR_DEFAULT(current_thd, ER_ERROR_ON_WRITE),
-                      index_file_name, errno);
+      sql_print_error(ER_DEFAULT(ER_ERROR_ON_WRITE), index_file_name, errno);
     }
   }
   log_state= (exiting & LOG_CLOSE_TO_BE_OPENED) ? LOG_TO_BE_OPENED : LOG_CLOSED;
@@ -8984,16 +8990,17 @@ int TC_LOG_MMAP::log_and_order(THD *thd, my_xid xid, bool all,
 #ifdef WITH_WSREP
       if (WSREP(thd) && wsrep_before_prepare(thd, all))
       {
-	//wsrep_override_error(thd, ER_ERROR_DURING_COMMIT);
-	return(0);
+        wsrep_override_error(thd, ER_LOCK_DEADLOCK);
+        return(0);
       }
       if (WSREP(thd) && wsrep_after_prepare(thd, all))
       {
-	//wsrep_override_error(thd, ER_ERROR_DURING_COMMIT);
-	return(0);
+        wsrep_override_error(thd, ER_LOCK_DEADLOCK);
+        return(0);
       }
       if (WSREP(thd) && wsrep_before_commit(thd, all))
       {
+        wsrep_override_error(thd, ER_LOCK_DEADLOCK);
         return(0);
       }
 #endif /* WITH_WSREP */
@@ -9095,14 +9102,14 @@ int TC_LOG_MMAP::open(const char *opt_name)
   tc_log_page_size= my_getpagesize();
 
   fn_format(logname,opt_name,mysql_data_home,"",MY_UNPACK_FILENAME);
-  if ((fd= mysql_file_open(key_file_tclog, logname, O_RDWR, MYF(0))) < 0)
+  if ((fd= mysql_file_open(key_file_tclog, logname, O_RDWR | O_CLOEXEC, MYF(0))) < 0)
   {
     if (my_errno != ENOENT)
       goto err;
     if (using_heuristic_recover())
       return 1;
     if ((fd= mysql_file_create(key_file_tclog, logname, CREATE_MODE,
-                               O_RDWR, MYF(MY_WME))) < 0)
+                               O_RDWR | O_CLOEXEC, MYF(MY_WME))) < 0)
       goto err;
     inited=1;
     file_length= opt_tc_log_size;

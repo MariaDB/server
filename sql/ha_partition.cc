@@ -5208,7 +5208,8 @@ int ha_partition::rnd_pos_by_record(uchar *record)
   if (unlikely(get_part_for_buf(record, m_rec0, m_part_info, &m_last_part)))
     DBUG_RETURN(1);
 
-  DBUG_RETURN(handler::rnd_pos_by_record(record));
+  int err= m_file[m_last_part]->rnd_pos_by_record(record);
+  DBUG_RETURN(err);
 }
 
 
@@ -6815,7 +6816,7 @@ FT_INFO *ha_partition::ft_init_ext(uint flags, uint inx, String *key)
                           sizeof(FT_INFO *) * m_tot_parts,
                           NullS)))
     {
-      my_error(ER_OUT_OF_RESOURCES, MYF(ME_FATALERROR));
+      my_error(ER_OUT_OF_RESOURCES, MYF(ME_FATAL));
       DBUG_RETURN(NULL);
     }
     ft_target->part_ft_info= tmp_ft_info;
@@ -10654,8 +10655,6 @@ int ha_partition::check_misplaced_rows(uint read_part_id, bool do_repair)
   {
     /* Only need to read the partitioning fields. */
     bitmap_union(table->read_set, &m_part_info->full_part_field_set);
-    if (table->vcol_set)
-      bitmap_union(table->vcol_set, &m_part_info->full_part_field_set);
   }
 
   if ((result= m_file[read_part_id]->ha_rnd_init(1)))
@@ -10916,6 +10915,18 @@ TABLE_LIST *ha_partition::get_next_global_for_child()
 }
 
 
+/**
+  Push an engine condition to the condition stack of the storage engine
+  for each partition.
+
+  @param  cond              Pointer to the engine condition to be pushed.
+
+  @return NULL              Underlying engine will not return rows that
+                            do not match the passed condition.
+          <> NULL           'Remainder' condition that the caller must use
+                            to filter out records.
+*/
+
 const COND *ha_partition::cond_push(const COND *cond)
 {
   handler **file= m_file;
@@ -10952,10 +10963,15 @@ const COND *ha_partition::cond_push(const COND *cond)
 }
 
 
+/**
+  Pop the top condition from the condition stack of the storage engine
+  for each partition.
+*/
+
 void ha_partition::cond_pop()
 {
   handler **file= m_file;
-  DBUG_ENTER("ha_partition::cond_push");
+  DBUG_ENTER("ha_partition::cond_pop");
 
   do
   {
@@ -11149,13 +11165,14 @@ int ha_partition::end_bulk_delete()
 
   SYNOPSIS
     direct_update_rows_init()
+    update fields             Pointer to the list of fields to update
 
   RETURN VALUE
     >0                        Error
     0                         Success
 */
 
-int ha_partition::direct_update_rows_init()
+int ha_partition::direct_update_rows_init(List<Item> *update_fields)
 {
   int error;
   uint i, found;
@@ -11181,8 +11198,8 @@ int ha_partition::direct_update_rows_init()
     {
       file= m_file[i];
       if (unlikely((error= (m_pre_calling ?
-                            file->pre_direct_update_rows_init() :
-                            file->direct_update_rows_init()))))
+                            file->pre_direct_update_rows_init(update_fields) :
+                            file->direct_update_rows_init(update_fields)))))
       {
         DBUG_PRINT("info", ("partition FALSE by storage engine"));
         DBUG_RETURN(error);
@@ -11220,20 +11237,21 @@ int ha_partition::direct_update_rows_init()
 
   SYNOPSIS
     pre_direct_update_rows_init()
+    update fields             Pointer to the list of fields to update
 
   RETURN VALUE
     >0                        Error
     0                         Success
 */
 
-int ha_partition::pre_direct_update_rows_init()
+int ha_partition::pre_direct_update_rows_init(List<Item> *update_fields)
 {
   bool save_m_pre_calling;
   int error;
   DBUG_ENTER("ha_partition::pre_direct_update_rows_init");
   save_m_pre_calling= m_pre_calling;
   m_pre_calling= TRUE;
-  error= direct_update_rows_init();
+  error= direct_update_rows_init(update_fields);
   m_pre_calling= save_m_pre_calling;
   DBUG_RETURN(error);
 }

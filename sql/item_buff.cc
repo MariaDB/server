@@ -225,16 +225,15 @@ Cached_item_decimal::Cached_item_decimal(Item *it)
 
 bool Cached_item_decimal::cmp()
 {
-  my_decimal tmp;
-  my_decimal *ptmp= item->val_decimal(&tmp);
-  if (null_value != item->null_value ||
-      (!item->null_value && my_decimal_cmp(&value, ptmp)))
+  VDec tmp(item);
+  if (null_value != tmp.is_null() ||
+      (!tmp.is_null() && tmp.cmp(&value)))
   {
-    null_value= item->null_value;
+    null_value= tmp.is_null();
     /* Save only not null values */
     if (!null_value)
     {
-      my_decimal2decimal(ptmp, &value);
+      my_decimal2decimal(tmp.ptr(), &value);
       return TRUE;
     }
     return FALSE;
@@ -245,17 +244,9 @@ bool Cached_item_decimal::cmp()
 
 int Cached_item_decimal::cmp_read_only()
 {
-  my_decimal tmp;
-  my_decimal *ptmp= item->val_decimal(&tmp);
+  VDec tmp(item);
   if (null_value)
-  {
-    if (item->null_value)
-      return 0;
-    else
-      return -1;
-  }
-  if (item->null_value)
-    return 1;
-  return my_decimal_cmp(&value, ptmp);
+    return tmp.is_null() ? 0 : -1;
+  return tmp.is_null() ? 1 : value.cmp(tmp.ptr());
 }
 

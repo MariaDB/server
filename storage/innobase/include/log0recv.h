@@ -139,9 +139,22 @@ bool recv_parse_log_recs(lsn_t checkpoint_lsn, store_t store, bool apply);
 /** Moves the parsing buffer data left to the buffer start. */
 void recv_sys_justify_left_parsing_buf();
 
-/** Backup function checks whether the space id belongs to
-the skip table list given in the mariabackup option. */
-extern bool(*check_if_backup_includes)(ulint space_id);
+/** Report optimized DDL operation (without redo log),
+corresponding to MLOG_INDEX_LOAD.
+@param[in]	space_id	tablespace identifier
+*/
+extern void (*log_optimized_ddl_op)(ulint space_id);
+
+/** Report an operation to create, delete, or rename a file during backup.
+@param[in]	space_id	tablespace identifier
+@param[in]	flags		tablespace flags (NULL if not create)
+@param[in]	name		file name (not NUL-terminated)
+@param[in]	len		length of name, in bytes
+@param[in]	new_name	new file name (NULL if not rename)
+@param[in]	new_len		length of new_name, in bytes (0 if NULL) */
+extern void (*log_file_op)(ulint space_id, const byte* flags,
+			   const byte* name, ulint len,
+			   const byte* new_name, ulint new_len);
 
 /** Block of log record data */
 struct recv_data_t{
@@ -167,32 +180,6 @@ struct recv_t{
 				this log record */
 	UT_LIST_NODE_T(recv_t)
 			rec_list;/*!< list of log records for this page */
-};
-
-/** States of recv_addr_t */
-enum recv_addr_state {
-	/** not yet processed */
-	RECV_NOT_PROCESSED,
-	/** page is being read */
-	RECV_BEING_READ,
-	/** log records are being applied on the page */
-	RECV_BEING_PROCESSED,
-	/** log records have been applied on the page */
-	RECV_PROCESSED,
-	/** log records have been discarded because the tablespace
-	does not exist */
-	RECV_DISCARDED
-};
-
-/** Hashed page file address struct */
-struct recv_addr_t{
-	enum recv_addr_state state;
-				/*!< recovery state of the page */
-	unsigned	space:32;/*!< space id */
-	unsigned	page_no:32;/*!< page number */
-	UT_LIST_BASE_NODE_T(recv_t)
-			rec_list;/*!< list of log records for this page */
-	hash_node_t	addr_hash;/*!< hash node in the hash bucket chain */
 };
 
 struct recv_dblwr_t {
@@ -275,6 +262,15 @@ struct recv_sys_t{
 	hash_table_t*	addr_hash;/*!< hash table of file addresses of pages */
 	ulint		n_addrs;/*!< number of not processed hashed file
 				addresses in the hash table */
+
+	/** Undo tablespaces for which truncate has been logged
+	(indexed by id - srv_undo_space_id_start) */
+	struct trunc {
+		/** log sequence number of MLOG_FILE_CREATE2, or 0 if none */
+		lsn_t		lsn;
+		/** truncated size of the tablespace, or 0 if not truncated */
+		unsigned	pages;
+	} truncated_undo_spaces[127];
 
 	recv_dblwr_t	dblwr;
 

@@ -22,7 +22,6 @@ Description=MariaDB @VERSION@ database server (multi-instance)
 Documentation=man:mysqld(8)
 Documentation=https://mariadb.com/kb/en/library/systemd/
 After=network.target
-After=syslog.target
 
 ConditionPathExists=@sysconf2dir@/my%I.cnf
 

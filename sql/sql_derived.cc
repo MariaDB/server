@@ -99,7 +99,8 @@ mysql_handle_derived(LEX *lex, uint phases)
         processed normally.
       */
       if (phases == DT_MERGE_FOR_INSERT &&
-          cursor && cursor->top_table()->select_lex != &lex->select_lex)
+          cursor && (cursor->top_table()->select_lex !=
+                     lex->first_select_lex()))
         continue;
       for (;
 	   cursor && !res;
@@ -465,9 +466,7 @@ bool mysql_derived_merge(THD *thd, LEX *lex, TABLE_LIST *derived)
       derived->prep_on_expr= expr->copy_andor_structure(thd);
     }
     if (derived->on_expr &&
-        ((!derived->on_expr->fixed &&
-          derived->on_expr->fix_fields(thd, &derived->on_expr)) ||
-          derived->on_expr->check_cols(1)))
+        derived->on_expr->fix_fields_if_needed_for_bool(thd, &derived->on_expr))
     {
       res= TRUE; /* purecov: inspected */
       goto exit_merge;

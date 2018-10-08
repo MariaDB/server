@@ -3870,6 +3870,37 @@ set optimizer_switch=@save_optimizer_switch;
 DROP TABLE t1,t4,t5,t2;
 
 --echo #
+--echo # MDEV-16603: BNLH for query with materialized semi-join
+--echo #
+
+--source include/have_innodb.inc
+
+set join_cache_level=4;
+
+CREATE TABLE t1 ( i1 int, v1 varchar(1)) ENGINE=InnoDB;
+INSERT INTO t1 VALUES (7,'x');
+
+CREATE TABLE t2 (i1 int, v1 varchar(1), KEY v1 (v1,i1)) ENGINE=InnoDB;
+
+INSERT INTO t2 VALUES
+ (NULL,'x'),(1,'x'),(3,'x'),(5,'x'),(8,'x'),(48,'x'),
+ (228,'x'),(3,'y'),(1,'z'),(9,'z');
+
+CREATE TABLE temp
+SELECT t1.i1 AS f1, t1.v1 AS f2 FROM (t2 JOIN t1 ON (t1.v1 = t2.v1));
+
+let $q =
+SELECT * FROM temp
+WHERE (f1,f2) IN (SELECT t1.i1, t1.v1 FROM (t2 JOIN t1 ON (t1.v1 = t2.v1)));
+
+eval $q;
+eval EXPLAIN EXTENDED $q;
+
+DROP TABLE t1,t2,temp;
+
+SET join_cache_level = default;
+
+--echo #
 --echo # MDEV-5123 Remove duplicated conditions pushed both to join_tab->select_cond and join_tab->cache_select->cond for blocked joins.
 --echo #
 
@@ -3958,5 +3989,4 @@ drop table t1, t2;
 set join_buffer_size = default;
 
 # The following command must be the last one the file 
-# this must be the last command in the file
 set @@optimizer_switch=@save_optimizer_switch;

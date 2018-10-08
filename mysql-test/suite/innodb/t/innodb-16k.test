@@ -3,7 +3,7 @@
 --source include/have_innodb.inc
 --source include/have_innodb_16k.inc
 
-call mtr.add_suppression("InnoDB: Cannot add field .* in table .* because after adding it, the row size is .* which is greater than maximum allowed size (.*) for a record on index leaf page.");
+call mtr.add_suppression("InnoDB: Cannot add field .* in table");
 
 let $MYSQLD_DATADIR= `select @@datadir`;
 

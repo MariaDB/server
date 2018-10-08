@@ -31,6 +31,7 @@ delete from help_category;
 delete from help_keyword;
 delete from help_relation;
 
+lock tables help_topic write, help_category write, help_keyword write, help_relation write;
 insert into help_category (help_category_id,name,parent_category_id,url) values (1,'Geographic',0,'');
 insert into help_category (help_category_id,name,parent_category_id,url) values (2,'Polygon properties',34,'');
 insert into help_category (help_category_id,name,parent_category_id,url) values (3,'WKT',34,'');
@@ -2073,3 +2074,4 @@ insert into help_relation (help_topic_id,help_keyword_id) values (209,461);
 insert into help_relation (help_topic_id,help_keyword_id) values (468,461);
 insert into help_relation (help_topic_id,help_keyword_id) values (201,462);
 insert into help_relation (help_topic_id,help_keyword_id) values (468,463);
+unlock tables;

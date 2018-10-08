@@ -1,4 +1,4 @@
-
+let $PAM_PLUGIN_VERSION= $AUTH_PAM_SO;
 --source pam_init.inc
 
 --write_file $MYSQLTEST_VARDIR/tmp/pam_good.txt
@@ -13,6 +13,12 @@ not very secret challenge
 select user(), current_user(), database();
 EOF
 
+--write_file $MYSQLTEST_VARDIR/tmp/pam_ugly.txt
+crash pam module
+666
+select user(), current_user(), database();
+EOF
+
 --echo #
 --echo # athentication is successful, challenge/pin are ok
 --echo # note that current_user() differs from user()
@@ -24,6 +30,12 @@ EOF
 --echo #
 --error 1
 --exec $MYSQL_TEST -u test_pam --plugin-dir=$plugindir < $MYSQLTEST_VARDIR/tmp/pam_bad.txt
+
+--echo #
+--echo # athentication is unsuccessful
+--echo #
+--error 1
+--exec $MYSQL_TEST -u test_pam --plugin-dir=$plugindir < $MYSQLTEST_VARDIR/tmp/pam_ugly.txt
 
 --remove_file $MYSQLTEST_VARDIR/tmp/pam_good.txt
 --remove_file $MYSQLTEST_VARDIR/tmp/pam_bad.txt

@@ -41,8 +41,7 @@ bool Item_row::fix_fields(THD *thd, Item **ref)
   Item **arg, **arg_end;
   for (arg= args, arg_end= args + arg_count; arg != arg_end ; arg++)
   {
-    if (!(*arg)->fixed &&
-        (*arg)->fix_fields(thd, arg))
+    if ((*arg)->fix_fields_if_needed(thd, arg))
       return TRUE;
     // we can't assign 'item' before, because fix_fields() can change arg
     Item *item= *arg;
@@ -61,7 +60,7 @@ bool Item_row::fix_fields(THD *thd, Item **ref)
       }
     }
     maybe_null|= item->maybe_null;
-    with_sum_func= with_sum_func || item->with_sum_func;
+    join_with_sum_func(item);
     with_window_func = with_window_func || item->with_window_func;
     with_field= with_field || item->with_field;
     m_with_subquery|= item->with_subquery();
@@ -92,7 +91,7 @@ void Item_row::cleanup()
 {
   DBUG_ENTER("Item_row::cleanup");
 
-  Item::cleanup();
+  Item_fixed_hybrid::cleanup();
   /* Reset to the original values */
   used_tables_and_const_cache_init();
   with_null= 0;

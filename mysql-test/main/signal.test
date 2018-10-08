@@ -2546,25 +2546,21 @@ end $$
 call test_signal $$
 drop procedure test_signal $$
 
+-- error ER_BAD_FIELD_ERROR
 create procedure test_signal()
 begin
   DECLARE foo CONDITION FOR SQLSTATE '12345';
   SIGNAL foo SET MYSQL_ERRNO = `65`; /* illegal */
 end $$
 
--- error ER_BAD_FIELD_ERROR
-call test_signal $$
-drop procedure test_signal $$
 
+-- error ER_BAD_FIELD_ERROR
 create procedure test_signal()
 begin
   DECLARE foo CONDITION FOR SQLSTATE '12345';
   SIGNAL foo SET MYSQL_ERRNO = `A`; /* illegal */
 end $$
 
--- error ER_BAD_FIELD_ERROR
-call test_signal $$
-drop procedure test_signal $$
 
 create procedure test_signal()
 begin
@@ -2620,16 +2616,13 @@ end $$
 call test_signal $$
 drop procedure test_signal $$
 
+-- error ER_BAD_FIELD_ERROR
 create procedure test_signal()
 begin
   DECLARE foo CONDITION FOR SQLSTATE '12345';
   SIGNAL foo SET MYSQL_ERRNO = 1000,
     MESSAGE_TEXT = `Hello`;
 end $$
-
--- error ER_BAD_FIELD_ERROR
-call test_signal $$
-drop procedure test_signal $$
 
 create procedure test_signal()
 begin

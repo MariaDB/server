@@ -638,10 +638,7 @@ EOF
 --echo # End of 10.1 tests
 --echo #
 
---error 1
---exec $MYSQL --default-character-set=utf8 -e "select 1" "test😁 " 2>&1
---error 1
---exec $MYSQL --default-character-set=binary -e "select 1" "test😁 " 2>&1
+
 --write_file $MYSQLTEST_VARDIR/tmp/mdev-6572.sql
 SET NAMES utf8;
 USE test😁 ;

@@ -208,3 +208,53 @@ END;
 /
 
 DELIMITER ;/
+
+
+--echo #
+--echo # MDEV-16464 Oracle Comp.: Sql-Error on "SELECT name, comment FROM mysql.proc"
+--echo #
+
+SET sql_mode=ORACLE;
+SELECT name, comment FROM mysql.proc WHERE db='test';
+
+CREATE TABLE comment (comment INT);
+SELECT comment FROM comment;
+SELECT comment comment FROM comment comment;
+SELECT comment AS comment FROM comment AS comment;
+DROP TABLE comment;
+
+DELIMITER /;
+DECLARE
+  comment INT;
+BEGIN
+  SELECT comment INTO comment FROM DUAL;
+END;
+/
+DELIMITER ;/
+
+DELIMITER /;
+CREATE PROCEDURE comment COMMENT 'test' AS
+BEGIN
+  SELECT 1;
+END;
+/
+BEGIN
+  comment;
+END;
+/
+DELIMITER ;/
+CALL comment();
+CALL comment;
+DROP PROCEDURE comment;
+
+DELIMITER /;
+CREATE FUNCTION comment RETURN INT COMMENT 'test' AS
+BEGIN
+  RETURN 1;
+END;
+/
+DELIMITER ;/
+enable_prepare_warnings;
+SELECT test.comment() FROM DUAL;
+disable_prepare_warnings;
+DROP FUNCTION comment;

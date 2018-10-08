@@ -82,7 +82,7 @@ void close_cached_file(IO_CACHE *cache)
 #ifdef CANT_DELETE_OPEN_FILES
       if (cache->file_name)
       {
-	(void) my_delete(cache->file_name,MYF(MY_WME | ME_NOINPUT));
+	(void) my_delete(cache->file_name, MYF(MY_WME));
 	my_free(cache->file_name);
       }
 #endif

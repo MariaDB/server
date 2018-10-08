@@ -1,0 +1,55 @@
+--source include/have_innodb.inc
+
+--echo #
+--echo # MDEV-16917: do not use splitting for derived with join cache
+--echo #
+
+CREATE TABLE t1 (
+  n1 int(10) NOT NULL,
+  n2 int(10) NOT NULL,
+  c1 char(1) NOT NULL,
+  KEY c1 (c1),
+  KEY n1_c1_n2 (n1,c1,n2)
+) ENGINE=InnoDB;
+INSERT INTO t1 VALUES (0, 2, 'a'), (1, 3, 'a');
+
+ANALYZE TABLE t1;
+
+Let $q=
+SELECT t1.n1 FROM t1, (SELECT n1, n2 FROM t1 WHERE c1 = 'a' GROUP BY n1) as t
+  WHERE t.n1 = t1.n1 AND t.n2 = t1.n2 AND c1 = 'a' GROUP BY n1;
+
+eval EXPLAIN $q;
+eval $q;
+
+DROP TABLE t1;
+
+--echo #
+--echo # MDEV-17211: splittable materialized derived joining 3 tables with
+--echo #             GROUP BY list containing fields from 2 of them
+--echo #
+
+CREATE TABLE t1 (
+  id1 int, i1 int, id2 int,
+  PRIMARY KEY (id1), KEY (i1), KEY (id2)
+) ENGINE=InnoDB;
+INSERT INTO t1 VALUES (1,1,1);
+
+CREATE TABLE t2 (id2 int, i2 int) ENGINE=InnoDB;
+INSERT INTO t2  VALUES (1, 1);
+
+CREATE TABLE t3 (id3 int, i3 int, PRIMARY KEY (id3)) ENGINE=InnoDB;
+INSERT INTO t3 VALUES (1,1);
+
+let $q=
+SELECT id3
+  FROM (SELECT t3.id3, t2.i2, t1.id2  FROM t3,t1,t2
+          WHERE t3.i3=t1.id1 AND t2.id2=t1.id2
+            GROUP BY t3.id3, t1.id2) AS t,
+        t2
+    WHERE t2.id2=t.id2;
+
+eval EXPLAIN $q;
+eval $q;
+
+DROP TABLE t1,t2,t3;

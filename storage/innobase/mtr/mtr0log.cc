@@ -1,7 +1,7 @@
 /*****************************************************************************
 
 Copyright (c) 1995, 2016, Oracle and/or its affiliates. All Rights Reserved.
-Copyright (c) 2017, MariaDB Corporation.
+Copyright (c) 2017, 2018, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -98,7 +98,11 @@ mlog_parse_initial_log_record(
 	}
 
 	*type = mlog_id_t(*ptr & ~MLOG_SINGLE_REC_FLAG);
-	ut_ad(*type <= MLOG_BIGGEST_TYPE || EXTRA_CHECK_MLOG_NUMBER(*type));
+	if (UNIV_UNLIKELY(*type > MLOG_BIGGEST_TYPE
+			  && !EXTRA_CHECK_MLOG_NUMBER(*type))) {
+		recv_sys->found_corrupt_log = true;
+		return NULL;
+	}
 
 	ptr++;
 
@@ -117,7 +121,7 @@ mlog_parse_initial_log_record(
 }
 
 /********************************************************//**
-Parses a log record written by mlog_write_ulint or mlog_write_ull.
+Parses a log record written by mlog_write_ulint, mlog_write_ull, mlog_memset.
 @return parsed record end, NULL if not a complete record or a corrupt record */
 byte*
 mlog_parse_nbytes(
@@ -133,29 +137,43 @@ mlog_parse_nbytes(
 	ulint		val;
 	ib_uint64_t	dval;
 
-	ut_a(type <= MLOG_8BYTES);
+	ut_ad(type <= MLOG_8BYTES || type == MLOG_MEMSET);
 	ut_a(!page || !page_zip
 	     || !fil_page_index_page_check(page));
 	if (end_ptr < ptr + 2) {
-
-		return(NULL);
+		return NULL;
 	}
 
 	offset = mach_read_from_2(ptr);
 	ptr += 2;
 
-	if (offset >= srv_page_size) {
-		recv_sys->found_corrupt_log = TRUE;
-
-		return(NULL);
+	if (UNIV_UNLIKELY(offset >= srv_page_size)) {
+		goto corrupt;
 	}
 
-	if (type == MLOG_8BYTES) {
+	switch (type) {
+	case MLOG_MEMSET:
+		if (end_ptr < ptr + 3) {
+			return NULL;
+		}
+		val = mach_read_from_2(ptr);
+		ptr += 2;
+		if (UNIV_UNLIKELY(offset + val > srv_page_size)) {
+			goto corrupt;
+		}
+		if (page) {
+			memset(page + offset, *ptr, val);
+			if (page_zip) {
+				memset(static_cast<page_zip_des_t*>(page_zip)
+				       ->data + offset, *ptr, val);
+			}
+		}
+		return const_cast<byte*>(++ptr);
+	case MLOG_8BYTES:
 		dval = mach_u64_parse_compressed(&ptr, end_ptr);
 
 		if (ptr == NULL) {
-
-			return(NULL);
+			return NULL;
 		}
 
 		if (page) {
@@ -167,14 +185,13 @@ mlog_parse_nbytes(
 			mach_write_to_8(page + offset, dval);
 		}
 
-		return(const_cast<byte*>(ptr));
+		return const_cast<byte*>(ptr);
+	default:
+		val = mach_parse_compressed(&ptr, end_ptr);
 	}
 
-	val = mach_parse_compressed(&ptr, end_ptr);
-
 	if (ptr == NULL) {
-
-		return(NULL);
+		return NULL;
 	}
 
 	switch (type) {
@@ -217,11 +234,11 @@ mlog_parse_nbytes(
 		break;
 	default:
 	corrupt:
-		recv_sys->found_corrupt_log = TRUE;
+		recv_sys->found_corrupt_log = true;
 		ptr = NULL;
 	}
 
-	return(const_cast<byte*>(ptr));
+	return const_cast<byte*>(ptr);
 }
 
 /********************************************************//**
@@ -403,6 +420,72 @@ mlog_parse_string(
 	}
 
 	return(ptr + len);
+}
+
+/** Initialize a string of bytes.
+@param[in,out]	b	buffer page
+@param[in]	ofs	byte offset from block->frame
+@param[in]	len	length of the data to write
+@param[in]	val	the data byte to write
+@param[in,out]	mtr	mini-transaction */
+void
+mlog_memset(buf_block_t* b, ulint ofs, ulint len, byte val, mtr_t* mtr)
+{
+	ut_ad(len);
+	ut_ad(ofs <= ulint(srv_page_size));
+	ut_ad(ofs + len <= ulint(srv_page_size));
+	memset(ofs + b->frame, val, len);
+
+	mtr->set_modified();
+	switch (mtr->get_log_mode()) {
+	case MTR_LOG_NONE:
+	case MTR_LOG_NO_REDO:
+		return;
+	case MTR_LOG_SHORT_INSERTS:
+		ut_ad(0);
+		/* fall through */
+	case MTR_LOG_ALL:
+		break;
+	}
+
+	byte* l = mtr->get_log()->open(11 + 2 + 2 + 1);
+	l = mlog_write_initial_log_record_low(
+		MLOG_MEMSET, b->page.id.space(), b->page.id.page_no(), l, mtr);
+	mach_write_to_2(l, ofs);
+	mach_write_to_2(l + 2, len);
+	l[4] = val;
+	mlog_close(mtr, l + 5);
+}
+
+/** Initialize a string of bytes.
+@param[in,out]	byte	byte address
+@param[in]	len	length of the data to write
+@param[in]	val	the data byte to write
+@param[in,out]	mtr	mini-transaction */
+void mlog_memset(byte* b, ulint len, byte val, mtr_t* mtr)
+{
+	ut_ad(len);
+	ut_ad(page_offset(b) + len <= ulint(srv_page_size));
+	memset(b, val, len);
+
+	mtr->set_modified();
+	switch (mtr->get_log_mode()) {
+	case MTR_LOG_NONE:
+	case MTR_LOG_NO_REDO:
+		return;
+	case MTR_LOG_SHORT_INSERTS:
+		ut_ad(0);
+		/* fall through */
+	case MTR_LOG_ALL:
+		break;
+	}
+
+	byte* l = mtr->get_log()->open(11 + 2 + 2 + 1);
+	l = mlog_write_initial_log_record_fast(b, MLOG_MEMSET, l, mtr);
+	mach_write_to_2(l, page_offset(b));
+	mach_write_to_2(l + 2, len);
+	l[4] = val;
+	mlog_close(mtr, l + 5);
 }
 
 /********************************************************//**

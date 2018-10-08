@@ -1,0 +1,26 @@
+--source include/have_debug.inc
+let $targetdir=$MYSQLTEST_VARDIR/tmp/backup;
+mkdir $targetdir;
+
+# this will table and populate it, after backup has list of tables to be copied
+--let after_load_tablespaces =CREATE TABLE test.t1 ENGINE=INNODB SELECT UUID() from test.seq_1_to_10000
+
+echo # xtrabackup backup;
+--disable_result_log
+exec $XTRABACKUP --defaults-file=$MYSQLTEST_VARDIR/my.cnf  --backup  --target-dir=$targetdir  --dbug=+d,mariabackup_events;
+--enable_result_log
+
+--let after_load_tables=
+
+echo # xtrabackup prepare;
+--disable_result_log
+exec $XTRABACKUP  --prepare --target-dir=$targetdir;
+-- source include/restart_and_restore.inc
+--enable_result_log
+
+# Check that new table is there after restore.
+SELECT COUNT(*) from t1;
+DROP TABLE t1;
+rmdir $targetdir;
+
+

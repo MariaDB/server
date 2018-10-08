@@ -79,7 +79,7 @@ KEY_CREATE_INFO default_key_create_info=
 ulong total_ha= 0;
 /* number of storage engines (from handlertons[]) that support 2pc */
 ulong total_ha_2pc= 0;
-#ifndef DBUG_OFF
+#ifdef DBUG_ASSERT_EXISTS
 /*
   Number of non-mandatory 2pc handlertons whose initialization failed
   to estimate total_ha_2pc value under supposition of the failures
@@ -303,7 +303,7 @@ handler *get_ha_partition(partition_info *part_info)
   }
   else
   {
-    my_error(ER_OUTOFMEMORY, MYF(ME_FATALERROR), 
+    my_error(ER_OUTOFMEMORY, MYF(ME_FATAL), 
              static_cast<int>(sizeof(ha_partition)));
   }
   DBUG_RETURN(((handler*) partition));
@@ -669,7 +669,7 @@ err_deinit:
     (void) plugin->plugin->deinit(NULL);
           
 err:
-#ifndef DBUG_OFF
+#ifdef DBUG_ASSERT_EXISTS
   if (hton->prepare && hton->state == SHOW_OPTION_YES)
     failed_ha_2pc++;
 #endif
@@ -2652,7 +2652,7 @@ int ha_delete_table(THD *thd, handlerton *table_type, const char *path,
       dummy_share.table_name= *alias;
       dummy_table.alias.set(alias->str, alias->length, table_alias_charset);
       file->change_table_ptr(&dummy_table, &dummy_share);
-      file->print_error(error, MYF(intercept ? ME_JUST_WARNING : 0));
+      file->print_error(error, MYF(intercept ? ME_WARNING : 0));
     }
     if (intercept)
       error= 0;
@@ -3182,6 +3182,45 @@ void handler::adjust_next_insert_id_after_explicit_value(ulonglong nr)
 }
 
 
+/** @brief
+  Computes the largest number X:
+  - smaller than or equal to "nr"
+  - of the form: auto_increment_offset + N * auto_increment_increment
+  where N>=0.
+
+  SYNOPSIS
+    prev_insert_id
+      nr            Number to "round down"
+      variables     variables struct containing auto_increment_increment and
+                    auto_increment_offset
+
+  RETURN
+    The number X if it exists, "nr" otherwise.
+*/
+inline ulonglong
+prev_insert_id(ulonglong nr, struct system_variables *variables)
+{
+  if (unlikely(nr < variables->auto_increment_offset))
+  {
+    /*
+      There's nothing good we can do here. That is a pathological case, where
+      the offset is larger than the column's max possible value, i.e. not even
+      the first sequence value may be inserted. User will receive warning.
+    */
+    DBUG_PRINT("info",("auto_increment: nr: %lu cannot honour "
+                       "auto_increment_offset: %lu",
+                       (ulong) nr, variables->auto_increment_offset));
+    return nr;
+  }
+  if (variables->auto_increment_increment == 1)
+    return nr; // optimization of the formula below
+  nr= (((nr - variables->auto_increment_offset)) /
+       (ulonglong) variables->auto_increment_increment);
+  return (nr * (ulonglong) variables->auto_increment_increment +
+          variables->auto_increment_offset);
+}
+
+
 /**
   Update the auto_increment field if necessary.
 
@@ -3670,7 +3709,7 @@ void handler::print_error(int error, myf errflag)
   if (ha_thd()->transaction_rollback_request)
   {
     /* Ensure this becomes a true error */
-    errflag&= ~(ME_JUST_WARNING | ME_JUST_INFO);
+    errflag&= ~(ME_WARNING | ME_NOTE);
   }
 
   int textno= -1; // impossible value
@@ -3706,8 +3745,8 @@ void handler::print_error(int error, myf errflag)
     break;
   case HA_ERR_ABORTED_BY_USER:
   {
-    DBUG_ASSERT(table->in_use->killed);
-    table->in_use->send_kill_message();
+    DBUG_ASSERT(ha_thd()->killed);
+    ha_thd()->send_kill_message();
     DBUG_VOID_RETURN;
   }
   case HA_ERR_WRONG_MRG_TABLE_DEF:
@@ -3805,14 +3844,14 @@ void handler::print_error(int error, myf errflag)
   {
     textno=ER_RECORD_FILE_FULL;
     /* Write the error message to error log */
-    errflag|= ME_NOREFRESH;
+    errflag|= ME_ERROR_LOG;
     break;
   }
   case HA_ERR_INDEX_FILE_FULL:
   {
     textno=ER_INDEX_FILE_FULL;
     /* Write the error message to error log */
-    errflag|= ME_NOREFRESH;
+    errflag|= ME_ERROR_LOG;
     break;
   }
   case HA_ERR_LOCK_WAIT_TIMEOUT:
@@ -3939,16 +3978,16 @@ void handler::print_error(int error, myf errflag)
   if (unlikely(fatal_error))
   {
     /* Ensure this becomes a true error */
-    errflag&= ~(ME_JUST_WARNING | ME_JUST_INFO);
+    errflag&= ~(ME_WARNING | ME_NOTE);
     if ((debug_assert_if_crashed_table ||
                       global_system_variables.log_warnings > 1))
     {
       /*
         Log error to log before we crash or if extended warnings are requested
       */
-      errflag|= ME_NOREFRESH;
+      errflag|= ME_ERROR_LOG;
     }
-  }    
+  }
 
   /* if we got an OS error from a file-based engine, specify a path of error */
   if (error < HA_ERR_FIRST && bas_ext()[0])
@@ -4118,7 +4157,8 @@ static bool update_frm_version(TABLE *table)
 
     int4store(version, MYSQL_VERSION_ID);
 
-    if ((result= (int)mysql_file_pwrite(file, (uchar*) version, 4, 51L, MYF_RW)))
+    if ((result= (int)mysql_file_pwrite(file, (uchar*) version, 4, 51L,
+                                        MYF(MY_WME+MY_NABP))))
       goto err;
 
     table->s->mysql_version= MYSQL_VERSION_ID;
@@ -4687,6 +4727,7 @@ handler::ha_create_partitioning_metadata(const char *name,
   DBUG_ASSERT(m_lock_type == F_UNLCK ||
               (!old_name && strcmp(name, table_share->path.str)));
 
+
   return create_partitioning_metadata(name, old_name, action_flag);
 }
 
@@ -5038,7 +5079,7 @@ int ha_create_table(THD *thd, const char *path,
   {
     if (!thd->is_error())
       my_error(ER_CANT_CREATE_TABLE, MYF(0), db, table_name, error);
-    table.file->print_error(error, MYF(ME_JUST_WARNING));
+    table.file->print_error(error, MYF(ME_WARNING));
     PSI_CALL_drop_table_share(temp_table, share.db.str, (uint)share.db.length,
                               share.table_name.str, (uint)share.table_name.length);
   }
@@ -6887,7 +6928,7 @@ int del_global_index_stats_for_table(THD *thd, uchar* cache_key, size_t cache_ke
 
 /* Remove a table from global table statistics */
 
-int del_global_table_stat(THD *thd, LEX_CSTRING *db, LEX_CSTRING *table)
+int del_global_table_stat(THD *thd, const LEX_CSTRING *db, const LEX_CSTRING *table)
 {
   TABLE_STATS *table_stats;
   int res = 0;

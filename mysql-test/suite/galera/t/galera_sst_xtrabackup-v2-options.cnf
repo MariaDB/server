@@ -8,7 +8,7 @@ wsrep_debug=ON
 [xtrabackup]
 backup-locks
 close-files
-compact
+#compact - disabled in xtrabackup 2.4, https://bugs.launchpad.net/percona-xtrabackup/+bug/1192834/comments/29
 # compression requires qpress from the Percona repositories
 # compress
 # compress-threads=2

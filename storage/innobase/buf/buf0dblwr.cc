@@ -530,10 +530,11 @@ buf_dblwr_process()
 	}
 
 	unaligned_read_buf = static_cast<byte*>(
-		ut_malloc_nokey(2U << srv_page_size_shift));
+		ut_malloc_nokey(3U << srv_page_size_shift));
 
 	read_buf = static_cast<byte*>(
 		ut_align(unaligned_read_buf, srv_page_size));
+	byte* const buf = read_buf + srv_page_size;
 
 	for (recv_dblwr_t::list::iterator i = recv_dblwr.pages.begin();
 	     i != recv_dblwr.pages.end();
@@ -555,11 +556,9 @@ buf_dblwr_process()
 
 		if (page_no >= space->size) {
 
-			/* Do not report the warning if the tablespace
-			is scheduled for truncation or was truncated
-			and we have parsed an MLOG_TRUNCATE record. */
-			if (!srv_is_tablespace_truncated(space_id)
-			    && !srv_was_tablespace_truncated(space)) {
+			/* Do not report the warning for undo
+			tablespaces, because they can be truncated in place. */
+			if (!srv_is_undo_tablespace(space_id)) {
 				ib::warn() << "A copy of page " << page_id
 					<< " in the doublewrite buffer slot "
 					<< page_no_dblwr
@@ -601,24 +600,24 @@ buf_dblwr_process()
 			ignore this page (there should be redo log
 			records to initialize it). */
 		} else {
-			if (fil_page_is_compressed_encrypted(read_buf) ||
-			    fil_page_is_compressed(read_buf)) {
-				/* Decompress the page before
-				validating the checksum. */
-				fil_decompress_page(
-					NULL, read_buf, srv_page_size,
-					NULL, true);
+			/* Decompress the page before
+			validating the checksum. */
+			ulint decomp = fil_page_decompress(buf, read_buf);
+			if (!decomp || (decomp != srv_page_size
+					&& page_size.is_compressed())) {
+				goto bad;
 			}
 
 			if (fil_space_verify_crypt_checksum(
 				    read_buf, page_size, space_id, page_no)
-			   || !buf_page_is_corrupted(
-				   true, read_buf, page_size, space)) {
+			    || !buf_page_is_corrupted(
+				    true, read_buf, page_size, space)) {
 				/* The page is good; there is no need
 				to consult the doublewrite buffer. */
 				continue;
 			}
 
+bad:
 			/* We intentionally skip this message for
 			is_all_zero pages. */
 			ib::info()
@@ -626,19 +625,16 @@ buf_dblwr_process()
 				<< " from the doublewrite buffer.";
 		}
 
-		/* Next, validate the doublewrite page. */
-		if (fil_page_is_compressed_encrypted(page) ||
-		    fil_page_is_compressed(page)) {
-			/* Decompress the page before
-			validating the checksum. */
-			fil_decompress_page(
-				NULL, page, srv_page_size, NULL, true);
+		ulint decomp = fil_page_decompress(buf, page);
+		if (!decomp || (decomp != srv_page_size
+				&& page_size.is_compressed())) {
+			goto bad_doublewrite;
 		}
-
 		if (!fil_space_verify_crypt_checksum(page, page_size,
 						     space_id, page_no)
 		    && buf_page_is_corrupted(true, page, page_size, space)) {
 			if (!is_all_zero) {
+bad_doublewrite:
 				ib::warn() << "A doublewrite copy of page "
 					<< page_id << " is corrupted.";
 			}

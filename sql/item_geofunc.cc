@@ -40,12 +40,13 @@
 #include "opt_range.h"
 
 
-void Item_geometry_func::fix_length_and_dec()
+bool Item_geometry_func::fix_length_and_dec()
 {
   collation.set(&my_charset_bin);
   decimals=0;
   max_length= (uint32) UINT_MAX32;
   maybe_null= 1;
+  return FALSE;
 }
 
 
@@ -214,11 +215,12 @@ String *Item_func_as_wkt::val_str_ascii(String *str)
 }
 
 
-void Item_func_as_wkt::fix_length_and_dec()
+bool Item_func_as_wkt::fix_length_and_dec()
 {
   collation.set(default_charset(), DERIVATION_COERCIBLE, MY_REPERTOIRE_ASCII);
   max_length= (uint32) UINT_MAX32;
   maybe_null= 1;
+  return FALSE;
 }
 
 
@@ -240,11 +242,12 @@ String *Item_func_as_wkb::val_str(String *str)
 }
 
 
-void Item_func_as_geojson::fix_length_and_dec()
+bool Item_func_as_geojson::fix_length_and_dec()
 {
   collation.set(default_charset(), DERIVATION_COERCIBLE, MY_REPERTOIRE_ASCII);
   max_length=MAX_BLOB_WIDTH;
   maybe_null= 1;
+  return FALSE;
 }
 
 
@@ -913,7 +916,7 @@ String *Item_func_point::val_str(String *str)
 
   if ((null_value= (args[0]->null_value ||
                     args[1]->null_value ||
-                    str->realloc(4/*SRID*/ + 1 + 4 + SIZEOF_STORED_DOUBLE * 2))))
+                    str->alloc(4/*SRID*/ + 1 + 4 + SIZEOF_STORED_DOUBLE * 2))))
     return 0;
 
   str->set_charset(&my_charset_bin);

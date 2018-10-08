@@ -397,10 +397,13 @@ int mysql_load(THD *thd, const sql_exchange *ex, TABLE_LIST *table_list,
   if (mysql_handle_single_derived(thd->lex, table_list, DT_MERGE_FOR_INSERT) ||
       mysql_handle_single_derived(thd->lex, table_list, DT_PREPARE))
     DBUG_RETURN(TRUE);
-  if (setup_tables_and_check_access(thd, &thd->lex->select_lex.context,
-                                    &thd->lex->select_lex.top_join_list,
+  if (setup_tables_and_check_access(thd,
+                                    &thd->lex->first_select_lex()->context,
+                                    &thd->lex->first_select_lex()->
+                                      top_join_list,
                                     table_list,
-                                    thd->lex->select_lex.leaf_tables, FALSE,
+                                    thd->lex->first_select_lex()->leaf_tables,
+                                    FALSE,
                                     INSERT_ACL | UPDATE_ACL,
                                     INSERT_ACL | UPDATE_ACL, FALSE))
      DBUG_RETURN(-1);
@@ -437,13 +440,6 @@ int mysql_load(THD *thd, const sql_exchange *ex, TABLE_LIST *table_list,
 #ifndef EMBEDDED_LIBRARY
   is_concurrent= (table_list->lock_type == TL_WRITE_CONCURRENT_INSERT);
 #endif
-
-  if (table->versioned(VERS_TIMESTAMP) && handle_duplicates == DUP_REPLACE)
-  {
-    // Additional memory may be required to create historical items.
-    if (table_list->set_insert_values(thd->mem_root))
-      DBUG_RETURN(TRUE);
-  }
 
   if (!fields_vars.elements)
   {

@@ -175,6 +175,11 @@ extern "C" uint32 wsrep_thd_wsrep_rand(THD *thd);
 extern "C" time_t wsrep_thd_query_start(THD *thd);
 extern void wsrep_close_client_connections(my_bool wait_to_end,
                                            THD *except_caller_thd = NULL);
+//extern "C" query_id_t wsrep_thd_query_id(THD *thd);
+extern "C" query_id_t wsrep_thd_wsrep_last_query_id(THD *thd);
+extern "C" void wsrep_thd_set_wsrep_last_query_id(THD *thd, query_id_t id);
+extern "C" void wsrep_set_data_home_dir(const char *data_dir);
+
 extern int  wsrep_wait_committing_connections_close(int wait_time);
 extern void wsrep_close_applier(THD *thd);
 extern void wsrep_wait_appliers_close(THD *thd);
@@ -305,6 +310,10 @@ struct THD_TRANS;
 
 extern mysql_mutex_t LOCK_wsrep_ready;
 extern mysql_cond_t  COND_wsrep_ready;
+extern mysql_mutex_t LOCK_wsrep_sst;
+extern mysql_cond_t  COND_wsrep_sst;
+extern mysql_mutex_t LOCK_wsrep_sst_init;
+extern mysql_cond_t  COND_wsrep_sst_init;
 extern int wsrep_replaying;
 extern mysql_mutex_t LOCK_wsrep_replaying;
 extern mysql_cond_t  COND_wsrep_replaying;
@@ -328,6 +337,10 @@ extern PSI_cond_key  key_COND_wsrep_thd;
 
 extern PSI_mutex_key key_LOCK_wsrep_ready;
 extern PSI_mutex_key key_COND_wsrep_ready;
+extern PSI_mutex_key key_LOCK_wsrep_sst;
+extern PSI_cond_key  key_COND_wsrep_sst;
+extern PSI_mutex_key key_LOCK_wsrep_sst_init;
+extern PSI_cond_key  key_COND_wsrep_sst_init;
 extern PSI_mutex_key key_LOCK_wsrep_sst_thread;
 extern PSI_cond_key  key_COND_wsrep_sst_thread;
 extern PSI_mutex_key key_LOCK_wsrep_replaying;
@@ -534,37 +547,35 @@ bool wsrep_node_is_synced();
    ((wsrep_forced_binlog_format != BINLOG_FORMAT_UNSPEC) ?     \
    wsrep_forced_binlog_format : my_format)
 
-#else /* WITH_WSREP */
-#ifdef OUT
-//#define WSREP(T)  (0)
-//#define WSREP_ON  (0)
-//#define WSREP_EMULATE_BINLOG(thd) (0)
-//#define WSREP_CLIENT(thd) (0)
-//#define WSREP_FORMAT(my_format) ((ulong)my_format)
-//#define WSREP_PROVIDER_EXISTS (0)
-//#define wsrep_emulate_bin_log (0)
-//#define wsrep_to_isolation (0)
-//#define wsrep_init() (1)
-//#define wsrep_prepend_PATH(X)
-//#define wsrep_before_SE() (0)
-//#define wsrep_init_startup(X)
-//#define wsrep_must_sync_wait(...) (0)
-//#define wsrep_sync_wait(...) (0)
-//#define wsrep_to_isolation_begin(...) (0)
-//#define wsrep_register_hton(...) do { } while(0)
-//#define wsrep_check_opts() (0)
-//#define wsrep_stop_replication(X) do { } while(0)
-//#define wsrep_inited (0)
-//#define wsrep_deinit(X) do { } while(0)
-//#define wsrep_recover() do { } while(0)
-//#define wsrep_slave_threads (1)
-//#define wsrep_replicate_myisam (0)
-//#define wsrep_thr_init() do {} while(0)
-//#define wsrep_thr_deinit() do {} while(0)
-//#define wsrep_running_threads (0)
-//#define WSREP_BINLOG_FORMAT(my_format) my_format
-
-#endif /* WITH_WSREP */
+#ifdef WITH_WSREP_OUT
+#define WSREP(T)  (0)
+#define WSREP_ON  (0)
+#define WSREP_EMULATE_BINLOG(thd) (0)
+#define WSREP_CLIENT(thd) (0)
+#define WSREP_FORMAT(my_format) ((ulong)my_format)
+#define WSREP_PROVIDER_EXISTS (0)
+#define wsrep_emulate_bin_log (0)
+#define wsrep_to_isolation (0)
+#define wsrep_init() (1)
+#define wsrep_prepend_PATH(X)
+#define wsrep_before_SE() (0)
+#define wsrep_init_startup(X)
+#define wsrep_must_sync_wait(...) (0)
+#define wsrep_sync_wait(...) (0)
+#define wsrep_to_isolation_begin(...) (0)
+#define wsrep_register_hton(...) do { } while(0)
+#define wsrep_check_opts() (0)
+#define wsrep_stop_replication(X) do { } while(0)
+#define wsrep_inited (0)
+#define wsrep_deinit(X) do { } while(0)
+#define wsrep_recover() do { } while(0)
+#define wsrep_slave_threads (1)
+#define wsrep_replicate_myisam (0)
+#define wsrep_thr_init() do {} while(0)
+#define wsrep_thr_deinit() do {} while(0)
+#define wsrep_running_threads (0)
+#define WSREP_BINLOG_FORMAT(my_format) my_format
+#endif
 /**
  * Check if the wsrep provider (ie the Galera library) is capable of
  * doing streaming replication.

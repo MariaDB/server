@@ -5,12 +5,9 @@ call mtr.add_suppression("InnoDB: If you are installing InnoDB, remember that yo
 call mtr.add_suppression("InnoDB: Ignoring tablespace for `test`\\.`t21` because it could not be opened");
 call mtr.add_suppression("InnoDB: Cannot open datafile for read-only: ");
 call mtr.add_suppression("Table .* in the InnoDB data dictionary has tablespace id .*, but tablespace with that id or name does not exist");
-SELECT @@GLOBAL.innodb_flush_log_at_trx_commit;
-@@GLOBAL.innodb_flush_log_at_trx_commit
-1
 CREATE TABLE t1(i INT PRIMARY KEY auto_increment, a int) ENGINE INNODB;
 ALTER TABLE t1 FORCE, ALGORITHM=INPLACE;
-# Fails during full backup
+# No longer fails during full backup
 DROP TABLE t1;
 CREATE TABLE t1(i INT PRIMARY KEY auto_increment, a int) ENGINE INNODB;
 INSERT INTO t1(a) select 1 union select 2 union select 3;

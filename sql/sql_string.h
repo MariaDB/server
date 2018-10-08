@@ -761,6 +761,17 @@ public:
 };
 
 
+class String_space: public String
+{
+public:
+  String_space(uint n)
+  {
+    if (fill(n, ' '))
+      set("", 0, &my_charset_bin);
+  }
+};
+
+
 static inline bool check_if_only_end_space(CHARSET_INFO *cs,
                                            const char *str, 
                                            const char *end)

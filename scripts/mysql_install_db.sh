@@ -237,9 +237,14 @@ cannot_find_file()
   fi
 
   echo
+  echo "If you compiledx from source, you need to either run 'make install' to"
+  echo "copy the software into the correct location ready for operation."
+  echo "If you don't want to do a full install, you can use the --srcdir"
+  echo "option to only install the mysql database and privilege tables"
+  echo
   echo "If you compiled from source, you need to either run 'make install' to"
   echo "copy the software into the correct location ready for operation."
-  echo "If you don't want to do a full install, you can use the --srcddir"
+  echo "If you don't want to do a full install, you can use the --srcdir"
   echo "option to only install the mysql database and privilege tables"
   echo
   echo "If you are using a binary release, you must either be at the top"
@@ -307,6 +312,8 @@ then
   langdir="$basedir/sql/share/english"
   srcpkgdatadir="$srcdir/scripts"
   buildpkgdatadir="$builddir/scripts"
+  plugindir="$builddir/plugin/auth_socket"
+  pamtooldir="$builddir/plugin/auth_pam"
 elif test -n "$basedir"
 then
   bindir="$basedir/bin" # only used in the help text
@@ -335,13 +342,17 @@ then
     cannot_find_file fill_help_tables.sql @pkgdata_locations@
     exit 1
   fi
+  plugindir=`find_in_dirs --dir auth_socket.so $basedir/lib*/plugin $basedir/lib*/mysql/plugin`
+  pamtooldir=$plugindir
 else
   basedir="@prefix@"
   bindir="@bindir@"
   resolveip="$bindir/resolveip"
-  mysqld="@libexecdir@/mysqld"
+  mysqld="@sbindir@/mysqld"
   srcpkgdatadir="@pkgdatadir@"
   buildpkgdatadir="@pkgdatadir@"
+  plugindir="@pkgplugindir@"
+  pamtooldir="@pkgplugindir@"
 fi
 
 # Set up paths to SQL scripts required for bootstrap
@@ -442,6 +453,23 @@ done
 
 if test -n "$user"
 then
+  chown $user "$pamtooldir/auth_pam_tool_dir"
+  if test $? -ne 0
+  then
+      echo "Cannot change ownership of the '$pamtooldir/auth_pam_tool_dir' directory"
+      echo " to the '$user' user. Check that you have the necessary permissions and try again."
+      exit 1
+  fi
+  if test -z "$srcdir"
+  then
+    chown 0 "$pamtooldir/auth_pam_tool_dir/auth_pam_tool"
+    if test $? -ne 0
+    then
+        echo "Couldn't set an owner to '$pamtooldir/auth_pam_tool_dir/auth_pam_tool'."
+        echo " It must be root, the PAM authentication plugin doesn't work otherwise.."
+        echo
+    fi
+  fi
   args="$args --user=$user"
 fi
 
@@ -461,6 +489,7 @@ mysqld_install_cmd_line()
 {
   "$mysqld_bootstrap" $defaults $defaults_group_suffix "$mysqld_opt" --bootstrap $silent_startup\
   "--basedir=$basedir" "--datadir=$ldata" --log-warnings=0 --enforce-storage-engine="" \
+  "--plugin-dir=${plugindir}" \
   $args --max_allowed_packet=8M \
   --net_buffer_length=16K
 }
@@ -538,19 +567,24 @@ then
   s_echo "To start mysqld at boot time you have to copy"
   s_echo "support-files/mysql.server to the right place for your system"
 
-  echo
-  echo "PLEASE REMEMBER TO SET A PASSWORD FOR THE MariaDB root USER !"
-  echo "To do so, start the server, then issue the following commands:"
-  echo
-  echo "'$bindir/mysqladmin' -u root password 'new-password'"
-  echo "'$bindir/mysqladmin' -u root -h $hostname password 'new-password'"
-  echo
-  echo "Alternatively you can run:"
-  echo "'$bindir/mysql_secure_installation'"
-  echo
-  echo "which will also give you the option of removing the test"
-  echo "databases and anonymous user created by default.  This is"
-  echo "strongly recommended for production servers."
+  if test "$auth_root_authentication_method" = normal
+  then
+    echo
+    echo
+    echo "PLEASE REMEMBER TO SET A PASSWORD FOR THE MariaDB root USER !"
+    echo "To do so, start the server, then issue the following commands:"
+    echo
+    echo "'$bindir/mysqladmin' -u root password 'new-password'"
+    echo "'$bindir/mysqladmin' -u root -h $hostname password 'new-password'"
+    echo
+    echo "Alternatively you can run:"
+    echo "'$bindir/mysql_secure_installation'"
+    echo
+    echo "which will also give you the option of removing the test"
+    echo "databases and anonymous user created by default.  This is"
+    echo "strongly recommended for production servers."
+  fi
+
   echo
   echo "See the MariaDB Knowledgebase at http://mariadb.com/kb or the"
   echo "MySQL manual for more instructions."

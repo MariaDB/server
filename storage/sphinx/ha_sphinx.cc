@@ -2746,7 +2746,9 @@ const Item * ha_sphinx::cond_push ( const Item *cond )
 		if ( !m_pShare->m_bSphinxQL )
 		{
 			// on non-QL tables, intercept query=value condition for SELECT
-			if (!( args[0]->type()==Item::FIELD_ITEM && args[1]->type()==Item::STRING_ITEM ))
+			if (!( args[0]->type()==Item::FIELD_ITEM &&
+			       args[1]->is_of_type(Item::CONST_ITEM,
+			                           STRING_RESULT)))
 				break;
 
 			Item_field * pField = (Item_field *) args[0];
@@ -2762,7 +2764,9 @@ const Item * ha_sphinx::cond_push ( const Item *cond )
 
 		} else
 		{
-			if (!( args[0]->type()==Item::FIELD_ITEM && args[1]->type()==Item::INT_ITEM ))
+			if (!( args[0]->type()==Item::FIELD_ITEM &&
+			       args[1]->is_of_type(Item::CONST_ITEM,
+			                           INT_RESULT)))
 				break;
 
 			// on QL tables, intercept id=value condition for DELETE
@@ -3441,7 +3445,7 @@ int ha_sphinx::create ( const char * name, TABLE * table_arg, HA_CREATE_INFO * )
 		if (
 			table_arg->s->keys!=1 ||
 			table_arg->key_info[0].user_defined_key_parts!=1 ||
-			strcasecmp ( table_arg->key_info[0].key_part[0].field->field_name.str, table->field[2]->field_name.str ) )
+			strcasecmp ( table_arg->key_info[0].key_part[0].field->field_name.str, table_arg->field[2]->field_name.str ) )
 		{
 			my_snprintf ( sError, sizeof(sError), "%s: there must be an index on '%s' column",
 				name, table_arg->field[2]->field_name.str );

@@ -749,9 +749,10 @@ Options
 --help             Show this help and exit.
 --abort-on-error   Abort at once in case of error.
 --number-of-tests  Print the total number of tests and exit.
---run-tests=...    Test number(s) that should be run. You can give just
-                   one number or a range. For example 45..89. To run a specific
-                   test alone, for example test 215, use --run-tests=215..215
+--run-tests=...    Test range that should be run. You can give just
+                   one number, to start tests from this test, or a range.
+                   For example 45..89. To run a specific test alone,
+                   for example test 215, use --run-tests=215..215
                    Use this option with caution, because some of the tests
                    might depend on previous ones.
 --start-from=...   Alias for --run-tests

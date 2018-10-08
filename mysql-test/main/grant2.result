@@ -372,8 +372,8 @@ mysqltest_1@127.0.0.1
 set password = password('changed');
 disconnect b12302;
 connection default;
-select host, length(password) from mysql.user where user like 'mysqltest\_1';
-host	length(password)
+select host, length(authentication_string) from mysql.user where user like 'mysqltest\_1';
+host	length(authentication_string)
 127.0.0.1	41
 revoke all on mysqltest_1.* from mysqltest_1@'127.0.0.1';
 delete from mysql.user where user like 'mysqltest\_1';
@@ -387,8 +387,8 @@ mysqltest_1@127.0.0.0/255.0.0.0
 set password = password('changed');
 disconnect b12302_2;
 connection default;
-select host, length(password) from mysql.user where user like 'mysqltest\_1';
-host	length(password)
+select host, length(authentication_string) from mysql.user where user like 'mysqltest\_1';
+host	length(authentication_string)
 127.0.0.0/255.0.0.0	41
 revoke all on mysqltest_1.* from mysqltest_1@'127.0.0.0/255.0.0.0';
 delete from mysql.user where user like 'mysqltest\_1';
@@ -462,6 +462,8 @@ INSERT INTO t2 VALUES (1);
 DROP FUNCTION IF EXISTS f2;
 CREATE FUNCTION f2 () RETURNS INT
 BEGIN DECLARE v INT; SELECT s1 FROM t2 INTO v; RETURN v; END//
+Warnings:
+Warning	1287	'<select expression> INTO <destination>;' is deprecated and will be removed in a future release. Please use 'SELECT <select list> INTO <destination> FROM...' instead
 SELECT f2();
 f2()
 1
@@ -554,6 +556,8 @@ USE mysql;
 SELECT LEFT(CURRENT_USER(),INSTR(CURRENT_USER(),'@')-1) INTO @u;
 SELECT MID(CURRENT_USER(),INSTR(CURRENT_USER(),'@')+1)  INTO @h;
 SELECT password FROM user WHERE user=@u AND host=@h INTO @pwd;
+Warnings:
+Warning	1287	'<select expression> INTO <destination>;' is deprecated and will be removed in a future release. Please use 'SELECT <select list> INTO <destination> FROM...' instead
 SELECT user,host,password,insert_priv FROM user WHERE user=@u AND host=@h;
 user	host	password	insert_priv
 root	localhost		Y

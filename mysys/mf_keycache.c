@@ -576,7 +576,7 @@ int init_simple_key_cache(SIMPLE_KEY_CACHE_CB *keycache,
       if (blocks < 8)
       {
         my_errno= ENOMEM;
-        my_error(EE_OUTOFMEMORY, MYF(ME_FATALERROR),
+        my_error(EE_OUTOFMEMORY, MYF(ME_FATAL),
                  blocks * keycache->key_cache_block_size);
         goto err;
       }

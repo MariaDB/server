@@ -27,6 +27,7 @@
 #include "sql_array.h"         // Dynamic_array
 #include "log_event.h"         // Query_log_event
 #include "sql_derived.h"       // mysql_handle_derived
+#include "sql_cte.h"
 #include "sql_select.h"        // Virtual_tmp_table
 
 #ifdef USE_PRAGMA_IMPLEMENTATION
@@ -70,35 +71,9 @@ static void reset_start_time_for_sp(THD *thd)
 }
 
 
-Item::Type
-sp_map_item_type(const Type_handler *handler)
-{
-  if (handler == &type_handler_row)
-    return Item::ROW_ITEM;
-
-  switch (handler->real_field_type()) {
-  case MYSQL_TYPE_BIT:
-  case MYSQL_TYPE_TINY:
-  case MYSQL_TYPE_SHORT:
-  case MYSQL_TYPE_LONG:
-  case MYSQL_TYPE_LONGLONG:
-  case MYSQL_TYPE_INT24:
-    return Item::INT_ITEM;
-  case MYSQL_TYPE_DECIMAL:
-  case MYSQL_TYPE_NEWDECIMAL:
-    return Item::DECIMAL_ITEM;
-  case MYSQL_TYPE_FLOAT:
-  case MYSQL_TYPE_DOUBLE:
-    return Item::REAL_ITEM;
-  default:
-    return Item::STRING_ITEM;
-  }
-}
-
-
 bool Item_splocal::append_for_log(THD *thd, String *str)
 {
-  if (fix_fields(thd, NULL))
+  if (fix_fields_if_needed(thd, NULL))
     return true;
 
   if (limit_clause_param)
@@ -136,7 +111,7 @@ bool Item_splocal::append_value_for_log(THD *thd, String *str)
 
 bool Item_splocal_row_field::append_for_log(THD *thd, String *str)
 {
-  if (fix_fields(thd, NULL))
+  if (fix_fields_if_needed(thd, NULL))
     return true;
 
   if (limit_clause_param)
@@ -316,7 +291,7 @@ sp_get_flags_for_command(LEX *lex)
        - EXPLAIN DELETE ...
        - ANALYZE DELETE ...
     */
-    if (lex->select_lex.item_list.is_empty() &&
+    if (lex->first_select_lex()->item_list.is_empty() &&
         !lex->describe && !lex->analyze_stmt)
       flags= 0;
     else
@@ -372,16 +347,14 @@ Item *THD::sp_prepare_func_item(Item **it_addr, uint cols)
 Item *THD::sp_fix_func_item(Item **it_addr)
 {
   DBUG_ENTER("THD::sp_fix_func_item");
-  if (!(*it_addr)->fixed &&
-      (*it_addr)->fix_fields(this, it_addr))
+  if ((*it_addr)->fix_fields_if_needed(this, it_addr))
   {
     DBUG_PRINT("info", ("fix_fields() failed"));
     DBUG_RETURN(NULL);
   }
   it_addr= (*it_addr)->this_item_addr(this, it_addr);
 
-  if (!(*it_addr)->fixed &&
-      (*it_addr)->fix_fields(this, it_addr))
+  if ((*it_addr)->fix_fields_if_needed(this, it_addr))
   {
     DBUG_PRINT("info", ("fix_fields() failed"));
     DBUG_RETURN(NULL);
@@ -1414,7 +1387,7 @@ sp_head::execute(THD *thd, bool merge_da_on_success)
   /* Only pop cursors when we're done with group aggregate running. */
   if (m_chistics.agg_type != GROUP_AGGREGATE ||
       (m_chistics.agg_type == GROUP_AGGREGATE && thd->spcont->quit_func))
-    thd->spcont->pop_all_cursors(); // To avoid memory leaks after an error
+    thd->spcont->pop_all_cursors(thd); // To avoid memory leaks after an error
 
   /* Restore all saved */
   if (m_chistics.agg_type == GROUP_AGGREGATE)
@@ -1929,7 +1902,7 @@ sp_head::execute_function(THD *thd, Item **argp, uint argcount,
   for (arg_no= 0; arg_no < argcount; arg_no++)
   {
     /* Arguments must be fixed in Item_func_sp::fix_fields */
-    DBUG_ASSERT(argp[arg_no]->fixed);
+    DBUG_ASSERT(argp[arg_no]->is_fixed());
 
     if ((err_status= (*func_ctx)->set_parameter(thd, arg_no, &(argp[arg_no]))))
       goto err_with_cleanup;
@@ -2299,6 +2272,7 @@ sp_head::execute_procedure(THD *thd, List<Item> *args)
   if (!err_status)
   {
     err_status= execute(thd, TRUE);
+    DBUG_PRINT("info", ("execute returned %d", (int) err_status));
   }
 
   if (save_log_general)
@@ -2744,7 +2718,6 @@ sp_head::restore_thd_mem_root(THD *thd)
   Item *flist= free_list;	// The old list
   set_query_arena(thd);         // Get new free_list and mem_root
   state= STMT_INITIALIZED_FOR_SP;
-  is_stored_procedure= true;
 
   DBUG_PRINT("info", ("mem_root %p returned from thd mem root %p",
                       &mem_root, &thd->mem_root));
@@ -3322,7 +3295,8 @@ sp_lex_keeper::reset_lex_and_exec_core(THD *thd, uint *nextp,
 #endif
 
   if (open_tables)
-    res= instr->exec_open_and_lock_tables(thd, m_lex->query_tables);
+    res= check_dependencies_in_with_clauses(m_lex->with_clauses_list) ||
+         instr->exec_open_and_lock_tables(thd, m_lex->query_tables);
 
   if (likely(!res))
   {
@@ -4054,7 +4028,7 @@ sp_instr_hpush_jump::execute(THD *thd, uint *nextp)
 {
   DBUG_ENTER("sp_instr_hpush_jump::execute");
 
-  int ret= thd->spcont->push_handler(m_handler, m_ip + 1);
+  int ret= thd->spcont->push_handler(this);
 
   *nextp= m_dest;
 
@@ -4213,11 +4187,13 @@ sp_instr_cpush::execute(THD *thd, uint *nextp)
 {
   DBUG_ENTER("sp_instr_cpush::execute");
 
-  int ret= thd->spcont->push_cursor(thd, &m_lex_keeper);
+  sp_cursor::reset(thd, &m_lex_keeper);
+  m_lex_keeper.disable_query_cache();
+  thd->spcont->push_cursor(this);
 
   *nextp= m_ip+1;
 
-  DBUG_RETURN(ret);
+  DBUG_RETURN(false);
 }
 
 
@@ -4251,7 +4227,7 @@ int
 sp_instr_cpop::execute(THD *thd, uint *nextp)
 {
   DBUG_ENTER("sp_instr_cpop::execute");
-  thd->spcont->pop_cursors(m_count);
+  thd->spcont->pop_cursors(thd, m_count);
   *nextp= m_ip+1;
   DBUG_RETURN(0);
 }
@@ -4532,7 +4508,7 @@ void
 sp_instr_cursor_copy_struct::print(String *str)
 {
   sp_variable *var= m_ctx->find_variable(m_var);
-  const LEX_CSTRING *name= m_lex_keeper.cursor_name();
+  const LEX_CSTRING *name= m_ctx->find_cursor(m_cursor);
   str->append(STRING_WITH_LEN("cursor_copy_struct "));
   str->append(name);
   str->append(' ');
@@ -4599,7 +4575,7 @@ sp_instr_set_case_expr::exec_core(THD *thd, uint *nextp)
         thd->spcont->set_case_expr(thd, m_case_expr_id, &null_item))
     {
       /* If this also failed, we have to abort. */
-      my_error(ER_OUT_OF_RESOURCES, MYF(ME_FATALERROR));
+      my_error(ER_OUT_OF_RESOURCES, MYF(ME_FATAL));
     }
   }
   else
@@ -5027,7 +5003,8 @@ bool sp_head::add_for_loop_open_cursor(THD *thd, sp_pcontext *spcont,
 
   sp_instr *instr_copy_struct=
     new (thd->mem_root) sp_instr_cursor_copy_struct(instructions(),
-                                                    spcont, pcursor->lex(),
+                                                    spcont, coffset,
+                                                    pcursor->lex(),
                                                     index->offset);
   if (instr_copy_struct == NULL || add_instr(instr_copy_struct))
     return true;

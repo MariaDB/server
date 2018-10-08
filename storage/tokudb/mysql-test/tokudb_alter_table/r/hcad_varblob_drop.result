@@ -22,9 +22,17 @@ insert into foo values ("rewoiu","fds","fr","oiufdsrew",NULL,"oifds",NULL,"fdsjf
 insert into foo values ("rewoiu","fds","fr","oiufdsrew","rewoiu","fds","fr","oiufdsrew");
 insert into bar select * from foo;
 include/diff_tables.inc [test.foo, test.bar]
+Warnings:
+Warning	1287	'<select expression> INTO <destination>;' is deprecated and will be removed in a future release. Please use 'SELECT <select list> INTO <destination> FROM...' instead
+Warnings:
+Warning	1287	'<select expression> INTO <destination>;' is deprecated and will be removed in a future release. Please use 'SELECT <select list> INTO <destination> FROM...' instead
 alter table foo drop column aa;
 alter table bar drop column aa;
 include/diff_tables.inc [test.foo, test.bar]
+Warnings:
+Warning	1287	'<select expression> INTO <destination>;' is deprecated and will be removed in a future release. Please use 'SELECT <select list> INTO <destination> FROM...' instead
+Warnings:
+Warning	1287	'<select expression> INTO <destination>;' is deprecated and will be removed in a future release. Please use 'SELECT <select list> INTO <destination> FROM...' instead
 drop table foo;
 drop table bar;
 create table foo (aa blob, bb longblob, cc tinyblob, dd mediumblob, aaa varchar(12), bbb varbinary(20), ccc varchar(50), ddd varchar(3000)) engine=TokuDB;
@@ -48,9 +56,17 @@ insert into foo values ("rewoiu","fds","fr","oiufdsrew",NULL,"oifds",NULL,"fdsjf
 insert into foo values ("rewoiu","fds","fr","oiufdsrew","rewoiu","fds","fr","oiufdsrew");
 insert into bar select * from foo;
 include/diff_tables.inc [test.foo, test.bar]
+Warnings:
+Warning	1287	'<select expression> INTO <destination>;' is deprecated and will be removed in a future release. Please use 'SELECT <select list> INTO <destination> FROM...' instead
+Warnings:
+Warning	1287	'<select expression> INTO <destination>;' is deprecated and will be removed in a future release. Please use 'SELECT <select list> INTO <destination> FROM...' instead
 alter table foo drop column bb;
 alter table bar drop column bb;
 include/diff_tables.inc [test.foo, test.bar]
+Warnings:
+Warning	1287	'<select expression> INTO <destination>;' is deprecated and will be removed in a future release. Please use 'SELECT <select list> INTO <destination> FROM...' instead
+Warnings:
+Warning	1287	'<select expression> INTO <destination>;' is deprecated and will be removed in a future release. Please use 'SELECT <select list> INTO <destination> FROM...' instead
 drop table foo;
 drop table bar;
 create table foo (aa blob, bb longblob, cc tinyblob, dd mediumblob, aaa varchar(12), bbb varbinary(20), ccc varchar(50), ddd varchar(3000)) engine=TokuDB;
@@ -74,9 +90,17 @@ insert into foo values ("rewoiu","fds","fr","oiufdsrew",NULL,"oifds",NULL,"fdsjf
 insert into foo values ("rewoiu","fds","fr","oiufdsrew","rewoiu","fds","fr","oiufdsrew");
 insert into bar select * from foo;
 include/diff_tables.inc [test.foo, test.bar]
+Warnings:
+Warning	1287	'<select expression> INTO <destination>;' is deprecated and will be removed in a future release. Please use 'SELECT <select list> INTO <destination> FROM...' instead
+Warnings:
+Warning	1287	'<select expression> INTO <destination>;' is deprecated and will be removed in a future release. Please use 'SELECT <select list> INTO <destination> FROM...' instead
 alter table foo drop column cc;
 alter table bar drop column cc;
 include/diff_tables.inc [test.foo, test.bar]
+Warnings:
+Warning	1287	'<select expression> INTO <destination>;' is deprecated and will be removed in a future release. Please use 'SELECT <select list> INTO <destination> FROM...' instead
+Warnings:
+Warning	1287	'<select expression> INTO <destination>;' is deprecated and will be removed in a future release. Please use 'SELECT <select list> INTO <destination> FROM...' instead
 drop table foo;
 drop table bar;
 create table foo (aa blob, bb longblob, cc tinyblob, dd mediumblob, aaa varchar(12), bbb varbinary(20), ccc varchar(50), ddd varchar(3000)) engine=TokuDB;
@@ -100,9 +124,17 @@ insert into foo values ("rewoiu","fds","fr","oiufdsrew",NULL,"oifds",NULL,"fdsjf
 insert into foo values ("rewoiu","fds","fr","oiufdsrew","rewoiu","fds","fr","oiufdsrew");
 insert into bar select * from foo;
 include/diff_tables.inc [test.foo, test.bar]
+Warnings:
+Warning	1287	'<select expression> INTO <destination>;' is deprecated and will be removed in a future release. Please use 'SELECT <select list> INTO <destination> FROM...' instead
+Warnings:
+Warning	1287	'<select expression> INTO <destination>;' is deprecated and will be removed in a future release. Please use 'SELECT <select list> INTO <destination> FROM...' instead
 alter table foo drop column dd;
 alter table bar drop column dd;
 include/diff_tables.inc [test.foo, test.bar]
+Warnings:
+Warning	1287	'<select expression> INTO <destination>;' is deprecated and will be removed in a future release. Please use 'SELECT <select list> INTO <destination> FROM...' instead
+Warnings:
+Warning	1287	'<select expression> INTO <destination>;' is deprecated and will be removed in a future release. Please use 'SELECT <select list> INTO <destination> FROM...' instead
 drop table foo;
 drop table bar;
 create table foo (aa blob, bb longblob, cc tinyblob, dd mediumblob, aaa varchar(12), bbb varbinary(20), ccc varchar(50), ddd varchar(3000)) engine=TokuDB;
@@ -126,9 +158,17 @@ insert into foo values ("rewoiu","fds","fr","oiufdsrew",NULL,"oifds",NULL,"fdsjf
 insert into foo values ("rewoiu","fds","fr","oiufdsrew","rewoiu","fds","fr","oiufdsrew");
 insert into bar select * from foo;
 include/diff_tables.inc [test.foo, test.bar]
+Warnings:
+Warning	1287	'<select expression> INTO <destination>;' is deprecated and will be removed in a future release. Please use 'SELECT <select list> INTO <destination> FROM...' instead
+Warnings:
+Warning	1287	'<select expression> INTO <destination>;' is deprecated and will be removed in a future release. Please use 'SELECT <select list> INTO <destination> FROM...' instead
 alter table foo drop column aaa;
 alter table bar drop column aaa;
 include/diff_tables.inc [test.foo, test.bar]
+Warnings:
+Warning	1287	'<select expression> INTO <destination>;' is deprecated and will be removed in a future release. Please use 'SELECT <select list> INTO <destination> FROM...' instead
+Warnings:
+Warning	1287	'<select expression> INTO <destination>;' is deprecated and will be removed in a future release. Please use 'SELECT <select list> INTO <destination> FROM...' instead
 drop table foo;
 drop table bar;
 create table foo (aa blob, bb longblob, cc tinyblob, dd mediumblob, aaa varchar(12), bbb varbinary(20), ccc varchar(50), ddd varchar(3000)) engine=TokuDB;
@@ -152,9 +192,17 @@ insert into foo values ("rewoiu","fds","fr","oiufdsrew",NULL,"oifds",NULL,"fdsjf
 insert into foo values ("rewoiu","fds","fr","oiufdsrew","rewoiu","fds","fr","oiufdsrew");
 insert into bar select * from foo;
 include/diff_tables.inc [test.foo, test.bar]
+Warnings:
+Warning	1287	'<select expression> INTO <destination>;' is deprecated and will be removed in a future release. Please use 'SELECT <select list> INTO <destination> FROM...' instead
+Warnings:
+Warning	1287	'<select expression> INTO <destination>;' is deprecated and will be removed in a future release. Please use 'SELECT <select list> INTO <destination> FROM...' instead
 alter table foo drop column bbb;
 alter table bar drop column bbb;
 include/diff_tables.inc [test.foo, test.bar]
+Warnings:
+Warning	1287	'<select expression> INTO <destination>;' is deprecated and will be removed in a future release. Please use 'SELECT <select list> INTO <destination> FROM...' instead
+Warnings:
+Warning	1287	'<select expression> INTO <destination>;' is deprecated and will be removed in a future release. Please use 'SELECT <select list> INTO <destination> FROM...' instead
 drop table foo;
 drop table bar;
 create table foo (aa blob, bb longblob, cc tinyblob, dd mediumblob, aaa varchar(12), bbb varbinary(20), ccc varchar(50), ddd varchar(3000)) engine=TokuDB;
@@ -178,9 +226,17 @@ insert into foo values ("rewoiu","fds","fr","oiufdsrew",NULL,"oifds",NULL,"fdsjf
 insert into foo values ("rewoiu","fds","fr","oiufdsrew","rewoiu","fds","fr","oiufdsrew");
 insert into bar select * from foo;
 include/diff_tables.inc [test.foo, test.bar]
+Warnings:
+Warning	1287	'<select expression> INTO <destination>;' is deprecated and will be removed in a future release. Please use 'SELECT <select list> INTO <destination> FROM...' instead
+Warnings:
+Warning	1287	'<select expression> INTO <destination>;' is deprecated and will be removed in a future release. Please use 'SELECT <select list> INTO <destination> FROM...' instead
 alter table foo drop column ccc;
 alter table bar drop column ccc;
 include/diff_tables.inc [test.foo, test.bar]
+Warnings:
+Warning	1287	'<select expression> INTO <destination>;' is deprecated and will be removed in a future release. Please use 'SELECT <select list> INTO <destination> FROM...' instead
+Warnings:
+Warning	1287	'<select expression> INTO <destination>;' is deprecated and will be removed in a future release. Please use 'SELECT <select list> INTO <destination> FROM...' instead
 drop table foo;
 drop table bar;
 create table foo (aa blob, bb longblob, cc tinyblob, dd mediumblob, aaa varchar(12), bbb varbinary(20), ccc varchar(50), ddd varchar(3000)) engine=TokuDB;
@@ -204,9 +260,17 @@ insert into foo values ("rewoiu","fds","fr","oiufdsrew",NULL,"oifds",NULL,"fdsjf
 insert into foo values ("rewoiu","fds","fr","oiufdsrew","rewoiu","fds","fr","oiufdsrew");
 insert into bar select * from foo;
 include/diff_tables.inc [test.foo, test.bar]
+Warnings:
+Warning	1287	'<select expression> INTO <destination>;' is deprecated and will be removed in a future release. Please use 'SELECT <select list> INTO <destination> FROM...' instead
+Warnings:
+Warning	1287	'<select expression> INTO <destination>;' is deprecated and will be removed in a future release. Please use 'SELECT <select list> INTO <destination> FROM...' instead
 alter table foo drop column ddd;
 alter table bar drop column ddd;
 include/diff_tables.inc [test.foo, test.bar]
+Warnings:
+Warning	1287	'<select expression> INTO <destination>;' is deprecated and will be removed in a future release. Please use 'SELECT <select list> INTO <destination> FROM...' instead
+Warnings:
+Warning	1287	'<select expression> INTO <destination>;' is deprecated and will be removed in a future release. Please use 'SELECT <select list> INTO <destination> FROM...' instead
 drop table foo;
 drop table bar;
 create table foo (aa blob, bb longblob, cc tinyblob, dd mediumblob, aaa varchar(12), bbb varbinary(20), ccc varchar(50), ddd varchar(3000)) engine=TokuDB;
@@ -230,9 +294,17 @@ insert into foo values ("rewoiu","fds","fr","oiufdsrew",NULL,"oifds",NULL,"fdsjf
 insert into foo values ("rewoiu","fds","fr","oiufdsrew","rewoiu","fds","fr","oiufdsrew");
 insert into bar select * from foo;
 include/diff_tables.inc [test.foo, test.bar]
+Warnings:
+Warning	1287	'<select expression> INTO <destination>;' is deprecated and will be removed in a future release. Please use 'SELECT <select list> INTO <destination> FROM...' instead
+Warnings:
+Warning	1287	'<select expression> INTO <destination>;' is deprecated and will be removed in a future release. Please use 'SELECT <select list> INTO <destination> FROM...' instead
 alter table foo drop column aa, drop column bb;
 alter table bar drop column aa, drop column bb;
 include/diff_tables.inc [test.foo, test.bar]
+Warnings:
+Warning	1287	'<select expression> INTO <destination>;' is deprecated and will be removed in a future release. Please use 'SELECT <select list> INTO <destination> FROM...' instead
+Warnings:
+Warning	1287	'<select expression> INTO <destination>;' is deprecated and will be removed in a future release. Please use 'SELECT <select list> INTO <destination> FROM...' instead
 drop table foo;
 drop table bar;
 create table foo (aa blob, bb longblob, cc tinyblob, dd mediumblob, aaa varchar(12), bbb varbinary(20), ccc varchar(50), ddd varchar(3000)) engine=TokuDB;
@@ -256,9 +328,17 @@ insert into foo values ("rewoiu","fds","fr","oiufdsrew",NULL,"oifds",NULL,"fdsjf
 insert into foo values ("rewoiu","fds","fr","oiufdsrew","rewoiu","fds","fr","oiufdsrew");
 insert into bar select * from foo;
 include/diff_tables.inc [test.foo, test.bar]
+Warnings:
+Warning	1287	'<select expression> INTO <destination>;' is deprecated and will be removed in a future release. Please use 'SELECT <select list> INTO <destination> FROM...' instead
+Warnings:
+Warning	1287	'<select expression> INTO <destination>;' is deprecated and will be removed in a future release. Please use 'SELECT <select list> INTO <destination> FROM...' instead
 alter table foo drop column aa, drop column cc;
 alter table bar drop column aa, drop column cc;
 include/diff_tables.inc [test.foo, test.bar]
+Warnings:
+Warning	1287	'<select expression> INTO <destination>;' is deprecated and will be removed in a future release. Please use 'SELECT <select list> INTO <destination> FROM...' instead
+Warnings:
+Warning	1287	'<select expression> INTO <destination>;' is deprecated and will be removed in a future release. Please use 'SELECT <select list> INTO <destination> FROM...' instead
 drop table foo;
 drop table bar;
 create table foo (aa blob, bb longblob, cc tinyblob, dd mediumblob, aaa varchar(12), bbb varbinary(20), ccc varchar(50), ddd varchar(3000)) engine=TokuDB;
@@ -282,9 +362,17 @@ insert into foo values ("rewoiu","fds","fr","oiufdsrew",NULL,"oifds",NULL,"fdsjf
 insert into foo values ("rewoiu","fds","fr","oiufdsrew","rewoiu","fds","fr","oiufdsrew");
 insert into bar select * from foo;
 include/diff_tables.inc [test.foo, test.bar]
+Warnings:
+Warning	1287	'<select expression> INTO <destination>;' is deprecated and will be removed in a future release. Please use 'SELECT <select list> INTO <destination> FROM...' instead
+Warnings:
+Warning	1287	'<select expression> INTO <destination>;' is deprecated and will be removed in a future release. Please use 'SELECT <select list> INTO <destination> FROM...' instead
 alter table foo drop column aa, drop column dd;
 alter table bar drop column aa, drop column dd;
 include/diff_tables.inc [test.foo, test.bar]
+Warnings:
+Warning	1287	'<select expression> INTO <destination>;' is deprecated and will be removed in a future release. Please use 'SELECT <select list> INTO <destination> FROM...' instead
+Warnings:
+Warning	1287	'<select expression> INTO <destination>;' is deprecated and will be removed in a future release. Please use 'SELECT <select list> INTO <destination> FROM...' instead
 drop table foo;
 drop table bar;
 create table foo (aa blob, bb longblob, cc tinyblob, dd mediumblob, aaa varchar(12), bbb varbinary(20), ccc varchar(50), ddd varchar(3000)) engine=TokuDB;
@@ -308,9 +396,17 @@ insert into foo values ("rewoiu","fds","fr","oiufdsrew",NULL,"oifds",NULL,"fdsjf
 insert into foo values ("rewoiu","fds","fr","oiufdsrew","rewoiu","fds","fr","oiufdsrew");
 insert into bar select * from foo;
 include/diff_tables.inc [test.foo, test.bar]
+Warnings:
+Warning	1287	'<select expression> INTO <destination>;' is deprecated and will be removed in a future release. Please use 'SELECT <select list> INTO <destination> FROM...' instead
+Warnings:
+Warning	1287	'<select expression> INTO <destination>;' is deprecated and will be removed in a future release. Please use 'SELECT <select list> INTO <destination> FROM...' instead
 alter table foo drop column aa, drop column aaa;
 alter table bar drop column aa, drop column aaa;
 include/diff_tables.inc [test.foo, test.bar]
+Warnings:
+Warning	1287	'<select expression> INTO <destination>;' is deprecated and will be removed in a future release. Please use 'SELECT <select list> INTO <destination> FROM...' instead
+Warnings:
+Warning	1287	'<select expression> INTO <destination>;' is deprecated and will be removed in a future release. Please use 'SELECT <select list> INTO <destination> FROM...' instead
 drop table foo;
 drop table bar;
 create table foo (aa blob, bb longblob, cc tinyblob, dd mediumblob, aaa varchar(12), bbb varbinary(20), ccc varchar(50), ddd varchar(3000)) engine=TokuDB;
@@ -334,9 +430,17 @@ insert into foo values ("rewoiu","fds","fr","oiufdsrew",NULL,"oifds",NULL,"fdsjf
 insert into foo values ("rewoiu","fds","fr","oiufdsrew","rewoiu","fds","fr","oiufdsrew");
 insert into bar select * from foo;
 include/diff_tables.inc [test.foo, test.bar]
+Warnings:
+Warning	1287	'<select expression> INTO <destination>;' is deprecated and will be removed in a future release. Please use 'SELECT <select list> INTO <destination> FROM...' instead
+Warnings:
+Warning	1287	'<select expression> INTO <destination>;' is deprecated and will be removed in a future release. Please use 'SELECT <select list> INTO <destination> FROM...' instead
 alter table foo drop column aa, drop column bbb;
 alter table bar drop column aa, drop column bbb;
 include/diff_tables.inc [test.foo, test.bar]
+Warnings:
+Warning	1287	'<select expression> INTO <destination>;' is deprecated and will be removed in a future release. Please use 'SELECT <select list> INTO <destination> FROM...' instead
+Warnings:
+Warning	1287	'<select expression> INTO <destination>;' is deprecated and will be removed in a future release. Please use 'SELECT <select list> INTO <destination> FROM...' instead
 drop table foo;
 drop table bar;
 create table foo (aa blob, bb longblob, cc tinyblob, dd mediumblob, aaa varchar(12), bbb varbinary(20), ccc varchar(50), ddd varchar(3000)) engine=TokuDB;
@@ -360,9 +464,17 @@ insert into foo values ("rewoiu","fds","fr","oiufdsrew",NULL,"oifds",NULL,"fdsjf
 insert into foo values ("rewoiu","fds","fr","oiufdsrew","rewoiu","fds","fr","oiufdsrew");
 insert into bar select * from foo;
 include/diff_tables.inc [test.foo, test.bar]
+Warnings:
+Warning	1287	'<select expression> INTO <destination>;' is deprecated and will be removed in a future release. Please use 'SELECT <select list> INTO <destination> FROM...' instead
+Warnings:
+Warning	1287	'<select expression> INTO <destination>;' is deprecated and will be removed in a future release. Please use 'SELECT <select list> INTO <destination> FROM...' instead
 alter table foo drop column aa, drop column ccc;
 alter table bar drop column aa, drop column ccc;
 include/diff_tables.inc [test.foo, test.bar]
+Warnings:
+Warning	1287	'<select expression> INTO <destination>;' is deprecated and will be removed in a future release. Please use 'SELECT <select list> INTO <destination> FROM...' instead
+Warnings:
+Warning	1287	'<select expression> INTO <destination>;' is deprecated and will be removed in a future release. Please use 'SELECT <select list> INTO <destination> FROM...' instead
 drop table foo;
 drop table bar;
 create table foo (aa blob, bb longblob, cc tinyblob, dd mediumblob, aaa varchar(12), bbb varbinary(20), ccc varchar(50), ddd varchar(3000)) engine=TokuDB;
@@ -386,9 +498,17 @@ insert into foo values ("rewoiu","fds","fr","oiufdsrew",NULL,"oifds",NULL,"fdsjf
 insert into foo values ("rewoiu","fds","fr","oiufdsrew","rewoiu","fds","fr","oiufdsrew");
 insert into bar select * from foo;
 include/diff_tables.inc [test.foo, test.bar]
+Warnings:
+Warning	1287	'<select expression> INTO <destination>;' is deprecated and will be removed in a future release. Please use 'SELECT <select list> INTO <destination> FROM...' instead
+Warnings:
+Warning	1287	'<select expression> INTO <destination>;' is deprecated and will be removed in a future release. Please use 'SELECT <select list> INTO <destination> FROM...' instead
 alter table foo drop column aa, drop column ddd;
 alter table bar drop column aa, drop column ddd;
 include/diff_tables.inc [test.foo, test.bar]
+Warnings:
+Warning	1287	'<select expression> INTO <destination>;' is deprecated and will be removed in a future release. Please use 'SELECT <select list> INTO <destination> FROM...' instead
+Warnings:
+Warning	1287	'<select expression> INTO <destination>;' is deprecated and will be removed in a future release. Please use 'SELECT <select list> INTO <destination> FROM...' instead
 drop table foo;
 drop table bar;
 create table foo (aa blob, bb longblob, cc tinyblob, dd mediumblob, aaa varchar(12), bbb varbinary(20), ccc varchar(50), ddd varchar(3000)) engine=TokuDB;
@@ -412,9 +532,17 @@ insert into foo values ("rewoiu","fds","fr","oiufdsrew",NULL,"oifds",NULL,"fdsjf
 insert into foo values ("rewoiu","fds","fr","oiufdsrew","rewoiu","fds","fr","oiufdsrew");
 insert into bar select * from foo;
 include/diff_tables.inc [test.foo, test.bar]
+Warnings:
+Warning	1287	'<select expression> INTO <destination>;' is deprecated and will be removed in a future release. Please use 'SELECT <select list> INTO <destination> FROM...' instead
+Warnings:
+Warning	1287	'<select expression> INTO <destination>;' is deprecated and will be removed in a future release. Please use 'SELECT <select list> INTO <destination> FROM...' instead
 alter table foo drop column bb, drop column aa;
 alter table bar drop column bb, drop column aa;
 include/diff_tables.inc [test.foo, test.bar]
+Warnings:
+Warning	1287	'<select expression> INTO <destination>;' is deprecated and will be removed in a future release. Please use 'SELECT <select list> INTO <destination> FROM...' instead
+Warnings:
+Warning	1287	'<select expression> INTO <destination>;' is deprecated and will be removed in a future release. Please use 'SELECT <select list> INTO <destination> FROM...' instead
 drop table foo;
 drop table bar;
 create table foo (aa blob, bb longblob, cc tinyblob, dd mediumblob, aaa varchar(12), bbb varbinary(20), ccc varchar(50), ddd varchar(3000)) engine=TokuDB;
@@ -438,9 +566,17 @@ insert into foo values ("rewoiu","fds","fr","oiufdsrew",NULL,"oifds",NULL,"fdsjf
 insert into foo values ("rewoiu","fds","fr","oiufdsrew","rewoiu","fds","fr","oiufdsrew");
 insert into bar select * from foo;
 include/diff_tables.inc [test.foo, test.bar]
+Warnings:
+Warning	1287	'<select expression> INTO <destination>;' is deprecated and will be removed in a future release. Please use 'SELECT <select list> INTO <destination> FROM...' instead
+Warnings:
+Warning	1287	'<select expression> INTO <destination>;' is deprecated and will be removed in a future release. Please use 'SELECT <select list> INTO <destination> FROM...' instead
 alter table foo drop column bb, drop column cc;
 alter table bar drop column bb, drop column cc;
 include/diff_tables.inc [test.foo, test.bar]
+Warnings:
+Warning	1287	'<select expression> INTO <destination>;' is deprecated and will be removed in a future release. Please use 'SELECT <select list> INTO <destination> FROM...' instead
+Warnings:
+Warning	1287	'<select expression> INTO <destination>;' is deprecated and will be removed in a future release. Please use 'SELECT <select list> INTO <destination> FROM...' instead
 drop table foo;
 drop table bar;
 create table foo (aa blob, bb longblob, cc tinyblob, dd mediumblob, aaa varchar(12), bbb varbinary(20), ccc varchar(50), ddd varchar(3000)) engine=TokuDB;
@@ -464,9 +600,17 @@ insert into foo values ("rewoiu","fds","fr","oiufdsrew",NULL,"oifds",NULL,"fdsjf
 insert into foo values ("rewoiu","fds","fr","oiufdsrew","rewoiu","fds","fr","oiufdsrew");
 insert into bar select * from foo;
 include/diff_tables.inc [test.foo, test.bar]
+Warnings:
+Warning	1287	'<select expression> INTO <destination>;' is deprecated and will be removed in a future release. Please use 'SELECT <select list> INTO <destination> FROM...' instead
+Warnings:
+Warning	1287	'<select expression> INTO <destination>;' is deprecated and will be removed in a future release. Please use 'SELECT <select list> INTO <destination> FROM...' instead
 alter table foo drop column bb, drop column dd;
 alter table bar drop column bb, drop column dd;
 include/diff_tables.inc [test.foo, test.bar]
+Warnings:
+Warning	1287	'<select expression> INTO <destination>;' is deprecated and will be removed in a future release. Please use 'SELECT <select list> INTO <destination> FROM...' instead
+Warnings:
+Warning	1287	'<select expression> INTO <destination>;' is deprecated and will be removed in a future release. Please use 'SELECT <select list> INTO <destination> FROM...' instead
 drop table foo;
 drop table bar;
 create table foo (aa blob, bb longblob, cc tinyblob, dd mediumblob, aaa varchar(12), bbb varbinary(20), ccc varchar(50), ddd varchar(3000)) engine=TokuDB;
@@ -490,9 +634,17 @@ insert into foo values ("rewoiu","fds","fr","oiufdsrew",NULL,"oifds",NULL,"fdsjf
 insert into foo values ("rewoiu","fds","fr","oiufdsrew","rewoiu","fds","fr","oiufdsrew");
 insert into bar select * from foo;
 include/diff_tables.inc [test.foo, test.bar]
+Warnings:
+Warning	1287	'<select expression> INTO <destination>;' is deprecated and will be removed in a future release. Please use 'SELECT <select list> INTO <destination> FROM...' instead
+Warnings:
+Warning	1287	'<select expression> INTO <destination>;' is deprecated and will be removed in a future release. Please use 'SELECT <select list> INTO <destination> FROM...' instead
 alter table foo drop column bb, drop column aaa;
 alter table bar drop column bb, drop column aaa;
 include/diff_tables.inc [test.foo, test.bar]
+Warnings:
+Warning	1287	'<select expression> INTO <destination>;' is deprecated and will be removed in a future release. Please use 'SELECT <select list> INTO <destination> FROM...' instead
+Warnings:
+Warning	1287	'<select expression> INTO <destination>;' is deprecated and will be removed in a future release. Please use 'SELECT <select list> INTO <destination> FROM...' instead
 drop table foo;
 drop table bar;
 create table foo (aa blob, bb longblob, cc tinyblob, dd mediumblob, aaa varchar(12), bbb varbinary(20), ccc varchar(50), ddd varchar(3000)) engine=TokuDB;
@@ -516,9 +668,17 @@ insert into foo values ("rewoiu","fds","fr","oiufdsrew",NULL,"oifds",NULL,"fdsjf
 insert into foo values ("rewoiu","fds","fr","oiufdsrew","rewoiu","fds","fr","oiufdsrew");
 insert into bar select * from foo;
 include/diff_tables.inc [test.foo, test.bar]
+Warnings:
+Warning	1287	'<select expression> INTO <destination>;' is deprecated and will be removed in a future release. Please use 'SELECT <select list> INTO <destination> FROM...' instead
+Warnings:
+Warning	1287	'<select expression> INTO <destination>;' is deprecated and will be removed in a future release. Please use 'SELECT <select list> INTO <destination> FROM...' instead
 alter table foo drop column bb, drop column bbb;
 alter table bar drop column bb, drop column bbb;
 include/diff_tables.inc [test.foo, test.bar]
+Warnings:
+Warning	1287	'<select expression> INTO <destination>;' is deprecated and will be removed in a future release. Please use 'SELECT <select list> INTO <destination> FROM...' instead
+Warnings:
+Warning	1287	'<select expression> INTO <destination>;' is deprecated and will be removed in a future release. Please use 'SELECT <select list> INTO <destination> FROM...' instead
 drop table foo;
 drop table bar;
 create table foo (aa blob, bb longblob, cc tinyblob, dd mediumblob, aaa varchar(12), bbb varbinary(20), ccc varchar(50), ddd varchar(3000)) engine=TokuDB;
@@ -542,9 +702,17 @@ insert into foo values ("rewoiu","fds","fr","oiufdsrew",NULL,"oifds",NULL,"fdsjf
 insert into foo values ("rewoiu","fds","fr","oiufdsrew","rewoiu","fds","fr","oiufdsrew");
 insert into bar select * from foo;
 include/diff_tables.inc [test.foo, test.bar]
+Warnings:
+Warning	1287	'<select expression> INTO <destination>;' is deprecated and will be removed in a future release. Please use 'SELECT <select list> INTO <destination> FROM...' instead
+Warnings:
+Warning	1287	'<select expression> INTO <destination>;' is deprecated and will be removed in a future release. Please use 'SELECT <select list> INTO <destination> FROM...' instead
 alter table foo drop column bb, drop column ccc;
 alter table bar drop column bb, drop column ccc;
 include/diff_tables.inc [test.foo, test.bar]
+Warnings:
+Warning	1287	'<select expression> INTO <destination>;' is deprecated and will be removed in a future release. Please use 'SELECT <select list> INTO <destination> FROM...' instead
+Warnings:
+Warning	1287	'<select expression> INTO <destination>;' is deprecated and will be removed in a future release. Please use 'SELECT <select list> INTO <destination> FROM...' instead
 drop table foo;
 drop table bar;
 create table foo (aa blob, bb longblob, cc tinyblob, dd mediumblob, aaa varchar(12), bbb varbinary(20), ccc varchar(50), ddd varchar(3000)) engine=TokuDB;
@@ -568,9 +736,17 @@ insert into foo values ("rewoiu","fds","fr","oiufdsrew",NULL,"oifds",NULL,"fdsjf
 insert into foo values ("rewoiu","fds","fr","oiufdsrew","rewoiu","fds","fr","oiufdsrew");
 insert into bar select * from foo;
 include/diff_tables.inc [test.foo, test.bar]
+Warnings:
+Warning	1287	'<select expression> INTO <destination>;' is deprecated and will be removed in a future release. Please use 'SELECT <select list> INTO <destination> FROM...' instead
+Warnings:
+Warning	1287	'<select expression> INTO <destination>;' is deprecated and will be removed in a future release. Please use 'SELECT <select list> INTO <destination> FROM...' instead
 alter table foo drop column bb, drop column ddd;
 alter table bar drop column bb, drop column ddd;
 include/diff_tables.inc [test.foo, test.bar]
+Warnings:
+Warning	1287	'<select expression> INTO <destination>;' is deprecated and will be removed in a future release. Please use 'SELECT <select list> INTO <destination> FROM...' instead
+Warnings:
+Warning	1287	'<select expression> INTO <destination>;' is deprecated and will be removed in a future release. Please use 'SELECT <select list> INTO <destination> FROM...' instead
 drop table foo;
 drop table bar;
 create table foo (aa blob, bb longblob, cc tinyblob, dd mediumblob, aaa varchar(12), bbb varbinary(20), ccc varchar(50), ddd varchar(3000)) engine=TokuDB;
@@ -594,9 +770,17 @@ insert into foo values ("rewoiu","fds","fr","oiufdsrew",NULL,"oifds",NULL,"fdsjf
 insert into foo values ("rewoiu","fds","fr","oiufdsrew","rewoiu","fds","fr","oiufdsrew");
 insert into bar select * from foo;
 include/diff_tables.inc [test.foo, test.bar]
+Warnings:
+Warning	1287	'<select expression> INTO <destination>;' is deprecated and will be removed in a future release. Please use 'SELECT <select list> INTO <destination> FROM...' instead
+Warnings:
+Warning	1287	'<select expression> INTO <destination>;' is deprecated and will be removed in a future release. Please use 'SELECT <select list> INTO <destination> FROM...' instead
 alter table foo drop column cc, drop column aa;
 alter table bar drop column cc, drop column aa;
 include/diff_tables.inc [test.foo, test.bar]
+Warnings:
+Warning	1287	'<select expression> INTO <destination>;' is deprecated and will be removed in a future release. Please use 'SELECT <select list> INTO <destination> FROM...' instead
+Warnings:
+Warning	1287	'<select expression> INTO <destination>;' is deprecated and will be removed in a future release. Please use 'SELECT <select list> INTO <destination> FROM...' instead
 drop table foo;
 drop table bar;
 create table foo (aa blob, bb longblob, cc tinyblob, dd mediumblob, aaa varchar(12), bbb varbinary(20), ccc varchar(50), ddd varchar(3000)) engine=TokuDB;
@@ -620,9 +804,17 @@ insert into foo values ("rewoiu","fds","fr","oiufdsrew",NULL,"oifds",NULL,"fdsjf
 insert into foo values ("rewoiu","fds","fr","oiufdsrew","rewoiu","fds","fr","oiufdsrew");
 insert into bar select * from foo;
 include/diff_tables.inc [test.foo, test.bar]
+Warnings:
+Warning	1287	'<select expression> INTO <destination>;' is deprecated and will be removed in a future release. Please use 'SELECT <select list> INTO <destination> FROM...' instead
+Warnings:
+Warning	1287	'<select expression> INTO <destination>;' is deprecated and will be removed in a future release. Please use 'SELECT <select list> INTO <destination> FROM...' instead
 alter table foo drop column cc, drop column bb;
 alter table bar drop column cc, drop column bb;
 include/diff_tables.inc [test.foo, test.bar]
+Warnings:
+Warning	1287	'<select expression> INTO <destination>;' is deprecated and will be removed in a future release. Please use 'SELECT <select list> INTO <destination> FROM...' instead
+Warnings:
+Warning	1287	'<select expression> INTO <destination>;' is deprecated and will be removed in a future release. Please use 'SELECT <select list> INTO <destination> FROM...' instead
 drop table foo;
 drop table bar;
 create table foo (aa blob, bb longblob, cc tinyblob, dd mediumblob, aaa varchar(12), bbb varbinary(20), ccc varchar(50), ddd varchar(3000)) engine=TokuDB;
@@ -646,9 +838,17 @@ insert into foo values ("rewoiu","fds","fr","oiufdsrew",NULL,"oifds",NULL,"fdsjf
 insert into foo values ("rewoiu","fds","fr","oiufdsrew","rewoiu","fds","fr","oiufdsrew");
 insert into bar select * from foo;
 include/diff_tables.inc [test.foo, test.bar]
+Warnings:
+Warning	1287	'<select expression> INTO <destination>;' is deprecated and will be removed in a future release. Please use 'SELECT <select list> INTO <destination> FROM...' instead
+Warnings:
+Warning	1287	'<select expression> INTO <destination>;' is deprecated and will be removed in a future release. Please use 'SELECT <select list> INTO <destination> FROM...' instead
 alter table foo drop column cc, drop column dd;
 alter table bar drop column cc, drop column dd;
 include/diff_tables.inc [test.foo, test.bar]
+Warnings:
+Warning	1287	'<select expression> INTO <destination>;' is deprecated and will be removed in a future release. Please use 'SELECT <select list> INTO <destination> FROM...' instead
+Warnings:
+Warning	1287	'<select expression> INTO <destination>;' is deprecated and will be removed in a future release. Please use 'SELECT <select list> INTO <destination> FROM...' instead
 drop table foo;
 drop table bar;
 create table foo (aa blob, bb longblob, cc tinyblob, dd mediumblob, aaa varchar(12), bbb varbinary(20), ccc varchar(50), ddd varchar(3000)) engine=TokuDB;
@@ -672,9 +872,17 @@ insert into foo values ("rewoiu","fds","fr","oiufdsrew",NULL,"oifds",NULL,"fdsjf
 insert into foo values ("rewoiu","fds","fr","oiufdsrew","rewoiu","fds","fr","oiufdsrew");
 insert into bar select * from foo;
 include/diff_tables.inc [test.foo, test.bar]
+Warnings:
+Warning	1287	'<select expression> INTO <destination>;' is deprecated and will be removed in a future release. Please use 'SELECT <select list> INTO <destination> FROM...' instead
+Warnings:
+Warning	1287	'<select expression> INTO <destination>;' is deprecated and will be removed in a future release. Please use 'SELECT <select list> INTO <destination> FROM...' instead
 alter table foo drop column cc, drop column aaa;
 alter table bar drop column cc, drop column aaa;
 include/diff_tables.inc [test.foo, test.bar]
+Warnings:
+Warning	1287	'<select expression> INTO <destination>;' is deprecated and will be removed in a future release. Please use 'SELECT <select list> INTO <destination> FROM...' instead
+Warnings:
+Warning	1287	'<select expression> INTO <destination>;' is deprecated and will be removed in a future release. Please use 'SELECT <select list> INTO <destination> FROM...' instead
 drop table foo;
 drop table bar;
 create table foo (aa blob, bb longblob, cc tinyblob, dd mediumblob, aaa varchar(12), bbb varbinary(20), ccc varchar(50), ddd varchar(3000)) engine=TokuDB;
@@ -698,9 +906,17 @@ insert into foo values ("rewoiu","fds","fr","oiufdsrew",NULL,"oifds",NULL,"fdsjf
 insert into foo values ("rewoiu","fds","fr","oiufdsrew","rewoiu","fds","fr","oiufdsrew");
 insert into bar select * from foo;
 include/diff_tables.inc [test.foo, test.bar]
+Warnings:
+Warning	1287	'<select expression> INTO <destination>;' is deprecated and will be removed in a future release. Please use 'SELECT <select list> INTO <destination> FROM...' instead
+Warnings:
+Warning	1287	'<select expression> INTO <destination>;' is deprecated and will be removed in a future release. Please use 'SELECT <select list> INTO <destination> FROM...' instead
 alter table foo drop column cc, drop column bbb;
 alter table bar drop column cc, drop column bbb;
 include/diff_tables.inc [test.foo, test.bar]
+Warnings:
+Warning	1287	'<select expression> INTO <destination>;' is deprecated and will be removed in a future release. Please use 'SELECT <select list> INTO <destination> FROM...' instead
+Warnings:
+Warning	1287	'<select expression> INTO <destination>;' is deprecated and will be removed in a future release. Please use 'SELECT <select list> INTO <destination> FROM...' instead
 drop table foo;
 drop table bar;
 create table foo (aa blob, bb longblob, cc tinyblob, dd mediumblob, aaa varchar(12), bbb varbinary(20), ccc varchar(50), ddd varchar(3000)) engine=TokuDB;
@@ -724,9 +940,17 @@ insert into foo values ("rewoiu","fds","fr","oiufdsrew",NULL,"oifds",NULL,"fdsjf
 insert into foo values ("rewoiu","fds","fr","oiufdsrew","rewoiu","fds","fr","oiufdsrew");
 insert into bar select * from foo;
 include/diff_tables.inc [test.foo, test.bar]
+Warnings:
+Warning	1287	'<select expression> INTO <destination>;' is deprecated and will be removed in a future release. Please use 'SELECT <select list> INTO <destination> FROM...' instead
+Warnings:
+Warning	1287	'<select expression> INTO <destination>;' is deprecated and will be removed in a future release. Please use 'SELECT <select list> INTO <destination> FROM...' instead
 alter table foo drop column cc, drop column ccc;
 alter table bar drop column cc, drop column ccc;
 include/diff_tables.inc [test.foo, test.bar]
+Warnings:
+Warning	1287	'<select expression> INTO <destination>;' is deprecated and will be removed in a future release. Please use 'SELECT <select list> INTO <destination> FROM...' instead
+Warnings:
+Warning	1287	'<select expression> INTO <destination>;' is deprecated and will be removed in a future release. Please use 'SELECT <select list> INTO <destination> FROM...' instead
 drop table foo;
 drop table bar;
 create table foo (aa blob, bb longblob, cc tinyblob, dd mediumblob, aaa varchar(12), bbb varbinary(20), ccc varchar(50), ddd varchar(3000)) engine=TokuDB;
@@ -750,9 +974,17 @@ insert into foo values ("rewoiu","fds","fr","oiufdsrew",NULL,"oifds",NULL,"fdsjf
 insert into foo values ("rewoiu","fds","fr","oiufdsrew","rewoiu","fds","fr","oiufdsrew");
 insert into bar select * from foo;
 include/diff_tables.inc [test.foo, test.bar]
+Warnings:
+Warning	1287	'<select expression> INTO <destination>;' is deprecated and will be removed in a future release. Please use 'SELECT <select list> INTO <destination> FROM...' instead
+Warnings:
+Warning	1287	'<select expression> INTO <destination>;' is deprecated and will be removed in a future release. Please use 'SELECT <select list> INTO <destination> FROM...' instead
 alter table foo drop column cc, drop column ddd;
 alter table bar drop column cc, drop column ddd;
 include/diff_tables.inc [test.foo, test.bar]
+Warnings:
+Warning	1287	'<select expression> INTO <destination>;' is deprecated and will be removed in a future release. Please use 'SELECT <select list> INTO <destination> FROM...' instead
+Warnings:
+Warning	1287	'<select expression> INTO <destination>;' is deprecated and will be removed in a future release. Please use 'SELECT <select list> INTO <destination> FROM...' instead
 drop table foo;
 drop table bar;
 create table foo (aa blob, bb longblob, cc tinyblob, dd mediumblob, aaa varchar(12), bbb varbinary(20), ccc varchar(50), ddd varchar(3000)) engine=TokuDB;
@@ -776,9 +1008,17 @@ insert into foo values ("rewoiu","fds","fr","oiufdsrew",NULL,"oifds",NULL,"fdsjf
 insert into foo values ("rewoiu","fds","fr","oiufdsrew","rewoiu","fds","fr","oiufdsrew");
 insert into bar select * from foo;
 include/diff_tables.inc [test.foo, test.bar]
+Warnings:
+Warning	1287	'<select expression> INTO <destination>;' is deprecated and will be removed in a future release. Please use 'SELECT <select list> INTO <destination> FROM...' instead
+Warnings:
+Warning	1287	'<select expression> INTO <destination>;' is deprecated and will be removed in a future release. Please use 'SELECT <select list> INTO <destination> FROM...' instead
 alter table foo drop column dd, drop column aa;
 alter table bar drop column dd, drop column aa;
 include/diff_tables.inc [test.foo, test.bar]
+Warnings:
+Warning	1287	'<select expression> INTO <destination>;' is deprecated and will be removed in a future release. Please use 'SELECT <select list> INTO <destination> FROM...' instead
+Warnings:
+Warning	1287	'<select expression> INTO <destination>;' is deprecated and will be removed in a future release. Please use 'SELECT <select list> INTO <destination> FROM...' instead
 drop table foo;
 drop table bar;
 create table foo (aa blob, bb longblob, cc tinyblob, dd mediumblob, aaa varchar(12), bbb varbinary(20), ccc varchar(50), ddd varchar(3000)) engine=TokuDB;
@@ -802,9 +1042,17 @@ insert into foo values ("rewoiu","fds","fr","oiufdsrew",NULL,"oifds",NULL,"fdsjf
 insert into foo values ("rewoiu","fds","fr","oiufdsrew","rewoiu","fds","fr","oiufdsrew");
 insert into bar select * from foo;
 include/diff_tables.inc [test.foo, test.bar]
+Warnings:
+Warning	1287	'<select expression> INTO <destination>;' is deprecated and will be removed in a future release. Please use 'SELECT <select list> INTO <destination> FROM...' instead
+Warnings:
+Warning	1287	'<select expression> INTO <destination>;' is deprecated and will be removed in a future release. Please use 'SELECT <select list> INTO <destination> FROM...' instead
 alter table foo drop column dd, drop column bb;
 alter table bar drop column dd, drop column bb;
 include/diff_tables.inc [test.foo, test.bar]
+Warnings:
+Warning	1287	'<select expression> INTO <destination>;' is deprecated and will be removed in a future release. Please use 'SELECT <select list> INTO <destination> FROM...' instead
+Warnings:
+Warning	1287	'<select expression> INTO <destination>;' is deprecated and will be removed in a future release. Please use 'SELECT <select list> INTO <destination> FROM...' instead
 drop table foo;
 drop table bar;
 create table foo (aa blob, bb longblob, cc tinyblob, dd mediumblob, aaa varchar(12), bbb varbinary(20), ccc varchar(50), ddd varchar(3000)) engine=TokuDB;
@@ -828,9 +1076,17 @@ insert into foo values ("rewoiu","fds","fr","oiufdsrew",NULL,"oifds",NULL,"fdsjf
 insert into foo values ("rewoiu","fds","fr","oiufdsrew","rewoiu","fds","fr","oiufdsrew");
 insert into bar select * from foo;
 include/diff_tables.inc [test.foo, test.bar]
+Warnings:
+Warning	1287	'<select expression> INTO <destination>;' is deprecated and will be removed in a future release. Please use 'SELECT <select list> INTO <destination> FROM...' instead
+Warnings:
+Warning	1287	'<select expression> INTO <destination>;' is deprecated and will be removed in a future release. Please use 'SELECT <select list> INTO <destination> FROM...' instead
 alter table foo drop column dd, drop column cc;
 alter table bar drop column dd, drop column cc;
 include/diff_tables.inc [test.foo, test.bar]
+Warnings:
+Warning	1287	'<select expression> INTO <destination>;' is deprecated and will be removed in a future release. Please use 'SELECT <select list> INTO <destination> FROM...' instead
+Warnings:
+Warning	1287	'<select expression> INTO <destination>;' is deprecated and will be removed in a future release. Please use 'SELECT <select list> INTO <destination> FROM...' instead
 drop table foo;
 drop table bar;
 create table foo (aa blob, bb longblob, cc tinyblob, dd mediumblob, aaa varchar(12), bbb varbinary(20), ccc varchar(50), ddd varchar(3000)) engine=TokuDB;
@@ -854,9 +1110,17 @@ insert into foo values ("rewoiu","fds","fr","oiufdsrew",NULL,"oifds",NULL,"fdsjf
 insert into foo values ("rewoiu","fds","fr","oiufdsrew","rewoiu","fds","fr","oiufdsrew");
 insert into bar select * from foo;
 include/diff_tables.inc [test.foo, test.bar]
+Warnings:
+Warning	1287	'<select expression> INTO <destination>;' is deprecated and will be removed in a future release. Please use 'SELECT <select list> INTO <destination> FROM...' instead
+Warnings:
+Warning	1287	'<select expression> INTO <destination>;' is deprecated and will be removed in a future release. Please use 'SELECT <select list> INTO <destination> FROM...' instead
 alter table foo drop column dd, drop column aaa;
 alter table bar drop column dd, drop column aaa;
 include/diff_tables.inc [test.foo, test.bar]
+Warnings:
+Warning	1287	'<select expression> INTO <destination>;' is deprecated and will be removed in a future release. Please use 'SELECT <select list> INTO <destination> FROM...' instead
+Warnings:
+Warning	1287	'<select expression> INTO <destination>;' is deprecated and will be removed in a future release. Please use 'SELECT <select list> INTO <destination> FROM...' instead
 drop table foo;
 drop table bar;
 create table foo (aa blob, bb longblob, cc tinyblob, dd mediumblob, aaa varchar(12), bbb varbinary(20), ccc varchar(50), ddd varchar(3000)) engine=TokuDB;
@@ -880,9 +1144,17 @@ insert into foo values ("rewoiu","fds","fr","oiufdsrew",NULL,"oifds",NULL,"fdsjf
 insert into foo values ("rewoiu","fds","fr","oiufdsrew","rewoiu","fds","fr","oiufdsrew");
 insert into bar select * from foo;
 include/diff_tables.inc [test.foo, test.bar]
+Warnings:
+Warning	1287	'<select expression> INTO <destination>;' is deprecated and will be removed in a future release. Please use 'SELECT <select list> INTO <destination> FROM...' instead
+Warnings:
+Warning	1287	'<select expression> INTO <destination>;' is deprecated and will be removed in a future release. Please use 'SELECT <select list> INTO <destination> FROM...' instead
 alter table foo drop column dd, drop column bbb;
 alter table bar drop column dd, drop column bbb;
 include/diff_tables.inc [test.foo, test.bar]
+Warnings:
+Warning	1287	'<select expression> INTO <destination>;' is deprecated and will be removed in a future release. Please use 'SELECT <select list> INTO <destination> FROM...' instead
+Warnings:
+Warning	1287	'<select expression> INTO <destination>;' is deprecated and will be removed in a future release. Please use 'SELECT <select list> INTO <destination> FROM...' instead
 drop table foo;
 drop table bar;
 create table foo (aa blob, bb longblob, cc tinyblob, dd mediumblob, aaa varchar(12), bbb varbinary(20), ccc varchar(50), ddd varchar(3000)) engine=TokuDB;
@@ -906,9 +1178,17 @@ insert into foo values ("rewoiu","fds","fr","oiufdsrew",NULL,"oifds",NULL,"fdsjf
 insert into foo values ("rewoiu","fds","fr","oiufdsrew","rewoiu","fds","fr","oiufdsrew");
 insert into bar select * from foo;
 include/diff_tables.inc [test.foo, test.bar]
+Warnings:
+Warning	1287	'<select expression> INTO <destination>;' is deprecated and will be removed in a future release. Please use 'SELECT <select list> INTO <destination> FROM...' instead
+Warnings:
+Warning	1287	'<select expression> INTO <destination>;' is deprecated and will be removed in a future release. Please use 'SELECT <select list> INTO <destination> FROM...' instead
 alter table foo drop column dd, drop column ccc;
 alter table bar drop column dd, drop column ccc;
 include/diff_tables.inc [test.foo, test.bar]
+Warnings:
+Warning	1287	'<select expression> INTO <destination>;' is deprecated and will be removed in a future release. Please use 'SELECT <select list> INTO <destination> FROM...' instead
+Warnings:
+Warning	1287	'<select expression> INTO <destination>;' is deprecated and will be removed in a future release. Please use 'SELECT <select list> INTO <destination> FROM...' instead
 drop table foo;
 drop table bar;
 create table foo (aa blob, bb longblob, cc tinyblob, dd mediumblob, aaa varchar(12), bbb varbinary(20), ccc varchar(50), ddd varchar(3000)) engine=TokuDB;
@@ -932,9 +1212,17 @@ insert into foo values ("rewoiu","fds","fr","oiufdsrew",NULL,"oifds",NULL,"fdsjf
 insert into foo values ("rewoiu","fds","fr","oiufdsrew","rewoiu","fds","fr","oiufdsrew");
 insert into bar select * from foo;
 include/diff_tables.inc [test.foo, test.bar]
+Warnings:
+Warning	1287	'<select expression> INTO <destination>;' is deprecated and will be removed in a future release. Please use 'SELECT <select list> INTO <destination> FROM...' instead
+Warnings:
+Warning	1287	'<select expression> INTO <destination>;' is deprecated and will be removed in a future release. Please use 'SELECT <select list> INTO <destination> FROM...' instead
 alter table foo drop column dd, drop column ddd;
 alter table bar drop column dd, drop column ddd;
 include/diff_tables.inc [test.foo, test.bar]
+Warnings:
+Warning	1287	'<select expression> INTO <destination>;' is deprecated and will be removed in a future release. Please use 'SELECT <select list> INTO <destination> FROM...' instead
+Warnings:
+Warning	1287	'<select expression> INTO <destination>;' is deprecated and will be removed in a future release. Please use 'SELECT <select list> INTO <destination> FROM...' instead
 drop table foo;
 drop table bar;
 create table foo (aa blob, bb longblob, cc tinyblob, dd mediumblob, aaa varchar(12), bbb varbinary(20), ccc varchar(50), ddd varchar(3000)) engine=TokuDB;
@@ -958,9 +1246,17 @@ insert into foo values ("rewoiu","fds","fr","oiufdsrew",NULL,"oifds",NULL,"fdsjf
 insert into foo values ("rewoiu","fds","fr","oiufdsrew","rewoiu","fds","fr","oiufdsrew");
 insert into bar select * from foo;
 include/diff_tables.inc [test.foo, test.bar]
+Warnings:
+Warning	1287	'<select expression> INTO <destination>;' is deprecated and will be removed in a future release. Please use 'SELECT <select list> INTO <destination> FROM...' instead
+Warnings:
+Warning	1287	'<select expression> INTO <destination>;' is deprecated and will be removed in a future release. Please use 'SELECT <select list> INTO <destination> FROM...' instead
 alter table foo drop column aaa, drop column aa;
 alter table bar drop column aaa, drop column aa;
 include/diff_tables.inc [test.foo, test.bar]
+Warnings:
+Warning	1287	'<select expression> INTO <destination>;' is deprecated and will be removed in a future release. Please use 'SELECT <select list> INTO <destination> FROM...' instead
+Warnings:
+Warning	1287	'<select expression> INTO <destination>;' is deprecated and will be removed in a future release. Please use 'SELECT <select list> INTO <destination> FROM...' instead
 drop table foo;
 drop table bar;
 create table foo (aa blob, bb longblob, cc tinyblob, dd mediumblob, aaa varchar(12), bbb varbinary(20), ccc varchar(50), ddd varchar(3000)) engine=TokuDB;
@@ -984,9 +1280,17 @@ insert into foo values ("rewoiu","fds","fr","oiufdsrew",NULL,"oifds",NULL,"fdsjf
 insert into foo values ("rewoiu","fds","fr","oiufdsrew","rewoiu","fds","fr","oiufdsrew");
 insert into bar select * from foo;
 include/diff_tables.inc [test.foo, test.bar]
+Warnings:
+Warning	1287	'<select expression> INTO <destination>;' is deprecated and will be removed in a future release. Please use 'SELECT <select list> INTO <destination> FROM...' instead
+Warnings:
+Warning	1287	'<select expression> INTO <destination>;' is deprecated and will be removed in a future release. Please use 'SELECT <select list> INTO <destination> FROM...' instead
 alter table foo drop column aaa, drop column bb;
 alter table bar drop column aaa, drop column bb;
 include/diff_tables.inc [test.foo, test.bar]
+Warnings:
+Warning	1287	'<select expression> INTO <destination>;' is deprecated and will be removed in a future release. Please use 'SELECT <select list> INTO <destination> FROM...' instead
+Warnings:
+Warning	1287	'<select expression> INTO <destination>;' is deprecated and will be removed in a future release. Please use 'SELECT <select list> INTO <destination> FROM...' instead
 drop table foo;
 drop table bar;
 create table foo (aa blob, bb longblob, cc tinyblob, dd mediumblob, aaa varchar(12), bbb varbinary(20), ccc varchar(50), ddd varchar(3000)) engine=TokuDB;
@@ -1010,9 +1314,17 @@ insert into foo values ("rewoiu","fds","fr","oiufdsrew",NULL,"oifds",NULL,"fdsjf
 insert into foo values ("rewoiu","fds","fr","oiufdsrew","rewoiu","fds","fr","oiufdsrew");
 insert into bar select * from foo;
 include/diff_tables.inc [test.foo, test.bar]
+Warnings:
+Warning	1287	'<select expression> INTO <destination>;' is deprecated and will be removed in a future release. Please use 'SELECT <select list> INTO <destination> FROM...' instead
+Warnings:
+Warning	1287	'<select expression> INTO <destination>;' is deprecated and will be removed in a future release. Please use 'SELECT <select list> INTO <destination> FROM...' instead
 alter table foo drop column aaa, drop column cc;
 alter table bar drop column aaa, drop column cc;
 include/diff_tables.inc [test.foo, test.bar]
+Warnings:
+Warning	1287	'<select expression> INTO <destination>;' is deprecated and will be removed in a future release. Please use 'SELECT <select list> INTO <destination> FROM...' instead
+Warnings:
+Warning	1287	'<select expression> INTO <destination>;' is deprecated and will be removed in a future release. Please use 'SELECT <select list> INTO <destination> FROM...' instead
 drop table foo;
 drop table bar;
 create table foo (aa blob, bb longblob, cc tinyblob, dd mediumblob, aaa varchar(12), bbb varbinary(20), ccc varchar(50), ddd varchar(3000)) engine=TokuDB;
@@ -1036,9 +1348,17 @@ insert into foo values ("rewoiu","fds","fr","oiufdsrew",NULL,"oifds",NULL,"fdsjf
 insert into foo values ("rewoiu","fds","fr","oiufdsrew","rewoiu","fds","fr","oiufdsrew");
 insert into bar select * from foo;
 include/diff_tables.inc [test.foo, test.bar]
+Warnings:
+Warning	1287	'<select expression> INTO <destination>;' is deprecated and will be removed in a future release. Please use 'SELECT <select list> INTO <destination> FROM...' instead
+Warnings:
+Warning	1287	'<select expression> INTO <destination>;' is deprecated and will be removed in a future release. Please use 'SELECT <select list> INTO <destination> FROM...' instead
 alter table foo drop column aaa, drop column dd;
 alter table bar drop column aaa, drop column dd;
 include/diff_tables.inc [test.foo, test.bar]
+Warnings:
+Warning	1287	'<select expression> INTO <destination>;' is deprecated and will be removed in a future release. Please use 'SELECT <select list> INTO <destination> FROM...' instead
+Warnings:
+Warning	1287	'<select expression> INTO <destination>;' is deprecated and will be removed in a future release. Please use 'SELECT <select list> INTO <destination> FROM...' instead
 drop table foo;
 drop table bar;
 create table foo (aa blob, bb longblob, cc tinyblob, dd mediumblob, aaa varchar(12), bbb varbinary(20), ccc varchar(50), ddd varchar(3000)) engine=TokuDB;
@@ -1062,9 +1382,17 @@ insert into foo values ("rewoiu","fds","fr","oiufdsrew",NULL,"oifds",NULL,"fdsjf
 insert into foo values ("rewoiu","fds","fr","oiufdsrew","rewoiu","fds","fr","oiufdsrew");
 insert into bar select * from foo;
 include/diff_tables.inc [test.foo, test.bar]
+Warnings:
+Warning	1287	'<select expression> INTO <destination>;' is deprecated and will be removed in a future release. Please use 'SELECT <select list> INTO <destination> FROM...' instead
+Warnings:
+Warning	1287	'<select expression> INTO <destination>;' is deprecated and will be removed in a future release. Please use 'SELECT <select list> INTO <destination> FROM...' instead
 alter table foo drop column aaa, drop column bbb;
 alter table bar drop column aaa, drop column bbb;
 include/diff_tables.inc [test.foo, test.bar]
+Warnings:
+Warning	1287	'<select expression> INTO <destination>;' is deprecated and will be removed in a future release. Please use 'SELECT <select list> INTO <destination> FROM...' instead
+Warnings:
+Warning	1287	'<select expression> INTO <destination>;' is deprecated and will be removed in a future release. Please use 'SELECT <select list> INTO <destination> FROM...' instead
 drop table foo;
 drop table bar;
 create table foo (aa blob, bb longblob, cc tinyblob, dd mediumblob, aaa varchar(12), bbb varbinary(20), ccc varchar(50), ddd varchar(3000)) engine=TokuDB;
@@ -1088,9 +1416,17 @@ insert into foo values ("rewoiu","fds","fr","oiufdsrew",NULL,"oifds",NULL,"fdsjf
 insert into foo values ("rewoiu","fds","fr","oiufdsrew","rewoiu","fds","fr","oiufdsrew");
 insert into bar select * from foo;
 include/diff_tables.inc [test.foo, test.bar]
+Warnings:
+Warning	1287	'<select expression> INTO <destination>;' is deprecated and will be removed in a future release. Please use 'SELECT <select list> INTO <destination> FROM...' instead
+Warnings:
+Warning	1287	'<select expression> INTO <destination>;' is deprecated and will be removed in a future release. Please use 'SELECT <select list> INTO <destination> FROM...' instead
 alter table foo drop column aaa, drop column ccc;
 alter table bar drop column aaa, drop column ccc;
 include/diff_tables.inc [test.foo, test.bar]
+Warnings:
+Warning	1287	'<select expression> INTO <destination>;' is deprecated and will be removed in a future release. Please use 'SELECT <select list> INTO <destination> FROM...' instead
+Warnings:
+Warning	1287	'<select expression> INTO <destination>;' is deprecated and will be removed in a future release. Please use 'SELECT <select list> INTO <destination> FROM...' instead
 drop table foo;
 drop table bar;
 create table foo (aa blob, bb longblob, cc tinyblob, dd mediumblob, aaa varchar(12), bbb varbinary(20), ccc varchar(50), ddd varchar(3000)) engine=TokuDB;
@@ -1114,9 +1450,17 @@ insert into foo values ("rewoiu","fds","fr","oiufdsrew",NULL,"oifds",NULL,"fdsjf
 insert into foo values ("rewoiu","fds","fr","oiufdsrew","rewoiu","fds","fr","oiufdsrew");
 insert into bar select * from foo;
 include/diff_tables.inc [test.foo, test.bar]
+Warnings:
+Warning	1287	'<select expression> INTO <destination>;' is deprecated and will be removed in a future release. Please use 'SELECT <select list> INTO <destination> FROM...' instead
+Warnings:
+Warning	1287	'<select expression> INTO <destination>;' is deprecated and will be removed in a future release. Please use 'SELECT <select list> INTO <destination> FROM...' instead
 alter table foo drop column aaa, drop column ddd;
 alter table bar drop column aaa, drop column ddd;
 include/diff_tables.inc [test.foo, test.bar]
+Warnings:
+Warning	1287	'<select expression> INTO <destination>;' is deprecated and will be removed in a future release. Please use 'SELECT <select list> INTO <destination> FROM...' instead
+Warnings:
+Warning	1287	'<select expression> INTO <destination>;' is deprecated and will be removed in a future release. Please use 'SELECT <select list> INTO <destination> FROM...' instead
 drop table foo;
 drop table bar;
 create table foo (aa blob, bb longblob, cc tinyblob, dd mediumblob, aaa varchar(12), bbb varbinary(20), ccc varchar(50), ddd varchar(3000)) engine=TokuDB;
@@ -1140,9 +1484,17 @@ insert into foo values ("rewoiu","fds","fr","oiufdsrew",NULL,"oifds",NULL,"fdsjf
 insert into foo values ("rewoiu","fds","fr","oiufdsrew","rewoiu","fds","fr","oiufdsrew");
 insert into bar select * from foo;
 include/diff_tables.inc [test.foo, test.bar]
+Warnings:
+Warning	1287	'<select expression> INTO <destination>;' is deprecated and will be removed in a future release. Please use 'SELECT <select list> INTO <destination> FROM...' instead
+Warnings:
+Warning	1287	'<select expression> INTO <destination>;' is deprecated and will be removed in a future release. Please use 'SELECT <select list> INTO <destination> FROM...' instead
 alter table foo drop column bbb, drop column aa;
 alter table bar drop column bbb, drop column aa;
 include/diff_tables.inc [test.foo, test.bar]
+Warnings:
+Warning	1287	'<select expression> INTO <destination>;' is deprecated and will be removed in a future release. Please use 'SELECT <select list> INTO <destination> FROM...' instead
+Warnings:
+Warning	1287	'<select expression> INTO <destination>;' is deprecated and will be removed in a future release. Please use 'SELECT <select list> INTO <destination> FROM...' instead
 drop table foo;
 drop table bar;
 create table foo (aa blob, bb longblob, cc tinyblob, dd mediumblob, aaa varchar(12), bbb varbinary(20), ccc varchar(50), ddd varchar(3000)) engine=TokuDB;
@@ -1166,9 +1518,17 @@ insert into foo values ("rewoiu","fds","fr","oiufdsrew",NULL,"oifds",NULL,"fdsjf
 insert into foo values ("rewoiu","fds","fr","oiufdsrew","rewoiu","fds","fr","oiufdsrew");
 insert into bar select * from foo;
 include/diff_tables.inc [test.foo, test.bar]
+Warnings:
+Warning	1287	'<select expression> INTO <destination>;' is deprecated and will be removed in a future release. Please use 'SELECT <select list> INTO <destination> FROM...' instead
+Warnings:
+Warning	1287	'<select expression> INTO <destination>;' is deprecated and will be removed in a future release. Please use 'SELECT <select list> INTO <destination> FROM...' instead
 alter table foo drop column bbb, drop column bb;
 alter table bar drop column bbb, drop column bb;
 include/diff_tables.inc [test.foo, test.bar]
+Warnings:
+Warning	1287	'<select expression> INTO <destination>;' is deprecated and will be removed in a future release. Please use 'SELECT <select list> INTO <destination> FROM...' instead
+Warnings:
+Warning	1287	'<select expression> INTO <destination>;' is deprecated and will be removed in a future release. Please use 'SELECT <select list> INTO <destination> FROM...' instead
 drop table foo;
 drop table bar;
 create table foo (aa blob, bb longblob, cc tinyblob, dd mediumblob, aaa varchar(12), bbb varbinary(20), ccc varchar(50), ddd varchar(3000)) engine=TokuDB;
@@ -1192,9 +1552,17 @@ insert into foo values ("rewoiu","fds","fr","oiufdsrew",NULL,"oifds",NULL,"fdsjf
 insert into foo values ("rewoiu","fds","fr","oiufdsrew","rewoiu","fds","fr","oiufdsrew");
 insert into bar select * from foo;
 include/diff_tables.inc [test.foo, test.bar]
+Warnings:
+Warning	1287	'<select expression> INTO <destination>;' is deprecated and will be removed in a future release. Please use 'SELECT <select list> INTO <destination> FROM...' instead
+Warnings:
+Warning	1287	'<select expression> INTO <destination>;' is deprecated and will be removed in a future release. Please use 'SELECT <select list> INTO <destination> FROM...' instead
 alter table foo drop column bbb, drop column cc;
 alter table bar drop column bbb, drop column cc;
 include/diff_tables.inc [test.foo, test.bar]
+Warnings:
+Warning	1287	'<select expression> INTO <destination>;' is deprecated and will be removed in a future release. Please use 'SELECT <select list> INTO <destination> FROM...' instead
+Warnings:
+Warning	1287	'<select expression> INTO <destination>;' is deprecated and will be removed in a future release. Please use 'SELECT <select list> INTO <destination> FROM...' instead
 drop table foo;
 drop table bar;
 create table foo (aa blob, bb longblob, cc tinyblob, dd mediumblob, aaa varchar(12), bbb varbinary(20), ccc varchar(50), ddd varchar(3000)) engine=TokuDB;
@@ -1218,9 +1586,17 @@ insert into foo values ("rewoiu","fds","fr","oiufdsrew",NULL,"oifds",NULL,"fdsjf
 insert into foo values ("rewoiu","fds","fr","oiufdsrew","rewoiu","fds","fr","oiufdsrew");
 insert into bar select * from foo;
 include/diff_tables.inc [test.foo, test.bar]
+Warnings:
+Warning	1287	'<select expression> INTO <destination>;' is deprecated and will be removed in a future release. Please use 'SELECT <select list> INTO <destination> FROM...' instead
+Warnings:
+Warning	1287	'<select expression> INTO <destination>;' is deprecated and will be removed in a future release. Please use 'SELECT <select list> INTO <destination> FROM...' instead
 alter table foo drop column bbb, drop column dd;
 alter table bar drop column bbb, drop column dd;
 include/diff_tables.inc [test.foo, test.bar]
+Warnings:
+Warning	1287	'<select expression> INTO <destination>;' is deprecated and will be removed in a future release. Please use 'SELECT <select list> INTO <destination> FROM...' instead
+Warnings:
+Warning	1287	'<select expression> INTO <destination>;' is deprecated and will be removed in a future release. Please use 'SELECT <select list> INTO <destination> FROM...' instead
 drop table foo;
 drop table bar;
 create table foo (aa blob, bb longblob, cc tinyblob, dd mediumblob, aaa varchar(12), bbb varbinary(20), ccc varchar(50), ddd varchar(3000)) engine=TokuDB;
@@ -1244,9 +1620,17 @@ insert into foo values ("rewoiu","fds","fr","oiufdsrew",NULL,"oifds",NULL,"fdsjf
 insert into foo values ("rewoiu","fds","fr","oiufdsrew","rewoiu","fds","fr","oiufdsrew");
 insert into bar select * from foo;
 include/diff_tables.inc [test.foo, test.bar]
+Warnings:
+Warning	1287	'<select expression> INTO <destination>;' is deprecated and will be removed in a future release. Please use 'SELECT <select list> INTO <destination> FROM...' instead
+Warnings:
+Warning	1287	'<select expression> INTO <destination>;' is deprecated and will be removed in a future release. Please use 'SELECT <select list> INTO <destination> FROM...' instead
 alter table foo drop column bbb, drop column aaa;
 alter table bar drop column bbb, drop column aaa;
 include/diff_tables.inc [test.foo, test.bar]
+Warnings:
+Warning	1287	'<select expression> INTO <destination>;' is deprecated and will be removed in a future release. Please use 'SELECT <select list> INTO <destination> FROM...' instead
+Warnings:
+Warning	1287	'<select expression> INTO <destination>;' is deprecated and will be removed in a future release. Please use 'SELECT <select list> INTO <destination> FROM...' instead
 drop table foo;
 drop table bar;
 create table foo (aa blob, bb longblob, cc tinyblob, dd mediumblob, aaa varchar(12), bbb varbinary(20), ccc varchar(50), ddd varchar(3000)) engine=TokuDB;
@@ -1270,9 +1654,17 @@ insert into foo values ("rewoiu","fds","fr","oiufdsrew",NULL,"oifds",NULL,"fdsjf
 insert into foo values ("rewoiu","fds","fr","oiufdsrew","rewoiu","fds","fr","oiufdsrew");
 insert into bar select * from foo;
 include/diff_tables.inc [test.foo, test.bar]
+Warnings:
+Warning	1287	'<select expression> INTO <destination>;' is deprecated and will be removed in a future release. Please use 'SELECT <select list> INTO <destination> FROM...' instead
+Warnings:
+Warning	1287	'<select expression> INTO <destination>;' is deprecated and will be removed in a future release. Please use 'SELECT <select list> INTO <destination> FROM...' instead
 alter table foo drop column bbb, drop column ccc;
 alter table bar drop column bbb, drop column ccc;
 include/diff_tables.inc [test.foo, test.bar]
+Warnings:
+Warning	1287	'<select expression> INTO <destination>;' is deprecated and will be removed in a future release. Please use 'SELECT <select list> INTO <destination> FROM...' instead
+Warnings:
+Warning	1287	'<select expression> INTO <destination>;' is deprecated and will be removed in a future release. Please use 'SELECT <select list> INTO <destination> FROM...' instead
 drop table foo;
 drop table bar;
 create table foo (aa blob, bb longblob, cc tinyblob, dd mediumblob, aaa varchar(12), bbb varbinary(20), ccc varchar(50), ddd varchar(3000)) engine=TokuDB;
@@ -1296,9 +1688,17 @@ insert into foo values ("rewoiu","fds","fr","oiufdsrew",NULL,"oifds",NULL,"fdsjf
 insert into foo values ("rewoiu","fds","fr","oiufdsrew","rewoiu","fds","fr","oiufdsrew");
 insert into bar select * from foo;
 include/diff_tables.inc [test.foo, test.bar]
+Warnings:
+Warning	1287	'<select expression> INTO <destination>;' is deprecated and will be removed in a future release. Please use 'SELECT <select list> INTO <destination> FROM...' instead
+Warnings:
+Warning	1287	'<select expression> INTO <destination>;' is deprecated and will be removed in a future release. Please use 'SELECT <select list> INTO <destination> FROM...' instead
 alter table foo drop column bbb, drop column ddd;
 alter table bar drop column bbb, drop column ddd;
 include/diff_tables.inc [test.foo, test.bar]
+Warnings:
+Warning	1287	'<select expression> INTO <destination>;' is deprecated and will be removed in a future release. Please use 'SELECT <select list> INTO <destination> FROM...' instead
+Warnings:
+Warning	1287	'<select expression> INTO <destination>;' is deprecated and will be removed in a future release. Please use 'SELECT <select list> INTO <destination> FROM...' instead
 drop table foo;
 drop table bar;
 create table foo (aa blob, bb longblob, cc tinyblob, dd mediumblob, aaa varchar(12), bbb varbinary(20), ccc varchar(50), ddd varchar(3000)) engine=TokuDB;
@@ -1322,9 +1722,17 @@ insert into foo values ("rewoiu","fds","fr","oiufdsrew",NULL,"oifds",NULL,"fdsjf
 insert into foo values ("rewoiu","fds","fr","oiufdsrew","rewoiu","fds","fr","oiufdsrew");
 insert into bar select * from foo;
 include/diff_tables.inc [test.foo, test.bar]
+Warnings:
+Warning	1287	'<select expression> INTO <destination>;' is deprecated and will be removed in a future release. Please use 'SELECT <select list> INTO <destination> FROM...' instead
+Warnings:
+Warning	1287	'<select expression> INTO <destination>;' is deprecated and will be removed in a future release. Please use 'SELECT <select list> INTO <destination> FROM...' instead
 alter table foo drop column ccc, drop column aa;
 alter table bar drop column ccc, drop column aa;
 include/diff_tables.inc [test.foo, test.bar]
+Warnings:
+Warning	1287	'<select expression> INTO <destination>;' is deprecated and will be removed in a future release. Please use 'SELECT <select list> INTO <destination> FROM...' instead
+Warnings:
+Warning	1287	'<select expression> INTO <destination>;' is deprecated and will be removed in a future release. Please use 'SELECT <select list> INTO <destination> FROM...' instead
 drop table foo;
 drop table bar;
 create table foo (aa blob, bb longblob, cc tinyblob, dd mediumblob, aaa varchar(12), bbb varbinary(20), ccc varchar(50), ddd varchar(3000)) engine=TokuDB;
@@ -1348,9 +1756,17 @@ insert into foo values ("rewoiu","fds","fr","oiufdsrew",NULL,"oifds",NULL,"fdsjf
 insert into foo values ("rewoiu","fds","fr","oiufdsrew","rewoiu","fds","fr","oiufdsrew");
 insert into bar select * from foo;
 include/diff_tables.inc [test.foo, test.bar]
+Warnings:
+Warning	1287	'<select expression> INTO <destination>;' is deprecated and will be removed in a future release. Please use 'SELECT <select list> INTO <destination> FROM...' instead
+Warnings:
+Warning	1287	'<select expression> INTO <destination>;' is deprecated and will be removed in a future release. Please use 'SELECT <select list> INTO <destination> FROM...' instead
 alter table foo drop column ccc, drop column bb;
 alter table bar drop column ccc, drop column bb;
 include/diff_tables.inc [test.foo, test.bar]
+Warnings:
+Warning	1287	'<select expression> INTO <destination>;' is deprecated and will be removed in a future release. Please use 'SELECT <select list> INTO <destination> FROM...' instead
+Warnings:
+Warning	1287	'<select expression> INTO <destination>;' is deprecated and will be removed in a future release. Please use 'SELECT <select list> INTO <destination> FROM...' instead
 drop table foo;
 drop table bar;
 create table foo (aa blob, bb longblob, cc tinyblob, dd mediumblob, aaa varchar(12), bbb varbinary(20), ccc varchar(50), ddd varchar(3000)) engine=TokuDB;
@@ -1374,9 +1790,17 @@ insert into foo values ("rewoiu","fds","fr","oiufdsrew",NULL,"oifds",NULL,"fdsjf
 insert into foo values ("rewoiu","fds","fr","oiufdsrew","rewoiu","fds","fr","oiufdsrew");
 insert into bar select * from foo;
 include/diff_tables.inc [test.foo, test.bar]
+Warnings:
+Warning	1287	'<select expression> INTO <destination>;' is deprecated and will be removed in a future release. Please use 'SELECT <select list> INTO <destination> FROM...' instead
+Warnings:
+Warning	1287	'<select expression> INTO <destination>;' is deprecated and will be removed in a future release. Please use 'SELECT <select list> INTO <destination> FROM...' instead
 alter table foo drop column ccc, drop column cc;
 alter table bar drop column ccc, drop column cc;
 include/diff_tables.inc [test.foo, test.bar]
+Warnings:
+Warning	1287	'<select expression> INTO <destination>;' is deprecated and will be removed in a future release. Please use 'SELECT <select list> INTO <destination> FROM...' instead
+Warnings:
+Warning	1287	'<select expression> INTO <destination>;' is deprecated and will be removed in a future release. Please use 'SELECT <select list> INTO <destination> FROM...' instead
 drop table foo;
 drop table bar;
 create table foo (aa blob, bb longblob, cc tinyblob, dd mediumblob, aaa varchar(12), bbb varbinary(20), ccc varchar(50), ddd varchar(3000)) engine=TokuDB;
@@ -1400,9 +1824,17 @@ insert into foo values ("rewoiu","fds","fr","oiufdsrew",NULL,"oifds",NULL,"fdsjf
 insert into foo values ("rewoiu","fds","fr","oiufdsrew","rewoiu","fds","fr","oiufdsrew");
 insert into bar select * from foo;
 include/diff_tables.inc [test.foo, test.bar]
+Warnings:
+Warning	1287	'<select expression> INTO <destination>;' is deprecated and will be removed in a future release. Please use 'SELECT <select list> INTO <destination> FROM...' instead
+Warnings:
+Warning	1287	'<select expression> INTO <destination>;' is deprecated and will be removed in a future release. Please use 'SELECT <select list> INTO <destination> FROM...' instead
 alter table foo drop column ccc, drop column dd;
 alter table bar drop column ccc, drop column dd;
 include/diff_tables.inc [test.foo, test.bar]
+Warnings:
+Warning	1287	'<select expression> INTO <destination>;' is deprecated and will be removed in a future release. Please use 'SELECT <select list> INTO <destination> FROM...' instead
+Warnings:
+Warning	1287	'<select expression> INTO <destination>;' is deprecated and will be removed in a future release. Please use 'SELECT <select list> INTO <destination> FROM...' instead
 drop table foo;
 drop table bar;
 create table foo (aa blob, bb longblob, cc tinyblob, dd mediumblob, aaa varchar(12), bbb varbinary(20), ccc varchar(50), ddd varchar(3000)) engine=TokuDB;
@@ -1426,9 +1858,17 @@ insert into foo values ("rewoiu","fds","fr","oiufdsrew",NULL,"oifds",NULL,"fdsjf
 insert into foo values ("rewoiu","fds","fr","oiufdsrew","rewoiu","fds","fr","oiufdsrew");
 insert into bar select * from foo;
 include/diff_tables.inc [test.foo, test.bar]
+Warnings:
+Warning	1287	'<select expression> INTO <destination>;' is deprecated and will be removed in a future release. Please use 'SELECT <select list> INTO <destination> FROM...' instead
+Warnings:
+Warning	1287	'<select expression> INTO <destination>;' is deprecated and will be removed in a future release. Please use 'SELECT <select list> INTO <destination> FROM...' instead
 alter table foo drop column ccc, drop column aaa;
 alter table bar drop column ccc, drop column aaa;
 include/diff_tables.inc [test.foo, test.bar]
+Warnings:
+Warning	1287	'<select expression> INTO <destination>;' is deprecated and will be removed in a future release. Please use 'SELECT <select list> INTO <destination> FROM...' instead
+Warnings:
+Warning	1287	'<select expression> INTO <destination>;' is deprecated and will be removed in a future release. Please use 'SELECT <select list> INTO <destination> FROM...' instead
 drop table foo;
 drop table bar;
 create table foo (aa blob, bb longblob, cc tinyblob, dd mediumblob, aaa varchar(12), bbb varbinary(20), ccc varchar(50), ddd varchar(3000)) engine=TokuDB;
@@ -1452,9 +1892,17 @@ insert into foo values ("rewoiu","fds","fr","oiufdsrew",NULL,"oifds",NULL,"fdsjf
 insert into foo values ("rewoiu","fds","fr","oiufdsrew","rewoiu","fds","fr","oiufdsrew");
 insert into bar select * from foo;
 include/diff_tables.inc [test.foo, test.bar]
+Warnings:
+Warning	1287	'<select expression> INTO <destination>;' is deprecated and will be removed in a future release. Please use 'SELECT <select list> INTO <destination> FROM...' instead
+Warnings:
+Warning	1287	'<select expression> INTO <destination>;' is deprecated and will be removed in a future release. Please use 'SELECT <select list> INTO <destination> FROM...' instead
 alter table foo drop column ccc, drop column bbb;
 alter table bar drop column ccc, drop column bbb;
 include/diff_tables.inc [test.foo, test.bar]
+Warnings:
+Warning	1287	'<select expression> INTO <destination>;' is deprecated and will be removed in a future release. Please use 'SELECT <select list> INTO <destination> FROM...' instead
+Warnings:
+Warning	1287	'<select expression> INTO <destination>;' is deprecated and will be removed in a future release. Please use 'SELECT <select list> INTO <destination> FROM...' instead
 drop table foo;
 drop table bar;
 create table foo (aa blob, bb longblob, cc tinyblob, dd mediumblob, aaa varchar(12), bbb varbinary(20), ccc varchar(50), ddd varchar(3000)) engine=TokuDB;
@@ -1478,9 +1926,17 @@ insert into foo values ("rewoiu","fds","fr","oiufdsrew",NULL,"oifds",NULL,"fdsjf
 insert into foo values ("rewoiu","fds","fr","oiufdsrew","rewoiu","fds","fr","oiufdsrew");
 insert into bar select * from foo;
 include/diff_tables.inc [test.foo, test.bar]
+Warnings:
+Warning	1287	'<select expression> INTO <destination>;' is deprecated and will be removed in a future release. Please use 'SELECT <select list> INTO <destination> FROM...' instead
+Warnings:
+Warning	1287	'<select expression> INTO <destination>;' is deprecated and will be removed in a future release. Please use 'SELECT <select list> INTO <destination> FROM...' instead
 alter table foo drop column ccc, drop column ddd;
 alter table bar drop column ccc, drop column ddd;
 include/diff_tables.inc [test.foo, test.bar]
+Warnings:
+Warning	1287	'<select expression> INTO <destination>;' is deprecated and will be removed in a future release. Please use 'SELECT <select list> INTO <destination> FROM...' instead
+Warnings:
+Warning	1287	'<select expression> INTO <destination>;' is deprecated and will be removed in a future release. Please use 'SELECT <select list> INTO <destination> FROM...' instead
 drop table foo;
 drop table bar;
 create table foo (aa blob, bb longblob, cc tinyblob, dd mediumblob, aaa varchar(12), bbb varbinary(20), ccc varchar(50), ddd varchar(3000)) engine=TokuDB;
@@ -1504,9 +1960,17 @@ insert into foo values ("rewoiu","fds","fr","oiufdsrew",NULL,"oifds",NULL,"fdsjf
 insert into foo values ("rewoiu","fds","fr","oiufdsrew","rewoiu","fds","fr","oiufdsrew");
 insert into bar select * from foo;
 include/diff_tables.inc [test.foo, test.bar]
+Warnings:
+Warning	1287	'<select expression> INTO <destination>;' is deprecated and will be removed in a future release. Please use 'SELECT <select list> INTO <destination> FROM...' instead
+Warnings:
+Warning	1287	'<select expression> INTO <destination>;' is deprecated and will be removed in a future release. Please use 'SELECT <select list> INTO <destination> FROM...' instead
 alter table foo drop column ddd, drop column aa;
 alter table bar drop column ddd, drop column aa;
 include/diff_tables.inc [test.foo, test.bar]
+Warnings:
+Warning	1287	'<select expression> INTO <destination>;' is deprecated and will be removed in a future release. Please use 'SELECT <select list> INTO <destination> FROM...' instead
+Warnings:
+Warning	1287	'<select expression> INTO <destination>;' is deprecated and will be removed in a future release. Please use 'SELECT <select list> INTO <destination> FROM...' instead
 drop table foo;
 drop table bar;
 create table foo (aa blob, bb longblob, cc tinyblob, dd mediumblob, aaa varchar(12), bbb varbinary(20), ccc varchar(50), ddd varchar(3000)) engine=TokuDB;
@@ -1530,9 +1994,17 @@ insert into foo values ("rewoiu","fds","fr","oiufdsrew",NULL,"oifds",NULL,"fdsjf
 insert into foo values ("rewoiu","fds","fr","oiufdsrew","rewoiu","fds","fr","oiufdsrew");
 insert into bar select * from foo;
 include/diff_tables.inc [test.foo, test.bar]
+Warnings:
+Warning	1287	'<select expression> INTO <destination>;' is deprecated and will be removed in a future release. Please use 'SELECT <select list> INTO <destination> FROM...' instead
+Warnings:
+Warning	1287	'<select expression> INTO <destination>;' is deprecated and will be removed in a future release. Please use 'SELECT <select list> INTO <destination> FROM...' instead
 alter table foo drop column ddd, drop column bb;
 alter table bar drop column ddd, drop column bb;
 include/diff_tables.inc [test.foo, test.bar]
+Warnings:
+Warning	1287	'<select expression> INTO <destination>;' is deprecated and will be removed in a future release. Please use 'SELECT <select list> INTO <destination> FROM...' instead
+Warnings:
+Warning	1287	'<select expression> INTO <destination>;' is deprecated and will be removed in a future release. Please use 'SELECT <select list> INTO <destination> FROM...' instead
 drop table foo;
 drop table bar;
 create table foo (aa blob, bb longblob, cc tinyblob, dd mediumblob, aaa varchar(12), bbb varbinary(20), ccc varchar(50), ddd varchar(3000)) engine=TokuDB;
@@ -1556,9 +2028,17 @@ insert into foo values ("rewoiu","fds","fr","oiufdsrew",NULL,"oifds",NULL,"fdsjf
 insert into foo values ("rewoiu","fds","fr","oiufdsrew","rewoiu","fds","fr","oiufdsrew");
 insert into bar select * from foo;
 include/diff_tables.inc [test.foo, test.bar]
+Warnings:
+Warning	1287	'<select expression> INTO <destination>;' is deprecated and will be removed in a future release. Please use 'SELECT <select list> INTO <destination> FROM...' instead
+Warnings:
+Warning	1287	'<select expression> INTO <destination>;' is deprecated and will be removed in a future release. Please use 'SELECT <select list> INTO <destination> FROM...' instead
 alter table foo drop column ddd, drop column cc;
 alter table bar drop column ddd, drop column cc;
 include/diff_tables.inc [test.foo, test.bar]
+Warnings:
+Warning	1287	'<select expression> INTO <destination>;' is deprecated and will be removed in a future release. Please use 'SELECT <select list> INTO <destination> FROM...' instead
+Warnings:
+Warning	1287	'<select expression> INTO <destination>;' is deprecated and will be removed in a future release. Please use 'SELECT <select list> INTO <destination> FROM...' instead
 drop table foo;
 drop table bar;
 create table foo (aa blob, bb longblob, cc tinyblob, dd mediumblob, aaa varchar(12), bbb varbinary(20), ccc varchar(50), ddd varchar(3000)) engine=TokuDB;
@@ -1582,9 +2062,17 @@ insert into foo values ("rewoiu","fds","fr","oiufdsrew",NULL,"oifds",NULL,"fdsjf
 insert into foo values ("rewoiu","fds","fr","oiufdsrew","rewoiu","fds","fr","oiufdsrew");
 insert into bar select * from foo;
 include/diff_tables.inc [test.foo, test.bar]
+Warnings:
+Warning	1287	'<select expression> INTO <destination>;' is deprecated and will be removed in a future release. Please use 'SELECT <select list> INTO <destination> FROM...' instead
+Warnings:
+Warning	1287	'<select expression> INTO <destination>;' is deprecated and will be removed in a future release. Please use 'SELECT <select list> INTO <destination> FROM...' instead
 alter table foo drop column ddd, drop column dd;
 alter table bar drop column ddd, drop column dd;
 include/diff_tables.inc [test.foo, test.bar]
+Warnings:
+Warning	1287	'<select expression> INTO <destination>;' is deprecated and will be removed in a future release. Please use 'SELECT <select list> INTO <destination> FROM...' instead
+Warnings:
+Warning	1287	'<select expression> INTO <destination>;' is deprecated and will be removed in a future release. Please use 'SELECT <select list> INTO <destination> FROM...' instead
 drop table foo;
 drop table bar;
 create table foo (aa blob, bb longblob, cc tinyblob, dd mediumblob, aaa varchar(12), bbb varbinary(20), ccc varchar(50), ddd varchar(3000)) engine=TokuDB;
@@ -1608,9 +2096,17 @@ insert into foo values ("rewoiu","fds","fr","oiufdsrew",NULL,"oifds",NULL,"fdsjf
 insert into foo values ("rewoiu","fds","fr","oiufdsrew","rewoiu","fds","fr","oiufdsrew");
 insert into bar select * from foo;
 include/diff_tables.inc [test.foo, test.bar]
+Warnings:
+Warning	1287	'<select expression> INTO <destination>;' is deprecated and will be removed in a future release. Please use 'SELECT <select list> INTO <destination> FROM...' instead
+Warnings:
+Warning	1287	'<select expression> INTO <destination>;' is deprecated and will be removed in a future release. Please use 'SELECT <select list> INTO <destination> FROM...' instead
 alter table foo drop column ddd, drop column aaa;
 alter table bar drop column ddd, drop column aaa;
 include/diff_tables.inc [test.foo, test.bar]
+Warnings:
+Warning	1287	'<select expression> INTO <destination>;' is deprecated and will be removed in a future release. Please use 'SELECT <select list> INTO <destination> FROM...' instead
+Warnings:
+Warning	1287	'<select expression> INTO <destination>;' is deprecated and will be removed in a future release. Please use 'SELECT <select list> INTO <destination> FROM...' instead
 drop table foo;
 drop table bar;
 create table foo (aa blob, bb longblob, cc tinyblob, dd mediumblob, aaa varchar(12), bbb varbinary(20), ccc varchar(50), ddd varchar(3000)) engine=TokuDB;
@@ -1634,9 +2130,17 @@ insert into foo values ("rewoiu","fds","fr","oiufdsrew",NULL,"oifds",NULL,"fdsjf
 insert into foo values ("rewoiu","fds","fr","oiufdsrew","rewoiu","fds","fr","oiufdsrew");
 insert into bar select * from foo;
 include/diff_tables.inc [test.foo, test.bar]
+Warnings:
+Warning	1287	'<select expression> INTO <destination>;' is deprecated and will be removed in a future release. Please use 'SELECT <select list> INTO <destination> FROM...' instead
+Warnings:
+Warning	1287	'<select expression> INTO <destination>;' is deprecated and will be removed in a future release. Please use 'SELECT <select list> INTO <destination> FROM...' instead
 alter table foo drop column ddd, drop column bbb;
 alter table bar drop column ddd, drop column bbb;
 include/diff_tables.inc [test.foo, test.bar]
+Warnings:
+Warning	1287	'<select expression> INTO <destination>;' is deprecated and will be removed in a future release. Please use 'SELECT <select list> INTO <destination> FROM...' instead
+Warnings:
+Warning	1287	'<select expression> INTO <destination>;' is deprecated and will be removed in a future release. Please use 'SELECT <select list> INTO <destination> FROM...' instead
 drop table foo;
 drop table bar;
 create table foo (aa blob, bb longblob, cc tinyblob, dd mediumblob, aaa varchar(12), bbb varbinary(20), ccc varchar(50), ddd varchar(3000)) engine=TokuDB;
@@ -1660,9 +2164,17 @@ insert into foo values ("rewoiu","fds","fr","oiufdsrew",NULL,"oifds",NULL,"fdsjf
 insert into foo values ("rewoiu","fds","fr","oiufdsrew","rewoiu","fds","fr","oiufdsrew");
 insert into bar select * from foo;
 include/diff_tables.inc [test.foo, test.bar]
+Warnings:
+Warning	1287	'<select expression> INTO <destination>;' is deprecated and will be removed in a future release. Please use 'SELECT <select list> INTO <destination> FROM...' instead
+Warnings:
+Warning	1287	'<select expression> INTO <destination>;' is deprecated and will be removed in a future release. Please use 'SELECT <select list> INTO <destination> FROM...' instead
 alter table foo drop column ddd, drop column ccc;
 alter table bar drop column ddd, drop column ccc;
 include/diff_tables.inc [test.foo, test.bar]
+Warnings:
+Warning	1287	'<select expression> INTO <destination>;' is deprecated and will be removed in a future release. Please use 'SELECT <select list> INTO <destination> FROM...' instead
+Warnings:
+Warning	1287	'<select expression> INTO <destination>;' is deprecated and will be removed in a future release. Please use 'SELECT <select list> INTO <destination> FROM...' instead
 drop table foo;
 drop table bar;
 create table foo (aa blob, bb longblob, cc tinyblob, dd mediumblob, aaa varchar(12), bbb varbinary(20), ccc varchar(50), ddd varchar(3000)) engine=TokuDB;
@@ -1686,9 +2198,17 @@ insert into foo values ("rewoiu","fds","fr","oiufdsrew",NULL,"oifds",NULL,"fdsjf
 insert into foo values ("rewoiu","fds","fr","oiufdsrew","rewoiu","fds","fr","oiufdsrew");
 insert into bar select * from foo;
 include/diff_tables.inc [test.foo, test.bar]
+Warnings:
+Warning	1287	'<select expression> INTO <destination>;' is deprecated and will be removed in a future release. Please use 'SELECT <select list> INTO <destination> FROM...' instead
+Warnings:
+Warning	1287	'<select expression> INTO <destination>;' is deprecated and will be removed in a future release. Please use 'SELECT <select list> INTO <destination> FROM...' instead
 alter table foo drop column aa, drop column bb, drop column cc;
 alter table bar drop column aa, drop column bb, drop column cc;
 include/diff_tables.inc [test.foo, test.bar]
+Warnings:
+Warning	1287	'<select expression> INTO <destination>;' is deprecated and will be removed in a future release. Please use 'SELECT <select list> INTO <destination> FROM...' instead
+Warnings:
+Warning	1287	'<select expression> INTO <destination>;' is deprecated and will be removed in a future release. Please use 'SELECT <select list> INTO <destination> FROM...' instead
 drop table foo;
 drop table bar;
 create table foo (aa blob, bb longblob, cc tinyblob, dd mediumblob, aaa varchar(12), bbb varbinary(20), ccc varchar(50), ddd varchar(3000)) engine=TokuDB;
@@ -1712,9 +2232,17 @@ insert into foo values ("rewoiu","fds","fr","oiufdsrew",NULL,"oifds",NULL,"fdsjf
 insert into foo values ("rewoiu","fds","fr","oiufdsrew","rewoiu","fds","fr","oiufdsrew");
 insert into bar select * from foo;
 include/diff_tables.inc [test.foo, test.bar]
+Warnings:
+Warning	1287	'<select expression> INTO <destination>;' is deprecated and will be removed in a future release. Please use 'SELECT <select list> INTO <destination> FROM...' instead
+Warnings:
+Warning	1287	'<select expression> INTO <destination>;' is deprecated and will be removed in a future release. Please use 'SELECT <select list> INTO <destination> FROM...' instead
 alter table foo drop column aa, drop column bb, drop column dd;
 alter table bar drop column aa, drop column bb, drop column dd;
 include/diff_tables.inc [test.foo, test.bar]
+Warnings:
+Warning	1287	'<select expression> INTO <destination>;' is deprecated and will be removed in a future release. Please use 'SELECT <select list> INTO <destination> FROM...' instead
+Warnings:
+Warning	1287	'<select expression> INTO <destination>;' is deprecated and will be removed in a future release. Please use 'SELECT <select list> INTO <destination> FROM...' instead
 drop table foo;
 drop table bar;
 create table foo (aa blob, bb longblob, cc tinyblob, dd mediumblob, aaa varchar(12), bbb varbinary(20), ccc varchar(50), ddd varchar(3000)) engine=TokuDB;
@@ -1738,9 +2266,17 @@ insert into foo values ("rewoiu","fds","fr","oiufdsrew",NULL,"oifds",NULL,"fdsjf
 insert into foo values ("rewoiu","fds","fr","oiufdsrew","rewoiu","fds","fr","oiufdsrew");
 insert into bar select * from foo;
 include/diff_tables.inc [test.foo, test.bar]
+Warnings:
+Warning	1287	'<select expression> INTO <destination>;' is deprecated and will be removed in a future release. Please use 'SELECT <select list> INTO <destination> FROM...' instead
+Warnings:
+Warning	1287	'<select expression> INTO <destination>;' is deprecated and will be removed in a future release. Please use 'SELECT <select list> INTO <destination> FROM...' instead
 alter table foo drop column aa, drop column cc, drop column dd;
 alter table bar drop column aa, drop column cc, drop column dd;
 include/diff_tables.inc [test.foo, test.bar]
+Warnings:
+Warning	1287	'<select expression> INTO <destination>;' is deprecated and will be removed in a future release. Please use 'SELECT <select list> INTO <destination> FROM...' instead
+Warnings:
+Warning	1287	'<select expression> INTO <destination>;' is deprecated and will be removed in a future release. Please use 'SELECT <select list> INTO <destination> FROM...' instead
 drop table foo;
 drop table bar;
 create table foo (aa blob, bb longblob, cc tinyblob, dd mediumblob, aaa varchar(12), bbb varbinary(20), ccc varchar(50), ddd varchar(3000)) engine=TokuDB;
@@ -1764,9 +2300,17 @@ insert into foo values ("rewoiu","fds","fr","oiufdsrew",NULL,"oifds",NULL,"fdsjf
 insert into foo values ("rewoiu","fds","fr","oiufdsrew","rewoiu","fds","fr","oiufdsrew");
 insert into bar select * from foo;
 include/diff_tables.inc [test.foo, test.bar]
+Warnings:
+Warning	1287	'<select expression> INTO <destination>;' is deprecated and will be removed in a future release. Please use 'SELECT <select list> INTO <destination> FROM...' instead
+Warnings:
+Warning	1287	'<select expression> INTO <destination>;' is deprecated and will be removed in a future release. Please use 'SELECT <select list> INTO <destination> FROM...' instead
 alter table foo drop column bb, drop column cc, drop column dd;
 alter table bar drop column bb, drop column cc, drop column dd;
 include/diff_tables.inc [test.foo, test.bar]
+Warnings:
+Warning	1287	'<select expression> INTO <destination>;' is deprecated and will be removed in a future release. Please use 'SELECT <select list> INTO <destination> FROM...' instead
+Warnings:
+Warning	1287	'<select expression> INTO <destination>;' is deprecated and will be removed in a future release. Please use 'SELECT <select list> INTO <destination> FROM...' instead
 drop table foo;
 drop table bar;
 create table foo (aa blob, bb longblob, cc tinyblob, dd mediumblob, aaa varchar(12), bbb varbinary(20), ccc varchar(50), ddd varchar(3000)) engine=TokuDB;
@@ -1790,9 +2334,17 @@ insert into foo values ("rewoiu","fds","fr","oiufdsrew",NULL,"oifds",NULL,"fdsjf
 insert into foo values ("rewoiu","fds","fr","oiufdsrew","rewoiu","fds","fr","oiufdsrew");
 insert into bar select * from foo;
 include/diff_tables.inc [test.foo, test.bar]
+Warnings:
+Warning	1287	'<select expression> INTO <destination>;' is deprecated and will be removed in a future release. Please use 'SELECT <select list> INTO <destination> FROM...' instead
+Warnings:
+Warning	1287	'<select expression> INTO <destination>;' is deprecated and will be removed in a future release. Please use 'SELECT <select list> INTO <destination> FROM...' instead
 alter table foo drop column aa, drop column bb, drop column cc, drop column dd;
 alter table bar drop column aa, drop column bb, drop column cc, drop column dd;
 include/diff_tables.inc [test.foo, test.bar]
+Warnings:
+Warning	1287	'<select expression> INTO <destination>;' is deprecated and will be removed in a future release. Please use 'SELECT <select list> INTO <destination> FROM...' instead
+Warnings:
+Warning	1287	'<select expression> INTO <destination>;' is deprecated and will be removed in a future release. Please use 'SELECT <select list> INTO <destination> FROM...' instead
 drop table foo;
 drop table bar;
 create table foo (aa blob, bb longblob, cc tinyblob, dd mediumblob, aaa varchar(12), bbb varbinary(20), ccc varchar(50), ddd varchar(3000)) engine=TokuDB;
@@ -1816,8 +2368,16 @@ insert into foo values ("rewoiu","fds","fr","oiufdsrew",NULL,"oifds",NULL,"fdsjf
 insert into foo values ("rewoiu","fds","fr","oiufdsrew","rewoiu","fds","fr","oiufdsrew");
 insert into bar select * from foo;
 include/diff_tables.inc [test.foo, test.bar]
+Warnings:
+Warning	1287	'<select expression> INTO <destination>;' is deprecated and will be removed in a future release. Please use 'SELECT <select list> INTO <destination> FROM...' instead
+Warnings:
+Warning	1287	'<select expression> INTO <destination>;' is deprecated and will be removed in a future release. Please use 'SELECT <select list> INTO <destination> FROM...' instead
 alter table foo drop column aaa, drop column bbb, drop column ccc, drop column ddd;
 alter table bar drop column aaa, drop column bbb, drop column ccc, drop column ddd;
 include/diff_tables.inc [test.foo, test.bar]
+Warnings:
+Warning	1287	'<select expression> INTO <destination>;' is deprecated and will be removed in a future release. Please use 'SELECT <select list> INTO <destination> FROM...' instead
+Warnings:
+Warning	1287	'<select expression> INTO <destination>;' is deprecated and will be removed in a future release. Please use 'SELECT <select list> INTO <destination> FROM...' instead
 drop table foo;
 drop table bar;

@@ -82,4 +82,19 @@ t1	1	t1_5	2	c1	A	100000	NULL	NULL	YES	LSMTREE
 SELECT table_name, table_rows FROM information_schema.tables WHERE table_schema = DATABASE();
 table_name	table_rows
 t1	100000
-drop table t1;
+CREATE TABLE t2 (a INT, b INT, c INT, d INT, e INT, f INT, g INT,
+PRIMARY KEY (a), KEY (c, b, a, d, e, f, g))
+ENGINE=ROCKSDB;
+SET GLOBAL rocksdb_force_flush_memtable_now = 1;
+ANALYZE TABLE t2;
+Table	Op	Msg_type	Msg_text
+test.t2	analyze	status	OK
+cardinality of the columns after 'a' must be equal to the cardinality of column 'a'
+SELECT CARDINALITY INTO @c FROM information_schema.statistics WHERE TABLE_NAME='t2' AND INDEX_NAME='c' AND COLUMN_NAME='a';
+SELECT COLUMN_NAME, CARDINALITY = @c FROM information_schema.statistics WHERE TABLE_NAME='t2' AND INDEX_NAME='c' AND SEQ_IN_INDEX > 3;
+COLUMN_NAME	CARDINALITY = @c
+d	1
+e	1
+f	1
+g	1
+drop table t1, t2;

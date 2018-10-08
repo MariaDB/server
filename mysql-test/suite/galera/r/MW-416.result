@@ -1,9 +1,8 @@
-connection node_2;
-connection node_1;
 CREATE USER 'userMW416'@'localhost';
 GRANT SELECT, INSERT, UPDATE ON test.* TO 'userMW416'@'localhost';
-connect userMW416, localhost, userMW416,, test, $NODE_MYPORT_1;
-connection userMW416;
+SHOW GLOBAL STATUS LIKE 'wsrep_replicated';
+Variable_name	Value
+wsrep_replicated	2
 ALTER DATABASE db CHARACTER SET = utf8;
 ERROR 42000: Access denied for user 'userMW416'@'localhost' to database 'db'
 ALTER EVENT ev1 RENAME TO ev2;
@@ -54,11 +53,15 @@ DROP FUNCTION fun1;
 Got one of the listed errors
 DROP INDEX idx ON t0;
 Got one of the listed errors
+DROP LOGFILE GROUP lfg;
+Got one of the listed errors
 DROP PROCEDURE proc1;
 Got one of the listed errors
 DROP SERVEr srv;
 Got one of the listed errors
 DROP TABLE t0;
+Got one of the listed errors
+DROP TABLESPACE tblspc;
 Got one of the listed errors
 DROP TRIGGER trg;
 Got one of the listed errors
@@ -67,6 +70,8 @@ Got one of the listed errors
 RENAME TABLE t0 TO t1;
 Got one of the listed errors
 TRUNCATE TABLE t0;
+Got one of the listed errors
+ALTER USER myuser PASSWORD EXPIRE;
 Got one of the listed errors
 CREATE USER myuser IDENTIFIED BY 'pass';
 Got one of the listed errors
@@ -96,7 +101,6 @@ INSTALL PLUGIN plg SONAME 'plg.so';
 Got one of the listed errors
 UNINSTALL PLUGIN plg;
 Got one of the listed errors
-connection node_1;
 DROP USER 'userMW416'@'localhost';
 SHOW DATABASES;
 Database

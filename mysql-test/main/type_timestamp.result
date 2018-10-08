@@ -492,8 +492,12 @@ INSERT INTO t1 (f2,f3) VALUES (NOW(), "0000-00-00 00:00:00");
 INSERT INTO t1 (f2,f3) VALUES (NOW(), NULL);
 INSERT INTO t1 (f2,f3) VALUES (NOW(), ASCII(NULL));
 INSERT INTO t1 (f2,f3) VALUES (NOW(), FROM_UNIXTIME('9999999999'));
+Warnings:
+Warning	1292	Truncated incorrect unixtime value: '9999999999'
 INSERT INTO t1 (f2,f3) VALUES (NOW(), TIME(NULL));
 UPDATE t1 SET f2=NOW(), f3=FROM_UNIXTIME('9999999999') WHERE f1=1;
+Warnings:
+Warning	1292	Truncated incorrect unixtime value: '9999999999'
 SELECT f1,f2-f3 FROM t1;
 f1	f2-f3
 1	0
