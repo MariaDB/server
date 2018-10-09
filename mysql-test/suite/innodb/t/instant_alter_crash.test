@@ -144,6 +144,7 @@ for (my $offset= 0x65; $offset;
 	    if ($i > 2 && !(~unpack("C",substr($page,$offset-6,1)) & 0x30)) {
 		if ($i == 3) {
 		    print "BLOB=";
+		    $start += 8; # skip the space_id,page_number
 		} else {
 		    print "$fields[$i - 1]=";
 		}
