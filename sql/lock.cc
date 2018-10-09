@@ -77,6 +77,7 @@
 #include "sql_base.h"                       // close_tables_for_reopen
 #include "sql_parse.h"                     // is_log_table_write_query
 #include "sql_acl.h"                       // SUPER_ACL
+#include "sql_handler.h"
 #include <hash.h>
 #include "wsrep_mysqld.h"
 
@@ -1014,6 +1015,8 @@ bool Global_read_lock::lock_global_read_lock(THD *thd)
   if (!m_state)
   {
     MDL_request mdl_request;
+
+    mysql_ha_cleanup_no_free(thd);
 
     DBUG_ASSERT(! thd->mdl_context.is_lock_owner(MDL_key::GLOBAL, "", "",
                                                  MDL_SHARED));

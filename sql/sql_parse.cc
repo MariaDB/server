@@ -2131,6 +2131,8 @@ bool dispatch_command(enum enum_server_command command, THD *thd,
     DBUG_EXECUTE_IF("simulate_detached_thread_refresh", debug_simulate= TRUE;);
     if (debug_simulate)
     {
+      /* This code doesn't work under FTWRL */
+      DBUG_ASSERT(! (options & REFRESH_READ_LOCK));
       /*
         Simulate a reload without a attached thread session.
         Provides a environment similar to that of when the

@@ -349,6 +349,34 @@ static my_bool close_cached_tables_callback(TDC_element *element,
 }
 
 
+/**
+   Close all tables that are not in use in table definition cache
+
+   @param purge_flag  Argument for tc_purge. true if we should force all
+                      shares to be deleted. false if it's enough to just
+                      evict those that are not in use.
+*/
+
+void purge_tables(bool purge_flag)
+{
+  /*
+    Force close of all open tables.
+
+    Note that code in TABLE_SHARE::wait_for_old_version() assumes that
+    incrementing of refresh_version is followed by purge of unused table
+    shares.
+  */
+  kill_delayed_threads();
+  /*
+    Get rid of all unused TABLE and TABLE_SHARE instances. By doing
+    this we automatically close all tables which were marked as "old".
+  */
+  tc_purge(purge_flag);
+  /* Free table shares which were not freed implicitly by loop above. */
+  tdc_purge(true);
+}
+
+
 bool close_cached_tables(THD *thd, TABLE_LIST *tables,
                          bool wait_for_refresh, ulong timeout)
 {
@@ -361,23 +389,7 @@ bool close_cached_tables(THD *thd, TABLE_LIST *tables,
   refresh_version= tdc_increment_refresh_version();
 
   if (!tables)
-  {
-    /*
-      Force close of all open tables.
-
-      Note that code in TABLE_SHARE::wait_for_old_version() assumes that
-      incrementing of refresh_version is followed by purge of unused table
-      shares.
-    */
-    kill_delayed_threads();
-    /*
-      Get rid of all unused TABLE and TABLE_SHARE instances. By doing
-      this we automatically close all tables which were marked as "old".
-    */
-    tc_purge(true);
-    /* Free table shares which were not freed implicitly by loop above. */
-    tdc_purge(true);
-  }
+    purge_tables(true);
   else
   {
     bool found=0;
@@ -497,6 +509,128 @@ err_with_reopen:
     for (TABLE *tab= thd->open_tables; tab; tab= tab->next)
       tab->mdl_ticket->downgrade_lock(MDL_SHARED_NO_READ_WRITE);
   }
+  DBUG_RETURN(result);
+}
+
+
+/**
+  Collect all shares that has open tables
+*/
+
+struct tc_collect_arg
+{
+  DYNAMIC_ARRAY shares;
+};
+
+static my_bool tc_collect_used_shares(TDC_element *element,
+                                      tc_collect_arg *arg)
+{
+  my_bool result= FALSE;
+
+  DYNAMIC_ARRAY *shares= &arg->shares;
+  mysql_mutex_lock(&element->LOCK_table_share);
+  if (element->ref_count > 0 && !element->share->is_view)
+  {
+    DBUG_ASSERT(element->share);
+    element->ref_count++;                       // Protect against delete
+    if (push_dynamic(shares,(uchar*) &element->share))
+      result= TRUE;
+  }
+  mysql_mutex_unlock(&element->LOCK_table_share);
+  return result;
+}
+
+
+/**
+   Flush cached table as part of global read lock
+
+   @param thd
+   @param flag   What type of tables should be flushed
+
+   @return 0  ok
+   @return 1  error
+
+   After we get the list of table shares, we will call flush on all
+   possible tables, even if some flush fails.
+*/
+
+bool flush_tables(THD *thd)
+{
+  bool result= TRUE;
+  uint open_errors= 0;
+  tc_collect_arg collect_arg;
+  TABLE *tmp_table;
+  DBUG_ENTER("flush_tables");
+
+  purge_tables(false);  /* Flush unused tables and shares */
+
+  /*
+    Loop over all shares and collect shares that have open tables
+    TODO:
+    Optimize this to only collect shares that have been used for
+    write after last time all tables was closed.
+  */
+
+  if (!(tmp_table= (TABLE*) my_malloc(sizeof(*tmp_table),
+                                      MYF(MY_WME | MY_THREAD_SPECIFIC))))
+    DBUG_RETURN(1);
+
+  my_init_dynamic_array(&collect_arg.shares, sizeof(TABLE_SHARE*), 100, 100,
+                        MYF(0));
+  if (tdc_iterate(thd, (my_hash_walk_action) tc_collect_used_shares,
+                  &collect_arg, true))
+  {
+    /* Release already collected shares */
+    for (uint i= 0 ; i < collect_arg.shares.elements ; i++)
+    {
+      TABLE_SHARE *share= *dynamic_element(&collect_arg.shares, i,
+                                           TABLE_SHARE**);
+      tdc_release_share(share);
+    }
+    goto err;
+  }
+
+  /* Call HA_EXTRA_FLUSH on all found shares */
+  for (uint i= 0 ; i < collect_arg.shares.elements ; i++)
+  {
+    TABLE_SHARE *share= *dynamic_element(&collect_arg.shares, i,
+                                         TABLE_SHARE**);
+    TABLE *table= tc_acquire_table(thd, share->tdc);
+    if (table)
+    {
+      (void) table->file->extra(HA_EXTRA_FLUSH);
+      tc_release_table(table);
+    }
+    else
+    {
+      /*
+        HA_OPEN_FOR_ALTER is used to allow us to open the table even if
+        TABLE_SHARE::incompatible_version is set.
+      */
+      if (!open_table_from_share(thd, share, &empty_clex_str,
+                                 HA_OPEN_KEYFILE, 0,
+                                 HA_OPEN_FOR_ALTER,
+                                 tmp_table, FALSE,
+                                 NULL))
+      {
+        (void) tmp_table->file->extra(HA_EXTRA_FLUSH);
+        /*
+          We don't put the table into the TDC as the table was not fully
+          opened (we didn't open triggers)
+        */
+        closefrm(tmp_table);
+      }
+      else
+        open_errors++;
+    }
+    tdc_release_share(share);
+  }
+
+  result= open_errors ? TRUE : FALSE;
+  DBUG_PRINT("note", ("open_errors: %u", open_errors));
+err:
+  my_free(tmp_table);
+  delete_dynamic(&collect_arg.shares);
   DBUG_RETURN(result);
 }
 

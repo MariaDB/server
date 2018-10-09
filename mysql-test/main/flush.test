@@ -566,17 +566,7 @@ create table t2 (i int);
 handler t1 open;
 
 connection con1;
---echo # Sending:
---send flush tables with read lock
-
-connection con2;
---echo # Wait until FTWRL starts waiting for 't1' to be closed.
-let $wait_condition=
-  select count(*) = 1 from information_schema.processlist
-  where state = "Waiting for table flush"
-  and info = "flush tables with read lock";
---source include/wait_condition.inc
-
+flush tables with read lock;
 connection default;
 --echo # The below statement should not cause deadlock.
 --echo # Sending:
@@ -591,9 +581,6 @@ let $wait_condition=
 --source include/wait_condition.inc
 
 connection con1;
---echo # FTWRL should be able to continue now.
---echo # Reap FTWRL.
---reap
 unlock tables;
 
 connection default;

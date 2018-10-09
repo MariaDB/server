@@ -1489,7 +1489,7 @@ handler t2 open;
 flush tables with read lock;
 handler t1 read next;
 a	b
-1	1
+2	1
 select a from t3;
 a
 1

@@ -472,10 +472,7 @@ create table t1 (i int);
 create table t2 (i int);
 handler t1 open;
 connection con1;
-# Sending:
 flush tables with read lock;
-connection con2;
-# Wait until FTWRL starts waiting for 't1' to be closed.
 connection default;
 # The below statement should not cause deadlock.
 # Sending:
@@ -483,8 +480,6 @@ insert into t2 values (1);
 connection con2;
 # Wait until INSERT starts to wait for FTWRL to go away.
 connection con1;
-# FTWRL should be able to continue now.
-# Reap FTWRL.
 unlock tables;
 connection default;
 # Reap INSERT.

@@ -800,6 +800,8 @@ connection default;
 --echo # 14.2) FLUSH TABLES <list> WITH READ LOCK is not blocked by
 --echo #       active FTWRL. But since the latter keeps tables open
 --echo #       FTWRL is blocked by FLUSH TABLES <list> WITH READ LOCK.
+--echo #       Fixed by MDEV-5336
+
 flush tables with read lock;
 --echo # FT <list> WRL is allowed under FTWRL at the moment.
 --echo # It does not make much sense though.
@@ -815,19 +817,10 @@ unlock tables;
 connection default;
 flush tables t1_base, t2_base with read lock;
 connection $con_aux1;
---send flush tables with read lock
-connection $con_aux2;
---echo # Wait until FTWRL is blocked.
-let $wait_condition=
-  select count(*) = 1 from information_schema.processlist
-  where state = "Waiting for table flush" and
-        info = "flush tables with read lock";
---source include/wait_condition.inc
+flush tables with read lock;
 connection default;
 unlock tables;
 connection $con_aux1;
---echo # Reap FTWRL.
---reap
 unlock tables;
 connection default;
 
@@ -2022,3 +2015,40 @@ set global sql_mode=default;
 # Check that all connections opened by test cases in this file are really
 # gone so execution of other tests won't be affected by their presence.
 --source include/wait_until_count_sessions.inc
+
+
+--echo #
+--echo # Deadlock between FTWRL under open handler and DDL/LOCK TABLES
+--echo #
+CREATE TABLE t1(a INT);
+HANDLER t1 OPEN;
+
+--echo #
+connect (con1,localhost,root,,);
+SET DEBUG_SYNC= 'mdl_acquire_lock_wait SIGNAL ready';
+--send LOCK TABLE t1 WRITE
+
+--echo #
+--echo # we need to do it in a separate connection,
+--echo # because SET DEBUG_SYNC call open_tables()/mysql_ha_flush() :(
+connect (con2,localhost,root,,);
+SET DEBUG_SYNC= 'now WAIT_FOR ready';
+disconnect con2;
+
+--echo #
+connection default;
+--send FLUSH TABLES WITH READ LOCK
+
+--echo #
+connection con1;
+reap;
+UNLOCK TABLES;
+disconnect con1;
+
+--echo #
+connection default;
+reap;
+UNLOCK TABLES;
+HANDLER t1 CLOSE;
+DROP TABLE t1;
+SET DEBUG_SYNC= 'RESET';

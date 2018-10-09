@@ -689,6 +689,7 @@ struct st_maria_handler
   uint16 last_used_keyseg;              /* For MARIAMRG */
   uint8 key_del_used;                   /* != 0 if key_del is used */
   my_bool was_locked;			/* Was locked in panic */
+  my_bool intern_lock_locked;           /* locked in ma_extra() */
   my_bool append_insert_at_end;		/* Set if concurrent insert */
   my_bool quick_mode;
   my_bool in_check_table;                /* We are running check tables */

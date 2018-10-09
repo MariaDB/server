@@ -148,6 +148,7 @@ public:
   int read_data_header(azio_stream *file_to_read);
   void position(const uchar *record);
   int info(uint);
+  int extra(enum ha_extra_function operation);
   void update_create_info(HA_CREATE_INFO *create_info);
   int create(const char *name, TABLE *form, HA_CREATE_INFO *create_info);
   int optimize(THD* thd, HA_CHECK_OPT* check_opt);

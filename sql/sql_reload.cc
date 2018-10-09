@@ -231,6 +231,7 @@ bool reload_acl_and_cache(THD *thd, unsigned long long options,
   {
     if ((options & REFRESH_READ_LOCK) && thd)
     {
+      DBUG_ASSERT(!(options & REFRESH_FAST) && !tables);
       /*
         On the first hand we need write lock on the tables to be flushed,
         on the other hand we must not try to aspire a global read lock
@@ -249,9 +250,7 @@ bool reload_acl_and_cache(THD *thd, unsigned long long options,
       tmp_write_to_binlog= 0;
       if (thd->global_read_lock.lock_global_read_lock(thd))
 	return 1;                               // Killed
-      if (close_cached_tables(thd, tables,
-                              ((options & REFRESH_FAST) ?  FALSE : TRUE),
-                              thd->variables.lock_wait_timeout))
+      if (flush_tables(thd))
       {
         /*
           NOTE: my_error() has been already called by reopen_tables() within
@@ -274,11 +273,9 @@ bool reload_acl_and_cache(THD *thd, unsigned long long options,
         make_global_read_lock_block_commit(thd) above since they could have
         modified the tables too.
       */
-      if (WSREP(thd) &&
-          close_cached_tables(thd, tables, (options & REFRESH_FAST) ?
-                              FALSE : TRUE, TRUE))
-          result= 1;
-     }
+      if (WSREP(thd) && flush_tables(thd))
+        result= 1;
+    }
     else
     {
       if (thd && thd->locked_tables_mode)

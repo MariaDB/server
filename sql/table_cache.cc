@@ -406,7 +406,7 @@ void tc_add_table(THD *thd, TABLE *table)
   @return TABLE object, or NULL if no unused objects.
 */
 
-static TABLE *tc_acquire_table(THD *thd, TDC_element *element)
+TABLE *tc_acquire_table(THD *thd, TDC_element *element)
 {
   uint32 n_instances=
     my_atomic_load32_explicit((int32*) &tc_active_instances,
@@ -657,7 +657,7 @@ void tdc_start_shutdown(void)
     tdc_size= 0;
     tc_size= 0;
     /* Free all cached but unused TABLEs and TABLE_SHAREs. */
-    close_cached_tables(NULL, NULL, FALSE, LONG_TIMEOUT);
+    purge_tables(true);
   }
   DBUG_VOID_RETURN;
 }
