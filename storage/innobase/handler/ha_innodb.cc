@@ -12356,12 +12356,9 @@ int create_table_info_t::create_table(bool create_fk)
 		error = convert_error_code_to_mysql(err, 0, NULL);
 
 		if (error) {
-			trx_rollback_to_savepoint(m_trx, NULL);
-			m_trx->error_state = DB_SUCCESS;
-
 			row_drop_table_for_mysql(m_table_name, m_trx,
 						 SQLCOM_DROP_DB);
-
+			trx_rollback_to_savepoint(m_trx, NULL);
 			m_trx->error_state = DB_SUCCESS;
 			DBUG_RETURN(error);
 		}
@@ -12586,6 +12583,8 @@ ha_innobase::create(
 	}
 
 	if ((error = info.create_table(own_trx))) {
+		row_drop_table_for_mysql(norm_name, trx, SQLCOM_DROP_TABLE,
+					 true);
 		trx_rollback_for_mysql(trx);
 		row_mysql_unlock_data_dictionary(trx);
 		if (own_trx) {

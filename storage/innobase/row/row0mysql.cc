@@ -2606,16 +2606,10 @@ error_handling:
 		trx->error_state = DB_SUCCESS;
 
 		if (trx_is_started(trx)) {
-
+			row_drop_table_for_mysql(table->name.m_name, trx,
+						 SQLCOM_DROP_TABLE, true);
 			trx_rollback_to_savepoint(trx, NULL);
-		}
-
-		row_drop_table_for_mysql(table->name.m_name, trx,
-					 SQLCOM_DROP_TABLE, true);
-
-		if (trx_is_started(trx)) {
-
-			trx_commit_for_mysql(trx);
+			ut_ad(!trx_is_started(trx));
 		}
 
 		trx->error_state = DB_SUCCESS;
@@ -2693,15 +2687,13 @@ row_table_add_foreign_constraints(
 		trx->error_state = DB_SUCCESS;
 
 		if (trx_is_started(trx)) {
-
+			/* FIXME: Introduce an undo log record for
+			creating tablespaces and data files, so that
+			they would be deleted on rollback. */
+			row_drop_table_for_mysql(name, trx, SQLCOM_DROP_TABLE,
+						 true);
 			trx_rollback_to_savepoint(trx, NULL);
-		}
-
-		row_drop_table_for_mysql(name, trx, SQLCOM_DROP_TABLE, true);
-
-		if (trx_is_started(trx)) {
-
-			trx_commit_for_mysql(trx);
+			ut_ad(!trx_is_started(trx));
 		}
 
 		trx->error_state = DB_SUCCESS;
