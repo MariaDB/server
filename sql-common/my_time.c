@@ -610,7 +610,11 @@ str_to_DDhhmmssff_internal(my_bool neg, const char *str, size_t length,
   l_time->neg= neg;
   /* Not a timestamp. Try to get this as a DAYS TO SECOND string */
   for (value=0; str != end && my_isdigit(&my_charset_latin1,*str) ; str++)
+  {
     value=value*10L + (long) (*str - '0');
+    if (value >= 42949672955959ULL) /* i.e. UINT_MAX32 : 59 : 59 */
+      goto err;
+  }
 
   /* Skip all space after 'days' */
   end_of_days= str;
@@ -629,6 +633,8 @@ str_to_DDhhmmssff_internal(my_bool neg, const char *str, size_t length,
            my_isdigit(&my_charset_latin1, str[1]))
   {
     date[0]= 0;                                 /* Assume we found hours */
+    if (value >= UINT_MAX32)
+      goto err;
     date[1]= (ulong) value;
     state=2;
     found_hours=1;
@@ -638,6 +644,7 @@ str_to_DDhhmmssff_internal(my_bool neg, const char *str, size_t length,
   {
     /* String given as one number; assume HHMMSS format */
     date[0]= 0;
+    DBUG_ASSERT(value <= ((ulonglong) UINT_MAX32) * 10000ULL);
     date[1]= (ulong) (value/10000);
     date[2]= (ulong) (value/100 % 100);
     date[3]= (ulong) (value % 100);

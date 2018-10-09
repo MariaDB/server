@@ -6098,3 +6098,18 @@ Message	Truncated incorrect time value: '87648576:59:59.000001'
 Level	Warning
 Code	1292
 Message	Truncated incorrect time value: '87648576:59:59.000001'
+#
+# MDEV-17400 The result of TIME('42949672965959-01') depends on architecture
+#
+SELECT TIME('42949672955959-01'), TIME('42949672965959-01');
+TIME('42949672955959-01')	TIME('42949672965959-01')
+NULL	NULL
+Warnings:
+Warning	1292	Truncated incorrect time value: '42949672955959-01'
+Warning	1292	Truncated incorrect time value: '42949672965959-01'
+SELECT TIME('18446744073709551615-01'),  TIME('18446744073709551616-01');
+TIME('18446744073709551615-01')	TIME('18446744073709551616-01')
+NULL	NULL
+Warnings:
+Warning	1292	Truncated incorrect time value: '18446744073709551615-01'
+Warning	1292	Truncated incorrect time value: '18446744073709551616-01'

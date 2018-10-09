@@ -3006,3 +3006,11 @@ SELECT
 
 
 --horizontal_results
+
+
+--echo #
+--echo # MDEV-17400 The result of TIME('42949672965959-01') depends on architecture
+--echo #
+
+SELECT TIME('42949672955959-01'), TIME('42949672965959-01');
+SELECT TIME('18446744073709551615-01'),  TIME('18446744073709551616-01');

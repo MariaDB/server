@@ -1117,10 +1117,10 @@ calc_time_diff(const MYSQL_TIME *l_time1, const MYSQL_TIME *l_time2,
   }
 
   microseconds= ((longlong)days * SECONDS_IN_24H +
-                 (longlong)(l_time1->hour*3600L +
+                 (longlong)(l_time1->hour*3600LL +
                             l_time1->minute*60L +
                             l_time1->second) -
-                 l_sign*(longlong)(l_time2->hour*3600L +
+                 l_sign*(longlong)(l_time2->hour*3600LL +
                                    l_time2->minute*60L +
                                    l_time2->second)) * 1000000LL +
                 (longlong)l_time1->second_part -
