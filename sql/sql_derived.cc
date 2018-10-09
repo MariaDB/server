@@ -27,6 +27,7 @@
 #include "unireg.h"
 #include "sql_derived.h"
 #include "sql_select.h"
+#include "derived_handler.h"
 #include "sql_base.h"
 #include "sql_view.h"                         // check_duplicate_names
 #include "sql_acl.h"                          // SELECT_ACL
@@ -384,9 +385,16 @@ bool mysql_derived_merge(THD *thd, LEX *lex, TABLE_LIST *derived)
     DBUG_RETURN(FALSE);
   }
 
- if (thd->lex->sql_command == SQLCOM_UPDATE_MULTI ||
-     thd->lex->sql_command == SQLCOM_DELETE_MULTI)
-   thd->save_prep_leaf_list= TRUE;
+  if ((derived->dt_handler= derived->find_derived_handler(thd)))
+  {
+    derived->change_refs_to_fields();
+    derived->set_materialized_derived();
+    DBUG_RETURN(FALSE);
+  }
+
+  if (thd->lex->sql_command == SQLCOM_UPDATE_MULTI ||
+      thd->lex->sql_command == SQLCOM_DELETE_MULTI)
+    thd->save_prep_leaf_list= TRUE;
 
   arena= thd->activate_stmt_arena_if_needed(&backup);  // For easier test
 
@@ -904,6 +912,19 @@ bool mysql_derived_optimize(THD *thd, LEX *lex, TABLE_LIST *derived)
     DBUG_RETURN(FALSE);
   }
 
+  if (derived->is_materialized_derived() && !derived->dt_handler)
+    derived->dt_handler= derived->find_derived_handler(thd);
+  if (derived->dt_handler)
+  {
+    if (!(derived->pushdown_derived=
+            new (thd->mem_root) Pushdown_derived(derived, derived->dt_handler)))
+    {
+      delete derived->dt_handler;
+      derived->dt_handler= NULL; 
+      DBUG_RETURN(1);
+    }
+  }    
+  
   lex->current_select= first_select;
 
   if (unit->is_unit_op())
@@ -1107,6 +1128,17 @@ bool mysql_derived_fill(THD *thd, LEX *lex, TABLE_LIST *derived)
   DBUG_ASSERT(derived->table && derived->table->is_created());
   select_unit *derived_result= derived->derived_result;
   SELECT_LEX *save_current_select= lex->current_select;
+
+  if (derived->pushdown_derived)
+  {
+    int res;
+    if (unit->executed)
+      DBUG_RETURN(FALSE);
+    res= derived->pushdown_derived->execute();
+    unit->executed= true; 
+    delete derived->pushdown_derived;
+      DBUG_RETURN(res);
+  }
 
   if (unit->executed && !derived_is_recursive &&
       (unit->uncacheable & UNCACHEABLE_DEPENDENT))
@@ -1403,4 +1435,48 @@ bool pushdown_cond_for_derived(THD *thd, Item *cond, TABLE_LIST *derived)
   }
   thd->lex->current_select= save_curr_select;
   DBUG_RETURN(false);
+}
+
+
+derived_handler *TABLE_LIST::find_derived_handler(THD *thd)
+{
+  if (!derived || is_recursive_with_table())
+    return 0;
+  for (SELECT_LEX *sl= derived->first_select(); sl; sl= sl->next_select())
+  {
+    if (!(sl->join))
+      continue;
+    for (TABLE_LIST *tbl= sl->join->tables_list; tbl; tbl= tbl->next_local)
+    {
+      if (!tbl->table)
+	continue;
+      handlerton *ht= tbl->table->file->partition_ht();
+      if (!ht->create_derived)
+        continue;
+      derived_handler *dh= ht->create_derived(thd, this);
+      if (dh)
+      {
+        dh->set_derived(this);
+        return dh;
+      }
+    }
+  }
+  return 0;
+}
+
+
+TABLE_LIST *TABLE_LIST::get_first_table()
+{
+  for (SELECT_LEX *sl= derived->first_select(); sl; sl= sl->next_select())
+  {
+    if (!(sl->join))
+      continue;
+    for (TABLE_LIST *tbl= sl->join->tables_list; tbl; tbl= tbl->next_local)
+    {
+      if (!tbl->table)
+	continue;
+      return tbl;
+    }
+  }
+  return 0;
 }

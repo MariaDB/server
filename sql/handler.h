@@ -1183,6 +1183,8 @@ struct handler_iterator {
 
 class handler;
 class group_by_handler;
+class derived_handler;
+class select_handler;
 struct Query;
 typedef class st_select_lex SELECT_LEX;
 typedef struct st_order ORDER;
@@ -1502,6 +1504,21 @@ struct handlerton
   */
   group_by_handler *(*create_group_by)(THD *thd, Query *query);
 
+  /*
+    Create and return a derived_handler if the storage engine can execute
+    the derived table 'derived', otherwise return NULL.
+    In a general case 'derived' may contain tables not from the engine.
+    If the engine cannot handle or does not want to handle such pushed derived
+    the function create_group_by has to return NULL.
+  */
+  derived_handler *(*create_derived)(THD *thd, TABLE_LIST *derived);
+
+  /*
+    Create and return a select_handler if the storage engine can execute
+    the select statement 'select, otherwise return NULL
+  */
+  select_handler *(*create_select) (THD *thd, SELECT_LEX *select);
+   
    /*********************************************************************
      Table discovery API.
      It allows the server to "discover" tables that exist in the storage

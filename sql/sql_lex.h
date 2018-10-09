@@ -225,6 +225,8 @@ class Item_window_func;
 struct sql_digest_state;
 class With_clause;
 class my_var;
+class select_handler;
+class Pushdown_select;
 
 #define ALLOC_ROOT_SET 1024
 
@@ -812,11 +814,12 @@ protected:
   bool prepare_join(THD *thd, SELECT_LEX *sl, select_result *result,
                     ulong additional_options,
                     bool is_union_select);
-  bool join_union_item_types(THD *thd, List<Item> &types, uint count);
   bool join_union_type_handlers(THD *thd,
                                 class Type_holder *holders, uint count);
   bool join_union_type_attributes(THD *thd,
                                   class Type_holder *holders, uint count);
+public:
+  bool join_union_item_types(THD *thd, List<Item> &types, uint count);
 public:
   // Ensures that at least all members used during cleanup() are initialized.
   st_select_lex_unit()
@@ -1240,6 +1243,9 @@ public:
   table_value_constr *tvc;
   bool in_tvc;
 
+  select_handler *select_h;
+  Pushdown_select *pushdown_select;
+
   /** System Versioning */
 public:
   uint versioned_tables;
@@ -1470,6 +1476,8 @@ public:
                                        Item **remaining_cond,
                                        Item_transformer transformer,
                                        uchar *arg);
+
+  select_handler *find_select_handler(THD *thd);
 
 private:
   bool m_non_agg_field_used;

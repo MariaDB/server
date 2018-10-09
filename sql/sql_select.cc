@@ -64,6 +64,7 @@
 #include "sys_vars_shared.h"
 #include "sp_head.h"
 #include "sp_rcontext.h"
+#include "select_handler.h"
 
 /*
   A key part number that means we're using a fulltext scan.
@@ -1437,7 +1438,13 @@ int JOIN::optimize()
 {
   int res= 0;
   join_optimization_state init_state= optimization_state;
-  if (optimization_state == JOIN::OPTIMIZATION_PHASE_1_DONE)
+  if (select_lex->pushdown_select)
+  {
+    if (!(select_options & SELECT_DESCRIBE))
+      res= select_lex->pushdown_select->init();
+    with_two_phase_optimization= false;
+  }
+  else if (optimization_state == JOIN::OPTIMIZATION_PHASE_1_DONE)
     res= optimize_stage2();
   else
   {
@@ -3934,7 +3941,6 @@ void JOIN::exec_inner()
     if (select_options & SELECT_DESCRIBE)
       select_describe(this, FALSE, FALSE, FALSE,
 		      (zero_result_cause?zero_result_cause:"No tables used"));
-
     else
     {
       if (result->send_result_set_metadata(*columns_list,
@@ -4033,7 +4039,8 @@ void JOIN::exec_inner()
     not the case.
   */
   if (exec_const_order_group_cond.elements &&
-      !(select_options & SELECT_DESCRIBE))
+      !(select_options & SELECT_DESCRIBE) && 
+      !select_lex->pushdown_select)
   {
     List_iterator_fast<Item> const_item_it(exec_const_order_group_cond);
     Item *cur_const_item;
@@ -4058,6 +4065,11 @@ void JOIN::exec_inner()
 		    order != 0 && !skip_sort_order,
 		    select_distinct,
                     !table_count ? "No tables used" : NullS);
+    DBUG_VOID_RETURN;
+  }
+  else if (select_lex->pushdown_select)
+  {
+    error= select_lex->pushdown_select->execute();
     DBUG_VOID_RETURN;
   }
   else
@@ -4271,6 +4283,19 @@ mysql_select(THD *thd,
     }
   }
 
+  select_lex->select_h= select_lex->find_select_handler(thd);
+  if (select_lex->select_h)
+  {
+    if (!(select_lex->pushdown_select=
+      new (thd->mem_root) Pushdown_select(select_lex,
+                                          select_lex->select_h)))
+    {
+      delete select_lex->select_h;
+      select_lex->select_h= NULL;
+      DBUG_RETURN(TRUE);
+    }
+  }
+      
   if ((err= join->optimize()))
   {
     goto err;					// 1
@@ -4292,8 +4317,15 @@ mysql_select(THD *thd,
     select_lex->where= join->conds_history;
     select_lex->having= join->having_history;
   }
-
+    
 err:
+
+  if (select_lex->pushdown_select)
+  {
+    delete select_lex->pushdown_select;
+    select_lex->pushdown_select= NULL;
+  }
+
   if (free_join)
   {
     THD_STAGE_INFO(thd, stage_end);
@@ -25681,6 +25713,7 @@ bool mysql_explain_union(THD *thd, SELECT_LEX_UNIT *unit, select_result *result)
   DBUG_ENTER("mysql_explain_union");
   bool res= 0;
   SELECT_LEX *first= unit->first_select();
+  bool is_pushed_union= unit->derived && unit->derived->pushdown_derived;
 
   for (SELECT_LEX *sl= first; sl; sl= sl->next_select())
   {
@@ -25698,9 +25731,12 @@ bool mysql_explain_union(THD *thd, SELECT_LEX_UNIT *unit, select_result *result)
     }
     if (!(res= unit->prepare(unit->derived, result,
                              SELECT_NO_UNLOCK | SELECT_DESCRIBE)))
-      res= unit->exec();
+    {
+      if (!is_pushed_union)
+        res= unit->exec();
+    }
   }
-  else
+  else 
   {
     thd->lex->current_select= first;
     unit->set_limit(unit->global_parameters());
@@ -25716,6 +25752,13 @@ bool mysql_explain_union(THD *thd, SELECT_LEX_UNIT *unit, select_result *result)
                       first->options | thd->variables.option_bits | SELECT_DESCRIBE,
                       result, unit, first);
   }
+
+  if (unit->derived && unit->derived->pushdown_derived)
+  {
+    delete unit->derived->pushdown_derived;
+    unit->derived->pushdown_derived= NULL;
+  }
+
   DBUG_RETURN(res || thd->is_error());
 }
 
@@ -27366,6 +27409,26 @@ Item *remove_pushed_top_conjuncts(THD *thd, Item *cond)
   }
   return cond;
 }
+
+select_handler *SELECT_LEX::find_select_handler(THD *thd)
+{
+  if (next_select())
+      return 0;
+  if (master_unit()->outer_select())
+    return 0;
+  for (TABLE_LIST *tbl= join->tables_list; tbl; tbl= tbl->next_local)
+  {
+    if (!tbl->table)
+      continue;
+    handlerton *ht= tbl->table->file->partition_ht();
+    if (!ht->create_select)
+      continue;
+    select_handler *sh= ht->create_select(thd, this);
+    return sh;
+  }
+  return 0;
+}
+
 
 /**
   @} (end of group Query_Optimizer)

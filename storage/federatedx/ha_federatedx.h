@@ -1,3 +1,5 @@
+#ifndef HA_FEDERATEDX_INCLUDED
+#define HA_FEDERATEDX_INCLUDED
 /*
 Copyright (c) 2008, Patrick Galbraith
 All rights reserved.
@@ -445,6 +447,9 @@ public:
   int external_lock(THD *thd, int lock_type);
   int reset(void);
   int free_result(void);
+
+  friend class ha_federatedx_derived_handler;
+  friend class ha_federatedx_select_handler;
 };
 
 extern const char ident_quote_char;              // Character for quoting
@@ -460,3 +465,7 @@ extern federatedx_io *instantiate_io_mysql(MEM_ROOT *server_root,
                                            FEDERATEDX_SERVER *server);
 extern federatedx_io *instantiate_io_null(MEM_ROOT *server_root,
                                           FEDERATEDX_SERVER *server);
+
+#include "federatedx_pushdown.h"
+
+#endif /* HA_FEDERATEDX_INCLUDED */

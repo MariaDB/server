@@ -34,6 +34,9 @@ const char *unit_operation_text[4]=
    "UNIT RESULT","UNION RESULT","INTERSECT RESULT","EXCEPT RESULT"
 };
 
+const char *pushed_derived_text= "PUSHED DERIVED";
+const char *pushed_select_text= "PUSHED SELECT";
+
 static void write_item(Json_writer *writer, Item *item);
 static void append_item_to_str(String *out, Item *item);
 
@@ -334,6 +337,9 @@ int print_explain_row(select_result_sink *result,
   List<Item> item_list;
   Item *item;
 
+  if (!select_type[0])
+    return 0;
+  
   item_list.push_back(new (mem_root) Item_int(thd, (int32) select_number),
                       mem_root);
   item_list.push_back(new (mem_root) Item_string_sys(thd, select_type),
@@ -746,7 +752,15 @@ int Explain_select::print_explain(Explain_query *query,
   THD *thd= output->thd;
   MEM_ROOT *mem_root= thd->mem_root;
 
-  if (message)
+  if (select_type == pushed_derived_text || select_type == pushed_select_text)
+  {
+     print_explain_message_line(output, explain_flags, is_analyze,
+                                select_id /*select number*/,
+                                select_type, 
+                                NULL, /* rows */
+                                NULL);
+  }
+  else if (message)
   {
     List<Item> item_list;
     Item *item_null= new (mem_root) Item_null(thd);
@@ -869,14 +883,20 @@ void Explain_select::print_explain_json(Explain_query *query,
   
   bool started_cache= print_explain_json_cache(writer, is_analyze);
 
-  if (message)
+  if (message ||
+      select_type == pushed_derived_text ||
+      select_type == pushed_select_text)
   {
     writer->add_member("query_block").start_object();
     writer->add_member("select_id").add_ll(select_id);
     add_linkage(writer);
 
     writer->add_member("table").start_object();
-    writer->add_member("message").add_str(message);
+    writer->add_member("message").add_str(select_type == pushed_derived_text ?
+                                          "Pushed derived" :
+                                          select_type == pushed_select_text ?
+                                          "Pushed select" :
+                                          message);
     writer->end_object();
 
     print_explain_json_for_children(query, writer, is_analyze);
@@ -1205,7 +1225,7 @@ int Explain_table_access::print_explain(select_result_sink *output, uint8 explai
 {
   THD *thd= output->thd;
   MEM_ROOT *mem_root= thd->mem_root;
-
+  
   List<Item> item_list;
   Item *item_null= new (mem_root) Item_null(thd);
   
