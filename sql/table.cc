@@ -2433,7 +2433,7 @@ int TABLE_SHARE::init_from_binary_frm_image(THD *thd, bool write,
         if (!(key_part->key_part_flag & (HA_BLOB_PART | HA_VAR_LENGTH_PART |
                                          HA_BIT_PART)) &&
             key_part->type != HA_KEYTYPE_FLOAT &&
-            key_part->type == HA_KEYTYPE_DOUBLE)
+            key_part->type != HA_KEYTYPE_DOUBLE)
           key_part->key_part_flag|= HA_CAN_MEMCMP;
       }
       keyinfo->usable_key_parts= usable_parts; // Filesort
