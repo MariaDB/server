@@ -487,14 +487,6 @@ rw_lock_x_lock_wait_func(
 		lock->count_os_wait += static_cast<uint32_t>(count_os_wait);
 		rw_lock_stats.rw_x_os_wait_count.add(count_os_wait);
 	}
-
-	rw_lock_stats.rw_x_spin_round_count.add(n_spins);
-
-	if (count_os_wait > 0) {
-		lock->count_os_wait +=
-			static_cast<uint32_t>(count_os_wait);
-		rw_lock_stats.rw_x_os_wait_count.add(count_os_wait);
-	}
 }
 
 #ifdef UNIV_DEBUG
