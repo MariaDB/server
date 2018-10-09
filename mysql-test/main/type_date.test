@@ -666,5 +666,17 @@ SET sql_mode=DEFAULT;
 
 
 --echo #
+--echo # MDEV-17216 Assertion `!dt->fraction_remainder(decimals())' failed in Field_temporal_with_date::store_TIME_with_warning
+--echo #
+SET sql_mode='';
+CREATE TABLE t1 (i1 date );
+CREATE TABLE t2 (i2 int unsigned );
+INSERT INTO t2 VALUES (0);
+INSERT INTO t1 SELECT * FROM t2;
+DROP TABLE t1,t2;
+SET sql_mode=DEFAULT;
+
+
+--echo #
 --echo # End of 10.4 tests
 --echo #

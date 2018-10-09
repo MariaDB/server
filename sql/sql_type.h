@@ -225,10 +225,10 @@ protected:
   bool      m_truncated; // Indicates if the constructor truncated the value
   void make_from_decimal(const my_decimal *d);
   void make_from_double(double d);
-  void make_from_int(longlong nr, bool unsigned_val)
+  void make_from_int(const Longlong_hybrid &nr)
   {
-    m_neg= nr < 0 && !unsigned_val;
-    m_sec= m_neg ? (ulonglong) -nr : (ulonglong) nr;
+    m_neg= nr.neg();
+    m_sec= nr.abs();
     m_usec= 0;
     m_truncated= false;
   }
@@ -238,20 +238,21 @@ protected:
   }
   Sec6() { }
 public:
-  Sec6(bool neg, ulonglong nr, ulong frac)
-   :m_sec(nr), m_usec(frac), m_neg(neg), m_truncated(false)
-  { }
-  Sec6(double nr)
+  explicit Sec6(double nr)
   {
     make_from_double(nr);
   }
-  Sec6(const my_decimal *d)
+  explicit Sec6(const my_decimal *d)
   {
     make_from_decimal(d);
   }
-  Sec6(longlong nr, bool unsigned_val)
+  explicit Sec6(const Longlong_hybrid &nr)
   {
-    make_from_int(nr, unsigned_val);
+    make_from_int(nr);
+  }
+  explicit Sec6(longlong nr, bool unsigned_val)
+  {
+    make_from_int(Longlong_hybrid(nr, unsigned_val));
   }
   bool neg() const { return m_neg; }
   bool truncated() const { return m_truncated; }
@@ -396,9 +397,10 @@ protected:
   bool to_mysql_time_with_warn(THD *thd, MYSQL_TIME *to, date_mode_t fuzzydate,
                                const char *field_name) const
   {
-    longlong value= m_year * 10000; // Make it YYYYMMDD
-    const ErrConvInteger str(value, true);
-    Sec6 sec(false, value, 0);
+    // Make it YYYYMMDD
+    Longlong_hybrid value(static_cast<ulonglong>(m_year) * 10000, true);
+    const ErrConvInteger str(value);
+    Sec6 sec(value);
     return sec.convert_to_mysql_time(thd, to, fuzzydate, &str, field_name);
   }
   uint year_precision(const Item *item) const;
@@ -846,14 +848,8 @@ public:
       time_type= MYSQL_TIMESTAMP_NONE;
     xxx_to_time_result_to_valid_value(thd, warn, opt);
   }
-  Time(THD *thd, int *warn, double nr)
-   :Time(thd, warn, Sec6(nr), Options())
-  { }
-  Time(THD *thd, int *warn, longlong nr, bool unsigned_val)
-   :Time(thd, warn, Sec6(nr, unsigned_val), Options())
-  { }
-  Time(THD *thd, int *warn, const my_decimal *d)
-   :Time(thd, warn, Sec6(d), Options())
+  Time(THD *thd, int *warn, const Sec6 &nr)
+   :Time(thd, warn, nr, Options())
   { }
 
   Time(THD *thd, Item *item, const Options opt, uint dec)
@@ -873,22 +869,8 @@ public:
   {
     trunc(dec);
   }
-  Time(THD *thd, int *warn, double nr, uint dec)
+  Time(THD *thd, int *warn, const Sec6 &nr, uint dec)
    :Time(thd, warn, nr)
-  {
-    trunc(dec);
-  }
-  Time(THD *thd, int *warn, longlong nr, bool unsigned_val, uint dec)
-   :Time(thd, warn, nr, unsigned_val)
-  {
-    /*
-      Decimal digit truncation is needed here in case if nr was out
-      of the supported TIME range, so "this" was set to '838:59:59.999999'.
-    */
-    trunc(dec);
-  }
-  Time(THD *thd, int *warn, const my_decimal *d, uint dec)
-   :Time(thd, warn, d)
   {
     trunc(dec);
   }
@@ -1242,56 +1224,33 @@ public:
     date_to_datetime_if_needed();
     DBUG_ASSERT(is_valid_value_slow());
   }
-  Datetime(int *warn, double nr, date_mode_t flags)
-   :Temporal_with_date(warn, Sec6(nr), flags)
-  {
-    date_to_datetime_if_needed();
-    DBUG_ASSERT(is_valid_value_slow());
-  }
-  Datetime(int *warn, const my_decimal *d, date_mode_t flags)
-   :Temporal_with_date(warn, Sec6(d), flags)
-  {
-    date_to_datetime_if_needed();
-    DBUG_ASSERT(is_valid_value_slow());
-  }
-  /*
-    Create a Datime object from a longlong number.
-    Note, unlike in Time(), we don't need an "unsigned_val" here,
-    as it's not important if overflow happened because
-    of a negative number, or because of a huge positive number.
-  */
-  Datetime(int *warn, longlong sec, ulong usec, date_mode_t flags)
-   :Temporal_with_date(warn, Sec6(false, (ulonglong) sec, usec), flags)
+  Datetime(int *warn, const Sec6 &nr, date_mode_t flags)
+   :Temporal_with_date(warn, nr, flags)
   {
     date_to_datetime_if_needed();
     DBUG_ASSERT(is_valid_value_slow());
   }
 
   Datetime(THD *thd, Item *item, date_mode_t flags, uint dec)
-   :Temporal_with_date(Datetime(thd, item, flags))
+   :Datetime(thd, item, flags)
   {
     trunc(dec);
   }
   Datetime(MYSQL_TIME_STATUS *status,
            const char *str, size_t len, CHARSET_INFO *cs,
            date_mode_t fuzzydate, uint dec)
-   :Temporal_with_date(Datetime(status, str, len, cs, fuzzydate))
+   :Datetime(status, str, len, cs, fuzzydate)
   {
     trunc(dec);
   }
-  Datetime(int *warn, double nr, date_mode_t fuzzydate, uint dec)
-   :Temporal_with_date(Datetime(warn, nr, fuzzydate))
-  {
-    trunc(dec);
-  }
-  Datetime(int *warn, const my_decimal *d, date_mode_t fuzzydate, uint dec)
-   :Temporal_with_date(Datetime(warn, d, fuzzydate))
+  Datetime(int *warn, const Sec6 &nr, date_mode_t fuzzydate, uint dec)
+   :Datetime(warn, nr, fuzzydate)
   {
     trunc(dec);
   }
   Datetime(THD *thd, int *warn, const MYSQL_TIME *from,
            date_mode_t fuzzydate, uint dec)
-   :Temporal_with_date(Datetime(thd, warn, from, fuzzydate))
+   :Datetime(thd, warn, from, fuzzydate)
   {
     trunc(dec);
   }

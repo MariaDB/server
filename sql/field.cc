@@ -2067,9 +2067,8 @@ my_decimal* Field_int::val_decimal(my_decimal *decimal_value)
 bool Field_int::get_date(MYSQL_TIME *ltime,date_mode_t fuzzydate)
 {
   ASSERT_COLUMN_MARKED_FOR_READ;
-  longlong nr= val_int();
-  bool neg= !(flags & UNSIGNED_FLAG) && nr < 0;
-  return int_to_datetime_with_warn(get_thd(), neg, neg ? -nr : nr, ltime,
+  Longlong_hybrid nr(val_int(), (flags & UNSIGNED_FLAG));
+  return int_to_datetime_with_warn(get_thd(), nr, ltime,
                                    fuzzydate, field_name.str);
 }
 
@@ -5112,7 +5111,7 @@ int Field_timestamp::store(double nr)
   int error;
   ErrConvDouble str(nr);
   THD *thd= get_thd();
-  Datetime dt(&error, nr, sql_mode_for_timestamp(thd), decimals());
+  Datetime dt(&error, Sec6(nr), sql_mode_for_timestamp(thd), decimals());
   return store_TIME_with_warning(thd, &dt, &str, error);
 }
 
@@ -5120,9 +5119,9 @@ int Field_timestamp::store(double nr)
 int Field_timestamp::store(longlong nr, bool unsigned_val)
 {
   int error;
-  ErrConvInteger str(nr, unsigned_val);
+  ErrConvInteger str(Longlong_hybrid(nr, unsigned_val));
   THD *thd= get_thd();
-  Datetime dt(&error, nr, unsigned_val, sql_mode_for_timestamp(thd));
+  Datetime dt(&error, Sec6(nr, unsigned_val), sql_mode_for_timestamp(thd));
   return store_TIME_with_warning(thd, &dt, &str, error);
 }
 
@@ -5422,7 +5421,7 @@ int Field_timestamp::store_decimal(const my_decimal *d)
   int error;
   THD *thd= get_thd();
   ErrConvDecimal str(d);
-  Datetime dt(&error, d, sql_mode_for_timestamp(thd), decimals());
+  Datetime dt(&error, Sec6(d), sql_mode_for_timestamp(thd), decimals());
   return store_TIME_with_warning(thd, &dt, &str, error);
 }
 
@@ -5572,7 +5571,7 @@ int Field_datetime::store(double nr)
 {
   int error;
   ErrConvDouble str(nr);
-  Datetime dt(&error, nr, sql_mode_for_dates(get_thd()), decimals());
+  Datetime dt(&error, Sec6(nr), sql_mode_for_dates(get_thd()), decimals());
   return store_TIME_with_warning(&dt, &str, error);
 }
 
@@ -5580,8 +5579,8 @@ int Field_datetime::store(double nr)
 int Field_datetime::store(longlong nr, bool unsigned_val)
 {
   int error;
-  ErrConvInteger str(nr, unsigned_val);
-  Datetime dt(&error, nr, unsigned_val, sql_mode_for_dates(get_thd()));
+  ErrConvInteger str(Longlong_hybrid(nr, unsigned_val));
+  Datetime dt(&error, Sec6(nr, unsigned_val), sql_mode_for_dates(get_thd()));
   return store_TIME_with_warning(&dt, &str, error);
 }
 
@@ -5599,7 +5598,7 @@ int Field_datetime::store_decimal(const my_decimal *d)
 {
   int error;
   ErrConvDecimal str(d);
-  Datetime tm(&error, d, sql_mode_for_dates(get_thd()), decimals());
+  Datetime tm(&error, Sec6(d), sql_mode_for_dates(get_thd()), decimals());
   return store_TIME_with_warning(&tm, &str, error);
 }
 
@@ -5734,17 +5733,17 @@ int Field_time::store(double nr)
 {
   ErrConvDouble str(nr);
   int was_cut;
-  Time tm(get_thd(), &was_cut, nr, decimals());
+  Time tm(get_thd(), &was_cut, Sec6(nr), decimals());
   return store_TIME_with_warning(&tm, &str, was_cut);
 }
 
 
 int Field_time::store(longlong nr, bool unsigned_val)
 {
-  ErrConvInteger str(nr, unsigned_val);
+  ErrConvInteger str(Longlong_hybrid(nr, unsigned_val));
   int was_cut;
   // Need fractional digit truncation if nr overflows to '838:59:59.999999'
-  Time tm(get_thd(), &was_cut, nr, unsigned_val, decimals());
+  Time tm(get_thd(), &was_cut, Sec6(nr, unsigned_val), decimals());
   return store_TIME_with_warning(&tm, &str, was_cut);
 }
 
@@ -5902,7 +5901,7 @@ int Field_time::store_decimal(const my_decimal *d)
 {
   ErrConvDecimal str(d);
   int was_cut;
-  Time tm(get_thd(), &was_cut, d, decimals());
+  Time tm(get_thd(), &was_cut, Sec6(d), decimals());
   return store_TIME_with_warning(&tm, &str, was_cut);
 }
 
@@ -6222,7 +6221,8 @@ bool Field_year::get_date(MYSQL_TIME *ltime,date_mode_t fuzzydate)
   int tmp= (int) ptr[0];
   if (tmp || field_length != 4)
     tmp+= 1900;
-  return int_to_datetime_with_warn(get_thd(), false, tmp * 10000,
+  return int_to_datetime_with_warn(get_thd(),
+                                    Longlong_hybrid(tmp * 10000, true),
                                     ltime, fuzzydate, field_name.str);
 }
 
@@ -6266,15 +6266,15 @@ int Field_date_common::store(double nr)
 {
   int error;
   ErrConvDouble str(nr);
-  Datetime dt(&error, nr, sql_mode_for_dates(get_thd()));
+  Datetime dt(&error, Sec6(nr), sql_mode_for_dates(get_thd()));
   return store_TIME_with_warning(&dt, &str, error);
 }
 
 int Field_date_common::store(longlong nr, bool unsigned_val)
 {
   int error;
-  ErrConvInteger str(nr, unsigned_val);
-  Datetime dt(&error, nr, unsigned_val, sql_mode_for_dates(get_thd()));
+  ErrConvInteger str(Longlong_hybrid(nr, unsigned_val));
+  Datetime dt(&error, Sec6(nr, unsigned_val), sql_mode_for_dates(get_thd()));
   return store_TIME_with_warning(&dt, &str, error);
 }
 
@@ -6291,7 +6291,7 @@ int Field_date_common::store_decimal(const my_decimal *d)
 {
   int error;
   ErrConvDecimal str(d);
-  Datetime tm(&error, d, sql_mode_for_dates(get_thd()));
+  Datetime tm(&error, Sec6(d), sql_mode_for_dates(get_thd()));
   return store_TIME_with_warning(&tm, &str, error);
 }
 

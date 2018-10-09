@@ -846,8 +846,8 @@ public:
 class ErrConvInteger : public ErrConv, public Longlong_hybrid
 {
 public:
-  ErrConvInteger(longlong num_arg, bool unsigned_flag= false) :
-    ErrConv(), Longlong_hybrid(num_arg, unsigned_flag) {}
+  ErrConvInteger(const Longlong_hybrid &nr)
+   : ErrConv(), Longlong_hybrid(nr) { }
   const char *ptr() const
   {
     return m_unsigned ? ullstr(m_value, err_buffer) :

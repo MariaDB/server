@@ -253,14 +253,14 @@ VSec6::VSec6(THD *thd, Item *item, const char *type_str, ulonglong limit)
 {
   if (item->decimals == 0)
   { // optimize for an important special case
-    longlong nr= item->val_int();
-    make_from_int(nr, item->unsigned_flag);
+    Longlong_hybrid nr(item->val_int(), item->unsigned_flag);
+    make_from_int(nr);
     m_is_null= item->null_value;
     if (!m_is_null && m_sec > limit)
     {
       m_sec= limit;
       m_truncated= true;
-      ErrConvInteger err(nr, item->unsigned_flag);
+      ErrConvInteger err(nr);
       thd->push_warning_truncated_wrong_value(type_str, err.ptr());
     }
   }

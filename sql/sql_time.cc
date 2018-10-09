@@ -467,17 +467,17 @@ bool decimal_to_datetime_with_warn(THD *thd, const my_decimal *value,
 }
 
 
-bool int_to_datetime_with_warn(THD *thd, bool neg, ulonglong value,
+bool int_to_datetime_with_warn(THD *thd, const Longlong_hybrid &nr,
                                MYSQL_TIME *ltime,
                                date_mode_t fuzzydate, const char *field_name)
 {
-  const ErrConvInteger str(neg ? - (longlong) value : (longlong) value, !neg);
+  const ErrConvInteger str(nr);
   /*
     Note: conversion from an integer to TIME can overflow to '838:59:59.999999',
     so the conversion result can have fractional digits.
   */
   Temporal_hybrid *t= new (ltime)
-                      Temporal_hybrid(thd, Sec6(neg, value, 0),
+                      Temporal_hybrid(thd, Sec6(nr),
                                       fuzzydate, &str, field_name);
   return !t->is_valid_temporal();
 }
