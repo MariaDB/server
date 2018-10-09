@@ -211,6 +211,12 @@ struct ha_innobase_inplace_ctx : public inplace_alter_handler_ctx
 	dict_field_t* const	old_fields;
 	/** size of old_fields */
 	const unsigned		old_n_fields;
+	/** original number of virtual columns in the table */
+	const unsigned		old_n_v_cols;
+	/** original virtual columns of the table */
+	dict_v_col_t* const old_v_cols;
+	/** original virtual column names of the table */
+	const char* const old_v_col_names;
 	/** 0, or 1 + first column whose position changes in instant ALTER */
 	unsigned	first_alter_pos;
 	/** Allow non-null conversion.
@@ -272,6 +278,9 @@ struct ha_innobase_inplace_ctx : public inplace_alter_handler_ctx
 		old_instant(prebuilt_arg->table->instant),
 		old_fields(prebuilt_arg->table->indexes.start->fields),
 		old_n_fields(prebuilt_arg->table->indexes.start->n_fields),
+		old_n_v_cols(prebuilt_arg->table->n_v_cols),
+		old_v_cols(prebuilt_arg->table->v_cols),
+		old_v_col_names(prebuilt_arg->table->v_col_names),
 		first_alter_pos(0),
 		allow_not_null(allow_not_null_flag),
 		page_compression_level(page_compressed
@@ -304,6 +313,9 @@ struct ha_innobase_inplace_ctx : public inplace_alter_handler_ctx
 				UT_LIST_REMOVE(instant_table->indexes, index);
 				rw_lock_free(&index->lock);
 				dict_mem_index_free(index);
+			}
+			for (unsigned i = old_n_v_cols; i--; ) {
+				UT_DELETE(old_v_cols[i].v_indexes);
 			}
 			dict_mem_table_free(instant_table);
 		}
@@ -536,6 +548,8 @@ set_core_fields:
 					    old_cols, old_col_names,
 					    old_instant,
 					    old_fields, old_n_fields,
+					    old_n_v_cols, old_v_cols,
+					    old_v_col_names,
 					    col_map);
 	}
 
@@ -1251,13 +1265,13 @@ ha_innobase::check_if_supported_inplace_alter(
 		*/
 			   | ALTER_ADD_NON_UNIQUE_NON_PRIM_INDEX
 			   | ALTER_DROP_NON_UNIQUE_NON_PRIM_INDEX);
-#if 1 /* MDEV-15562 FIXME: enable this, and adjust dict_v_col_t::m_col.ind */
 		if (supports_instant) {
-			flags &= ~(ALTER_ADD_STORED_BASE_COLUMN
-				   | ALTER_DROP_STORED_COLUMN
+			flags &= ~(ALTER_DROP_STORED_COLUMN
+#if 0 /* MDEV-15562 FIXME: remove check_v_col_in_order() and fix the code */
+				   | ALTER_ADD_STORED_BASE_COLUMN
+#endif
 				   | ALTER_STORED_COLUMN_ORDER);
 		}
-#endif
 		if (flags != 0
 		    || IF_PARTITIONING((altered_table->s->partition_info_str
 			&& altered_table->s->partition_info_str_len), 0)
@@ -3578,12 +3592,13 @@ innobase_build_col_map(
 			}
 		}
 
-		ut_ad(!is_v);
-		innobase_build_col_map_add(
-			heap, dtuple_get_nth_field(defaults, i),
-			altered_table->field[i + num_v],
-			NULL,
-			dict_table_is_comp(new_table));
+		if (!is_v) {
+			innobase_build_col_map_add(
+				heap, dtuple_get_nth_field(defaults, i),
+				altered_table->field[i + num_v],
+				NULL,
+				dict_table_is_comp(new_table));
+		}
 found_col:
 		if (is_v) {
 			num_v++;
@@ -4051,13 +4066,12 @@ prepare_inplace_add_virtual(
 	ha_innobase_inplace_ctx*	ctx;
 	ulint				i = 0;
 	ulint				j = 0;
-	const Create_field*		new_field;
 
 	ctx = static_cast<ha_innobase_inplace_ctx*>
 		(ha_alter_info->handler_ctx);
 
-	ctx->num_to_add_vcol = altered_table->s->fields
-			       + ctx->num_to_drop_vcol - table->s->fields;
+	ctx->num_to_add_vcol = altered_table->s->virtual_fields
+		+ ctx->num_to_drop_vcol - table->s->virtual_fields;
 
 	ctx->add_vcol = static_cast<dict_v_col_t*>(
 		 mem_heap_zalloc(ctx->heap, ctx->num_to_add_vcol
@@ -4069,43 +4083,21 @@ prepare_inplace_add_virtual(
 	List_iterator_fast<Create_field> cf_it(
 		ha_alter_info->alter_info->create_list);
 
-	while ((new_field = (cf_it++)) != NULL) {
-		const Field* field = new_field->field;
-		ulint	old_i;
+	while (const Create_field* new_field = cf_it++) {
+		const Field* field = altered_table->field[i++];
 
-		for (old_i = 0; table->field[old_i]; old_i++) {
-			const Field* n_field = table->field[old_i];
-			if (field == n_field) {
-				break;
-			}
-		}
-
-		i++;
-
-		if (table->field[old_i]) {
+		if (new_field->field || !innobase_is_v_fld(field)) {
 			continue;
 		}
 
-		ut_ad(!field);
-
-		ulint	col_len;
 		ulint	is_unsigned;
-		ulint	field_type;
 		ulint	charset_no;
-
-		field =  altered_table->field[i - 1];
-
 		ulint	col_type
 				= get_innobase_type_from_mysql_type(
 					&is_unsigned, field);
 
-
-		if (!innobase_is_v_fld(field)) {
-			continue;
-		}
-
-		col_len = field->pack_length();
-		field_type = (ulint) field->type();
+		ulint col_len = field->pack_length();
+		ulint field_type = (ulint) field->type();
 
 		if (!field->real_maybe_null()) {
 			field_type |= DATA_NOT_NULL;
@@ -4147,7 +4139,6 @@ prepare_inplace_add_virtual(
 			}
 		}
 
-
 		ctx->add_vcol[j].m_col.prtype = dtype_form_prtype(
 						field_type, charset_no);
 
@@ -4166,6 +4157,7 @@ prepare_inplace_add_virtual(
 
 		/* No need to track the list */
 		ctx->add_vcol[j].v_indexes = NULL;
+		/* FIXME: This should be done on ctx->instant_table later */
 		innodb_base_col_setup(ctx->old_table, field, &ctx->add_vcol[j]);
 		j++;
 	}
@@ -4446,13 +4438,7 @@ innobase_add_virtual_try(
 		}
 	}
 
-	ulint	n_col = unsigned(user_table->n_cols) - DATA_N_SYS_COLS;
-	ulint	n_v_col = unsigned(user_table->n_v_cols)
-		+ ctx->num_to_add_vcol - ctx->num_to_drop_vcol;
-	ulint	new_n = dict_table_encode_n_col(n_col, n_v_col)
-		+ (unsigned(user_table->flags & DICT_TF_COMPACT) << 31);
-
-	return innodb_update_cols(user_table, new_n, trx);
+	return false;
 }
 
 /** Add the newly added column in the sys_column system table.
@@ -4709,14 +4695,7 @@ innobase_drop_virtual_try(
 		}
 	}
 
-
-	ulint	n_col = unsigned(user_table->n_cols) - DATA_N_SYS_COLS;
-	ulint	n_v_col = unsigned(user_table->n_v_cols)
-		- ctx->num_to_drop_vcol;
-	ulint	new_n = dict_table_encode_n_col(n_col, n_v_col)
-		| ((user_table->flags & DICT_TF_COMPACT) << 31);
-
-	return innodb_update_cols(user_table, new_n, trx);
+	return false;
 }
 
 /** Construct the metadata record for instant ALTER TABLE.
@@ -4929,6 +4908,7 @@ static bool innobase_instant_try(
 	}
 
 	if (ctx->first_alter_pos) {
+add_all_virtual:
 		for (uint i = 0; i < user_table->n_v_cols; i++) {
 			if (innobase_add_one_virtual(
 				    user_table,
@@ -4937,18 +4917,15 @@ static bool innobase_instant_try(
 				return true;
 			}
 		}
-	} else {
-		if ((ha_alter_info->handler_flags & ALTER_DROP_VIRTUAL_COLUMN)
-		    && innobase_drop_virtual_try(ha_alter_info, user_table,
-						 trx)) {
+	} else if (ha_alter_info->handler_flags & ALTER_DROP_VIRTUAL_COLUMN) {
+		if (innobase_instant_drop_cols(user_table->id, 65536, trx)) {
 			return true;
 		}
-
-		if ((ha_alter_info->handler_flags & ALTER_ADD_VIRTUAL_COLUMN)
-		    && innobase_add_virtual_try(ha_alter_info, user_table,
-						trx)) {
-			return true;
-		}
+		goto add_all_virtual;
+	} else if ((ha_alter_info->handler_flags & ALTER_ADD_VIRTUAL_COLUMN)
+		   && innobase_add_virtual_try(ha_alter_info, user_table,
+					       trx)) {
+		return true;
         }
 
 	unsigned i = unsigned(user_table->n_cols) - DATA_N_SYS_COLS;
@@ -9455,18 +9432,32 @@ commit_try_norebuild(
 	}
 #endif /* MYSQL_RENAME_INDEX */
 
-	if ((ha_alter_info->handler_flags
-	     & ALTER_DROP_VIRTUAL_COLUMN)
-	    && !ctx->is_instant()
-	    && innobase_drop_virtual_try(ha_alter_info, ctx->old_table, trx)) {
-		DBUG_RETURN(true);
-	}
+	if (!ctx->is_instant() && ha_alter_info->handler_flags
+	    & (ALTER_DROP_VIRTUAL_COLUMN | ALTER_ADD_VIRTUAL_COLUMN)) {
+		if ((ha_alter_info->handler_flags & ALTER_DROP_VIRTUAL_COLUMN)
+		    && innobase_drop_virtual_try(ha_alter_info, ctx->old_table,
+						 trx)) {
+			DBUG_RETURN(true);
+		}
 
-	if ((ha_alter_info->handler_flags
-	     & ALTER_ADD_VIRTUAL_COLUMN)
-	    && !ctx->is_instant()
-	    && innobase_add_virtual_try(ha_alter_info, ctx->old_table, trx)) {
-		DBUG_RETURN(true);
+		if ((ha_alter_info->handler_flags & ALTER_ADD_VIRTUAL_COLUMN)
+		    && innobase_add_virtual_try(ha_alter_info, ctx->old_table,
+						trx)) {
+			DBUG_RETURN(true);
+		}
+
+		ulint	n_col = unsigned(ctx->old_table->n_cols)
+			- DATA_N_SYS_COLS;
+		ulint	n_v_col = unsigned(ctx->old_table->n_v_cols)
+			+ ctx->num_to_add_vcol - ctx->num_to_drop_vcol;
+
+		if (innodb_update_cols(
+			    ctx->old_table,
+			    dict_table_encode_n_col(n_col, n_v_col)
+			    | unsigned(ctx->old_table->flags & DICT_TF_COMPACT)
+			    << 31, trx)) {
+			DBUG_RETURN(true);
+		}
 	}
 
 	DBUG_RETURN(innobase_instant_try(ha_alter_info, ctx, altered_table,
@@ -10336,6 +10327,9 @@ foreign_fail:
 		}
 	}
 
+	/* FIXME: Avoid this when ctx->is_instant().
+	Currently dict_load_column_low() is the only place where
+	num_base for virtual columns is assigned to nonzero. */
 	if (ctx0->num_to_drop_vcol || ctx0->num_to_add_vcol) {
 		DBUG_ASSERT(ctx0->old_table->get_ref_count() == 1);
 
@@ -10353,6 +10347,12 @@ foreign_fail:
 		tb_name[strlen(m_prebuilt->table->name.m_name)] = 0;
 
 		dict_table_close(m_prebuilt->table, true, false);
+		if (ctx0->is_instant()) {
+			for (unsigned i = ctx0->old_n_v_cols; i--; ) {
+				UT_DELETE(ctx0->old_v_cols[i].v_indexes);
+			}
+			const_cast<unsigned&>(ctx0->old_n_v_cols) = 0;
+		}
 		dict_table_remove_from_cache(m_prebuilt->table);
 		m_prebuilt->table = dict_table_open_on_name(
 			tb_name, TRUE, TRUE, DICT_ERR_IGNORE_NONE);

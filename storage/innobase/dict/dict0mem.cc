@@ -1295,7 +1295,7 @@ inline void dict_index_t::instant_add_field(const dict_index_t& instant)
 
 /** Adjust table metadata for instant ADD/DROP/reorder COLUMN.
 @param[in]	table		altered table (with dropped columns)
-@param[in]	map		mapping from cols[] to table.cols[] */
+@param[in]	map		mapping from cols[] and v_cols[] to table */
 void dict_table_t::instant_column(const dict_table_t& table, const ulint* map)
 {
 	DBUG_ASSERT(!table.cached);
@@ -1308,12 +1308,14 @@ void dict_table_t::instant_column(const dict_table_t& table, const ulint* map)
 	DBUG_ASSERT(table.n_cols + table.n_dropped() >= n_cols + n_dropped());
 	ut_ad(mutex_own(&dict_sys->mutex));
 
-	const char* end = table.col_names;
-	for (unsigned i = table.n_cols; i--; ) end += strlen(end) + 1;
+	{
+		const char* end = table.col_names;
+		for (unsigned i = table.n_cols; i--; ) end += strlen(end) + 1;
 
-	col_names = static_cast<char*>(
-		mem_heap_dup(heap, table.col_names,
-			     ulint(end - table.col_names)));
+		col_names = static_cast<char*>(
+			mem_heap_dup(heap, table.col_names,
+				     ulint(end - table.col_names)));
+	}
 	const dict_col_t* const old_cols = cols;
 	const dict_col_t* const old_cols_end = cols + n_cols;
 	cols = static_cast<dict_col_t*>(mem_heap_dup(heap, table.cols,
@@ -1347,34 +1349,53 @@ void dict_table_t::instant_column(const dict_table_t& table, const ulint* map)
 	n_t_cols += table.n_cols - n_cols;
 	n_def = table.n_cols;
 
-	/* FIXME: copy v_col_names[] and v_cols[] from table to this
-	(that is, support ADD/DROP/reorder/rename of VIRTUAL COLUMN).
-	Here, we wrongly assume that the virtual columns were unchanged. */
-	DBUG_ASSERT(n_v_def == table.n_v_def);
+	const dict_v_col_t* const old_v_cols = v_cols;
+
+	if (const char* end = table.v_col_names) {
+		for (unsigned i = table.n_v_cols; i--; ) {
+			end += strlen(end) + 1;
+		}
+
+		v_col_names = static_cast<char*>(
+			mem_heap_dup(heap, table.v_col_names,
+				     ulint(end - table.v_col_names)));
+		v_cols = static_cast<dict_v_col_t*>(
+			mem_heap_dup(heap, table.v_cols,
+				     table.n_v_cols * sizeof *v_cols));
+	} else {
+		ut_ad(table.n_v_cols == 0);
+		v_col_names = NULL;
+		v_cols = NULL;
+	}
+
+	n_t_def += table.n_v_cols - n_v_cols;
+	n_t_cols += table.n_v_cols - n_v_cols;
+	n_v_def = table.n_v_cols;
 
 	for (unsigned i = 0; i < n_v_def; i++) {
 		dict_v_col_t& v = v_cols[i];
-		v.m_col.ind = v.m_col.ind - get_n_drop_cols(map, v.m_col.ind);
+		v.v_indexes = UT_NEW_NOKEY(dict_v_idx_list());
+		v.base_col = static_cast<dict_col_t**>(
+			mem_heap_dup(heap, v.base_col,
+				     v.num_base * sizeof *v.base_col));
 
 		for (ulint n = v.num_base; n--; ) {
 			dict_col_t*& base = v.base_col[n];
 			if (base->is_virtual()) {
 			} else if (base >= table.cols
-				   && base <= table.cols + table.n_cols) {
+				   && base < table.cols + table.n_cols) {
 				/* The base column was instantly added. */
 				base += cols - table.cols;
 			} else {
 				DBUG_ASSERT(base >= old_cols);
 				DBUG_ASSERT(base + DATA_N_SYS_COLS
-					    <= old_cols_end);
+					    < old_cols_end);
 				size_t n = map[base - old_cols];
 				DBUG_ASSERT(n + DATA_N_SYS_COLS < n_cols);
 				base = &cols[n];
 			}
 		}
 	}
-
-	n_cols = table.n_cols;
 
 	dict_index_t* index = dict_table_get_first_index(this);
 
@@ -1440,24 +1461,42 @@ dup_dropped:
 			continue;
 		}
 		for (unsigned i = 0; i < index->n_fields; i++) {
-			dict_field_t& field = index->fields[i];
-			if (field.col >= table.cols
-			    && field.col <= table.cols + n_cols) {
+			dict_field_t& f = index->fields[i];
+			if (f.col >= table.cols
+			    && f.col < table.cols + table.n_cols) {
 				/* This is an instantly added column
 				in a newly added index. */
-				DBUG_ASSERT(!field.col->is_virtual());
-				field.col += cols - table.cols;
-				field.name = field.col->name(*this);
-			} else if (field.col < old_cols
-				 || field.col >= old_cols_end) {
-				DBUG_ASSERT(field.col->is_virtual());
+				DBUG_ASSERT(!f.col->is_virtual());
+				f.col += cols - table.cols;
+			} else if (f.col >= &table.v_cols->m_col
+				   && f.col < &table.v_cols[n_v_cols].m_col) {
+				/* This is an instantly added virtual column
+				in a newly added index. */
+				DBUG_ASSERT(f.col->is_virtual());
+				f.col += v_cols - table.v_cols;
+			} else if (f.col < old_cols
+				 || f.col >= old_cols_end) {
+				DBUG_ASSERT(f.col->is_virtual());
+				f.col = &v_cols[
+					map[reinterpret_cast<dict_v_col_t*>(
+							f.col)
+					    - old_v_cols + n_cols]].m_col;
 			} else {
-				field.col = &cols[map[field.col - old_cols]];
-				DBUG_ASSERT(!field.col->is_virtual());
-				field.name = field.col->name(*this);
+				f.col = &cols[map[f.col - old_cols]];
+				DBUG_ASSERT(!f.col->is_virtual());
+			}
+			f.name = f.col->name(*this);
+			if (f.col->is_virtual()) {
+				reinterpret_cast<dict_v_col_t*>(f.col)
+					->v_indexes->push_back(
+						dict_v_idx_t(index,
+							     index->n_def));
 			}
 		}
 	}
+
+	n_cols = table.n_cols;
+	n_v_cols = table.n_v_cols;
 }
 
 /** Serialise metadata of dropped or reordered columns.
@@ -1603,6 +1642,9 @@ ulint find_old_col_no(
 @param[in]	old_instant		original instant structure
 @param[in]	old_fields		original fields
 @param[in]	old_n_fields		original number of fields
+@param[in]	old_n_v_cols		original n_v_cols
+@param[in]	old_v_cols		original v_cols
+@param[in]	old_v_col_names		original v_col_names
 @param[in]	col_map			column map */
 void
 dict_table_t::rollback_instant(
@@ -1612,6 +1654,9 @@ dict_table_t::rollback_instant(
 	dict_instant_t*	old_instant,
 	dict_field_t*	old_fields,
 	unsigned	old_n_fields,
+	unsigned	old_n_v_cols,
+	dict_v_col_t*	old_v_cols,
+	const char*	old_v_col_names,
 	const ulint*	col_map)
 {
 	ut_ad(mutex_own(&dict_sys->mutex));
@@ -1625,82 +1670,72 @@ dict_table_t::rollback_instant(
 	DBUG_ASSERT(index->n_core_fields <= index->n_fields);
 	DBUG_ASSERT(instant || !old_instant);
 
-	unsigned n_remove = 0;
-	unsigned n_add = 0;
-
-	if (n_cols > old_n_cols) {
-		n_remove = n_cols - old_n_cols;
-	} else {
-		n_add = old_n_cols - n_cols;
-	}
-
 	instant = old_instant;
 
 	index->n_nullable = 0;
 
-	for (unsigned i = 0; i < old_n_fields; i++) {
+	for (unsigned i = old_n_fields; i--; ) {
 		if (old_fields[i].col->is_nullable()) {
 			index->n_nullable++;
 		}
+	}
+
+	for (unsigned i = n_v_cols; i--; ) {
+		UT_DELETE(v_cols[i].v_indexes);
 	}
 
 	index->n_def = index->n_fields = old_n_fields;
 
 	const dict_col_t* const new_cols = cols;
 	const dict_col_t* const new_cols_end = cols + n_cols;
+	const dict_v_col_t* const new_v_cols = v_cols;
+	const dict_v_col_t* const new_v_cols_end = v_cols + n_v_cols;
 
 	cols = old_cols;
 	col_names = old_col_names;
-	n_cols = old_n_cols;
-	n_def = old_n_cols;
-	n_t_def -= n_remove;
-	n_t_cols -= n_remove;
-	n_t_def += n_add;
-	n_t_cols += n_add;
-
-	ulint	old_col_no = 0;
-
-	for (unsigned i = 0; i < n_v_def; i++) {
-		dict_v_col_t&	v = v_cols[i];
-		v.m_col.ind =find_old_col_no(col_map, v.m_col.ind, n_cols);
-		for (ulint n = v.num_base; n--; ) {
-			dict_col_t*& base = v.base_col[n];
-			if (!base->is_virtual()) {
-				old_col_no = find_old_col_no(
-					col_map, (base - new_cols),
-					n_cols);
-
-				ut_ad(old_col_no != ULINT_UNDEFINED);
-				base = &cols[old_col_no];
-			}
-		}
-	}
+	v_cols = old_v_cols;
+	v_col_names = old_v_col_names;
+	n_def = n_cols = old_n_cols;
+	n_v_def = n_v_cols = old_n_v_cols;
+	n_t_def = n_t_cols = n_cols + n_v_cols;
 
 	index->fields = old_fields;
 
 	while ((index = dict_table_get_next_index(index)) != NULL) {
-
 		if (index->to_be_dropped) {
+			/* instant_column() did not adjust these indexes. */
 			continue;
 		}
 
 		for (unsigned i = 0; i < index->n_fields; i++) {
-			dict_field_t& field = index->fields[i];
-			if (field.col < new_cols
-			    || field.col >= new_cols_end) {
-				DBUG_ASSERT(field.col->is_virtual()
-					    || field.col->is_dropped(*index));
+			dict_field_t& f = index->fields[i];
+			if (f.col->is_virtual()) {
+				DBUG_ASSERT(f.col >= &new_v_cols->m_col);
+				DBUG_ASSERT(f.col < &new_v_cols_end->m_col);
+				size_t n = size_t(
+					reinterpret_cast<dict_v_col_t*>(f.col)
+					- new_v_cols);
+				DBUG_ASSERT(n <= n_v_cols);
+
+				ulint old_col_no = find_old_col_no(
+					col_map, n + n_v_cols,
+					n_cols + n_v_cols);
+				ut_ad(old_col_no != ULINT_UNDEFINED);
+				f.col = &v_cols[old_col_no].m_col;
+				DBUG_ASSERT(f.col->is_virtual());
 			} else {
-				DBUG_ASSERT(field.col >= new_cols);
-				size_t n = size_t(field.col - new_cols);
+				DBUG_ASSERT(f.col >= new_cols);
+				DBUG_ASSERT(f.col < new_cols_end);
+				size_t n = size_t(f.col - new_cols);
 				DBUG_ASSERT(n <= n_cols);
 
-				old_col_no = find_old_col_no(col_map, n, n_cols);
+				ulint old_col_no = find_old_col_no(col_map,
+								   n, n_cols);
 				ut_ad(old_col_no != ULINT_UNDEFINED);
-				field.col = &cols[old_col_no];
-				DBUG_ASSERT(!field.col->is_virtual());
-				field.name = field.col->name(*this);
+				f.col = &cols[old_col_no];
+				DBUG_ASSERT(!f.col->is_virtual());
 			}
+			f.name = f.col->name(*this);
 		}
 	}
 }

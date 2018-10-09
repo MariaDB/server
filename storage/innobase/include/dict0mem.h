@@ -1614,7 +1614,8 @@ struct dict_table_t {
 
 	/** Adjust table metadata for instant ADD/DROP/reorder COLUMN.
 	@param[in]	table		altered table (with dropped columns)
-	@param[in]	map		mapping from cols[] to table.cols[] */
+	@param[in]	map		mapping from cols[] and v_cols[]
+					to table */
 	void instant_column(const dict_table_t& table, const ulint* map);
 
 	/** Roll back instant_column().
@@ -1624,6 +1625,9 @@ struct dict_table_t {
 	@param[in]	old_instant		original instant structure
 	@param[in]	old_fields		original fields
 	@param[in]	old_n_fields		original number of fields
+	@param[in]	old_n_v_cols		original n_v_cols
+	@param[in]	old_v_cols		original v_cols
+	@param[in]	old_v_col_names		original v_col_names
 	@param[in]	col_map			column map */
 	void rollback_instant(
 		unsigned	old_n_cols,
@@ -1632,6 +1636,9 @@ struct dict_table_t {
 		dict_instant_t*	old_instant,
 		dict_field_t*	old_fields,
 		unsigned	old_n_fields,
+		unsigned	old_n_v_cols,
+		dict_v_col_t*	old_v_cols,
+		const char*	old_v_col_names,
 		const ulint*	col_map);
 
 	/** Add the table definition to the data dictionary cache */
