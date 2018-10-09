@@ -10541,7 +10541,7 @@ copy_data_between_tables(THD *thd, TABLE *from, TABLE *to,
 
   if (!cleanup_done)
   {
-    /* This happens if we get an error during initialzation of data */
+    /* This happens if we get an error during initialization of data */
     DBUG_ASSERT(error);
     to->file->ha_end_bulk_insert();
     ha_enable_transaction(thd, TRUE);

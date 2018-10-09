@@ -467,7 +467,8 @@ bool close_cached_tables(THD *thd, TABLE_LIST *tables,
     {
       if (thd->killed)
         break;
-      if (tdc_wait_for_old_version(thd, table->db.str, table->table_name.str, timeout,
+      if (tdc_wait_for_old_version(thd, table->db.str, table->table_name.str,
+                                   timeout,
                                    MDL_wait_for_subgraph::DEADLOCK_WEIGHT_DDL,
                                    refresh_version))
       {
@@ -487,6 +488,7 @@ err_with_reopen:
     */
     if (thd->locked_tables_list.reopen_tables(thd, false))
       result= true;
+
     /*
       Since downgrade_lock() won't do anything with shared
       metadata lock it is much simpler to go through all open tables rather
@@ -632,7 +634,7 @@ static void mark_used_tables_as_free_for_reuse(THD *thd, TABLE *table)
                         - The table is marked as closed in the
                           locked_table_list but kept there so one can call
                           locked_table_list->reopen_tables() to put it back.
-                          
+
                      In case of drop/rename the documented behavior is to
                      implicitly remove the table from LOCK TABLES
                      list. 
@@ -1891,7 +1893,6 @@ retry_share:
     if (mysql_make_view(thd, share, table_list, false))
       goto err_lock;
 
-
     /* TODO: Don't free this */
     tdc_release_share(share);
 
@@ -1965,7 +1966,6 @@ retry_share:
   else
   {
     enum open_frm_error error;
-
     /* make a new table */
     if (!(table=(TABLE*) my_malloc(sizeof(*table),MYF(MY_WME))))
       goto err_lock;
@@ -3805,6 +3805,8 @@ lock_table_names(THD *thd, const DDL_options_st &options,
   for (table= tables_start; table && table != tables_end;
        table= table->next_global)
   {
+    DBUG_PRINT("info", ("mdl_request.type: %d  open_type: %d",
+                        table->mdl_request.type, table->open_type));
     if (table->mdl_request.type < MDL_SHARED_UPGRADABLE ||
         table->mdl_request.type == MDL_SHARED_READ_ONLY ||
         table->open_type == OT_TEMPORARY_ONLY ||

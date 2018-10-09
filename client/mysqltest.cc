@@ -9972,7 +9972,7 @@ void do_get_replace(struct st_command *command)
   char *buff, *start;
   char word_end_chars[256], *pos;
   POINTER_ARRAY to_array, from_array;
-  DBUG_ENTER("get_replace");
+  DBUG_ENTER("do_get_replace");
 
   free_replace();
 

@@ -112,19 +112,25 @@ public:
 
   @sa Comments for MDL_object_lock::can_grant_lock() and
       MDL_scoped_lock::can_grant_lock() for details.
+
+  Scoped locks are GLOBAL READ LOCK, COMMIT and database (or schema) locks.
+  The object locks are for tables, triggers etc.
 */
 
 enum enum_mdl_type {
   /*
-    An intention exclusive metadata lock. Used only for scoped locks.
+    An intention exclusive metadata lock (IX). Used only for scoped locks.
     Owner of this type of lock can acquire upgradable exclusive locks on
     individual objects.
     Compatible with other IX locks, but is incompatible with scoped S and
     X locks.
+    IX lock is taken in SCHEMA namespace when we intend to modify
+    object metadata. Object may refer table, stored procedure, trigger,
+    view/etc.
   */
   MDL_INTENTION_EXCLUSIVE= 0,
   /*
-    A shared metadata lock.
+    A shared metadata lock (S).
     To be used in cases when we are interested in object metadata only
     and there is no intention to access object data (e.g. for stored
     routines or during preparing prepared statements).
@@ -144,6 +150,9 @@ enum enum_mdl_type {
     use SNRW locks for them. It also does not arise when S locks are used
     during PREPARE calls as table-level locks are not acquired in this
     case.
+    This lock is taken for global read lock, when caching a stored
+    procedure in memory for the duration of the transaction and for
+    tables used by prepared statements.
   */
   MDL_SHARED,
   /*
@@ -164,8 +173,8 @@ enum enum_mdl_type {
   */
   MDL_SHARED_HIGH_PRIO,
   /*
-    A shared metadata lock for cases when there is an intention to read data
-    from table.
+    A shared metadata lock (SR) for cases when there is an intention to read
+    data from table.
     A connection holding this kind of lock can read table metadata and read
     table data (after acquiring appropriate table and row-level locks).
     This means that one can only acquire TL_READ, TL_READ_NO_INSERT, and
@@ -175,7 +184,7 @@ enum enum_mdl_type {
   */
   MDL_SHARED_READ,
   /*
-    A shared metadata lock for cases when there is an intention to modify
+    A shared metadata lock (SW) for cases when there is an intention to modify
     (and not just read) data in the table.
     A connection holding SW lock can read table metadata and modify or read
     table data (after acquiring appropriate table and row-level locks).
@@ -185,8 +194,8 @@ enum enum_mdl_type {
   */
   MDL_SHARED_WRITE,
   /*
-    An upgradable shared metadata lock for cases when there is an intention
-    to modify (and not just read) data in the table.
+    An upgradable shared metadata lock for cases when there is an
+    intention to modify (and not just read) data in the table.
     Can be upgraded to MDL_SHARED_NO_WRITE and MDL_EXCLUSIVE.
     A connection holding SU lock can read table metadata and modify or read
     table data (after acquiring appropriate table and row-level locks).
@@ -226,7 +235,7 @@ enum enum_mdl_type {
   */
   MDL_SHARED_NO_READ_WRITE,
   /*
-    An exclusive metadata lock.
+    An exclusive metadata lock (X).
     A connection holding this lock can modify both table's metadata and data.
     No other type of metadata lock can be granted while this lock is held.
     To be used for CREATE/DROP/RENAME TABLE statements and for execution of
@@ -234,7 +243,8 @@ enum enum_mdl_type {
   */
   MDL_EXCLUSIVE,
   /* This should be the last !!! */
-  MDL_TYPE_END};
+  MDL_TYPE_END
+};
 
 
 /** Duration of metadata lock. */

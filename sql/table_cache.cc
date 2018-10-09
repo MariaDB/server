@@ -232,7 +232,7 @@ static void intern_close_table(TABLE *table)
 uint tc_records(void)
 {
   ulong total= 0;
-  for (ulong i= 0; i < tc_instances; i++)
+  for (uint32 i= 0; i < tc_instances; i++)
   {
     mysql_mutex_lock(&tc[i].LOCK_table_cache);
     total+= tc[i].records;
@@ -277,7 +277,7 @@ static void tc_remove_all_unused_tables(TDC_element *element,
   */
   if (mark_flushed)
     element->flushed= true;
-  for (ulong i= 0; i < tc_instances; i++)
+  for (uint32 i= 0; i < tc_instances; i++)
   {
     mysql_mutex_lock(&tc[i].LOCK_table_cache);
     while ((table= element->free_tables[i].list.pop_front()))
@@ -491,7 +491,7 @@ static void tdc_assert_clean_share(TDC_element *element)
   DBUG_ASSERT(element->m_flush_tickets.is_empty());
   DBUG_ASSERT(element->all_tables.is_empty());
 #ifndef DBUG_OFF
-  for (ulong i= 0; i < tc_instances; i++)
+  for (uint32 i= 0; i < tc_instances; i++)
     DBUG_ASSERT(element->free_tables[i].list.is_empty());
 #endif
   DBUG_ASSERT(element->all_tables_refs == 0);
@@ -564,7 +564,7 @@ static void lf_alloc_constructor(uchar *arg)
   mysql_cond_init(key_TABLE_SHARE_COND_release, &element->COND_release, 0);
   element->m_flush_tickets.empty();
   element->all_tables.empty();
-  for (ulong i= 0; i < tc_instances; i++)
+  for (uint32 i= 0; i < tc_instances; i++)
     element->free_tables[i].list.empty();
   element->all_tables_refs= 0;
   element->share= 0;

@@ -288,10 +288,6 @@ TABLE *open_system_table_for_update(THD *thd, TABLE_LIST *one_table);
 TABLE *open_log_table(THD *thd, TABLE_LIST *one_table, Open_tables_backup *backup);
 void close_log_table(THD *thd, Open_tables_backup *backup);
 
-TABLE *open_performance_schema_table(THD *thd, TABLE_LIST *one_table,
-                                     Open_tables_state *backup);
-void close_performance_schema_table(THD *thd, Open_tables_state *backup);
-
 bool close_cached_tables(THD *thd, TABLE_LIST *tables,
                          bool wait_for_refresh, ulong timeout);
 bool close_cached_connection_tables(THD *thd, LEX_CSTRING *connect_string);

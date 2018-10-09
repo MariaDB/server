@@ -683,7 +683,7 @@ int ha_init()
     binary log (which is considered a transaction-capable storage engine in
     counting total_ha)
   */
-  opt_using_transactions= total_ha>(ulong)opt_bin_log;
+  opt_using_transactions= total_ha > (ulong) opt_bin_log;
   savepoint_alloc_size+= sizeof(SAVEPOINT);
   DBUG_RETURN(error);
 }
@@ -692,7 +692,6 @@ int ha_end()
 {
   int error= 0;
   DBUG_ENTER("ha_end");
-
 
   /* 
     This should be eventualy based  on the graceful shutdown flag.
@@ -6869,6 +6868,10 @@ int del_global_index_stat(THD *thd, TABLE* table, KEY* key_info)
   mysql_mutex_unlock(&LOCK_global_index_stats);
   DBUG_RETURN(res);
 }
+
+/*****************************************************************************
+  VERSIONING functions
+******************************************************************************/
 
 bool Vers_parse_info::is_start(const char *name) const
 {

@@ -1368,17 +1368,23 @@ void MDL_lock::reschedule_waiters()
 
 /**
   Compatibility (or rather "incompatibility") matrices for scoped metadata
-  lock. Arrays of bitmaps which elements specify which granted/waiting locks
+  lock.
+  Scoped locks are GLOBAL READ LOCK, COMMIT and database (or schema) locks.
+  Arrays of bitmaps which elements specify which granted/waiting locks
   are incompatible with type of lock being requested.
 
   The first array specifies if particular type of request can be satisfied
   if there is granted scoped lock of certain type.
 
+  (*)  Since intention shared scoped locks (IS) are compatible with all other
+       type of locks, they don't need to be implemented and there is no code
+       for them.
+
              | Type of active   |
      Request |   scoped lock    |
       type   | IS(*)  IX   S  X |
     ---------+------------------+
-    IS       |  +      +   +  + |
+    IS(*)    |  +      +   +  + |
     IX       |  +      +   -  - |
     S        |  +      -   +  - |
     X        |  +      -   -  - |
@@ -1391,16 +1397,13 @@ void MDL_lock::reschedule_waiters()
      Request |  scoped lock    |
       type   | IS(*)  IX  S  X |
     ---------+-----------------+
-    IS       |  +      +  +  + |
+    IS(*)    |  +      +  +  + |
     IX       |  +      +  -  - |
     S        |  +      +  +  - |
     X        |  +      +  +  + |
 
   Here: "+" -- means that request can be satisfied
         "-" -- means that request can't be satisfied and should wait
-
-  (*)  Since intention shared scoped locks are compatible with all other
-       type of locks we don't even have any accounting for them.
 
   Note that relation between scoped locks and objects locks requested
   by statement is not straightforward and is therefore fully defined
