@@ -1699,7 +1699,14 @@ static void close_connections(void)
                           tmp->thread_id,
                           (tmp->main_security_ctx.user ?
                            tmp->main_security_ctx.user : ""));
+      /*
+        close_connection() might need a valid current_thd
+        for memory allocation tracking.
+      */
+      THD* save_thd= current_thd;
+      set_current_thd(tmp);
       close_connection(tmp,ER_SERVER_SHUTDOWN);
+      set_current_thd(save_thd);
     }
 #endif
     DBUG_PRINT("quit",("Unlocking LOCK_thread_count"));
