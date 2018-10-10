@@ -1093,7 +1093,8 @@ row_ins_foreign_check_on_constraint(
 					foreign,
 					clust_rec,
 					clust_index,
-					FALSE, WSREP_KEY_EXCLUSIVE);
+					FALSE,
+					WSREP_KEY_EXCLUSIVE);
 	if (err != DB_SUCCESS) {
 		fprintf(stderr, 
 			"WSREP: foreign key append failed: %lu\n", err);
@@ -1451,6 +1452,7 @@ run_again:
 							break;
 						}
 					}
+
 					err = wsrep_append_foreign_key(
 						thr_get_trx(thr),
 						foreign,

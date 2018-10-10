@@ -1095,9 +1095,7 @@ row_ins_foreign_check_on_constraint(
 					clust_rec,
 					clust_index,
 					FALSE,
-					node != NULL
-					? WSREP_KEY_SHARED
-					: WSREP_KEY_EXCLUSIVE);
+					WSREP_KEY_EXCLUSIVE);
 	if (err != DB_SUCCESS) {
 		fprintf(stderr,
 			"WSREP: foreign key append failed: %lu\n", err);
@@ -1444,17 +1442,31 @@ run_again:
 				}
 
 				if (check_ref) {
+#ifdef WITH_WSREP
+					enum wsrep_key_type key_type = WSREP_KEY_EXCLUSIVE;
+#endif /* WITH_WSREP */
 					err = DB_SUCCESS;
 #ifdef WITH_WSREP
-                                       err = wsrep_append_foreign_key(
+					if (upd_node != NULL) {
+						key_type = WSREP_KEY_SHARED;
+					} else {
+						switch (wsrep_certification_rules) {
+						case WSREP_CERTIFICATION_RULES_STRICT:
+							key_type = WSREP_KEY_EXCLUSIVE;
+							break;
+						case WSREP_CERTIFICATION_RULES_OPTIMIZED:
+							key_type = WSREP_KEY_SEMI;
+							break;
+						}
+					}
+
+					err = wsrep_append_foreign_key(
                                                thr_get_trx(thr),
                                                foreign,
                                                rec,
                                                check_index,
                                                check_ref,
-					       upd_node != NULL
-				                 ? WSREP_KEY_SHARED
-					         : WSREP_KEY_EXCLUSIVE);
+					       key_type);
 #endif /* WITH_WSREP */
 					goto end_scan;
 				} else if (foreign->type != 0) {
