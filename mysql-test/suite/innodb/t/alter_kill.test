@@ -129,13 +129,14 @@ INSERT INTO t1 VALUES(42);
 CREATE TABLE bug16735660 (a INT PRIMARY KEY) ENGINE=InnoDB;
 
 XA START 'x';
+--source ../include/no_checkpoint_start.inc
 INSERT INTO bug16735660 VALUES(1),(2),(3);
 XA END 'x';
 XA PREPARE 'x';
+--connection default
+--let CLEANUP_IF_CHECKPOINT=XA ROLLBACK 'x';DROP TABLE bug16735660;
+--source ../include/no_checkpoint_end.inc
 
--- connection default
-
--- source include/kill_mysqld.inc
 -- disconnect con1
 -- move_file $MYSQLD_DATADIR/test/bug16735660.ibd $MYSQLD_DATADIR/bug16735660.omg
 
