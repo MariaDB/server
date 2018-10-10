@@ -2116,6 +2116,8 @@ dict_create_add_foreigns_to_dictionary(
 		return(DB_ERROR);
 	}
 
+	error = DB_SUCCESS;
+
 	for (dict_foreign_set::const_iterator it = local_fk_set.begin();
 	     it != local_fk_set.end();
 	     ++it) {
@@ -2127,21 +2129,11 @@ dict_create_add_foreigns_to_dictionary(
 			table->name.m_name, foreign, trx);
 
 		if (error != DB_SUCCESS) {
-
-			return(error);
+			break;
 		}
 	}
 
-	trx->op_info = "committing foreign key definitions";
-
-	if (trx_is_started(trx)) {
-
-		trx_commit(trx);
-	}
-
-	trx->op_info = "";
-
-	return(DB_SUCCESS);
+	return error;
 }
 
 /****************************************************************//**
