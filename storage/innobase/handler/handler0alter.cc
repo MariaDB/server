@@ -5703,7 +5703,7 @@ new_clustered_failed:
 				&error, add_v);
 			ut_a(error == DB_SUCCESS);
 		}
-#if 0
+
 		DBUG_ASSERT(ha_alter_info->key_count
 			    /* hidden GEN_CLUST_INDEX in InnoDB */
 			    + dict_index_is_auto_gen_clust(
@@ -5715,7 +5715,7 @@ new_clustered_failed:
 				       altered_table->key_info)
 			       != FTS_EXIST_DOC_ID_INDEX)
 			    == ctx->num_to_add_index);
-#endif
+
 		ctx->num_to_add_index = 0;
 		ctx->add_index = NULL;
 
