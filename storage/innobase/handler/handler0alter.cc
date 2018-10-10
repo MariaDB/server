@@ -436,7 +436,7 @@ add_metadata:
 						ut_d(uint ni = instant->fields[
 							     j].col->ind);
 						ut_ad(max_new_col <= ni);
-						max_new_col = ni +1;
+						ut_d(max_new_col = ni + 1);
 					}
 existing_field:
 					fields[i] = instant->fields[j++];
