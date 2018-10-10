@@ -145,6 +145,11 @@ foreach my $option (@ARGV)
     $cmakeargs = $cmakeargs." -DPLUGIN_".uc($1)."=".uc($2);
     next;
   }
+  if($option =~ /without-wsrep/)
+  {
+    $cmakeargs = $cmakeargs." -DWITH_WSREP=OFF";
+    next;
+  }
   if($option =~ /with-zlib-dir=bundled/)
   {
     $cmakeargs = $cmakeargs." -DWITH_ZLIB=bundled";
