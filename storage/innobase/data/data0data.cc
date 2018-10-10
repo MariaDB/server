@@ -598,7 +598,6 @@ dtuple_convert_big_rec(
 	mem_heap_t*	heap;
 	big_rec_t*	vector;
 	dfield_t*	dfield;
-	dict_field_t*	ifield;
 	ulint		size;
 	ulint		n_fields;
 	ulint		local_len;
@@ -608,14 +607,7 @@ dtuple_convert_big_rec(
 		return(NULL);
 	}
 
-	if (!dict_table_has_atomic_blobs(index->table)) {
-		/* up to MySQL 5.1: store a 768-byte prefix locally */
-		local_len = BTR_EXTERN_FIELD_REF_SIZE
-			+ DICT_ANTELOPE_MAX_INDEX_COL_LEN;
-	} else {
-		/* new-format table: do not store any BLOB prefix locally */
-		local_len = BTR_EXTERN_FIELD_REF_SIZE;
-	}
+	ut_ad(index->n_uniq > 0);
 
 	ut_a(dtuple_check_typed_no_assert(entry));
 
@@ -638,24 +630,33 @@ dtuple_convert_big_rec(
 	stored externally */
 
 	n_fields = 0;
+	ulint longest_i;
+
+	if (!dict_table_has_atomic_blobs(index->table)) {
+		/* ROW_FORMAT=REDUNDANT or ROW_FORMAT=COMPACT:
+		store a 768-byte prefix locally */
+		local_len = BTR_EXTERN_FIELD_REF_SIZE
+			+ DICT_ANTELOPE_MAX_INDEX_COL_LEN;
+	} else {
+		/* ROW_FORMAT=DYNAMIC or ROW_FORMAT=COMPRESSED:
+		do not store any BLOB prefix locally */
+		local_len = BTR_EXTERN_FIELD_REF_SIZE;
+	}
 
 	while (page_zip_rec_needs_ext(rec_get_converted_size(index, entry,
 							     *n_ext),
 				      dict_table_is_comp(index->table),
 				      dict_index_get_n_fields(index),
 				      dict_table_page_size(index->table))) {
+		longest_i = 0;
 
-		ulint			i;
-		ulint			longest		= 0;
-		ulint			longest_i	= ULINT_MAX;
-		byte*			data;
-
-		for (i = dict_index_get_n_unique_in_tree(index);
-		     i < dtuple_get_n_fields(entry); i++) {
+		for (ulint i = index->first_user_field(), longest = 0;
+		     i < entry->n_fields; i++) {
 			ulint	savings;
-
 			dfield = dtuple_get_nth_field(entry, i);
-			ifield = dict_index_get_nth_field(index, i);
+
+			const dict_field_t* ifield = dict_index_get_nth_field(
+				index, i);
 
 			/* Skip fixed-length, NULL, externally stored,
 			or short columns */
@@ -697,7 +698,7 @@ skip_field:
 			continue;
 		}
 
-		if (!longest) {
+		if (!longest_i) {
 			/* Cannot shorten more */
 
 			mem_heap_free(heap);
@@ -712,7 +713,6 @@ skip_field:
 		from locally stored data. */
 
 		dfield = dtuple_get_nth_field(entry, longest_i);
-		ifield = dict_index_get_nth_field(index, longest_i);
 		local_prefix_len = local_len - BTR_EXTERN_FIELD_REF_SIZE;
 
 		vector->append(
@@ -723,7 +723,8 @@ skip_field:
 				+ local_prefix_len));
 
 		/* Allocate the locally stored part of the column. */
-		data = static_cast<byte*>(mem_heap_alloc(heap, local_len));
+		byte* data = static_cast<byte*>(
+			mem_heap_alloc(heap, local_len));
 
 		/* Copy the local prefix. */
 		memcpy(data, dfield_get_data(dfield), local_prefix_len);
@@ -737,7 +738,6 @@ skip_field:
 		UNIV_MEM_ALLOC(data + local_prefix_len,
 			       BTR_EXTERN_FIELD_REF_SIZE);
 #endif
-
 		dfield_set_data(dfield, data, local_len);
 		dfield_set_ext(dfield);
 

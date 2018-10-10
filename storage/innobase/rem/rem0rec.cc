@@ -1906,6 +1906,7 @@ rec_copy_prefix_to_buf(
 		/* We would have !index->is_instant() when rolling back
 		an instant ADD COLUMN operation. */
 		ut_ad(index->is_instant() || page_rec_is_metadata(rec));
+		ut_ad(n_fields <= index->first_user_field());
 		nulls++;
 		const ulint n_rec = ulint(index->n_core_fields) + 1
 			+ rec_get_n_add_field(nulls);
