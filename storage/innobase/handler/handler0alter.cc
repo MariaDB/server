@@ -460,7 +460,7 @@ found_nullable:
 					dropped earlier. */
 					DBUG_ASSERT(f.col >= old_table->instant
 						    ->dropped);
-					unsigned d = f.col - old_table->instant
+					size_t d = f.col - old_table->instant
 						->dropped;
 					DBUG_ASSERT(d < n_old_drop);
 					DBUG_ASSERT(&old_table->instant

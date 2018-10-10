@@ -1384,12 +1384,12 @@ void dict_table_t::instant_column(const dict_table_t& table, const ulint* map)
 			} else if (base >= table.cols
 				   && base < table.cols + table.n_cols) {
 				/* The base column was instantly added. */
-				unsigned c = base - table.cols;
+				size_t c = base - table.cols;
 				DBUG_ASSERT(base == &table.cols[c]);
 				base = &cols[c];
 			} else {
 				DBUG_ASSERT(base >= old_cols);
-				unsigned c = base - old_cols;
+				size_t c = base - old_cols;
 				DBUG_ASSERT(c + DATA_N_SYS_COLS < n_cols);
 				DBUG_ASSERT(base == &old_cols[c]);
 				DBUG_ASSERT(map[c] + DATA_N_SYS_COLS < n_cols);
@@ -1449,7 +1449,7 @@ dup_dropped:
 			ut_ad(field->col < table.instant->dropped
 			      + table.instant->n_dropped);
 			ut_d(n_drop++);
-			unsigned d = field->col - table.instant->dropped;
+			size_t d = field->col - table.instant->dropped;
 			ut_ad(field->col == &table.instant->dropped[d]);
 			ut_ad(d <= instant->n_dropped);
 			field->col = &instant->dropped[d];
@@ -1470,7 +1470,7 @@ dup_dropped:
 				/* This is an instantly added column
 				in a newly added index. */
 				DBUG_ASSERT(!f.col->is_virtual());
-				unsigned c = f.col - table.cols;
+				size_t c = f.col - table.cols;
 				DBUG_ASSERT(f.col == &table.cols[c]);
 				f.col = &cols[c];
 			} else if (f.col >= &table.v_cols->m_col
@@ -1478,7 +1478,7 @@ dup_dropped:
 				/* This is an instantly added virtual column
 				in a newly added index. */
 				DBUG_ASSERT(f.col->is_virtual());
-				unsigned c = reinterpret_cast<dict_v_col_t*>(
+				size_t c = reinterpret_cast<dict_v_col_t*>(
 					f.col) - table.v_cols;
 				DBUG_ASSERT(f.col == &table.v_cols[c].m_col);
 				f.col = &v_cols[c].m_col;
