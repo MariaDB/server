@@ -5689,13 +5689,10 @@ new_clustered_failed:
 			    == !!new_clustered);
 	}
 
-	if (ctx->need_rebuild() && user_table->supports_instant()) {
-		if (!instant_alter_column_possible(ha_alter_info, old_table)
-		    || (innobase_fulltext_exist(old_table)
-			&& !innobase_fulltext_exist(altered_table))) {
-			goto not_instant_column;
-		}
-
+	if (ctx->need_rebuild() && user_table->supports_instant()
+	    && instant_alter_column_possible(ha_alter_info, old_table)
+	    && (!innobase_fulltext_exist(old_table)
+		|| innobase_fulltext_exist(altered_table))) {
 		for (uint a = 0; a < ctx->num_to_add_index; a++) {
 			ctx->add_index[a]->table = ctx->new_table;
 			ctx->add_index[a] = dict_index_add_to_cache(
@@ -5749,23 +5746,8 @@ new_clustered_failed:
 			DBUG_ASSERT(!col->is_added());
 
 			if (new_field->field) {
-#if 0
-				ut_d(const dict_col_t* old_col
-				     = dict_table_get_nth_col(user_table, i));
-				ut_d(const dict_index_t* index
-				     = user_table->indexes.start);
-				DBUG_SLOW_ASSERT(col->mtype == old_col->mtype);
-				DBUG_SLOW_ASSERT(col->prtype == old_col->prtype);
-				DBUG_SLOW_ASSERT(col->mbminlen
-					    == old_col->mbminlen);
-				DBUG_SLOW_ASSERT(col->mbmaxlen
-					    == old_col->mbmaxlen);
-				DBUG_SLOW_ASSERT(col->len >= old_col->len);
-				DBUG_SLOW_ASSERT(old_col->is_instant()
-					    == (dict_col_get_clust_pos(
-							old_col, index)
-						>= index->n_core_fields));
-#endif
+				/* This is a pre-existing column,
+				possibly at a different position. */
 			} else if ((*af)->is_real_null()) {
 				/* DEFAULT NULL */
 				col->def_val.len = UNIV_SQL_NULL;
@@ -5837,7 +5819,6 @@ new_clustered_failed:
 	}
 
 	if (ctx->need_rebuild()) {
-not_instant_column:
 		DBUG_ASSERT(ctx->need_rebuild());
 		DBUG_ASSERT(!ctx->is_instant());
 		DBUG_ASSERT(num_fts_index <= 1);
