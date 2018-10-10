@@ -2,10 +2,12 @@
 # Bug#16720368 INNODB CRASHES ON BROKEN #SQL*.IBD FILE AT STARTUP
 #
 SET GLOBAL innodb_file_per_table=1;
+SET GLOBAL innodb_purge_rseg_truncate_frequency=1;
 CREATE TABLE bug16720368_1 (a INT PRIMARY KEY) ENGINE=InnoDB;
 connect  con1,localhost,root;
 CREATE TABLE bug16720368 (a INT PRIMARY KEY, b INT) ENGINE=InnoDB;
 INSERT INTO bug16720368 (a) VALUES (1),(2),(3),(4),(5),(6),(7),(8);
+InnoDB		0 transactions not purged
 connection default;
 # Cleanly shutdown mysqld
 disconnect con1;
