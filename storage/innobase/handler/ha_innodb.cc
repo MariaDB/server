@@ -20368,6 +20368,7 @@ static bool table_name_parse(
 
 	if (char *is_part = strchr(tbl_buf, '#')) {
 		*is_part = '\0';
+		tblnamelen = is_part - tbl_buf;
 	}
 
 	filename_to_tablename(tbl_buf, tblname, MAX_TABLE_NAME_LEN + 1, true);
@@ -20485,13 +20486,12 @@ static TABLE* innodb_find_table_for_vc(THD* thd, dict_table_t* table)
 }
 
 /** Get the computed value by supplying the base column values.
-@param[in,out]	table	table whose virtual column template to be built */
-void
-innobase_init_vc_templ(
-	dict_table_t*	table)
+@param[in,out]	table		table whose virtual column
+				template to be built */
+TABLE* innobase_init_vc_templ(dict_table_t* table)
 {
 	if (table->vc_templ != NULL) {
-		return;
+		return NULL;
 	}
 
 	table->vc_templ = UT_NEW_NOKEY(dict_vcol_templ_t());
@@ -20500,12 +20500,13 @@ innobase_init_vc_templ(
 
 	ut_ad(mysql_table);
 	if (!mysql_table) {
-		return;
+		return NULL;
 	}
 
 	mutex_enter(&dict_sys->mutex);
 	innobase_build_v_templ(mysql_table, table, table->vc_templ, NULL, true);
 	mutex_exit(&dict_sys->mutex);
+	return mysql_table;
 }
 
 /** Change dbname and table name in table->vc_templ.

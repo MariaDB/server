@@ -1,6 +1,9 @@
 SET(TOKUDB_VERSION 5.6.41-84.1)
 # PerconaFT only supports x86-64 and cmake-2.8.9+
-IF(CMAKE_VERSION VERSION_LESS "2.8.9")
+IF(WIN32)
+  # tokudb never worked there
+  RETURN()
+ELSEIF(CMAKE_VERSION VERSION_LESS "2.8.9")
   MESSAGE(STATUS "CMake 2.8.9 or higher is required by TokuDB")
 ELSEIF(NOT HAVE_DLOPEN)
   MESSAGE(STATUS "dlopen is required by TokuDB")
