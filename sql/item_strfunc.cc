@@ -603,7 +603,7 @@ String *Item_func_concat::val_str(String *str)
     goto null;
 
   if (res != str)
-    str->copy(res->ptr(), res->length(), res->charset());
+    str->copy_or_move(res->ptr(), res->length(), res->charset());
 
   for (uint i= 1 ; i < arg_count ; i++)
   {

@@ -7,6 +7,7 @@
 # The embedded server tests do not support restarting.
 --source include/not_embedded.inc
 
+FLUSH TABLES;
 # Following are test for crash recovery on FTS index, the first scenario
 # is for bug Bug #14586855 INNODB: FAILING ASSERTION: (DICT_INDEX_GET_N_UNIQUE(
 # PLAN->INDEX) <= PLAN->N_EXAC

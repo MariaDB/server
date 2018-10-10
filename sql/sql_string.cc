@@ -237,9 +237,9 @@ bool String::copy(const String &str)
 
 bool String::copy(const char *str,size_t arg_length, CHARSET_INFO *cs)
 {
+  DBUG_ASSERT(arg_length < UINT_MAX32);
   if (alloc(arg_length))
     return TRUE;
-  DBUG_ASSERT(arg_length < UINT_MAX32);
   if (Ptr == str && arg_length == uint32(str_length))
   {
     /*
@@ -251,6 +251,24 @@ bool String::copy(const char *str,size_t arg_length, CHARSET_INFO *cs)
   }
   else if ((str_length=uint32(arg_length)))
     memcpy(Ptr,str,arg_length);
+  Ptr[arg_length]=0;
+  str_charset=cs;
+  return FALSE;
+}
+
+/*
+  Copy string, where strings may overlap.
+  Same as String::copy, but use memmove instead of memcpy to avoid warnings
+  from valgrind
+*/
+
+bool String::copy_or_move(const char *str,size_t arg_length, CHARSET_INFO *cs)
+{
+  DBUG_ASSERT(arg_length < UINT_MAX32);
+  if (alloc(arg_length))
+    return TRUE;
+  if ((str_length=uint32(arg_length)))
+    memmove(Ptr,str,arg_length);
   Ptr[arg_length]=0;
   str_charset=cs;
   return FALSE;
@@ -389,8 +407,9 @@ bool String::set_or_copy_aligned(const char *str, size_t arg_length,
   /* How many bytes are in incomplete character */
   size_t offset= (arg_length % cs->mbminlen); 
   
-  if (!offset) /* All characters are complete, just copy */
+  if (!offset)
   {
+    /* All characters are complete, just use given string */
     set(str, arg_length, cs);
     return FALSE;
   }
