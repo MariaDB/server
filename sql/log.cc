@@ -8987,23 +8987,6 @@ int TC_LOG_MMAP::log_and_order(THD *thd, my_xid xid, bool all,
     /* Only run commit_ordered() if log_xid was successful. */
     if (cookie)
     {
-#ifdef WITH_WSREP_OUT
-      if (WSREP(thd) && wsrep_before_prepare(thd, all))
-      {
-        wsrep_override_error(thd, ER_LOCK_DEADLOCK);
-        return(0);
-      }
-      if (WSREP(thd) && wsrep_after_prepare(thd, all))
-      {
-        wsrep_override_error(thd, ER_LOCK_DEADLOCK);
-        return(0);
-      }
-      if (WSREP(thd) && wsrep_before_commit(thd, all))
-      {
-        wsrep_override_error(thd, ER_LOCK_DEADLOCK);
-        return(0);
-      }
-#endif /* WITH_WSREP */
 #ifdef WITH_WSREP
       if (WSREP(thd) && WSREP_EMULATE_BINLOG(thd) && wsrep_before_commit(thd, all))
       {
@@ -9713,19 +9696,6 @@ TC_LOG_BINLOG::log_and_order(THD *thd, my_xid xid, bool all,
     WSREP_DEBUG("Skipping empty log_xid: %s", thd->query());
     DBUG_RETURN(0);
   }
-
-#ifdef WITH_WSREP_OUT
-  if (WSREP(thd) && wsrep_before_prepare(thd, all))
-  {
-    //wsrep_override_error(thd, ER_ERROR_DURING_COMMIT);
-    DBUG_RETURN(0);
-  }
-  if (WSREP(thd) && wsrep_after_prepare(thd, all))
-  {
-    //wsrep_override_error(thd, ER_ERROR_DURING_COMMIT);
-    DBUG_RETURN(0);
-  }
-#endif /* WITH_WSREP */
 
   cache_mngr->using_xa= TRUE;
   cache_mngr->xa_xid= xid;

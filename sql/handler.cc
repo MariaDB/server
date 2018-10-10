@@ -1210,12 +1210,6 @@ int ha_prepare(THD *thd)
   THD_TRANS *trans=all ? &thd->transaction.all : &thd->transaction.stmt;
   Ha_trx_info *ha_info= trans->ha_list;
   DBUG_ENTER("ha_prepare");
-#ifdef WITH_WSREP_OUT
-  if (wsrep_before_prepare(thd, all))
-  {
-    DBUG_RETURN(1);
-  }
-#endif /* WITH_WSREP */
 
   if (ha_info)
   {
@@ -1241,12 +1235,6 @@ int ha_prepare(THD *thd)
       }
     }
   }
-#ifdef WITH_WSREP_OUT
-  if (wsrep_after_prepare(thd, all))
-  {
-    DBUG_RETURN(1);
-  }
-#endif /* WITH_WSREP */
 
   DBUG_RETURN(error);
 }
