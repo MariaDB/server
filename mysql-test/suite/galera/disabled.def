@@ -34,4 +34,3 @@ partition : MDEV-13881 galera.partition failed in buildbot with wrong result
 galera_as_slave_replication_budle : MDEV-15785 Test case galera_as_slave_replication_bundle caused debug assertion
 galera_wan : MDEV-17259: Test failure on galera.galera_wan
 galera_pc_ignore_sb : MDEV-17357 Test failure on galera.galera_pc_ignore_sb
-galera_drop_database : test

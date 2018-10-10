@@ -9,6 +9,7 @@
 --let $node_2=node_2
 --source include/auto_increment_offset_save.inc
 
+# Create test database with two sets of the FTS indexes:
 CREATE DATABASE fts;
 USE fts;
 CREATE TABLE fts_t1 (f1 INT PRIMARY KEY AUTO_INCREMENT, f2 VARCHAR(100), FULLTEXT (f2)) ENGINE=InnoDB;
@@ -23,34 +24,19 @@ DROP TABLE ten;
 UPDATE fts_t1 SET f2 = 'abcd';
 UPDATE fts_t2 SET f2 = 'efjh';
 
+# Restart the second node:
 --connection node_2
-let $wsrep_cluster_address = `SELECT @@global.wsrep_node_incoming_address`;
 --source include/restart_mysqld.inc
 
 --connection node_1
 --let $wait_condition = SELECT VARIABLE_VALUE = 2 FROM INFORMATION_SCHEMA.GLOBAL_STATUS WHERE VARIABLE_NAME = 'wsrep_cluster_size';
 --source include/wait_condition.inc
 
---let $galera_connection_name = node_2a
---let $galera_server_number = 2
---source include/galera_connect.inc
---connection node_2a
+--connection node_2
 --source include/wait_until_ready.inc
 
+# Drop the tables and database after nodes restarted:
 --connection node_1
---let $restart_parameters = --wsrep-cluster-address=gcomm://$wsrep_cluster_address
---source include/restart_mysqld.inc
-
---connection node_2a
---let $wait_condition = SELECT VARIABLE_VALUE = 2 FROM INFORMATION_SCHEMA.GLOBAL_STATUS WHERE VARIABLE_NAME = 'wsrep_cluster_size';
---source include/wait_condition.inc
-
---let $galera_connection_name = node_1a
---let $galera_server_number = 1
---source include/galera_connect.inc
---connection node_1a
---source include/wait_until_ready.inc
-
 USE fts;
 DROP TABLE fts_t1;
 DROP TABLE fts_t2;
@@ -58,8 +44,4 @@ SHOW TABLES;
 DROP DATABASE fts;
 
 # Restore original auto_increment_offset values.
---let $node_1=node_1a
---let $node_2=node_2a
 --source include/auto_increment_offset_restore.inc
-
---source include/galera_end.inc

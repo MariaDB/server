@@ -5282,6 +5282,7 @@ sub server_need_restart {
         exists $server->{'restart_opts'})
     {
       my $use_dynamic_option_switch= 0;
+      delete $server->{'restart_opts'};
       if (!$use_dynamic_option_switch)
       {
 	mtr_verbose_restart($server, "running with different options '" .

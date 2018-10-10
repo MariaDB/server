@@ -1,0 +1,4 @@
+include/master-slave.inc
+[connection master]
+auto_increment_offset=1
+include/rpl_end.inc
