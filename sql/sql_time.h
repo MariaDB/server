@@ -50,7 +50,7 @@ bool decimal_to_datetime_with_warn(THD *thd,
                                    const my_decimal *value, MYSQL_TIME *ltime,
                                    date_mode_t fuzzydate,
                                    const char *name);
-bool int_to_datetime_with_warn(THD *thd, bool neg, ulonglong value,
+bool int_to_datetime_with_warn(THD *thd, const Longlong_hybrid &nr,
                                MYSQL_TIME *ltime,
                                date_mode_t fuzzydate,
                                const char *name);

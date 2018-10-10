@@ -110,6 +110,8 @@ static inline void my_time_status_init(MYSQL_TIME_STATUS *status)
 
 my_bool check_date(const MYSQL_TIME *ltime, my_bool not_zero_date,
                    ulonglong flags, int *was_cut);
+my_bool str_to_DDhhmmssff(const char *str, size_t length, MYSQL_TIME *l_time,
+                          ulong max_hour, MYSQL_TIME_STATUS *status);
 my_bool str_to_time(const char *str, size_t length, MYSQL_TIME *l_time, 
                     ulonglong flag, MYSQL_TIME_STATUS *status);
 my_bool str_to_datetime(const char *str, size_t length, MYSQL_TIME *l_time,

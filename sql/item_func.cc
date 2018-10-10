@@ -838,9 +838,8 @@ bool Item_func_hybrid_field_type::get_date_from_int_op(THD *thd,
                                                        MYSQL_TIME *ltime,
                                                        date_mode_t fuzzydate)
 {
-  longlong value= int_op();
-  bool neg= !unsigned_flag && value < 0;
-  if (null_value || int_to_datetime_with_warn(thd, neg, neg ? -value : value,
+  Longlong_hybrid value(int_op(), unsigned_flag);
+  if (null_value || int_to_datetime_with_warn(thd, value,
                                               ltime, fuzzydate, NULL))
     return make_zero_mysql_time(ltime, fuzzydate);
   return (null_value= 0);
@@ -2649,13 +2648,13 @@ bool Item_func_min_max::get_time_native(THD *thd, MYSQL_TIME *ltime)
 {
   DBUG_ASSERT(fixed == 1);
 
-  Time value(thd, args[0]);
+  Time value(thd, args[0], Time::Options(), decimals);
   if (!value.is_valid_time())
     return (null_value= true);
 
   for (uint i= 1; i < arg_count ; i++)
   {
-    Time tmp(thd, args[i]);
+    Time tmp(thd, args[i], Time::Options(), decimals);
     if (!tmp.is_valid_time())
       return (null_value= true);
 

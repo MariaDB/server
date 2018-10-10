@@ -395,6 +395,16 @@ bool Temporal::str_to_datetime(MYSQL_TIME_STATUS *status,
 }
 
 
+/* Character set-aware version of str_to_DDhhmmssff() */
+bool Interval_DDhhmmssff::str_to_DDhhmmssff(MYSQL_TIME_STATUS *status,
+                                            const char *str, size_t length,
+                                            CHARSET_INFO *cs, ulong max_hour)
+{
+  TemporalAsciiBuffer tmp(str, length, cs);
+  return ::str_to_DDhhmmssff(tmp.str, tmp.length, this, UINT_MAX32, status);
+}
+
+
 /*
   Convert a timestamp string to a MYSQL_TIME value and produce a warning 
   if string was truncated during conversion.
@@ -457,17 +467,17 @@ bool decimal_to_datetime_with_warn(THD *thd, const my_decimal *value,
 }
 
 
-bool int_to_datetime_with_warn(THD *thd, bool neg, ulonglong value,
+bool int_to_datetime_with_warn(THD *thd, const Longlong_hybrid &nr,
                                MYSQL_TIME *ltime,
                                date_mode_t fuzzydate, const char *field_name)
 {
-  const ErrConvInteger str(neg ? - (longlong) value : (longlong) value, !neg);
+  const ErrConvInteger str(nr);
   /*
     Note: conversion from an integer to TIME can overflow to '838:59:59.999999',
     so the conversion result can have fractional digits.
   */
   Temporal_hybrid *t= new (ltime)
-                      Temporal_hybrid(thd, Sec6(neg, value, 0),
+                      Temporal_hybrid(thd, Sec6(nr),
                                       fuzzydate, &str, field_name);
   return !t->is_valid_temporal();
 }
@@ -1107,10 +1117,10 @@ calc_time_diff(const MYSQL_TIME *l_time1, const MYSQL_TIME *l_time2,
   }
 
   microseconds= ((longlong)days * SECONDS_IN_24H +
-                 (longlong)(l_time1->hour*3600L +
+                 (longlong)(l_time1->hour*3600LL +
                             l_time1->minute*60L +
                             l_time1->second) -
-                 l_sign*(longlong)(l_time2->hour*3600L +
+                 l_sign*(longlong)(l_time2->hour*3600LL +
                                    l_time2->minute*60L +
                                    l_time2->second)) * 1000000LL +
                 (longlong)l_time1->second_part -

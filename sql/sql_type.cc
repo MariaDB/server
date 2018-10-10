@@ -154,6 +154,12 @@ VDec_op::VDec_op(Item_func_hybrid_field_type *item)
 }
 
 
+date_mode_t Temporal::sql_mode_for_dates(THD *thd)
+{
+  return ::sql_mode_for_dates(thd);
+}
+
+
 bool Dec_ptr::to_datetime_with_warn(THD *thd, MYSQL_TIME *to,
                                     date_mode_t fuzzydate, Item *item)
 {
@@ -176,9 +182,9 @@ my_decimal *Temporal::bad_to_decimal(my_decimal *to) const
 }
 
 
-Temporal_hybrid::Temporal_hybrid(THD *thd, Item *item)
+Temporal_hybrid::Temporal_hybrid(THD *thd, Item *item, date_mode_t fuzzydate)
 {
-  if (item->get_date(thd, this, sql_mode_for_dates(thd)))
+  if (item->get_date(thd, this, fuzzydate))
     time_type= MYSQL_TIMESTAMP_NONE;
 }
 
@@ -247,14 +253,14 @@ VSec6::VSec6(THD *thd, Item *item, const char *type_str, ulonglong limit)
 {
   if (item->decimals == 0)
   { // optimize for an important special case
-    longlong nr= item->val_int();
-    make_from_int(nr, item->unsigned_flag);
+    Longlong_hybrid nr(item->val_int(), item->unsigned_flag);
+    make_from_int(nr);
     m_is_null= item->null_value;
     if (!m_is_null && m_sec > limit)
     {
       m_sec= limit;
       m_truncated= true;
-      ErrConvInteger err(nr, item->unsigned_flag);
+      ErrConvInteger err(nr);
       thd->push_warning_truncated_wrong_value(type_str, err.ptr());
     }
   }
@@ -329,6 +335,117 @@ VYear_op::VYear_op(Item_func_hybrid_field_type *item)
  :Year_null(Year(item->int_op(), item->unsigned_flag,
                  year_precision(item)), item->null_value)
 { }
+
+
+const LEX_CSTRING Interval_DDhhmmssff::m_type_name=
+  {STRING_WITH_LEN("INTERVAL DAY TO SECOND")};
+
+
+Interval_DDhhmmssff::Interval_DDhhmmssff(THD *thd, MYSQL_TIME_STATUS *st,
+                                         bool push_warnings,
+                                         Item *item, ulong max_hour)
+{
+  my_time_status_init(st);
+  switch (item->cmp_type()) {
+  case ROW_RESULT:
+    DBUG_ASSERT(0);
+    time_type= MYSQL_TIMESTAMP_NONE;
+    break;
+  case TIME_RESULT:
+    {
+      if (item->get_date(thd, this, TIME_TIME_ONLY))
+        time_type= MYSQL_TIMESTAMP_NONE;
+      else if (time_type != MYSQL_TIMESTAMP_TIME)
+      {
+        st->warnings|= MYSQL_TIME_WARN_OUT_OF_RANGE;
+        push_warning_wrong_or_truncated_value(thd, ErrConvTime(this),
+                                              st->warnings);
+        time_type= MYSQL_TIMESTAMP_NONE;
+      }
+      break;
+    }
+  case INT_RESULT:
+  case REAL_RESULT:
+  case DECIMAL_RESULT:
+  case STRING_RESULT:
+    {
+      StringBuffer<STRING_BUFFER_USUAL_SIZE> tmp;
+      String *str= item->val_str(&tmp);
+      if (!str)
+        time_type= MYSQL_TIMESTAMP_NONE;
+      else if (str_to_DDhhmmssff(st, str->ptr(), str->length(), str->charset(),
+                                 UINT_MAX32))
+      {
+        if (push_warnings)
+          thd->push_warning_wrong_value(Sql_condition::WARN_LEVEL_WARN,
+                                        m_type_name.str,
+                                        ErrConvString(str).ptr());
+        time_type= MYSQL_TIMESTAMP_NONE;
+      }
+      else
+      {
+        if (hour > max_hour)
+        {
+          st->warnings|= MYSQL_TIME_WARN_OUT_OF_RANGE;
+          time_type= MYSQL_TIMESTAMP_NONE;
+        }
+        // Warn if hour or nanosecond truncation happened
+        if (push_warnings)
+          push_warning_wrong_or_truncated_value(thd, ErrConvString(str),
+                                                st->warnings);
+      }
+    }
+    break;
+  }
+  DBUG_ASSERT(is_valid_value_slow());
+}
+
+
+void
+Interval_DDhhmmssff::push_warning_wrong_or_truncated_value(THD *thd,
+                                                           const ErrConv &str,
+                                                           int warnings)
+{
+  if (warnings & MYSQL_TIME_WARN_OUT_OF_RANGE)
+  {
+    thd->push_warning_wrong_value(Sql_condition::WARN_LEVEL_WARN,
+                                  m_type_name.str, str.ptr());
+  }
+  else if (MYSQL_TIME_WARN_HAVE_WARNINGS(warnings))
+  {
+    thd->push_warning_truncated_wrong_value(Sql_condition::WARN_LEVEL_WARN,
+                                            m_type_name.str, str.ptr());
+  }
+  else if (MYSQL_TIME_WARN_HAVE_NOTES(warnings))
+  {
+    thd->push_warning_truncated_wrong_value(Sql_condition::WARN_LEVEL_NOTE,
+                                            m_type_name.str, str.ptr());
+  }
+}
+
+
+uint Interval_DDhhmmssff::fsp(THD *thd, Item *item)
+{
+  MYSQL_TIME_STATUS st;
+  switch (item->cmp_type()) {
+  case INT_RESULT:
+  case TIME_RESULT:
+    return item->decimals;
+  case REAL_RESULT:
+  case DECIMAL_RESULT:
+    return MY_MIN(item->decimals, TIME_SECOND_PART_DIGITS);
+  case ROW_RESULT:
+    DBUG_ASSERT(0);
+    return 0;
+  case STRING_RESULT:
+    break;
+  }
+  if (!item->const_item() || item->is_expensive())
+    return TIME_SECOND_PART_DIGITS;
+  Interval_DDhhmmssff it(thd, &st, false/*no warnings*/, item, UINT_MAX32);
+  return it.is_valid_interval_DDhhmmssff() ? st.precision :
+                                             TIME_SECOND_PART_DIGITS;
+}
 
 
 void Time::make_from_item(THD *thd, int *warn, Item *item, const Options opt)
@@ -3487,6 +3604,15 @@ bool Type_handler_temporal_result::
 {
   bool rc= Type_handler::Item_func_min_max_fix_attributes(thd, func,
                                                           items, nitems);
+  bool is_time= func->field_type() == MYSQL_TYPE_TIME;
+  func->decimals= 0;
+  for (uint i= 0; i < nitems; i++)
+  {
+    uint deci= is_time ? items[i]->time_precision(thd) :
+                         items[i]->datetime_precision(thd);
+    set_if_bigger(func->decimals, deci);
+  }
+
   if (rc || func->maybe_null)
     return rc;
   /*

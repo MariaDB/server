@@ -3855,3 +3855,16 @@ ORDER BY t4.d
 a	b	c
 x	x	NULL
 DROP TABLE t1,t2,t3,t4;
+#
+# MDEV-17360: IN subquery predicate with outer reference in the left part
+#             that refers to a field of a mergeable derived table
+#
+CREATE TABLE t1 (id1 int) ENGINE=MYISAM;
+INSERT INTO t1 VALUES (1814),(0),(NULL),(1);
+CREATE TABLE t2 (id2 int) ENGINE=MYISAM;
+SELECT 1 AS r FROM t2,t1,(SELECT * FROM t1) dt1
+WHERE NOT EXISTS (SELECT id2 FROM t2
+WHERE dt1.id1 IN (SELECT t2.id2 FROM t2
+HAVING t2.id2 >= 1));
+r
+DROP TABLE t1,t2;

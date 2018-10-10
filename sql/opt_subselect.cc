@@ -5512,7 +5512,7 @@ int select_value_catcher::send_data(List<Item> &items)
 
 /**
   @brief
-    Conjugate conditions after optimize_cond() call
+    Add new conditions after optimize_cond() call
 
   @param thd         the thread handle
   @param cond        the condition where to attach new conditions
@@ -5561,8 +5561,8 @@ Item *and_new_conditions_to_optimized_cond(THD *thd, Item *cond,
                              Item::Context(Item::ANY_SUBST,
                              ((Item_func_equal *)item)->compare_type_handler(),
                              ((Item_func_equal *)item)->compare_collation()),
-                             ((Item_func *)item)->arguments()[0]->real_item(),
-                             ((Item_func *)item)->arguments()[1]->real_item(),
+                             ((Item_func *)item)->arguments()[0],
+                             ((Item_func *)item)->arguments()[1],
                              &new_cond_equal))
       li.remove();
   }

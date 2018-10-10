@@ -261,6 +261,23 @@ static void get_microseconds(ulong *val, MYSQL_TIME_STATUS *status,
 }
 
 
+static int check_time_range_internal(MYSQL_TIME *ltime,
+                                     ulong max_hour, uint dec,
+                                     int *warning);
+
+int check_time_range(MYSQL_TIME *ltime, uint dec, int *warning)
+{
+  return check_time_range_internal(ltime, TIME_MAX_HOUR, dec, warning);
+}
+
+
+static my_bool
+str_to_DDhhmmssff_internal(my_bool neg, const char *str, size_t length,
+                           MYSQL_TIME *l_time, ulong max_hour,
+                           MYSQL_TIME_STATUS *status,
+                           const char **endptr);
+
+
 /*
   Convert a timestamp string to a MYSQL_TIME value.
 
@@ -443,6 +460,20 @@ err:
 }
 
 
+static size_t get_prefix_and_sign(my_bool *neg, const char *str, size_t length)
+{
+  const char *str0= str, *end= str + length;
+  for (; str < end && my_isspace(&my_charset_latin1, *str) ; str++)
+  { }
+  if (str < end && *str == '-')
+  {
+    *neg= TRUE;
+    str++;
+  }
+  return str - str0;
+}
+
+
 /*
  Convert a time string to a MYSQL_TIME struct.
 
@@ -475,23 +506,19 @@ err:
 my_bool str_to_time(const char *str, size_t length, MYSQL_TIME *l_time,
                     ulonglong fuzzydate, MYSQL_TIME_STATUS *status)
 {
-  ulong date[5];
-  ulonglong value;
-  const char *end=str+length, *end_of_days;
-  my_bool found_days,found_hours, neg= 0;
-  uint UNINIT_VAR(state);
+  my_bool neg= 0;
+  size_t tmp_length;
+  const char *endptr;
   DBUG_ASSERT(C_FLAGS_OK(fuzzydate));
 
   my_time_status_init(status);
-  for (; str != end && my_isspace(&my_charset_latin1,*str) ; str++)
-    length--;
-  if (str != end && *str == '-')
+
+  if ((tmp_length= get_prefix_and_sign(&neg, str, length)))
   {
-    neg=1;
-    str++;
-    length--;
+    str+= tmp_length;
+    length-= tmp_length;
   }
-  if (str == end)
+  if (!length)
   {
     status->warnings|= MYSQL_TIME_WARN_TRUNCATED;
     goto err;
@@ -508,10 +535,86 @@ my_bool str_to_time(const char *str, size_t length, MYSQL_TIME *l_time,
     my_time_status_init(status);
   }
 
+  if (!str_to_DDhhmmssff_internal(neg, str, length, l_time, TIME_MAX_HOUR,
+                                  status, &endptr))
+    return FALSE;
+err:
+  bzero((char*) l_time, sizeof(*l_time));
+  l_time->time_type= MYSQL_TIMESTAMP_ERROR;
+  return TRUE;
+}
+
+
+my_bool str_to_DDhhmmssff(const char *str, size_t length, MYSQL_TIME *ltime,
+                          ulong max_hour, MYSQL_TIME_STATUS *status)
+{
+  my_bool neg= 0;
+  size_t tmp_length;
+  const char *endptr;
+  my_time_status_init(status);
+
+  /* Remove trailing spaces */
+  for ( ; length > 0 && my_isspace(&my_charset_latin1, str[length - 1]) ; )
+    length--;
+
+  if ((tmp_length= get_prefix_and_sign(&neg, str, length)))
+  {
+    str+= tmp_length;
+    length-= tmp_length;
+  }
+  if (!length)
+  {
+    status->warnings|= MYSQL_TIME_WARN_TRUNCATED;
+    set_zero_time(ltime, MYSQL_TIMESTAMP_ERROR);
+    return TRUE;
+  }
+
+  /* Reject anything that might be parsed as a full TIMESTAMP */
+  if (length >= 12) /* The same condition with str_to_time() */
+  {
+    (void) str_to_datetime(str, length, ltime, C_TIME_DATETIME_ONLY, status);
+    if (ltime->time_type > MYSQL_TIMESTAMP_ERROR)
+    {
+      status->warnings|= MYSQL_TIME_WARN_TRUNCATED;
+      ltime->time_type= MYSQL_TIMESTAMP_NONE;
+      return TRUE;
+    }
+    my_time_status_init(status);
+  }
+
+  /*
+    Scan DDhhmmssff then reject anything that can remind date/datetime.
+    For example, in case of '2001-01-01', str_to_DDhhmmssff_internal()
+    will scan only '2001'.
+  */
+  if (str_to_DDhhmmssff_internal(neg, str, length, ltime, max_hour,
+                                 status, &endptr) ||                             
+      (endptr < str + length && endptr[0] == '-'))
+    return TRUE;
+  return FALSE;
+}
+
+
+static my_bool
+str_to_DDhhmmssff_internal(my_bool neg, const char *str, size_t length,
+                           MYSQL_TIME *l_time, ulong max_hour,
+                           MYSQL_TIME_STATUS *status, const char **endptr)
+{
+  ulong date[5];
+  ulonglong value;
+  const char *end=str + length, *end_of_days;
+  my_bool found_days, found_hours;
+  uint UNINIT_VAR(state);
+
+  *endptr= str;
   l_time->neg= neg;
-  /* Not a timestamp. Try to get this as a DAYS_TO_SECOND string */
+  /* Not a timestamp. Try to get this as a DAYS TO SECOND string */
   for (value=0; str != end && my_isdigit(&my_charset_latin1,*str) ; str++)
+  {
     value=value*10L + (long) (*str - '0');
+    if (value >= 42949672955959ULL) /* i.e. UINT_MAX32 : 59 : 59 */
+      goto err;
+  }
 
   /* Skip all space after 'days' */
   end_of_days= str;
@@ -530,6 +633,8 @@ my_bool str_to_time(const char *str, size_t length, MYSQL_TIME *l_time,
            my_isdigit(&my_charset_latin1, str[1]))
   {
     date[0]= 0;                                 /* Assume we found hours */
+    if (value >= UINT_MAX32)
+      goto err;
     date[1]= (ulong) value;
     state=2;
     found_hours=1;
@@ -539,6 +644,7 @@ my_bool str_to_time(const char *str, size_t length, MYSQL_TIME *l_time,
   {
     /* String given as one number; assume HHMMSS format */
     date[0]= 0;
+    DBUG_ASSERT(value <= ((ulonglong) UINT_MAX32) * 10000ULL);
     date[1]= (ulong) (value/10000);
     date[2]= (ulong) (value/100 % 100);
     date[3]= (ulong) (value % 100);
@@ -621,6 +727,11 @@ fractional:
     goto err;
   }  
 
+  if ((ulonglong) date[0] * 24 + date[1] > (ulonglong) UINT_MAX32)
+  {
+    status->warnings|= MYSQL_TIME_WARN_OUT_OF_RANGE;
+    goto err;
+  }
   l_time->year=         0;                      /* For protocol::store_time */
   l_time->month=        0;
   l_time->day=          0;
@@ -630,8 +741,10 @@ fractional:
   l_time->second_part=  date[4];
   l_time->time_type= MYSQL_TIMESTAMP_TIME;
 
+  *endptr= str;
+
   /* Check if the value is valid and fits into MYSQL_TIME range */
-  if (check_time_range(l_time, 6, &status->warnings))
+  if (check_time_range_internal(l_time, max_hour, 6, &status->warnings))
     return TRUE;
 
   /* Check if there is garbage at end of the MYSQL_TIME specification */
@@ -649,8 +762,7 @@ fractional:
   return FALSE;
 
 err:
-  bzero((char*) l_time, sizeof(*l_time));
-  l_time->time_type= MYSQL_TIMESTAMP_ERROR;
+  *endptr= str;
   return TRUE;
 }
 
@@ -659,8 +771,9 @@ err:
   Check 'time' value to lie in the MYSQL_TIME range
 
   SYNOPSIS:
-    check_time_range()
+    check_time_range_internal()
     time     pointer to MYSQL_TIME value
+    ulong    max_hour - maximum allowed hour value
     uint     dec
     warning  set MYSQL_TIME_WARN_OUT_OF_RANGE flag if the value is out of range
 
@@ -674,9 +787,10 @@ err:
     1        time value is invalid
 */
 
-int check_time_range(struct st_mysql_time *my_time, uint dec, int *warning) 
+int check_time_range_internal(struct st_mysql_time *my_time,
+                              ulong max_hour, uint dec, int *warning)
 {
-  longlong hour;
+  ulonglong hour;
   static ulong max_sec_part[TIME_SECOND_PART_DIGITS+1]= {000000, 900000, 990000,
                                              999000, 999900, 999990, 999999};
 
@@ -691,14 +805,14 @@ int check_time_range(struct st_mysql_time *my_time, uint dec, int *warning)
   if (dec == AUTO_SEC_PART_DIGITS)
     dec= TIME_SECOND_PART_DIGITS;
 
-  if (hour <= TIME_MAX_HOUR &&
-      (hour != TIME_MAX_HOUR || my_time->minute != TIME_MAX_MINUTE ||
+  if (hour <= max_hour &&
+      (hour != max_hour || my_time->minute != TIME_MAX_MINUTE ||
        my_time->second != TIME_MAX_SECOND ||
        my_time->second_part <= max_sec_part[dec]))
     return 0;
 
   my_time->day= 0;
-  my_time->hour= TIME_MAX_HOUR;
+  my_time->hour= max_hour;
   my_time->minute= TIME_MAX_MINUTE;
   my_time->second= TIME_MAX_SECOND;
   my_time->second_part= max_sec_part[dec];

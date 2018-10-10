@@ -1276,9 +1276,8 @@ Item *Item_param::safe_charset_converter(THD *thd, CHARSET_INFO *tocs)
 
 bool Item::get_date_from_int(THD *thd, MYSQL_TIME *ltime, date_mode_t fuzzydate)
 {
-  longlong value= val_int();
-  bool neg= !unsigned_flag && value < 0;
-  if (null_value || int_to_datetime_with_warn(thd, neg, neg ? -value : value,
+  Longlong_hybrid value(val_int(), unsigned_flag);
+  if (null_value || int_to_datetime_with_warn(thd, value,
                                               ltime, fuzzydate,
                                               field_name_or_null()))
     return null_value|= make_zero_date(ltime, fuzzydate);
@@ -9701,8 +9700,6 @@ bool Item_cache_time::cache_value()
 
 bool Item_cache_temporal::get_date(THD *thd, MYSQL_TIME *ltime, date_mode_t fuzzydate)
 {
-  ErrConvInteger str(value);
-
   if (!has_value())
   {
     bzero((char*) ltime,sizeof(*ltime));

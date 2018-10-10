@@ -361,7 +361,7 @@ greatest(cast('01-01-01' as date), '01-01-02') + 0
 20010102
 select least(cast('01-01-01' as datetime), '01-01-02') + 0;
 least(cast('01-01-01' as datetime), '01-01-02') + 0
-20010101000000.000000
+20010101000000
 select cast(least(cast('01-01-01' as datetime), '01-01-02') as signed);
 cast(least(cast('01-01-01' as datetime), '01-01-02') as signed)
 20010101000000
@@ -917,7 +917,7 @@ CREATE TABLE t1 (a DATETIME);
 INSERT INTO t1 VALUES ('0000-00-00 10:20:30');
 SELECT a, LEAST(a,'2001-01-01 10:20:30') FROM t1;
 a	LEAST(a,'2001-01-01 10:20:30')
-0000-00-00 10:20:30	0000-00-00 10:20:30.000000
+0000-00-00 10:20:30	0000-00-00 10:20:30
 DROP TABLE t1;
 CREATE TABLE t1 (a DATETIME(6));
 INSERT INTO t1 VALUES ('0000-00-00 00:00:00.000001');
@@ -1398,6 +1398,17 @@ id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
 1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	3	100.00	Using where
 Warnings:
 Note	1003	select `test`.`t1`.`a` AS `a` from `test`.`t1` where octet_length(coalesce(TIME'00:00:00.0',`test`.`t1`.`a`)) <=> octet_length(coalesce(<cache>(TIMESTAMP'2001-01-01 00:00:00.00'),`test`.`t1`.`a`))
+DROP TABLE t1;
+#
+# MDEV-17216 Assertion `!dt->fraction_remainder(decimals())' failed in Field_temporal_with_date::store_TIME_with_warning
+#
+CREATE TABLE t1 (b BIT(20));
+CREATE TABLE t2 (t DATETIME);
+INSERT IGNORE INTO t1 VALUES (b'000001001100000');
+INSERT INTO t2 SELECT * FROM t1;
+DROP TABLE t1, t2;
+CREATE TABLE t1 (a DATETIME);
+INSERT INTO t1 SELECT CAST(20010101 AS UNSIGNED);
 DROP TABLE t1;
 #
 # End of 10.4 tests

@@ -1202,20 +1202,22 @@ public:
   bool fix_length_and_dec()
   {
     THD *thd= current_thd;
-    uint dec= MY_MAX(args[0]->datetime_precision(thd),
-                     args[1]->time_precision(thd));
-    fix_attributes_datetime(dec);
+    uint dec0= args[0]->datetime_precision(thd);
+    uint dec1= Interval_DDhhmmssff::fsp(thd, args[1]);
+    fix_attributes_datetime(MY_MAX(dec0, dec1));
     maybe_null= true;
     return false;
   }
   bool get_date(THD *thd, MYSQL_TIME *ltime, date_mode_t fuzzydate)
   {
     Datetime dt(thd, args[0], date_mode_t(0));
-    MYSQL_TIME ltime2;
-    return (null_value= (!dt.is_valid_datetime() ||
-                         args[1]->get_time(thd, &ltime2) ||
-                         Sec6_add(dt.get_mysql_time(), &ltime2, 1).
-                           to_datetime(ltime)));
+    if (!dt.is_valid_datetime())
+      return null_value= true;
+    Interval_DDhhmmssff it(thd, args[1]);
+    if (!it.is_valid_interval_DDhhmmssff())
+      return null_value= true;
+    return (null_value= Sec6_add(dt.get_mysql_time(), it.get_mysql_time(), 1).
+                           to_datetime(ltime));
   }
   Item *get_copy(THD *thd)
   { return get_item_copy<Item_func_timestamp>(thd, this); }
@@ -1558,20 +1560,23 @@ public:
   bool fix_length_and_dec(Item_handled_func *item) const
   {
     THD *thd= current_thd;
-    uint dec= MY_MAX(item->arguments()[0]->datetime_precision(thd),
-                     item->arguments()[1]->time_precision(thd));
-    item->fix_attributes_datetime(dec);
+    uint dec0= item->arguments()[0]->datetime_precision(thd);
+    uint dec1= Interval_DDhhmmssff::fsp(thd, item->arguments()[1]);
+    item->fix_attributes_datetime(MY_MAX(dec0, dec1));
     return false;
   }
   bool get_date(THD *thd, Item_handled_func *item,
                 MYSQL_TIME *to, date_mode_t fuzzy) const
   {
     DBUG_ASSERT(item->is_fixed());
-    MYSQL_TIME l_time2;
     Datetime dt(thd, item->arguments()[0], date_mode_t(0));
-    return (item->null_value= (!dt.is_valid_datetime() ||
-                               item->arguments()[1]->get_time(current_thd, &l_time2) ||
-                               Sec6_add(dt.get_mysql_time(), &l_time2, m_sign).
+    if (!dt.is_valid_datetime())
+      return item->null_value= true;
+    Interval_DDhhmmssff it(thd, item->arguments()[1]);
+    if (!it.is_valid_interval_DDhhmmssff())
+      return item->null_value= true;
+    return (item->null_value= (Sec6_add(dt.get_mysql_time(),
+                                        it.get_mysql_time(), m_sign).
                                 to_datetime(to)));
   }
 };
@@ -1588,20 +1593,23 @@ public:
   bool fix_length_and_dec(Item_handled_func *item) const
   {
     THD *thd= current_thd;
-    uint dec= MY_MAX(item->arguments()[0]->time_precision(thd),
-                     item->arguments()[1]->time_precision(thd));
-    item->fix_attributes_time(dec);
+    uint dec0= item->arguments()[0]->time_precision(thd);
+    uint dec1= Interval_DDhhmmssff::fsp(thd, item->arguments()[1]);
+    item->fix_attributes_time(MY_MAX(dec0, dec1));
     return false;
   }
   bool get_date(THD *thd, Item_handled_func *item,
                 MYSQL_TIME *to, date_mode_t fuzzy) const
   {
     DBUG_ASSERT(item->is_fixed());
-    MYSQL_TIME l_time2;
     Time t(thd, item->arguments()[0]);
-    return (item->null_value= (!t.is_valid_time() ||
-                               item->arguments()[1]->get_time(current_thd, &l_time2) ||
-                               Sec6_add(t.get_mysql_time(), &l_time2, m_sign).
+    if (!t.is_valid_time())
+      return item->null_value= true;
+    Interval_DDhhmmssff i(thd, item->arguments()[1]);
+    if (!i.is_valid_interval_DDhhmmssff())
+      return item->null_value= true;
+    return (item->null_value= (Sec6_add(t.get_mysql_time(),
+                                        i.get_mysql_time(), m_sign).
                                  to_time(thd, to, item->decimals)));
   }
 };
@@ -1617,8 +1625,9 @@ public:
   { }
   bool fix_length_and_dec(Item_handled_func *item) const
   {
-    uint dec= MY_MAX(item->arguments()[0]->decimals,
-                     item->arguments()[1]->decimals);
+    uint dec0= item->arguments()[0]->decimals;
+    uint dec1= Interval_DDhhmmssff::fsp(current_thd, item->arguments()[1]);
+    uint dec= MY_MAX(dec0, dec1);
     item->collation.set(item->default_charset(),
                         DERIVATION_COERCIBLE, MY_REPERTOIRE_ASCII);
     item->fix_char_length_temporal_not_fixed_dec(MAX_DATETIME_WIDTH, dec);
@@ -1629,12 +1638,15 @@ public:
   {
     DBUG_ASSERT(item->is_fixed());
     // Detect a proper timestamp type based on the argument values
-    MYSQL_TIME l_time1, l_time2;
-    if (item->arguments()[0]->get_time(thd, &l_time1) ||
-        item->arguments()[1]->get_time(thd, &l_time2))
+    Temporal_hybrid l_time1(thd, item->arguments()[0], TIME_TIME_ONLY);
+    if (!l_time1.is_valid_temporal())
       return (item->null_value= true);
-    Sec6_add add(&l_time1, &l_time2, m_sign);
-    return (item->null_value= (l_time1.time_type == MYSQL_TIMESTAMP_TIME ?
+    Interval_DDhhmmssff l_time2(thd, item->arguments()[1]);
+    if (!l_time2.is_valid_interval_DDhhmmssff())
+      return (item->null_value= true);
+    Sec6_add add(l_time1.get_mysql_time(), l_time2.get_mysql_time(), m_sign);
+    return (item->null_value= (l_time1.get_mysql_time()->time_type ==
+                                 MYSQL_TIMESTAMP_TIME ?
                                add.to_time(thd, to, item->decimals) :
                                add.to_datetime(to)));
   }
