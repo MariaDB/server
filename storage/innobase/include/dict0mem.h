@@ -1551,11 +1551,6 @@ struct dict_table_t {
 		dict_col_t*	old_cols,
 		const char*	old_col_names);
 
-	/** Trim the instantly added columns when an insert into SYS_COLUMNS
-	is rolled back during ALTER TABLE or recovery.
-	@param[in]	n	number of surviving non-system columns */
-	void rollback_instant(unsigned n);
-
 	/** Add the table definition to the data dictionary cache */
 	void add_to_cache();
 

@@ -374,21 +374,12 @@ dict_table_add_system_columns(
 	dict_table_t*	table,	/*!< in/out: table */
 	mem_heap_t*	heap)	/*!< in: temporary heap */
 	MY_ATTRIBUTE((nonnull));
-/**********************************************************************//**
-Removes a table object from the dictionary cache. */
-void
-dict_table_remove_from_cache(
-/*=========================*/
-	dict_table_t*	table)	/*!< in, own: table */
-	MY_ATTRIBUTE((nonnull));
-/**********************************************************************//**
-Removes a table object from the dictionary cache. */
-void
-dict_table_remove_from_cache_low(
-/*=============================*/
-	dict_table_t*	table,		/*!< in, own: table */
-	ibool		lru_evict)	/*!< in: TRUE if table being evicted
-					to make room in the table LRU list */
+/** Evict a table definition from the InnoDB data dictionary cache.
+@param[in,out]	table	cached table definition to be evicted
+@param[in]	lru	whether this is part of least-recently-used evictiono
+@param[in]	keep	whether to keep (not free) the object */
+void dict_table_remove_from_cache(dict_table_t* table, bool lru = false,
+				  bool keep = false)
 	MY_ATTRIBUTE((nonnull));
 /**********************************************************************//**
 Renames a table object.

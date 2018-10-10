@@ -147,6 +147,20 @@ row_undo_mod_clust_low(
 		ut_a(!dummy_big_rec);
 	}
 
+	if (err == DB_SUCCESS
+	    && btr_cur_get_index(btr_cur)->table->id == DICT_COLUMNS_ID) {
+		/* This is rolling back an UPDATE or DELETE on SYS_COLUMNS.
+		If it was part of an instant ALTER TABLE operation, we
+		must evict the table definition, so that it can be
+		reloaded after the dictionary operation has been
+		completed. At this point, any corresponding operation
+		to the metadata record will have been rolled back. */
+		const dfield_t& table_id = *dtuple_get_nth_field(node->row, 0);
+		ut_ad(dfield_get_len(&table_id) == 8);
+		node->trx->evict_table(mach_read_from_8(static_cast<byte*>(
+					table_id.data)));
+	}
+
 	return(err);
 }
 

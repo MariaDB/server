@@ -482,6 +482,7 @@ Check transaction state */
 	ut_ad(!(t)->read_view.is_open());				\
 	ut_ad((t)->lock.wait_thr == NULL);				\
 	ut_ad(UT_LIST_GET_LEN((t)->lock.trx_locks) == 0);		\
+	ut_ad(UT_LIST_GET_LEN((t)->lock.evicted_tables) == 0);		\
 	ut_ad((t)->dict_operation == TRX_DICT_OP_NONE);			\
 } while(0)
 
@@ -605,6 +606,9 @@ struct trx_lock_t {
 
 	lock_list	table_locks;	/*!< All table locks requested by this
 					transaction, including AUTOINC locks */
+
+	/** List of pending trx_t::evict_table() */
+	UT_LIST_BASE_NODE_T(dict_table_t) evicted_tables;
 
 	bool		cancel;		/*!< true if the transaction is being
 					rolled back either via deadlock
@@ -1111,6 +1115,10 @@ public:
 
 		return(assign_temp_rseg());
 	}
+
+	/** Evict a table definition due to the rollback of ALTER TABLE.
+	@param[in]	table_id	table identifier */
+	void evict_table(table_id_t table_id);
 
 
   bool is_referenced()
