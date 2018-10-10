@@ -152,6 +152,9 @@ my_bool	srv_read_only_mode;
 /** store to its own file each table created by an user; data
 dictionary tables are in the system tablespace 0 */
 my_bool	srv_file_per_table;
+/** whether to use the MySQL 5.7 WL#6501 TRUNCATE TABLE implementation
+that does not work with backup */
+my_bool	srv_57_truncate;
 /** The file format to use on new *.ibd files. */
 ulint	srv_file_format;
 /** Whether to check file format during startup.  A value of

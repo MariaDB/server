@@ -1,0 +1,49 @@
+--source include/have_innodb.inc
+--source include/have_debug.inc
+--source include/have_debug_sync.inc
+--source include/count_sessions.inc
+
+--echo #
+--echo # Bug #23070734	CONCURRENT TRUNCATE TABLES CAUSE STALLS
+--echo #
+
+create table t1 (f1 int ,f2 int,key(f2)) engine=innodb;
+begin;
+insert into t1 values (10,45),(20,78),(30,88),(40,23),(50,78),(60,11),(70,56),(80,90);
+delete from t1;
+
+connect (con2,localhost,root,,);
+# Stop the purge thread
+START TRANSACTION WITH CONSISTENT SNAPSHOT;
+
+connection default;
+# Ensure that the history list length will actually be decremented by purge.
+SET @saved_frequency = @@GLOBAL.innodb_purge_rseg_truncate_frequency;
+SET GLOBAL innodb_purge_rseg_truncate_frequency = 1;
+commit;
+
+connect (con1,localhost,root,,);
+SET DEBUG_SYNC= 'buffer_pool_scan SIGNAL started WAIT_FOR finish_scan';
+send truncate table t1;
+
+connection con2;
+SET DEBUG_SYNC= 'now WAIT_FOR started';
+# Allow purge to proceed, by discarding our read view.
+COMMIT;
+disconnect con2;
+
+connection default;
+--source include/wait_all_purged.inc
+
+SET GLOBAL innodb_purge_rseg_truncate_frequency = @saved_frequency;
+
+SET DEBUG_SYNC = 'now SIGNAL finish_scan';
+
+connection con1;
+reap;
+disconnect con1;
+
+connection default;
+SET DEBUG_SYNC = 'RESET';
+drop table t1;
+--source include/wait_until_count_sessions.inc

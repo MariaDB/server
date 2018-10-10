@@ -1,0 +1,29 @@
+#
+# Bug #23070734	CONCURRENT TRUNCATE TABLES CAUSE STALLS
+#
+create table t1 (f1 int ,f2 int,key(f2)) engine=innodb;
+begin;
+insert into t1 values (10,45),(20,78),(30,88),(40,23),(50,78),(60,11),(70,56),(80,90);
+delete from t1;
+connect  con2,localhost,root,,;
+START TRANSACTION WITH CONSISTENT SNAPSHOT;
+connection default;
+SET @saved_frequency = @@GLOBAL.innodb_purge_rseg_truncate_frequency;
+SET GLOBAL innodb_purge_rseg_truncate_frequency = 1;
+commit;
+connect  con1,localhost,root,,;
+SET DEBUG_SYNC= 'buffer_pool_scan SIGNAL started WAIT_FOR finish_scan';
+truncate table t1;
+connection con2;
+SET DEBUG_SYNC= 'now WAIT_FOR started';
+COMMIT;
+disconnect con2;
+connection default;
+InnoDB		0 transactions not purged
+SET GLOBAL innodb_purge_rseg_truncate_frequency = @saved_frequency;
+SET DEBUG_SYNC = 'now SIGNAL finish_scan';
+connection con1;
+disconnect con1;
+connection default;
+SET DEBUG_SYNC = 'RESET';
+drop table t1;

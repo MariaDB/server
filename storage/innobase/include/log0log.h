@@ -519,7 +519,7 @@ roll back a retroactively introduced TRX_UNDO_RENAME_TABLE undo log record,
 MariaDB 10.2.18 and later will use the 10.3 format, but LOG_HEADER_SUBFORMAT
 1 instead of 0. MariaDB 10.3 will use subformat 0 (5.7-style TRUNCATE) or 2
 (MDEV-13564 backup-friendly TRUNCATE). */
-#define LOG_HEADER_FORMAT_CURRENT	103
+#define LOG_HEADER_FORMAT_10_3		103
 /** The old MariaDB 10.2.2..10.2.17 log format */
 #define LOG_HEADER_FORMAT_10_2		1
 /** Future MariaDB 10.4 log format */
@@ -559,7 +559,7 @@ of log_sys->write_mutex, which should affect nothing for now. */
 struct log_group_t{
 	/** number of files in the group */
 	ulint				n_files;
-	/** format of the redo log: e.g., LOG_HEADER_FORMAT_CURRENT */
+	/** format of the redo log: e.g., LOG_HEADER_FORMAT_10_3 */
 	uint32_t			format;
 	/** redo log subformat: 0 with separately logged TRUNCATE,
 	1 with fully redo-logged TRUNCATE */

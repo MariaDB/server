@@ -1393,10 +1393,17 @@ srv_prepare_to_delete_redo_log_files(
 	ulint	pending_io = 0;
 	ulint	count = 0;
 
-	if ((log_sys->log.format & ~LOG_HEADER_FORMAT_ENCRYPTED)
-	    != LOG_HEADER_FORMAT_CURRENT
-	    || log_sys->log.subformat != 1) {
-		srv_log_file_size = 0;
+	if (srv_57_truncate) {
+		if ((log_sys->log.format & ~LOG_HEADER_FORMAT_ENCRYPTED)
+		    != LOG_HEADER_FORMAT_10_2) {
+			srv_log_file_size = 0;
+		}
+	} else {
+		if ((log_sys->log.format & ~LOG_HEADER_FORMAT_ENCRYPTED)
+		    != LOG_HEADER_FORMAT_10_3
+		    || log_sys->log.subformat != 1) {
+			srv_log_file_size = 0;
+		}
 	}
 
 	do {
@@ -1417,7 +1424,7 @@ srv_prepare_to_delete_redo_log_files(
 			if (srv_log_file_size == 0) {
 				info << ((log_sys->log.format
 					  & ~LOG_HEADER_FORMAT_ENCRYPTED)
-					 < LOG_HEADER_FORMAT_CURRENT
+					 < LOG_HEADER_FORMAT_10_3
 					 ? "Upgrading redo log: "
 					 : "Downgrading redo log: ");
 			} else if (n_files != srv_n_log_files
@@ -2392,11 +2399,16 @@ files_checked:
 		} else if (srv_log_file_size_requested == srv_log_file_size
 			   && srv_n_log_files_found == srv_n_log_files
 			   && log_sys->log.format
-			   == (srv_encrypt_log
-			       ? LOG_HEADER_FORMAT_CURRENT
-			       | LOG_HEADER_FORMAT_ENCRYPTED
-			       : LOG_HEADER_FORMAT_CURRENT)
-			   && log_sys->log.subformat == 1) {
+			   == (srv_57_truncate
+			       ? (srv_encrypt_log
+				  ? LOG_HEADER_FORMAT_10_2
+				  | LOG_HEADER_FORMAT_ENCRYPTED
+				  : LOG_HEADER_FORMAT_10_2)
+			       : (srv_encrypt_log
+				  ? LOG_HEADER_FORMAT_10_3
+				  | LOG_HEADER_FORMAT_ENCRYPTED
+				  : LOG_HEADER_FORMAT_10_3))
+			   && log_sys->log.subformat == !srv_57_truncate) {
 			/* No need to add or remove encryption,
 			upgrade, downgrade, or resize. */
 		} else {

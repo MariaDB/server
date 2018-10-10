@@ -1,0 +1,12 @@
+SET GLOBAL innodb_stats_persistent= ON;
+CREATE TABLE t1 (t TEXT) ENGINE=InnoDB STATS_PERSISTENT=1;
+connect  con1,localhost,root,,test;
+SET DEBUG_SYNC='ib_trunc_table_trunc_completing SIGNAL committed WAIT_FOR ever';
+TRUNCATE TABLE t1;
+connection default;
+SET DEBUG_SYNC='now WAIT_FOR committed';
+disconnect con1;
+SELECT COUNT(*) FROM t1;
+COUNT(*)
+0
+DROP TABLE t1;

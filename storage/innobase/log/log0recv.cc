@@ -1165,10 +1165,10 @@ recv_find_max_checkpoint(ulint* max_field)
 	switch (group->format) {
 	case 0:
 		return(recv_find_max_checkpoint_0(&group, max_field));
-	case LOG_HEADER_FORMAT_CURRENT:
-	case LOG_HEADER_FORMAT_CURRENT | LOG_HEADER_FORMAT_ENCRYPTED:
 	case LOG_HEADER_FORMAT_10_2:
 	case LOG_HEADER_FORMAT_10_2 | LOG_HEADER_FORMAT_ENCRYPTED:
+	case LOG_HEADER_FORMAT_10_3:
+	case LOG_HEADER_FORMAT_10_3 | LOG_HEADER_FORMAT_ENCRYPTED:
 	case LOG_HEADER_FORMAT_10_4:
 		/* We can only parse the unencrypted LOG_HEADER_FORMAT_10_4.
 		The encrypted format uses a larger redo log block trailer. */
@@ -1246,8 +1246,8 @@ recv_find_max_checkpoint(ulint* max_field)
 	}
 
 	switch (group->format) {
-	case LOG_HEADER_FORMAT_CURRENT:
-	case LOG_HEADER_FORMAT_CURRENT | LOG_HEADER_FORMAT_ENCRYPTED:
+	case LOG_HEADER_FORMAT_10_3:
+	case LOG_HEADER_FORMAT_10_3 | LOG_HEADER_FORMAT_ENCRYPTED:
 		if (group->subformat == 1) {
 			/* 10.2 with new crash-safe TRUNCATE */
 			break;
@@ -3431,8 +3431,8 @@ skip_apply:
 	case LOG_HEADER_FORMAT_10_2:
 	case LOG_HEADER_FORMAT_10_2 | LOG_HEADER_FORMAT_ENCRYPTED:
 		break;
-	case LOG_HEADER_FORMAT_CURRENT:
-	case LOG_HEADER_FORMAT_CURRENT | LOG_HEADER_FORMAT_ENCRYPTED:
+	case LOG_HEADER_FORMAT_10_3:
+	case LOG_HEADER_FORMAT_10_3 | LOG_HEADER_FORMAT_ENCRYPTED:
 		if (log_sys->log.subformat == 1) {
 			/* 10.2 with new crash-safe TRUNCATE */
 			break;
@@ -3769,6 +3769,7 @@ recv_recovery_rollback_active(void)
 		/* Drop partially created indexes. */
 		row_merge_drop_temp_indexes();
 		/* Drop garbage tables. */
+		if (!srv_57_truncate)
 		row_mysql_drop_garbage_tables();
 
 		/* Drop any auxiliary tables that were not dropped when the

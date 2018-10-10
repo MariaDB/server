@@ -143,6 +143,14 @@ dict_create_index_tree_in_mem(
 	const trx_t*	trx);		/*!< in: InnoDB transaction handle */
 
 /*******************************************************************//**
+Truncates the index tree but don't update SYSTEM TABLES.
+@return DB_SUCCESS or error */
+dberr_t
+dict_truncate_index_tree_in_mem(
+/*============================*/
+	dict_index_t*	index);		/*!< in/out: index */
+
+/*******************************************************************//**
 Drops the index tree but don't update SYS_INDEXES table. */
 void
 dict_drop_index_tree_in_mem(

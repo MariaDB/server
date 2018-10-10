@@ -4403,7 +4403,7 @@ row_rename_table_for_mysql(
 		goto funct_exit;
 	}
 
-	if (!table->is_temporary()) {
+	if (!table->is_temporary() && !srv_57_truncate) {
 		err = trx_undo_report_rename(trx, table);
 
 		if (err != DB_SUCCESS) {

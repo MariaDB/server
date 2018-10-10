@@ -955,6 +955,37 @@ fil_space_t* fil_truncate_prepare(ulint space_id);
 void fil_truncate_log(fil_space_t* space, ulint size, mtr_t* mtr)
 	MY_ATTRIBUTE((nonnull));
 
+/** Truncate the tablespace to needed size.
+@param[in]	space_id	id of tablespace to truncate
+@param[in]	size_in_pages	truncate size.
+@return true if truncate was successful. */
+bool
+fil_truncate_tablespace(
+	ulint		space_id,
+	ulint		size_in_pages);
+
+/*******************************************************************//**
+Prepare for truncating a single-table tablespace. The tablespace
+must be cached in the memory cache.
+1) Check pending operations on a tablespace;
+2) Remove all insert buffer entries for the tablespace;
+@return DB_SUCCESS or error */
+dberr_t
+fil_prepare_for_truncate(
+/*=====================*/
+	ulint	id);			/*!< in: space id */
+
+/** Reinitialize the original tablespace header with the same space id
+for single tablespace
+@param[in]	table		table belongs to the tablespace
+@param[in]	size            size in blocks
+@param[in]	trx		Transaction covering truncate */
+void
+fil_reinit_space_header_for_table(
+	dict_table_t*	table,
+	ulint		size,
+	trx_t*		trx);
+
 /*******************************************************************//**
 Closes a single-table tablespace. The tablespace must be cached in the
 memory cache. Free all pages used by the tablespace.

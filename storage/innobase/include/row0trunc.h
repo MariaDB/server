@@ -421,4 +421,9 @@ private:
 		const char*		log_file_name);
 };
 
+/** MySQL 5.7 TRUNCATE TABLE.
+@param table		table being truncated
+@param trx		transaction covering the truncate
+@return	error code or DB_SUCCESS */
+dberr_t row_truncate_table_for_mysql(dict_table_t* table, trx_t* trx);
 #endif /* row0trunc_h */

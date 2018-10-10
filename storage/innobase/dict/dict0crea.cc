@@ -1140,6 +1140,73 @@ dict_recreate_index_tree(
 	return(FIL_NULL);
 }
 
+/*******************************************************************//**
+Truncates the index tree but don't update SYSTEM TABLES.
+@return DB_SUCCESS or error */
+dberr_t
+dict_truncate_index_tree_in_mem(
+/*============================*/
+	dict_index_t*	index)		/*!< in/out: index */
+{
+	mtr_t		mtr;
+	bool		truncate;
+	ulint		space = index->space;
+
+	ut_ad(mutex_own(&dict_sys->mutex));
+	ut_ad(dict_table_is_temporary(index->table));
+
+	ulint		type = index->type;
+	ulint		root_page_no = index->page;
+
+	if (root_page_no == FIL_NULL) {
+
+		/* The tree has been freed. */
+		ib::warn() << "Trying to TRUNCATE a missing index of table "
+			<< index->table->name << "!";
+
+		truncate = false;
+	} else {
+		truncate = true;
+	}
+
+	bool			found;
+	const page_size_t	page_size(fil_space_get_page_size(space,
+								  &found));
+
+	if (!found) {
+
+		/* It is a single table tablespace and the .ibd file is
+		missing: do nothing */
+
+		ib::warn()
+			<< "Trying to TRUNCATE a missing .ibd file of table "
+			<< index->table->name << "!";
+	}
+
+	/* If table to truncate resides in its on own tablespace that will
+	be re-created on truncate then we can ignore freeing of existing
+	tablespace objects. */
+
+	if (truncate) {
+		btr_free(page_id_t(space, root_page_no), page_size);
+	}
+
+	mtr_start(&mtr);
+	mtr_set_log_mode(&mtr, MTR_LOG_NO_REDO);
+
+	root_page_no = btr_create(
+		type, space, page_size, index->id, index, NULL, &mtr);
+
+	DBUG_EXECUTE_IF("ib_err_trunc_temp_recreate_index",
+			root_page_no = FIL_NULL;);
+
+	index->page = root_page_no;
+
+	mtr_commit(&mtr);
+
+	return(index->page == FIL_NULL ? DB_ERROR : DB_SUCCESS);
+}
+
 /*********************************************************************//**
 Creates a table create graph.
 @return own: table create node */

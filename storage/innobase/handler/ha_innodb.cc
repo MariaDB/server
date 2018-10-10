@@ -13452,6 +13452,37 @@ int ha_innobase::truncate()
 
 	update_thd();
 
+	if (srv_57_truncate) {
+		if (!trx_is_started(m_prebuilt->trx)) {
+			++m_prebuilt->trx->will_lock;
+		}
+
+		dberr_t	err = row_truncate_table_for_mysql(
+			m_prebuilt->table, m_prebuilt->trx);
+
+		int	error;
+
+		switch (err) {
+		case DB_TABLESPACE_DELETED:
+		case DB_TABLESPACE_NOT_FOUND:
+			ib_senderrf(
+				m_prebuilt->trx->mysql_thd, IB_LOG_LEVEL_ERROR,
+				err == DB_TABLESPACE_DELETED
+				? ER_TABLESPACE_DISCARDED
+				: ER_TABLESPACE_MISSING,
+				table->s->table_name.str);
+			error = HA_ERR_TABLESPACE_MISSING;
+			break;
+		default:
+			error = convert_error_code_to_mysql(
+				err, m_prebuilt->table->flags,
+				m_prebuilt->trx->mysql_thd);
+			break;
+		}
+		table->status = STATUS_NOT_FOUND;
+		DBUG_RETURN(error);
+	}
+
 	HA_CREATE_INFO	info;
 	mem_heap_t*	heap = mem_heap_create(1000);
 	dict_table_t*	ib_table = m_prebuilt->table;
@@ -20663,6 +20694,11 @@ static MYSQL_SYSVAR_BOOL(read_only, srv_read_only_mode,
   "Start InnoDB in read only mode (off by default)",
   NULL, NULL, FALSE);
 
+static MYSQL_SYSVAR_BOOL(unsafe_truncate, srv_57_truncate,
+  PLUGIN_VAR_OPCMDARG | PLUGIN_VAR_READONLY,
+  "Use backup-unsafe TRUNCATE TABLE for compatibility with xtrabackup (on by default)",
+  NULL, NULL, TRUE);
+
 static MYSQL_SYSVAR_BOOL(cmp_per_index_enabled, srv_cmp_per_index_enabled,
   PLUGIN_VAR_OPCMDARG,
   "Enable INFORMATION_SCHEMA.innodb_cmp_per_index,"
@@ -21042,6 +21078,7 @@ static struct st_mysql_sys_var* innobase_system_variables[]= {
   MYSQL_SYSVAR(random_read_ahead),
   MYSQL_SYSVAR(read_ahead_threshold),
   MYSQL_SYSVAR(read_only),
+  MYSQL_SYSVAR(unsafe_truncate),
   MYSQL_SYSVAR(io_capacity),
   MYSQL_SYSVAR(io_capacity_max),
   MYSQL_SYSVAR(page_cleaners),
