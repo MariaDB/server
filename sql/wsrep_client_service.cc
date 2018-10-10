@@ -60,7 +60,8 @@ bool Wsrep_client_service::do_2pc() const
   THD_TRANS* trans= &m_thd->transaction.all.ha_list ?
     &m_thd->transaction.all :
     &m_thd->transaction.stmt;
-  return (!trans->no_2pc);
+  return (!trans->no_2pc && trans->rw_ha_count > 1);
+
 }
 
 void Wsrep_client_service::store_globals()

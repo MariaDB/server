@@ -495,9 +495,16 @@ static std::string wsrep_server_name()
 
 static std::string wsrep_server_id()
 {
+#ifdef WSREP_TODO
   std::stringstream ss;
   ss << server_id;
   return(ss.str());
+#endif
+  /* using empty server_id, which enables view change handler to
+     set final server_id later on
+  */
+  std::string ret("");
+  return ret;
 }
 
 static std::string wsrep_server_node_address()

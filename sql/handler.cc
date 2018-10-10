@@ -1170,12 +1170,30 @@ void trans_register_ha(THD *thd, bool all, handlerton *ht_arg)
 
 static int prepare_or_error(handlerton *ht, THD *thd, bool all)
 {
+  #ifdef WITH_WSREP
+  if (WSREP(thd) && ht->db_type == DB_TYPE_INNODB &&
+      wsrep_before_prepare(thd, all))
+  {
+    wsrep_override_error(thd, ER_LOCK_DEADLOCK);
+    return(1);
+  }
+#endif /* WITH_WSREP */
+
   int err= ht->prepare(ht, thd, all);
   status_var_increment(thd->status_var.ha_prepare_count);
   if (err)
   {
       my_error(ER_ERROR_DURING_COMMIT, MYF(0), err);
   }
+#ifdef WITH_WSREP
+  if (WSREP(thd) && ht->db_type == DB_TYPE_INNODB &&
+      wsrep_after_prepare(thd, all))
+  {
+    wsrep_override_error(thd, ER_LOCK_DEADLOCK);
+    err= 1;
+  }
+#endif /* WITH_WSREP */
+
   return err;
 }
 
@@ -1192,7 +1210,7 @@ int ha_prepare(THD *thd)
   THD_TRANS *trans=all ? &thd->transaction.all : &thd->transaction.stmt;
   Ha_trx_info *ha_info= trans->ha_list;
   DBUG_ENTER("ha_prepare");
-#ifdef WITH_WSREP
+#ifdef WITH_WSREP_OUT
   if (wsrep_before_prepare(thd, all))
   {
     DBUG_RETURN(1);
@@ -1223,7 +1241,7 @@ int ha_prepare(THD *thd)
       }
     }
   }
-#ifdef WITH_WSREP
+#ifdef WITH_WSREP_OUT
   if (wsrep_after_prepare(thd, all))
   {
     DBUG_RETURN(1);
@@ -6040,6 +6058,12 @@ bool handler::check_table_binlog_row_based(bool binlog_row)
     return false;
   if (unlikely((table->in_use->variables.sql_log_bin_off)))
     return 0;                            /* Called by partitioning engine */
+#ifdef WITH_WSREP
+  if (!table->in_use->variables.sql_log_bin)
+    return 0;      /* wsrep patch sets sql_log_bin directly to silence
+                      binlogging
+                   */
+#endif /* WITH_WSREP */
   if (unlikely((!check_table_binlog_row_based_done)))
   {
     check_table_binlog_row_based_done= 1;

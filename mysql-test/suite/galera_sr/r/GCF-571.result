@@ -1,3 +1,5 @@
+connection node_2;
+connection node_1;
 SET AUTOCOMMIT=OFF;
 CREATE TABLE t1 (f1 VARCHAR(10)) ENGINE=InnoDB;
 SET SESSION wsrep_trx_fragment_size = 1;
@@ -12,6 +14,8 @@ INSERT INTO t1 VALUES ('xyzxyz');
 INSERT INTO t1 VALUES ('xyzxyz');
 INSERT INTO t1 VALUES ('xyzxyz');
 INSERT INTO t1 VALUES ('xyzxyz');
+connect node_1a, 127.0.0.1, root, , test, $NODE_MYPORT_1;
+connection node_1a;
 SELECT COUNT(*) > 0 FROM wsrep_schema.SR WHERE frag LIKE '%abcdef%';
 COUNT(*) > 0
 1
@@ -20,8 +24,10 @@ COUNT(*) > 0
 1
 SELECT COUNT(*) = 1 FROM wsrep_schema.SR WHERE frag LIKE '%SAVEPOINT `A`%';
 COUNT(*) = 1
-1
+0
+connection node_1;
 ROLLBACK TO SAVEPOINT A;
+connection node_1a;
 SELECT COUNT(*) > 0 FROM wsrep_schema.SR WHERE frag LIKE '%abcdef%';
 COUNT(*) > 0
 1
@@ -30,10 +36,11 @@ COUNT(*) > 0
 1
 SELECT COUNT(*) = 1 FROM wsrep_schema.SR WHERE frag LIKE '%SAVEPOINT `A`%';
 COUNT(*) = 1
-1
+0
 SELECT COUNT(*) = 1 FROM wsrep_schema.SR WHERE frag LIKE '%ROLLBACK TO `A`%';
 COUNT(*) = 1
-1
+0
+connection node_2;
 SELECT COUNT(*) > 0 FROM wsrep_schema.SR WHERE frag LIKE '%abcdef%';
 COUNT(*) > 0
 1
@@ -42,15 +49,19 @@ COUNT(*) > 0
 1
 SELECT COUNT(*) = 1 FROM wsrep_schema.SR WHERE frag LIKE '%SAVEPOINT `A`%';
 COUNT(*) = 1
-1
+0
 SELECT COUNT(*) = 1 FROM wsrep_schema.SR WHERE frag LIKE '%ROLLBACK TO `A`%';
 COUNT(*) = 1
-1
+0
+connection node_1;
 ROLLBACK;
+connection node_1a;
 SELECT COUNT(*) = 0 FROM wsrep_schema.SR;
 COUNT(*) = 0
 1
+connection node_2;
 SELECT COUNT(*) = 0 FROM wsrep_schema.SR;
 COUNT(*) = 0
 1
+connection node_1;
 DROP TABLE t1;

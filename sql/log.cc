@@ -8987,7 +8987,7 @@ int TC_LOG_MMAP::log_and_order(THD *thd, my_xid xid, bool all,
     /* Only run commit_ordered() if log_xid was successful. */
     if (cookie)
     {
-#ifdef WITH_WSREP
+#ifdef WITH_WSREP_OUT
       if (WSREP(thd) && wsrep_before_prepare(thd, all))
       {
         wsrep_override_error(thd, ER_LOCK_DEADLOCK);
@@ -9004,12 +9004,19 @@ int TC_LOG_MMAP::log_and_order(THD *thd, my_xid xid, bool all,
         return(0);
       }
 #endif /* WITH_WSREP */
+#ifdef WITH_WSREP
+      if (WSREP(thd) && WSREP_EMULATE_BINLOG(thd) && wsrep_before_commit(thd, all))
+      {
+	wsrep_override_error(thd, ER_LOCK_DEADLOCK);
+        return(0);
+      }
+#endif /* WITH_WSREP */
       mysql_mutex_lock(&LOCK_commit_ordered);
       run_commit_ordered(thd, all);
       mysql_mutex_unlock(&LOCK_commit_ordered);
-#ifdef WITH_WSREP
       //if (WSREP(thd) && !thd->wsrep_apply_toi)
-      if (WSREP(thd))
+#ifdef WITH_WSREP
+      if (WSREP(thd) && WSREP_EMULATE_BINLOG(thd))
       {
         /*
           TODO: Ordered commit should be done after the transaction
@@ -9707,7 +9714,7 @@ TC_LOG_BINLOG::log_and_order(THD *thd, my_xid xid, bool all,
     DBUG_RETURN(0);
   }
 
-#ifdef WITH_WSREP
+#ifdef WITH_WSREP_OUT
   if (WSREP(thd) && wsrep_before_prepare(thd, all))
   {
     //wsrep_override_error(thd, ER_ERROR_DURING_COMMIT);

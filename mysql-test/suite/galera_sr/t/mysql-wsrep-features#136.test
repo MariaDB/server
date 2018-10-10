@@ -3,10 +3,14 @@
 --source include/galera_cluster.inc
 
 --connection node_1
+SET GLOBAL wsrep_on=OFF;
 RESET MASTER;
+SET GLOBAL wsrep_on=ON;
 
 --connection node_2
+SET GLOBAL wsrep_on=OFF;
 RESET MASTER;
+SET GLOBAL wsrep_on=ON;
 
 --connection node_1
 SET SESSION wsrep_trx_fragment_size = 1;
@@ -23,7 +27,7 @@ COMMIT;
 --connection node_1
 --replace_regex /xid=[0-9]+/xid=###/ /table_id: [0-9]+/table_id: ###/
 --replace_column 2 <Pos> 5 <End_log_pos>
-SHOW BINLOG EVENTS IN '0.000001' FROM 120;
+SHOW BINLOG EVENTS IN 'mysqld-bin.000001' FROM 256;
 
 --connection node_2
 # Wait for all updates to arrive before dumping binlog
@@ -31,7 +35,7 @@ SELECT COUNT(*) = 4 FROM t1;
 
 --replace_regex /xid=[0-9]+/xid=###/ /table_id: [0-9]+/table_id: ###/
 --replace_column 2 <Pos> 5 <End_log_pos>
-SHOW BINLOG EVENTS IN '0.000001' FROM 120;
+SHOW BINLOG EVENTS IN 'mysqld-bin.000001' FROM 256;
 
 --connection node_1
 DROP TABLE t1;
