@@ -1489,8 +1489,7 @@ dup_dropped:
 			if (f.col->is_virtual()) {
 				reinterpret_cast<dict_v_col_t*>(f.col)
 					->v_indexes->push_back(
-						dict_v_idx_t(index,
-							     index->n_def));
+						dict_v_idx_t(index, i));
 			}
 		}
 	}
