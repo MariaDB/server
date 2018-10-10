@@ -1317,7 +1317,6 @@ void dict_table_t::instant_column(const dict_table_t& table, const ulint* map)
 				     ulint(end - table.col_names)));
 	}
 	const dict_col_t* const old_cols = cols;
-	const dict_col_t* const old_cols_end = cols + n_cols;
 	cols = static_cast<dict_col_t*>(mem_heap_dup(heap, table.cols,
 						     table.n_cols
 						     * sizeof *cols));
@@ -1385,14 +1384,16 @@ void dict_table_t::instant_column(const dict_table_t& table, const ulint* map)
 			} else if (base >= table.cols
 				   && base < table.cols + table.n_cols) {
 				/* The base column was instantly added. */
-				base += cols - table.cols;
+				unsigned c = base - table.cols;
+				DBUG_ASSERT(base == &table.cols[c]);
+				base = &cols[c];
 			} else {
 				DBUG_ASSERT(base >= old_cols);
-				DBUG_ASSERT(base + DATA_N_SYS_COLS
-					    < old_cols_end);
-				size_t n = map[base - old_cols];
-				DBUG_ASSERT(n + DATA_N_SYS_COLS < n_cols);
-				base = &cols[n];
+				unsigned c = base - old_cols;
+				DBUG_ASSERT(c + DATA_N_SYS_COLS < n_cols);
+				DBUG_ASSERT(base == &old_cols[c]);
+				DBUG_ASSERT(map[c] + DATA_N_SYS_COLS < n_cols);
+				base = &cols[map[c]];
 			}
 		}
 	}
@@ -1448,8 +1449,10 @@ dup_dropped:
 			ut_ad(field->col < table.instant->dropped
 			      + table.instant->n_dropped);
 			ut_d(n_drop++);
-			field->col += instant->dropped
-				- table.instant->dropped;
+			unsigned d = field->col - table.instant->dropped;
+			ut_ad(field->col == &table.instant->dropped[d]);
+			ut_ad(d <= instant->n_dropped);
+			field->col = &instant->dropped[d];
 		}
 		ut_ad(n_drop == n_dropped());
 		ut_ad(non_pk_col_map
@@ -1467,15 +1470,20 @@ dup_dropped:
 				/* This is an instantly added column
 				in a newly added index. */
 				DBUG_ASSERT(!f.col->is_virtual());
-				f.col += cols - table.cols;
+				unsigned c = f.col - table.cols;
+				DBUG_ASSERT(f.col == &table.cols[c]);
+				f.col = &cols[c];
 			} else if (f.col >= &table.v_cols->m_col
 				   && f.col < &table.v_cols[n_v_cols].m_col) {
 				/* This is an instantly added virtual column
 				in a newly added index. */
 				DBUG_ASSERT(f.col->is_virtual());
-				f.col += v_cols - table.v_cols;
+				unsigned c = reinterpret_cast<dict_v_col_t*>(
+					f.col) - table.v_cols;
+				DBUG_ASSERT(f.col == &table.v_cols[c].m_col);
+				f.col = &v_cols[c].m_col;
 			} else if (f.col < old_cols
-				 || f.col >= old_cols_end) {
+				 || f.col >= old_cols + n_cols) {
 				DBUG_ASSERT(f.col->is_virtual());
 				f.col = &v_cols[
 					map[reinterpret_cast<dict_v_col_t*>(
@@ -1717,9 +1725,8 @@ dict_table_t::rollback_instant(
 				DBUG_ASSERT(n <= n_v_cols);
 
 				ulint old_col_no = find_old_col_no(
-					col_map, n + n_v_cols,
-					n_cols + n_v_cols);
-				ut_ad(old_col_no != ULINT_UNDEFINED);
+					col_map + n_cols, n, n_v_cols);
+				DBUG_ASSERT(old_col_no <= n_v_cols);
 				f.col = &v_cols[old_col_no].m_col;
 				DBUG_ASSERT(f.col->is_virtual());
 			} else {
@@ -1730,7 +1737,7 @@ dict_table_t::rollback_instant(
 
 				ulint old_col_no = find_old_col_no(col_map,
 								   n, n_cols);
-				ut_ad(old_col_no != ULINT_UNDEFINED);
+				DBUG_ASSERT(old_col_no < n_cols);
 				f.col = &cols[old_col_no];
 				DBUG_ASSERT(!f.col->is_virtual());
 			}
