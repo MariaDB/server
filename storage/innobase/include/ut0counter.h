@@ -31,6 +31,7 @@ Created 2012/04/12 by Sunny Bains
 #include <my_rdtsc.h>
 #include "univ.i"
 #include "os0thread.h"
+#include <atomic>
 
 /** CPU cache line size */
 #ifdef CPU_LEVEL1_DCACHE_LINESIZE
@@ -86,8 +87,8 @@ struct counter_indexer_t : public generic_indexer_t<Type, N> {
 
 #define	default_indexer_t	counter_indexer_t
 
-/** Class for using fuzzy counters. The counter is not protected by any
-mutex and the results are not guaranteed to be 100% accurate but close
+/** Class for using fuzzy counters. The counter is relaxed atomic
+so the results are not guaranteed to be 100% accurate but close
 enough. Creates an array of counters and separates each element by the
 CACHE_LINE_SIZE bytes */
 template <
@@ -96,20 +97,6 @@ template <
 	template<typename, int> class Indexer = default_indexer_t>
 struct MY_ALIGNED(CACHE_LINE_SIZE) ib_counter_t
 {
-#ifdef UNIV_DEBUG
-	~ib_counter_t()
-	{
-		size_t	n = (CACHE_LINE_SIZE / sizeof(Type));
-
-		/* Check that we aren't writing outside our defined bounds. */
-		for (size_t i = 0; i < UT_ARR_SIZE(m_counter); i += n) {
-			for (size_t j = 1; j < n - 1; ++j) {
-				ut_ad(m_counter[i + j] == 0);
-			}
-		}
-	}
-#endif /* UNIV_DEBUG */
-
 	/** Increment the counter by 1. */
 	void inc() UNIV_NOTHROW { add(1); }
 
@@ -129,15 +116,16 @@ struct MY_ALIGNED(CACHE_LINE_SIZE) ib_counter_t
 
 		ut_ad(i < UT_ARR_SIZE(m_counter));
 
-		m_counter[i] += n;
+		m_counter[i].fetch_add(n, std::memory_order_relaxed);
 	}
 
-	/* @return total value - not 100% accurate, since it is not atomic. */
+	/* @return total value - not 100% accurate, since it is relaxed atomic*/
 	operator Type() const UNIV_NOTHROW {
 		Type	total = 0;
 
 		for (size_t i = 0; i < N; ++i) {
-			total += m_counter[m_policy.offset(i)];
+			total += m_counter[m_policy.offset(i)].load(
+			    std::memory_order_relaxed);
 		}
 
 		return(total);
@@ -148,7 +136,9 @@ private:
 	Indexer<Type, N>m_policy;
 
         /** Slot 0 is unused. */
-	Type		m_counter[(N + 1) * (CACHE_LINE_SIZE / sizeof(Type))];
+	std::atomic<Type> m_counter[(N + 1) * (CACHE_LINE_SIZE / sizeof(Type))];
+	static_assert(sizeof(std::atomic<Type>) == sizeof(Type),
+		      "Sizes should match");
 };
 
 #endif /* ut0counter_h */
