@@ -2114,9 +2114,8 @@ inline void dict_index_t::clear_instant_alter()
 	}
 #endif
 	dict_field_t* end = &fields[n_fields];
-	dict_field_t* d = &fields[first_user_field()];
 
-	for (; d + 1 < end; d++) {
+	for (dict_field_t* d = &fields[first_user_field()]; d < end; d++) {
 		/* Move fields for dropped columns to the end. */
 		while (d->col->is_dropped()) {
 			if (d->col->is_nullable()) {
@@ -2124,6 +2123,10 @@ inline void dict_index_t::clear_instant_alter()
 			}
 
 			std::swap(*d, *--end);
+
+			if (d == end) {
+				goto done;
+			}
 		}
 
 		/* Ensure that the surviving fields are sorted by
@@ -2138,6 +2141,7 @@ inline void dict_index_t::clear_instant_alter()
 		}
 	}
 
+done:
 	DBUG_ASSERT(&fields[n_fields - table->n_dropped()] == end);
 
 	n_core_fields = n_fields = n_def = end - fields;
