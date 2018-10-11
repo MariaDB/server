@@ -219,7 +219,7 @@ connection default;
 DELETE FROM t1;
 connection ddl;
 SET DEBUG_SYNC='row_log_table_apply1_before SIGNAL copied WAIT_FOR logged';
-ALTER TABLE t1 FORCE;
+ALTER TABLE t1 ADD COLUMN b INT NOT NULL DEFAULT 2 AFTER a, FORCE;
 disconnect stop_purge;
 connection default;
 SET DEBUG_SYNC = 'now WAIT_FOR copied';
@@ -228,12 +228,13 @@ INSERT INTO t1 SET a=1;
 INSERT INTO t1 SET a=2,c=4;
 SET DEBUG_SYNC = 'now SIGNAL logged';
 connection ddl;
+UPDATE t1 SET b = b + 1 WHERE a = 2;
 connection default;
 SET DEBUG_SYNC = RESET;
 SELECT * FROM t1;
-a	c
-1	NULL
-2	4
+a	b	c
+1	2	NULL
+2	3	4
 #
 # MDEV-15872 Crash in online ALTER TABLE...ADD PRIMARY KEY
 # after instant ADD COLUMN ... NULL
@@ -255,8 +256,8 @@ disconnect ddl;
 connection default;
 SET DEBUG_SYNC = RESET;
 SELECT * FROM t1;
-a	c	d
-1	NULL	1
-2	4	1
+a	b	c	d
+1	2	NULL	1
+2	3	4	1
 DROP TABLE t1;
 SET GLOBAL innodb_purge_rseg_truncate_frequency = @save_frequency;
