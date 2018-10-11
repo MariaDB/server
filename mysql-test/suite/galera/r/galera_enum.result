@@ -6,25 +6,25 @@ INSERT IGNORE INTO t1 VALUES (0), (1), (2);
 Warnings:
 Warning	1265	Data truncated for column 'f1' at row 1
 connection node_2;
-SELECT COUNT(*) = 6 FROM t1;
-COUNT(*) = 6
-1
-SELECT COUNT(*) = 2 FROM t1 where f1 = '';
-COUNT(*) = 2
-1
-SELECT COUNT(*) = 2 FROM t1 where f1 = 'one';
-COUNT(*) = 2
-1
+SELECT COUNT(*) FROM t1;
+COUNT(*)
+6
+SELECT COUNT(*) FROM t1 where f1 = '';
+COUNT(*)
+2
+SELECT COUNT(*) FROM t1 where f1 = 'one';
+COUNT(*)
+2
 DROP TABLE t1;
 connection node_1;
 CREATE TABLE t1 (f1 ENUM('', 'one', 'two', 'three', 'four') PRIMARY KEY) ENGINE=InnoDB;
 INSERT INTO t1 VALUES (''), ('one'), ('two');
 connection node_2;
-SELECT COUNT(*) = 3 FROM t1;
-COUNT(*) = 3
-1
-SELECT COUNT(*) = 1 FROM t1 WHERE f1 = '';
-COUNT(*) = 1
+SELECT COUNT(*) FROM t1;
+COUNT(*)
+3
+SELECT COUNT(*) FROM t1 WHERE f1 = '';
+COUNT(*)
 1
 connection node_1;
 SET AUTOCOMMIT=OFF;
@@ -40,7 +40,12 @@ connection node_2;
 COMMIT;
 ERROR 40001: Deadlock: wsrep aborted transaction
 connection node_1;
-SELECT COUNT(*) = 1 FROM t1 WHERE f1 = 'three';
-COUNT(*) = 1
+SELECT COUNT(*) FROM t1 WHERE f1 = 'three';
+COUNT(*)
 1
+SELECT * FROM t1;
+f1
+one
+two
+three
 DROP TABLE t1;

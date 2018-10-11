@@ -4071,14 +4071,16 @@ static void my_malloc_size_cb_func(long long size, my_bool is_thread_specific)
 {
   THD *thd= current_thd;
 
-  if (is_thread_specific)  /* If thread specific memory */
-  {
-    /*
-      When thread specfic is set, both mysqld_server_initialized and thd
-      must be set
-    */
-    DBUG_ASSERT(mysqld_server_initialized && thd);
+  /*
+    When thread specific is set, both mysqld_server_initialized and thd
+    must be set, and we check that with DBUG_ASSERT.
 
+    However, do not crash, if current_thd is NULL, in release version.
+  */
+  DBUG_ASSERT(!is_thread_specific || (mysqld_server_initialized && thd));
+
+  if (is_thread_specific && likely(thd))  /* If thread specific memory */
+  {
     DBUG_PRINT("info", ("thd memory_used: %lld  size: %lld",
                         (longlong) thd->status_var.local_memory_used,
                         size));
