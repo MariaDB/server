@@ -2098,6 +2098,7 @@ inline void dict_index_t::clear_instant_add()
 inline void dict_index_t::clear_instant_alter()
 {
 	DBUG_ASSERT(is_primary());
+	DBUG_ASSERT(n_fields == n_def);
 
 	if (!table->instant) {
 		if (is_instant()) {
@@ -2106,36 +2107,41 @@ inline void dict_index_t::clear_instant_alter()
 		return;
 	}
 
-	const unsigned n_dropped = table->n_dropped();
+#ifndef DBUG_OFF
+	for (unsigned i = first_user_field(); i--; ) {
+		DBUG_ASSERT(!fields[i].col->is_dropped());
+		DBUG_ASSERT(!fields[i].col->is_nullable());
+	}
+#endif
+	dict_field_t* end = &fields[n_fields];
+	dict_field_t* d = &fields[first_user_field()];
 
-	unsigned old_n_fields = n_fields;
-	n_fields -= n_dropped;
-	n_def -= n_dropped;
+	for (; d + 1 < end; d++) {
+		/* Move fields for dropped columns to the end. */
+		while (d->col->is_dropped()) {
+			if (d->col->is_nullable()) {
+				n_nullable--;
+			}
 
-	unsigned        n_null = 0;
-	unsigned        new_field = 0;
-	dict_field_t*   temp_fields = static_cast<dict_field_t*>(
-		mem_heap_alloc(heap, n_fields * sizeof *temp_fields));
-
-	for (unsigned i = 0; i < old_n_fields; i++) {
-		dict_field_t    field = fields[i];
-
-		if (field.col->is_dropped()) {
-			continue;
+			std::swap(*d, *--end);
 		}
 
-		dict_field_t& f = temp_fields[new_field++];
-		f = field;
-		f.col->clear_instant();
+		/* Ensure that the surviving fields are sorted by
+		ascending order of columns. */
+		const unsigned c = d->col->ind;
 
-		n_null += f.col->is_nullable();
+		for (dict_field_t* s = d + 1; s < end; s++) {
+			if (s->col->ind < c) {
+				std::swap(*d, *s);
+				break;
+			}
+		}
 	}
 
-	ut_ad(n_fields == new_field);
-	fields = temp_fields;
-	n_core_fields = n_fields;
-	n_nullable = n_null;
-	n_core_null_bytes = UT_BITS_IN_BYTES(n_null);
+	DBUG_ASSERT(&fields[n_fields - table->n_dropped()] == end);
+
+	n_core_fields = n_fields = n_def = end - fields;
+	n_core_null_bytes = UT_BITS_IN_BYTES(n_nullable);
 	table->instant = NULL;
 }
 
