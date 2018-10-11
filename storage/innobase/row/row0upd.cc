@@ -52,7 +52,6 @@ Created 12/27/1996 Heikki Tuuri
 #include "fts0fts.h"
 #include "fts0types.h"
 #ifdef WITH_WSREP
-extern my_bool wsrep_debug;
 #include "mysql/service_wsrep.h"
 #endif
 #include <algorithm>
@@ -2779,8 +2778,9 @@ check_fk:
 			if (err != DB_SUCCESS) {
 				goto err_exit;
 			}
+		}
 #ifdef WITH_WSREP
-		} else if (foreign && wsrep_must_process_fk(node, trx)) {
+		else if (foreign && wsrep_must_process_fk(node, trx)) {
 			err = wsrep_row_upd_check_foreign_constraints(
 				node, pcur, table, index, offsets, thr, mtr);
 

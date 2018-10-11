@@ -148,9 +148,9 @@ static inline int wsrep_after_prepare(THD* thd, bool all)
  */
 static inline int wsrep_before_commit(THD* thd, bool all)
 {
-  WSREP_DEBUG("wsrep_before_commit: %d, %lu",
+  WSREP_DEBUG("wsrep_before_commit: %d, %lld",
               wsrep_is_real(thd, all),
-              wsrep_thd_trx_seqno(thd));
+              (long long)wsrep_thd_trx_seqno(thd));
   return ((wsrep_is_real(thd, all) && wsrep_is_active(thd)) ?
           wsrep_xid_init(&thd->wsrep_xid,
                          thd->wsrep_cs().transaction().ws_meta().gtid()),
@@ -185,8 +185,8 @@ static inline int wsrep_ordered_commit(THD* thd,
  */
 static inline int wsrep_after_commit(THD* thd, bool all)
 {
-  WSREP_DEBUG("wsrep_after_commit: %d, %d, %lu", wsrep_is_real(thd, all),
-              wsrep_is_active(thd), wsrep_thd_trx_seqno(thd));
+  WSREP_DEBUG("wsrep_after_commit: %d, %d, %lld", wsrep_is_real(thd, all),
+              wsrep_is_active(thd), (long long)wsrep_thd_trx_seqno(thd));
   bool run_after_commit= (wsrep_is_real(thd, all) && wsrep_is_active(thd));
   if (run_after_commit)
   {

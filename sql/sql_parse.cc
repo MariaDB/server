@@ -109,8 +109,9 @@
 #include "../storage/maria/ha_maria.h"
 #endif
 
-#include "mysql/service_wsrep.h"
 #include "wsrep_mysqld.h"
+#ifdef WITH_WSREP
+#include "mysql/service_wsrep.h"
 #include "wsrep_thd.h"
 #include "wsrep_trans_observer.h" /* wsrep transaction hooks */
 
@@ -119,6 +120,7 @@ static bool wsrep_mysql_parse(THD *thd, char *rawbuf, uint length,
                               bool is_com_multi,
                               bool is_next_command);
 
+#endif /* WITH_WSREP */
 /**
   @defgroup Runtime_Environment Runtime Environment
   @{
@@ -1802,6 +1804,7 @@ bool dispatch_command(enum enum_server_command command, THD *thd,
     if (unlikely(parser_state.init(thd, thd->query(), thd->query_length())))
       break;
 
+#ifdef WITH_WSREP
     if (WSREP_ON)
     {
       if (wsrep_mysql_parse(thd, thd->query(), thd->query_length(),
@@ -1825,6 +1828,7 @@ bool dispatch_command(enum enum_server_command command, THD *thd,
       }
     }
     else
+#endif /* WITH_WSREP */
       mysql_parse(thd, thd->query(), thd->query_length(), &parser_state,
                   is_com_multi, is_next_command);
 
@@ -1907,10 +1911,11 @@ bool dispatch_command(enum enum_server_command command, THD *thd,
       statistic_increment(thd->status_var.questions, &LOCK_status);
 
       if(!WSREP(thd))
-	thd->set_time(); /* Reset the query start time. */
+        thd->set_time(); /* Reset the query start time. */
 
       parser_state.reset(beginning_of_next_stmt, length);
 
+#ifdef WITH_WSREP
       if (WSREP_ON)
       {
         if (wsrep_mysql_parse(thd, beginning_of_next_stmt,
@@ -1935,8 +1940,9 @@ bool dispatch_command(enum enum_server_command command, THD *thd,
         }
       }
       else
-        mysql_parse(thd, beginning_of_next_stmt, length, &parser_state,
-                    is_com_multi, is_next_command);
+#endif /* WITH_WSREP */
+      mysql_parse(thd, beginning_of_next_stmt, length, &parser_state,
+                  is_com_multi, is_next_command);
 
     }
 
@@ -2401,7 +2407,7 @@ com_multi_end:
       thd->wsrep_trx().state() != wsrep::transaction::s_replaying;
 #ifdef TODO
             thd->wsrep_conflict_state != REPLAYING &&
-	    thd->wsrep_conflict_state != RETRY_AUTOCOMMIT;
+            thd->wsrep_conflict_state != RETRY_AUTOCOMMIT;
 #endif
     mysql_mutex_unlock(&thd->LOCK_thd_data);
   }
@@ -2425,6 +2431,8 @@ com_multi_end:
       query_cache_end_of_result(thd);
     }
   }
+  if (drop_more_results)
+    thd->server_status&= ~SERVER_MORE_RESULTS_EXISTS;
  
   if (likely(!thd->is_error() && !thd->killed_errno()))
     mysql_audit_general(thd, MYSQL_AUDIT_GENERAL_RESULT, 0, 0);
@@ -6635,8 +6643,10 @@ static bool execute_show_status(THD *thd, TABLE_LIST *all_tables)
          offsetof(STATUS_VAR, last_cleared_system_status_var));
   mysql_mutex_unlock(&LOCK_status);
   return res;
- error:
+#ifdef WITH_WSREP
+ error: /* see WSREP_SYNC_WAIT() macro above */
   return true;
+#endif /* WITH_WSREP */
 }
 
 
@@ -7998,7 +8008,7 @@ static bool wsrep_mysql_parse(THD *thd, char *rawbuf, uint length,
       }
       else
       {
-        WSREP_DEBUG("%s, thd: %lu is_AC: %d, retry: %lu - %lu SQL: %s",
+        WSREP_DEBUG("%s, thd: %llu is_AC: %d, retry: %lu - %lu SQL: %s",
                     wsrep_thd_transaction_state_str(thd),
                     thd->thread_id,
                     is_autocommit,
@@ -9014,8 +9024,7 @@ kill_one_thread(THD *thd, longlong id, killed_state kill_signal, killed_type typ
   uint error= (type == KILL_TYPE_QUERY ? ER_NO_SUCH_QUERY : ER_NO_SUCH_THREAD);
   DBUG_ENTER("kill_one_thread");
   DBUG_PRINT("enter", ("id: %lld  signal: %u", id, (uint) kill_signal));
-  WSREP_DEBUG("kill_one_thread %lu", thd->thread_id);
-#ifdef WITH_WSREP
+  WSREP_DEBUG("kill_one_thread %llu", thd->thread_id);
   if (id && (tmp= find_thread_by_id(id, type == KILL_TYPE_QUERY)))
   {
     /*
@@ -9039,6 +9048,7 @@ kill_one_thread(THD *thd, longlong id, killed_state kill_signal, killed_type typ
       faster and do a harder kill than KILL_SYSTEM_THREAD;
     */
 
+#ifdef WITH_WSREP
     if (((thd->security_ctx->master_access & SUPER_ACL) ||
         thd->security_ctx->user_matches(tmp->security_ctx)) &&
         !wsrep_thd_is_BF((void *)tmp, false) && !tmp->wsrep_applier)

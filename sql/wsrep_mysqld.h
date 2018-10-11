@@ -13,10 +13,12 @@
    along with this program; if not, write to the Free Software
    Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02111-1301 USA */
 
-#include <wsrep.h>
-
 #ifndef WSREP_MYSQLD_H
 #define WSREP_MYSQLD_H
+
+#include <wsrep.h>
+
+#ifdef WITH_WSREP
 
 #include <mysql/plugin.h>
 #include "mysql/service_wsrep.h"
@@ -28,7 +30,6 @@
 
 typedef struct st_mysql_show_var SHOW_VAR;
 #include <sql_priv.h>
-//#include "rpl_gtid.h"
 #include "mdl.h"
 #include "sql_table.h"
 
@@ -199,8 +200,6 @@ extern void wsrep_last_committed_id (wsrep_gtid_t* gtid);
 extern int  wsrep_check_opts();
 extern void wsrep_prepend_PATH (const char* path);
 
-
-
 /* Other global variables */
 extern wsrep_seqno_t wsrep_locked_seqno;
 #define WSREP_ON                         \
@@ -228,9 +227,9 @@ extern wsrep_seqno_t wsrep_locked_seqno;
 #define WSREP_EMULATE_BINLOG(thd) \
   (WSREP(thd) && wsrep_emulate_bin_log)
 
-#define WSREP_FORMAT(my_format)                           \
-  ((wsrep_forced_binlog_format != BINLOG_FORMAT_UNSPEC)   \
-    ? wsrep_forced_binlog_format : (ulong)(my_format))
+#define WSREP_BINLOG_FORMAT(my_format)                         \
+   ((wsrep_forced_binlog_format != BINLOG_FORMAT_UNSPEC) ?     \
+   wsrep_forced_binlog_format : my_format)
 
 // prefix all messages with "WSREP"
 #define WSREP_LOG(fun, ...)                                       \
@@ -249,7 +248,7 @@ extern wsrep_seqno_t wsrep_locked_seqno;
 #define WSREP_LOG_CONFLICT_THD(thd, role)                               \
   WSREP_LOG(sql_print_information,                                      \
             "%s: \n "                                                   \
-            "  THD: %llu, mode: %s, state: %s, conflict: %s, seqno: %ld\n " \
+            "  THD: %llu, mode: %s, state: %s, conflict: %s, seqno: %lld\n " \
             "  SQL: %s",                                                \
             role,                                                       \
             wsrep_thd_thread_id(thd),                                   \
@@ -539,43 +538,10 @@ bool wsrep_is_show_query(enum enum_sql_command command);
 void wsrep_replay_transaction(THD *thd);
 bool wsrep_create_like_table(THD* thd, TABLE_LIST* table,
                              TABLE_LIST* src_table,
-	                     HA_CREATE_INFO *create_info);
+                             HA_CREATE_INFO *create_info);
 bool wsrep_node_is_donor();
 bool wsrep_node_is_synced();
 
-#define WSREP_BINLOG_FORMAT(my_format)                         \
-   ((wsrep_forced_binlog_format != BINLOG_FORMAT_UNSPEC) ?     \
-   wsrep_forced_binlog_format : my_format)
-
-#ifdef WITH_WSREP_OUT
-#define WSREP(T)  (0)
-#define WSREP_ON  (0)
-#define WSREP_EMULATE_BINLOG(thd) (0)
-#define WSREP_CLIENT(thd) (0)
-#define WSREP_FORMAT(my_format) ((ulong)my_format)
-#define WSREP_PROVIDER_EXISTS (0)
-#define wsrep_emulate_bin_log (0)
-#define wsrep_to_isolation (0)
-#define wsrep_init() (1)
-#define wsrep_prepend_PATH(X)
-#define wsrep_before_SE() (0)
-#define wsrep_init_startup(X)
-#define wsrep_must_sync_wait(...) (0)
-#define wsrep_sync_wait(...) (0)
-#define wsrep_to_isolation_begin(...) (0)
-#define wsrep_register_hton(...) do { } while(0)
-#define wsrep_check_opts() (0)
-#define wsrep_stop_replication(X) do { } while(0)
-#define wsrep_inited (0)
-#define wsrep_deinit(X) do { } while(0)
-#define wsrep_recover() do { } while(0)
-#define wsrep_slave_threads (1)
-#define wsrep_replicate_myisam (0)
-#define wsrep_thr_init() do {} while(0)
-#define wsrep_thr_deinit() do {} while(0)
-#define wsrep_running_threads (0)
-#define WSREP_BINLOG_FORMAT(my_format) my_format
-#endif
 /**
  * Check if the wsrep provider (ie the Galera library) is capable of
  * doing streaming replication.
@@ -626,4 +592,40 @@ void wsrep_init_globals();
  * Deinit and release WSREP resources.
  */
 void wsrep_deinit_server();
+
+#else /* !WITH_WSREP */
+
+/* These macros are needed to compile MariaDB without WSREP support
+ * (e.g. embedded) */
+
+#define WSREP(T)  (0)
+#define WSREP_ON  (0)
+#define WSREP_EMULATE_BINLOG(thd) (0)
+#define WSREP_EMULATE_BINLOG_NNULL(thd) (0)
+//#define WSREP_CLIENT(thd) (0)
+#define WSREP_BINLOG_FORMAT(my_format) ((ulong)my_format)
+#define WSREP_PROVIDER_EXISTS (0)
+#define wsrep_emulate_bin_log (0)
+#define wsrep_to_isolation (0)
+//#define wsrep_init() (1)
+//#define wsrep_prepend_PATH(X)
+//#define wsrep_before_SE() (0)
+//#define wsrep_init_startup(X)
+//#define wsrep_must_sync_wait(...) (0)
+//#define wsrep_sync_wait(...) (0)
+//#define wsrep_to_isolation_begin(...) (0)
+//#define wsrep_register_hton(...) do { } while(0)
+//#define wsrep_check_opts() (0)
+//#define wsrep_stop_replication(X) do { } while(0)
+//#define wsrep_inited (0)
+//#define wsrep_deinit(X) do { } while(0)
+//#define wsrep_recover() do { } while(0)
+//#define wsrep_slave_threads (1)
+//#define wsrep_replicate_myisam (0)
+//#define wsrep_thr_init() do {} while(0)
+#define wsrep_thr_deinit() do {} while(0)
+//#define wsrep_running_threads (0)
+
+#endif /* WITH_WSREP */
+
 #endif /* WSREP_MYSQLD_H */

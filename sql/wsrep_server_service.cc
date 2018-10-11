@@ -50,7 +50,7 @@ wsrep::storage_service* Wsrep_server_service::storage_service(
     static_cast<Wsrep_client_service&>(client_service);
   THD* thd = new THD(next_thread_id(), true, true);
   init_service_thd(thd, cs.m_thd->thread_stack);
-  WSREP_DEBUG("Created storage service with thread id %lu",
+  WSREP_DEBUG("Created storage service with thread id %llu",
               thd->thread_id);
   return new Wsrep_storage_service(thd);
 }
@@ -62,7 +62,7 @@ wsrep::storage_service* Wsrep_server_service::storage_service(
     static_cast<Wsrep_high_priority_service&>(high_priority_service);
   THD* thd = new THD(next_thread_id(), true, true);
   init_service_thd(thd, hps.m_thd->thread_stack);
-  WSREP_DEBUG("Created high priority storage service with thread id %lu",
+  WSREP_DEBUG("Created high priority storage service with thread id %llu",
               thd->thread_id);
   return new Wsrep_storage_service(thd);
 }
@@ -86,7 +86,7 @@ Wsrep_server_service::streaming_applier_service(
   THD* thd= new THD(next_thread_id(), true, true);
   init_service_thd(thd, orig_cs.m_thd->thread_stack);
   WSREP_DEBUG("Created streaming applier service in local context with "
-              "thread id %lu", thd->thread_id);
+              "thread id %llu", thd->thread_id);
   return new Wsrep_applier_service(thd);
 }
 
@@ -99,7 +99,7 @@ Wsrep_server_service::streaming_applier_service(
   THD* thd= new THD(next_thread_id(), true, true);
   init_service_thd(thd, orig_hps.m_thd->thread_stack);
   WSREP_DEBUG("Created streaming applier service in high priority "
-              "context with thread id %lu", thd->thread_id);
+              "context with thread id %llu", thd->thread_id);
   return new Wsrep_applier_service(thd);
 }
 

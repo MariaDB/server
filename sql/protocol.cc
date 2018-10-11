@@ -551,6 +551,7 @@ static uchar *net_store_length_fast(uchar *packet, size_t length)
 
 void Protocol::end_statement()
 {
+#ifdef WITH_WSREP
   /*
     Commented out: This sanity check does not hold in general.
     Thd->LOCK_thd_data() must be unlocked before sending response
@@ -568,6 +569,7 @@ void Protocol::end_statement()
     WSREP_ERROR("attempting net_end_statement while replaying");
     return;
   }
+#endif /* WITH_WSREP */
 
   DBUG_ENTER("Protocol::end_statement");
   DBUG_ASSERT(! thd->get_stmt_da()->is_sent());

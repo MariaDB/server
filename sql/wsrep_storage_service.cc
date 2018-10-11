@@ -85,7 +85,7 @@ int Wsrep_storage_service::start_transaction(const wsrep::ws_handle& ws_handle)
 {
   DBUG_ENTER("Wsrep_storage_service::start_transaction");
   DBUG_ASSERT(m_thd == current_thd);
-  DBUG_PRINT("info", ("Wsrep_storage_service::start_transcation(%lu, %p)",
+  DBUG_PRINT("info", ("Wsrep_storage_service::start_transcation(%llu, %p)",
                       m_thd->thread_id, m_thd));
   m_thd->set_wsrep_next_trx_id(ws_handle.transaction_id().get());
   // DBUG_RETURN(wsrep_start_transaction(m_thd, m_thd->wsrep_next_trx_id()));
@@ -110,7 +110,7 @@ int Wsrep_storage_service::append_fragment(const wsrep::id& server_id,
 {
   DBUG_ENTER("Wsrep_storage_service::append_fragment");
   DBUG_ASSERT(m_thd == current_thd);
-  DBUG_PRINT("info", ("Wsrep_storage_service::append_fragment(%lu, %p)",
+  DBUG_PRINT("info", ("Wsrep_storage_service::append_fragment(%llu, %p)",
                       m_thd->thread_id, m_thd));
   int ret= wsrep_schema->append_fragment(m_thd,
                                          server_id,
@@ -125,7 +125,7 @@ int Wsrep_storage_service::update_fragment_meta(const wsrep::ws_meta& ws_meta)
 {
   DBUG_ENTER("Wsrep_storage_service::update_fragment_meta");
   DBUG_ASSERT(m_thd == current_thd);
-  DBUG_PRINT("info", ("Wsrep_storage_service::update_fragment_meta(%lu, %p)",
+  DBUG_PRINT("info", ("Wsrep_storage_service::update_fragment_meta(%llu, %p)",
                       m_thd->thread_id, m_thd));
   int ret= wsrep_schema->update_fragment_meta(m_thd, ws_meta);
   DBUG_RETURN(ret);
@@ -148,7 +148,7 @@ int Wsrep_storage_service::commit(const wsrep::ws_handle& ws_handle,
 {
   DBUG_ENTER("Wsrep_storage_service::commit");
   DBUG_ASSERT(m_thd == current_thd);
-  DBUG_PRINT("info", ("Wsrep_storage_service::commit(%lu, %p)",
+  DBUG_PRINT("info", ("Wsrep_storage_service::commit(%llu, %p)",
                       m_thd->thread_id, m_thd));
   WSREP_DEBUG("Storage service commit: %llu, %lld",
               ws_meta.transaction_id().get(), ws_meta.seqno().get());
@@ -215,7 +215,7 @@ int Wsrep_storage_service::rollback(const wsrep::ws_handle& ws_handle,
 {
   DBUG_ENTER("Wsrep_storage_service::rollback");
   DBUG_ASSERT(m_thd == current_thd);
-  DBUG_PRINT("info", ("Wsrep_storage_service::rollback(%lu, %p)",
+  DBUG_PRINT("info", ("Wsrep_storage_service::rollback(%llu, %p)",
                       m_thd->thread_id, m_thd));
   int ret= (m_thd->wsrep_cs().prepare_for_ordering(
             ws_handle, ws_meta, false) ||
@@ -228,7 +228,7 @@ int Wsrep_storage_service::rollback(const wsrep::ws_handle& ws_handle,
 void Wsrep_storage_service::store_globals()
 {
   DBUG_ENTER("Wsrep_storage_service::store_globals");
-  DBUG_PRINT("info", ("Wsrep_storage_service::store_globals(%lu, %p)",
+  DBUG_PRINT("info", ("Wsrep_storage_service::store_globals(%llu, %p)",
                       m_thd->thread_id, m_thd));
   m_thd->store_globals();
   DBUG_VOID_RETURN;
@@ -237,7 +237,7 @@ void Wsrep_storage_service::store_globals()
 void Wsrep_storage_service::reset_globals()
 {
   DBUG_ENTER("Wsrep_storage_service::reset_globals");
-  DBUG_PRINT("info", ("Wsrep_storage_service::reset_globals(%lu, %p)",
+  DBUG_PRINT("info", ("Wsrep_storage_service::reset_globals(%llu, %p)",
                       m_thd->thread_id, m_thd));
   m_thd->reset_globals();
   DBUG_VOID_RETURN;

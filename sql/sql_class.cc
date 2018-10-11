@@ -65,14 +65,13 @@
 #include "sql_parse.h"                          // is_update_query
 #include "sql_callback.h"
 #include "lock.h"
-#ifdef WITH_WSREP
-#include "mysql/service_wsrep.h"
-//#include "wsrep_client_service.h"
 #include "wsrep_mysqld.h"
-#include "wsrep_binlog.h" /* wsrep_fragment_unit() */
-#include "wsrep_thd.h"
 #include "sql_connect.h"
 #include "my_atomic.h"
+#ifdef WITH_WSREP
+#include "mysql/service_wsrep.h"
+#include "wsrep_binlog.h" /* wsrep_fragment_unit() */
+#include "wsrep_thd.h"
 #endif /* WITH_WSREP */
 
 #ifdef HAVE_SYS_SYSCALL_H
@@ -538,12 +537,6 @@ char *thd_security_context(THD *thd,
   return thd_get_error_context_description(thd, buffer, length, max_query_len);
 }
 #endif
-#ifdef WITH_WSREP
-extern "C" bool wsrep_consistency_check(void *thd)
-{
-  return ((THD*)thd)->wsrep_consistency_check == CONSISTENCY_CHECK_RUNNING;
-}
-#endif /* WITH_WSREP */
 
 /**
   Implementation of Drop_table_error_handler::handle_condition().
@@ -639,27 +632,6 @@ THD::THD(my_thread_id id, bool is_wsrep_applier, bool skip_global_sys_var_lock)
    derived_tables_processing(FALSE),
    waiting_on_group_commit(FALSE), has_waiter(FALSE),
    spcont(NULL),
-#ifdef WITH_WSREP
-   m_wsrep_mutex(LOCK_thd_data),
-   m_wsrep_cond(COND_wsrep_thd),
-   wsrep_applier(is_wsrep_applier),
-   wsrep_applier_closing(false),
-   wsrep_client_thread(false),
-   wsrep_apply_toi(false),
-   wsrep_po_handle(WSREP_PO_INITIALIZER),
-   wsrep_po_cnt(0),
-   wsrep_apply_format(0),
-   wsrep_ignore_table(false),
-
-/* wsrep-lib */
-   m_wsrep_client_service(this, m_wsrep_client_state),
-   m_wsrep_client_state(this,
-                        m_wsrep_mutex,
-                        m_wsrep_cond,
-                        Wsrep_server_state::instance(),
-                        m_wsrep_client_service,
-                        wsrep::client_id(thread_id)),
-#endif /*WITH_WSREP */
    m_parser_state(NULL),
 #if defined(ENABLED_DEBUG_SYNC)
    debug_sync_control(0),
@@ -671,6 +643,28 @@ THD::THD(my_thread_id id, bool is_wsrep_applier, bool skip_global_sys_var_lock)
    tdc_hash_pins(0),
    xid_hash_pins(0),
    m_tmp_tables_locked(false)
+#ifdef WITH_WSREP
+   ,
+   wsrep_applier(is_wsrep_applier),
+   wsrep_applier_closing(false),
+   wsrep_client_thread(false),
+   wsrep_po_handle(WSREP_PO_INITIALIZER),
+   wsrep_po_cnt(0),
+   wsrep_apply_format(0),
+   wsrep_apply_toi(false),
+   wsrep_ignore_table(false),
+
+/* wsrep-lib */
+   m_wsrep_mutex(LOCK_thd_data),
+   m_wsrep_cond(COND_wsrep_thd),
+   m_wsrep_client_service(this, m_wsrep_client_state),
+   m_wsrep_client_state(this,
+                        m_wsrep_mutex,
+                        m_wsrep_cond,
+                        Wsrep_server_state::instance(),
+                        m_wsrep_client_service,
+                        wsrep::client_id(thread_id))
+#endif /*WITH_WSREP */
 {
   ulong tmp;
   bzero(&variables, sizeof(variables));
@@ -5031,13 +5025,12 @@ extern "C" int thd_non_transactional_update(const MYSQL_THD thd)
 
 extern "C" int thd_binlog_format(const MYSQL_THD thd)
 {
-#ifdef WITH_WSREP
   if (WSREP(thd))
   {
     /* for wsrep binlog format is meaningful also when binlogging is off */
     return (int) WSREP_BINLOG_FORMAT(thd->variables.binlog_format);
   }
-#endif /* WITH_WSREP */
+
   if (mysql_bin_log.is_open() && (thd->variables.option_bits & OPTION_BIN_LOG))
     return (int) thd->variables.binlog_format;
   return BINLOG_FORMAT_UNSPEC;

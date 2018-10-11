@@ -61,8 +61,8 @@
 #ifdef  __WIN__
 #include <io.h>
 #endif
-#ifdef WITH_WSREP
 #include "wsrep_mysqld.h"
+#ifdef WITH_WSREP
 #include "wsrep_thd.h"
 #include "wsrep_trans_observer.h"
 #endif /* WITH_WSREP */
@@ -4246,6 +4246,7 @@ restart:
     }
   }
 
+#ifdef WITH_WSREP
   if (WSREP_ON                                         &&
       wsrep_replicate_myisam                           &&
       (*start)                                         &&
@@ -4268,6 +4269,7 @@ restart:
       wsrep_after_statement(thd);
       WSREP_TO_ISOLATION_BEGIN(NULL, NULL, (*start));
   }
+#endif /* WITH_WSREP */
 
 error:
   THD_STAGE_INFO(thd, stage_after_opening_tables);

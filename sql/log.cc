@@ -55,11 +55,13 @@
 #include "sql_show.h"
 #include "my_pthread.h"
 #include "semisync_master.h"
-#include "wsrep_mysqld.h"
 #include "sp_rcontext.h"
 #include "sp_head.h"
 
+#include "wsrep_mysqld.h"
+#ifdef WITH_WSREP
 #include "wsrep_trans_observer.h"
+#endif /* WITH_WSREP */
 
 /* max size of the log message */
 #define MAX_LOG_BUFFER_SIZE 1024
@@ -10830,7 +10832,8 @@ bool wsrep_stmt_rollback_is_safe(THD* thd)
          trx_cache->get_prev_position() < thd->wsrep_sr().bytes_certified()))
     {
       WSREP_DEBUG("statement rollback is not safe for streaming replication"
-                  " pre-stmt_pos: %llu, frag repl pos: %lu\nThread: %lu, SQL: %s",
+                  " pre-stmt_pos: %llu, frag repl pos: %lu\n"
+                  "Thread: %llu, SQL: %s",
                   trx_cache->get_prev_position(),
                   thd->wsrep_sr().bytes_certified(),
                   thd->thread_id, thd->query());

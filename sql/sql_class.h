@@ -62,6 +62,7 @@ void set_thd_stage_info(void *thd,
 #include "my_apc.h"
 #include "rpl_gtid.h"
 
+#include "wsrep_mysqld.h"
 #ifdef WITH_WSREP
 /* wsrep-lib */
 #include "wsrep_client_service.h"
@@ -69,10 +70,9 @@ void set_thd_stage_info(void *thd,
 #include "wsrep_mutex.h"
 #include "wsrep_condition_variable.h"
 
-#include "wsrep_mysqld.h"
 class Wsrep_applier_service;
 
-#endif
+#endif /* WITH_WSREP */
 class Reprepare_observer;
 class Relay_log_info;
 struct rpl_group_info;
@@ -4757,7 +4757,7 @@ private:
 public:
   inline ulong wsrep_binlog_format() const
   {
-    return WSREP_FORMAT(variables.binlog_format);
+    return WSREP_BINLOG_FORMAT(variables.binlog_format);
   }
 
 #ifdef WITH_WSREP

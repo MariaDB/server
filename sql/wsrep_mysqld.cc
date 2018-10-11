@@ -1672,6 +1672,7 @@ static bool wsrep_can_run_in_toi(THD *thd, const char *db, const char *table,
   }
 }
 
+#if UNUSED /* 323f269d4099 (Jan Lindström     2018-07-19) */
 static const char* wsrep_get_query_or_msg(const THD* thd)
 {
   switch(thd->lex->sql_command)
@@ -1684,12 +1685,13 @@ static const char* wsrep_get_query_or_msg(const THD* thd)
       return "REVOKE";
     case SQLCOM_SET_OPTION:
       if (thd->lex->definer)
-	return "SET PASSWORD";
+        return "SET PASSWORD";
       /* fallthrough */
     default:
       return thd->query();
    }
 }
+#endif //UNUSED
 
 static bool wsrep_can_run_in_nbo(THD *thd)
 {
@@ -2030,7 +2032,7 @@ static void wsrep_TOI_end(THD *thd) {
 
     if (ret == 0)
     {
-      WSREP_DEBUG("TO END: %ld", client_state.toi_meta().seqno().get());
+      WSREP_DEBUG("TO END: %lld", client_state.toi_meta().seqno().get());
     }
     else
     {
@@ -2048,7 +2050,7 @@ static void wsrep_TOI_end(THD *thd) {
 
 static int wsrep_RSU_begin(THD *thd, const char *db_, const char *table_)
 {
-  WSREP_DEBUG("RSU BEGIN: %ld, : %s", wsrep_thd_trx_seqno(thd),
+  WSREP_DEBUG("RSU BEGIN: %lld, : %s", wsrep_thd_trx_seqno(thd),
               WSREP_QUERY(thd));
   if (thd->wsrep_cs().begin_rsu(5000))
   {
@@ -2063,7 +2065,7 @@ static int wsrep_RSU_begin(THD *thd, const char *db_, const char *table_)
 
 static void wsrep_RSU_end(THD *thd)
 {
-  WSREP_DEBUG("RSU END: %ld : %s", wsrep_thd_trx_seqno(thd),
+  WSREP_DEBUG("RSU END: %lld : %s", wsrep_thd_trx_seqno(thd),
               WSREP_QUERY(thd));
   if (thd->wsrep_cs().end_rsu())
   {
@@ -3033,11 +3035,11 @@ void* start_wsrep_THD(void *arg)
   mysql_cond_broadcast(&COND_thread_count);
   mysql_mutex_unlock(&LOCK_thread_count);
 
-  WSREP_DEBUG("wsrep system thread %ld, %p starting",
-	      thd->thread_id, thd);
+  WSREP_DEBUG("wsrep system thread %llu, %p starting",
+              thd->thread_id, thd);
   thd_args->fun()(thd, thd_args->args());
   
-  WSREP_DEBUG("wsrep system thread: %ld, %p closing",
+  WSREP_DEBUG("wsrep system thread: %llu, %p closing",
               thd->thread_id, thd);
   //processor(thd);
 

@@ -66,8 +66,8 @@ bool wsrep_on_check(sys_var *self, THD* thd, set_var* var)
 
   if (new_wsrep_on && innodb_hton_ptr && innodb_lock_schedule_algorithm != 0) {
     my_message(ER_WRONG_ARGUMENTS, " WSREP (galera) can't be enabled "
-	    "if innodb_lock_schedule_algorithm=VATS. Please configure"
-	    " innodb_lock_schedule_algorithm=FCFS and restart.", MYF(0));
+            "if innodb_lock_schedule_algorithm=VATS. Please configure"
+            " innodb_lock_schedule_algorithm=FCFS and restart.", MYF(0));
     return true;
   }
   return false;
@@ -579,8 +579,9 @@ static void wsrep_slave_count_change_update ()
 {
   // wsrep_running_threads = appliers threads + 2 rollbacker threads
   wsrep_slave_count_change = (wsrep_slave_threads - wsrep_running_threads + 2);
-  WSREP_DEBUG("Change on slave threads: New %lu old %lu difference %lu",
-	  wsrep_slave_threads, wsrep_running_threads, wsrep_slave_count_change);
+  WSREP_DEBUG("Change on slave threads: New %lu old %lu difference %d",
+               wsrep_slave_threads, wsrep_running_threads,
+               wsrep_slave_count_change);
 }
 
 bool wsrep_slave_threads_update (sys_var *self, THD* thd, enum_var_type type)
@@ -709,7 +710,7 @@ bool wsrep_max_ws_size_update (sys_var *self, THD *thd, enum_var_type)
   }
   return refresh_provider_options();
 }
-
+#if UNUSED /* eaec266eb16c (Sergei Golubchik  2014-09-28) */
 static SHOW_VAR wsrep_status_vars[]=
 {
   {"connected",         (char*) &wsrep_connected,         SHOW_BOOL},
@@ -731,7 +732,7 @@ static int show_var_cmp(const void *var1, const void *var2)
 {
   return strcasecmp(((SHOW_VAR*)var1)->name, ((SHOW_VAR*)var2)->name);
 }
-
+#endif /* UNUSED */
 /*
  * Status variables stuff below
  */

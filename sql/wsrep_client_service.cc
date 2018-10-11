@@ -200,7 +200,7 @@ int Wsrep_client_service::remove_fragments()
                                      m_thd->wsrep_sr().fragments()))
   {
     WSREP_DEBUG("Failed to remove fragments from SR storage for transaction "
-                "%lu, %llu",
+                "%llu, %llu",
                 m_thd->thread_id, m_thd->wsrep_trx().id().get());
     DBUG_RETURN(1);
   }

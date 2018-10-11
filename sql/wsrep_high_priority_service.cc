@@ -579,7 +579,7 @@ Wsrep_replayer_service::Wsrep_replayer_service(THD* thd)
   /* Release explicit locks */
   if (thd->locked_tables_mode && thd->lock)
   {
-    WSREP_WARN("releasing table lock for replaying (%ld)",
+    WSREP_WARN("releasing table lock for replaying (%llu)",
                thd->thread_id);
     thd->locked_tables_list.unlock_locked_tables(thd);
     thd->variables.option_bits&= ~(OPTION_TABLE_LOCK);

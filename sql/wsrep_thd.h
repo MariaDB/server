@@ -13,12 +13,13 @@
    with this program; if not, write to the Free Software Foundation, Inc.,
    51 Franklin Street, Fifth Floor, Boston, MA 02110-1301 USA. */
 
-#include <my_config.h>
-
 #ifndef WSREP_THD_H
 #define WSREP_THD_H
 
+#include <my_config.h>
+
 #include "mysql/service_wsrep.h"
+#include "wsrep/client_state.hpp"
 #include "sql_class.h"
 #include "wsrep_utils.h"
 #include <deque>
@@ -197,7 +198,7 @@ static inline void wsrep_log_thd(THD *thd,
 {
   WSREP_DEBUG("%s %s\n"
               "    thd: %llu thd_ptr: %p client_mode: %s client_state: %s trx_state: %s\n"
-              "    next_trx_id: %lld trx_id: %lld seqno: %ld\n"
+              "    next_trx_id: %lld trx_id: %lld seqno: %lld\n"
               "    is_streaming: %d fragments: %zu\n"
               "    sql_errno: %u message: %s\n"
 #define WSREP_THD_LOG_QUERIES
@@ -214,7 +215,7 @@ static inline void wsrep_log_thd(THD *thd,
               wsrep_thd_transaction_state_str(thd),
               (long long)thd->wsrep_next_trx_id(),
               (long long)thd->wsrep_trx_id(),
-              wsrep_thd_trx_seqno(thd),
+              (long long)wsrep_thd_trx_seqno(thd),
               thd->wsrep_trx().is_streaming(),
               thd->wsrep_sr().fragments().size(),
               (thd->get_stmt_da()->is_error() ? thd->get_stmt_da()->sql_errno() : 0),

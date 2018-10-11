@@ -13,10 +13,10 @@
    with this program; if not, write to the Free Software Foundation, Inc.,
    51 Franklin Street, Fifth Floor, Boston, MA 02110-1301 USA. */
 
-#include <my_config.h>
-
 #ifndef WSREP_SST_H
 #define WSREP_SST_H
+
+#include <my_config.h>
 
 #include "wsrep/gtid.hpp"
 #include <my_global.h>

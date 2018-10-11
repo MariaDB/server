@@ -70,10 +70,10 @@
 #include "scheduler.h"
 #include <waiting_threads.h>
 #include "debug_sync.h"
-#ifdef WITH_WSREP
-#include "mysql/service_wsrep.h"
 #include "wsrep_mysqld.h"
 #include "wsrep_var.h"
+#ifdef WITH_WSREP
+#include "mysql/service_wsrep.h"
 #include "wsrep_thd.h"
 #include "wsrep_sst.h"
 #endif /* WITH_WSREP */
@@ -2397,9 +2397,6 @@ static void clean_up_mutexes()
 ****************************************************************************/
 
 #ifdef EMBEDDED_LIBRARY
-static void set_ports()
-{
-}
 void close_connection(THD *thd, uint sql_errno)
 {
 }
@@ -2938,12 +2935,14 @@ void unlink_thd(THD *thd)
   thd->add_status_to_global();
   unlink_not_visible_thd(thd);
 
+#ifdef WITH_WSREP
   /*
     Do not decrement when its wsrep system thread. wsrep_applier is set for
     applier as well as rollbacker threads.
   */
-  if (IF_WSREP(!thd->wsrep_applier, 1))
-    dec_connection_count(thd->scheduler);
+  if (!thd->wsrep_applier)
+#endif /* WITH_WSREP */
+  dec_connection_count(thd->scheduler);
 
   thd->free_connection();
 
@@ -5284,6 +5283,7 @@ static int init_server_components()
   wsrep_thr_init();
 #endif
 
+#ifdef WITH_WSREP
   if (wsrep_init_server()) unireg_abort(1);
   if (!wsrep_recovery)
   {
@@ -5318,6 +5318,7 @@ static int init_server_components()
       }
     }
   }
+#endif /* WITH_WSREP */
 
   if (opt_bin_log)
   {

@@ -10183,7 +10183,6 @@ wsrep_append_foreign_key(
 	ulint rcode = DB_SUCCESS;
 	char  cache_key[513] = {'\0'};
 	int   cache_key_len=0;
-	bool const copy = true;
 
 	if (!wsrep_on(trx->mysql_thd) ||
 	    wsrep_thd_is_local(trx->mysql_thd) == false) {
@@ -10275,7 +10274,7 @@ wsrep_append_foreign_key(
 
 	if (rcode != DB_SUCCESS) {
 		WSREP_ERROR(
-			"FK key set failed: %d (%lu %s), index: %s %s, %s",
+			"FK key set failed: %lu (%lu %s), index: %s %s, %s",
 			rcode, referenced, wsrep_key_type_to_str(key_type),
 			(index && index->name)       ? index->name :
 				"void index",
@@ -10355,11 +10354,11 @@ wsrep_append_key(
 )
 {
 	DBUG_ENTER("wsrep_append_key");
-        DBUG_PRINT("enter",
-                   ("thd: %lld trx: %lld", thd_get_thread_id(thd),
-                    (long long)trx->id));
+	DBUG_PRINT("enter",
+		    ("thd: %lu trx: %lld", thd_get_thread_id(thd),
+		    (long long)trx->id));
 #ifdef WSREP_DEBUG_PRINT
-	fprintf(stderr, "%s conn %ld, trx %llu, keylen %d, table %s\n SQL: %s ",
+	fprintf(stderr, "%s conn %lu, trx %llu, keylen %d, table %s\n SQL: %s ",
 		wsrep_key_type_to_str(key_type),
 		thd_get_thread_id(thd), (long long)trx->id, key_len,
 		table_share->table_name.str, wsrep_thd_query(thd));
@@ -18595,9 +18594,8 @@ wsrep_innobase_kill_one_trx(
 	WSREP_LOG_CONFLICT((const void*)bf_thd, (const void*)thd, TRUE);
 
 	wsrep_thd_LOCK(thd);
-	WSREP_DEBUG("BF kill (%lu, seqno: %lld), victim: (%llu) trx: %llu",
- 		    signal, (long long)bf_seqno,
- 		    (long long)thd_get_thread_id(thd),
+	WSREP_DEBUG("BF kill (%lu, seqno: %lld), victim: (%lu) trx: %llu",
+		    signal, (long long)bf_seqno, thd_get_thread_id(thd),
 		    (long long)victim_trx->id);
 
 	WSREP_DEBUG("Aborting query: %s conf %s trx: %lld",
@@ -18611,8 +18609,8 @@ wsrep_innobase_kill_one_trx(
 		victim_trx->lock.was_chosen_as_deadlock_victim= TRUE;
 
 		if (victim_trx->lock.wait_lock) {
-			WSREP_DEBUG("victim has wait flag: %ld",
-				thd_get_thread_id(thd));
+			WSREP_DEBUG("victim has wait flag: %lu",
+				    thd_get_thread_id(thd));
 			lock_t*  wait_lock = victim_trx->lock.wait_lock;
 
 			if (wait_lock) {
@@ -18624,9 +18622,9 @@ wsrep_innobase_kill_one_trx(
 		} else {
 			/* abort currently executing query */
 			DBUG_PRINT("wsrep",("sending KILL_QUERY to: %lu",
-                                            thd_get_thread_id(thd)));
-			WSREP_DEBUG("kill query for: %ld",
-				thd_get_thread_id(thd));
+					    thd_get_thread_id(thd)));
+			WSREP_DEBUG("kill query for: %lu",
+				    thd_get_thread_id(thd));
 			/* Note that innobase_kill_query will take lock_mutex
 			and trx_mutex */
 			wsrep_thd_awake((const void*)thd, signal);
@@ -18703,7 +18701,7 @@ innobase_wsrep_get_checkpoint(
         trx_rseg_read_wsrep_checkpoint(*xid);
         return 0;
 }
-
+#if UNUSED /* 2b27ac8282ed (Marko Mäkelä 2018-05-01) */
 static void wsrep_fake_trx_id(handlerton *, THD *thd)
 {
 	trx_id_t trx_id = trx_sys.get_new_trx_id();
@@ -18711,7 +18709,7 @@ static void wsrep_fake_trx_id(handlerton *, THD *thd)
 		    trx_id, wsrep_thd_query(thd));
 	wsrep_ws_handle_for_trx(wsrep_thd_ws_handle(thd), trx_id);
 }
-
+#endif /* UNUSED */
 #endif /* WITH_WSREP */
 
 /* plugin options */

@@ -53,12 +53,13 @@
 #include "semisync_master.h"
 
 #include "mysql/service_wsrep.h"
-#include "wsrep.h"
 #include "wsrep_mysqld.h"
+#ifdef WITH_WSREP
 #include "wsrep_binlog.h"
 #include "wsrep_xid.h"
 #include "wsrep_thd.h"
 #include "wsrep_trans_observer.h" /* wsrep transaction hooks */
+#endif /* WITH_WSREP */
 #include "log.h"
 
 /*
@@ -1408,7 +1409,9 @@ int ha_commit_trans(THD *thd, bool all)
     thd->stmt_map.close_transient_cursors();
 
   uint rw_ha_count= ha_check_and_coalesce_trx_read_only(thd, ha_info, all);
+#ifdef WITH_WSREP
   trans->rw_ha_count= rw_ha_count;
+#endif /* WITH_WSREP */
   /* rw_trans is TRUE when we in a transaction changing data */
   bool rw_trans= is_real_trans &&
                  (rw_ha_count > (thd->is_current_stmt_binlog_disabled()?0U:1U));
@@ -1541,7 +1544,7 @@ int ha_commit_trans(THD *thd, bool all)
                                 need_commit_ordered);
   if (!cookie)
   {
-    WSREP_DEBUG("log_and_order has failed %lu %d", thd->thread_id, cookie);
+    WSREP_DEBUG("log_and_order has failed %llu %d", thd->thread_id, cookie);
     goto err;
   }
 
@@ -1607,7 +1610,8 @@ int ha_commit_trans(THD *thd, bool all)
     ha_rollback_trans(thd, all);
   else
   {
-    WSREP_DEBUG("rollback skipped %d %d",thd->rgi_slave, thd->rgi_slave->is_parallel_exec);
+    WSREP_DEBUG("rollback skipped %p %d",thd->rgi_slave,
+                thd->rgi_slave->is_parallel_exec);
   }
 end:
   if (rw_trans && mdl_request.ticket)
@@ -1701,7 +1705,9 @@ commit_one_phase_2(THD *thd, bool all, THD_TRANS *trans, bool is_real_trans)
     }
     trans->ha_list= 0;
     trans->no_2pc=0;
+#ifdef WITH_WSREP
     trans->rw_ha_count= 0;
+#endif /* WITH_WSREP */
     if (all)
     {
 #ifdef HAVE_QUERY_CACHE
@@ -1786,7 +1792,7 @@ int ha_rollback_trans(THD *thd, bool all)
 
 #ifdef WITH_WSREP
   (void) wsrep_before_rollback(thd, all);
-#endif // WITH_WSREP
+#endif /* WITH_WSREP */
   if (ha_info)
   {
     /* Close all cursors that can not survive ROLLBACK */
@@ -1813,7 +1819,9 @@ int ha_rollback_trans(THD *thd, bool all)
     }
     trans->ha_list= 0;
     trans->no_2pc=0;
+#ifdef WITH_WSREP
     trans->rw_ha_count= 0;
+#endif /* WITH_WSREP */
   }
 
   /*
@@ -1832,7 +1840,7 @@ int ha_rollback_trans(THD *thd, bool all)
                 thd->get_stmt_da()->message(), is_real_trans);
   }
   (void) wsrep_after_rollback(thd, all);
-#endif
+#endif /* WITH_WSREP */
   /* Always cleanup. Even if nht==0. There may be savepoints. */
   if (is_real_trans)
   {
@@ -2357,7 +2365,9 @@ int ha_rollback_to_savepoint(THD *thd, SAVEPOINT *sv)
   DBUG_ENTER("ha_rollback_to_savepoint");
 
   trans->no_2pc=0;
+#ifdef WITH_WSREP
   trans->rw_ha_count= 0;
+#endif /* WITH_WSREP */
   /*
     rolling back to savepoint in all storage engines that were part of the
     transaction when the savepoint was set

@@ -80,7 +80,6 @@ Created 10/8/1995 Heikki Tuuri
 #include <my_service_manager.h>
 
 #ifdef WITH_WSREP
-extern my_bool wsrep_debug;
 #include "mysql/service_wsrep.h"
 #endif
 /* The following is the maximum allowed duration of a lock wait. */
@@ -2426,6 +2425,8 @@ static bool srv_purge_should_exit()
 				"InnoDB: to purge " ULINTPF " transactions",
 				history_size);
 		}
+#else
+		(void)history_size; /* unused variable warning */
 #endif
 		return false;
 	}

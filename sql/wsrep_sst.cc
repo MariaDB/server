@@ -659,8 +659,6 @@ static ssize_t sst_prepare_mysqldump (const char*  addr_in,
   return ret;
 }
 
-static bool SE_initialized = false;
-
 std::string wsrep_sst_prepare()
 {
   const ssize_t ip_max= 256;
@@ -839,16 +837,18 @@ static int sst_donate_mysqldump (const char*         addr,
   int ret= snprintf (cmd_str(), cmd_len,
                      "wsrep_sst_mysqldump "
                      WSREP_SST_OPT_ADDR " '%s' "
-                     WSREP_SST_OPT_PORT " '%d' "
+                     WSREP_SST_OPT_PORT " '%u' "
                      WSREP_SST_OPT_LPORT " '%u' "
                      WSREP_SST_OPT_SOCKET " '%s' "
-                     " %s "
+                     WSREP_SST_OPT_CONF " '%s' "
                      WSREP_SST_OPT_GTID " '%s:%lld' "
                      WSREP_SST_OPT_GTID_DOMAIN_ID " '%d'"
                      "%s",
-                     addr, mysqld_port, mysqld_unix_port,
-                     wsrep_defaults_file, uuid_oss.str().c_str(),
-                     gtid.seqno().get(), bypass ? " " WSREP_SST_OPT_BYPASS : "");
+                     addr, port, mysqld_port, mysqld_unix_port,
+                     wsrep_defaults_file,
+                     uuid_oss.str().c_str(), gtid.seqno().get(),
+                     wsrep_gtid_domain_id,
+                     bypass ? " " WSREP_SST_OPT_BYPASS : "");
 
   if (ret < 0 || ret >= cmd_len)
   {

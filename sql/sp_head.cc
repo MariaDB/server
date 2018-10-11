@@ -44,7 +44,9 @@
 #include "transaction.h"       // trans_commit_stmt
 #include "sql_audit.h"
 #include "debug_sync.h"
+#ifdef WITH_WSREP
 #include "wsrep_trans_observer.h"
+#endif /* WITH_WSREP */
 
 /*
   Sufficient max length of printed destinations and frame offsets (all uints).
@@ -3186,7 +3188,7 @@ sp_head::show_routine_code(THD *thd)
     */
     if (ip != i->m_ip)
     {
-      const char *format= "Instruction at position %u has m_ip=%u";
+      const char format[]= "Instruction at position %u has m_ip=%u";
       char tmp[sizeof(format) + 2*SP_INSTR_UINT_MAXLEN + 1];
 
       sprintf(tmp, format, ip, i->m_ip);

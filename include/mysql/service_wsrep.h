@@ -81,6 +81,7 @@ extern struct wsrep_service_st {
   my_thread_id                (*wsrep_thd_thread_id_func)(const void* thd);
   my_bool                     (*wsrep_thd_is_wsrep_on_func)(const void* thd);
   const char *                (*wsrep_thd_query_func)(const void* thd);
+  int                         (*wsrep_thd_retry_counter_func)(THD *thd);
   bool                        (*wsrep_thd_ignore_table_func)(THD *thd);
   long long                   (*wsrep_thd_trx_seqno_func)(const void* thd);
   my_bool                     (*wsrep_thd_is_aborting_func)(const void* thd);
@@ -116,7 +117,6 @@ extern struct wsrep_service_st {
 #define wsrep_thd_retry_counter(T) wsrep_service->wsrep_thd_retry_counter_func(T)
 #define wsrep_thd_ignore_table(T) wsrep_service->wsrep_thd_ignore_table_func(T)
 #define wsrep_thd_trx_seqno(T) wsrep_service->wsrep_thd_trx_seqno_func(T)
-#define wsrep_trx_is_aborting(T) wsrep_service->wsrep_trx_is_aborting_func(T)
 #define wsrep_trx_order_before(T1,T2) wsrep_service->wsrep_trx_order_before_func(T1,T2)
 #define wsrep_thd_xid(T,X,S) wsrep_service->wsrep_thd_xid_func(T,X,S)
 
@@ -132,16 +132,13 @@ extern my_bool wsrep_load_data_splitting;
 extern my_bool wsrep_drupal_282555_workaround;
 extern my_bool wsrep_recovery;
 extern long wsrep_protocol_version;
-extern my_thread_id wsrep_thd_thread_id(THD *thd);
-  
-bool wsrep_consistency_check(THD *thd);
+
+extern "C" bool wsrep_consistency_check(THD *thd);
 bool wsrep_prepare_key_for_innodb(THD* thd, const unsigned char* cache_key, size_t cache_key_len, const unsigned char* row_id, size_t row_id_len, struct wsrep_buf* key, size_t* key_len);
 extern "C" const char *wsrep_thd_query(const void* thd);
 int wsrep_is_wsrep_xid(const void* xid);
 extern "C" long long get_wsrep_xid_seqno(const struct xid_t* xid);
 const unsigned char* get_wsrep_xid_uuid(const struct xid_t* xid);
-int wsrep_thd_retry_counter(THD *thd);
-my_bool wsrep_trx_is_aborting(const void* thd);
 my_bool wsrep_trx_order_before(const void* thd1, const void* thd2);
 long get_wsrep_protocol_version();
 extern "C" long long wsrep_thd_trx_seqno(const void* thd);
@@ -152,7 +149,6 @@ my_bool get_wsrep_recovery();
 my_bool get_wsrep_load_data_splitting();
 my_bool get_wsrep_log_conflicts();
 my_bool wsrep_aborting_thd_contains(THD *thd);
-my_bool wsrep_thd_is_wsrep(const void* thd);
 struct wsrep_ws_handle *wsrep_thd_ws_handle(THD *thd);
 void wsrep_aborting_thd_enqueue(THD *thd);
 void wsrep_post_commit(THD* thd, bool all);
@@ -212,7 +208,7 @@ extern "C" void wsrep_handle_SR_rollback(void *BF_thd_ptr, void *victim_thd_ptr)
 /* Return XID associated to thd */
 extern "C" void wsrep_thd_xid(const void* thd, void* xid, size_t size);
 /* Return thd retry counter */
-extern "C" int wsrep_thd_retry_counter(const void*);
+extern "C" int wsrep_thd_retry_counter(THD*);
 /* Signal thd to awake from wait */
 extern "C" void wsrep_thd_awake(const void* thd, my_bool signal);
 /* BF abort victim_thd */
