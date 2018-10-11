@@ -43,102 +43,79 @@ Created 2012/04/12 by Sunny Bains
 /** Default number of slots to use in ib_counter_t */
 #define IB_N_SLOTS		64
 
-/** Get the offset into the counter array. */
-template <typename Type, int N>
-struct generic_indexer_t {
-        /** @return offset within m_counter */
-        static size_t offset(size_t index) UNIV_NOTHROW
-	{
-                return(((index % N) + 1) * (CACHE_LINE_SIZE / sizeof(Type)));
-        }
-};
+/** Use the result of my_timer_cycles(), which mainly uses RDTSC for cycles
+as a random value. See the comments for my_timer_cycles() */
+/** @return result from RDTSC or similar functions. */
+static inline size_t
+get_rnd_value()
+{
+	size_t c = static_cast<size_t>(my_timer_cycles());
 
-/** Use the result of my_timer_cycles(), which mainly uses RDTSC for cycles,
-to index into the counter array. See the comments for my_timer_cycles() */
-template <typename Type=ulint, int N=1>
-struct counter_indexer_t : public generic_indexer_t<Type, N> {
-	/** @return result from RDTSC or similar functions. */
-	static size_t get_rnd_index() UNIV_NOTHROW
-	{
-		size_t	c = static_cast<size_t>(my_timer_cycles());
+	if (c != 0) {
+		return c;
+	}
 
-		if (c != 0) {
-			return(c);
-		} else {
-			/* We may go here if my_timer_cycles() returns 0,
-			so we have to have the plan B for the counter. */
+	/* We may go here if my_timer_cycles() returns 0,
+	so we have to have the plan B for the counter. */
 #if !defined(_WIN32)
-			return(size_t(os_thread_get_curr_id()));
+	return static_cast<size_t>(os_thread_get_curr_id());
 #else
-			LARGE_INTEGER cnt;
-			QueryPerformanceCounter(&cnt);
+	LARGE_INTEGER cnt;
+	QueryPerformanceCounter(&cnt);
 
-			return(static_cast<size_t>(cnt.QuadPart));
+	return static_cast<size_t>(cnt.QuadPart);
 #endif /* !_WIN32 */
-		}
-	}
+}
 
-	/** @return a random offset to the array */
-	static size_t get_rnd_offset() UNIV_NOTHROW
-	{
-		return(generic_indexer_t<Type, N>::offset(get_rnd_index()));
-	}
-};
-
-#define	default_indexer_t	counter_indexer_t
-
-/** Class for using fuzzy counters. The counter is relaxed atomic
+/** Class for using fuzzy counters. The counter is multi-instance relaxed atomic
 so the results are not guaranteed to be 100% accurate but close
 enough. Creates an array of counters and separates each element by the
 CACHE_LINE_SIZE bytes */
-template <
-	typename Type,
-	int N = IB_N_SLOTS,
-	template<typename, int> class Indexer = default_indexer_t>
-struct MY_ALIGNED(CACHE_LINE_SIZE) ib_counter_t
-{
+template <typename Type, int N = IB_N_SLOTS>
+struct ib_counter_t {
 	/** Increment the counter by 1. */
-	void inc() UNIV_NOTHROW { add(1); }
+	void inc() { add(1); }
 
 	/** Increment the counter by 1.
 	@param[in]	index	a reasonably thread-unique identifier */
-	void inc(size_t index) UNIV_NOTHROW { add(index, 1); }
+	void inc(size_t index) { add(index, 1); }
 
 	/** Add to the counter.
 	@param[in]	n	amount to be added */
-	void add(Type n) UNIV_NOTHROW { add(m_policy.get_rnd_offset(), n); }
+	void add(Type n) { add(get_rnd_value(), n); }
 
 	/** Add to the counter.
 	@param[in]	index	a reasonably thread-unique identifier
 	@param[in]	n	amount to be added */
-	void add(size_t index, Type n) UNIV_NOTHROW {
-		size_t	i = m_policy.offset(index);
+	void add(size_t index, Type n) {
+		index = index % N;
 
-		ut_ad(i < UT_ARR_SIZE(m_counter));
+		ut_ad(index < UT_ARR_SIZE(m_counter));
 
-		m_counter[i].fetch_add(n, std::memory_order_relaxed);
+		m_counter[index].value.fetch_add(n, std::memory_order_relaxed);
 	}
 
 	/* @return total value - not 100% accurate, since it is relaxed atomic*/
-	operator Type() const UNIV_NOTHROW {
+	operator Type() const {
 		Type	total = 0;
 
-		for (size_t i = 0; i < N; ++i) {
-			total += m_counter[m_policy.offset(i)].load(
-			    std::memory_order_relaxed);
+		for (const auto &counter : m_counter) {
+			total += counter.value.load(std::memory_order_relaxed);
 		}
 
 		return(total);
 	}
 
 private:
-	/** Indexer into the array */
-	Indexer<Type, N>m_policy;
+	/** Atomic which occupies whole CPU cache line */
+	struct MY_ALIGNED(CACHE_LINE_SIZE) ib_counter_element_t {
+		std::atomic<Type> value;
+		byte padding[CACHE_LINE_SIZE - sizeof(value)];
+	};
+	static_assert(sizeof(ib_counter_element_t) == CACHE_LINE_SIZE, "");
 
-        /** Slot 0 is unused. */
-	std::atomic<Type> m_counter[(N + 1) * (CACHE_LINE_SIZE / sizeof(Type))];
-	static_assert(sizeof(std::atomic<Type>) == sizeof(Type),
-		      "Sizes should match");
+	/** Array of counter elements */
+	ib_counter_element_t m_counter[N];
 };
 
 #endif /* ut0counter_h */
