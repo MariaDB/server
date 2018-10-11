@@ -2408,7 +2408,7 @@ files_checked:
 				  ? LOG_HEADER_FORMAT_10_2
 				  | LOG_HEADER_FORMAT_ENCRYPTED
 				  : LOG_HEADER_FORMAT_10_2))
-			   && log_sys->log.subformat == srv_safe_truncate) {
+			   && log_sys->log.subformat == !!srv_safe_truncate) {
 			/* No need to add or remove encryption,
 			upgrade, downgrade, or resize. */
 		} else {
