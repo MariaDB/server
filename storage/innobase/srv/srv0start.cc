@@ -565,34 +565,6 @@ create_log_files_rename(
 }
 
 /*********************************************************************//**
-Opens a log file.
-@return DB_SUCCESS or error code */
-static MY_ATTRIBUTE((nonnull, warn_unused_result))
-dberr_t
-open_log_file(
-/*==========*/
-	pfs_os_file_t*	file,	/*!< out: file handle */
-	const char*	name,	/*!< in: log file name */
-	os_offset_t*	size)	/*!< out: file size */
-{
-	bool	ret;
-
-	*file = os_file_create(innodb_log_file_key, name,
-			       OS_FILE_OPEN, OS_FILE_AIO,
-			       OS_LOG_FILE, srv_read_only_mode, &ret);
-	if (!ret) {
-		ib::error() << "Unable to open '" << name << "'";
-		return(DB_ERROR);
-	}
-
-	*size = os_file_get_size(*file);
-
-	ret = os_file_close(*file);
-	ut_a(ret);
-	return(DB_SUCCESS);
-}
-
-/*********************************************************************//**
 Create undo tablespace.
 @return DB_SUCCESS or error code */
 static
@@ -1760,8 +1732,9 @@ dberr_t srv_start(bool create_new_db)
 			return(srv_init_abort(err));
 		}
 	} else {
+		srv_log_file_size = 0;
+
 		for (i = 0; i < SRV_N_LOG_FILES_MAX; i++) {
-			os_offset_t	size;
 			os_file_stat_t	stat_info;
 
 			sprintf(logfilename + dirnamelen,
@@ -1779,40 +1752,6 @@ dberr_t srv_start(bool create_new_db)
 					    == SRV_OPERATION_RESTORE_EXPORT) {
 						return(DB_SUCCESS);
 					}
-					if (flushed_lsn
-					    < static_cast<lsn_t>(1000)) {
-						ib::error()
-							<< "Cannot create"
-							" log files because"
-							" data files are"
-							" corrupt or the"
-							" database was not"
-							" shut down cleanly"
-							" after creating"
-							" the data files.";
-						return(srv_init_abort(
-							DB_ERROR));
-					}
-
-					err = create_log_files(
-						logfilename, dirnamelen,
-						flushed_lsn, logfile0);
-
-					if (err == DB_SUCCESS) {
-						err = create_log_files_rename(
-							logfilename,
-							dirnamelen,
-							flushed_lsn, logfile0);
-					}
-
-					if (err != DB_SUCCESS) {
-						return(srv_init_abort(err));
-					}
-
-					/* Suppress the message about
-					crash recovery. */
-					flushed_lsn = log_get_lsn();
-					goto files_checked;
 				}
 
 				/* opened all files */
@@ -1823,12 +1762,7 @@ dberr_t srv_start(bool create_new_db)
 				return(srv_init_abort(DB_ERROR));
 			}
 
-			err = open_log_file(&files[i], logfilename, &size);
-
-			if (err != DB_SUCCESS) {
-				return(srv_init_abort(err));
-			}
-
+			const os_offset_t size = stat_info.size;
 			ut_a(size != (os_offset_t) -1);
 
 			if (size & (OS_FILE_LOG_BLOCK_SIZE - 1)) {
@@ -1853,8 +1787,13 @@ dberr_t srv_start(bool create_new_db)
 				/* The first log file must consist of
 				at least the following 512-byte pages:
 				header, checkpoint page 1, empty,
-				checkpoint page 2, redo log page(s) */
-				if (size <= OS_FILE_LOG_BLOCK_SIZE * 4) {
+				checkpoint page 2, redo log page(s).
+
+				Mariabackup --prepare would create an
+				empty ib_logfile0. Tolerate it if there
+				are no other ib_logfile* files. */
+				if ((size != 0 || i != 0)
+				    && size <= OS_FILE_LOG_BLOCK_SIZE * 4) {
 					ib::error() << "Log file "
 						<< logfilename << " size "
 						<< size << " is too small";
@@ -1869,6 +1808,39 @@ dberr_t srv_start(bool create_new_db)
 					<< srv_log_file_size << " bytes!";
 				return(srv_init_abort(DB_ERROR));
 			}
+		}
+
+		if (srv_log_file_size == 0) {
+			if (flushed_lsn < lsn_t(1000)) {
+				ib::error()
+					<< "Cannot create log files because"
+					" data files are corrupt or the"
+					" database was not shut down cleanly"
+					" after creating the data files.";
+				return srv_init_abort(DB_ERROR);
+			}
+
+			strcpy(logfilename + dirnamelen, "ib_logfile0");
+			srv_log_file_size = srv_log_file_size_requested;
+
+			err = create_log_files(
+				logfilename, dirnamelen,
+				flushed_lsn, logfile0);
+
+			if (err == DB_SUCCESS) {
+				err = create_log_files_rename(
+					logfilename, dirnamelen,
+					flushed_lsn, logfile0);
+			}
+
+			if (err != DB_SUCCESS) {
+				return(srv_init_abort(err));
+			}
+
+			/* Suppress the message about
+			crash recovery. */
+			flushed_lsn = log_get_lsn();
+			goto files_checked;
 		}
 
 		srv_n_log_files_found = i;
