@@ -222,11 +222,6 @@ struct row_log_t {
 				decryption or NULL */
 	const char*	path;	/*!< where to create temporary file during
 				log operation */
-	/** the instantly dropped columns in the clustered index of
-	the source table; before row_log_table_apply() completes, the
-	table could be emptied, so that table->is_instant() no longer holds,
-	but all log records must be in the "instant" format. */
-	dict_instant_t*	instant;
 	/** the number of core fields in the clustered index of the
 	source table; before row_log_table_apply() completes, the
 	table could be emptied, so that table->is_instant() no longer holds,
@@ -241,15 +236,14 @@ struct row_log_t {
 	const TABLE*	old_table; /*< Use old table in case of error. */
 
 	uint64_t	n_rows; /*< Number of rows read from the table */
-	/** Determine whether the log should be in the 'instant ALTER TABLE'
-	format
+	/** Determine whether the log should be in the 'instant ADD' format
 	@param[in]	index	the clustered index of the source table
-	@return	whether to use the 'instant ALTER TABLE' format */
+	@return	whether to use the 'instant ADD COLUMN' format */
 	bool is_instant(const dict_index_t* index) const
 	{
 		ut_ad(table);
-		ut_ad(n_core_fields <= index->n_fields || instant);
-		return instant || n_core_fields != index->n_fields;
+		ut_ad(n_core_fields <= index->n_fields);
+		return n_core_fields != index->n_fields;
 	}
 
 	const byte* instant_field_value(ulint n, ulint* len) const
@@ -2536,7 +2530,6 @@ row_log_table_apply_op(
 			}
 
 			rec_offs_set_n_fields(offsets, dup->index->n_fields);
-			/* FIXME: pass log->instant as well */
 			rec_init_offsets_temp(mrec, dup->index, offsets,
 					      log->n_core_fields,
 					      log->non_core_fields,
@@ -3212,10 +3205,8 @@ row_log_allocate(
 	log->head.total = 0;
 	log->path = path;
 	log->n_core_fields = index->n_core_fields;
-#if 1 /* FIXME: when we add instant->heap, this must be a copy! */
-	log->instant = index->table->instant;
-#endif
-	ut_ad(!table || log->is_instant(index) == index->is_instant());
+	ut_ad(!table || log->is_instant(index)
+	      == (index->n_core_fields < index->n_fields));
 	log->allow_not_null = allow_not_null;
 	log->old_table = old_table;
 	log->n_rows = 0;

@@ -222,7 +222,8 @@ connection ddl;
 SET DEBUG_SYNC='row_log_table_apply1_before SIGNAL copied WAIT_FOR logged';
 send ALTER TABLE t1 FORCE;
 
-disconnect stop_purge;
+connection stop_purge;
+COMMIT;
 
 connection default;
 SET DEBUG_SYNC = 'now WAIT_FOR copied';
@@ -230,6 +231,33 @@ let $wait_all_purged = 1;
 --source include/wait_all_purged.inc
 INSERT INTO t1 SET a=1;
 INSERT INTO t1 SET a=2,b=3,c=4;
+SET DEBUG_SYNC = 'now SIGNAL logged';
+
+connection ddl;
+reap;
+
+connection default;
+SET DEBUG_SYNC = RESET;
+SELECT * FROM t1;
+ALTER TABLE t1 DROP b, ALGORITHM=INSTANT;
+connection stop_purge;
+START TRANSACTION WITH CONSISTENT SNAPSHOT;
+
+connection default;
+DELETE FROM t1;
+
+connection ddl;
+SET DEBUG_SYNC='row_log_table_apply1_before SIGNAL copied WAIT_FOR logged';
+send ALTER TABLE t1 FORCE;
+
+disconnect stop_purge;
+
+connection default;
+SET DEBUG_SYNC = 'now WAIT_FOR copied';
+let $wait_all_purged = 1;
+--source include/wait_all_purged.inc
+INSERT INTO t1 SET a=1;
+INSERT INTO t1 SET a=2,c=4;
 SET DEBUG_SYNC = 'now SIGNAL logged';
 
 connection ddl;

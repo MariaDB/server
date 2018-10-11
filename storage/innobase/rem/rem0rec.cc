@@ -387,13 +387,6 @@ start:
 		} else if (i < n_fields) {
 			/* The field is present, and will be covered below. */
 		} else if (!mblob && def_val) {
-			/* FIXME: Fix the MDEV-16131 scenario when
-			instant DROP COLUMN was followed by
-			ALTER TABLE...FORCE, LOCK=NONE and the
-			table was emptied during row_log_table_apply().
-			Currently, def_val!=NULL only signals that
-			instant ADD had been used, but it is not
-			telling which columns were dropped. */
 			const dict_col_t::def_t& d = def_val[i - n_core];
 			if (!d.data) {
 				len = offs | REC_OFFS_SQL_NULL;
@@ -472,7 +465,8 @@ start:
 		} else {
 			len = offs += field->fixed_len;
 		}
-	} while (field++, rec_offs_base(offsets)[++i] = len, i < rec_offs_n_fields(offsets));
+	} while (field++, rec_offs_base(offsets)[++i] = len,
+		 i < rec_offs_n_fields(offsets));
 
 	*rec_offs_base(offsets)
 		= ulint(rec - (lens + 1)) | REC_OFFS_COMPACT | any;
