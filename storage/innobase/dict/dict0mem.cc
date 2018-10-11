@@ -529,6 +529,14 @@ dict_mem_table_col_rename_low(
 					= dict_index_get_nth_field(
 						index, i);
 
+				ut_ad(!field->name
+				      == field->col->is_dropped());
+				if (!field->name) {
+					/* dropped columns lack a name */
+					ut_ad(index->is_instant());
+					continue;
+				}
+
 				/* if is_virtual and that in field->col does
 				not match, continue */
 				if ((!is_virtual) !=
