@@ -36,9 +36,11 @@
 static void init_service_thd(THD* thd, char* thread_stack)
 {
   thd->thread_stack= thread_stack;
-  thd->thread_id= 0;
+  //thd->thread_id= 0;
   thd->real_id= pthread_self();
   thd->prior_thr_create_utime= thd->start_utime= microsecond_interval_timer();
+  thd->set_command(COM_SLEEP);
+  thd->reset_for_next_command(true);
 }
 
 wsrep::storage_service* Wsrep_server_service::storage_service(
@@ -46,7 +48,7 @@ wsrep::storage_service* Wsrep_server_service::storage_service(
 {
   Wsrep_client_service& cs=
     static_cast<Wsrep_client_service&>(client_service);
-  THD* thd = new THD(true, true);
+  THD* thd = new THD(next_thread_id(), true, true);
   init_service_thd(thd, cs.m_thd->thread_stack);
   WSREP_DEBUG("Created storage service with thread id %lu",
               thd->thread_id);
@@ -58,9 +60,9 @@ wsrep::storage_service* Wsrep_server_service::storage_service(
 {
   Wsrep_high_priority_service& hps=
     static_cast<Wsrep_high_priority_service&>(high_priority_service);
-  THD* thd = new THD(true, true);
+  THD* thd = new THD(next_thread_id(), true, true);
   init_service_thd(thd, hps.m_thd->thread_stack);
-  WSREP_DEBUG("Created storage service with thread id %lu",
+  WSREP_DEBUG("Created high priority storage service with thread id %lu",
               thd->thread_id);
   return new Wsrep_storage_service(thd);
 }
@@ -81,7 +83,7 @@ Wsrep_server_service::streaming_applier_service(
 {
   Wsrep_client_service& orig_cs=
     static_cast<Wsrep_client_service&>(orig_client_service);
-  THD* thd= new THD(true, true);
+  THD* thd= new THD(next_thread_id(), true, true);
   init_service_thd(thd, orig_cs.m_thd->thread_stack);
   WSREP_DEBUG("Created streaming applier service in local context with "
               "thread id %lu", thd->thread_id);
@@ -94,7 +96,7 @@ Wsrep_server_service::streaming_applier_service(
 {
   Wsrep_high_priority_service&
     orig_hps(static_cast<Wsrep_high_priority_service&>(orig_high_priority_service));
-  THD* thd= new THD(true, true);
+  THD* thd= new THD(next_thread_id(), true, true);
   init_service_thd(thd, orig_hps.m_thd->thread_stack);
   WSREP_DEBUG("Created streaming applier service in high priority "
               "context with thread id %lu", thd->thread_id);
