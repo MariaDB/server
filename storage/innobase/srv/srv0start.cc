@@ -1393,15 +1393,15 @@ srv_prepare_to_delete_redo_log_files(
 	ulint	pending_io = 0;
 	ulint	count = 0;
 
-	if (srv_57_truncate) {
+	if (srv_safe_truncate) {
 		if ((log_sys->log.format & ~LOG_HEADER_FORMAT_ENCRYPTED)
-		    != LOG_HEADER_FORMAT_10_2) {
+		    != LOG_HEADER_FORMAT_10_3
+		    || log_sys->log.subformat != 1) {
 			srv_log_file_size = 0;
 		}
 	} else {
 		if ((log_sys->log.format & ~LOG_HEADER_FORMAT_ENCRYPTED)
-		    != LOG_HEADER_FORMAT_10_3
-		    || log_sys->log.subformat != 1) {
+		    != LOG_HEADER_FORMAT_10_2) {
 			srv_log_file_size = 0;
 		}
 	}
@@ -2399,16 +2399,16 @@ files_checked:
 		} else if (srv_log_file_size_requested == srv_log_file_size
 			   && srv_n_log_files_found == srv_n_log_files
 			   && log_sys->log.format
-			   == (srv_57_truncate
+			   == (srv_safe_truncate
 			       ? (srv_encrypt_log
-				  ? LOG_HEADER_FORMAT_10_2
-				  | LOG_HEADER_FORMAT_ENCRYPTED
-				  : LOG_HEADER_FORMAT_10_2)
-			       : (srv_encrypt_log
 				  ? LOG_HEADER_FORMAT_10_3
 				  | LOG_HEADER_FORMAT_ENCRYPTED
-				  : LOG_HEADER_FORMAT_10_3))
-			   && log_sys->log.subformat == !srv_57_truncate) {
+				  : LOG_HEADER_FORMAT_10_3)
+			       : (srv_encrypt_log
+				  ? LOG_HEADER_FORMAT_10_2
+				  | LOG_HEADER_FORMAT_ENCRYPTED
+				  : LOG_HEADER_FORMAT_10_2))
+			   && log_sys->log.subformat == srv_safe_truncate) {
 			/* No need to add or remove encryption,
 			upgrade, downgrade, or resize. */
 		} else {

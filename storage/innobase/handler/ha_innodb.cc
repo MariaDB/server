@@ -13452,7 +13452,7 @@ int ha_innobase::truncate()
 
 	update_thd();
 
-	if (srv_57_truncate) {
+	if (!srv_safe_truncate) {
 		if (!trx_is_started(m_prebuilt->trx)) {
 			++m_prebuilt->trx->will_lock;
 		}
@@ -20694,10 +20694,10 @@ static MYSQL_SYSVAR_BOOL(read_only, srv_read_only_mode,
   "Start InnoDB in read only mode (off by default)",
   NULL, NULL, FALSE);
 
-static MYSQL_SYSVAR_BOOL(unsafe_truncate, srv_57_truncate,
+static MYSQL_SYSVAR_BOOL(safe_truncate, srv_safe_truncate,
   PLUGIN_VAR_OPCMDARG | PLUGIN_VAR_READONLY,
-  "Use backup-unsafe TRUNCATE TABLE for compatibility with xtrabackup (on by default)",
-  NULL, NULL, TRUE);
+  "Use backup-safe TRUNCATE TABLE and crash-safe RENAME (incompatible with older MariaDB 10.2; OFF by default)",
+  NULL, NULL, FALSE);
 
 static MYSQL_SYSVAR_BOOL(cmp_per_index_enabled, srv_cmp_per_index_enabled,
   PLUGIN_VAR_OPCMDARG,
@@ -21078,7 +21078,7 @@ static struct st_mysql_sys_var* innobase_system_variables[]= {
   MYSQL_SYSVAR(random_read_ahead),
   MYSQL_SYSVAR(read_ahead_threshold),
   MYSQL_SYSVAR(read_only),
-  MYSQL_SYSVAR(unsafe_truncate),
+  MYSQL_SYSVAR(safe_truncate),
   MYSQL_SYSVAR(io_capacity),
   MYSQL_SYSVAR(io_capacity_max),
   MYSQL_SYSVAR(page_cleaners),

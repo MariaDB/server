@@ -1,2 +1,2 @@
 --loose-innodb-sys-tables
---loose-skip-innodb-unsafe-truncate
+--loose-innodb-safe-truncate=1

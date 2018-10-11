@@ -1,4 +1,4 @@
 --loose-innodb-sys-tables
 --loose-innodb-sys-tablespaces
 --loose-innodb-sys-datafiles
---loose-skip-innodb-unsafe-truncate
+--loose-innodb-safe-truncate=1

@@ -1938,7 +1938,7 @@ trx_undo_report_rename(trx_t* trx, const dict_table_t* table)
 	ut_ad(!trx->read_only);
 	ut_ad(trx->id);
 	ut_ad(!table->is_temporary());
-	ut_ad(!srv_57_truncate);
+	ut_ad(srv_safe_truncate);
 
 	trx_rseg_t*	rseg	= trx->rsegs.m_redo.rseg;
 	trx_undo_t**	pundo	= &trx->rsegs.m_redo.insert_undo;

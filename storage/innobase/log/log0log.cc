@@ -790,15 +790,15 @@ log_init(ulint n_files)
 	log_group_t*	group = &log_sys->log;
 
 	group->n_files = n_files;
-	group->subformat = !srv_57_truncate;
-	if (srv_57_truncate) {
-		group->format = srv_encrypt_log
-			? LOG_HEADER_FORMAT_10_2 | LOG_HEADER_FORMAT_ENCRYPTED
-			: LOG_HEADER_FORMAT_10_2;
-	} else {
+	group->subformat = srv_safe_truncate;
+	if (srv_safe_truncate) {
 		group->format = srv_encrypt_log
 			? LOG_HEADER_FORMAT_10_3 | LOG_HEADER_FORMAT_ENCRYPTED
 			: LOG_HEADER_FORMAT_10_3;
+	} else {
+		group->format = srv_encrypt_log
+			? LOG_HEADER_FORMAT_10_2 | LOG_HEADER_FORMAT_ENCRYPTED
+			: LOG_HEADER_FORMAT_10_2;
 	}
 	group->file_size = srv_log_file_size;
 	group->state = LOG_GROUP_OK;
@@ -881,15 +881,15 @@ log_group_file_header_flush(
 	ut_ad(!recv_no_log_write);
 	ut_a(nth_file < group->n_files);
 	ut_ad((group->format & ~LOG_HEADER_FORMAT_ENCRYPTED)
-	      == (srv_57_truncate
-		  ? LOG_HEADER_FORMAT_10_2
-		  : LOG_HEADER_FORMAT_10_3));
+	      == (srv_safe_truncate
+		  ? LOG_HEADER_FORMAT_10_3
+		  : LOG_HEADER_FORMAT_10_2));
 
 	buf = *(group->file_header_bufs + nth_file);
 
 	memset(buf, 0, OS_FILE_LOG_BLOCK_SIZE);
 	mach_write_to_4(buf + LOG_HEADER_FORMAT, group->format);
-	mach_write_to_4(buf + LOG_HEADER_SUBFORMAT, !srv_57_truncate);
+	mach_write_to_4(buf + LOG_HEADER_SUBFORMAT, srv_safe_truncate);
 	mach_write_to_8(buf + LOG_HEADER_START_LSN, start_lsn);
 	strcpy(reinterpret_cast<char*>(buf) + LOG_HEADER_CREATOR,
 	       LOG_HEADER_CREATOR_CURRENT);

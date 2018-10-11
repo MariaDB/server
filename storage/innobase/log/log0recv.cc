@@ -3769,7 +3769,7 @@ recv_recovery_rollback_active(void)
 		/* Drop partially created indexes. */
 		row_merge_drop_temp_indexes();
 		/* Drop garbage tables. */
-		if (!srv_57_truncate)
+		if (srv_safe_truncate)
 		row_mysql_drop_garbage_tables();
 
 		/* Drop any auxiliary tables that were not dropped when the
