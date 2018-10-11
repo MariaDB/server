@@ -13,7 +13,7 @@ engine=CONNECT table_type=FIX file_name='boys.txt' mapped=YES lrecl=47 ending=1;
 select * from t1;
 drop table t1;
 
---error ER_NULL_COLUMN_IN_INDEX
+--error ER_KEY_BASED_ON_GENERATED_VIRTUAL_COLUMN
 create table t1 (
   #linenum int(6) not null default 0 special=rowid,
   name char(12) not null,
