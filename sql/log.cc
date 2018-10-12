@@ -9713,7 +9713,7 @@ TC_LOG_BINLOG::log_and_order(THD *thd, my_xid xid, bool all,
     here any more
    */
     if (WSREP(thd)                                                                      &&
-        thd->wsrep_cs().transaction().state() != wsrep::transaction::state::s_committed &&
+        thd->wsrep_cs().transaction().state() != wsrep::transaction::s_committed &&
         thd->wsrep_cs().mode() != wsrep::client_state::m_local                          &&
         wsrep_before_commit(thd, all))
   {
@@ -9723,7 +9723,7 @@ TC_LOG_BINLOG::log_and_order(THD *thd, my_xid xid, bool all,
 #endif /* WITH_WSREP */
 #ifdef WITH_WSREP
   if (WSREP(thd)                                                                      &&
-      thd->wsrep_cs().transaction().state() != wsrep::transaction::state::s_committed &&
+      thd->wsrep_cs().transaction().state() != wsrep::transaction::s_committed &&
       thd->wsrep_cs().mode() != wsrep::client_state::m_local)
   {
     /*
