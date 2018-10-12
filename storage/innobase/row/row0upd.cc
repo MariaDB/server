@@ -2609,10 +2609,10 @@ row_upd_sec_step(
 }
 
 #ifdef UNIV_DEBUG
-# define row_upd_clust_rec_by_insert_inherit(rec,offsets,entry,update)	\
-	row_upd_clust_rec_by_insert_inherit_func(rec,offsets,entry,update)
+# define row_upd_clust_rec_by_insert_inherit(rec,index,offsets,entry,update) \
+	row_upd_clust_rec_by_insert_inherit_func(rec,index,offsets,entry,update)
 #else /* UNIV_DEBUG */
-# define row_upd_clust_rec_by_insert_inherit(rec,offsets,entry,update)	\
+# define row_upd_clust_rec_by_insert_inherit(rec,index,offsets,entry,update) \
 	row_upd_clust_rec_by_insert_inherit_func(rec,entry,update)
 #endif /* UNIV_DEBUG */
 /*******************************************************************//**
@@ -2627,6 +2627,7 @@ row_upd_clust_rec_by_insert_inherit_func(
 /*=====================================*/
 	const rec_t*	rec,	/*!< in: old record, or NULL */
 #ifdef UNIV_DEBUG
+	dict_index_t*	index,	/*!< in: index, or NULL */
 	const ulint*	offsets,/*!< in: rec_get_offsets(rec), or NULL */
 #endif /* UNIV_DEBUG */
 	dtuple_t*	entry,	/*!< in/out: updated entry to be
@@ -2637,6 +2638,8 @@ row_upd_clust_rec_by_insert_inherit_func(
 	ulint	i;
 
 	ut_ad(!rec == !offsets);
+	ut_ad(!rec == !index);
+	ut_ad(!rec || rec_offs_validate(rec, index, offsets));
 	ut_ad(!rec || rec_offs_any_extern(offsets));
 
 	for (i = 0; i < dtuple_get_n_fields(entry); i++) {
@@ -2647,6 +2650,9 @@ row_upd_clust_rec_by_insert_inherit_func(
 		ut_ad(!offsets
 		      || !rec_offs_nth_extern(offsets, i)
 		      == !dfield_is_ext(dfield)
+		      || (!dict_index_get_nth_field(index, i)->name
+			  && !dfield_is_ext(dfield)
+			  && (dfield_is_null(dfield) || dfield->len == 0))
 		      || upd_get_field_by_field_no(update, i, false));
 		if (!dfield_is_ext(dfield)
 		    || upd_get_field_by_field_no(update, i, false)) {
@@ -2754,7 +2760,7 @@ row_upd_clust_rec_by_insert(
 		/* A lock wait occurred in row_ins_clust_index_entry() in
 		the previous invocation of this function. */
 		row_upd_clust_rec_by_insert_inherit(
-			NULL, NULL, entry, node->update);
+			NULL, NULL, NULL, entry, node->update);
 		break;
 	case UPD_NODE_UPDATE_CLUSTERED:
 		/* This is the first invocation of the function where
@@ -2795,7 +2801,8 @@ err_exit:
 
 		if (rec_offs_any_extern(offsets)) {
 			if (row_upd_clust_rec_by_insert_inherit(
-				    rec, offsets, entry, node->update)) {
+				    rec, index, offsets,
+				    entry, node->update)) {
 				/* The blobs are disowned here, expecting the
 				insert down below to inherit them.  But if the
 				insert fails, then this disown will be undone
