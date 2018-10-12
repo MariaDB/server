@@ -4090,7 +4090,7 @@ static int init_common_variables()
                    tc_size * 2);
 #if defined(HAVE_POOL_OF_THREADS) && !defined(__WIN__)
     // add epoll or kevent fd for each threadpool group, in case pool of threads is used
-    wanted_file+= (thread_handling > SCHEDULER_NO_THREADS) ? 0 : threadpool_size;
+    wanted_files+= (thread_handling > SCHEDULER_NO_THREADS) ? 0 : threadpool_size;
 #endif
     /*
       We are trying to allocate no less than max_connections*5 file
