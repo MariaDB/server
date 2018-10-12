@@ -257,7 +257,7 @@ let $binlog_start= query_get_value(SHOW MASTER STATUS, Position, 1);
 INSERT INTO t1 VALUES(1);
 --source include/show_binlog_events2.inc
 let $pos2= query_get_value(SHOW MASTER STATUS, Position, 1);
---exec $MYSQL_BINLOG --short-form --start-position=$binlog_start --stop-position=$pos2 --rewrite-db='test->ts`et' $MYSQLD_DATADIR/master-bin.000002
+--exec $MYSQL_BINLOG --short-form --start-position=$binlog_start --stop-position=$pos2 "--rewrite-db=test->ts`et" $MYSQLD_DATADIR/master-bin.000002
 DROP TABLE t1;
 
 --source include/rpl_end.inc
