@@ -35,16 +35,6 @@
 #include "sp_cache.h"                     // sp_invalidate_cache
 #include <mysys_err.h>
 
-LEX_CSTRING *make_lex_string(LEX_CSTRING *lex_str,
-                             const char* str, size_t length,
-                             MEM_ROOT *mem_root)
-{
-  if (!(lex_str->str= strmake_root(mem_root, str, length)))
-    return 0;
-  lex_str->length= length;
-  return lex_str;
-}
-
 /*************************************************************************/
 
 /**
@@ -1503,8 +1493,8 @@ bool Table_triggers_list::check_n_load(THD *thd, const LEX_CSTRING *db,
 
           if (likely((name= error_handler.get_trigger_name())))
           {
-            if (unlikely(!(make_lex_string(&trigger->name, name->str,
-                                           name->length, &table->mem_root))))
+            trigger->name= safe_lexcstrdup_root(&table->mem_root, *name);
+            if (unlikely(!trigger->name.str))
               goto err_with_lex_cleanup;
           }
           trigger->definer= ((!trg_definer || !trg_definer->length) ?

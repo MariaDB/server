@@ -492,3 +492,14 @@ void *memdup_root(MEM_ROOT *root, const void *str, size_t len)
     memcpy(pos,str,len);
   return pos;
 }
+
+LEX_CSTRING safe_lexcstrdup_root(MEM_ROOT *root, const LEX_CSTRING str)
+{
+  LEX_CSTRING res;
+  if (str.length)
+    res.str= strmake_root(root, str.str, str.length);
+  else
+    res.str= (const char *)"";
+  res.length= str.length;
+  return res;
+}

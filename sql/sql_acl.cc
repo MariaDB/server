@@ -152,8 +152,7 @@ public:
     if (!dst)
       return 0;
     *dst= *this;
-    dst->user.str= safe_strdup_root(root, user.str);
-    dst->user.length= user.length;
+    dst->user= safe_lexcstrdup_root(root, user);
     dst->ssl_cipher= safe_strdup_root(root, ssl_cipher);
     dst->x509_issuer= safe_strdup_root(root, x509_issuer);
     dst->x509_subject= safe_strdup_root(root, x509_subject);
@@ -161,11 +160,10 @@ public:
         plugin.str == old_password_plugin_name.str)
       dst->plugin= plugin;
     else
-      dst->plugin.str= strmake_root(root, plugin.str, plugin.length);
-    dst->auth_string.str= safe_strdup_root(root, auth_string.str);
+      dst->plugin= safe_lexcstrdup_root(root, plugin);
+    dst->auth_string= safe_lexcstrdup_root(root, auth_string);
     dst->host.hostname= safe_strdup_root(root, host.hostname);
-    dst->default_rolename.str= safe_strdup_root(root, default_rolename.str);
-    dst->default_rolename.length= default_rolename.length;
+    dst->default_rolename= safe_lexcstrdup_root(root, default_rolename);
     bzero(&dst->role_grants, sizeof(role_grants));
     return dst;
   }
@@ -1337,8 +1335,7 @@ ACL_ROLE::ACL_ROLE(ACL_USER *user, MEM_ROOT *root) : counter(0)
   access= user->access;
   /* set initial role access the same as the table row privileges */
   initial_role_access= user->access;
-  this->user.str= safe_strdup_root(root, user->user.str);
-  this->user.length= user->user.length;
+  this->user= safe_lexcstrdup_root(root, user->user);
   bzero(&role_grants, sizeof(role_grants));
   bzero(&parent_grantee, sizeof(parent_grantee));
   flags= IS_ROLE;
@@ -2628,11 +2625,9 @@ static void acl_update_user(const char *user, const char *host,
       if (plugin->str[0])
       {
         acl_user->plugin= *plugin;
-        acl_user->auth_string.str= auth->str ?
-          strmake_root(&acl_memroot, auth->str, auth->length) : const_cast<char*>("");
-        acl_user->auth_string.length= auth->length;
+        acl_user->auth_string= safe_lexcstrdup_root(&acl_memroot, *auth);
         if (fix_user_plugin_ptr(acl_user))
-          acl_user->plugin.str= strmake_root(&acl_memroot, plugin->str, plugin->length);
+          acl_user->plugin= safe_lexcstrdup_root(&acl_memroot, *plugin);
       }
       else
         if (password[0])
@@ -2707,11 +2702,9 @@ static void acl_insert_user(const char *user, const char *host,
   if (plugin->str[0])
   {
     acl_user.plugin= *plugin;
-    acl_user.auth_string.str= auth->str ?
-      strmake_root(&acl_memroot, auth->str, auth->length) : const_cast<char*>("");
-    acl_user.auth_string.length= auth->length;
+    acl_user.auth_string= safe_lexcstrdup_root(&acl_memroot, *auth);
     if (fix_user_plugin_ptr(&acl_user))
-      acl_user.plugin.str= strmake_root(&acl_memroot, plugin->str, plugin->length);
+      acl_user.plugin= safe_lexcstrdup_root(&acl_memroot, *plugin);
   }
   else
   {
@@ -3299,8 +3292,7 @@ bool change_password(THD *thd, LEX_USER *user)
   if (acl_user->plugin.str == native_password_plugin_name.str ||
       acl_user->plugin.str == old_password_plugin_name.str)
   {
-    acl_user->auth_string.str= strmake_root(&acl_memroot, user->pwhash.str, user->pwhash.length);
-    acl_user->auth_string.length= user->pwhash.length;
+    acl_user->auth_string= safe_lexcstrdup_root(&acl_memroot, user->pwhash);
     set_user_salt(acl_user, user->pwhash.str, user->pwhash.length);
 
     set_user_plugin(acl_user, user->pwhash.length);
@@ -9608,8 +9600,7 @@ static int handle_grant_struct(enum enum_acl_lists struct_no, bool drop,
       my_hash_delete(&acl_roles, (uchar*) acl_role);
       DBUG_RETURN(1);
     }
-    acl_role->user.str= strdup_root(&acl_memroot, user_to->user.str);
-    acl_role->user.length= user_to->user.length;
+    acl_role->user= safe_lexcstrdup_root(&acl_memroot, user_to->user);
 
     my_hash_update(&acl_roles, (uchar*) acl_role, (uchar*) old_key,
                    old_key_length);
@@ -9800,8 +9791,7 @@ static int handle_grant_struct(enum enum_acl_lists struct_no, bool drop,
     {
       switch ( struct_no ) {
       case USER_ACL:
-        acl_user->user.str= strdup_root(&acl_memroot, user_to->user.str);
-        acl_user->user.length= user_to->user.length;
+        acl_user->user= safe_lexcstrdup_root(&acl_memroot, user_to->user);
         update_hostname(&acl_user->host, strdup_root(&acl_memroot, user_to->host.str));
         acl_user->hostname_length= strlen(acl_user->host.hostname);
         break;
