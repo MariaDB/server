@@ -2042,3 +2042,36 @@ SELECT * FROM
 WHERE ((a,b) IN ((1,2),(3,2)));
 
 DROP TABLE t1;
+
+--echo #
+--echo # MDEV-17354: INSERT SELECT with condition pushdown into derived
+--echo #
+
+CREATE TABLE t1 (f INT NOT NULL);
+INSERT INTO t1 VALUES (3), (7), (3);
+
+CREATE ALGORITHM= TEMPTABLE VIEW v1 AS SELECT * FROM ( SELECT * FROM t1 ) AS sq;
+
+let $q1=
+INSERT INTO t1
+SELECT * FROM ( SELECT t1.f FROM v1 JOIN t1 ) AS t WHERE f IS NOT NULL;
+
+eval $q1;
+eval EXPLAIN $q1;
+eval EXPLAIN FORMAT=JSON $q1;
+SELECT * FROM t1;
+
+DELETE FROM t1;
+INSERT INTO t1 VALUES (3), (7), (3);
+
+let $q2=
+INSERT INTO t1
+SELECT * FROM ( SELECT t1.f FROM v1 JOIN t1 ON v1.f=t1.f) AS t
+  WHERE f IS NOT NULL;
+
+eval $q2;
+eval EXPLAIN FORMAT=JSON $q2;
+SELECT * FROM t1;
+
+DROP VIEW v1;
+DROP TABLE t1;
