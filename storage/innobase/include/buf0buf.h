@@ -1439,10 +1439,9 @@ buf_page_encrypt_before_write(
 NOTE! The definition appears here only for other modules of this
 directory (buf) to see it. Do not use from outside! */
 
-typedef struct {
-private:
-	int32		reserved;	/*!< true if this slot is reserved
-					*/
+class buf_tmp_buffer_t {
+	/** whether this slot is reserved */
+	std::atomic<bool> reserved;
 public:
 	byte*           crypt_buf;	/*!< for encryption the data needs to be
 					copied to a separate buffer before it's
@@ -1458,18 +1457,16 @@ public:
 	/** Release the slot */
 	void release()
 	{
-		my_atomic_store32_explicit(&reserved, false,
-					   MY_MEMORY_ORDER_RELAXED);
+		reserved.store(false, std::memory_order_relaxed);
 	}
 
 	/** Acquire the slot
 	@return whether the slot was acquired */
 	bool acquire()
 	{
-		return !my_atomic_fas32_explicit(&reserved, true,
-						 MY_MEMORY_ORDER_RELAXED);
+		return !reserved.exchange(true, std::memory_order_relaxed);
 	}
-} buf_tmp_buffer_t;
+};
 
 /** The common buffer control block structure
 for compressed and uncompressed frames */
