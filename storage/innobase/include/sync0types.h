@@ -1184,28 +1184,4 @@ private:
 	/** The counter */
 	Type	m_counter;
 };
-
-/** Simple atomic counter aligned to CACHE_LINE_SIZE
-@tparam	Type	lint or ulint */
-template <typename Type = ulint>
-struct MY_ALIGNED(CPU_LEVEL1_DCACHE_LINESIZE) simple_atomic_counter
-{
-	/** Increment the counter */
-	Type inc() { return add(1); }
-	/** Decrement the counter */
-	Type dec() { return add(Type(~0)); }
-
-	/** Add to the counter
-	@param[in]	i	amount to be added
-	@return	the value of the counter before adding */
-	Type add(Type i) { return my_atomic_addlint(&m_counter, i); }
-
-	/** @return the value of the counter (non-atomic access)! */
-	operator Type() const { return m_counter; }
-
-private:
-	/** The counter */
-	Type	m_counter;
-};
-
 #endif /* sync0types_h */
