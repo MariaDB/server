@@ -1281,7 +1281,7 @@ void
 dict_table_t::acquire()
 {
 	ut_ad(mutex_own(&dict_sys->mutex));
-	my_atomic_add32_explicit(&n_ref_count, 1, MY_MEMORY_ORDER_RELAXED);
+	n_ref_count++;
 }
 
 /** Release the table handle.
@@ -1290,8 +1290,7 @@ inline
 bool
 dict_table_t::release()
 {
-	int32 n = my_atomic_add32_explicit(
-			&n_ref_count, -1, MY_MEMORY_ORDER_RELAXED);
+	auto n = n_ref_count--;
 	ut_ad(n > 0);
 	return n == 1;
 }
