@@ -277,40 +277,45 @@ struct TTASMutex {
 
 	~TTASMutex()
 	{
-		ut_ad(m_lock_word == MUTEX_STATE_UNLOCKED);
+		ut_ad(m_lock_word.load(std::memory_order_relaxed)
+		      == MUTEX_STATE_UNLOCKED);
 	}
 
 	/** Called when the mutex is "created". Note: Not from the constructor
 	but when the mutex is initialised. */
 	void init(latch_id_t) UNIV_NOTHROW
 	{
-		ut_ad(m_lock_word == MUTEX_STATE_UNLOCKED);
+		ut_ad(m_lock_word.load(std::memory_order_relaxed)
+		      == MUTEX_STATE_UNLOCKED);
 	}
 
 	/** Destroy the mutex. */
 	void destroy() UNIV_NOTHROW
 	{
 		/* The destructor can be called at shutdown. */
-		ut_ad(m_lock_word == MUTEX_STATE_UNLOCKED);
+		ut_ad(m_lock_word.load(std::memory_order_relaxed)
+		      == MUTEX_STATE_UNLOCKED);
 	}
 
 	/** Try and lock the mutex.
 	@return true on success */
 	bool try_lock() UNIV_NOTHROW
 	{
-		int32 oldval = MUTEX_STATE_UNLOCKED;
-		return(my_atomic_cas32_strong_explicit(&m_lock_word, &oldval,
-						       MUTEX_STATE_LOCKED,
-						       MY_MEMORY_ORDER_ACQUIRE,
-						       MY_MEMORY_ORDER_RELAXED));
+		uint32_t oldval = MUTEX_STATE_UNLOCKED;
+		return m_lock_word.compare_exchange_strong(
+			oldval,
+			MUTEX_STATE_LOCKED,
+			std::memory_order_acquire,
+			std::memory_order_relaxed);
 	}
 
 	/** Release the mutex. */
 	void exit() UNIV_NOTHROW
 	{
-		ut_ad(m_lock_word == MUTEX_STATE_LOCKED);
-		my_atomic_store32_explicit(&m_lock_word, MUTEX_STATE_UNLOCKED,
-					   MY_MEMORY_ORDER_RELEASE);
+		ut_ad(m_lock_word.load(std::memory_order_relaxed)
+		      == MUTEX_STATE_LOCKED);
+		m_lock_word.store(MUTEX_STATE_UNLOCKED,
+				  std::memory_order_release);
 	}
 
 	/** Acquire the mutex.
@@ -353,9 +358,8 @@ private:
 	/** Policy data */
 	MutexPolicy		m_policy;
 
-	/** lock_word is the target of the atomic test-and-set instruction
-	when atomic operations are enabled. */
-	int32			m_lock_word;
+	/** mutex state */
+	std::atomic<uint32_t>	m_lock_word;
 };
 
 template <template <typename> class Policy = NoPolicy>
