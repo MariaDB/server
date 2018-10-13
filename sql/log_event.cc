@@ -4429,7 +4429,7 @@ int Query_log_event::do_apply_event(rpl_group_info *rgi,
 
           gtid= rgi->current_gtid;
           if (rpl_global_gtid_slave_state->record_gtid(thd, &gtid, sub_id,
-                                                       true, false))
+                                                       rgi, false))
           {
             int errcode= thd->get_stmt_da()->sql_errno();
             if (!is_parallel_retry_error(rgi, errcode))
@@ -7132,7 +7132,7 @@ Gtid_list_log_event::do_apply_event(rpl_group_info *rgi)
     {
       if ((ret= rpl_global_gtid_slave_state->record_gtid(thd, &list[i],
                                                         sub_id_list[i],
-                                                        false, false)))
+                                                        NULL, false)))
         return ret;
       rpl_global_gtid_slave_state->update_state_hash(sub_id_list[i], &list[i],
                                                     NULL);
@@ -7639,7 +7639,7 @@ int Xid_log_event::do_apply_event(rpl_group_info *rgi)
     rgi->gtid_pending= false;
 
     gtid= rgi->current_gtid;
-    err= rpl_global_gtid_slave_state->record_gtid(thd, &gtid, sub_id, true,
+    err= rpl_global_gtid_slave_state->record_gtid(thd, &gtid, sub_id, rgi,
                                                   false);
     if (err)
     {
