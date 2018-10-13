@@ -270,7 +270,7 @@ is_partition(
 
 /** Signal to shut down InnoDB (NULL if shutdown was signaled, or if
 running in innodb_read_only mode, srv_read_only_mode) */
-st_my_thread_var *srv_running;
+std::atomic <st_my_thread_var *> srv_running;
 /** Service thread that waits for the server shutdown and stops purge threads.
 Purge workers have THDs that are needed to calculate virtual columns.
 This THDs must be destroyed rather early in the server shutdown sequence.
@@ -297,16 +297,12 @@ thd_destructor_proxy(void *)
 	myvar->current_cond = &thd_destructor_cond;
 
 	mysql_mutex_lock(&thd_destructor_mutex);
-	my_atomic_storeptr_explicit(reinterpret_cast<void**>(&srv_running),
-				    myvar,
-				    MY_MEMORY_ORDER_RELAXED);
+	srv_running.store(myvar, std::memory_order_relaxed);
 	/* wait until the server wakes the THD to abort and die */
-	while (!srv_running->abort)
+	while (!myvar->abort)
 		mysql_cond_wait(&thd_destructor_cond, &thd_destructor_mutex);
 	mysql_mutex_unlock(&thd_destructor_mutex);
-	my_atomic_storeptr_explicit(reinterpret_cast<void**>(&srv_running),
-				    NULL,
-				    MY_MEMORY_ORDER_RELAXED);
+	srv_running.store(NULL, std::memory_order_relaxed);
 
 	while (srv_fast_shutdown == 0 &&
 	       (trx_sys.any_active_transactions() ||
@@ -4262,9 +4258,7 @@ static int innodb_init(void* p)
 		mysql_thread_create(thd_destructor_thread_key,
 				    &thd_destructor_thread,
 				    NULL, thd_destructor_proxy, NULL);
-		while (!my_atomic_loadptr_explicit(reinterpret_cast<void**>
-						   (&srv_running),
-						   MY_MEMORY_ORDER_RELAXED))
+		while (!srv_running.load(std::memory_order_relaxed))
 			os_thread_sleep(20);
 	}
 
@@ -4344,10 +4338,8 @@ innobase_end(handlerton*, ha_panic_function)
 		 	}
 		}
 
-		st_my_thread_var* running = reinterpret_cast<st_my_thread_var*>(
-			my_atomic_loadptr_explicit(
-			reinterpret_cast<void**>(&srv_running),
-			MY_MEMORY_ORDER_RELAXED));
+		st_my_thread_var* running =
+			srv_running.load(std::memory_order_relaxed);
 		if (!abort_loop && running) {
 			// may be UNINSTALL PLUGIN statement
 			running->abort = 1;
@@ -17176,9 +17168,7 @@ fast_shutdown_validate(
 	uint new_val = *reinterpret_cast<uint*>(save);
 
 	if (srv_fast_shutdown && !new_val
-	    && !my_atomic_loadptr_explicit(reinterpret_cast<void**>
-					   (&srv_running),
-					   MY_MEMORY_ORDER_RELAXED)) {
+	    && !srv_running.load(std::memory_order_relaxed)) {
 		return(1);
 	}
 

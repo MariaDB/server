@@ -2812,9 +2812,7 @@ srv_purge_wakeup()
 
 			srv_release_threads(SRV_WORKER, n_workers);
 		}
-	} while (!my_atomic_loadptr_explicit(reinterpret_cast<void**>
-					     (&srv_running),
-					     MY_MEMORY_ORDER_RELAXED)
+	} while (!srv_running.load(std::memory_order_relaxed)
 		 && (srv_sys.n_threads_active[SRV_WORKER]
 		     || srv_sys.n_threads_active[SRV_PURGE]));
 }
