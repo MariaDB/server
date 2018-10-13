@@ -332,7 +332,9 @@ rpl_slave_state::update(uint32 domain_id, uint32 server_id, uint64 sub_id,
     }
     rgi->gtid_ignore_duplicate_state= rpl_group_info::GTID_DUPLICATE_NULL;
 
+#ifdef HAVE_REPLICATION
     rgi->pending_gtid_deletes_clear();
+#endif
   }
 
   if (!(list_elem= (list_element *)my_malloc(sizeof(*list_elem), MYF(MY_WME))))
@@ -855,12 +857,16 @@ end:
         redundant rows in mysql.gtid_slave_pos may accumulate if transactions
         are rolled back and retried after record_gtid().
       */
+#ifdef HAVE_REPLICATION
       rgi->pending_gtid_deletes_save(gtid->domain_id, delete_list);
+#endif
     }
     else
     {
       thd->mdl_context.release_transactional_locks();
+#ifdef HAVE_REPLICATION
       rpl_group_info::pending_gtid_deletes_free(delete_list);
+#endif
     }
   }
   thd->lex->restore_backup_query_tables_list(&lex_backup);
