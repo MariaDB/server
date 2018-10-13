@@ -1440,19 +1440,6 @@ set_user_salt(ACL_USER *acl_user, const LEX_CSTRING &password)
     acl_user->salt_len= 0;
 }
 
-static const char *fix_plugin_ptr(const char *name)
-{
-  if (my_strcasecmp(system_charset_info, name,
-                    native_password_plugin_name.str) == 0)
-    return native_password_plugin_name.str;
-  else
-  if (my_strcasecmp(system_charset_info, name,
-                    old_password_plugin_name.str) == 0)
-    return old_password_plugin_name.str;
-  else
-    return name;
-}
-
 /**
   Fix ACL::plugin pointer to point to a hard-coded string, if appropriate
 
@@ -12235,8 +12222,9 @@ static bool send_plugin_request_packet(MPVIO_EXT *mpvio,
     user account, it's the plugin that the client need to use to login.
   */
   bool switch_from_long_to_short_scramble=
-    native_password_plugin_name.str == mpvio->cached_client_reply.plugin &&
-    client_auth_plugin == old_password_plugin_name.str;
+    client_auth_plugin == old_password_plugin_name.str &&
+    my_strcasecmp(system_charset_info, mpvio->cached_client_reply.plugin,
+                  native_password_plugin_name.str) == 0;
 
   if (switch_from_long_to_short_scramble)
     DBUG_RETURN (secure_auth(mpvio->auth_info.thd) ||
@@ -12249,8 +12237,9 @@ static bool send_plugin_request_packet(MPVIO_EXT *mpvio,
     ask an old 4.0 client to use the new 4.1 authentication protocol.
   */
   bool switch_from_short_to_long_scramble=
-    old_password_plugin_name.str == mpvio->cached_client_reply.plugin &&
-    client_auth_plugin == native_password_plugin_name.str;
+    client_auth_plugin == native_password_plugin_name.str &&
+    my_strcasecmp(system_charset_info, mpvio->cached_client_reply.plugin,
+                  old_password_plugin_name.str) == 0;
 
   if (switch_from_short_to_long_scramble)
   {
@@ -12493,7 +12482,7 @@ static bool parse_com_change_user_packet(MPVIO_EXT *mpvio, uint packet_length)
                  MYF(0));
       DBUG_RETURN(1);
     }
-    client_plugin= fix_plugin_ptr(next_field);
+    client_plugin= next_field;
     next_field+= strlen(next_field) + 1;
   }
   else
@@ -12738,7 +12727,6 @@ static ulong parse_client_handshake_packet(MPVIO_EXT *mpvio,
   if ((thd->client_capabilities & CLIENT_PLUGIN_AUTH) &&
       (client_plugin < (char *)net->read_pos + pkt_len))
   {
-    client_plugin= fix_plugin_ptr(client_plugin);
     next_field+= strlen(next_field) + 1;
   }
   else
