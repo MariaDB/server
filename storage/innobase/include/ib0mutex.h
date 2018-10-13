@@ -380,7 +380,7 @@ struct TTASEventMutex {
 	~TTASEventMutex()
 		UNIV_NOTHROW
 	{
-		ut_ad(m_lock_word == MUTEX_STATE_UNLOCKED);
+		ut_ad(state() == MUTEX_STATE_UNLOCKED);
 	}
 
 	/** Called when the mutex is "created". Note: Not from the constructor
@@ -389,7 +389,7 @@ struct TTASEventMutex {
 	void init(latch_id_t id, const char*, uint32_t) UNIV_NOTHROW
 	{
 		ut_a(m_event == 0);
-		ut_a(m_lock_word == MUTEX_STATE_UNLOCKED);
+		ut_ad(state() == MUTEX_STATE_UNLOCKED);
 
 		m_event = os_event_create(sync_latch_get_name(id));
 	}
@@ -400,7 +400,7 @@ struct TTASEventMutex {
 	void destroy()
 		UNIV_NOTHROW
 	{
-		ut_ad(m_lock_word == MUTEX_STATE_UNLOCKED);
+		ut_ad(state() == MUTEX_STATE_UNLOCKED);
 
 		/* We have to free the event before InnoDB shuts down. */
 		os_event_destroy(m_event);
@@ -412,20 +412,20 @@ struct TTASEventMutex {
 	bool try_lock()
 		UNIV_NOTHROW
 	{
-		int32 oldval = MUTEX_STATE_UNLOCKED;
-		return(my_atomic_cas32_strong_explicit(&m_lock_word, &oldval,
-						       MUTEX_STATE_LOCKED,
-						       MY_MEMORY_ORDER_ACQUIRE,
-						       MY_MEMORY_ORDER_RELAXED));
+		uint32_t oldval = MUTEX_STATE_UNLOCKED;
+		return m_lock_word.compare_exchange_strong(
+			oldval,
+			MUTEX_STATE_LOCKED,
+			std::memory_order_acquire,
+			std::memory_order_relaxed);
 	}
 
 	/** Release the mutex. */
 	void exit()
 		UNIV_NOTHROW
 	{
-		if (my_atomic_fas32_explicit(&m_lock_word,
-					     MUTEX_STATE_UNLOCKED,
-					     MY_MEMORY_ORDER_RELEASE)
+		if (m_lock_word.exchange(MUTEX_STATE_UNLOCKED,
+					 std::memory_order_release)
 		    == MUTEX_STATE_WAITERS) {
 			os_event_set(m_event);
 			sync_array_object_signalled();
@@ -463,11 +463,12 @@ struct TTASEventMutex {
 					: SYNC_MUTEX,
 					filename, line, &cell);
 
-				int32 oldval = MUTEX_STATE_LOCKED;
-				my_atomic_cas32_strong_explicit(&m_lock_word, &oldval,
-								MUTEX_STATE_WAITERS,
-								MY_MEMORY_ORDER_RELAXED,
-								MY_MEMORY_ORDER_RELAXED);
+				uint32_t oldval = MUTEX_STATE_LOCKED;
+				m_lock_word.compare_exchange_strong(
+					oldval,
+					MUTEX_STATE_WAITERS,
+					std::memory_order_relaxed,
+					std::memory_order_relaxed);
 
 				if (oldval == MUTEX_STATE_UNLOCKED) {
 					sync_array_free_cell(sync_arr, cell);
@@ -486,9 +487,7 @@ struct TTASEventMutex {
 	int32 state() const
 		UNIV_NOTHROW
 	{
-		return(my_atomic_load32_explicit(const_cast<int32*>
-						 (&m_lock_word),
-						 MY_MEMORY_ORDER_RELAXED));
+		return m_lock_word.load(std::memory_order_relaxed);
 	}
 
 	/** The event that the mutex will wait in sync0arr.cc
@@ -518,9 +517,8 @@ private:
 	TTASEventMutex(const TTASEventMutex&);
 	TTASEventMutex& operator=(const TTASEventMutex&);
 
-	/** lock_word is the target of the atomic test-and-set instruction
-	when atomic operations are enabled. */
-	int32			m_lock_word;
+	/** mutex state */
+	std::atomic<uint32_t>	m_lock_word;
 
 	/** Used by sync0arr.cc for the wait queue */
 	os_event_t		m_event;
