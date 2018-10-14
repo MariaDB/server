@@ -170,12 +170,12 @@
 #define JSONMAX      10             // JSON Default max grp size
 
 extern "C" {
-       char version[]= "Version 1.06.0007 August 06, 2018";
+	char version[] = "Version 1.06.0008 October 06, 2018";
 #if defined(__WIN__)
-       char compver[]= "Version 1.06.0007 " __DATE__ " "  __TIME__;
-       char slash= '\\';
+	char compver[] = "Version 1.06.0008 " __DATE__ " "  __TIME__;
+	char slash = '\\';
 #else   // !__WIN__
-       char slash= '/';
+	char slash = '/';
 #endif  // !__WIN__
 } // extern "C"
 
@@ -3290,7 +3290,59 @@ ha_rows ha_connect::records()
 } // end of records
 
 
-/**
+int ha_connect::check(THD* thd, HA_CHECK_OPT* check_opt)
+{
+	int     rc = HA_ADMIN_OK;
+	PGLOBAL g = ((table && table->in_use) ? GetPlug(table->in_use, xp) :
+		(xp) ? xp->g : NULL);
+	DBUG_ENTER("ha_connect::check");
+
+	if (!g || !table || xmod != MODE_READ)
+		DBUG_RETURN(HA_ADMIN_INTERNAL_ERROR);
+
+	// Do not close the table if it was opened yet (possible?)
+	if (IsOpened()) {
+		if (IsPartitioned() && CheckColumnList(g)) // map can have been changed
+			rc = HA_ADMIN_CORRUPT;
+		else if (tdbp->OpenDB(g))      // Rewind table
+			rc = HA_ADMIN_CORRUPT;
+
+	} else if (xp->CheckQuery(valid_query_id)) {
+		tdbp = NULL;       // Not valid anymore
+
+		if (OpenTable(g, false))
+			rc = HA_ADMIN_CORRUPT;
+
+	} else // possible?
+		DBUG_RETURN(HA_ADMIN_INTERNAL_ERROR);
+
+	if (rc == HA_ADMIN_OK) {
+		TABTYPE type = GetTypeID(GetStringOption("Type", "*"));
+
+		if (IsFileType(type)) {
+			if (check_opt->flags & T_MEDIUM) {
+				// TO DO
+				do {
+					if ((rc = CntReadNext(g, tdbp)) == RC_FX)
+						break;
+
+				} while (rc != RC_EF);
+
+				rc = (rc == RC_EF) ? HA_ADMIN_OK : HA_ADMIN_CORRUPT;
+			} else if (check_opt->flags & T_EXTEND) {
+				// TO DO
+			} // endif's flags
+
+		} // endif file type
+
+	} else
+		PushWarning(g, thd, 1);
+
+	DBUG_RETURN(rc);
+}	// end of check
+
+
+	/**
   Return an error message specific to this handler.
 
   @param error  error code previously returned by handler
@@ -3309,7 +3361,8 @@ bool ha_connect::get_error_message(int error, String* buf)
 		if (trace(1))
 			htrc("GEM(%d): %s\n", error, g->Message);
 
-		buf->append(g->Message);
+		buf->append(ErrConvString(g->Message, strlen(g->Message),
+			&my_charset_latin1).ptr());
 	} else
 		buf->append("Cannot retrieve error message");
 
@@ -3424,7 +3477,7 @@ int ha_connect::optimize(THD* thd, HA_CHECK_OPT*)
 					push_warning(thd, Sql_condition::WARN_LEVEL_WARN, 0, g->Message);
 					rc = 0;
 				} else
-					rc = HA_ERR_INTERNAL_ERROR;
+					rc = HA_ERR_CRASHED_ON_USAGE;		// Table must be repaired
 
 			} // endif rc
 
@@ -3440,7 +3493,10 @@ int ha_connect::optimize(THD* thd, HA_CHECK_OPT*)
 		rc = HA_ERR_INTERNAL_ERROR;
 	} // end catch
 
-  return rc;
+	if (rc)
+		my_message(ER_WARN_DATA_OUT_OF_RANGE, g->Message, MYF(0));
+
+	return rc;
 } // end of optimize
 
 /**
@@ -4501,14 +4557,16 @@ MODE ha_connect::CheckMode(PGLOBAL g, THD *thd,
 //    case SQLCOM_REPLACE_SELECT:
 //      newmode= MODE_UPDATE;               // To be checked
 //      break;
-      case SQLCOM_DELETE:
-      case SQLCOM_DELETE_MULTI:
-      case SQLCOM_TRUNCATE:
+			case SQLCOM_DELETE_MULTI:
+				*cras = true;
+			case SQLCOM_DELETE:
+			case SQLCOM_TRUNCATE:
         newmode= MODE_DELETE;
         break;
-      case SQLCOM_UPDATE:
-      case SQLCOM_UPDATE_MULTI:
-        newmode= MODE_UPDATE;
+			case SQLCOM_UPDATE_MULTI:
+				*cras = true;
+			case SQLCOM_UPDATE:
+				newmode= MODE_UPDATE;
         break;
       case SQLCOM_SELECT:
       case SQLCOM_OPTIMIZE:
@@ -4533,8 +4591,10 @@ MODE ha_connect::CheckMode(PGLOBAL g, THD *thd,
           newmode= MODE_ANY;
           break;
 //        } // endif partitioned
-
-      default:
+			case SQLCOM_REPAIR: // TODO implement it
+				newmode = MODE_UPDATE;
+				break;
+			default:
         htrc("Unsupported sql_command=%d\n", thd_sql_command(thd));
         strcpy(g->Message, "CONNECT Unsupported command");
         my_message(ER_NOT_ALLOWED_COMMAND, g->Message, MYF(0));
@@ -4546,17 +4606,17 @@ MODE ha_connect::CheckMode(PGLOBAL g, THD *thd,
     switch (thd_sql_command(thd)) {
       case SQLCOM_CREATE_TABLE:
         *chk= true;
-        *cras= true;
+			case SQLCOM_UPDATE_MULTI:
+			case SQLCOM_DELETE_MULTI:
+				*cras= true;
       case SQLCOM_INSERT:
       case SQLCOM_LOAD:
       case SQLCOM_INSERT_SELECT:
 //    case SQLCOM_REPLACE:
 //    case SQLCOM_REPLACE_SELECT:
       case SQLCOM_DELETE:
-      case SQLCOM_DELETE_MULTI:
       case SQLCOM_TRUNCATE:
       case SQLCOM_UPDATE:
-      case SQLCOM_UPDATE_MULTI:
       case SQLCOM_SELECT:
       case SQLCOM_OPTIMIZE:
       case SQLCOM_SET_OPTION:
@@ -4584,8 +4644,9 @@ MODE ha_connect::CheckMode(PGLOBAL g, THD *thd,
           break;
 //        } // endif partitioned
 
-			case SQLCOM_CHECK: // TODO implement it
-			case SQLCOM_END:	 // Met in procedures: IF(EXISTS(SELECT...
+			case SQLCOM_CHECK:   // TODO implement it
+			case SQLCOM_ANALYZE: // TODO implement it
+			case SQLCOM_END:	   // Met in procedures: IF(EXISTS(SELECT...
 				newmode= MODE_READ;
         break;
       default:
@@ -4867,7 +4928,7 @@ int ha_connect::external_lock(THD *thd, int lock_type)
 #endif // 0
 
   if (cras)
-    g->Createas= 1;       // To tell created table to ignore FLAG
+    g->Createas= 1;       // To tell external tables of a multi-table command
 
   if (trace(1)) {
 #if 0
@@ -7247,10 +7308,10 @@ maria_declare_plugin(connect)
   PLUGIN_LICENSE_GPL,
   connect_init_func,                            /* Plugin Init */
   connect_done_func,                            /* Plugin Deinit */
-  0x0107,                                       /* version number (1.05) */
+  0x0106,                                       /* version number (1.06) */
   NULL,                                         /* status variables */
   connect_system_variables,                     /* system variables */
-  "1.06.0007",                                  /* string version */
+  "1.06.0008",                                  /* string version */
 	MariaDB_PLUGIN_MATURITY_STABLE                /* maturity */
 }
 maria_declare_plugin_end;
