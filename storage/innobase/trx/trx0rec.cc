@@ -1805,7 +1805,6 @@ trx_undo_rec_get_partial_row(
 		const byte*	field;
 		ulint		field_no;
 		const dict_col_t* col;
-		ulint		col_no;
 		ulint		len;
 		ulint		orig_len;
 		bool		is_virtual;
@@ -1833,15 +1832,18 @@ trx_undo_rec_get_partial_row(
 			dict_v_col_t* vcol = dict_table_get_nth_v_col(
 						index->table, field_no);
 			col = &vcol->m_col;
-			col_no = dict_col_get_no(col);
 			dfield = dtuple_get_nth_v_field(*row, vcol->v_pos);
 			dict_col_copy_type(
 				&vcol->m_col,
 				dfield_get_type(dfield));
 		} else {
 			col = dict_index_get_nth_col(index, field_no);
-			col_no = dict_col_get_no(col);
-			dfield = dtuple_get_nth_field(*row, col_no);
+
+			if (col->is_dropped()) {
+				continue;
+			}
+
+			dfield = dtuple_get_nth_field(*row, col->ind);
 			ut_ad(dfield->type.mtype == DATA_MISSING
 			      || dict_col_type_assert_equal(col,
 							    &dfield->type));
@@ -1849,9 +1851,7 @@ trx_undo_rec_get_partial_row(
 			      || dfield->len == len
 			      || (len != UNIV_SQL_NULL
 				  && len >= UNIV_EXTERN_STORAGE_FIELD));
-			dict_col_copy_type(
-				dict_table_get_nth_col(index->table, col_no),
-				dfield_get_type(dfield));
+			dict_col_copy_type(col, dfield_get_type(dfield));
 		}
 
 		dfield_set_data(dfield, field, len);
