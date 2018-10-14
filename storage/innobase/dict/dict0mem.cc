@@ -1540,29 +1540,6 @@ void dict_table_t::serialise_columns(mem_heap_t* heap, dfield_t* field) const
 	}
 }
 
-/** Flag the column instantly dropped.
-@param[in]	not_null	whether the column was NOT NULL
-@param[in]	len2		whether the length exceeds 255 bytes
-@param[in]	fixed	the fixed length in bytes, or 0 */
-inline void dict_col_t::set_dropped(bool not_null, bool len2, unsigned fixed)
-{
-	DBUG_ASSERT(!len2 || !fixed);
-	prtype = not_null
-		? DATA_NOT_NULL | DATA_BINARY_TYPE
-		: DATA_BINARY_TYPE;
-	if (fixed) {
-		mtype = DATA_FIXBINARY;
-		len = fixed;
-	} else {
-		mtype = DATA_BINARY;
-		len = len2 ? 65535 : 255;
-	}
-	mbminlen = mbmaxlen = 0;
-	ind = DROPPED;
-	ord_part = 0;
-	max_prefix = 0;
-}
-
 /** Reconstruct dropped or reordered columns.
 @param[in]	metadata	data from serialise_columns()
 @param[in]	len		length of the metadata, in bytes
