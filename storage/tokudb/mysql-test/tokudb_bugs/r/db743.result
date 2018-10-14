@@ -10,8 +10,4 @@ insert into t1 values (1);
 insert into t2 values (1);
 commit;
 include/diff_tables.inc [test.t1, test.t2]
-Warnings:
-Warning	1287	'<select expression> INTO <destination>;' is deprecated and will be removed in a future release. Please use 'SELECT <select list> INTO <destination> FROM...' instead
-Warnings:
-Warning	1287	'<select expression> INTO <destination>;' is deprecated and will be removed in a future release. Please use 'SELECT <select list> INTO <destination> FROM...' instead
 drop table t1,t2;

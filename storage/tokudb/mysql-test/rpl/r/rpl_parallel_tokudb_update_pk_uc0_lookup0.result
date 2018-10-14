@@ -14,10 +14,6 @@ connection master;
 connection slave;
 connection master;
 include/diff_tables.inc [master:test.t, slave:test.t]
-Warnings:
-Warning	1287	'<select expression> INTO <destination>;' is deprecated and will be removed in a future release. Please use 'SELECT <select list> INTO <destination> FROM...' instead
-Warnings:
-Warning	1287	'<select expression> INTO <destination>;' is deprecated and will be removed in a future release. Please use 'SELECT <select list> INTO <destination> FROM...' instead
 connection master;
 update t set b=b+1 where a=2;
 update t set b=b+2 where a=1;
@@ -39,10 +35,6 @@ a	b
 3	5
 4	3
 include/diff_tables.inc [master:test.t, slave:test.t]
-Warnings:
-Warning	1287	'<select expression> INTO <destination>;' is deprecated and will be removed in a future release. Please use 'SELECT <select list> INTO <destination> FROM...' instead
-Warnings:
-Warning	1287	'<select expression> INTO <destination>;' is deprecated and will be removed in a future release. Please use 'SELECT <select list> INTO <destination> FROM...' instead
 connection master;
 drop table if exists t;
 connection slave;

@@ -8,10 +8,6 @@ CREATE TABLE t1(b1 BIT(1), b2 BIT(2), b3 BIT(3)) ENGINE=InnoDB;
 INSERT INTO t1 VALUES (b'0', b'01', b'101');
 connection slave;
 include/diff_tables.inc [master:t1, slave:t1]
-Warnings:
-Warning	1287	'<select expression> INTO <destination>;' is deprecated and will be removed in a future release. Please use 'SELECT <select list> INTO <destination> FROM...' instead
-Warnings:
-Warning	1287	'<select expression> INTO <destination>;' is deprecated and will be removed in a future release. Please use 'SELECT <select list> INTO <destination> FROM...' instead
 connection master;
 DROP TABLE t1;
 connection slave;
