@@ -569,7 +569,7 @@ struct rw_lock_t
 #endif /* UNIV_DEBUG */
 {
 	/** Holds the state of the lock. */
-	int32_t	lock_word;
+	std::atomic<int32_t>	lock_word;
 
 	/** 1: there are waiters */
 	int32_t	waiters;

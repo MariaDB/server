@@ -205,7 +205,7 @@ rw_lock_create_func(
 	/* If this is the very first time a synchronization object is
 	created, then the following call initializes the sync system. */
 
-	lock->lock_word = X_LOCK_DECR;
+	lock->lock_word.store(X_LOCK_DECR, std::memory_order_relaxed);
 	lock->waiters = 0;
 
 	lock->sx_recursive = 0;
@@ -257,8 +257,7 @@ rw_lock_free_func(
 	rw_lock_t*	lock)	/*!< in/out: rw-lock */
 {
 	ut_ad(rw_lock_validate(lock));
-	ut_a(my_atomic_load32_explicit(&lock->lock_word,
-				       MY_MEMORY_ORDER_RELAXED) == X_LOCK_DECR);
+	ut_a(lock->lock_word.load(std::memory_order_relaxed) == X_LOCK_DECR);
 
 	mutex_enter(&rw_lock_list_mutex);
 
@@ -306,8 +305,7 @@ lock_loop:
 	/* Spin waiting for the writer field to become free */
 	HMT_low();
 	while (i < srv_n_spin_wait_rounds &&
-	       my_atomic_load32_explicit(&lock->lock_word,
-					 MY_MEMORY_ORDER_RELAXED) <= 0) {
+	       lock->lock_word.load(std::memory_order_relaxed) <= 0) {
 		ut_delay(srv_spin_wait_delay);
 		i++;
 	}
@@ -425,10 +423,10 @@ rw_lock_x_lock_wait_func(
 	sync_array_t*	sync_arr;
 	int64_t		count_os_wait = 0;
 
-	ut_ad(my_atomic_load32_explicit(&lock->lock_word, MY_MEMORY_ORDER_RELAXED) <= threshold);
+	ut_ad(lock->lock_word.load(std::memory_order_relaxed) <= threshold);
 
 	HMT_low();
-	while (my_atomic_load32_explicit(&lock->lock_word, MY_MEMORY_ORDER_RELAXED) < threshold) {
+	while (lock->lock_word.load(std::memory_order_relaxed) < threshold) {
 		ut_delay(srv_spin_wait_delay);
 
 		if (i < srv_n_spin_wait_rounds) {
@@ -447,7 +445,7 @@ rw_lock_x_lock_wait_func(
 		i = 0;
 
 		/* Check lock_word to ensure wake-up isn't missed.*/
-		if (my_atomic_load32_explicit(&lock->lock_word, MY_MEMORY_ORDER_RELAXED) < threshold) {
+		if (lock->lock_word.load(std::memory_order_relaxed) < threshold) {
 
 			++count_os_wait;
 
@@ -537,18 +535,17 @@ rw_lock_x_lock_low(
 					file_name, line);
 
 			} else {
-				int32_t lock_word = my_atomic_load32_explicit(&lock->lock_word,
-									      MY_MEMORY_ORDER_RELAXED);
+				auto lock_word = lock->lock_word.load(std::memory_order_relaxed);
 				/* At least one X lock by this thread already
 				exists. Add another. */
 				if (lock_word == 0
 				    || lock_word == -X_LOCK_HALF_DECR) {
-					my_atomic_add32_explicit(&lock->lock_word, -X_LOCK_DECR,
-								 MY_MEMORY_ORDER_RELAXED);
+					lock->lock_word.fetch_sub(X_LOCK_DECR,
+								std::memory_order_relaxed);
 				} else {
 					ut_ad(lock_word <= -X_LOCK_DECR);
-					my_atomic_add32_explicit(&lock->lock_word, -1,
-								 MY_MEMORY_ORDER_RELAXED);
+					lock->lock_word.fetch_sub(1,
+								std::memory_order_relaxed);
 				}
 			}
 
@@ -620,10 +617,10 @@ rw_lock_sx_lock_low(
 				  read and write to the lock_word. */
 
 #ifdef UNIV_DEBUG
-				int32_t lock_word =
+				auto lock_word =
 #endif
-				my_atomic_add32_explicit(&lock->lock_word, -X_LOCK_HALF_DECR,
-							 MY_MEMORY_ORDER_RELAXED);
+				lock->lock_word.fetch_sub(X_LOCK_HALF_DECR,
+							std::memory_order_relaxed);
 
 				ut_ad((lock_word == 0)
 				      || ((lock_word <= -X_LOCK_DECR)
@@ -691,7 +688,7 @@ lock_loop:
 		/* Spin waiting for the lock_word to become free */
 		HMT_low();
 		while (i < srv_n_spin_wait_rounds
-		       && my_atomic_load32_explicit(&lock->lock_word, MY_MEMORY_ORDER_RELAXED) <= X_LOCK_HALF_DECR) {
+		       && lock->lock_word.load(std::memory_order_relaxed) <= X_LOCK_HALF_DECR) {
 			ut_delay(srv_spin_wait_delay);
 			i++;
 		}
@@ -792,7 +789,7 @@ lock_loop:
 
 		/* Spin waiting for the lock_word to become free */
 		while (i < srv_n_spin_wait_rounds
-		       && my_atomic_load32_explicit(&lock->lock_word, MY_MEMORY_ORDER_RELAXED) <= X_LOCK_HALF_DECR) {
+		       && lock->lock_word.load(std::memory_order_relaxed) <= X_LOCK_HALF_DECR) {
 			ut_delay(srv_spin_wait_delay);
 			i++;
 		}
@@ -859,8 +856,7 @@ rw_lock_validate(
 
 	ut_ad(lock);
 
-	lock_word = my_atomic_load32_explicit(const_cast<int32_t*>(&lock->lock_word),
-					      MY_MEMORY_ORDER_RELAXED);
+	lock_word = lock->lock_word.load(std::memory_order_relaxed);
 
 	ut_ad(lock->magic_n == RW_LOCK_MAGIC_N);
 	ut_ad(my_atomic_load32_explicit(const_cast<int32_t*>(&lock->waiters),
@@ -927,8 +923,7 @@ rw_lock_add_debug_info(
 	rw_lock_debug_mutex_exit();
 
 	if (pass == 0 && lock_type != RW_LOCK_X_WAIT) {
-		int32_t lock_word = my_atomic_load32_explicit(&lock->lock_word,
-							      MY_MEMORY_ORDER_RELAXED);
+		auto lock_word = lock->lock_word.load(std::memory_order_relaxed);
 
 		/* Recursive x while holding SX
 		(lock_type == RW_LOCK_X && lock_word == -X_LOCK_HALF_DECR)
@@ -1094,7 +1089,7 @@ rw_lock_list_print_info(
 
 		count++;
 
-		if (my_atomic_load32_explicit(const_cast<int32_t*>(&lock->lock_word), MY_MEMORY_ORDER_RELAXED) != X_LOCK_DECR) {
+		if (lock->lock_word.load(std::memory_order_relaxed) != X_LOCK_DECR) {
 
 			fprintf(file, "RW-LOCK: %p ", (void*) lock);
 
