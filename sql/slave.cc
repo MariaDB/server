@@ -465,6 +465,8 @@ static struct slave_background_gtid_pos_create_t {
   void *hton;
 } *slave_background_gtid_pos_create_list;
 
+static volatile bool slave_background_gtid_pending_delete_flag;
+
 
 pthread_handler_t
 handle_slave_background(void *arg __attribute__((unused)))
@@ -499,6 +501,7 @@ handle_slave_background(void *arg __attribute__((unused)))
   {
     slave_background_kill_t *kill_list;
     slave_background_gtid_pos_create_t *create_list;
+    bool pending_deletes;
 
     thd->ENTER_COND(&COND_slave_background, &LOCK_slave_background,
                     &stage_slave_background_wait_request,
@@ -508,13 +511,15 @@ handle_slave_background(void *arg __attribute__((unused)))
       stop= abort_loop || thd->killed || slave_background_thread_stop;
       kill_list= slave_background_kill_list;
       create_list= slave_background_gtid_pos_create_list;
-      if (stop || kill_list || create_list)
+      pending_deletes= slave_background_gtid_pending_delete_flag;
+      if (stop || kill_list || create_list || pending_deletes)
         break;
       mysql_cond_wait(&COND_slave_background, &LOCK_slave_background);
     }
 
     slave_background_kill_list= NULL;
     slave_background_gtid_pos_create_list= NULL;
+    slave_background_gtid_pending_delete_flag= false;
     thd->EXIT_COND(&old_stage);
 
     while (kill_list)
@@ -539,6 +544,17 @@ handle_slave_background(void *arg __attribute__((unused)))
       handle_gtid_pos_auto_create_request(thd, hton);
       my_free(create_list);
       create_list= next;
+    }
+
+    if (pending_deletes)
+    {
+      rpl_slave_state::list_element *list;
+
+      slave_background_gtid_pending_delete_flag= false;
+      list= rpl_global_gtid_slave_state->gtid_grab_pending_delete_list();
+      rpl_global_gtid_slave_state->gtid_delete_pending(thd, &list);
+      if (list)
+        rpl_global_gtid_slave_state->put_back_list(list);
     }
 
     mysql_mutex_lock(&LOCK_slave_background);
@@ -611,6 +627,23 @@ slave_background_gtid_pos_create_request(
   slave_background_gtid_pos_create_list= p;
   mysql_cond_signal(&COND_slave_background);
   mysql_mutex_unlock(&LOCK_slave_background);
+}
+
+
+/*
+  Request the slave background thread to delete no longer used rows from the
+  mysql.gtid_slave_pos* tables.
+
+  This is called from time-critical rpl_slave_state::update(), so we avoid
+  taking any locks here. This means we may race with the background thread
+  to occasionally lose a signal. This is not a problem; any pending rows to
+  be deleted will just be deleted a bit later as part of the next batch.
+*/
+void
+slave_background_gtid_pending_delete_request(void)
+{
+  slave_background_gtid_pending_delete_flag= true;
+  mysql_cond_signal(&COND_slave_background);
 }
 
 

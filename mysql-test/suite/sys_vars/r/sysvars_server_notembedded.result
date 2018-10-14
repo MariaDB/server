@@ -1202,6 +1202,20 @@ NUMERIC_BLOCK_SIZE	NULL
 ENUM_VALUE_LIST	NULL
 READ_ONLY	NO
 COMMAND_LINE_ARGUMENT	NULL
+VARIABLE_NAME	GTID_CLEANUP_BATCH_SIZE
+SESSION_VALUE	NULL
+GLOBAL_VALUE	64
+GLOBAL_VALUE_ORIGIN	COMPILE-TIME
+DEFAULT_VALUE	64
+VARIABLE_SCOPE	GLOBAL
+VARIABLE_TYPE	INT UNSIGNED
+VARIABLE_COMMENT	Normally does not need tuning. How many old rows must accumulate in the mysql.gtid_slave_pos table before a background job will be run to delete them. Can be increased to reduce number of commits if using many different engines with --gtid_pos_auto_engines, or to reduce CPU overhead if using a huge number of different gtid_domain_ids. Can be decreased to reduce number of old rows in the table.
+NUMERIC_MIN_VALUE	0
+NUMERIC_MAX_VALUE	2147483647
+NUMERIC_BLOCK_SIZE	1
+ENUM_VALUE_LIST	NULL
+READ_ONLY	NO
+COMMAND_LINE_ARGUMENT	REQUIRED
 VARIABLE_NAME	GTID_CURRENT_POS
 SESSION_VALUE	NULL
 GLOBAL_VALUE	

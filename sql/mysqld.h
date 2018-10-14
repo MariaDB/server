@@ -262,6 +262,7 @@ extern ulong opt_slave_parallel_mode;
 extern ulong opt_binlog_commit_wait_count;
 extern ulong opt_binlog_commit_wait_usec;
 extern my_bool opt_gtid_ignore_duplicates;
+extern uint opt_gtid_cleanup_batch_size;
 extern ulong back_log;
 extern ulong executed_events;
 extern char language[FN_REFLEN];

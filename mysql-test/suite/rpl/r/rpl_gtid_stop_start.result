@@ -171,7 +171,7 @@ include/start_slave.inc
 *** MDEV-4692: mysql.gtid_slave_pos accumulates values for a domain ***
 SELECT domain_id, COUNT(*) FROM mysql.gtid_slave_pos GROUP BY domain_id;
 domain_id	COUNT(*)
-0	2
+0	3
 1	2
 connection server_1;
 INSERT INTO t1 VALUES (11);
@@ -179,7 +179,7 @@ connection server_2;
 FLUSH NO_WRITE_TO_BINLOG TABLES;
 SELECT domain_id, COUNT(*) FROM mysql.gtid_slave_pos GROUP BY domain_id;
 domain_id	COUNT(*)
-0	2
+0	4
 1	2
 include/start_slave.inc
 connection server_1;
@@ -189,8 +189,8 @@ connection server_2;
 FLUSH NO_WRITE_TO_BINLOG TABLES;
 SELECT domain_id, COUNT(*) FROM mysql.gtid_slave_pos GROUP BY domain_id;
 domain_id	COUNT(*)
-0	2
-1	2
+0	3
+1	1
 *** MDEV-4650: show variables; ERROR 1946 (HY000): Failed to load replication slave GTID position ***
 connection server_2;
 SET sql_log_bin=0;
