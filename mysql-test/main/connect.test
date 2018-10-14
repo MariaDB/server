@@ -71,7 +71,6 @@ flush privileges;
 
 connect (con10,localhost,test,gambling2,);
 connect (con5,localhost,test,gambling2,mysql);
-connection con5;
 set password="";
 --error ER_PASSWD_LENGTH
 set password='gambling3';
@@ -108,7 +107,6 @@ flush privileges;
 # Bug#12517 Clear user variables and replication events before
 #           closing temp tables in thread cleanup.
 connect (con7,localhost,root,,test);
-connection con7;
 let $connection_id= `select connection_id()`;
 create table t1 (id integer not null auto_increment primary key);
 create temporary table t2(id integer not null auto_increment primary key);
@@ -314,11 +312,9 @@ SET GLOBAL event_scheduler = OFF;
 # Test connections to the extra port.
 
 connect(extracon,127.0.0.1,root,,test,$MASTER_EXTRA_PORT,);
-connection extracon;
 SELECT 'Connection on extra port ok';
 
 connect(extracon2,127.0.0.1,root,,test,$MASTER_EXTRA_PORT,);
-connection extracon2;
 SELECT 'Connection on extra port 2 ok';
 
 --disable_abort_on_error
@@ -349,7 +345,6 @@ GRANT ALL ON test.* TO 'O1234567890123456789012345678901234567890123456789012345
 
 FLUSH PRIVILEGES;
 
---replace_result $MASTER_MYSOCK MASTER_SOCKET $MASTER_MYPORT MASTER_PORT
 connect (con1,localhost,O1234567890123456789012345678901234567890123456789012345678901234567890123456789x,test123,test);
 disconnect con1;
 
@@ -380,18 +375,14 @@ CREATE USER mysqltest_up2 IDENTIFIED VIA mysql_old_password using '09301740536db
 --replace_result $MASTER_MYSOCK MASTER_SOCKET $MASTER_MYPORT MASTER_PORT
 --error ER_ACCESS_DENIED_ERROR
 connect(pcon1,localhost,mysqltest_up1,foo,,$MASTER_MYPORT,);
---replace_result $MASTER_MYSOCK MASTER_SOCKET $MASTER_MYPORT MASTER_PORT
 connect(pcon2,localhost,mysqltest_up1,bar,,$MASTER_MYPORT,);
-connection pcon2;
 select user(), current_user();
 disconnect pcon2;
 
 --replace_result $MASTER_MYSOCK MASTER_SOCKET $MASTER_MYPORT MASTER_PORT
 --error ER_ACCESS_DENIED_ERROR
 connect(pcon3,localhost,mysqltest_up2,newpw,,$MASTER_MYPORT,);
---replace_result $MASTER_MYSOCK MASTER_SOCKET $MASTER_MYPORT MASTER_PORT
 connect(pcon4,localhost,mysqltest_up2,oldpw,,$MASTER_MYPORT,);
-connection pcon4;
 select user(), current_user();
 disconnect pcon4;
 
@@ -421,15 +412,11 @@ select user, password, plugin, authentication_string from mysql.user
                   where user like 'mysqltest_up_';
 flush privileges;
 
---replace_result $MASTER_MYSOCK MASTER_SOCKET $MASTER_MYPORT MASTER_PORT
 connect(pcon6,localhost,mysqltest_up1,bar,,$MASTER_MYPORT,);
-connection pcon6;
 select user(), current_user();
 disconnect pcon6;
 
---replace_result $MASTER_MYSOCK MASTER_SOCKET $MASTER_MYPORT MASTER_PORT
 connect(pcon7,localhost,mysqltest_up2,oldpw,,$MASTER_MYPORT,);
-connection pcon7;
 select user(), current_user();
 disconnect pcon7;
 connection default;

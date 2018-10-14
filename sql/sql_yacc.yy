@@ -16819,8 +16819,6 @@ grant_user:
           {
             $$= $1;
             $1->pwtext= $4;
-            if (unlikely(Lex->sql_command == SQLCOM_REVOKE))
-              MYSQL_YYABORT;
           }
         | user IDENTIFIED_SYM BY PASSWORD_SYM TEXT_STRING
           { 
