@@ -2082,3 +2082,13 @@ SELECT COUNT(DISTINCT t2.a2),
       rank() OVER (ORDER BY t2.b1)
 FROM t2 ,t1 GROUP BY t2.b1 ORDER BY t1.a1;
 DROP TABLE t1,t2;
+
+--echo #
+--echo # MDEV-16990: server crashes in base_list_iterator::next
+--echo #
+
+CREATE TABLE t1(i int);
+insert into t1 values (1),(2);
+SELECT DISTINCT row_number() OVER (), MAX(1) FROM t1;
+SELECT DISTINCT BIT_AND(0)  OVER (), MAX(1) FROM t1;
+drop table t1;
