@@ -206,7 +206,7 @@ rw_lock_create_func(
 	created, then the following call initializes the sync system. */
 
 	lock->lock_word.store(X_LOCK_DECR, std::memory_order_relaxed);
-	lock->waiters = 0;
+	lock->waiters.store(0, std::memory_order_relaxed);
 
 	lock->sx_recursive = 0;
 	lock->writer_thread= 0;
@@ -345,7 +345,7 @@ lock_loop:
 
 		/* Set waiters before checking lock_word to ensure wake-up
 		signal is sent. This may lead to some unnecessary signals. */
-		my_atomic_fas32_explicit(&lock->waiters, 1, MY_MEMORY_ORDER_ACQUIRE);
+		lock->waiters.exchange(1, std::memory_order_acquire);
 
 		if (rw_lock_s_lock_low(lock, pass, file_name, line)) {
 
@@ -713,7 +713,7 @@ lock_loop:
 
 	/* Waiters must be set before checking lock_word, to ensure signal
 	is sent. This could lead to a few unnecessary wake-up signals. */
-	my_atomic_fas32_explicit(&lock->waiters, 1, MY_MEMORY_ORDER_ACQUIRE);
+	lock->waiters.exchange(1, std::memory_order_acquire);
 
 	if (rw_lock_x_lock_low(lock, pass, file_name, line)) {
 		sync_array_free_cell(sync_arr, cell);
@@ -813,7 +813,7 @@ lock_loop:
 
 	/* Waiters must be set before checking lock_word, to ensure signal
 	is sent. This could lead to a few unnecessary wake-up signals. */
-	my_atomic_fas32_explicit(&lock->waiters, 1, MY_MEMORY_ORDER_ACQUIRE);
+	lock->waiters.exchange(1, std::memory_order_acquire);
 
 	if (rw_lock_sx_lock_low(lock, pass, file_name, line)) {
 
@@ -859,8 +859,7 @@ rw_lock_validate(
 	lock_word = lock->lock_word.load(std::memory_order_relaxed);
 
 	ut_ad(lock->magic_n == RW_LOCK_MAGIC_N);
-	ut_ad(my_atomic_load32_explicit(const_cast<int32_t*>(&lock->waiters),
-					MY_MEMORY_ORDER_RELAXED) < 2);
+	ut_ad(lock->waiters.load(std::memory_order_relaxed) < 2);
 	ut_ad(lock_word > -(2 * X_LOCK_DECR));
 	ut_ad(lock_word <= X_LOCK_DECR);
 
@@ -1093,7 +1092,7 @@ rw_lock_list_print_info(
 
 			fprintf(file, "RW-LOCK: %p ", (void*) lock);
 
-			if (int32_t waiters= my_atomic_load32_explicit(const_cast<int32_t*>(&lock->waiters), MY_MEMORY_ORDER_RELAXED)) {
+			if (int32_t waiters= lock->waiters.load(std::memory_order_relaxed)) {
 				fprintf(file, " (%d waiters)\n", waiters);
 			} else {
 				putc('\n', file);

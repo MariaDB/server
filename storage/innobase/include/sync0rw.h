@@ -572,7 +572,7 @@ struct rw_lock_t
 	std::atomic<int32_t>	lock_word;
 
 	/** 1: there are waiters */
-	int32_t	waiters;
+	std::atomic<int32_t>	waiters;
 
 	/** number of granted SX locks. */
 	volatile ulint	sx_recursive;
