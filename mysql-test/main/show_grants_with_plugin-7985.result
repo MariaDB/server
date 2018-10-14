@@ -7,7 +7,7 @@ create user u1;
 GRANT SELECT ON mysql.* to u1 IDENTIFIED VIA mysql_native_password;
 select user, host, password, plugin, authentication_string from mysql.user where user = 'u1';
 user	host	password	plugin	authentication_string
-u1	%			
+u1	%		mysql_native_password	
 #
 # The user's grants should show no password at all.
 #
@@ -43,7 +43,7 @@ GRANT SELECT ON mysql.* to u1 IDENTIFIED VIA mysql_native_password
 USING '*7AFEFD08B6B720E781FB000CAA418F54FA662626';
 select user, host, password, plugin, authentication_string from mysql.user where user = 'u1';
 user	host	password	plugin	authentication_string
-u1	%	*7AFEFD08B6B720E781FB000CAA418F54FA662626		
+u1	%		mysql_native_password	*7AFEFD08B6B720E781FB000CAA418F54FA662626
 #
 # Test to see if connecting with password is succesful.
 #

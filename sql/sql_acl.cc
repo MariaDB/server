@@ -1386,9 +1386,20 @@ static my_bool do_validate(THD *, plugin_ref plugin, void *arg)
 }
 
 
+static bool can_password(LEX_USER *user)
+{
+  return !user->plugin.length ||
+    lex_string_eq(&user->plugin, &native_password_plugin_name) ||
+    lex_string_eq(&user->plugin, &old_password_plugin_name);
+}
+
+
 static bool validate_password(LEX_USER *user, THD *thd)
 {
-  if (user->pwtext.length || !user->pwhash.length)
+  if (!can_password(user))
+    return false;
+
+  if (user->pwtext.length || !user->auth.length)
   {
     struct validation_data data= { &user->user,
                                    user->pwtext.str ? &user->pwtext :
@@ -1468,34 +1479,12 @@ static bool fix_user_plugin_ptr(ACL_USER *user)
 }
 
 
-/*
-  Validates the password, calculates password hash, transforms
-  equivalent LEX_USER representations.
-
-  Upon entering this function:
-
-  - if user->plugin is specified, user->auth is the plugin auth data.
-  - if user->plugin is mysql_native_password or mysql_old_password,
-    user->auth is the password hash, and LEX_USER is transformed
-    to match the next case (that is, user->plugin is cleared).
-  - if user->plugin is NOT specified, built-in auth is assumed, that is
-    mysql_native_password or mysql_old_password. In that case,
-    user->pwhash is the password hash. And user->pwtext is the original
-    plain-text password. Either one can be set or both.
-
-  Upon exiting this function:
-
-  - user->pwtext is left untouched
-  - user->pwhash is the password hash, as the mysql.user.password column
-  - user->plugin is the plugin name, as the mysql.user.plugin column
-  - user->auth is the plugin auth data, as the mysql.user.authentication_string column
+/**
+  Validates the password, calculates password hash.
 */
 static bool fix_lex_user(THD *thd, LEX_USER *user)
 {
   size_t check_length;
-
-  DBUG_ASSERT(user->plugin.length || !user->auth.length);
-  DBUG_ASSERT(!(user->plugin.length && (user->pwtext.length || user->pwhash.length)));
 
   if (lex_string_eq(&user->plugin, &native_password_plugin_name))
     check_length= SCRAMBLED_PASSWORD_CHAR_LENGTH;
@@ -1504,38 +1493,41 @@ static bool fix_lex_user(THD *thd, LEX_USER *user)
     check_length= SCRAMBLED_PASSWORD_CHAR_LENGTH_323;
   else
   if (user->plugin.length)
-    return false; // nothing else to do
+    return 0; // nothing else to do
   else if (thd->variables.old_passwords == 1 ||
-           user->pwhash.length == SCRAMBLED_PASSWORD_CHAR_LENGTH_323)
-    check_length= SCRAMBLED_PASSWORD_CHAR_LENGTH_323;
-  else
-    check_length= SCRAMBLED_PASSWORD_CHAR_LENGTH;
-
-  if (user->plugin.length)
+           user->auth.length == SCRAMBLED_PASSWORD_CHAR_LENGTH_323)
   {
-    user->pwhash= user->auth;
-    user->plugin= empty_clex_str;
-    user->auth= empty_clex_str;
+    user->plugin= old_password_plugin_name;
+    check_length= SCRAMBLED_PASSWORD_CHAR_LENGTH_323;
   }
+  else if (user->auth.length)
+  {
+    user->plugin= native_password_plugin_name;
+    check_length= SCRAMBLED_PASSWORD_CHAR_LENGTH;
+  }
+  else
+    check_length= 0;
 
-  if (user->pwhash.length && user->pwhash.length != check_length)
+  if (user->auth.length && user->auth.length != check_length)
   {
     my_error(ER_PASSWD_LENGTH, MYF(0), (int) check_length);
-    return true;
+    return 1;
   }
 
-  if (user->pwtext.length && !user->pwhash.length)
+  if (user->pwtext.length && !user->auth.length)
   {
     size_t scramble_length;
     void (*make_scramble)(char *, const char *, size_t);
 
     if (thd->variables.old_passwords == 1)
     {
+      user->plugin= old_password_plugin_name;
       scramble_length= SCRAMBLED_PASSWORD_CHAR_LENGTH_323;
       make_scramble= my_make_scrambled_password_323;
     }
     else
     {
+      user->plugin= native_password_plugin_name;
       scramble_length= SCRAMBLED_PASSWORD_CHAR_LENGTH;
       make_scramble= my_make_scrambled_password;
     }
@@ -1549,8 +1541,8 @@ static bool fix_lex_user(THD *thd, LEX_USER *user)
     if (buff == NULL)
       return true;
     make_scramble(buff, user->pwtext.str, user->pwtext.length);
-    user->pwhash.str= buff;
-    user->pwhash.length= scramble_length;
+    user->auth.str= buff;
+    user->auth.length= scramble_length;
   }
 
   return false;
@@ -1822,16 +1814,18 @@ static bool acl_load(THD *thd, const Grant_tables& tables)
       continue;
     }
 
-    LEX_CSTRING password= empty_clex_str;
     if (user_table.password())
     {
-      password.str= get_field(&acl_memroot, user_table.password());
-      password.length= safe_strlen(password.str);
+      const char *p= safe_str(get_field(&acl_memroot, user_table.password()));
+      user.auth_string.str= p;
+      user.auth_string.length= strlen(p);
     }
-    user.auth_string= password;
-    set_user_salt(&user, password);
+    else
+      user.auth_string= empty_clex_str;
 
-    if (!is_role && set_user_plugin(&user, password.length))
+    set_user_salt(&user, user.auth_string);
+
+    if (!is_role && set_user_plugin(&user, user.auth_string.length))
       continue;
 
     user.access= user_table.get_access() & GLOBAL_ACLS;
@@ -1919,6 +1913,7 @@ static bool acl_load(THD *thd, const Grant_tables& tables)
         char *tmpstr= get_field(&acl_memroot, user_table.plugin());
         if (tmpstr)
         {
+          LEX_CSTRING password= user.auth_string;
           user.plugin.str= tmpstr;
           user.plugin.length= strlen(user.plugin.str);
           user.auth_string.str=
@@ -2588,20 +2583,13 @@ static void acl_update_user(const LEX_USER &combo, enum SSL_type ssl_type,
     ACL_USER *acl_user=dynamic_element(&acl_users,i,ACL_USER*);
     if (acl_user->eq(combo.user.str, combo.host.str))
     {
-      if (combo.plugin.str[0])
+      if (combo.plugin.length)
       {
         acl_user->plugin= combo.plugin;
         acl_user->auth_string= safe_lexcstrdup_root(&acl_memroot, combo.auth);
         if (fix_user_plugin_ptr(acl_user))
           acl_user->plugin= safe_lexcstrdup_root(&acl_memroot, combo.plugin);
       }
-      else
-        if (combo.pwhash.length)
-        {
-          acl_user->auth_string= safe_lexcstrdup_root(&acl_memroot, combo.pwhash);
-          set_user_salt(acl_user, combo.pwhash);
-          set_user_plugin(acl_user, combo.pwhash.length);
-        }
       acl_user->access=privileges;
       if (mqh->specified_limits & USER_RESOURCES::QUERIES_PER_HOUR)
         acl_user->user_resource.questions=mqh->questions;
@@ -2657,7 +2645,7 @@ static void acl_insert_user(const LEX_USER &combo, enum SSL_type ssl_type,
   bzero(&acl_user, sizeof(acl_user));
   acl_user.user= safe_lexcstrdup_root(&acl_memroot, combo.user);
   update_hostname(&acl_user.host, safe_strdup_root(&acl_memroot, combo.host.str));
-  if (combo.plugin.str[0])
+  if (combo.plugin.length)
   {
     acl_user.plugin= combo.plugin;
     acl_user.auth_string= safe_lexcstrdup_root(&acl_memroot, combo.auth);
@@ -2666,9 +2654,9 @@ static void acl_insert_user(const LEX_USER &combo, enum SSL_type ssl_type,
   }
   else
   {
-    acl_user.auth_string= safe_lexcstrdup_root(&acl_memroot, combo.pwhash);
-    set_user_salt(&acl_user, combo.pwhash);
-    set_user_plugin(&acl_user, combo.pwhash.length);
+    DBUG_ASSERT(!combo.auth.length);
+    acl_user.plugin= native_password_plugin_name;
+    acl_user.auth_string= empty_clex_str;
   }
 
   acl_user.flags= 0;
@@ -3201,8 +3189,8 @@ bool change_password(THD *thd, LEX_USER *user)
   const CSET_STRING query_save __attribute__((unused)) = thd->query_string;
   DBUG_ENTER("change_password");
   DBUG_PRINT("enter",("host: '%s'  user: '%s'  new_password: '%s'",
-		      user->host.str, user->user.str, user->pwhash.str));
-  DBUG_ASSERT(user->host.str != 0);                     // Ensured by parent
+		      user->host.str, user->user.str, user->auth.str));
+  DBUG_ASSERT(user->host.str != 0);                     // Ensured by caller
 
   /*
     This statement will be replicated as a statement, even when using
@@ -3217,8 +3205,7 @@ bool change_password(THD *thd, LEX_USER *user)
       (WSREP(thd) && !IF_WSREP(thd->wsrep_applier, 0)))
   {
     query_length= sprintf(buff, "SET PASSWORD FOR '%-.120s'@'%-.120s'='%-.120s'",
-              user->user.str, safe_str(user->host.str),
-              safe_str(user->pwhash.str));
+              user->user.str, safe_str(user->host.str), user->auth.str);
   }
 
   if (WSREP(thd) && !IF_WSREP(thd->wsrep_applier, 0))
@@ -3246,10 +3233,9 @@ bool change_password(THD *thd, LEX_USER *user)
   if (acl_user->plugin.str == native_password_plugin_name.str ||
       acl_user->plugin.str == old_password_plugin_name.str)
   {
-    acl_user->auth_string= safe_lexcstrdup_root(&acl_memroot, user->pwhash);
-    set_user_salt(acl_user, user->pwhash);
-
-    set_user_plugin(acl_user, user->pwhash.length);
+    acl_user->auth_string= safe_lexcstrdup_root(&acl_memroot, user->auth);
+    set_user_salt(acl_user, user->auth);
+    set_user_plugin(acl_user, user->auth.length);
   }
   else
     push_warning(thd, Sql_condition::WARN_LEVEL_NOTE,
@@ -3258,7 +3244,7 @@ bool change_password(THD *thd, LEX_USER *user)
 
   if (update_user_table(thd, tables.user_table(),
                         safe_str(acl_user->host.hostname),
-                        acl_user->user.str, user->pwhash))
+                        acl_user->user.str, user->auth))
   {
     mysql_mutex_unlock(&acl_cache->lock); /* purecov: deadcode */
     goto end;
@@ -3777,7 +3763,7 @@ static bool update_user_table(THD *thd, const User_table& user_table,
       user_table.password()->reset();
   }
   else
-    user_table.password()->store(new_password.str, new_password.len,
+    user_table.password()->store(new_password.str, new_password.length,
                                  system_charset_info);
 
 
@@ -3846,19 +3832,6 @@ static int replace_user_table(THD *thd, const User_table &user_table,
 
   mysql_mutex_assert_owner(&acl_cache->lock);
 
-  if (combo->pwhash.str && combo->pwhash.str[0])
-  {
-    if (combo->pwhash.length != SCRAMBLED_PASSWORD_CHAR_LENGTH &&
-        combo->pwhash.length != SCRAMBLED_PASSWORD_CHAR_LENGTH_323)
-    {
-      DBUG_ASSERT(0);
-      my_error(ER_PASSWD_LENGTH, MYF(0), SCRAMBLED_PASSWORD_CHAR_LENGTH);
-      DBUG_RETURN(-1);
-    }
-  }
-  else
-    combo->pwhash= empty_clex_str;
-
   /* if the user table is not up to date, we can't handle role updates */
   if (!user_table.is_role() && handle_as_role)
   {
@@ -3899,7 +3872,7 @@ static int replace_user_table(THD *thd, const User_table &user_table,
 
       see also test_if_create_new_users()
     */
-    else if (!combo->pwhash.length && !combo->plugin.length && no_auto_create)
+    else if (!combo->auth.length && !combo->plugin.length && no_auto_create)
     {
       my_error(ER_PASSWORD_NO_MATCH, MYF(0));
       goto end;
@@ -3909,13 +3882,20 @@ static int replace_user_table(THD *thd, const User_table &user_table,
       my_error(ER_CANT_CREATE_USER_WITH_GRANT, MYF(0));
       goto end;
     }
-    else if (combo->plugin.str[0])
+    else if (combo->plugin.length)
     {
       if (!plugin_is_ready(&combo->plugin, MYSQL_AUTHENTICATION_PLUGIN))
       {
         my_error(ER_PLUGIN_IS_NOT_LOADED, MYF(0), combo->plugin.str);
         goto end;
       }
+    }
+    else /* combo->plugin.length == 0 */
+    {
+      if (combo->auth.length == SCRAMBLED_PASSWORD_CHAR_LENGTH_323)
+        combo->plugin= old_password_plugin_name;
+      else
+        combo->plugin= native_password_plugin_name;
     }
 
     old_row_exists = 0;
@@ -3931,7 +3911,7 @@ static int replace_user_table(THD *thd, const User_table &user_table,
     store_record(table,record[1]);			// Save copy for update
   }
 
-  if (!old_row_exists || combo->pwtext.length || combo->pwhash.length)
+  if (!old_row_exists || combo->pwtext.length || combo->auth.length)
     if (!handle_as_role && validate_password(combo, thd))
       goto end;
 
@@ -3950,8 +3930,8 @@ static int replace_user_table(THD *thd, const User_table &user_table,
   DBUG_PRINT("info",("table fields: %d", user_table.num_fields()));
   /* If we don't have a password column, we'll use the authentication_string
      column later. */
-  if (combo->pwhash.str[0] && user_table.password())
-    user_table.password()->store(combo->pwhash.str, combo->pwhash.length,
+  if (combo->auth.length && can_password(combo) && user_table.password())
+    user_table.password()->store(combo->auth.str, combo->auth.length,
                                  system_charset_info);
   /* We either have the password column, the plugin column, or both. Otherwise
      we have a corrupt user table. */
@@ -4013,35 +3993,18 @@ static int replace_user_table(THD *thd, const User_table &user_table,
     if (user_table.max_user_connections() &&
         (mqh.specified_limits & USER_RESOURCES::USER_CONNECTIONS))
       user_table.max_user_connections()->store((longlong) mqh.user_conn, FALSE);
-    if (user_table.plugin())
+    if (user_table.plugin() && !handle_as_role)
     {
       user_table.plugin()->set_notnull();
       user_table.authentication_string()->set_notnull();
-      if (combo->plugin.str[0])
+      if (combo->plugin.length)
       {
-        DBUG_ASSERT(combo->pwhash.str[0] == 0);
         if (user_table.password())
           user_table.password()->reset();
         user_table.plugin()->store(combo->plugin.str, combo->plugin.length,
                                    system_charset_info);
         user_table.authentication_string()->store(combo->auth.str, combo->auth.length,
                                                   system_charset_info);
-      }
-      if (combo->pwhash.str[0])
-      {
-        DBUG_ASSERT(combo->plugin.str[0] == 0);
-        /* We have Password column. */
-        if (user_table.password())
-        {
-          user_table.plugin()->reset();
-          user_table.authentication_string()->reset();
-        }
-        else
-        {
-          /* We do not have Password column. Use PLUGIN && Authentication_string
-             columns instead. */
-          set_plugin_from_password(user_table, combo->pwhash);
-        }
       }
 
       if (user_table.max_statement_time())
@@ -6219,7 +6182,7 @@ static bool merge_one_role_privileges(ACL_ROLE *grantee)
 
 static bool has_auth(LEX_USER *user, LEX *lex)
 {
-  return user->pwtext.length || user->pwhash.length || user->plugin.length || user->auth.length ||
+  return user->pwtext.length || user->plugin.length || user->auth.length ||
          lex->ssl_type != SSL_TYPE_NOT_SPECIFIED || lex->ssl_cipher ||
          lex->x509_issuer || lex->x509_subject ||
          lex->mqh.specified_limits;
@@ -6231,7 +6194,6 @@ static bool fix_and_copy_user(LEX_USER *to, LEX_USER *from, THD *thd)
   {
     /* preserve authentication information, if LEX_USER was  reallocated */
     to->pwtext= from->pwtext;
-    to->pwhash= from->pwhash;
     to->plugin= from->plugin;
     to->auth= from->auth;
   }

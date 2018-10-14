@@ -465,7 +465,7 @@ DROP EVENT teste_bug11763507;
 # (creating a new procedure changes the password)
 #
 grant create routine on test.* to foo1@localhost identified by 'foo';
-update mysql.user set password = replace(password, '*', '-') where user='foo1';
+update mysql.user set authentication_string = replace(authentication_string, '*', '-') where user='foo1';
 --connect (foo,localhost,foo1,foo)
 show grants;
 --connection default

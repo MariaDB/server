@@ -181,19 +181,19 @@ grant select on *.* to 'mysqltest_2';
 grant insert on test.* to 'mysqltest_2';
 grant update on test.t1 to 'mysqltest_2';
 grant update (c2) on test.t2 to 'mysqltest_2';
-select host,user,password from mysql.user where user like 'mysqltest_%' order by host,user,password;
-host	user	password
-%	mysqltest_1	
-%	mysqltest_2	*BD447CBA355AF58578D3AE33BA2E2CD388BA08D1
-%	mysqltest_3	fffffffffffffffffffffffffffffffffffffffff
-select host,db,user from mysql.db where user like 'mysqltest_%' order by host,db,user;
+select host,user,password,plugin,authentication_string from mysql.user where user like 'mysqltest_%';
+host	user	password	plugin	authentication_string
+%	mysqltest_1		mysql_native_password	
+%	mysqltest_2		mysql_native_password	*BD447CBA355AF58578D3AE33BA2E2CD388BA08D1
+%	mysqltest_3		mysql_native_password	fffffffffffffffffffffffffffffffffffffffff
+select host,db,user from mysql.db where user like 'mysqltest_%';
 host	db	user
 %	test	mysqltest_2
-select host,db,user,table_name from mysql.tables_priv where user like 'mysqltest_%' order by host,db,user,table_name;
+select host,db,user,table_name from mysql.tables_priv where user like 'mysqltest_%';
 host	db	user	table_name
 %	test	mysqltest_2	t1
 %	test	mysqltest_2	t2
-select host,db,user,table_name,column_name from mysql.columns_priv where user like 'mysqltest_%' order by host,db,user,table_name,column_name;
+select host,db,user,table_name,column_name from mysql.columns_priv where user like 'mysqltest_%';
 host	db	user	table_name	column_name
 %	test	mysqltest_2	t2	c2
 show grants for 'mysqltest_1';
@@ -206,35 +206,35 @@ GRANT INSERT ON "test".* TO 'mysqltest_2'@'%'
 GRANT UPDATE (c2) ON "test"."t2" TO 'mysqltest_2'@'%'
 GRANT UPDATE ON "test"."t1" TO 'mysqltest_2'@'%'
 drop user 'mysqltest_1';
-select host,user,password from mysql.user where user like 'mysqltest_%' order by host,user,password;
-host	user	password
-%	mysqltest_2	*BD447CBA355AF58578D3AE33BA2E2CD388BA08D1
-%	mysqltest_3	fffffffffffffffffffffffffffffffffffffffff
-select host,db,user from mysql.db where user like 'mysqltest_%' order by host,db,user;
+select host,user,password,plugin,authentication_string from mysql.user where user like 'mysqltest_%';
+host	user	password	plugin	authentication_string
+%	mysqltest_2		mysql_native_password	*BD447CBA355AF58578D3AE33BA2E2CD388BA08D1
+%	mysqltest_3		mysql_native_password	fffffffffffffffffffffffffffffffffffffffff
+select host,db,user from mysql.db where user like 'mysqltest_%';
 host	db	user
 %	test	mysqltest_2
-select host,db,user,table_name from mysql.tables_priv where user like 'mysqltest_%' order by host,db,user,table_name;
+select host,db,user,table_name from mysql.tables_priv where user like 'mysqltest_%';
 host	db	user	table_name
 %	test	mysqltest_2	t1
 %	test	mysqltest_2	t2
-select host,db,user,table_name,column_name from mysql.columns_priv where user like 'mysqltest_%' order by host,db,user,table_name,column_name;
+select host,db,user,table_name,column_name from mysql.columns_priv where user like 'mysqltest_%';
 host	db	user	table_name	column_name
 %	test	mysqltest_2	t2	c2
 show grants for 'mysqltest_1';
 ERROR 42000: There is no such grant defined for user 'mysqltest_1' on host '%'
 rename user 'mysqltest_2' to 'mysqltest_1';
-select host,user,password from mysql.user where user like 'mysqltest_%' order by host,user,password;
-host	user	password
-%	mysqltest_1	*BD447CBA355AF58578D3AE33BA2E2CD388BA08D1
-%	mysqltest_3	fffffffffffffffffffffffffffffffffffffffff
-select host,db,user from mysql.db where user like 'mysqltest_%' order by host,db,user;
+select host,user,password,plugin,authentication_string from mysql.user where user like 'mysqltest_%' ;
+host	user	password	plugin	authentication_string
+%	mysqltest_1		mysql_native_password	*BD447CBA355AF58578D3AE33BA2E2CD388BA08D1
+%	mysqltest_3		mysql_native_password	fffffffffffffffffffffffffffffffffffffffff
+select host,db,user from mysql.db where user like 'mysqltest_%' ;
 host	db	user
 %	test	mysqltest_1
-select host,db,user,table_name from mysql.tables_priv where user like 'mysqltest_%' order by host,db,user,table_name;
+select host,db,user,table_name from mysql.tables_priv where user like 'mysqltest_%' ;
 host	db	user	table_name
 %	test	mysqltest_1	t1
 %	test	mysqltest_1	t2
-select host,db,user,table_name,column_name from mysql.columns_priv where user like 'mysqltest_%' order by host,db,user,table_name,column_name;
+select host,db,user,table_name,column_name from mysql.columns_priv where user like 'mysqltest_%' ;
 host	db	user	table_name	column_name
 %	test	mysqltest_1	t2	c2
 show grants for 'mysqltest_1';
@@ -254,21 +254,21 @@ ERROR 42000: There is no such grant defined for user 'mysqltest_1' on host '%'
 revoke all privileges, grant option from 'mysqltest_1';
 ERROR HY000: Can't revoke all privileges for one or more of the requested users
 drop user 'mysqltest_1';
-select host,db,user from mysql.db where user = 'mysqltest_1' order by host,db,user;
+select host,db,user from mysql.db where user = 'mysqltest_1' ;
 host	db	user
 insert into mysql.tables_priv set host='%', db='test', user='mysqltest_1', table_name='t1';
 flush privileges;
 show grants for 'mysqltest_1';
 ERROR 42000: There is no such grant defined for user 'mysqltest_1' on host '%'
 drop user 'mysqltest_1';
-select host,db,user,table_name from mysql.tables_priv where user = 'mysqltest_1' order by host,db,user,table_name;
+select host,db,user,table_name from mysql.tables_priv where user = 'mysqltest_1' ;
 host	db	user	table_name
 insert into mysql.columns_priv set host='%', db='test', user='mysqltest_1', table_name='t1', column_name='c1';
 flush privileges;
 show grants for 'mysqltest_1';
 ERROR 42000: There is no such grant defined for user 'mysqltest_1' on host '%'
 drop user 'mysqltest_1';
-select host,db,user,table_name,column_name from mysql.columns_priv where user = 'mysqltest_1' order by host,db,user,table_name,column_name;
+select host,db,user,table_name,column_name from mysql.columns_priv where user = 'mysqltest_1' ;
 host	db	user	table_name	column_name
 create user 'mysqltest_1', 'mysqltest_2', 'mysqltest_3';
 drop user 'mysqltest_1', 'mysqltest_2', 'mysqltest_3';
@@ -310,7 +310,7 @@ create user mysqltest_2@localhost;
 grant create user on *.* to mysqltest_2@localhost;
 connect  user3,localhost,mysqltest_2,,;
 connection user3;
-select host,user,password from mysql.user where user like 'mysqltest_%' order by host,user,password;
+select host,user,password,plugin,authentication_string from mysql.user where user like 'mysqltest_%' ;
 ERROR 42000: SELECT command denied to user 'mysqltest_2'@'localhost' for table 'user'
 create user mysqltest_A@'%';
 rename user mysqltest_A@'%' to mysqltest_B@'%';
@@ -326,7 +326,7 @@ show grants;
 Grants for mysqltest_3@localhost
 GRANT USAGE ON *.* TO 'mysqltest_3'@'localhost'
 GRANT INSERT, UPDATE, DELETE ON `mysql`.* TO 'mysqltest_3'@'localhost'
-select host,user,password from mysql.user where user like 'mysqltest_%' order by host,user,password;
+select host,user,password,plugin,authentication_string from mysql.user where user like 'mysqltest_%' ;
 ERROR 42000: SELECT command denied to user 'mysqltest_3'@'localhost' for table 'user'
 insert into mysql.user set host='%', user='mysqltest_B';
 Warnings:
@@ -555,29 +555,26 @@ End of 5.0 tests
 USE mysql;
 SELECT LEFT(CURRENT_USER(),INSTR(CURRENT_USER(),'@')-1) INTO @u;
 SELECT MID(CURRENT_USER(),INSTR(CURRENT_USER(),'@')+1)  INTO @h;
-SELECT password FROM user WHERE user=@u AND host=@h INTO @pwd;
-Warnings:
-Warning	1287	'<select expression> INTO <destination>;' is deprecated and will be removed in a future release. Please use 'SELECT <select list> INTO <destination> FROM...' instead
-SELECT user,host,password,insert_priv FROM user WHERE user=@u AND host=@h;
-user	host	password	insert_priv
-root	localhost		Y
+SELECT user,host,password,plugin,authentication_string,insert_priv FROM user WHERE user=@u AND host=@h;
+user	host	password	plugin	authentication_string	insert_priv
+root	localhost				Y
 UPDATE user SET insert_priv='N' WHERE user=@u AND host=@h;
-SELECT user,host,password,insert_priv FROM user WHERE user=@u AND host=@h;
-user	host	password	insert_priv
-root	localhost		N
+SELECT user,host,password,plugin,authentication_string,insert_priv FROM user WHERE user=@u AND host=@h;
+user	host	password	plugin	authentication_string	insert_priv
+root	localhost				N
 GRANT INSERT ON *.* TO CURRENT_USER();
-SELECT user,host,password,insert_priv FROM user WHERE user=@u AND host=@h;
-user	host	password	insert_priv
-root	localhost		Y
+SELECT user,host,password,plugin,authentication_string,insert_priv FROM user WHERE user=@u AND host=@h;
+user	host	password	plugin	authentication_string	insert_priv
+root	localhost				Y
 UPDATE user SET insert_priv='N' WHERE user=@u AND host=@h;
 GRANT INSERT ON *.* TO CURRENT_USER() IDENTIFIED BY 'keksdose';
-SELECT user,host,password,insert_priv FROM user WHERE user=@u AND host=@h;
-user	host	password	insert_priv
-root	localhost	*0BB7188CF0DE9B403BA66E9DD810D82652D002EB	Y
-UPDATE user SET password=@pwd WHERE user=@u AND host=@h;
-SELECT user,host,password,insert_priv FROM user WHERE user=@u AND host=@h;
-user	host	password	insert_priv
-root	localhost		Y
+SELECT user,host,password,plugin,authentication_string,insert_priv FROM user WHERE user=@u AND host=@h;
+user	host	password	plugin	authentication_string	insert_priv
+root	localhost		mysql_native_password	*0BB7188CF0DE9B403BA66E9DD810D82652D002EB	Y
+UPDATE user SET plugin='', authentication_string='' WHERE user=@u AND host=@h;
+SELECT user,host,password,plugin,authentication_string,insert_priv FROM user WHERE user=@u AND host=@h;
+user	host	password	plugin	authentication_string	insert_priv
+root	localhost				Y
 FLUSH PRIVILEGES;
 USE test;
 End of 5.1 tests

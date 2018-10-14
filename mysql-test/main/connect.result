@@ -98,7 +98,7 @@ ERROR 28000: Access denied for user 'test'@'localhost' (using password: YES)
 connect(localhost,test,zorro,test,MASTER_PORT,MASTER_SOCKET);
 connect  fail_con,localhost,test,zorro,;
 ERROR 28000: Access denied for user 'test'@'localhost' (using password: YES)
-update mysql.user set password=old_password("gambling2") where user=_binary"test";
+update mysql.user set plugin="", authentication_string="", password=old_password("gambling2") where user=_binary"test";
 flush privileges;
 connect  con10,localhost,test,gambling2,;
 connect  con5,localhost,test,gambling2,mysql;
@@ -364,8 +364,8 @@ update mysql.user set plugin='mysql_old_password' where user = 'mysqltest_up2';
 select user, password, plugin, authentication_string from mysql.user
 where user like 'mysqltest_up_';
 user	password	plugin	authentication_string
-mysqltest_up1	*E8D46CE25265E545D225A8A6F1BAF642FEBEE5CB	mysql_native_password	
-mysqltest_up2	09301740536db389	mysql_old_password	
+mysqltest_up1		mysql_native_password	*E8D46CE25265E545D225A8A6F1BAF642FEBEE5CB
+mysqltest_up2		mysql_old_password	09301740536db389
 flush privileges;
 connect pcon6,localhost,mysqltest_up1,bar,,$MASTER_MYPORT,;
 connection pcon6;
@@ -383,7 +383,7 @@ connection default;
 DROP USER mysqltest_up1@'%';
 DROP USER mysqltest_up2@'%';
 #
-# BUG#1010351: New "via" keyword in 5.2+ can't be used as identifier anymore  
+# BUG#1010351: New "via" keyword in 5.2+ can't be used as identifier anymore
 #
 create table t1 (via int);
 alter table t1 add key(via);

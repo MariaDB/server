@@ -506,9 +506,9 @@ DROP DATABASE mysqltest;
 GRANT USAGE ON *.* TO user19857@localhost IDENTIFIED BY 'meow';
 GRANT SELECT, INSERT, UPDATE, DELETE, CREATE ROUTINE, ALTER ROUTINE ON test.* TO
 user19857@localhost;
-SELECT Host,User,Password FROM mysql.user WHERE User='user19857';
-Host	User	Password
-localhost	user19857	*82DC221D557298F6CE9961037DB1C90604792F5C
+SELECT Host,User,Plugin,Authentication_string FROM mysql.user WHERE User='user19857';
+Host	User	Plugin	Authentication_string
+localhost	user19857	mysql_native_password	*82DC221D557298F6CE9961037DB1C90604792F5C
 connect  mysqltest_2_con,localhost,user19857,meow,test;
 connection mysqltest_2_con;
 USE test;
@@ -533,9 +533,9 @@ connection mysqltest_2_con;
 DROP PROCEDURE IF EXISTS test.sp19857;
 connection con1root;
 disconnect mysqltest_2_con;
-SELECT Host,User,Password FROM mysql.user WHERE User='user19857';
-Host	User	Password
-localhost	user19857	*82DC221D557298F6CE9961037DB1C90604792F5C
+SELECT Host,User,Plugin,Authentication_string FROM mysql.user WHERE User='user19857';
+Host	User	Plugin	Authentication_string
+localhost	user19857	mysql_native_password	*82DC221D557298F6CE9961037DB1C90604792F5C
 DROP USER user19857@localhost;
 disconnect con1root;
 connection default;

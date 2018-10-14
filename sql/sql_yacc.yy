@@ -16254,14 +16254,14 @@ opt_for_user:
         ;
 
 text_or_password:
-          TEXT_STRING { Lex->definer->pwhash= $1;}
+          TEXT_STRING { Lex->definer->auth= $1;}
         | PASSWORD_SYM '(' TEXT_STRING ')' { Lex->definer->pwtext= $3; }
         | OLD_PASSWORD_SYM '(' TEXT_STRING ')'
           {
             Lex->definer->pwtext= $3;
-            Lex->definer->pwhash.str= Item_func_password::alloc(thd,
+            Lex->definer->auth.str= Item_func_password::alloc(thd,
                                    $3.str, $3.length, Item_func_password::OLD);
-            Lex->definer->pwhash.length=  SCRAMBLED_PASSWORD_CHAR_LENGTH_323;
+            Lex->definer->auth.length=  SCRAMBLED_PASSWORD_CHAR_LENGTH_323;
           }
         ;
 
@@ -16825,7 +16825,7 @@ grant_user:
         | user IDENTIFIED_SYM BY PASSWORD_SYM TEXT_STRING
           { 
             $$= $1; 
-            $1->pwhash= $5;
+            $1->auth= $5;
           }
         | user IDENTIFIED_SYM via_or_with ident_or_text
           {

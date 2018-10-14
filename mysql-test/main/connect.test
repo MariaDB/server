@@ -66,7 +66,7 @@ connect (fail_con,localhost,test,zorro,test2);
 connect (fail_con,localhost,test,zorro,);
 
 # check if old password version also works
-update mysql.user set password=old_password("gambling2") where user=_binary"test";
+update mysql.user set plugin="", authentication_string="", password=old_password("gambling2") where user=_binary"test";
 flush privileges;
 
 connect (con10,localhost,test,gambling2,);
@@ -419,7 +419,7 @@ update mysql.user set plugin='mysql_native_password' where user = 'mysqltest_up1
 update mysql.user set plugin='mysql_old_password' where user = 'mysqltest_up2';
 select user, password, plugin, authentication_string from mysql.user
                   where user like 'mysqltest_up_';
-flush privileges;                  
+flush privileges;
 
 --replace_result $MASTER_MYSOCK MASTER_SOCKET $MASTER_MYPORT MASTER_PORT
 connect(pcon6,localhost,mysqltest_up1,bar,,$MASTER_MYPORT,);
@@ -442,7 +442,7 @@ DROP USER mysqltest_up2@'%';
 
 
 --echo #
---echo # BUG#1010351: New "via" keyword in 5.2+ can't be used as identifier anymore  
+--echo # BUG#1010351: New "via" keyword in 5.2+ can't be used as identifier anymore
 --echo #
 create table t1 (via int);
 alter table t1 add key(via);
