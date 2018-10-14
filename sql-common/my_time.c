@@ -1444,7 +1444,7 @@ longlong number_to_datetime(longlong nr, ulong sec_part, MYSQL_TIME *time_res,
 int number_to_time(my_bool neg, ulonglong nr, ulong sec_part,
                    MYSQL_TIME *ltime, int *was_cut)
 {
-  if (nr > 9999999 && nr < 99991231235959ULL && neg == 0)
+  if (nr > 9999999 && nr <= 99991231235959ULL && neg == 0)
     return number_to_datetime(nr, sec_part, ltime,
                               C_TIME_INVALID_DATES, was_cut) < 0 ? -1 : 0;
 
