@@ -1341,15 +1341,17 @@ row_upd_index_replace_metadata(
 	ut_ad(entry->n_fields == ulint(index->n_fields) + 1);
 	const page_size_t& page_size = dict_table_page_size(index->table);
 	const ulint first = index->first_user_field();
+	ut_d(bool found_mblob = false);
 
 	for (ulint i = upd_get_n_fields(update); i--; ) {
 		const upd_field_t* uf = upd_get_nth_field(update, i);
 		ut_ad(!upd_fld_is_virtual_col(uf));
-		ut_ad(uf->field_no >= first);
+		ut_ad(uf->field_no >= first - 2);
 		ulint f = uf->field_no;
 		dfield_t* dfield = dtuple_get_nth_field(entry, f);
 
-		if (f-- == first) {
+		if (f == first) {
+			ut_d(found_mblob = true);
 			ut_ad(!dfield_is_ext(&uf->new_val));
 			ut_ad(!dfield_is_null(&uf->new_val));
 			ut_ad(dfield_is_ext(dfield));
@@ -1359,10 +1361,13 @@ row_upd_index_replace_metadata(
 			continue;
 		}
 
+		f -= f > first;
 		const dict_field_t* field = dict_index_get_nth_field(index, f);
 		row_upd_index_replace_new_col_val(dfield, field, field->col,
 						  uf, heap, page_size);
 	}
+
+	ut_ad(found_mblob);
 }
 
 /** Apply an update vector to an index entry.

@@ -1237,17 +1237,21 @@ close_table:
 	ut_ad(!node->ref->info_bits);
 
 	if (node->update->info_bits & REC_INFO_MIN_REC_FLAG) {
-		/* This must be an undo log record for a subsequent
-		instant ALTER TABLE, extending the metadata record. */
-		ut_ad(clust_index->is_instant());
-		if (node->update->info_bits != REC_INFO_MIN_REC_FLAG) {
+		if ((node->update->info_bits & ~REC_INFO_DELETED_FLAG)
+		    != REC_INFO_MIN_REC_FLAG) {
 			ut_ad(!"wrong info_bits in undo log record");
 			goto close_table;
 		}
-		// FIXME: Could be REC_INFO_METADATA_ALTER as well?
-		node->update->info_bits = REC_INFO_METADATA_ADD;
-		const_cast<dtuple_t*>(node->ref)->info_bits
-			= REC_INFO_METADATA_ADD;
+		/* This must be an undo log record for a subsequent
+		instant ALTER TABLE, extending the metadata record. */
+		ut_ad(clust_index->is_instant());
+		ut_ad(clust_index->table->instant
+		      || !(node->update->info_bits & REC_INFO_DELETED_FLAG));
+		const_cast<dtuple_t*>(node->ref)->info_bits =
+			node->update->info_bits = (node->update->info_bits
+						   & REC_INFO_DELETED_FLAG)
+			? REC_INFO_METADATA_ALTER
+			: REC_INFO_METADATA_ADD;
 	}
 
 	if (!row_undo_search_clust_to_pcur(node)) {
