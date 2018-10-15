@@ -4254,6 +4254,19 @@ btr_cur_trim(
 			first instantly added column logged by
 			innobase_add_instant_try(). */
 			ut_ad(update->n_fields > 2);
+			if (update->is_alter_metadata()) {
+				ut_ad(update->fields[0].field_no
+				      == index->first_user_field());
+				ut_ad(update->fields[0].new_val.ext);
+				ut_ad(update->fields[0].new_val.len
+				      == FIELD_REF_SIZE);
+				ut_ad(entry->n_fields - 1 == index->n_fields);
+				ulint n_fields = update->fields[1].field_no;
+				ut_ad(n_fields <= index->n_fields);
+				entry->n_fields = n_fields;
+				return;
+			}
+
 			ulint n_fields = upd_get_nth_field(update, 0)
 				->field_no;
 			ut_ad(n_fields + 1 >= entry->n_fields);
@@ -4785,7 +4798,8 @@ btr_cur_pessimistic_update(
 		    page_is_comp(page),
 		    dict_index_get_n_fields(index),
 		    block->page.size)
-	    || UNIV_UNLIKELY(update->is_alter_metadata())) {
+	    || (UNIV_UNLIKELY(update->is_alter_metadata())
+		&& !thr_get_trx(thr)->in_rollback)) {
 
 		big_rec_vec = dtuple_convert_big_rec(index, update, new_entry, &n_ext);
 		if (UNIV_UNLIKELY(big_rec_vec == NULL)) {

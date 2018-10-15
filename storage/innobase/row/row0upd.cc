@@ -1352,7 +1352,6 @@ row_upd_index_replace_metadata(
 
 		if (f == first) {
 			ut_d(found_mblob = true);
-			ut_ad(!dfield_is_ext(&uf->new_val));
 			ut_ad(!dfield_is_null(&uf->new_val));
 			ut_ad(dfield_is_ext(dfield));
 			ut_ad(dfield_get_len(dfield) == FIELD_REF_SIZE);
