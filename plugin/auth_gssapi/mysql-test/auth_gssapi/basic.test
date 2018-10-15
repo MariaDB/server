@@ -1,4 +1,4 @@
---replace_regex /name '[a-zA-Z@.]+'/name 'localhost'/
+--replace_regex /name '[^']+'/name 'localhost'/
 INSTALL SONAME 'auth_gssapi';
 
 #
