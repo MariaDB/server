@@ -9607,13 +9607,22 @@ commit_cache_norebuild(
 		innobase_rename_or_enlarge_columns_cache(
 			ha_alter_info, table, ctx->new_table);
 	} else {
+		ut_ad(ctx->col_map);
+
 		if (fts_t* fts = ctx->new_table->fts) {
 			ut_ad(fts->doc_col != ULINT_UNDEFINED);
 			ut_ad(ctx->new_table->n_cols > DATA_N_SYS_COLS);
-			unsigned c = ctx->new_table->n_cols
-				- (DATA_N_SYS_COLS + 1);
-			ut_ad(ctx->new_table->cols[c].prtype
-			      & DATA_FTS_DOC_ID);
+			const ulint c = ctx->col_map[fts->doc_col];
+			ut_ad(c < ulint(ctx->new_table->n_cols)
+			      - DATA_N_SYS_COLS);
+			ut_d(const dict_col_t& col = ctx->new_table->cols[c]);
+			ut_ad(!col.is_nullable());
+			ut_ad(!col.is_virtual());
+			ut_ad(!col.is_added());
+			ut_ad(col.prtype & DATA_UNSIGNED);
+			ut_ad(col.mtype == DATA_INT);
+			ut_ad(col.len == 8);
+			ut_ad(col.ord_part);
 			fts->doc_col = c;
 		}
 
