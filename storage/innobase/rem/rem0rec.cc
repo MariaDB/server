@@ -548,13 +548,17 @@ rec_offs_validate(
 	}
 	if (index) {
 		ut_ad(ulint(index) == offsets[3]);
-#if 0 /* FIXME: enable this for node pointers, not for the metadata rec */
 		ulint max_n_fields = ut_max(
 			dict_index_get_n_fields(index),
 			dict_index_get_n_unique_in_tree(index) + 1);
 		if (comp && rec) {
 			switch (rec_get_status(rec)) {
 			case REC_STATUS_INSTANT:
+				ut_ad(index->is_instant() || index->is_dummy);
+				ut_ad(max_n_fields == index->n_fields);
+				max_n_fields += index->table->instant
+					|| index->is_dummy;
+				break;
 			case REC_STATUS_ORDINARY:
 				break;
 			case REC_STATUS_NODE_PTR:
@@ -568,11 +572,15 @@ rec_offs_validate(
 			default:
 				ut_error;
 			}
+		} else if (max_n_fields == index->n_fields
+			   && (index->is_dummy
+			       || (index->is_instant()
+				   && index->table->instant))) {
+			max_n_fields++;
 		}
-		ut_ad(!index->n_def || i <= max_n_fields);
-#endif
 		/* index->n_def == 0 for dummy indexes if !comp */
 		ut_ad(!comp || index->n_def);
+		ut_ad(!index->n_def || i <= max_n_fields);
 	}
 	while (i--) {
 		ulint	curr = rec_offs_base(offsets)[1 + i] & REC_OFFS_MASK;
@@ -1591,7 +1599,7 @@ rec_convert_dtuple_to_rec_comp(
 		return;
 	}
 
- start:
+start:
 	end = rec;
 	/* clear the SQL-null flags */
 	memset(lens + 1, 0, ulint(nulls - lens));
