@@ -2719,7 +2719,7 @@ static Sys_var_bit Sys_auto_is_null(
 
 static Sys_var_bit Sys_safe_updates(
        "sql_safe_updates", "sql_safe_updates",
-       SESSION_VAR(option_bits), NO_CMD_LINE, OPTION_SAFE_UPDATES,
+       SESSION_VAR(option_bits), CMD_LINE(REQUIRED_ARG), OPTION_SAFE_UPDATES,
        DEFAULT(FALSE));
 
 static Sys_var_bit Sys_buffer_results(
