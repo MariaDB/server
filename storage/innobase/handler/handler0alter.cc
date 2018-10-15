@@ -9606,17 +9606,30 @@ commit_cache_norebuild(
 	if (!ctx->is_instant()) {
 		innobase_rename_or_enlarge_columns_cache(
 			ha_alter_info, table, ctx->new_table);
-	} else if (ha_alter_info->handler_flags & ALTER_DROP_STORED_COLUMN) {
-		dict_index_t* index = dict_table_get_first_index(
-			ctx->new_table);
-		for (const dict_field_t* f = index->fields,
-			     * const end = f + index->n_fields;
-		     f != end; f++) {
-			dict_col_t& c = *f->col;
-			if (c.is_dropped()) {
-				c.set_dropped(!c.is_nullable(),
-					      !f->fixed_len && c.len > 255,
-					      f->fixed_len);
+	} else {
+		if (fts_t* fts = ctx->new_table->fts) {
+			ut_ad(fts->doc_col != ULINT_UNDEFINED);
+			ut_ad(ctx->new_table->n_cols > DATA_N_SYS_COLS);
+			unsigned c = ctx->new_table->n_cols
+				- (DATA_N_SYS_COLS + 1);
+			ut_ad(ctx->new_table->cols[c].prtype
+			      & DATA_FTS_DOC_ID);
+			fts->doc_col = c;
+		}
+
+		if (ha_alter_info->handler_flags & ALTER_DROP_STORED_COLUMN) {
+			dict_index_t* index = dict_table_get_first_index(
+				ctx->new_table);
+			for (const dict_field_t* f = index->fields,
+				     * const end = f + index->n_fields;
+			     f != end; f++) {
+				dict_col_t& c = *f->col;
+				if (c.is_dropped()) {
+					c.set_dropped(!c.is_nullable(),
+						      !f->fixed_len
+						      && c.len > 255,
+						      f->fixed_len);
+				}
 			}
 		}
 	}
