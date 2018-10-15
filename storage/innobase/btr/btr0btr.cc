@@ -1701,6 +1701,17 @@ func_exit:
 		memcpy(FIL_PAGE_TYPE + page, FIL_PAGE_TYPE + temp_page, 2);
 		memcpy(PAGE_HEADER + PAGE_INSTANT + page,
 		       PAGE_HEADER + PAGE_INSTANT + temp_page, 2);
+		if (page_is_comp(page)) {
+			memcpy(PAGE_NEW_INFIMUM + page,
+			       PAGE_NEW_INFIMUM + temp_page, 8);
+			memcpy(PAGE_NEW_SUPREMUM + page,
+			       PAGE_NEW_SUPREMUM + temp_page, 8);
+		} else {
+			memcpy(PAGE_OLD_INFIMUM + page,
+			       PAGE_OLD_INFIMUM + temp_page, 8);
+			memcpy(PAGE_OLD_SUPREMUM + page,
+			       PAGE_OLD_SUPREMUM + temp_page, 8);
+		}
 	}
 
 	buf_block_free(temp_block);
