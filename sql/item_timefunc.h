@@ -978,6 +978,11 @@ class Item_extract :public Item_int_func
     max_length= length; //QQ: see above
     date_value= true;
   }
+  void set_day_length(uint32 length)
+  {
+    max_length= length + 1/*sign*/; // e.g. '-24:00:00' -> -1
+    date_value= true;
+  }
   void set_time_length(uint32 length)
   {
     max_length= length + 1/*sign*/;

@@ -2098,7 +2098,7 @@ bool Item_extract::fix_length_and_dec()
   case INTERVAL_QUARTER:          set_date_length(2); break; // 1..4
   case INTERVAL_MONTH:            set_date_length(2); break; // MM
   case INTERVAL_WEEK:             set_date_length(2); break; // 0..52
-  case INTERVAL_DAY:              set_date_length(2); break; // DD
+  case INTERVAL_DAY:              set_day_length(2); break; // DD
   case INTERVAL_DAY_HOUR:         set_time_length(4); break; // DDhh
   case INTERVAL_DAY_MINUTE:       set_time_length(6); break; // DDhhmm
   case INTERVAL_DAY_SECOND:       set_time_length(8); break; // DDhhmmss
@@ -2148,7 +2148,7 @@ longlong Item_extract::val_int()
     week_format= current_thd->variables.default_week_format;
     return calc_week(&ltime, week_mode(week_format), &year);
   }
-  case INTERVAL_DAY:		return ltime.day;
+  case INTERVAL_DAY:		return ltime.day * neg;
   case INTERVAL_DAY_HOUR:	return (long) (ltime.day*100L+ltime.hour)*neg;
   case INTERVAL_DAY_MINUTE:	return (long) (ltime.day*10000L+
 					       ltime.hour*100L+
