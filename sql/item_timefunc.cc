@@ -2119,69 +2119,45 @@ bool Item_extract::fix_length_and_dec()
 }
 
 
+uint Extract_source::week(THD *thd) const
+{
+  DBUG_ASSERT(is_valid_extract_source());
+  uint year;
+  ulong week_format= current_thd->variables.default_week_format;
+  return calc_week(this, week_mode(week_format), &year);
+}
+
+
 longlong Item_extract::val_int()
 {
   DBUG_ASSERT(fixed == 1);
-  MYSQL_TIME ltime;
-  uint year;
-  ulong week_format;
-  long neg;
-  date_mode_t is_time_flag = date_value ? date_mode_t(0) : TIME_TIME_ONLY;
-
-  // Not using get_arg0_date to avoid automatic TIME to DATETIME conversion
-  if ((null_value= args[0]->get_date(current_thd, &ltime, is_time_flag)))
+  Extract_source dt(current_thd, args[0], m_date_mode);
+  if ((null_value= !dt.is_valid_extract_source()))
     return 0;
-
-  neg= ltime.neg ? -1 : 1;
-
-  DBUG_ASSERT(ltime.time_type != MYSQL_TIMESTAMP_TIME ||  ltime.day == 0);
-  if (ltime.time_type == MYSQL_TIMESTAMP_TIME)
-    time_to_daytime_interval(&ltime);
-
   switch (int_type) {
-  case INTERVAL_YEAR:		return ltime.year;
-  case INTERVAL_YEAR_MONTH:	return ltime.year*100L+ltime.month;
-  case INTERVAL_QUARTER:	return (ltime.month+2)/3;
-  case INTERVAL_MONTH:		return ltime.month;
-  case INTERVAL_WEEK:
-  {
-    week_format= current_thd->variables.default_week_format;
-    return calc_week(&ltime, week_mode(week_format), &year);
-  }
-  case INTERVAL_DAY:		return (long) ltime.day * neg;
-  case INTERVAL_DAY_HOUR:	return (long) (ltime.day*100L+ltime.hour)*neg;
-  case INTERVAL_DAY_MINUTE:	return (long) (ltime.day*10000L+
-					       ltime.hour*100L+
-					       ltime.minute)*neg;
-  case INTERVAL_DAY_SECOND:	 return ((longlong) ltime.day*1000000L+
-					 (longlong) (ltime.hour*10000L+
-						     ltime.minute*100+
-						     ltime.second))*neg;
-  case INTERVAL_HOUR:		return (long) ltime.hour*neg;
-  case INTERVAL_HOUR_MINUTE:	return (long) (ltime.hour*100+ltime.minute)*neg;
-  case INTERVAL_HOUR_SECOND:	return (long) (ltime.hour*10000+ltime.minute*100+
-					       ltime.second)*neg;
-  case INTERVAL_MINUTE:		return (long) ltime.minute*neg;
-  case INTERVAL_MINUTE_SECOND:	return (long) (ltime.minute*100+ltime.second)*neg;
-  case INTERVAL_SECOND:		return (long) ltime.second*neg;
-  case INTERVAL_MICROSECOND:	return (long) ltime.second_part*neg;
-  case INTERVAL_DAY_MICROSECOND: return (((longlong)ltime.day*1000000L +
-					  (longlong)ltime.hour*10000L +
-					  ltime.minute*100 +
-					  ltime.second)*1000000L +
-					 ltime.second_part)*neg;
-  case INTERVAL_HOUR_MICROSECOND: return (((longlong)ltime.hour*10000L +
-					   ltime.minute*100 +
-					   ltime.second)*1000000L +
-					  ltime.second_part)*neg;
-  case INTERVAL_MINUTE_MICROSECOND: return (((longlong)(ltime.minute*100+
-							ltime.second))*1000000L+
-					    ltime.second_part)*neg;
-  case INTERVAL_SECOND_MICROSECOND: return ((longlong)ltime.second*1000000L+
-					    ltime.second_part)*neg;
+  case INTERVAL_YEAR:                return dt.year();
+  case INTERVAL_YEAR_MONTH:          return dt.year_month();
+  case INTERVAL_QUARTER:             return dt.quarter();
+  case INTERVAL_MONTH:               return dt.month();
+  case INTERVAL_WEEK:                return dt.week(current_thd);
+  case INTERVAL_DAY:                 return dt.day();
+  case INTERVAL_DAY_HOUR:            return dt.day_hour();
+  case INTERVAL_DAY_MINUTE:          return dt.day_minute();
+  case INTERVAL_DAY_SECOND:          return dt.day_second();
+  case INTERVAL_HOUR:                return dt.hour();
+  case INTERVAL_HOUR_MINUTE:         return dt.hour_minute();
+  case INTERVAL_HOUR_SECOND:         return dt.hour_second();
+  case INTERVAL_MINUTE:              return dt.minute();
+  case INTERVAL_MINUTE_SECOND:       return dt.minute_second();
+  case INTERVAL_SECOND:              return dt.second();
+  case INTERVAL_MICROSECOND:         return dt.microsecond();
+  case INTERVAL_DAY_MICROSECOND:     return dt.day_microsecond();
+  case INTERVAL_HOUR_MICROSECOND:    return dt.hour_microsecond();
+  case INTERVAL_MINUTE_MICROSECOND:  return dt.minute_microsecond();
+  case INTERVAL_SECOND_MICROSECOND:  return dt.second_microsecond();
   case INTERVAL_LAST: DBUG_ASSERT(0); break;  /* purecov: deadcode */
   }
-  return 0;					// Impossible
+  return 0;                                        // Impossible
 }
 
 bool Item_extract::eq(const Item *item, bool binary_cmp) const

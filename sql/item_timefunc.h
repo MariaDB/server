@@ -964,9 +964,17 @@ public:
 };
 
 
-class Item_extract :public Item_int_func
+class Item_extract :public Item_int_func,
+                    public Type_handler_hybrid_field_type
 {
-  bool date_value;
+  date_mode_t m_date_mode;
+  const Type_handler_int_result *handler_by_length(uint32 length,
+                                                   uint32 threashold)
+  {
+    if (length >= threashold)
+      return &type_handler_longlong;
+    return &type_handler_long;
+  }
   void set_date_length(uint32 length)
   {
     /*
@@ -975,53 +983,34 @@ class Item_extract :public Item_int_func
       because all around the code we assume that max_length is sign inclusive.
       Another options is to set unsigned_flag to "true".
     */
-    max_length= length; //QQ: see above
-    date_value= true;
+    set_handler(handler_by_length(max_length= length, 10)); // QQ: see above
+    m_date_mode= date_mode_t(0);
   }
   void set_day_length(uint32 length)
   {
-    max_length= length + 1/*sign*/; // e.g. '-24:00:00' -> -1
-    date_value= true;
+    /*
+      Units starting with DAY can be negative:
+        EXTRACT(DAY FROM '-24:00:00') -> -1
+    */
+    set_handler(handler_by_length(max_length= length + 1/*sign*/, 11));
+    m_date_mode= date_mode_t(0);
   }
   void set_time_length(uint32 length)
   {
-    max_length= length + 1/*sign*/;
-    date_value= false;
+    set_handler(handler_by_length(max_length= length + 1/*sign*/, 11));
+    m_date_mode= TIME_TIME_ONLY;
   }
  public:
   const interval_type int_type; // keep it public
   Item_extract(THD *thd, interval_type type_arg, Item *a):
-    Item_int_func(thd, a), int_type(type_arg) {}
+    Item_int_func(thd, a),
+    Type_handler_hybrid_field_type(&type_handler_longlong),
+    m_date_mode(date_mode_t(0)),
+    int_type(type_arg)
+  { }
   const Type_handler *type_handler() const
   {
-    switch (int_type) {
-    case INTERVAL_YEAR:
-    case INTERVAL_YEAR_MONTH:
-    case INTERVAL_QUARTER:
-    case INTERVAL_MONTH:
-    case INTERVAL_WEEK:
-    case INTERVAL_DAY:
-    case INTERVAL_DAY_HOUR:
-    case INTERVAL_DAY_MINUTE:
-    case INTERVAL_DAY_SECOND:
-    case INTERVAL_HOUR:
-    case INTERVAL_HOUR_MINUTE:
-    case INTERVAL_HOUR_SECOND:
-    case INTERVAL_MINUTE:
-    case INTERVAL_MINUTE_SECOND:
-    case INTERVAL_SECOND:
-    case INTERVAL_MICROSECOND:
-    case INTERVAL_SECOND_MICROSECOND:
-      return &type_handler_long;
-    case INTERVAL_DAY_MICROSECOND:
-    case INTERVAL_HOUR_MICROSECOND:
-    case INTERVAL_MINUTE_MICROSECOND:
-      return &type_handler_longlong;
-    case INTERVAL_LAST:
-      break;
-    }
-    DBUG_ASSERT(0);
-    return &type_handler_longlong;
+    return Type_handler_hybrid_field_type::type_handler();
   }
   longlong val_int();
   enum Functype functype() const { return EXTRACT_FUNC; }

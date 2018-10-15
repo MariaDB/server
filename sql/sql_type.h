@@ -478,6 +478,10 @@ protected:
            second <= TIME_MAX_SECOND &&
            second_part <= TIME_MAX_SECOND_PART;
   }
+  bool has_zero_YYYYMM() const
+  {
+    return year == 0 && month == 0;
+  }
   bool has_zero_YYYYMMDD() const
   {
     return year == 0 && month == 0 && day == 0;
@@ -556,6 +560,120 @@ public:
 };
 
 
+/*
+  This class resembles the SQL standard <extract source>,
+  used in extract expressions, e.g: EXTRACT(DAY FROM dt)
+  <extract expression> ::=
+    EXTRACT <left paren> <extract field> FROM <extract source> <right paren>
+  <extract source> ::= <datetime value expression> | <interval value expression>
+*/
+class Extract_source: public Temporal_hybrid
+{
+  /*
+    Convert a TIME value to DAY-TIME interval, e.g. for extraction:
+      EXTRACT(DAY FROM x), EXTRACT(HOUR FROM x), etc.
+    Moves full days from ltime->hour to ltime->day.
+  */
+  void time_to_daytime_interval()
+  {
+    DBUG_ASSERT(time_type == MYSQL_TIMESTAMP_TIME);
+    DBUG_ASSERT(has_zero_YYYYMMDD());
+    MYSQL_TIME::day= MYSQL_TIME::hour / 24;
+    MYSQL_TIME::hour%= 24;
+  }
+  bool is_valid_extract_source_slow() const
+  {
+    return is_valid_temporal() && MYSQL_TIME::hour < 24 &&
+           (has_zero_YYYYMM() || time_type != MYSQL_TIMESTAMP_TIME);
+  }
+  bool is_valid_value_slow() const
+  {
+    return time_type == MYSQL_TIMESTAMP_NONE || is_valid_extract_source_slow();
+  }
+public:
+  Extract_source(THD *thd, Item *item, date_mode_t mode)
+   :Temporal_hybrid(thd, item, mode)
+  {
+    if (MYSQL_TIME::time_type == MYSQL_TIMESTAMP_TIME)
+      time_to_daytime_interval();
+    DBUG_ASSERT(is_valid_value_slow());
+  }
+  inline const MYSQL_TIME *get_mysql_time() const
+  {
+    DBUG_ASSERT(is_valid_extract_source_slow());
+    return this;
+  }
+  bool is_valid_extract_source() const { return is_valid_temporal(); }
+  int sign() const { return get_mysql_time()->neg ? -1 : 1; }
+  uint year() const { return get_mysql_time()->year; }
+  uint month() const { return get_mysql_time()->month; }
+  int day() const { return (int) get_mysql_time()->day * sign(); }
+  int hour() const { return (int) get_mysql_time()->hour * sign(); }
+  int minute() const { return (int) get_mysql_time()->minute * sign(); }
+  int second() const { return (int) get_mysql_time()->second * sign(); }
+  int microsecond() const { return (int) get_mysql_time()->second_part * sign(); }
+
+  uint year_month() const { return year() * 100 + month(); }
+  uint quarter() const { return (month() + 2)/3; }
+  uint week(THD *thd) const;
+
+  longlong second_microsecond() const
+  {
+    return (second() * 1000000LL + microsecond());
+  }
+
+  // DAY TO XXX
+  longlong day_hour() const
+  {
+    return (longlong) day() * 100LL + hour();
+  }
+  longlong day_minute() const
+  {
+    return day_hour() * 100LL + minute();
+  }
+  longlong day_second() const
+  {
+    return day_minute() * 100LL + second();
+  }
+  longlong day_microsecond() const
+  {
+    return day_second() * 1000000LL + microsecond();
+  }
+
+  // HOUR TO XXX
+  int hour_minute() const
+  {
+    return hour() * 100 + minute();
+  }
+  int hour_second() const
+  {
+    return hour_minute() * 100 + second();
+  }
+  longlong hour_microsecond() const
+  {
+    return hour_second() * 1000000LL + microsecond();
+  }
+
+  // MINUTE TO XXX
+  int minute_second() const
+  {
+    return minute() * 100 + second();
+  }
+  longlong minute_microsecond() const
+  {
+    return minute_second() * 1000000LL + microsecond();
+  }
+};
+
+
+/*
+  This class is used for the "time_interval" argument of these SQL functions:
+    TIMESTAMP(tm,time_interval)
+    ADDTIME(tm,time_interval)
+  Features:
+  - DATE and DATETIME formats are treated as errors
+  - Preserves hours for TIME format as is, without limiting to TIME_MAX_HOUR
+*/
 class Interval_DDhhmmssff: public Temporal
 {
   static const LEX_CSTRING m_type_name;
