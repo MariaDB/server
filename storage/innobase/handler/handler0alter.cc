@@ -1467,6 +1467,40 @@ innobase_fts_check_doc_id_col(
 	return(false);
 }
 
+/** Only works for ROW_TYPE=REDUNDANT
+@param[in]	flags	alter table operations flags
+@param[in]	type	table ROW_TYPE
+@return	true if it's possible to set table fields NULL instantly
+and false otherwise */
+static bool
+instant_set_nullable_possible(alter_table_operations flags,
+			      const dict_table_t* table)
+{
+	return flags & ALTER_COLUMN_NULLABLE && !dict_table_is_comp(table);
+}
+
+/** Temporary disable handler flags which can be performed instantly.
+Implemented via RAII */
+class disable_instant_handler_flags_t {
+public:
+	/** Saves an old flags value. Updates flags, if needed. */
+	disable_instant_handler_flags_t(Alter_inplace_info* ha_alter_info,
+					const dict_table_t* table)
+	    : flags(ha_alter_info->handler_flags), original_flags(flags)
+	{
+		if (instant_set_nullable_possible(flags, table)) {
+			flags &= ~ALTER_COLUMN_NULLABLE;
+		}
+	}
+
+	/** Restores original flags */
+	~disable_instant_handler_flags_t() { flags = original_flags; }
+
+private:
+	alter_table_operations& flags;
+	alter_table_operations original_flags;
+};
+
 /** Check if InnoDB supports a particular alter table in-place
 @param altered_table TABLE object for new version of table.
 @param ha_alter_info Structure describing changes to be done
@@ -1934,10 +1968,16 @@ next_column:
 		af++;
 	}
 
-	if (supports_instant
-	    || !(ha_alter_info->handler_flags
-		 & ~(INNOBASE_ALTER_INSTANT | INNOBASE_INPLACE_IGNORE))) {
-		DBUG_RETURN(HA_ALTER_INPLACE_INSTANT);
+	{
+		disable_instant_handler_flags_t flags_disabler(
+		    ha_alter_info, m_prebuilt->table);
+
+		if (supports_instant
+		    || !(ha_alter_info->handler_flags
+			 & ~(INNOBASE_ALTER_INSTANT
+			     | INNOBASE_INPLACE_IGNORE))) {
+			DBUG_RETURN(HA_ALTER_INPLACE_INSTANT);
+		}
 	}
 
 	if (!online) {
@@ -7621,6 +7661,9 @@ err_exit:
 	const ha_table_option_struct& alt_opt=
 		*ha_alter_info->create_info->option_struct;
 
+	disable_instant_handler_flags_t flags_disabler(ha_alter_info,
+						       m_prebuilt->table);
+
 	if (!(ha_alter_info->handler_flags & INNOBASE_ALTER_DATA)
 	    || ((ha_alter_info->handler_flags & ~(INNOBASE_INPLACE_IGNORE
 						  | INNOBASE_ALTER_NOCREATE
@@ -7901,6 +7944,9 @@ ha_innobase::inplace_alter_table(
 	ut_ad(!rw_lock_own(dict_operation_lock, RW_LOCK_S));
 
 	DEBUG_SYNC(m_user_thd, "innodb_inplace_alter_table_enter");
+
+	disable_instant_handler_flags_t flags_disabler(ha_alter_info,
+						       m_prebuilt->table);
 
 	if (!(ha_alter_info->handler_flags & INNOBASE_ALTER_DATA)) {
 ok_exit:
@@ -8849,6 +8895,124 @@ innobase_enlarge_columns_try(
 	return(false);
 }
 
+/** Update prtype for one field to be NULLable
+@param[in,out]	trx	transaction
+@param[in]	table	table to update
+@param[in]	pos	field position in a table
+@param[in]	prtype	type of field
+@return	boolean, whether operation succeded */
+static bool
+change_field_nullable_try(trx_t* trx, const dict_table_t* table, unsigned pos,
+			  unsigned prtype)
+{
+	pars_info_t* info = pars_info_create();
+
+	pars_info_add_int4_literal(info, "prtype", prtype);
+	pars_info_add_ull_literal(info, "table_id", table->id);
+	pars_info_add_int4_literal(info, "pos", pos);
+
+	dberr_t error = que_eval_sql(info,
+				     "PROCEDURE P () IS\n"
+				     "BEGIN\n"
+				     "UPDATE SYS_COLUMNS SET PRTYPE=:prtype\n"
+				     "WHERE TABLE_ID=:table_id AND POS=:pos;\n"
+				     "END;\n",
+				     false, trx);
+
+	if (error != DB_SUCCESS) {
+		my_error(ER_INTERNAL_ERROR, MYF(0),
+			 "InnoDB: Updating SYS_COLUMNS.PRTYPE failed");
+		return true;
+	}
+
+	return false;
+}
+
+/** Update PRTYPEs for every interesting field in a table to be NULLable
+@param[in]	ha_alter_info	alter info
+@param[in,out]	trx	transaction
+@param[in]	table	table to update
+@return	boolean, whether operation succeded */
+static bool
+change_fields_nullable_try(const Alter_inplace_info* ha_alter_info, trx_t* trx,
+			   const dict_table_t* table)
+{
+	if (!(ha_alter_info->handler_flags & ALTER_COLUMN_NULLABLE)) {
+		return false;
+	}
+
+	List_iterator_fast<Create_field> it(
+	    ha_alter_info->alter_info->create_list);
+	while (const auto* create_field = it++) {
+		if (!create_field->field) {
+			continue;
+		}
+
+		if (create_field->flags & NOT_NULL_FLAG) {
+			continue;
+		}
+
+		auto pos = innodb_col_no(create_field->field);
+		unsigned prtype = dict_table_get_nth_col(table, pos)->prtype;
+
+		if (!(prtype & DATA_NOT_NULL)) {
+			continue;
+		}
+
+		if (change_field_nullable_try(trx, table, pos,
+					      prtype & ~DATA_NOT_NULL)) {
+			return true;
+		}
+	}
+
+	return false;
+}
+
+/** Update PRTYPEs for every interesting field in a table cache to be NULLable
+@param[in]	ha_alter_info	alter info
+@param[in,out]	table	table to update */
+static void
+change_fields_nullable_cache(const Alter_inplace_info* ha_alter_info,
+			     dict_table_t* table)
+{
+	DBUG_ASSERT(ha_alter_info->handler_flags & ALTER_COLUMN_NULLABLE);
+
+	List_iterator_fast<Create_field> it(
+	    ha_alter_info->alter_info->create_list);
+	while (const auto* create_field = it++) {
+		if (!create_field->field) {
+			continue;
+		}
+
+		if (create_field->flags & NOT_NULL_FLAG) {
+			continue;
+		}
+
+		auto pos = innodb_col_no(create_field->field);
+		dict_col_t* col = dict_table_get_nth_col(table, pos);
+
+		if (!(col->prtype & DATA_NOT_NULL)) {
+			continue;
+		}
+
+		col->prtype = col->prtype & ~DATA_NOT_NULL;
+
+		for (dict_index_t* index = dict_table_get_first_index(table);
+		     index; index = dict_table_get_next_index(index)) {
+			for (unsigned i = 0; i != index->n_fields; i++) {
+				dict_field_t* field
+				    = dict_index_get_nth_field(index, i);
+				if (dict_field_get_col(field) != col) {
+					continue;
+				}
+
+				index->n_nullable++;
+				break;
+			}
+		}
+	}
+}
+
 /** Rename or enlarge columns in the data dictionary cache
 as part of commit_cache_norebuild().
 @param ha_alter_info Data used during in-place alter.
@@ -9748,6 +9912,10 @@ commit_try_norebuild(
 		DBUG_RETURN(true);
 	}
 
+	if (change_fields_nullable_try(ha_alter_info, trx, ctx->new_table)) {
+		DBUG_RETURN(true);
+	}
+
 	dberr_t	error;
 
 	/* We altered the table in place. Mark the indexes as committed. */
@@ -10055,6 +10223,10 @@ commit_cache_norebuild(
 
 	if (ha_alter_info->handler_flags & ALTER_COLUMN_UNVERSIONED) {
 		change_fields_versioning_cache(ha_alter_info, ctx, table);
+	}
+
+	if (ha_alter_info->handler_flags & ALTER_COLUMN_NULLABLE) {
+		change_fields_nullable_cache(ha_alter_info, ctx->new_table);
 	}
 
 #ifdef MYSQL_RENAME_INDEX

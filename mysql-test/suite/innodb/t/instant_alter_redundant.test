@@ -1,0 +1,63 @@
+--source include/have_innodb.inc
+
+create table t (a int NOT NULL) engine=innodb row_format=   compressed;
+--error ER_ALTER_OPERATION_NOT_SUPPORTED
+alter table t modify a int NULL, algorithm=instant;
+drop table t;
+
+create table t (a int NOT NULL) engine=innodb row_format=   dynamic;
+--error ER_ALTER_OPERATION_NOT_SUPPORTED
+alter table t modify a int NULL, algorithm=instant;
+drop table t;
+
+create table t (a int NOT NULL) engine=innodb row_format=   compact;
+--error ER_ALTER_OPERATION_NOT_SUPPORTED
+alter table t modify a int NULL, algorithm=instant;
+drop table t;
+
+create table t (
+  id int primary key,
+  a int NOT NULL default 0,
+  b int NOT NULL default 0,
+  c int NOT NULL default 0,
+  d int NOT NULL default 0,
+  index idx (a,b,c,d)
+) engine=innodb row_format=redundant;
+
+--error ER_BAD_NULL_ERROR
+insert into t (id, a) values (0, NULL);
+--error ER_BAD_NULL_ERROR
+insert into t (id, b) values (0, NULL);
+--error ER_BAD_NULL_ERROR
+insert into t (id, c) values (0, NULL);
+--error ER_BAD_NULL_ERROR
+insert into t (id, d) values (0, NULL);
+
+insert into t values (1,1,1,1,1);
+
+
+select c.prtype from information_schema.innodb_sys_columns c inner join information_schema.innodb_sys_tables t on c.table_id = t.table_id
+  where t.name = 'test/t';
+
+alter table t modify a int NULL, algorithm=instant;
+insert into t values (2, NULL, 2, 2, 2);
+
+alter table t modify b int NULL, algorithm=nocopy;
+insert into t values (3, NULL, NULL, 3, 3);
+
+alter table t modify c int NULL, algorithm=inplace;
+insert into t values (4, NULL, NULL, NULL, 4);
+
+alter table t modify d int NULL, algorithm=copy;
+insert into t values (5, NULL, NULL, NULL, NULL);
+
+--source include/restart_mysqld.inc
+
+select c.prtype, c.name from information_schema.innodb_sys_columns c inner join information_schema.innodb_sys_tables t on c.table_id = t.table_id
+  where t.name = 'test/t';
+
+select * from t;
+
+check table t;
+
+drop table t;

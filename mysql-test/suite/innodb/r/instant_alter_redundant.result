@@ -1,0 +1,64 @@
+create table t (a int NOT NULL) engine=innodb row_format=   compressed;
+alter table t modify a int NULL, algorithm=instant;
+ERROR 0A000: ALGORITHM=INSTANT is not supported for this operation. Try ALGORITHM=INPLACE
+drop table t;
+create table t (a int NOT NULL) engine=innodb row_format=   dynamic;
+alter table t modify a int NULL, algorithm=instant;
+ERROR 0A000: ALGORITHM=INSTANT is not supported for this operation. Try ALGORITHM=INPLACE
+drop table t;
+create table t (a int NOT NULL) engine=innodb row_format=   compact;
+alter table t modify a int NULL, algorithm=instant;
+ERROR 0A000: ALGORITHM=INSTANT is not supported for this operation. Try ALGORITHM=INPLACE
+drop table t;
+create table t (
+id int primary key,
+a int NOT NULL default 0,
+b int NOT NULL default 0,
+c int NOT NULL default 0,
+d int NOT NULL default 0,
+index idx (a,b,c,d)
+) engine=innodb row_format=redundant;
+insert into t (id, a) values (0, NULL);
+ERROR 23000: Column 'a' cannot be null
+insert into t (id, b) values (0, NULL);
+ERROR 23000: Column 'b' cannot be null
+insert into t (id, c) values (0, NULL);
+ERROR 23000: Column 'c' cannot be null
+insert into t (id, d) values (0, NULL);
+ERROR 23000: Column 'd' cannot be null
+insert into t values (1,1,1,1,1);
+select c.prtype from information_schema.innodb_sys_columns c inner join information_schema.innodb_sys_tables t on c.table_id = t.table_id
+where t.name = 'test/t';
+prtype
+1283
+1283
+1283
+1283
+1283
+alter table t modify a int NULL, algorithm=instant;
+insert into t values (2, NULL, 2, 2, 2);
+alter table t modify b int NULL, algorithm=nocopy;
+insert into t values (3, NULL, NULL, 3, 3);
+alter table t modify c int NULL, algorithm=inplace;
+insert into t values (4, NULL, NULL, NULL, 4);
+alter table t modify d int NULL, algorithm=copy;
+insert into t values (5, NULL, NULL, NULL, NULL);
+select c.prtype, c.name from information_schema.innodb_sys_columns c inner join information_schema.innodb_sys_tables t on c.table_id = t.table_id
+where t.name = 'test/t';
+prtype	name
+1283	id
+1027	a
+1027	b
+1027	c
+1027	d
+select * from t;
+id	a	b	c	d
+5	NULL	NULL	NULL	NULL
+4	NULL	NULL	NULL	4
+3	NULL	NULL	3	3
+2	NULL	2	2	2
+1	1	1	1	1
+check table t;
+Table	Op	Msg_type	Msg_text
+test.t	check	status	OK
+drop table t;
