@@ -9643,8 +9643,9 @@ commit_cache_norebuild(
 				dict_col_t& c = *f->col;
 				if (c.is_dropped()) {
 					c.set_dropped(!c.is_nullable(),
-						      !f->fixed_len
-						      && c.len > 255,
+						      DATA_LARGE_MTYPE(c.mtype)
+						      || (!f->fixed_len
+							  && c.len > 255),
 						      f->fixed_len);
 				}
 			}
