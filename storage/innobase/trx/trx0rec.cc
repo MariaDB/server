@@ -1793,8 +1793,11 @@ trx_undo_rec_get_partial_row(
 		if (uf->old_v_val) {
 			continue;
 		}
-		ulint c = dict_index_get_nth_col(index, uf->field_no)->ind;
-		*dtuple_get_nth_field(*row, c) = uf->new_val;
+		const dict_col_t& c = *dict_index_get_nth_col(index,
+							      uf->field_no);
+		if (!c.is_dropped()) {
+			*dtuple_get_nth_field(*row, c.ind) = uf->new_val;
+		}
 	}
 
 	end_ptr = ptr + mach_read_from_2(ptr);
