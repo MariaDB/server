@@ -1239,7 +1239,12 @@ ha_innobase::check_if_supported_inplace_alter(
 	}
 
 	const bool supports_instant = m_prebuilt->table->supports_instant()
-		&& instant_alter_column_possible(ha_alter_info, table);
+		&& instant_alter_column_possible(ha_alter_info, table)
+#if 1 // FIXME: adjust fts_fetch_doc_from_rec() and friends, and remove this
+		&& !innobase_fulltext_exist(altered_table)
+		&& !innobase_fulltext_exist(table)
+#endif
+		;
 
 	bool	add_drop_v_cols = false;
 
@@ -5694,8 +5699,11 @@ new_clustered_failed:
 
 	if (ctx->need_rebuild() && user_table->supports_instant()
 	    && instant_alter_column_possible(ha_alter_info, old_table)
-	    && (!innobase_fulltext_exist(old_table)
-		|| innobase_fulltext_exist(altered_table))) {
+#if 1 // FIXME: adjust fts_fetch_doc_from_rec() and friends, and remove this
+	    && !innobase_fulltext_exist(altered_table)
+	    && !innobase_fulltext_exist(old_table)
+#endif
+	    ) {
 		for (uint a = 0; a < ctx->num_to_add_index; a++) {
 			ctx->add_index[a]->table = ctx->new_table;
 			ctx->add_index[a] = dict_index_add_to_cache(
