@@ -173,25 +173,6 @@ inline void Ack_receiver::wait_for_slave_connection()
   mysql_cond_wait(&m_cond, &m_mutex);
 }
 
-my_socket Ack_receiver::get_slave_sockets(fd_set *fds, uint *count)
-{
-  my_socket max_fd= INVALID_SOCKET;
-  Slave *slave;
-  I_List_iterator<Slave> it(m_slaves);
-
-  *count= 0;
-  FD_ZERO(fds);
-  while ((slave= it++))
-  {
-    (*count)++;
-    my_socket fd= slave->sock_fd();
-    max_fd= (fd > max_fd ? fd : max_fd);
-    FD_SET(fd, fds);
-  }
-
-  return max_fd;
-}
-
 /* Auxilary function to initialize a NET object with given net buffer. */
 static void init_net(NET *net, unsigned char *buff, unsigned int buff_len)
 {
@@ -208,13 +189,16 @@ void Ack_receiver::run()
   THD *thd= new THD(next_thread_id(), false, true);
   NET net;
   unsigned char net_buff[REPLY_MESSAGE_MAX_LENGTH];
-  fd_set read_fds;
-  my_socket max_fd= INVALID_SOCKET;
-  Slave *slave;
 
   my_thread_init();
 
   DBUG_ENTER("Ack_receiver::run");
+
+#ifdef HAVE_POLL
+  Poll_socket_listener listener(m_slaves);
+#else
+  Select_socket_listener listener(m_slaves);
+#endif //HAVE_POLL
 
   sql_print_information("Starting ack receiver thread");
   thd->system_thread= SYSTEM_THREAD_SEMISYNC_MASTER_BACKGROUND;
@@ -231,9 +215,9 @@ void Ack_receiver::run()
 
   while (1)
   {
-    fd_set fds;
     int ret;
-    uint slave_count;
+    uint slave_count __attribute__((unused))= 0;
+    Slave *slave;
 
     mysql_mutex_lock(&m_mutex);
     if (unlikely(m_status == ST_STOPPING))
@@ -249,23 +233,25 @@ void Ack_receiver::run()
         continue;
       }
 
-      max_fd= get_slave_sockets(&read_fds, &slave_count);
+      if ((slave_count= listener.init_slave_sockets()) == 0)
+        goto end;
       m_slaves_changed= false;
+#ifdef HAVE_POLL
+      DBUG_PRINT("info", ("fd count %u", slave_count));
+#else     
       DBUG_PRINT("info", ("fd count %u, max_fd %d", slave_count,(int) max_fd));
+#endif
     }
 
-    struct timeval tv= {1, 0};
-    fds= read_fds;
-    /* select requires max fd + 1 for the first argument */
-    ret= select((int)(max_fd+1), &fds, NULL, NULL, &tv);
+    ret= listener.listen_on_sockets();
     if (ret <= 0)
     {
       mysql_mutex_unlock(&m_mutex);
 
       ret= DBUG_EVALUATE_IF("rpl_semisync_simulate_select_error", -1, ret);
 
-      if (ret == -1)
-        sql_print_information("Failed to select() on semi-sync dump sockets, "
+      if (ret == -1 && errno != EINTR)
+        sql_print_information("Failed to wait on semi-sync sockets, "
                               "error: errno=%d", socket_errno);
       /* Sleep 1us, so other threads can catch the m_mutex easily. */
       my_sleep(1);
@@ -273,11 +259,10 @@ void Ack_receiver::run()
     }
 
     set_stage_info(stage_reading_semi_sync_ack);
-    I_List_iterator<Slave> it(m_slaves);
-
+    Slave_ilist_iterator it(m_slaves);
     while ((slave= it++))
     {
-      if (FD_ISSET(slave->sock_fd(), &fds))
+      if (listener.is_socket_active(slave))
       {
         ulong len;
 
@@ -289,7 +274,7 @@ void Ack_receiver::run()
           repl_semisync_master.report_reply_packet(slave->server_id(),
                                                    net.read_pos, len);
         else if (net.last_errno == ER_NET_READ_ERROR)
-          FD_CLR(slave->sock_fd(), &read_fds);
+          listener.clear_socket_info(slave);
       }
     }
     mysql_mutex_unlock(&m_mutex);
