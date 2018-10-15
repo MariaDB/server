@@ -4799,8 +4799,9 @@ btr_cur_pessimistic_update(
 		    dict_index_get_n_fields(index),
 		    block->page.size)
 	    || (UNIV_UNLIKELY(update->is_alter_metadata())
-		&& !thr_get_trx(thr)->in_rollback)) {
-
+		&& !dfield_is_ext(dtuple_get_nth_field(
+					  new_entry,
+					  index->first_user_field())))) {
 		big_rec_vec = dtuple_convert_big_rec(index, update, new_entry, &n_ext);
 		if (UNIV_UNLIKELY(big_rec_vec == NULL)) {
 

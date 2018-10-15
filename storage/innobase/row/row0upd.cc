@@ -1356,7 +1356,11 @@ row_upd_index_replace_metadata(
 			ut_ad(dfield_is_ext(dfield));
 			ut_ad(dfield_get_len(dfield) == FIELD_REF_SIZE);
 			ut_ad(!dfield_is_null(dfield));
-			dfield->data = uf->new_val.data;
+			dfield_set_data(dfield, uf->new_val.data,
+					uf->new_val.len);
+			if (dfield_is_ext(&uf->new_val)) {
+				dfield_set_ext(dfield);
+			}
 			continue;
 		}
 

@@ -640,9 +640,6 @@ dtuple_convert_big_rec(
 	if (entry->is_alter_metadata()) {
 		longest_i = index->n_uniq + DATA_ROLL_PTR;
 		dfield = dtuple_get_nth_field(entry, longest_i);
-#if 1 // FIXME: remove this
-		index->table->serialise_columns(heap, dfield);
-#endif
 		local_len = BTR_EXTERN_FIELD_REF_SIZE;
 		goto ext_write;
 	}
