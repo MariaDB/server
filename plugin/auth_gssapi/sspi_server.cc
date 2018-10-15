@@ -103,7 +103,12 @@ static int get_client_name_from_context(CtxtHandle *ctxt,
         *p = 0;
     }
     strncpy(name, native_names.sClientName, name_len);
-    FreeContextBuffer(&native_names);
+
+    if (native_names.sClientName)
+      FreeContextBuffer(native_names.sClientName);
+    if (native_names.sServerName)
+      FreeContextBuffer(native_names.sServerName);
+
     return CR_OK;
   }
 
