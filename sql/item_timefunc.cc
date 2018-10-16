@@ -2148,7 +2148,7 @@ longlong Item_extract::val_int()
     week_format= current_thd->variables.default_week_format;
     return calc_week(&ltime, week_mode(week_format), &year);
   }
-  case INTERVAL_DAY:		return ltime.day * neg;
+  case INTERVAL_DAY:		return (long) ltime.day * neg;
   case INTERVAL_DAY_HOUR:	return (long) (ltime.day*100L+ltime.hour)*neg;
   case INTERVAL_DAY_MINUTE:	return (long) (ltime.day*10000L+
 					       ltime.hour*100L+
