@@ -67,7 +67,7 @@ UNIV_INTERN ulong      fts_max_total_cache_size;
 
 /** This is FTS result cache limit for each query and would be
 a configurable variable */
-UNIV_INTERN ulong	fts_result_cache_limit;
+UNIV_INTERN size_t	fts_result_cache_limit;
 
 /** Variable specifying the maximum FTS max token size */
 UNIV_INTERN ulong	fts_max_token_size;
@@ -4308,7 +4308,7 @@ fts_sync_begin(
 	if (fts_enable_diag_print) {
 		ib_logf(IB_LOG_LEVEL_INFO,
 			"FTS SYNC for table %s, deleted count: %ld size: "
-			"%lu bytes",
+			"%zu bytes",
 			sync->table->name,
 			ib_vector_size(cache->deleted_doc_ids),
 			cache->total_size);

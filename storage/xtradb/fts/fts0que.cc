@@ -1,7 +1,7 @@
 /*****************************************************************************
 
 Copyright (c) 2007, 2018, Oracle and/or its affiliates. All Rights Reserved.
-Copyright (c) 2017, MariaDB Corporation.
+Copyright (c) 2017, 2018, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -76,7 +76,7 @@ struct fts_query_t {
 
 	fts_table_t	fts_index_table;/*!< FTS auxiliary index table def */
 
-	ulint		total_size;	/*!< total memory size used by query */
+	size_t		total_size;	/*!< total memory size used by query */
 
 	fts_doc_ids_t*	deleted;	/*!< Deleted doc ids that need to be
 					filtered from the output */
@@ -4058,7 +4058,7 @@ fts_query(
 		/* Log memory consumption & result size */
 		ib_logf(IB_LOG_LEVEL_INFO,
 			"Full Search Memory: "
-			"%lu (bytes),  Row: %lu .",
+			"%zu (bytes),  Row: %lu .",
 			query.total_size,
 			(*result)->rankings_by_id
 				?  rbt_size((*result)->rankings_by_id)
