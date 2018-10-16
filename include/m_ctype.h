@@ -362,7 +362,6 @@ extern MY_COLLATION_HANDLER my_collation_8bit_bin_handler;
 extern MY_COLLATION_HANDLER my_collation_8bit_simple_ci_handler;
 extern MY_COLLATION_HANDLER my_collation_8bit_nopad_bin_handler;
 extern MY_COLLATION_HANDLER my_collation_8bit_simple_nopad_ci_handler;
-extern MY_COLLATION_HANDLER my_collation_ucs2_uca_handler;
 
 /* Some typedef to make it easy for C++ to make function pointers */
 typedef int (*my_charset_conv_mb_wc)(CHARSET_INFO *, my_wc_t *,

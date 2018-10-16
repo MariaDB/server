@@ -31158,17 +31158,6 @@ typedef struct my_uca_scanner_st
   CHARSET_INFO *cs;
 } my_uca_scanner;
 
-/*
-  Charset dependent scanner part, to optimize
-  some character sets.
-*/
-typedef struct my_uca_scanner_handler_st 
-{
-  void (*init)(my_uca_scanner *scanner, CHARSET_INFO *cs,
-               const MY_UCA_WEIGHT_LEVEL *level,
-               const uchar *str, size_t length);
-  int (*next)(my_uca_scanner *scanner);
-} my_uca_scanner_handler;
 
 static const uint16 nochar[]= {0,0};
 
@@ -31675,223 +31664,6 @@ my_uca_scanner_init_any(my_uca_scanner *scanner,
   scanner->cs= cs;
 }
 
-static int my_uca_scanner_next_any(my_uca_scanner *scanner)
-{
-  /* 
-    Check if the weights for the previous character have been
-    already fully scanned. If yes, then get the next character and 
-    initialize wbeg and wlength to its weight string.
-  */
-
-  if (scanner->wbeg[0])      /* More weights left from the previous step: */
-    return *scanner->wbeg++; /* return the next weight from expansion     */
-
-  do
-  {
-    const uint16 *wpage;
-    my_wc_t wc[MY_UCA_MAX_CONTRACTION];
-    int mblen;
-
-    /* Get next character */
-    if (((mblen= scanner->cs->cset->mb_wc(scanner->cs, wc,
-                                          scanner->sbeg,
-                                          scanner->send)) <= 0))
-    {
-      if (scanner->sbeg >= scanner->send)
-        return -1; /* No more bytes, end of line reached */
-      /*
-        There are some more bytes left. Non-positive mb_len means that
-        we got an incomplete or a bad byte sequence. Consume mbminlen bytes.
-      */
-      if ((scanner->sbeg+= scanner->cs->mbminlen) > scanner->send)
-      {
-        /* For safety purposes don't go beyond the string range. */
-        scanner->sbeg= scanner->send;
-      }
-      /*
-        Treat every complete or incomplete mbminlen unit as a weight which is
-        greater than weight for any possible normal character.
-        0xFFFF is greater than any possible weight in the UCA weight table.
-      */
-      return 0xFFFF;
-    }
-
-    scanner->sbeg+= mblen;
-    if (wc[0] > scanner->level->maxchar)
-    {
-      /* Return 0xFFFD as weight for all characters outside BMP */
-      scanner->wbeg= nochar;
-      return 0xFFFD;
-    }
-
-    if (my_uca_have_contractions_quick(scanner->level))
-    {
-      uint16 *cweight;
-      /*
-        If we have scanned a character which can have previous context,
-        and there were some more characters already before,
-        then reconstruct codepoint of the previous character
-        from "page" and "code" into w[1], and verify that {wc[1], wc[0]}
-        together form a real previous context pair.
-        Note, we support only 2-character long sequences with previous
-        context at the moment. CLDR does not have longer sequences.
-      */
-      if (my_uca_can_be_previous_context_tail(&scanner->level->contractions,
-                                              wc[0]) &&
-          scanner->wbeg != nochar &&     /* if not the very first character */
-          my_uca_can_be_previous_context_head(&scanner->level->contractions,
-                                              (wc[1]= ((scanner->page << 8) +
-                                                        scanner->code))) &&
-          (cweight= my_uca_previous_context_find(scanner, wc[1], wc[0])))
-      {
-        scanner->page= scanner->code= 0; /* Clear for the next character */
-        return *cweight;
-      }
-      else if (my_uca_can_be_contraction_head(&scanner->level->contractions,
-                                              wc[0]))
-      {
-        /* Check if w[0] starts a contraction */
-        if ((cweight= my_uca_scanner_contraction_find(scanner, wc)))
-          return *cweight;
-      }
-    }
-
-    /* Process single character */
-    scanner->page= wc[0] >> 8;
-    scanner->code= wc[0] & 0xFF;
-
-    /* If weight page for w[0] does not exist, then calculate algoritmically */
-    if (!(wpage= scanner->level->weights[scanner->page]))
-      return my_uca_scanner_next_implicit(scanner);
-
-    /* Calculate pointer to w[0]'s weight, using page and offset */
-    scanner->wbeg= wpage +
-                   scanner->code * scanner->level->lengths[scanner->page];
-  } while (!scanner->wbeg[0]); /* Skip ignorable characters */
-
-  return *scanner->wbeg++;
-}
-
-
-static my_uca_scanner_handler my_any_uca_scanner_handler=
-{
-  my_uca_scanner_init_any,
-  my_uca_scanner_next_any
-};
-
-/*
-  Compares two strings according to the collation
-
-  SYNOPSIS:
-    my_strnncoll_uca()
-    cs		Character set information
-    s		First string
-    slen	First string length
-    t		Second string
-    tlen	Seconf string length
-    level	DUCETweight level
-  
-  NOTES:
-    Initializes two weight scanners and gets weights
-    corresponding to two strings in a loop. If weights are not
-    the same at some step then returns their difference.
-    
-    In the while() comparison these situations are possible:
-    1. (s_res>0) and (t_res>0) and (s_res == t_res)
-       Weights are the same so far, continue comparison
-    2. (s_res>0) and (t_res>0) and (s_res!=t_res)
-       A difference has been found, return.
-    3. (s_res>0) and (t_res<0)
-       We have reached the end of the second string, or found
-       an illegal multibyte sequence in the second string.
-       Return a positive number, i.e. the first string is bigger.
-    4. (s_res<0) and (t_res>0)   
-       We have reached the end of the first string, or found
-       an illegal multibyte sequence in the first string.
-       Return a negative number, i.e. the second string is bigger.
-    5. (s_res<0) and (t_res<0)
-       Both scanners returned -1. It means we have riched
-       the end-of-string of illegal-sequence in both strings
-       at the same time. Return 0, strings are equal.
-    
-  RETURN
-    Difference between two strings, according to the collation:
-    0               - means strings are equal
-    negative number - means the first string is smaller
-    positive number - means the first string is bigger
-*/
-
-static int my_strnncoll_uca_onelevel(CHARSET_INFO *cs, 
-                                     my_uca_scanner_handler *scanner_handler,
-                                     const MY_UCA_WEIGHT_LEVEL *level,
-                                     const uchar *s, size_t slen,
-                                     const uchar *t, size_t tlen,
-                                     my_bool t_is_prefix)
-{
-  my_uca_scanner sscanner;
-  my_uca_scanner tscanner;
-  int s_res;
-  int t_res;
-  
-  scanner_handler->init(&sscanner, cs, level, s, slen);
-  scanner_handler->init(&tscanner, cs, level, t, tlen);
-  
-  do
-  {
-    s_res= scanner_handler->next(&sscanner);
-    t_res= scanner_handler->next(&tscanner);
-  } while ( s_res == t_res && s_res >0);
-  
-  return  (t_is_prefix && t_res < 0) ? 0 : (s_res - t_res);
-}
-
-static int my_strnncoll_uca(CHARSET_INFO *cs, 
-                            my_uca_scanner_handler *scanner_handler,
-                            const uchar *s, size_t slen,
-                            const uchar *t, size_t tlen,
-                            my_bool t_is_prefix)
-{
-  return my_strnncoll_uca_onelevel(cs, scanner_handler, &cs->uca->level[0],
-                                   s, slen, t, tlen, t_is_prefix);
-}
-
-static int my_strnncoll_uca_multilevel(CHARSET_INFO *cs, 
-                                       my_uca_scanner_handler *scanner_handler,
-                                       const uchar *s, size_t slen,
-                                       const uchar *t, size_t tlen,
-                                       my_bool t_is_prefix)
-{
-  uint num_level= cs->levels_for_order;
-  uint i;
-  for (i= 0; i != num_level; i++)
-  {
-    int ret= my_strnncoll_uca_onelevel(cs, scanner_handler, &cs->uca->level[i],
-                                       s, slen, t, tlen, t_is_prefix);
-    if (ret)
-       return ret;
-  }
-  return 0;
-}
-
-
-static int
-my_strnncollsp_generic_uca_nopad_multilevel(CHARSET_INFO *cs,
-                                            const uchar *s, size_t slen,
-                                            const uchar *t, size_t tlen)
-{
-  uint num_level= cs->levels_for_order;
-  uint i;
-  for (i= 0; i != num_level; i++)
-  {
-    int ret= my_strnncoll_uca_onelevel(cs, &my_any_uca_scanner_handler,
-                                       &cs->uca->level[i],
-                                       s, slen, t, tlen, FALSE);
-    if (ret)
-       return ret;
-  }
-  return 0;
-}
-
 
 static inline int
 my_space_weight(const MY_UCA_WEIGHT_LEVEL *level)
@@ -31924,258 +31696,6 @@ my_char_weight_addr(const MY_UCA_WEIGHT_LEVEL *level, uint wc)
 }
 
 
-/*
-  Compares two strings according to the collation,
-  ignoring trailing spaces.
-
-  SYNOPSIS:
-    my_strnncollsp_uca()
-    cs		Character set information
-    s		First string
-    slen	First string length
-    t		Second string
-    tlen	Seconf string length
-    level	DUCETweight level
-  
-  NOTES:
-    Works exactly the same with my_strnncoll_uca(),
-    but ignores trailing spaces.
-
-    In the while() comparison these situations are possible:
-    1. (s_res>0) and (t_res>0) and (s_res == t_res)
-       Weights are the same so far, continue comparison
-    2. (s_res>0) and (t_res>0) and (s_res!=t_res)
-       A difference has been found, return.
-    3. (s_res>0) and (t_res<0)
-       We have reached the end of the second string, or found
-       an illegal multibyte sequence in the second string.
-       Compare the first string to an infinite array of
-       space characters until difference is found, or until
-       the end of the first string.
-    4. (s_res<0) and (t_res>0)   
-       We have reached the end of the first string, or found
-       an illegal multibyte sequence in the first string.
-       Compare the second string to an infinite array of
-       space characters until difference is found or until
-       the end of the second steing.
-    5. (s_res<0) and (t_res<0)
-       Both scanners returned -1. It means we have riched
-       the end-of-string of illegal-sequence in both strings
-       at the same time. Return 0, strings are equal.
-  
-  RETURN
-    Difference between two strings, according to the collation:
-    0               - means strings are equal
-    negative number - means the first string is smaller
-    positive number - means the first string is bigger
-*/
-
-static int my_strnncollsp_uca_onelevel(CHARSET_INFO *cs, 
-                                       my_uca_scanner_handler *scanner_handler,
-                                       const MY_UCA_WEIGHT_LEVEL *level,
-                                       const uchar *s, size_t slen,
-                                       const uchar *t, size_t tlen)
-{
-  my_uca_scanner sscanner, tscanner;
-  int s_res, t_res;
-  
-  scanner_handler->init(&sscanner, cs, level, s, slen);
-  scanner_handler->init(&tscanner, cs, level, t, tlen);
-  
-  do
-  {
-    s_res= scanner_handler->next(&sscanner);
-    t_res= scanner_handler->next(&tscanner);
-  } while ( s_res == t_res && s_res >0);
-
-  if (s_res > 0 && t_res < 0)
-  { 
-    /* Calculate weight for SPACE character */
-    t_res= my_space_weight(level);
-      
-    /* compare the first string to spaces */
-    do
-    {
-      if (s_res != t_res)
-        return (s_res - t_res);
-      s_res= scanner_handler->next(&sscanner);
-    } while (s_res > 0);
-    return 0;
-  }
-    
-  if (s_res < 0 && t_res > 0)
-  {
-    /* Calculate weight for SPACE character */
-    s_res= my_space_weight(level);
-      
-    /* compare the second string to spaces */
-    do
-    {
-      if (s_res != t_res)
-        return (s_res - t_res);
-      t_res= scanner_handler->next(&tscanner);
-    } while (t_res > 0);
-    return 0;
-  }
-  
-  return ( s_res - t_res );
-}
-
-static int my_strnncollsp_uca(CHARSET_INFO *cs, 
-                              my_uca_scanner_handler *scanner_handler,
-                              const uchar *s, size_t slen,
-                              const uchar *t, size_t tlen)
-{
-  return my_strnncollsp_uca_onelevel(cs, scanner_handler, &cs->uca->level[0],
-                                     s, slen, t, tlen);
-}
-
-static int my_strnncollsp_uca_multilevel(CHARSET_INFO *cs, 
-                                       my_uca_scanner_handler *scanner_handler,
-                                       const uchar *s, size_t slen,
-                                       const uchar *t, size_t tlen)
-{
-  uint num_level= cs->levels_for_order;
-  uint i;
-  for (i= 0; i != num_level; i++)
-  {
-    int ret= my_strnncollsp_uca_onelevel(cs, scanner_handler,
-                                         &cs->uca->level[i], s, slen, t, tlen);
-    if (ret)
-      return ret;
-  }
-  return 0;
-}
-
-/*
-  Calculates hash value for the given string,
-  according to the collation, and ignoring trailing spaces.
-  
-  SYNOPSIS:
-    my_hash_sort_uca()
-    cs		Character set information
-    s		String
-    slen	String's length
-    n1		First hash parameter
-    n2		Second hash parameter
-  
-  NOTES:
-    Scans consequently weights and updates
-    hash parameters n1 and n2. In a case insensitive collation,
-    upper and lower case of the same letter will return the same
-    weight sequence, and thus will produce the same hash values
-    in n1 and n2.
-
-    This functions is used for one-level and for multi-level collations.
-    We intentionally use only primary level in multi-level collations.
-    This helps to have PARTITION BY KEY put primarily equal records
-    into the same partition. E.g. in utf8_thai_520_ci records that differ
-    only in tone marks go into the same partition.
-
-  RETURN
-    N/A
-*/
-
-static void my_hash_sort_uca(CHARSET_INFO *cs,
-                             my_uca_scanner_handler *scanner_handler,
-                             const uchar *s, size_t slen,
-                             ulong *nr1, ulong *nr2)
-{
-  int   s_res;
-  my_uca_scanner scanner;
-  int space_weight= my_space_weight(&cs->uca->level[0]);
-  register ulong m1= *nr1, m2= *nr2;
-
-  scanner_handler->init(&scanner, cs, &cs->uca->level[0], s, slen);
-  
-  while ((s_res= scanner_handler->next(&scanner)) >0)
-  {
-    if (s_res == space_weight)
-    {
-      /* Combine all spaces to be able to skip end spaces */
-      uint count= 0;
-      do
-      {
-        count++;
-        if ((s_res= scanner_handler->next(&scanner)) <= 0)
-        {
-          /* Skip strings at end of string */
-          goto end;
-        }
-      }
-      while (s_res == space_weight);
-
-      /* Add back that has for the space characters */
-      do
-      {
-        /*
-          We can't use MY_HASH_ADD_16() here as we, because of a misstake
-          in the original code, where we added the 16 byte variable the
-          opposite way.  Changing this would cause old partitioned tables
-          to fail.
-        */
-        MY_HASH_ADD(m1, m2, space_weight >> 8);
-        MY_HASH_ADD(m1, m2, space_weight & 0xFF);
-      }
-      while (--count != 0);
-
-    }
-    /* See comment above why we can't use MY_HASH_ADD_16() */
-    MY_HASH_ADD(m1, m2, s_res >> 8);
-    MY_HASH_ADD(m1, m2, s_res & 0xFF);
-  }
-end:
-  *nr1= m1;
-  *nr2= m2;
-}
-
-
-static void my_hash_sort_uca_nopad(CHARSET_INFO *cs,
-                                   my_uca_scanner_handler *scanner_handler,
-                                   const uchar *s, size_t slen,
-                                   ulong *nr1, ulong *nr2)
-{
-  int   s_res;
-  my_uca_scanner scanner;
-  register ulong m1= *nr1, m2= *nr2;
-
-  scanner_handler->init(&scanner, cs, &cs->uca->level[0], s, slen);
-
-  while ((s_res= scanner_handler->next(&scanner)) >0)
-  {
-    /* See comment above why we can't use MY_HASH_ADD_16() */
-    MY_HASH_ADD(m1, m2, s_res >> 8);
-    MY_HASH_ADD(m1, m2, s_res & 0xFF);
-  }
-  *nr1= m1;
-  *nr2= m2;
-}
-
-
-static uchar *
-my_strnxfrm_uca_onelevel_internal(CHARSET_INFO *cs,
-                                  my_uca_scanner_handler *scanner_handler,
-                                  MY_UCA_WEIGHT_LEVEL *level,
-                                  uchar *dst, uchar *de, uint *nweights,
-                                  const uchar *src, size_t srclen)
-{
-  my_uca_scanner scanner;
-  int s_res;
-
-  DBUG_ASSERT(src || !srclen);
-
-  scanner_handler->init(&scanner, cs, level, src, srclen);
-  for (; dst < de && *nweights &&
-         (s_res= scanner_handler->next(&scanner)) > 0 ; (*nweights)--)
-  {
-    *dst++= s_res >> 8;
-    if (dst < de)
-      *dst++= s_res & 0xFF;
-  }
-  return dst;
-}
-
-
 static uchar *
 my_strnxfrm_uca_padn(uchar *dst, uchar *de, uint nweights, int weight)
 {
@@ -32202,27 +31722,6 @@ my_strnxfrm_uca_pad(uchar *dst, uchar *de, int weight)
 }
 
 
-static uchar *
-my_strnxfrm_uca_onelevel(CHARSET_INFO *cs,
-                         my_uca_scanner_handler *scanner_handler,
-                         MY_UCA_WEIGHT_LEVEL *level,
-                         uchar *dst, uchar *de, uint nweights,
-                         const uchar *src, size_t srclen, uint flags)
-{
-  uchar *d0= dst;
-
-  dst= my_strnxfrm_uca_onelevel_internal(cs, scanner_handler, level,
-                                         dst, de, &nweights,
-                                         src, srclen);
-  DBUG_ASSERT(dst <= de);
-  if (dst < de && nweights && (flags & MY_STRXFRM_PAD_WITH_SPACE))
-    dst= my_strnxfrm_uca_padn(dst, de, nweights, my_space_weight(level));
-  DBUG_ASSERT(dst <= de);
-  my_strxfrm_desc_and_reverse(d0, dst, flags, 0);
-  return dst;
-}
-
-
 /*
   Return the minimum possible weight on a level.
 */
@@ -32232,136 +31731,6 @@ static uint min_weight_on_level(MY_UCA_WEIGHT_LEVEL *level)
   return level->levelno == 0 ? 0x0200 : 0x0020;
 }
 
-
-static uchar *
-my_strnxfrm_uca_nopad_onelevel(CHARSET_INFO *cs,
-                              my_uca_scanner_handler *scanner_handler,
-                              MY_UCA_WEIGHT_LEVEL *level,
-                              uchar *dst, uchar *de, uint nweights,
-                              const uchar *src, size_t srclen, uint flags)
-{
-  uchar *d0= dst;
-
-  dst= my_strnxfrm_uca_onelevel_internal(cs, scanner_handler, level,
-                                         dst, de, &nweights,
-                                         src, srclen);
-  DBUG_ASSERT(dst <= de);
-  /*  Pad with the minimum possible weight on this level */
-  if (dst < de && nweights && (flags & MY_STRXFRM_PAD_WITH_SPACE))
-    dst= my_strnxfrm_uca_padn(dst, de, nweights, min_weight_on_level(level));
-  DBUG_ASSERT(dst <= de);
-  my_strxfrm_desc_and_reverse(d0, dst, flags, 0);
-  return dst;
-}
-
-
-/*
-  For the given string creates its "binary image", suitable
-  to be used in binary comparison, i.e. in memcmp(). 
-  
-  SYNOPSIS:
-    my_strnxfrm_uca()
-    cs		Character set information
-    dst		Where to write the image
-    dstlen	Space available for the image, in bytes
-    src		The source string
-    srclen	Length of the source string, in bytes
-  
-  NOTES:
-    In a loop, scans weights from the source string and writes
-    them into the binary image. In a case insensitive collation,
-    upper and lower cases of the same letter will produce the
-    same image subsequences. When we have reached the end-of-string
-    or found an illegal multibyte sequence, the loop stops.
-
-    It is impossible to restore the original string using its
-    binary image. 
-    
-    Binary images are used for bulk comparison purposes,
-    e.g. in ORDER BY, when it is more efficient to create
-    a binary image and use it instead of weight scanner
-    for the original strings for every comparison.
-  
-  RETURN
-    Number of bytes that have been written into the binary image.
-*/
-
-
-static size_t
-my_strnxfrm_uca(CHARSET_INFO *cs, 
-                my_uca_scanner_handler *scanner_handler,
-                uchar *dst, size_t dstlen, uint nweights,
-                const uchar *src, size_t srclen, uint flags)
-{
-  uchar *d0= dst;
-  uchar *de= dst + dstlen;
-
-  dst= my_strnxfrm_uca_onelevel(cs, scanner_handler, &cs->uca->level[0],
-                                dst, de, nweights, src, srclen, flags);
-  /*
-    This can probably be changed to memset(dst, 0, de - dst),
-    like my_strnxfrm_uca_multilevel() does.
-  */
-  if ((flags & MY_STRXFRM_PAD_TO_MAXLEN) && dst < de)
-    dst= my_strnxfrm_uca_pad(dst, de, my_space_weight(&cs->uca->level[0]));
-  return dst - d0;
-}
-
-
-static size_t
-my_strnxfrm_uca_nopad(CHARSET_INFO *cs,
-                      my_uca_scanner_handler *scanner_handler,
-                      uchar *dst, size_t dstlen, uint nweights,
-                      const uchar *src, size_t srclen, uint flags)
-{
-  uchar *d0= dst;
-  uchar *de= dst + dstlen;
-
-  dst= my_strnxfrm_uca_nopad_onelevel(cs, scanner_handler, &cs->uca->level[0],
-                                      dst, de, nweights, src, srclen, flags);
-  if ((flags & MY_STRXFRM_PAD_TO_MAXLEN) && dst < de)
-  {
-    memset(dst, 0, de - dst);
-    dst= de;
-  }
-  return dst - d0;
-}
-
-
-static size_t
-my_strnxfrm_uca_multilevel(CHARSET_INFO *cs, 
-                           my_uca_scanner_handler *scanner_handler,
-                           uchar *dst, size_t dstlen, uint nweights,
-                           const uchar *src, size_t srclen, uint flags)
-{
-  uint num_level= cs->levels_for_order;
-  uchar *d0= dst;
-  uchar *de= dst + dstlen;
-  uint current_level;
-
-  for (current_level= 0; current_level != num_level; current_level++)
-  {
-    if (!(flags & MY_STRXFRM_LEVEL_ALL) ||
-        (flags & (MY_STRXFRM_LEVEL1 << current_level)))
-      dst= cs->state & MY_CS_NOPAD ?
-           my_strnxfrm_uca_nopad_onelevel(cs, scanner_handler,
-                                          &cs->uca->level[current_level],
-                                          dst, de, nweights,
-                                          src, srclen, flags) :
-           my_strnxfrm_uca_onelevel(cs, scanner_handler,
-                                    &cs->uca->level[current_level],
-                                    dst, de, nweights,
-                                    src, srclen, flags);
-  }
-
-  if (dst < de && (flags & MY_STRXFRM_PAD_TO_MAXLEN))
-  {
-    memset(dst, 0, de - dst);
-    dst= de;
-  }
-
-  return dst - d0;
-}
 
 /*
   This function compares if two characters are the same.
@@ -34248,8 +33617,46 @@ init_weight_level(MY_CHARSET_LOADER *loader, MY_COLL_RULES *rules,
 }
 
 
-MY_COLLATION_HANDLER my_collation_any_uca_handler_multilevel;
-MY_COLLATION_HANDLER my_collation_generic_uca_nopad_handler_multilevel;
+static my_bool
+create_tailoring(struct charset_info_st *cs,
+                          MY_CHARSET_LOADER *loader);
+
+static my_bool
+my_coll_init_uca(struct charset_info_st *cs, MY_CHARSET_LOADER *loader)
+{
+  cs->pad_char= ' ';
+  cs->ctype= my_charset_utf8_unicode_ci.ctype;
+  if (!cs->caseinfo)
+    cs->caseinfo= &my_unicase_default;
+  return create_tailoring(cs, loader);
+}
+
+
+static size_t my_strnxfrmlen_any_uca(CHARSET_INFO *cs, size_t len)
+{
+  /* UCA uses 2 bytes per weight */
+  return (len + cs->mbmaxlen - 1) / cs->mbmaxlen * cs->strxfrm_multiply * 2;
+}
+
+static size_t my_strnxfrmlen_any_uca_multilevel(CHARSET_INFO *cs, size_t len)
+{
+  return my_strnxfrmlen_any_uca(cs, len) * cs->levels_for_order;
+}
+
+
+/*
+  Define generic collation handlers for multi-level collations with tailoring:
+
+    my_uca_collation_handler_nopad_multilevel_generic
+    my_uca_collation_handler_multilevel_generic
+
+  TODO: Use faster character-set specific versions of MY_COLLATION_HANDLER
+  instead of generic.
+*/
+#define MY_FUNCTION_NAME(x)   my_uca_ ## x ## _generic
+#define MY_MB_WC(scanner, wc, beg, end) (scanner->cs->cset->mb_wc(scanner->cs, wc, beg, end))
+#define MY_LIKE_RANGE my_like_range_generic
+#include "ctype-uca.ic"
 
 
 /*
@@ -34334,8 +33741,8 @@ create_tailoring(struct charset_info_st *cs,
   cs->uca[0]= new_uca;
   if (cs->levels_for_order > 1)
     cs->coll= (cs->state & MY_CS_NOPAD) ?
-               &my_collation_generic_uca_nopad_handler_multilevel :
-               &my_collation_any_uca_handler_multilevel;
+               &my_uca_collation_handler_nopad_multilevel_generic :
+               &my_uca_collation_handler_multilevel_generic;
 
 ex:
   (loader->free)(rules.rule);
@@ -34344,235 +33751,14 @@ ex:
   return rc;
 }
 
-/*
-  Universal CHARSET_INFO compatible wrappers
-  for the above internal functions.
-  Should work for any character set.
-*/
-
-static my_bool
-my_coll_init_uca(struct charset_info_st *cs, MY_CHARSET_LOADER *loader)
-{
-  cs->pad_char= ' ';
-  cs->ctype= my_charset_utf8_unicode_ci.ctype;
-  if (!cs->caseinfo)
-    cs->caseinfo= &my_unicase_default;
-  return create_tailoring(cs, loader);
-}
-
-
-static int my_strnncoll_any_uca(CHARSET_INFO *cs,
-                                const uchar *s, size_t slen,
-                                const uchar *t, size_t tlen,
-                                my_bool t_is_prefix)
-{
-  return my_strnncoll_uca(cs, &my_any_uca_scanner_handler,
-                          s, slen, t, tlen, t_is_prefix);
-}
-
-static int my_strnncoll_any_uca_multilevel(CHARSET_INFO *cs,
-                                           const uchar *s, size_t slen,
-                                           const uchar *t, size_t tlen,
-                                           my_bool t_is_prefix)
-{
-  return my_strnncoll_uca_multilevel(cs, &my_any_uca_scanner_handler,
-                                     s, slen, t, tlen, t_is_prefix);
-}
-
-static int my_strnncollsp_any_uca(CHARSET_INFO *cs,
-                                  const uchar *s, size_t slen,
-                                  const uchar *t, size_t tlen)
-{
-  return my_strnncollsp_uca(cs, &my_any_uca_scanner_handler, s, slen, t, tlen);
-}   
-
-
-static int my_strnncollsp_generic_uca_nopad(CHARSET_INFO *cs,
-                                            const uchar *s, size_t slen,
-                                            const uchar *t, size_t tlen)
-{
-  return my_strnncoll_uca(cs, &my_any_uca_scanner_handler,
-                          s, slen, t, tlen, FALSE);
-}
-
-
-static int my_strnncollsp_any_uca_multilevel(CHARSET_INFO *cs,
-                                      const uchar *s, size_t slen,
-                                      const uchar *t, size_t tlen)
-{
-  return my_strnncollsp_uca_multilevel(cs, &my_any_uca_scanner_handler,
-                                       s, slen, t, tlen);
-}
-
-static void my_hash_sort_any_uca(CHARSET_INFO *cs,
-                                 const uchar *s, size_t slen,
-                                 ulong *n1, ulong *n2)
-{
-  my_hash_sort_uca(cs, &my_any_uca_scanner_handler, s, slen, n1, n2);
-}
-
-static void my_hash_sort_generic_uca_nopad(CHARSET_INFO *cs,
-                                           const uchar *s, size_t slen,
-                                           ulong *n1, ulong *n2)
-{
-  my_hash_sort_uca_nopad(cs, &my_any_uca_scanner_handler, s, slen, n1, n2);
-}
-
-static size_t my_strnxfrm_any_uca(CHARSET_INFO *cs, 
-                                  uchar *dst, size_t dstlen, uint nweights,
-                                  const uchar *src, size_t srclen, uint flags)
-{
-  return my_strnxfrm_uca(cs, &my_any_uca_scanner_handler,
-                         dst, dstlen, nweights, src, srclen, flags);
-}
-
-static size_t my_strnxfrm_generic_uca_nopad(CHARSET_INFO *cs,
-                                            uchar *dst, size_t dstlen,
-                                            uint nweights,
-                                            const uchar *src, size_t srclen,
-                                            uint flags)
-{
-  return my_strnxfrm_uca_nopad(cs, &my_any_uca_scanner_handler,
-                               dst, dstlen, nweights, src, srclen, flags);
-}
-
-static size_t my_strnxfrm_any_uca_multilevel(CHARSET_INFO *cs, 
-                                             uchar *dst, size_t dstlen,
-                                             uint nweights, const uchar *src,
-                                             size_t srclen, uint flags)
-{
-  return my_strnxfrm_uca_multilevel(cs, &my_any_uca_scanner_handler,
-                                    dst, dstlen, nweights, src, srclen,
-                                    flags);
-}
-
-static size_t my_strnxfrmlen_any_uca(CHARSET_INFO *cs, size_t len)
-{
-  /* UCA uses 2 bytes per weight */
-  return (len + cs->mbmaxlen - 1) / cs->mbmaxlen * cs->strxfrm_multiply * 2;
-}
-
-static size_t my_strnxfrmlen_any_uca_multilevel(CHARSET_INFO *cs, size_t len)
-{
-  return my_strnxfrmlen_any_uca(cs, len) * cs->levels_for_order;
-}
-
-
-/* NO PAD handler for character sets with mbminlen==1 */
-MY_COLLATION_HANDLER my_collation_mb_uca_nopad_handler =
-{
-    my_coll_init_uca,
-    my_strnncoll_any_uca,
-    my_strnncollsp_generic_uca_nopad,
-    my_strnxfrm_generic_uca_nopad,
-    my_strnxfrmlen_any_uca,
-    my_like_range_mb,
-    my_wildcmp_uca,
-    NULL,
-    my_instr_mb,
-    my_hash_sort_generic_uca_nopad,
-    my_propagate_complex
-};
-
-
-/* NO PAD handler for character sets with mbminlen>=1 */
-MY_COLLATION_HANDLER my_collation_generic_uca_nopad_handler =
-{
-    my_coll_init_uca,
-    my_strnncoll_any_uca,
-    my_strnncollsp_generic_uca_nopad,
-    my_strnxfrm_generic_uca_nopad,
-    my_strnxfrmlen_any_uca,
-    my_like_range_generic,
-    my_wildcmp_uca,
-    NULL,
-    my_instr_mb,
-    my_hash_sort_generic_uca_nopad,
-    my_propagate_complex
-};
-
-
-MY_COLLATION_HANDLER my_collation_any_uca_handler_multilevel=
-{
-    my_coll_init_uca,
-    my_strnncoll_any_uca_multilevel,
-    my_strnncollsp_any_uca_multilevel,
-    my_strnxfrm_any_uca_multilevel,
-    my_strnxfrmlen_any_uca_multilevel,
-    my_like_range_generic,
-    my_wildcmp_uca,
-    NULL,
-    my_instr_mb,
-    my_hash_sort_any_uca,
-    my_propagate_complex
-};
-
-
-MY_COLLATION_HANDLER my_collation_generic_uca_nopad_handler_multilevel =
-{
-    my_coll_init_uca,
-    my_strnncoll_any_uca_multilevel,
-    my_strnncollsp_generic_uca_nopad_multilevel,
-    my_strnxfrm_any_uca_multilevel,
-    my_strnxfrmlen_any_uca_multilevel,
-    my_like_range_generic,
-    my_wildcmp_uca,
-    NULL,
-    my_instr_mb,
-    my_hash_sort_generic_uca_nopad,
-    my_propagate_complex
-};
-
 
 #ifdef HAVE_CHARSET_ucs2
-/*
-  UCS2 optimized CHARSET_INFO compatible wrappers.
-*/
-static int my_strnncoll_ucs2_uca(CHARSET_INFO *cs,
-                                 const uchar *s, size_t slen,
-                                 const uchar *t, size_t tlen,
-                                 my_bool t_is_prefix)
-{
-  return my_strnncoll_uca(cs, &my_any_uca_scanner_handler,
-                          s, slen, t, tlen, t_is_prefix);
-}
 
-static int my_strnncollsp_ucs2_uca(CHARSET_INFO *cs,
-                                   const uchar *s, size_t slen,
-                                   const uchar *t, size_t tlen)
-{
-  return my_strnncollsp_uca(cs, &my_any_uca_scanner_handler, s, slen, t, tlen);
-}   
-
-static void my_hash_sort_ucs2_uca(CHARSET_INFO *cs,
-                                  const uchar *s, size_t slen,
-                                  ulong *n1, ulong *n2)
-{
-  my_hash_sort_uca(cs, &my_any_uca_scanner_handler, s, slen, n1, n2); 
-}
-
-static size_t my_strnxfrm_ucs2_uca(CHARSET_INFO *cs, 
-                                   uchar *dst, size_t dstlen, uint nweights,
-                                   const uchar *src, size_t srclen, uint flags)
-{
-  return my_strnxfrm_uca(cs, &my_any_uca_scanner_handler,
-                         dst, dstlen, nweights, src, srclen, flags);
-}
-
-MY_COLLATION_HANDLER my_collation_ucs2_uca_handler =
-{
-  my_coll_init_uca,	/* init */
-  my_strnncoll_ucs2_uca,
-  my_strnncollsp_ucs2_uca,
-  my_strnxfrm_ucs2_uca,
-  my_strnxfrmlen_any_uca,
-  my_like_range_generic,
-  my_wildcmp_uca,
-  NULL,
-  my_instr_mb,
-  my_hash_sort_ucs2_uca,
-  my_propagate_complex
-};
+#include "ctype-ucs2.h"
+#define MY_FUNCTION_NAME(x)   my_uca_ ## x ## _ucs2
+#define MY_MB_WC(scanner, wc, beg, end) (my_mb_wc_ucs2_quick(wc, beg, end))
+#define MY_LIKE_RANGE my_like_range_generic
+#include "ctype-uca.ic"
 
 
 #define MY_CS_UCS2_UCA_FLAGS (MY_CS_COMMON_UCA_FLAGS|MY_CS_NONASCII)
@@ -34607,7 +33793,7 @@ struct charset_info_st my_charset_ucs2_unicode_ci=
     0,                  /* escape_with_backslash_is_dangerous */
     1,                  /* levels_for_order   */
     &my_charset_ucs2_handler,
-    &my_collation_ucs2_uca_handler
+    &my_uca_collation_handler_ucs2
 };
 
 struct charset_info_st my_charset_ucs2_icelandic_uca_ci=
@@ -34639,7 +33825,7 @@ struct charset_info_st my_charset_ucs2_icelandic_uca_ci=
     0,                  /* escape_with_backslash_is_dangerous */
     1,                  /* levels_for_order   */
     &my_charset_ucs2_handler,
-    &my_collation_ucs2_uca_handler
+    &my_uca_collation_handler_ucs2
 };
 
 struct charset_info_st my_charset_ucs2_latvian_uca_ci=
@@ -34671,7 +33857,7 @@ struct charset_info_st my_charset_ucs2_latvian_uca_ci=
     0,                  /* escape_with_backslash_is_dangerous */
     1,                  /* levels_for_order   */
     &my_charset_ucs2_handler,
-    &my_collation_ucs2_uca_handler
+    &my_uca_collation_handler_ucs2
 };
 
 struct charset_info_st my_charset_ucs2_romanian_uca_ci=
@@ -34703,7 +33889,7 @@ struct charset_info_st my_charset_ucs2_romanian_uca_ci=
     0,                  /* escape_with_backslash_is_dangerous */
     1,                  /* levels_for_order   */
     &my_charset_ucs2_handler,
-    &my_collation_ucs2_uca_handler
+    &my_uca_collation_handler_ucs2
 };
 
 struct charset_info_st my_charset_ucs2_slovenian_uca_ci=
@@ -34735,7 +33921,7 @@ struct charset_info_st my_charset_ucs2_slovenian_uca_ci=
     0,                  /* escape_with_backslash_is_dangerous */
     1,                  /* levels_for_order   */
     &my_charset_ucs2_handler,
-    &my_collation_ucs2_uca_handler
+    &my_uca_collation_handler_ucs2
 };
 
 struct charset_info_st my_charset_ucs2_polish_uca_ci=
@@ -34767,7 +33953,7 @@ struct charset_info_st my_charset_ucs2_polish_uca_ci=
     0,                  /* escape_with_backslash_is_dangerous */
     1,                  /* levels_for_order   */
     &my_charset_ucs2_handler,
-    &my_collation_ucs2_uca_handler
+    &my_uca_collation_handler_ucs2
 };
 
 struct charset_info_st my_charset_ucs2_estonian_uca_ci=
@@ -34799,7 +33985,7 @@ struct charset_info_st my_charset_ucs2_estonian_uca_ci=
     0,                  /* escape_with_backslash_is_dangerous */
     1,                  /* levels_for_order   */
     &my_charset_ucs2_handler,
-    &my_collation_ucs2_uca_handler
+    &my_uca_collation_handler_ucs2
 };
 
 struct charset_info_st my_charset_ucs2_spanish_uca_ci=
@@ -34831,7 +34017,7 @@ struct charset_info_st my_charset_ucs2_spanish_uca_ci=
     0,                  /* escape_with_backslash_is_dangerous */
     1,                  /* levels_for_order   */
     &my_charset_ucs2_handler,
-    &my_collation_ucs2_uca_handler
+    &my_uca_collation_handler_ucs2
 };
 
 struct charset_info_st my_charset_ucs2_swedish_uca_ci=
@@ -34863,7 +34049,7 @@ struct charset_info_st my_charset_ucs2_swedish_uca_ci=
     0,                  /* escape_with_backslash_is_dangerous */
     1,                  /* levels_for_order   */
     &my_charset_ucs2_handler,
-    &my_collation_ucs2_uca_handler
+    &my_uca_collation_handler_ucs2
 };
 
 struct charset_info_st my_charset_ucs2_turkish_uca_ci=
@@ -34895,7 +34081,7 @@ struct charset_info_st my_charset_ucs2_turkish_uca_ci=
     0,                  /* escape_with_backslash_is_dangerous */
     1,                  /* levels_for_order   */
     &my_charset_ucs2_handler,
-    &my_collation_ucs2_uca_handler
+    &my_uca_collation_handler_ucs2
 };
 
 struct charset_info_st my_charset_ucs2_czech_uca_ci=
@@ -34927,7 +34113,7 @@ struct charset_info_st my_charset_ucs2_czech_uca_ci=
     0,                  /* escape_with_backslash_is_dangerous */
     1,                  /* levels_for_order   */
     &my_charset_ucs2_handler,
-    &my_collation_ucs2_uca_handler
+    &my_uca_collation_handler_ucs2
 };
 
 
@@ -34960,7 +34146,7 @@ struct charset_info_st my_charset_ucs2_danish_uca_ci=
     0,                  /* escape_with_backslash_is_dangerous */
     1,                  /* levels_for_order   */
     &my_charset_ucs2_handler,
-    &my_collation_ucs2_uca_handler
+    &my_uca_collation_handler_ucs2
 };
 
 struct charset_info_st my_charset_ucs2_lithuanian_uca_ci=
@@ -34992,7 +34178,7 @@ struct charset_info_st my_charset_ucs2_lithuanian_uca_ci=
     0,                  /* escape_with_backslash_is_dangerous */
     1,                  /* levels_for_order   */
     &my_charset_ucs2_handler,
-    &my_collation_ucs2_uca_handler
+    &my_uca_collation_handler_ucs2
 };
 
 struct charset_info_st my_charset_ucs2_slovak_uca_ci=
@@ -35024,7 +34210,7 @@ struct charset_info_st my_charset_ucs2_slovak_uca_ci=
     0,                  /* escape_with_backslash_is_dangerous */
     1,                  /* levels_for_order   */
     &my_charset_ucs2_handler,
-    &my_collation_ucs2_uca_handler
+    &my_uca_collation_handler_ucs2
 };
 
 struct charset_info_st my_charset_ucs2_spanish2_uca_ci=
@@ -35056,7 +34242,7 @@ struct charset_info_st my_charset_ucs2_spanish2_uca_ci=
     0,                  /* escape_with_backslash_is_dangerous */
     1,                  /* levels_for_order   */
     &my_charset_ucs2_handler,
-    &my_collation_ucs2_uca_handler
+    &my_uca_collation_handler_ucs2
 };
 
 
@@ -35089,7 +34275,7 @@ struct charset_info_st my_charset_ucs2_roman_uca_ci=
     0,                  /* escape_with_backslash_is_dangerous */
     1,                  /* levels_for_order   */
     &my_charset_ucs2_handler,
-    &my_collation_ucs2_uca_handler
+    &my_uca_collation_handler_ucs2
 };
 
 
@@ -35122,7 +34308,7 @@ struct charset_info_st my_charset_ucs2_persian_uca_ci=
     0,                  /* escape_with_backslash_is_dangerous */
     1,                  /* levels_for_order   */
     &my_charset_ucs2_handler,
-    &my_collation_ucs2_uca_handler
+    &my_uca_collation_handler_ucs2
 };
 
 
@@ -35155,7 +34341,7 @@ struct charset_info_st my_charset_ucs2_esperanto_uca_ci=
     0,                  /* escape_with_backslash_is_dangerous */
     1,                  /* levels_for_order   */
     &my_charset_ucs2_handler,
-    &my_collation_ucs2_uca_handler
+    &my_uca_collation_handler_ucs2
 };
 
 
@@ -35188,7 +34374,7 @@ struct charset_info_st my_charset_ucs2_hungarian_uca_ci=
     0,                  /* escape_with_backslash_is_dangerous */
     1,                  /* levels_for_order   */
     &my_charset_ucs2_handler,
-    &my_collation_ucs2_uca_handler
+    &my_uca_collation_handler_ucs2
 };
 
 struct charset_info_st my_charset_ucs2_sinhala_uca_ci=
@@ -35220,7 +34406,7 @@ struct charset_info_st my_charset_ucs2_sinhala_uca_ci=
     0,                   /* escape_with_backslash_is_dangerous */
     1,                   /* levels_for_order   */
     &my_charset_ucs2_handler,
-    &my_collation_ucs2_uca_handler
+    &my_uca_collation_handler_ucs2
 };
 
 
@@ -35254,7 +34440,7 @@ struct charset_info_st my_charset_ucs2_german2_uca_ci=
     0,                   /* escape_with_backslash_is_dangerous */
     1,                   /* levels_for_order   */
     &my_charset_ucs2_handler,
-    &my_collation_ucs2_uca_handler
+    &my_uca_collation_handler_ucs2
 };
 
 struct charset_info_st my_charset_ucs2_croatian_mysql561_uca_ci=
@@ -35286,7 +34472,7 @@ struct charset_info_st my_charset_ucs2_croatian_mysql561_uca_ci=
     0,                   /* escape_with_backslash_is_dangerous */
     1,                   /* levels_for_order   */
     &my_charset_ucs2_handler,
-    &my_collation_ucs2_uca_handler
+    &my_uca_collation_handler_ucs2
 };
 
 
@@ -35319,7 +34505,7 @@ struct charset_info_st my_charset_ucs2_croatian_uca_ci=
     0,                   /* escape_with_backslash_is_dangerous */
     1,                   /* levels_for_order   */
     &my_charset_ucs2_handler,
-    &my_collation_ucs2_uca_handler
+    &my_uca_collation_handler_ucs2
 };
 
 
@@ -35352,7 +34538,7 @@ struct charset_info_st my_charset_ucs2_myanmar_uca_ci=
     0,                   /* escape_with_backslash_is_dangerous */
     1,                   /* levels_for_order   */
     &my_charset_ucs2_handler,
-    &my_collation_ucs2_uca_handler
+    &my_uca_collation_handler_ucs2
 };
 
 
@@ -35385,7 +34571,7 @@ struct charset_info_st my_charset_ucs2_thai_520_w2=
     0,                   /* escape_with_backslash_is_dangerous */
     2,                   /* levels_for_order   */
     &my_charset_ucs2_handler,
-    &my_collation_any_uca_handler_multilevel
+    &my_uca_collation_handler_multilevel_ucs2
 };
 
 struct charset_info_st my_charset_ucs2_unicode_520_ci=
@@ -35417,7 +34603,7 @@ struct charset_info_st my_charset_ucs2_unicode_520_ci=
     0,                  /* escape_with_backslash_is_dangerous */
     1,                  /* levels_for_order   */
     &my_charset_ucs2_handler,
-    &my_collation_ucs2_uca_handler
+    &my_uca_collation_handler_ucs2
 };
 
 
@@ -35450,7 +34636,7 @@ struct charset_info_st my_charset_ucs2_vietnamese_ci=
     0,                   /* escape_with_backslash_is_dangerous */
     1,                   /* levels_for_order   */
     &my_charset_ucs2_handler,
-    &my_collation_ucs2_uca_handler
+    &my_uca_collation_handler_ucs2
 };
 
 
@@ -35483,7 +34669,7 @@ struct charset_info_st my_charset_ucs2_unicode_nopad_ci=
     0,                         /* escape_with_backslash_is_dangerous */
     1,                         /* levels_for_order */
     &my_charset_ucs2_handler,
-    &my_collation_generic_uca_nopad_handler
+    &my_uca_collation_handler_nopad_ucs2
 };
 
 
@@ -35516,7 +34702,7 @@ struct charset_info_st my_charset_ucs2_unicode_520_nopad_ci=
     0,                          /* escape_with_backslash_is_dangerous */
     1,                          /* levels_for_order */
     &my_charset_ucs2_handler,
-    &my_collation_generic_uca_nopad_handler
+    &my_uca_collation_handler_nopad_ucs2
 };
 
 
@@ -35524,20 +34710,12 @@ struct charset_info_st my_charset_ucs2_unicode_520_nopad_ci=
 
 
 #ifdef HAVE_CHARSET_utf8
-MY_COLLATION_HANDLER my_collation_any_uca_handler =
-{
-    my_coll_init_uca,	/* init */
-    my_strnncoll_any_uca,
-    my_strnncollsp_any_uca,
-    my_strnxfrm_any_uca,
-    my_strnxfrmlen_any_uca,
-    my_like_range_mb,
-    my_wildcmp_uca,
-    NULL,
-    my_instr_mb,
-    my_hash_sort_any_uca,
-    my_propagate_complex
-};
+
+#include "ctype-utf8.h"
+#define MY_FUNCTION_NAME(x)   my_uca_ ## x ## _utf8mb3
+#define MY_MB_WC(scanner, wc, beg, end) (my_mb_wc_utf8mb3_quick(wc, beg, end))
+#define MY_LIKE_RANGE my_like_range_mb
+#include "ctype-uca.ic"
 
 
 /* 
@@ -35600,7 +34778,7 @@ struct charset_info_st my_charset_utf8_unicode_ci=
     0,                  /* escape_with_backslash_is_dangerous */
     1,                  /* levels_for_order   */
     &my_charset_utf8_handler,
-    &my_collation_any_uca_handler
+    &my_uca_collation_handler_utf8mb3
 };
 
 
@@ -35633,7 +34811,7 @@ struct charset_info_st my_charset_utf8_icelandic_uca_ci=
     0,                  /* escape_with_backslash_is_dangerous */
     1,                  /* levels_for_order   */
     &my_charset_utf8_handler,
-    &my_collation_any_uca_handler
+    &my_uca_collation_handler_utf8mb3
 };
 
 struct charset_info_st my_charset_utf8_latvian_uca_ci=
@@ -35665,7 +34843,7 @@ struct charset_info_st my_charset_utf8_latvian_uca_ci=
     0,                  /* escape_with_backslash_is_dangerous */
     1,                  /* levels_for_order   */
     &my_charset_utf8_handler,
-    &my_collation_any_uca_handler
+    &my_uca_collation_handler_utf8mb3
 };
 
 struct charset_info_st my_charset_utf8_romanian_uca_ci=
@@ -35697,7 +34875,7 @@ struct charset_info_st my_charset_utf8_romanian_uca_ci=
     0,                  /* escape_with_backslash_is_dangerous */
     1,                  /* levels_for_order   */
     &my_charset_utf8_handler,
-    &my_collation_any_uca_handler
+    &my_uca_collation_handler_utf8mb3
 };
 
 struct charset_info_st my_charset_utf8_slovenian_uca_ci=
@@ -35729,7 +34907,7 @@ struct charset_info_st my_charset_utf8_slovenian_uca_ci=
     0,                  /* escape_with_backslash_is_dangerous */
     1,                  /* levels_for_order   */
     &my_charset_utf8_handler,
-    &my_collation_any_uca_handler
+    &my_uca_collation_handler_utf8mb3
 };
 
 struct charset_info_st my_charset_utf8_polish_uca_ci=
@@ -35761,7 +34939,7 @@ struct charset_info_st my_charset_utf8_polish_uca_ci=
     0,                  /* escape_with_backslash_is_dangerous */
     1,                  /* levels_for_order   */
     &my_charset_utf8_handler,
-    &my_collation_any_uca_handler
+    &my_uca_collation_handler_utf8mb3
 };
 
 struct charset_info_st my_charset_utf8_estonian_uca_ci=
@@ -35793,7 +34971,7 @@ struct charset_info_st my_charset_utf8_estonian_uca_ci=
     0,                  /* escape_with_backslash_is_dangerous */
     1,                  /* levels_for_order   */
     &my_charset_utf8_handler,
-    &my_collation_any_uca_handler
+    &my_uca_collation_handler_utf8mb3
 };
 
 struct charset_info_st my_charset_utf8_spanish_uca_ci=
@@ -35825,7 +35003,7 @@ struct charset_info_st my_charset_utf8_spanish_uca_ci=
     0,                  /* escape_with_backslash_is_dangerous */
     1,                  /* levels_for_order   */
     &my_charset_utf8_handler,
-    &my_collation_any_uca_handler
+    &my_uca_collation_handler_utf8mb3
 };
 
 struct charset_info_st my_charset_utf8_swedish_uca_ci=
@@ -35857,7 +35035,7 @@ struct charset_info_st my_charset_utf8_swedish_uca_ci=
     0,                  /* escape_with_backslash_is_dangerous */
     1,                  /* levels_for_order   */
     &my_charset_utf8_handler,
-    &my_collation_any_uca_handler
+    &my_uca_collation_handler_utf8mb3
 };
 
 struct charset_info_st my_charset_utf8_turkish_uca_ci=
@@ -35889,7 +35067,7 @@ struct charset_info_st my_charset_utf8_turkish_uca_ci=
     0,                  /* escape_with_backslash_is_dangerous */
     1,                  /* levels_for_order   */
     &my_charset_utf8_handler,
-    &my_collation_any_uca_handler
+    &my_uca_collation_handler_utf8mb3
 };
 
 struct charset_info_st my_charset_utf8_czech_uca_ci=
@@ -35921,7 +35099,7 @@ struct charset_info_st my_charset_utf8_czech_uca_ci=
     0,                  /* escape_with_backslash_is_dangerous */
     1,                  /* levels_for_order   */
     &my_charset_utf8_handler,
-    &my_collation_any_uca_handler
+    &my_uca_collation_handler_utf8mb3
 };
 
 
@@ -35954,7 +35132,7 @@ struct charset_info_st my_charset_utf8_danish_uca_ci=
     0,                  /* escape_with_backslash_is_dangerous */
     1,                  /* levels_for_order   */
     &my_charset_utf8_handler,
-    &my_collation_any_uca_handler
+    &my_uca_collation_handler_utf8mb3
 };
 
 struct charset_info_st my_charset_utf8_lithuanian_uca_ci=
@@ -35986,7 +35164,7 @@ struct charset_info_st my_charset_utf8_lithuanian_uca_ci=
     0,                  /* escape_with_backslash_is_dangerous */
     1,                  /* levels_for_order   */
     &my_charset_utf8_handler,
-    &my_collation_any_uca_handler
+    &my_uca_collation_handler_utf8mb3
 };
 
 struct charset_info_st my_charset_utf8_slovak_uca_ci=
@@ -36018,7 +35196,7 @@ struct charset_info_st my_charset_utf8_slovak_uca_ci=
     0,                  /* escape_with_backslash_is_dangerous */
     1,                  /* levels_for_order   */
     &my_charset_utf8_handler,
-    &my_collation_any_uca_handler
+    &my_uca_collation_handler_utf8mb3
 };
 
 struct charset_info_st my_charset_utf8_spanish2_uca_ci=
@@ -36050,7 +35228,7 @@ struct charset_info_st my_charset_utf8_spanish2_uca_ci=
     0,                  /* escape_with_backslash_is_dangerous */
     1,                  /* levels_for_order   */
     &my_charset_utf8_handler,
-    &my_collation_any_uca_handler
+    &my_uca_collation_handler_utf8mb3
 };
 
 struct charset_info_st my_charset_utf8_roman_uca_ci=
@@ -36082,7 +35260,7 @@ struct charset_info_st my_charset_utf8_roman_uca_ci=
     0,                  /* escape_with_backslash_is_dangerous */
     1,                  /* levels_for_order   */
     &my_charset_utf8_handler,
-    &my_collation_any_uca_handler
+    &my_uca_collation_handler_utf8mb3
 };
 
 struct charset_info_st my_charset_utf8_persian_uca_ci=
@@ -36114,7 +35292,7 @@ struct charset_info_st my_charset_utf8_persian_uca_ci=
     0,                  /* escape_with_backslash_is_dangerous */
     1,                  /* levels_for_order   */
     &my_charset_utf8_handler,
-    &my_collation_any_uca_handler
+    &my_uca_collation_handler_utf8mb3
 };
 
 struct charset_info_st my_charset_utf8_esperanto_uca_ci=
@@ -36146,7 +35324,7 @@ struct charset_info_st my_charset_utf8_esperanto_uca_ci=
     0,                  /* escape_with_backslash_is_dangerous */
     1,                  /* levels_for_order   */
     &my_charset_utf8_handler,
-    &my_collation_any_uca_handler
+    &my_uca_collation_handler_utf8mb3
 };
 
 struct charset_info_st my_charset_utf8_hungarian_uca_ci=
@@ -36178,7 +35356,7 @@ struct charset_info_st my_charset_utf8_hungarian_uca_ci=
     0,                  /* escape_with_backslash_is_dangerous */
     1,                  /* levels_for_order   */
     &my_charset_utf8_handler,
-    &my_collation_any_uca_handler
+    &my_uca_collation_handler_utf8mb3
 };
 
 struct charset_info_st my_charset_utf8_sinhala_uca_ci=
@@ -36210,7 +35388,7 @@ struct charset_info_st my_charset_utf8_sinhala_uca_ci=
     0,                   /* escape_with_backslash_is_dangerous */
     1,                   /* levels_for_order   */
     &my_charset_utf8_handler,
-    &my_collation_any_uca_handler
+    &my_uca_collation_handler_utf8mb3
 };
 
 
@@ -36243,7 +35421,7 @@ struct charset_info_st my_charset_utf8_german2_uca_ci=
     0,                   /* escape_with_backslash_is_dangerous */
     1,                   /* levels_for_order   */
     &my_charset_utf8_handler,
-    &my_collation_any_uca_handler
+    &my_uca_collation_handler_utf8mb3
 };
 
 struct charset_info_st my_charset_utf8_croatian_mysql561_uca_ci=
@@ -36275,7 +35453,7 @@ struct charset_info_st my_charset_utf8_croatian_mysql561_uca_ci=
     0,                   /* escape_with_backslash_is_dangerous */
     1,                   /* levels_for_order   */
     &my_charset_utf8_handler,
-    &my_collation_any_uca_handler
+    &my_uca_collation_handler_utf8mb3
 };
 
 
@@ -36308,7 +35486,7 @@ struct charset_info_st my_charset_utf8_croatian_uca_ci=
     0,                   /* escape_with_backslash_is_dangerous */
     1,                   /* levels_for_order   */
     &my_charset_utf8_handler,
-    &my_collation_any_uca_handler
+    &my_uca_collation_handler_utf8mb3
 };
 
 
@@ -36341,7 +35519,7 @@ struct charset_info_st my_charset_utf8_myanmar_uca_ci=
     0,                   /* escape_with_backslash_is_dangerous */
     1,                   /* levels_for_order   */
     &my_charset_utf8_handler,
-    &my_collation_any_uca_handler
+    &my_uca_collation_handler_utf8mb3
 };
 
 
@@ -36374,7 +35552,7 @@ struct charset_info_st my_charset_utf8_unicode_520_ci=
     0,                   /* escape_with_backslash_is_dangerous */
     1,                   /* levels_for_order   */
     &my_charset_utf8_handler,
-    &my_collation_any_uca_handler
+    &my_uca_collation_handler_utf8mb3
 };
 
 struct charset_info_st my_charset_utf8_thai_520_w2=
@@ -36406,7 +35584,7 @@ struct charset_info_st my_charset_utf8_thai_520_w2=
     0,                   /* escape_with_backslash_is_dangerous */
     2,                   /* levels_for_order   */
     &my_charset_utf8_handler,
-    &my_collation_any_uca_handler_multilevel
+    &my_uca_collation_handler_multilevel_utf8mb3
 };
 
 struct charset_info_st my_charset_utf8_vietnamese_ci=
@@ -36438,7 +35616,7 @@ struct charset_info_st my_charset_utf8_vietnamese_ci=
     0,                   /* escape_with_backslash_is_dangerous */
     1,                   /* levels_for_order   */
     &my_charset_utf8_handler,
-    &my_collation_any_uca_handler
+    &my_uca_collation_handler_utf8mb3
 };
 
 
@@ -36471,7 +35649,7 @@ struct charset_info_st my_charset_utf8_unicode_nopad_ci=
     0,                             /* escape_with_backslash_is_dangerous */
     1,                             /* levels_for_order */
     &my_charset_utf8_handler,
-    &my_collation_mb_uca_nopad_handler
+    &my_uca_collation_handler_nopad_utf8mb3
 };
 
 
@@ -36504,13 +35682,19 @@ struct charset_info_st my_charset_utf8_unicode_520_nopad_ci=
     0,                                  /* escape_with_backslash_is_dangerous */
     1,                                  /* levels_for_order */
     &my_charset_utf8_handler,
-    &my_collation_mb_uca_nopad_handler
+    &my_uca_collation_handler_nopad_utf8mb3
 };
 
 #endif /* HAVE_CHARSET_utf8 */
 
 
 #ifdef HAVE_CHARSET_utf8mb4
+
+#define MY_FUNCTION_NAME(x)   my_uca_ ## x ## _utf8mb4
+#define MY_MB_WC(scanner, wc, beg, end) (my_mb_wc_utf8mb4_quick(wc, beg, end))
+#define MY_LIKE_RANGE my_like_range_mb
+#include "ctype-uca.ic"
+
 
 extern MY_CHARSET_HANDLER my_charset_utf8mb4_handler;
 
@@ -36546,7 +35730,7 @@ struct charset_info_st my_charset_utf8mb4_unicode_ci=
     0,                   /* escape_with_backslash_is_dangerous */
     1,                   /* levels_for_order   */
     &my_charset_utf8mb4_handler,
-    &my_collation_any_uca_handler
+    &my_uca_collation_handler_utf8mb4
 };
 
 
@@ -36579,7 +35763,7 @@ struct charset_info_st my_charset_utf8mb4_icelandic_uca_ci=
     0,                   /* escape_with_backslash_is_dangerous */
     1,                   /* levels_for_order   */
     &my_charset_utf8mb4_handler,
-    &my_collation_any_uca_handler
+    &my_uca_collation_handler_utf8mb4
 };
 
 struct charset_info_st my_charset_utf8mb4_latvian_uca_ci=
@@ -36611,7 +35795,7 @@ struct charset_info_st my_charset_utf8mb4_latvian_uca_ci=
     0,                   /* escape_with_backslash_is_dangerous */
     1,                   /* levels_for_order   */
     &my_charset_utf8mb4_handler,
-    &my_collation_any_uca_handler
+    &my_uca_collation_handler_utf8mb4
 };
 
 struct charset_info_st my_charset_utf8mb4_romanian_uca_ci=
@@ -36643,7 +35827,7 @@ struct charset_info_st my_charset_utf8mb4_romanian_uca_ci=
     0,                   /* escape_with_backslash_is_dangerous */
     1,                   /* levels_for_order   */
     &my_charset_utf8mb4_handler,
-    &my_collation_any_uca_handler
+    &my_uca_collation_handler_utf8mb4
 };
 
 struct charset_info_st my_charset_utf8mb4_slovenian_uca_ci=
@@ -36675,7 +35859,7 @@ struct charset_info_st my_charset_utf8mb4_slovenian_uca_ci=
     0,                   /* escape_with_backslash_is_dangerous */
     1,                   /* levels_for_order   */
     &my_charset_utf8mb4_handler,
-    &my_collation_any_uca_handler
+    &my_uca_collation_handler_utf8mb4
 };
 
 struct charset_info_st my_charset_utf8mb4_polish_uca_ci=
@@ -36707,7 +35891,7 @@ struct charset_info_st my_charset_utf8mb4_polish_uca_ci=
     0,                   /* escape_with_backslash_is_dangerous */
     1,                   /* levels_for_order   */
     &my_charset_utf8mb4_handler,
-    &my_collation_any_uca_handler
+    &my_uca_collation_handler_utf8mb4
 };
 
 struct charset_info_st my_charset_utf8mb4_estonian_uca_ci=
@@ -36739,7 +35923,7 @@ struct charset_info_st my_charset_utf8mb4_estonian_uca_ci=
     0,                   /* escape_with_backslash_is_dangerous */
     1,                   /* levels_for_order   */
     &my_charset_utf8mb4_handler,
-    &my_collation_any_uca_handler
+    &my_uca_collation_handler_utf8mb4
 };
 
 struct charset_info_st my_charset_utf8mb4_spanish_uca_ci=
@@ -36771,7 +35955,7 @@ struct charset_info_st my_charset_utf8mb4_spanish_uca_ci=
     0,                   /* escape_with_backslash_is_dangerous */
     1,                   /* levels_for_order   */
     &my_charset_utf8mb4_handler,
-    &my_collation_any_uca_handler
+    &my_uca_collation_handler_utf8mb4
 };
 
 struct charset_info_st my_charset_utf8mb4_swedish_uca_ci=
@@ -36803,7 +35987,7 @@ struct charset_info_st my_charset_utf8mb4_swedish_uca_ci=
     0,                   /* escape_with_backslash_is_dangerous */
     1,                   /* levels_for_order   */
     &my_charset_utf8mb4_handler,
-    &my_collation_any_uca_handler
+    &my_uca_collation_handler_utf8mb4
 };
 
 struct charset_info_st my_charset_utf8mb4_turkish_uca_ci=
@@ -36835,7 +36019,7 @@ struct charset_info_st my_charset_utf8mb4_turkish_uca_ci=
     0,                   /* escape_with_backslash_is_dangerous */
     1,                   /* levels_for_order   */
     &my_charset_utf8mb4_handler,
-    &my_collation_any_uca_handler
+    &my_uca_collation_handler_utf8mb4
 };
 
 struct charset_info_st my_charset_utf8mb4_czech_uca_ci=
@@ -36867,7 +36051,7 @@ struct charset_info_st my_charset_utf8mb4_czech_uca_ci=
     0,                   /* escape_with_backslash_is_dangerous */
     1,                   /* levels_for_order   */
     &my_charset_utf8mb4_handler,
-    &my_collation_any_uca_handler
+    &my_uca_collation_handler_utf8mb4
 };
 
 
@@ -36900,7 +36084,7 @@ struct charset_info_st my_charset_utf8mb4_danish_uca_ci=
     0,                   /* escape_with_backslash_is_dangerous */
     1,                   /* levels_for_order   */
     &my_charset_utf8mb4_handler,
-    &my_collation_any_uca_handler
+    &my_uca_collation_handler_utf8mb4
 };
 
 struct charset_info_st my_charset_utf8mb4_lithuanian_uca_ci=
@@ -36932,7 +36116,7 @@ struct charset_info_st my_charset_utf8mb4_lithuanian_uca_ci=
     0,                   /* escape_with_backslash_is_dangerous */
     1,                   /* levels_for_order   */
     &my_charset_utf8mb4_handler,
-    &my_collation_any_uca_handler
+    &my_uca_collation_handler_utf8mb4
 };
 
 struct charset_info_st my_charset_utf8mb4_slovak_uca_ci=
@@ -36964,7 +36148,7 @@ struct charset_info_st my_charset_utf8mb4_slovak_uca_ci=
     0,                   /* escape_with_backslash_is_dangerous */
     1,                   /* levels_for_order   */
     &my_charset_utf8mb4_handler,
-    &my_collation_any_uca_handler
+    &my_uca_collation_handler_utf8mb4
 };
 
 struct charset_info_st my_charset_utf8mb4_spanish2_uca_ci=
@@ -36996,7 +36180,7 @@ struct charset_info_st my_charset_utf8mb4_spanish2_uca_ci=
     0,                   /* escape_with_backslash_is_dangerous */
     1,                   /* levels_for_order   */
     &my_charset_utf8mb4_handler,
-    &my_collation_any_uca_handler
+    &my_uca_collation_handler_utf8mb4
 };
 
 struct charset_info_st my_charset_utf8mb4_roman_uca_ci=
@@ -37028,7 +36212,7 @@ struct charset_info_st my_charset_utf8mb4_roman_uca_ci=
     0,                   /* escape_with_backslash_is_dangerous */
     1,                   /* levels_for_order   */
     &my_charset_utf8mb4_handler,
-    &my_collation_any_uca_handler
+    &my_uca_collation_handler_utf8mb4
 };
 
 struct charset_info_st my_charset_utf8mb4_persian_uca_ci=
@@ -37060,7 +36244,7 @@ struct charset_info_st my_charset_utf8mb4_persian_uca_ci=
     0,                   /* escape_with_backslash_is_dangerous */
     1,                   /* levels_for_order   */
     &my_charset_utf8mb4_handler,
-    &my_collation_any_uca_handler
+    &my_uca_collation_handler_utf8mb4
 };
 
 struct charset_info_st my_charset_utf8mb4_esperanto_uca_ci=
@@ -37092,7 +36276,7 @@ struct charset_info_st my_charset_utf8mb4_esperanto_uca_ci=
     0,                   /* escape_with_backslash_is_dangerous */
     1,                   /* levels_for_order   */
     &my_charset_utf8mb4_handler,
-    &my_collation_any_uca_handler
+    &my_uca_collation_handler_utf8mb4
 };
 
 struct charset_info_st my_charset_utf8mb4_hungarian_uca_ci=
@@ -37124,7 +36308,7 @@ struct charset_info_st my_charset_utf8mb4_hungarian_uca_ci=
     0,                   /* escape_with_backslash_is_dangerous */
     1,                   /* levels_for_order   */
     &my_charset_utf8mb4_handler,
-    &my_collation_any_uca_handler
+    &my_uca_collation_handler_utf8mb4
 };
 
 struct charset_info_st my_charset_utf8mb4_sinhala_uca_ci=
@@ -37156,7 +36340,7 @@ struct charset_info_st my_charset_utf8mb4_sinhala_uca_ci=
     0,                  /* escape_with_backslash_is_dangerous */
     1,                  /* levels_for_order   */
     &my_charset_utf8mb4_handler,
-    &my_collation_any_uca_handler
+    &my_uca_collation_handler_utf8mb4
 };
 
 struct charset_info_st my_charset_utf8mb4_german2_uca_ci=
@@ -37188,7 +36372,7 @@ struct charset_info_st my_charset_utf8mb4_german2_uca_ci=
     0,                  /* escape_with_backslash_is_dangerous */
     1,                  /* levels_for_order   */
     &my_charset_utf8mb4_handler,
-    &my_collation_any_uca_handler
+    &my_uca_collation_handler_utf8mb4
 };
 
 struct charset_info_st my_charset_utf8mb4_croatian_mysql561_uca_ci=
@@ -37220,7 +36404,7 @@ struct charset_info_st my_charset_utf8mb4_croatian_mysql561_uca_ci=
     0,                  /* escape_with_backslash_is_dangerous */
     1,                  /* levels_for_order   */
     &my_charset_utf8mb4_handler,
-    &my_collation_any_uca_handler
+    &my_uca_collation_handler_utf8mb4
 };
 
 
@@ -37253,7 +36437,7 @@ struct charset_info_st my_charset_utf8mb4_croatian_uca_ci=
     0,                  /* escape_with_backslash_is_dangerous */
     1,                  /* levels_for_order   */
     &my_charset_utf8mb4_handler,
-    &my_collation_any_uca_handler
+    &my_uca_collation_handler_utf8mb4
 };
 
 
@@ -37286,7 +36470,7 @@ struct charset_info_st my_charset_utf8mb4_myanmar_uca_ci=
     0,                  /* escape_with_backslash_is_dangerous */
     1,                  /* levels_for_order   */
     &my_charset_utf8mb4_handler,
-    &my_collation_any_uca_handler
+    &my_uca_collation_handler_utf8mb4
 };
 
 struct charset_info_st my_charset_utf8mb4_thai_520_w2=
@@ -37318,7 +36502,7 @@ struct charset_info_st my_charset_utf8mb4_thai_520_w2=
     0,                   /* escape_with_backslash_is_dangerous */
     2,                   /* levels_for_order   */
     &my_charset_utf8mb4_handler,
-    &my_collation_any_uca_handler_multilevel
+    &my_uca_collation_handler_multilevel_utf8mb4
 };
 
 struct charset_info_st my_charset_utf8mb4_unicode_520_ci=
@@ -37350,7 +36534,7 @@ struct charset_info_st my_charset_utf8mb4_unicode_520_ci=
     0,                   /* escape_with_backslash_is_dangerous */
     1,                   /* levels_for_order   */
     &my_charset_utf8mb4_handler,
-    &my_collation_any_uca_handler
+    &my_uca_collation_handler_utf8mb4
 };
 
 
@@ -37383,7 +36567,7 @@ struct charset_info_st my_charset_utf8mb4_vietnamese_ci=
     0,                  /* escape_with_backslash_is_dangerous */
     1,                  /* levels_for_order   */
     &my_charset_utf8mb4_handler,
-    &my_collation_any_uca_handler
+    &my_uca_collation_handler_utf8mb4
 };
 
 
@@ -37416,7 +36600,7 @@ struct charset_info_st my_charset_utf8mb4_unicode_nopad_ci=
     0,                              /* escape_with_backslash_is_dangerous */
     1,                              /* levels_for_order */
     &my_charset_utf8mb4_handler,
-    &my_collation_mb_uca_nopad_handler
+    &my_uca_collation_handler_nopad_utf8mb4
 };
 
 
@@ -37449,7 +36633,7 @@ struct charset_info_st my_charset_utf8mb4_unicode_520_nopad_ci=
     0,                              /* escape_with_backslash_is_dangerous */
     1,                              /* levels_for_order */
     &my_charset_utf8mb4_handler,
-    &my_collation_mb_uca_nopad_handler
+    &my_uca_collation_handler_nopad_utf8mb4
 };
 
 
@@ -37458,20 +36642,11 @@ struct charset_info_st my_charset_utf8mb4_unicode_520_nopad_ci=
 
 #ifdef HAVE_CHARSET_utf32
 
-MY_COLLATION_HANDLER my_collation_utf32_uca_handler =
-{
-    my_coll_init_uca,        /* init */
-    my_strnncoll_any_uca,
-    my_strnncollsp_any_uca,
-    my_strnxfrm_any_uca,
-    my_strnxfrmlen_any_uca,
-    my_like_range_generic,
-    my_wildcmp_uca,
-    NULL,
-    my_instr_mb,
-    my_hash_sort_any_uca,
-    my_propagate_complex
-};
+#include "ctype-utf32.h"
+#define MY_FUNCTION_NAME(x)   my_uca_ ## x ## _utf32
+#define MY_MB_WC(scanner, wc, beg, end) (my_mb_wc_utf32_quick(wc, beg, end))
+#define MY_LIKE_RANGE my_like_range_generic
+#include "ctype-uca.ic"
 
 
 extern MY_CHARSET_HANDLER my_charset_utf32_handler;
@@ -37508,7 +36683,7 @@ struct charset_info_st my_charset_utf32_unicode_ci=
     0,                   /* escape_with_backslash_is_dangerous */
     1,                   /* levels_for_order   */
     &my_charset_utf32_handler,
-    &my_collation_utf32_uca_handler
+    &my_uca_collation_handler_utf32
 };
 
 
@@ -37541,7 +36716,7 @@ struct charset_info_st my_charset_utf32_icelandic_uca_ci=
     0,                   /* escape_with_backslash_is_dangerous */
     1,                   /* levels_for_order   */
     &my_charset_utf32_handler,
-    &my_collation_utf32_uca_handler
+    &my_uca_collation_handler_utf32
 };
 
 struct charset_info_st my_charset_utf32_latvian_uca_ci=
@@ -37573,7 +36748,7 @@ struct charset_info_st my_charset_utf32_latvian_uca_ci=
     0,                   /* escape_with_backslash_is_dangerous */
     1,                   /* levels_for_order   */
     &my_charset_utf32_handler,
-    &my_collation_utf32_uca_handler
+    &my_uca_collation_handler_utf32
 };
 
 struct charset_info_st my_charset_utf32_romanian_uca_ci=
@@ -37605,7 +36780,7 @@ struct charset_info_st my_charset_utf32_romanian_uca_ci=
     0,                   /* escape_with_backslash_is_dangerous */
     1,                   /* levels_for_order   */
     &my_charset_utf32_handler,
-    &my_collation_utf32_uca_handler
+    &my_uca_collation_handler_utf32
 };
 
 struct charset_info_st my_charset_utf32_slovenian_uca_ci=
@@ -37637,7 +36812,7 @@ struct charset_info_st my_charset_utf32_slovenian_uca_ci=
     0,                   /* escape_with_backslash_is_dangerous */
     1,                   /* levels_for_order   */
     &my_charset_utf32_handler,
-    &my_collation_utf32_uca_handler
+    &my_uca_collation_handler_utf32
 };
 
 struct charset_info_st my_charset_utf32_polish_uca_ci=
@@ -37669,7 +36844,7 @@ struct charset_info_st my_charset_utf32_polish_uca_ci=
     0,                   /* escape_with_backslash_is_dangerous */
     1,                   /* levels_for_order   */
     &my_charset_utf32_handler,
-    &my_collation_utf32_uca_handler
+    &my_uca_collation_handler_utf32
 };
 
 struct charset_info_st my_charset_utf32_estonian_uca_ci=
@@ -37701,7 +36876,7 @@ struct charset_info_st my_charset_utf32_estonian_uca_ci=
     0,                   /* escape_with_backslash_is_dangerous */
     1,                   /* levels_for_order   */
     &my_charset_utf32_handler,
-    &my_collation_utf32_uca_handler
+    &my_uca_collation_handler_utf32
 };
 
 struct charset_info_st my_charset_utf32_spanish_uca_ci=
@@ -37733,7 +36908,7 @@ struct charset_info_st my_charset_utf32_spanish_uca_ci=
     0,                   /* escape_with_backslash_is_dangerous */
     1,                   /* levels_for_order   */
     &my_charset_utf32_handler,
-    &my_collation_utf32_uca_handler
+    &my_uca_collation_handler_utf32
 };
 
 struct charset_info_st my_charset_utf32_swedish_uca_ci=
@@ -37765,7 +36940,7 @@ struct charset_info_st my_charset_utf32_swedish_uca_ci=
     0,                   /* escape_with_backslash_is_dangerous */
     1,                   /* levels_for_order   */
     &my_charset_utf32_handler,
-    &my_collation_utf32_uca_handler
+    &my_uca_collation_handler_utf32
 };
 
 struct charset_info_st my_charset_utf32_turkish_uca_ci=
@@ -37797,7 +36972,7 @@ struct charset_info_st my_charset_utf32_turkish_uca_ci=
     0,                   /* escape_with_backslash_is_dangerous */
     1,                   /* levels_for_order   */
     &my_charset_utf32_handler,
-    &my_collation_utf32_uca_handler
+    &my_uca_collation_handler_utf32
 };
 
 struct charset_info_st my_charset_utf32_czech_uca_ci=
@@ -37829,7 +37004,7 @@ struct charset_info_st my_charset_utf32_czech_uca_ci=
     0,                   /* escape_with_backslash_is_dangerous */
     1,                   /* levels_for_order   */
     &my_charset_utf32_handler,
-    &my_collation_utf32_uca_handler
+    &my_uca_collation_handler_utf32
 };
 
 
@@ -37862,7 +37037,7 @@ struct charset_info_st my_charset_utf32_danish_uca_ci=
     0,                   /* escape_with_backslash_is_dangerous */
     1,                   /* levels_for_order   */
     &my_charset_utf32_handler,
-    &my_collation_utf32_uca_handler
+    &my_uca_collation_handler_utf32
 };
 
 struct charset_info_st my_charset_utf32_lithuanian_uca_ci=
@@ -37894,7 +37069,7 @@ struct charset_info_st my_charset_utf32_lithuanian_uca_ci=
     0,                   /* escape_with_backslash_is_dangerous */
     1,                   /* levels_for_order   */
     &my_charset_utf32_handler,
-    &my_collation_utf32_uca_handler
+    &my_uca_collation_handler_utf32
 };
 
 struct charset_info_st my_charset_utf32_slovak_uca_ci=
@@ -37926,7 +37101,7 @@ struct charset_info_st my_charset_utf32_slovak_uca_ci=
     0,                   /* escape_with_backslash_is_dangerous */
     1,                   /* levels_for_order   */
     &my_charset_utf32_handler,
-    &my_collation_utf32_uca_handler
+    &my_uca_collation_handler_utf32
 };
 
 struct charset_info_st my_charset_utf32_spanish2_uca_ci=
@@ -37958,7 +37133,7 @@ struct charset_info_st my_charset_utf32_spanish2_uca_ci=
     0,                   /* escape_with_backslash_is_dangerous */
     1,                   /* levels_for_order   */
     &my_charset_utf32_handler,
-    &my_collation_utf32_uca_handler
+    &my_uca_collation_handler_utf32
 };
 
 struct charset_info_st my_charset_utf32_roman_uca_ci=
@@ -37990,7 +37165,7 @@ struct charset_info_st my_charset_utf32_roman_uca_ci=
     0,                   /* escape_with_backslash_is_dangerous */
     1,                   /* levels_for_order   */
     &my_charset_utf32_handler,
-    &my_collation_utf32_uca_handler
+    &my_uca_collation_handler_utf32
 };
 
 struct charset_info_st my_charset_utf32_persian_uca_ci=
@@ -38022,7 +37197,7 @@ struct charset_info_st my_charset_utf32_persian_uca_ci=
     0,                   /* escape_with_backslash_is_dangerous */
     1,                   /* levels_for_order   */
     &my_charset_utf32_handler,
-    &my_collation_utf32_uca_handler
+    &my_uca_collation_handler_utf32
 };
 
 struct charset_info_st my_charset_utf32_esperanto_uca_ci=
@@ -38054,7 +37229,7 @@ struct charset_info_st my_charset_utf32_esperanto_uca_ci=
     0,                   /* escape_with_backslash_is_dangerous */
     1,                   /* levels_for_order   */
     &my_charset_utf32_handler,
-    &my_collation_utf32_uca_handler
+    &my_uca_collation_handler_utf32
 };
 
 struct charset_info_st my_charset_utf32_hungarian_uca_ci=
@@ -38086,7 +37261,7 @@ struct charset_info_st my_charset_utf32_hungarian_uca_ci=
     0,                   /* escape_with_backslash_is_dangerous */
     1,                   /* levels_for_order   */
     &my_charset_utf32_handler,
-    &my_collation_utf32_uca_handler
+    &my_uca_collation_handler_utf32
 };
 
 struct charset_info_st my_charset_utf32_sinhala_uca_ci=
@@ -38118,7 +37293,7 @@ struct charset_info_st my_charset_utf32_sinhala_uca_ci=
     0,                  /* escape_with_backslash_is_dangerous */
     1,                  /* levels_for_order   */
     &my_charset_utf32_handler,
-    &my_collation_utf32_uca_handler
+    &my_uca_collation_handler_utf32
 };
 
 struct charset_info_st my_charset_utf32_german2_uca_ci=
@@ -38150,7 +37325,7 @@ struct charset_info_st my_charset_utf32_german2_uca_ci=
     0,                  /* escape_with_backslash_is_dangerous */
     1,                  /* levels_for_order   */
     &my_charset_utf32_handler,
-    &my_collation_utf32_uca_handler
+    &my_uca_collation_handler_utf32
 };
 
 struct charset_info_st my_charset_utf32_croatian_mysql561_uca_ci=
@@ -38182,7 +37357,7 @@ struct charset_info_st my_charset_utf32_croatian_mysql561_uca_ci=
     0,                  /* escape_with_backslash_is_dangerous */
     1,                  /* levels_for_order   */
     &my_charset_utf32_handler,
-    &my_collation_utf32_uca_handler
+    &my_uca_collation_handler_utf32
 };
 
 struct charset_info_st my_charset_utf32_croatian_uca_ci=
@@ -38214,7 +37389,7 @@ struct charset_info_st my_charset_utf32_croatian_uca_ci=
     0,                  /* escape_with_backslash_is_dangerous */
     1,                  /* levels_for_order   */
     &my_charset_utf32_handler,
-    &my_collation_utf32_uca_handler
+    &my_uca_collation_handler_utf32
 };
 
 
@@ -38247,7 +37422,7 @@ struct charset_info_st my_charset_utf32_myanmar_uca_ci=
     0,                  /* escape_with_backslash_is_dangerous */
     1,                  /* levels_for_order   */
     &my_charset_utf32_handler,
-    &my_collation_utf32_uca_handler
+    &my_uca_collation_handler_utf32
 };
 
 
@@ -38280,7 +37455,7 @@ struct charset_info_st my_charset_utf32_thai_520_w2=
     0,                  /* escape_with_backslash_is_dangerous */
     2,                  /* levels_for_order   */
     &my_charset_utf32_handler,
-    &my_collation_any_uca_handler_multilevel
+    &my_uca_collation_handler_multilevel_utf32
 };
 
 
@@ -38313,7 +37488,7 @@ struct charset_info_st my_charset_utf32_unicode_520_ci=
     0,                   /* escape_with_backslash_is_dangerous */
     1,                   /* levels_for_order   */
     &my_charset_utf32_handler,
-    &my_collation_utf32_uca_handler
+    &my_uca_collation_handler_utf32
 };
 
 
@@ -38346,7 +37521,7 @@ struct charset_info_st my_charset_utf32_vietnamese_ci=
     0,                  /* escape_with_backslash_is_dangerous */
     1,                  /* levels_for_order   */
     &my_charset_utf32_handler,
-    &my_collation_utf32_uca_handler
+    &my_uca_collation_handler_utf32
 };
 
 
@@ -38379,7 +37554,7 @@ struct charset_info_st my_charset_utf32_unicode_nopad_ci=
     0,                           /* escape_with_backslash_is_dangerous */
     1,                           /* levels_for_order */
     &my_charset_utf32_handler,
-    &my_collation_generic_uca_nopad_handler
+    &my_uca_collation_handler_nopad_utf32
 };
 
 
@@ -38412,7 +37587,7 @@ struct charset_info_st my_charset_utf32_unicode_520_nopad_ci=
     0,                           /* escape_with_backslash_is_dangerous */
     1,                           /* levels_for_order */
     &my_charset_utf32_handler,
-    &my_collation_generic_uca_nopad_handler
+    &my_uca_collation_handler_nopad_utf32
 };
 
 
@@ -38422,21 +37597,11 @@ struct charset_info_st my_charset_utf32_unicode_520_nopad_ci=
 
 #ifdef HAVE_CHARSET_utf16
 
-
-MY_COLLATION_HANDLER my_collation_utf16_uca_handler =
-{
-    my_coll_init_uca,        /* init */
-    my_strnncoll_any_uca,
-    my_strnncollsp_any_uca,
-    my_strnxfrm_any_uca,
-    my_strnxfrmlen_any_uca,
-    my_like_range_generic,
-    my_wildcmp_uca,
-    NULL,
-    my_instr_mb,
-    my_hash_sort_any_uca,
-    my_propagate_complex
-};
+#include "ctype-utf16.h"
+#define MY_FUNCTION_NAME(x)   my_uca_ ## x ## _utf16
+#define MY_MB_WC(scanner, wc, beg, end) (my_mb_wc_utf16_quick(wc, beg, end))
+#define MY_LIKE_RANGE my_like_range_generic
+#include "ctype-uca.ic"
 
 
 extern MY_CHARSET_HANDLER my_charset_utf16_handler;
@@ -38473,7 +37638,7 @@ struct charset_info_st my_charset_utf16_unicode_ci=
     0,                   /* escape_with_backslash_is_dangerous */
     1,                   /* levels_for_order   */
     &my_charset_utf16_handler,
-    &my_collation_utf16_uca_handler
+    &my_uca_collation_handler_utf16
 };
 
 
@@ -38506,7 +37671,7 @@ struct charset_info_st my_charset_utf16_icelandic_uca_ci=
     0,                   /* escape_with_backslash_is_dangerous */
     1,                   /* levels_for_order   */
     &my_charset_utf16_handler,
-    &my_collation_utf16_uca_handler
+    &my_uca_collation_handler_utf16
 };
 
 struct charset_info_st my_charset_utf16_latvian_uca_ci=
@@ -38538,7 +37703,7 @@ struct charset_info_st my_charset_utf16_latvian_uca_ci=
     0,                   /* escape_with_backslash_is_dangerous */
     1,                   /* levels_for_order   */
     &my_charset_utf16_handler,
-    &my_collation_utf16_uca_handler
+    &my_uca_collation_handler_utf16
 };
 
 struct charset_info_st my_charset_utf16_romanian_uca_ci=
@@ -38570,7 +37735,7 @@ struct charset_info_st my_charset_utf16_romanian_uca_ci=
     0,                   /* escape_with_backslash_is_dangerous */
     1,                   /* levels_for_order   */
     &my_charset_utf16_handler,
-    &my_collation_utf16_uca_handler
+    &my_uca_collation_handler_utf16
 };
 
 struct charset_info_st my_charset_utf16_slovenian_uca_ci=
@@ -38602,7 +37767,7 @@ struct charset_info_st my_charset_utf16_slovenian_uca_ci=
     0,                   /* escape_with_backslash_is_dangerous */
     1,                   /* levels_for_order   */
     &my_charset_utf16_handler,
-    &my_collation_utf16_uca_handler
+    &my_uca_collation_handler_utf16
 };
 
 struct charset_info_st my_charset_utf16_polish_uca_ci=
@@ -38634,7 +37799,7 @@ struct charset_info_st my_charset_utf16_polish_uca_ci=
     0,                   /* escape_with_backslash_is_dangerous */
     1,                   /* levels_for_order   */
     &my_charset_utf16_handler,
-    &my_collation_utf16_uca_handler
+    &my_uca_collation_handler_utf16
 };
 
 struct charset_info_st my_charset_utf16_estonian_uca_ci=
@@ -38666,7 +37831,7 @@ struct charset_info_st my_charset_utf16_estonian_uca_ci=
     0,                   /* escape_with_backslash_is_dangerous */
     1,                   /* levels_for_order   */
     &my_charset_utf16_handler,
-    &my_collation_utf16_uca_handler
+    &my_uca_collation_handler_utf16
 };
 
 struct charset_info_st my_charset_utf16_spanish_uca_ci=
@@ -38698,7 +37863,7 @@ struct charset_info_st my_charset_utf16_spanish_uca_ci=
     0,                   /* escape_with_backslash_is_dangerous */
     1,                   /* levels_for_order   */
     &my_charset_utf16_handler,
-    &my_collation_utf16_uca_handler
+    &my_uca_collation_handler_utf16
 };
 
 struct charset_info_st my_charset_utf16_swedish_uca_ci=
@@ -38730,7 +37895,7 @@ struct charset_info_st my_charset_utf16_swedish_uca_ci=
     0,                   /* escape_with_backslash_is_dangerous */
     1,                   /* levels_for_order   */
     &my_charset_utf16_handler,
-    &my_collation_utf16_uca_handler
+    &my_uca_collation_handler_utf16
 };
 
 struct charset_info_st my_charset_utf16_turkish_uca_ci=
@@ -38762,7 +37927,7 @@ struct charset_info_st my_charset_utf16_turkish_uca_ci=
     0,                   /* escape_with_backslash_is_dangerous */
     1,                   /* levels_for_order   */
     &my_charset_utf16_handler,
-    &my_collation_utf16_uca_handler
+    &my_uca_collation_handler_utf16
 };
 
 struct charset_info_st my_charset_utf16_czech_uca_ci=
@@ -38794,7 +37959,7 @@ struct charset_info_st my_charset_utf16_czech_uca_ci=
     0,                   /* escape_with_backslash_is_dangerous */
     1,                   /* levels_for_order   */
     &my_charset_utf16_handler,
-    &my_collation_utf16_uca_handler
+    &my_uca_collation_handler_utf16
 };
 
 
@@ -38827,7 +37992,7 @@ struct charset_info_st my_charset_utf16_danish_uca_ci=
     0,                   /* escape_with_backslash_is_dangerous */
     1,                   /* levels_for_order   */
     &my_charset_utf16_handler,
-    &my_collation_utf16_uca_handler
+    &my_uca_collation_handler_utf16
 };
 
 struct charset_info_st my_charset_utf16_lithuanian_uca_ci=
@@ -38859,7 +38024,7 @@ struct charset_info_st my_charset_utf16_lithuanian_uca_ci=
     0,                   /* escape_with_backslash_is_dangerous */
     1,                   /* levels_for_order   */
     &my_charset_utf16_handler,
-    &my_collation_utf16_uca_handler
+    &my_uca_collation_handler_utf16
 };
 
 struct charset_info_st my_charset_utf16_slovak_uca_ci=
@@ -38891,7 +38056,7 @@ struct charset_info_st my_charset_utf16_slovak_uca_ci=
     0,                   /* escape_with_backslash_is_dangerous */
     1,                   /* levels_for_order   */
     &my_charset_utf16_handler,
-    &my_collation_utf16_uca_handler
+    &my_uca_collation_handler_utf16
 };
 
 struct charset_info_st my_charset_utf16_spanish2_uca_ci=
@@ -38923,7 +38088,7 @@ struct charset_info_st my_charset_utf16_spanish2_uca_ci=
     0,                  /* escape_with_backslash_is_dangerous */
     1,                  /* levels_for_order   */
     &my_charset_utf16_handler,
-    &my_collation_utf16_uca_handler
+    &my_uca_collation_handler_utf16
 };
 
 struct charset_info_st my_charset_utf16_roman_uca_ci=
@@ -38955,7 +38120,7 @@ struct charset_info_st my_charset_utf16_roman_uca_ci=
     0,                  /* escape_with_backslash_is_dangerous */
     1,                  /* levels_for_order   */
     &my_charset_utf16_handler,
-    &my_collation_utf16_uca_handler
+    &my_uca_collation_handler_utf16
 };
 
 struct charset_info_st my_charset_utf16_persian_uca_ci=
@@ -38987,7 +38152,7 @@ struct charset_info_st my_charset_utf16_persian_uca_ci=
     0,                  /* escape_with_backslash_is_dangerous */
     1,                  /* levels_for_order   */
     &my_charset_utf16_handler,
-    &my_collation_utf16_uca_handler
+    &my_uca_collation_handler_utf16
 };
 
 struct charset_info_st my_charset_utf16_esperanto_uca_ci=
@@ -39019,7 +38184,7 @@ struct charset_info_st my_charset_utf16_esperanto_uca_ci=
     0,                  /* escape_with_backslash_is_dangerous */
     1,                  /* levels_for_order   */
     &my_charset_utf16_handler,
-    &my_collation_utf16_uca_handler
+    &my_uca_collation_handler_utf16
 };
 
 struct charset_info_st my_charset_utf16_hungarian_uca_ci=
@@ -39051,7 +38216,7 @@ struct charset_info_st my_charset_utf16_hungarian_uca_ci=
     0,                 /* escape_with_backslash_is_dangerous */
     1,                 /* levels_for_order   */
     &my_charset_utf16_handler,
-    &my_collation_utf16_uca_handler
+    &my_uca_collation_handler_utf16
 };
 
 struct charset_info_st my_charset_utf16_sinhala_uca_ci=
@@ -39083,7 +38248,7 @@ struct charset_info_st my_charset_utf16_sinhala_uca_ci=
     0,                 /* escape_with_backslash_is_dangerous */
     1,                 /* levels_for_order   */
     &my_charset_utf16_handler,
-    &my_collation_utf16_uca_handler
+    &my_uca_collation_handler_utf16
 };
 
 struct charset_info_st my_charset_utf16_german2_uca_ci=
@@ -39115,7 +38280,7 @@ struct charset_info_st my_charset_utf16_german2_uca_ci=
     0,                 /* escape_with_backslash_is_dangerous */
     1,                 /* levels_for_order   */
     &my_charset_utf16_handler,
-    &my_collation_utf16_uca_handler
+    &my_uca_collation_handler_utf16
 };
 
 
@@ -39148,7 +38313,7 @@ struct charset_info_st my_charset_utf16_croatian_mysql561_uca_ci=
     0,                 /* escape_with_backslash_is_dangerous */
     1,                 /* levels_for_order   */
     &my_charset_utf16_handler,
-    &my_collation_utf16_uca_handler
+    &my_uca_collation_handler_utf16
 };
 
 
@@ -39181,7 +38346,7 @@ struct charset_info_st my_charset_utf16_croatian_uca_ci=
     0,                 /* escape_with_backslash_is_dangerous */
     1,                 /* levels_for_order   */
     &my_charset_utf16_handler,
-    &my_collation_utf16_uca_handler
+    &my_uca_collation_handler_utf16
 };
 
 
@@ -39214,7 +38379,7 @@ struct charset_info_st my_charset_utf16_myanmar_uca_ci=
     0,                 /* escape_with_backslash_is_dangerous */
     1,                 /* levels_for_order   */
     &my_charset_utf16_handler,
-    &my_collation_utf16_uca_handler
+    &my_uca_collation_handler_utf16
 };
 
 
@@ -39247,7 +38412,7 @@ struct charset_info_st my_charset_utf16_thai_520_w2=
     0,                 /* escape_with_backslash_is_dangerous */
     2,                 /* levels_for_order   */
     &my_charset_utf16_handler,
-    &my_collation_any_uca_handler_multilevel
+    &my_uca_collation_handler_multilevel_utf16
 };
 
 
@@ -39280,7 +38445,7 @@ struct charset_info_st my_charset_utf16_unicode_520_ci=
     0,                   /* escape_with_backslash_is_dangerous */
     1,                   /* levels_for_order   */
     &my_charset_utf16_handler,
-    &my_collation_utf16_uca_handler
+    &my_uca_collation_handler_utf16
 };
 
 
@@ -39313,7 +38478,7 @@ struct charset_info_st my_charset_utf16_vietnamese_ci=
     0,                 /* escape_with_backslash_is_dangerous */
     1,                 /* levels_for_order   */
     &my_charset_utf16_handler,
-    &my_collation_utf16_uca_handler
+    &my_uca_collation_handler_utf16
 };
 
 
@@ -39346,7 +38511,7 @@ struct charset_info_st my_charset_utf16_unicode_nopad_ci=
     0,                           /* escape_with_backslash_is_dangerous */
     1,                           /* levels_for_order */
     &my_charset_utf16_handler,
-    &my_collation_generic_uca_nopad_handler
+    &my_uca_collation_handler_nopad_utf16
 };
 
 
@@ -39379,7 +38544,7 @@ struct charset_info_st my_charset_utf16_unicode_520_nopad_ci=
     0,                           /* escape_with_backslash_is_dangerous */
     1,                           /* levels_for_order */
     &my_charset_utf16_handler,
-    &my_collation_generic_uca_nopad_handler
+    &my_uca_collation_handler_nopad_utf16
 };
 
 
