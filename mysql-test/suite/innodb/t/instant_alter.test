@@ -343,6 +343,14 @@ DEFAULT REPEAT('a', @@GLOBAL.innodb_page_size * .75);
 CHECK TABLE t2, t1;
 DROP TABLE t2, t1;
 
+eval CREATE TABLE t1 (a INT, b INT UNIQUE) $engine;
+INSERT INTO t1 (a) VALUES (NULL), (NULL);
+ALTER TABLE t1 DROP a, ADD COLUMN a INT;
+DELETE FROM t1;
+BEGIN;INSERT INTO t1 SET a=NULL;ROLLBACK;
+DELETE FROM t1;
+DROP TABLE t1;
+
 dec $format;
 }
 disconnect analyze;

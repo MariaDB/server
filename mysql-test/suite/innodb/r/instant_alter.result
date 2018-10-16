@@ -471,6 +471,15 @@ Table	Op	Msg_type	Msg_text
 test.t2	check	status	OK
 test.t1	check	status	OK
 DROP TABLE t2, t1;
+CREATE TABLE t1 (a INT, b INT UNIQUE) ENGINE=InnoDB ROW_FORMAT=REDUNDANT;
+INSERT INTO t1 (a) VALUES (NULL), (NULL);
+ALTER TABLE t1 DROP a, ADD COLUMN a INT;
+DELETE FROM t1;
+BEGIN;
+INSERT INTO t1 SET a=NULL;
+ROLLBACK;
+DELETE FROM t1;
+DROP TABLE t1;
 CREATE TABLE t1
 (id INT PRIMARY KEY, c2 INT UNIQUE,
 c3 POINT NOT NULL DEFAULT ST_GeomFromText('POINT(3 4)'),
@@ -888,6 +897,15 @@ Table	Op	Msg_type	Msg_text
 test.t2	check	status	OK
 test.t1	check	status	OK
 DROP TABLE t2, t1;
+CREATE TABLE t1 (a INT, b INT UNIQUE) ENGINE=InnoDB ROW_FORMAT=COMPACT;
+INSERT INTO t1 (a) VALUES (NULL), (NULL);
+ALTER TABLE t1 DROP a, ADD COLUMN a INT;
+DELETE FROM t1;
+BEGIN;
+INSERT INTO t1 SET a=NULL;
+ROLLBACK;
+DELETE FROM t1;
+DROP TABLE t1;
 CREATE TABLE t1
 (id INT PRIMARY KEY, c2 INT UNIQUE,
 c3 POINT NOT NULL DEFAULT ST_GeomFromText('POINT(3 4)'),
@@ -1305,10 +1323,19 @@ Table	Op	Msg_type	Msg_text
 test.t2	check	status	OK
 test.t1	check	status	OK
 DROP TABLE t2, t1;
+CREATE TABLE t1 (a INT, b INT UNIQUE) ENGINE=InnoDB ROW_FORMAT=DYNAMIC;
+INSERT INTO t1 (a) VALUES (NULL), (NULL);
+ALTER TABLE t1 DROP a, ADD COLUMN a INT;
+DELETE FROM t1;
+BEGIN;
+INSERT INTO t1 SET a=NULL;
+ROLLBACK;
+DELETE FROM t1;
+DROP TABLE t1;
 disconnect analyze;
 SELECT variable_value-@old_instant instants
 FROM information_schema.global_status
 WHERE variable_name = 'innodb_instant_alter_column';
 instants
-57
+60
 SET GLOBAL innodb_purge_rseg_truncate_frequency= @saved_frequency;

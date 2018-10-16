@@ -5579,19 +5579,20 @@ btr_cur_optimistic_delete_func(
 			|| !index->is_instant()
 			|| (first_rec != rec
 			    && rec_is_add_metadata(first_rec, *index));
-		if (UNIV_LIKELY(!is_metadata)) {
-			lock_update_delete(block, rec);
-		}
 		if (UNIV_LIKELY(empty_table)) {
+			if (UNIV_LIKELY(!is_metadata)) {
+				lock_update_delete(block, rec);
+			}
 			btr_page_empty(block, buf_block_get_page_zip(block),
 				       index, 0, mtr);
 			if (index->is_instant()) {
 				/* FIXME: free metadata BLOBs */
 				index->clear_instant_alter();
 			}
+			page_cur_set_after_last(block,
+						btr_cur_get_page_cur(cursor));
+			return true;
 		}
-		page_cur_set_after_last(block, btr_cur_get_page_cur(cursor));
-		return true;
 	}
 
 	offsets = rec_get_offsets(rec, cursor->index, offsets, true,
@@ -5811,11 +5812,12 @@ btr_cur_pessimistic_delete(
 					/* FIXME: free metadata BLOBs */
 					index->clear_instant_alter();
 				}
+				page_cur_set_after_last(
+					block,
+					btr_cur_get_page_cur(cursor));
+				ret = TRUE;
+				goto return_after_reservations;
 			}
-			page_cur_set_after_last(block,
-						btr_cur_get_page_cur(cursor));
-			ret = TRUE;
-			goto return_after_reservations;
 		}
 
 		if (UNIV_LIKELY(!is_metadata)) {

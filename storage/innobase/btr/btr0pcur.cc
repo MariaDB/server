@@ -151,7 +151,14 @@ btr_pcur_store_position(
 		rec = page_rec_get_prev(rec);
 
 		ut_ad(!page_rec_is_infimum(rec));
-		ut_ad(!rec_is_metadata(rec, *index));
+		if (UNIV_UNLIKELY(rec_is_metadata(rec, *index))) {
+			ut_ad(index->table->instant);
+			ut_ad(page_get_n_recs(block->frame) == 1);
+			ut_ad(page_is_leaf(page));
+			ut_ad(page_get_page_no(page) == index->page);
+			cursor->rel_pos = BTR_PCUR_AFTER_LAST_IN_TREE;
+			return;
+		}
 
 		cursor->rel_pos = BTR_PCUR_AFTER;
 	} else if (page_rec_is_infimum_low(offs)) {
