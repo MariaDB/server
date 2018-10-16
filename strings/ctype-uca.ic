@@ -25,6 +25,15 @@
 #ifndef MY_LIKE_RANGE
 #error MY_LIKE_RANGE is not defined
 #endif
+#ifndef MY_UCA_ASCII_OPTIMIZE
+#error MY_ASCII_OPTIMIZE is not defined
+#endif
+#ifndef MY_UCA_COMPILE_CONTRACTIONS
+#error MY_UCA_COMPILE_CONTRACTIONS is not defined
+#endif
+#ifndef MY_UCA_COLL_INIT
+#error MY_UCA_COLL_INIT is not defined
+#endif
 
 
 static inline int
@@ -46,6 +55,32 @@ MY_FUNCTION_NAME(scanner_next)(my_uca_scanner *scanner)
     int mblen;
 
     /* Get next character */
+#if MY_UCA_ASCII_OPTIMIZE
+    /* Get next ASCII character */
+    if (scanner->sbeg < scanner->send && scanner->sbeg[0] < 0x80)
+    {
+      wc[0]= scanner->sbeg[0];
+      scanner->sbeg+= 1;
+
+#if MY_UCA_COMPILE_CONTRACTIONS
+      if (my_uca_needs_context_handling(scanner->level, wc[0]))
+      {
+        uint16 *cweight= my_uca_context_weight_find(scanner, wc);
+        if (cweight)
+          return *cweight;
+      }
+#endif
+
+      scanner->page= 0;
+      scanner->code= (int) wc[0];
+      scanner->wbeg= scanner->level->weights[0] + scanner->code * scanner->level->lengths[0];
+      if (scanner->wbeg[0])
+        return *scanner->wbeg++;
+      continue;
+    }
+    else
+#endif
+    /* Get next MB character */
     if (((mblen= MY_MB_WC(scanner, wc, scanner->sbeg,
                                        scanner->send)) <= 0))
     {
@@ -76,37 +111,14 @@ MY_FUNCTION_NAME(scanner_next)(my_uca_scanner *scanner)
       return 0xFFFD;
     }
 
-    if (my_uca_have_contractions_quick(scanner->level))
+#if MY_UCA_COMPILE_CONTRACTIONS
+    if (my_uca_needs_context_handling(scanner->level, wc[0]))
     {
-      uint16 *cweight;
-      /*
-        If we have scanned a character which can have previous context,
-        and there were some more characters already before,
-        then reconstruct codepoint of the previous character
-        from "page" and "code" into w[1], and verify that {wc[1], wc[0]}
-        together form a real previous context pair.
-        Note, we support only 2-character long sequences with previous
-        context at the moment. CLDR does not have longer sequences.
-      */
-      if (my_uca_can_be_previous_context_tail(&scanner->level->contractions,
-                                              wc[0]) &&
-          scanner->wbeg != nochar &&     /* if not the very first character */
-          my_uca_can_be_previous_context_head(&scanner->level->contractions,
-                                              (wc[1]= ((scanner->page << 8) +
-                                                        scanner->code))) &&
-          (cweight= my_uca_previous_context_find(scanner, wc[1], wc[0])))
-      {
-        scanner->page= scanner->code= 0; /* Clear for the next character */
+      uint16 *cweight= my_uca_context_weight_find(scanner, wc);
+      if (cweight)
         return *cweight;
-      }
-      else if (my_uca_can_be_contraction_head(&scanner->level->contractions,
-                                              wc[0]))
-      {
-        /* Check if w[0] starts a contraction */
-        if ((cweight= my_uca_scanner_contraction_find(scanner, wc)))
-          return *cweight;
-      }
     }
+#endif
 
     /* Process single character */
     scanner->page= wc[0] >> 8;
@@ -685,7 +697,7 @@ MY_FUNCTION_NAME(strnxfrm_multilevel)(CHARSET_INFO *cs,
 */
 MY_COLLATION_HANDLER MY_FUNCTION_NAME(collation_handler)=
 {
-  my_coll_init_uca,
+  MY_UCA_COLL_INIT,
   MY_FUNCTION_NAME(strnncoll),
   MY_FUNCTION_NAME(strnncollsp),
   MY_FUNCTION_NAME(strnxfrm),
@@ -706,7 +718,7 @@ MY_COLLATION_HANDLER MY_FUNCTION_NAME(collation_handler)=
 */
 MY_COLLATION_HANDLER MY_FUNCTION_NAME(collation_handler_nopad)=
 {
-  my_coll_init_uca,
+  MY_UCA_COLL_INIT,
   MY_FUNCTION_NAME(strnncoll),
   MY_FUNCTION_NAME(strnncollsp_nopad),
   MY_FUNCTION_NAME(strnxfrm_nopad),
@@ -725,7 +737,7 @@ MY_COLLATION_HANDLER MY_FUNCTION_NAME(collation_handler_nopad)=
 */
 MY_COLLATION_HANDLER MY_FUNCTION_NAME(collation_handler_multilevel)=
 {
-  my_coll_init_uca,
+  MY_UCA_COLL_INIT,
   MY_FUNCTION_NAME(strnncoll_multilevel),
   MY_FUNCTION_NAME(strnncollsp_multilevel),
   MY_FUNCTION_NAME(strnxfrm_multilevel),
@@ -744,7 +756,7 @@ MY_COLLATION_HANDLER MY_FUNCTION_NAME(collation_handler_multilevel)=
 */
 MY_COLLATION_HANDLER MY_FUNCTION_NAME(collation_handler_nopad_multilevel)=
 {
-  my_coll_init_uca,
+  MY_UCA_COLL_INIT,
   MY_FUNCTION_NAME(strnncoll_multilevel),
   MY_FUNCTION_NAME(strnncollsp_nopad_multilevel),
   MY_FUNCTION_NAME(strnxfrm_multilevel),
@@ -758,6 +770,18 @@ MY_COLLATION_HANDLER MY_FUNCTION_NAME(collation_handler_nopad_multilevel)=
 };
 
 
+MY_COLLATION_HANDLER_PACKAGE MY_FUNCTION_NAME(package)=
+{
+  &MY_FUNCTION_NAME(collation_handler),
+  &MY_FUNCTION_NAME(collation_handler_nopad),
+  &MY_FUNCTION_NAME(collation_handler_multilevel),
+  &MY_FUNCTION_NAME(collation_handler_nopad_multilevel)
+};
+
+
 #undef MY_FUNCTION_NAME
 #undef MY_MB_WC
 #undef MY_LIKE_RANGE
+#undef MY_UCA_ASCII_OPTIMIZE
+#undef MY_UCA_COMPILE_CONTRACTIONS
+#undef MY_UCA_COLL_INIT
