@@ -1738,6 +1738,11 @@ public:
   */
   static const int binlog_stmt_unsafe_errcode[BINLOG_STMT_UNSAFE_COUNT];
 
+  inline bool is_insert()
+  {
+    return sql_command == SQLCOM_INSERT || sql_command == SQLCOM_INSERT_SELECT;
+  }
+
   /**
     Determine if this statement is marked as unsafe.
 

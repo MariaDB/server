@@ -3276,7 +3276,8 @@ int handler::update_auto_increment()
 
       if ((auto_inc_intervals_count == 0) && (estimation_rows_to_insert > 0))
         nb_desired_values= estimation_rows_to_insert;
-      else if ((auto_inc_intervals_count == 0) &&
+      else if (thd->lex->is_insert() &&
+               (auto_inc_intervals_count == 0) &&
                (thd->lex->many_values.elements > 0))
       {
         /*
