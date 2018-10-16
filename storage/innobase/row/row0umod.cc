@@ -113,6 +113,9 @@ row_undo_mod_clust_low(
 	ut_ad(rec_get_trx_id(btr_cur_get_rec(btr_cur),
 			     btr_cur_get_index(btr_cur))
 	      == thr_get_trx(thr)->id);
+	ut_ad(node->ref != &trx_undo_metadata
+	      || node->update->info_bits == REC_INFO_METADATA_ADD
+	      || node->update->info_bits == REC_INFO_METADATA_ALTER);
 
 	if (mode != BTR_MODIFY_LEAF
 	    && dict_index_is_online_ddl(btr_cur_get_index(btr_cur))) {
@@ -133,6 +136,7 @@ row_undo_mod_clust_low(
 			btr_cur, offsets, offsets_heap,
 			node->update, node->cmpl_info,
 			thr, thr_get_trx(thr)->id, mtr);
+		ut_ad(err != DB_SUCCESS || node->ref != &trx_undo_metadata);
 	} else {
 		big_rec_t*	dummy_big_rec;
 
@@ -145,6 +149,38 @@ row_undo_mod_clust_low(
 			node->cmpl_info, thr, thr_get_trx(thr)->id, mtr);
 
 		ut_a(!dummy_big_rec);
+
+		static const byte
+			INFIMUM[8] = {'i','n','f','i','m','u','m',0},
+			SUPREMUM[8] = {'s','u','p','r','e','m','u','m'};
+
+		if (err == DB_SUCCESS
+		    && node->ref == &trx_undo_metadata
+		    && btr_cur_get_index(btr_cur)->table->instant
+		    && node->update->info_bits == REC_INFO_METADATA_ADD) {
+			if (page_t* root = btr_root_get(
+				    btr_cur_get_index(btr_cur), mtr)) {
+				byte* infimum;
+				byte *supremum;
+				if (page_is_comp(root)) {
+					infimum = PAGE_NEW_INFIMUM + root;
+					supremum = PAGE_NEW_SUPREMUM + root;
+				} else {
+					infimum = PAGE_OLD_INFIMUM + root;
+					supremum = PAGE_OLD_SUPREMUM + root;
+				}
+
+				ut_ad(!memcmp(infimum, INFIMUM, 8)
+				      == !memcmp(supremum, SUPREMUM, 8));
+
+				if (memcmp(infimum, INFIMUM, 8)) {
+					mlog_write_string(infimum, INFIMUM,
+							  8, mtr);
+					mlog_write_string(supremum, SUPREMUM,
+							  8, mtr);
+				}
+			}
+		}
 	}
 
 	if (err == DB_SUCCESS
