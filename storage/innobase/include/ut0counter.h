@@ -58,7 +58,7 @@ get_rnd_value()
 	/* We may go here if my_timer_cycles() returns 0,
 	so we have to have the plan B for the counter. */
 #if !defined(_WIN32)
-	return static_cast<size_t>(os_thread_get_curr_id());
+	return reinterpret_cast<size_t>(os_thread_get_curr_id());
 #else
 	LARGE_INTEGER cnt;
 	QueryPerformanceCounter(&cnt);
