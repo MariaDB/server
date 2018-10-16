@@ -2650,20 +2650,15 @@ row_ins_clust_index_entry_low(
 
 		const rec_t* rec = btr_cur_get_rec(cursor);
 
-		switch (rec_get_info_bits(rec, page_rec_is_comp(rec))
-			& (REC_INFO_MIN_REC_FLAG | REC_INFO_DELETED_FLAG)) {
-		case REC_INFO_MIN_REC_FLAG:
+		if (rec_get_info_bits(rec, page_rec_is_comp(rec))
+		    & REC_INFO_MIN_REC_FLAG) {
 			thr_get_trx(thr)->error_info = index;
 			err = DB_DUPLICATE_KEY;
 			goto err_exit;
-		case REC_INFO_MIN_REC_FLAG | REC_INFO_DELETED_FLAG:
-			/* FIXME: handle instant DROP COLUMN */
-			err = DB_CORRUPTION;
-			goto err_exit;
-		default:
-			ut_ad(!row_ins_must_modify_rec(cursor));
-			goto do_insert;
 		}
+
+		ut_ad(!row_ins_must_modify_rec(cursor));
+		goto do_insert;
 	}
 
 	if (index->is_instant()) entry->trim(*index);
