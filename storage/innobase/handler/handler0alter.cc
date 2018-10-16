@@ -1275,7 +1275,7 @@ ha_innobase::check_if_supported_inplace_alter(
 			   | ALTER_DROP_NON_UNIQUE_NON_PRIM_INDEX);
 		if (supports_instant) {
 			flags &= ~(ALTER_DROP_STORED_COLUMN
-#if 0 /* MDEV-15562 FIXME: remove check_v_col_in_order() and fix the code */
+#if 0 /* MDEV-17468: remove check_v_col_in_order() and fix the code */
 				   | ALTER_ADD_STORED_BASE_COLUMN
 #endif
 				   | ALTER_STORED_COLUMN_ORDER);
@@ -4165,7 +4165,7 @@ prepare_inplace_add_virtual(
 
 		/* No need to track the list */
 		ctx->add_vcol[j].v_indexes = NULL;
-		/* FIXME: This should be done on ctx->instant_table later */
+		/* MDEV-17468: Do this on ctx->instant_table later */
 		innodb_base_col_setup(ctx->old_table, field, &ctx->add_vcol[j]);
 		j++;
 	}
@@ -10355,7 +10355,7 @@ foreign_fail:
 		}
 	}
 
-	/* FIXME: Avoid this when ctx->is_instant().
+	/* MDEV-17468: Avoid this at least when ctx->is_instant().
 	Currently dict_load_column_low() is the only place where
 	num_base for virtual columns is assigned to nonzero. */
 	if (ctx0->num_to_drop_vcol || ctx0->num_to_add_vcol) {
