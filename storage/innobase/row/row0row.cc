@@ -267,9 +267,8 @@ row_build_index_entry_low(
 			ut_ad(!dfield_is_ext(dfield2));
 			if (UNIV_UNLIKELY(dfield2->type.mtype
 					  == DATA_MISSING)) {
-				/* FIXME: why does this happen?
-				Should the column not be evaluated? */
 				ut_ad(flag == ROW_BUILD_FOR_PURGE);
+				ut_ad(!index->is_committed());
 				return(NULL);
 			}
 		} else {
@@ -374,10 +373,7 @@ row_build_index_entry_low(
 			row, v_col->v_pos);
 		ut_ad(dfield_is_null(dfield2) ||
 		      dfield_get_len(dfield2) == 0 || dfield2->data);
-		if (UNIV_UNLIKELY(dfield2->type.mtype == DATA_MISSING)) {
-			/* FIXME: why does this happen? */
-			return(NULL);
-		}
+		ut_ad(dfield2->type.mtype != DATA_MISSING);
 		*dfield = *dfield2;
 	}
 
