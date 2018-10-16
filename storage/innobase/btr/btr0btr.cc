@@ -1701,7 +1701,8 @@ func_exit:
 		memcpy(FIL_PAGE_TYPE + page, FIL_PAGE_TYPE + temp_page, 2);
 		memcpy(PAGE_HEADER + PAGE_INSTANT + page,
 		       PAGE_HEADER + PAGE_INSTANT + temp_page, 2);
-		if (page_is_comp(page)) {
+		if (!index->table->instant) {
+		} else if (page_is_comp(page)) {
 			memcpy(PAGE_NEW_INFIMUM + page,
 			       PAGE_NEW_INFIMUM + temp_page, 8);
 			memcpy(PAGE_NEW_SUPREMUM + page,
@@ -1759,6 +1760,14 @@ func_exit:
 				 mach_read_from_2(PAGE_HEADER + PAGE_INSTANT
 						  + page),
 				 MLOG_2BYTES, mtr);
+		if (!index->table->instant) {
+		} else if (page_is_comp(page)) {
+			mlog_log_string(PAGE_NEW_INFIMUM + page, 8, mtr);
+			mlog_log_string(PAGE_NEW_SUPREMUM + page, 8, mtr);
+		} else {
+			mlog_log_string(PAGE_OLD_INFIMUM + page, 8, mtr);
+			mlog_log_string(PAGE_OLD_SUPREMUM + page, 8, mtr);
+		}
 	}
 
 	return(success);
