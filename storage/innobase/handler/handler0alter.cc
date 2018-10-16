@@ -1240,7 +1240,7 @@ ha_innobase::check_if_supported_inplace_alter(
 
 	const bool supports_instant = m_prebuilt->table->supports_instant()
 		&& instant_alter_column_possible(ha_alter_info, table)
-#if 1 // FIXME: adjust fts_fetch_doc_from_rec() and friends, and remove this
+#if 1 // MDEV-17459: adjust fts_fetch_doc_from_rec() and friends; remove this
 		&& !innobase_fulltext_exist(altered_table)
 		&& !innobase_fulltext_exist(table)
 #endif
@@ -5699,7 +5699,7 @@ new_clustered_failed:
 
 	if (ctx->need_rebuild() && user_table->supports_instant()
 	    && instant_alter_column_possible(ha_alter_info, old_table)
-#if 1 // FIXME: adjust fts_fetch_doc_from_rec() and friends, and remove this
+#if 1 // MDEV-17459: adjust fts_fetch_doc_from_rec() and friends; remove this
 	    && !innobase_fulltext_exist(altered_table)
 	    && !innobase_fulltext_exist(old_table)
 #endif
