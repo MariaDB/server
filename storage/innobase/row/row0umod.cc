@@ -1248,9 +1248,9 @@ close_table:
 		ut_ad(clust_index->is_instant());
 		ut_ad(clust_index->table->instant
 		      || !(node->update->info_bits & REC_INFO_DELETED_FLAG));
-		const_cast<dtuple_t*>(node->ref)->info_bits =
-			node->update->info_bits = (node->update->info_bits
-						   & REC_INFO_DELETED_FLAG)
+		node->ref = &trx_undo_metadata;
+		node->update->info_bits = (node->update->info_bits
+					   & REC_INFO_DELETED_FLAG)
 			? REC_INFO_METADATA_ALTER
 			: REC_INFO_METADATA_ADD;
 	}
