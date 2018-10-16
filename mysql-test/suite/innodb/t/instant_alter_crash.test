@@ -141,11 +141,6 @@ for (my $offset= 0x65; $offset;
 	for (my $i= 0; $i < $n_fields; $i++) {
 	    my $end= unpack("n", substr($page, $offset-8-2*$i, 2));
 	    print ",\n " if $i;
-	    # Work around a bug in the code!
-            if (!(~unpack("C",substr($page,$offset-6,1)) & 0x30)) {
-	        substr($page,$offset+$start,6) = pack("x[6]") if $i == 1;
-	        substr($page,$offset+$start,7) = pack("Cx[6]",128) if $i == 2;
-	    }
 	    if ($i > 2 && !(~unpack("C",substr($page,$offset-6,1)) & 0x30)) {
 		if ($i == 3) {
 		    print "BLOB=";
