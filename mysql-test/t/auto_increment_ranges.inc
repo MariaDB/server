@@ -238,3 +238,19 @@ delete from t1 where a=32767;
 --error HA_ERR_AUTOINC_ERANGE
 insert into t1 values(NULL);
 drop table t1;
+
+--echo #
+--echo # MDEV-17377 invalid gap in auto-increment values after LOAD DATA
+--echo #
+create or replace table t1 (pk int auto_increment primary key, f varchar(20));
+create or replace table t2 (f varchar(20));
+insert t1 (f) values ('a'), ('b'), ('c'), ('d');
+select null, f into outfile 'load.data' from t1 limit 1;
+insert t2 (f) values ('a'), ('b'), ('c'), ('d'), ('e'), ('f'), ('g');
+load data infile 'load.data' into table t1;
+insert t1 (f) values ('<===');
+select * from t1;
+let $mysqld_datadir= `select @@datadir`;
+--remove_file $mysqld_datadir/test/load.data
+drop table t1;
+drop table t2;
