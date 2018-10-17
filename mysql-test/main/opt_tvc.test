@@ -320,7 +320,7 @@ drop table t1, t2, t3;
 set @@in_predicate_conversion_threshold= default;
 
 --echo #
---echo # MDEV-14947: conversion of TVC with only NULL values
+--echo # MDEV-14947: conversion to TVC with only NULL values
 --echo #
 
 CREATE TABLE t1 (i INT);
@@ -342,7 +342,7 @@ SET in_predicate_conversion_threshold= default;
 DROP TABLE t1;
 
 --echo #
---echo # MDEV-14835: conversion of TVC with BIGINT or YEAR values
+--echo # MDEV-14835: conversion to TVC with BIGINT or YEAR values
 --echo #
 
 SET @@in_predicate_conversion_threshold= 2;
@@ -358,5 +358,41 @@ SELECT * FROM t1 WHERE a IN ('1','5','3');
 SELECT * FROM t2 WHERE y IN ('2009','2011');
 
 DROP TABLE t1,t2;
+
+SET @@in_predicate_conversion_threshold= default;
+
+--echo #
+--echo # MDEV-17222: conversion to TVC with no names for constants
+--echo #             conversion to TVC with the same constants in the first row
+--echo #
+
+SET @@in_predicate_conversion_threshold= 2;
+
+CREATE TABLE t1 (f BINARY(16)) ENGINE=MYISAM;
+INSERT INTO t1 VALUES
+(x'BAE56AF2B1C2397D99D58E2A06761DDB'), (x'9B9B698BCCB939EE8F1EA56C1A2E5DAA'),
+(x'A0A1C4FE39A239BABD3E0D8985E6BEA5');
+
+SELECT COUNT(*) FROM t1 WHERE f IN
+(x'9B9B698BCCB939EE8F1EA56C1A2E5DAA', x'E2362DBAB5EA30B5804917A0A7D881E2',
+ x'B78B2EEAD13635088D93EA3309E24802', x'BAE56AF2B1C2397D99D58E2A06761DDB');
+
+CREATE TABLE t2 (f1 BINARY(16), f2 BINARY(16)) ENGINE=MYISAM;
+INSERT INTO t2 VALUES
+(x'55FB3B14D6B83D39859E42533906350D', x'00F3458C47FA39DDBEAD918A13F8342E'),
+(x'86052C062AAF368D84247ED0F6346A70', x'BF5C35045C6037C79E11026ABB9A3A4E');
+
+SELECT COUNT(*) FROM t2 WHERE (f1,f2) IN
+((x'9B9B698BCCB939EE8F1EA56C1A2E5DAA', x'E2362DBAB5EA30B5804917A0A7D881E2'),
+ (x'B78B2EEAD13635088D93EA3309E24802', x'BAE56AF2B1C2397D99D58E2A06761DDB'),
+ (x'55FB3B14D6B83D39859E42533906350D', x'00F3458C47FA39DDBEAD918A13F8342E'),
+ (x'1606014E7C4A312F83EDC9D91BBFCACA', x'33F6068E56FD3A1D8326517F0D81CB5A'));
+
+CREATE TABLE t3 (f1 int, f2 int) ENGINE=MYISAM;
+INSERT INTO t3 VALUES (2,5), (2,3), (1,2), (7,8), (1,1);
+
+SELECT * FROM t3 WHERE (f1,f2) IN ((2, 2), (1, 2), (3, 5), (1, 1));
+
+DROP TABLE t1,t2,t3;
 
 SET @@in_predicate_conversion_threshold= default;

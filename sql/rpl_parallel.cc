@@ -1657,21 +1657,31 @@ int rpl_parallel_resize_pool_if_no_slaves(void)
 
 
 /**
-   Resize pool if not active or busy (in which case we may be in
-   resize to 0
+  Pool activation is preceeded by taking a "lock" of pool_mark_busy
+  which guarantees the number of running slaves drops to zero atomicly
+  with the number of pool workers.
+  This resolves race between the function caller thread and one
+  that may be attempting to deactivate the pool.
 */
-
 int
 rpl_parallel_activate_pool(rpl_parallel_thread_pool *pool)
 {
-  bool resize;
-  mysql_mutex_lock(&pool->LOCK_rpl_thread_pool);
-  resize= !pool->count || pool->busy;
-  mysql_mutex_unlock(&pool->LOCK_rpl_thread_pool);
-  if (resize)
-    return rpl_parallel_change_thread_count(pool, opt_slave_parallel_threads,
-                                            0);
-  return 0;
+  int rc= 0;
+
+  if ((rc= pool_mark_busy(pool, current_thd)))
+    return rc;   // killed
+
+  if (!pool->count)
+  {
+    pool_mark_not_busy(pool);
+    rc= rpl_parallel_change_thread_count(pool, opt_slave_parallel_threads,
+                                         0);
+  }
+  else
+  {
+    pool_mark_not_busy(pool);
+  }
+  return rc;
 }
 
 

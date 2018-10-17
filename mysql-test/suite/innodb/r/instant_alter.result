@@ -471,6 +471,21 @@ Table	Op	Msg_type	Msg_text
 test.t2	check	status	OK
 test.t1	check	status	OK
 DROP TABLE t2, t1;
+CREATE TABLE t1 (a INT PRIMARY KEY) ENGINE=InnoDB ROW_FORMAT=REDUNDANT;
+INSERT INTO t1 SET a = 1;
+ALTER TABLE t1 ADD COLUMN b TEXT;
+BEGIN;
+UPDATE t1 SET b = REPEAT('1', 32768);
+UPDATE t1 SET a = 2;
+INSERT INTO t1 SET a = 1;
+SELECT a,LENGTH(b) FROM t1;
+a	LENGTH(b)
+1	NULL
+2	32768
+DELETE FROM t1;
+COMMIT;
+InnoDB		0 transactions not purged
+DROP TABLE t1;
 CREATE TABLE t1
 (id INT PRIMARY KEY, c2 INT UNIQUE,
 c3 POINT NOT NULL DEFAULT ST_GeomFromText('POINT(3 4)'),
@@ -888,6 +903,21 @@ Table	Op	Msg_type	Msg_text
 test.t2	check	status	OK
 test.t1	check	status	OK
 DROP TABLE t2, t1;
+CREATE TABLE t1 (a INT PRIMARY KEY) ENGINE=InnoDB ROW_FORMAT=COMPACT;
+INSERT INTO t1 SET a = 1;
+ALTER TABLE t1 ADD COLUMN b TEXT;
+BEGIN;
+UPDATE t1 SET b = REPEAT('1', 32768);
+UPDATE t1 SET a = 2;
+INSERT INTO t1 SET a = 1;
+SELECT a,LENGTH(b) FROM t1;
+a	LENGTH(b)
+1	NULL
+2	32768
+DELETE FROM t1;
+COMMIT;
+InnoDB		0 transactions not purged
+DROP TABLE t1;
 CREATE TABLE t1
 (id INT PRIMARY KEY, c2 INT UNIQUE,
 c3 POINT NOT NULL DEFAULT ST_GeomFromText('POINT(3 4)'),
@@ -1305,10 +1335,25 @@ Table	Op	Msg_type	Msg_text
 test.t2	check	status	OK
 test.t1	check	status	OK
 DROP TABLE t2, t1;
+CREATE TABLE t1 (a INT PRIMARY KEY) ENGINE=InnoDB ROW_FORMAT=DYNAMIC;
+INSERT INTO t1 SET a = 1;
+ALTER TABLE t1 ADD COLUMN b TEXT;
+BEGIN;
+UPDATE t1 SET b = REPEAT('1', 32768);
+UPDATE t1 SET a = 2;
+INSERT INTO t1 SET a = 1;
+SELECT a,LENGTH(b) FROM t1;
+a	LENGTH(b)
+1	NULL
+2	32768
+DELETE FROM t1;
+COMMIT;
+InnoDB		0 transactions not purged
+DROP TABLE t1;
 disconnect analyze;
 SELECT variable_value-@old_instant instants
 FROM information_schema.global_status
 WHERE variable_name = 'innodb_instant_alter_column';
 instants
-48
+51
 SET GLOBAL innodb_purge_rseg_truncate_frequency= @saved_frequency;

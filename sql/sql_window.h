@@ -147,6 +147,8 @@ class Window_spec : public Sql_alloc
   }
 
   void print(String *str, enum_query_type query_type);
+  void print_order(String *str, enum_query_type query_type);
+  void print_partition(String *str, enum_query_type query_type);
 
 };
 

@@ -2671,8 +2671,6 @@ row_ins_clust_index_entry_low(
 		}
 	}
 
-	if (index->is_instant()) entry->trim(*index);
-
 	if (rec_is_metadata(btr_cur_get_rec(cursor), index)) {
 		goto do_insert;
 	}
@@ -2739,6 +2737,7 @@ err_exit:
 		mtr_commit(&mtr);
 		mem_heap_free(entry_heap);
 	} else {
+		if (index->is_instant()) entry->trim(*index);
 do_insert:
 		rec_t*	insert_rec;
 
@@ -3418,8 +3417,8 @@ columns in row.
 @param[in]	index	index handler
 @param[out]	entry	index entry to make
 @param[in]	row	row
-
 @return DB_SUCCESS if the set is successful */
+static
 dberr_t
 row_ins_index_entry_set_vals(
 	const dict_index_t*	index,
