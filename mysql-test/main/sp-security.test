@@ -977,16 +977,7 @@ DROP DATABASE db1;
 # Bug#27407480: AUTOMATIC_SP_PRIVILEGES REQUIRES NEED THE INSERT PRIVILEGES FOR MYSQL.USER TABLE
 #
 create user foo@local_ost;
-#
-# Create a user with an authentification plugin 'foobar'.
-# Instead of using a normal "CREATE USER <user> IDENTIFIED VIA <plugin>"
-# we do CREATE (without VIA) followed by UPDATE and FLUSH.
-# This is to avoid installing a real plugin and thus avoid the test dependency.
-# We won't login under this user in the below test, so this is fine.
-#
-create user foo@`local\_ost`;
-update mysql.user set plugin='foobar' where host='local\\_ost';
-flush privileges;
+create user foo@`local\_ost` identified via mysql_old_password using '0123456789ABCDEF';
 create database foodb;
 grant create routine on foodb.* to foo@local_ost;
 connect con1,localhost,foo;

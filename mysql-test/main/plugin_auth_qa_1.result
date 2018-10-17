@@ -149,11 +149,13 @@ new_user	test_plugin_server	new_dest
 plug_dest	mysql_native_password	*939AEE68989794C0F408277411C26055CDF41119
 UPDATE mysql.user SET plugin='new_plugin_server' WHERE user='new_user';
 FLUSH PRIVILEGES;
+Warnings:
+Warning	1524	Plugin 'new_plugin_server' is not loaded
 SELECT user,plugin,authentication_string FROM mysql.user WHERE user != 'root';
 user	plugin	authentication_string
 new_user	new_plugin_server	new_dest
 plug_dest	mysql_native_password	*939AEE68989794C0F408277411C26055CDF41119
-ERROR HY000: Plugin 'new_plugin_server' is not loaded
+ERROR 28000: Access denied for user 'new_user'@'localhost' (using password: YES)
 UPDATE mysql.user SET plugin='test_plugin_server' WHERE user='new_user';
 UPDATE mysql.user SET USER='new_dest' WHERE user='plug_dest';
 FLUSH PRIVILEGES;

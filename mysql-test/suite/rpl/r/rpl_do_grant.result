@@ -328,4 +328,5 @@ Grantor
 root@localhost
 connection master;
 DROP USER user_bug27606@localhost;
+update mysql.user set plugin='';
 include/rpl_end.inc

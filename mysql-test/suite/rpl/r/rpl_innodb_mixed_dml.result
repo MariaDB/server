@@ -676,7 +676,6 @@ DROP TRIGGER tr1;
 
 
 ******************** EVENTS ********************
-GRANT EVENT ON *.* TO 'root'@'localhost';
 INSERT INTO t1 VALUES(1, 'test1');
 CREATE EVENT e1 ON SCHEDULE EVERY '1' SECOND COMMENT 'e_second_comment' DO DELETE FROM t1;
 SHOW EVENTS;
@@ -1098,8 +1097,6 @@ master-bin.000001	#	Query	#	#	use `test_rpl`; DELETE FROM t2
 master-bin.000001	#	Xid	#	#	COMMIT /* XID */
 master-bin.000001	#	Gtid	#	#	GTID #-#-#
 master-bin.000001	#	Query	#	#	use `test_rpl`; DROP TRIGGER tr1
-master-bin.000001	#	Gtid	#	#	GTID #-#-#
-master-bin.000001	#	Query	#	#	use `test_rpl`; GRANT EVENT ON *.* TO 'root'@'localhost'
 master-bin.000001	#	Gtid	#	#	BEGIN GTID #-#-#
 master-bin.000001	#	Query	#	#	use `test_rpl`; INSERT INTO t1 VALUES(1, 'test1')
 master-bin.000001	#	Xid	#	#	COMMIT /* XID */

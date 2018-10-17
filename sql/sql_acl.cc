@@ -57,6 +57,8 @@
 
 #include "sql_plugin_compat.h"
 
+#define MAX_SCRAMBLE_LENGTH 1024
+
 bool mysql_user_table_is_in_short_password_format= false;
 
 static LEX_CSTRING native_password_plugin_name= {
@@ -143,13 +145,12 @@ public:
   acl_host_and_ip host;
   size_t hostname_length;
   USER_RESOURCES user_resource;
-  uint8 salt[SCRAMBLE_LENGTH + 1];       // scrambled password in binary form
-  uint8 salt_len;        // 0 - no password, 4 - 3.20, 8 - 4.0,  20 - 4.1.1
   enum SSL_type ssl_type;
   const char *ssl_cipher, *x509_issuer, *x509_subject;
   LEX_CSTRING plugin;
   LEX_CSTRING auth_string;
   LEX_CSTRING default_rolename;
+  LEX_CSTRING salt;
 
   ACL_USER *copy(MEM_ROOT *root)
   {
@@ -167,6 +168,7 @@ public:
     else
       dst->plugin= safe_lexcstrdup_root(root, plugin);
     dst->auth_string= safe_lexcstrdup_root(root, auth_string);
+    dst->salt= safe_lexcstrdup_root(root, salt);
     dst->host.hostname= safe_strdup_root(root, host.hostname);
     dst->default_rolename= safe_lexcstrdup_root(root, default_rolename);
     bzero(&dst->role_grants, sizeof(role_grants));
@@ -618,8 +620,8 @@ static ACL_USER *find_user_wild(const char *host, const char *user, const char *
 static ACL_ROLE *find_acl_role(const char *user);
 static ROLE_GRANT_PAIR *find_role_grant_pair(const LEX_CSTRING *u, const LEX_CSTRING *h, const LEX_CSTRING *r);
 static ACL_USER_BASE *find_acl_user_base(const char *user, const char *host);
-static bool update_user_table_password(THD *, const User_table &, const char *,
-                                       const char *, const LEX_CSTRING &);
+static bool update_user_table_password(THD *, const User_table&,
+                                       const ACL_USER &);
 static bool acl_load(THD *thd, const Grant_tables& grant_tables);
 static inline void get_grantor(THD *thd, char* grantor);
 static bool add_role_user_mapping(const char *uname, const char *hname, const char *rname);
@@ -1383,7 +1385,7 @@ static bool has_validation_plugins()
                         MariaDB_PASSWORD_VALIDATION_PLUGIN, NULL);
 }
 
-struct validation_data { LEX_CSTRING *user, *password; };
+struct validation_data { const LEX_CSTRING *user, *password; };
 
 static my_bool do_validate(THD *, plugin_ref plugin, void *arg)
 {
@@ -1394,24 +1396,13 @@ static my_bool do_validate(THD *, plugin_ref plugin, void *arg)
 }
 
 
-static bool can_password(LEX_USER *user)
+static bool validate_password(THD *thd, const LEX_CSTRING &user,
+                              const LEX_CSTRING &pwtext, bool has_hash)
 {
-  return !user->plugin.length ||
-    lex_string_eq(&user->plugin, &native_password_plugin_name) ||
-    lex_string_eq(&user->plugin, &old_password_plugin_name);
-}
-
-
-static bool validate_password(LEX_USER *user, THD *thd)
-{
-  if (!can_password(user))
-    return false;
-
-  if (user->pwtext.length || !user->auth.length)
+  if (pwtext.length || !has_hash)
   {
-    struct validation_data data= { &user->user,
-                                   user->pwtext.str ? &user->pwtext :
-                                   const_cast<LEX_CSTRING *>(&empty_clex_str) };
+    struct validation_data data= { &user,
+                                   pwtext.str ? &pwtext : &empty_clex_str };
     if (plugin_foreach(NULL, do_validate,
                        MariaDB_PASSWORD_VALIDATION_PLUGIN, &data))
     {
@@ -1432,31 +1423,87 @@ static bool validate_password(LEX_USER *user, THD *thd)
 }
 
 /**
-  Convert scrambled password to binary form, according to scramble type,
-  Binary form is stored in user.salt.
-  
-  @param acl_user The object where to store the salt
-  @param password The password hash
-   
-  Despite the name of the function it is used when loading ACLs from disk
-  to store the password hash in the ACL_USER object.
-*/
+  Fills in ACL_USER::auth_string and ACL_USER::salt fields, as needed
 
-static void
-set_user_salt(ACL_USER *acl_user, const LEX_CSTRING &password)
+  hashes the plain-text password (if provided) to auth_string,
+  converts auth_string to salt.
+
+  Fails if the plain-text password fails validation, if the plugin is
+  not loaded, if the auth_string is invalid.
+
+  Using NULL for a password disables validation
+  (needed for loading from mysql.user table).
+*/
+static int set_user_auth(THD *thd, ACL_USER *acl_user, const LEX_CSTRING *pwtext)
 {
-  if (password.length == SCRAMBLED_PASSWORD_CHAR_LENGTH)
+  const char *plugin_name= acl_user->plugin.str;
+  bool unlock_plugin= false;
+  plugin_ref plugin= get_auth_plugin(thd, acl_user->plugin, &unlock_plugin);
+  int res= 1;
+
+  if (!plugin)
   {
-    get_salt_from_password(acl_user->salt, password.str);
-    acl_user->salt_len= SCRAMBLE_LENGTH;
+    push_warning_printf(thd, Sql_condition::WARN_LEVEL_WARN,
+                        ER_PLUGIN_IS_NOT_LOADED,
+                        ER_THD(thd, ER_PLUGIN_IS_NOT_LOADED), plugin_name);
+    return res;
   }
-  else if (password.length == SCRAMBLED_PASSWORD_CHAR_LENGTH_323)
+
+  acl_user->salt= acl_user->auth_string;
+
+  st_mysql_auth *auth= (st_mysql_auth *) plugin_decl(plugin)->info;
+  if (auth->interface_version >= 0x0202)
   {
-    get_salt_from_password_323((ulong *) acl_user->salt, password.str);
-    acl_user->salt_len= SCRAMBLE_LENGTH_323;
+    if (pwtext)
+    {
+      if (auth->hash_password &&
+          validate_password(thd, acl_user->user, *pwtext,
+                            acl_user->auth_string.length))
+        goto end;
+      if (pwtext->length)
+      {
+        if (auth->hash_password)
+        {
+          char buf[MAX_SCRAMBLE_LENGTH];
+          size_t len= sizeof(buf) - 1;
+          if (auth->hash_password(pwtext->str, pwtext->length, buf, &len))
+            goto end; // OOM?
+          buf[len] = 0;
+          acl_user->auth_string.str= (char*)memdup_root(&acl_memroot, buf, len+1);
+          acl_user->auth_string.length= len;
+        }
+        else
+        {
+          push_warning_printf(thd, Sql_condition::WARN_LEVEL_WARN,
+                              ER_SET_PASSWORD_AUTH_PLUGIN,
+                              ER_THD(thd, ER_SET_PASSWORD_AUTH_PLUGIN),
+                              acl_user->plugin.str);
+        }
+      }
+    }
+
+    if (acl_user->auth_string.length)
+    {
+      if (auth->preprocess_hash)
+      {
+        uchar buf[MAX_SCRAMBLE_LENGTH];
+        size_t len= sizeof(buf);
+        if (auth->preprocess_hash(acl_user->auth_string.str,
+                                  acl_user->auth_string.length, buf, &len))
+          goto end; // ER_PASSWD_LENGTH?
+        acl_user->salt.str= (char*)memdup_root(&acl_memroot, buf, len);
+        acl_user->salt.length= len;
+      }
+      else
+        acl_user->salt= acl_user->auth_string;
+    }
   }
-  else
-    acl_user->salt_len= 0;
+
+  res= 0;
+end:
+  if (unlock_plugin)
+    plugin_unlock(thd, plugin);
+  return res;
 }
 
 /**
@@ -1466,8 +1513,6 @@ set_user_salt(ACL_USER *acl_user, const LEX_CSTRING &password)
   to a hard coded string, not to an allocated copy. Run-time, for
   authentication, we want to be able to detect built-ins by comparing
   pointers, not strings.
-
-  Additionally - update the salt if the plugin is built-in.
 
   @retval 0 the pointers were fixed
   @retval 1 this ACL_USER uses a not built-in plugin
@@ -1481,78 +1526,6 @@ static bool fix_user_plugin_ptr(ACL_USER *user)
     user->plugin= old_password_plugin_name;
   else
     return true;
-
-  set_user_salt(user, user->auth_string);
-  return false;
-}
-
-
-/**
-  Validates the password, calculates password hash.
-*/
-static bool fix_lex_user(THD *thd, LEX_USER *user)
-{
-  size_t check_length;
-
-  if (lex_string_eq(&user->plugin, &native_password_plugin_name))
-    check_length= SCRAMBLED_PASSWORD_CHAR_LENGTH;
-  else
-  if (lex_string_eq(&user->plugin, &old_password_plugin_name))
-    check_length= SCRAMBLED_PASSWORD_CHAR_LENGTH_323;
-  else
-  if (user->plugin.length)
-    return 0; // nothing else to do
-  else if (thd->variables.old_passwords == 1 ||
-           user->auth.length == SCRAMBLED_PASSWORD_CHAR_LENGTH_323)
-  {
-    user->plugin= old_password_plugin_name;
-    check_length= SCRAMBLED_PASSWORD_CHAR_LENGTH_323;
-  }
-  else if (user->auth.length)
-  {
-    user->plugin= native_password_plugin_name;
-    check_length= SCRAMBLED_PASSWORD_CHAR_LENGTH;
-  }
-  else
-    check_length= 0;
-
-  if (user->auth.length && user->auth.length != check_length)
-  {
-    my_error(ER_PASSWD_LENGTH, MYF(0), (int) check_length);
-    return 1;
-  }
-
-  if (user->pwtext.length && !user->auth.length)
-  {
-    size_t scramble_length;
-    void (*make_scramble)(char *, const char *, size_t);
-
-    if (thd->variables.old_passwords == 1)
-    {
-      user->plugin= old_password_plugin_name;
-      scramble_length= SCRAMBLED_PASSWORD_CHAR_LENGTH_323;
-      make_scramble= my_make_scrambled_password_323;
-    }
-    else
-    {
-      user->plugin= native_password_plugin_name;
-      scramble_length= SCRAMBLED_PASSWORD_CHAR_LENGTH;
-      make_scramble= my_make_scrambled_password;
-    }
-
-    Query_arena *arena, backup;
-    arena= thd->activate_stmt_arena_if_needed(&backup);
-    char *buff= (char *) thd->alloc(scramble_length + 1);
-    if (arena)
-      thd->restore_active_arena(arena, &backup);
-
-    if (buff == NULL)
-      return true;
-    make_scramble(buff, user->pwtext.str, user->pwtext.length);
-    user->auth.str= buff;
-    user->auth.length= scramble_length;
-  }
-
   return false;
 }
 
@@ -1633,23 +1606,13 @@ bool acl_init(bool dont_read_acl_tables)
   Choose from either native or old password plugins when assigning a password
 */
 
-static bool set_user_plugin (ACL_USER *user, size_t password_len)
+static LEX_CSTRING &guess_auth_plugin(THD *thd, size_t password_len)
 {
-  switch (password_len)
-  {
-  case 0: /* no password */
-  case SCRAMBLED_PASSWORD_CHAR_LENGTH:
-    user->plugin= native_password_plugin_name;
-    return FALSE;
-  case SCRAMBLED_PASSWORD_CHAR_LENGTH_323:
-    user->plugin= old_password_plugin_name;
-    return FALSE;
-  default:
-    sql_print_warning("Found invalid password for user: '%s@%s'; "
-                      "Ignoring user", user->user.str,
-                      safe_str(user->host.hostname));
-    return TRUE;
-  }
+  if (thd->variables.old_passwords == 1 ||
+      password_len == SCRAMBLED_PASSWORD_CHAR_LENGTH_323)
+    return old_password_plugin_name;
+  else
+    return native_password_plugin_name;
 }
 
 
@@ -1840,10 +1803,7 @@ static bool acl_load(THD *thd, const Grant_tables& tables)
     else
       user.auth_string= empty_clex_str;
 
-    set_user_salt(&user, user.auth_string);
-
-    if (!is_role && set_user_plugin(&user, user.auth_string.length))
-      continue;
+    user.plugin= guess_auth_plugin(thd, user.auth_string.length);
 
     user.access= user_table.get_access() & GLOBAL_ACLS;
     /*
@@ -1989,6 +1949,12 @@ static bool acl_load(THD *thd, const Grant_tables& tables)
       user.default_rolename.str=
         get_field(&acl_memroot, user_table.default_role());
       user.default_rolename.length= safe_strlen(user.default_rolename.str);
+    }
+
+    if (set_user_auth(thd, &user, NULL))
+    {
+      thd->clear_error(); // the warning is still issued
+      continue;
     }
 
     if (is_role)
@@ -2581,26 +2547,41 @@ static void acl_update_role(const char *rolename, ulong privileges)
 }
 
 
-static void acl_update_user(const LEX_USER &combo, enum SSL_type ssl_type,
+static int acl_user_update(THD *thd, ACL_USER *acl_user, const ACL_USER *from,
+                            const LEX_USER &combo, enum SSL_type ssl_type,
                             const char *ssl_cipher, const char *x509_issuer,
-                            const char *x509_subject, USER_RESOURCES  *mqh,
+                            const char *x509_subject, const USER_RESOURCES *mqh,
                             ulong privileges)
 {
-  ACL_USER *acl_user= find_user_exact(combo.host.str, combo.user.str);
-  if (!acl_user)
-    return;
+  if (from)
+    *acl_user= *from;
+  else
+  {
+    bzero(acl_user, sizeof(*acl_user));
+    acl_user->user= safe_lexcstrdup_root(&acl_memroot, combo.user);
+    update_hostname(&acl_user->host, safe_strdup_root(&acl_memroot, combo.host.str));
+    acl_user->hostname_length= combo.host.length;
+    acl_user->sort= get_sort(2, acl_user->host.hostname, acl_user->user.str);
+    acl_user->plugin= native_password_plugin_name;
+    acl_user->salt= acl_user->auth_string= empty_clex_str;
+    my_init_dynamic_array(&acl_user->role_grants, sizeof(ACL_USER *),
+                          0, 8, MYF(0));
+  }
+
   if (combo.plugin.length)
   {
     acl_user->plugin= combo.plugin;
     acl_user->auth_string= safe_lexcstrdup_root(&acl_memroot, combo.auth);
     if (fix_user_plugin_ptr(acl_user))
       acl_user->plugin= safe_lexcstrdup_root(&acl_memroot, combo.plugin);
+    if (set_user_auth(thd, acl_user, &combo.pwtext))
+      return 1;
   }
-  acl_user->access=privileges;
+  acl_user->access= privileges;
   if (mqh->specified_limits & USER_RESOURCES::QUERIES_PER_HOUR)
-    acl_user->user_resource.questions=mqh->questions;
+    acl_user->user_resource.questions= mqh->questions;
   if (mqh->specified_limits & USER_RESOURCES::UPDATES_PER_HOUR)
-    acl_user->user_resource.updates=mqh->updates;
+    acl_user->user_resource.updates= mqh->updates;
   if (mqh->specified_limits & USER_RESOURCES::CONNECTIONS_PER_HOUR)
     acl_user->user_resource.conn_per_hour= mqh->conn_per_hour;
   if (mqh->specified_limits & USER_RESOURCES::USER_CONNECTIONS)
@@ -2610,10 +2591,11 @@ static void acl_update_user(const LEX_USER &combo, enum SSL_type ssl_type,
   if (ssl_type != SSL_TYPE_NOT_SPECIFIED)
   {
     acl_user->ssl_type= ssl_type;
-    acl_user->ssl_cipher= safe_strdup_root(&acl_memroot,ssl_cipher);
+    acl_user->ssl_cipher= safe_strdup_root(&acl_memroot, ssl_cipher);
     acl_user->x509_issuer= safe_strdup_root(&acl_memroot,x509_issuer);
     acl_user->x509_subject= safe_strdup_root(&acl_memroot,x509_subject);
   }
+  return 0;
 }
 
 
@@ -2628,59 +2610,6 @@ static void acl_insert_role(const char *rolename, ulong privileges)
   my_init_dynamic_array(&entry->role_grants, sizeof(ACL_ROLE *), 0, 8, MYF(0));
 
   my_hash_insert(&acl_roles, (uchar *)entry);
-}
-
-
-static void acl_insert_user(const LEX_USER &combo, enum SSL_type ssl_type,
-                            const char *ssl_cipher, const char *x509_issuer,
-                            const char *x509_subject, USER_RESOURCES  *mqh,
-                            ulong privileges)
-{
-  ACL_USER acl_user;
-
-  mysql_mutex_assert_owner(&acl_cache->lock);
-
-  bzero(&acl_user, sizeof(acl_user));
-  acl_user.user= safe_lexcstrdup_root(&acl_memroot, combo.user);
-  update_hostname(&acl_user.host, safe_strdup_root(&acl_memroot, combo.host.str));
-  if (combo.plugin.length)
-  {
-    acl_user.plugin= combo.plugin;
-    acl_user.auth_string= safe_lexcstrdup_root(&acl_memroot, combo.auth);
-    if (fix_user_plugin_ptr(&acl_user))
-      acl_user.plugin= safe_lexcstrdup_root(&acl_memroot, combo.plugin);
-  }
-  else
-  {
-    DBUG_ASSERT(!combo.auth.length);
-    acl_user.plugin= native_password_plugin_name;
-    acl_user.auth_string= empty_clex_str;
-  }
-
-  acl_user.flags= 0;
-  acl_user.access=privileges;
-  acl_user.user_resource = *mqh;
-  acl_user.sort=get_sort(2, acl_user.host.hostname, acl_user.user.str);
-  acl_user.hostname_length= combo.host.length;
-  acl_user.ssl_type= (ssl_type != SSL_TYPE_NOT_SPECIFIED ?
-		      ssl_type : SSL_TYPE_NONE);
-  acl_user.ssl_cipher=	ssl_cipher   ? strdup_root(&acl_memroot,ssl_cipher) : 0;
-  acl_user.x509_issuer= x509_issuer  ? strdup_root(&acl_memroot,x509_issuer) : 0;
-  acl_user.x509_subject=x509_subject ? strdup_root(&acl_memroot,x509_subject) : 0;
-  my_init_dynamic_array(&acl_user.role_grants, sizeof(ACL_USER *), 0, 8, MYF(0));
-
-  push_new_user(acl_user);
-  my_qsort(dynamic_element(&acl_users, 0, ACL_USER*), acl_users.elements,
-	   sizeof(ACL_USER),(qsort_cmp) acl_compare);
-
-  /* Rebuild 'acl_check_hosts' since 'acl_users' has been modified */
-  rebuild_check_host();
-
-  /*
-    Rebuild every user's role_grants since 'acl_users' has been sorted
-    and old pointers to ACL_USER elements are no longer valid
-  */
-  rebuild_role_grants();
 }
 
 
@@ -3152,8 +3081,7 @@ bool check_change_password(THD *thd, LEX_USER *user)
 {
   LEX_USER *real_user= get_current_user(thd, user);
 
-  if (fix_and_copy_user(real_user, user, thd) ||
-      validate_password(real_user, thd))
+  if (fix_and_copy_user(real_user, user, thd))
     return true;
 
   *user= *real_user;
@@ -3195,18 +3123,8 @@ bool change_password(THD *thd, LEX_USER *user)
   */
   save_binlog_format= thd->set_current_stmt_binlog_format_stmt();
 
-  if (mysql_bin_log.is_open() ||
-      (WSREP(thd) && !IF_WSREP(thd->wsrep_applier, 0)))
-  {
-    query_length= sprintf(buff, "SET PASSWORD FOR '%-.120s'@'%-.120s'='%-.120s'",
-              user->user.str, safe_str(user->host.str), user->auth.str);
-  }
-
   if (WSREP(thd) && !IF_WSREP(thd->wsrep_applier, 0))
-  {
-    thd->set_query(buff, query_length, system_charset_info);
     WSREP_TO_ISOLATION_BEGIN(WSREP_MYSQL_DB, (char*)"user", NULL);
-  }
 
   if ((result= tables.open_and_lock(thd)))
     DBUG_RETURN(result != 1);
@@ -3223,22 +3141,21 @@ bool change_password(THD *thd, LEX_USER *user)
     goto end;
   }
 
-  /* update loaded acl entry: */
   if (acl_user->plugin.str == native_password_plugin_name.str ||
       acl_user->plugin.str == old_password_plugin_name.str)
   {
-    acl_user->auth_string= safe_lexcstrdup_root(&acl_memroot, user->auth);
-    set_user_salt(acl_user, user->auth);
-    set_user_plugin(acl_user, user->auth.length);
+    /* historical hack of auto-changing the plugin */
+    acl_user->plugin= guess_auth_plugin(thd, user->auth.length);
   }
-  else
-    push_warning(thd, Sql_condition::WARN_LEVEL_NOTE,
-                 ER_SET_PASSWORD_AUTH_PLUGIN,
-                 ER_THD(thd, ER_SET_PASSWORD_AUTH_PLUGIN));
 
-  if (update_user_table_password(thd, tables.user_table(),
-                                 safe_str(acl_user->host.hostname),
-                                 acl_user->user.str, user->auth))
+  acl_user->auth_string= safe_lexcstrdup_root(&acl_memroot, user->auth);
+  if (set_user_auth(thd, acl_user, &user->pwtext))
+  {
+    mysql_mutex_unlock(&acl_cache->lock);
+    goto end;
+  }
+
+  if (update_user_table_password(thd, tables.user_table(), *acl_user))
   {
     mysql_mutex_unlock(&acl_cache->lock); /* purecov: deadcode */
     goto end;
@@ -3249,6 +3166,8 @@ bool change_password(THD *thd, LEX_USER *user)
   result= 0;
   if (mysql_bin_log.is_open())
   {
+    query_length= sprintf(buff, "SET PASSWORD FOR '%-.120s'@'%-.120s'='%-.120s'",
+           user->user.str, safe_str(user->host.str), acl_user->auth_string.str);
     DBUG_ASSERT(query_length);
     thd->clear_error();
     result= thd->binlog_query(THD::STMT_QUERY_TYPE, buff, query_length,
@@ -3689,54 +3608,24 @@ bool hostname_requires_resolving(const char *hostname)
 }
 
 
-static void set_plugin_from_password(const User_table& user_table,
-                                     const LEX_CSTRING& password)
-{
-  if (password.length == SCRAMBLED_PASSWORD_CHAR_LENGTH ||
-      password.length == 0)
-  {
-    user_table.plugin()->store(native_password_plugin_name.str,
-                               native_password_plugin_name.length,
-                               system_charset_info);
-  }
-  else
-  {
-    DBUG_ASSERT(password.length == SCRAMBLED_PASSWORD_CHAR_LENGTH_323);
-    user_table.plugin()->store(old_password_plugin_name.str,
-                               old_password_plugin_name.length,
-                               system_charset_info);
-  }
-  user_table.authentication_string()->store(password.str,
-                                            password.length,
-                                            system_charset_info);
-}
-
-
 /**
   Update record for user in mysql.user privilege table with new password.
-
-  @param thd              THD
-  @param table            Pointer to TABLE object for open mysql.user table
-  @param host             Hostname
-  @param user             Username
-  @param new_password     New password hash
 
   @see change_password
 */
 
 static bool update_user_table_password(THD *thd, const User_table& user_table,
-                                       const char *host, const char *user,
-                                       const LEX_CSTRING &new_password)
+                                      const ACL_USER &user)
 {
+  CHARSET_INFO *cs= system_charset_info;
   char user_key[MAX_KEY_LENGTH];
   int error;
   DBUG_ENTER("update_user_table_password");
-  DBUG_PRINT("enter",("user: %s  host: %s",user,host));
 
   TABLE *table= user_table.table();
   table->use_all_columns();
-  user_table.host()->store(host,(uint) strlen(host), system_charset_info);
-  user_table.user()->store(user,(uint) strlen(user), system_charset_info);
+  user_table.host()->store(user.host.hostname, user.hostname_length, cs);
+  user_table.user()->store(user.user.str, user.user.length, cs);
   key_copy((uchar *) user_key, table->record[0], table->key_info,
            table->key_info->key_length);
 
@@ -3752,14 +3641,13 @@ static bool update_user_table_password(THD *thd, const User_table& user_table,
 
   if (user_table.plugin())
   {
-    set_plugin_from_password(user_table, new_password);
     if (user_table.password())
       user_table.password()->reset();
+    user_table.plugin()->store(user.plugin.str, user.plugin.length, cs);
+    user_table.authentication_string()->store(user.auth_string.str, user.auth_string.length, cs);
   }
   else
-    user_table.password()->store(new_password.str, new_password.length,
-                                 system_charset_info);
-
+    user_table.password()->store(user.auth_string.str, user.auth_string.length, cs);
 
   if (unlikely(error= table->file->ha_update_row(table->record[1],
                                                  table->record[0])) &&
@@ -3822,6 +3710,7 @@ static int replace_user_table(THD *thd, const User_table &user_table,
   bool handle_as_role= combo->is_role();
   LEX *lex= thd->lex;
   TABLE *table= user_table.table();
+  ACL_USER new_acl_user, *old_acl_user;
   DBUG_ENTER("replace_user_table");
 
   mysql_mutex_assert_owner(&acl_cache->lock);
@@ -3866,7 +3755,8 @@ static int replace_user_table(THD *thd, const User_table &user_table,
 
       see also test_if_create_new_users()
     */
-    else if (!combo->auth.length && !combo->plugin.length && no_auto_create)
+    else if (!combo->auth.length && !combo->plugin.length &&
+             !combo->pwtext.length && no_auto_create)
     {
       my_error(ER_PASSWORD_NO_MATCH, MYF(0));
       goto end;
@@ -3886,10 +3776,7 @@ static int replace_user_table(THD *thd, const User_table &user_table,
     }
     else /* combo->plugin.length == 0 */
     {
-      if (combo->auth.length == SCRAMBLED_PASSWORD_CHAR_LENGTH_323)
-        combo->plugin= old_password_plugin_name;
-      else
-        combo->plugin= native_password_plugin_name;
+      combo->plugin= guess_auth_plugin(thd, combo->auth.length);
     }
 
     old_row_exists = 0;
@@ -3903,11 +3790,12 @@ static int replace_user_table(THD *thd, const User_table &user_table,
   {
     old_row_exists = 1;
     store_record(table,record[1]);			// Save copy for update
+    if (!combo->plugin.length && (combo->auth.length || combo->pwtext.length))
+    {
+      /* GRANT ... IDENTIFIED BY */
+      combo->plugin= guess_auth_plugin(thd, combo->auth.length);
+    }
   }
-
-  if (!old_row_exists || combo->pwtext.length || combo->auth.length)
-    if (!handle_as_role && validate_password(combo, thd))
-      goto end;
 
   /* Update table columns with new privileges */
 
@@ -3921,103 +3809,112 @@ static int replace_user_table(THD *thd, const User_table &user_table,
 
   rights= user_table.get_access();
 
-  DBUG_PRINT("info",("table fields: %d", user_table.num_fields()));
-  /* If we don't have a password column, we'll use the authentication_string
-     column later. */
-  if (combo->auth.length && can_password(combo) && user_table.password())
-    user_table.password()->store(combo->auth.str, combo->auth.length,
-                                 system_charset_info);
-  /* We either have the password column, the plugin column, or both. Otherwise
-     we have a corrupt user table. */
-  DBUG_ASSERT(user_table.password() || user_table.plugin());
-  if (user_table.ssl_type())    /* From 4.0.0 we have more fields */
+  if (handle_as_role)
   {
-    /* We write down SSL related ACL stuff */
-    switch (lex->ssl_type) {
-    case SSL_TYPE_ANY:
-      user_table.ssl_type()->store(STRING_WITH_LEN("ANY"),
-                                   &my_charset_latin1);
-      user_table.ssl_cipher()->store("", 0, &my_charset_latin1);
-      user_table.x509_issuer()->store("", 0, &my_charset_latin1);
-      user_table.x509_subject()->store("", 0, &my_charset_latin1);
-      break;
-    case SSL_TYPE_X509:
-      user_table.ssl_type()->store(STRING_WITH_LEN("X509"),
-                                   &my_charset_latin1);
-      user_table.ssl_cipher()->store("", 0, &my_charset_latin1);
-      user_table.x509_issuer()->store("", 0, &my_charset_latin1);
-      user_table.x509_subject()->store("", 0, &my_charset_latin1);
-      break;
-    case SSL_TYPE_SPECIFIED:
-      user_table.ssl_type()->store(STRING_WITH_LEN("SPECIFIED"),
-                                   &my_charset_latin1);
-      user_table.ssl_cipher()->store("", 0, &my_charset_latin1);
-      user_table.x509_issuer()->store("", 0, &my_charset_latin1);
-      user_table.x509_subject()->store("", 0, &my_charset_latin1);
-      if (lex->ssl_cipher)
-        user_table.ssl_cipher()->store(lex->ssl_cipher,
-                                       strlen(lex->ssl_cipher),
-                                       system_charset_info);
-      if (lex->x509_issuer)
-        user_table.x509_issuer()->store(lex->x509_issuer,
-                                        strlen(lex->x509_issuer),
-                                        system_charset_info);
-      if (lex->x509_subject)
-        user_table.x509_subject()->store(lex->x509_subject,
-                                         strlen(lex->x509_subject),
+    if (old_row_exists && !user_table.check_is_role())
+    {
+      goto end;
+    }
+    user_table.is_role()->store("Y", 1, system_charset_info);
+  }
+  else
+  {
+    old_acl_user= find_user_exact(combo->host.str, combo->user.str);
+    if ((old_acl_user != NULL) != old_row_exists)
+    {
+      my_error(ER_PASSWORD_NO_MATCH, MYF(0));
+      goto end;
+    }
+    if (acl_user_update(thd, &new_acl_user,
+                        old_row_exists ? old_acl_user : NULL,
+                        *combo, lex->ssl_type, lex->ssl_cipher,
+                        lex->x509_issuer, lex->x509_subject, &lex->mqh,
+                        rights))
+      goto end;
+
+    DBUG_PRINT("info",("table fields: %d", user_table.num_fields()));
+    /* We either have the password column, the plugin column, or both. Otherwise
+       we have a corrupt user table. */
+    DBUG_ASSERT(user_table.password() || user_table.plugin());
+    if (user_table.ssl_type())    /* From 4.0.0 we have more fields */
+    {
+      /* We write down SSL related ACL stuff */
+      switch (lex->ssl_type) {
+      case SSL_TYPE_ANY:
+        user_table.ssl_type()->store(STRING_WITH_LEN("ANY"),
+                                     &my_charset_latin1);
+        user_table.ssl_cipher()->store("", 0, &my_charset_latin1);
+        user_table.x509_issuer()->store("", 0, &my_charset_latin1);
+        user_table.x509_subject()->store("", 0, &my_charset_latin1);
+        break;
+      case SSL_TYPE_X509:
+        user_table.ssl_type()->store(STRING_WITH_LEN("X509"),
+                                     &my_charset_latin1);
+        user_table.ssl_cipher()->store("", 0, &my_charset_latin1);
+        user_table.x509_issuer()->store("", 0, &my_charset_latin1);
+        user_table.x509_subject()->store("", 0, &my_charset_latin1);
+        break;
+      case SSL_TYPE_SPECIFIED:
+        user_table.ssl_type()->store(STRING_WITH_LEN("SPECIFIED"),
+                                     &my_charset_latin1);
+        user_table.ssl_cipher()->store("", 0, &my_charset_latin1);
+        user_table.x509_issuer()->store("", 0, &my_charset_latin1);
+        user_table.x509_subject()->store("", 0, &my_charset_latin1);
+        if (lex->ssl_cipher)
+          user_table.ssl_cipher()->store(lex->ssl_cipher,
+                                         strlen(lex->ssl_cipher),
                                          system_charset_info);
-      break;
-    case SSL_TYPE_NOT_SPECIFIED:
-      break;
-    case SSL_TYPE_NONE:
-      user_table.ssl_type()->store("", 0, &my_charset_latin1);
-      user_table.ssl_cipher()->store("", 0, &my_charset_latin1);
-      user_table.x509_issuer()->store("", 0, &my_charset_latin1);
-      user_table.x509_subject()->store("", 0, &my_charset_latin1);
-      break;
-    }
-
-    USER_RESOURCES mqh= lex->mqh;
-    if (mqh.specified_limits & USER_RESOURCES::QUERIES_PER_HOUR)
-      user_table.max_questions()->store((longlong) mqh.questions, TRUE);
-    if (mqh.specified_limits & USER_RESOURCES::UPDATES_PER_HOUR)
-      user_table.max_updates()->store((longlong) mqh.updates, TRUE);
-    if (mqh.specified_limits & USER_RESOURCES::CONNECTIONS_PER_HOUR)
-      user_table.max_connections()->store((longlong) mqh.conn_per_hour, TRUE);
-    if (user_table.max_user_connections() &&
-        (mqh.specified_limits & USER_RESOURCES::USER_CONNECTIONS))
-      user_table.max_user_connections()->store((longlong) mqh.user_conn, FALSE);
-    if (user_table.plugin() && !handle_as_role)
-    {
-      user_table.plugin()->set_notnull();
-      user_table.authentication_string()->set_notnull();
-      if (combo->plugin.length)
-      {
-        if (user_table.password())
-          user_table.password()->reset();
-        user_table.plugin()->store(combo->plugin.str, combo->plugin.length,
-                                   system_charset_info);
-        user_table.authentication_string()->store(combo->auth.str, combo->auth.length,
-                                                  system_charset_info);
+        if (lex->x509_issuer)
+          user_table.x509_issuer()->store(lex->x509_issuer,
+                                          strlen(lex->x509_issuer),
+                                          system_charset_info);
+        if (lex->x509_subject)
+          user_table.x509_subject()->store(lex->x509_subject,
+                                           strlen(lex->x509_subject),
+                                           system_charset_info);
+        break;
+      case SSL_TYPE_NOT_SPECIFIED:
+        break;
+      case SSL_TYPE_NONE:
+        user_table.ssl_type()->store("", 0, &my_charset_latin1);
+        user_table.ssl_cipher()->store("", 0, &my_charset_latin1);
+        user_table.x509_issuer()->store("", 0, &my_charset_latin1);
+        user_table.x509_subject()->store("", 0, &my_charset_latin1);
+        break;
       }
 
-      if (user_table.max_statement_time())
+      USER_RESOURCES mqh= lex->mqh;
+      if (mqh.specified_limits & USER_RESOURCES::QUERIES_PER_HOUR)
+        user_table.max_questions()->store((longlong) mqh.questions, TRUE);
+      if (mqh.specified_limits & USER_RESOURCES::UPDATES_PER_HOUR)
+        user_table.max_updates()->store((longlong) mqh.updates, TRUE);
+      if (mqh.specified_limits & USER_RESOURCES::CONNECTIONS_PER_HOUR)
+        user_table.max_connections()->store((longlong) mqh.conn_per_hour, TRUE);
+      if (user_table.max_user_connections() &&
+          (mqh.specified_limits & USER_RESOURCES::USER_CONNECTIONS))
+        user_table.max_user_connections()->store((longlong) mqh.user_conn, FALSE);
+      if (user_table.plugin())
       {
-        if (mqh.specified_limits & USER_RESOURCES::MAX_STATEMENT_TIME)
-          user_table.max_statement_time()->store(mqh.max_statement_time);
-      }
-    }
-    mqh_used= (mqh_used || mqh.questions || mqh.updates || mqh.conn_per_hour ||
-               mqh.user_conn || mqh.max_statement_time != 0.0);
+        user_table.plugin()->set_notnull();
+        user_table.authentication_string()->set_notnull();
+        if (new_acl_user.plugin.length)
+        {
+          if (user_table.password())
+            user_table.password()->reset();
+          user_table.plugin()->store(new_acl_user.plugin.str,
+            new_acl_user.plugin.length, system_charset_info);
+          user_table.authentication_string()->store(new_acl_user.auth_string.str,
+            new_acl_user.auth_string.length, system_charset_info);
+        }
 
-    /* table format checked earlier */
-    if (handle_as_role)
-    {
-      if (old_row_exists && !user_table.check_is_role())
-      {
-        goto end;
+        if (user_table.max_statement_time())
+        {
+          if (mqh.specified_limits & USER_RESOURCES::MAX_STATEMENT_TIME)
+            user_table.max_statement_time()->store(mqh.max_statement_time);
+        }
       }
-      user_table.is_role()->store("Y", 1, system_charset_info);
+      mqh_used= (mqh_used || mqh.questions || mqh.updates || mqh.conn_per_hour ||
+                 mqh.user_conn || mqh.max_statement_time != 0.0);
     }
   }
 
@@ -4057,23 +3954,32 @@ end:
   if (likely(!error))
   {
     acl_cache->clear(1);			// Clear privilege cache
-    if (old_row_exists)
+    if (handle_as_role)
     {
-      if (handle_as_role)
+      if (old_row_exists)
         acl_update_role(combo->user.str, rights);
       else
-        acl_update_user(*combo, lex->ssl_type, lex->ssl_cipher,
-                        lex->x509_issuer, lex->x509_subject, &lex->mqh,
-                        rights);
+        acl_insert_role(combo->user.str, rights);
     }
     else
     {
-      if (handle_as_role)
-        acl_insert_role(combo->user.str, rights);
+      if (old_acl_user)
+        *old_acl_user= new_acl_user;
       else
-        acl_insert_user(*combo, lex->ssl_type, lex->ssl_cipher,
-                        lex->x509_issuer, lex->x509_subject, &lex->mqh,
-                        rights);
+      {
+        push_new_user(new_acl_user);
+        my_qsort(dynamic_element(&acl_users, 0, ACL_USER*), acl_users.elements,
+                 sizeof(ACL_USER),(qsort_cmp) acl_compare);
+
+        /* Rebuild 'acl_check_hosts' since 'acl_users' has been modified */
+        rebuild_check_host();
+
+        /*
+          Rebuild every user's role_grants since 'acl_users' has been sorted
+          and old pointers to ACL_USER elements are no longer valid
+        */
+        rebuild_role_grants();
+      }
     }
   }
   DBUG_RETURN(error);
@@ -6191,10 +6097,6 @@ static bool fix_and_copy_user(LEX_USER *to, LEX_USER *from, THD *thd)
     to->plugin= from->plugin;
     to->auth= from->auth;
   }
-
-  if (fix_lex_user(thd, to))
-    return true;
-
   return false;
 }
 
@@ -8232,7 +8134,6 @@ static void add_user_parameters(String *result, ACL_USER* acl_user,
   {
     if (acl_user->auth_string.length)
     {
-      DBUG_ASSERT(acl_user->salt_len);
       result->append(STRING_WITH_LEN(" IDENTIFIED BY PASSWORD '"));
       result->append(&acl_user->auth_string);
       result->append('\'');
@@ -10064,13 +9965,6 @@ bool mysql_create_user(THD *thd, List <LEX_USER> &list, bool handle_as_role)
     if (!user_name->host.str)
       user_name->host= host_not_specified;
 
-    if (fix_lex_user(thd, user_name))
-    {
-      append_user(thd, &wrong_users, user_name);
-      result= TRUE;
-      continue;
-    }
-
     /*
       Search all in-memory structures and grant tables
       for a mention of the new user/role name.
@@ -10402,10 +10296,8 @@ int mysql_alter_user(THD* thd, List<LEX_USER> &users_list)
   while ((tmp_lex_user= users_list_iterator++))
   {
     LEX_USER* lex_user= get_current_user(thd, tmp_lex_user, false);
-    if (!lex_user ||
-        fix_lex_user(thd, lex_user) ||
-        replace_user_table(thd, tables.user_table(), lex_user, 0,
-                           false, false, true))
+    if (!lex_user || replace_user_table(thd, tables.user_table(), lex_user, 0,
+                                        false, false, true))
     {
       thd->clear_error();
       append_user(thd, &wrong_users, tmp_lex_user);
@@ -12285,8 +12177,8 @@ static bool find_mpvio_user(MPVIO_EXT *mpvio)
 
   mpvio->auth_info.user_name= sctx->user;
   mpvio->auth_info.user_name_length= (uint)strlen(sctx->user);
-  mpvio->auth_info.auth_string= mpvio->acl_user->auth_string.str;
-  mpvio->auth_info.auth_string_length= (unsigned long) mpvio->acl_user->auth_string.length;
+  mpvio->auth_info.auth_string= mpvio->acl_user->salt.str;
+  mpvio->auth_info.auth_string_length= (unsigned long) mpvio->acl_user->salt.length;
   strmake_buf(mpvio->auth_info.authenticated_as, mpvio->acl_user->user.str);
 
   DBUG_PRINT("info", ("exit: user=%s, auth_string=%s, authenticated as=%s"
@@ -13467,15 +13359,16 @@ static int native_password_authenticate(MYSQL_PLUGIN_VIO *vio,
   DBUG_EXECUTE_IF("native_password_bad_reply", { pkt_len= 12; });
 
   if (pkt_len == 0) /* no password */
-    DBUG_RETURN(mpvio->acl_user->salt_len != 0 ? CR_AUTH_USER_CREDENTIALS : CR_OK);
+    DBUG_RETURN(info->auth_string_length != 0
+                ? CR_AUTH_USER_CREDENTIALS : CR_OK);
 
   info->password_used= PASSWORD_USED_YES;
   if (pkt_len == SCRAMBLE_LENGTH)
   {
-    if (!mpvio->acl_user->salt_len)
+    if (!info->auth_string_length)
       DBUG_RETURN(CR_AUTH_USER_CREDENTIALS);
 
-    if (check_scramble(pkt, thd->scramble, mpvio->acl_user->salt))
+    if (check_scramble(pkt, thd->scramble, (uchar*)info->auth_string))
       DBUG_RETURN(CR_AUTH_USER_CREDENTIALS);
     else
       DBUG_RETURN(CR_OK);
@@ -13483,6 +13376,41 @@ static int native_password_authenticate(MYSQL_PLUGIN_VIO *vio,
 
   my_error(ER_HANDSHAKE_ERROR, MYF(0));
   DBUG_RETURN(CR_AUTH_HANDSHAKE);
+}
+
+static int native_password_make_scramble(const char *password,
+                      size_t password_length, char *hash, size_t *hash_length)
+{
+  DBUG_ASSERT(*hash_length >= SCRAMBLED_PASSWORD_CHAR_LENGTH);
+  if (password_length == 0)
+    *hash_length= 0;
+  else
+  {
+    *hash_length= SCRAMBLED_PASSWORD_CHAR_LENGTH;
+    my_make_scrambled_password(hash, password, password_length);
+  }
+  return 0;
+}
+
+static int native_password_get_salt(const char *hash, size_t hash_length,
+                                    unsigned char *out, size_t *out_length)
+{
+  DBUG_ASSERT(*out_length >= SCRAMBLE_LENGTH);
+  if (hash_length == 0)
+  {
+    *out_length= 0;
+    return 0;
+  }
+
+  if (hash_length != SCRAMBLED_PASSWORD_CHAR_LENGTH)
+  {
+    my_error(ER_PASSWD_LENGTH, MYF(0), SCRAMBLED_PASSWORD_CHAR_LENGTH);
+    return 1;
+  }
+
+  *out_length= SCRAMBLE_LENGTH;
+  get_salt_from_password(out, hash);
+  return 0;
 }
 
 static int old_password_authenticate(MYSQL_PLUGIN_VIO *vio,
@@ -13528,30 +13456,64 @@ static int old_password_authenticate(MYSQL_PLUGIN_VIO *vio,
 
   if (pkt_len == SCRAMBLE_LENGTH_323)
   {
-    if (!mpvio->acl_user->salt_len)
+    if (!info->auth_string_length)
       return CR_AUTH_USER_CREDENTIALS;
 
-    return check_scramble_323(pkt, thd->scramble,
-                             (ulong *) mpvio->acl_user->salt) ? 
-                             CR_AUTH_USER_CREDENTIALS : CR_OK;
+    return check_scramble_323(pkt, thd->scramble, (ulong *) info->auth_string)
+             ? CR_AUTH_USER_CREDENTIALS : CR_OK;
   }
 
   my_error(ER_HANDSHAKE_ERROR, MYF(0));
   return CR_AUTH_HANDSHAKE;
 }
 
+static int old_password_make_scramble(const char *password,
+                      size_t password_length, char *hash, size_t *hash_length)
+{
+  DBUG_ASSERT(*hash_length >= SCRAMBLED_PASSWORD_CHAR_LENGTH_323);
+  if (password_length == 0)
+    *hash_length= 0;
+  else
+  {
+    *hash_length= SCRAMBLED_PASSWORD_CHAR_LENGTH_323;
+    my_make_scrambled_password_323(hash, password, password_length);
+  }
+  return 0;
+}
+
+#define SALT_LENGTH_323 (sizeof(ulong)*2)
+static int old_password_get_salt(const char *hash, size_t hash_length,
+                                 unsigned char *out, size_t *out_length)
+{
+  DBUG_ASSERT(*out_length >= SALT_LENGTH_323);
+
+  if (hash_length != SCRAMBLED_PASSWORD_CHAR_LENGTH_323)
+  {
+    my_error(ER_PASSWD_LENGTH, MYF(0), SCRAMBLED_PASSWORD_CHAR_LENGTH_323);
+    return 1;
+  }
+
+  *out_length= SALT_LENGTH_323;
+  get_salt_from_password_323((ulong*)out, hash);
+  return 0;
+}
+
 static struct st_mysql_auth native_password_handler=
 {
   MYSQL_AUTHENTICATION_INTERFACE_VERSION,
   native_password_plugin_name.str,
-  native_password_authenticate
+  native_password_authenticate,
+  native_password_make_scramble,
+  native_password_get_salt
 };
 
 static struct st_mysql_auth old_password_handler=
 {
   MYSQL_AUTHENTICATION_INTERFACE_VERSION,
   old_password_plugin_name.str,
-  old_password_authenticate
+  old_password_authenticate,
+  old_password_make_scramble,
+  old_password_get_salt
 };
 
 maria_declare_plugin(mysql_password)

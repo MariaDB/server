@@ -565,7 +565,7 @@ root	localhost				N
 GRANT INSERT ON *.* TO CURRENT_USER();
 SELECT user,host,password,plugin,authentication_string,insert_priv FROM user WHERE user=@u AND host=@h;
 user	host	password	plugin	authentication_string	insert_priv
-root	localhost				Y
+root	localhost		mysql_native_password		Y
 UPDATE user SET insert_priv='N' WHERE user=@u AND host=@h;
 GRANT INSERT ON *.* TO CURRENT_USER() IDENTIFIED BY 'keksdose';
 SELECT user,host,password,plugin,authentication_string,insert_priv FROM user WHERE user=@u AND host=@h;

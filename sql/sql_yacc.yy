@@ -2890,8 +2890,8 @@ create:
           {
             Lex->pop_select(); //main select
           }
-        | create_or_replace USER_SYM opt_if_not_exists clear_privileges grant_list
-          opt_require_clause opt_resource_options
+        | create_or_replace USER_SYM opt_if_not_exists clear_privileges
+          grant_list opt_require_clause opt_resource_options
           {
             if (unlikely(Lex->set_command_with_check(SQLCOM_CREATE_USER,
                                                      $1 | $3)))
@@ -16831,11 +16831,19 @@ grant_user:
             $1->plugin= $4;
             $1->auth= empty_clex_str;
           }
-        | user IDENTIFIED_SYM via_or_with ident_or_text using_or_as TEXT_STRING_sys
+        | user IDENTIFIED_SYM via_or_with ident_or_text using_or_as
+          TEXT_STRING_sys
           {
             $$= $1;
             $1->plugin= $4;
             $1->auth= $6;
+          }
+        | user IDENTIFIED_SYM via_or_with ident_or_text using_or_as
+          PASSWORD_SYM '(' TEXT_STRING ')'
+          {
+            $$= $1;
+            $1->plugin= $4;
+            $1->pwtext= $8;
           }
         | user_or_role
           { $$= $1; }
