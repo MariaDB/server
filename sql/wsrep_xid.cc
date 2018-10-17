@@ -44,6 +44,7 @@ void wsrep_xid_init(XID* xid, const wsrep::gtid& gtid)
   memcpy(xid->data, WSREP_XID_PREFIX, WSREP_XID_PREFIX_LEN);
   memcpy(xid->data + WSREP_XID_UUID_OFFSET,
          gtid.id().data(), gtid.id().size());
+  xid->data[WSREP_XID_VERSION_OFFSET]= WSREP_XID_VERSION_2;
   long long seqno= gtid.seqno().get();
   memcpy(xid->data + WSREP_XID_SEQNO_OFFSET, &seqno, sizeof(seqno));
 }
