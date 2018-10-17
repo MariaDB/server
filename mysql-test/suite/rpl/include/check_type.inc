@@ -24,11 +24,19 @@ connection master;
 disable_warnings;
 DROP TABLE IF EXISTS t1;
 enable_warnings;
+if ($source_temp_format)
+{
+  --eval SET @@global.mysql56_temporal_format= $source_temp_format
+}
 eval CREATE TABLE t1(
   pk INT NOT NULL PRIMARY KEY,
   a $source_type
 ) ENGINE=$engine_type;
 sync_slave_with_master;
+if ($target_temp_format)
+{
+  --eval SET @@global.mysql56_temporal_format= $source_temp_format
+}
 eval ALTER TABLE t1 MODIFY a $target_type;
 
 connection master;

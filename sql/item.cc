@@ -7617,7 +7617,7 @@ Item *Item_direct_view_ref::derived_field_transformer_for_where(THD *thd,
     DBUG_ASSERT (producing_item != NULL);
     return producing_item->build_clone(thd);
   }
-  return this;
+  return (*ref);
 }
 
 static
