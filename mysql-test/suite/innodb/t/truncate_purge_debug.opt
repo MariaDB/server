@@ -1,3 +1,4 @@
 --innodb-purge-threads=1
 --innodb-purge-batch-size=1
 --innodb-stats-persistent=OFF
+--innodb-safe-truncate=0

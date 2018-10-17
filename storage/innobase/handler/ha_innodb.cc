@@ -20696,8 +20696,8 @@ static MYSQL_SYSVAR_BOOL(read_only, srv_read_only_mode,
 
 static MYSQL_SYSVAR_BOOL(safe_truncate, srv_safe_truncate,
   PLUGIN_VAR_OPCMDARG | PLUGIN_VAR_READONLY,
-  "Use backup-safe TRUNCATE TABLE and crash-safe RENAME (incompatible with older MariaDB 10.2; OFF by default)",
-  NULL, NULL, FALSE);
+  "Use backup-safe TRUNCATE TABLE and crash-safe RENAME (incompatible with older MariaDB 10.2; ON by default)",
+  NULL, NULL, TRUE);
 
 static MYSQL_SYSVAR_BOOL(cmp_per_index_enabled, srv_cmp_per_index_enabled,
   PLUGIN_VAR_OPCMDARG,
