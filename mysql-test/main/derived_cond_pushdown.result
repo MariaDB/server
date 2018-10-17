@@ -16448,3 +16448,43 @@ id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
 Warnings:
 Note	1003	/* select#1 */ select `test`.`t3`.`d` AS `d`,`dt`.`b` AS `b`,`dt`.`c` AS `c` from `test`.`t3` join (/* select#2 */ select `test`.`t1`.`b` AS `b`,`test`.`t2`.`c` AS `c` from `test`.`t1` join `test`.`t2` where `test`.`t1`.`b` = `test`.`t3`.`d` group by `test`.`t1`.`b`,`test`.`t2`.`c`) `dt` where `dt`.`b` = `test`.`t3`.`d`
 DROP TABLE t1,t2,t3;
+#
+# MDEV-17419: splittable materialized derived/view
+#             when join_cache_level = 4
+#
+set join_cache_level = 4;
+CREATE TABLE t1 (
+id INT UNSIGNED NOT NULL AUTO_INCREMENT,
+username VARCHAR(50) NULL DEFAULT '0',
+PRIMARY KEY (id)
+) COLLATE='utf8_general_ci';
+CREATE TABLE t2 (
+id INT UNSIGNED NOT NULL AUTO_INCREMENT,
+userid INT UNSIGNED NOT NULL,
+logindate DATETIME NOT NULL,
+PRIMARY KEY (id)
+) COLLATE='utf8_general_ci';
+INSERT INTO t1 (id, username) VALUES
+(1,"user1"), (2, "user2");
+INSERT INTO t2 (id, userid, logindate) VALUES
+(1,1,"2015-06-19 12:17:02.828"),
+(2,1,"2016-06-19 12:17:02.828"),
+(3,2,"2017-06-19 12:17:02.828"),
+(4,2,"2018-06-19 12:17:02.828");
+EXPLAIN select * from t1 as u
+left join
+(select * from t2 as au group by au.userid) as auditlastlogin
+on u.id=auditlastlogin.userid;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	PRIMARY	u	ALL	NULL	NULL	NULL	NULL	2	
+1	PRIMARY	<derived2>	ref	key0	key0	5	test.u.id	2	
+2	DERIVED	au	ALL	NULL	NULL	NULL	NULL	4	Using temporary; Using filesort
+select * from t1 as u
+left join
+(select * from t2 as au group by au.userid) as auditlastlogin
+on u.id=auditlastlogin.userid;
+id	username	id	userid	logindate
+1	user1	1	1	2015-06-19 12:17:02
+2	user2	3	2	2017-06-19 12:17:02
+set join_cache_level=default;
+DROP TABLE t1,t2;
