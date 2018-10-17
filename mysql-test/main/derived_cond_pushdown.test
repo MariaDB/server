@@ -3143,3 +3143,44 @@ eval $q;
 eval EXPLAIN EXTENDED $q;
 
 DROP TABLE t1,t2,t3;
+
+--echo #
+--echo # MDEV-17419: splittable materialized derived/view
+--echo #             when join_cache_level = 4
+--echo #
+
+set join_cache_level = 4;
+
+CREATE TABLE t1 (
+  id INT UNSIGNED NOT NULL AUTO_INCREMENT,
+  username VARCHAR(50) NULL DEFAULT '0',
+  PRIMARY KEY (id)
+) COLLATE='utf8_general_ci';
+
+CREATE TABLE t2 (
+  id INT UNSIGNED NOT NULL AUTO_INCREMENT,
+  userid INT UNSIGNED NOT NULL,
+  logindate DATETIME NOT NULL,
+  PRIMARY KEY (id)
+) COLLATE='utf8_general_ci';
+
+INSERT INTO t1 (id, username) VALUES
+  (1,"user1"), (2, "user2");
+INSERT INTO t2 (id, userid, logindate) VALUES
+  (1,1,"2015-06-19 12:17:02.828"),
+  (2,1,"2016-06-19 12:17:02.828"),
+  (3,2,"2017-06-19 12:17:02.828"),
+  (4,2,"2018-06-19 12:17:02.828");
+
+let $q=
+select * from t1 as u
+              left join
+              (select * from t2 as au group by au.userid) as auditlastlogin
+              on u.id=auditlastlogin.userid;
+
+eval EXPLAIN $q;
+eval $q;
+
+set join_cache_level=default;
+
+DROP TABLE t1,t2;

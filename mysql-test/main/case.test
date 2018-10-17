@@ -390,6 +390,28 @@ EXPLAIN EXTENDED SELECT * FROM t1 WHERE a='a' AND CASE 'a' WHEN 'a' THEN 'a' ELS
 
 DROP TABLE t1;
 
+
+--echo #
+--echo # MDEV-17411 Wrong WHERE optimization with simple CASE and searched CASE
+--echo #
+
+CREATE TABLE t1 (a INT, b INT, KEY(a));
+INSERT INTO t1 VALUES (1,1),(2,2),(3,3);
+SELECT * FROM t1 WHERE CASE a WHEN b THEN 1 END=1;
+SELECT * FROM t1 WHERE CASE WHEN a THEN b ELSE 1 END=3;
+
+SELECT * FROM t1 WHERE
+  CASE      a WHEN b THEN 1 END=1 AND
+  CASE WHEN a THEN b ELSE 1 END=3;
+
+EXPLAIN EXTENDED
+SELECT * FROM t1 WHERE
+  CASE      a WHEN b THEN 1 END=1 AND
+  CASE WHEN a THEN b ELSE 1 END=3;
+
+DROP TABLE t1;
+
+
 --echo #
 --echo # End of 10.3 test
 --echo #

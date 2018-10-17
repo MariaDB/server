@@ -127,6 +127,7 @@ row_ins_sec_index_entry_low(
 				/*!< in: if true, just do duplicate check
 				and return. don't execute actual insert. */
 	MY_ATTRIBUTE((warn_unused_result));
+
 /***************************************************************//**
 Inserts an entry into a clustered index. Tries first optimistic,
 then pessimistic descent down the tree. If the entry matches enough

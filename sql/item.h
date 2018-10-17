@@ -2395,6 +2395,15 @@ protected:
     }
     return true;
   }
+  bool eq(const Item_args *other, bool binary_cmp) const
+  {
+    for (uint i= 0; i < arg_count ; i++)
+    {
+      if (!args[i]->eq(other->args[i], binary_cmp))
+        return false;
+    }
+    return true;
+  }
   bool excl_dep_on_in_subq_left_part(Item_in_subselect *subq_pred)
   {
     for (uint i= 0; i < arg_count; i++)

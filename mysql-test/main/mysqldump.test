@@ -1,3 +1,5 @@
+--source include/have_utf8mb4.inc
+
 call mtr.add_suppression("@003f.frm' \\(errno: 22\\)");
 #select * from mysql.user;
 #checksum table mysql.user;

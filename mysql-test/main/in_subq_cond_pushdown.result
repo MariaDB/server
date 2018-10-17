@@ -3868,3 +3868,22 @@ WHERE dt1.id1 IN (SELECT t2.id2 FROM t2
 HAVING t2.id2 >= 1));
 r
 DROP TABLE t1,t2;
+#
+# MDEV-17027: IN subquery predicate with outer reference in the left part
+#             conjuncted with equality predicate
+#
+CREATE TABLE t1 (pk int, i1 int, v1 varchar(1));
+INSERT INTO t1 VALUES (3,2,'x'), (1,1,'y'), (4,2,'z');
+CREATE TABLE t2 (pk int, i1 int, v1 varchar(1));
+INSERT INTO t2 VALUES (5,2,'x'), (7,1,'x');
+CREATE TABLE t3 (pk int, i1 int, v1 varchar(1));
+INSERT INTO t3 VALUES (8,2,'x'), (7,1,'z');
+SELECT t3.i1 FROM t3
+WHERE EXISTS ( SELECT t2.v1 FROM t1,t2
+WHERE t1.v1 = t2.v1 AND
+t3.i1 IN (SELECT t.i1 FROM t1 as t
+GROUP BY i1 HAVING t.i1 < 3));
+i1
+2
+1
+DROP TABLE t1,t2,t3;

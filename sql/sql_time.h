@@ -36,7 +36,6 @@ ulong convert_period_to_month(ulong period);
 ulong convert_month_to_period(ulong month);
 void set_current_date(THD *thd, MYSQL_TIME *to);
 bool time_to_datetime(MYSQL_TIME *ltime);
-void time_to_daytime_interval(MYSQL_TIME *l_time);
 bool get_date_from_daynr(long daynr,uint *year, uint *month, uint *day);
 my_time_t TIME_to_timestamp(THD *thd, const MYSQL_TIME *t, uint *error_code);
 bool str_to_datetime_with_warn(THD *thd,
