@@ -1175,7 +1175,6 @@ static int prepare_or_error(handlerton *ht, THD *thd, bool all)
   if (WSREP(thd) && ht->db_type == DB_TYPE_INNODB &&
       wsrep_before_prepare(thd, all))
   {
-    wsrep_override_error(thd, ER_LOCK_DEADLOCK);
     return(1);
   }
 #endif /* WITH_WSREP */
@@ -1190,7 +1189,6 @@ static int prepare_or_error(handlerton *ht, THD *thd, bool all)
   if (WSREP(thd) && ht->db_type == DB_TYPE_INNODB &&
       wsrep_after_prepare(thd, all))
   {
-    wsrep_override_error(thd, ER_LOCK_DEADLOCK);
     err= 1;
   }
 #endif /* WITH_WSREP */
