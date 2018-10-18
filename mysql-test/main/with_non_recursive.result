@@ -1,0 +1,1172 @@
+# In-memory tmp tables
+set big_tables=0;
+flush STATUS;
+CREATE TABLE t1(a int, b int, c int);
+INSERT INTO t1 VALUES(NULL,NULL,NULL),(2,3,4);
+WITH qn AS (SELECT a FROM t1) SELECT 1 FROM dual;
+1
+1
+WITH qn AS (SELECT a FROM t1), qn2 AS (SELECT b FROM t1) SELECT 1 FROM dual;
+1
+1
+WITH qn AS (SELECT a FROM t1), qn AS (SELECT b FROM t1) SELECT 1 FROM qn;
+ERROR HY000: Duplicate query name `qn` in WITH clause
+WITH qn AS (SELECT b AS a FROM t1) SELECT qn.a, qn2.a  FROM qn, qn AS qn2;
+a	a
+NULL	NULL
+3	NULL
+NULL	3
+3	3
+WITH qn AS (SELECT b AS a FROM t1), qn2 AS (SELECT c FROM t1 WHERE a IS NULL OR a>0)
+SELECT qn.a, qn2.c  FROM qn, qn2;
+a	c
+NULL	NULL
+3	NULL
+NULL	4
+3	4
+WITH qn AS (SELECT 10*a AS a FROM t1), qn2 AS (SELECT 3*a FROM qn)
+SELECT * FROM qn2;
+3*a
+NULL
+60
+WITH qn AS (SELECT a FROM t1), qn2 AS (SELECT a FROM qn)
+SELECT * FROM qn2;
+a
+NULL
+2
+WITH qn AS (SELECT b AS a FROM t1), qn2 AS (SELECT a FROM qn WHERE a IS NULL OR a>0)
+SELECT qn.a, qn2.a  FROM qn, qn2;
+a	a
+NULL	NULL
+3	NULL
+NULL	3
+3	3
+EXPLAIN WITH qn AS (SELECT b AS a FROM t1), qn2 AS (SELECT a FROM qn WHERE a IS NULL OR a>0)
+SELECT qn.a, qn2.a  FROM qn, qn2;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	2	
+1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	2	Using where; Using join buffer (flat, BNL join)
+WITH qn2 AS (SELECT a FROM qn WHERE a IS NULL OR a>0), qn AS (SELECT b AS a FROM t1)
+SELECT qn2.a  FROM qn2;
+ERROR 42S02: Table 'test.qn' doesn't exist
+WITH qn1 AS (WITH qn3 AS (SELECT * FROM qn2) SELECT * FROM qn3), qn2 AS (SELECT 1)
+SELECT * FROM qn1;
+ERROR 42S02: Table 'test.qn2' doesn't exist
+WITH qn0 AS (SELECT 1), qn1 AS (SELECT * FROM qn0), qn2 AS (SELECT 1), qn3 AS (SELECT 1 FROM qn1, qn2) 
+SELECT 1 FROM qn3;
+1
+1
+explain WITH qn AS (SELECT 1) SELECT 2;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	PRIMARY	NULL	NULL	NULL	NULL	NULL	NULL	NULL	No tables used
+WITH qn AS (SELECT 1) SELECT 2;
+2
+2
+WITH qn2 AS (SELECT a FROM qn WHERE a IS NULL OR a>0), qn AS (SELECT b AS a FROM qn2)
+SELECT qn.a  FROM qn;
+ERROR 42S02: Table 'test.qn' doesn't exist
+WITH qn AS (SELECT a FROM qn) SELECT qn.a FROM qn;
+ERROR 42S02: Table 'test.qn' doesn't exist
+WITH qn1 AS (SELECT a FROM qn3), qn2 AS (SELECT a FROM qn1),
+qn3 AS (SELECT a FROM t1), qn4 AS (SELECT a FROM qn2)
+SELECT a FROM qn4;
+ERROR 42S02: Table 'test.qn3' doesn't exist
+WITH qn AS (SELECT * FROM t1) SELECT (SELECT max(a) FROM qn);
+(SELECT max(a) FROM qn)
+2
+SELECT (WITH qn AS (SELECT 10*a AS a FROM t1), qn2 AS (SELECT 3*a AS b FROM qn) 
+SELECT * FROM qn2 LIMIT 1)
+FROM t1;
+(WITH qn AS (SELECT 10*a AS a FROM t1), qn2 AS (SELECT 3*a AS b FROM qn) 
+SELECT * FROM qn2 LIMIT 1)
+NULL
+NULL
+SELECT *
+FROM (WITH qn AS (SELECT 10*a AS a FROM t1), qn2 AS (SELECT 3*a AS b FROM qn)
+SELECT * FROM qn2)
+AS dt;
+b
+NULL
+60
+WITH qn AS (WITH qn2 AS (SELECT "qn2" AS a FROM t1) SELECT "qn", a FROM qn2)
+SELECT * FROM qn;
+qn	a
+qn	qn2
+qn	qn2
+# outer ref to a table, placed in a QN in a subq (later)
+CREATE VIEW v AS
+WITH qn AS (SELECT 10*a AS a FROM t1), qn2 AS (SELECT 3*a AS b FROM qn)
+SELECT * FROM qn2;
+SELECT * FROM v;
+b
+NULL
+60
+DROP VIEW v;
+CREATE TABLE t2
+WITH qn AS (SELECT 10*a AS a FROM t1), qn2 AS (SELECT 3*a AS b FROM qn)
+SELECT * FROM qn2;
+SELECT * FROM t2;
+b
+NULL
+60
+INSERT INTO t2
+WITH qn AS (SELECT 10*a AS a FROM t1), qn2 AS (SELECT 3*a AS b FROM qn)
+SELECT * FROM qn2;
+SELECT * FROM t2;
+b
+NULL
+60
+NULL
+60
+DROP TABLE t2;
+explain WITH qn AS (SELECT * FROM t1 LIMIT 10)
+SELECT (SELECT max(a) FROM qn WHERE a=0),
+(SELECT min(b) FROM qn WHERE b=3);
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	PRIMARY	NULL	NULL	NULL	NULL	NULL	NULL	NULL	No tables used
+4	SUBQUERY	<derived5>	ALL	NULL	NULL	NULL	NULL	2	Using where
+5	DERIVED	t1	ALL	NULL	NULL	NULL	NULL	2	
+3	SUBQUERY	<derived2>	ALL	NULL	NULL	NULL	NULL	2	Using where
+2	DERIVED	t1	ALL	NULL	NULL	NULL	NULL	2	
+WITH qn AS (SELECT * FROM t1 LIMIT 10)
+SELECT (SELECT max(a) FROM qn WHERE a=0),
+(SELECT min(b) FROM qn WHERE b=3);
+(SELECT max(a) FROM qn WHERE a=0)	(SELECT min(b) FROM qn WHERE b=3)
+NULL	3
+CREATE TABLE qn SELECT "base";
+SELECT * FROM qn;
+base
+base
+WITH qn AS (SELECT "with") SELECT * FROM qn;
+with
+with
+# In a non-recursive WITH, the scope of the QN doesn't extend to its
+# subquery, so "qn" inside AS() is the base table.
+WITH qn AS (SELECT * FROM qn) SELECT * FROM qn;
+base
+base
+# View doesn't look out to external QNs
+CREATE VIEW v AS SELECT * FROM qn;
+SELECT * FROM v;
+base
+base
+WITH qn AS (SELECT "with") SELECT * FROM v;
+base
+base
+WITH qn AS (SELECT * FROM v) SELECT * FROM qn;
+base
+base
+# Even if the base table is temporarily dropped
+DROP TABLE qn;
+WITH qn AS (SELECT "with") SELECT * FROM v;
+ERROR HY000: View 'test.v' references invalid table(s) or column(s) or function(s) or definer/invoker of view lack rights to use them
+WITH qn AS (SELECT * FROM v) SELECT * FROM qn;
+ERROR HY000: View 'test.v' references invalid table(s) or column(s) or function(s) or definer/invoker of view lack rights to use them
+CREATE TABLE qn SELECT "base" AS a;
+# Neither does SP
+CREATE FUNCTION f() RETURNS varchar(10) RETURN (SELECT * FROM qn);
+SELECT f();
+f()
+base
+WITH qn AS (SELECT "with") SELECT f();
+f()
+base
+WITH qn AS (SELECT f()) SELECT * FROM qn;
+f()
+base
+# QN shadows tmp table
+CREATE TEMPORARY TABLE qn SELECT "tmp" AS a;
+SELECT * FROM qn;
+a
+tmp
+WITH qn AS (SELECT "with") SELECT * FROM qn;
+with
+with
+DROP FUNCTION f;
+DROP VIEW v;
+WITH qn AS (SELECT "with") SELECT * FROM (SELECT "dt") AS qn;
+dt
+dt
+WITH qn AS (SELECT "outer" AS a) 
+SELECT (WITH qn AS (SELECT "inner" AS a) SELECT a FROM qn), qn.a FROM qn;
+(WITH qn AS (SELECT "inner" AS a) SELECT a FROM qn)	a
+inner	outer
+WITH test.qn AS (SELECT "with") SELECT * FROM test.qn;
+ERROR 42000: You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near '.qn AS (SELECT "with") SELECT * FROM test.qn' at line 1
+WITH qn AS (SELECT "with") SELECT * FROM qn;
+with
+with
+WITH qn AS (SELECT "with") SELECT * FROM test.qn;
+a
+tmp
+WITH qn AS (SELECT "with" AS a) SELECT a FROM qn;
+a
+with
+WITH qn AS (SELECT "with" AS a) SELECT qn.a FROM qn;
+a
+with
+WITH qn AS (SELECT "with" AS a) SELECT test.qn.a FROM qn;
+a
+with
+WITH qn AS (SELECT "with" AS a) SELECT a FROM test.qn;
+a
+tmp
+WITH qn AS (SELECT "with" AS a) SELECT qn.a FROM test.qn;
+a
+tmp
+WITH qn AS (SELECT "with" AS a) SELECT test.qn.a FROM test.qn;
+a
+tmp
+DROP TEMPORARY TABLE qn;
+WITH qn AS (SELECT "with" AS a) SELECT a FROM test.qn;
+a
+base
+WITH qn AS (SELECT "with" AS a) SELECT qn.a FROM test.qn;
+a
+base
+WITH qn AS (SELECT "with" AS a) SELECT test.qn.a FROM test.qn;
+a
+base
+DROP TABLE qn;
+WITH qn AS (SELECT "with" AS a) SELECT a FROM test.qn;
+ERROR 42S02: Table 'test.qn' doesn't exist
+WITH qn AS (SELECT "with" AS a) SELECT qn.a FROM test.qn;
+ERROR 42S02: Table 'test.qn' doesn't exist
+WITH qn AS (SELECT "with" AS a) SELECT test.qn.a FROM test.qn;
+ERROR 42S02: Table 'test.qn' doesn't exist
+WITH qn AS (SELECT b AS a FROM t1 UNION SELECT b+5 FROM t1), qn2 AS (SELECT a FROM qn WHERE a IS NULL OR a>0)
+SELECT qn.a FROM qn
+UNION SELECT qn2.a FROM qn2 WHERE qn2.a>3;
+a
+NULL
+3
+8
+WITH qn AS (SELECT "with" AS a)
+WITH qn2 AS (SELECT "with" AS a)
+SELECT a FROM test.qn;
+ERROR 42000: You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near 'WITH qn2 AS (SELECT "with" AS a)
+SELECT a FROM test.qn' at line 2
+# with comma
+WITH qn AS (SELECT "with" AS a),
+WITH qn2 AS (SELECT "with" AS a)
+SELECT a FROM test.qn;
+ERROR 42000: You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near 'WITH qn2 AS (SELECT "with" AS a)
+SELECT a FROM test.qn' at line 2
+# ORDER BY removed unless there is LIMIT or single table (check "Using filesort")
+explain extended WITH qn AS (SELECT a FROM t1 ORDER BY 1) SELECT a FROM qn;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	2	100.00	
+Warnings:
+Note	1003	with qn as (select `test`.`t1`.`a` AS `a` from `test`.`t1` order by 1)select `test`.`t1`.`a` AS `a` from `test`.`t1`
+explain extended WITH qn AS (SELECT a FROM t1 ORDER BY 1) SELECT qn.a FROM qn, t1 AS t2;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	2	100.00	
+1	SIMPLE	t2	ALL	NULL	NULL	NULL	NULL	2	100.00	Using join buffer (flat, BNL join)
+Warnings:
+Note	1003	with qn as (select `test`.`t1`.`a` AS `a` from `test`.`t1` order by 1)select `test`.`t1`.`a` AS `a` from `test`.`t1` join `test`.`t1` `t2`
+explain extended WITH qn AS (SELECT a FROM t1 ORDER BY 1 LIMIT 10) SELECT qn.a FROM qn, t1 AS t2;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	PRIMARY	<derived2>	ALL	NULL	NULL	NULL	NULL	2	100.00	
+1	PRIMARY	t2	ALL	NULL	NULL	NULL	NULL	2	100.00	Using join buffer (flat, BNL join)
+2	DERIVED	t1	ALL	NULL	NULL	NULL	NULL	2	100.00	Using filesort
+Warnings:
+Note	1003	with qn as (/* select#2 */ select `test`.`t1`.`a` AS `a` from `test`.`t1` order by 1 limit 10)/* select#1 */ select `qn`.`a` AS `a` from `qn` join `test`.`t1` `t2`
+# FD detection
+WITH qn AS (SELECT a, b FROM t1) SELECT b FROM qn GROUP BY a;
+b
+NULL
+3
+WITH qn AS (SELECT a, b FROM t1 WHERE a=b) SELECT b FROM qn GROUP BY a;
+b
+WITH qn AS (SELECT a, sum(b) AS s FROM t1 GROUP BY a) SELECT s FROM qn GROUP BY a;
+s
+NULL
+3
+# CTEs work if used in SET
+SET @myvar= (WITH qn AS (SELECT a, sum(b) AS s FROM t1 GROUP BY a)
+SELECT s FROM qn GROUP BY a HAVING s IS NOT NULL);
+SELECT @myvar;
+@myvar
+3
+# CTE works with semijoin
+explain WITH cte AS (SELECT * FROM t1 AS t2 LIMIT 1)
+SELECT * FROM t1 WHERE t1.a IN (SELECT a+0 FROM cte);
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	PRIMARY	t1	ALL	NULL	NULL	NULL	NULL	2	
+1	PRIMARY	<subquery3>	eq_ref	distinct_key	distinct_key	8	func	1	Using where
+3	MATERIALIZED	<derived2>	ALL	NULL	NULL	NULL	NULL	2	
+2	DERIVED	t2	ALL	NULL	NULL	NULL	NULL	2	
+WITH cte AS (SELECT * FROM t1 AS t2 LIMIT 1)
+SELECT * FROM t1 WHERE t1.a IN (SELECT a+0 FROM cte);
+a	b	c
+explain WITH cte AS (SELECT * FROM t1 AS t2)
+SELECT * FROM t1 WHERE t1.a IN (SELECT a+0 FROM cte);
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	PRIMARY	t1	ALL	NULL	NULL	NULL	NULL	2	
+1	PRIMARY	<subquery3>	eq_ref	distinct_key	distinct_key	8	func	1	Using where
+3	MATERIALIZED	t2	ALL	NULL	NULL	NULL	NULL	2	
+WITH cte AS (SELECT * FROM t1 AS t2)
+SELECT * FROM t1 WHERE t1.a IN (SELECT a+0 FROM cte);
+a	b	c
+2	3	4
+# Column names
+# empty list
+WITH qn () AS (SELECT 1) SELECT * FROM qn, qn qn1;
+ERROR 42000: You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near ') AS (SELECT 1) SELECT * FROM qn, qn qn1' at line 1
+WITH qn (foo, bar) AS (SELECT 1) SELECT * FROM qn, qn qn1;
+ERROR HY000: WITH column list and SELECT field list have different column counts
+explain WITH qn (foo, bar) AS (SELECT 1, 2 FROM t1 LIMIT 2) SELECT * FROM qn, qn qn1;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	PRIMARY	<derived2>	ALL	NULL	NULL	NULL	NULL	2	
+1	PRIMARY	<derived3>	ALL	NULL	NULL	NULL	NULL	2	Using join buffer (flat, BNL join)
+3	DERIVED	t1	ALL	NULL	NULL	NULL	NULL	2	
+2	DERIVED	t1	ALL	NULL	NULL	NULL	NULL	2	
+WITH qn (foo, bar) AS (SELECT 1, 2 FROM t1 LIMIT 2) SELECT * FROM qn, qn qn1;
+foo	bar	foo	bar
+1	2	1	2
+1	2	1	2
+1	2	1	2
+1	2	1	2
+WITH qn (foo, bar) AS (SELECT 1 AS col, 2 AS coll FROM t1 LIMIT 2) SELECT * FROM qn, qn qn1;
+foo	bar	foo	bar
+1	2	1	2
+1	2	1	2
+1	2	1	2
+1	2	1	2
+WITH qn (foo, bar) AS (SELECT 1 AS col, 2 AS coll UNION SELECT a,b FROM t1) SELECT qn1.bar FROM qn qn1;
+bar
+2
+NULL
+3
+WITH qn (foo, bar) AS (SELECT a, b FROM t1 LIMIT 2) SELECT qn.bar,foo FROM qn;
+bar	foo
+NULL	NULL
+3	2
+CREATE TABLE t3 WITH qn (foo, bar) AS (SELECT a, b FROM t1 LIMIT 2) SELECT bar,foo FROM qn;
+DESC t3;
+Field	Type	Null	Key	Default	Extra
+bar	int(11)	YES		NULL	
+foo	int(11)	YES		NULL	
+DROP TABLE t3;
+WITH qn (foo, bar) AS (SELECT 1 FROM t1) SELECT * FROM qn, qn qn1;
+ERROR HY000: WITH column list and SELECT field list have different column counts
+WITH qn (foo, bar) AS (SELECT 1, 2 FROM t1) SELECT * FROM qn, qn qn1;
+foo	bar	foo	bar
+1	2	1	2
+1	2	1	2
+1	2	1	2
+1	2	1	2
+explain WITH qn (foo, bar) AS (SELECT 1, 2 FROM t1) SELECT * FROM qn, qn qn1;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	2	
+1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	2	Using join buffer (flat, BNL join)
+WITH qn (foo, bar) AS (SELECT 1 AS col, 2 AS coll FROM t1) SELECT * FROM qn, qn qn1;
+foo	bar	foo	bar
+1	2	1	2
+1	2	1	2
+1	2	1	2
+1	2	1	2
+WITH qn (foo, bar) AS (SELECT a, b FROM t1) SELECT qn1.bar,foo FROM qn qn1;
+bar	foo
+NULL	NULL
+3	2
+CREATE TABLE t3 WITH qn (foo, bar) AS (SELECT a, b FROM t1) SELECT bar,foo FROM qn;
+DESC t3;
+Field	Type	Null	Key	Default	Extra
+bar	int(11)	YES		NULL	
+foo	int(11)	YES		NULL	
+DROP TABLE t3;
+# Disambiguates same-name expressions
+WITH qn AS (SELECT 1,1) SELECT * FROM qn;
+ERROR 42S21: Duplicate column name '1'
+WITH qn (foo, bar) AS (SELECT 1,1) SELECT * FROM qn;
+foo	bar
+1	1
+WITH qn AS (SELECT 1,1 FROM t1) SELECT * FROM qn;
+ERROR 42S21: Duplicate column name '1'
+WITH qn (foo, bar) AS (SELECT 1,1 FROM t1) SELECT * FROM qn;
+foo	bar
+1	1
+1	1
+WITH qn (foo, foo) AS (SELECT 1,2) SELECT * FROM qn;
+ERROR 42S21: Duplicate column name 'foo'
+CREATE VIEW v1 AS WITH qn (foo, bar) AS (SELECT 1,1) SELECT * FROM qn;
+SHOW CREATE VIEW v1;
+View	Create View	character_set_client	collation_connection
+v1	CREATE ALGORITHM=UNDEFINED DEFINER=`root`@`localhost` SQL SECURITY DEFINER VIEW `v1` AS with qn as (select 1 AS `foo`,1 AS `bar`)select `qn`.`foo` AS `foo`,`qn`.`bar` AS `bar` from `qn`	latin1	latin1_swedish_ci
+SHOW fields FROM v1;
+Field	Type	Null	Key	Default	Extra
+foo	int(1)	NO		0	
+bar	int(1)	NO		0	
+SELECT * FROM v1;
+foo	bar
+1	1
+DROP VIEW v1;
+CREATE VIEW v1 AS WITH qn (foo, bar) AS (SELECT 1,1 FROM t1) SELECT * FROM qn;
+SHOW CREATE VIEW v1;
+View	Create View	character_set_client	collation_connection
+v1	CREATE ALGORITHM=UNDEFINED DEFINER=`root`@`localhost` SQL SECURITY DEFINER VIEW `v1` AS with qn as (select 1 AS `foo`,1 AS `bar` from `t1`)select `qn`.`foo` AS `foo`,`qn`.`bar` AS `bar` from `qn`	latin1	latin1_swedish_ci
+SELECT * FROM v1;
+foo	bar
+1	1
+1	1
+DROP VIEW v1;
+CREATE VIEW v1 (bar) AS SELECT 1, 2 FROM t1;
+ERROR HY000: View's SELECT and view's field list have different column counts
+DROP TABLE t1;
+# Prove that a materialized QN is shared among all references:
+CREATE TABLE t1(a int);
+INSERT INTO t1 VALUES(1),(2),(3),(4);
+flush STATUS;
+WITH qn AS (SELECT 123 AS col) SELECT * FROM qn;
+col
+123
+SHOW STATUS LIKE "handler_write";
+Variable_name	Value
+Handler_write	0
+flush STATUS;
+WITH qn AS (SELECT 123 AS col) SELECT * FROM qn, qn AS qn1;
+col	col
+123	123
+SHOW STATUS LIKE "handler_write";
+Variable_name	Value
+Handler_write	0
+CREATE VIEW qn AS SELECT 123 AS col;
+flush STATUS;
+SELECT * FROM qn, qn AS qn1;
+col	col
+123	123
+SHOW STATUS LIKE "handler_write";
+Variable_name	Value
+Handler_write	0
+DROP VIEW qn;
+DROP TABLE t1;
+CREATE VIEW v AS SELECT (WITH qn AS (SELECT "with") SELECT * FROM qn) AS scal_subq FROM dual;
+SHOW CREATE VIEW v;
+View	Create View	character_set_client	collation_connection
+v	CREATE ALGORITHM=UNDEFINED DEFINER=`root`@`localhost` SQL SECURITY DEFINER VIEW `v` AS select (with qn as (select 'with' AS `with`)select `qn`.`with` from `qn`) AS `scal_subq`	latin1	latin1_swedish_ci
+SELECT * FROM v;
+scal_subq
+with
+DROP VIEW v;
+CREATE VIEW v AS SELECT * FROM (WITH qn AS (SELECT "with") SELECT * FROM qn) AS dt;
+SHOW CREATE VIEW v;
+View	Create View	character_set_client	collation_connection
+v	CREATE ALGORITHM=UNDEFINED DEFINER=`root`@`localhost` SQL SECURITY DEFINER VIEW `v` AS select `dt`.`with` AS `with` from (with qn as (select 'with' AS `with`)select `qn`.`with` AS `with` from `qn`) `dt`	latin1	latin1_swedish_ci
+SELECT * FROM v;
+with
+with
+DROP VIEW v;
+CREATE TABLE t1 (a int);
+explain WITH qne AS (SELECT a FROM t1),
+qnm AS (SELECT a FROM t1),
+qnea AS (SELECT a FROM t1),
+qnma AS (SELECT a FROM t1)
+SELECT qne.a,qnm.a,alias1.a,alias2.a
+FROM qne, qnm, qnea AS alias1, qnma AS alias2;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	system	NULL	NULL	NULL	NULL	0	Const row not found
+1	SIMPLE	t1	system	NULL	NULL	NULL	NULL	0	Const row not found
+1	SIMPLE	t1	system	NULL	NULL	NULL	NULL	0	Const row not found
+1	SIMPLE	t1	system	NULL	NULL	NULL	NULL	0	Const row not found
+DROP TABLE t1;
+# Automatic index creation if materialized
+CREATE TABLE t1 (a int);
+INSERT INTO t1(a) VALUES (1),(2),(3),(4),(5),(6),(7),(8),(9),(0);
+ANALYZE TABLE t1;
+Table	Op	Msg_type	Msg_text
+test.t1	analyze	status	OK
+flush STATUS;
+# Should use auto_key0 and ref access.
+explain WITH tt AS (SELECT * FROM t1) SELECT /*+ no_merge(tt) */ tt.a
+FROM t1 STRAIGHT_JOIN tt WHERE t1.a=tt.a LIMIT 1;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	10	#
+1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	10	#
+SHOW STATUS LIKE "handler_write";
+Variable_name	Value
+Handler_write	0
+flush STATUS;
+WITH tt AS (SELECT * FROM t1) SELECT /*+ no_merge(tt) */ tt.a
+FROM t1 STRAIGHT_JOIN tt WHERE t1.a=tt.a LIMIT 1;
+a
+1
+SHOW STATUS LIKE "handler_write";
+Variable_name	Value
+Handler_write	0
+# With two references
+WITH tt AS (SELECT * FROM t1) SELECT /*+ no_merge(tt) no_merge(tt_)*/ tt.a
+FROM t1 STRAIGHT_JOIN tt STRAIGHT_JOIN tt AS tt_
+WHERE t1.a=tt.a AND tt.a=tt_.a LIMIT 1;
+a
+1
+WITH q AS (SELECT * FROM t1)
+SELECT /*+ merge(q) no_merge(q1) */ * FROM q, q q1 WHERE q.a=1 AND q1.a=2;
+a	a
+1	2
+DROP TABLE t1;
+# Must not create more than 64 indexes.
+(SELECT max(c1) FROM qn WHERE qn.c1=1)	(SELECT max(c2) FROM qn WHERE qn.c2=1)	(SELECT max(c3) FROM qn WHERE qn.c3=1)	(SELECT max(c4) FROM qn WHERE qn.c4=1)	(SELECT max(c5) FROM qn WHERE qn.c5=1)	(SELECT max(c6) FROM qn WHERE qn.c6=1)	(SELECT max(c7) FROM qn WHERE qn.c7=1)	(SELECT max(c8) FROM qn WHERE qn.c8=1)	(SELECT max(c9) FROM qn WHERE qn.c9=1)	(SELECT max(c10) FROM qn WHERE qn.c10=1)	(SELECT max(c11) FROM qn WHERE qn.c11=1)	(SELECT max(c12) FROM qn WHERE qn.c12=1)	(SELECT max(c13) FROM qn WHERE qn.c13=1)	(SELECT max(c14) FROM qn WHERE qn.c14=1)	(SELECT max(c15) FROM qn WHERE qn.c15=1)	(SELECT max(c16) FROM qn WHERE qn.c16=1)	(SELECT max(c17) FROM qn WHERE qn.c17=1)	(SELECT max(c18) FROM qn WHERE qn.c18=1)	(SELECT max(c19) FROM qn WHERE qn.c19=1)	(SELECT max(c20) FROM qn WHERE qn.c20=1)	(SELECT max(c21) FROM qn WHERE qn.c21=1)	(SELECT max(c22) FROM qn WHERE qn.c22=1)	(SELECT max(c23) FROM qn WHERE qn.c23=1)	(SELECT max(c24) FROM qn WHERE qn.c24=1)	(SELECT max(c25) FROM qn WHERE qn.c25=1)	(SELECT max(c26) FROM qn WHERE qn.c26=1)	(SELECT max(c27) FROM qn WHERE qn.c27=1)	(SELECT max(c28) FROM qn WHERE qn.c28=1)	(SELECT max(c29) FROM qn WHERE qn.c29=1)	(SELECT max(c30) FROM qn WHERE qn.c30=1)	(SELECT max(c31) FROM qn WHERE qn.c31=1)	(SELECT max(c32) FROM qn WHERE qn.c32=1)	(SELECT max(c33) FROM qn WHERE qn.c33=1)	(SELECT max(c34) FROM qn WHERE qn.c34=1)	(SELECT max(c35) FROM qn WHERE qn.c35=1)	(SELECT max(c36) FROM qn WHERE qn.c36=1)	(SELECT max(c37) FROM qn WHERE qn.c37=1)	(SELECT max(c38) FROM qn WHERE qn.c38=1)	(SELECT max(c39) FROM qn WHERE qn.c39=1)	(SELECT max(c40) FROM qn WHERE qn.c40=1)	(SELECT max(c41) FROM qn WHERE qn.c41=1)	(SELECT max(c42) FROM qn WHERE qn.c42=1)	(SELECT max(c43) FROM qn WHERE qn.c43=1)	(SELECT max(c44) FROM qn WHERE qn.c44=1)	(SELECT max(c45) FROM qn WHERE qn.c45=1)	(SELECT max(c46) FROM qn WHERE qn.c46=1)	(SELECT max(c47) FROM qn WHERE qn.c47=1)	(SELECT max(c48) FROM qn WHERE qn.c48=1)	(SELECT max(c49) FROM qn WHERE qn.c49=1)	(SELECT max(c50) FROM qn WHERE qn.c50=1)	(SELECT max(c51) FROM qn WHERE qn.c51=1)	(SELECT max(c52) FROM qn WHERE qn.c52=1)	(SELECT max(c53) FROM qn WHERE qn.c53=1)	(SELECT max(c54) FROM qn WHERE qn.c54=1)	(SELECT max(c55) FROM qn WHERE qn.c55=1)	(SELECT max(c56) FROM qn WHERE qn.c56=1)	(SELECT max(c57) FROM qn WHERE qn.c57=1)	(SELECT max(c58) FROM qn WHERE qn.c58=1)	(SELECT max(c59) FROM qn WHERE qn.c59=1)	(SELECT max(c60) FROM qn WHERE qn.c60=1)	(SELECT max(c61) FROM qn WHERE qn.c61=1)	(SELECT max(c62) FROM qn WHERE qn.c62=1)	(SELECT max(c63) FROM qn WHERE qn.c63=1)	(SELECT max(c64) FROM qn WHERE qn.c64=1)	(SELECT max(c65) FROM qn WHERE qn.c65=1)	(SELECT max(c66) FROM qn WHERE qn.c66=1)	(SELECT max(c67) FROM qn WHERE qn.c67=1)	(SELECT max(c68) FROM qn WHERE qn.c68=1)	(SELECT max(c69) FROM qn WHERE qn.c69=1)	(SELECT max(c70) FROM qn WHERE qn.c70=1)	(SELECT max(c71) FROM qn WHERE qn.c71=1)	(SELECT max(c72) FROM qn WHERE qn.c72=1)	(SELECT max(c73) FROM qn WHERE qn.c73=1)	(SELECT max(c74) FROM qn WHERE qn.c74=1)	(SELECT max(c75) FROM qn WHERE qn.c75=1)	(SELECT max(c76) FROM qn WHERE qn.c76=1)	(SELECT max(c77) FROM qn WHERE qn.c77=1)	(SELECT max(c78) FROM qn WHERE qn.c78=1)	(SELECT max(c79) FROM qn WHERE qn.c79=1)	(SELECT max(c80) FROM qn WHERE qn.c80=1)	(SELECT max(c81) FROM qn WHERE qn.c81=1)	(SELECT max(c82) FROM qn WHERE qn.c82=1)	(SELECT max(c83) FROM qn WHERE qn.c83=1)	(SELECT max(c84) FROM qn WHERE qn.c84=1)	(SELECT max(c85) FROM qn WHERE qn.c85=1)	(SELECT max(c86) FROM qn WHERE qn.c86=1)	(SELECT max(c87) FROM qn WHERE qn.c87=1)	(SELECT max(c88) FROM qn WHERE qn.c88=1)	(SELECT max(c89) FROM qn WHERE qn.c89=1)	(SELECT max(c90) FROM qn WHERE qn.c90=1)	(SELECT max(c91) FROM qn WHERE qn.c91=1)	(SELECT max(c92) FROM qn WHERE qn.c92=1)	(SELECT max(c93) FROM qn WHERE qn.c93=1)	(SELECT max(c94) FROM qn WHERE qn.c94=1)	(SELECT max(c95) FROM qn WHERE qn.c95=1)	(SELECT max(c96) FROM qn WHERE qn.c96=1)	(SELECT max(c97) FROM qn WHERE qn.c97=1)	(SELECT max(c98) FROM qn WHERE qn.c98=1)	(SELECT max(c99) FROM qn WHERE qn.c99=1)	(SELECT max(c100) FROM qn WHERE qn.c100=1)
+NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL
+DROP TABLE t;
+# Choice between two auto_key:
+CREATE TABLE t1(a int, b int);
+INSERT INTO t1 VALUES (NULL, 6), (NULL, 10);
+# Test the covering key; note that MEMORY doesn't use a covering key (always reads the "data file"). But InnoDB does.
+EXPLAIN WITH t2 AS (SELECT * FROM t1)
+SELECT /*+ no_merge(t2) */ * FROM t2 WHERE (a = a OR b <= 6) AND (a IS NULL);
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	2	Using where
+WITH t2 AS (SELECT * FROM t1)
+SELECT /*+ no_merge(t2) */ * FROM t2 WHERE (a = a OR b <= 6) AND (a IS NULL);
+a	b
+NULL	6
+DROP TABLE t1;
+CREATE VIEW v1 AS SELECT "with";
+WITH v1 AS (SELECT * FROM v1) SELECT * FROM v1;
+with
+with
+DROP VIEW v1;
+CREATE VIEW v1 AS
+WITH qn AS (SELECT 1 AS col) SELECT * FROM qn;
+SELECT * FROM v1;
+col
+1
+DROP VIEW v1;
+CREATE TABLE t1(a int, b int);
+CREATE VIEW v1 AS
+WITH qn AS (SELECT a FROM t1), qn2 AS (SELECT b FROM t1)
+SELECT /*+ merge(qn) no_merge(qn2) */ qn.a,qn2.b FROM qn, qn2;
+explain SELECT * FROM v1;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	system	NULL	NULL	NULL	NULL	0	Const row not found
+1	SIMPLE	t1	system	NULL	NULL	NULL	NULL	0	Const row not found
+DROP VIEW v1;
+# Materializing view doesn't impose materializing query name
+CREATE algorithm=temptable VIEW v1 AS
+WITH qn AS (SELECT a FROM t1) SELECT qn.a  FROM qn;
+explain SELECT * FROM v1;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	PRIMARY	<derived2>	system	NULL	NULL	NULL	NULL	0	Const row not found
+2	DERIVED	NULL	NULL	NULL	NULL	NULL	NULL	NULL	no matching row in const table
+DROP VIEW v1;
+DROP TABLE t1;
+# CTE referenced four times, including in subqueries in other CTEs
+CREATE TABLE sales_days(day_of_sale DATE, amount INT);
+INSERT INTO sales_days VALUES
+('2015-01-02', 100), ('2015-01-05', 200), ('2015-02-02', 10),  ('2015-02-10', 100), ('2015-03-02', 10),  ('2015-03-18', 1);
+WITH
+# FIRST CTE: one ROW per MONTH, WITH amount sold ON ALL days OF MONTH
+sales_by_month(MONTH,total) AS 
+(SELECT MONTH(day_of_sale), sum(amount) FROM sales_days WHERE year(day_of_sale)=2015 GROUP BY MONTH(day_of_sale)),
+# SECOND CTE: best MONTH
+best_month(MONTH, total, award) AS
+(SELECT MONTH, total, "best" FROM sales_by_month WHERE total=(SELECT max(total) FROM sales_by_month)),
+# 3rd CTE: worst MONTH
+worst_month(MONTH, total, award) AS
+(SELECT MONTH, total, "worst" FROM sales_by_month WHERE total=(SELECT min(total) FROM sales_by_month))
+# Now SHOW results:
+SELECT * FROM best_month UNION ALL SELECT * FROM worst_month;
+MONTH	total	award
+1	300	best
+3	11	worst
+DROP TABLE sales_days;
+WITH qn AS (SELECT 1) SELECT * FROM qn, qn qn1;
+1	1
+1	1
+CREATE TABLE t1(a int);
+INSERT INTO t1 VALUES(1),(2);
+WITH qn(a) AS (SELECT 1 FROM t1 LIMIT 2) SELECT * FROM qn WHERE qn.a=(SELECT * FROM qn qn1 LIMIT 1) UNION SELECT 2;
+a
+1
+2
+DROP TABLE t1;
+SHOW STATUS LIKE 'Created_tmp_disk_tables';
+Variable_name	Value
+Created_tmp_disk_tables	0
+# On-disk tmp tables
+set big_tables=1;
+flush STATUS;
+CREATE TABLE t1(a int, b int, c int);
+INSERT INTO t1 VALUES(NULL,NULL,NULL),(2,3,4);
+WITH qn AS (SELECT a FROM t1) SELECT 1 FROM dual;
+1
+1
+WITH qn AS (SELECT a FROM t1), qn2 AS (SELECT b FROM t1) SELECT 1 FROM dual;
+1
+1
+WITH qn AS (SELECT a FROM t1), qn AS (SELECT b FROM t1) SELECT 1 FROM qn;
+ERROR HY000: Duplicate query name `qn` in WITH clause
+WITH qn AS (SELECT b AS a FROM t1) SELECT qn.a, qn2.a  FROM qn, qn AS qn2;
+a	a
+NULL	NULL
+3	NULL
+NULL	3
+3	3
+WITH qn AS (SELECT b AS a FROM t1), qn2 AS (SELECT c FROM t1 WHERE a IS NULL OR a>0)
+SELECT qn.a, qn2.c  FROM qn, qn2;
+a	c
+NULL	NULL
+3	NULL
+NULL	4
+3	4
+WITH qn AS (SELECT 10*a AS a FROM t1), qn2 AS (SELECT 3*a FROM qn)
+SELECT * FROM qn2;
+3*a
+NULL
+60
+WITH qn AS (SELECT a FROM t1), qn2 AS (SELECT a FROM qn)
+SELECT * FROM qn2;
+a
+NULL
+2
+WITH qn AS (SELECT b AS a FROM t1), qn2 AS (SELECT a FROM qn WHERE a IS NULL OR a>0)
+SELECT qn.a, qn2.a  FROM qn, qn2;
+a	a
+NULL	NULL
+3	NULL
+NULL	3
+3	3
+EXPLAIN WITH qn AS (SELECT b AS a FROM t1), qn2 AS (SELECT a FROM qn WHERE a IS NULL OR a>0)
+SELECT qn.a, qn2.a  FROM qn, qn2;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	2	
+1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	2	Using where; Using join buffer (flat, BNL join)
+WITH qn2 AS (SELECT a FROM qn WHERE a IS NULL OR a>0), qn AS (SELECT b AS a FROM t1)
+SELECT qn2.a  FROM qn2;
+ERROR 42S02: Table 'test.qn' doesn't exist
+WITH qn1 AS (WITH qn3 AS (SELECT * FROM qn2) SELECT * FROM qn3), qn2 AS (SELECT 1)
+SELECT * FROM qn1;
+ERROR 42S02: Table 'test.qn2' doesn't exist
+WITH qn0 AS (SELECT 1), qn1 AS (SELECT * FROM qn0), qn2 AS (SELECT 1), qn3 AS (SELECT 1 FROM qn1, qn2) 
+SELECT 1 FROM qn3;
+1
+1
+explain WITH qn AS (SELECT 1) SELECT 2;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	PRIMARY	NULL	NULL	NULL	NULL	NULL	NULL	NULL	No tables used
+WITH qn AS (SELECT 1) SELECT 2;
+2
+2
+WITH qn2 AS (SELECT a FROM qn WHERE a IS NULL OR a>0), qn AS (SELECT b AS a FROM qn2)
+SELECT qn.a  FROM qn;
+ERROR 42S02: Table 'test.qn' doesn't exist
+WITH qn AS (SELECT a FROM qn) SELECT qn.a FROM qn;
+ERROR 42S02: Table 'test.qn' doesn't exist
+WITH qn1 AS (SELECT a FROM qn3), qn2 AS (SELECT a FROM qn1),
+qn3 AS (SELECT a FROM t1), qn4 AS (SELECT a FROM qn2)
+SELECT a FROM qn4;
+ERROR 42S02: Table 'test.qn3' doesn't exist
+WITH qn AS (SELECT * FROM t1) SELECT (SELECT max(a) FROM qn);
+(SELECT max(a) FROM qn)
+2
+SELECT (WITH qn AS (SELECT 10*a AS a FROM t1), qn2 AS (SELECT 3*a AS b FROM qn) 
+SELECT * FROM qn2 LIMIT 1)
+FROM t1;
+(WITH qn AS (SELECT 10*a AS a FROM t1), qn2 AS (SELECT 3*a AS b FROM qn) 
+SELECT * FROM qn2 LIMIT 1)
+NULL
+NULL
+SELECT *
+FROM (WITH qn AS (SELECT 10*a AS a FROM t1), qn2 AS (SELECT 3*a AS b FROM qn)
+SELECT * FROM qn2)
+AS dt;
+b
+NULL
+60
+WITH qn AS (WITH qn2 AS (SELECT "qn2" AS a FROM t1) SELECT "qn", a FROM qn2)
+SELECT * FROM qn;
+qn	a
+qn	qn2
+qn	qn2
+# outer ref to a table, placed in a QN in a subq (later)
+CREATE VIEW v AS
+WITH qn AS (SELECT 10*a AS a FROM t1), qn2 AS (SELECT 3*a AS b FROM qn)
+SELECT * FROM qn2;
+SELECT * FROM v;
+b
+NULL
+60
+DROP VIEW v;
+CREATE TABLE t2
+WITH qn AS (SELECT 10*a AS a FROM t1), qn2 AS (SELECT 3*a AS b FROM qn)
+SELECT * FROM qn2;
+SELECT * FROM t2;
+b
+NULL
+60
+INSERT INTO t2
+WITH qn AS (SELECT 10*a AS a FROM t1), qn2 AS (SELECT 3*a AS b FROM qn)
+SELECT * FROM qn2;
+SELECT * FROM t2;
+b
+NULL
+60
+NULL
+60
+DROP TABLE t2;
+explain WITH qn AS (SELECT * FROM t1 LIMIT 10)
+SELECT (SELECT max(a) FROM qn WHERE a=0),
+(SELECT min(b) FROM qn WHERE b=3);
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	PRIMARY	NULL	NULL	NULL	NULL	NULL	NULL	NULL	No tables used
+4	SUBQUERY	<derived5>	ALL	NULL	NULL	NULL	NULL	2	Using where
+5	DERIVED	t1	ALL	NULL	NULL	NULL	NULL	2	
+3	SUBQUERY	<derived2>	ALL	NULL	NULL	NULL	NULL	2	Using where
+2	DERIVED	t1	ALL	NULL	NULL	NULL	NULL	2	
+WITH qn AS (SELECT * FROM t1 LIMIT 10)
+SELECT (SELECT max(a) FROM qn WHERE a=0),
+(SELECT min(b) FROM qn WHERE b=3);
+(SELECT max(a) FROM qn WHERE a=0)	(SELECT min(b) FROM qn WHERE b=3)
+NULL	3
+CREATE TABLE qn SELECT "base";
+SELECT * FROM qn;
+base
+base
+WITH qn AS (SELECT "with") SELECT * FROM qn;
+with
+with
+# In a non-recursive WITH, the scope of the QN doesn't extend to its
+# subquery, so "qn" inside AS() is the base table.
+WITH qn AS (SELECT * FROM qn) SELECT * FROM qn;
+base
+base
+# View doesn't look out to external QNs
+CREATE VIEW v AS SELECT * FROM qn;
+SELECT * FROM v;
+base
+base
+WITH qn AS (SELECT "with") SELECT * FROM v;
+base
+base
+WITH qn AS (SELECT * FROM v) SELECT * FROM qn;
+base
+base
+# Even if the base table is temporarily dropped
+DROP TABLE qn;
+WITH qn AS (SELECT "with") SELECT * FROM v;
+ERROR HY000: View 'test.v' references invalid table(s) or column(s) or function(s) or definer/invoker of view lack rights to use them
+WITH qn AS (SELECT * FROM v) SELECT * FROM qn;
+ERROR HY000: View 'test.v' references invalid table(s) or column(s) or function(s) or definer/invoker of view lack rights to use them
+CREATE TABLE qn SELECT "base" AS a;
+# Neither does SP
+CREATE FUNCTION f() RETURNS varchar(10) RETURN (SELECT * FROM qn);
+SELECT f();
+f()
+base
+WITH qn AS (SELECT "with") SELECT f();
+f()
+base
+WITH qn AS (SELECT f()) SELECT * FROM qn;
+f()
+base
+# QN shadows tmp table
+CREATE TEMPORARY TABLE qn SELECT "tmp" AS a;
+SELECT * FROM qn;
+a
+tmp
+WITH qn AS (SELECT "with") SELECT * FROM qn;
+with
+with
+DROP FUNCTION f;
+DROP VIEW v;
+WITH qn AS (SELECT "with") SELECT * FROM (SELECT "dt") AS qn;
+dt
+dt
+WITH qn AS (SELECT "outer" AS a) 
+SELECT (WITH qn AS (SELECT "inner" AS a) SELECT a FROM qn), qn.a FROM qn;
+(WITH qn AS (SELECT "inner" AS a) SELECT a FROM qn)	a
+inner	outer
+WITH test.qn AS (SELECT "with") SELECT * FROM test.qn;
+ERROR 42000: You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near '.qn AS (SELECT "with") SELECT * FROM test.qn' at line 1
+WITH qn AS (SELECT "with") SELECT * FROM qn;
+with
+with
+WITH qn AS (SELECT "with") SELECT * FROM test.qn;
+a
+tmp
+WITH qn AS (SELECT "with" AS a) SELECT a FROM qn;
+a
+with
+WITH qn AS (SELECT "with" AS a) SELECT qn.a FROM qn;
+a
+with
+WITH qn AS (SELECT "with" AS a) SELECT test.qn.a FROM qn;
+a
+with
+WITH qn AS (SELECT "with" AS a) SELECT a FROM test.qn;
+a
+tmp
+WITH qn AS (SELECT "with" AS a) SELECT qn.a FROM test.qn;
+a
+tmp
+WITH qn AS (SELECT "with" AS a) SELECT test.qn.a FROM test.qn;
+a
+tmp
+DROP TEMPORARY TABLE qn;
+WITH qn AS (SELECT "with" AS a) SELECT a FROM test.qn;
+a
+base
+WITH qn AS (SELECT "with" AS a) SELECT qn.a FROM test.qn;
+a
+base
+WITH qn AS (SELECT "with" AS a) SELECT test.qn.a FROM test.qn;
+a
+base
+DROP TABLE qn;
+WITH qn AS (SELECT "with" AS a) SELECT a FROM test.qn;
+ERROR 42S02: Table 'test.qn' doesn't exist
+WITH qn AS (SELECT "with" AS a) SELECT qn.a FROM test.qn;
+ERROR 42S02: Table 'test.qn' doesn't exist
+WITH qn AS (SELECT "with" AS a) SELECT test.qn.a FROM test.qn;
+ERROR 42S02: Table 'test.qn' doesn't exist
+WITH qn AS (SELECT b AS a FROM t1 UNION SELECT b+5 FROM t1), qn2 AS (SELECT a FROM qn WHERE a IS NULL OR a>0)
+SELECT qn.a FROM qn
+UNION SELECT qn2.a FROM qn2 WHERE qn2.a>3;
+a
+NULL
+3
+8
+WITH qn AS (SELECT "with" AS a)
+WITH qn2 AS (SELECT "with" AS a)
+SELECT a FROM test.qn;
+ERROR 42000: You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near 'WITH qn2 AS (SELECT "with" AS a)
+SELECT a FROM test.qn' at line 2
+# with comma
+WITH qn AS (SELECT "with" AS a),
+WITH qn2 AS (SELECT "with" AS a)
+SELECT a FROM test.qn;
+ERROR 42000: You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near 'WITH qn2 AS (SELECT "with" AS a)
+SELECT a FROM test.qn' at line 2
+# ORDER BY removed unless there is LIMIT or single table (check "Using filesort")
+explain extended WITH qn AS (SELECT a FROM t1 ORDER BY 1) SELECT a FROM qn;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	2	100.00	
+Warnings:
+Note	1003	with qn as (select `test`.`t1`.`a` AS `a` from `test`.`t1` order by 1)select `test`.`t1`.`a` AS `a` from `test`.`t1`
+explain extended WITH qn AS (SELECT a FROM t1 ORDER BY 1) SELECT qn.a FROM qn, t1 AS t2;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	2	100.00	
+1	SIMPLE	t2	ALL	NULL	NULL	NULL	NULL	2	100.00	Using join buffer (flat, BNL join)
+Warnings:
+Note	1003	with qn as (select `test`.`t1`.`a` AS `a` from `test`.`t1` order by 1)select `test`.`t1`.`a` AS `a` from `test`.`t1` join `test`.`t1` `t2`
+explain extended WITH qn AS (SELECT a FROM t1 ORDER BY 1 LIMIT 10) SELECT qn.a FROM qn, t1 AS t2;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	PRIMARY	<derived2>	ALL	NULL	NULL	NULL	NULL	2	100.00	
+1	PRIMARY	t2	ALL	NULL	NULL	NULL	NULL	2	100.00	Using join buffer (flat, BNL join)
+2	DERIVED	t1	ALL	NULL	NULL	NULL	NULL	2	100.00	Using filesort
+Warnings:
+Note	1003	with qn as (/* select#2 */ select `test`.`t1`.`a` AS `a` from `test`.`t1` order by 1 limit 10)/* select#1 */ select `qn`.`a` AS `a` from `qn` join `test`.`t1` `t2`
+# FD detection
+WITH qn AS (SELECT a, b FROM t1) SELECT b FROM qn GROUP BY a;
+b
+NULL
+3
+WITH qn AS (SELECT a, b FROM t1 WHERE a=b) SELECT b FROM qn GROUP BY a;
+b
+WITH qn AS (SELECT a, sum(b) AS s FROM t1 GROUP BY a) SELECT s FROM qn GROUP BY a;
+s
+NULL
+3
+# CTEs work if used in SET
+SET @myvar= (WITH qn AS (SELECT a, sum(b) AS s FROM t1 GROUP BY a)
+SELECT s FROM qn GROUP BY a HAVING s IS NOT NULL);
+SELECT @myvar;
+@myvar
+3
+# CTE works with semijoin
+explain WITH cte AS (SELECT * FROM t1 AS t2 LIMIT 1)
+SELECT * FROM t1 WHERE t1.a IN (SELECT a+0 FROM cte);
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	PRIMARY	t1	ALL	NULL	NULL	NULL	NULL	2	
+1	PRIMARY	<subquery3>	eq_ref	distinct_key	distinct_key	8	func	1	Using where
+3	MATERIALIZED	<derived2>	ALL	NULL	NULL	NULL	NULL	2	
+2	DERIVED	t2	ALL	NULL	NULL	NULL	NULL	2	
+WITH cte AS (SELECT * FROM t1 AS t2 LIMIT 1)
+SELECT * FROM t1 WHERE t1.a IN (SELECT a+0 FROM cte);
+a	b	c
+explain WITH cte AS (SELECT * FROM t1 AS t2)
+SELECT * FROM t1 WHERE t1.a IN (SELECT a+0 FROM cte);
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	PRIMARY	t1	ALL	NULL	NULL	NULL	NULL	2	
+1	PRIMARY	<subquery3>	eq_ref	distinct_key	distinct_key	8	func	1	Using where
+3	MATERIALIZED	t2	ALL	NULL	NULL	NULL	NULL	2	
+WITH cte AS (SELECT * FROM t1 AS t2)
+SELECT * FROM t1 WHERE t1.a IN (SELECT a+0 FROM cte);
+a	b	c
+2	3	4
+# Column names
+# empty list
+WITH qn () AS (SELECT 1) SELECT * FROM qn, qn qn1;
+ERROR 42000: You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near ') AS (SELECT 1) SELECT * FROM qn, qn qn1' at line 1
+WITH qn (foo, bar) AS (SELECT 1) SELECT * FROM qn, qn qn1;
+ERROR HY000: WITH column list and SELECT field list have different column counts
+explain WITH qn (foo, bar) AS (SELECT 1, 2 FROM t1 LIMIT 2) SELECT * FROM qn, qn qn1;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	PRIMARY	<derived2>	ALL	NULL	NULL	NULL	NULL	2	
+1	PRIMARY	<derived3>	ALL	NULL	NULL	NULL	NULL	2	Using join buffer (flat, BNL join)
+3	DERIVED	t1	ALL	NULL	NULL	NULL	NULL	2	
+2	DERIVED	t1	ALL	NULL	NULL	NULL	NULL	2	
+WITH qn (foo, bar) AS (SELECT 1, 2 FROM t1 LIMIT 2) SELECT * FROM qn, qn qn1;
+foo	bar	foo	bar
+1	2	1	2
+1	2	1	2
+1	2	1	2
+1	2	1	2
+WITH qn (foo, bar) AS (SELECT 1 AS col, 2 AS coll FROM t1 LIMIT 2) SELECT * FROM qn, qn qn1;
+foo	bar	foo	bar
+1	2	1	2
+1	2	1	2
+1	2	1	2
+1	2	1	2
+WITH qn (foo, bar) AS (SELECT 1 AS col, 2 AS coll UNION SELECT a,b FROM t1) SELECT qn1.bar FROM qn qn1;
+bar
+2
+NULL
+3
+WITH qn (foo, bar) AS (SELECT a, b FROM t1 LIMIT 2) SELECT qn.bar,foo FROM qn;
+bar	foo
+NULL	NULL
+3	2
+CREATE TABLE t3 WITH qn (foo, bar) AS (SELECT a, b FROM t1 LIMIT 2) SELECT bar,foo FROM qn;
+DESC t3;
+Field	Type	Null	Key	Default	Extra
+bar	int(11)	YES		NULL	
+foo	int(11)	YES		NULL	
+DROP TABLE t3;
+WITH qn (foo, bar) AS (SELECT 1 FROM t1) SELECT * FROM qn, qn qn1;
+ERROR HY000: WITH column list and SELECT field list have different column counts
+WITH qn (foo, bar) AS (SELECT 1, 2 FROM t1) SELECT * FROM qn, qn qn1;
+foo	bar	foo	bar
+1	2	1	2
+1	2	1	2
+1	2	1	2
+1	2	1	2
+explain WITH qn (foo, bar) AS (SELECT 1, 2 FROM t1) SELECT * FROM qn, qn qn1;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	2	
+1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	2	Using join buffer (flat, BNL join)
+WITH qn (foo, bar) AS (SELECT 1 AS col, 2 AS coll FROM t1) SELECT * FROM qn, qn qn1;
+foo	bar	foo	bar
+1	2	1	2
+1	2	1	2
+1	2	1	2
+1	2	1	2
+WITH qn (foo, bar) AS (SELECT a, b FROM t1) SELECT qn1.bar,foo FROM qn qn1;
+bar	foo
+NULL	NULL
+3	2
+CREATE TABLE t3 WITH qn (foo, bar) AS (SELECT a, b FROM t1) SELECT bar,foo FROM qn;
+DESC t3;
+Field	Type	Null	Key	Default	Extra
+bar	int(11)	YES		NULL	
+foo	int(11)	YES		NULL	
+DROP TABLE t3;
+# Disambiguates same-name expressions
+WITH qn AS (SELECT 1,1) SELECT * FROM qn;
+ERROR 42S21: Duplicate column name '1'
+WITH qn (foo, bar) AS (SELECT 1,1) SELECT * FROM qn;
+foo	bar
+1	1
+WITH qn AS (SELECT 1,1 FROM t1) SELECT * FROM qn;
+ERROR 42S21: Duplicate column name '1'
+WITH qn (foo, bar) AS (SELECT 1,1 FROM t1) SELECT * FROM qn;
+foo	bar
+1	1
+1	1
+WITH qn (foo, foo) AS (SELECT 1,2) SELECT * FROM qn;
+ERROR 42S21: Duplicate column name 'foo'
+CREATE VIEW v1 AS WITH qn (foo, bar) AS (SELECT 1,1) SELECT * FROM qn;
+SHOW CREATE VIEW v1;
+View	Create View	character_set_client	collation_connection
+v1	CREATE ALGORITHM=UNDEFINED DEFINER=`root`@`localhost` SQL SECURITY DEFINER VIEW `v1` AS with qn as (select 1 AS `foo`,1 AS `bar`)select `qn`.`foo` AS `foo`,`qn`.`bar` AS `bar` from `qn`	latin1	latin1_swedish_ci
+SHOW fields FROM v1;
+Field	Type	Null	Key	Default	Extra
+foo	int(1)	NO		0	
+bar	int(1)	NO		0	
+SELECT * FROM v1;
+foo	bar
+1	1
+DROP VIEW v1;
+CREATE VIEW v1 AS WITH qn (foo, bar) AS (SELECT 1,1 FROM t1) SELECT * FROM qn;
+SHOW CREATE VIEW v1;
+View	Create View	character_set_client	collation_connection
+v1	CREATE ALGORITHM=UNDEFINED DEFINER=`root`@`localhost` SQL SECURITY DEFINER VIEW `v1` AS with qn as (select 1 AS `foo`,1 AS `bar` from `t1`)select `qn`.`foo` AS `foo`,`qn`.`bar` AS `bar` from `qn`	latin1	latin1_swedish_ci
+SELECT * FROM v1;
+foo	bar
+1	1
+1	1
+DROP VIEW v1;
+CREATE VIEW v1 (bar) AS SELECT 1, 2 FROM t1;
+ERROR HY000: View's SELECT and view's field list have different column counts
+DROP TABLE t1;
+# Prove that a materialized QN is shared among all references:
+CREATE TABLE t1(a int);
+INSERT INTO t1 VALUES(1),(2),(3),(4);
+flush STATUS;
+WITH qn AS (SELECT 123 AS col) SELECT * FROM qn;
+col
+123
+SHOW STATUS LIKE "handler_write";
+Variable_name	Value
+Handler_write	0
+flush STATUS;
+WITH qn AS (SELECT 123 AS col) SELECT * FROM qn, qn AS qn1;
+col	col
+123	123
+SHOW STATUS LIKE "handler_write";
+Variable_name	Value
+Handler_write	0
+CREATE VIEW qn AS SELECT 123 AS col;
+flush STATUS;
+SELECT * FROM qn, qn AS qn1;
+col	col
+123	123
+SHOW STATUS LIKE "handler_write";
+Variable_name	Value
+Handler_write	0
+DROP VIEW qn;
+DROP TABLE t1;
+CREATE VIEW v AS SELECT (WITH qn AS (SELECT "with") SELECT * FROM qn) AS scal_subq FROM dual;
+SHOW CREATE VIEW v;
+View	Create View	character_set_client	collation_connection
+v	CREATE ALGORITHM=UNDEFINED DEFINER=`root`@`localhost` SQL SECURITY DEFINER VIEW `v` AS select (with qn as (select 'with' AS `with`)select `qn`.`with` from `qn`) AS `scal_subq`	latin1	latin1_swedish_ci
+SELECT * FROM v;
+scal_subq
+with
+DROP VIEW v;
+CREATE VIEW v AS SELECT * FROM (WITH qn AS (SELECT "with") SELECT * FROM qn) AS dt;
+SHOW CREATE VIEW v;
+View	Create View	character_set_client	collation_connection
+v	CREATE ALGORITHM=UNDEFINED DEFINER=`root`@`localhost` SQL SECURITY DEFINER VIEW `v` AS select `dt`.`with` AS `with` from (with qn as (select 'with' AS `with`)select `qn`.`with` AS `with` from `qn`) `dt`	latin1	latin1_swedish_ci
+SELECT * FROM v;
+with
+with
+DROP VIEW v;
+CREATE TABLE t1 (a int);
+explain WITH qne AS (SELECT a FROM t1),
+qnm AS (SELECT a FROM t1),
+qnea AS (SELECT a FROM t1),
+qnma AS (SELECT a FROM t1)
+SELECT qne.a,qnm.a,alias1.a,alias2.a
+FROM qne, qnm, qnea AS alias1, qnma AS alias2;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	system	NULL	NULL	NULL	NULL	0	Const row not found
+1	SIMPLE	t1	system	NULL	NULL	NULL	NULL	0	Const row not found
+1	SIMPLE	t1	system	NULL	NULL	NULL	NULL	0	Const row not found
+1	SIMPLE	t1	system	NULL	NULL	NULL	NULL	0	Const row not found
+DROP TABLE t1;
+# Automatic index creation if materialized
+CREATE TABLE t1 (a int);
+INSERT INTO t1(a) VALUES (1),(2),(3),(4),(5),(6),(7),(8),(9),(0);
+ANALYZE TABLE t1;
+Table	Op	Msg_type	Msg_text
+test.t1	analyze	status	OK
+flush STATUS;
+# Should use auto_key0 and ref access.
+explain WITH tt AS (SELECT * FROM t1) SELECT /*+ no_merge(tt) */ tt.a
+FROM t1 STRAIGHT_JOIN tt WHERE t1.a=tt.a LIMIT 1;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	10	#
+1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	10	#
+SHOW STATUS LIKE "handler_write";
+Variable_name	Value
+Handler_write	0
+flush STATUS;
+WITH tt AS (SELECT * FROM t1) SELECT /*+ no_merge(tt) */ tt.a
+FROM t1 STRAIGHT_JOIN tt WHERE t1.a=tt.a LIMIT 1;
+a
+1
+SHOW STATUS LIKE "handler_write";
+Variable_name	Value
+Handler_write	0
+# With two references
+WITH tt AS (SELECT * FROM t1) SELECT /*+ no_merge(tt) no_merge(tt_)*/ tt.a
+FROM t1 STRAIGHT_JOIN tt STRAIGHT_JOIN tt AS tt_
+WHERE t1.a=tt.a AND tt.a=tt_.a LIMIT 1;
+a
+1
+WITH q AS (SELECT * FROM t1)
+SELECT /*+ merge(q) no_merge(q1) */ * FROM q, q q1 WHERE q.a=1 AND q1.a=2;
+a	a
+1	2
+DROP TABLE t1;
+# Must not create more than 64 indexes.
+(SELECT max(c1) FROM qn WHERE qn.c1=1)	(SELECT max(c2) FROM qn WHERE qn.c2=1)	(SELECT max(c3) FROM qn WHERE qn.c3=1)	(SELECT max(c4) FROM qn WHERE qn.c4=1)	(SELECT max(c5) FROM qn WHERE qn.c5=1)	(SELECT max(c6) FROM qn WHERE qn.c6=1)	(SELECT max(c7) FROM qn WHERE qn.c7=1)	(SELECT max(c8) FROM qn WHERE qn.c8=1)	(SELECT max(c9) FROM qn WHERE qn.c9=1)	(SELECT max(c10) FROM qn WHERE qn.c10=1)	(SELECT max(c11) FROM qn WHERE qn.c11=1)	(SELECT max(c12) FROM qn WHERE qn.c12=1)	(SELECT max(c13) FROM qn WHERE qn.c13=1)	(SELECT max(c14) FROM qn WHERE qn.c14=1)	(SELECT max(c15) FROM qn WHERE qn.c15=1)	(SELECT max(c16) FROM qn WHERE qn.c16=1)	(SELECT max(c17) FROM qn WHERE qn.c17=1)	(SELECT max(c18) FROM qn WHERE qn.c18=1)	(SELECT max(c19) FROM qn WHERE qn.c19=1)	(SELECT max(c20) FROM qn WHERE qn.c20=1)	(SELECT max(c21) FROM qn WHERE qn.c21=1)	(SELECT max(c22) FROM qn WHERE qn.c22=1)	(SELECT max(c23) FROM qn WHERE qn.c23=1)	(SELECT max(c24) FROM qn WHERE qn.c24=1)	(SELECT max(c25) FROM qn WHERE qn.c25=1)	(SELECT max(c26) FROM qn WHERE qn.c26=1)	(SELECT max(c27) FROM qn WHERE qn.c27=1)	(SELECT max(c28) FROM qn WHERE qn.c28=1)	(SELECT max(c29) FROM qn WHERE qn.c29=1)	(SELECT max(c30) FROM qn WHERE qn.c30=1)	(SELECT max(c31) FROM qn WHERE qn.c31=1)	(SELECT max(c32) FROM qn WHERE qn.c32=1)	(SELECT max(c33) FROM qn WHERE qn.c33=1)	(SELECT max(c34) FROM qn WHERE qn.c34=1)	(SELECT max(c35) FROM qn WHERE qn.c35=1)	(SELECT max(c36) FROM qn WHERE qn.c36=1)	(SELECT max(c37) FROM qn WHERE qn.c37=1)	(SELECT max(c38) FROM qn WHERE qn.c38=1)	(SELECT max(c39) FROM qn WHERE qn.c39=1)	(SELECT max(c40) FROM qn WHERE qn.c40=1)	(SELECT max(c41) FROM qn WHERE qn.c41=1)	(SELECT max(c42) FROM qn WHERE qn.c42=1)	(SELECT max(c43) FROM qn WHERE qn.c43=1)	(SELECT max(c44) FROM qn WHERE qn.c44=1)	(SELECT max(c45) FROM qn WHERE qn.c45=1)	(SELECT max(c46) FROM qn WHERE qn.c46=1)	(SELECT max(c47) FROM qn WHERE qn.c47=1)	(SELECT max(c48) FROM qn WHERE qn.c48=1)	(SELECT max(c49) FROM qn WHERE qn.c49=1)	(SELECT max(c50) FROM qn WHERE qn.c50=1)	(SELECT max(c51) FROM qn WHERE qn.c51=1)	(SELECT max(c52) FROM qn WHERE qn.c52=1)	(SELECT max(c53) FROM qn WHERE qn.c53=1)	(SELECT max(c54) FROM qn WHERE qn.c54=1)	(SELECT max(c55) FROM qn WHERE qn.c55=1)	(SELECT max(c56) FROM qn WHERE qn.c56=1)	(SELECT max(c57) FROM qn WHERE qn.c57=1)	(SELECT max(c58) FROM qn WHERE qn.c58=1)	(SELECT max(c59) FROM qn WHERE qn.c59=1)	(SELECT max(c60) FROM qn WHERE qn.c60=1)	(SELECT max(c61) FROM qn WHERE qn.c61=1)	(SELECT max(c62) FROM qn WHERE qn.c62=1)	(SELECT max(c63) FROM qn WHERE qn.c63=1)	(SELECT max(c64) FROM qn WHERE qn.c64=1)	(SELECT max(c65) FROM qn WHERE qn.c65=1)	(SELECT max(c66) FROM qn WHERE qn.c66=1)	(SELECT max(c67) FROM qn WHERE qn.c67=1)	(SELECT max(c68) FROM qn WHERE qn.c68=1)	(SELECT max(c69) FROM qn WHERE qn.c69=1)	(SELECT max(c70) FROM qn WHERE qn.c70=1)	(SELECT max(c71) FROM qn WHERE qn.c71=1)	(SELECT max(c72) FROM qn WHERE qn.c72=1)	(SELECT max(c73) FROM qn WHERE qn.c73=1)	(SELECT max(c74) FROM qn WHERE qn.c74=1)	(SELECT max(c75) FROM qn WHERE qn.c75=1)	(SELECT max(c76) FROM qn WHERE qn.c76=1)	(SELECT max(c77) FROM qn WHERE qn.c77=1)	(SELECT max(c78) FROM qn WHERE qn.c78=1)	(SELECT max(c79) FROM qn WHERE qn.c79=1)	(SELECT max(c80) FROM qn WHERE qn.c80=1)	(SELECT max(c81) FROM qn WHERE qn.c81=1)	(SELECT max(c82) FROM qn WHERE qn.c82=1)	(SELECT max(c83) FROM qn WHERE qn.c83=1)	(SELECT max(c84) FROM qn WHERE qn.c84=1)	(SELECT max(c85) FROM qn WHERE qn.c85=1)	(SELECT max(c86) FROM qn WHERE qn.c86=1)	(SELECT max(c87) FROM qn WHERE qn.c87=1)	(SELECT max(c88) FROM qn WHERE qn.c88=1)	(SELECT max(c89) FROM qn WHERE qn.c89=1)	(SELECT max(c90) FROM qn WHERE qn.c90=1)	(SELECT max(c91) FROM qn WHERE qn.c91=1)	(SELECT max(c92) FROM qn WHERE qn.c92=1)	(SELECT max(c93) FROM qn WHERE qn.c93=1)	(SELECT max(c94) FROM qn WHERE qn.c94=1)	(SELECT max(c95) FROM qn WHERE qn.c95=1)	(SELECT max(c96) FROM qn WHERE qn.c96=1)	(SELECT max(c97) FROM qn WHERE qn.c97=1)	(SELECT max(c98) FROM qn WHERE qn.c98=1)	(SELECT max(c99) FROM qn WHERE qn.c99=1)	(SELECT max(c100) FROM qn WHERE qn.c100=1)
+NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL
+DROP TABLE t;
+# Choice between two auto_key:
+CREATE TABLE t1(a int, b int);
+INSERT INTO t1 VALUES (NULL, 6), (NULL, 10);
+# Test the covering key; note that MEMORY doesn't use a covering key (always reads the "data file"). But InnoDB does.
+EXPLAIN WITH t2 AS (SELECT * FROM t1)
+SELECT /*+ no_merge(t2) */ * FROM t2 WHERE (a = a OR b <= 6) AND (a IS NULL);
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	2	Using where
+WITH t2 AS (SELECT * FROM t1)
+SELECT /*+ no_merge(t2) */ * FROM t2 WHERE (a = a OR b <= 6) AND (a IS NULL);
+a	b
+NULL	6
+DROP TABLE t1;
+CREATE VIEW v1 AS SELECT "with";
+WITH v1 AS (SELECT * FROM v1) SELECT * FROM v1;
+with
+with
+DROP VIEW v1;
+CREATE VIEW v1 AS
+WITH qn AS (SELECT 1 AS col) SELECT * FROM qn;
+SELECT * FROM v1;
+col
+1
+DROP VIEW v1;
+CREATE TABLE t1(a int, b int);
+CREATE VIEW v1 AS
+WITH qn AS (SELECT a FROM t1), qn2 AS (SELECT b FROM t1)
+SELECT /*+ merge(qn) no_merge(qn2) */ qn.a,qn2.b FROM qn, qn2;
+explain SELECT * FROM v1;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	system	NULL	NULL	NULL	NULL	0	Const row not found
+1	SIMPLE	t1	system	NULL	NULL	NULL	NULL	0	Const row not found
+DROP VIEW v1;
+# Materializing view doesn't impose materializing query name
+CREATE algorithm=temptable VIEW v1 AS
+WITH qn AS (SELECT a FROM t1) SELECT qn.a  FROM qn;
+explain SELECT * FROM v1;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	PRIMARY	<derived2>	system	NULL	NULL	NULL	NULL	0	Const row not found
+2	DERIVED	NULL	NULL	NULL	NULL	NULL	NULL	NULL	no matching row in const table
+DROP VIEW v1;
+DROP TABLE t1;
+# CTE referenced four times, including in subqueries in other CTEs
+CREATE TABLE sales_days(day_of_sale DATE, amount INT);
+INSERT INTO sales_days VALUES
+('2015-01-02', 100), ('2015-01-05', 200), ('2015-02-02', 10),  ('2015-02-10', 100), ('2015-03-02', 10),  ('2015-03-18', 1);
+WITH
+# FIRST CTE: one ROW per MONTH, WITH amount sold ON ALL days OF MONTH
+sales_by_month(MONTH,total) AS 
+(SELECT MONTH(day_of_sale), sum(amount) FROM sales_days WHERE year(day_of_sale)=2015 GROUP BY MONTH(day_of_sale)),
+# SECOND CTE: best MONTH
+best_month(MONTH, total, award) AS
+(SELECT MONTH, total, "best" FROM sales_by_month WHERE total=(SELECT max(total) FROM sales_by_month)),
+# 3rd CTE: worst MONTH
+worst_month(MONTH, total, award) AS
+(SELECT MONTH, total, "worst" FROM sales_by_month WHERE total=(SELECT min(total) FROM sales_by_month))
+# Now SHOW results:
+SELECT * FROM best_month UNION ALL SELECT * FROM worst_month;
+MONTH	total	award
+1	300	best
+3	11	worst
+DROP TABLE sales_days;
+WITH qn AS (SELECT 1) SELECT * FROM qn, qn qn1;
+1	1
+1	1
+CREATE TABLE t1(a int);
+INSERT INTO t1 VALUES(1),(2);
+WITH qn(a) AS (SELECT 1 FROM t1 LIMIT 2) SELECT * FROM qn WHERE qn.a=(SELECT * FROM qn qn1 LIMIT 1) UNION SELECT 2;
+a
+1
+2
+DROP TABLE t1;
+SHOW STATUS LIKE 'Created_tmp_disk_tables';
+Variable_name	Value
+Created_tmp_disk_tables	116

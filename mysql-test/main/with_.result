@@ -1,0 +1,437 @@
+# privileges
+create database mysqltest1;
+use mysqltest1;
+create table t1(pub int, priv int);
+insert into t1 values(1,2);
+analyze table t1;
+Table	Op	Msg_type	Msg_text
+mysqltest1.t1	analyze	status	OK
+CREATE USER user1@localhost;
+GRANT SELECT (pub) ON mysqltest1.t1 TO user1@localhost;
+connect  user1, localhost, user1, ,;
+connection user1;
+use mysqltest1;
+select pub from t1;
+pub
+1
+select priv from t1;
+ERROR 42000: SELECT command denied to user 'user1'@'localhost' for column 'priv' in table 't1'
+select * from (select pub from t1) as dt;
+pub
+1
+explain select * from (select pub from t1) as dt;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	system	NULL	NULL	NULL	NULL	1	
+select /*+ merge(dt) */ * from (select priv from t1) as dt;
+ERROR 42000: SELECT command denied to user 'user1'@'localhost' for column 'priv' in table 't1'
+select /*+ no_merge(dt) */ * from (select priv from t1) as dt;
+ERROR 42000: SELECT command denied to user 'user1'@'localhost' for column 'priv' in table 't1'
+explain select * from (select priv from t1) as dt;
+ERROR 42000: SELECT command denied to user 'user1'@'localhost' for column 'priv' in table 't1'
+with qn as (select pub from t1) select * from qn;
+pub
+1
+explain with qn as (select pub from t1) select * from qn;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	system	NULL	NULL	NULL	NULL	1	
+with qn as (select priv from t1) select /*+ merge(qn) */ * from qn;
+ERROR 42000: SELECT command denied to user 'user1'@'localhost' for column 'priv' in table 't1'
+with qn as (select priv from t1) select /*+ no_merge(qn) */ * from qn;
+ERROR 42000: SELECT command denied to user 'user1'@'localhost' for column 'priv' in table 't1'
+explain with qn as (select priv from t1) select * from qn;
+ERROR 42000: SELECT command denied to user 'user1'@'localhost' for column 'priv' in table 't1'
+with qn2 as (with qn as (select pub from t1) select * from qn)
+select * from qn2;
+pub
+1
+with qn2 as (with qn as (select priv from t1) select * from qn)
+select * from qn2;
+ERROR 42000: SELECT command denied to user 'user1'@'localhost' for column 'priv' in table 't1'
+connection default;
+disconnect user1;
+drop user user1@localhost;
+drop database mysqltest1;
+# Verifying the CTE-specific output of EXPLAIN
+use test;
+CREATE TABLE t1(a int);
+INSERT INTO t1 VALUES(1),(2);
+explain format=json WITH qn(a) AS (SELECT 1 FROM t1 LIMIT 2)
+SELECT * FROM qn WHERE qn.a=(SELECT * FROM qn qn1 LIMIT 1) ;
+EXPLAIN
+{
+  "query_block": {
+    "select_id": 1,
+    "table": {
+      "table_name": "<derived2>",
+      "access_type": "ALL",
+      "rows": 2,
+      "filtered": 100,
+      "attached_condition": "qn.a = (subquery#3)",
+      "materialized": {
+        "query_block": {
+          "select_id": 2,
+          "table": {
+            "table_name": "t1",
+            "access_type": "ALL",
+            "rows": 2,
+            "filtered": 100
+          }
+        }
+      }
+    },
+    "subqueries": [
+      {
+        "query_block": {
+          "select_id": 3,
+          "table": {
+            "table_name": "<derived4>",
+            "access_type": "ALL",
+            "rows": 2,
+            "filtered": 100,
+            "materialized": {
+              "query_block": {
+                "select_id": 4,
+                "table": {
+                  "table_name": "t1",
+                  "access_type": "ALL",
+                  "rows": 2,
+                  "filtered": 100
+                }
+              }
+            }
+          }
+        }
+      }
+    ]
+  }
+}
+explain format=traditional WITH qn(a) AS (SELECT 1 FROM t1 LIMIT 2)
+SELECT * FROM qn WHERE qn.a=(SELECT * FROM qn qn1 LIMIT 1) ;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	PRIMARY	<derived2>	ALL	NULL	NULL	NULL	NULL	2	Using where
+3	SUBQUERY	<derived4>	ALL	NULL	NULL	NULL	NULL	2	
+4	DERIVED	t1	ALL	NULL	NULL	NULL	NULL	2	
+2	DERIVED	t1	ALL	NULL	NULL	NULL	NULL	2	
+explain format=json WITH qn AS (SELECT cast("x" AS char(100)) AS a FROM t1 LIMIT 2)
+SELECT (SELECT * FROM qn) FROM qn, qn qn1;
+EXPLAIN
+{
+  "query_block": {
+    "select_id": 1,
+    "table": {
+      "table_name": "<derived2>",
+      "access_type": "ALL",
+      "rows": 2,
+      "filtered": 100,
+      "materialized": {
+        "query_block": {
+          "select_id": 2,
+          "table": {
+            "table_name": "t1",
+            "access_type": "ALL",
+            "rows": 2,
+            "filtered": 100
+          }
+        }
+      }
+    },
+    "block-nl-join": {
+      "table": {
+        "table_name": "<derived5>",
+        "access_type": "ALL",
+        "rows": 2,
+        "filtered": 100
+      },
+      "buffer_type": "flat",
+      "buffer_size": "256Kb",
+      "join_type": "BNL",
+      "materialized": {
+        "query_block": {
+          "select_id": 5,
+          "table": {
+            "table_name": "t1",
+            "access_type": "ALL",
+            "rows": 2,
+            "filtered": 100
+          }
+        }
+      }
+    },
+    "subqueries": [
+      {
+        "query_block": {
+          "select_id": 3,
+          "table": {
+            "table_name": "<derived4>",
+            "access_type": "ALL",
+            "rows": 2,
+            "filtered": 100,
+            "materialized": {
+              "query_block": {
+                "select_id": 4,
+                "table": {
+                  "table_name": "t1",
+                  "access_type": "ALL",
+                  "rows": 2,
+                  "filtered": 100
+                }
+              }
+            }
+          }
+        }
+      }
+    ]
+  }
+}
+explain format=traditional WITH qn AS (SELECT cast("x" AS char(100)) AS a FROM t1 LIMIT 2)
+SELECT (SELECT * FROM qn) FROM qn, qn qn1;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	PRIMARY	<derived2>	ALL	NULL	NULL	NULL	NULL	2	
+1	PRIMARY	<derived5>	ALL	NULL	NULL	NULL	NULL	2	Using join buffer (flat, BNL join)
+5	DERIVED	t1	ALL	NULL	NULL	NULL	NULL	2	
+3	SUBQUERY	<derived4>	ALL	NULL	NULL	NULL	NULL	2	
+4	DERIVED	t1	ALL	NULL	NULL	NULL	NULL	2	
+2	DERIVED	t1	ALL	NULL	NULL	NULL	NULL	2	
+explain format=json WITH RECURSIVE qn AS (SELECT cast("x" AS char(100)) AS a FROM dual
+UNION ALL
+SELECT concat("x",qn.a) FROM qn,t1 
+WHERE length(qn.a)<10)
+SELECT * FROM qn;
+EXPLAIN
+{
+  "query_block": {
+    "select_id": 1,
+    "table": {
+      "table_name": "<derived2>",
+      "access_type": "ALL",
+      "rows": 2,
+      "filtered": 100,
+      "materialized": {
+        "query_block": {
+          "recursive_union": {
+            "table_name": "<union2,3>",
+            "access_type": "ALL",
+            "query_specifications": [
+              {
+                "query_block": {
+                  "select_id": 2,
+                  "table": {
+                    "message": "No tables used"
+                  }
+                }
+              },
+              {
+                "query_block": {
+                  "select_id": 3,
+                  "operation": "UNION",
+                  "table": {
+                    "table_name": "<derived2>",
+                    "access_type": "ALL",
+                    "rows": 2,
+                    "filtered": 100,
+                    "attached_condition": "octet_length(qn.a) < 10"
+                  },
+                  "block-nl-join": {
+                    "table": {
+                      "table_name": "t1",
+                      "access_type": "ALL",
+                      "rows": 2,
+                      "filtered": 100
+                    },
+                    "buffer_type": "flat",
+                    "buffer_size": "256Kb",
+                    "join_type": "BNL"
+                  }
+                }
+              }
+            ]
+          }
+        }
+      }
+    }
+  }
+}
+explain format=traditional WITH RECURSIVE qn AS (SELECT cast("x" AS char(100)) AS a FROM dual
+UNION ALL
+SELECT concat("x",qn.a) FROM qn,t1 
+WHERE length(qn.a)<10)
+SELECT * FROM qn;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	PRIMARY	<derived2>	ALL	NULL	NULL	NULL	NULL	2	
+2	DERIVED	NULL	NULL	NULL	NULL	NULL	NULL	NULL	No tables used
+3	RECURSIVE UNION	<derived2>	ALL	NULL	NULL	NULL	NULL	2	Using where
+3	RECURSIVE UNION	t1	ALL	NULL	NULL	NULL	NULL	2	Using join buffer (flat, BNL join)
+NULL	UNION RESULT	<union2,3>	ALL	NULL	NULL	NULL	NULL	NULL	
+DROP TABLE t1;
+CREATE TABLE t1(c1 DATETIME, c2 INT, KEY(c1));
+WITH RECURSIVE cte AS ( SELECT a.c1 AS field1, 0 AS cycle FROM (t1 AS a)
+UNION ALL SELECT b.c2 FROM cte AS a JOIN t1 AS b) SELECT * FROM cte;
+ERROR 21000: The used SELECT statements have a different number of columns
+DROP TABLE t1;
+CREATE TABLE A (
+col_date date,
+col_datetime_key datetime,
+col_time_key time,
+col_varchar_key varchar(1),
+col_int_key int(11),
+col_blob_key blob,
+col_varchar varchar(1),
+col_date_key date,
+col_time time,
+col_blob blob,
+pk int(11) NOT NULL AUTO_INCREMENT,
+col_int int(11),
+col_datetime datetime,
+PRIMARY KEY (pk),
+KEY col_datetime_key (col_datetime_key),
+KEY col_time_key (col_time_key),
+KEY col_varchar_key (col_varchar_key),
+KEY col_int_key (col_int_key),
+KEY col_blob_key (col_blob_key(255)),
+KEY col_date_key (col_date_key)
+) DEFAULT CHARSET=latin1;
+CREATE TABLE AA (
+col_varchar varchar(1),
+col_date date,
+col_varchar_key varchar(1),
+col_date_key date,
+col_datetime_key datetime,
+col_time_key time,
+pk int(11) NOT NULL AUTO_INCREMENT,
+col_time time,
+col_int_key int(11),
+col_datetime datetime,
+col_int int(11),
+col_blob blob,
+col_blob_key blob,
+PRIMARY KEY (pk),
+KEY col_varchar_key (col_varchar_key),
+KEY col_date_key (col_date_key),
+KEY col_datetime_key (col_datetime_key),
+KEY col_time_key (col_time_key),
+KEY col_int_key (col_int_key),
+KEY col_blob_key (col_blob_key(255))
+) DEFAULT CHARSET=latin1;
+CREATE TABLE BB (
+col_date date,
+col_blob_key blob,
+col_time time,
+col_varchar_key varchar(1),
+col_varchar varchar(1),
+col_blob blob,
+pk int(11) NOT NULL AUTO_INCREMENT,
+col_int_key int(11),
+col_datetime datetime,
+col_time_key time,
+col_datetime_key datetime,
+col_date_key date,
+col_int int(11),
+PRIMARY KEY (pk),
+KEY col_blob_key (col_blob_key(255)),
+KEY col_varchar_key (col_varchar_key),
+KEY col_int_key (col_int_key),
+KEY col_time_key (col_time_key),
+KEY col_datetime_key (col_datetime_key),
+KEY col_date_key (col_date_key)
+) AUTO_INCREMENT=11 DEFAULT CHARSET=latin1;
+CREATE TABLE D (
+col_varchar_key varchar(1),
+col_datetime datetime,
+col_date_key date,
+col_int int(11),
+col_time time,
+col_blob blob,
+col_int_key int(11),
+col_blob_key blob,
+col_varchar varchar(1),
+col_datetime_key datetime,
+col_date date,
+col_time_key time,
+pk int(11) NOT NULL AUTO_INCREMENT,
+PRIMARY KEY (pk),
+KEY col_varchar_key (col_varchar_key),
+KEY col_date_key (col_date_key),
+KEY col_int_key (col_int_key),
+KEY col_blob_key (col_blob_key(255)),
+KEY col_datetime_key (col_datetime_key),
+KEY col_time_key (col_time_key)
+) DEFAULT CHARSET=latin1;
+WITH RECURSIVE cte AS (
+SELECT alias1 . `col_blob_key` AS field1, 0 AS CYCLE
+FROM (BB AS alias1 , (D AS alias2 , AA AS alias3))
+WHERE (alias1 . pk = 225 OR (alias1 . col_int_key = 69 AND alias1 . col_blob_key = 'p'))
+UNION ALL
+SELECT t1.pk, t2.cycle
+FROM cte AS t2 JOIN A AS t1
+WHERE t2.field1 = t1.`col_int_key`
+AND t2.cycle =1 ) SELECT  * FROM cte;
+field1	CYCLE
+DROP TABLE A, AA, BB, D;
+create table t1(a int);
+with recursive cte as (select * from t1 union select * from cte) select * from cte;
+a
+insert into t1 values(1),(2);
+with recursive cte as (select * from t1 where 0 union select * from cte) select * from cte;
+a
+with recursive cte as (select * from t1 where a>3 union select * from cte) select * from cte;
+a
+drop table t1;
+CREATE TABLE D (col_int INT);
+CREATE TABLE C ( col_int2 INT, pk INT NOT NULL, col_int INT, PRIMARY KEY (pk));
+INSERT INTO C VALUES (7,1,3),(7,2,3),(5,3,4),(1,4,6),(5,5,2),(5,6,9),(4,7,9),(7,8,3),(3,9,0),(5,10,3);
+CREATE TABLE BB ( pk INT NOT NULL, col_int INT, PRIMARY KEY (pk));
+INSERT INTO BB VALUES (1,0),(2,6),(3,2),(4,5),(5,0);
+WITH RECURSIVE cte AS (
+SELECT alias2.col_int2 AS field1 FROM
+D AS alias1 RIGHT  JOIN
+( ( C AS alias2 LEFT  JOIN BB AS alias3
+ON (( alias3 . pk = alias2 . col_int ) AND ( alias3 . pk = alias2 . pk ) ) ) )
+ON (alias3 . col_int <> alias2 . col_int2 )
+HAVING field1 <= 0
+UNION
+SELECT cte.field1 FROM cte)
+SELECT * FROM cte;
+field1
+DROP TABLE BB,C,D;
+#
+SET SQL_BUFFER_RESULT = 1;
+WITH RECURSIVE cte AS (SELECT 1 AS n UNION SELECT n+1 FROM cte WHERE n<3) SELECT * FROM cte;
+n
+1
+2
+3
+WITH RECURSIVE cte AS (SELECT 1 AS n UNION ALL SELECT n+1 FROM cte WHERE n<3) SELECT * FROM cte;
+n
+1
+2
+3
+SET SQL_BUFFER_RESULT = DEFAULT;
+connect  con1, localhost, root,,;
+connect  con2, localhost, root,,;
+connection con1;
+connection con2;
+# Test that infinite WITH RECURSIVE can be killed
+connection con1;
+SET DEBUG_SYNC='in_WITH_RECURSIVE SIGNAL with_recursive_has_started';
+with recursive q (num, mark) as (
+select 1, "a"
+ union all select 1+num, "b" from q where mark="a"
+ union all select 1+num, "a" from q where mark="b"
+)select num from q;
+connection con2;
+SET DEBUG_SYNC='now WAIT_FOR with_recursive_has_started';
+Warnings:
+Warning	1639	debug sync point wait timed out
+KILL QUERY @id;
+connection con1;
+ERROR 70100: Query execution was interrupted
+SET DEBUG_SYNC= 'RESET';
+SELECT 1;
+1
+1
+connection con2;
+SET DEBUG_SYNC= 'RESET';
+connection con1;
+connection default;
+disconnect con1;
+disconnect con2;

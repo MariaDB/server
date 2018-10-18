@@ -1,0 +1,45 @@
+SET @@max_recursive_iterations = 1000000;
+SET @node_count=100000;
+SET @edge_count=floor(@node_count*2.4);
+CREATE TABLE edges(s int, e int)
+WITH RECURSIVE tmp(s,e,d) AS (
+SELECT 1, 2, 1
+UNION ALL
+SELECT floor(1+rand(3565659)*@node_count), floor(1+rand(2344291)*@node_count), d+1
+FROM tmp WHERE d<@edge_count)
+SELECT s,e FROM tmp;
+CREATE INDEX a ON edges(s);
+CREATE INDEX b ON edges(e);
+flush status;
+SET @start_node=60308;
+SELECT * FROM edges WHERE s=@start_node ORDER BY e;
+s	e
+60308	387
+60308	28766
+60308	83490
+WITH RECURSIVE closure AS (SELECT @start_node AS n UNION SELECT e FROM edges, closure WHERE s=closure.n)
+SELECT count(*),sum(n),sum(floor(n/20)*(n%20)) FROM closure;
+count(*)	sum(n)	sum(floor(n/20)*(n%20))
+87889	4389446208	2085971176
+WITH RECURSIVE closure AS (SELECT @start_node AS n UNION SELECT CASE WHEN s=closure.n THEN e ELSE s END 
+FROM edges, closure WHERE s=closure.n OR e=closure.n) SELECT count(*),sum(n),sum(floor(n/20)*(n%20)) FROM closure;
+count(*)	sum(n)	sum(floor(n/20)*(n%20))
+99178	4959579855	2355269804
+WITH RECURSIVE closure AS (SELECT @start_node AS n UNION SELECT e FROM edges, closure WHERE s=closure.n 
+UNION SELECT s FROM edges, closure WHERE e=closure.n) SELECT count(*),sum(n),sum(floor(n/20)*(n%20)) FROM closure;
+count(*)	sum(n)	sum(floor(n/20)*(n%20))
+99178	4959579855	2355269804
+SHOW status LIKE 'Created_tmp_disk_tables';
+Variable_name	Value
+Created_tmp_disk_tables	6
+SET @@tmp_table_size=1024,@@max_heap_table_size=16384;
+SET big_tables=0;
+WITH RECURSIVE closure AS
+(SELECT @start_node AS n UNION SELECT e FROM edges, closure WHERE s=closure.n)
+SELECT count(*),sum(n),sum(floor(n/20)*(n%20)) FROM closure;
+count(*)	sum(n)	sum(floor(n/20)*(n%20))
+87889	4389446208	2085971176
+SHOW status LIKE 'Created_tmp_disk_tables';
+Variable_name	Value
+Created_tmp_disk_tables	10
+DROP TABLE edges;
