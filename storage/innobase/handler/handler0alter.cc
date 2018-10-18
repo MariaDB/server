@@ -1059,6 +1059,21 @@ innobase_fts_check_doc_id_col(
 	return(false);
 }
 
+#if 1 // MDEV-17468: fix bugs with indexed virtual columns & remove this
+static bool has_virtual_index(const dict_table_t& table)
+{
+	const dict_index_t* index = table.indexes.start;
+	ut_ad(!index->has_virtual());
+	while ((index = index->indexes.next) != NULL) {
+		if (index->has_virtual()) {
+			ut_ad(table.n_v_cols);
+			return true;
+		}
+	}
+	return false;
+}
+#endif
+
 /** Check if InnoDB supports a particular alter table in-place
 @param altered_table TABLE object for new version of table.
 @param ha_alter_info Structure describing changes to be done
@@ -1240,6 +1255,9 @@ ha_innobase::check_if_supported_inplace_alter(
 
 	const bool supports_instant = m_prebuilt->table->supports_instant()
 		&& instant_alter_column_possible(ha_alter_info, table)
+#if 1 // MDEV-17468: fix bugs with indexed virtual columns & remove this
+		&& !has_virtual_index(*m_prebuilt->table)
+#endif
 #if 1 // MDEV-17459: adjust fts_fetch_doc_from_rec() and friends; remove this
 		&& !m_prebuilt->table->fts
 		&& !innobase_fulltext_exist(altered_table)
@@ -5700,6 +5718,9 @@ new_clustered_failed:
 
 	if (ctx->need_rebuild() && user_table->supports_instant()
 	    && instant_alter_column_possible(ha_alter_info, old_table)
+#if 1 // MDEV-17468: fix bugs with indexed virtual columns & remove this
+	    && !has_virtual_index(*user_table)
+#endif
 #if 1 // MDEV-17459: adjust fts_fetch_doc_from_rec() and friends; remove this
 	    && !user_table->fts
 	    && !innobase_fulltext_exist(altered_table)
