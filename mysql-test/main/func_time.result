@@ -5880,8 +5880,7 @@ ADDTIME(TIME'-838:59:59.99', '87649416:59:59') AS c2,
 ADDTIME(TIME'-838:59:59.999', '87649416:59:59') AS c3,
 ADDTIME(TIME'-838:59:59.9999', '87649416:59:59') AS c4,
 ADDTIME(TIME'-838:59:59.99999', '87649416:59:59') AS c5,
-ADDTIME(TIME'-838:59:59.999999', '87649416:59:59') AS c6,
-ADDTIME(TIME'-838:59:59.9999999', '87649416:59:59') AS c7;
+ADDTIME(TIME'-838:59:59.999999', '87649416:59:59') AS c6;
 ci	NULL
 c1	NULL
 c2	NULL
@@ -5889,11 +5888,7 @@ c3	NULL
 c4	NULL
 c5	NULL
 c6	NULL
-c7	NULL
 Warnings:
-Level	Note
-Code	1292
-Message	Truncated incorrect time value: '-838:59:59.9999999'
 Level	Warning
 Code	1292
 Message	Incorrect INTERVAL DAY TO SECOND value: '87649416:59:59'
@@ -5915,9 +5910,9 @@ Message	Incorrect INTERVAL DAY TO SECOND value: '87649416:59:59'
 Level	Warning
 Code	1292
 Message	Incorrect INTERVAL DAY TO SECOND value: '87649416:59:59'
-Level	Warning
-Code	1292
-Message	Incorrect INTERVAL DAY TO SECOND value: '87649416:59:59'
+SELECT
+ADDTIME(TIME'-838:59:59.9999999', '87649416:59:59') AS c7;
+c7	NULL
 # HOUR is max_useful_hour() (inside INTERVAL DAY TO SECOND range)
 # Expect max TIME(0) + zero fraction + TIME warnings + no INTEVAL warnings
 SELECT
@@ -6060,8 +6055,7 @@ ADDTIME(TIME'-838:59:59.99', '87649415:59:59') AS c2,
 ADDTIME(TIME'-838:59:59.999', '87649415:59:59') AS c3,
 ADDTIME(TIME'-838:59:59.9999', '87649415:59:59') AS c4,
 ADDTIME(TIME'-838:59:59.99999', '87649415:59:59') AS c5,
-ADDTIME(TIME'-838:59:59.999999', '87649415:59:59') AS c6,
-ADDTIME(TIME'-838:59:59.9999999', '87649415:59:59') AS c7;
+ADDTIME(TIME'-838:59:59.999999', '87649415:59:59') AS c6;
 ci	838:59:59
 c1	838:59:59.9
 c2	838:59:59.99
@@ -6069,11 +6063,7 @@ c3	838:59:59.999
 c4	838:59:59.9999
 c5	838:59:59.99999
 c6	838:59:59.999999
-c7	838:59:59.999999
 Warnings:
-Level	Note
-Code	1292
-Message	Truncated incorrect time value: '-838:59:59.9999999'
 Level	Warning
 Code	1292
 Message	Truncated incorrect time value: '87648577:00:00'
@@ -6095,9 +6085,9 @@ Message	Truncated incorrect time value: '87648576:59:59.000010'
 Level	Warning
 Code	1292
 Message	Truncated incorrect time value: '87648576:59:59.000001'
-Level	Warning
-Code	1292
-Message	Truncated incorrect time value: '87648576:59:59.000001'
+SELECT
+ADDTIME(TIME'-838:59:59.9999999', '87649415:59:59') AS c7;
+c7	838:59:59.999999
 #
 # MDEV-17400 The result of TIME('42949672965959-01') depends on architecture
 #

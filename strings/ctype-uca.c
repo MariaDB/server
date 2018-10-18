@@ -31410,6 +31410,28 @@ my_uca_can_be_previous_context_tail(const MY_CONTRACTIONS *list, my_wc_t wc)
 
 
 /**
+  Check if a character needs previous/next context handling:
+  - can be a previois context tail
+  - can be a contraction start
+
+  @param level    Pointer to an UCA weight level data
+  @param wc       Code point
+
+  @return
+  @retval   FALSE - does not need context handling
+  @retval   TRUE  - needs context handing
+*/
+
+static inline my_bool
+my_uca_needs_context_handling(const MY_UCA_WEIGHT_LEVEL *level, my_wc_t wc)
+{
+  return level->contractions.nitems > 0 &&
+         level->contractions.flags[wc & MY_UCA_CNT_FLAG_MASK] &
+         (MY_UCA_PREVIOUS_CONTEXT_TAIL | MY_UCA_CNT_HEAD);
+}
+
+
+/**
   Compare two wide character strings, wide analog to strncmp().
 
   @param a      Pointer to the first string
@@ -31542,6 +31564,60 @@ my_uca_previous_context_find(my_uca_scanner *scanner,
   }
   return NULL;
 }
+
+
+/*
+  Find a context dependent weight of a character.
+  @param scanner - UCA weight scanner. The caller should set
+                   its members "page" and "code" to the previous character
+                   (or to zeros if there is no a previous character).
+  @param wc      - an array of wide characters which has at least
+                   MY_UCA_MAX_CONTRACTION elements, where wc[0] is set
+                   to the current character (whose weight is being resolved).
+                   The values of wc[i>0] is not important, but if wc[0]
+                   appears to be a known contraction head, the function
+                   will collect further contraction parts into wc[i>0].
+                   If wc[0] and the previous character make a previous context
+                   pair, then wc[1] is set to the previous character.
+
+  @retval          NULL if could not find any contextual weights for wc[0]
+  @retval          non null pointer to a zero-terminated weight string otherwise
+*/
+static inline uint16 *
+my_uca_context_weight_find(my_uca_scanner *scanner, my_wc_t *wc)
+{
+  uint16 *cweight;
+  DBUG_ASSERT(scanner->level->contractions.nitems);
+  /*
+    If we have scanned a character which can have previous context,
+    and there were some more characters already before,
+    then reconstruct codepoint of the previous character
+    from "page" and "code" into w[1], and verify that {wc[1], wc[0]}
+    together form a real previous context pair.
+    Note, we support only 2-character long sequences with previous
+    context at the moment. CLDR does not have longer sequences.
+  */
+  if (my_uca_can_be_previous_context_tail(&scanner->level->contractions,
+                                          wc[0]) &&
+      scanner->wbeg != nochar &&     /* if not the very first character */
+      my_uca_can_be_previous_context_head(&scanner->level->contractions,
+                                          (wc[1]= ((scanner->page << 8) +
+                                                    scanner->code))) &&
+      (cweight= my_uca_previous_context_find(scanner, wc[1], wc[0])))
+  {
+    scanner->page= scanner->code= 0; /* Clear for the next character */
+    return cweight;
+  }
+  else if (my_uca_can_be_contraction_head(&scanner->level->contractions,
+                                          wc[0]))
+  {
+    /* Check if w[0] starts a contraction */
+    if ((cweight= my_uca_scanner_contraction_find(scanner, wc)))
+      return cweight;
+  }
+  return NULL;
+}
+
 
 /****************************************************************/
 
@@ -31931,6 +32007,23 @@ int my_wildcmp_uca(CHARSET_INFO *cs,
   return my_wildcmp_uca_impl(cs, str, str_end,
                              wildstr, wildend,
                              escape, w_one, w_many, 1);
+}
+
+
+/*
+  Tests if an optimized "no contraction" handler can be used for
+  the given collation.
+*/
+static my_bool
+my_uca_collation_can_optimize_no_contractions(CHARSET_INFO *cs)
+{
+  uint i;
+  for (i= 0; i < cs->levels_for_order ; i++)
+  {
+    if (my_uca_have_contractions_quick(&cs->uca->level[i]))
+      return FALSE;
+  }
+  return TRUE;
 }
 
 
@@ -33645,6 +33738,31 @@ static size_t my_strnxfrmlen_any_uca_multilevel(CHARSET_INFO *cs, size_t len)
 
 
 /*
+  This structure is used at the collation initialization time, to switch
+  from a full-featured collation handler to a "no contraction" collation
+  handler if the collation is known not to have any contractions.
+*/
+typedef struct
+{
+  MY_COLLATION_HANDLER *pad;
+  MY_COLLATION_HANDLER *nopad;
+  MY_COLLATION_HANDLER *multilevel_pad;
+  MY_COLLATION_HANDLER *multilevel_nopad;
+} MY_COLLATION_HANDLER_PACKAGE;
+
+
+static void my_uca_handler_map(struct charset_info_st *cs,
+                               const MY_COLLATION_HANDLER_PACKAGE *from,
+                               const MY_COLLATION_HANDLER_PACKAGE *to)
+{
+  if (cs->coll == from->pad)                   cs->coll= to->pad;
+  else if (cs->coll == from->nopad)            cs->coll= to->nopad;
+  else if (cs->coll == from->multilevel_pad)   cs->coll= to->multilevel_pad;
+  else if (cs->coll == from->multilevel_nopad) cs->coll= to->multilevel_nopad;
+}
+
+
+/*
   Define generic collation handlers for multi-level collations with tailoring:
 
     my_uca_collation_handler_nopad_multilevel_generic
@@ -33656,6 +33774,9 @@ static size_t my_strnxfrmlen_any_uca_multilevel(CHARSET_INFO *cs, size_t len)
 #define MY_FUNCTION_NAME(x)   my_uca_ ## x ## _generic
 #define MY_MB_WC(scanner, wc, beg, end) (scanner->cs->cset->mb_wc(scanner->cs, wc, beg, end))
 #define MY_LIKE_RANGE my_like_range_generic
+#define MY_UCA_ASCII_OPTIMIZE 0
+#define MY_UCA_COMPILE_CONTRACTIONS 1
+#define MY_UCA_COLL_INIT my_coll_init_uca
 #include "ctype-uca.ic"
 
 
@@ -33758,6 +33879,9 @@ ex:
 #define MY_FUNCTION_NAME(x)   my_uca_ ## x ## _ucs2
 #define MY_MB_WC(scanner, wc, beg, end) (my_mb_wc_ucs2_quick(wc, beg, end))
 #define MY_LIKE_RANGE my_like_range_generic
+#define MY_UCA_ASCII_OPTIMIZE 0
+#define MY_UCA_COMPILE_CONTRACTIONS 1
+#define MY_UCA_COLL_INIT my_coll_init_uca
 #include "ctype-uca.ic"
 
 
@@ -34711,11 +34835,37 @@ struct charset_info_st my_charset_ucs2_unicode_520_nopad_ci=
 
 #ifdef HAVE_CHARSET_utf8
 
+static my_bool
+my_uca_coll_init_utf8mb3(struct charset_info_st *cs, MY_CHARSET_LOADER *loader);
+
 #include "ctype-utf8.h"
 #define MY_FUNCTION_NAME(x)   my_uca_ ## x ## _utf8mb3
 #define MY_MB_WC(scanner, wc, beg, end) (my_mb_wc_utf8mb3_quick(wc, beg, end))
 #define MY_LIKE_RANGE my_like_range_mb
+#define MY_UCA_ASCII_OPTIMIZE 1
+#define MY_UCA_COMPILE_CONTRACTIONS 1
+#define MY_UCA_COLL_INIT my_uca_coll_init_utf8mb3
 #include "ctype-uca.ic"
+
+#define MY_FUNCTION_NAME(x)   my_uca_ ## x ## _no_contractions_utf8mb3
+#define MY_MB_WC(scanner, wc, beg, end) (my_mb_wc_utf8mb3_quick(wc, beg, end))
+#define MY_LIKE_RANGE my_like_range_mb
+#define MY_UCA_ASCII_OPTIMIZE 1
+#define MY_UCA_COMPILE_CONTRACTIONS 0
+#define MY_UCA_COLL_INIT my_uca_coll_init_utf8mb3
+#include "ctype-uca.ic"
+
+
+static my_bool
+my_uca_coll_init_utf8mb3(struct charset_info_st *cs, MY_CHARSET_LOADER *loader)
+{
+  if (my_coll_init_uca(cs, loader))
+    return TRUE;
+  if (my_uca_collation_can_optimize_no_contractions(cs))
+    my_uca_handler_map(cs, &my_uca_package_utf8mb3,
+                       &my_uca_package_no_contractions_utf8mb3);
+  return FALSE;
+}
 
 
 /* 
@@ -35690,10 +35840,37 @@ struct charset_info_st my_charset_utf8_unicode_520_nopad_ci=
 
 #ifdef HAVE_CHARSET_utf8mb4
 
+static my_bool
+my_uca_coll_init_utf8mb4(struct charset_info_st *cs, MY_CHARSET_LOADER *loader);
+
+
 #define MY_FUNCTION_NAME(x)   my_uca_ ## x ## _utf8mb4
 #define MY_MB_WC(scanner, wc, beg, end) (my_mb_wc_utf8mb4_quick(wc, beg, end))
 #define MY_LIKE_RANGE my_like_range_mb
+#define MY_UCA_ASCII_OPTIMIZE 1
+#define MY_UCA_COMPILE_CONTRACTIONS 1
+#define MY_UCA_COLL_INIT my_uca_coll_init_utf8mb4
 #include "ctype-uca.ic"
+
+#define MY_FUNCTION_NAME(x)   my_uca_ ## x ## _no_contractions_utf8mb4
+#define MY_MB_WC(scanner, wc, beg, end) (my_mb_wc_utf8mb4_quick(wc, beg, end))
+#define MY_LIKE_RANGE my_like_range_mb
+#define MY_UCA_ASCII_OPTIMIZE 1
+#define MY_UCA_COMPILE_CONTRACTIONS 0
+#define MY_UCA_COLL_INIT my_uca_coll_init_utf8mb4
+#include "ctype-uca.ic"
+
+
+static my_bool
+my_uca_coll_init_utf8mb4(struct charset_info_st *cs, MY_CHARSET_LOADER *loader)
+{
+  if (my_coll_init_uca(cs, loader))
+    return TRUE;
+  if (my_uca_collation_can_optimize_no_contractions(cs))
+    my_uca_handler_map(cs, &my_uca_package_utf8mb4,
+                       &my_uca_package_no_contractions_utf8mb4);
+  return FALSE;
+}
 
 
 extern MY_CHARSET_HANDLER my_charset_utf8mb4_handler;
@@ -36646,6 +36823,9 @@ struct charset_info_st my_charset_utf8mb4_unicode_520_nopad_ci=
 #define MY_FUNCTION_NAME(x)   my_uca_ ## x ## _utf32
 #define MY_MB_WC(scanner, wc, beg, end) (my_mb_wc_utf32_quick(wc, beg, end))
 #define MY_LIKE_RANGE my_like_range_generic
+#define MY_UCA_ASCII_OPTIMIZE 0
+#define MY_UCA_COMPILE_CONTRACTIONS 1
+#define MY_UCA_COLL_INIT my_coll_init_uca
 #include "ctype-uca.ic"
 
 
@@ -37601,6 +37781,9 @@ struct charset_info_st my_charset_utf32_unicode_520_nopad_ci=
 #define MY_FUNCTION_NAME(x)   my_uca_ ## x ## _utf16
 #define MY_MB_WC(scanner, wc, beg, end) (my_mb_wc_utf16_quick(wc, beg, end))
 #define MY_LIKE_RANGE my_like_range_generic
+#define MY_UCA_ASCII_OPTIMIZE 0
+#define MY_UCA_COMPILE_CONTRACTIONS 1
+#define MY_UCA_COLL_INIT my_coll_init_uca
 #include "ctype-uca.ic"
 
 
