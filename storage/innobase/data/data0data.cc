@@ -637,8 +637,12 @@ dtuple_convert_big_rec(
 	n_fields = 0;
 	ulint longest_i;
 
-	if (entry->is_alter_metadata()) {
-		longest_i = index->n_uniq + DATA_ROLL_PTR;
+	const bool mblob = entry->is_alter_metadata();
+	ut_ad(entry->n_fields >= index->first_user_field() + mblob);
+	ut_ad(entry->n_fields - mblob <= index->n_fields);
+
+	if (mblob) {
+		longest_i = index->first_user_field();
 		dfield = dtuple_get_nth_field(entry, longest_i);
 		local_len = BTR_EXTERN_FIELD_REF_SIZE;
 		goto ext_write;
@@ -659,11 +663,10 @@ dtuple_convert_big_rec(
 				      dict_index_get_n_fields(index),
 				      dict_table_page_size(index->table))) {
 		longest_i = 0;
-
 		for (ulint i = index->first_user_field(), longest = 0;
-		     i < entry->n_fields; i++) {
+		     i + mblob < entry->n_fields; i++) {
 			ulint	savings;
-			dfield = dtuple_get_nth_field(entry, i);
+			dfield = dtuple_get_nth_field(entry, i + mblob);
 
 			const dict_field_t* ifield = dict_index_get_nth_field(
 				index, i);
