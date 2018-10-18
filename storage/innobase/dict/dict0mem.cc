@@ -1610,21 +1610,14 @@ bool dict_table_t::deserialise_columns(const byte* metadata, ulint len)
 /** Find the old column number for the given new column position.
 @param[in]	col_map	column map from old column to new column
 @param[in]	pos	new column position
-@param[in]	n_cols	number of columns present in the column map
+@param[in]	n	number of columns present in the column map
 @return old column position for the given new column position. */
-static
-ulint find_old_col_no(
-	const ulint*	col_map,
-	ulint		pos,
-	ulint		n_cols)
+static ulint find_old_col_no(const ulint* col_map, ulint pos, ulint n)
 {
-	for (unsigned i = 0; i < n_cols; i++) {
-		if (col_map[i] == pos) {
-			return i;
-		}
-	}
-
-	return ULINT_UNDEFINED;
+	do {
+		ut_ad(n);
+	} while (col_map[--n] != pos);
+	return n;
 }
 
 /** Roll back instant_column().
