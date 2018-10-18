@@ -1560,7 +1560,8 @@ row_log_table_apply_convert_mrec(
 			= dict_field_get_col(ind_field);
 
 		if (col->is_dropped()) {
-			ut_ad(index->is_instant());
+			/* the column was instantly dropped earlier */
+			ut_ad(index->table->instant);
 			continue;
 		}
 
@@ -1568,6 +1569,7 @@ row_log_table_apply_convert_mrec(
 			= log->col_map[dict_col_get_no(col)];
 
 		if (col_no == ULINT_UNDEFINED) {
+			/* the column is being dropped now */
 			continue;
 		}
 

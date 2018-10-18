@@ -1603,21 +1603,6 @@ struct dict_table_t {
 		return NULL;
 	}
 
-	/** Get the n-drop columns till the given n_cols.
-	@param[in]	n_cols	number of old columns
-	@return	number of drop columns */
-	static unsigned get_n_drop_cols(const ulint* col_map, unsigned n_cols)
-	{
-		unsigned n_drop_cols = 0;
-		for (ulint i = 0; i < n_cols; i++) {
-			if (col_map[i] == ULINT_UNDEFINED) {
-				n_drop_cols++;
-			}
-		}
-
-		return n_drop_cols;
-	}
-
 	/** Serialise metadata of dropped or reordered columns.
 	@param[in,out]	heap	memory heap for allocation
 	@param[out]	field	data field with the metadata */
