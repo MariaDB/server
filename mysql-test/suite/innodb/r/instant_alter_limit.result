@@ -1,29 +1,29 @@
 SET @old_instant=
 (SELECT variable_value FROM information_schema.global_status
 WHERE variable_name = 'innodb_instant_alter_column');
-CREATE TABLE t(a INT PRIMARY KEY, b253 INT, c253 INT, d253 INT, e253 INT)
+CREATE TABLE t(a INT PRIMARY KEY, b INT, c INT, d INT, e INT)
 ENGINE=InnoDB;
 INSERT INTO t VALUES(1,2,3,4,5);
 SELECT * FROM t;
-b0	d0	a	c0	e0
+b	d	a	c	e
 NULL	NULL	1	NULL	NULL
-ALTER TABLE t DROP b0, DROP c0, DROP d0, DROP e0,
+ALTER TABLE t DROP b, DROP c, DROP d, DROP e,
 ADD COLUMN b INT, ALGORITHM=INSTANT;
 ERROR 0A000: ALGORITHM=INSTANT is not supported for this operation. Try ALGORITHM=INPLACE
-ALTER TABLE t CHANGE COLUMN b0 b INT AFTER a, ALGORITHM=INSTANT;
-ALTER TABLE t DROP e0, DROP c0, DROP d0, ALGORITHM=INSTANT;
+ALTER TABLE t CHANGE COLUMN b beta INT AFTER a, ALGORITHM=INSTANT;
+ALTER TABLE t DROP e, DROP c, DROP d, ALGORITHM=INSTANT;
 SELECT * FROM t;
-a	b
+a	beta
 1	NULL
-ALTER TABLE t DROP COLUMN b, ALGORITHM=INSTANT;
-ALTER TABLE t ADD COLUMN b INT, ALGORITHM=INSTANT;
+ALTER TABLE t DROP COLUMN beta, ALGORITHM=INSTANT;
+ALTER TABLE t ADD COLUMN b INT NOT NULL, ALGORITHM=INSTANT;
 ERROR 0A000: ALGORITHM=INSTANT is not supported for this operation. Try ALGORITHM=INPLACE
 SELECT variable_value-@old_instant instants
 FROM information_schema.global_status
 WHERE variable_name = 'innodb_instant_alter_column';
 instants
 256
-ALTER TABLE t ADD COLUMN b INT;
+ALTER TABLE t ADD COLUMN b INT NOT NULL;
 SELECT variable_value-@old_instant instants
 FROM information_schema.global_status
 WHERE variable_name = 'innodb_instant_alter_column';
@@ -31,5 +31,5 @@ instants
 256
 SELECT * FROM t;
 a	b
-1	NULL
+1	0
 DROP TABLE t;
