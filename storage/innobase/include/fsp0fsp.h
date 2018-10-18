@@ -647,7 +647,7 @@ fseg_free_step_not_header_func(
 UNIV_INLINE
 ibool
 fsp_descr_page(
-	const page_id_t&	page_id,
+	const page_id_t		page_id,
 	const page_size_t&	page_size);
 
 /***********************************************************//**

@@ -57,10 +57,7 @@ extern trx_sys_t*	trx_sys;
 /** Checks if a page address is the trx sys header page.
 @param[in]	page_id	page id
 @return true if trx sys header page */
-UNIV_INLINE
-bool
-trx_sys_hdr_page(
-	const page_id_t&	page_id);
+inline bool trx_sys_hdr_page(const page_id_t page_id);
 
 /** Initialize the transaction system main-memory data structures. */
 void trx_sys_init_at_db_start();

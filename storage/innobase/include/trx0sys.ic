@@ -54,10 +54,7 @@ trx_sys_flush_max_trx_id(void);
 /** Checks if a page address is the trx sys header page.
 @param[in]	page_id	page id
 @return true if trx sys header page */
-UNIV_INLINE
-bool
-trx_sys_hdr_page(
-	const page_id_t&	page_id)
+inline bool trx_sys_hdr_page(const page_id_t page_id)
 {
 	return(page_id.space() == TRX_SYS_SPACE
 	       && page_id.page_no() == TRX_SYS_PAGE_NO);

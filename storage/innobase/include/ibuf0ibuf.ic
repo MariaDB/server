@@ -156,7 +156,7 @@ ibuf_inside(
 UNIV_INLINE
 ibool
 ibuf_bitmap_page(
-	const page_id_t&	page_id,
+	const page_id_t		page_id,
 	const page_size_t&	page_size)
 {
 	return((page_id.page_no() & (page_size.physical() - 1))

@@ -265,7 +265,7 @@ i/o on a tablespace which does not exist */
 UNIV_INLINE
 dberr_t
 fil_read(
-	const page_id_t&	page_id,
+	const page_id_t		page_id,
 	const page_size_t&	page_size,
 	ulint			byte_offset,
 	ulint			len,
@@ -291,7 +291,7 @@ i/o on a tablespace which does not exist */
 UNIV_INLINE
 dberr_t
 fil_write(
-	const page_id_t&	page_id,
+	const page_id_t		page_id,
 	const page_size_t&	page_size,
 	ulint			byte_offset,
 	ulint			len,
@@ -4988,7 +4988,7 @@ dberr_t
 fil_io(
 	const IORequest&	type,
 	bool			sync,
-	const page_id_t&	page_id,
+	const page_id_t		page_id,
 	const page_size_t&	page_size,
 	ulint			byte_offset,
 	ulint			len,
@@ -5574,7 +5574,7 @@ Any other pages were written with uninitialized bytes in FIL_PAGE_TYPE.
 @param[in,out]	mtr	mini-transaction */
 void
 fil_page_reset_type(
-	const page_id_t&	page_id,
+	const page_id_t		page_id,
 	byte*			page,
 	ulint			type,
 	mtr_t*			mtr)
@@ -6310,4 +6310,26 @@ fil_space_set_punch_hole(
 	bool			val)
 {
 	node->space->punch_hole = val;
+}
+
+/** Check (and if needed, reset) the page type.
+Data files created before MySQL 5.1 may contain
+garbage in the FIL_PAGE_TYPE field.
+In MySQL 3.23.53, only undo log pages and index pages were tagged.
+Any other pages were written with uninitialized bytes in FIL_PAGE_TYPE.
+@param[in]	page_id	page number
+@param[in,out]	page	page with possibly invalid FIL_PAGE_TYPE
+@param[in]	type	expected page type
+@param[in,out]	mtr	mini-transaction */
+void
+fil_block_check_type(
+	const buf_block_t&	block,
+	ulint			type,
+	mtr_t*			mtr)
+{
+	ulint	page_type	= fil_page_get_type(block.frame);
+
+	if (page_type != type) {
+		fil_page_reset_type(block.page.id, block.frame, type, mtr);
+	}
 }

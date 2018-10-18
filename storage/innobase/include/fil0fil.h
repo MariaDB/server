@@ -40,8 +40,8 @@ Created 10/25/1995 Heikki Tuuri
 // Forward declaration
 extern ibool srv_use_doublewrite_buf;
 extern struct buf_dblwr_t* buf_dblwr;
-struct trx_t;
 class page_id_t;
+struct trx_t;
 class truncate_t;
 
 typedef std::list<char*, ut_allocator<char*> >	space_name_list_t;
@@ -1244,7 +1244,7 @@ dberr_t
 fil_io(
 	const IORequest&	type,
 	bool			sync,
-	const page_id_t&	page_id,
+	const page_id_t		page_id,
 	const page_size_t&	page_size,
 	ulint			byte_offset,
 	ulint			len,
@@ -1325,7 +1325,7 @@ Any other pages were written with uninitialized bytes in FIL_PAGE_TYPE.
 @param[in,out]	mtr	mini-transaction */
 void
 fil_page_reset_type(
-	const page_id_t&	page_id,
+	const page_id_t		page_id,
 	byte*			page,
 	ulint			type,
 	mtr_t*			mtr);
@@ -1349,31 +1349,11 @@ Any other pages were written with uninitialized bytes in FIL_PAGE_TYPE.
 @param[in,out]	page	page with possibly invalid FIL_PAGE_TYPE
 @param[in]	type	expected page type
 @param[in,out]	mtr	mini-transaction */
-inline
 void
-fil_page_check_type(
-	const page_id_t&	page_id,
-	byte*			page,
+fil_block_check_type(
+	const buf_block_t&	block,
 	ulint			type,
-	mtr_t*			mtr)
-{
-	ulint	page_type	= fil_page_get_type(page);
-
-	if (page_type != type) {
-		fil_page_reset_type(page_id, page, type, mtr);
-	}
-}
-
-/** Check (and if needed, reset) the page type.
-Data files created before MySQL 5.1 may contain
-garbage in the FIL_PAGE_TYPE field.
-In MySQL 3.23.53, only undo log pages and index pages were tagged.
-Any other pages were written with uninitialized bytes in FIL_PAGE_TYPE.
-@param[in,out]	block	block with possibly invalid FIL_PAGE_TYPE
-@param[in]	type	expected page type
-@param[in,out]	mtr	mini-transaction */
-#define fil_block_check_type(block, type, mtr)				\
-	fil_page_check_type(block->page.id, block->frame, type, mtr)
+	mtr_t*			mtr);
 
 #ifdef UNIV_DEBUG
 /** Increase redo skipped of a tablespace.
