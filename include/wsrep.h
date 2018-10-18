@@ -50,8 +50,8 @@
 #define WSREP_WARN(...)  WSREP_LOG(sql_print_warning,     ##__VA_ARGS__)
 #define WSREP_ERROR(...) WSREP_LOG(sql_print_error,       ##__VA_ARGS__)
 
-#define WSREP_SYNC_WAIT(thd_, before_)                                           \
-    { if (WSREP_CLIENT(thd_) &&                                                  \
+#define WSREP_SYNC_WAIT(thd_, before_)                                  \
+    { if (WSREP_CLIENT(thd_) &&                                         \
           wsrep_sync_wait(thd_, before_)) goto error; }
 
 #else
@@ -61,7 +61,7 @@
 #define WSREP_INFO(...)
 #define WSREP_WARN(...)
 #define WSREP_ERROR(...)
-#define WSREP_TO_ISOLATION_BEGIN(db_, table_, table_list_)
+#define WSREP_TO_ISOLATION_BEGIN(db_, table_, table_list_) do { } while(0)
 #define WSREP_TO_ISOLATION_BEGIN_ALTER(db_, table_, table_list_, alter_info_)
 #define WSREP_TO_ISOLATION_END
 #define WSREP_TO_ISOLATION_BEGIN_WRTCHK(db_, table_, table_list_)

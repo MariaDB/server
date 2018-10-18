@@ -3010,7 +3010,7 @@ static int mysql_create_routine(THD *thd, LEX *lex)
   if (sp_process_definer(thd))
     return true;
 
-  WSREP_TO_ISOLATION_BEGIN(WSREP_MYSQL_DB, NULL, NULL)
+  WSREP_TO_ISOLATION_BEGIN(WSREP_MYSQL_DB, NULL, NULL);
   if (!lex->sphead->m_handler->sp_create_routine(thd, lex->sphead))
   {
 #ifndef NO_EMBEDDED_ACCESS_CHECKS
