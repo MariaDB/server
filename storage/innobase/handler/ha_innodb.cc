@@ -9462,12 +9462,14 @@ ha_innobase::change_active_index(
 		}
 #endif
 	} else {
-		dtuple_set_n_fields(m_prebuilt->search_tuple,
-				    m_prebuilt->index->n_fields);
+		ulint n_fields = dict_index_get_n_unique_in_tree(
+			m_prebuilt->index);
+
+		dtuple_set_n_fields(m_prebuilt->search_tuple, n_fields);
 
 		dict_index_copy_types(
 			m_prebuilt->search_tuple, m_prebuilt->index,
-			m_prebuilt->index->n_fields);
+			n_fields);
 
 		/* If it's FTS query and FTS_DOC_ID exists FTS_DOC_ID field is
 		always added to read_set. */

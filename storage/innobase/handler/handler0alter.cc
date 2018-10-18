@@ -883,14 +883,47 @@ check_v_col_in_order(
 }
 
 /** Determine if an instant operation is possible for altering columns.
+@param[in]	ib_table	InnoDB table definition
 @param[in]	ha_alter_info	the ALTER TABLE operation
 @param[in]	table		table definition before ALTER TABLE */
 static
 bool
 instant_alter_column_possible(
+	const dict_table_t&		ib_table,
 	const Alter_inplace_info*	ha_alter_info,
 	const TABLE*			table)
 {
+	if (!ib_table.supports_instant()) {
+		return false;
+	}
+#if 1 // MDEV-17459: adjust fts_fetch_doc_from_rec() and friends; remove this
+	if (ib_table.fts) {
+		return false;
+	}
+#endif
+	const dict_index_t* index = ib_table.indexes.start;
+	if (ha_alter_info->handler_flags & ALTER_ADD_STORED_BASE_COLUMN) {
+		List_iterator_fast<Create_field> cf_it(
+			ha_alter_info->alter_info->create_list);
+		uint n_add = 0;
+		while (const Create_field* cf = cf_it++) {
+			n_add += !cf->field;
+		}
+		if (index->n_fields >= REC_MAX_N_USER_FIELDS + DATA_N_SYS_COLS
+		    - n_add) {
+			return false;
+		}
+	}
+#if 1 // MDEV-17468: fix bugs with indexed virtual columns & remove this
+	ut_ad(index->is_primary());
+	ut_ad(!index->has_virtual());
+	while ((index = index->indexes.next) != NULL) {
+		if (index->has_virtual()) {
+			ut_ad(ib_table.n_v_cols);
+			return false;
+		}
+	}
+#endif
 	// Making table system-versioned instantly is not implemented yet.
 	if (ha_alter_info->handler_flags & ALTER_ADD_SYSTEM_VERSIONING) {
 		return false;
@@ -1058,21 +1091,6 @@ innobase_fts_check_doc_id_col(
 
 	return(false);
 }
-
-#if 1 // MDEV-17468: fix bugs with indexed virtual columns & remove this
-static bool has_virtual_index(const dict_table_t& table)
-{
-	const dict_index_t* index = table.indexes.start;
-	ut_ad(!index->has_virtual());
-	while ((index = index->indexes.next) != NULL) {
-		if (index->has_virtual()) {
-			ut_ad(table.n_v_cols);
-			return true;
-		}
-	}
-	return false;
-}
-#endif
 
 /** Check if InnoDB supports a particular alter table in-place
 @param altered_table TABLE object for new version of table.
@@ -1253,18 +1271,8 @@ ha_innobase::check_if_supported_inplace_alter(
 		DBUG_RETURN(HA_ALTER_INPLACE_NOT_SUPPORTED);
 	}
 
-	const bool supports_instant = m_prebuilt->table->supports_instant()
-		&& instant_alter_column_possible(ha_alter_info, table)
-#if 1 // MDEV-17468: fix bugs with indexed virtual columns & remove this
-		&& !has_virtual_index(*m_prebuilt->table)
-#endif
-#if 1 // MDEV-17459: adjust fts_fetch_doc_from_rec() and friends; remove this
-		&& !m_prebuilt->table->fts
-		&& !innobase_fulltext_exist(altered_table)
-		&& !innobase_fulltext_exist(table)
-#endif
-		;
-
+	const bool supports_instant = instant_alter_column_possible(
+		*m_prebuilt->table, ha_alter_info, table);
 	bool	add_drop_v_cols = false;
 
 	/* If there is add or drop virtual columns, we will support operations
@@ -5716,15 +5724,10 @@ new_clustered_failed:
 			    == !!new_clustered);
 	}
 
-	if (ctx->need_rebuild() && user_table->supports_instant()
-	    && instant_alter_column_possible(ha_alter_info, old_table)
-#if 1 // MDEV-17468: fix bugs with indexed virtual columns & remove this
-	    && !has_virtual_index(*user_table)
-#endif
+	if (ctx->need_rebuild() && instant_alter_column_possible(
+		    *user_table, ha_alter_info, old_table)
 #if 1 // MDEV-17459: adjust fts_fetch_doc_from_rec() and friends; remove this
-	    && !user_table->fts
-	    && !innobase_fulltext_exist(altered_table)
-	    && !innobase_fulltext_exist(old_table)
+		&& !innobase_fulltext_exist(altered_table)
 #endif
 	    ) {
 		for (uint a = 0; a < ctx->num_to_add_index; a++) {
