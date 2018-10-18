@@ -3029,7 +3029,7 @@ void* start_wsrep_THD(void *arg)
   thd->proc_info= 0;
   thd->set_command(COM_SLEEP);
   thd->init_for_queries();
-
+  DBUG_ASSERT(current_thd);
   mysql_mutex_lock(&LOCK_thread_count);
   wsrep_running_threads++;
   mysql_cond_broadcast(&COND_thread_count);
@@ -3038,10 +3038,13 @@ void* start_wsrep_THD(void *arg)
   WSREP_DEBUG("wsrep system thread %llu, %p starting",
               thd->thread_id, thd);
   thd_args->fun()(thd, thd_args->args());
-  
+
   WSREP_DEBUG("wsrep system thread: %llu, %p closing",
               thd->thread_id, thd);
-  //processor(thd);
+
+  /* Wsrep may reset globals during thread context switches, store globals
+     before cleanup. */
+  thd->store_globals();
 
   close_connection(thd, 0);
 
@@ -3052,7 +3055,7 @@ void* start_wsrep_THD(void *arg)
   WSREP_DEBUG("wsrep running threads now: %lu", wsrep_running_threads);
   mysql_cond_broadcast(&COND_thread_count);
   mysql_mutex_unlock(&LOCK_thread_count);
-
+  DBUG_ASSERT(current_thd);
   // Note: We can't call THD destructor without crashing
   // if plugins have not been initialized. However, in most of the
   // cases this means that pre SE initialization SST failed and

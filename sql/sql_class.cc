@@ -1254,7 +1254,6 @@ void THD::init(bool skip_lock)
   first_successful_insert_id_in_prev_stmt_for_binlog= 0;
   first_successful_insert_id_in_cur_stmt= 0;
 #ifdef WITH_WSREP
-  mysql_cond_init(key_COND_wsrep_thd, &COND_wsrep_thd, NULL);
   wsrep_last_query_id= 0;
   wsrep_xid.null();
   wsrep_skip_locking= FALSE;
@@ -1625,7 +1624,6 @@ void THD::reset_for_reuse()
   active_vio = 0;
 #endif
 #ifdef WITH_WSREP
-  mysql_cond_destroy(&COND_wsrep_thd);
   wsrep_free_status(this);
 #endif /* WITH_WSREP */
 }
@@ -1667,6 +1665,7 @@ THD::~THD()
     delete wsrep_rgi;
     wsrep_rgi = NULL;
   }
+  mysql_cond_destroy(&COND_wsrep_thd);
 #endif
   mdl_context.destroy();
 
