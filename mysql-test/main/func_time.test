@@ -2954,8 +2954,14 @@ SELECT
   ADDTIME(TIME'-838:59:59.999', '87649416:59:59') AS c3,
   ADDTIME(TIME'-838:59:59.9999', '87649416:59:59') AS c4,
   ADDTIME(TIME'-838:59:59.99999', '87649416:59:59') AS c5,
-  ADDTIME(TIME'-838:59:59.999999', '87649416:59:59') AS c6,
+  ADDTIME(TIME'-838:59:59.999999', '87649416:59:59') AS c6;
+
+# This does not give a warning about nanosecond truncation in --ps runs
+# so disable warnings
+--disable_warnings
+SELECT
   ADDTIME(TIME'-838:59:59.9999999', '87649416:59:59') AS c7;
+--enable_warnings
 
 --echo # HOUR is max_useful_hour() (inside INTERVAL DAY TO SECOND range)
 --echo # Expect max TIME(0) + zero fraction + TIME warnings + no INTEVAL warnings
@@ -3001,9 +3007,14 @@ SELECT
   ADDTIME(TIME'-838:59:59.999', '87649415:59:59') AS c3,
   ADDTIME(TIME'-838:59:59.9999', '87649415:59:59') AS c4,
   ADDTIME(TIME'-838:59:59.99999', '87649415:59:59') AS c5,
-  ADDTIME(TIME'-838:59:59.999999', '87649415:59:59') AS c6,
-  ADDTIME(TIME'-838:59:59.9999999', '87649415:59:59') AS c7;
+  ADDTIME(TIME'-838:59:59.999999', '87649415:59:59') AS c6;
 
+# This does not give a warning about nanosecond truncation in --ps runs
+# so disable warnings
+--disable_warnings
+SELECT
+  ADDTIME(TIME'-838:59:59.9999999', '87649415:59:59') AS c7;
+--enable_warnings
 
 --horizontal_results
 
