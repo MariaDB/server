@@ -3171,7 +3171,7 @@ bool JOIN::make_aggr_tables_info()
         remove_duplicates() assumes there is a preceding computation step (and
         in the degenerate join, there's none)
       */
-      if (top_join_tab_count)
+      if (top_join_tab_count && tables_list)
         curr_tab->distinct= true;
 
       having= NULL;
