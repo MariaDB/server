@@ -133,6 +133,122 @@ static const alter_table_operations INNOBASE_ALTER_INSTANT
 	| ALTER_COLUMN_UNVERSIONED
 	| ALTER_DROP_VIRTUAL_COLUMN;
 
+/** Find the old column number for the given new column position.
+@param[in]	col_map	column map from old column to new column
+@param[in]	pos	new column position
+@param[in]	n	number of columns present in the column map
+@return old column position for the given new column position. */
+static ulint find_old_col_no(const ulint* col_map, ulint pos, ulint n)
+{
+	do {
+		ut_ad(n);
+	} while (col_map[--n] != pos);
+	return n;
+}
+
+/** Roll back instant_column().
+@param[in]	old_n_cols		original n_cols
+@param[in]	old_cols		original cols
+@param[in]	old_col_names		original col_names
+@param[in]	old_instant		original instant structure
+@param[in]	old_fields		original fields
+@param[in]	old_n_fields		original number of fields
+@param[in]	old_n_v_cols		original n_v_cols
+@param[in]	old_v_cols		original v_cols
+@param[in]	old_v_col_names		original v_col_names
+@param[in]	col_map			column map */
+inline void dict_table_t::rollback_instant(
+	unsigned	old_n_cols,
+	dict_col_t*	old_cols,
+	const char*	old_col_names,
+	dict_instant_t*	old_instant,
+	dict_field_t*	old_fields,
+	unsigned	old_n_fields,
+	unsigned	old_n_v_cols,
+	dict_v_col_t*	old_v_cols,
+	const char*	old_v_col_names,
+	const ulint*	col_map)
+{
+	ut_ad(mutex_own(&dict_sys->mutex));
+	dict_index_t* index = indexes.start;
+	/* index->is_instant() does not necessarily hold here, because
+	the table may have been emptied */
+	DBUG_ASSERT(old_n_cols >= DATA_N_SYS_COLS);
+	DBUG_ASSERT(n_cols == n_def);
+	DBUG_ASSERT(index->n_def == index->n_fields);
+	DBUG_ASSERT(index->n_core_fields <= old_n_fields);
+	DBUG_ASSERT(index->n_core_fields <= index->n_fields);
+	DBUG_ASSERT(instant || !old_instant);
+
+	instant = old_instant;
+
+	index->n_nullable = 0;
+
+	for (unsigned i = old_n_fields; i--; ) {
+		if (old_fields[i].col->is_nullable()) {
+			index->n_nullable++;
+		}
+	}
+
+	for (unsigned i = n_v_cols; i--; ) {
+		UT_DELETE(v_cols[i].v_indexes);
+	}
+
+	index->n_def = index->n_fields = old_n_fields;
+
+	const dict_col_t* const new_cols = cols;
+	const dict_col_t* const new_cols_end = cols + n_cols;
+	const dict_v_col_t* const new_v_cols = v_cols;
+	const dict_v_col_t* const new_v_cols_end = v_cols + n_v_cols;
+
+	cols = old_cols;
+	col_names = old_col_names;
+	v_cols = old_v_cols;
+	v_col_names = old_v_col_names;
+	n_def = n_cols = old_n_cols;
+	n_v_def = n_v_cols = old_n_v_cols;
+	n_t_def = n_t_cols = n_cols + n_v_cols;
+
+	index->fields = old_fields;
+
+	while ((index = dict_table_get_next_index(index)) != NULL) {
+		if (index->to_be_dropped) {
+			/* instant_column() did not adjust these indexes. */
+			continue;
+		}
+
+		for (unsigned i = 0; i < index->n_fields; i++) {
+			dict_field_t& f = index->fields[i];
+			if (f.col->is_virtual()) {
+				DBUG_ASSERT(f.col >= &new_v_cols->m_col);
+				DBUG_ASSERT(f.col < &new_v_cols_end->m_col);
+				size_t n = size_t(
+					reinterpret_cast<dict_v_col_t*>(f.col)
+					- new_v_cols);
+				DBUG_ASSERT(n <= n_v_cols);
+
+				ulint old_col_no = find_old_col_no(
+					col_map + n_cols, n, n_v_cols);
+				DBUG_ASSERT(old_col_no <= n_v_cols);
+				f.col = &v_cols[old_col_no].m_col;
+				DBUG_ASSERT(f.col->is_virtual());
+			} else {
+				DBUG_ASSERT(f.col >= new_cols);
+				DBUG_ASSERT(f.col < new_cols_end);
+				size_t n = size_t(f.col - new_cols);
+				DBUG_ASSERT(n <= n_cols);
+
+				ulint old_col_no = find_old_col_no(col_map,
+								   n, n_cols);
+				DBUG_ASSERT(old_col_no < n_cols);
+				f.col = &cols[old_col_no];
+				DBUG_ASSERT(!f.col->is_virtual());
+			}
+			f.name = f.col->name(*this);
+		}
+	}
+}
+
 struct ha_innobase_inplace_ctx : public inplace_alter_handler_ctx
 {
 	/** Dummy query graph */

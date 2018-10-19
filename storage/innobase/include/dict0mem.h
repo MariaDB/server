@@ -1631,7 +1631,7 @@ struct dict_table_t {
 	@param[in]	old_v_cols		original v_cols
 	@param[in]	old_v_col_names		original v_col_names
 	@param[in]	col_map			column map */
-	void rollback_instant(
+	inline void rollback_instant(
 		unsigned	old_n_cols,
 		dict_col_t*	old_cols,
 		const char*	old_col_names,
