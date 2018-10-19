@@ -422,54 +422,33 @@ add_metadata:
 				mem_heap_zalloc(instant_table->heap,
 						n_fields * sizeof *fields));
 			d = n_old_drop;
-			uint j = 0, n_nullable = 0;
+			uint i = 0, j = 0, n_nullable = 0;
 			ut_d(uint n_core_null = 0);
-			ut_d(uint max_new_col = 0);
-			for (uint i = 0; i < n_fields; i++) {
+			for (; i < old->n_fields; i++) {
 				DBUG_ASSERT(j <= i);
-				if (i >= old->n_fields) {
-					{
-						/* Ensure that newly added
-						columns are at the end of the
-						index in the same order as
-						in the table definition. */
-						ut_d(uint ni = instant->fields[
-							     j].col->ind);
-						ut_ad(max_new_col <= ni);
-						ut_d(max_new_col = ni + 1);
-					}
-existing_field:
-					fields[i] = instant->fields[j++];
-					DBUG_ASSERT(!fields[i].col
-						    ->is_dropped());
-					DBUG_ASSERT(fields[i].name
-						    == fields[i].col->name(
-							    *instant_table));
-					if (fields[i].col->is_nullable()) {
-found_nullable:
-						n_nullable++;
-						ut_d(n_core_null += i
-						     < old->n_core_fields);
-					}
-					continue;
-				}
-
 				dict_field_t&f = fields[i] = old->fields[i];
 				if (f.col->is_dropped()) {
 					/* The column has been instantly
 					dropped earlier. */
 					DBUG_ASSERT(f.col >= old_table->instant
 						    ->dropped);
-					size_t d = f.col - old_table->instant
-						->dropped;
-					DBUG_ASSERT(d < n_old_drop);
-					DBUG_ASSERT(&old_table->instant
-						    ->dropped[d] == f.col);
-					DBUG_ASSERT(!f.name);
-					f.col = instant_table->instant->dropped
-						+ d;
+					{
+						size_t d = f.col
+							- old_table->instant
+							->dropped;
+						DBUG_ASSERT(d < n_old_drop);
+						DBUG_ASSERT(&old_table->instant
+							    ->dropped[d]
+							    == f.col);
+						DBUG_ASSERT(!f.name);
+						f.col = instant_table->instant
+							->dropped + d;
+					}
 					if (f.col->is_nullable()) {
-						goto found_nullable;
+found_nullable:
+						n_nullable++;
+						ut_d(n_core_null += i
+						     < old->n_core_fields);
 					}
 					continue;
 				}
@@ -500,7 +479,16 @@ found_j:
 					}
 					DBUG_ASSERT(instant->fields[j].col->ind
 						    == col_ind);
-					goto existing_field;
+					fields[i] = instant->fields[j++];
+					DBUG_ASSERT(!fields[i].col
+						    ->is_dropped());
+					DBUG_ASSERT(fields[i].name
+						    == fields[i].col->name(
+							    *instant_table));
+					if (fields[i].col->is_nullable()) {
+						goto found_nullable;
+					}
+					continue;
 				}
 
 				/* This column is being dropped. */
@@ -511,13 +499,26 @@ found_j:
 					goto found_nullable;
 				}
 			}
-
-			DBUG_ASSERT(d == n_drop);
-			DBUG_ASSERT(j == instant->n_fields);
-			DBUG_ASSERT(n_fields >= old->n_fields);
-			DBUG_ASSERT(n_fields >= old->n_core_fields);
 			ut_ad(UT_BITS_IN_BYTES(n_core_null)
 			      == old->n_core_null_bytes);
+			DBUG_ASSERT(i >= old->n_core_fields);
+			DBUG_ASSERT(j <= i);
+			DBUG_ASSERT(n_fields - (i - j) == instant->n_fields);
+			std::sort(instant->fields + j,
+				  instant->fields + instant->n_fields,
+				  [](const dict_field_t& a,
+				     const dict_field_t& b)
+				  { return a.col->ind < b.col->ind; });
+			DBUG_ASSERT(d == n_drop);
+			for (; i < n_fields; i++) {
+				fields[i] = instant->fields[j++];
+				DBUG_ASSERT(!fields[i].col->is_dropped());
+				DBUG_ASSERT(fields[i].name
+					    == fields[i].col->name(
+						    *instant_table));
+				n_nullable += fields[i].col->is_nullable();
+			}
+			DBUG_ASSERT(j == instant->n_fields);
 			instant->n_fields = instant->n_def = n_fields;
 			instant->fields = fields;
 			DBUG_ASSERT(n_nullable >= instant->n_nullable);
