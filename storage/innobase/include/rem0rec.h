@@ -39,41 +39,12 @@ Created 5/30/1994 Heikki Tuuri
 #include <ostream>
 #include <sstream>
 
-/* Info bit denoting the predefined minimum record: this bit is set
-if and only if the record is the first user record on a non-leaf
-B-tree page that is the leftmost page on its level
-(PAGE_LEVEL is nonzero and FIL_PAGE_PREV is FIL_NULL). */
-#define REC_INFO_MIN_REC_FLAG	0x10UL
-/* The deleted flag in info bits */
-#define REC_INFO_DELETED_FLAG	0x20UL	/* when bit is set to 1, it means the
-					record has been delete marked */
-
 /* Number of extra bytes in an old-style record,
 in addition to the data and the offsets */
 #define REC_N_OLD_EXTRA_BYTES	6
 /* Number of extra bytes in a new-style record,
 in addition to the data and the offsets */
 #define REC_N_NEW_EXTRA_BYTES	5
-
-/** Record status values for ROW_FORMAT=COMPACT,DYNAMIC,COMPRESSED */
-enum rec_comp_status_t {
-	/** User record (PAGE_LEVEL=0, heap>=PAGE_HEAP_NO_USER_LOW) */
-	REC_STATUS_ORDINARY = 0,
-	/** Node pointer record (PAGE_LEVEL>=0, heap>=PAGE_HEAP_NO_USER_LOW) */
-	REC_STATUS_NODE_PTR = 1,
-	/** The page infimum pseudo-record (heap=PAGE_HEAP_NO_INFIMUM) */
-	REC_STATUS_INFIMUM = 2,
-	/** The page supremum pseudo-record (heap=PAGE_HEAP_NO_SUPREMUM) */
-	REC_STATUS_SUPREMUM = 3,
-	/** Clustered index record that has been inserted or updated
-	after instant ADD COLUMN (more than dict_index_t::n_core_fields) */
-	REC_STATUS_COLUMNS_ADDED = 4
-};
-
-/** The dtuple_t::info_bits of the metadata pseudo-record.
-@see rec_is_metadata() */
-static const byte REC_INFO_METADATA
-	= REC_INFO_MIN_REC_FLAG | REC_STATUS_COLUMNS_ADDED;
 
 #define REC_NEW_STATUS		3	/* This is single byte bit-field */
 #define REC_NEW_STATUS_MASK	0x7UL
@@ -296,7 +267,7 @@ rec_comp_status_t
 rec_get_status(const rec_t* rec)
 {
 	byte bits = rec[-REC_NEW_STATUS] & REC_NEW_STATUS_MASK;
-	ut_ad(bits <= REC_STATUS_COLUMNS_ADDED);
+	ut_ad(bits <= REC_STATUS_INSTANT);
 	return static_cast<rec_comp_status_t>(bits);
 }
 
@@ -307,12 +278,12 @@ inline
 void
 rec_set_status(rec_t* rec, byte bits)
 {
-	ut_ad(bits <= REC_STATUS_COLUMNS_ADDED);
+	ut_ad(bits <= REC_STATUS_INSTANT);
 	rec[-REC_NEW_STATUS] = (rec[-REC_NEW_STATUS] & ~REC_NEW_STATUS_MASK)
 		| bits;
 }
 
-/** Get the length of added field count in a REC_STATUS_COLUMNS_ADDED record.
+/** Get the length of added field count in a REC_STATUS_INSTANT record.
 @param[in]	n_add_field	number of added fields, minus one
 @return	storage size of the field count, in bytes */
 inline unsigned rec_get_n_add_field_len(ulint n_add_field)
@@ -321,8 +292,8 @@ inline unsigned rec_get_n_add_field_len(ulint n_add_field)
 	return n_add_field < 0x80 ? 1 : 2;
 }
 
-/** Set the added field count in a REC_STATUS_COLUMNS_ADDED record.
-@param[in,out]	header	variable header of a REC_STATUS_COLUMNS_ADDED record
+/** Set the added field count in a REC_STATUS_INSTANT record.
+@param[in,out]	header	variable header of a REC_STATUS_INSTANT record
 @param[in]	n_add	number of added fields, minus 1
 @return	record header before the number of added fields */
 inline void rec_set_n_add_field(byte*& header, ulint n_add)
@@ -781,18 +752,87 @@ rec_offs_comp(const ulint* offsets)
 }
 
 /** Determine if the record is the metadata pseudo-record
-in the clustered index.
+in the clustered index for instant ADD COLUMN or ALTER TABLE.
+@param[in]	rec	leaf page record
+@param[in]	comp	0 if ROW_FORMAT=REDUNDANT, else nonzero
+@return	whether the record is the metadata pseudo-record */
+inline bool rec_is_metadata(const rec_t* rec, ulint comp)
+{
+	bool is = !!(rec_get_info_bits(rec, comp) & REC_INFO_MIN_REC_FLAG);
+	ut_ad(!is || !comp || rec_get_status(rec) == REC_STATUS_INSTANT);
+	return is;
+}
+
+/** Determine if the record is the metadata pseudo-record
+in the clustered index for instant ADD COLUMN or ALTER TABLE.
 @param[in]	rec	leaf page record
 @param[in]	index	index of the record
 @return	whether the record is the metadata pseudo-record */
-inline bool rec_is_metadata(const rec_t* rec, const dict_index_t* index)
+inline bool rec_is_metadata(const rec_t* rec, const dict_index_t& index)
 {
-	bool is = rec_get_info_bits(rec, dict_table_is_comp(index->table))
-		& REC_INFO_MIN_REC_FLAG;
-	ut_ad(!is || index->is_instant());
-	ut_ad(!is || !dict_table_is_comp(index->table)
-	      || rec_get_status(rec) == REC_STATUS_COLUMNS_ADDED);
+	bool is = rec_is_metadata(rec, dict_table_is_comp(index.table));
+	ut_ad(!is || index.is_instant());
 	return is;
+}
+
+/** Determine if the record is the metadata pseudo-record
+in the clustered index for instant ADD COLUMN (not other ALTER TABLE).
+@param[in]	rec	leaf page record
+@param[in]	comp	0 if ROW_FORMAT=REDUNDANT, else nonzero
+@return	whether the record is the metadata pseudo-record */
+inline bool rec_is_add_metadata(const rec_t* rec, ulint comp)
+{
+	bool is = rec_get_info_bits(rec, comp) == REC_INFO_MIN_REC_FLAG;
+	ut_ad(!is || !comp || rec_get_status(rec) == REC_STATUS_INSTANT);
+	return is;
+}
+
+/** Determine if the record is the metadata pseudo-record
+in the clustered index for instant ADD COLUMN (not other ALTER TABLE).
+@param[in]	rec	leaf page record
+@param[in]	index	index of the record
+@return	whether the record is the metadata pseudo-record */
+inline bool rec_is_add_metadata(const rec_t* rec, const dict_index_t& index)
+{
+	bool is = rec_is_add_metadata(rec, dict_table_is_comp(index.table));
+	ut_ad(!is || index.is_instant());
+	return is;
+}
+
+/** Determine if the record is the metadata pseudo-record
+in the clustered index for instant ALTER TABLE (not plain ADD COLUMN).
+@param[in]	rec	leaf page record
+@param[in]	comp	0 if ROW_FORMAT=REDUNDANT, else nonzero
+@return	whether the record is the ALTER TABLE metadata pseudo-record */
+inline bool rec_is_alter_metadata(const rec_t* rec, ulint comp)
+{
+	bool is = !(~rec_get_info_bits(rec, comp)
+		    & (REC_INFO_MIN_REC_FLAG | REC_INFO_DELETED_FLAG));
+	ut_ad(!is || rec_is_metadata(rec, comp));
+	return is;
+}
+
+/** Determine if the record is the metadata pseudo-record
+in the clustered index for instant ALTER TABLE (not plain ADD COLUMN).
+@param[in]	rec	leaf page record
+@param[in]	index	index of the record
+@return	whether the record is the ALTER TABLE metadata pseudo-record */
+inline bool rec_is_alter_metadata(const rec_t* rec, const dict_index_t& index)
+{
+	bool is = rec_is_alter_metadata(rec, dict_table_is_comp(index.table));
+	ut_ad(!is || index.is_dummy || index.is_instant());
+	return is;
+}
+
+/** Determine if a record is delete-marked (not a metadata pseudo-record).
+@param[in]	rec	record
+@param[in]	comp	nonzero if ROW_FORMAT!=REDUNDANT
+@return	whether the record is a delete-marked user record */
+inline bool rec_is_delete_marked(const rec_t* rec, ulint comp)
+{
+	return (rec_get_info_bits(rec, comp)
+		& (REC_INFO_MIN_REC_FLAG | REC_INFO_DELETED_FLAG))
+		== REC_INFO_DELETED_FLAG;
 }
 
 /** Get the nth field from an index.
@@ -812,6 +852,7 @@ rec_get_nth_cfield(
 	ulint*			len)
 {
 	ut_ad(rec_offs_validate(rec, index, offsets));
+
 	if (!rec_offs_nth_default(offsets, n)) {
 		return rec_get_nth_field(rec, offsets, n, len);
 	}
@@ -958,7 +999,7 @@ rec_copy(
 @param[in]	fields		data fields
 @param[in]	n_fields	number of data fields
 @param[out]	extra		record header size
-@param[in]	status		REC_STATUS_ORDINARY or REC_STATUS_COLUMNS_ADDED
+@param[in]	status		REC_STATUS_ORDINARY or REC_STATUS_INSTANT
 @return	total size, in bytes */
 ulint
 rec_get_converted_size_temp(
@@ -975,7 +1016,7 @@ rec_get_converted_size_temp(
 @param[in,out]	offsets	offsets to the fields; in: rec_offs_n_fields(offsets)
 @param[in]	n_core	number of core fields (index->n_core_fields)
 @param[in]	def_val	default values for non-core fields
-@param[in]	status	REC_STATUS_ORDINARY or REC_STATUS_COLUMNS_ADDED */
+@param[in]	status	REC_STATUS_ORDINARY or REC_STATUS_INSTANT */
 void
 rec_init_offsets_temp(
 	const rec_t*		rec,
@@ -1002,8 +1043,7 @@ rec_init_offsets_temp(
 @param[in]	index		clustered or secondary index
 @param[in]	fields		data fields
 @param[in]	n_fields	number of data fields
-@param[in]	status		REC_STATUS_ORDINARY or REC_STATUS_COLUMNS_ADDED
-*/
+@param[in]	status		REC_STATUS_ORDINARY or REC_STATUS_INSTANT */
 void
 rec_convert_dtuple_to_temp(
 	rec_t*			rec,
@@ -1066,21 +1106,20 @@ rec_get_converted_size_comp_prefix(
 	ulint			n_fields,/*!< in: number of data fields */
 	ulint*			extra)	/*!< out: extra size */
 	MY_ATTRIBUTE((warn_unused_result, nonnull(1,2)));
-/**********************************************************//**
-Determines the size of a data tuple in ROW_FORMAT=COMPACT.
+
+/** Determine the size of a record in ROW_FORMAT=COMPACT.
+@param[in]	index		record descriptor. dict_table_is_comp()
+				is assumed to hold, even if it doesn't
+@param[in]	tuple		logical record
+@param[out]	extra		extra size
 @return total size */
 ulint
 rec_get_converted_size_comp(
-/*========================*/
-	const dict_index_t*	index,	/*!< in: record descriptor;
-					dict_table_is_comp() is
-					assumed to hold, even if
-					it does not */
-	rec_comp_status_t	status,	/*!< in: status bits of the record */
-	const dfield_t*		fields,	/*!< in: array of data fields */
-	ulint			n_fields,/*!< in: number of data fields */
-	ulint*			extra)	/*!< out: extra size */
-	MY_ATTRIBUTE((nonnull(1,3)));
+	const dict_index_t*	index,
+	const dtuple_t*		tuple,
+	ulint*			extra)
+	MY_ATTRIBUTE((nonnull(1,2)));
+
 /**********************************************************//**
 The following function returns the size of a data tuple when converted to
 a physical record.

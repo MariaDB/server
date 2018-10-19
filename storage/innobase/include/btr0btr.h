@@ -421,6 +421,12 @@ void
 btr_write_autoinc(dict_index_t* index, ib_uint64_t autoinc, bool reset = false)
 	MY_ATTRIBUTE((nonnull));
 
+/** Write instant ALTER TABLE metadata to a root page.
+@param[in,out]	root	clustered index root page
+@param[in]	index	clustered index with instant ALTER TABLE
+@param[in,out]	mtr	mini-transaction */
+void btr_set_instant(buf_block_t* root, const dict_index_t& index, mtr_t* mtr);
+
 /*************************************************************//**
 Makes tree one level higher by splitting the root, and inserts
 the tuple. It is assumed that mtr contains an x-latch on the tree.

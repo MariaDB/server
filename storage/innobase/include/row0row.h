@@ -77,6 +77,7 @@ row_get_rec_roll_ptr(
 #define ROW_BUILD_FOR_PURGE	1	/*!< build row for purge. */
 #define ROW_BUILD_FOR_UNDO	2	/*!< build row for undo. */
 #define ROW_BUILD_FOR_INSERT	3	/*!< build row for insert. */
+
 /*****************************************************************//**
 When an insert or purge to a table is performed, this function builds
 the entry to be inserted into or purged from an index on the table.
@@ -230,6 +231,26 @@ row_rec_to_index_entry(
 	mem_heap_t*		heap)	/*!< in: memory heap from which
 					the memory needed is allocated */
 	MY_ATTRIBUTE((warn_unused_result));
+
+/** Convert a metadata record to a data tuple.
+@param[in]	rec		metadata record
+@param[in]	index		clustered index after instant ALTER TABLE
+@param[in]	offsets		rec_get_offsets(rec)
+@param[out]	n_ext		number of externally stored fields
+@param[in,out]	heap		memory heap for allocations
+@param[in]	info_bits	the info_bits after an update
+@param[in]	pad		whether to pad to index->n_fields */
+dtuple_t*
+row_metadata_to_tuple(
+	const rec_t*		rec,
+	const dict_index_t*	index,
+	const ulint*		offsets,
+	ulint*			n_ext,
+	mem_heap_t*		heap,
+	ulint			info_bits,
+	bool			pad)
+	MY_ATTRIBUTE((nonnull,warn_unused_result));
+
 /*******************************************************************//**
 Builds from a secondary index record a row reference with which we can
 search the clustered index record.

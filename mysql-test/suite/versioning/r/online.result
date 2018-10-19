@@ -25,8 +25,7 @@ add s bigint unsigned as row start,
 add e bigint unsigned as row end,
 add period for system_time(s, e),
 add system versioning;
-alter table t drop column b, lock=none;
-ERROR 0A000: LOCK=NONE is not supported. Reason: Not implemented for system-versioned tables. Try LOCK=SHARED
+alter table t drop column b, algorithm=instant;
 alter table t add index idx(a), lock=none;
 alter table t drop column s, drop column e;
 alter table t drop system versioning, lock=none;

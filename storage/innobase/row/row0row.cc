@@ -199,7 +199,7 @@ row_build_index_entry_low(
 {
 	dtuple_t*	entry;
 	ulint		entry_len;
-	ulint		i;
+	ulint		i = 0;
 	ulint		num_v = 0;
 
 	entry_len = dict_index_get_n_fields(index);
@@ -219,90 +219,87 @@ row_build_index_entry_low(
 	} else {
 		dtuple_set_n_fields_cmp(
 			entry, dict_index_get_n_unique_in_tree(index));
+		if (dict_index_is_spatial(index)) {
+			/* Set the MBR field */
+			if (!row_build_spatial_index_key(
+				    index, ext,
+				    dtuple_get_nth_field(entry, 0),
+				    dtuple_get_nth_field(
+					    row,
+					    dict_index_get_nth_field(index, i)
+					    ->col->ind), flag, heap)) {
+				return NULL;
+			}
+
+			i = 1;
+		}
 	}
 
-	for (i = 0; i < entry_len + num_v; i++) {
-		const dict_field_t*	ind_field = NULL;
-		const dict_col_t*	col;
-		ulint			col_no = 0;
-		dfield_t*		dfield;
-		dfield_t*		dfield2;
-		ulint			len;
+	for (; i < entry_len; i++) {
+		const dict_field_t& f = index->fields[i];
+		dfield_t* dfield = dtuple_get_nth_field(entry, i);
 
-		if (i >= entry_len) {
-			/* This is to insert new rows to cluster index */
-			ut_ad(dict_index_is_clust(index)
-			      && flag == ROW_BUILD_FOR_INSERT);
-			dfield = dtuple_get_nth_v_field(entry, i - entry_len);
-			col = &dict_table_get_nth_v_col(
-				index->table, i - entry_len)->m_col;
-
-		} else {
-			ind_field = dict_index_get_nth_field(index, i);
-			col = ind_field->col;
-			col_no = dict_col_get_no(col);
-			dfield = dtuple_get_nth_field(entry, i);
+		if (f.col->is_dropped()) {
+			ut_ad(index->is_primary());
+			ut_ad(index->is_instant());
+			ut_ad(!f.col->is_virtual());
+			dict_col_copy_type(f.col, &dfield->type);
+			if (f.col->is_nullable()) {
+				dfield_set_null(dfield);
+			} else {
+				dfield_set_data(dfield, field_ref_zero,
+						f.fixed_len);
+			}
+			continue;
 		}
 
-		compile_time_assert(DATA_MISSING == 0);
+		const dfield_t* dfield2;
 
-		if (col->is_virtual()) {
-			const dict_v_col_t*	v_col
-				= reinterpret_cast<const dict_v_col_t*>(col);
+		if (f.col->is_virtual()) {
+			const dict_v_col_t* v_col
+				= reinterpret_cast<const dict_v_col_t*>(f.col);
 
 			ut_ad(v_col->v_pos < dtuple_get_n_v_fields(row));
 			dfield2 = dtuple_get_nth_v_field(row, v_col->v_pos);
 
 			ut_ad(dfield_is_null(dfield2) ||
 			      dfield_get_len(dfield2) == 0 || dfield2->data);
+			ut_ad(!dfield_is_ext(dfield2));
+			if (UNIV_UNLIKELY(dfield2->type.mtype
+					  == DATA_MISSING)) {
+				ut_ad(flag == ROW_BUILD_FOR_PURGE);
+				return(NULL);
+			}
 		} else {
-			dfield2 = dtuple_get_nth_field(row, col_no);
-			ut_ad(dfield_get_type(dfield2)->mtype == DATA_MISSING
-			      || (!(dfield_get_type(dfield2)->prtype
-				    & DATA_VIRTUAL)));
-		}
-
-		if (UNIV_UNLIKELY(dfield_get_type(dfield2)->mtype
-				  == DATA_MISSING)) {
-			/* The field has not been initialized in the row.
-			This should be from trx_undo_rec_get_partial_row(). */
-			return(NULL);
-		}
-
-#ifdef UNIV_DEBUG
-		if (dfield_get_type(dfield2)->prtype & DATA_VIRTUAL
-		    && dict_index_is_clust(index)) {
-			ut_ad(flag == ROW_BUILD_FOR_INSERT);
-		}
-#endif /* UNIV_DEBUG */
-
-		/* Special handle spatial index, set the first field
-		which is for store MBR. */
-		if (dict_index_is_spatial(index) && i == 0) {
-			if (!row_build_spatial_index_key(
-				    index, ext, dfield, dfield2, flag, heap)) {
-				return NULL;
+			dfield2 = dtuple_get_nth_field(row, f.col->ind);
+			if (UNIV_UNLIKELY(dfield2->type.mtype
+					  == DATA_MISSING)) {
+				/* The field has not been initialized in
+				the row. This should be from
+				trx_undo_rec_get_partial_row(). */
+				return(NULL);
 			}
 
-			continue;
+			ut_ad(!(dfield2->type.prtype & DATA_VIRTUAL));
 		}
 
-		len = dfield_get_len(dfield2);
+		compile_time_assert(DATA_MISSING == 0);
 
-		dfield_copy(dfield, dfield2);
+		*dfield = *dfield2;
 
 		if (dfield_is_null(dfield)) {
 			continue;
 		}
 
-		if ((!ind_field || ind_field->prefix_len == 0)
+		ulint len = dfield_get_len(dfield);
+
+		if (f.prefix_len == 0
 		    && (!dfield_is_ext(dfield)
 			|| dict_index_is_clust(index))) {
 			/* The dfield_copy() above suffices for
 			columns that are stored in-page, or for
 			clustered index record columns that are not
-			part of a column prefix in the PRIMARY KEY,
-			or for virtaul columns in cluster index record. */
+			part of a column prefix in the PRIMARY KEY. */
 			continue;
 		}
 
@@ -313,11 +310,11 @@ row_build_index_entry_low(
 		index record with an off-page column is when it is a
 		column prefix index. If atomic_blobs, also fully
 		indexed long columns may be stored off-page. */
-		ut_ad(col->ord_part);
+		ut_ad(f.col->ord_part);
 
 		if (ext) {
 			/* See if the column is stored externally. */
-			const byte*	buf = row_ext_lookup(ext, col_no,
+			const byte*	buf = row_ext_lookup(ext, f.col->ind,
 							     &len);
 			if (UNIV_LIKELY_NULL(buf)) {
 				if (UNIV_UNLIKELY(buf == field_ref_zero)) {
@@ -326,7 +323,7 @@ row_build_index_entry_low(
 				dfield_set_data(dfield, buf, len);
 			}
 
-			if (ind_field->prefix_len == 0) {
+			if (f.prefix_len == 0) {
 				/* If ROW_FORMAT=DYNAMIC or
 				ROW_FORMAT=COMPRESSED, we can have a
 				secondary index on an entire column
@@ -353,16 +350,33 @@ row_build_index_entry_low(
 		}
 
 		/* If a column prefix index, take only the prefix. */
-		if (ind_field->prefix_len) {
+		if (f.prefix_len) {
 			len = dtype_get_at_most_n_mbchars(
-				col->prtype, col->mbminlen, col->mbmaxlen,
-				ind_field->prefix_len, len,
+				f.col->prtype,
+				f.col->mbminlen, f.col->mbmaxlen,
+				f.prefix_len, len,
 				static_cast<char*>(dfield_get_data(dfield)));
 			dfield_set_len(dfield, len);
 		}
 	}
 
-	return(entry);
+	for (i = num_v; i--; ) {
+		ut_ad(index->is_primary());
+		ut_ad(flag == ROW_BUILD_FOR_INSERT);
+		dfield_t* dfield = dtuple_get_nth_v_field(entry, i);
+		const dict_v_col_t* v_col = dict_table_get_nth_v_col(
+			index->table, i);
+		ut_ad(!v_col->m_col.is_dropped());
+		ut_ad(v_col->v_pos < dtuple_get_n_v_fields(row));
+		const dfield_t* dfield2 = dtuple_get_nth_v_field(
+			row, v_col->v_pos);
+		ut_ad(dfield_is_null(dfield2) ||
+		      dfield_get_len(dfield2) == 0 || dfield2->data);
+		ut_ad(dfield2->type.mtype != DATA_MISSING);
+		*dfield = *dfield2;
+	}
+
+	return entry;
 }
 
 /** An inverse function to row_build_index_entry. Builds a row from a
@@ -499,11 +513,23 @@ row_build_low(
 
 	j = 0;
 
-	for (ulint i = 0; i < rec_offs_n_fields(offsets); i++) {
-		const dict_field_t*	ind_field
-			= dict_index_get_nth_field(index, i);
+	const dict_field_t* ind_field = index->fields;
 
-		if (ind_field->prefix_len) {
+	for (ulint i = 0; i < rec_offs_n_fields(offsets); i++) {
+		if (i == index->first_user_field()
+		    && rec_is_alter_metadata(rec, *index)) {
+			ut_ad(rec_offs_nth_extern(offsets, i));
+			ut_d(ulint len);
+			ut_d(rec_get_nth_field_offs(offsets, i, &len));
+			ut_ad(len == FIELD_REF_SIZE);
+			continue;
+		}
+
+		ut_ad(ind_field < &index->fields[index->n_fields]);
+
+		const dict_col_t* col = dict_field_get_col(ind_field);
+
+		if ((ind_field++)->prefix_len) {
 			/* Column prefixes can only occur in key
 			fields, which cannot be stored externally. For
 			a column prefix, there should also be the full
@@ -513,10 +539,11 @@ row_build_low(
 			continue;
 		}
 
-		const dict_col_t*	col
-			= dict_field_get_col(ind_field);
-		ulint			col_no
-			= dict_col_get_no(col);
+		if (col->is_dropped()) {
+			continue;
+		}
+
+		ulint	col_no = dict_col_get_no(col);
 
 		if (col_map) {
 			col_no = col_map[col_no];
@@ -528,6 +555,7 @@ row_build_low(
 		}
 
 		dfield_t*	dfield = dtuple_get_nth_field(row, col_no);
+
 		const void*	field = rec_get_nth_field(
 			copy, offsets, i, &len);
 		if (len == UNIV_SQL_DEFAULT) {
@@ -671,15 +699,19 @@ row_build_w_add_vcol(
 }
 
 /** Convert an index record to a data tuple.
-@tparam def whether the index->instant_field_value() needs to be accessed
-@param[in]	rec	index record
-@param[in]	index	index
-@param[in]	offsets	rec_get_offsets(rec, index)
-@param[out]	n_ext	number of externally stored columns
-@param[in,out]	heap	memory heap for allocations
+@tparam metadata whether the index->instant_field_value() needs to be accessed
+@tparam mblob 1 if rec_is_alter_metadata();
+2 if we want converted metadata corresponding to info_bits
+@param[in]	rec		index record
+@param[in]	index		index
+@param[in]	offsets		rec_get_offsets(rec, index)
+@param[out]	n_ext		number of externally stored columns
+@param[in,out]	heap		memory heap for allocations
+@param[in]	info_bits	(only used if mblob=2)
+@param[in]	pad		(only used if mblob=2)
 @return index entry built; does not set info_bits, and the data fields
 in the entry will point directly to rec */
-template<bool def>
+template<bool metadata, int mblob = 0>
 static inline
 dtuple_t*
 row_rec_to_index_entry_impl(
@@ -687,44 +719,64 @@ row_rec_to_index_entry_impl(
 	const dict_index_t*	index,
 	const ulint*		offsets,
 	ulint*			n_ext,
-	mem_heap_t*		heap)
+	mem_heap_t*		heap,
+	ulint			info_bits = 0,
+	bool			pad = false)
 {
-	dtuple_t*	entry;
-	dfield_t*	dfield;
-	ulint		i;
-	const byte*	field;
-	ulint		len;
-	ulint		rec_len;
-
 	ut_ad(rec != NULL);
 	ut_ad(heap != NULL);
 	ut_ad(index != NULL);
-	ut_ad(def || !rec_offs_any_default(offsets));
-
+	ut_ad(!mblob || index->is_primary());
+	ut_ad(!mblob || !dict_index_is_spatial(index));
+	compile_time_assert(!mblob || metadata);
+	compile_time_assert(mblob <= 2);
 	/* Because this function may be invoked by row0merge.cc
 	on a record whose header is in different format, the check
 	rec_offs_validate(rec, index, offsets) must be avoided here. */
 	ut_ad(n_ext);
 	*n_ext = 0;
 
-	rec_len = rec_offs_n_fields(offsets);
-
-	entry = dtuple_create(heap, rec_len);
+	const bool got = mblob == 2 && rec_is_alter_metadata(rec, *index);
+	ulint rec_len = rec_offs_n_fields(offsets);
+	if (mblob == 2) {
+		ut_ad(info_bits == REC_INFO_METADATA_ALTER
+		      || info_bits == REC_INFO_METADATA_ADD);
+		ut_ad(rec_len <= ulint(index->n_fields + got));
+		if (pad) {
+			rec_len = ulint(index->n_fields)
+				+ (info_bits == REC_INFO_METADATA_ALTER);
+		} else if (!got && info_bits == REC_INFO_METADATA_ALTER) {
+			rec_len++;
+		}
+	} else {
+		ut_ad(info_bits == 0);
+		ut_ad(!pad);
+	}
+	dtuple_t* entry = dtuple_create(heap, rec_len);
+	dfield_t* dfield = entry->fields;
 
 	dtuple_set_n_fields_cmp(entry,
 				dict_index_get_n_unique_in_tree(index));
-	ut_ad(rec_len == dict_index_get_n_fields(index)
+	ut_ad(mblob == 2
+	      || rec_len == dict_index_get_n_fields(index) + uint(mblob == 1)
 	      /* a record for older SYS_INDEXES table
 	      (missing merge_threshold column) is acceptable. */
 	      || (index->table->id == DICT_INDEXES_ID
 		  && rec_len == dict_index_get_n_fields(index) - 1));
 
-	dict_index_copy_types(entry, index, rec_len);
+	ulint i;
+	for (i = 0; i < (mblob ? index->first_user_field() : rec_len);
+	     i++, dfield++) {
+		dict_col_copy_type(dict_index_get_nth_col(index, i),
+				   &dfield->type);
+		if (!mblob
+		    && dict_index_is_spatial(index)
+		    && DATA_GEOMETRY_MTYPE(dfield->type.mtype)) {
+			dfield->type.prtype |= DATA_GIS_MBR;
+		}
 
-	for (i = 0; i < rec_len; i++) {
-
-		dfield = dtuple_get_nth_field(entry, i);
-		field = def
+		ulint len;
+		const byte* field = metadata
 			? rec_get_nth_cfield(rec, index, offsets, i, &len)
 			: rec_get_nth_field(rec, offsets, i, &len);
 
@@ -732,12 +784,80 @@ row_rec_to_index_entry_impl(
 
 		if (rec_offs_nth_extern(offsets, i)) {
 			dfield_set_ext(dfield);
-			(*n_ext)++;
+			++*n_ext;
 		}
 	}
 
+	if (mblob) {
+		ulint len;
+		const byte* field;
+		ulint j = i;
+
+		if (mblob == 2) {
+			const bool want = info_bits == REC_INFO_METADATA_ALTER;
+			if (got == want) {
+				if (got) {
+					goto copy_metadata;
+				}
+			} else {
+				if (want) {
+					/* Allocate a placeholder for
+					adding metadata in an update. */
+					len = FIELD_REF_SIZE;
+					field = static_cast<byte*>(
+						mem_heap_zalloc(heap, len));
+					/* In reality there is one fewer
+					field present in the record. */
+					rec_len--;
+					goto init_metadata;
+				}
+
+				/* Skip the undesired metadata blob
+				(for example, when rolling back an
+				instant ALTER TABLE). */
+				i++;
+			}
+			goto copy_user_fields;
+		}
+copy_metadata:
+		ut_ad(rec_offs_nth_extern(offsets, i));
+		field = rec_get_nth_field(rec, offsets, i++, &len);
+init_metadata:
+		dfield->type.metadata_blob_init();
+		ut_ad(len == FIELD_REF_SIZE);
+		dfield_set_data(dfield, field, len);
+		dfield_set_ext(dfield++);
+		++*n_ext;
+copy_user_fields:
+		for (; i < rec_len; i++, dfield++) {
+			dict_col_copy_type(dict_index_get_nth_col(index, j++),
+					   &dfield->type);
+			if (mblob == 2 && pad
+			    && i >= rec_offs_n_fields(offsets)) {
+				field = index->instant_field_value(j - 1,
+								   &len);
+				dfield_set_data(dfield, field, len);
+				continue;
+			}
+
+			field = rec_get_nth_field(rec, offsets, i, &len);
+			dfield_set_data(dfield, field, len);
+
+			if (rec_offs_nth_extern(offsets, i)) {
+				dfield_set_ext(dfield);
+				++*n_ext;
+			}
+		}
+	}
+
+	if (mblob == 2) {
+		ulint n_fields = ulint(dfield - entry->fields);
+		ut_ad(entry->n_fields >= n_fields);
+		entry->n_fields = n_fields;
+	}
+	ut_ad(dfield == entry->fields + entry->n_fields);
 	ut_ad(dtuple_check_typed(entry));
-	return(entry);
+	return entry;
 }
 
 /** Convert an index record to a data tuple.
@@ -773,25 +893,26 @@ row_rec_to_index_entry(
 	mem_heap_t*		heap)	/*!< in: memory heap from which
 					the memory needed is allocated */
 {
-	dtuple_t*	entry;
-	byte*		buf;
-	const rec_t*	copy_rec;
-
 	ut_ad(rec != NULL);
 	ut_ad(heap != NULL);
 	ut_ad(index != NULL);
 	ut_ad(rec_offs_validate(rec, index, offsets));
 
 	/* Take a copy of rec to heap */
-	buf = static_cast<byte*>(
-		mem_heap_alloc(heap, rec_offs_size(offsets)));
-
-	copy_rec = rec_copy(buf, rec, offsets);
+	const rec_t* copy_rec = rec_copy(
+		static_cast<byte*>(mem_heap_alloc(heap,
+						  rec_offs_size(offsets))),
+		rec, offsets);
 
 	rec_offs_make_valid(copy_rec, index, true,
 			    const_cast<ulint*>(offsets));
-	entry = row_rec_to_index_entry_impl<true>(
-		copy_rec, index, offsets, n_ext, heap);
+
+	dtuple_t* entry = rec_is_alter_metadata(copy_rec, *index)
+		? row_rec_to_index_entry_impl<true,1>(
+			copy_rec, index, offsets, n_ext, heap)
+		: row_rec_to_index_entry_impl<true>(
+			copy_rec, index, offsets, n_ext, heap);
+
 	rec_offs_make_valid(rec, index, true,
 			    const_cast<ulint*>(offsets));
 
@@ -799,6 +920,51 @@ row_rec_to_index_entry(
 			     rec_get_info_bits(rec, rec_offs_comp(offsets)));
 
 	return(entry);
+}
+
+/** Convert a metadata record to a data tuple.
+@param[in]	rec		metadata record
+@param[in]	index		clustered index after instant ALTER TABLE
+@param[in]	offsets		rec_get_offsets(rec)
+@param[out]	n_ext		number of externally stored fields
+@param[in,out]	heap		memory heap for allocations
+@param[in]	info_bits	the info_bits after an update
+@param[in]	pad		whether to pad to index->n_fields */
+dtuple_t*
+row_metadata_to_tuple(
+	const rec_t*		rec,
+	const dict_index_t*	index,
+	const ulint*		offsets,
+	ulint*			n_ext,
+	mem_heap_t*		heap,
+	ulint			info_bits,
+	bool			pad)
+{
+	ut_ad(info_bits == REC_INFO_METADATA_ALTER
+	      || info_bits == REC_INFO_METADATA_ADD);
+	ut_ad(rec_is_metadata(rec, *index));
+	ut_ad(rec_offs_validate(rec, index, offsets));
+
+	const rec_t* copy_rec = rec_copy(
+		static_cast<byte*>(mem_heap_alloc(heap,
+						  rec_offs_size(offsets))),
+		rec, offsets);
+
+	rec_offs_make_valid(copy_rec, index, true,
+			    const_cast<ulint*>(offsets));
+
+	dtuple_t* entry = info_bits == REC_INFO_METADATA_ALTER
+		|| rec_is_alter_metadata(copy_rec, *index)
+		? row_rec_to_index_entry_impl<true,2>(
+			copy_rec, index, offsets, n_ext, heap, info_bits, pad)
+		: row_rec_to_index_entry_impl<true>(
+			copy_rec, index, offsets, n_ext, heap);
+
+	rec_offs_make_valid(rec, index, true,
+			    const_cast<ulint*>(offsets));
+
+	dtuple_set_info_bits(entry, info_bits);
+	return entry;
 }
 
 /*******************************************************************//**
@@ -1035,7 +1201,7 @@ row_search_on_row_ref(
 	index = dict_table_get_first_index(table);
 
 	if (UNIV_UNLIKELY(ref->info_bits != 0)) {
-		ut_ad(ref->info_bits == REC_INFO_METADATA);
+		ut_ad(ref->is_metadata());
 		ut_ad(ref->n_fields <= index->n_uniq);
 		btr_pcur_open_at_index_side(true, index, mode, pcur, true, 0,
 					    mtr);

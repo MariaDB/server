@@ -14,11 +14,12 @@ while ($n)
 {
 eval INSERT INTO t$n SET i=1;
 eval ALTER TABLE t$n ADD INDEX(v), LOCK=NONE;
-eval ALTER TABLE t$n ADD COLUMN k INT, LOCK=NONE;
+# MDEV-17468 FIXME: Fix this, and remove the 2 --error below.
 --error ER_ALTER_OPERATION_NOT_SUPPORTED_REASON
+eval ALTER TABLE t$n ADD COLUMN k INT, LOCK=NONE;
+--error ER_CANT_DROP_FIELD_OR_KEY
 eval ALTER TABLE t$n DROP k, LOCK=NONE;
 eval ALTER TABLE t$n DROP INDEX v, LOCK=NONE;
-eval ALTER TABLE t$n DROP k, LOCK=NONE;
 dec $n;
 }
 

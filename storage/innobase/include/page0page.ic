@@ -1098,24 +1098,6 @@ page_get_instant(const page_t* page)
 #endif /* UNIV_DEBUG */
 	return(i >> 3);
 }
-
-/** Assign the PAGE_INSTANT field.
-@param[in,out]	page	clustered index root page
-@param[in]	n	original number of clustered index fields
-@param[in,out]	mtr	mini-transaction */
-inline
-void
-page_set_instant(page_t* page, unsigned n, mtr_t* mtr)
-{
-	ut_ad(fil_page_get_type(page) == FIL_PAGE_TYPE_INSTANT);
-	ut_ad(n > 0);
-	ut_ad(n < REC_MAX_N_FIELDS);
-	uint16_t i = page_header_get_field(page, PAGE_INSTANT);
-	ut_ad(i <= PAGE_NO_DIRECTION);
-	i |= n << 3;
-	mlog_write_ulint(PAGE_HEADER + PAGE_INSTANT + page, i,
-			 MLOG_2BYTES, mtr);
-}
 #endif /* !UNIV_INNOCHECKSUM */
 
 #ifdef UNIV_MATERIALIZE

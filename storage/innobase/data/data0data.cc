@@ -60,7 +60,12 @@ void dtuple_t::trim(const dict_index_t& index)
 	for (; i > index.n_core_fields; i--) {
 		const dfield_t* dfield = dtuple_get_nth_field(this, i - 1);
 		const dict_col_t* col = dict_index_get_nth_col(&index, i - 1);
-		ut_ad(col->is_instant());
+
+		if (col->is_dropped()) {
+			continue;
+		}
+
+		ut_ad(col->is_added());
 		ulint len = dfield_get_len(dfield);
 		if (len != col->def_val.len) {
 			break;
@@ -632,14 +637,23 @@ dtuple_convert_big_rec(
 	n_fields = 0;
 	ulint longest_i;
 
+	const bool mblob = entry->is_alter_metadata();
+	ut_ad(entry->n_fields >= index->first_user_field() + mblob);
+	ut_ad(entry->n_fields - mblob <= index->n_fields);
+
+	if (mblob) {
+		longest_i = index->first_user_field();
+		dfield = dtuple_get_nth_field(entry, longest_i);
+		local_len = BTR_EXTERN_FIELD_REF_SIZE;
+		goto ext_write;
+	}
+
 	if (!dict_table_has_atomic_blobs(index->table)) {
-		/* ROW_FORMAT=REDUNDANT or ROW_FORMAT=COMPACT:
-		store a 768-byte prefix locally */
+		/* up to MySQL 5.1: store a 768-byte prefix locally */
 		local_len = BTR_EXTERN_FIELD_REF_SIZE
 			+ DICT_ANTELOPE_MAX_INDEX_COL_LEN;
 	} else {
-		/* ROW_FORMAT=DYNAMIC or ROW_FORMAT=COMPRESSED:
-		do not store any BLOB prefix locally */
+		/* new-format table: do not store any BLOB prefix locally */
 		local_len = BTR_EXTERN_FIELD_REF_SIZE;
 	}
 
@@ -649,11 +663,10 @@ dtuple_convert_big_rec(
 				      dict_index_get_n_fields(index),
 				      dict_table_page_size(index->table))) {
 		longest_i = 0;
-
 		for (ulint i = index->first_user_field(), longest = 0;
-		     i < entry->n_fields; i++) {
+		     i + mblob < entry->n_fields; i++) {
 			ulint	savings;
-			dfield = dtuple_get_nth_field(entry, i);
+			dfield = dtuple_get_nth_field(entry, i + mblob);
 
 			const dict_field_t* ifield = dict_index_get_nth_field(
 				index, i);
@@ -711,8 +724,8 @@ skip_field:
 		We store the first bytes locally to the record. Then
 		we can calculate all ordering fields in all indexes
 		from locally stored data. */
-
 		dfield = dtuple_get_nth_field(entry, longest_i);
+ext_write:
 		local_prefix_len = local_len - BTR_EXTERN_FIELD_REF_SIZE;
 
 		vector->append(

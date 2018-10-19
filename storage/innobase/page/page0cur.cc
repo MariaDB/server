@@ -737,7 +737,7 @@ up_slot_match:
 				  & REC_INFO_MIN_REC_FLAG)) {
 			ut_ad(!page_has_prev(page_align(mid_rec)));
 			ut_ad(!page_rec_is_leaf(mid_rec)
-			      || rec_is_metadata(mid_rec, index));
+			      || rec_is_metadata(mid_rec, *index));
 			cmp = 1;
 			goto low_rec_match;
 		}
@@ -1370,7 +1370,7 @@ use_heap:
 			switch (rec_get_status(current_rec)) {
 			case REC_STATUS_ORDINARY:
 			case REC_STATUS_NODE_PTR:
-			case REC_STATUS_COLUMNS_ADDED:
+			case REC_STATUS_INSTANT:
 			case REC_STATUS_INFIMUM:
 				break;
 			case REC_STATUS_SUPREMUM:
@@ -1379,7 +1379,7 @@ use_heap:
 			switch (rec_get_status(insert_rec)) {
 			case REC_STATUS_ORDINARY:
 			case REC_STATUS_NODE_PTR:
-			case REC_STATUS_COLUMNS_ADDED:
+			case REC_STATUS_INSTANT:
 				break;
 			case REC_STATUS_INFIMUM:
 			case REC_STATUS_SUPREMUM:

@@ -449,6 +449,7 @@ FULLTEXT INDEX(t)
 ALTER TABLE tu ADD COLUMN c CHAR(1) NOT NULL FIRST, LOCK=NONE;
 ERROR 0A000: LOCK=NONE is not supported. Reason: InnoDB presently supports one FULLTEXT index creation at a time. Try LOCK=SHARED
 ALTER TABLE tu ADD COLUMN c CHAR(1) NOT NULL, LOCK=NONE;
+ERROR 0A000: LOCK=NONE is not supported. Reason: InnoDB presently supports one FULLTEXT index creation at a time. Try LOCK=SHARED
 DROP TABLE tu;
 CREATE TABLE tv (
 pk INT PRIMARY KEY, FTS_DOC_ID BIGINT UNSIGNED NOT NULL, t TEXT,
@@ -458,6 +459,7 @@ FULLTEXT INDEX(t)
 ALTER TABLE tv ADD COLUMN c CHAR(1) NOT NULL FIRST, LOCK=NONE;
 ERROR 0A000: LOCK=NONE is not supported. Reason: InnoDB presently supports one FULLTEXT index creation at a time. Try LOCK=SHARED
 ALTER TABLE tv ADD COLUMN c CHAR(1) NOT NULL, LOCK=NONE;
+ERROR 0A000: LOCK=NONE is not supported. Reason: InnoDB presently supports one FULLTEXT index creation at a time. Try LOCK=SHARED
 DROP TABLE tv;
 ALTER TABLE t1o CHANGE c1 dB_row_Id INT, ALGORITHM=COPY;
 ERROR 42000: Incorrect column name 'dB_row_Id'

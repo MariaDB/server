@@ -851,7 +851,7 @@ row_log_table_low_redundant(
 
 	const bool is_instant = index->online_log->is_instant(index);
 	rec_comp_status_t status = is_instant
-		? REC_STATUS_COLUMNS_ADDED : REC_STATUS_ORDINARY;
+		? REC_STATUS_INSTANT : REC_STATUS_ORDINARY;
 
 	size = rec_get_converted_size_temp(
 		index, tuple->fields, tuple->n_fields, &extra_size, status);
@@ -905,7 +905,7 @@ row_log_table_low_redundant(
 			*b++ = static_cast<byte>(extra_size);
 		}
 
-		if (status == REC_STATUS_COLUMNS_ADDED) {
+		if (status == REC_STATUS_INSTANT) {
 			ut_ad(is_instant);
 			if (n_fields <= index->online_log->n_core_fields) {
 				status = REC_STATUS_ORDINARY;
@@ -970,7 +970,7 @@ row_log_table_low(
 		ut_ad(!"wrong page type");
 	}
 #endif /* UNIV_DEBUG */
-	ut_ad(!rec_is_metadata(rec, index));
+	ut_ad(!rec_is_metadata(rec, *index));
 	ut_ad(page_rec_is_leaf(rec));
 	ut_ad(!page_is_comp(page_align(rec)) == !rec_offs_comp(offsets));
 	/* old_pk=row_log_table_get_pk() [not needed in INSERT] is a prefix
@@ -993,7 +993,7 @@ row_log_table_low(
 
 	ut_ad(page_is_comp(page_align(rec)));
 	ut_ad(rec_get_status(rec) == REC_STATUS_ORDINARY
-	      || rec_get_status(rec) == REC_STATUS_COLUMNS_ADDED);
+	      || rec_get_status(rec) == REC_STATUS_INSTANT);
 
 	const ulint omit_size = REC_N_NEW_EXTRA_BYTES;
 
@@ -1067,7 +1067,7 @@ row_log_table_low(
 
 		if (is_instant) {
 			*b++ = fake_extra_size
-				? REC_STATUS_COLUMNS_ADDED
+				? REC_STATUS_INSTANT
 				: rec_get_status(rec);
 		} else {
 			ut_ad(rec_get_status(rec) == REC_STATUS_ORDINARY);
@@ -1559,11 +1559,17 @@ row_log_table_apply_convert_mrec(
 		const dict_col_t*	col
 			= dict_field_get_col(ind_field);
 
+		if (col->is_dropped()) {
+			/* the column was instantly dropped earlier */
+			ut_ad(index->table->instant);
+			continue;
+		}
+
 		ulint			col_no
 			= log->col_map[dict_col_get_no(col)];
 
 		if (col_no == ULINT_UNDEFINED) {
-			/* dropped column */
+			/* the column is being dropped now */
 			continue;
 		}
 
@@ -3201,7 +3207,8 @@ row_log_allocate(
 	log->head.total = 0;
 	log->path = path;
 	log->n_core_fields = index->n_core_fields;
-	ut_ad(!table || log->is_instant(index) == index->is_instant());
+	ut_ad(!table || log->is_instant(index)
+	      == (index->n_core_fields < index->n_fields));
 	log->allow_not_null = allow_not_null;
 	log->old_table = old_table;
 	log->n_rows = 0;

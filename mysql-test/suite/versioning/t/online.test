@@ -32,8 +32,7 @@ alter table t
   add e bigint unsigned as row end,
   add period for system_time(s, e),
   add system versioning;
---error ER_ALTER_OPERATION_NOT_SUPPORTED_REASON
-alter table t drop column b, lock=none;
+alter table t drop column b, algorithm=instant;
 alter table t add index idx(a), lock=none;
 alter table t drop column s, drop column e;
 --error ER_ALTER_OPERATION_NOT_SUPPORTED_REASON

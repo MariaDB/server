@@ -31,12 +31,7 @@ Created June 2005 by Marko Makela
 /** A BLOB field reference full of zero, for use in assertions and tests.
 Initially, BLOB field references are set to zero, in
 dtuple_convert_big_rec(). */
-const byte field_ref_zero[FIELD_REF_SIZE] = {
-        0, 0, 0, 0, 0,
-        0, 0, 0, 0, 0,
-        0, 0, 0, 0, 0,
-        0, 0, 0, 0, 0,
-};
+const byte field_ref_zero[UNIV_PAGE_SIZE_MAX] = { 0, };
 
 #ifndef UNIV_INNOCHECKSUM
 #include "page0page.h"
@@ -105,11 +100,11 @@ Compare at most sizeof(field_ref_zero) bytes.
 @param s in: size of the memory block, in bytes */
 #define ASSERT_ZERO(b, s)			\
 	ut_ad(!memcmp(b, field_ref_zero,	\
-		      ut_min(static_cast<size_t>(s), sizeof field_ref_zero)));
+		      std::min<size_t>(s, sizeof field_ref_zero)));
 /** Assert that a BLOB pointer is filled with zero bytes.
 @param b in: BLOB pointer */
 #define ASSERT_ZERO_BLOB(b) \
-	ut_ad(!memcmp(b, field_ref_zero, sizeof field_ref_zero))
+	ut_ad(!memcmp(b, field_ref_zero, FIELD_REF_SIZE))
 
 /* Enable some extra debugging output.  This code can be enabled
 independently of any UNIV_ debugging conditions. */
@@ -2130,6 +2125,10 @@ page_zip_apply_log(
 		rec_get_offsets_reverse(data, index,
 					hs & REC_STATUS_NODE_PTR,
 					offsets);
+		/* Silence a debug assertion in rec_offs_make_valid().
+		This will be overwritten in page_zip_set_extra_bytes(),
+		called by page_zip_decompress_low(). */
+		ut_d(rec[-REC_NEW_INFO_BITS] = 0);
 		rec_offs_make_valid(rec, index, is_leaf, offsets);
 
 		/* Copy the extra bytes (backwards). */

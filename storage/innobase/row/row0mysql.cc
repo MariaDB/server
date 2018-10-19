@@ -330,6 +330,7 @@ row_mysql_read_geometry(
 	ulint		col_len)	/*!< in: MySQL format length */
 {
 	byte*		data;
+	ut_ad(col_len > 8);
 
 	*len = mach_read_from_n_little_endian(ref, col_len - 8);
 
@@ -829,7 +830,8 @@ row_create_prebuilt(
 	clust_index = dict_table_get_first_index(table);
 
 	/* Make sure that search_tuple is long enough for clustered index */
-	ut_a(2 * dict_table_get_n_cols(table) >= clust_index->n_fields);
+	ut_a(2 * unsigned(table->n_cols) >= unsigned(clust_index->n_fields)
+	     - clust_index->table->n_dropped());
 
 	ref_len = dict_index_get_n_unique(clust_index);
 

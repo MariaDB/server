@@ -280,6 +280,7 @@ page_cur_tuple_insert(
 	*offsets = rec_get_offsets(rec, index, *offsets,
 				   page_is_leaf(cursor->block->frame),
 				   ULINT_UNDEFINED, heap);
+	ut_ad(size == rec_offs_size(*offsets));
 
 	if (buf_block_get_page_zip(cursor->block)) {
 		rec = page_cur_insert_rec_zip(

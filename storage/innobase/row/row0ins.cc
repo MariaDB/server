@@ -2642,7 +2642,7 @@ row_ins_clust_index_entry_low(
 #endif /* UNIV_DEBUG */
 
 	if (UNIV_UNLIKELY(entry->info_bits != 0)) {
-		ut_ad(entry->info_bits == REC_INFO_METADATA);
+		ut_ad(entry->is_metadata());
 		ut_ad(flags == BTR_NO_LOCKING_FLAG);
 		ut_ad(index->is_instant());
 		ut_ad(!dict_index_is_online_ddl(index));
@@ -2650,28 +2650,18 @@ row_ins_clust_index_entry_low(
 
 		const rec_t* rec = btr_cur_get_rec(cursor);
 
-		switch (rec_get_info_bits(rec, page_rec_is_comp(rec))
-			& (REC_INFO_MIN_REC_FLAG | REC_INFO_DELETED_FLAG)) {
-		case REC_INFO_MIN_REC_FLAG:
+		if (rec_get_info_bits(rec, page_rec_is_comp(rec))
+		    & REC_INFO_MIN_REC_FLAG) {
 			thr_get_trx(thr)->error_info = index;
 			err = DB_DUPLICATE_KEY;
 			goto err_exit;
-		case REC_INFO_MIN_REC_FLAG | REC_INFO_DELETED_FLAG:
-			/* The metadata record never carries the delete-mark
-			in MariaDB Server 10.3.
-			If a table loses its 'instantness', it happens
-			by the rollback of this first-time insert, or
-			by a call to btr_page_empty() on the root page
-			when the table becomes empty. */
-			err = DB_CORRUPTION;
-			goto err_exit;
-		default:
-			ut_ad(!row_ins_must_modify_rec(cursor));
-			goto do_insert;
 		}
+
+		ut_ad(!row_ins_must_modify_rec(cursor));
+		goto do_insert;
 	}
 
-	if (rec_is_metadata(btr_cur_get_rec(cursor), index)) {
+	if (rec_is_metadata(btr_cur_get_rec(cursor), *index)) {
 		goto do_insert;
 	}
 
@@ -3455,6 +3445,23 @@ row_ins_index_entry_set_vals(
 			ut_ad(dtuple_get_n_fields(row)
 			      == dict_table_get_n_cols(index->table));
 			row_field = dtuple_get_nth_v_field(row, v_col->v_pos);
+		} else if (col->is_dropped()) {
+			ut_ad(index->is_primary());
+
+			if (!(col->prtype & DATA_NOT_NULL)) {
+				field->data = NULL;
+				field->len = UNIV_SQL_NULL;
+				field->type.prtype = DATA_BINARY_TYPE;
+			} else {
+				ut_ad(col->len <= sizeof field_ref_zero);
+				dfield_set_data(field, field_ref_zero,
+						col->len);
+				field->type.prtype = DATA_NOT_NULL;
+			}
+
+			field->type.mtype = col->len
+				? DATA_FIXBINARY : DATA_BINARY;
+			continue;
 		} else {
 			row_field = dtuple_get_nth_field(
 				row, ind_field->col->ind);
@@ -3464,7 +3471,7 @@ row_ins_index_entry_set_vals(
 
 		/* Check column prefix indexes */
 		if (ind_field != NULL && ind_field->prefix_len > 0
-		    && dfield_get_len(row_field) != UNIV_SQL_NULL) {
+		    && len != UNIV_SQL_NULL) {
 
 			const	dict_col_t*	col
 				= dict_field_get_col(ind_field);
@@ -3518,7 +3525,8 @@ row_ins_index_entry_step(
 
 	ut_ad(dtuple_check_typed(node->row));
 
-	err = row_ins_index_entry_set_vals(node->index, node->entry, node->row);
+	err = row_ins_index_entry_set_vals(node->index, node->entry,
+					   node->row);
 
 	if (err != DB_SUCCESS) {
 		DBUG_RETURN(err);

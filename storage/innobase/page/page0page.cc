@@ -1804,6 +1804,7 @@ page_print_list(
 	count = 0;
 	for (;;) {
 		offsets = rec_get_offsets(cur.rec, index, offsets,
+					  page_rec_is_leaf(cur.rec),
 					  ULINT_UNDEFINED, &heap);
 		page_rec_print(cur.rec, offsets);
 
@@ -1826,6 +1827,7 @@ page_print_list(
 
 		if (count + pr_n >= n_recs) {
 			offsets = rec_get_offsets(cur.rec, index, offsets,
+						  page_rec_is_leaf(cur.rec),
 						  ULINT_UNDEFINED, &heap);
 			page_rec_print(cur.rec, offsets);
 		}
