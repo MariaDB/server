@@ -311,6 +311,279 @@ found_j:
 	DBUG_ASSERT(index.n_core_null_bytes == oindex.n_core_null_bytes);
 }
 
+
+/** Adjust index metadata for instant ADD/DROP/reorder COLUMN.
+@param[in]	clustered index definition after instant ALTER TABLE */
+inline void dict_index_t::instant_add_field(const dict_index_t& instant)
+{
+	DBUG_ASSERT(is_primary());
+	DBUG_ASSERT(instant.is_primary());
+	DBUG_ASSERT(!has_virtual());
+	DBUG_ASSERT(!instant.has_virtual());
+	DBUG_ASSERT(instant.n_core_fields <= instant.n_fields);
+	DBUG_ASSERT(n_def == n_fields);
+	DBUG_ASSERT(instant.n_def == instant.n_fields);
+	DBUG_ASSERT(type == instant.type);
+	DBUG_ASSERT(trx_id_offset == instant.trx_id_offset);
+	DBUG_ASSERT(n_user_defined_cols == instant.n_user_defined_cols);
+	DBUG_ASSERT(n_uniq == instant.n_uniq);
+	DBUG_ASSERT(instant.n_fields >= n_fields);
+	DBUG_ASSERT(instant.n_nullable >= n_nullable);
+	DBUG_ASSERT(instant.n_core_fields == n_core_fields);
+	DBUG_ASSERT(instant.n_core_null_bytes == n_core_null_bytes);
+
+	/* instant will have all fields (including ones for columns
+	that have been or are being instantly dropped) in the same position
+	as this index. Fields for any added columns are appended at the end. */
+#ifndef DBUG_OFF
+	for (unsigned i = 0; i < n_fields; i++) {
+		DBUG_ASSERT(fields[i].same(instant.fields[i]));
+		DBUG_ASSERT(fields[i].col->is_nullable()
+			    == instant.fields[i].col->is_nullable());
+	}
+#endif
+	n_fields = instant.n_fields;
+	n_def = instant.n_def;
+	n_nullable = instant.n_nullable;
+	fields = static_cast<dict_field_t*>(
+		mem_heap_dup(heap, instant.fields, n_fields * sizeof *fields));
+
+	ut_d(unsigned n_null = 0);
+	ut_d(unsigned n_dropped = 0);
+
+	for (unsigned i = 0; i < n_fields; i++) {
+		const dict_col_t* icol = instant.fields[i].col;
+		dict_field_t& f = fields[i];
+		ut_d(n_null += icol->is_nullable());
+		DBUG_ASSERT(!icol->is_virtual());
+		if (icol->is_dropped()) {
+			ut_d(n_dropped++);
+			f.col->set_dropped();
+			f.name = NULL;
+		} else {
+			f.col = &table->cols[icol - instant.table->cols];
+			f.name = f.col->name(*table);
+		}
+	}
+
+	ut_ad(n_null == n_nullable);
+	ut_ad(n_dropped == instant.table->n_dropped());
+}
+
+/** Adjust table metadata for instant ADD/DROP/reorder COLUMN.
+@param[in]	table	altered table (with dropped columns)
+@param[in]	col_map	mapping from cols[] and v_cols[] to table */
+inline void dict_table_t::instant_column(const dict_table_t& table,
+					 const ulint* col_map)
+{
+	DBUG_ASSERT(!table.cached);
+	DBUG_ASSERT(table.n_def == table.n_cols);
+	DBUG_ASSERT(table.n_t_def == table.n_t_cols);
+	DBUG_ASSERT(n_def == n_cols);
+	DBUG_ASSERT(n_t_def == n_t_cols);
+	DBUG_ASSERT(n_v_def == n_v_cols);
+	DBUG_ASSERT(table.n_v_def == table.n_v_cols);
+	DBUG_ASSERT(table.n_cols + table.n_dropped() >= n_cols + n_dropped());
+	ut_ad(mutex_own(&dict_sys->mutex));
+
+	{
+		const char* end = table.col_names;
+		for (unsigned i = table.n_cols; i--; ) end += strlen(end) + 1;
+
+		col_names = static_cast<char*>(
+			mem_heap_dup(heap, table.col_names,
+				     ulint(end - table.col_names)));
+	}
+	const dict_col_t* const old_cols = cols;
+	cols = static_cast<dict_col_t*>(mem_heap_dup(heap, table.cols,
+						     table.n_cols
+						     * sizeof *cols));
+
+	/* Preserve the default values of previously instantly added
+	columns, or copy the new default values to this->heap. */
+	for (ulint i = 0; i < ulint(table.n_cols); i++) {
+		dict_col_t& c = cols[i];
+
+		if (const dict_col_t* o = find(old_cols, col_map, n_cols, i)) {
+			c.def_val = o->def_val;
+			continue;
+		}
+
+		DBUG_ASSERT(c.is_added());
+		if (c.def_val.len <= sizeof field_ref_zero
+		    && !memcmp(c.def_val.data, field_ref_zero,
+			       c.def_val.len)) {
+			c.def_val.data = field_ref_zero;
+		} else if (const void*& d = c.def_val.data) {
+			d = mem_heap_dup(heap, d, c.def_val.len);
+		} else {
+			DBUG_ASSERT(c.def_val.len == UNIV_SQL_NULL);
+		}
+	}
+
+	n_t_def += table.n_cols - n_cols;
+	n_t_cols += table.n_cols - n_cols;
+	n_def = table.n_cols;
+
+	const dict_v_col_t* const old_v_cols = v_cols;
+
+	if (const char* end = table.v_col_names) {
+		for (unsigned i = table.n_v_cols; i--; ) {
+			end += strlen(end) + 1;
+		}
+
+		v_col_names = static_cast<char*>(
+			mem_heap_dup(heap, table.v_col_names,
+				     ulint(end - table.v_col_names)));
+		v_cols = static_cast<dict_v_col_t*>(
+			mem_heap_dup(heap, table.v_cols,
+				     table.n_v_cols * sizeof *v_cols));
+	} else {
+		ut_ad(table.n_v_cols == 0);
+		v_col_names = NULL;
+		v_cols = NULL;
+	}
+
+	n_t_def += table.n_v_cols - n_v_cols;
+	n_t_cols += table.n_v_cols - n_v_cols;
+	n_v_def = table.n_v_cols;
+
+	for (unsigned i = 0; i < n_v_def; i++) {
+		dict_v_col_t& v = v_cols[i];
+		v.v_indexes = UT_NEW_NOKEY(dict_v_idx_list());
+		v.base_col = static_cast<dict_col_t**>(
+			mem_heap_dup(heap, v.base_col,
+				     v.num_base * sizeof *v.base_col));
+
+		for (ulint n = v.num_base; n--; ) {
+			dict_col_t*& base = v.base_col[n];
+			if (base->is_virtual()) {
+			} else if (base >= table.cols
+				   && base < table.cols + table.n_cols) {
+				/* The base column was instantly added. */
+				size_t c = base - table.cols;
+				DBUG_ASSERT(base == &table.cols[c]);
+				base = &cols[c];
+			} else {
+				DBUG_ASSERT(base >= old_cols);
+				size_t c = base - old_cols;
+				DBUG_ASSERT(c + DATA_N_SYS_COLS < n_cols);
+				DBUG_ASSERT(base == &old_cols[c]);
+				DBUG_ASSERT(col_map[c] + DATA_N_SYS_COLS
+					    < n_cols);
+				base = &cols[col_map[c]];
+			}
+		}
+	}
+
+	dict_index_t* index = dict_table_get_first_index(this);
+
+	index->instant_add_field(*dict_table_get_first_index(&table));
+
+	if (instant || table.instant) {
+		const unsigned u = index->first_user_field();
+		unsigned* non_pk_col_map = static_cast<unsigned*>(
+			mem_heap_alloc(heap, (index->n_fields - u)
+				       * sizeof *non_pk_col_map));
+		/* FIXME: add instant->heap, and transfer ownership here */
+		if (!instant) {
+			instant = new (mem_heap_zalloc(heap, sizeof *instant))
+				dict_instant_t();
+			goto dup_dropped;
+		} else if (n_dropped() < table.n_dropped()) {
+dup_dropped:
+			instant->dropped = static_cast<dict_col_t*>(
+				mem_heap_dup(heap, table.instant->dropped,
+					     table.instant->n_dropped
+					     * sizeof *instant->dropped));
+			instant->n_dropped = table.instant->n_dropped;
+		} else if (table.instant->n_dropped) {
+			memcpy(instant->dropped, table.instant->dropped,
+			       table.instant->n_dropped
+			       * sizeof *instant->dropped);
+		}
+
+		instant->non_pk_col_map = non_pk_col_map;
+		ut_d(unsigned n_drop = 0);
+		for (unsigned i = u; i < index->n_fields; i++) {
+			dict_field_t* field = &index->fields[i];
+			DBUG_ASSERT(dict_col_get_fixed_size(
+					    field->col,
+					    flags & DICT_TF_COMPACT)
+				    <= DICT_MAX_FIXED_COL_LEN);
+			if (!field->col->is_dropped()) {
+				*non_pk_col_map++ = field->col->ind;
+				continue;
+			}
+
+			ulint fixed_len = dict_col_get_fixed_size(
+				field->col, flags & DICT_TF_COMPACT);
+			*non_pk_col_map++ = 1U << 15
+				| unsigned(!field->col->is_nullable()) << 14
+				| (fixed_len
+				   ? unsigned(fixed_len + 1)
+				   : field->col->len > 255);
+			ut_ad(field->col >= table.instant->dropped);
+			ut_ad(field->col < table.instant->dropped
+			      + table.instant->n_dropped);
+			ut_d(n_drop++);
+			size_t d = field->col - table.instant->dropped;
+			ut_ad(field->col == &table.instant->dropped[d]);
+			ut_ad(d <= instant->n_dropped);
+			field->col = &instant->dropped[d];
+		}
+		ut_ad(n_drop == n_dropped());
+		ut_ad(non_pk_col_map
+		      == &instant->non_pk_col_map[index->n_fields - u]);
+	}
+
+	while ((index = dict_table_get_next_index(index)) != NULL) {
+		if (index->to_be_dropped) {
+			continue;
+		}
+		for (unsigned i = 0; i < index->n_fields; i++) {
+			dict_field_t& f = index->fields[i];
+			if (f.col >= table.cols
+			    && f.col < table.cols + table.n_cols) {
+				/* This is an instantly added column
+				in a newly added index. */
+				DBUG_ASSERT(!f.col->is_virtual());
+				size_t c = f.col - table.cols;
+				DBUG_ASSERT(f.col == &table.cols[c]);
+				f.col = &cols[c];
+			} else if (f.col >= &table.v_cols->m_col
+				   && f.col < &table.v_cols[n_v_cols].m_col) {
+				/* This is an instantly added virtual column
+				in a newly added index. */
+				DBUG_ASSERT(f.col->is_virtual());
+				size_t c = reinterpret_cast<dict_v_col_t*>(
+					f.col) - table.v_cols;
+				DBUG_ASSERT(f.col == &table.v_cols[c].m_col);
+				f.col = &v_cols[c].m_col;
+			} else if (f.col < old_cols
+				   || f.col >= old_cols + n_cols) {
+				DBUG_ASSERT(f.col->is_virtual());
+				f.col = &v_cols[col_map[
+						reinterpret_cast<dict_v_col_t*>(
+							f.col)
+						- old_v_cols + n_cols]].m_col;
+			} else {
+				f.col = &cols[col_map[f.col - old_cols]];
+				DBUG_ASSERT(!f.col->is_virtual());
+			}
+			f.name = f.col->name(*this);
+			if (f.col->is_virtual()) {
+				reinterpret_cast<dict_v_col_t*>(f.col)
+					->v_indexes->push_back(
+						dict_v_idx_t(index, i));
+			}
+		}
+	}
+
+	n_cols = table.n_cols;
+	n_v_cols = table.n_v_cols;
+}
+
 /** Find the old column number for the given new column position.
 @param[in]	col_map	column map from old column to new column
 @param[in]	pos	new column position
