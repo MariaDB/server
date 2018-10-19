@@ -1614,11 +1614,20 @@ struct dict_table_t {
 	@return whether parsing the metadata failed */
 	bool deserialise_columns(const byte* metadata, ulint len);
 
+	/** Set is_instant() before instant_column().
+	@param[in]	old		previous table definition
+	@param[in]	col_map		map from old.cols[]
+					and old.v_cols[] to this
+	@param[out]	first_alter_pos	0, or
+					1 + first changed column position */
+	inline void prepare_instant(const dict_table_t& old,
+				    const ulint* col_map,
+				    unsigned& first_alter_pos);
+
 	/** Adjust table metadata for instant ADD/DROP/reorder COLUMN.
-	@param[in]	table		altered table (with dropped columns)
-	@param[in]	map		mapping from cols[] and v_cols[]
-					to table */
-	void instant_column(const dict_table_t& table, const ulint* map);
+	@param[in]	table	table on which prepare_instant() was invoked
+	@param[in]	map	mapping from cols[] and v_cols[] to table */
+	void instant_column(const dict_table_t& table, const ulint* col_map);
 
 	/** Roll back instant_column().
 	@param[in]	old_n_cols		original n_cols
