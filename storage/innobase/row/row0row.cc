@@ -255,8 +255,6 @@ row_build_index_entry_low(
 
 			ut_ad(dfield_is_null(dfield2) ||
 			      dfield_get_len(dfield2) == 0 || dfield2->data);
-			ut_ad(dfield2->type.mtype != DATA_MISSING
-			      || !index->is_committed());
 		} else {
 			dfield2 = dtuple_get_nth_field(row, col_no);
 			ut_ad(dfield_get_type(dfield2)->mtype == DATA_MISSING
