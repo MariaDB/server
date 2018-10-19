@@ -23,6 +23,8 @@
 #include <my_sys.h>
 #include <stdarg.h>
 
+#include "ctype-unidata.h"
+
 
 #if defined(HAVE_CHARSET_utf16) || defined(HAVE_CHARSET_ucs2)
 #define HAVE_CHARSET_mb2
@@ -1192,10 +1194,17 @@ my_lengthsp_mb2(CHARSET_INFO *cs __attribute__((unused)),
 static inline int my_weight_mb2_utf16mb2_general_ci(uchar b0, uchar b1)
 {
   my_wc_t wc= MY_UTF16_WC2(b0, b1);
-  MY_UNICASE_CHARACTER *page= my_unicase_default.page[wc >> 8];
+  MY_UNICASE_CHARACTER *page= my_unicase_default_pages[wc >> 8];
   return (int) (page ? page[wc & 0xFF].sort : wc);
 }
 #define MY_FUNCTION_NAME(x)      my_ ## x ## _utf16_general_ci
+#define DEFINE_STRNXFRM_UNICODE
+#define DEFINE_STRNXFRM_UNICODE_NOPAD
+#define MY_MB_WC(cs, pwc, s, e)  my_mb_wc_utf16_quick(pwc, s, e)
+#define OPTIMIZE_ASCII           0
+#define UNICASE_MAXCHAR          MY_UNICASE_INFO_DEFAULT_MAXCHAR
+#define UNICASE_PAGE0            my_unicase_default_page00
+#define UNICASE_PAGES            my_unicase_default_pages
 #define WEIGHT_ILSEQ(x)          (0xFF0000 + (uchar) (x))
 #define WEIGHT_MB2(b0,b1)        my_weight_mb2_utf16mb2_general_ci(b0,b1)
 #define WEIGHT_MB4(b0,b1,b2,b3)  MY_CS_REPLACEMENT_CHARACTER
@@ -1493,7 +1502,7 @@ static MY_COLLATION_HANDLER my_collation_utf16_general_ci_handler =
   NULL,                /* init */
   my_strnncoll_utf16_general_ci,
   my_strnncollsp_utf16_general_ci,
-  my_strnxfrm_unicode,
+  my_strnxfrm_utf16_general_ci,
   my_strnxfrmlen_unicode,
   my_like_range_generic,
   my_wildcmp_utf16_ci,
@@ -1525,7 +1534,7 @@ static MY_COLLATION_HANDLER my_collation_utf16_general_nopad_ci_handler =
   NULL,                /* init */
   my_strnncoll_utf16_general_ci,
   my_strnncollsp_utf16_general_nopad_ci,
-  my_strnxfrm_unicode_nopad,
+  my_strnxfrm_nopad_utf16_general_ci,
   my_strnxfrmlen_unicode,
   my_like_range_generic,
   my_wildcmp_utf16_ci,
@@ -1722,6 +1731,13 @@ struct charset_info_st my_charset_utf16_nopad_bin=
 #define IS_MB4_CHAR(b0,b1,b2,b3) (MY_UTF16_HIGH_HEAD(b1) && MY_UTF16_LOW_HEAD(b3))
 
 #define MY_FUNCTION_NAME(x)      my_ ## x ## _utf16le_general_ci
+#define DEFINE_STRNXFRM_UNICODE
+#define DEFINE_STRNXFRM_UNICODE_NOPAD
+#define MY_MB_WC(cs, pwc, s, e)  (cs->cset->mb_wc(cs, pwc, s, e))
+#define OPTIMIZE_ASCII           0
+#define UNICASE_MAXCHAR          MY_UNICASE_INFO_DEFAULT_MAXCHAR
+#define UNICASE_PAGE0            my_unicase_default_page00
+#define UNICASE_PAGES            my_unicase_default_pages
 #define WEIGHT_ILSEQ(x)          (0xFF0000 + (uchar) (x))
 #define WEIGHT_MB2(b0,b1)        my_weight_mb2_utf16mb2_general_ci(b1,b0)
 #define WEIGHT_MB4(b0,b1,b2,b3)  MY_CS_REPLACEMENT_CHARACTER
@@ -1826,7 +1842,7 @@ static MY_COLLATION_HANDLER my_collation_utf16le_general_ci_handler =
   NULL,                /* init */
   my_strnncoll_utf16le_general_ci,
   my_strnncollsp_utf16le_general_ci,
-  my_strnxfrm_unicode,
+  my_strnxfrm_utf16le_general_ci,
   my_strnxfrmlen_unicode,
   my_like_range_generic,
   my_wildcmp_utf16_ci,
@@ -1858,7 +1874,7 @@ static MY_COLLATION_HANDLER my_collation_utf16le_general_nopad_ci_handler =
   NULL,                /* init */
   my_strnncoll_utf16le_general_ci,
   my_strnncollsp_utf16le_general_nopad_ci,
-  my_strnxfrm_unicode_nopad,
+  my_strnxfrm_nopad_utf16le_general_ci,
   my_strnxfrmlen_unicode,
   my_like_range_generic,
   my_wildcmp_utf16_ci,
@@ -2073,12 +2089,19 @@ static inline int my_weight_utf32_general_ci(uchar b0, uchar b1,
   my_wc_t wc= MY_UTF32_WC4(b0, b1, b2, b3);
   if (wc <= 0xFFFF)
   {
-    MY_UNICASE_CHARACTER *page= my_unicase_default.page[wc >> 8];
+    MY_UNICASE_CHARACTER *page= my_unicase_default_pages[wc >> 8];
     return (int) (page ? page[wc & 0xFF].sort : wc);
   }
   return MY_CS_REPLACEMENT_CHARACTER;
 }
 #define MY_FUNCTION_NAME(x)      my_ ## x ## _utf32_general_ci
+#define DEFINE_STRNXFRM_UNICODE
+#define DEFINE_STRNXFRM_UNICODE_NOPAD
+#define MY_MB_WC(cs, pwc, s, e)  my_mb_wc_utf32_quick(pwc, s, e)
+#define OPTIMIZE_ASCII           0
+#define UNICASE_MAXCHAR          MY_UNICASE_INFO_DEFAULT_MAXCHAR
+#define UNICASE_PAGE0            my_unicase_default_page00
+#define UNICASE_PAGES            my_unicase_default_pages
 #define WEIGHT_ILSEQ(x)          (0xFF0000 + (uchar) (x))
 #define WEIGHT_MB4(b0,b1,b2,b3)  my_weight_utf32_general_ci(b0, b1, b2, b3)
 #include "strcoll.ic"
@@ -2642,7 +2665,7 @@ static MY_COLLATION_HANDLER my_collation_utf32_general_ci_handler =
   NULL, /* init */
   my_strnncoll_utf32_general_ci,
   my_strnncollsp_utf32_general_ci,
-  my_strnxfrm_unicode,
+  my_strnxfrm_utf32_general_ci,
   my_strnxfrmlen_unicode,
   my_like_range_generic,
   my_wildcmp_utf32_ci,
@@ -2674,7 +2697,7 @@ static MY_COLLATION_HANDLER my_collation_utf32_general_nopad_ci_handler =
   NULL, /* init */
   my_strnncoll_utf32_general_ci,
   my_strnncollsp_utf32_general_nopad_ci,
-  my_strnxfrm_unicode_nopad,
+  my_strnxfrm_nopad_utf32_general_ci,
   my_strnxfrmlen_unicode,
   my_like_range_generic,
   my_wildcmp_utf32_ci,
@@ -2941,20 +2964,30 @@ static const uchar to_upper_ucs2[] = {
 static inline int my_weight_mb2_ucs2_general_ci(uchar b0, uchar b1)
 {
   my_wc_t wc= UCS2_CODE(b0, b1);
-  MY_UNICASE_CHARACTER *page= my_unicase_default.page[wc >> 8];
+  MY_UNICASE_CHARACTER *page= my_unicase_default_pages[wc >> 8];
   return (int) (page ? page[wc & 0xFF].sort : wc);
 }
 
 
-#define MY_FUNCTION_NAME(x)    my_ ## x ## _ucs2_general_ci
-#define WEIGHT_ILSEQ(x)        (0xFF0000 + (uchar) (x))
-#define WEIGHT_MB2(b0,b1)      my_weight_mb2_ucs2_general_ci(b0,b1)
+#define MY_FUNCTION_NAME(x)      my_ ## x ## _ucs2_general_ci
+#define DEFINE_STRNXFRM_UNICODE
+#define DEFINE_STRNXFRM_UNICODE_NOPAD
+#define MY_MB_WC(cs, pwc, s, e)  my_mb_wc_ucs2_quick(pwc, s, e)
+#define OPTIMIZE_ASCII           0
+#define UNICASE_MAXCHAR          MY_UNICASE_INFO_DEFAULT_MAXCHAR
+#define UNICASE_PAGE0            my_unicase_default_page00
+#define UNICASE_PAGES            my_unicase_default_pages
+#define WEIGHT_ILSEQ(x)          (0xFF0000 + (uchar) (x))
+#define WEIGHT_MB2(b0,b1)        my_weight_mb2_ucs2_general_ci(b0,b1)
 #include "strcoll.ic"
 
 
-#define MY_FUNCTION_NAME(x)    my_ ## x ## _ucs2_bin
-#define WEIGHT_ILSEQ(x)        (0xFF0000 + (uchar) (x))
-#define WEIGHT_MB2(b0,b1)      UCS2_CODE(b0,b1)
+#define MY_FUNCTION_NAME(x)      my_ ## x ## _ucs2_bin
+#define DEFINE_STRNXFRM_UNICODE_BIN2
+#define MY_MB_WC(cs, pwc, s, e)  my_mb_wc_ucs2_quick(pwc, s, e)
+#define OPTIMIZE_ASCII           0
+#define WEIGHT_ILSEQ(x)          (0xFF0000 + (uchar) (x))
+#define WEIGHT_MB2(b0,b1)        UCS2_CODE(b0,b1)
 #include "strcoll.ic"
 
 
@@ -3222,7 +3255,7 @@ static MY_COLLATION_HANDLER my_collation_ucs2_general_ci_handler =
     NULL,		/* init */
     my_strnncoll_ucs2_general_ci,
     my_strnncollsp_ucs2_general_ci,
-    my_strnxfrm_unicode,
+    my_strnxfrm_ucs2_general_ci,
     my_strnxfrmlen_unicode,
     my_like_range_generic,
     my_wildcmp_ucs2_ci,
@@ -3238,7 +3271,7 @@ static MY_COLLATION_HANDLER my_collation_ucs2_bin_handler =
     NULL,		/* init */
     my_strnncoll_ucs2_bin,
     my_strnncollsp_ucs2_bin,
-    my_strnxfrm_unicode,
+    my_strnxfrm_ucs2_bin,
     my_strnxfrmlen_unicode,
     my_like_range_generic,
     my_wildcmp_ucs2_bin,
@@ -3254,7 +3287,7 @@ static MY_COLLATION_HANDLER my_collation_ucs2_general_nopad_ci_handler =
     NULL,		/* init */
     my_strnncoll_ucs2_general_ci,
     my_strnncollsp_ucs2_general_nopad_ci,
-    my_strnxfrm_unicode_nopad,
+    my_strnxfrm_nopad_ucs2_general_ci,
     my_strnxfrmlen_unicode,
     my_like_range_generic,
     my_wildcmp_ucs2_ci,
@@ -3270,7 +3303,7 @@ static MY_COLLATION_HANDLER my_collation_ucs2_nopad_bin_handler =
     NULL,		/* init */
     my_strnncoll_ucs2_bin,
     my_strnncollsp_ucs2_nopad_bin,
-    my_strnxfrm_unicode_nopad,
+    my_strnxfrm_nopad_ucs2_bin,
     my_strnxfrmlen_unicode,
     my_like_range_generic,
     my_wildcmp_ucs2_bin,
