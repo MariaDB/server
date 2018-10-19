@@ -509,6 +509,12 @@ SELECT * FROM t1;
 b	c	a
 NULL	NULL	NULL
 DROP TABLE t1;
+CREATE TABLE t1 (t TEXT) ENGINE=InnoDB ROW_FORMAT=REDUNDANT;
+SET @t=REPEAT('x',@@innodb_page_size / 2);
+INSERT INTO t1 VALUES (@t),(@t),(@t),(@t),(@t),(@t),(NULL),(@t),(@t),(@t),(@t);
+ALTER TABLE t1 ADD COLUMN a INT FIRST;
+UPDATE t1 SET a = 0;
+DROP TABLE t1;
 CREATE TABLE t1
 (id INT PRIMARY KEY, c2 INT UNIQUE,
 c3 POINT NOT NULL DEFAULT ST_GeomFromText('POINT(3 4)'),
@@ -963,6 +969,12 @@ ALTER TABLE t1 ADD COLUMN b INT FIRST, ADD COLUMN c INT AFTER b;
 SELECT * FROM t1;
 b	c	a
 NULL	NULL	NULL
+DROP TABLE t1;
+CREATE TABLE t1 (t TEXT) ENGINE=InnoDB ROW_FORMAT=COMPACT;
+SET @t=REPEAT('x',@@innodb_page_size / 2);
+INSERT INTO t1 VALUES (@t),(@t),(@t),(@t),(@t),(@t),(NULL),(@t),(@t),(@t),(@t);
+ALTER TABLE t1 ADD COLUMN a INT FIRST;
+UPDATE t1 SET a = 0;
 DROP TABLE t1;
 CREATE TABLE t1
 (id INT PRIMARY KEY, c2 INT UNIQUE,
@@ -1419,10 +1431,16 @@ SELECT * FROM t1;
 b	c	a
 NULL	NULL	NULL
 DROP TABLE t1;
+CREATE TABLE t1 (t TEXT) ENGINE=InnoDB ROW_FORMAT=DYNAMIC;
+SET @t=REPEAT('x',@@innodb_page_size / 2);
+INSERT INTO t1 VALUES (@t),(@t),(@t),(@t),(@t),(@t),(NULL),(@t),(@t),(@t),(@t);
+ALTER TABLE t1 ADD COLUMN a INT FIRST;
+UPDATE t1 SET a = 0;
+DROP TABLE t1;
 disconnect analyze;
 SELECT variable_value-@old_instant instants
 FROM information_schema.global_status
 WHERE variable_name = 'innodb_instant_alter_column';
 instants
-69
+72
 SET GLOBAL innodb_purge_rseg_truncate_frequency= @saved_frequency;

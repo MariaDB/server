@@ -1660,11 +1660,6 @@ btr_page_reorganize_low(
 		goto func_exit;
 	}
 
-	if (!recovery && !dict_table_is_locking_disabled(index->table)) {
-		/* Update the record lock bitmaps */
-		lock_move_reorganize_page(block, temp_block);
-	}
-
 	data_size2 = page_get_data_size(page);
 	max_ins_size2 = page_get_max_insert_size_after_reorganize(page, 1);
 
@@ -1688,33 +1683,41 @@ btr_page_reorganize_low(
 		ut_ad(cursor->rec == page_get_infimum_rec(page));
 	}
 
-func_exit:
 #ifdef UNIV_ZIP_DEBUG
 	ut_a(!page_zip || page_zip_validate(page_zip, page, index));
 #endif /* UNIV_ZIP_DEBUG */
 
-	if (!recovery && page_is_root(temp_page)
-	    && fil_page_get_type(temp_page) == FIL_PAGE_TYPE_INSTANT) {
-		/* Preserve the PAGE_INSTANT information. */
-		ut_ad(!page_zip);
-		ut_ad(index->is_instant());
-		memcpy(FIL_PAGE_TYPE + page, FIL_PAGE_TYPE + temp_page, 2);
-		memcpy(PAGE_HEADER + PAGE_INSTANT + page,
-		       PAGE_HEADER + PAGE_INSTANT + temp_page, 2);
-		if (!index->table->instant) {
-		} else if (page_is_comp(page)) {
-			memcpy(PAGE_NEW_INFIMUM + page,
-			       PAGE_NEW_INFIMUM + temp_page, 8);
-			memcpy(PAGE_NEW_SUPREMUM + page,
-			       PAGE_NEW_SUPREMUM + temp_page, 8);
-		} else {
-			memcpy(PAGE_OLD_INFIMUM + page,
-			       PAGE_OLD_INFIMUM + temp_page, 8);
-			memcpy(PAGE_OLD_SUPREMUM + page,
-			       PAGE_OLD_SUPREMUM + temp_page, 8);
+	if (!recovery) {
+		if (page_is_root(temp_page)
+		    && fil_page_get_type(temp_page) == FIL_PAGE_TYPE_INSTANT) {
+			/* Preserve the PAGE_INSTANT information. */
+			ut_ad(!page_zip);
+			ut_ad(index->is_instant());
+			memcpy(FIL_PAGE_TYPE + page,
+			       FIL_PAGE_TYPE + temp_page, 2);
+			memcpy(PAGE_HEADER + PAGE_INSTANT + page,
+			       PAGE_HEADER + PAGE_INSTANT + temp_page, 2);
+			if (!index->table->instant) {
+			} else if (page_is_comp(page)) {
+				memcpy(PAGE_NEW_INFIMUM + page,
+				       PAGE_NEW_INFIMUM + temp_page, 8);
+				memcpy(PAGE_NEW_SUPREMUM + page,
+				       PAGE_NEW_SUPREMUM + temp_page, 8);
+			} else {
+				memcpy(PAGE_OLD_INFIMUM + page,
+				       PAGE_OLD_INFIMUM + temp_page, 8);
+				memcpy(PAGE_OLD_SUPREMUM + page,
+				       PAGE_OLD_SUPREMUM + temp_page, 8);
+			}
+		}
+
+		if (!dict_table_is_locking_disabled(index->table)) {
+			/* Update the record lock bitmaps */
+			lock_move_reorganize_page(block, temp_block);
 		}
 	}
 
+func_exit:
 	buf_block_free(temp_block);
 
 	/* Restore logging mode */
