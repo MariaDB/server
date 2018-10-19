@@ -268,7 +268,6 @@ row_build_index_entry_low(
 			if (UNIV_UNLIKELY(dfield2->type.mtype
 					  == DATA_MISSING)) {
 				ut_ad(flag == ROW_BUILD_FOR_PURGE);
-				ut_ad(!index->is_committed());
 				return(NULL);
 			}
 		} else {
