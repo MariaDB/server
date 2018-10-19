@@ -4774,7 +4774,7 @@ dict_index_t::instant_metadata(const dtuple_t& row, mem_heap_t* heap) const
 				dfield_set_null(dfield);
 			} else {
 				dfield_set_data(dfield, field_ref_zero,
-						field->col->len);
+						field->fixed_len);
 			}
 			continue;
 		}
