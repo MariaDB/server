@@ -453,7 +453,6 @@ typedef ssize_t lint;
 # define INT64PF	"%lld"
 # define UINT64scan     "llu"
 # define UINT64PFx	"%016llx"
-# define TIMETPF	"%ld"
 #elif defined __APPLE__
 /* Apple prefers to call the 64-bit types 'long long'
 in both 32-bit and 64-bit environments. */
@@ -461,14 +460,12 @@ in both 32-bit and 64-bit environments. */
 # define INT64PF	"%lld"
 # define UINT64scan     "llu"
 # define UINT64PFx	"%016llx"
-# define TIMETPF	"%" PRIdFAST32
 #else
 /* Use the integer types and formatting strings defined in the C99 standard. */
 # define UINT32PF	"%" PRIu32
 # define INT64PF	"%" PRId64
 # define UINT64scan	PRIu64
 # define UINT64PFx	"%016" PRIx64
-# define TIMETPF	"%" PRIdFAST32
 #endif
 
 #ifdef UNIV_INNOCHECKSUM
