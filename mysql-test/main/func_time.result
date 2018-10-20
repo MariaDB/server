@@ -6145,3 +6145,101 @@ t2	CREATE TABLE `t2` (
 ) ENGINE=MyISAM DEFAULT CHARSET=latin1
 DROP TABLE t2;
 DROP TABLE t1;
+#
+# MDEV-17478 Wrong result for TIME('+100:20:30')
+#
+SELECT TIME('+100:20:30');
+TIME('+100:20:30')
+100:20:30
+#
+# MDEV-17477 Wrong result for TIME('-2001-01-01 10:20:30')
+#
+SELECT TIME('-2001-01-01 10:20:30');
+TIME('-2001-01-01 10:20:30')
+NULL
+Warnings:
+Warning	1292	Truncated incorrect time value: '-2001-01-01 10:20:30'
+SELECT TIME('2001-01-01') AS c1, TIME('2001-01-01  ') AS c2;
+c1	c2
+00:20:01	00:20:01
+Warnings:
+Warning	1292	Truncated incorrect time value: '2001-01-01'
+Warning	1292	Truncated incorrect time value: '2001-01-01  '
+SELECT TIME('0001:01:01 '), TIME('0001:01:01  ');
+TIME('0001:01:01 ')	TIME('0001:01:01  ')
+01:01:01	01:01:01
+SELECT TIME('1 2'), TIME('1 2 ');
+TIME('1 2')	TIME('1 2 ')
+00:00:01	00:00:01
+Warnings:
+Warning	1292	Truncated incorrect time value: '1 2'
+Warning	1292	Truncated incorrect time value: '1 2 '
+SELECT TIME('2001-01-01T'), TIME('2001-01-01T ');
+TIME('2001-01-01T')	TIME('2001-01-01T ')
+00:00:00	00:00:00
+SELECT TIME('901-01-01T1'), TIME('901-01-01T10');
+TIME('901-01-01T1')	TIME('901-01-01T10')
+01:00:00	10:00:00
+SELECT TIME('091-01-01T1'), TIME('091-01-01T10');
+TIME('091-01-01T1')	TIME('091-01-01T10')
+01:00:00	10:00:00
+SELECT TIME('0001:01:01x'), TIME('0001:01:01xx');
+TIME('0001:01:01x')	TIME('0001:01:01xx')
+01:01:01	01:01:01
+Warnings:
+Warning	1292	Truncated incorrect time value: '0001:01:01x'
+Warning	1292	Truncated incorrect time value: '0001:01:01xx'
+SELECT TIME('0001:01:01.'), TIME('0001:01:01..');
+TIME('0001:01:01.')	TIME('0001:01:01..')
+01:01:01	01:01:01
+Warnings:
+Warning	1292	Truncated incorrect time value: '0001:01:01..'
+SELECT TIME('0001:01:01-'), TIME('0001:01:01--');
+TIME('0001:01:01-')	TIME('0001:01:01--')
+01:01:01	01:01:01
+Warnings:
+Warning	1292	Truncated incorrect time value: '0001:01:01-'
+Warning	1292	Truncated incorrect time value: '0001:01:01--'
+SELECT TIME('0001:01:01-'), TIME('0001:01:01--');
+TIME('0001:01:01-')	TIME('0001:01:01--')
+01:01:01	01:01:01
+Warnings:
+Warning	1292	Truncated incorrect time value: '0001:01:01-'
+Warning	1292	Truncated incorrect time value: '0001:01:01--'
+SELECT TIME('-xxx'), TIME('-xxxxxxxxxxxxxxxxxxxx');
+TIME('-xxx')	TIME('-xxxxxxxxxxxxxxxxxxxx')
+NULL	NULL
+Warnings:
+Warning	1292	Truncated incorrect time value: '-xxx'
+Warning	1292	Truncated incorrect time value: '-xxxxxxxxxxxxxxxxxxxx'
+SELECT TIME('-      '), TIME('-                         ');
+TIME('-      ')	TIME('-                         ')
+NULL	NULL
+Warnings:
+Warning	1292	Truncated incorrect time value: '-      '
+Warning	1292	Truncated incorrect time value: '-                         '
+SELECT TIME('-'), TIME('-');
+TIME('-')	TIME('-')
+NULL	NULL
+Warnings:
+Warning	1292	Truncated incorrect time value: '-'
+Warning	1292	Truncated incorrect time value: '-'
+SELECT TIME('1-1-1 1:1:1'), TIME('1-1-1 1:1:1.0');
+TIME('1-1-1 1:1:1')	TIME('1-1-1 1:1:1.0')
+01:01:01	01:01:01.0
+SELECT TIME('1-1-1 1:2:3'), TIME('1-1-1 1:2:3.0');
+TIME('1-1-1 1:2:3')	TIME('1-1-1 1:2:3.0')
+01:02:03	01:02:03.0
+SELECT
+CAST('20050326112233 garbage' as datetime),
+CAST('20050326 garbage' as date),
+CAST('50326 garbage' as time);
+CAST('20050326112233 garbage' as datetime)	CAST('20050326 garbage' as date)	CAST('50326 garbage' as time)
+2005-03-26 11:22:33	2005-03-26	05:03:26
+Warnings:
+Warning	1292	Truncated incorrect datetime value: '20050326112233 garbage'
+Warning	1292	Truncated incorrect date value: '20050326 garbage'
+Warning	1292	Truncated incorrect time value: '50326 garbage'
+SELECT TIME('- 01:00:00'), TIME('- 1 01:00:00');
+TIME('- 01:00:00')	TIME('- 1 01:00:00')
+-01:00:00	-25:00:00

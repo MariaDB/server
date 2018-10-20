@@ -3056,3 +3056,41 @@ FROM t1;
 SHOW CREATE TABLE t2;
 DROP TABLE t2;
 DROP TABLE t1;
+
+
+--echo #
+--echo # MDEV-17478 Wrong result for TIME('+100:20:30')
+--echo #
+
+SELECT TIME('+100:20:30');
+
+--echo #
+--echo # MDEV-17477 Wrong result for TIME('-2001-01-01 10:20:30')
+--echo #
+
+SELECT TIME('-2001-01-01 10:20:30');
+SELECT TIME('2001-01-01') AS c1, TIME('2001-01-01  ') AS c2;
+SELECT TIME('0001:01:01 '), TIME('0001:01:01  ');
+SELECT TIME('1 2'), TIME('1 2 ');
+
+SELECT TIME('2001-01-01T'), TIME('2001-01-01T ');
+SELECT TIME('901-01-01T1'), TIME('901-01-01T10');
+SELECT TIME('091-01-01T1'), TIME('091-01-01T10');
+
+SELECT TIME('0001:01:01x'), TIME('0001:01:01xx');
+SELECT TIME('0001:01:01.'), TIME('0001:01:01..');
+SELECT TIME('0001:01:01-'), TIME('0001:01:01--');
+SELECT TIME('0001:01:01-'), TIME('0001:01:01--');
+
+SELECT TIME('-xxx'), TIME('-xxxxxxxxxxxxxxxxxxxx');
+SELECT TIME('-      '), TIME('-                         ');
+SELECT TIME('-'), TIME('-');
+SELECT TIME('1-1-1 1:1:1'), TIME('1-1-1 1:1:1.0');
+SELECT TIME('1-1-1 1:2:3'), TIME('1-1-1 1:2:3.0');
+
+SELECT
+  CAST('20050326112233 garbage' as datetime),
+  CAST('20050326 garbage' as date),
+  CAST('50326 garbage' as time);
+
+SELECT TIME('- 01:00:00'), TIME('- 1 01:00:00');

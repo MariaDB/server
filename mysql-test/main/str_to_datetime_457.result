@@ -1,6 +1,6 @@
 select cast('01:02:03   ' as time), cast('01:02:03    ' as time);
 cast('01:02:03   ' as time)	cast('01:02:03    ' as time)
-01:02:03	00:00:00
+01:02:03	01:02:03
 select cast('2002-011-012' as date), cast('2002.11.12' as date), cast('2002.011.012' as date);
 cast('2002-011-012' as date)	cast('2002.11.12' as date)	cast('2002.011.012' as date)
 2002-11-12	2002-11-12	2002-11-12
