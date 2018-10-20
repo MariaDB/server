@@ -1147,10 +1147,13 @@ err_exit:
 	/* Read to the partial row the fields that occur in indexes */
 
 	if (!(node->cmpl_info & UPD_NODE_NO_ORD_CHANGE)) {
+		ut_ad(!(node->update->info_bits & REC_INFO_MIN_REC_FLAG));
 		ptr = trx_undo_rec_get_partial_row(
 			ptr, clust_index, node->update, &node->row,
 			type == TRX_UNDO_UPD_DEL_REC,
 			node->heap);
+	} else if (node->update->info_bits & REC_INFO_MIN_REC_FLAG) {
+		node->ref = &trx_undo_metadata;
 	}
 
 	return(true);
