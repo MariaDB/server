@@ -1443,6 +1443,7 @@ public:
     bitmask= reverse_semantics ? ~bitmask_arg : bitmask_arg;
     set(global_var_ptr(), def_val);
     SYSVAR_ASSERT(def_val < 2);
+    SYSVAR_ASSERT(getopt.id == -1); // force NO_CMD_LINE
     SYSVAR_ASSERT(size == sizeof(ulonglong));
   }
   bool session_update(THD *thd, set_var *var)

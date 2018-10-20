@@ -790,7 +790,6 @@ The following specify which files/extra groups are read (specified before remain
  this size
  --sql-mode=name     Syntax: sql-mode=mode[,mode[,mode...]]. See the manual
  for the complete list of valid sql modes
- --sql-safe-updates  sql_safe_updates
  --stack-trace       Print a symbolic stack trace on failure
  (Defaults to on; use --skip-stack-trace to disable.)
  --stored-program-cache=# 
@@ -1082,7 +1081,6 @@ slow-launch-time 2
 slow-query-log FALSE
 sort-buffer-size 2097152
 sql-mode 
-sql-safe-updates FALSE
 stack-trace TRUE
 stored-program-cache 256
 symbolic-links FALSE
