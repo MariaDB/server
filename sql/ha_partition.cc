@@ -3516,7 +3516,8 @@ int ha_partition::open(const char *name, int mode, uint test_if_locked)
   if (init_partition_bitmaps())
     goto err_alloc;
 
-  if (unlikely((error=
+  if (!MY_TEST(m_is_clone_of) &&
+      unlikely((error=
                 m_part_info->set_partition_bitmaps(m_partitions_to_open))))
     goto err_alloc;
 

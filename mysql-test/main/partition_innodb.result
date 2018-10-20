@@ -925,3 +925,14 @@ test_jfg	test_jfg11
 test_jfg	test_jfg12#P#p1000
 test_jfg	test_jfg12#P#pmax
 DROP DATABASE test_jfg;
+#
+# MDEV-16241 Assertion `inited==RND' failed in handler::ha_rnd_end()
+#
+CREATE TABLE t1 (pk INT PRIMARY KEY, x INT, y INT, z INT, KEY (x), KEY (y, z))
+WITH SYSTEM VERSIONING
+PARTITION BY SYSTEM_TIME (PARTITION p1 HISTORY, PARTITION pn CURRENT);
+INSERT INTO t1 VALUES (1, 7, 8, 9), (2, NULL, NULL, NULL), (3, NULL, NULL, NULL);
+SELECT COUNT(*) FROM t1 WHERE x IS NULL AND y IS NULL AND z IS NULL;
+COUNT(*)
+2
+DROP TABLE t1;
