@@ -26,6 +26,7 @@
 #include <shellapi.h>
 #include <accctrl.h>
 #include <aclapi.h>
+struct IUnknown;
 #include <shlwapi.h>
 
 #define USAGETEXT \
