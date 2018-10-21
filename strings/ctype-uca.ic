@@ -620,6 +620,19 @@ MY_FUNCTION_NAME(strnxfrm)(CHARSET_INFO *cs,
   uchar *d0= dst;
   uchar *de= dst + dstlen;
 
+  /*
+    There are two ways to handle trailing spaces for PAD SPACE collations:
+    1. Keep trailing spaces as they are, so have strnxfrm_onelevel() scan
+       spaces as normal characters. This will call scanner_next() for every
+       trailing space and calculate its weight using UCA weights.
+    2. Strip trailing spaces before calling strnxfrm_onelevel().
+       If we return a too short key, the caller will append weights for
+       implicit spaces anyway, up to the desired key size.
+       This will effectively generate exactly the same sortable key result.
+    The latter is much faster.
+  */
+
+  srclen= cs->cset->lengthsp(cs, (const char*) src, srclen);
   dst= MY_FUNCTION_NAME(strnxfrm_onelevel)(cs, &cs->uca->level[0],
                                            dst, de, nweights,
                                            src, srclen, flags);
