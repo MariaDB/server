@@ -2511,4 +2511,25 @@ ORDER BY tb1.i1;
 v2
 DROP TABLE t1,t2;
 # end of 5.5 tests
+#
+# MDEV-17518: Range optimization doesn't use ON expressions from nested outer joins
+#
+create table t1(a int);
+insert into t1 values (0),(1),(2),(3),(4),(5),(6),(7),(8),(9);
+create table t2(a int);
+insert into t2 values (0),(1);
+create table t3 (a int, b int, key(a));
+insert into t3 select A.a + B.a* 10 + C.a * 100, 12345 from t1 A, t1 B, t1 C;
+# Uses range for table t3:
+explain select * from t1 left join t3 on t1.a=t3.b and t3.a<5;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	10	
+1	SIMPLE	t3	range	a	a	5	NULL	5	Using where
+# This must use range for table t3, too:
+explain select * from t1 left join (t3 join t2) on t1.a=t3.b and t3.a<5;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	10	
+1	SIMPLE	t2	ALL	NULL	NULL	NULL	NULL	2	
+1	SIMPLE	t3	range	a	a	5	NULL	5	Using where
+drop table t1,t2,t3;
 SET optimizer_switch=@save_optimizer_switch;
