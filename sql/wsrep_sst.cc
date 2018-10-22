@@ -227,14 +227,6 @@ void wsrep_sst_received (THD*                thd,
       wsrep schema.
     */
     /*
-      If thd is non-NULL, this thread is holding LOCK_global_system_variables.
-      It needs to be released temporarily since wsrep_init_schema()
-      does THD pool initialization, which will lock this lock in
-      THD allocation.
-     */
-    if (thd) mysql_mutex_unlock(&LOCK_global_system_variables);
-    // wsrep_init_schema();
-    /*
       Logical SST methods (mysqldump etc) don't update InnoDB sys header.
       Reset the SE checkpoint before recovering view in order to avoid
       sanity check failure.
@@ -248,8 +240,6 @@ void wsrep_sst_received (THD*                thd,
                                           wsrep::seqno(seqno)));
     }
     wsrep_verify_SE_checkpoint(uuid, seqno);
-    // wsrep_init_SR();
-    if (thd) mysql_mutex_lock(&LOCK_global_system_variables);
 
     /*
       Both wsrep_init_SR() and wsrep_recover_view() may use
