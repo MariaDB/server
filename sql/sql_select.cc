@@ -4300,6 +4300,40 @@ struct SARGABLE_PARAM
 };
 
 
+/*
+  Mark all tables inside a join nest as constant.
+
+  @detail  This is called when there is a local "Impossible WHERE" inside
+           a multi-table LEFT JOIN.
+*/
+
+void mark_join_nest_as_const(JOIN *join,
+                             TABLE_LIST *join_nest,
+                             table_map *found_const_table_map,
+                             uint *const_count)
+{
+  List_iterator<TABLE_LIST> it(join_nest->nested_join->join_list);
+  TABLE_LIST *tbl;
+  while ((tbl= it++))
+  {
+    if (tbl->nested_join)
+    {
+      mark_join_nest_as_const(join, tbl, found_const_table_map, const_count);
+      continue;
+    }
+    JOIN_TAB *tab= tbl->table->reginfo.join_tab;
+
+    tab->type= JT_CONST;
+    tab->info= ET_IMPOSSIBLE_ON_CONDITION;
+    tab->table->const_table= 1;
+
+    join->const_table_map|= tab->table->map;
+    *found_const_table_map|= tab->table->map;
+    set_position(join,(*const_count)++,tab,(KEYUSE*) 0);
+    mark_as_null_row(tab->table);		// All fields are NULL
+  }
+}
+
 /**
   Calculate the best possible join and initialize the join structure.
 
@@ -4871,39 +4905,80 @@ make_join_statistics(JOIN *join, List<TABLE_LIST> &tables_list,
     
     /*
       Perform range analysis if there are keys it could use (1). 
-      Don't do range analysis if we're on the inner side of an outer join (2).
-      Do range analysis if we're on the inner side of a semi-join (3).
-      Don't do range analysis for materialized subqueries (4).
-      Don't do range analysis for materialized derived tables (5)
+      Don't do range analysis for materialized subqueries (2).
+      Don't do range analysis for materialized derived tables (3)
     */
     if ((!s->const_keys.is_clear_all() ||
 	 !bitmap_is_clear_all(&s->table->cond_set)) &&              // (1)
-        (!s->table->pos_in_table_list->embedding ||                 // (2)
-         (s->table->pos_in_table_list->embedding &&                 // (3)
-          s->table->pos_in_table_list->embedding->sj_on_expr)) &&   // (3)
-        !s->table->is_filled_at_execution() &&                      // (4)
-        !(s->table->pos_in_table_list->derived &&                   // (5)
-          s->table->pos_in_table_list->is_materialized_derived()))  // (5)
+        !s->table->is_filled_at_execution() &&                      // (2)
+        !(s->table->pos_in_table_list->derived &&                   // (3)
+          s->table->pos_in_table_list->is_materialized_derived()))  // (3)
     {
       bool impossible_range= FALSE;
       ha_rows records= HA_POS_ERROR;
       SQL_SELECT *select= 0;
       if (!s->const_keys.is_clear_all())
       {
+        Item *sargable_cond;
+        int cond_source;
+        /*
+          Figure out which condition we should use for range analysis. For
+          INNER JOIN, we use the WHERE, for inner side of LEFT JOIN we should
+          use the ON expression.
+        */
+        if (*s->on_expr_ref)
+        {
+          /*
+            This is an inner table from a single-table LEFT JOIN, "t1 LEFT JOIN
+            t2 ON cond". Use the condition cond.
+          */
+          cond_source= 0;
+          sargable_cond= *s->on_expr_ref;
+        }
+        else if (s->table->pos_in_table_list->embedding &&
+                 !s->table->pos_in_table_list->embedding->sj_on_expr)
+        {
+          /*
+            This is the inner side of a multi-table outer join. Use the
+            appropriate ON expression.
+          */
+          cond_source= 1;
+          sargable_cond= s->table->pos_in_table_list->embedding->on_expr;
+        }
+        else
+        {
+          /* The table is not inner wrt some LEFT JOIN. Use the WHERE clause */
+          cond_source= 2;
+          sargable_cond= join->conds;
+        }
+
         select= make_select(s->table, found_const_table_map,
 			    found_const_table_map,
-			    *s->on_expr_ref ? *s->on_expr_ref : join->conds,
+                            sargable_cond,
                             (SORT_INFO*) 0,
 			    1, &error);
         if (!select)
           goto error;
         records= get_quick_record_count(join->thd, select, s->table,
 				        &s->const_keys, join->row_limit);
-        /* Range analyzer could modify the condition. */
-        if (*s->on_expr_ref)
-          *s->on_expr_ref= select->cond;
-        else
-          join->conds= select->cond;
+
+        /*
+          Range analyzer might have modified the condition. Put it the new
+          condition to where we got it from.
+        */
+        switch (cond_source) {
+          case 0:
+            *s->on_expr_ref= select->cond;
+            break;
+          case 1:
+            s->table->pos_in_table_list->embedding->on_expr= select->cond;
+            break;
+          case 2:
+            join->conds= select->cond;
+            break;
+          default:
+            DBUG_ASSERT(0);
+        }
 
         s->quick=select->quick;
         s->needed_reg=select->needed_reg;
@@ -4924,23 +4999,33 @@ make_join_statistics(JOIN *join, List<TABLE_LIST> &tables_list,
       }
       if (impossible_range)
       {
-	/*
-	  Impossible WHERE or ON expression
-	  In case of ON, we mark that the we match one empty NULL row.
-	  In case of WHERE, don't set found_const_table_map to get the
-	  caller to abort with a zero row result.
-	*/
-	join->const_table_map|= s->table->map;
-	set_position(join,const_count++,s,(KEYUSE*) 0);
-	s->type= JT_CONST;
-        s->table->const_table= 1;
-	if (*s->on_expr_ref)
-	{
-	  /* Generate empty row */
-	  s->info= ET_IMPOSSIBLE_ON_CONDITION;
-	  found_const_table_map|= s->table->map;
-	  mark_as_null_row(s->table);		// All fields are NULL
-	}
+        /*
+          Impossible WHERE or ON expression
+          In case of ON, we mark that the we match one empty NULL row.
+          In case of WHERE, don't set found_const_table_map to get the
+          caller to abort with a zero row result.
+        */
+        TABLE_LIST *emb= s->table->pos_in_table_list->embedding;
+        if (emb && !emb->sj_on_expr)
+        {
+          /* Mark all tables in a multi-table join nest as const */
+          mark_join_nest_as_const(join, emb, &found_const_table_map,
+                                &const_count);
+        }
+        else
+        {
+          join->const_table_map|= s->table->map;
+          set_position(join,const_count++,s,(KEYUSE*) 0);
+          s->type= JT_CONST;
+          s->table->const_table= 1;
+          if (*s->on_expr_ref)
+          {
+            /* Generate empty row */
+            s->info= ET_IMPOSSIBLE_ON_CONDITION;
+            found_const_table_map|= s->table->map;
+            mark_as_null_row(s->table);		// All fields are NULL
+          }
+        }
       }
       if (records != HA_POS_ERROR)
       {
