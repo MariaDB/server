@@ -414,7 +414,6 @@ sub main {
   }
   check_ssl_support();
   check_debug_support();
-  check_wsrep_support();
 
   if (!$opt_suites) {
     $opt_suites= join ',', collect_default_suites(@DEFAULT_SUITES);
@@ -1457,7 +1456,7 @@ sub command_line_setup {
 
     foreach my $fs (@tmpfs_locations)
     {
-      if ( -d $fs && ! -l $fs )
+      if ( -d $fs && ! -l $fs  && -w $fs )
       {
 	my $template= "var_${opt_build_thread}_XXXX";
 	$opt_mem= tempdir( $template, DIR => $fs, CLEANUP => 0);
@@ -2903,55 +2902,6 @@ sub mysql_server_wait {
                                       $warn_seconds);
 }
 
-sub have_wsrep() {
-  my $wsrep_on= $mysqld_variables{'wsrep-on'};
-  return defined $wsrep_on
-}
-
-sub wsrep_is_bootstrap_server($) {
-  my $mysqld= shift;
-  return $mysqld->if_exist('wsrep_cluster_address') &&
-    ($mysqld->value('wsrep_cluster_address') eq "gcomm://" ||
-     $mysqld->value('wsrep_cluster_address') eq "'gcomm://'");
-}
-
-sub check_wsrep_support() {
-  if (have_wsrep())
-  {
-    mtr_report(" - binaries built with wsrep patch");
-
-    # ADD scripts to $PATH to that wsrep_sst_* can be found
-    my ($path) = grep { -f "$_/wsrep_sst_rsync"; } "$::bindir/scripts", $::path_client_bindir;
-    mtr_error("No SST scripts") unless $path;
-    $ENV{PATH}="$path:$ENV{PATH}";
-
-    # Check whether WSREP_PROVIDER environment variable is set.
-    if (defined $ENV{'WSREP_PROVIDER'}) {
-      if ((mtr_file_exists($ENV{'WSREP_PROVIDER'}) eq "")  &&
-          ($ENV{'WSREP_PROVIDER'} ne "none")) {
-        mtr_error("WSREP_PROVIDER env set to an invalid path");
-      }
-      # WSREP_PROVIDER is valid; set to a valid path or "none").
-      mtr_verbose("WSREP_PROVIDER env set to $ENV{'WSREP_PROVIDER'}");
-    } else {
-      # WSREP_PROVIDER env not defined. Lets try to locate the wsrep provider
-      # library.
-      my $file_wsrep_provider=
-        mtr_file_exists("/usr/lib/galera/libgalera_smm.so",
-                        "/usr/lib64/galera/libgalera_smm.so");
-
-      if ($file_wsrep_provider ne "") {
-        # wsrep provider library found !
-        mtr_verbose("wsrep provider library found : $file_wsrep_provider");
-        $ENV{'WSREP_PROVIDER'}= $file_wsrep_provider;
-      } else {
-        mtr_verbose("Could not find wsrep provider library, setting it to 'none'");
-        $ENV{'WSREP_PROVIDER'}= "none";
-      }
-    }
-  }
-}
-
 sub create_config_file_for_extern {
   my %opts=
     (
@@ -3412,60 +3362,6 @@ sub run_query {
     );
 
   return $res
-}
-
-
-sub run_query_output {
-  my ($mysqld, $query, $outfile)= @_;
-
-  my $args;
-  mtr_init_args(\$args);
-  mtr_add_arg($args, "--defaults-file=%s", $path_config_file);
-  mtr_add_arg($args, "--defaults-group-suffix=%s", $mysqld->after('mysqld'));
-
-  mtr_add_arg($args, "--silent");
-  mtr_add_arg($args, "--execute=%s", $query);
-
-  my $res= My::SafeProcess->run
-    (
-     name          => "run_query_output -> ".$mysqld->name(),
-     path          => $exe_mysql,
-     args          => \$args,
-     output        => $outfile,
-     error         => $outfile
-    );
-
-  return $res
-}
-
-
-sub wait_wsrep_ready($$) {
-  my ($tinfo, $mysqld)= @_;
-
-  my $sleeptime= 100; # Milliseconds
-  my $loops= ($opt_start_timeout * 1000) / $sleeptime;
-
-  my $name= $mysqld->name();
-  my $outfile= "$opt_vardir/tmp/$name.wsrep_ready";
-  my $query= "SET SESSION wsrep_sync_wait = 0;
-              SELECT VARIABLE_VALUE
-              FROM INFORMATION_SCHEMA.GLOBAL_STATUS
-              WHERE VARIABLE_NAME = 'wsrep_ready'";
-
-  for (my $loop= 1; $loop <= $loops; $loop++)
-  {
-    if (run_query_output($mysqld, $query, $outfile) == 0 &&
-        mtr_grab_file($outfile) =~ /^ON/)
-    {
-      unlink($outfile);
-      return 1;
-    }
-
-    mtr_milli_sleep($sleeptime);
-  }
-
-  $tinfo->{logfile}= "WSREP did not transition to state READY";
-  return 0;
 }
 
 
@@ -4110,14 +4006,14 @@ sub run_testcase ($$) {
   }
 
   my $test= $tinfo->{suite}->start_test($tinfo);
-  # Set only when we have to keep waiting after expectedly died server
-  my $keep_waiting_proc = 0;
+  # Set to a list of processes we have to keep waiting (expectedly died servers)
+  my %keep_waiting_proc = ();
   my $print_timeout= start_timer($print_freq * 60);
 
   while (1)
   {
     my $proc;
-    if ($keep_waiting_proc)
+    if (%keep_waiting_proc)
     {
       # Any other process exited?
       $proc = My::SafeProcess->check_any();
@@ -4127,48 +4023,34 @@ sub run_testcase ($$) {
       }
       else
       {
-	$proc = $keep_waiting_proc;
 	# Also check if timer has expired, if so cancel waiting
 	if ( has_expired($test_timeout) )
 	{
-	  $keep_waiting_proc = 0;
+	  %keep_waiting_proc = ();
 	}
       }
     }
-    if (! $keep_waiting_proc)
+    if (!%keep_waiting_proc && !$proc)
     {
-      if($test_timeout > $print_timeout)
+      if ($test_timeout > $print_timeout)
       {
-         $proc= My::SafeProcess->wait_any_timeout($print_timeout);
-         if ( $proc->{timeout} )
-         {
-            #print out that the test is still on
-            mtr_print("Test still running: $tinfo->{name}");
-            #reset the timer
-            $print_timeout= start_timer($print_freq * 60);
-            next;
-         }
+        $proc= My::SafeProcess->wait_any_timeout($print_timeout);
+        if ($proc->{timeout})
+        {
+          #print out that the test is still on
+          mtr_print("Test still running: $tinfo->{name}");
+          #reset the timer
+          $print_timeout= start_timer($print_freq * 60);
+          next;
+        }
       }
       else
       {
-         $proc= My::SafeProcess->wait_any_timeout($test_timeout);
+        $proc= My::SafeProcess->wait_any_timeout($test_timeout);
       }
     }
 
-    # Will be restored if we need to keep waiting
-    $keep_waiting_proc = 0;
-
-    unless ( defined $proc )
-    {
-      mtr_error("wait_any failed");
-    }
-    mtr_verbose("Got $proc");
-
-    mark_time_used('test');
-    # ----------------------------------------------------
-    # Was it the test program that exited
-    # ----------------------------------------------------
-    if ($proc eq $test)
+    if ($proc and $proc eq $test) # mysqltest itself exited
     {
       my $res= $test->exit_status();
 
@@ -4183,12 +4065,12 @@ sub run_testcase ($$) {
 
       if ( $res == 0 )
       {
-	my $check_res;
-	if ( $opt_check_testcases and
-	     $check_res= check_testcase($tinfo, "after"))
-	{
-	  if ($check_res == 1) {
-	    # Test case had sideeffects, not fatal error, just continue
+        my $check_res;
+        if ( $opt_check_testcases and
+             $check_res= check_testcase($tinfo, "after"))
+        {
+          if ($check_res == 1) {
+            # Test case had sideeffects, not fatal error, just continue
             if ($opt_warnings) {
               # Checking error logs for warnings, so need to stop server
               # gracefully so that memory leaks etc. can be properly detected.
@@ -4199,92 +4081,109 @@ sub run_testcase ($$) {
               # test.
             } else {
               # Not checking warnings, so can do a hard shutdown.
-	      stop_all_servers($opt_shutdown_timeout);
+              stop_all_servers($opt_shutdown_timeout);
             }
-	    mtr_report("Resuming tests...\n");
-	    resfile_output($tinfo->{'check'}) if $opt_resfile;
-	  }
-	  else {
-	    # Test case check failed fatally, probably a server crashed
-	    report_failure_and_restart($tinfo);
-	    return 1;
-	  }
-	}
-	mtr_report_test_passed($tinfo);
+            mtr_report("Resuming tests...\n");
+            resfile_output($tinfo->{'check'}) if $opt_resfile;
+          }
+          else {
+            # Test case check failed fatally, probably a server crashed
+            report_failure_and_restart($tinfo);
+            return 1;
+          }
+        }
+        mtr_report_test_passed($tinfo);
       }
       elsif ( $res == 62 )
       {
-	# Testcase itself tell us to skip this one
-	$tinfo->{skip_detected_by_test}= 1;
-	# Try to get reason from test log file
-	find_testcase_skipped_reason($tinfo);
-	mtr_report_test_skipped($tinfo);
-	# Restart if skipped due to missing perl, it may have had side effects
-	if ( $tinfo->{'comment'} =~ /^perl not found/ )
-	{
-	  stop_all_servers($opt_shutdown_timeout);
-	}
+        # Testcase itself tell us to skip this one
+        $tinfo->{skip_detected_by_test}= 1;
+        # Try to get reason from test log file
+        find_testcase_skipped_reason($tinfo);
+        mtr_report_test_skipped($tinfo);
+        # Restart if skipped due to missing perl, it may have had side effects
+        if ( $tinfo->{'comment'} =~ /^perl not found/ )
+        {
+          stop_all_servers($opt_shutdown_timeout);
+        }
       }
       elsif ( $res == 65 )
       {
-	# Testprogram killed by signal
-	$tinfo->{comment}=
-	  "testprogram crashed(returned code $res)";
-	report_failure_and_restart($tinfo);
+        # Testprogram killed by signal
+        $tinfo->{comment}=
+          "testprogram crashed(returned code $res)";
+        report_failure_and_restart($tinfo);
       }
       elsif ( $res == 1 )
       {
-	# Check if the test tool requests that
-	# an analyze script should be run
-	my $analyze= find_analyze_request();
-	if ($analyze){
-	  run_on_all($tinfo, "analyze-$analyze");
-	}
+        # Check if the test tool requests that
+        # an analyze script should be run
+        my $analyze= find_analyze_request();
+        if ($analyze){
+          run_on_all($tinfo, "analyze-$analyze");
+        }
 
-	# Wait a bit and see if a server died, if so report that instead
-	mtr_milli_sleep(100);
-	my $srvproc= My::SafeProcess::check_any();
-	if ($srvproc && grep($srvproc eq $_, started(all_servers()))) {
-	  $proc= $srvproc;
-	  goto SRVDIED;
-	}
+        # Wait a bit and see if a server died, if so report that instead
+        mtr_milli_sleep(100);
+        my $srvproc= My::SafeProcess::check_any();
+        if ($srvproc && grep($srvproc eq $_, started(all_servers()))) {
+          $proc= $srvproc;
+          goto SRVDIED;
+        }
 
-	# Test case failure reported by mysqltest
-	report_failure_and_restart($tinfo);
+        # Test case failure reported by mysqltest
+        report_failure_and_restart($tinfo);
       }
       else
       {
-	# mysqltest failed, probably crashed
-	$tinfo->{comment}=
-	  "mysqltest failed with unexpected return code $res\n";
-	report_failure_and_restart($tinfo);
+        # mysqltest failed, probably crashed
+        $tinfo->{comment}=
+          "mysqltest failed with unexpected return code $res\n";
+        report_failure_and_restart($tinfo);
       }
 
       # Save info from this testcase run to mysqltest.log
       if( -f $path_current_testlog)
       {
-	if ($opt_resfile && $res && $res != 62) {
-	  resfile_output_file($path_current_testlog);
-	}
-	mtr_appendfile_to_file($path_current_testlog, $path_testlog);
-	unlink($path_current_testlog);
+        if ($opt_resfile && $res && $res != 62) {
+          resfile_output_file($path_current_testlog);
+        }
+        mtr_appendfile_to_file($path_current_testlog, $path_testlog);
+        unlink($path_current_testlog);
       }
 
       return ($res == 62) ? 0 : $res;
-
     }
 
-    # ----------------------------------------------------
-    # Check if it was an expected crash
-    # ----------------------------------------------------
-    my $check_crash = check_expected_crash_and_restart($proc);
-    if ($check_crash)
+    if ($proc)
     {
-      # Keep waiting if it returned 2, if 1 don't wait or stop waiting.
-      $keep_waiting_proc = 0 if $check_crash == 1;
-      $keep_waiting_proc = $proc if $check_crash == 2;
-      next;
+      # It was not mysqltest that exited, add to a wait-to-be-started-again list.
+      $keep_waiting_proc{$proc} = 1;
     }
+
+    mtr_verbose("Got " . join(",", keys(%keep_waiting_proc)));
+
+    mark_time_used('test');
+    foreach my $wait_for_proc (keys(%keep_waiting_proc)) {
+      # ----------------------------------------------------
+      # Check if it was an expected crash
+      # ----------------------------------------------------
+      my $check_crash = check_expected_crash_and_restart($wait_for_proc);
+      if ($check_crash == 0) # unexpected exit/crash of $wait_for_proc
+      {
+        goto SRVDIED;
+      }
+      elsif ($check_crash == 1) # $wait_for_proc was started again by check_expected_crash_and_restart()
+      {
+        delete $keep_waiting_proc{$wait_for_proc};
+      }
+      elsif ($check_crash == 2) # we must keep waiting
+      {
+        # do nothing
+      }
+    }
+
+    next;
 
   SRVDIED:
     # ----------------------------------------------------
@@ -5514,21 +5413,6 @@ sub start_servers($) {
 
   for (all_servers()) {
     $_->{START}->($_, $tinfo) if $_->{START};
-    # If wsrep is on, we need to wait until the first
-    # server starts and bootstraps the cluster before
-    # starting other servers. The bootsrap server in the
-    # configuration should always be the first which has
-    # wsrep_on=ON and should be tagged with "#wsrep-new-cluster".
-    # option
-    if (have_wsrep() && (defined $_->option("#wsrep-new-cluster") ||
-                         wsrep_is_bootstrap_server($_)))
-    {
-      mtr_debug("Waiting the first wsrep server to start");
-      if ($_->{WAIT}->($_) && !wait_wsrep_ready($tinfo, $_))
-      {
-	return 1;
-      }
-    }
   }
 
   for (all_servers()) {
@@ -5537,13 +5421,7 @@ sub start_servers($) {
       $tinfo->{comment}= "Failed to start ".$_->name() . "\n";
       return 1;
     }
-
-    if (have_wsrep() && !wait_wsrep_ready($tinfo, $_))
-    {
-      return 1;
-    }
   }
-
   return 0;
 }
 
@@ -5817,7 +5695,7 @@ EOF
     mtr_tofile($gdb_init_file,
       join("\n",
         "set args @$$args $input",
-        split /;/, $opt_gdb
+        split /;/, $opt_gdb || ""
         ));
   }
 
