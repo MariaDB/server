@@ -292,6 +292,9 @@ static bool find_order_in_list(THD *, Ref_ptr_array, TABLE_LIST *, ORDER *,
 static double table_cond_selectivity(JOIN *join, uint idx, JOIN_TAB *s,
                                      table_map rem_tables);
 void set_postjoin_aggr_write_func(JOIN_TAB *tab);
+
+static Item **get_sargable_cond(JOIN *join, TABLE *table);
+
 #ifndef DBUG_OFF
 
 /*
@@ -1770,19 +1773,9 @@ JOIN::optimize_inner()
     List_iterator_fast<TABLE_LIST> li(select_lex->leaf_tables);
     while ((tbl= li++))
     {
-      /* 
-        If tbl->embedding!=NULL that means that this table is in the inner
-        part of the nested outer join, and we can't do partition pruning
-        (TODO: check if this limitation can be lifted)
-      */
-      if (!tbl->embedding ||
-          (tbl->embedding && tbl->embedding->sj_on_expr))
-      {
-        Item *prune_cond= tbl->on_expr? tbl->on_expr : conds;
-        tbl->table->all_partitions_pruned_away= prune_partitions(thd,
-                                                                 tbl->table,
-	                                                         prune_cond);
-       }
+      Item **prune_cond= get_sargable_cond(this, tbl->table);
+      tbl->table->all_partitions_pruned_away=
+        prune_partitions(thd, tbl->table, *prune_cond);
     }
   }
 #endif
@@ -4334,6 +4327,47 @@ void mark_join_nest_as_const(JOIN *join,
   }
 }
 
+
+/*
+  @brief Get the condition that can be used to do range analysis/partition
+    pruning/etc
+
+  @detail
+    Figure out which condition we can use:
+    - For INNER JOIN, we use the WHERE,
+    - "t1 LEFT JOIN t2 ON ..." uses t2's ON expression
+    - "t1 LEFT JOIN (...) ON ..." uses the join nest's ON expression.
+*/
+
+static Item **get_sargable_cond(JOIN *join, TABLE *table)
+{
+  Item **retval;
+  if (table->pos_in_table_list->on_expr)
+  {
+    /*
+      This is an inner table from a single-table LEFT JOIN, "t1 LEFT JOIN
+      t2 ON cond". Use the condition cond.
+    */
+    retval= &table->pos_in_table_list->on_expr;
+  }
+  else if (table->pos_in_table_list->embedding &&
+           !table->pos_in_table_list->embedding->sj_on_expr)
+  {
+    /*
+      This is the inner side of a multi-table outer join. Use the
+      appropriate ON expression.
+    */
+    retval= &(table->pos_in_table_list->embedding->on_expr);
+  }
+  else
+  {
+    /* The table is not inner wrt some LEFT JOIN. Use the WHERE clause */
+    retval= &join->conds;
+  }
+  return retval;
+}
+
+
 /**
   Calculate the best possible join and initialize the join structure.
 
@@ -4919,42 +4953,11 @@ make_join_statistics(JOIN *join, List<TABLE_LIST> &tables_list,
       SQL_SELECT *select= 0;
       if (!s->const_keys.is_clear_all())
       {
-        Item *sargable_cond;
-        int cond_source;
-        /*
-          Figure out which condition we should use for range analysis. For
-          INNER JOIN, we use the WHERE, for inner side of LEFT JOIN we should
-          use the ON expression.
-        */
-        if (*s->on_expr_ref)
-        {
-          /*
-            This is an inner table from a single-table LEFT JOIN, "t1 LEFT JOIN
-            t2 ON cond". Use the condition cond.
-          */
-          cond_source= 0;
-          sargable_cond= *s->on_expr_ref;
-        }
-        else if (s->table->pos_in_table_list->embedding &&
-                 !s->table->pos_in_table_list->embedding->sj_on_expr)
-        {
-          /*
-            This is the inner side of a multi-table outer join. Use the
-            appropriate ON expression.
-          */
-          cond_source= 1;
-          sargable_cond= s->table->pos_in_table_list->embedding->on_expr;
-        }
-        else
-        {
-          /* The table is not inner wrt some LEFT JOIN. Use the WHERE clause */
-          cond_source= 2;
-          sargable_cond= join->conds;
-        }
+        Item **sargable_cond= get_sargable_cond(join, s->table);
 
         select= make_select(s->table, found_const_table_map,
 			    found_const_table_map,
-                            sargable_cond,
+                            *sargable_cond,
                             (SORT_INFO*) 0,
 			    1, &error);
         if (!select)
@@ -4966,19 +4969,7 @@ make_join_statistics(JOIN *join, List<TABLE_LIST> &tables_list,
           Range analyzer might have modified the condition. Put it the new
           condition to where we got it from.
         */
-        switch (cond_source) {
-          case 0:
-            *s->on_expr_ref= select->cond;
-            break;
-          case 1:
-            s->table->pos_in_table_list->embedding->on_expr= select->cond;
-            break;
-          case 2:
-            join->conds= select->cond;
-            break;
-          default:
-            DBUG_ASSERT(0);
-        }
+        *sargable_cond= select->cond;
 
         s->quick=select->quick;
         s->needed_reg=select->needed_reg;
