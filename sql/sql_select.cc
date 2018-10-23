@@ -4951,9 +4951,10 @@ make_join_statistics(JOIN *join, List<TABLE_LIST> &tables_list,
       bool impossible_range= FALSE;
       ha_rows records= HA_POS_ERROR;
       SQL_SELECT *select= 0;
+      Item **sargable_cond= NULL;
       if (!s->const_keys.is_clear_all())
       {
-        Item **sargable_cond= get_sargable_cond(join, s->table);
+        sargable_cond= get_sargable_cond(join, s->table);
 
         select= make_select(s->table, found_const_table_map,
 			    found_const_table_map,
@@ -4978,10 +4979,11 @@ make_join_statistics(JOIN *join, List<TABLE_LIST> &tables_list,
       }
       if (!impossible_range)
       {
+        if (!sargable_cond)
+          sargable_cond= get_sargable_cond(join, s->table);
         if (join->thd->variables.optimizer_use_condition_selectivity > 1)
           calculate_cond_selectivity_for_table(join->thd, s->table, 
-                                               *s->on_expr_ref ?
-                                               s->on_expr_ref : &join->conds);
+                                               sargable_cond);
         if (s->table->reginfo.impossible_range)
 	{
           impossible_range= TRUE;
