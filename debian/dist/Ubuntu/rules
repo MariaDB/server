@@ -1,10 +1,7 @@
 #!/usr/bin/make -f
 
 export DH_VERBOSE=1
-#export DEB_BUILD_HARDENING=1
-export DEB_BUILD_MAINT_OPTIONS = hardening=+all,-pie
-DPKG_EXPORT_BUILDFLAGS = 1
-include /usr/share/dpkg/buildflags.mk
+export DEB_BUILD_HARDENING=1
 
 PACKAGE=mariadb-5.5
 
