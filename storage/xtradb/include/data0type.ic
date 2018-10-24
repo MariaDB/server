@@ -446,6 +446,7 @@ dtype_get_fixed_size_low(
 			return(0);
 		}
 #endif /* UNIV_DEBUG */
+		// fallthrough
 	case DATA_CHAR:
 	case DATA_FIXBINARY:
 	case DATA_INT:
@@ -524,6 +525,7 @@ dtype_get_min_size_low(
 			return(0);
 		}
 #endif /* UNIV_DEBUG */
+		// fallthrough
 	case DATA_CHAR:
 	case DATA_FIXBINARY:
 	case DATA_INT:

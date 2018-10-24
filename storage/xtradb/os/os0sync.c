@@ -227,24 +227,6 @@ os_cond_broadcast(
 }
 
 /*********************************************************//**
-Wakes one thread waiting for condition variable */
-UNIV_INLINE
-void
-os_cond_signal(
-/*==========*/
-	os_cond_t*	cond)	/*!< in: condition variable. */
-{
-	ut_a(cond);
-
-#ifdef __WIN__
-	ut_a(wake_condition_variable != NULL);
-	wake_condition_variable(cond);
-#else
-	ut_a(pthread_cond_signal(cond) == 0);
-#endif
-}
-
-/*********************************************************//**
 Destroys condition variable */
 UNIV_INLINE
 void

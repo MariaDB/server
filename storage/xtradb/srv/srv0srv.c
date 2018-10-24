@@ -1402,6 +1402,8 @@ retry:
 
 		os_fast_mutex_unlock(&srv_conc_mutex);
 
+		DEBUG_SYNC_C("user_thread_waiting");
+
 		trx->op_info = "sleeping before joining InnoDB queue";
 
 		/* Peter Zaitsev suggested that we take the sleep away

@@ -1,6 +1,6 @@
 /*****************************************************************************
 
-Copyright (c) 2000, 2015, Oracle and/or its affiliates. All Rights Reserved.
+Copyright (c) 2000, 2018, Oracle and/or its affiliates. All Rights Reserved.
 Copyright (c) 2008, 2009 Google Inc.
 Copyright (c) 2009, Percona Inc.
 
@@ -1938,6 +1938,7 @@ trx_is_registered_for_2pc(
 
 /*********************************************************************//**
 Note that a transaction owns the prepare_commit_mutex. */
+#ifndef EXTENDED_FOR_COMMIT_ORDERED
 static inline
 void
 trx_owns_prepare_commit_mutex_set(
@@ -1947,6 +1948,7 @@ trx_owns_prepare_commit_mutex_set(
 	ut_a(trx_is_registered_for_2pc(trx));
 	trx->owns_prepare_mutex = 1;
 }
+#endif // EXTENDED_FOR_COMMIT_ORDERED
 
 /*********************************************************************//**
 Note that a transaction has been registered with MySQL 2PC coordinator. */
@@ -5830,7 +5832,7 @@ build_template(
 		if (UNIV_LIKELY(templ_type == ROW_MYSQL_REC_FIELDS)) {
 			/* Decide which columns we should fetch
 			and which we can skip. */
-			register const ibool	index_contains_field =
+			const ibool	index_contains_field =
 				dict_index_contains_col_or_prefix(index, i);
 
 			if (!index_contains_field && prebuilt->read_just_key) {
@@ -6199,6 +6201,8 @@ no_commit:
 	innodb_srv_conc_enter_innodb(prebuilt->trx);
 
 	error = row_insert_for_mysql((byte*) record, prebuilt);
+	DEBUG_SYNC(user_thd, "ib_after_row_insert");
+
 
 #ifdef EXTENDED_FOR_USERSTAT
 	if (UNIV_LIKELY(error == DB_SUCCESS && !trx->fake_changes)) {
@@ -7648,8 +7652,6 @@ create_table_def(
 			}
 		}
 
-		ut_a(field->type() < 256); /* we assume in dtype_form_prtype()
-					   that this fits in one byte */
 		col_len = field->pack_length();
 
 		/* The MySQL pack length contains 1 or 2 bytes length field
@@ -10404,8 +10406,10 @@ ha_innobase::start_stmt(
 		case SQLCOM_INSERT:
 		case SQLCOM_UPDATE:
 		case SQLCOM_DELETE:
+		case SQLCOM_REPLACE:
 			init_table_handle_for_HANDLER();
 			prebuilt->select_lock_type = LOCK_X;
+			prebuilt->stored_select_lock_type = LOCK_X;
 			error = row_lock_table_for_mysql(prebuilt, NULL, 1);
 
 			if (error != DB_SUCCESS) {
