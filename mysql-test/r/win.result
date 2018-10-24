@@ -3326,3 +3326,40 @@ SELECT DISTINCT BIT_AND(0)  OVER (), MAX(1) FROM t1;
 BIT_AND(0)  OVER ()	MAX(1)
 0	1
 drop table t1;
+#
+# MDEV-17525: Window functions not working in ONLY_FULL_GROUP_BY mode
+#
+CREATE TABLE t1 (name CHAR(10), test CHAR(10), score TINYINT);
+INSERT INTO t1 VALUES
+('Chun', 'SQL', 75), ('Chun', 'Tuning', 73),
+('Esben', 'SQL', 43), ('Esben', 'Tuning', 31),
+('Kaolin', 'SQL', 56), ('Kaolin', 'Tuning', 88),
+('Tatiana', 'SQL', 87), ('Tatiana', 'Tuning', 83);
+SET @save_sql_mode= @@sql_mode;
+SET sql_mode = 'ONLY_FULL_GROUP_BY';
+SELECT name, test, score,
+AVG(score) OVER (PARTITION BY test) AS average_by_test
+FROM t1;
+name	test	score	average_by_test
+Chun	SQL	75	65.2500
+Chun	Tuning	73	68.7500
+Esben	SQL	43	65.2500
+Esben	Tuning	31	68.7500
+Kaolin	SQL	56	65.2500
+Kaolin	Tuning	88	68.7500
+Tatiana	SQL	87	65.2500
+Tatiana	Tuning	83	68.7500
+set @@sql_mode= @save_sql_mode;
+SELECT name, test, score,
+AVG(score) OVER (PARTITION BY test) AS average_by_test
+FROM t1;
+name	test	score	average_by_test
+Chun	SQL	75	65.2500
+Chun	Tuning	73	68.7500
+Esben	SQL	43	65.2500
+Esben	Tuning	31	68.7500
+Kaolin	SQL	56	65.2500
+Kaolin	Tuning	88	68.7500
+Tatiana	SQL	87	65.2500
+Tatiana	Tuning	83	68.7500
+drop table t1;

@@ -22611,7 +22611,8 @@ setup_group(THD *thd, Ref_ptr_array ref_pointer_array, TABLE_LIST *tables,
       return 1;
     }
   }
-  if (thd->variables.sql_mode & MODE_ONLY_FULL_GROUP_BY)
+  if (thd->variables.sql_mode & MODE_ONLY_FULL_GROUP_BY &&
+      context_analysis_place == IN_GROUP_BY)
   {
     /*
       Don't allow one to use fields that is not used in GROUP BY
