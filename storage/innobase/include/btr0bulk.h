@@ -286,8 +286,7 @@ public:
 	{
 #ifdef UNIV_DEBUG
 		if (m_flush_observer)
-		my_atomic_addlint(&m_index->table->space->redo_skipped_count,
-				  1);
+			m_index->table->space->redo_skipped_count++;
 #endif /* UNIV_DEBUG */
 	}
 
@@ -296,8 +295,7 @@ public:
 	{
 #ifdef UNIV_DEBUG
 		if (m_flush_observer)
-		my_atomic_addlint(&m_index->table->space->redo_skipped_count,
-				  ulint(-1));
+			m_index->table->space->redo_skipped_count--;
 #endif /* UNIV_DEBUG */
 	}
 
