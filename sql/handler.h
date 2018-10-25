@@ -1906,6 +1906,8 @@ enum vers_sys_type_t
   VERS_TRX_ID
 };
 
+extern const LEX_CSTRING null_clex_str;
+
 struct Vers_parse_info
 {
   Vers_parse_info() :
@@ -1913,6 +1915,15 @@ struct Vers_parse_info
     versioned_fields(false),
     unversioned_fields(false)
   {}
+
+  void init() // Deep initialization
+  {
+    system_time= start_end_t(null_clex_str, null_clex_str);
+    as_row= start_end_t(null_clex_str, null_clex_str);
+    check_unit= VERS_UNDEFINED;
+    versioned_fields= false;
+    unversioned_fields= false;
+  }
 
   struct start_end_t
   {
@@ -1993,7 +2004,7 @@ public:
      - [AS] SELECT ...             // Copy structure from a subquery
 */
 
-struct Table_scope_and_contents_source_st
+struct Table_scope_and_contents_source_pod_st // For trivial members
 {
   CHARSET_INFO *table_charset;
   LEX_CUSTRING tabledef_version;
@@ -2019,7 +2030,6 @@ struct Table_scope_and_contents_source_st
   uint options;				/* OR of HA_CREATE_ options */
   uint merge_insert_method;
   uint extra_size;                      /* length of extra data segment */
-  SQL_I_List<TABLE_LIST> merge_list;
   handlerton *db_type;
   /**
     Row type of the table definition.
@@ -2053,15 +2063,6 @@ struct Table_scope_and_contents_source_st
   bool table_was_deleted;
   sequence_definition *seq_create_info;
 
-  Vers_parse_info vers_info;
-
-  bool vers_fix_system_fields(THD *thd, Alter_info *alter_info,
-                         const TABLE_LIST &create_table,
-                         bool create_select= false);
-
-  bool vers_check_system_fields(THD *thd, Alter_info *alter_info,
-                                const TABLE_LIST &create_table);
-
   bool vers_native(THD *thd) const;
 
   void init()
@@ -2079,6 +2080,30 @@ struct Table_scope_and_contents_source_st
   {
     return options & HA_VERSIONED_TABLE;
   }
+};
+
+
+struct Table_scope_and_contents_source_st:
+         public Table_scope_and_contents_source_pod_st
+{
+  SQL_I_List<TABLE_LIST> merge_list;
+
+  Vers_parse_info vers_info;
+
+  void init()
+  {
+    Table_scope_and_contents_source_pod_st::init();
+    merge_list.empty();
+    vers_info.init();
+  }
+
+  bool vers_fix_system_fields(THD *thd, Alter_info *alter_info,
+                         const TABLE_LIST &create_table,
+                         bool create_select= false);
+
+  bool vers_check_system_fields(THD *thd, Alter_info *alter_info,
+                                const TABLE_LIST &create_table);
+
 };
 
 
