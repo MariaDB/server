@@ -228,7 +228,6 @@ DELETE FROM t1 WHERE id = 1;
 
 --connection con1
 COMMIT;
---disconnect con1
 
 --connection default
 SELECT * FROM t2;
@@ -288,8 +287,6 @@ insert into t1 values(1, 1);
 insert into t2(f1) values(1);
 drop table t2, t1;
 
---source include/wait_until_count_sessions.inc
-
 #
 # MDEV-12669 Circular foreign keys cause a loop and OOM upon LOCK TABLE
 #
@@ -308,8 +305,42 @@ CREATE TABLE store (
   UNIQUE KEY idx_unique_manager (manager_staff_id),
   CONSTRAINT fk_store_staff FOREIGN KEY (manager_staff_id) REFERENCES staff (staff_id) ON DELETE RESTRICT ON UPDATE CASCADE
 ) ENGINE=InnoDB;
-SET FOREIGN_KEY_CHECKS=DEFAULT;
 
 LOCK TABLE staff WRITE;
 UNLOCK TABLES;
 DROP TABLES staff, store;
+SET FOREIGN_KEY_CHECKS=1;
+
+--echo #
+--echo # MDEV-17541 KILL QUERY during lock wait in FOREIGN KEY check hangs
+--echo #
+
+CREATE TABLE t1 (a INT PRIMARY KEY) ENGINE=InnoDB;
+CREATE TABLE t2 (a INT PRIMARY KEY, FOREIGN KEY (a) REFERENCES t1(a))
+ENGINE=InnoDB;
+
+connection con1;
+INSERT INTO t1 SET a=1;
+BEGIN;
+DELETE FROM t1;
+
+connection default;
+let $ID= `SELECT @id := CONNECTION_ID()`;
+send INSERT INTO t2 SET a=1;
+
+connection con1;
+let $wait_condition=
+  select count(*) = 1 from information_schema.processlist
+  where state = 'update' and info = 'INSERT INTO t2 SET a=1';
+--source include/wait_condition.inc
+let $ignore= `SELECT @id := $ID`;
+kill query @id;
+
+connection default;
+--error ER_QUERY_INTERRUPTED
+reap;
+disconnect con1;
+
+DROP TABLE t2,t1;
+
+--source include/wait_until_count_sessions.inc
