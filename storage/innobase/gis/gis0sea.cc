@@ -1,6 +1,6 @@
 /*****************************************************************************
 
-Copyright (c) 2016, Oracle and/or its affiliates. All Rights Reserved.
+Copyright (c) 2016, 2018, Oracle and/or its affiliates. All Rights Reserved.
 Copyright (c) 2017, 2018, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
@@ -389,8 +389,7 @@ rtr_pcur_getnext_from_path(
 		if (mode != PAGE_CUR_RTREE_INSERT
 		    && mode != PAGE_CUR_RTREE_LOCATE
 		    && mode >= PAGE_CUR_CONTAIN
-		    && btr_cur->rtr_info->need_prdt_lock
-		    && found) {
+		    && btr_cur->rtr_info->need_prdt_lock) {
 			lock_prdt_t	prdt;
 
 			trx_t*		trx = thr_get_trx(
