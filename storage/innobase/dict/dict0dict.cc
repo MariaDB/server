@@ -3357,8 +3357,6 @@ dict_foreign_find_index(
 
 	while (index != NULL) {
 		if (types_idx != index
-		    && !(index->type & DICT_FTS)
-		    && !dict_index_is_spatial(index)
 		    && !index->to_be_dropped
 		    && !dict_index_is_online_ddl(index)
 		    && dict_foreign_qualify_index(
@@ -6879,6 +6877,10 @@ dict_foreign_qualify_index(
 {
 	if (dict_index_get_n_fields(index) < n_cols) {
 		return(false);
+	}
+
+	if (index->type & (DICT_SPATIAL | DICT_FTS)) {
+		return false;
 	}
 
 	for (ulint i = 0; i < n_cols; i++) {

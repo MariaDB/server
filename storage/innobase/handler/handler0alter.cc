@@ -1343,8 +1343,7 @@ innobase_find_fk_index(
 	index = dict_table_get_first_index(table);
 
 	while (index != NULL) {
-		if (!(index->type & DICT_FTS)
-		    && dict_foreign_qualify_index(
+		if (dict_foreign_qualify_index(
 			    table, col_names, columns, n_cols,
 			    index, NULL, true, 0,
 			    NULL, NULL, NULL)) {
