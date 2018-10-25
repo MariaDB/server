@@ -1393,7 +1393,6 @@ int ha_commit_trans(THD *thd, bool all)
 #ifdef WITH_WSREP
     if (WSREP(thd) && all && !error && trans_was_empty)
     {
-      WSREP_DEBUG("was empty handler");
       wsrep_commit_empty(thd, all);
     }
 #endif /* WITH_WSREP */
@@ -1492,7 +1491,24 @@ int ha_commit_trans(THD *thd, bool all)
 
   if (trans->no_2pc || (rw_ha_count <= 1))
   {
+#ifdef WITH_WSREP
+    /*
+      This commit will not go through log_and_order() where wsrep commit
+      ordering is normally done. Commit ordering must be done here.
+    */
+    bool run_wsrep_commit= (WSREP(thd)              &&
+                            rw_ha_count             &&
+                            wsrep_thd_is_local(thd) &&
+                            wsrep_has_changes(thd, all));
+    if (run_wsrep_commit)
+      error= wsrep_before_commit(thd, all);
+    if (error) goto done;
+#endif /* WITH_WSREP */
     error= ha_commit_one_phase(thd, all);
+#ifdef WITH_WSREP
+    if (run_wsrep_commit)
+      error= wsrep_after_commit(thd, all);
+#endif /* WITH_WSREP */
     goto done;
   }
 

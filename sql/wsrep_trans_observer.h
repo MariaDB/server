@@ -43,6 +43,28 @@ static inline bool wsrep_is_real(THD* thd, bool all)
   return (all || thd->transaction.all.ha_list == 0);
 }
 
+/*
+  Check if a transaction has generated changes.
+ */
+static inline bool wsrep_has_changes(THD* thd, my_bool all)
+{
+  bool ret= false;
+  /*
+    TODO: It would maybe better to check if any keys have been
+    assigned to a transaction.
+  */
+  THD_TRANS* trans= all ? &thd->transaction.all : &thd->transaction.stmt;
+  for (Ha_trx_info* i= trans->ha_list; i; i = i->next())
+  {
+    if (i->ht()->db_type == DB_TYPE_BINLOG)
+    {
+      ret= true;
+      break;
+    }
+  }
+  return ret;
+}
+
 static inline int wsrep_check_pk(THD* thd)
 {
   if (!wsrep_certify_nonPK)
@@ -256,11 +278,11 @@ static inline int wsrep_before_statement(THD* thd)
 }
 
 static inline
-// enum wsrep::client_state::after_statement_result
 int wsrep_after_statement(THD* thd)
 {
-  return (wsrep_on((const void*)thd) ?
-          thd->wsrep_cs().after_statement() : 0);
+  DBUG_ENTER("wsrep_after_statement");
+  DBUG_RETURN(wsrep_on((const void*)thd) ?
+              thd->wsrep_cs().after_statement() : 0);
 }
 
 static inline void wsrep_after_apply(THD* thd)
@@ -350,17 +372,17 @@ static inline void wsrep_commit_empty(THD* thd, bool all)
   WSREP_DEBUG("wsrep_commit_empty(%llu)", thd->thread_id);
   if (wsrep_is_real(thd, all) &&
       wsrep_thd_is_local(thd) &&
-      thd->wsrep_trx().active())
+      thd->wsrep_trx().active() &&
+      thd->wsrep_trx().state() != wsrep::transaction::s_committed)
   {
     bool have_error= wsrep_current_error(thd);
     int ret= wsrep_before_rollback(thd, all) ||
       wsrep_after_rollback(thd, all) ||
       wsrep_after_statement(thd);
-    DBUG_ASSERT(!ret);
     DBUG_ASSERT(have_error || !wsrep_current_error(thd));
     if (ret)
     {
-      WSREP_WARN("wsrep_commit_empty failed: %d", wsrep_current_error(thd));
+      WSREP_DEBUG("wsrep_commit_empty failed: %d", wsrep_current_error(thd));
     }
   }
   DBUG_VOID_RETURN;

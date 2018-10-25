@@ -4575,36 +4575,36 @@ bool select_create::send_eof()
 #ifdef WITH_WSREP
     if (WSREP(thd))
     {
-        if (thd->wsrep_trx_id() == WSREP_UNDEFINED_TRX_ID)
-        {
-            wsrep_start_transaction(thd, thd->wsrep_next_trx_id());
-        }
-        DBUG_ASSERT(thd->wsrep_trx_id() != WSREP_UNDEFINED_TRX_ID);
-        WSREP_DEBUG("CTAS key append for trx: %lu thd %llu query %lld ",
-                    thd->wsrep_trx_id(), thd->thread_id, thd->query_id);
+      if (thd->wsrep_trx_id() == WSREP_UNDEFINED_TRX_ID)
+      {
+        wsrep_start_transaction(thd, thd->wsrep_next_trx_id());
+      }
+      DBUG_ASSERT(thd->wsrep_trx_id() != WSREP_UNDEFINED_TRX_ID);
+      WSREP_DEBUG("CTAS key append for trx: %lu thd %llu query %lld ",
+                  thd->wsrep_trx_id(), thd->thread_id, thd->query_id);
 
-        /*
-          append table level exclusive key for CTAS
-        */
-        wsrep_key_arr_t key_arr= {0, 0};
-        wsrep_prepare_keys_for_isolation(thd,
-                                         create_table->db.str,
-                                         create_table->table_name.str,
-                                         table_list,
-                                         &key_arr);
-        int rcode= wsrep_thd_append_key(thd, key_arr.keys, key_arr.keys_len,
-                                        wsrep_key_exclusive);
-        wsrep_keys_free(&key_arr);
-        if (rcode)
-        {
-          DBUG_PRINT("wsrep", ("row key failed: %d", rcode));
-          WSREP_ERROR("Appending table key for CTAS failed: %s, %d",
-                      (wsrep_thd_query(thd)) ?
-                      wsrep_thd_query(thd) : "void", rcode);
-          DBUG_RETURN(true);
-        }
-        /* If commit fails, we should be able to reset the OK status. */
-        thd->get_stmt_da()->set_overwrite_status(true);
+      /*
+        append table level exclusive key for CTAS
+      */
+      wsrep_key_arr_t key_arr= {0, 0};
+      wsrep_prepare_keys_for_isolation(thd,
+                                       create_table->db.str,
+                                       create_table->table_name.str,
+                                       table_list,
+                                       &key_arr);
+      int rcode= wsrep_thd_append_key(thd, key_arr.keys, key_arr.keys_len,
+                                      wsrep_key_exclusive);
+      wsrep_keys_free(&key_arr);
+      if (rcode)
+      {
+        DBUG_PRINT("wsrep", ("row key failed: %d", rcode));
+        WSREP_ERROR("Appending table key for CTAS failed: %s, %d",
+                    (wsrep_thd_query(thd)) ?
+                    wsrep_thd_query(thd) : "void", rcode);
+        DBUG_RETURN(true);
+      }
+      /* If commit fails, we should be able to reset the OK status. */
+      thd->get_stmt_da()->set_overwrite_status(true);
     }
 #endif /* WITH_WSREP */
     trans_commit_stmt(thd);
@@ -4615,7 +4615,7 @@ bool select_create::send_eof()
     {
       thd->get_stmt_da()->set_overwrite_status(FALSE);
       mysql_mutex_lock(&thd->LOCK_thd_data);
-      if (thd->wsrep_trx().state() != wsrep::transaction::s_executing)
+      if (wsrep_current_error(thd))
       {
         WSREP_DEBUG("select_create commit failed, thd: %llu err: %s %s",
                     thd->thread_id,
@@ -4625,7 +4625,6 @@ bool select_create::send_eof()
         DBUG_RETURN(true);
       }
       mysql_mutex_unlock(&thd->LOCK_thd_data);
-      thd->wsrep_cs().after_statement();
     }
 #endif /* WITH_WSREP */
   }
