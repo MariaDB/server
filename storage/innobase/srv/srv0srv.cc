@@ -1939,7 +1939,7 @@ srv_wake_purge_thread_if_not_active()
 
 	if (purge_sys.enabled() && !purge_sys.paused()
 	    && !my_atomic_loadlint(&srv_sys.n_threads_active[SRV_PURGE])
-	    && trx_sys.history_size()) {
+	    && trx_sys.rseg_history_len) {
 
 		srv_release_threads(SRV_PURGE, 1);
 	}
@@ -2412,9 +2412,7 @@ static bool srv_purge_should_exit()
 		return(true);
 	}
 	/* Slow shutdown was requested. */
-	ulint history_size = trx_sys.history_size();
-
-	if (history_size) {
+	if (uint32_t history_size = trx_sys.rseg_history_len) {
 #if defined HAVE_SYSTEMD && !defined EMBEDDED_LIBRARY
 		static ib_time_t progress_time;
 		ib_time_t time = ut_time();
@@ -2422,7 +2420,7 @@ static bool srv_purge_should_exit()
 			progress_time = time;
 			service_manager_extend_timeout(
 				INNODB_EXTEND_TIMEOUT_INTERVAL,
-				"InnoDB: to purge " ULINTPF " transactions",
+				"InnoDB: to purge %u transactions",
 				history_size);
 		}
 #endif
@@ -2525,14 +2523,14 @@ DECLARE_THREAD(srv_worker_thread)(
 @param[in,out]	n_total_purged	total number of purged pages
 @return length of history list before the last purge batch. */
 static
-ulint
+uint32_t
 srv_do_purge(ulint* n_total_purged)
 {
 	ulint		n_pages_purged;
 
 	static ulint	count = 0;
 	static ulint	n_use_threads = 0;
-	static ulint	rseg_history_len = 0;
+	static uint32_t	rseg_history_len = 0;
 	ulint		old_activity_count = srv_get_activity_count();
 	const ulint	n_threads = srv_n_purge_threads;
 
@@ -2550,7 +2548,7 @@ srv_do_purge(ulint* n_total_purged)
 	}
 
 	do {
-		if (trx_sys.history_size() > rseg_history_len
+		if (trx_sys.rseg_history_len > rseg_history_len
 		    || (srv_max_purge_lag > 0
 			&& rseg_history_len > srv_max_purge_lag)) {
 
@@ -2579,7 +2577,7 @@ srv_do_purge(ulint* n_total_purged)
 		ut_a(n_use_threads <= n_threads);
 
 		/* Take a snapshot of the history list before purge. */
-		if (!(rseg_history_len = trx_sys.history_size())) {
+		if (!(rseg_history_len = trx_sys.rseg_history_len)) {
 			break;
 		}
 
@@ -2603,7 +2601,7 @@ srv_purge_coordinator_suspend(
 /*==========================*/
 	srv_slot_t*	slot,			/*!< in/out: Purge coordinator
 						thread slot */
-	ulint		rseg_history_len)	/*!< in: history list length
+	uint32_t	rseg_history_len)	/*!< in: history list length
 						before last purge */
 {
 	ut_ad(!srv_read_only_mode);
@@ -2620,7 +2618,7 @@ srv_purge_coordinator_suspend(
 		/* We don't wait right away on the the non-timed wait because
 		we want to signal the thread that wants to suspend purge. */
 		const bool wait = stop
-			|| rseg_history_len <= trx_sys.history_size();
+			|| rseg_history_len <= trx_sys.rseg_history_len;
 		const bool timeout = srv_resume_thread(
 			slot, sig_count, wait,
 			stop ? 0 : SRV_PURGE_MAX_TIMEOUT);
@@ -2635,7 +2633,7 @@ srv_purge_coordinator_suspend(
 		if (!stop) {
 			if (timeout
 			    && rseg_history_len < 5000
-			    && rseg_history_len == trx_sys.history_size()) {
+			    && rseg_history_len == trx_sys.rseg_history_len) {
 				/* No new records were added since the
 				wait started. Simply wait for new
 				records. The magic number 5000 is an
@@ -2688,7 +2686,7 @@ DECLARE_THREAD(srv_purge_coordinator_thread)(
 
 	slot = srv_reserve_slot(SRV_PURGE);
 
-	ulint	rseg_history_len = trx_sys.history_size();
+	uint32_t	rseg_history_len = trx_sys.rseg_history_len;
 
 	do {
 		/* If there are no records to purge or the last

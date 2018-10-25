@@ -315,7 +315,7 @@ trx_purge_add_undo_to_history(const trx_t* trx, trx_undo_t*& undo, mtr_t* mtr)
 		rseg->needs_purge = true;
 	}
 
-	trx_sys.history_insert();
+	trx_sys.rseg_history_len++;
 
 	if (undo->state == TRX_UNDO_CACHED) {
 		UT_LIST_ADD_FIRST(rseg->undo_cached, undo);
@@ -341,7 +341,7 @@ trx_purge_remove_log_hdr(
 {
 	flst_remove(rseg_hdr + TRX_RSEG_HISTORY,
 		    log_hdr + TRX_UNDO_HISTORY_NODE, mtr);
-	trx_sys.history_remove();
+	trx_sys.rseg_history_len--;
 }
 
 /** Free an undo log segment, and remove the header from the history list.
@@ -1240,7 +1240,7 @@ trx_purge_dml_delay(void)
 	if (srv_max_purge_lag > 0) {
 		float	ratio;
 
-		ratio = float(trx_sys.history_size()) / srv_max_purge_lag;
+		ratio = float(trx_sys.rseg_history_len) / srv_max_purge_lag;
 
 		if (ratio > 1.0) {
 			/* If the history list length exceeds the

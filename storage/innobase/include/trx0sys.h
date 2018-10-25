@@ -804,14 +804,14 @@ class trx_sys_t
   MY_ALIGNED(CACHE_LINE_SIZE) std::atomic<trx_id_t> m_rw_trx_hash_version;
 
 
-  /**
-    TRX_RSEG_HISTORY list length (number of committed transactions to purge)
-  */
-  MY_ALIGNED(CACHE_LINE_SIZE) int32 rseg_history_len;
-
   bool m_initialised;
 
 public:
+  /**
+    TRX_RSEG_HISTORY list length (number of committed transactions to purge)
+  */
+  MY_ALIGNED(CACHE_LINE_SIZE) Atomic_counter<uint32_t> rseg_history_len;
+
   /** Mutex protecting trx_list. */
   MY_ALIGNED(CACHE_LINE_SIZE) mutable TrxSysMutex mutex;
 
@@ -1102,22 +1102,6 @@ public:
     mutex_exit(&mutex);
     return count;
   }
-
-  /** @return number of committed transactions waiting for purge */
-  ulint history_size() const
-  {
-    return uint32(my_atomic_load32(&const_cast<trx_sys_t*>(this)
-                                   ->rseg_history_len));
-  }
-  /** Add to the TRX_RSEG_HISTORY length (on database startup). */
-  void history_add(int32 len)
-  {
-    my_atomic_add32(&rseg_history_len, len);
-  }
-  /** Register a committed transaction. */
-  void history_insert() { history_add(1); }
-  /** Note that a committed transaction was purged. */
-  void history_remove() { history_add(-1); }
 
 private:
   static my_bool get_min_trx_id_callback(rw_trx_hash_element_t *element,

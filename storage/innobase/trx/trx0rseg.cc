@@ -468,8 +468,8 @@ trx_rseg_mem_restore(trx_rseg_t* rseg, trx_id_t& max_trx_id, mtr_t* mtr)
 	rseg->curr_size = mach_read_from_4(rseg_header + TRX_RSEG_HISTORY_SIZE)
 		+ 1 + trx_undo_lists_init(rseg, max_trx_id, rseg_header);
 
-	if (ulint len = flst_get_len(rseg_header + TRX_RSEG_HISTORY)) {
-		trx_sys.history_add(int32(len));
+	if (auto len = flst_get_len(rseg_header + TRX_RSEG_HISTORY)) {
+		trx_sys.rseg_history_len += len;
 
 		fil_addr_t	node_addr = trx_purge_get_log_from_hist(
 			flst_get_last(rseg_header + TRX_RSEG_HISTORY, mtr));
