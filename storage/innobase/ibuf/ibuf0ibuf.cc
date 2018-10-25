@@ -4760,7 +4760,7 @@ reset_bit:
 	btr_pcur_close(&pcur);
 	mem_heap_free(heap);
 
-	my_atomic_addlint(&ibuf->n_merges, 1);
+	ibuf->n_merges++;
 	ibuf_add_ops(ibuf->n_merged_ops, mops);
 	ibuf_add_ops(ibuf->n_discarded_ops, dops);
 
@@ -4897,7 +4897,7 @@ ibuf_print(
 		ibuf->size,
 		ibuf->free_list_len,
 		ibuf->seg_size,
-		ibuf->n_merges);
+		ulint{ibuf->n_merges});
 
 	fputs("merged operations:\n ", file);
 	ibuf_print_ops(ibuf->n_merged_ops, file);
