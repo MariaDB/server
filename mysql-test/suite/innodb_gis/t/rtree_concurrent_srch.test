@@ -307,7 +307,7 @@ INSERT INTO t1  VALUES (1, ST_GeomFromText('LineString(7 7, 200 200)'));
 INSERT INTO t1  VALUES (1, ST_GeomFromText('LineString(8 8, 210 210)'));
 
 connect (a,localhost,root,,);
-SET SESSION debug="+d,rtr_pcur_move_to_next_return";
+SET SESSION debug_dbug='+d,rtr_pcur_move_to_next_return';
 
 set transaction isolation level serializable;
 start transaction;
