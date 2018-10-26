@@ -2761,8 +2761,9 @@ bool wsrep_provider_is_SR_capable()
 
 int wsrep_ordered_commit_if_no_binlog(THD* thd, bool all)
 {
-  if (((wsrep_thd_is_local(thd) && WSREP_EMULATE_BINLOG(thd)) ||
-       (wsrep_thd_is_applying(thd) && !opt_log_slave_updates && !opt_bin_log))
+  if (((wsrep_thd_is_local(thd) &&
+        (WSREP_EMULATE_BINLOG(thd) || !thd->variables.sql_log_bin)) ||
+       (wsrep_thd_is_applying(thd) && !opt_log_slave_updates))
       && wsrep_thd_trx_seqno(thd) > 0)
   {
     wsrep_apply_error unused;
@@ -2777,7 +2778,19 @@ wsrep_status_t wsrep_tc_log_commit(THD* thd)
   my_xid xid= thd->transaction.xid_state.xid.get_my_xid();
 
   DBUG_ASSERT(thd->lex->sql_command == SQLCOM_LOAD);
+  if (wsrep_before_commit(thd, true))
+  {
+    WSREP_DEBUG("wsrep_tc_log_commit: wsrep_before_commit failed %llu",
+                thd->thread_id);
+    return WSREP_TRX_FAIL;
+  }
   cookie= tc_log->log_and_order(thd, xid, 1, false, true);
+  if (wsrep_after_commit(thd, true))
+  {
+    WSREP_DEBUG("wsrep_tc_log_commit: wsrep_after_commit failed %llu",
+                thd->thread_id);
+    return WSREP_TRX_FAIL;
+  }
   if (!cookie)
   {
     WSREP_DEBUG("log_and_order has failed %llu %d", thd->thread_id, cookie);

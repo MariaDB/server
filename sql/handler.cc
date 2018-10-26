@@ -1552,7 +1552,10 @@ int ha_commit_trans(THD *thd, bool all)
     error= commit_one_phase_2(thd, all, trans, is_real_trans);
     goto done;
   }
-  
+#ifdef WITH_WSREP
+  if (wsrep_before_commit(thd, all))
+    goto wsrep_err;
+#endif /* WITH_WSREP */
   DEBUG_SYNC(thd, "ha_commit_trans_before_log_and_order");
   cookie= tc_log->log_and_order(thd, xid, all, need_prepare_ordered,
                                 need_commit_ordered);
@@ -1561,13 +1564,12 @@ int ha_commit_trans(THD *thd, bool all)
     WSREP_DEBUG("log_and_order has failed %llu %d", thd->thread_id, cookie);
     goto err;
   }
-
   DEBUG_SYNC(thd, "ha_commit_trans_after_log_and_order");
   DBUG_EXECUTE_IF("crash_commit_after_log", DBUG_SUICIDE(););
 
   error= commit_one_phase_2(thd, all, trans, is_real_trans) ? 2 : 0;
 #ifdef WITH_WSREP
-  if (error)
+  if (error || wsrep_after_commit(thd, all))
   {
     mysql_mutex_lock(&thd->LOCK_thd_data);
     if (thd->wsrep_trx().state() == wsrep::transaction::s_must_abort)
