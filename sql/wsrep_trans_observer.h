@@ -48,21 +48,7 @@ static inline bool wsrep_is_real(THD* thd, bool all)
  */
 static inline bool wsrep_has_changes(THD* thd, my_bool all)
 {
-  bool ret= false;
-  /*
-    TODO: It would maybe better to check if any keys have been
-    assigned to a transaction.
-  */
-  THD_TRANS* trans= all ? &thd->transaction.all : &thd->transaction.stmt;
-  for (Ha_trx_info* i= trans->ha_list; i; i = i->next())
-  {
-    if (i->ht()->db_type == DB_TYPE_BINLOG)
-    {
-      ret= true;
-      break;
-    }
-  }
-  return ret;
+  return (thd->wsrep_trx().is_empty() == false);
 }
 
 static inline int wsrep_check_pk(THD* thd)
@@ -131,17 +117,27 @@ static inline int wsrep_after_row(THD* thd, bool)
 }
 
 /*
+  Helper method to determine whether commit time hooks
+  should be run for the transaction.
+ */
+static inline bool wsrep_run_commit_hook(THD* thd, bool all)
+{
+  return (wsrep_is_real(thd, all) && wsrep_is_active(thd) &&
+          (wsrep_thd_is_applying(thd) || wsrep_has_changes(thd, all)));
+}
+/*
   Called before the transaction is prepared.
 
   Return zero on succes, non-zero on failure.
  */
 static inline int wsrep_before_prepare(THD* thd, bool all)
 {
+  DBUG_ENTER("wsrep_before_prepare");
   WSREP_DEBUG("wsrep_before_prepare: %d", wsrep_is_real(thd, all));
-  int ret= ((wsrep_is_real(thd, all) && wsrep_is_active(thd)) ?
+  int ret= (wsrep_run_commit_hook(thd, all) ?
             thd->wsrep_cs().before_prepare() : 0);
   DBUG_ASSERT(ret == 0 || thd->wsrep_cs().current_error());
-  return ret;
+  DBUG_RETURN(ret);
 }
 
 /*
@@ -151,12 +147,13 @@ static inline int wsrep_before_prepare(THD* thd, bool all)
  */
 static inline int wsrep_after_prepare(THD* thd, bool all)
 {
+  DBUG_ENTER("wsrep_after_prepare");
   WSREP_DEBUG("wsrep_after_prepare: %d", wsrep_is_real(thd, all));
-  int ret= ((wsrep_is_real(thd, all) && wsrep_is_active(thd)) ?
+  int ret= (wsrep_run_commit_hook(thd, all) ?
             thd->wsrep_cs().after_prepare() : 0);
   DBUG_ASSERT(ret == 0 || thd->wsrep_cs().current_error() ||
               thd->wsrep_cs().transaction().state() == wsrep::transaction::s_must_replay);
-  return ret;
+  DBUG_RETURN(ret);
 }
 
 
@@ -170,13 +167,14 @@ static inline int wsrep_after_prepare(THD* thd, bool all)
  */
 static inline int wsrep_before_commit(THD* thd, bool all)
 {
+  DBUG_ENTER("wsrep_before_commit");
   WSREP_DEBUG("wsrep_before_commit: %d, %lld",
               wsrep_is_real(thd, all),
               (long long)wsrep_thd_trx_seqno(thd));
-  return ((wsrep_is_real(thd, all) && wsrep_is_active(thd)) ?
-          wsrep_xid_init(&thd->wsrep_xid,
-                         thd->wsrep_cs().transaction().ws_meta().gtid()),
-          thd->wsrep_cs().before_commit() : 0);
+  DBUG_RETURN(wsrep_run_commit_hook(thd, all) ?
+              (wsrep_xid_init(&thd->wsrep_xid,
+                              thd->wsrep_cs().transaction().ws_meta().gtid()),
+               thd->wsrep_cs().before_commit()) : 0);
 }
 
 /*
@@ -195,9 +193,10 @@ static inline int wsrep_ordered_commit(THD* thd,
                                       bool all,
                                       const wsrep_apply_error&)
 {
+  DBUG_ENTER("wsrep_ordered_commit");
   WSREP_DEBUG("wsrep_ordered_commit: %d", wsrep_is_real(thd, all));
-  return ((wsrep_is_real(thd, all) && wsrep_is_active(thd)) ?
-          thd->wsrep_cs().ordered_commit() : 0);
+  DBUG_RETURN(wsrep_run_commit_hook(thd, all) ?
+              thd->wsrep_cs().ordered_commit() : 0);
 }
 
 /*
@@ -207,19 +206,19 @@ static inline int wsrep_ordered_commit(THD* thd,
  */
 static inline int wsrep_after_commit(THD* thd, bool all)
 {
-  WSREP_DEBUG("wsrep_after_commit: %d, %d, %lld", wsrep_is_real(thd, all),
-              wsrep_is_active(thd), (long long)wsrep_thd_trx_seqno(thd));
-  bool run_after_commit= (wsrep_is_real(thd, all) && wsrep_is_active(thd));
-  if (run_after_commit)
+  DBUG_ENTER("wsrep_after_commit");
+  WSREP_DEBUG("wsrep_after_commit: %d, %d, %lld, %d",
+              wsrep_is_real(thd, all),
+              wsrep_is_active(thd),
+              (long long)wsrep_thd_trx_seqno(thd),
+              wsrep_has_changes(thd, all));
+  if (wsrep_run_commit_hook(thd, all))
   {
-    return (wsrep_ordered_commit_if_no_binlog(thd, all) ||
-            (wsrep_xid_init(&thd->wsrep_xid, wsrep::gtid::undefined()),
-             thd->wsrep_cs().after_commit()));
+    DBUG_RETURN((wsrep_ordered_commit_if_no_binlog(thd, all) ||
+                 (wsrep_xid_init(&thd->wsrep_xid, wsrep::gtid::undefined()),
+                  thd->wsrep_cs().after_commit())));
   }
-  else
-  {
-    return 0;
-  }
+  DBUG_RETURN(0);
 }
 
 /*
