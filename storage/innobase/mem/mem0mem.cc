@@ -1,7 +1,7 @@
 /*****************************************************************************
 
 Copyright (c) 1994, 2014, Oracle and/or its affiliates. All Rights Reserved.
-Copyright (c) 2017, MariaDB Corporation.
+Copyright (c) 2017, 2018, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -126,7 +126,7 @@ mem_heap_printf_low(
 
 				val = va_arg(ap, unsigned long);
 
-				plen = sprintf(tmp, "%lu", val);
+				plen = size_t(sprintf(tmp, "%lu", val));
 				len += plen;
 
 				if (buf) {
@@ -219,7 +219,7 @@ mem_heap_validate(
 			break;
 		case MEM_HEAP_BUFFER:
 		case MEM_HEAP_BUFFER | MEM_HEAP_BTR_SEARCH:
-			ut_ad(block->len <= UNIV_PAGE_SIZE);
+			ut_ad(block->len <= srv_page_size);
 			break;
 		default:
 			ut_error;
@@ -264,13 +264,13 @@ mem_heap_create_block_func(
 	/* In dynamic allocation, calculate the size: block header + data. */
 	len = MEM_BLOCK_HEADER_SIZE + MEM_SPACE_NEEDED(n);
 
-	if (type == MEM_HEAP_DYNAMIC || len < UNIV_PAGE_SIZE / 2) {
+	if (type == MEM_HEAP_DYNAMIC || len < srv_page_size / 2) {
 
 		ut_ad(type == MEM_HEAP_DYNAMIC || n <= MEM_MAX_ALLOC_IN_BUF);
 
 		block = static_cast<mem_block_t*>(ut_malloc_nokey(len));
 	} else {
-		len = UNIV_PAGE_SIZE;
+		len = srv_page_size;
 
 		if ((type & MEM_HEAP_BTR_SEARCH) && heap) {
 			/* We cannot allocate the block from the
@@ -322,6 +322,11 @@ mem_heap_create_block_func(
 
 		heap->total_size += len;
 	}
+
+	/* Poison all available memory. Individual chunks will be unpoisoned on
+	every mem_heap_alloc() call. */
+	compile_time_assert(MEM_BLOCK_HEADER_SIZE >= sizeof *block);
+	UNIV_MEM_FREE(block + 1, len - sizeof *block);
 
 	ut_ad((ulint)MEM_BLOCK_HEADER_SIZE < len);
 
@@ -407,15 +412,11 @@ mem_heap_block_free(
 	len = block->len;
 	block->magic_n = MEM_FREED_BLOCK_MAGIC_N;
 
-	UNIV_MEM_ASSERT_W(block, len);
-
-	if (type == MEM_HEAP_DYNAMIC || len < UNIV_PAGE_SIZE / 2) {
-
+	if (type == MEM_HEAP_DYNAMIC || len < srv_page_size / 2) {
 		ut_ad(!buf_block);
 		ut_free(block);
 	} else {
 		ut_ad(type & MEM_HEAP_BUFFER);
-
 		buf_block_free(buf_block);
 	}
 }

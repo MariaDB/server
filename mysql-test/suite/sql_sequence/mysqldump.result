@@ -39,3 +39,11 @@ CREATE TABLE `x1` (
 /*!40101 SET character_set_client = @saved_cs_client */;
 INSERT INTO `x1` VALUES (1,1,9223372036854775806,1,1,1000,0,0);
 DROP TABLE a1,t1,x1;
+set default_storage_engine=InnoDB;
+create sequence t1;
+LOCK TABLES t1 READ;
+SELECT * FROM t1;
+next_not_cached_value	minimum_value	maximum_value	start_value	increment	cache_size	cycle_option	cycle_count
+1	1	9223372036854775806	1	1	1000	0	0
+unlock tables;
+drop table t1;

@@ -125,7 +125,8 @@ static my_bool view_protocol= 0, view_protocol_enabled= 0;
 static my_bool cursor_protocol= 0, cursor_protocol_enabled= 0;
 static my_bool parsing_disabled= 0;
 static my_bool display_result_vertically= FALSE, display_result_lower= FALSE,
-  display_metadata= FALSE, display_result_sorted= FALSE;
+  display_metadata= FALSE, display_result_sorted= FALSE,
+  display_session_track_info= FALSE;
 static my_bool disable_query_log= 0, disable_result_log= 0;
 static my_bool disable_connect_log= 0;
 static my_bool disable_warnings= 0, disable_column_names= 0;
@@ -153,6 +154,7 @@ static struct property prop_list[] = {
   { &abort_on_error, 0, 1, 0, "$ENABLED_ABORT_ON_ERROR" },
   { &disable_connect_log, 0, 1, 1, "$ENABLED_CONNECT_LOG" },
   { &disable_info, 0, 1, 1, "$ENABLED_INFO" },
+  { &display_session_track_info, 0, 1, 1, "$ENABLED_STATE_CHANGE_INFO" },
   { &display_metadata, 0, 0, 0, "$ENABLED_METADATA" },
   { &ps_protocol_enabled, 0, 0, 0, "$ENABLED_PS_PROTOCOL" },
   { &disable_query_log, 0, 0, 1, "$ENABLED_QUERY_LOG" },
@@ -166,6 +168,7 @@ enum enum_prop {
   P_ABORT= 0,
   P_CONNECT,
   P_INFO,
+  P_SESSION_TRACK,
   P_META,
   P_PS,
   P_QUERY,
@@ -362,6 +365,7 @@ enum enum_commands {
   Q_WAIT_FOR_SLAVE_TO_STOP,
   Q_ENABLE_WARNINGS, Q_DISABLE_WARNINGS,
   Q_ENABLE_INFO, Q_DISABLE_INFO,
+  Q_ENABLE_SESSION_TRACK_INFO, Q_DISABLE_SESSION_TRACK_INFO,
   Q_ENABLE_METADATA, Q_DISABLE_METADATA,
   Q_ENABLE_COLUMN_NAMES, Q_DISABLE_COLUMN_NAMES,
   Q_EXEC, Q_DELIMITER,
@@ -384,6 +388,7 @@ enum enum_commands {
   Q_RESULT_FORMAT_VERSION,
   Q_MOVE_FILE, Q_REMOVE_FILES_WILDCARD, Q_SEND_EVAL,
   Q_ENABLE_PREPARE_WARNINGS, Q_DISABLE_PREPARE_WARNINGS,
+  Q_RESET_CONNECTION,
   Q_UNKNOWN,			       /* Unknown command.   */
   Q_COMMENT,			       /* Comments, ignored. */
   Q_COMMENT_WITH_COMMAND,
@@ -435,6 +440,8 @@ const char *command_names[]=
   "disable_warnings",
   "enable_info",
   "disable_info",
+  "enable_session_track_info",
+  "disable_session_track_info",
   "enable_metadata",
   "disable_metadata",
   "enable_column_names",
@@ -491,6 +498,7 @@ const char *command_names[]=
   "send_eval",
   "enable_prepare_warnings",
   "disable_prepare_warnings",
+  "reset_connection",
 
   0
 };
@@ -522,7 +530,7 @@ struct st_match_err
 
 struct st_expected_errors
 {
-  struct st_match_err err[10];
+  struct st_match_err err[12];
   uint count;
 };
 static struct st_expected_errors saved_expected_errors;
@@ -949,6 +957,8 @@ pthread_handler_t connection_thread(void *arg)
 
 end_thread:
   cn->query_done= 1;
+  mysql_close(cn->mysql);
+  cn->mysql= 0;
   mysql_thread_end();
   pthread_exit(0);
   return 0;
@@ -1462,7 +1472,7 @@ void close_statements()
   for (con= connections; con < next_con; con++)
   {
     if (con->stmt)
-      mysql_stmt_close(con->stmt);
+      do_stmt_close(con);
     con->stmt= 0;
   }
   DBUG_VOID_RETURN;
@@ -1567,7 +1577,6 @@ static void cleanup_and_exit(int exit_code)
     }
   }
 
-  sf_leaking_memory= 0; /* all memory should be freed by now */
   exit(exit_code);
 }
 
@@ -2210,8 +2219,7 @@ int dyn_string_cmp(DYNAMIC_STRING* ds, const char *fname)
   DBUG_ENTER("dyn_string_cmp");
   DBUG_PRINT("enter", ("fname: %s", fname));
 
-  if ((fd= create_temp_file(temp_file_path, TMPDIR,
-                            "tmp", O_CREAT | O_SHARE | O_RDWR,
+  if ((fd= create_temp_file(temp_file_path, TMPDIR, "tmp", O_SHARE,
                             MYF(MY_WME))) < 0)
     die("Failed to create temporary file for ds");
 
@@ -2724,7 +2732,8 @@ void var_query_set(VAR *var, const char *query, const char** query_end)
   init_dynamic_string(&ds_query, 0, (end - query) + 32, 256);
   do_eval(&ds_query, query, end, FALSE);
 
-  if (mysql_real_query(mysql, ds_query.str, (ulong)ds_query.length)) 
+  if (mysql_real_query(mysql, ds_query.str, (ulong)ds_query.length) ||
+      !(res= mysql_store_result(mysql)))
   {
     handle_error(curr_command, mysql_errno(mysql), mysql_error(mysql),
                  mysql_sqlstate(mysql), &ds_res);
@@ -2734,13 +2743,6 @@ void var_query_set(VAR *var, const char *query, const char** query_end)
     DBUG_VOID_RETURN;
   }
   
-  if (!(res= mysql_store_result(mysql)))
-  {
-    report_or_die("Query '%s' didn't return a result set", ds_query.str);
-    dynstr_free(&ds_query);
-    eval_expr(var, "", 0);
-    DBUG_VOID_RETURN;
-  }
   dynstr_free(&ds_query);
 
   if ((row= mysql_fetch_row(res)) && row[0])
@@ -4691,8 +4693,7 @@ void do_perl(struct st_command *command)
 
     /* Create temporary file name */
     if ((fd= create_temp_file(temp_file_path, getenv("MYSQLTEST_VARDIR"),
-                              "tmp", O_CREAT | O_SHARE | O_RDWR,
-                              MYF(MY_WME))) < 0)
+                              "tmp", O_SHARE, MYF(MY_WME))) < 0)
       die("Failed to create temporary file for perl command");
     my_close(fd, MYF(0));
 
@@ -6538,6 +6539,34 @@ void do_delimiter(struct st_command* command)
 }
 
 
+/*
+  do_reset_connection
+
+  DESCRIPTION
+  Reset the current session.
+*/
+
+static void do_reset_connection()
+{
+#ifndef EMBEDDED_LIBRARY
+  MYSQL *mysql = cur_con->mysql;
+
+  DBUG_ENTER("do_reset_connection");
+  if (mysql_reset_connection(mysql))
+    die("reset connection failed: %s", mysql_error(mysql));
+  if (cur_con->stmt)
+  {
+    mysql_stmt_close(cur_con->stmt);
+    cur_con->stmt= NULL;
+  }
+  DBUG_VOID_RETURN;
+#else
+ die("reset connection failed: unsupported by embedded server client library");
+ return;
+#endif
+}
+
+
 my_bool match_delimiter(int c, const char *delim, size_t length)
 {
   uint i;
@@ -7323,10 +7352,7 @@ get_one_option(int optid, const struct my_option *opt, char *argument)
 #ifndef EMBEDDED_LIBRARY
     if ((opt_protocol= find_type_with_warning(argument, &sql_protocol_typelib,
                                               opt->name)) <= 0)
-    {
-      sf_leaking_memory= 1; /* no memory leak reports here */
       exit(1);
-    }
 #endif
     break;
   case '?':
@@ -7339,9 +7365,7 @@ get_one_option(int optid, const struct my_option *opt, char *argument)
 
 int parse_args(int argc, char **argv)
 {
-  if (load_defaults("my",load_default_groups,&argc,&argv))
-    exit(1);
-
+  load_defaults_or_exit("my", load_default_groups, &argc, &argv);
   default_argv= argv;
 
   if ((handle_options(&argc, &argv, my_long_options, get_one_option)))
@@ -7798,6 +7822,70 @@ void append_info(DYNAMIC_STRING *ds, ulonglong affected_rows,
 }
 
 
+/**
+  @brief Append state change information (received through Ok packet) to the output.
+
+  @param [in,out] ds         Dynamic string to hold the content to be printed.
+  @param [in] mysql          Connection handle.
+*/
+
+static void append_session_track_info(DYNAMIC_STRING *ds, MYSQL *mysql)
+{
+#ifndef EMBEDDED_LIBRARY
+  for (unsigned int type= SESSION_TRACK_BEGIN; type <= SESSION_TRACK_END; type++)
+  {
+    const char *data;
+    size_t data_length;
+
+    if (!mysql_session_track_get_first(mysql,
+                                       (enum_session_state_type) type,
+                                       &data, &data_length))
+    {
+      dynstr_append(ds, "-- ");
+      switch (type)
+      {
+        case SESSION_TRACK_SYSTEM_VARIABLES:
+          dynstr_append(ds, "Tracker : SESSION_TRACK_SYSTEM_VARIABLES\n");
+          break;
+        case SESSION_TRACK_SCHEMA:
+          dynstr_append(ds, "Tracker : SESSION_TRACK_SCHEMA\n");
+          break;
+        case SESSION_TRACK_STATE_CHANGE:
+          dynstr_append(ds, "Tracker : SESSION_TRACK_STATE_CHANGE\n");
+          break;
+        case SESSION_TRACK_GTIDS:
+          dynstr_append(ds, "Tracker : SESSION_TRACK_GTIDS\n");
+          break;
+        case SESSION_TRACK_TRANSACTION_CHARACTERISTICS:
+          dynstr_append(ds, "Tracker : SESSION_TRACK_TRANSACTION_CHARACTERISTICS\n");
+          break;
+        case SESSION_TRACK_TRANSACTION_TYPE:
+          dynstr_append(ds, "Tracker : SESSION_TRACK_TRANSACTION_TYPE\n");
+          break;
+        default:
+          DBUG_ASSERT(0);
+          dynstr_append(ds, "\n");
+      }
+
+
+      dynstr_append(ds, "-- ");
+      dynstr_append_mem(ds, data, data_length);
+    }
+    else
+      continue;
+    while (!mysql_session_track_get_next(mysql,
+                                        (enum_session_state_type) type,
+                                        &data, &data_length))
+    {
+      dynstr_append(ds, "\n-- ");
+      dynstr_append_mem(ds, data, data_length);
+    }
+    dynstr_append(ds, "\n\n");
+  }
+#endif /* EMBEDDED_LIBRARY */
+}
+
+
 /*
   Display the table headings with the names tab separated
 */
@@ -7977,6 +8065,9 @@ void run_query_normal(struct st_connection *cn, struct st_command *command,
       */
       if (!disable_info)
 	append_info(ds, mysql_affected_rows(mysql), mysql_info(mysql));
+
+      if (display_session_track_info)
+        append_session_track_info(ds, mysql);
 
       /*
         Add all warnings to the result. We can't do this if we are in
@@ -8393,6 +8484,10 @@ void run_query_stmt(struct st_connection *cn, struct st_command *command,
     if (!disable_info)
       append_info(ds, mysql_stmt_affected_rows(stmt), mysql_info(mysql));
 
+    if (display_session_track_info)
+      append_session_track_info(ds, mysql);
+
+
     if (!disable_warnings)
     {
       /* Get the warnings from execute */
@@ -8788,6 +8883,7 @@ void init_re(void)
     "[[:space:]]*SELECT[[:space:]]|"
     "[[:space:]]*CREATE[[:space:]]+TABLE[[:space:]]|"
     "[[:space:]]*DO[[:space:]]|"
+    "[[:space:]]*HANDLER[[:space:]]+.*[[:space:]]+READ[[:space:]]|"
     "[[:space:]]*SET[[:space:]]+OPTION[[:space:]]|"
     "[[:space:]]*DELETE[[:space:]]+MULTI[[:space:]]|"
     "[[:space:]]*UPDATE[[:space:]]+MULTI[[:space:]]|"
@@ -9373,6 +9469,12 @@ int main(int argc, char **argv)
       case Q_DISABLE_INFO:
         set_property(command, P_INFO, 1);
         break;
+      case Q_ENABLE_SESSION_TRACK_INFO:
+        set_property(command, P_SESSION_TRACK, 1);
+        break;
+      case Q_DISABLE_SESSION_TRACK_INFO:
+        set_property(command, P_SESSION_TRACK, 0);
+        break;
       case Q_ENABLE_METADATA:
         set_property(command, P_META, 1);
         break;
@@ -9582,6 +9684,9 @@ int main(int argc, char **argv)
         break;
       case Q_PING:
         handle_command_error(command, mysql_ping(cur_con->mysql), -1);
+        break;
+      case Q_RESET_CONNECTION:
+        do_reset_connection();
         break;
       case Q_SEND_SHUTDOWN:
         handle_command_error(command,

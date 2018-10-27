@@ -142,7 +142,7 @@ int Relay_log_info::init(const char* info_fname)
   log_space_limit= relay_log_space_limit;
   log_space_total= 0;
 
-  if (error_on_rli_init_info)
+  if (unlikely(error_on_rli_init_info))
     goto err;
 
   char pattern[FN_REFLEN];
@@ -306,7 +306,7 @@ Failed to open the existing relay log info file '%s' (errno %d)",
                         fname);
         error= 1;
       }
-      if (error)
+      if (unlikely(error))
       {
         if (info_fd >= 0)
           mysql_file_close(info_fd, MYF(0));
@@ -415,7 +415,7 @@ Failed to open the existing relay log info file '%s' (errno %d)",
     before Relay_log_info::flush()
   */
   reinit_io_cache(&info_file, WRITE_CACHE,0L,0,1);
-  if ((error= flush()))
+  if (unlikely((error= flush())))
   {
     msg= "Failed to flush relay log info file";
     goto err;
@@ -1520,7 +1520,7 @@ scan_one_gtid_slave_pos_table(THD *thd, HASH *hash, DYNAMIC_ARRAY *array,
                               LEX_CSTRING *tablename, void **out_hton)
 {
   TABLE_LIST tlist;
-  TABLE *table;
+  TABLE *UNINIT_VAR(table);
   bool table_opened= false;
   bool table_scanned= false;
   struct gtid_pos_element tmp_entry, *entry;
@@ -1537,11 +1537,9 @@ scan_one_gtid_slave_pos_table(THD *thd, HASH *hash, DYNAMIC_ARRAY *array,
     goto end;
 
   bitmap_set_all(table->read_set);
-  if ((err= table->file->ha_rnd_init_with_error(1)))
-  {
-    table->file->print_error(err, MYF(0));
+  if (unlikely(err= table->file->ha_rnd_init_with_error(1)))
     goto end;
-  }
+
   table_scanned= true;
   for (;;)
   {
@@ -1551,9 +1549,7 @@ scan_one_gtid_slave_pos_table(THD *thd, HASH *hash, DYNAMIC_ARRAY *array,
 
     if ((err= table->file->ha_rnd_next(table->record[0])))
     {
-      if (err == HA_ERR_RECORD_DELETED)
-        continue;
-      else if (err == HA_ERR_END_OF_FILE)
+      if (err == HA_ERR_END_OF_FILE)
         break;
       else
       {
@@ -1784,6 +1780,8 @@ gtid_pos_auto_create_tables(rpl_slave_state::gtid_pos_table **list_ptr)
     p= strmake(p, plugin_name(*auto_engines)->str, FN_REFLEN - (p - buf));
     table_name.str= buf;
     table_name.length= p - buf;
+    table_case_convert(const_cast<char*>(table_name.str),
+                       static_cast<uint>(table_name.length));
     entry= rpl_global_gtid_slave_state->alloc_gtid_pos_table
       (&table_name, hton, rpl_slave_state::GTID_POS_AUTO_CREATE);
     if (!entry)
@@ -2088,6 +2086,7 @@ rpl_group_info::reinit(Relay_log_info *rli)
   long_find_row_note_printed= false;
   did_mark_start_commit= false;
   gtid_ev_flags2= 0;
+  pending_gtid_delete_list= NULL;
   last_master_timestamp = 0;
   gtid_ignore_duplicate_state= GTID_DUPLICATE_NULL;
   speculation= SPECULATE_NO;
@@ -2208,7 +2207,7 @@ void rpl_group_info::cleanup_context(THD *thd, bool error)
     to rollback before continuing with the next events.
     4) so we need this "context cleanup" function.
   */
-  if (error)
+  if (unlikely(error))
   {
     trans_rollback_stmt(thd); // if a "statement transaction"
     /* trans_rollback() also resets OPTION_GTID_BEGIN */
@@ -2218,11 +2217,17 @@ void rpl_group_info::cleanup_context(THD *thd, bool error)
       erroneously update the GTID position.
     */
     gtid_pending= false;
+
+    /*
+      Rollback will have undone any deletions of old rows we might have made
+      in mysql.gtid_slave_pos. Put those rows back on the list to be deleted.
+    */
+    pending_gtid_deletes_put_back();
   }
   m_table_map.clear_tables();
   slave_close_thread_tables(thd);
 
-  if (error)
+  if (unlikely(error))
   {
     thd->mdl_context.release_transactional_locks();
 
@@ -2440,6 +2445,78 @@ rpl_group_info::unmark_start_commit()
   mysql_mutex_lock(&e->LOCK_parallel_entry);
   --e->count_committing_event_groups;
   mysql_mutex_unlock(&e->LOCK_parallel_entry);
+}
+
+
+/*
+  When record_gtid() has deleted any old rows from the table
+  mysql.gtid_slave_pos as part of a replicated transaction, save the list of
+  rows deleted here.
+
+  If later the transaction fails (eg. optimistic parallel replication), the
+  deletes will be undone when the transaction is rolled back. Then we can
+  put back the list of rows into the rpl_global_gtid_slave_state, so that
+  we can re-do the deletes and avoid accumulating old rows in the table.
+*/
+void
+rpl_group_info::pending_gtid_deletes_save(uint32 domain_id,
+                                          rpl_slave_state::list_element *list)
+{
+  /*
+    We should never get to a state where we try to save a new pending list of
+    gtid deletes while we still have an old one. But make sure we handle it
+    anyway just in case, so we avoid leaving stray entries in the
+    mysql.gtid_slave_pos table.
+  */
+  DBUG_ASSERT(!pending_gtid_delete_list);
+  if (unlikely(pending_gtid_delete_list))
+    pending_gtid_deletes_put_back();
+
+  pending_gtid_delete_list= list;
+  pending_gtid_delete_list_domain= domain_id;
+}
+
+
+/*
+  Take the list recorded by pending_gtid_deletes_save() and put it back into
+  rpl_global_gtid_slave_state. This is needed if deletion of the rows was
+  rolled back due to transaction failure.
+*/
+void
+rpl_group_info::pending_gtid_deletes_put_back()
+{
+  if (pending_gtid_delete_list)
+  {
+    rpl_global_gtid_slave_state->put_back_list(pending_gtid_delete_list_domain,
+                                               pending_gtid_delete_list);
+    pending_gtid_delete_list= NULL;
+  }
+}
+
+
+/*
+  Free the list recorded by pending_gtid_deletes_save(). Done when the deletes
+  in the list have been permanently committed.
+*/
+void
+rpl_group_info::pending_gtid_deletes_clear()
+{
+  pending_gtid_deletes_free(pending_gtid_delete_list);
+  pending_gtid_delete_list= NULL;
+}
+
+
+void
+rpl_group_info::pending_gtid_deletes_free(rpl_slave_state::list_element *list)
+{
+  rpl_slave_state::list_element *next;
+
+  while (list)
+  {
+    next= list->next;
+    my_free(list);
+    list= next;
+  }
 }
 
 

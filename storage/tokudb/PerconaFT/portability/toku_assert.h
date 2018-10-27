@@ -53,13 +53,9 @@ Copyright (c) 2006, 2015, Percona and/or its affiliates. All rights reserved.
 #error NDEBUG should not be set
 #endif
 
-static inline int get_error_errno(void);
+inline int get_error_errno(void);
 
-static inline int
-get_maybe_error_errno(void)
-{
-    return errno;
-}
+static inline int get_maybe_error_errno(void) { return errno; }
 
 static inline void
 set_errno(int new_errno)
@@ -130,7 +126,7 @@ void db_env_do_backtrace(FILE *outf);
 #define resource_assert_zero(a) assert_zero(a) // indicates resource must be available, otherwise unrecoverable
 #define resource_assert_equals(a, b) assert_equals(a, b) // indicates resource must be available, otherwise unrecoverable
 
-#if TOKU_DEBUG_PARANOID
+#if defined(TOKU_DEBUG_PARANOID) && TOKU_DEBUG_PARANOID
 #define paranoid_invariant(a) assert(a)
 #define paranoid_invariant_null(a) assert_null(a)
 #define paranoid_invariant_notnull(a) assert(a)
@@ -139,12 +135,10 @@ void db_env_do_backtrace(FILE *outf);
 #define paranoid_invariant(a) ((void) 0)
 #define paranoid_invariant_null(a) ((void) 0)
 #define paranoid_invariant_notnull(a) ((void) 0)
-#define paranoid_invariant_zero(a) ((void) 0)
+#define paranoid_invariant_zero(a) ((void)0)
 #endif
 
-static inline int
-get_error_errno(void)
-{
+inline int get_error_errno(void) {
     invariant(errno);
     return errno;
 }

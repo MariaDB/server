@@ -203,6 +203,7 @@ bool trans_begin(THD *thd, uint flags)
   thd->transaction.all.reset();
   thd->has_waiter= false;
   thd->waiting_on_group_commit= false;
+  thd->transaction.start_time.reset(thd);
 
   if (res)
     DBUG_RETURN(TRUE);
@@ -630,12 +631,8 @@ bool trans_savepoint(THD *thd, LEX_CSTRING name)
       !opt_using_transactions)
     DBUG_RETURN(FALSE);
 
-  enum xa_states xa_state= thd->transaction.xid_state.xa_state;
-  if (xa_state != XA_NOTR && xa_state != XA_ACTIVE)
-  {
-    my_error(ER_XAER_RMFAIL, MYF(0), xa_state_names[xa_state]);
+  if (thd->transaction.xid_state.check_has_uncommitted_xa())
     DBUG_RETURN(TRUE);
-  }
 
   sv= find_savepoint(thd, name);
 
@@ -660,7 +657,7 @@ bool trans_savepoint(THD *thd, LEX_CSTRING name)
     we'll lose a little bit of memory in transaction mem_root, but it'll
     be free'd when transaction ends anyway
   */
-  if (ha_savepoint(thd, newsv))
+  if (unlikely(ha_savepoint(thd, newsv)))
     DBUG_RETURN(TRUE);
 
   newsv->prev= thd->transaction.savepoints;
@@ -710,12 +707,8 @@ bool trans_rollback_to_savepoint(THD *thd, LEX_CSTRING name)
     DBUG_RETURN(TRUE);
   }
 
-  enum xa_states xa_state= thd->transaction.xid_state.xa_state;
-  if (xa_state != XA_NOTR)
-  {
-    my_error(ER_XAER_RMFAIL, MYF(0), xa_state_names[xa_state]);
+  if (thd->transaction.xid_state.check_has_uncommitted_xa())
     DBUG_RETURN(TRUE);
-  }
 
   /**
     Checking whether it is safe to release metadata locks acquired after

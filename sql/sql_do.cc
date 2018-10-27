@@ -29,13 +29,13 @@ bool mysql_do(THD *thd, List<Item> &values)
   List_iterator<Item> li(values);
   Item *value;
   DBUG_ENTER("mysql_do");
-  if (setup_fields(thd, Ref_ptr_array(), values, MARK_COLUMNS_NONE, 0, NULL, 0))
+  if (setup_fields(thd, Ref_ptr_array(), values, COLUMNS_READ, 0, NULL, 0))
     DBUG_RETURN(TRUE);
   while ((value = li++))
     (void) value->is_null();
   free_underlaid_joins(thd, &thd->lex->select_lex);
 
-  if (thd->is_error())
+  if (unlikely(thd->is_error()))
   {
     /*
       Rollback the effect of the statement, since next instruction

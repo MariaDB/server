@@ -366,7 +366,7 @@ wsrep_forced_binlog_format=none
    format, regardless of what the client session has specified in binlog_format.
    Valid choices for wsrep_forced_binlog_format are: ROW, STATEMENT, MIXED and
    special value NONE, meaning that there is no forced binlog format in effect.
-   This variable was intruduced to support STATEMENT format replication during
+   This variable was introduced to support STATEMENT format replication during
    rolling schema upgrade processing. However, in most cases ROW replication 
    is valid for asymmetrict schema replication.
 

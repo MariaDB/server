@@ -1,8 +1,7 @@
 #ifndef TABLE_INCLUDED
 #define TABLE_INCLUDED
-/* Copyright (c) 2000, 2013, Oracle and/or its affiliates.
-   Copyright (c) 2009, 2014, SkySQL Ab.
-   Copyright (c) 2016, 2017, MariaDB Corporation.
+/* Copyright (c) 2000, 2017, Oracle and/or its affiliates.
+   Copyright (c) 2009, 2018, MariaDB
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -487,10 +486,11 @@ typedef struct st_table_field_def
 class Table_check_intact
 {
 protected:
+  bool has_keys;
   virtual void report_error(uint code, const char *fmt, ...)= 0;
 
 public:
-  Table_check_intact() {}
+  Table_check_intact(bool keys= false) : has_keys(keys) {}
   virtual ~Table_check_intact() {}
 
   /** Checks whether a table is intact. */
@@ -505,6 +505,8 @@ class Table_check_intact_log_error : public Table_check_intact
 {
 protected:
   void report_error(uint, const char *fmt, ...);
+public:
+  Table_check_intact_log_error() : Table_check_intact(true) {}
 };
 
 
@@ -573,15 +575,6 @@ struct TABLE_STATISTICS_CB
                                     from statistical tables */
   bool histograms_can_be_read;
   bool histograms_are_read;   
-};
-
-class Vers_min_max_stats;
-
-enum vers_sys_type_t
-{
-  VERS_UNDEFINED= 0,
-  VERS_TIMESTAMP,
-  VERS_TRX_ID
 };
 
 /**
@@ -694,8 +687,11 @@ struct TABLE_SHARE
   */
   uint null_bytes_for_compare;
   uint fields;                          /* number of fields */
-  uint stored_fields;                   /* number of stored fields, purely virtual not included */
+  /* number of stored fields, purely virtual not included */
+  uint stored_fields;
   uint virtual_fields;                  /* number of purely virtual fields */
+  /* number of purely virtual not stored blobs */
+  uint virtual_not_stored_blob_fields;
   uint null_fields;                     /* number of null fields */
   uint blob_fields;                     /* number of blob fields */
   uint varchar_fields;                  /* number of varchar fields */
@@ -774,30 +770,8 @@ struct TABLE_SHARE
    */
 
   vers_sys_type_t versioned;
-  bool vtmd;
   uint16 row_start_field;
   uint16 row_end_field;
-  uint32 hist_part_id;
-  Vers_min_max_stats** stat_trx;
-  ulonglong stat_serial; // guards check_range_constants() updates
-
-  bool busy_rotation;
-  mysql_mutex_t LOCK_rotation;
-  mysql_cond_t COND_rotation;
-  mysql_rwlock_t LOCK_stat_serial;
-
-  void vers_init()
-  {
-    hist_part_id= UINT_MAX32;
-    busy_rotation= false;
-    stat_trx= NULL;
-    stat_serial= 0;
-    mysql_mutex_init(key_TABLE_SHARE_LOCK_rotation, &LOCK_rotation, MY_MUTEX_INIT_FAST);
-    mysql_cond_init(key_TABLE_SHARE_COND_rotation, &COND_rotation, NULL);
-    mysql_rwlock_init(key_rwlock_LOCK_stat_serial, &LOCK_stat_serial);
-  }
-
-  void vers_destroy();
 
   Field *vers_start_field()
   {
@@ -807,12 +781,6 @@ struct TABLE_SHARE
   Field *vers_end_field()
   {
     return field[row_end_field];
-  }
-
-  void vers_wait_rotation()
-  {
-    while (busy_rotation)
-      mysql_cond_wait(&COND_rotation, &LOCK_rotation);
   }
 
   /**
@@ -1412,7 +1380,7 @@ public:
   bool check_virtual_columns_marked_for_read();
   bool check_virtual_columns_marked_for_write();
   void mark_default_fields_for_write(bool insert_fl);
-  void mark_columns_used_by_check_constraints(void);
+  void mark_columns_used_by_virtual_fields(void);
   void mark_check_constraint_columns_for_read(void);
   int verify_constraints(bool ignore_failure);
   inline void column_bitmaps_set(MY_BITMAP *read_set_arg)
@@ -1512,6 +1480,8 @@ public:
   { return (my_ptrdiff_t) (s->default_values - record[0]); }
 
   void move_fields(Field **ptr, const uchar *to, const uchar *from);
+  void remember_blob_values(String *blob_storage);
+  void restore_blob_values(String *blob_storage);
 
   uint actual_n_key_parts(KEY *keyinfo);
   ulong actual_key_flags(KEY *keyinfo);
@@ -1537,6 +1507,7 @@ public:
   bool is_splittable() { return spl_opt_info != NULL; }
   void set_spl_opt_info(SplM_opt_info *spl_info);
   void deny_splitting();
+  double get_materialization_cost(); // Now used only if is_splittable()==true
   void add_splitting_info_for_key_field(struct KEY_FIELD *key_field);
 
   /**
@@ -1561,12 +1532,6 @@ public:
   {
     DBUG_ASSERT(versioned() || !vers_write);
     return versioned(type) ? vers_write : false;
-  }
-
-  bool vers_vtmd() const
-  {
-    DBUG_ASSERT(s);
-    return s->versioned && s->vtmd;
   }
 
   Field *vers_start_field() const
@@ -1649,6 +1614,7 @@ typedef struct st_foreign_key_info
 } FOREIGN_KEY_INFO;
 
 LEX_CSTRING *fk_option_name(enum_fk_option opt);
+bool fk_modifies_child(enum_fk_option opt);
 
 #define MY_I_S_MAYBE_NULL 1U
 #define MY_I_S_UNSIGNED   2U
@@ -1841,6 +1807,86 @@ class SJ_MATERIALIZATION_INFO;
 class Index_hint;
 class Item_in_subselect;
 
+/* trivial class, for %union in sql_yacc.yy */
+struct vers_history_point_t
+{
+  vers_sys_type_t unit;
+  Item *item;
+};
+
+class Vers_history_point : public vers_history_point_t
+{
+  void fix_item();
+
+public:
+  Vers_history_point() { empty(); }
+  Vers_history_point(vers_sys_type_t unit_arg, Item *item_arg)
+  {
+    unit= unit_arg;
+    item= item_arg;
+    fix_item();
+  }
+  Vers_history_point(vers_history_point_t p)
+  {
+    unit= p.unit;
+    item= p.item;
+    fix_item();
+  }
+  void empty() { unit= VERS_UNDEFINED; item= NULL; }
+  void print(String *str, enum_query_type, const char *prefix, size_t plen) const;
+  bool resolve_unit(THD *thd);
+  bool resolve_unit_trx_id(THD *thd)
+  {
+    if (unit == VERS_UNDEFINED)
+      unit= VERS_TRX_ID;
+    return false;
+  }
+  bool resolve_unit_timestamp(THD *thd)
+  {
+    if (unit == VERS_UNDEFINED)
+      unit= VERS_TIMESTAMP;
+    return false;
+  }
+  void bad_expression_data_type_error(const char *type) const;
+  bool eq(const vers_history_point_t &point) const;
+};
+
+struct vers_select_conds_t
+{
+  vers_system_time_t type;
+  bool used:1;
+  Vers_history_point start;
+  Vers_history_point end;
+
+  void empty()
+  {
+    type= SYSTEM_TIME_UNSPECIFIED;
+    used= false;
+    start.empty();
+    end.empty();
+  }
+
+  void init(vers_system_time_t _type,
+            Vers_history_point _start= Vers_history_point(),
+            Vers_history_point _end= Vers_history_point())
+  {
+    type= _type;
+    used= false;
+    start= _start;
+    end= _end;
+  }
+
+  void print(String *str, enum_query_type query_type) const;
+
+  bool init_from_sysvar(THD *thd);
+
+  bool is_set() const
+  {
+    return type != SYSTEM_TIME_UNSPECIFIED;
+  }
+  bool resolve_units(THD *thd);
+  bool eq(const vers_select_conds_t &conds) const;
+};
 
 /*
   Table reference in the FROM clause.
@@ -1878,48 +1924,6 @@ class Item_in_subselect;
 */
 
 /** last_leaf_for_name_resolutioning support. */
-struct vers_select_conds_t
-{
-  vers_system_time_t type;
-  vers_sys_type_t unit_start, unit_end;
-  bool from_query:1;
-  bool used:1;
-  Item *start, *end;
-
-  void empty()
-  {
-    type= SYSTEM_TIME_UNSPECIFIED;
-    unit_start= unit_end= VERS_UNDEFINED;
-    used= from_query= false;
-    start= end= NULL;
-  }
-
-  Item *fix_dec(Item *item);
-
-  void init(vers_system_time_t t, vers_sys_type_t u_start= VERS_UNDEFINED,
-            Item * s= NULL, vers_sys_type_t u_end= VERS_UNDEFINED,
-            Item * e= NULL);
-
-  bool init_from_sysvar(THD *thd);
-
-  bool operator== (vers_system_time_t b)
-  {
-    return type == b;
-  }
-  bool operator!= (vers_system_time_t b)
-  {
-    return type != b;
-  }
-  operator bool() const
-  {
-    return type != SYSTEM_TIME_UNSPECIFIED;
-  }
-  void resolve_units(bool timestamps_only);
-  bool user_defined() const
-  {
-    return !from_query && type != SYSTEM_TIME_UNSPECIFIED;
-  }
-};
 
 struct LEX;
 class Index_hint;
@@ -1936,11 +1940,19 @@ struct TABLE_LIST
     Prepare TABLE_LIST that consists of one table instance to use in
     open_and_lock_tables
   */
-inline void init_one_table(const LEX_CSTRING *db_arg,
-                           const LEX_CSTRING *table_name_arg,
-                           const LEX_CSTRING *alias_arg,
-                           enum thr_lock_type lock_type_arg)
+  inline void init_one_table(const LEX_CSTRING *db_arg,
+                             const LEX_CSTRING *table_name_arg,
+                             const LEX_CSTRING *alias_arg,
+                             enum thr_lock_type lock_type_arg)
   {
+    enum enum_mdl_type mdl_type;
+    if (lock_type_arg >= TL_WRITE_ALLOW_WRITE)
+      mdl_type= MDL_SHARED_WRITE;
+    else if (lock_type_arg == TL_READ_NO_INSERT)
+      mdl_type= MDL_SHARED_NO_WRITE;
+    else
+      mdl_type= MDL_SHARED_READ;
+
     bzero((char*) this, sizeof(*this));
     DBUG_ASSERT(!db_arg->str || strlen(db_arg->str) == db_arg->length);
     DBUG_ASSERT(!table_name_arg->str || strlen(table_name_arg->str) == table_name_arg->length);
@@ -1949,9 +1961,7 @@ inline void init_one_table(const LEX_CSTRING *db_arg,
     table_name= *table_name_arg;
     alias= (alias_arg ? *alias_arg : *table_name_arg);
     lock_type= lock_type_arg;
-    mdl_request.init(MDL_key::TABLE, db.str, table_name.str,
-                     (lock_type >= TL_WRITE_ALLOW_WRITE) ?
-                     MDL_SHARED_WRITE : MDL_SHARED_READ,
+    mdl_request.init(MDL_key::TABLE, db.str, table_name.str, mdl_type,
                      MDL_TRANSACTION);
   }
 
@@ -1986,6 +1996,7 @@ inline void init_one_table(const LEX_CSTRING *db_arg,
     prev_global= *last_ptr;
     *last_ptr= &next_global;
   }
+
 
   /*
     List of tables local to a subquery (used by SQL_I_List). Considers
@@ -2129,7 +2140,9 @@ inline void init_one_table(const LEX_CSTRING *db_arg,
   st_select_lex_unit *derived;		/* SELECT_LEX_UNIT of derived table */
   With_element *with;          /* With element defining this table (if any) */
   /* Bitmap of the defining with element */
-  table_map with_internal_reference_map; 
+  table_map with_internal_reference_map;
+  TABLE_LIST * next_with_rec_ref;
+  bool is_derived_with_recursive_reference;
   bool block_handle_derived;
   ST_SCHEMA_TABLE *schema_table;        /* Information_schema table */
   st_select_lex	*schema_select_lex;
@@ -2263,7 +2276,7 @@ inline void init_one_table(const LEX_CSTRING *db_arg,
   /* TABLE_TYPE_UNKNOWN if any type is acceptable */
   Table_type    required_type;
   handlerton	*db_type;		/* table_type for handler */
-  char		timestamp_buffer[20];	/* buffer for timestamp (19+1) */
+  char		timestamp_buffer[MAX_DATETIME_WIDTH + 1];
   /*
     This TABLE_LIST object is just placeholder for prelocking, it will be
     used for implicit LOCK TABLES only and won't be used in real statement.
@@ -2295,8 +2308,6 @@ inline void init_one_table(const LEX_CSTRING *db_arg,
   /* TODO: replace with derived_type */
   bool          merged;
   bool          merged_for_insert;
-  /* TRUE <=> don't prepare this derived table/view as it should be merged.*/
-  bool          skip_prepare_derived;
   bool          sequence;  /* Part of NEXTVAL/CURVAL/LASTVAL */
 
   /*
@@ -2306,7 +2317,6 @@ inline void init_one_table(const LEX_CSTRING *db_arg,
   List<Item>    used_items;
   /* Sublist (tail) of persistent used_items */
   List<Item>    persistent_used_items;
-  Item          **materialized_items;
 
   /* View creation context. */
 
@@ -2394,8 +2404,6 @@ inline void init_one_table(const LEX_CSTRING *db_arg,
 
   /* System Versioning */
   vers_select_conds_t vers_conditions;
-  bool vers_vtmd_name(String &out) const;
-  bool vers_force_alias;
 
   /**
      @brief
@@ -2506,6 +2514,8 @@ inline void init_one_table(const LEX_CSTRING *db_arg,
   bool is_with_table();
   bool is_recursive_with_table();
   bool is_with_table_recursive_reference();
+  void register_as_derived_with_rec_ref(With_element *rec_elem);
+  bool is_nonrecursive_derived_with_rec_ref();
   bool fill_recursive(THD *thd);
 
   inline void set_view()
@@ -2541,6 +2551,7 @@ inline void init_one_table(const LEX_CSTRING *db_arg,
     DBUG_PRINT("enter", ("Alias: '%s'  Unit: %p",
                         (alias.str ? alias.str : "<NULL>"),
                          get_unit()));
+    derived= get_unit();
     derived_type= ((derived_type & (derived ? DTYPE_MASK : DTYPE_VIEW)) |
                    DTYPE_TABLE | DTYPE_MATERIALIZE);
     set_check_materialized();
@@ -2600,6 +2611,16 @@ inline void init_one_table(const LEX_CSTRING *db_arg,
   void set_lock_type(THD* thd, enum thr_lock_type lock);
   void check_pushable_cond_for_table(Item *cond);
   Item *build_pushable_cond_for_table(THD *thd, Item *cond); 
+
+  void remove_join_columns()
+  {
+    if (join_columns)
+    {
+      join_columns->empty();
+      join_columns= NULL;
+      is_join_columns_complete= FALSE;
+    }
+  }
 
 private:
   bool prep_check_option(THD *thd, uint8 check_opt_type);
@@ -2876,7 +2897,7 @@ enum get_table_share_flags {
   GTS_FORCE_DISCOVERY      = 16
 };
 
-size_t max_row_length(TABLE *table, const uchar *data);
+size_t max_row_length(TABLE *table, MY_BITMAP const *cols, const uchar *data);
 
 void init_mdl_requests(TABLE_LIST *table_list);
 

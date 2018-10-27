@@ -2,7 +2,7 @@
 # -*- cperl -*-
 
 # Copyright (c) 2004, 2014, Oracle and/or its affiliates.
-# Copyright (c) 2009, 2017, MariaDB Corporation
+# Copyright (c) 2009, 2018, MariaDB Corporation
 #
 # This program is free software; you can redistribute it and/or modify
 # it under the terms of the GNU General Public License as published by
@@ -91,6 +91,7 @@ use My::Platform;
 use My::SafeProcess;
 use My::ConfigFactory;
 use My::Options;
+use My::Tee;
 use My::Find;
 use My::SysInfo;
 use My::CoreDump;
@@ -330,7 +331,7 @@ my %mysqld_logs;
 my $opt_debug_sync_timeout= 300; # Default timeout for WAIT_FOR actions.
 my $warn_seconds = 60;
 
-my $rebootstrap_re= '--innodb[-_](?:page[-_]size|checksum[-_]algorithm|undo[-_]tablespaces|log[-_]group[-_]home[-_]dir|data[-_]home[-_]dir)|data[-_]file[-_]path';
+my $rebootstrap_re= '--innodb[-_](?:page[-_]size|checksum[-_]algorithm|undo[-_]tablespaces|log[-_]group[-_]home[-_]dir|data[-_]home[-_]dir)|data[-_]file[-_]path|force_rebootstrap';
 
 sub testcase_timeout ($) {
   my ($tinfo)= @_;
@@ -389,6 +390,11 @@ sub main {
   initialize_servers();
   init_timers();
 
+  unless (IS_WINDOWS) {
+    binmode(STDOUT,":via(My::Tee)") or die "binmode(STDOUT, :via(My::Tee)):$!";
+    binmode(STDERR,":via(My::Tee)") or die "binmode(STDERR, :via(My::Tee)):$!";
+  }
+
   mtr_report("Checking supported features...");
 
   executable_setup();
@@ -436,16 +442,21 @@ sub main {
   my $num_tests= @$tests;
   if ( $opt_parallel eq "auto" ) {
     # Try to find a suitable value for number of workers
-    my $sys_info= My::SysInfo->new();
-
-    $opt_parallel= $sys_info->num_cpus();
-    for my $limit (2000, 1500, 1000, 500){
-      $opt_parallel-- if ($sys_info->min_bogomips() < $limit);
+    if (IS_WINDOWS)
+    {
+      $opt_parallel= $ENV{NUMBER_OF_PROCESSORS} || 1;
+    }
+    else
+    {
+      my $sys_info= My::SysInfo->new();
+      $opt_parallel= $sys_info->num_cpus();
+      for my $limit (2000, 1500, 1000, 500){
+        $opt_parallel-- if ($sys_info->min_bogomips() < $limit);
+      }
     }
     my $max_par= $ENV{MTR_MAX_PARALLEL} || 8;
     $opt_parallel= $max_par if ($opt_parallel > $max_par);
     $opt_parallel= $num_tests if ($opt_parallel > $num_tests);
-    $opt_parallel= 1 if (IS_WINDOWS and $sys_info->isvm());
     $opt_parallel= 1 if ($opt_parallel < 1);
     mtr_report("Using parallel: $opt_parallel");
   }
@@ -642,50 +653,59 @@ sub run_test_server ($$$) {
 	    my $worker_savename= basename($worker_savedir);
 	    my $savedir= "$opt_vardir/log/$worker_savename";
 
+            # Move any core files from e.g. mysqltest
+            foreach my $coref (glob("core*"), glob("*.dmp"))
+            {
+              mtr_report(" - found '$coref', moving it to '$worker_savedir'");
+              move($coref, $worker_savedir);
+            }
+
+            find(
+            {
+              no_chdir => 1,
+              wanted => sub
+              {
+                my $core_file= $File::Find::name;
+                my $core_name= basename($core_file);
+
+                # Name beginning with core, not ending in .gz
+                if (($core_name =~ /^core/ and $core_name !~ /\.gz$/)
+                    or (IS_WINDOWS and $core_name =~ /\.dmp$/))
+                {
+                  # Ending with .dmp
+                  mtr_report(" - found '$core_name'",
+                             "($num_saved_cores/$opt_max_save_core)");
+
+                  My::CoreDump->show($core_file, $exe_mysqld, $opt_parallel);
+
+                  # Limit number of core files saved
+                  if ($opt_max_save_core > 0 &&
+                      $num_saved_cores >= $opt_max_save_core)
+                  {
+                    mtr_report(" - deleting it, already saved",
+                               "$opt_max_save_core");
+                    unlink("$core_file");
+                  }
+                  else
+                  {
+                    mtr_compress_file($core_file) unless @opt_cases;
+                    ++$num_saved_cores;
+                  }
+                }
+              }
+            },
+            $worker_savedir);
+
 	    if ($opt_max_save_datadir > 0 &&
 		$num_saved_datadir >= $opt_max_save_datadir)
 	    {
 	      mtr_report(" - skipping '$worker_savedir/'");
 	      rmtree($worker_savedir);
 	    }
-	    else {
+            else
+            {
 	      mtr_report(" - saving '$worker_savedir/' to '$savedir/'");
 	      rename($worker_savedir, $savedir);
-	      # Move any core files from e.g. mysqltest
-	      foreach my $coref (glob("core*"), glob("*.dmp"))
-	      {
-		mtr_report(" - found '$coref', moving it to '$savedir'");
-                move($coref, $savedir);
-              }
-	      if ($opt_max_save_core > 0) {
-		# Limit number of core files saved
-		find({ no_chdir => 1,
-		       wanted => sub {
-			 my $core_file= $File::Find::name;
-			 my $core_name= basename($core_file);
-
-			 # Name beginning with core, not ending in .gz
-			 if (($core_name =~ /^core/ and $core_name !~ /\.gz$/)
-			     or (IS_WINDOWS and $core_name =~ /\.dmp$/)){
-                                                       # Ending with .dmp
-			   mtr_report(" - found '$core_name'",
-				      "($num_saved_cores/$opt_max_save_core)");
-
-			   My::CoreDump->show($core_file, $exe_mysqld, $opt_parallel);
-
-			   if ($num_saved_cores >= $opt_max_save_core) {
-			     mtr_report(" - deleting it, already saved",
-					"$opt_max_save_core");
-			     unlink("$core_file");
-			   } else {
-			     mtr_compress_file($core_file) unless @opt_cases;
-			   }
-			   ++$num_saved_cores;
-			 }
-		       }
-		     },
-		     $savedir);
-	      }
 	    }
 	    resfile_print_test();
 	    $num_saved_datadir++;
@@ -1122,7 +1142,7 @@ sub command_line_setup {
              'debug'                    => \$opt_debug,
              'debug-common'             => \$opt_debug_common,
              'debug-server'             => \$opt_debug_server,
-             'gdb'                      => \$opt_gdb,
+             'gdb=s'                    => \$opt_gdb,
              'client-gdb'               => \$opt_client_gdb,
              'manual-gdb'               => \$opt_manual_gdb,
              'manual-lldb'              => \$opt_manual_lldb,
@@ -1217,6 +1237,9 @@ sub command_line_setup {
              'skip-test-list=s'         => \@opt_skip_test_list
            );
 
+  # fix options (that take an optional argument and *only* after = sign
+  my %fixopt = ( '--gdb' => '--gdb=#' );
+  @ARGV = map { $fixopt{$_} or $_ } @ARGV;
   GetOptions(%options) or usage("Can't read options");
   usage("") if $opt_usage;
   list_options(\%options) if $opt_list_options;
@@ -1433,7 +1456,7 @@ sub command_line_setup {
 
     foreach my $fs (@tmpfs_locations)
     {
-      if ( -d $fs && ! -l $fs )
+      if ( -d $fs && ! -l $fs  && -w $fs )
       {
 	my $template= "var_${opt_build_thread}_XXXX";
 	$opt_mem= tempdir( $template, DIR => $fs, CLEANUP => 0);
@@ -1590,6 +1613,7 @@ sub command_line_setup {
        $opt_manual_debug || $opt_dbx || $opt_client_dbx || $opt_manual_dbx || 
        $opt_debugger || $opt_client_debugger )
   {
+    $ENV{ASAN_OPTIONS}= 'abort_on_error=1:'.($ENV{ASAN_OPTIONS} || '');
     if ( using_extern() )
     {
       mtr_error("Can't use --extern when using debugger");
@@ -2561,7 +2585,7 @@ sub setup_vardir() {
       {
         for (<$bindir/storage/*$opt_vs_config/*.dll>,
              <$bindir/plugin/*$opt_vs_config/*.dll>,
-             <$bindir/libmariadb/plugins/*$opt_vs_config/*.dll>,
+             <$bindir/libmariadb$opt_vs_config/*.dll>,
              <$bindir/sql$opt_vs_config/*.dll>)
         {
           my $pname=basename($_);
@@ -2582,6 +2606,7 @@ sub setup_vardir() {
       for (<$bindir/storage/*/*.so>,
            <$bindir/plugin/*/*.so>,
            <$bindir/libmariadb/plugins/*/*.so>,
+           <$bindir/libmariadb/*.so>,
            <$bindir/sql/*.so>)
       {
         my $pname=basename($_);
@@ -3196,6 +3221,10 @@ sub mysql_install_db {
       mtr_appendfile_to_file("$sql_dir/fill_help_tables.sql",
            $bootstrap_sql_file);
 
+      # Create test database
+      mtr_appendfile_to_file("$sql_dir/mysql_test_db.sql",
+                            $bootstrap_sql_file);
+
       # mysql.gtid_slave_pos was created in InnoDB, but many tests
       # run without InnoDB. Alter it to MyISAM now
       mtr_tofile($bootstrap_sql_file, "ALTER TABLE gtid_slave_pos ENGINE=MyISAM;\n");
@@ -3237,7 +3266,6 @@ sub mysql_install_db {
 
   # Create directories mysql and test
   mkpath("$install_datadir/mysql");
-  mkpath("$install_datadir/test");
 
   if ( My::SafeProcess->run
        (
@@ -3964,14 +3992,14 @@ sub run_testcase ($$) {
   }
 
   my $test= $tinfo->{suite}->start_test($tinfo);
-  # Set only when we have to keep waiting after expectedly died server
-  my $keep_waiting_proc = 0;
+  # Set to a list of processes we have to keep waiting (expectedly died servers)
+  my %keep_waiting_proc = ();
   my $print_timeout= start_timer($print_freq * 60);
 
   while (1)
   {
     my $proc;
-    if ($keep_waiting_proc)
+    if (%keep_waiting_proc)
     {
       # Any other process exited?
       $proc = My::SafeProcess->check_any();
@@ -3981,48 +4009,34 @@ sub run_testcase ($$) {
       }
       else
       {
-	$proc = $keep_waiting_proc;
 	# Also check if timer has expired, if so cancel waiting
 	if ( has_expired($test_timeout) )
 	{
-	  $keep_waiting_proc = 0;
+	  %keep_waiting_proc = ();
 	}
       }
     }
-    if (! $keep_waiting_proc)
+    if (!%keep_waiting_proc && !$proc)
     {
-      if($test_timeout > $print_timeout)
+      if ($test_timeout > $print_timeout)
       {
-         $proc= My::SafeProcess->wait_any_timeout($print_timeout);
-         if ( $proc->{timeout} )
-         {
-            #print out that the test is still on
-            mtr_print("Test still running: $tinfo->{name}");
-            #reset the timer
-            $print_timeout= start_timer($print_freq * 60);
-            next;
-         }
+        $proc= My::SafeProcess->wait_any_timeout($print_timeout);
+        if ($proc->{timeout})
+        {
+          #print out that the test is still on
+          mtr_print("Test still running: $tinfo->{name}");
+          #reset the timer
+          $print_timeout= start_timer($print_freq * 60);
+          next;
+        }
       }
       else
       {
-         $proc= My::SafeProcess->wait_any_timeout($test_timeout);
+        $proc= My::SafeProcess->wait_any_timeout($test_timeout);
       }
     }
 
-    # Will be restored if we need to keep waiting
-    $keep_waiting_proc = 0;
-
-    unless ( defined $proc )
-    {
-      mtr_error("wait_any failed");
-    }
-    mtr_verbose("Got $proc");
-
-    mark_time_used('test');
-    # ----------------------------------------------------
-    # Was it the test program that exited
-    # ----------------------------------------------------
-    if ($proc eq $test)
+    if ($proc and $proc eq $test) # mysqltest itself exited
     {
       my $res= $test->exit_status();
 
@@ -4037,12 +4051,12 @@ sub run_testcase ($$) {
 
       if ( $res == 0 )
       {
-	my $check_res;
-	if ( $opt_check_testcases and
-	     $check_res= check_testcase($tinfo, "after"))
-	{
-	  if ($check_res == 1) {
-	    # Test case had sideeffects, not fatal error, just continue
+        my $check_res;
+        if ( $opt_check_testcases and
+             $check_res= check_testcase($tinfo, "after"))
+        {
+          if ($check_res == 1) {
+            # Test case had sideeffects, not fatal error, just continue
             if ($opt_warnings) {
               # Checking error logs for warnings, so need to stop server
               # gracefully so that memory leaks etc. can be properly detected.
@@ -4053,92 +4067,109 @@ sub run_testcase ($$) {
               # test.
             } else {
               # Not checking warnings, so can do a hard shutdown.
-	      stop_all_servers($opt_shutdown_timeout);
+              stop_all_servers($opt_shutdown_timeout);
             }
-	    mtr_report("Resuming tests...\n");
-	    resfile_output($tinfo->{'check'}) if $opt_resfile;
-	  }
-	  else {
-	    # Test case check failed fatally, probably a server crashed
-	    report_failure_and_restart($tinfo);
-	    return 1;
-	  }
-	}
-	mtr_report_test_passed($tinfo);
+            mtr_report("Resuming tests...\n");
+            resfile_output($tinfo->{'check'}) if $opt_resfile;
+          }
+          else {
+            # Test case check failed fatally, probably a server crashed
+            report_failure_and_restart($tinfo);
+            return 1;
+          }
+        }
+        mtr_report_test_passed($tinfo);
       }
       elsif ( $res == 62 )
       {
-	# Testcase itself tell us to skip this one
-	$tinfo->{skip_detected_by_test}= 1;
-	# Try to get reason from test log file
-	find_testcase_skipped_reason($tinfo);
-	mtr_report_test_skipped($tinfo);
-	# Restart if skipped due to missing perl, it may have had side effects
-	if ( $tinfo->{'comment'} =~ /^perl not found/ )
-	{
-	  stop_all_servers($opt_shutdown_timeout);
-	}
+        # Testcase itself tell us to skip this one
+        $tinfo->{skip_detected_by_test}= 1;
+        # Try to get reason from test log file
+        find_testcase_skipped_reason($tinfo);
+        mtr_report_test_skipped($tinfo);
+        # Restart if skipped due to missing perl, it may have had side effects
+        if ( $tinfo->{'comment'} =~ /^perl not found/ )
+        {
+          stop_all_servers($opt_shutdown_timeout);
+        }
       }
       elsif ( $res == 65 )
       {
-	# Testprogram killed by signal
-	$tinfo->{comment}=
-	  "testprogram crashed(returned code $res)";
-	report_failure_and_restart($tinfo);
+        # Testprogram killed by signal
+        $tinfo->{comment}=
+          "testprogram crashed(returned code $res)";
+        report_failure_and_restart($tinfo);
       }
       elsif ( $res == 1 )
       {
-	# Check if the test tool requests that
-	# an analyze script should be run
-	my $analyze= find_analyze_request();
-	if ($analyze){
-	  run_on_all($tinfo, "analyze-$analyze");
-	}
+        # Check if the test tool requests that
+        # an analyze script should be run
+        my $analyze= find_analyze_request();
+        if ($analyze){
+          run_on_all($tinfo, "analyze-$analyze");
+        }
 
-	# Wait a bit and see if a server died, if so report that instead
-	mtr_milli_sleep(100);
-	my $srvproc= My::SafeProcess::check_any();
-	if ($srvproc && grep($srvproc eq $_, started(all_servers()))) {
-	  $proc= $srvproc;
-	  goto SRVDIED;
-	}
+        # Wait a bit and see if a server died, if so report that instead
+        mtr_milli_sleep(100);
+        my $srvproc= My::SafeProcess::check_any();
+        if ($srvproc && grep($srvproc eq $_, started(all_servers()))) {
+          $proc= $srvproc;
+          goto SRVDIED;
+        }
 
-	# Test case failure reported by mysqltest
-	report_failure_and_restart($tinfo);
+        # Test case failure reported by mysqltest
+        report_failure_and_restart($tinfo);
       }
       else
       {
-	# mysqltest failed, probably crashed
-	$tinfo->{comment}=
-	  "mysqltest failed with unexpected return code $res\n";
-	report_failure_and_restart($tinfo);
+        # mysqltest failed, probably crashed
+        $tinfo->{comment}=
+          "mysqltest failed with unexpected return code $res\n";
+        report_failure_and_restart($tinfo);
       }
 
       # Save info from this testcase run to mysqltest.log
       if( -f $path_current_testlog)
       {
-	if ($opt_resfile && $res && $res != 62) {
-	  resfile_output_file($path_current_testlog);
-	}
-	mtr_appendfile_to_file($path_current_testlog, $path_testlog);
-	unlink($path_current_testlog);
+        if ($opt_resfile && $res && $res != 62) {
+          resfile_output_file($path_current_testlog);
+        }
+        mtr_appendfile_to_file($path_current_testlog, $path_testlog);
+        unlink($path_current_testlog);
       }
 
       return ($res == 62) ? 0 : $res;
-
     }
 
-    # ----------------------------------------------------
-    # Check if it was an expected crash
-    # ----------------------------------------------------
-    my $check_crash = check_expected_crash_and_restart($proc);
-    if ($check_crash)
+    if ($proc)
     {
-      # Keep waiting if it returned 2, if 1 don't wait or stop waiting.
-      $keep_waiting_proc = 0 if $check_crash == 1;
-      $keep_waiting_proc = $proc if $check_crash == 2;
-      next;
+      # It was not mysqltest that exited, add to a wait-to-be-started-again list.
+      $keep_waiting_proc{$proc} = 1;
     }
+
+    mtr_verbose("Got " . join(",", keys(%keep_waiting_proc)));
+
+    mark_time_used('test');
+    foreach my $wait_for_proc (keys(%keep_waiting_proc)) {
+      # ----------------------------------------------------
+      # Check if it was an expected crash
+      # ----------------------------------------------------
+      my $check_crash = check_expected_crash_and_restart($wait_for_proc);
+      if ($check_crash == 0) # unexpected exit/crash of $wait_for_proc
+      {
+        goto SRVDIED;
+      }
+      elsif ($check_crash == 1) # $wait_for_proc was started again by check_expected_crash_and_restart()
+      {
+        delete $keep_waiting_proc{$wait_for_proc};
+      }
+      elsif ($check_crash == 2) # we must keep waiting
+      {
+        # do nothing
+      }
+    }
+
+    next;
 
   SRVDIED:
     # ----------------------------------------------------
@@ -4449,6 +4480,7 @@ sub extract_warning_lines ($$) {
      qr|SSL error: Failed to set ciphers to use|,
      qr/Plugin 'InnoDB' will be forced to shutdown/,
      qr|Could not increase number of max_open_files to more than|,
+     qr|Changed limits: max_open_files|,
      qr/InnoDB: Error table encrypted but encryption service not available.*/,
      qr/InnoDB: Could not find a valid tablespace file for*/,
      qr/InnoDB: Tablespace open failed for*/,
@@ -5042,7 +5074,7 @@ sub mysqld_start ($$) {
   my $args;
   mtr_init_args(\$args);
 
-  if ( $opt_valgrind_mysqld )
+  if ( $opt_valgrind_mysqld and not $opt_gdb and not $opt_manual_gdb )
   {
     valgrind_arguments($args, \$exe);
   }
@@ -5631,11 +5663,26 @@ sub gdb_arguments {
   unlink($gdb_init_file);
 
   # Put $args into a single string
-  my $str= join(" ", @$$args);
   $input = $input ? "< $input" : "";
 
-  # write init file for mysqld or client
-  mtr_tofile($gdb_init_file, "set args $str $input\n");
+  if ($type eq 'client') {
+    mtr_tofile($gdb_init_file, "set args @$$args $input");
+  } elsif ($opt_valgrind_mysqld) {
+    my $v = $$exe;
+    my $vargs = [];
+    valgrind_arguments($vargs, \$v);
+    mtr_tofile($gdb_init_file, <<EOF);
+shell @My::SafeProcess::safe_process_cmd --parent-pid=`pgrep -x gdb` -- $v --vgdb-error=0 @$vargs @$$args &
+shell sleep 1
+target remote | /usr/lib64/valgrind/../../bin/vgdb
+EOF
+  } else {
+    mtr_tofile($gdb_init_file,
+      join("\n",
+        "set args @$$args $input",
+        split /;/, $opt_gdb || ""
+        ));
+  }
 
   if ( $opt_manual_gdb )
   {
@@ -5683,7 +5730,7 @@ sub lldb_arguments {
   $input = $input ? "< $input" : "";
 
   # write init file for mysqld or client
-  mtr_tofile($lldb_init_file, "set args $str $input\n");
+  mtr_tofile($lldb_init_file, "process launch --stop-at-entry -- $str $input\n");
 
     print "\nTo start lldb for $type, type in another window:\n";
     print "cd $glob_mysql_test_dir && lldb -s $lldb_init_file $$exe\n";
@@ -5975,7 +6022,7 @@ path-to-testcase
 Examples:
 
 alias
-main.alias              'main' is the name of the suite for the 't' directory.
+main.alias              'main' is the name of the main test suite
 rpl.rpl_invoked_features,mix,innodb
 suite/rpl/t/rpl.rpl_invoked_features
 
@@ -6256,7 +6303,8 @@ sub xterm_stat {
     my $done = $num_tests - $left;
     my $spent = time - $^T;
 
-    printf "\e];mtr: spent %s on %d tests. %s (%d tests) left\a",
+    syswrite STDOUT, sprintf
+           "\e];mtr: spent %s on %d tests. %s (%d tests) left\a",
            time_format($spent), $done,
            time_format($spent/$done * $left), $left;
   }

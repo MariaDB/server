@@ -79,6 +79,9 @@ Copyright (c) 2006, 2015, Percona and/or its affiliates. All rights reserved.
 #include "toku_os.h"
 #include "toku_time.h"
 #include "memory.h"
+
+#include "toku_instrumentation.h"
+
 #include <portability/toku_atomic.h>
 #include <util/partitioned_counter.h>
 
@@ -172,13 +175,26 @@ toku_os_get_phys_memory_size(void) {
 #endif
 }
 
-int
-toku_os_get_file_size(int fildes, int64_t *fsize) {
+int toku_os_get_file_size_with_source_location(int fildes,
+                                               int64_t *fsize,
+                                               const char *src_file,
+                                               uint src_line) {
     toku_struct_stat sbuf;
+
+    toku_io_instrumentation io_annotation;
+    toku_instr_file_io_begin(io_annotation,
+                             toku_instr_file_op::file_stat,
+                             fildes,
+                             0,
+                             src_file,
+                             src_line);
+
     int r = fstat(fildes, &sbuf);
-    if (r==0) {
+    if (r == 0) {
         *fsize = sbuf.st_size;
     }
+    toku_instr_file_io_end(io_annotation, 0);
+
     return r;
 }
 
@@ -272,15 +288,39 @@ toku_os_get_max_process_data_size(uint64_t *maxdata) {
     return r;
 }
 
-int
-toku_stat(const char *name, toku_struct_stat *buf) {
+int toku_stat_with_source_location(const char *name,
+                                   toku_struct_stat *buf,
+                                   const toku_instr_key &instr_key,
+                                   const char *src_file,
+                                   uint src_line) {
+    toku_io_instrumentation io_annotation;
+    toku_instr_file_name_io_begin(io_annotation,
+                                  instr_key,
+                                  toku_instr_file_op::file_stat,
+                                  name,
+                                  0,
+                                  src_file,
+                                  src_line);
     int r = stat(name, buf);
+
+    toku_instr_file_io_end(io_annotation, 0);
     return r;
 }
 
-int
-toku_fstat(int fd, toku_struct_stat *buf) {
+int toku_os_fstat_with_source_location(int fd,
+                                       toku_struct_stat *buf,
+                                       const char *src_file,
+                                       uint src_line) {
+    toku_io_instrumentation io_annotation;
+    toku_instr_file_io_begin(io_annotation,
+                             toku_instr_file_op::file_stat,
+                             fd,
+                             0,
+                             src_file,
+                             src_line);
+
     int r = fstat(fd, buf);
+    toku_instr_file_io_end(io_annotation, 0);
     return r;
 }
 
@@ -427,5 +467,9 @@ void __attribute__((constructor)) toku_portability_helgrind_ignore(void);
 void
 toku_portability_helgrind_ignore(void) {
     TOKU_VALGRIND_HG_DISABLE_CHECKING(&toku_cached_hz, sizeof toku_cached_hz);
-    TOKU_VALGRIND_HG_DISABLE_CHECKING(&toku_cached_pagesize, sizeof toku_cached_pagesize);
+    TOKU_VALGRIND_HG_DISABLE_CHECKING(&toku_cached_pagesize,
+                                      sizeof toku_cached_pagesize);
 }
+
+static const pfs_key_t pfs_not_instrumented = 0xFFFFFFFF;
+toku_instr_key toku_uninstrumented(pfs_not_instrumented);

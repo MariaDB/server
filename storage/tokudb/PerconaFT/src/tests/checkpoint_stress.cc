@@ -271,24 +271,29 @@ run_test (int iter, int die) {
     }
 
     // take checkpoint (all dictionaries)
-    snapshot(NULL, 1);    
+    snapshot(NULL, 1);
 
     if (die) {
-	// separate thread will perform random acts on other dictionaries (not 0)
-	int r = toku_pthread_create(&thread, 0, random_acts, (void *) dictionaries);
-	CKERR(r);
-	// this thead will scribble over dictionary 0 before crash to verify that
-	// post-checkpoint inserts are not in the database
-	DB* db = dictionaries[0].db;
-	if (iter & 1)
-	    scribble(db, iter);
-	else
-	    thin_out(db, iter);
-	uint32_t delay = myrandom();
-	delay &= 0xFFF;       // select lower 12 bits, shifted up 8 for random number ...
-	delay = delay << 8;   // ... uniformly distributed between 0 and 1M ...
-	usleep(delay);        // ... to sleep up to one second (1M usec)
-	drop_dead();
+        // separate thread will perform random acts on other dictionaries (not
+        // 0)
+        int r = toku_pthread_create(
+            toku_uninstrumented, &thread, nullptr,
+            random_acts, static_cast<void*>(dictionaries));
+        CKERR(r);
+        // this thead will scribble over dictionary 0 before crash to verify
+        // that
+        // post-checkpoint inserts are not in the database
+        DB* db = dictionaries[0].db;
+        if (iter & 1)
+            scribble(db, iter);
+        else
+            thin_out(db, iter);
+        uint32_t delay = myrandom();
+        delay &=
+            0xFFF;  // select lower 12 bits, shifted up 8 for random number ...
+        delay = delay << 8;  // ... uniformly distributed between 0 and 1M ...
+        usleep(delay);       // ... to sleep up to one second (1M usec)
+        drop_dead();
     }
     else {
 	for (i = 0; i < NUM_DICTIONARIES; i++) {
@@ -346,7 +351,7 @@ test_main (int argc, char * const argv[]) {
                 // arg that suppresses valgrind on this child process
                 break;
             }
-            // otherwise, fall through to an error
+            /* fall through */ // otherwise, fall through to an error
 	case 'h':
         case '?':
             usage(argv[0]);

@@ -790,7 +790,7 @@ static bool debug_sync_set_action(THD *thd, st_debug_sync_action *action)
       and shall not be reported as a result of SET DEBUG_SYNC.
       Hence, we check for the first condition above.
     */
-    if (thd->is_error())
+    if (unlikely(thd->is_error()))
       DBUG_RETURN(TRUE);
   }
 
@@ -1448,7 +1448,7 @@ static void debug_sync_execute(THD *thd, st_debug_sync_action *action)
             DBUG_PRINT("debug_sync",
                        ("awoke from %s  global: %s  error: %d",
                         sig_wait, sig_glob, error));});
-        if (error == ETIMEDOUT || error == ETIME)
+        if (unlikely(error == ETIMEDOUT || error == ETIME))
         {
           // We should not make the statement fail, even if in strict mode.
           const bool save_abort_on_warning= thd->abort_on_warning;

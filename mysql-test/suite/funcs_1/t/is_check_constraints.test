@@ -1,0 +1,69 @@
+--source include/have_innodb.inc
+--echo #
+--echo # MDEV-14474: Create INFORMATION_SCHEMA.CHECK_CONSTRAINTS
+--echo #
+
+set check_constraint_checks=1;
+
+use test;
+create table t0
+(
+ t int, check (t>32) # table constraint
+) ENGINE=myisam;
+
+--vertical_results
+SELECT * from information_schema.check_constraints order by check_clause;
+
+ALTER TABLE t0
+ADD CONSTRAINT CHK_t0_t CHECK(t<100);
+
+SELECT * from information_schema.check_constraints order by check_clause;
+
+ALTER TABLE t0
+DROP CONSTRAINT CHK_t0_t;
+
+SELECT * from information_schema.check_constraints order by check_clause;
+
+CREATE TABLE t1
+( t int CHECK(t>2), # field constraint
+ tt int, CONSTRAINT CHK_tt CHECK(tt<100) # table constraint
+) ENGINE=InnoDB;
+
+SELECT * from information_schema.check_constraints order by check_clause;
+
+ALTER TABLE t1
+DROP CONSTRAINT CHK_tt;
+
+SELECT * from information_schema.check_constraints order by check_clause;
+
+create table t2
+(
+name VARCHAR(30) CHECK(CHAR_LENGTH(name)>2), #field constraint
+start_date DATE,
+end_date DATE,
+CONSTRAINT CHK_dates CHECK(start_date IS NULL) #table constraint
+)ENGINE=Innodb;
+
+SELECT * from information_schema.check_constraints order by check_clause;
+
+ALTER TABLE t1
+ADD CONSTRAINT CHK_new_ CHECK(t>tt);
+
+SELECT * from information_schema.check_constraints order by check_clause;
+
+
+# Create table with same field and table check constraint name
+create table t3
+(
+a int,
+b int check (b>0), # field constraint named 'b'
+CONSTRAINT b check (b>10) # table constraint
+) ENGINE=InnoDB;
+
+--horizontal_results
+select * from information_schema.check_constraints order by check_clause;
+
+drop table t0;
+drop table t1;
+drop table t2;
+drop table t3;

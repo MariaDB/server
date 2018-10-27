@@ -17,25 +17,6 @@
 # This script reports various configuration settings that may be needed
 # when using the MariaDB client library.
 
-which ()
-{
-  IFS="${IFS=   }"; save_ifs="$IFS"; IFS=':'
-  for file
-  do
-    for dir in $PATH
-    do
-      if test -f $dir/$file
-      then
-        echo "$dir/$file"
-        continue 2
-      fi
-    done
-    echo "which: no $file in ($PATH)"
-    exit 1
-  done
-  IFS="$save_ifs"
-}
-
 #
 # If we can find the given directory relatively to where mysql_config is
 # we should use this instead of the incompiled one.
@@ -70,7 +51,7 @@ get_full_path ()
   case $file in
     /*) echo "$file";;
     */*) tmp=`pwd`/$file; echo $tmp | sed -e 's;/\./;/;' ;;
-    *) which $file ;;
+    *) command -v $file ;;
   esac
 }
 

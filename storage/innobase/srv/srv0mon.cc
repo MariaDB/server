@@ -2,7 +2,7 @@
 
 Copyright (c) 2010, 2016, Oracle and/or its affiliates. All Rights Reserved.
 Copyright (c) 2012, Facebook Inc.
-Copyright (c) 2013, 2017, MariaDB Corporation.
+Copyright (c) 2013, 2018, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -1485,8 +1485,8 @@ srv_mon_set_module_control(
 	mon_option_t	set_option)	/*!< in: Turn on/off reset the
 					counter */
 {
-	ulint	ix;
-	ulint	start_id;
+	lint	ix;
+	lint	start_id;
 	ibool	set_current_module = FALSE;
 
 	ut_a(module_id <= NUM_MONITOR);
@@ -1838,7 +1838,7 @@ srv_mon_process_existing_counter(
 
 	/* innodb_page_size */
 	case MONITOR_OVLD_SRV_PAGE_SIZE:
-		value = UNIV_PAGE_SIZE;
+		value = srv_page_size;
 		break;
 
 	case MONITOR_OVLD_RWLOCK_S_SPIN_WAITS:
@@ -1933,7 +1933,7 @@ srv_mon_process_existing_counter(
 
 	/* innodb_row_lock_time_max */
 	case MONITOR_OVLD_LOCK_MAX_WAIT_TIME:
-		value = lock_sys->n_lock_max_wait_time / 1000;
+		value = lock_sys.n_lock_max_wait_time / 1000;
 		break;
 
 	/* innodb_row_lock_time_avg */
@@ -1952,7 +1952,7 @@ srv_mon_process_existing_counter(
 		break;
 
 	case MONITOR_RSEG_HISTORY_LEN:
-		value = trx_sys.rseg_history_len;
+		value = trx_sys.history_size();
 		break;
 
 	case MONITOR_RSEG_CUR_SIZE:
@@ -2000,11 +2000,11 @@ srv_mon_process_existing_counter(
 		break;
 
 	case MONITOR_OVLD_LSN_FLUSHDISK:
-		value = (mon_type_t) log_sys->flushed_to_disk_lsn;
+		value = (mon_type_t) log_sys.flushed_to_disk_lsn;
 		break;
 
 	case MONITOR_OVLD_LSN_CURRENT:
-		value = (mon_type_t) log_sys->lsn;
+		value = (mon_type_t) log_sys.lsn;
 		break;
 
 	case MONITOR_OVLD_BUF_OLDEST_LSN:
@@ -2012,15 +2012,15 @@ srv_mon_process_existing_counter(
 		break;
 
 	case MONITOR_OVLD_LSN_CHECKPOINT:
-		value = (mon_type_t) log_sys->last_checkpoint_lsn;
+		value = (mon_type_t) log_sys.last_checkpoint_lsn;
 		break;
 
 	case MONITOR_OVLD_MAX_AGE_ASYNC:
-		value = log_sys->max_modified_age_async;
+		value = log_sys.max_modified_age_async;
 		break;
 
 	case MONITOR_OVLD_MAX_AGE_SYNC:
-		value = log_sys->max_modified_age_sync;
+		value = log_sys.max_modified_age_sync;
 		break;
 
 #ifdef BTR_CUR_HASH_ADAPT

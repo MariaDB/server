@@ -21367,7 +21367,7 @@ ERROR 42S02: Table 'test.v1' doesn't exist
 SHOW CREATE TABLE v1 ;
 ERROR 42S02: Table 'test.v1' doesn't exist
 SHOW TABLE STATUS like 'v1' ;
-Name	Engine	Version	Row_format	Rows	Avg_row_length	Data_length	Max_data_length	Index_length	Data_free	Auto_increment	Create_time	Update_time	Check_time	Collation	Checksum	Create_options	Comment
+Name	Engine	Version	Row_format	Rows	Avg_row_length	Data_length	Max_data_length	Index_length	Data_free	Auto_increment	Create_time	Update_time	Check_time	Collation	Checksum	Create_options	Comment	Max_index_length	Temporary
 SHOW TABLES LIKE 'v1';
 Tables_in_test (v1)
 SHOW COLUMNS FROM v1;

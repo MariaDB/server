@@ -30,10 +30,6 @@ SELECT @@global.wsrep_sst_receive_address;
 192.168.2.254
 
 # invalid values
-SET @@global.wsrep_sst_receive_address='127.0.0.1:4444';
-ERROR 42000: Variable 'wsrep_sst_receive_address' can't be set to the value of '127.0.0.1:4444'
-SET @@global.wsrep_sst_receive_address='127.0.0.1';
-ERROR 42000: Variable 'wsrep_sst_receive_address' can't be set to the value of '127.0.0.1'
 SELECT @@global.wsrep_sst_receive_address;
 @@global.wsrep_sst_receive_address
 192.168.2.254

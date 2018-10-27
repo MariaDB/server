@@ -13,7 +13,7 @@
    along with this program; if not, write to the Free Software
    Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02111-1301 USA */
 
-#include "mariadb.h"
+#include "sql_plugin.h"                         /* wsrep_plugins_pre_init() */
 #include <mysqld.h>
 #include <sql_class.h>
 #include <sql_parse.h>
@@ -38,7 +38,6 @@
 #include <cstdlib>
 #include "log_event.h"
 #include <slave.h>
-#include "sql_plugin.h"                         /* wsrep_plugins_pre_init() */
 
 wsrep_t *wsrep                  = NULL;
 /*
@@ -74,10 +73,7 @@ const char *wsrep_start_position;
 const char *wsrep_data_home_dir;
 const char *wsrep_dbug_option;
 const char *wsrep_notify_cmd;
-const char *wsrep_sst_method;
-const char *wsrep_sst_receive_address;
-const char *wsrep_sst_donor;
-const char *wsrep_sst_auth;
+
 my_bool wsrep_debug;                            // Enable debug level logging
 my_bool wsrep_convert_LOCK_to_trx;              // Convert locking sessions to trx
 my_bool wsrep_auto_increment_control;           // Control auto increment variables
@@ -89,7 +85,6 @@ my_bool wsrep_log_conflicts;
 my_bool wsrep_load_data_splitting;              // Commit load data every 10K intervals
 my_bool wsrep_slave_UK_checks;                  // Slave thread does UK checks
 my_bool wsrep_slave_FK_checks;                  // Slave thread does FK checks
-my_bool wsrep_sst_donor_rejects_queries;
 my_bool wsrep_restart_slave;                    // Should mysql slave thread be
                                                 // restarted, when node joins back?
 my_bool wsrep_desync;                           // De(re)synchronize the node from the
@@ -142,7 +137,7 @@ ulong  wsrep_running_threads = 0; // # of currently running wsrep threads
 ulong  my_bind_addr;
 
 #ifdef HAVE_PSI_INTERFACE
-PSI_mutex_key key_LOCK_wsrep_rollback, key_LOCK_wsrep_thd,
+PSI_mutex_key key_LOCK_wsrep_rollback,
   key_LOCK_wsrep_replaying, key_LOCK_wsrep_ready, key_LOCK_wsrep_sst,
   key_LOCK_wsrep_sst_thread, key_LOCK_wsrep_sst_init,
   key_LOCK_wsrep_slave_threads, key_LOCK_wsrep_desync,
@@ -162,7 +157,6 @@ static PSI_mutex_info wsrep_mutexes[]=
   { &key_LOCK_wsrep_sst_init, "LOCK_wsrep_sst_init", PSI_FLAG_GLOBAL},
   { &key_LOCK_wsrep_sst, "LOCK_wsrep_sst", PSI_FLAG_GLOBAL},
   { &key_LOCK_wsrep_rollback, "LOCK_wsrep_rollback", PSI_FLAG_GLOBAL},
-  { &key_LOCK_wsrep_thd, "THD::LOCK_wsrep_thd", 0},
   { &key_LOCK_wsrep_replaying, "LOCK_wsrep_replaying", PSI_FLAG_GLOBAL},
   { &key_LOCK_wsrep_slave_threads, "LOCK_wsrep_slave_threads", PSI_FLAG_GLOBAL},
   { &key_LOCK_wsrep_desync, "LOCK_wsrep_desync", PSI_FLAG_GLOBAL},
@@ -314,8 +308,7 @@ wsrep_view_handler_cb (void*                    app_ctx,
 
   if (memcmp(&cluster_uuid, &view->state_id.uuid, sizeof(wsrep_uuid_t)))
   {
-    memcpy((wsrep_uuid_t*)&cluster_uuid, &view->state_id.uuid,
-           sizeof(cluster_uuid));
+    memcpy(&cluster_uuid, &view->state_id.uuid, sizeof(cluster_uuid));
 
     wsrep_uuid_print (&cluster_uuid, cluster_uuid_str,
                       sizeof(cluster_uuid_str));
@@ -361,7 +354,7 @@ wsrep_view_handler_cb (void*                    app_ctx,
       // version change
       if (view->proto_ver != wsrep_protocol_version)
       {
-          my_bool wsrep_ready_saved= wsrep_ready;
+          my_bool wsrep_ready_saved= wsrep_ready_get();
           wsrep_ready_set(FALSE);
           WSREP_INFO("closing client connections for "
                      "protocol change %ld -> %d",
@@ -394,7 +387,7 @@ wsrep_view_handler_cb (void*                    app_ctx,
     if (!wsrep_before_SE())
     {
         WSREP_DEBUG("[debug]: closing client connections for PRIM");
-        wsrep_close_client_connections(TRUE);
+        wsrep_close_client_connections(FALSE);
     }
 
     ssize_t const req_len= wsrep_sst_prepare (sst_req);
@@ -476,16 +469,34 @@ out:
   return WSREP_CB_SUCCESS;
 }
 
-void wsrep_ready_set (my_bool x)
+my_bool wsrep_ready_set (my_bool x)
 {
   WSREP_DEBUG("Setting wsrep_ready to %d", x);
   if (mysql_mutex_lock (&LOCK_wsrep_ready)) abort();
-  if (wsrep_ready != x)
+  my_bool ret= (wsrep_ready != x);
+  if (ret)
   {
     wsrep_ready= x;
     mysql_cond_signal (&COND_wsrep_ready);
   }
   mysql_mutex_unlock (&LOCK_wsrep_ready);
+  return ret;
+}
+
+my_bool wsrep_ready_get (void)
+{
+  if (mysql_mutex_lock (&LOCK_wsrep_ready)) abort();
+  my_bool ret= wsrep_ready;
+  mysql_mutex_unlock (&LOCK_wsrep_ready);
+  return ret;
+}
+
+int wsrep_show_ready(THD *thd, SHOW_VAR *var, char *buff)
+{
+  var->type= SHOW_MY_BOOL;
+  var->value= buff;
+  *((my_bool *)buff)= wsrep_ready_get();
+  return 0;
 }
 
 // Wait until wsrep has reached ready state
@@ -504,17 +515,8 @@ void wsrep_ready_wait ()
 static void wsrep_synced_cb(void* app_ctx)
 {
   WSREP_INFO("Synchronized with group, ready for connections");
-  bool signal_main= false;
-  if (mysql_mutex_lock (&LOCK_wsrep_ready)) abort();
-  if (!wsrep_ready)
-  {
-    wsrep_ready= TRUE;
-    mysql_cond_signal (&COND_wsrep_ready);
-    signal_main= true;
-
-  }
+  my_bool signal_main= wsrep_ready_set(TRUE);
   wsrep_config_state->set(WSREP_MEMBER_SYNCED);
-  mysql_mutex_unlock (&LOCK_wsrep_ready);
 
   if (signal_main)
   {
@@ -646,6 +648,9 @@ int wsrep_init()
     strncpy(provider_vendor,
             wsrep->provider_vendor,  sizeof(provider_vendor) - 1);
   }
+
+  if (!wsrep_data_home_dir || strlen(wsrep_data_home_dir) == 0)
+    wsrep_data_home_dir = mysql_real_data_home;
 
   /* Initialize node address */
   char node_addr[512]= { 0, };
@@ -996,6 +1001,8 @@ bool wsrep_must_sync_wait (THD* thd, uint mask)
 {
   return (thd->variables.wsrep_sync_wait & mask) &&
     thd->variables.wsrep_on &&
+    !(thd->variables.wsrep_dirty_reads &&
+      !is_update_query(thd->lex->sql_command)) &&
     !thd->in_active_multi_stmt_transaction() &&
     thd->wsrep_conflict_state != REPLAYING &&
     thd->wsrep_sync_wait_gtid.seqno == WSREP_SEQNO_UNDEFINED;
@@ -1043,17 +1050,7 @@ bool wsrep_sync_wait (THD* thd, uint mask)
   return false;
 }
 
-/*
- * Helpers to deal with TOI key arrays
- */
-typedef struct wsrep_key_arr
-{
-    wsrep_key_t* keys;
-    size_t       keys_len;
-} wsrep_key_arr_t;
-
-
-static void wsrep_keys_free(wsrep_key_arr_t* key_arr)
+void wsrep_keys_free(wsrep_key_arr_t* key_arr)
 {
     for (size_t i= 0; i < key_arr->keys_len; ++i)
     {
@@ -1080,48 +1077,112 @@ static bool wsrep_prepare_key_for_isolation(const char* db,
                                             wsrep_buf_t* key,
                                             size_t* key_len)
 {
-    if (*key_len < 2) return false;
+  if (*key_len < 2) return false;
 
-    switch (wsrep_protocol_version)
+  switch (wsrep_protocol_version)
+  {
+  case 0:
+    *key_len= 0;
+    break;
+  case 1:
+  case 2:
+  case 3:
+  {
+    *key_len= 0;
+    if (db)
     {
-    case 0:
-        *key_len= 0;
-        break;
-    case 1:
-    case 2:
-    case 3:
-    {
-        *key_len= 0;
-        if (db)
-        {
-            // sql_print_information("%s.%s", db, table);
-            if (db)
-            {
-                key[*key_len].ptr= db;
-                key[*key_len].len= strlen(db);
-                ++(*key_len);
-                if (table)
-                {
-                    key[*key_len].ptr= table;
-                    key[*key_len].len= strlen(table);
-                    ++(*key_len);
-                }
-            }
-        }
-        break;
+      // sql_print_information("%s.%s", db, table);
+      key[*key_len].ptr= db;
+      key[*key_len].len= strlen(db);
+      ++(*key_len);
+      if (table)
+      {
+        key[*key_len].ptr= table;
+        key[*key_len].len= strlen(table);
+        ++(*key_len);
+      }
     }
-    default:
-        return false;
-    }
-
-    return true;
+    break;
+  }
+  default:
+    return false;
+  }
+  return true;
 }
 
-/* Prepare key list from db/table and table_list */
+
+static bool wsrep_prepare_key_for_isolation(const char* db,
+                                            const char* table,
+                                            wsrep_key_arr_t* ka)
+{
+  wsrep_key_t* tmp;
+
+  if (!ka->keys)
+    tmp= (wsrep_key_t*)my_malloc((ka->keys_len + 1) * sizeof(wsrep_key_t),
+                                 MYF(0));
+  else
+    tmp= (wsrep_key_t*)my_realloc(ka->keys,
+                                 (ka->keys_len + 1) * sizeof(wsrep_key_t),
+                                 MYF(0));
+
+  if (!tmp)
+  {
+    WSREP_ERROR("Can't allocate memory for key_array");
+    return false;
+  }
+  ka->keys= tmp;
+  if (!(ka->keys[ka->keys_len].key_parts= (wsrep_buf_t*)
+        my_malloc(sizeof(wsrep_buf_t)*2, MYF(0))))
+  {
+    WSREP_ERROR("Can't allocate memory for key_parts");
+    return false;
+  }
+  ka->keys[ka->keys_len].key_parts_num= 2;
+  ++ka->keys_len;
+  if (!wsrep_prepare_key_for_isolation(db, table,
+                                       (wsrep_buf_t*)ka->keys[ka->keys_len - 1].key_parts,
+                                       &ka->keys[ka->keys_len - 1].key_parts_num))
+  {
+    WSREP_ERROR("Preparing keys for isolation failed");
+    return false;
+  }
+
+  return true;
+}
+
+
+static bool wsrep_prepare_keys_for_alter_add_fk(const char* child_table_db,
+                                                Alter_info* alter_info,
+                                                wsrep_key_arr_t* ka)
+{
+  Key *key;
+  List_iterator<Key> key_iterator(alter_info->key_list);
+  while ((key= key_iterator++))
+  {
+    if (key->type == Key::FOREIGN_KEY)
+    {
+      Foreign_key *fk_key= (Foreign_key *)key;
+      const char *db_name= fk_key->ref_db.str;
+      const char *table_name= fk_key->ref_table.str;
+      if (!db_name)
+      {
+        db_name= child_table_db;
+      }
+      if (!wsrep_prepare_key_for_isolation(db_name, table_name, ka))
+      {
+        return false;
+      }
+    }
+  }
+  return true;
+}
+
+
 static bool wsrep_prepare_keys_for_isolation(THD*              thd,
                                              const char*       db,
                                              const char*       table,
                                              const TABLE_LIST* table_list,
+                                             Alter_info*       alter_info,
                                              wsrep_key_arr_t*  ka)
 {
   ka->keys= 0;
@@ -1129,65 +1190,38 @@ static bool wsrep_prepare_keys_for_isolation(THD*              thd,
 
   if (db || table)
   {
-    if (!(ka->keys= (wsrep_key_t*)my_malloc(sizeof(wsrep_key_t), MYF(0))))
-    {
-      WSREP_ERROR("Can't allocate memory for key_array");
+    if (!wsrep_prepare_key_for_isolation(db, table, ka))
       goto err;
-    }
-    ka->keys_len= 1;
-    if (!(ka->keys[0].key_parts= (wsrep_buf_t*)
-          my_malloc(sizeof(wsrep_buf_t)*2, MYF(0))))
-    {
-      WSREP_ERROR("Can't allocate memory for key_parts");
-      goto err;
-     }
-    ka->keys[0].key_parts_num= 2;
-    if (!wsrep_prepare_key_for_isolation(
-                                         db, table,
-                                         (wsrep_buf_t*)ka->keys[0].key_parts,
-                                         &ka->keys[0].key_parts_num))
-    {
-      WSREP_ERROR("Preparing keys for isolation failed (1)");
-      goto err;
-    }
   }
 
   for (const TABLE_LIST* table= table_list; table; table= table->next_global)
   {
-    wsrep_key_t* tmp;
-    if (ka->keys)
-      tmp= (wsrep_key_t*)my_realloc(ka->keys,
-                                  (ka->keys_len + 1) * sizeof(wsrep_key_t),
-                                  MYF(0));
-    else
-      tmp= (wsrep_key_t*)my_malloc((ka->keys_len + 1) * sizeof(wsrep_key_t), MYF(0));
-
-    if (!tmp)
-    {
-      WSREP_ERROR("Can't allocate memory for key_array");
+    if (!wsrep_prepare_key_for_isolation(table->db.str, table->table_name.str, ka))
       goto err;
-    }
-    ka->keys= tmp;
-    if (!(ka->keys[ka->keys_len].key_parts= (wsrep_buf_t*)
-          my_malloc(sizeof(wsrep_buf_t)*2, MYF(0))))
-    {
-      WSREP_ERROR("Can't allocate memory for key_parts");
-      goto err;
-    }
-    ka->keys[ka->keys_len].key_parts_num= 2;
-    ++ka->keys_len;
-    if (!wsrep_prepare_key_for_isolation(table->db.str, table->table_name.str,
-                                         (wsrep_buf_t*)ka->keys[ka->keys_len - 1].key_parts,
-                                         &ka->keys[ka->keys_len - 1].key_parts_num))
-    {
-      WSREP_ERROR("Preparing keys for isolation failed (2)");
-      goto err;
-    }
   }
-    return 0;
+
+  if (alter_info && (alter_info->flags & (ALTER_ADD_FOREIGN_KEY)))
+  {
+    if (!wsrep_prepare_keys_for_alter_add_fk(table_list->db.str, alter_info, ka))
+      goto err;
+  }
+
+  return false;
+
 err:
-    wsrep_keys_free(ka);
-    return 1;
+  wsrep_keys_free(ka);
+  return true;
+}
+
+
+/* Prepare key list from db/table and table_list */
+bool wsrep_prepare_keys_for_isolation(THD*              thd,
+                                      const char*       db,
+                                      const char*       table,
+                                      const TABLE_LIST* table_list,
+                                      wsrep_key_arr_t*  ka)
+{
+  return wsrep_prepare_keys_for_isolation(thd, db, table, table_list, NULL, ka);
 }
 
 
@@ -1400,6 +1434,67 @@ create_view_query(THD *thd, uchar** buf, size_t* buf_len)
     return wsrep_to_buf_helper(thd, buff.ptr(), buff.length(), buf, buf_len);
 }
 
+/*
+  Rewrite DROP TABLE for TOI. Temporary tables are eliminated from
+  the query as they are visible only to client connection.
+
+  TODO: See comments for sql_base.cc:drop_temporary_table() and refine
+  the function to deal with transactional locked tables.
+ */
+static int wsrep_drop_table_query(THD* thd, uchar** buf, size_t* buf_len)
+{
+
+  LEX* lex= thd->lex;
+  SELECT_LEX* select_lex= &lex->select_lex;
+  TABLE_LIST* first_table= select_lex->table_list.first;
+  String buff;
+
+  DBUG_ASSERT(!lex->create_info.tmp_table());
+
+  bool found_temp_table= false;
+  for (TABLE_LIST* table= first_table; table; table= table->next_global)
+  {
+    if (thd->find_temporary_table(table->db.str, table->table_name.str))
+    {
+      found_temp_table= true;
+      break;
+    }
+  }
+
+  if (found_temp_table)
+  {
+    buff.append("DROP TABLE ");
+    if (lex->check_exists)
+      buff.append("IF EXISTS ");
+
+    for (TABLE_LIST* table= first_table; table; table= table->next_global)
+    {
+      if (!thd->find_temporary_table(table->db.str, table->table_name.str))
+      {
+        append_identifier(thd, &buff, table->db.str, table->db.length);
+        buff.append(".");
+        append_identifier(thd, &buff,
+                          table->table_name.str, table->table_name.length);
+        buff.append(",");
+      }
+    }
+
+    /* Chop the last comma */
+    buff.chop();
+    buff.append(" /* generated by wsrep */");
+
+    WSREP_DEBUG("Rewrote '%s' as '%s'", thd->query(), buff.ptr());
+
+    return wsrep_to_buf_helper(thd, buff.ptr(), buff.length(), buf, buf_len);
+  }
+  else
+  {
+    return wsrep_to_buf_helper(thd, thd->query(), thd->query_length(),
+                               buf, buf_len);
+  }
+}
+
+
 /* Forward declarations. */
 static int wsrep_create_sp(THD *thd, uchar** buf, size_t* buf_len);
 static int wsrep_create_trigger_query(THD *thd, uchar** buf, size_t* buf_len);
@@ -1482,6 +1577,25 @@ static bool wsrep_can_run_in_toi(THD *thd, const char *db, const char *table,
   }
 }
 
+static const char* wsrep_get_query_or_msg(const THD* thd)
+{
+  switch(thd->lex->sql_command)
+  {
+    case SQLCOM_CREATE_USER:
+      return "CREATE USER";
+    case SQLCOM_GRANT:
+      return "GRANT";
+    case SQLCOM_REVOKE:
+      return "REVOKE";
+    case SQLCOM_SET_OPTION:
+      if (thd->lex->definer)
+	return "SET PASSWORD";
+      /* fallthrough */
+    default:
+      return thd->query();
+   }
+}
+
 /*
   returns: 
    0: statement was replicated as TOI
@@ -1489,7 +1603,8 @@ static bool wsrep_can_run_in_toi(THD *thd, const char *db, const char *table,
   -1: TOI replication failed 
  */
 static int wsrep_TOI_begin(THD *thd, const char *db_, const char *table_,
-                           const TABLE_LIST* table_list)
+                           const TABLE_LIST* table_list,
+                           Alter_info* alter_info)
 {
   wsrep_status_t ret(WSREP_WARNING);
   uchar* buf(0);
@@ -1504,7 +1619,8 @@ static int wsrep_TOI_begin(THD *thd, const char *db_, const char *table_,
   }
 
   WSREP_DEBUG("TO BEGIN: %lld, %d : %s", (long long)wsrep_thd_trx_seqno(thd),
-              thd->wsrep_exec_mode, thd->query() );
+              thd->wsrep_exec_mode, wsrep_get_query_or_msg(thd));
+
   switch (thd->lex->sql_command)
   {
   case SQLCOM_CREATE_VIEW:
@@ -1523,6 +1639,9 @@ static int wsrep_TOI_begin(THD *thd, const char *db_, const char *table_,
   case SQLCOM_ALTER_EVENT:
     buf_err= wsrep_alter_event_query(thd, &buf, &buf_len);
     break;
+  case SQLCOM_DROP_TABLE:
+    buf_err= wsrep_drop_table_query(thd, &buf, &buf_len);
+    break;
   case SQLCOM_CREATE_ROLE:
     if (sp_process_definer(thd))
     {
@@ -1538,7 +1657,8 @@ static int wsrep_TOI_begin(THD *thd, const char *db_, const char *table_,
   wsrep_key_arr_t key_arr= {0, 0};
   struct wsrep_buf buff = { buf, buf_len };
   if (!buf_err                                                                  &&
-      !wsrep_prepare_keys_for_isolation(thd, db_, table_, table_list, &key_arr) &&
+      !wsrep_prepare_keys_for_isolation(thd, db_, table_,
+                                        table_list, alter_info, &key_arr)       &&
       key_arr.keys_len > 0                                                      &&
       WSREP_OK == (ret = wsrep->to_execute_start(wsrep, thd->thread_id,
 						 key_arr.keys, key_arr.keys_len,
@@ -1578,8 +1698,8 @@ static void wsrep_TOI_end(THD *thd) {
   wsrep_status_t ret;
   wsrep_to_isolation--;
 
-  WSREP_DEBUG("TO END: %lld, %d : %s", (long long)wsrep_thd_trx_seqno(thd),
-              thd->wsrep_exec_mode, (thd->query()) ? thd->query() : "void");
+  WSREP_DEBUG("TO END: %lld, %d: %s", (long long)wsrep_thd_trx_seqno(thd),
+              thd->wsrep_exec_mode, wsrep_get_query_or_msg(thd));
 
   wsrep_set_SE_checkpoint(thd->wsrep_trx_meta.gtid.uuid,
                           thd->wsrep_trx_meta.gtid.seqno);
@@ -1678,7 +1798,8 @@ static void wsrep_RSU_end(THD *thd)
 }
 
 int wsrep_to_isolation_begin(THD *thd, const char *db_, const char *table_,
-                             const TABLE_LIST* table_list)
+                             const TABLE_LIST* table_list,
+                             Alter_info* alter_info)
 {
   int ret= 0;
 
@@ -1688,16 +1809,16 @@ int wsrep_to_isolation_begin(THD *thd, const char *db_, const char *table_,
   if (thd->wsrep_exec_mode == REPL_RECV)
     return 0;
 
-  mysql_mutex_lock(&thd->LOCK_wsrep_thd);
+  mysql_mutex_lock(&thd->LOCK_thd_data);
 
   if (thd->wsrep_conflict_state == MUST_ABORT)
   {
     WSREP_INFO("thread: %lld  schema: %s  query: %s has been aborted due to multi-master conflict",
                (longlong) thd->thread_id, thd->get_db(), thd->query());
-    mysql_mutex_unlock(&thd->LOCK_wsrep_thd);
+    mysql_mutex_unlock(&thd->LOCK_thd_data);
     return WSREP_TRX_FAIL;
   }
-  mysql_mutex_unlock(&thd->LOCK_wsrep_thd);
+  mysql_mutex_unlock(&thd->LOCK_thd_data);
 
   DBUG_ASSERT(thd->wsrep_exec_mode == LOCAL_STATE);
   DBUG_ASSERT(thd->wsrep_trx_meta.gtid.seqno == WSREP_SEQNO_UNDEFINED);
@@ -1732,10 +1853,10 @@ int wsrep_to_isolation_begin(THD *thd, const char *db_, const char *table_,
   {
     switch (thd->variables.wsrep_OSU_method) {
     case WSREP_OSU_TOI:
-      ret =  wsrep_TOI_begin(thd, db_, table_, table_list);
+      ret= wsrep_TOI_begin(thd, db_, table_, table_list, alter_info);
       break;
     case WSREP_OSU_RSU:
-      ret =  wsrep_RSU_begin(thd, db_, table_);
+      ret= wsrep_RSU_begin(thd, db_, table_);
       break;
     default:
       WSREP_ERROR("Unsupported OSU method: %lu",
@@ -1812,7 +1933,7 @@ bool wsrep_grant_mdl_exception(MDL_context *requestor_ctx,
   const char* schema= key->db_name();
   int schema_len= key->db_name_length();
 
-  mysql_mutex_lock(&request_thd->LOCK_wsrep_thd);
+  mysql_mutex_lock(&request_thd->LOCK_thd_data);
 
   /*
     We consider granting MDL exceptions only for appliers (BF THD) and ones
@@ -1836,19 +1957,19 @@ bool wsrep_grant_mdl_exception(MDL_context *requestor_ctx,
   if (request_thd->wsrep_exec_mode == TOTAL_ORDER ||
       request_thd->wsrep_exec_mode == REPL_RECV)
   {
-    mysql_mutex_unlock(&request_thd->LOCK_wsrep_thd);
+    mysql_mutex_unlock(&request_thd->LOCK_thd_data);
     WSREP_MDL_LOG(DEBUG, "MDL conflict ", schema, schema_len,
                   request_thd, granted_thd);
     ticket->wsrep_report(wsrep_debug);
 
-    mysql_mutex_lock(&granted_thd->LOCK_wsrep_thd);
+    mysql_mutex_lock(&granted_thd->LOCK_thd_data);
     if (granted_thd->wsrep_exec_mode == TOTAL_ORDER ||
         granted_thd->wsrep_exec_mode == REPL_RECV)
     {
       WSREP_MDL_LOG(INFO, "MDL BF-BF conflict", schema, schema_len,
                     request_thd, granted_thd);
       ticket->wsrep_report(true);
-      mysql_mutex_unlock(&granted_thd->LOCK_wsrep_thd);
+      mysql_mutex_unlock(&granted_thd->LOCK_thd_data);
       ret= true;
     }
     else if (granted_thd->lex->sql_command == SQLCOM_FLUSH ||
@@ -1856,7 +1977,7 @@ bool wsrep_grant_mdl_exception(MDL_context *requestor_ctx,
     {
       WSREP_DEBUG("BF thread waiting for FLUSH");
       ticket->wsrep_report(wsrep_debug);
-      mysql_mutex_unlock(&granted_thd->LOCK_wsrep_thd);
+      mysql_mutex_unlock(&granted_thd->LOCK_thd_data);
       ret= false;
     }
     else
@@ -1867,7 +1988,7 @@ bool wsrep_grant_mdl_exception(MDL_context *requestor_ctx,
         if (request_thd->lex->sql_command == SQLCOM_DROP_TABLE ||
             request_thd->lex->sql_command == SQLCOM_DROP_SEQUENCE)
         {
-          WSREP_DEBUG("DROP caused BF abort");
+          WSREP_DEBUG("DROP caused BF abort, conf %d", granted_thd->wsrep_conflict_state);
         }
         else if (granted_thd->wsrep_query_state == QUERY_COMMITTING)
         {
@@ -1881,14 +2002,14 @@ bool wsrep_grant_mdl_exception(MDL_context *requestor_ctx,
         ticket->wsrep_report(true);
       }
 
-      mysql_mutex_unlock(&granted_thd->LOCK_wsrep_thd);
+      mysql_mutex_unlock(&granted_thd->LOCK_thd_data);
       wsrep_abort_thd((void *) request_thd, (void *) granted_thd, 1);
       ret= false;
     }
   }
   else
   {
-    mysql_mutex_unlock(&request_thd->LOCK_wsrep_thd);
+    mysql_mutex_unlock(&request_thd->LOCK_thd_data);
   }
 
   return ret;
@@ -2045,9 +2166,9 @@ static inline bool is_replaying_connection(THD *thd)
 {
   bool ret;
 
-  mysql_mutex_lock(&thd->LOCK_wsrep_thd);
+  mysql_mutex_lock(&thd->LOCK_thd_data);
   ret=  (thd->wsrep_conflict_state == REPLAYING) ? true : false;
-  mysql_mutex_unlock(&thd->LOCK_wsrep_thd);
+  mysql_mutex_unlock(&thd->LOCK_thd_data);
 
   return ret;
 }
@@ -2057,9 +2178,9 @@ static inline bool is_committing_connection(THD *thd)
 {
   bool ret;
 
-  mysql_mutex_lock(&thd->LOCK_wsrep_thd);
+  mysql_mutex_lock(&thd->LOCK_thd_data);
   ret=  (thd->wsrep_query_state == QUERY_COMMITTING) ? true : false;
-  mysql_mutex_unlock(&thd->LOCK_wsrep_thd);
+  mysql_mutex_unlock(&thd->LOCK_thd_data);
 
   return ret;
 }
@@ -2373,7 +2494,7 @@ extern "C" void wsrep_thd_set_query_state(
 
 void wsrep_thd_set_conflict_state(THD *thd, enum wsrep_conflict_state state)
 {
-  thd->wsrep_conflict_state= state;
+  if (WSREP(thd)) thd->wsrep_conflict_state= state;
 }
 
 
@@ -2440,13 +2561,13 @@ wsrep_ws_handle_t* wsrep_thd_ws_handle(THD *thd)
 
 void wsrep_thd_LOCK(THD *thd)
 {
-  mysql_mutex_lock(&thd->LOCK_wsrep_thd);
+  mysql_mutex_lock(&thd->LOCK_thd_data);
 }
 
 
 void wsrep_thd_UNLOCK(THD *thd)
 {
-  mysql_mutex_unlock(&thd->LOCK_wsrep_thd);
+  mysql_mutex_unlock(&thd->LOCK_thd_data);
 }
 
 

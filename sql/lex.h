@@ -90,6 +90,7 @@ static SYMBOL symbols[] = {
   { "BIT",		SYM(BIT_SYM)},
   { "BLOB",		SYM(BLOB_SYM)},
   { "BLOCK",  SYM(BLOCK_SYM)},
+  { "BODY",             SYM(BODY_SYM)},
   { "BOOL",		SYM(BOOL_SYM)},
   { "BOOLEAN",		SYM(BOOLEAN_SYM)},
   { "BOTH",		SYM(BOTH)},
@@ -456,6 +457,7 @@ static SYMBOL symbols[] = {
   { "OUTFILE",		SYM(OUTFILE)},
   { "OVER",             SYM(OVER_SYM)},
   { "OWNER",		SYM(OWNER_SYM)},
+  { "PACKAGE",          SYM(PACKAGE_SYM)},
   { "PACK_KEYS",	SYM(PACK_KEYS_SYM)},
   { "PAGE",	        SYM(PAGE_SYM)},
   { "PAGE_CHECKSUM",	SYM(PAGE_CHECKSUM_SYM)},
@@ -720,7 +722,7 @@ static SYMBOL symbols[] = {
   { "YEAR",		SYM(YEAR_SYM)},
   { "YEAR_MONTH",	SYM(YEAR_MONTH_SYM)},
   { "ZEROFILL",		SYM(ZEROFILL)},
-  { "||",		SYM(OR_OR_SYM)}
+  { "||",		SYM(OR2_SYM)}
 };
 
 
@@ -769,6 +771,7 @@ static SYMBOL sql_functions[] = {
   { "SYSDATE",		SYM(SYSDATE)},
   { "SYSTEM_USER",      SYM(USER_SYM)},
   { "TRIM",		SYM(TRIM)},
+  { "TRIM_ORACLE",	SYM(TRIM_ORACLE)},
   { "VARIANCE",		SYM(VARIANCE_SYM)},
   { "VAR_POP",		SYM(VARIANCE_SYM)},
   { "VAR_SAMP",		SYM(VAR_SAMP_SYM)},

@@ -337,7 +337,7 @@ PVAL AllocateValue(PGLOBAL g, void *value, short type, short prec)
   {
   PVAL valp;
 
-  if (trace)
+  if (trace(1))
     htrc("AllocateConstant: value=%p type=%hd\n", value, type);
 
   switch (type) {
@@ -727,7 +727,7 @@ bool TYPVAL<TYPE>::SetValue_char(const char *p, int n)
   else
     Tval = (TYPE)val;
 
-  if (trace > 1) {
+  if (trace(2)) {
     char buf[64];
     htrc(strcat(strcat(strcpy(buf, " setting %s to: "), Fmt), "\n"),
                               GetTypeName(Type), Tval);
@@ -750,7 +750,7 @@ bool TYPVAL<double>::SetValue_char(const char *p, int n)
     buf[n] = '\0';
     Tval = atof(buf);
 
-    if (trace > 1)
+    if (trace(2))
       htrc(" setting double: '%s' -> %lf\n", buf, Tval);
 
     Null = false;
@@ -996,7 +996,7 @@ int TYPVAL<TYPE>::CompareValue(PVAL vp)
   // Process filtering on numeric values.
   TYPE n = GetTypedValue(vp);
 
-//if (trace)
+//if (trace(1))
 //  htrc(" Comparing: val=%d,%d\n", Tval, n);
 
   return (Tval > n) ? 1 : (Tval < n) ? (-1) : 0;
@@ -1384,7 +1384,7 @@ bool TYPVAL<PSZ>::SetValue_char(const char *cp, int n)
     	strncpy(Strp, cp, n);
 	    Strp[n] = '\0';
 
-      if (trace > 1)
+      if (trace(2))
         htrc(" Setting string to: '%s'\n", Strp);
 
     } else
@@ -1631,7 +1631,7 @@ int TYPVAL<PSZ>::CompareValue(PVAL vp)
   int n;
 //assert(vp->GetType() == Type);
 
-  if (trace)
+  if (trace(1))
     htrc(" Comparing: val='%s','%s'\n", Strp, vp->GetCharValue());
 
   // Process filtering on character strings.
@@ -1656,14 +1656,14 @@ bool TYPVAL<PSZ>::Compute(PGLOBAL g, PVAL *vp, int np, OPVAL op)
   char *p[2], val[2][32];
   int   i;
 
-	if (trace)
+	if (trace(1))
 		htrc("Compute: np=%d op=%d\n", np, op);
 
 	for (i = 0; i < np; i++)
 		if (!vp[i]->IsNull()) {
 			p[i] = vp[i]->GetCharString(val[i]);
 
-			if (trace)
+			if (trace(1))
 				htrc("p[%d]=%s\n", i, p[i]);
 
 		} else
@@ -1679,7 +1679,7 @@ bool TYPVAL<PSZ>::Compute(PGLOBAL g, PVAL *vp, int np, OPVAL op)
 			if ((i = Len - (signed)strlen(Strp)) > 0)
 				strncat(Strp, p[np - 1], i);
 
-			if (trace)
+			if (trace(1))
 				htrc("Strp=%s\n", Strp);
 
 			break;
@@ -1854,7 +1854,7 @@ int DECVAL::CompareValue(PVAL vp)
   // Process filtering on numeric values.
   double f = atof(Strp), n = vp->GetFloatValue();
 
-//if (trace)
+//if (trace(1))
 //  htrc(" Comparing: val=%d,%d\n", f, n);
 
   return (f > n) ? 1 : (f < n) ? (-1) : 0;
@@ -2410,7 +2410,7 @@ void DTVAL::SetTimeShift(void)
 
   Shift = (int)mktime(&dtm) - 86400;
 
-  if (trace)
+  if (trace(1))
     htrc("DTVAL Shift=%d\n", Shift);
 
   } // end of SetTimeShift
@@ -2485,7 +2485,7 @@ bool DTVAL::MakeTime(struct tm *ptm)
   int    n, y = ptm->tm_year;
   time_t t = mktime_mysql(ptm);
 
-  if (trace > 1)
+  if (trace(2))
     htrc("MakeTime from (%d,%d,%d,%d,%d,%d)\n",
           ptm->tm_year, ptm->tm_mon, ptm->tm_mday,
           ptm->tm_hour, ptm->tm_min, ptm->tm_sec);
@@ -2508,7 +2508,7 @@ bool DTVAL::MakeTime(struct tm *ptm)
   }
   Tval= (int) t;
 
-  if (trace > 1)
+  if (trace(2))
     htrc("MakeTime Ival=%d\n", Tval);
 
   return false;
@@ -2528,14 +2528,14 @@ bool DTVAL::MakeDate(PGLOBAL g, int *val, int nval)
   datm.tm_mon=0;
   datm.tm_year=70;
 
-  if (trace > 1)
+  if (trace(2))
     htrc("MakeDate from(%d,%d,%d,%d,%d,%d) nval=%d\n",
     val[0], val[1], val[2], val[3], val[4], val[5], nval);
 
   for (i = 0; i < nval; i++) {
     n = val[i];
 
-//    if (trace > 1)
+//    if (trace(2))
 //      htrc("i=%d n=%d\n", i, n);
 
     switch (i) {
@@ -2545,7 +2545,7 @@ bool DTVAL::MakeDate(PGLOBAL g, int *val, int nval)
 
         datm.tm_year = n;
 
-//        if (trace > 1)
+//        if (trace(2))
 //          htrc("n=%d tm_year=%d\n", n, datm.tm_year);
 
         break;
@@ -2564,7 +2564,7 @@ bool DTVAL::MakeDate(PGLOBAL g, int *val, int nval)
         datm.tm_mon = m;
         datm.tm_year += n;
 
-//        if (trace > 1)
+//        if (trace(2))
 //          htrc("n=%d m=%d tm_year=%d tm_mon=%d\n", n, m, datm.tm_year, datm.tm_mon);
 
         break;
@@ -2581,7 +2581,7 @@ bool DTVAL::MakeDate(PGLOBAL g, int *val, int nval)
         datm.tm_mday = m;
         datm.tm_year += n;
 
-//        if (trace > 1)
+//        if (trace(2))
 //          htrc("n=%d m=%d tm_year=%d tm_mon=%d\n", n, m, datm.tm_year, datm.tm_mon);
 
        break;
@@ -2592,7 +2592,7 @@ bool DTVAL::MakeDate(PGLOBAL g, int *val, int nval)
 
     } // endfor i
 
-  if (trace > 1)
+  if (trace(2))
     htrc("MakeDate datm=(%d,%d,%d,%d,%d,%d)\n",
     datm.tm_year, datm.tm_mon, datm.tm_mday,
     datm.tm_hour, datm.tm_min, datm.tm_sec);
@@ -2667,7 +2667,7 @@ bool DTVAL::SetValue_char(const char *p, int n)
     ndv = ExtractDate(Sdate, Pdtp, DefYear, dval);
     MakeDate(NULL, dval, ndv);
 
-    if (trace > 1)
+    if (trace(2))
       htrc(" setting date: '%s' -> %d\n", Sdate, Tval);
 
     Null = (Nullable && ndv == 0);
@@ -2694,7 +2694,7 @@ void DTVAL::SetValue_psz(PCSZ p)
     ndv = ExtractDate(Sdate, Pdtp, DefYear, dval);
     MakeDate(NULL, dval, ndv);
 
-    if (trace > 1)
+    if (trace(2))
       htrc(" setting date: '%s' -> %d\n", Sdate, Tval);
 
     Null = (Nullable && ndv == 0);
@@ -2849,13 +2849,13 @@ bool DTVAL::FormatValue(PVAL vp, PCSZ fmt)
   char     *buf = (char*)vp->GetTo_Val();       // Should be big enough
   struct tm tm, *ptm = GetGmTime(&tm);
 
-  if (trace > 1)
+  if (trace(2))
     htrc("FormatValue: ptm=%p len=%d\n", ptm, vp->GetValLen());
 
   if (ptm) {
     size_t n = strftime(buf, vp->GetValLen(), fmt, ptm);
 
-    if (trace > 1)
+    if (trace(2))
       htrc("strftime: n=%d buf=%s\n", n, (n) ? buf : "???");
 
     return (n == 0);

@@ -1807,7 +1807,7 @@ ER_NORMAL_SHUTDOWN
         cze "%s (%s): normální ukončení"
         dan "%s (%s): Normal nedlukning"
         nla "%s (%s): Normaal afgesloten "
-        eng "%s (%s): Normal shutdown"
+        eng "%s (initiated by: %s): Normal shutdown"
         est "%s (%s): MariaDB lõpetas"
         fre "%s (%s): Arrêt normal du serveur"
         ger "%s (%s): Normal heruntergefahren"
@@ -1822,7 +1822,7 @@ ER_NORMAL_SHUTDOWN
         pol "%s (%s): Standardowe zakończenie działania"
         por "%s (%s): 'Shutdown' normal"
         rum "%s (%s): Terminare normala"
-        rus "%s (%s): Корректная остановка"
+        rus "%s (инициирована пользователем: %s): Корректная остановка"
         serbian "%s (%s): Normalno gašenje"
         slo "%s (%s): normálne ukončenie"
         spa "%s (%s): Apagado normal"
@@ -5749,8 +5749,8 @@ ER_SP_NO_AGGREGATE 42000
         eng "AGGREGATE is not supported for stored functions"
         ger "AGGREGATE wird bei gespeicherten Funktionen nicht unterstützt"
 ER_MAX_PREPARED_STMT_COUNT_REACHED 42000
-        eng "Can't create more than max_prepared_stmt_count statements (current value: %lu)"
-        ger "Kann nicht mehr Anweisungen als max_prepared_stmt_count erzeugen (aktueller Wert: %lu)"
+        eng "Can't create more than max_prepared_stmt_count statements (current value: %u)"
+        ger "Kann nicht mehr Anweisungen als max_prepared_stmt_count erzeugen (aktueller Wert: %u)"
 ER_VIEW_RECURSIVE
         eng "%`s.%`s contains view recursion"
         ger "%`s.%`s enthält View-Rekursion"
@@ -7089,7 +7089,7 @@ ER_IDENT_CAUSES_TOO_LONG_PATH
   eng "Long database name and identifier for object resulted in path length exceeding %d characters. Path: '%s'"
 
 ER_ALTER_OPERATION_NOT_SUPPORTED_REASON_NOT_NULL
-  eng "cannot silently convert NULL values, as required in this SQL_MODE"
+  eng "cannot convert NULL to non-constant DEFAULT"
 
 ER_MUST_CHANGE_PASSWORD_LOGIN
   eng "Your password has expired. To log in you must change it using a client that supports expired passwords"
@@ -7788,6 +7788,10 @@ ER_WRONG_INSERT_INTO_SEQUENCE
         eng "Wrong INSERT into a SEQUENCE. One can only do single table INSERT into a sequence object (like with mysqldump).  If you want to change the SEQUENCE, use ALTER SEQUENCE instead."
 ER_SP_STACK_TRACE
         eng "At line %u in %s"
+ER_PACKAGE_ROUTINE_IN_SPEC_NOT_DEFINED_IN_BODY
+        eng "Subroutine '%-.192s' is declared in the package specification but is not defined in the package body"
+ER_PACKAGE_ROUTINE_FORWARD_DECLARATION_NOT_DEFINED
+        eng "Subroutine '%-.192s' has a forward declaration but is not defined"
 ER_COMPRESSED_COLUMN_USED_AS_KEY
   eng "Compressed column '%-.192s' can't be used in key specification"
 ER_UNKNOWN_COMPRESSION_METHOD
@@ -7825,8 +7829,8 @@ ER_VERS_FIELD_WRONG_TYPE
 ER_VERS_ENGINE_UNSUPPORTED
         eng "Transaction system versioning for %`s is not supported"
 
-ER_NON_VERSIONED_FIELD_IN_HISTORICAL_QUERY
-        eng "Non-versioned field %`s in historical query"
+ER_UNUSED_23
+        eng "You should never see it"
 
 ER_PARTITION_WRONG_TYPE
         eng "Wrong partitioning type, expected type: %`s"
@@ -7837,11 +7841,11 @@ WARN_VERS_PART_FULL
 WARN_VERS_PARAMETERS
         eng "Maybe missing parameters: %s"
 
-WARN_VERS_PART_ROTATION
-        eng "Versioned table %`s.%`s: switching from partition %`s to %`s"
+ER_VERS_DROP_PARTITION_INTERVAL
+        eng "Can only drop oldest partitions when rotating by INTERVAL"
 
-WARN_VERS_TRX_MISSING
-        eng "VTQ missing transaction ID %lu"
+ER_UNUSED_25
+        eng "You should never see it"
 
 WARN_VERS_PART_NON_HISTORICAL
         eng "Partition %`s contains non-historical data"
@@ -7850,13 +7854,13 @@ ER_VERS_ALTER_NOT_ALLOWED
         eng "Not allowed for system-versioned %`s.%`s. Change @@system_versioning_alter_history to proceed with ALTER."
 
 ER_VERS_ALTER_ENGINE_PROHIBITED
-        eng "Not allowed for system-versioned %`s.%`s. Change to/from native system versioning engine is prohibited."
+        eng "Not allowed for system-versioned %`s.%`s. Change to/from native system versioning engine is not supported."
 
 ER_VERS_RANGE_PROHIBITED
-        eng "SYSTEM_TIME range selector is prohibited"
+        eng "SYSTEM_TIME range selector is not allowed"
 
-ER_VERS_VTMD_ERROR
-        eng "VTMD error: %s"
+ER_CONFLICTING_FOR_SYSTEM_TIME
+        eng "Conflicting FOR SYSTEM_TIME clauses in WITH RECURSIVE"
 
 ER_VERS_TABLE_MUST_HAVE_COLUMNS
         eng "Table %`s must have at least one versioned column"
@@ -7882,11 +7886,11 @@ ER_VERS_NO_TRX_ID
 ER_VERS_ALTER_SYSTEM_FIELD
         eng "Can not change system versioning field %`s"
 
-ER_VERS_SYS_FIELD_EXISTS
-        eng "System versioning field %`s exists"
+ER_DROP_VERSIONING_SYSTEM_TIME_PARTITION
+        eng "Can not DROP SYSTEM VERSIONING for table %`s partitioned BY SYSTEM_TIME"
 
-ER_NOT_LOG_TABLE
-        eng "Table %`s.%`s is not a log table"
+ER_VERS_DB_NOT_SUPPORTED
+      eng "System versioning tables in the %`s database are not suported"
 
 ER_VERS_TRT_IS_DISABLED
         eng "Transaction registry is disabled"
@@ -7897,14 +7901,23 @@ ER_VERS_DUPLICATE_ROW_START_END
 ER_VERS_ALREADY_VERSIONED
         eng "Table %`s is already system-versioned"
 
-ER_VERS_TRUNCATE_VIEW
-        eng "DELETE HISTORY from VIEW is prohibited"
+ER_UNUSED_24
+	eng "You should never see it"
 
 ER_VERS_TEMPORARY
-	eng "System versioning prohibited for TEMPORARY tables"
+	eng "TEMPORARY tables do not support system versioning"
 
-ER_VERS_INPLACE_NOT_IMPLEMENTED
-        eng "Not implemented for system-versioned tables"
-
+ER_VERS_NOT_SUPPORTED
+        eng "%s is not supported for %s system-versioned tables"
 ER_INDEX_FILE_FULL
         eng "The index file for table '%-.192s' is full"
+ER_UPDATED_COLUMN_ONLY_ONCE
+        eng "The column %`s.%`s cannot be changed more than once in a single UPDATE statement"
+ER_EMPTY_ROW_IN_TVC
+        eng "Row with no elements is not allowed in table value constructor in this context"
+ER_VERS_QUERY_IN_PARTITION
+        eng "SYSTEM_TIME partitions in table %`s does not support historical query"
+ER_KEY_DOESNT_SUPPORT
+        eng "%s index %`s does not support this operation"
+ER_ALTER_OPERATION_TABLE_OPTIONS_NEED_REBUILD
+	eng "Changing table options requires the table to be rebuilt"

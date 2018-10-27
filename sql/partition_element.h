@@ -90,61 +90,6 @@ typedef struct p_elem_val
 
 struct st_ddl_log_memory_entry;
 
-/* Used for collecting MIN/MAX stats on row_end for doing pruning
-   in SYSTEM_TIME partitiong. */
-class Vers_min_max_stats : public Sql_alloc
-{
-  static const uint buf_size= 4 + (TIME_SECOND_PART_DIGITS + 1) / 2;
-  uchar min_buf[buf_size];
-  uchar max_buf[buf_size];
-  Field_timestampf min_value;
-  Field_timestampf max_value;
-  mysql_rwlock_t lock;
-
-public:
-  Vers_min_max_stats(const LEX_CSTRING *field_name, TABLE_SHARE *share) :
-    min_value(min_buf, NULL, 0, Field::NONE, field_name, share, 6),
-    max_value(max_buf, NULL, 0, Field::NONE, field_name, share, 6)
-  {
-    min_value.set_max();
-    memset(max_buf, 0, buf_size);
-    mysql_rwlock_init(key_rwlock_LOCK_vers_stats, &lock);
-  }
-  ~Vers_min_max_stats()
-  {
-    mysql_rwlock_destroy(&lock);
-  }
-  bool update_unguarded(Field *from)
-  {
-    return
-      from->update_min(&min_value, false) +
-      from->update_max(&max_value, false);
-  }
-  bool update(Field *from)
-  {
-    mysql_rwlock_wrlock(&lock);
-    bool res= update_unguarded(from);
-    mysql_rwlock_unlock(&lock);
-    return res;
-  }
-  my_time_t min_time()
-  {
-    mysql_rwlock_rdlock(&lock);
-    ulong sec_part;
-    my_time_t res= min_value.get_timestamp(&sec_part);
-    mysql_rwlock_unlock(&lock);
-    return res;
-  }
-  my_time_t max_time()
-  {
-    mysql_rwlock_rdlock(&lock);
-    ulong sec_part;
-    my_time_t res= max_value.get_timestamp(&sec_part);
-    mysql_rwlock_unlock(&lock);
-    return res;
-  }
-};
-
 enum stat_trx_field
 {
   STAT_TRX_END= 0

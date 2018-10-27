@@ -156,7 +156,7 @@ int int_heaviside(const uint32_t &v, const uint32_t &target) {
 struct stress_shared {
     stress_omt *omt;
     volatile bool running;
-    struct rwlock lock;
+    struct st_rwlock lock;
     toku_mutex_t mutex;
     int num_marker_threads;
 };
@@ -400,8 +400,8 @@ static void stress_test(int nelts) {
     struct stress_shared extra;
     ZERO_STRUCT(extra);
     extra.omt = &omt;
-    toku_mutex_init(&extra.mutex, NULL);
-    rwlock_init(&extra.lock);
+    toku_mutex_init(toku_uninstrumented, &extra.mutex, nullptr);
+    rwlock_init(toku_uninstrumented, &extra.lock);
     extra.running = true;
     extra.num_marker_threads = num_marker_threads;
 
@@ -422,11 +422,19 @@ static void stress_test(int nelts) {
         r = myinitstate_r(seed, reader.buf_write, 8, &reader.rand_write);
         invariant_zero(r);
 
-        toku_pthread_create(&marker_threads[i], NULL, stress_mark_worker, &reader);
+        toku_pthread_create(toku_uninstrumented,
+                            &marker_threads[i],
+                            nullptr,
+                            stress_mark_worker,
+                            &reader);
     }
 
     toku_pthread_t deleter_thread;
-    toku_pthread_create(&deleter_thread, NULL, stress_delete_worker, &readers[0]);
+    toku_pthread_create(toku_uninstrumented,
+                        &deleter_thread,
+                        nullptr,
+                        stress_delete_worker,
+                        &readers[0]);
     toku_pthread_join(deleter_thread, NULL);
 
     for (int i = 0; i < num_marker_threads; ++i) {

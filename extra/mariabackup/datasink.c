@@ -109,7 +109,10 @@ Write to a datasink file.
 int
 ds_write(ds_file_t *file, const void *buf, size_t len)
 {
-	return file->datasink->write(file, buf, len);
+	if (len == 0) {
+		return 0;
+	}
+	return file->datasink->write(file, (const uchar *)buf, len);
 }
 
 /************************************************************************

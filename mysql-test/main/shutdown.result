@@ -1,0 +1,16 @@
+create user user1@localhost;
+connect  c1,localhost,user1,,;
+shutdown;
+ERROR 42000: Access denied; you need (at least one of) the SHUTDOWN privilege(s) for this operation
+connection default;
+disconnect c1;
+connect  c1,localhost,root,,;
+create procedure try_shutdown() shutdown;
+drop procedure try_shutdown;
+shutdown;
+connection default;
+drop user user1@localhost;
+#
+# MDEV-8491 - On shutdown, report the user and the host executed that.
+#
+FOUND 2 /mysqld(\.exe)? \(initiated by: root\[root\] @ localhost \[(::1)?\]\): Normal shutdown/ in mysqld.1.err

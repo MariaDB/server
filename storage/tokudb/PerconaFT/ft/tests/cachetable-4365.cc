@@ -42,13 +42,11 @@ CACHEFILE f1;
 
 static void *pin_nonblocking(void *arg) {    
     void* v1;
-    long s1;
     int r = toku_cachetable_get_and_pin_nonblocking(
         f1, 
         make_blocknum(1), 
         toku_cachetable_hash(f1, make_blocknum(1)), 
         &v1, 
-        &s1, 
         def_write_callback(NULL), def_fetch, def_pf_req_callback, def_pf_callback, 
         PL_WRITE_EXPENSIVE,
         NULL, 
@@ -71,14 +69,15 @@ static void *put_same_key(void *arg) {
     return arg;
 }
 
-
 toku_pthread_t put_tid;
 
-static void test_remove_key(CACHEKEY* UU(cachekey), bool UU(for_checkpoint), void* UU(extra)) {
-    int r = toku_pthread_create(&put_tid, NULL, put_same_key, NULL); 
-    assert_zero(r);    
+static void test_remove_key(CACHEKEY *UU(cachekey),
+                            bool UU(for_checkpoint),
+                            void *UU(extra)) {
+    int r = toku_pthread_create(
+        toku_uninstrumented, &put_tid, nullptr, put_same_key, nullptr);
+    assert_zero(r);
 }
-
 
 static void
 cachetable_test (void) {
@@ -91,22 +90,25 @@ cachetable_test (void) {
   r = toku_cachetable_openf(&f1, ct, fname1, O_RDWR|O_CREAT, S_IRWXU|S_IRWXG|S_IRWXO); assert(r == 0);
 
   void* v1;
-  long s1;
-  r = toku_cachetable_get_and_pin(
-      f1, 
-      make_blocknum(1), 
-      toku_cachetable_hash(f1, make_blocknum(1)), 
-      &v1, 
-      &s1, 
-      def_write_callback(NULL), def_fetch, def_pf_req_callback, def_pf_callback, 
-      true, 
-      NULL
-      );
+  r = toku_cachetable_get_and_pin(f1,
+                                  make_blocknum(1),
+                                  toku_cachetable_hash(f1, make_blocknum(1)),
+                                  &v1,
+                                  def_write_callback(nullptr),
+                                  def_fetch,
+                                  def_pf_req_callback,
+                                  def_pf_callback,
+                                  true,
+                                  nullptr);
   toku_pthread_t pin_nonblocking_tid;
-  r = toku_pthread_create(&pin_nonblocking_tid, NULL, pin_nonblocking, NULL); 
-  assert_zero(r);    
+  r = toku_pthread_create(toku_uninstrumented,
+                          &pin_nonblocking_tid,
+                          nullptr,
+                          pin_nonblocking,
+                          nullptr);
+  assert_zero(r);
   // sleep 3 seconds
-  usleep(3*1024*1024);
+  usleep(3 * 1024 * 1024);
   r = toku_test_cachetable_unpin_and_remove(f1, make_blocknum(1), test_remove_key, NULL);
   assert_zero(r);
   

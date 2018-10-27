@@ -1,7 +1,7 @@
 /*****************************************************************************
 
 Copyright (c) 1996, 2016, Oracle and/or its affiliates. All Rights Reserved.
-Copyright (c) 2017, MariaDB Corporation.
+Copyright (c) 2017, 2018, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -55,15 +55,6 @@ enum dict_system_id_t {
 
 	/* This must be last item. Defines the number of system tables. */
 	SYS_NUM_SYSTEM_TABLES
-};
-
-/** Status bit for dict_process_sys_tables_rec_and_mtr_commit() */
-enum dict_table_info_t {
-	DICT_TABLE_LOAD_FROM_RECORD = 0,/*!< Directly populate a dict_table_t
-					structure with information from
-					a SYS_TABLES record */
-	DICT_TABLE_LOAD_FROM_CACHE = 1	/*!< Check first whether dict_table_t
-					is in the cache, if so, return it */
 };
 
 /** Check each tablespace found in the data dictionary.
@@ -201,10 +192,7 @@ dict_process_sys_tables_rec_and_mtr_commit(
 	mem_heap_t*	heap,		/*!< in: temporary memory heap */
 	const rec_t*	rec,		/*!< in: SYS_TABLES record */
 	dict_table_t**	table,		/*!< out: dict_table_t to fill */
-	dict_table_info_t status,	/*!< in: status bit controls
-					options such as whether we shall
-					look for dict_table_t from cache
-					first */
+	bool		cached,		/*!< in: whether to load from cache */
 	mtr_t*		mtr);		/*!< in/out: mini-transaction,
 					will be committed */
 /********************************************************************//**
@@ -245,7 +233,6 @@ information
 @return error message, or NULL on success */
 const char*
 dict_process_sys_virtual_rec(
-	mem_heap_t*	heap,
 	const rec_t*	rec,
 	table_id_t*	table_id,
 	ulint*		pos,

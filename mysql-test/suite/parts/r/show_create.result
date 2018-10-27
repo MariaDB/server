@@ -1,0 +1,113 @@
+set sql_mode=ansi_quotes;
+create table t1 ("select" int) partition by range ("select") (partition "select" values less than maxvalue);
+create table t2 (f1 int) partition by range (f1) (partition p1 values less than maxvalue);
+show create table t1;
+Table	Create Table
+t1	CREATE TABLE "t1" (
+  "select" int(11) DEFAULT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=latin1
+ PARTITION BY RANGE ("select")
+(PARTITION "select" VALUES LESS THAN MAXVALUE ENGINE = MyISAM)
+show create table t2;
+Table	Create Table
+t2	CREATE TABLE "t2" (
+  "f1" int(11) DEFAULT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=latin1
+ PARTITION BY RANGE ("f1")
+(PARTITION "p1" VALUES LESS THAN MAXVALUE ENGINE = MyISAM)
+set sql_quote_show_create=0;
+show create table t1;
+Table	Create Table
+t1	CREATE TABLE t1 (
+  "select" int(11) DEFAULT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=latin1
+ PARTITION BY RANGE ("select")
+(PARTITION "select" VALUES LESS THAN MAXVALUE ENGINE = MyISAM)
+show create table t2;
+Table	Create Table
+t2	CREATE TABLE t2 (
+  f1 int(11) DEFAULT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=latin1
+ PARTITION BY RANGE (f1)
+(PARTITION p1 VALUES LESS THAN MAXVALUE ENGINE = MyISAM)
+set sql_mode=default;
+show create table t1;
+Table	Create Table
+t1	CREATE TABLE t1 (
+  `select` int(11) DEFAULT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=latin1
+ PARTITION BY RANGE (`select`)
+(PARTITION `select` VALUES LESS THAN MAXVALUE ENGINE = MyISAM)
+show create table t2;
+Table	Create Table
+t2	CREATE TABLE t2 (
+  f1 int(11) DEFAULT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=latin1
+ PARTITION BY RANGE (f1)
+(PARTITION p1 VALUES LESS THAN MAXVALUE ENGINE = MyISAM)
+set sql_quote_show_create=1;
+show create table t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `select` int(11) DEFAULT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=latin1
+ PARTITION BY RANGE (`select`)
+(PARTITION `select` VALUES LESS THAN MAXVALUE ENGINE = MyISAM)
+show create table t2;
+Table	Create Table
+t2	CREATE TABLE `t2` (
+  `f1` int(11) DEFAULT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=latin1
+ PARTITION BY RANGE (`f1`)
+(PARTITION `p1` VALUES LESS THAN MAXVALUE ENGINE = MyISAM)
+flush tables;
+show create table t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `select` int(11) DEFAULT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=latin1
+ PARTITION BY RANGE (`select`)
+(PARTITION `select` VALUES LESS THAN MAXVALUE ENGINE = MyISAM)
+show create table t2;
+Table	Create Table
+t2	CREATE TABLE `t2` (
+  `f1` int(11) DEFAULT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=latin1
+ PARTITION BY RANGE (`f1`)
+(PARTITION `p1` VALUES LESS THAN MAXVALUE ENGINE = MyISAM)
+set sql_mode=ansi_quotes;
+show create table t1;
+Table	Create Table
+t1	CREATE TABLE "t1" (
+  "select" int(11) DEFAULT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=latin1
+ PARTITION BY RANGE ("select")
+(PARTITION "select" VALUES LESS THAN MAXVALUE ENGINE = MyISAM)
+show create table t2;
+Table	Create Table
+t2	CREATE TABLE "t2" (
+  "f1" int(11) DEFAULT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=latin1
+ PARTITION BY RANGE ("f1")
+(PARTITION "p1" VALUES LESS THAN MAXVALUE ENGINE = MyISAM)
+drop table t1, t2;
+set sql_mode=default;
+create table t_partition (f1 int) partition by hash(f1) partitions 2;
+select * from t_partition as tbl;
+f1
+show create table t_partition;
+Table	Create Table
+t_partition	CREATE TABLE `t_partition` (
+  `f1` int(11) DEFAULT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=latin1
+ PARTITION BY HASH (`f1`)
+PARTITIONS 2
+drop table t_partition;
+create table t1 (a int) partition by range(a) (partition p0 values less than (5));
+set sql_mode='ansi_quotes';
+alter table t1 add partition (partition p1 values less than (10));
+set sql_mode= default;
+show table status;
+Name	Engine	Version	Row_format	Rows	Avg_row_length	Data_length	Max_data_length	Index_length	Data_free	Auto_increment	Create_time	Update_time	Check_time	Collation	Checksum	Create_options	Comment	Max_index_length	Temporary
+t1	MyISAM	10	Fixed	0	0	0	0	2048	0	NULL	X	X	NULL	latin1_swedish_ci	NULL	partitioned		0	N
+drop table t1;

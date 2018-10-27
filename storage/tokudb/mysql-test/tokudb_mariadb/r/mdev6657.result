@@ -10,7 +10,7 @@ col3 smallint(5) NOT NULL DEFAULT '1',
 filler varchar(255) DEFAULT NULL,
 KEY pk_ersatz(col1,col2,col3),
 KEY key1 (col1,col2) USING BTREE
-) ENGINE=TokuDB DEFAULT CHARSET=latin1 PACK_KEYS=1 COMPRESSION=TOKUDB_LZMA;
+) ENGINE=TokuDB DEFAULT CHARSET=latin1 PACK_KEYS=1;
 insert into t3 select 1300000000+a, 12345, 7890, 'data' from t2;
 insert into t3 select 1400000000+a, 12345, 7890, 'data' from t2;
 insert into t3 select 1410799999+a, 12345, 7890, 'data' from t2;
@@ -34,7 +34,7 @@ from t3
 where col1 <= 1410799999 
 order by col1 desc,col2 desc,col3 desc limit 1;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t3	range	pk_ersatz,key1	pk_ersatz	4	NULL	2001	Using where; Using index
+1	SIMPLE	t3	range	pk_ersatz,key1	pk_ersatz	4	NULL	#	Using where; Using index
 # The same query but the constant is bigger. 
 # The query should use range(PRIMARY), not full index scan:
 explain 
@@ -43,5 +43,5 @@ from t3
 where col1 <= 1412199999 
 order by col1 desc, col2 desc, col3 desc limit 1;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t3	range	pk_ersatz,key1	pk_ersatz	4	NULL	15001	Using where; Using index
+1	SIMPLE	t3	range	pk_ersatz,key1	pk_ersatz	4	NULL	#	Using where; Using index
 drop table t1,t2,t3;

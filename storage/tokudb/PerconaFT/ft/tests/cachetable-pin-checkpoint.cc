@@ -171,7 +171,6 @@ static void *move_numbers(void *arg) {
         */
 
         void* v1;
-        long s1;
         CACHEKEY less_key;
         less_key.b = less;
         uint32_t less_fullhash = less;
@@ -184,7 +183,6 @@ static void *move_numbers(void *arg) {
             less_key,
             less,
             &v1,
-            &s1,
             wc, fetch, def_pf_req_callback, def_pf_callback,
             PL_WRITE_CHEAP,
             NULL,
@@ -205,7 +203,6 @@ static void *move_numbers(void *arg) {
             make_blocknum(greater),
             greater,
             &v1,
-            &s1,
             wc, fetch, def_pf_req_callback, def_pf_callback, 
             PL_WRITE_CHEAP,
             NULL,
@@ -238,7 +235,6 @@ static void *move_numbers(void *arg) {
                 make_blocknum(third),
                 third,
                 &v1,
-                &s1,
                 wc, fetch, def_pf_req_callback, def_pf_callback,
                 PL_WRITE_CHEAP,
                 NULL,
@@ -264,7 +260,6 @@ static void *read_random_numbers(void *arg) {
     while(run_test) {
         int rand_key1 = random() % NUM_ELEMENTS;
         void* v1;
-        long s1;
         int r1;
         CACHETABLE_WRITE_CALLBACK wc = def_write_callback(NULL);
         wc.flush_callback = flush;
@@ -274,7 +269,6 @@ static void *read_random_numbers(void *arg) {
             make_blocknum(rand_key1),
             rand_key1,
             &v1,
-            &s1,
             wc, fetch, def_pf_req_callback, def_pf_callback, 
             PL_READ,
             NULL,
@@ -386,19 +380,28 @@ cachetable_test (void) {
     run_test = true;
 
     for (int i = 0; i < NUM_MOVER_THREADS; i++) {
-        r = toku_pthread_create(&read_random_tid[i], NULL, read_random_numbers, NULL); 
+        r = toku_pthread_create(toku_uninstrumented,
+                                &read_random_tid[i],
+                                nullptr,
+                                read_random_numbers,
+                                nullptr);
         assert_zero(r);
     }
     for (int i = 0; i < NUM_MOVER_THREADS; i++) {
-        r = toku_pthread_create(&move_tid[i], NULL, move_numbers, NULL); 
+        r = toku_pthread_create(toku_uninstrumented,
+                                &move_tid[i],
+                                nullptr,
+                                move_numbers,
+                                nullptr);
         assert_zero(r);
     }
-    r = toku_pthread_create(&checkpoint_tid, NULL, checkpoints, NULL); 
-    assert_zero(r);    
-    r = toku_pthread_create(&time_tid, NULL, test_time, NULL); 
+    r = toku_pthread_create(
+        toku_uninstrumented, &checkpoint_tid, nullptr, checkpoints, nullptr);
+    assert_zero(r);
+    r = toku_pthread_create(
+        toku_uninstrumented, &time_tid, nullptr, test_time, nullptr);
     assert_zero(r);
 
-    
     void *ret;
     r = toku_pthread_join(time_tid, &ret); 
     assert_zero(r);

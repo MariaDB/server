@@ -107,13 +107,10 @@ int spider_param_selupd_lock_mode(
 bool spider_param_sync_autocommit(
   THD *thd
 );
-bool spider_param_sync_time_zone(
-  THD *thd
-);
 bool spider_param_use_default_database(
   THD *thd
 );
-bool spider_param_internal_sql_log_off(
+int spider_param_internal_sql_log_off(
   THD *thd
 );
 int spider_param_bulk_size(

@@ -4,6 +4,12 @@
 
 --source suite/galera/include/galera_sst_set_mysqldump.inc
 
+call mtr.add_suppression("WSREP: wsrep_sst_method is set to 'mysqldump' yet mysqld bind_address is set to .*");
+
+--let $node_1=node_1
+--let $node_2=node_2
+--source include/auto_increment_offset_save.inc
+
 # mysql-wsrep#33 - nnoDB: Failing assertion: xid_seqno > trx_sys_cur_xid_seqno in trx_sys_update_wsrep_checkpoint with mysqldump IST
 # --source suite/galera/include/galera_st_disconnect_slave.inc
 
@@ -14,4 +20,5 @@
 --source suite/galera/include/galera_st_kill_slave.inc
 --source suite/galera/include/galera_st_kill_slave_ddl.inc
 
+--source include/auto_increment_offset_restore.inc
 --source suite/galera/include/galera_sst_restore.inc

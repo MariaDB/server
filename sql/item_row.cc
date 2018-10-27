@@ -41,8 +41,7 @@ bool Item_row::fix_fields(THD *thd, Item **ref)
   Item **arg, **arg_end;
   for (arg= args, arg_end= args + arg_count; arg != arg_end ; arg++)
   {
-    if (!(*arg)->fixed &&
-        (*arg)->fix_fields(thd, arg))
+    if ((*arg)->fix_fields_if_needed(thd, arg))
       return TRUE;
     // we can't assign 'item' before, because fix_fields() can change arg
     Item *item= *arg;
@@ -65,6 +64,7 @@ bool Item_row::fix_fields(THD *thd, Item **ref)
     with_window_func = with_window_func || item->with_window_func;
     with_field= with_field || item->with_field;
     m_with_subquery|= item->with_subquery();
+    with_param|= item->with_param;
   }
   fixed= 1;
   return FALSE;
@@ -178,4 +178,3 @@ Item* Item_row::build_clone(THD *thd)
   }
   return copy;
 }
-

@@ -203,7 +203,7 @@ PQRYRES DBFColumns(PGLOBAL g, PCSZ dp, PCSZ fn, bool info)
   PQRYRES    qrp;
   PCOLRES    crp;
 
-  if (trace)
+  if (trace(1))
     htrc("DBFColumns: File %s\n", SVP(fn));
 
   if (!info) {
@@ -245,7 +245,7 @@ PQRYRES DBFColumns(PGLOBAL g, PCSZ dp, PCSZ fn, bool info)
     return qrp;
     } // endif info
 
-  if (trace) {
+  if (trace(1)) {
     htrc("Structure of %s\n", filename);
     htrc("headlen=%hd reclen=%hd degree=%d\n",
           mainhead.Headlen(), mainhead.Reclen(), fields);
@@ -271,7 +271,7 @@ PQRYRES DBFColumns(PGLOBAL g, PCSZ dp, PCSZ fn, bool info)
     } else
       len = thisfield.Length;
 
-    if (trace)
+    if (trace(1))
       htrc("%-11s %c  %6ld  %3d   %2d  %3d  %3d\n",
            thisfield.Name, thisfield.Type, thisfield.Offset, len,
            thisfield.Decimals, thisfield.Setfield, thisfield.Mdxfield);
@@ -447,7 +447,7 @@ int DBFFAM::Cardinality(PGLOBAL g)
 
 		if (rln && Lrecl != rln) {
 			// This happens always on some Linux platforms
-			sprintf(g->Message, MSG(BAD_LRECL), Lrecl, rln);
+			sprintf(g->Message, MSG(BAD_LRECL), Lrecl, (ushort)rln);
 
 			if (Accept) {
 				Lrecl = rln;
@@ -522,14 +522,14 @@ bool DBFFAM::OpenTableFile(PGLOBAL g)
   PlugSetPath(filename, To_File, Tdbp->GetPath());
 
   if (!(Stream = PlugOpenFile(g, filename, opmode))) {
-    if (trace)
+    if (trace(1))
       htrc("%s\n", g->Message);
     
     return (mode == MODE_READ && errno == ENOENT)
             ? PushWarning(g, Tdbp) : true;
     } // endif Stream
 
-  if (trace)
+  if (trace(1))
     htrc("File %s is open in mode %s\n", filename, opmode);
 
   To_Fb = dbuserp->Openlist;     // Keep track of File block
@@ -938,7 +938,7 @@ void DBFFAM::CloseTableFile(PGLOBAL g, bool abort)
     rc = PlugCloseFile(g, To_Fb);
 
  fin:
-  if (trace)
+  if (trace(1))
     htrc("DBF CloseTableFile: closing %s mode=%d wrc=%d rc=%d\n",
          To_File, mode, wrc, rc);
 
@@ -967,7 +967,7 @@ int DBMFAM::Cardinality(PGLOBAL g)
 
 		if (rln && Lrecl != rln) {
 			// This happens always on some Linux platforms
-			sprintf(g->Message, MSG(BAD_LRECL), Lrecl, rln);
+			sprintf(g->Message, MSG(BAD_LRECL), Lrecl, (ushort)rln);
 
 			if (Accept) {
 				Lrecl = rln;

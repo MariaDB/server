@@ -1,5 +1,5 @@
 /* Copyright (c) 2010, 2015, Oracle and/or its affiliates.
-   Copyright (c) 2013, 2015, MariaDB
+   Copyright (c) 2012, 2018, MariaDB
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -139,7 +139,7 @@ fk_truncate_illegal_if_parent(THD *thd, TABLE *table)
   table->file->get_parent_foreign_key_list(thd, &fk_list);
 
   /* Out of memory when building list. */
-  if (thd->is_error())
+  if (unlikely(thd->is_error()))
     return TRUE;
 
   it.init(fk_list);
@@ -240,7 +240,7 @@ Sql_cmd_truncate_table::handler_truncate(THD *thd, TABLE_LIST *table_ref,
       DBUG_RETURN(TRUNCATE_FAILED_SKIP_BINLOG);
 
   error= table_ref->table->file->ha_truncate();
-  if (error)
+  if (unlikely(error))
   {
     table_ref->table->file->print_error(error, MYF(0));
     /*
@@ -299,10 +299,10 @@ bool Sql_cmd_truncate_table::lock_table(THD *thd, TABLE_LIST *table_ref,
   if (thd->locked_tables_mode)
   {
     if (!(table= find_table_for_mdl_upgrade(thd, table_ref->db.str,
-                                            table_ref->table_name.str, FALSE)))
+                                            table_ref->table_name.str, NULL)))
       DBUG_RETURN(TRUE);
 
-    *hton_can_recreate= ha_check_storage_engine_flag(table->s->db_type(),
+    *hton_can_recreate= ha_check_storage_engine_flag(table->file->ht,
                                                      HTON_CAN_RECREATE);
     table_ref->mdl_request.ticket= table->mdl_ticket;
   }
@@ -350,7 +350,8 @@ bool Sql_cmd_truncate_table::lock_table(THD *thd, TABLE_LIST *table_ref,
   {
     DEBUG_SYNC(thd, "upgrade_lock_for_truncate");
     /* To remove the table from the cache we need an exclusive lock. */
-    if (wait_while_table_is_used(thd, table, HA_EXTRA_PREPARE_FOR_DROP))
+    if (wait_while_table_is_used(thd, table,
+          *hton_can_recreate ? HA_EXTRA_PREPARE_FOR_DROP : HA_EXTRA_NOT_USED))
       DBUG_RETURN(TRUE);
     m_ticket_downgrade= table->mdl_ticket;
     /* Close if table is going to be recreated. */
@@ -400,6 +401,8 @@ bool Sql_cmd_truncate_table::truncate_table(THD *thd, TABLE_LIST *table_ref)
     /* In RBR, the statement is not binlogged if the table is temporary. */
     binlog_stmt= !thd->is_current_stmt_binlog_format_row();
 
+    thd->close_unused_temporary_table_instances(table_ref);
+
     error= handler_truncate(thd, table_ref, TRUE);
 
     /*
@@ -427,8 +430,11 @@ bool Sql_cmd_truncate_table::truncate_table(THD *thd, TABLE_LIST *table_ref)
       */
       error= dd_recreate_table(thd, table_ref->db.str, table_ref->table_name.str);
 
-      if (thd->locked_tables_mode && thd->locked_tables_list.reopen_tables(thd))
-          thd->locked_tables_list.unlink_all_closed_tables(thd, NULL, 0);
+      if (thd->locked_tables_mode && thd->locked_tables_list.reopen_tables(thd, false))
+      {
+        thd->locked_tables_list.unlink_all_closed_tables(thd, NULL, 0);
+        error=1;
+      }
 
       /* No need to binlog a failed truncate-by-recreate. */
       binlog_stmt= !error;
@@ -447,7 +453,7 @@ bool Sql_cmd_truncate_table::truncate_table(THD *thd, TABLE_LIST *table_ref)
         query must be written to the binary log. The only exception is a
         unimplemented truncate method.
       */
-      if (error == TRUNCATE_OK || error == TRUNCATE_FAILED_BUT_BINLOG)
+      if (unlikely(error == TRUNCATE_OK || error == TRUNCATE_FAILED_BUT_BINLOG))
         binlog_stmt= true;
       else
         binlog_stmt= false;
@@ -500,4 +506,3 @@ bool Sql_cmd_truncate_table::execute(THD *thd)
 
   DBUG_RETURN(res);
 }
-

@@ -31,6 +31,10 @@
 #endif
 
 #ifdef HAVE_ORACLE_OCI
+#if (defined(WIN32) || defined(_WIN32) || defined(WINDOWS) || defined(_WINDOWS))
+#include <Shlwapi.h>
+#define strcasestr StrStr
+#endif
 #include <oci.h>
 #include "spd_err.h"
 #include "spd_param.h"

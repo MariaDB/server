@@ -94,7 +94,6 @@ packaging/rpm-oel/mysql.spec
 packaging/rpm-uln/mysql.10.0.11.spec
 packaging/solaris/postinstall-solaris
 pcre/config.h
-pcre/pcre*test.sh
 pcre/pcre.h
 pcre/pcre_chartables.c
 pcre/pcregrep
@@ -127,6 +126,7 @@ scripts/mytop
 scripts/wsrep_sst_common
 scripts/wsrep_sst_mysqldump
 scripts/wsrep_sst_rsync
+scripts/wsrep_sst_rsync_wan
 scripts/wsrep_sst_mariabackup
 scripts/wsrep_sst_xtrabackup
 scripts/wsrep_sst_xtrabackup-v2
@@ -166,9 +166,9 @@ sql/mysql_tzinfo_to_sql
 sql/mysqld
 sql/sql_builtin.cc
 sql/sql_yacc.cc
-sql/sql_yacc.h
+sql/sql_yacc.hh
 sql/sql_yacc_ora.cc
-sql/sql_yacc_ora.h
+sql/sql_yacc_ora.hh
 storage/heap/hp_test1
 storage/heap/hp_test2
 storage/maria/aria_chk
@@ -220,6 +220,8 @@ storage/tokudb/PerconaFT/tools/tokudb_load
 storage/tokudb/PerconaFT/tools/tokuftdump
 storage/tokudb/PerconaFT/tools/tokuft_logprint
 storage/tokudb/PerconaFT/xz/
+storage/tokudb/tokudb.cnf
+storage/tokudb/tokudb.conf
 strings/conf_to_src
 support-files/MySQL-shared-compat.spec
 support-files/binary-configure
@@ -495,6 +497,12 @@ UpgradeLog*.htm
 
 # Microsoft Fakes
 FakesAssemblies/
+
+# macOS garbage
+.DS_Store
+
+# QtCreator && CodeBlocks
+*.cbp
 
 compile_commands.json
 .clang-format

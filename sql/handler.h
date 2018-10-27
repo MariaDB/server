@@ -2,7 +2,7 @@
 #define HANDLER_INCLUDED
 /*
    Copyright (c) 2000, 2016, Oracle and/or its affiliates.
-   Copyright (c) 2009, 2017, MariaDB Corporation.
+   Copyright (c) 2009, 2018, MariaDB
 
    This program is free software; you can redistribute it and/or
    modify it under the terms of the GNU General Public License
@@ -73,11 +73,14 @@ class sequence_definition;
 */
 enum enum_alter_inplace_result {
   HA_ALTER_ERROR,
+  HA_ALTER_INPLACE_COPY_NO_LOCK,
+  HA_ALTER_INPLACE_COPY_LOCK,
+  HA_ALTER_INPLACE_NOCOPY_LOCK,
+  HA_ALTER_INPLACE_NOCOPY_NO_LOCK,
+  HA_ALTER_INPLACE_INSTANT,
   HA_ALTER_INPLACE_NOT_SUPPORTED,
   HA_ALTER_INPLACE_EXCLUSIVE_LOCK,
-  HA_ALTER_INPLACE_SHARED_LOCK_AFTER_PREPARE,
   HA_ALTER_INPLACE_SHARED_LOCK,
-  HA_ALTER_INPLACE_NO_LOCK_AFTER_PREPARE,
   HA_ALTER_INPLACE_NO_LOCK
 };
 
@@ -414,7 +417,6 @@ enum enum_alter_inplace_result {
 #define HA_CREATE_TMP_ALTER     8U
 #define HA_LEX_CREATE_SEQUENCE  16U
 #define HA_VERSIONED_TABLE      32U
-#define HA_VTMD                 64U
 
 #define HA_MAX_REC_LENGTH	65535
 
@@ -567,6 +569,180 @@ given at all. */
 /* Create a sequence */
 #define HA_CREATE_USED_SEQUENCE           (1UL << 25)
 
+typedef ulonglong alter_table_operations;
+
+/*
+  These flags are set by the parser and describes the type of
+  operation(s) specified by the ALTER TABLE statement.
+*/
+
+// Set by parser for ADD [COLUMN]
+#define ALTER_PARSER_ADD_COLUMN     (1ULL <<  0)
+// Set by parser for DROP [COLUMN]
+#define ALTER_PARSER_DROP_COLUMN    (1ULL <<  1)
+// Set for CHANGE [COLUMN] | MODIFY [CHANGE] & mysql_recreate_table
+#define ALTER_CHANGE_COLUMN         (1ULL <<  2)
+// Set for ADD INDEX | ADD KEY | ADD PRIMARY KEY | ADD UNIQUE KEY |
+//         ADD UNIQUE INDEX | ALTER ADD [COLUMN]
+#define ALTER_ADD_INDEX             (1ULL <<  3)
+// Set for DROP PRIMARY KEY | DROP FOREIGN KEY | DROP KEY | DROP INDEX
+#define ALTER_DROP_INDEX            (1ULL <<  4)
+// Set for RENAME [TO]
+#define ALTER_RENAME                (1ULL <<  5)
+// Set for ORDER BY
+#define ALTER_ORDER                 (1ULL <<  6)
+// Set for table_options, like table comment
+#define ALTER_OPTIONS               (1ULL <<  7)
+// Set for ALTER [COLUMN] ... SET DEFAULT ... | DROP DEFAULT
+#define ALTER_CHANGE_COLUMN_DEFAULT (1ULL <<  8)
+// Set for DISABLE KEYS | ENABLE KEYS
+#define ALTER_KEYS_ONOFF            (1ULL <<  9)
+// Set for FORCE, ENGINE(same engine), by mysql_recreate_table()
+#define ALTER_RECREATE              (1ULL << 10)
+// Set for ADD FOREIGN KEY
+#define ALTER_ADD_FOREIGN_KEY       (1ULL << 21)
+// Set for DROP FOREIGN KEY
+#define ALTER_DROP_FOREIGN_KEY      (1ULL << 22)
+// Set for ADD [COLUMN] FIRST | AFTER
+#define ALTER_COLUMN_ORDER          (1ULL << 25)
+#define ALTER_ADD_CHECK_CONSTRAINT  (1ULL << 27)
+#define ALTER_DROP_CHECK_CONSTRAINT (1ULL << 28)
+#define ALTER_RENAME_COLUMN         (1ULL << 29)
+#define ALTER_COLUMN_UNVERSIONED    (1ULL << 30)
+#define ALTER_ADD_SYSTEM_VERSIONING (1ULL << 31)
+#define ALTER_DROP_SYSTEM_VERSIONING (1ULL << 32)
+#define ALTER_ADD_PERIOD             (1ULL << 33)
+#define ALTER_DROP_PERIOD            (1ULL << 34)
+
+/*
+  Following defines are used by ALTER_INPLACE_TABLE
+
+  They do describe in more detail the type operation(s) to be executed
+  by the storage engine. For example, which type of type of index to be
+  added/dropped.  These are set by fill_alter_inplace_info().
+*/
+
+#define ALTER_RECREATE_TABLE	     ALTER_RECREATE
+#define ALTER_CHANGE_CREATE_OPTION   ALTER_OPTIONS
+#define ALTER_ADD_COLUMN             (ALTER_ADD_VIRTUAL_COLUMN | \
+                                      ALTER_ADD_STORED_BASE_COLUMN | \
+                                      ALTER_ADD_STORED_GENERATED_COLUMN)
+#define ALTER_DROP_COLUMN             (ALTER_DROP_VIRTUAL_COLUMN | \
+                                       ALTER_DROP_STORED_COLUMN)
+#define ALTER_COLUMN_DEFAULT          ALTER_CHANGE_COLUMN_DEFAULT
+
+// Add non-unique, non-primary index
+#define ALTER_ADD_NON_UNIQUE_NON_PRIM_INDEX  (1ULL << 35)
+
+// Drop non-unique, non-primary index
+#define ALTER_DROP_NON_UNIQUE_NON_PRIM_INDEX (1ULL << 36)
+
+// Add unique, non-primary index
+#define ALTER_ADD_UNIQUE_INDEX               (1ULL << 37)
+
+// Drop unique, non-primary index
+#define ALTER_DROP_UNIQUE_INDEX              (1ULL << 38)
+
+// Add primary index
+#define ALTER_ADD_PK_INDEX                   (1ULL << 39)
+
+// Drop primary index
+#define ALTER_DROP_PK_INDEX                  (1ULL << 40)
+
+// Virtual generated column
+#define ALTER_ADD_VIRTUAL_COLUMN             (1ULL << 41)
+// Stored base (non-generated) column
+#define ALTER_ADD_STORED_BASE_COLUMN         (1ULL << 42)
+// Stored generated column
+#define ALTER_ADD_STORED_GENERATED_COLUMN    (1ULL << 43)
+
+// Drop column
+#define ALTER_DROP_VIRTUAL_COLUMN            (1ULL << 44)
+#define ALTER_DROP_STORED_COLUMN             (1ULL << 45)
+
+// Rename column (verified; ALTER_RENAME_COLUMN may use original name)
+#define ALTER_COLUMN_NAME          	     (1ULL << 46)
+
+// Change column datatype
+#define ALTER_VIRTUAL_COLUMN_TYPE            (1ULL << 47)
+#define ALTER_STORED_COLUMN_TYPE             (1ULL << 48)
+
+/**
+  Change column datatype in such way that new type has compatible
+  packed representation with old type, so it is theoretically
+  possible to perform change by only updating data dictionary
+  without changing table rows.
+*/
+#define ALTER_COLUMN_EQUAL_PACK_LENGTH       (1ULL << 49)
+
+// Reorder column
+#define ALTER_STORED_COLUMN_ORDER            (1ULL << 50)
+
+// Reorder column
+#define ALTER_VIRTUAL_COLUMN_ORDER           (1ULL << 51)
+
+// Change column from NOT NULL to NULL
+#define ALTER_COLUMN_NULLABLE                (1ULL << 52)
+
+// Change column from NULL to NOT NULL
+#define ALTER_COLUMN_NOT_NULLABLE            (1ULL << 53)
+
+// Change column generation expression
+#define ALTER_VIRTUAL_GCOL_EXPR              (1ULL << 54)
+#define ALTER_STORED_GCOL_EXPR               (1ULL << 55)
+
+// column's engine options changed, something in field->option_struct
+#define ALTER_COLUMN_OPTION                  (1ULL << 56)
+
+// MySQL alias for the same thing:
+#define ALTER_COLUMN_STORAGE_TYPE            ALTER_COLUMN_OPTION
+
+// Change the column format of column
+#define ALTER_COLUMN_COLUMN_FORMAT           (1ULL << 57)
+
+/**
+  Changes in generated columns that affect storage,
+  for example, when a vcol type or expression changes
+  and this vcol is indexed or used in a partitioning expression
+*/
+#define ALTER_COLUMN_VCOL                    (1ULL << 58)
+
+/**
+  ALTER TABLE for a partitioned table. The engine needs to commit
+  online alter of all partitions atomically (using group_commit_ctx)
+*/
+#define ALTER_PARTITIONED                    (1ULL << 59)
+
+/*
+  Flags set in partition_flags when altering partitions
+*/
+
+// Set for ADD PARTITION
+#define ALTER_PARTITION_ADD         (1ULL << 1)
+// Set for DROP PARTITION
+#define ALTER_PARTITION_DROP        (1ULL << 2)
+// Set for COALESCE PARTITION
+#define ALTER_PARTITION_COALESCE    (1ULL << 3)
+// Set for REORGANIZE PARTITION ... INTO
+#define ALTER_PARTITION_REORGANIZE  (1ULL << 4)
+// Set for partition_options
+#define ALTER_PARTITION_INFO        (1ULL << 5)
+// Set for LOAD INDEX INTO CACHE ... PARTITION
+// Set for CACHE INDEX ... PARTITION
+#define ALTER_PARTITION_ADMIN       (1ULL << 6)
+// Set for REBUILD PARTITION
+#define ALTER_PARTITION_REBUILD     (1ULL << 7)
+// Set for partitioning operations specifying ALL keyword
+#define ALTER_PARTITION_ALL         (1ULL << 8)
+// Set for REMOVE PARTITIONING
+#define ALTER_PARTITION_REMOVE      (1ULL << 9)
+// Set for EXCHANGE PARITION
+#define ALTER_PARTITION_EXCHANGE    (1ULL << 10)
+// Set by Sql_cmd_alter_table_truncate_partition::execute()
+#define ALTER_PARTITION_TRUNCATE    (1ULL << 11)
+// Set for REORGANIZE PARTITION
+#define ALTER_PARTITION_TABLE_REORG           (1ULL << 12)
+
 /*
   This is master database for most of system tables. However there
   can be other databases which can hold system tables. Respective
@@ -642,7 +818,7 @@ struct xid_t {
     bqual_length= b;
     memcpy(data, d, g+b);
   }
-  bool is_null() { return formatID == -1; }
+  bool is_null() const { return formatID == -1; }
   void null() { formatID= -1; }
   my_xid quick_get_my_xid()
   {
@@ -774,6 +950,7 @@ enum enum_schema_tables
   SCH_ALL_PLUGINS,
   SCH_APPLICABLE_ROLES,
   SCH_CHARSETS,
+  SCH_CHECK_CONSTRAINTS,
   SCH_COLLATIONS,
   SCH_COLLATION_CHARACTER_SET_APPLICABILITY,
   SCH_COLUMNS,
@@ -1249,7 +1426,7 @@ struct handlerton
    bool (*flush_logs)(handlerton *hton);
    bool (*show_status)(handlerton *hton, THD *thd, stat_print_fn *print, enum ha_stat_type stat);
    uint (*partition_flags)();
-   uint (*alter_table_flags)(uint flags);
+   alter_table_operations (*alter_table_flags)(alter_table_operations flags);
    int (*alter_tablespace)(handlerton *hton, THD *thd, st_alter_tablespace *ts_info);
    int (*fill_is_table)(handlerton *hton, THD *thd, TABLE_LIST *tables, 
                         class Item *cond, 
@@ -1678,6 +1855,7 @@ typedef struct {
   ulonglong data_file_length;
   ulonglong max_data_file_length;
   ulonglong index_file_length;
+  ulonglong max_index_file_length;
   ulonglong delete_length;
   ha_rows records;
   ulong mean_rec_length;
@@ -1721,13 +1899,31 @@ struct Schema_specification_st
 
 class Create_field;
 
+enum vers_sys_type_t
+{
+  VERS_UNDEFINED= 0,
+  VERS_TIMESTAMP,
+  VERS_TRX_ID
+};
+
+extern const LEX_CSTRING null_clex_str;
+
 struct Vers_parse_info
 {
   Vers_parse_info() :
+    check_unit(VERS_UNDEFINED),
     versioned_fields(false),
-    unversioned_fields(false),
-    add_period(false)
+    unversioned_fields(false)
   {}
+
+  void init() // Deep initialization
+  {
+    system_time= start_end_t(null_clex_str, null_clex_str);
+    as_row= start_end_t(null_clex_str, null_clex_str);
+    check_unit= VERS_UNDEFINED;
+    versioned_fields= false;
+    unversioned_fields= false;
+  }
 
   struct start_end_t
   {
@@ -1736,14 +1932,15 @@ struct Vers_parse_info
     start_end_t(LEX_CSTRING _start, LEX_CSTRING _end) :
       start(_start),
       end(_end) {}
-    LString_i start;
-    LString_i end;
+    Lex_ident start;
+    Lex_ident end;
   };
 
   start_end_t system_time;
   start_end_t as_row;
+  vers_sys_type_t check_unit;
 
-  void set_system_time(LString start, LString end)
+  void set_system_time(Lex_ident start, Lex_ident end)
   {
     system_time.start= start;
     system_time.end= end;
@@ -1765,24 +1962,25 @@ protected:
   bool is_end(const char *name) const;
   bool is_start(const Create_field &f) const;
   bool is_end(const Create_field &f) const;
-  bool fix_implicit(THD *thd, Alter_info *alter_info, int *added= NULL);
+  bool fix_implicit(THD *thd, Alter_info *alter_info);
   operator bool() const
   {
     return as_row.start || as_row.end || system_time.start || system_time.end;
   }
   bool need_check(const Alter_info *alter_info) const;
-  bool check_with_conditions(const char *table_name) const;
-  bool check_sys_fields(const char *table_name, Alter_info *alter_info,
-                        bool native) const;
-
+  bool check_conditions(const Lex_table_name &table_name,
+                        const Lex_table_name &db) const;
 public:
-  static const LString default_start;
-  static const LString default_end;
+  static const Lex_ident default_start;
+  static const Lex_ident default_end;
 
   bool fix_alter_info(THD *thd, Alter_info *alter_info,
                        HA_CREATE_INFO *create_info, TABLE *table);
   bool fix_create_like(Alter_info &alter_info, HA_CREATE_INFO &create_info,
                        TABLE_LIST &src_table, TABLE_LIST &table);
+  bool check_sys_fields(const Lex_table_name &table_name,
+                        const Lex_table_name &db,
+                        Alter_info *alter_info, bool native);
 
   /**
      At least one field was specified 'WITH/WITHOUT SYSTEM VERSIONING'.
@@ -1790,7 +1988,6 @@ public:
   */
   bool versioned_fields : 1;
   bool unversioned_fields : 1;
-  bool add_period : 1;  // ADD PERIOD FOR SYSTEM_TIME was specified
 };
 
 /**
@@ -1807,7 +2004,7 @@ public:
      - [AS] SELECT ...             // Copy structure from a subquery
 */
 
-struct Table_scope_and_contents_source_st
+struct Table_scope_and_contents_source_pod_st // For trivial members
 {
   CHARSET_INFO *table_charset;
   LEX_CUSTRING tabledef_version;
@@ -1833,7 +2030,6 @@ struct Table_scope_and_contents_source_st
   uint options;				/* OR of HA_CREATE_ options */
   uint merge_insert_method;
   uint extra_size;                      /* length of extra data segment */
-  SQL_I_List<TABLE_LIST> merge_list;
   handlerton *db_type;
   /**
     Row type of the table definition.
@@ -1867,14 +2063,6 @@ struct Table_scope_and_contents_source_st
   bool table_was_deleted;
   sequence_definition *seq_create_info;
 
-  Vers_parse_info vers_info;
-
-  bool vers_fix_system_fields(THD *thd, Alter_info *alter_info,
-                         const TABLE_LIST &create_table,
-                         const TABLE_LIST *select_table= NULL,
-                         List<Item> *items= NULL,
-                         bool *versioned_write= NULL);
-
   bool vers_native(THD *thd) const;
 
   void init()
@@ -1892,11 +2080,30 @@ struct Table_scope_and_contents_source_st
   {
     return options & HA_VERSIONED_TABLE;
   }
+};
 
-  bool vtmd() const
+
+struct Table_scope_and_contents_source_st:
+         public Table_scope_and_contents_source_pod_st
+{
+  SQL_I_List<TABLE_LIST> merge_list;
+
+  Vers_parse_info vers_info;
+
+  void init()
   {
-    return options & HA_VTMD;
+    Table_scope_and_contents_source_pod_st::init();
+    merge_list.empty();
+    vers_info.init();
   }
+
+  bool vers_fix_system_fields(THD *thd, Alter_info *alter_info,
+                         const TABLE_LIST &create_table,
+                         bool create_select= false);
+
+  bool vers_check_system_fields(THD *thd, Alter_info *alter_info,
+                                const TABLE_LIST &create_table);
+
 };
 
 
@@ -2017,166 +2224,6 @@ public:
 class Alter_inplace_info
 {
 public:
-  /**
-     Bits to show in detail what operations the storage engine is
-     to execute.
-
-     All these operations are supported as in-place operations by the
-     SQL layer. This means that operations that by their nature must
-     be performed by copying the table to a temporary table, will not
-     have their own flags here.
-
-     We generally try to specify handler flags only if there are real
-     changes. But in cases when it is cumbersome to determine if some
-     attribute has really changed we might choose to set flag
-     pessimistically, for example, relying on parser output only.
-  */
-  typedef ulonglong HA_ALTER_FLAGS;
-
-  // Add non-unique, non-primary index
-  static const HA_ALTER_FLAGS ADD_INDEX                  = 1ULL << 0;
-
-  // Drop non-unique, non-primary index
-  static const HA_ALTER_FLAGS DROP_INDEX                 = 1ULL << 1;
-
-  // Add unique, non-primary index
-  static const HA_ALTER_FLAGS ADD_UNIQUE_INDEX           = 1ULL << 2;
-
-  // Drop unique, non-primary index
-  static const HA_ALTER_FLAGS DROP_UNIQUE_INDEX          = 1ULL << 3;
-
-  // Add primary index
-  static const HA_ALTER_FLAGS ADD_PK_INDEX               = 1ULL << 4;
-
-  // Drop primary index
-  static const HA_ALTER_FLAGS DROP_PK_INDEX              = 1ULL << 5;
-
-  // Virtual generated column
-  static const HA_ALTER_FLAGS ADD_VIRTUAL_COLUMN         = 1ULL << 6;
-  // Stored base (non-generated) column
-  static const HA_ALTER_FLAGS ADD_STORED_BASE_COLUMN     = 1ULL << 7;
-  // Stored generated column
-  static const HA_ALTER_FLAGS ADD_STORED_GENERATED_COLUMN= 1ULL << 8;
-  // Add generic column (convience constant).
-  static const HA_ALTER_FLAGS ADD_COLUMN= ADD_VIRTUAL_COLUMN |
-                                          ADD_STORED_BASE_COLUMN |
-                                          ADD_STORED_GENERATED_COLUMN;
-
-  // Drop column
-  static const HA_ALTER_FLAGS DROP_VIRTUAL_COLUMN        = 1ULL << 9;
-  static const HA_ALTER_FLAGS DROP_STORED_COLUMN         = 1ULL << 10;
-  static const HA_ALTER_FLAGS DROP_COLUMN= DROP_VIRTUAL_COLUMN |
-                                           DROP_STORED_COLUMN;
-
-  // Rename column
-  static const HA_ALTER_FLAGS ALTER_COLUMN_NAME          = 1ULL << 11;
-
-  // Change column datatype
-  static const HA_ALTER_FLAGS ALTER_VIRTUAL_COLUMN_TYPE  = 1ULL << 12;
-  static const HA_ALTER_FLAGS ALTER_STORED_COLUMN_TYPE   = 1ULL << 13;
-
-  /**
-    Change column datatype in such way that new type has compatible
-    packed representation with old type, so it is theoretically
-    possible to perform change by only updating data dictionary
-    without changing table rows.
-  */
-  static const HA_ALTER_FLAGS ALTER_COLUMN_EQUAL_PACK_LENGTH = 1ULL << 14;
-
-  // Reorder column
-  static const HA_ALTER_FLAGS ALTER_STORED_COLUMN_ORDER =  1ULL << 15;
-
-  // Reorder column
-  static const HA_ALTER_FLAGS ALTER_VIRTUAL_COLUMN_ORDER = 1ULL << 16;
-
-  // Change column from NOT NULL to NULL
-  static const HA_ALTER_FLAGS ALTER_COLUMN_NULLABLE      = 1ULL << 17;
-
-  // Change column from NULL to NOT NULL
-  static const HA_ALTER_FLAGS ALTER_COLUMN_NOT_NULLABLE  = 1ULL << 18;
-
-  // Set or remove default column value
-  static const HA_ALTER_FLAGS ALTER_COLUMN_DEFAULT       = 1ULL << 19;
-
-  // Change column generation expression
-  static const HA_ALTER_FLAGS ALTER_VIRTUAL_GCOL_EXPR    = 1ULL << 20;
-  static const HA_ALTER_FLAGS ALTER_STORED_GCOL_EXPR     = 1ULL << 21;
-  //
-  // Add foreign key
-  static const HA_ALTER_FLAGS ADD_FOREIGN_KEY            = 1ULL << 22;
-
-  // Drop foreign key
-  static const HA_ALTER_FLAGS DROP_FOREIGN_KEY           = 1ULL << 23;
-
-  // table_options changed, see HA_CREATE_INFO::used_fields for details.
-  static const HA_ALTER_FLAGS CHANGE_CREATE_OPTION       = 1ULL << 24;
-
-  // Table is renamed
-  static const HA_ALTER_FLAGS ALTER_RENAME               = 1ULL << 25;
-
-  // column's engine options changed, something in field->option_struct
-  static const HA_ALTER_FLAGS ALTER_COLUMN_OPTION        = 1ULL << 26;
-
-  // MySQL alias for the same thing:
-  static const HA_ALTER_FLAGS ALTER_COLUMN_STORAGE_TYPE  = 1ULL << 26;
-
-  // Change the column format of column
-  static const HA_ALTER_FLAGS ALTER_COLUMN_COLUMN_FORMAT = 1ULL << 27;
-
-  // Add partition
-  static const HA_ALTER_FLAGS ADD_PARTITION              = 1ULL << 28;
-
-  // Drop partition
-  static const HA_ALTER_FLAGS DROP_PARTITION             = 1ULL << 29;
-
-  // Changing partition options
-  static const HA_ALTER_FLAGS ALTER_PARTITION            = 1ULL << 30;
-
-  // Coalesce partition
-  static const HA_ALTER_FLAGS COALESCE_PARTITION         = 1ULL << 31;
-
-  // Reorganize partition ... into
-  static const HA_ALTER_FLAGS REORGANIZE_PARTITION       = 1ULL << 32;
-
-  // Reorganize partition
-  static const HA_ALTER_FLAGS ALTER_TABLE_REORG          = 1ULL << 33;
-
-  // Remove partitioning
-  static const HA_ALTER_FLAGS ALTER_REMOVE_PARTITIONING  = 1ULL << 34;
-
-  // Partition operation with ALL keyword
-  static const HA_ALTER_FLAGS ALTER_ALL_PARTITION        = 1ULL << 35;
-
-  /**
-    Recreate the table for ALTER TABLE FORCE, ALTER TABLE ENGINE
-    and OPTIMIZE TABLE operations.
-  */
-  static const HA_ALTER_FLAGS RECREATE_TABLE             = 1ULL << 36;
-
-  /**
-    Changes in generated columns that affect storage,
-    for example, when a vcol type or expression changes
-    and this vcol is indexed or used in a partitioning expression
-  */
-  static const HA_ALTER_FLAGS ALTER_COLUMN_VCOL          = 1ULL << 37;
-
-  /**
-    ALTER TABLE for a partitioned table. The engine needs to commit
-    online alter of all partitions atomically (using group_commit_ctx)
-  */
-  static const HA_ALTER_FLAGS ALTER_PARTITIONED          = 1ULL << 38;
-
-  static const HA_ALTER_FLAGS ALTER_ADD_CHECK_CONSTRAINT = 1ULL << 39;
-
-  static const HA_ALTER_FLAGS ALTER_DROP_CHECK_CONSTRAINT= 1ULL << 40;
-
-  static const HA_ALTER_FLAGS ALTER_DROP_HISTORICAL      = 1ULL << 41;
-
-  static const HA_ALTER_FLAGS ALTER_COLUMN_UNVERSIONED   = 1ULL << 42;
-
-  static const HA_ALTER_FLAGS ALTER_ADD_SYSTEM_VERSIONING= 1ULL << 43;
-
-  static const HA_ALTER_FLAGS ALTER_DROP_SYSTEM_VERSIONING= 1ULL << 44;
 
   /**
     Create options (like MAX_ROWS) for the new version of table.
@@ -2261,9 +2308,13 @@ public:
   inplace_alter_handler_ctx **group_commit_ctx;
 
   /**
-     Flags describing in detail which operations the storage engine is to execute.
+     Flags describing in detail which operations the storage engine is to
+     execute. Flags are defined in sql_alter.h
   */
-  HA_ALTER_FLAGS handler_flags;
+  alter_table_operations handler_flags;
+
+  /* Alter operations involving parititons are strored here */
+  ulong partition_flags;
 
   /**
      Partition_info taking into account the partition changes to be performed.
@@ -2282,8 +2333,7 @@ public:
   /**
      Can be set by handler to describe why a given operation cannot be done
      in-place (HA_ALTER_INPLACE_NOT_SUPPORTED) or why it cannot be done
-     online (HA_ALTER_INPLACE_NO_LOCK or
-     HA_ALTER_INPLACE_NO_LOCK_AFTER_PREPARE)
+     online (HA_ALTER_INPLACE_NO_LOCK or HA_ALTER_INPLACE_COPY_NO_LOCK)
      If set, it will be used with ER_ALTER_OPERATION_NOT_SUPPORTED_REASON if
      results from handler::check_if_supported_inplace_alter() doesn't match
      requirements set by user. If not set, the more generic
@@ -2331,7 +2381,7 @@ public:
                           replace not_supported with.
   */
   void report_unsupported_error(const char *not_supported,
-                                const char *try_instead);
+                                const char *try_instead) const;
 };
 
 
@@ -2339,6 +2389,7 @@ typedef struct st_key_create_information
 {
   enum ha_key_alg algorithm;
   ulong block_size;
+  uint flags;                                   /* HA_USE.. flags */
   LEX_CSTRING parser_name;
   LEX_CSTRING comment;
   /**
@@ -2728,9 +2779,10 @@ public:
 
   ha_statistics():
     data_file_length(0), max_data_file_length(0),
-    index_file_length(0), delete_length(0), auto_increment_value(0),
-    records(0), deleted(0), mean_rec_length(0), create_time(0),
-    check_time(0), update_time(0), block_size(0), mrr_length_per_rec(0)
+    index_file_length(0), max_index_file_length(0), delete_length(0),
+    auto_increment_value(0), records(0), deleted(0), mean_rec_length(0),
+    create_time(0), check_time(0), update_time(0), block_size(0),
+    mrr_length_per_rec(0)
   {}
 };
 
@@ -3070,7 +3122,7 @@ public:
   bool keyread_enabled() { return keyread < MAX_KEY; }
   int ha_start_keyread(uint idx)
   {
-    int res= keyread_enabled() ? 0 : extra(HA_EXTRA_KEYREAD);
+    int res= keyread_enabled() ? 0 : extra_opt(HA_EXTRA_KEYREAD, idx);
     keyread= idx;
     return res;
   }
@@ -3530,9 +3582,17 @@ public:
   */
   virtual int rnd_pos_by_record(uchar *record)
   {
+    int error;
     DBUG_ASSERT(table_flags() & HA_PRIMARY_KEY_REQUIRED_FOR_POSITION);
+
+    error = ha_rnd_init(false);
+    if (error != 0)
+      return error;
+
     position(record);
-    return rnd_pos(record, ref);
+    error = ha_rnd_pos(record, ref);
+    ha_rnd_end();
+    return error;
   }
   virtual int read_first_row(uchar *buf, uint primary_key);
 public:
@@ -3574,7 +3634,7 @@ public:
   { return 0; }
   virtual int extra(enum ha_extra_function operation)
   { return 0; }
-  virtual int extra_opt(enum ha_extra_function operation, ulong cache_size)
+  virtual int extra_opt(enum ha_extra_function operation, ulong arg)
   { return extra(operation); }
 
   /**
@@ -4036,8 +4096,8 @@ public:
    *) As the first step, we acquire a lock corresponding to the concurrency
       level which was returned by handler::check_if_supported_inplace_alter()
       and requested by the user. This lock is held for most of the
-      duration of in-place ALTER (if HA_ALTER_INPLACE_SHARED_LOCK_AFTER_PREPARE
-      or HA_ALTER_INPLACE_NO_LOCK_AFTER_PREPARE were returned we acquire an
+      duration of in-place ALTER (if HA_ALTER_INPLACE_COPY_LOCK
+      or HA_ALTER_INPLACE_COPY_NO_LOCK were returned we acquire an
       exclusive lock for duration of the next step only).
    *) After that we call handler::ha_prepare_inplace_alter_table() to give the
       storage engine a chance to update its internal structures with a higher
@@ -4081,12 +4141,12 @@ public:
     @retval   HA_ALTER_ERROR                  Unexpected error.
     @retval   HA_ALTER_INPLACE_NOT_SUPPORTED  Not supported, must use copy.
     @retval   HA_ALTER_INPLACE_EXCLUSIVE_LOCK Supported, but requires X lock.
-    @retval   HA_ALTER_INPLACE_SHARED_LOCK_AFTER_PREPARE
+    @retval   HA_ALTER_INPLACE_COPY_LOCK
                                               Supported, but requires SNW lock
                                               during main phase. Prepare phase
                                               requires X lock.
     @retval   HA_ALTER_INPLACE_SHARED_LOCK    Supported, but requires SNW lock.
-    @retval   HA_ALTER_INPLACE_NO_LOCK_AFTER_PREPARE
+    @retval   HA_ALTER_INPLACE_COPY_NO_LOCK
                                               Supported, concurrent reads/writes
                                               allowed. However, prepare phase
                                               requires X lock.
@@ -4146,10 +4206,9 @@ protected:
  /**
     Allows the storage engine to update internal structures with concurrent
     writes blocked. If check_if_supported_inplace_alter() returns
-    HA_ALTER_INPLACE_NO_LOCK_AFTER_PREPARE or
-    HA_ALTER_INPLACE_SHARED_AFTER_PREPARE, this function is called with
-    exclusive lock otherwise the same level of locking as for
-    inplace_alter_table() will be used.
+    HA_ALTER_INPLACE_COPY_NO_LOCK or HA_ALTER_INPLACE_COPY_LOCK,
+    this function is called with exclusive lock otherwise the same level
+    of locking as for inplace_alter_table() will be used.
 
     @note Storage engines are responsible for reporting any errors by
     calling my_error()/print_error()
@@ -4247,7 +4306,7 @@ protected:
 
     @note No errors are allowed during notify_table_changed().
  */
- virtual void notify_table_changed();
+ virtual void notify_table_changed() { }
 
 public:
  /* End of On-line/in-place ALTER TABLE interface. */
@@ -4259,7 +4318,7 @@ public:
     but we don't have a primary key
   */
   virtual void use_hidden_primary_key();
-  virtual uint alter_table_flags(uint flags)
+  virtual alter_table_operations alter_table_flags(alter_table_operations flags)
   {
     if (ht->alter_table_flags)
       return ht->alter_table_flags(flags);
@@ -4374,12 +4433,12 @@ private:
   /* Perform initialization for a direct update request */
 public:
   int ha_direct_update_rows(ha_rows *update_rows);
-  virtual int direct_update_rows_init()
+  virtual int direct_update_rows_init(List<Item> *update_fields)
   {
     return HA_ERR_WRONG_COMMAND;
   }
 private:
-  virtual int pre_direct_update_rows_init()
+  virtual int pre_direct_update_rows_init(List<Item> *update_fields)
   {
     return HA_ERR_WRONG_COMMAND;
   }
@@ -4601,10 +4660,6 @@ public:
 
   bool native_versioned() const
   { DBUG_ASSERT(ht); return partition_ht()->flags & HTON_NATIVE_SYS_VERSIONING; }
-  virtual ha_rows part_records(void *_part_elem)
-  { DBUG_ASSERT(0); return false; }
-  virtual handler* part_handler(uint32 part_id)
-  { DBUG_ASSERT(0); return NULL; }
   virtual void update_partition(uint	part_id)
   {}
 protected:
@@ -4800,5 +4855,5 @@ void print_keydup_error(TABLE *table, KEY *key, const char *msg, myf errflag);
 void print_keydup_error(TABLE *table, KEY *key, myf errflag);
 
 int del_global_index_stat(THD *thd, TABLE* table, KEY* key_info);
-int del_global_table_stat(THD *thd, LEX_CSTRING *db, LEX_CSTRING *table);
+int del_global_table_stat(THD *thd, const  LEX_CSTRING *db, const LEX_CSTRING *table);
 #endif /* HANDLER_INCLUDED */

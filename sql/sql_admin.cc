@@ -1,5 +1,5 @@
 /* Copyright (c) 2010, 2015, Oracle and/or its affiliates.
-   Copyright (c) 2011, 2016, MariaDB
+   Copyright (c) 2011, 2018, MariaDB
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -240,7 +240,7 @@ static int prepare_for_repair(THD *thd, TABLE_LIST *table_list,
 
   if (thd->locked_tables_list.locked_tables())
   {
-    if (thd->locked_tables_list.reopen_tables(thd))
+    if (thd->locked_tables_list.reopen_tables(thd, false))
       goto end;
     /* Restore the table in the table list with the new opened table */
     table_list->table= pos_in_locked_tables->table;
@@ -267,7 +267,7 @@ end:
     tdc_release_share(table->s);
   }
   /* In case of a temporary table there will be no metadata lock. */
-  if (error && has_mdl_lock)
+  if (unlikely(error) && has_mdl_lock)
     thd->mdl_context.release_transactional_locks();
 
   DBUG_RETURN(error);
@@ -339,7 +339,7 @@ static bool open_only_one_table(THD* thd, TABLE_LIST* table,
     to differentiate from ALTER TABLE...CHECK PARTITION on which view is not
     allowed.
   */
-  if (lex->alter_info.flags & Alter_info::ALTER_ADMIN_PARTITION ||
+  if (lex->alter_info.partition_flags & ALTER_PARTITION_ADMIN ||
       !is_view_operator_func)
   {
     table->required_type= TABLE_TYPE_NORMAL;
@@ -430,7 +430,7 @@ static bool mysql_admin_table(THD* thd, TABLE_LIST* tables,
                               HA_CHECK_OPT* check_opt,
                               const char *operator_name,
                               thr_lock_type lock_type,
-                              bool open_for_modify,
+                              bool org_open_for_modify,
                               bool repair_table_use_frm,
                               uint extra_open_options,
                               int (*prepare_func)(THD *, TABLE_LIST *,
@@ -497,6 +497,7 @@ static bool mysql_admin_table(THD* thd, TABLE_LIST* tables,
     bool fatal_error=0;
     bool open_error;
     bool collect_eis=  FALSE;
+    bool open_for_modify= org_open_for_modify;
 
     DBUG_PRINT("admin", ("table: '%s'.'%s'", db, table->table_name.str));
     strxmov(table_name, db, ".", table->table_name.str, NullS);
@@ -525,7 +526,7 @@ static bool mysql_admin_table(THD* thd, TABLE_LIST* tables,
         If open_and_lock_tables() failed, close_thread_tables() will close
         the table and table->table can therefore be invalid.
       */
-      if (open_error)
+      if (unlikely(open_error))
         table->table= NULL;
 
       /*
@@ -533,7 +534,7 @@ static bool mysql_admin_table(THD* thd, TABLE_LIST* tables,
         so any errors opening the table are logical errors.
         In these cases it does not make sense to try to repair.
       */
-      if (open_error && thd->locked_tables_mode)
+      if (unlikely(open_error) && thd->locked_tables_mode)
       {
         result_code= HA_ADMIN_FAILED;
         goto send_result;
@@ -562,7 +563,7 @@ static bool mysql_admin_table(THD* thd, TABLE_LIST* tables,
         */
         Alter_info *alter_info= &lex->alter_info;
 
-        if (alter_info->flags & Alter_info::ALTER_ADMIN_PARTITION)
+        if (alter_info->partition_flags & ALTER_PARTITION_ADMIN)
         {
           if (!table->table->part_info)
           {
@@ -703,8 +704,7 @@ static bool mysql_admin_table(THD* thd, TABLE_LIST* tables,
     if (lock_type == TL_WRITE && !table->table->s->tmp_table &&
                         table->mdl_request.type > MDL_SHARED_WRITE)
     {
-      if (wait_while_table_is_used(thd, table->table,
-                                   HA_EXTRA_PREPARE_FOR_RENAME))
+      if (wait_while_table_is_used(thd, table->table, HA_EXTRA_NOT_USED))
         goto err;
       DEBUG_SYNC(thd, "after_admin_flush");
       /* Flush entries in the query cache involving this table. */
@@ -829,7 +829,7 @@ static bool mysql_admin_table(THD* thd, TABLE_LIST* tables,
                                       repair_table_use_frm, FALSE);
       thd->open_options&= ~extra_open_options;
 
-      if (!open_error)
+      if (unlikely(!open_error))
       {
         TABLE *tab= table->table;
         Field **field_ptr= tab->field;
@@ -1003,7 +1003,7 @@ send_result_message:
       Alter_info *alter_info= &lex->alter_info;
 
       protocol->store(STRING_WITH_LEN("note"), system_charset_info);
-      if (alter_info->flags & Alter_info::ALTER_ADMIN_PARTITION)
+      if (alter_info->partition_flags & ALTER_PARTITION_ADMIN)
       {
         protocol->store(STRING_WITH_LEN(
         "Table does not support optimize on partitions. All partitions "
@@ -1042,15 +1042,15 @@ send_result_message:
         if (!thd->open_temporary_tables(table) &&
             (table->table= open_ltable(thd, table, lock_type, 0)))
         {
-          uint save_flags;
+          ulonglong save_flags;
           /* Store the original value of alter_info->flags */
           save_flags= alter_info->flags;
 
           /*
-           Reset the ALTER_ADMIN_PARTITION bit in alter_info->flags
+           Reset the ALTER_PARTITION_ADMIN bit in alter_info->flags
            to force analyze on all partitions.
           */
-          alter_info->flags &= ~(Alter_info::ALTER_ADMIN_PARTITION);
+          alter_info->partition_flags &= ~(ALTER_PARTITION_ADMIN);
           result_code= table->table->file->ha_analyze(thd, check_opt);
           if (result_code == HA_ADMIN_ALREADY_DONE)
             result_code= HA_ADMIN_OK;
@@ -1165,7 +1165,7 @@ send_result_message:
       }
     }
     /* Error path, a admin command failed. */
-    if (thd->transaction_rollback_request)
+    if (thd->transaction_rollback_request || fatal_error)
     {
       /*
         Unlikely, but transaction rollback was requested by one of storage
@@ -1176,7 +1176,9 @@ send_result_message:
     }
     else
     {
-      if (trans_commit_stmt(thd) || trans_commit_implicit(thd))
+      if (trans_commit_stmt(thd) ||
+          (stmt_causes_implicit_commit(thd, CF_IMPLICIT_COMMIT_END) &&
+           trans_commit_implicit(thd)))
         goto err;
     }
     close_thread_tables(thd);
@@ -1210,7 +1212,8 @@ send_result_message:
 err:
   /* Make sure this table instance is not reused after the failure. */
   trans_rollback_stmt(thd);
-  trans_rollback(thd);
+  if (stmt_causes_implicit_commit(thd, CF_IMPLICIT_COMMIT_END))
+    trans_rollback(thd);
   if (table && table->table)
   {
     table->table->m_needs_reopen= true;
@@ -1218,7 +1221,9 @@ err:
   }
   close_thread_tables(thd);			// Shouldn't be needed
   thd->mdl_context.release_transactional_locks();
+#ifdef WITH_PARTITION_STORAGE_ENGINE
 err2:
+#endif
   thd->resume_subsequent_commits(suspended_wfc);
   DBUG_RETURN(TRUE);
 }

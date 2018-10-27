@@ -91,7 +91,7 @@ run_test (void) {
     const int test_limit = 1000;
     int r;
     CACHETABLE ct;
-    toku_mutex_init(&attr_mutex, NULL);
+    toku_mutex_init(toku_uninstrumented, &attr_mutex, nullptr);
     toku_cachetable_create(&ct, test_limit, ZERO_LSN, nullptr);
 
     const char *fname1 = TOKU_TEST_FILENAME;
@@ -107,15 +107,12 @@ run_test (void) {
     assert(STATUS_VALUE(CT_SIZE_CACHEPRESSURE) == 0);
 
     void* vs[n_pairs];
-    //void* v2;
-    long ss[n_pairs];
-    //long s2;
     PAIR_ATTR expect = { .size = 0, .nonleaf_size = 0, .leaf_size = 0, .rollback_size = 0, .cache_pressure_size = 0 };
     CACHETABLE_WRITE_CALLBACK wc = def_write_callback(NULL);
     wc.flush_callback = flush;
     wc.write_extraargs = &expect;
     for (int i = 0; i < n_pairs; ++i) {
-        r = toku_cachetable_get_and_pin(f1, make_blocknum(i+1), i+1, &vs[i], &ss[i],
+        r = toku_cachetable_get_and_pin(f1, make_blocknum(i+1), i+1, &vs[i],
                                         wc,
                                         def_fetch,
                                         def_pf_req_callback,
@@ -139,8 +136,7 @@ run_test (void) {
     assert(STATUS_VALUE(CT_SIZE_CACHEPRESSURE) == (uint64_t) expect.cache_pressure_size);
 
     void *big_v;
-    long big_s;
-    r = toku_cachetable_get_and_pin(f1, make_blocknum(n_pairs + 1), n_pairs + 1, &big_v, &big_s,
+    r = toku_cachetable_get_and_pin(f1, make_blocknum(n_pairs + 1), n_pairs + 1, &big_v,
                                     wc,
                                     def_fetch,
                                     def_pf_req_callback,

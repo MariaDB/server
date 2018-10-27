@@ -238,11 +238,38 @@ bool String::copy(const String &str)
 
 bool String::copy(const char *str,size_t arg_length, CHARSET_INFO *cs)
 {
+  DBUG_ASSERT(arg_length < UINT_MAX32);
   if (alloc(arg_length))
     return TRUE;
-  DBUG_ASSERT(arg_length <= UINT_MAX32);
-  if ((str_length=(uint32)arg_length))
+  if (Ptr == str && arg_length == uint32(str_length))
+  {
+    /*
+      This can happen in some cases. This code is here mainly to avoid
+      warnings from valgrind, but can also be an indication of error.
+    */
+    DBUG_PRINT("warning", ("Copying string on itself: %p  %zu",
+                           str, arg_length));
+  }
+  else if ((str_length=uint32(arg_length)))
     memcpy(Ptr,str,arg_length);
+  Ptr[arg_length]=0;
+  str_charset=cs;
+  return FALSE;
+}
+
+/*
+  Copy string, where strings may overlap.
+  Same as String::copy, but use memmove instead of memcpy to avoid warnings
+  from valgrind
+*/
+
+bool String::copy_or_move(const char *str,size_t arg_length, CHARSET_INFO *cs)
+{
+  DBUG_ASSERT(arg_length < UINT_MAX32);
+  if (alloc(arg_length))
+    return TRUE;
+  if ((str_length=uint32(arg_length)))
+    memmove(Ptr,str,arg_length);
   Ptr[arg_length]=0;
   str_charset=cs;
   return FALSE;
@@ -381,8 +408,9 @@ bool String::set_or_copy_aligned(const char *str, size_t arg_length,
   /* How many bytes are in incomplete character */
   size_t offset= (arg_length % cs->mbminlen); 
   
-  if (!offset) /* All characters are complete, just copy */
+  if (!offset)
   {
+    /* All characters are complete, just use given string */
     set(str, arg_length, cs);
     return FALSE;
   }
@@ -667,8 +695,8 @@ int String::strstr(const String &s,uint32 offset)
     if (!s.length())
       return ((int) offset);	// Empty string is always found
 
-    register const char *str = Ptr+offset;
-    register const char *search=s.ptr();
+    const char *str = Ptr+offset;
+    const char *search=s.ptr();
     const char *end=Ptr+str_length-s.length()+1;
     const char *search_end=s.ptr()+s.length();
 skip:
@@ -676,7 +704,7 @@ skip:
     {
       if (*str++ == *search)
       {
-	register char *i,*j;
+	char *i,*j;
 	i=(char*) str; j=(char*) search+1;
 	while (j != search_end)
 	  if (*i++ != *j++) goto skip;
@@ -697,8 +725,8 @@ int String::strrstr(const String &s,uint32 offset)
   {
     if (!s.length())
       return offset;				// Empty string is always found
-    register const char *str = Ptr+offset-1;
-    register const char *search=s.ptr()+s.length()-1;
+    const char *str = Ptr+offset-1;
+    const char *search=s.ptr()+s.length()-1;
 
     const char *end=Ptr+s.length()-2;
     const char *search_end=s.ptr()-1;
@@ -707,7 +735,7 @@ skip:
     {
       if (*str-- == *search)
       {
-	register char *i,*j;
+	char *i,*j;
 	i=(char*) str; j=(char*) search-1;
 	while (j != search_end)
 	  if (*i-- != *j--) goto skip;

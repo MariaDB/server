@@ -17,6 +17,8 @@ CREATE TABLE t1(id INT PRIMARY KEY,
                msg VARCHAR(1024),
                msg_length int,
                msg_checksum varchar(128),
+               auto_inc BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
+               KEY(auto_inc),
                KEY msg_i(msg(255), zero_sum))
 ENGINE=RocksDB DEFAULT CHARSET=latin1 COLLATE=latin1_bin;
 

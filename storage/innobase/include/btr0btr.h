@@ -2,7 +2,7 @@
 
 Copyright (c) 1994, 2016, Oracle and/or its affiliates. All Rights Reserved.
 Copyright (c) 2012, Facebook Inc.
-Copyright (c) 2014, 2017, MariaDB Corporation.
+Copyright (c) 2014, 2018, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -37,9 +37,15 @@ Created 6/2/1994 Heikki Tuuri
 #include "btr0types.h"
 #include "gis0type.h"
 
+#define BTR_MAX_NODE_LEVEL	50	/*!< Maximum B-tree page level
+					(not really a hard limit).
+					Used in debug assertions
+					in btr_page_set_level and
+					btr_page_get_level */
+
 /** Maximum record size which can be stored on a page, without using the
 special big record storage structure */
-#define	BTR_PAGE_MAX_REC_SIZE	(UNIV_PAGE_SIZE / 2 - 200)
+#define	BTR_PAGE_MAX_REC_SIZE	(srv_page_size / 2 - 200)
 
 /** @brief Maximum depth of a B-tree in InnoDB.
 
@@ -115,7 +121,15 @@ enum btr_latch_mode {
 	/** Attempt to purge a secondary index record
 	while holding the dict_index_t::lock S-latch. */
 	BTR_PURGE_LEAF_ALREADY_S_LATCHED = BTR_PURGE_LEAF
-	| BTR_ALREADY_S_LATCHED
+	| BTR_ALREADY_S_LATCHED,
+
+	/** In the case of BTR_MODIFY_TREE, the caller specifies
+	the intention to delete record only. It is used to optimize
+	block->lock range.*/
+	BTR_LATCH_FOR_DELETE = 65536,
+
+	/** Attempt to purge a secondary index record in the tree. */
+	BTR_PURGE_TREE = BTR_MODIFY_TREE | BTR_LATCH_FOR_DELETE
 };
 
 /** This flag ORed to btr_latch_mode says that we do the search in query
@@ -131,10 +145,6 @@ the insert buffer to speed up inserts */
 to insert record only. It is used to optimize block->lock range.*/
 #define BTR_LATCH_FOR_INSERT	32768U
 
-/** In the case of BTR_MODIFY_TREE, the caller specifies the intention
-to delete record only. It is used to optimize block->lock range.*/
-#define BTR_LATCH_FOR_DELETE	65536U
-
 /** This flag is for undo insert of rtree. For rtree, we need this flag
 to find proper rec to undo insert.*/
 #define BTR_RTREE_UNDO_INS	131072U
@@ -147,23 +157,23 @@ free the pages of externally stored fields. */
 record is in spatial index */
 #define BTR_RTREE_DELETE_MARK	524288U
 
-#define BTR_LATCH_MODE_WITHOUT_FLAGS(latch_mode)			\
-	((latch_mode) & btr_latch_mode(~(BTR_INSERT			\
-					 | BTR_DELETE_MARK		\
-					 | BTR_RTREE_UNDO_INS		\
-					 | BTR_RTREE_DELETE_MARK	\
-					 | BTR_DELETE			\
-					 | BTR_ESTIMATE			\
-					 | BTR_IGNORE_SEC_UNIQUE	\
-					 | BTR_ALREADY_S_LATCHED	\
-					 | BTR_LATCH_FOR_INSERT		\
-					 | BTR_LATCH_FOR_DELETE		\
-					 | BTR_MODIFY_EXTERNAL)))
+#define BTR_LATCH_MODE_WITHOUT_FLAGS(latch_mode)		\
+	((latch_mode) & ulint(~(BTR_INSERT			\
+				| BTR_DELETE_MARK		\
+				| BTR_RTREE_UNDO_INS		\
+				| BTR_RTREE_DELETE_MARK		\
+				| BTR_DELETE			\
+				| BTR_ESTIMATE			\
+				| BTR_IGNORE_SEC_UNIQUE		\
+				| BTR_ALREADY_S_LATCHED		\
+				| BTR_LATCH_FOR_INSERT		\
+				| BTR_LATCH_FOR_DELETE		\
+				| BTR_MODIFY_EXTERNAL)))
 
-#define BTR_LATCH_MODE_WITHOUT_INTENTION(latch_mode)			\
-	((latch_mode) & btr_latch_mode(~(BTR_LATCH_FOR_INSERT		\
-					 | BTR_LATCH_FOR_DELETE		\
-					 | BTR_MODIFY_EXTERNAL)))
+#define BTR_LATCH_MODE_WITHOUT_INTENTION(latch_mode)		\
+	((latch_mode) & ulint(~(BTR_LATCH_FOR_INSERT		\
+				| BTR_LATCH_FOR_DELETE		\
+				| BTR_MODIFY_EXTERNAL)))
 
 /**************************************************************//**
 Report that an index page is corrupted. */
@@ -285,14 +295,22 @@ btr_page_get_index_id(
 	MY_ATTRIBUTE((warn_unused_result));
 /********************************************************//**
 Gets the node level field in an index page.
+@param[in]	page	index page
 @return level, leaf level == 0 */
 UNIV_INLINE
 ulint
-btr_page_get_level_low(
-/*===================*/
-	const page_t*	page)	/*!< in: index page */
-	MY_ATTRIBUTE((warn_unused_result));
-#define btr_page_get_level(page, mtr) btr_page_get_level_low(page)
+btr_page_get_level(const page_t* page)
+{
+	ulint	level;
+
+	ut_ad(page);
+
+	level = mach_read_from_2(page + PAGE_HEADER + PAGE_LEVEL);
+
+	ut_ad(level <= BTR_MAX_NODE_LEVEL);
+
+	return(level);
+} MY_ATTRIBUTE((warn_unused_result))
 /********************************************************//**
 Gets the next index page number.
 @return next page number */
@@ -341,8 +359,7 @@ btr_node_ptr_get_child_page_no(
 
 /** Create the root node for a new index tree.
 @param[in]	type			type of the index
-@param[in]	space			space where created
-@param[in]	page_size		page size
+@param[in,out]	space			tablespace where created
 @param[in]	index_id		index id
 @param[in]	index			index, or NULL when applying TRUNCATE
 log record during recovery
@@ -353,8 +370,7 @@ record during recovery
 ulint
 btr_create(
 	ulint			type,
-	ulint			space,
-	const page_size_t&	page_size,
+	fil_space_t*		space,
 	index_id_t		index_id,
 	dict_index_t*		index,
 	const btr_create_t*	btr_redo_create_info,

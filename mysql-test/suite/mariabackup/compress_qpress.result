@@ -3,6 +3,7 @@ INSERT INTO t VALUES(1);
 # xtrabackup backup
 INSERT INTO t VALUES(2);
 # xtrabackup prepare
+db.opt.qp
 t.frm.qp
 t.ibd.qp
 # shutdown server

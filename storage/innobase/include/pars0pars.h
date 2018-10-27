@@ -1,7 +1,7 @@
 /*****************************************************************************
 
 Copyright (c) 1996, 2016, Oracle and/or its affiliates. All Rights Reserved.
-Copyright (c) 2017, MariaDB Corporation.
+Copyright (c) 2017, 2018, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -29,7 +29,6 @@ Created 11/19/1996 Heikki Tuuri
 
 #include "univ.i"
 #include "que0types.h"
-#include "usr0types.h"
 #include "pars0types.h"
 #include "row0types.h"
 #include "trx0types.h"
@@ -540,7 +539,7 @@ pars_info_add_int4_literal(
 /*=======================*/
 	pars_info_t*	info,		/*!< in: info struct */
 	const char*	name,		/*!< in: name */
-	lint		val);		/*!< in: value */
+	ulint		val);		/*!< in: value */
 
 /****************************************************************//**
 Equivalent to:

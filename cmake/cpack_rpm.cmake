@@ -81,6 +81,8 @@ SET(CPACK_RPM_SPEC_MORE_DEFINE "
 %define _bindir     ${INSTALL_BINDIRABS}
 %define _sbindir    ${INSTALL_SBINDIRABS}
 %define _sysconfdir ${INSTALL_SYSCONFDIR}
+%define restart_flag_dir %{_localstatedir}/lib/rpm-state/mariadb
+%define restart_flag %{restart_flag_dir}/need-restart
 ")
 
 # this creative hack is described here: http://www.cmake.org/pipermail/cmake/2012-January/048416.html
@@ -168,17 +170,13 @@ IF(WITH_WSREP)
   SETA(CPACK_RPM_server_PACKAGE_REQUIRES
     "galera" "rsync" "lsof" "grep" "gawk" "iproute"
     "coreutils" "findutils" "tar")
-  IF (RPM MATCHES "sles11")
-    SETA(CPACK_RPM_server_PACKAGE_REQUIRES "util-linux")
-  ELSE()
-    SETA(CPACK_RPM_server_PACKAGE_REQUIRES "which")
-  ENDIF()
 ENDIF()
 
 SET(CPACK_RPM_server_PRE_INSTALL_SCRIPT_FILE ${CMAKE_SOURCE_DIR}/support-files/rpm/server-prein.sh)
 SET(CPACK_RPM_server_PRE_UNINSTALL_SCRIPT_FILE ${CMAKE_SOURCE_DIR}/support-files/rpm/server-preun.sh)
 SET(CPACK_RPM_server_POST_INSTALL_SCRIPT_FILE ${CMAKE_SOURCE_DIR}/support-files/rpm/server-postin.sh)
 SET(CPACK_RPM_server_POST_UNINSTALL_SCRIPT_FILE ${CMAKE_SOURCE_DIR}/support-files/rpm/server-postun.sh)
+SET(CPACK_RPM_server_POST_TRANS_SCRIPT_FILE ${CMAKE_SOURCE_DIR}/support-files/rpm/server-posttrans.sh)
 SET(CPACK_RPM_shared_POST_INSTALL_SCRIPT_FILE ${CMAKE_SOURCE_DIR}/support-files/rpm/shared-post.sh)
 SET(CPACK_RPM_shared_POST_UNINSTALL_SCRIPT_FILE ${CMAKE_SOURCE_DIR}/support-files/rpm/shared-post.sh)
 SET(CPACK_RPM_compat_POST_INSTALL_SCRIPT_FILE ${CMAKE_SOURCE_DIR}/support-files/rpm/shared-post.sh)
@@ -292,4 +290,3 @@ IF(compat53 AND compat101)
 ENDIF()
 
 ENDIF(RPM)
-

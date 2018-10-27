@@ -62,6 +62,7 @@ protected:
       return parse(res, cache);
     }
   };
+  String m_xpath_query; // XPath query text
   Item *nodeset_func;
   XML xml;
   bool get_xml(XML *xml_arg, bool cache= false)
@@ -81,7 +82,7 @@ public:
     maybe_null= TRUE;
   }
   bool fix_fields(THD *thd, Item **ref);
-  void fix_length_and_dec();
+  bool fix_length_and_dec();
   bool const_item() const
   {
     return const_item_cache && (!nodeset_func || nodeset_func->const_item());

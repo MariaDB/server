@@ -1,0 +1,528 @@
+--source timestamp_init.inc
+
+--echo
+--echo Initialize Time Zone
+--connection master_1
+SET GLOBAL time_zone='MET';
+SET time_zone='MET';
+if ($USE_CHILD_GROUP2)
+{
+  --connection child2_1
+  SET GLOBAL time_zone='MET';
+  SET time_zone='MET';
+}
+
+--echo
+--echo drop and create databases
+--connection master_1
+--disable_warnings
+DROP DATABASE IF EXISTS ts_test_local;
+CREATE DATABASE ts_test_local;
+USE ts_test_local;
+if ($USE_CHILD_GROUP2)
+{
+  --connection child2_1
+  if ($USE_GENERAL_LOG)
+  {
+    SET @old_log_output = @@global.log_output;
+    SET GLOBAL log_output = 'TABLE,FILE';
+  }
+  DROP DATABASE IF EXISTS ts_test_remote;
+  CREATE DATABASE ts_test_remote;
+  USE ts_test_remote;
+}
+--enable_warnings
+
+--echo
+--echo test select 1
+--connection master_1
+SELECT 1;
+if ($USE_CHILD_GROUP2)
+{
+  if (!$OUTPUT_CHILD_GROUP2)
+  {
+    --disable_query_log
+    --disable_result_log
+  }
+  --connection child2_1
+  SELECT 1;
+  if (!$OUTPUT_CHILD_GROUP2)
+  {
+    --enable_query_log
+    --enable_result_log
+  }
+}
+
+--echo
+--echo create table
+if ($USE_CHILD_GROUP2)
+{
+  if (!$OUTPUT_CHILD_GROUP2)
+  {
+    --disable_query_log
+    --disable_result_log
+  }
+  --connection child2_1
+  if ($OUTPUT_CHILD_GROUP2)
+  {
+    --disable_query_log
+    echo CHILD2_1_DROP_TABLE;
+    echo CHILD2_1_DROP_TABLE_F;
+    echo CHILD2_1_CREATE_TABLE;
+    echo CHILD2_1_CREATE_TABLE_F;
+  }
+  --disable_warnings
+  eval $CHILD2_1_DROP_TABLE;
+  eval $CHILD2_1_DROP_TABLE_F;
+  --enable_warnings
+  eval $CHILD2_1_CREATE_TABLE;
+  eval $CHILD2_1_CREATE_TABLE_F;
+  if ($OUTPUT_CHILD_GROUP2)
+  {
+    --enable_query_log
+  }
+  if ($USE_GENERAL_LOG)
+  {
+    TRUNCATE TABLE mysql.general_log;
+  }
+  if (!$OUTPUT_CHILD_GROUP2)
+  {
+    --enable_query_log
+    --enable_result_log
+  }
+}
+--connection master_1
+--disable_warnings
+DROP TABLE IF EXISTS tbl_a;
+--enable_warnings
+--disable_query_log
+echo CREATE TABLE tbl_a (
+  col_a INT UNSIGNED NOT NULL AUTO_INCREMENT,
+  col_dt DATETIME,
+  col_ts TIMESTAMP NOT NULL
+    DEFAULT current_timestamp() ON UPDATE current_timestamp(),
+  PRIMARY KEY(col_a),
+  UNIQUE INDEX i_ts (col_ts)
+) MASTER_1_ENGINE MASTER_1_AUTO_INCREMENT_2_1 MASTER_1_COMMENT_2_1;
+eval CREATE TABLE tbl_a (
+  col_a INT UNSIGNED NOT NULL AUTO_INCREMENT,
+  col_dt DATETIME,
+  col_ts TIMESTAMP NOT NULL
+    DEFAULT current_timestamp() ON UPDATE current_timestamp(),
+  PRIMARY KEY(col_a),
+  UNIQUE INDEX i_ts (col_ts)
+) $MASTER_1_ENGINE $MASTER_1_AUTO_INCREMENT_2_1 $MASTER_1_COMMENT_2_1;
+echo CREATE TABLE tbl_f (
+  col_d DATE,
+  col_t TIME
+) $MASTER_1_ENGINE $MASTER_1_COMMENT_2_1_F;
+eval CREATE TABLE tbl_f (
+  col_d DATE,
+  col_t TIME
+) $MASTER_1_ENGINE $MASTER_1_COMMENT_2_1_F;
+--enable_query_log
+SHOW CREATE TABLE tbl_a;
+SHOW CREATE TABLE tbl_f;
+
+--echo
+--echo Set a different time zone that has DST
+SET time_zone='+01:00';
+
+--echo
+--echo Insert Rows
+--connection master_1
+--echo Min value
+SET @@timestamp=1;
+INSERT INTO tbl_a VALUES (1, now(), now());
+SET @@timestamp=0;
+--echo Ambiguous DST values for MET time zone that result in the
+--echo same UTC timestamp
+INSERT INTO tbl_a VALUES (2, '2018-03-25 02:00:00', '2018-03-25 02:00:00');
+INSERT INTO tbl_a VALUES (3, '2018-03-25 02:30:00', '2018-03-25 02:30:00');
+--echo Ambiguous DST values for MET time zone in the 2:00 am to 3:00 am hour
+--echo that occur twice when transitioning from DST to standard time
+SET @@timestamp=1540686600;
+INSERT INTO tbl_a VALUES (4, now(), now());
+SET @@timestamp=1540690200;
+INSERT INTO tbl_a VALUES (5, now(), now());
+--echo Max value
+SET @@timestamp=2147483647;
+INSERT INTO tbl_a VALUES (6, now(), now());
+SET @@timestamp=0;
+
+--echo
+--echo SELECTs
+if ($USE_CHILD_GROUP2)
+{
+  if (!$OUTPUT_CHILD_GROUP2)
+  {
+    --disable_query_log
+    --disable_result_log
+  }
+  --connection child2_1
+  if ($USE_GENERAL_LOG)
+  {
+    TRUNCATE TABLE mysql.general_log;
+  }
+  if (!$OUTPUT_CHILD_GROUP2)
+  {
+    --enable_query_log
+    --enable_result_log
+  }
+}
+--connection master_1
+SELECT *, unix_timestamp(col_ts) FROM tbl_a;
+if ($USE_CHILD_GROUP2)
+{
+  if (!$OUTPUT_CHILD_GROUP2)
+  {
+    --disable_query_log
+    --disable_result_log
+  }
+  --connection child2_1
+  if ($USE_GENERAL_LOG)
+  {
+    eval $CHILD2_1_SELECT_ARGUMENT1;
+  }
+  eval $CHILD2_1_SELECT_TABLE;
+  if (!$OUTPUT_CHILD_GROUP2)
+  {
+    --enable_query_log
+    --enable_result_log
+  }
+}
+
+--echo
+--echo DELETEs
+if ($USE_CHILD_GROUP2)
+{
+  if (!$OUTPUT_CHILD_GROUP2)
+  {
+    --disable_query_log
+    --disable_result_log
+  }
+  --connection child2_1
+  if ($USE_GENERAL_LOG)
+  {
+    TRUNCATE TABLE mysql.general_log;
+  }
+  if (!$OUTPUT_CHILD_GROUP2)
+  {
+    --enable_query_log
+    --enable_result_log
+  }
+}
+--connection master_1
+DELETE FROM tbl_a WHERE col_ts='1970-01-01 01:00:01';
+SELECT *, unix_timestamp(col_ts) FROM tbl_a;
+if ($USE_CHILD_GROUP2)
+{
+  if (!$OUTPUT_CHILD_GROUP2)
+  {
+    --disable_query_log
+    --disable_result_log
+  }
+  --connection child2_1
+  if ($USE_GENERAL_LOG)
+  {
+    eval $CHILD2_1_SELECT_ARGUMENT1;
+  }
+  eval $CHILD2_1_SELECT_TABLE;
+  if (!$OUTPUT_CHILD_GROUP2)
+  {
+    --enable_query_log
+    --enable_result_log
+  }
+}
+if ($USE_CHILD_GROUP2)
+{
+  if (!$OUTPUT_CHILD_GROUP2)
+  {
+    --disable_query_log
+    --disable_result_log
+  }
+  --connection child2_1
+  if ($USE_GENERAL_LOG)
+  {
+    TRUNCATE TABLE mysql.general_log;
+  }
+  if (!$OUTPUT_CHILD_GROUP2)
+  {
+    --enable_query_log
+    --enable_result_log
+  }
+}
+--connection master_1
+SET @@timestamp=1;
+INSERT INTO tbl_a VALUES (1, now(), now());
+SET @@timestamp=0;
+SELECT *, unix_timestamp(col_ts) FROM tbl_a;
+if ($USE_CHILD_GROUP2)
+{
+  if (!$OUTPUT_CHILD_GROUP2)
+  {
+    --disable_query_log
+    --disable_result_log
+  }
+  --connection child2_1
+  if ($USE_GENERAL_LOG)
+  {
+    eval $CHILD2_1_SELECT_ARGUMENT1;
+  }
+  eval $CHILD2_1_SELECT_TABLE;
+  if (!$OUTPUT_CHILD_GROUP2)
+  {
+    --enable_query_log
+    --enable_result_log
+  }
+}
+
+--echo
+--echo UPDATEs
+if ($USE_CHILD_GROUP2)
+{
+  if (!$OUTPUT_CHILD_GROUP2)
+  {
+    --disable_query_log
+    --disable_result_log
+  }
+  --connection child2_1
+  if ($USE_GENERAL_LOG)
+  {
+    TRUNCATE TABLE mysql.general_log;
+  }
+  if (!$OUTPUT_CHILD_GROUP2)
+  {
+    --enable_query_log
+    --enable_result_log
+  }
+}
+--connection master_1
+UPDATE tbl_a SET col_ts=col_dt;
+SELECT *, unix_timestamp(col_ts) FROM tbl_a;
+if ($USE_CHILD_GROUP2)
+{
+  if (!$OUTPUT_CHILD_GROUP2)
+  {
+    --disable_query_log
+    --disable_result_log
+  }
+  --connection child2_1
+  if ($USE_GENERAL_LOG)
+  {
+    eval $CHILD2_1_SELECT_ARGUMENT1;
+  }
+  eval $CHILD2_1_SELECT_TABLE;
+  if (!$OUTPUT_CHILD_GROUP2)
+  {
+    --enable_query_log
+    --enable_result_log
+  }
+}
+
+--echo
+--echo Lookups
+if ($USE_CHILD_GROUP2)
+{
+  if (!$OUTPUT_CHILD_GROUP2)
+  {
+    --disable_query_log
+    --disable_result_log
+  }
+  --connection child2_1
+  if ($USE_GENERAL_LOG)
+  {
+    TRUNCATE TABLE mysql.general_log;
+  }
+  if (!$OUTPUT_CHILD_GROUP2)
+  {
+    --enable_query_log
+    --enable_result_log
+  }
+}
+--connection master_1
+SELECT *, unix_timestamp(col_ts) FROM tbl_a WHERE col_ts > '2018-01-01';
+SELECT *, unix_timestamp(col_ts) FROM tbl_a WHERE col_ts < '2018-10-28 02:30:00';
+SELECT *, unix_timestamp(col_ts) FROM tbl_a WHERE '2018-10-28 02:30:00' > col_ts;
+SELECT *, unix_timestamp(col_ts) FROM tbl_a WHERE col_ts BETWEEN '2018-10-28 01:30:00' AND '2018-10-28 02:30:00';
+SELECT *, unix_timestamp(col_ts) FROM tbl_a WHERE col_ts >= '2018-10-28 01:30:00' AND col_ts <= '2018-10-28 02:30:00';
+SELECT *, unix_timestamp(col_ts) FROM tbl_a WHERE col_ts > 180325020000;
+SELECT *, unix_timestamp(col_ts) FROM tbl_a WHERE col_ts > 19700101010001;
+if ($USE_CHILD_GROUP2)
+{
+  if (!$OUTPUT_CHILD_GROUP2)
+  {
+    --disable_query_log
+    --disable_result_log
+  }
+  --connection child2_1
+  if ($USE_GENERAL_LOG)
+  {
+    eval $CHILD2_1_SELECT_ARGUMENT1;
+  }
+  eval $CHILD2_1_SELECT_TABLE;
+  if (!$OUTPUT_CHILD_GROUP2)
+  {
+    --enable_query_log
+    --enable_result_log
+  }
+}
+
+--echo
+--echo Drop the index on the timestamp column
+if ($USE_CHILD_GROUP2)
+{
+  if (!$OUTPUT_CHILD_GROUP2)
+  {
+    --disable_query_log
+    --disable_result_log
+  }
+  --connection child2_1
+  eval $CHILD2_1_DROP_INDEX;
+  eval $CHILD2_1_SHOW_CREATE_TABLE;
+  if ($OUTPUT_CHILD_GROUP2)
+  {
+    --enable_query_log
+  }
+  if ($USE_GENERAL_LOG)
+  {
+    TRUNCATE TABLE mysql.general_log;
+  }
+  if (!$OUTPUT_CHILD_GROUP2)
+  {
+    --enable_query_log
+    --enable_result_log
+  }
+}
+--connection master_1
+DROP INDEX i_ts ON tbl_a;
+SHOW CREATE TABLE tbl_a;
+
+--echo
+--echo Retry lookups on unindexed timestamp column
+if ($USE_CHILD_GROUP2)
+{
+  if (!$OUTPUT_CHILD_GROUP2)
+  {
+    --disable_query_log
+    --disable_result_log
+  }
+  --connection child2_1
+  if ($USE_GENERAL_LOG)
+  {
+    TRUNCATE TABLE mysql.general_log;
+  }
+  if (!$OUTPUT_CHILD_GROUP2)
+  {
+    --enable_query_log
+    --enable_result_log
+  }
+}
+--connection master_1
+SELECT *, unix_timestamp(col_ts) FROM tbl_a WHERE col_ts > '2018-01-01';
+SELECT *, unix_timestamp(col_ts) FROM tbl_a WHERE col_ts < '2018-10-28 02:30:00';
+SELECT *, unix_timestamp(col_ts) FROM tbl_a WHERE '2018-10-28 02:30:00' > col_ts;
+SELECT *, unix_timestamp(col_ts) FROM tbl_a WHERE col_ts BETWEEN '2018-10-28 01:30:00' AND '2018-10-28 02:30:00';
+SELECT *, unix_timestamp(col_ts) FROM tbl_a WHERE col_ts >= '2018-10-28 01:30:00' AND col_ts <= '2018-10-28 02:30:00';
+SELECT *, unix_timestamp(col_ts) FROM tbl_a WHERE col_ts > 180325020000;
+SELECT *, unix_timestamp(col_ts) FROM tbl_a WHERE col_ts > 19700101010001;
+if ($USE_CHILD_GROUP2)
+{
+  if (!$OUTPUT_CHILD_GROUP2)
+  {
+    --disable_query_log
+    --disable_result_log
+  }
+  --connection child2_1
+  if ($USE_GENERAL_LOG)
+  {
+    eval $CHILD2_1_SELECT_ARGUMENT1;
+  }
+  eval $CHILD2_1_SELECT_TABLE;
+  if (!$OUTPUT_CHILD_GROUP2)
+  {
+    --enable_query_log
+    --enable_result_log
+  }
+}
+
+--echo
+--echo Test the TIMESTAMP function
+--connection master_1
+INSERT INTO tbl_f VALUES ('2018-06-24', '01:23:45'),
+                         ('2018-06-24', '01:23:45'),
+                         ('2018-08-01', '12:34:56');
+if ($USE_CHILD_GROUP2)
+{
+  if (!$OUTPUT_CHILD_GROUP2)
+  {
+    --disable_query_log
+    --disable_result_log
+  }
+  --connection child2_1
+  if ($USE_GENERAL_LOG)
+  {
+    TRUNCATE TABLE mysql.general_log;
+  }
+  if (!$OUTPUT_CHILD_GROUP2)
+  {
+    --enable_query_log
+    --enable_result_log
+  }
+}
+--connection master_1
+SELECT * FROM tbl_f;
+SELECT TIMESTAMP(col_d, col_t) FROM tbl_f;
+SELECT TIMESTAMP('2018-06-25', col_t) FROM tbl_f;
+SELECT TIMESTAMP(col_d, '10:43:21') FROM tbl_f;
+SELECT TIMESTAMP('2018-06-25', '10:43:21') FROM tbl_f;
+if ($USE_CHILD_GROUP2)
+{
+  if (!$OUTPUT_CHILD_GROUP2)
+  {
+    --disable_query_log
+    --disable_result_log
+  }
+  --connection child2_1
+  if ($USE_GENERAL_LOG)
+  {
+    eval $CHILD2_1_SELECT_ARGUMENT1;
+  }
+  eval $CHILD2_1_SELECT_TABLE_F;
+  if (!$OUTPUT_CHILD_GROUP2)
+  {
+    --enable_query_log
+    --enable_result_log
+  }
+}
+
+--echo
+--echo Restore Time Zone settings
+--connection master_1
+SET GLOBAL time_zone=DEFAULT;
+SET time_zone=DEFAULT;
+if ($USE_CHILD_GROUP2)
+{
+  --connection child2_1
+  SET GLOBAL time_zone=DEFAULT;
+  SET time_zone=DEFAULT;
+}
+
+--echo
+--echo deinit
+--disable_warnings
+--connection master_1
+DROP DATABASE IF EXISTS ts_test_local;
+if ($USE_CHILD_GROUP2)
+{
+  --connection child2_1
+  DROP DATABASE IF EXISTS ts_test_remote;
+  if ($USE_GENERAL_LOG)
+  {
+    SET GLOBAL log_output = @old_log_output;
+  }
+}
+--enable_warnings
+--source timestamp_deinit.inc
+--echo
+--echo end of test

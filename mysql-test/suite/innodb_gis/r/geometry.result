@@ -1,21 +1,5 @@
 SET default_storage_engine=InnoDB;
 SET innodb_strict_mode=OFF;
-SET SESSION debug="+d,row_print_geometry_data";
-SHOW VARIABLES LIKE '%engine%';
-Variable_name	Value
-default_storage_engine	InnoDB
-default_tmp_storage_engine	InnoDB
-disabled_storage_engines	
-internal_tmp_disk_storage_engine	InnoDB
-USE test;
-DROP TABLE IF EXISTS t1, gis_point, gis_line, gis_polygon;
-DROP TABLE IF EXISTS gis_multi_point, gis_multi_line, gis_multi_polygon;
-DROP TABLE IF EXISTS gis_geometrycollection, gis_geometry;
-DROP TABLE IF EXISTS tab,tab2,tab3,parent,emp2;
-DROP PROCEDURE IF EXISTS geominout;
-DROP PROCEDURE IF EXISTS geom_insert;
-DROP TRIGGER IF EXISTS geom_trigger;
-DROP PROCEDURE IF EXISTS geom_cursor;
 CREATE TABLE gis_point  (fid INTEGER NOT NULL PRIMARY KEY, g POINT) ENGINE=InnoDB;
 CREATE TABLE gis_line  (fid INTEGER NOT NULL PRIMARY KEY, g LINESTRING) ENGINE=InnoDB;
 CREATE TABLE gis_polygon   (fid INTEGER NOT NULL PRIMARY KEY, g POLYGON) ENGINE=InnoDB;
@@ -1136,15 +1120,10 @@ COMMIT;
 SELECT COUNT(*) FROM tab3;
 COUNT(*)
 0
-DROP TABLE IF EXISTS gis_point, gis_line, gis_polygon, gis_multi_point;
-DROP TABLE IF EXISTS gis_multi_line, gis_multi_polygon;
-DROP TABLE IF EXISTS gis_geometrycollection, gis_geometry;
-DROP TABLE IF EXISTS tab,tab2,tab3,parent,emp2;
-Warnings:
-Note	1051	Unknown table 'test.emp2'
-DROP PROCEDURE IF EXISTS  geominout;
-DROP PROCEDURE IF EXISTS geom_insert;
-DROP TRIGGER IF EXISTS geom_trigger;
-Warnings:
-Note	1360	Trigger does not exist
-DROP PROCEDURE IF EXISTS geom_cursor;
+DROP TABLE gis_point, gis_line, gis_polygon, gis_multi_point;
+DROP TABLE gis_multi_line, gis_multi_polygon;
+DROP TABLE gis_geometrycollection, gis_geometry;
+DROP TABLE tab,tab2,tab3,parent;
+DROP PROCEDURE geominout;
+DROP PROCEDURE geom_insert;
+DROP PROCEDURE geom_cursor;

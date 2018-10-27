@@ -104,7 +104,13 @@ toku_memory_startup(void) {
             size_t lg_chunk; // log2 of the mmap threshold
             size_t lg_chunk_length = sizeof lg_chunk;
             result  = mallctl_f("opt.lg_chunk", &lg_chunk, &lg_chunk_length, NULL, 0);
-            if (result == 0)
+            if (result)
+            {
+                status.mmap_threshold = 1 << 21; // Default value.
+                                                 // Incompatible jemalloc change.
+                result = 0;
+            }
+            else
                 status.mmap_threshold = 1 << lg_chunk;
         }
     }
@@ -176,7 +182,7 @@ toku_memory_footprint(void * p, size_t touched)
 
 void *
 toku_malloc(size_t size) {
-#if __APPLE__
+#if defined(__APPLE__)
     if (size == 0) {
         return nullptr;
     }
@@ -203,7 +209,7 @@ toku_malloc(size_t size) {
 }
 
 void *toku_malloc_aligned(size_t alignment, size_t size) {
-#if __APPLE__
+#if defined(__APPLE__)
     if (size == 0) {
         return nullptr;
     }
@@ -239,7 +245,7 @@ toku_calloc(size_t nmemb, size_t size) {
 
 void *
 toku_realloc(void *p, size_t size) {
-#if __APPLE__
+#if defined(__APPLE__)
     if (size == 0) {
         if (p != nullptr) {
             toku_free(p);
@@ -270,7 +276,7 @@ toku_realloc(void *p, size_t size) {
 }
 
 void *toku_realloc_aligned(size_t alignment, void *p, size_t size) {
-#if __APPLE__
+#if defined(__APPLE__)
     if (size == 0) {
         if (p != nullptr) {
             toku_free(p);
@@ -339,7 +345,7 @@ toku_free(void *p) {
 
 void *
 toku_xmalloc(size_t size) {
-#if __APPLE__
+#if defined(__APPLE__)
     if (size == 0) {
         return nullptr;
     }
@@ -369,7 +375,7 @@ void* toku_xmalloc_aligned(size_t alignment, size_t size)
 //  Fail with a resource_assert if the allocation fails (don't return an error code).
 // Requires: alignment is a power of two.
 {
-#if __APPLE__
+#if defined(__APPLE__)
     if (size == 0) {
         return nullptr;
     }
@@ -403,7 +409,7 @@ toku_xcalloc(size_t nmemb, size_t size) {
 
 void *
 toku_xrealloc(void *v, size_t size) {
-#if __APPLE__
+#if defined(__APPLE__)
     if (size == 0) {
         if (v != nullptr) {
             toku_free(v);

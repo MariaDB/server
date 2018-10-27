@@ -35,7 +35,6 @@ Created 3/26/1996 Heikki Tuuri
 #include "mem0mem.h"
 #include "mtr0mtr.h"
 #include "ut0byte.h"
-#include "mem0mem.h"
 #include "ut0lst.h"
 #include "read0types.h"
 #include "page0types.h"
@@ -141,26 +140,6 @@ trx_sys_update_mysql_binlog_offset(
 system header. */
 void
 trx_sys_print_mysql_binlog_offset();
-#ifdef WITH_WSREP
-
-/** Update WSREP XID info in the TRX_SYS page.
-@param[in]	xid		Transaction XID
-@param[in,out]	sys_header	TRX_SYS page
-@param[in,out]	mtr		mini-transaction */
-UNIV_INTERN
-void
-trx_sys_update_wsrep_checkpoint(
-	const XID*	xid,
-	buf_block_t*	sys_header,
-	mtr_t*		mtr);
-
-/** Read WSREP checkpoint XID from sys header.
-@param[out]	xid	WSREP XID
-@return	whether the checkpoint was present */
-UNIV_INTERN
-bool
-trx_sys_read_wsrep_checkpoint(XID* xid);
-#endif /* WITH_WSREP */
 
 /** Create the rollback segments.
 @return	whether the creation succeeded */
@@ -235,7 +214,8 @@ trx_sysf_rseg_get_page_no(const buf_block_t* sys_header, ulint rseg_id)
 				+ sys_header->frame);
 }
 
-/** Maximum length of MySQL binlog file name, in bytes. */
+/** Maximum length of MySQL binlog file name, in bytes.
+(Used before MariaDB 10.3.5.) */
 #define TRX_SYS_MYSQL_LOG_NAME_LEN	512
 /** Contents of TRX_SYS_MYSQL_LOG_MAGIC_N_FLD */
 #define TRX_SYS_MYSQL_LOG_MAGIC_N	873422344
@@ -244,7 +224,7 @@ trx_sysf_rseg_get_page_no(const buf_block_t* sys_header, ulint rseg_id)
 # error "UNIV_PAGE_SIZE_MIN < 4096"
 #endif
 /** The offset of the MySQL binlog offset info in the trx system header */
-#define TRX_SYS_MYSQL_LOG_INFO		(UNIV_PAGE_SIZE - 1000)
+#define TRX_SYS_MYSQL_LOG_INFO		(srv_page_size - 1000)
 #define	TRX_SYS_MYSQL_LOG_MAGIC_N_FLD	0	/*!< magic number which is
 						TRX_SYS_MYSQL_LOG_MAGIC_N
 						if we have valid data in the
@@ -253,7 +233,7 @@ trx_sysf_rseg_get_page_no(const buf_block_t* sys_header, ulint rseg_id)
 						within that file */
 #define TRX_SYS_MYSQL_LOG_NAME		12	/*!< MySQL log file name */
 
-/** Memory map TRX_SYS_PAGE_NO = 5 when UNIV_PAGE_SIZE = 4096
+/** Memory map TRX_SYS_PAGE_NO = 5 when srv_page_size = 4096
 
 0...37 FIL_HEADER
 38...45 TRX_SYS_TRX_ID_STORE
@@ -269,7 +249,7 @@ trx_sysf_rseg_get_page_no(const buf_block_t* sys_header, ulint rseg_id)
 ...
   ...1063  TRX_SYS_RSEG_PAGE_NO     for slot 126
 
-(UNIV_PAGE_SIZE-3500 WSREP ::: FAIL would overwrite undo tablespace
+(srv_page_size-3500 WSREP ::: FAIL would overwrite undo tablespace
 space_id, page_no pairs :::)
 596 TRX_SYS_WSREP_XID_INFO             TRX_SYS_WSREP_XID_MAGIC_N_FLD
 600 TRX_SYS_WSREP_XID_FORMAT
@@ -279,7 +259,7 @@ space_id, page_no pairs :::)
 739 TRX_SYS_WSREP_XID_DATA_END
 
 FIXED WSREP XID info offsets for 4k page size 10.0.32-galera
-(UNIV_PAGE_SIZE-2500)
+(srv_page_size-2500)
 1596 TRX_SYS_WSREP_XID_INFO             TRX_SYS_WSREP_XID_MAGIC_N_FLD
 1600 TRX_SYS_WSREP_XID_FORMAT
 1604 TRX_SYS_WSREP_XID_GTRID_LEN
@@ -287,19 +267,19 @@ FIXED WSREP XID info offsets for 4k page size 10.0.32-galera
 1612 TRX_SYS_WSREP_XID_DATA   (len = 128)
 1739 TRX_SYS_WSREP_XID_DATA_END
 
-(UNIV_PAGE_SIZE - 2000 MYSQL MASTER LOG)
+(srv_page_size - 2000 MYSQL MASTER LOG)
 2096   TRX_SYS_MYSQL_MASTER_LOG_INFO   TRX_SYS_MYSQL_LOG_MAGIC_N_FLD
 2100   TRX_SYS_MYSQL_LOG_OFFSET_HIGH
 2104   TRX_SYS_MYSQL_LOG_OFFSET_LOW
 2108   TRX_SYS_MYSQL_LOG_NAME
 
-(UNIV_PAGE_SIZE - 1000 MYSQL LOG)
+(srv_page_size - 1000 MYSQL LOG)
 3096   TRX_SYS_MYSQL_LOG_INFO          TRX_SYS_MYSQL_LOG_MAGIC_N_FLD
 3100   TRX_SYS_MYSQL_LOG_OFFSET_HIGH
 3104   TRX_SYS_MYSQL_LOG_OFFSET_LOW
 3108   TRX_SYS_MYSQL_LOG_NAME
 
-(UNIV_PAGE_SIZE - 200 DOUBLEWRITE)
+(srv_page_size - 200 DOUBLEWRITE)
 3896   TRX_SYS_DOUBLEWRITE		TRX_SYS_DOUBLEWRITE_FSEG
 3906         TRX_SYS_DOUBLEWRITE_MAGIC
 3910         TRX_SYS_DOUBLEWRITE_BLOCK1
@@ -307,12 +287,12 @@ FIXED WSREP XID info offsets for 4k page size 10.0.32-galera
 3918         TRX_SYS_DOUBLEWRITE_REPEAT
 3930         TRX_SYS_DOUBLEWRITE_SPACE_ID_STORED_N
 
-(UNIV_PAGE_SIZE - 8, TAILER)
+(srv_page_size - 8, TAILER)
 4088..4096	FIL_TAILER
 
 */
 #ifdef WITH_WSREP
-/** The offset to WSREP XID headers */
+/** The offset to WSREP XID headers (used before MariaDB 10.3.5) */
 #define TRX_SYS_WSREP_XID_INFO std::max(srv_page_size - 3500, 1596UL)
 #define TRX_SYS_WSREP_XID_MAGIC_N_FLD 0
 #define TRX_SYS_WSREP_XID_MAGIC_N 0x77737265
@@ -328,7 +308,7 @@ FIXED WSREP XID info offsets for 4k page size 10.0.32-galera
 /** Doublewrite buffer */
 /* @{ */
 /** The offset of the doublewrite buffer header on the trx system header page */
-#define TRX_SYS_DOUBLEWRITE		(UNIV_PAGE_SIZE - 200)
+#define TRX_SYS_DOUBLEWRITE		(srv_page_size - 200)
 /*-------------------------------------------------------------*/
 #define TRX_SYS_DOUBLEWRITE_FSEG	0	/*!< fseg header of the fseg
 						containing the doublewrite
@@ -610,10 +590,10 @@ public:
     the transaction may get committed before this method returns.
 
     With do_ref_count == false the caller may dereference returned trx pointer
-    only if lock_sys->mutex was acquired before calling find().
+    only if lock_sys.mutex was acquired before calling find().
 
     With do_ref_count == true caller may dereference trx even if it is not
-    holding lock_sys->mutex. Caller is responsible for calling
+    holding lock_sys.mutex. Caller is responsible for calling
     trx->release_reference() when it is done playing with trx.
 
     Ideally this method should get caller rw_trx_hash_pins along with trx
@@ -636,7 +616,7 @@ public:
       @retval pointer to trx
   */
 
-  trx_t *find(trx_t *caller_trx, trx_id_t trx_id, bool do_ref_count= false)
+  trx_t *find(trx_t *caller_trx, trx_id_t trx_id, bool do_ref_count)
   {
     /*
       In MariaDB 10.3, purge will reset DB_TRX_ID to 0
@@ -644,9 +624,16 @@ public:
       always have a nonzero trx_t::id; there the value 0 is
       reserved for transactions that did not write or lock
       anything yet.
+
+      The caller should already have handled trx_id==0 specially.
     */
-    if (!trx_id)
-      return NULL;
+    ut_ad(trx_id);
+    if (caller_trx && caller_trx->id == trx_id)
+    {
+      if (do_ref_count)
+        caller_trx->reference();
+      return caller_trx;
+    }
 
     trx_t *trx= 0;
     LF_PINS *pins= caller_trx ? get_pins(caller_trx) : lf_hash_get_pins(&hash);
@@ -659,8 +646,11 @@ public:
     {
       mutex_enter(&element->mutex);
       lf_hash_search_unpin(pins);
-      if ((trx= element->trx))
-      {
+      trx= element->trx;
+      if (!trx);
+      else if (UNIV_UNLIKELY(trx_id != trx->id))
+        trx= NULL;
+      else {
         if (do_ref_count)
           trx->reference();
         ut_d(validate_element(trx));
@@ -718,9 +708,10 @@ public:
     because it may change even before this method returns.
   */
 
-  int32_t size()
+  uint32_t size()
   {
-    return my_atomic_load32_explicit(&hash.count, MY_MEMORY_ORDER_RELAXED);
+    return uint32_t(my_atomic_load32_explicit(&hash.count,
+					      MY_MEMORY_ORDER_RELAXED));
   }
 
 
@@ -797,40 +788,39 @@ public:
 
 
 /** The transaction system central memory data structure. */
-struct trx_sys_t {
-private:
+class trx_sys_t
+{
   /**
     The smallest number not yet assigned as a transaction id or transaction
     number. Accessed and updated with atomic operations.
   */
-
   MY_ALIGNED(CACHE_LINE_SIZE) trx_id_t m_max_trx_id;
 
 
-  /** Solves race condition between register_rw() and snapshot_ids(). */
+  /**
+    Solves race conditions between register_rw() and snapshot_ids() as well as
+    race condition between assign_new_trx_no() and snapshot_ids().
+
+    @sa register_rw()
+    @sa assign_new_trx_no()
+    @sa snapshot_ids()
+  */
   MY_ALIGNED(CACHE_LINE_SIZE) trx_id_t m_rw_trx_hash_version;
 
 
-  /** Active views. */
-  MY_ALIGNED(CACHE_LINE_SIZE) UT_LIST_BASE_NODE_T(ReadView) m_views;
+  /**
+    TRX_RSEG_HISTORY list length (number of committed transactions to purge)
+  */
+  MY_ALIGNED(CACHE_LINE_SIZE) int32 rseg_history_len;
 
   bool m_initialised;
 
 public:
-	MY_ALIGNED(CACHE_LINE_SIZE) mutable
-	TrxSysMutex	mutex;		/*!< mutex protecting most fields in
-					this structure except when noted
-					otherwise */
-	MY_ALIGNED(CACHE_LINE_SIZE)
-	trx_ut_list_t	mysql_trx_list;	/*!< List of transactions created
-					for MySQL. All user transactions are
-					on mysql_trx_list. The rw_trx_hash
-					can contain system transactions and
-					recovered transactions that will not
-					be in the mysql_trx_list.
-					mysql_trx_list may additionally contain
-					transactions that have not yet been
-					started in InnoDB. */
+  /** Mutex protecting trx_list. */
+  MY_ALIGNED(CACHE_LINE_SIZE) mutable TrxSysMutex mutex;
+
+  /** List of all transactions. */
+  MY_ALIGNED(CACHE_LINE_SIZE) trx_ut_list_t trx_list;
 
 	MY_ALIGNED(CACHE_LINE_SIZE)
 	/** Temporary rollback segments */
@@ -844,12 +834,6 @@ public:
 					single-threaded mode; not protected
 					by any mutex, because it is read-only
 					during multi-threaded operation */
-	ulint		rseg_history_len;
-					/*!< Length of the TRX_RSEG_HISTORY
-					list (update undo logs for committed
-					transactions), protected by
-					rseg->mutex */
-
 
   /**
     Lock-free hash of in memory read-write transactions.
@@ -857,6 +841,16 @@ public:
   */
 
   MY_ALIGNED(CACHE_LINE_SIZE) rw_trx_hash_t rw_trx_hash;
+
+
+#ifdef WITH_WSREP
+  /** Latest recovered XID during startup */
+  XID recovered_wsrep_xid;
+#endif
+  /** Latest recovered binlog offset */
+  uint64_t recovered_binlog_offset;
+  /** Latest recovred binlog file name */
+  char recovered_binlog_filename[TRX_SYS_MYSQL_LOG_NAME_LEN];
 
 
   /**
@@ -895,7 +889,7 @@ public:
             next call to trx_sys.get_new_trx_id()
   */
 
-  trx_id_t get_max_trx_id(void)
+  trx_id_t get_max_trx_id()
   {
     return static_cast<trx_id_t>
            (my_atomic_load64_explicit(reinterpret_cast<int64*>(&m_max_trx_id),
@@ -917,13 +911,45 @@ public:
 
 
   /**
+    Allocates and assigns new transaction serialisation number.
+
+    There's a gap between m_max_trx_id increment and transaction serialisation
+    number becoming visible through rw_trx_hash. While we're in this gap
+    concurrent thread may come and do MVCC snapshot without seeing allocated
+    but not yet assigned serialisation number. Then at some point purge thread
+    may clone this view. As a result it won't see newly allocated serialisation
+    number and may remove "unnecessary" history data of this transaction from
+    rollback segments.
+
+    m_rw_trx_hash_version is intended to solve this problem. MVCC snapshot has
+    to wait until m_max_trx_id == m_rw_trx_hash_version, which effectively
+    means that all transaction serialisation numbers up to m_max_trx_id are
+    available through rw_trx_hash.
+
+    We rely on refresh_rw_trx_hash_version() to issue RELEASE memory barrier so
+    that m_rw_trx_hash_version increment happens after
+    trx->rw_trx_hash_element->no becomes visible through rw_trx_hash.
+
+    @param trx transaction
+  */
+  void assign_new_trx_no(trx_t *trx)
+  {
+    trx->no= get_new_trx_id_no_refresh();
+    my_atomic_store64_explicit(reinterpret_cast<int64*>
+                               (&trx->rw_trx_hash_element->no),
+                               trx->no, MY_MEMORY_ORDER_RELAXED);
+    refresh_rw_trx_hash_version();
+  }
+
+
+  /**
     Takes MVCC snapshot.
 
     To reduce malloc probablility we reserver rw_trx_hash.size() + 32 elements
     in ids.
 
     For details about get_rw_trx_hash_version() != get_max_trx_id() spin
-    @sa register_rw().
+    @sa register_rw() and @sa assign_new_trx_no().
 
     We rely on get_rw_trx_hash_version() to issue ACQUIRE memory barrier so
     that loading of m_rw_trx_hash_version happens before accessing rw_trx_hash.
@@ -941,6 +967,7 @@ public:
   void snapshot_ids(trx_t *caller_trx, trx_ids_t *ids, trx_id_t *max_trx_id,
                     trx_id_t *min_trx_no)
   {
+    ut_ad(!mutex_own(&mutex));
     snapshot_ids_arg arg(ids);
 
     while ((arg.m_id= get_rw_trx_hash_version()) != get_max_trx_id())
@@ -952,7 +979,6 @@ public:
     rw_trx_hash.iterate(caller_trx,
                         reinterpret_cast<my_hash_walk_action>(copy_one_id),
                         &arg);
-    std::sort(ids->begin(), ids->end());
 
     *max_trx_id= arg.m_id;
     *min_trx_no= arg.m_no;
@@ -969,10 +995,10 @@ public:
   bool is_initialised() { return m_initialised; }
 
 
-  /** Create the instance */
+  /** Initialise the transaction subsystem. */
   void create();
 
-  /** Close the transaction system on shutdown */
+  /** Close the transaction subsystem on shutdown. */
   void close();
 
   /** @return total number of active (non-prepared) transactions */
@@ -1022,38 +1048,38 @@ public:
 
   bool is_registered(trx_t *caller_trx, trx_id_t id)
   {
-    return rw_trx_hash.find(caller_trx, id);
+    return id && find(caller_trx, id, false);
   }
 
 
-  trx_t *find(trx_t *caller_trx, trx_id_t id)
+  trx_t *find(trx_t *caller_trx, trx_id_t id, bool do_ref_count= true)
   {
-    return rw_trx_hash.find(caller_trx, id, true);
+    return rw_trx_hash.find(caller_trx, id, do_ref_count);
   }
 
 
   /**
-    Registers view in MVCC.
+    Registers transaction in trx_sys.
 
-    @param view    view owned by the caller
+    @param trx transaction
   */
-  void register_view(ReadView *view)
+  void register_trx(trx_t *trx)
   {
     mutex_enter(&mutex);
-    UT_LIST_ADD_FIRST(m_views, view);
+    UT_LIST_ADD_FIRST(trx_list, trx);
     mutex_exit(&mutex);
   }
 
 
   /**
-    Deregisters view in MVCC.
+    Deregisters transaction in trx_sys.
 
-    @param view    view owned by the caller
+    @param trx transaction
   */
-  void deregister_view(ReadView *view)
+  void deregister_trx(trx_t *trx)
   {
     mutex_enter(&mutex);
-    UT_LIST_REMOVE(m_views, view);
+    UT_LIST_REMOVE(trx_list, trx);
     mutex_exit(&mutex);
   }
 
@@ -1074,16 +1100,31 @@ public:
     size_t count= 0;
 
     mutex_enter(&mutex);
-    for (const ReadView* view= UT_LIST_GET_FIRST(m_views); view;
-         view= UT_LIST_GET_NEXT(m_view_list, view))
+    for (const trx_t *trx= UT_LIST_GET_FIRST(trx_list); trx;
+         trx= UT_LIST_GET_NEXT(trx_list, trx))
     {
-      if (view->get_state() == READ_VIEW_STATE_OPEN)
+      if (trx->read_view.get_state() == READ_VIEW_STATE_OPEN)
         ++count;
     }
     mutex_exit(&mutex);
     return count;
   }
 
+  /** @return number of committed transactions waiting for purge */
+  ulint history_size() const
+  {
+    return uint32(my_atomic_load32(&const_cast<trx_sys_t*>(this)
+                                   ->rseg_history_len));
+  }
+  /** Add to the TRX_RSEG_HISTORY length (on database startup). */
+  void history_add(int32 len)
+  {
+    my_atomic_add32(&rseg_history_len, len);
+  }
+  /** Register a committed transaction. */
+  void history_insert() { history_add(1); }
+  /** Note that a committed transaction was purged. */
+  void history_remove() { history_add(-1); }
 
 private:
   static my_bool get_min_trx_id_callback(rw_trx_hash_element_t *element,
@@ -1146,11 +1187,12 @@ private:
   /**
     Allocates new transaction id without refreshing rw_trx_hash version.
 
-    This method is extracted for exclusive use by register_rw() where
-    transaction must be inserted into rw_trx_hash between new transaction id
-    allocation and rw_trx_hash version refresh.
+    This method is extracted for exclusive use by register_rw() and
+    assign_new_trx_no() where new id must be allocated atomically with
+    payload of these methods from MVCC snapshot point of view.
 
     @sa get_new_trx_id()
+    @sa assign_new_trx_no()
 
     @return new transaction id
   */

@@ -387,6 +387,9 @@ private:
   bool m_key_not_found;
   List<String> *m_partitions_to_open;
   MY_BITMAP m_opened_partitions;
+  /** This is one of the m_file-s that it guaranteed to be opened. */
+  /**  It is set in open_read_partitions() */
+  handler *m_file_sample;
 public:
   handler **get_child_handlers()
   {
@@ -555,8 +558,7 @@ public:
   virtual THR_LOCK_DATA **store_lock(THD * thd, THR_LOCK_DATA ** to,
 				     enum thr_lock_type lock_type);
   virtual int external_lock(THD * thd, int lock_type);
-  LEX_CSTRING *engine_name()
-  { return hton_name(table->part_info->default_engine_type); }
+  LEX_CSTRING *engine_name() { return hton_name(partition_ht()); }
   /*
     When table is locked a statement is started by calling start_stmt
     instead of external_lock
@@ -618,8 +620,8 @@ public:
   virtual int bulk_update_row(const uchar *old_data, const uchar *new_data,
                               ha_rows *dup_key_found);
   virtual int update_row(const uchar * old_data, const uchar * new_data);
-  virtual int direct_update_rows_init();
-  virtual int pre_direct_update_rows_init();
+  virtual int direct_update_rows_init(List<Item> *update_fields);
+  virtual int pre_direct_update_rows_init(List<Item> *update_fields);
   virtual int direct_update_rows(ha_rows *update_rows);
   virtual int pre_direct_update_rows();
   virtual bool start_bulk_delete();
@@ -840,10 +842,9 @@ public:
                                   uint part_id);
   void set_partitions_to_open(List<String> *partition_names);
   int change_partitions_to_open(List<String> *partition_names);
-  int open_read_partitions(char *name_buff, size_t name_buff_size,
-                           handler **sample);
+  int open_read_partitions(char *name_buff, size_t name_buff_size);
   virtual int extra(enum ha_extra_function operation);
-  virtual int extra_opt(enum ha_extra_function operation, ulong cachesize);
+  virtual int extra_opt(enum ha_extra_function operation, ulong arg);
   virtual int reset(void);
   virtual uint count_query_cache_dependant_tables(uint8 *tables_type);
   virtual my_bool
@@ -853,6 +854,8 @@ public:
                                           uint *n);
 
 private:
+  typedef int handler_callback(handler *, void *);
+
   my_bool reg_query_cache_dependant_table(THD *thd,
                                           char *engine_key,
                                           uint engine_key_len,
@@ -863,11 +866,12 @@ private:
                                           **block_table,
                                           handler *file, uint *n);
   static const uint NO_CURRENT_PART_ID= NOT_A_PARTITION_ID;
-  int loop_extra(enum ha_extra_function operation);
+  int loop_partitions(handler_callback callback, void *param);
   int loop_extra_alter(enum ha_extra_function operations);
   void late_extra_cache(uint partition_id);
   void late_extra_no_cache(uint partition_id);
   void prepare_extra_cache(uint cachesize);
+  handler *get_open_file_sample() const { return m_file_sample; }
 public:
 
   /*
@@ -1186,7 +1190,7 @@ public:
     wrapper function for handlerton alter_table_flags, since
     the ha_partition_hton cannot know all its capabilities
   */
-  virtual uint alter_table_flags(uint flags);
+  virtual alter_table_operations alter_table_flags(alter_table_operations flags);
   /*
     unireg.cc will call the following to make sure that the storage engine
     can handle the data it is about to send.
@@ -1482,7 +1486,7 @@ public:
     return h;
   }
 
-  virtual ha_rows part_records(void *_part_elem)
+  ha_rows part_records(void *_part_elem)
   {
     partition_element *part_elem= reinterpret_cast<partition_element *>(_part_elem);
     DBUG_ASSERT(m_part_info);
@@ -1499,12 +1503,6 @@ public:
       part_recs+= file->stats.records;
     }
     return part_recs;
-  }
-
-  virtual handler* part_handler(uint32 part_id)
-  {
-    DBUG_ASSERT(part_id < m_tot_parts);
-    return m_file[part_id];
   }
 
   friend int cmp_key_rowid_part_id(void *ptr, uchar *ref1, uchar *ref2);

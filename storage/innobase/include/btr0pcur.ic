@@ -209,12 +209,7 @@ btr_pcur_is_on_user_rec(
 /*********************************************************//**
 Checks if the persistent cursor is before the first user record in
 the index tree. */
-UNIV_INLINE
-ibool
-btr_pcur_is_before_first_in_tree(
-/*=============================*/
-	btr_pcur_t*	cursor,	/*!< in: persistent cursor */
-	mtr_t*		mtr)	/*!< in: mtr */
+static inline bool btr_pcur_is_before_first_in_tree(btr_pcur_t* cursor)
 {
 	ut_ad(cursor->pos_state == BTR_PCUR_IS_POSITIONED);
 	ut_ad(cursor->latch_mode != BTR_NO_LATCHES);
@@ -226,12 +221,7 @@ btr_pcur_is_before_first_in_tree(
 /*********************************************************//**
 Checks if the persistent cursor is after the last user record in
 the index tree. */
-UNIV_INLINE
-ibool
-btr_pcur_is_after_last_in_tree(
-/*===========================*/
-	btr_pcur_t*	cursor,	/*!< in: persistent cursor */
-	mtr_t*		mtr)	/*!< in: mtr */
+static inline bool btr_pcur_is_after_last_in_tree(btr_pcur_t* cursor)
 {
 	ut_ad(cursor->pos_state == BTR_PCUR_IS_POSITIONED);
 	ut_ad(cursor->latch_mode != BTR_NO_LATCHES);
@@ -307,9 +297,7 @@ btr_pcur_move_to_next_user_rec(
 	cursor->old_stored = false;
 loop:
 	if (btr_pcur_is_after_last_on_page(cursor)) {
-
-		if (btr_pcur_is_after_last_in_tree(cursor, mtr)) {
-
+		if (btr_pcur_is_after_last_in_tree(cursor)) {
 			return(FALSE);
 		}
 
@@ -344,19 +332,15 @@ btr_pcur_move_to_next(
 	cursor->old_stored = false;
 
 	if (btr_pcur_is_after_last_on_page(cursor)) {
-
-		if (btr_pcur_is_after_last_in_tree(cursor, mtr)) {
-
+		if (btr_pcur_is_after_last_in_tree(cursor)) {
 			return(FALSE);
 		}
 
 		btr_pcur_move_to_next_page(cursor, mtr);
-
 		return(TRUE);
 	}
 
 	btr_pcur_move_to_next_on_page(cursor);
-
 	return(TRUE);
 }
 
@@ -379,6 +363,32 @@ btr_pcur_commit_specify_mtr(
 	mtr_commit(mtr);
 
 	pcur->pos_state = BTR_PCUR_WAS_POSITIONED;
+}
+
+/** Commits the mtr and sets the clustered index pcur and secondary index
+pcur latch mode to BTR_NO_LATCHES, that is, the cursor becomes detached.
+Function btr_pcur_store_position should be used for both cursor before
+calling this, if restoration of cursor is wanted later.
+@param[in]	pcur		persistent cursor
+@param[in]	sec_pcur	secondary index persistent cursor
+@param[in]	mtr		mtr to commit */
+UNIV_INLINE
+void
+btr_pcurs_commit_specify_mtr(
+	btr_pcur_t*	pcur,
+	btr_pcur_t*	sec_pcur,
+	mtr_t*		mtr)
+{
+	ut_ad(pcur->pos_state == BTR_PCUR_IS_POSITIONED);
+	ut_ad(sec_pcur->pos_state == BTR_PCUR_IS_POSITIONED);
+
+	pcur->latch_mode = BTR_NO_LATCHES;
+	sec_pcur->latch_mode = BTR_NO_LATCHES;
+
+	mtr_commit(mtr);
+
+	pcur->pos_state = BTR_PCUR_WAS_POSITIONED;
+	sec_pcur->pos_state = BTR_PCUR_WAS_POSITIONED;
 }
 
 /**************************************************************//**

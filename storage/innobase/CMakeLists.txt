@@ -1,5 +1,5 @@
-# Copyright (c) 2006, 2016, Oracle and/or its affiliates. All rights reserved.
-# Copyright (c) 2014, 2017, MariaDB Corporation
+# Copyright (c) 2006, 2017, Oracle and/or its affiliates. All rights reserved.
+# Copyright (c) 2014, 2018, MariaDB Corporation.
 #
 # This program is free software; you can redistribute it and/or modify
 # it under the terms of the GNU General Public License as published by
@@ -136,7 +136,6 @@ SET(INNOBASE_SOURCES
 	trx/trx0sys.cc
 	trx/trx0trx.cc
 	trx/trx0undo.cc
-	usr/usr0sess.cc
 	ut/ut0crc32.cc
 	ut/ut0dbg.cc
 	ut/ut0list.cc
@@ -150,10 +149,11 @@ SET(INNOBASE_SOURCES
 	ut/ut0timer.cc)
 
 MYSQL_ADD_PLUGIN(innobase ${INNOBASE_SOURCES} STORAGE_ENGINE
+  MODULE_OUTPUT_NAME ha_innodb
   DEFAULT RECOMPILE_FOR_EMBEDDED
   LINK_LIBRARIES
 	${ZLIB_LIBRARY}
-	${CRC32_VPMSUM_LIBRARY}
+	${CRC32_LIBRARY}
 	${NUMA_LIBRARY}
 	${LIBSYSTEMD}
 	${LINKER_SCRIPT})
@@ -162,7 +162,6 @@ IF(NOT TARGET innobase)
   RETURN()
 ENDIF()
 
-INCLUDE(${MYSQL_CMAKE_SCRIPT_DIR}/compile_flags.cmake)
 # A GCC bug causes crash when compiling these files on ARM64 with -O1+
 # Compile them with -O0 as a workaround.
 IF(CMAKE_COMPILER_IS_GNUCXX AND CMAKE_SYSTEM_PROCESSOR MATCHES "aarch64")
@@ -174,7 +173,14 @@ IF(CMAKE_COMPILER_IS_GNUCXX AND CMAKE_SYSTEM_PROCESSOR MATCHES "aarch64")
       btr/btr0btr.cc
       btr/btr0cur.cc
       buf/buf0buf.cc
+      fts/fts0fts.cc
       gis/gis0sea.cc
+      handler/handler0alter.cc
+      mtr/mtr0mtr.cc
+      row/row0merge.cc
+      row/row0mysql.cc
+      row/row0trunc.cc
+      srv/srv0srv.cc
       COMPILE_FLAGS "-O0"
       )
   ENDIF()
@@ -191,3 +197,7 @@ IF(MSVC)
 ENDIF()
 
 ADD_SUBDIRECTORY(${CMAKE_SOURCE_DIR}/extra/mariabackup ${CMAKE_BINARY_DIR}/extra/mariabackup)
+
+IF(TARGET innobase)
+  ADD_DEPENDENCIES(innobase GenError)
+ENDIF()

@@ -87,9 +87,11 @@ static void queue_test_0 (uint64_t weight)
     d_max_weight = 0;
     QUEUE q;
     int r;
-    r = toku_queue_create(&q, weight);                               assert(r==0);
+    r = toku_queue_create(&q, weight);
+    assert(r == 0);
     toku_pthread_t thread;
-    r = toku_pthread_create(&thread, NULL, start_0, q); assert(r==0);
+    r = toku_pthread_create(toku_uninstrumented, &thread, nullptr, start_0, q);
+    assert(r == 0);
     enq(q, 0L, weight);
     enq(q, 1L, weight);
     enq(q, 2L, weight);

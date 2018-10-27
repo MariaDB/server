@@ -1,8 +1,8 @@
 /*****************************************************************************
 
-Copyright (c) 1996, 2016, Oracle and/or its affiliates. All Rights Reserved.
+Copyright (c) 1996, 2018, Oracle and/or its affiliates. All Rights Reserved.
 Copyright (c) 2012, Facebook Inc.
-Copyright (c) 2013, 2017, MariaDB Corporation.
+Copyright (c) 2013, 2018, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -37,6 +37,7 @@ Created 1/8/1996 Heikki Tuuri
 #include "ut0crc32.h"
 #include "lock0lock.h"
 #include "sync0sync.h"
+#include "row0row.h"
 #include <iostream>
 
 #define	DICT_HEAP_SIZE		100	/*!< initial memory heap size when
@@ -49,6 +50,29 @@ static const char* innobase_system_databases[] = {
 	"performance_schema/",
 	NullS
 };
+
+/** Determine if a table belongs to innobase_system_databases[]
+@param[in]	name	database_name/table_name
+@return	whether the database_name is in innobase_system_databases[] */
+static bool dict_mem_table_is_system(const char *name)
+{
+	/* table has the following format: database/table
+	and some system table are of the form SYS_* */
+	if (!strchr(name, '/')) {
+		return true;
+	}
+	size_t table_len = strlen(name);
+	const char *system_db;
+	int i = 0;
+	while ((system_db = innobase_system_databases[i++])
+	       && (system_db != NullS)) {
+		size_t len = strlen(system_db);
+		if (table_len > len && !strncmp(name, system_db, len)) {
+			return true;
+		}
+	}
+	return false;
+}
 
 /** The start of the table basename suffix for partitioned tables */
 const char table_name_t::part_suffix[4]
@@ -103,8 +127,7 @@ dict_table_t*
 dict_mem_table_create(
 /*==================*/
 	const char*	name,	/*!< in: table name */
-	ulint		space,	/*!< in: space where the clustered index of
-				the table is placed */
+	fil_space_t*	space,	/*!< in: tablespace */
 	ulint		n_cols,	/*!< in: total number of columns including
 				virtual and non-virtual columns */
 	ulint		n_v_cols,/*!< in: number of virtual columns */
@@ -115,6 +138,10 @@ dict_mem_table_create(
 	mem_heap_t*	heap;
 
 	ut_ad(name);
+	ut_ad(!space
+	      || space->purpose == FIL_TYPE_TABLESPACE
+	      || space->purpose == FIL_TYPE_TEMPORARY
+	      || space->purpose == FIL_TYPE_IMPORT);
 	ut_a(dict_tf2_is_valid(flags, flags2));
 	ut_a(!(flags2 & DICT_TF2_UNUSED_BIT_MASK));
 
@@ -135,10 +162,11 @@ dict_mem_table_create(
 	table->flags2 = (unsigned int) flags2;
 	table->name.m_name = mem_strdup(name);
 	table->is_system_db = dict_mem_table_is_system(table->name.m_name);
-	table->space = (unsigned int) space;
+	table->space = space;
+	table->space_id = space ? space->id : ULINT_UNDEFINED;
 	table->n_t_cols = unsigned(n_cols + DATA_N_SYS_COLS);
 	table->n_v_cols = (unsigned int) (n_v_cols);
-	table->n_cols = table->n_t_cols - table->n_v_cols;
+	table->n_cols = unsigned(table->n_t_cols - table->n_v_cols);
 
 	table->cols = static_cast<dict_col_t*>(
 		mem_heap_alloc(heap, table->n_cols * sizeof(dict_col_t)));
@@ -248,7 +276,7 @@ dict_add_col_name(
 			s += strlen(s) + 1;
 		}
 
-		old_len = s - col_names;
+		old_len = unsigned(s - col_names);
 	} else {
 		old_len = 0;
 	}
@@ -407,7 +435,7 @@ dict_mem_table_add_s_col(
 	dict_table_t*	table,
 	ulint		num_base)
 {
-	ulint	i = table->n_def - 1;
+	unsigned	i = unsigned(table->n_def) - 1;
 	dict_col_t*	col = dict_table_get_nth_col(table, i);
 	dict_s_col_t	s_col;
 
@@ -456,8 +484,8 @@ dict_mem_table_col_rename_low(
 	ut_ad(from_len <= NAME_LEN);
 	ut_ad(to_len <= NAME_LEN);
 
-	char from[NAME_LEN];
-	strncpy(from, s, NAME_LEN);
+	char from[NAME_LEN + 1];
+	strncpy(from, s, NAME_LEN + 1);
 
 	if (from_len == to_len) {
 		/* The easy case: simply replace the column name in
@@ -467,13 +495,13 @@ dict_mem_table_col_rename_low(
 		/* We need to adjust all affected index->field
 		pointers, as in dict_index_add_col(). First, copy
 		table->col_names. */
-		ulint	prefix_len	= s - t_col_names;
+		ulint	prefix_len	= ulint(s - t_col_names);
 
 		for (; i < n_col; i++) {
 			s += strlen(s) + 1;
 		}
 
-		ulint	full_len	= s - t_col_names;
+		ulint	full_len	= ulint(s - t_col_names);
 		char*	col_names;
 
 		if (to_len > from_len) {
@@ -506,12 +534,12 @@ dict_mem_table_col_rename_low(
 				/* if is_virtual and that in field->col does
 				not match, continue */
 				if ((!is_virtual) !=
-				    (!dict_col_is_virtual(field->col))) {
+				    (!field->col->is_virtual())) {
 					continue;
 				}
 
 				ulint		name_ofs
-					= field->name - t_col_names;
+					= ulint(field->name - t_col_names);
 				if (name_ofs <= prefix_len) {
 					field->name = col_names + name_ofs;
 				} else {
@@ -684,11 +712,11 @@ dict_mem_fill_column_struct(
 	column->mtype = (unsigned int) mtype;
 	column->prtype = (unsigned int) prtype;
 	column->len = (unsigned int) col_len;
+	dtype_get_mblen(mtype, prtype, &mbminlen, &mbmaxlen);
+	column->mbminlen = mbminlen;
+	column->mbmaxlen = mbmaxlen;
 	column->def_val.data = NULL;
 	column->def_val.len = UNIV_SQL_DEFAULT;
-
-	dtype_get_mblen(mtype, prtype, &mbminlen, &mbmaxlen);
-	dict_col_set_mbminmaxlen(column, mbminlen, mbmaxlen);
 }
 
 /**********************************************************************//**
@@ -697,11 +725,8 @@ Creates an index memory object.
 dict_index_t*
 dict_mem_index_create(
 /*==================*/
-	const char*	table_name,	/*!< in: table name */
+	dict_table_t*	table,		/*!< in: table */
 	const char*	index_name,	/*!< in: index name */
-	ulint		space,		/*!< in: space where the index tree is
-					placed, ignored if the index is of
-					the clustered type */
 	ulint		type,		/*!< in: DICT_UNIQUE,
 					DICT_CLUSTERED, ... ORed */
 	ulint		n_fields)	/*!< in: number of fields */
@@ -709,15 +734,16 @@ dict_mem_index_create(
 	dict_index_t*	index;
 	mem_heap_t*	heap;
 
-	ut_ad(table_name && index_name);
+	ut_ad(!table || table->magic_n == DICT_TABLE_MAGIC_N);
+	ut_ad(index_name);
 
 	heap = mem_heap_create(DICT_HEAP_SIZE);
 
 	index = static_cast<dict_index_t*>(
 		mem_heap_zalloc(heap, sizeof(*index)));
+	index->table = table;
 
-	dict_mem_fill_index_struct(index, heap, table_name, index_name,
-				   space, type, n_fields);
+	dict_mem_fill_index_struct(index, heap, index_name, type, n_fields);
 
 	dict_index_zip_pad_mutex_create_lazy(index);
 
@@ -1019,7 +1045,7 @@ dict_mem_index_add_field(
 
 	index->n_def++;
 
-	field = dict_index_get_nth_field(index, index->n_def - 1);
+	field = dict_index_get_nth_field(index, unsigned(index->n_def) - 1);
 
 	field->name = name;
 	field->prefix_len = (unsigned int) prefix_len;
@@ -1053,6 +1079,7 @@ dict_mem_index_free(
 		UT_DELETE(index->rtr_track->rtr_active);
 	}
 
+	dict_index_remove_from_v_col_list(index);
 	mem_heap_free(index->heap);
 }
 
@@ -1078,7 +1105,7 @@ dict_mem_create_temporary_tablename(
 	char*		name;
 	const char*	dbend   = strchr(dbtab, '/');
 	ut_ad(dbend);
-	size_t		dblen   = dbend - dbtab + 1;
+	size_t		dblen   = size_t(dbend - dbtab) + 1;
 
 	/* Increment a randomly initialized  number for each temp file. */
 	my_atomic_add32((int32*) &dict_temp_file_num, 1);
@@ -1166,35 +1193,6 @@ operator<< (std::ostream& out, const dict_foreign_set& fk_set)
 	return(out);
 }
 
-/****************************************************************//**
-Determines if a table belongs to a system database
-@return */
-bool
-dict_mem_table_is_system(
-/*================*/
-	char	*name)		/*!< in: table name */
-{
-	ut_ad(name);
-
-	/* table has the following format: database/table
-	and some system table are of the form SYS_* */
-	if (strchr(name, '/')) {
-		size_t table_len = strlen(name);
-		const char *system_db;
-		int i = 0;
-		while ((system_db = innobase_system_databases[i++])
-			&& (system_db != NullS)) {
-			size_t len = strlen(system_db);
-			if (table_len > len && !strncmp(name, system_db, len)) {
-				return true;
-			}
-		}
-		return false;
-	} else {
-		return true;
-	}
-}
-
 /** Adjust clustered index metadata for instant ADD COLUMN.
 @param[in]	clustered index definition after instant ADD COLUMN */
 inline void dict_index_t::instant_add_field(const dict_index_t& instant)
@@ -1251,8 +1249,9 @@ void dict_table_t::instant_add_column(const dict_table_t& table)
 	const char* end = table.col_names;
 	for (unsigned i = table.n_cols; i--; ) end += strlen(end) + 1;
 
-	col_names = static_cast<char*>(mem_heap_dup(heap, table.col_names,
-						    end - table.col_names));
+	col_names = static_cast<char*>(
+		mem_heap_dup(heap, table.col_names,
+			     ulint(end - table.col_names)));
 	const dict_col_t* const old_cols = cols;
 	const dict_col_t* const old_cols_end = cols + n_cols;
 	cols = static_cast<dict_col_t*>(mem_heap_dup(heap, table.cols,
@@ -1261,7 +1260,7 @@ void dict_table_t::instant_add_column(const dict_table_t& table)
 
 	/* Preserve the default values of previously instantly
 	added columns. */
-	for (unsigned i = n_cols - DATA_N_SYS_COLS; i--; ) {
+	for (unsigned i = unsigned(n_cols) - DATA_N_SYS_COLS; i--; ) {
 		cols[i].def_val = old_cols[i].def_val;
 	}
 
@@ -1279,7 +1278,7 @@ void dict_table_t::instant_add_column(const dict_table_t& table)
 	}
 
 	const unsigned old_n_cols = n_cols;
-	const unsigned n_add = table.n_cols - n_cols;
+	const unsigned n_add = unsigned(table.n_cols - n_cols);
 
 	n_t_def += n_add;
 	n_t_cols += n_add;
@@ -1352,14 +1351,17 @@ dict_table_t::rollback_instant(
 
 	for (unsigned i = index->n_fields - n_remove; i < index->n_fields;
 	     i++) {
-		index->n_nullable -= index->fields[i].col->is_nullable();
+		if (index->fields[i].col->is_nullable()) {
+			index->n_nullable--;
+		}
 	}
 
 	index->n_fields -= n_remove;
 	index->n_def = index->n_fields;
 	if (index->n_core_fields > index->n_fields) {
 		index->n_core_fields = index->n_fields;
-		index->n_core_null_bytes = UT_BITS_IN_BYTES(index->n_nullable);
+		index->n_core_null_bytes
+			= UT_BITS_IN_BYTES(unsigned(index->n_nullable));
 	}
 
 	const dict_col_t* const new_cols = cols;
@@ -1426,7 +1428,9 @@ void dict_table_t::rollback_instant(unsigned n)
 	DBUG_ASSERT(!memcmp(sys, system, sizeof system));
 	for (unsigned i = index->n_fields - n_remove; i < index->n_fields;
 	     i++) {
-		index->n_nullable -= index->fields[i].col->is_nullable();
+		if (index->fields[i].col->is_nullable()) {
+			index->n_nullable--;
+		}
 	}
 	index->n_fields -= n_remove;
 	index->n_def = index->n_fields;
@@ -1492,16 +1496,12 @@ dict_index_t::vers_history_row(
 	ut_ad(col.vers_sys_end());
 	ulint nfield = dict_col_get_clust_pos(&col, this);
 	const byte *data = rec_get_nth_field(rec, offsets, nfield, &len);
-	if (col.mtype == DATA_FIXBINARY) {
-		ut_ad(len == sizeof timestamp_max_bytes);
-		return 0 != memcmp(data, timestamp_max_bytes, len);
-	} else {
-		ut_ad(col.mtype == DATA_INT);
+	if (col.vers_native()) {
 		ut_ad(len == sizeof trx_id_max_bytes);
 		return 0 != memcmp(data, trx_id_max_bytes, len);
 	}
-	ut_ad(0);
-	return false;
+	ut_ad(len == sizeof timestamp_max_bytes);
+	return 0 != memcmp(data, timestamp_max_bytes, len);
 }
 
 /** Check if record in secondary index is historical row.

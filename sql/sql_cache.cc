@@ -329,6 +329,9 @@ TODO list:
 */
 
 #include "mariadb.h"                          /* NO_EMBEDDED_ACCESS_CHECKS */
+#if defined(DBUG_OFF) && defined(HAVE_MADVISE)
+#include <sys/mman.h>
+#endif
 #include "sql_priv.h"
 #include "sql_basic_types.h"
 #include "sql_cache.h"
@@ -1049,7 +1052,7 @@ void query_cache_insert(void *thd_arg, const char *packet, size_t length,
     called for this thread.
   */
 
-  if (!thd)
+  if (unlikely(!thd))
     return;
 
   query_cache.insert(thd, &thd->query_cache_tls,
@@ -1187,7 +1190,11 @@ void Query_cache::end_of_result(THD *thd)
 #endif
 
   if (try_lock(thd, Query_cache::WAIT))
+  {
+    if (is_disabled())
+      query_cache_tls->first_query_block= NULL; // do not try again with QC
     DBUG_VOID_RETURN;
+  }
 
   query_block= query_cache_tls->first_query_block;
   if (query_block)
@@ -1563,6 +1570,8 @@ def_week_frmt: %zu, in_trans: %d, autocommit: %d",
 	header->tables_type(tables_type);
 
         unlock();
+
+        DEBUG_SYNC(thd, "wait_in_query_cache_store_query");
 
 	// init_n_lock make query block locked
 	BLOCK_UNLOCK_WR(query_block);
@@ -2573,6 +2582,7 @@ void Query_cache::init()
   */
   if (global_system_variables.query_cache_type == 0)
   {
+    m_cache_status= DISABLE_REQUEST;
     free_cache();
     m_cache_status= DISABLED;
   }
@@ -2584,7 +2594,7 @@ size_t Query_cache::init_cache()
 {
   size_t mem_bin_count, num, step;
   size_t mem_bin_size, prev_size, inc;
-  size_t additional_data_size, max_mem_bin_size, approx_additional_data_size;
+  size_t max_mem_bin_size, approx_additional_data_size;
   int align;
 
   DBUG_ENTER("Query_cache::init_cache");
@@ -2649,6 +2659,13 @@ size_t Query_cache::init_cache()
   if (!(cache= (uchar *)
         my_malloc_lock(query_cache_size+additional_data_size, MYF(0))))
     goto err;
+#if defined(DBUG_OFF) && defined(HAVE_MADVISE) &&  defined(MADV_DONTDUMP)
+  if (madvise(cache, query_cache_size+additional_data_size, MADV_DONTDUMP))
+  {
+    DBUG_PRINT("warning", ("coudn't mark query cache memory as MADV_DONTDUMP: %s",
+			 strerror(errno)));
+  }
+#endif
 
   DBUG_PRINT("qcache", ("cache length %zu, min unit %zu, %zu bins",
 		      query_cache_size, min_allocation_unit, mem_bin_num));
@@ -2781,12 +2798,16 @@ void Query_cache::make_disabled()
 
   This function frees all resources allocated by the cache.  You
   have to call init_cache() before using the cache again. This function
-  requires the structure_guard_mutex to be locked.
+  requires the cache to be locked (LOCKED_NO_WAIT, lock_and_suspend) or
+  disabling.
 */
 
 void Query_cache::free_cache()
 {
   DBUG_ENTER("Query_cache::free_cache");
+
+  DBUG_ASSERT(m_cache_lock_status == LOCKED_NO_WAIT ||
+              m_cache_status == DISABLE_REQUEST);
 
   /* Destroy locks */
   Query_cache_block *block= queries_blocks;
@@ -2795,11 +2816,25 @@ void Query_cache::free_cache()
     do
     {
       Query_cache_query *query= block->query();
+      /*
+         There will not be new requests but some maybe not finished yet,
+         so wait for them by trying lock/unlock
+      */
+      BLOCK_LOCK_WR(block);
+      BLOCK_UNLOCK_WR(block);
+
       mysql_rwlock_destroy(&query->lock);
       block= block->next;
     } while (block != queries_blocks);
   }
 
+#if defined(DBUG_OFF) && defined(HAVE_MADVISE) &&  defined(MADV_DODUMP)
+  if (madvise(cache, query_cache_size+additional_data_size, MADV_DODUMP))
+  {
+    DBUG_PRINT("warning", ("coudn't mark query cache memory as MADV_DODUMP: %s",
+			 strerror(errno)));
+  }
+#endif
   my_free(cache);
   make_disabled();
   my_hash_free(&queries);

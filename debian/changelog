@@ -1,3 +1,9 @@
+mariadb-10.3 (1:10.3.0) unstable; urgency=low
+
+  * Bump epoch to supersede 1:10.1.29-6 in Debian
+
+ -- Otto Kekäläinen <otto@mariadb.org>  Sat, 31 Mar 2018 22:34:34 +0300
+
 mariadb-10.3 (10.3.0) unstable; urgency=low
 
   * Initial release.

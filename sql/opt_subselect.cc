@@ -441,6 +441,7 @@ bool subquery_types_allow_materialization(Item_in_subselect *in_subs);
 static bool replace_where_subcondition(JOIN *, Item **, Item *, Item *, bool);
 static int subq_sj_candidate_cmp(Item_in_subselect* el1, Item_in_subselect* el2,
                                  void *arg);
+static void reset_equality_number_for_subq_conds(Item * cond);
 static bool convert_subq_to_sj(JOIN *parent_join, Item_in_subselect *subq_pred);
 static bool convert_subq_to_jtbm(JOIN *parent_join, 
                                  Item_in_subselect *subq_pred, bool *remove);
@@ -620,8 +621,8 @@ int check_and_do_in_subquery_rewrites(JOIN *join)
       char const *save_where= thd->where;
       thd->where= "IN/ALL/ANY subquery";
 
-      bool failure= !in_subs->left_expr->fixed &&
-                     in_subs->left_expr->fix_fields(thd, &in_subs->left_expr);
+      bool failure= in_subs->left_expr->fix_fields_if_needed(thd,
+                                                          &in_subs->left_expr);
       thd->lex->current_select= current;
       thd->where= save_where;
       if (failure)
@@ -815,6 +816,9 @@ int check_and_do_in_subquery_rewrites(JOIN *join)
           details)
         * require that compared columns have exactly the same type. This is
           a temporary measure to avoid BUG#36752-type problems.
+
+    JOIN_TAB::keyuse_is_valid_for_access_in_chosen_plan expects that for Semi Join Materialization
+    Scan all the items in the select list of the IN Subquery are of the type Item::FIELD_ITEM.
 */
 
 static 
@@ -848,8 +852,10 @@ bool subquery_types_allow_materialization(Item_in_subselect *in_subs)
      Make sure that create_tmp_table will not fail due to too long keys.
      See MDEV-7122. This check is performed inside create_tmp_table also and
      we must do it so that we know the table has keys created.
+     Make sure that the length of the key for the temp_table is atleast
+     greater than 0.
   */
-  if (total_key_length > tmp_table_max_key_length() ||
+  if (!total_key_length || total_key_length > tmp_table_max_key_length() ||
       elements > tmp_table_max_key_parts())
     DBUG_RETURN(FALSE);
 
@@ -979,6 +985,10 @@ bool check_for_outer_joins(List<TABLE_LIST> *join_list)
 void find_and_block_conversion_to_sj(Item *to_find,
 				     List_iterator_fast<Item_in_subselect> &li)
 {
+  if (to_find->type() == Item::FUNC_ITEM &&
+     ((Item_func*)to_find)->functype() == Item_func::IN_OPTIMIZER_FUNC)
+    to_find= ((Item_in_optimizer*)to_find)->get_wrapped_in_subselect_item();
+
   if (to_find->type() != Item::SUBSELECT_ITEM ||
       ((Item_subselect *) to_find)->substype() != Item_subselect::IN_SUBS)
     return;
@@ -1057,8 +1067,6 @@ bool convert_join_subqueries_to_semijoins(JOIN *join)
   while ((in_subq= li++))
   {
     SELECT_LEX *subq_sel= in_subq->get_select_lex();
-    if (subq_sel->handle_derived(thd->lex, DT_OPTIMIZE))
-      DBUG_RETURN(1);
     if (subq_sel->handle_derived(thd->lex, DT_MERGE))
       DBUG_RETURN(TRUE);
     if (subq_sel->join->transform_in_predicates_into_in_subq(thd))
@@ -1425,6 +1433,67 @@ static int subq_sj_candidate_cmp(Item_in_subselect* el1, Item_in_subselect* el2,
 }
 
 
+/**
+    @brief
+    reset the value of the field in_eqaulity_no for all Item_func_eq
+    items in the where clause of the subquery.
+
+    Look for in_equality_no description in Item_func_eq class
+
+    DESCRIPTION
+    Lets have an example:
+    SELECT t1.a FROM t1 WHERE t1.a IN
+      (SELECT t2.a FROM t2 where t2.b IN
+          (select t3.b from t3 where t3.c=27 ))
+
+    So for such a query we have the parent, child and
+    grandchild select.
+
+    So for the equality t2.b = t3.b we set the value for in_equality_no to
+    0 according to its description. Wewe do the same for t1.a = t2.a.
+    But when we look at the child select (with the grandchild select merged),
+    the query would be
+
+    SELECT t1.a FROM t1 WHERE t1.a IN
+      (SELECT t2.a FROM t2 where t2.b = t3.b and t3.c=27)
+
+    and then when the child select is merged into the parent select the query
+    would look like
+
+    SELECT t1.a FROM t1, semi-join-nest(t2,t3)
+            WHERE t1.a =t2.a and t2.b = t3.b and t3.c=27
+
+    Still we would have in_equality_no set for t2.b = t3.b
+    though it does not take part in the semi-join equality for the parent select,
+    so we should reset its value to UINT_MAX.
+
+    @param cond WHERE clause of the subquery
+*/
+
+static void reset_equality_number_for_subq_conds(Item * cond)
+{
+  if (!cond)
+    return;
+  if (cond->type() == Item::COND_ITEM)
+  {
+    List_iterator<Item> li(*((Item_cond*) cond)->argument_list());
+    Item *item;
+    while ((item=li++))
+    {
+      if (item->type() == Item::FUNC_ITEM &&
+      ((Item_func*)item)->functype()== Item_func::EQ_FUNC)
+        ((Item_func_eq*)item)->in_equality_no= UINT_MAX;
+    }
+  }
+  else
+  {
+    if (cond->type() == Item::FUNC_ITEM &&
+      ((Item_func*)cond)->functype()== Item_func::EQ_FUNC)
+        ((Item_func_eq*)cond)->in_equality_no= UINT_MAX;
+  }
+  return;
+}
+
 /*
   Convert a subquery predicate into a TABLE_LIST semi-join nest
 
@@ -1662,8 +1731,7 @@ static bool convert_subq_to_sj(JOIN *parent_join, Item_in_subselect *subq_pred)
   */
   SELECT_LEX *save_lex= thd->lex->current_select;
   thd->lex->current_select=subq_lex;
-  if (!subq_pred->left_expr->fixed &&
-       subq_pred->left_expr->fix_fields(thd, &subq_pred->left_expr))
+  if (subq_pred->left_expr->fix_fields_if_needed(thd, &subq_pred->left_expr))
     DBUG_RETURN(TRUE);
   thd->lex->current_select=save_lex;
 
@@ -1690,6 +1758,7 @@ static bool convert_subq_to_sj(JOIN *parent_join, Item_in_subselect *subq_pred)
   */
   sj_nest->sj_in_exprs= subq_pred->left_expr->cols();
   sj_nest->nested_join->sj_outer_expr_list.empty();
+  reset_equality_number_for_subq_conds(sj_nest->sj_on_expr);
 
   if (subq_pred->left_expr->cols() == 1)
   {
@@ -1773,8 +1842,7 @@ static bool convert_subq_to_sj(JOIN *parent_join, Item_in_subselect *subq_pred)
     to check for this at name resolution stage, but as a legacy of IN->EXISTS
     we have in here).
   */
-  if (!sj_nest->sj_on_expr->fixed &&
-      sj_nest->sj_on_expr->fix_fields(thd, &sj_nest->sj_on_expr))
+  if (sj_nest->sj_on_expr->fix_fields_if_needed(thd, &sj_nest->sj_on_expr))
   {
     DBUG_RETURN(TRUE);
   }
@@ -1800,9 +1868,8 @@ static bool convert_subq_to_sj(JOIN *parent_join, Item_in_subselect *subq_pred)
     emb_tbl_nest->on_expr= and_items(thd, emb_tbl_nest->on_expr,
                                      sj_nest->sj_on_expr);
     emb_tbl_nest->on_expr->top_level_item();
-    if (!emb_tbl_nest->on_expr->fixed &&
-         emb_tbl_nest->on_expr->fix_fields(thd,
-                                           &emb_tbl_nest->on_expr))
+    if (emb_tbl_nest->on_expr->fix_fields_if_needed(thd,
+                                                    &emb_tbl_nest->on_expr))
     {
       DBUG_RETURN(TRUE);
     }
@@ -1818,9 +1885,7 @@ static bool convert_subq_to_sj(JOIN *parent_join, Item_in_subselect *subq_pred)
     */
     save_lex= thd->lex->current_select;
     thd->lex->current_select=parent_join->select_lex;
-    if (!parent_join->conds->fixed &&
-         parent_join->conds->fix_fields(thd,
-                                        &parent_join->conds))
+    if (parent_join->conds->fix_fields_if_needed(thd, &parent_join->conds))
     {
       DBUG_RETURN(1);
     }
@@ -3506,7 +3571,8 @@ void fix_semijoin_strategies_for_picked_join_order(JOIN *join)
       first= tablenr - sjm->tables + 1;
       join->best_positions[first].n_sj_tables= sjm->tables;
       join->best_positions[first].sj_strategy= SJ_OPT_MATERIALIZE;
-      join->sjm_lookup_tables|= s->table->map;
+      for (uint i= first; i < first+ sjm->tables; i++)
+        join->sjm_lookup_tables |= join->best_positions[i].table->table->map;
     }
     else if (pos->sj_strategy == SJ_OPT_MATERIALIZE_SCAN)
     {
@@ -3702,8 +3768,7 @@ bool setup_sj_materialization_part1(JOIN_TAB *sjm_tab)
   sjm= emb_sj_nest->sj_mat_info;
   thd= tab->join->thd;
   /* First the calls come to the materialization function */
-  //List<Item> &item_list= emb_sj_nest->sj_subq_pred->unit->first_select()->item_list;
-  
+
   DBUG_ASSERT(sjm->is_used);
   /* 
     Set up the table to write to, do as select_union::create_result_table does
@@ -3712,10 +3777,22 @@ bool setup_sj_materialization_part1(JOIN_TAB *sjm_tab)
   sjm->sjm_table_param.bit_fields_as_long= TRUE;
   SELECT_LEX *subq_select= emb_sj_nest->sj_subq_pred->unit->first_select();
   const LEX_CSTRING sj_materialize_name= { STRING_WITH_LEN("sj-materialize") };
-  Ref_ptr_array p_items= subq_select->ref_pointer_array;
-  for (uint i= 0; i < subq_select->item_list.elements; i++)
-    sjm->sjm_table_cols.push_back(p_items[i], thd->mem_root);
-  
+  List_iterator<Item> it(subq_select->item_list);
+  Item *item;
+  while((item= it++))
+  {
+    /*
+      This semi-join replaced the subquery (subq_select) and so on
+      re-executing it will not be prepared. To use the Items from its
+      select list we have to prepare (fix_fields) them
+    */
+    if (item->fix_fields_if_needed(thd, it.ref()))
+      DBUG_RETURN(TRUE);
+    item= *(it.ref()); // it can be changed by fix_fields
+    DBUG_ASSERT(!item->name.length || item->name.length == strlen(item->name.str));
+    sjm->sjm_table_cols.push_back(item, thd->mem_root);
+  }
+
   sjm->sjm_table_param.field_count= subq_select->item_list.elements;
   sjm->sjm_table_param.force_not_null_cols= TRUE;
 
@@ -4346,7 +4423,7 @@ SJ_TMP_TABLE::create_sj_weedout_tmp_table(THD *thd)
     }
   }
 
-  if (thd->is_fatal_error)			// If end of memory
+  if (unlikely(thd->is_fatal_error))            // If end of memory
     goto err;
   share->db_record_offset= 1;
   table->no_rows= 1;              		// We don't need the data
@@ -4355,10 +4432,11 @@ SJ_TMP_TABLE::create_sj_weedout_tmp_table(THD *thd)
   recinfo++;
   if (share->db_type() == TMP_ENGINE_HTON)
   {
-    if (create_internal_tmp_table(table, keyinfo, start_recinfo, &recinfo, 0))
+    if (unlikely(create_internal_tmp_table(table, keyinfo, start_recinfo,
+                                           &recinfo, 0)))
       goto err;
   }
-  if (open_tmp_table(table))
+  if (unlikely(open_tmp_table(table)))
     goto err;
 
   thd->mem_root= mem_root_save;
@@ -4470,7 +4548,7 @@ int SJ_TMP_TABLE::sj_weedout_check_row(THD *thd)
   }
 
   error= tmp_table->file->ha_write_tmp_row(tmp_table->record[0]);
-  if (error)
+  if (unlikely(error))
   {
     /* create_internal_tmp_table_from_heap will generate error if needed */
     if (!tmp_table->file->is_fatal_error(error, HA_CHECK_DUP))
@@ -5291,7 +5369,8 @@ enum_nested_loop_state join_tab_execution_startup(JOIN_TAB *tab)
       hash_sj_engine->materialize_join->exec();
       hash_sj_engine->is_materialized= TRUE; 
 
-      if (hash_sj_engine->materialize_join->error || tab->join->thd->is_fatal_error)
+      if (unlikely(hash_sj_engine->materialize_join->error) ||
+          unlikely(tab->join->thd->is_fatal_error))
         DBUG_RETURN(NESTED_LOOP_ERROR);
     }
   }
@@ -5555,8 +5634,7 @@ bool setup_jtbm_semi_joins(JOIN *join, List<TABLE_LIST> *join_list,
         Item *sj_conds= hash_sj_engine->semi_join_conds;
 
         (*join_where)= and_items(thd, *join_where, sj_conds);
-        if (!(*join_where)->fixed)
-          (*join_where)->fix_fields(thd, join_where);
+        (*join_where)->fix_fields_if_needed(thd, join_where);
       }
       table->table->maybe_null= MY_TEST(join->mixed_implicit_grouping);
     }
@@ -5924,6 +6002,7 @@ bool JOIN::choose_tableless_subquery_plan()
           functions produce empty subquery result. There is no need to further
           rewrite the subquery because it will not be executed at all.
         */
+        exec_const_cond= 0;
         return FALSE;
       }
 
@@ -5955,5 +6034,6 @@ bool JOIN::choose_tableless_subquery_plan()
       tmp_having= having;
     }
   }
+  exec_const_cond= zero_result_cause ? 0 : conds;
   return FALSE;
 }

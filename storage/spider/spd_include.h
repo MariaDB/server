@@ -13,6 +13,8 @@
   along with this program; if not, write to the Free Software
   Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307  USA */
 
+#include "tztime.h"
+
 #define SPIDER_DETAIL_VERSION "3.3.13"
 #define SPIDER_HEX_VERSION 0x0303
 
@@ -74,12 +76,12 @@
 #define spider_user_defined_key_parts(A) (A)->user_defined_key_parts
 #define spider_join_table_count(A) (A)->table_count
 #define SPIDER_CAN_BG_UPDATE (1LL << 39)
-#define SPIDER_ALTER_ADD_PARTITION        Alter_info::ALTER_ADD_PARTITION
-#define SPIDER_ALTER_DROP_PARTITION       Alter_info::ALTER_DROP_PARTITION
-#define SPIDER_ALTER_COALESCE_PARTITION   Alter_info::ALTER_COALESCE_PARTITION
-#define SPIDER_ALTER_REORGANIZE_PARTITION Alter_info::ALTER_REORGANIZE_PARTITION
-#define SPIDER_ALTER_TABLE_REORG          Alter_info::ALTER_TABLE_REORG
-#define SPIDER_ALTER_REBUILD_PARTITION    Alter_info::ALTER_REBUILD_PARTITION
+#define SPIDER_ALTER_PARTITION_ADD        ALTER_PARTITION_ADD
+#define SPIDER_ALTER_PARTITION_DROP       ALTER_PARTITION_DROP
+#define SPIDER_ALTER_PARTITION_COALESCE   ALTER_PARTITION_COALESCE
+#define SPIDER_ALTER_PARTITION_REORGANIZE ALTER_PARTITION_REORGANIZE
+#define SPIDER_ALTER_PARTITION_TABLE_REORG          ALTER_PARTITION_TABLE_REORG
+#define SPIDER_ALTER_PARTITION_REBUILD    ALTER_PARTITION_REBUILD
 #define SPIDER_WARN_LEVEL_WARN            Sql_condition::WARN_LEVEL_WARN
 #define SPIDER_WARN_LEVEL_NOTE            Sql_condition::WARN_LEVEL_NOTE
 #define SPIDER_THD_KILL_CONNECTION        KILL_CONNECTION
@@ -98,12 +100,12 @@
 #endif
 #define spider_user_defined_key_parts(A) (A)->key_parts
 #define spider_join_table_count(A) (A)->tables
-#define SPIDER_ALTER_ADD_PARTITION        ALTER_ADD_PARTITION
-#define SPIDER_ALTER_DROP_PARTITION       ALTER_DROP_PARTITION
-#define SPIDER_ALTER_COALESCE_PARTITION   ALTER_COALESCE_PARTITION
-#define SPIDER_ALTER_REORGANIZE_PARTITION ALTER_REORGANIZE_PARTITION
-#define SPIDER_ALTER_TABLE_REORG          ALTER_TABLE_REORG
-#define SPIDER_ALTER_REBUILD_PARTITION    ALTER_REBUILD_PARTITION
+#define SPIDER_ALTER_PARTITION_ADD        ALTER_PARTITION_ADD
+#define SPIDER_ALTER_PARTITION_DROP       ALTER_PARTITION_DROP
+#define SPIDER_ALTER_PARTITION_COALESCE   ALTER_PARTITION_COALESCE
+#define SPIDER_ALTER_PARTITION_REORGANIZE ALTER_PARTITION_REORGANIZE
+#define SPIDER_ALTER_PARTITION_TABLE_REORG          ALTER_PARTITION_TABLE_REORG
+#define SPIDER_ALTER_PARTITION_REBUILD    ALTER_PARTITION_REBUILD
 #define SPIDER_WARN_LEVEL_WARN            MYSQL_ERROR::WARN_LEVEL_WARN
 #define SPIDER_WARN_LEVEL_NOTE            MYSQL_ERROR::WARN_LEVEL_NOTE
 #define SPIDER_THD_KILL_CONNECTION        THD::KILL_CONNECTION
@@ -526,6 +528,9 @@ typedef struct st_spider_conn
   st_spider_conn     *bulk_access_next;
 #endif
 
+  bool               disable_connect_retry;  /* TRUE if it is unnecessary to
+                                                retry to connect after a
+                                                connection error */
   bool               connect_error_with_message;
   char               connect_error_msg[MYSQL_ERRMSG_SIZE];
   int                connect_error;

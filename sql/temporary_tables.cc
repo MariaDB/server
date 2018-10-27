@@ -112,12 +112,14 @@ TABLE *THD::create_and_open_tmp_table(handlerton *hton,
 
   @param db [IN]                      Database name
   @param table_name [IN]              Table name
+  @param state [IN]                   State of temp table to open
 
   @return Success                     Pointer to first used table instance.
           Failure                     NULL
 */
 TABLE *THD::find_temporary_table(const char *db,
-                                 const char *table_name)
+                                 const char *table_name,
+                                 Temporary_table_state state)
 {
   DBUG_ENTER("THD::find_temporary_table");
 
@@ -134,7 +136,7 @@ TABLE *THD::find_temporary_table(const char *db,
   key_length= create_tmp_table_def_key(key, db, table_name);
 
   locked= lock_temporary_tables();
-  table = find_temporary_table(key, key_length, TMP_TABLE_IN_USE);
+  table=  find_temporary_table(key, key_length, state);
   if (locked)
   {
     DBUG_ASSERT(m_tmp_tables_locked);
@@ -153,16 +155,12 @@ TABLE *THD::find_temporary_table(const char *db,
   @return Success                     Pointer to first used table instance.
           Failure                     NULL
 */
-TABLE *THD::find_temporary_table(const TABLE_LIST *tl)
+TABLE *THD::find_temporary_table(const TABLE_LIST *tl,
+                                 Temporary_table_state state)
 {
   DBUG_ENTER("THD::find_temporary_table");
-
-  if (!has_temporary_tables())
-  {
-    DBUG_RETURN(NULL);
-  }
-
-  TABLE *table= find_temporary_table(tl->get_db_name(), tl->get_table_name());
+  TABLE *table= find_temporary_table(tl->get_db_name(), tl->get_table_name(),
+                                     state);
   DBUG_RETURN(table);
 }
 
@@ -1140,7 +1138,8 @@ TABLE *THD::open_temporary_table(TMP_TABLE_SHARE *share,
     thread_safe_increment32(&slave_open_temp_tables);
   }
 
-  DBUG_PRINT("tmptable", ("Opened table: '%s'.'%s'%p", table->s->db.str,
+  DBUG_PRINT("tmptable", ("Opened table: '%s'.'%s  table: %p",
+                          table->s->db.str,
                           table->s->table_name.str, table));
   DBUG_RETURN(table);
 }
@@ -1397,7 +1396,8 @@ bool THD::log_events_and_free_tmp_shares()
 
       get_stmt_da()->set_overwrite_status(true);
       transaction.stmt.mark_dropped_temp_table();
-      if ((error= (mysql_bin_log.write(&qinfo) || error)))
+      bool error2= mysql_bin_log.write(&qinfo);
+      if (unlikely(error|= error2))
       {
         /*
           If we're here following THD::cleanup, thence the connection
@@ -1540,3 +1540,33 @@ void THD::unlock_temporary_tables()
   DBUG_VOID_RETURN;
 }
 
+
+/**
+  Close unused TABLE instances for given temporary table.
+
+  @param tl [IN]                      TABLE_LIST
+
+  Initial use case was TRUNCATE, which expects only one instance (which is used
+  by TRUNCATE itself) to be open. Most probably some ALTER TABLE variants and
+  REPAIR may have similar expectations.
+*/
+
+void THD::close_unused_temporary_table_instances(const TABLE_LIST *tl)
+{
+  TMP_TABLE_SHARE *share= find_tmp_table_share(tl);
+
+  if (share)
+  {
+    All_share_tables_list::Iterator tables_it(share->all_tmp_tables);
+
+     while (TABLE *table= tables_it++)
+     {
+       if (table->query_id == 0)
+       {
+         /* Note: removing current list element doesn't invalidate iterator. */
+         share->all_tmp_tables.remove(table);
+         free_temporary_table(table);
+       }
+     }
+  }
+}

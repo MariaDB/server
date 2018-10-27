@@ -124,7 +124,8 @@ const TABLE_FIELD_TYPE event_table_fields[ET_FIELD_COUNT] =
     "'ANSI','NO_AUTO_VALUE_ON_ZERO','NO_BACKSLASH_ESCAPES','STRICT_TRANS_TABLES',"
     "'STRICT_ALL_TABLES','NO_ZERO_IN_DATE','NO_ZERO_DATE','INVALID_DATES',"
     "'ERROR_FOR_DIVISION_BY_ZERO','TRADITIONAL','NO_AUTO_CREATE_USER',"
-    "'HIGH_NOT_PRECEDENCE','NO_ENGINE_SUBSTITUTION','PAD_CHAR_TO_FULL_LENGTH')") },
+    "'HIGH_NOT_PRECEDENCE','NO_ENGINE_SUBSTITUTION','PAD_CHAR_TO_FULL_LENGTH',"
+    "'EMPTY_STRING_IS_NULL','SIMULTANEOUS_ASSIGNMENT')") },
     {NULL, 0}
   },
   {
@@ -1185,46 +1186,9 @@ Event_db_repository::check_system_tables(THD *thd)
 {
   TABLE_LIST tables;
   int ret= FALSE;
-  const unsigned int event_priv_column_position= 29;
-
   DBUG_ENTER("Event_db_repository::check_system_tables");
   DBUG_PRINT("enter", ("thd: %p", thd));
 
-  /* Check mysql.db */
-  tables.init_one_table(&MYSQL_SCHEMA_NAME, &MYSQL_DB_NAME, 0, TL_READ);
-
-  if (open_and_lock_tables(thd, &tables, FALSE, MYSQL_LOCK_IGNORE_TIMEOUT))
-  {
-    ret= 1;
-    sql_print_error("Cannot open mysql.db");
-  }
-  else
-  {
-    if (table_intact.check(tables.table, &mysql_db_table_def))
-      ret= 1;
-
-    close_mysql_tables(thd);
-  }
-  /* Check mysql.user */
-  tables.init_one_table(&MYSQL_SCHEMA_NAME, &MYSQL_USER_NAME, 0, TL_READ);
-
-  if (open_and_lock_tables(thd, &tables, FALSE, MYSQL_LOCK_IGNORE_TIMEOUT))
-  {
-    ret= 1;
-    sql_print_error("Cannot open mysql.user");
-  }
-  else
-  {
-    if (tables.table->s->fields < event_priv_column_position ||
-        strncmp(tables.table->field[event_priv_column_position]->field_name.str,
-                STRING_WITH_LEN("Event_priv")))
-    {
-      sql_print_error("mysql.user has no `Event_priv` column at position %d",
-                      event_priv_column_position);
-      ret= 1;
-    }
-    close_mysql_tables(thd);
-  }
   /* Check mysql.event */
   tables.init_one_table(&MYSQL_SCHEMA_NAME, &MYSQL_EVENT_NAME, 0, TL_READ);
 

@@ -40,6 +40,10 @@ IF(NOT HAVE_SYSTEM_REGEX)
   INCLUDE_DIRECTORIES(${CMAKE_SOURCE_DIR}/pcre)
 ENDIF()
 
+IF(WITH_WSREP)
+  INCLUDE_DIRECTORIES(${CMAKE_SOURCE_DIR}/wsrep)
+ENDIF()
+
 ADD_DEFINITIONS(-UMYSQL_SERVER)
 ########################################################################
 # xtrabackup binary
@@ -51,7 +55,7 @@ ELSE()
   SET(NT_SERVICE_SOURCE)
 ENDIF()
 
-ADD_DEFINITIONS(-DPCRE_STATIC=1)
+ADD_DEFINITIONS(-DPCRE_STATIC=1 -DHAVE_OPENSSL=1)
 
 MYSQL_ADD_EXECUTABLE(mariabackup
   xtrabackup.cc
@@ -60,7 +64,7 @@ MYSQL_ADD_EXECUTABLE(mariabackup
   datasink.c
   ds_buffer.c
   ds_compress.c
-  ds_local.c
+  ds_local.cc
   ds_stdout.c
   ds_tmpfile.c
   ds_xbstream.c
@@ -97,7 +101,7 @@ ENDIF()
 ########################################################################
 MYSQL_ADD_EXECUTABLE(mbstream
   ds_buffer.c
-  ds_local.c
+  ds_local.cc
   ds_stdout.c
   datasink.c
   xbstream.c
@@ -111,6 +115,7 @@ TARGET_LINK_LIBRARIES(mbstream
   mysys
   crc
 )
+ADD_DEPENDENCIES(mbstream GenError)
 
 IF(MSVC)
   SET_TARGET_PROPERTIES(mbstream PROPERTIES LINK_FLAGS setargv.obj)

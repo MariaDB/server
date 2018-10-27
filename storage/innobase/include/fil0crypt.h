@@ -27,9 +27,9 @@ Created 04/01/2015 Jan Lindström
 #define fil0crypt_h
 
 #ifndef UNIV_INNOCHECKSUM
-
 #include "os0event.h"
 #include "my_crypt.h"
+#include "fil0fil.h"
 #endif /*! UNIV_INNOCHECKSUM */
 
 /**
@@ -296,7 +296,6 @@ fil_space_destroy_crypt_data(
 Parse a MLOG_FILE_WRITE_CRYPT_DATA log entry
 @param[in]	ptr		Log entry start
 @param[in]	end_ptr		Log entry end
-@param[in]	block		buffer block
 @param[out]	err		DB_SUCCESS or DB_DECRYPTION_FAILED
 @return position on log buffer */
 UNIV_INTERN
@@ -304,7 +303,6 @@ byte*
 fil_parse_write_crypt_data(
 	byte*			ptr,
 	const byte*		end_ptr,
-	const buf_block_t*	block,
 	dberr_t*		err)
 	MY_ATTRIBUTE((warn_unused_result));
 

@@ -727,7 +727,7 @@ get_one_option(int optid,
     case 2:
       method_conv= MI_STATS_METHOD_IGNORE_NULLS;
       break;
-    default: assert(0);                         /* Impossible */
+    default: abort();                  /* Impossible */
     }
     check_param.stats_method= method_conv;
     break;
@@ -752,9 +752,7 @@ static void get_options(register int *argc,register char ***argv)
 {
   int ho_error;
 
-  if (load_defaults("my", load_default_groups, argc, argv))
-    exit(1);
-
+  load_defaults_or_exit("my", load_default_groups, argc, argv);
   default_argv= *argv;
   if (isatty(fileno(stdout)))
     check_param.testflag|=T_WRITE_LOOP;

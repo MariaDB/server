@@ -748,7 +748,7 @@ my_bool my_hash_update(HASH *hash, uchar *record, uchar *old_key,
 }
 
 
-uchar *my_hash_element(HASH *hash, ulong idx)
+uchar *my_hash_element(HASH *hash, size_t idx)
 {
   if (idx < hash->records)
     return dynamic_element(&hash->array,idx,HASH_LINK*)->data;

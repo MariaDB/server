@@ -354,3 +354,28 @@ execute stmt;
 --error ER_UNKNOWN_TABLE
 handler v read next;
 drop view v;
+
+--echo #
+--echo # MDEV-15813 ASAN use-after-poison in hp_hashnr upon
+--echo #            HANDLER READ on a versioned HEAP table
+--echo #
+
+CREATE TABLE t1 (g GEOMETRY NOT NULL, SPATIAL gi(g));
+INSERT INTO t1 VALUES (POINT(0,0));
+HANDLER t1 OPEN AS h;
+--error ER_KEY_DOESNT_SUPPORT
+HANDLER h READ `gi`= (10);
+--error ER_KEY_DOESNT_SUPPORT
+HANDLER h READ `gi`> (10);
+HANDLER h CLOSE;
+DROP TABLE t1;
+
+CREATE TABLE t1 (w VARCHAR(100), FULLTEXT fk(w));
+INSERT INTO t1 VALUES ('one two three');
+HANDLER t1 OPEN AS h;
+--error ER_KEY_DOESNT_SUPPORT
+HANDLER h READ `fk`= (10);
+--error ER_KEY_DOESNT_SUPPORT
+HANDLER h READ `fk`> (10);
+HANDLER h CLOSE;
+DROP TABLE t1;

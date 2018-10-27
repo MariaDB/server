@@ -725,7 +725,7 @@ int ha_spider::close()
     }
   }
 
-  if (!thd || !*thd_ha_data(thd, spider_hton_ptr))
+  if (!thd || !thd_get_ha_data(thd, spider_hton_ptr))
   {
     for (roop_count = 0; roop_count < (int) share->link_count; roop_count++)
       conns[roop_count] = NULL;
@@ -10064,13 +10064,11 @@ int ha_spider::update_row(
 
 #ifdef HANDLER_HAS_DIRECT_UPDATE_ROWS
 #ifdef HANDLER_HAS_DIRECT_UPDATE_ROWS_WITH_HS
-int ha_spider::direct_update_rows_init(
-  uint mode,
-  KEY_MULTI_RANGE *ranges,
-  uint range_count,
-  bool sorted,
-  const uchar *new_data
-) {
+int ha_spider::direct_update_rows_init(List<Item> *update_fields, uint mode,
+                                       KEY_MULTI_RANGE *ranges,
+                                       uint range_count,  bool sorted,
+                                       const uchar *new_data)
+{
 #if defined(HS_HAS_SQLCOM) && defined(HAVE_HANDLERSOCKET)
   int error_num;
 #endif
@@ -10098,7 +10096,7 @@ int ha_spider::direct_update_rows_init(
       DBUG_RETURN(pre_direct_init_result);
     }
     DBUG_RETURN(bulk_access_link_exec_tgt->spider->direct_update_rows_init(
-      mode, ranges, range_count, sorted, new_data));
+      update_fields, mode, ranges, range_count, sorted, new_data));
   }
 #endif
   direct_update_init(
@@ -10202,14 +10200,46 @@ int ha_spider::direct_update_rows_init(
   DBUG_RETURN(HA_ERR_WRONG_COMMAND);
 }
 #else
-int ha_spider::direct_update_rows_init()
+/**
+  Perform initialization for a direct update request.
+
+  @param  update fields       Pointer to the list of fields to update.
+
+  @return >0                  Error.
+          0                   Success.
+*/
+
+int ha_spider::direct_update_rows_init(List<Item> *update_fields)
 {
   st_select_lex *select_lex;
   longlong select_limit;
   longlong offset_limit;
+  List_iterator<Item> it(*update_fields);
+  Item *item;
+  Field *field;
   THD *thd = trx->thd;
   DBUG_ENTER("ha_spider::direct_update_rows_init");
   DBUG_PRINT("info",("spider this=%p", this));
+
+  while ((item = it++))
+  {
+    if (item->type() == Item::FIELD_ITEM)
+    {
+      field = ((Item_field *)item)->field;
+
+      if (field->type() == FIELD_TYPE_TIMESTAMP &&
+          field->flags & UNIQUE_KEY_FLAG)
+      {
+        /*
+          Spider cannot perform direct update on unique timestamp fields.
+          To avoid false duplicate key errors, the table needs to be
+          updated one row at a time.
+        */
+        DBUG_RETURN(HA_ERR_WRONG_COMMAND);
+      }
+    }
+  }
+
 #ifdef HA_CAN_BULK_ACCESS
   if (
     bulk_access_executing &&
@@ -10227,7 +10257,8 @@ int ha_spider::direct_update_rows_init()
         pre_direct_init_result));
       DBUG_RETURN(pre_direct_init_result);
     }
-    DBUG_RETURN(bulk_access_link_exec_tgt->spider->direct_update_rows_init());
+    DBUG_RETURN(bulk_access_link_exec_tgt->spider->
+                direct_update_rows_init(List<Item> *update_fields));
   }
 #endif
   direct_update_init(
@@ -10298,31 +10329,11 @@ int ha_spider::direct_update_rows_init()
 
 #ifdef HA_CAN_BULK_ACCESS
 #ifdef HANDLER_HAS_DIRECT_UPDATE_ROWS_WITH_HS
-int ha_spider::pre_direct_update_rows_init(
-  uint mode,
-  KEY_MULTI_RANGE *ranges,
-  uint range_count,
-  bool sorted,
-  const uchar *new_data
-) {
-  int error_num;
-  DBUG_ENTER("ha_spider::pre_direct_update_rows_init");
-  DBUG_PRINT("info",("spider this=%p", this));
-  if (bulk_access_started)
-  {
-    error_num = bulk_access_link_current->spider->
-      pre_direct_update_rows_init(
-      mode, ranges, range_count, sorted, new_data);
-    bulk_access_link_current->spider->bulk_access_pre_called = TRUE;
-    bulk_access_link_current->called = TRUE;
-    DBUG_RETURN(error_num);
-  }
-  pre_direct_init_result = direct_update_rows_init(
-    mode, ranges, range_count, sorted, new_data);
-  DBUG_RETURN(pre_direct_init_result);
-}
-#else
-int ha_spider::pre_direct_update_rows_init()
+int ha_spider::pre_direct_update_rows_init(List<Item> *update_fields,
+                                           uint mode,
+                                           KEY_MULTI_RANGE *ranges,
+                                           uint range_count, bool sorted,
+                                           const uchar *new_data)
 {
   int error_num;
   DBUG_ENTER("ha_spider::pre_direct_update_rows_init");
@@ -10330,12 +10341,42 @@ int ha_spider::pre_direct_update_rows_init()
   if (bulk_access_started)
   {
     error_num = bulk_access_link_current->spider->
-      pre_direct_update_rows_init();
+      pre_direct_update_rows_init(update_fields, mode, ranges, range_count,
+                                  sorted, new_data);
     bulk_access_link_current->spider->bulk_access_pre_called = TRUE;
     bulk_access_link_current->called = TRUE;
     DBUG_RETURN(error_num);
   }
-  pre_direct_init_result = direct_update_rows_init();
+  pre_direct_init_result = direct_update_rows_init(update_fields, mode,
+                                                   ranges, range_count,
+                                                   sorted, new_data);
+  DBUG_RETURN(pre_direct_init_result);
+}
+#else
+/**
+  Do initialization for performing parallel direct update
+  for a handlersocket update request.
+
+  @param  update fields       Pointer to the list of fields to update.
+
+  @return >0                  Error.
+          0                   Success.
+*/
+
+int ha_spider::pre_direct_update_rows_init(List<Item> *update_fields)
+{
+  int error_num;
+  DBUG_ENTER("ha_spider::pre_direct_update_rows_init");
+  DBUG_PRINT("info",("spider this=%p", this));
+  if (bulk_access_started)
+  {
+    error_num = bulk_access_link_current->spider->
+                pre_direct_update_rows_init(update_fields);
+    bulk_access_link_current->spider->bulk_access_pre_called = TRUE;
+    bulk_access_link_current->called = TRUE;
+    DBUG_RETURN(error_num);
+  }
+  pre_direct_init_result = direct_update_rows_init(update_fields);
   DBUG_RETURN(pre_direct_init_result);
 }
 #endif
@@ -11263,13 +11304,13 @@ int ha_spider::create(
     trx->tmp_flg = TRUE;
 
     DBUG_PRINT("info",
-      ("spider alter_info.flags=%u", thd->lex->alter_info.flags));
-    if (
-      (thd->lex->alter_info.flags &
+      ("spider alter_info.flags: %llu  alter_info.partition_flags: %lu",
+       thd->lex->alter_info.flags, thd->lex->alter_info.partition_flags));
+    if ((thd->lex->alter_info.partition_flags &
         (
-          SPIDER_ALTER_ADD_PARTITION | SPIDER_ALTER_DROP_PARTITION |
-          SPIDER_ALTER_COALESCE_PARTITION | SPIDER_ALTER_REORGANIZE_PARTITION |
-          SPIDER_ALTER_TABLE_REORG | SPIDER_ALTER_REBUILD_PARTITION
+          SPIDER_ALTER_PARTITION_ADD | SPIDER_ALTER_PARTITION_DROP |
+          SPIDER_ALTER_PARTITION_COALESCE | SPIDER_ALTER_PARTITION_REORGANIZE |
+          SPIDER_ALTER_PARTITION_TABLE_REORG | SPIDER_ALTER_PARTITION_REBUILD
         )
       ) &&
       memcmp(name + strlen(name) - 5, "#TMP#", 5)
@@ -11459,13 +11500,14 @@ int ha_spider::rename_table(
     }
 
     DBUG_PRINT("info",
-      ("spider alter_info.flags=%u", thd->lex->alter_info.flags));
+      ("spider alter_info.flags: %llu  alter_info.partition_flags: %lu",
+       thd->lex->alter_info.flags, thd->lex->alter_info.partition_flags));
     if (
-      (thd->lex->alter_info.flags &
+      (thd->lex->alter_info.partition_flags &
         (
-          SPIDER_ALTER_ADD_PARTITION | SPIDER_ALTER_DROP_PARTITION |
-          SPIDER_ALTER_COALESCE_PARTITION | SPIDER_ALTER_REORGANIZE_PARTITION |
-          SPIDER_ALTER_TABLE_REORG | SPIDER_ALTER_REBUILD_PARTITION
+          SPIDER_ALTER_PARTITION_ADD | SPIDER_ALTER_PARTITION_DROP |
+          SPIDER_ALTER_PARTITION_COALESCE | SPIDER_ALTER_PARTITION_REORGANIZE |
+          SPIDER_ALTER_PARTITION_TABLE_REORG | SPIDER_ALTER_PARTITION_REBUILD
         )
       )
     )
@@ -11654,14 +11696,15 @@ int ha_spider::delete_table(
       DBUG_RETURN(0);
 
     DBUG_PRINT("info",
-      ("spider alter_info.flags=%u", thd->lex->alter_info.flags));
+      ("spider alter_info.flags: %llu  alter_info.partition_flags: %lu",
+       thd->lex->alter_info.flags, thd->lex->alter_info.partition_flags));
     if (
       sql_command == SQLCOM_ALTER_TABLE &&
-      (thd->lex->alter_info.flags &
+      (thd->lex->alter_info.partition_flags &
         (
-          SPIDER_ALTER_ADD_PARTITION | SPIDER_ALTER_DROP_PARTITION |
-          SPIDER_ALTER_COALESCE_PARTITION | SPIDER_ALTER_REORGANIZE_PARTITION |
-          SPIDER_ALTER_TABLE_REORG | SPIDER_ALTER_REBUILD_PARTITION
+          SPIDER_ALTER_PARTITION_ADD | SPIDER_ALTER_PARTITION_DROP |
+          SPIDER_ALTER_PARTITION_COALESCE | SPIDER_ALTER_PARTITION_REORGANIZE |
+          SPIDER_ALTER_PARTITION_TABLE_REORG | SPIDER_ALTER_PARTITION_REBUILD
         )
       )
     )
@@ -15731,8 +15774,9 @@ int ha_spider::print_item_type(
     dbton_hdl = dbton_handler[dbton_id];
     if (
       dbton_hdl->first_link_idx >= 0 &&
-      (error_num = spider_db_print_item_type(item, this, str,
-        alias, alias_length, dbton_id, FALSE, NULL))
+      (error_num = spider_db_print_item_type(item, NULL, this, str,
+                                             alias, alias_length, dbton_id,
+                                             FALSE, NULL))
     ) {
       DBUG_RETURN(error_num);
     }

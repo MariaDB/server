@@ -135,6 +135,9 @@ int maria_delete_all_rows(MARIA_HA *info)
       goto err;
   }
 
+  if (info->opt_flag & WRITE_CACHE_USED)
+    reinit_io_cache(&info->rec_cache, WRITE_CACHE, 0, 1, 1);
+
   _ma_writeinfo(info, WRITEINFO_UPDATE_KEYFILE);
 #ifdef HAVE_MMAP
   /* Map again */

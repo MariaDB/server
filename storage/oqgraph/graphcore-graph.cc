@@ -22,6 +22,5 @@
    ======================================================================
 */
 
-#include "graphcore-config.h"
 #include "graphcore-graph.h"
 

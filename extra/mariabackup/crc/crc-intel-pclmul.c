@@ -57,7 +57,7 @@ typedef uint8_t byte;
 
 #if __GNUC__ >= 4 && defined(__x86_64__) && defined(HAVE_CLMUL_INSTRUCTION)
 
-#if _GCRY_GCC_VERSION >= 40400 /* 4.4 */
+#if defined(_GCRY_GCC_VERSION) && _GCRY_GCC_VERSION >= 40400 /* 4.4 */
 /* Prevent compiler from issuing SSE instructions between asm blocks. */
 #  pragma GCC target("no-sse")
 #endif

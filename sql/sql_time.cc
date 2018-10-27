@@ -37,7 +37,7 @@
   Order of elements in 'interval_type_to_name' should correspond to 
   the order of elements in 'interval_type' enum
   
-  See also interval_type, interval_names
+  See also interval_type, interval_names, append_interval
 */
 
 LEX_CSTRING interval_type_to_name[INTERVAL_LAST] = {
@@ -61,10 +61,84 @@ LEX_CSTRING interval_type_to_name[INTERVAL_LAST] = {
   { STRING_WITH_LEN("HOUR_MICROSECOND")},
   { STRING_WITH_LEN("MINUTE_MICROSECOND")},
   { STRING_WITH_LEN("SECOND_MICROSECOND")}
-}; 
+};
 
-	/* Calc weekday from daynr */
-	/* Returns 0 for monday, 1 for tuesday .... */
+int append_interval(String *str, interval_type int_type, const INTERVAL &interval)
+{
+  char buf[64];
+  size_t len;
+  switch (int_type) {
+  case INTERVAL_YEAR:
+    len= my_snprintf(buf,sizeof(buf),"%u", interval.year);
+    break;
+  case INTERVAL_QUARTER:
+  case INTERVAL_MONTH:
+    len= my_snprintf(buf,sizeof(buf),"%u", interval.month);
+    int_type=INTERVAL_MONTH;
+    break;
+  case INTERVAL_WEEK:
+  case INTERVAL_DAY:
+    len= my_snprintf(buf,sizeof(buf),"%u", interval.day);
+    int_type=INTERVAL_DAY;
+    break;
+  case INTERVAL_HOUR:
+    len= my_snprintf(buf,sizeof(buf),"%u", interval.hour);
+    break;
+  case INTERVAL_MINUTE:
+    len= my_snprintf(buf,sizeof(buf),"%u", interval.minute);
+    break;
+  case INTERVAL_SECOND:
+    len= my_snprintf(buf,sizeof(buf),"%u", interval.second);
+    break;
+  case INTERVAL_MICROSECOND:
+    len= my_snprintf(buf,sizeof(buf),"%u", interval.second_part);
+    break;
+  case INTERVAL_YEAR_MONTH:
+    len= my_snprintf(buf,sizeof(buf),"%u-%02u", interval.day, interval.month);
+    break;
+  case INTERVAL_DAY_HOUR:
+    len= my_snprintf(buf,sizeof(buf),"%u %u", interval.day, interval.hour);
+    break;
+  case INTERVAL_DAY_MINUTE:
+    len= my_snprintf(buf,sizeof(buf),"%u %u:%02u", interval.day, interval.hour, interval.minute);
+    break;
+  case INTERVAL_DAY_SECOND:
+    len= my_snprintf(buf,sizeof(buf),"%u %u:%02u:%02u", interval.day, interval.hour, interval.minute, interval.second);
+    break;
+  case INTERVAL_HOUR_MINUTE:
+    len= my_snprintf(buf,sizeof(buf),"%u:%02u", interval.hour, interval.minute);
+    break;
+  case INTERVAL_HOUR_SECOND:
+    len= my_snprintf(buf,sizeof(buf),"%u:%02u:%02u", interval.hour, interval.minute, interval.second);
+    break;
+  case INTERVAL_MINUTE_SECOND:
+    len= my_snprintf(buf,sizeof(buf),"%u:%02u", interval.minute, interval.second);
+    break;
+  case INTERVAL_DAY_MICROSECOND:
+    len= my_snprintf(buf,sizeof(buf),"%u %u:%02u:%02u.%06u", interval.day, interval.hour, interval.minute, interval.second, interval.second_part);
+    break;
+  case INTERVAL_HOUR_MICROSECOND:
+    len= my_snprintf(buf,sizeof(buf),"%u:%02u:%02u.%06u", interval.hour, interval.minute, interval.second, interval.second_part);
+    break;
+  case INTERVAL_MINUTE_MICROSECOND:
+    len= my_snprintf(buf,sizeof(buf),"%u:%02u.%06u", interval.minute, interval.second, interval.second_part);
+    break;
+  case INTERVAL_SECOND_MICROSECOND:
+    len= my_snprintf(buf,sizeof(buf),"%u.%06u", interval.second, interval.second_part);
+    break;
+  default:
+    DBUG_ASSERT(0);
+    len= 0;
+  }
+  return str->append(buf, len) || str->append(' ') ||
+         str->append(interval_type_to_name + int_type);
+}
+
+
+/*
+  Calc weekday from daynr
+  Returns 0 for monday, 1 for tuesday ...
+*/
 
 int calc_weekday(long daynr,bool sunday_first_day_of_week)
 {
@@ -190,7 +264,7 @@ bool get_date_from_daynr(long daynr,uint *ret_year,uint *ret_month,
 ulong convert_period_to_month(ulong period)
 {
   ulong a,b;
-  if (period == 0)
+  if (period == 0 || period > 999912)
     return 0L;
   if ((a=period/100) < YY_PART_YEAR)
     a+=2000;
@@ -902,7 +976,7 @@ void make_truncated_value_warning(THD *thd,
 #define GET_PART(X, N) X % N ## LL; X/= N ## LL
 
 bool date_add_interval(MYSQL_TIME *ltime, interval_type int_type,
-                       INTERVAL interval)
+                       const INTERVAL &interval)
 {
   long period, sign;
 
@@ -959,6 +1033,8 @@ bool date_add_interval(MYSQL_TIME *ltime, interval_type int_type,
       ltime->day= 0;
       return 0;
     }
+    else if (ltime->neg)
+      goto invalid_date;
 
     if (int_type != INTERVAL_DAY)
       ltime->time_type= MYSQL_TIMESTAMP_DATETIME; // Return full date
@@ -1391,4 +1467,47 @@ bool datetime_to_time_with_warn(THD *thd, const MYSQL_TIME *dt,
   }
   int warnings= 0;
   return check_time_range(tm, dec, &warnings);
+}
+
+
+longlong pack_time(const MYSQL_TIME *my_time)
+{
+  return  ((((((my_time->year     * 13ULL +
+               my_time->month)    * 32ULL +
+               my_time->day)      * 24ULL +
+               my_time->hour)     * 60ULL +
+               my_time->minute)   * 60ULL +
+               my_time->second)   * 1000000ULL +
+               my_time->second_part) * (my_time->neg ? -1 : 1);
+}
+
+#define get_one(WHERE, FACTOR) WHERE= (ulong)(packed % FACTOR); packed/= FACTOR
+
+void unpack_time(longlong packed, MYSQL_TIME *my_time,
+                     enum_mysql_timestamp_type ts_type)
+{
+  if ((my_time->neg= packed < 0))
+    packed= -packed;
+  get_one(my_time->second_part, 1000000ULL);
+  get_one(my_time->second,           60U);
+  get_one(my_time->minute,           60U);
+  get_one(my_time->hour,             24U);
+  get_one(my_time->day,              32U);
+  get_one(my_time->month,            13U);
+  my_time->year= (uint)packed;
+  my_time->time_type= ts_type;
+  switch (ts_type) {
+  case MYSQL_TIMESTAMP_TIME:
+    my_time->hour+= (my_time->month * 32 + my_time->day) * 24;
+    my_time->month= my_time->day= 0;
+    break;
+  case MYSQL_TIMESTAMP_DATE:
+    my_time->hour= my_time->minute= my_time->second= my_time->second_part= 0;
+    break;
+  case MYSQL_TIMESTAMP_NONE:
+  case MYSQL_TIMESTAMP_ERROR:
+    DBUG_ASSERT(0);
+  case MYSQL_TIMESTAMP_DATETIME:
+    break;
+  }
 }

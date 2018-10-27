@@ -1,7 +1,7 @@
 /*****************************************************************************
 
 Copyright (c) 1997, 2016, Oracle and/or its affiliates. All Rights Reserved.
-Copyright (c) 2016, 2017, MariaDB Corporation.
+Copyright (c) 2016, 2018, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -49,22 +49,19 @@ typedef enum {
 	IBUF_OP_COUNT = 3
 } ibuf_op_t;
 
-/** Combinations of operations that can be buffered.  Because the enum
-values are used for indexing innobase_change_buffering_values[], they
-should start at 0 and there should not be any gaps. */
-typedef enum {
+/** Combinations of operations that can be buffered.
+@see innodb_change_buffering_names */
+enum ibuf_use_t {
 	IBUF_USE_NONE = 0,
 	IBUF_USE_INSERT,	/* insert */
 	IBUF_USE_DELETE_MARK,	/* delete */
 	IBUF_USE_INSERT_DELETE_MARK,	/* insert+delete */
 	IBUF_USE_DELETE,	/* delete+purge */
-	IBUF_USE_ALL,		/* insert+delete+purge */
-
-	IBUF_USE_COUNT		/* number of entries in ibuf_use_t */
-} ibuf_use_t;
+	IBUF_USE_ALL		/* insert+delete+purge */
+};
 
 /** Operations that can currently be buffered. */
-extern ibuf_use_t	ibuf_use;
+extern ulong		innodb_change_buffering;
 
 /** The insert buffer control structure */
 extern ibuf_t*		ibuf;
@@ -421,14 +418,11 @@ void
 ibuf_close(void);
 /*============*/
 
-/******************************************************************//**
-Checks the insert buffer bitmaps on IMPORT TABLESPACE.
+/** Check the insert buffer bitmaps on IMPORT TABLESPACE.
+@param[in]	trx	transaction
+@param[in,out]	space	tablespace being imported
 @return DB_SUCCESS or error code */
-dberr_t
-ibuf_check_bitmap_on_import(
-/*========================*/
-	const trx_t*	trx,		/*!< in: transaction */
-	ulint		space_id)	/*!< in: tablespace identifier */
+dberr_t ibuf_check_bitmap_on_import(const trx_t* trx, fil_space_t* space)
 	MY_ATTRIBUTE((nonnull, warn_unused_result));
 
 /** Updates free bits and buffered bits for bulk loaded page.

@@ -12,7 +12,7 @@
 #    the name of the test script to include in every combination
 #
 # Sample usage:
-#   -- let $row_img_test_script= extra/rpl_tests/rpl_row_img.test
+#   -- let $row_img_test_script= suite/rpl/include/rpl_row_img.test
 #   -- source include/rpl_row_img_general_loop.test
 
 

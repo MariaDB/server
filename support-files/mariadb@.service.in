@@ -22,7 +22,6 @@ Description=MariaDB @VERSION@ database server (multi-instance)
 Documentation=man:mysqld(8)
 Documentation=https://mariadb.com/kb/en/library/systemd/
 After=network.target
-After=syslog.target
 
 ConditionPathExists=@sysconf2dir@/my%I.cnf
 
@@ -108,7 +107,6 @@ ExecStart=@sbindir@/mysqld --defaults-file=@sysconf2dir@/my%I.cnf \
 # Unset _WSREP_START_POSITION environment variable.
 ExecStartPost=/bin/sh -c "systemctl unset-environment _WSREP_START_POSITION%I"
 
-KillMode=process
 KillSignal=SIGTERM
 
 # Don't want to see an automated SIGKILL ever

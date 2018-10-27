@@ -1,0 +1,97 @@
+SET @row_format = @@GLOBAL.innodb_default_row_format;
+# ###########################################################
+# Check with Import/Export tablespace with Default_row_format
+SET GLOBAL innodb_default_row_format=Compact;
+SELECT @@innodb_default_row_format;
+@@innodb_default_row_format
+compact
+SELECT @@innodb_file_per_table;
+@@innodb_file_per_table
+1
+CREATE TABLE tab(a INT) ENGINE=InnoDB;
+SHOW TABLE STATUS LIKE 'tab';
+Name	Engine	Version	Row_format	Rows	Avg_row_length	Data_length	Max_data_length	Index_length	Data_free	Auto_increment	Create_time	Update_time	Check_time	Collation	Checksum	Create_options	Comment	Max_index_length	Temporary
+tab	InnoDB	#	Compact	#	#	#	#	#	#	NULL	#	NULL	NULL	latin1_swedish_ci	NULL			0	N
+INSERT INTO tab VALUES(1);
+INSERT INTO tab VALUES(2);
+SELECT * FROM tab;
+a
+1
+2
+FLUSH TABLE tab FOR EXPORT;
+UNLOCK TABLES;
+DROP TABLE tab;
+SET GLOBAL innodb_default_row_format=Dynamic;
+CREATE TABLE tab(a INT) ENGINE=InnoDB;
+ALTER TABLE tab DISCARD TABLESPACE;
+ALTER TABLE tab IMPORT TABLESPACE;
+ERROR HY000: Schema mismatch (Table flags don't match, server table has 0x21 and the meta-data file has 0x1; .cfg file uses ROW_FORMAT=COMPACT)
+DROP TABLE tab;
+SET GLOBAL innodb_default_row_format=Compact;
+SELECT @@innodb_default_row_format;
+@@innodb_default_row_format
+compact
+CREATE TABLE tab(a INT) ENGINE=InnoDB;
+SHOW TABLE STATUS LIKE 'tab';
+Name	Engine	Version	Row_format	Rows	Avg_row_length	Data_length	Max_data_length	Index_length	Data_free	Auto_increment	Create_time	Update_time	Check_time	Collation	Checksum	Create_options	Comment	Max_index_length	Temporary
+tab	InnoDB	#	Compact	#	#	#	#	#	#	NULL	#	NULL	NULL	latin1_swedish_ci	NULL			0	N
+ALTER TABLE tab DISCARD TABLESPACE;
+call mtr.add_suppression("InnoDB: Tried to read .* bytes at offset 0");
+ALTER TABLE tab IMPORT TABLESPACE;
+ERROR HY000: Internal error: Cannot reset LSNs in table `test`.`tab` : I/O error
+ALTER TABLE tab IMPORT TABLESPACE;
+SELECT * FROM tab;
+a
+1
+2
+DROP TABLE tab;
+# ###########################################################
+SET GLOBAL innodb_default_row_format=Dynamic;
+SELECT @@innodb_default_row_format;
+@@innodb_default_row_format
+dynamic
+CREATE TABLE tab(a INT PRIMARY KEY, b VARCHAR(5000), KEY idx1(b(3070))) ENGINE= InnoDB;
+SHOW TABLE STATUS LIKE 'tab';
+Name	Engine	Version	Row_format	Rows	Avg_row_length	Data_length	Max_data_length	Index_length	Data_free	Auto_increment	Create_time	Update_time	Check_time	Collation	Checksum	Create_options	Comment	Max_index_length	Temporary
+tab	InnoDB	#	Dynamic	#	#	#	#	#	#	NULL	#	NULL	NULL	latin1_swedish_ci	NULL			0	N
+INSERT INTO tab(a,b) VALUES(1,'Check with max column size');
+SELECT * FROM tab;
+a	b
+1	Check with max column size
+SET GLOBAL innodb_default_row_format=COMPACT;
+ALTER TABLE tab ROW_FORMAT=COMPACT;
+ERROR HY000: Index column size too large. The maximum column size is 767 bytes
+DROP TABLE tab;
+SET GLOBAL innodb_default_row_format=Default;
+SELECT @@innodb_default_row_format;
+@@innodb_default_row_format
+dynamic
+SET GLOBAL innodb_default_row_format=Dynamic;
+SELECT @@innodb_default_row_format;
+@@innodb_default_row_format
+dynamic
+CREATE TABLE tab(a INT PRIMARY KEY, b VARCHAR(5000), KEY idx1(b(767))) ENGINE= InnoDB;
+SHOW TABLE STATUS LIKE 'tab';
+Name	Engine	Version	Row_format	Rows	Avg_row_length	Data_length	Max_data_length	Index_length	Data_free	Auto_increment	Create_time	Update_time	Check_time	Collation	Checksum	Create_options	Comment	Max_index_length	Temporary
+tab	InnoDB	#	Dynamic	#	#	#	#	#	#	NULL	#	NULL	NULL	latin1_swedish_ci	NULL			0	N
+INSERT INTO tab(a,b) VALUES(1,'Check with max column size');
+SELECT * FROM tab;
+a	b
+1	Check with max column size
+ALTER TABLE tab ROW_FORMAT=COMPACT;
+SHOW TABLE STATUS LIKE 'tab';
+Name	Engine	Version	Row_format	Rows	Avg_row_length	Data_length	Max_data_length	Index_length	Data_free	Auto_increment	Create_time	Update_time	Check_time	Collation	Checksum	Create_options	Comment	Max_index_length	Temporary
+tab	InnoDB	#	Compact	#	#	#	#	#	#	NULL	#	NULL	NULL	latin1_swedish_ci	NULL	row_format=COMPACT		0	N
+SELECT * FROM tab;
+a	b
+1	Check with max column size
+ALTER TABLE tab ROW_FORMAT=COMPRESSED;
+SELECT * FROM tab;
+a	b
+1	Check with max column size
+ALTER TABLE tab ROW_FORMAT=Dynamic;
+SHOW TABLE STATUS LIKE 'tab';
+Name	Engine	Version	Row_format	Rows	Avg_row_length	Data_length	Max_data_length	Index_length	Data_free	Auto_increment	Create_time	Update_time	Check_time	Collation	Checksum	Create_options	Comment	Max_index_length	Temporary
+tab	InnoDB	#	Dynamic	#	#	#	#	#	#	NULL	#	NULL	NULL	latin1_swedish_ci	NULL	row_format=DYNAMIC		0	N
+DROP TABLE tab;
+SET GLOBAL innodb_default_row_format =  @row_format;

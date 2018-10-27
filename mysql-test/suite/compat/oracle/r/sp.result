@@ -8,7 +8,7 @@ END;
 /
 SHOW CREATE FUNCTION f1;
 Function	f1
-sql_mode	PIPES_AS_CONCAT,ANSI_QUOTES,IGNORE_SPACE,ORACLE,NO_KEY_OPTIONS,NO_TABLE_OPTIONS,NO_FIELD_OPTIONS,NO_AUTO_CREATE_USER
+sql_mode	PIPES_AS_CONCAT,ANSI_QUOTES,IGNORE_SPACE,ORACLE,NO_KEY_OPTIONS,NO_TABLE_OPTIONS,NO_FIELD_OPTIONS,NO_AUTO_CREATE_USER,SIMULTANEOUS_ASSIGNMENT
 Create Function	CREATE DEFINER="root"@"localhost" FUNCTION "f1"() RETURN int(11)
 AS
 BEGIN
@@ -29,7 +29,7 @@ END;
 /
 SHOW CREATE PROCEDURE p1;
 Procedure	p1
-sql_mode	PIPES_AS_CONCAT,ANSI_QUOTES,IGNORE_SPACE,ORACLE,NO_KEY_OPTIONS,NO_TABLE_OPTIONS,NO_FIELD_OPTIONS,NO_AUTO_CREATE_USER
+sql_mode	PIPES_AS_CONCAT,ANSI_QUOTES,IGNORE_SPACE,ORACLE,NO_KEY_OPTIONS,NO_TABLE_OPTIONS,NO_FIELD_OPTIONS,NO_AUTO_CREATE_USER,SIMULTANEOUS_ASSIGNMENT
 Create Procedure	CREATE DEFINER="root"@"localhost" PROCEDURE "p1"()
 AS
 BEGIN
@@ -166,6 +166,13 @@ IF a=10 THEN NULL; ELSE NULL; END IF;
 END;
 /
 DROP PROCEDURE p1;
+# Keywords that are OK for table names, but not for SP variables
+CREATE TABLE function (function int);
+INSERT INTO function SET function=10;
+SELECT function.function FROM function;
+function
+10
+DROP TABLE function;
 # Testing that (some) keyword_sp are allowed in Oracle-style assignments
 CREATE PROCEDURE p1 (action OUT INT) AS BEGIN action:=10; END;/
 DROP PROCEDURE p1/
@@ -1697,15 +1704,15 @@ t2	CREATE TABLE "t2" (
   "dc100" decimal(10,0) DEFAULT NULL,
   "dc103" decimal(10,3) DEFAULT NULL,
   "dc209" decimal(20,9) DEFAULT NULL,
-  "cc" varchar(10) DEFAULT NULL,
+  "cc" char(10) DEFAULT NULL,
   "cv" varchar(10) DEFAULT NULL,
   "cvu" varchar(10) CHARACTER SET utf8 DEFAULT NULL,
   "t1" tinytext DEFAULT NULL,
   "t2" text DEFAULT NULL,
   "t3" mediumtext DEFAULT NULL,
   "t4" longtext DEFAULT NULL,
-  "enum1" varchar(1) DEFAULT NULL,
-  "set1" varchar(5) DEFAULT NULL,
+  "enum1" char(1) DEFAULT NULL,
+  "set1" char(5) DEFAULT NULL,
   "blob1" tinyblob DEFAULT NULL,
   "blob2" longblob DEFAULT NULL,
   "blob3" mediumblob DEFAULT NULL,
@@ -1859,15 +1866,15 @@ t2	CREATE TABLE "t2" (
   "dc100" decimal(10,0) DEFAULT NULL,
   "dc103" decimal(10,3) DEFAULT NULL,
   "dc209" decimal(20,9) DEFAULT NULL,
-  "cc" varchar(10) DEFAULT NULL,
+  "cc" char(10) DEFAULT NULL,
   "cv" varchar(10) DEFAULT NULL,
   "cvu" varchar(10) CHARACTER SET utf8 DEFAULT NULL,
   "t1" tinytext DEFAULT NULL,
   "t2" text DEFAULT NULL,
   "t3" mediumtext DEFAULT NULL,
   "t4" longtext DEFAULT NULL,
-  "enum1" varchar(1) DEFAULT NULL,
-  "set1" varchar(5) DEFAULT NULL,
+  "enum1" char(1) DEFAULT NULL,
+  "set1" char(5) DEFAULT NULL,
   "blob1" tinyblob DEFAULT NULL,
   "blob2" longblob DEFAULT NULL,
   "blob3" mediumblob DEFAULT NULL,
@@ -2375,7 +2382,7 @@ t1	CREATE TABLE "t1" (
   "a_flt0" float DEFAULT NULL,
   "a_dbl0" double DEFAULT NULL,
   "a_bit3" bit(3) DEFAULT NULL,
-  "a_enum0" varchar(1) DEFAULT NULL,
+  "a_enum0" char(1) DEFAULT NULL,
   "a_varchar10" varchar(10) DEFAULT NULL,
   "a_text1" text DEFAULT NULL,
   "a_tinytext1" tinytext DEFAULT NULL,
@@ -2393,7 +2400,7 @@ t1	CREATE TABLE "t1" (
   "aa_flt0" float DEFAULT NULL,
   "aa_dbl0" double DEFAULT NULL,
   "aa_bit3" bit(3) DEFAULT NULL,
-  "aa_enum0" varchar(1) DEFAULT NULL,
+  "aa_enum0" char(1) DEFAULT NULL,
   "aa_varchar10" varchar(10) DEFAULT NULL,
   "aa_text1" text DEFAULT NULL,
   "aa_tinytext1" tinytext DEFAULT NULL,

@@ -1,4 +1,6 @@
 connection node_1;
+connection node_2;
+connection node_1;
 set GLOBAL wsrep_slave_threads=26;
 CREATE TABLE t1 (f1 INTEGER) ENGINE=InnoDB;
 INSERT INTO t1 VALUES (1);
@@ -10,7 +12,6 @@ INSERT INTO t1 VALUES (2);
 connection node_1;
 INSERT INTO t1 VALUES (3);
 connection node_2;
-set SESSION wsrep_sync_wait=0;
 INSERT INTO t1 VALUES (4);
 set GLOBAL wsrep_slave_threads=5;
 SELECT COUNT(*) = 5 FROM t1;
@@ -32,7 +33,6 @@ SET GLOBAL wsrep_slave_threads = 1;
 SELECT COUNT(*) FROM t1;
 COUNT(*)
 16
-SET GLOBAL auto_increment_offset = 2;
 connection node_1;
 SELECT COUNT(*) FROM t1;
 COUNT(*)
@@ -42,4 +42,3 @@ Variable_name	Value
 wsrep_slave_threads	12
 SET GLOBAL wsrep_slave_threads = 1;
 DROP TABLE t1;
-SET GLOBAL auto_increment_offset = 1;

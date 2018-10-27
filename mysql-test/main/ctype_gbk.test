@@ -1,0 +1,486 @@
+-- source include/have_gbk.inc
+
+#
+# Tests with the gbk character set
+#
+--disable_warnings
+drop table if exists t1;
+--enable_warnings
+
+SET @test_character_set= 'gbk';
+SET @test_collation= 'gbk_chinese_ci';
+-- source include/ctype_common.inc
+
+SET NAMES gbk;
+SET collation_connection='gbk_chinese_ci';
+-- source include/ctype_filesort.inc
+-- source include/ctype_innodb_like.inc
+-- source include/ctype_like_escape.inc
+-- source include/ctype_like_range_f1f2.inc
+-- source include/ctype_ascii_order.inc
+SET collation_connection='gbk_bin';
+-- source include/ctype_filesort.inc
+-- source include/ctype_innodb_like.inc
+-- source include/ctype_like_escape.inc
+-- source include/ctype_like_range_f1f2.inc
+
+#
+# Bug#11987 mysql will truncate the text when
+# the text contain GBK char:"0xA3A0" and "0xA1"
+#
+SET NAMES gbk;
+CREATE TABLE t1 (a text) character set gbk;
+INSERT INTO t1 VALUES (0xA3A0),(0xA1A1);
+SELECT hex(a) FROM t1 ORDER BY a;
+DROP TABLE t1;
+
+#
+# Bugs#15375: Unassigned multibyte codes are broken
+# into parts when converting to Unicode.
+# This query should return 0x003F0041. I.e. it should
+# scan unassigned double-byte character 0xA140, convert
+# it as QUESTION MARK 0x003F and then scan the next
+# character, which is a single byte character 0x41.
+#
+select hex(convert(_gbk 0xA14041 using ucs2));
+
+# End of 4.1 tests
+
+#
+# Bug#21620 ALTER TABLE affects other columns
+#
+create table t1 (c1 text not null, c2 text not null) character set gbk;
+alter table t1 change c1 c1 mediumtext  character set gbk not null;
+show create table t1;
+drop table t1;
+
+#
+# Bug#35993: severe memory corruption and crash with multibyte conversion
+#
+
+CREATE TABLE t1(a MEDIUMTEXT CHARACTER SET gbk,
+                b MEDIUMTEXT CHARACTER SET big5);
+INSERT INTO t1 VALUES
+  (REPEAT(0x1125,200000), REPEAT(0x1125,200000)), ('', ''), ('', '');
+
+SELECT a FROM t1 GROUP BY 1 LIMIT 1 INTO @nullll;
+SELECT b FROM t1 GROUP BY 1 LIMIT 1 INTO @nullll;
+
+DROP TABLES t1;
+
+--echo End of 5.0 tests
+
+
+--echo #
+--echo # Start of 5.5 tests
+--echo #
+
+--echo #
+--echo # Testing WL#4583 Case conversion in Asian character sets 
+--echo #
+#
+# Populate t1 with all hex digits
+#
+SET NAMES utf8;
+SET collation_connection=gbk_chinese_ci;
+CREATE TABLE t1 (b VARCHAR(2));
+INSERT INTO t1 VALUES ('0'),('1'),('2'),('3'),('4'),('5'),('6'),('7');
+INSERT INTO t1 VALUES ('8'),('9'),('A'),('B'),('C'),('D'),('E'),('F');
+#
+# Populate tables head and tail with values '00'-'FF'
+#
+CREATE TEMPORARY TABLE head AS SELECT concat(b1.b, b2.b) AS head FROM t1 b1, t1 b2;
+CREATE TEMPORARY TABLE tail AS SELECT concat(b1.b, b2.b) AS tail FROM t1 b1, t1 b2;
+DROP TABLE t1;
+#
+# Populate table t1 with all codes [80..FF][20..FF]
+# Expected valid gbk codes [81..FE][40..7E,80..FE]
+#
+CREATE TABLE t1 AS
+SELECT concat(head, tail) AS code, ' ' AS a
+FROM head, tail
+WHERE (head BETWEEN '80' AND 'FF') AND (tail BETWEEN '20' AND 'FF')
+ORDER BY head, tail;
+DROP TEMPORARY TABLE head, tail;
+SHOW CREATE TABLE t1;
+UPDATE IGNORE t1 SET a=unhex(code) ORDER BY code;
+SELECT COUNT(*) FROM t1 WHERE a<>'?';
+#
+# Display all characters that have upper or lower case mapping.
+#
+SELECT code, hex(upper(a)), hex(lower(a)),a, upper(a), lower(a) FROM t1 WHERE hex(a)<>hex(upper(a)) OR hex(a)<>hex(lower(a));
+#
+# Make sure all possible conversion happened
+#
+# Expect U+216A to U+216B ROMAN NUMERAL ELEVEN to ROMAN TWELVE
+#
+SELECT * FROM t1
+WHERE HEX(CAST(LOWER(a) AS CHAR CHARACTER SET utf8)) <>
+      HEX(LOWER(CAST(a AS CHAR CHARACTER SET utf8))) ORDER BY code;
+#
+# Expect
+#       U+00E0 LATIN SMALL LETTER A WITH GRAVE
+#       U+00E1 LATIN SMALL LETTER A WITH ACUTE
+#       U+00E8 LATIN SMALL LETTER E WITH GRAVE
+#       U+00E9 LATIN SMALL LETTER E WITH ACUTE
+#       U+00EA LATIN SMALL LETTER E WITH CIRCUMFLEX
+#       U+00EC LATIN SMALL LETTER I WITH GRAVE
+#       U+00ED LATIN SMALL LETTER I WITH ACUTE
+#       U+00F2 LATIN SMALL LETTER O WITH GRAVE
+#       U+00F3 LATIN SMALL LETTER O WITH ACUTE
+#       U+00F9 LATIN SMALL LETTER U WITH GRAVE
+#       U+00FA LATIN SMALL LETTER U WITH ACUTE
+#       U+00FC LATIN SMALL LETTER U WITH DIAERESIS
+#       U+0101 LATIN SMALL LETTER A WITH MACRON
+#       U+0113 LATIN SMALL LETTER E WITH MACRON
+#       U+011B LATIN SMALL LETTER E WITH CARON
+#       U+012B LATIN SMALL LETTER I WITH MACRON
+#       U+0144 LATIN SMALL LETTER N WITH ACUTE
+#       U+0148 LATIN SMALL LETTER N WITH CARON
+#       U+014D LATIN SMALL LETTER O WITH MACRON
+#       U+016B LATIN SMALL LETTER U WITH MACRON
+#       U+01CE LATIN SMALL LETTER A WITH CARON
+#       U+01D0 LATIN SMALL LETTER I WITH CARON
+#       U+01D2 LATIN SMALL LETTER O WITH CARON
+#       U+01D4 LATIN SMALL LETTER U WITH CARON
+#       U+01D6 LATIN SMALL LETTER U WITH DIAERESIS AND MACRON
+#       U+01D8 LATIN SMALL LETTER U WITH DIAERESIS AND ACUTE
+#       U+01DA LATIN SMALL LETTER U WITH DIAERESIS AND CARON
+#       U+01DC LATIN SMALL LETTER U WITH DIAERESIS AND GRAVE
+#
+SELECT * FROM t1
+WHERE HEX(CAST(UPPER(a) AS CHAR CHARACTER SET utf8)) <>
+      HEX(UPPER(CAST(a AS CHAR CHARACTER SET utf8))) ORDER BY code;
+
+DROP TABLE t1;
+
+
+
+
+--echo #
+--echo # End of 5.5 tests
+--echo #
+
+
+--echo #
+--echo # Start of 5.6 tests
+--echo #
+
+--echo #
+--echo # WL#3664 WEIGHT_STRING
+--echo #
+
+set names gbk;
+--source include/weight_string.inc
+--source include/weight_string_l1.inc
+--source include/weight_string_A1A1.inc
+--source include/weight_string_8140.inc
+--source include/weight_string_8EA1.inc
+
+set collation_connection=gbk_bin;
+--source include/weight_string.inc
+--source include/weight_string_l1.inc
+--source include/weight_string_A1A1.inc
+--source include/weight_string_8140.inc
+--source include/weight_string_8EA1.inc
+
+--echo #
+--echo # End of 5.6 tests
+--echo #
+
+--echo #
+--echo # Start of 10.0 tests
+--echo #
+
+let $ctype_unescape_combinations=selected;
+--source include/ctype_unescape.inc
+
+--character_set gbk
+SET NAMES gbk;
+--source include/ctype_E05C.inc
+
+SET NAMES utf8, character_set_connection=gbk;
+--source include/ctype_mdev13118.inc
+
+--echo #
+--echo # MDEV-9886 Illegal mix of collations with a view comparing a field to a binary constant
+--echo #
+
+SET NAMES latin1;
+CREATE TABLE t1 (a TEXT CHARACTER SET gbk);
+INSERT INTO t1 VALUES (0xEE5D);
+SELECT a<>0xEE5D AS a FROM t1;
+CREATE VIEW v1 AS SELECT a<>0xEE5D AS a FROM t1;
+SHOW CREATE VIEW v1;
+SELECT * FROM v1;
+DROP VIEW v1;
+DROP TABLE t1;
+
+
+--echo #
+--echo # End of 10.0 tests
+--echo #
+
+
+--echo #
+--echo # Start of 10.1 tests
+--echo #
+
+--echo #
+--echo # MDEV-6566 Different INSERT behaviour on bad bytes with and without character set conversion
+--echo #
+
+CREATE TABLE t1 (
+  id INT NOT NULL AUTO_INCREMENT PRIMARY KEY,
+  b VARBINARY(16),
+  type SET('ascii','bad','head','tail','mb2','unassigned')
+);
+INSERT INTO t1 (b, type) VALUES (0x40,   'ascii,tail');
+INSERT INTO t1 (b, type) VALUES (0x80,   'tail');
+INSERT INTO t1 (b, type) VALUES (0x81,   'head,tail');
+INSERT INTO t1 (b, type) VALUES (0xFF,   'bad');
+INSERT INTO t1 (b, type) VALUES (0xA140, 'mb2,unassigned');
+INSERT INTO t1 (b, type) VALUES (0xA1A3, 'mb2');
+INSERT INTO t1 (b, type) VALUES (0xFE40, 'mb2');
+CREATE TABLE t2 AS SELECT
+  CONCAT(t1.b,t2.b) AS b,
+  t1.type AS type1,
+  t2.type AS type2,
+  CONCAT('[',t1.type,'][',t2.type,']') AS comment
+FROM t1, t1 t2;
+
+CREATE TABLE t3
+(
+  b VARBINARY(16),
+  c VARCHAR(16) CHARACTER SET gbk,
+  comment VARCHAR(128)
+);
+--echo #
+--echo # A combination of two valid characters, should give no warnings
+--echo # 
+INSERT INTO t3 (b,c,comment) SELECT b,b,comment FROM t2
+WHERE
+  (FIND_IN_SET('ascii',type1) OR FIND_IN_SET('mb2',type1)) AND
+  (FIND_IN_SET('ascii',type2) OR FIND_IN_SET('mb2',type2))
+ORDER BY b;
+SELECT COUNT(*) FROM t3;
+SELECT HEX(c),comment FROM t3 WHERE b=c ORDER BY b;
+SELECT HEX(c),HEX(b),comment FROM t3 WHERE b<>c ORDER BY b;
+DELETE FROM t2 WHERE b IN (SELECT b FROM t3);
+DELETE FROM t3;
+
+--echo #
+--echo # Sequences that start with a tail or a bad byte,
+--echo # or end with a bad byte, all should be fixed.
+--echo #
+INSERT IGNORE INTO t3 (b,c,comment) SELECT b,b,comment FROM t2
+WHERE type1='tail' OR type1='bad' OR type2='bad'
+ORDER BY b;
+SELECT COUNT(*) FROM t3;
+SELECT HEX(c),comment FROM t3 WHERE b=c ORDER BY b;
+SELECT HEX(c),HEX(b),comment FROM t3 WHERE b<>c ORDER BY b;
+DELETE FROM t2 WHERE b IN (SELECT b FROM t3);
+DELETE FROM t3;
+
+--echo #
+--echo # Sequences that start with an ASCII or an MB2 character,
+--echo # followed by a non-ASCII tail, all should be fixed.
+--echo #
+INSERT IGNORE INTO t3 (b,c,comment) SELECT b,b,comment FROM t2
+WHERE (FIND_IN_SET('mb2',type1) OR FIND_IN_SET('ascii',type1))
+      AND (FIND_IN_SET('tail',type2) AND NOT FIND_IN_SET('ascii',type2))
+ORDER BY b;
+SELECT COUNT(*) FROM t3;
+SELECT HEX(c),comment FROM t3 WHERE b=c ORDER BY b;
+SELECT HEX(c),HEX(b),comment FROM t3 WHERE b<>c ORDER BY b;
+DELETE FROM t2 WHERE b IN (SELECT b FROM t3);
+DELETE FROM t3;
+
+--echo #
+--echo # Other sequences
+--echo #
+INSERT INTO t3 (b,c,comment) SELECT b,b,comment FROM t2 ORDER BY b;
+SELECT COUNT(*) FROM t3;
+SELECT HEX(c),comment FROM t3 WHERE b=c ORDER BY b;
+SELECT HEX(c),HEX(b),comment FROM t3 WHERE b<>c ORDER BY b;
+DELETE FROM t3;
+DROP TABLE t3;
+DROP TABLE t2;
+
+CREATE TABLE t2 AS SELECT
+  CONCAT(t1.b,t2.b,t3.b) AS b,
+  t1.type AS type1,
+  t2.type AS type2,
+  t3.type AS type3,
+  CONCAT('[',t1.type,'][',t2.type,'][',t3.type,']') AS comment
+FROM t1, t1 t2,t1 t3;
+SELECT COUNT(*) FROM t2;
+
+CREATE TABLE t3
+(
+  b VARBINARY(16),
+  c VARCHAR(16) CHARACTER SET gbk,
+  comment VARCHAR(128)
+);
+
+--echo #
+--echo # A combination of three valid characters, should give no warnings
+--echo # 
+INSERT INTO t3 (b,c,comment) SELECT b,b,comment FROM t2
+WHERE
+  (FIND_IN_SET('ascii',type1) OR FIND_IN_SET('mb2',type1)) AND
+  (FIND_IN_SET('ascii',type2) OR FIND_IN_SET('mb2',type2)) AND
+  (FIND_IN_SET('ascii',type3) OR FIND_IN_SET('mb2',type3)) 
+ORDER BY b;
+SELECT COUNT(*) FROM t3;
+SELECT HEX(c),comment FROM t3 WHERE b=c ORDER BY b;
+SELECT HEX(c),HEX(b),comment FROM t3 WHERE b<>c ORDER BY b;
+DELETE FROM t2 WHERE b IN (SELECT b FROM t3);
+DELETE FROM t3;
+
+--echo #
+--echo # Sequences that start with a tail or a bad byte,
+--echo # or have a bad byte, all should be fixed.
+--echo #
+INSERT IGNORE INTO t3 (b,c,comment) SELECT b,b,comment FROM t2
+WHERE type1='tail' OR type1='bad' OR type2='bad' OR type3='bad'
+ORDER BY b;
+SELECT COUNT(*) FROM t3;
+SELECT HEX(c),comment FROM t3 WHERE b=c ORDER BY b;
+SELECT HEX(c),HEX(b),comment FROM t3 WHERE b<>c ORDER BY b;
+DELETE FROM t2 WHERE b IN (SELECT b FROM t3);
+DELETE FROM t3;
+
+--echo #
+--echo # Sequences that start with an ASCII or an MB2 character,
+--echo # followed by a pure non-ASCII tail, all should be fixed.
+--echo #
+INSERT IGNORE INTO t3 (b,c,comment) SELECT b,b,comment FROM t2
+WHERE (FIND_IN_SET('mb2',type1) OR FIND_IN_SET('ascii',type1))
+      AND type2='tail'
+ORDER BY b;
+SELECT COUNT(*) FROM t3;
+SELECT HEX(c),comment FROM t3 WHERE b=c ORDER BY b;
+SELECT HEX(c),HEX(b),comment FROM t3 WHERE b<>c ORDER BY b;
+DELETE FROM t2 WHERE b IN (SELECT b FROM t3);
+DELETE FROM t3;
+
+--echo #
+--echo # Sequences that consist of two ASCII or MB2 characters,
+--echo # followed by a pure non-ASCII tail, all should be fixed.
+--echo #
+INSERT IGNORE INTO t3 (b,c,comment) SELECT b,b,comment FROM t2
+WHERE (FIND_IN_SET('mb2',type1) OR FIND_IN_SET('ascii',type1)) AND
+      (FIND_IN_SET('mb2',type2) OR FIND_IN_SET('ascii',type2)) AND
+      type3='tail'
+ORDER BY b;
+SELECT COUNT(*) FROM t3;
+SELECT HEX(c),comment FROM t3 WHERE b=c ORDER BY b;
+SELECT HEX(c),HEX(b),comment FROM t3 WHERE b<>c ORDER BY b;
+DELETE FROM t2 WHERE b IN (SELECT b FROM t3);
+DELETE FROM t3;
+
+
+--echo #
+--echo # Sequences that consist of two MB2 characters,
+--echo # followed by a non-ASCII head or tail, all should be fixed.
+--echo #
+INSERT IGNORE INTO t3 (b,c,comment) SELECT b,b,comment FROM t2
+WHERE FIND_IN_SET('mb2',type1) AND FIND_IN_SET('mb2',type2)
+      AND NOT FIND_IN_SET('ascii',type3)
+      AND NOT FIND_IN_SET('mb2',type3)
+ORDER BY b;
+SELECT COUNT(*) FROM t3;
+SELECT HEX(c),comment FROM t3 WHERE b=c ORDER BY b;
+SELECT HEX(c),HEX(b),comment FROM t3 WHERE b<>c ORDER BY b;
+DELETE FROM t2 WHERE b IN (SELECT b FROM t3);
+DELETE FROM t3;
+
+
+--echo #
+--echo # Sequences that consist of head + tail + MB2 should go without warnings
+--echo #
+INSERT INTO t3 (b,c,comment) SELECT b,b,comment FROM t2
+WHERE FIND_IN_SET('head',type1)
+  AND FIND_IN_SET('tail',type2)
+  AND FIND_IN_SET('mb2',type3)
+ORDER BY b;
+SELECT COUNT(*) FROM t3;
+SELECT HEX(c),comment FROM t3 WHERE b=c ORDER BY b;
+SELECT HEX(c),HEX(b),comment FROM t3 WHERE b<>c ORDER BY b;
+DELETE FROM t2 WHERE b IN (SELECT b FROM t3);
+DELETE FROM t3;
+
+--echo #
+--echo # Sequences that consist of (ascii or mb2) + head + tail should go without warnings
+--echo #
+INSERT INTO t3 (b,c,comment) SELECT b,b,comment FROM t2
+WHERE (FIND_IN_SET('ascii',type1) OR FIND_IN_SET('mb2',type1))
+  AND FIND_IN_SET('head',type2)
+  AND FIND_IN_SET('tail',type3)
+ORDER BY b;
+SELECT COUNT(*) FROM t3;
+SELECT HEX(c),comment FROM t3 WHERE b=c ORDER BY b;
+SELECT HEX(c),HEX(b),comment FROM t3 WHERE b<>c ORDER BY b;
+DELETE FROM t2 WHERE b IN (SELECT b FROM t3);
+DELETE FROM t3;
+
+
+#--echo #
+#--echo # Other sequences
+#--echo #
+INSERT IGNORE INTO t3 (b,c,comment) SELECT b,b,comment FROM t2 ORDER BY b;
+SELECT COUNT(*) FROM t3;
+SELECT HEX(c),comment FROM t3 WHERE b=c ORDER BY b;
+SELECT HEX(c),HEX(b),comment FROM t3 WHERE b<>c ORDER BY b;
+
+DROP TABLE t3;
+DROP TABLE t2;
+DROP TABLE t1;
+
+--echo #
+--echo # END OF MDEV-6566 Different INSERT behaviour on bad bytes with and without character set conversion
+--echo #
+
+--echo #
+--echo # MDEV-7661 Unexpected result for: CAST(0xHHHH AS CHAR CHARACTER SET xxx) for incorrect byte sequences
+--echo #
+set sql_mode='';
+SELECT HEX(CAST(0xA341 AS CHAR CHARACTER SET gb2312));
+SELECT HEX(CONVERT(CAST(0xA341 AS CHAR CHARACTER SET gb2312) USING utf8));
+set sql_mode=default;
+
+
+--echo #
+--echo # End of 10.1 tests
+--echo #
+
+--echo #
+--echo # Start of 10.2 tests
+--echo #
+
+--echo #
+--echo # MDEV-9811 LOAD DATA INFILE does not work well with gbk in some cases
+--echo #
+CREATE TABLE t1 (a VARCHAR(10) CHARACTER SET gbk);
+LOAD DATA INFILE '../../std_data/loaddata/mdev8711.txt' INTO TABLE t1 CHARACTER SET gbk LINES TERMINATED BY '@';
+SELECT HEX(a) FROM t1;
+DELETE FROM t1;
+LOAD DATA INFILE '../../std_data/loaddata/mdev8711.txt' INTO TABLE t1 CHARACTER SET gbk LINES TERMINATED BY '@' IGNORE 1 LINES;
+SELECT HEX(a) FROM t1;
+DROP TABLE t1;
+--echo #
+--echo # MDEV-9711 NO PAD Collatons
+--echo #
+SET character_set_connection=gbk;
+let $coll='gbk_chinese_nopad_ci';
+let $coll_pad='gbk_chinese_ci';
+--source include/ctype_pad_all_engines.inc
+
+let $coll='gbk_nopad_bin';
+let $coll_pad='gbk_bin';
+--source include/ctype_pad_all_engines.inc
+
+--echo #
+--echo # End of 10.2 tests
+--echo #

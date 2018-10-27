@@ -1,0 +1,114 @@
+CREATE TABLE t1(f1 INT)ENGINE=INNODB;
+INSERT INTO t1 VALUES(NULL);
+SELECT * FROM t1;
+f1
+NULL
+ALTER TABLE t1 CHANGE f1 f1 INT NOT NULL;
+affected rows: 0
+info: Records: 0  Duplicates: 0  Warnings: 1
+Warnings:
+Warning	1265	Data truncated for column 'f1' at row 1
+SELECT * FROM t1;
+f1
+0
+DROP TABLE t1;
+CREATE TABLE t1(f1 CHAR(10))ENGINE=INNODB;
+INSERT INTO t1 VALUES(NULL);
+SELECT * FROM t1;
+f1
+NULL
+ALTER TABLE t1 CHANGE f1 f1 CHAR(10) NOT NULL;
+affected rows: 0
+info: Records: 0  Duplicates: 0  Warnings: 1
+Warnings:
+Warning	1265	Data truncated for column 'f1' at row 1
+SELECT * FROM t1;
+f1
+
+DROP TABLE t1;
+CREATE TABLE t1(f1 VARCHAR(10))ENGINE=INNODB;
+INSERT INTO t1 VALUES(NULL);
+SELECT * FROM t1;
+f1
+NULL
+ALTER TABLE t1 CHANGE f1 f1 VARCHAR(20) NOT NULL;
+affected rows: 0
+info: Records: 0  Duplicates: 0  Warnings: 1
+Warnings:
+Warning	1265	Data truncated for column 'f1' at row 1
+SELECT * FROM t1;
+f1
+
+DROP TABLE t1;
+CREATE TABLE t1(f1 TEXT)ENGINE=INNODB;
+INSERT INTO t1 VALUES(NULL);
+SELECT * FROM t1;
+f1
+NULL
+ALTER TABLE t1 CHANGE f1 f1 TEXT NOT NULL DEFAULT 'abc';
+affected rows: 0
+info: Records: 0  Duplicates: 0  Warnings: 1
+Warnings:
+Warning	1265	Data truncated for column 'f1' at row 1
+SELECT * FROM t1;
+f1
+
+DROP TABLE t1;
+CREATE TABLE t1(f1 INT NOT NULL, f2 INT NOT NULL, f3 INT)ENGINE=INNODB;
+INSERT INTO t1 VALUES(2, 2, NULL);
+SELECT * FROM t1;
+f1	f2	f3
+2	2	NULL
+ALTER TABLE t1 CHANGE f3 f3 INT NOT NULL DEFAULT (f1 + f2);
+affected rows: 0
+info: Records: 0  Duplicates: 0  Warnings: 1
+Warnings:
+Warning	1265	Data truncated for column 'f3' at row 1
+SELECT * FROM t1;
+f1	f2	f3
+2	2	0
+DROP TABLE t1;
+CREATE TABLE t1(f1 INT NOT NULL DEFAULT 0, b TINYINT)ENGINE=InnoDB;
+INSERT INTO t1 VALUES(10, NULL);
+SELECT * FROM t1;
+f1	b
+10	NULL
+ALTER TABLE t1 CHANGE b b TINYINT NOT NULL DEFAULT if(unix_timestamp()>1,1000,0);
+affected rows: 0
+info: Records: 0  Duplicates: 0  Warnings: 1
+Warnings:
+Warning	1265	Data truncated for column 'b' at row 1
+SELECT * FROM t1;
+f1	b
+10	0
+DROP TABLE t1;
+CREATE TABLE t1(a INT, v INT AS (a), c INT, d INT NOT NULL, e INT) ENGINE=InnoDB;
+ALTER TABLE t1 DROP COLUMN c, CHANGE COLUMN e e INT NOT NULL;
+affected rows: 0
+info: Records: 0  Duplicates: 0  Warnings: 0
+DROP TABLE t1;
+CREATE TABLE t1 (a INT, v INT AS (a), d INT NOT NULL, e INT) ENGINE=InnoDB;
+ALTER TABLE t1 FORCE;
+affected rows: 0
+info: Records: 0  Duplicates: 0  Warnings: 0
+DROP TABLE t1;
+CREATE TABLE t1(c1 INT NOT NULL, c2 INT, PRIMARY KEY(c1))ENGINE=INNODB;
+INSERT INTO t1 VALUES(1, NULL);
+ALTER IGNORE TABLE t1 CHANGE c2 c2 INT NOT NULL DEFAULT 2;
+affected rows: 0
+info: Records: 0  Duplicates: 0  Warnings: 1
+Warnings:
+Warning	1265	Data truncated for column 'c2' at row 1
+SELECT * FROM t1;
+c1	c2
+1	0
+DROP TABLE t1;
+#
+# MDEV-16126 Crash or ASAN heap-buffer-overflow in
+# mach_read_from_n_little_endian upon ALTER TABLE with blob
+#
+CREATE TABLE t1(a INT, v INT AS (a), b INT, c BLOB) ENGINE=InnoDB;
+ALTER TABLE t1 ADD PRIMARY KEY(b);
+affected rows: 0
+info: Records: 0  Duplicates: 0  Warnings: 0
+DROP TABLE t1;

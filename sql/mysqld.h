@@ -169,11 +169,13 @@ extern ulong opt_tc_log_size, tc_log_max_pages_used, tc_log_page_size;
 extern ulong tc_log_page_waits;
 extern my_bool relay_log_purge, opt_innodb_safe_binlog, opt_innodb;
 extern my_bool relay_log_recovery;
-extern uint test_flags,select_errors,ha_open_options;
+extern uint select_errors,ha_open_options;
+extern ulonglong test_flags;
 extern uint protocol_version, mysqld_port, dropping_tables;
 extern ulong delay_key_write_options;
 extern char *opt_logname, *opt_slow_logname, *opt_bin_logname, 
             *opt_relay_logname;
+extern char *opt_binlog_index_name;
 extern char *opt_backup_history_logname, *opt_backup_progress_logname,
             *opt_backup_settings_name;
 extern const char *log_output_str;
@@ -202,9 +204,7 @@ struct vers_asof_timestamp_t
 enum vers_alter_history_enum
 {
   VERS_ALTER_HISTORY_ERROR= 0,
-  VERS_ALTER_HISTORY_KEEP,
-  VERS_ALTER_HISTORY_SURVIVE,
-  VERS_ALTER_HISTORY_DROP
+  VERS_ALTER_HISTORY_KEEP
 };
 /* System Versioning end */
 
@@ -242,8 +242,8 @@ extern uint  slave_net_timeout;
 extern int max_user_connections;
 extern volatile ulong cached_thread_count;
 extern ulong what_to_log,flush_time;
-extern ulong max_prepared_stmt_count, prepared_stmt_count;
-extern ulong open_files_limit;
+extern uint max_prepared_stmt_count, prepared_stmt_count;
+extern MYSQL_PLUGIN_IMPORT ulong open_files_limit;
 extern ulonglong binlog_cache_size, binlog_stmt_cache_size, binlog_file_cache_size;
 extern ulonglong max_binlog_cache_size, max_binlog_stmt_cache_size;
 extern ulong max_binlog_size;
@@ -267,7 +267,7 @@ extern time_t server_start_time, flush_status_time;
 extern char *opt_mysql_tmpdir, mysql_charsets_dir[];
 extern size_t mysql_unpacked_real_data_home_len;
 extern MYSQL_PLUGIN_IMPORT MY_TMPDIR mysql_tmpdir_list;
-extern const char *first_keyword, *delayed_user, *binary_keyword;
+extern const char *first_keyword, *delayed_user;
 extern MYSQL_PLUGIN_IMPORT const char  *my_localhost;
 extern MYSQL_PLUGIN_IMPORT const char **errmesg;			/* Error messages */
 extern const char *myisam_recover_options_str;
@@ -304,7 +304,9 @@ extern my_bool encrypt_binlog;
 extern my_bool encrypt_tmp_disk_tables, encrypt_tmp_files;
 extern ulong encryption_algorithm;
 extern const char *encryption_algorithm_names[];
-extern const char *quoted_string;
+extern long opt_secure_timestamp;
+
+enum secure_timestamp { SECTIME_NO, SECTIME_SUPER, SECTIME_REPL, SECTIME_YES };
 
 #ifdef HAVE_PSI_INTERFACE
 #ifdef HAVE_MMAP
@@ -772,15 +774,7 @@ inline query_id_t get_query_id()
 }
 
 /* increment global_thread_id and return it.  */
-inline __attribute__((warn_unused_result)) my_thread_id next_thread_id()
-{
-  return my_atomic_add64_explicit((int64*) &global_thread_id, 1, MY_MEMORY_ORDER_RELAXED);
-}
-
-#if defined(MYSQL_DYNAMIC_PLUGIN) && defined(_WIN32)
-extern "C" my_thread_id next_thread_id_noinline();
-#define next_thread_id() next_thread_id_noinline()
-#endif
+extern __attribute__((warn_unused_result)) my_thread_id next_thread_id(void);
 
 /*
   TODO: Replace this with an inline function.

@@ -739,7 +739,7 @@ int decimal_shift(decimal_t *dec, int shift)
   /*
     If there are gaps then fill ren with 0.
 
-    Only one of following 'for' loops will work becouse beg <= end
+    Only one of following 'for' loops will work because beg <= end
   */
   beg= ROUND_UP(beg + 1) - 1;
   end= ROUND_UP(end) - 1;
@@ -863,7 +863,7 @@ internal_str2dec(const char *from, decimal_t *to, char **end, my_bool fixed)
         intg=intg1*DIG_PER_DEC1;
     }
   }
-  /* Error is guranteed to be set here */
+  /* Error is guaranteed to be set here */
   to->intg=intg;
   to->frac=frac;
 
@@ -999,6 +999,12 @@ static int ull2dec(ulonglong from, decimal_t *to)
   dec1 *buf;
 
   sanity(to);
+
+  if (!from)
+  {
+    decimal_make_zero(to);
+    return E_DEC_OK;
+  }
 
   for (intg1=1; from >= DIG_BASE; intg1++, from/=DIG_BASE) {}
   if (unlikely(intg1 > to->len))
@@ -1365,7 +1371,7 @@ int bin2decimal(const uchar *from, decimal_t *to, int precision, int scale)
       case 2: x=mi_sint2korr(from); break;
       case 3: x=mi_sint3korr(from); break;
       case 4: x=mi_sint4korr(from); break;
-      default: DBUG_ASSERT(0);
+      default: abort();
     }
     from+=i;
     *buf=x ^ mask;
@@ -1406,7 +1412,7 @@ int bin2decimal(const uchar *from, decimal_t *to, int precision, int scale)
       case 2: x=mi_sint2korr(from); break;
       case 3: x=mi_sint3korr(from); break;
       case 4: x=mi_sint4korr(from); break;
-      default: DBUG_ASSERT(0);
+      default: abort();
     }
     *buf=(x ^ mask) * powers10[DIG_PER_DEC1 - frac0x];
     if (((uint32)*buf) > DIG_MAX)
@@ -2242,7 +2248,7 @@ static int do_div_mod(const decimal_t *from1, const decimal_t *from2,
   */
   norm_factor=DIG_BASE/(*start2+1);
   norm2=(dec1)(norm_factor*start2[0]);
-  if (likely(len2>0))
+  if (unlikely(len2>0))
     norm2+=(dec1)(norm_factor*start2[1]/DIG_BASE);
 
   if (*start1 < *start2)
@@ -2264,7 +2270,7 @@ static int do_div_mod(const decimal_t *from1, const decimal_t *from2,
       guess=(norm_factor*x+norm_factor*y/DIG_BASE)/norm2;
       if (unlikely(guess >= DIG_BASE))
         guess=DIG_BASE-1;
-      if (likely(len2>0))
+      if (unlikely(len2>0))
       {
         /* hmm, this is a suspicious trick - I removed normalization here */
         if (start2[1]*guess > (x-guess*start2[0])*DIG_BASE+y)

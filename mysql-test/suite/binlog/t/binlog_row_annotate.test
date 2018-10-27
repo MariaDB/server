@@ -1,1 +1,1 @@
---source extra/binlog_tests/binlog_row_annotate.inc
+--source include/binlog_row_annotate.inc

@@ -34,9 +34,9 @@
   compilation warnings.
 */
 #ifndef __attribute__
-# if !defined(__GNUC__)
+# if !defined(__GNUC__) && !defined(__clang__)
 #  define __attribute__(A)
-# else
+# elif defined(__GNUC__)
 #  ifndef GCC_VERSION
 #   define GCC_VERSION (__GNUC__ * 1000 + __GNUC_MINOR__)
 #  endif

@@ -1,12 +1,9 @@
 /************* TabTbl C++ Program Source Code File (.CPP) **************/
 /* PROGRAM NAME: TABTBL                                                */
 /* -------------                                                       */
-/*  Version 1.8                                                        */
+/*  Version 1.9                                                        */
 /*                                                                     */
-/* COPYRIGHT:                                                          */
-/* ----------                                                          */
-/*  (C) Copyright to PlugDB Software Development          2008-2017    */
-/*  Author: Olivier BERTRAND                                           */
+/*  Author: Olivier BERTRAND                              2008-2018    */
 /*                                                                     */
 /* WHAT THIS PROGRAM DOES:                                             */
 /* -----------------------                                             */
@@ -135,7 +132,7 @@ bool TBLDEF::DefineAM(PGLOBAL g, LPCSTR, int)
       tbl = new(g) XTAB(pn, def);
       tbl->SetSchema(pdb);
       
-      if (trace)
+      if (trace(1))
         htrc("TBL: Name=%s db=%s\n", tbl->GetName(), tbl->GetSchema());
 
       // Link the blocks
@@ -168,9 +165,14 @@ PTDB TBLDEF::GetTable(PGLOBAL g, MODE)
   {
   if (Catfunc == FNC_COL)
     return new(g) TDBTBC(this);
-  else if (Thread)
-    return new(g) TDBTBM(this);
-  else
+	else if (Thread) {
+#if defined(DEVELOPMENT)
+		return new(g) TDBTBM(this);
+#else
+		strcpy(g->Message, "Option THREAD is no more supported");
+		return NULL;
+#endif   // DEVELOPMENT
+	} else
     return new(g) TDBTBL(this);
 
   } // end of GetTable
@@ -434,7 +436,7 @@ int TDBTBL::RowNumber(PGLOBAL g, bool b)
 /***********************************************************************/
 bool TDBTBL::OpenDB(PGLOBAL g)
   {
-  if (trace)
+  if (trace(1))
     htrc("TBL OpenDB: tdbp=%p tdb=R%d use=%d key=%p mode=%d\n",
                       this, Tdb_No, Use, To_Key_Col, Mode);
 
@@ -473,7 +475,7 @@ bool TDBTBL::OpenDB(PGLOBAL g)
       else if (((PPRXCOL)cp)->Init(g, NULL) && !Accept)
         return TRUE;
         
-    if (trace)
+    if (trace(1))
       htrc("Opening subtable %s\n", Tdbp->GetName());
 
     // Now we can safely open the table
@@ -528,7 +530,7 @@ int TDBTBL::ReadDB(PGLOBAL g)
           else if (((PPRXCOL)cp)->Init(g, NULL) && !Accept)
             return RC_FX;
 
-        if (trace)
+        if (trace(1))
           htrc("Opening subtable %s\n", Tdbp->GetName());
 
         // Now we can safely open the table
@@ -553,13 +555,14 @@ int TDBTBL::ReadDB(PGLOBAL g)
 /***********************************************************************/
 void TBTBLK::ReadColumn(PGLOBAL)
   {
-  if (trace)
+  if (trace(1))
     htrc("TBT ReadColumn: name=%s\n", Name);
 
   Value->SetValue_psz((char*)((PTDBTBL)To_Tdb)->Tdbp->GetName());
 
   } // end of ReadColumn
 
+#if defined(DEVELOPMENT)
 /* ------------------------- Class TDBTBM ---------------------------- */
 
 /***********************************************************************/
@@ -572,27 +575,30 @@ pthread_handler_t ThreadOpen(void *p)
   if (!my_thread_init()) {
     set_current_thd(cmp->Thd);
 
-		if (trace)
+		if (trace(1))
 			htrc("ThreadOpen: Thd=%d\n", cmp->Thd);
 
     // Try to open the connection
-    if (!cmp->Tap->GetTo_Tdb()->OpenDB(cmp->G)) {
-			pthread_mutex_lock(&tblmut);
-			if (trace)
+		pthread_mutex_lock(&tblmut);
+
+		if (!cmp->Tap->GetTo_Tdb()->OpenDB(cmp->G)) {
+//		pthread_mutex_lock(&tblmut);
+			if (trace(1))
 				htrc("Table %s ready\n", cmp->Tap->GetName());
 
 			cmp->Ready = true;
-			pthread_mutex_unlock(&tblmut);
+//		pthread_mutex_unlock(&tblmut);
 		} else {
-			pthread_mutex_lock(&tblmut);
-			if (trace)
+//		pthread_mutex_lock(&tblmut);
+			if (trace(1))
 				htrc("Opening %s failed\n", cmp->Tap->GetName());
 
 			cmp->Rc = RC_FX;
-			pthread_mutex_unlock(&tblmut);
+//		pthread_mutex_unlock(&tblmut);
 		}	// endif OpenDB
 
-    my_thread_end();
+		pthread_mutex_unlock(&tblmut);
+		my_thread_end();
   } else
     cmp->Rc = RC_FX;
 
@@ -669,7 +675,7 @@ bool TDBTBM::OpenTables(PGLOBAL g)
       // Remove remote table from the local list
       *ptabp = tabp->Next;
 
-			if (trace)
+			if (trace(1))
 				htrc("=====> New remote table %s\n", tabp->GetName());
 
       // Make the remote table block
@@ -695,7 +701,7 @@ bool TDBTBM::OpenTables(PGLOBAL g)
       ptp = &tp->Next;
       Nrc++;         // Number of remote connections
     } else {
-			if (trace)
+			if (trace(1))
 				htrc("=====> Local table %s\n", tabp->GetName());
 
 			ptabp = &tabp->Next;
@@ -711,7 +717,7 @@ bool TDBTBM::OpenTables(PGLOBAL g)
 /***********************************************************************/
 bool TDBTBM::OpenDB(PGLOBAL g)
   {
-  if (trace)
+  if (trace(1))
     htrc("TBM OpenDB: tdbp=%p tdb=R%d use=%d key=%p mode=%d\n",
                       this, Tdb_No, Use, To_Key_Col, Mode);
 
@@ -759,7 +765,7 @@ bool TDBTBM::OpenDB(PGLOBAL g)
       else if (((PPRXCOL)cp)->Init(g, NULL) && !Accept)
         return TRUE;
         
-    if (trace)
+    if (trace(1))
       htrc("Opening subtable %s\n", Tdbp->GetName());
 
     // Now we can safely open the table
@@ -860,10 +866,11 @@ int TDBTBM::ReadNextRemote(PGLOBAL g)
     else if (((PPRXCOL)cp)->Init(g, NULL) && !Accept)
       return RC_FX;
 
-  if (trace)
+  if (trace(1))
     htrc("Reading subtable %s\n", Tdbp->GetName());
 
   return RC_OK;
   } // end of ReadNextRemote
+#endif   // DEVELOPMENT
 
 /* ------------------------------------------------------------------- */

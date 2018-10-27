@@ -53,7 +53,13 @@ macro(set_cflags_if_supported)
   endforeach(flag)
 endmacro(set_cflags_if_supported)
 
+if (NOT DEFINED MYSQL_PROJECT_NAME_DOCSTRING)
+  set (OPTIONAL_CFLAGS "${OPTIONAL_CFLAGS} -Wmissing-format-attribute")
+endif()
+
 ## disable some warnings
+## missing-format-attribute causes warnings in some MySQL include files
+## if the library is built as a part of TokuDB MySQL storage engine
 set_cflags_if_supported(
   -Wno-missing-field-initializers
   -Wstrict-null-sentinel
@@ -61,7 +67,7 @@ set_cflags_if_supported(
   -Wswitch
   -Wtrampolines
   -Wlogical-op
-  -Wmissing-format-attribute
+  ${OPTIONAL_CFLAGS}
   -Wno-error=missing-format-attribute
   -Wno-error=address-of-array-temporary
   -Wno-error=tautological-constant-out-of-range-compare
@@ -72,14 +78,6 @@ set_cflags_if_supported(
   -Wno-error=nonnull-compare
   )
 ## set_cflags_if_supported_named("-Weffc++" -Weffcpp)
-
-if (CMAKE_CXX_FLAGS MATCHES -fno-implicit-templates)
-  # must append this because mysql sets -fno-implicit-templates and we need to override it
-  check_cxx_compiler_flag(-fimplicit-templates HAVE_CXX_IMPLICIT_TEMPLATES)
-  if (HAVE_CXX_IMPLICIT_TEMPLATES)
-    set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -fimplicit-templates")
-  endif ()
-endif()
 
 ## Clang has stricter POD checks.  So, only enable this warning on our other builds (Linux + GCC)
 if (NOT CMAKE_CXX_COMPILER_ID MATCHES Clang)
@@ -100,6 +98,9 @@ endif ()
 set_cflags_if_supported(
   -Wno-error=strict-overflow
   )
+
+# new flag sets in MySQL 8.0 seem to explicitly disable this
+set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -fexceptions")
 
 ## set extra debugging flags and preprocessor definitions
 set(CMAKE_C_FLAGS_DEBUG "-g3 -O0 ${CMAKE_C_FLAGS_DEBUG}")
@@ -143,8 +144,8 @@ set_cflags_if_supported(
   -Wmissing-prototypes
   -Wmissing-declarations
   -Wpointer-arith
-  -Wmissing-format-attribute
-  -Wshadow
+  #-Wshadow will fail with GCC-8
+  ${OPTIONAL_CFLAGS}
   ## other flags to try:
   #-Wunsafe-loop-optimizations
   #-Wpointer-arith

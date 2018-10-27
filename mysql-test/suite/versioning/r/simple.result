@@ -11,7 +11,7 @@ name varchar(100),
 salary int(10),
 constraint `dept-emp-fk`
     foreign key (dept_id) references dept (dept_id)
-on delete cascade
+on delete restrict
 on update restrict
 ) 
 with system versioning;

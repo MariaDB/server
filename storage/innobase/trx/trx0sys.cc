@@ -88,206 +88,20 @@ ReadView::check_trx_id_sanity(
 uint	trx_rseg_n_slots_debug = 0;
 #endif
 
-
-/*****************************************************************//**
-Updates the offset information about the end of the MySQL binlog entry
-which corresponds to the transaction just being committed. In a MySQL
-replication slave updates the latest master binlog position up to which
-replication has proceeded. */
-void
-trx_sys_update_mysql_binlog_offset(
-/*===============================*/
-	const char*	file_name,/*!< in: MySQL log file name */
-	int64_t		offset,	/*!< in: position in that log file */
-	buf_block_t*	sys_header, /*!< in,out: trx sys header */
-	mtr_t*		mtr)	/*!< in,out: mini-transaction */
-{
-	DBUG_PRINT("InnoDB",("trx_mysql_binlog_offset: %lld", (longlong) offset));
-
-	const size_t len = strlen(file_name) + 1;
-
-	if (len > TRX_SYS_MYSQL_LOG_NAME_LEN) {
-
-		/* We cannot fit the name to the 512 bytes we have reserved */
-
-		return;
-	}
-
-	byte* p = TRX_SYS + TRX_SYS_MYSQL_LOG_MAGIC_N_FLD
-		+ TRX_SYS_MYSQL_LOG_INFO + sys_header->frame;
-
-	if (mach_read_from_4(p) != TRX_SYS_MYSQL_LOG_MAGIC_N) {
-		mlog_write_ulint(p,
-				 TRX_SYS_MYSQL_LOG_MAGIC_N,
-				 MLOG_4BYTES, mtr);
-	}
-
-	p = TRX_SYS + TRX_SYS_MYSQL_LOG_NAME + TRX_SYS_MYSQL_LOG_INFO
-		+ sys_header->frame;
-
-	if (memcmp(file_name, p, len)) {
-		mlog_write_string(p,
-				  reinterpret_cast<const byte*>(file_name),
-				  len, mtr);
-	}
-
-	mlog_write_ull(TRX_SYS_MYSQL_LOG_INFO + TRX_SYS_MYSQL_LOG_OFFSET
-		       + TRX_SYS + sys_header->frame, offset, mtr);
-}
-
 /** Display the MySQL binlog offset info if it is present in the trx
 system header. */
 void
 trx_sys_print_mysql_binlog_offset()
 {
-	mtr_t		mtr;
-
-	mtr.start();
-
-	const buf_block_t* block = trx_sysf_get(&mtr, false);
-
-	if (block
-	    && mach_read_from_4(TRX_SYS + TRX_SYS_MYSQL_LOG_INFO
-				+ TRX_SYS_MYSQL_LOG_MAGIC_N_FLD
-				+ block->frame)
-	    == TRX_SYS_MYSQL_LOG_MAGIC_N) {
-		ib::info() << "Last binlog file '"
-			<< TRX_SYS_MYSQL_LOG_INFO + TRX_SYS_MYSQL_LOG_NAME
-			+ TRX_SYS + block->frame
-			<< "', position "
-			<< mach_read_from_8(TRX_SYS_MYSQL_LOG_INFO
-					    + TRX_SYS_MYSQL_LOG_OFFSET
-					    + TRX_SYS + block->frame);
+	if (!*trx_sys.recovered_binlog_filename) {
+		return;
 	}
 
-	mtr.commit();
+	ib::info() << "Last binlog file '"
+		<< trx_sys.recovered_binlog_filename
+		<< "', position "
+		<< trx_sys.recovered_binlog_offset;
 }
-
-#ifdef WITH_WSREP
-
-#ifdef UNIV_DEBUG
-static long long trx_sys_cur_xid_seqno = -1;
-static unsigned char trx_sys_cur_xid_uuid[16];
-
-/** Read WSREP XID seqno */
-static inline long long read_wsrep_xid_seqno(const XID* xid)
-{
-	long long seqno;
-	memcpy(&seqno, xid->data + 24, sizeof(long long));
-	return seqno;
-}
-
-/** Read WSREP XID UUID */
-static inline void read_wsrep_xid_uuid(const XID* xid, unsigned char* buf)
-{
-	memcpy(buf, xid->data + 8, 16);
-}
-
-#endif /* UNIV_DEBUG */
-
-/** Update WSREP XID info in the TRX_SYS page.
-@param[in]	xid		Transaction XID
-@param[in,out]	sys_header	TRX_SYS page
-@param[in,out]	mtr		mini-transaction */
-UNIV_INTERN
-void
-trx_sys_update_wsrep_checkpoint(
-	const XID*	xid,
-	buf_block_t*	sys_header,
-	mtr_t*		mtr)
-{
-	ut_ad(xid->formatID == 1);
-	ut_ad(wsrep_is_wsrep_xid(xid));
-
-	byte* magic = TRX_SYS + TRX_SYS_WSREP_XID_INFO
-		+ TRX_SYS_WSREP_XID_MAGIC_N_FLD
-		+ sys_header->frame;
-
-	if (mach_read_from_4(magic) != TRX_SYS_WSREP_XID_MAGIC_N) {
-		mlog_write_ulint(magic, TRX_SYS_WSREP_XID_MAGIC_N,
-				 MLOG_4BYTES, mtr);
-#ifdef UNIV_DEBUG
-	} else {
-		/* Check that seqno is monotonically increasing */
-		unsigned char xid_uuid[16];
-		long long xid_seqno = read_wsrep_xid_seqno(xid);
-		read_wsrep_xid_uuid(xid, xid_uuid);
-
-		if (!memcmp(xid_uuid, trx_sys_cur_xid_uuid, 8)) {
-			ut_ad(xid_seqno > trx_sys_cur_xid_seqno);
-			trx_sys_cur_xid_seqno = xid_seqno;
-		} else {
-			memcpy(trx_sys_cur_xid_uuid, xid_uuid, 16);
-		}
-
-		trx_sys_cur_xid_seqno = xid_seqno;
-#endif /* UNIV_DEBUG */
-	}
-
-	mlog_write_ulint(TRX_SYS + TRX_SYS_WSREP_XID_INFO
-			 + TRX_SYS_WSREP_XID_FORMAT + sys_header->frame,
-			 uint32_t(xid->formatID),
-			 MLOG_4BYTES, mtr);
-	mlog_write_ulint(TRX_SYS + TRX_SYS_WSREP_XID_INFO
-			 + TRX_SYS_WSREP_XID_GTRID_LEN + sys_header->frame,
-			 uint32_t(xid->gtrid_length),
-			 MLOG_4BYTES, mtr);
-	mlog_write_ulint(TRX_SYS + TRX_SYS_WSREP_XID_INFO
-			 + TRX_SYS_WSREP_XID_BQUAL_LEN + sys_header->frame,
-			 uint32_t(xid->bqual_length),
-			 MLOG_4BYTES, mtr);
-	mlog_write_string(TRX_SYS + TRX_SYS_WSREP_XID_INFO
-			  + TRX_SYS_WSREP_XID_DATA + sys_header->frame,
-			  reinterpret_cast<const byte*>(xid->data),
-			  XIDDATASIZE, mtr);
-}
-
-/** Read WSREP checkpoint XID from sys header.
-@param[out]	xid	WSREP XID
-@return	whether the checkpoint was present */
-UNIV_INTERN
-bool
-trx_sys_read_wsrep_checkpoint(XID* xid)
-{
-	mtr_t		mtr;
-
-	ut_ad(xid);
-
-	mtr.start();
-
-	const buf_block_t* block = trx_sysf_get(&mtr, false);
-
-	if (!block ||
-	    mach_read_from_4(TRX_SYS + TRX_SYS_WSREP_XID_INFO
-			     + TRX_SYS_WSREP_XID_MAGIC_N_FLD + block->frame)
-	    != TRX_SYS_WSREP_XID_MAGIC_N) {
-		memset(xid, 0, sizeof(*xid));
-		long long seqno= -1;
-		memcpy(xid->data + 24, &seqno, sizeof(long long));
-		xid->formatID = -1;
-		mtr.commit();
-		return false;
-	}
-
-	xid->formatID = (int)mach_read_from_4(
-		TRX_SYS + TRX_SYS_WSREP_XID_INFO + TRX_SYS_WSREP_XID_FORMAT
-		+ block->frame);
-	xid->gtrid_length = (int)mach_read_from_4(
-		TRX_SYS + TRX_SYS_WSREP_XID_INFO + TRX_SYS_WSREP_XID_GTRID_LEN
-		+ block->frame);
-	xid->bqual_length = (int)mach_read_from_4(
-		TRX_SYS + TRX_SYS_WSREP_XID_INFO + TRX_SYS_WSREP_XID_BQUAL_LEN
-		+ block->frame);
-	memcpy(xid->data,
-	       TRX_SYS + TRX_SYS_WSREP_XID_INFO + TRX_SYS_WSREP_XID_DATA
-	       + block->frame,
-	       XIDDATASIZE);
-
-	mtr.commit();
-	return true;
-}
-
-#endif /* WITH_WSREP */
 
 /** Find an available rollback segment.
 @param[in]	sys_header
@@ -348,10 +162,12 @@ trx_sysf_create(
 	then enter the kernel: we must do it in this order to conform
 	to the latching order rules. */
 
-	mtr_x_lock_space(TRX_SYS_SPACE, mtr);
+	mtr_x_lock(&fil_system.sys_space->latch, mtr);
+	compile_time_assert(TRX_SYS_SPACE == 0);
 
 	/* Create the trx sys file block in a new allocated file segment */
-	block = fseg_create(TRX_SYS_SPACE, 0, TRX_SYS + TRX_SYS_FSEG_HEADER,
+	block = fseg_create(fil_system.sys_space, 0,
+			    TRX_SYS + TRX_SYS_FSEG_HEADER,
 			    mtr);
 	buf_block_dbg_add_level(block, SYNC_TRX_SYS_HEADER);
 
@@ -376,17 +192,18 @@ trx_sysf_create(
 	compile_time_assert(256 >= TRX_SYS_N_RSEGS);
 	memset(ptr, 0xff, 256 * TRX_SYS_RSEG_SLOT_SIZE);
 	ptr += 256 * TRX_SYS_RSEG_SLOT_SIZE;
-	ut_a(ptr <= page + (UNIV_PAGE_SIZE - FIL_PAGE_DATA_END));
+	ut_a(ptr <= page + (srv_page_size - FIL_PAGE_DATA_END));
 
 	/* Initialize all of the page.  This part used to be uninitialized. */
-	memset(ptr, 0, UNIV_PAGE_SIZE - FIL_PAGE_DATA_END + page - ptr);
+	memset(ptr, 0, srv_page_size - FIL_PAGE_DATA_END + size_t(page - ptr));
 
-	mlog_log_string(TRX_SYS + page, UNIV_PAGE_SIZE - FIL_PAGE_DATA_END
+	mlog_log_string(TRX_SYS + page, srv_page_size - FIL_PAGE_DATA_END
 			- TRX_SYS, mtr);
 
 	/* Create the first rollback segment in the SYSTEM tablespace */
 	slot_no = trx_sys_rseg_find_free(block);
-	page_no = trx_rseg_header_create(TRX_SYS_SPACE, slot_no, block, mtr);
+	page_no = trx_rseg_header_create(fil_system.sys_space, slot_no, block,
+					 mtr);
 
 	ut_a(slot_no == TRX_SYS_SYSTEM_RSEG_ID);
 	ut_a(page_no == FSP_FIRST_RSEG_PAGE_NO);
@@ -400,8 +217,8 @@ trx_sys_t::create()
 	ut_ad(!is_initialised());
 	m_initialised = true;
 	mutex_create(LATCH_ID_TRX_SYS, &mutex);
-	UT_LIST_INIT(mysql_trx_list, &trx_t::mysql_trx_list);
-	UT_LIST_INIT(m_views, &ReadView::m_view_list);
+	UT_LIST_INIT(trx_list, &trx_t::trx_list);
+	my_atomic_store32(&rseg_history_len, 0);
 
 	rw_trx_hash.init();
 }
@@ -513,11 +330,6 @@ trx_sys_t::close()
 			" shutdown: " << size << " read views open";
 	}
 
-	if (trx_dummy_sess) {
-		sess_close(trx_dummy_sess);
-		trx_dummy_sess = NULL;
-	}
-
 	rw_trx_hash.destroy();
 
 	/* There can't be any active transactions. */
@@ -532,49 +344,25 @@ trx_sys_t::close()
 		}
 	}
 
-	ut_a(UT_LIST_GET_LEN(mysql_trx_list) == 0);
-	ut_ad(UT_LIST_GET_LEN(m_views) == 0);
-
-	/* We used placement new to create this mutex. Call the destructor. */
+	ut_a(UT_LIST_GET_LEN(trx_list) == 0);
 	mutex_free(&mutex);
 	m_initialised = false;
 }
 
-
-static my_bool active_count_callback(rw_trx_hash_element_t *element,
-                                     uint32_t *count)
-{
-  mutex_enter(&element->mutex);
-  if (trx_t *trx= element->trx)
-  {
-    mutex_enter(&trx->mutex);
-    if (trx_state_eq(trx, TRX_STATE_ACTIVE))
-      ++*count;
-    mutex_exit(&trx->mutex);
-  }
-  mutex_exit(&element->mutex);
-  return 0;
-}
-
-
 /** @return total number of active (non-prepared) transactions */
 ulint trx_sys_t::any_active_transactions()
 {
-	uint32_t total_trx = 0;
+  uint32_t total_trx= 0;
 
-	trx_sys.rw_trx_hash.iterate_no_dups(
-				reinterpret_cast<my_hash_walk_action>
-				(active_count_callback), &total_trx);
-
-	mutex_enter(&mutex);
-	for (trx_t* trx = UT_LIST_GET_FIRST(trx_sys.mysql_trx_list);
-	     trx != NULL;
-	     trx = UT_LIST_GET_NEXT(mysql_trx_list, trx)) {
-		if (trx->state != TRX_STATE_NOT_STARTED && !trx->id) {
-			total_trx++;
-		}
-	}
-	mutex_exit(&mutex);
-
-	return(total_trx);
+  mutex_enter(&mutex);
+  for (trx_t* trx= UT_LIST_GET_FIRST(trx_sys.trx_list);
+       trx != NULL;
+       trx= UT_LIST_GET_NEXT(trx_list, trx))
+  {
+    if (trx->state == TRX_STATE_COMMITTED_IN_MEMORY ||
+        (trx->state == TRX_STATE_ACTIVE && trx->id))
+      total_trx++;
+  }
+  mutex_exit(&mutex);
+  return total_trx;
 }

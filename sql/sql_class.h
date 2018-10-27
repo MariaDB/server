@@ -92,8 +92,25 @@ enum enum_slave_run_triggers_for_rbr { SLAVE_RUN_TRIGGERS_FOR_RBR_NO,
                                        SLAVE_RUN_TRIGGERS_FOR_RBR_LOGGING};
 enum enum_slave_type_conversions { SLAVE_TYPE_CONVERSIONS_ALL_LOSSY,
                                    SLAVE_TYPE_CONVERSIONS_ALL_NON_LOSSY};
-enum enum_mark_columns
-{ MARK_COLUMNS_NONE, MARK_COLUMNS_READ, MARK_COLUMNS_WRITE};
+
+/*
+  MARK_COLUMNS_READ:  A column is goind to be read.
+  MARK_COLUMNS_WRITE: A column is going to be written to.
+  MARK_COLUMNS_READ:  A column is goind to be read.
+                      A bit in read set is set to inform handler that the field
+                      is to be read. If field list contains duplicates, then
+                      thd->dup_field is set to point to the last found
+                      duplicate.
+  MARK_COLUMNS_WRITE: A column is going to be written to.
+                      A bit is set in write set to inform handler that it needs
+                      to update this field in write_row and update_row.
+*/
+enum enum_column_usage
+{ COLUMNS_READ, COLUMNS_WRITE, MARK_COLUMNS_READ, MARK_COLUMNS_WRITE};
+
+static inline bool should_mark_column(enum_column_usage column_usage)
+{ return column_usage >= MARK_COLUMNS_READ; }
+
 enum enum_filetype { FILETYPE_CSV, FILETYPE_XML };
 
 enum enum_binlog_row_image {
@@ -140,6 +157,7 @@ enum enum_binlog_row_image {
 #define MODE_NO_ENGINE_SUBSTITUTION     (1ULL << 30)
 #define MODE_PAD_CHAR_TO_FULL_LENGTH    (1ULL << 31)
 #define MODE_EMPTY_STRING_IS_NULL       (1ULL << 32)
+#define MODE_SIMULTANEOUS_ASSIGNMENT    (1ULL << 33)
 
 /* Bits for different old style modes */
 #define OLD_MODE_NO_DUP_KEY_WARNINGS_WITH_IGNORE	(1 << 0)
@@ -344,11 +362,13 @@ public:
   LEX_CSTRING ref_db;
   LEX_CSTRING ref_table;
   List<Key_part_spec> ref_columns;
-  uint delete_opt, update_opt, match_opt;
+  enum enum_fk_option delete_opt, update_opt;
+  enum fk_match_opt match_opt;
   Foreign_key(const LEX_CSTRING *name_arg, List<Key_part_spec> *cols,
 	      const LEX_CSTRING *ref_db_arg, const LEX_CSTRING *ref_table_arg,
               List<Key_part_spec> *ref_cols,
-	      uint delete_opt_arg, uint update_opt_arg, uint match_opt_arg,
+              enum_fk_option delete_opt_arg, enum_fk_option update_opt_arg,
+              fk_match_opt match_opt_arg,
 	      DDL_options ddl_options)
     :Key(FOREIGN_KEY, name_arg, &default_key_create_info, 0, cols, NULL,
          ddl_options),
@@ -561,6 +581,7 @@ typedef struct system_variables
   ha_rows max_join_size;
   ha_rows expensive_subquery_limit;
   ulong auto_increment_increment, auto_increment_offset;
+  uint eq_range_index_dive_limit;
   ulong column_compression_zlib_strategy;
   ulong lock_wait_timeout;
   ulong join_cache_level;
@@ -612,6 +633,7 @@ typedef struct system_variables
   ulong query_cache_type;
   ulong tx_isolation;
   ulong updatable_views_with_limit;
+  ulong alter_algorithm;
   int max_user_connections;
   ulong server_id;
   /**
@@ -635,7 +657,6 @@ typedef struct system_variables
   my_bool keep_files_on_create;
 
   my_bool old_mode;
-  my_bool old_alter_table;
   my_bool old_passwords;
   my_bool big_tables;
   my_bool only_standard_compliant_cte;
@@ -708,7 +729,6 @@ typedef struct system_variables
   uint in_subquery_conversion_threshold;
 
   vers_asof_timestamp_t vers_asof_timestamp;
-  my_bool vers_innodb_algorithm_simple;
   ulong vers_alter_history;
 } SV;
 
@@ -795,12 +815,16 @@ typedef struct system_status_var
   ulong filesort_pq_sorts_;
 
   /* Features used */
+  ulong feature_custom_aggregate_functions; /* +1 when custom aggregate
+                                            functions are used */
   ulong feature_dynamic_columns;    /* +1 when creating a dynamic column */
   ulong feature_fulltext;	    /* +1 when MATCH is used */
   ulong feature_gis;                /* +1 opening a table with GIS features */
   ulong feature_invisible_columns;     /* +1 opening a table with invisible column */
+  ulong feature_json;		    /* +1 when JSON function appears in the statement */
   ulong feature_locale;		    /* +1 when LOCALE is set */
   ulong feature_subquery;	    /* +1 when subqueries are used */
+  ulong feature_system_versioning;  /* +1 opening a table WITH SYSTEM VERSIONING */
   ulong feature_timezone;	    /* +1 when XPATH is used */
   ulong feature_trigger;	    /* +1 opening a table with triggers */
   ulong feature_xml;		    /* +1 when XPATH is used */
@@ -951,10 +975,6 @@ public:
 
   enum_state state;
 
-protected:
-  friend class sp_head;
-  bool is_stored_procedure;
-
 public:
   /* We build without RTTI, so dynamic_cast can't be used. */
   enum Type
@@ -963,8 +983,7 @@ public:
   };
 
   Query_arena(MEM_ROOT *mem_root_arg, enum enum_state state_arg) :
-    free_list(0), mem_root(mem_root_arg), state(state_arg),
-    is_stored_procedure(state_arg == STMT_INITIALIZED_FOR_SP ? true : false)
+    free_list(0), mem_root(mem_root_arg), state(state_arg)
   { INIT_ARENA_DBUG_INFO; }
   /*
     This constructor is used only when Query_arena is created as
@@ -984,14 +1003,12 @@ public:
   { return state == STMT_PREPARED || state == STMT_EXECUTED; }
   inline bool is_conventional() const
   { return state == STMT_CONVENTIONAL_EXECUTION; }
-  inline bool is_sp_execute() const
-  { return is_stored_procedure; }
 
   inline void* alloc(size_t size) { return alloc_root(mem_root,size); }
   inline void* calloc(size_t size)
   {
     void *ptr;
-    if ((ptr=alloc_root(mem_root,size)))
+    if (likely((ptr=alloc_root(mem_root,size))))
       bzero(ptr, size);
     return ptr;
   }
@@ -1004,7 +1021,7 @@ public:
   inline void *memdup_w_gap(const void *str, size_t size, size_t gap)
   {
     void *ptr;
-    if ((ptr= alloc_root(mem_root,size+gap)))
+    if (likely((ptr= alloc_root(mem_root,size+gap))))
       memcpy(ptr,str,size);
     return ptr;
   }
@@ -1075,18 +1092,7 @@ public:
   */
    ulong id;
 
-  /*
-    MARK_COLUMNS_NONE:  Means mark_used_colums is not set and no indicator to
-                        handler of fields used is set
-    MARK_COLUMNS_READ:  Means a bit in read set is set to inform handler
-	                that the field is to be read. If field list contains
-                        duplicates, then thd->dup_field is set to point
-                        to the last found duplicate.
-    MARK_COLUMNS_WRITE: Means a bit is set in write set to inform handler
-			that it needs to update this field in write_row
-                        and update_row.
-  */
-  enum enum_mark_columns mark_used_columns;
+  enum enum_column_usage column_usage;
 
   LEX_CSTRING name; /* name for named prepared statements */
   LEX *lex;                                     // parse tree descriptor
@@ -1242,6 +1248,29 @@ typedef struct st_xid_state {
   /* Error reported by the Resource Manager (RM) to the Transaction Manager. */
   uint rm_error;
   XID_cache_element *xid_cache_element;
+
+  /**
+    Check that XA transaction has an uncommitted work. Report an error
+    to the user in case when there is an uncommitted work for XA transaction.
+
+    @return  result of check
+      @retval  false  XA transaction is NOT in state IDLE, PREPARED
+                      or ROLLBACK_ONLY.
+      @retval  true   XA transaction is in state IDLE or PREPARED
+                      or ROLLBACK_ONLY.
+  */
+
+  bool check_has_uncommitted_xa() const
+  {
+    if (xa_state == XA_IDLE ||
+        xa_state == XA_PREPARED ||
+        xa_state == XA_ROLLBACK_ONLY)
+    {
+      my_error(ER_XAER_RMFAIL, MYF(0), xa_state_names[xa_state]);
+      return true;
+    }
+    return false;
+  }
 } XID_STATE;
 
 void xid_cache_init(void);
@@ -1862,7 +1891,7 @@ public:
   void unlink_all_closed_tables(THD *thd,
                                 MYSQL_LOCK *lock,
                                 size_t reopen_count);
-  bool reopen_tables(THD *thd);
+  bool reopen_tables(THD *thd, bool need_reopen);
   bool restore_lock(THD *thd, TABLE_LIST *dst_table_list, TABLE *table,
                     MYSQL_LOCK *lock);
   void add_back_last_deleted_lock(TABLE_LIST *dst_table_list);
@@ -2104,26 +2133,6 @@ struct wait_for_commit
   void reinit();
 };
 
-/*
-  Structure to store the start time for a query
-*/
-
-struct QUERY_START_TIME_INFO
-{
-  my_time_t start_time;
-  ulong     start_time_sec_part;
-  ulonglong start_utime, utime_after_lock;
-
-  void backup_query_start_time(QUERY_START_TIME_INFO *backup)
-  {
-    *backup= *this;
-  }
-  void restore_query_start_time(QUERY_START_TIME_INFO *backup)
-  {
-    *this= *backup;
-  }
-};
-
 extern "C" void my_message_sql(uint error, const char *str, myf MyFlags);
 
 /**
@@ -2142,8 +2151,7 @@ class THD :public Statement,
            */
            public Item_change_list,
            public MDL_context_owner,
-           public Open_tables_state,
-           public QUERY_START_TIME_INFO
+           public Open_tables_state
 {
 private:
   inline bool is_stmt_prepare() const
@@ -2368,12 +2376,12 @@ public:
   uint32     file_id;			// for LOAD DATA INFILE
   /* remote (peer) port */
   uint16     peer_port;
+  my_time_t  start_time;             // start_time and its sec_part 
+  ulong      start_time_sec_part;    // are almost always used separately
   my_hrtime_t user_time;
   // track down slow pthread_create
   ulonglong  prior_thr_create_utime, thr_create_utime;
-  ulonglong  utime_after_query;
-  my_time_t  system_time;
-  ulong      system_time_sec_part;
+  ulonglong  start_utime, utime_after_lock, utime_after_query;
 
   // Process indicator
   struct {
@@ -2578,6 +2586,15 @@ public:
     XID_STATE xid_state;
     WT_THD wt;                          ///< for deadlock detection
     Rows_log_event *m_pending_rows_event;
+
+    struct st_trans_time : public timeval
+    {
+      void reset(THD *thd)
+      {
+        tv_sec= thd->query_start();
+        tv_usec= (long) thd->query_start_sec_part();
+      }
+    } start_time;
 
     /*
        Tables changed in transaction (that must be invalidated in query cache).
@@ -2960,7 +2977,6 @@ public:
   uint	     tmp_table, global_disable_checkpoint;
   uint	     server_status,open_options;
   enum enum_thread_type system_thread;
-  uint       select_number;             //number of select (used for EXPLAIN)
   /*
     Current or next transaction isolation level.
     When a connection is established, the value is taken from
@@ -3021,10 +3037,14 @@ public:
   } *killed_err;
 
   /* See also thd_killed() */
-  inline bool check_killed()
+  inline bool check_killed(bool dont_send_error_message= 0)
   {
-    if (killed)
+    if (unlikely(killed))
+    {
+      if (!dont_send_error_message)
+        send_kill_message();
       return TRUE;
+    }
     if (apc_target.have_apc_requests())
       apc_target.process_apc_requests(); 
     return FALSE;
@@ -3071,7 +3091,7 @@ public:
     Reset to FALSE when we leave the sub-statement mode.
   */
   bool       is_fatal_sub_stmt_error;
-  bool	     query_start_used, rand_used, time_zone_used;
+  bool	     rand_used, time_zone_used;
   bool       query_start_sec_part_used;
   /* for IS NULL => = last_insert_id() fix in remove_eq_conds() */
   bool       substitute_null_with_insert_id;
@@ -3084,8 +3104,10 @@ public:
     is set if a statement accesses a temporary table created through
     CREATE TEMPORARY TABLE. 
   */
-  bool	     charset_is_system_charset, charset_is_collation_connection;
+private:
+  bool       charset_is_system_charset, charset_is_collation_connection;
   bool       charset_is_character_set_filesystem;
+public:
   bool       enable_slow_log;    /* Enable slow log for current statement */
   bool	     abort_on_warning;
   bool 	     got_warning;       /* Set on call to push_warning() */
@@ -3123,6 +3145,8 @@ public:
   sp_rcontext *spcont;		// SP runtime context
   sp_cache   *sp_proc_cache;
   sp_cache   *sp_func_cache;
+  sp_cache   *sp_package_spec_cache;
+  sp_cache   *sp_package_body_cache;
 
   /** number of name_const() substitutions, see sp_head.cc:subst_spvars() */
   uint       query_name_consts;
@@ -3188,6 +3212,7 @@ public:
     query_id_t first_query_id;
   } binlog_evt_union;
 
+  mysql_cond_t              COND_wsrep_thd;
   /**
     Internal parser state.
     Note that since the parser is not re-entrant, we keep only one parser
@@ -3380,42 +3405,54 @@ public:
     return !MY_TEST(variables.sql_mode & MODE_NO_BACKSLASH_ESCAPES);
   }
   const Type_handler *type_handler_for_date() const;
-  inline my_time_t query_start() { query_start_used=1; return start_time; }
+  bool timestamp_to_TIME(MYSQL_TIME *ltime, my_time_t ts,
+                         ulong sec_part, ulonglong fuzzydate);
+  inline my_time_t query_start() { return start_time; }
   inline ulong query_start_sec_part()
   { query_start_sec_part_used=1; return start_time_sec_part; }
   MYSQL_TIME query_start_TIME();
 
 private:
-  bool system_time_ge(my_time_t secs, ulong usecs)
-  {
-    return (system_time == secs && system_time_sec_part >= usecs) ||
-        system_time > secs;
-  }
+  struct {
+    my_hrtime_t start;
+    my_time_t sec;
+    ulong sec_part;
+  } system_time;
 
   void set_system_time()
   {
     my_hrtime_t hrtime= my_hrtime();
-    my_time_t secs= hrtime_to_my_time(hrtime);
-    ulong usecs= hrtime_sec_part(hrtime);
-    if (system_time_ge(secs, usecs))
+    my_time_t sec= hrtime_to_my_time(hrtime);
+    ulong sec_part= hrtime_sec_part(hrtime);
+    if (sec > system_time.sec ||
+        (sec == system_time.sec && sec_part > system_time.sec_part) ||
+        hrtime.val < system_time.start.val)
     {
-      if (++system_time_sec_part == HRTIME_RESOLUTION)
-      {
-        ++system_time;
-        system_time_sec_part= 0;
-      }
+      system_time.sec= sec;
+      system_time.sec_part= sec_part;
     }
     else
     {
-      system_time= secs;
-      system_time_sec_part= usecs;
+      if (system_time.sec_part < TIME_MAX_SECOND_PART)
+        system_time.sec_part++;
+      else
+      {
+        system_time.sec++;
+        system_time.sec_part= 0;
+      }
     }
   }
 
 public:
+  timeval transaction_time()
+  {
+    if (!in_multi_stmt_transaction_mode())
+      transaction.start_time.reset(this);
+    return transaction.start_time;
+  }
+
   inline void set_start_time()
   {
-    set_system_time();
     if (user_time.val)
     {
       start_time= hrtime_to_my_time(user_time);
@@ -3423,8 +3460,9 @@ public:
     }
     else
     {
-      start_time= system_time;
-      start_time_sec_part= system_time_sec_part;
+      set_system_time();
+      start_time= system_time.sec;
+      start_time_sec_part= system_time.sec_part;
     }
     PSI_CALL_set_thread_start_time(start_time);
   }
@@ -3433,15 +3471,41 @@ public:
     set_start_time();
     start_utime= utime_after_lock= microsecond_interval_timer();
   }
+  /* only used in SET @@timestamp=... */
   inline void set_time(my_hrtime_t t)
   {
     user_time= t;
     set_time();
   }
+  /*
+    this is only used by replication and BINLOG command.
+    usecs > TIME_MAX_SECOND_PART means "was not in binlog"
+  */
   inline void set_time(my_time_t t, ulong sec_part)
   {
-    my_hrtime_t hrtime= { hrtime_from_time(t) + sec_part };
-    set_time(hrtime);
+    if (opt_secure_timestamp > (slave_thread ? SECTIME_REPL : SECTIME_SUPER))
+      set_time();                 // note that BINLOG itself requires SUPER
+    else
+    {
+      if (sec_part <= TIME_MAX_SECOND_PART)
+      {
+        start_time= system_time.sec= t;
+        start_time_sec_part= system_time.sec_part= sec_part;
+      }
+      else if (t != system_time.sec)
+      {
+        start_time= system_time.sec= t;
+        start_time_sec_part= system_time.sec_part= 0;
+      }
+      else
+      {
+        start_time= t;
+        start_time_sec_part= ++system_time.sec_part;
+      }
+      user_time.val= hrtime_from_time(start_time) + start_time_sec_part;
+      PSI_CALL_set_thread_start_time(start_time);
+      start_utime= utime_after_lock= microsecond_interval_timer();
+    }
   }
   void set_time_after_lock()
   {
@@ -3571,13 +3635,34 @@ public:
     lex_str->length= length;
     return lex_str;
   }
+  // Remove double quotes:  aaa""bbb -> aaa"bbb
+  bool quote_unescape(LEX_CSTRING *dst, const LEX_CSTRING *src, char quote)
+  {
+    const char *tmp= src->str;
+    const char *tmpend= src->str + src->length;
+    char *to;
+    if (!(dst->str= to= (char *) alloc(src->length + 1)))
+    {
+      dst->length= 0; // Safety
+      return true;
+    }
+    for ( ; tmp < tmpend; )
+    {
+      if ((*to++= *tmp++) == quote)
+        tmp++;                                  // Skip double quotes
+    }
+    *to= 0;                                     // End null for safety
+    dst->length= to - dst->str;
+    return false;
+  }
 
   LEX_CSTRING *make_clex_string(const char* str, size_t length)
   {
     LEX_CSTRING *lex_str;
     char *tmp;
-    if (!(lex_str= (LEX_CSTRING *)alloc_root(mem_root, sizeof(LEX_CSTRING) +
-                                             length+1)))
+    if (unlikely(!(lex_str= (LEX_CSTRING *)alloc_root(mem_root,
+                                                      sizeof(LEX_CSTRING) +
+                                                      length+1))))
       return 0;
     tmp= (char*) (lex_str+1);
     lex_str->str= tmp;
@@ -3586,11 +3671,15 @@ public:
     lex_str->length= length;
     return lex_str;
   }
+  LEX_CSTRING *make_clex_string(const LEX_CSTRING from)
+  {
+    return make_clex_string(from.str, from.length);
+  }
 
   // Allocate LEX_STRING for character set conversion
   bool alloc_lex_string(LEX_STRING *dst, size_t length)
   {
-    if ((dst->str= (char*) alloc(length)))
+    if (likely((dst->str= (char*) alloc(length))))
       return false;
     dst->length= 0;  // Safety
     return true;     // EOM
@@ -3598,6 +3687,25 @@ public:
   bool convert_string(LEX_STRING *to, CHARSET_INFO *to_cs,
 		      const char *from, size_t from_length,
 		      CHARSET_INFO *from_cs);
+  bool convert_string(LEX_CSTRING *to, CHARSET_INFO *to_cs,
+                      const char *from, size_t from_length,
+                      CHARSET_INFO *from_cs)
+  {
+    LEX_STRING tmp;
+    bool rc= convert_string(&tmp, to_cs, from, from_length, from_cs);
+    to->str= tmp.str;
+    to->length= tmp.length;
+    return rc;
+  }
+  bool convert_string(LEX_CSTRING *to, CHARSET_INFO *tocs,
+                      const LEX_CSTRING *from, CHARSET_INFO *fromcs,
+                      bool simple_copy_is_possible)
+  {
+    if (!simple_copy_is_possible)
+      return unlikely(convert_string(to, tocs, from->str, from->length, fromcs));
+    *to= *from;
+    return false;
+  }
   /*
     Convert a strings between character sets.
     Uses my_convert_fix(), which uses an mb_wc .. mc_mb loop internally.
@@ -3614,7 +3722,6 @@ public:
   bool convert_with_error(CHARSET_INFO *dstcs, LEX_STRING *dst,
                           CHARSET_INFO *srccs,
                           const char *src, size_t src_length);
-
   /*
     If either "dstcs" or "srccs" is &my_charset_bin,
     then performs native copying using cs->cset->copy_fix().
@@ -3634,25 +3741,55 @@ public:
   bool convert_string(String *s, CHARSET_INFO *from_cs, CHARSET_INFO *to_cs);
 
   /*
+    Check if the string is wellformed, raise an error if not wellformed.
+    @param str    - The string to check.
+    @param length - the string length.
+  */
+  bool check_string_for_wellformedness(const char *str,
+                                       size_t length,
+                                       CHARSET_INFO *cs) const;
+
+  bool to_ident_sys_alloc(Lex_ident_sys_st *to, const Lex_ident_cli_st *from);
+
+  /*
     Create a string literal with optional client->connection conversion.
     @param str        - the string in the client character set
     @param length     - length of the string
     @param repertoire - the repertoire of the string
   */
-  Item *make_string_literal(const char *str, size_t length,
-                            uint repertoire);
-  Item *make_string_literal(const Lex_string_with_metadata_st &str)
+  Item_basic_constant *make_string_literal(const char *str, size_t length,
+                                           uint repertoire);
+  Item_basic_constant *make_string_literal(const Lex_string_with_metadata_st &str)
   {
     uint repertoire= str.repertoire(variables.character_set_client);
     return make_string_literal(str.str, str.length, repertoire);
   }
-  Item *make_string_literal_nchar(const Lex_string_with_metadata_st &str);
-  Item *make_string_literal_charset(const Lex_string_with_metadata_st &str,
-                                    CHARSET_INFO *cs);
-  Item *make_string_literal_concat(Item *item1, const LEX_CSTRING &str);
+  Item_basic_constant *make_string_literal_nchar(const Lex_string_with_metadata_st &str);
+  Item_basic_constant *make_string_literal_charset(const Lex_string_with_metadata_st &str,
+                                                   CHARSET_INFO *cs);
+  bool make_text_string_sys(LEX_CSTRING *to,
+                            const Lex_string_with_metadata_st *from)
+  {
+    return convert_string(to, system_charset_info,
+                          from, charset(), charset_is_system_charset);
+  }
+  bool make_text_string_connection(LEX_CSTRING *to,
+                                   const Lex_string_with_metadata_st *from)
+  {
+    return convert_string(to, variables.collation_connection,
+                          from, charset(), charset_is_collation_connection);
+  }
+  bool make_text_string_filesystem(LEX_CSTRING *to,
+                                   const Lex_string_with_metadata_st *from)
+  {
+    return convert_string(to, variables.character_set_filesystem,
+                          from, charset(), charset_is_character_set_filesystem);
+  }
   void add_changed_table(TABLE *table);
   void add_changed_table(const char *key, size_t key_length);
   CHANGED_TABLE_LIST * changed_table_dup(const char *key, size_t key_length);
+  void prepare_explain_fields(select_result *result, List<Item> *field_list,
+                              uint8 explain_flags, bool is_analyze);
   int send_explain_fields(select_result *result, uint8 explain_flags,
                           bool is_analyze);
   void make_explain_field_list(List<Item> &field_list, uint8 explain_flags,
@@ -3739,7 +3876,7 @@ public:
   void set_stmt_da(Diagnostics_area *da)
   { m_stmt_da= da; }
 
-  inline CHARSET_INFO *charset() { return variables.character_set_client; }
+  inline CHARSET_INFO *charset() const { return variables.character_set_client; }
   void update_charset();
   void update_charset(CHARSET_INFO *character_set_client,
                       CHARSET_INFO *collation_connection)
@@ -3774,10 +3911,14 @@ public:
 
   void change_item_tree(Item **place, Item *new_value)
   {
+    DBUG_ENTER("THD::change_item_tree");
+    DBUG_PRINT("enter", ("Register: %p (%p) <- %p",
+                       *place, place, new_value));
     /* TODO: check for OOM condition here */
     if (!stmt_arena->is_conventional())
       nocheck_register_item_tree_change(place, *place, mem_root);
     *place= new_value;
+    DBUG_VOID_RETURN;
   }
   /**
     Make change in item tree after checking whether it needs registering
@@ -3843,7 +3984,7 @@ public:
           The worst things that can happen is that we get
           a suboptimal error message.
         */
-        if ((killed_err= (err_info*) alloc(sizeof(*killed_err))))
+        if (likely((killed_err= (err_info*) alloc(sizeof(*killed_err)))))
         {
           killed_err->no= killed_errno_arg;
           ::strmake((char*) killed_err->msg, killed_err_msg_arg,
@@ -3895,6 +4036,10 @@ public:
     *format= (enum_binlog_format) variables.binlog_format;
     *current_format= current_stmt_binlog_format;
   }
+  inline enum_binlog_format get_current_stmt_binlog_format()
+  {
+    return current_stmt_binlog_format;
+  }
   inline void set_binlog_format(enum_binlog_format format,
                                 enum_binlog_format current_format)
   {
@@ -3938,6 +4083,11 @@ public:
       set_current_stmt_binlog_format_row();
 
     DBUG_VOID_RETURN;
+  }
+
+  inline void set_current_stmt_binlog_format(enum_binlog_format format)
+  {
+    current_stmt_binlog_format= format;
   }
 
   inline void set_current_stmt_binlog_format_row()
@@ -4030,18 +4180,33 @@ public:
   {
     if (db.str == NULL)
     {
-      my_message(ER_NO_DB_ERROR, ER(ER_NO_DB_ERROR), MYF(0));
-      return TRUE;
+      /*
+        No default database is set. In this case if it's guaranteed that
+        no CTE can be used in the statement then we can throw an error right
+        now at the parser stage. Otherwise the decision about throwing such
+        a message must be postponed until a post-parser stage when we are able
+        to resolve all CTE names as we don't need this message to be thrown
+        for any CTE references.
+      */
+      if (!lex->with_clauses_list)
+      {
+        my_message(ER_NO_DB_ERROR, ER(ER_NO_DB_ERROR), MYF(0));
+        return TRUE;
+      }
+      /* This will allow to throw an error later for non-CTE references */
+      to->str= NULL;
+      to->length= 0;
+      return FALSE;
     }
+
     to->str= strmake(db.str, db.length);
     to->length= db.length;
     return to->str == NULL;                     /* True on error */
   }
   /* Get db name or "". Use for printing current db */
   const char *get_db()
-  {
-    return db.str ? db.str : "";
-  }
+  { return safe_str(db.str); }
+
   thd_scheduler event_scheduler;
 
 public:
@@ -4125,16 +4290,8 @@ public:
   void parse_error(const char *err_text, const char *yytext)
   {
     Lex_input_stream *lip= &m_parser_state->m_lip;
-    if (!yytext)
-    {
-      if (lip->lookahead_token >= 0)
-        yytext= lip->get_tok_start_prev();
-      else
-        yytext= lip->get_tok_start();
-
-      if (!yytext)
+    if (!yytext && !(yytext= lip->get_tok_start()))
         yytext= "";
-    }
     /* Push an error into the error stack */
     ErrConvString err(yytext, strlen(yytext), variables.character_set_client);
     my_printf_error(ER_PARSE_ERROR,  ER_THD(this, ER_PARSE_ERROR), MYF(0),
@@ -4416,7 +4573,13 @@ public:
     The GTID assigned to the last commit. If no GTID was assigned to any commit
     so far, this is indicated by last_commit_gtid.seq_no == 0.
   */
-  rpl_gtid last_commit_gtid;
+private:
+  rpl_gtid m_last_commit_gtid;
+
+public:
+  rpl_gtid get_last_commit_gtid() { return m_last_commit_gtid; }
+  void set_last_commit_gtid(rpl_gtid &gtid);
+
 
   LF_PINS *tdc_hash_pins;
   LF_PINS *xid_hash_pins;
@@ -4424,6 +4587,12 @@ public:
 
 /* Members related to temporary tables. */
 public:
+  /* Opened table states. */
+  enum Temporary_table_state {
+    TMP_TABLE_IN_USE,
+    TMP_TABLE_NOT_IN_USE,
+    TMP_TABLE_ANY
+  };
   bool has_thd_temporary_tables();
 
   TABLE *create_and_open_tmp_table(handlerton *hton,
@@ -4434,8 +4603,10 @@ public:
                                    bool open_in_engine,
                                    bool open_internal_tables);
 
-  TABLE *find_temporary_table(const char *db, const char *table_name);
-  TABLE *find_temporary_table(const TABLE_LIST *tl);
+  TABLE *find_temporary_table(const char *db, const char *table_name,
+                              Temporary_table_state state= TMP_TABLE_IN_USE);
+  TABLE *find_temporary_table(const TABLE_LIST *tl,
+                              Temporary_table_state state= TMP_TABLE_IN_USE);
 
   TMP_TABLE_SHARE *find_tmp_table_share_w_base_key(const char *key,
                                                    uint key_length);
@@ -4457,17 +4628,11 @@ public:
 
   TMP_TABLE_SHARE* save_tmp_table_share(TABLE *table);
   void restore_tmp_table_share(TMP_TABLE_SHARE *share);
+  void close_unused_temporary_table_instances(const TABLE_LIST *tl);
 
 private:
   /* Whether a lock has been acquired? */
   bool m_tmp_tables_locked;
-
-  /* Opened table states. */
-  enum Temporary_table_state {
-    TMP_TABLE_IN_USE,
-    TMP_TABLE_NOT_IN_USE,
-    TMP_TABLE_ANY
-  };
 
   bool has_temporary_tables();
   uint create_tmp_table_def_key(char *key, const char *db,
@@ -4517,7 +4682,6 @@ public:
   query_id_t                wsrep_last_query_id;
   enum wsrep_query_state    wsrep_query_state;
   enum wsrep_conflict_state wsrep_conflict_state;
-  mysql_mutex_t             LOCK_wsrep_thd;
   wsrep_trx_meta_t          wsrep_trx_meta;
   uint32                    wsrep_rand;
   Relay_log_info            *wsrep_rli;
@@ -4746,7 +4910,7 @@ public:
   CHARSET_INFO *cs;
   sql_exchange(const char *name, bool dumpfile_flag,
                enum_filetype filetype_arg= FILETYPE_CSV);
-  bool escaped_given(void);
+  bool escaped_given(void) const;
 };
 
 /*
@@ -4767,6 +4931,7 @@ public:
   */
   virtual int send_data(List<Item> &items)=0;
   virtual ~select_result_sink() {};
+  void reset(THD *thd_arg) { thd= thd_arg; }
 };
 
 
@@ -4793,7 +4958,8 @@ protected:
   SELECT_LEX_UNIT *unit;
   /* Something used only by the parser: */
 public:
-  select_result(THD *thd_arg): select_result_sink(thd_arg) {}
+  ha_rows est_records;  /* estimated number of records in the result */
+ select_result(THD *thd_arg): select_result_sink(thd_arg), est_records(0) {}
   void set_unit(SELECT_LEX_UNIT *unit_arg) { unit= unit_arg; }
   virtual ~select_result() {};
   /**
@@ -4818,7 +4984,7 @@ public:
     unit= u;
     return 0;
   }
-  virtual int prepare2(void) { return 0; }
+  virtual int prepare2(JOIN *join) { return 0; }
   /*
     Because of peculiarities of prepared statements protocol
     we need to know number of columns in the result set (if
@@ -4827,7 +4993,7 @@ public:
   virtual uint field_count(List<Item> &fields) const
   { return fields.elements; }
   virtual bool send_result_set_metadata(List<Item> &list, uint flags)=0;
-  virtual bool initialize_tables (JOIN *join=0) { return 0; }
+  virtual bool initialize_tables (JOIN *join) { return 0; }
   virtual bool send_eof()=0;
   /**
     Check if this query returns a result set and therefore is allowed in
@@ -4844,6 +5010,11 @@ public:
   */
   virtual void cleanup();
   void set_thd(THD *thd_arg) { thd= thd_arg; }
+  void reset(THD *thd_arg)
+  {
+    select_result_sink::reset(thd_arg);
+    unit= NULL;
+  }
 #ifdef EMBEDDED_LIBRARY
   virtual void begin_dataset() {}
 #else
@@ -4940,8 +5111,111 @@ public:
     elsewhere. (this is used by ANALYZE $stmt feature).
   */
   void disable_my_ok_calls() { suppress_my_ok= true; }
+  void reset(THD *thd_arg)
+  {
+    select_result::reset(thd_arg);
+    suppress_my_ok= false;
+  }
 protected:
   bool suppress_my_ok;
+};
+
+
+class sp_cursor_statistics
+{
+protected:
+  ulonglong m_fetch_count; // Number of FETCH commands since last OPEN
+  ulonglong m_row_count;   // Number of successful FETCH since last OPEN
+  bool m_found;            // If last FETCH fetched a row
+public:
+  sp_cursor_statistics()
+   :m_fetch_count(0),
+    m_row_count(0),
+    m_found(false)
+  { }
+  bool found() const
+  { return m_found; }
+
+  ulonglong row_count() const
+  { return m_row_count; }
+
+  ulonglong fetch_count() const
+  { return m_fetch_count; }
+  void reset() { *this= sp_cursor_statistics(); }
+};
+
+
+/* A mediator between stored procedures and server side cursors */
+class sp_lex_keeper;
+class sp_cursor: public sp_cursor_statistics
+{
+private:
+  /// An interceptor of cursor result set used to implement
+  /// FETCH <cname> INTO <varlist>.
+  class Select_fetch_into_spvars: public select_result_interceptor
+  {
+    List<sp_variable> *spvar_list;
+    uint field_count;
+    bool send_data_to_variable_list(List<sp_variable> &vars, List<Item> &items);
+  public:
+    Select_fetch_into_spvars(THD *thd_arg): select_result_interceptor(thd_arg) {}
+    void reset(THD *thd_arg)
+    {
+      select_result_interceptor::reset(thd_arg);
+      spvar_list= NULL;
+      field_count= 0;
+    }
+    uint get_field_count() { return field_count; }
+    void set_spvar_list(List<sp_variable> *vars) { spvar_list= vars; }
+
+    virtual bool send_eof() { return FALSE; }
+    virtual int send_data(List<Item> &items);
+    virtual int prepare(List<Item> &list, SELECT_LEX_UNIT *u);
+};
+
+public:
+  sp_cursor()
+   :result(NULL),
+    m_lex_keeper(NULL),
+    server_side_cursor(NULL)
+  { }
+  sp_cursor(THD *thd_arg, sp_lex_keeper *lex_keeper)
+   :result(thd_arg),
+    m_lex_keeper(lex_keeper),
+    server_side_cursor(NULL)
+  {}
+
+  virtual ~sp_cursor()
+  { destroy(); }
+
+  sp_lex_keeper *get_lex_keeper() { return m_lex_keeper; }
+
+  int open(THD *thd);
+
+  int open_view_structure_only(THD *thd);
+
+  int close(THD *thd);
+
+  my_bool is_open()
+  { return MY_TEST(server_side_cursor); }
+
+  int fetch(THD *, List<sp_variable> *vars, bool error_on_no_data);
+
+  bool export_structure(THD *thd, Row_definition_list *list);
+
+  void reset(THD *thd_arg, sp_lex_keeper *lex_keeper)
+  {
+    sp_cursor_statistics::reset();
+    result.reset(thd_arg);
+    m_lex_keeper= lex_keeper;
+    server_side_cursor= NULL;
+  }
+
+private:
+  Select_fetch_into_spvars result;
+  sp_lex_keeper *m_lex_keeper;
+  Server_side_cursor *server_side_cursor;
+  void destroy();
 };
 
 
@@ -5056,14 +5330,13 @@ class select_insert :public select_result_interceptor {
   ulonglong autoinc_value_of_last_inserted_row; // autogenerated or not
   COPY_INFO info;
   bool insert_into_view;
-  bool versioned_write;
   select_insert(THD *thd_arg, TABLE_LIST *table_list_par,
 		TABLE *table_par, List<Item> *fields_par,
 		List<Item> *update_fields, List<Item> *update_values,
 		enum_duplicates duplic, bool ignore);
   ~select_insert();
   int prepare(List<Item> &list, SELECT_LEX_UNIT *u);
-  virtual int prepare2(void);
+  virtual int prepare2(JOIN *join);
   virtual int send_data(List<Item> &items);
   virtual void store_values(List<Item> &values);
   virtual bool can_rollback_data() { return 0; }
@@ -5077,7 +5350,6 @@ class select_insert :public select_result_interceptor {
 
 
 class select_create: public select_insert {
-  ORDER *group;
   TABLE_LIST *create_table;
   Table_specification_st *create_info;
   TABLE_LIST *select_tables;
@@ -5116,7 +5388,7 @@ public:
   // Needed for access from local class MY_HOOKS in prepare(), since thd is proteted.
   const THD *get_thd(void) { return thd; }
   const HA_CREATE_INFO *get_create_info() { return create_info; };
-  int prepare2(void) { return 0; }
+  int prepare2(JOIN *join) { return 0; }
 
 private:
   TABLE *create_table_from_items(THD *thd,
@@ -5259,7 +5531,6 @@ public:
   TMP_TABLE_PARAM tmp_table_param;
   int write_err; /* Error code from the last send_data->ha_write_row call. */
   TABLE *table;
-  ha_rows records;
 
   select_unit(THD *thd_arg):
     select_result_interceptor(thd_arg),
@@ -5297,7 +5568,6 @@ public:
     curr_sel= UINT_MAX;
     step= UNION_TYPE;
     write_err= 0;
-    records= 0;
   }
   void change_select();
 };
@@ -5311,10 +5581,16 @@ class select_union_recursive :public select_unit
   TABLE *first_rec_table_to_update;
   /* The temporary tables used for recursive table references */
   List<TABLE> rec_tables;
+  /*
+    The count of how many times cleanup() was called with cleaned==false
+    for the unit specifying the recursive CTE for which this object was created
+    or for the unit specifying a CTE that mutually recursive with this CTE.
+  */
+  uint cleanup_count;
 
   select_union_recursive(THD *thd_arg):
     select_unit(thd_arg),
-    incr_table(0), first_rec_table_to_update(0) {};
+    incr_table(0), first_rec_table_to_update(0), cleanup_count(0) {};
 
   int send_data(List<Item> &items);
   bool create_result_table(THD *thd, List<Item> *column_types,
@@ -5381,7 +5657,7 @@ public:
   bool postponed_prepare(List<Item> &types);
   bool send_result_set_metadata(List<Item> &list, uint flags);
   int send_data(List<Item> &items);
-  bool initialize_tables (JOIN *join= NULL);
+  bool initialize_tables (JOIN *join);
   bool send_eof();
   bool flush() { return false; }
   bool check_simple_select() const
@@ -5668,6 +5944,7 @@ public:
     db= *db_name;
   }
   bool resolve_table_rowtype_ref(THD *thd, Row_definition_list &defs);
+  bool append_to(THD *thd, String *to) const;
 };
 
 
@@ -5692,6 +5969,7 @@ public:
     m_column(*column)
   { }
   bool resolve_type_ref(THD *thd, Column_definition *def);
+  bool append_to(THD *thd, String *to) const;
 };
 
 
@@ -5758,7 +6036,7 @@ class multi_update :public select_result_interceptor
 {
   TABLE_LIST *all_tables; /* query/update command tables */
   List<TABLE_LIST> *leaves;     /* list of leves of join table tree */
-  TABLE_LIST *update_tables, *table_being_updated;
+  TABLE_LIST *update_tables;
   TABLE **tmp_tables, *main_table, *table_to_update;
   TMP_TABLE_PARAM *tmp_table_param;
   ha_rows updated, found;
@@ -5798,6 +6076,7 @@ public:
   int prepare(List<Item> &list, SELECT_LEX_UNIT *u);
   int send_data(List<Item> &items);
   bool initialize_tables (JOIN *join);
+  int prepare2(JOIN *join);
   int  do_updates();
   bool send_eof();
   inline ha_rows num_found() const { return found; }
@@ -5807,6 +6086,7 @@ public:
   void prepare_to_read_rows();
 };
 
+class my_var_sp;
 class my_var : public Sql_alloc  {
 public:
   const LEX_CSTRING name;
@@ -5815,10 +6095,11 @@ public:
   my_var(const LEX_CSTRING *j, enum type s) : name(*j), scope(s) { }
   virtual ~my_var() {}
   virtual bool set(THD *thd, Item *val) = 0;
-  virtual class my_var_sp *get_my_var_sp() { return NULL; }
+  virtual my_var_sp *get_my_var_sp() { return NULL; }
 };
 
 class my_var_sp: public my_var {
+  const Sp_rcontext_handler *m_rcontext_handler;
   const Type_handler *m_type_handler;
 public:
   uint offset;
@@ -5827,13 +6108,17 @@ public:
     runtime context is used for variable handling.
   */
   sp_head *sp;
-  my_var_sp(const LEX_CSTRING *j, uint o, const Type_handler *type_handler,
+  my_var_sp(const Sp_rcontext_handler *rcontext_handler,
+            const LEX_CSTRING *j, uint o, const Type_handler *type_handler,
             sp_head *s)
-    : my_var(j, LOCAL_VAR), m_type_handler(type_handler), offset(o), sp(s) { }
+    : my_var(j, LOCAL_VAR),
+      m_rcontext_handler(rcontext_handler),
+      m_type_handler(type_handler), offset(o), sp(s) { }
   ~my_var_sp() { }
   bool set(THD *thd, Item *val);
   my_var_sp *get_my_var_sp() { return this; }
   const Type_handler *type_handler() const { return m_type_handler; }
+  sp_rcontext *get_rcontext(sp_rcontext *local_ctx) const;
 };
 
 /*
@@ -5844,9 +6129,11 @@ class my_var_sp_row_field: public my_var_sp
 {
   uint m_field_offset;
 public:
-  my_var_sp_row_field(const LEX_CSTRING *varname, const LEX_CSTRING *fieldname,
+  my_var_sp_row_field(const Sp_rcontext_handler *rcontext_handler,
+                      const LEX_CSTRING *varname, const LEX_CSTRING *fieldname,
                       uint var_idx, uint field_idx, sp_head *s)
-   :my_var_sp(varname, var_idx, &type_handler_double/*Not really used*/, s),
+   :my_var_sp(rcontext_handler, varname, var_idx,
+              &type_handler_double/*Not really used*/, s),
     m_field_offset(field_idx)
   { }
   bool set(THD *thd, Item *val);
@@ -6020,11 +6307,15 @@ public:
   sent by the user (ie: stored procedure).
 */
 #define CF_SKIP_QUESTIONS       (1U << 1)
-
+#ifdef WITH_WSREP
 /**
   Do not check that wsrep snapshot is ready before allowing this command
 */
 #define CF_SKIP_WSREP_CHECK     (1U << 2)
+#else
+#define CF_SKIP_WSREP_CHECK     0
+#endif /* WITH_WSREP */
+
 /**
   Do not allow it for COM_MULTI batch
 */
@@ -6090,8 +6381,6 @@ inline int handler::ha_ft_read(uchar *buf)
 inline int handler::ha_rnd_pos_by_record(uchar *buf)
 {
   int error= rnd_pos_by_record(buf);
-  if (!error)
-    update_rows_read();
   table->status=error ? STATUS_NOT_FOUND: 0;
   return error;
 }
@@ -6221,6 +6510,9 @@ public:
   Database_qualified_name(const LEX_CSTRING *db, const LEX_CSTRING *name)
    :m_db(*db), m_name(*name)
   { }
+  Database_qualified_name(const LEX_CSTRING &db, const LEX_CSTRING &name)
+   :m_db(db), m_name(name)
+  { }
   Database_qualified_name(const char *db, size_t db_length,
                           const char *name, size_t name_length)
   {
@@ -6261,13 +6553,42 @@ public:
     char *tmp;
     /* format: [database + dot] + name + '\0' */
     dst->length= m_db.length + dot + m_name.length;
-    if (!(dst->str= tmp= (char*) alloc_root(mem_root, dst->length + 1)))
+    if (unlikely(!(dst->str= tmp= (char*) alloc_root(mem_root,
+                                                     dst->length + 1))))
       return true;
     sprintf(tmp, "%.*s%.*s%.*s",
             (int) m_db.length, (m_db.length ? m_db.str : ""),
             dot, ".",
             (int) m_name.length, m_name.str);
     DBUG_SLOW_ASSERT(ok_for_lower_case_names(m_db.str));
+    return false;
+  }
+
+  bool make_package_routine_name(MEM_ROOT *mem_root,
+                                 const LEX_CSTRING &package,
+                                 const LEX_CSTRING &routine)
+  {
+    char *tmp;
+    size_t length= package.length + 1 + routine.length + 1;
+    if (unlikely(!(tmp= (char *) alloc_root(mem_root, length))))
+      return true;
+    m_name.length= my_snprintf(tmp, length, "%.*s.%.*s",
+                               (int) package.length, package.str,
+                               (int) routine.length, routine.str);
+    m_name.str= tmp;
+    return false;
+  }
+
+  bool make_package_routine_name(MEM_ROOT *mem_root,
+                                 const LEX_CSTRING &db,
+                                 const LEX_CSTRING &package,
+                                 const LEX_CSTRING &routine)
+  {
+    if (unlikely(make_package_routine_name(mem_root, package, routine)))
+      return true;
+    if (unlikely(!(m_db.str= strmake_root(mem_root, db.str, db.length))))
+      return true;
+    m_db.length= db.length;
     return false;
   }
 };

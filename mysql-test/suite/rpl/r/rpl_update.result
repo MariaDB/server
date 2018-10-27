@@ -1,0 +1,16 @@
+include/master-slave.inc
+[connection master]
+set sql_mode=simultaneous_assignment;
+create table t1 (a int, b int);
+insert into t1 values(1, 2);
+update t1 set a=b, b=a;
+select * from t1;
+a	b
+2	1
+connection slave;
+select * from t1;
+a	b
+2	1
+connection master;
+drop table t1;
+include/rpl_end.inc

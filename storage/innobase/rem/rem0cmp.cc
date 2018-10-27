@@ -229,7 +229,6 @@ static
 int
 cmp_geometry_field(
 /*===============*/
-	ulint		mtype,		/*!< in: main type */
 	ulint		prtype,		/*!< in: precise type */
 	const byte*	a,		/*!< in: data field */
 	unsigned int	a_length,	/*!< in: data field length,
@@ -303,12 +302,10 @@ cmp_gis_field(
 					not UNIV_SQL_NULL */
 {
 	if (mode == PAGE_CUR_MBR_EQUAL) {
-		/* TODO: Since the DATA_GEOMETRY is not used in compare
-		function, we could pass it instead of a specific type now */
-		return(cmp_geometry_field(DATA_GEOMETRY, DATA_GIS_MBR,
-					  a, a_length, b, b_length));
+		return cmp_geometry_field(DATA_GIS_MBR,
+					  a, a_length, b, b_length);
 	} else {
-		return(rtree_key_cmp(mode, a, a_length, b, b_length));
+		return rtree_key_cmp(mode, a, int(a_length), b, int(b_length));
 	}
 }
 
@@ -379,8 +376,7 @@ cmp_whole_field(
 		return(innobase_mysql_cmp(prtype,
 					  a, a_length, b, b_length));
 	case DATA_GEOMETRY:
-		return(cmp_geometry_field(mtype, prtype, a, a_length, b,
-				b_length));
+		return cmp_geometry_field(prtype, a, a_length, b, b_length);
 	default:
 		ib::fatal() << "Unknown data type number " << mtype;
 	}

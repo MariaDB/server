@@ -142,7 +142,7 @@ os_thread_create_func(
 
 #endif /* not _WIN32 */
 
-	ut_a(os_thread_count <= OS_THREAD_MAX_N);
+	ut_a(os_thread_count <= srv_max_n_threads);
 
 	/* Return the thread_id if the caller requests it. */
 	if (thread_id != NULL) {
@@ -187,7 +187,7 @@ os_thread_exit(bool detach)
 	pfs_delete_thread();
 #endif
 
-	my_atomic_addlint(&os_thread_count, -1);
+	my_atomic_addlint(&os_thread_count, ulint(-1));
 
 #ifdef _WIN32
 	ExitThread(0);

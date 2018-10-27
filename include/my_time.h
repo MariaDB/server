@@ -78,7 +78,7 @@ extern uchar days_in_month[];
 #define MYSQL_TIME_WARN_HAVE_WARNINGS(x) MY_TEST((x) & MYSQL_TIME_WARN_WARNINGS)
 #define MYSQL_TIME_WARN_HAVE_NOTES(x) MY_TEST((x) & MYSQL_TIME_WARN_NOTES)
 
-/* Usefull constants */
+/* Useful constants */
 #define SECONDS_IN_24H 86400L
 
 /* Limits for the TIME data type */
@@ -104,7 +104,8 @@ typedef struct st_mysql_time_status
 
 static inline void my_time_status_init(MYSQL_TIME_STATUS *status)
 {
-  status->warnings= status->precision= 0;
+  status->warnings= 0;
+  status->precision= 0;
 }
 
 my_bool check_date(const MYSQL_TIME *ltime, my_bool not_zero_date,
@@ -117,7 +118,7 @@ longlong number_to_datetime(longlong nr, ulong sec_part, MYSQL_TIME *time_res,
                             ulonglong flags, int *was_cut);
 
 static inline
-longlong double_to_datetime(double nr, MYSQL_TIME *ltime, uint flags, int *cut)
+longlong double_to_datetime(double nr, MYSQL_TIME *ltime, ulonglong flags, int *cut)
 {
   if (nr < 0 || nr > LONGLONG_MAX)
     nr= (double)LONGLONG_MAX;
@@ -133,9 +134,6 @@ ulonglong TIME_to_ulonglong_date(const MYSQL_TIME *);
 ulonglong TIME_to_ulonglong_time(const MYSQL_TIME *);
 ulonglong TIME_to_ulonglong(const MYSQL_TIME *);
 double TIME_to_double(const MYSQL_TIME *my_time);
-
-longlong pack_time(const MYSQL_TIME *my_time);
-MYSQL_TIME *unpack_time(longlong packed, MYSQL_TIME *my_time);
 
 int check_time_range(struct st_mysql_time *my_time, uint dec, int *warning);
 my_bool check_datetime_range(const MYSQL_TIME *ltime);
@@ -239,7 +237,7 @@ static inline void my_timeval_trunc(struct timeval *tv, uint decimals)
   order of elements in 'interval_type_to_name' and 'interval_names' 
   arrays 
   
-  See also interval_type_to_name, get_interval_value, interval_names
+  See also interval_type_to_name, get_interval_value, interval_names, append_interval
 */
 
 enum interval_type

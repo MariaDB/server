@@ -33,7 +33,6 @@ Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA
 #include "common.h"
 #include "read_filt.h"
 #include "xtrabackup.h"
-#include "xb0xb.h"
 
 /* Size of read buffer in pages (640 pages = 10M for 16K sized pages) */
 #define XB_FIL_CUR_PAGES 640
@@ -89,7 +88,7 @@ xb_fil_node_close_file(
 {
 	ibool	ret;
 
-	mutex_enter(&fil_system->mutex);
+	mutex_enter(&fil_system.mutex);
 
 	ut_ad(node);
 	ut_a(node->n_pending == 0);
@@ -98,7 +97,7 @@ xb_fil_node_close_file(
 
 	if (!node->is_open()) {
 
-		mutex_exit(&fil_system->mutex);
+		mutex_exit(&fil_system.mutex);
 
 		return;
 	}
@@ -108,20 +107,20 @@ xb_fil_node_close_file(
 
 	node->handle = OS_FILE_CLOSED;
 
-	ut_a(fil_system->n_open > 0);
-	fil_system->n_open--;
+	ut_a(fil_system.n_open > 0);
+	fil_system.n_open--;
 	fil_n_file_opened--;
 
 	if (node->space->purpose == FIL_TYPE_TABLESPACE &&
 	    fil_is_user_tablespace_id(node->space->id)) {
 
-		ut_a(UT_LIST_GET_LEN(fil_system->LRU) > 0);
+		ut_a(UT_LIST_GET_LEN(fil_system.LRU) > 0);
 
 		/* The node is in the LRU list, remove it */
-		UT_LIST_REMOVE(fil_system->LRU, node);
+		UT_LIST_REMOVE(fil_system.LRU, node);
 	}
 
-	mutex_exit(&fil_system->mutex);
+	mutex_exit(&fil_system.mutex);
 }
 
 /************************************************************************
@@ -131,14 +130,15 @@ Open a source file cursor and initialize the associated read filter.
 be skipped and XB_FIL_CUR_ERROR on error. */
 xb_fil_cur_result_t
 xb_fil_cur_open(
-/*============*/
+	/*============*/
 	xb_fil_cur_t*	cursor,		/*!< out: source file cursor */
 	xb_read_filt_t*	read_filter,	/*!< in/out: the read filter */
 	fil_node_t*	node,		/*!< in: source tablespace node */
-	uint		thread_n)	/*!< thread number for diagnostics */
+	uint		thread_n,	/*!< thread number for diagnostics */
+	ulonglong max_file_size)
 {
 	bool	success;
-
+	int err;
 	/* Initialize these first so xb_fil_cur_close() handles them correctly
 	in case of error */
 	cursor->orig_buf = NULL;
@@ -173,35 +173,52 @@ xb_fil_cur_open(
 			    "tablespace %s\n",
 			    thread_n, cursor->abs_path);
 
-			return(XB_FIL_CUR_ERROR);
+			return(XB_FIL_CUR_SKIP);
 		}
-		mutex_enter(&fil_system->mutex);
+		mutex_enter(&fil_system.mutex);
 
-		fil_system->n_open++;
+		fil_system.n_open++;
 		fil_n_file_opened++;
 
 		if (node->space->purpose == FIL_TYPE_TABLESPACE &&
 		    fil_is_user_tablespace_id(node->space->id)) {
 
 			/* Put the node to the LRU list */
-			UT_LIST_ADD_FIRST(fil_system->LRU, node);
+			UT_LIST_ADD_FIRST(fil_system.LRU, node);
 		}
 
-		mutex_exit(&fil_system->mutex);
+		mutex_exit(&fil_system.mutex);
 	}
 
 	ut_ad(node->is_open());
 
 	cursor->node = node;
 	cursor->file = node->handle;
-
-	if (stat(cursor->abs_path, &cursor->statinfo)) {
-		msg("[%02u] mariabackup: error: cannot stat %s\n",
+#ifdef _WIN32
+    HANDLE hDup;
+    DuplicateHandle(GetCurrentProcess(),cursor->file.m_file,
+		GetCurrentProcess(), &hDup, 0, FALSE, DUPLICATE_SAME_ACCESS);
+	int filenr = _open_osfhandle((intptr_t)hDup, 0);
+	if (filenr < 0) {
+		err = EINVAL;
+	}
+	else {
+		err = _fstat64(filenr, &cursor->statinfo);
+		close(filenr);
+	}
+#else
+	err = fstat(cursor->file.m_file, &cursor->statinfo);
+#endif
+	if (max_file_size < (ulonglong)cursor->statinfo.st_size) {
+		cursor->statinfo.st_size = (ulonglong)max_file_size;
+	}
+	if (err) {
+		msg("[%02u] mariabackup: error: cannot fstat %s\n",
 		    thread_n, cursor->abs_path);
 
 		xb_fil_cur_close(cursor);
 
-		return(XB_FIL_CUR_ERROR);
+		return(XB_FIL_CUR_SKIP);
 	}
 
 	if (srv_file_flush_method == SRV_O_DIRECT
@@ -218,9 +235,9 @@ xb_fil_cur_open(
 	/* Allocate read buffer */
 	cursor->buf_size = XB_FIL_CUR_PAGES * page_size.physical();
 	cursor->orig_buf = static_cast<byte *>
-		(malloc(cursor->buf_size + UNIV_PAGE_SIZE));
+		(malloc(cursor->buf_size + srv_page_size));
 	cursor->buf = static_cast<byte *>
-		(ut_align(cursor->orig_buf, UNIV_PAGE_SIZE));
+		(ut_align(cursor->orig_buf, srv_page_size));
 
 	cursor->buf_read = 0;
 	cursor->buf_npages = 0;
@@ -258,7 +275,7 @@ xb_fil_cur_read(
 	ib_int64_t		offset;
 	ib_int64_t		to_read;
 	const ulint		page_size = cursor->page_size.physical();
-	xb_ad(!cursor->is_system() || page_size == UNIV_PAGE_SIZE);
+	xb_ad(!cursor->is_system() || page_size == srv_page_size);
 
 	cursor->read_filter->get_next_batch(&cursor->read_filter_ctxt,
 					    &offset, &to_read);
@@ -307,9 +324,9 @@ read_retry:
 	cursor->buf_offset = offset;
 	cursor->buf_page_no = (ulint)(offset / cursor->page_size.physical());
 
-	FilSpace space(cursor->space_id);
+	fil_space_t* space = fil_space_get(cursor->space_id);
 
-	if (!space()) {
+	if (!space) {
 		return(XB_FIL_CUR_ERROR);
 	}
 
@@ -326,39 +343,39 @@ read_retry:
 	     page += page_size, i++) {
 		ulint page_no = cursor->buf_page_no + i;
 
-		if (cursor->space_id == TRX_SYS_SPACE &&
-		    page_no >= FSP_EXTENT_SIZE &&
-		    page_no < FSP_EXTENT_SIZE * 3) {
-			/* We ignore the doublewrite buffer pages */
-		} else if (!fil_space_verify_crypt_checksum(
-				   page, cursor->page_size, space->id, page_no)
-			   && buf_page_is_corrupted(true, page,
-						    cursor->page_size,
-						    space)) {
-			retry_count--;
-			if (retry_count == 0) {
-				msg("[%02u] mariabackup: "
-				    "Error: failed to read page after "
-				    "10 retries. File %s seems to be "
-				    "corrupted.\n", cursor->thread_n,
-				    cursor->abs_path);
-				ret = XB_FIL_CUR_ERROR;
-				break;
-			}
+                if (cursor->space_id == TRX_SYS_SPACE &&
+                    page_no >= FSP_EXTENT_SIZE &&
+                    page_no < FSP_EXTENT_SIZE * 3) {
+                        /* We ignore the doublewrite buffer pages */
+                } else if (!fil_space_verify_crypt_checksum(
+                                   page, cursor->page_size, space->id, page_no)
+                           && buf_page_is_corrupted(true, page,
+                                                    cursor->page_size,
+                                                    space)) {
+                        retry_count--;
+                        if (retry_count == 0) {
+                                msg("[%02u] mariabackup: "
+                                    "Error: failed to read page after "
+                                    "10 retries. File %s seems to be "
+                                    "corrupted.\n", cursor->thread_n,
+                                    cursor->abs_path);
+                                ret = XB_FIL_CUR_ERROR;
+                                break;
+                        }
 
-			if (retry_count == 9) {
-				msg("[%02u] mariabackup: "
-				    "Database page corruption detected at page "
-				    ULINTPF ", retrying...\n",
-				    cursor->thread_n, page_no);
-			}
+                        if (retry_count == 9) {
+                                msg("[%02u] mariabackup: "
+                                    "Database page corruption detected at page "
+                                    ULINTPF ", retrying...\n",
+                                    cursor->thread_n, page_no);
+                        }
 
-			os_thread_sleep(100000);
+                        os_thread_sleep(100000);
 
-			goto read_retry;
-		}
-		cursor->buf_read += page_size;
-		cursor->buf_npages++;
+                        goto read_retry;
+                }
+                cursor->buf_read += page_size;
+                cursor->buf_npages++;
 	}
 
 	posix_fadvise(cursor->file, offset, to_read, POSIX_FADV_DONTNEED);
@@ -374,7 +391,9 @@ xb_fil_cur_close(
 /*=============*/
 	xb_fil_cur_t *cursor)	/*!< in/out: source file cursor */
 {
-	cursor->read_filter->deinit(&cursor->read_filter_ctxt);
+	if (cursor->read_filter) {
+		cursor->read_filter->deinit(&cursor->read_filter_ctxt);
+	}
 
 	free(cursor->orig_buf);
 

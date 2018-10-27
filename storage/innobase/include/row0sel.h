@@ -135,8 +135,7 @@ row_sel_convert_mysql_key_to_innobase(
 	ulint		buf_len,	/*!< in: buffer length */
 	dict_index_t*	index,		/*!< in: index of the key value */
 	const byte*	key_ptr,	/*!< in: MySQL key value */
-	ulint		key_len,	/*!< in: MySQL key value length */
-	trx_t*		trx);		/*!< in: transaction */
+	ulint		key_len);	/*!< in: MySQL key value length */
 
 
 /** Searches for rows in the database. This is used in the interface to
@@ -213,16 +212,6 @@ row_count_rtree_recs(
 	ulint*		n_rows);	/*!< out: number of entries
 					seen in the consistent read */
 
-/*******************************************************************//**
-Checks if MySQL at the moment is allowed for this table to retrieve a
-consistent read result, or store it to the query cache.
-@return whether storing or retrieving from the query cache is permitted */
-bool
-row_search_check_if_query_cache_permitted(
-/*======================================*/
-	trx_t*		trx,		/*!< in: transaction object */
-	const char*	norm_name);	/*!< in: concatenation of database name,
-					'/' char, table name */
 /** Read the max AUTOINC value from an index.
 @param[in] index	index starting with an AUTO_INCREMENT column
 @return	the largest AUTO_INCREMENT value

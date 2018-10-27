@@ -1,5 +1,6 @@
 /*
    Copyright (c) 2004, 2012, Oracle and/or its affiliates.
+   Copyright (c) 2010, 2018, MariaDB
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -430,7 +431,7 @@ bool mysql_create_or_drop_trigger(THD *thd, TABLE_LIST *tables, bool create)
   /*
     We don't allow creating triggers on tables in the 'mysql' schema
   */
-  if (create && !my_strcasecmp(system_charset_info, "mysql", tables->db.str))
+  if (create && lex_string_eq(&tables->db, STRING_WITH_LEN("mysql")))
   {
     my_error(ER_NO_TRIGGERS_ON_SYSTEM_SCHEMA, MYF(0));
     DBUG_RETURN(TRUE);
@@ -453,7 +454,6 @@ bool mysql_create_or_drop_trigger(THD *thd, TABLE_LIST *tables, bool create)
     my_error(ER_BINLOG_CREATE_ROUTINE_NEED_SUPER, MYF(0));
     DBUG_RETURN(TRUE);
   }
-  WSREP_TO_ISOLATION_BEGIN(WSREP_MYSQL_DB, NULL, NULL)
 
   if (!create)
   {
@@ -516,6 +516,11 @@ bool mysql_create_or_drop_trigger(THD *thd, TABLE_LIST *tables, bool create)
       goto end;
   }
 
+#ifdef WITH_WSREP
+  if (thd->wsrep_exec_mode == LOCAL_STATE)
+    WSREP_TO_ISOLATION_BEGIN(WSREP_MYSQL_DB, NULL, NULL);
+#endif
+
   /* We should have only one table in table list. */
   DBUG_ASSERT(tables->next_global == 0);
 
@@ -542,7 +547,7 @@ bool mysql_create_or_drop_trigger(THD *thd, TABLE_LIST *tables, bool create)
     /* Under LOCK TABLES we must only accept write locked tables. */
     if (!(tables->table= find_table_for_mdl_upgrade(thd, tables->db.str,
                                                     tables->table_name.str,
-                                                    FALSE)))
+                                                    NULL)))
       goto end;
   }
   else
@@ -588,7 +593,7 @@ bool mysql_create_or_drop_trigger(THD *thd, TABLE_LIST *tables, bool create)
     Ignore the return value for now. It's better to
     keep master/slave in consistent state.
   */
-  if (thd->locked_tables_list.reopen_tables(thd))
+  if (thd->locked_tables_list.reopen_tables(thd, false))
     thd->clear_error();
 
   /*
@@ -622,6 +627,7 @@ end:
   DBUG_RETURN(true);
 #endif /* WITH_WSREP */
 }
+
 
 /**
   Build stmt_query to write it in the bin-log, the statement to write in
@@ -795,8 +801,7 @@ bool Table_triggers_list::create_trigger(THD *thd, TABLE_LIST *tables,
     */
     trg_field->setup_field(thd, table, NULL);
 
-    if (!trg_field->fixed &&
-        trg_field->fix_fields(thd, (Item **)0))
+    if (trg_field->fix_fields_if_needed(thd, (Item **)0))
       DBUG_RETURN(true);
   }
 
@@ -1190,6 +1195,12 @@ Table_triggers_list::~Table_triggers_list()
       }
     }
   }
+
+  /* Free blobs used in insert */
+  if (record0_field)
+    for (Field **fld_ptr= record0_field; *fld_ptr; fld_ptr++)
+      (*fld_ptr)->free();
+
   if (record1_field)
     for (Field **fld_ptr= record1_field; *fld_ptr; fld_ptr++)
       delete *fld_ptr;
@@ -1240,6 +1251,7 @@ bool Table_triggers_list::prepare_record_accessors(TABLE *table)
           return 1;
 
         f->flags= (*fld)->flags;
+        f->invisible= (*fld)->invisible;
         f->null_ptr= null_ptr;
         f->null_bit= null_bit;
         if (null_bit == 128)
@@ -1368,7 +1380,8 @@ bool Table_triggers_list::check_n_load(THD *thd, const LEX_CSTRING *db,
       List_iterator_fast<LEX_CSTRING> it_connection_cl_name(trigger_list->connection_cl_names);
       List_iterator_fast<LEX_CSTRING> it_db_cl_name(trigger_list->db_cl_names);
       List_iterator_fast<ulonglong> it_create_times(trigger_list->create_times);
-      LEX *old_lex= thd->lex, lex;
+      LEX *old_lex= thd->lex;
+      LEX lex;
       sp_rcontext *save_spcont= thd->spcont;
       sql_mode_t save_sql_mode= thd->variables.sql_mode;
 
@@ -1474,7 +1487,7 @@ bool Table_triggers_list::check_n_load(THD *thd, const LEX_CSTRING *db,
                                     &lex.trg_chistics.anchor_trigger_name,
                                     trigger);
 
-        if (parse_error)
+        if (unlikely(parse_error))
         {
           LEX_CSTRING *name;
 
@@ -1488,10 +1501,10 @@ bool Table_triggers_list::check_n_load(THD *thd, const LEX_CSTRING *db,
           DBUG_ASSERT(lex.sphead == 0);
           lex_end(&lex);
 
-          if ((name= error_handler.get_trigger_name()))
+          if (likely((name= error_handler.get_trigger_name())))
           {
-            if (!(make_lex_string(&trigger->name, name->str,
-                                  name->length, &table->mem_root)))
+            if (unlikely(!(make_lex_string(&trigger->name, name->str,
+                                           name->length, &table->mem_root))))
               goto err_with_lex_cleanup;
           }
           trigger->definer= ((!trg_definer || !trg_definer->length) ?
@@ -1610,7 +1623,7 @@ err_with_lex_cleanup:
   }
 
 error:
-  if (!thd->is_error())
+    if (unlikely(!thd->is_error()))
   {
     /*
       We don't care about this error message much because .TRG files will
@@ -1886,7 +1899,7 @@ change_table_name_in_triggers(THD *thd,
 
   thd->variables.sql_mode= save_sql_mode;
 
-  if (thd->is_fatal_error)
+  if (unlikely(thd->is_fatal_error))
     return TRUE; /* OOM */
 
   if (save_trigger_file(thd, new_db_name, new_table_name))
@@ -2098,9 +2111,9 @@ bool Table_triggers_list::change_table_name(THD *thd, const LEX_CSTRING *db,
         goto end;
       }
     }
-    if (table.triggers->change_table_name_in_triggers(thd, db, new_db,
-                                                      old_alias,
-                                                      new_table))
+    if (unlikely(table.triggers->change_table_name_in_triggers(thd, db, new_db,
+                                                               old_alias,
+                                                               new_table)))
     {
       result= 1;
       goto end;
@@ -2244,13 +2257,14 @@ add_tables_and_routines_for_triggers(THD *thd,
         {
           sp_head *trigger= triggers->body;
 
-          if (!triggers->body)                  // Parse error
+          if (unlikely(!triggers->body))                  // Parse error
             continue;
 
           MDL_key key(MDL_key::TRIGGER, trigger->m_db.str, trigger->m_name.str);
 
           if (sp_add_used_routine(prelocking_ctx, thd->stmt_arena,
-                                  &key, table_list->belong_to_view))
+                                  &key, &sp_handler_trigger,
+                                  table_list->belong_to_view))
           {
             trigger->add_used_tables_to_table_list(thd,
                        &prelocking_ctx->query_tables_last,

@@ -29,6 +29,8 @@ Created 9/17/2000 Heikki Tuuri
 #define row0mysql_h
 
 #include "ha_prototypes.h"
+#include "sql_list.h"
+#include "sql_cmd.h"
 
 #include "data0data.h"
 #include "que0types.h"
@@ -310,6 +312,18 @@ row_create_update_node_for_mysql(
 /*=============================*/
 	dict_table_t*	table,	/*!< in: table to update */
 	mem_heap_t*	heap);	/*!< in: mem heap from which allocated */
+
+/**********************************************************************//**
+Does a cascaded delete or set null in a foreign key operation.
+@return error code or DB_SUCCESS */
+dberr_t
+row_update_cascade_for_mysql(
+/*=========================*/
+        que_thr_t*      thr,    /*!< in: query thread */
+        upd_node_t*     node,   /*!< in: update node used in the cascade
+                                or set null operation */
+        dict_table_t*   table)  /*!< in: table where we do the operation */
+        MY_ATTRIBUTE((nonnull, warn_unused_result));
 /*********************************************************************//**
 Locks the data dictionary exclusively for performing a table create or other
 data dictionary modification operation. */
@@ -385,7 +399,7 @@ Each foreign key constraint must be accompanied with indexes in
 bot participating tables. The indexes are allowed to contain more
 fields than mentioned in the constraint.
 
-@param[in]	trx		transaction
+@param[in]	trx		transaction (NULL if not adding to dictionary)
 @param[in]	sql_string	table create statement where
 				foreign keys are declared like:
 				FOREIGN KEY (a, b) REFERENCES table2(c, d),
@@ -394,9 +408,8 @@ fields than mentioned in the constraint.
 				database id the database of parameter name
 @param[in]	sql_length	length of sql_string
 @param[in]	name		table full name in normalized form
-@param[in]	reject_fks	if TRUE, fail with error code
-				DB_CANNOT_ADD_CONSTRAINT if any
-				foreign keys are found.
+@param[in]	reject_fks	whether to fail with DB_CANNOT_ADD_CONSTRAINT
+				if any foreign keys are found
 @return error code or DB_SUCCESS */
 dberr_t
 row_table_add_foreign_constraints(
@@ -404,7 +417,7 @@ row_table_add_foreign_constraints(
 	const char*		sql_string,
 	size_t			sql_length,
 	const char*		name,
-	ibool			reject_fks)
+	bool			reject_fks)
 	MY_ATTRIBUTE((warn_unused_result));
 
 /*********************************************************************//**
@@ -439,32 +452,28 @@ row_mysql_lock_table(
 	const char*	op_info)	/*!< in: string for trx->op_info */
 	MY_ATTRIBUTE((nonnull, warn_unused_result));
 
-/*********************************************************************//**
-Truncates a table for MySQL.
-@return error code or DB_SUCCESS */
-dberr_t
-row_truncate_table_for_mysql(
-/*=========================*/
-	dict_table_t*	table,	/*!< in: table handle */
-	trx_t*		trx)	/*!< in: transaction handle */
-	MY_ATTRIBUTE((nonnull, warn_unused_result));
-/*********************************************************************//**
-Drops a table for MySQL.  If the data dictionary was not already locked
-by the transaction, the transaction will be committed.  Otherwise, the
-data dictionary will remain locked.
-@return error code or DB_SUCCESS */
+/** Drop a table.
+If the data dictionary was not already locked by the transaction,
+the transaction will be committed.  Otherwise, the data dictionary
+will remain locked.
+@param[in]	name		Table name
+@param[in,out]	trx		Transaction handle
+@param[in]	sqlcom		type of SQL operation
+@param[in]	create_failed	true=create table failed
+				because e.g. foreign key column
+@param[in]	nonatomic	Whether it is permitted to release
+				and reacquire dict_operation_lock
+@return error code */
 dberr_t
 row_drop_table_for_mysql(
-/*=====================*/
-	const char*	name,	/*!< in: table name */
-	trx_t*		trx,	/*!< in: dictionary transaction handle */
-	bool		drop_db,/*!< in: true=dropping whole database */
-	ibool		create_failed,/*!<in: TRUE=create table failed
-					because e.g. foreign key column
-					type mismatch. */
-	bool		nonatomic = true);
-				/*!< in: whether it is permitted
-				to release and reacquire dict_operation_lock */
+	const char*		name,
+	trx_t*			trx,
+	enum_sql_command	sqlcom,
+	bool			create_failed = false,
+	bool			nonatomic = true);
+
+/** Drop a table after failed CREATE TABLE. */
+dberr_t row_drop_table_after_create_fail(const char* name, trx_t* trx);
 
 /*********************************************************************//**
 Discards the tablespace of a table which stored in an .ibd file. Discarding
@@ -509,18 +518,6 @@ row_rename_table_for_mysql(
 	const char*	new_name,	/*!< in: new table name */
 	trx_t*		trx,		/*!< in/out: transaction */
 	bool		commit)		/*!< in: whether to commit trx */
-	MY_ATTRIBUTE((nonnull, warn_unused_result));
-
-/** Renames a partitioned table for MySQL.
-@param[in]	old_name	Old table name.
-@param[in]	new_name	New table name.
-@param[in,out]	trx		Transaction.
-@return error code or DB_SUCCESS */
-dberr_t
-row_rename_partitions_for_mysql(
-	const char*	old_name,
-	const char*	new_name,
-	trx_t*		trx)
 	MY_ATTRIBUTE((nonnull, warn_unused_result));
 
 /*********************************************************************//**
@@ -792,7 +789,7 @@ struct row_prebuilt_t {
 					allocated mem buf start, because
 					there is a 4 byte magic number at the
 					start and at the end */
-	ibool		keep_other_fields_on_keyread; /*!< when using fetch
+	bool		keep_other_fields_on_keyread; /*!< when using fetch
 					cache with HA_EXTRA_KEYREAD, don't
 					overwrite other fields in mysql row
 					row buffer.*/
@@ -879,6 +876,44 @@ struct SysIndexCallback {
 	virtual void operator()(mtr_t* mtr, btr_pcur_t* pcur) throw() = 0;
 };
 
+
+/** Storage for calculating virtual columns */
+
+class String;
+struct VCOL_STORAGE
+{
+	TABLE *maria_table;
+	byte *innobase_record;
+	byte *maria_record;
+	String *blob_value_storage;
+};
+
+/**
+   Allocate a heap and record for calculating virtual fields
+   Used mainly for virtual fields in indexes
+
+@param[in]	thd		MariaDB THD
+@param[in]	index		Index in use
+@param[out]	heap		Heap that holds temporary row
+@param[in,out]	mysql_table	MariaDB table
+@param[out]	rec		Pointer to allocated MariaDB record
+@param[out]	storage		Internal storage for blobs etc
+
+@return		FALSE ok
+@return		TRUE  malloc failure
+*/
+
+bool innobase_allocate_row_for_vcol(
+				    THD *	  thd,
+				    dict_index_t* index,
+				    mem_heap_t**  heap,
+				    TABLE**	  table,
+				    byte**	  record,
+				    VCOL_STORAGE** storage);
+
+/** Free memory allocated by innobase_allocate_row_for_vcol() */
+void innobase_free_row_for_vcol(VCOL_STORAGE *storage);
+
 /** Get the computed value by supplying the base column values.
 @param[in,out]	row		the data row
 @param[in]	col		virtual column
@@ -903,15 +938,15 @@ innobase_get_computed_value(
 	const dict_field_t*	ifield,
 	THD*			thd,
 	TABLE*			mysql_table,
+	byte*			mysql_rec,
 	const dict_table_t*	old_table,
 	upd_t*			parent_update,
 	dict_foreign_t*		foreign);
 
 /** Get the computed value by supplying the base column values.
-@param[in,out]	table	the table whose virtual column template to be built */
-void
-innobase_init_vc_templ(
-	dict_table_t*	table);
+@param[in,out]	table		the table whose virtual column
+				template to be built */
+TABLE* innobase_init_vc_templ(dict_table_t* table);
 
 /** Change dbname and table name in table->vc_templ.
 @param[in,out]	table	the table whose virtual column template

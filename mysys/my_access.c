@@ -38,7 +38,7 @@ int my_access(const char *path, int amode)
 
   attributes = GetFileAttributes(path);
   if (attributes == INVALID_FILE_ATTRIBUTES ||
-      (attributes & FILE_ATTRIBUTE_READONLY) && (amode & W_OK))
+      ((attributes & FILE_ATTRIBUTE_READONLY) && (amode & W_OK)))
   {
     my_errno= errno= EACCES;
     return -1;

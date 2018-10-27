@@ -435,7 +435,7 @@ bool mysql_create_view(THD *thd, TABLE_LIST *views,
     goto err;
   }
 
-  WSREP_TO_ISOLATION_BEGIN(WSREP_MYSQL_DB, NULL, NULL)
+  WSREP_TO_ISOLATION_BEGIN(WSREP_MYSQL_DB, NULL, NULL);
 
   /*
     ignore lock specs for CREATE statement
@@ -530,7 +530,7 @@ bool mysql_create_view(THD *thd, TABLE_LIST *views,
 
   /* prepare select to resolve all fields */
   lex->context_analysis_only|= CONTEXT_ANALYSIS_ONLY_VIEW;
-  if (unit->prepare(thd, 0, 0))
+  if (unit->prepare(unit->derived, 0, 0))
   {
     /*
       some errors from prepare are reported to user, if is not then
@@ -609,11 +609,11 @@ bool mysql_create_view(THD *thd, TABLE_LIST *views,
         if (!fld)
           continue;
         TABLE_SHARE *s= fld->field->table->s;
-        const LString_i field_name= fld->field->field_name;
+        const Lex_ident field_name= fld->field->field_name;
         if (s->tmp_table ||
             (s->versioned &&
-             (field_name == s->vers_start_field()->field_name ||
-              field_name == s->vers_end_field()->field_name)))
+             (field_name.streq(s->vers_start_field()->field_name) ||
+              field_name.streq(s->vers_end_field()->field_name))))
         {
           continue;
         }
@@ -711,14 +711,14 @@ bool mysql_create_view(THD *thd, TABLE_LIST *views,
   lex->link_first_table_back(view, link_to_local);
   DBUG_RETURN(0);
 
+#ifdef WITH_WSREP
+ error:
+  res= TRUE;
+#endif /* WITH_WSREP */
 err:
   lex->link_first_table_back(view, link_to_local);
   unit->cleanup();
   DBUG_RETURN(res || thd->is_error());
-#ifdef WITH_WSREP
- error:
-  DBUG_RETURN(true);
-#endif /* WITH_WSREP */
 }
 
 
@@ -1207,8 +1207,6 @@ bool mysql_make_view(THD *thd, TABLE_SHARE *share, TABLE_LIST *table,
     */
     mysql_derived_reinit(thd, NULL, table);
 
-    thd->select_number+= table->view->number_of_selects;
-
     DEBUG_SYNC(thd, "after_cached_view_opened");
     DBUG_RETURN(0);
   }
@@ -1335,6 +1333,7 @@ bool mysql_make_view(THD *thd, TABLE_SHARE *share, TABLE_LIST *table,
 
     now Lex placed in statement memory
   */
+
   table->view= lex= thd->lex= (LEX*) new(thd->mem_root) st_lex_local;
   if (!table->view)
   {
@@ -1361,8 +1360,9 @@ bool mysql_make_view(THD *thd, TABLE_SHARE *share, TABLE_LIST *table,
       goto end;
 
     lex_start(thd);
+    lex->stmt_lex= old_lex;
     view_select= &lex->select_lex;
-    view_select->select_number= ++thd->select_number;
+    view_select->select_number= ++thd->lex->stmt_lex->current_select_number;
 
     sql_mode_t saved_mode= thd->variables.sql_mode;
     /* switch off modes which can prevent normal parsing of VIEW
@@ -1396,9 +1396,6 @@ bool mysql_make_view(THD *thd, TABLE_SHARE *share, TABLE_LIST *table,
     /* Parse the query. */
 
     parse_status= parse_sql(thd, & parser_state, table->view_creation_ctx);
-
-    lex->number_of_selects=
-      (thd->select_number - view_select->select_number) + 1;
 
     /* Restore environment. */
 
@@ -1796,13 +1793,14 @@ bool mysql_drop_view(THD *thd, TABLE_LIST *views, enum_drop_mode drop_mode)
     TABLES we have to simply prohibit dropping of views.
   */
 
-  if (thd->locked_tables_mode)
+  if (unlikely(thd->locked_tables_mode))
   {
     my_error(ER_LOCK_OR_ACTIVE_TRANSACTION, MYF(0));
     DBUG_RETURN(TRUE);
   }
 
-  if (lock_table_names(thd, views, 0, thd->variables.lock_wait_timeout, 0))
+  if (unlikely(lock_table_names(thd, views, 0,
+                                thd->variables.lock_wait_timeout, 0)))
     DBUG_RETURN(TRUE);
 
   for (view= views; view; view= view->next_local)
@@ -1840,7 +1838,7 @@ bool mysql_drop_view(THD *thd, TABLE_LIST *views, enum_drop_mode drop_mode)
       }
       continue;
     }
-    if (mysql_file_delete(key_file_frm, path, MYF(MY_WME)))
+    if (unlikely(mysql_file_delete(key_file_frm, path, MYF(MY_WME))))
       error= TRUE;
 
     some_views_deleted= TRUE;
@@ -1855,12 +1853,12 @@ bool mysql_drop_view(THD *thd, TABLE_LIST *views, enum_drop_mode drop_mode)
     sp_cache_invalidate();
   }
 
-  if (wrong_object_name)
+  if (unlikely(wrong_object_name))
   {
     my_error(ER_WRONG_OBJECT, MYF(0), wrong_object_db, wrong_object_name, 
              "VIEW");
   }
-  if (non_existant_views.length())
+  if (unlikely(non_existant_views.length()))
   {
     my_error(ER_UNKNOWN_VIEW, MYF(0), non_existant_views.c_ptr_safe());
   }
@@ -1871,11 +1869,12 @@ bool mysql_drop_view(THD *thd, TABLE_LIST *views, enum_drop_mode drop_mode)
     /* if something goes wrong, bin-log with possible error code,
        otherwise bin-log with error code cleared.
      */
-    if (write_bin_log(thd, !something_wrong, thd->query(), thd->query_length()))
+    if (unlikely(write_bin_log(thd, !something_wrong, thd->query(),
+                               thd->query_length())))
       something_wrong= 1;
   }
 
-  if (something_wrong)
+  if (unlikely(something_wrong))
   {
     DBUG_RETURN(TRUE);
   }
@@ -1934,19 +1933,19 @@ bool check_key_in_view(THD *thd, TABLE_LIST *view)
       this operation should not have influence on Field::query_id, to avoid
       marking as used fields which are not used
     */
-    enum_mark_columns save_mark_used_columns= thd->mark_used_columns;
-    thd->mark_used_columns= MARK_COLUMNS_NONE;
-    DBUG_PRINT("info", ("thd->mark_used_columns: %d", thd->mark_used_columns));
+    enum_column_usage saved_column_usage= thd->column_usage;
+    thd->column_usage= COLUMNS_WRITE;
+    DBUG_PRINT("info", ("thd->column_usage: %d", thd->column_usage));
     for (Field_translator *fld= trans; fld < end_of_trans; fld++)
     {
-      if (!fld->item->fixed && fld->item->fix_fields(thd, &fld->item))
+      if (fld->item->fix_fields_if_needed(thd, &fld->item))
       {
-        thd->mark_used_columns= save_mark_used_columns;
+        thd->column_usage= saved_column_usage;
         DBUG_RETURN(TRUE);
       }
     }
-    thd->mark_used_columns= save_mark_used_columns;
-    DBUG_PRINT("info", ("thd->mark_used_columns: %d", thd->mark_used_columns));
+    thd->column_usage= saved_column_usage;
+    DBUG_PRINT("info", ("thd->column_usage: %d", thd->column_usage));
   }
   /* Loop over all keys to see if a unique-not-null key is used */
   for (;key_info != key_info_end ; key_info++)
@@ -2043,10 +2042,10 @@ bool insert_view_fields(THD *thd, List<Item> *list, TABLE_LIST *view)
     if ((fld= entry->item->field_for_view_update()))
     {
       TABLE_SHARE *s= fld->context->table_list->table->s;
-      LString_i field_name= fld->field_name;
+      Lex_ident field_name= fld->field_name;
       if (s->versioned &&
-          (field_name == s->vers_start_field()->field_name ||
-           field_name == s->vers_end_field()->field_name))
+          (field_name.streq(s->vers_start_field()->field_name) ||
+           field_name.streq(s->vers_end_field()->field_name)))
         continue;
       list->push_back(fld, thd->mem_root);
     }

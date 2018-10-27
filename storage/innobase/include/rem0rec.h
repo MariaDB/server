@@ -1,7 +1,7 @@
 /*****************************************************************************
 
 Copyright (c) 1994, 2016, Oracle and/or its affiliates. All Rights Reserved.
-Copyright (c) 2017, MariaDB Corporation.
+Copyright (c) 2017, 2018, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -70,9 +70,9 @@ enum rec_comp_status_t {
 	REC_STATUS_COLUMNS_ADDED = 4
 };
 
-/** The dtuple_t::info_bits of the 'default row' record.
-@see rec_is_default_row() */
-static const byte REC_INFO_DEFAULT_ROW
+/** The dtuple_t::info_bits of the metadata pseudo-record.
+@see rec_is_metadata() */
+static const byte REC_INFO_METADATA
 	= REC_INFO_MIN_REC_FLAG | REC_STATUS_COLUMNS_ADDED;
 
 #define REC_NEW_STATUS		3	/* This is single byte bit-field */
@@ -310,6 +310,31 @@ rec_set_status(rec_t* rec, byte bits)
 	ut_ad(bits <= REC_STATUS_COLUMNS_ADDED);
 	rec[-REC_NEW_STATUS] = (rec[-REC_NEW_STATUS] & ~REC_NEW_STATUS_MASK)
 		| bits;
+}
+
+/** Get the length of added field count in a REC_STATUS_COLUMNS_ADDED record.
+@param[in]	n_add_field	number of added fields, minus one
+@return	storage size of the field count, in bytes */
+inline unsigned rec_get_n_add_field_len(ulint n_add_field)
+{
+	ut_ad(n_add_field < REC_MAX_N_FIELDS);
+	return n_add_field < 0x80 ? 1 : 2;
+}
+
+/** Set the added field count in a REC_STATUS_COLUMNS_ADDED record.
+@param[in,out]	header	variable header of a REC_STATUS_COLUMNS_ADDED record
+@param[in]	n_add	number of added fields, minus 1
+@return	record header before the number of added fields */
+inline void rec_set_n_add_field(byte*& header, ulint n_add)
+{
+	ut_ad(n_add < REC_MAX_N_FIELDS);
+
+	if (n_add < 0x80) {
+		*header-- = byte(n_add);
+	} else {
+		*header-- = byte(n_add) | 0x80;
+		*header-- = byte(n_add >> 7);
+	}
 }
 
 /******************************************************//**
@@ -617,17 +642,6 @@ rec_offs_any_null_extern(
 	const ulint*	offsets)	/*!< in: rec_get_offsets(rec) */
 	MY_ATTRIBUTE((warn_unused_result));
 
-/******************************************************//**
-Returns nonzero if the extern bit is set in nth field of rec.
-@return nonzero if externally stored */
-UNIV_INLINE
-ulint
-rec_offs_nth_extern_old(
-/*================*/
-	const rec_t*	rec,	/*!< in: record */
-	ulint		    n	/*!< in: index of the field */)
-	MY_ATTRIBUTE((warn_unused_result));
-
 /** Mark the nth field as externally stored.
 @param[in]	offsets		array returned by rec_get_offsets()
 @param[in]	n		nth field */
@@ -738,9 +752,7 @@ rec_offs_any_flag(const ulint* offsets, ulint flag)
 /** Determine if the offsets are for a record containing off-page columns.
 @param[in]	offsets	rec_get_offsets()
 @return nonzero if any off-page columns exist */
-inline
-ulint
-rec_offs_any_extern(const ulint* offsets)
+inline bool rec_offs_any_extern(const ulint* offsets)
 {
 	return rec_offs_any_flag(offsets, REC_OFFS_EXTERNAL);
 }
@@ -768,14 +780,12 @@ rec_offs_comp(const ulint* offsets)
 	return(*rec_offs_base(offsets) & REC_OFFS_COMPACT);
 }
 
-/** Determine if the record is the 'default row' pseudo-record
+/** Determine if the record is the metadata pseudo-record
 in the clustered index.
 @param[in]	rec	leaf page record
 @param[in]	index	index of the record
-@return	whether the record is the 'default row' pseudo-record */
-inline
-bool
-rec_is_default_row(const rec_t* rec, const dict_index_t* index)
+@return	whether the record is the metadata pseudo-record */
+inline bool rec_is_metadata(const rec_t* rec, const dict_index_t* index)
 {
 	bool is = rec_get_info_bits(rec, dict_table_is_comp(index->table))
 		& REC_INFO_MIN_REC_FLAG;
@@ -963,14 +973,28 @@ rec_get_converted_size_temp(
 @param[in]	rec	temporary file record
 @param[in]	index	index of that the record belongs to
 @param[in,out]	offsets	offsets to the fields; in: rec_offs_n_fields(offsets)
-@param[in]	status	REC_STATUS_ORDINARY or REC_STATUS_COLUMNS_ADDED
-*/
+@param[in]	n_core	number of core fields (index->n_core_fields)
+@param[in]	def_val	default values for non-core fields
+@param[in]	status	REC_STATUS_ORDINARY or REC_STATUS_COLUMNS_ADDED */
 void
 rec_init_offsets_temp(
 	const rec_t*		rec,
 	const dict_index_t*	index,
 	ulint*			offsets,
+	ulint			n_core,
+	const dict_col_t::def_t*def_val,
 	rec_comp_status_t	status = REC_STATUS_ORDINARY)
+	MY_ATTRIBUTE((nonnull));
+/** Determine the offset to each field in temporary file.
+@param[in]	rec	temporary file record
+@param[in]	index	index of that the record belongs to
+@param[in,out]	offsets	offsets to the fields; in: rec_offs_n_fields(offsets)
+*/
+void
+rec_init_offsets_temp(
+	const rec_t*		rec,
+	const dict_index_t*	index,
+	ulint*			offsets)
 	MY_ATTRIBUTE((nonnull));
 
 /** Convert a data tuple prefix to the temporary file format.

@@ -35,7 +35,7 @@ CALL p1('SELECT 1');
 Error1: 0 normal, successful completition
 CALL p1('xxx');
 'Error2: ' || SQLCODE || ' ' || SQLERRM
-Error2: 1193 Unknown system variable 'xxx'
+Error2: 1064 You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near '' at line 1
 CALL p1('SELECT 1');
 1
 1

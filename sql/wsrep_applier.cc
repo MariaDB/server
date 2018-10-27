@@ -98,11 +98,11 @@ static wsrep_cb_status_t wsrep_apply_events(THD*        thd,
     DBUG_RETURN(WSREP_CB_FAILURE);
   }
 
-  mysql_mutex_lock(&thd->LOCK_wsrep_thd);
+  mysql_mutex_lock(&thd->LOCK_thd_data);
   thd->wsrep_query_state= QUERY_EXEC;
   if (thd->wsrep_conflict_state!= REPLAYING)
     thd->wsrep_conflict_state= NO_CONFLICT;
-  mysql_mutex_unlock(&thd->LOCK_wsrep_thd);
+  mysql_mutex_unlock(&thd->LOCK_thd_data);
 
   if (!buf_len) WSREP_DEBUG("empty rbr buffer to apply: %lld",
                             (long long) wsrep_thd_trx_seqno(thd));
@@ -146,6 +146,7 @@ static wsrep_cb_status_t wsrep_apply_events(THD*        thd,
     /* Use the original server id for logging. */
     thd->set_server_id(ev->server_id);
     thd->set_time();                            // time the query
+    thd->transaction.start_time.reset(thd);
     wsrep_xid_init(&thd->transaction.xid_state.xid,
                    thd->wsrep_trx_meta.gtid.uuid,
                    thd->wsrep_trx_meta.gtid.seqno);
@@ -197,9 +198,9 @@ static wsrep_cb_status_t wsrep_apply_events(THD*        thd,
   }
 
  error:
-  mysql_mutex_lock(&thd->LOCK_wsrep_thd);
+  mysql_mutex_lock(&thd->LOCK_thd_data);
   thd->wsrep_query_state= QUERY_IDLE;
-  mysql_mutex_unlock(&thd->LOCK_wsrep_thd);
+  mysql_mutex_unlock(&thd->LOCK_thd_data);
 
   assert(thd->wsrep_exec_mode== REPL_RECV);
 

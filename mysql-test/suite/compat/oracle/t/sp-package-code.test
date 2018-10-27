@@ -1,0 +1,182 @@
+-- source include/have_debug.inc
+
+SET sql_mode=ORACLE;
+
+
+DELIMITER $$;
+CREATE PACKAGE pkg1 AS
+  PROCEDURE p1;
+  FUNCTION f1 RETURN INT;
+  PROCEDURE p2show;
+  PROCEDURE p2public;
+  FUNCTION f2public RETURN TEXT;
+END;
+$$
+CREATE PACKAGE BODY pkg1 AS
+  a INT:=10;
+  PROCEDURE p1 AS
+    b INT:=20;
+  BEGIN
+    b:=a;
+    b:=a+1;
+    a:=b;
+    a:=b+1;
+    a:=a+1;
+    SET @a:=@a+2;
+    SELECT f1() FROM DUAL;
+  END;
+  FUNCTION f1 RETURN INT AS
+  BEGIN
+    RETURN a;
+  END;
+  PROCEDURE p2private AS
+  BEGIN
+    SELECT 'This is p2private';
+  END;
+  PROCEDURE p2public AS
+  BEGIN
+    SELECT 'This is p2public';
+  END;
+  FUNCTION f2private RETURN TEXT AS
+  BEGIN
+    RETURN 'This is f2private';
+  END;
+  FUNCTION f2public RETURN TEXT AS
+  BEGIN
+    RETURN 'This is f2public';
+  END;
+  PROCEDURE p2show AS
+  BEGIN
+    SHOW FUNCTION CODE f2public;
+    SHOW FUNCTION CODE f2private;
+    SHOW PROCEDURE CODE p2public;
+    SHOW PROCEDURE CODE p2private;
+    SHOW PROCEDURE CODE p2show;
+  END;
+BEGIN
+  a:=a+1;
+  DECLARE
+    b INT;
+  BEGIN
+    b:=a;
+    b:=a+1;
+    a:=b;
+    a:=b+1;
+  END;
+END;
+$$
+DELIMITER ;$$
+
+SHOW PROCEDURE CODE pkg1.p1;
+SHOW FUNCTION CODE pkg1.f1;
+SHOW PACKAGE BODY CODE pkg1;
+CALL pkg1.p2show;
+
+DROP PACKAGE pkg1;
+
+
+CREATE TABLE t1 (a INT);
+DELIMITER $$;
+CREATE PACKAGE pkg1 AS
+  PROCEDURE p1;
+END;
+$$
+CREATE PACKAGE BODY pkg1 AS
+  a t1.a%TYPE:=10;
+  PROCEDURE p1 AS
+    b t1.a%TYPE:=20;
+  BEGIN
+    b:=a;
+    b:=a+1;
+    b:=b+1;
+    a:=b;
+    a:=b+1;
+    a:=a+1;
+  END;
+BEGIN
+  a:=a+1;
+  DECLARE
+    b t1.a%TYPE;
+  BEGIN
+    b:=a;
+    b:=a+1;
+    a:=b;
+    a:=b+1;
+  END;
+END;
+$$
+DELIMITER ;$$
+SHOW PROCEDURE CODE pkg1.p1;
+SHOW PACKAGE BODY CODE pkg1;
+DROP PACKAGE pkg1;
+DROP TABLE t1;
+
+
+DELIMITER $$;
+CREATE PACKAGE pkg1 AS
+  PROCEDURE p1;
+END;
+$$
+CREATE PACKAGE BODY pkg1 AS
+  a ROW(a INT,b TEXT):=ROW(10,'x10');
+  PROCEDURE p1 AS
+    b ROW(a INT,b TEXT):=ROW(20,'x20');
+  BEGIN
+    b:=a;
+    a:=b;
+    b.a:=a.a+1;
+    a.a:=b.a+1;
+    a.a:=a.a+1;
+  END;
+BEGIN
+  a.a:=a.a+1;
+  DECLARE
+    b ROW(a INT,b TEXT):=ROW(30,'x30');
+  BEGIN
+    b:=a;
+    b.a:=a.a+1;
+    a:=b;
+    a.a:=b.a+1;
+  END;
+END;
+$$
+DELIMITER ;$$
+SHOW PROCEDURE CODE pkg1.p1;
+SHOW PACKAGE BODY CODE pkg1;
+DROP PACKAGE pkg1;
+
+
+CREATE TABLE t1 (a INT, b TEXT);
+DELIMITER $$;
+CREATE PACKAGE pkg1 AS
+  PROCEDURE p1;
+END;
+$$
+CREATE PACKAGE BODY pkg1 AS
+  a t1%ROWTYPE:=ROW(10,'x10');
+  PROCEDURE p1 AS
+    b t1%ROWTYPE:=ROW(20,'x20');
+  BEGIN
+    b:=a;
+    a:=b;
+    b.a:=a.a+1;
+    a.a:=b.a+1;
+    a.a:=a.a+1;
+  END;
+BEGIN
+  a.a:=a.a+1;
+  DECLARE
+    b t1%ROWTYPE:=ROW(30,'x30');
+  BEGIN
+    b:=a;
+    b.a:=a.a+1;
+    a:=b;
+    a.a:=b.a+1;
+  END;
+END;
+$$
+DELIMITER ;$$
+SHOW PROCEDURE CODE pkg1.p1;
+SHOW PACKAGE BODY CODE pkg1;
+DROP PACKAGE pkg1;
+DROP TABLE t1;

@@ -150,7 +150,6 @@ uint _mi_make_key(register MI_INFO *info, uint keynr, uchar *key,
     }
     else if (keyseg->flag & HA_SWAP_KEY)
     {						/* Numerical column */
-#ifdef HAVE_ISNAN
       if (type == HA_KEYTYPE_FLOAT)
       {
 	float nr;
@@ -174,7 +173,6 @@ uint _mi_make_key(register MI_INFO *info, uint keynr, uchar *key,
 	  continue;
 	}
       }
-#endif
       pos+=length;
       while (length--)
       {
@@ -553,7 +551,7 @@ ulonglong retrieve_auto_increment(MI_INFO *info,const uchar *record)
 
   switch (keyseg->type) {
   case HA_KEYTYPE_INT8:
-    s_value= (longlong) *(char*)key;
+    s_value= (longlong) *(const signed char*) key;
     break;
   case HA_KEYTYPE_BINARY:
     value=(ulonglong)  *(uchar*) key;

@@ -99,6 +99,15 @@ enum enum_sql_command {
   SQLCOM_CREATE_SEQUENCE,
   SQLCOM_DROP_SEQUENCE,
   SQLCOM_ALTER_SEQUENCE,
+  SQLCOM_CREATE_PACKAGE,
+  SQLCOM_DROP_PACKAGE,
+  SQLCOM_CREATE_PACKAGE_BODY,
+  SQLCOM_DROP_PACKAGE_BODY,
+  SQLCOM_SHOW_CREATE_PACKAGE,
+  SQLCOM_SHOW_CREATE_PACKAGE_BODY,
+  SQLCOM_SHOW_STATUS_PACKAGE,
+  SQLCOM_SHOW_STATUS_PACKAGE_BODY,
+  SQLCOM_SHOW_PACKAGE_BODY_CODE,
 
   /*
     When a command is added here, be sure it's also added in mysqld.cc
@@ -175,8 +184,10 @@ class Sql_cmd_call : public Sql_cmd
 {
 public:
   class sp_name *m_name;
-  Sql_cmd_call(class sp_name *name)
-   :m_name(name)
+  const class Sp_handler *m_handler;
+  Sql_cmd_call(class sp_name *name, const class Sp_handler *handler)
+   :m_name(name),
+    m_handler(handler)
   {}
 
   virtual ~Sql_cmd_call()

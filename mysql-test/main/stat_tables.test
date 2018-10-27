@@ -1,0 +1,387 @@
+--source include/have_stat_tables.inc
+
+select @@global.use_stat_tables;
+select @@session.use_stat_tables;
+
+set @save_use_stat_tables=@@use_stat_tables;
+
+set use_stat_tables='preferably';
+
+--disable_warnings
+DROP DATABASE IF EXISTS dbt3_s001;
+--enable_warnings
+
+CREATE DATABASE dbt3_s001;
+
+use dbt3_s001;
+
+set @save_optimizer_switch=@@optimizer_switch;
+set optimizer_switch='extended_keys=off';
+ 
+--disable_query_log
+--disable_result_log
+--disable_warnings
+--source include/dbt3_s001.inc
+create index i_p_retailprice on part(p_retailprice);
+delete from mysql.table_stats;
+delete from mysql.column_stats;
+delete from mysql.index_stats;
+ANALYZE TABLE
+customer, lineitem, nation, orders, part, partsupp, region, supplier;
+FLUSH TABLE mysql.table_stats, mysql.index_stats;
+--enable_warnings
+--enable_result_log
+--enable_query_log
+
+select * from mysql.table_stats;
+select * from mysql.index_stats;
+
+set optimizer_switch=@save_optimizer_switch; 
+
+set @save_optimizer_switch=@@optimizer_switch;
+set optimizer_switch='index_condition_pushdown=off';
+
+let $Q5=
+select n_name, sum(l_extendedprice * (1 - l_discount)) as revenue
+from customer, orders, lineitem, supplier, nation, region
+where c_custkey = o_custkey and l_orderkey = o_orderkey
+      and l_suppkey = s_suppkey and c_nationkey = s_nationkey
+      and s_nationkey = n_nationkey and n_regionkey = r_regionkey
+      and r_name = 'AMERICA' and o_orderdate >= date '1995-01-01'
+      and o_orderdate < date '1995-01-01' + interval '1' year
+group by n_name
+order by revenue desc;
+
+eval EXPLAIN $Q5;
+eval $Q5;
+
+set optimizer_switch=@save_optimizer_switch;
+
+delete from mysql.index_stats;
+
+--disable_query_log
+--disable_result_log
+--disable_warnings
+ANALYZE TABLE
+customer, lineitem, nation, orders, part, partsupp, region, supplier;
+FLUSH TABLE mysql.table_stats, mysql.index_stats;
+--enable_warnings
+--enable_result_log
+--enable_query_log
+
+select * from mysql.table_stats;
+select * from mysql.index_stats;
+
+select * from mysql.table_stats where table_name='orders';
+select * from mysql.index_stats where table_name='orders';
+select (select cardinality from mysql.table_stats where table_name='orders') /
+       (select avg_frequency from mysql.index_stats 
+          where index_name='i_o_orderdate' and prefix_arity=1) as n_distinct; 
+select count(distinct o_orderdate) from orders;
+select (select cardinality from mysql.table_stats where table_name='orders') /
+       (select avg_frequency from mysql.index_stats 
+          where index_name='i_o_custkey' and prefix_arity=1) as n_distinct;
+select count(distinct o_custkey) from orders; 
+show index from orders;
+select index_name, column_name, cardinality from information_schema.statistics
+  where table_name='orders';
+
+set @save_optimizer_switch=@@optimizer_switch;
+set optimizer_switch='index_condition_pushdown=off';
+
+eval EXPLAIN $Q5;
+eval $Q5;
+
+set optimizer_switch=@save_optimizer_switch;
+
+let $Q8=
+select o_year,
+       sum(case when nation = 'UNITED STATES' then volume else 0 end) /
+       sum(volume) as mkt_share
+from (select extract(year from o_orderdate) as o_year,
+             l_extendedprice * (1-l_discount) as volume, 
+             n2.n_name as nation
+      from part, supplier, lineitem, orders, customer, 
+           nation n1, nation n2, region
+      where p_partkey = l_partkey and s_suppkey = l_suppkey
+            and l_orderkey = o_orderkey and o_custkey = c_custkey
+            and c_nationkey = n1.n_nationkey and n1.n_regionkey = r_regionkey
+            and r_name = 'AMERICA' and s_nationkey = n2.n_nationkey
+            and o_orderdate between date '1995-01-01' and date '1996-12-31'
+            and p_type = 'STANDARD BRUSHED STEEL' ) as all_nations
+group by o_year
+order by o_year;
+
+eval EXPLAIN $Q8;
+eval $Q8;
+
+
+let $Q9=
+select nation, o_year, sum(amount) as sum_profit
+from (select n_name as nation, 
+      extract(year from o_orderdate) as o_year,
+      l_extendedprice * (1 - l_discount) - ps_supplycost * l_quantity as amount
+      from part, supplier, lineitem, partsupp, orders, nation
+      where s_suppkey = l_suppkey and ps_suppkey = l_suppkey
+            and ps_partkey = l_partkey and p_partkey = l_partkey
+            and o_orderkey = l_orderkey and s_nationkey = n_nationkey
+            and p_name like '%green%') as profit
+group by nation, o_year
+order by nation, o_year desc;
+
+eval EXPLAIN $Q9;
+eval $Q9;
+
+
+set @save_optimizer_switch=@@optimizer_switch;
+set optimizer_switch='extended_keys=on';
+
+let $QQ1=
+select o_orderkey, p_partkey
+  from part, lineitem, orders
+  where p_retailprice > 1100 and o_orderdate='1997-01-01' 
+        and o_orderkey=l_orderkey and p_partkey=l_partkey;
+
+eval EXPLAIN $QQ1;
+eval $QQ1;
+
+set optimizer_switch=@save_optimizer_switch;
+
+
+DROP DATABASE dbt3_s001;
+
+use test;
+
+--echo #
+--echo # Bug mdev-473: ANALYZE table locked for write
+--echo # 
+
+set use_stat_tables='complementary';
+
+create table t1 (i int);
+
+lock table t1 write;
+analyze table t1;
+alter table t1 add column a varchar(8);
+
+drop table t1;
+
+--echo #
+--echo # Bug mdev-487: memory leak in ANALYZE with stat tables
+--echo # 
+
+SET  use_stat_tables = 'preferably';
+
+CREATE TABLE t1 (a INT);
+INSERT INTO t1 VALUES (1),(2);
+DELETE FROM t1 WHERE a=1;
+
+ANALYZE TABLE t1;
+
+DROP TABLE t1;
+
+--echo #
+--echo # Bug mdev-518: corrupted/missing statistical tables
+--echo # 
+
+CREATE TABLE t1 (i int) ENGINE=MyISAM;
+INSERT INTO t1 VALUES (1),(2);
+
+FLUSH TABLE t1;
+SET use_stat_tables='never';
+EXPLAIN SELECT * FROM t1;
+
+--move_file $MYSQLTEST_VARDIR/mysqld.1/data/mysql/table_stats.MYD $MYSQLTEST_VARDIR/mysqld.1/data/mysql/table_stats.MYD.save
+
+FLUSH TABLES;
+SET use_stat_tables='preferably';
+--disable_warnings
+EXPLAIN SELECT * FROM t1;
+--enable_warnings
+
+# Cleanup
+--move_file $MYSQLTEST_VARDIR/mysqld.1/data/mysql/table_stats.MYD.save $MYSQLTEST_VARDIR/mysqld.1/data/mysql/table_stats.MYD
+DROP TABLE t1;
+
+set use_stat_tables=@save_use_stat_tables;
+
+--echo #
+--echo # Bug mdev-5204: invalid impossible where after reading const tables  
+--echo #                when use_stat_tables = 'preferably'
+--echo #
+
+set use_stat_tables = 'preferably';
+
+CREATE TABLE t1 (id int PRIMARY KEY) ENGINE=MyISAM;
+INSERT INTO t1 VALUES (1),(2);
+ANALYZE TABLE t1;
+
+CREATE TABLE t2 (name char(3)) ENGINE=MyISAM;
+ANALYZE TABLE t2;
+INSERT INTO t2 VALUES ('USA'),('AUS');
+
+SELECT * FROM t1 STRAIGHT_JOIN t2 WHERE name IN ( 'AUS','YEM' ) AND id = 1;
+EXPLAIN
+SELECT * FROM t1 STRAIGHT_JOIN t2 WHERE name IN ( 'AUS','YEM' ) AND id = 1;
+
+ANALYZE TABLE t2;
+
+SELECT * FROM t1 STRAIGHT_JOIN t2 WHERE name IN ( 'AUS','YEM' ) AND id = 1;
+EXPLAIN
+SELECT * FROM t1 STRAIGHT_JOIN t2 WHERE name IN ( 'AUS','YEM' ) AND id = 1;
+
+DROP TABLE t1,t2;
+
+--echo #
+--echo # MDEV-7370: Server deadlocks on renaming a table for which persistent statistics exists
+--echo #
+
+--disable_warnings
+drop database if exists db1;
+drop database if exists db1;
+--enable_warnings
+
+create database db1;
+create database db2;
+use db1;
+--echo #
+--echo # First, run the original testcase:
+--echo #
+create table t1 (i int);
+insert into t1 values (10),(20);
+analyze table t1 persistent for all;
+rename table t1 to db2.t1;
+
+--echo # Verify that stats in the old database are gone:
+select * from mysql.column_stats where db_name='db1' and table_name='t1';
+select * from mysql.table_stats where db_name='db1' and table_name='t1';
+
+--echo # Verify that stats are present in the new database:
+select * from mysql.column_stats where db_name='db2' and table_name='t1';
+select * from mysql.table_stats where db_name='db2' and table_name='t1';
+
+
+--echo #
+--echo # Now, try with more than one column and with indexes:
+--echo #
+use test;
+create table t1(a int primary key);
+insert into t1 values (0),(1),(2),(3),(4),(5),(6),(7),(8),(9);
+
+
+use db1;
+create table t2 (a int, b int, c int, key IDX1(a), key IDX2(a,b));
+insert into t2 select a/10, a/2, a from test.t1;
+analyze table t2 persistent for all;
+
+alter table t2 rename db2.t2;
+
+--echo # Verify that stats in the old database are gone:
+select * from mysql.table_stats where db_name='db1' and table_name='t2';
+select * from mysql.column_stats where db_name='db1' and table_name='t2';
+select * from mysql.index_stats where db_name='db1' and table_name='t2';
+
+--echo # Verify that stats are present in the new database:
+select * from mysql.table_stats where db_name='db2' and table_name='t2';
+select * from mysql.column_stats where db_name='db2' and table_name='t2';
+select * from mysql.index_stats where db_name='db2' and table_name='t2';
+
+use db2;
+--echo #
+--echo # Now, rename within the same database and verify:
+--echo #
+rename table t2 to t3;
+--echo # No stats under old name:
+select * from mysql.table_stats where db_name='db2' and table_name='t2';
+select * from mysql.column_stats where db_name='db2' and table_name='t2';
+select * from mysql.index_stats where db_name='db2' and table_name='t2';
+--echo # Stats under the new name:
+select * from mysql.table_stats where db_name='db2' and table_name='t3';
+select * from mysql.column_stats where db_name='db2' and table_name='t3';
+select * from mysql.index_stats where db_name='db2' and table_name='t3';
+
+use test;
+drop database db1;
+drop database db2;
+drop table t1;
+
+--echo #
+--echo # MDEV-16552: [10.0] ASAN global-buffer-overflow in is_stat_table / statistics_for_tables_is_needed
+--echo #
+
+SET use_stat_tables = PREFERABLY;
+SELECT CONVERT_TZ( '1991-09-20 10:11:02', '+00:00', 'GMT' );
+set use_stat_tables=@save_use_stat_tables;
+
+--echo #
+--echo # MDEV-16757: manual addition of min/max statistics for BLOB
+--echo #
+
+SET use_stat_tables= PREFERABLY;
+
+CREATE TABLE t1 (pk INT PRIMARY KEY, t TEXT);
+INSERT INTO t1 VALUES (1,'foo'),(2,'bar');
+ANALYZE TABLE t1;
+--sorted_result
+SELECT * FROM mysql.column_stats;
+DELETE FROM mysql.column_stats
+  WHERE db_name='test' AND table_name='t1' AND column_name='t';
+INSERT INTO mysql.column_stats VALUES
+  ('test','t1','t','bar','foo', 0.0, 3.0, 1.0, 0, NULL, NULL);
+--sorted_result
+SELECT * FROM mysql.column_stats;
+
+SELECT pk FROM t1;
+
+DROP TABLE t1;
+
+set use_stat_tables=@save_use_stat_tables;
+
+--echo #
+--echo # MDEV-16760: CREATE OR REPLACE TABLE after ANALYZE TABLE
+--echo #
+
+SET use_stat_tables= PREFERABLY;
+
+CREATE TABLE t1 (pk int PRIMARY KEY, c varchar(32));
+INSERT INTO t1 VALUES (1,'foo'),(2,'bar');
+ANALYZE TABLE t1;
+SELECT * FROM t1;
+SELECT * FROM mysql.column_stats;
+
+CREATE OR REPLACE TABLE t1 (pk int PRIMARY KEY, a char(7));
+SELECT * FROM t1;
+SELECT * FROM mysql.column_stats;
+
+DROP TABLE t1;
+
+set use_stat_tables=@save_use_stat_tables;
+
+--echo #
+--echo # MDEV-17023: Crash during read_histogram_for_table with optimizer_use_condition_selectivity set to 4
+--echo #
+
+set @save_optimizer_use_condition_selectivity=@@optimizer_use_condition_selectivity;
+set @@optimizer_use_condition_selectivity=4;
+set @@use_stat_tables= PREFERABLY;
+explain
+SELECT * FROM INFORMATION_SCHEMA.PROFILING, mysql.user;
+set @@optimizer_use_condition_selectivity=@save_optimizer_use_condition_selectivity;
+set use_stat_tables=@save_use_stat_tables;
+
+--echo #
+--echo # MDEV-16711:CREATE OR REPLACE TABLE introducing BLOB column
+--echo #
+
+SET use_stat_tables= PREFERABLY;
+
+CREATE TABLE t1 (pk INT PRIMARY KEY, t CHAR(60));
+INSERT INTO t1 VALUES (1,'foo'),(2,'bar');
+ANALYZE TABLE t1;
+CREATE OR REPLACE TABLE t1 (pk INT PRIMARY KEY, t TEXT);
+
+SELECT MAX(pk) FROM t1;
+
+DROP TABLE t1;
+
+set use_stat_tables=@save_use_stat_tables;

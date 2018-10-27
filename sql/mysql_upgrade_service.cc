@@ -51,7 +51,7 @@ static char *opt_service;
 static SC_HANDLE service;
 static SC_HANDLE scm;
 HANDLE mysqld_process; // mysqld.exe started for upgrade
-DWORD initial_service_state= -1; // initial state of the service
+DWORD initial_service_state= UINT_MAX; // initial state of the service
 HANDLE logfile_handle;
 
 /*
@@ -126,7 +126,7 @@ static void die(const char *fmt, ...)
     Stop service that we started, if it was not initally running at
     program start.
   */
-  if (initial_service_state != -1 && initial_service_state != SERVICE_RUNNING)
+  if (initial_service_state != UINT_MAX && initial_service_state != SERVICE_RUNNING)
   {
     SERVICE_STATUS service_status;
     ControlService(service, SERVICE_CONTROL_STOP, &service_status);
@@ -146,6 +146,11 @@ static void die(const char *fmt, ...)
   exit(1);
 }
 
+#define WRITE_LOG(fmt,...) {\
+  char log_buf[1024]; \
+  snprintf(log_buf,sizeof(log_buf), fmt, __VA_ARGS__);\
+  WriteFile(logfile_handle,log_buf, (DWORD)strlen(log_buf), 0 , 0);\
+}
 
 /*
   spawn-like function to run subprocesses. 
@@ -187,16 +192,21 @@ static intptr_t run_tool(int wait_flag, const char *program,...)
   {
     char tmpdir[FN_REFLEN];
     GetTempPath(FN_REFLEN, tmpdir);
-    sprintf_s(logfile_path, "%s\\mysql_upgrade_service.%s.log", tmpdir, 
+    sprintf_s(logfile_path, "%smysql_upgrade_service.%s.log", tmpdir,
       opt_service);
-    logfile_handle= CreateFile(logfile_path, GENERIC_WRITE,  FILE_SHARE_READ, 
-      NULL, TRUNCATE_EXISTING, 0, NULL);
-    if (!logfile_handle)
+    SECURITY_ATTRIBUTES attr= {0};
+    attr.nLength= sizeof(SECURITY_ATTRIBUTES);
+    attr.bInheritHandle=  TRUE;
+    logfile_handle= CreateFile(logfile_path, FILE_APPEND_DATA,
+      FILE_SHARE_READ|FILE_SHARE_WRITE, &attr, CREATE_ALWAYS, 0, NULL);
+    if (logfile_handle == INVALID_HANDLE_VALUE)
     {
       die("Cannot open log file %s, windows error %u", 
         logfile_path, GetLastError());
     }
   }
+
+  WRITE_LOG("Executing %s\r\n", cmdline);
 
   /* Start child process */
   STARTUPINFO si= {0};
@@ -252,7 +262,7 @@ void stop_mysqld_service()
       Remeber initial state of the service, we will restore it on
       exit.
     */
-    if(initial_service_state == -1)
+    if(initial_service_state == UINT_MAX)
       initial_service_state= ssp.dwCurrentState;
 
     switch(ssp.dwCurrentState)
@@ -458,7 +468,7 @@ int main(int argc, char **argv)
   log("Phase 3/8: Starting mysqld for upgrade");
   mysqld_process= (HANDLE)run_tool(P_NOWAIT, mysqld_path,
     defaults_file_param, "--skip-networking",  "--skip-grant-tables", 
-    "--enable-named-pipe",  socket_param, NULL);
+    "--enable-named-pipe",  socket_param,"--skip-slave-start", NULL);
 
   if (mysqld_process == INVALID_HANDLE_VALUE)
   {

@@ -73,3 +73,42 @@ set global rocksdb_strict_collation_check=@tmp_rscc;
 --echo #
 select plugin_name, plugin_maturity from information_schema.plugins where plugin_name like '%rocksdb%';
 
+
+--echo #
+--echo #  MDEV-12466 : Assertion `thd->transaction.stmt.is_empty() || thd->in_sub_stmt ||  ...
+--echo #
+
+CREATE TABLE t1 (i INT) ENGINE=RocksDB;
+--error ER_ILLEGAL_HA
+FLUSH TABLE t1 FOR EXPORT;
+DROP TABLE t1;
+
+--echo # 
+--echo # MDEV-16154 Server crashes in in myrocks::ha_rocksdb::load_auto_incr_value_from_inde
+--echo # 
+CREATE TABLE t1 (a INT) ENGINE=RocksDB;
+INSERT INTO t1 VALUES (1);
+ALTER TABLE t1 AUTO_INCREMENT 10;
+ 
+DROP TABLE t1;
+
+--echo # 
+--echo # MDEV-16155: UPDATE on RocksDB table with unique constraint does not work
+--echo # 
+CREATE TABLE t1 (a INT, b CHAR(8), UNIQUE INDEX(a)) ENGINE=RocksDB;
+INSERT INTO t1 (a,b) VALUES (1,'foo'),(2,'bar');
+UPDATE t1 SET a=a+100;
+SELECT * FROM t1;
+DROP TABLE t1;
+
+
+--echo #
+--echo # MDEV-15319: [SQL Layer] Server crashes in Field::set_null / myrocks::ha_rocksdb::convert_record_from_storage_format
+--echo #  (just a testcase)
+--echo #
+
+CREATE TABLE t1 (i INT);
+INSERT INTO t1 VALUES (1);
+CREATE TABLE t2 ENGINE=RocksDB AS SELECT VALUE(i) AS a FROM t1;
+DELETE FROM t2;
+DROP TABLE t1,t2;

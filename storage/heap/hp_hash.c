@@ -754,7 +754,6 @@ uint hp_rb_make_key(HP_KEYDEF *keydef, uchar *key,
       uchar *pos= (uchar*) rec + seg->start;
       DBUG_ASSERT(seg->type != HA_KEYTYPE_BIT);
 
-#ifdef HAVE_ISNAN
       if (seg->type == HA_KEYTYPE_FLOAT)
       {
 	float nr;
@@ -778,7 +777,6 @@ uint hp_rb_make_key(HP_KEYDEF *keydef, uchar *key,
 	  continue;
 	}
       }
-#endif
       pos+= length;
       while (length--)
       {
@@ -982,7 +980,7 @@ void heap_update_auto_increment(HP_INFO *info, const uchar *record)
 
   switch (info->s->auto_key_type) {
   case HA_KEYTYPE_INT8:
-    s_value= (longlong) *(char*)key;
+    s_value= (longlong) *(const signed char*) key;
     break;
   case HA_KEYTYPE_BINARY:
     value=(ulonglong)  *(uchar*) key;

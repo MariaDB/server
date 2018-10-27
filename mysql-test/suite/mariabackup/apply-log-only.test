@@ -14,7 +14,7 @@ exec $XTRABACKUP --defaults-file=$MYSQLTEST_VARDIR/my.cnf  --backup --target-dir
 exec $XTRABACKUP --prepare --apply-log-only --target-dir=$basedir ;
 
 let SEARCH_FILE=$MYSQLTEST_VARDIR/log/current_test;
---let SEARCH_PATTERN= Rollback of trx with id
+--let SEARCH_PATTERN= Rolled back recovered transaction
 --source include/search_pattern_in_file.inc
 --echo # expect NOT FOUND
 

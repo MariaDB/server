@@ -87,12 +87,12 @@ bits are stored in the most significant 5 bits of PAGE_DIRECTION_B.
 
 These FIL_PAGE_TYPE_INSTANT and PAGE_INSTANT may be assigned even if
 instant ADD COLUMN was not committed. Changes to these page header fields
-are not undo-logged, but changes to the 'default value record' are.
+are not undo-logged, but changes to the hidden metadata record are.
 If the server is killed and restarted, the page header fields could
-remain set even though no 'default value record' is present.
+remain set even though no metadata record is present.
 
 When the table becomes empty, the PAGE_INSTANT field and the
-FIL_PAGE_TYPE can be reset and any 'default value record' be removed. */
+FIL_PAGE_TYPE can be reset and any metadata record be removed. */
 #define PAGE_INSTANT	12
 
 /** last insert direction: PAGE_LEFT, ....
@@ -158,9 +158,9 @@ Otherwise written as 0. @see PAGE_ROOT_AUTO_INC */
 /*-----------------------------*/
 
 /* Heap numbers */
-#define PAGE_HEAP_NO_INFIMUM	0	/* page infimum */
-#define PAGE_HEAP_NO_SUPREMUM	1	/* page supremum */
-#define PAGE_HEAP_NO_USER_LOW	2	/* first user record in
+#define PAGE_HEAP_NO_INFIMUM	0U	/* page infimum */
+#define PAGE_HEAP_NO_SUPREMUM	1U	/* page supremum */
+#define PAGE_HEAP_NO_USER_LOW	2U	/* first user record in
 					creation (insertion) order,
 					not necessarily collation order;
 					this record may have been deleted */
@@ -210,7 +210,7 @@ inline
 page_t*
 page_align(const void* ptr)
 {
-	return(static_cast<page_t*>(ut_align_down(ptr, UNIV_PAGE_SIZE)));
+	return(static_cast<page_t*>(ut_align_down(ptr, srv_page_size)));
 }
 
 /** Gets the byte offset within a page frame.
@@ -221,7 +221,7 @@ inline
 ulint
 page_offset(const void*	ptr)
 {
-	return(ut_align_offset(ptr, UNIV_PAGE_SIZE));
+	return(ut_align_offset(ptr, srv_page_size));
 }
 
 /** Determine whether an index page is not in ROW_FORMAT=REDUNDANT.
@@ -285,13 +285,11 @@ page_rec_is_comp(const byte* rec)
 }
 
 # ifdef UNIV_DEBUG
-/** Determine if the record is the 'default row' pseudo-record
+/** Determine if the record is the metadata pseudo-record
 in the clustered index.
 @param[in]	rec	leaf page record on an index page
-@return	whether the record is the 'default row' pseudo-record */
-inline
-bool
-page_rec_is_default_row(const rec_t* rec)
+@return	whether the record is the metadata pseudo-record */
+inline bool page_rec_is_metadata(const rec_t* rec)
 {
 	return rec_get_info_bits(rec, page_rec_is_comp(rec))
 		& REC_INFO_MIN_REC_FLAG;
@@ -335,7 +333,7 @@ page_rec_is_user_rec_low(ulint offset)
 	compile_time_assert(PAGE_NEW_SUPREMUM < PAGE_OLD_SUPREMUM_END);
 	compile_time_assert(PAGE_OLD_SUPREMUM < PAGE_NEW_SUPREMUM_END);
 	ut_ad(offset >= PAGE_NEW_INFIMUM);
-	ut_ad(offset <= UNIV_PAGE_SIZE - PAGE_EMPTY_DIR_START);
+	ut_ad(offset <= srv_page_size - PAGE_EMPTY_DIR_START);
 
 	return(offset != PAGE_NEW_SUPREMUM
 	       && offset != PAGE_NEW_INFIMUM
@@ -351,7 +349,7 @@ bool
 page_rec_is_supremum_low(ulint offset)
 {
 	ut_ad(offset >= PAGE_NEW_INFIMUM);
-	ut_ad(offset <= UNIV_PAGE_SIZE - PAGE_EMPTY_DIR_START);
+	ut_ad(offset <= srv_page_size - PAGE_EMPTY_DIR_START);
 	return(offset == PAGE_NEW_SUPREMUM || offset == PAGE_OLD_SUPREMUM);
 }
 
@@ -363,7 +361,7 @@ bool
 page_rec_is_infimum_low(ulint offset)
 {
 	ut_ad(offset >= PAGE_NEW_INFIMUM);
-	ut_ad(offset <= UNIV_PAGE_SIZE - PAGE_EMPTY_DIR_START);
+	ut_ad(offset <= srv_page_size - PAGE_EMPTY_DIR_START);
 	return(offset == PAGE_NEW_INFIMUM || offset == PAGE_OLD_INFIMUM);
 }
 
@@ -663,7 +661,7 @@ page_dir_get_nth_slot(
 	ulint		n);	/*!< in: position */
 #else /* UNIV_DEBUG */
 # define page_dir_get_nth_slot(page, n)			\
-	((page) + (UNIV_PAGE_SIZE - PAGE_DIR		\
+	((page) + (srv_page_size - PAGE_DIR		\
 		   - (n + 1) * PAGE_DIR_SLOT_SIZE))
 #endif /* UNIV_DEBUG */
 /**************************************************************//**

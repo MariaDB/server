@@ -179,6 +179,7 @@ enum enum_indicator_type
 #define BINCMP_FLAG	131072U		/* Intern: Used by sql_yacc */
 #define GET_FIXED_FIELDS_FLAG (1U << 18) /* Used to get fields in item tree */
 #define FIELD_IN_PART_FUNC_FLAG (1U << 19)/* Field part of partition func */
+#define PART_INDIRECT_KEY_FLAG (1U << 20)
 
 /**
   Intern: Field in TABLE object for new version of altered table,
@@ -215,7 +216,7 @@ enum enum_indicator_type
                                              and truncate the index */
 
 /* The following can't be set with mysql_refresh() */
-#define REFRESH_ERROR_LOG       (1ULL << 8)  /* Rotate only the erorr log */
+#define REFRESH_ERROR_LOG       (1ULL << 8)  /* Rotate only the error log */
 #define REFRESH_ENGINE_LOG      (1ULL << 9)  /* Flush all storage engine logs */
 #define REFRESH_BINARY_LOG      (1ULL << 10) /* Flush the binary log */
 #define REFRESH_RELAY_LOG       (1ULL << 11) /* Flush the relay log */
@@ -433,7 +434,7 @@ typedef struct st_vio Vio;
 #define MAX_MEDIUMINT_WIDTH     8       /* Max width for a INT24 w.o. sign */
 #define MAX_INT_WIDTH           10      /* Max width for a LONG w.o. sign */
 #define MAX_BIGINT_WIDTH        20      /* Max width for a LONGLONG */
-#define MAX_CHAR_WIDTH		255	/* Max length for a CHAR colum */
+#define MAX_CHAR_WIDTH		255	/* Max length for a CHAR column */
 #define MAX_BLOB_WIDTH		16777216	/* Default width for blob */
 
 typedef struct st_net {

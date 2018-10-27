@@ -131,6 +131,7 @@
 #cmakedefine HAVE_CLOCK_GETTIME 1
 #cmakedefine HAVE_CRYPT 1
 #cmakedefine HAVE_CUSERID 1
+#cmakedefine HAVE_DLADDR 1
 #cmakedefine HAVE_DLERROR 1
 #cmakedefine HAVE_DLOPEN 1
 #cmakedefine HAVE_FCHMOD 1
@@ -139,7 +140,6 @@
 #cmakedefine HAVE_DECL_FDATASYNC 1
 #cmakedefine HAVE_FEDISABLEEXCEPT 1
 #cmakedefine HAVE_FESETROUND 1
-#cmakedefine HAVE_FINITE 1
 #cmakedefine HAVE_FP_EXCEPT 1
 #cmakedefine HAVE_FSEEKO 1
 #cmakedefine HAVE_FSYNC 1
@@ -161,13 +161,10 @@
 #cmakedefine gmtime_r @gmtime_r@
 #cmakedefine HAVE_IN_ADDR_T 1
 #cmakedefine HAVE_INITGROUPS 1
-#cmakedefine HAVE_ISNAN 1
-#cmakedefine HAVE_ISINF 1
 #cmakedefine HAVE_LARGE_PAGE_OPTION 1
 #cmakedefine HAVE_LDIV 1
 #cmakedefine HAVE_LRAND48 1
 #cmakedefine HAVE_LOCALTIME_R 1
-#cmakedefine HAVE_LOG2 1
 #cmakedefine HAVE_LSTAT 1
 #cmakedefine HAVE_MEMALIGN 1
 /* #cmakedefine HAVE_MLOCK 1 see Bug#54662 */
@@ -180,6 +177,7 @@
 #cmakedefine HAVE_MEMCPY 1
 #cmakedefine HAVE_MEMMOVE 1
 #cmakedefine HAVE_MKSTEMP 1
+#cmakedefine HAVE_MKOSTEMP 1
 #cmakedefine HAVE_MLOCKALL 1
 #cmakedefine HAVE_MMAP 1
 #cmakedefine HAVE_MMAP64 1
@@ -211,7 +209,6 @@
 #cmakedefine HAVE_READLINK 1
 #cmakedefine HAVE_REALPATH 1
 #cmakedefine HAVE_RENAME 1
-#cmakedefine HAVE_RINT 1
 #cmakedefine HAVE_RWLOCK_INIT 1
 #cmakedefine HAVE_SCHED_YIELD 1
 #cmakedefine HAVE_SELECT 1
@@ -234,7 +231,6 @@
 #cmakedefine HAVE_STRTOUL 1
 #cmakedefine HAVE_STRTOULL 1
 #cmakedefine HAVE_TELL 1
-#cmakedefine HAVE_TEMPNAM 1
 #cmakedefine HAVE_THR_SETCONCURRENCY 1
 #cmakedefine HAVE_THR_YIELD 1
 #cmakedefine HAVE_TIME 1
@@ -391,7 +387,7 @@
 #cmakedefine HAVE_GCC_C11_ATOMICS 1
 #cmakedefine HAVE_SOLARIS_ATOMIC 1
 #cmakedefine HAVE_DECL_SHM_HUGETLB 1
-#cmakedefine HAVE_LARGE_PAGES 1
+#cmakedefine HAVE_LINUX_LARGE_PAGES 1
 #cmakedefine HUGETLB_USE_PROC_MEMINFO 1
 #cmakedefine NO_FCNTL_NONBLOCK 1
 #cmakedefine NO_ALARM 1
@@ -420,8 +416,6 @@
 #cmakedefine mode_t @mode_t@
 #cmakedefine SIGQUIT @SIGQUIT@
 #cmakedefine SIGPIPE @SIGPIPE@
-#cmakedefine isnan @isnan@
-#cmakedefine finite @finite@
 #cmakedefine popen @popen@
 #cmakedefine pclose @pclose@
 #cmakedefine ssize_t @ssize_t@
@@ -432,11 +426,11 @@
 #cmakedefine strtoll @strtoll@
 #cmakedefine strtoull @strtoull@
 #cmakedefine vsnprintf @vsnprintf@
-#if (_MSC_VER > 1800)
+#if defined(_MSC_VER) && (_MSC_VER > 1800)
 #define tzname _tzname
 #define P_tmpdir "C:\\TEMP"
 #endif
-#if (_MSC_VER > 1310)
+#if defined(_MSC_VER) && (_MSC_VER > 1310)
 # define HAVE_SETENV
 #define setenv(a,b,c) _putenv_s(a,b)
 #endif
@@ -565,12 +559,8 @@
 #cmakedefine WSREP_PROC_INFO 1
 #endif
 
-#ifdef _AIX
-/*
-  AIX includes inttypes.h from sys/types.h
-  Explicitly request format macros before the first inclusion of inttypes.h
-*/
+#if !defined(__STDC_FORMAT_MACROS)
 #define __STDC_FORMAT_MACROS
-#endif
+#endif  // !defined(__STDC_FORMAT_MACROS)
 
 #endif

@@ -49,7 +49,7 @@ when it is written to a file and also checked for a match when reading from
 the file. When reading we allow both normal CRC32 and CRC-legacy-big-endian
 variants. Note that we must be careful to calculate the same value on 32-bit
 and 64-bit architectures.
-@param[in]	page			buffer page (UNIV_PAGE_SIZE bytes)
+@param[in]	page			buffer page (srv_page_size bytes)
 @param[in]	use_legacy_big_endian	if true then use big endian
 byteorder when converting byte strings to integers
 @return checksum */
@@ -76,7 +76,7 @@ buf_calc_page_crc32(
 
 	const uint32_t	c2 = crc32_func(
 		page + FIL_PAGE_DATA,
-		UNIV_PAGE_SIZE - FIL_PAGE_DATA - FIL_PAGE_END_LSN_OLD_CHKSUM);
+		srv_page_size - FIL_PAGE_DATA - FIL_PAGE_END_LSN_OLD_CHKSUM);
 
 	return(c1 ^ c2);
 }
@@ -103,7 +103,7 @@ buf_calc_page_new_checksum(const byte* page)
 				  FIL_PAGE_FILE_FLUSH_LSN_OR_KEY_VERSION
 				  - FIL_PAGE_OFFSET)
 		+ ut_fold_binary(page + FIL_PAGE_DATA,
-				 UNIV_PAGE_SIZE - FIL_PAGE_DATA
+				 srv_page_size - FIL_PAGE_DATA
 				 - FIL_PAGE_END_LSN_OLD_CHKSUM);
 	return(static_cast<uint32_t>(checksum));
 }

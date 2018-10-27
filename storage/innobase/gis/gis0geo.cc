@@ -30,6 +30,7 @@ Created 2013/03/27 Allen Lai and Jimmy Yang
 #include "mach0data.h"
 
 #include <spatial.h>
+#include <cmath>
 
 /* These definitions are for comparing 2 mbrs. */
 
@@ -72,7 +73,6 @@ rtree_add_point_to_mbr(
 				where point is stored */
 	uchar*	end,		/*!< in: end of wkb. */
 	uint	n_dims,		/*!< in: dimensions. */
-	uchar	byte_order,	/*!< in: byte order. */
 	double*	mbr)		/*!< in/out: mbr, which
 				must be of length n_dims * 2. */
 {
@@ -112,11 +112,10 @@ rtree_get_point_mbr(
 				where point is stored. */
 	uchar*	end,		/*!< in: end of wkb. */
 	uint	n_dims,		/*!< in: dimensions. */
-	uchar	byte_order,	/*!< in: byte order. */
 	double*	mbr)		/*!< in/out: mbr,
 				must be of length n_dims * 2. */
 {
-	return rtree_add_point_to_mbr(wkb, end, n_dims, byte_order, mbr);
+	return rtree_add_point_to_mbr(wkb, end, n_dims, mbr);
 }
 
 
@@ -131,7 +130,6 @@ rtree_get_linestring_mbr(
 				where point is stored. */
 	uchar*	end,		/*!< in: end of wkb. */
 	uint	n_dims,		/*!< in: dimensions. */
-	uchar	byte_order,	/*!< in: byte order. */
 	double*	mbr)		/*!< in/out: mbr,
 				must be of length n_dims * 2. */
 {
@@ -142,8 +140,7 @@ rtree_get_linestring_mbr(
 
 	for (; n_points > 0; --n_points) {
 		/* Add next point to mbr */
-		if (rtree_add_point_to_mbr(wkb, end, n_dims,
-					   byte_order, mbr)) {
+		if (rtree_add_point_to_mbr(wkb, end, n_dims, mbr)) {
 			return(-1);
 		}
 	}
@@ -162,7 +159,6 @@ rtree_get_polygon_mbr(
 				where point is stored. */
 	uchar*	end,		/*!< in: end of wkb. */
 	uint	n_dims,		/*!< in: dimensions. */
-	uchar	byte_order,	/*!< in: byte order. */
 	double*	mbr)		/*!< in/out: mbr,
 				must be of length n_dims * 2. */
 {
@@ -178,8 +174,7 @@ rtree_get_polygon_mbr(
 
 		for (; n_points > 0; --n_points) {
 			/* Add next point to mbr */
-			if (rtree_add_point_to_mbr(wkb, end, n_dims,
-						   byte_order, mbr)) {
+			if (rtree_add_point_to_mbr(wkb, end, n_dims, mbr)) {
 				return(-1);
 			}
 		}
@@ -205,11 +200,10 @@ rtree_get_geometry_mbr(
 				by itself. */
 {
 	int	res;
-	uchar	byte_order = 2;
 	uint	wkb_type = 0;
 	uint	n_items;
 
-	byte_order = *(*wkb);
+	/* byte_order = *(*wkb); */
 	++(*wkb);
 
 	wkb_type = uint4korr((*wkb));
@@ -217,24 +211,22 @@ rtree_get_geometry_mbr(
 
 	switch ((enum wkbType) wkb_type) {
 	case wkbPoint:
-		res = rtree_get_point_mbr(wkb, end, n_dims, byte_order, mbr);
+		res = rtree_get_point_mbr(wkb, end, n_dims, mbr);
 		break;
 	case wkbLineString:
-		res = rtree_get_linestring_mbr(wkb, end, n_dims,
-					       byte_order, mbr);
+		res = rtree_get_linestring_mbr(wkb, end, n_dims, mbr);
 		break;
 	case wkbPolygon:
-		res = rtree_get_polygon_mbr(wkb, end, n_dims, byte_order, mbr);
+		res = rtree_get_polygon_mbr(wkb, end, n_dims, mbr);
 		break;
 	case wkbMultiPoint:
 		n_items = uint4korr((*wkb));
 		(*wkb) += 4;
 		for (; n_items > 0; --n_items) {
-			byte_order = *(*wkb);
+			/* byte_order = *(*wkb); */
 			++(*wkb);
 			(*wkb) += 4;
-			if (rtree_get_point_mbr(wkb, end, n_dims,
-						byte_order, mbr)) {
+			if (rtree_get_point_mbr(wkb, end, n_dims, mbr)) {
 				return(-1);
 			}
 		}
@@ -244,11 +236,10 @@ rtree_get_geometry_mbr(
 		n_items = uint4korr((*wkb));
 		(*wkb) += 4;
 		for (; n_items > 0; --n_items) {
-			byte_order = *(*wkb);
+			/* byte_order = *(*wkb); */
 			++(*wkb);
 			(*wkb) += 4;
-			if (rtree_get_linestring_mbr(wkb, end, n_dims,
-						     byte_order, mbr)) {
+			if (rtree_get_linestring_mbr(wkb, end, n_dims, mbr)) {
 				return(-1);
 			}
 		}
@@ -258,11 +249,10 @@ rtree_get_geometry_mbr(
 		n_items = uint4korr((*wkb));
 		(*wkb) += 4;
 		for (; n_items > 0; --n_items) {
-			byte_order = *(*wkb);
+			/* byte_order = *(*wkb); */
 			++(*wkb);
 			(*wkb) += 4;
-			if (rtree_get_polygon_mbr(wkb, end, n_dims,
-						  byte_order, mbr)) {
+			if (rtree_get_polygon_mbr(wkb, end, n_dims, mbr)) {
 				return(-1);
 			}
 		}
@@ -366,7 +356,7 @@ mbr_join_square(
 
 	/* Check if finite (not infinity or NaN),
 	so we don't get NaN in calculations */
-	if (!isfinite(square)) {
+	if (!std::isfinite(square)) {
 		return DBL_MAX;
 	}
 
@@ -402,7 +392,7 @@ copy_coords(
 /*========*/
 	double*		dst,	/*!< in/out: destination. */
 	const double*	src,	/*!< in: source. */
-	int		n_dim)	/*!< in: dimensions. */
+	int)
 {
 	memcpy(dst, src, DATA_MBR_LEN);
 }
@@ -624,7 +614,7 @@ rtree_key_cmp(
 /*==========*/
 	page_cur_mode_t	mode,	/*!< in: compare method. */
 	const uchar*	b,	/*!< in: first key. */
-	int		b_len,	/*!< in: first key len. */
+	int,
 	const uchar*	a,	/*!< in: second key. */
 	int		a_len)	/*!< in: second key len. */
 {

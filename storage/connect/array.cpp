@@ -82,7 +82,7 @@ PARRAY MakeValueArray(PGLOBAL g, PPARM pp)
   if ((valtyp = pp->Type) != TYPE_STRING)
     len = 1;
 
- 	if (trace)
+ 	if (trace(1))
  		htrc("valtyp=%d len=%d\n", valtyp, len);
   		
   /*********************************************************************/
@@ -287,7 +287,7 @@ bool ARRAY::AddValue(PGLOBAL g, PSZ strp)
     return true;
     } // endif Type
 
-  if (trace)
+  if (trace(1))
     htrc(" adding string(%d): '%s'\n", Nval, strp);
 
 //Value->SetValue_psz(strp);
@@ -306,7 +306,7 @@ bool ARRAY::AddValue(PGLOBAL g, void *p)
     return true;
     } // endif Type
 
-  if (trace)
+  if (trace(1))
     htrc(" adding pointer(%d): %p\n", Nval, p);
 
   Vblp->SetValue((PSZ)p, Nval++);
@@ -323,7 +323,7 @@ bool ARRAY::AddValue(PGLOBAL g, short n)
     return true;
     } // endif Type
 
-  if (trace)
+  if (trace(1))
     htrc(" adding SHORT(%d): %hd\n", Nval, n);
 
 //Value->SetValue(n);
@@ -342,7 +342,7 @@ bool ARRAY::AddValue(PGLOBAL g, int n)
     return true;
     } // endif Type
 
-  if (trace)
+  if (trace(1))
     htrc(" adding int(%d): %d\n", Nval, n);
 
 //Value->SetValue(n);
@@ -361,7 +361,7 @@ bool ARRAY::AddValue(PGLOBAL g, double d)
     return true;
     } // endif Type
 
-  if (trace)
+  if (trace(1))
     htrc(" adding float(%d): %lf\n", Nval, d);
 
   Value->SetValue(d);
@@ -380,7 +380,7 @@ bool ARRAY::AddValue(PGLOBAL g, PXOB xp)
     return true;
     } // endif Type
 
-  if (trace)
+  if (trace(1))
     htrc(" adding (%d) from xp=%p\n", Nval, xp);
 
 //AddValue(xp->GetValue());
@@ -399,7 +399,7 @@ bool ARRAY::AddValue(PGLOBAL g, PVAL vp)
     return true;
     } // endif Type
 
-  if (trace)
+  if (trace(1))
     htrc(" adding (%d) from vp=%p\n", Nval, vp);
 
   Vblp->SetValue(vp, Nval++);
@@ -990,7 +990,7 @@ PSZ ARRAY::MakeArrayList(PGLOBAL g)
     len += strlen(tp);
     } // enfor i
 
-  if (trace)
+  if (trace(1))
     htrc("Arraylist: len=%d\n", len);
 
   p = (char *)PlugSubAlloc(g, NULL, len);
@@ -1003,7 +1003,7 @@ PSZ ARRAY::MakeArrayList(PGLOBAL g)
     strcat(p, (++i == Nval) ? ")" : ",");
     } // enfor i
 
-  if (trace)
+  if (trace(1))
     htrc("Arraylist: newlen=%d\n", strlen(p));
 
   return p;

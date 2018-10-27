@@ -87,12 +87,8 @@ bool check_reorganise_list(partition_info *new_part_info,
                            partition_info *old_part_info,
                            List<char> list_part_names);
 handler *get_ha_partition(partition_info *part_info);
-int get_parts_for_update(const uchar *old_data, const uchar *new_data,
-                         const uchar *rec0, partition_info *part_info,
-                         uint32 *old_part_id, uint32 *new_part_id,
-                         longlong *func_value);
-int get_part_for_delete(const uchar *buf, const uchar *rec0,
-                        partition_info *part_info, uint32 *part_id);
+int get_part_for_buf(const uchar *buf, const uchar *rec0,
+                     partition_info *part_info, uint32 *part_id);
 void prune_partition_set(const TABLE *table, part_id_range *part_spec);
 bool check_partition_info(partition_info *part_info,handlerton **eng_type,
                           TABLE *table, handler *file, HA_CREATE_INFO *info);
@@ -137,7 +133,6 @@ Item* convert_charset_partition_constant(Item *item, CHARSET_INFO *cs);
   @param[in]     table Table containing read_set and fields for the row.
 */
 void append_row_to_str(String &str, const uchar *row, TABLE *table);
-void mem_alloc_error(size_t size);
 void truncate_partition_filename(char *path);
 
 /*
@@ -281,6 +276,10 @@ char *generate_partition_syntax(THD *thd, partition_info *part_info,
                                 bool show_partition_options,
                                 HA_CREATE_INFO *create_info,
                                 Alter_info *alter_info);
+char *generate_partition_syntax_for_frm(THD *thd, partition_info *part_info,
+                                        uint *buf_length,
+                                        HA_CREATE_INFO *create_info,
+                                        Alter_info *alter_info);
 bool verify_data_with_partition(TABLE *table, TABLE *part_table,
                                 uint32 part_id);
 bool compare_partition_options(HA_CREATE_INFO *table_create_info,

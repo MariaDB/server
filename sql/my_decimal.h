@@ -288,7 +288,7 @@ int my_decimal_set_zero(my_decimal *d)
 {
   /*
     We need the up-cast here, since my_decimal has sign() member functions,
-    which conflicts with decimal_t::size
+    which conflicts with decimal_t::sign
     (and decimal_make_zero is a macro, rather than a funcion).
   */
   decimal_make_zero(static_cast<decimal_t*>(d));

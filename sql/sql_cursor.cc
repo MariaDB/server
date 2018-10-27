@@ -215,7 +215,7 @@ void Server_side_cursor::operator delete(void *ptr, size_t size)
   MEM_ROOT own_root= *cursor->mem_root;
 
   DBUG_ENTER("Server_side_cursor::operator delete");
-  TRASH(ptr, size);
+  TRASH_FREE(ptr, size);
   /*
     If this cursor has never been opened mem_root is empty. Otherwise
     mem_root points to the memory the cursor object was allocated in.
@@ -281,7 +281,7 @@ int Materialized_cursor::send_result_set_metadata(
   {
     Send_field send_field;
     Item_ident *ident= static_cast<Item_ident *>(item_dst);
-    item_org->make_field(thd, &send_field);
+    item_org->make_send_field(thd, &send_field);
 
     ident->db_name=    thd->strdup(send_field.db_name);
     ident->table_name= thd->strdup(send_field.table_name);

@@ -294,15 +294,15 @@
 
     - Detecting and parsing a FUNCTION invocation
 
-      The existance of UDFs are checked during the lexical analysis (in
+      The existence of UDFs are checked during the lexical analysis (in
       sql_lex.cc:find_keyword()). This has the drawback that they must
-      exist before they are refered to, which was ok before SPs existed,
+      exist before they are referred to, which was ok before SPs existed,
       but then it becomes a problem. The first implementation of SP FUNCTIONs
       will work the same way, but this should be fixed a.s.a.p. (This will
       required some reworking of the way UDFs are handled, which is why it's
       not done from the start.)
       For the time being, a FUNCTION is detected the same way, and returns
-      the token SP_FUNC. During the parsing we only check for the *existance*
+      the token SP_FUNC. During the parsing we only check for the *existence*
       of the function, we don't parse it, since wa can't call the parser
       recursively.
 
@@ -329,7 +329,7 @@
       of the mysql.proc table during a query execution, but this it not
       possible at the present.
 
-      So, the solution is to collect the names of the refered FUNCTIONs during
+      So, the solution is to collect the names of the referred FUNCTIONs during
       parsing in the lex.
       Then, before doing anything else in mysql_execute_command(), read all
       functions from the database an keep them in the THD, where the function
@@ -390,7 +390,7 @@
     a method in the THD's sp_rcontext (if there is one). If a handler is
     found, this is recorded in the context and the routine returns without
     sending the error message.
-    The exectution loop (sp_head::execute()) checks for this after each
+    The execution loop (sp_head::execute()) checks for this after each
     statement and invokes the handler that has been found. If several
     errors or warnings occurs during one statement, only the first is
     caught, the rest are ignored.
@@ -402,7 +402,7 @@
     Calling and returning from a CONTINUE handler poses some special
     problems. Since we need to return to the point after its invocation,
     we push the return location on a stack in the sp_rcontext (this is
-    done by the exectution loop). The handler then ends with a special
+    done by the execution loop). The handler then ends with a special
     instruction, sp_instr_hreturn, which returns to this location.
 
     CONTINUE handlers have one additional problem: They are parsed at
@@ -546,7 +546,7 @@
 
     Unfortunately, we cannot use alternative 1 for the time being, as most
     of the data structures to be cached (lex and items) are not reentrant
-    and thread-safe. (Things are modifed at execution, we have THD pointers
+    and thread-safe. (Things are modified at execution, we have THD pointers
     stored everywhere, etc.)
     This leaves us with alternative 2, one cache per thread; or actually
     two, since we keep FUNCTIONs and PROCEDUREs in separate caches.

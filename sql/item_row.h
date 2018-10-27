@@ -58,9 +58,9 @@ public:
   const Type_handler *type_handler() const { return &type_handler_row; }
   void illegal_method_call(const char *);
   bool is_null() { return null_value; }
-  void make_field(THD *thd, Send_field *)
+  void make_send_field(THD *thd, Send_field *)
   {
-    illegal_method_call((const char*)"make_field");
+    illegal_method_call((const char*)"make_send_field");
   };
   double val_real()
   {
@@ -82,6 +82,11 @@ public:
     illegal_method_call((const char*)"val_decimal");
     return 0;
   };
+  bool get_date(MYSQL_TIME *ltime, ulonglong fuzzydate)
+  {
+    illegal_method_call((const char*)"get_date");
+    return true;
+  }
   bool fix_fields(THD *thd, Item **ref);
   void fix_after_pullout(st_select_lex *new_parent, Item **ref, bool merge);
   void cleanup();

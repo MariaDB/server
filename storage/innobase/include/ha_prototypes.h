@@ -1,7 +1,7 @@
 /*****************************************************************************
 
 Copyright (c) 2006, 2016, Oracle and/or its affiliates. All Rights Reserved.
-Copyright (c) 2017, MariaDB Corporation. All Rights Reserved.
+Copyright (c) 2017, 2018, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -70,13 +70,11 @@ innobase_invalidate_query_cache(
 /*============================*/
 	trx_t*		trx,		/*!< in: transaction which
 					modifies the table */
-	const char*	full_name,	/*!< in: concatenation of
+	const char*	full_name);	/*!< in: concatenation of
 					database name, path separator,
 					table name, null char NUL;
 					NOTE that in Windows this is
 					always in LOWER CASE! */
-	ulint		full_name_len);	/*!< in: full name length where
-					also the null chars count */
 
 /** Quote a standard SQL identifier like tablespace, index or column name.
 @param[in]	file	output stream
@@ -158,7 +156,6 @@ UNIV_INTERN
 void
 innobase_mysql_log_notify(
 /*======================*/
-	ib_uint64_t	write_lsn,	/*!< in: LSN written to log file */
 	ib_uint64_t	flush_lsn);	/*!< in: LSN flushed to disk */
 
 /** Converts a MySQL type to an InnoDB type. Note that this function returns
@@ -240,7 +237,7 @@ wsrep_innobase_kill_one_trx(void * const thd_ptr,
                             const trx_t * const bf_trx,
                             trx_t *victim_trx,
                             ibool signal);
-int wsrep_innobase_mysql_sort(int mysql_type, uint charset_number,
+ulint wsrep_innobase_mysql_sort(int mysql_type, uint charset_number,
                              unsigned char* str, unsigned int str_length,
                              unsigned int buf_length);
 #endif /* WITH_WSREP */
@@ -309,14 +306,6 @@ thd_lock_wait_timeout(
 /*==================*/
 	THD*	thd);	/*!< in: thread handle, or NULL to query
 			the global innodb_lock_wait_timeout */
-/******************************************************************//**
-Add up the time waited for the lock for the current query. */
-void
-thd_set_lock_wait_time(
-/*===================*/
-	THD*	thd,	/*!< in/out: thread handle */
-	ulint	value);	/*!< in: time waited for the lock */
-
 /** Get status of innodb_tmpdir.
 @param[in]	thd	thread handle, or NULL to query
 			the global innodb_tmpdir.
@@ -361,27 +350,6 @@ thd_trx_is_read_only(
 /*=================*/
 	THD*	thd);	/*!< in/out: thread handle */
 
-#if 0
-/**
-Check if the transaction can be rolled back
-@param[in] requestor	Session requesting the lock
-@param[in] holder	Session that holds the lock
-@return the session that will be rolled back, null don't care */
-
-THD*
-thd_trx_arbitrate(THD* requestor, THD* holder);
-
-/**
-@param[in] thd		Session to check
-@return the priority */
-
-int
-thd_trx_priority(THD* thd);
-
-#else
-static inline THD* thd_trx_arbitrate(THD*, THD*) { return NULL; }
-static inline int thd_trx_priority(THD*) { return 0; }
-#endif
 /******************************************************************//**
 Check if the transaction is an auto-commit transaction. TRUE also
 implies that it is a SELECT (read-only) transaction.
@@ -474,14 +442,6 @@ const char*
 server_get_hostname();
 /*=================*/
 
-/******************************************************************//**
-Get the error message format string.
-@return the format string or 0 if not found. */
-const char*
-innobase_get_err_msg(
-/*=================*/
-	int	error_code);	/*!< in: MySQL error code */
-
 /*********************************************************************//**
 Compute the next autoinc value.
 
@@ -554,7 +514,7 @@ UNIV_INTERN
 void
 ib_push_warning(
 	trx_t*		trx,	/*!< in: trx */
-	ulint		error,	/*!< in: error code to push as warning */
+	dberr_t		error,	/*!< in: error code to push as warning */
 	const char	*format,/*!< in: warning message */
 	...);
 
@@ -564,7 +524,7 @@ UNIV_INTERN
 void
 ib_push_warning(
 	void*		ithd,	/*!< in: thd */
-	ulint		error,	/*!< in: error code to push as warning */
+	dberr_t		error,	/*!< in: error code to push as warning */
 	const char	*format,/*!< in: warning message */
 	...);
 

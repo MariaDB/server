@@ -80,6 +80,7 @@ extern const char* wsrep_notify_cmd;
 extern long        wsrep_max_protocol_version;
 extern ulong       wsrep_forced_binlog_format;
 extern my_bool     wsrep_desync;
+extern ulong       wsrep_reject_queries;
 extern my_bool     wsrep_replicate_myisam;
 extern ulong       wsrep_mysql_replication_bundle;
 extern my_bool     wsrep_restart_slave;
@@ -90,6 +91,12 @@ extern ulong       wsrep_running_threads;
 extern bool        wsrep_new_cluster;
 extern bool        wsrep_gtid_mode;
 extern uint32      wsrep_gtid_domain_id;
+
+enum enum_wsrep_reject_types {
+  WSREP_REJECT_NONE,    /* nothing rejected */
+  WSREP_REJECT_ALL,     /* reject all queries, with UNKNOWN_COMMAND error */
+  WSREP_REJECT_ALL_KILL /* kill existing connections and reject all queries*/
+};
 
 enum enum_wsrep_OSU_method {
     WSREP_OSU_TOI,
@@ -221,6 +228,7 @@ void wsrep_log(void (*fun)(const char *, ...), const char *format, ...);
 
 #define WSREP_QUERY(thd) (thd->query())
 
+extern my_bool wsrep_ready_get();
 extern void wsrep_ready_wait();
 
 class Ha_trx_info;
@@ -259,8 +267,6 @@ extern my_bool       wsrep_preordered_opt;
 extern handlerton    *wsrep_hton;
 
 #ifdef HAVE_PSI_INTERFACE
-extern PSI_mutex_key key_LOCK_wsrep_thd;
-extern PSI_cond_key  key_COND_wsrep_thd;
 extern PSI_mutex_key key_LOCK_wsrep_ready;
 extern PSI_mutex_key key_COND_wsrep_ready;
 extern PSI_mutex_key key_LOCK_wsrep_sst;
@@ -279,8 +285,10 @@ extern PSI_mutex_key key_LOCK_wsrep_desync;
 extern PSI_file_key key_file_wsrep_gra_log;
 #endif /* HAVE_PSI_INTERFACE */
 struct TABLE_LIST;
+class Alter_info;
 int wsrep_to_isolation_begin(THD *thd, const char *db_, const char *table_,
-                             const TABLE_LIST* table_list);
+                             const TABLE_LIST* table_list,
+                             Alter_info* alter_info = NULL);
 void wsrep_to_isolation_end(THD *thd);
 void wsrep_cleanup_transaction(THD *thd);
 int wsrep_to_buf_helper(
@@ -315,6 +323,18 @@ bool wsrep_create_like_table(THD* thd, TABLE_LIST* table,
 bool wsrep_node_is_donor();
 bool wsrep_node_is_synced();
 
+typedef struct wsrep_key_arr
+{
+    wsrep_key_t* keys;
+    size_t       keys_len;
+} wsrep_key_arr_t;
+bool wsrep_prepare_keys_for_isolation(THD*              thd,
+                                      const char*       db,
+                                      const char*       table,
+                                      const TABLE_LIST* table_list,
+                                      wsrep_key_arr_t*  ka);
+void wsrep_keys_free(wsrep_key_arr_t* key_arr);
+
 #define WSREP_BINLOG_FORMAT(my_format)                         \
    ((wsrep_forced_binlog_format != BINLOG_FORMAT_UNSPEC) ?     \
    wsrep_forced_binlog_format : my_format)
@@ -328,7 +348,6 @@ bool wsrep_node_is_synced();
 #define WSREP_FORMAT(my_format) ((ulong)my_format)
 #define WSREP_PROVIDER_EXISTS (0)
 #define wsrep_emulate_bin_log (0)
-#define wsrep_xid_seqno(X) (0)
 #define wsrep_to_isolation (0)
 #define wsrep_init() (1)
 #define wsrep_prepend_PATH(X)
@@ -349,6 +368,5 @@ bool wsrep_node_is_synced();
 #define wsrep_thr_deinit() do {} while(0)
 #define wsrep_running_threads (0)
 #define WSREP_BINLOG_FORMAT(my_format) my_format
-
 #endif /* WITH_WSREP */
 #endif /* WSREP_MYSQLD_H */

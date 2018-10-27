@@ -34,6 +34,7 @@ typedef struct st_used_tables {
   struct st_maria_share *share;
   MARIA_STATUS_INFO state_current;
   MARIA_STATUS_INFO state_start;
+  uint use_count;
 } MARIA_USED_TABLES;
 
 
@@ -83,5 +84,5 @@ my_bool _ma_row_visible_non_transactional_table(MARIA_HA *info);
 my_bool _ma_row_visible_transactional_table(MARIA_HA *info);
 void _ma_remove_not_visible_states_with_lock(struct st_maria_share *share,
                                              my_bool all);
-void _ma_remove_table_from_trnman(struct st_maria_share *share, TRN *trn);
+void _ma_remove_table_from_trnman(MARIA_HA *info);
 void _ma_reset_history(struct st_maria_share *share);

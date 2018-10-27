@@ -62,4 +62,5 @@ INSERT INTO t1(a) SELECT NULL FROM t1;
 connection default;
 SET GLOBAL innodb_flush_log_at_trx_commit=1;
 CREATE TABLE u(a SERIAL) ENGINE=INNODB;
+FLUSH TABLES;
 DROP TABLE t,u;

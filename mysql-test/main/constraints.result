@@ -1,0 +1,113 @@
+drop table if exists t1;
+create table t1 (a int check (a>0));
+show create table t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `a` int(11) DEFAULT NULL CHECK (`a` > 0)
+) ENGINE=MyISAM DEFAULT CHARSET=latin1
+insert into t1 values (1);
+insert into t1 values (0);
+ERROR 23000: CONSTRAINT `t1.a` failed for `test`.`t1`
+drop table t1;
+create table t1 (a int, b int, check (a>b));
+show create table t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `a` int(11) DEFAULT NULL,
+  `b` int(11) DEFAULT NULL,
+  CONSTRAINT `CONSTRAINT_1` CHECK (`a` > `b`)
+) ENGINE=MyISAM DEFAULT CHARSET=latin1
+insert into t1 values (1,0);
+insert into t1 values (0,1);
+ERROR 23000: CONSTRAINT `CONSTRAINT_1` failed for `test`.`t1`
+drop table t1;
+create table t1 (a int ,b int, constraint abc check (a>b));
+show create table t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `a` int(11) DEFAULT NULL,
+  `b` int(11) DEFAULT NULL,
+  CONSTRAINT `abc` CHECK (`a` > `b`)
+) ENGINE=MyISAM DEFAULT CHARSET=latin1
+insert into t1 values (1,0);
+insert into t1 values (0,1);
+ERROR 23000: CONSTRAINT `abc` failed for `test`.`t1`
+drop table t1;
+create table t1 (a int null);
+show create table t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `a` int(11) DEFAULT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=latin1
+insert into t1 values (1),(NULL);
+drop table t1;
+create table t1 (a int null);
+alter table t1 add constraint constraint_1 unique (a);
+alter table t1 add constraint unique key_1(a);
+Warnings:
+Note	1831	Duplicate index `key_1`. This is deprecated and will be disallowed in a future release
+alter table t1 add constraint constraint_2 unique key_2(a);
+Warnings:
+Note	1831	Duplicate index `key_2`. This is deprecated and will be disallowed in a future release
+show create table t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `a` int(11) DEFAULT NULL,
+  UNIQUE KEY `constraint_1` (`a`),
+  UNIQUE KEY `key_1` (`a`),
+  UNIQUE KEY `key_2` (`a`)
+) ENGINE=MyISAM DEFAULT CHARSET=latin1
+drop table t1;
+drop table if exists t_illegal;
+create table t_illegal (a int, b int, check a>b);
+ERROR 42000: You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near 'a>b)' at line 1
+create table t_illegal (a int, b int, constraint abc check a>b);
+ERROR 42000: You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near 'a>b)' at line 1
+create table t_illegal (a int, b int, constraint abc);
+ERROR 42000: You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near ')' at line 1
+drop table if exists t_11714;
+create table t_11714(a int, b int);
+alter table t_11714 add constraint cons1;
+ERROR 42000: You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near '' at line 1
+drop table t_11714;
+CREATE TABLE t_illegal (col_1 INT CHECK something (whatever));
+ERROR 42000: You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near 'something (whatever))' at line 1
+CREATE TABLE t_illegal (col_1 INT CHECK something);
+ERROR 42000: You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near 'something)' at line 1
+CREATE TABLE long_enough_name (
+pk int(11) NOT NULL,
+f1 int(11) DEFAULT NULL,
+f2 int(11) NOT NULL,
+f3 int(11) DEFAULT NULL,
+f4 timestamp NOT NULL DEFAULT current_timestamp(),
+f5 varchar(32) COLLATE utf8_bin NOT NULL DEFAULT 'foo',
+f6 smallint(6) NOT NULL DEFAULT 1,
+f7 int(11) DEFAULT NULL,
+PRIMARY KEY (pk),
+KEY idx1 (f7),
+KEY idx2 (f1),
+KEY idx3 (f2),
+KEY idx4 (f3),
+CONSTRAINT constr CHECK (f6 >= 0)
+);
+SELECT * FROM long_enough_name AS tbl;
+pk	f1	f2	f3	f4	f5	f6	f7
+SHOW CREATE TABLE long_enough_name;
+Table	Create Table
+long_enough_name	CREATE TABLE `long_enough_name` (
+  `pk` int(11) NOT NULL,
+  `f1` int(11) DEFAULT NULL,
+  `f2` int(11) NOT NULL,
+  `f3` int(11) DEFAULT NULL,
+  `f4` timestamp NOT NULL DEFAULT current_timestamp(),
+  `f5` varchar(32) CHARACTER SET utf8 COLLATE utf8_bin NOT NULL DEFAULT 'foo',
+  `f6` smallint(6) NOT NULL DEFAULT 1,
+  `f7` int(11) DEFAULT NULL,
+  PRIMARY KEY (`pk`),
+  KEY `idx1` (`f7`),
+  KEY `idx2` (`f1`),
+  KEY `idx3` (`f2`),
+  KEY `idx4` (`f3`),
+  CONSTRAINT `constr` CHECK (`f6` >= 0)
+) ENGINE=MyISAM DEFAULT CHARSET=latin1
+DROP TABLE long_enough_name;

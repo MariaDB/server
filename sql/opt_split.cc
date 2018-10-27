@@ -267,6 +267,13 @@ void TABLE::deny_splitting()
 }
 
 
+double TABLE::get_materialization_cost()
+{
+  DBUG_ASSERT(spl_opt_info != NULL);
+  return spl_opt_info->unsplit_cost;
+}
+
+
 /* This structure is auxiliary and used only in the function that follows it */
 struct SplM_field_ext_info: public SplM_field_info
 {
@@ -352,8 +359,9 @@ bool JOIN::check_for_splittable_materialized()
 
     Field *ord_field= ((Item_field *) (ord_item->real_item()))->field;
 
-    JOIN_TAB *tab= ord_field->table->reginfo.join_tab;
-    if (tab->is_inner_table_of_outer_join())
+    /* Ignore fields from  of inner tables of outer joins */
+    TABLE_LIST *tbl= ord_field->table->pos_in_table_list;
+    if (tbl->is_inner_table_of_outer_join())
       continue;
 
     List_iterator<Item> li(fields_list);
@@ -412,7 +420,8 @@ bool JOIN::check_for_splittable_materialized()
 
         for (cand= cand_start; cand < cand_end; cand++)
         {
-          if (cand->underlying_field->field_index + 1 == fldnr)
+          if (cand->underlying_field->table == table &&
+              cand->underlying_field->field_index + 1 == fldnr)
 	  {
             cand->is_usable_for_ref_access= true;
             break;
@@ -543,7 +552,14 @@ void TABLE::add_splitting_info_for_key_field(KEY_FIELD *key_field)
   added_key_field->level= 0;
   added_key_field->optimize= KEY_OPTIMIZE_EQ;
   added_key_field->eq_func= true;
-  added_key_field->null_rejecting= true;
+
+  Item *real= key_field->val->real_item();
+  if ((real->type() == Item::FIELD_ITEM) &&
+        ((Item_field*)real)->field->maybe_null())
+    added_key_field->null_rejecting= true;
+  else
+    added_key_field->null_rejecting= false;
+
   added_key_field->cond_guard= NULL;
   added_key_field->sj_pred_no= UINT_MAX;
   return;
@@ -862,12 +878,12 @@ SplM_plan_info * JOIN_TAB::choose_best_splitting(double record_count,
   table_map tables_usable_for_splitting=
               spl_opt_info->tables_usable_for_splitting;
   KEYUSE_EXT *keyuse_ext= &join->ext_keyuses_for_splitting->at(0);
-  KEYUSE_EXT *best_key_keyuse_ext_start;
+  KEYUSE_EXT *UNINIT_VAR(best_key_keyuse_ext_start);
   TABLE *best_table= 0;
   double best_rec_per_key= DBL_MAX;
   SplM_plan_info *spl_plan= 0;
-  uint best_key;
-  uint best_key_parts;
+  uint best_key= 0;
+  uint best_key_parts= 0;
 
   /*
     Check whether there are keys that can be used to join T employing splitting
@@ -879,6 +895,8 @@ SplM_plan_info * JOIN_TAB::choose_best_splitting(double record_count,
       continue;
     JOIN_TAB *tab= join->map2table[tablenr];
     TABLE *table= tab->table;
+    if (keyuse_ext->table != table)
+      continue;
     do
     {
       uint key= keyuse_ext->key;

@@ -1,7 +1,7 @@
 /*****************************************************************************
 
 Copyright (c) 1997, 2016, Oracle and/or its affiliates. All Rights Reserved.
-Copyright (c) 2017, MariaDB Corporation.
+Copyright (c) 2017, 2018, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -96,20 +96,6 @@ void
 recv_sys_debug_free(void);
 /*=====================*/
 
-/** Read a log segment to a buffer.
-@param[out]	buf		buffer
-@param[in]	group		redo log files
-@param[in, out]	start_lsn	in : read area start, out: the last read valid lsn
-@param[in]	end_lsn		read area end
-@param[out] invalid_block - invalid, (maybe incompletely written) block encountered
-@return	false, if invalid block encountered (e.g checksum mismatch), true otherwise */
-bool
-log_group_read_log_seg(
-	byte*			buf,
-	const log_group_t*	group,
-	lsn_t*			start_lsn,
-	lsn_t			end_lsn);
-
 /********************************************************//**
 Reset the state of the recovery system variables. */
 void
@@ -121,6 +107,58 @@ recv_sys_var_init(void);
 				performed as part of the operation */
 void
 recv_apply_hashed_log_recs(bool last_batch);
+
+/** Whether to store redo log records to the hash table */
+enum store_t {
+	/** Do not store redo log records. */
+	STORE_NO,
+	/** Store redo log records. */
+	STORE_YES,
+	/** Store redo log records if the tablespace exists. */
+	STORE_IF_EXISTS
+};
+
+
+/** Adds data from a new log block to the parsing buffer of recv_sys if
+recv_sys->parse_start_lsn is non-zero.
+@param[in]	log_block	log block to add
+@param[in]	scanned_lsn	lsn of how far we were able to find
+				data in this log block
+@return true if more data added */
+bool recv_sys_add_to_parsing_buf(const byte* log_block, lsn_t scanned_lsn);
+
+/** Parse log records from a buffer and optionally store them to a
+hash table to wait merging to file pages.
+@param[in]	checkpoint_lsn	the LSN of the latest checkpoint
+@param[in]	store		whether to store page operations
+@param[in]	apply		whether to apply the records
+@return whether MLOG_CHECKPOINT record was seen the first time,
+or corruption was noticed */
+bool recv_parse_log_recs(lsn_t checkpoint_lsn, store_t store, bool apply);
+
+/** Moves the parsing buffer data left to the buffer start. */
+void recv_sys_justify_left_parsing_buf();
+
+/** Report optimized DDL operation (without redo log),
+corresponding to MLOG_INDEX_LOAD.
+@param[in]	space_id	tablespace identifier
+*/
+extern void (*log_optimized_ddl_op)(ulint space_id);
+
+/** Report backup-unfriendly TRUNCATE operation (with separate log file),
+corresponding to MLOG_TRUNCATE. */
+extern void (*log_truncate)();
+
+/** Report an operation to create, delete, or rename a file during backup.
+@param[in]	space_id	tablespace identifier
+@param[in]	flags		tablespace flags (NULL if not create)
+@param[in]	name		file name (not NUL-terminated)
+@param[in]	len		length of name, in bytes
+@param[in]	new_name	new file name (NULL if not rename)
+@param[in]	new_len		length of new_name, in bytes (0 if NULL) */
+extern void (*log_file_op)(ulint space_id, const byte* flags,
+			   const byte* name, ulint len,
+			   const byte* new_name, ulint new_len);
 
 /** Block of log record data */
 struct recv_data_t{
@@ -146,32 +184,6 @@ struct recv_t{
 				this log record */
 	UT_LIST_NODE_T(recv_t)
 			rec_list;/*!< list of log records for this page */
-};
-
-/** States of recv_addr_t */
-enum recv_addr_state {
-	/** not yet processed */
-	RECV_NOT_PROCESSED,
-	/** page is being read */
-	RECV_BEING_READ,
-	/** log records are being applied on the page */
-	RECV_BEING_PROCESSED,
-	/** log records have been applied on the page */
-	RECV_PROCESSED,
-	/** log records have been discarded because the tablespace
-	does not exist */
-	RECV_DISCARDED
-};
-
-/** Hashed page file address struct */
-struct recv_addr_t{
-	enum recv_addr_state state;
-				/*!< recovery state of the page */
-	unsigned	space:32;/*!< space id */
-	unsigned	page_no:32;/*!< page number */
-	UT_LIST_BASE_NODE_T(recv_t)
-			rec_list;/*!< list of log records for this page */
-	hash_node_t	addr_hash;/*!< hash node in the hash bucket chain */
 };
 
 struct recv_dblwr_t {
@@ -217,6 +229,7 @@ struct recv_sys_t{
 				/*!< this is TRUE when a log rec application
 				batch is running */
 	byte*		buf;	/*!< buffer for parsing log records */
+	size_t		buf_size;	/*!< size of buf */
 	ulint		len;	/*!< amount of data in buf */
 	lsn_t		parse_start_lsn;
 				/*!< this is the lsn from which we were able to
@@ -254,7 +267,19 @@ struct recv_sys_t{
 	ulint		n_addrs;/*!< number of not processed hashed file
 				addresses in the hash table */
 
+	/** Undo tablespaces for which truncate has been logged
+	(indexed by id - srv_undo_space_id_start) */
+	struct trunc {
+		/** log sequence number of MLOG_FILE_CREATE2, or 0 if none */
+		lsn_t		lsn;
+		/** truncated size of the tablespace, or 0 if not truncated */
+		unsigned	pages;
+	} truncated_undo_spaces[127];
+
 	recv_dblwr_t	dblwr;
+
+	/** Lastly added LSN to the hash table of log records. */
+	lsn_t		last_stored_lsn;
 
 	/** Determine whether redo log recovery progress should be reported.
 	@param[in]	time	the current time
@@ -292,7 +317,7 @@ extern bool		recv_no_ibuf_operations;
 extern bool		recv_needed_recovery;
 #ifdef UNIV_DEBUG
 /** TRUE if writing to the redo log (mtr_commit) is forbidden.
-Protected by log_sys->mutex. */
+Protected by log_sys.mutex. */
 extern bool		recv_no_log_write;
 #endif /* UNIV_DEBUG */
 
@@ -303,11 +328,11 @@ extern bool		recv_lsn_checks_on;
 
 /** Size of the parsing buffer; it must accommodate RECV_SCAN_SIZE many
 times! */
-#define RECV_PARSING_BUF_SIZE	(2 * 1024 * 1024)
+#define RECV_PARSING_BUF_SIZE	(2U << 20)
 
 /** Size of block reads when the log groups are scanned forward to do a
 roll-forward */
-#define RECV_SCAN_SIZE		(4 * UNIV_PAGE_SIZE)
+#define RECV_SCAN_SIZE		(4U << srv_page_size_shift)
 
 /** This many frames must be left free in the buffer pool when we scan
 the log and store the scanned log records in the buffer pool: we will

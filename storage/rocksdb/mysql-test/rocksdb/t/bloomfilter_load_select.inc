@@ -5,6 +5,7 @@ insert t1
   select (seq+9) div 10, (seq+4) div 5, (seq+4) div 5, seq, seq, 1000, "aaabbbccc"
   from seq_1_to_10000;
 insert t2 select * from t1;
+set global rocksdb_force_flush_memtable_now=1;
 
 # BF conditions (prefix short(4B)|medium(20B)|long(240B))
 #0 no eq condition (o, x, x)

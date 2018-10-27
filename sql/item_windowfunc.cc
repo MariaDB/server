@@ -86,9 +86,9 @@ Item_window_func::fix_fields(THD *thd, Item **ref)
 {
   DBUG_ASSERT(fixed == 0);
 
-  enum_parsing_place place= thd->lex->current_select->context_analysis_place;
-
-  if (!(place == SELECT_LIST || place == IN_ORDER_BY))
+  if (!thd->lex->current_select ||
+      (thd->lex->current_select->context_analysis_place != SELECT_LIST &&
+       thd->lex->current_select->context_analysis_place != IN_ORDER_BY))
   {
     my_error(ER_WRONG_PLACEMENT_OF_WINDOW_FUNCTION, MYF(0));
     return true;
@@ -122,7 +122,8 @@ Item_window_func::fix_fields(THD *thd, Item **ref)
   with_window_func= true;
   with_sum_func= false;
 
-  fix_length_and_dec();
+  if (fix_length_and_dec())
+    return TRUE;
 
   max_length= window_func()->max_length;
   maybe_null= window_func()->maybe_null;
@@ -327,10 +328,8 @@ bool Item_sum_hybrid_simple::fix_fields(THD *thd, Item **ref)
 
   for (uint i= 0; i < arg_count; i++)
   {
-    Item *item= args[i];
     // 'item' can be changed during fix_fields
-    if ((!item->fixed && item->fix_fields(thd, args)) ||
-        (item= args[i])->check_cols(1))
+    if (args[i]->fix_fields_if_needed_for_scalar(thd, &args[i]))
       return TRUE;
   }
   Type_std_attributes::set(args[0]);
@@ -364,7 +363,8 @@ bool Item_sum_hybrid_simple::fix_fields(THD *thd, Item **ref)
   maybe_null= 1;
   result_field=0;
   null_value=1;
-  fix_length_and_dec();
+  if (fix_length_and_dec())
+    return TRUE;
 
   if (check_sum_func(thd, ref))
     return TRUE;
@@ -437,6 +437,17 @@ Item_sum_hybrid_simple::val_str(String *str)
   String *retval= value->val_str(str);
   if ((null_value= value->null_value))
     DBUG_ASSERT(retval == NULL);
+  return retval;
+}
+
+bool Item_sum_hybrid_simple::get_date(MYSQL_TIME *ltime, ulonglong fuzzydate)
+{
+  DBUG_ASSERT(fixed == 1);
+  if (null_value)
+    return true;
+  bool retval= value->get_date(ltime, fuzzydate);
+  if ((null_value= value->null_value))
+    DBUG_ASSERT(retval == true);
   return retval;
 }
 
@@ -534,7 +545,29 @@ void Item_sum_hybrid_simple::update_field()
 
 void Item_window_func::print(String *str, enum_query_type query_type)
 {
+  if (only_single_element_order_list())
+  {
+    print_for_percentile_functions(str, query_type);
+    return;
+  }
   window_func()->print(str, query_type);
   str->append(" over ");
+#ifndef DBUG_OFF
+  if (!window_spec) // one can call dbug_print_item() anytime in gdb
+    str->append(window_name);
+  else
+#endif
   window_spec->print(str, query_type);
+}
+void Item_window_func::print_for_percentile_functions(String *str, enum_query_type query_type)
+{
+  window_func()->print(str, query_type);
+  str->append(" within group ");
+  str->append('(');
+  window_spec->print_order(str,query_type);
+  str->append(')');
+  str->append(" over ");
+  str->append('(');
+  window_spec->print_partition(str,query_type);
+  str->append(')');
 }

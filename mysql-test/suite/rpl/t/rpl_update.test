@@ -1,0 +1,15 @@
+source include/master-slave.inc;
+
+#
+# MDEV-13417 UPDATE produces wrong values if an updated column is later used as an update source
+#
+set sql_mode=simultaneous_assignment;
+create table t1 (a int, b int);
+insert into t1 values(1, 2);
+update t1 set a=b, b=a;
+select * from t1;
+sync_slave_with_master;
+select * from t1;
+connection master;
+drop table t1;
+source include/rpl_end.inc;

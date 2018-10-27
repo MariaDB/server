@@ -69,7 +69,7 @@ Sql_cmd_get_diagnostics::execute(THD *thd)
   const char *sqlstate= new_stmt_da.get_sqlstate();
 
   /* In case of a fatal error, set it into the original DA.*/
-  if (thd->is_fatal_error)
+  if (unlikely(thd->is_fatal_error))
   {
     save_stmt_da->set_error_status(sql_errno, message, sqlstate, NULL);
     DBUG_RETURN(true);
@@ -81,7 +81,7 @@ Sql_cmd_get_diagnostics::execute(THD *thd)
                              message);
 
   /* Appending might have failed. */
-  if (! (rv= thd->is_error()))
+  if (unlikely(!(rv= thd->is_error())))
     thd->get_stmt_da()->set_ok_status(0, 0, NULL);
 
   DBUG_RETURN(rv);
@@ -217,8 +217,7 @@ Condition_information::aggregate(THD *thd, const Diagnostics_area *da)
   DBUG_ENTER("Condition_information::aggregate");
 
   /* Prepare the expression for evaluation. */
-  if (!m_cond_number_expr->fixed &&
-      m_cond_number_expr->fix_fields(thd, &m_cond_number_expr))
+  if (m_cond_number_expr->fix_fields_if_needed(thd, &m_cond_number_expr))
     DBUG_RETURN(true);
 
   cond_number= m_cond_number_expr->val_int();

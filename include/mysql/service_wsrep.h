@@ -84,6 +84,8 @@ extern struct wsrep_service_st {
   void                        (*wsrep_aborting_thd_enqueue_func)(THD *thd);
   bool                        (*wsrep_consistency_check_func)(THD *thd);
   int                         (*wsrep_is_wsrep_xid_func)(const struct xid_t *xid);
+  long long                   (*wsrep_xid_seqno_func)(const struct xid_t *xid);
+  const unsigned char*        (*wsrep_xid_uuid_func)(const struct xid_t *xid);
   void                        (*wsrep_lock_rollback_func)();
   int                         (*wsrep_on_func)(MYSQL_THD);
   void                        (*wsrep_post_commit_func)(THD* thd, bool all);
@@ -110,6 +112,7 @@ extern struct wsrep_service_st {
   int                         (*wsrep_trx_is_aborting_func)(MYSQL_THD thd);
   int                         (*wsrep_trx_order_before_func)(MYSQL_THD, MYSQL_THD);
   void                        (*wsrep_unlock_rollback_func)();
+  void                        (*wsrep_set_data_home_dir_func)(const char *data_dir);
 } *wsrep_service;
 
 #ifdef MYSQL_DYNAMIC_PLUGIN
@@ -125,6 +128,8 @@ extern struct wsrep_service_st {
 #define wsrep_aborting_thd_enqueue(T) wsrep_service->wsrep_aborting_thd_enqueue_func(T)
 #define wsrep_consistency_check(T) wsrep_service->wsrep_consistency_check_func(T)
 #define wsrep_is_wsrep_xid(X) wsrep_service->wsrep_is_wsrep_xid_func(X)
+#define wsrep_xid_seqno(X) wsrep_service->wsrep_xid_seqno_func(X)
+#define wsrep_xid_uuid(X) wsrep_service->wsrep_xid_uuid_func(X)
 #define wsrep_lock_rollback() wsrep_service->wsrep_lock_rollback_func()
 #define wsrep_on(X) wsrep_service->wsrep_on_func(X)
 #define wsrep_post_commit(T,A) wsrep_service->wsrep_post_commit_func(T,A)
@@ -151,6 +156,7 @@ extern struct wsrep_service_st {
 #define wsrep_trx_is_aborting(T) wsrep_service->wsrep_trx_is_aborting_func(T)
 #define wsrep_trx_order_before(T1,T2) wsrep_service->wsrep_trx_order_before_func(T1,T2)
 #define wsrep_unlock_rollback() wsrep_service->wsrep_unlock_rollback_func()
+#define wsrep_set_data_home_dir(A) wsrep_service->wsrep_set_data_home_dir_func(A)
 
 #define wsrep_debug get_wsrep_debug()
 #define wsrep_log_conflicts get_wsrep_log_conflicts()
@@ -182,6 +188,8 @@ enum wsrep_exec_mode wsrep_thd_exec_mode(THD *thd);
 enum wsrep_query_state wsrep_thd_query_state(THD *thd);
 enum wsrep_trx_status wsrep_run_wsrep_commit(THD *thd, bool all);
 int wsrep_is_wsrep_xid(const struct xid_t* xid);
+long long wsrep_xid_seqno(const struct xid_t* xid);
+const unsigned char* wsrep_xid_uuid(const struct xid_t* xid);
 int wsrep_on(MYSQL_THD thd);
 int wsrep_thd_retry_counter(THD *thd);
 int wsrep_trx_is_aborting(MYSQL_THD thd);
@@ -208,6 +216,7 @@ void wsrep_thd_awake(THD *thd, my_bool signal);
 void wsrep_thd_set_conflict_state(THD *thd, enum wsrep_conflict_state state);
 bool wsrep_thd_ignore_table(THD *thd);
 void wsrep_unlock_rollback();
+void wsrep_set_data_home_dir(const char *data_dir);
 
 #endif
 

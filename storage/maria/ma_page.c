@@ -153,8 +153,9 @@ my_bool _ma_fetch_keypage(MARIA_PAGE *page, MARIA_HA *info,
     if (page_size < 4 || page_size > share->max_index_block_size ||
         _ma_get_keynr(share, tmp) != keyinfo->key_nr)
     {
-      DBUG_PRINT("error",("page %lu had wrong page length: %u  keynr: %u",
+      DBUG_PRINT("error",("page %lu had wrong page length: %u  page_header: %u  keynr: %u",
                           (ulong) (pos / block_size), page_size,
+                          share->keypage_header,
                           _ma_get_keynr(share, tmp)));
       DBUG_DUMP("page", tmp, page_size);
       info->last_keypage = HA_OFFSET_ERROR;
@@ -224,17 +225,35 @@ my_bool _ma_write_keypage(MARIA_PAGE *page, enum pagecache_page_lock lock,
 #endif
 
   page_cleanup(share, page);
-  res= pagecache_write(share->pagecache,
-                       &share->kfile,
-                       (pgcache_page_no_t) (page->pos / block_size),
-                       level, buff, share->page_type,
-                       lock,
-                       lock == PAGECACHE_LOCK_LEFT_WRITELOCKED ?
-                       PAGECACHE_PIN_LEFT_PINNED :
-                       (lock == PAGECACHE_LOCK_WRITE_UNLOCK ?
-                        PAGECACHE_UNPIN : PAGECACHE_PIN),
-                       PAGECACHE_WRITE_DELAY, &page_link.link,
-		       LSN_IMPOSSIBLE);
+  {
+    PAGECACHE_BLOCK_LINK **link;
+    enum pagecache_page_pin pin;
+    if (lock == PAGECACHE_LOCK_LEFT_WRITELOCKED)
+    {
+      pin= PAGECACHE_PIN_LEFT_PINNED;
+      link= &page_link.link;
+    }
+    else if (lock == PAGECACHE_LOCK_WRITE_UNLOCK)
+    {
+      pin= PAGECACHE_UNPIN;
+      /*
+        We  unlock this page so link should be 0 to prevent it usage
+        even accidentally
+      */
+      link= NULL;
+    }
+    else
+    {
+      pin= PAGECACHE_PIN;
+      link= &page_link.link;
+    }
+    res= pagecache_write(share->pagecache,
+                         &share->kfile,
+                         (pgcache_page_no_t) (page->pos / block_size),
+                         level, buff, share->page_type,
+                         lock, pin, PAGECACHE_WRITE_DELAY, link,
+                         LSN_IMPOSSIBLE);
+  }
 
   if (lock == PAGECACHE_LOCK_WRITE)
   {

@@ -119,10 +119,6 @@ MY_DIR	*my_dir(const char *path, myf MyFlags)
   DBUG_ENTER("my_dir");
   DBUG_PRINT("my",("path: '%s' MyFlags: %lu",path,MyFlags));
 
-#if !defined(HAVE_READDIR_R)
-  mysql_mutex_lock(&THR_LOCK_open);
-#endif
-
   tmp_file= directory_file_name(tmp_path, path);
 
   if (!(dirp= opendir(tmp_path)))
@@ -174,9 +170,6 @@ MY_DIR	*my_dir(const char *path, myf MyFlags)
   }
 
   (void) closedir(dirp);
-#if !defined(HAVE_READDIR_R)
-  mysql_mutex_unlock(&THR_LOCK_open);
-#endif
   
   if (MyFlags & MY_WANT_SORT)
     sort_dynamic(&dirh->array, (qsort_cmp) comp_names);
@@ -187,9 +180,6 @@ MY_DIR	*my_dir(const char *path, myf MyFlags)
   DBUG_RETURN(&dirh->dir);
 
  error:
-#if !defined(HAVE_READDIR_R)
-  mysql_mutex_unlock(&THR_LOCK_open);
-#endif
   my_errno=errno;
   if (dirp)
     (void) closedir(dirp);
@@ -216,12 +206,12 @@ MY_DIR	*my_dir(const char *path, myf MyFlags)
   ushort	mode;
   char		tmp_path[FN_REFLEN], *tmp_file,attrib;
 #ifdef _WIN64
-  __int64       handle;
+  __int64       handle= -1;
 #else
-  long		handle;
+  long		handle= -1;
 #endif
   DBUG_ENTER("my_dir");
-  DBUG_PRINT("my",("path: '%s' MyFlags: %d",path,MyFlags));
+  DBUG_PRINT("my",("path: '%s' MyFlags: %d",path,(int)MyFlags));
 
   /* Put LIB-CHAR as last path-character if not there */
   tmp_file=tmp_path;

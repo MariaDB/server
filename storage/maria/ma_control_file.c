@@ -217,7 +217,6 @@ static CONTROL_FILE_ERROR create_control_file(const char *name,
 
 static int lock_control_file(const char *name)
 {
-  uint retry= 0;
   /*
     On Windows, my_lock() uses locking() which is mandatory locking and so
     prevents maria-recovery.test from copying the control file. And in case of
@@ -228,6 +227,7 @@ static int lock_control_file(const char *name)
     file under Windows.
   */
 #ifndef __WIN__
+  uint retry= 0;
   /*
     We can't here use the automatic wait in my_lock() as the alarm thread
     may not yet exists.
@@ -277,7 +277,7 @@ CONTROL_FILE_ERROR ma_control_file_open(my_bool create_if_missing,
     " file is probably in use by another process";
   uint new_cf_create_time_size, new_cf_changeable_size, new_block_size;
   my_off_t file_size;
-  int open_flags= O_BINARY | /*O_DIRECT |*/ O_RDWR;
+  int open_flags= O_BINARY | /*O_DIRECT |*/ O_RDWR | O_CLOEXEC;
   int error= CONTROL_FILE_UNKNOWN_ERROR;
   DBUG_ENTER("ma_control_file_open");
 
@@ -583,8 +583,8 @@ int ma_control_file_end(void)
 
   close_error= mysql_file_close(control_file_fd, MYF(MY_WME));
   /*
-    As mysql_file_close() frees structures even if close() fails, we do the same,
-    i.e. we mark the file as closed in all cases.
+    As mysql_file_close() frees structures even if close() fails, we do the
+    same, i.e. we mark the file as closed in all cases.
   */
   control_file_fd= -1;
   /*

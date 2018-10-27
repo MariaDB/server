@@ -46,7 +46,7 @@ class NTService
     DWORD   dwState;
 
     //init service entry point
-    long Init(LPCSTR szInternName,void *ServiceThread);
+    long Init(LPCSTR szInternName,THREAD_FC ServiceThread);
 
     //application shutdown event
     void SetShutdownEvent(HANDLE hEvent){ hShutdownEvent=hEvent; }
@@ -99,8 +99,8 @@ class NTService
     void StopService();
     BOOL StartService();
 
-    static void ServiceMain(DWORD argc, LPTSTR *argv);
-    static void ServiceCtrlHandler (DWORD ctrlCode);
+    static void WINAPI ServiceMain(DWORD argc, LPTSTR *argv);
+    static void WINAPI ServiceCtrlHandler (DWORD ctrlCode);
 
     void Exit(DWORD error);
     BOOL SetStatus (DWORD dwCurrentState,DWORD dwWin32ExitCode,

@@ -5,7 +5,7 @@ t1	CREATE TABLE `t1` (
   `a` int(11) DEFAULT NULL
 ) ENGINE=MyISAM DEFAULT CHARSET=latin1
 create temporary table tt1 (a int) with system versioning;
-ERROR HY000: System versioning prohibited for TEMPORARY tables
+ERROR HY000: TEMPORARY tables do not support system versioning
 set @old_dbug=@@global.debug_dbug;
 set global debug_dbug='+d,sysvers_force';
 create table t2 (a int);

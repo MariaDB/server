@@ -1,0 +1,7 @@
+FLUSH STATUS;
+SHOW local STATUS LIKE 'com_select';
+Variable_name	Value
+Com_select	10
+SHOW local STATUS LIKE 'com_select';
+Variable_name	Value
+Com_select	0

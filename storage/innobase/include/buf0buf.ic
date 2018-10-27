@@ -2,7 +2,7 @@
 
 Copyright (c) 1995, 2016, Oracle and/or its affiliates. All Rights Reserved.
 Copyright (c) 2008, Google Inc.
-Copyright (c) 2014, 2017, MariaDB Corporation.
+Copyright (c) 2014, 2018, MariaDB Corporation.
 
 Portions of this file contain modifications contributed and copyrighted by
 Google, Inc. Those modifications are gratefully acknowledged and are described
@@ -115,7 +115,7 @@ ulint
 buf_pool_get_n_pages(void)
 /*======================*/
 {
-	return(buf_pool_get_curr_size() / UNIV_PAGE_SIZE);
+	return buf_pool_get_curr_size() >> srv_page_size_shift;
 }
 
 /********************************************************************//**
@@ -761,7 +761,7 @@ buf_frame_align(
 
         ut_ad(ptr);
 
-        frame = (buf_frame_t*) ut_align_down(ptr, UNIV_PAGE_SIZE);
+        frame = (buf_frame_t*) ut_align_down(ptr, srv_page_size);
 
         return(frame);
 }
@@ -778,11 +778,11 @@ buf_ptr_get_fsp_addr(
 	fil_addr_t*	addr)	/*!< out: page offset and byte offset */
 {
 	const page_t*	page = (const page_t*) ut_align_down(ptr,
-							     UNIV_PAGE_SIZE);
+							     srv_page_size);
 
 	*space = mach_read_from_4(page + FIL_PAGE_ARCH_LOG_NO_OR_SPACE_ID);
 	addr->page = mach_read_from_4(page + FIL_PAGE_OFFSET);
-	addr->boffset = ut_align_offset(ptr, UNIV_PAGE_SIZE);
+	addr->boffset = ut_align_offset(ptr, srv_page_size);
 }
 
 /**********************************************************************//**
@@ -867,7 +867,7 @@ buf_frame_copy(
 {
 	ut_ad(buf && frame);
 
-	ut_memcpy(buf, frame, UNIV_PAGE_SIZE);
+	ut_memcpy(buf, frame, srv_page_size);
 
 	return(buf);
 }
@@ -955,7 +955,7 @@ ulint
 buf_block_fix(
 	buf_page_t*	bpage)
 {
-	return(my_atomic_add32((int32*) &bpage->buf_fix_count, 1) + 1);
+	return uint32(my_atomic_add32((int32*) &bpage->buf_fix_count, 1) + 1);
 }
 
 /** Increments the bufferfix count.
@@ -1003,9 +1003,10 @@ ulint
 buf_block_unfix(
 	buf_page_t*	bpage)
 {
-	ulint	count = my_atomic_add32((int32*) &bpage->buf_fix_count, -1) - 1;
-	ut_ad(count + 1 != 0);
-	return(count);
+	uint32	count = uint32(my_atomic_add32((int32*) &bpage->buf_fix_count,
+					       -1));
+	ut_ad(count != 0);
+	return count - 1;
 }
 
 /** Decrements the bufferfix count.
@@ -1424,8 +1425,8 @@ bool
 buf_pool_is_obsolete(
 	ulint	withdraw_clock)
 {
-	return(buf_pool_withdrawing
-	       || buf_withdraw_clock != withdraw_clock);
+	return(UNIV_UNLIKELY(buf_pool_withdrawing
+			     || buf_withdraw_clock != withdraw_clock));
 }
 
 /** Calculate aligned buffer pool size based on srv_buf_pool_chunk_unit,

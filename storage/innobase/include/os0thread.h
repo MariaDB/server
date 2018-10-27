@@ -30,12 +30,6 @@ Created 9/8/1995 Heikki Tuuri
 
 #include "univ.i"
 
-/* Maximum number of threads which can be created in the program;
-this is also the size of the wait slot array for MySQL threads which
-can wait inside InnoDB */
-
-#define	OS_THREAD_MAX_N		srv_max_n_threads
-
 /* Possible fixed priorities for threads */
 #define OS_THREAD_PRIORITY_NONE		100
 #define OS_THREAD_PRIORITY_BACKGROUND	1
@@ -53,12 +47,8 @@ typedef LPTHREAD_START_ROUTINE	os_thread_func_t;
 /** Macro for specifying a Windows thread start function. */
 #define DECLARE_THREAD(func)	WINAPI func
 
-/** Required to get around a build error on Windows. Even though our functions
-are defined/declared as WINAPI f(LPVOID a); the compiler complains that they
-are defined as: os_thread_ret_t (__cdecl*)(void*). Because our functions
-don't access the arguments and don't return any value, we should be safe. */
 #define os_thread_create(f,a,i)	\
-	os_thread_create_func(reinterpret_cast<os_thread_func_t>(f), a, i)
+	os_thread_create_func(f, a, i)
 
 #else
 

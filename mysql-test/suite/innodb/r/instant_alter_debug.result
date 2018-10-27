@@ -32,18 +32,11 @@ pk	f
 CREATE TABLE t4 (pk INT PRIMARY KEY) ENGINE=InnoDB;
 INSERT INTO t4 VALUES (0);
 ALTER TABLE t4 ADD COLUMN b INT;
-SELECT COUNT(*) FROM INFORMATION_SCHEMA.COLUMNS
+SELECT COUNT(*)>0 FROM INFORMATION_SCHEMA.COLUMNS
 LEFT JOIN t4 ON (NUMERIC_SCALE = pk);
-COUNT(*)
-1742
-SET DEBUG_SYNC='innodb_inplace_alter_table_enter SIGNAL enter WAIT_FOR delete';
+COUNT(*)>0
+1
 ALTER TABLE t4 ADD COLUMN c INT;
-connect  dml,localhost,root,,;
-SET DEBUG_SYNC='now WAIT_FOR enter';
-DELETE FROM t4;
-InnoDB		0 transactions not purged
-SET DEBUG_SYNC='now SIGNAL delete';
-connection default;
 CREATE TABLE t5 (i INT, KEY(i)) ENGINE=InnoDB;
 INSERT INTO t5 VALUES (-42);
 ALTER TABLE t5 ADD UNIQUE ui(i);
@@ -61,7 +54,7 @@ INSERT INTO t8 VALUES (NULL);
 ALTER TABLE t8 ADD c CHAR(3);
 SET DEBUG_SYNC='row_log_table_apply1_before SIGNAL rebuilt WAIT_FOR dml';
 ALTER TABLE t8 FORCE;
-connection dml;
+connect  dml,localhost,root,,;
 SET DEBUG_SYNC='now WAIT_FOR rebuilt';
 BEGIN;
 INSERT INTO t8 SET i=1;
@@ -164,4 +157,83 @@ INSERT INTO t11 () VALUES ();
 UPDATE t11 SET c22 = 1;
 InnoDB		0 transactions not purged
 DROP TABLE t1,t2,t3,t4,t5,t6,t7,t8,t9,t10,t11;
+#
+# MDEV-15060 Assertion in row_log_table_apply_op after instant ADD
+# when the table is emptied during subsequent ALTER TABLE
+#
+CREATE TABLE t1 (a INT) ENGINE=InnoDB;
+INSERT INTO t1 VALUES (NULL);
+ALTER TABLE t1 ADD COLUMN b INT NOT NULL;
+connect stop_purge,localhost,root;
+START TRANSACTION WITH CONSISTENT SNAPSHOT;
+connect ddl,localhost,root,,test;
+DELETE FROM t1;
+SET DEBUG_SYNC='row_log_table_apply1_before SIGNAL copied WAIT_FOR logged';
+ALTER TABLE t1 FORCE;
+connection default;
+SET DEBUG_SYNC='now WAIT_FOR copied';
+BEGIN;
+INSERT INTO t1 SET b=1;
+ROLLBACK;
+connection stop_purge;
+COMMIT;
+connection default;
+InnoDB		2 transactions not purged
+SET DEBUG_SYNC='now SIGNAL logged';
+connection ddl;
+connection default;
+DROP TABLE t1;
+SET DEBUG_SYNC='RESET';
+#
+# MDEV-16131 Assertion failed in dict_index_t::instant_field_value()
+#
+CREATE TABLE t1 (a INT PRIMARY KEY) ENGINE=InnoDB;
+INSERT INTO t1 SET a=0;
+ALTER TABLE t1 ADD COLUMN b INT NOT NULL DEFAULT 2, ADD COLUMN c INT;
+connection stop_purge;
+START TRANSACTION WITH CONSISTENT SNAPSHOT;
+connection default;
+DELETE FROM t1;
+connection ddl;
+SET DEBUG_SYNC='row_log_table_apply1_before SIGNAL copied WAIT_FOR logged';
+ALTER TABLE t1 FORCE;
+disconnect stop_purge;
+connection default;
+SET DEBUG_SYNC = 'now WAIT_FOR copied';
+InnoDB		1 transactions not purged
+INSERT INTO t1 SET a=1;
+INSERT INTO t1 SET a=2,b=3,c=4;
+SET DEBUG_SYNC = 'now SIGNAL logged';
+connection ddl;
+connection default;
+SET DEBUG_SYNC = RESET;
+SELECT * FROM t1;
+a	b	c
+1	2	NULL
+2	3	4
+#
+# MDEV-15872 Crash in online ALTER TABLE...ADD PRIMARY KEY
+# after instant ADD COLUMN ... NULL
+#
+ALTER TABLE t1 ADD COLUMN d INT, ALGORITHM=INSTANT;
+UPDATE t1 SET d=1;
+connection ddl;
+SET DEBUG_SYNC='row_log_table_apply1_before SIGNAL copied WAIT_FOR logged';
+ALTER IGNORE TABLE t1 DROP PRIMARY KEY, ADD PRIMARY KEY (a,d);
+connection default;
+SET DEBUG_SYNC = 'now WAIT_FOR copied';
+BEGIN;
+INSERT INTO t1 SET a=3;
+ROLLBACK;
+SET DEBUG_SYNC = 'now SIGNAL logged';
+connection ddl;
+ERROR 22004: Invalid use of NULL value
+disconnect ddl;
+connection default;
+SET DEBUG_SYNC = RESET;
+SELECT * FROM t1;
+a	b	c	d
+1	2	NULL	1
+2	3	4	1
+DROP TABLE t1;
 SET GLOBAL innodb_purge_rseg_truncate_frequency = @save_frequency;

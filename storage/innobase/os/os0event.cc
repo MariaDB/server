@@ -35,9 +35,6 @@ Created 2012-09-23 Sunny Bains
 
 #include <list>
 
-/** The number of microsecnds in a second. */
-static const ulint MICROSECS_IN_A_SECOND = 1000000;
-
 #ifdef _WIN32
 /** Native condition variable. */
 typedef CONDITION_VARIABLE	os_cond_t;
@@ -51,7 +48,7 @@ typedef os_event_list_t::iterator				event_iter_t;
 
 /** InnoDB condition variable. */
 struct os_event {
-	os_event(const char* name) UNIV_NOTHROW;
+	os_event() UNIV_NOTHROW;
 
 	~os_event() UNIV_NOTHROW;
 
@@ -381,13 +378,8 @@ os_event::wait_time_low(
 
 		tv.tv_usec += time_in_usec;
 
-		if ((ulint) tv.tv_usec >= MICROSECS_IN_A_SECOND) {
-			tv.tv_sec += tv.tv_usec / MICROSECS_IN_A_SECOND;
-			tv.tv_usec %= MICROSECS_IN_A_SECOND;
-		}
-
-		abstime.tv_sec  = tv.tv_sec;
-		abstime.tv_nsec = tv.tv_usec * 1000;
+		abstime.tv_sec = tv.tv_sec + tv.tv_usec / 1000000;
+		abstime.tv_nsec = tv.tv_usec % 1000000 * 1000;
 	} else {
 		abstime.tv_nsec = 999999999;
 		abstime.tv_sec = (time_t) ULINT_MAX;
@@ -423,7 +415,7 @@ os_event::wait_time_low(
 }
 
 /** Constructor */
-os_event::os_event(const char* name) UNIV_NOTHROW
+os_event::os_event() UNIV_NOTHROW
 {
 	init();
 
@@ -452,14 +444,9 @@ Creates an event semaphore, i.e., a semaphore which may just have two
 states: signaled and nonsignaled. The created event is manual reset: it
 must be reset explicitly by calling sync_os_reset_event.
 @return	the event handle */
-os_event_t
-os_event_create(
-/*============*/
-	const char*	name)			/*!< in: the name of the
-						event, if NULL the event
-						is created without a name */
+os_event_t os_event_create(const char*)
 {
-	return(UT_NEW_NOKEY(os_event(name)));
+	return(UT_NEW_NOKEY(os_event()));
 }
 
 /**

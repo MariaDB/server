@@ -32,7 +32,8 @@ int check_openssl_compatibility()
 #else
 #include <openssl/evp.h>
 
-static uint testing, alloc_size, alloc_count;
+static uint testing;
+size_t alloc_size, alloc_count;
 
 static void *coc_malloc(size_t size, const char *f __attribute__((unused)),
                                              int l __attribute__((unused)))
@@ -51,7 +52,7 @@ int check_openssl_compatibility()
   EVP_MD_CTX     *md5_ctx;
 
   if (!CRYPTO_set_mem_functions(coc_malloc, NULL, NULL))
-    return 1;
+    return 0;
 
   testing= 1;
   alloc_size= alloc_count= 0;
@@ -61,8 +62,8 @@ int check_openssl_compatibility()
     return 1;
 
   alloc_size= alloc_count= 0;
-  md5_ctx= EVP_MD_CTX_create();
-  EVP_MD_CTX_destroy(md5_ctx);
+  md5_ctx= EVP_MD_CTX_new();
+  EVP_MD_CTX_free(md5_ctx);
   if (alloc_count != 1 || !alloc_size || alloc_size > EVP_MD_CTX_SIZE)
     return 1;
 

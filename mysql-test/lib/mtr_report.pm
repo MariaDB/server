@@ -118,7 +118,7 @@ sub mtr_report_test ($) {
   my $logfile=  $tinfo->{'logfile'};
   my $warnings= $tinfo->{'warnings'};
   my $result=   $tinfo->{'result'};
-  my $retry=    $tinfo->{'retries'} ? "retry-" : "";
+  my $retry=    $tinfo->{'retries'} ? "retry-" : $tinfo->{'repeat'} ? "$tinfo->{'repeat'} " : "";
 
   if ($result eq 'MTR_RES_FAILED'){
 

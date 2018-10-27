@@ -33,7 +33,6 @@ ssystag=""
 XTRABACKUP_PID=""
 SST_PORT=""
 REMOTEIP=""
-REMOTEHOST=""
 tcert=""
 tpem=""
 tkey=""
@@ -77,7 +76,7 @@ sdecomp=""
 # 5.6.21 PXC and later can't donate to an older joiner
 sst_ver=1
 
-if which pv &>/dev/null && pv --help | grep -q FORMAT;then 
+if pv --help 2>/dev/null | grep -q FORMAT;then
     pvopts+=$pvformat
 fi
 pcmd="pv $pvopts"
@@ -172,27 +171,35 @@ get_transfer()
     fi
 
     if [[ $tfmt == 'nc' ]];then
-        if [[ ! -x `which nc` ]];then 
-            wsrep_log_error "nc(netcat) not found in path: $PATH"
-            exit 2
-        fi
+        wsrep_check_programs nc
         wsrep_log_info "Using netcat as streamer"
         if [[ "$WSREP_SST_OPT_ROLE"  == "joiner" ]];then
             if nc -h 2>&1 | grep -q ncat;then 
+                # Ncat
                 tcmd="nc -l ${TSST_PORT}"
-            else 
+            elif nc -h 2>&1 | grep -q -- '-d\>';then
+                # Debian netcat
                 tcmd="nc -dl ${TSST_PORT}"
+            else
+                # traditional netcat
+                tcmd="nc -l -p ${TSST_PORT}"
             fi
         else
-            tcmd="nc ${REMOTEIP} ${TSST_PORT}"
+            if nc -h 2>&1 | grep -q ncat;then
+                # Ncat
+                tcmd="nc ${REMOTEIP} ${TSST_PORT}"
+            elif nc -h 2>&1 | grep -q -- '-d\>';then
+                # Debian netcat
+                tcmd="nc ${REMOTEIP} ${TSST_PORT}"
+            else
+                # traditional netcat
+                tcmd="nc -q0 ${REMOTEIP} ${TSST_PORT}"
+            fi
         fi
     else
         tfmt='socat'
+        wsrep_check_programs socat
         wsrep_log_info "Using socat as streamer"
-        if [[ ! -x `which socat` ]];then 
-            wsrep_log_error "socat not found in path: $PATH"
-            exit 2
-        fi
 
         if [[ $encrypt -eq 2 || $encrypt -eq 3 ]] && ! socat -V | grep -q "WITH_OPENSSL 1";then
             wsrep_log_error "Encryption requested, but socat is not OpenSSL enabled (encrypt=$encrypt)"
@@ -211,7 +218,7 @@ get_transfer()
                 tcmd="socat -u openssl-listen:${TSST_PORT},reuseaddr,cert=${tpem},cafile=${tcert}${sockopt} stdio"
             else
                 wsrep_log_info "Encrypting with cert=${tpem}, cafile=${tcert}"
-                tcmd="socat -u stdio openssl-connect:${REMOTEHOST}:${TSST_PORT},cert=${tpem},cafile=${tcert}${sockopt}"
+                tcmd="socat -u stdio openssl-connect:${REMOTEIP}:${TSST_PORT},cert=${tpem},cafile=${tcert}${sockopt}"
             fi
         elif [[ $encrypt -eq 3 ]];then
             wsrep_log_info "Using openssl based encryption with socat: with key and crt"
@@ -234,7 +241,7 @@ get_transfer()
                     tcmd="socat -u stdio openssl-connect:${REMOTEIP}:${TSST_PORT},cert=${tpem},key=${tkey},verify=0${sockopt}"
                 else
                     wsrep_log_info "Encrypting with cert=${tpem}, key=${tkey}, cafile=${tcert}"
-                    tcmd="socat -u stdio openssl-connect:${REMOTEHOST}:${TSST_PORT},cert=${tpem},key=${tkey},cafile=${tcert}${sockopt}"
+                    tcmd="socat -u stdio openssl-connect:${REMOTEIP}:${TSST_PORT},cert=${tpem},key=${tkey},cafile=${tcert}${sockopt}"
                 fi
             fi
 
@@ -281,7 +288,7 @@ get_footprint()
 adjust_progress()
 {
 
-    if [[ ! -x `which pv` ]];then 
+    if ! command -v pv >/dev/null;then
         wsrep_log_error "pv not found in path: $PATH"
         wsrep_log_error "Disabling all progress/rate-limiting"
         pcmd=""
@@ -504,10 +511,6 @@ setup_ports()
     if [[ "$WSREP_SST_OPT_ROLE"  == "donor" ]];then
         SST_PORT=$(echo $WSREP_SST_OPT_ADDR | awk -F '[:/]' '{ print $2 }')
         REMOTEIP=$(echo $WSREP_SST_OPT_ADDR | awk -F ':' '{ print $1 }')
-        REMOTEHOST=$(getent hosts $REMOTEIP | awk '{ print $2 }')
-        if [[ -z $REMOTEHOST ]];then
-            REMOTEHOST=$REMOTEIP
-        fi
         lsn=$(echo $WSREP_SST_OPT_ADDR | awk -F '[:/]' '{ print $4 }')
         sst_ver=$(echo $WSREP_SST_OPT_ADDR | awk -F '[:/]' '{ print $5 }')
     else
@@ -571,7 +574,7 @@ recv_joiner()
     pushd ${dir} 1>/dev/null
     set +e
 
-    if [[ $tmt -gt 0 && -x `which timeout` ]];then 
+    if [[ $tmt -gt 0 ]] && command -v timeout >/dev/null;then
         if timeout --help | grep -q -- '-k';then 
             ltcmd="timeout -k $(( tmt+10 )) $tmt $tcmd"
         else 
@@ -630,10 +633,28 @@ send_donor()
 
 }
 
-if [[ ! -x `which $INNOBACKUPEX_BIN` ]];then 
-    wsrep_log_error "${INNOBACKUPEX_BIN} not in path: $PATH"
-    exit 2
-fi
+monitor_process()
+{
+    local sst_stream_pid=$1
+
+    while true ; do
+
+        if ! ps --pid "${WSREP_SST_OPT_PARENT}" &>/dev/null; then
+            wsrep_log_error "Parent mysqld process (PID:${WSREP_SST_OPT_PARENT}) terminated unexpectedly." 
+            kill -- -"${WSREP_SST_OPT_PARENT}"
+            exit 32
+        fi
+
+        if ! ps --pid "${sst_stream_pid}" &>/dev/null; then 
+            break
+        fi
+
+        sleep 0.1
+
+    done
+}
+
+wsrep_check_programs "$INNOBACKUPEX_BIN"
 
 rm -f "${MAGIC_FILE}"
 
@@ -659,7 +680,7 @@ INNOEXTRA=""
 
 if [[ $ssyslog -eq 1 ]];then 
 
-    if [[ ! -x `which logger` ]];then 
+    if ! command -v logger >/dev/null;then
         wsrep_log_error "logger not in path: $PATH. Ignoring"
     else
 
@@ -918,7 +939,7 @@ then
 
         MAGIC_FILE="${DATA}/${INFO_FILE}"
         wsrep_log_info "Waiting for SST streaming to complete!"
-        wait $jpid
+        monitor_process $jpid
 
         get_proc
 
@@ -943,7 +964,7 @@ then
 
             wsrep_log_info "Compressed qpress files found"
 
-            if [[ ! -x `which qpress` ]];then 
+            if ! command -v qpress >/dev/null;then
                 wsrep_log_error "qpress not found in path: $PATH"
                 exit 22
             fi

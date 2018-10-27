@@ -1,1 +1,1 @@
---source extra/rpl_tests/rpl_loaddata_local.inc
+--source suite/rpl/include/rpl_loaddata_local.inc

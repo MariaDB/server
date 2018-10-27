@@ -194,3 +194,26 @@ DROP TABLE t2;
 DROP PROCEDURE p1;
 --let $binlog_file = LAST
 source include/show_binlog_events.inc;
+
+
+--echo #
+--echo # MDEV-16020 SP variables inside GROUP BY..WITH ROLLUP break replication
+--echo #
+
+FLUSH LOGS;
+CREATE TABLE t1 (d DATE);
+INSERT INTO t1 VALUES ('1985-05-13'),('1989-12-24');
+CREATE TABLE t2 (d DATE, c BIGINT);
+DELIMITER $$;
+DECLARE
+  var INT;
+BEGIN
+  INSERT INTO t2 SELECT d, COUNT(*) FROM t1 GROUP BY d, var;
+  INSERT INTO t2 SELECT d, COUNT(*) FROM t1 GROUP BY d, var WITH ROLLUP;
+END;
+$$
+DELIMITER ;$$
+DROP TABLE t1,t2;
+
+--let $binlog_file = LAST
+source include/show_binlog_events.inc;

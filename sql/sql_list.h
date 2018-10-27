@@ -138,6 +138,13 @@ public:
       first == rhs.first &&
       last == rhs.last;
   }
+  base_list& operator=(const base_list &rhs)
+  {
+    elements= rhs.elements;
+    first= rhs.first;
+    last= elements ? rhs.last : &first;
+    return *this;
+  }
 
   inline void empty() { elements=0; first= &end_of_list; last=&first;}
   inline base_list() { empty(); }
@@ -152,9 +159,7 @@ public:
   */
   inline base_list(const base_list &tmp) :Sql_alloc()
   {
-    elements= tmp.elements;
-    first= tmp.first;
-    last= elements ? tmp.last : &first;
+    *this= tmp;
   }
   /**
     Construct a deep copy of the argument in memory root mem_root.
@@ -162,8 +167,9 @@ public:
     need to copy elements by value, you should employ
     list_copy_and_replace_each_value after creating a copy.
   */
-  base_list(const base_list &rhs, MEM_ROOT *mem_root);
-  inline base_list(bool error) { }
+  bool copy(const base_list *rhs, MEM_ROOT *mem_root);
+  base_list(const base_list &rhs, MEM_ROOT *mem_root) { copy(&rhs, mem_root); }
+  inline base_list(bool) {}
   inline bool push_back(void *info)
   {
     if (((*last)=new list_node(info, &end_of_list)))
@@ -272,10 +278,13 @@ public:
   */
   inline void swap(base_list &rhs)
   {
+    list_node **rhs_last=rhs.last;
     swap_variables(list_node *, first, rhs.first);
-    swap_variables(list_node **, last, rhs.last);
     swap_variables(uint, elements, rhs.elements);
+    rhs.last= last == &first ? &rhs.first : last;
+    last = rhs_last == &rhs.first ? &first : rhs_last;
   }
+
   inline list_node* last_node() { return *last; }
   inline list_node* first_node() { return first;}
   inline void *head() { return first->info; }
@@ -496,6 +505,8 @@ public:
   inline void disjoin(List<T> *list) { base_list::disjoin(list); }
   inline bool add_unique(T *a, bool (*eq)(T *a, T *b))
   { return base_list::add_unique(a, (List_eq *)eq); }
+  inline bool copy(const List<T> *list, MEM_ROOT *root)
+  { return base_list::copy(list, root); }
   void delete_elements(void)
   {
     list_node *element,*next;
@@ -530,10 +541,10 @@ public:
 template <class T> class List_iterator_fast :public base_list_iterator
 {
 protected:
-  inline T *replace(T *a)   { return (T*) 0; }
-  inline T *replace(List<T> &a) { return (T*) 0; }
-  inline void remove(void)  { }
-  inline void after(T *a)   { }
+  inline T *replace(T *)   { return (T*) 0; }
+  inline T *replace(List<T> &) { return (T*) 0; }
+  inline void remove(void)  {}
+  inline void after(T *)    {}
   inline T** ref(void)	    { return (T**) 0; }
 
 public:
@@ -602,7 +613,7 @@ struct ilink
   {
     return (void*)my_malloc((uint)size, MYF(MY_WME | MY_FAE | ME_FATALERROR));
   }
-  static void operator delete(void* ptr_arg, size_t size)
+  static void operator delete(void* ptr_arg, size_t)
   {
      my_free(ptr_arg);
   }

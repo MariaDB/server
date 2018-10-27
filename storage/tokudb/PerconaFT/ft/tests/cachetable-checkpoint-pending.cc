@@ -99,13 +99,15 @@ do_update (void *UU(ignore))
 	CACHEKEY key = make_blocknum(i);
         uint32_t hi = toku_cachetable_hash(cf, key);
         void *vv;
-	long size;
         CACHETABLE_WRITE_CALLBACK wc = def_write_callback(NULL);
         wc.flush_callback = flush;
-        int r = toku_cachetable_get_and_pin(cf, key, hi, &vv, &size, wc, fetch_die, def_pf_req_callback, def_pf_callback, true, 0);
+        int r = toku_cachetable_get_and_pin(cf, key, hi, &vv, wc, fetch_die, def_pf_req_callback, def_pf_callback, true, 0);
 	//printf("g");
 	assert(r==0);
-	assert(size==sizeof(int));
+        PAIR_ATTR attr;
+        r = toku_cachetable_get_attr(cf, key, hi, &attr);
+        assert(r==0);
+	assert(attr.size==sizeof(int));
 	int *CAST_FROM_VOIDP(v, vv);
 	assert(*v==42);
 	*v = 43;
@@ -158,14 +160,24 @@ static void checkpoint_pending(void) {
 
     // the checkpoint should cause n writes, but since n <= the cachetable size,
     // all items should be kept in the cachetable
-    n_flush = n_write_me = n_keep_me = n_fetch = 0; expect_value = 42;
-    //printf("E42\n");
+    n_flush = n_write_me = n_keep_me = n_fetch = 0;
+    expect_value = 42;
+    // printf("E42\n");
     toku_pthread_t checkpoint_thread, update_thread;
-    r = toku_pthread_create(&checkpoint_thread, NULL, do_checkpoint, NULL);  assert(r==0);
-    r = toku_pthread_create(&update_thread,     NULL, do_update,     NULL);  assert(r==0);
-    r = toku_pthread_join(checkpoint_thread, 0);                             assert(r==0);
-    r = toku_pthread_join(update_thread, 0);                                 assert(r==0);
-    
+    r = toku_pthread_create(toku_uninstrumented,
+                            &checkpoint_thread,
+                            nullptr,
+                            do_checkpoint,
+                            nullptr);
+    assert(r == 0);
+    r = toku_pthread_create(
+        toku_uninstrumented, &update_thread, nullptr, do_update, nullptr);
+    assert(r == 0);
+    r = toku_pthread_join(checkpoint_thread, 0);
+    assert(r == 0);
+    r = toku_pthread_join(update_thread, 0);
+    assert(r == 0);
+
     assert(n_flush == N && n_write_me == N && n_keep_me == N);
 
     // after the checkpoint, all of the items should be 43

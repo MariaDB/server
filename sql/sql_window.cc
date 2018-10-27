@@ -82,19 +82,32 @@ void
 Window_spec::print(String *str, enum_query_type query_type)
 {
   str->append('(');
+  print_partition(str, query_type);
+  print_order(str, query_type);
+
+  if (window_frame)
+    window_frame->print(str, query_type);
+  str->append(')');
+}
+
+void
+Window_spec::print_partition(String *str, enum_query_type query_type)
+{
   if (partition_list->first)
   {
     str->append(STRING_WITH_LEN(" partition by "));
     st_select_lex::print_order(str, partition_list->first, query_type);
   }
+}
+
+void
+Window_spec::print_order(String *str, enum_query_type query_type)
+{
   if (order_list->first)
   {
     str->append(STRING_WITH_LEN(" order by "));
     st_select_lex::print_order(str, order_list->first, query_type);
   }
-  if (window_frame)
-    window_frame->print(str, query_type);
-  str->append(')');
 }
 
 bool
@@ -2799,7 +2812,7 @@ bool compute_window_func(THD *thd,
 
       /* Check if we found any error in the window function while adding values
          through cursors. */
-      if (thd->is_error() || thd->is_killed())
+      if (unlikely(thd->is_error() || thd->is_killed()))
         break;
 
 
@@ -2931,7 +2944,7 @@ bool Window_func_runner::exec(THD *thd, TABLE *tbl, SORT_INFO *filesort_result)
 bool Window_funcs_sort::exec(JOIN *join)
 {
   THD *thd= join->thd;
-  JOIN_TAB *join_tab= join->join_tab + join->exec_join_tab_cnt();
+  JOIN_TAB *join_tab= join->join_tab + join->total_join_tab_cnt();
 
   /* Sort the table based on the most specific sorting criteria of
      the window functions. */

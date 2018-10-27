@@ -263,3 +263,76 @@ SELECT * FROM t2;
 id	ref_id	f
 2	2	20
 DROP TABLE t2, t1;
+#
+# MDEV-15199 Referential integrity broken in ON DELETE CASCADE
+#
+CREATE TABLE member (id int AUTO_INCREMENT PRIMARY KEY) ENGINE=InnoDB;
+INSERT INTO member VALUES (1);
+CREATE TABLE address (
+id int AUTO_INCREMENT PRIMARY KEY,
+member_id int NOT NULL,
+KEY address_FI_1 (member_id),
+CONSTRAINT address_FK_1 FOREIGN KEY (member_id) REFERENCES member (id)
+ON DELETE CASCADE ON UPDATE CASCADE
+) ENGINE=InnoDB;
+INSERT INTO address VALUES (2,1);
+CREATE TABLE payment_method (
+id int AUTO_INCREMENT PRIMARY KEY,
+member_id int NOT NULL,
+cardholder_address_id int DEFAULT NULL,
+KEY payment_method_FI_1 (member_id),
+KEY payment_method_FI_2 (cardholder_address_id),
+CONSTRAINT payment_method_FK_1 FOREIGN KEY (member_id) REFERENCES member (id) ON DELETE CASCADE ON UPDATE CASCADE,
+CONSTRAINT payment_method_FK_2 FOREIGN KEY (cardholder_address_id) REFERENCES address (id) ON DELETE SET NULL ON UPDATE CASCADE
+) ENGINE=InnoDB;
+INSERT INTO payment_method VALUES (3,1,2);
+BEGIN;
+UPDATE member SET id=42;
+SELECT * FROM member;
+id
+42
+SELECT * FROM address;
+id	member_id
+2	42
+SELECT * FROM payment_method;
+id	member_id	cardholder_address_id
+3	42	2
+DELETE FROM member;
+COMMIT;
+SELECT * FROM member;
+id
+SELECT * FROM address;
+id	member_id
+SELECT * FROM payment_method;
+id	member_id	cardholder_address_id
+DROP TABLE payment_method,address,member;
+#
+# Bug #26958695 INNODB NESTED STORED FIELD WITH CONSTRAINT KEY
+# PRODUCE BROKEN TABLE (no bug in MariaDB)
+#
+create table t1(f1 int,f2 int, primary key(f1), key(f2, f1))engine=innodb;
+create table t2(f1 int, f2 int as (2) stored, f3 int as (f2) stored,
+foreign key(f1) references t1(f2) on update set NULL)
+engine=innodb;
+insert into t1 values(1, 1);
+insert into t2(f1) values(1);
+drop table t2, t1;
+SET FOREIGN_KEY_CHECKS=0;
+CREATE TABLE staff (
+staff_id TINYINT UNSIGNED NOT NULL AUTO_INCREMENT,
+store_id TINYINT UNSIGNED NOT NULL,
+PRIMARY KEY  (staff_id),
+KEY idx_fk_store_id (store_id),
+CONSTRAINT fk_staff_store FOREIGN KEY (store_id) REFERENCES store (store_id) ON DELETE RESTRICT ON UPDATE CASCADE
+) ENGINE=InnoDB;
+CREATE TABLE store (
+store_id TINYINT UNSIGNED NOT NULL AUTO_INCREMENT,
+manager_staff_id TINYINT UNSIGNED NOT NULL,
+PRIMARY KEY  (store_id),
+UNIQUE KEY idx_unique_manager (manager_staff_id),
+CONSTRAINT fk_store_staff FOREIGN KEY (manager_staff_id) REFERENCES staff (staff_id) ON DELETE RESTRICT ON UPDATE CASCADE
+) ENGINE=InnoDB;
+SET FOREIGN_KEY_CHECKS=DEFAULT;
+LOCK TABLE staff WRITE;
+UNLOCK TABLES;
+DROP TABLES staff, store;

@@ -52,8 +52,8 @@
 int find_ref_key(KEY *key, uint key_count, uchar *record, Field *field,
                  uint *key_length, uint *keypart)
 {
-  reg2 int i;
-  reg3 KEY *key_info;
+  int i;
+  KEY *key_info;
   uint fieldpos;
 
   fieldpos= field->offset(record);
@@ -63,7 +63,8 @@ int find_ref_key(KEY *key, uint key_count, uchar *record, Field *field,
        i < (int) key_count ;
        i++, key_info++)
   {
-    if (key_info->key_part[0].offset == fieldpos)
+    if (key_info->key_part[0].offset == fieldpos &&
+            key_info->key_part[0].field->type() != MYSQL_TYPE_BIT)
     {                                  		/* Found key. Calc keylength */
       *key_length= *keypart= 0;
       return i;                                 /* Use this key */
@@ -82,7 +83,8 @@ int find_ref_key(KEY *key, uint key_count, uchar *record, Field *field,
 	 j < key_info->user_defined_key_parts ;
 	 j++, key_part++)
     {
-      if (key_part->offset == fieldpos)
+      if (key_part->offset == fieldpos &&
+            key_part->field->type() != MYSQL_TYPE_BIT)
       {
         *keypart= j;
         return i;                               /* Use this key */
@@ -144,7 +146,8 @@ void key_copy(uchar *to_key, const uchar *from_record, KEY *key_info,
     {
       key_length-= HA_KEY_BLOB_LENGTH;
       length= MY_MIN(key_length, key_part->length);
-      uint bytes= key_part->field->get_key_image(to_key, length, Field::itRAW);
+      uint bytes= key_part->field->get_key_image(to_key, length,
+		      key_info->flags & HA_SPATIAL ? Field::itMBR : Field::itRAW);
       if (with_zerofill && bytes < length)
         bzero((char*) to_key + bytes, length - bytes);
       to_key+= HA_KEY_BLOB_LENGTH;
@@ -425,6 +428,8 @@ void key_unpack(String *to, TABLE *table, KEY *key)
        key_part < key_part_end;
        key_part++)
   {
+    if (key_part->field->invisible > INVISIBLE_USER)
+      continue;
     if (to->length())
       to->append('-');
     if (key_part->null_bit)
@@ -495,7 +500,7 @@ int key_cmp(KEY_PART_INFO *key_part, const uchar *key, uint key_length)
     if (key_part->null_bit)
     {
       /* This key part allows null values; NULL is lower than everything */
-      register bool field_is_null= key_part->field->is_null();
+      bool field_is_null= key_part->field->is_null();
       if (*key)                                 // If range key is null
       {
 	/* the range is expecting a null value */

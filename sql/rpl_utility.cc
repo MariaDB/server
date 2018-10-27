@@ -42,6 +42,12 @@ max_display_length_for_temporal2_field(uint32 int_display_length,
    @param sql_type Type of the field
    @param metadata The metadata from the master for the field.
    @return Maximum length of the field in bytes.
+
+   The precise values calculated by field->max_display_length() and
+   calculated by max_display_length_for_field() can differ (by +1 or -1)
+   for integer data types (TINYINT, SMALLINT, MEDIUMINT, INT, BIGINT).
+   This slight difference is not important here, because we call
+   this function only for two *different* integer data types.
  */
 static uint32
 max_display_length_for_field(enum_field_types sql_type, unsigned int metadata)
@@ -737,6 +743,16 @@ can_convert_field_to(Field *field,
     case MYSQL_TYPE_INT24:
     case MYSQL_TYPE_LONG:
     case MYSQL_TYPE_LONGLONG:
+      /*
+        max_display_length_for_field() is not fully precise for the integer
+        data types. So its result cannot be compared to the result of
+        field->max_dispay_length() when the table field and the binlog field
+        are of the same type.
+        This code should eventually be rewritten not to use
+        compare_lengths(), to detect subtype/supetype relations
+        just using the type codes.
+      */
+      DBUG_ASSERT(source_type != field->real_type());
       *order_var= compare_lengths(field, source_type, metadata);
       DBUG_ASSERT(*order_var != 0);
       DBUG_RETURN(is_conversion_ok(*order_var, rli));
@@ -801,14 +817,44 @@ can_convert_field_to(Field *field,
   case MYSQL_TYPE_TIME:
   case MYSQL_TYPE_DATETIME:
   case MYSQL_TYPE_YEAR:
-  case MYSQL_TYPE_NEWDATE:
   case MYSQL_TYPE_NULL:
   case MYSQL_TYPE_ENUM:
   case MYSQL_TYPE_SET:
   case MYSQL_TYPE_TIMESTAMP2:
-  case MYSQL_TYPE_DATETIME2:
   case MYSQL_TYPE_TIME2:
     DBUG_RETURN(false);
+  case MYSQL_TYPE_NEWDATE:
+    {
+      if (field->real_type() == MYSQL_TYPE_DATETIME2 ||
+          field->real_type() == MYSQL_TYPE_DATETIME)
+      {
+        *order_var= -1;
+        DBUG_RETURN(is_conversion_ok(*order_var, rli));
+      }
+      else
+      {
+        DBUG_RETURN(false);
+      }
+    }
+    break;
+
+  //case MYSQL_TYPE_DATETIME: TODO: fix MDEV-17394 and uncomment.
+  //
+  //The "old" type does not specify the fraction part size which is required
+  //for correct conversion.
+  case MYSQL_TYPE_DATETIME2:
+    {
+      if (field->real_type() == MYSQL_TYPE_NEWDATE)
+      {
+        *order_var= 1;
+        DBUG_RETURN(is_conversion_ok(*order_var, rli));
+      }
+      else
+      {
+        DBUG_RETURN(false);
+      }
+    }
+    break;
   }
   DBUG_RETURN(false);                                 // To keep GCC happy
 }

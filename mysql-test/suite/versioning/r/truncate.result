@@ -1,7 +1,12 @@
 create table t (a int);
 delete history from t before system_time now();
 ERROR HY000: Table `t` is not system-versioned
-create or replace table t (a int) with system versioning;
+create or replace table t (
+a int,
+row_start SYS_TYPE as row start invisible,
+row_end SYS_TYPE as row end invisible,
+period for system_time (row_start, row_end))
+with system versioning;
 insert into t values (1);
 update t set a=2;
 set @test = 'correct';
@@ -12,7 +17,12 @@ select @test from t;
 @test
 correct
 drop table t;
-create table t (a int) with system versioning;
+create or replace table t (
+a int,
+row_start SYS_TYPE as row start invisible,
+row_end SYS_TYPE as row end invisible,
+period for system_time (row_start, row_end))
+with system versioning;
 insert into t values (1), (2);
 update t set a=11 where a=1;
 set @ts1=now(6);
@@ -45,27 +55,56 @@ call truncate_sp;
 select * from t for system_time all;
 a
 drop procedure truncate_sp;
-### Issue #399, truncate partitioned table is now unimplemented
+# Truncate partitioned
 create or replace table t (a int)
 with system versioning
-engine myisam
-partition by system_time (
+partition by system_time limit 1 (
 partition p0 history,
+partition p1 history,
 partition pn current);
+insert into t values (1);
+update t set a= 2;
+update t set a= 3;
 delete history from t;
-ERROR 42000: The used command is not allowed with this MariaDB version
-create or replace table t (i int) with system versioning;
+select * from t for system_time all;
+a
+3
+# VIEW
+create or replace table t (
+i int,
+row_start SYS_TYPE as row start invisible,
+row_end SYS_TYPE as row end invisible,
+period for system_time (row_start, row_end))
+with system versioning;
 delete history from t;
 create or replace view v as select * from t;
 delete history from v;
-ERROR HY000: DELETE HISTORY from VIEW is prohibited
+ERROR 42S02: 'v' is a view
 create or replace table t (i int);
 delete history from t;
 ERROR HY000: Table `t` is not system-versioned
 create or replace view v as select * from t;
 delete history from v;
-ERROR HY000: DELETE HISTORY from VIEW is prohibited
+ERROR 42S02: 'v' is a view
 prepare stmt from 'delete history from t';
 ERROR HY000: Table `t` is not system-versioned
 drop table t;
 drop view v;
+create or replace table t (i int);
+create or replace view v as select * from t;
+drop table v;
+ERROR 42S02: 'test.v' is a view
+lock table v write;
+delete history from v before system_time now(6);
+ERROR 42S02: 'v' is a view
+unlock tables;
+drop view v;
+drop table t;
+create table t1 (i int) with system versioning;
+create procedure pr() delete history from t1 before system_time now();
+call pr;
+call pr;
+drop procedure pr;
+drop table t1;
+drop database test;
+create database test;

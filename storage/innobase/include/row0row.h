@@ -90,8 +90,8 @@ row_build_index_entry_low(
 					inserted or purged */
 	const row_ext_t*	ext,	/*!< in: externally stored column
 					prefixes, or NULL */
-	dict_index_t*		index,	/*!< in: index on the table */
-	mem_heap_t*		heap,	/*!< in: memory heap from which
+	const dict_index_t*	index,	/*!< in: index on the table */
+	mem_heap_t*		heap,	/*!< in,out: memory heap from which
 					the memory for the index entry
 					is allocated */
 	ulint			flag)	/*!< in: ROW_BUILD_NORMAL,
@@ -112,8 +112,8 @@ row_build_index_entry(
 					inserted or purged */
 	const row_ext_t*	ext,	/*!< in: externally stored column
 					prefixes, or NULL */
-	dict_index_t*		index,	/*!< in: index on the table */
-	mem_heap_t*		heap)	/*!< in: memory heap from which
+	const dict_index_t*	index,	/*!< in: index on the table */
+	mem_heap_t*		heap)	/*!< in,out: memory heap from which
 					the memory for the index entry
 					is allocated */
 	MY_ATTRIBUTE((warn_unused_result, nonnull(1,3,4)));
@@ -153,9 +153,9 @@ row_build(
 					consulted instead; the user
 					columns in this table should be
 					the same columns as in index->table */
-	const dtuple_t*		add_cols,
+	const dtuple_t*		defaults,
 					/*!< in: default values of
-					added columns, or NULL */
+					added, changed columns, or NULL */
 	const ulint*		col_map,/*!< in: mapping of old column
 					numbers to new ones, or NULL */
 	row_ext_t**		ext,	/*!< out, own: cache of
@@ -177,7 +177,7 @@ addition of new virtual columns.
 				of an index, or NULL if
 				index->table should be
 				consulted instead
-@param[in]	add_cols	default values of added columns, or NULL
+@param[in]	defaults	default values of added, changed columns, or NULL
 @param[in]	add_v		new virtual columns added
 				along with new indexes
 @param[in]	col_map		mapping of old column
@@ -194,7 +194,7 @@ row_build_w_add_vcol(
 	const rec_t*		rec,
 	const ulint*		offsets,
 	const dict_table_t*	col_table,
-	const dtuple_t*		add_cols,
+	const dtuple_t*		defaults,
 	const dict_add_v_col_t*	add_v,
 	const ulint*		col_map,
 	row_ext_t**		ext,
@@ -269,9 +269,8 @@ row_build_row_ref_in_tuple(
 					held as long as the row
 					reference is used! */
 	const dict_index_t*	index,	/*!< in: secondary index */
-	ulint*			offsets,/*!< in: rec_get_offsets(rec, index)
+	ulint*			offsets)/*!< in: rec_get_offsets(rec, index)
 					or NULL */
-	trx_t*			trx)	/*!< in: transaction or NULL */
 	MY_ATTRIBUTE((nonnull(1,2,3)));
 /*******************************************************************//**
 Builds from a secondary index record a row reference with which we can
@@ -398,7 +397,7 @@ row_mtr_start(mtr_t* mtr, dict_index_t* index, bool pessimistic)
 {
 	mtr->start();
 
-	switch (index->space) {
+	switch (index->table->space->id) {
 	case IBUF_SPACE_ID:
 		if (pessimistic
 		    && !(index->type & (DICT_UNIQUE | DICT_SPATIAL))) {
@@ -409,7 +408,7 @@ row_mtr_start(mtr_t* mtr, dict_index_t* index, bool pessimistic)
 		mtr->set_log_mode(MTR_LOG_NO_REDO);
 		break;
 	default:
-		mtr->set_named_space(index->space);
+		index->set_modified(*mtr);
 		break;
 	}
 

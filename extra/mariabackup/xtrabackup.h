@@ -44,6 +44,9 @@ extern char		*xtrabackup_incremental_basedir;
 extern char		*innobase_data_home_dir;
 extern char		*innobase_buffer_pool_filename;
 extern char		*xb_plugin_dir;
+extern char		*xb_rocksdb_datadir;
+extern my_bool	xb_backup_rocksdb;
+
 extern uint		opt_protocol;
 extern ds_ctxt_t	*ds_meta;
 extern ds_ctxt_t	*ds_data;
@@ -56,9 +59,7 @@ extern xb_page_bitmap *changed_page_bitmap;
 extern char		*xtrabackup_incremental;
 extern my_bool		xtrabackup_incremental_force_scan;
 
-extern lsn_t		metadata_from_lsn;
 extern lsn_t		metadata_to_lsn;
-extern lsn_t		metadata_last_lsn;
 
 extern xb_stream_fmt_t	xtrabackup_stream_fmt;
 extern ibool		xtrabackup_stream;
@@ -110,6 +111,7 @@ extern my_bool		opt_noversioncheck;
 extern my_bool		opt_no_backup_locks;
 extern my_bool		opt_decompress;
 extern my_bool		opt_remove_original;
+extern my_bool		opt_lock_ddl_per_table;
 
 extern char		*opt_incremental_history_name;
 extern char		*opt_incremental_history_uuid;

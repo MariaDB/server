@@ -1,0 +1,42 @@
+include/master-slave.inc
+[connection master]
+connection slave;
+select @@secure_timestamp;
+@@secure_timestamp
+REPLICATION
+set timestamp=1234567890.101112;
+ERROR HY000: The MariaDB server is running with the --secure-timestamp=REPLICATION option so it cannot execute this statement
+select if(now(6) > 20100101, 'READONLY', 'EDITABLE') as 'SUPER';
+SUPER
+READONLY
+create user foo@127.0.0.1;
+connect con2,127.0.0.1,foo,,test,$SLAVE_MYPORT;
+set timestamp=1234567890.101112;
+ERROR HY000: The MariaDB server is running with the --secure-timestamp=REPLICATION option so it cannot execute this statement
+select if(now(6) > 20100101, 'READONLY', 'EDITABLE') as 'non-privileged';
+non-privileged
+READONLY
+disconnect con2;
+connection slave;
+drop user foo@127.0.0.1;
+connection master;
+set time_zone='+00:00';
+set timestamp=1234567890.101112;
+select @@timestamp, now(6);
+@@timestamp	now(6)
+1234567890.101112	2009-02-13 23:31:30.101112
+create table t1 (b varchar(20), a timestamp(6) default current_timestamp(6));
+insert t1 (b) values ('replicated');
+connection slave;
+create trigger t1rbr before insert on t1 for each row set new.a=now(6);
+set @@global.slave_run_triggers_for_rbr= yes;
+binlog 'LQfqWg8BAAAA/AAAAAABAAABAAQAMTAuMy42LU1hcmlhREItZGVidWctbG9nAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAtB+paEzgNAAgAEgAEBAQEEgAA5AAEGggAAAAICAgCAAAACgoKAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAEEwQADQgICAoKCgFlBcaR';
+binlog '0gKWSRMBAAAAMQAAAHQDAAAAAB8AAAAAAAEABHRlc3QAAnQxAAIPEQMUAAYBQFUzwA==0gKWSRcBAAAAMAAAAKQDAAAAAB8AAAAAAAEAAv/8BmJpbmxvZ0mWAtIBivg3mwo+';
+set @@global.slave_run_triggers_for_rbr= default;
+select b, if(a > 20100101, 'READONLY', 'EDITABLE') as 'REPLICATION' from t1;
+b	REPLICATION
+replicated	EDITABLE
+binlog	READONLY
+connection master;
+drop table t1;
+include/rpl_end.inc

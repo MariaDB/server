@@ -25,7 +25,7 @@
 
 /*
   Code for generell handling of priority Queues.
-  Implemention of queues from "Algoritms in C" by Robert Sedgewick.
+  Implementation of queues from "Algorithms in C" by Robert Sedgewick.
 */
 
 #ifndef _queues_h

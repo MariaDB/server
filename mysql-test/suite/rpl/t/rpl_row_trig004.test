@@ -10,6 +10,6 @@
 -- source include/have_innodb.inc
 -- source include/master-slave.inc
 let $engine_type=INNODB;
--- source extra/rpl_tests/rpl_trig004.test
+-- source include/rpl_trig004.test
 
 --source include/rpl_end.inc

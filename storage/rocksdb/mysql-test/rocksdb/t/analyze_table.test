@@ -1,4 +1,5 @@
 --source include/have_rocksdb.inc
+--source include/have_partition.inc
 
 # 
 # ANALYZE TABLE statements
@@ -29,3 +30,28 @@ INSERT INTO t1 VALUES (5,8),(6,10),(7,11),(8,12);
 ANALYZE TABLE t1;
 DROP TABLE t1;
 
+--echo #
+--echo # MDEV-12465: Server crashes in my_scan_weight_utf8_bin upon
+--echo # collecting stats for RocksDB table
+--echo #
+
+CREATE TABLE t1 (
+  pk INT,
+  f1 CHAR(255),
+  f2 TEXT,
+  f3 VARCHAR(255),
+  f4 TEXT,
+  PRIMARY KEY (pk),
+  KEY (f4(255))
+) ENGINE=RocksDB
+  CHARSET utf8
+  COLLATE utf8_bin
+  PARTITION BY KEY (pk) PARTITIONS 2;
+INSERT INTO t1 VALUES
+(1,'foo','bar','foo','bar'), (2,'bar','foo','bar','foo');
+
+ANALYZE TABLE t1 PERSISTENT FOR ALL;
+
+drop table t1;
+
+--echo # End of 10.2 tests

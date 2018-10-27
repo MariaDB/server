@@ -21,6 +21,7 @@ call mtr.add_suppression("InnoDB: Plugin initialization aborted");
 call mtr.add_suppression("innodb_temporary and innodb_system file names seem to be the same");
 call mtr.add_suppression("Could not create the shared innodb_temporary");
 call mtr.add_suppression("InnoDB: syntax error in file path");
+call mtr.add_suppression("InnoDB: Unable to parse innodb_temp_data_file_path=");
 --enable_query_log
 
 let $MYSQL_TMP_DIR = `select @@tmpdir`;
@@ -464,3 +465,40 @@ ALTER TABLE t1 ROW_FORMAT = DYNAMIC;
 set innodb_strict_mode = ON;
 ALTER TABLE t1 ADD COLUMN j INT;
 SHOW CREATE TABLE t1;
+DROP TABLE t1;
+
+CREATE TEMPORARY TABLE t1(f1 INT, KEY(f1)) ENGINE=InnoDB;
+INSERT INTO t1 VALUES(NULL);
+UPDATE t1 SET f1 = 0;
+START TRANSACTION;
+UPDATE t1 SET f1 = 4;
+UPDATE t1 SET f1 = 0;
+ROLLBACK;
+SELECT * FROM t1;
+DROP TABLE t1;
+
+delimiter //;
+create procedure t1_proc()
+begin
+DECLARE var INT UNSIGNED;
+CREATE TEMPORARY TABLE t1(f1 INT UNSIGNED, f2 INT UNSIGNED, KEY( f1, f2 ) )engine=innodb;
+SET TRANSACTION ISOLATION LEVEL READ COMMITTED;
+START TRANSACTION;
+INSERT INTO t1 SET f1 = 1, f2 = 1;
+UPDATE t1 SET f2 = 2;
+SET var = ( SELECT 1 FROM t1 );
+DROP TABLE t1;
+END//
+delimiter ;//
+
+call t1_proc;
+drop procedure t1_proc;
+
+--echo #
+--echo # MDEV-15874 CREATE TABLE creates extra transaction
+--echo #
+call mtr.add_suppression("Warning 150 Create  table `mysqld.1`.`t1` with foreign key constraint failed. Temporary tables can't have foreign key constraints.*");
+SET FOREIGN_KEY_CHECKS = 0;
+--error ER_CANT_CREATE_TABLE
+CREATE TEMPORARY TABLE t1(f1 INT NOT NULL,
+			  FOREIGN KEY(f1) REFERENCES t0(f1))ENGINE=InnoDB;

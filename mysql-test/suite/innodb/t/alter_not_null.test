@@ -1,0 +1,10 @@
+--source alter_sql_mode.inc
+
+let $sql_mode = `SELECT @@SQL_MODE`;
+let $error_code = 0;
+
+if ($sql_mode == "STRICT_TRANS_TABLES") {
+ let $error_code = WARN_DATA_TRUNCATED;
+}
+
+--source include/alter_not_null.inc

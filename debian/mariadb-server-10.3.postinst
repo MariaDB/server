@@ -50,14 +50,14 @@ EOF
        return $retval
 }
 
-# This is necessary because mysql_install_db removes the pid file in /var/run
-# and because changed configuration options should take effect immediately.
-# In case the server wasn't running at all it should be ok if the stop
-# script fails. I can't tell at this point because of the cleaned /var/run.
-set +e; invoke stop; set -e
-
 case "$1" in
   configure)
+    # This is needed because mysql_install_db removes the pid file in /var/run
+    # and because changed configuration options should take effect immediately.
+    # In case the server wasn't running at all it should be ok if the stop
+    # script fails. I can't tell at this point because of the cleaned /var/run.
+    set +e; invoke stop; set -e
+
     mysql_statedir=/usr/share/mysql
     mysql_datadir=/var/lib/mysql
     mysql_logdir=/var/log/mysql
@@ -91,7 +91,7 @@ case "$1" in
           mv "$targetdir" "$mysql_tmp"
           cat << EOF > "$mysql_tmp/README"
 
-Ff you're reading this, it's most likely because you had replaced /var/lib/mysql
+If you're reading this, it's most likely because you had replaced /var/lib/mysql
 with a symlink, then upgraded to a new version of mysql, and then dpkg
 removed your symlink (see #182747 and others). The mysql packages noticed
 that this happened, and as a workaround have restored it. However, because
@@ -141,7 +141,9 @@ EOF
     # Debian: beware of the bashisms...
     # Debian: can safely run on upgrades with existing databases
     set +e
-    bash /usr/bin/mysql_install_db --rpm --cross-bootstrap --user=mysql --disable-log-bin 2>&1 | $ERR_LOGGER
+    bash /usr/bin/mysql_install_db --rpm --cross-bootstrap --user=mysql \
+                                   --disable-log-bin --skip-test-db 2>&1 | \
+                                   $ERR_LOGGER
     set -e
 
 
@@ -238,6 +240,13 @@ EOF
   ;;
 
   abort-upgrade|abort-remove|abort-configure)
+  ;;
+
+  triggered)
+    if [ -x "$(command -v systemctl)" ]; then
+      systemctl daemon-reload
+    fi
+    invoke restart
   ;;
 
   *)

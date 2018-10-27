@@ -1,8 +1,8 @@
 /*****************************************************************************
 
-Copyright (c) 1996, 2016, Oracle and/or its affiliates. All Rights Reserved.
+Copyright (c) 1996, 2018, Oracle and/or its affiliates. All Rights Reserved.
 Copyright (c) 2012, Facebook Inc.
-Copyright (c) 2013, 2017, MariaDB Corporation.
+Copyright (c) 2013, 2018, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -181,18 +181,6 @@ dict_col_get_mbmaxlen(
 /*==================*/
 	const dict_col_t*	col)	/*!< in: column */
 	MY_ATTRIBUTE((nonnull, warn_unused_result));
-/*********************************************************************//**
-Sets the minimum and maximum number of bytes per character. */
-UNIV_INLINE
-void
-dict_col_set_mbminmaxlen(
-/*=====================*/
-	dict_col_t*	col,		/*!< in/out: column */
-	ulint		mbminlen,	/*!< in: minimum multi-byte
-					character size, in bytes */
-	ulint		mbmaxlen)	/*!< in: minimum multi-byte
-					character size, in bytes */
-	MY_ATTRIBUTE((nonnull));
 /*********************************************************************//**
 Gets the column data type. */
 UNIV_INLINE
@@ -410,10 +398,14 @@ dict_table_rename_in_cache(
 /*=======================*/
 	dict_table_t*	table,		/*!< in/out: table */
 	const char*	new_name,	/*!< in: new name */
-	ibool		rename_also_foreigns)
+	bool		rename_also_foreigns,
 					/*!< in: in ALTER TABLE we want
 					to preserve the original table name
 					in constraints which reference it */
+	bool		replace_new_file = false)
+					/*!< in: whether to replace the
+					file with the new name
+					(as part of rolling back TRUNCATE) */
 	MY_ATTRIBUTE((nonnull));
 
 /** Removes an index from the dictionary cache.
@@ -695,7 +687,7 @@ dict_table_get_next_index(
 
 /* Skip corrupted index */
 #define dict_table_skip_corrupt_index(index)			\
-	while (index && dict_index_is_corrupted(index)) {	\
+	while (index && index->is_corrupted()) {		\
 		index = dict_table_get_next_index(index);	\
 	}
 
@@ -743,13 +735,9 @@ dict_index_is_spatial(
 /*==================*/
 	const dict_index_t*	index)	/*!< in: index */
 	MY_ATTRIBUTE((warn_unused_result));
-/** Check whether the index contains a virtual column.
-@param[in]	index	index
-@return	nonzero for index on virtual column, zero for other indexes */
-UNIV_INLINE
-ulint
-dict_index_has_virtual(
-	const dict_index_t*	index);
+
+#define dict_index_has_virtual(index) (index)->has_virtual()
+
 /********************************************************************//**
 Check whether the index is the insert buffer tree.
 @return nonzero for insert buffer, zero for other indexes */
@@ -951,8 +939,7 @@ dict_table_has_atomic_blobs(const dict_table_t* table)
 @param[in]	zip_ssize	Zip Shift Size
 @param[in]	use_data_dir	Table uses DATA DIRECTORY
 @param[in]	page_compressed Table uses page compression
-@param[in]	page_compression_level Page compression level
-@param[in]	not_used        For future */
+@param[in]	page_compression_level Page compression level */
 UNIV_INLINE
 void
 dict_tf_set(
@@ -961,8 +948,7 @@ dict_tf_set(
 	ulint		zip_ssize,
 	bool		use_data_dir,
 	bool		page_compressed,
-	ulint		page_compression_level,
-	ulint		not_used);
+	ulint		page_compression_level);
 
 /** Convert a 32 bit integer table flags to the 32 bit FSP Flags.
 Fsp Flags are written into the tablespace header at the offset
@@ -998,14 +984,8 @@ ulint
 dict_table_extent_size(
 	const dict_table_t*	table);
 
-/** Get the table page size.
-@param[in]	table	table
-@return compressed page size, or 0 if not compressed */
-UNIV_INLINE
-const page_size_t
-dict_table_page_size(
-	const dict_table_t*	table)
-	MY_ATTRIBUTE((warn_unused_result));
+/** Get the table page size. */
+#define dict_table_page_size(table) page_size_t(table->space->flags)
 
 /*********************************************************************//**
 Obtain exclusive locks on all index trees of the table. This is to prevent
@@ -1097,45 +1077,32 @@ dict_make_room_in_cache(
 	ulint		max_tables,	/*!< in: max tables allowed in cache */
 	ulint		pct_check);	/*!< in: max percent to check */
 
-#define BIG_ROW_SIZE	1024
-
-/** Adds an index to the dictionary cache.
-@param[in]	table	table on which the index is
-@param[in]	index	index; NOTE! The index memory
-			object is freed in this function!
-@param[in]	page_no	root page number of the index
-@param[in]	strict	TRUE=refuse to create the index
-			if records could be too big to fit in
-			an B-tree page
-@return DB_SUCCESS, DB_TOO_BIG_RECORD, or DB_CORRUPTION */
-dberr_t
-dict_index_add_to_cache(
-	dict_table_t*	table,
-	dict_index_t*	index,
-	ulint		page_no,
-	ibool		strict)
-	MY_ATTRIBUTE((warn_unused_result));
+/** Clears the virtual column's index list before index is being freed.
+@param[in]  index   Index being freed */
+void dict_index_remove_from_v_col_list(dict_index_t* index);
 
 /** Adds an index to the dictionary cache, with possible indexing newly
 added column.
-@param[in]	table	table on which the index is
 @param[in]	index	index; NOTE! The index memory
 			object is freed in this function!
-@param[in]	add_v	new virtual column that being added along with
-			an add index call
 @param[in]	page_no	root page number of the index
-@param[in]	strict	TRUE=refuse to create the index
+@param[in]	strict	true=refuse to create the index
 			if records could be too big to fit in
 			an B-tree page
-@return DB_SUCCESS, DB_TOO_BIG_RECORD, or DB_CORRUPTION */
-dberr_t
-dict_index_add_to_cache_w_vcol(
-	dict_table_t*		table,
+@param[out]	err	DB_SUCCESS, DB_TOO_BIG_RECORD, or DB_CORRUPTION
+@param[in]	add_v	new virtual column that being added along with
+			an add index call
+@return	the added index
+@retval	NULL	on error */
+dict_index_t*
+dict_index_add_to_cache(
 	dict_index_t*		index,
-	const dict_add_v_col_t* add_v,
 	ulint			page_no,
-	ibool			strict)
-	MY_ATTRIBUTE((warn_unused_result));
+	bool			strict = false,
+	dberr_t*		err = NULL,
+	const dict_add_v_col_t* add_v = NULL)
+	MY_ATTRIBUTE((nonnull(1)));
+
 /********************************************************************//**
 Gets the number of fields in the internal representation of an index,
 including fields added by the dictionary system.
@@ -1445,24 +1412,6 @@ dict_index_build_data_tuple(
 	mem_heap_t*		heap)
 	MY_ATTRIBUTE((nonnull, warn_unused_result));
 
-/*********************************************************************//**
-Gets the space id of the root of the index tree.
-@return space id */
-UNIV_INLINE
-ulint
-dict_index_get_space(
-/*=================*/
-	const dict_index_t*	index)	/*!< in: index */
-	MY_ATTRIBUTE((nonnull, warn_unused_result));
-/*********************************************************************//**
-Sets the space id of the root of the index tree. */
-UNIV_INLINE
-void
-dict_index_set_space(
-/*=================*/
-	dict_index_t*	index,	/*!< in/out: index */
-	ulint		space)	/*!< in: space id */
-	MY_ATTRIBUTE((nonnull));
 /*********************************************************************//**
 Gets the page number of the root of the index tree.
 @return page number */
@@ -1823,16 +1772,6 @@ dict_table_is_corrupted(
 	MY_ATTRIBUTE((nonnull, warn_unused_result));
 
 /**********************************************************************//**
-Check whether the index is corrupted.
-@return nonzero for corrupted index, zero for valid indexes */
-UNIV_INLINE
-ulint
-dict_index_is_corrupted(
-/*====================*/
-	const dict_index_t*	index)	/*!< in: index */
-	MY_ATTRIBUTE((nonnull, warn_unused_result));
-
-/**********************************************************************//**
 Flags an index and table corrupted both in the data dictionary cache
 and in the system table SYS_INDEXES. */
 void
@@ -1855,18 +1794,10 @@ dict_set_corrupted_index_cache_only(
 Flags a table with specified space_id corrupted in the table dictionary
 cache.
 @return TRUE if successful */
-ibool
-dict_set_corrupted_by_space(
-/*========================*/
-	ulint		space_id);	/*!< in: space ID */
+bool dict_set_corrupted_by_space(const fil_space_t* space);
 
-/** Flag a table with specified space_id encrypted in the data dictionary
-cache
-@param[in]	space_id	Tablespace id */
-UNIV_INTERN
-void
-dict_set_encrypted_by_space(
-	ulint	space_id);
+/** Flag a table encrypted in the data dictionary cache. */
+void dict_set_encrypted_by_space(const fil_space_t* space);
 
 /** Sets merge_threshold in the SYS_INDEXES
 @param[in,out]	index		index
@@ -1903,18 +1834,6 @@ dict_tf2_is_valid(
 	ulint	flags,
 	ulint	flags2);
 
-/********************************************************************//**
-Check if the tablespace for the table has been discarded.
-@return true if the tablespace has been discarded. */
-UNIV_INLINE
-bool
-dict_table_is_discarded(
-/*====================*/
-	const dict_table_t*	table)	/*!< in: table to check */
-	MY_ATTRIBUTE((warn_unused_result));
-
-#define dict_table_is_temporary(table) (table)->is_temporary()
-
 /*********************************************************************//**
 This function should be called whenever a page is successfully
 compressed. Updates the compression padding information. */
@@ -1947,15 +1866,6 @@ const char*
 dict_tf_to_row_format_string(
 /*=========================*/
 	ulint	table_flag);		/*!< in: row format setting */
-/****************************************************************//**
-Return maximum size of the node pointer record.
-@return maximum size of the record in bytes */
-ulint
-dict_index_node_ptr_max_size(
-/*=========================*/
-	const dict_index_t*	index)	/*!< in: index */
-	MY_ATTRIBUTE((warn_unused_result));
-#define dict_col_is_virtual(col) (col)->is_virtual()
 
 /** encode number of columns and number of virtual columns in one
 4 bytes value. We could do this because the number of columns in

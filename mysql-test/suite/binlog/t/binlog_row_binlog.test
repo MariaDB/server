@@ -4,4 +4,4 @@
 -- source include/have_binlog_format_row.inc
 let collation=utf8_unicode_ci;
 --source include/have_collation.inc
---source extra/binlog_tests/binlog.test
+--source include/binlog.test

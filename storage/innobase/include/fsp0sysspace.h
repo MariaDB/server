@@ -33,14 +33,6 @@ Created 2013-7-26 by Kevin Lewis
 at a time. We have to make this public because it is a config variable. */
 extern ulong sys_tablespace_auto_extend_increment;
 
-#ifdef UNIV_DEBUG
-/** Control if extra debug checks need to be done for temporary tablespace.
-Default = true that is disable such checks.
-This variable is not exposed to end-user but still kept as variable for
-developer to enable it during debug. */
-extern bool srv_skip_temp_table_checks_debug;
-#endif /* UNIV_DEBUG */
-
 /** Data structure that contains the information about shared tablespaces.
 Currently this can be the system tablespace or a temporary table tablespace */
 class SysTablespace : public Tablespace
@@ -111,7 +103,7 @@ public:
 	void shutdown();
 
 	/** Normalize the file size, convert to extents. */
-	void normalize();
+	void normalize_size();
 
 	/**
 	@return true if a new raw device was created. */
@@ -147,8 +139,8 @@ public:
 	@return the autoextend increment in pages. */
 	ulint get_autoextend_increment() const
 	{
-		return(sys_tablespace_auto_extend_increment
-		       * ((1024 * 1024) / UNIV_PAGE_SIZE));
+		return sys_tablespace_auto_extend_increment
+			<< (20 - srv_page_size_shift);
 	}
 
 	/**

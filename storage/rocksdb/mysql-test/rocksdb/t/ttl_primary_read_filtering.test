@@ -78,22 +78,28 @@ INSERT INTO t1 values (7);
 set global rocksdb_debug_ttl_rec_ts = 0;
 
 # should return nothing.
+select variable_value into @a from information_schema.global_status where variable_name='rocksdb_rows_filtered';
 --sorted_result
 SELECT * FROM t1;
+select variable_value-@a from information_schema.global_status where variable_name='rocksdb_rows_filtered';
 
 # disable filtering
 set global rocksdb_enable_ttl_read_filtering=0;
 
 # should return everything
+select variable_value into @a from information_schema.global_status where variable_name='rocksdb_rows_filtered';
 --sorted_result
 SELECT * FROM t1;
+select variable_value-@a from information_schema.global_status where variable_name='rocksdb_rows_filtered';
 
-# disable filtering
+# enable filtering
 set global rocksdb_enable_ttl_read_filtering=1;
 
 # should return nothing.
+select variable_value into @a from information_schema.global_status where variable_name='rocksdb_rows_filtered';
 --sorted_result
 SELECT * FROM t1;
+select variable_value-@a from information_schema.global_status where variable_name='rocksdb_rows_filtered';
 
 DROP TABLE t1;
 
@@ -286,28 +292,37 @@ SELECT * FROM t1; # <= shouldn't be filtered out here
 
 --echo # Switching to connection 2
 connection con2;
-# compaction doesn't do anythign since con1 snapshot is still open
+# compaction doesn't do anything since con1 snapshot is still open
 set global rocksdb_force_flush_memtable_now=1;
 set global rocksdb_compact_cf='default';
 # read filtered out, because on a different connection, on
 # this connection the records have 'expired' already so they are filtered out
 # even though they have not yet been removed by compaction
+
+select variable_value into @a from information_schema.global_status where variable_name='rocksdb_rows_filtered';
 --sorted_result
 SELECT * FROM t1;
+select variable_value-@a from information_schema.global_status where variable_name='rocksdb_rows_filtered';
 
 --echo # Switching to connection 1
 connection con1;
+select variable_value into @a from information_schema.global_status where variable_name='rocksdb_rows_filtered';
 --sorted_result
 SELECT * FROM t1; # <= shouldn't be filtered out here
+select variable_value-@a from information_schema.global_status where variable_name='rocksdb_rows_filtered';
 
 UPDATE t1 set a = a + 1;
+select variable_value into @a from information_schema.global_status where variable_name='rocksdb_rows_filtered';
 --sorted_result
 SELECT * FROM t1; # <= shouldn't be filtered out here
+select variable_value-@a from information_schema.global_status where variable_name='rocksdb_rows_filtered';
 
 COMMIT;
 
+select variable_value into @a from information_schema.global_status where variable_name='rocksdb_rows_filtered';
 --sorted_result # <= filtered out here because time has passed.
 SELECT * FROM t1;
+select variable_value-@a from information_schema.global_status where variable_name='rocksdb_rows_filtered';
 
 DROP TABLE t1;
 disconnect con1;

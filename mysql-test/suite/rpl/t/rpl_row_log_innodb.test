@@ -8,6 +8,6 @@
 -- source include/have_innodb.inc
 -- source include/master-slave.inc
 let $engine_type=InnoDB;
--- source extra/rpl_tests/rpl_log.test
+-- source include/rpl_log.test
 
 --source include/rpl_end.inc

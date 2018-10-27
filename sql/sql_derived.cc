@@ -369,7 +369,11 @@ bool mysql_derived_merge(THD *thd, LEX *lex, TABLE_LIST *derived)
                        derived->get_unit()));
 
   if (derived->merged)
+  {
+
+    DBUG_PRINT("info", ("Irreversibly merged: exit"));
     DBUG_RETURN(FALSE);
+  }
 
   if (dt_select->uncacheable & UNCACHEABLE_RAND)
   {
@@ -384,7 +388,6 @@ bool mysql_derived_merge(THD *thd, LEX *lex, TABLE_LIST *derived)
    thd->save_prep_leaf_list= TRUE;
 
   arena= thd->activate_stmt_arena_if_needed(&backup);  // For easier test
-  derived->merged= TRUE;
 
   if (!derived->merged_for_insert || 
       (derived->is_multitable() && 
@@ -448,6 +451,7 @@ bool mysql_derived_merge(THD *thd, LEX *lex, TABLE_LIST *derived)
     if (parent_lex->join) 
       parent_lex->join->table_count+= dt_select->join->table_count - 1;
   }
+  derived->merged= TRUE;
   if (derived->get_unit()->prepared)
   {
     Item *expr= derived->on_expr;
@@ -461,9 +465,7 @@ bool mysql_derived_merge(THD *thd, LEX *lex, TABLE_LIST *derived)
       derived->prep_on_expr= expr->copy_andor_structure(thd);
     }
     if (derived->on_expr &&
-        ((!derived->on_expr->fixed &&
-          derived->on_expr->fix_fields(thd, &derived->on_expr)) ||
-          derived->on_expr->check_cols(1)))
+        derived->on_expr->fix_fields_if_needed_for_bool(thd, &derived->on_expr))
     {
       res= TRUE; /* purecov: inspected */
       goto exit_merge;
@@ -670,7 +672,8 @@ bool mysql_derived_prepare(THD *thd, LEX *lex, TABLE_LIST *derived)
       table reference from a subquery for this.
     */
     DBUG_ASSERT(derived->with->get_sq_rec_ref());
-    if (mysql_derived_prepare(lex->thd, lex, derived->with->get_sq_rec_ref()))
+    if (unlikely(mysql_derived_prepare(lex->thd, lex,
+                                       derived->with->get_sq_rec_ref())))
       DBUG_RETURN(TRUE);
   }
 
@@ -694,7 +697,7 @@ bool mysql_derived_prepare(THD *thd, LEX *lex, TABLE_LIST *derived)
                                   &derived->alias, FALSE, FALSE, FALSE, 0);
     thd->create_tmp_table_for_derived= FALSE;
 
-    if (!res && !derived->table)
+    if (likely(!res) && !derived->table)
     {
       derived->derived_result->set_unit(unit);
       derived->table= derived->derived_result->table;
@@ -743,7 +746,16 @@ bool mysql_derived_prepare(THD *thd, LEX *lex, TABLE_LIST *derived)
     }
   }
 
-  unit->derived= derived;
+  /*
+    Above cascade call of prepare is important for PS protocol, but after it
+    is called we can check if we really need prepare for this derived
+  */
+  if (derived->merged)
+  {
+    DBUG_PRINT("info", ("Irreversibly merged: exit"));
+    DBUG_RETURN(FALSE);
+  }
+
   derived->fill_me= FALSE;
 
   if (!(derived->derived_result= new (thd->mem_root) select_unit(thd)))
@@ -751,7 +763,7 @@ bool mysql_derived_prepare(THD *thd, LEX *lex, TABLE_LIST *derived)
 
   lex->context_analysis_only|= CONTEXT_ANALYSIS_ONLY_DERIVED;
   // st_select_lex_unit::prepare correctly work for single select
-  if ((res= unit->prepare(thd, derived->derived_result, 0)))
+  if ((res= unit->prepare(derived, derived->derived_result, 0)))
     goto exit;
   if (derived->with &&
       (res= derived->with->rename_columns_of_derived_unit(thd, unit)))
@@ -885,6 +897,11 @@ bool mysql_derived_optimize(THD *thd, LEX *lex, TABLE_LIST *derived)
   DBUG_PRINT("enter", ("Alias: '%s'  Unit: %p",
                        (derived->alias.str ? derived->alias.str : "<NULL>"),
                        derived->get_unit()));
+  if (derived->merged)
+  {
+    DBUG_PRINT("info", ("Irreversibly merged: exit"));
+    DBUG_RETURN(FALSE);
+  }
 
   lex->current_select= first_select;
 
@@ -990,6 +1007,20 @@ bool mysql_derived_create(THD *thd, LEX *lex, TABLE_LIST *derived)
 }
 
 
+void TABLE_LIST::register_as_derived_with_rec_ref(With_element *rec_elem)
+{
+  rec_elem->derived_with_rec_ref.link_in_list(this, &this->next_with_rec_ref);
+  is_derived_with_recursive_reference= true;
+  get_unit()->uncacheable|= UNCACHEABLE_DEPENDENT;
+}
+
+
+bool TABLE_LIST::is_nonrecursive_derived_with_rec_ref()
+{
+  return is_derived_with_recursive_reference;
+}
+
+
 /**
   @brief
     Fill the recursive with table 
@@ -1075,6 +1106,7 @@ bool mysql_derived_fill(THD *thd, LEX *lex, TABLE_LIST *derived)
   DBUG_ASSERT(derived->table && derived->table->is_created());
   select_unit *derived_result= derived->derived_result;
   SELECT_LEX *save_current_select= lex->current_select;
+  bool derived_recursive_is_filled= false;
 
   if (unit->executed && !derived_is_recursive &&
       (unit->uncacheable & UNCACHEABLE_DEPENDENT))
@@ -1103,6 +1135,7 @@ bool mysql_derived_fill(THD *thd, LEX *lex, TABLE_LIST *derived)
     {
       /* In this case all iteration are performed */
       res= derived->fill_recursive(thd);
+      derived_recursive_is_filled= true;
     }
   }
   else if (unit->is_unit_op())
@@ -1158,7 +1191,8 @@ bool mysql_derived_fill(THD *thd, LEX *lex, TABLE_LIST *derived)
     }
   }
 err:
-  if (res || (!lex->describe && !derived_is_recursive && !unit->uncacheable))
+  if (res || (!lex->describe && !unit->uncacheable &&
+              (!derived_is_recursive || derived_recursive_is_filled)))
     unit->cleanup();
   lex->current_select= save_current_select;
 
@@ -1402,4 +1436,3 @@ bool pushdown_cond_for_derived(THD *thd, Item *cond, TABLE_LIST *derived)
   thd->lex->current_select= save_curr_select;
   DBUG_RETURN(false);
 }
-

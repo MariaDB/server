@@ -54,7 +54,7 @@ test_main (int argc __attribute__((__unused__)),
     {
 	ml_lock(&logger->input_lock);
 	toku_logger_make_space_in_inbuf(logger, 5);
-	snprintf(logger->inbuf.buf+logger->inbuf.n_in_buf, 5, "a1234");
+	memcpy(logger->inbuf.buf+logger->inbuf.n_in_buf, "a1234", 5);
 	logger->inbuf.n_in_buf+=5;
 	logger->lsn.lsn++;
 	logger->inbuf.max_lsn_in_buf = logger->lsn;
@@ -63,11 +63,14 @@ test_main (int argc __attribute__((__unused__)),
 
     r = toku_logger_close(&logger);                                  assert(r == 0);
     {
-	toku_struct_stat statbuf;
-        sprintf(logname, "%s/log000000000000.tokulog%d", TOKU_TEST_FILENAME, TOKU_LOG_VERSION);
-	r = toku_stat(logname, &statbuf);
-	assert(r==0);
-	assert(statbuf.st_size==12+5);
+        toku_struct_stat statbuf;
+        sprintf(logname,
+                "%s/log000000000000.tokulog%d",
+                TOKU_TEST_FILENAME,
+                TOKU_LOG_VERSION);
+        r = toku_stat(logname, &statbuf, toku_uninstrumented);
+        assert(r == 0);
+        assert(statbuf.st_size == 12 + 5);
     }
     toku_os_recursive_delete(TOKU_TEST_FILENAME);
     return 0;

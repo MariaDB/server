@@ -1,0 +1,3 @@
+--debug=d,innodb_undo_upgrade,force_rebootstrap
+--innodb_data_file_path=ib_mysql:10M
+--innodb_undo_tablespaces=2

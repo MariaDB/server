@@ -28,6 +28,7 @@ log_error=""
 
 args=""
 defaults=""
+defaults_group_suffix=""
 mysqld_opt=""
 user=""
 silent_startup="--silent-startup"
@@ -36,9 +37,9 @@ force=0
 in_rpm=0
 ip_only=0
 cross_bootstrap=0
-install_params=""
 auth_root_authentication_method=normal
 auth_root_socket_user='root'
+skip_test_db=0
 
 usage()
 {
@@ -66,6 +67,9 @@ Usage: $0 [OPTIONS]
   --defaults-extra-file=name
                        Read this file after the global files are read.
   --defaults-file=name Only read default options from the given file name.
+  --defaults-group-suffix=name
+                       In addition to the given groups, read also groups with
+                       this suffix
   --force              Causes mysql_install_db to run even if DNS does not
                        work.  In that case, grant table entries that
                        normally use hostnames will use IP addresses.
@@ -76,11 +80,10 @@ Usage: $0 [OPTIONS]
   --defaults-file=path Read only this configuration file.
   --rpm                For internal use.  This option is used by RPM files
                        during the MariaDB installation process.
-  --skip-auth-anonymous-user
-                       Do not install an unprivileged anonymous user.
   --skip-name-resolve  Use IP addresses rather than hostnames when creating
                        grant table entries.  This option can be useful if
                        your DNS does not work.
+  --skip-test-db       Don't install a test database.
   --srcdir=path        The path to the MariaDB source directory.  This option
                        uses the compiled binaries and support files within the
                        source tree, useful for if you don't want to install
@@ -150,6 +153,9 @@ parse_arguments()
       --help) usage ;;
       --no-defaults|--defaults-file=*|--defaults-extra-file=*)
         defaults="$arg" ;;
+      --defaults-group-suffix=*)
+        defaults_group_suffix="$arg" ;;
+
       --cross-bootstrap|--windows)
         # Used when building the MariaDB system tables on a different host than
         # the target. The platform-independent files that are created in
@@ -161,9 +167,6 @@ parse_arguments()
         #
         # --windows is a deprecated alias
         cross_bootstrap=1 ;;
-      --skip-auth-anonymous-user)
-	install_params="$install_params
-SET @skip_auth_anonymous=1;" ;;
       --auth-root-authentication-method=normal)
 	auth_root_authentication_method=normal ;;
       --auth-root-authentication-method=socket)
@@ -172,6 +175,7 @@ SET @skip_auth_anonymous=1;" ;;
         usage ;;
       --auth-root-socket-user=*)
         auth_root_socket_user="$(parse_arg "$arg")" ;;
+      --skip-test-db) skip_test_db=1 ;;
 
       *)
         if test -n "$pick_args"
@@ -235,7 +239,12 @@ cannot_find_file()
   echo
   echo "If you compiled from source, you need to either run 'make install' to"
   echo "copy the software into the correct location ready for operation."
-  echo "If you don't want to do a full install, you can use the --srcddir"
+  echo "If you don't want to do a full install, you can use the --srcdir"
+  echo "option to only install the mysql database and privilege tables"
+  echo
+  echo "If you compiled from source, you need to either run 'make install' to"
+  echo "copy the software into the correct location ready for operation."
+  echo "If you don't want to do a full install, you can use the --srcdir"
   echo "option to only install the mysql database and privilege tables"
   echo
   echo "If you are using a binary release, you must either be at the top"
@@ -290,7 +299,7 @@ fi
 
 # Now we can get arguments from the groups [mysqld] and [mysql_install_db]
 # in the my.cfg file, then re-run to merge with command line arguments.
-parse_arguments `"$print_defaults" $defaults --mysqld mysql_install_db`
+parse_arguments `"$print_defaults" $defaults $defaults_group_suffix --mysqld mysql_install_db`
 parse_arguments PICK-ARGS-FROM-ARGV "$@"
 
 # Configure paths to support files
@@ -303,6 +312,7 @@ then
   langdir="$basedir/sql/share/english"
   srcpkgdatadir="$srcdir/scripts"
   buildpkgdatadir="$builddir/scripts"
+  plugindir="$builddir/plugin/auth_socket"
 elif test -n "$basedir"
 then
   bindir="$basedir/bin" # only used in the help text
@@ -331,13 +341,15 @@ then
     cannot_find_file fill_help_tables.sql @pkgdata_locations@
     exit 1
   fi
+  plugindir=`find_in_dirs --dir auth_socket.so $basedir/lib*/plugin $basedir/lib*/mysql/plugin`
 else
   basedir="@prefix@"
   bindir="@bindir@"
   resolveip="$bindir/resolveip"
-  mysqld="@libexecdir@/mysqld"
+  mysqld="@sbindir@/mysqld"
   srcpkgdatadir="@pkgdatadir@"
   buildpkgdatadir="@pkgdatadir@"
+  plugindir="@pkgplugindir@"
 fi
 
 # Set up paths to SQL scripts required for bootstrap
@@ -346,8 +358,9 @@ create_system_tables="$srcpkgdatadir/mysql_system_tables.sql"
 create_system_tables2="$srcpkgdatadir/mysql_performance_tables.sql"
 fill_system_tables="$srcpkgdatadir/mysql_system_tables_data.sql"
 maria_add_gis_sp="$buildpkgdatadir/maria_add_gis_sp_bootstrap.sql"
+mysql_test_db="$srcpkgdatadir/mysql_test_db.sql"
 
-for f in "$fill_help_tables" "$create_system_tables" "$create_system_tables2" "$fill_system_tables" "$maria_add_gis_sp"
+for f in "$fill_help_tables" "$create_system_tables" "$create_system_tables2" "$fill_system_tables" "$maria_add_gis_sp" "$mysql_test_db"
 do
   if test ! -f "$f"
   then
@@ -411,7 +424,7 @@ then
 fi
 
 # Create database directories
-for dir in "$ldata" "$ldata/mysql" "$ldata/test"
+for dir in "$ldata" "$ldata/mysql"
 do
   if test ! -d "$dir"
   then
@@ -454,26 +467,38 @@ fi
 mysqld_bootstrap="${MYSQLD_BOOTSTRAP-$mysqld}"
 mysqld_install_cmd_line()
 {
-  "$mysqld_bootstrap" $defaults "$mysqld_opt" --bootstrap $silent_startup\
+  "$mysqld_bootstrap" $defaults $defaults_group_suffix "$mysqld_opt" --bootstrap $silent_startup\
   "--basedir=$basedir" "--datadir=$ldata" --log-warnings=0 --enforce-storage-engine="" \
+  "--plugin-dir=${plugindir}" \
   $args --max_allowed_packet=8M \
   --net_buffer_length=16K
 }
 
+cat_sql()
+{
+  echo "use mysql;"
+
+  case "$auth_root_authentication_method" in
+    normal)
+      echo "SET @skip_auth_root_nopasswd=NULL;"
+      echo "SET @auth_root_socket=NULL;"
+      ;;
+    socket)
+      echo "SET @skip_auth_root_nopasswd=1;"
+      echo "SET @auth_root_socket='$auth_root_socket_user';"
+      ;;
+  esac
+
+  cat "$create_system_tables" "$create_system_tables2" "$fill_system_tables" "$fill_help_tables" "$maria_add_gis_sp"
+  if test "$skip_test_db" -eq 0
+  then
+    cat "$mysql_test_db"
+  fi
+}
 
 # Create the system and help tables by passing them to "mysqld --bootstrap"
 s_echo "Installing MariaDB/MySQL system tables in '$ldata' ..."
-case "$auth_root_authentication_method" in
-  normal)
-    install_params="$install_params
-SET @skip_auth_root_nopasswd=NULL;
-SET @auth_root_socket=NULL;" ;;
-  socket)
-    install_params="$install_params
-SET @skip_auth_root_nopasswd=1;
-SET @auth_root_socket='$auth_root_socket_user';" ;;
-esac
-if { echo "use mysql;$install_params"; cat "$create_system_tables" "$create_system_tables2" "$fill_system_tables" "$fill_help_tables" "$maria_add_gis_sp"; } | eval "$filter_cmd_line" | mysqld_install_cmd_line > /dev/null
+if cat_sql | eval "$filter_cmd_line" | mysqld_install_cmd_line > /dev/null
 then
   s_echo "OK"
 else
@@ -493,7 +518,7 @@ else
   echo
   echo "You can also try to start the mysqld daemon with:"
   echo
-  echo "    shell> $mysqld --skip-grant --general-log &"
+  echo "    shell> $mysqld --skip-grant-tables --general-log &"
   echo
   echo "and use the command line tool $bindir/mysql"
   echo "to connect to the mysql database and look at the grant tables:"
@@ -504,8 +529,8 @@ else
   echo "Try 'mysqld --help' if you have problems with paths.  Using"
   echo "--general-log gives you a log in $ldata that may be helpful."
   link_to_help
-  echo "MariaDB is hosted on launchpad; You can find the latest source and"
-  echo "email lists at http://launchpad.net/maria"
+  echo "You can find the latest source at https://downloads.mariadb.org and"
+  echo "the maria-discuss email list at https://launchpad.net/~maria-discuss"
   echo
   echo "Please check all of the above before submitting a bug report"
   echo "at http://mariadb.org/jira"
@@ -522,19 +547,24 @@ then
   s_echo "To start mysqld at boot time you have to copy"
   s_echo "support-files/mysql.server to the right place for your system"
 
-  echo
-  echo "PLEASE REMEMBER TO SET A PASSWORD FOR THE MariaDB root USER !"
-  echo "To do so, start the server, then issue the following commands:"
-  echo
-  echo "'$bindir/mysqladmin' -u root password 'new-password'"
-  echo "'$bindir/mysqladmin' -u root -h $hostname password 'new-password'"
-  echo
-  echo "Alternatively you can run:"
-  echo "'$bindir/mysql_secure_installation'"
-  echo
-  echo "which will also give you the option of removing the test"
-  echo "databases and anonymous user created by default.  This is"
-  echo "strongly recommended for production servers."
+  if test "$auth_root_authentication_method" = normal
+  then
+    echo
+    echo
+    echo "PLEASE REMEMBER TO SET A PASSWORD FOR THE MariaDB root USER !"
+    echo "To do so, start the server, then issue the following commands:"
+    echo
+    echo "'$bindir/mysqladmin' -u root password 'new-password'"
+    echo "'$bindir/mysqladmin' -u root -h $hostname password 'new-password'"
+    echo
+    echo "Alternatively you can run:"
+    echo "'$bindir/mysql_secure_installation'"
+    echo
+    echo "which will also give you the option of removing the test"
+    echo "databases and anonymous user created by default.  This is"
+    echo "strongly recommended for production servers."
+  fi
+
   echo
   echo "See the MariaDB Knowledgebase at http://mariadb.com/kb or the"
   echo "MySQL manual for more instructions."

@@ -1,0 +1,18 @@
+CREATE TABLE t1 (i INT) ENGINE=InnoDB PARTITION BY HASH (i) PARTITIONS 2;
+XA START 'xid';
+INSERT INTO t1 VALUES (1),(2),(3),(4);
+connect  con1,localhost,root,,test;
+CREATE TABLE t2 SELECT * FROM t1;;
+connect  con2,localhost,root,,test;
+SET max_statement_time= 1;
+DELETE FROM t1 PARTITION (p1) ORDER BY i LIMIT 2;
+ERROR 70100: Query execution was interrupted (max_statement_time exceeded)
+disconnect con2;
+connection default;
+XA END 'xid';
+XA ROLLBACK 'xid';
+connection con1;
+disconnect con1;
+connection default;
+call mtr.add_suppression('Sort aborted');
+DROP TABLE IF EXISTS t2, t1;

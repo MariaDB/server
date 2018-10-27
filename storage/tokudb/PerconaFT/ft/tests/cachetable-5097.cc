@@ -88,7 +88,6 @@ flush (CACHEFILE f __attribute__((__unused__)),
 static void *f2_pin(void *arg) {
     int r;    
     void* v1;
-    long s1;
     CACHETABLE_WRITE_CALLBACK wc = def_write_callback(NULL);
     //
     // these booleans for pe_callback just ensure that the
@@ -98,7 +97,7 @@ static void *f2_pin(void *arg) {
     // This is just to ensure that the bug is being exercised
     //
     check_pe_callback = true;
-    r = toku_cachetable_get_and_pin(f2, make_blocknum(1), 1, &v1, &s1, wc, def_fetch, def_pf_req_callback, def_pf_callback, true, NULL);
+    r = toku_cachetable_get_and_pin(f2, make_blocknum(1), 1, &v1, wc, def_fetch, def_pf_req_callback, def_pf_callback, true, NULL);
     assert(r == 0);
     ct->ev.signal_eviction_thread();
     usleep(1*1024*1024);
@@ -141,25 +140,27 @@ cachetable_test (void) {
     assert(r == 0);
 
     void* v1;
-    long s1;
     CACHETABLE_WRITE_CALLBACK wc = def_write_callback(NULL);
     wc.pe_callback = pe_callback;
     wc.flush_callback = flush;
     // pin and unpin a node 20 times, just to get clock count up
     for (int i = 0; i < 20; i++) {
-        r = toku_cachetable_get_and_pin(f1, make_blocknum(1), 1, &v1, &s1, wc, def_fetch, def_pf_req_callback, def_pf_callback, true, NULL);
+        r = toku_cachetable_get_and_pin(f1, make_blocknum(1), 1, &v1, wc, def_fetch, def_pf_req_callback, def_pf_callback, true, NULL);
         assert(r == 0);
         r = toku_test_cachetable_unpin(f1, make_blocknum(1), 1, CACHETABLE_DIRTY, make_pair_attr(8));
         assert(r == 0);
     }
 
-    // at this point, we have a dirty PAIR in the cachetable associated with cachefile f1
-    // launch a thread that will put another PAIR in the cachetable, and get partial eviction started
+    // at this point, we have a dirty PAIR in the cachetable associated with
+    // cachefile f1
+    // launch a thread that will put another PAIR in the cachetable, and get
+    // partial eviction started
     toku_pthread_t tid;
-    r = toku_pthread_create(&tid, NULL, f2_pin, NULL); 
+    r = toku_pthread_create(
+        toku_uninstrumented, &tid, nullptr, f2_pin, nullptr);
     assert_zero(r);
 
-    usleep(2*1024*1024);
+    usleep(2 * 1024 * 1024);
     check_flush = true;
     toku_cachefile_close(&f1, false, ZERO_LSN); 
     if (enable_partial_eviction)

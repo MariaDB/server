@@ -30,7 +30,7 @@
 #define be16toh _byteswap_ushort
 #endif
 
-#if __APPLE__
+#if defined(__APPLE__)
 #include <libkern/OSByteOrder.h>
 #define htobe64(x) OSSwapHostToBigInt64(x)
 #define be64toh(x) OSSwapBigToHostInt64(x)

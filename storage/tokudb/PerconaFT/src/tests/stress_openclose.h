@@ -245,19 +245,16 @@ stress_table(DB_ENV *env, DB **dbp, struct cli_args *cli_args) {
     // which they can choose a random db to either touch or query
     XMALLOC_N(num_buckets, buckets);
     for (int i = 0; i < num_buckets; i++) {
-        struct db_bucket bucket = {
-            .env = env,
-            .db = dbp[i], 
-            .is_open = true
-        };
+        struct db_bucket bucket = {.env = env, .db = dbp[i], .is_open = true};
         buckets[i] = bucket;
-        toku_mutex_init(&buckets[i].mutex, NULL);
+        toku_mutex_init(toku_uninstrumented, &buckets[i].mutex, nullptr);
     }
     // run all of the query and update workers. they may randomly open
     // and close the dbs in each db_bucket to be some random dictionary,
     // so when they're done we'll have to clean up the mess so this
     // stress test can exit gracefully expecting db[i] = the ith db
-    //verbose_printf("stressing %d tables using %d update threads, %d query threads\n",
+    // verbose_printf("stressing %d tables using %d update threads, %d query
+    // threads\n",
     //        num_buckets, update_threads, query_threads);
     verbose_printf("stressing %d tables using %d update threads\n",
             num_buckets, update_threads);

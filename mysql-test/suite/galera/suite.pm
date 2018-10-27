@@ -1,4 +1,4 @@
-package My::Suite::GALERA;
+package My::Suite::Galera;
 use File::Basename;
 use My::Find;
 
@@ -26,6 +26,10 @@ return "No scritps" unless $cpath;
 
 my ($epath) = grep { -f "$_/my_print_defaults"; } "$::bindir/extra", $::path_client_bindir;
 return "No my_print_defaults" unless $epath;
+
+my ($bpath) = grep { -f "$_/mariabackup"; } "$::bindir/extra/mariabackup", $::path_client_bindir;
+
+sub which($) { return `sh -c "command -v $_[0]"` }
 
 push @::global_suppressions,
   (
@@ -77,12 +81,34 @@ push @::global_suppressions,
      qr|WSREP: .*core_handle_uuid_msg.*|,
      qr(WSREP: --wsrep-causal-reads=ON takes precedence over --wsrep-sync-wait=0. WSREP_SYNC_WAIT_BEFORE_READ is on),
      qr|WSREP: JOIN message from member .* in non-primary configuration. Ignored.|,
+     qr(WSREP: Failed to remove page file .*),
+     qr(WSREP: wsrep_sst_method is set to 'mysqldump' yet mysqld bind_address is set to .*),
    );
-
 
 $ENV{PATH}="$epath:$ENV{PATH}";
 $ENV{PATH}="$spath:$ENV{PATH}" unless $epath eq $spath;
 $ENV{PATH}="$cpath:$ENV{PATH}" unless $cpath eq $spath;
+$ENV{PATH}="$bpath:$ENV{PATH}" unless $bpath eq $spath;
+
+if (which(socat)) {
+  $ENV{MTR_GALERA_TFMT}='socat';
+} elsif (which(nc)) {
+  $ENV{MTR_GALERA_TFMT}='nc';
+}
+
+sub skip_combinations {
+  my %skip = ();
+  $skip{'include/have_xtrabackup.inc'} = 'Need innobackupex'
+             unless which(innobackupex);
+  $skip{'include/have_xtrabackup.inc'} = 'Need socat or nc'
+             unless $ENV{MTR_GALERA_TFMT};
+  $skip{'include/have_mariabackup.inc'} = 'Need mariabackup'
+             unless which(mariabackup);
+  $skip{'include/have_mariabackup.inc'} = 'Need ss'
+             unless which(ss);
+  $skip{'include/have_mariabackup.inc'} = 'Need socat or nc'
+             unless $ENV{MTR_GALERA_TFMT};
+  %skip;
+}
 
 bless { };
-

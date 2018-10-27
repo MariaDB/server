@@ -125,12 +125,38 @@ bool Type_handler_data::init()
 Type_handler_data *type_handler_data= NULL;
 
 
-void Type_std_attributes::set(const Field *field)
+void Time::make_from_item(Item *item, const Options opt)
 {
-  decimals= field->decimals();
-  unsigned_flag= MY_TEST(field->flags & UNSIGNED_FLAG);
-  collation.set(field->charset(), field->derivation(), field->repertoire());
-  fix_char_length(field->char_length());
+  if (item->get_date(this, opt.get_date_flags()))
+    time_type= MYSQL_TIMESTAMP_NONE;
+  else
+    valid_MYSQL_TIME_to_valid_value(opt);
+}
+
+
+void Temporal_with_date::make_from_item(THD *thd, Item *item, sql_mode_t flags)
+{
+  flags&= ~TIME_TIME_ONLY;
+  /*
+    Some TIME type items return error when trying to do get_date()
+    without TIME_TIME_ONLY set (e.g. Item_field for Field_time).
+    In the SQL standard time->datetime conversion mode we add TIME_TIME_ONLY.
+    In the legacy time->datetime conversion mode we do not add TIME_TIME_ONLY
+    and leave it to get_date() to check date.
+  */
+  ulonglong time_flag= (item->field_type() == MYSQL_TYPE_TIME &&
+           !(thd->variables.old_behavior & OLD_MODE_ZERO_DATE_TIME_CAST)) ?
+           TIME_TIME_ONLY : 0;
+  if (item->get_date(this, flags | time_flag))
+    time_type= MYSQL_TIMESTAMP_NONE;
+  else if (time_type == MYSQL_TIMESTAMP_TIME)
+  {
+    MYSQL_TIME tmp;
+    if (time_to_datetime_with_warn(thd, this, &tmp, flags))
+      time_type= MYSQL_TIMESTAMP_NONE;
+    else
+      *(static_cast<MYSQL_TIME*>(this))= tmp;
+  }
 }
 
 
@@ -258,7 +284,7 @@ bool Type_std_attributes::count_string_length(const char *func_name,
   This method is used by:
   - Item_user_var_as_out_param::field_type()
   - Item_func_udf_str::field_type()
-  - Item_empty_string::make_field()
+  - Item_empty_string::make_send_field()
 
   TODO: type_handler_adjusted_to_max_octet_length() and string_type_handler()
   provide very similar functionality, to properly choose between
@@ -438,6 +464,20 @@ const Name
   Type_handler_date_common::m_name_date(STRING_WITH_LEN("date")),
   Type_handler_datetime_common::m_name_datetime(STRING_WITH_LEN("datetime")),
   Type_handler_timestamp_common::m_name_timestamp(STRING_WITH_LEN("timestamp"));
+
+
+const Type_limits_int
+  Type_handler_tiny::m_limits_sint8=      Type_limits_sint8(),
+  Type_handler_tiny::m_limits_uint8=      Type_limits_uint8(),
+  Type_handler_short::m_limits_sint16=    Type_limits_sint16(),
+  Type_handler_short::m_limits_uint16=    Type_limits_uint16(),
+  Type_handler_int24::m_limits_sint24=    Type_limits_sint24(),
+  Type_handler_int24::m_limits_uint24=    Type_limits_uint24(),
+  Type_handler_long::m_limits_sint32=     Type_limits_sint32(),
+  Type_handler_long::m_limits_uint32=     Type_limits_uint32(),
+  Type_handler_longlong::m_limits_sint64= Type_limits_sint64(),
+  Type_handler_longlong::m_limits_uint64= Type_limits_uint64();
+
 
 /***************************************************************************/
 
@@ -659,9 +699,7 @@ Type_handler_hybrid_field_type::aggregate_for_comparison(const Type_handler *h)
 
   Item_result a= cmp_type();
   Item_result b= h->cmp_type();
-  if (m_vers_trx_id && (a == STRING_RESULT || b == STRING_RESULT))
-    m_type_handler= &type_handler_datetime;
-  else if (a == STRING_RESULT && b == STRING_RESULT)
+  if (a == STRING_RESULT && b == STRING_RESULT)
     m_type_handler= &type_handler_long_blob;
   else if (a == INT_RESULT && b == INT_RESULT)
     m_type_handler= &type_handler_longlong;
@@ -1330,60 +1368,20 @@ Field *Type_handler_varchar_compressed::make_conversion_table_field(TABLE *table
 }
 
 
-Field *Type_handler_tiny_blob::make_conversion_table_field(TABLE *table,
-                                                           uint metadata,
-                                                           const Field *target)
-                                                           const
-{
-  return new(table->in_use->mem_root)
-         Field_blob(NULL, (uchar *) "", 1, Field::NONE, &empty_clex_str,
-                    table->s, 1, target->charset());
-}
-
-
-Field *Type_handler_blob::make_conversion_table_field(TABLE *table,
-                                                      uint metadata,
-                                                      const Field *target)
-                                                      const
-{
-  return new(table->in_use->mem_root)
-         Field_blob(NULL, (uchar *) "", 1, Field::NONE, &empty_clex_str,
-                    table->s, 2, target->charset());
-}
-
 
 Field *Type_handler_blob_compressed::make_conversion_table_field(TABLE *table,
                                                       uint metadata,
                                                       const Field *target)
                                                       const
 {
+  uint pack_length= metadata & 0x00ff;
+  if (pack_length < 1 || pack_length > 4)
+    return NULL; // Broken binary log?
   return new(table->in_use->mem_root)
          Field_blob_compressed(NULL, (uchar *) "", 1, Field::NONE,
                                &empty_clex_str,
-                               table->s, 2, target->charset(),
+                               table->s, pack_length, target->charset(),
                                zlib_compression_method);
-}
-
-
-Field *Type_handler_medium_blob::make_conversion_table_field(TABLE *table,
-                                                           uint metadata,
-                                                           const Field *target)
-                                                           const
-{
-  return new(table->in_use->mem_root)
-         Field_blob(NULL, (uchar *) "", 1, Field::NONE, &empty_clex_str,
-                    table->s, 3, target->charset());
-}
-
-
-Field *Type_handler_long_blob::make_conversion_table_field(TABLE *table,
-                                                           uint metadata,
-                                                           const Field *target)
-                                                           const
-{
-  return new(table->in_use->mem_root)
-         Field_blob(NULL, (uchar *) "", 1, Field::NONE, &empty_clex_str,
-                    table->s, 4, target->charset());
 }
 
 
@@ -2504,6 +2502,14 @@ uint32 Type_handler_bit::max_display_length(const Item *item) const
   return item->max_length;
 }
 
+
+uint32 Type_handler_general_purpose_int::max_display_length(const Item *item)
+                                                            const
+{
+  return type_limits_int_by_unsigned_flag(item->unsigned_flag)->char_length();
+}
+
+
 /*************************************************************************/
 
 int Type_handler_time_common::Item_save_in_field(Item *item, Field *field,
@@ -2693,6 +2699,12 @@ Item_cache *
 Type_handler_int_result::Item_get_cache(THD *thd, const Item *item) const
 {
   return new (thd->mem_root) Item_cache_int(thd, item->type_handler());
+}
+
+Item_cache *
+Type_handler_year::Item_get_cache(THD *thd, const Item *item) const
+{
+  return new (thd->mem_root) Item_cache_year(thd);
 }
 
 Item_cache *
@@ -3221,6 +3233,53 @@ bool Type_handler_string_result::Item_val_bool(Item *item) const
 
 /*************************************************************************/
 
+bool Type_handler_int_result::Item_get_date(Item *item, MYSQL_TIME *ltime,
+                                             ulonglong fuzzydate) const
+{
+  return item->get_date_from_int(ltime, fuzzydate);
+}
+
+
+bool Type_handler_year::Item_get_date(Item *item, MYSQL_TIME *ltime,
+                                             ulonglong fuzzydate) const
+{
+  return item->get_date_from_year(ltime, fuzzydate);
+}
+
+
+bool Type_handler_real_result::Item_get_date(Item *item, MYSQL_TIME *ltime,
+                                             ulonglong fuzzydate) const
+{
+  return item->get_date_from_real(ltime, fuzzydate);
+}
+
+
+bool Type_handler_decimal_result::Item_get_date(Item *item, MYSQL_TIME *ltime,
+                                             ulonglong fuzzydate) const
+{
+  return item->get_date_from_decimal(ltime, fuzzydate);
+}
+
+
+bool Type_handler_string_result::Item_get_date(Item *item, MYSQL_TIME *ltime,
+                                             ulonglong fuzzydate) const
+{
+  return item->get_date_from_string(ltime, fuzzydate);
+}
+
+
+bool Type_handler_temporal_result::Item_get_date(Item *item, MYSQL_TIME *ltime,
+                                             ulonglong fuzzydate) const
+{
+  DBUG_ASSERT(0); // Temporal type items must implement native get_date()
+  item->null_value= true;
+  set_zero_time(ltime, mysql_timestamp_type());
+  return true;
+}
+
+
+/*************************************************************************/
+
 longlong Type_handler_real_result::
            Item_val_int_signed_typecast(Item *item) const
 {
@@ -3514,7 +3573,55 @@ Type_handler_temporal_result::Item_func_hybrid_field_type_get_date(
                                         MYSQL_TIME *ltime,
                                         ulonglong fuzzydate) const
 {
-  return item->get_date_from_date_op(ltime, fuzzydate);
+  return item->date_op(ltime, fuzzydate);
+}
+
+
+/***************************************************************************/
+
+String *
+Type_handler_time_common::Item_func_hybrid_field_type_val_str(
+                                    Item_func_hybrid_field_type *item,
+                                    String *str) const
+{
+  return item->val_str_from_time_op(str);
+}
+
+
+double
+Type_handler_time_common::Item_func_hybrid_field_type_val_real(
+                                    Item_func_hybrid_field_type *item)
+                                    const
+{
+  return item->val_real_from_time_op();
+}
+
+
+longlong
+Type_handler_time_common::Item_func_hybrid_field_type_val_int(
+                                    Item_func_hybrid_field_type *item)
+                                    const
+{
+  return item->val_int_from_time_op();
+}
+
+
+my_decimal *
+Type_handler_time_common::Item_func_hybrid_field_type_val_decimal(
+                                    Item_func_hybrid_field_type *item,
+                                    my_decimal *dec) const
+{
+  return item->val_decimal_from_time_op(dec);
+}
+
+
+bool
+Type_handler_time_common::Item_func_hybrid_field_type_get_date(
+                                    Item_func_hybrid_field_type *item,
+                                    MYSQL_TIME *ltime,
+                                    ulonglong fuzzydate) const
+{
+  return item->time_op(ltime);
 }
 
 
@@ -3936,7 +4043,7 @@ bool Type_handler_string_result::
     ::get_date() can be called for non-temporal values,
     for example, SELECT MONTH(GREATEST("2011-11-21", "2010-10-09"))
   */
-  return func->Item::get_date(ltime, fuzzydate);
+  return func->get_date_from_string(ltime, fuzzydate);
 }
 
 
@@ -3944,7 +4051,7 @@ bool Type_handler_numeric::
        Item_func_min_max_get_date(Item_func_min_max *func,
                                   MYSQL_TIME *ltime, ulonglong fuzzydate) const
 {
-  return func->Item::get_date(ltime, fuzzydate);
+  return Item_get_date(func, ltime, fuzzydate);
 }
 
 
@@ -3953,6 +4060,13 @@ bool Type_handler_temporal_result::
                                   MYSQL_TIME *ltime, ulonglong fuzzydate) const
 {
   return func->get_date_native(ltime, fuzzydate);
+}
+
+bool Type_handler_time_common::
+       Item_func_min_max_get_date(Item_func_min_max *func,
+                                  MYSQL_TIME *ltime, ulonglong fuzzydate) const
+{
+  return func->get_time_native(ltime);
 }
 
 /***************************************************************************/
@@ -4443,14 +4557,6 @@ bool Type_handler::
             item->decimals;
   item->fix_attributes_temporal(MAX_DATETIME_WIDTH, dec);
   item->maybe_null= true;
-  return false;
-}
-
-
-bool Type_handler::
-       Item_longlong_typecast_fix_length_and_dec(Item_longlong_typecast *item) const
-{
-  item->fix_length_and_dec_generic();
   return false;
 }
 
@@ -5632,6 +5738,19 @@ void Type_handler_datetime_common::Item_param_set_param_func(Item_param *param,
   param->set_param_datetime(pos, len);
 }
 
+Field *Type_handler_blob_common::make_conversion_table_field(TABLE *table,
+                                                            uint metadata,
+                                                            const Field *target)
+                                                            const
+{
+  uint pack_length= metadata & 0x00ff;
+  if (pack_length < 1 || pack_length > 4)
+    return NULL; // Broken binary log?
+  return new(table->in_use->mem_root)
+         Field_blob(NULL, (uchar *) "", 1, Field::NONE, &empty_clex_str,
+                    table->s, pack_length, target->charset());
+}
+
 
 void Type_handler_timestamp_common::Item_param_set_param_func(Item_param *param,
                                                               uchar **pos,
@@ -5665,5 +5784,64 @@ void Type_handler_geometry::Item_param_set_param_func(Item_param *param,
   param->set_null(); // Not possible type code in the client-server protocol
 }
 #endif
+
+/***************************************************************************/
+
+bool Type_handler::Vers_history_point_resolve_unit(THD *thd,
+                                                   Vers_history_point *point)
+                                                   const
+{
+  /*
+    Disallow using non-relevant data types in history points.
+    Even expressions with explicit TRANSACTION or TIMESTAMP units.
+  */
+  point->bad_expression_data_type_error(name().ptr());
+  return true;
+}
+
+
+bool Type_handler_typelib::
+       Vers_history_point_resolve_unit(THD *thd,
+                                       Vers_history_point *point) const
+{
+  /*
+    ENUM/SET have dual type properties (string and numeric).
+    Require explicit CAST to avoid ambiguity.
+  */
+  point->bad_expression_data_type_error(name().ptr());
+  return true;
+}
+
+
+bool Type_handler_general_purpose_int::
+       Vers_history_point_resolve_unit(THD *thd,
+                                       Vers_history_point *point) const
+{
+  return point->resolve_unit_trx_id(thd);
+}
+
+
+bool Type_handler_bit::
+       Vers_history_point_resolve_unit(THD *thd,
+                                       Vers_history_point *point) const
+{
+  return point->resolve_unit_trx_id(thd);
+}
+
+
+bool Type_handler_temporal_result::
+       Vers_history_point_resolve_unit(THD *thd,
+                                       Vers_history_point *point) const
+{
+  return point->resolve_unit_timestamp(thd);
+}
+
+
+bool Type_handler_general_purpose_string::
+       Vers_history_point_resolve_unit(THD *thd,
+                                       Vers_history_point *point) const
+{
+  return point->resolve_unit_timestamp(thd);
+}
 
 /***************************************************************************/

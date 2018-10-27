@@ -108,16 +108,6 @@ V
 Transaction system header
 |
 V
-Transaction undo mutex			The undo log entry must be written
-|					before any index page is modified.
-|					Transaction undo mutex is for the undo
-|					logs the analogue of the tree latch
-|					for a B-tree. If a thread has the
-|					trx undo mutex reserved, it is allowed
-|					to latch the undo log pages in any
-|					order, and also after it has acquired
-|					the fsp latch.
-V
 Rollback segment mutex			The rollback segment mutex must be
 |					reserved, if, e.g., a new page must
 |					be added to an undo log. The rollback
@@ -256,7 +246,6 @@ enum latch_level_t {
 	SYNC_RSEG_HEADER_NEW,
 	SYNC_NOREDO_RSEG,
 	SYNC_REDO_RSEG,
-	SYNC_TRX_UNDO,
 	SYNC_PURGE_LATCH,
 	SYNC_TREE_NODE,
 	SYNC_TREE_NODE_FROM_HASH,
@@ -338,7 +327,6 @@ enum latch_id_t {
 	LATCH_ID_SRV_MISC_TMPFILE,
 	LATCH_ID_SRV_MONITOR_FILE,
 	LATCH_ID_BUF_DBLWR,
-	LATCH_ID_TRX_UNDO,
 	LATCH_ID_TRX_POOL,
 	LATCH_ID_TRX_POOL_MANAGER,
 	LATCH_ID_TRX,
@@ -991,8 +979,7 @@ struct latch_t {
 		UNIV_NOTHROW
 		:
 		m_id(id),
-		m_rw_lock(),
-		m_temp_fsp() { }
+		m_rw_lock() {}
 
 	/** Destructor */
 	virtual ~latch_t() UNIV_NOTHROW { }
@@ -1026,24 +1013,6 @@ struct latch_t {
 		return(sync_latch_get_level(m_id));
 	}
 
-	/** @return true if the latch is for a temporary file space*/
-	bool is_temp_fsp() const
-		UNIV_NOTHROW
-	{
-		return(m_temp_fsp);
-	}
-
-	/** Set the temporary tablespace flag. (For internal temporary
-	tables, MySQL 5.7 does not always acquire the index->lock. We
-	need to figure out the context and add some special rules
-	during the checks.) */
-	void set_temp_fsp()
-		UNIV_NOTHROW
-	{
-		ut_ad(get_id() == LATCH_ID_FIL_SPACE);
-		m_temp_fsp = true;
-	}
-
 	/** @return the latch name, m_id must be set  */
 	const char* get_name() const
 		UNIV_NOTHROW
@@ -1059,9 +1028,6 @@ struct latch_t {
 	/** true if it is a rw-lock. In debug mode, rw_lock_t derives from
 	this class and sets this variable. */
 	bool		m_rw_lock;
-
-	/** true if it is an temporary space latch */
-	bool		m_temp_fsp;
 };
 
 /** Subclass this to iterate over a thread's acquired latch levels. */
@@ -1153,60 +1119,88 @@ enum rw_lock_flag_t {
 
 #endif /* UNIV_INNOCHECKSUM */
 
+static inline ulint my_atomic_addlint(ulint *A, ulint B)
+{
 #ifdef _WIN64
-#define my_atomic_addlint(A,B) my_atomic_add64((int64*) (A), (B))
-#define my_atomic_loadlint(A) my_atomic_load64((int64*) (A))
-#define my_atomic_storelint(A,B) my_atomic_store64((int64*) (A), (B))
+  return ulint(my_atomic_add64((volatile int64*)A, B));
 #else
-#define my_atomic_addlint my_atomic_addlong
-#define my_atomic_loadlint my_atomic_loadlong
-#define my_atomic_storelint my_atomic_storelong
+  return ulint(my_atomic_addlong(A, B));
 #endif
+}
 
-/** Simple counter aligned to CACHE_LINE_SIZE
-@tparam	Type	the integer type of the counter
-@tparam	atomic	whether to use atomic memory access */
-template <typename Type = ulint, bool atomic = false>
+static inline ulint my_atomic_loadlint(const ulint *A)
+{
+#ifdef _WIN64
+  return ulint(my_atomic_load64((volatile int64*)A));
+#else
+  return ulint(my_atomic_loadlong(A));
+#endif
+}
+
+static inline lint my_atomic_addlint(volatile lint *A, lint B)
+{
+#ifdef _WIN64
+  return my_atomic_add64((volatile int64*)A, B);
+#else
+  return my_atomic_addlong(A, B);
+#endif
+}
+
+static inline lint my_atomic_loadlint(const lint *A)
+{
+#ifdef _WIN64
+  return lint(my_atomic_load64((volatile int64*)A));
+#else
+  return my_atomic_loadlong(A);
+#endif
+}
+
+static inline void my_atomic_storelint(ulint *A, ulint B)
+{
+#ifdef _WIN64
+  my_atomic_store64((volatile int64*)A, B);
+#else
+  my_atomic_storelong(A, B);
+#endif
+}
+
+/** Simple non-atomic counter aligned to CACHE_LINE_SIZE
+@tparam	Type	the integer type of the counter */
+template <typename Type>
 struct MY_ALIGNED(CPU_LEVEL1_DCACHE_LINESIZE) simple_counter
 {
 	/** Increment the counter */
 	Type inc() { return add(1); }
 	/** Decrement the counter */
-	Type dec() { return sub(1); }
+	Type dec() { return add(Type(~0)); }
 
 	/** Add to the counter
 	@param[in]	i	amount to be added
 	@return	the value of the counter after adding */
-	Type add(Type i)
-	{
-		compile_time_assert(!atomic || sizeof(Type) == sizeof(lint));
-		if (atomic) {
-#ifdef _MSC_VER
-// Suppress type conversion/ possible loss of data warning
-#pragma warning (push)
-#pragma warning (disable : 4244)
-#endif
-			return Type(my_atomic_addlint(reinterpret_cast<lint*>
-						      (&m_counter), i));
-#ifdef _MSC_VER
-#pragma warning (pop)
-#endif
-		} else {
-			return m_counter += i;
-		}
-	}
-	/** Subtract from the counter
-	@param[in]	i	amount to be subtracted
-	@return	the value of the counter after adding */
-	Type sub(Type i)
-	{
-		compile_time_assert(!atomic || sizeof(Type) == sizeof(lint));
-		if (atomic) {
-			return Type(my_atomic_addlint(&m_counter, -lint(i)));
-		} else {
-			return m_counter -= i;
-		}
-	}
+	Type add(Type i) { return m_counter += i; }
+
+	/** @return the value of the counter */
+	operator Type() const { return m_counter; }
+
+private:
+	/** The counter */
+	Type	m_counter;
+};
+
+/** Simple atomic counter aligned to CACHE_LINE_SIZE
+@tparam	Type	lint or ulint */
+template <typename Type = ulint>
+struct MY_ALIGNED(CPU_LEVEL1_DCACHE_LINESIZE) simple_atomic_counter
+{
+	/** Increment the counter */
+	Type inc() { return add(1); }
+	/** Decrement the counter */
+	Type dec() { return add(Type(~0)); }
+
+	/** Add to the counter
+	@param[in]	i	amount to be added
+	@return	the value of the counter before adding */
+	Type add(Type i) { return my_atomic_addlint(&m_counter, i); }
 
 	/** @return the value of the counter (non-atomic access)! */
 	operator Type() const { return m_counter; }

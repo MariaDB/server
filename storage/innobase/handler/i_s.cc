@@ -1,7 +1,7 @@
 /*****************************************************************************
 
 Copyright (c) 2007, 2016, Oracle and/or its affiliates. All Rights Reserved.
-Copyright (c) 2014, 2017, MariaDB Corporation.
+Copyright (c) 2014, 2018, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -86,11 +86,6 @@ in i_s_page_type[] array */
 #define I_S_PAGE_TYPE_LAST		I_S_PAGE_TYPE_IBUF
 
 #define I_S_PAGE_TYPE_BITS		4
-
-/* Check if we can hold all page types */
-#if I_S_PAGE_TYPE_LAST >= 1 << I_S_PAGE_TYPE_BITS
-# error i_s_page_type[] is too large
-#endif
 
 /** Name string for File Page Types */
 static buf_page_desc_t	i_s_page_type[] = {
@@ -261,59 +256,13 @@ field_store_string(
 	const char*	str)	/*!< in: NUL-terminated utf-8 string,
 				or NULL */
 {
-	int	ret;
-
-	if (str != NULL) {
-
-		ret = field->store(str, static_cast<uint>(strlen(str)),
-				   system_charset_info);
-		field->set_notnull();
-	} else {
-
-		ret = 0; /* success */
+	if (!str) {
 		field->set_null();
-	}
-
-	return(ret);
-}
-
-/*******************************************************************//**
-Store the name of an index in a MYSQL_TYPE_VARCHAR field.
-Handles the names of incomplete secondary indexes.
-@return 0 on success */
-static
-int
-field_store_index_name(
-/*===================*/
-	Field*		field,		/*!< in/out: target field for
-					storage */
-	const char*	index_name)	/*!< in: NUL-terminated utf-8
-					index name, possibly starting with
-					TEMP_INDEX_PREFIX */
-{
-	int	ret;
-
-	ut_ad(index_name != NULL);
-	ut_ad(field->real_type() == MYSQL_TYPE_VARCHAR);
-
-	/* Since TEMP_INDEX_PREFIX is not a valid UTF8, we need to convert
-	it to something else. */
-	if (*index_name == *TEMP_INDEX_PREFIX_STR) {
-		char	buf[NAME_LEN + 1];
-		buf[0] = '?';
-		memcpy(buf + 1, index_name + 1, strlen(index_name));
-		ret = field->store(
-			buf, static_cast<uint>(strlen(buf)),
-			system_charset_info);
-	} else {
-		ret = field->store(
-			index_name, static_cast<uint>(strlen(index_name)),
-			system_charset_info);
+		return 0;
 	}
 
 	field->set_notnull();
-
-	return(ret);
+	return field->store(str, uint(strlen(str)), system_charset_info);
 }
 
 /*******************************************************************//**
@@ -330,7 +279,7 @@ field_store_ulint(
 
 	if (n != ULINT_UNDEFINED) {
 
-		ret = field->store(n, true);
+		ret = field->store(longlong(n), true);
 		field->set_notnull();
 	} else {
 
@@ -936,12 +885,8 @@ fill_innodb_locks_from_cache(
 			buf, uint(bufend - buf), system_charset_info));
 
 		/* lock_index */
-		if (row->lock_index != NULL) {
-			OK(field_store_index_name(fields[IDX_LOCK_INDEX],
-						  row->lock_index));
-		} else {
-			fields[IDX_LOCK_INDEX]->set_null();
-		}
+		OK(field_store_string(fields[IDX_LOCK_INDEX],
+				      row->lock_index));
 
 		/* lock_space */
 		OK(field_store_ulint(fields[IDX_LOCK_SPACE],
@@ -1414,12 +1359,14 @@ i_s_cmp_fill_low(
 		page0zip.cc. */
 		table->field[1]->store(zip_stat->compressed, true);
 		table->field[2]->store(zip_stat->compressed_ok, true);
-		table->field[3]->store(zip_stat->compressed_usec / 1000000, true);
+		table->field[3]->store(zip_stat->compressed_usec / 1000000,
+				       true);
 		table->field[4]->store(zip_stat->decompressed, true);
-		table->field[5]->store(zip_stat->decompressed_usec / 1000000, true);
+		table->field[5]->store(zip_stat->decompressed_usec / 1000000,
+				       true);
 
 		if (reset) {
-			memset(zip_stat, 0, sizeof *zip_stat);
+			new (zip_stat) page_zip_stat_t();
 		}
 
 		if (schema_table_store_record(thd, table)) {
@@ -1715,49 +1662,49 @@ i_s_cmp_per_index_fill_low(
 
 	for (iter = snap.begin(), i = 0; iter != snap.end(); iter++, i++) {
 
-		char		name[192];
 		dict_index_t*	index = dict_index_find_on_id_low(iter->first);
 
 		if (index != NULL) {
 			char	db_utf8[MAX_DB_UTF8_LEN];
 			char	table_utf8[MAX_TABLE_UTF8_LEN];
 
-			dict_fs2utf8(index->table_name,
+			dict_fs2utf8(index->table->name.m_name,
 				     db_utf8, sizeof(db_utf8),
 				     table_utf8, sizeof(table_utf8));
 
-			field_store_string(fields[IDX_DATABASE_NAME], db_utf8);
-			field_store_string(fields[IDX_TABLE_NAME], table_utf8);
-			field_store_index_name(fields[IDX_INDEX_NAME],
-					       index->name);
+			status = field_store_string(fields[IDX_DATABASE_NAME],
+						    db_utf8)
+				|| field_store_string(fields[IDX_TABLE_NAME],
+						      table_utf8)
+				|| field_store_string(fields[IDX_INDEX_NAME],
+						      index->name);
 		} else {
 			/* index not found */
-			snprintf(name, sizeof(name),
-				 "index_id:" IB_ID_FMT, iter->first);
-			field_store_string(fields[IDX_DATABASE_NAME],
-					   "unknown");
-			field_store_string(fields[IDX_TABLE_NAME],
-					   "unknown");
-			field_store_string(fields[IDX_INDEX_NAME],
-					   name);
+			char name[MY_INT64_NUM_DECIMAL_DIGITS
+				  + sizeof "index_id: "];
+			fields[IDX_DATABASE_NAME]->set_null();
+			fields[IDX_TABLE_NAME]->set_null();
+			fields[IDX_INDEX_NAME]->set_notnull();
+			status = fields[IDX_INDEX_NAME]->store(
+				name,
+				uint(snprintf(name, sizeof name,
+					      "index_id: " IB_ID_FMT,
+					      iter->first)),
+				system_charset_info);
 		}
 
-		fields[IDX_COMPRESS_OPS]->store(
-			   iter->second.compressed, true);
-
-		fields[IDX_COMPRESS_OPS_OK]->store(
-			   iter->second.compressed_ok, true);
-
-		fields[IDX_COMPRESS_TIME]->store(
-			   iter->second.compressed_usec / 1000000, true);
-
-		fields[IDX_UNCOMPRESS_OPS]->store(
-			   iter->second.decompressed, true);
-
-		fields[IDX_UNCOMPRESS_TIME]->store(
-			   iter->second.decompressed_usec / 1000000, true);
-
-		if (schema_table_store_record(thd, table)) {
+		if (status
+		    || fields[IDX_COMPRESS_OPS]->store(
+			    iter->second.compressed, true)
+		    || fields[IDX_COMPRESS_OPS_OK]->store(
+			    iter->second.compressed_ok, true)
+		    || fields[IDX_COMPRESS_TIME]->store(
+			    iter->second.compressed_usec / 1000000, true)
+		    || fields[IDX_UNCOMPRESS_OPS]->store(
+			    iter->second.decompressed, true)
+		    || fields[IDX_UNCOMPRESS_TIME]->store(
+			    iter->second.decompressed_usec / 1000000, true)
+		    || schema_table_store_record(thd, table)) {
 			status = 1;
 			break;
 		}
@@ -1765,8 +1712,9 @@ i_s_cmp_per_index_fill_low(
 		threads to proceed. This could eventually result in the
 		contents of INFORMATION_SCHEMA.innodb_cmp_per_index being
 		inconsistent, but it is an acceptable compromise. */
-		if (i % 1000 == 0) {
+		if (i == 1000) {
 			mutex_exit(&dict_sys->mutex);
+			i = 0;
 			mutex_enter(&dict_sys->mutex);
 		}
 	}
@@ -2943,7 +2891,7 @@ i_s_fts_deleted_generic_fill(
 
 	deleted = fts_doc_ids_create();
 
-	trx = trx_allocate_for_background();
+	trx = trx_create();
 	trx->op_info = "Select for FTS DELETE TABLE";
 
 	FTS_INIT_FTS_TABLE(&fts_table,
@@ -2966,7 +2914,7 @@ i_s_fts_deleted_generic_fill(
 		BREAK_IF(ret = schema_table_store_record(thd, table));
 	}
 
-	trx_free_for_background(trx);
+	trx_free(trx);
 
 	fts_doc_ids_free(deleted);
 
@@ -3476,7 +3424,7 @@ i_s_fts_index_table_fill_selected(
 	        fts_result_cache_limit = 8192;
 	);
 
-	trx = trx_allocate_for_background();
+	trx = trx_create();
 
 	trx->op_info = "fetching FTS index nodes";
 
@@ -3533,7 +3481,7 @@ i_s_fts_index_table_fill_selected(
 	que_graph_free(graph);
 	mutex_exit(&dict_sys->mutex);
 
-	trx_free_for_background(trx);
+	trx_free(trx);
 
 	if (fetch.total_memory >= fts_result_cache_limit) {
 		error = DB_FTS_EXCEED_RESULT_CACHE_LIMIT;
@@ -3971,7 +3919,7 @@ i_s_fts_config_fill(
 		DBUG_RETURN(0);
 	}
 
-	trx = trx_allocate_for_background();
+	trx = trx_create();
 	trx->op_info = "Select for FTS CONFIG TABLE";
 
 	FTS_INIT_FTS_TABLE(&fts_table, "CONFIG", FTS_COMMON_TABLE, user_table);
@@ -4022,7 +3970,7 @@ i_s_fts_config_fill(
 
 	fts_sql_commit(trx);
 
-	trx_free_for_background(trx);
+	trx_free(trx);
 
 	dict_table_close(user_table, FALSE, FALSE);
 
@@ -4851,6 +4799,8 @@ i_s_innodb_buffer_page_fill(
 	TABLE*			table;
 	Field**			fields;
 
+	compile_time_assert(I_S_PAGE_TYPE_LAST < 1 << I_S_PAGE_TYPE_BITS);
+
 	DBUG_ENTER("i_s_innodb_buffer_page_fill");
 
 	table = tables->table;
@@ -4916,13 +4866,15 @@ i_s_innodb_buffer_page_fill(
 
 			mutex_enter(&dict_sys->mutex);
 
-			if (const dict_index_t*	index =
-			    dict_index_get_if_in_cache_low(
-				    page_info->index_id)) {
+			const dict_index_t* index =
+				dict_index_get_if_in_cache_low(
+					page_info->index_id);
+
+			if (index) {
 				table_name_end = innobase_convert_name(
 					table_name, sizeof(table_name),
-					index->table_name,
-					strlen(index->table_name),
+					index->table->name.m_name,
+					strlen(index->table->name.m_name),
 					thd);
 
 				ret = fields[IDX_BUFFER_PAGE_TABLE_NAME]
@@ -4931,17 +4883,22 @@ i_s_innodb_buffer_page_fill(
 							table_name_end
 							- table_name),
 						system_charset_info)
-					|| field_store_index_name(
-						fields
-						[IDX_BUFFER_PAGE_INDEX_NAME],
-						index->name);
+					|| fields[IDX_BUFFER_PAGE_INDEX_NAME]
+					->store(index->name,
+						uint(strlen(index->name)),
+						system_charset_info);
 			}
 
 			mutex_exit(&dict_sys->mutex);
 
 			OK(ret);
 
-			fields[IDX_BUFFER_PAGE_TABLE_NAME]->set_notnull();
+			if (index) {
+				fields[IDX_BUFFER_PAGE_TABLE_NAME]
+					->set_notnull();
+				fields[IDX_BUFFER_PAGE_INDEX_NAME]
+					->set_notnull();
+			}
 		}
 
 		OK(fields[IDX_BUFFER_PAGE_NUM_RECS]->store(
@@ -4954,10 +4911,7 @@ i_s_innodb_buffer_page_fill(
 			   page_info->zip_ssize
 			   ? (UNIV_ZIP_SIZE_MIN >> 1) << page_info->zip_ssize
 			   : 0, true));
-
-#if BUF_PAGE_STATE_BITS > 3
-# error "BUF_PAGE_STATE_BITS > 3, please ensure that all 1<<BUF_PAGE_STATE_BITS values are checked for"
-#endif
+		compile_time_assert(BUF_PAGE_STATE_BITS == 3);
 		state = static_cast<enum buf_page_state>(page_info->page_state);
 
 		switch (state) {
@@ -5635,13 +5589,15 @@ i_s_innodb_buf_page_lru_fill(
 
 			mutex_enter(&dict_sys->mutex);
 
-			if (const dict_index_t* index =
-			    dict_index_get_if_in_cache_low(
-				    page_info->index_id)) {
+			const dict_index_t* index =
+				dict_index_get_if_in_cache_low(
+					page_info->index_id);
+
+			if (index) {
 				table_name_end = innobase_convert_name(
 					table_name, sizeof(table_name),
-					index->table_name,
-					strlen(index->table_name),
+					index->table->name.m_name,
+					strlen(index->table->name.m_name),
 					thd);
 
 				ret = fields[IDX_BUF_LRU_PAGE_TABLE_NAME]
@@ -5650,17 +5606,22 @@ i_s_innodb_buf_page_lru_fill(
 							table_name_end
 							- table_name),
 						system_charset_info)
-					|| field_store_index_name(
-						fields
-						[IDX_BUF_LRU_PAGE_INDEX_NAME],
-						index->name);
+					|| fields[IDX_BUF_LRU_PAGE_INDEX_NAME]
+					->store(index->name,
+						uint(strlen(index->name)),
+						system_charset_info);
 			}
 
 			mutex_exit(&dict_sys->mutex);
 
 			OK(ret);
 
-			fields[IDX_BUF_LRU_PAGE_TABLE_NAME]->set_notnull();
+			if (index) {
+				fields[IDX_BUF_LRU_PAGE_TABLE_NAME]
+					->set_notnull();
+				fields[IDX_BUF_LRU_PAGE_INDEX_NAME]
+					->set_notnull();
+			}
 		}
 
 		OK(fields[IDX_BUF_LRU_PAGE_NUM_RECS]->store(
@@ -5915,12 +5876,8 @@ UNIV_INTERN struct st_maria_plugin	i_s_innodb_buffer_page_lru =
 
 /*******************************************************************//**
 Unbind a dynamic INFORMATION_SCHEMA table.
-@return 0 on success */
-static
-int
-i_s_common_deinit(
-/*==============*/
-	void*	p)	/*!< in/out: table schema object */
+@return 0 */
+static int i_s_common_deinit(void*)
 {
 	DBUG_ENTER("i_s_common_deinit");
 
@@ -6026,7 +5983,6 @@ i_s_dict_fill_sys_tables(
 								table->flags);
 	const page_size_t&	page_size = dict_tf_get_page_size(table->flags);
 	const char*		row_format;
-	const char*		space_type;
 
 	if (!compact) {
 		row_format = "Redundant";
@@ -6036,12 +5992,6 @@ i_s_dict_fill_sys_tables(
 		row_format = "Compressed";
 	} else {
 		row_format = "Dynamic";
-	}
-
-	if (is_system_tablespace(table->space)) {
-		space_type = "System";
-	} else {
-		space_type = "Single";
 	}
 
 	DBUG_ENTER("i_s_dict_fill_sys_tables");
@@ -6056,7 +6006,7 @@ i_s_dict_fill_sys_tables(
 
 	OK(fields[SYS_TABLES_NUM_COLUMN]->store(table->n_cols));
 
-	OK(fields[SYS_TABLES_SPACE]->store(table->space));
+	OK(fields[SYS_TABLES_SPACE]->store(table->space_id, true));
 
 	OK(field_store_string(fields[SYS_TABLES_ROW_FORMAT], row_format));
 
@@ -6065,7 +6015,8 @@ i_s_dict_fill_sys_tables(
 				? page_size.physical()
 				: 0, true));
 
-	OK(field_store_string(fields[SYS_TABLES_SPACE_TYPE], space_type));
+	OK(field_store_string(fields[SYS_TABLES_SPACE_TYPE],
+			      table->space_id ? "Single" : "System"));
 
 	OK(schema_table_store_record(thd, table_to_fill));
 
@@ -6109,23 +6060,19 @@ i_s_sys_tables_fill_table(
 		/* Create and populate a dict_table_t structure with
 		information from SYS_TABLES row */
 		err_msg = dict_process_sys_tables_rec_and_mtr_commit(
-			heap, rec, &table_rec,
-			DICT_TABLE_LOAD_FROM_RECORD, &mtr);
+			heap, rec, &table_rec, false, &mtr);
 
 		mutex_exit(&dict_sys->mutex);
 
 		if (!err_msg) {
-			i_s_dict_fill_sys_tables(thd, table_rec, tables->table);
+			i_s_dict_fill_sys_tables(thd, table_rec,
+						 tables->table);
 		} else {
 			push_warning_printf(thd, Sql_condition::WARN_LEVEL_WARN,
 					    ER_CANT_FIND_SYSTEM_REC, "%s",
 					    err_msg);
 		}
 
-		/* Since dict_process_sys_tables_rec_and_mtr_commit()
-		is called with DICT_TABLE_LOAD_FROM_RECORD, the table_rec
-		is created in dict_process_sys_tables_rec(), we will
-		need to free it */
 		if (table_rec) {
 			dict_mem_table_free(table_rec);
 		}
@@ -6410,8 +6357,7 @@ i_s_sys_tables_fill_table_stats(
 		/* Fetch the dict_table_t structure corresponding to
 		this SYS_TABLES record */
 		err_msg = dict_process_sys_tables_rec_and_mtr_commit(
-			heap, rec, &table_rec,
-			DICT_TABLE_LOAD_FROM_CACHE, &mtr);
+			heap, rec, &table_rec, true, &mtr);
 
 		ulint ref_count = table_rec ? table_rec->get_ref_count() : 0;
 		mutex_exit(&dict_sys->mutex);
@@ -6610,6 +6556,7 @@ i_s_dict_fill_sys_indexes(
 /*======================*/
 	THD*		thd,		/*!< in: thread */
 	table_id_t	table_id,	/*!< in: table id */
+	ulint		space_id,	/*!< in: tablespace id */
 	dict_index_t*	index,		/*!< in: populated dict_index_t
 					struct with index info */
 	TABLE*		table_to_fill)	/*!< in/out: fill this table */
@@ -6620,26 +6567,39 @@ i_s_dict_fill_sys_indexes(
 
 	fields = table_to_fill->field;
 
-	OK(field_store_index_name(fields[SYS_INDEX_NAME], index->name));
+	if (*index->name == *TEMP_INDEX_PREFIX_STR) {
+		/* Since TEMP_INDEX_PREFIX_STR is not valid UTF-8, we
+		need to convert it to something else. */
+		*const_cast<char*>(index->name()) = '?';
+	}
+
+	OK(fields[SYS_INDEX_NAME]->store(index->name,
+					 uint(strlen(index->name)),
+					 system_charset_info));
 
 	OK(fields[SYS_INDEX_ID]->store(longlong(index->id), true));
 
 	OK(fields[SYS_INDEX_TABLE_ID]->store(longlong(table_id), true));
 
-	OK(fields[SYS_INDEX_TYPE]->store(index->type));
+	OK(fields[SYS_INDEX_TYPE]->store(index->type, true));
 
 	OK(fields[SYS_INDEX_NUM_FIELDS]->store(index->n_fields));
 
 	/* FIL_NULL is ULINT32_UNDEFINED */
 	if (index->page == FIL_NULL) {
-		OK(fields[SYS_INDEX_PAGE_NO]->store(-1));
+		fields[SYS_INDEX_PAGE_NO]->set_null();
 	} else {
-		OK(fields[SYS_INDEX_PAGE_NO]->store(index->page));
+		OK(fields[SYS_INDEX_PAGE_NO]->store(index->page, true));
 	}
 
-	OK(fields[SYS_INDEX_SPACE]->store(index->space));
+	if (space_id == ULINT_UNDEFINED) {
+		fields[SYS_INDEX_SPACE]->set_null();
+	} else {
+		OK(fields[SYS_INDEX_SPACE]->store(space_id, true));
+	}
 
-	OK(fields[SYS_INDEX_MERGE_THRESHOLD]->store(index->merge_threshold));
+	OK(fields[SYS_INDEX_MERGE_THRESHOLD]->store(index->merge_threshold,
+						    true));
 
 	OK(schema_table_store_record(thd, table_to_fill));
 
@@ -6681,19 +6641,27 @@ i_s_sys_indexes_fill_table(
 	while (rec) {
 		const char*	err_msg;
 		table_id_t	table_id;
+		ulint		space_id;
 		dict_index_t	index_rec;
 
 		/* Populate a dict_index_t structure with information from
 		a SYS_INDEXES row */
 		err_msg = dict_process_sys_indexes_rec(heap, rec, &index_rec,
 						       &table_id);
-
+		const byte* field = rec_get_nth_field_old(
+			rec, DICT_FLD__SYS_INDEXES__SPACE, &space_id);
+		space_id = space_id == 4 ? mach_read_from_4(field)
+			: ULINT_UNDEFINED;
 		mtr_commit(&mtr);
 		mutex_exit(&dict_sys->mutex);
 
 		if (!err_msg) {
-			i_s_dict_fill_sys_indexes(thd, table_id, &index_rec,
-						 tables->table);
+			if (int err = i_s_dict_fill_sys_indexes(
+				    thd, table_id, space_id, &index_rec,
+				    tables->table)) {
+				mem_heap_free(heap);
+				DBUG_RETURN(err);
+			}
 		} else {
 			push_warning_printf(thd, Sql_condition::WARN_LEVEL_WARN,
 					    ER_CANT_FIND_SYSTEM_REC, "%s",
@@ -6872,7 +6840,7 @@ i_s_dict_fill_sys_columns(
 
 	OK(field_store_string(fields[SYS_COLUMN_NAME], col_name));
 
-	if (dict_col_is_virtual(column)) {
+	if (column->is_virtual()) {
 		ulint	pos = dict_create_v_col_pos(nth_v_col, column->ind);
 		OK(fields[SYS_COLUMN_POSITION]->store(pos, true));
 	} else {
@@ -7115,7 +7083,6 @@ i_s_sys_virtual_fill_table(
 	const rec_t*	rec;
 	ulint		pos;
 	ulint		base_pos;
-	mem_heap_t*	heap;
 	mtr_t		mtr;
 
 	DBUG_ENTER("i_s_sys_virtual_fill_table");
@@ -7126,7 +7093,6 @@ i_s_sys_virtual_fill_table(
 		DBUG_RETURN(0);
 	}
 
-	heap = mem_heap_create(1000);
 	mutex_enter(&dict_sys->mutex);
 	mtr_start(&mtr);
 
@@ -7138,7 +7104,7 @@ i_s_sys_virtual_fill_table(
 
 		/* populate a dict_col_t structure with information from
 		a SYS_VIRTUAL row */
-		err_msg = dict_process_sys_virtual_rec(heap, rec,
+		err_msg = dict_process_sys_virtual_rec(rec,
 						       &table_id, &pos,
 						       &base_pos);
 
@@ -7154,8 +7120,6 @@ i_s_sys_virtual_fill_table(
 					    err_msg);
 		}
 
-		mem_heap_empty(heap);
-
 		/* Get the next record */
 		mutex_enter(&dict_sys->mutex);
 		mtr_start(&mtr);
@@ -7164,7 +7128,6 @@ i_s_sys_virtual_fill_table(
 
 	mtr_commit(&mtr);
 	mutex_exit(&dict_sys->mutex);
-	mem_heap_free(heap);
 
 	DBUG_RETURN(0);
 }
@@ -8617,12 +8580,6 @@ i_s_tablespaces_encryption_fill_table(
 	TABLE_LIST*	tables,	/*!< in/out: tables to fill */
 	Item*		)	/*!< in: condition (not used) */
 {
-	btr_pcur_t	pcur;
-	const rec_t*	rec;
-	mem_heap_t*	heap;
-	mtr_t		mtr;
-	bool		found_space_0 = false;
-
 	DBUG_ENTER("i_s_tablespaces_encryption_fill_table");
 	RETURN_IF_INNODB_NOT_STARTED(tables->schema_table_name.str);
 
@@ -8631,68 +8588,25 @@ i_s_tablespaces_encryption_fill_table(
 		DBUG_RETURN(0);
 	}
 
-	heap = mem_heap_create(1000);
-	mutex_enter(&dict_sys->mutex);
-	mtr_start(&mtr);
+	mutex_enter(&fil_system.mutex);
 
-	rec = dict_startscan_system(&pcur, &mtr, SYS_TABLESPACES);
-
-	while (rec) {
-		const char*	err_msg;
-		ulint		space_id;
-		const char*	name;
-		ulint		flags;
-
-		/* Extract necessary information from a SYS_TABLESPACES row */
-		err_msg = dict_process_sys_tablespaces(
-			heap, rec, &space_id, &name, &flags);
-
-		mtr_commit(&mtr);
-		mutex_exit(&dict_sys->mutex);
-
-		if (space_id == 0) {
-			found_space_0 = true;
+	for (fil_space_t* space = UT_LIST_GET_FIRST(fil_system.space_list);
+	     space; space = UT_LIST_GET_NEXT(space_list, space)) {
+		if (space->purpose == FIL_TYPE_TABLESPACE
+		    && !space->is_stopping()) {
+			space->acquire();
+			mutex_exit(&fil_system.mutex);
+			if (int err = i_s_dict_fill_tablespaces_encryption(
+				    thd, space, tables->table)) {
+				space->release();
+				DBUG_RETURN(err);
+			}
+			mutex_enter(&fil_system.mutex);
+			space->release();
 		}
-
-		fil_space_t* space = fil_space_acquire_silent(space_id);
-
-		if (!err_msg && space) {
-			i_s_dict_fill_tablespaces_encryption(
-				thd, space, tables->table);
-		} else {
-			push_warning_printf(thd, Sql_condition::WARN_LEVEL_WARN,
-					    ER_CANT_FIND_SYSTEM_REC, "%s",
-					    err_msg);
-		}
-
-		if (space) {
-			fil_space_release(space);
-		}
-
-		mem_heap_empty(heap);
-
-		/* Get the next record */
-		mutex_enter(&dict_sys->mutex);
-		mtr_start(&mtr);
-		rec = dict_getnext_system(&pcur, &mtr);
 	}
 
-	mtr_commit(&mtr);
-	mutex_exit(&dict_sys->mutex);
-	mem_heap_free(heap);
-
-	if (found_space_0 == false) {
-		/* space 0 does for what ever unknown reason not show up
-		* in iteration above, add it manually */
-
-		fil_space_t* space = fil_space_acquire_silent(0);
-
-		i_s_dict_fill_tablespaces_encryption(
-			thd, space, tables->table);
-
-		fil_space_release(space);
-	}
-
+	mutex_exit(&fil_system.mutex);
 	DBUG_RETURN(0);
 }
 /*******************************************************************//**
@@ -8938,12 +8852,6 @@ i_s_tablespaces_scrubbing_fill_table(
 	TABLE_LIST*	tables,	/*!< in/out: tables to fill */
 	Item*		)	/*!< in: condition (not used) */
 {
-	btr_pcur_t	pcur;
-	const rec_t*	rec;
-	mem_heap_t*	heap;
-	mtr_t		mtr;
-	bool		found_space_0 = false;
-
 	DBUG_ENTER("i_s_tablespaces_scrubbing_fill_table");
 	RETURN_IF_INNODB_NOT_STARTED(tables->schema_table_name.str);
 
@@ -8952,67 +8860,25 @@ i_s_tablespaces_scrubbing_fill_table(
 		DBUG_RETURN(0);
 	}
 
-	heap = mem_heap_create(1000);
-	mutex_enter(&dict_sys->mutex);
-	mtr_start(&mtr);
+	mutex_enter(&fil_system.mutex);
 
-	rec = dict_startscan_system(&pcur, &mtr, SYS_TABLESPACES);
-
-	while (rec) {
-		const char*	err_msg;
-		ulint		space_id;
-		const char*	name;
-		ulint		flags;
-
-		/* Extract necessary information from a SYS_TABLESPACES row */
-		err_msg = dict_process_sys_tablespaces(
-			heap, rec, &space_id, &name, &flags);
-
-		mtr_commit(&mtr);
-		mutex_exit(&dict_sys->mutex);
-
-		if (space_id == 0) {
-			found_space_0 = true;
+	for (fil_space_t* space = UT_LIST_GET_FIRST(fil_system.space_list);
+	     space; space = UT_LIST_GET_NEXT(space_list, space)) {
+		if (space->purpose == FIL_TYPE_TABLESPACE
+		    && !space->is_stopping()) {
+			space->acquire();
+			mutex_exit(&fil_system.mutex);
+			if (int err = i_s_dict_fill_tablespaces_scrubbing(
+				    thd, space, tables->table)) {
+				space->release();
+				DBUG_RETURN(err);
+			}
+			mutex_enter(&fil_system.mutex);
+			space->release();
 		}
-
-		fil_space_t* space = fil_space_acquire_silent(space_id);
-
-		if (!err_msg && space) {
-			i_s_dict_fill_tablespaces_scrubbing(
-				thd, space, tables->table);
-		} else {
-			push_warning_printf(thd, Sql_condition::WARN_LEVEL_WARN,
-					    ER_CANT_FIND_SYSTEM_REC, "%s",
-					    err_msg);
-		}
-
-		if (space) {
-			fil_space_release(space);
-		}
-
-		mem_heap_empty(heap);
-
-		/* Get the next record */
-		mutex_enter(&dict_sys->mutex);
-		mtr_start(&mtr);
-		rec = dict_getnext_system(&pcur, &mtr);
 	}
 
-	mtr_commit(&mtr);
-	mutex_exit(&dict_sys->mutex);
-	mem_heap_free(heap);
-
-	if (found_space_0 == false) {
-		/* space 0 does for what ever unknown reason not show up
-		* in iteration above, add it manually */
-		fil_space_t* space = fil_space_acquire_silent(0);
-
-		i_s_dict_fill_tablespaces_scrubbing(
-			thd, space, tables->table);
-
-		fil_space_release(space);
-	}
-
+	mutex_exit(&fil_system.mutex);
 	DBUG_RETURN(0);
 }
 /*******************************************************************//**

@@ -1,0 +1,10 @@
+--source include/have_rocksdb.inc
+--source include/have_binlog_format_row.inc
+--source include/master-slave.inc
+--source include/have_partition.inc
+
+create table t (i int primary key auto_increment) engine=rocksdb partition by key (i) partitions 3;
+
+--source include/autoinc_crash_safe.inc
+
+--source include/rpl_end.inc

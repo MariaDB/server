@@ -32,9 +32,6 @@ ecode=0
 ssyslog=""
 ssystag=""
 XTRABACKUP_PID=""
-SST_PORT=""
-REMOTEIP=""
-REMOTEHOST=""
 tca=""
 tcert=""
 tkey=""
@@ -42,7 +39,6 @@ sockopt=""
 progress=""
 ttime=0
 totime=0
-lsn=""
 ecmd=""
 rlimit=""
 # Initially
@@ -77,12 +73,7 @@ ssl_cert=""
 ssl_ca=""
 ssl_key=""
 
-# Required for backup locks
-# For backup locks it is 1 sent by joiner
-# 5.6.21 PXC and later can't donate to an older joiner
-sst_ver=1
-
-if which pv &>/dev/null && pv --help | grep -q FORMAT;then 
+if pv --help 2>/dev/null | grep -q FORMAT;then
     pvopts+=$pvformat
 fi
 pcmd="pv $pvopts"
@@ -96,6 +87,13 @@ MAGIC_FILE="${DATA}/${INFO_FILE}"
 
 # Setting the path for ss and ip
 export PATH="/usr/sbin:/sbin:$PATH"
+
+OS=$(uname)
+
+if ! which lsof > /dev/null; then
+    wsrep_log_error "lsof tool not found in PATH! Make sure you have it installed."
+    exit 2 # ENOENT
+fi
 
 timeit(){
     local stage=$1
@@ -251,17 +249,10 @@ verify_file_exists()
 
 get_transfer()
 {
-    if [[ -z $SST_PORT ]];then 
-        TSST_PORT=4444
-    else 
-        TSST_PORT=$SST_PORT
-    fi
+    TSST_PORT=${WSREP_SST_OPT_PORT:-4444}
 
     if [[ $tfmt == 'nc' ]];then
-        if [[ ! -x `which nc` ]];then 
-            wsrep_log_error "nc(netcat) not found in path: $PATH"
-            exit 2
-        fi
+        wsrep_check_programs nc
 
         if [[ $encrypt -eq 2 || $encrypt -eq 3 || $encrypt -eq 4 ]]; then
             wsrep_log_error "******** FATAL ERROR *********************** "
@@ -274,21 +265,31 @@ get_transfer()
         wsrep_log_info "Using netcat as streamer"
         if [[ "$WSREP_SST_OPT_ROLE"  == "joiner" ]];then
             if nc -h 2>&1 | grep -q ncat; then
+                # Ncat
                 tcmd="nc $sockopt -l ${TSST_PORT}"
-            else 
+            elif nc -h 2>&1 | grep -q -- '-d\>';then
+                # Debian netcat
                 tcmd="nc $sockopt -dl ${TSST_PORT}"
+            else
+                # traditional netcat
+                tcmd="nc $sockopt -l -p ${TSST_PORT}"
             fi
         else
-            # netcat doesn't understand [] around IPv6 address
-            tcmd="nc ${REMOTEIP//[\[\]]/} ${TSST_PORT}"
+            if nc -h 2>&1 | grep -q ncat;then
+                # Ncat
+                tcmd="nc ${WSREP_SST_OPT_HOST_UNESCAPED} ${TSST_PORT}"
+            elif nc -h 2>&1 | grep -q -- '-d\>';then
+                # Debian netcat
+                tcmd="nc ${WSREP_SST_OPT_HOST_UNESCAPED} ${TSST_PORT}"
+            else
+                # traditional netcat
+                tcmd="nc -q0 ${WSREP_SST_OPT_HOST_UNESCAPED} ${TSST_PORT}"
+            fi
         fi
     else
         tfmt='socat'
         wsrep_log_info "Using socat as streamer"
-        if [[ ! -x `which socat` ]];then 
-            wsrep_log_error "socat not found in path: $PATH"
-            exit 2
-        fi
+        wsrep_check_programs socat
 
         donor_extra=""
         joiner_extra=""
@@ -342,7 +343,7 @@ get_transfer()
                 tcmd="socat -u openssl-listen:${TSST_PORT},reuseaddr,cert=${tcert},cafile=${tca}${joiner_extra}${sockopt} stdio"
             else
                 wsrep_log_info "Encrypting with CERT: $tcert, CA: $tca"
-                tcmd="socat -u stdio openssl-connect:${REMOTEIP}:${TSST_PORT},cert=${tcert},cafile=${tca}${donor_extra}${sockopt}"
+                tcmd="socat -u stdio openssl-connect:${WSREP_SST_OPT_HOST}:${TSST_PORT},cert=${tcert},cafile=${tca}${donor_extra}${sockopt}"
             fi
         elif [[ $encrypt -eq 3 ]];then
             wsrep_log_warning "**** WARNING **** encrypt=3 is deprecated and will be removed in a future release"
@@ -359,7 +360,7 @@ get_transfer()
                 tcmd="socat -u openssl-listen:${TSST_PORT},reuseaddr,cert=${tcert},key=${tkey},verify=0${joiner_extra}${sockopt} stdio"
             else
                 wsrep_log_info "Encrypting with CERT: $tcert, KEY: $tkey"
-                tcmd="socat -u stdio openssl-connect:${REMOTEIP}:${TSST_PORT},cert=${tcert},key=${tkey},verify=0${sockopt}"
+                tcmd="socat -u stdio openssl-connect:${WSREP_SST_OPT_HOST}:${TSST_PORT},cert=${tcert},key=${tkey},verify=0${sockopt}"
             fi
         elif [[ $encrypt -eq 4 ]]; then
             wsrep_log_info "Using openssl based encryption with socat: with key, crt, and ca"
@@ -380,7 +381,7 @@ get_transfer()
                 tcmd="socat -u openssl-listen:${TSST_PORT},reuseaddr,cert=${ssl_cert},key=${ssl_key},cafile=${ssl_ca},verify=1${joiner_extra}${sockopt} stdio"
             else
                 wsrep_log_info "Encrypting with CERT: $ssl_cert, KEY: $ssl_key, CA: $ssl_ca"
-                tcmd="socat -u stdio openssl-connect:${REMOTEIP}:${TSST_PORT},cert=${ssl_cert},key=${ssl_key},cafile=${ssl_ca},verify=1${donor_extra}${sockopt}"
+                tcmd="socat -u stdio openssl-connect:${WSREP_SST_OPT_HOST}:${TSST_PORT},cert=${ssl_cert},key=${ssl_key},cafile=${ssl_ca},verify=1${donor_extra}${sockopt}"
             fi
 
         else
@@ -391,7 +392,7 @@ get_transfer()
             if [[ "$WSREP_SST_OPT_ROLE"  == "joiner" ]]; then
                 tcmd="socat -u TCP-LISTEN:${TSST_PORT},reuseaddr${sockopt} stdio"
             else
-                tcmd="socat -u stdio TCP:${REMOTEIP}:${TSST_PORT}${sockopt}"
+                tcmd="socat -u stdio TCP:${WSREP_SST_OPT_HOST}:${TSST_PORT}${sockopt}"
             fi
         fi
     fi
@@ -400,7 +401,7 @@ get_transfer()
 get_footprint()
 {
     pushd $WSREP_SST_OPT_DATA 1>/dev/null
-    payload=$(find . -regex '.*\.ibd$\|.*\.MYI$\|.*\.MYD$\|.*ibdata1$' -type f -print0 | du --files0-from=- --block-size=1 -c | awk 'END { print $1 }')
+    payload=$(find . -regex '.*\.ibd$\|.*\.MYI$\|.*\.MYD$\|.*ibdata1$' -type f -print0 | du --files0-from=- --block-size=1 -c -s | awk 'END { print $1 }')
     if $MY_PRINT_DEFAULTS xtrabackup | grep -q -- "--compress";then 
         # QuickLZ has around 50% compression ratio
         # When compression/compaction used, the progress is only an approximate.
@@ -414,7 +415,7 @@ get_footprint()
 adjust_progress()
 {
 
-    if [[ ! -x `which pv` ]];then 
+    if ! command -v pv >/dev/null;then
         wsrep_log_error "pv not found in path: $PATH"
         wsrep_log_error "Disabling all progress/rate-limiting"
         pcmd=""
@@ -452,7 +453,11 @@ read_cnf()
     progress=$(parse_cnf sst progress "")
     rebuild=$(parse_cnf sst rebuild 0)
     ttime=$(parse_cnf sst time 0)
-    cpat=$(parse_cnf sst cpat '.*\.pem$\|.*init\.ok$\|.*galera\.cache$\|.*sst_in_progress$\|.*\.sst$\|.*gvwstate\.dat$\|.*grastate\.dat$\|.*\.err$\|.*\.log$\|.*RPM_UPGRADE_MARKER$\|.*RPM_UPGRADE_HISTORY$')
+    if [ "${OS}" = "FreeBSD" ]; then
+        cpat=$(parse_cnf sst cpat '.*\.pem$|.*init\.ok$|.*galera\.cache$|.*sst_in_progress$|.*\.sst$|.*gvwstate\.dat$|.*grastate\.dat$|.*\.err$|.*\.log$|.*RPM_UPGRADE_MARKER$|.*RPM_UPGRADE_HISTORY$')
+    else
+        cpat=$(parse_cnf sst cpat '.*\.pem$\|.*init\.ok$\|.*galera\.cache$\|.*sst_in_progress$\|.*\.sst$\|.*gvwstate\.dat$\|.*grastate\.dat$\|.*\.err$\|.*\.log$\|.*RPM_UPGRADE_MARKER$\|.*RPM_UPGRADE_HISTORY$')
+    fi
     ealgo=$(parse_cnf xtrabackup encrypt "")
     ekey=$(parse_cnf xtrabackup encrypt-key "")
     ekeyfile=$(parse_cnf xtrabackup encrypt-key-file "")
@@ -470,15 +475,15 @@ read_cnf()
     # Pull the parameters needed for encrypt=4
     ssl_ca=$(parse_cnf sst ssl-ca "")
     if [[ -z "$ssl_ca" ]]; then
-        ssl_ca=$(parse_cnf mysqld ssl-ca "")
+        ssl_ca=$(parse_cnf --mysqld ssl-ca "")
     fi
     ssl_cert=$(parse_cnf sst ssl-cert "")
     if [[ -z "$ssl_cert" ]]; then
-        ssl_cert=$(parse_cnf mysqld ssl-cert "")
+        ssl_cert=$(parse_cnf --mysqld ssl-cert "")
     fi
     ssl_key=$(parse_cnf sst ssl-key "")
     if [[ -z "$ssl_key" ]]; then
-        ssl_key=$(parse_cnf mysqld ssl-key "")
+        ssl_key=$(parse_cnf --mysqld ssl-key "")
     fi
 
     rlimit=$(parse_cnf sst rlimit "")
@@ -492,7 +497,7 @@ read_cnf()
     ssystag+="-"
 
     if [[ $ssyslog -ne -1 ]];then 
-        if $MY_PRINT_DEFAULTS mysqld_safe | tr '_' '-' | grep -q -- "--syslog";then
+        if $MY_PRINT_DEFAULTS mysqld_safe | grep -q -- "--syslog";then
             ssyslog=1
         fi
     fi
@@ -635,18 +640,6 @@ kill_xtrabackup()
     rm -f "$XTRABACKUP_PID" || true
 }
 
-setup_ports()
-{
-    if [[ "$WSREP_SST_OPT_ROLE"  == "donor" ]];then
-        SST_PORT=$WSREP_SST_OPT_PORT
-        REMOTEIP=$WSREP_SST_OPT_HOST
-        lsn=$(echo $WSREP_SST_OPT_PATH | awk -F '[/]' '{ print $2 }')
-        sst_ver=$(echo $WSREP_SST_OPT_PATH | awk -F '[/]' '{ print $3 }')
-    else
-        SST_PORT=$WSREP_SST_OPT_PORT
-    fi
-}
-
 # waits ~1 minute for nc/socat to open the port and then reports ready
 # (regardless of timeout)
 wait_for_listen()
@@ -654,22 +647,24 @@ wait_for_listen()
     local HOST=$1
     local PORT=$2
     local MODULE=$3
+    local LSOF_OUT
 
     for i in {1..300}
     do
-        ss -p state listening "( sport = :$PORT )" | grep -qE 'socat|nc' && break
+        LSOF_OUT=$(lsof -sTCP:LISTEN -i TCP:${PORT} -a -c nc -c socat -F c 2> /dev/null || :)
+        [ -n "${LSOF_OUT}" ] && break
         sleep 0.2
     done
 
-    echo "ready ${HOST}:${PORT}/${MODULE}//$sst_ver"
+    echo "ready ${HOST}:${PORT}/${MODULE}//${WSREP_SST_OPT_SST_VER:-1}"
 }
 
 check_extra()
 {
     local use_socket=1
     if [[ $uextra -eq 1 ]];then 
-        if $MY_PRINT_DEFAULTS --mysqld | tr '_' '-' | grep -- "--thread-handling=" | grep -q 'pool-of-threads';then 
-            local eport=$($MY_PRINT_DEFAULTS mysqld | tr '_' '-' | grep -- "--extra-port=" | cut -d= -f2)
+        if [ $(parse_cnf --mysqld thread-handling) = 'pool-of-threads'];then
+            local eport=$(parse_cnf --mysqld extra-port)
             if [[ -n $eport ]];then 
                 # Xtrabackup works only locally.
                 # Hence, setting host to 127.0.0.1 unconditionally. 
@@ -705,7 +700,7 @@ recv_joiner()
     pushd ${dir} 1>/dev/null
     set +e
 
-    if [[ $tmt -gt 0 && -x `which timeout` ]];then 
+    if [[ $tmt -gt 0 ]] && command -v timeout >/dev/null;then
         if timeout --help | grep -q -- '-k';then 
             ltcmd="timeout -k $(( tmt+10 )) $tmt $tcmd"
         else 
@@ -800,11 +795,29 @@ check_for_version()
     fi
 }
 
+monitor_process()
+{
+    local sst_stream_pid=$1
 
-if [[ ! -x `which $INNOBACKUPEX_BIN` ]];then 
-    wsrep_log_error "innobackupex not in path: $PATH"
-    exit 2
-fi
+    while true ; do
+
+        if ! ps --pid "${WSREP_SST_OPT_PARENT}" &>/dev/null; then
+            wsrep_log_error "Parent mysqld process (PID:${WSREP_SST_OPT_PARENT}) terminated unexpectedly." 
+            kill -- -"${WSREP_SST_OPT_PARENT}"
+            exit 32
+        fi
+
+        if ! ps --pid "${sst_stream_pid}" &>/dev/null; then 
+            break
+        fi
+
+        sleep 0.1
+
+    done
+}
+
+
+wsrep_check_programs "$INNOBACKUPEX_BIN"
 
 # check the version, we require XB-2.4 to ensure that we can pass the
 # datadir via the command-line option
@@ -830,7 +843,6 @@ if [[ ! ${WSREP_SST_OPT_ROLE} == 'joiner' && ! ${WSREP_SST_OPT_ROLE} == 'donor' 
 fi
 
 read_cnf
-setup_ports
 
 if ${INNOBACKUPEX_BIN} /tmp --help 2>/dev/null | grep -q -- '--version-check'; then 
     disver="--no-version-check"
@@ -846,7 +858,7 @@ INNOEXTRA=""
 
 if [[ $ssyslog -eq 1 ]];then 
 
-    if [[ ! -x `which logger` ]];then 
+    if ! command -v logger >/dev/null;then
         wsrep_log_error "logger not in path: $PATH. Ignoring"
     else
 
@@ -864,19 +876,47 @@ if [[ $ssyslog -eq 1 ]];then
             logger  -p daemon.info -t ${ssystag}wsrep-sst-$WSREP_SST_OPT_ROLE "$@" 
         }
 
-        INNOAPPLY="${INNOBACKUPEX_BIN} $disver $iapts --apply-log \$rebuildcmd \${DATA} 2>&1  | logger -p daemon.err -t ${ssystag}innobackupex-apply "
-        INNOMOVE="${INNOBACKUPEX_BIN} ${WSREP_SST_OPT_DEFAULT} $disver $impts --datadir=${DATA} --move-back --force-non-empty-directories \${DATA} 2>&1 | logger -p daemon.err -t ${ssystag}innobackupex-move "
-        INNOBACKUP="${INNOBACKUPEX_BIN} ${WSREP_SST_OPT_DEFAULT} $disver $iopts \$tmpopts \$INNOEXTRA --galera-info --stream=\$sfmt \$itmpdir 2> >(logger -p daemon.err -t ${ssystag}innobackupex-backup)"
+        INNOAPPLY="2>&1  | logger -p daemon.err -t ${ssystag}innobackupex-apply "
+        INNOMOVE="2>&1 | logger -p daemon.err -t ${ssystag}innobackupex-move "
+        INNOBACKUP="2> >(logger -p daemon.err -t ${ssystag}innobackupex-backup)"
     fi
 
 else 
-    INNOAPPLY="${INNOBACKUPEX_BIN} $disver $iapts --apply-log \$rebuildcmd \${DATA} &>\${DATA}/innobackup.prepare.log"
-    INNOMOVE="${INNOBACKUPEX_BIN} ${WSREP_SST_OPT_DEFAULT} --defaults-group=mysqld${WSREP_SST_OPT_CONF_SUFFIX} $disver $impts --datadir=${DATA} --move-back --force-non-empty-directories \${DATA} &>\${DATA}/innobackup.move.log"
-    INNOBACKUP="${INNOBACKUPEX_BIN} ${WSREP_SST_OPT_DEFAULT} $disver $iopts \$tmpopts \$INNOEXTRA --galera-info --stream=\$sfmt \$itmpdir 2>\${DATA}/innobackup.backup.log"
+    INNOAPPLY="&>\${DATA}/innobackup.prepare.log"
+    INNOMOVE="&>\${DATA}/innobackup.move.log"
+    INNOBACKUP="2>\${DATA}/innobackup.backup.log"
 fi
 
 get_stream
 get_transfer
+
+INNODB_DATA_HOME_DIR=${INNODB_DATA_HOME_DIR:-""}
+# Try to set INNODB_DATA_HOME_DIR from the command line:
+if [ ! -z "$INNODB_DATA_HOME_DIR_ARG" ]; then
+    INNODB_DATA_HOME_DIR=$INNODB_DATA_HOME_DIR_ARG
+fi
+# if INNODB_DATA_HOME_DIR env. variable is not set, try to get it from my.cnf
+if [ -z "$INNODB_DATA_HOME_DIR" ]; then
+    INNODB_DATA_HOME_DIR=$(parse_cnf mysqld$WSREP_SST_OPT_SUFFIX_VALUE innodb-data-home-dir '')
+fi
+if [ -z "$INNODB_DATA_HOME_DIR" ]; then
+    INNODB_DATA_HOME_DIR=$(parse_cnf --mysqld innodb-data-home-dir "")
+fi
+if [ ! -z "$INNODB_DATA_HOME_DIR" ]; then
+   INNOEXTRA+=" --innodb-data-home-dir=$INNODB_DATA_HOME_DIR"
+fi
+
+if [ -n "$INNODB_DATA_HOME_DIR" ]; then
+    # handle both relative and absolute paths
+    INNODB_DATA_HOME_DIR=$(cd $DATA; mkdir -p "$INNODB_DATA_HOME_DIR"; cd $INNODB_DATA_HOME_DIR; pwd -P)
+else
+    # default to datadir
+    INNODB_DATA_HOME_DIR=$(cd $DATA; pwd -P)
+fi
+
+INNOAPPLY="${INNOBACKUPEX_BIN} $disver $iapts \$INNOEXTRA --apply-log \$rebuildcmd \${DATA} ${INNOAPPLY}"
+INNOMOVE="${INNOBACKUPEX_BIN} ${WSREP_SST_OPT_CONF} $disver $impts  --move-back --force-non-empty-directories \${DATA} ${INNOMOVE}"
+INNOBACKUP="${INNOBACKUPEX_BIN} ${WSREP_SST_OPT_CONF} $disver $iopts \$tmpopts \$INNOEXTRA --galera-info --stream=\$sfmt \$itmpdir ${INNOBACKUP}"
 
 if [ "$WSREP_SST_OPT_ROLE" = "donor" ]
 then
@@ -885,13 +925,13 @@ then
     if [ $WSREP_SST_OPT_BYPASS -eq 0 ]
     then
         usrst=0
-        if [[ -z $sst_ver ]];then 
+        if [[ -z $WSREP_SST_OPT_SST_VER ]];then
             wsrep_log_error "Upgrade joiner to 5.6.21 or higher for backup locks support"
             wsrep_log_error "The joiner is not supported for this version of donor"
             exit 93
         fi
 
-        if [[ -z $(parse_cnf mysqld tmpdir "") && -z $(parse_cnf xtrabackup tmpdir "") ]];then 
+        if [[ -z $(parse_cnf --mysqld tmpdir "") && -z $(parse_cnf xtrabackup tmpdir "") ]];then 
             xtmpdir=$(mktemp -d)
             tmpopts=" --tmpdir=$xtmpdir "
             wsrep_log_info "Using $xtmpdir as xtrabackup temporary directory"
@@ -948,7 +988,7 @@ then
         wsrep_log_info "Sleeping before data transfer for SST"
         sleep 10
 
-        wsrep_log_info "Streaming the backup to joiner at ${REMOTEIP} ${SST_PORT:-4444}"
+        wsrep_log_info "Streaming the backup to joiner at ${WSREP_SST_OPT_HOST} ${WSREP_SST_OPT_PORT:-4444}"
 
         # Add compression to the head of the stream (if specified)
         if [[ -n $scomp ]]; then
@@ -1010,9 +1050,9 @@ then
     [[ -e $SST_PROGRESS_FILE ]] && wsrep_log_info "Stale sst_in_progress file: $SST_PROGRESS_FILE"
     [[ -n $SST_PROGRESS_FILE ]] && touch $SST_PROGRESS_FILE
 
-    ib_home_dir=$(parse_cnf mysqld innodb-data-home-dir "")
-    ib_log_dir=$(parse_cnf mysqld innodb-log-group-home-dir "")
-    ib_undo_dir=$(parse_cnf mysqld innodb-undo-directory "")
+    ib_home_dir=$INNODB_DATA_HOME_DIR
+    ib_log_dir=$(parse_cnf --mysqld innodb-log-group-home-dir "")
+    ib_undo_dir=$(parse_cnf --mysqld innodb-undo-directory "")
 
     stagemsg="Joiner-Recv"
 
@@ -1072,9 +1112,13 @@ then
 
 
         wsrep_log_info "Cleaning the existing datadir and innodb-data/log directories"
-        find $ib_home_dir $ib_log_dir $ib_undo_dir $DATA -mindepth 1 -prune -regex $cpat -o -exec rm -rfv {} 1>&2 \+
+        if [ "${OS}" = "FreeBSD" ]; then
+            find -E $ib_home_dir $ib_log_dir $ib_undo_dir $DATA -mindepth 1 -prune -regex $cpat -o -exec rm -rfv {} 1>&2 \+
+        else
+            find $ib_home_dir $ib_log_dir $ib_undo_dir $DATA -mindepth 1 -prune -regex $cpat -o -exec rm -rfv {} 1>&2 \+
+        fi
 
-        tempdir=$(parse_cnf mysqld log-bin "")
+        tempdir=$(parse_cnf --mysqld log-bin "")
         if [[ -n ${tempdir:-} ]];then
             binlog_dir=$(dirname $tempdir)
             binlog_file=$(basename $tempdir)
@@ -1094,7 +1138,7 @@ then
 
         MAGIC_FILE="${DATA}/${INFO_FILE}"
         wsrep_log_info "Waiting for SST streaming to complete!"
-        wait $jpid
+        monitor_process $jpid
 
         get_proc
 
@@ -1119,7 +1163,7 @@ then
 
             wsrep_log_info "Compressed qpress files found"
 
-            if [[ ! -x `which qpress` ]];then 
+            if ! command -v qpress >/dev/null;then
                 wsrep_log_error "qpress not found in path: $PATH"
                 exit 22
             fi

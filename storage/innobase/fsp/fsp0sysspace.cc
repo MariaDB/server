@@ -50,14 +50,6 @@ SysTablespace srv_tmp_space;
 at a time. We have to make this public because it is a config variable. */
 ulong sys_tablespace_auto_extend_increment;
 
-#ifdef UNIV_DEBUG
-/** Control if extra debug checks need to be done for temporary tablespace.
-Default = true that is disable such checks.
-This variable is not exposed to end-user but still kept as variable for
-developer to enable it during debug. */
-bool srv_skip_temp_table_checks_debug = true;
-#endif /* UNIV_DEBUG */
-
 /** Convert a numeric string that optionally ends in G or M or K,
     to a number containing megabytes.
 @param[in]	str	String with a quantity in bytes
@@ -361,7 +353,7 @@ SysTablespace::check_size(
 	So we need to round the size downward to a  megabyte.*/
 
 	const ulint	rounded_size_pages = static_cast<ulint>(
-		size >> UNIV_PAGE_SIZE_SHIFT);
+		size >> srv_page_size_shift);
 
 	/* If last file */
 	if (&file == &m_files.back() && m_auto_extend_last_file) {
@@ -405,16 +397,16 @@ SysTablespace::set_size(
 
 	/* We created the data file and now write it full of zeros */
 	ib::info() << "Setting file '" << file.filepath() << "' size to "
-		<< (file.m_size >> (20 - UNIV_PAGE_SIZE_SHIFT)) << " MB."
+		<< (file.m_size >> (20U - srv_page_size_shift)) << " MB."
 		" Physically writing the file full; Please wait ...";
 
 	bool	success = os_file_set_size(
 		file.m_filepath, file.m_handle,
-		static_cast<os_offset_t>(file.m_size) << UNIV_PAGE_SIZE_SHIFT);
+		static_cast<os_offset_t>(file.m_size) << srv_page_size_shift);
 
 	if (success) {
 		ib::info() << "File '" << file.filepath() << "' size is now "
-			<< (file.m_size >> (20 - UNIV_PAGE_SIZE_SHIFT))
+			<< (file.m_size >> (20U - srv_page_size_shift))
 			<< " MB.";
 	} else {
 		ib::error() << "Could not set the file size of '"
@@ -567,8 +559,9 @@ SysTablespace::read_lsn_and_check_flags(lsn_t* flushed_lsn)
 
 	ut_a(it->order() == 0);
 
-
-	buf_dblwr_init_or_load_pages(it->handle(), it->filepath());
+	if (srv_operation == SRV_OPERATION_NORMAL) {
+		buf_dblwr_init_or_load_pages(it->handle(), it->filepath());
+	}
 
 	/* Check the contents of the first page of the
 	first datafile. */
@@ -773,11 +766,10 @@ SysTablespace::check_file_spec(
 	}
 
 	if (!m_auto_extend_last_file
-	    && get_sum_of_sizes() < min_expected_size / UNIV_PAGE_SIZE) {
-
+	    && get_sum_of_sizes()
+	    < (min_expected_size >> srv_page_size_shift)) {
 		ib::error() << "Tablespace size must be at least "
-			<< min_expected_size / (1024 * 1024) << " MB";
-
+			<< (min_expected_size >> 20) << " MB";
 		return(DB_ERROR);
 	}
 
@@ -911,15 +903,19 @@ SysTablespace::open_or_create(
 		it->close();
 		it->m_exists = true;
 
-		if (it == begin) {
-			/* First data file. */
-
-			/* Create the tablespace entry for the multi-file
-			tablespace in the tablespace manager. */
-			space = fil_space_create(
-				name(), space_id(), flags(), is_temp
-				? FIL_TYPE_TEMPORARY : FIL_TYPE_TABLESPACE,
-				NULL);
+		if (it != begin) {
+		} else if (is_temp) {
+			ut_ad(!fil_system.temp_space);
+			ut_ad(space_id() == SRV_TMP_SPACE_ID);
+			space = fil_system.temp_space = fil_space_create(
+				name(), SRV_TMP_SPACE_ID, flags(),
+				FIL_TYPE_TEMPORARY, NULL);
+		} else {
+			ut_ad(!fil_system.sys_space);
+			ut_ad(space_id() == TRX_SYS_SPACE);
+			space = fil_system.sys_space = fil_space_create(
+				name(), TRX_SYS_SPACE, flags(),
+				FIL_TYPE_TABLESPACE, NULL);
 		}
 
 		ut_a(fil_validate());
@@ -946,16 +942,16 @@ SysTablespace::open_or_create(
 
 /** Normalize the file size, convert from megabytes to number of pages. */
 void
-SysTablespace::normalize()
+SysTablespace::normalize_size()
 {
 	files_t::iterator	end = m_files.end();
 
 	for (files_t::iterator it = m_files.begin(); it != end; ++it) {
 
-		it->m_size *= (1024 * 1024) / UNIV_PAGE_SIZE;
+		it->m_size <<= (20U - srv_page_size_shift);
 	}
 
-	m_last_file_size_max *= (1024 * 1024) / UNIV_PAGE_SIZE;
+	m_last_file_size_max <<= (20U - srv_page_size_shift);
 }
 
 

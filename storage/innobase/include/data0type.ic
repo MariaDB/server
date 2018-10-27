@@ -1,7 +1,7 @@
 /*****************************************************************************
 
 Copyright (c) 1996, 2014, Oracle and/or its affiliates. All Rights Reserved.
-Copyright (c) 2017, MariaDB Corporation.
+Copyright (c) 2017, 2018, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -43,9 +43,9 @@ dtype_get_charset_coll(
 Determines if a MySQL string type is a subset of UTF-8.  This function
 may return false negatives, in case further character-set collation
 codes are introduced in MySQL later.
-@return TRUE if a subset of UTF-8 */
+@return whether a subset of UTF-8 */
 UNIV_INLINE
-ibool
+bool
 dtype_is_utf8(
 /*==========*/
 	ulint	prtype)	/*!< in: precise data type */
@@ -58,10 +58,10 @@ dtype_is_utf8(
 	case 33: /* utf8_general_ci */
 	case 83: /* utf8_bin */
 	case 254: /* utf8_general_cs */
-			return(TRUE);
+		return true;
 	}
 
-	return(FALSE);
+	return false;
 }
 
 /*********************************************************************//**
@@ -101,27 +101,6 @@ dtype_get_mblen(
 }
 
 /*********************************************************************//**
-Sets the minimum and maximum length of a character, in bytes. */
-UNIV_INLINE
-void
-dtype_set_mbminmaxlen(
-/*==================*/
-	dtype_t*	type,		/*!< in/out: type */
-	ulint		mbminlen,	/*!< in: minimum length of a char,
-					in bytes, or 0 if this is not
-					a character type */
-	ulint		mbmaxlen)	/*!< in: maximum length of a char,
-					in bytes, or 0 if this is not
-					a character type */
-{
-	ut_ad(mbminlen < DATA_MBMAX);
-	ut_ad(mbmaxlen < DATA_MBMAX);
-	ut_ad(mbminlen <= mbmaxlen);
-
-	type->mbminmaxlen = DATA_MBMINMAXLEN(mbminlen, mbmaxlen);
-}
-
-/*********************************************************************//**
 Compute the mbminlen and mbmaxlen members of a data type structure. */
 UNIV_INLINE
 void
@@ -133,7 +112,8 @@ dtype_set_mblen(
 	ulint	mbmaxlen;
 
 	dtype_get_mblen(type->mtype, type->prtype, &mbminlen, &mbmaxlen);
-	dtype_set_mbminmaxlen(type, mbminlen, mbmaxlen);
+	type->mbminlen = mbminlen;
+	type->mbmaxlen = mbmaxlen;
 
 	ut_ad(dtype_validate(type));
 }
@@ -225,8 +205,7 @@ dtype_get_mbminlen(
 /*===============*/
 	const dtype_t*	type)	/*!< in: type */
 {
-	ut_ad(type);
-	return(DATA_MBMINLEN(type->mbminmaxlen));
+	return type->mbminlen;
 }
 /*********************************************************************//**
 Gets the maximum length of a character, in bytes.
@@ -238,8 +217,7 @@ dtype_get_mbmaxlen(
 /*===============*/
 	const dtype_t*	type)	/*!< in: type */
 {
-	ut_ad(type);
-	return(DATA_MBMAXLEN(type->mbminmaxlen));
+	return type->mbmaxlen;
 }
 
 /**********************************************************************//**
@@ -257,9 +235,8 @@ dtype_new_store_for_order_and_null_size(
 	ulint		prefix_len)/*!< in: prefix length to
 				replace type->len, or 0 */
 {
-#if 6 != DATA_NEW_ORDER_NULL_TYPE_BUF_SIZE
-#error "6 != DATA_NEW_ORDER_NULL_TYPE_BUF_SIZE"
-#endif
+	compile_time_assert(6 == DATA_NEW_ORDER_NULL_TYPE_BUF_SIZE);
+
 	ulint	len;
 
 	ut_ad(type);
@@ -302,10 +279,7 @@ dtype_read_for_order_and_null_size(
 	dtype_t*	type,	/*!< in: type struct */
 	const byte*	buf)	/*!< in: buffer for stored type order info */
 {
-#if 4 != DATA_ORDER_NULL_TYPE_BUF_SIZE
-# error "4 != DATA_ORDER_NULL_TYPE_BUF_SIZE"
-#endif
-
+	compile_time_assert(4 == DATA_ORDER_NULL_TYPE_BUF_SIZE);
 	type->mtype = buf[0] & 63;
 	type->prtype = buf[1];
 
@@ -331,11 +305,7 @@ dtype_new_read_for_order_and_null_size(
 	dtype_t*	type,	/*!< in: type struct */
 	const byte*	buf)	/*!< in: buffer for stored type order info */
 {
-	ulint	charset_coll;
-
-#if 6 != DATA_NEW_ORDER_NULL_TYPE_BUF_SIZE
-#error "6 != DATA_NEW_ORDER_NULL_TYPE_BUF_SIZE"
-#endif
+	compile_time_assert(6 == DATA_NEW_ORDER_NULL_TYPE_BUF_SIZE);
 
 	type->mtype = buf[0] & 63;
 	type->prtype = buf[1];
@@ -350,7 +320,7 @@ dtype_new_read_for_order_and_null_size(
 
 	type->len = mach_read_from_2(buf + 2);
 
-	charset_coll = mach_read_from_2(buf + 4) & CHAR_COLL_MASK;
+	ulint charset_coll = mach_read_from_2(buf + 4) & CHAR_COLL_MASK;
 
 	if (dtype_is_string_type(type->mtype)) {
 		ut_a(charset_coll <= MAX_CHAR_COLL_NUM);
@@ -477,8 +447,10 @@ dtype_get_fixed_size_low(
 	ulint	mtype,		/*!< in: main type */
 	ulint	prtype,		/*!< in: precise type */
 	ulint	len,		/*!< in: length */
-	ulint	mbminmaxlen,	/*!< in: minimum and maximum length of
-				a multibyte character, in bytes */
+	ulint	mbminlen,	/*!< in: minimum length of a
+				multibyte character, in bytes */
+	ulint	mbmaxlen,	/*!< in: maximum length of a
+				multibyte character, in bytes */
 	ulint	comp)		/*!< in: nonzero=ROW_FORMAT=COMPACT  */
 {
 	switch (mtype) {
@@ -499,6 +471,7 @@ dtype_get_fixed_size_low(
 			return(0);
 		}
 #endif /* UNIV_DEBUG */
+		/* fall through */
 	case DATA_CHAR:
 	case DATA_FIXBINARY:
 	case DATA_INT:
@@ -518,11 +491,10 @@ dtype_get_fixed_size_low(
 				dtype_get_charset_coll(prtype),
 				&i_mbminlen, &i_mbmaxlen);
 
-			ut_ad(DATA_MBMINMAXLEN(i_mbminlen, i_mbmaxlen)
-			      == mbminmaxlen);
+			ut_ad(i_mbminlen == mbminlen);
+			ut_ad(i_mbmaxlen == mbmaxlen);
 #endif /* UNIV_DEBUG */
-			if (DATA_MBMINLEN(mbminmaxlen)
-			    == DATA_MBMAXLEN(mbminmaxlen)) {
+			if (mbminlen == mbmaxlen) {
 				return(len);
 			}
 		}
@@ -552,8 +524,8 @@ dtype_get_min_size_low(
 	ulint	mtype,		/*!< in: main type */
 	ulint	prtype,		/*!< in: precise type */
 	ulint	len,		/*!< in: length */
-	ulint	mbminmaxlen)	/*!< in: minimum and maximum length of a
-				multi-byte character */
+	ulint	mbminlen,	/*!< in: minimum length of a character */
+	ulint	mbmaxlen)	/*!< in: maximum length of a character */
 {
 	switch (mtype) {
 	case DATA_SYS:
@@ -573,6 +545,7 @@ dtype_get_min_size_low(
 			return(0);
 		}
 #endif /* UNIV_DEBUG */
+		/* fall through */
 	case DATA_CHAR:
 	case DATA_FIXBINARY:
 	case DATA_INT:
@@ -583,9 +556,6 @@ dtype_get_min_size_low(
 		if (prtype & DATA_BINARY_TYPE) {
 			return(len);
 		} else {
-			ulint	mbminlen = DATA_MBMINLEN(mbminmaxlen);
-			ulint	mbmaxlen = DATA_MBMAXLEN(mbminmaxlen);
-
 			if (mbminlen == mbmaxlen) {
 				return(len);
 			}
@@ -656,5 +626,5 @@ dtype_get_sql_null_size(
 	ulint		comp)	/*!< in: nonzero=ROW_FORMAT=COMPACT  */
 {
 	return(dtype_get_fixed_size_low(type->mtype, type->prtype, type->len,
-					type->mbminmaxlen, comp));
+					type->mbminlen, type->mbmaxlen, comp));
 }

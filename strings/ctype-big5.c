@@ -15,7 +15,7 @@
    Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1301  USA */
 
 /*
- * This file is basicly usa7 character sets with some extra functions
+ * This file is basically usa7 character sets with some extra functions
  * for big5 handling
 */
 

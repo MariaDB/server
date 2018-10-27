@@ -184,7 +184,12 @@ public:
     list= &a;
     current= a.m_first;
   }
-  /* Operator for it++ */
+  /**
+    Operator for it++
+
+    @note since we save next element pointer, caller may remove current element.
+    Such modification doesn't invalidate iterator.
+  */
   inline T* operator++(int)
   {
     T *result= current;
@@ -230,7 +235,7 @@ protected:
   void reset() {}
   void inc() {}
   void dec() {}
-  void swap(I_P_List_null_counter &rhs) {}
+  void swap(I_P_List_null_counter &) {}
 };
 
 
@@ -262,14 +267,14 @@ public:
 template <typename T> class I_P_List_no_push_back
 {
 protected:
-  I_P_List_no_push_back(T **a) {};
-  void set_last(T **a) {}
+  I_P_List_no_push_back(T **) {}
+  void set_last(T **) {}
   /*
     T** get_last() const method is intentionally left unimplemented
     in order to prohibit usage of push_back() method in lists which
     use this policy.
   */
-  void swap(I_P_List_no_push_back<T> &rhs) {}
+  void swap(I_P_List_no_push_back<T> &) {}
 };
 
 

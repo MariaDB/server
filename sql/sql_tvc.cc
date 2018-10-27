@@ -221,6 +221,12 @@ bool table_value_constr::prepare(THD *thd, SELECT_LEX *sl,
   uint cnt= first_elem->elements;
   Type_holder *holders;
   
+  if (cnt == 0)
+  {
+    my_error(ER_EMPTY_ROW_IN_TVC, MYF(0));
+    DBUG_RETURN(true);
+  }
+
   if (fix_fields_for_tvc(thd, li))
     DBUG_RETURN(true);
 
@@ -249,7 +255,7 @@ bool table_value_constr::prepare(THD *thd, SELECT_LEX *sl,
     sl->item_list.push_back(new_holder);
   }
   
-  if (thd->is_fatal_error)
+  if (unlikely(thd->is_fatal_error))
     DBUG_RETURN(true); // out of memory
     
   result= tmp_result;
@@ -464,6 +470,7 @@ bool Item_func_in::create_value_list_for_tvc(THD *thd,
 
   for (uint i=1; i < arg_count; i++)
   {
+    char col_name[8];
     List<Item> *tvc_value;
     if (!(tvc_value= new (thd->mem_root) List<Item>()))
       return true;
@@ -474,13 +481,27 @@ bool Item_func_in::create_value_list_for_tvc(THD *thd,
 
       for (uint j=0; j < row_list->cols(); j++)
       {
+        if (i == 1)
+	{
+          sprintf(col_name, "_col_%i", j+1);
+          row_list->element_index(j)->set_name(thd, col_name, strlen(col_name),
+                                               thd->charset());
+        }
 	if (tvc_value->push_back(row_list->element_index(j),
 				 thd->mem_root))
 	  return true;
       }
     }
-    else if (tvc_value->push_back(args[i]))
-      return true;
+    else
+    {
+      if (i == 1)
+      {
+        sprintf(col_name, "_col_%i", 1);
+        args[i]->set_name(thd, col_name, strlen(col_name), thd->charset());
+      }
+      if (tvc_value->push_back(args[i]->real_item()))
+        return true;
+    }
 
     if (values->push_back(tvc_value, thd->mem_root))
       return true;

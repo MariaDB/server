@@ -176,7 +176,6 @@ enum extra2_frm_value_type {
   EXTRA2_DEFAULT_PART_ENGINE=1,
   EXTRA2_GIS=2,
   EXTRA2_PERIOD_FOR_SYSTEM_TIME=4,
-  EXTRA2_VTMD=8,
 
 #define EXTRA2_ENGINE_IMPORTANT 128
 
@@ -185,8 +184,7 @@ enum extra2_frm_value_type {
 };
 
 enum extra2_field_flags {
-  VERS_OPTIMIZED_UPDATE= 1 << INVISIBLE_MAX_BITS,
-  VERS_HIDDEN= 1 << (INVISIBLE_MAX_BITS + 1),
+  VERS_OPTIMIZED_UPDATE= 1 << INVISIBLE_MAX_BITS
 };
 
 int rea_create_table(THD *thd, LEX_CUSTRING *frm,

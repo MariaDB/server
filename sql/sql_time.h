@@ -139,9 +139,11 @@ bool my_TIME_to_str(const MYSQL_TIME *ltime, String *str, uint dec);
 
 /* MYSQL_TIME operations */
 bool date_add_interval(MYSQL_TIME *ltime, interval_type int_type,
-                       INTERVAL interval);
+                       const INTERVAL &interval);
 bool calc_time_diff(const MYSQL_TIME *l_time1, const MYSQL_TIME *l_time2,
                     int l_sign, longlong *seconds_out, long *microseconds_out);
+int append_interval(String *str, interval_type int_type,
+                    const INTERVAL &interval);
 /**
   Calculate time difference between two MYSQL_TIME values and
   store the result as an out MYSQL_TIME value in MYSQL_TIMESTAMP_TIME format.
@@ -230,5 +232,9 @@ bool check_date_with_warn(const MYSQL_TIME *ltime, ulonglong fuzzy_date,
 bool make_date_with_warn(MYSQL_TIME *ltime,
                          ulonglong fuzzy_date, timestamp_type ts_type);
 bool adjust_time_range_with_warn(MYSQL_TIME *ltime, uint dec);
+
+longlong pack_time(const MYSQL_TIME *my_time);
+void unpack_time(longlong packed, MYSQL_TIME *my_time,
+                 enum_mysql_timestamp_type ts_type);
 
 #endif /* SQL_TIME_INCLUDED */

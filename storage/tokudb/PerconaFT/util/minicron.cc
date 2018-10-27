@@ -43,8 +43,11 @@ Copyright (c) 2006, 2015, Percona and/or its affiliates. All rights reserved.
 #include "portability/toku_assert.h"
 #include "util/minicron.h"
 
-static void
-toku_gettime (toku_timespec_t *a) {
+toku_instr_key *minicron_p_mutex_key;
+toku_instr_key *minicron_p_condvar_key;
+toku_instr_key *minicron_thread_key;
+
+static void toku_gettime(toku_timespec_t *a) {
     struct timeval tv;
     gettimeofday(&tv, 0);
     a->tv_sec  = tv.tv_sec;
@@ -74,15 +77,17 @@ minicron_do (void *pv)
     while (1) {
         if (p->do_shutdown) {
             toku_mutex_unlock(&p->mutex);
-            return 0;
+            toku_instr_delete_current_thread();
+            return toku_pthread_done(nullptr);
         }
         if (p->period_in_ms == 0) {
             // if we aren't supposed to do it then just do an untimed wait.
             toku_cond_wait(&p->condvar, &p->mutex);
         } 
         else if (p->period_in_ms <= 1000) {
+            uint32_t period_in_ms = p->period_in_ms;
             toku_mutex_unlock(&p->mutex);
-            usleep(p->period_in_ms * 1000);
+            usleep(period_in_ms * 1000);
             toku_mutex_lock(&p->mutex);
         }
         else {
@@ -104,7 +109,8 @@ minicron_do (void *pv)
         // Now we woke up, and we should figure out what to do
         if (p->do_shutdown) {
             toku_mutex_unlock(&p->mutex);
-            return 0;
+            toku_instr_delete_current_thread();
+            return toku_pthread_done(nullptr);
         }
         if (p->period_in_ms > 1000) {
             toku_timespec_t now;
@@ -137,17 +143,17 @@ toku_minicron_setup(struct minicron *p, uint32_t period_in_ms, int(*f)(void *), 
     p->f = f;
     p->arg = arg;
     toku_gettime(&p->time_of_last_call_to_f);
-    //printf("now=%.6f", p->time_of_last_call_to_f.tv_sec + p->time_of_last_call_to_f.tv_nsec*1e-9);
-    p->period_in_ms = period_in_ms; 
+    // printf("now=%.6f", p->time_of_last_call_to_f.tv_sec +
+    // p->time_of_last_call_to_f.tv_nsec*1e-9);
+    p->period_in_ms = period_in_ms;
     p->do_shutdown = false;
-    toku_mutex_init(&p->mutex, 0);
-    toku_cond_init (&p->condvar, 0);
-    return toku_pthread_create(&p->thread, 0, minicron_do, p);
+    toku_mutex_init(*minicron_p_mutex_key, &p->mutex, nullptr);
+    toku_cond_init(*minicron_p_condvar_key, &p->condvar, nullptr);
+    return toku_pthread_create(
+        *minicron_thread_key, &p->thread, nullptr, minicron_do, p);
 }
-    
-void
-toku_minicron_change_period(struct minicron *p, uint32_t new_period)
-{
+
+void toku_minicron_change_period(struct minicron *p, uint32_t new_period) {
     toku_mutex_lock(&p->mutex);
     p->period_in_ms = new_period;
     toku_cond_signal(&p->condvar);

@@ -1,7 +1,7 @@
 /*****************************************************************************
 
 Copyright (c) 1995, 2016, Oracle and/or its affiliates. All Rights Reserved.
-Copyright (c) 2013, 2017, MariaDB Corporation.
+Copyright (c) 2013, 2018, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -45,8 +45,8 @@ Created 12/18/1995 Heikki Tuuri
 
 /** @return the PAGE_SSIZE flags for the current innodb_page_size */
 #define FSP_FLAGS_PAGE_SSIZE()						\
-	((UNIV_PAGE_SIZE == UNIV_PAGE_SIZE_ORIG) ?			\
-	 0 : (UNIV_PAGE_SIZE_SHIFT - UNIV_ZIP_SIZE_SHIFT_MIN + 1)	\
+	((srv_page_size == UNIV_PAGE_SIZE_ORIG) ?			\
+	 0U : (srv_page_size_shift - UNIV_ZIP_SIZE_SHIFT_MIN + 1)	\
 	 << FSP_FLAGS_POS_PAGE_SSIZE)
 
 /* @defgroup Compatibility macros for MariaDB 10.1.0 through 10.1.20;
@@ -294,22 +294,6 @@ the extent are free and which contain old tuple version to clean. */
 #ifndef UNIV_INNOCHECKSUM
 /* @} */
 
-/**********************************************************************//**
-Initializes the file space system. */
-void
-fsp_init(void);
-/*==========*/
-
-/**********************************************************************//**
-Gets the size of the system tablespace from the tablespace header.  If
-we do not have an auto-extending data file, this should be equal to
-the size of the data files.  If there is an auto-extending data file,
-this can be smaller.
-@return size in pages */
-ulint
-fsp_header_get_tablespace_size(void);
-/*================================*/
-
 /** Calculate the number of pages to extend a datafile.
 We extend single-table tablespaces first one extent at a time,
 but 4 at a time for bigger tablespaces. It is not enough to extend always
@@ -334,7 +318,7 @@ UNIV_INLINE
 ulint
 fsp_get_extent_size_in_pages(const page_size_t&	page_size)
 {
-	return(FSP_EXTENT_SIZE * UNIV_PAGE_SIZE / page_size.physical());
+	return (FSP_EXTENT_SIZE << srv_page_size_shift) / page_size.physical();
 }
 
 /**********************************************************************//**
@@ -397,56 +381,33 @@ fsp_header_init_fields(
 	ulint	flags);		/*!< in: tablespace flags (FSP_SPACE_FLAGS):
 				0, or table->flags if newer than COMPACT */
 /** Initialize a tablespace header.
-@param[in]	space_id	space id
-@param[in]	size		current size in blocks
-@param[in,out]	mtr		mini-transaction */
-void
-fsp_header_init(ulint space_id, ulint size, mtr_t* mtr);
+@param[in,out]	space	tablespace
+@param[in]	size	current size in blocks
+@param[in,out]	mtr	mini-transaction */
+void fsp_header_init(fil_space_t* space, ulint size, mtr_t* mtr)
+	MY_ATTRIBUTE((nonnull));
 
-/**********************************************************************//**
-Increases the space size field of a space. */
-void
-fsp_header_inc_size(
-/*================*/
-	ulint	space_id,	/*!< in: space id */
-	ulint	size_inc,	/*!< in: size increment in pages */
-	mtr_t*	mtr);		/*!< in/out: mini-transaction */
 /**********************************************************************//**
 Creates a new segment.
 @return the block where the segment header is placed, x-latched, NULL
 if could not create segment because of lack of space */
 buf_block_t*
 fseg_create(
-/*========*/
-	ulint	space_id,/*!< in: space id */
+	fil_space_t* space, /*!< in,out: tablespace */
 	ulint	page,	/*!< in: page where the segment header is placed: if
 			this is != 0, the page must belong to another segment,
 			if this is 0, a new page will be allocated and it
 			will belong to the created segment */
 	ulint	byte_offset, /*!< in: byte offset of the created segment header
 			on the page */
-	mtr_t*	mtr);	/*!< in/out: mini-transaction */
-/**********************************************************************//**
-Creates a new segment.
-@return the block where the segment header is placed, x-latched, NULL
-if could not create segment because of lack of space */
-buf_block_t*
-fseg_create_general(
-/*================*/
-	ulint	space_id,/*!< in: space id */
-	ulint	page,	/*!< in: page where the segment header is placed: if
-			this is != 0, the page must belong to another segment,
-			if this is 0, a new page will be allocated and it
-			will belong to the created segment */
-	ulint	byte_offset, /*!< in: byte offset of the created segment header
-			on the page */
-	ibool	has_done_reservation, /*!< in: TRUE if the caller has already
-			done the reservation for the pages with
+	mtr_t*	mtr,
+   	bool	has_done_reservation = false); /*!< in: whether the caller
+			has already done the reservation for the pages with
 			fsp_reserve_free_extents (at least 2 extents: one for
 			the inode and the other for the segment) then there is
 			no need to do the check for this individual
 			operation */
-	mtr_t*	mtr);	/*!< in/out: mini-transaction */
+
 /**********************************************************************//**
 Calculates the number of pages reserved by a segment, and how many pages are
 currently used.
@@ -508,7 +469,7 @@ fseg_alloc_free_page_general(
 use several pages from the tablespace should call this function beforehand
 and reserve enough free extents so that they certainly will be able
 to do their operation, like a B-tree page split, fully. Reservations
-must be released with function fil_space_release_free_extents!
+must be released with function fil_space_t::release_free_extents()!
 
 The alloc_type below has the following meaning: FSP_NORMAL means an
 operation which will probably result in more space usage, like an
@@ -534,7 +495,7 @@ free pages available.
 				return true and the tablespace size is <
 				FSP_EXTENT_SIZE pages, then this can be 0,
 				otherwise it is n_ext
-@param[in]	space_id	tablespace identifier
+@param[in,out]	space		tablespace
 @param[in]	n_ext		number of extents to reserve
 @param[in]	alloc_type	page reservation type (FSP_BLOB, etc)
 @param[in,out]	mtr		the mini transaction
@@ -545,29 +506,11 @@ free pages available.
 bool
 fsp_reserve_free_extents(
 	ulint*		n_reserved,
-	ulint		space_id,
+	fil_space_t*	space,
 	ulint		n_ext,
 	fsp_reserve_t	alloc_type,
 	mtr_t*		mtr,
 	ulint		n_pages = 2);
-
-/** Calculate how many KiB of new data we will be able to insert to the
-tablespace without running out of space.
-@param[in]	space_id	tablespace ID
-@return available space in KiB
-@retval UINTMAX_MAX if unknown */
-uintmax_t
-fsp_get_available_space_in_free_extents(
-	ulint		space_id);
-
-/** Calculate how many KiB of new data we will be able to insert to the
-tablespace without running out of space. Start with a space object that has
-been acquired by the caller who holds it for the calculation,
-@param[in]	space		tablespace object from fil_space_acquire()
-@return available space in KiB */
-uintmax_t
-fsp_get_available_space_in_free_extents(
-	const fil_space_t*	space);
 
 /**********************************************************************//**
 Frees a single page of a segment. */
@@ -743,7 +686,7 @@ fsp_flags_convert_from_101(ulint flags)
 
 	/* Bits 13..16 are the wrong position for PAGE_SSIZE, and they
 	should contain one of the values 3,4,6,7, that is, be of the form
-	0b0011 or 0b01xx (except 0b0110).
+	0b0011 or 0b01xx (except 0b0101).
 	In correct versions, these bits should be 0bc0se
 	where c is the MariaDB COMPRESSED flag
 	and e is the MySQL 5.7 ENCRYPTION flag

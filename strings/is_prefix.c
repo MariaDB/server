@@ -31,7 +31,7 @@
     Defines: is_prefix()
 
     is_prefix(s, t) returns 1 if s starts with t.
-    A empty t is allways a prefix.
+    A empty t is always a prefix.
 */
 
 #include "strings_def.h"

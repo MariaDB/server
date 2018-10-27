@@ -1,5 +1,5 @@
 # Copyright (c) 2006, 2014, Oracle and/or its affiliates.
-# Copyright (c) 2010, 2016, MariaDB Corporation
+# Copyright (c) 2010, 2018, MariaDB Corporation
 # 
 # This program is free software; you can redistribute it and/or modify
 # it under the terms of the GNU General Public License as published by
@@ -45,23 +45,10 @@ ${CMAKE_BINARY_DIR}/sql
 ${WSREP_INCLUDES}
 )
 
-SET(GEN_SOURCES
-${CMAKE_CURRENT_BINARY_DIR}/sql_yacc.h 
-${CMAKE_CURRENT_BINARY_DIR}/sql_yacc.cc
-${CMAKE_CURRENT_BINARY_DIR}/sql_yacc_ora.h
-${CMAKE_CURRENT_BINARY_DIR}/sql_yacc_ora.cc
-${CMAKE_CURRENT_BINARY_DIR}/lex_hash.h
-${CMAKE_CURRENT_BINARY_DIR}/lex_token.h
-)
-
-SET_SOURCE_FILES_PROPERTIES(${GEN_SOURCES}
-                            PROPERTIES GENERATED 1)
 
 
-IF(NOT CMAKE_CROSSCOMPILING)
-  ADD_EXECUTABLE(gen_lex_token gen_lex_token.cc
-    ${CMAKE_CURRENT_BINARY_DIR}/sql_yacc.h)
-ENDIF()
+
+
 
 ADD_CUSTOM_COMMAND(
   OUTPUT ${CMAKE_CURRENT_BINARY_DIR}/lex_token.h
@@ -151,10 +138,12 @@ SET (SQL_SOURCE
                table_cache.cc encryption.cc temporary_tables.cc
                proxy_protocol.cc
                ${CMAKE_CURRENT_BINARY_DIR}/sql_builtin.cc
-               ${GEN_SOURCES}
+               ${CMAKE_CURRENT_BINARY_DIR}/sql_yacc.cc
+               ${CMAKE_CURRENT_BINARY_DIR}/sql_yacc_ora.cc
+               ${CMAKE_CURRENT_BINARY_DIR}/lex_hash.h
+               ${CMAKE_CURRENT_BINARY_DIR}/lex_token.h
                ${MYSYS_LIBWRAP_SOURCE}
-               vtmd.cc
-			   )
+)
   
 IF (CMAKE_SYSTEM_NAME MATCHES "Linux" OR
     CMAKE_SYSTEM_NAME MATCHES "Windows" OR
@@ -174,7 +163,6 @@ MYSQL_ADD_PLUGIN(sql_sequence ha_sequence.cc STORAGE_ENGINE MANDATORY STATIC_ONL
 RECOMPILE_FOR_EMBEDDED)
 
 ADD_LIBRARY(sql STATIC ${SQL_SOURCE})
-ADD_DEPENDENCIES(sql GenServerSource)
 DTRACE_INSTRUMENT(sql)
 TARGET_LINK_LIBRARIES(sql ${MYSQLD_STATIC_PLUGIN_LIBS} 
   mysys mysys_ssl dbug strings vio pcre
@@ -215,9 +203,7 @@ IF(MSVC AND NOT WITHOUT_DYNAMIC_PLUGINS)
   SET(MYSQLD_LIB ${CMAKE_CURRENT_BINARY_DIR}/mysqld_lib.lib)
   SET(MYSQLD_CORELIBS sql mysys dbug strings)
   FOREACH (CORELIB ${MYSQLD_CORELIBS})
-    GET_TARGET_PROPERTY(LOC ${CORELIB} LOCATION)
-    FILE(TO_NATIVE_PATH ${LOC} LOC)
-    SET (LIB_LOCATIONS ${LIB_LOCATIONS} ${LOC})
+    SET (LIB_LOCATIONS ${LIB_LOCATIONS} $<TARGET_FILE:${CORELIB}>)
   ENDFOREACH (CORELIB)
 
   SET(_PLATFORM x86)
@@ -293,7 +279,7 @@ IF(APPLE)
   # Add CoreServices framework since some dloadable plugins may need it 
   FIND_LIBRARY(CORESERVICES NAMES CoreServices) 
   IF(CORESERVICES) 
-    TARGET_LINK_LIBRARIES(mysqld ${CORESERVICES}) 
+    TARGET_LINK_LIBRARIES(mysqld LINK_PRIVATE ${CORESERVICES})
   ENDIF() 
 ENDIF() 
 
@@ -314,13 +300,12 @@ IF(NOT WITHOUT_DYNAMIC_PLUGINS)
   ENDIF()
 ENDIF(NOT WITHOUT_DYNAMIC_PLUGINS)
 
-TARGET_LINK_LIBRARIES(mysqld sql)
+TARGET_LINK_LIBRARIES(mysqld LINK_PRIVATE sql)
 
 # Provide plugins with minimal set of libraries
 SET(INTERFACE_LIBS ${LIBRT})
 IF(INTERFACE_LIBS)
- SET_TARGET_PROPERTIES(mysqld PROPERTIES LINK_INTERFACE_LIBRARIES 
-  "${INTERFACE_LIBS}")
+  TARGET_LINK_LIBRARIES(mysqld LINK_PUBLIC ${INTERFACE_LIBS})
 ENDIF()
 
 # On Solaris, some extra effort is required in order to get dtrace probes
@@ -340,40 +325,48 @@ IF(WITH_MYSQLD_LDFLAGS)
      "${MYSQLD_LINK_FLAGS} ${WITH_MYSQLD_LDFLAGS}")
 ENDIF()
 
-INCLUDE(${CMAKE_SOURCE_DIR}/cmake/bison.cmake)
+
+FIND_PACKAGE(BISON 2.0)
+
 
 # Handle out-of-source build from source package with possibly broken 
 # bison. Copy bison output to from source to build directory, if not already 
 # there
-IF (NOT BISON_USABLE)
-IF (NOT ${CMAKE_CURRENT_SOURCE_DIR} STREQUAL ${CMAKE_CURRENT_BINARY_DIR})
-  IF(EXISTS ${CMAKE_CURRENT_SOURCE_DIR}/sql_yacc.cc)
-    IF(NOT EXISTS ${CMAKE_CURRENT_BINARY_DIR}/sql_yacc.cc)
-      CONFIGURE_FILE(${CMAKE_CURRENT_SOURCE_DIR}/sql_yacc.cc 
-        ${CMAKE_CURRENT_BINARY_DIR}/sql_yacc.cc COPYONLY)
-      CONFIGURE_FILE(${CMAKE_CURRENT_SOURCE_DIR}/sql_yacc.h
-        ${CMAKE_CURRENT_BINARY_DIR}/sql_yacc.h COPYONLY)
+IF (NOT BISON_FOUND)
+  IF (NOT ${CMAKE_CURRENT_SOURCE_DIR} STREQUAL ${CMAKE_CURRENT_BINARY_DIR})
+    FOREACH(file sql_yacc.cc sql_yacc.hh sql_yacc_ora.cc sql_yacc_ora.hh)
+    IF(EXISTS ${CMAKE_CURRENT_SOURCE_DIR}/${file} AND (NOT EXISTS ${CMAKE_CURRENT_BINARY_DIR}/${file}))
+        CONFIGURE_FILE(${CMAKE_CURRENT_SOURCE_DIR}/${file}
+        ${CMAKE_CURRENT_BINARY_DIR}/${file} COPYONLY)
     ENDIF()
+    ENDFOREACH()
   ENDIF()
+
+  IF(NOT EXISTS ${CMAKE_CURRENT_BINARY_DIR}/sql_yacc.cc)
+     # Output files are missing, bail out.
+      SET(ERRMSG
+         "Bison (GNU parser generator) is required to build MySQL."
+         "Please install bison."
+      )
+      IF(WIN32)
+       SET(ERRMSG ${ERRMSG}
+       "You can download bison from http://gnuwin32.sourceforge.net/packages/bison.htm "
+       "Choose 'Complete package, except sources' installation. We recommend to "
+       "install bison into a directory without spaces, e.g C:\\GnuWin32.")
+      ENDIF()
+      MESSAGE(FATAL_ERROR ${ERRMSG})
+  ENDIF()
+ELSE()
+  BISON_TARGET(gen_sql_yacc ${CMAKE_CURRENT_SOURCE_DIR}/sql_yacc.yy ${CMAKE_CURRENT_BINARY_DIR}/sql_yacc.cc
+             COMPILE_FLAGS "-p MYSQL")
+
+  BISON_TARGET(gen_sql_yacc_ora ${CMAKE_CURRENT_SOURCE_DIR}/sql_yacc_ora.yy ${CMAKE_CURRENT_BINARY_DIR}/sql_yacc_ora.cc
+             COMPILE_FLAGS "-p ORA")
 ENDIF()
-ENDIF()
 
-RUN_BISON(
-  ${CMAKE_CURRENT_SOURCE_DIR}/sql_yacc.yy 
-  ${CMAKE_CURRENT_BINARY_DIR}/sql_yacc.cc
-  ${CMAKE_CURRENT_BINARY_DIR}/sql_yacc.h
-  MYSQL
-)
-
-RUN_BISON(
-  ${CMAKE_CURRENT_SOURCE_DIR}/sql_yacc_ora.yy
-  ${CMAKE_CURRENT_BINARY_DIR}/sql_yacc_ora.cc
-  ${CMAKE_CURRENT_BINARY_DIR}/sql_yacc_ora.h
-  ORA
-)
-
-# Gen_lex_hash
 IF(NOT CMAKE_CROSSCOMPILING)
+  ADD_EXECUTABLE(gen_lex_token gen_lex_token.cc
+   ${CMAKE_CURRENT_BINARY_DIR}/sql_yacc.hh)
   ADD_EXECUTABLE(gen_lex_hash gen_lex_hash.cc)
 ENDIF()
 
@@ -389,11 +382,11 @@ TARGET_LINK_LIBRARIES(mysql_tzinfo_to_sql mysys mysys_ssl)
 
 ADD_CUSTOM_TARGET( 
         GenServerSource
-        DEPENDS ${GEN_SOURCES}
+        DEPENDS
+        ${CMAKE_CURRENT_BINARY_DIR}/lex_hash.h
+        ${CMAKE_CURRENT_BINARY_DIR}/lex_token.h
+        ${CMAKE_CURRENT_BINARY_DIR}/sql_yacc_ora.cc
 )
-
-#Need this only for embedded
-SET_TARGET_PROPERTIES(GenServerSource PROPERTIES EXCLUDE_FROM_ALL TRUE)
 
 IF(WIN32 OR HAVE_DLOPEN AND NOT DISABLE_SHARED)
   ADD_LIBRARY(udf_example MODULE udf_example.c udf_example.def)
@@ -407,8 +400,8 @@ CONFIGURE_FILE(
 
 ADD_CUSTOM_TARGET(dist 
   COMMAND ${CMAKE_COMMAND} -P ${CMAKE_BINARY_DIR}/make_dist.cmake
-  DEPENDS ${CMAKE_BINARY_DIR}/sql/sql_yacc.cc ${CMAKE_BINARY_DIR}/sql/sql_yacc.h
-  DEPENDS ${CMAKE_BINARY_DIR}/sql/sql_yacc_ora.cc ${CMAKE_BINARY_DIR}/sql/sql_yacc_ora.h
+  DEPENDS ${CMAKE_BINARY_DIR}/sql/sql_yacc.cc ${CMAKE_BINARY_DIR}/sql/sql_yacc.hh
+  DEPENDS ${CMAKE_BINARY_DIR}/sql/sql_yacc_ora.cc ${CMAKE_BINARY_DIR}/sql/sql_yacc_ora.hh
   WORKING_DIRECTORY ${CMAKE_BINARY_DIR}
 )
 
@@ -425,23 +418,20 @@ SET(DBOPT_FILE ${CMAKE_SOURCE_DIR}/support-files/db.opt )
 INSTALL(FILES ${DBOPT_FILE} DESTINATION data/test COMPONENT DataFiles)
 
 # Install initial database on windows
-IF(NOT CMAKE_CROSSCOMPILING)
-  GET_TARGET_PROPERTY(MYSQLD_EXECUTABLE mysqld LOCATION)
-ENDIF()
-IF(WIN32 AND MYSQLD_EXECUTABLE)
-  CONFIGURE_FILE(
-    ${CMAKE_SOURCE_DIR}/cmake/create_initial_db.cmake.in
-    ${CMAKE_CURRENT_BINARY_DIR}/create_initial_db.cmake
-    @ONLY
-  )
-  
+IF(WIN32 AND TARGET mysqld AND NOT CMAKE_CROSSCOMPILING)
+
   IF(MSVC_IDE OR CMAKE_GENERATOR MATCHES "Xcode")
     SET (CONFIG_PARAM -DCONFIG=${CMAKE_CFG_INTDIR})
   ENDIF()
   MAKE_DIRECTORY(${CMAKE_CURRENT_BINARY_DIR}/data)
   ADD_CUSTOM_COMMAND(
      OUTPUT  ${CMAKE_CURRENT_BINARY_DIR}/initdb.dep
-     COMMAND ${CMAKE_COMMAND} ${CONFIG_PARAM} -P ${CMAKE_CURRENT_BINARY_DIR}/create_initial_db.cmake
+     COMMAND ${CMAKE_COMMAND} ${CONFIG_PARAM}
+       -DTOP_SRCDIR="${CMAKE_SOURCE_DIR}"
+       -DBINDIR="${CMAKE_CURRENT_BINARY_DIR}"
+       -DMYSQLD_EXECUTABLE="$<TARGET_FILE:mysqld>"
+       -DCMAKE_CFG_INTDIR="${CMAKE_CFG_INTDIR}"
+       -P ${CMAKE_SOURCE_DIR}/cmake/create_initial_db.cmake
      COMMAND ${CMAKE_COMMAND} -E touch ${CMAKE_CURRENT_BINARY_DIR}/initdb.dep
      WORKING_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}/data
      DEPENDS mysqld
@@ -459,7 +449,7 @@ IF(WIN32 AND MYSQLD_EXECUTABLE)
 ELSE()
   # Not windows or cross compiling, just install an empty directory
   INSTALL(FILES ${DUMMY_FILE} DESTINATION data/mysql COMPONENT DataFiles)
-ENDIF(WIN32 AND MYSQLD_EXECUTABLE)
+ENDIF(WIN32 AND TARGET mysqld AND NOT CMAKE_CROSSCOMPILING)
 ENDIF(INSTALL_LAYOUT STREQUAL "STANDALONE")
 
 IF(WIN32)
@@ -470,12 +460,13 @@ IF(WIN32)
   ADD_CUSTOM_COMMAND(OUTPUT    
     ${my_bootstrap_sql}
     COMMAND ${CMAKE_COMMAND} -E chdir ${CMAKE_SOURCE_DIR}/scripts
-    cmd /c copy mysql_system_tables.sql+mysql_system_tables_data.sql+fill_help_tables.sql+mysql_performance_tables.sql ${native_outfile}
+    cmd /c copy mysql_system_tables.sql+mysql_system_tables_data.sql+fill_help_tables.sql+mysql_performance_tables.sql+mysql_test_db.sql ${native_outfile}
     DEPENDS
     ${CMAKE_SOURCE_DIR}/scripts/mysql_system_tables.sql
     ${CMAKE_SOURCE_DIR}/scripts/mysql_system_tables_data.sql
     ${CMAKE_SOURCE_DIR}/scripts/fill_help_tables.sql
     ${CMAKE_SOURCE_DIR}/scripts/mysql_performance_tables.sql
+    ${CMAKE_SOURCE_DIR}/scripts/mysql_test_db.sql
   )
 
   ADD_CUSTOM_COMMAND(
@@ -494,7 +485,7 @@ IF(WIN32)
     COMPONENT Server
   )
   SET_TARGET_PROPERTIES(mysql_install_db PROPERTIES COMPILE_FLAGS -DINSTALL_PLUGINDIR=${INSTALL_PLUGINDIR})
-  TARGET_LINK_LIBRARIES(mysql_install_db mysys)
+  TARGET_LINK_LIBRARIES(mysql_install_db mysys shlwapi)
 
   ADD_LIBRARY(winservice STATIC winservice.c)
   TARGET_LINK_LIBRARIES(winservice shell32)

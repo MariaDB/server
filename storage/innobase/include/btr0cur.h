@@ -28,6 +28,7 @@ Created 10/16/1994 Heikki Tuuri
 #define btr0cur_h
 
 #include "univ.i"
+#include "my_base.h"
 #include "dict0dict.h"
 #include "page0cur.h"
 #include "btr0types.h"
@@ -600,7 +601,7 @@ btr_cur_parse_del_mark_set_sec_rec(
 @param[in]	tuple2	range end, may also be empty tuple
 @param[in]	mode2	search mode for range end
 @return estimated number of rows */
-int64_t
+ha_rows
 btr_estimate_n_rows_in_range(
 	dict_index_t*	index,
 	const dtuple_t*	tuple1,
@@ -834,7 +835,7 @@ btr_cur_latch_leaves(
 /** In the pessimistic delete, if the page data size drops below this
 limit, merging it to a neighbor is tried */
 #define BTR_CUR_PAGE_COMPRESS_LIMIT(index) \
-	((UNIV_PAGE_SIZE * (ulint)((index)->merge_threshold)) / 100)
+	((srv_page_size * (ulint)((index)->merge_threshold)) / 100)
 
 /** A slot in the path array. We store here info on a search path down the
 tree. Each slot contains data on a single level of the tree. */
@@ -954,6 +955,26 @@ struct btr_cur_t {
 	rtr_info_t*	rtr_info;	/*!< rtree search info */
 	btr_cur_t():thr(NULL), rtr_info(NULL) {}
 					/* default values */
+	/** Zero-initialize all fields */
+	void init()
+	{
+		index = NULL;
+		memset(&page_cur, 0, sizeof page_cur);
+		purge_node = NULL;
+		left_block = NULL;
+		thr = NULL;
+		flag = btr_cur_method(0);
+		tree_height = 0;
+		up_match = 0;
+		up_bytes = 0;
+		low_match = 0;
+		low_bytes = 0;
+		n_fields = 0;
+		n_bytes = 0;
+		fold = 0;
+		path_arr = NULL;
+		rtr_info = NULL;
+	}
 };
 
 /******************************************************//**
@@ -982,11 +1003,11 @@ We store locally a long enough prefix of each column so that we can determine
 the ordering parts of each index record without looking into the externally
 stored part. */
 /*-------------------------------------- @{ */
-#define BTR_EXTERN_SPACE_ID		0	/*!< space id where stored */
-#define BTR_EXTERN_PAGE_NO		4	/*!< page no where stored */
-#define BTR_EXTERN_OFFSET		8	/*!< offset of BLOB header
+#define BTR_EXTERN_SPACE_ID		0U	/*!< space id where stored */
+#define BTR_EXTERN_PAGE_NO		4U	/*!< page no where stored */
+#define BTR_EXTERN_OFFSET		8U	/*!< offset of BLOB header
 						on that page */
-#define BTR_EXTERN_LEN			12	/*!< 8 bytes containing the
+#define BTR_EXTERN_LEN			12U	/*!< 8 bytes containing the
 						length of the externally
 						stored part of the BLOB.
 						The 2 highest bits are

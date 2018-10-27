@@ -26,6 +26,8 @@
 
 #define MALLOC_FLAG(A) ((A & 1) ? MY_THREAD_SPECIFIC : 0)
 
+#define TRASH_MEM(X) TRASH_FREE(((char*)(X) + ((X)->size-(X)->left)), (X)->left)
+
 /*
   Initialize memory root
 
@@ -76,13 +78,14 @@ void init_alloc_root(MEM_ROOT *mem_root, const char *name, size_t block_size,
   if (pre_alloc_size)
   {
     if ((mem_root->free= mem_root->pre_alloc=
-	 (USED_MEM*) my_malloc(pre_alloc_size+ ALIGN_SIZE(sizeof(USED_MEM)),
-			       MYF(my_flags))))
+         (USED_MEM*) my_malloc(pre_alloc_size + ALIGN_SIZE(sizeof(USED_MEM)),
+                               MYF(my_flags))))
     {
       mem_root->free->size= pre_alloc_size+ALIGN_SIZE(sizeof(USED_MEM));
       mem_root->total_alloc= pre_alloc_size+ALIGN_SIZE(sizeof(USED_MEM));
       mem_root->free->left= pre_alloc_size;
       mem_root->free->next= 0;
+      TRASH_MEM(mem_root->free);
     }
   }
 #endif
@@ -154,6 +157,7 @@ void reset_root_defaults(MEM_ROOT *mem_root, size_t block_size,
         mem->left= pre_alloc_size;
         mem->next= *prev;
         *prev= mem_root->pre_alloc= mem;
+        TRASH_MEM(mem);
       }
       else
       {
@@ -208,6 +212,7 @@ void *alloc_root(MEM_ROOT *mem_root, size_t length)
   uchar* point;
   reg1 USED_MEM *next= 0;
   reg2 USED_MEM **prev;
+  size_t original_length = length;
   DBUG_ENTER("alloc_root");
   DBUG_PRINT("enter",("root: %p  name: %s", mem_root, mem_root->name));
   DBUG_ASSERT(alloc_root_inited(mem_root));
@@ -257,6 +262,7 @@ void *alloc_root(MEM_ROOT *mem_root, size_t length)
     next->size= get_size;
     next->left= get_size-ALIGN_SIZE(sizeof(USED_MEM));
     *prev=next;
+    TRASH_MEM(next);
   }
 
   point= (uchar*) ((char*) next+ (next->size-next->left));
@@ -268,7 +274,7 @@ void *alloc_root(MEM_ROOT *mem_root, size_t length)
     mem_root->used= next;
     mem_root->first_block_usage= 0;
   }
-  TRASH_ALLOC(point, length);
+  TRASH_ALLOC(point, original_length);
   DBUG_PRINT("exit",("ptr: %p", point));
   DBUG_RETURN((void*) point);
 #endif
@@ -329,7 +335,6 @@ void *multi_alloc_root(MEM_ROOT *root, ...)
   DBUG_RETURN((void*) start);
 }
 
-#define TRASH_MEM(X) TRASH(((char*)(X) + ((X)->size-(X)->left)), (X)->left)
 
 #if !(defined(HAVE_valgrind) && defined(EXTRA_DEBUG))
 /** Mark all data in blocks free for reusage */

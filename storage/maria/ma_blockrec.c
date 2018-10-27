@@ -53,10 +53,10 @@
   Page header:
 
   LSN            7 bytes   Log position for last page change
-  PAGE_TYPE      1 uchar   1 for head / 2 for tail / 3 for blob
+  PAGE_TYPE      1 uchar   0 unalloced / 1 for head / 2 for tail / 3 for blob
   DIR_COUNT      1 uchar   Number of row/tail entries on page
   FREE_DIR_LINK  1 uchar   Pointer to first free director entry or 255 if no
-  empty space    2 bytes  Empty space on page
+  empty space    2 bytes   Bytes of empty space on page
 
   The most significant bit in PAGE_TYPE is set to 1 if the data on the page
   can be compacted to get more space. (PAGE_CAN_BE_COMPACTED)
@@ -271,6 +271,7 @@
 #include "maria_def.h"
 #include "ma_blockrec.h"
 #include "trnman.h"
+#include "ma_trnman.h"
 #include "ma_key_recover.h"
 #include "ma_recovery_util.h"
 #include <lf.h>
@@ -5160,11 +5161,19 @@ int _ma_read_block_record(MARIA_HA *info, uchar *record,
                              info->buff, share->page_type,
                              PAGECACHE_LOCK_LEFT_UNLOCKED, 0)))
     DBUG_RETURN(my_errno);
-  DBUG_ASSERT((buff[PAGE_TYPE_OFFSET] & PAGE_TYPE_MASK) == HEAD_PAGE);
-  if (!(data= get_record_position(share, buff, offset, &end_of_data)))
+
+  /*
+    Unallocated page access can happen if this is an access to a page where
+    all rows where deleted as part of this statement.
+  */
+  DBUG_ASSERT((buff[PAGE_TYPE_OFFSET] & PAGE_TYPE_MASK) == HEAD_PAGE ||
+              (buff[PAGE_TYPE_OFFSET] & PAGE_TYPE_MASK) == UNALLOCATED_PAGE);
+
+  if (((buff[PAGE_TYPE_OFFSET] & PAGE_TYPE_MASK) == UNALLOCATED_PAGE) ||
+      !(data= get_record_position(share, buff, offset, &end_of_data)))
   {
     DBUG_ASSERT(!maria_assert_if_crashed_table);
-    DBUG_PRINT("error", ("Wrong directory entry in data block"));
+    DBUG_PRINT("warning", ("Wrong directory entry in data block"));
     my_errno= HA_ERR_RECORD_DELETED;           /* File crashed */
     DBUG_RETURN(HA_ERR_RECORD_DELETED);
   }
@@ -6166,7 +6175,7 @@ my_bool write_hook_for_undo_row_insert(enum translog_record_type type
 
 
 /**
-   @brief Upates "records" and calls the generic UNDO hook
+   @brief Updates "records" and calls the generic UNDO hook
 
    @return Operation status, always 0 (success)
 */
@@ -6316,8 +6325,8 @@ uint _ma_apply_redo_insert_row_head_or_tail(MARIA_HA *info, LSN lsn,
   uchar      *buff, *dir;
   uint      result;
   MARIA_PINNED_PAGE page_link;
-  enum pagecache_page_lock unlock_method;
-  enum pagecache_page_pin unpin_method;
+  enum pagecache_page_lock lock_method;
+  enum pagecache_page_pin pin_method;
   my_off_t end_of_page;
   uint error;
   DBUG_ENTER("_ma_apply_redo_insert_row_head_or_tail");
@@ -6345,8 +6354,8 @@ uint _ma_apply_redo_insert_row_head_or_tail(MARIA_HA *info, LSN lsn,
       fill it entirely with zeroes, then the REDO will put correct data on
       it.
     */
-    unlock_method= PAGECACHE_LOCK_WRITE;
-    unpin_method=  PAGECACHE_PIN;
+    lock_method= PAGECACHE_LOCK_WRITE;
+    pin_method=  PAGECACHE_PIN;
 
     DBUG_ASSERT(rownr == 0 && new_page);
     if (rownr != 0 || !new_page)
@@ -6361,8 +6370,8 @@ uint _ma_apply_redo_insert_row_head_or_tail(MARIA_HA *info, LSN lsn,
   }
   else
   {
-    unlock_method= PAGECACHE_LOCK_LEFT_WRITELOCKED;
-    unpin_method=  PAGECACHE_PIN_LEFT_PINNED;
+    lock_method= PAGECACHE_LOCK_LEFT_WRITELOCKED;
+    pin_method=  PAGECACHE_PIN_LEFT_PINNED;
 
     share->pagecache->readwrite_flags&= ~MY_WME;
     buff= pagecache_read(share->pagecache, &info->dfile,
@@ -6463,11 +6472,11 @@ uint _ma_apply_redo_insert_row_head_or_tail(MARIA_HA *info, LSN lsn,
     this group, for this page, would be skipped) and unpin then.
   */
   result= 0;
-  if (unlock_method == PAGECACHE_LOCK_WRITE &&
+  if (lock_method == PAGECACHE_LOCK_WRITE &&
       pagecache_write(share->pagecache,
                       &info->dfile, page, 0,
                       buff, PAGECACHE_PLAIN_PAGE,
-                      unlock_method, unpin_method,
+                      lock_method, pin_method,
                       PAGECACHE_WRITE_DELAY, &page_link.link,
                       LSN_IMPOSSIBLE))
     result= my_errno;
@@ -6488,7 +6497,7 @@ crashed_file:
   _ma_set_fatal_error(share, HA_ERR_WRONG_IN_RECORD);
 err:
   error= my_errno;
-  if (unlock_method == PAGECACHE_LOCK_LEFT_WRITELOCKED)
+  if (lock_method == PAGECACHE_LOCK_LEFT_WRITELOCKED)
     pagecache_unlock_by_link(share->pagecache, page_link.link,
                              PAGECACHE_LOCK_WRITE_UNLOCK,
                              PAGECACHE_UNPIN, LSN_IMPOSSIBLE,
@@ -7525,7 +7534,7 @@ void maria_ignore_trids(MARIA_HA *info)
   if (info->s->base.born_transactional)
   {
     if (!info->trn)
-      _ma_set_trn_for_table(info, &dummy_transaction_object);
+      _ma_set_tmp_trn_for_table(info, &dummy_transaction_object);
     /* Ignore transaction id when row is read */
     info->trn->min_read_from= ~(TrID) 0;
   }

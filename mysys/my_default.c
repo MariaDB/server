@@ -1,4 +1,5 @@
-/* Copyright (c) 2000, 2011, Oracle and/or its affiliates. All rights reserved.
+/* Copyright (c) 2000, 2017, Oracle and/or its affiliates. All rights reserved.
+   Copyright (c) 2011, 2018, MariaDB Corporation
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -233,7 +234,7 @@ int my_search_option_files(const char *conf_file, int *argc, char ***argv,
                                     (char **) &my_defaults_group_suffix);
 
   if (! my_defaults_group_suffix)
-    my_defaults_group_suffix= getenv(STRINGIFY_ARG(DEFAULT_GROUP_SUFFIX_ENV));
+    my_defaults_group_suffix= getenv("MYSQL_GROUP_SUFFIX");
 
   if (forced_extra_defaults && !defaults_already_read)
   {
@@ -630,7 +631,7 @@ int my_load_defaults(const char *conf_file, const char **groups,
       if (!my_getopt_is_args_separator((*argv)[i])) /* skip arguments separator */
         printf("%s ", (*argv)[i]);
     puts("");
-    exit(0);
+    DBUG_RETURN(4);
   }
 
   if (default_directories)
@@ -640,7 +641,7 @@ int my_load_defaults(const char *conf_file, const char **groups,
 
  err:
   fprintf(stderr,"Fatal error in defaults handling. Program aborted\n");
-  return 2;
+  DBUG_RETURN(2);
 }
 
 
@@ -1098,10 +1099,12 @@ void print_defaults(const char *conf_file, const char **groups)
     }
   }
   puts("\nThe following options may be given as the first argument:\n\
---print-defaults        Print the program argument list and exit.\n\
---no-defaults           Don't read default options from any option file.\n\
---defaults-file=#       Only read default options from the given file #.\n\
---defaults-extra-file=# Read this file after the global files are read.");
+--print-defaults          Print the program argument list and exit.\n\
+--no-defaults             Don't read default options from any option file.\n\
+The following specify which files/extra groups are read (specified before remaining options):\n\
+--defaults-file=#         Only read default options from the given file #.\n\
+--defaults-extra-file=#   Read this file after the global files are read.\n\
+--defaults-group-suffix=# Additionally read default groups with # appended as a suffix.");
 }
 
 
@@ -1183,7 +1186,7 @@ static const char **init_default_directories(MEM_ROOT *alloc)
     {
       errors += add_directory(alloc, fname_buffer, dirs);
 
-      strncat(fname_buffer, "/data", sizeof(fname_buffer));
+      strcat_s(fname_buffer, sizeof(fname_buffer), "/data");
       errors += add_directory(alloc, fname_buffer, dirs);
     }
   }

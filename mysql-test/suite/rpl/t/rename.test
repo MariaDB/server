@@ -1,0 +1,33 @@
+--source include/have_binlog_format_mixed.inc
+--source include/master-slave.inc
+
+--echo #
+--echo # MDEV-16229 Replication aborts with ER_VIEW_SELECT_TMPTABLE after
+--echo # half-failed RENAME
+--echo #
+
+CREATE TABLE t1 (a INT);
+CREATE TEMPORARY TABLE t1 (b INT);
+RENAME TABLE t1 TO tmp, tmp TO t1;
+SHOW CREATE TABLE t1;
+--error ER_VIEW_SELECT_TMPTABLE
+CREATE VIEW v AS SELECT * FROM t1;
+
+RENAME TABLE t1 TO tmp, t1 TO t2;
+SHOW CREATE TABLE tmp;
+SHOW CREATE TABLE t2;
+--error ER_VIEW_SELECT_TMPTABLE
+CREATE VIEW v AS SELECT * FROM tmp;
+CREATE VIEW v AS SELECT * FROM t2;
+
+--sync_slave_with_master
+
+# Cleanup
+
+--connection master
+
+DROP VIEW v;
+DROP TABLE tmp;
+DROP TABLE t2;
+
+--source include/rpl_end.inc

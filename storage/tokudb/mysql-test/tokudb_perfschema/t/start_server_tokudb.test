@@ -1,0 +1,10 @@
+# Tests for PERFORMANCE_SCHEMA
+
+--source include/not_embedded.inc
+--source include/have_perfschema.inc
+--source include/have_tokudb.inc
+
+--source ../../perfschema/include/start_server_common.inc
+
+SELECT COUNT(NAME) > 0 FROM performance_schema.setup_instruments WHERE NAME LIKE "%/fti/%";
+SELECT COUNT(NAME) > 0 FROM performance_schema.threads WHERE NAME LIKE "%kibbutz%";

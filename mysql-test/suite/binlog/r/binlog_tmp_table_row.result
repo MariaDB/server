@@ -1,0 +1,7 @@
+RESET MASTER;
+#Create table test
+create temporary table t1(a int, b int);
+#Add index test
+create index index_a on t1(a);
+#drop index test
+drop index index_a on t1;

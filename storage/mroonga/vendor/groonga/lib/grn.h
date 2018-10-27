@@ -259,7 +259,7 @@ typedef pthread_key_t grn_thread_key;
 # define THREAD_SETSPECIFIC(key, value) pthread_setspecific(key, value)
 # define THREAD_GETSPECIFIC(key)        pthread_getspecific(key)
 
-#if USE_UYIELD
+#if defined(USE_UYIELD)
   extern int grn_uyield_count;
   #define GRN_TEST_YIELD() do {\
     if (((++grn_uyield_count) & (0x20 - 1)) == 0) {\

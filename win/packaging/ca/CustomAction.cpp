@@ -90,7 +90,7 @@ static void EscapeCommandLine(const wchar_t *in, wchar_t *out, size_t buflen)
   bool needs_escaping= false;
   size_t pos;
 
-  for(int i=0; i< sizeof(special_chars) -1; i++)
+  for(size_t i=0; i< sizeof(special_chars) -1; i++)
   {
     if (wcschr(in, special_chars[i]))
     {
@@ -271,7 +271,7 @@ bool IsPortFree(short port)
   struct sockaddr_in sin;
   SOCKET sock;
   sock = socket(AF_INET, SOCK_STREAM, 0);
-  if(sock == -1)
+  if(sock == INVALID_SOCKET)
   {
     return false;
   }
@@ -871,8 +871,6 @@ extern "C" UINT __stdcall CheckServiceUpgrades(MSIHANDLE hInstall)
 {
   HRESULT hr = S_OK;
   UINT er = ERROR_SUCCESS;
-  wchar_t* service= 0;
-  wchar_t* dir= 0;
   wchar_t installerVersion[MAX_VERSION_PROPERTY_SIZE];
   char installDir[MAX_PATH];
   DWORD size =MAX_VERSION_PROPERTY_SIZE;
@@ -882,7 +880,7 @@ extern "C" UINT __stdcall CheckServiceUpgrades(MSIHANDLE hInstall)
   DWORD bufsize;
   int index;
   BOOL ok;
-  SC_HANDLE scm;
+  SC_HANDLE scm = NULL;
 
   hr = WcaInitialize(hInstall, __FUNCTION__);
    WcaLog(LOGMSG_STANDARD, "Initialized.");

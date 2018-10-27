@@ -1517,7 +1517,8 @@ public:
 
   ~Stat_table_write_iter()
   {
-    cleanup();
+    /* Ensure that cleanup has been run */
+    DBUG_ASSERT(rowid_buf == 0);
   }
 };
 
@@ -1799,6 +1800,7 @@ private:
 public:
 
   bool is_single_comp_pk;
+  bool is_partial_fields_present;
 
   Index_prefix_calc(THD *thd, TABLE *table, KEY *key_info)
     : index_table(table), index_info(key_info)
@@ -1810,7 +1812,7 @@ public:
     prefixes= 0;
     LINT_INIT_STRUCT(calc_state);
 
-    is_single_comp_pk= FALSE;
+    is_partial_fields_present= is_single_comp_pk= FALSE;
     uint pk= table->s->primary_key;
     if ((uint) (table->key_info - key_info) == pk &&
         table->key_info[pk].user_defined_key_parts == 1)
@@ -1832,7 +1834,10 @@ public:
           calculating the values of 'avg_frequency' for prefixes.
 	*/   
         if (!key_info->key_part[i].field->part_of_key.is_set(keyno))
+        {
+          is_partial_fields_present= TRUE;
           break;
+        }
 
         if (!(state->last_prefix=
               new (thd->mem_root) Cached_item_field(thd,
@@ -2617,7 +2622,7 @@ int collect_statistics_for_index(THD *thd, TABLE *table, uint index)
   DBUG_ENTER("collect_statistics_for_index");
 
   /* No statistics for FULLTEXT indexes. */
-  if (key_info->flags & HA_FULLTEXT)
+  if (key_info->flags & (HA_FULLTEXT|HA_SPATIAL))
     DBUG_RETURN(rc);
 
   Index_prefix_calc index_prefix_calc(thd, table, key_info);
@@ -2631,7 +2636,13 @@ int collect_statistics_for_index(THD *thd, TABLE *table, uint index)
     DBUG_RETURN(rc);
   }
 
-  table->file->ha_start_keyread(index);
+  /*
+    Request "only index read" in case of absence of fields which are
+    partially in the index to avoid problems with partitioning (for example)
+    which want to get whole field value.
+  */
+  if (!index_prefix_calc.is_partial_fields_present)
+    table->file->ha_start_keyread(index);
   table->file->ha_index_init(index, TRUE);
   rc= table->file->ha_index_first(table->record[0]);
   while (rc != HA_ERR_END_OF_FILE)
@@ -2743,11 +2754,7 @@ int collect_statistics_for_table(THD *thd, TABLE *table)
         break;
 
       if (rc)
-      {
-        if (rc == HA_ERR_RECORD_DELETED)
-          continue;
         break;
-      }
 
       for (field_ptr= table->field; *field_ptr; field_ptr++)
       {
@@ -3053,6 +3060,39 @@ int read_statistics_for_table(THD *thd, TABLE *table, TABLE_LIST *stat_tables)
 
 
 /**
+  @breif
+  Cleanup of min/max statistical values for table share
+*/
+
+void delete_stat_values_for_table_share(TABLE_SHARE *table_share)
+{
+  TABLE_STATISTICS_CB *stats_cb= &table_share->stats_cb;
+  Table_statistics *table_stats= stats_cb->table_stats;
+  if (!table_stats)
+    return;
+  Column_statistics *column_stats= table_stats->column_stats;
+  if (!column_stats)
+    return;
+
+  for (Field **field_ptr= table_share->field;
+       *field_ptr;
+       field_ptr++, column_stats++)
+  {
+    if (column_stats->min_value)
+    {
+      delete column_stats->min_value;
+      column_stats->min_value= NULL;
+    }
+    if (column_stats->max_value)
+    {
+      delete column_stats->max_value;
+      column_stats->max_value= NULL;
+    }
+  }
+}
+
+
+/**
   @brief
   Check whether any statistics is to be read for tables from a table list
 
@@ -3081,25 +3121,26 @@ bool statistics_for_tables_is_needed(THD *thd, TABLE_LIST *tables)
     return FALSE;
 
   /* 
-    Do not read statistics for any query over non-user tables.
-    If the query references some statistical tables, but not all 
-    of them, reading the statistics may lead to a deadlock
-  */ 
+    Do not read statistics for any query that explicity involves
+    statistical tables, failure to to do so we may end up
+    in a deadlock.
+  */
+
   for (TABLE_LIST *tl= tables; tl; tl= tl->next_global)
   {
-    if (!tl->is_view_or_derived() && tl->table)
+    if (!tl->is_view_or_derived() && !is_temporary_table(tl) && tl->table)
     {
       TABLE_SHARE *table_share= tl->table->s;
       if (table_share && 
-          (table_share->table_category != TABLE_CATEGORY_USER ||
-           table_share->tmp_table != NO_TMP_TABLE))
+          table_share->table_category != TABLE_CATEGORY_USER
+          && is_stat_table(&tl->db, &tl->alias))
         return FALSE;
     }
   }
 
   for (TABLE_LIST *tl= tables; tl; tl= tl->next_global)
   {
-    if (!tl->is_view_or_derived() && tl->table)
+    if (!tl->is_view_or_derived() && !is_temporary_table(tl) && tl->table)
     {
       TABLE_SHARE *table_share= tl->table->s;
       if (table_share && 
@@ -3228,9 +3269,12 @@ int read_statistics_for_tables_if_needed(THD *thd, TABLE_LIST *tables)
 
   for (TABLE_LIST *tl= tables; tl; tl= tl->next_global)
   {
-    if (!tl->is_view_or_derived() && tl->table)
+    if (!tl->is_view_or_derived() && !is_temporary_table(tl) && tl->table)
     { 
       TABLE_SHARE *table_share= tl->table->s;
+      if (table_share && !(table_share->table_category == TABLE_CATEGORY_USER))
+        continue;
+
       if (table_share && 
           table_share->stats_cb.stats_can_be_read &&
 	  !table_share->stats_cb.stats_is_read)
@@ -3281,7 +3325,7 @@ int read_statistics_for_tables_if_needed(THD *thd, TABLE_LIST *tables)
   The function is called when executing the statement DROP TABLE 'tab'.
 */
 
-int delete_statistics_for_table(THD *thd, LEX_CSTRING *db, LEX_CSTRING *tab)
+int delete_statistics_for_table(THD *thd, const LEX_CSTRING *db, const LEX_CSTRING *tab)
 {
   int err;
   enum_binlog_format save_binlog_format;
@@ -3767,6 +3811,15 @@ double get_column_range_cardinality(Field *field,
 
   if (!col_stats)
     return tab_records;
+  /*
+    Use statistics for a table only when we have actually read
+    the statistics from the stat tables. For example due to
+    chances of getting a deadlock we disable reading statistics for
+    a table.
+  */
+
+  if (!table->stats_is_read)
+    return tab_records;
 
   double col_nulls= tab_records * col_stats->get_nulls_ratio();
 
@@ -3980,11 +4033,11 @@ bool is_stat_table(const LEX_CSTRING *db, LEX_CSTRING *table)
 {
   DBUG_ASSERT(db->str && table->str);
 
-  if (!cmp(db, &MYSQL_SCHEMA_NAME))
+  if (!my_strcasecmp(table_alias_charset, db->str, MYSQL_SCHEMA_NAME.str))
   {
     for (uint i= 0; i < STATISTICS_TABLES; i ++)
     {
-      if (cmp(table, &stat_table_name[i]) == 0)
+      if (!my_strcasecmp(table_alias_charset, table->str, stat_table_name[i].str))
         return true;
     }
   }

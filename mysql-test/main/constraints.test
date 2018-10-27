@@ -1,0 +1,104 @@
+#
+# Testing of constraints
+#
+--disable_warnings
+drop table if exists t1;
+--enable_warnings
+
+create table t1 (a int check (a>0));
+show create table t1;
+insert into t1 values (1);
+--error ER_CONSTRAINT_FAILED
+insert into t1 values (0);
+drop table t1;
+create table t1 (a int, b int, check (a>b));
+show create table t1;
+insert into t1 values (1,0);
+--error ER_CONSTRAINT_FAILED
+insert into t1 values (0,1);
+drop table t1;
+create table t1 (a int ,b int, constraint abc check (a>b));
+show create table t1;
+insert into t1 values (1,0);
+--error ER_CONSTRAINT_FAILED
+insert into t1 values (0,1);
+drop table t1;
+create table t1 (a int null);
+show create table t1;
+insert into t1 values (1),(NULL);
+drop table t1;
+create table t1 (a int null);
+alter table t1 add constraint constraint_1 unique (a);
+alter table t1 add constraint unique key_1(a);
+alter table t1 add constraint constraint_2 unique key_2(a);
+show create table t1;
+drop table t1;
+
+# End of 4.1 tests
+
+#
+# Bug#35578 (Parser allows useless/illegal CREATE TABLE syntax)
+#
+
+--disable_warnings
+drop table if exists t_illegal;
+--enable_warnings
+
+--error ER_PARSE_ERROR
+create table t_illegal (a int, b int, check a>b);
+
+--error ER_PARSE_ERROR
+create table t_illegal (a int, b int, constraint abc check a>b);
+
+--error ER_PARSE_ERROR
+create table t_illegal (a int, b int, constraint abc);
+
+#
+# Bug#11714 (Non-sensical ALTER TABLE ADD CONSTRAINT allowed)
+#
+
+--disable_warnings
+drop table if exists t_11714;
+--enable_warnings
+
+create table t_11714(a int, b int);
+
+--error ER_PARSE_ERROR
+alter table t_11714 add constraint cons1;
+
+drop table t_11714;
+
+#
+# Bug#38696 (CREATE TABLE ... CHECK ... allows illegal syntax)
+
+--error ER_PARSE_ERROR
+CREATE TABLE t_illegal (col_1 INT CHECK something (whatever));
+
+--error ER_PARSE_ERROR
+CREATE TABLE t_illegal (col_1 INT CHECK something);
+
+#
+# MDEV-17065 Crash on SHOW CREATE TABLE with CHECK CONSTRAINT
+#
+
+CREATE TABLE long_enough_name (
+pk int(11) NOT NULL,
+f1 int(11) DEFAULT NULL,
+f2 int(11) NOT NULL,
+f3 int(11) DEFAULT NULL,
+f4 timestamp NOT NULL DEFAULT current_timestamp(),
+f5 varchar(32) COLLATE utf8_bin NOT NULL DEFAULT 'foo',
+f6 smallint(6) NOT NULL DEFAULT 1,
+f7 int(11) DEFAULT NULL,
+PRIMARY KEY (pk),
+KEY idx1 (f7),
+KEY idx2 (f1),
+KEY idx3 (f2),
+KEY idx4 (f3),
+CONSTRAINT constr CHECK (f6 >= 0)
+);
+ 
+SELECT * FROM long_enough_name AS tbl;
+SHOW CREATE TABLE long_enough_name;
+ 
+DROP TABLE long_enough_name;

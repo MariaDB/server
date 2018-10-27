@@ -65,8 +65,16 @@ ALTER TABLE t1 ADD INDEX kb(b), ALGORITHM=INPLACE;
 # disable duplicate index warning
 --disable_warnings
 # now do same index using copy algorithm
+# hitting max row locks (1M)
+set @tmp= @@rocksdb_max_row_locks;
+set session rocksdb_max_row_locks=1000;
+--error ER_GET_ERRMSG 
 ALTER TABLE t1 ADD INDEX kb_copy(b), ALGORITHM=COPY;
+set session rocksdb_bulk_load=1;
+ALTER TABLE t1 ADD INDEX kb_copy(b), ALGORITHM=COPY;
+set session rocksdb_bulk_load=0;
 --enable_warnings
+set session rocksdb_max_row_locks=@tmp;
 
 # checksum testing
 SELECT COUNT(*) as c FROM

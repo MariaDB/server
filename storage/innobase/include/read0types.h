@@ -33,17 +33,14 @@ Created 2/16/1997 Heikki Tuuri
 #include "trx0types.h"
 
 
-/** View is not in MVCC and not visible to purge thread. */
+/** View is not visible to purge thread. */
 #define READ_VIEW_STATE_CLOSED 0
 
-/** View is in MVCC, but not visible to purge thread. */
-#define READ_VIEW_STATE_REGISTERED 1
+/** View is being opened, purge thread must wait for state change. */
+#define READ_VIEW_STATE_SNAPSHOT 1
 
-/** View is in MVCC, purge thread must wait for READ_VIEW_STATE_OPEN. */
-#define READ_VIEW_STATE_SNAPSHOT 2
-
-/** View is in MVCC and is visible to purge thread. */
-#define READ_VIEW_STATE_OPEN 3
+/** View is visible to purge thread. */
+#define READ_VIEW_STATE_OPEN 2
 
 
 /**
@@ -56,48 +53,70 @@ class ReadView
     View state.
 
     It is not defined as enum as it has to be updated using atomic operations.
-    Possible values are READ_VIEW_STATE_CLOSED, READ_VIEW_STATE_REGISTERED,
-    READ_VIEW_STATE_SNAPSHOT and READ_VIEW_STATE_OPEN.
+    Possible values are READ_VIEW_STATE_CLOSED, READ_VIEW_STATE_SNAPSHOT and
+    READ_VIEW_STATE_OPEN.
 
     Possible state transfers...
 
-    Opening view for the first time:
-    READ_VIEW_STATE_CLOSED -> READ_VIEW_STATE_SNAPSHOT (non-atomic)
+    Start view open:
+    READ_VIEW_STATE_CLOSED -> READ_VIEW_STATE_SNAPSHOT
 
-    Complete first time open or reopen:
-    READ_VIEW_STATE_SNAPSHOT -> READ_VIEW_STATE_OPEN (atomic)
+    Complete view open:
+    READ_VIEW_STATE_SNAPSHOT -> READ_VIEW_STATE_OPEN
 
-    Close view but keep it in list:
-    READ_VIEW_STATE_OPEN -> READ_VIEW_STATE_REGISTERED (atomic)
-
-    Close view and remove it from list:
-    READ_VIEW_STATE_OPEN -> READ_VIEW_STATE_CLOSED (non-atomic)
-
-    Reusing view:
-    READ_VIEW_STATE_REGISTERED -> READ_VIEW_STATE_SNAPSHOT (atomic)
-
-    Removing closed view from list:
-    READ_VIEW_STATE_REGISTERED -> READ_VIEW_STATE_CLOSED (non-atomic)
+    Close view:
+    READ_VIEW_STATE_OPEN -> READ_VIEW_STATE_CLOSED
   */
   int32_t m_state;
 
 
 public:
-  ReadView(): m_state(READ_VIEW_STATE_CLOSED) {}
+  ReadView(): m_state(READ_VIEW_STATE_CLOSED), m_low_limit_id(0) {}
 
 
   /**
     Copy state from another view.
+
+    This method is used to find min(m_low_limit_no), min(m_low_limit_id) and
+    all transaction ids below min(m_low_limit_id). These values effectively
+    form oldest view.
 
     @param other    view to copy from
   */
   void copy(const ReadView &other)
   {
     ut_ad(&other != this);
-    m_ids= other.m_ids;
-    m_up_limit_id= other.m_up_limit_id;
-    m_low_limit_no= other.m_low_limit_no;
-    m_low_limit_id= other.m_low_limit_id;
+    if (m_low_limit_no > other.m_low_limit_no)
+      m_low_limit_no= other.m_low_limit_no;
+    if (m_low_limit_id > other.m_low_limit_id)
+      m_low_limit_id= other.m_low_limit_id;
+
+    trx_ids_t::iterator dst= m_ids.begin();
+    for (trx_ids_t::const_iterator src= other.m_ids.begin();
+         src != other.m_ids.end(); src++)
+    {
+      if (*src >= m_low_limit_id)
+        break;
+loop:
+      if (dst == m_ids.end())
+      {
+        m_ids.push_back(*src);
+        dst= m_ids.end();
+        continue;
+      }
+      if (*dst < *src)
+      {
+        dst++;
+        goto loop;
+      }
+      else if (*dst > *src)
+        dst= m_ids.insert(dst, *src) + 1;
+    }
+    m_ids.erase(std::lower_bound(dst, m_ids.end(), m_low_limit_id),
+                m_ids.end());
+
+    m_up_limit_id= m_ids.empty() ? m_low_limit_id : m_ids.front();
+    ut_ad(m_up_limit_id <= m_low_limit_id);
   }
 
 
@@ -105,7 +124,7 @@ public:
     Opens a read view where exactly the transactions serialized before this
     point in time are seen in the view.
 
-    View becomes visible to purge thread via trx_sys.m_views.
+    View becomes visible to purge thread.
 
     @param[in,out] trx transaction
   */
@@ -115,23 +134,14 @@ public:
   /**
     Closes the view.
 
-    View becomes not visible to purge thread via trx_sys.m_views.
+    View becomes not visible to purge thread.
   */
-  void close();
-
-
-  /**
-    Marks view unused.
-
-    View is still in trx_sys.m_views list, but is not visible to purge threads.
-  */
-  void unuse()
+  void close()
   {
     ut_ad(m_state == READ_VIEW_STATE_CLOSED ||
-          m_state == READ_VIEW_STATE_REGISTERED ||
           m_state == READ_VIEW_STATE_OPEN);
     if (m_state == READ_VIEW_STATE_OPEN)
-      my_atomic_store32_explicit(&m_state, READ_VIEW_STATE_REGISTERED,
+      my_atomic_store32_explicit(&m_state, READ_VIEW_STATE_CLOSED,
                                  MY_MEMORY_ORDER_RELAXED);
   }
 
@@ -152,8 +162,7 @@ public:
   bool is_open() const
   {
     ut_ad(m_state == READ_VIEW_STATE_OPEN ||
-          m_state == READ_VIEW_STATE_CLOSED ||
-          m_state == READ_VIEW_STATE_REGISTERED);
+          m_state == READ_VIEW_STATE_CLOSED);
     return m_state == READ_VIEW_STATE_OPEN;
   }
 
@@ -164,7 +173,7 @@ public:
 
     @param[in,out] trx transaction
   */
-  void snapshot(trx_t *trx);
+  inline void snapshot(trx_t *trx);
 
 
   /**
@@ -271,10 +280,6 @@ private:
 	whose transaction number is strictly smaller (<) than this value:
 	they can be removed in purge if not needed by other views */
 	trx_id_t	m_low_limit_no;
-
-	byte		pad1[CACHE_LINE_SIZE];
-public:
-	UT_LIST_NODE_T(ReadView)	m_view_list;
 };
 
 #endif

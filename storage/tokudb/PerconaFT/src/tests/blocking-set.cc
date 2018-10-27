@@ -182,12 +182,14 @@ int test_main(int argc, char * const argv[]) {
     populate(db_env, db, nrows);
 
     toku_pthread_t tids[nthreads];
-    struct blocking_set_args a = { db_env, db, nrows, sleeptime };
-    for (int i = 0; i < nthreads-1; i++) {
-        r = toku_pthread_create(&tids[i], NULL, blocking_set_thread, &a); assert(r == 0);
+    struct blocking_set_args a = {db_env, db, nrows, sleeptime};
+    for (int i = 0; i < nthreads - 1; i++) {
+        r = toku_pthread_create(
+            toku_uninstrumented, &tids[i], nullptr, blocking_set_thread, &a);
+        assert(r == 0);
     }
     blocking_set(db_env, db, nrows, sleeptime);
-    for (int i = 0; i < nthreads-1; i++) {
+    for (int i = 0; i < nthreads - 1; i++) {
         void *ret;
         r = toku_pthread_join(tids[i], &ret); assert(r == 0);
     }

@@ -1,0 +1,79 @@
+
+set names binary;
+
+--echo #
+--echo # Start of 5.5 tests
+--echo #
+
+--source include/ctype_numconv.inc
+
+--echo #
+--echo # End of 5.5 tests
+--echo #
+
+
+--echo #
+--echo # Start of 10.0 tests
+--echo #
+
+SET NAMES binary;
+--source include/ctype_like_cond_propagation.inc
+
+--echo #
+--echo # MDEV-7629 Regression: Bit and hex string literals changed column names in 10.0.14
+--echo #
+SELECT _binary 0x7E, _binary X'7E', _binary B'01111110';
+
+SET NAMES utf8, character_set_connection=binary;
+--source include/ctype_mdev13118.inc
+
+--echo #
+--echo # End of 10.0 tests
+--echo #
+
+--echo #
+--echo # Start of 10.1 tests
+--echo #
+
+--echo #
+--echo # MDEV-8695 Wrong result for SELECT..WHERE varchar_column='a' AND CRC32(varchar_column)=3904355907
+--echo #
+CREATE TABLE t1 (a VARBINARY(10));
+INSERT INTO t1 VALUES ('a'),('a ');
+SELECT a, LENGTH(a), CRC32(a) FROM t1 WHERE CRC32(a)=3904355907;
+SELECT a, LENGTH(a), CRC32(a) FROM t1 WHERE a='a' AND CRC32(a)=3904355907;
+--echo # Okey to propagate 'a' into CRC32(a)
+EXPLAIN EXTENDED SELECT a, LENGTH(a), CRC32(a) FROM t1 WHERE a='a' AND CRC32(a)=3904355907;
+SELECT a, HEX(a) FROM t1 WHERE HEX(a)='61';
+SELECT *,HEX(a) FROM t1 WHERE a='a' AND HEX(a)='61';
+--echo # Okey to propagate 'a' into HEX(a)
+EXPLAIN EXTENDED SELECT *,HEX(a) FROM t1 WHERE a='a' AND HEX(a)='61';
+SELECT * FROM t1 WHERE a='a';
+SELECT * FROM t1 WHERE LENGTH(a)=2;
+SELECT * FROM t1 WHERE a='a' AND LENGTH(a)=2;
+--echo # Okey to propagate 'a' into LENGTH(a)
+EXPLAIN EXTENDED SELECT * FROM t1 WHERE a='a' AND LENGTH(a)=2;
+SELECT * FROM t1 WHERE a='a ';
+SELECT * FROM t1 WHERE a='a ' AND LENGTH(a)=2;
+--echo # Okey to propagate 'a ' into LENGTH(a)
+EXPLAIN EXTENDED SELECT * FROM t1 WHERE a='a ' AND LENGTH(a)=2;
+DROP TABLE t1;
+
+--echo #
+--echo # MDEV-8723 Wrong result for SELECT..WHERE COLLATION(a)='binary' AND a='a'
+--echo #
+CREATE TABLE t1 (a VARBINARY(10));
+INSERT INTO t1 VALUES ('a'),('A');
+SELECT * FROM t1 WHERE COLLATION(a)='binary' AND a='a';
+SELECT * FROM t1 WHERE CHARSET(a)='binary' AND a='a';
+SELECT * FROM t1 WHERE COERCIBILITY(a)=2 AND a='a';
+SELECT * FROM t1 WHERE WEIGHT_STRING(a)='a' AND a='a';
+EXPLAIN EXTENDED SELECT * FROM t1 WHERE COLLATION(a)='binary' AND a='a';
+EXPLAIN EXTENDED SELECT * FROM t1 WHERE CHARSET(a)='binary'   AND a='a';
+EXPLAIN EXTENDED SELECT * FROM t1 WHERE COERCIBILITY(a)=2     AND a='a';
+EXPLAIN EXTENDED SELECT * FROM t1 WHERE WEIGHT_STRING(a)='a'  AND a='a';
+DROP TABLE t1;
+
+--echo #
+--echo # End of 10.1 tests
+--echo #

@@ -225,7 +225,7 @@ typedef struct st_mi_isam_share
   THR_LOCK lock;
   mysql_mutex_t intern_lock;            /* Locking for use with _locking */
   mysql_rwlock_t *key_root_lock;
-  my_off_t mmaped_length;
+  size_t mmaped_length;
   uint     nonmmaped_inserts;           /* counter of writing in non-mmaped
                                            area */
   mysql_rwlock_t mmap_lock;
@@ -539,8 +539,7 @@ extern uchar *_mi_get_key(MI_INFO *info, MI_KEYDEF *keyinfo, uchar *page,
                           uchar *key, uchar *keypos,
                           uint *return_key_length);
 extern uint _mi_keylength(MI_KEYDEF *keyinfo, uchar *key);
-extern uint _mi_keylength_part(MI_KEYDEF *keyinfo, register uchar *key,
-                               HA_KEYSEG *end);
+extern uint _mi_keylength_part(MI_KEYDEF *keyinfo, uchar *key, HA_KEYSEG *end);
 extern uchar *_mi_move_key(MI_KEYDEF *keyinfo, uchar *to, uchar *from);
 extern int _mi_search_next(MI_INFO *info, MI_KEYDEF *keyinfo, uchar *key,
                            uint key_length, uint nextflag, my_off_t pos);
@@ -571,7 +570,7 @@ extern uchar *mi_alloc_rec_buff(MI_INFO *, ulong, uchar **);
 #define mi_get_rec_buff_len(info,buf)                              \
         (*((uint32 *)(mi_get_rec_buff_ptr(info,buf))))
 
-extern ulong _mi_rec_unpack(MI_INFO *info, uchar *to, uchar *from,
+extern size_t _mi_rec_unpack(MI_INFO *info, uchar *to, uchar *from,
                             ulong reclength);
 extern my_bool _mi_rec_check(MI_INFO *info,const uchar *record, uchar *packpos,
                              ulong packed_length, my_bool with_checkum);
@@ -719,12 +718,12 @@ my_bool check_table_is_closed(const char *name, const char *where);
 int mi_open_datafile(MI_INFO *info, MYISAM_SHARE *share);
 
 int mi_open_keyfile(MYISAM_SHARE *share);
-void mi_setup_functions(register MYISAM_SHARE *share);
+void mi_setup_functions(MYISAM_SHARE *share);
 my_bool mi_dynmap_file(MI_INFO *info, my_off_t size);
 int mi_munmap_file(MI_INFO *info);
 void mi_remap_file(MI_INFO *info, my_off_t size);
 
-ICP_RESULT mi_check_index_cond(register MI_INFO *info, uint keynr, uchar *record);
+ICP_RESULT mi_check_index_cond(MI_INFO *info, uint keynr, uchar *record);
     /* Functions needed by mi_check */
 int killed_ptr(HA_CHECK *param);
 void mi_check_print_error(HA_CHECK *param, const char *fmt, ...);

@@ -312,3 +312,25 @@ Note	1050	Table 'v' already exists
 handler v read next;
 ERROR 42S02: Unknown table 'v' in HANDLER
 drop view v;
+#
+# MDEV-15813 ASAN use-after-poison in hp_hashnr upon
+#            HANDLER READ on a versioned HEAP table
+#
+CREATE TABLE t1 (g GEOMETRY NOT NULL, SPATIAL gi(g));
+INSERT INTO t1 VALUES (POINT(0,0));
+HANDLER t1 OPEN AS h;
+HANDLER h READ `gi`= (10);
+ERROR HY000: SPATIAL index `gi` does not support this operation
+HANDLER h READ `gi`> (10);
+ERROR HY000: SPATIAL index `gi` does not support this operation
+HANDLER h CLOSE;
+DROP TABLE t1;
+CREATE TABLE t1 (w VARCHAR(100), FULLTEXT fk(w));
+INSERT INTO t1 VALUES ('one two three');
+HANDLER t1 OPEN AS h;
+HANDLER h READ `fk`= (10);
+ERROR HY000: FULLTEXT index `fk` does not support this operation
+HANDLER h READ `fk`> (10);
+ERROR HY000: FULLTEXT index `fk` does not support this operation
+HANDLER h CLOSE;
+DROP TABLE t1;

@@ -218,16 +218,9 @@ int Sql_cmd_common_signal::eval_signal_informations(THD *thd, Sql_condition *con
        i <= LAST_DIAG_SET_PROPERTY;
        i++)
   {
-    set= m_set_signal_information.m_item[i];
-    if (set)
-    {
-      if (! set->fixed)
-      {
-        if (set->fix_fields(thd, & set))
-          goto end;
-        m_set_signal_information.m_item[i]= set;
-      }
-    }
+    if ((set= m_set_signal_information.m_item[i]) &&
+        set->fix_fields_if_needed(thd, &m_set_signal_information.m_item[i]))
+      goto end;
   }
 
   /*
@@ -262,12 +255,13 @@ int Sql_cmd_common_signal::eval_signal_informations(THD *thd, Sql_condition *con
     }
     /*
       Enforce that SET MESSAGE_TEXT = <value> evaluates the value
-      as VARCHAR(128) CHARACTER SET UTF8.
+      as VARCHAR(MYSQL_ERRMSG_SIZE) CHARACTER SET UTF8.
     */
     bool truncated;
     String utf8_text;
     str= set->val_str(& str_value);
-    truncated= assign_fixed_string(thd->mem_root, & my_charset_utf8_bin, 128,
+    truncated= assign_fixed_string(thd->mem_root, & my_charset_utf8_bin,
+                                   MYSQL_ERRMSG_SIZE,
                                    & utf8_text, str);
     if (truncated)
     {
@@ -318,7 +312,7 @@ int Sql_cmd_common_signal::eval_signal_informations(THD *thd, Sql_condition *con
     The various item->val_xxx() methods don't return an error code,
     but flag thd in case of failure.
   */
-  if (! thd->is_error())
+  if (likely(!thd->is_error()))
     result= 0;
 
 end:

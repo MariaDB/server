@@ -36,7 +36,7 @@ extern	int fts_lexer(YYSTYPE*, fts_lexer_t*);
 extern	int fts_blexer(YYSTYPE*, yyscan_t);
 extern	int fts_tlexer(YYSTYPE*, yyscan_t);
 
-typedef int (*fts_scan)();
+
 
 extern int ftserror(const char* p);
 
@@ -49,8 +49,8 @@ extern int ftserror(const char* p);
 #define YYPARSE_PARAM state
 #define YYLEX_PARAM ((fts_ast_state_t*) state)->lexer
 
-typedef	int	(*fts_scanner_alt)(YYSTYPE* val, yyscan_t yyscanner);
-typedef	int	(*fts_scanner)();
+
+typedef	int	(*fts_scanner)(YYSTYPE* val, yyscan_t yyscanner);
 
 struct fts_lexer_struct {
 	fts_scanner	scanner;
@@ -238,13 +238,13 @@ fts_lexer_create(
 	if (boolean_mode) {
 		fts0blex_init(&fts_lexer->yyscanner);
 		fts0b_scan_bytes((char*) query, (int) query_len, fts_lexer->yyscanner);
-		fts_lexer->scanner = (fts_scan) fts_blexer;
+		fts_lexer->scanner = fts_blexer;
 		/* FIXME: Debugging */
 		/* fts0bset_debug(1 , fts_lexer->yyscanner); */
 	} else {
 		fts0tlex_init(&fts_lexer->yyscanner);
 		fts0t_scan_bytes((char*) query, (int) query_len, fts_lexer->yyscanner);
-		fts_lexer->scanner = (fts_scan) fts_tlexer;
+		fts_lexer->scanner = fts_tlexer;
 	}
 
 	return(fts_lexer);
@@ -258,7 +258,7 @@ fts_lexer_free(
 /*===========*/
 	fts_lexer_t*	fts_lexer)
 {
-	if (fts_lexer->scanner == (fts_scan) fts_blexer) {
+	if (fts_lexer->scanner == fts_blexer) {
 		fts0blex_destroy(fts_lexer->yyscanner);
 	} else {
 		fts0tlex_destroy(fts_lexer->yyscanner);
@@ -275,9 +275,9 @@ fts_lexer(
 	YYSTYPE*	val,
 	fts_lexer_t*	fts_lexer)
 {
-	fts_scanner_alt func_ptr;
+	fts_scanner func_ptr;
 
-	func_ptr = (fts_scanner_alt) fts_lexer->scanner;
+	func_ptr = fts_lexer->scanner;
 
 	return(func_ptr(val, fts_lexer->yyscanner));
 }

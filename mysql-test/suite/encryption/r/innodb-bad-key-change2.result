@@ -1,5 +1,6 @@
 call mtr.add_suppression("InnoDB: Table `test`\\.`t1` (has an unreadable root page|is corrupted|does not exist.*is trying to rename)");
 call mtr.add_suppression("InnoDB: The page \\[page id: space=[1-9][0-9]*, page number=[1-9][0-9]*\\] in file '.*test.t1(new)?\\.ibd' cannot be decrypted\\.");
+call mtr.add_suppression("failed to read or decrypt \\[page id: space=[1-9][0-9]*, page number=[1-9][0-9]*\\]");
 call mtr.add_suppression("Couldn't load plugins from 'file_key_management");
 call mtr.add_suppression("InnoDB: Tablespace for table \`test\`.\`t1\` is set as discarded\\.");
 SET GLOBAL innodb_file_per_table = ON;
@@ -10,7 +11,7 @@ SELECT * FROM t1;
 ERROR 42S02: Table 'test.t1' doesn't exist in engine
 SHOW WARNINGS;
 Level	Code	Message
-Warning	192	Table test/t1 in tablespace  is encrypted but encryption service or used key_id is not available.  Can't continue reading table.
+Warning	192	Table test/t1 in file ./test/t1.ibd is encrypted but encryption service or used key_id is not available.  Can't continue reading table.
 Error	1932	Table 'test.t1' doesn't exist in engine
 ALTER TABLE t1 ENGINE=InnoDB;
 ERROR 42S02: Table 'test.t1' doesn't exist in engine

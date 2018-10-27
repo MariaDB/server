@@ -1,0 +1,31 @@
+# This test just backs up and restores empty database
+# Innodb system tablespace is specified with absolute path in  the .opt file
+CREATE TABLE t(i INT) ENGINE INNODB;
+INSERT INTO t VALUES(1);
+echo # xtrabackup backup;
+
+let $targetdir=$MYSQLTEST_VARDIR/tmp/backup;
+let $_innodb_data_file_path=`select @@innodb_data_file_path`;
+let $_innodb_data_home_dir=`select @@innodb_data_home_dir`;
+let $_datadir= `SELECT @@datadir`;
+
+--disable_result_log
+exec $XTRABACKUP --defaults-file=$MYSQLTEST_VARDIR/my.cnf --backup --target-dir=$targetdir;
+--enable_result_log
+exec $XTRABACKUP  --prepare --target-dir=$targetdir;
+
+--source include/shutdown_mysqld.inc
+echo # remove datadir;
+rmdir $_datadir;
+#remove out-of-datadir ibdata1
+remove_file $MYSQLTEST_VARDIR/tmp/absolute_path_ibdata1;
+echo # xtrabackup copy back;
+exec $XTRABACKUP --defaults-file=$MYSQLTEST_VARDIR/my.cnf --copy-back --datadir=$_datadir --target-dir=$targetdir "--innodb_data_file_path=$_innodb_data_file_path" --innodb_data_home_dir=$_innodb_data_home_dir;
+echo # restart server;
+--source include/start_mysqld.inc
+--enable_result_log
+
+SELECT * from t;
+DROP TABLE t;
+rmdir $targetdir;
+

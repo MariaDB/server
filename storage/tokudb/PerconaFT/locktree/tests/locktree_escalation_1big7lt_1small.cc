@@ -201,12 +201,14 @@ int main(int argc, const char *argv[]) {
     locktree *small_lt = mgr.get_lt(dict_id, dbt_comparator, nullptr);
 
     // create the worker threads
-    struct big_arg big_arg = { &mgr, big_lt, n_big, 1000 };
-    r = toku_pthread_create(&big_id, nullptr, big_f, &big_arg);
+    struct big_arg big_arg = {&mgr, big_lt, n_big, 1000};
+    r = toku_pthread_create(
+        toku_uninstrumented, &big_id, nullptr, big_f, &big_arg);
     assert(r == 0);
 
-    struct small_arg small_arg = { &mgr, small_lt, 2000, 0 };    
-    r = toku_pthread_create(&small_id, nullptr, small_f, &small_arg);
+    struct small_arg small_arg = {&mgr, small_lt, 2000, 0};
+    r = toku_pthread_create(
+        toku_uninstrumented, &small_id, nullptr, small_f, &small_arg);
     assert(r == 0);
 
     // wait for some escalations to occur

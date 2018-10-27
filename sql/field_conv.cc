@@ -487,10 +487,11 @@ static void do_cut_string_complex(Copy_field *copy)
   memcpy(copy->to_ptr, copy->from_ptr, copy_length);
 
   /* Check if we lost any important characters */
-  if (prefix.well_formed_error_pos() ||
-      cs->cset->scan(cs, (char*) copy->from_ptr + copy_length,
-                     (char*) from_end,
-                     MY_SEQ_SPACES) < (copy->from_length - copy_length))
+  if (unlikely(prefix.well_formed_error_pos() ||
+               cs->cset->scan(cs, (char*) copy->from_ptr + copy_length,
+                              (char*) from_end,
+                              MY_SEQ_SPACES) <
+               (copy->from_length - copy_length)))
   {
     copy->to_field->set_warning(Sql_condition::WARN_LEVEL_WARN,
                                 WARN_DATA_TRUNCATED, 1);
@@ -610,7 +611,7 @@ void Copy_field::set(uchar *to,Field *from)
 {
   from_ptr=from->ptr;
   to_ptr=to;
-  from_length=from->pack_length();
+  from_length=from->pack_length_in_rec();
   if (from->maybe_null())
   {
     from_null_ptr=from->null_ptr;
@@ -658,9 +659,9 @@ void Copy_field::set(Field *to,Field *from,bool save)
   from_field=from;
   to_field=to;
   from_ptr=from->ptr;
-  from_length=from->pack_length();
+  from_length=from->pack_length_in_rec();
   to_ptr=  to->ptr;
-  to_length=to_field->pack_length();
+  to_length=to_field->pack_length_in_rec();
 
   // set up null handling
   from_null_ptr=to_null_ptr=0;

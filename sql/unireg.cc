@@ -1,6 +1,6 @@
 /*
    Copyright (c) 2000, 2011, Oracle and/or its affiliates.
-   Copyright (c) 2009, 2013, Monty Program Ab.
+   Copyright (c) 2009, 2018, MariaDB Corporation
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -118,13 +118,13 @@ vers_get_field(HA_CREATE_INFO *create_info, List<Create_field> &create_fields, b
   List_iterator<Create_field> it(create_fields);
   Create_field *sql_field = NULL;
 
-  const LString_i row_field= row_start ? create_info->vers_info.as_row.start
+  const Lex_ident row_field= row_start ? create_info->vers_info.as_row.start
                                    : create_info->vers_info.as_row.end;
   DBUG_ASSERT(row_field);
 
   for (unsigned field_no = 0; (sql_field = it++); ++field_no)
   {
-    if (row_field == sql_field->field_name)
+    if (row_field.streq(sql_field->field_name))
     {
       DBUG_ASSERT(field_no <= uint16(~0U));
       return uint16(field_no);
@@ -194,7 +194,7 @@ LEX_CUSTRING build_frm_image(THD *thd, const LEX_CSTRING *table,
   error= pack_vcols(&vcols, create_fields, create_info->check_constraint_list);
   thd->variables.sql_mode= save_sql_mode;
 
-  if (error)
+  if (unlikely(error))
     DBUG_RETURN(frm);
 
   if (vcols.length())
@@ -202,7 +202,7 @@ LEX_CUSTRING build_frm_image(THD *thd, const LEX_CSTRING *table,
 
   error= pack_header(thd, forminfo, create_fields, create_info,
                      (ulong)data_offset, db_file);
-  if (error)
+  if (unlikely(error))
     DBUG_RETURN(frm);
 
   reclength= uint2korr(forminfo+266);
@@ -287,11 +287,6 @@ LEX_CUSTRING build_frm_image(THD *thd, const LEX_CSTRING *table,
     extra2_size+= 1 + 1 + 2 * sizeof(uint16);
   }
 
-  if (create_info->vtmd())
-  {
-    extra2_size+= 1 + 1 + 1;
-  }
-
   bool has_extra2_field_flags_= has_extra2_field_flags(create_fields);
   if (has_extra2_field_flags_)
   {
@@ -364,13 +359,6 @@ LEX_CUSTRING build_frm_image(THD *thd, const LEX_CSTRING *table,
     pos+= sizeof(uint16);
   }
 
-  if (create_info->vtmd())
-  {
-    *pos++= EXTRA2_VTMD;
-    *pos++= 1;
-    *pos++= 1;
-  }
-
   if (has_extra2_field_flags_)
     pos= extra2_write_field_properties(pos, create_fields);
 
@@ -379,6 +367,14 @@ LEX_CUSTRING build_frm_image(THD *thd, const LEX_CSTRING *table,
 
   DBUG_ASSERT(pos == frm_ptr + uint2korr(fileinfo+6));
   key_info_length= pack_keys(pos, keys, key_info, data_offset);
+  if (key_info_length > UINT_MAX16)
+  {
+    my_printf_error(ER_CANT_CREATE_TABLE,
+                    "Cannot create table %`s: index information is too long. "
+                    "Decrease number of indexes or use shorter index names or shorter comments.",
+                    MYF(0), table->str);
+    goto err;
+  }
 
   int2store(forminfo+2, frm.length - filepos);
   int4store(fileinfo+10, frm.length);
@@ -1086,9 +1082,8 @@ static bool make_empty_rec(THD *thd, uchar *buff, uint table_options,
          field->real_field_type() == MYSQL_TYPE_GEOMETRY))
     {
       Item *expr= field->default_value->expr;
-
-      int res= !expr->fixed && // may be already fixed if ALTER TABLE
-                expr->fix_fields(thd, &expr);
+      // may be already fixed if ALTER TABLE
+      int res= expr->fix_fields_if_needed(thd, &expr);
       if (!res)
         res= expr->save_in_field(regfield, 1);
       if (!res && (field->flags & BLOB_FLAG))

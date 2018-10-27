@@ -1,7 +1,7 @@
 /*****************************************************************************
 
 Copyright (c) 1996, 2016, Oracle and/or its affiliates. All Rights Reserved.
-Copyright (c) 2014, 2017, MariaDB Corporation.
+Copyright (c) 2014, 2018, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -46,9 +46,9 @@ lock_wait_table_print(void)
 {
 	ut_ad(lock_wait_mutex_own());
 
-	const srv_slot_t*	slot = lock_sys->waiting_threads;
+	const srv_slot_t*	slot = lock_sys.waiting_threads;
 
-	for (ulint i = 0; i < OS_THREAD_MAX_N; i++, ++slot) {
+	for (ulint i = 0; i < srv_max_n_threads; i++, ++slot) {
 
 		fprintf(stderr,
 			"Slot %lu: thread type %lu,"
@@ -72,7 +72,7 @@ lock_wait_table_release_slot(
 	srv_slot_t*	slot)		/*!< in: slot to release */
 {
 #ifdef UNIV_DEBUG
-	srv_slot_t*	upper = lock_sys->waiting_threads + OS_THREAD_MAX_N;
+	srv_slot_t*	upper = lock_sys.waiting_threads + srv_max_n_threads;
 #endif /* UNIV_DEBUG */
 
 	lock_wait_mutex_enter();
@@ -83,7 +83,7 @@ lock_wait_table_release_slot(
 	ut_ad(slot->thr->slot == slot);
 
 	/* Must be within the array boundaries. */
-	ut_ad(slot >= lock_sys->waiting_threads);
+	ut_ad(slot >= lock_sys.waiting_threads);
 	ut_ad(slot < upper);
 
 	/* Note: When we reserve the slot we use the trx_t::mutex to update
@@ -102,23 +102,23 @@ lock_wait_table_release_slot(
 	lock_mutex_exit();
 
 	/* Scan backwards and adjust the last free slot pointer. */
-	for (slot = lock_sys->last_slot;
-	     slot > lock_sys->waiting_threads && !slot->in_use;
+	for (slot = lock_sys.last_slot;
+	     slot > lock_sys.waiting_threads && !slot->in_use;
 	     --slot) {
 		/* No op */
 	}
 
 	/* Either the array is empty or the last scanned slot is in use. */
-	ut_ad(slot->in_use || slot == lock_sys->waiting_threads);
+	ut_ad(slot->in_use || slot == lock_sys.waiting_threads);
 
-	lock_sys->last_slot = slot + 1;
+	lock_sys.last_slot = slot + 1;
 
 	/* The last slot is either outside of the array boundary or it's
 	on an empty slot. */
-	ut_ad(lock_sys->last_slot == upper || !lock_sys->last_slot->in_use);
+	ut_ad(lock_sys.last_slot == upper || !lock_sys.last_slot->in_use);
 
-	ut_ad(lock_sys->last_slot >= lock_sys->waiting_threads);
-	ut_ad(lock_sys->last_slot <= upper);
+	ut_ad(lock_sys.last_slot >= lock_sys.waiting_threads);
+	ut_ad(lock_sys.last_slot <= upper);
 
 	lock_wait_mutex_exit();
 }
@@ -140,9 +140,9 @@ lock_wait_table_reserve_slot(
 	ut_ad(lock_wait_mutex_own());
 	ut_ad(trx_mutex_own(thr_get_trx(thr)));
 
-	slot = lock_sys->waiting_threads;
+	slot = lock_sys.waiting_threads;
 
-	for (i = OS_THREAD_MAX_N; i--; ++slot) {
+	for (i = srv_max_n_threads; i--; ++slot) {
 		if (!slot->in_use) {
 			slot->in_use = TRUE;
 			slot->thr = thr;
@@ -158,18 +158,18 @@ lock_wait_table_reserve_slot(
 			slot->suspend_time = ut_time();
 			slot->wait_timeout = wait_timeout;
 
-			if (slot == lock_sys->last_slot) {
-				++lock_sys->last_slot;
+			if (slot == lock_sys.last_slot) {
+				++lock_sys.last_slot;
 			}
 
-			ut_ad(lock_sys->last_slot
-			      <= lock_sys->waiting_threads + OS_THREAD_MAX_N);
+			ut_ad(lock_sys.last_slot
+			      <= lock_sys.waiting_threads + srv_max_n_threads);
 
 			return(slot);
 		}
 	}
 
-	ib::error() << "There appear to be " << OS_THREAD_MAX_N << " user"
+	ib::error() << "There appear to be " << srv_max_n_threads << " user"
 		" threads currently waiting inside InnoDB, which is the upper"
 		" limit. Cannot continue operation. Before aborting, we print"
 		" a list of waiting threads.";
@@ -184,7 +184,7 @@ lock_wait_table_reserve_slot(
 check if lock timeout was for priority thread,
 as a side effect trigger lock monitor
 @param[in]    trx    transaction owning the lock
-@param[in]    locked true if trx and lock_sys_mutex is ownd
+@param[in]    locked true if trx and lock_sys.mutex is ownd
 @return	false for regular lock timeout */
 static
 bool
@@ -290,7 +290,7 @@ lock_wait_suspend_thread(
 		if (ut_usectime(&sec, &ms) == -1) {
 			start_time = -1;
 		} else {
-			start_time = static_cast<int64_t>(sec) * 1000000 + ms;
+			start_time = int64_t(sec) * 1000000 + int64_t(ms);
 		}
 	}
 
@@ -378,31 +378,27 @@ lock_wait_suspend_thread(
 	lock_wait_table_release_slot(slot);
 
 	if (thr->lock_state == QUE_THR_LOCK_ROW) {
-		ulint	diff_time;
-
-		if (ut_usectime(&sec, &ms) == -1) {
+		int64_t	diff_time;
+		if (start_time == -1 || ut_usectime(&sec, &ms) == -1) {
 			finish_time = -1;
+			diff_time = 0;
 		} else {
-			finish_time = static_cast<int64_t>(sec) * 1000000 + ms;
-		}
+			finish_time = int64_t(sec) * 1000000 + int64_t(ms);
+			diff_time = std::max<int64_t>(
+				0, finish_time - start_time);
+			srv_stats.n_lock_wait_time.add(diff_time);
 
-		diff_time = (finish_time > start_time) ?
-			    (ulint) (finish_time - start_time) : 0;
+			/* Only update the variable if we successfully
+			retrieved the start and finish times. See Bug#36819. */
+			if (ulint(diff_time) > lock_sys.n_lock_max_wait_time) {
+				lock_sys.n_lock_max_wait_time
+					= ulint(diff_time);
+			}
+			/* Record the lock wait time for this thread */
+			thd_storage_lock_wait(trx->mysql_thd, diff_time);
+		}
 
 		srv_stats.n_lock_wait_current_count.dec();
-		srv_stats.n_lock_wait_time.add(diff_time);
-
-		/* Only update the variable if we successfully
-		retrieved the start and finish times. See Bug#36819. */
-		if (diff_time > lock_sys->n_lock_max_wait_time
-		    && start_time != -1
-		    && finish_time != -1) {
-
-			lock_sys->n_lock_max_wait_time = diff_time;
-		}
-
-		/* Record the lock wait time for this thread */
-		thd_set_lock_wait_time(trx->mysql_thd, diff_time);
 
 		DBUG_EXECUTE_IF("lock_instrument_slow_query_log",
 			os_thread_sleep(1000););
@@ -419,7 +415,7 @@ lock_wait_suspend_thread(
 	    && (!wsrep_on_trx(trx) ||
 	       (!wsrep_is_BF_lock_timeout(trx, false) && trx->error_state != DB_DEADLOCK))
 #endif /* WITH_WSREP */
-	    && !trx_is_high_priority(trx)) {
+	    ) {
 
 		trx->error_state = DB_LOCK_WAIT_TIMEOUT;
 
@@ -502,7 +498,7 @@ lock_wait_check_and_cancel(
 
 		trx_mutex_enter(trx);
 
-		if (trx->lock.wait_lock != NULL && !trx_is_high_priority(trx)) {
+		if (trx->lock.wait_lock != NULL) {
 
 			ut_a(trx->lock.que_state == TRX_QUE_LOCK_WAIT);
 
@@ -530,7 +526,7 @@ os_thread_ret_t
 DECLARE_THREAD(lock_wait_timeout_thread)(void*)
 {
 	int64_t		sig_count = 0;
-	os_event_t	event = lock_sys->timeout_event;
+	os_event_t	event = lock_sys.timeout_event;
 
 	ut_ad(!srv_read_only_mode);
 
@@ -556,8 +552,8 @@ DECLARE_THREAD(lock_wait_timeout_thread)(void*)
 		/* Check all slots for user threads that are waiting
 	       	on locks, and if they have exceeded the time limit. */
 
-		for (slot = lock_sys->waiting_threads;
-		     slot < lock_sys->last_slot;
+		for (slot = lock_sys.waiting_threads;
+		     slot < lock_sys.last_slot;
 		     ++slot) {
 
 			/* We are doing a read without the lock mutex
@@ -576,7 +572,7 @@ DECLARE_THREAD(lock_wait_timeout_thread)(void*)
 
 	} while (srv_shutdown_state < SRV_SHUTDOWN_CLEANUP);
 
-	lock_sys->timeout_thread_active = false;
+	lock_sys.timeout_thread_active = false;
 
 	/* We count the number of threads in os_thread_exit(). A created
 	thread should always use that to exit and not use return() to exit. */

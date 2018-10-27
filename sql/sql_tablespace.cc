@@ -46,21 +46,16 @@ int mysql_alter_tablespace(THD *thd, st_alter_tablespace *ts_info)
 
   if (hton->alter_tablespace)
   {
-    if ((error= hton->alter_tablespace(hton, thd, ts_info)))
+    if (unlikely((error= hton->alter_tablespace(hton, thd, ts_info))))
     {
       if (error == 1)
-      {
         DBUG_RETURN(1);
-      }
 
       if (error == HA_ADMIN_NOT_IMPLEMENTED)
-      {
         my_error(ER_CHECK_NOT_IMPLEMENTED, MYF(0), "");
-      }
       else
-      {
         my_error(error, MYF(0));
-      }
+
       DBUG_RETURN(error);
     }
   }

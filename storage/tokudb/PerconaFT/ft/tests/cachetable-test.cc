@@ -42,15 +42,13 @@ Copyright (c) 2006, 2015, Percona and/or its affiliates. All rights reserved.
 // global data, especially between the test thread and the cachetable
 // writeback threads
 
-toku_mutex_t  test_mutex;
+toku_mutex_t test_mutex;
 
 static inline void test_mutex_init(void) {
-    toku_mutex_init(&test_mutex, 0);
+    toku_mutex_init(toku_uninstrumented, &test_mutex, nullptr);
 }
 
-static inline void test_mutex_destroy(void) {
-    toku_mutex_destroy(&test_mutex);
-}
+static inline void test_mutex_destroy(void) { toku_mutex_destroy(&test_mutex); }
 
 static inline void test_mutex_lock(void) {
     toku_mutex_lock(&test_mutex);
@@ -131,7 +129,7 @@ static void test_nested_pin (void) {
     wc.flush_callback = flush_n;
     toku_cachetable_put(f, make_blocknum(1), f1hash, &i0, make_pair_attr(1), wc, put_callback_nop);
     r = toku_test_cachetable_unpin(f, make_blocknum(1), f1hash, CACHETABLE_CLEAN, make_pair_attr(test_object_size));
-    r = toku_cachetable_get_and_pin(f, make_blocknum(1), f1hash, &vv, NULL, wc, fetch_n, def_pf_req_callback, def_pf_callback, true, f2);
+    r = toku_cachetable_get_and_pin(f, make_blocknum(1), f1hash, &vv, wc, fetch_n, def_pf_req_callback, def_pf_callback, true, f2);
     assert(r==0);
     assert(vv==&i0);
     assert(i0==0);
@@ -217,12 +215,12 @@ static void test_multi_filehandles (void) {
     wc.flush_callback = null_flush;
     toku_cachetable_put(f1, make_blocknum(1), toku_cachetable_hash(f1, make_blocknum(1)), (void*)124, make_pair_attr(test_object_size), wc, put_callback_nop);
     r = toku_test_cachetable_unpin(f1, make_blocknum(1), toku_cachetable_hash(f1, make_blocknum(1)), CACHETABLE_DIRTY, make_pair_attr(0)); assert(r==0);
-    r = toku_cachetable_get_and_pin(f2, make_blocknum(1), toku_cachetable_hash(f2, make_blocknum(1)), &v, NULL, wc, add123_fetch, def_pf_req_callback, def_pf_callback, true, (void*)123); assert(r==0);
+    r = toku_cachetable_get_and_pin(f2, make_blocknum(1), toku_cachetable_hash(f2, make_blocknum(1)), &v, wc, add123_fetch, def_pf_req_callback, def_pf_callback, true, (void*)123); assert(r==0);
     assert((unsigned long)v==124);
-    r = toku_cachetable_get_and_pin(f2, make_blocknum(2), toku_cachetable_hash(f2, make_blocknum(2)), &v, NULL, wc, add123_fetch, def_pf_req_callback, def_pf_callback, true, (void*)123); assert(r==0);
+    r = toku_cachetable_get_and_pin(f2, make_blocknum(2), toku_cachetable_hash(f2, make_blocknum(2)), &v, wc, add123_fetch, def_pf_req_callback, def_pf_callback, true, (void*)123); assert(r==0);
     assert((unsigned long)v==125);
     wc.write_extraargs = (void*)222;
-    r = toku_cachetable_get_and_pin(f3, make_blocknum(2), toku_cachetable_hash(f3, make_blocknum(2)), &v, NULL, wc, add222_fetch, def_pf_req_callback, def_pf_callback, true, (void*)222); assert(r==0);
+    r = toku_cachetable_get_and_pin(f3, make_blocknum(2), toku_cachetable_hash(f3, make_blocknum(2)), &v, wc, add222_fetch, def_pf_req_callback, def_pf_callback, true, (void*)222); assert(r==0);
     assert((unsigned long)v==224);
 
     // we support only one close for a file handle
@@ -298,7 +296,7 @@ static void test_dirty(void) {
     assert(dirty == 1);
     assert(pinned == 0);
 
-    r = toku_cachetable_get_and_pin(f, key, hkey, &value, NULL, wc,
+    r = toku_cachetable_get_and_pin(f, key, hkey, &value, wc,
 				    test_dirty_fetch, def_pf_req_callback, def_pf_callback, true, 0);
     assert(r == 0);
 
@@ -320,7 +318,7 @@ static void test_dirty(void) {
     key = make_blocknum(2);
     hkey = toku_cachetable_hash(f, key);
     r = toku_cachetable_get_and_pin(f, key, hkey,
-				    &value, NULL, wc,
+				    &value, wc,
 				    test_dirty_fetch, def_pf_req_callback, def_pf_callback, true, 0);
     assert(r == 0);
 
@@ -340,7 +338,7 @@ static void test_dirty(void) {
     assert(pinned == 0);
 
     r = toku_cachetable_get_and_pin(f, key, hkey,
-				    &value, NULL, wc,
+				    &value, wc,
 				    test_dirty_fetch, def_pf_req_callback, def_pf_callback, true, 0);
     assert(r == 0);
 
@@ -431,11 +429,13 @@ static void test_size_resize(void) {
     assert(r == 0);
 
     void *current_value;
-    long current_size;
-    r = toku_cachetable_get_and_pin(f, key, hkey, &current_value, &current_size, wc, 0, def_pf_req_callback, def_pf_callback, true, 0);
+    r = toku_cachetable_get_and_pin(f, key, hkey, &current_value, wc, 0, def_pf_req_callback, def_pf_callback, true, 0);
     assert(r == 0);
     assert(current_value == value);
-    assert(current_size == new_size);
+    PAIR_ATTR attr;
+    r = toku_cachetable_get_attr(f, key, hkey, &attr);
+    assert(r == 0);
+    assert(attr.size == new_size);
 
     r = toku_test_cachetable_unpin(f, key, hkey, CACHETABLE_CLEAN, make_pair_attr(new_size));
     assert(r == 0);

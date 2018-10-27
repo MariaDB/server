@@ -19,6 +19,6 @@ disable_query_log;
 call mtr.add_suppression("Unsafe statement written to the binary log using statement format since BINLOG_FORMAT = STATEMENT");
 enable_query_log;
 
--- source extra/rpl_tests/rpl_loadfile.test
+-- source include/rpl_loadfile.test
 
 --source include/rpl_end.inc

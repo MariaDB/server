@@ -1,5 +1,5 @@
 /* Copyright (c) 2010, 2014, Oracle and/or its affiliates.
-   Copyright (c) 2013, 2014, Monty Program Ab.
+   Copyright (c) 2013, 2018, MariaDB Corporation.
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -29,100 +29,10 @@ class Key;
 class Alter_info
 {
 public:
-  /*
-    These flags are set by the parser and describes the type of
-    operation(s) specified by the ALTER TABLE statement.
-
-    They do *not* describe the type operation(s) to be executed
-    by the storage engine. For example, we don't yet know the
-    type of index to be added/dropped.
-  */
-
-  enum operations_used_flags
-  {
-    // Set for ADD [COLUMN]
-    ALTER_ADD_COLUMN            = 1L <<  0,
-    // Set for DROP [COLUMN]
-    ALTER_DROP_COLUMN           = 1L <<  1,
-    // Set for CHANGE [COLUMN] | MODIFY [CHANGE] & mysql_recreate_table
-    ALTER_CHANGE_COLUMN         = 1L <<  2,
-    // Set for ADD INDEX | ADD KEY | ADD PRIMARY KEY | ADD UNIQUE KEY |
-    //         ADD UNIQUE INDEX | ALTER ADD [COLUMN]
-    ALTER_ADD_INDEX             = 1L <<  3,
-    // Set for DROP PRIMARY KEY | DROP FOREIGN KEY | DROP KEY | DROP INDEX
-    ALTER_DROP_INDEX            = 1L <<  4,
-    // Set for RENAME [TO]
-    ALTER_RENAME                = 1L <<  5,
-    // Set for ORDER BY
-    ALTER_ORDER                 = 1L <<  6,
-    // Set for table_options
-    ALTER_OPTIONS               = 1L <<  7,
-    // Set for ALTER [COLUMN] ... SET DEFAULT ... | DROP DEFAULT
-    ALTER_CHANGE_COLUMN_DEFAULT = 1L <<  8,
-    // Set for DISABLE KEYS | ENABLE KEYS
-    ALTER_KEYS_ONOFF            = 1L <<  9,
-    // Set for FORCE, ENGINE(same engine), by mysql_recreate_table()
-    ALTER_RECREATE              = 1L << 10,
-    // Set for ADD PARTITION
-    ALTER_ADD_PARTITION         = 1L << 11,
-    // Set for DROP PARTITION
-    ALTER_DROP_PARTITION        = 1L << 12,
-    // Set for COALESCE PARTITION
-    ALTER_COALESCE_PARTITION    = 1L << 13,
-    // Set for REORGANIZE PARTITION ... INTO
-    ALTER_REORGANIZE_PARTITION  = 1L << 14,
-    // Set for partition_options
-    ALTER_PARTITION             = 1L << 15,
-    // Set for LOAD INDEX INTO CACHE ... PARTITION
-    // Set for CACHE INDEX ... PARTITION
-    ALTER_ADMIN_PARTITION       = 1L << 16,
-    // Set for REORGANIZE PARTITION
-    ALTER_TABLE_REORG           = 1L << 17,
-    // Set for REBUILD PARTITION
-    ALTER_REBUILD_PARTITION     = 1L << 18,
-    // Set for partitioning operations specifying ALL keyword
-    ALTER_ALL_PARTITION         = 1L << 19,
-    // Set for REMOVE PARTITIONING
-    ALTER_REMOVE_PARTITIONING   = 1L << 20,
-    // Set for ADD FOREIGN KEY
-    ADD_FOREIGN_KEY             = 1L << 21,
-    // Set for DROP FOREIGN KEY
-    DROP_FOREIGN_KEY            = 1L << 22,
-    // Set for EXCHANGE PARITION
-    ALTER_EXCHANGE_PARTITION    = 1L << 23,
-    // Set by Sql_cmd_alter_table_truncate_partition::execute()
-    ALTER_TRUNCATE_PARTITION    = 1L << 24,
-    // Set for ADD [COLUMN] FIRST | AFTER
-    ALTER_COLUMN_ORDER          = 1L << 25,
-    ALTER_ADD_CHECK_CONSTRAINT  = 1L << 27,
-    ALTER_DROP_CHECK_CONSTRAINT = 1L << 28,
-    ALTER_COLUMN_UNVERSIONED    = 1L << 29,
-    ALTER_ADD_SYSTEM_VERSIONING = 1L << 30,
-    ALTER_DROP_SYSTEM_VERSIONING= 1L << 31,
-  };
 
   enum enum_enable_or_disable { LEAVE_AS_IS, ENABLE, DISABLE };
 
-  bool data_modifying() const
-  {
-    return flags & (
-      ALTER_ADD_COLUMN |
-      ALTER_DROP_COLUMN |
-      ALTER_CHANGE_COLUMN |
-      ALTER_COLUMN_ORDER);
-  }
-
-  bool partition_modifying() const
-  {
-    return flags & (
-      ALTER_DROP_PARTITION |
-      ALTER_COALESCE_PARTITION |
-      ALTER_REORGANIZE_PARTITION |
-      ALTER_REMOVE_PARTITIONING |
-      ALTER_TABLE_REORG |
-      ALTER_EXCHANGE_PARTITION |
-      ALTER_TRUNCATE_PARTITION);
-  }
+  bool vers_prohibited(THD *thd) const;
 
   /**
      The different values of the ALGORITHM clause.
@@ -130,14 +40,24 @@ public:
   */
   enum enum_alter_table_algorithm
   {
-    // In-place if supported, copy otherwise.
+/*
+  Use thd->variables.alter_algorithm for alter method. If this is also
+  default then use the fastest possible ALTER TABLE method
+  (INSTANT, NOCOPY, INPLACE, COPY)
+*/
     ALTER_TABLE_ALGORITHM_DEFAULT,
+
+    // Copy if supported, error otherwise.
+    ALTER_TABLE_ALGORITHM_COPY,
 
     // In-place if supported, error otherwise.
     ALTER_TABLE_ALGORITHM_INPLACE,
 
-    // Copy if supported, error otherwise.
-    ALTER_TABLE_ALGORITHM_COPY
+    // No Copy will refuse any operation which does rebuild.
+    ALTER_TABLE_ALGORITHM_NOCOPY,
+
+    // Instant should allow any operation that changes metadata only.
+    ALTER_TABLE_ALGORITHM_INSTANT
   };
 
 
@@ -150,7 +70,7 @@ public:
     // Maximum supported level of concurency for the given operation.
     ALTER_TABLE_LOCK_DEFAULT,
 
-    // Allow concurrent reads & writes. If not supported, give erorr.
+    // Allow concurrent reads & writes. If not supported, give error.
     ALTER_TABLE_LOCK_NONE,
 
     // Allow concurrent reads only. If not supported, give error.
@@ -176,7 +96,8 @@ public:
   };
   List<Virtual_column_info>     check_constraint_list;
   // Type of ALTER TABLE operation.
-  uint                          flags;
+  alter_table_operations        flags;
+  ulong                         partition_flags;
   // Enable or disable keys.
   enum_enable_or_disable        keys_onoff;
   // List of partitions.
@@ -190,7 +111,7 @@ public:
 
 
   Alter_info() :
-    flags(0),
+  flags(0), partition_flags(0),
     keys_onoff(LEAVE_AS_IS),
     num_parts(0),
     requested_algorithm(ALTER_TABLE_ALGORITHM_DEFAULT),
@@ -205,6 +126,7 @@ public:
     create_list.empty();
     check_constraint_list.empty();
     flags= 0;
+    partition_flags= 0;
     keys_onoff= LEAVE_AS_IS;
     num_parts= 0;
     partition_names.empty();
@@ -254,6 +176,45 @@ public:
   */
 
   bool set_requested_lock(const LEX_CSTRING *str);
+
+  /**
+     Returns the algorithm value in the format "algorithm=value"
+  */
+  const char* algorithm() const;
+
+  /**
+     Returns the lock value in the format "lock=value"
+  */
+  const char* lock() const;
+
+  /**
+     Check whether the given result can be supported
+     with the specified user alter algorithm.
+
+     @param  thd            Thread handle
+     @param  result         Operation supported for inplace alter
+     @param  ha_alter_info  Structure describing changes to be done
+                            by ALTER TABLE and holding data during
+                            in-place alter
+     @retval false  Supported operation
+     @retval true   Not supported value
+  */
+  bool supports_algorithm(THD *thd, enum_alter_inplace_result result,
+                          const Alter_inplace_info *ha_alter_info);
+
+  /**
+     Check whether the given result can be supported
+     with the specified user lock type.
+
+     @param  result         Operation supported for inplace alter
+     @param  ha_alter_info  Structure describing changes to be done
+                            by ALTER TABLE and holding data during
+                            in-place alter
+     @retval false  Supported lock type
+     @retval true   Not supported value
+  */
+  bool supports_lock(THD *thd, enum_alter_inplace_result result,
+                     const Alter_inplace_info *ha_alter_info);
 
 private:
   Alter_info &operator=(const Alter_info &rhs); // not implemented

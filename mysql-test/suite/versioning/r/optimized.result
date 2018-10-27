@@ -16,65 +16,36 @@ select a, b, b+0 from t for system_time as of timestamp now(6);
 a	b	b+0
 1	2	2
 3	4	4
-Warnings:
-Note	4110	Non-versioned field `b` in historical query
-Note	4110	Non-versioned field `b` in historical query
 select * from t for system_time as of timestamp now(6);
 a	b
 1	2
 3	4
-Warnings:
-Note	4110	Non-versioned field `b` in historical query
 select count(*) from t for system_time as of timestamp now(6) group by b;
 count(*)
 1
 1
-Warnings:
-Note	4110	Non-versioned field `b` in historical query
 select * from t for system_time as of timestamp now(6) order by b asc;
 a	b
 1	2
 3	4
-Warnings:
-Note	4110	Non-versioned field `b` in historical query
-Note	4110	Non-versioned field `b` in historical query
 select * from t for system_time as of timestamp now(6) order by b desc;
 a	b
 3	4
 1	2
-Warnings:
-Note	4110	Non-versioned field `b` in historical query
-Note	4110	Non-versioned field `b` in historical query
 select * from t for system_time as of timestamp now(6) group by a having a=2;
 a	b
-Warnings:
-Note	4110	Non-versioned field `b` in historical query
 select * from t for system_time as of timestamp now(6) group by b having b=2;
 a	b
 1	2
-Warnings:
-Note	4110	Non-versioned field `b` in historical query
-Note	4110	Non-versioned field `b` in historical query
-Note	4110	Non-versioned field `b` in historical query
 select a from t for system_time as of timestamp now(6) where b=2;
 a
 1
-Warnings:
-Note	4110	Non-versioned field `b` in historical query
 select a from t for system_time as of timestamp now(6) where b=NULL;
 a
-Warnings:
-Note	4110	Non-versioned field `b` in historical query
 select a from t for system_time as of timestamp now(6) where b is NULL;
 a
-Warnings:
-Note	4110	Non-versioned field `b` in historical query
 select count(*), b from t for system_time as of timestamp now(6) group by b having b=NULL;
 count(*)	b
-Warnings:
-Note	4110	Non-versioned field `b` in historical query
-Note	4110	Non-versioned field `b` in historical query
-Note	4110	Non-versioned field `b` in historical query
 select a, b from t;
 a	b
 1	2
@@ -88,10 +59,17 @@ select * from t for system_time as of timestamp now(6);
 a	b
 1	2
 3	4
-Warnings:
-Note	4110	Non-versioned field `b` in historical query
 select * from t for system_time as of timestamp now(6) where b is NULL;
 a	b
-Warnings:
-Note	4110	Non-versioned field `b` in historical query
+create or replace table t (x int with system versioning, y int);
+select column_name, extra from information_schema.columns where table_name='t';
+column_name	extra
+x	
+y	WITHOUT SYSTEM VERSIONING
+show create table t;
+Table	Create Table
+t	CREATE TABLE `t` (
+  `x` int(11) DEFAULT NULL,
+  `y` int(11) DEFAULT NULL WITHOUT SYSTEM VERSIONING
+) ENGINE=MyISAM DEFAULT CHARSET=latin1 WITH SYSTEM VERSIONING
 drop table t;

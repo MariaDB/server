@@ -1,7 +1,7 @@
 /*****************************************************************************
 
 Copyright (c) 1995, 2016, Oracle and/or its affiliates. All Rights Reserved.
-Copyright (c) 2013, 2017, MariaDB Corporation.
+Copyright (c) 2013, 2018, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -41,6 +41,7 @@ Created 11/5/1995 Heikki Tuuri
 #include "os0proc.h"
 #include "log0log.h"
 #include "srv0srv.h"
+#include "my_atomic.h"
 #include <ostream>
 
 // Forward declaration
@@ -267,18 +268,8 @@ public:
 		m_fold = src.fold();
 	}
 
-	/** Reset the values from a (space, page_no).
-	@param[in]	space	tablespace id
-	@param[in]	page_no	page number */
-	inline void reset(ulint space, ulint page_no)
-	{
-		m_space = static_cast<ib_uint32_t>(space);
-		m_page_no = static_cast<ib_uint32_t>(page_no);
-		m_fold = ULINT_UNDEFINED;
-
-		ut_ad(space <= 0xFFFFFFFFU);
-		ut_ad(page_no <= 0xFFFFFFFFU);
-	}
+	/** Reset the object. */
+	void reset() { m_space= ~0U; m_page_no= ~0U; m_fold= ULINT_UNDEFINED; }
 
 	/** Reset the page number only.
 	@param[in]	page_no	page number */
@@ -1271,9 +1262,9 @@ buf_page_init_for_read(
 	bool			unzip);
 
 /** Complete a read or write request of a file page to or from the buffer pool.
-@param[in,out]		bpage		Page to complete
-@param[in]		evict		whether or not to evict the page
-					from LRU list.
+@param[in,out]	bpage	page to complete
+@param[in]	dblwr	whether the doublewrite buffer was used (on write)
+@param[in]	evict	whether or not to evict the page from LRU list
 @return whether the operation succeeded
 @retval	DB_SUCCESS		always when writing, or if a read page was OK
 @retval	DB_PAGE_CORRUPTED	if the checksum fails on a page read
@@ -1282,7 +1273,7 @@ buf_page_init_for_read(
 				not match */
 UNIV_INTERN
 dberr_t
-buf_page_io_complete(buf_page_t* bpage, bool evict = false)
+buf_page_io_complete(buf_page_t* bpage, bool dblwr = false, bool evict = false)
 	MY_ATTRIBUTE((nonnull));
 
 /********************************************************************//**
@@ -1516,8 +1507,10 @@ NOTE! The definition appears here only for other modules of this
 directory (buf) to see it. Do not use from outside! */
 
 typedef struct {
-	bool		reserved;	/*!< true if this slot is reserved
+private:
+	int32		reserved;	/*!< true if this slot is reserved
 					*/
+public:
 	byte*           crypt_buf;	/*!< for encryption the data needs to be
 					copied to a separate buffer before it's
 					encrypted&written. this as a page can be
@@ -1528,6 +1521,21 @@ typedef struct {
 	byte*		out_buf;	/*!< resulting buffer after
 					encryption/compression. This is a
 					pointer and not allocated. */
+
+	/** Release the slot */
+	void release()
+	{
+		my_atomic_store32_explicit(&reserved, false,
+					   MY_MEMORY_ORDER_RELAXED);
+	}
+
+	/** Acquire the slot
+	@return whether the slot was acquired */
+	bool acquire()
+	{
+		return !my_atomic_fas32_explicit(&reserved, true,
+						 MY_MEMORY_ORDER_RELAXED);
+	}
 } buf_tmp_buffer_t;
 
 /** The common buffer control block structure
@@ -1587,7 +1595,7 @@ public:
 	bool            encrypted;	/*!< page is still encrypted */
 
 	ulint           real_size;	/*!< Real size of the page
-					Normal pages == UNIV_PAGE_SIZE
+					Normal pages == srv_page_size
 					page compressed pages, payload
 					size alligned to sector boundary.
 					*/
@@ -1722,9 +1730,9 @@ struct buf_block_t{
 					buf_pool->page_hash can point
 					to buf_page_t or buf_block_t */
 	byte*		frame;		/*!< pointer to buffer frame which
-					is of size UNIV_PAGE_SIZE, and
+					is of size srv_page_size, and
 					aligned to an address divisible by
-					UNIV_PAGE_SIZE */
+					srv_page_size */
 	BPageLock	lock;		/*!< read-write lock of the buffer
 					frame */
 	UT_LIST_NODE_T(buf_block_t) unzip_LRU;
@@ -1738,7 +1746,7 @@ struct buf_block_t{
 					used in debugging */
 	ibool		in_withdraw_list;
 #endif /* UNIV_DEBUG */
-	unsigned	lock_hash_val:32;/*!< hashed value of the page address
+	uint32_t	lock_hash_val;	/*!< hashed value of the page address
 					in the record lock hash table;
 					protected by buf_block_t::lock
 					(or buf_block_t::mutex, buf_pool->mutex
@@ -1827,7 +1835,7 @@ struct buf_block_t{
 } while (0)
 #  define assert_block_ahi_valid(block)					\
 	ut_a((block)->index						\
-	     || my_atomic_addlint(&(block)->n_pointers, 0) == 0)
+	     || my_atomic_loadlint(&(block)->n_pointers) == 0)
 # else /* UNIV_AHI_DEBUG || UNIV_DEBUG */
 #  define assert_block_ahi_empty(block) /* nothing */
 #  define assert_block_ahi_empty_on_init(block) /* nothing */
@@ -1884,7 +1892,7 @@ struct buf_block_t{
 /**********************************************************************//**
 Compute the hash fold value for blocks in buf_pool->zip_hash. */
 /* @{ */
-#define BUF_POOL_ZIP_FOLD_PTR(ptr) ((ulint) (ptr) / UNIV_PAGE_SIZE)
+#define BUF_POOL_ZIP_FOLD_PTR(ptr) (ulint(ptr) >> srv_page_size_shift)
 #define BUF_POOL_ZIP_FOLD(b) BUF_POOL_ZIP_FOLD_PTR((b)->frame)
 #define BUF_POOL_ZIP_FOLD_BPAGE(b) BUF_POOL_ZIP_FOLD((buf_block_t*) (b))
 /* @} */
@@ -2351,8 +2359,12 @@ Use these instead of accessing buf_pool->mutex directly. */
 
 
 /** Get appropriate page_hash_lock. */
-# define buf_page_hash_lock_get(buf_pool, page_id)	\
-	hash_get_lock((buf_pool)->page_hash, (page_id).fold())
+UNIV_INLINE
+rw_lock_t*
+buf_page_hash_lock_get(const buf_pool_t* buf_pool, const page_id_t& page_id)
+{
+	return hash_get_lock(buf_pool->page_hash, page_id.fold());
+}
 
 /** If not appropriate page_hash_lock, relock until appropriate. */
 # define buf_page_hash_lock_s_confirm(hash_lock, buf_pool, page_id)\

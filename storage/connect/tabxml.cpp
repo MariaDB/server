@@ -153,7 +153,7 @@ PQRYRES XMLColumns(PGLOBAL g, char *db, char *tab, PTOS topt, bool info)
     lvl = (lvl < 0) ? 0 : (lvl > 16) ? 16 : lvl;
   } // endif fn
 
-  if (trace)
+  if (trace(1))
     htrc("File %s lvl=%d\n", topt->filename, lvl);
 
   tdp = new(g) XMLDEF;
@@ -362,7 +362,7 @@ PQRYRES XMLColumns(PGLOBAL g, char *db, char *tab, PTOS topt, bool info)
   txmp->CloseDB(g);
 
  skipit:
-  if (trace)
+  if (trace(1))
     htrc("XMLColumns: n=%d len=%d\n", n, length[0]);
 
   /*********************************************************************/
@@ -686,7 +686,7 @@ PTDB TDBXML::Clone(PTABS t)
 /***********************************************************************/
 PCOL TDBXML::MakeCol(PGLOBAL g, PCOLDEF cdp, PCOL cprec, int n)
   {
-  if (trace)
+  if (trace(1))
     htrc("TDBXML: MakeCol %s n=%d\n", (cdp) ? cdp->GetName() : "<null>", n);
 
   return new(g) XMLCOL(cdp, this, cprec, n);
@@ -720,7 +720,7 @@ int TDBXML::LoadTableFile(PGLOBAL g, char *filename)
   if (Docp)
     return rc;               // Already done
 
-  if (trace)
+  if (trace(1))
     htrc("TDBXML: loading %s\n", filename);
 
   /*********************************************************************/
@@ -753,7 +753,7 @@ int TDBXML::LoadTableFile(PGLOBAL g, char *filename)
       return RC_FX;
       } // endif init
 
-    if (trace)
+    if (trace(1))
       htrc("TDBXML: parsing %s rc=%d\n", filename, rc);
 
     // Parse the XML file
@@ -1182,7 +1182,7 @@ int TDBXML::ReadDB(PGLOBAL g)
       } // endswitch recpos
 
   } else {
-    if (trace)
+    if (trace(1))
       htrc("TDBXML ReadDB: Irow=%d Nrow=%d\n", Irow, Nrow);
 
     // This is to force the table to be expanded when constructing
@@ -1209,7 +1209,7 @@ int TDBXML::ReadDB(PGLOBAL g)
   } // endif To_Kindex
 
   if (!same) {
-    if (trace > 1)
+    if (trace(2))
       htrc("TDBXML ReadDB: Irow=%d RowNode=%p\n", Irow, RowNode);
 
     // Get the new row node
@@ -1472,7 +1472,7 @@ bool XMLCOL::ParseXpath(PGLOBAL g, bool mode)
     } else
       strcat(pbuf, Xname);
 
-    if (trace)
+    if (trace(1))
       htrc("XMLCOL: pbuf=%s\n", pbuf);
 
     // For Update or Insert the Xpath must be analyzed
@@ -1555,7 +1555,7 @@ bool XMLCOL::ParseXpath(PGLOBAL g, bool mode)
   if (Type || Nod)
     Tdbp->Hasnod = true;
 
-  if (trace)
+  if (trace(1))
     htrc("XMLCOL: Xname=%s\n", pbuf);
 
   // Save the calculated Xpath
@@ -1679,7 +1679,7 @@ void XMLCOL::WriteColumn(PGLOBAL g)
   int   i, n, k = 0;
   PXNODE TopNode = NULL;
 
-  if (trace > 1)
+  if (trace(2))
     htrc("XML WriteColumn: col %s R%d coluse=%.4X status=%.4X\n",
           Name, Tdbp->GetTdb_No(), ColUse, Status);
 
@@ -1845,7 +1845,7 @@ void XMULCOL::ReadColumn(PGLOBAL g)
 
       if (N > Tdbp->Limit) {
         N = Tdbp->Limit;
-        sprintf(g->Message, "Mutiple values limited to %d", Tdbp->Limit);
+        sprintf(g->Message, "Multiple values limited to %d", Tdbp->Limit);
         PushWarning(g, Tdbp);
         } // endif N
 
@@ -1913,7 +1913,7 @@ void XMULCOL::WriteColumn(PGLOBAL g)
   int   i, n, len, k = 0;
   PXNODE TopNode = NULL;
 
-  if (trace)
+  if (trace(1))
     htrc("XML WriteColumn: col %s R%d coluse=%.4X status=%.4X\n",
           Name, Tdbp->GetTdb_No(), ColUse, Status);
 
@@ -2129,7 +2129,7 @@ void XPOSCOL::WriteColumn(PGLOBAL g)
   char          *p, buf[16];
   int           i, k, n;
 
-  if (trace)
+  if (trace(1))
     htrc("XML WriteColumn: col %s R%d coluse=%.4X status=%.4X\n",
           Name, Tdbp->GetTdb_No(), ColUse, Status);
 

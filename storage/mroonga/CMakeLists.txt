@@ -65,7 +65,7 @@ set(MRN_BUNDLED_GROONGA_DIR
 if(EXISTS "${MRN_BUNDLED_GROONGA_DIR}")
   set(MRN_GROONGA_BUNDLED TRUE)
   if(MSVC)
-    message(STATUS "Bundled Mroonga does not support MSVC yet")
+    # Bundled Mroonga does not support MSVC yet
     return()
   endif()
 else()
@@ -315,6 +315,9 @@ if(MRN_BUNDLED)
     ${MRN_ALL_SOURCES}
     STORAGE_ENGINE MODULE_ONLY
     LINK_LIBRARIES ${MRN_LIBRARIES})
+  if(NOT TARGET mroonga)
+    return()
+  endif()
 else()
   add_library(mroonga MODULE ${MRN_ALL_SOURCES})
 
@@ -358,7 +361,6 @@ else()
     MY_CHECK_AND_SET_COMPILER_FLAG("-Wno-unused-parameter")
     MY_CHECK_AND_SET_COMPILER_FLAG("-Wno-strict-aliasing")
     MY_CHECK_AND_SET_COMPILER_FLAG("-Wno-deprecated")
-    MY_CHECK_AND_SET_COMPILER_FLAG("-fno-implicit-templates")
     if(("${MYSQL_VARIANT}" STREQUAL "MariaDB") OR
         ("${MYSQL_VARIANT}" STREQUAL "MySQL" AND
          ${MYSQL_VERSION} VERSION_LESS "5.7.0"))

@@ -6,13 +6,6 @@
 # Restarting is not supported in embedded
 --source include/not_embedded.inc
 --source include/have_innodb.inc
---source include/have_debug.inc
-
-# Avoid CrashReporter popup on Mac
---source include/not_crashrep.inc
-
-# Turn on the geometry data print.
-SET SESSION debug="+d,row_print_geometry_data";
 
 # Test GEOMETRY datatype.
 CREATE TABLE t_wl6455 ( i INT, g GEOMETRY NOT NULL) ENGINE=InnoDB;
@@ -68,6 +61,9 @@ SELECT ST_AsText(g) FROM t_wl6455 WHERE g = POINT(10,10);
 
 INSERT INTO t_wl6455 VALUES(10, POINT(10,10));
 COMMIT;
+
+# Avoid corrupting non-crash-safe system tables on the kill below.
+FLUSH TABLES;
 
 INSERT INTO t_wl6455 VALUES(11, POINT(11,11));
 BEGIN;

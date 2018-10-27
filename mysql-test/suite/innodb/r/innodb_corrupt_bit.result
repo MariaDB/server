@@ -16,18 +16,15 @@ INSERT INTO corrupt_bit_test_ā SELECT 0,b,c+1,z+1 FROM corrupt_bit_test_ā;
 select count(*) from corrupt_bit_test_ā;
 count(*)
 2
-SET SESSION debug="+d,dict_set_index_corrupted";
-Warnings:
-Warning	1287	'@@debug' is deprecated and will be removed in a future release. Please use '@@debug_dbug' instead
+SET @save_dbug = @@SESSION.debug_dbug;
+SET debug_dbug = '+d,dict_set_index_corrupted';
 check table corrupt_bit_test_ā;
 Table	Op	Msg_type	Msg_text
 test.corrupt_bit_test_ā	check	Warning	InnoDB: Index idx is marked as corrupted
 test.corrupt_bit_test_ā	check	Warning	InnoDB: Index idxā is marked as corrupted
 test.corrupt_bit_test_ā	check	Warning	InnoDB: Index idxē is marked as corrupted
 test.corrupt_bit_test_ā	check	error	Corrupt
-SET SESSION debug="-d,dict_set_index_corrupted";
-Warnings:
-Warning	1287	'@@debug' is deprecated and will be removed in a future release. Please use '@@debug_dbug' instead
+SET debug_dbug = @save_dbug;
 CREATE INDEX idx3 ON corrupt_bit_test_ā(b, c);
 ERROR HY000: Index idx is corrupted
 CREATE INDEX idx4 ON corrupt_bit_test_ā(b, z);

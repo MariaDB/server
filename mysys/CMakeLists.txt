@@ -43,7 +43,7 @@ SET(MYSYS_SOURCES  array.c charset-def.c charset.c checksum.c my_default.c
 				my_getncpus.c my_safehash.c my_chmod.c my_rnd.c
                                 my_uuid.c wqueue.c waiting_threads.c ma_dyncol.c ../sql-common/my_time.c
 				my_rdtsc.c my_context.c psi_noop.c
-				my_atomic_writes.c
+				my_atomic_writes.c my_likely.c
                                 file_logger.c my_dlerror.c)
 
 IF (WIN32)
@@ -64,7 +64,7 @@ IF(CMAKE_SYSTEM_NAME MATCHES "SunOS" AND CMAKE_C_COMPILER_ID MATCHES "SunPro")
    PROPERTIES COMPILE_FLAGS "${CMAKE_CURRENT_SOURCE_DIR}/my_timer_cycles.il")
 ENDIF()
 
-IF(HAVE_LARGE_PAGES)
+IF(HAVE_LINUX_LARGE_PAGES)
  SET(MYSYS_SOURCES ${MYSYS_SOURCES} my_largepage.c)
 ENDIF()
 
@@ -74,7 +74,7 @@ ENDIF()
 
 ADD_CONVENIENCE_LIBRARY(mysys ${MYSYS_SOURCES})
 TARGET_LINK_LIBRARIES(mysys dbug strings mysys_ssl ${ZLIB_LIBRARY} 
- ${LIBNSL} ${LIBM} ${LIBRT} ${LIBDL} ${LIBSOCKET} ${LIBEXECINFO} ${CRC32_VPMSUM_LIBRARY})
+ ${LIBNSL} ${LIBM} ${LIBRT} ${LIBDL} ${LIBSOCKET} ${LIBEXECINFO} ${CRC32_LIBRARY})
 DTRACE_INSTRUMENT(mysys)
 
 IF(HAVE_BFD_H)

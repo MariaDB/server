@@ -82,7 +82,7 @@ ulong bytes_sent = 0L, bytes_received = 0L;
 ulong mysqld_net_retry_count = 10L;
 ulong open_files_limit;
 ulong opt_binlog_rows_event_max_size;
-uint test_flags = 0; 
+ulonglong test_flags = 0;
 static uint opt_protocol= 0;
 static FILE *result_file;
 static char *result_file_name= 0;
@@ -2904,7 +2904,7 @@ static Exit_status dump_local_log_entries(PRINT_EVENT_INFO *print_event_info,
       stdin in binary mode. Errors on setting this mode result in 
       halting the function and printing an error message to stderr.
     */
-#if defined (__WIN__) || (_WIN64)
+#if defined (__WIN__) || defined(_WIN64)
     if (_setmode(fileno(stdin), O_BINARY) == -1)
     {
       error("Could not set binary mode on stdin.");
@@ -3008,9 +3008,7 @@ int main(int argc, char** argv)
   my_init_time(); // for time functions
   tzset(); // set tzname
 
-  if (load_defaults("my", load_groups, &argc, &argv))
-    exit(1);
-
+  load_defaults_or_exit("my", load_groups, &argc, &argv);
   defaults_argv= argv;
 
   if (!(binlog_filter= new Rpl_filter))

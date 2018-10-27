@@ -1,6 +1,6 @@
 /*****************************************************************************
 
-Copyright (c) 2009, 2017, Oracle and/or its affiliates. All Rights Reserved.
+Copyright (c) 2009, 2018, Oracle and/or its affiliates. All Rights Reserved.
 Copyright (c) 2015, 2018, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
@@ -108,9 +108,7 @@ where n=1..n_uniq.
 @} */
 
 /* names of the tables from the persistent statistics storage */
-#define TABLE_STATS_NAME	"mysql/innodb_table_stats"
 #define TABLE_STATS_NAME_PRINT	"mysql.innodb_table_stats"
-#define INDEX_STATS_NAME	"mysql/innodb_index_stats"
 #define INDEX_STATS_NAME_PRINT	"mysql.innodb_index_stats"
 
 #ifdef UNIV_STATS_DEBUG
@@ -158,9 +156,8 @@ dict_stats_should_ignore_index(
 /*===========================*/
 	const dict_index_t*	index)	/*!< in: index */
 {
-	return((index->type & DICT_FTS)
-	       || dict_index_is_corrupted(index)
-	       || dict_index_is_spatial(index)
+	return((index->type & (DICT_FTS | DICT_SPATIAL))
+	       || index->is_corrupted()
 	       || index->to_be_dropped
 	       || !index->is_committed());
 }
@@ -182,7 +179,7 @@ dict_stats_persistent_storage_check(
 			DATA_NOT_NULL, 192},
 
 		{"table_name", DATA_VARMYSQL,
-			DATA_NOT_NULL, 192},
+			DATA_NOT_NULL, 597},
 
 		{"last_update", DATA_FIXBINARY,
 			DATA_NOT_NULL, 4},
@@ -210,7 +207,7 @@ dict_stats_persistent_storage_check(
 			DATA_NOT_NULL, 192},
 
 		{"table_name", DATA_VARMYSQL,
-			DATA_NOT_NULL, 192},
+			DATA_NOT_NULL, 597},
 
 		{"index_name", DATA_VARMYSQL,
 			DATA_NOT_NULL, 192},
@@ -299,7 +296,7 @@ dict_stats_exec_sql(
 	}
 
 	if (trx == NULL) {
-		trx = trx_allocate_for_background();
+		trx = trx_create();
 		trx_started = true;
 
 		if (srv_read_only_mode) {
@@ -333,7 +330,7 @@ dict_stats_exec_sql(
 	}
 
 	if (trx_started) {
-		trx_free_for_background(trx);
+		trx_free(trx);
 	}
 
 	return(err);
@@ -450,8 +447,6 @@ dict_stats_table_clone_create(
 		idx->id = index->id;
 
 		idx->name = mem_heap_strdup(heap, index->name);
-
-		idx->table_name = t->name.m_name;
 
 		idx->table = t;
 
@@ -921,7 +916,7 @@ dict_stats_update_transient(
 
 	index = dict_table_get_first_index(table);
 
-	if (dict_table_is_discarded(table)) {
+	if (!table->space) {
 		/* Nothing to do. */
 		dict_stats_empty_table(table, true);
 		return;
@@ -1041,10 +1036,10 @@ dict_stats_analyze_index_level(
 	memset(n_diff, 0x0, n_uniq * sizeof(n_diff[0]));
 
 	/* Allocate space for the offsets header (the allocation size at
-	offsets[0] and the REC_OFFS_HEADER_SIZE bytes), and n_fields + 1,
+	offsets[0] and the REC_OFFS_HEADER_SIZE bytes), and n_uniq + 1,
 	so that this will never be less than the size calculated in
 	rec_get_offsets_func(). */
-	i = (REC_OFFS_HEADER_SIZE + 1 + 1) + index->n_fields;
+	i = (REC_OFFS_HEADER_SIZE + 1 + 1) + n_uniq;
 
 	heap = mem_heap_create((2 * sizeof *rec_offsets) * i);
 	rec_offsets = static_cast<ulint*>(
@@ -1080,7 +1075,7 @@ dict_stats_analyze_index_level(
 	      == page_rec_get_next_const(page_get_infimum_rec(page)));
 
 	/* check that we are indeed on the desired level */
-	ut_a(btr_page_get_level(page, mtr) == level);
+	ut_a(btr_page_get_level(page) == level);
 
 	/* there should not be any pages on the left */
 	ut_a(!page_has_prev(page));
@@ -1089,7 +1084,7 @@ dict_stats_analyze_index_level(
 		    btr_pcur_get_rec(&pcur), page_is_comp(page))) {
 		ut_ad(btr_pcur_is_on_user_rec(&pcur));
 		if (level == 0) {
-			/* Skip the 'default row' pseudo-record */
+			/* Skip the metadata pseudo-record */
 			ut_ad(index->is_instant());
 			btr_pcur_move_to_next_user_rec(&pcur, mtr);
 		}
@@ -1160,8 +1155,7 @@ dict_stats_analyze_index_level(
 					n_uniq, &heap);
 
 				prev_rec = rec_copy_prefix_to_buf(
-					prev_rec, index,
-					rec_offs_n_fields(prev_rec_offsets),
+					prev_rec, index, n_uniq,
 					&prev_rec_buf, &prev_rec_buf_size);
 
 				prev_rec_is_copied = true;
@@ -1234,7 +1228,7 @@ dict_stats_analyze_index_level(
 			btr_pcur_move_to_next_user_rec() will release the
 			latch on the page that prev_rec is on */
 			prev_rec = rec_copy_prefix_to_buf(
-				rec, index, rec_offs_n_fields(rec_offsets),
+				rec, index, n_uniq,
 				&prev_rec_buf, &prev_rec_buf_size);
 			prev_rec_is_copied = true;
 
@@ -1512,10 +1506,10 @@ dict_stats_analyze_index_below_cur(
 	offsets_rec = rec_get_offsets(rec, index, offsets1, false,
 				      ULINT_UNDEFINED, &heap);
 
-	page_id_t		page_id(dict_index_get_space(index),
+	page_id_t		page_id(index->table->space->id,
 					btr_node_ptr_get_child_page_no(
 						rec, offsets_rec));
-	const page_size_t	page_size(dict_table_page_size(index->table));
+	const page_size_t	page_size(index->table->space->flags);
 
 	/* assume no external pages by default - in case we quit from this
 	function without analyzing any leaf pages */
@@ -1701,7 +1695,7 @@ dict_stats_analyze_index_for_n_prefix(
 	ut_ad(first_rec == page_rec_get_next_const(page_get_infimum_rec(page)));
 
 	/* check that we are indeed on the desired level */
-	ut_a(btr_page_get_level(page, mtr) == n_diff_data->level);
+	ut_a(btr_page_get_level(page) == n_diff_data->level);
 
 	/* there should not be any pages on the left */
 	ut_a(!page_has_prev(page));
@@ -2233,7 +2227,7 @@ dict_stats_update_persistent(
 	index = dict_table_get_first_index(table);
 
 	if (index == NULL
-	    || dict_index_is_corrupted(index)
+	    || index->is_corrupted()
 	    || (index->type | DICT_UNIQUE) != (DICT_CLUSTERED | DICT_UNIQUE)) {
 
 		/* Table definition is corrupt */
@@ -2322,7 +2316,7 @@ dict_stats_save_index_stat(
 	char		db_utf8[MAX_DB_UTF8_LEN];
 	char		table_utf8[MAX_TABLE_UTF8_LEN];
 
-	ut_ad(!trx || trx->internal || trx->in_mysql_trx_list);
+	ut_ad(!trx || trx->internal || trx->mysql_thd);
 	ut_ad(rw_lock_own(dict_operation_lock, RW_LOCK_X));
 	ut_ad(mutex_own(&dict_sys->mutex));
 
@@ -2334,7 +2328,7 @@ dict_stats_save_index_stat(
 	pars_info_add_str_literal(pinfo, "table_name", table_utf8);
 	pars_info_add_str_literal(pinfo, "index_name", index->name);
 	UNIV_MEM_ASSERT_RW_ABORT(&last_update, 4);
-	pars_info_add_int4_literal(pinfo, "last_update", (lint)last_update);
+	pars_info_add_int4_literal(pinfo, "last_update", uint32(last_update));
 	UNIV_MEM_ASSERT_RW_ABORT(stat_name, strlen(stat_name));
 	pars_info_add_str_literal(pinfo, "stat_name", stat_name);
 	UNIV_MEM_ASSERT_RW_ABORT(&stat_value, 8);
@@ -2403,10 +2397,9 @@ dict_stats_report_error(dict_table_t* table, bool defragment)
 {
 	dberr_t		err;
 
-	FilSpace space(table->space);
 	const char*	df = defragment ? " defragment" : "";
 
-	if (!space()) {
+	if (!table->space) {
 		ib::warn() << "Cannot save" << df << " statistics for table "
 			   << table->name
 			   << " because the .ibd file is missing. "
@@ -2415,7 +2408,8 @@ dict_stats_report_error(dict_table_t* table, bool defragment)
 	} else {
 		ib::warn() << "Cannot save" << df << " statistics for table "
 			   << table->name
-			   << " because file " << space()->chain.start->name
+			   << " because file "
+			   << table->space->chain.start->name
 			   << (table->corrupted
 			       ? " is corrupted."
 			       : " cannot be decrypted.");
@@ -2466,7 +2460,7 @@ dict_stats_save(
 
 	pars_info_add_str_literal(pinfo, "database_name", db_utf8);
 	pars_info_add_str_literal(pinfo, "table_name", table_utf8);
-	pars_info_add_int4_literal(pinfo, "last_update", (lint)now);
+	pars_info_add_int4_literal(pinfo, "last_update", uint32(now));
 	pars_info_add_ull_literal(pinfo, "n_rows", table->stat_n_rows);
 	pars_info_add_ull_literal(pinfo, "clustered_index_size",
 		table->stat_clustered_index_size);
@@ -2507,7 +2501,7 @@ dict_stats_save(
 		return(ret);
 	}
 
-	trx_t*	trx = trx_allocate_for_background();
+	trx_t*	trx = trx_create();
 	trx_start_internal(trx);
 
 	dict_index_t*	index;
@@ -2604,7 +2598,7 @@ dict_stats_save(
 	trx_commit_for_mysql(trx);
 
 end:
-	trx_free_for_background(trx);
+	trx_free(trx);
 
 	mutex_exit(&dict_sys->mutex);
 	rw_lock_x_unlock(dict_operation_lock);
@@ -2912,7 +2906,7 @@ dict_stats_fetch_index_stats_step(
 
 		/* extract 12 from "n_diff_pfx12..." into n_pfx
 		note that stat_name does not have a terminating '\0' */
-		n_pfx = (num_ptr[0] - '0') * 10 + (num_ptr[1] - '0');
+		n_pfx = ulong(num_ptr[0] - '0') * 10 + ulong(num_ptr[1] - '0');
 
 		ulint	n_uniq = index->n_uniq;
 
@@ -2986,7 +2980,7 @@ dict_stats_fetch_from_ps(
 	stats. */
 	dict_stats_empty_table(table, true);
 
-	trx = trx_allocate_for_background();
+	trx = trx_create();
 
 	/* Use 'read-uncommitted' so that the SELECTs we execute
 	do not get blocked in case some user has locked the rows we
@@ -3080,7 +3074,7 @@ dict_stats_fetch_from_ps(
 
 	trx_commit_for_mysql(trx);
 
-	trx_free_for_background(trx);
+	trx_free(trx);
 
 	if (!index_fetch_arg.stats_were_modified) {
 		return(DB_STATS_DO_NOT_EXIST);

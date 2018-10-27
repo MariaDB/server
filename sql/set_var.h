@@ -244,6 +244,12 @@ protected:
   uchar *global_var_ptr()
   { return ((uchar*)&global_system_variables) + offset; }
 
+  void *max_var_ptr()
+  {
+    return scope() == SESSION ? (((uchar*)&max_system_variables) + offset) :
+                                0;
+  }
+
   friend class Session_sysvars_tracker;
   friend class Session_tracker;
 };
@@ -393,13 +399,22 @@ SHOW_VAR* enumerate_sys_vars(THD *thd, bool sorted, enum enum_var_type type);
 int fill_sysvars(THD *thd, TABLE_LIST *tables, COND *cond);
 
 sys_var *find_sys_var(THD *thd, const char *str, size_t length=0);
-bool find_sys_var_null_base(THD *thd, struct sys_var_with_base *tmp);
 int sql_set_variables(THD *thd, List<set_var_base> *var_list, bool free);
 
 #define SYSVAR_AUTOSIZE(VAR,VAL)                        \
   do {                                                  \
     VAR= (VAL);                                         \
     set_sys_var_value_origin(&VAR, sys_var::AUTO);      \
+  } while(0)
+
+#define SYSVAR_AUTOSIZE_IF_CHANGED(VAR,VAL,TYPE)        \
+  do {                                                  \
+    TYPE tmp= (VAL);                                    \
+    if (VAR != tmp)                                     \
+    {                                                   \
+      VAR= (VAL);                                       \
+      set_sys_var_value_origin(&VAR, sys_var::AUTO);    \
+    }                                                   \
   } while(0)
 
 void set_sys_var_value_origin(void *ptr, enum sys_var::where here);
@@ -418,7 +433,9 @@ bool sql_mode_string_representation(THD *thd, sql_mode_t sql_mode,
                                     LEX_CSTRING *ls);
 int default_regex_flags_pcre(const THD *thd);
 
-extern sys_var *Sys_autocommit_ptr;
+extern sys_var *Sys_autocommit_ptr, *Sys_last_gtid_ptr,
+  *Sys_character_set_client_ptr, *Sys_character_set_connection_ptr,
+  *Sys_character_set_results_ptr;
 
 CHARSET_INFO *get_old_charset_by_name(const char *old_name);
 
@@ -426,6 +443,7 @@ int sys_var_init();
 uint sys_var_elements();
 int sys_var_add_options(DYNAMIC_ARRAY *long_options, int parse_flags);
 void sys_var_end(void);
+bool check_has_super(sys_var *self, THD *thd, set_var *var);
 plugin_ref *resolve_engine_list(THD *thd, const char *str_arg, size_t str_arg_len,
                                 bool error_on_unknown_engine, bool temp_copy);
 void free_engine_list(plugin_ref *list);
@@ -434,4 +452,3 @@ plugin_ref *temp_copy_engine_list(THD *thd, plugin_ref *list);
 char *pretty_print_engine_list(THD *thd, plugin_ref *list);
 
 #endif
-

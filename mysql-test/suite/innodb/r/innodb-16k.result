@@ -1,4 +1,4 @@
-call mtr.add_suppression("InnoDB: Cannot add field .* in table .* because after adding it, the row size is .* which is greater than maximum allowed size (.*) for a record on index leaf page.");
+call mtr.add_suppression("InnoDB: Cannot add field .* in table");
 # Test 1) Show the page size from Information Schema
 SELECT variable_value FROM information_schema.global_status
 WHERE LOWER(variable_name) = 'innodb_page_size';

@@ -1,3 +1,8 @@
+Code status:
+------------
+
+* [![tests status](https://secure.travis-ci.org/MariaDB/server.png?branch=10.3)](https://travis-ci.org/MariaDB/server) travis-ci.org (10.3 branch)
+
 ## MariaDB: drop-in replacement for MySQL
 
 MariaDB is designed as a drop-in replacement of MySQL(R) with more
@@ -17,10 +22,15 @@ see the Credits appendix.  You can also run 'SHOW authors' to get a
 list of active contributors.
 
 A description of the MariaDB project and a manual can be found at:
+
 https://mariadb.org/
+
 https://mariadb.com/kb/en/
+
 https://mariadb.com/kb/en/mariadb-vs-mysql-features/
+
 https://mariadb.com/kb/en/mariadb-versus-mysql-features/
+
 https://mariadb.com/kb/en/mariadb-versus-mysql-compatibility/
 
 As MariaDB is a full replacement of MySQL, the MySQL manual at
@@ -63,8 +73,3 @@ The code for MariaDB, including all revision history, can be found at:
 https://github.com/MariaDB/server
 
 ***************************************************************************
-
-Code status:
-------------
-
-* [![tests status](https://secure.travis-ci.org/MariaDB/server.png?branch=10.2)](https://travis-ci.org/MariaDB/server) travis-ci.org (10.2 branch)

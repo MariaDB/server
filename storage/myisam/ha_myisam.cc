@@ -1,5 +1,5 @@
 /*
-   Copyright (c) 2000, 2012, Oracle and/or its affiliates.
+   Copyright (c) 2000, 2018, Oracle and/or its affiliates.
    Copyright (c) 2009, 2017, MariaDB Corporation.
 
    This program is free software; you can redistribute it and/or modify
@@ -1330,10 +1330,14 @@ int ha_myisam::repair(THD *thd, HA_CHECK &param, bool do_optimize)
     if (file->s->base.auto_key)
       update_auto_increment_key(&param, file, 1);
     if (optimize_done)
+    {
+      mysql_mutex_lock(&share->intern_lock);
       error = update_state_info(&param, file,
 				UPDATE_TIME | UPDATE_OPEN_COUNT |
 				(local_testflag &
 				 T_STATISTICS ? UPDATE_STAT : 0));
+      mysql_mutex_unlock(&share->intern_lock);
+    }
     info(HA_STATUS_NO_LOCK | HA_STATUS_TIME | HA_STATUS_VARIABLE |
 	 HA_STATUS_CONST);
     if (rows != file->state->records && ! (param.testflag & T_VERY_SILENT))
@@ -2118,7 +2122,7 @@ void ha_myisam::update_create_info(HA_CREATE_INFO *create_info)
 }
 
 
-int ha_myisam::create(const char *name, register TABLE *table_arg,
+int ha_myisam::create(const char *name, TABLE *table_arg,
 		      HA_CREATE_INFO *ha_create_info)
 {
   int error;
@@ -2308,19 +2312,19 @@ ha_myisam::check_if_supported_inplace_alter(TABLE *new_table,
 {
   DBUG_ENTER("ha_myisam::check_if_supported_inplace_alter");
 
-  const Alter_inplace_info::HA_ALTER_FLAGS readd_index=
-                          Alter_inplace_info::ADD_INDEX |
-                          Alter_inplace_info::DROP_INDEX;
-  const Alter_inplace_info::HA_ALTER_FLAGS readd_unique=
-                          Alter_inplace_info::ADD_UNIQUE_INDEX |
-                          Alter_inplace_info::DROP_UNIQUE_INDEX;
-  const Alter_inplace_info::HA_ALTER_FLAGS readd_pk=
-                          Alter_inplace_info::ADD_PK_INDEX |
-                          Alter_inplace_info::DROP_PK_INDEX;
+  const alter_table_operations readd_index=
+                          ALTER_ADD_NON_UNIQUE_NON_PRIM_INDEX |
+                          ALTER_DROP_NON_UNIQUE_NON_PRIM_INDEX;
+  const alter_table_operations readd_unique=
+                          ALTER_ADD_UNIQUE_INDEX |
+                          ALTER_DROP_UNIQUE_INDEX;
+  const alter_table_operations readd_pk=
+                          ALTER_ADD_PK_INDEX |
+                          ALTER_DROP_PK_INDEX;
 
-  const  Alter_inplace_info::HA_ALTER_FLAGS op= alter_info->handler_flags;
+  const  alter_table_operations op= alter_info->handler_flags;
 
-  if (op & Alter_inplace_info::ALTER_COLUMN_VCOL)
+  if (op & ALTER_COLUMN_VCOL)
     DBUG_RETURN(HA_ALTER_INPLACE_NOT_SUPPORTED);
 
   /*
@@ -2582,7 +2586,7 @@ maria_declare_plugin(myisam)
   &myisam_storage_engine,
   "MyISAM",
   "MySQL AB",
-  "MyISAM storage engine",
+  "Non-transactional engine with good performance and small data footprint",
   PLUGIN_LICENSE_GPL,
   myisam_init, /* Plugin Init */
   NULL, /* Plugin Deinit */
