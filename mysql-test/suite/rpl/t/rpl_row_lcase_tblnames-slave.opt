@@ -1,0 +1,1 @@
+--replicate-do-db=bug_37656 --replicate-ignore-table=buG_37656.T1 --replicate-do-table=bUg_37656.T2 --replicate-do-table=bUg_37656.T3 --lower-case-table-names=1

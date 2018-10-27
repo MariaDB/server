@@ -260,6 +260,27 @@ static void inline slave_rows_error_report(enum loglevel level, int ha_error,
 }
 #endif
 
+#if defined(HAVE_REPLICATION) && !defined(MYSQL_CLIENT)
+static void set_thd_db(THD *thd, Rpl_filter *rpl_filter,
+                       const char *db, uint32 db_len)
+{
+  char lcase_db_buf[NAME_LEN +1];
+  LEX_STRING new_db;
+  new_db.length= db_len;
+  if (lower_case_table_names == 1)
+  {
+    strmov(lcase_db_buf, db);
+    my_casedn_str(system_charset_info, lcase_db_buf);
+    new_db.str= lcase_db_buf;
+  }
+  else
+    new_db.str= (char*) db;
+  /* TODO WARNING this makes rewrite_db respect lower_case_table_names values
+   * for more info look MDEV-17446 */
+  new_db.str= (char*) rpl_filter->get_rewrite_db(new_db.str, &new_db.length);
+  thd->set_db(new_db.str, new_db.length);
+}
+#endif
 /*
   Cache that will automatically be written to a dedicated file on
   destruction.
@@ -4131,7 +4152,6 @@ bool test_if_equal_repl_errors(int expected_error, int actual_error)
 int Query_log_event::do_apply_event(rpl_group_info *rgi,
                                     const char *query_arg, uint32 q_len_arg)
 {
-  LEX_STRING new_db;
   int expected_error,actual_error= 0;
   HA_CREATE_INFO db_options;
   uint64 sub_id= 0;
@@ -4163,9 +4183,7 @@ int Query_log_event::do_apply_event(rpl_group_info *rgi,
     goto end;
   }
 
-  new_db.length= db_len;
-  new_db.str= (char *) rpl_filter->get_rewrite_db(db, &new_db.length);
-  thd->set_db(new_db.str, new_db.length);       /* allocates a copy of 'db' */
+  set_thd_db(thd, rpl_filter, db, db_len);
 
   /*
     Setting the character set and collation of the current database thd->db.
@@ -5911,15 +5929,12 @@ void Load_log_event::set_fields(const char* affected_db,
 int Load_log_event::do_apply_event(NET* net, rpl_group_info *rgi,
                                    bool use_rli_only_for_errors)
 {
-  LEX_STRING new_db;
   Relay_log_info const *rli= rgi->rli;
   Rpl_filter *rpl_filter= rli->mi->rpl_filter;
   DBUG_ENTER("Load_log_event::do_apply_event");
 
-  new_db.length= db_len;
-  new_db.str= (char *) rpl_filter->get_rewrite_db(db, &new_db.length);
-  thd->set_db(new_db.str, new_db.length);
   DBUG_ASSERT(thd->query() == 0);
+  set_thd_db(thd, rpl_filter, db, db_len);
   thd->reset_query_inner();                    // Should not be needed
   thd->is_slave_error= 0;
   clear_all_errors(thd, const_cast<Relay_log_info*>(rli));
@@ -5964,6 +5979,8 @@ int Load_log_event::do_apply_event(NET* net, rpl_group_info *rgi,
     thd->get_stmt_da()->opt_clear_warning_info(thd->query_id);
 
     TABLE_LIST tables;
+    if (lower_case_table_names)
+      my_casedn_str(system_charset_info, (char *)table_name);
     tables.init_one_table(thd->strmake(thd->db, thd->db_length),
                           thd->db_length,
                           table_name, strlen(table_name),
@@ -11045,7 +11062,7 @@ check_table_map(rpl_group_info *rgi, RPL_TABLE_LIST *table_list)
 int Table_map_log_event::do_apply_event(rpl_group_info *rgi)
 {
   RPL_TABLE_LIST *table_list;
-  char *db_mem, *tname_mem;
+  char *db_mem, *tname_mem, *ptr;
   size_t dummy_len;
   void *memory;
   Rpl_filter *filter;
@@ -11062,10 +11079,20 @@ int Table_map_log_event::do_apply_event(rpl_group_info *rgi)
                                 NullS)))
     DBUG_RETURN(HA_ERR_OUT_OF_MEM);
 
+  strmov(db_mem, m_dbnam);
+  strmov(tname_mem, m_tblnam);
+  if (lower_case_table_names)
+  {
+    my_casedn_str(files_charset_info, (char*)tname_mem);
+    my_casedn_str(files_charset_info, (char*)db_mem);
+  }
+
   /* call from mysql_client_binlog_statement() will not set rli->mi */
   filter= rgi->thd->slave_thread ? rli->mi->rpl_filter : global_rpl_filter;
-  strmov(db_mem, filter->get_rewrite_db(m_dbnam, &dummy_len));
-  strmov(tname_mem, m_tblnam);
+
+  /* rewrite rules changed the database */
+  if (((ptr= (char*) filter->get_rewrite_db(db_mem, &dummy_len)) != db_mem))
+    strmov(db_mem, ptr);
 
   table_list->init_one_table(db_mem, strlen(db_mem),
                              tname_mem, strlen(tname_mem),
