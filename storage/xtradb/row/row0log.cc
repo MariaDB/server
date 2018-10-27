@@ -1,6 +1,6 @@
 /*****************************************************************************
 
-Copyright (c) 2011, 2016, Oracle and/or its affiliates. All Rights Reserved.
+Copyright (c) 2011, 2018, Oracle and/or its affiliates. All Rights Reserved.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -225,7 +225,7 @@ row_log_block_allocate(
 	DBUG_ENTER("row_log_block_allocate");
 	if (log_buf.block == NULL) {
 		log_buf.size = srv_sort_buf_size;
-		log_buf.block = (byte*) os_mem_alloc_large(&log_buf.size);
+		log_buf.block = (byte*) os_mem_alloc_large(&log_buf.size, false);
 		DBUG_EXECUTE_IF("simulate_row_log_allocation_failure",
 			if (log_buf.block)
 				os_mem_free_large(log_buf.block, log_buf.size);
@@ -2721,7 +2721,15 @@ all_done:
 
 	while (!trx_is_interrupted(trx)) {
 		mrec = next_mrec;
-		ut_ad(mrec < mrec_end);
+		ut_ad(mrec <= mrec_end);
+
+		if (mrec == mrec_end) {
+			/* We are at the end of the log.
+			   Mark the replay all_done. */
+			if (has_index_lock) {
+				goto all_done;
+			}
+		}
 
 		if (!has_index_lock) {
 			/* We are applying operations from a different

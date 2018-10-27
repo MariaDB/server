@@ -282,8 +282,7 @@ dict_mem_table_add_col(
 	const char*	name,	/*!< in: column name, or NULL */
 	ulint		mtype,	/*!< in: main datatype */
 	ulint		prtype,	/*!< in: precise type */
-	ulint		len)	/*!< in: precision */
-	MY_ATTRIBUTE((nonnull(1)));
+	ulint		len);	/*!< in: precision */
 /**********************************************************************//**
 Renames a column of a table in the data dictionary cache. */
 UNIV_INTERN

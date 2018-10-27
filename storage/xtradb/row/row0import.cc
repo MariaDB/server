@@ -1,6 +1,6 @@
 /*****************************************************************************
 
-Copyright (c) 2012, 2016, Oracle and/or its affiliates. All Rights Reserved.
+Copyright (c) 2012, 2018, Oracle and/or its affiliates. All Rights Reserved.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -1340,11 +1340,22 @@ row_import::match_schema(
 		= m_table->flags & ~DICT_TF_MASK_DATA_DIR;
 
 	if (relevant_flags != relevant_table_flags) {
-		ib_errf(thd, IB_LOG_LEVEL_ERROR, ER_TABLE_SCHEMA_MISMATCH,
-			 "Table flags don't match, server table has 0x%x "
-			 "and the meta-data file has 0x%x",
-			 relevant_table_flags, relevant_flags);
-
+		if (dict_tf_to_row_format_string(relevant_flags) !=
+			dict_tf_to_row_format_string(relevant_table_flags)) {
+			ib_errf(thd, IB_LOG_LEVEL_ERROR,
+				ER_TABLE_SCHEMA_MISMATCH,
+				"Table flags don't match,"
+				"server table has %s "
+				"and the meta-data file has %s",
+				dict_tf_to_row_format_string(
+					relevant_table_flags),
+				dict_tf_to_row_format_string(
+					relevant_flags));
+		} else {
+			ib_errf(thd, IB_LOG_LEVEL_ERROR,
+				ER_TABLE_SCHEMA_MISMATCH,
+				"Table flags don't match");
+		}
 		return(DB_ERROR);
 	} else if (m_table->n_cols != m_n_cols) {
 		ib_errf(thd, IB_LOG_LEVEL_ERROR, ER_TABLE_SCHEMA_MISMATCH,
@@ -1830,12 +1841,6 @@ PageConverter::update_records(
 
 		rec_t*	rec = m_rec_iter.current();
 
-		/* FIXME: Move out of the loop */
-
-		if (rec_get_status(rec) == REC_STATUS_NODE_PTR) {
-			break;
-		}
-
 		ibool	deleted = rec_get_deleted_flag(rec, comp);
 
 		/* For the clustered index we have to adjust the BLOB
@@ -1935,6 +1940,10 @@ PageConverter::update_index_page(
 		}
 
 		return(DB_SUCCESS);
+	}
+
+	if (!page_is_leaf(block->frame)) {
+		return (DB_SUCCESS);
 	}
 
 	return(update_records(block));
@@ -3522,7 +3531,7 @@ row_import_for_mysql(
 
 	row_import	cfg;
 
-	memset(&cfg, 0x0, sizeof(cfg));
+	memset(static_cast<void*>(&cfg), 0x0, sizeof(cfg));
 
 	err = row_import_read_cfg(table, trx->mysql_thd, cfg);
 

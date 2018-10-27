@@ -1,6 +1,6 @@
 /*****************************************************************************
 
-Copyright (c) 2000, 2017, Oracle and/or its affiliates. All Rights Reserved.
+Copyright (c) 2000, 2018, Oracle and/or its affiliates. All Rights Reserved.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -1972,8 +1972,7 @@ error_exit:
 			doc_ids difference should not exceed
 			FTS_DOC_ID_MAX_STEP value. */
 
-			if (next_doc_id > 1
-			    && doc_id - next_doc_id >= FTS_DOC_ID_MAX_STEP) {
+			if (doc_id - next_doc_id >= FTS_DOC_ID_MAX_STEP) {
 				fprintf(stderr,
 					"InnoDB: Doc ID " UINT64PF " is too"
 					" big. Its difference with largest"
@@ -5501,6 +5500,18 @@ row_rename_table_for_mysql(
 		goto funct_exit;
 	}
 
+	/* Wait for background fts sync to finish */
+	for (retry = 1; dict_fts_index_syncing(table); ++retry) {
+		DICT_BG_YIELD(trx);
+		if (retry % 100 == 0) {
+			ib_logf(IB_LOG_LEVEL_INFO,
+				"Unable to rename table %s to new name"
+				" %s because FTS sync is running on table."
+				" Retrying\n",
+				old_name, new_name);
+		}
+	}
+
 	/* We use the private SQL parser of Innobase to generate the query
 	graphs needed in updating the dictionary data from system tables. */
 
@@ -5677,7 +5688,8 @@ row_rename_table_for_mysql(
 		}
 	}
 
-	if (dict_table_has_fts_index(table)
+	if ((dict_table_has_fts_index(table)
+	    || DICT_TF2_FLAG_IS_SET(table, DICT_TF2_FTS_HAS_DOC_ID))
 	    && !dict_tables_have_same_db(old_name, new_name)) {
 		err = fts_rename_aux_tables(table, new_name, trx);
 		if (err != DB_TABLE_NOT_FOUND) {

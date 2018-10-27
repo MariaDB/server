@@ -201,8 +201,9 @@ buf_dump(
 {
 #define SHOULD_QUIT()	(SHUTTING_DOWN() && obey_shutdown)
 
+	static const char format_name[]= "%s.incomplete";
 	char	full_filename[OS_FILE_MAX_PATH];
-	char	tmp_filename[OS_FILE_MAX_PATH];
+	char	tmp_filename[OS_FILE_MAX_PATH + sizeof(format_name)];
 	char	now[32];
 	FILE*	f;
 	ulint	i;
@@ -213,7 +214,7 @@ buf_dump(
 		    srv_buf_dump_filename);
 
 	ut_snprintf(tmp_filename, sizeof(tmp_filename),
-		    "%s.incomplete", full_filename);
+		    format_name, full_filename);
 
 	buf_dump_status(STATUS_NOTICE, "Dumping buffer pool(s) to %s",
 			full_filename);

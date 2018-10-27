@@ -2430,7 +2430,8 @@ trx_get_trx_by_xid_low(
 
 			/* Invalidate the XID, so that subsequent calls
 			will not find it. */
-			memset(&trx->xid, 0, sizeof(trx->xid));
+			memset(static_cast<void*>(&trx->xid), 0,
+			       sizeof(trx->xid));
 			trx->xid.formatID = -1;
 			break;
 		}

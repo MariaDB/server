@@ -99,10 +99,10 @@ page_dir_find_owner_slot(
 	const rec_t*	rec)	/*!< in: the physical record */
 {
 	const page_t*			page;
-	register uint16			rec_offs_bytes;
-	register const page_dir_slot_t*	slot;
-	register const page_dir_slot_t*	first_slot;
-	register const rec_t*		r = rec;
+	uint16			rec_offs_bytes;
+	const page_dir_slot_t*	slot;
+	const page_dir_slot_t*	first_slot;
+	const rec_t*		r = rec;
 
 	ut_ad(page_rec_check(rec));
 

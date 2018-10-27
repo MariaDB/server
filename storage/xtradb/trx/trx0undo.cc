@@ -1313,7 +1313,7 @@ trx_undo_mem_create_at_db_start(
 	/* Read X/Open XA transaction identification if it exists, or
 	set it to NULL. */
 
-	memset(&xid, 0, sizeof(xid));
+	memset(static_cast<void*>(&xid), 0, sizeof(xid));
 	xid.formatID = -1;
 
 	if (xid_exists == TRUE) {

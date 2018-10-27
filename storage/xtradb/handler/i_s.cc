@@ -1482,7 +1482,7 @@ i_s_cmp_fill_low(
 			static_cast<double>(zip_stat->decompressed_usec / 1000000));
 
 		if (reset) {
-			memset(zip_stat, 0, sizeof *zip_stat);
+			memset(static_cast<void*>(zip_stat), 0, sizeof *zip_stat);
 		}
 
 		if (schema_table_store_record(thd, table)) {

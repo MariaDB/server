@@ -1538,10 +1538,10 @@ log_online_open_bitmap_file_read_only(
 	if (srv_data_home_len
 			&& srv_data_home[srv_data_home_len-1]
 			!= SRV_PATH_SEPARATOR) {
-		ut_snprintf(bitmap_file->name, FN_REFLEN, "%s%c%s",
+		ut_snprintf(bitmap_file->name, sizeof(bitmap_file->name), "%s%c%s",
 				srv_data_home, SRV_PATH_SEPARATOR, name);
 	} else {
-		ut_snprintf(bitmap_file->name, FN_REFLEN, "%s%s",
+		ut_snprintf(bitmap_file->name, sizeof(bitmap_file->name), "%s%s",
 				srv_data_home, name);
 	}
 	bitmap_file->file
