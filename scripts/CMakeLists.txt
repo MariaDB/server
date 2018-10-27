@@ -241,7 +241,10 @@ ENDIF()
 SET(mysql_config_COMPONENT COMPONENT Development)
 SET(msql2mysql_COMPONENT COMPONENT Client)
 SET(mysqlaccess_COMPONENT COMPONENT Client)
+SET(mysqlhotcopy_COMPONENT COMPONENT Client)
+SET(mysql_convert_table_format_COMPONENT COMPONENT Client)
 SET(mysql_find_rows_COMPONENT COMPONENT Client)
+SET(mysql_setpermission_COMPONENT COMPONENT Client)
 SET(mytop_COMPONENT Mytop)
 
 IF(WIN32)
@@ -298,14 +301,14 @@ ELSE()
   # On Unix, most of the files end up in the bin directory
   SET(BIN_SCRIPTS
     msql2mysql
-    mysql_config
-    mysql_setpermission
-    mysql_secure_installation
     mysqlaccess
+    mysqlhotcopy
+    mysql_config
     mysql_convert_table_format
     mysql_find_rows
+    mysql_secure_installation
+    mysql_setpermission
     mytop
-    mysqlhotcopy
     ${SERVER_SCRIPTS}
     ${WSREP_SCRIPTS}
     ${SYSTEMD_SCRIPTS}
