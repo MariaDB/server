@@ -64,7 +64,7 @@ server-id=2
 # yet compatible with galera
 innodb_lock_schedule_algorithm=FCFS
 
-[mysqld.1]
+[mysqld.3]
 log-bin=master-bin
 log-bin-index=master-bin
 server-id=3

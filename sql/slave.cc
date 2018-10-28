@@ -1172,6 +1172,11 @@ terminate_slave_thread(THD *thd,
     int error __attribute__((unused));
     DBUG_PRINT("loop", ("killing slave thread"));
 
+#ifdef WITH_WSREP
+    /* awake_no_mutex() requires LOCK_thd_data to be locked if wsrep
+       is enabled */
+    if (WSREP(thd)) mysql_mutex_lock(&thd->LOCK_thd_data);
+#endif /* WITH_WSREP */
     mysql_mutex_lock(&thd->LOCK_thd_kill);
 #ifndef DONT_USE_THR_ALARM
     /*
@@ -1185,6 +1190,9 @@ terminate_slave_thread(THD *thd,
     thd->awake_no_mutex(NOT_KILLED);
 
     mysql_mutex_unlock(&thd->LOCK_thd_kill);
+#ifdef WITH_WSREP
+    if (WSREP(thd)) mysql_mutex_unlock(&thd->LOCK_thd_data);
+#endif /* WITH_WSREP */
 
     /*
       There is a small chance that slave thread might miss the first
@@ -5511,7 +5519,14 @@ pthread_handler_t handle_slave_sql(void *arg)
     goto err;
   }
   mysql_mutex_unlock(&rli->data_lock);
-
+#ifdef WITH_WSREP
+  wsrep_open(thd);
+  if (wsrep_before_command(thd))
+  {
+    WSREP_WARN("Slave SQL wsrep_before_command() failed");
+    goto err;
+  }
+#endif /* WITH_WSREP */
   /* Read queries from the IO/THREAD until this thread is killed */
 
   thd->set_command(COM_SLAVE_SQL);
@@ -5720,8 +5735,7 @@ err_during_init:
        wsrep_restart_slave_activated= TRUE;
      }
    }
-  // TODO 10.4 has deleted following line:
-  //wsrep_close(thd);
+  wsrep_close(thd);
 #endif /* WITH_WSREP */
 
  /*
