@@ -870,19 +870,19 @@ fts_drop_index(
 			err = fts_drop_index_tables(trx, index);
 
 			while (index->index_fts_syncing
-				&& !trx_is_interrupted(trx)) {
-				DICT_BG_YIELD(trx);
-			}
+                                && !trx_is_interrupted(trx)) {
+                                DICT_BG_YIELD(trx);
+                        }
 
-			fts_free(table);
+                        fts_free(table);
 
 			return(err);
 		}
 
 		while (index->index_fts_syncing
-		       && !trx_is_interrupted(trx)) {
-			DICT_BG_YIELD(trx);
-		}
+                        && !trx_is_interrupted(trx)) {
+                        DICT_BG_YIELD(trx);
+                }
 
 		current_doc_id = table->fts->cache->next_doc_id;
 		first_doc_id = table->fts->cache->first_doc_id;
@@ -901,9 +901,9 @@ fts_drop_index(
 
 		if (index_cache != NULL) {
 			while (index->index_fts_syncing
-			       && !trx_is_interrupted(trx)) {
-				DICT_BG_YIELD(trx);
-			}
+                                && !trx_is_interrupted(trx)) {
+                                DICT_BG_YIELD(trx);
+                        }
 			if (index_cache->words) {
 				fts_words_free(index_cache->words);
 				rbt_free(index_cache->words);

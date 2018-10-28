@@ -158,7 +158,6 @@ use simulated aio we build below with threads.
 Currently we support native aio on windows and linux */
 /* make srv_use_native_aio to be visible for other plugins */
 my_bool	srv_use_native_aio = TRUE;
-UNIV_INTERN my_bool	srv_numa_interleave = FALSE;
 
 #ifdef __WIN__
 /* Windows native condition variables. We use runtime loading / function

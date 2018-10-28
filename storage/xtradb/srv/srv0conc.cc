@@ -268,6 +268,7 @@ srv_conc_enter_innodb_with_atomics(
 			notified_mysql = TRUE;
 		}
 
+		DEBUG_SYNC_C("user_thread_waiting");
 		trx->op_info = "sleeping before entering InnoDB";
 
 		sleep_in_us = srv_thread_sleep_delay;
