@@ -622,7 +622,7 @@ test.t1	optimize	status	OK
 OPTIMIZE TABLE t1;
 Table	Op	Msg_type	Msg_text
 test.t1	optimize	Error	Access denied for user 'user'@'localhost' (using password: NO)
-test.t1	optimize	Error	Can't lock file (errno: 122 "Internal (unspecified) error in handler")
+test.t1	optimize	Error	Got error 122 'This operation requires the FILE privilege' from CONNECT
 test.t1	optimize	error	Corrupt
 DROP TABLE t1;
 # Testing SQLCOM_ALTER_TABLE (adding columns)
