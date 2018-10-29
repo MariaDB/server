@@ -1953,8 +1953,7 @@ public:
 
   Global_read_lock()
     : m_state(GRL_NONE),
-      m_mdl_global_shared_lock(NULL),
-      m_mdl_blocks_commits_lock(NULL)
+      m_mdl_global_read_lock(NULL)
   {}
 
   bool lock_global_read_lock(THD *thd);
@@ -1978,17 +1977,11 @@ public:
 private:
   enum_grl_state m_state;
   /**
-    In order to acquire the global read lock, the connection must
-    acquire shared metadata lock in GLOBAL namespace, to prohibit
-    all DDL.
+    Global read lock is acquired in two steps:
+    1. acquire MDL_BACKUP_FTWRL1 in BACKUP namespace to prohibit DDL and DML
+    2. upgrade to MDL_BACKUP_FTWRL2 to prohibit commits
   */
-  MDL_ticket *m_mdl_global_shared_lock;
-  /**
-    Also in order to acquire the global read lock, the connection
-    must acquire a shared metadata lock in COMMIT namespace, to
-    prohibit commits.
-  */
-  MDL_ticket *m_mdl_blocks_commits_lock;
+  MDL_ticket *m_mdl_global_read_lock;
 };
 
 

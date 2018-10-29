@@ -3969,7 +3969,7 @@ connection con2;
 
 connection default;
 let $wait_condition=SELECT COUNT(*)=1 FROM information_schema.processlist
-  WHERE state='Waiting for global read lock'
+  WHERE state='Waiting for backup lock'
   AND info='CREATE TABLE db1.t2(a INT)';
 --source include/wait_condition.inc
 UNLOCK TABLES;
@@ -3987,7 +3987,7 @@ connection con2;
 
 connection default;
 let $wait_condition=SELECT COUNT(*)=1 FROM information_schema.processlist
-  WHERE state='Waiting for global read lock'
+  WHERE state='Waiting for backup lock'
   AND info='ALTER DATABASE db1 DEFAULT CHARACTER SET utf8';
 --source include/wait_condition.inc
 UNLOCK TABLES;

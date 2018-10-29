@@ -113,7 +113,7 @@ public:
   @sa Comments for MDL_object_lock::can_grant_lock() and
       MDL_scoped_lock::can_grant_lock() for details.
 
-  Scoped locks are GLOBAL READ LOCK, COMMIT and database (or schema) locks.
+  Scoped locks are database (or schema) locks.
   The object locks are for tables, triggers etc.
 */
 
@@ -247,6 +247,33 @@ enum enum_mdl_type {
 };
 
 
+/** Backup locks */
+
+/**
+  Blocks (or is blocked by) statements that intend to modify data. Acquired
+  before commit lock by FLUSH TABLES WITH READ LOCK.
+*/
+#define MDL_BACKUP_FTWRL1 enum_mdl_type(0)
+
+/**
+  Blocks (or is blocked by) commits. Acquired after global read lock by
+  FLUSH TABLES WITH READ LOCK.
+*/
+#define MDL_BACKUP_FTWRL2 enum_mdl_type(1)
+
+/**
+  Must be acquired by statements that intend to modify data.
+*/
+#define MDL_BACKUP_STMT enum_mdl_type(2)
+
+/**
+  Must be acquired during commit.
+*/
+#define MDL_BACKUP_COMMIT enum_mdl_type(3)
+#define MDL_BACKUP_END enum_mdl_type(4)
+
+
+
 /** Duration of metadata lock. */
 
 enum enum_mdl_duration {
@@ -292,10 +319,13 @@ public:
   /**
     Object namespaces.
     Sic: when adding a new member to this enum make sure to
-    update m_namespace_to_wait_state_name array in mdl.cc!
+    update m_namespace_to_wait_state_name array in mdl.cc and
+    metadata_lock_info_lock_name in metadata_lock_info.cc!
 
     Different types of objects exist in different namespaces
+     - SCHEMA is for databases (to protect against DROP DATABASE)
      - TABLE is for tables and views.
+     - BACKUP is for locking DML, DDL and COMMIT's during BACKUP STAGES
      - FUNCTION is for stored functions.
      - PROCEDURE is for stored procedures.
      - TRIGGER is for triggers.
@@ -304,7 +334,7 @@ public:
     it's necessary to have a separate namespace for them since
     MDL_key is also used outside of the MDL subsystem.
   */
-  enum enum_mdl_namespace { GLOBAL=0,
+  enum enum_mdl_namespace { BACKUP=0,
                             SCHEMA,
                             TABLE,
                             FUNCTION,
@@ -312,7 +342,6 @@ public:
                             PACKAGE_BODY,
                             TRIGGER,
                             EVENT,
-                            COMMIT,
                             USER_LOCK,           /* user level locks. */
                             /* This should be the last ! */
                             NAMESPACE_END };
@@ -620,6 +649,8 @@ public:
            m_type == MDL_EXCLUSIVE;
   }
   enum_mdl_type get_type() const { return m_type; }
+  const LEX_STRING *get_type_name() const;
+  const LEX_STRING *get_type_name(enum_mdl_type type) const;
   MDL_lock *get_lock() const { return m_lock; }
   MDL_key *get_key() const;
   void downgrade_lock(enum_mdl_type type);
@@ -1011,6 +1042,13 @@ extern "C" int thd_is_connected(MYSQL_THD thd);
 */
 extern "C" ulong max_write_lock_count;
 
+typedef int (*mdl_iterator_callback)(MDL_ticket *ticket, void *arg,
+                                     bool granted);
 extern MYSQL_PLUGIN_IMPORT
-int mdl_iterate(int (*callback)(MDL_ticket *ticket, void *arg), void *arg);
-#endif
+int mdl_iterate(mdl_iterator_callback callback, void *arg);
+#ifndef DBUG_OFF
+void mdl_dbug_print_locks();
+#else
+  static inline void mdl_dbug_print_locks() {}
+#endif /* DBUG_OFF */
+#endif /* MDL_H */

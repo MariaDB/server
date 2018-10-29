@@ -1864,7 +1864,7 @@ bool open_table(THD *thd, TABLE_LIST *table_list, Open_table_context *ot_ctx)
       if (thd->global_read_lock.can_acquire_protection())
         DBUG_RETURN(TRUE);
 
-      protection_request.init(MDL_key::GLOBAL, "", "", MDL_INTENTION_EXCLUSIVE,
+      protection_request.init(MDL_key::BACKUP, "", "", MDL_BACKUP_STMT,
                               MDL_STATEMENT);
 
       /*
@@ -2207,8 +2207,8 @@ TABLE *find_table_for_mdl_upgrade(THD *thd, const char *db,
     cases don't take a global IX lock in order to be compatible with
     global read lock.
   */
-  if (unlikely(!thd->mdl_context.is_lock_owner(MDL_key::GLOBAL, "", "",
-                                               MDL_INTENTION_EXCLUSIVE)))
+  if (unlikely(!thd->mdl_context.is_lock_owner(MDL_key::BACKUP, "", "",
+                                               MDL_BACKUP_STMT)))
   {
     error= ER_TABLE_NOT_LOCKED_FOR_WRITE;
     goto err_exit;
@@ -3941,7 +3941,7 @@ lock_table_names(THD *thd, const DDL_options_st &options,
     */
     if (thd->global_read_lock.can_acquire_protection())
       DBUG_RETURN(TRUE);
-    global_request.init(MDL_key::GLOBAL, "", "", MDL_INTENTION_EXCLUSIVE,
+    global_request.init(MDL_key::BACKUP, "", "", MDL_BACKUP_STMT,
                         MDL_STATEMENT);
     mdl_requests.push_front(&global_request);
 

@@ -259,7 +259,7 @@ connection $con_aux1;
 --echo # Wait until COMMIT is blocked.
 let $wait_condition=
   select count(*) = 1 from information_schema.processlist
-  where state = "Waiting for commit lock" and
+  where state = "Waiting for backup lock" and
         info = "commit";
 --source include/wait_condition.inc
 unlock tables;
@@ -281,7 +281,7 @@ connection $con_aux2;
 --echo # Wait until FTWRL is blocked.
 let $wait_condition=
   select count(*) = 1 from information_schema.processlist
-  where state = "Waiting for commit lock" and
+  where state = "Waiting for backup lock" and
         info = "flush tables with read lock";
 --source include/wait_condition.inc
 set debug_sync='now SIGNAL go';
@@ -565,7 +565,7 @@ connection $con_aux1;
 --echo # Check that EXECUTE is blocked.
 let $wait_condition=
   select count(*) = 1 from information_schema.processlist
-  where state = "Waiting for global read lock" and
+  where state = "Waiting for backup lock" and
         info = "insert into t1_base values (1)";
 --source include/wait_condition.inc
 unlock tables;
@@ -582,7 +582,7 @@ connection $con_aux2;
 --echo # Wait until FTWRL is blocked.
 let $wait_condition=
   select count(*) = 1 from information_schema.processlist
-  where state = "Waiting for global read lock" and
+  where state = "Waiting for backup lock" and
         info = "flush tables with read lock";
 --source include/wait_condition.inc
 set debug_sync='now SIGNAL go';
@@ -1011,7 +1011,7 @@ connection $con_aux1;
 --echo # Check that LOCK TABLES WRITE is blocked.
 let $wait_condition=
   select count(*) = 1 from information_schema.processlist
-  where state = "Waiting for global read lock" and
+  where state = "Waiting for backup lock" and
         info = "lock tables t1_base write";
 --source include/wait_condition.inc
 unlock tables;
@@ -1055,7 +1055,7 @@ connection $con_aux1;
 --echo # Check that OPTIMIZE TABLE is blocked.
 let $wait_condition=
   select count(*) = 1 from information_schema.processlist
-  where state = "Waiting for global read lock" and
+  where state = "Waiting for backup lock" and
         info = "optimize table t1_base";
 --source include/wait_condition.inc
 unlock tables;
@@ -1221,7 +1221,7 @@ connection $con_aux1;
 --echo # Check that REPAIR TABLE is blocked.
 let $wait_condition=
   select count(*) = 1 from information_schema.processlist
-  where state = "Waiting for global read lock" and
+  where state = "Waiting for backup lock" and
         info = "repair table t1_base";
 --source include/wait_condition.inc
 unlock tables;
@@ -1420,7 +1420,7 @@ connection $con_aux1;
 --echo # Wait until SET AUTOCOMMIT=1 is blocked.
 let $wait_condition=
   select count(*) = 1 from information_schema.processlist
-  where state = "Waiting for commit lock" and
+  where state = "Waiting for backup lock" and
         info = "set autocommit= 1";
 --source include/wait_condition.inc
 unlock tables;
@@ -1442,7 +1442,7 @@ connection $con_aux2;
 --echo # Wait until FTWRL is blocked.
 let $wait_condition=
   select count(*) = 1 from information_schema.processlist
-  where state = "Waiting for commit lock" and
+  where state = "Waiting for backup lock" and
         info = "flush tables with read lock";
 --source include/wait_condition.inc
 set debug_sync='now SIGNAL go';
@@ -1621,7 +1621,7 @@ connection $con_aux1;
 --echo # Wait until XA COMMIT is blocked.
 let $wait_condition=
   select count(*) = 1 from information_schema.processlist
-  where state = "Waiting for commit lock" and
+  where state = "Waiting for backup lock" and
         info = "xa commit 'test1'";
 --source include/wait_condition.inc
 unlock tables;
@@ -1645,7 +1645,7 @@ connection $con_aux2;
 --echo # Wait until FTWRL is blocked.
 let $wait_condition=
   select count(*) = 1 from information_schema.processlist
-  where state = "Waiting for commit lock" and
+  where state = "Waiting for backup lock" and
         info = "flush tables with read lock";
 --source include/wait_condition.inc
 set debug_sync='now SIGNAL go';
@@ -1724,7 +1724,7 @@ connection $con_aux1;
 --echo # Check that ANALYZE TABLE is blocked.
 let $wait_condition=
   select count(*) = 1 from information_schema.processlist
-  where state = "Waiting for commit lock" and
+  where state = "Waiting for backup lock" and
         info = "analyze table t3_trans";
 --source include/wait_condition.inc
 unlock tables;
@@ -1799,7 +1799,7 @@ connection $con_aux1;
 --echo # Check that CHECK TABLE is blocked.
 let $wait_condition=
   select count(*) = 1 from information_schema.processlist
-  where state = "Waiting for commit lock" and
+  where state = "Waiting for backup lock" and
         info = "check table t1_base";
 --source include/wait_condition.inc
 unlock tables;
@@ -1817,7 +1817,7 @@ connection $con_aux1;
 --echo # Check that ALTER TABLE is blocked.
 let $wait_condition=
   select count(*) = 1 from information_schema.processlist
-  where state = "Waiting for commit lock" and
+  where state = "Waiting for backup lock" and
         info = "alter table t1_temp add column c1 int";
 --source include/wait_condition.inc
 unlock tables;
@@ -1870,7 +1870,7 @@ connection $con_aux2;
 --echo # Wait until FTWRL is blocked.
 let $wait_condition=
   select count(*) = 1 from information_schema.processlist
-  where state = "Waiting for global read lock" and
+  where state = "Waiting for backup lock" and
         info = "flush tables with read lock";
 --source include/wait_condition.inc
 --echo # Try to run another INSERT and see that it is blocked.
@@ -1879,7 +1879,7 @@ connection con3;
 --echo # Wait until new INSERT is blocked.
 let $wait_condition=
   select count(*) = 1 from information_schema.processlist
-  where state = "Waiting for global read lock" and
+  where state = "Waiting for backup lock" and
         info = "insert into t2_base values (1)";
 --echo # Unblock INSERT in the first connection.
 set debug_sync='now SIGNAL go';

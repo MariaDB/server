@@ -550,7 +550,7 @@ bool open_and_lock_for_insert_delayed(THD *thd, TABLE_LIST *table_list)
   if (thd->global_read_lock.can_acquire_protection())
     DBUG_RETURN(TRUE);
 
-  protection_request.init(MDL_key::GLOBAL, "", "", MDL_INTENTION_EXCLUSIVE,
+  protection_request.init(MDL_key::BACKUP, "", "", MDL_BACKUP_STMT,
                           MDL_STATEMENT);
 
   if (thd->mdl_context.acquire_lock(&protection_request,
@@ -2375,8 +2375,8 @@ bool delayed_get_table(THD *thd, MDL_request *grl_protection_request,
       di->table_list.alias.length= di->table_list.table_name.length= di->thd.query_length();
       di->table_list.db= di->thd.db;
       /* We need the tickets so that they can be cloned in handle_delayed_insert */
-      di->grl_protection.init(MDL_key::GLOBAL, "", "",
-                              MDL_INTENTION_EXCLUSIVE, MDL_STATEMENT);
+      di->grl_protection.init(MDL_key::BACKUP, "", "",
+                              MDL_BACKUP_STMT, MDL_STATEMENT);
       di->grl_protection.ticket= grl_protection_request->ticket;
       init_mdl_requests(&di->table_list);
       di->table_list.mdl_request.ticket= table_list->mdl_request.ticket;

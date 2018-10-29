@@ -963,7 +963,7 @@ bool trans_xa_commit(THD *thd)
 
       We allow FLUSHer to COMMIT; we assume FLUSHer knows what it does.
     */
-    mdl_request.init(MDL_key::COMMIT, "", "", MDL_INTENTION_EXCLUSIVE,
+    mdl_request.init(MDL_key::BACKUP, "", "", MDL_BACKUP_COMMIT,
                      MDL_TRANSACTION);
 
     if (thd->mdl_context.acquire_lock(&mdl_request,

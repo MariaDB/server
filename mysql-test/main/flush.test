@@ -557,7 +557,7 @@ connection con2;
 --echo # Wait until INSERT starts to wait for FTWRL to go away.
 let $wait_condition=
   select count(*) = 1 from information_schema.processlist
-  where state = "Waiting for global read lock"
+  where state = "Waiting for backup lock"
   and info = "insert into t2 values (1)";
 --source include/wait_condition.inc
 

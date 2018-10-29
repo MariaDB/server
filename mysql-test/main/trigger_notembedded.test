@@ -907,7 +907,7 @@ connection flush;
 connection default;
 let $wait_condition=
   select count(*) = 1 from information_schema.processlist
-  where state = "Waiting for global read lock";
+  where state = "Waiting for backup lock";
 --source include/wait_condition.inc
 create trigger t1_bi before insert on t1 for each row begin end;
 unlock tables;

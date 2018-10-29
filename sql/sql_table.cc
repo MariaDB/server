@@ -9191,12 +9191,12 @@ bool mysql_alter_table(THD *thd, const LEX_CSTRING *new_db,
       }
 
       /*
-        Global intention exclusive lock must have been already acquired when
-        table to be altered was open, so there is no need to do it here.
+        Protection against global read lock must have been acquired when table
+        to be altered was being opened.
       */
-      DBUG_ASSERT(thd->mdl_context.is_lock_owner(MDL_key::GLOBAL,
+      DBUG_ASSERT(thd->mdl_context.is_lock_owner(MDL_key::BACKUP,
                                                  "", "",
-                                                 MDL_INTENTION_EXCLUSIVE));
+                                                 MDL_BACKUP_STMT));
 
       if (thd->mdl_context.acquire_locks(&mdl_requests,
                                          thd->variables.lock_wait_timeout))

@@ -863,8 +863,7 @@ bool lock_schema_name(THD *thd, const char *db)
 
   if (thd->global_read_lock.can_acquire_protection())
     return TRUE;
-  global_request.init(MDL_key::GLOBAL, "", "", MDL_INTENTION_EXCLUSIVE,
-                      MDL_STATEMENT);
+  global_request.init(MDL_key::BACKUP, "", "", MDL_BACKUP_STMT, MDL_STATEMENT);
   mdl_request.init(MDL_key::SCHEMA, db, "", MDL_EXCLUSIVE, MDL_TRANSACTION);
 
   mdl_requests.push_front(&mdl_request);
@@ -922,8 +921,7 @@ bool lock_object_name(THD *thd, MDL_key::enum_mdl_namespace mdl_type,
 
   if (thd->global_read_lock.can_acquire_protection())
     return TRUE;
-  global_request.init(MDL_key::GLOBAL, "", "", MDL_INTENTION_EXCLUSIVE,
-                      MDL_STATEMENT);
+  global_request.init(MDL_key::BACKUP, "", "", MDL_BACKUP_STMT, MDL_STATEMENT);
   schema_request.init(MDL_key::SCHEMA, db, "", MDL_INTENTION_EXCLUSIVE,
                       MDL_TRANSACTION);
   mdl_request.init(mdl_type, db, name, MDL_EXCLUSIVE, MDL_TRANSACTION);
@@ -1018,15 +1016,17 @@ bool Global_read_lock::lock_global_read_lock(THD *thd)
 
     mysql_ha_cleanup_no_free(thd);
 
-    DBUG_ASSERT(! thd->mdl_context.is_lock_owner(MDL_key::GLOBAL, "", "",
-                                                 MDL_SHARED));
-    mdl_request.init(MDL_key::GLOBAL, "", "", MDL_SHARED, MDL_EXPLICIT);
+    DBUG_ASSERT(! thd->mdl_context.is_lock_owner(MDL_key::BACKUP, "", "",
+                                                 MDL_BACKUP_FTWRL1));
+    DBUG_ASSERT(! thd->mdl_context.is_lock_owner(MDL_key::BACKUP, "", "",
+                                                 MDL_BACKUP_FTWRL2));
+    mdl_request.init(MDL_key::BACKUP, "", "", MDL_BACKUP_FTWRL1, MDL_EXPLICIT);
 
     if (thd->mdl_context.acquire_lock(&mdl_request,
                                       thd->variables.lock_wait_timeout))
       DBUG_RETURN(1);
 
-    m_mdl_global_shared_lock= mdl_request.ticket;
+    m_mdl_global_read_lock= mdl_request.ticket;
     m_state= GRL_ACQUIRED;
   }
   /*
@@ -1055,7 +1055,7 @@ void Global_read_lock::unlock_global_read_lock(THD *thd)
 {
   DBUG_ENTER("unlock_global_read_lock");
 
-  DBUG_ASSERT(m_mdl_global_shared_lock && m_state);
+  DBUG_ASSERT(m_mdl_global_read_lock && m_state);
 
   if (thd->global_disable_checkpoint)
   {
@@ -1066,11 +1066,11 @@ void Global_read_lock::unlock_global_read_lock(THD *thd)
     }
   }
 
-  if (m_mdl_blocks_commits_lock)
-  {
-    thd->mdl_context.release_lock(m_mdl_blocks_commits_lock);
-    m_mdl_blocks_commits_lock= NULL;
+  thd->mdl_context.release_lock(m_mdl_global_read_lock);
+
 #ifdef WITH_WSREP
+  if (m_state == GRL_ACQUIRED_AND_BLOCKS_COMMIT)
+  {
     if (WSREP(thd) || wsrep_node_is_donor())
     {
       wsrep_locked_seqno= WSREP_SEQNO_UNDEFINED;
@@ -1083,14 +1083,13 @@ void Global_read_lock::unlock_global_read_lock(THD *thd)
         {
           WSREP_WARN("resync failed %d for FTWRL: db: %s, query: %s",
                      ret, thd->get_db(), thd->query());
-          DBUG_VOID_RETURN;
         }
       }
     }
-#endif /* WITH_WSREP */
   }
-  thd->mdl_context.release_lock(m_mdl_global_shared_lock);
-  m_mdl_global_shared_lock= NULL;
+#endif /* WITH_WSREP */
+
+  m_mdl_global_read_lock= NULL;
   m_state= GRL_NONE;
 
   DBUG_VOID_RETURN;
@@ -1114,7 +1113,6 @@ void Global_read_lock::unlock_global_read_lock(THD *thd)
 
 bool Global_read_lock::make_global_read_lock_block_commit(THD *thd)
 {
-  MDL_request mdl_request;
   DBUG_ENTER("make_global_read_lock_block_commit");
   /*
     If we didn't succeed lock_global_read_lock(), or if we already suceeded
@@ -1124,22 +1122,11 @@ bool Global_read_lock::make_global_read_lock_block_commit(THD *thd)
   if (m_state != GRL_ACQUIRED)
     DBUG_RETURN(0);
 
-#ifdef WITH_WSREP
-  if (WSREP(thd) && m_mdl_blocks_commits_lock)
-  {
-    WSREP_DEBUG("GRL was in block commit mode when entering "
-		"make_global_read_lock_block_commit");
-    DBUG_RETURN(FALSE);
-  }
-#endif /* WITH_WSREP */
-
-  mdl_request.init(MDL_key::COMMIT, "", "", MDL_SHARED, MDL_EXPLICIT);
-
-  if (thd->mdl_context.acquire_lock(&mdl_request,
-                                    thd->variables.lock_wait_timeout))
+  if (thd->mdl_context.upgrade_shared_lock(m_mdl_global_read_lock,
+                                           MDL_BACKUP_FTWRL2,
+                                           thd->variables.lock_wait_timeout))
     DBUG_RETURN(TRUE);
 
-  m_mdl_blocks_commits_lock= mdl_request.ticket;
   m_state= GRL_ACQUIRED_AND_BLOCKS_COMMIT;
 
 #ifdef WITH_WSREP
@@ -1190,7 +1177,11 @@ bool Global_read_lock::make_global_read_lock_block_commit(THD *thd)
     {
       WSREP_ERROR("Failed to pause provider: %lld (%s)", -ret, strerror(-ret));
 
-      DBUG_ASSERT(m_mdl_blocks_commits_lock == NULL);
+      /*
+        For some reason Galera wants to crash here in debug build.
+        It is equivalent of original assertion.
+      */
+      DBUG_ASSERT(0);
       wsrep_locked_seqno= WSREP_SEQNO_UNDEFINED;
       my_error(ER_LOCK_DEADLOCK, MYF(0));
       DBUG_RETURN(TRUE);
@@ -1209,10 +1200,8 @@ bool Global_read_lock::make_global_read_lock_block_commit(THD *thd)
 
 void Global_read_lock::set_explicit_lock_duration(THD *thd)
 {
-  if (m_mdl_global_shared_lock)
-    thd->mdl_context.set_lock_duration(m_mdl_global_shared_lock, MDL_EXPLICIT);
-  if (m_mdl_blocks_commits_lock)
-    thd->mdl_context.set_lock_duration(m_mdl_blocks_commits_lock, MDL_EXPLICIT);
+  if (m_mdl_global_read_lock)
+    thd->mdl_context.set_lock_duration(m_mdl_global_read_lock, MDL_EXPLICIT);
 }
 
 /**
