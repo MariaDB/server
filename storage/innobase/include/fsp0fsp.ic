@@ -33,7 +33,7 @@ Created 12/18/1995 Heikki Tuuri
 UNIV_INLINE
 ibool
 fsp_descr_page(
-	const page_id_t&	page_id,
+	const page_id_t		page_id,
 	const page_size_t&	page_size)
 {
 	return((page_id.page_no() & (page_size.physical() - 1))

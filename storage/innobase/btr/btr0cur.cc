@@ -231,7 +231,7 @@ btr_rec_free_externally_stored_fields(
 btr_latch_leaves_t
 btr_cur_latch_leaves(
 	buf_block_t*		block,
-	const page_id_t&	page_id,
+	const page_id_t		page_id,
 	const page_size_t&	page_size,
 	ulint			latch_mode,
 	btr_cur_t*		cursor,
@@ -1684,7 +1684,7 @@ need_opposite_intention:
 
 			lock_intention = BTR_INTENTION_BOTH;
 
-			page_id.reset(space, dict_index_get_page(index));
+			page_id = page_id_t(space, dict_index_get_page(index));
 			up_match = 0;
 			low_match = 0;
 			height = ULINT_UNDEFINED;
@@ -1900,7 +1900,7 @@ need_opposite_intention:
 				ulint	idx = n_blocks
 					- (leftmost_from_level - 1);
 
-				page_id.reset(
+				page_id = page_id_t(
 					space,
 					tree_blocks[idx]->page.id.page_no());
 
@@ -1935,7 +1935,7 @@ need_opposite_intention:
 		}
 
 		/* Go to the child node */
-		page_id.reset(
+		page_id = page_id_t(
 			space,
 			btr_node_ptr_get_child_page_no(node_ptr, offsets));
 
