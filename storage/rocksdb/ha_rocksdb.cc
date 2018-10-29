@@ -8563,9 +8563,17 @@ int ha_rocksdb::index_read_map_impl(uchar *const buf, const uchar *const key,
                        packed_size);
 
   uint end_key_packed_size = 0;
+  /*
+    In MariaDB, the end_key is always the bigger end of the range.
+    If we are doing a reverse-ordered scan (that is, walking from the bigger
+    key values to smaller), we should use the smaller end of range as end_key.
+  */
   const key_range *cur_end_key= end_key;
-  if (find_flag == HA_READ_PREFIX_LAST_OR_PREV)
+  if (find_flag == HA_READ_PREFIX_LAST_OR_PREV ||
+      find_flag == HA_READ_BEFORE_KEY)
+  {
     cur_end_key= m_start_range;
+  }
 
   const uint eq_cond_len =
       calc_eq_cond_len(kd, find_flag, slice, bytes_changed_by_succ, cur_end_key,
