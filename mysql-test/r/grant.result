@@ -2581,3 +2581,24 @@ foo@localhost	foo@127.0.0.1
 # Clean-up
 DROP USER foo@'127.0.0.1';
 # End of Bug#12766319
+create user foo@localhost;
+create database foodb;
+grant create routine on foodb.* to foo@localhost;
+create procedure fooproc() select 'i am fooproc';
+show grants;
+Grants for foo@localhost
+GRANT USAGE ON *.* TO 'foo'@'localhost'
+GRANT CREATE ROUTINE ON `foodb`.* TO 'foo'@'localhost'
+GRANT EXECUTE, ALTER ROUTINE ON PROCEDURE `test`.`fooproc` TO 'foo'@'localhost'
+rename table mysql.procs_priv to mysql.procs_priv1;
+flush privileges;
+ERROR 42S02: Table 'mysql.procs_priv' doesn't exist
+show grants for foo@localhost;
+Grants for foo@localhost
+GRANT USAGE ON *.* TO 'foo'@'localhost'
+GRANT CREATE ROUTINE ON `foodb`.* TO 'foo'@'localhost'
+GRANT EXECUTE, ALTER ROUTINE ON PROCEDURE `test`.`fooproc` TO 'foo'@'localhost'
+rename table mysql.procs_priv1 to mysql.procs_priv;
+drop user foo@localhost;
+drop procedure fooproc;
+drop database foodb;

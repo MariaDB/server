@@ -102,3 +102,13 @@ CREATE TRIGGER t1_bi BEFORE INSERT ON t1 FOR EACH ROW SET new.a= 1;
 RENAME TABLE t1 TO T1;
 ALTER TABLE T1 RENAME t1;
 DROP TABLE t1;
+
+#
+# MDEV-13912 mysql_upgrade: case (in)sensitivity for stored procedures
+#
+create database TEST;
+create procedure TEST.pr() begin end;
+create procedure test.pr() begin end;
+--exec $MYSQL_UPGRADE --force 2>&1
+drop procedure test.pr;
+drop database TEST;

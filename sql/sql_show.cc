@@ -2102,7 +2102,7 @@ view_store_create_info(THD *thd, TABLE_LIST *table, String *buff)
     We can't just use table->query, because our SQL_MODE may trigger
     a different syntax, like when ANSI_QUOTES is defined.
   */
-  table->view->unit.print(buff, QT_ORDINARY);
+  table->view->unit.print(buff, QT_VIEW_INTERNAL);
 
   if (table->with_check != VIEW_CHECK_NONE)
   {

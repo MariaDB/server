@@ -237,6 +237,7 @@ storage/mroonga/vendor/groonga/src/grnslap
 storage/mroonga/vendor/groonga/src/groonga
 storage/mroonga/vendor/groonga/src/groonga-benchmark
 storage/mroonga/vendor/groonga/src/suggest/groonga-suggest-create-dataset
+zlib/zconf.h
 
 # macOS garbage
 .DS_Store

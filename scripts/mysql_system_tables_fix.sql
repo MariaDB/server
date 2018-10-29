@@ -468,15 +468,15 @@ ALTER TABLE proc MODIFY name char(64) DEFAULT '' NOT NULL,
                  DEFAULT CHARACTER SET utf8;
 
 # Correct the character set and collation
-ALTER TABLE proc CONVERT TO CHARACTER SET utf8;
 # Reset some fields after the conversion
 SET @alter_statement = CONCAT("
-ALTER TABLE proc  MODIFY db
-                         char(64) collate utf8_bin DEFAULT '' NOT NULL,
+ALTER TABLE proc CONVERT TO CHARACTER SET utf8,
+                  MODIFY db
+                         char(64) binary DEFAULT '' NOT NULL,
                   MODIFY definer
-                         char(", @definer_name_length, ") collate utf8_bin DEFAULT '' NOT NULL,
+                         char(", @definer_name_length, ") binary DEFAULT '' NOT NULL,
                   MODIFY comment
-                         char(64) collate utf8_bin DEFAULT '' NOT NULL
+                         char(64) binary DEFAULT '' NOT NULL
 ");
 PREPARE alter_stmt FROM @alter_statement;
 EXECUTE alter_stmt;

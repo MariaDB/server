@@ -40,6 +40,7 @@
 #include "set_var.h"
 #include "sql_locale.h"          // MY_LOCALE my_locale_en_US
 #include "strfunc.h"             // check_word
+#include "sql_type_int.h"        // Longlong_hybrid
 #include "sql_time.h"            // make_truncated_value_warning,
                                  // get_date_from_daynr,
                                  // calc_weekday, calc_week,
@@ -2741,8 +2742,7 @@ bool Item_func_timediff::get_date(MYSQL_TIME *ltime, ulonglong fuzzy_date)
 bool Item_func_maketime::get_date(MYSQL_TIME *ltime, ulonglong fuzzy_date)
 {
   DBUG_ASSERT(fixed == 1);
-  bool overflow= 0;
-  longlong hour=   args[0]->val_int();
+  Longlong_hybrid hour(args[0]->val_int(), args[0]->unsigned_flag);
   longlong minute= args[1]->val_int();
   ulonglong second;
   ulong microsecond;
@@ -2754,32 +2754,23 @@ bool Item_func_maketime::get_date(MYSQL_TIME *ltime, ulonglong fuzzy_date)
 
   bzero(ltime, sizeof(*ltime));
   ltime->time_type= MYSQL_TIMESTAMP_TIME;
+  ltime->neg= hour.neg();
 
-  /* Check for integer overflows */
-  if (hour < 0)
+  if (hour.abs() <= TIME_MAX_HOUR)
   {
-    if (args[0]->unsigned_flag)
-      overflow= 1;
-    else
-      ltime->neg= 1;
-  }
-  if (-hour > TIME_MAX_HOUR || hour > TIME_MAX_HOUR)
-    overflow= 1;
-
-  if (!overflow)
-  {
-    ltime->hour=   (uint) ((hour < 0 ? -hour : hour));
+    ltime->hour=   (uint) hour.abs();
     ltime->minute= (uint) minute;
     ltime->second= (uint) second;
     ltime->second_part= microsecond;
   }
   else
   {
-    ltime->hour= TIME_MAX_HOUR;
-    ltime->minute= TIME_MAX_MINUTE;
-    ltime->second= TIME_MAX_SECOND;
+    // use check_time_range() to set ltime to the max value depending on dec
+    int unused;
+    ltime->hour= TIME_MAX_HOUR + 1;
+    check_time_range(ltime, decimals, &unused);
     char buf[28];
-    char *ptr= longlong10_to_str(hour, buf, args[0]->unsigned_flag ? 10 : -10);
+    char *ptr= longlong10_to_str(hour.value(), buf, hour.is_unsigned() ? 10 : -10);
     int len = (int)(ptr - buf) + sprintf(ptr, ":%02u:%02u", (uint)minute, (uint)second);
     make_truncated_value_warning(current_thd, MYSQL_ERROR::WARN_LEVEL_WARN,
                                  buf, len, MYSQL_TIMESTAMP_TIME,

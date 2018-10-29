@@ -1514,11 +1514,13 @@ ERROR 42S22: Unknown column 'f' in 'from clause'
 DROP TABLE t;
 CREATE TABLE t (f INT);
 CALL p;
-ERROR 42S22: Unknown column 'f' in 'from clause'
+f
 DROP TABLE t;
 CREATE TABLE t (i INT);
 CALL p;
-ERROR 42S22: Unknown column 'f' in 'from clause'
+ERROR 42S22: Unknown column 't1.f' in 'field list'
+CALL p;
+ERROR 42S22: Unknown column 't1.f' in 'field list'
 DROP PROCEDURE p;
 DROP TABLE t;
 CREATE TABLE t1 (a INT, b INT);

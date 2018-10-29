@@ -995,7 +995,24 @@ disconnect con2;
 DROP USER user2@localhost;
 DROP DATABASE db1;
 
+#
+# Bug#27407480: AUTOMATIC_SP_PRIVILEGES REQUIRES NEED THE INSERT PRIVILEGES FOR MYSQL.USER TABLE
+#
+create user foo@local_ost;
+create user foo@`local\_ost` identified by 'nevermore';
+create database foodb;
+grant create routine on foodb.* to foo@local_ost;
+connect con1,localhost,foo;
+select user(), current_user();
+show grants;
+create procedure fooproc() select 'i am fooproc';
+show grants;
+disconnect con1;
+connection default;
+drop user foo@local_ost;
+drop user foo@`local\_ost`;
+drop procedure fooproc;
+drop database foodb;
 
 # Wait till all disconnects are completed
 --source include/wait_until_count_sessions.inc
-

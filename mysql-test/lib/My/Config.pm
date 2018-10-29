@@ -195,14 +195,10 @@ sub value {
   my ($self, $option_name)= @_;
   my $option= $self->option($option_name);
 
-  if (! defined($option) and defined $ENV{$option_name}) {
+  if (! defined($option)) {
     my $value= $ENV{$option_name};
     $option= My::Config::Option->new($option_name, $value);
   }
-
-  croak "No option named '$option_name' in group '$self->{name}'"
-    if ! defined($option);
-
   return $option->value();
 }
 

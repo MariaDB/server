@@ -411,7 +411,11 @@ public:
   String *val_str(String*str);
   my_decimal *val_decimal(my_decimal *decimal_value);
   longlong val_int()
-    { DBUG_ASSERT(fixed == 1); return (longlong) rint(val_real()); }
+  {
+    DBUG_ASSERT(fixed == 1);
+    bool error;
+    return double_to_longlong(val_real(), unsigned_flag, &error);
+  }
   enum Item_result result_type () const { return REAL_RESULT; }
   void fix_length_and_dec()
   { decimals= NOT_FIXED_DEC; max_length= float_length(decimals); }
@@ -1465,7 +1469,9 @@ class Item_func_udf_float :public Item_udf_func
   longlong val_int()
   {
     DBUG_ASSERT(fixed == 1);
-    return (longlong) rint(Item_func_udf_float::val_real());
+    bool error;
+    return double_to_longlong(Item_func_udf_float::val_real(),
+                              unsigned_flag, &error);
   }
   my_decimal *val_decimal(my_decimal *dec_buf)
   {

@@ -2184,6 +2184,16 @@ struct TABLE_LIST
   } 
   void set_lock_type(THD* thd, enum thr_lock_type lock);
 
+  void remove_join_columns()
+  {
+    if (join_columns)
+    {
+      join_columns->empty();
+      join_columns= NULL;
+      is_join_columns_complete= FALSE;
+    }
+  }
+
 private:
   bool prep_check_option(THD *thd, uint8 check_opt_type);
   bool prep_where(THD *thd, Item **conds, bool no_where_clause);

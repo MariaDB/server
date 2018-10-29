@@ -6899,6 +6899,8 @@ no_commit:
 	innodb_srv_conc_enter_innodb(prebuilt->trx);
 
 	error = row_insert_for_mysql((byte*) record, prebuilt);
+	DEBUG_SYNC(user_thd, "ib_after_row_insert");
+
 
 #ifdef EXTENDED_FOR_USERSTAT
 	if (UNIV_LIKELY(error == DB_SUCCESS && !trx->fake_changes)) {
@@ -8939,8 +8941,6 @@ create_table_def(
 			}
 		}
 
-		ut_a(field->type() < 256); /* we assume in dtype_form_prtype()
-					   that this fits in one byte */
 		col_len = field->pack_length();
 
 		/* The MySQL pack length contains 1 or 2 bytes length field
