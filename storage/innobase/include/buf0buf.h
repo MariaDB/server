@@ -223,8 +223,7 @@ public:
 	@param[in]	space	tablespace id
 	@param[in]	page_no	page number */
 	page_id_t(ulint space, ulint page_no)
-	    : m_space(static_cast<uint32_t>(space)),
-	      m_page_no(static_cast<uint32_t>(page_no))
+		: m_space(uint32_t(space)), m_page_no(uint32(page_no))
 	{
 		ut_ad(space <= 0xFFFFFFFFU);
 		ut_ad(page_no <= 0xFFFFFFFFU);
@@ -238,30 +237,21 @@ public:
 
 	/** Retrieve the tablespace id.
 	@return tablespace id */
-	inline uint32_t space() const
-	{
-		return(m_space);
-	}
+	uint32_t space() const { return m_space; }
 
 	/** Retrieve the page number.
 	@return page number */
-	inline uint32_t page_no() const
-	{
-		return(m_page_no);
-	}
+	uint32_t page_no() const { return m_page_no; }
 
 	/** Retrieve the fold value.
 	@return fold value */
-	inline ulint fold() const
-	{
-		return (m_space << 20) + m_space + m_page_no;
-	}
+	ulint fold() const { return (m_space << 20) + m_space + m_page_no; }
 
 	/** Reset the page number only.
 	@param[in]	page_no	page number */
 	inline void set_page_no(ulint page_no)
 	{
-		m_page_no = static_cast<uint32_t>(page_no);
+		m_page_no = uint32_t(page_no);
 
 		ut_ad(page_no <= 0xFFFFFFFFU);
 	}

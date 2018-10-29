@@ -1062,6 +1062,22 @@ fsp_get_pages_to_extend_ibd(
 	return(size_increase);
 }
 
+/** Reset the page type.
+Data files created before MySQL 5.1.48 may contain garbage in FIL_PAGE_TYPE.
+In MySQL 3.23.53, only undo log pages and index pages were tagged.
+Any other pages were written with uninitialized bytes in FIL_PAGE_TYPE.
+@param[in]	block	block with invalid FIL_PAGE_TYPE
+@param[in]	type	expected page type
+@param[in,out]	mtr	mini-transaction */
+ATTRIBUTE_COLD
+void fil_block_reset_type(const buf_block_t& block, ulint type, mtr_t* mtr)
+{
+	ib::info()
+		<< "Resetting invalid page " << block.page.id << " type "
+		<< fil_page_get_type(block.frame) << " to " << type << ".";
+	mlog_write_ulint(block.frame + FIL_PAGE_TYPE, type, MLOG_2BYTES, mtr);
+}
+
 /** Put new extents to the free list if there are free extents above the free
 limit. If an extent happens to contain an extent descriptor page, the extent
 is put to the FSP_FREE_FRAG list with the page marked as used.
