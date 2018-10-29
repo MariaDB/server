@@ -5399,6 +5399,80 @@ sub stop_servers($$) {
 }
 
 
+sub run_query_output {
+  my ($mysqld, $query, $outfile)= @_;
+  my $args;
+
+  mtr_init_args(\$args);
+  mtr_add_arg($args, "--defaults-file=%s", $path_config_file);
+  mtr_add_arg($args, "--defaults-group-suffix=%s", $mysqld->after('mysqld'));
+  mtr_add_arg($args, "--silent");
+  mtr_add_arg($args, "--execute=%s", $query);
+
+  my $res= My::SafeProcess->run
+  (
+    name          => "run_query_output -> ".$mysqld->name(),
+    path          => $exe_mysql,
+    args          => \$args,
+    output        => $outfile,
+    error         => $outfile
+  );
+
+  return $res
+}
+
+
+sub wait_wsrep_ready($$) {
+  my ($tinfo, $mysqld)= @_;
+
+  my $sleeptime= 100; # Milliseconds
+  my $loops= ($opt_start_timeout * 1000) / $sleeptime;
+
+  my $name= $mysqld->name();
+  my $outfile= "$opt_vardir/tmp/$name.wsrep_ready";
+  my $query= "SET SESSION wsrep_sync_wait = 0;
+              SELECT VARIABLE_VALUE
+              FROM INFORMATION_SCHEMA.GLOBAL_STATUS
+              WHERE VARIABLE_NAME = 'wsrep_ready'";
+
+  for (my $loop= 1; $loop <= $loops; $loop++)	
+  {
+    if (run_query_output($mysqld, $query, $outfile) == 0 &&
+        mtr_grab_file($outfile) =~ /^ON/)
+    {
+      unlink($outfile);
+      return 1;
+    }
+    
+    mtr_milli_sleep($sleeptime);
+  }
+
+  $tinfo->{logfile}= "WSREP did not transition to state READY";	
+  return 0;
+}
+
+
+sub wsrep_is_bootstrap_server($) {
+  my $mysqld= shift;
+  return $mysqld->if_exist('wsrep_cluster_address') &&
+    ($mysqld->value('wsrep_cluster_address') eq "gcomm://" ||
+     $mysqld->value('wsrep_cluster_address') eq "'gcomm://'");
+}
+
+
+sub wsrep_on($_) {
+  my $mysqld= shift;
+  #check if wsrep_on=  is set in configuration
+  if ($mysqld->if_exist('wsrep-on')) {
+    my $on= "".$mysqld->value('wsrep-on');
+    if ($on eq "1" || $on eq "ON") {
+      return 1;
+    }
+  }
+  return 0;
+}
+
+
 #
 # start_servers
 #
@@ -5413,6 +5487,18 @@ sub start_servers($) {
 
   for (all_servers()) {
     $_->{START}->($_, $tinfo) if $_->{START};
+    # If wsrep is on, we need to wait until the first
+    # server starts and bootstraps the cluster before
+    # starting other servers. The bootsrap server in the
+    # configuration should always be the first which has
+    # wsrep_on=ON and should be tagged with "#wsrep-new-cluster".
+    # option
+    if (wsrep_on($_) && wsrep_is_bootstrap_server($_))
+    {
+      if ($_->{WAIT}->($_) && !wait_wsrep_ready($tinfo, $_)) {
+        return 1;
+      }
+    }
   }
 
   for (all_servers()) {
@@ -5421,7 +5507,13 @@ sub start_servers($) {
       $tinfo->{comment}= "Failed to start ".$_->name() . "\n";
       return 1;
     }
+    if (wsrep_on($_)) {
+      if (!wait_wsrep_ready($tinfo, $_)){
+        return 1;
+      }
+    }
   }
+
   return 0;
 }
 
