@@ -1015,9 +1015,14 @@ void MDL_ticket::destroy(MDL_ticket *ticket)
 
 uint MDL_ticket::get_deadlock_weight() const
 {
-  return (m_lock->key.mdl_namespace() == MDL_key::BACKUP ||
-          m_type >= MDL_SHARED_UPGRADABLE ?
-          DEADLOCK_WEIGHT_DDL : DEADLOCK_WEIGHT_DML);
+  if (m_lock->key.mdl_namespace() == MDL_key::BACKUP)
+  {
+    if (m_type == MDL_BACKUP_FTWRL1)
+      return DEADLOCK_WEIGHT_FTWRL1;
+    return DEADLOCK_WEIGHT_DDL;
+  }
+  return m_type >= MDL_SHARED_UPGRADABLE ?
+         DEADLOCK_WEIGHT_DDL : DEADLOCK_WEIGHT_DML;
 }
 
 

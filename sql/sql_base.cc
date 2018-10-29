@@ -1829,59 +1829,6 @@ bool open_table(THD *thd, TABLE_LIST *table_list, Open_table_context *ot_ctx)
 
   if (! (flags & MYSQL_OPEN_HAS_MDL_LOCK))
   {
-    /*
-      We are not under LOCK TABLES and going to acquire write-lock/
-      modify the base table. We need to acquire protection against
-      global read lock until end of this statement in order to have
-      this statement blocked by active FLUSH TABLES WITH READ LOCK.
-
-      We don't need to acquire this protection under LOCK TABLES as
-      such protection already acquired at LOCK TABLES time and
-      not released until UNLOCK TABLES.
-
-      We don't block statements which modify only temporary tables
-      as these tables are not preserved by any form of
-      backup which uses FLUSH TABLES WITH READ LOCK.
-
-      TODO: The fact that we sometimes acquire protection against
-            GRL only when we encounter table to be write-locked
-            slightly increases probability of deadlock.
-            This problem will be solved once Alik pushes his
-            temporary table refactoring patch and we can start
-            pre-acquiring metadata locks at the beggining of
-            open_tables() call.
-    */
-    if (table_list->mdl_request.is_write_lock_request() &&
-        ! (flags & (MYSQL_OPEN_IGNORE_GLOBAL_READ_LOCK |
-                    MYSQL_OPEN_FORCE_SHARED_MDL |
-                    MYSQL_OPEN_FORCE_SHARED_HIGH_PRIO_MDL |
-                    MYSQL_OPEN_SKIP_SCOPED_MDL_LOCK)) &&
-        ! ot_ctx->has_protection_against_grl())
-    {
-      MDL_request protection_request;
-      MDL_deadlock_handler mdl_deadlock_handler(ot_ctx);
-
-      if (thd->global_read_lock.can_acquire_protection())
-        DBUG_RETURN(TRUE);
-
-      protection_request.init(MDL_key::BACKUP, "", "", MDL_BACKUP_STMT,
-                              MDL_STATEMENT);
-
-      /*
-        Install error handler which if possible will convert deadlock error
-        into request to back-off and restart process of opening tables.
-      */
-      thd->push_internal_handler(&mdl_deadlock_handler);
-      bool result= thd->mdl_context.acquire_lock(&protection_request,
-                                                 ot_ctx->get_timeout());
-      thd->pop_internal_handler();
-
-      if (result)
-        DBUG_RETURN(TRUE);
-
-      ot_ctx->set_has_protection_against_grl();
-    }
-
     if (open_table_get_mdl_lock(thd, ot_ctx, &table_list->mdl_request,
                                 flags, &mdl_ticket) ||
         mdl_ticket == NULL)
@@ -2089,6 +2036,71 @@ retry_share:
 
     /* Add table to the share's used tables list. */
     tc_add_table(thd, table);
+  }
+
+
+  if (!(flags & MYSQL_OPEN_HAS_MDL_LOCK))
+  {
+    /*
+      We are not under LOCK TABLES and going to acquire write-lock/
+      modify the base table. We need to acquire protection against
+      global read lock until end of this statement in order to have
+      this statement blocked by active FLUSH TABLES WITH READ LOCK.
+
+      We don't need to acquire this protection under LOCK TABLES as
+      such protection already acquired at LOCK TABLES time and
+      not released until UNLOCK TABLES.
+
+      We don't block statements which modify only temporary tables
+      as these tables are not preserved by any form of
+      backup which uses FLUSH TABLES WITH READ LOCK.
+
+      TODO: The fact that we sometimes acquire protection against
+            GRL only when we encounter table to be write-locked
+            slightly increases probability of deadlock.
+            This problem will be solved once Alik pushes his
+            temporary table refactoring patch and we can start
+            pre-acquiring metadata locks at the beggining of
+            open_tables() call.
+    */
+    if (table_list->mdl_request.is_write_lock_request() &&
+        ! (flags & (MYSQL_OPEN_IGNORE_GLOBAL_READ_LOCK |
+                    MYSQL_OPEN_FORCE_SHARED_MDL |
+                    MYSQL_OPEN_FORCE_SHARED_HIGH_PRIO_MDL |
+                    MYSQL_OPEN_SKIP_SCOPED_MDL_LOCK)) &&
+        ! ot_ctx->has_protection_against_grl())
+    {
+      MDL_request protection_request;
+      MDL_deadlock_handler mdl_deadlock_handler(ot_ctx);
+
+      if (thd->global_read_lock.can_acquire_protection())
+      {
+        MYSQL_UNBIND_TABLE(table->file);
+        tc_release_table(table);
+        DBUG_RETURN(TRUE);
+      }
+
+      protection_request.init(MDL_key::BACKUP, "", "", MDL_BACKUP_STMT,
+                              MDL_STATEMENT);
+
+      /*
+        Install error handler which if possible will convert deadlock error
+        into request to back-off and restart process of opening tables.
+      */
+      thd->push_internal_handler(&mdl_deadlock_handler);
+      bool result= thd->mdl_context.acquire_lock(&protection_request,
+                                                 ot_ctx->get_timeout());
+      thd->pop_internal_handler();
+
+      if (result)
+      {
+        MYSQL_UNBIND_TABLE(table->file);
+        tc_release_table(table);
+        DBUG_RETURN(TRUE);
+      }
+
+      ot_ctx->set_has_protection_against_grl();
+    }
   }
 
   table->mdl_ticket= mdl_ticket;

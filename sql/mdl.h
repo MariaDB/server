@@ -591,7 +591,8 @@ public:
 
   enum enum_deadlock_weight
   {
-    DEADLOCK_WEIGHT_DML= 0,
+    DEADLOCK_WEIGHT_FTWRL1= 0,
+    DEADLOCK_WEIGHT_DML= 1,
     DEADLOCK_WEIGHT_DDL= 100
   };
   /* A helper used to determine which lock request should be aborted. */

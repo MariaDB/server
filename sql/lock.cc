@@ -952,10 +952,10 @@ bool lock_object_name(THD *thd, MDL_key::enum_mdl_namespace mdl_type,
   semi-automatic. We assume that any statement which should be blocked
   by global read lock will either open and acquires write-lock on tables
   or acquires metadata locks on objects it is going to modify. For any
-  such statement global IX metadata lock is automatically acquired for
-  its duration (in case of LOCK TABLES until end of LOCK TABLES mode).
-  And lock_global_read_lock() simply acquires global S metadata lock
-  and thus prohibits execution of statements which modify data (unless
+  such statement MDL_BACKUP_STMT metadata lock is automatically acquired
+  for its duration (in case of LOCK TABLES until end of LOCK TABLES mode).
+  And lock_global_read_lock() simply acquires MDL_BACKUP_FTWRL1 metadata
+  lock and thus prohibits execution of statements which modify data (unless
   they modify only temporary tables). If deadlock happens it is detected
   by MDL subsystem and resolved in the standard fashion (by backing-off
   metadata locks acquired so far and restarting open tables process
@@ -998,6 +998,17 @@ bool lock_object_name(THD *thd, MDL_key::enum_mdl_namespace mdl_type,
 
   If the global read lock is already taken by this thread, then nothing is done.
 
+  Concurrent thread can acquire protection against global read lock either
+  before or after it got table metadata lock. This may lead to a deadlock if
+  there is pending global read lock request. E.g.
+  t1 does DML, holds SHARED table lock, waiting for t3 (GRL protection)
+  t2 does DDL, holds GRL protection, waiting for t1 (EXCLUSIVE)
+  t3 does FTWRL, has pending GRL, waiting for t2 (GRL)
+
+  Since this is very seldom deadlock and FTWRL connection must not hold any
+  other locks, FTWRL connection is made deadlock victim and attempt to acquire
+  GRL retried.
+
   See also "Handling of global read locks" above.
 
   @param thd     Reference to thread.
@@ -1012,7 +1023,9 @@ bool Global_read_lock::lock_global_read_lock(THD *thd)
 
   if (!m_state)
   {
+    MDL_deadlock_and_lock_abort_error_handler mdl_deadlock_handler;
     MDL_request mdl_request;
+    bool result;
 
     mysql_ha_cleanup_no_free(thd);
 
@@ -1022,9 +1035,17 @@ bool Global_read_lock::lock_global_read_lock(THD *thd)
                                                  MDL_BACKUP_FTWRL2));
     mdl_request.init(MDL_key::BACKUP, "", "", MDL_BACKUP_FTWRL1, MDL_EXPLICIT);
 
-    if (thd->mdl_context.acquire_lock(&mdl_request,
-                                      thd->variables.lock_wait_timeout))
-      DBUG_RETURN(1);
+    do
+    {
+      mdl_deadlock_handler.init();
+      thd->push_internal_handler(&mdl_deadlock_handler);
+      result= thd->mdl_context.acquire_lock(&mdl_request,
+                                            thd->variables.lock_wait_timeout);
+      thd->pop_internal_handler();
+    } while (mdl_deadlock_handler.need_reopen());
+
+    if (result)
+      DBUG_RETURN(true);
 
     m_mdl_global_read_lock= mdl_request.ticket;
     m_state= GRL_ACQUIRED;

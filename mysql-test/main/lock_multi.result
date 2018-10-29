@@ -218,6 +218,7 @@ connection con2;
 unlock tables;
 connection con3;
 a
+connection con4;
 connection default;
 disconnect con5;
 disconnect con4;
@@ -247,6 +248,7 @@ flush table t2;
 connection default;
 unlock tables;
 connection con1;
+connection con2;
 #
 # LOCK TABLES .. WRITE
 #
@@ -299,7 +301,7 @@ connection default;
 alter table t1 add column j int;
 connect  insert,localhost,root,,test,,;
 connection insert;
-insert into t1 values (1,2);;
+insert into t1 values (1,2);
 connection default;
 unlock tables;
 connection flush;

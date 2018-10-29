@@ -392,14 +392,21 @@ let $wait_condition=
 --echo # waiting for release of read lock
 connection con4;
 --echo # would hang and later cause a deadlock
-flush tables t2;
+--send flush tables t2
 connection con1;
+let $wait_condition=
+  select count(*) = 1 from information_schema.processlist
+  where state = "Waiting for table metadata lock" and
+        info = "flush tables t2";
+--source include/wait_condition.inc
 --echo # clean up
 unlock tables;
 connection con2;
 --reap
 unlock tables;
 connection con3;
+--reap
+connection con4;
 --reap
 connection default;
 disconnect con5;
@@ -437,10 +444,17 @@ let $wait_condition=
 --source include/wait_condition.inc
 --echo # statement is waiting for release of read lock
 connection con2;
-flush table t2;
+--send flush table t2
 connection default;
+let $wait_condition=
+  select count(*) = 1 from information_schema.processlist
+  where state = "Waiting for table metadata lock" and
+        info = "flush table t2";
+--source include/wait_condition.inc
 unlock tables;
 connection con1;
+--reap
+connection con2;
 --reap
 
 --echo #
@@ -553,11 +567,11 @@ let $wait_condition=
   where state = "Waiting for backup lock" and
         info = "flush tables with read lock";
 --source include/wait_condition.inc
---send insert into t1 values (1,2);
+--send insert into t1 values (1,2)
 connection default;
 let $wait_condition=
   select count(*) = 1 from information_schema.processlist
-  where state = "Waiting for backup lock" and
+  where state = "Waiting for table metadata lock" and
         info = "insert into t1 values (1,2)";
 --source include/wait_condition.inc
 unlock tables;
