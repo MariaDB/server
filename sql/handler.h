@@ -301,6 +301,9 @@ enum enum_alter_inplace_result {
 /* calling cmp_ref() on the engine is expensive */
 #define HA_CMP_REF_IS_EXPENSIVE (1ULL << 54)
 
+/* Engine wants primary keys for everything except sequences */
+#define HA_WANTS_PRIMARY_KEY (1ULL << 55)
+
 /* bits in index_flags(index_number) for what you can do with index */
 #define HA_READ_NEXT            1       /* TODO really use this flag */
 #define HA_READ_PREV            2       /* supports ::index_prev */
