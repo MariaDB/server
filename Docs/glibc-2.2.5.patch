@@ -1,6 +1,6 @@
 diff -r -c --exclude='*.info*' glibc-2.2.5.org/linuxthreads/internals.h glibc-2.2.5/linuxthreads/internals.h
-*** glibc-2.2.5.org/linuxthreads/internals.h	Thu Nov 29 08:44:16 2001
---- glibc-2.2.5/linuxthreads/internals.h	Tue May 21 10:51:53 2002
+*** glibc-2.2.5.org/linuxthreads/internals.h    Thu Nov 29 08:44:16 2001
+--- glibc-2.2.5/linuxthreads/internals.h    Tue May 21 10:51:53 2002
 ***************
 *** 343,349 ****
      THREAD_SELF implementation is used, this must be a power of two and
@@ -19,48 +19,48 @@ diff -r -c --exclude='*.info*' glibc-2.2.5.org/linuxthreads/internals.h glibc-2.
   
   /* The initial size of the thread stack.  Must be a multiple of PAGE_SIZE.  */
 diff -r -c --exclude='*.info*' glibc-2.2.5.org/linuxthreads/sysdeps/unix/sysv/linux/bits/local_lim.h glibc-2.2.5/linuxthreads/sysdeps/unix/sysv/linux/bits/local_lim.h
-*** glibc-2.2.5.org/linuxthreads/sysdeps/unix/sysv/linux/bits/local_lim.h	Thu Jun  8 21:49:49 2000
---- glibc-2.2.5/linuxthreads/sysdeps/unix/sysv/linux/bits/local_lim.h	Tue May 21 10:52:58 2002
+*** glibc-2.2.5.org/linuxthreads/sysdeps/unix/sysv/linux/bits/local_lim.h    Thu Jun  8 21:49:49 2000
+--- glibc-2.2.5/linuxthreads/sysdeps/unix/sysv/linux/bits/local_lim.h    Tue May 21 10:52:58 2002
 ***************
 *** 64,70 ****
   /* The number of threads per process.  */
-  #define _POSIX_THREAD_THREADS_MAX	64
+  #define _POSIX_THREAD_THREADS_MAX    64
   /* This is the value this implementation supports.  */
-! #define PTHREAD_THREADS_MAX	1024
+! #define PTHREAD_THREADS_MAX    1024
   
-  /* Maximum amount by which a process can descrease its asynchronous I/O
+  /* The maximum amount by which a process can descrease its asynchronous I/O
      priority level.  */
 --- 64,70 ----
   /* The number of threads per process.  */
-  #define _POSIX_THREAD_THREADS_MAX	64
+  #define _POSIX_THREAD_THREADS_MAX    64
   /* This is the value this implementation supports.  */
-! #define PTHREAD_THREADS_MAX	4096
+! #define PTHREAD_THREADS_MAX    4096
   
-  /* Maximum amount by which a process can descrease its asynchronous I/O
+  /* The maximum amount by which a process can descrease its asynchronous I/O
      priority level.  */
 diff -r -c --exclude='*.info*' glibc-2.2.5.org/nss/nsswitch.c glibc-2.2.5/nss/nsswitch.c
-*** glibc-2.2.5.org/nss/nsswitch.c	Tue Jul 17 10:21:36 2001
---- glibc-2.2.5/nss/nsswitch.c	Tue May 21 10:59:55 2002
+*** glibc-2.2.5.org/nss/nsswitch.c    Tue Jul 17 10:21:36 2001
+--- glibc-2.2.5/nss/nsswitch.c    Tue May 21 10:59:55 2002
 ***************
 *** 496,501 ****
 --- 496,502 ----
       {
         service_user *new_service;
         const char *name;
-+ 			int name_alloc_len;
++             int name_alloc_len;
   
         while (isspace (line[0]))
-  	++line;
+      ++line;
 ***************
 *** 510,522 ****
         if (name == line)
-  	return result;
+      return result;
   
   
         new_service = (service_user *) malloc (sizeof (service_user)
-! 					     + (line - name + 1));
+!                          + (line - name + 1));
         if (new_service == NULL)
-  	return result;
+      return result;
   
 !       *((char *) __mempcpy (new_service->name, name, line - name)) = '\0';
   
@@ -68,7 +68,7 @@ diff -r -c --exclude='*.info*' glibc-2.2.5.org/nss/nsswitch.c glibc-2.2.5/nss/ns
         new_service->actions[2 + NSS_STATUS_TRYAGAIN] = NSS_ACTION_CONTINUE;
 --- 511,534 ----
         if (name == line)
-  	return result;
+      return result;
   
 +       name_alloc_len = line - name + 1;
 + 
@@ -82,9 +82,9 @@ diff -r -c --exclude='*.info*' glibc-2.2.5.org/nss/nsswitch.c glibc-2.2.5/nss/ns
 + #endif
   
         new_service = (service_user *) malloc (sizeof (service_user)
-! 					     + name_alloc_len);
+!                          + name_alloc_len);
         if (new_service == NULL)
-  	return result;
+      return result;
   
 !       *((char *) __mempcpy (new_service->name, name, name_alloc_len-1)) = '\0';
 ! 
@@ -92,16 +92,16 @@ diff -r -c --exclude='*.info*' glibc-2.2.5.org/nss/nsswitch.c glibc-2.2.5/nss/ns
         /* Set default actions.  */
         new_service->actions[2 + NSS_STATUS_TRYAGAIN] = NSS_ACTION_CONTINUE;
 diff -r -c --exclude='*.info*' glibc-2.2.5.org/time/Makefile glibc-2.2.5/time/Makefile
-*** glibc-2.2.5.org/time/Makefile	Fri Aug 10 01:59:41 2001
---- glibc-2.2.5/time/Makefile	Tue May 21 11:01:11 2002
+*** glibc-2.2.5.org/time/Makefile    Fri Aug 10 01:59:41 2001
+--- glibc-2.2.5/time/Makefile    Tue May 21 11:01:11 2002
 ***************
 *** 37,44 ****
   
   include ../Rules
   
 ! tz-cflags = -DTZDIR='"$(zonedir)"' \
-! 	    -DTZDEFAULT='"$(localtime-file)"' \
-  	    -DTZDEFRULES='"$(posixrules-file)"'
+!         -DTZDEFAULT='"$(localtime-file)"' \
+          -DTZDEFRULES='"$(posixrules-file)"'
   
   CFLAGS-tzfile.c = $(tz-cflags)
 --- 37,44 ----
@@ -109,29 +109,29 @@ diff -r -c --exclude='*.info*' glibc-2.2.5.org/time/Makefile glibc-2.2.5/time/Ma
   include ../Rules
   
 ! tz-cflags = -DTZDIR='"/usr/share/zoneinfo/"' \
-! 	    -DTZDEFAULT='"/etc/localtime"' \
-  	    -DTZDEFRULES='"$(posixrules-file)"'
+!         -DTZDEFAULT='"/etc/localtime"' \
+          -DTZDEFRULES='"$(posixrules-file)"'
   
   CFLAGS-tzfile.c = $(tz-cflags)
 diff -r -c --exclude='*.info*' glibc-2.2.5.org/timezone/Makefile glibc-2.2.5/timezone/Makefile
-*** glibc-2.2.5.org/timezone/Makefile	Thu Aug 30 00:45:25 2001
---- glibc-2.2.5/timezone/Makefile	Tue May 21 11:01:57 2002
+*** glibc-2.2.5.org/timezone/Makefile    Thu Aug 30 00:45:25 2001
+--- glibc-2.2.5/timezone/Makefile    Tue May 21 11:01:57 2002
 ***************
 *** 159,166 ****
   
   $(objpfx)zic: $(objpfx)scheck.o $(objpfx)ialloc.o
   
 ! tz-cflags = -DTZDIR='"$(zonedir)"' \
-! 	    -DTZDEFAULT='"$(localtime-file)"' \
-  	    -DTZDEFRULES='"$(posixrules-file)"' \
-  	    -DTM_GMTOFF=tm_gmtoff -DTM_ZONE=tm_zone
+!         -DTZDEFAULT='"$(localtime-file)"' \
+          -DTZDEFRULES='"$(posixrules-file)"' \
+          -DTM_GMTOFF=tm_gmtoff -DTM_ZONE=tm_zone
   
 --- 159,166 ----
   
   $(objpfx)zic: $(objpfx)scheck.o $(objpfx)ialloc.o
   
 ! tz-cflags = -DTZDIR='"/usr/share/zoneinfo/"' \
-! 	    -DTZDEFAULT='"/etc/localtime"' \
-  	    -DTZDEFRULES='"$(posixrules-file)"' \
-  	    -DTM_GMTOFF=tm_gmtoff -DTM_ZONE=tm_zone
+!         -DTZDEFAULT='"/etc/localtime"' \
+          -DTZDEFRULES='"$(posixrules-file)"' \
+          -DTM_GMTOFF=tm_gmtoff -DTM_ZONE=tm_zone
   
