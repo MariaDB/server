@@ -1,6 +1,7 @@
 /*****************************************************************************
 
 Copyright (c) 1996, 2016, Oracle and/or its affiliates. All Rights Reserved.
+Copyright (c) 2018, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -1359,6 +1360,21 @@ dict_create_or_check_foreign_constraint_tables(void)
 	trx->op_info = "creating foreign key sys tables";
 
 	row_mysql_lock_data_dictionary(trx);
+
+	DBUG_EXECUTE_IF(
+		"create_and_drop_garbage",
+		err = que_eval_sql(
+			NULL,
+			"PROCEDURE CREATE_GARBAGE_TABLE_PROC () IS\n"
+			"BEGIN\n"
+			"CREATE TABLE\n"
+			"\"test/#sql-ib-garbage\"(ID CHAR);\n"
+			"CREATE UNIQUE CLUSTERED INDEX PRIMARY"
+			" ON \"test/#sql-ib-garbage\"(ID);\n"
+			"END;\n", FALSE, trx);
+		ut_ad(err == DB_SUCCESS);
+		row_drop_table_for_mysql("test/#sql-ib-garbage",
+					 trx, TRUE, TRUE););
 
 	/* Check which incomplete table definition to drop. */
 

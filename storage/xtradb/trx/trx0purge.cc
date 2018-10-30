@@ -255,7 +255,7 @@ trx_purge_add_update_undo_to_history(
 	in fast shutdown, we may roll back transactions (trx->undo_no==0)
 	in THD::cleanup() invoked from unlink_thd(). */
 	ut_ad(srv_undo_sources
-	      || ((srv_startup_is_before_trx_rollback_phase
+	      || ((srv_is_being_started
 		   || trx_rollback_or_clean_is_active)
 		  && purge_sys->state == PURGE_STATE_INIT)
 	      || (trx->undo_no == 0 && srv_fast_shutdown));
