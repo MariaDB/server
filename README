@@ -44,10 +44,14 @@ and COPYING.thirdparty files.
 
 IMPORTANT:
 
-Bug and/or error reports regarding MariaDB should be submitted at
-http://mariadb.org/jira
+Bug and/or error reports regarding MariaDB should be submitted at:
+https://jira.mariadb.org
 
-Bugs in the MySQL code can also be submitted at http://bugs.mysql.com
+For reporting security vulnerabilities see:
+https://mariadb.org/about/security-policy/
+
+Bugs in the MySQL code can also be submitted at:
+http://bugs.mysql.com
 
 The code for MariaDB, including all revision history, can be found at:
 https://github.com/MariaDB/server
