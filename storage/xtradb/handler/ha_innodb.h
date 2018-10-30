@@ -206,7 +206,7 @@ class ha_innobase: public handler
 			     char* remote_path);
 	const char* check_table_options(THD *thd, TABLE* table,
 		HA_CREATE_INFO*	create_info, const bool use_tablespace, const ulint file_format);
-	int create(const char *name, register TABLE *form,
+	int create(const char *name, TABLE *form,
 					HA_CREATE_INFO *create_info);
 	int truncate();
 	int delete_table(const char *name);

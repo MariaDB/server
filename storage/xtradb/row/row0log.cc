@@ -236,7 +236,7 @@ row_log_block_allocate(
 	DBUG_ENTER("row_log_block_allocate");
 	if (log_buf.block == NULL) {
 		log_buf.size = srv_sort_buf_size;
-		log_buf.block = (byte*) os_mem_alloc_large(&log_buf.size);
+		log_buf.block = (byte*) os_mem_alloc_large(&log_buf.size, false);
 		DBUG_EXECUTE_IF("simulate_row_log_allocation_failure",
 			if (log_buf.block)
 				os_mem_free_large(log_buf.block, log_buf.size);
@@ -2916,8 +2916,8 @@ row_log_allocate(
 
 	if (log_tmp_is_encrypted()) {
 		ulint size = srv_sort_buf_size;
-		log->crypt_head = static_cast<byte *>(os_mem_alloc_large(&size));
-		log->crypt_tail = static_cast<byte *>(os_mem_alloc_large(&size));
+		log->crypt_head = static_cast<byte *>(os_mem_alloc_large(&size, false));
+		log->crypt_tail = static_cast<byte *>(os_mem_alloc_large(&size, false));
 
 		if (!log->crypt_head || !log->crypt_tail) {
 			row_log_free(log);

@@ -18,7 +18,7 @@
 /* -------------                                                       */
 /*  Version 1.6                                                        */
 /*                                                                     */
-/*  Author: Olivier Bertrand                       2012 - 2017         */
+/*  Author: Olivier Bertrand                       2012 - 2018         */
 /*                                                                     */
 /* WHAT THIS PROGRAM DOES:                                             */
 /* -----------------------                                             */
@@ -28,20 +28,13 @@
 /***********************************************************************/
 /*  Include relevant MariaDB header file.                              */
 /***********************************************************************/
-#include <my_config.h>
+#define DONT_DEFINE_VOID
+#include <my_global.h>
 
-#if defined(__WIN__)
-//#include <windows.h>
-//#include <sqlext.h>
-#elif defined(UNIX)
-#include <sys/types.h>
+#if defined(UNIX)
 #include <unistd.h>
-#include <stdlib.h>
-#include <stdio.h>
 #include <string.h>
 #endif
-#define DONT_DEFINE_VOID
-//#include <mysql/plugin.h>
 #include "handler.h"
 #undef  OFFSET
 

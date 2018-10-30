@@ -3343,9 +3343,17 @@ row_merge_file_create_low(
 	performance schema */
 	struct PSI_file_locker*	locker = NULL;
 	PSI_file_locker_state	state;
+	if (!path) {
+		path = mysql_tmpdir;
+	}
+	static const char label[] = "/Innodb Merge Temp File";
+	char* name = static_cast<char*>(
+		ut_malloc(strlen(path) + sizeof label));
+	strcpy(name, path);
+	strcat(name, label);
 	locker = PSI_FILE_CALL(get_thread_file_name_locker)(
 			       &state, innodb_file_temp_key, PSI_FILE_OPEN,
-			       "Innodb Merge Temp File", &locker);
+			       path ? name : label, &locker);
 	if (locker != NULL) {
 		PSI_FILE_CALL(start_file_open_wait)(locker,
 						    __FILE__,
@@ -3358,6 +3366,7 @@ row_merge_file_create_low(
 		PSI_FILE_CALL(end_file_open_wait_and_bind_to_descriptor)(
 			      locker, fd);
 	}
+	ut_free(name);
 #endif
 
 	if (fd < 0) {
@@ -3888,7 +3897,7 @@ row_merge_build_indexes(
 
 	block_size = 3 * srv_sort_buf_size;
 	block = static_cast<row_merge_block_t*>(
-		os_mem_alloc_large(&block_size));
+		os_mem_alloc_large(&block_size, false));
 
 	if (block == NULL) {
 		DBUG_RETURN(DB_OUT_OF_MEMORY);
@@ -3898,7 +3907,7 @@ row_merge_build_indexes(
 	encryption/decryption. */
 	if (log_tmp_is_encrypted()) {
 		crypt_block = static_cast<row_merge_block_t*>(
-				os_mem_alloc_large(&block_size));
+				os_mem_alloc_large(&block_size, false));
 
 		if (crypt_block == NULL) {
 			DBUG_RETURN(DB_OUT_OF_MEMORY);

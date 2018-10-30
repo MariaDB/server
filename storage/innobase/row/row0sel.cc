@@ -1,6 +1,6 @@
 /*****************************************************************************
 
-Copyright (c) 1997, 2017, Oracle and/or its affiliates. All Rights Reserved.
+Copyright (c) 1997, 2018, Oracle and/or its affiliates. All Rights Reserved.
 Copyright (c) 2008, Google Inc.
 Copyright (c) 2015, 2018, MariaDB Corporation.
 
@@ -4721,7 +4721,7 @@ no_gap_lock:
 				prebuilt->new_rec_locks = 1;
 			}
 			err = DB_SUCCESS;
-			/* fall through */
+			break;
 		case DB_SUCCESS:
 			break;
 		case DB_LOCK_WAIT:

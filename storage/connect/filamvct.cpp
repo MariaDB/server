@@ -348,7 +348,7 @@ int VCTFAM::Cardinality(PGLOBAL g)
 
     } // endif split
 
-    return (Block) ? ((Block - 1) * Nrec + Last) : 0;
+  return (Block) ? ((Block - 1) * Nrec + Last) : 0;
   } // end of Cardinality
 
 /***********************************************************************/
@@ -510,7 +510,8 @@ bool VCTFAM::AllocateBuffer(PGLOBAL g)
     for (; cp; cp = (PVCTCOL)cp->Next)
       cp->Blk = AllocValBlock(g, NewBlock + Nrec * cp->Deplac,
                               cp->Buf_Type, Nrec, cp->Format.Length,
-                                                  cp->Format.Prec, chk);
+                              cp->Format.Prec, chk, true, 
+				                      cp->IsUnsigned());
 
     return InitInsert(g);    // Initialize inserting
   } else {
@@ -544,7 +545,8 @@ bool VCTFAM::AllocateBuffer(PGLOBAL g)
     for (; cp; cp = (PVCTCOL)cp->Next)
       if (!cp->IsSpecial())            // Not a pseudo column
         cp->Blk = AllocValBlock(g, NULL, cp->Buf_Type, Nrec,
-                                cp->Format.Length, cp->Format.Prec);
+                                cp->Format.Length, cp->Format.Prec,
+				                        true, true, cp->IsUnsigned());
 
   } //endif mode
 
@@ -1511,7 +1513,8 @@ bool VCMFAM::AllocateBuffer(PGLOBAL g)
   for (cp = (PVCTCOL)Tdbp->GetColumns(); cp; cp = (PVCTCOL)cp->Next)
     if (!cp->IsSpecial()) {            // Not a pseudo column
       cp->Blk = AllocValBlock(g, (void*)1, cp->Buf_Type, Nrec,
-                              cp->Format.Length, cp->Format.Prec);
+                              cp->Format.Length, cp->Format.Prec,
+				                      true, true, cp->IsUnsigned());
       cp->AddStatus(BUF_MAPPED);
       } // endif IsSpecial
 
@@ -2062,7 +2065,7 @@ bool VECFAM::AllocateBuffer(PGLOBAL g)
     for (cp = (PVCTCOL)tdbp->Columns; cp; cp = (PVCTCOL)cp->Next)
       cp->Blk = AllocValBlock(g, To_Bufs[cp->Index - 1],
                               cp->Buf_Type, Nrec, cp->Format.Length,
-                                                  cp->Format.Prec, chk);
+                              cp->Format.Prec, chk, true, cp->IsUnsigned());
 
     return InitInsert(g);
   } else {
@@ -2111,7 +2114,8 @@ bool VECFAM::AllocateBuffer(PGLOBAL g)
     for (cp = (PVCTCOL)tdbp->Columns; cp; cp = (PVCTCOL)cp->Next)
       if (!cp->IsSpecial())            // Not a pseudo column
           cp->Blk = AllocValBlock(g, NULL, cp->Buf_Type, Nrec,
-                                  cp->Format.Length, cp->Format.Prec);
+                                  cp->Format.Length, cp->Format.Prec,
+						                      true, true, cp->IsUnsigned());
 
   } // endif mode
 
@@ -2449,11 +2453,11 @@ int VECFAM::RenameTempFile(PGLOBAL g)
       remove(filetemp);   // May still be there from previous error
   
       if (rename(filename, filetemp)) {    // Save file for security
-        sprintf(g->Message, MSG(RENAME_ERROR),
+        snprintf(g->Message, MAX_STR, MSG(RENAME_ERROR),
                 filename, filetemp, strerror(errno));
         rc = RC_FX;
       } else if (rename(tempname, filename)) {
-        sprintf(g->Message, MSG(RENAME_ERROR),
+        snprintf(g->Message, MAX_STR, MSG(RENAME_ERROR),
                 tempname, filename, strerror(errno));
         rc = rename(filetemp, filename);   // Restore saved file
         rc = RC_FX;
@@ -2882,7 +2886,8 @@ bool VMPFAM::AllocateBuffer(PGLOBAL g)
   for (cp = (PVCTCOL)Tdbp->GetColumns(); cp; cp = (PVCTCOL)cp->Next)
     if (!cp->IsSpecial()) {            // Not a pseudo column
       cp->Blk = AllocValBlock(g, (void*)1, cp->Buf_Type, Nrec,
-                              cp->Format.Length, cp->Format.Prec);
+                              cp->Format.Length, cp->Format.Prec,
+				                      true, true, cp->IsUnsigned());
       cp->AddStatus(BUF_MAPPED);
       } // endif IsSpecial
 
@@ -3664,7 +3669,7 @@ bool BGVFAM::AllocateBuffer(PGLOBAL g)
       for (; cp; cp = (PVCTCOL)cp->Next)
         cp->Blk = AllocValBlock(g, NewBlock + Nrec * cp->Deplac,
                                 cp->Buf_Type, Nrec, cp->Format.Length,
-                                                    cp->Format.Prec, chk);
+                                cp->Format.Prec, chk, true, cp->IsUnsigned());
 
       InitInsert(g);    // Initialize inserting
 
@@ -3712,7 +3717,8 @@ bool BGVFAM::AllocateBuffer(PGLOBAL g)
     for (; cp; cp = (PVCTCOL)cp->Next)
       if (!cp->IsSpecial())            // Not a pseudo column
         cp->Blk = AllocValBlock(g, NULL, cp->Buf_Type, Nrec,
-                                cp->Format.Length, cp->Format.Prec);
+                                cp->Format.Length, cp->Format.Prec,
+					                      true, true, cp->IsUnsigned());
 
   } //endif mode
 

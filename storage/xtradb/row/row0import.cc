@@ -1,6 +1,6 @@
 /*****************************************************************************
 
-Copyright (c) 2012, 2016, Oracle and/or its affiliates. All Rights Reserved.
+Copyright (c) 2012, 2018, Oracle and/or its affiliates. All Rights Reserved.
 Copyright (c) 2015, 2018, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
@@ -1949,7 +1949,11 @@ PageConverter::update_index_page(
 		return(DB_SUCCESS);
 	}
 
-	return page_is_leaf(block->frame) ? update_records(block) : DB_SUCCESS;
+	if (!page_is_leaf(block->frame)) {
+		return (DB_SUCCESS);
+	}
+
+	return(update_records(block));
 }
 
 /**

@@ -76,7 +76,7 @@ wf_incremental_init(xb_write_filt_ctxt_t *ctxt, char *dst_name,
 
 	/* allocate buffer for incremental backup (4096 pages) */
 	cp->delta_buf_size = (cursor->page_size / 4) * cursor->page_size;
-	cp->delta_buf = (unsigned char *)os_mem_alloc_large(&cp->delta_buf_size);
+	cp->delta_buf = (unsigned char *)os_mem_alloc_large(&cp->delta_buf_size, false);
 
 	if (!cp->delta_buf) {
 		msg("[%02u] mariabackup: Error: "

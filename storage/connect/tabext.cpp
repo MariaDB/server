@@ -125,6 +125,12 @@ EXTDEF::EXTDEF(void)
 /***********************************************************************/
 bool EXTDEF::DefineAM(PGLOBAL g, LPCSTR am, int poff)
 {
+	if (g->Createas) {
+		strcpy(g->Message,
+			"Multiple-table UPDATE/DELETE commands are not supported");
+		return true;
+	}	// endif multi
+
 	Desc = NULL;
 	Tabname = GetStringCatInfo(g, "Name",
 		(Catfunc & (FNC_TABLE | FNC_COL)) ? NULL : Name);
@@ -286,7 +292,7 @@ bool TDBEXT::MakeSrcdef(PGLOBAL g)
 	char *catp = strstr(Srcdef, "%s");
 
 	if (catp) {
-		char *fil1, *fil2;
+		char *fil1 = 0, *fil2;
 		PCSZ  ph = ((EXTDEF*)To_Def)->Phpos;
 
 		if (!ph)

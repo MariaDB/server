@@ -396,7 +396,14 @@ a
 drop table t1;
 drop function y2k;
 #
-# Start of 10.1 tests
+# MDEV-17257 Server crashes in Item::field_type_for_temporal_comparison or in get_datetime_value on SELECT with YEAR field and IN
+#
+CREATE TABLE t1 (y YEAR);
+SELECT * FROM t1 WHERE y IN ( CAST( '1993-03-26 10:14:20' AS DATE ), NULL );
+y
+DROP TABLE t1;
+#
+# End of 10.0 tests
 #
 #
 # MDEV-8741 Equal field propagation leaves some remainders after simplifying WHERE zerofill_column=2010 AND zerofill_column>=2010

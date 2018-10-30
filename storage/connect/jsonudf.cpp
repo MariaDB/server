@@ -1620,7 +1620,7 @@ static my_bool CheckMemory(PGLOBAL g, UDF_INIT *initid, UDF_ARGS *args, uint n,
 				if (AllocSarea(g, ml)) {
 					char errmsg[MAX_STR];
 
-					snprintf(errmsg, sizeof(errmsg)-1, MSG(WORK_AREA), g->Message);
+					snprintf(errmsg, sizeof(errmsg) - 1, MSG(WORK_AREA), g->Message);
 					strcpy(g->Message, errmsg);
 					return true;
 					} // endif SareaAlloc
@@ -1673,7 +1673,7 @@ static PCSZ MakeKey(PGLOBAL g, UDF_ARGS *args, int i)
 				n = strlen(s);
 
 			if (IsJson(args, i))
-				j = strchr(s, '_') - s + 1;
+				j = (int)(strchr(s, '_') - s + 1);
 
 			if (j && n > j) {
 				s += j;
@@ -4631,7 +4631,7 @@ char *jbin_array(UDF_INIT *initid, UDF_ARGS *args, char *result,
 			bsp = NULL;
 
 		if (!bsp && (bsp = JbinAlloc(g, args, initid->max_length, NULL)))
-			strncpy(bsp->Msg, g->Message, 139);
+			strncpy(bsp->Msg, g->Message, BMX);
 
 		// Keep result of constant function
 		g->Xchk = (initid->const_item) ? bsp : NULL;

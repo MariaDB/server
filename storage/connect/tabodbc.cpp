@@ -1249,9 +1249,10 @@ bool TDBXDBC::OpenDB(PGLOBAL g)
   /*  Get the command to execute.                                      */
   /*********************************************************************/
   if (!(Cmdlist = MakeCMD(g))) {
-    Ocp->Close();
-    return true;
-    } // endif Query
+		// Next lines commented out because of CHECK TABLE
+		//Ocp->Close();
+    //return true;
+  } // endif Cmdlist
 
   Rows = 1;
   return false;
@@ -1274,8 +1275,10 @@ int TDBXDBC::ReadDB(PGLOBAL g)
     Fpos++;                // Used for progress info
     Cmdlist = (Nerr > Mxr) ? NULL : Cmdlist->Next;
     return RC_OK;
-  } else
-    return RC_EF;
+	} else {
+		PushWarning(g, this, 1);
+		return RC_EF;
+	}	// endif Cmdlist
 
   } // end of ReadDB
 

@@ -4235,4 +4235,3 @@ row_import_for_mysql(
 
 	return(row_import_cleanup(prebuilt, trx, err));
 }
-

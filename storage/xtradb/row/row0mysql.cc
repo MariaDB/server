@@ -5135,6 +5135,18 @@ row_rename_table_for_mysql(
 		goto funct_exit;
 	}
 
+	/* Wait for background fts sync to finish */
+	for (retry = 1; dict_fts_index_syncing(table); ++retry) {
+		DICT_BG_YIELD(trx);
+		if (retry % 100 == 0) {
+			ib_logf(IB_LOG_LEVEL_INFO,
+				"Unable to rename table %s to new name"
+				" %s because FTS sync is running on table."
+				" Retrying\n",
+				old_name, new_name);
+		}
+	}
+
 	/* We use the private SQL parser of Innobase to generate the query
 	graphs needed in updating the dictionary data from system tables. */
 
@@ -5311,8 +5323,9 @@ row_rename_table_for_mysql(
 		}
 	}
 
-	if ((dict_table_has_fts_index(table)
-	    || DICT_TF2_FLAG_IS_SET(table, DICT_TF2_FTS_HAS_DOC_ID))
+	if (err == DB_SUCCESS
+	    && (dict_table_has_fts_index(table)
+		|| DICT_TF2_FLAG_IS_SET(table, DICT_TF2_FTS_HAS_DOC_ID))
 	    && !dict_tables_have_same_db(old_name, new_name)) {
 		err = fts_rename_aux_tables(table, new_name, trx);
 		if (err != DB_TABLE_NOT_FOUND) {

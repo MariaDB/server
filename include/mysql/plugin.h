@@ -393,6 +393,18 @@ DECLARE_MYSQL_SYSVAR_SIMPLE(name, unsigned long long) = { \
   PLUGIN_VAR_LONGLONG | PLUGIN_VAR_UNSIGNED | ((opt) & PLUGIN_VAR_MASK), \
   #name, comment, check, update, &varname, def, min, max, blk }
 
+#ifdef _WIN64
+#define MYSQL_SYSVAR_SIZE_T(name, varname, opt, comment, check, update, def, min, max, blk) \
+DECLARE_MYSQL_SYSVAR_SIMPLE(name, size_t) = { \
+  PLUGIN_VAR_LONGLONG | PLUGIN_VAR_UNSIGNED | ((opt) & PLUGIN_VAR_MASK), \
+  #name, comment, check, update, &varname, def, min, max, blk }
+#else
+#define MYSQL_SYSVAR_SIZE_T(name, varname, opt, comment, check, update, def, min, max, blk) \
+DECLARE_MYSQL_SYSVAR_SIMPLE(name, size_t) = { \
+  PLUGIN_VAR_LONG | PLUGIN_VAR_UNSIGNED | ((opt) & PLUGIN_VAR_MASK), \
+  #name, comment, check, update, &varname, def, min, max, blk }
+#endif
+
 #define MYSQL_SYSVAR_ENUM(name, varname, opt, comment, check, update, def, typelib) \
 DECLARE_MYSQL_SYSVAR_TYPELIB(name, unsigned long) = { \
   PLUGIN_VAR_ENUM | ((opt) & PLUGIN_VAR_MASK), \

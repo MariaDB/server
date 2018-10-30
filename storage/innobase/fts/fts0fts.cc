@@ -67,7 +67,7 @@ UNIV_INTERN ulong      fts_max_total_cache_size;
 
 /** This is FTS result cache limit for each query and would be
 a configurable variable */
-UNIV_INTERN ulong	fts_result_cache_limit;
+UNIV_INTERN size_t	fts_result_cache_limit;
 
 /** Variable specifying the maximum FTS max token size */
 UNIV_INTERN ulong	fts_max_token_size;
@@ -870,19 +870,19 @@ fts_drop_index(
 			err = fts_drop_index_tables(trx, index);
 
 			while (index->index_fts_syncing
-				&& !trx_is_interrupted(trx)) {
-				DICT_BG_YIELD(trx);
-			}
+                                && !trx_is_interrupted(trx)) {
+                                DICT_BG_YIELD(trx);
+                        }
 
-			fts_free(table);
+                        fts_free(table);
 
 			return(err);
 		}
 
 		while (index->index_fts_syncing
-		       && !trx_is_interrupted(trx)) {
-			DICT_BG_YIELD(trx);
-		}
+                        && !trx_is_interrupted(trx)) {
+                        DICT_BG_YIELD(trx);
+                }
 
 		current_doc_id = table->fts->cache->next_doc_id;
 		first_doc_id = table->fts->cache->first_doc_id;
@@ -901,9 +901,9 @@ fts_drop_index(
 
 		if (index_cache != NULL) {
 			while (index->index_fts_syncing
-			       && !trx_is_interrupted(trx)) {
-				DICT_BG_YIELD(trx);
-			}
+                                && !trx_is_interrupted(trx)) {
+                                DICT_BG_YIELD(trx);
+                        }
 			if (index_cache->words) {
 				fts_words_free(index_cache->words);
 				rbt_free(index_cache->words);
@@ -4309,7 +4309,7 @@ fts_sync_begin(
 	if (fts_enable_diag_print) {
 		ib_logf(IB_LOG_LEVEL_INFO,
 			"FTS SYNC for table %s, deleted count: %ld size: "
-			"%lu bytes",
+			"%zu bytes",
 			sync->table->name,
 			ib_vector_size(cache->deleted_doc_ids),
 			cache->total_size);
