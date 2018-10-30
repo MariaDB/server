@@ -11,7 +11,7 @@
   which dispatches on the command code (in Lex) to the corresponding code for
   executing that particular query.
 
-  There are three structures involved in the execution of a query which are of
+  There are three structures involved in the execution of a query, which are of
   interest to the stored procedure implementation:
 
   - Lex (mentioned above) is the "compiled" query, that is the output from
@@ -115,7 +115,7 @@
         be required:
         - Forward jumps: When jumping forward, the exact destination is not
           known at the time of the creation of the jump instruction. The
-          sphead therefore contains list of instruction-label pairs for
+          sphead therefore contains a list of instruction-label pairs for
           each forward reference. When the position later is known, the
           instructions in the list are updated with the correct location.
         - Loop constructs have optional labels. If a loop doesn't have a
@@ -151,7 +151,7 @@
                                    | m_instr: ...          |
                                    |_______________________|
 
-      Note that the contents of the spcont is changing during the parsing,
+      Note that the contents of the spcont are changing during the parsing,
       at all times reflecting the state of the would-be runtime frame.
       The m_instr is an array of instructions:
 
@@ -169,7 +169,7 @@
 
   - Parsing CREATE FUNCTION ...
 
-    Creating a functions is essentially the same thing as for a PROCEDURE,
+    Creating a function is essentially the same thing as for a PROCEDURE,
     with the addition that a FUNCTION has a return type and a RETURN
     statement, but no OUT or INOUT parameters.
 
@@ -203,7 +203,7 @@
 
     1) Upon creation time, parse and store the procedure. Note that we still
        need to parse it to catch syntax errors, but we can't check if called
-       procedures exists for instance.
+       procedures exist for instance.
     2) Upon first CALL, read from the database, parse it, and cache the
        resulting Lex in memory. This time we can do more error checking.
     3) Upon subsequent CALLs, use the cached Lex.
@@ -249,7 +249,7 @@
 
     - USE database
 
-      Before executing the instruction we also keeps the current default
+      Before executing the instruction we also keep the current default
       database (if any). If this was changed during execution (i.e. a "USE"
       statement has been executed), we restore the current database to the
       original.
@@ -299,9 +299,9 @@
       exist before they are referred to, which was ok before SPs existed,
       but then it becomes a problem. The first implementation of SP FUNCTIONs
       will work the same way, but this should be fixed a.s.a.p. (This will
-      required some reworking of the way UDFs are handled, which is why it's
+require some reworking of the way UDFs are handled, which is why it's
       not done from the start.)
-      For the time being, a FUNCTION is detected the same way, and returns
+      For the time being, a FUNCTION is detected in the same way, and returns
       the token SP_FUNC. During the parsing we only check for the *existence*
       of the function, we don't parse it, since wa can't call the parser
       recursively.
@@ -314,7 +314,7 @@
     - Collecting FUNCTIONs to invoke
 
       A FUNCTION differs from a PROCEDURE in one important aspect: Whereas a
-      PROCEDURE is CALLed as statement by itself, a FUNCTION is invoked
+      PROCEDURE is CALLed as a statement by itself, a FUNCTION is invoked
       "on-the-fly" during the execution of *another* statement.
       This makes things a lot more complicated compared to CALL:
       - We can't read and parse the FUNCTION from the mysql.proc table at the
@@ -336,7 +336,7 @@
       sp_find_function() can find them during the execution.
       Note: Even with an in-memory cache, we must still make sure that the
             functions are indeed read and cached at this point.
-      The code that read and cache functions from the database must also be
+      The code that reads and cache functions from the database must also be
       invoked recursively for each read FUNCTION to make sure we have *all* the
       functions we need.
 
@@ -357,11 +357,11 @@
   - Condition and Handlers
 
     Condition names are lexical entities and are kept in the parser context
-    just like variables. But, condition are just "aliases" for SQLSTATE
+    just like variables. But, conditions are just "aliases" for SQLSTATE
     strings, or mysqld error codes (which is a non-standard extension in
     MySQL), and are only used during parsing.
 
-    Handlers comes in three types, CONTINUE, EXIT and UNDO. The latter is
+    Handlers come in three types, CONTINUE, EXIT and UNDO. The latter is
     like an EXIT handler with an implicit rollback, and is currently not
     implemented.
     The EXIT handler jumps to the end of its BEGIN-END block when finished.
@@ -378,7 +378,7 @@
     - sp_instr_hpop
       Pop the handlers of the current frame (which we are just leaving).
 
-    It might seems strange to jump past the handlers like that, but there's
+    It might seem strange to jump past the handlers like that, but there's
     no extra cost in doing this, and for technical reasons it's easiest for
     the parser to generate the handler instructions when they occur in the
     source.
@@ -477,13 +477,13 @@
     stores it in-memory, as MYSQL_FIELDS and MYSQL_ROWS (as in the client API).
 
     To support this, we need the usual name binding support in sp_pcontext
-    (similar to variables and conditions) to keep track on declared cursor
+    (similar to variables and conditions) to keep track on the declared cursor
     names, and a corresponding run-time mechanism in sp_rcontext.
     Cursors are lexically scoped like everything with a body or BEGIN/END
     block, so they are pushed and poped as usual (see conditions and variables
     above).
     The basic operations on a cursor are OPEN, FETCH and CLOSE, which will
-    each have a corresponding instruction. In addition, we need instructions
+    each has a corresponding instruction. In addition, we need instructions
     to push a new cursor (this will encapsulate the LEX of the SELECT statement
     of the cursor), and a pop instruction:
     - sp_instr_cpush
@@ -537,12 +537,12 @@
 
     There are pros and cons with both methods:
 
-    1) Pros: Save memory, each SP only read from table once,
+    1) Pros: Save memory, each SP only read from the table once,
        Cons: Needs locking (= serialization at access), requires thread-safe
              data structures,
     2) Pros: Fast, no locking required (almost), limited thread-safe
              requirement,
-       Cons: Uses more memory, each SP read from table once per thread.
+       Cons: Uses more memory, each SP read from the table once per thread.
 
     Unfortunately, we cannot use alternative 1 for the time being, as most
     of the data structures to be cached (lex and items) are not reentrant
@@ -676,17 +676,17 @@
         // Returns the handler count
         uint handlers();
 
-	// Push a cursor
+    // Push a cursor
         void push_cursor(LEX_STRING *name);
 
-	// Find a cursor
-	my_bool find_cursor(LEX_STRING *name, uint *poff);
+    // Find a cursor
+    my_bool find_cursor(LEX_STRING *name, uint *poff);
 
-	// Pop 'num' cursors
-	void pop_cursor(uint num);
+    // Pop 'num' cursors
+    void pop_cursor(uint num);
 
-	// Return the number of cursors
-	uint cursors();
+    // Return the number of cursors
+    uint cursors();
       }
 
 
@@ -950,53 +950,53 @@
 
       - Push a CURSOR
         class sp_instr_cpush : public sp_instr_stmt
-	{
+    {
           // Push a cursor for statement 'lex'
-	  sp_instr_cpush(uint ip, LEX *lex)
+      sp_instr_cpush(uint ip, LEX *lex)
 
-	  int execute(THD *thd, uint *nextp);
+      int execute(THD *thd, uint *nextp);
         }
 
       - Pop CURSORs
         class sp_instr_cpop : public sp_instr_stmt
-	{
+    {
           // Pop 'count' cursors
-	  sp_instr_cpop(uint ip, uint count)
+      sp_instr_cpop(uint ip, uint count)
 
-	  int execute(THD *thd, uint *nextp);
+      int execute(THD *thd, uint *nextp);
         }
 
       - Open a CURSOR
         class sp_instr_copen : public sp_instr_stmt
-	{
+    {
           // Open the 'c'th cursor
-	  sp_instr_copen(uint ip, uint c);
+      sp_instr_copen(uint ip, uint c);
 
-	  int execute(THD *thd, uint *nextp);
+      int execute(THD *thd, uint *nextp);
         }
 
       - Close a CURSOR
         class sp_instr_cclose : public sp_instr
-	{
+    {
           // Close the 'c'th cursor
-	  sp_instr_cclose(uint ip, uint c);
+      sp_instr_cclose(uint ip, uint c);
 
-	  int execute(THD *thd, uint *nextp);
+      int execute(THD *thd, uint *nextp);
         }
 
       - Fetch a row with CURSOR
         class sp_instr_cfetch : public sp_instr
-	{
+    {
           // Fetch next with the 'c'th cursor
-	  sp_instr_cfetch(uint ip, uint c);
+      sp_instr_cfetch(uint ip, uint c);
 
-	  int execute(THD *thd, uint *nextp);
+      int execute(THD *thd, uint *nextp);
 
-	  // Add a target variable for the fetch
-	  void add_to_varlist(struct sp_pvar *var);
+      // Add a target variable for the fetch
+      void add_to_varlist(struct sp_pvar *var);
         }
 
-	
+    
     - Utility functions: sp.h
 
       #define SP_OK                 0
@@ -1094,7 +1094,4 @@
                         ) DEFAULT 0 NOT NULL,
       comment           char(64) binary DEFAULT '' NOT NULL,
       PRIMARY KEY (db,name,type)
-    ) comment='Stored Procedures';
-        
- --
- 
+) comment='Stored Procedures';
