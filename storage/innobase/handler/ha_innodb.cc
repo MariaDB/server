@@ -5982,7 +5982,8 @@ innobase_build_v_templ(
 			const char*	name = dict_table_get_col_name(
 						ib_table, j);
 
-			ut_ad(!ut_strcmp(name, field->field_name));
+			ut_ad(!my_strcasecmp(system_charset_info, name,
+					     field->field_name));
 #endif
 
 			s_templ->vtempl[j] = static_cast<
