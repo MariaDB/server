@@ -1067,6 +1067,12 @@ The following specify which files/extra groups are read (specified before remain
  --wsrep-causal-reads 
  (DEPRECATED) Setting this variable is equivalent to
  setting wsrep_sync_wait READ flag
+ --wsrep-certification-rules=name 
+ Certification rules to use in the cluster. Possible
+ values are: "strict": stricter rules that could result in
+ more certification failures. "optimized": relaxed rules
+ that allow more concurrency and cause less certification
+ failures.
  --wsrep-certify-nonPK 
  Certify tables with no primary key
  (Defaults to on; use --skip-wsrep-certify-nonPK to disable.)
@@ -1451,6 +1457,7 @@ wait-timeout 28800
 wsrep-OSU-method TOI
 wsrep-auto-increment-control TRUE
 wsrep-causal-reads FALSE
+wsrep-certification-rules strict
 wsrep-certify-nonPK TRUE
 wsrep-cluster-address 
 wsrep-cluster-name my_wsrep_cluster

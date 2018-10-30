@@ -1,5 +1,5 @@
 # Copyright (c) 2006, 2014, Oracle and/or its affiliates.
-# Copyright (c) 2010, 2018, MariaDB
+# Copyright (c) 2010, 2018, MariaDB Corporation
 # 
 # This program is free software; you can redistribute it and/or modify
 # it under the terms of the GNU General Public License as published by
@@ -289,7 +289,7 @@ DTRACE_INSTRUMENT_STATIC_LIBS(mysqld
 SET(WITH_MYSQLD_LDFLAGS "" CACHE STRING "Additional linker flags for mysqld")
 MARK_AS_ADVANCED(WITH_MYSQLD_LDFLAGS)
 IF(WITH_MYSQLD_LDFLAGS)
-  GET_TARGET_PROPERTY(mysqld LINK_FLAGS MYSQLD_LINK_FLAGS)
+  GET_TARGET_PROPERTY(MYSQLD_LINK_FLAGS mysqld LINK_FLAGS)
   IF(NOT MYSQLD_LINK_FLAGS)
     SET(MYSQLD_LINK_FLAGS) 
   ENDIF() 

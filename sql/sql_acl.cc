@@ -9991,8 +9991,8 @@ bool sp_grant_privileges(THD *thd, const char *sp_db, const char *sp_name,
 
   mysql_mutex_lock(&acl_cache->lock);
 
- if ((au= find_user_wild(combo->host.str= (char *) sctx->priv_host,
-                         combo->user.str)))
+  if ((au= find_user_exact(combo->host.str= (char *) sctx->priv_host,
+                           combo->user.str)))
     goto found_acl;
 
   mysql_mutex_unlock(&acl_cache->lock);

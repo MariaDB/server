@@ -104,9 +104,11 @@ ALTER TABLE T1 RENAME t1;
 DROP TABLE t1;
 
 #
-# MDEV-9014 SHOW TRIGGERS not case sensitive
+# MDEV-13912 mysql_upgrade: case (in)sensitivity for stored procedures
 #
-create table t1 (a int);
-create trigger t1_bi before insert on t1 for each row set new.a= 1;
-show triggers like '%T1%';
-drop table t1;
+create database TEST;
+create procedure TEST.pr() begin end;
+create procedure test.pr() begin end;
+--exec $MYSQL_UPGRADE --force 2>&1
+drop procedure test.pr;
+drop database TEST;
