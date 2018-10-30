@@ -1,3 +1,5 @@
+connection node_2;
+connection node_1;
 connection node_1;
 CREATE TABLE t1 (f1 ENUM('', 'one', 'two'), KEY (f1)) ENGINE=InnoDB;
 INSERT INTO t1 VALUES ('');
@@ -38,7 +40,7 @@ connection node_1;
 COMMIT;
 connection node_2;
 COMMIT;
-ERROR 40001: Deadlock: wsrep aborted transaction
+ERROR 40001: Deadlock found when trying to get lock; try restarting transaction
 connection node_1;
 SELECT COUNT(*) FROM t1 WHERE f1 = 'three';
 COUNT(*)

@@ -1,0 +1,13 @@
+CREATE TABLE t1 (f1 INT PRIMARY KEY, f2 INT) ENGINE=InnoDB;
+SET SESSION wsrep_trx_fragment_size = 128;
+START TRANSACTION;
+INSERT INTO t1 VALUES (1, 0);
+SET SESSION wsrep_trx_fragment_size = 1;
+START TRANSACTION;
+INSERT INTO t1 VALUES (2, 0);
+ALTER TABLE t1 DROP COLUMN f2;
+COMMIT;
+ERROR 40001: Deadlock found when trying to get lock; try restarting transaction
+INSERT INTO t1 VALUES (3, 0);
+ERROR 40001: Deadlock found when trying to get lock; try restarting transaction
+DROP TABLE t1;

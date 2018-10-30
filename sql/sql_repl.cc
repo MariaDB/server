@@ -3845,6 +3845,17 @@ int reset_master(THD* thd, rpl_gtid *init_state, uint32 init_state_len,
     return 1;
   }
 
+#ifdef WITH_WSREP
+  if (WSREP_ON)
+  {
+    /* RESET MASTER will initialize GTID sequence, and that would happen locally
+       in this node, so better reject it
+    */
+    my_message(ER_NOT_ALLOWED_COMMAND,
+               "RESET MASTER not allowed when node is in cluster", MYF(0));
+    return 1;
+  }
+#endif /* WITH_WSREP */
   bool ret= 0;
   /* Temporarily disable master semisync before reseting master. */
   repl_semisync_master.before_reset_master();

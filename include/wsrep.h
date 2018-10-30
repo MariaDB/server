@@ -13,10 +13,10 @@
    along with this program; if not, write to the Free Software
    Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02111-1301 USA */
 
-#include <my_config.h>
-
 #ifndef WSREP_INCLUDED
 #define WSREP_INCLUDED
+
+#include <my_config.h>
 
 #ifdef WITH_WSREP
 #define IF_WSREP(A,B) A
@@ -28,12 +28,15 @@
     goto error;
 
 #define WSREP_TO_ISOLATION_BEGIN_ALTER(db_, table_, table_list_, alter_info_) \
-  if (WSREP_ON && WSREP(thd) && wsrep_to_isolation_begin(thd, db_, table_,    \
-                                             table_list_, alter_info_))       \
+  if (WSREP_ON && WSREP(thd) && wsrep_thd_is_local(thd) &&                          \
+       wsrep_to_isolation_begin(thd, db_, table_,                        \
+                               table_list_, alter_info_))               \
     goto error;
 
-#define WSREP_TO_ISOLATION_END                                              \
-  if (WSREP_ON && (WSREP(thd) || (thd && thd->wsrep_exec_mode==TOTAL_ORDER))) \
+#define WSREP_TO_ISOLATION_END                                          \
+  if (WSREP_ON && WSREP(thd) &&						\
+      (wsrep_thd_is_local_toi(thd) ||             			\
+       wsrep_thd_is_in_rsu(thd)))                                       \
     wsrep_to_isolation_end(thd);
 
 /*
@@ -43,6 +46,11 @@
 #define WSREP_TO_ISOLATION_BEGIN_WRTCHK(db_, table_, table_list_)                   \
   if (WSREP(thd) && !thd->lex->no_write_to_binlog                                   \
          && wsrep_to_isolation_begin(thd, db_, table_, table_list_)) goto error;
+
+#define WSREP_SYNC_WAIT(thd_, before_)                                 \
+    { if (WSREP_CLIENT(thd_) &&                                        \
+          wsrep_sync_wait(thd_, before_)) goto error; }
+
 
 #define WSREP_DEBUG(...)                                                \
     if (wsrep_debug)     WSREP_LOG(sql_print_information, ##__VA_ARGS__)
@@ -54,19 +62,21 @@
     { if (WSREP_CLIENT(thd_) &&                                                  \
           wsrep_sync_wait(thd_, before_)) goto error; }
 
-#else
+#else /* !WITH_WSREP */
+
+/* These macros are needed to compile MariaDB without WSREP support
+ * (e.g. embedded) */
+
 #define IF_WSREP(A,B) B
-#define DBUG_ASSERT_IF_WSREP(A)
+//#define DBUG_ASSERT_IF_WSREP(A)
 #define WSREP_DEBUG(...)
-#define WSREP_INFO(...)
-#define WSREP_WARN(...)
+//#define WSREP_INFO(...)
+//#define WSREP_WARN(...)
 #define WSREP_ERROR(...)
 #define WSREP_TO_ISOLATION_BEGIN(db_, table_, table_list_)
-#define WSREP_TO_ISOLATION_BEGIN_ALTER(db_, table_, table_list_, alter_info_)
-#define WSREP_TO_ISOLATION_END
+//#define WSREP_TO_ISOLATION_END
 #define WSREP_TO_ISOLATION_BEGIN_WRTCHK(db_, table_, table_list_)
 #define WSREP_SYNC_WAIT(thd_, before_)
-
 #endif /* WITH_WSREP */
 
 #endif /* WSREP_INCLUDED */

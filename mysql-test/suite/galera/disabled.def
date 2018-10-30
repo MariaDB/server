@@ -9,7 +9,7 @@
 #  Do not use any TAB characters for whitespace.
 #
 ##############################################################################
-
+MW-360 : needs rewrite to be MariaDB gtid compatible
 galera_flush :  MariaDB does not have global.thread_statistics
 galera_account_management : MariaDB 10.0 does not support ALTER USER
 galera_binlog_rows_query_log_events: MariaDB does not support binlog_rows_query_log_events

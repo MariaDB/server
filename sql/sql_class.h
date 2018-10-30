@@ -61,8 +61,18 @@ void set_thd_stage_info(void *thd,
 
 #include "my_apc.h"
 #include "rpl_gtid.h"
-#include "wsrep_mysqld.h"
 
+#include "wsrep_mysqld.h"
+#ifdef WITH_WSREP
+/* wsrep-lib */
+#include "wsrep_client_service.h"
+#include "wsrep_client_state.h"
+#include "wsrep_mutex.h"
+#include "wsrep_condition_variable.h"
+
+class Wsrep_applier_service;
+
+#endif /* WITH_WSREP */
 class Reprepare_observer;
 class Relay_log_info;
 struct rpl_group_info;
@@ -706,10 +716,12 @@ typedef struct system_variables
 
   my_bool wsrep_on;
   my_bool wsrep_causal_reads;
+  uint    wsrep_sync_wait;
+  ulong   wsrep_retry_autocommit;
+  ulong   wsrep_trx_fragment_size;
+  ulong   wsrep_trx_fragment_unit;
+  ulong   wsrep_OSU_method;
   my_bool wsrep_dirty_reads;
-  uint wsrep_sync_wait;
-  ulong wsrep_retry_autocommit;
-  ulong wsrep_OSU_method;
   double long_query_time_double, max_statement_time_double;
 
   my_bool pseudo_slave_mode;
@@ -3208,7 +3220,6 @@ public:
       mysql_bin_log.start_union_events() call.
     */
     bool unioned_events_trans;
-
     /*
       'queries' (actually SP statements) that run under inside this binlog
       union have thd->query_id >= first_query_id.
@@ -3216,7 +3227,6 @@ public:
     query_id_t first_query_id;
   } binlog_evt_union;
 
-  mysql_cond_t              COND_wsrep_thd;
   /**
     Internal parser state.
     Note that since the parser is not re-entrant, we keep only one parser
@@ -3299,9 +3309,15 @@ public:
   void awake_no_mutex(killed_state state_to_set);
   void awake(killed_state state_to_set)
   {
+    /*
+      mutex locking order (LOCK_thd_data - LOCK_thd_kill)) requires
+      to grab LOCK_thd_data here
+    */
+    mysql_mutex_lock(&LOCK_thd_data);
     mysql_mutex_lock(&LOCK_thd_kill);
     awake_no_mutex(state_to_set);
     mysql_mutex_unlock(&LOCK_thd_kill);
+    mysql_mutex_unlock(&LOCK_thd_data);
   }
  
   /** Disconnect the associated communication endpoint. */
@@ -4480,6 +4496,13 @@ public:
   void set_query_id(query_id_t new_query_id)
   {
     query_id= new_query_id;
+#ifdef WITH_WSREP
+    if (WSREP(this))
+    {
+      set_wsrep_next_trx_id(query_id);
+      WSREP_DEBUG("assigned new next trx id: %lu", wsrep_next_trx_id());
+    }
+#endif /* WITH_WSREP */
   }
   void set_open_tables(TABLE *open_tables_arg)
   {
@@ -4735,52 +4758,116 @@ private:
 public:
   inline ulong wsrep_binlog_format() const
   {
-    return WSREP_FORMAT(variables.binlog_format);
+    return WSREP_BINLOG_FORMAT(variables.binlog_format);
   }
 
 #ifdef WITH_WSREP
-  const bool                wsrep_applier; /* dedicated slave applier thread */
+  bool                      wsrep_applier; /* dedicated slave applier thread */
   bool                      wsrep_applier_closing; /* applier marked to close */
   bool                      wsrep_client_thread; /* to identify client threads*/
-  bool                      wsrep_PA_safe;
-  bool                      wsrep_converted_lock_session;
-  bool                      wsrep_apply_toi; /* applier processing in TOI */
-  enum wsrep_exec_mode      wsrep_exec_mode;
   query_id_t                wsrep_last_query_id;
-  enum wsrep_query_state    wsrep_query_state;
-  enum wsrep_conflict_state wsrep_conflict_state;
-  wsrep_trx_meta_t          wsrep_trx_meta;
+  XID                       wsrep_xid;
+
+  /** This flag denotes that record locking should be skipped during INSERT
+  and gap locking during SELECT. Only used by the streaming replication thread
+  that only modifies the wsrep_schema.SR table. */
+  my_bool                   wsrep_skip_locking;
+
+  mysql_cond_t              COND_wsrep_thd;
+
+  // changed from wsrep_seqno_t to wsrep_trx_meta_t in wsrep API rev 75
   uint32                    wsrep_rand;
-  Relay_log_info            *wsrep_rli;
   rpl_group_info            *wsrep_rgi;
-  wsrep_ws_handle_t         wsrep_ws_handle;
+  bool                      wsrep_converted_lock_session;
+  char                      wsrep_info[128]; /* string for dynamic proc info */
   ulong                     wsrep_retry_counter; // of autocommit
-  char                      *wsrep_retry_query;
+  bool                      wsrep_PA_safe;
+  char*                     wsrep_retry_query;
   size_t                    wsrep_retry_query_len;
   enum enum_server_command  wsrep_retry_command;
-  enum wsrep_consistency_check_mode
+  enum wsrep_consistency_check_mode 
                             wsrep_consistency_check;
+  std::vector<wsrep::provider::status_variable> wsrep_status_vars;
   int                       wsrep_mysql_replicated;
-  const char                *wsrep_TOI_pre_query; /* a query to apply before
-                                                     the actual TOI query */
+  const char*               wsrep_TOI_pre_query; /* a query to apply before 
+                                                    the actual TOI query */
   size_t                    wsrep_TOI_pre_query_len;
   wsrep_po_handle_t         wsrep_po_handle;
   size_t                    wsrep_po_cnt;
 #ifdef GTID_SUPPORT
+  my_bool                   wsrep_po_in_trans;
   rpl_sid                   wsrep_po_sid;
-#endif /*  GTID_SUPPORT */
+#endif /* GTID_SUPPORT */
   void                      *wsrep_apply_format;
-  char                      wsrep_info[128]; /* string for dynamic proc info */
+  bool                      wsrep_apply_toi; /* applier processing in TOI */
+  uchar*                    wsrep_rbr_buf;
+  Wsrep_nbo_ctx*            wsrep_nbo_ctx; // Context for non-blocking operations
+  wsrep_gtid_t              wsrep_sync_wait_gtid;
+  //  wsrep_gtid_t              wsrep_last_written_gtid;
+  ulong                     wsrep_affected_rows;
+  bool                      wsrep_has_ignored_error;
+  bool                      wsrep_replicate_GTID;
+  bool                      wsrep_skip_wsrep_GTID;
+
   /*
     When enabled, do not replicate/binlog updates from the current table that's
     being processed. At the moment, it is used to keep mysql.gtid_slave_pos
     table updates from being replicated to other nodes via galera replication.
   */
   bool                      wsrep_ignore_table;
-  wsrep_gtid_t              wsrep_sync_wait_gtid;
-  ulong                     wsrep_affected_rows;
-  bool                      wsrep_replicate_GTID;
-  bool                      wsrep_skip_wsrep_GTID;
+  
+
+  /*
+    Transaction id:
+    * m_wsrep_next_trx_id is assigned on the first query after
+      wsrep_next_trx_id() return WSREP_UNDEFINED_TRX_ID
+    * Each storage engine must assign value of wsrep_next_trx_id()
+      when the transaction starts.
+    * Effective transaction id is returned via wsrep_trx_id()
+   */
+  /*
+    Return effective transaction id
+  */
+  wsrep_trx_id_t wsrep_trx_id() const
+  {
+    return m_wsrep_client_state.transaction().id().get();
+  }
+
+
+  /*
+    Set next trx id
+   */
+  void set_wsrep_next_trx_id(query_id_t query_id)
+  {
+    m_wsrep_next_trx_id = (wsrep_trx_id_t) query_id;
+  }
+  /*
+    Return next trx id
+   */
+  wsrep_trx_id_t wsrep_next_trx_id() const
+  {
+    return m_wsrep_next_trx_id;
+  }
+
+private:
+  wsrep_trx_id_t m_wsrep_next_trx_id; /* cast from query_id_t */
+  /* wsrep-lib */
+  Wsrep_mutex m_wsrep_mutex;
+  Wsrep_condition_variable m_wsrep_cond;
+  Wsrep_client_service m_wsrep_client_service;
+  Wsrep_client_state m_wsrep_client_state;
+
+public:
+  Wsrep_client_state& wsrep_cs() { return m_wsrep_client_state; }
+  const Wsrep_client_state& wsrep_cs() const { return m_wsrep_client_state; }
+  const wsrep::transaction& wsrep_trx() const
+  { return m_wsrep_client_state.transaction(); }
+  const wsrep::streaming_context& wsrep_sr() const
+  { return m_wsrep_client_state.transaction().streaming_context(); }
+  /* Pointer to applier service for streaming THDs. This is needed to
+     be able to delete applier service object in case of background
+     rollback. */
+  Wsrep_applier_service* wsrep_applier_service;
 #endif /* WITH_WSREP */
 
   /* Handling of timeouts for commands */
@@ -6271,7 +6358,7 @@ public:
   be rolled back or that do not expect any previously metadata
   locked tables.
 */
-#define CF_IMPLICT_COMMIT_BEGIN   (1U << 6)
+#define CF_IMPLICIT_COMMIT_BEGIN   (1U << 6)
 /**
   Implicitly commit after the SQL statement.
 
@@ -6289,7 +6376,7 @@ public:
   before and after every DDL statement and any statement that
   modifies our currently non-transactional system tables.
 */
-#define CF_AUTO_COMMIT_TRANS  (CF_IMPLICT_COMMIT_BEGIN | CF_IMPLICIT_COMMIT_END)
+#define CF_AUTO_COMMIT_TRANS  (CF_IMPLICIT_COMMIT_BEGIN | CF_IMPLICIT_COMMIT_END)
 
 /**
   Diagnostic statement.
@@ -6333,6 +6420,13 @@ public:
 */
 #define CF_DISALLOW_IN_RO_TRANS   (1U << 15)
 
+#ifdef WITH_WSREP
+/**
+  DDL statement that may be subject to error filtering.
+*/
+#define CF_WSREP_MAY_IGNORE_ERRORS (1U << 24)
+#endif /* WITH_WSREP */
+ 
 /**
   Statement that need the binlog format to be unchanged.
 */

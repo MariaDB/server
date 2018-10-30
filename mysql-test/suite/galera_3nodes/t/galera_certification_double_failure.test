@@ -29,5 +29,7 @@ INSERT INTO t2 VALUES (1);
 --error ER_LOCK_DEADLOCK
 COMMIT;
 
+--connection node_3
+--source include/galera_wait_ready.inc
 DROP TABLE t1;
 DROP TABLE t2;

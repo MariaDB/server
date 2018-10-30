@@ -1,0 +1,44 @@
+#
+# GCF-585 SR: Assertion `total_length + wsrep_get_fragment_base(thd) == saved_pos' failed in wsrep_write_cache_once after SQL error
+#
+
+--source include/galera_cluster.inc
+
+# Test case #1
+
+create table t1 (f1 integer primary key) engine=innodb;
+set autocommit=off;
+set session wsrep_trx_fragment_size=1;
+start transaction;
+insert into t1 values (1);
+# If we try to INSERT a duplicate key, ER_LOCK_DEADLOCK is the only possible
+# outcome at this point. Notice that ER_DUP_ENTRY is NOT an option here
+# because we were forced to rollback the whole transaction (not just the
+# statement)
+--error ER_LOCK_DEADLOCK
+insert into t1 values (2),(1);
+alter table t1 drop primary key;
+drop table t1;
+
+# Test case #2
+
+CREATE TABLE t1 (f1 INTEGER PRIMARY KEY) ENGINE=InnoDB;
+INSERT INTO t1 VALUES (1),(2),(3),(4),(5),(6),(7),(8),(9),(10);
+
+SET SESSION wsrep_trx_fragment_size=1;
+SET AUTOCOMMIT=OFF;
+START TRANSACTION;
+update t1 set f1 = 100 where f1 = 10;
+
+--connection node_2
+INSERT INTO t1 VALUES (11),(12),(13),(14),(15),(16),(17),(18),(19),(20);
+SET SESSION wsrep_trx_fragment_size=1;
+SET SESSION innodb_lock_wait_timeout=1;
+SET AUTOCOMMIT=OFF;
+START TRANSACTION;
+--error ER_LOCK_DEADLOCK
+delete from t1 where f1 > 10;
+--error ER_LOCK_DEADLOCK
+delete from t1 where f1 > 10 and f1 < 100;
+
+DROP TABLE t1;

@@ -83,7 +83,7 @@ xb_write_galera_info(bool incremental_prepare)
 	}
 
 	wsrep_uuid_t uuid;
-	memcpy(uuid.data, wsrep_xid_uuid(&xid), sizeof(uuid.data));
+	memcpy(uuid.data, get_wsrep_xid_uuid(&xid), sizeof(uuid.data));
 	if (wsrep_uuid_print(&uuid, uuid_str,
 			     sizeof(uuid_str)) < 0) {
 		return;
@@ -99,7 +99,7 @@ xb_write_galera_info(bool incremental_prepare)
 		exit(EXIT_FAILURE);
 	}
 
-	seqno = wsrep_xid_seqno(&xid);
+	seqno = get_wsrep_xid_seqno(&xid);
 
 	msg("mariabackup: Recovered WSREP position: %s:%lld\n",
 	    uuid_str, (long long) seqno);

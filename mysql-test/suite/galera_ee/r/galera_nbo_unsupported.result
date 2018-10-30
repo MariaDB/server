@@ -1,0 +1,26 @@
+CREATE TABLE t1 (f1 INTEGER NOT NULL) ENGINE=InnoDB;
+SET SESSION wsrep_osu_method='NBO';
+CREATE TABLE t2 (f1 INTEGER);
+ERROR 42000: wsrep_OSU_method NBO not supported for query
+RENAME TABLE t1 TO t2;
+ERROR 42000: wsrep_OSU_method NBO not supported for query
+ALTER TABLE t1 LOCK=DEFAULT, ADD COLUMN f2 INTEGER;
+ERROR 42000: wsrep_OSU_method NBO not supported for query
+ALTER TABLE t2 LOCK=NONE, ADD COLUMN f2 INTEGER;
+ERROR 42000: wsrep_OSU_method NBO not supported for query
+DROP TABLE t1;
+ERROR 42000: wsrep_OSU_method NBO not supported for query
+REPAIR TABLE t1;
+ERROR 42000: wsrep_OSU_method NBO not supported for query
+CREATE USER u1 IDENTIFIED BY 'p1';
+ERROR 42000: wsrep_OSU_method NBO not supported for query
+DROP USER u1;
+ERROR 42000: wsrep_OSU_method NBO not supported for query
+SET SESSION wsrep_osu_method=TOI;
+SHOW CREATE TABLE t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `f1` int(11) NOT NULL
+) ENGINE=InnoDB DEFAULT CHARSET=latin1
+DROP TABLE t1;
+CALL mtr.add_suppression('ALTER TABLE isolation failure');

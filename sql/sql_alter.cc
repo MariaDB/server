@@ -500,11 +500,9 @@ bool Sql_cmd_alter_table::execute(THD *thd)
 
 #ifdef WITH_WSREP
 error: /* Used by WSREP_TO_ISOLATION_BEGIN_ALTER */
-#endif
-  {
-    WSREP_WARN("ALTER TABLE isolation failure");
-    DBUG_RETURN(TRUE);
-  }
+  // Jump to error may happen from WSREP_TO_ISOLATION_BEGIN
+  DBUG_RETURN(TRUE);
+#endif /* WITH_WSREP */
 }
 
 bool Sql_cmd_discard_import_tablespace::execute(THD *thd)

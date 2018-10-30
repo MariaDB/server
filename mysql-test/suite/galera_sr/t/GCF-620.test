@@ -1,0 +1,22 @@
+#
+# GCF-620 SR: ROLLBACK TO SAVEPOINT causes slave crash if wsrep_trx_fragment_size does not fall on boundary
+#
+
+--source include/galera_cluster.inc
+
+--connection node_1
+CREATE TABLE t1 (f1 INTEGER) ENGINE=InnoDB;
+SET AUTOCOMMIT=OFF;
+SET SESSION wsrep_trx_fragment_size = 200;
+START TRANSACTION;
+INSERT INTO t1 VALUES (1);
+INSERT INTO t1 VALUES (1);
+SAVEPOINT A;
+INSERT INTO t1 VALUES (1);
+ROLLBACK TO SAVEPOINT A;
+COMMIT;
+
+--connection node_2
+SELECT COUNT(*) = 2 FROM t1;
+
+DROP TABLE t1;

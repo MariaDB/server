@@ -62,7 +62,11 @@
 #include <io.h>
 #endif
 #include "wsrep_mysqld.h"
+#ifdef WITH_WSREP
 #include "wsrep_thd.h"
+#include "wsrep_trans_observer.h"
+#endif /* WITH_WSREP */
+
 
 bool
 No_such_table_error_handler::handle_condition(THD *,
@@ -874,10 +878,19 @@ void close_thread_table(THD *thd, TABLE **table_ptr)
     The metadata lock must be released after giving back
     the table to the table cache.
   */
-  DBUG_ASSERT(thd->mdl_context.is_lock_owner(MDL_key::TABLE,
+#ifdef WITH_WSREP
+  /* if SR thread was aborted, MDL locks were released early */
+  DBUG_ASSERT(thd->variables.wsrep_trx_fragment_size > 0 ||
+              thd->mdl_context.is_lock_owner(MDL_key::TABLE,
                                              table->s->db.str,
                                              table->s->table_name.str,
                                              MDL_SHARED));
+#else
+ DBUG_ASSERT(thd->mdl_context.is_lock_owner(MDL_key::TABLE,
+                                             table->s->db.str,
+                                             table->s->table_name.str,
+                                             MDL_SHARED));
+#endif /* WITH_WSSREP */
   table->mdl_ticket= NULL;
 
   if (table->file)
@@ -3859,7 +3872,7 @@ lock_table_names(THD *thd, const DDL_options_st &options,
     if (create_table)
 #ifdef WITH_WSREP
       if (thd->lex->sql_command != SQLCOM_CREATE_TABLE &&
-          thd->wsrep_exec_mode != REPL_RECV)
+          !thd->wsrep_applier)
 #endif
       lock_wait_timeout= 0;                     // Don't wait for timeout
   }
@@ -4276,13 +4289,14 @@ restart:
     }
   }
 
+#ifdef WITH_WSREP
   if (WSREP_ON                                         &&
       wsrep_replicate_myisam                           &&
       (*start)                                         &&
       (*start)->table                                  &&
       (*start)->table->file->ht == myisam_hton         &&
-      wsrep_thd_exec_mode(thd) == LOCAL_STATE          &&
-      !is_stat_table(&(*start)->db, &(*start)->alias)    &&
+      wsrep_thd_is_local(thd)                          &&
+      !is_stat_table(&(*start)->db, &(*start)->alias)  &&
       thd->get_command() != COM_STMT_PREPARE           &&
       ((thd->lex->sql_command == SQLCOM_INSERT         ||
         thd->lex->sql_command == SQLCOM_INSERT_SELECT  ||
@@ -4293,8 +4307,12 @@ restart:
         thd->lex->sql_command == SQLCOM_LOAD           ||
         thd->lex->sql_command == SQLCOM_DELETE)))
   {
-    WSREP_TO_ISOLATION_BEGIN(NULL, NULL, (*start));
+      wsrep_before_rollback(thd, true);
+      wsrep_after_rollback(thd, true);
+      wsrep_after_statement(thd);
+      WSREP_TO_ISOLATION_BEGIN(NULL, NULL, (*start));
   }
+#endif /* WITH_WSREP */
 
 error:
   THD_STAGE_INFO(thd, stage_after_opening_tables);

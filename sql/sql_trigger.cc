@@ -517,7 +517,7 @@ bool mysql_create_or_drop_trigger(THD *thd, TABLE_LIST *tables, bool create)
   }
 
 #ifdef WITH_WSREP
-  if (thd->wsrep_exec_mode == LOCAL_STATE)
+  //  if (thd->wsrep_exec_mode == LOCAL_STATE)
     WSREP_TO_ISOLATION_BEGIN(WSREP_MYSQL_DB, NULL, NULL);
 #endif
 

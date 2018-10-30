@@ -1,0 +1,37 @@
+#
+# Test that performing NBO operations on TEMPORARY tables does not cause
+# undue replication or binlogging
+#
+
+--source include/galera_cluster.inc
+--source include/have_innodb.inc
+
+--connection node_1
+RESET MASTER;
+
+--connection node_2
+RESET MASTER;
+
+--connection node_1
+CREATE TEMPORARY TABLE t1 (f1 INTEGER, f2 INTEGER);
+
+SET SESSION wsrep_OSU_method=NBO;
+ALTER TABLE t1 LOCK=SHARED, DROP COLUMN f2;
+
+--connection node_2
+SELECT COUNT(*) = 0 FROM INFORMATION_SCHEMA.TABLES WHERE TABLE_NAME = 't1';
+
+--connection node_1
+--replace_regex /xid=[0-9]+/xid=###/ /table_id: [0-9]+/table_id: ###/
+--replace_column 2 <Pos> 5 <End_log_pos>
+SHOW BINLOG EVENTS IN '0.000001' FROM 120;
+
+--connection node_2
+--replace_regex /xid=[0-9]+/xid=###/ /table_id: [0-9]+/table_id: ###/
+--replace_column 2 <Pos> 5 <End_log_pos>
+SHOW BINLOG EVENTS IN '0.000001' FROM 120;
+
+--connection node_1
+SET SESSION wsrep_OSU_method=TOI;
+DROP TABLE t1;
+

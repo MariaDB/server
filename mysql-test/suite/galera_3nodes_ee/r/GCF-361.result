@@ -1,0 +1,16 @@
+SET GLOBAL wsrep_on=OFF;
+CREATE TABLE t1 (f1 INTEGER PRIMARY KEY) ENGINE=InnoDB;
+FLUSH TABLES WITH READ LOCK;
+CREATE TABLE t1 (f1 INTEGER PRIMARY KEY) ENGINE=InnoDB;
+INSERT INTO t1 VALUES(1);
+INSERT INTO t1 VALUES(2);
+INSERT INTO t1 VALUES(3);
+SELECT COUNT(*) = 0 FROM t1;
+COUNT(*) = 0
+1
+UNLOCK TABLES;
+DROP TABLE t1;
+SET SESSION wsrep_on = OFF;
+CALL mtr.add_suppression("Slave SQL: Error 'Table 't1' already exists' on query. Default database: 'test'. Query: 'CREATE TABLE t1 \\\(f1 INTEGER PRIMARY KEY\\\) ENGINE=InnoDB', Error_code: 1050");
+CALL mtr.add_suppression("WSREP: Inconsistency detected: Inconsistent by consensus on ");
+CALL mtr.add_suppression("Plugin 'InnoDB' will be forced to shutdown");

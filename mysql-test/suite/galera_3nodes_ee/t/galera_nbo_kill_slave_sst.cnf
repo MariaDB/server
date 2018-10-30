@@ -1,0 +1,11 @@
+!include ../galera_3nodes.cnf
+
+[mysqld.1]
+wsrep_provider_options='base_port=@mysqld.1.#galera_port;gcache.size=1'
+
+[mysqld.2]
+wsrep_provider_options='base_port=@mysqld.2.#galera_port;gcache.size=1'
+
+[mysqld.3]
+wsrep_provider_options='base_port=@mysqld.3.#galera_port;gcache.size=1'
+

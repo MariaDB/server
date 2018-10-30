@@ -51,6 +51,9 @@ Created 12/27/1996 Heikki Tuuri
 #include "trx0rec.h"
 #include "fts0fts.h"
 #include "fts0types.h"
+#ifdef WITH_WSREP
+#include "mysql/service_wsrep.h"
+#endif
 #include <algorithm>
 #include <mysql/plugin.h>
 #include <mysql/service_wsrep.h>
@@ -2508,6 +2511,10 @@ row_upd_sec_index_entry(
 		row_ins_sec_index_entry() below */
 		if (!rec_get_deleted_flag(
 			    rec, dict_table_is_comp(index->table))) {
+#ifdef WITH_WSREP
+			const upd_node_t* parent =
+				static_cast<const upd_node_t*>(node->common.parent);
+#endif /* WITH_WSREP */
 			err = btr_cur_del_mark_set_sec_rec(
 				flags, btr_cur, TRUE, thr, &mtr);
 			if (err != DB_SUCCESS) {
@@ -2515,8 +2522,11 @@ row_upd_sec_index_entry(
 			}
 #ifdef WITH_WSREP
 			if (!referenced && foreign
-			    && wsrep_must_process_fk(node, trx)
-			    && !wsrep_thd_is_BF(trx->mysql_thd, FALSE)) {
+                            && wsrep_on(trx->mysql_thd)
+			    && !wsrep_thd_is_BF(trx->mysql_thd, FALSE)
+			    && (!parent || que_node_get_type(parent) != QUE_NODE_UPDATE ||
+				!parent->cascade_node)
+			) {
 
 				ulint*	offsets = rec_get_offsets(
 					rec, index, NULL, true,
@@ -2832,8 +2842,9 @@ check_fk:
 			if (err != DB_SUCCESS) {
 				goto err_exit;
 			}
+		}
 #ifdef WITH_WSREP
-		} else if (foreign && wsrep_must_process_fk(node, trx)) {
+		else if (foreign && wsrep_must_process_fk(node, trx)) {
 			err = wsrep_row_upd_check_foreign_constraints(
 				node, pcur, table, index, offsets, thr, mtr);
 
@@ -2855,8 +2866,8 @@ check_fk:
 					    << " table " << index->table->name;
 				goto err_exit;
 			}
-#endif /* WITH_WSREP */
 		}
+#endif /* WITH_WSREP */
 	}
 
 	mtr_commit(mtr);
@@ -3062,7 +3073,8 @@ row_upd_del_mark_clust_rec(
 		err = row_upd_check_references_constraints(
 			node, pcur, index->table, index, offsets, thr, mtr);
 #ifdef WITH_WSREP
-	} else if (foreign && wsrep_must_process_fk(node, trx)) {
+	} else if (trx && wsrep_on(trx->mysql_thd) && err == DB_SUCCESS
+                   && wsrep_must_process_fk(node, trx)) {
 		err = wsrep_row_upd_check_foreign_constraints(
 			node, pcur, index->table, index, offsets, thr, mtr);
 

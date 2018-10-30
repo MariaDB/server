@@ -1,0 +1,19 @@
+SET GLOBAL wsrep_on=OFF;
+DROP SCHEMA test;
+CREATE SCHEMA test;
+ERROR HY000: Can't create database 'test'; database exists
+SET SESSION wsrep_sync_wait=0;
+SET SESSION wsrep_sync_wait=0;
+SET SESSION wsrep_sync_wait=0;
+Killing server ...
+CALL mtr.add_suppression("Inconsistent by consensus.");
+CALL mtr.add_suppression("Error_code: 1007");
+CALL mtr.add_suppression("WSREP: Failed to apply trx: source: ");
+CALL mtr.add_suppression("WSREP: Failed to apply app buffer: seqno: 4, code: ");
+CALL mtr.add_suppression("WSREP: Node consistency compromized, leaving cluster...");
+CALL mtr.add_suppression("Inconsistent by consensus.");
+CALL mtr.add_suppression("Error_code: 1007");
+CALL mtr.add_suppression("WSREP: Failed to apply trx: source: ");
+CALL mtr.add_suppression("WSREP: Failed to apply app buffer: seqno: 4, code: ");
+CALL mtr.add_suppression("WSREP: Node consistency compromized, leaving cluster...");
+CALL mtr.add_suppression("inconsistent with group");

@@ -1,0 +1,84 @@
+CREATE TABLE t1 (f1 INTEGER PRIMARY KEY) ENGINE=InnoDB;
+SET SESSION wsrep_trx_fragment_size = 1;
+SET AUTOCOMMIT=OFF;
+START TRANSACTION;
+INSERT INTO t1 VALUES (10);
+INSERT INTO t1 VALUES (11);
+INSERT INTO t1 VALUES (12);
+INSERT INTO t1 VALUES (13);
+INSERT INTO t1 VALUES (14);
+SELECT COUNT(*) > 0 FROM wsrep_schema.SR;
+COUNT(*) > 0
+1
+SET SESSION wsrep_trx_fragment_size = 1;
+SET AUTOCOMMIT=OFF;
+START TRANSACTION;
+INSERT INTO t1 VALUES (200);
+INSERT INTO t1 VALUES (201);
+INSERT INTO t1 VALUES (202);
+INSERT INTO t1 VALUES (203);
+INSERT INTO t1 VALUES (204);
+SET SESSION wsrep_trx_fragment_size = 1;
+SET AUTOCOMMIT=OFF;
+START TRANSACTION;
+INSERT INTO t1 VALUES (300);
+INSERT INTO t1 VALUES (301);
+INSERT INTO t1 VALUES (302);
+INSERT INTO t1 VALUES (303);
+INSERT INTO t1 VALUES (304);
+SET GLOBAL wsrep_provider_options='gmcast.isolate=1';
+SET GLOBAL wsrep_provider_options='gmcast.isolate=1';
+INSERT INTO t1 VALUES (20);
+INSERT INTO t1 VALUES (21);
+INSERT INTO t1 VALUES (22);
+INSERT INTO t1 VALUES (23);
+INSERT INTO t1 VALUES (24);
+SET GLOBAL wsrep_provider_options='gmcast.isolate=0';
+SET GLOBAL wsrep_provider_options='gmcast.isolate=0';
+COMMIT;
+ERROR 40001: Deadlock found when trying to get lock; try restarting transaction
+SELECT COUNT(DISTINCT node_uuid) = 1 FROM wsrep_schema.SR;
+COUNT(DISTINCT node_uuid) = 1
+1
+wsrep_gcomm_uuid_match
+1
+COMMIT;
+ERROR 40001: Deadlock found when trying to get lock; try restarting transaction
+SELECT COUNT(DISTINCT node_uuid) = 1 FROM wsrep_schema.SR;
+COUNT(DISTINCT node_uuid) = 1
+1
+wsrep_gcomm_uuid_match
+1
+INSERT INTO t1 VALUES (30);
+INSERT INTO t1 VALUES (31);
+INSERT INTO t1 VALUES (32);
+INSERT INTO t1 VALUES (33);
+INSERT INTO t1 VALUES (34);
+COMMIT;
+SELECT COUNT(*) = 15, MIN(f1) = 10, MAX(f1) = 34 FROM t1;
+COUNT(*) = 15	MIN(f1) = 10	MAX(f1) = 34
+1	1	1
+SELECT COUNT(*) = 0 FROM wsrep_schema.SR;
+COUNT(*) = 0
+1
+SET AUTOCOMMIT=ON;
+COMMIT;
+SELECT COUNT(*) = 15, MIN(f1) = 10, MAX(f1) = 34 FROM t1;
+COUNT(*) = 15	MIN(f1) = 10	MAX(f1) = 34
+1	1	1
+SELECT COUNT(*) = 0 FROM wsrep_schema.SR;
+COUNT(*) = 0
+1
+SET AUTOCOMMIT=ON;
+COMMIT;
+SELECT COUNT(*) = 15, MIN(f1) = 10, MAX(f1) = 34 FROM t1;
+COUNT(*) = 15	MIN(f1) = 10	MAX(f1) = 34
+1	1	1
+SELECT COUNT(*) = 0 FROM wsrep_schema.SR;
+COUNT(*) = 0
+1
+SET AUTOCOMMIT=ON;
+DROP TABLE t1;
+CALL mtr.add_suppression("WSREP: failed to send SR rollback for ");
+CALL mtr.add_suppression("WSREP: failed to send SR rollback for ");
+CALL mtr.add_suppression("WSREP: failed to send SR rollback for ");

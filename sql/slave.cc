@@ -53,6 +53,10 @@
                                                 // Create_file_log_event,
                                                 // Format_description_log_event
 #include "wsrep_mysqld.h"
+#ifdef WITH_WSREP
+#include "mysql/service_wsrep.h"
+#include "wsrep_trans_observer.h"
+#endif
 
 #ifdef HAVE_REPLICATION
 
@@ -3917,14 +3921,20 @@ apply_event_and_update_pos_apply(Log_event* ev, THD* thd, rpl_group_info *rgi,
     exec_res= ev->apply_event(rgi);
 
 #ifdef WITH_WSREP
-    if (exec_res && thd->wsrep_conflict_state != NO_CONFLICT)
+  if (WSREP_ON)
+  {
+    mysql_mutex_lock(&thd->LOCK_thd_data);
+    if (exec_res &&
+        thd->wsrep_trx().state() != wsrep::transaction::s_executing)
     {
-      WSREP_DEBUG("SQL apply failed, res %d conflict state: %d",
-                  exec_res, thd->wsrep_conflict_state);
+      WSREP_DEBUG("SQL apply failed, res %d conflict state: %s",
+                  exec_res, wsrep_thd_transaction_state_str(thd));
       rli->abort_slave= 1;
       rli->report(ERROR_LEVEL, ER_UNKNOWN_COM_ERROR, rgi->gtid_info(),
                   "Node has dropped from cluster");
     }
+    mysql_mutex_unlock(&thd->LOCK_thd_data);
+  }
 #endif
 
 #ifndef DBUG_OFF
@@ -4217,6 +4227,13 @@ static int exec_relay_log_event(THD* thd, Relay_log_info* rli,
   }
   if (ev)
   {
+#ifdef WITH_WSREP
+    if (wsrep_before_statement(thd))
+    {
+      WSREP_INFO("Wsrep before statement error");
+      DBUG_RETURN(1);
+    }
+#endif /* WITH_WSREP */
     int exec_res;
     Log_event_type typ= ev->get_type_code();
 
@@ -4248,9 +4265,9 @@ static int exec_relay_log_event(THD* thd, Relay_log_info* rli,
          rli->until_condition == Relay_log_info::UNTIL_RELAY_POS) &&
         (ev->server_id != global_system_variables.server_id ||
          rli->replicate_same_server_id) &&
-         rli->is_until_satisfied((rli->get_flag(Relay_log_info::IN_TRANSACTION) || !ev->log_pos)
-                                  ? rli->group_master_log_pos
-                                  : ev->log_pos - ev->data_written))
+	rli->is_until_satisfied((rli->get_flag(Relay_log_info::IN_TRANSACTION) || !ev->log_pos)
+				? rli->group_master_log_pos
+				: ev->log_pos - ev->data_written))
     {
       sql_print_information("Slave SQL thread stopped because it reached its"
                             " UNTIL position %llu", rli->until_pos());
@@ -4261,6 +4278,9 @@ static int exec_relay_log_event(THD* thd, Relay_log_info* rli,
       rli->abort_slave= 1;
       rli->stop_for_until= true;
       mysql_mutex_unlock(&rli->data_lock);
+#ifdef WITH_WSREP
+      wsrep_after_statement(thd);
+#endif /* WITH_WSREP */
       delete ev;
       DBUG_RETURN(1);
     }
@@ -4298,7 +4318,14 @@ static int exec_relay_log_event(THD* thd, Relay_log_info* rli,
       if (res == 0)
         rli->event_relay_log_pos= rli->future_event_relay_log_pos;
       if (res >= 0)
+#ifdef WITH_WSREP
+      {
+	wsrep_after_statement(thd);
+#endif /* WITH_WSREP */
         DBUG_RETURN(res);
+#ifdef WITH_WSREP
+      }
+#endif /* WITH_WSREP */
       /*
         Else we proceed to execute the event non-parallel.
         This is the case for pre-10.0 events without GTID, and for handling
@@ -4320,9 +4347,11 @@ static int exec_relay_log_event(THD* thd, Relay_log_info* rli,
                         "aborted because of out-of-memory error");
         mysql_mutex_unlock(&rli->data_lock);
         delete ev;
+#ifdef WITH_WSREP
+	  wsrep_after_statement(thd);
+#endif /* WITH_WSREP */
         DBUG_RETURN(1);
       }
-
       if (opt_gtid_ignore_duplicates &&
           rli->mi->using_gtid != Master_info::USE_GTID_NO)
       {
@@ -4334,7 +4363,10 @@ static int exec_relay_log_event(THD* thd, Relay_log_info* rli,
                           "thread aborted because of out-of-memory error");
           mysql_mutex_unlock(&rli->data_lock);
           delete ev;
-          DBUG_RETURN(1);
+#ifdef WITH_WSREP
+	    wsrep_after_statement(thd);
+#endif /* WITH_WSREP */
+	  DBUG_RETURN(1);
         }
         /*
           If we need to skip this event group (because the GTID was already
@@ -4362,11 +4394,15 @@ static int exec_relay_log_event(THD* thd, Relay_log_info* rli,
       retry.
     */
     if (unlikely(exec_res == 2))
-      DBUG_RETURN(1);
-
 #ifdef WITH_WSREP
+    { 
+      wsrep_after_statement(thd);
+#endif /* WITH_WSREP */
+      DBUG_RETURN(1);
+#ifdef WITH_WSREP
+    }
     mysql_mutex_lock(&thd->LOCK_thd_data);
-    if (thd->wsrep_conflict_state == NO_CONFLICT)
+    if (thd->wsrep_cs().current_error() == wsrep::e_success)
     {
       mysql_mutex_unlock(&thd->LOCK_thd_data);
 #endif /* WITH_WSREP */
@@ -4381,8 +4417,8 @@ static int exec_relay_log_event(THD* thd, Relay_log_info* rli,
           We were in a transaction which has been rolled back because of a
           temporary error;
           let's seek back to BEGIN log event and retry it all again.
-	  Note, if lock wait timeout (innodb_lock_wait_timeout exceeded)
-	  there is no rollback since 5.0.13 (ref: manual).
+	        Note, if lock wait timeout (innodb_lock_wait_timeout exceeded)
+	        there is no rollback since 5.0.13 (ref: manual).
           We have to not only seek but also
 
           a) init_master_info(), to seek back to hot relay log's start
@@ -4450,7 +4486,10 @@ static int exec_relay_log_event(THD* thd, Relay_log_info* rli,
 #endif /* WITH_WSREP */
 
     thread_safe_increment64(&rli->executed_entries);
-    DBUG_RETURN(exec_res);
+#ifdef WITH_WSREP
+    wsrep_after_statement(thd);
+#endif /* WITH_WSREP */
+     DBUG_RETURN(exec_res);
   }
   mysql_mutex_unlock(&rli->data_lock);
   rli->report(ERROR_LEVEL, ER_SLAVE_RELAY_LOG_READ_FAILURE, NULL,
@@ -5376,12 +5415,6 @@ pthread_handler_t handle_slave_sql(void *arg)
   }
 #endif
 
-#ifdef WITH_WSREP
-  thd->wsrep_exec_mode= LOCAL_STATE;
-  /* synchronize with wsrep replication */
-  if (WSREP_ON)
-    wsrep_ready_wait();
-#endif
   DBUG_PRINT("master_info",("log_file_name: %s  position: %llu",
                             rli->group_master_log_name,
                             rli->group_master_log_pos));
@@ -5515,10 +5548,16 @@ pthread_handler_t handle_slave_sql(void *arg)
     if (exec_relay_log_event(thd, rli, serial_rgi))
     {
 #ifdef WITH_WSREP
-      if (thd->wsrep_conflict_state != NO_CONFLICT)
+      if (WSREP_ON)
       {
-        wsrep_node_dropped= TRUE;
-        rli->abort_slave= TRUE;
+        mysql_mutex_lock(&thd->LOCK_thd_data);
+
+        if (thd->wsrep_cs().current_error())
+        {
+          wsrep_node_dropped = TRUE;
+          rli->abort_slave   = TRUE;
+        }
+        mysql_mutex_unlock(&thd->LOCK_thd_data);
       }
 #endif /* WITH_WSREP */
 
@@ -5551,6 +5590,10 @@ pthread_handler_t handle_slave_sql(void *arg)
                           "log '%s' at position %llu%s", RPL_LOG_NAME,
                           rli->group_master_log_pos, tmp.c_ptr_safe());
   }
+#ifdef WITH_WSREP
+  wsrep_after_command_before_result(thd);
+  wsrep_after_command_after_result(thd);
+#endif /* WITH_WSREP */
 
  err_before_start:
 
@@ -5662,24 +5705,23 @@ err_during_init:
     trigger automatic restart of slave when node joins back to cluster.
   */
   if (WSREP_ON && wsrep_node_dropped && wsrep_restart_slave)
-  {
-    if (wsrep_ready_get())
-    {
-      WSREP_INFO("Slave error due to node temporarily non-primary"
-                 "SQL slave will continue");
-      wsrep_node_dropped= FALSE;
-      mysql_mutex_unlock(&rli->run_lock);
-      WSREP_DEBUG("wsrep_conflict_state now: %d", thd->wsrep_conflict_state);
-      WSREP_INFO("slave restart: %d", thd->wsrep_conflict_state);
-      thd->wsrep_conflict_state= NO_CONFLICT;
-      goto wsrep_restart_point;
-    } else {
-      WSREP_INFO("Slave error due to node going non-primary");
-      WSREP_INFO("wsrep_restart_slave was set and therefore slave will be "
-                 "automatically restarted when node joins back to cluster.");
-      wsrep_restart_slave_activated= TRUE;
-    }
-  }
+   {
+     if (wsrep_ready_get())
+     {
+       WSREP_INFO("Slave error due to node temporarily non-primary"
+		  "SQL slave will continue");
+       wsrep_node_dropped= FALSE;
+       mysql_mutex_unlock(&rli->run_lock);
+       goto wsrep_restart_point;
+     } else {
+       WSREP_INFO("Slave error due to node going non-primary");
+       WSREP_INFO("wsrep_restart_slave was set and therefore slave will be "
+		  "automatically restarted when node joins back to cluster");
+       wsrep_restart_slave_activated= TRUE;
+     }
+   }
+  // TODO 10.4 has deleted following line:
+  //wsrep_close(thd);
 #endif /* WITH_WSREP */
 
  /*

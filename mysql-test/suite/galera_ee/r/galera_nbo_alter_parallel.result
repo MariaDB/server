@@ -1,0 +1,45 @@
+CREATE TABLE t1 (f1 INTEGER NOT NULL) ENGINE=InnoDB;
+CREATE TABLE t2 (f1 INTEGER NOT NULL) ENGINE=InnoDB;
+CREATE TABLE t3 (f1 INTEGER NOT NULL) ENGINE=InnoDB;
+SET GLOBAL debug = 'd,sync.alter_locked_tables:d,sync.alter_locked_tables_inplace';
+SET SESSION wsrep_osu_method=NBO;
+ALTER TABLE t1 LOCK=SHARED, ALGORITHM=COPY, ADD PRIMARY KEY (f1);;
+SET SESSION wsrep_osu_method=NBO;
+ALTER TABLE t2 LOCK=SHARED, ALGORITHM=INPLACE, ADD PRIMARY KEY (f1);;
+SET SESSION wsrep_sync_wait=0;
+INSERT INTO t3 VALUES (1);
+INSERT INTO t3 VALUES (2);
+SET DEBUG_SYNC= 'now SIGNAL signal.alter_locked_tables';
+SET DEBUG_SYNC= 'now SIGNAL signal.alter_locked_tables_inplace';
+SET GLOBAL debug = '';
+SHOW CREATE TABLE t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `f1` int(11) NOT NULL,
+  PRIMARY KEY (`f1`)
+) ENGINE=InnoDB DEFAULT CHARSET=latin1
+SHOW CREATE TABLE t2;
+Table	Create Table
+t2	CREATE TABLE `t2` (
+  `f1` int(11) NOT NULL,
+  PRIMARY KEY (`f1`)
+) ENGINE=InnoDB DEFAULT CHARSET=latin1
+SELECT COUNT(*) = 2 FROM t3;
+COUNT(*) = 2
+1
+SHOW CREATE TABLE t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `f1` int(11) NOT NULL,
+  PRIMARY KEY (`f1`)
+) ENGINE=InnoDB DEFAULT CHARSET=latin1
+SHOW CREATE TABLE t2;
+Table	Create Table
+t2	CREATE TABLE `t2` (
+  `f1` int(11) NOT NULL,
+  PRIMARY KEY (`f1`)
+) ENGINE=InnoDB DEFAULT CHARSET=latin1
+SELECT COUNT(*) = 2 FROM t3;
+COUNT(*) = 2
+1
+DROP TABLE t1, t2, t3;

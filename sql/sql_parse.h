@@ -18,6 +18,10 @@
 
 #include "sql_acl.h"                            /* GLOBAL_ACLS */
 
+#ifdef WITH_WSREP
+#include "mysql/service_wsrep.h"
+#endif /* WITH_WSREP */
+
 class Comp_creator;
 class Item;
 class Object_creation_ctx;
@@ -36,6 +40,8 @@ extern "C" int path_starts_from_data_home_dir(const char *dir);
 int test_if_data_home_dir(const char *dir);
 int error_if_data_home_dir(const char *path, const char *what);
 my_bool net_allocate_new_packet(NET *net, void *thd, uint my_flags);
+
+bool stmt_causes_implicit_commit(const THD *thd, uint mask);
 
 bool multi_update_precheck(THD *thd, TABLE_LIST *tables);
 bool multi_delete_precheck(THD *thd, TABLE_LIST *tables);

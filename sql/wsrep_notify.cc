@@ -15,6 +15,7 @@
 
 #include "mariadb.h"
 #include <mysqld.h>
+#include "wsrep_api.h"
 #include "wsrep_priv.h"
 #include "wsrep_utils.h"
 

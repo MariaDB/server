@@ -1,0 +1,42 @@
+#
+# GCF-329: NB-DDL: "no corresponding NBO begin found for NBO end" when restarting slave
+#
+
+--source include/galera_cluster.inc
+--source include/have_innodb.inc
+--source include/big_test.inc
+
+--connection node_1
+CREATE TABLE t1 (f1 INTEGER) ENGINE=InnoDB;
+INSERT INTO t1 VALUES (1);
+
+SET SESSION wsrep_osu_method=NBO;
+--send ALTER TABLE t1 LOCK=SHARED, ADD PRIMARY KEY (f1);
+
+--connection node_2
+--source include/restart_mysqld.inc
+
+--let $galera_connection_name = node_2a
+--let $galera_server_number = 2
+--source include/galera_connect.inc
+--connection node_2a
+--source include/galera_wait_ready.inc
+
+SELECT COUNT(*) = 1 FROM t1;
+SELECT VARIABLE_VALUE = 2 FROM INFORMATION_SCHEMA.GLOBAL_STATUS WHERE VARIABLE_NAME = 'wsrep_cluster_size';
+SHOW CREATE TABLE t1;
+
+--connection node_1
+--reap
+SHOW CREATE TABLE t1;
+
+SET SESSION wsrep_osu_method=TOI;
+DROP TABLE t1;
+
+--connection node_2
+CALL mtr.add_suppression("This will leave database in inconsistent state since DDL execution cannot be terminated in order");
+CALL mtr.add_suppression("Failed to send NBO-end");
+CALL mtr.add_suppression("Failed to acquire total order isolation");
+CALL mtr.add_suppression("Aborting");
+CALL mtr.add_suppression("Plugin 'InnoDB' will be forced to shutdown");
+CALL mtr.add_suppression("Slave SQL: Error 'Got error 7 during COMMIT'");

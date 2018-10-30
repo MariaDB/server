@@ -44,6 +44,9 @@
 #include "compat56.h"
 #include "wsrep_mysqld.h"
 #include "sql_insert.h"
+#ifdef WITH_WSREP
+#include "mysql/service_wsrep.h"
+#endif
 #else
 #include "mysqld_error.h"
 #endif /* MYSQL_CLIENT */
@@ -5743,6 +5746,14 @@ compare_errors:
                      "unexpected success or fatal error"),
                     thd->get_db(), query_arg);
       thd->is_slave_error= 1;
+#ifdef WITH_WSREP
+      if (thd->wsrep_apply_toi && wsrep_must_ignore_error(thd))
+      {
+        thd->clear_error(1);
+        thd->killed= NOT_KILLED;
+        thd->wsrep_has_ignored_error= true;
+      }
+#endif /* WITH_WSREP */
     }
 
     /*
@@ -11256,13 +11267,13 @@ int Rows_log_event::do_apply_event(rpl_group_info *rgi)
       {
         WSREP_WARN("BF applier failed to open_and_lock_tables: %u, fatal: %d "
                    "wsrep = (exec_mode: %d conflict_state: %d seqno: %lld)",
-		   thd->get_stmt_da()->sql_errno(),
-                   thd->is_fatal_error,
-                   thd->wsrep_exec_mode,
-                   thd->wsrep_conflict_state,
-                   (long long)wsrep_thd_trx_seqno(thd));
+		                thd->get_stmt_da()->sql_errno(),
+                    thd->is_fatal_error,
+                    thd->wsrep_cs().mode(),
+                    thd->wsrep_trx().state(),
+                    (long long)wsrep_thd_trx_seqno(thd));
       }
-#endif
+#endif /* WITH_WSREP */
       if ((thd->is_slave_error || thd->is_fatal_error) &&
           !is_parallel_retry_error(rgi, actual_error))
       {
@@ -11399,10 +11410,10 @@ int Rows_log_event::do_apply_event(rpl_group_info *rgi)
 #ifdef HAVE_QUERY_CACHE
 #ifdef WITH_WSREP
     /*
-       Moved invalidation right before the call to rows_event_stmt_cleanup(),
-       to avoid query cache being polluted with stale entries.
+      Moved invalidation right before the call to rows_event_stmt_cleanup(),
+      to avoid query cache being polluted with stale entries,
     */
-    if (! (WSREP(thd) && (thd->wsrep_exec_mode == REPL_RECV)))
+    if (! (WSREP(thd) && wsrep_thd_is_applying(thd)))
     {
 #endif /* WITH_WSREP */
     query_cache.invalidate_locked_for_write(thd, rgi->tables_to_lock);
@@ -11515,6 +11526,13 @@ int Rows_log_event::do_apply_event(rpl_group_info *rgi)
         bool ignored_error= (idempotent_error == 0 ?
                              ignored_error_code(actual_error) : 0);
 
+#ifdef WITH_WSREP
+        if (WSREP(thd) && wsrep_ignored_error_code(this, actual_error))
+        {
+          idempotent_error= true;
+          thd->wsrep_has_ignored_error= true;
+        }
+#endif /* WITH_WSREP */
         if (idempotent_error || ignored_error)
         {
           if (global_system_variables.log_warnings)
@@ -11602,7 +11620,7 @@ int Rows_log_event::do_apply_event(rpl_group_info *rgi)
     restore_empty_query_table_list(thd->lex);
 
 #if defined(WITH_WSREP) && defined(HAVE_QUERY_CACHE)
-    if (WSREP(thd) && thd->wsrep_exec_mode == REPL_RECV)
+    if (WSREP(thd) && wsrep_thd_is_applying(thd))
     {
       query_cache.invalidate_locked_for_write(thd, rgi->tables_to_lock);
     }

@@ -50,6 +50,10 @@ Created 4/20/1996 Heikki Tuuri
 #include "fts0types.h"
 #include "m_string.h"
 #include "gis0geo.h"
+#include "wsrep_api.h"
+#include "mysql/service_wsrep.h"
+#include "wsrep_mysqld.h"
+#include "mysql/service_wsrep.h"
 
 /*************************************************************************
 IMPORTANT NOTE: Any operation that generates redo MUST check that there
@@ -1049,7 +1053,7 @@ dberr_t wsrep_append_foreign_key(trx_t *trx,
 			       const rec_t*	clust_rec,
 			       dict_index_t*	clust_index,
 			       ibool		referenced,
-			       ibool            shared);
+			       wsrep_key_type	key_type);
 #endif /* WITH_WSREP */
 
 /*********************************************************************//**
@@ -1434,7 +1438,7 @@ row_ins_foreign_check_on_constraint(
 
 #ifdef WITH_WSREP
 	err = wsrep_append_foreign_key(trx, foreign, clust_rec, clust_index,
-				       FALSE, FALSE);
+				       FALSE,  WSREP_KEY_EXCLUSIVE);
 	if (err != DB_SUCCESS) {
 		fprintf(stderr,
 			"WSREP: foreign key append failed: %d\n", err);
@@ -1809,13 +1813,19 @@ row_ins_check_foreign_constraint(
 				if (check_ref) {
 					err = DB_SUCCESS;
 #ifdef WITH_WSREP
+					wsrep_key_type key_type;
+					if (upd_node != NULL) {
+						key_type = WSREP_KEY_SHARED;
+					} else {
+						key_type = WSREP_KEY_SEMI;
+					}
 					err = wsrep_append_foreign_key(
 						thr_get_trx(thr),
 						foreign,
 						rec,
 						check_index,
 						check_ref,
-						(upd_node) ? TRUE : FALSE);
+						key_type);
 #endif /* WITH_WSREP */
 					goto end_scan;
 				} else if (foreign->type != 0) {
@@ -1913,6 +1923,23 @@ do_possible_lock_wait:
 		check_table->inc_fk_checks();
 
 		lock_wait_suspend_thread(thr);
+#ifdef WITH_WSREP
+		ut_ad(!trx_mutex_own(trx));
+		switch (trx->error_state) {
+		case DB_DEADLOCK:
+			if (wsrep_debug) {
+				ib::info() <<
+				"WSREP: innodb trx state changed during wait "
+				<< " trx: " << trx->id << " with error_state: "
+				<< trx->error_state << " err: " << err;
+			}
+			err = trx->error_state;
+			break;
+		default:
+			break;
+		}
+
+#endif /* WITH_WSREP */
 
 		thr->lock_state = QUE_THR_LOCK_NOLOCK;
 
@@ -3220,9 +3247,26 @@ row_ins_clust_index_entry(
 
 	n_uniq = dict_index_is_unique(index) ? index->n_uniq : 0;
 
+#ifdef WITH_WSREP
+	const bool skip_locking
+		= wsrep_thd_skip_locking(thr_get_trx(thr)->mysql_thd);
+	ulint	flags = skip_locking | index->table->is_temporary()
+		? BTR_NO_LOCKING_FLAG
+		: index->table->no_rollback() ? BTR_NO_ROLLBACK : 0;
+#ifdef UNIV_DEBUG
+	if (skip_locking && sr_table_name_full_str != index->table->name.m_name) {
+		WSREP_ERROR("Record locking is disabled in this thread, "
+			    "but the table being modified is not "
+			    "`%s`: `%s`.", sr_table_name_full_str.c_str(),
+			    index->table->name.m_name);
+		ut_error;
+	}
+#endif /* UNIV_DEBUG */
+#else
 	ulint	flags = index->table->no_rollback() ? BTR_NO_ROLLBACK
 		: index->table->is_temporary()
 		? BTR_NO_LOCKING_FLAG : 0;
+#endif /* WITH_WSREP */
 	const ulint	orig_n_fields = entry->n_fields;
 
 	/* Try first optimistic descent to the B-tree */

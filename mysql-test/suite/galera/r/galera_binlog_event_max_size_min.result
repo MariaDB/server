@@ -1,3 +1,5 @@
+connection node_2;
+connection node_1;
 CREATE TABLE t1 (f1 VARCHAR(1000));
 INSERT INTO t1 VALUES (REPEAT('x', 1000));
 connection node_2;

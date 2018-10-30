@@ -1084,21 +1084,16 @@ void Global_read_lock::unlock_global_read_lock(THD *thd)
     thd->mdl_context.release_lock(m_mdl_blocks_commits_lock);
     m_mdl_blocks_commits_lock= NULL;
 #ifdef WITH_WSREP
-    if (WSREP(thd) || wsrep_node_is_donor())
+    Wsrep_server_state& server_state= Wsrep_server_state::instance();
+    if (server_state.state() == Wsrep_server_state::s_donor)
     {
+      /* TODO: maybe redundant here?: */
       wsrep_locked_seqno= WSREP_SEQNO_UNDEFINED;
-      wsrep->resume(wsrep);
-      /* resync here only if we did implicit desync earlier */
-      if (!wsrep_desync && wsrep_node_is_synced())
-      {
-        int ret = wsrep->resync(wsrep);
-        if (ret != WSREP_OK)
-        {
-          WSREP_WARN("resync failed %d for FTWRL: db: %s, query: %s",
-                     ret, thd->get_db(), thd->query());
-          DBUG_VOID_RETURN;
-        }
-      }
+      server_state.resume();
+    }
+    else if (WSREP(thd))
+    {
+      server_state.resume_and_resync();
     }
 #endif /* WITH_WSREP */
   }
@@ -1134,9 +1129,6 @@ bool Global_read_lock::make_global_read_lock_block_commit(THD *thd)
     make_global_read_lock_block_commit(), do nothing.
   */
 
-  if (m_state != GRL_ACQUIRED)
-    DBUG_RETURN(0);
-
 #ifdef WITH_WSREP
   if (WSREP(thd) && m_mdl_blocks_commits_lock)
   {
@@ -1145,6 +1137,10 @@ bool Global_read_lock::make_global_read_lock_block_commit(THD *thd)
     DBUG_RETURN(FALSE);
   }
 #endif /* WITH_WSREP */
+
+  if (m_state != GRL_ACQUIRED)
+    DBUG_RETURN(0);
+
 
   mdl_request.init(MDL_key::COMMIT, "", "", MDL_SHARED, MDL_EXPLICIT);
 
@@ -1156,60 +1152,32 @@ bool Global_read_lock::make_global_read_lock_block_commit(THD *thd)
   m_state= GRL_ACQUIRED_AND_BLOCKS_COMMIT;
 
 #ifdef WITH_WSREP
+
   /* Native threads should bail out before wsrep oprations to follow.
-     Donor servicing thread is an exception, it should pause provider but not desync,
-     as it is already desynced in donor state
+     Donor servicing thread is an exception, it should pause provider
+     but not desync, as it is already desynced in donor state
   */
-  if (!WSREP(thd) && !wsrep_node_is_donor())
+  Wsrep_server_state& server_state= Wsrep_server_state::instance();
+  if (!WSREP(thd) && server_state.state() != Wsrep_server_state::s_donor)
   {
     DBUG_RETURN(FALSE);
   }
 
-  /* if already desynced or donor, avoid double desyncing 
-     if not in PC and synced, desyncing is not possible either
-  */
-  if (wsrep_desync || !wsrep_node_is_synced())
+  wsrep::seqno paused_seqno;
+  if (server_state.state() == Wsrep_server_state::s_donor)
   {
-    WSREP_DEBUG("desync set upfont, skipping implicit desync for FTWRL: %d",
-                wsrep_desync);
+    paused_seqno= server_state.pause();
   }
   else
   {
-    int rcode;
-    WSREP_DEBUG("running implicit desync for node");
-    rcode = wsrep->desync(wsrep);
-    if (rcode != WSREP_OK)
-    {
-      WSREP_WARN("FTWRL desync failed %d for schema: %s, query: %s",
-                 rcode, thd->get_db(), thd->query());
-      my_message(ER_LOCK_DEADLOCK, "wsrep desync failed for FTWRL", MYF(0));
-      DBUG_RETURN(TRUE);
-    }
+    paused_seqno= server_state.desync_and_pause();
   }
-
-  long long ret = wsrep->pause(wsrep);
-  if (ret >= 0)
+  WSREP_INFO("Server paused at: %lld", paused_seqno.get());
+  if (paused_seqno.get() >= 0)
   {
-    wsrep_locked_seqno= ret;
+    wsrep_locked_seqno= paused_seqno.get();
   }
-  else if (ret != -ENOSYS) /* -ENOSYS - no provider */
-  {
-    long long ret = wsrep->pause(wsrep);
-    if (ret >= 0)
-    {
-      wsrep_locked_seqno= ret;
-    }
-    else if (ret != -ENOSYS) /* -ENOSYS - no provider */
-    {
-      WSREP_ERROR("Failed to pause provider: %lld (%s)", -ret, strerror(-ret));
-
-      DBUG_ASSERT(m_mdl_blocks_commits_lock == NULL);
-      wsrep_locked_seqno= WSREP_SEQNO_UNDEFINED;
-      my_error(ER_LOCK_DEADLOCK, MYF(0));
-      DBUG_RETURN(TRUE);
-     }
-  }
-#endif /* WITH_WSREP */
+ #endif /* WITH_WSREP */
   DBUG_RETURN(FALSE);
 }
 

@@ -1,3 +1,5 @@
+connection node_2;
+connection node_1;
 CREATE TABLE t1 (
 f1 VARCHAR(255),
 KEY (f1)
@@ -19,7 +21,7 @@ connection node_1;
 COMMIT;
 connection node_2;
 COMMIT;
-ERROR 40001: Deadlock: wsrep aborted transaction
+ERROR 40001: Deadlock found when trying to get lock; try restarting transaction
 SELECT f1 = 'текст2' FROM t1;
 f1 = 'текст2'
 1

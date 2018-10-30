@@ -1,0 +1,29 @@
+#
+# Test that ALTER TABLE works with NBO and partitions
+#
+
+--source include/galera_cluster.inc
+--source include/have_debug_sync.inc
+--source include/have_debug.inc
+
+--connection node_1
+CREATE TABLE t1 (f1 INTEGER NOT NULL) ENGINE=InnoDB;
+
+SET SESSION wsrep_osu_method=NBO;
+ALTER TABLE t1 LOCK=SHARED PARTITION BY HASH(f1) PARTITIONS 8;
+INSERT INTO t1 VALUES (1);
+
+--connection node_2
+SHOW CREATE TABLE t1;
+SELECT COUNT(*) = 1 FROM t1;
+
+--connection node_1
+ALTER TABLE t1 LOCK=SHARED REMOVE PARTITIONING;
+INSERT INTO t1 VALUES (2);
+
+--connection node_2
+SHOW CREATE TABLE t1;
+SELECT COUNT(*) = 2 FROM t1;
+
+SET SESSION wsrep_osu_method=TOI;
+DROP TABLE t1;

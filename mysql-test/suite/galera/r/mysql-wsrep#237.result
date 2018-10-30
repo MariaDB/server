@@ -1,6 +1,8 @@
+connection node_2;
+connection node_1;
 CREATE TABLE t (f1 INTEGER PRIMARY KEY) Engine=InnoDB;
 connection node_1;
-SET DEBUG_SYNC = 'wsrep_before_replication WAIT_FOR continue';
+SET DEBUG_SYNC = 'wsrep_before_certification WAIT_FOR continue';
 INSERT INTO t values (1);;
 connect node_1a, 127.0.0.1, root, , test, $NODE_MYPORT_1;
 connection node_1a;

@@ -19,8 +19,8 @@
 SET GLOBAL wsrep_cluster_address = 'foo://';
 
 # With wsrep_sync_wait, this returns an error
-#--error ER_LOCK_WAIT_TIMEOUT
-#SHOW STATUS;
+--error ER_LOCK_WAIT_TIMEOUT
+SHOW STATUS;
 
 SET SESSION wsrep_sync_wait=0;
 
@@ -29,7 +29,7 @@ SELECT COUNT(*) > 0 FROM INFORMATION_SCHEMA.GLOBAL_STATUS;
 # Must return 'OFF'
 SHOW STATUS LIKE 'wsrep_ready';
 
-# Must return 'Non-primary'
+# Must return 'Disconnected'
 SHOW STATUS LIKE 'wsrep_cluster_status';
 
 # Must return 0 = 'Initialized'
@@ -49,9 +49,8 @@ SELECT VARIABLE_VALUE = 'Primary' FROM INFORMATION_SCHEMA.GLOBAL_STATUS WHERE VA
 --connection node_2
 --disable_query_log
 --eval SET GLOBAL wsrep_cluster_address = '$wsrep_cluster_address_node2';
+--source include/galera_wait_ready.inc
 --enable_query_log
-
---source include/wait_until_connected_again.inc
 
 --connection node_1
 SELECT VARIABLE_VALUE = 'Primary' FROM INFORMATION_SCHEMA.GLOBAL_STATUS WHERE VARIABLE_NAME = 'wsrep_cluster_status';
@@ -63,7 +62,7 @@ CALL mtr.add_suppression("Failed to initialize backend using 'foo");
 CALL mtr.add_suppression("Failed to open channel 'my_wsrep_cluster' at 'foo");
 CALL mtr.add_suppression("gcs connect failed: Socket type not supported");
 CALL mtr.add_suppression("wsrep::connect\\(\\) failed: 7");
-CALL mtr.add_suppression("gcs_caused\\(\\) returned -103 \\(Software caused connection abort\\)");
+CALL mtr.add_suppression("gcs_caused\\(\\) returned -[0-9]+ \\(Software caused connection abort\\)");
 CALL mtr.add_suppression("failed to open gcomm backend connection: 110: failed to reach primary view: 110");
 CALL mtr.add_suppression("Failed to open backend connection: -110 \\(Connection timed out\\)");
 CALL mtr.add_suppression("gcs connect failed: Connection timed out");

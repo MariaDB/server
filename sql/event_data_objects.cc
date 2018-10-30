@@ -32,7 +32,10 @@
 #include "event_db_repository.h"
 #include "sp_head.h"
 #include "sql_show.h"                // append_definer, append_identifier
-
+#ifdef WITH_WSREP
+#include "mysql/service_wsrep.h"
+#include "wsrep_trans_observer.h"
+#endif /* WITH_WSREP */
 /**
   @addtogroup Event_Scheduler
   @{
@@ -1343,6 +1346,10 @@ Event_job_data::execute(THD *thd, bool drop)
 
   thd->reset_for_next_command();
 
+#ifdef WITH_WSREP
+  wsrep_open(thd);
+  wsrep_before_command(thd);
+#endif /* WITH_WSREP */
   /*
     MySQL parser currently assumes that current database is either
     present in THD or all names in all statements are fully specified.
@@ -1517,6 +1524,10 @@ end:
   if (save_sctx)
     event_sctx.restore_security_context(thd, save_sctx);
 #endif
+#ifdef WITH_WSREP
+  wsrep_after_command_ignore_result(thd);
+  wsrep_close(thd);
+#endif /* WITH_WSREP */
   thd->lex->unit.cleanup();
   thd->end_statement();
   thd->cleanup_after_query();

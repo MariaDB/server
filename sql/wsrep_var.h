@@ -13,10 +13,10 @@
    with this program; if not, write to the Free Software Foundation, Inc.,
    51 Franklin Street, Fifth Floor, Boston, MA 02110-1301 USA. */
 
-#include <my_config.h>
-
 #ifndef WSREP_VAR_H
 #define WSREP_VAR_H
+
+#include <my_config.h>
 
 #ifdef WITH_WSREP
 
@@ -90,13 +90,16 @@ extern bool wsrep_slave_threads_update       UPDATE_ARGS;
 extern bool wsrep_desync_check               CHECK_ARGS;
 extern bool wsrep_desync_update              UPDATE_ARGS;
 
-extern bool wsrep_max_ws_size_check          CHECK_ARGS;
+extern bool wsrep_trx_fragment_size_check    CHECK_ARGS;
+extern bool wsrep_trx_fragment_size_update   UPDATE_ARGS;
+
 extern bool wsrep_max_ws_size_update         UPDATE_ARGS;
 extern bool wsrep_reject_queries_update      UPDATE_ARGS;
 
+extern bool wsrep_reject_queries_update    UPDATE_ARGS;
+
 #else  /* WITH_WSREP */
 
-#define WSREP_NONE
 #define wsrep_provider_init(X)
 #define wsrep_init_vars() (0)
 #define wsrep_start_position_init(X)

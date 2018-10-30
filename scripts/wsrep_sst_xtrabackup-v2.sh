@@ -647,7 +647,7 @@ wait_for_listen()
     local HOST=$1
     local PORT=$2
     local MODULE=$3
-    local LSOF_OUT
+    #local LSOF_OUT
 
     for i in {1..300}
     do

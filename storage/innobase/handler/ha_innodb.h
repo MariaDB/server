@@ -16,6 +16,10 @@ this program; if not, write to the Free Software Foundation, Inc.,
 51 Franklin Street, Suite 500, Boston, MA 02110-1335 USA
 
 *****************************************************************************/
+#ifdef WITH_WSREP
+#include "wsrep_api.h"
+#include <mysql/service_wsrep.h>
+#endif /* WITH_WSREP */
 
 /* The InnoDB handler: the interface between MySQL and InnoDB. */
 
@@ -450,8 +454,11 @@ protected:
 	dict_index_t* innobase_get_index(uint keynr);
 
 #ifdef WITH_WSREP
-	int wsrep_append_keys(THD *thd, bool shared,
-			      const uchar* record0, const uchar* record1);
+	int wsrep_append_keys(
+		THD *thd,
+		wsrep_key_type key_type,
+		const uchar* record0,
+		const uchar* record1);
 #endif
 	/** Builds a 'template' to the prebuilt struct.
 
@@ -577,23 +584,7 @@ thd_get_work_part_info(
 struct trx_t;
 #ifdef WITH_WSREP
 #include <mysql/service_wsrep.h>
-//extern "C" int wsrep_trx_order_before(void *thd1, void *thd2);
-
-extern "C" bool wsrep_thd_is_wsrep_on(THD *thd);
-
-
-extern "C" void wsrep_thd_set_exec_mode(THD *thd, enum wsrep_exec_mode mode);
-extern "C" void wsrep_thd_set_query_state(
-	THD *thd, enum wsrep_query_state state);
-
-extern "C" void wsrep_thd_set_trx_to_replay(THD *thd, uint64 trx_id);
-
-extern "C" uint32 wsrep_thd_wsrep_rand(THD *thd);
-extern "C" time_t wsrep_thd_query_start(THD *thd);
-extern "C" query_id_t wsrep_thd_query_id(THD *thd);
-extern "C" query_id_t wsrep_thd_wsrep_last_query_id(THD *thd);
-extern "C" void wsrep_thd_set_wsrep_last_query_id(THD *thd, query_id_t id);
-#endif
+#endif /* WITH_WSREP */
 
 extern const struct _ft_vft ft_vft_result;
 
@@ -626,10 +617,6 @@ innobase_index_name_is_reserved(
 	ulint		num_of_keys)	/*!< in: Number of indexes to
 					be created. */
 	MY_ATTRIBUTE((nonnull(1), warn_unused_result));
-
-#ifdef WITH_WSREP
-//extern "C" int wsrep_trx_is_aborting(void *thd_ptr);
-#endif
 
 /** Parse hint for table and its indexes, and update the information
 in dictionary.

@@ -16,21 +16,28 @@
 
 
 IF(WITH_WSREP AND NOT EMBEDDED_LIBRARY)
-  SET(WSREP_INCLUDES ${CMAKE_SOURCE_DIR}/wsrep)
   SET(WSREP_SOURCES
+    wsrep_client_service.cc
+    wsrep_high_priority_service.cc
+    wsrep_server_service.cc
+    wsrep_storage_service.cc
+    wsrep_server_state.cc
+    wsrep_utils.cc
+    wsrep_xid.cc
     wsrep_check_opts.cc
-    wsrep_hton.cc
-    wsrep_mysqld.cc 
+    wsrep_mysqld.cc
     wsrep_notify.cc
     wsrep_sst.cc
-    wsrep_utils.cc
     wsrep_var.cc
     wsrep_binlog.cc
     wsrep_applier.cc
     wsrep_thd.cc
-    wsrep_xid.cc
+    wsrep_thd_pool.cc
+    wsrep_schema.cc
+    wsrep_plugin.cc
+    service_wsrep.cc
   )
-  SET(WSREP_LIB wsrep)
+ SET(WSREP_LIB wsrep-lib wsrep_api_v26)
 ELSE()
   SET(WSREP_SOURCES wsrep_dummy.cc)
 ENDIF()
@@ -42,7 +49,6 @@ ${PCRE_INCLUDES}
 ${ZLIB_INCLUDE_DIR}
 ${SSL_INCLUDE_DIRS}
 ${CMAKE_BINARY_DIR}/sql
-${WSREP_INCLUDES}
 )
 
 

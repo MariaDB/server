@@ -1,0 +1,36 @@
+CREATE TABLE t1 (f1 INTEGER NOT NULL) ENGINE=InnoDB;
+INSERT INTO t1 VALUES (1),(1);
+SET SESSION wsrep_osu_method=NBO;
+CREATE INDEX i1 ON t1 (f1);
+ERROR 42000: wsrep_OSU_method NBO not supported for query
+CREATE UNIQUE INDEX i1 ON t1 (f1) LOCK=SHARED;
+ERROR 23000: Duplicate entry '1' for key 'i1'
+CREATE INDEX i1 ON t1 (f1) LOCK=SHARED;
+INSERT INTO t1 VALUES (2);
+SHOW CREATE TABLE t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `f1` int(11) NOT NULL,
+  KEY `i1` (`f1`)
+) ENGINE=InnoDB DEFAULT CHARSET=latin1
+SHOW CREATE TABLE t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `f1` int(11) NOT NULL,
+  KEY `i1` (`f1`)
+) ENGINE=InnoDB DEFAULT CHARSET=latin1
+SELECT COUNT(*) = 3 FROM t1;
+COUNT(*) = 3
+1
+DROP INDEX i1 ON t1 LOCK=EXCLUSIVE;
+SHOW CREATE TABLE t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `f1` int(11) NOT NULL
+) ENGINE=InnoDB DEFAULT CHARSET=latin1
+SHOW CREATE TABLE t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `f1` int(11) NOT NULL
+) ENGINE=InnoDB DEFAULT CHARSET=latin1
+DROP TABLE t1;

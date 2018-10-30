@@ -1661,6 +1661,9 @@ struct THD_TRANS
 {
   /* true is not all entries in the ht[] support 2pc */
   bool        no_2pc;
+#ifdef WITH_WSREP
+  int         rw_ha_count;
+#endif /* WITH_WSREP */
   /* storage engines that registered in this transaction */
   Ha_trx_info *ha_list;
   /* 
@@ -1695,6 +1698,9 @@ struct THD_TRANS
 
   void reset() {
     no_2pc= FALSE;
+#ifdef WITH_WSREP
+    rw_ha_count= 0;
+#endif /* WITH_WSREP */
     modified_non_trans_table= FALSE;
     m_unsafe_rollback_flags= 0;
   }

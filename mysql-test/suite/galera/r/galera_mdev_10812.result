@@ -1,3 +1,5 @@
+connection node_2;
+connection node_1;
 #
 # MDEV-10812: On COM_STMT_CLOSE/COM_QUIT, when wsrep_conflict_state
 # is ABORTED, it causes wrong response to be sent to the client

@@ -341,7 +341,6 @@ Events::create_event(THD *thd, Event_parse_data *parse_data)
   if (lock_object_name(thd, MDL_key::EVENT,
                        parse_data->dbname.str, parse_data->name.str))
     DBUG_RETURN(TRUE);
-
   if (check_db_dir_existence(parse_data->dbname.str))
   {
     my_error(ER_BAD_DB_ERROR, MYF(0), parse_data->dbname.str);

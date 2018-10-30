@@ -1,4 +1,6 @@
 connection node_2;
+connection node_1;
+connection node_2;
 SET SESSION wsrep_on=OFF;
 CREATE TABLE t1 (f1 INTEGER);
 connection node_1;

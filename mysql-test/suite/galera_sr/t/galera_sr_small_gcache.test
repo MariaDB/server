@@ -1,0 +1,21 @@
+--source include/galera_cluster.inc
+--source include/have_innodb.inc
+
+#
+# A simple test with a very low value for gcache.size - 16K
+#
+
+--connection node_1
+CREATE TABLE ten (f1 INTEGER) ENGINE=InnoDB;
+INSERT INTO ten VALUES (1), (2), (3), (4), (5), (6), (7), (8), (9), (10);
+
+SET SESSION wsrep_trx_fragment_size = 1;
+CREATE TABLE t1 (f1 INTEGER) ENGINE=InnoDB;
+INSERT INTO t1 SELECT 1 FROM ten AS a1, ten AS a2, ten AS a3, ten AS a4;
+
+--connection node_2
+SELECT COUNT(*) = 10000 FROM t1;
+
+--connection node_1
+DROP TABLE t1;
+DROP TABLE ten;

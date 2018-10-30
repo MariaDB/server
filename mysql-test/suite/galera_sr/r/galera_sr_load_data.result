@@ -1,0 +1,8 @@
+SET SESSION wsrep_trx_fragment_size = 512;
+CREATE TABLE t1 (f1 INTEGER PRIMARY KEY) ENGINE=InnoDB;
+SELECT COUNT(*) = 20000 FROM t1;
+COUNT(*) = 20000
+1
+wsrep_last_committed_diff
+1
+DROP TABLE t1;

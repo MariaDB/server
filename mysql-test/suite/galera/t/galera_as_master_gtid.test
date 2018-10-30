@@ -27,10 +27,6 @@ INSERT INTO t1 VALUES(1);
 --eval SELECT '$effective_uuid' != @@global.server_uuid AS uuids_do_not_match;
 --enable_query_log
 
---replace_result $effective_uuid <effective_uuid>
---replace_regex /table_id: [0-9]+/table_id: #/ /xid=[0-9]+/xid=#/
-SHOW BINLOG EVENTS IN 'mysqld-bin.000002' FROM 120;
-
 --connection node_2
 INSERT INTO t1 VALUES(2);
 
@@ -38,10 +34,6 @@ INSERT INTO t1 VALUES(2);
 --eval SELECT '$effective_uuid' != @@global.server_uuid AS uuids_do_not_match;
 --eval SELECT '$effective_uuid' = LEFT(@@global.gtid_executed, 36) AS uuids_match;
 --enable_query_log
-
---replace_result $effective_uuid <effective_uuid>
---replace_regex /table_id: [0-9]+/table_id: #/ /xid=[0-9]+/xid=#/
-SHOW BINLOG EVENTS IN 'mysqld-bin.000003' FROM 120;
 
 --connection node_3
 --let $wait_condition = SELECT COUNT(*) = 1 FROM INFORMATION_SCHEMA.TABLES WHERE TABLE_NAME = 't1';
@@ -55,16 +47,24 @@ SHOW BINLOG EVENTS IN 'mysqld-bin.000003' FROM 120;
 --eval SELECT '$effective_uuid' = LEFT(@@global.gtid_executed, 36) AS uuids_match;
 --enable_query_log
 
---replace_result $effective_uuid <effective_uuid>
---replace_regex /table_id: [0-9]+/table_id: #/ /xid=[0-9]+/xid=#/
-SHOW BINLOG EVENTS IN 'mysqld-bin.000001' FROM 120;
-
 --connection node_1
 DROP TABLE t1;
 
 --connection node_3
 --let $wait_condition = SELECT COUNT(*) = 0 FROM INFORMATION_SCHEMA.TABLES WHERE TABLE_NAME = 't1';
 --source include/wait_condition.inc
+
+--connection node_1
+--let $gtid_executed_node1 = `SELECT @@global.gtid_executed;`
+
+--connection node_2
+--disable_query_log
+--eval SELECT '$gtid_executed_node1' = @@global.gtid_executed  AS gtid_executed_equal
+--enable_query_log
+--connection node_3
+--disable_query_log
+--eval SELECT '$gtid_executed_node1' = @@global.gtid_executed  AS gtid_executed_equal
+--enable_query_log
 
 STOP SLAVE;
 RESET SLAVE ALL;

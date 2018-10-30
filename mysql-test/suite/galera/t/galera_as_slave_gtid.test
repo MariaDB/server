@@ -8,18 +8,19 @@
 #
 
 --source include/have_innodb.inc
-
-# As node #1 is not a Galera node, we connect to node #2 in order to run include/galera_cluster.inc
---connect node_2a, 127.0.0.1, root, , test, $NODE_MYPORT_2
 --source include/galera_cluster.inc
+
+# As node #3 is not a Galera node, and galera_cluster.inc does not open connetion to it
+# we open the node_3 connection here
+--connect node_3, 127.0.0.1, root, , test, $NODE_MYPORT_3
 
 --connection node_2
 --disable_query_log
---eval CHANGE MASTER TO MASTER_HOST='127.0.0.1', MASTER_USER='root', MASTER_PORT=$NODE_MYPORT_1;
+--eval CHANGE MASTER TO MASTER_HOST='127.0.0.1', MASTER_USER='root', MASTER_PORT=$NODE_MYPORT_3;
 --enable_query_log
 START SLAVE;
 
---connection node_1
+--connection node_3
 CREATE TABLE t1 (f1 INTEGER PRIMARY KEY) ENGINE=InnoDB;
 INSERT INTO t1 VALUES(1);
 
@@ -34,17 +35,21 @@ SELECT LENGTH(@@global.gtid_binlog_state) > 1;
 --source include/wait_condition.inc
 
 --disable_query_log
+
 --eval SELECT '$gtid_binlog_state_node1' = @@global.gtid_binlog_state AS gtid_binlog_state_equal;
+#--eval SELECT GTID_SUBSET('$gtid_executed_node1', @@global.gtid_executed) AS gtid_executed_equal;
+
 --enable_query_log
 
---connect node_3, 127.0.0.1, root, , test, $NODE_MYPORT_3
+--connection node_1
 SELECT COUNT(*) = 1 FROM t1;
 
 --disable_query_log
 --eval SELECT '$gtid_binlog_state_node1' = @@global.gtid_binlog_state AS gtid_binlog_state_equal;
+#--eval SELECT GTID_SUBSET('$gtid_executed_node1', @@global.gtid_executed) AS gtid_executed_equal;
 --enable_query_log
 
---connection node_1
+--connection node_3
 DROP TABLE t1;
 
 #
@@ -55,7 +60,7 @@ DROP TABLE t1;
 
 --sleep 1
 
---connection node_3
+--connection node_1
 --let $wait_condition = SELECT COUNT(*) = 0 FROM INFORMATION_SCHEMA.TABLES WHERE TABLE_NAME = 't1';
 --source include/wait_condition.inc
 

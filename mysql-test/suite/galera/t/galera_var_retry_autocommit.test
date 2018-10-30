@@ -16,7 +16,7 @@
 CREATE TABLE t1 (f1 INTEGER PRIMARY KEY) ENGINE=InnoDB;
 
 SET SESSION wsrep_retry_autocommit = 0;
-SET DEBUG_SYNC = 'wsrep_before_replication SIGNAL before_rep WAIT_FOR continue';
+SET DEBUG_SYNC = 'wsrep_before_certification SIGNAL before_rep WAIT_FOR continue';
 --send INSERT INTO t1 (f1) VALUES (2)
 
 --connection node_1a
@@ -42,8 +42,8 @@ DROP TABLE t1;
 CREATE TABLE t1 (f1 INTEGER PRIMARY KEY) ENGINE=InnoDB;
 
 SET SESSION wsrep_retry_autocommit = 1;
-SET DEBUG_SYNC = 'wsrep_before_replication SIGNAL before_rep WAIT_FOR continue';
---send INSERT INTO t1 (f1) VALUES (2)
+SET DEBUG_SYNC = 'wsrep_before_certification SIGNAL before_rep WAIT_FOR continue';
+--send INSERT INTO t1 (f1) VALUES (3)
 
 --connection node_1a
 SET DEBUG_SYNC = 'now WAIT_FOR before_rep';
@@ -68,12 +68,16 @@ CREATE TABLE t1 (f1 INTEGER PRIMARY KEY) ENGINE=InnoDB;
 
 SET SESSION wsrep_retry_autocommit = 1;
 SET GLOBAL debug_dbug = '+d,sync.wsrep_retry_autocommit';
-SET DEBUG_SYNC = 'wsrep_before_replication SIGNAL before_rep WAIT_FOR continue EXECUTE 2';
+SET DEBUG_SYNC = 'wsrep_before_certification SIGNAL before_rep WAIT_FOR continue EXECUTE 2';
+--sleep 5
+show processlist;
 
---send INSERT INTO t1 VALUES (2);
+--send INSERT INTO t1 VALUES (4);
 
 --connection node_1a
 SET DEBUG_SYNC = 'now WAIT_FOR before_rep';
+--sleep 5
+show processlist;
 
 --connection node_2
 TRUNCATE TABLE t1;
@@ -107,9 +111,9 @@ CREATE TABLE t1 (f1 INTEGER PRIMARY KEY) ENGINE=InnoDB;
 
 SET SESSION wsrep_retry_autocommit = 64;
 SET GLOBAL debug_dbug = '+d,sync.wsrep_retry_autocommit';
-SET DEBUG_SYNC = 'wsrep_before_replication SIGNAL before_rep WAIT_FOR continue EXECUTE 64';
+SET DEBUG_SYNC = 'wsrep_before_certification SIGNAL before_rep WAIT_FOR continue EXECUTE 64';
 
---send INSERT INTO t1 VALUES (2)
+--send INSERT INTO t1 VALUES (5)
 
 --disable_query_log
 --disable_result_log

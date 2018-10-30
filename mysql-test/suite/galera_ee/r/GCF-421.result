@@ -1,0 +1,14 @@
+CREATE TABLE t1 (f1 INTEGER NOT NULL) ENGINE=InnoDB;
+SET GLOBAL DEBUG = 'd,sync.alter_locked_tables_inplace';
+SET SESSION wsrep_osu_method=NBO;
+ALTER TABLE t1 LOCK=SHARED, ALGORITHM=INPLACE, ADD PRIMARY KEY (f1);;
+DROP TABLE t1;
+ERROR 40001: Deadlock found when trying to get lock; try restarting transaction
+DROP TABLE t1;
+ERROR 40001: Deadlock found when trying to get lock; try restarting transaction
+SET GLOBAL DEBUG = '';
+SET DEBUG_SYNC= 'now SIGNAL signal.alter_locked_tables_inplace';
+SET SESSION wsrep_osu_method=TOI;
+DROP TABLE t1;
+CALL mtr.add_suppression("TO isolation failed for");
+CALL mtr.add_suppression("TO isolation failed for");

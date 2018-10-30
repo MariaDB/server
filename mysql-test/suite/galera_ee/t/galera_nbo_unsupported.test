@@ -1,0 +1,42 @@
+#
+# Test that various statements not supported under NBO return error
+#
+
+--source include/galera_cluster.inc
+--source include/have_debug_sync.inc
+--source include/have_debug.inc
+
+CREATE TABLE t1 (f1 INTEGER NOT NULL) ENGINE=InnoDB;
+
+SET SESSION wsrep_osu_method='NBO';
+
+--error ER_NOT_SUPPORTED_YET
+CREATE TABLE t2 (f1 INTEGER);
+
+--error ER_NOT_SUPPORTED_YET
+RENAME TABLE t1 TO t2;
+
+--error ER_NOT_SUPPORTED_YET
+ALTER TABLE t1 LOCK=DEFAULT, ADD COLUMN f2 INTEGER;
+
+--error ER_NOT_SUPPORTED_YET
+ALTER TABLE t2 LOCK=NONE, ADD COLUMN f2 INTEGER;
+
+--error ER_NOT_SUPPORTED_YET
+DROP TABLE t1;
+
+--error ER_NOT_SUPPORTED_YET
+REPAIR TABLE t1;
+
+--error ER_NOT_SUPPORTED_YET
+CREATE USER u1 IDENTIFIED BY 'p1';
+
+--error ER_NOT_SUPPORTED_YET
+DROP USER u1;
+
+SET SESSION wsrep_osu_method=TOI;
+
+SHOW CREATE TABLE t1;
+DROP TABLE t1;
+
+CALL mtr.add_suppression('ALTER TABLE isolation failure');

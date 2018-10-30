@@ -1,0 +1,31 @@
+#
+# Test NBO and ALTER ENGINE 
+#
+
+--source include/galera_cluster.inc
+--source include/have_innodb.inc
+
+--connection node_1
+SET GLOBAL wsrep_replicate_myisam=ON;
+
+CREATE TABLE t1 (f1 INTEGER) ENGINE=MyISAM;
+INSERT INTO t1 VALUES (1);
+
+SET SESSION wsrep_OSU_method=NBO;
+
+ALTER TABLE t1 LOCK=SHARED, ENGINE=InnoDB;
+INSERT INTO t1 VALUES (2);
+
+SHOW CREATE TABLE t1;
+
+--connection node_2
+SHOW CREATE TABLE t1;
+SELECT COUNT(*) = 2 FROM t1;
+
+SET SESSION wsrep_OSU_method=TOI;
+
+DROP TABLE t1;
+
+--connection node_1
+SET GLOBAL wsrep_replicate_myisam=FALSE;
+

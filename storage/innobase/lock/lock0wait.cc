@@ -36,7 +36,9 @@ Created 25/5/2010 Sunny Bains
 #include "row0mysql.h"
 #include "srv0start.h"
 #include "lock0priv.h"
-
+#ifdef WITH_WSREP
+#include "mysql/service_wsrep.h"
+#endif /* WITH_WSREP */
 /*********************************************************************//**
 Print the contents of the lock_sys_t::waiting_threads array. */
 static
@@ -195,8 +197,8 @@ wsrep_is_BF_lock_timeout(
 	if (wsrep_on_trx(trx)
 	    && wsrep_thd_is_BF(trx->mysql_thd, FALSE)
 	    && trx->error_state != DB_DEADLOCK) {
-		ib::info() << "WSREP: BF lock wait long for trx:" << ib::hex(trx->id)
-			   << " query: " << wsrep_thd_query(trx->mysql_thd);
+			ib::info() << "WSREP: BF lock wait long for trx:" << ib::hex(trx->id)
+				   << " query: " << wsrep_thd_query(trx->mysql_thd);
 		if (!locked) {
 			lock_mutex_enter();
 		}
@@ -214,7 +216,9 @@ wsrep_is_BF_lock_timeout(
 		os_event_set(srv_monitor_event);
 		return true;
 	}
-	return false;
+
+
+        return false;
 }
 #endif /* WITH_WSREP */
 

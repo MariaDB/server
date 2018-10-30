@@ -1,0 +1,80 @@
+#
+# Test the case where a master node (node #2) goes non-primary while a DDL is running
+# The non-prim situation is resolved in time and the DDL completes successfully
+#
+
+--source include/galera_cluster.inc
+--source include/have_debug_sync.inc
+--source include/have_debug.inc
+
+CREATE TABLE t1 (f1 INTEGER NOT NULL) ENGINE=InnoDB;
+INSERT INTO t1 VALUES (1);
+
+# Issue a DDL
+
+--connection node_2
+SET GLOBAL debug = 'd,sync.alter_locked_tables_inplace';
+SET SESSION wsrep_osu_method=NBO;
+--send ALTER TABLE t1 ALGORITHM=INPLACE, LOCK=SHARED, ADD PRIMARY KEY (f1);
+
+--connect node_2a, 127.0.0.1, root, , test, $NODE_MYPORT_2
+--connection node_2a
+SET SESSION wsrep_sync_wait = 0;
+--let $wait_condition = SELECT COUNT(*) = 1 FROM INFORMATION_SCHEMA.PROCESSLIST WHERE STATE = 'debug sync point: now';
+--source include/wait_condition.inc
+
+# Isolate the master (node #2)
+
+SET GLOBAL wsrep_provider_options = 'gmcast.isolate=1';
+
+--connection node_1
+--source include/wait_until_connected_again.inc
+SET SESSION wsrep_sync_wait = 0;
+--let $wait_condition = SELECT COUNT(*) = 2 FROM wsrep_schema.members;
+--source include/wait_condition.inc
+
+# Confirm that the DDL remains blocked in NBO
+
+--connection node_2a
+SET DEBUG_SYNC= 'now SIGNAL signal.alter_locked_tables_inplace';
+SET GLOBAL debug = '';
+
+SET SESSION wsrep_on=OFF;
+SET SESSION wsrep_sync_wait = 0;
+--let $wait_condition = SELECT COUNT(*) = 1 FROM INFORMATION_SCHEMA.PROCESSLIST WHERE STATE = 'acquiring total order isolation for NBO end'
+--source include/wait_condition.inc
+
+# Reconnect node #2 to cluster
+
+SET GLOBAL wsrep_provider_options = 'gmcast.isolate=0';
+--let $wait_condition = SELECT COUNT(*) = 3 FROM wsrep_schema.members;
+--source include/wait_condition.inc
+--let $wait_condition = SELECT VARIABLE_VALUE = 'Synced' FROM INFORMATION_SCHEMA.GLOBAL_STATUS WHERE VARIABLE_NAME = 'wsrep_local_state_comment'
+--source include/wait_condition.inc
+--let $wait_condition = SELECT VARIABLE_VALUE = 'ON' FROM INFORMATION_SCHEMA.GLOBAL_STATUS WHERE VARIABLE_NAME = 'wsrep_ready'
+--source include/wait_condition.inc
+
+--connection node_1
+--source include/wait_until_connected_again.inc
+--let $wait_condition = SELECT COUNT(*) = 3 FROM wsrep_schema.members;
+--source include/wait_condition.inc
+
+# DDL should now be complete
+
+--connection node_2
+--reap
+
+# Confirm that the nodes are identical
+
+--connection node_1
+SHOW CREATE TABLE t1;
+SELECT COUNT(*) = 1 FROM t1;
+
+--connection node_2
+SHOW CREATE TABLE t1;
+--let $wait_condition = SELECT VARIABLE_VALUE = 'ON' FROM INFORMATION_SCHEMA.GLOBAL_STATUS WHERE VARIABLE_NAME = 'wsrep_ready'
+--source include/wait_condition.inc
+SELECT COUNT(*) = 1 FROM t1;
+
+--connection node_1
+DROP TABLE t1;

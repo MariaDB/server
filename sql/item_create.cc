@@ -3193,6 +3193,45 @@ protected:
 };
 #endif
 
+#ifdef WITH_WSREP
+class Create_func_wsrep_last_written_gtid : public Create_func_arg0
+{
+public:
+  virtual Item *create_builder(THD *thd);
+
+  static Create_func_wsrep_last_written_gtid s_singleton;
+
+protected:
+  Create_func_wsrep_last_written_gtid() {}
+  virtual ~Create_func_wsrep_last_written_gtid() {}
+};
+
+
+class Create_func_wsrep_last_seen_gtid : public Create_func_arg0
+{
+public:
+  virtual Item *create_builder(THD *thd);
+
+  static Create_func_wsrep_last_seen_gtid s_singleton;
+
+protected:
+  Create_func_wsrep_last_seen_gtid() {}
+  virtual ~Create_func_wsrep_last_seen_gtid() {}
+};
+
+
+class Create_func_wsrep_sync_wait_upto : public Create_native_func
+{
+public:
+  virtual Item *create_native(THD *thd, LEX_CSTRING *name, List<Item> *item_list);
+
+  static Create_func_wsrep_sync_wait_upto s_singleton;
+
+protected:
+  Create_func_wsrep_sync_wait_upto() {}
+  virtual ~Create_func_wsrep_sync_wait_upto() {}
+};
+#endif /* WITH_WSREP */
 
 #ifdef HAVE_SPATIAL
 class Create_func_x : public Create_func_arg1
@@ -6905,6 +6944,63 @@ Create_func_within::create_2_arg(THD *thd, Item *arg1, Item *arg2)
 }
 #endif
 
+#ifdef WITH_WSREP
+Create_func_wsrep_last_written_gtid
+Create_func_wsrep_last_written_gtid::s_singleton;
+
+Item*
+Create_func_wsrep_last_written_gtid::create_builder(THD *thd)
+{
+  current_thd->lex->safe_to_cache_query= 0;
+  return new (thd->mem_root) Item_func_wsrep_last_written_gtid(thd);
+}
+
+
+Create_func_wsrep_last_seen_gtid
+Create_func_wsrep_last_seen_gtid::s_singleton;
+
+Item*
+Create_func_wsrep_last_seen_gtid::create_builder(THD *thd)
+{
+  current_thd->lex->safe_to_cache_query= 0;
+  return new (thd->mem_root) Item_func_wsrep_last_seen_gtid(thd);
+}
+
+
+Create_func_wsrep_sync_wait_upto
+Create_func_wsrep_sync_wait_upto::s_singleton;
+
+Item*
+Create_func_wsrep_sync_wait_upto::create_native(THD *thd,
+                                         LEX_CSTRING *name,
+                                         List<Item> *item_list)
+{
+  Item *func= NULL;
+  int arg_count= 0;
+  Item *param_1, *param_2;
+
+  if (item_list != NULL)
+    arg_count= item_list->elements;
+
+  switch (arg_count)
+  {
+  case 1:
+    param_1= item_list->pop();
+    func= new (thd->mem_root) Item_func_wsrep_sync_wait_upto(thd, param_1);
+    break;
+  case 2:
+    param_1= item_list->pop();
+    param_2= item_list->pop();
+    func= new (thd->mem_root) Item_func_wsrep_sync_wait_upto(thd, param_1, param_2);
+    break;
+  default:
+    my_error(ER_WRONG_PARAMCOUNT_TO_NATIVE_FCT, MYF(0), name->str);
+    break;
+  }
+  current_thd->lex->safe_to_cache_query= 0;
+  return func;
+}
+#endif /* WITH_WSREP */
 
 #ifdef HAVE_SPATIAL
 Create_func_x Create_func_x::s_singleton;
@@ -7347,6 +7443,11 @@ static Native_func_registry func_array[] =
   { { STRING_WITH_LEN("WEEKDAY") }, BUILDER(Create_func_weekday)},
   { { STRING_WITH_LEN("WEEKOFYEAR") }, BUILDER(Create_func_weekofyear)},
   { { STRING_WITH_LEN("WITHIN") }, GEOM_BUILDER(Create_func_within)},
+#ifdef WITH_WSREP
+  { { STRING_WITH_LEN("WSREP_LAST_WRITTEN_GTID") }, BUILDER(Create_func_wsrep_last_written_gtid)},
+  { { STRING_WITH_LEN("WSREP_LAST_SEEN_GTID") }, BUILDER(Create_func_wsrep_last_seen_gtid)},
+  { { STRING_WITH_LEN("WSREP_SYNC_WAIT_UPTO_GTID") }, BUILDER(Create_func_wsrep_sync_wait_upto)},
+#endif /* WITH_WSREP */
   { { STRING_WITH_LEN("X") }, GEOM_BUILDER(Create_func_x)},
   { { STRING_WITH_LEN("Y") }, GEOM_BUILDER(Create_func_y)},
   { { STRING_WITH_LEN("YEARWEEK") }, BUILDER(Create_func_year_week)},

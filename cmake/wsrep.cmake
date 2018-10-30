@@ -24,9 +24,12 @@ ELSE()
 ENDIF()
 
 OPTION(WITH_WSREP "WSREP replication API (to use, e.g. Galera Replication library)" ${with_wsrep_default})
+OPTION(WITH_WSREP_ALL
+  "Build all components of WSREP (unit tests, sample programs)"
+  OFF)
 
 # Set the patch version
-SET(WSREP_PATCH_VERSION "23")
+SET(WSREP_PATCH_VERSION "22")
 
 # Obtain wsrep API version
 FILE(STRINGS "${MySQL_SOURCE_DIR}/wsrep/wsrep_api.h" WSREP_API_VERSION
@@ -40,4 +43,12 @@ SET(WSREP_PROC_INFO ${WITH_WSREP})
 
 IF(WITH_WSREP)
   SET(WSREP_PATCH_VERSION "wsrep_${WSREP_VERSION}")
+  if (NOT WITH_WSREP_ALL)
+    SET(WSREP_LIB_WITH_UNIT_TESTS OFF CACHE BOOL
+      "Disable unit tests for wsrep-lib")
+    SET(WSREP_LIB_WITH_DBSIM OFF CACHE BOOL
+      "Disable building dbsim for wsrep-lib")
+  endif()
+  INCLUDE_DIRECTORIES(${CMAKE_SOURCE_DIR}/wsrep-lib/include)
+  INCLUDE_DIRECTORIES(${CMAKE_SOURCE_DIR}/wsrep-lib/wsrep-API/v26)
 ENDIF()

@@ -19,7 +19,7 @@ source ../wsrep/include/check_galera_version.inc;
 
 # Global Variables
 
-SELECT COUNT(*) = 43 FROM INFORMATION_SCHEMA.GLOBAL_VARIABLES WHERE VARIABLE_NAME LIKE 'wsrep_%';
+SELECT COUNT(*) FROM INFORMATION_SCHEMA.GLOBAL_VARIABLES WHERE VARIABLE_NAME LIKE 'wsrep_%';
 
 SELECT VARIABLE_NAME, VARIABLE_VALUE
 FROM INFORMATION_SCHEMA.GLOBAL_VARIABLES
@@ -54,8 +54,10 @@ ORDER BY VARIABLE_NAME;
 	$wsrep_provider_options =~ s/gcs\.recv_q_hard_limit = .*?;/<GCS_RECV_Q_HARD_LIMIT>;/sgio;
 	$wsrep_provider_options =~ s/ist\.recv_addr = .*?;/<IST_RECV_ADDR>;/sgio;
 	$wsrep_provider_options =~ s/evs\.evict = .*?;/<EVS_EVICT>;/sgio;
+	$wsrep_provider_options =~ s/repl\.proto_max = .*?;/<REPL_PROTO_MAX>;/sgio;
 	$wsrep_provider_options =~ s/signal = .*?;\s*//sgio;
 	$wsrep_provider_options =~ s/dbug = .*?;\s*//sgio;
+	$wsrep_provider_options =~ s/gcs.recv_q_hard_limit = .*?;\s*/<RECV_Q_HARD_LIMIT>;/sgio;
 	$wsrep_provider_options =~ s/repl.proto_max = .*?;\s*/<REPL_PROTO_MAX>;/sgio;
 	print $wsrep_provider_options."\n";
 EOF

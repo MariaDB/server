@@ -1,0 +1,369 @@
+/* Copyright 2016 Codership Oy <http://www.codership.com>
+
+   This program is free software; you can redistribute it and/or modify
+   it under the terms of the GNU General Public License as published by
+   the Free Software Foundation; version 2 of the License.
+
+   This program is distributed in the hope that it will be useful,
+   but WITHOUT ANY WARRANTY; without even the implied warranty of
+   MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+   GNU General Public License for more details.
+
+   You should have received a copy of the GNU General Public License
+   along with this program; if not, write to the Free Software
+   Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307  USA */
+
+#ifndef WSREP_TRANS_OBSERVER_H
+#define WSREP_TRANS_OBSERVER_H
+
+#include "my_global.h"
+#include "mysql/service_wsrep.h"
+#include "wsrep_applier.h" /* wsrep_apply_error */
+#include "wsrep_xid.h"
+#include "wsrep_thd.h"
+
+#include "my_dbug.h"
+
+class THD;
+
+/*
+   Return true if THD has active wsrep transaction.
+ */
+static inline bool wsrep_is_active(THD* thd)
+{
+  return (wsrep_on(thd) && thd->wsrep_cs().transaction().active());
+}
+
+/*
+  Return true if THD is either committing a transaction or statement
+  is autocommit.
+ */
+static inline bool wsrep_is_real(THD* thd, bool all)
+{
+  return (all || thd->transaction.all.ha_list == 0);
+}
+
+static inline int wsrep_check_pk(THD* thd)
+{
+  if (!wsrep_certify_nonPK)
+  {
+    for (TABLE* table= thd->open_tables; table != NULL; table= table->next)
+    {
+      if (table->key_info == NULL || table->s->primary_key == MAX_KEY)
+      {
+        WSREP_DEBUG("No primary key found for table %s.%s",
+                    table->s->db.str, table->s->table_name.str);
+        wsrep_override_error(thd, ER_LOCK_DEADLOCK);
+        return 1;
+      }
+    }
+  }
+  return 0;
+}
+
+static inline bool wsrep_streaming_enabled(THD* thd)
+{
+  return (thd->wsrep_sr().fragment_size() > 0);
+}
+
+
+static inline int wsrep_start_transaction(THD* thd, wsrep_trx_id_t trx_id)
+{
+  return (wsrep_on(thd) ?
+          thd->wsrep_cs().start_transaction(wsrep::transaction_id(trx_id)) :
+          0);
+}
+
+/**/
+static inline int wsrep_start_trx_if_not_started(THD* thd)
+{
+  int ret= 0;
+  DBUG_ASSERT(thd->wsrep_next_trx_id() != WSREP_UNDEFINED_TRX_ID);
+  DBUG_ASSERT(thd->wsrep_cs().mode() == Wsrep_client_state::m_local);
+  if (thd->wsrep_trx().active() == false)
+  {
+    ret= wsrep_start_transaction(thd, thd->wsrep_next_trx_id());
+  }
+  return ret;
+}
+
+/*
+  Called after each row operation.
+
+  Return zero on succes, non-zero on failure.
+ */
+static inline int wsrep_after_row(THD* thd, bool)
+{
+  if (wsrep_on(thd) && wsrep_thd_is_local(thd))
+  {
+    if (wsrep_check_pk(thd))
+    {
+      return 1;
+    }
+    else if (wsrep_streaming_enabled(thd))
+    {
+      return thd->wsrep_cs().after_row();
+    }
+  }
+  return 0;
+}
+
+/*
+  Called before the transaction is prepared.
+
+  Return zero on succes, non-zero on failure.
+ */
+static inline int wsrep_before_prepare(THD* thd, bool all)
+{
+  WSREP_DEBUG("wsrep_before_prepare: %d", wsrep_is_real(thd, all));
+  int ret= ((wsrep_is_real(thd, all) && wsrep_is_active(thd)) ?
+            thd->wsrep_cs().before_prepare() : 0);
+  DBUG_ASSERT(ret == 0 || thd->wsrep_cs().current_error());
+  return ret;
+}
+
+/*
+  Called after the transaction has been prepared.
+
+  Return zero on succes, non-zero on failure.
+ */
+static inline int wsrep_after_prepare(THD* thd, bool all)
+{
+  WSREP_DEBUG("wsrep_after_prepare: %d", wsrep_is_real(thd, all));
+  int ret= ((wsrep_is_real(thd, all) && wsrep_is_active(thd)) ?
+            thd->wsrep_cs().after_prepare() : 0);
+  DBUG_ASSERT(ret == 0 || thd->wsrep_cs().current_error() ||
+              thd->wsrep_cs().transaction().state() == wsrep::transaction::s_must_replay);
+  return ret;
+}
+
+
+/*
+  Called before the transaction is committed.
+
+  This function must be called from both client and
+  applier contexts before commit.
+
+  Return zero on succes, non-zero on failure.
+ */
+static inline int wsrep_before_commit(THD* thd, bool all)
+{
+  WSREP_DEBUG("wsrep_before_commit: %d, %lld",
+              wsrep_is_real(thd, all),
+              (long long)wsrep_thd_trx_seqno(thd));
+  return ((wsrep_is_real(thd, all) && wsrep_is_active(thd)) ?
+          wsrep_xid_init(&thd->wsrep_xid,
+                         thd->wsrep_cs().transaction().ws_meta().gtid()),
+          thd->wsrep_cs().before_commit() : 0);
+}
+
+/*
+  Called after the transaction has been ordered for commit.
+
+  This function must be called from both client and
+  applier contexts after the commit has been ordered.
+
+  @param thd Pointer to THD
+  @param all 
+  @param err Error buffer in case of applying error
+
+  Return zero on succes, non-zero on failure.
+ */
+static inline int wsrep_ordered_commit(THD* thd,
+                                      bool all,
+                                      const wsrep_apply_error&)
+{
+  WSREP_DEBUG("wsrep_ordered_commit: %d", wsrep_is_real(thd, all));
+  return ((wsrep_is_real(thd, all) && wsrep_is_active(thd)) ?
+          thd->wsrep_cs().ordered_commit() : 0);
+}
+
+/*
+  Called after the transaction has been committed.
+
+  Return zero on succes, non-zero on failure.
+ */
+static inline int wsrep_after_commit(THD* thd, bool all)
+{
+  WSREP_DEBUG("wsrep_after_commit: %d, %d, %lld", wsrep_is_real(thd, all),
+              wsrep_is_active(thd), (long long)wsrep_thd_trx_seqno(thd));
+  bool run_after_commit= (wsrep_is_real(thd, all) && wsrep_is_active(thd));
+  if (run_after_commit)
+  {
+    return (wsrep_ordered_commit_if_no_binlog(thd, all) ||
+            (wsrep_xid_init(&thd->wsrep_xid, wsrep::gtid::undefined()),
+             thd->wsrep_cs().after_commit()));
+  }
+  else
+  {
+    return 0;
+  }
+}
+
+/*
+  Called before the transaction is rolled back.
+
+  Return zero on succes, non-zero on failure.
+ */
+static inline int wsrep_before_rollback(THD* thd, bool all)
+{
+  DBUG_ENTER("wsrep_before_rollback");
+  int ret= 0;
+  if (wsrep_is_active(thd))
+  {
+    if (!all && thd->in_active_multi_stmt_transaction() &&
+        thd->wsrep_trx().is_streaming() &&
+        !wsrep_stmt_rollback_is_safe(thd))
+    {
+      /* Non-safe statement rollback during SR multi statement
+         transasction. Self abort the transaction, the actual rollback
+         and error handling will be done in after statement phase. */
+      wsrep_thd_self_abort(thd);
+      ret= 0;
+    }
+    else if (wsrep_is_real(thd, all) &&
+             thd->wsrep_trx().state() != wsrep::transaction::s_aborted)
+    {
+      /* Real transaction rolling back and wsrep abort not completed
+         yet */
+      /* Reset XID so that it does not trigger writing serialization
+         history in InnoDB. This needs to be avoided because rollback
+         may happen out of order and replay may follow. */
+      wsrep_xid_init(&thd->wsrep_xid, wsrep::gtid::undefined());
+      ret= thd->wsrep_cs().before_rollback();
+    }
+  }
+  DBUG_RETURN(ret);
+}
+
+/*
+  Called after the transaction has been rolled back.
+
+  Return zero on succes, non-zero on failure.
+ */
+static inline int wsrep_after_rollback(THD* thd, bool all)
+{
+  DBUG_ENTER("wsrep_after_rollback");
+  DBUG_RETURN((wsrep_is_real(thd, all) && wsrep_is_active(thd) &&
+               thd->wsrep_cs().transaction().state() !=
+               wsrep::transaction::s_aborted) ?
+              thd->wsrep_cs().after_rollback() : 0);
+}
+
+static inline int wsrep_before_statement(THD* thd)
+{
+  return (wsrep_on(thd) ? thd->wsrep_cs().before_statement() : 0);
+}
+
+static inline
+// enum wsrep::client_state::after_statement_result
+int wsrep_after_statement(THD* thd)
+{
+  return (wsrep_on((const void*)thd) ?
+          thd->wsrep_cs().after_statement() : 0);
+}
+
+static inline void wsrep_after_apply(THD* thd)
+{
+  DBUG_ASSERT(wsrep_thd_is_applying(thd));
+  WSREP_DEBUG("wsrep_after_apply %lld", thd->thread_id);
+  thd->wsrep_cs().after_applying();
+}
+
+static inline void wsrep_open(THD* thd)
+{
+  DBUG_ENTER("wsrep_open");
+  if (wsrep_global_on())
+  {
+    thd->wsrep_cs().open(wsrep::client_id(thd->thread_id));
+    thd->wsrep_cs().debug_log_level(wsrep_debug);
+  }
+  DBUG_VOID_RETURN;
+}
+
+static inline void wsrep_close(THD* thd)
+{
+  DBUG_ENTER("wsrep_close");
+  if (wsrep_global_on())
+  {
+    thd->wsrep_cs().close();
+  }
+  DBUG_VOID_RETURN;
+}
+
+static inline int wsrep_before_command(THD* thd)
+{
+  return (wsrep_global_on() ? thd->wsrep_cs().before_command() : 0);
+}
+/*
+  Called after each command.
+
+  Return zero on success, non-zero on failure.
+*/
+static inline void wsrep_after_command_before_result(THD* thd)
+{
+  if (wsrep_global_on())
+  {
+    thd->wsrep_cs().after_command_before_result();
+  }
+}
+
+static inline void wsrep_after_command_after_result(THD* thd)
+{
+  if (wsrep_global_on())
+  {
+    thd->wsrep_cs().after_command_after_result();
+  }
+}
+
+static inline void wsrep_after_command_ignore_result(THD* thd)
+{
+  wsrep_after_command_before_result(thd);
+  DBUG_ASSERT(!thd->wsrep_cs().current_error());
+  wsrep_after_command_after_result(thd);
+}
+
+static inline enum wsrep::client_error wsrep_current_error(THD* thd)
+{
+  return thd->wsrep_cs().current_error();
+}
+
+static inline enum wsrep::provider::status
+wsrep_current_error_status(THD* thd)
+{
+  return thd->wsrep_cs().current_error_status();
+}
+
+
+/*
+  Commit an empty transaction.
+
+  If the transaction is real and the wsrep transaction is still active,
+  the transaction did not generate any rows or keys and is committed
+  as empty. Here the wsrep transaction is rolled back and after statement
+  step is performed to leave the wsrep transaction in the state as it
+  never existed.
+*/
+static inline void wsrep_commit_empty(THD* thd, bool all)
+{
+  DBUG_ENTER("wsrep_commit_empty");
+  WSREP_DEBUG("wsrep_commit_empty(%llu)", thd->thread_id);
+  if (wsrep_is_real(thd, all) &&
+      wsrep_thd_is_local(thd) &&
+      thd->wsrep_trx().active())
+  {
+    bool have_error= wsrep_current_error(thd);
+    int ret= wsrep_before_rollback(thd, all) ||
+      wsrep_after_rollback(thd, all) ||
+      wsrep_after_statement(thd);
+    DBUG_ASSERT(!ret);
+    DBUG_ASSERT(have_error || !wsrep_current_error(thd));
+    if (ret)
+    {
+      WSREP_WARN("wsrep_commit_empty failed: %d", wsrep_current_error(thd));
+    }
+  }
+  DBUG_VOID_RETURN;
+}
+
+#endif /* WSREP_TRANS_OBSERVER */

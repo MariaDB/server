@@ -1,0 +1,14 @@
+CREATE TABLE IF NOT EXISTS t1 (f1 INTEGER) ENGINE = InnoDB;
+SET SESSION AUTOCOMMIT=OFF;
+SET SESSION wsrep_trx_fragment_size = 1;
+INSERT INTO t1 VALUES (161);
+COMMIT;
+DELETE FROM t1 WHERE f1 > 13;
+SELECT COUNT(*) = 0 FROM wsrep_schema.SR;
+COUNT(*) = 0
+1
+SELECT COUNT(*) = 0 FROM wsrep_schema.SR;
+COUNT(*) = 0
+1
+DROP TABLE t1;
+include/assert_grep.inc [No BF-BF log line found]

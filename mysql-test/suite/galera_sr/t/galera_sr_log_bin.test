@@ -1,0 +1,70 @@
+#
+# Interleave SR and non-SR transactions and confirm that the binlog is in correct order
+#
+
+CREATE TABLE t1 (f1 INTEGER) ENGINE=InnoDB;
+CREATE TABLE t2 (f1 INTEGER) ENGINE=InnoDB;
+CREATE TABLE t3 (f1 INTEGER) ENGINE=InnoDB;
+CREATE TABLE t4 (f1 INTEGER) ENGINE=InnoDB;
+
+--source include/galera_cluster.inc
+
+SET SESSION wsrep_trx_fragment_size = 1;
+SET AUTOCOMMIT=OFF;
+START TRANSACTION;
+INSERT INTO t1 VALUES (1);
+
+--connect node_1a, 127.0.0.1, root, , test, $NODE_MYPORT_1
+--connection node_1a
+SET GLOBAL wsrep_on=OFF;
+RESET MASTER;
+SET GLOBAL wsrep_on=ON;
+SET AUTOCOMMIT=OFF;
+START TRANSACTION;
+INSERT INTO t2 VALUES (1);
+
+--connection node_2
+SET GLOBAL wsrep_on=OFF;
+RESET MASTER;
+SET GLOBAL wsrep_on=ON;
+SET AUTOCOMMIT=OFF;
+SET SESSION wsrep_trx_fragment_size = 1;
+START TRANSACTION;
+INSERT INTO t3 VALUES (1);
+
+--connect node_2a, 127.0.0.1, root, , test, $NODE_MYPORT_2
+--connection node_2a
+SET AUTOCOMMIT=OFF;
+START TRANSACTION;
+INSERT INTO t4 VALUES (1);
+
+--connection node_1
+INSERT INTO t1 VALUES (2);
+COMMIT;
+
+--connection node_1a
+INSERT INTO t2 VALUES (2);
+COMMIT;
+
+--connection node_2
+INSERT INTO t3 VALUES (2);
+COMMIT;
+--connection node_2a
+INSERT INTO t4 VALUES (2);
+COMMIT;
+
+--connection node_1
+SELECT COUNT(*) = 2 FROM t4;
+
+--replace_regex /xid=[0-9]+/xid=###/ /table_id: [0-9]+/table_id: ###/
+--replace_column 2 <Pos> 5 <End_log_pos>
+SHOW BINLOG EVENTS IN 'mysqld-bin.000001' FROM 256;
+
+--connection node_2
+SELECT COUNT(*) = 2 FROM t4;
+
+--replace_regex /xid=[0-9]+/xid=###/ /table_id: [0-9]+/table_id: ###/
+--replace_column 2 <Pos> 5 <End_log_pos>
+SHOW BINLOG EVENTS IN 'mysqld-bin.000001' FROM 256;
+
+DROP TABLE t1,t2,t3,t4;

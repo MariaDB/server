@@ -4206,30 +4206,6 @@ reexecute:
   error= execute(expanded_query, open_cursor) || thd->is_error();
 
   thd->m_reprepare_observer= NULL;
-#ifdef WITH_WSREP
-
-  if (WSREP_ON)
-  {
-    mysql_mutex_lock(&thd->LOCK_thd_data);
-    switch (thd->wsrep_conflict_state)
-    {
-      case CERT_FAILURE:
-        WSREP_DEBUG("PS execute fail for CERT_FAILURE: thd: %lld  err: %d",
-	            (longlong) thd->thread_id,
-                    thd->get_stmt_da()->sql_errno() );
-        thd->wsrep_conflict_state = NO_CONFLICT;
-        break;
-
-      case MUST_REPLAY:
-        (void) wsrep_replay_transaction(thd);
-        break;
-
-      default:
-        break;
-    }
-    mysql_mutex_unlock(&thd->LOCK_thd_data);
-  }
-#endif /* WITH_WSREP */
 
   if (unlikely(error) &&
       (sql_command_flags[lex->sql_command] & CF_REEXECUTION_FRAGILE) &&
@@ -4402,30 +4378,6 @@ reexecute:
     error= execute(expanded_query, open_cursor) || thd->is_error();
 
     thd->m_reprepare_observer= NULL;
-#ifdef WITH_WSREP
-
-    if (WSREP_ON)
-    {
-      mysql_mutex_lock(&thd->LOCK_thd_data);
-      switch (thd->wsrep_conflict_state)
-      {
-      case CERT_FAILURE:
-        WSREP_DEBUG("PS execute fail for CERT_FAILURE: thd: %lld  err: %d",
-	            (longlong) thd->thread_id,
-                    thd->get_stmt_da()->sql_errno() );
-        thd->wsrep_conflict_state = NO_CONFLICT;
-        break;
-
-      case MUST_REPLAY:
-        (void) wsrep_replay_transaction(thd);
-        break;
-
-      default:
-        break;
-      }
-      mysql_mutex_unlock(&thd->LOCK_thd_data);
-    }
-#endif /* WITH_WSREP */
 
     if (unlikely(error) &&
         (sql_command_flags[lex->sql_command] & CF_REEXECUTION_FRAGILE) &&
