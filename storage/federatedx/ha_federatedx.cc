@@ -2933,7 +2933,7 @@ int ha_federatedx::read_next(uchar *buf, FEDERATEDX_IO_RESULT *result)
     DBUG_RETURN(retval);
 
   /* Fetch a row, insert it back in a row format. */
-  if (!(row= io->fetch_row(result)))
+  if (!(row= io->fetch_row(result, &current)))
     DBUG_RETURN(HA_ERR_END_OF_FILE);
 
   if (!(retval= convert_row_to_internal_format(buf, row, result)))
@@ -2977,7 +2977,7 @@ void ha_federatedx::position(const uchar *record __attribute__ ((unused)))
   if (txn->acquire(share, ha_thd(), TRUE, &io))
     DBUG_VOID_RETURN;
 
-  io->mark_position(stored_result, ref);
+  io->mark_position(stored_result, ref, current);
 
   position_called= TRUE;
 
