@@ -1,5 +1,7 @@
---source include/master-slave.inc
+--source include/have_case_sensitive_file_system.inc
 --source include/have_innodb.inc
+--source include/master-slave.inc
+
 --connection master
 create table RPL(a int);
 insert into RPL values(1);

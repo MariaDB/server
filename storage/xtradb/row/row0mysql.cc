@@ -4162,95 +4162,87 @@ row_drop_table_for_mysql(
 
 	info = pars_info_create();
 
-	pars_info_add_str_literal(info, "table_name", name);
+	pars_info_add_str_literal(info, "name", name);
 
-	err = que_eval_sql(info,
-			   "PROCEDURE DROP_TABLE_PROC () IS\n"
-			   "sys_foreign_id CHAR;\n"
-			   "table_id CHAR;\n"
-			   "index_id CHAR;\n"
-			   "foreign_id CHAR;\n"
-			   "space_id INT;\n"
-			   "found INT;\n"
+	if (strcmp(name, "SYS_FOREIGN") && strcmp(name, "SYS_FOREIGN_COLS")
+	    && dict_table_get_low("SYS_FOREIGN")
+	    && dict_table_get_low("SYS_FOREIGN_COLS")) {
+		err = que_eval_sql(
+			info,
+			"PROCEDURE DROP_FOREIGN_PROC () IS\n"
+			"fid CHAR;\n"
 
-			   "DECLARE CURSOR cur_fk IS\n"
-			   "SELECT ID FROM SYS_FOREIGN\n"
-			   "WHERE FOR_NAME = :table_name\n"
-			   "AND TO_BINARY(FOR_NAME)\n"
-			   "  = TO_BINARY(:table_name)\n"
-			   "LOCK IN SHARE MODE;\n"
+			"DECLARE CURSOR fk IS\n"
+			"SELECT ID FROM SYS_FOREIGN\n"
+			"WHERE FOR_NAME = :name\n"
+			"AND TO_BINARY(FOR_NAME) = TO_BINARY(:name)\n"
+			"FOR UPDATE;\n"
 
-			   "DECLARE CURSOR cur_idx IS\n"
-			   "SELECT ID FROM SYS_INDEXES\n"
-			   "WHERE TABLE_ID = table_id\n"
-			   "LOCK IN SHARE MODE;\n"
+			"BEGIN\n"
+			"OPEN fk;\n"
+			"WHILE 1 = 1 LOOP\n"
+			"	FETCH fk INTO fid;\n"
+			"	IF (SQL % NOTFOUND) THEN RETURN; END IF;\n"
+			"	DELETE FROM SYS_FOREIGN_COLS WHERE ID = fid;\n"
+			"	DELETE FROM SYS_FOREIGN WHERE ID = fid;\n"
+			"END LOOP;\n"
+			"CLOSE fk;\n"
+			"END;\n", FALSE, trx);
+		if (err == DB_SUCCESS) {
+			info = pars_info_create();
+			pars_info_add_str_literal(info, "name", name);
+			goto do_drop;
+		}
+	} else {
+do_drop:
+		err = que_eval_sql(
+			info,
+			"PROCEDURE DROP_TABLE_PROC () IS\n"
+			"table_id CHAR;\n"
+			"index_id CHAR;\n"
 
-			   "BEGIN\n"
-			   "SELECT ID INTO table_id\n"
-			   "FROM SYS_TABLES\n"
-			   "WHERE NAME = :table_name\n"
-			   "LOCK IN SHARE MODE;\n"
-			   "IF (SQL % NOTFOUND) THEN\n"
-			   "       RETURN;\n"
-			   "END IF;\n"
-			   "SELECT SPACE INTO space_id\n"
-			   "FROM SYS_TABLES\n"
-			   "WHERE NAME = :table_name;\n"
-			   "IF (SQL % NOTFOUND) THEN\n"
-			   "       RETURN;\n"
-			   "END IF;\n"
-			   "found := 1;\n"
-			   "SELECT ID INTO sys_foreign_id\n"
-			   "FROM SYS_TABLES\n"
-			   "WHERE NAME = 'SYS_FOREIGN'\n"
-			   "LOCK IN SHARE MODE;\n"
-			   "IF (SQL % NOTFOUND) THEN\n"
-			   "       found := 0;\n"
-			   "END IF;\n"
-			   "IF (:table_name = 'SYS_FOREIGN') THEN\n"
-			   "       found := 0;\n"
-			   "END IF;\n"
-			   "IF (:table_name = 'SYS_FOREIGN_COLS') THEN\n"
-			   "       found := 0;\n"
-			   "END IF;\n"
-			   "OPEN cur_fk;\n"
-			   "WHILE found = 1 LOOP\n"
-			   "       FETCH cur_fk INTO foreign_id;\n"
-			   "       IF (SQL % NOTFOUND) THEN\n"
-			   "               found := 0;\n"
-			   "       ELSE\n"
-			   "               DELETE FROM SYS_FOREIGN_COLS\n"
-			   "               WHERE ID = foreign_id;\n"
-			   "               DELETE FROM SYS_FOREIGN\n"
-			   "               WHERE ID = foreign_id;\n"
-			   "       END IF;\n"
-			   "END LOOP;\n"
-			   "CLOSE cur_fk;\n"
-			   "found := 1;\n"
-			   "OPEN cur_idx;\n"
-			   "WHILE found = 1 LOOP\n"
-			   "       FETCH cur_idx INTO index_id;\n"
-			   "       IF (SQL % NOTFOUND) THEN\n"
-			   "               found := 0;\n"
-			   "       ELSE\n"
-			   "               DELETE FROM SYS_FIELDS\n"
-			   "               WHERE INDEX_ID = index_id;\n"
-			   "               DELETE FROM SYS_INDEXES\n"
-			   "               WHERE ID = index_id\n"
-			   "               AND TABLE_ID = table_id;\n"
-			   "       END IF;\n"
-			   "END LOOP;\n"
-			   "CLOSE cur_idx;\n"
-			   "DELETE FROM SYS_TABLESPACES\n"
-			   "WHERE SPACE = space_id;\n"
-			   "DELETE FROM SYS_DATAFILES\n"
-			   "WHERE SPACE = space_id;\n"
-			   "DELETE FROM SYS_COLUMNS\n"
-			   "WHERE TABLE_ID = table_id;\n"
-			   "DELETE FROM SYS_TABLES\n"
-			   "WHERE NAME = :table_name;\n"
-			   "END;\n"
-			   , FALSE, trx);
+			"DECLARE CURSOR cur_idx IS\n"
+			"SELECT ID FROM SYS_INDEXES\n"
+			"WHERE TABLE_ID = table_id\n"
+			"FOR UPDATE;\n"
+
+			"BEGIN\n"
+			"SELECT ID INTO table_id\n"
+			"FROM SYS_TABLES WHERE NAME = :name FOR UPDATE;\n"
+			"IF (SQL % NOTFOUND) THEN RETURN; END IF;\n"
+			"OPEN cur_idx;\n"
+			"WHILE 1 = 1 LOOP\n"
+			"	FETCH cur_idx INTO index_id;\n"
+			"	IF (SQL % NOTFOUND) THEN EXIT; END IF;\n"
+			"	DELETE FROM SYS_FIELDS\n"
+			"	WHERE INDEX_ID = index_id;\n"
+			"	DELETE FROM SYS_INDEXES\n"
+			"	WHERE ID = index_id AND TABLE_ID = table_id;\n"
+			"END LOOP;\n"
+			"CLOSE cur_idx;\n"
+
+			"DELETE FROM SYS_COLUMNS WHERE TABLE_ID = table_id;\n"
+			"DELETE FROM SYS_TABLES WHERE NAME = :name;\n"
+
+			"END;\n", FALSE, trx);
+
+		if (err == DB_SUCCESS && table->space
+		    && dict_table_get_low("SYS_TABLESPACES")
+		    && dict_table_get_low("SYS_DATAFILES")) {
+			info = pars_info_create();
+			pars_info_add_int4_literal(info, "id",
+						   lint(table->space));
+			err = que_eval_sql(
+				info,
+				"PROCEDURE DROP_SPACE_PROC () IS\n"
+				"BEGIN\n"
+				"DELETE FROM SYS_TABLESPACES\n"
+				"WHERE SPACE = :id;\n"
+				"DELETE FROM SYS_DATAFILES\n"
+				"WHERE SPACE = :id;\n"
+				"END;\n", FALSE, trx);
+		}
+	}
 
 	switch (err) {
 		ibool	is_temp;
@@ -4395,7 +4387,6 @@ row_drop_table_for_mysql(
 
 	case DB_OUT_OF_FILE_SPACE:
 		err = DB_MUST_GET_MORE_FILE_SPACE;
-
 		trx->error_state = err;
 		row_mysql_handle_errors(&err, trx, NULL, NULL);
 
@@ -5004,6 +4995,18 @@ row_rename_table_for_mysql(
 		goto funct_exit;
 	}
 
+	/* Wait for background fts sync to finish */
+	for (retry = 1; dict_fts_index_syncing(table); ++retry) {
+		DICT_BG_YIELD(trx);
+		if (retry % 100 == 0) {
+			ib_logf(IB_LOG_LEVEL_INFO,
+				"Unable to rename table %s to new name"
+				" %s because FTS sync is running on table."
+				" Retrying\n",
+				old_name, new_name);
+		}
+	}
+
 	/* We use the private SQL parser of Innobase to generate the query
 	graphs needed in updating the dictionary data from system tables. */
 
@@ -5180,8 +5183,9 @@ row_rename_table_for_mysql(
 		}
 	}
 
-	if ((dict_table_has_fts_index(table)
-	    || DICT_TF2_FLAG_IS_SET(table, DICT_TF2_FTS_HAS_DOC_ID))
+	if (err == DB_SUCCESS
+	    && (dict_table_has_fts_index(table)
+		|| DICT_TF2_FLAG_IS_SET(table, DICT_TF2_FTS_HAS_DOC_ID))
 	    && !dict_tables_have_same_db(old_name, new_name)) {
 		err = fts_rename_aux_tables(table, new_name, trx);
 		if (err != DB_TABLE_NOT_FOUND) {

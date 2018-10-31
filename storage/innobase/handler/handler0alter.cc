@@ -733,29 +733,29 @@ innobase_set_foreign_key_option(
 	ut_ad(!foreign->type);
 
 	switch (fk_key->delete_opt) {
-	case Foreign_key::FK_OPTION_NO_ACTION:
-	case Foreign_key::FK_OPTION_RESTRICT:
-	case Foreign_key::FK_OPTION_DEFAULT:
+	case FK_OPTION_NO_ACTION:
+	case FK_OPTION_RESTRICT:
+	case FK_OPTION_SET_DEFAULT:
 		foreign->type = DICT_FOREIGN_ON_DELETE_NO_ACTION;
 		break;
-	case Foreign_key::FK_OPTION_CASCADE:
+	case FK_OPTION_CASCADE:
 		foreign->type = DICT_FOREIGN_ON_DELETE_CASCADE;
 		break;
-	case Foreign_key::FK_OPTION_SET_NULL:
+	case FK_OPTION_SET_NULL:
 		foreign->type = DICT_FOREIGN_ON_DELETE_SET_NULL;
 		break;
 	}
 
 	switch (fk_key->update_opt) {
-	case Foreign_key::FK_OPTION_NO_ACTION:
-	case Foreign_key::FK_OPTION_RESTRICT:
-	case Foreign_key::FK_OPTION_DEFAULT:
+	case FK_OPTION_NO_ACTION:
+	case FK_OPTION_RESTRICT:
+	case FK_OPTION_SET_DEFAULT:
 		foreign->type |= DICT_FOREIGN_ON_UPDATE_NO_ACTION;
 		break;
-	case Foreign_key::FK_OPTION_CASCADE:
+	case FK_OPTION_CASCADE:
 		foreign->type |= DICT_FOREIGN_ON_UPDATE_CASCADE;
 		break;
-	case Foreign_key::FK_OPTION_SET_NULL:
+	case FK_OPTION_SET_NULL:
 		foreign->type |= DICT_FOREIGN_ON_UPDATE_SET_NULL;
 		break;
 	}
@@ -4177,11 +4177,23 @@ oom:
 			table. Either way, we should be seeing and
 			reporting a bogus duplicate key error. */
 			dup_key = NULL;
-		} else {
-			DBUG_ASSERT(prebuilt->trx->error_key_num
-				    < ha_alter_info->key_count);
+		} else if (prebuilt->trx->error_key_num == 0) {
 			dup_key = &ha_alter_info->key_info_buffer[
 				prebuilt->trx->error_key_num];
+		} else {
+			/* Check if there is generated cluster index column */
+			if (ctx->num_to_add_index > ha_alter_info->key_count) {
+				DBUG_ASSERT(prebuilt->trx->error_key_num
+					    <= ha_alter_info->key_count);
+				dup_key = &ha_alter_info->key_info_buffer[
+					prebuilt->trx->error_key_num - 1];
+			}
+			else {
+				DBUG_ASSERT(prebuilt->trx->error_key_num
+					    < ha_alter_info->key_count);
+				dup_key = &ha_alter_info->key_info_buffer[
+					prebuilt->trx->error_key_num];
+			}
 		}
 		print_keydup_error(altered_table, dup_key, MYF(0));
 		break;
@@ -5109,11 +5121,20 @@ commit_try_rebuild(
 				FTS_DOC_ID. */
 				dup_key = NULL;
 			} else {
-				DBUG_ASSERT(err_key <
-					    ha_alter_info->key_count);
-				dup_key = &ha_alter_info
-					->key_info_buffer[err_key];
+				if (ctx->num_to_add_index > ha_alter_info->key_count) {
+					DBUG_ASSERT(err_key <=
+						    ha_alter_info->key_count);
+					dup_key = &ha_alter_info
+						->key_info_buffer[err_key - 1];
+				}
+				else {
+					DBUG_ASSERT(err_key <
+						    ha_alter_info->key_count);
+					dup_key = &ha_alter_info
+						->key_info_buffer[err_key];
+				}
 			}
+
 			print_keydup_error(altered_table, dup_key, MYF(0));
 			DBUG_RETURN(true);
 		case DB_ONLINE_LOG_TOO_BIG:

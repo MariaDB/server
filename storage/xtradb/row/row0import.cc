@@ -1,6 +1,6 @@
 /*****************************************************************************
 
-Copyright (c) 2012, 2016, Oracle and/or its affiliates. All Rights Reserved.
+Copyright (c) 2012, 2018, Oracle and/or its affiliates. All Rights Reserved.
 Copyright (c) 2015, 2018, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
@@ -1969,7 +1969,11 @@ PageConverter::update_index_page(
 		return(DB_SUCCESS);
 	}
 
-	return page_is_leaf(block->frame) ? update_records(block) : DB_SUCCESS;
+	if (!page_is_leaf(block->frame)) {
+		return (DB_SUCCESS);
+	}
+
+	return(update_records(block));
 }
 
 /**
@@ -2620,8 +2624,6 @@ row_import_cfg_read_index_fields(
 
 	dict_field_t*	field = index->m_fields;
 
-	memset(field, 0x0, sizeof(*field) * n_fields);
-
 	for (ulint i = 0; i < n_fields; ++i, ++field) {
 		byte*		ptr = row;
 
@@ -2638,6 +2640,8 @@ row_import_cfg_read_index_fields(
 
 			return(DB_IO_ERROR);
 		}
+
+		new (field) dict_field_t();
 
 		field->prefix_len = mach_read_from_4(ptr);
 		ptr += sizeof(ib_uint32_t);

@@ -810,6 +810,7 @@ close_all_tables_for_name(THD *thd, TABLE_SHARE *share,
   uint key_length= share->table_cache_key.length;
   const char *db= key;
   const char *table_name= db + share->db.length + 1;
+  bool remove_from_locked_tables= extra != HA_EXTRA_NOT_USED;
 
   memcpy(key, share->table_cache_key.str, key_length);
 
@@ -823,7 +824,7 @@ close_all_tables_for_name(THD *thd, TABLE_SHARE *share,
     {
       thd->locked_tables_list.unlink_from_list(thd,
                                                table->pos_in_locked_tables,
-                                               extra != HA_EXTRA_NOT_USED);
+                                               remove_from_locked_tables);
       /* Inform handler that there is a drop table or a rename going on */
       if (extra != HA_EXTRA_NOT_USED && table->db_stat)
       {
@@ -4835,6 +4836,25 @@ handle_routine(THD *thd, Query_tables_list *prelocking_ctx,
 }
 
 
+/*
+  @note this can be changed to use a hash, instead of scanning the linked
+  list, if the performance of this function will ever become an issue
+*/
+bool table_already_fk_prelocked(TABLE_LIST *tl, LEX_STRING *db,
+                                LEX_STRING *table, thr_lock_type lock_type)
+{
+  for (; tl; tl= tl->next_global )
+  {
+    if (tl->lock_type >= lock_type &&
+        tl->prelocking_placeholder == TABLE_LIST::FK &&
+        strcmp(tl->db, db->str) == 0 &&
+        strcmp(tl->table_name, table->str) == 0)
+      return true;
+  }
+  return false;
+}
+
+
 /**
   Defines how prelocking algorithm for DML statements should handle table list
   elements:
@@ -4873,6 +4893,52 @@ handle_table(THD *thd, Query_tables_list *prelocking_ctx,
       if (table_list->table->triggers->
           add_tables_and_routines_for_triggers(thd, prelocking_ctx, table_list))
         return TRUE;
+    }
+
+    if (table_list->table->file->referenced_by_foreign_key())
+    {
+      List <FOREIGN_KEY_INFO> fk_list;
+      List_iterator<FOREIGN_KEY_INFO> fk_list_it(fk_list);
+      FOREIGN_KEY_INFO *fk;
+      Query_arena *arena, backup;
+
+      arena= thd->activate_stmt_arena_if_needed(&backup);
+
+      table_list->table->file->get_parent_foreign_key_list(thd, &fk_list);
+      if (thd->is_error())
+      {
+        if (arena)
+          thd->restore_active_arena(arena, &backup);
+        return TRUE;
+      }
+
+      *need_prelocking= TRUE;
+
+      while ((fk= fk_list_it++))
+      {
+        // FK_OPTION_RESTRICT and FK_OPTION_NO_ACTION only need read access
+        uint8 op= table_list->trg_event_map;
+        thr_lock_type lock_type;
+
+        if ((op & (1 << TRG_EVENT_DELETE) && fk_modifies_child(fk->delete_method))
+         || (op & (1 << TRG_EVENT_UPDATE) && fk_modifies_child(fk->update_method)))
+          lock_type= TL_WRITE_ALLOW_WRITE;
+        else
+          lock_type= TL_READ;
+
+        if (table_already_fk_prelocked(prelocking_ctx->query_tables,
+                                       fk->foreign_db, fk->foreign_table,
+                                       lock_type))
+          continue;
+
+        TABLE_LIST *tl= (TABLE_LIST *) thd->alloc(sizeof(TABLE_LIST));
+        tl->init_one_table_for_prelocking(fk->foreign_db->str, fk->foreign_db->length,
+                           fk->foreign_table->str, fk->foreign_table->length,
+                           NULL, lock_type, false, table_list->belong_to_view,
+                           op, &prelocking_ctx->query_tables_last);
+      }
+      if (arena)
+        thd->restore_active_arena(arena, &backup);
     }
   }
 
@@ -9077,88 +9143,6 @@ my_bool mysql_rm_tmp_tables(void)
 /*****************************************************************************
 	unireg support functions
 *****************************************************************************/
-
-/**
-   A callback to the server internals that is used to address
-   special cases of the locking protocol.
-   Invoked when acquiring an exclusive lock, for each thread that
-   has a conflicting shared metadata lock.
-
-   This function:
-     - aborts waiting of the thread on a data lock, to make it notice
-       the pending exclusive lock and back off.
-     - if the thread is an INSERT DELAYED thread, sends it a KILL
-       signal to terminate it.
-
-   @note This function does not wait for the thread to give away its
-         locks. Waiting is done outside for all threads at once.
-
-   @param thd    Current thread context
-   @param in_use The thread to wake up
-   @param needs_thr_lock_abort Indicates that to wake up thread
-                               this call needs to abort its waiting
-                               on table-level lock.
-
-   @retval  TRUE  if the thread was woken up
-   @retval  FALSE otherwise.
-
-   @note It is one of two places where border between MDL and the
-         rest of the server is broken.
-*/
-
-bool mysql_notify_thread_having_shared_lock(THD *thd, THD *in_use,
-                                            bool needs_thr_lock_abort)
-{
-  bool signalled= FALSE;
-  if ((in_use->system_thread & SYSTEM_THREAD_DELAYED_INSERT) &&
-      !in_use->killed)
-  {
-    in_use->killed= KILL_SYSTEM_THREAD;
-    mysql_mutex_lock(&in_use->mysys_var->mutex);
-    if (in_use->mysys_var->current_cond)
-    {
-      mysql_mutex_lock(in_use->mysys_var->current_mutex);
-      mysql_cond_broadcast(in_use->mysys_var->current_cond);
-      mysql_mutex_unlock(in_use->mysys_var->current_mutex);
-    }
-    mysql_mutex_unlock(&in_use->mysys_var->mutex);
-    signalled= TRUE;
-  }
-
-  if (needs_thr_lock_abort)
-  {
-    mysql_mutex_lock(&in_use->LOCK_thd_data);
-    for (TABLE *thd_table= in_use->open_tables;
-         thd_table ;
-         thd_table= thd_table->next)
-    {
-      /*
-        Check for TABLE::needs_reopen() is needed since in some places we call
-        handler::close() for table instance (and set TABLE::db_stat to 0)
-        and do not remove such instances from the THD::open_tables
-        for some time, during which other thread can see those instances
-        (e.g. see partitioning code).
-      */
-      if (!thd_table->needs_reopen())
-#ifdef WITH_WSREP
-      {
-	signalled|= mysql_lock_abort_for_thread(thd, thd_table);
-	if (thd && WSREP(thd) && wsrep_thd_is_BF((void *)thd, true)) 
-	{
-	  WSREP_DEBUG("remove_table_from_cache: %llu",
-		      (unsigned long long) thd->real_id);
-	  wsrep_abort_thd((void *)thd, (void *)in_use, FALSE);
-	}
-      }
-#else
-        signalled|= mysql_lock_abort_for_thread(thd, thd_table);
-#endif
-    }
-    mysql_mutex_unlock(&in_use->LOCK_thd_data);
-  }
-  return signalled;
-}
-
 
 int setup_ftfuncs(SELECT_LEX *select_lex)
 {

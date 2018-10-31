@@ -413,6 +413,7 @@ void TABLE_SHARE::destroy()
     ha_share= NULL;                             // Safety
   }
 
+  delete_stat_values_for_table_share(this);
   free_root(&stats_cb.mem_root, MYF(0));
   stats_cb.stats_can_be_read= FALSE;
   stats_cb.stats_is_read= FALSE;
@@ -7254,3 +7255,22 @@ double KEY::actual_rec_per_key(uint i)
           read_stats->get_avg_frequency(i) : (double) rec_per_key[i]);
 }
 
+LEX_CSTRING *fk_option_name(enum_fk_option opt)
+{
+  static LEX_CSTRING names[]=
+  {
+    { STRING_WITH_LEN("???") },
+    { STRING_WITH_LEN("RESTRICT") },
+    { STRING_WITH_LEN("CASCADE") },
+    { STRING_WITH_LEN("SET NULL") },
+    { STRING_WITH_LEN("NO ACTION") },
+    { STRING_WITH_LEN("SET DEFAULT") }
+  };
+  return names + opt;
+}
+
+bool fk_modifies_child(enum_fk_option opt)
+{
+  static bool can_write[]= { false, false, true, true, false, true };
+  return can_write[opt];
+}

@@ -1429,6 +1429,9 @@ enum enum_schema_table_state
   PROCESSED_BY_JOIN_EXEC
 };
 
+enum enum_fk_option { FK_OPTION_UNDEF, FK_OPTION_RESTRICT, FK_OPTION_CASCADE,
+               FK_OPTION_SET_NULL, FK_OPTION_NO_ACTION, FK_OPTION_SET_DEFAULT};
+
 typedef struct st_foreign_key_info
 {
   LEX_STRING *foreign_id;
@@ -1436,12 +1439,15 @@ typedef struct st_foreign_key_info
   LEX_STRING *foreign_table;
   LEX_STRING *referenced_db;
   LEX_STRING *referenced_table;
-  LEX_STRING *update_method;
-  LEX_STRING *delete_method;
+  enum_fk_option update_method;
+  enum_fk_option delete_method;
   LEX_STRING *referenced_key_name;
   List<LEX_STRING> foreign_fields;
   List<LEX_STRING> referenced_fields;
 } FOREIGN_KEY_INFO;
+
+LEX_CSTRING *fk_option_name(enum_fk_option opt);
+bool fk_modifies_child(enum_fk_option opt);
 
 #define MY_I_S_MAYBE_NULL 1
 #define MY_I_S_UNSIGNED   2
@@ -1689,6 +1695,14 @@ struct TABLE_LIST
                              const char *alias_arg,
                              enum thr_lock_type lock_type_arg)
   {
+    enum enum_mdl_type mdl_type;
+    if (lock_type_arg >= TL_WRITE_ALLOW_WRITE)
+      mdl_type= MDL_SHARED_WRITE;
+    else if (lock_type_arg == TL_READ_NO_INSERT)
+      mdl_type= MDL_SHARED_NO_WRITE;
+    else
+      mdl_type= MDL_SHARED_READ;
+
     bzero((char*) this, sizeof(*this));
     db= (char*) db_name_arg;
     db_length= db_length_arg;
@@ -1696,10 +1710,31 @@ struct TABLE_LIST
     table_name_length= table_name_length_arg;
     alias= (char*) (alias_arg ? alias_arg : table_name_arg);
     lock_type= lock_type_arg;
-    mdl_request.init(MDL_key::TABLE, db, table_name,
-                     (lock_type >= TL_WRITE_ALLOW_WRITE) ?
-                     MDL_SHARED_WRITE : MDL_SHARED_READ,
-                     MDL_TRANSACTION);
+    mdl_request.init(MDL_key::TABLE, db, table_name, mdl_type, MDL_TRANSACTION);
+  }
+
+  inline void init_one_table_for_prelocking(const char *db_name_arg,
+                             size_t db_length_arg,
+                             const char *table_name_arg,
+                             size_t table_name_length_arg,
+                             const char *alias_arg,
+                             enum thr_lock_type lock_type_arg,
+                             bool routine,
+                             TABLE_LIST *belong_to_view_arg,
+                             uint8 trg_event_map_arg,
+                             TABLE_LIST ***last_ptr)
+  {
+    init_one_table(db_name_arg, db_length_arg, table_name_arg,
+                   table_name_length_arg, alias_arg, lock_type_arg);
+    cacheable_table= 1;
+    prelocking_placeholder= routine ? ROUTINE : FK;
+    open_type= routine ? OT_TEMPORARY_OR_BASE : OT_BASE_ONLY;
+    belong_to_view= belong_to_view_arg;
+    trg_event_map= trg_event_map_arg;
+
+    **last_ptr= this;
+    prev_global= *last_ptr;
+    *last_ptr= &next_global;
   }
 
   /*
@@ -1977,7 +2012,7 @@ struct TABLE_LIST
     This TABLE_LIST object is just placeholder for prelocking, it will be
     used for implicit LOCK TABLES only and won't be used in real statement.
   */
-  bool          prelocking_placeholder;
+  enum { USER, ROUTINE, FK } prelocking_placeholder;
   /**
      Indicates that if TABLE_LIST object corresponds to the table/view
      which requires special handling.

@@ -3282,13 +3282,13 @@ innobase_convert_identifier(
 	ibool		file_id)/*!< in: TRUE=id is a table or database name;
 				FALSE=id is an UTF-8 string */
 {
-	char nz2[MAX_TABLE_NAME_LEN + 1];
 	const char*	s	= id;
 	int		q;
 
-	if (file_id) {
+	char nz[MAX_TABLE_NAME_LEN + 1];
+	char nz2[MAX_TABLE_NAME_LEN + 1];
 
-		char nz[MAX_TABLE_NAME_LEN + 1];
+	if (file_id) {
 
 		/* Decode the table name.  The MySQL function expects
 		a NUL-terminated string.  The input and output strings
@@ -12931,35 +12931,36 @@ innobase_rename_table(
 
 	row_mysql_lock_data_dictionary(trx);
 
-	dict_table_t*   table = dict_table_open_on_name(norm_from, TRUE, FALSE,
-							DICT_ERR_IGNORE_NONE);
+	dict_table_t*   table                   = NULL;
+        table = dict_table_open_on_name(norm_from, TRUE, FALSE,
+                                        DICT_ERR_IGNORE_NONE);
 
-	/* Since DICT_BG_YIELD has sleep for 250 milliseconds,
+        /* Since DICT_BG_YIELD has sleep for 250 milliseconds,
 	Convert lock_wait_timeout unit from second to 250 milliseconds */
-	long int lock_wait_timeout = thd_lock_wait_timeout(thd) * 4;
-	if (table != NULL) {
-		for (dict_index_t* index = dict_table_get_first_index(table);
-		     index != NULL;
-		     index = dict_table_get_next_index(index)) {
+        long int lock_wait_timeout = thd_lock_wait_timeout(thd) * 4;
+        if (table != NULL) {
+                for (dict_index_t* index = dict_table_get_first_index(table);
+                     index != NULL;
+                     index = dict_table_get_next_index(index)) {
 
-			if (index->type & DICT_FTS) {
-				/* Found */
-				while (index->index_fts_syncing
-					&& !trx_is_interrupted(trx)
-					&& (lock_wait_timeout--) > 0) {
-					DICT_BG_YIELD(trx);
-				}
-			}
-		}
-		dict_table_close(table, TRUE, FALSE);
-	}
+                        if (index->type & DICT_FTS) {
+                                /* Found */
+                                while (index->index_fts_syncing
+                                        && !trx_is_interrupted(trx)
+                                        && (lock_wait_timeout--) > 0) {
+                                        DICT_BG_YIELD(trx);
+                                }
+                        }
+                }
+                dict_table_close(table, TRUE, FALSE);
+        }
 
-	/* FTS sync is in progress. We shall timeout this operation */
-	if (lock_wait_timeout < 0) {
-		error = DB_LOCK_WAIT_TIMEOUT;
-		row_mysql_unlock_data_dictionary(trx);
-		DBUG_RETURN(error);
-	}
+        /* FTS sync is in progress. We shall timeout this operation */
+        if (lock_wait_timeout < 0) {
+                error = DB_LOCK_WAIT_TIMEOUT;
+                row_mysql_unlock_data_dictionary(trx);
+                DBUG_RETURN(error);
+        }
 
 	/* Transaction must be flagged as a locking transaction or it hasn't
 	been started yet. */
@@ -13124,6 +13125,12 @@ ha_innobase::rename_table(
 
 		error = DB_LOCK_WAIT;
 	}
+
+	else if (error == DB_LOCK_WAIT_TIMEOUT) {
+                my_error(ER_LOCK_WAIT_TIMEOUT, MYF(0), to);
+
+                error = DB_LOCK_WAIT;
+        }
 
 	DBUG_RETURN(convert_error_code_to_mysql(error, 0, NULL));
 }
@@ -14505,7 +14512,7 @@ get_foreign_key_info(
 
 	/* Referenced (parent) table name */
 	ptr = dict_remove_db_name(foreign->referenced_table_name);
-	len = filename_to_tablename(ptr, name_buff, sizeof(name_buff));
+	len = filename_to_tablename(ptr, name_buff, sizeof(name_buff), 1);
 	f_key_info.referenced_table = thd_make_lex_string(
 		thd, 0, name_buff, static_cast<unsigned int>(len), 1);
 
@@ -14521,7 +14528,7 @@ get_foreign_key_info(
 
 	/* Dependent (child) table name */
 	ptr = dict_remove_db_name(foreign->foreign_table_name);
-	len = filename_to_tablename(ptr, name_buff, sizeof(name_buff));
+	len = filename_to_tablename(ptr, name_buff, sizeof(name_buff), 1);
 	f_key_info.foreign_table = thd_make_lex_string(
 		thd, 0, name_buff, static_cast<unsigned int>(len), 1);
 
@@ -14537,40 +14544,24 @@ get_foreign_key_info(
 	} while (++i < foreign->n_fields);
 
 	if (foreign->type & DICT_FOREIGN_ON_DELETE_CASCADE) {
-		len = 7;
-		ptr = "CASCADE";
+		f_key_info.delete_method = FK_OPTION_CASCADE;
 	} else if (foreign->type & DICT_FOREIGN_ON_DELETE_SET_NULL) {
-		len = 8;
-		ptr = "SET NULL";
+		f_key_info.delete_method = FK_OPTION_SET_NULL;
 	} else if (foreign->type & DICT_FOREIGN_ON_DELETE_NO_ACTION) {
-		len = 9;
-		ptr = "NO ACTION";
+		f_key_info.delete_method = FK_OPTION_NO_ACTION;
 	} else {
-		len = 8;
-		ptr = "RESTRICT";
+		f_key_info.delete_method = FK_OPTION_RESTRICT;
 	}
-
-	f_key_info.delete_method = thd_make_lex_string(
-		thd, f_key_info.delete_method, ptr,
-		static_cast<unsigned int>(len), 1);
 
 	if (foreign->type & DICT_FOREIGN_ON_UPDATE_CASCADE) {
-		len = 7;
-		ptr = "CASCADE";
+		f_key_info.update_method = FK_OPTION_CASCADE;
 	} else if (foreign->type & DICT_FOREIGN_ON_UPDATE_SET_NULL) {
-		len = 8;
-		ptr = "SET NULL";
+		f_key_info.update_method = FK_OPTION_SET_NULL;
 	} else if (foreign->type & DICT_FOREIGN_ON_UPDATE_NO_ACTION) {
-		len = 9;
-		ptr = "NO ACTION";
+		f_key_info.update_method = FK_OPTION_NO_ACTION;
 	} else {
-		len = 8;
-		ptr = "RESTRICT";
+		f_key_info.update_method = FK_OPTION_RESTRICT;
 	}
-
-	f_key_info.update_method = thd_make_lex_string(
-		thd, f_key_info.update_method, ptr,
-		static_cast<unsigned int>(len), 1);
 
 	if (foreign->referenced_index && foreign->referenced_index->name) {
 		referenced_key_name = thd_make_lex_string(thd,
@@ -20022,10 +20013,10 @@ static MYSQL_SYSVAR_ULONG(ft_total_cache_size, fts_max_total_cache_size,
   "Total memory allocated for InnoDB Fulltext Search cache",
   NULL, NULL, 640000000, 32000000, 1600000000, 0);
 
-static MYSQL_SYSVAR_ULONG(ft_result_cache_limit, fts_result_cache_limit,
+static MYSQL_SYSVAR_SIZE_T(ft_result_cache_limit, fts_result_cache_limit,
   PLUGIN_VAR_RQCMDARG,
   "InnoDB Fulltext search query result cache limit in bytes",
-  NULL, NULL, 2000000000L, 1000000L, 4294967295UL, 0);
+  NULL, NULL, 2000000000L, 1000000L, SIZE_T_MAX, 0);
 
 static MYSQL_SYSVAR_ULONG(ft_min_token_size, fts_min_token_size,
   PLUGIN_VAR_RQCMDARG | PLUGIN_VAR_READONLY,

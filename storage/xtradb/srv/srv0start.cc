@@ -2105,7 +2105,8 @@ innobase_start_or_create_for_mysql()
 	ib_logf(IB_LOG_LEVEL_INFO,
 		"Initializing buffer pool, size = %.1f%c", size, unit);
 
-	err = buf_pool_init(srv_buf_pool_size, srv_buf_pool_instances);
+	err = buf_pool_init(srv_buf_pool_size, static_cast<bool>(srv_numa_interleave),
+			    srv_buf_pool_instances);
 
 	if (err != DB_SUCCESS) {
 		ib_logf(IB_LOG_LEVEL_ERROR,

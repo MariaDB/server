@@ -557,23 +557,6 @@ void mysql_lock_remove(THD *thd, MYSQL_LOCK *locked,TABLE *table)
 }
 
 
-/** Abort all other threads waiting to get lock in table. */
-
-void mysql_lock_abort(THD *thd, TABLE *table, bool upgrade_lock)
-{
-  MYSQL_LOCK *locked;
-  DBUG_ENTER("mysql_lock_abort");
-
-  if ((locked= get_lock_data(thd, &table, 1, GET_LOCK_UNLOCK)))
-  {
-    for (uint i=0; i < locked->lock_count; i++)
-      thr_abort_locks(locked->locks[i]->lock, upgrade_lock);
-    my_free(locked);
-  }
-  DBUG_VOID_RETURN;
-}
-
-
 /**
   Abort one thread / table combination.
 

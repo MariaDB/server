@@ -23,6 +23,9 @@ sub skip_combinations {
   # don't run tests for the wrong platform
   $skip{'include/platform.combinations'} = [ (IS_WINDOWS) ? 'unix' : 'win' ];
 
+  $skip{'include/maybe_debug.combinations'} =
+    [ defined $::mysqld_variables{'debug-dbug'} ? 'release' : 'debug' ];
+
   # as a special case, disable certain include files as a whole
   $skip{'include/not_embedded.inc'} = 'Not run for embedded server'
              if $::opt_embedded_server;

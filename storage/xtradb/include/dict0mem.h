@@ -292,8 +292,7 @@ dict_mem_table_add_col(
 	const char*	name,	/*!< in: column name, or NULL */
 	ulint		mtype,	/*!< in: main datatype */
 	ulint		prtype,	/*!< in: precise type */
-	ulint		len)	/*!< in: precision */
-	MY_ATTRIBUTE((nonnull(1)));
+	ulint		len);	/*!< in: precision */
 /**********************************************************************//**
 Renames a column of a table in the data dictionary cache. */
 UNIV_INTERN
@@ -519,6 +518,9 @@ struct dict_field_t{
 	unsigned	fixed_len:10;	/*!< 0 or the fixed length of the
 					column if smaller than
 					DICT_ANTELOPE_MAX_INDEX_COL_LEN */
+
+	/** Zero-initialize all fields */
+	dict_field_t() : col(NULL), name(NULL), prefix_len(0), fixed_len(0) {}
 };
 
 /**********************************************************************//**

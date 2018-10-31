@@ -575,7 +575,7 @@ bool Item_subselect::is_expensive()
     */
     if (cur_join->optimized &&
         (cur_join->zero_result_cause || !cur_join->tables_list))
-      return false;
+      continue;
 
     /*
       If a subquery is not optimized we cannot estimate its cost. A subquery is

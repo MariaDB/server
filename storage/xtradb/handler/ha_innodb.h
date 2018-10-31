@@ -191,7 +191,7 @@ class ha_innobase: public handler
 			     char* norm_name,
 			     char* temp_path,
 			     char* remote_path);
-	int create(const char *name, register TABLE *form,
+	int create(const char *name, TABLE *form,
 					HA_CREATE_INFO *create_info);
 	int truncate();
 	int delete_table(const char *name);
