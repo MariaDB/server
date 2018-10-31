@@ -1998,21 +1998,16 @@ static void __cdecl kill_server(int sig_ptr)
   else
     sql_print_error(ER_DEFAULT(ER_GOT_SIGNAL),my_progname,sig); /* purecov: inspected */
 
+#ifdef WITH_WSREP
   /* Stop wsrep threads in case they are running. */
   if (wsrep_running_threads > 0)
   {
     wsrep_shutdown_replication();
   }
+#endif
 
   close_connections();
 
-#ifdef WITH_WSREP
-  if (wsrep_inited == 1)
-  {
-    wsrep_deinit();
-    wsrep_deinit_server();
-  }
-#endif
   if (sig != MYSQL_KILL_SIGNAL &&
       sig != 0)
     unireg_abort(1);				/* purecov: inspected */

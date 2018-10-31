@@ -934,7 +934,7 @@ void wsrep_stop_replication(THD *thd)
   if (Wsrep_server_state::instance().state() !=
       Wsrep_server_state::s_disconnected)
   {
-    WSREP_DEBUG("Provider disconnect");
+    WSREP_DEBUG("Disconnect provider");
     Wsrep_server_state::instance().disconnect();
     Wsrep_server_state::instance().wait_until_state(Wsrep_server_state::s_disconnected);
   }
@@ -959,14 +959,12 @@ void wsrep_stop_replication(THD *thd)
 void wsrep_shutdown_replication()
 {
   WSREP_INFO("Shutdown replication");
-  if (Wsrep_server_state::instance().state() == wsrep::server_state::s_disconnected)
+  if (Wsrep_server_state::instance().state() != wsrep::server_state::s_disconnected)
   {
-    WSREP_INFO("Provider was not loaded, in shutdown replication");
-    return;
+    WSREP_DEBUG("Disconnect provider");
+    Wsrep_server_state::instance().disconnect();
+    Wsrep_server_state::instance().wait_until_state(Wsrep_server_state::s_disconnected);
   }
-
-  WSREP_DEBUG("Provider disconnect");
-  Wsrep_server_state::instance().disconnect();
 
   wsrep_close_client_connections(TRUE);
   // wsrep_close_SR_transactions(NULL);
