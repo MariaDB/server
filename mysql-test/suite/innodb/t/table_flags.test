@@ -1,6 +1,7 @@
 --source include/innodb_page_size.inc
 # Embedded server tests do not support restarting
 --source include/not_embedded.inc
+--source include/maybe_debug.inc
 
 --disable_query_log
 call mtr.add_suppression("InnoDB: New log files created, LSN=");
@@ -22,6 +23,9 @@ let bugdir= $MYSQLTEST_VARDIR/tmp/table_flags;
 --let $d=--innodb-data-home-dir=$bugdir --innodb-log-group-home-dir=$bugdir
 --let $d=$d --innodb-data-file-path=ibdata1:10M:autoextend
 --let $d=$d --innodb-undo-tablespaces=0
+if ($have_debug) {
+--let $d=$d --debug=d,create_and_drop_garbage
+}
 --let $restart_parameters=$d --innodb-stats-persistent=0 --innodb-file-format=1
 --source include/restart_mysqld.inc
 

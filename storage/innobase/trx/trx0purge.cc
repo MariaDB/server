@@ -254,7 +254,7 @@ trx_purge_add_update_undo_to_history(
 	fts_drop_orphaned_tables(), and roll back recovered transactions. */
 	ut_ad(srv_undo_sources
 	      || trx->undo_no == 0
-	      || ((srv_startup_is_before_trx_rollback_phase
+	      || ((srv_is_being_started
 		   || trx_rollback_or_clean_is_active)
 		  && purge_sys->state == PURGE_STATE_INIT));
 

@@ -26,6 +26,9 @@ sub skip_combinations {
   # don't run tests for the wrong platform
   $skip{'include/platform.combinations'} = [ (IS_WINDOWS) ? 'unix' : 'win' ];
 
+  $skip{'include/maybe_debug.combinations'} =
+    [ defined $::mysqld_variables{'debug-dbug'} ? 'release' : 'debug' ];
+
   # and for the wrong word size
   # check for exact values, in case the default changes to be small everywhere
   my $longsysvar= $::mysqld_variables{'max-binlog-stmt-cache-size'};
@@ -35,9 +38,6 @@ sub skip_combinations {
   );
   die "unknown value max-binlog-stmt-cache-size=$longsysvar" unless $val_map{$longsysvar};
   $skip{'include/word_size.combinations'} = [ $val_map{$longsysvar} ];
-
-  $skip{'include/maybe_debug.combinations'} =
-    [ defined $::mysqld_variables{'debug-dbug'} ? 'release' : 'debug' ];
 
   # as a special case, disable certain include files as a whole
   $skip{'include/not_embedded.inc'} = 'Not run for embedded server'
