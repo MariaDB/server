@@ -1,3 +1,5 @@
+connection node_2;
+connection node_1;
 CREATE TABLE t1 (f1 INTEGER);
 SET SESSION WSREP_TRX_FRAGMENT_SIZE=1;
 START TRANSACTION;
@@ -9,6 +11,7 @@ COMMIT;
 SELECT COUNT(*) = 0 from wsrep_schema.SR;
 COUNT(*) = 0
 1
+connection node_2;
 SELECT COUNT(*) = 0 from wsrep_schema.SR;
 COUNT(*) = 0
 1

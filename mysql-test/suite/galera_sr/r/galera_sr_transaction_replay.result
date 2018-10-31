@@ -1,7 +1,12 @@
+connection node_2;
+connection node_1;
+connect node_1a, 127.0.0.1, root, , test, $NODE_MYPORT_1;
 SET SESSION wsrep_sync_wait = 0;
+connection node_1;
 CREATE TABLE t1 (f1 INTEGER PRIMARY KEY, f2 CHAR(1));
 INSERT INTO t1 VALUES (1, 'a');
 INSERT INTO t1 VALUES (2, 'a');
+connection node_1;
 SET AUTOCOMMIT=ON;
 SET SESSION wsrep_trx_fragment_size = 1;
 START TRANSACTION;
@@ -9,13 +14,18 @@ UPDATE t1 SET f2 = 'b' WHERE f1 = 1;
 SELECT * FROM t1 WHERE f1 = 2 FOR UPDATE;
 f1	f2
 2	a
+connection node_1a;
 SET GLOBAL wsrep_provider_options = 'dbug=d,apply_monitor_slave_enter_sync';
+connection node_2;
 UPDATE t1 SET f2 = 'c' WHERE f1 = 2;
+connection node_1a;
 SET SESSION wsrep_on = 0;
 SET SESSION wsrep_on = 1;
 SET GLOBAL wsrep_provider_options = 'dbug=';
 SET GLOBAL wsrep_provider_options = 'dbug=d,local_monitor_master_enter_sync';
+connection node_1;
 COMMIT;
+connection node_1a;
 SET SESSION wsrep_sync_wait = 0;
 SET SESSION wsrep_on = 0;
 SET SESSION wsrep_on = 1;
@@ -27,6 +37,7 @@ SET SESSION wsrep_on = 1;
 SET GLOBAL wsrep_provider_options = 'dbug=';
 SET GLOBAL wsrep_provider_options = 'signal=abort_trx_end';
 SET GLOBAL wsrep_provider_options = 'signal=local_monitor_master_enter_sync';
+connection node_1;
 SELECT COUNT(*) = 1 FROM t1 WHERE f2 = 'b';
 COUNT(*) = 1
 1
@@ -38,6 +49,7 @@ COUNT(*) = 0
 1
 wsrep_local_replays
 1
+connection node_2;
 SELECT COUNT(*) = 1 FROM t1 WHERE f2 = 'b';
 COUNT(*) = 1
 1
@@ -50,6 +62,7 @@ COUNT(*) = 0
 DELETE FROM t1;
 INSERT INTO t1 VALUES (1, 'a');
 INSERT INTO t1 VALUES (2, 'a');
+connection node_1;
 SET AUTOCOMMIT=ON;
 SET SESSION wsrep_trx_fragment_size = 1;
 START TRANSACTION;
@@ -59,13 +72,18 @@ UPDATE t1 SET f2 = 'b' WHERE f1 = 1;
 SELECT * FROM t1 WHERE f1 = 2 FOR UPDATE;
 f1	f2
 2	a
+connection node_1a;
 SET GLOBAL wsrep_provider_options = 'dbug=d,apply_monitor_slave_enter_sync';
+connection node_2;
 UPDATE t1 SET f2 = 'c' WHERE f1 = 2;
+connection node_1a;
 SET SESSION wsrep_on = 0;
 SET SESSION wsrep_on = 1;
 SET GLOBAL wsrep_provider_options = 'dbug=';
 SET GLOBAL wsrep_provider_options = 'dbug=d,local_monitor_master_enter_sync';
+connection node_1;
 COMMIT;
+connection node_1a;
 SET SESSION wsrep_sync_wait = 0;
 SET SESSION wsrep_on = 0;
 SET SESSION wsrep_on = 1;
@@ -77,6 +95,7 @@ SET SESSION wsrep_on = 1;
 SET GLOBAL wsrep_provider_options = 'dbug=';
 SET GLOBAL wsrep_provider_options = 'signal=abort_trx_end';
 SET GLOBAL wsrep_provider_options = 'signal=local_monitor_master_enter_sync';
+connection node_1;
 SELECT COUNT(*) = 1 FROM t1 WHERE f2 = 'b';
 COUNT(*) = 1
 1
@@ -88,6 +107,7 @@ COUNT(*) = 0
 1
 wsrep_local_replays
 1
+connection node_2;
 SELECT COUNT(*) = 1 FROM t1 WHERE f2 = 'b';
 COUNT(*) = 1
 1
