@@ -1957,6 +1957,7 @@ lock table t1 read;
 connect con1, localhost, root,,;
 connection con1;
 flush tables;
+flush tables t1;
 connection default;
 select * from information_schema.views;
 TABLE_CATALOG	def

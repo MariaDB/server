@@ -500,7 +500,7 @@ connect  con1,localhost,root,,test;
 LOCK TABLE t2 WRITE;
 SET lock_wait_timeout= 1;
 FLUSH TABLES;
-ERROR HY000: Lock wait timeout exceeded; try restarting transaction
+FLUSH TABLES t2;
 UNLOCK TABLES;
 disconnect con1;
 connection default;

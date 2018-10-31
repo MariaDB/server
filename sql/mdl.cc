@@ -1862,11 +1862,8 @@ MDL_context::try_acquire_lock_impl(MDL_request *mdl_request,
   MDL_ticket *ticket;
   enum_mdl_duration found_duration;
 
-  DBUG_ASSERT(mdl_request->type != MDL_EXCLUSIVE ||
-              is_lock_owner(MDL_key::GLOBAL, "", "", MDL_INTENTION_EXCLUSIVE));
-  DBUG_ASSERT(mdl_request->ticket == NULL);
-
   /* Don't take chances in production. */
+  DBUG_ASSERT(mdl_request->ticket == NULL);
   mdl_request->ticket= NULL;
 
   /*

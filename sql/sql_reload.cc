@@ -329,25 +329,21 @@ bool reload_acl_and_cache(THD *thd, unsigned long long options,
       }
 
 #ifdef WITH_WSREP
-      if (thd && thd->wsrep_applier)
+      /* In case of applier thread, do not call flush tables */
+      if (!thd || !thd->wsrep_applier)
+#endif /* WITH_WSREP */
       {
-        /*
-          In case of applier thread, do not wait for table share(s) to be
-          removed from table definition cache.
-        */
-        options|= REFRESH_FAST;
-      }
-#endif
-      if (close_cached_tables(thd, tables,
-                              ((options & REFRESH_FAST) ?  FALSE : TRUE),
-                              (thd ? thd->variables.lock_wait_timeout :
-                               LONG_TIMEOUT)))
-      {
-        /*
-          NOTE: my_error() has been already called by reopen_tables() within
-          close_cached_tables().
-        */
-        result= 1;
+        if (close_cached_tables(thd, tables,
+                                ((options & REFRESH_FAST) ?  FALSE : TRUE),
+                                (thd ? thd->variables.lock_wait_timeout :
+                                 LONG_TIMEOUT)))
+        {
+          /*
+            NOTE: my_error() has been already called by reopen_tables() within
+            close_cached_tables().
+          */
+          result= 1;
+        }
       }
     }
     my_dbopt_cleanup();

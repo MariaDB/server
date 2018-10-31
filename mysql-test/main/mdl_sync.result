@@ -2146,10 +2146,11 @@ flush tables t1, t2 with read lock;
 connection con1;
 # Wait till FLUSH TABLES <list> WITH READ LOCK stops.
 set debug_sync='now WAIT_FOR parked';
+flush tables;
 # Start a statement which will flush all tables and thus
 # invalidate table t1 open by FLUSH TABLES <list> WITH READ LOCK.
 # Sending:
-flush tables;
+flush tables t1;
 connection default;
 # Wait till the above FLUSH TABLES blocks.
 # Resume FLUSH TABLES <list> WITH READ LOCK, so it tries to open t2

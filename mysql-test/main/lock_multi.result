@@ -531,8 +531,9 @@ connect con3, localhost, root;
 connection default;
 LOCK TABLE t1 READ;
 connection con3;
-# Sending:
 FLUSH TABLES;
+# Sending:
+FLUSH TABLES t1;
 connection con2;
 SELECT * FROM t1;
 ERROR HY000: Lock wait timeout exceeded; try restarting transaction

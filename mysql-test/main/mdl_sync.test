@@ -2690,17 +2690,20 @@ connection con1;
 --echo # Wait till FLUSH TABLES <list> WITH READ LOCK stops.
 set debug_sync='now WAIT_FOR parked';
 
+# Simple flush tables should not block
+flush tables;
+
 --echo # Start a statement which will flush all tables and thus
 --echo # invalidate table t1 open by FLUSH TABLES <list> WITH READ LOCK.
 --echo # Sending:
-send flush tables;
+send flush tables t1;
 
 connection default;
 --echo # Wait till the above FLUSH TABLES blocks.
 let $wait_condition=
   select count(*) = 1 from information_schema.processlist
-  where state = "Waiting for table flush" and
-        info = "flush tables";
+  where state = "Waiting for table metadata lock" and
+        info = "flush tables t1";
 --source include/wait_condition.inc
 
 --echo # Resume FLUSH TABLES <list> WITH READ LOCK, so it tries to open t2
