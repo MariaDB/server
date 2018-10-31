@@ -2056,7 +2056,9 @@ static bool acl_load(THD *thd, const Grant_tables& tables)
                                  user_table.authentication_string()));
             user.auth_string.length= strlen(user.auth_string.str);
 
-            if (user.auth_string.length && password_len)
+            if (user.auth_string.length && password_len &&
+                (user.auth_string.length != password_len ||
+                 memcmp(user.auth_string.str, password, password_len)))
             {
               sql_print_warning("'user' entry '%s@%s' has both a password "
                                 "and an authentication plugin specified. The "
@@ -3927,7 +3929,6 @@ static bool update_user_table(THD *thd, const User_table& user_table,
   {
     set_authentication_plugin_from_password(user_table, new_password,
                                             new_password_len);
-    new_password_len= 0;
   }
 
   if (user_table.password())
