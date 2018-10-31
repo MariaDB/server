@@ -51,6 +51,14 @@ static inline bool wsrep_has_changes(THD* thd, my_bool all)
   return (thd->wsrep_trx().is_empty() == false);
 }
 
+/*
+  Check is an active transaction has been BF aborted.
+ */
+static inline bool wsrep_is_bf_aborted(THD* thd)
+{
+  return (thd->wsrep_trx().active() && thd->wsrep_trx().bf_aborted());
+}
+
 static inline int wsrep_check_pk(THD* thd)
 {
   if (!wsrep_certify_nonPK)

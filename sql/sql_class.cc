@@ -72,6 +72,7 @@
 #include "mysql/service_wsrep.h"
 #include "wsrep_binlog.h" /* wsrep_fragment_unit() */
 #include "wsrep_thd.h"
+#include "wsrep_trans_observer.h"
 #endif /* WITH_WSREP */
 
 #ifdef HAVE_SYS_SYSCALL_H
@@ -1881,7 +1882,8 @@ void THD::awake_no_mutex(killed_state state_to_set)
   }
 
   /* Interrupt target waiting inside a storage engine. */
-  if (state_to_set != NOT_KILLED)
+  if (IF_WSREP(state_to_set != NOT_KILLED  && !wsrep_is_bf_aborted(this),
+               state_to_set != NOT_KILLED))
     ha_kill_query(this, thd_kill_level(this));
 
   /* Broadcast a condition to kick the target if it is waiting on it. */
