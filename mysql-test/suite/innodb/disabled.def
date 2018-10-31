@@ -9,4 +9,4 @@
 #  Do not use any TAB characters for whitespace.
 #
 ##############################################################################
-
+table_flags: crashes on assert, Marko to fix
