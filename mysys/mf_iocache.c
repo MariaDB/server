@@ -353,6 +353,15 @@ int init_slave_io_cache(IO_CACHE *master, IO_CACHE *slave)
 
 void end_slave_io_cache(IO_CACHE *cache)
 {
+  /* Remove the cache from the next_file_user circular linked list. */
+  if (cache->next_file_user != cache)
+  {
+    IO_CACHE *p= cache->next_file_user;
+    while (p->next_file_user != cache)
+      p= p->next_file_user;
+    p->next_file_user= cache->next_file_user;
+
+  }
   my_free(cache->buffer);
 }
 
