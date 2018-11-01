@@ -326,7 +326,7 @@ void mdev17133()
       MY_MIN(sizeof(buf_o),
              info.end_of_file + eof_block_size +
              // plus 25% of block for randomization to the average
-             (eof_block_size/4 - rand() % (eof_block_size/2)));
+             eof_block_size/4 - rand() % (eof_block_size/2));
 
     // read a chunk by blocks of variable size read_iter times
     // the last block completes the current chunk
