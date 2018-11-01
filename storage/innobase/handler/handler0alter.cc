@@ -869,12 +869,9 @@ ha_innobase::check_if_supported_inplace_alter(
 {
 	DBUG_ENTER("check_if_supported_inplace_alter");
 
-	const bool need_rebuild = innobase_need_rebuild(ha_alter_info, table);
-
-	if (need_rebuild
-	    && altered_table->versioned(VERS_TIMESTAMP)
-	    && (ha_alter_info->handler_flags
-		& INNOBASE_ALTER_VERSIONED_REBUILD)) {
+	if ((ha_alter_info->handler_flags
+	     & INNOBASE_ALTER_VERSIONED_REBUILD)
+	    && altered_table->versioned(VERS_TIMESTAMP)) {
 		ha_alter_info->unsupported_reason =
 			"Not implemented for system-versioned timestamp tables";
 		DBUG_RETURN(HA_ALTER_INPLACE_NOT_SUPPORTED);
@@ -1312,7 +1309,8 @@ next_column:
 		DBUG_RETURN(HA_ALTER_INPLACE_INSTANT);
 	}
 
-	bool	fts_need_rebuild = false;
+	bool fts_need_rebuild = false;
+	const bool need_rebuild = innobase_need_rebuild(ha_alter_info, table);
 
 	if (!online) {
 		/* We already determined that only a non-locking
