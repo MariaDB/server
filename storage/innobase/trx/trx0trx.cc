@@ -1838,9 +1838,6 @@ trx_commit_low(
 	bool	serialised;
 
 	if (mtr != NULL) {
-
-		mtr->set_sync();
-
 		serialised = trx_write_serialisation_history(trx, mtr);
 
 		/* The following call commits the mini-transaction, making the
@@ -1905,7 +1902,7 @@ trx_commit(
 
 	if (trx->has_logged()) {
 		mtr = &local_mtr;
-		mtr_start_sync(mtr);
+		mtr->start();
 	} else {
 
 		mtr = NULL;
@@ -2566,7 +2563,7 @@ trx_prepare_low(trx_t* trx)
 
 	trx_rseg_t*	rseg = trx->rsegs.m_redo.rseg;
 
-	mtr.start(true);
+	mtr.start();
 
 	/* Change the undo log segment states from TRX_UNDO_ACTIVE to
 	TRX_UNDO_PREPARED: these modifications to the file data
