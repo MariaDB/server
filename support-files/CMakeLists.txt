@@ -50,13 +50,6 @@ FOREACH(inifile my-huge my-innodb-heavy-4G my-large my-medium my-small)
 ENDFOREACH()
 ENDIF()
 
-IF(WITH_WSREP)
-  CONFIGURE_FILE(${CMAKE_CURRENT_SOURCE_DIR}/wsrep.cnf.sh
-                 ${CMAKE_CURRENT_BINARY_DIR}/wsrep.${ini_file_extension} @ONLY)
-  INSTALL(FILES ${CMAKE_CURRENT_BINARY_DIR}/wsrep.${ini_file_extension}
-          DESTINATION ${inst_location} COMPONENT IniFiles)
-ENDIF()
-
 IF(UNIX)
   SET(prefix ${CMAKE_INSTALL_PREFIX})
   FOREACH(script  mysqld_multi.server mysql-log-rotate binary-configure)
