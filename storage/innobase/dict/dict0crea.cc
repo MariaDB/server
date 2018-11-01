@@ -431,9 +431,7 @@ dict_build_table_def_step(
 
 		dberr_t err = fil_ibd_create(
 			space, table->name.m_name, filepath, fsp_flags,
-			FIL_IBD_FILE_INITIAL_SIZE,
-			node ? node->mode : FIL_ENCRYPTION_DEFAULT,
-			node ? node->key_id : FIL_DEFAULT_ENCRYPTION_KEY);
+			FIL_IBD_FILE_INITIAL_SIZE, node->mode, node->key_id);
 
 		ut_free(filepath);
 
