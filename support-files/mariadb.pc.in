@@ -20,4 +20,4 @@ Description: @CPACK_PACKAGE_DESCRIPTION_SUMMARY@
 URL: @CPACK_PACKAGE_URL@
 Version: @VERSION@
 Libs: -L${libdir} @LIBS_FOR_CLIENTS@
-Cflags: -I${includedir} -I${includedir}/.. @CFLAGS_FOR_CLIENTS@
+Cflags: -I${includedir} @CFLAGS_FOR_CLIENTS@
