@@ -6419,7 +6419,7 @@ public:
   longlong val_datetime_packed(THD *thd)
   {
     date_mode_t fuzzy= Datetime::comparison_flags_for_get_date();
-    return has_value() ? Datetime(thd, this, fuzzy).to_longlong() : 0;
+    return has_value() ? Datetime(thd, this, fuzzy).to_packed() : 0;
   }
   longlong val_time_packed(THD *thd)
   {
