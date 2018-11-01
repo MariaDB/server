@@ -66,6 +66,8 @@ override_dh_prep:
 override_dh_auto_configure:
 	@echo "RULES.$@"
 	dh_testdir
+	sed 's/@DEB_HOST_MULTIARCH@/$(DEB_HOST_MULTIARCH)/g' \
+	    debian/libmariadb-dev-compat.links.in > debian/libmariadb-dev-compat.links
 
 	# Versioned symbols are only available on Linux.
 	# Remove symbols file on kFreeBSD builds so that
