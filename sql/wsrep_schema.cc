@@ -177,13 +177,11 @@ static int execute_SQL(THD* thd, const char* sql, uint length) {
   Initialize thd for next "statement"
  */
 static void init_stmt(THD* thd) {
-  lex_start(thd);
   thd->reset_for_next_command();
 }
 
 static void finish_stmt(THD* thd) {
   trans_commit_stmt(thd);
-  thd->lex->unit.cleanup();
   close_thread_tables(thd);
 }
 
@@ -533,6 +531,7 @@ static int init_for_index_scan(TABLE* table, const uchar* key,
   case 0:
   case HA_ERR_END_OF_FILE:
   case HA_ERR_KEY_NOT_FOUND:
+  case HA_ERR_ABORTED_BY_USER:
     break;
   case -1:
     WSREP_DEBUG("init_for_index_scan interrupted");

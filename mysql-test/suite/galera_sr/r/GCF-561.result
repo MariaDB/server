@@ -1,3 +1,6 @@
+connection node_2;
+connection node_1;
+connection node_1;
 CREATE TABLE t1 (f1 INTEGER PRIMARY KEY, f2 INTEGER) ENGINE=InnoDB;
 SET SESSION wsrep_trx_fragment_size = 1;
 SET AUTOCOMMIT=OFF;
@@ -7,6 +10,7 @@ INSERT INTO t1 VALUES (2, 2);
 INSERT INTO t1 VALUES (3, 3);
 INSERT INTO t1 VALUES (4, 4);
 INSERT INTO t1 VALUES (5, 5);
+connection node_2;
 SET SESSION TRANSACTION ISOLATION LEVEL READ UNCOMMITTED;
 SELECT COUNT(*) > 0 FROM wsrep_schema.SR;
 COUNT(*) > 0
@@ -18,6 +22,7 @@ COUNT(*) = 0
 SELECT COUNT(*) = 0 FROM wsrep_schema.SR;
 COUNT(*) = 0
 1
+connection node_1;
 INSERT INTO t1 VALUES (6, 6);
 ERROR 40001: Deadlock found when trying to get lock; try restarting transaction
 SELECT COUNT(*) = 0 FROM wsrep_schema.SR;
@@ -31,8 +36,11 @@ INSERT INTO t1 VALUES (2);
 INSERT INTO t1 VALUES (3);
 INSERT INTO t1 VALUES (4);
 INSERT INTO t1 VALUES (5);
+connection node_2;
 SET SESSION TRANSACTION ISOLATION LEVEL READ UNCOMMITTED;
+connection node_1;
 COMMIT;
+connection node_2;
 SELECT COUNT(*) = 5 FROM t1;
 COUNT(*) = 5
 1

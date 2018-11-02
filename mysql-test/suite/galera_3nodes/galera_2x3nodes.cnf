@@ -10,7 +10,6 @@ default-storage-engine=innodb
 wsrep_gtid_mode=1
 gtid_ignore_duplicates
 
-wsrep-on=1
 wsrep-provider=@ENV.WSREP_PROVIDER
 wsrep_node_address=127.0.0.1
 # enforce read-committed characteristics across the cluster
@@ -21,6 +20,7 @@ wsrep_node_address=127.0.0.1
 #galera_port=@OPT.port
 #ist_port=@OPT.port
 #sst_port=@OPT.port
+wsrep-on=1
 wsrep-cluster-address='gcomm://'
 wsrep_provider_options='base_port=@mysqld.1.#galera_port;evs.suspect_timeout=PT300S;evs.inactive_timeout=PT1000M;evs.install_timeout=PT155S;evs.keepalive_period = PT100S'
 
@@ -32,6 +32,7 @@ wsrep_sst_receive_address='127.0.0.1:@mysqld.1.#sst_port'
 #galera_port=@OPT.port
 #ist_port=@OPT.port
 #sst_port=@OPT.port
+wsrep-on=1
 wsrep_cluster_address='gcomm://127.0.0.1:@mysqld.1.#galera_port'
 wsrep_provider_options='base_port=@mysqld.2.#galera_port;evs.suspect_timeout=PT300S;evs.inactive_timeout=PT1000M;evs.install_timeout=PT155S;evs.keepalive_period = PT100S'
 
@@ -43,6 +44,7 @@ wsrep_sst_receive_address='127.0.0.1:@mysqld.2.#sst_port'
 #galera_port=@OPT.port
 #ist_port=@OPT.port
 #sst_port=@OPT.port
+wsrep-on=1
 wsrep_cluster_address='gcomm://127.0.0.1:@mysqld.1.#galera_port'
 wsrep_provider_options='base_port=@mysqld.3.#galera_port;evs.suspect_timeout=PT300S;evs.inactive_timeout=PT1000M;evs.install_timeout=PT155S;evs.keepalive_period = PT100S'
 
@@ -56,7 +58,7 @@ wsrep_cluster_name=cluster2
 #galera_port=@OPT.port
 #ist_port=@OPT.port
 #sst_port=@OPT.port
-
+wsrep-on=1
 wsrep-cluster-address='gcomm://'
 wsrep_provider_options='base_port=@mysqld.4.#galera_port;evs.suspect_timeout=PT300S;evs.inactive_timeout=PT1000M;evs.install_timeout=PT155S;evs.keepalive_period = PT100S'
 
@@ -69,6 +71,7 @@ wsrep_cluster_name=cluster2
 #galera_port=@OPT.port
 #ist_port=@OPT.port
 #sst_port=@OPT.port
+wsrep-on=1
 wsrep_cluster_address='gcomm://127.0.0.1:@mysqld.4.#galera_port'
 wsrep_provider_options='base_port=@mysqld.5.#galera_port;evs.suspect_timeout=PT300S;evs.inactive_timeout=PT1000M;evs.install_timeout=PT155S;evs.keepalive_period = PT100S'
 
@@ -81,6 +84,7 @@ wsrep_cluster_name=cluster2
 #galera_port=@OPT.port
 #ist_port=@OPT.port
 #sst_port=@OPT.port
+wsrep-on=1
 wsrep_cluster_address='gcomm://127.0.0.1:@mysqld.4.#galera_port'
 wsrep_provider_options='base_port=@mysqld.6.#galera_port;evs.suspect_timeout=PT300S;evs.inactive_timeout=PT1000M;evs.install_timeout=PT155S;evs.keepalive_period = PT100S'
 

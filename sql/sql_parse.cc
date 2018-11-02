@@ -3740,10 +3740,15 @@ mysql_execute_command(THD *thd)
     Transaction is started for BEGIN in trans_begin(), for DDL the
     implicit commit took care of committing previous transaction
     above and a new transaction should not be started.
-   */
-  if (WSREP(thd)                       &&
-      wsrep_thd_is_local(thd)          &&
-      lex->sql_command != SQLCOM_BEGIN &&
+
+    Do not start transaction for stored procedures, it will be handled
+    internally in SP processing.
+  */
+  if (WSREP(thd)                          &&
+      wsrep_thd_is_local(thd)             &&
+      lex->sql_command != SQLCOM_BEGIN    &&
+      lex->sql_command != SQLCOM_CALL     &&
+      lex->sql_command != SQLCOM_EXECUTE  &&
       !(sql_command_flags[lex->sql_command] & CF_AUTO_COMMIT_TRANS))
   {
     wsrep_start_trx_if_not_started(thd);

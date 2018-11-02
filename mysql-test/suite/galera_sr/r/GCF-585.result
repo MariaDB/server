@@ -1,3 +1,5 @@
+connection node_2;
+connection node_1;
 create table t1 (f1 integer primary key) engine=innodb;
 set autocommit=off;
 set session wsrep_trx_fragment_size=1;
@@ -13,6 +15,7 @@ SET SESSION wsrep_trx_fragment_size=1;
 SET AUTOCOMMIT=OFF;
 START TRANSACTION;
 update t1 set f1 = 100 where f1 = 10;
+connection node_2;
 INSERT INTO t1 VALUES (11),(12),(13),(14),(15),(16),(17),(18),(19),(20);
 SET SESSION wsrep_trx_fragment_size=1;
 SET SESSION innodb_lock_wait_timeout=1;

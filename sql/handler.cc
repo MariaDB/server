@@ -1394,7 +1394,6 @@ int ha_commit_trans(THD *thd, bool all)
 #ifdef WITH_WSREP
     if (WSREP(thd) && all && !error && trans_was_empty)
     {
-      WSREP_DEBUG("was empty handler");
       wsrep_commit_empty(thd, all);
     }
 #endif /* WITH_WSREP */
@@ -1493,7 +1492,24 @@ int ha_commit_trans(THD *thd, bool all)
 
   if (trans->no_2pc || (rw_ha_count <= 1))
   {
+#ifdef WITH_WSREP
+    /*
+      This commit will not go through log_and_order() where wsrep commit
+      ordering is normally done. Commit ordering must be done here.
+    */
+    bool run_wsrep_commit= (WSREP(thd)              &&
+                            rw_ha_count             &&
+                            wsrep_thd_is_local(thd) &&
+                            wsrep_has_changes(thd, all));
+    if (run_wsrep_commit)
+      error= wsrep_before_commit(thd, all);
+    if (error) goto done;
+#endif /* WITH_WSREP */
     error= ha_commit_one_phase(thd, all);
+#ifdef WITH_WSREP
+    if (run_wsrep_commit)
+      error= wsrep_after_commit(thd, all);
+#endif /* WITH_WSREP */
     goto done;
   }
 
@@ -1537,7 +1553,10 @@ int ha_commit_trans(THD *thd, bool all)
     error= commit_one_phase_2(thd, all, trans, is_real_trans);
     goto done;
   }
-  
+#ifdef WITH_WSREP
+  if (wsrep_before_commit(thd, all))
+    goto wsrep_err;
+#endif /* WITH_WSREP */
   DEBUG_SYNC(thd, "ha_commit_trans_before_log_and_order");
   cookie= tc_log->log_and_order(thd, xid, all, need_prepare_ordered,
                                 need_commit_ordered);
@@ -1546,13 +1565,12 @@ int ha_commit_trans(THD *thd, bool all)
     WSREP_DEBUG("log_and_order has failed %llu %d", thd->thread_id, cookie);
     goto err;
   }
-
   DEBUG_SYNC(thd, "ha_commit_trans_after_log_and_order");
   DBUG_EXECUTE_IF("crash_commit_after_log", DBUG_SUICIDE(););
 
   error= commit_one_phase_2(thd, all, trans, is_real_trans) ? 2 : 0;
 #ifdef WITH_WSREP
-  if (error)
+  if (error || wsrep_after_commit(thd, all))
   {
     mysql_mutex_lock(&thd->LOCK_thd_data);
     if (thd->wsrep_trx().state() == wsrep::transaction::s_must_abort)
@@ -6057,10 +6075,10 @@ bool handler::check_table_binlog_row_based(bool binlog_row)
   if (unlikely((table->in_use->variables.sql_log_bin_off)))
     return 0;                            /* Called by partitioning engine */
 #ifdef WITH_WSREP
-  if (!table->in_use->variables.sql_log_bin)
-    return 0;      /* wsrep patch sets sql_log_bin directly to silence
-                      binlogging
-                   */
+  if (!table->in_use->variables.sql_log_bin &&
+      wsrep_thd_is_applying(table->in_use))
+    return 0;      /* wsrep patch sets sql_log_bin to silence binlogging
+                      from high priority threads */
 #endif /* WITH_WSREP */
   if (unlikely((!check_table_binlog_row_based_done)))
   {

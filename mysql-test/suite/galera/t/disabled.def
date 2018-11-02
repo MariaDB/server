@@ -11,3 +11,4 @@ galera_gcache_recover_manytrx : is worked on with tracker GCF-1077
 GCF-1081 : tries to BF abort earlier trx, needs to be reimplemented
 galera_bf_abort_group_commit : requires galera_sr_bf_abort.inc, probably needs reimplementation
 galera_as_slave_gtid_replicate_do_db_cc : assertion 
+galera_autoinc_sst_xtrabackup : fails and reserves SST port until socat times out

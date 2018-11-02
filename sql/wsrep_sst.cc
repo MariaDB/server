@@ -440,6 +440,9 @@ static void* sst_joiner_thread (void* a)
 
       if (!pos) {
         // There is no wsrep_gtid_domain_id (some older version SST script?).
+        WSREP_WARN("Did not find domain ID from SST script output '%s'. "
+                   "Domain ID must be set manually to keep binlog consistent",
+                   out);
         err= sst_scan_uuid_seqno (out, &ret_uuid, &ret_seqno);
 
       } else {
@@ -1059,8 +1062,9 @@ static int sst_flush_tables(THD* thd)
 
       uuid_oss << server_state.current_view().state_id().id();
 
-      fprintf(file, "%s:%lld\n",
-              uuid_oss.str().c_str(), server_state.pause_seqno().get());
+      fprintf(file, "%s:%lld %u\n",
+              uuid_oss.str().c_str(), server_state.pause_seqno().get(),
+              wsrep_gtid_domain_id);
       fsync(fileno(file));
       fclose(file);
       if (rename(tmp_name, real_name) == -1)
