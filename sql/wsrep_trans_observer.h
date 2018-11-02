@@ -52,7 +52,7 @@ static inline bool wsrep_has_changes(THD* thd, my_bool all)
 }
 
 /*
-  Check is an active transaction has been BF aborted.
+  Check if an active transaction has been BF aborted.
  */
 static inline bool wsrep_is_bf_aborted(THD* thd)
 {
@@ -133,6 +133,7 @@ static inline bool wsrep_run_commit_hook(THD* thd, bool all)
   return (wsrep_is_real(thd, all) && wsrep_is_active(thd) &&
           (wsrep_thd_is_applying(thd) || wsrep_has_changes(thd, all)));
 }
+
 /*
   Called before the transaction is prepared.
 

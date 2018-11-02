@@ -8108,7 +8108,6 @@ MYSQL_BIN_LOG::trx_group_commit_leader(group_commit_entry *leader)
     if (current->cache_mngr->using_xa && likely(!current->error) &&
         DBUG_EVALUATE_IF("skip_commit_ordered", 0, 1))
       run_commit_ordered(current->thd, current->all);
-
     current->thd->wakeup_subsequent_commits(current->error);
 
     /*
