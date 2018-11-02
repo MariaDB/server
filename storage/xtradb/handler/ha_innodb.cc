@@ -4,7 +4,7 @@ Copyright (c) 2000, 2018, Oracle and/or its affiliates. All Rights Reserved.
 Copyright (c) 2008, 2009 Google Inc.
 Copyright (c) 2009, Percona Inc.
 Copyright (c) 2012, Facebook Inc.
-Copyright (c) 2013, 2017, MariaDB Corporation.
+Copyright (c) 2013, 2018, MariaDB Corporation.
 
 Portions of this file contain modifications contributed and copyrighted by
 Google, Inc. Those modifications are gratefully acknowledged and are described
@@ -19609,15 +19609,6 @@ ha_rows ha_innobase::multi_range_read_info(uint keyno, uint n_ranges, uint keys,
 int ha_innobase::multi_range_read_explain_info(uint mrr_mode, char *str, size_t size)
 {
   return ds_mrr.dsmrr_explain_info(mrr_mode, str, size);
-}
-
-/* 
-  A helper function used only in index_cond_func_innodb
-*/
-
-bool ha_innobase::is_thd_killed()
-{ 
-  return thd_kill_level(user_thd);
 }
 
 /**********************************************************************
