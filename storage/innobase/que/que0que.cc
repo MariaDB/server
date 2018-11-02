@@ -689,7 +689,8 @@ que_thr_stop(
 		trx->lock.wait_thr = thr;
 		thr->state = QUE_THR_LOCK_WAIT;
 
-	} else if (trx->duplicates && trx->error_state == DB_DUPLICATE_KEY) {
+	} else if (trx->duplicates && trx->error_state == DB_DUPLICATE_KEY
+		   && thd_rpl_stmt_based(trx->mysql_thd)) {
 
 		return(FALSE);
 
