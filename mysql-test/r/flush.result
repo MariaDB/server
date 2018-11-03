@@ -508,7 +508,6 @@ ERROR HY000: Table 't1' was locked with a READ lock and can't be updated
 UNLOCK TABLES;
 LOCK TABLES v1 WRITE;
 FLUSH TABLES v1;
-ERROR HY000: Table 't1' was locked with a READ lock and can't be updated
 UNLOCK TABLES;
 LOCK TABLES v1 READ;
 FLUSH TABLES t1;
