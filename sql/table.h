@@ -695,6 +695,9 @@ struct TABLE_SHARE
   uint column_bitmap_size;
   uchar frm_version;
 
+  enum enum_v_keys { NOT_INITIALIZED=0, NO_V_KEYS, V_KEYS };
+  enum_v_keys check_set_initialized;
+
   bool use_ext_keys;                    /* Extended keys can be used */
   bool null_field_first;
   bool system;                          /* Set if system table (one record) */
@@ -705,7 +708,6 @@ struct TABLE_SHARE
   bool table_creation_was_logged;
   bool non_determinstic_insert;
   bool vcols_need_refixing;
-  bool check_set_initialized;
   bool has_update_default_function;
   ulong table_map_id;                   /* for row-based replication */
 
