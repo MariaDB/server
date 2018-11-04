@@ -784,6 +784,16 @@ public:
      @return The result of the operation.
   */
   virtual longlong int_op()= 0;
+  Longlong_null to_longlong_null_op()
+  {
+    longlong nr= int_op();
+    /*
+      C++ does not guarantee the order of parameter evaluation,
+      so to make sure "null_value" is passed to the constructor
+      after the int_op() call, int_op() is caled on a separate line.
+    */
+    return Longlong_null(nr, null_value);
+  }
 
   /**
      @brief Performs the operation that this functions implements when the

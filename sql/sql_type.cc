@@ -326,14 +326,13 @@ uint Year::year_precision(const Item *item) const
 
 
 VYear::VYear(Item *item)
- :Year_null(Year(item->val_int(), item->unsigned_flag,
-                 year_precision(item)), item->null_value)
+ :Year_null(item->to_longlong_null(), item->unsigned_flag, year_precision(item))
 { }
 
 
 VYear_op::VYear_op(Item_func_hybrid_field_type *item)
- :Year_null(Year(item->int_op(), item->unsigned_flag,
-                 year_precision(item)), item->null_value)
+ :Year_null(item->to_longlong_null_op(), item->unsigned_flag,
+            year_precision(item))
 { }
 
 

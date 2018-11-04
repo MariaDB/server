@@ -1,5 +1,4 @@
-/* Copyright (c) 2006, 2010, Oracle and/or its affiliates.
-   Copyright (c) 2011, 2016, MariaDB
+/* Copyright (c) 2018, MariaDB
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -18,17 +17,44 @@
 #define SQL_TYPE_INT_INCLUDED
 
 
-// A longlong/ulonglong hybrid. Good to store results of val_int().
-class Longlong_hybrid
+class Null_flag
+{
+protected:
+  bool m_is_null;
+public:
+  bool is_null() const { return m_is_null; }
+  Null_flag(bool is_null) :m_is_null(is_null) { }
+};
+
+
+class Longlong
 {
 protected:
   longlong m_value;
+public:
+  longlong value() const { return m_value; }
+  Longlong(longlong nr) :m_value(nr) { }
+};
+
+
+class Longlong_null: public Longlong, public Null_flag
+{
+public:
+  Longlong_null(longlong nr, bool is_null)
+   :Longlong(nr), Null_flag(is_null)
+  { }
+};
+
+
+// A longlong/ulonglong hybrid. Good to store results of val_int().
+class Longlong_hybrid: public Longlong
+{
+protected:
   bool m_unsigned;
 public:
   Longlong_hybrid(longlong nr, bool unsigned_flag)
-   :m_value(nr), m_unsigned(unsigned_flag)
+   :Longlong(nr), m_unsigned(unsigned_flag)
   { }
-  longlong value() const { return m_value; }
   bool is_unsigned() const { return m_unsigned; }
   bool neg() const { return m_value < 0 && !m_unsigned; }
   ulonglong abs() const

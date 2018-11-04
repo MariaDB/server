@@ -300,5 +300,14 @@ DROP TABLE t1;
 SELECT MAKEDATE(18446744073709551615, 1);
 
 --echo #
+--echo # MDEV-17607 DATE(COALESCE(year_column)) returns a wrong result
+--echo #
+
+CREATE TABLE t1 (a YEAR);
+INSERT INTO t1 VALUES (NULL);
+SELECT COALESCE(a), DATE(COALESCE(a)) FROM t1;
+DROP TABLE t1;
+
+--echo #
 --echo # End of 10.4 tests
 --echo #

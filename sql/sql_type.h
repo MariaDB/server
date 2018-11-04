@@ -412,16 +412,13 @@ public:
 };
 
 
-class Year_null: public Year
+class Year_null: public Year, public Null_flag
 {
-protected:
-  bool m_is_null;
 public:
-  Year_null(const Year &other, bool is_null)
-   :Year(is_null ? Year() : other),
-    m_is_null(is_null)
+  Year_null(const Longlong_null &nr, bool unsigned_flag, uint length)
+   :Year(nr.is_null() ? 0 : nr.value(), unsigned_flag, length),
+    Null_flag(nr.is_null())
   { }
-  bool is_null() const { return m_is_null; }
   bool to_mysql_time_with_warn(THD *thd, MYSQL_TIME *to, date_mode_t fuzzydate,
                                const char *field_name) const
   {
