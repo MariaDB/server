@@ -7063,9 +7063,16 @@ uint Field::is_equal(Create_field *new_field)
 
 uint Field_str::is_equal(Create_field *new_field)
 {
-  return new_field->type_handler() == type_handler() &&
-         new_field->charset == field_charset &&
-         new_field->length == max_display_length();
+  if (new_field->type_handler() == type_handler() &&
+      new_field->charset == field_charset)
+  {
+    if (new_field->length == max_display_length())
+      return IS_EQUAL_YES;
+    if (new_field->length > max_display_length() &&
+        (table->file->ha_table_flags() & HA_EXTENDED_TYPES_CONVERSION))
+      return IS_EQUAL_PACK_LENGTH;
+  }
+  return IS_EQUAL_NO;
 }
 
 
@@ -7901,16 +7908,26 @@ Field *Field_varstring::new_key_field(MEM_ROOT *root, TABLE *new_table,
 
 uint Field_varstring::is_equal(Create_field *new_field)
 {
-  if (new_field->type_handler() == type_handler() &&
-      new_field->charset == field_charset &&
+  if (new_field->charset == field_charset &&
       !new_field->compression_method() == !compression_method())
   {
-    if (new_field->length == field_length)
-      return IS_EQUAL_YES;
-    if (new_field->length > field_length &&
-	((new_field->length <= 255 && field_length <= 255) ||
-	 (new_field->length > 255 && field_length > 255)))
-      return IS_EQUAL_PACK_LENGTH; // VARCHAR, longer variable length
+    bool extended= (table->file->ha_table_flags() & HA_EXTENDED_TYPES_CONVERSION);
+    if (extended && new_field->type_handler() == &type_handler_string &&
+        new_field->length >= field_length)
+    {
+      return IS_EQUAL_PACK_LENGTH2;
+    }
+    if (new_field->type_handler() == type_handler())
+    {
+      if (new_field->length == field_length)
+        return IS_EQUAL_YES;
+      if (new_field->length > field_length)
+      {
+        if (extended || (new_field->length <= 255 && field_length <= 255) ||
+            (new_field->length > 255 && field_length > 255))
+          return IS_EQUAL_PACK_LENGTH; // VARCHAR, longer variable length
+      }
+    }
   }
   return IS_EQUAL_NO;
 }
@@ -9480,12 +9497,19 @@ bool Field_num::eq_def(const Field *field) const
 
 uint Field_num::is_equal(Create_field *new_field)
 {
-  return ((new_field->type_handler() == type_handler()) &&
-          ((new_field->flags & UNSIGNED_FLAG) == 
-           (uint) (flags & UNSIGNED_FLAG)) &&
-	  ((new_field->flags & AUTO_INCREMENT_FLAG) ==
-	   (uint) (flags & AUTO_INCREMENT_FLAG)) &&
-          (new_field->pack_length == pack_length()));
+  bool extended= (table->file->ha_table_flags() & HA_EXTENDED_TYPES_CONVERSION);
+  if ((extended ?
+       new_field->type_handler()->result_type() == type_handler()->result_type() :
+       new_field->type_handler() == type_handler()) &&
+      ((new_field->flags & UNSIGNED_FLAG) == (uint) (flags & UNSIGNED_FLAG)) &&
+      ((new_field->flags & AUTO_INCREMENT_FLAG) == (uint) (flags & AUTO_INCREMENT_FLAG)))
+  {
+    if (new_field->pack_length == pack_length())
+      return IS_EQUAL_YES;
+    if (extended && new_field->pack_length > pack_length())
+      return IS_EQUAL_PACK_LENGTH2;
+  }
+  return IS_EQUAL_NO;
 }
 
 

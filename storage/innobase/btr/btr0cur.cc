@@ -485,8 +485,14 @@ incompatible:
 			For the metadata record, variable-length columns are
 			always written with zero length. The DB_TRX_ID will
 			start right after any fixed-length columns. */
-			for (uint i = index->n_uniq; i--; ) {
-				trx_id_offset += index->fields[i].fixed_len;
+			if (index->table->not_redundant()) {
+				for (uint i = index->n_uniq; i--; ) {
+					trx_id_offset += index->fields[i]
+						.fixed_len;
+				}
+			} else {
+				trx_id_offset = rec_get_field_start_offs(
+					rec, index->n_uniq);
 			}
 		}
 

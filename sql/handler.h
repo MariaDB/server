@@ -319,6 +319,9 @@ enum enum_alter_inplace_result {
 /* Safe for online backup */
 #define HA_CAN_ONLINE_BACKUPS (1ULL << 56)
 
+#define HA_EXTENDED_TYPES_CONVERSION (1ULL << 57)
+#define HA_LAST_TABLE_FLAG HA_EXTENDED_TYPES_CONVERSION
+
 /* bits in index_flags(index_number) for what you can do with index */
 #define HA_READ_NEXT            1       /* TODO really use this flag */
 #define HA_READ_PREV            2       /* supports ::index_prev */
@@ -735,6 +738,7 @@ typedef ulonglong alter_table_operations;
   online alter of all partitions atomically (using group_commit_ctx)
 */
 #define ALTER_PARTITIONED                    (1ULL << 59)
+#define ALTER_COLUMN_EQUAL_PACK_LENGTH2      (1ULL << 60)
 
 /*
   Flags set in partition_flags when altering partitions
@@ -3133,7 +3137,11 @@ public:
   /**
     The cached_table_flags is set at ha_open and ha_external_lock
   */
-  Table_flags ha_table_flags() const { return cached_table_flags; }
+  Table_flags ha_table_flags() const
+  {
+    DBUG_ASSERT(cached_table_flags < (HA_LAST_TABLE_FLAG << 1));
+    return cached_table_flags;
+  }
   /**
     These functions represent the public interface to *users* of the
     handler class, hence they are *not* virtual. For the inheritance

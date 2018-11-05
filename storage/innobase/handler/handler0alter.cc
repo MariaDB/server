@@ -84,6 +84,7 @@ static const alter_table_operations INNOBASE_ALTER_REBUILD
 	| ALTER_OPTIONS
 	/* ALTER_OPTIONS needs to check alter_options_need_rebuild() */
 	| ALTER_COLUMN_NULLABLE
+	| ALTER_COLUMN_EQUAL_PACK_LENGTH2
 	| INNOBASE_DEFAULTS
 	| ALTER_STORED_COLUMN_ORDER
 	| ALTER_DROP_STORED_COLUMN
@@ -262,7 +263,12 @@ inline void dict_table_t::prepare_instant(const dict_table_t& old,
 		DBUG_ASSERT(index.n_fields >= oindex.n_fields);
 		DBUG_ASSERT(index.n_fields > oindex.n_fields
 			    || !not_redundant());
-#ifdef UNIV_DEBUG
+#if 0
+		/* FIXME: write a variant of same_format() that accepts
+		mismatch in the following attributes:
+		(1) VARCHAR/CHAR type for ROW_FORMAT=REDUNDANT tables
+		(2) charset-collation code (if the encoding remains the same
+		or is being modified to a superset) */
 		if (index.n_fields == oindex.n_fields) {
 			ut_ad(!not_redundant());
 			for (unsigned i = index.n_fields; i--; ) {
@@ -456,9 +462,19 @@ inline void dict_index_t::instant_add_field(const dict_index_t& instant)
 	as this index. Fields for any added columns are appended at the end. */
 #ifndef DBUG_OFF
 	for (unsigned i = 0; i < n_fields; i++) {
-		DBUG_ASSERT(fields[i].same(instant.fields[i]));
+		DBUG_ASSERT(fields[i].prefix_len
+			    == instant.fields[i].prefix_len);
+		DBUG_ASSERT(fields[i].fixed_len
+			    == instant.fields[i].fixed_len
+			    || !table->not_redundant());
+		/* FIXME: write a variant of same_format() that accepts
+		mismatch in the following attributes:
+		(1) VARCHAR/CHAR type for ROW_FORMAT=REDUNDANT tables
+		(2) charset-collation code (if the encoding remains the same
+		or is being modified to a superset) */
 		DBUG_ASSERT(instant.fields[i].col->same_format(*fields[i]
-							       .col));
+							       .col)
+			    || !table->not_redundant());
 		/* Instant conversion from NULL to NOT NULL is not allowed. */
 		DBUG_ASSERT(!fields[i].col->is_nullable()
 			    || instant.fields[i].col->is_nullable());
@@ -534,9 +550,17 @@ inline bool dict_table_t::instant_column(const dict_table_t& table,
 
 		if (const dict_col_t* o = find(old_cols, col_map, n_cols, i)) {
 			c.def_val = o->def_val;
+			/* FIXME: write a variant of same_format() that accepts
+			mismatch in the following attributes:
+			(1) VARCHAR/CHAR type for ROW_FORMAT=REDUNDANT tables
+			(this is reflected by both mtype and prtype)
+			(2) charset-collation code (if the encoding
+			remains the same or is being modified to a
+			superset) */
 			DBUG_ASSERT(!((c.prtype ^ o->prtype)
-				      & ~(DATA_NOT_NULL | DATA_VERSIONED)));
-			DBUG_ASSERT(c.mtype == o->mtype);
+				      & ~(DATA_NOT_NULL | DATA_VERSIONED))
+				    || !not_redundant());
+			DBUG_ASSERT(c.mtype == o->mtype || !not_redundant());
 			DBUG_ASSERT(c.len >= o->len);
 
 			if (o->vers_sys_start()) {
@@ -1507,7 +1531,8 @@ instant_alter_column_possible(
 		= ALTER_ADD_STORED_BASE_COLUMN
 		| ALTER_DROP_STORED_COLUMN
 		| ALTER_STORED_COLUMN_ORDER
-		| ALTER_COLUMN_NULLABLE;
+		| ALTER_COLUMN_NULLABLE
+		| ALTER_COLUMN_EQUAL_PACK_LENGTH2;
 
 	if (!(ha_alter_info->handler_flags & avoid_rebuild)) {
 		alter_table_operations flags = ha_alter_info->handler_flags
@@ -1548,6 +1573,7 @@ instant_alter_column_possible(
 	       & ~ALTER_STORED_COLUMN_ORDER
 	       & ~ALTER_ADD_STORED_BASE_COLUMN
 	       & ~ALTER_COLUMN_NULLABLE
+	       & ~ALTER_COLUMN_EQUAL_PACK_LENGTH2
 	       & ~ALTER_OPTIONS)) {
 		return false;
 	}
@@ -2946,7 +2972,7 @@ innobase_col_to_mysql(
 
 	switch (col->mtype) {
 	case DATA_INT:
-		ut_ad(len == flen);
+		ut_ad(len <= flen);
 
 		/* Convert integer data from Innobase to little-endian
 		format, sign bit restored to normal */
@@ -5585,7 +5611,8 @@ static bool innobase_instant_try(
 
 		bool update = old && (!ctx->first_alter_pos
 				      || i < ctx->first_alter_pos - 1);
-		DBUG_ASSERT(!old || col->same_format(*old));
+		DBUG_ASSERT(!old || col->same_format(*old)
+			    || !dict_table_is_comp(user_table));
 		if (update
 		    && old->prtype == d->type.prtype) {
 			/* The record is already present in SYS_COLUMNS. */
@@ -5674,6 +5701,8 @@ add_all_virtual:
 		NULL, trx, ctx->heap, NULL);
 
 	dberr_t err = DB_SUCCESS;
+	DBUG_EXECUTE_IF("ib_instant_error",
+			err = DB_OUT_OF_FILE_SPACE; goto func_exit;);
 	if (rec_is_metadata(rec, *index)) {
 		ut_ad(page_rec_is_user_rec(rec));
 		if (!page_has_next(block->frame)
@@ -9060,6 +9089,7 @@ innobase_enlarge_column_try(
 		ut_error;
 	case DATA_BINARY:
 	case DATA_VARCHAR:
+	case DATA_CHAR:
 	case DATA_VARMYSQL:
 	case DATA_DECIMAL:
 	case DATA_BLOB:
@@ -9190,14 +9220,16 @@ innobase_rename_or_enlarge_columns_cache(
 			ulint	col_n = is_virtual ? num_v : i - num_v;
 
 			if ((*fp)->is_equal(cf) == IS_EQUAL_PACK_LENGTH) {
-				if (is_virtual) {
-					dict_table_get_nth_v_col(
-						user_table, col_n)->m_col.len
-					= cf->length;
-				} else {
-					dict_table_get_nth_col(
-						user_table, col_n)->len
-					= cf->length;
+				dict_col_t *col = is_virtual ?
+					&dict_table_get_nth_v_col(
+						user_table, col_n)->m_col
+					: dict_table_get_nth_col(
+						user_table, col_n);
+				col->len = cf->length;
+				if (col->len > 255
+				    && (col->prtype & DATA_MYSQL_TRUE_VARCHAR)
+				    == DATA_MYSQL_TRUE_VARCHAR) {
+					col->prtype |= DATA_LONG_TRUE_VARCHAR;
 				}
 			}
 

@@ -890,7 +890,7 @@ row_create_prebuilt(
 			ulint type = temp_index->fields[i].col->mtype;
 			if (type == DATA_INT) {
 				temp_len +=
-					temp_index->fields[i].fixed_len;
+					temp_index->fields[i].col->len;
 			}
 		}
 		srch_key_len = std::max(srch_key_len,temp_len);

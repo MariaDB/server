@@ -4844,7 +4844,9 @@ n_field_mismatch:
 		if (len_is_stored(len)
 		    && (field->prefix_len
 			? len > field->prefix_len
-			: (fixed_size && len != fixed_size))) {
+			: (fixed_size && (page_is_comp(page)
+					  ? len != fixed_size
+					  : len > fixed_size)))) {
 len_mismatch:
 			btr_index_rec_validate_report(page, rec, index);
 			ib::error	error;
