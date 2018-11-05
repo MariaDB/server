@@ -440,12 +440,12 @@ enum row_sel_match_mode {
 
 #ifdef UNIV_DEBUG
 /** Convert a non-SQL-NULL field from Innobase format to MySQL format. */
-# define row_sel_field_store_in_mysql_format(dest,templ,idx,field,src,len) \
-        row_sel_field_store_in_mysql_format_func(dest,templ,idx,field,src,len)
+# define row_sel_field_store_in_mysql_format(dest,templ,idx,field,src,len,comp) \
+        row_sel_field_store_in_mysql_format_func(dest,templ,idx,field,src,len,comp)
 #else /* UNIV_DEBUG */
 /** Convert a non-SQL-NULL field from Innobase format to MySQL format. */
-# define row_sel_field_store_in_mysql_format(dest,templ,idx,field,src,len) \
-        row_sel_field_store_in_mysql_format_func(dest,templ,src,len)
+# define row_sel_field_store_in_mysql_format(dest,templ,idx,field,src,len,comp) \
+        row_sel_field_store_in_mysql_format_func(dest,templ,src,len,comp)
 #endif /* UNIV_DEBUG */
 
 /**************************************************************//**
@@ -475,7 +475,8 @@ row_sel_field_store_in_mysql_format_func(
                                 templ->icp_rec_field_no */
 #endif /* UNIV_DEBUG */
         const byte*     data,   /*!< in: data to store */
-        ulint           len);    /*!< in: length of the data */
+        ulint           len,    /*!< in: length of the data */
+	bool		comp);  /*!< in: table row format is compact */
 
 #include "row0sel.ic"
 

@@ -1,0 +1,128 @@
+set default_storage_engine=innodb;
+set @bigval= repeat('0123456789', 30);
+create or replace procedure check_table(table_name varchar(255))
+begin
+select table_id into @table_id
+from information_schema.innodb_sys_tables
+where name = concat('test/', table_name);
+select name, mtype, hex(prtype) as prtype, len
+from information_schema.innodb_sys_columns
+where table_id = @table_id;
+end~~
+# Case 1: VARCHAR(<255) -> VARCHAR(>255) conversion
+create or replace table t (a varchar(2)) row_format=redundant;
+alter table t modify a varchar(300), algorithm=instant;
+insert into t values (@bigval);
+select count(a) from t where a = @bigval;
+count(a)
+1
+insert into t values (repeat('X', 301));
+ERROR 22001: Data too long for column 'a' at row 1
+check table t extended;
+Table	Op	Msg_type	Msg_text
+test.t	check	status	OK
+call check_table('t');
+name	mtype	prtype	len
+a	1	8000F	300
+# Case 2: VARCHAR -> CHAR conversion
+set @bigval= repeat('0123456789', 20);
+create or replace table t (a varchar(300)) row_format=redundant;
+alter table t modify a char(255), algorithm=instant;
+ERROR 0A000: ALGORITHM=INSTANT is not supported. Reason: Cannot change column type INPLACE. Try ALGORITHM=COPY
+alter table t modify a char(255), algorithm=copy;
+create or replace table t (a varchar(200)) row_format=redundant;
+insert into t values (@bigval);
+insert into t values ('z');
+alter table t modify a char(200), algorithm=instant;
+select count(a) from t where a = @bigval;
+count(a)
+1
+select a, length(a) from t where a = 'z';
+a	length(a)
+z	1
+select * from t;
+a
+01234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789
+z
+check table t extended;
+Table	Op	Msg_type	Msg_text
+test.t	check	status	OK
+call check_table('t');
+name	mtype	prtype	len
+a	2	800FE	200
+alter table t modify a varchar(200), algorithm=instant;
+ERROR 0A000: ALGORITHM=INSTANT is not supported. Reason: Cannot change column type INPLACE. Try ALGORITHM=COPY
+alter table t modify a varchar(200), algorithm=copy;
+# Convert to bigger size
+alter table t modify a char(255), algorithm=instant;
+select count(a) from t where a = @bigval;
+count(a)
+1
+select a, length(a) from t where a = 'z';
+a	length(a)
+z	1
+select * from t;
+a
+01234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789
+z
+check table t extended;
+Table	Op	Msg_type	Msg_text
+test.t	check	status	OK
+call check_table('t');
+name	mtype	prtype	len
+a	2	800FE	255
+# Case 3: integer conversions
+create or replace table t (x tinyint) row_format=redundant;
+insert into t values (127);
+alter table t modify x smallint, algorithm=instant;
+select * from t;
+x
+127
+check table t extended;
+Table	Op	Msg_type	Msg_text
+test.t	check	status	OK
+call check_table('t');
+name	mtype	prtype	len
+x	6	402	2
+update t set x= 32767;
+alter table t modify x mediumint, algorithm=instant;
+select * from t;
+x
+32767
+check table t extended;
+Table	Op	Msg_type	Msg_text
+test.t	check	status	OK
+call check_table('t');
+name	mtype	prtype	len
+x	6	409	3
+update t set x= 8388607;
+alter table t modify x int, algorithm=instant;
+select * from t;
+x
+8388607
+check table t extended;
+Table	Op	Msg_type	Msg_text
+test.t	check	status	OK
+call check_table('t');
+name	mtype	prtype	len
+x	6	403	4
+update t set x= 2147483647;
+alter table t modify x bigint, algorithm=instant;
+select * from t;
+x
+2147483647
+check table t extended;
+Table	Op	Msg_type	Msg_text
+test.t	check	status	OK
+call check_table('t');
+name	mtype	prtype	len
+x	6	408	8
+# Check assertion in wrong instant operation
+create or replace table t1 (a varchar(26) not null) default character set utf8mb4 row_format=redundant;
+alter table t1 modify a varchar(25) not null;
+# Check row_mysql_store_col_in_innobase_format()
+create or replace table t1(x int primary key, a varchar(20)) row_format=redundant;
+insert into t1 (x) values (1);
+update t1 set a= 'foo' where x = 2;
+drop database test;
+create database test;

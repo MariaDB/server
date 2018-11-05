@@ -350,6 +350,9 @@
 #define IS_EQUAL_NO 0
 #define IS_EQUAL_YES 1
 #define IS_EQUAL_PACK_LENGTH 2
+// TODO: should be merged with IS_EQUAL_PACK_LENGTH after
+// innobase_enlarge_column_try() removed.
+#define IS_EQUAL_PACK_LENGTH2 3
 
 enum enum_parsing_place
 {

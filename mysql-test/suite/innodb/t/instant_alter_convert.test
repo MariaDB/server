@@ -1,0 +1,132 @@
+--source include/have_innodb.inc
+--source include/maybe_debug.inc
+
+set default_storage_engine=innodb;
+set @bigval= repeat('0123456789', 30);
+
+delimiter ~~;
+create or replace procedure check_table(table_name varchar(255))
+begin
+  select table_id into @table_id
+  from information_schema.innodb_sys_tables
+  where name = concat('test/', table_name);
+  select name, mtype, hex(prtype) as prtype, len
+  from information_schema.innodb_sys_columns
+  where table_id = @table_id;
+end~~
+delimiter ;~~
+
+
+--echo # Case 1: VARCHAR(<255) -> VARCHAR(>255) conversion
+create or replace table t (a varchar(2)) row_format=redundant;
+if ($have_debug) {
+--disable_query_log
+--disable_result_log
+set debug_dbug= '+d,ib_resize_column_error';
+--error ER_RECORD_FILE_FULL
+alter table t modify a varchar(300);
+set debug_dbug= default;
+--enable_query_log
+--enable_result_log
+}
+alter table t modify a varchar(300), algorithm=instant;
+insert into t values (@bigval);
+select count(a) from t where a = @bigval;
+--error ER_DATA_TOO_LONG
+insert into t values (repeat('X', 301));
+
+check table t extended;
+call check_table('t');
+
+
+--echo # Case 2: VARCHAR -> CHAR conversion
+set @bigval= repeat('0123456789', 20);
+
+create or replace table t (a varchar(300)) row_format=redundant;
+--error ER_ALTER_OPERATION_NOT_SUPPORTED_REASON
+alter table t modify a char(255), algorithm=instant;
+alter table t modify a char(255), algorithm=copy;
+
+create or replace table t (a varchar(200)) row_format=redundant;
+if ($have_debug) {
+--disable_query_log
+--disable_result_log
+set debug_dbug= '+d,ib_instant_error';
+--error ER_RECORD_FILE_FULL
+alter table t modify a char(200);
+set debug_dbug= default;
+--enable_query_log
+--enable_result_log
+}
+insert into t values (@bigval);
+insert into t values ('z');
+alter table t modify a char(200), algorithm=instant;
+select count(a) from t where a = @bigval;
+select a, length(a) from t where a = 'z';
+select * from t;
+
+check table t extended;
+call check_table('t');
+
+--error ER_ALTER_OPERATION_NOT_SUPPORTED_REASON
+alter table t modify a varchar(200), algorithm=instant;
+alter table t modify a varchar(200), algorithm=copy;
+
+--echo # Convert to bigger size
+alter table t modify a char(255), algorithm=instant;
+select count(a) from t where a = @bigval;
+select a, length(a) from t where a = 'z';
+select * from t;
+
+check table t extended;
+call check_table('t');
+
+
+--echo # Case 3: integer conversions
+create or replace table t (x tinyint) row_format=redundant;
+if ($have_debug) {
+--disable_query_log
+--disable_result_log
+set debug_dbug= '+d,ib_instant_error';
+--error ER_RECORD_FILE_FULL
+alter table t modify x smallint;
+set debug_dbug= default;
+--enable_query_log
+--enable_result_log
+}
+insert into t values (127);
+alter table t modify x smallint, algorithm=instant;
+select * from t;
+check table t extended;
+call check_table('t');
+
+update t set x= 32767;
+alter table t modify x mediumint, algorithm=instant;
+select * from t;
+check table t extended;
+call check_table('t');
+
+update t set x= 8388607;
+alter table t modify x int, algorithm=instant;
+select * from t;
+check table t extended;
+call check_table('t');
+
+update t set x= 2147483647;
+alter table t modify x bigint, algorithm=instant;
+select * from t;
+check table t extended;
+call check_table('t');
+
+
+--echo # Check assertion in wrong instant operation
+create or replace table t1 (a varchar(26) not null) default character set utf8mb4 row_format=redundant;
+alter table t1 modify a varchar(25) not null;
+
+--echo # Check row_mysql_store_col_in_innobase_format()
+create or replace table t1(x int primary key, a varchar(20)) row_format=redundant;
+insert into t1 (x) values (1);
+update t1 set a= 'foo' where x = 2;
+
+drop database test;
+create database test;

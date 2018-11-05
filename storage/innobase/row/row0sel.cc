@@ -2704,7 +2704,8 @@ row_sel_field_store_in_mysql_format_func(
 	ulint		field_no,
 #endif /* UNIV_DEBUG */
 	const byte*	data,
-	ulint		len)
+	ulint		len,
+	bool		comp)
 {
 	byte*			ptr;
 #ifdef UNIV_DEBUG
@@ -2740,12 +2741,13 @@ row_sel_field_store_in_mysql_format_func(
 			dest[len - 1] = (byte) (dest[len - 1] ^ 128);
 		}
 
-		ut_ad(templ->mysql_col_len == len);
+		ut_ad(templ->mysql_col_len == len || !comp);
 		break;
 
 	case DATA_VARCHAR:
 	case DATA_VARMYSQL:
 	case DATA_BINARY:
+	case DATA_CHAR:
 		field_end = dest + templ->mysql_col_len;
 
 		if (templ->mysql_type == DATA_MYSQL_TRUE_VARCHAR) {
@@ -2855,7 +2857,6 @@ row_sel_field_store_in_mysql_format_func(
 		ut_ad(0);
 		/* fall through */
 
-	case DATA_CHAR:
 	case DATA_FIXBINARY:
 	case DATA_FLOAT:
 	case DATA_DOUBLE:
@@ -2964,7 +2965,8 @@ row_sel_store_mysql_field_func(
 
 		row_sel_field_store_in_mysql_format(
 			mysql_rec + templ->mysql_col_offset,
-			templ, index, field_no, data, len);
+			templ, index, field_no, data, len,
+			dict_table_is_comp(prebuilt->table));
 
 		if (heap != prebuilt->blob_heap) {
 			mem_heap_free(heap);
@@ -3027,7 +3029,8 @@ row_sel_store_mysql_field_func(
 
 		row_sel_field_store_in_mysql_format(
 			mysql_rec + templ->mysql_col_offset,
-			templ, index, field_no, data, len);
+			templ, index, field_no, data, len,
+			dict_table_is_comp(prebuilt->table));
 	}
 
 	ut_ad(len != UNIV_SQL_NULL);
@@ -3132,7 +3135,8 @@ row_sel_store_mysql_rec(
 				row_sel_field_store_in_mysql_format(
 				mysql_rec + templ->mysql_col_offset,
 				templ, index, templ->clust_rec_field_no,
-				(const byte*)dfield->data, dfield->len);
+				(const byte*)dfield->data, dfield->len,
+				dict_table_is_comp(index->table));
 				if (templ->mysql_null_bit_mask) {
 					mysql_rec[
 					templ->mysql_null_byte_offset]

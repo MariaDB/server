@@ -6627,6 +6627,9 @@ static bool fill_alter_inplace_info(THD *thd,
         */
         ha_alter_info->handler_flags|= ALTER_COLUMN_EQUAL_PACK_LENGTH;
         break;
+      case IS_EQUAL_PACK_LENGTH2:
+        ha_alter_info->handler_flags|= ALTER_COLUMN_EQUAL_PACK_LENGTH2;
+        break;
       default:
         DBUG_ASSERT(0);
         /* Safety. */
@@ -9427,6 +9430,7 @@ bool mysql_alter_table(THD *thd, const LEX_CSTRING *new_db,
       DBUG_RETURN(true);
     }
 
+    DBUG_PRINT("info", ("Using fast alter parition"));
     // In-place execution of ALTER TABLE for partitioning.
     DBUG_RETURN(fast_alter_partition_table(thd, table, alter_info,
                                            create_info, table_list,
@@ -9578,6 +9582,7 @@ bool mysql_alter_table(THD *thd, const LEX_CSTRING *new_db,
 
   if (alter_info->requested_algorithm != Alter_info::ALTER_TABLE_ALGORITHM_COPY)
   {
+    DBUG_PRINT("alter", ("Requested algorithm: %d", alter_info->requested_algorithm));
     Alter_inplace_info ha_alter_info(create_info, alter_info,
                                      key_info, key_count,
                                      IF_PARTITIONING(thd->work_part_info, NULL),
@@ -9678,6 +9683,7 @@ bool mysql_alter_table(THD *thd, const LEX_CSTRING *new_db,
 
     if (use_inplace)
     {
+      DBUG_PRINT("alter", ("Using INPLACE alter"));
       table->s->frm_image= &frm;
       enum_check_fields save_count_cuted_fields= thd->count_cuted_fields;
       /*
@@ -9703,6 +9709,7 @@ bool mysql_alter_table(THD *thd, const LEX_CSTRING *new_db,
   }
 
   /* ALTER TABLE using copy algorithm. */
+  DBUG_PRINT("alter", ("Using COPY alter"));
 
   /* Check if ALTER TABLE is compatible with foreign key definitions. */
   if (fk_prepare_copy_alter_table(thd, table, alter_info, &alter_ctx))
