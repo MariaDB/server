@@ -389,10 +389,6 @@ public:
 	* @return idx_cond if pushed; NULL if not pushed
 	*/
 	class Item* idx_cond_push(uint keyno, class Item* idx_cond);
-
-        /* An helper function for index_cond_func_innodb: */
-        bool is_thd_killed();
-
 private:
 	/** The multi range read session object */
 	DsMrr_impl ds_mrr;
