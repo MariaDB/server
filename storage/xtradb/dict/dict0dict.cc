@@ -1,6 +1,6 @@
 /*****************************************************************************
 
-Copyright (c) 1996, 2018, Oracle and/or its affiliates. All Rights Reserved.
+Copyright (c) 1996, 2017, Oracle and/or its affiliates. All Rights Reserved.
 Copyright (c) 2012, Facebook Inc.
 Copyright (c) 2014, 2017, MariaDB Corporation.
 
@@ -3387,10 +3387,7 @@ dict_foreign_find_index(
 			    table, col_names, columns, n_cols,
 			    index, types_idx,
 			    check_charsets, check_null,
-			    error, err_col_no,err_index)
-		    && (!(index->online_status ==
-				ONLINE_INDEX_ABORTED_DROPPED
-		       ||index->online_status == ONLINE_INDEX_ABORTED))) {
+			    error, err_col_no,err_index)) {
 			if (error) {
 				*error = DB_SUCCESS;
 			}
