@@ -1,6 +1,6 @@
 /*****************************************************************************
 
-Copyright (c) 2005, 2018, Oracle and/or its affiliates. All Rights Reserved.
+Copyright (c) 2005, 2017, Oracle and/or its affiliates. All Rights Reserved.
 Copyright (c) 2014, 2018, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
@@ -3339,10 +3339,9 @@ row_merge_file_create_low(
 	file APIs, add instrumentation to register with
 	performance schema */
 	struct PSI_file_locker*	locker = NULL;
-
 	PSI_file_locker_state	state;
 	if (!path) {
-		path = innobase_mysql_tmpdir();
+		path = mysql_tmpdir;
 	}
 	static const char label[] = "/Innodb Merge Temp File";
 	char* name = static_cast<char*>(
