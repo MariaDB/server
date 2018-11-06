@@ -543,7 +543,11 @@
     2) Pros: Fast, no locking required (almost), limited thread-safe
              requirement,
 <<<<<<< HEAD
+<<<<<<< HEAD
        Cons: Uses more memory, each SP read from table once per thread.
+=======
+       Cons: Uses more memory, each SP reads from the table once per thread.
+>>>>>>> 8c09170d254... Update Docs/sp-imp-spec.txt
 =======
        Cons: Uses more memory, each SP reads from the table once per thread.
 >>>>>>> 8c09170d254... Update Docs/sp-imp-spec.txt
