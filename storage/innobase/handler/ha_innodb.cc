@@ -9039,17 +9039,6 @@ next_record:
 	return(HA_ERR_END_OF_FILE);
 }
 
-/*************************************************************************
-*/
-
-void
-ha_innobase::ft_end()
-{
-	fprintf(stderr, "ft_end()\n");
-
-	rnd_end();
-}
-
 /*********************************************************************//**
 Stores a reference to the current row to 'ref' field of the handle. Note
 that in the case where we have generated the clustered index for the
