@@ -537,7 +537,7 @@ require some reworking of the way UDFs are handled, which is why it's
 
     There are pros and cons with both methods:
 
-    1) Pros: Save memory, each SP only read from the table once,
+    1) Pros: Save memory, each SP only reads from the table once,
        Cons: Needs locking (= serialization at access), requires thread-safe
              data structures,
     2) Pros: Fast, no locking required (almost), limited thread-safe
