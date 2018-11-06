@@ -252,6 +252,9 @@ void TIME_from_longlong_datetime_packed(MYSQL_TIME *ltime, longlong tmp)
 {
   longlong ymd, hms;
   longlong ymdhms, ym;
+
+  DBUG_ASSERT(tmp != LONGLONG_MIN);
+
   if ((ltime->neg= (tmp < 0)))
     tmp= -tmp;
 

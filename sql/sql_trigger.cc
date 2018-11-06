@@ -621,10 +621,9 @@ end:
     my_ok(thd);
 
   DBUG_RETURN(result);
-#ifdef WITH_WSREP
- error:
+
+WSREP_ERROR_LABEL:
   DBUG_RETURN(true);
-#endif /* WITH_WSREP */
 }
 
 

@@ -1870,3 +1870,22 @@ CREATE TABLE t2 LIKE t1 PARTITION (p0, p2);
 ERROR 42000: You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near 'PARTITION (p0, p2)' at line 1
 DROP TABLE t1;
 SET @@default_storage_engine = @old_default_storage_engine;
+#
+# MDEV-14815 - Server crash or AddressSanitizer errors or valgrind warnings in thr_lock / has_old_lock upon FLUSH TABLES
+#
+CREATE TABLE t1 (i INT) ENGINE=MEMORY PARTITION BY RANGE (i) (PARTITION p0 VALUES LESS THAN (4), PARTITION pm VALUES LESS THAN MAXVALUE);
+CREATE TABLE t2 (i INT) ENGINE=MEMORY;
+LOCK TABLE t1 WRITE, t2 WRITE;
+SELECT * FROM t1 PARTITION (p0);
+i
+FLUSH TABLES;
+SELECT * FROM t1 PARTITION (p0);
+i
+ALTER TABLE t1 TRUNCATE PARTITION p0;
+SELECT * FROM t1 PARTITION (p0);
+i
+ALTER TABLE t1 EXCHANGE PARTITION p0 WITH TABLE t2;
+SELECT * FROM t1 PARTITION (p0);
+i
+UNLOCK TABLES;
+DROP TABLE t1, t2;

@@ -5,6 +5,7 @@ Copyright (c) 2013, 2018, MariaDB Corporation.
 Copyright (c) 2008, 2009 Google Inc.
 Copyright (c) 2009, Percona Inc.
 Copyright (c) 2012, Facebook Inc.
+Copyright (c) 2013, 2018, MariaDB Corporation.
 
 Portions of this file contain modifications contributed and copyrighted by
 Google, Inc. Those modifications are gratefully acknowledged and are described
@@ -3527,13 +3528,13 @@ innobase_convert_identifier(
 	ibool		file_id)/*!< in: TRUE=id is a table or database name;
 				FALSE=id is an UTF-8 string */
 {
-	char nz2[MAX_TABLE_NAME_LEN + 1];
 	const char*	s	= id;
 	int		q;
 
-	if (file_id) {
+	char nz[MAX_TABLE_NAME_LEN + 1];
+	char nz2[MAX_TABLE_NAME_LEN + 1];
 
-		char nz[MAX_TABLE_NAME_LEN + 1];
+	if (file_id) {
 
 		/* Decode the table name.  The MySQL function expects
 		a NUL-terminated string.  The input and output strings
@@ -20678,10 +20679,10 @@ static MYSQL_SYSVAR_ULONG(ft_total_cache_size, fts_max_total_cache_size,
   "Total memory allocated for InnoDB Fulltext Search cache",
   NULL, NULL, 640000000, 32000000, 1600000000, 0);
 
-static MYSQL_SYSVAR_ULONG(ft_result_cache_limit, fts_result_cache_limit,
+static MYSQL_SYSVAR_SIZE_T(ft_result_cache_limit, fts_result_cache_limit,
   PLUGIN_VAR_RQCMDARG,
   "InnoDB Fulltext search query result cache limit in bytes",
-  NULL, NULL, 2000000000L, 1000000L, 4294967295UL, 0);
+  NULL, NULL, 2000000000L, 1000000L, SIZE_T_MAX, 0);
 
 static MYSQL_SYSVAR_ULONG(ft_min_token_size, fts_min_token_size,
   PLUGIN_VAR_RQCMDARG | PLUGIN_VAR_READONLY,
@@ -22101,15 +22102,6 @@ ha_rows ha_innobase::multi_range_read_info(uint keyno, uint n_ranges, uint keys,
 int ha_innobase::multi_range_read_explain_info(uint mrr_mode, char *str, size_t size)
 {
   return ds_mrr.dsmrr_explain_info(mrr_mode, str, size);
-}
-
-/*
-  A helper function used only in index_cond_func_innodb
-*/
-
-bool ha_innobase::is_thd_killed()
-{
-  return thd_kill_level(user_thd);
 }
 
 /**********************************************************************

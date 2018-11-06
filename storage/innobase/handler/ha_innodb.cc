@@ -5947,7 +5947,8 @@ innobase_build_v_templ(
 				name = dict_table_get_v_col_name(ib_table, z);
 			}
 
-			ut_ad(!ut_strcmp(name, field->field_name));
+			ut_ad(!my_strcasecmp(system_charset_info, name,
+					     field->field_name));
 #endif
 			const dict_v_col_t*	vcol;
 
@@ -5978,12 +5979,10 @@ innobase_build_v_templ(
 			dict_col_t*   col = dict_table_get_nth_col(
 						ib_table, j);
 
-#ifdef UNIV_DEBUG
-			const char*	name = dict_table_get_col_name(
-						ib_table, j);
-
-			ut_ad(!ut_strcmp(name, field->field_name));
-#endif
+			ut_ad(!my_strcasecmp(system_charset_info,
+					     dict_table_get_col_name(
+						     ib_table, j),
+					     field->field_name));
 
 			s_templ->vtempl[j] = static_cast<
 				mysql_row_templ_t*>(
@@ -20321,10 +20320,10 @@ static MYSQL_SYSVAR_ULONG(ft_total_cache_size, fts_max_total_cache_size,
   "Total memory allocated for InnoDB Fulltext Search cache",
   NULL, NULL, 640000000, 32000000, 1600000000, 0);
 
-static MYSQL_SYSVAR_ULONG(ft_result_cache_limit, fts_result_cache_limit,
+static MYSQL_SYSVAR_SIZE_T(ft_result_cache_limit, fts_result_cache_limit,
   PLUGIN_VAR_RQCMDARG,
   "InnoDB Fulltext search query result cache limit in bytes",
-  NULL, NULL, 2000000000L, 1000000L, 4294967295UL, 0);
+  NULL, NULL, 2000000000L, 1000000L, SIZE_T_MAX, 0);
 
 static MYSQL_SYSVAR_ULONG(ft_min_token_size, fts_min_token_size,
   PLUGIN_VAR_RQCMDARG | PLUGIN_VAR_READONLY,

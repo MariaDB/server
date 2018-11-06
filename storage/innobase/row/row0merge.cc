@@ -3970,11 +3970,18 @@ row_merge_file_create_low(
 	/* This temp file open does not go through normal
 	file APIs, add instrumentation to register with
 	performance schema */
-	struct PSI_file_locker*	locker;
 	PSI_file_locker_state	state;
-	locker = PSI_FILE_CALL(get_thread_file_name_locker)(
-			       &state, innodb_temp_file_key, PSI_FILE_OPEN,
-			       "Innodb Merge Temp File", &locker);
+	if (!path) {
+		path = mysql_tmpdir;
+	}
+	static const char label[] = "/Innodb Merge Temp File";
+	char* name = static_cast<char*>(
+		ut_malloc_nokey(strlen(path) + sizeof label));
+	strcpy(name, path);
+	strcat(name, label);
+	PSI_file_locker* locker = PSI_FILE_CALL(get_thread_file_name_locker)(
+		&state, innodb_temp_file_key, PSI_FILE_OPEN,
+		path ? name : label, &locker);
 	if (locker != NULL) {
 		PSI_FILE_CALL(start_file_open_wait)(locker,
 						    __FILE__,
@@ -3987,6 +3994,7 @@ row_merge_file_create_low(
 		PSI_FILE_CALL(end_file_open_wait_and_bind_to_descriptor)(
 			      locker, fd);
 	}
+	ut_free(name);
 #endif
 
 	if (fd < 0) {

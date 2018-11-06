@@ -1137,7 +1137,7 @@ sub command_line_setup {
              'debug'                    => \$opt_debug,
              'debug-common'             => \$opt_debug_common,
              'debug-server'             => \$opt_debug_server,
-             'gdb'                      => \$opt_gdb,
+             'gdb=s'                    => \$opt_gdb,
              'client-gdb'               => \$opt_client_gdb,
              'manual-gdb'               => \$opt_manual_gdb,
              'manual-lldb'              => \$opt_manual_lldb,
@@ -1231,6 +1231,9 @@ sub command_line_setup {
              'skip-test-list=s'         => \@opt_skip_test_list
            );
 
+  # fix options (that take an optional argument and *only* after = sign
+  my %fixopt = ( '--gdb' => '--gdb=#' );
+  @ARGV = map { $fixopt{$_} or $_ } @ARGV;
   GetOptions(%options) or usage("Can't read options");
   usage("") if $opt_usage;
   list_options(\%options) if $opt_list_options;
@@ -5642,7 +5645,9 @@ sub gdb_arguments {
   # Put $args into a single string
   $input = $input ? "< $input" : "";
 
-  if ($type ne 'client' and $opt_valgrind_mysqld) {
+  if ($type eq 'client') {
+    mtr_tofile($gdb_init_file, "set args @$$args $input");
+  } elsif ($opt_valgrind_mysqld) {
     my $v = $$exe;
     my $vargs = [];
     valgrind_arguments($vargs, \$v);
@@ -5652,7 +5657,11 @@ shell sleep 1
 target remote | /usr/lib64/valgrind/../../bin/vgdb
 EOF
   } else {
-    mtr_tofile($gdb_init_file, "set args @$$args $input\n");
+    mtr_tofile($gdb_init_file,
+      join("\n",
+        "set args @$$args $input",
+        split /;/, $opt_gdb || ""
+        ));
   }
 
   if ( $opt_manual_gdb )

@@ -796,7 +796,7 @@ private:
                                     uchar *buf, uint *size);
 #endif
 #ifdef MRN_HAVE_MYSQL_TYPE_DATETIME2
-  int storage_encode_key_datetime2(Field *field, const uchar *key,
+  int storage_encode_key_datetime2(Field *field, bool is_null, const uchar *key,
                                    uchar *buf, uint *size);
 #endif
 #ifdef MRN_HAVE_MYSQL_TYPE_TIME2

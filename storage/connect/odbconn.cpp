@@ -2354,11 +2354,11 @@ int ODBConn::GetCatInfo(CATPARM *cap)
     if (!Check(rc))
       ThrowDBX(rc, fnc, hstmt);
 
-    rc = SQLNumResultCols(hstmt, &ncol);
-
-    // n because we no more ignore the first column
-    if ((n = (UWORD)qrp->Nbcol) > (UWORD)ncol)
-      ThrowDBX(MSG(COL_NUM_MISM));
+		// Some data source do not implement SQLNumResultCols
+    if (Check(SQLNumResultCols(hstmt, &ncol)))
+      // n because we no more ignore the first column
+      if ((n = (UWORD)qrp->Nbcol) > (UWORD)ncol)
+        ThrowDBX(MSG(COL_NUM_MISM));
 
     // Unconditional to handle STRBLK's
     pval = (PVAL *)PlugSubAlloc(g, NULL, n * sizeof(PVAL));

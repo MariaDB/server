@@ -3673,9 +3673,7 @@ defer:
 		rw_lock_x_unlock(dict_index_get_lock(index));
 	}
 
-	/* As we don't insert entries to SYSTEM TABLES for temp-tables
-	we need to avoid running removal of these entries. */
-	if (!dict_table_is_temporary(table)) {
+	if (!table->is_temporary()) {
 		/* We use the private SQL parser of Innobase to generate the
 		query graphs needed in deleting the dictionary data from system
 		tables in Innobase. Deleting a row from SYS_INDEXES table also
@@ -4557,6 +4555,9 @@ row_rename_table_for_mysql(
 			"    = TO_BINARY(:old_table_name);\n"
 			"END;\n"
 			, FALSE, trx);
+		if (err != DB_SUCCESS) {
+			goto end;
+		}
 
 	} else if (n_constraints_to_drop > 0) {
 		/* Drop some constraints of tmp tables. */

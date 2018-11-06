@@ -136,7 +136,7 @@ select * from t1;
 ERROR HY000: Table 't1' was not locked with LOCK TABLES
 unlock tables;
 create or replace view v_bug5719 as select * from t1;
-lock tables v_bug5719 write;
+lock tables v_bug5719 read;
 select * from v_bug5719;
 a
 
@@ -303,7 +303,7 @@ create table t2 (j int);
 #
 # Try to perform DDL on table which is locked through view.
 create view v1 as select * from t2;
-lock tables t1 write, v1 write;
+lock tables t1 write, v1 read;
 flush table t2;
 ERROR HY000: Table 't2' was locked with a READ lock and can't be updated
 drop table t2;

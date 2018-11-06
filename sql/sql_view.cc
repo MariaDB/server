@@ -700,10 +700,10 @@ bool mysql_create_view(THD *thd, TABLE_LIST *views,
   lex->link_first_table_back(view, link_to_local);
   DBUG_RETURN(0);
 
-#ifdef WITH_WSREP
- error:
+
+WSREP_ERROR_LABEL:
   res= TRUE;
-#endif /* WITH_WSREP */
+
 err:
   THD_STAGE_INFO(thd, stage_end);
   lex->link_first_table_back(view, link_to_local);
@@ -1546,8 +1546,7 @@ bool mysql_make_view(THD *thd, TABLE_SHARE *share, TABLE_LIST *table,
       for (tbl= view_main_select_tables; tbl; tbl= tbl->next_local)
       {
         tbl->lock_type= table->lock_type;
-        tbl->mdl_request.set_type((tbl->lock_type >= TL_WRITE_ALLOW_WRITE) ?
-                                  MDL_SHARED_WRITE : MDL_SHARED_READ);
+        tbl->mdl_request.set_type(table->mdl_request.type);
       }
       /*
         If the view is mergeable, we might want to
