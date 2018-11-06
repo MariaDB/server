@@ -336,7 +336,7 @@ require some reworking of the way UDFs are handled, which is why it's
       sp_find_function() can find them during the execution.
       Note: Even with an in-memory cache, we must still make sure that the
             functions are indeed read and cached at this point.
-      The code that reads and cache functions from the database must also be
+      The code that reads and caches functions from the database must also be
       invoked recursively for each read FUNCTION to make sure we have *all* the
       functions we need.
 
