@@ -21,6 +21,7 @@
 
 #include <my_global.h>
 #include "wsrep_mysqld.h"
+#include "wsrep_schema.h"
 #include "../wsrep/wsrep_api.h"
 
 #include <log.h>
@@ -39,12 +40,11 @@ wsrep_cb_status wsrep_sst_donate_cb (void* app_ctx,
 
 extern wsrep_uuid_t  local_uuid;
 extern wsrep_seqno_t local_seqno;
+extern Wsrep_schema* wsrep_schema;
 
 // a helper function
 void wsrep_sst_received(THD*, const wsrep_uuid_t&, wsrep_seqno_t,
                         const void*, size_t);
-/*! SST thread signals init thread about sst completion */
-void wsrep_sst_complete(const wsrep_uuid_t*, wsrep_seqno_t, bool);
 
 void wsrep_notify_status (wsrep_member_status_t new_status,
                           const wsrep_view_info_t* view = 0);

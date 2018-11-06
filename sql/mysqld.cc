@@ -5866,7 +5866,7 @@ int mysqld_main(int argc, char **argv)
     }
     else
     {
-       if (!wsrep_before_SE())
+      if (!wsrep_before_SE())
       {
         wsrep_init_startup (false);
       }

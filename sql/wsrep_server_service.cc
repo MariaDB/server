@@ -175,6 +175,16 @@ void Wsrep_server_service::log_view(
   {
     if (applier)
     {
+      if (wsrep_debug)
+      {
+        std::ostringstream os;
+        os << "Storing cluster view:\n" << view;
+        WSREP_INFO("%s", os.str().c_str());
+        Wsrep_id id;
+        Wsrep_view prev_view(wsrep_schema->restore_view(applier->m_thd, id));
+        assert(view.state_id().seqno() > prev_view.state_id().seqno());
+      }
+
       if (trans_begin(applier->m_thd, MYSQL_START_TRANS_OPT_READ_WRITE))
       {
         WSREP_WARN("Failed to start transaction for store view");
@@ -213,6 +223,14 @@ void Wsrep_server_service::log_view(
   {
     wsrep_set_SE_checkpoint(view.state_id());
   }
+}
+
+wsrep::view Wsrep_server_service::get_view(wsrep::client_service& c,
+                                           const wsrep::id& own_id)
+{
+  Wsrep_client_service& cs(static_cast<Wsrep_client_service&>(c));
+  wsrep::view v(wsrep_schema->restore_view(cs.m_thd, own_id));
+  return v;
 }
 
 void Wsrep_server_service::log_state_change(

@@ -45,7 +45,8 @@ static const std::string create_cluster_table_str=
   "cluster_uuid CHAR(36) PRIMARY KEY,"
   "view_id BIGINT NOT NULL,"
   "view_seqno BIGINT NOT NULL,"
-  "protocol_version INT NOT NULL"
+  "protocol_version INT NOT NULL,"
+  "capabilities INT NOT NULL"
   ") ENGINE=InnoDB";
 
 static const std::string create_members_table_str=
@@ -434,26 +435,6 @@ static int end_scan(TABLE* table) {
   return 0;
 }
 
-/*
-  Scan wsrep uuid from given field.
-
-  @return 0 in case of success, 1 in case of error.
- */
-static int scan(TABLE* table, uint field, wsrep_uuid_t& uuid)
-{
-  assert(field < table->s->fields);
-  int error;
-  String uuid_str;
-  (void)table->field[field]->val_str(&uuid_str);
-  if ((error= wsrep_uuid_scan((const char*)uuid_str.c_ptr(),
-                              uuid_str.length(),
-                              &uuid) < 0)) {
-    WSREP_ERROR("Failed to scan uuid: %d", -error);
-    return 1;
-  }
-  return 0;
-}
-
 static int scan(TABLE* table, uint field, wsrep::id& id)
 {
   assert(field < table->s->fields);
@@ -485,25 +466,27 @@ static int scan(TABLE* table, uint field, char* strbuf, uint strbuf_len)
   TODO: filter members by cluster UUID
  */
 static int scan_member(TABLE* table,
-                       wsrep_uuid_t const cluster_uuid,
-                       std::vector<wsrep_member_info_t>& members)
+                       const Wsrep_id& cluster_uuid,
+                       std::vector<Wsrep_view::member>& members)
 {
-  wsrep_member_info_t member;
+  Wsrep_id member_id;
+  char member_name[128] = { 0, };
+  char member_incoming[128] = { 0, };
 
-  memset(&member, 0, sizeof(member));
-
-  if (scan(table, 0, member.id) ||
-      scan(table, 2, member.name, sizeof(member.name)) ||
-      scan(table, 3, member.incoming, sizeof(member.incoming))) {
+  if (scan(table, 0, member_id) ||
+      scan(table, 2, member_name, sizeof(member_name)) ||
+      scan(table, 3, member_incoming, sizeof(member_incoming))) {
     return 1;
   }
 
   if (members.empty() == false) {
-    assert(memcmp(&members.rbegin()->id, &member.id, sizeof(member.id)) < 0);
+    assert(members.rbegin()->id() < member_id);
   }
 
   try {
-    members.push_back(member);
+    members.push_back(Wsrep_view::member(member_id,
+                                         member_name,
+                                         member_incoming));
   }
   catch (...) {
     WSREP_ERROR("Caught exception while scanning members table");
@@ -665,6 +648,7 @@ int Wsrep_schema::store_view(THD* thd, const Wsrep_view& view)
   Wsrep_schema_impl::store(cluster_table, 1, view.view_seqno().get());
   Wsrep_schema_impl::store(cluster_table, 2, view.state_id().seqno().get());
   Wsrep_schema_impl::store(cluster_table, 3, view.protocol_version());
+  Wsrep_schema_impl::store(cluster_table, 4, view.capabilities());
 
   if ((error= Wsrep_schema_impl::update_or_insert(cluster_table)))
   {
@@ -688,8 +672,7 @@ int Wsrep_schema::store_view(THD* thd, const Wsrep_view& view)
   {
     Wsrep_schema_impl::store(members_table, 0, view.members()[i].id());
     Wsrep_schema_impl::store(members_table, 1, view.state_id().id());
-    Wsrep_schema_impl::store(members_table, 2,
-                             view.members()[i].name());
+    Wsrep_schema_impl::store(members_table, 2, view.members()[i].name());
     Wsrep_schema_impl::store(members_table, 3, view.members()[i].incoming());
     if ((error= Wsrep_schema_impl::update_or_insert(members_table)))
     {
@@ -710,18 +693,15 @@ int Wsrep_schema::store_view(THD* thd, const Wsrep_view& view)
     goto out;
   }
 
-  for (int i= 0; i < view->memb_num; ++i) {
-    Wsrep_schema_impl::store(members_history_table, 0, view->members[i].id);
-    Wsrep_schema_impl::store(members_history_table, 1, view->state_id.uuid);
-    Wsrep_schema_impl::store(members_history_table, 2, view->view);
-    Wsrep_schema_impl::store(members_history_table, 3,
-                             view->state_id.seqno);
+  for (size_t i= 0; i < view.members().size(); ++i) {
+    Wsrep_schema_impl::store(members_history_table, 0, view.members()[i].id());
+    Wsrep_schema_impl::store(members_history_table, 1, view.state_id().id());
+    Wsrep_schema_impl::store(members_history_table, 2, view.view_seqno());
+    Wsrep_schema_impl::store(members_history_table, 3, view.state_id().seqno());
     Wsrep_schema_impl::store(members_history_table, 4,
-                             view->members[i].name,
-                             strlen(view->members[i].name));
+                             view.members()[i].name());
     Wsrep_schema_impl::store(members_history_table, 5,
-                             view->members[i].incoming,
-                             strlen(view->members[i].incoming));
+                             view.members()[i].incoming());
     if ((error= Wsrep_schema_impl::update_or_insert(members_history_table))) {
       WSREP_ERROR("failed to write wsrep.members table: %d", error);
       goto out;
@@ -735,27 +715,28 @@ int Wsrep_schema::store_view(THD* thd, const Wsrep_view& view)
   DBUG_RETURN(ret);
 }
 
-int Wsrep_schema::restore_view(const wsrep_uuid_t& node_uuid,
-                               wsrep_view_info_t** view_info) const {
+Wsrep_view Wsrep_schema::restore_view(THD* thd, const Wsrep_id& own_id) const {
   DBUG_ENTER("Wsrep_schema::restore_view()");
-  assert(view_info);
+
   int ret= 1;
   int error;
-  THD* thd= thd_pool_->get_thd(0);
 
   TABLE* cluster_table= 0;
-  TABLE* members_table=0;
+  bool end_cluster_scan= false;
+  TABLE* members_table= 0;
+  bool end_members_scan= false;
 
-  wsrep_uuid_t cluster_uuid;
+  Wsrep_id cluster_uuid;
   wsrep_seqno_t view_id;
   wsrep_seqno_t view_seqno;
   int my_idx= -1;
   int proto_ver;
-  std::vector<wsrep_member_info_t> members;
+  wsrep_cap_t capabilities;
+  std::vector<Wsrep_view::member> members;
 
   if (!thd) {
     WSREP_ERROR("Failed to allocate THD for restore view");
-    DBUG_RETURN(1);
+    DBUG_RETURN(Wsrep_view());
   }
 
   if (trans_begin(thd, MYSQL_START_TRANS_OPT_READ_ONLY)) {
@@ -768,13 +749,21 @@ int Wsrep_schema::restore_view(const wsrep_uuid_t& node_uuid,
    */
   Wsrep_schema_impl::init_stmt(thd);
   if (Wsrep_schema_impl::open_for_read(thd, "cluster", &cluster_table) ||
-      Wsrep_schema_impl::init_for_scan(cluster_table) ||
-      Wsrep_schema_impl::next_record(cluster_table) ||
+      Wsrep_schema_impl::init_for_scan(cluster_table)) {
+    goto out;
+  }
+
+  if (Wsrep_schema_impl::next_record(cluster_table) ||
       Wsrep_schema_impl::scan(cluster_table, 0, cluster_uuid) ||
       Wsrep_schema_impl::scan(cluster_table, 1, view_id) ||
       Wsrep_schema_impl::scan(cluster_table, 2, view_seqno) ||
       Wsrep_schema_impl::scan(cluster_table, 3, proto_ver) ||
-      Wsrep_schema_impl::end_scan(cluster_table)) {
+      Wsrep_schema_impl::scan(cluster_table, 4, capabilities)) {
+    end_cluster_scan= true;
+    goto out;
+  }
+
+  if (Wsrep_schema_impl::end_scan(cluster_table)) {
     goto out;
   }
   Wsrep_schema_impl::finish_stmt(thd);
@@ -787,6 +776,7 @@ int Wsrep_schema::restore_view(const wsrep_uuid_t& node_uuid,
       Wsrep_schema_impl::init_for_scan(members_table)) {
     goto out;
   }
+  end_members_scan= true;
 
   while (true) {
     if ((error= Wsrep_schema_impl::next_record(members_table)) == 0) {
@@ -804,39 +794,29 @@ int Wsrep_schema::restore_view(const wsrep_uuid_t& node_uuid,
     }
   }
 
+  end_members_scan= false;
   if (Wsrep_schema_impl::end_scan(members_table)) {
     goto out;
   }
   Wsrep_schema_impl::finish_stmt(thd);
 
-  for (uint i= 0; i < members.size(); ++i) {
-    if (memcmp(&members[i].id, &node_uuid, sizeof(node_uuid)) == 0) {
-      my_idx= i;
+  if (own_id.is_undefined() == false) {
+    for (uint i= 0; i < members.size(); ++i) {
+      if (members[i].id() == own_id) {
+        my_idx= i;
+        break;
+      }
     }
   }
-
-  *view_info= (wsrep_view_info_t*)
-    malloc(sizeof(wsrep_view_info_t)
-           + members.size() * sizeof(wsrep_member_info_t));
-  if (!view_info) {
-    WSREP_ERROR("Failed to allocate memory for view info");
-    goto out;
-  }
-
-  (*view_info)->state_id.uuid= cluster_uuid;
-  (*view_info)->state_id.seqno= view_seqno;
-  (*view_info)->view= view_id;
-  (*view_info)->status= WSREP_VIEW_PRIMARY;
-  (*view_info)->my_idx= my_idx;
-  (*view_info)->proto_ver= proto_ver;
-  (*view_info)->memb_num= members.size();
-  std::copy(members.begin(), members.end(), (*view_info)->members);
 
   (void)trans_commit(thd);
   ret= 0; /* Success*/
  out:
 
-  if (ret) {
+  if (end_cluster_scan) Wsrep_schema_impl::end_scan(cluster_table);
+  if (end_members_scan) Wsrep_schema_impl::end_scan(members_table);
+
+  if (0 != ret) {
     trans_rollback_stmt(thd);
     if (!trans_rollback(thd)) {
       close_thread_tables(thd);
@@ -844,8 +824,29 @@ int Wsrep_schema::restore_view(const wsrep_uuid_t& node_uuid,
   }
   thd->mdl_context.release_transactional_locks();
 
-  thd_pool_->release_thd(thd);
-  DBUG_RETURN(ret);
+  if (0 == ret) {
+    Wsrep_view ret_view(
+      wsrep::gtid(cluster_uuid, Wsrep_seqno(view_seqno)),
+      Wsrep_seqno(view_id),
+      wsrep::view::primary,
+      capabilities,
+      my_idx,
+      proto_ver,
+      members
+    );
+
+    if (wsrep_debug) {
+      std::ostringstream os;
+      os << "Restored cluster view:\n" << ret_view;
+      WSREP_INFO("%s", os.str().c_str());
+    }
+    DBUG_RETURN(ret_view);
+  }
+  else
+  {
+    Wsrep_view ret_view;
+    DBUG_RETURN(ret_view);
+  }
 }
 
 int Wsrep_schema::append_fragment(THD* thd,

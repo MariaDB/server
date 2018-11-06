@@ -673,7 +673,6 @@ int wsrep_init_server()
     }
 
     Wsrep_server_state::init_once(server_name,
-                                  server_id,
                                   incoming_address,
                                   node_address,
                                   working_dir,
