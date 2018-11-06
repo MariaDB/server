@@ -542,7 +542,11 @@
              data structures,
     2) Pros: Fast, no locking required (almost), limited thread-safe
              requirement,
+<<<<<<< HEAD
        Cons: Uses more memory, each SP read from table once per thread.
+=======
+       Cons: Uses more memory, each SP reads from the table once per thread.
+>>>>>>> 8c09170d254... Update Docs/sp-imp-spec.txt
 
     Unfortunately, we cannot use alternative 1 for the time being, as most
     of the datastructures to be cached (lex and items) are not reentrant
