@@ -316,6 +316,9 @@ enum enum_alter_inplace_result {
 */
 #define HA_SLOW_RND_POS  (1ULL << 55)
 
+/* Safe for online backup */
+#define HA_CAN_ONLINE_BACKUPS (1ULL << 56)
+
 /* bits in index_flags(index_number) for what you can do with index */
 #define HA_READ_NEXT            1       /* TODO really use this flag */
 #define HA_READ_PREV            2       /* supports ::index_prev */

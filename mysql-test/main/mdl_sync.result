@@ -2514,6 +2514,12 @@ connection con2;
 SET DEBUG_SYNC= 'now WAIT_FOR table_opened';
 # Check that FLUSH must wait to get the GRL
 # and let DROP PROCEDURE continue
+SELECT LOCK_MODE, LOCK_TYPE, TABLE_SCHEMA, TABLE_NAME FROM information_schema.metadata_lock_info;
+LOCK_MODE	LOCK_TYPE	TABLE_SCHEMA	TABLE_NAME
+MDL_BACKUP_DDL	Backup lock		
+MDL_EXCLUSIVE	Stored procedure metadata lock	test	p1
+MDL_INTENTION_EXCLUSIVE	Schema metadata lock	test	
+MDL_SHARED_WRITE	Table metadata lock	mysql	proc
 SET DEBUG_SYNC= 'mdl_acquire_lock_wait SIGNAL grlwait';
 FLUSH TABLES WITH READ LOCK;
 connection default;
@@ -2528,6 +2534,43 @@ connection con2;
 UNLOCK TABLES;
 connection default;
 SET DEBUG_SYNC= 'RESET';
+#
+# UPDATE should wait for FTWRL with non transactional table second
+#
+create table t1 (a int) engine=myisam;
+create table t2 (a int) engine=innodb;
+insert into t1 values (1);
+insert into t2 values (1);
+SET DEBUG_SYNC= 'after_open_table_mdl_shared SIGNAL table_opened WAIT_FOR grlwait execute 2';
+update t1,t2 set t1.a=2,t2.a=3;
+connection con2;
+SET DEBUG_SYNC= 'now WAIT_FOR table_opened';
+SET DEBUG_SYNC= 'now SIGNAL grlwait';
+SET DEBUG_SYNC= 'now WAIT_FOR table_opened';
+SET DEBUG_SYNC= 'mdl_acquire_lock_wait SIGNAL grlwait';
+FLUSH TABLES WITH READ LOCK;
+connection default;
+# Reaping UPDATE
+connection con2;
+UNLOCK TABLES;
+connection default;
+SET DEBUG_SYNC= 'RESET';
+SET DEBUG_SYNC= 'after_open_table_mdl_shared SIGNAL table_opened WAIT_FOR grlwait execute 2';
+update t2,t1 set t1.a=2,t2.a=3;
+connection con2;
+SET DEBUG_SYNC= 'now WAIT_FOR table_opened';
+SET DEBUG_SYNC= 'now SIGNAL grlwait';
+SET DEBUG_SYNC= 'now WAIT_FOR table_opened';
+SET DEBUG_SYNC= 'mdl_acquire_lock_wait SIGNAL grlwait';
+FLUSH TABLES WITH READ LOCK;
+SELECT LOCK_MODE, LOCK_TYPE, TABLE_SCHEMA, TABLE_NAME FROM information_schema.metadata_lock_info;
+LOCK_MODE	LOCK_TYPE	TABLE_SCHEMA	TABLE_NAME
+MDL_BACKUP_FTWRL2	Backup lock		
+unlock tables;
+connection default;
+# Reaping UPDATE
+SET DEBUG_SYNC= 'RESET';
+drop table t1,t2;
 disconnect con2;
 #
 # Bug#50786 Assertion `thd->mdl_context.trans_sentinel() == __null' 
@@ -2535,7 +2578,6 @@ disconnect con2;
 #
 # Supress warnings written to the log file
 call mtr.add_suppression("Wait on a lock was aborted due to a pending exclusive lock");
-DROP TABLE IF EXISTS t1, t2;
 connect  con1,localhost,root;
 connect  con2,localhost,root;
 connect  con3,localhost,root;

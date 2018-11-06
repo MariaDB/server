@@ -57,6 +57,13 @@ enum enum_resolution_type {
   RESOLVED_AGAINST_ALIAS
 };
 
+/* Argument to flush_tables() of what to flush */
+enum flush_tables_type {
+  FLUSH_ALL,
+  FLUSH_NON_TRANS_TABLES,
+  FLUSH_SYS_TABLES
+};
+
 enum find_item_error_report_type {REPORT_ALL_ERRORS, REPORT_EXCEPT_NOT_FOUND,
 				  IGNORE_ERRORS, REPORT_EXCEPT_NON_UNIQUE,
                                   IGNORE_EXCEPT_NON_UNIQUE};
@@ -291,7 +298,7 @@ void close_log_table(THD *thd, Open_tables_backup *backup);
 bool close_cached_tables(THD *thd, TABLE_LIST *tables,
                          bool wait_for_refresh, ulong timeout);
 void purge_tables(bool purge_flag);
-bool flush_tables(THD *thd);
+bool flush_tables(THD *thd, flush_tables_type flag);
 bool close_cached_connection_tables(THD *thd, LEX_CSTRING *connect_string);
 void close_all_tables_for_name(THD *thd, TABLE_SHARE *share,
                                ha_extra_function extra,
@@ -552,14 +559,14 @@ public:
     Set flag indicating that we have already acquired metadata lock
     protecting this statement against GRL while opening tables.
   */
-  void set_has_protection_against_grl()
+  void set_has_protection_against_grl(enum_mdl_type mdl_type)
   {
-    m_has_protection_against_grl= TRUE;
+    m_has_protection_against_grl|= MDL_BIT(mdl_type);
   }
 
-  bool has_protection_against_grl() const
+  bool has_protection_against_grl(enum_mdl_type mdl_type) const
   {
-    return m_has_protection_against_grl;
+    return (bool) (m_has_protection_against_grl & MDL_BIT(mdl_type));
   }
 
 private:
@@ -591,7 +598,7 @@ private:
     Indicates that in the process of opening tables we have acquired
     protection against global read lock.
   */
-  bool m_has_protection_against_grl;
+  mdl_bitmap_t m_has_protection_against_grl;
 };
 
 

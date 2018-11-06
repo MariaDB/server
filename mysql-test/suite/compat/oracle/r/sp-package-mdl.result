@@ -61,7 +61,7 @@ TABLE_NAME	pkg1.p1
 CONN	2
 INFO	DROP PACKAGE pkg1
 STATE	Waiting for stored package body metadata lock
-LOCK_MODE	MDL_BACKUP_STMT
+LOCK_MODE	MDL_BACKUP_DDL
 LOCK_TYPE	Backup lock
 TABLE_NAME	
 CONN	2

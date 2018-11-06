@@ -732,6 +732,7 @@ struct TABLE_SHARE
   bool null_field_first;
   bool system;                          /* Set if system table (one record) */
   bool not_usable_by_query_cache;
+  bool online_backup;                   /* Set if on-line backup supported */
   bool no_replicate;
   bool crashed;
   bool is_view;

@@ -2911,6 +2911,7 @@ ha_innobase::ha_innobase(
 			  | HA_CAN_EXPORT
 			  | HA_CAN_RTREEKEYS
                           | HA_CAN_TABLES_WITHOUT_ROLLBACK
+                          | HA_CAN_ONLINE_BACKUPS
 			  | HA_CONCURRENT_OPTIMIZE
 			  |  (srv_force_primary_key ? HA_REQUIRE_PRIMARY_KEY : 0)
 		  ),

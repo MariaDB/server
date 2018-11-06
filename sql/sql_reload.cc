@@ -250,7 +250,7 @@ bool reload_acl_and_cache(THD *thd, unsigned long long options,
       tmp_write_to_binlog= 0;
       if (thd->global_read_lock.lock_global_read_lock(thd))
 	return 1;                               // Killed
-      if (flush_tables(thd))
+      if (flush_tables(thd, FLUSH_ALL))
       {
         /*
           NOTE: my_error() has been already called by reopen_tables() within
@@ -273,7 +273,7 @@ bool reload_acl_and_cache(THD *thd, unsigned long long options,
         make_global_read_lock_block_commit(thd) above since they could have
         modified the tables too.
       */
-      if (WSREP(thd) && flush_tables(thd))
+      if (WSREP(thd) && flush_tables(thd, FLUSH_ALL))
         result= 1;
     }
     else
@@ -309,7 +309,7 @@ bool reload_acl_and_cache(THD *thd, unsigned long long options,
           */
           if (thd->open_tables &&
               !thd->mdl_context.is_lock_owner(MDL_key::BACKUP, "", "",
-                                              MDL_BACKUP_STMT))
+                                              MDL_BACKUP_DDL))
           {
             my_error(ER_TABLE_NOT_LOCKED_FOR_WRITE, MYF(0),
                      thd->open_tables->s->table_name.str);

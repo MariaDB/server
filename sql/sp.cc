@@ -1795,7 +1795,7 @@ bool lock_db_routines(THD *thd, const char *db)
 
   /* We should already hold a global IX lock and a schema X lock. */
   DBUG_ASSERT(thd->mdl_context.is_lock_owner(MDL_key::BACKUP, "", "",
-                                             MDL_BACKUP_STMT) &&
+                                             MDL_BACKUP_DDL) &&
               thd->mdl_context.is_lock_owner(MDL_key::SCHEMA, db, "",
                                              MDL_EXCLUSIVE));
   DBUG_RETURN(thd->mdl_context.acquire_locks(&mdl_requests,

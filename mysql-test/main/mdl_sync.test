@@ -2,6 +2,7 @@
 # We need the Debug Sync Facility.
 #
 --source include/have_debug_sync.inc
+--source include/have_metadata_lock_info.inc
 
 # We need InnoDB tables for some of the tests.
 --source include/have_innodb.inc
@@ -3248,6 +3249,7 @@ connection con2;
 SET DEBUG_SYNC= 'now WAIT_FOR table_opened';
 --echo # Check that FLUSH must wait to get the GRL
 --echo # and let DROP PROCEDURE continue
+SELECT LOCK_MODE, LOCK_TYPE, TABLE_SCHEMA, TABLE_NAME FROM information_schema.metadata_lock_info;
 SET DEBUG_SYNC= 'mdl_acquire_lock_wait SIGNAL grlwait';
 --send FLUSH TABLES WITH READ LOCK
 
@@ -3264,12 +3266,59 @@ connection con2;
 --echo # Reaping FTWRL.
 --reap
 UNLOCK TABLES;
+connection default;
+SET DEBUG_SYNC= 'RESET';
+
+--echo #
+--echo # UPDATE should wait for FTWRL with non transactional table second
+--echo #
+
+create table t1 (a int) engine=myisam;
+create table t2 (a int) engine=innodb;
+insert into t1 values (1);
+insert into t2 values (1);
+
+SET DEBUG_SYNC= 'after_open_table_mdl_shared SIGNAL table_opened WAIT_FOR grlwait execute 2';
+--send update t1,t2 set t1.a=2,t2.a=3
+
+connection con2;
+SET DEBUG_SYNC= 'now WAIT_FOR table_opened';
+SET DEBUG_SYNC= 'now SIGNAL grlwait';
+SET DEBUG_SYNC= 'now WAIT_FOR table_opened';
+SET DEBUG_SYNC= 'mdl_acquire_lock_wait SIGNAL grlwait';
+FLUSH TABLES WITH READ LOCK;
+
+connection default;
+--echo # Reaping UPDATE
+--reap
+
+connection con2;
+UNLOCK TABLES;
 
 connection default;
 SET DEBUG_SYNC= 'RESET';
 
-disconnect con2;
+# This will cause a wait as we first get lock for innodb table t2 but FTWRL
+# will cause lock for t1 to wait
 
+SET DEBUG_SYNC= 'after_open_table_mdl_shared SIGNAL table_opened WAIT_FOR grlwait execute 2';
+--send update t2,t1 set t1.a=2,t2.a=3
+
+connection con2;
+SET DEBUG_SYNC= 'now WAIT_FOR table_opened';
+SET DEBUG_SYNC= 'now SIGNAL grlwait';
+SET DEBUG_SYNC= 'now WAIT_FOR table_opened';
+SET DEBUG_SYNC= 'mdl_acquire_lock_wait SIGNAL grlwait';
+FLUSH TABLES WITH READ LOCK;
+SELECT LOCK_MODE, LOCK_TYPE, TABLE_SCHEMA, TABLE_NAME FROM information_schema.metadata_lock_info;
+unlock tables;
+
+connection default;
+--echo # Reaping UPDATE
+--reap
+SET DEBUG_SYNC= 'RESET';
+drop table t1,t2;
+disconnect con2;
 
 --echo #
 --echo # Bug#50786 Assertion `thd->mdl_context.trans_sentinel() == __null' 
@@ -3278,9 +3327,6 @@ disconnect con2;
 
 --echo # Supress warnings written to the log file
 call mtr.add_suppression("Wait on a lock was aborted due to a pending exclusive lock");
---disable_warnings
-DROP TABLE IF EXISTS t1, t2;
---enable_warnings
 
 connect (con1,localhost,root);
 connect (con2,localhost,root);

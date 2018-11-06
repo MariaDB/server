@@ -3561,6 +3561,8 @@ partititon_err:
       share->no_replicate= TRUE;
     if (outparam->file->table_cache_type() & HA_CACHE_TBL_NOCACHE)
       share->not_usable_by_query_cache= TRUE;
+    if (outparam->file->ha_table_flags() & HA_CAN_ONLINE_BACKUPS)
+      share->online_backup= 1;
   }
 
   if (share->no_replicate || !binlog_filter->db_ok(share->db.str))
