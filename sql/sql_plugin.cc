@@ -2221,10 +2221,9 @@ err:
   if (argv)
     free_defaults(argv);
   DBUG_RETURN(error);
-#ifdef WITH_WSREP
-error:
+
+WSREP_ERROR_LABEL:
   DBUG_RETURN(TRUE);
-#endif /* WITH_WSREP */
 }
 
 
@@ -2367,10 +2366,9 @@ bool mysql_uninstall_plugin(THD *thd, const LEX_CSTRING *name,
 
   mysql_mutex_unlock(&LOCK_plugin);
   DBUG_RETURN(error);
-#ifdef WITH_WSREP
-error:
+
+WSREP_ERROR_LABEL:
   DBUG_RETURN(TRUE);
-#endif /* WITH_WSREP */
 }
 
 

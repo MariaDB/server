@@ -1298,7 +1298,7 @@ buf_flush_page_try(
 static
 bool
 buf_flush_check_neighbor(
-	const page_id_t&	page_id,
+	const page_id_t		page_id,
 	buf_flush_t		flush_type)
 {
 	buf_page_t*	bpage;
@@ -1348,7 +1348,7 @@ buf_flush_check_neighbor(
 static
 ulint
 buf_flush_try_neighbors(
-	const page_id_t&	page_id,
+	const page_id_t		page_id,
 	buf_flush_t		flush_type,
 	ulint			n_flushed,
 	ulint			n_to_flush)

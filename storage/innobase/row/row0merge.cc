@@ -4108,25 +4108,31 @@ pfs_os_file_t
 row_merge_file_create_low(
 	const char*	path)
 {
-	pfs_os_file_t	fd;
 #ifdef UNIV_PFS_IO
 	/* This temp file open does not go through normal
 	file APIs, add instrumentation to register with
 	performance schema */
-	struct PSI_file_locker*	locker = NULL;
+	struct PSI_file_locker*	locker;
 	PSI_file_locker_state	state;
+	if (!path) {
+		path = mysql_tmpdir;
+	}
+	static const char label[] = "/Innodb Merge Temp File";
+	char* name = static_cast<char*>(
+		ut_malloc_nokey(strlen(path) + sizeof label));
+	strcpy(name, path);
+	strcat(name, label);
 
 	register_pfs_file_open_begin(
 		&state, locker, innodb_temp_file_key,
-		PSI_FILE_CREATE,
-		"Innodb Merge Temp File", 
-		__FILE__, __LINE__);
-	
+		PSI_FILE_CREATE, path ? name : label, __FILE__, __LINE__);
+
 #endif
-	fd = innobase_mysql_tmpfile(path);
+	pfs_os_file_t fd = innobase_mysql_tmpfile(path);
 #ifdef UNIV_PFS_IO
 	register_pfs_file_open_end(locker, fd, 
 		(fd == OS_FILE_CLOSED)?NULL:&fd);
+	ut_free(name);
 #endif
 
 	if (fd == OS_FILE_CLOSED) {

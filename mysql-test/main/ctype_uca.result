@@ -13940,6 +13940,27 @@ Warnings:
 Note	1003	select `test`.`t1`.`a` AS `a` from `test`.`t1` where `test`.`t1`.`a` = 'oe' and `test`.`t1`.`a` = 'oe'
 DROP TABLE t1;
 #
+# MDEV-17064 LIKE function has error behavior on the fields in which the collation is xxx_unicode_xx
+#
+CREATE TABLE t1 (name VARCHAR(20) CHARACTER SET utf8 COLLATE utf8_unicode_ci);
+INSERT INTO t1 VALUES ('radio! test');
+SELECT * FROM t1 WHERE name LIKE '%!!%' ESCAPE '!';
+name
+radio! test
+ALTER TABLE t1 CHANGE COLUMN name name VARCHAR(20) CHARACTER SET 'utf8' COLLATE 'utf8_general_ci';
+SELECT * FROM t1 WHERE name LIKE '%!!%' ESCAPE '!';
+name
+radio! test
+DROP TABLE t1;
+CREATE TABLE t1 (name VARCHAR(20) CHARACTER SET utf8 COLLATE utf8_unicode_ci);
+INSERT INTO t1 VALUES ('radio! test');
+SELECT name LIKE '%!!%' ESCAPE '!' AS c1,
+name LIKE '%!!%' COLLATE utf8_general_ci ESCAPE '!' AS c2
+FROM t1;
+c1	c2
+1	1
+DROP TABLE t1;
+#
 # End of MariaDB-10.0 tests
 #
 #

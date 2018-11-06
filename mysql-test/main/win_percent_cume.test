@@ -17,17 +17,17 @@ insert into t1 values
 ( 9 , 4, 20),
 (10 , 4, 20);
 
-select pk, a, b,
+select a,
     percent_rank() over (order by a),
     cume_dist() over (order by a)
 from t1;
 
-select pk, a, b,
+select pk,
        percent_rank() over (order by pk),
        cume_dist() over (order by pk)
 from t1 order by pk;
 
-select pk, a, b,
+select a,
         percent_rank() over (partition by a order by a),
         cume_dist() over (partition by a order by a)
 from t1;

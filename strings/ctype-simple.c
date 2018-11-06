@@ -492,7 +492,6 @@ ulong my_strntoul_8bit(CHARSET_INFO *cs,
   register uint cutlim;
   register uint32 i;
   register const char *s;
-  register uchar c;
   const char *save, *e;
   int overflow;
 
@@ -527,8 +526,9 @@ ulong my_strntoul_8bit(CHARSET_INFO *cs,
   overflow = 0;
   i = 0;
   
-  for (c = *s; s != e; c = *++s)
+  for ( ; s != e; ++s)
   {
+    register uchar c= *s;
     if (c>='0' && c<='9')
       c -= '0';
     else if (c>='A' && c<='Z')

@@ -44,7 +44,7 @@ after decryption normal page checksum does not match.
 @retval DB_TABLESPACE_DELETED if tablespace .ibd file is missing */
 dberr_t
 buf_read_page(
-	const page_id_t&	page_id,
+	const page_id_t		page_id,
 	const page_size_t&	page_size);
 
 /********************************************************************//**
@@ -57,7 +57,7 @@ released by the i/o-handler thread.
 @param[in]	sync		true if synchronous aio is desired */
 void
 buf_read_page_background(
-	const page_id_t&	page_id,
+	const page_id_t		page_id,
 	const page_size_t&	page_size,
 	bool			sync);
 
@@ -79,7 +79,7 @@ pages, it may happen that the page at the given page number does not
 get read even if we return a positive value! */
 ulint
 buf_read_ahead_random(
-	const page_id_t&	page_id,
+	const page_id_t		page_id,
 	const page_size_t&	page_size,
 	ibool			inside_ibuf);
 
@@ -111,7 +111,7 @@ which could result in a deadlock if the OS does not support asynchronous io.
 @return number of page read requests issued */
 ulint
 buf_read_ahead_linear(
-	const page_id_t&	page_id,
+	const page_id_t		page_id,
 	const page_size_t&	page_size,
 	ibool			inside_ibuf);
 

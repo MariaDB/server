@@ -498,13 +498,9 @@ bool Sql_cmd_alter_table::execute(THD *thd)
 
   DBUG_RETURN(result);
 
-#ifdef WITH_WSREP
-error: /* Used by WSREP_TO_ISOLATION_BEGIN_ALTER */
-#endif
-  {
-    WSREP_WARN("ALTER TABLE isolation failure");
-    DBUG_RETURN(TRUE);
-  }
+WSREP_ERROR_LABEL:
+  WSREP_WARN("ALTER TABLE isolation failure");
+  DBUG_RETURN(TRUE);
 }
 
 bool Sql_cmd_discard_import_tablespace::execute(THD *thd)

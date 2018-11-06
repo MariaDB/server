@@ -420,9 +420,6 @@ public:
 	Item* idx_cond_push(uint keyno, Item* idx_cond);
 	/* @} */
 
-	/* An helper function for index_cond_func_innodb: */
-	bool is_thd_killed();
-
 protected:
 
 	/**

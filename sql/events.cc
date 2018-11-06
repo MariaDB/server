@@ -419,10 +419,10 @@ Events::create_event(THD *thd, Event_parse_data *parse_data)
   thd->restore_stmt_binlog_format(save_binlog_format);
 
   DBUG_RETURN(ret);
-#ifdef WITH_WSREP
- error:
+
+WSREP_ERROR_LABEL:
   DBUG_RETURN(TRUE);
-#endif /* WITH_WSREP */
+
 }
 
 
@@ -550,10 +550,9 @@ Events::update_event(THD *thd, Event_parse_data *parse_data,
 
   thd->restore_stmt_binlog_format(save_binlog_format);
   DBUG_RETURN(ret);
-#ifdef WITH_WSREP
-error:
+
+WSREP_ERROR_LABEL:
   DBUG_RETURN(TRUE);
-#endif /* WITH_WSREP */
 }
 
 
@@ -618,10 +617,9 @@ Events::drop_event(THD *thd, const LEX_CSTRING *dbname,
 
   thd->restore_stmt_binlog_format(save_binlog_format);
   DBUG_RETURN(ret);
-#ifdef WITH_WSREP
-error:
+
+WSREP_ERROR_LABEL:
   DBUG_RETURN(TRUE);
-#endif /* WITH_WSREP */
 }
 
 

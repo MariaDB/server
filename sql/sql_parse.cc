@@ -3077,9 +3077,7 @@ static int mysql_create_routine(THD *thd, LEX *lex)
 #endif
     return false;
   }
-#ifdef WITH_WSREP
-error: /* Used by WSREP_TO_ISOLATION_BEGIN */
-#endif
+WSREP_ERROR_LABEL:
   return true;
 }
 
@@ -6298,6 +6296,7 @@ end_with_restore_list:
   goto finish;
 
 error:
+WSREP_ERROR_LABEL:
   res= TRUE;
 
 finish:

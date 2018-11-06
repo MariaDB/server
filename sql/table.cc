@@ -3129,6 +3129,7 @@ enum open_frm_error open_table_from_share(THD *thd, TABLE_SHARE *share,
   uchar *record, *bitmaps;
   Field **field_ptr;
   uint8 save_context_analysis_only= thd->lex->context_analysis_only;
+  TABLE_SHARE::enum_v_keys check_set_initialized= share->check_set_initialized;
   DBUG_ENTER("open_table_from_share");
   DBUG_PRINT("enter",("name: '%s.%s'  form: %p", share->db.str,
                       share->table_name.str, outparam));
@@ -3247,6 +3248,8 @@ enum open_frm_error open_table_from_share(THD *thd, TABLE_SHARE *share,
       goto err;
   }
   (*field_ptr)= 0;                              // End marker
+
+  DEBUG_SYNC(thd, "TABLE_after_field_clone");
 
   outparam->vers_write= share->versioned;
 
@@ -3507,6 +3510,16 @@ partititon_err:
   }
 
   outparam->mark_columns_used_by_virtual_fields();
+  if (!check_set_initialized &&
+      share->check_set_initialized == TABLE_SHARE::V_KEYS)
+  {
+    // copy PART_INDIRECT_KEY_FLAG that was set meanwhile by *some* thread
+    for (uint i= 0 ; i < share->fields ; i++)
+    {
+      if (share->field[i]->flags & PART_INDIRECT_KEY_FLAG)
+        outparam->field[i]->flags|= PART_INDIRECT_KEY_FLAG;
+    }
+  }
 
   if (db_stat)
   {
@@ -6871,6 +6884,7 @@ void TABLE::mark_columns_used_by_virtual_fields(void)
 {
   MY_BITMAP *save_read_set;
   Field **vfield_ptr;
+  TABLE_SHARE::enum_v_keys v_keys= TABLE_SHARE::NO_V_KEYS;
 
   /* If there is virtual fields are already initialized */
   if (s->check_set_initialized)
@@ -6911,12 +6925,12 @@ void TABLE::mark_columns_used_by_virtual_fields(void)
       if (bitmap_is_set(&tmp_set, i))
       {
         s->field[i]->flags|= PART_INDIRECT_KEY_FLAG;
-        field[i]->flags|= PART_INDIRECT_KEY_FLAG;
+        v_keys= TABLE_SHARE::V_KEYS;
       }
     }
     bitmap_clear_all(&tmp_set);
   }
-  s->check_set_initialized= 1;
+  s->check_set_initialized= v_keys;
   if (s->tmp_table == NO_TMP_TABLE)
     mysql_mutex_unlock(&s->LOCK_share);
 }

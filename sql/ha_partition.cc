@@ -4034,9 +4034,14 @@ THR_LOCK_DATA **ha_partition::store_lock(THD *thd,
   }
   else
   {
-    for (i= bitmap_get_first_set(&(m_part_info->lock_partitions));
+    MY_BITMAP *used_partitions= lock_type == TL_UNLOCK ||
+                                lock_type == TL_IGNORE ?
+                                &m_locked_partitions :
+                                &m_part_info->lock_partitions;
+
+    for (i= bitmap_get_first_set(used_partitions);
          i < m_tot_parts;
-         i= bitmap_get_next_set(&m_part_info->lock_partitions, i))
+         i= bitmap_get_next_set(used_partitions, i))
     {
       DBUG_PRINT("info", ("store lock %u iteration", i));
       to= m_file[i]->store_lock(thd, to, lock_type);
