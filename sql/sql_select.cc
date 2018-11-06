@@ -292,6 +292,9 @@ static bool find_order_in_list(THD *, Ref_ptr_array, TABLE_LIST *, ORDER *,
 static double table_cond_selectivity(JOIN *join, uint idx, JOIN_TAB *s,
                                      table_map rem_tables);
 void set_postjoin_aggr_write_func(JOIN_TAB *tab);
+
+static Item **get_sargable_cond(JOIN *join, TABLE *table);
+
 #ifndef DBUG_OFF
 
 /*
@@ -1814,19 +1817,9 @@ JOIN::optimize_inner()
     List_iterator_fast<TABLE_LIST> li(select_lex->leaf_tables);
     while ((tbl= li++))
     {
-      /* 
-        If tbl->embedding!=NULL that means that this table is in the inner
-        part of the nested outer join, and we can't do partition pruning
-        (TODO: check if this limitation can be lifted)
-      */
-      if (!tbl->embedding ||
-          (tbl->embedding && tbl->embedding->sj_on_expr))
-      {
-        Item *prune_cond= tbl->on_expr? tbl->on_expr : conds;
-        tbl->table->all_partitions_pruned_away= prune_partitions(thd,
-                                                                 tbl->table,
-	                                                         prune_cond);
-       }
+      Item **prune_cond= get_sargable_cond(this, tbl->table);
+      tbl->table->all_partitions_pruned_away=
+        prune_partitions(thd, tbl->table, *prune_cond);
     }
   }
 #endif
@@ -4354,6 +4347,84 @@ struct SARGABLE_PARAM
 };
 
 
+/*
+  Mark all tables inside a join nest as constant.
+
+  @detail  This is called when there is a local "Impossible WHERE" inside
+           a multi-table LEFT JOIN.
+*/
+
+void mark_join_nest_as_const(JOIN *join,
+                             TABLE_LIST *join_nest,
+                             table_map *found_const_table_map,
+                             uint *const_count)
+{
+  List_iterator<TABLE_LIST> it(join_nest->nested_join->join_list);
+  TABLE_LIST *tbl;
+  while ((tbl= it++))
+  {
+    if (tbl->nested_join)
+    {
+      mark_join_nest_as_const(join, tbl, found_const_table_map, const_count);
+      continue;
+    }
+    JOIN_TAB *tab= tbl->table->reginfo.join_tab;
+
+    if (!(join->const_table_map & tab->table->map))
+    {
+      tab->type= JT_CONST;
+      tab->info= ET_IMPOSSIBLE_ON_CONDITION;
+      tab->table->const_table= 1;
+
+      join->const_table_map|= tab->table->map;
+      *found_const_table_map|= tab->table->map;
+      set_position(join,(*const_count)++,tab,(KEYUSE*) 0);
+      mark_as_null_row(tab->table);		// All fields are NULL
+    }
+  }
+}
+
+
+/*
+  @brief Get the condition that can be used to do range analysis/partition
+    pruning/etc
+
+  @detail
+    Figure out which condition we can use:
+    - For INNER JOIN, we use the WHERE,
+    - "t1 LEFT JOIN t2 ON ..." uses t2's ON expression
+    - "t1 LEFT JOIN (...) ON ..." uses the join nest's ON expression.
+*/
+
+static Item **get_sargable_cond(JOIN *join, TABLE *table)
+{
+  Item **retval;
+  if (table->pos_in_table_list->on_expr)
+  {
+    /*
+      This is an inner table from a single-table LEFT JOIN, "t1 LEFT JOIN
+      t2 ON cond". Use the condition cond.
+    */
+    retval= &table->pos_in_table_list->on_expr;
+  }
+  else if (table->pos_in_table_list->embedding &&
+           !table->pos_in_table_list->embedding->sj_on_expr)
+  {
+    /*
+      This is the inner side of a multi-table outer join. Use the
+      appropriate ON expression.
+    */
+    retval= &(table->pos_in_table_list->embedding->on_expr);
+  }
+  else
+  {
+    /* The table is not inner wrt some LEFT JOIN. Use the WHERE clause */
+    retval= &join->conds;
+  }
+  return retval;
+}
+
+
 /**
   Calculate the best possible join and initialize the join structure.
 
@@ -4925,39 +4996,38 @@ make_join_statistics(JOIN *join, List<TABLE_LIST> &tables_list,
     
     /*
       Perform range analysis if there are keys it could use (1). 
-      Don't do range analysis if we're on the inner side of an outer join (2).
-      Do range analysis if we're on the inner side of a semi-join (3).
-      Don't do range analysis for materialized subqueries (4).
-      Don't do range analysis for materialized derived tables (5)
+      Don't do range analysis for materialized subqueries (2).
+      Don't do range analysis for materialized derived tables (3)
     */
     if ((!s->const_keys.is_clear_all() ||
 	 !bitmap_is_clear_all(&s->table->cond_set)) &&              // (1)
-        (!s->table->pos_in_table_list->embedding ||                 // (2)
-         (s->table->pos_in_table_list->embedding &&                 // (3)
-          s->table->pos_in_table_list->embedding->sj_on_expr)) &&   // (3)
-        !s->table->is_filled_at_execution() &&                      // (4)
-        !(s->table->pos_in_table_list->derived &&                   // (5)
-          s->table->pos_in_table_list->is_materialized_derived()))  // (5)
+        !s->table->is_filled_at_execution() &&                      // (2)
+        !(s->table->pos_in_table_list->derived &&                   // (3)
+          s->table->pos_in_table_list->is_materialized_derived()))  // (3)
     {
       bool impossible_range= FALSE;
       ha_rows records= HA_POS_ERROR;
       SQL_SELECT *select= 0;
+      Item **sargable_cond= NULL;
       if (!s->const_keys.is_clear_all())
       {
+        sargable_cond= get_sargable_cond(join, s->table);
+
         select= make_select(s->table, found_const_table_map,
 			    found_const_table_map,
-			    *s->on_expr_ref ? *s->on_expr_ref : join->conds,
+                            *sargable_cond,
                             (SORT_INFO*) 0,
 			    1, &error);
         if (!select)
           goto error;
         records= get_quick_record_count(join->thd, select, s->table,
 				        &s->const_keys, join->row_limit);
-        /* Range analyzer could modify the condition. */
-        if (*s->on_expr_ref)
-          *s->on_expr_ref= select->cond;
-        else
-          join->conds= select->cond;
+
+        /*
+          Range analyzer might have modified the condition. Put it the new
+          condition to where we got it from.
+        */
+        *sargable_cond= select->cond;
 
         s->quick=select->quick;
         s->needed_reg=select->needed_reg;
@@ -4966,10 +5036,11 @@ make_join_statistics(JOIN *join, List<TABLE_LIST> &tables_list,
       }
       if (!impossible_range)
       {
+        if (!sargable_cond)
+          sargable_cond= get_sargable_cond(join, s->table);
         if (join->thd->variables.optimizer_use_condition_selectivity > 1)
           calculate_cond_selectivity_for_table(join->thd, s->table, 
-                                               *s->on_expr_ref ?
-                                               s->on_expr_ref : &join->conds);
+                                               sargable_cond);
         if (s->table->reginfo.impossible_range)
 	{
           impossible_range= TRUE;
@@ -4978,23 +5049,33 @@ make_join_statistics(JOIN *join, List<TABLE_LIST> &tables_list,
       }
       if (impossible_range)
       {
-	/*
-	  Impossible WHERE or ON expression
-	  In case of ON, we mark that the we match one empty NULL row.
-	  In case of WHERE, don't set found_const_table_map to get the
-	  caller to abort with a zero row result.
-	*/
-	join->const_table_map|= s->table->map;
-	set_position(join,const_count++,s,(KEYUSE*) 0);
-	s->type= JT_CONST;
-        s->table->const_table= 1;
-	if (*s->on_expr_ref)
-	{
-	  /* Generate empty row */
-	  s->info= ET_IMPOSSIBLE_ON_CONDITION;
-	  found_const_table_map|= s->table->map;
-	  mark_as_null_row(s->table);		// All fields are NULL
-	}
+        /*
+          Impossible WHERE or ON expression
+          In case of ON, we mark that the we match one empty NULL row.
+          In case of WHERE, don't set found_const_table_map to get the
+          caller to abort with a zero row result.
+        */
+        TABLE_LIST *emb= s->table->pos_in_table_list->embedding;
+        if (emb && !emb->sj_on_expr)
+        {
+          /* Mark all tables in a multi-table join nest as const */
+          mark_join_nest_as_const(join, emb, &found_const_table_map,
+                                &const_count);
+        }
+        else
+        {
+          join->const_table_map|= s->table->map;
+          set_position(join,const_count++,s,(KEYUSE*) 0);
+          s->type= JT_CONST;
+          s->table->const_table= 1;
+          if (*s->on_expr_ref)
+          {
+            /* Generate empty row */
+            s->info= ET_IMPOSSIBLE_ON_CONDITION;
+            found_const_table_map|= s->table->map;
+            mark_as_null_row(s->table);		// All fields are NULL
+          }
+        }
       }
       if (records != HA_POS_ERROR)
       {
@@ -23139,7 +23220,8 @@ setup_group(THD *thd, Ref_ptr_array ref_pointer_array, TABLE_LIST *tables,
       return 1;
     }
   }
-  if (thd->variables.sql_mode & MODE_ONLY_FULL_GROUP_BY)
+  if (thd->variables.sql_mode & MODE_ONLY_FULL_GROUP_BY &&
+      context_analysis_place == IN_GROUP_BY)
   {
     /*
       Don't allow one to use fields that is not used in GROUP BY
@@ -27280,9 +27362,10 @@ AGGR_OP::end_send()
 
   // Update ref array
   join_tab->join->set_items_ref_array(*join_tab->ref_array);
+  bool keep_last_filesort_result = join_tab->filesort ? false : true;
   if (join_tab->window_funcs_step)
   {
-    if (join_tab->window_funcs_step->exec(join))
+    if (join_tab->window_funcs_step->exec(join, keep_last_filesort_result))
       return NESTED_LOOP_ERROR;
   }
 
@@ -27334,6 +27417,12 @@ AGGR_OP::end_send()
       }
       rc= evaluate_join_record(join, join_tab, 0);
     }
+  }
+
+  if (keep_last_filesort_result)
+  {
+    delete join_tab->filesort_result;
+    join_tab->filesort_result= NULL;
   }
 
   // Finish rnd scn after sending records

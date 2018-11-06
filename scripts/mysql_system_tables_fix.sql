@@ -422,14 +422,11 @@ ALTER TABLE proc MODIFY name char(64) DEFAULT '' NOT NULL,
                  DEFAULT CHARACTER SET utf8;
 
 # Correct the character set and collation
-ALTER TABLE proc CONVERT TO CHARACTER SET utf8;
 # Reset some fields after the conversion
-ALTER TABLE proc  MODIFY db
-                         char(64) collate utf8_bin DEFAULT '' NOT NULL,
-                  MODIFY definer
-                         char(141) collate utf8_bin DEFAULT '' NOT NULL,
-                  MODIFY comment
-                         text collate utf8_bin NOT NULL;
+ALTER TABLE proc CONVERT TO CHARACTER SET utf8,
+                  MODIFY db char(64) binary DEFAULT '' NOT NULL,
+                  MODIFY definer char(141) binary DEFAULT '' NOT NULL,
+                  MODIFY comment text binary NOT NULL;
 
 ALTER TABLE proc ADD character_set_client
                      char(32) collate utf8_bin DEFAULT NULL

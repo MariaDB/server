@@ -2730,10 +2730,11 @@ bool wsrep_create_like_table(THD* thd, TABLE_LIST* table,
   }
 
   return(false);
-
-error:
+#ifdef WITH_WSREP
+wsrep_error_label:
   thd->wsrep_TOI_pre_query= NULL;
   return (true);
+#endif
 }
 
 

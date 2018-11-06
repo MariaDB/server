@@ -237,7 +237,7 @@ tree
 UNIV_INLINE
 buf_block_t*
 btr_block_get_func(
-	const page_id_t&	page_id,
+	const page_id_t		page_id,
 	const page_size_t&	page_size,
 	ulint			mode,
 	const char*		file,
@@ -278,7 +278,7 @@ UNIV_INLINE
 page_t*
 btr_page_get(
 /*=========*/
-	const page_id_t&	page_id,
+	const page_id_t		page_id,
 	const page_size_t&	page_size,
 	ulint			mode,
 	dict_index_t*		index,
@@ -380,7 +380,7 @@ btr_create(
 @param[in,out]	mtr		mini-transaction */
 void
 btr_free_if_exists(
-	const page_id_t&	page_id,
+	const page_id_t		page_id,
 	const page_size_t&	page_size,
 	index_id_t		index_id,
 	mtr_t*			mtr);
@@ -390,7 +390,7 @@ btr_free_if_exists(
 @param[in]	page_size	page size */
 void
 btr_free(
-	const page_id_t&	page_id,
+	const page_id_t		page_id,
 	const page_size_t&	page_size);
 
 /** Read the last used AUTO_INCREMENT value from PAGE_ROOT_AUTO_INC.

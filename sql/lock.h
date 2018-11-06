@@ -33,7 +33,6 @@ void mysql_unlock_tables(THD *thd, MYSQL_LOCK *sql_lock);
 void mysql_unlock_read_tables(THD *thd, MYSQL_LOCK *sql_lock);
 void mysql_unlock_some_tables(THD *thd, TABLE **table,uint count, uint flag);
 void mysql_lock_remove(THD *thd, MYSQL_LOCK *locked,TABLE *table);
-void mysql_lock_abort(THD *thd, TABLE *table, bool upgrade_lock);
 bool mysql_lock_abort_for_thread(THD *thd, TABLE *table);
 MYSQL_LOCK *mysql_lock_merge(MYSQL_LOCK *a,MYSQL_LOCK *b);
 /* Lock based on name */

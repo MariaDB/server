@@ -2221,6 +2221,7 @@ row_upd_store_v_row(
 				}
 
 				dfield_copy_data(dfield, upd_field->old_v_val);
+				dfield_dup(dfield, node->heap);
 				break;
 			}
 
@@ -2241,6 +2242,7 @@ row_upd_store_v_row(
 								update->old_vrow,
 								col_no);
 						dfield_copy_data(dfield, vfield);
+						dfield_dup(dfield, node->heap);
 					}
 				} else {
 					/* Need to compute, this happens when

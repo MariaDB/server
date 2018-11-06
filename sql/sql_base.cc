@@ -4297,6 +4297,9 @@ restart:
   }
 
 error:
+#ifdef WITH_WSREP
+wsrep_error_label:
+#endif
   THD_STAGE_INFO(thd, stage_after_opening_tables);
   thd_proc_info(thd, 0);
 

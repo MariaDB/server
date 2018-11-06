@@ -1981,10 +1981,7 @@ recv_recover_page(bool just_read_in, buf_block_t* block)
 page number.
 @param[in]	page_id	page id
 @return number of pages found */
-static
-ulint
-recv_read_in_area(
-	const page_id_t&	page_id)
+static ulint recv_read_in_area(const page_id_t page_id)
 {
 	recv_addr_t* recv_addr;
 	ulint	page_nos[RECV_READ_AHEAD_AREA];

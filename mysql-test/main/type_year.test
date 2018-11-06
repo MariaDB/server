@@ -187,9 +187,16 @@ select a from t1 where a=b; # not a constant
 drop table t1;
 drop function y2k;
 
+--echo #
+--echo # MDEV-17257 Server crashes in Item::field_type_for_temporal_comparison or in get_datetime_value on SELECT with YEAR field and IN
+--echo #
+
+CREATE TABLE t1 (y YEAR);
+SELECT * FROM t1 WHERE y IN ( CAST( '1993-03-26 10:14:20' AS DATE ), NULL );
+DROP TABLE t1;
 
 --echo #
---echo # Start of 10.1 tests
+--echo # End of 10.0 tests
 --echo #
 
 --echo #

@@ -1149,7 +1149,7 @@ btr_free_root_invalidate(
 static MY_ATTRIBUTE((warn_unused_result))
 buf_block_t*
 btr_free_root_check(
-	const page_id_t&	page_id,
+	const page_id_t		page_id,
 	const page_size_t&	page_size,
 	index_id_t		index_id,
 	mtr_t*			mtr)
@@ -1377,7 +1377,7 @@ top_loop:
 @param[in,out]	mtr		mini-transaction */
 void
 btr_free_if_exists(
-	const page_id_t&	page_id,
+	const page_id_t		page_id,
 	const page_size_t&	page_size,
 	index_id_t		index_id,
 	mtr_t*			mtr)
@@ -1401,7 +1401,7 @@ btr_free_if_exists(
 @param[in]	page_size	page size */
 void
 btr_free(
-	const page_id_t&	page_id,
+	const page_id_t		page_id,
 	const page_size_t&	page_size)
 {
 	mtr_t		mtr;

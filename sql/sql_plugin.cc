@@ -2230,9 +2230,9 @@ err:
     free_defaults(argv);
   DBUG_RETURN(error == INSTALL_FAIL_NOT_OK);
 #ifdef WITH_WSREP
-error:
-  DBUG_RETURN(TRUE);
-#endif /* WITH_WSREP */
+wsrep_error_label:
+  DBUG_RETURN(true);
+#endif
 }
 
 
@@ -2378,9 +2378,9 @@ bool mysql_uninstall_plugin(THD *thd, const LEX_CSTRING *name,
   mysql_mutex_unlock(&LOCK_plugin);
   DBUG_RETURN(error);
 #ifdef WITH_WSREP
-error:
-  DBUG_RETURN(TRUE);
-#endif /* WITH_WSREP */
+wsrep_error_label:
+  DBUG_RETURN(true);
+#endif
 }
 
 

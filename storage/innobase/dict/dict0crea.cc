@@ -1525,6 +1525,21 @@ dict_create_or_check_foreign_constraint_tables(void)
 
 	row_mysql_lock_data_dictionary(trx);
 
+	DBUG_EXECUTE_IF(
+		"create_and_drop_garbage",
+		err = que_eval_sql(
+			NULL,
+			"PROCEDURE CREATE_GARBAGE_TABLE_PROC () IS\n"
+			"BEGIN\n"
+			"CREATE TABLE\n"
+			"\"test/#sql-ib-garbage\"(ID CHAR);\n"
+			"CREATE UNIQUE CLUSTERED INDEX PRIMARY"
+			" ON \"test/#sql-ib-garbage\"(ID);\n"
+			"END;\n", FALSE, trx);
+		ut_ad(err == DB_SUCCESS);
+		row_drop_table_for_mysql("test/#sql-ib-garbage", trx,
+					 SQLCOM_DROP_DB, true););
+
 	/* Check which incomplete table definition to drop. */
 
 	if (sys_foreign_err == DB_CORRUPTION) {

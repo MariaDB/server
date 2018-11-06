@@ -394,7 +394,7 @@ extern ulong		fts_max_cache_size;
 extern ulong		fts_max_total_cache_size;
 
 /** Variable specifying the FTS result cache limit for each query */
-extern ulong		fts_result_cache_limit;
+extern size_t		fts_result_cache_limit;
 
 /** Variable specifying the maximum FTS max token size */
 extern ulong		fts_max_token_size;

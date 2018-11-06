@@ -3285,7 +3285,7 @@ public:
   */
   DYNAMIC_ARRAY delete_gtid_domain;
   static const ulong initial_gtid_domain_buffer_size= 16;
-  ulong gtid_domain_static_buffer[initial_gtid_domain_buffer_size];
+  uint32 gtid_domain_static_buffer[initial_gtid_domain_buffer_size];
 
   inline void set_limit_rows_examined()
   {

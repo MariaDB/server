@@ -1351,7 +1351,7 @@ void
 page_warn_strict_checksum(
 	srv_checksum_algorithm_t	curr_algo,
 	srv_checksum_algorithm_t	page_checksum,
-	const page_id_t&		page_id);
+	const page_id_t			page_id);
 
 #ifdef UNIV_MATERIALIZE
 #undef UNIV_INLINE

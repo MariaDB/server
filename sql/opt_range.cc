@@ -3247,6 +3247,12 @@ bool calculate_cond_selectivity_for_table(THD *thd, TABLE *table, Item **cond)
 
   }
 
+  if (quick && (quick->get_type() == QUICK_SELECT_I::QS_TYPE_ROR_UNION || 
+     quick->get_type() == QUICK_SELECT_I::QS_TYPE_INDEX_MERGE))
+  {
+    table->cond_selectivity*= (quick->records/table_records);
+  }
+
   bitmap_union(used_fields, &handled_columns);
 
   /* Check if we can improve selectivity estimates by using sampling */

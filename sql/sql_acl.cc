@@ -1900,7 +1900,9 @@ static bool acl_load(THD *thd, const Grant_tables& tables)
 
           if (password.length)
           {
-            if (user.auth_string.length)
+            if (user.auth_string.length &&
+                (user.auth_string.length != password.length ||
+                 memcmp(user.auth_string.str, password.str, password.length)))
             {
               sql_print_warning("'user' entry '%s@%s' has both a password "
                                 "and an authentication plugin specified. The "
@@ -3177,7 +3179,7 @@ end:
   close_mysql_tables(thd);
 
 #ifdef WITH_WSREP
-error: // this label is used in WSREP_TO_ISOLATION_BEGIN
+wsrep_error_label:
   if (WSREP(thd) && !thd->wsrep_applier)
   {
     WSREP_TO_ISOLATION_END;
@@ -3339,7 +3341,7 @@ int acl_set_default_role(THD *thd, const char *host, const char *user,
   }
 
 #ifdef WITH_WSREP
-error: // this label is used in WSREP_TO_ISOLATION_END
+wsrep_error_label:
   if (WSREP(thd) && !thd->wsrep_applier)
   {
     WSREP_TO_ISOLATION_END;

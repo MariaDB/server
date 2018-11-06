@@ -58,7 +58,8 @@ select
   pk, a, b,
   row_number() over (order by a),
   row_number() over (order by b)
-from t1;
+from t1
+order by b;
 
 drop table t1;
 
@@ -391,7 +392,6 @@ insert into t3 values
 (6, 2);
 
 select
-  pk,
   val,
   count(val) over (order by val
                  range between current row and
@@ -404,7 +404,6 @@ insert into t3 values
 (8, 3);
 
 select
-  pk,
   val,
   count(val) over (order by val
                  range between current row and
@@ -444,7 +443,6 @@ insert into t4 values
 
 select
   part_id,
-  pk,
   val,
   count(val) over (partition by part_id
                    order by val
@@ -458,7 +456,6 @@ from t4;
 --echo #
 select
   part_id,
-  pk,
   val,
   count(val) over (partition by part_id
                    order by val
@@ -469,7 +466,6 @@ from t4;
 
 select
   part_id,
-  pk,
   val,
   count(val) over (partition by part_id
                    order by val
@@ -480,7 +476,6 @@ from t4;
 
 select
   part_id,
-  pk,
   val,
   count(val) over (partition by part_id
                    order by val
@@ -723,7 +718,8 @@ select
  count(b) over (order by a
                 range between 2 preceding
                           and 2 following) as CNT
-from t1;
+from t1
+order by a, pk;
 drop table t1;
 
 --echo #
@@ -1023,6 +1019,7 @@ insert into t1 values
 
 --echo #  Check using counters
 flush status;
+--sorted_result
 select
   rank() over (partition by c order by a),
   rank() over (partition by c order by b)
@@ -1030,6 +1027,7 @@ from t1;
 show status like '%sort%';
 
 flush status;
+--sorted_result
 select
   rank() over (partition by c order by a),
   rank() over (partition by c order by a)
@@ -1101,6 +1099,7 @@ insert into t1 values
   (2,2),
   (3,1);
 
+--sorted_result
 select
   a, b,
   rank() over (order by a), rank() over (order by b),
@@ -1192,6 +1191,7 @@ insert into t1 values (4,'a');
 insert into t1 values (2,'b');
 insert into t1 values (-1,'');
 
+--sorted_result
 select
   *,
   ROW_NUMBER() OVER (order by s1),
@@ -1267,7 +1267,7 @@ from t1;
 drop table t1;
 
 --echo #
---echo # MDEV-10874: two window functions with ccompatible sorting 
+--echo # MDEV-10874: two window functions with compatible sorting
 --echo #
 
 create table t1 (
@@ -2091,6 +2091,33 @@ CREATE TABLE t1(i int);
 insert into t1 values (1),(2);
 SELECT DISTINCT row_number() OVER (), MAX(1) FROM t1;
 SELECT DISTINCT BIT_AND(0)  OVER (), MAX(1) FROM t1;
+drop table t1;
+
+--echo #
+--echo # MDEV-17525: Window functions not working in ONLY_FULL_GROUP_BY mode
+--echo #
+
+CREATE TABLE t1 (name CHAR(10), test CHAR(10), score TINYINT);
+
+INSERT INTO t1 VALUES
+('Chun', 'SQL', 75), ('Chun', 'Tuning', 73),
+('Esben', 'SQL', 43), ('Esben', 'Tuning', 31),
+('Kaolin', 'SQL', 56), ('Kaolin', 'Tuning', 88),
+('Tatiana', 'SQL', 87), ('Tatiana', 'Tuning', 83);
+
+SET @save_sql_mode= @@sql_mode;
+SET sql_mode = 'ONLY_FULL_GROUP_BY';
+
+SELECT name, test, score,
+  AVG(score) OVER (PARTITION BY test) AS average_by_test
+FROM t1
+ORDER BY test, name;
+
+set @@sql_mode= @save_sql_mode;
+SELECT name, test, score,
+  AVG(score) OVER (PARTITION BY test) AS average_by_test
+FROM t1
+ORDER BY test, name;
 drop table t1;
 
 --echo #

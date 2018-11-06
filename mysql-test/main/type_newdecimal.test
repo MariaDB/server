@@ -1583,8 +1583,51 @@ select 0.000000000000000000000000000000000000000000000000001 mod 1;
 select 0.0000000001 mod 1;
 select 0.01 mod 1;
 
+#
+# MDEV-17256 Decimal field multiplication bug
+#
+
+CREATE TABLE t1 (
+    `FLD1` decimal(7,4) unsigned zerofill NOT NULL DEFAULT 001.0000,
+    `FLD2` decimal(7,4) unsigned zerofill NOT NULL DEFAULT 001.0000,
+    `FLD3` decimal(7,4) unsigned zerofill NOT NULL DEFAULT 001.0000,
+    `FLD4` decimal(7,4) unsigned zerofill NOT NULL DEFAULT 001.0000,
+    `FLD5` decimal(7,4) unsigned zerofill NOT NULL DEFAULT 001.0000,
+    `FLD6` decimal(7,4) unsigned zerofill NOT NULL DEFAULT 001.0000,
+    `FLD7` decimal(7,4) unsigned zerofill NOT NULL DEFAULT 001.0000,
+    `FLD8` decimal(7,4) unsigned zerofill NOT NULL DEFAULT 001.0000,
+    `FLD9` decimal(7,4) unsigned zerofill NOT NULL DEFAULT 001.0000,
+    `FLD10` decimal(7,4) unsigned zerofill NOT NULL DEFAULT 001.0000,
+    `FLD11` decimal(7,4) unsigned zerofill NOT NULL DEFAULT 001.0000,
+    `FLD12` decimal(7,4) unsigned zerofill NOT NULL DEFAULT 001.0000,
+    `FLD13` decimal(7,4) unsigned zerofill NOT NULL DEFAULT 001.0000,
+    `FLD14` decimal(7,4) unsigned zerofill NOT NULL DEFAULT 001.0000,
+    `FLD15` decimal(7,4) unsigned zerofill NOT NULL DEFAULT 001.0000,
+    `FLD16` decimal(7,4) unsigned zerofill NOT NULL DEFAULT 001.0000,
+    `FLD17` decimal(7,4) unsigned zerofill NOT NULL DEFAULT 001.0000,
+    `FLD18` decimal(7,4) unsigned zerofill NOT NULL DEFAULT 001.0000,
+    `FLD19` decimal(7,4) unsigned zerofill NOT NULL DEFAULT 001.0000,
+    `FLD20` decimal(7,4) unsigned zerofill NOT NULL DEFAULT 001.0000,
+    `FLD21` decimal(7,4) unsigned zerofill NOT NULL DEFAULT 001.0000,
+    `FLD22` decimal(7,4) unsigned zerofill NOT NULL DEFAULT 001.0000,
+    `FLD23` decimal(7,4) unsigned zerofill NOT NULL DEFAULT 001.0000
+);
+     
+INSERT INTO t1 VALUES (001.0760,000.9500,001.0000,001.0000,001.0000,
+    001.0000,001.0000,001.0000,001.0000,001.0000,001.0000,000.5949,001.0194,
+    001.0000,001.0000,001.0000,001.0000,001.0000,001.0000,000.9220,001.1890,001.2130,327.2690);
+     
+select FLD1*FLD2*FLD3*FLD4*FLD5*FLD6*FLD7*FLD8*FLD9*FLD10*FLD11*FLD12*FLD13*FLD14*FLD15*FLD16*FLD17*FLD18*FLD19*FLD20*FLD21*FLD22*FLD23 as calc1 from t1;
+select FLD23*FLD2*FLD1*FLD4*FLD5*FLD11*FLD12*FLD13*FLD3*FLD15*FLD16*FLD17*FLD18*FLD19*FLD20*FLD21*FLD22*FLD14*FLD6*FLD7*FLD8*FLD9*FLD10 as calc2 from t1;
+     
+DROP TABLE t1;
+
+CREATE TABLE t1 AS SELECT 1.0 * 2.000;
+SHOW CREATE TABLE t1;
+DROP TABLE t1;
+
 --echo #
---echo # Start of 10.0 tests
+--echo # End of 5.5 tests
 --echo #
 
 --echo #

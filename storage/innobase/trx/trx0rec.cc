@@ -1991,8 +1991,7 @@ trx_undo_page_report_rename(trx_t* trx, const dict_table_t* table,
 @param[in,out]	trx	transaction
 @param[in]	table	table that is being renamed
 @return	DB_SUCCESS or error code */
-dberr_t
-trx_undo_report_rename(trx_t* trx, const dict_table_t* table)
+dberr_t trx_undo_report_rename(trx_t* trx, const dict_table_t* table)
 {
 	ut_ad(!trx->read_only);
 	ut_ad(trx->id);

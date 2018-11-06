@@ -279,7 +279,7 @@ trx_purge_add_undo_to_history(const trx_t* trx, trx_undo_t*& undo, mtr_t* mtr)
 	ut_ad(srv_undo_sources
 	      || trx->undo_no == 0
 	      || (!purge_sys.enabled()
-		  && (srv_startup_is_before_trx_rollback_phase
+		  && (srv_is_being_started
 		      || trx_rollback_is_active
 		      || srv_force_recovery >= SRV_FORCE_NO_BACKGROUND))
 	      || ((trx->mysql_thd || trx->internal)

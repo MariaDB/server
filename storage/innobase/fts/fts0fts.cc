@@ -67,7 +67,7 @@ ulong	fts_max_total_cache_size;
 
 /** This is FTS result cache limit for each query and would be
 a configurable variable */
-ulong	fts_result_cache_limit;
+size_t	fts_result_cache_limit;
 
 /** Variable specifying the maximum FTS max token size */
 ulong	fts_max_token_size;

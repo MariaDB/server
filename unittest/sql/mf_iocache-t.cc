@@ -286,11 +286,96 @@ void mdev14014()
   close_cached_file(&info);
 }
 
+void mdev17133()
+{
+  my_off_t res;
+  int k;
+  const int eof_iter=4, read_iter= 4;
+  uchar buf_i[1024*256];      // read
+  uchar buf_o[sizeof(buf_i)]; // write
+  const size_t eof_block_size= sizeof(buf_o) / eof_iter;
+  const size_t read_size= eof_block_size / read_iter;
+  size_t total;
+
+  srand((uint) time(NULL));
+  memset(buf_i,    0, sizeof( buf_i));
+  memset(buf_o, FILL, sizeof(buf_o));
+
+  diag("MDEV-17133 Dump thread reads from the past");
+
+  init_io_cache_encryption();
+
+  res= open_cached_file(&info, 0, 0, CACHE_SIZE, 0);
+  ok(res == 0, "open_cached_file" INFO_TAIL);
+
+  res= my_b_write(&info, buf_o, sizeof(buf_o));
+  ok(res == 0, "buffer is written" INFO_TAIL);
+  res= my_b_tell(&info);
+  ok(res == sizeof(buf_o), "cache size as expected");
+
+  res= my_b_flush_io_cache(&info, 1);
+  ok(res == 0, "flush" INFO_TAIL);
+  res= reinit_io_cache(&info, READ_CACHE, 0, 0, 0);
+  ok(res == 0, "reinit READ_CACHE" INFO_TAIL);
+
+  // read the written data by chunks of variable size eof_iter times
+  for (k= eof_iter, info.end_of_file=0, total= 0; k; k--)
+  {
+    int i;
+    size_t curr_read_size;
+    info.end_of_file=
+      k == 1 ? sizeof(buf_o) :
+      MY_MIN(sizeof(buf_o),
+             info.end_of_file + eof_block_size +
+             // plus 25% of block for randomization to the average
+             eof_block_size/4 - rand() % (eof_block_size/2));
+
+    // read a chunk by blocks of variable size read_iter times
+    // the last block completes the current chunk
+    for (i= 0; i < read_iter; i++, total += curr_read_size)
+    {
+      char buf_check[eof_block_size];
+      size_t a,b;
+
+      a= (size_t)(info.end_of_file - total);
+      b= read_size + read_size/4 - rand() % (read_size/2);
+      curr_read_size= (i == read_iter - 1) ? a :
+        MY_MIN(a, b);
+
+      DBUG_ASSERT(curr_read_size <= info.end_of_file - total);
+
+      res= my_b_read(&info, buf_i + total, MY_MIN(19, curr_read_size));
+      ok(res == 0, "read of 19");
+      // mark read bytes in the used part of the cache buffer
+      memset(info.buffer, 0, info.read_pos - info.buffer);
+
+      // random size 2nd read
+      res= my_b_read(&info, buf_i + total + MY_MIN(19, curr_read_size),
+                     19 >= curr_read_size ? 0 : curr_read_size - 19);
+      ok(res == 0, "rest of read %lu", curr_read_size - 19);
+      // mark read bytes in the used part of the cache buffer
+      memset(info.buffer, 0, info.read_pos - info.buffer);
+
+      // check that no marked bytes are read
+      memset(buf_check, FILL, curr_read_size);
+      ok(memcmp(buf_i + total, buf_check, curr_read_size) == 0,
+         "read correct data");
+    }
+    ok(info.pos_in_file + (info.read_end - info.buffer) == info.end_of_file,
+       "cache is read up to eof");
+    ok(total == info.end_of_file, "total matches eof");
+  }
+  ok(total == sizeof(buf_i), "read total size match");
+  ok(buf_i[sizeof(buf_i) - 1] == FILL, "data read correctly");
+
+  close_cached_file(&info);
+}
+
 
 int main(int argc __attribute__((unused)),char *argv[])
 {
   MY_INIT(argv[0]);
-  plan(51);
+  plan(114);
 
   /* temp files with and without encryption */
   encrypt_tmp_files= 1;
@@ -307,6 +392,7 @@ int main(int argc __attribute__((unused)),char *argv[])
   encrypt_tmp_files= 0;
 
   mdev14014();
+  mdev17133();
 
   my_end(0);
   return exit_status();

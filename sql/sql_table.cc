@@ -2935,20 +2935,6 @@ uint Column_definition::pack_flag_numeric(uint dec) const
 
 bool Column_definition::prepare_stage2_varchar(ulonglong table_flags)
 {
-#ifndef QQ_ALL_HANDLERS_SUPPORT_VARCHAR
-  if (table_flags & HA_NO_VARCHAR)
-  {
-    /* convert VARCHAR to CHAR because handler is not yet up to date */
-    set_handler(&type_handler_var_string);
-    pack_length= type_handler()->calc_pack_length((uint) length);
-    if ((length / charset->mbmaxlen) > MAX_FIELD_CHARLENGTH)
-    {
-      my_error(ER_TOO_BIG_FIELDLENGTH, MYF(0), field_name.str,
-               static_cast<ulong>(MAX_FIELD_CHARLENGTH));
-      return true;
-    }
-  }
-#endif
   pack_flag= (charset->state & MY_CS_BINSORT) ? FIELDFLAG_BINARY : 0;
   return false;
 }
@@ -4148,7 +4134,9 @@ mysql_prepare_create_table(THD *thd, HA_CREATE_INFO *create_info,
   }
 
   if (!unique_key && !primary_key &&
-      (file->ha_table_flags() & HA_REQUIRE_PRIMARY_KEY))
+      ((file->ha_table_flags() & HA_REQUIRE_PRIMARY_KEY) ||
+       ((file->ha_table_flags() & HA_WANTS_PRIMARY_KEY) &&
+        !create_info->sequence)))
   {
     my_message(ER_REQUIRES_PRIMARY_KEY, ER_THD(thd, ER_REQUIRES_PRIMARY_KEY),
                MYF(0));

@@ -59,7 +59,7 @@ INSERT INTO t1 VALUES('4','1','1');
 INSERT INTO t1 VALUES('5','1','1');
 INSERT INTO t1 VALUES('6','1','1');
 
-LOCK TABLE v1 WRITE;
+LOCK TABLE v1 READ;
 
 connection con1;
 
@@ -106,9 +106,8 @@ delimiter ;|
 
 connection con0;
 let $wait_condition=
-   SELECT variable_value > @@global.delayed_insert_limit
-   FROM information_schema.global_status
-   WHERE variable_name like 'Not_flushed_delayed_rows';
+   SELECT COUNT(*) = 1 FROM information_schema.processlist
+   WHERE state = 'Waiting for table level lock' AND user='delayed';
 --source include/wait_condition.inc
 let $my_select= SELECT COUNT(*) FROM t1;
 send;
@@ -130,13 +129,6 @@ connection con0;
 --echo Asynchronous "reap" result
 --echo The next result suffers from
 --echo '# Bug#35386 insert delayed inserts 1 + limit rows instead of just limit rows'
-#
-# on UNLOCK TABLES both SELECT in the con0 and delayed insert thread in the
-# con1 were awaken. There's no FIFO for TL_WRITE_DELAYED and TL_READ,
-# so either the first delayed_insert_limit rows will be inserted
-# before select (which will see 21 row) or select will go first (and see 6 rows)
-#
---replace_result 6 21
 reap;
 
 connection default;
@@ -165,7 +157,7 @@ INSERT INTO t1 VALUES('4');
 INSERT INTO t1 VALUES('5');
 INSERT INTO t1 VALUES('6');
 
-LOCK TABLE v1 WRITE;
+LOCK TABLE v1 READ;
 
 connection con1;
 
@@ -194,8 +186,8 @@ delimiter ;|
 
 connection con0;
 let $wait_condition=
-   SELECT variable_value > 0 FROM information_schema.global_status
-   WHERE variable_name like 'Not_flushed_delayed_rows';
+   SELECT COUNT(*) = 1 FROM information_schema.processlist
+   WHERE state = 'Waiting for table level lock' AND user='delayed';
 --source include/wait_condition.inc
 --echo Asynchronous execute
 # Due to performance and server behaveiour the test observes values between 6 and 22.

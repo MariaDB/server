@@ -14318,9 +14318,18 @@ delete_domain_id_list:
         ;
 
 delete_domain_id:
-          ulong_num
+          ulonglong_num
           {
-            insert_dynamic(&Lex->delete_gtid_domain, (uchar*) &($1));
+            uint32 value= (uint32) $1;
+            if ($1 > UINT_MAX32)
+            {
+              my_printf_error(ER_BINLOG_CANT_DELETE_GTID_DOMAIN,
+                              "The value of gtid domain being deleted ('%llu') "
+                              "exceeds its maximum size "
+                              "of 32 bit unsigned integer", MYF(0), $1);
+              MYSQL_YYABORT;
+            }
+            insert_dynamic(&Lex->delete_gtid_domain, (uchar*) &value);
           }
         ;
 

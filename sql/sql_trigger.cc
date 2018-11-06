@@ -613,9 +613,9 @@ end:
 
   DBUG_RETURN(result);
 #ifdef WITH_WSREP
- error:
+wsrep_error_label:
   DBUG_RETURN(true);
-#endif /* WITH_WSREP */
+#endif
 }
 
 

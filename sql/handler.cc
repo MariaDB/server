@@ -6955,7 +6955,7 @@ bool Vers_parse_info::fix_implicit(THD *thd, Alter_info *alter_info)
   return false;
 }
 
-bool Table_scope_and_contents_source_st::vers_native(THD *thd) const
+bool Table_scope_and_contents_source_pod_st::vers_native(THD *thd) const
 {
   if (ha_check_storage_engine_flag(db_type, HTON_NATIVE_SYS_VERSIONING))
     return true;

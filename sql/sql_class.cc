@@ -4786,6 +4786,14 @@ extern "C" int thd_slave_thread(const MYSQL_THD thd)
   return(thd->slave_thread);
 }
 
+
+extern "C" int thd_rpl_stmt_based(const MYSQL_THD thd)
+{
+  return !thd->is_current_stmt_binlog_format_row() &&
+    !thd->is_current_stmt_binlog_disabled();
+}
+
+
 /* Returns high resolution timestamp for the start
   of the current query. */
 extern "C" unsigned long long thd_start_utime(const MYSQL_THD thd)

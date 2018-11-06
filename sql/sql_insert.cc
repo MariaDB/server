@@ -2518,7 +2518,8 @@ TABLE *Delayed_insert::get_local_table(THD* client_thd)
         The thread could be killed with an error message if
         di->handle_inserts() or di->open_and_lock_table() fails.
         The thread could be killed without an error message if
-        killed using kill_delayed_threads_for_table().
+        killed using THD::notify_shared_lock() or
+        kill_delayed_threads_for_table().
       */
       if (!thd.is_error())
         my_message(ER_QUERY_INTERRUPTED, ER_THD(&thd, ER_QUERY_INTERRUPTED),
