@@ -1,23 +1,23 @@
 create table t1 (a int, b int, c int);
 create table t2 (a int, b int, c int, d decimal);
-insert into t1 values 
+insert into t1 values
 (1,21,345), (1,33,7), (8,33,114), (1,21,500), (1,19,107), (5,14,787),
 (8,33,123), (9,10,211), (5,16,207), (1,33,988), (5,27,132), (1,21,104),
 (6,20,309), (6,20,315), (1,21,101), (8,33,404), (9,10,800), (1,21,123),
 (7,11,708), (6,20,214);
 insert into t2 values
-(2,3,207,207.0000), (1,21,909,12.0000), (7,13,312,406.0000), 
+(2,3,207,207.0000), (1,21,909,12.0000), (7,13,312,406.0000),
 (8,64,248,107.0000), (6,20,315,279.3333), (1,19,203,107.0000),
 (8,80,800,314.0000), (3,12,231,190.0000), (6,23,303,909.0000);
 Warnings:
 Note	1265	Data truncated for column 'd' at row 5
 create table t1_double(a int, b double, c double);
-insert into t1_double values 
+insert into t1_double values
 (1,23.4,14.3333), (1,12.5,18.9), (3,12.5,18.9),
 (4,33.4,14.3333), (4,14.3333,13.65), (5,17.89,7.22),
 (6,33.4,14.3), (10,33.4,13.65), (11,33.4,13.65);
 create table t2_double(a int, b double, c double);
-insert into t2_double values 
+insert into t2_double values
 (1,22.4,14.3333), (1,12.5,18.9), (2,22.4,18.9),
 (4,33.4,14.3333), (5,22.4,13.65), (7,17.89,18.9),
 (6,33.4,14.3333), (10,31.4,13.65), (12,33.4,13.65);
@@ -41,22 +41,22 @@ insert into t2_decimal values
 (2,1,13),(2,2,11),(3,3,16),
 (1,3,22),(1,3,14),(2,2,15),
 (2,1,43),(2,3,11),(2,3,16);
-create view v1 as select a, b, max(c) as max_c, avg(c) as avg_c from t1 
+create view v1 as select a, b, max(c) as max_c, avg(c) as avg_c from t1
 group by a,b having max_c < 707;
-create view v2 as select a, b, max(c) as max_c, avg(c) as avg_c from t1 
+create view v2 as select a, b, max(c) as max_c, avg(c) as avg_c from t1
 where t1.a>5 group by a,b having max_c < 707;
 create view v3 as select a, b, min(c) as min_c from t1
 where t1.a<10 group by a,b having min_c > 109;
 create view v4 as
 select a, b, min(max_c) as min_c from v1
 where (v1.a<15) group by a,b;
-create view v_union as 
+create view v_union as
 select a, b, min(c) as c from t1
 where t1.a<10 group by a,b having c > 109
 union
 select a, b, max(c) as c from t1
 where t1.b>10 group by a,b having c < 300;
-create view v2_union as 
+create view v2_union as
 select a, b, min(c) as c from t1
 where t1.a<10 group by a,b having c > 109
 union
@@ -65,13 +65,13 @@ where t1.b>10 group by a,b having c < 300
 union
 select a, b, avg(c) as c from t1
 where t1.c>300 group by a,b having c < 707;
-create view v3_union as 
+create view v3_union as
 select a, b, (a+1) as c from t1
 where t1.a<10
 union
 select a, b, c from t1
 where t1.b>10 and t1.c>100;
-create view v4_union as 
+create view v4_union as
 select a, b, max(c)-100 as c from t1
 where t1.a<10 group by a,b having c > 109
 union
@@ -80,13 +80,13 @@ where t1.b>10;
 create view v_double as
 select a, avg(a/4) as avg_a, b, c from t1_double
 where (b>12.2) group by b,c having (avg_a<22.333);
-create view v_char as 
-select a, b, max(c) as max_c from t1_char 
+create view v_char as
+select a, b, max(c) as max_c from t1_char
 group by a,b having max_c < 9;
 create view v_decimal as
 select a, b, avg(c) as avg_c from t1_decimal
 group by a,b having (avg_c>12);
-# conjunctive subformula : pushing into HAVING 
+# conjunctive subformula : pushing into HAVING
 set statement optimizer_switch='condition_pushdown_for_derived=off' for select * from v1,t2 where (v1.max_c>214) and (t2.a>v1.a);
 a	b	max_c	avg_c	a	b	c	d
 1	21	500	234.6000	2	3	207	207
@@ -161,7 +161,7 @@ EXPLAIN
 }
 set statement optimizer_switch='condition_pushdown_for_derived=off' for select * from
 (select a, b, max(c) as max_c, avg(c) as avg_c from t1
-group by a,b having max_c < 707) v1, 
+group by a,b having max_c < 707) v1,
 t2 where (v1.a=t2.a) and (v1.max_c>300);
 a	b	max_c	avg_c	a	b	c	d
 1	21	500	234.6000	1	21	909	12
@@ -172,7 +172,7 @@ a	b	max_c	avg_c	a	b	c	d
 6	20	315	279.3333	6	23	303	909
 select * from
 (select a, b, max(c) as max_c, avg(c) as avg_c from t1
-group by a,b having max_c < 707) v1, 
+group by a,b having max_c < 707) v1,
 t2 where (v1.a=t2.a) and (v1.max_c>300);
 a	b	max_c	avg_c	a	b	c	d
 1	21	500	234.6000	1	21	909	12
@@ -183,7 +183,7 @@ a	b	max_c	avg_c	a	b	c	d
 6	20	315	279.3333	6	23	303	909
 explain select * from
 (select a, b, max(c) as max_c, avg(c) as avg_c from t1
-group by a,b having max_c < 707) v1, 
+group by a,b having max_c < 707) v1,
 t2 where (v1.a=t2.a) and (v1.max_c>300);
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 1	PRIMARY	t2	ALL	NULL	NULL	NULL	NULL	9	Using where
@@ -191,7 +191,7 @@ id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 2	DERIVED	t1	ALL	NULL	NULL	NULL	NULL	20	Using temporary; Using filesort
 explain format=json select * from
 (select a, b, max(c) as max_c, avg(c) as avg_c from t1
-group by a,b having max_c < 707) v1, 
+group by a,b having max_c < 707) v1,
 t2 where (v1.a=t2.a) and (v1.max_c>300);
 EXPLAIN
 {
@@ -235,8 +235,8 @@ EXPLAIN
     }
   }
 }
-# extracted or formula : pushing into HAVING 
-set statement optimizer_switch='condition_pushdown_for_derived=off' for select * from v1,t2 where 
+# extracted or formula : pushing into HAVING
+set statement optimizer_switch='condition_pushdown_for_derived=off' for select * from v1,t2 where
 ((v1.max_c>400) and (t2.a>v1.a)) or ((v1.max_c<135) and (t2.a<v1.a));
 a	b	max_c	avg_c	a	b	c	d
 1	21	500	234.6000	2	3	207	207
@@ -250,7 +250,7 @@ a	b	max_c	avg_c	a	b	c	d
 5	27	132	132.0000	1	21	909	12
 5	27	132	132.0000	1	19	203	107
 5	27	132	132.0000	3	12	231	190
-select * from v1,t2 where 
+select * from v1,t2 where
 ((v1.max_c>400) and (t2.a>v1.a)) or ((v1.max_c<135) and (t2.a<v1.a));
 a	b	max_c	avg_c	a	b	c	d
 1	21	500	234.6000	2	3	207	207
@@ -264,13 +264,13 @@ a	b	max_c	avg_c	a	b	c	d
 5	27	132	132.0000	1	21	909	12
 5	27	132	132.0000	1	19	203	107
 5	27	132	132.0000	3	12	231	190
-explain select * from v1,t2 where 
+explain select * from v1,t2 where
 ((v1.max_c>400) and (t2.a>v1.a)) or ((v1.max_c<135) and (t2.a<v1.a));
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 1	PRIMARY	t2	ALL	NULL	NULL	NULL	NULL	9	
 1	PRIMARY	<derived2>	ALL	NULL	NULL	NULL	NULL	20	Using where; Using join buffer (flat, BNL join)
 2	DERIVED	t1	ALL	NULL	NULL	NULL	NULL	20	Using temporary; Using filesort
-explain format=json select * from v1,t2 where 
+explain format=json select * from v1,t2 where
 ((v1.max_c>400) and (t2.a>v1.a)) or ((v1.max_c<135) and (t2.a<v1.a));
 EXPLAIN
 {
@@ -315,7 +315,7 @@ EXPLAIN
   }
 }
 set statement optimizer_switch='condition_pushdown_for_derived=off' for select * from v1,t2 where
-((v1.max_c>300) and (v1.avg_c>t2.d) and (v1.b=t2.b)) or 
+((v1.max_c>300) and (v1.avg_c>t2.d) and (v1.b=t2.b)) or
 ((v1.max_c<135) and (v1.max_c<t2.c) and (v1.a=t2.a));
 a	b	max_c	avg_c	a	b	c	d
 1	19	107	107.0000	1	21	909	12
@@ -323,7 +323,7 @@ a	b	max_c	avg_c	a	b	c	d
 1	21	500	234.6000	1	21	909	12
 6	20	315	279.3333	6	20	315	279
 select * from v1,t2 where
-((v1.max_c>300) and (v1.avg_c>t2.d) and (v1.b=t2.b)) or 
+((v1.max_c>300) and (v1.avg_c>t2.d) and (v1.b=t2.b)) or
 ((v1.max_c<135) and (v1.max_c<t2.c) and (v1.a=t2.a));
 a	b	max_c	avg_c	a	b	c	d
 1	19	107	107.0000	1	21	909	12
@@ -331,14 +331,14 @@ a	b	max_c	avg_c	a	b	c	d
 1	21	500	234.6000	1	21	909	12
 6	20	315	279.3333	6	20	315	279
 explain select * from v1,t2 where
-((v1.max_c>300) and (v1.avg_c>t2.d) and (v1.b=t2.b)) or 
+((v1.max_c>300) and (v1.avg_c>t2.d) and (v1.b=t2.b)) or
 ((v1.max_c<135) and (v1.max_c<t2.c) and (v1.a=t2.a));
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 1	PRIMARY	t2	ALL	NULL	NULL	NULL	NULL	9	
 1	PRIMARY	<derived2>	ALL	NULL	NULL	NULL	NULL	20	Using where; Using join buffer (flat, BNL join)
 2	DERIVED	t1	ALL	NULL	NULL	NULL	NULL	20	Using temporary; Using filesort
 explain format=json select * from v1,t2 where
-((v1.max_c>300) and (v1.avg_c>t2.d) and (v1.b=t2.b)) or 
+((v1.max_c>300) and (v1.avg_c>t2.d) and (v1.b=t2.b)) or
 ((v1.max_c<135) and (v1.max_c<t2.c) and (v1.a=t2.a));
 EXPLAIN
 {
@@ -508,7 +508,7 @@ EXPLAIN
   }
 }
 # extracted or formula : pushing into WHERE
-set statement optimizer_switch='condition_pushdown_for_derived=off' for select * from v1,t2 where 
+set statement optimizer_switch='condition_pushdown_for_derived=off' for select * from v1,t2 where
 ((v1.a>7) and (t2.c<v1.max_c)) or ((v1.a<2) and (t2.b<v1.b));
 a	b	max_c	avg_c	a	b	c	d
 1	19	107	107.0000	2	3	207	207
@@ -526,7 +526,7 @@ a	b	max_c	avg_c	a	b	c	d
 8	33	404	213.6667	1	19	203	107
 8	33	404	213.6667	3	12	231	190
 8	33	404	213.6667	6	23	303	909
-select * from v1,t2 where 
+select * from v1,t2 where
 ((v1.a>7) and (t2.c<v1.max_c)) or ((v1.a<2) and (t2.b<v1.b));
 a	b	max_c	avg_c	a	b	c	d
 1	19	107	107.0000	2	3	207	207
@@ -544,13 +544,13 @@ a	b	max_c	avg_c	a	b	c	d
 8	33	404	213.6667	1	19	203	107
 8	33	404	213.6667	3	12	231	190
 8	33	404	213.6667	6	23	303	909
-explain select * from v1,t2 where 
+explain select * from v1,t2 where
 ((v1.a>7) and (t2.c<v1.max_c)) or ((v1.a<2) and (t2.b<v1.b));
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 1	PRIMARY	t2	ALL	NULL	NULL	NULL	NULL	9	
 1	PRIMARY	<derived2>	ALL	NULL	NULL	NULL	NULL	20	Using where; Using join buffer (flat, BNL join)
 2	DERIVED	t1	ALL	NULL	NULL	NULL	NULL	20	Using where; Using temporary; Using filesort
-explain format=json select * from v1,t2 where 
+explain format=json select * from v1,t2 where
 ((v1.a>7) and (t2.c<v1.max_c)) or ((v1.a<2) and (t2.b<v1.b));
 EXPLAIN
 {
@@ -595,7 +595,7 @@ EXPLAIN
     }
   }
 }
-set statement optimizer_switch='condition_pushdown_for_derived=off' for select * from v2,t2 where 
+set statement optimizer_switch='condition_pushdown_for_derived=off' for select * from v2,t2 where
 ((v2.a>7) and (t2.c<v2.max_c)) or ((v2.a>5) and (t2.b<v2.b));
 a	b	max_c	avg_c	a	b	c	d
 6	20	315	279.3333	2	3	207	207
@@ -610,7 +610,7 @@ a	b	max_c	avg_c	a	b	c	d
 8	33	404	213.6667	1	19	203	107
 8	33	404	213.6667	3	12	231	190
 8	33	404	213.6667	6	23	303	909
-select * from v2,t2 where 
+select * from v2,t2 where
 ((v2.a>7) and (t2.c<v2.max_c)) or ((v2.a>5) and (t2.b<v2.b));
 a	b	max_c	avg_c	a	b	c	d
 6	20	315	279.3333	2	3	207	207
@@ -625,13 +625,13 @@ a	b	max_c	avg_c	a	b	c	d
 8	33	404	213.6667	1	19	203	107
 8	33	404	213.6667	3	12	231	190
 8	33	404	213.6667	6	23	303	909
-explain select * from v2,t2 where 
+explain select * from v2,t2 where
 ((v2.a>7) and (t2.c<v2.max_c)) or ((v2.a>5) and (t2.b<v2.b));
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 1	PRIMARY	t2	ALL	NULL	NULL	NULL	NULL	9	
 1	PRIMARY	<derived2>	ALL	NULL	NULL	NULL	NULL	20	Using where; Using join buffer (flat, BNL join)
 2	DERIVED	t1	ALL	NULL	NULL	NULL	NULL	20	Using where; Using temporary; Using filesort
-explain format=json select * from v2,t2 where 
+explain format=json select * from v2,t2 where
 ((v2.a>7) and (t2.c<v2.max_c)) or ((v2.a>5) and (t2.b<v2.b));
 EXPLAIN
 {
@@ -676,29 +676,29 @@ EXPLAIN
     }
   }
 }
-set statement optimizer_switch='condition_pushdown_for_derived=off' for select * from v1,t2 where 
-((v1.a>4) and (v1.b>t2.b) and (v1.max_c=t2.d)) or 
+set statement optimizer_switch='condition_pushdown_for_derived=off' for select * from v1,t2 where
+((v1.a>4) and (v1.b>t2.b) and (v1.max_c=t2.d)) or
 ((v1.a<2) and (v1.max_c<t2.c) and (v1.max_c=t2.d));
 a	b	max_c	avg_c	a	b	c	d
 1	19	107	107.0000	8	64	248	107
 1	19	107	107.0000	1	19	203	107
 5	16	207	207.0000	2	3	207	207
-select * from v1,t2 where 
-((v1.a>4) and (v1.b>t2.b) and (v1.max_c=t2.d)) or 
+select * from v1,t2 where
+((v1.a>4) and (v1.b>t2.b) and (v1.max_c=t2.d)) or
 ((v1.a<2) and (v1.max_c<t2.c) and (v1.max_c=t2.d));
 a	b	max_c	avg_c	a	b	c	d
 1	19	107	107.0000	8	64	248	107
 1	19	107	107.0000	1	19	203	107
 5	16	207	207.0000	2	3	207	207
-explain select * from v1,t2 where 
-((v1.a>4) and (v1.b>t2.b) and (v1.max_c=t2.d)) or 
+explain select * from v1,t2 where
+((v1.a>4) and (v1.b>t2.b) and (v1.max_c=t2.d)) or
 ((v1.a<2) and (v1.max_c<t2.c) and (v1.max_c=t2.d));
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 1	PRIMARY	t2	ALL	NULL	NULL	NULL	NULL	9	
 1	PRIMARY	<derived2>	ALL	NULL	NULL	NULL	NULL	20	Using where; Using join buffer (flat, BNL join)
 2	DERIVED	t1	ALL	NULL	NULL	NULL	NULL	20	Using where; Using temporary; Using filesort
-explain format=json select * from v1,t2 where 
-((v1.a>4) and (v1.b>t2.b) and (v1.max_c=t2.d)) or 
+explain format=json select * from v1,t2 where
+((v1.a>4) and (v1.b>t2.b) and (v1.max_c=t2.d)) or
 ((v1.a<2) and (v1.max_c<t2.c) and (v1.max_c=t2.d));
 EXPLAIN
 {
@@ -934,8 +934,8 @@ EXPLAIN
   }
 }
 # extracted or formula : pushing into HAVING and WHERE
-set statement optimizer_switch='condition_pushdown_for_derived=off' for select * from v1,t2 where 
-((v1.a>7) and (v1.max_c>300) and (t2.c<v1.max_c)) or 
+set statement optimizer_switch='condition_pushdown_for_derived=off' for select * from v1,t2 where
+((v1.a>7) and (v1.max_c>300) and (t2.c<v1.max_c)) or
 ((v1.a<4) and (v1.max_c<500) and (t2.b<v1.b));
 a	b	max_c	avg_c	a	b	c	d
 1	19	107	107.0000	2	3	207	207
@@ -948,8 +948,8 @@ a	b	max_c	avg_c	a	b	c	d
 8	33	404	213.6667	1	19	203	107
 8	33	404	213.6667	3	12	231	190
 8	33	404	213.6667	6	23	303	909
-select * from v1,t2 where 
-((v1.a>7) and (v1.max_c>300) and (t2.c<v1.max_c)) or 
+select * from v1,t2 where
+((v1.a>7) and (v1.max_c>300) and (t2.c<v1.max_c)) or
 ((v1.a<4) and (v1.max_c<500) and (t2.b<v1.b));
 a	b	max_c	avg_c	a	b	c	d
 1	19	107	107.0000	2	3	207	207
@@ -962,15 +962,15 @@ a	b	max_c	avg_c	a	b	c	d
 8	33	404	213.6667	1	19	203	107
 8	33	404	213.6667	3	12	231	190
 8	33	404	213.6667	6	23	303	909
-explain select * from v1,t2 where 
-((v1.a>7) and (v1.max_c>300) and (t2.c<v1.max_c)) or 
+explain select * from v1,t2 where
+((v1.a>7) and (v1.max_c>300) and (t2.c<v1.max_c)) or
 ((v1.a<4) and (v1.max_c<500) and (t2.b<v1.b));
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 1	PRIMARY	t2	ALL	NULL	NULL	NULL	NULL	9	
 1	PRIMARY	<derived2>	ALL	NULL	NULL	NULL	NULL	20	Using where; Using join buffer (flat, BNL join)
 2	DERIVED	t1	ALL	NULL	NULL	NULL	NULL	20	Using where; Using temporary; Using filesort
-explain format=json select * from v1,t2 where 
-((v1.a>7) and (v1.max_c>300) and (t2.c<v1.max_c)) or 
+explain format=json select * from v1,t2 where
+((v1.a>7) and (v1.max_c>300) and (t2.c<v1.max_c)) or
 ((v1.a<4) and (v1.max_c<500) and (t2.b<v1.b));
 EXPLAIN
 {
@@ -1104,8 +1104,8 @@ EXPLAIN
     }
   }
 }
-# extracted or formulas : pushing into WHERE and HAVING     
-set statement optimizer_switch='condition_pushdown_for_derived=off' for select * from v1,t2 where 
+# extracted or formulas : pushing into WHERE and HAVING
+set statement optimizer_switch='condition_pushdown_for_derived=off' for select * from v1,t2 where
 ((v1.a<2) and (v1.max_c>120) and (v1.b=t2.b)) or (v1.a>7);
 a	b	max_c	avg_c	a	b	c	d
 1	21	500	234.6000	1	21	909	12
@@ -1118,7 +1118,7 @@ a	b	max_c	avg_c	a	b	c	d
 8	33	404	213.6667	8	80	800	314
 8	33	404	213.6667	3	12	231	190
 8	33	404	213.6667	6	23	303	909
-select * from v1,t2 where 
+select * from v1,t2 where
 ((v1.a<2) and (v1.max_c>120) and (v1.b=t2.b)) or (v1.a>7);
 a	b	max_c	avg_c	a	b	c	d
 1	21	500	234.6000	1	21	909	12
@@ -1131,13 +1131,13 @@ a	b	max_c	avg_c	a	b	c	d
 8	33	404	213.6667	8	80	800	314
 8	33	404	213.6667	3	12	231	190
 8	33	404	213.6667	6	23	303	909
-explain select * from v1,t2 where 
+explain select * from v1,t2 where
 ((v1.a<2) and (v1.max_c>120) and (v1.b=t2.b)) or (v1.a>7);
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 1	PRIMARY	t2	ALL	NULL	NULL	NULL	NULL	9	
 1	PRIMARY	<derived2>	ALL	NULL	NULL	NULL	NULL	20	Using where; Using join buffer (flat, BNL join)
 2	DERIVED	t1	ALL	NULL	NULL	NULL	NULL	20	Using where; Using temporary; Using filesort
-explain format=json select * from v1,t2 where 
+explain format=json select * from v1,t2 where
 ((v1.a<2) and (v1.max_c>120) and (v1.b=t2.b)) or (v1.a>7);
 EXPLAIN
 {
@@ -1250,7 +1250,7 @@ EXPLAIN
   }
 }
 # prepare of a query containing extracted or formula
-prepare stmt from "select * from v1,t2 where 
+prepare stmt from "select * from v1,t2 where
   ((v1.max_c>400) and (t2.a>v1.a)) or ((v1.max_c<135) and (t2.a<v1.a));";
 execute stmt;
 a	b	max_c	avg_c	a	b	c	d
@@ -1279,8 +1279,8 @@ a	b	max_c	avg_c	a	b	c	d
 5	27	132	132.0000	1	19	203	107
 5	27	132	132.0000	3	12	231	190
 deallocate prepare stmt;
-prepare stmt from 
-"explain format=json select * from v1,t2 where 
+prepare stmt from
+"explain format=json select * from v1,t2 where
     ((v1.max_c>400) and (t2.a>v1.a)) or ((v1.max_c<135) and (t2.a<v1.a));";
 execute stmt;
 EXPLAIN
@@ -1652,7 +1652,7 @@ EXPLAIN
     }
   }
 }
-# extracted and formula : pushing into WHERE  
+# extracted and formula : pushing into WHERE
 # pushing equalities
 set statement optimizer_switch='condition_pushdown_for_derived=off' for select * from v1,t2 where (v1.a=v1.b) and (v1.a=t2.a) and (v1.a=3);
 a	b	max_c	avg_c	a	b	c	d
@@ -1752,23 +1752,23 @@ EXPLAIN
     }
   }
 }
-set statement optimizer_switch='condition_pushdown_for_derived=off' for select * from v_char as v,t2_char as t where 
+set statement optimizer_switch='condition_pushdown_for_derived=off' for select * from v_char as v,t2_char as t where
 (v.a='c') and (v.b<'Hermes') and ((v.b=t.b) or (v.max_c>20));
 a	b	max_c	a	b	c
 c	Harry	4	d	Harry	1
 c	Harry	4	b	Harry	4
-select * from v_char as v,t2_char as t where 
+select * from v_char as v,t2_char as t where
 (v.a='c') and (v.b<'Hermes') and ((v.b=t.b) or (v.max_c>20));
 a	b	max_c	a	b	c
 c	Harry	4	d	Harry	1
 c	Harry	4	b	Harry	4
-explain select * from v_char as v,t2_char as t where 
+explain select * from v_char as v,t2_char as t where
 (v.a='c') and (v.b<'Hermes') and ((v.b=t.b) or (v.max_c>20));
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 1	PRIMARY	<derived2>	ALL	NULL	NULL	NULL	NULL	12	Using where
 1	PRIMARY	t	ALL	NULL	NULL	NULL	NULL	12	Using where; Using join buffer (flat, BNL join)
 2	DERIVED	t1_char	ALL	NULL	NULL	NULL	NULL	12	Using where; Using temporary; Using filesort
-explain format=json select * from v_char as v,t2_char as t where 
+explain format=json select * from v_char as v,t2_char as t where
 (v.a='c') and (v.b<'Hermes') and ((v.b=t.b) or (v.max_c>20));
 EXPLAIN
 {
@@ -1885,7 +1885,7 @@ EXPLAIN
     }
   }
 }
-# extracted or formula : pushing into HAVING using equalities     
+# extracted or formula : pushing into HAVING using equalities
 set statement optimizer_switch='condition_pushdown_for_derived=off' for select * from v1,t2
 where ((t2.a<4) and (v1.a=t2.a)) or ((t2.c>150) and (v1.max_c=t2.c));
 a	b	max_c	avg_c	a	b	c	d
@@ -2014,24 +2014,24 @@ EXPLAIN
   }
 }
 # conjunctive subformulas : pushing into WHERE and HAVING
-# pushing equalities    
+# pushing equalities
 set statement optimizer_switch='condition_pushdown_for_derived=off' for select * from
 (select a, b, max(c) as max_c, avg(c) as avg_c from t1
-group by a,b having max_c < 707) v1, 
+group by a,b having max_c < 707) v1,
 t2 where (v1.a=8) and (v1.a=t2.a) and (v1.max_c=404);
 a	b	max_c	avg_c	a	b	c	d
 8	33	404	213.6667	8	64	248	107
 8	33	404	213.6667	8	80	800	314
 select * from
 (select a, b, max(c) as max_c, avg(c) as avg_c from t1
-group by a,b having max_c < 707) v1, 
+group by a,b having max_c < 707) v1,
 t2 where (v1.a=8) and (v1.a=t2.a) and (v1.max_c=404);
 a	b	max_c	avg_c	a	b	c	d
 8	33	404	213.6667	8	64	248	107
 8	33	404	213.6667	8	80	800	314
 explain select * from
 (select a, b, max(c) as max_c, avg(c) as avg_c from t1
-group by a,b having max_c < 707) v1, 
+group by a,b having max_c < 707) v1,
 t2 where (v1.a=8) and (v1.a=t2.a) and (v1.max_c=404);
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 1	PRIMARY	t2	ALL	NULL	NULL	NULL	NULL	9	Using where
@@ -2039,7 +2039,7 @@ id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 2	DERIVED	t1	ALL	NULL	NULL	NULL	NULL	20	Using where; Using temporary; Using filesort
 explain format=json select * from
 (select a, b, max(c) as max_c, avg(c) as avg_c from t1
-group by a,b having max_c < 707) v1, 
+group by a,b having max_c < 707) v1,
 t2 where (v1.a=8) and (v1.a=t2.a) and (v1.max_c=404);
 EXPLAIN
 {
@@ -2084,22 +2084,22 @@ EXPLAIN
     }
   }
 }
-# conjunctive subformulas : pushing into WHERE and HAVING 
-set statement optimizer_switch='condition_pushdown_for_derived=off' for select * from v1,t2 where 
+# conjunctive subformulas : pushing into WHERE and HAVING
+set statement optimizer_switch='condition_pushdown_for_derived=off' for select * from v1,t2 where
 (v1.a>3) and (v1.max_c>200) and (t2.b<v1.b) and (t2.d=v1.max_c);
 a	b	max_c	avg_c	a	b	c	d
 5	16	207	207.0000	2	3	207	207
-select * from v1,t2 where 
+select * from v1,t2 where
 (v1.a>3) and (v1.max_c>200) and (t2.b<v1.b) and (t2.d=v1.max_c);
 a	b	max_c	avg_c	a	b	c	d
 5	16	207	207.0000	2	3	207	207
-explain select * from v1,t2 where 
+explain select * from v1,t2 where
 (v1.a>3) and (v1.max_c>200) and (t2.b<v1.b) and (t2.d=v1.max_c);
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 1	PRIMARY	t2	ALL	NULL	NULL	NULL	NULL	9	Using where
 1	PRIMARY	<derived2>	ref	key0	key0	5	test.t2.d	2	Using where
 2	DERIVED	t1	ALL	NULL	NULL	NULL	NULL	20	Using where; Using temporary; Using filesort
-explain format=json select * from v1,t2 where 
+explain format=json select * from v1,t2 where
 (v1.a>3) and (v1.max_c>200) and (t2.b<v1.b) and (t2.d=v1.max_c);
 EXPLAIN
 {
@@ -2205,7 +2205,7 @@ EXPLAIN
   }
 }
 # conjunctive subformula : pushing into WHERE
-# extracted or formula : pushing into HAVING using equalities 
+# extracted or formula : pushing into HAVING using equalities
 set statement optimizer_switch='condition_pushdown_for_derived=off' for select * from v_double as v,t2_double as t where
 (((v.a>0.2) or (v.b<17)) or (t.c>17)) and (t.c=v.c) and (v.c>18);
 a	avg_a	b	c	a	b	c
@@ -2366,17 +2366,17 @@ EXPLAIN
 }
 set statement optimizer_switch='condition_pushdown_for_derived=off' for select * from
 (select a, b, max(c) as max_c, avg(c) as avg_c from t1
-where t1.a>5 group by a,b having max_c < 707) v1, 
+where t1.a>5 group by a,b having max_c < 707) v1,
 t2 where (v1.a=t2.a) and (v1.max_c>300) and (v1.a=v1.b);
 a	b	max_c	avg_c	a	b	c	d
 select * from
 (select a, b, max(c) as max_c, avg(c) as avg_c from t1
-where t1.a>5 group by a,b having max_c < 707) v1, 
+where t1.a>5 group by a,b having max_c < 707) v1,
 t2 where (v1.a=t2.a) and (v1.max_c>300) and (v1.a=v1.b);
 a	b	max_c	avg_c	a	b	c	d
 explain select * from
 (select a, b, max(c) as max_c, avg(c) as avg_c from t1
-where t1.a>5 group by a,b having max_c < 707) v1, 
+where t1.a>5 group by a,b having max_c < 707) v1,
 t2 where (v1.a=t2.a) and (v1.max_c>300) and (v1.a=v1.b);
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 1	PRIMARY	t2	ALL	NULL	NULL	NULL	NULL	9	Using where
@@ -2384,7 +2384,7 @@ id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 2	DERIVED	t1	ALL	NULL	NULL	NULL	NULL	20	Using where; Using temporary; Using filesort
 explain format=json select * from
 (select a, b, max(c) as max_c, avg(c) as avg_c from t1
-where t1.a>5 group by a,b having max_c < 707) v1, 
+where t1.a>5 group by a,b having max_c < 707) v1,
 t2 where (v1.a=t2.a) and (v1.max_c>300) and (v1.a=v1.b);
 EXPLAIN
 {
@@ -2550,7 +2550,7 @@ EXPLAIN
     }
   }
 }
-set statement optimizer_switch='condition_pushdown_for_derived=off' for select * from v1,t2 where 
+set statement optimizer_switch='condition_pushdown_for_derived=off' for select * from v1,t2 where
 (t2.a=v1.a) or (v1.b=t2.b) and ((v1.a=1) or (v1.a=6));
 a	b	max_c	avg_c	a	b	c	d
 1	19	107	107.0000	1	21	909	12
@@ -2561,7 +2561,7 @@ a	b	max_c	avg_c	a	b	c	d
 6	20	315	279.3333	6	23	303	909
 8	33	404	213.6667	8	64	248	107
 8	33	404	213.6667	8	80	800	314
-select * from v1,t2 where 
+select * from v1,t2 where
 (t2.a=v1.a) or (v1.b=t2.b) and ((v1.a=1) or (v1.a=6));
 a	b	max_c	avg_c	a	b	c	d
 1	19	107	107.0000	1	21	909	12
@@ -2572,13 +2572,13 @@ a	b	max_c	avg_c	a	b	c	d
 6	20	315	279.3333	6	23	303	909
 8	33	404	213.6667	8	64	248	107
 8	33	404	213.6667	8	80	800	314
-explain select * from v1,t2 where 
+explain select * from v1,t2 where
 (t2.a=v1.a) or (v1.b=t2.b) and ((v1.a=1) or (v1.a=6));
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 1	PRIMARY	t2	ALL	NULL	NULL	NULL	NULL	9	
 1	PRIMARY	<derived2>	ALL	NULL	NULL	NULL	NULL	20	Using where; Using join buffer (flat, BNL join)
 2	DERIVED	t1	ALL	NULL	NULL	NULL	NULL	20	Using temporary; Using filesort
-explain format=json select * from v1,t2 where 
+explain format=json select * from v1,t2 where
 (t2.a=v1.a) or (v1.b=t2.b) and ((v1.a=1) or (v1.a=6));
 EXPLAIN
 {
@@ -2716,7 +2716,7 @@ EXPLAIN
     }
   }
 }
-set statement optimizer_switch='condition_pushdown_for_derived=off' for select * from v1,t2 where 
+set statement optimizer_switch='condition_pushdown_for_derived=off' for select * from v1,t2 where
 (t2.a<2) and (t2.c>900) and ((v1.a<t2.a) or (t2.a<11));
 a	b	max_c	avg_c	a	b	c	d
 1	19	107	107.0000	1	21	909	12
@@ -2725,7 +2725,7 @@ a	b	max_c	avg_c	a	b	c	d
 5	27	132	132.0000	1	21	909	12
 6	20	315	279.3333	1	21	909	12
 8	33	404	213.6667	1	21	909	12
-select * from v1,t2 where 
+select * from v1,t2 where
 (t2.a<2) and (t2.c>900) and ((v1.a<t2.a) or (t2.a<11));
 a	b	max_c	avg_c	a	b	c	d
 1	19	107	107.0000	1	21	909	12
@@ -2734,13 +2734,13 @@ a	b	max_c	avg_c	a	b	c	d
 5	27	132	132.0000	1	21	909	12
 6	20	315	279.3333	1	21	909	12
 8	33	404	213.6667	1	21	909	12
-explain select * from v1,t2 where 
+explain select * from v1,t2 where
 (t2.a<2) and (t2.c>900) and ((v1.a<t2.a) or (t2.a<11));
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 1	PRIMARY	t2	ALL	NULL	NULL	NULL	NULL	9	Using where
 1	PRIMARY	<derived2>	ALL	NULL	NULL	NULL	NULL	20	Using where; Using join buffer (flat, BNL join)
 2	DERIVED	t1	ALL	NULL	NULL	NULL	NULL	20	Using temporary; Using filesort
-explain format=json select * from v1,t2 where 
+explain format=json select * from v1,t2 where
 (t2.a<2) and (t2.c>900) and ((v1.a<t2.a) or (t2.a<11));
 EXPLAIN
 {
@@ -2785,21 +2785,21 @@ EXPLAIN
   }
 }
 # using several derived tables : nothing to push
-set statement optimizer_switch='condition_pushdown_for_derived=off' for select * from v1,v2,t2 where 
+set statement optimizer_switch='condition_pushdown_for_derived=off' for select * from v1,v2,t2 where
 (v1.a=v2.a) and (v1.a=t2.a) and (v2.b<50);
 a	b	max_c	avg_c	a	b	max_c	avg_c	a	b	c	d
 8	33	404	213.6667	8	33	404	213.6667	8	64	248	107
 6	20	315	279.3333	6	20	315	279.3333	6	20	315	279
 8	33	404	213.6667	8	33	404	213.6667	8	80	800	314
 6	20	315	279.3333	6	20	315	279.3333	6	23	303	909
-select * from v1,v2,t2 where 
+select * from v1,v2,t2 where
 (v1.a=v2.a) and (v1.a=t2.a) and (v2.b<50);
 a	b	max_c	avg_c	a	b	max_c	avg_c	a	b	c	d
 8	33	404	213.6667	8	33	404	213.6667	8	64	248	107
 6	20	315	279.3333	6	20	315	279.3333	6	20	315	279
 8	33	404	213.6667	8	33	404	213.6667	8	80	800	314
 6	20	315	279.3333	6	20	315	279.3333	6	23	303	909
-explain select * from v1,v2,t2 where 
+explain select * from v1,v2,t2 where
 (v1.a=v2.a) and (v1.a=t2.a) and (v2.b<50);
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 1	PRIMARY	t2	ALL	NULL	NULL	NULL	NULL	9	Using where
@@ -2807,7 +2807,7 @@ id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 1	PRIMARY	<derived3>	ref	key0	key0	5	test.t2.a	2	Using where
 3	DERIVED	t1	ALL	NULL	NULL	NULL	NULL	20	Using where; Using temporary; Using filesort
 2	DERIVED	t1	ALL	NULL	NULL	NULL	NULL	20	Using temporary; Using filesort
-explain format=json select * from v1,v2,t2 where 
+explain format=json select * from v1,v2,t2 where
 (v1.a=v2.a) and (v1.a=t2.a) and (v2.b<50);
 EXPLAIN
 {
@@ -2880,7 +2880,7 @@ EXPLAIN
     }
   }
 }
-set statement optimizer_switch='condition_pushdown_for_derived=off' for select * from v1,v2,t2 where 
+set statement optimizer_switch='condition_pushdown_for_derived=off' for select * from v1,v2,t2 where
 ((v1.a=v2.a) or (v1.a=t2.a)) and (t2.b<50) and (v1.b=v2.b);
 a	b	max_c	avg_c	a	b	max_c	avg_c	a	b	c	d
 6	20	315	279.3333	6	20	315	279.3333	2	3	207	207
@@ -2897,7 +2897,7 @@ a	b	max_c	avg_c	a	b	max_c	avg_c	a	b	c	d
 8	33	404	213.6667	8	33	404	213.6667	1	19	203	107
 8	33	404	213.6667	8	33	404	213.6667	3	12	231	190
 8	33	404	213.6667	8	33	404	213.6667	6	23	303	909
-select * from v1,v2,t2 where 
+select * from v1,v2,t2 where
 ((v1.a=v2.a) or (v1.a=t2.a)) and (t2.b<50) and (v1.b=v2.b);
 a	b	max_c	avg_c	a	b	max_c	avg_c	a	b	c	d
 6	20	315	279.3333	6	20	315	279.3333	2	3	207	207
@@ -2914,7 +2914,7 @@ a	b	max_c	avg_c	a	b	max_c	avg_c	a	b	c	d
 8	33	404	213.6667	8	33	404	213.6667	1	19	203	107
 8	33	404	213.6667	8	33	404	213.6667	3	12	231	190
 8	33	404	213.6667	8	33	404	213.6667	6	23	303	909
-explain select * from v1,v2,t2 where 
+explain select * from v1,v2,t2 where
 ((v1.a=v2.a) or (v1.a=t2.a)) and (t2.b<50) and (v1.b=v2.b);
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 1	PRIMARY	t2	ALL	NULL	NULL	NULL	NULL	9	Using where
@@ -2922,7 +2922,7 @@ id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 1	PRIMARY	<derived3>	ref	key0	key0	5	v1.b	2	Using where
 3	DERIVED	t1	ALL	NULL	NULL	NULL	NULL	20	Using where; Using temporary; Using filesort
 2	DERIVED	t1	ALL	NULL	NULL	NULL	NULL	20	Using temporary; Using filesort
-explain format=json select * from v1,v2,t2 where 
+explain format=json select * from v1,v2,t2 where
 ((v1.a=v2.a) or (v1.a=t2.a)) and (t2.b<50) and (v1.b=v2.b);
 EXPLAIN
 {
@@ -2996,21 +2996,21 @@ EXPLAIN
     }
   }
 }
-set statement optimizer_switch='condition_pushdown_for_derived=off' for select * from v1,v2,t2 where 
+set statement optimizer_switch='condition_pushdown_for_derived=off' for select * from v1,v2,t2 where
 ((v1.a=v2.a) and (v1.a=t2.a)) or ((v2.b>13) and (t2.c<115));
 a	b	max_c	avg_c	a	b	max_c	avg_c	a	b	c	d
 6	20	315	279.3333	6	20	315	279.3333	6	20	315	279
 6	20	315	279.3333	6	20	315	279.3333	6	23	303	909
 8	33	404	213.6667	8	33	404	213.6667	8	64	248	107
 8	33	404	213.6667	8	33	404	213.6667	8	80	800	314
-select * from v1,v2,t2 where 
+select * from v1,v2,t2 where
 ((v1.a=v2.a) and (v1.a=t2.a)) or ((v2.b>13) and (t2.c<115));
 a	b	max_c	avg_c	a	b	max_c	avg_c	a	b	c	d
 6	20	315	279.3333	6	20	315	279.3333	6	20	315	279
 6	20	315	279.3333	6	20	315	279.3333	6	23	303	909
 8	33	404	213.6667	8	33	404	213.6667	8	64	248	107
 8	33	404	213.6667	8	33	404	213.6667	8	80	800	314
-explain select * from v1,v2,t2 where 
+explain select * from v1,v2,t2 where
 ((v1.a=v2.a) and (v1.a=t2.a)) or ((v2.b>13) and (t2.c<115));
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 1	PRIMARY	t2	ALL	NULL	NULL	NULL	NULL	9	
@@ -3018,7 +3018,7 @@ id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 1	PRIMARY	<derived3>	ALL	NULL	NULL	NULL	NULL	20	Using where; Using join buffer (incremental, BNL join)
 3	DERIVED	t1	ALL	NULL	NULL	NULL	NULL	20	Using where; Using temporary; Using filesort
 2	DERIVED	t1	ALL	NULL	NULL	NULL	NULL	20	Using temporary; Using filesort
-explain format=json select * from v1,v2,t2 where 
+explain format=json select * from v1,v2,t2 where
 ((v1.a=v2.a) and (v1.a=t2.a)) or ((v2.b>13) and (t2.c<115));
 EXPLAIN
 {
@@ -3094,22 +3094,22 @@ EXPLAIN
 # using several derived tables : pushing in all tables
 # conjunctive subformula : pushing into HAVING
 # extracted or formula : pushing into WHERE
-# pushing equalities  
-set statement optimizer_switch='condition_pushdown_for_derived=off' for select * from v1,v2,t2 where ((v1.a=v2.a) or (v1.a=t2.a)) and 
+# pushing equalities
+set statement optimizer_switch='condition_pushdown_for_derived=off' for select * from v1,v2,t2 where ((v1.a=v2.a) or (v1.a=t2.a)) and
 ((v2.b<50) or (v2.b=19)) and (v1.max_c<300);
 a	b	max_c	avg_c	a	b	max_c	avg_c	a	b	c	d
 1	19	107	107.0000	6	20	315	279.3333	1	21	909	12
 1	19	107	107.0000	6	20	315	279.3333	1	19	203	107
 1	19	107	107.0000	8	33	404	213.6667	1	21	909	12
 1	19	107	107.0000	8	33	404	213.6667	1	19	203	107
-select * from v1,v2,t2 where ((v1.a=v2.a) or (v1.a=t2.a)) and 
+select * from v1,v2,t2 where ((v1.a=v2.a) or (v1.a=t2.a)) and
 ((v2.b<50) or (v2.b=19)) and (v1.max_c<300);
 a	b	max_c	avg_c	a	b	max_c	avg_c	a	b	c	d
 1	19	107	107.0000	6	20	315	279.3333	1	21	909	12
 1	19	107	107.0000	6	20	315	279.3333	1	19	203	107
 1	19	107	107.0000	8	33	404	213.6667	1	21	909	12
 1	19	107	107.0000	8	33	404	213.6667	1	19	203	107
-explain select * from v1,v2,t2 where ((v1.a=v2.a) or (v1.a=t2.a)) and 
+explain select * from v1,v2,t2 where ((v1.a=v2.a) or (v1.a=t2.a)) and
 ((v2.b<50) or (v2.b=19)) and (v1.max_c<300);
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 1	PRIMARY	t2	ALL	NULL	NULL	NULL	NULL	9	
@@ -3117,7 +3117,7 @@ id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 1	PRIMARY	<derived3>	ALL	NULL	NULL	NULL	NULL	20	Using where; Using join buffer (incremental, BNL join)
 3	DERIVED	t1	ALL	NULL	NULL	NULL	NULL	20	Using where; Using temporary; Using filesort
 2	DERIVED	t1	ALL	NULL	NULL	NULL	NULL	20	Using temporary; Using filesort
-explain format=json select * from v1,v2,t2 where ((v1.a=v2.a) or (v1.a=t2.a)) and 
+explain format=json select * from v1,v2,t2 where ((v1.a=v2.a) or (v1.a=t2.a)) and
 ((v2.b<50) or (v2.b=19)) and (v1.max_c<300);
 EXPLAIN
 {
@@ -3194,13 +3194,13 @@ EXPLAIN
 # using several derived tables : pushing only in one table
 # conjunctive subformula : pushing into WHERE
 # pushing equalities
-set statement optimizer_switch='condition_pushdown_for_derived=off' for select * from v1,v2,t2 where 
+set statement optimizer_switch='condition_pushdown_for_derived=off' for select * from v1,v2,t2 where
 (v1.a=t2.a) and (v1.a=v1.b) and (v1.a=v2.a) and (v2.max_c<300);
 a	b	max_c	avg_c	a	b	max_c	avg_c	a	b	c	d
-select * from v1,v2,t2 where 
+select * from v1,v2,t2 where
 (v1.a=t2.a) and (v1.a=v1.b) and (v1.a=v2.a) and (v2.max_c<300);
 a	b	max_c	avg_c	a	b	max_c	avg_c	a	b	c	d
-explain select * from v1,v2,t2 where 
+explain select * from v1,v2,t2 where
 (v1.a=t2.a) and (v1.a=v1.b) and (v1.a=v2.a) and (v2.max_c<300);
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 1	PRIMARY	t2	ALL	NULL	NULL	NULL	NULL	9	Using where
@@ -3208,7 +3208,7 @@ id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 1	PRIMARY	<derived3>	ref	key0	key0	5	test.t2.a	2	Using where
 3	DERIVED	t1	ALL	NULL	NULL	NULL	NULL	20	Using where; Using temporary; Using filesort
 2	DERIVED	t1	ALL	NULL	NULL	NULL	NULL	20	Using where; Using temporary; Using filesort
-explain format=json select * from v1,v2,t2 where 
+explain format=json select * from v1,v2,t2 where
 (v1.a=t2.a) and (v1.a=v1.b) and (v1.a=v2.a) and (v2.max_c<300);
 EXPLAIN
 {
@@ -3373,7 +3373,7 @@ EXPLAIN
 # extracted or formula : pushing into WHERE
 # conjunctive subformula : pushing into WHERE using equalities
 # pushing equalities
-set statement optimizer_switch='condition_pushdown_for_derived=off' for select * from v_char as v,t2_char as t where 
+set statement optimizer_switch='condition_pushdown_for_derived=off' for select * from v_char as v,t2_char as t where
 (v.a=t.a) and (t.a='b') and ((v.b='Vika') or (v.b='Ali'));
 a	b	max_c	a	b	c
 b	Vika	2	b	Ivan	1
@@ -3381,7 +3381,7 @@ b	Vika	2	b	Ali	6
 b	Vika	2	b	Hermes	3
 b	Vika	2	b	Ivan	11
 b	Vika	2	b	Harry	4
-select * from v_char as v,t2_char as t where 
+select * from v_char as v,t2_char as t where
 (v.a=t.a) and (t.a='b') and ((v.b='Vika') or (v.b='Ali'));
 a	b	max_c	a	b	c
 b	Vika	2	b	Ivan	1
@@ -3389,13 +3389,13 @@ b	Vika	2	b	Ali	6
 b	Vika	2	b	Hermes	3
 b	Vika	2	b	Ivan	11
 b	Vika	2	b	Harry	4
-explain select * from v_char as v,t2_char as t where 
+explain select * from v_char as v,t2_char as t where
 (v.a=t.a) and (t.a='b') and ((v.b='Vika') or (v.b='Ali'));
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 1	PRIMARY	<derived2>	ALL	NULL	NULL	NULL	NULL	12	Using where
 1	PRIMARY	t	ALL	NULL	NULL	NULL	NULL	12	Using where; Using join buffer (flat, BNL join)
 2	DERIVED	t1_char	ALL	NULL	NULL	NULL	NULL	12	Using where; Using temporary; Using filesort
-explain format=json select * from v_char as v,t2_char as t where 
+explain format=json select * from v_char as v,t2_char as t where
 (v.a=t.a) and (t.a='b') and ((v.b='Vika') or (v.b='Ali'));
 EXPLAIN
 {
@@ -3442,10 +3442,10 @@ EXPLAIN
 }
 # using several derived tables : pushing in all tables
 # extracted or formula : pushing into WHERE
-# conjunctive subformulas : pushing into HAVING  
+# conjunctive subformulas : pushing into HAVING
 # pushing equalities
-set statement optimizer_switch='condition_pushdown_for_derived=off' for select * from v1,v2,v3,t2 where 
-((v1.a=v2.a) or (v1.a=t2.a)) and ((v3.b<50) or (v3.b=33)) 
+set statement optimizer_switch='condition_pushdown_for_derived=off' for select * from v1,v2,v3,t2 where
+((v1.a=v2.a) or (v1.a=t2.a)) and ((v3.b<50) or (v3.b=33))
 and (v1.max_c<500) and (v3.a=t2.a) and (v2.max_c>300);
 a	b	max_c	avg_c	a	b	max_c	avg_c	a	b	min_c	a	b	c	d
 6	20	315	279.3333	6	20	315	279.3333	7	11	708	7	13	312	406
@@ -3462,8 +3462,8 @@ a	b	max_c	avg_c	a	b	max_c	avg_c	a	b	min_c	a	b	c	d
 8	33	404	213.6667	8	33	404	213.6667	6	20	214	6	20	315	279
 8	33	404	213.6667	8	33	404	213.6667	8	33	114	8	80	800	314
 8	33	404	213.6667	8	33	404	213.6667	6	20	214	6	23	303	909
-select * from v1,v2,v3,t2 where 
-((v1.a=v2.a) or (v1.a=t2.a)) and ((v3.b<50) or (v3.b=33)) 
+select * from v1,v2,v3,t2 where
+((v1.a=v2.a) or (v1.a=t2.a)) and ((v3.b<50) or (v3.b=33))
 and (v1.max_c<500) and (v3.a=t2.a) and (v2.max_c>300);
 a	b	max_c	avg_c	a	b	max_c	avg_c	a	b	min_c	a	b	c	d
 6	20	315	279.3333	6	20	315	279.3333	7	11	708	7	13	312	406
@@ -3480,8 +3480,8 @@ a	b	max_c	avg_c	a	b	max_c	avg_c	a	b	min_c	a	b	c	d
 8	33	404	213.6667	8	33	404	213.6667	6	20	214	6	20	315	279
 8	33	404	213.6667	8	33	404	213.6667	8	33	114	8	80	800	314
 8	33	404	213.6667	8	33	404	213.6667	6	20	214	6	23	303	909
-explain select * from v1,v2,v3,t2 where 
-((v1.a=v2.a) or (v1.a=t2.a)) and ((v3.b<50) or (v3.b=33)) 
+explain select * from v1,v2,v3,t2 where
+((v1.a=v2.a) or (v1.a=t2.a)) and ((v3.b<50) or (v3.b=33))
 and (v1.max_c<500) and (v3.a=t2.a) and (v2.max_c>300);
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 1	PRIMARY	t2	ALL	NULL	NULL	NULL	NULL	9	Using where
@@ -3491,8 +3491,8 @@ id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 4	DERIVED	t1	ALL	NULL	NULL	NULL	NULL	20	Using where; Using temporary; Using filesort
 3	DERIVED	t1	ALL	NULL	NULL	NULL	NULL	20	Using where; Using temporary; Using filesort
 2	DERIVED	t1	ALL	NULL	NULL	NULL	NULL	20	Using temporary; Using filesort
-explain format=json select * from v1,v2,v3,t2 where 
-((v1.a=v2.a) or (v1.a=t2.a)) and ((v3.b<50) or (v3.b=33)) 
+explain format=json select * from v1,v2,v3,t2 where
+((v1.a=v2.a) or (v1.a=t2.a)) and ((v3.b<50) or (v3.b=33))
 and (v1.max_c<500) and (v3.a=t2.a) and (v2.max_c>300);
 EXPLAIN
 {
@@ -3598,7 +3598,7 @@ EXPLAIN
   }
 }
 # using several derived tables : pushing in all tables
-# conjunctive subformulas : pushing into HAVING 
+# conjunctive subformulas : pushing into HAVING
 set statement optimizer_switch='condition_pushdown_for_derived=off' for select * from
 (select a, b, max(c) as max_c, avg(c) as avg_c from t1
 where t1.a>5 group by a,b having max_c < 707) v1,
@@ -3706,7 +3706,7 @@ EXPLAIN
 }
 # using several derived tables : pushing in all tables
 # extracted or formulas : pushing into HAVING
-# conjunctive subformula : pushing into HAVING 
+# conjunctive subformula : pushing into HAVING
 set statement optimizer_switch='condition_pushdown_for_derived=off' for select * from
 (select a, b, max(c) as max_c, avg(c) as avg_c from t1
 where t1.a>5 group by a,b having max_c < 707) v1,
@@ -3875,10 +3875,10 @@ EXPLAIN
   }
 }
 # extracted or formula : pushing into HAVING
-# conjunctive subformula : pushing into WHERE        
+# conjunctive subformula : pushing into WHERE
 set statement optimizer_switch='condition_pushdown_for_derived=off' for select * from
 (select a, b, max(c) as max_c, avg(c) as avg_c from t1
-group by a,b having max_c < 707) v1, 
+group by a,b having max_c < 707) v1,
 t2 where ((v1.a=1) or (v1.max_c<300)) and (v1.b>25);
 a	b	max_c	avg_c	a	b	c	d
 5	27	132	132.0000	2	3	207	207
@@ -3892,7 +3892,7 @@ a	b	max_c	avg_c	a	b	c	d
 5	27	132	132.0000	6	23	303	909
 select * from
 (select a, b, max(c) as max_c, avg(c) as avg_c from t1
-group by a,b having max_c < 707) v1, 
+group by a,b having max_c < 707) v1,
 t2 where ((v1.a=1) or (v1.max_c<300)) and (v1.b>25);
 a	b	max_c	avg_c	a	b	c	d
 5	27	132	132.0000	2	3	207	207
@@ -3906,7 +3906,7 @@ a	b	max_c	avg_c	a	b	c	d
 5	27	132	132.0000	6	23	303	909
 explain select * from
 (select a, b, max(c) as max_c, avg(c) as avg_c from t1
-group by a,b having max_c < 707) v1, 
+group by a,b having max_c < 707) v1,
 t2 where ((v1.a=1) or (v1.max_c<300)) and (v1.b>25);
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 1	PRIMARY	t2	ALL	NULL	NULL	NULL	NULL	9	
@@ -3914,7 +3914,7 @@ id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 2	DERIVED	t1	ALL	NULL	NULL	NULL	NULL	20	Using where; Using temporary; Using filesort
 explain format=json select * from
 (select a, b, max(c) as max_c, avg(c) as avg_c from t1
-group by a,b having max_c < 707) v1, 
+group by a,b having max_c < 707) v1,
 t2 where ((v1.a=1) or (v1.max_c<300)) and (v1.b>25);
 EXPLAIN
 {
@@ -3960,24 +3960,24 @@ EXPLAIN
   }
 }
 # extracted and formula : pushing into WHERE
-# conjunctive subformula : pushing into HAVING          
+# conjunctive subformula : pushing into HAVING
 set statement optimizer_switch='condition_pushdown_for_derived=off' for select * from
 (select a, b, max(c) as max_c, avg(c) as avg_c from t1
-where t1.a>5 group by a,b having max_c < 707) v1, 
+where t1.a>5 group by a,b having max_c < 707) v1,
 t2 where (v1.a=t2.a) and (v1.max_c>300) and (v1.b<30);
 a	b	max_c	avg_c	a	b	c	d
 6	20	315	279.3333	6	20	315	279
 6	20	315	279.3333	6	23	303	909
 select * from
 (select a, b, max(c) as max_c, avg(c) as avg_c from t1
-where t1.a>5 group by a,b having max_c < 707) v1, 
+where t1.a>5 group by a,b having max_c < 707) v1,
 t2 where (v1.a=t2.a) and (v1.max_c>300) and (v1.b<30);
 a	b	max_c	avg_c	a	b	c	d
 6	20	315	279.3333	6	20	315	279
 6	20	315	279.3333	6	23	303	909
 explain select * from
 (select a, b, max(c) as max_c, avg(c) as avg_c from t1
-where t1.a>5 group by a,b having max_c < 707) v1, 
+where t1.a>5 group by a,b having max_c < 707) v1,
 t2 where (v1.a=t2.a) and (v1.max_c>300) and (v1.b<30);
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 1	PRIMARY	t2	ALL	NULL	NULL	NULL	NULL	9	Using where
@@ -3985,7 +3985,7 @@ id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 2	DERIVED	t1	ALL	NULL	NULL	NULL	NULL	20	Using where; Using temporary; Using filesort
 explain format=json select * from
 (select a, b, max(c) as max_c, avg(c) as avg_c from t1
-where t1.a>5 group by a,b having max_c < 707) v1, 
+where t1.a>5 group by a,b having max_c < 707) v1,
 t2 where (v1.a=t2.a) and (v1.max_c>300) and (v1.b<30);
 EXPLAIN
 {
@@ -4155,11 +4155,11 @@ EXPLAIN
   }
 }
 # using query with union
-# extracted and formula : pushing into WHERE   
-# extracted or formula : pushing into HAVING    
+# extracted and formula : pushing into WHERE
+# extracted or formula : pushing into HAVING
 # pushing equalities
 set statement optimizer_switch='condition_pushdown_for_derived=off' for select * from v1,t2 where (v1.a<5) and (v1.b=t2.b) and (v1.b=19)
-union 
+union
 select * from v1,t2 where ((v1.max_c>400) or (v1.avg_c>270)) and (v1.a<t2.a);
 a	b	max_c	avg_c	a	b	c	d
 1	19	107	107.0000	1	19	203	107
@@ -4174,7 +4174,7 @@ a	b	max_c	avg_c	a	b	c	d
 6	20	315	279.3333	8	64	248	107
 6	20	315	279.3333	8	80	800	314
 select * from v1,t2 where (v1.a<5) and (v1.b=t2.b) and (v1.b=19)
-union 
+union
 select * from v1,t2 where ((v1.max_c>400) or (v1.avg_c>270)) and (v1.a<t2.a);
 a	b	max_c	avg_c	a	b	c	d
 1	19	107	107.0000	1	19	203	107
@@ -4189,7 +4189,7 @@ a	b	max_c	avg_c	a	b	c	d
 6	20	315	279.3333	8	64	248	107
 6	20	315	279.3333	8	80	800	314
 explain select * from v1,t2 where (v1.a<5) and (v1.b=t2.b) and (v1.b=19)
-union 
+union
 select * from v1,t2 where ((v1.max_c>400) or (v1.avg_c>270)) and (v1.a<t2.a);
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 1	PRIMARY	t2	ALL	NULL	NULL	NULL	NULL	9	Using where
@@ -4200,7 +4200,7 @@ id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 4	DERIVED	t1	ALL	NULL	NULL	NULL	NULL	20	Using temporary; Using filesort
 NULL	UNION RESULT	<union1,2>	ALL	NULL	NULL	NULL	NULL	NULL	
 explain format=json select * from v1,t2 where (v1.a<5) and (v1.b=t2.b) and (v1.b=19)
-union 
+union
 select * from v1,t2 where ((v1.max_c>400) or (v1.avg_c>270)) and (v1.a<t2.a);
 EXPLAIN
 {
@@ -4297,10 +4297,10 @@ EXPLAIN
   }
 }
 # using query with union
-# extracted or formula : pushing into HAVING 
+# extracted or formula : pushing into HAVING
 # extracted or formula : pushing into WHERE
 # pushing equalities
-set statement optimizer_switch='condition_pushdown_for_derived=off' for select * from v1,t2 where 
+set statement optimizer_switch='condition_pushdown_for_derived=off' for select * from v1,t2 where
 ((t2.a=v1.a) or (v1.b=t2.b)) and ((v1.a=1) or (v1.a=6))
 union
 select * from v1,t2 where ((v1.a>3) and (v1.b>27)) or (v1.max_c>550);
@@ -4320,7 +4320,7 @@ a	b	max_c	avg_c	a	b	c	d
 8	33	404	213.6667	8	80	800	314
 8	33	404	213.6667	3	12	231	190
 8	33	404	213.6667	6	23	303	909
-select * from v1,t2 where 
+select * from v1,t2 where
 ((t2.a=v1.a) or (v1.b=t2.b)) and ((v1.a=1) or (v1.a=6))
 union
 select * from v1,t2 where ((v1.a>3) and (v1.b>27)) or (v1.max_c>550);
@@ -4340,7 +4340,7 @@ a	b	max_c	avg_c	a	b	c	d
 8	33	404	213.6667	8	80	800	314
 8	33	404	213.6667	3	12	231	190
 8	33	404	213.6667	6	23	303	909
-explain select * from v1,t2 where 
+explain select * from v1,t2 where
 ((t2.a=v1.a) or (v1.b=t2.b)) and ((v1.a=1) or (v1.a=6))
 union
 select * from v1,t2 where ((v1.a>3) and (v1.b>27)) or (v1.max_c>550);
@@ -4352,7 +4352,7 @@ id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 2	UNION	<derived4>	ALL	NULL	NULL	NULL	NULL	20	Using where; Using join buffer (flat, BNL join)
 4	DERIVED	t1	ALL	NULL	NULL	NULL	NULL	20	Using temporary; Using filesort
 NULL	UNION RESULT	<union1,2>	ALL	NULL	NULL	NULL	NULL	NULL	
-explain format=json select * from v1,t2 where 
+explain format=json select * from v1,t2 where
 ((t2.a=v1.a) or (v1.b=t2.b)) and ((v1.a=1) or (v1.a=6))
 union
 select * from v1,t2 where ((v1.a>3) and (v1.b>27)) or (v1.max_c>550);
@@ -4451,10 +4451,10 @@ EXPLAIN
   }
 }
 # using query with union
-# extracted or formula : pushing into HAVING 
-# conjunctive subformulas : pushing into WHERE 
+# extracted or formula : pushing into HAVING
+# conjunctive subformulas : pushing into WHERE
 # pushing equalities
-set statement optimizer_switch='condition_pushdown_for_derived=off' for select * from v1,t2 where 
+set statement optimizer_switch='condition_pushdown_for_derived=off' for select * from v1,t2 where
 ((v1.a=1) and (v1.a=t2.a)) and ((v1.max_c<500) or (v1.avg_c>500))
 union
 select * from v2,t2 where
@@ -4469,7 +4469,7 @@ a	b	max_c	avg_c	a	b	c	d
 6	20	315	279.3333	1	19	203	107
 8	33	404	213.6667	1	21	909	12
 8	33	404	213.6667	1	19	203	107
-select * from v1,t2 where 
+select * from v1,t2 where
 ((v1.a=1) and (v1.a=t2.a)) and ((v1.max_c<500) or (v1.avg_c>500))
 union
 select * from v2,t2 where
@@ -4484,7 +4484,7 @@ a	b	max_c	avg_c	a	b	c	d
 6	20	315	279.3333	1	19	203	107
 8	33	404	213.6667	1	21	909	12
 8	33	404	213.6667	1	19	203	107
-explain select * from v1,t2 where 
+explain select * from v1,t2 where
 ((v1.a=1) and (v1.a=t2.a)) and ((v1.max_c<500) or (v1.avg_c>500))
 union
 select * from v2,t2 where
@@ -4503,7 +4503,7 @@ id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 3	UNION	<derived6>	ref	key0	key0	5	test.t2.c	2	Using where
 6	DERIVED	t1	ALL	NULL	NULL	NULL	NULL	20	Using where; Using temporary; Using filesort
 NULL	UNION RESULT	<union1,2,3>	ALL	NULL	NULL	NULL	NULL	NULL	
-explain format=json select * from v1,t2 where 
+explain format=json select * from v1,t2 where
 ((v1.a=1) and (v1.a=t2.a)) and ((v1.max_c<500) or (v1.avg_c>500))
 union
 select * from v2,t2 where
@@ -4754,7 +4754,7 @@ EXPLAIN
 }
 # using derived table with union
 # conjunctive subformula : pushing into WHERE
-# extracted or formula : pushing into HAVING 
+# extracted or formula : pushing into HAVING
 set statement optimizer_switch='condition_pushdown_for_derived=off' for select * from v_union,t2 where
 ((v_union.a<2) or (v_union.c>800)) and (v_union.b>12);
 a	b	c	a	b	c	d
@@ -4955,27 +4955,27 @@ EXPLAIN
     }
   }
 }
-set statement optimizer_switch='condition_pushdown_for_derived=off' for select * from v_char as v,t2_char as t where 
+set statement optimizer_switch='condition_pushdown_for_derived=off' for select * from v_char as v,t2_char as t where
 (v.a=t.a) and (v.b='Vika') and (v.max_c>2);
 a	b	max_c	a	b	c
 c	Vika	7	c	Vinny	3
 c	Vika	7	c	Inga	9
 c	Vika	7	c	Ivan	2
 c	Vika	7	c	Inga	2
-select * from v_char as v,t2_char as t where 
+select * from v_char as v,t2_char as t where
 (v.a=t.a) and (v.b='Vika') and (v.max_c>2);
 a	b	max_c	a	b	c
 c	Vika	7	c	Vinny	3
 c	Vika	7	c	Inga	9
 c	Vika	7	c	Ivan	2
 c	Vika	7	c	Inga	2
-explain select * from v_char as v,t2_char as t where 
+explain select * from v_char as v,t2_char as t where
 (v.a=t.a) and (v.b='Vika') and (v.max_c>2);
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 1	PRIMARY	t	ALL	NULL	NULL	NULL	NULL	12	Using where
 1	PRIMARY	<derived2>	ref	key0	key0	2	test.t.a	2	Using where
 2	DERIVED	t1_char	ALL	NULL	NULL	NULL	NULL	12	Using where; Using temporary; Using filesort
-explain format=json select * from v_char as v,t2_char as t where 
+explain format=json select * from v_char as v,t2_char as t where
 (v.a=t.a) and (v.b='Vika') and (v.max_c>2);
 EXPLAIN
 {
@@ -5025,19 +5025,19 @@ EXPLAIN
 # conjunctive subformula : pushing into WHERE using equalities
 # pushing equalities
 set statement optimizer_switch='condition_pushdown_for_derived=off' for select * from v_union,v1,t2 where
-(v_union.a=v1.a) and (v1.a=t2.a) and (t2.a=1) 
+(v_union.a=v1.a) and (v1.a=t2.a) and (t2.a=1)
 and ((v_union.c>800) or (v1.max_c>200));
 a	b	c	a	b	max_c	avg_c	a	b	c	d
 1	19	107	1	21	500	234.6000	1	21	909	12
 1	19	107	1	21	500	234.6000	1	19	203	107
 select * from v_union,v1,t2 where
-(v_union.a=v1.a) and (v1.a=t2.a) and (t2.a=1) 
+(v_union.a=v1.a) and (v1.a=t2.a) and (t2.a=1)
 and ((v_union.c>800) or (v1.max_c>200));
 a	b	c	a	b	max_c	avg_c	a	b	c	d
 1	19	107	1	21	500	234.6000	1	21	909	12
 1	19	107	1	21	500	234.6000	1	19	203	107
 explain select * from v_union,v1,t2 where
-(v_union.a=v1.a) and (v1.a=t2.a) and (t2.a=1) 
+(v_union.a=v1.a) and (v1.a=t2.a) and (t2.a=1)
 and ((v_union.c>800) or (v1.max_c>200));
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 1	PRIMARY	t2	ALL	NULL	NULL	NULL	NULL	9	Using where
@@ -5048,7 +5048,7 @@ id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 3	UNION	t1	ALL	NULL	NULL	NULL	NULL	20	Using where; Using temporary; Using filesort
 NULL	UNION RESULT	<union2,3>	ALL	NULL	NULL	NULL	NULL	NULL	
 explain format=json select * from v_union,v1,t2 where
-(v_union.a=v1.a) and (v1.a=t2.a) and (t2.a=1) 
+(v_union.a=v1.a) and (v1.a=t2.a) and (t2.a=1)
 and ((v_union.c>800) or (v1.max_c>200));
 EXPLAIN
 {
@@ -5152,11 +5152,11 @@ EXPLAIN
     }
   }
 }
-# using derived table with union   
-# extracted or formula : pushing into WHERE    
+# using derived table with union
+# extracted or formula : pushing into WHERE
 # conjunctive subformula : pushing into HAVING
 # pushing equalities
-set statement optimizer_switch='condition_pushdown_for_derived=off' for select * from v2_union as v,t2 where 
+set statement optimizer_switch='condition_pushdown_for_derived=off' for select * from v2_union as v,t2 where
 ((v.a=6) or (v.a=8)) and (v.c>200) and (v.a=t2.a);
 a	b	c	a	b	c	d
 8	33	404.0000	8	64	248	107
@@ -5165,7 +5165,7 @@ a	b	c	a	b	c	d
 8	33	404.0000	8	80	800	314
 6	20	312.0000	6	23	303	909
 6	20	214.0000	6	23	303	909
-select * from v2_union as v,t2 where 
+select * from v2_union as v,t2 where
 ((v.a=6) or (v.a=8)) and (v.c>200) and (v.a=t2.a);
 a	b	c	a	b	c	d
 8	33	404.0000	8	64	248	107
@@ -5174,7 +5174,7 @@ a	b	c	a	b	c	d
 8	33	404.0000	8	80	800	314
 6	20	312.0000	6	23	303	909
 6	20	214.0000	6	23	303	909
-explain select * from v2_union as v,t2 where 
+explain select * from v2_union as v,t2 where
 ((v.a=6) or (v.a=8)) and (v.c>200) and (v.a=t2.a);
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 1	PRIMARY	t2	ALL	NULL	NULL	NULL	NULL	9	Using where
@@ -5183,7 +5183,7 @@ id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 3	UNION	t1	ALL	NULL	NULL	NULL	NULL	20	Using where; Using temporary; Using filesort
 4	UNION	t1	ALL	NULL	NULL	NULL	NULL	20	Using where; Using temporary; Using filesort
 NULL	UNION RESULT	<union2,3,4>	ALL	NULL	NULL	NULL	NULL	NULL	
-explain format=json select * from v2_union as v,t2 where 
+explain format=json select * from v2_union as v,t2 where
 ((v.a=6) or (v.a=8)) and (v.c>200) and (v.a=t2.a);
 EXPLAIN
 {
@@ -5530,21 +5530,21 @@ EXPLAIN
 }
 # using derived table with union of selects without aggregation
 # extracted the whole condition: in WHERE of both selects
-set statement optimizer_switch='condition_pushdown_for_derived=off' for select * from v3_union as v,t2 where 
+set statement optimizer_switch='condition_pushdown_for_derived=off' for select * from v3_union as v,t2 where
 (v.a=t2.a) and ((v.b=19) or (v.b=21)) and ((v.c<3) or (v.c>600));
 a	b	c	a	b	c	d
 1	19	2	1	21	909	12
 1	21	2	1	21	909	12
 1	19	2	1	19	203	107
 1	21	2	1	19	203	107
-select * from v3_union as v,t2 where 
+select * from v3_union as v,t2 where
 (v.a=t2.a) and ((v.b=19) or (v.b=21)) and ((v.c<3) or (v.c>600));
 a	b	c	a	b	c	d
 1	19	2	1	21	909	12
 1	21	2	1	21	909	12
 1	19	2	1	19	203	107
 1	21	2	1	19	203	107
-explain select * from v3_union as v,t2 where 
+explain select * from v3_union as v,t2 where
 (v.a=t2.a) and ((v.b=19) or (v.b=21)) and ((v.c<3) or (v.c>600));
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 1	PRIMARY	t2	ALL	NULL	NULL	NULL	NULL	9	Using where
@@ -5552,7 +5552,7 @@ id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 2	DERIVED	t1	ALL	NULL	NULL	NULL	NULL	20	Using where
 3	UNION	t1	ALL	NULL	NULL	NULL	NULL	20	Using where
 NULL	UNION RESULT	<union2,3>	ALL	NULL	NULL	NULL	NULL	NULL	
-explain format=json select * from v3_union as v,t2 where 
+explain format=json select * from v3_union as v,t2 where
 (v.a=t2.a) and ((v.b=19) or (v.b=21)) and ((v.c<3) or (v.c>600));
 EXPLAIN
 {
@@ -5613,7 +5613,7 @@ EXPLAIN
     }
   }
 }
-# using derived table with union of 
+# using derived table with union of
 # a select without aggregation and a select with aggregation
 # extracted conjunctive predicate: pushing in WHERE of both selects
 set statement optimizer_switch='condition_pushdown_for_derived=off' for select * from v4_union as v,t2 where (v.a=t2.a) and (v.b<20);
@@ -5701,13 +5701,13 @@ EXPLAIN
     }
   }
 }
-# using derived table with union of 
+# using derived table with union of
 # a select without aggregation and a select with aggregation
 # extracted subformula: pushing in WHERE of one select
 # extracted subformula: pushing in HAVING of the other select
 # extracted sub-subformula: pushing in WHERE of the other select
 # using an equality in all pushdowns
-set statement optimizer_switch='condition_pushdown_for_derived=off' for select * from v4_union as v,t2 where 
+set statement optimizer_switch='condition_pushdown_for_derived=off' for select * from v4_union as v,t2 where
 (v.a=t2.a) and ((t2.a<3) or (v.b<40)) and (v.c>500);
 a	b	c	a	b	c	d
 1	33	1088	1	21	909	12
@@ -5720,7 +5720,7 @@ a	b	c	a	b	c	d
 1	21	600	1	19	203	107
 1	33	888	1	19	203	107
 8	33	504	8	80	800	314
-select * from v4_union as v,t2 where 
+select * from v4_union as v,t2 where
 (v.a=t2.a) and ((t2.a<3) or (v.b<40)) and (v.c>500);
 a	b	c	a	b	c	d
 1	33	1088	1	21	909	12
@@ -5733,7 +5733,7 @@ a	b	c	a	b	c	d
 1	21	600	1	19	203	107
 1	33	888	1	19	203	107
 8	33	504	8	80	800	314
-explain select * from v4_union as v,t2 where 
+explain select * from v4_union as v,t2 where
 (v.a=t2.a) and ((t2.a<3) or (v.b<40)) and (v.c>500);
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 1	PRIMARY	t2	ALL	NULL	NULL	NULL	NULL	9	Using where
@@ -5741,7 +5741,7 @@ id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 2	DERIVED	t1	ALL	NULL	NULL	NULL	NULL	20	Using where; Using temporary; Using filesort
 3	UNION	t1	ALL	NULL	NULL	NULL	NULL	20	Using where
 NULL	UNION RESULT	<union2,3>	ALL	NULL	NULL	NULL	NULL	NULL	
-explain format=json select * from v4_union as v,t2 where 
+explain format=json select * from v4_union as v,t2 where
 (v.a=t2.a) and ((t2.a<3) or (v.b<40)) and (v.c>500);
 EXPLAIN
 {
@@ -6757,7 +6757,7 @@ EXPLAIN
 # using several derived tables : pushing in all tables
 # extracted or formula : pushing into WHERE
 # conjunctive subformula : pushing into WHERE
-# pushing equalities    
+# pushing equalities
 set statement optimizer_switch='condition_pushdown_for_derived=off' for select * from v4,v2 where
 (((v4.a<12) and (v4.b>13)) or (v4.a>10)) and
 (v4.min_c=v2.max_c) and (v4.min_c>100);
@@ -7051,7 +7051,7 @@ select * from (select a from t1 order by a limit 5) t where t.a not in (1,2,3);
 a
 0
 4
-set statement optimizer_switch='condition_pushdown_for_derived=on' for 
+set statement optimizer_switch='condition_pushdown_for_derived=on' for
 select * from (select a from t1 order by a limit 5) t where t.a not in (1,2,3);
 a
 0
@@ -7065,7 +7065,7 @@ a
 3
 6
 set statement optimizer_switch='condition_pushdown_for_derived=off' for
-select * from 
+select * from
 (select a from t1 where a < 4 union select a from t1 where a > 5
 order by a limit 5) t where t.a not in (2,9);
 a
@@ -7073,8 +7073,8 @@ a
 1
 3
 6
-set statement optimizer_switch='condition_pushdown_for_derived=on' for 
-select * from 
+set statement optimizer_switch='condition_pushdown_for_derived=on' for
+select * from
 (select a from t1 where a < 4 union select a from t1 where a > 5
 order by a limit 5) t where t.a not in (2,9);
 a
@@ -7092,27 +7092,27 @@ CREATE TABLE t2 (b INT) ENGINE=MyISAM;
 CREATE OR REPLACE VIEW v2 AS SELECT * FROM t2;
 CREATE TABLE t3 (c INT) ENGINE=MyISAM;
 CREATE OR REPLACE ALGORITHM=TEMPTABLE VIEW v3 AS SELECT * FROM t3;
-SELECT * FROM t1 WHERE a IN ( 
-SELECT b FROM v2 WHERE b < a OR b IN ( 
-SELECT c FROM v3 WHERE c = a 
-) 
+SELECT * FROM t1 WHERE a IN (
+SELECT b FROM v2 WHERE b < a OR b IN (
+SELECT c FROM v3 WHERE c = a
+)
 );
 a
 INSERT INTO t1 VALUES (2);
 INSERT INTO t2 VALUES (3), (2);
 INSERT INTO t3 VALUES (4), (1), (2), (7);
-SELECT * FROM t1 WHERE a IN ( 
-SELECT b FROM v2 WHERE b < a OR b IN ( 
-SELECT c FROM v3 WHERE c = a 
-) 
+SELECT * FROM t1 WHERE a IN (
+SELECT b FROM v2 WHERE b < a OR b IN (
+SELECT c FROM v3 WHERE c = a
+)
 );
 a
 2
 EXPLAIN FORMAT=JSON
-SELECT * FROM t1 WHERE a IN ( 
-SELECT b FROM v2 WHERE b < a OR b IN ( 
-SELECT c FROM v3 WHERE c = a 
-) 
+SELECT * FROM t1 WHERE a IN (
+SELECT b FROM v2 WHERE b < a OR b IN (
+SELECT c FROM v3 WHERE c = a
+)
 );
 EXPLAIN
 {
@@ -7167,36 +7167,36 @@ EXPLAIN
 }
 CREATE TABLE t4 (d INT, e INT) ENGINE=MyISAM;
 INSERT INTO t4 VALUES (1,10),(3,11),(2,10),(2,20),(3,21);
-CREATE OR REPLACE VIEW v4 AS 
+CREATE OR REPLACE VIEW v4 AS
 SELECT d, sum(e) AS s FROM t4 GROUP BY d;
-set statement optimizer_switch='condition_pushdown_for_derived=off' for SELECT * FROM t1 WHERE a IN ( 
-SELECT b FROM v2 WHERE b < a OR b IN ( 
-SELECT d FROM v4 WHERE s > a 
-) 
+set statement optimizer_switch='condition_pushdown_for_derived=off' for SELECT * FROM t1 WHERE a IN (
+SELECT b FROM v2 WHERE b < a OR b IN (
+SELECT d FROM v4 WHERE s > a
+)
 );
 a
 2
-SELECT * FROM t1 WHERE a IN ( 
-SELECT b FROM v2 WHERE b < a OR b IN ( 
-SELECT d FROM v4 WHERE s > a 
-) 
+SELECT * FROM t1 WHERE a IN (
+SELECT b FROM v2 WHERE b < a OR b IN (
+SELECT d FROM v4 WHERE s > a
+)
 );
 a
 2
-explain SELECT * FROM t1 WHERE a IN ( 
-SELECT b FROM v2 WHERE b < a OR b IN ( 
-SELECT d FROM v4 WHERE s > a 
-) 
+explain SELECT * FROM t1 WHERE a IN (
+SELECT b FROM v2 WHERE b < a OR b IN (
+SELECT d FROM v4 WHERE s > a
+)
 );
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 1	PRIMARY	t1	system	NULL	NULL	NULL	NULL	1	
 1	PRIMARY	t2	ALL	NULL	NULL	NULL	NULL	2	Using where; FirstMatch(t1)
 3	DEPENDENT SUBQUERY	<derived5>	index_subquery	key0	key0	5	func	2	Using where
 5	DERIVED	t4	ALL	NULL	NULL	NULL	NULL	5	Using temporary; Using filesort
-explain format=json SELECT * FROM t1 WHERE a IN ( 
-SELECT b FROM v2 WHERE b < a OR b IN ( 
-SELECT d FROM v4 WHERE s > a 
-) 
+explain format=json SELECT * FROM t1 WHERE a IN (
+SELECT b FROM v2 WHERE b < a OR b IN (
+SELECT d FROM v4 WHERE s > a
+)
 );
 EXPLAIN
 {
@@ -7265,12 +7265,12 @@ INSERT INTO t1 VALUES (1);
 CREATE TABLE t2 (b INT) ENGINE=MyISAM;
 INSERT INTO t2 VALUES (3),(4);
 CREATE OR REPLACE ALGORITHM=TEMPTABLE VIEW v2 AS SELECT * FROM t2;
-SELECT * FROM 
+SELECT * FROM
 ( SELECT * FROM t1
 WHERE EXISTS ( SELECT * FROM v2 WHERE b = a ) ) AS sq;
 a
 EXPLAIN FORMAT=JSON
-SELECT * FROM 
+SELECT * FROM
 ( SELECT * FROM t1
 WHERE EXISTS ( SELECT * FROM v2 WHERE b = a ) ) AS sq;
 EXPLAIN
@@ -7315,8 +7315,8 @@ EXPLAIN
 DROP VIEW v2;
 DROP TABLE t1,t2;
 #
-# MDEV-11102: condition pushdown into materialized inner table 
-#              of outer join is not applied as not being valid 
+# MDEV-11102: condition pushdown into materialized inner table
+#              of outer join is not applied as not being valid
 #
 CREATE TABLE t1 (a INT);
 INSERT INTO t1 VALUES (0),(2);
@@ -7415,19 +7415,19 @@ DROP TABLE t1;
 CREATE TABLE t1 (pk1 INT PRIMARY KEY, a INT, b INT) ENGINE=MyISAM;
 INSERT INTO t1 VALUES (10,7,1),(11,0,2);
 CREATE TABLE t2 (pk2 INT PRIMARY KEY, c INT, d DATETIME) ENGINE=MyISAM;
-INSERT INTO t2 VALUES 
+INSERT INTO t2 VALUES
 (1,4,'2008-09-27 00:34:58'),
 (2,5,'2007-05-28 00:00:00'),
 (3,6,'2009-07-25 09:21:20');
 CREATE VIEW v1 AS SELECT * FROM t1;
 CREATE ALGORITHM=TEMPTABLE VIEW v2 AS SELECT * FROM t2;
-SELECT * FROM v1 AS sq 
+SELECT * FROM v1 AS sq
 WHERE b IN ( SELECT pk2 FROM v2 WHERE c > sq.b ) OR b = 100;
 pk1	a	b
 10	7	1
 11	0	2
 EXPLAIN FORMAT=JSON
-SELECT * FROM v1 AS sq 
+SELECT * FROM v1 AS sq
 WHERE b IN ( SELECT pk2 FROM v2 WHERE c > sq.b ) OR b = 100;
 EXPLAIN
 {
@@ -7471,13 +7471,13 @@ EXPLAIN
     ]
   }
 }
-SELECT * FROM ( SELECT * FROM t1 ) AS sq 
+SELECT * FROM ( SELECT * FROM t1 ) AS sq
 WHERE b IN ( SELECT pk2 FROM v2 WHERE c > sq.b ) OR b = 100;
 pk1	a	b
 10	7	1
 11	0	2
 EXPLAIN FORMAT=JSON
-SELECT * FROM ( SELECT * FROM t1 ) AS sq 
+SELECT * FROM ( SELECT * FROM t1 ) AS sq
 WHERE b IN ( SELECT pk2 FROM v2 WHERE c > sq.b ) OR b = 100;
 EXPLAIN
 {
@@ -8249,18 +8249,18 @@ d
 DROP VIEW v1;
 DROP TABLE t1,t2;
 #
-# MDEV-11820: second execution of PS for query 
-#             with false subquery predicate in WHERE 
+# MDEV-11820: second execution of PS for query
+#             with false subquery predicate in WHERE
 #
 CREATE TABLE t1 (c VARCHAR(3)) ENGINE=MyISAM;
 INSERT INTO t1 VALUES ('foo'),('bar');
 CREATE ALGORITHM=TEMPTABLE VIEW v1 AS SELECT * FROM t1;
 CREATE TABLE t2 (a INT);
 INSERT INTO t2 VALUES (3), (4);
-PREPARE stmt1 FROM 
+PREPARE stmt1 FROM
 " SELECT * FROM v1 WHERE 1 IN (SELECT a FROM t2) OR c = 'foo'";
-PREPARE stmt2 FROM 
-"EXPLAIN FORMAT=JSON 
+PREPARE stmt2 FROM
+"EXPLAIN FORMAT=JSON
  SELECT * FROM v1 WHERE 1 IN (SELECT a FROM t2) OR c = 'foo'";
 EXECUTE stmt1;
 c
@@ -8358,7 +8358,7 @@ DEALLOCATE PREPARE stmt2;
 DROP VIEW v1;
 DROP TABLE t1,t2;
 #
-# MDEV-12373: pushdown into derived with side effects is prohibited  
+# MDEV-12373: pushdown into derived with side effects is prohibited
 #
 CREATE TABLE sales_documents (
 id           int NOT NULL AUTO_INCREMENT,
@@ -8374,9 +8374,9 @@ synced_at    int NOT NULL DEFAULT '0',
 sum          decimal(13,2) NOT NULL DEFAULT '0',
 PRIMARY KEY (id)
 );
-INSERT INTO sales_documents 
-(id, sale_id, type, order_number, data, created_at, 
-updated_at, date, generated, synced_at, sum) 
+INSERT INTO sales_documents
+(id, sale_id, type, order_number, data, created_at,
+updated_at, date, generated, synced_at, sum)
 VALUES
 (555, 165, 3, 5, '{}', 1486538300, 1486722835, '2017-02-17', 0, 1486538313, 2320.00),
 (556, 165, 2, 3, '{}', 1486538304, 1486563125, '2017-02-08', 1, 1486538302, 2320.00),
@@ -8455,7 +8455,7 @@ row	order_number
 14	51
 DROP TABLE sales_documents;
 #
-# MDEV-12845: pushdown from merged derived using equalities  
+# MDEV-12845: pushdown from merged derived using equalities
 #
 create table t1 (a int);
 insert into t1 values
@@ -9810,7 +9810,7 @@ EXPLAIN
 DROP TABLE t1;
 #
 # MDEV-15087: error from inexpensive subquery before check
-#                   for condition pushdown into derived 
+#                   for condition pushdown into derived
 #
 CREATE TABLE t1 (i1 int, v1 varchar(1));
 INSERT INTO t1 VALUES (7,'x');
@@ -10387,3 +10387,4 @@ f
 3
 DROP VIEW v1;
 DROP TABLE t1;
+# End of 10.2 tests
