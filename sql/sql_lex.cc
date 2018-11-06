@@ -5250,6 +5250,9 @@ LEX::create_unit(SELECT_LEX *first_sel)
   SELECT_LEX_UNIT *unit;
   DBUG_ENTER("LEX::create_unit");
 
+  if (first_sel->master_unit())
+    DBUG_RETURN(first_sel->master_unit());
+
   if (!(unit= alloc_unit()))
     DBUG_RETURN(NULL);
 
