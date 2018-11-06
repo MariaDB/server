@@ -1693,7 +1693,7 @@ bool my_yyoverflow(short **a, YYSTYPE **b, size_t *yystacksize);
       SELECT TIMESTAMP '2001-01-01 10:20:30';
       SELECT * FROM t1 FOR SYSTEM_TIME AS OF TIMESTAMP CONCAT(@date,' ',@time);
 
-  - PERIOD: identifier, period for sytem time:
+  - PERIOD: identifier, period for system time:
       SELECT period FROM t1;
       ALTER TABLE DROP PERIOD FOR SYSTEM TIME;
 
@@ -1705,7 +1705,7 @@ bool my_yyoverflow(short **a, YYSTYPE **b, size_t *yystacksize);
       SELECT user FROM t1;
       KILL USER foo;
 
-   Note, we need here only tokens that cause shirt/reduce conflicts
+   Note, we need here only tokens that cause shift/reduce conflicts
    with keyword identifiers. For example:
       opt_clause1: %empty | KEYWORD ... ;
       clause2: opt_clause1 ident;
