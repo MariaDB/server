@@ -542,7 +542,7 @@ require some reworking of the way UDFs are handled, which is why it's
              data structures,
     2) Pros: Fast, no locking required (almost), limited thread-safe
              requirement,
-       Cons: Uses more memory, each SP read from the table once per thread.
+       Cons: Uses more memory, each SP reads from the table once per thread.
 
     Unfortunately, we cannot use alternative 1 for the time being, as most
     of the data structures to be cached (lex and items) are not reentrant
