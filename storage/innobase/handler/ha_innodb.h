@@ -157,17 +157,8 @@ public:
 	int rnd_pos(uchar * buf, uchar *pos);
 
 	int ft_init();
-
-	void ft_end();
-
-	FT_INFO* ft_init_ext(uint flags, uint inx, String* key);
-
-	FT_INFO* ft_init_ext_with_hints(
-		uint			inx,
-		String*			key,
-		void*			hints);
-		//Ft_hints*		hints);
-
+	void ft_end() { rnd_end(); }
+	FT_INFO *ft_init_ext(uint flags, uint inx, String* key);
 	int ft_read(uchar* buf);
 
 	void position(const uchar *record);

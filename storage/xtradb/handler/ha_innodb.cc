@@ -10803,16 +10803,6 @@ next_record:
 	return(HA_ERR_END_OF_FILE);
 }
 
-/*************************************************************************
-*/
-
-void
-ha_innobase::ft_end()
-{
-	fprintf(stderr, "ft_end()\n");
-
-	rnd_end();
-}
 #ifdef WITH_WSREP
 extern dict_index_t*
 wsrep_dict_foreign_find_index(
@@ -12488,21 +12478,18 @@ ha_innobase::check_table_options(
 		options->encryption_key_id = FIL_DEFAULT_ENCRYPTION_KEY;
 	}
 
-	/* If default encryption is used make sure that used kay is found
-	from key file. */
-	if (encrypt == FIL_ENCRYPTION_DEFAULT &&
-		!srv_encrypt_tables &&
-		options->encryption_key_id != FIL_DEFAULT_ENCRYPTION_KEY) {
-		if (!encryption_key_id_exists((unsigned int)options->encryption_key_id)) {
-			push_warning_printf(
-				thd, Sql_condition::WARN_LEVEL_WARN,
-				HA_WRONG_CREATE_OPTION,
-				"InnoDB: ENCRYPTION_KEY_ID %u not available",
-				(uint)options->encryption_key_id
+	/* If default encryption is used and encryption is disabled, you may
+	not use nondefault encryption_key_id as it is not stored anywhere. */
+	if (encrypt == FIL_ENCRYPTION_DEFAULT
+	    && !srv_encrypt_tables
+	    && options->encryption_key_id != FIL_DEFAULT_ENCRYPTION_KEY) {
+		compile_time_assert(FIL_DEFAULT_ENCRYPTION_KEY == 1);
+		push_warning_printf(
+			thd, Sql_condition::WARN_LEVEL_WARN,
+			HA_WRONG_CREATE_OPTION,
+			"InnoDB: innodb_encrypt_tables=OFF only allows ENCRYPTION_KEY_ID=1"
 			);
-			return "ENCRYPTION_KEY_ID";
-
-		}
+		return "ENCRYPTION_KEY_ID";
 	}
 
 	/* Check atomic writes requirements */
