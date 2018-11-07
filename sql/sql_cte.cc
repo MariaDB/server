@@ -1263,7 +1263,7 @@ bool With_element::check_unrestricted_recursive(st_select_lex *sel,
       With_element *with_elem= unit->with_element;
       if (encountered & with_elem->get_elem_map())
         unrestricted|= with_elem->mutually_recursive;
-      else
+      else if (with_elem ==this)
         encountered|= with_elem->get_elem_map();
     }
   } 
