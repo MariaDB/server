@@ -612,6 +612,9 @@ INSERT INTO t1 VALUES
 (1, 1, 'a', 1, 1, 'a', 'a', 'a', 1, 'a');
 ALTER TABLE t1 DROP COLUMN f1;
 DROP TABLE t1;
+CREATE TABLE t1 (f1 VARCHAR(1), f2 VARCHAR(2)) ENGINE=InnoDB ROW_FORMAT=REDUNDANT;
+ALTER TABLE t1 MODIFY f2 VARCHAR (8) FIRST;
+DROP TABLE t1;
 CREATE TABLE t1
 (id INT PRIMARY KEY, c2 INT UNIQUE,
 c3 POINT NOT NULL DEFAULT ST_GeomFromText('POINT(3 4)'),
@@ -1169,6 +1172,9 @@ InnoDB		0 transactions not purged
 INSERT INTO t1 VALUES
 (1, 1, 'a', 1, 1, 'a', 'a', 'a', 1, 'a');
 ALTER TABLE t1 DROP COLUMN f1;
+DROP TABLE t1;
+CREATE TABLE t1 (f1 VARCHAR(1), f2 VARCHAR(2)) ENGINE=InnoDB ROW_FORMAT=COMPACT;
+ALTER TABLE t1 MODIFY f2 VARCHAR (8) FIRST;
 DROP TABLE t1;
 CREATE TABLE t1
 (id INT PRIMARY KEY, c2 INT UNIQUE,
@@ -1728,10 +1734,13 @@ INSERT INTO t1 VALUES
 (1, 1, 'a', 1, 1, 'a', 'a', 'a', 1, 'a');
 ALTER TABLE t1 DROP COLUMN f1;
 DROP TABLE t1;
+CREATE TABLE t1 (f1 VARCHAR(1), f2 VARCHAR(2)) ENGINE=InnoDB ROW_FORMAT=DYNAMIC;
+ALTER TABLE t1 MODIFY f2 VARCHAR (8) FIRST;
+DROP TABLE t1;
 disconnect analyze;
 SELECT variable_value-@old_instant instants
 FROM information_schema.global_status
 WHERE variable_name = 'innodb_instant_alter_column';
 instants
-117
+120
 SET GLOBAL innodb_purge_rseg_truncate_frequency= @saved_frequency;
