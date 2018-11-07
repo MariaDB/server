@@ -2094,5 +2094,28 @@ SELECT TIME(99991231235957), TIME(99991231235958), TIME(99991231235959);
 TIME(99991231235957)	TIME(99991231235958)	TIME(99991231235959)
 23:59:57	23:59:58	23:59:59
 #
+# MDEV-17634 Regression: TIME(0)=TIME('z') returns NULL vs 1
+#
+SELECT
+TIMESTAMP(0)=TIMESTAMP('z') AS ts,
+DATE(0)=DATE('z') AS d,
+TIME(0)=TIME('z') AS t;
+ts	d	t
+1	1	1
+Warnings:
+Warning	1292	Incorrect datetime value: 'z'
+Warning	1292	Incorrect datetime value: 'z'
+Warning	1292	Truncated incorrect time value: 'z'
+SELECT
+TIMESTAMP(0)=TIMESTAMP('') AS ts,
+DATE(0)=DATE('') AS d,
+TIME(0)=TIME('') AS t;
+ts	d	t
+1	1	1
+Warnings:
+Warning	1292	Incorrect datetime value: ''
+Warning	1292	Incorrect datetime value: ''
+Warning	1292	Truncated incorrect time value: ''
+#
 # End of 10.4 tests
 #

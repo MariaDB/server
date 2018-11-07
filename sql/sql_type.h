@@ -790,6 +790,10 @@ public:
     Options_for_cast()
      :Options(flags_for_get_date(), DATETIME_TO_TIME_YYYYMMDD_TRUNCATE)
     { }
+    Options_for_cast(date_mode_t mode)
+     :Options(flags_for_get_date() | (mode & TIME_FUZZY_DATES),
+              DATETIME_TO_TIME_YYYYMMDD_TRUNCATE)
+    { }
   };
 private:
   bool is_valid_value_slow() const

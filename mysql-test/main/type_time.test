@@ -1366,6 +1366,18 @@ SET optimizer_use_condition_selectivity=DEFAULT;
 --echo #
 SELECT TIME(99991231235957), TIME(99991231235958), TIME(99991231235959);
 
+--echo #
+--echo # MDEV-17634 Regression: TIME(0)=TIME('z') returns NULL vs 1
+--echo #
+SELECT
+  TIMESTAMP(0)=TIMESTAMP('z') AS ts,
+  DATE(0)=DATE('z') AS d,
+  TIME(0)=TIME('z') AS t;
+
+SELECT
+  TIMESTAMP(0)=TIMESTAMP('') AS ts,
+  DATE(0)=DATE('') AS d,
+  TIME(0)=TIME('') AS t;
 
 --echo #
 --echo # End of 10.4 tests
