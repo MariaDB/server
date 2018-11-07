@@ -251,27 +251,31 @@ wsp::node_status           local_status;
 Wsrep_thd_pool* wsrep_thd_pool= 0;
 Wsrep_schema *wsrep_schema= 0;
 
-
-#if 0
-static void wsrep_log_cb(wsrep_log_level_t level, const char *msg) {
-  switch (level) {
-  case WSREP_LOG_INFO:
-    sql_print_information("WSREP: %s", msg);
-    break;
-  case WSREP_LOG_WARN:
-    sql_print_warning("WSREP: %s", msg);
-    break;
-  case WSREP_LOG_ERROR:
-  case WSREP_LOG_FATAL:
+static void wsrep_log_cb(wsrep::log::level level, const char *msg)
+{
+  /*
+    Silence all wsrep related logging from lib and provider if
+    wsrep is not enabled.
+  */
+  if (WSREP_ON)
+  {
+    switch (level) {
+    case wsrep::log::info:
+      sql_print_information("WSREP: %s", msg);
+      break;
+    case wsrep::log::warning:
+      sql_print_warning("WSREP: %s", msg);
+      break;
+    case wsrep::log::error:
     sql_print_error("WSREP: %s", msg);
     break;
-  case WSREP_LOG_DEBUG:
-    if (wsrep_debug) sql_print_information ("[Debug] WSREP: %s", msg);
-  default:
-    break;
+    case wsrep::log::debug:
+      if (wsrep_debug) sql_print_information ("[Debug] WSREP: %s", msg);
+    default:
+      break;
+    }
   }
 }
-#endif
 
 //#ifdef GTID_SUPPORT
 void wsrep_init_sidno(const wsrep::id& uuid)
@@ -511,11 +515,6 @@ static std::string wsrep_server_node_address()
 {
 
   std::string ret;
-  WSREP_INFO("node_address ptr %p", wsrep_node_address);
-  if (wsrep_node_address)
-  {
-    WSREP_INFO("node_address %s", wsrep_node_address);
-  }
   if (!(wsrep_node_address && strlen(wsrep_node_address)))
   {
     char node_addr[512] = {0, };
@@ -651,14 +650,25 @@ static wsrep::gtid wsrep_server_initial_position()
 
 int wsrep_init_server()
 {
+  wsrep::log::logger_fn(wsrep_log_cb);
   try
   {
-    const std::string server_name= wsrep_server_name();
-    const std::string server_id= wsrep_server_id();
-    const std::string node_address= wsrep_server_node_address();
-    const std::string incoming_address= wsrep_server_incoming_address();
-    const std::string working_dir= wsrep_server_working_dir();
-    const wsrep::gtid initial_position= wsrep_server_initial_position();
+    std::string server_name;
+    std::string server_id;
+    std::string node_address;
+    std::string incoming_address;
+    std::string working_dir;
+    wsrep::gtid initial_position;
+
+    if (WSREP_ON)
+    {
+      server_name= wsrep_server_name();
+      server_id= wsrep_server_id();
+      node_address= wsrep_server_node_address();
+      incoming_address= wsrep_server_incoming_address();
+      working_dir= wsrep_server_working_dir();
+      initial_position= wsrep_server_initial_position();
+    }
 
     Wsrep_server_state::init_once(server_name,
                                   server_id,

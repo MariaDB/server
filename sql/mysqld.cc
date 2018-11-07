@@ -1827,8 +1827,8 @@ static void close_connections(void)
   if (wsrep_inited == 1)
   {
     wsrep_deinit();
-    wsrep_deinit_server();
   }
+  wsrep_deinit_server();
 #endif
   /* All threads has now been aborted */
   DBUG_PRINT("quit",("Waiting for threads to die (count=%u)",thread_count));
@@ -2108,7 +2108,8 @@ extern "C" void unireg_abort(int exit_code)
   disable_log_notes= 1;
 
 #ifdef WITH_WSREP
-  if (Wsrep_server_state::instance().state() != wsrep::server_state::s_disconnected)
+  if (WSREP_ON &&
+      Wsrep_server_state::instance().state() != wsrep::server_state::s_disconnected)
   {
     /*
       This is an abort situation, we cannot expect to gracefully close all
@@ -2123,9 +2124,9 @@ extern "C" void unireg_abort(int exit_code)
     WSREP_INFO("Some threads may fail to exit.");
 
     /* In bootstrap mode we deinitialize wsrep here. */
-    if (opt_bootstrap && wsrep_inited)
+    if (opt_bootstrap)
     {
-      wsrep_deinit();
+      if (wsrep_inited) wsrep_deinit();
       wsrep_deinit_server();
     }
   }
@@ -9941,7 +9942,10 @@ void refresh_status(THD *thd)
   /* Reset some global variables */
   reset_status_vars();
 #ifdef WITH_WSREP
-  Wsrep_server_state::instance().provider().reset_status();
+  if (WSREP_ON)
+  {
+    Wsrep_server_state::instance().provider().reset_status();
+  }
 #endif /* WITH_WSREP */
 
   /* Reset the counters of all key caches (default and named). */
