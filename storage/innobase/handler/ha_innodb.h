@@ -175,7 +175,7 @@ class ha_innobase: public handler
 	int rnd_pos(uchar * buf, uchar *pos);
 
 	int ft_init();
-	void ft_end();
+	void ft_end() { rnd_end(); }
 	FT_INFO *ft_init_ext(uint flags, uint inx, String* key);
 	int ft_read(uchar* buf);
 

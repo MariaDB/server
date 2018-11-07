@@ -10272,16 +10272,6 @@ next_record:
 	return(HA_ERR_END_OF_FILE);
 }
 
-/*************************************************************************
-*/
-
-void
-ha_innobase::ft_end()
-{
-	fprintf(stderr, "ft_end()\n");
-
-	rnd_end();
-}
 #ifdef WITH_WSREP
 extern dict_index_t*
 wsrep_dict_foreign_find_index(
