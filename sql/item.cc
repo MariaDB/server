@@ -1277,60 +1277,27 @@ Item *Item_param::safe_charset_converter(THD *thd, CHARSET_INFO *tocs)
 bool Item::get_date_from_int(THD *thd, MYSQL_TIME *ltime, date_mode_t fuzzydate)
 {
   Longlong_hybrid value(val_int(), unsigned_flag);
-  if (null_value || int_to_datetime_with_warn(thd, value,
-                                              ltime, fuzzydate,
-                                              field_name_or_null()))
-    return null_value|= make_zero_date(ltime, fuzzydate);
-  return null_value= false;
+  return null_value || int_to_datetime_with_warn(thd, value,
+                                                 ltime, fuzzydate,
+                                                 field_name_or_null());
 }
 
 
 bool Item::get_date_from_real(THD *thd, MYSQL_TIME *ltime, date_mode_t fuzzydate)
 {
   double value= val_real();
-  if (null_value || double_to_datetime_with_warn(thd, value, ltime, fuzzydate,
-                                                 field_name_or_null()))
-    return null_value|= make_zero_date(ltime, fuzzydate);
-  return null_value= false;
+  return null_value || double_to_datetime_with_warn(thd, value,
+                                                    ltime, fuzzydate,
+                                                    field_name_or_null());
 }
 
 
-bool Item::get_date_from_string(THD *thd, MYSQL_TIME *ltime, date_mode_t fuzzydate)
+bool Item::get_date_from_string(THD *thd, MYSQL_TIME *to, date_mode_t mode)
 {
-  char buff[40];
-  String tmp(buff,sizeof(buff), &my_charset_bin),*res;
-  if (!(res=val_str(&tmp)) ||
-      str_to_datetime_with_warn(thd, res->charset(), res->ptr(), res->length(),
-                                ltime, fuzzydate))
-    return null_value|= make_zero_date(ltime, fuzzydate);
-  return null_value= false;
-}
-
-
-bool Item::make_zero_date(MYSQL_TIME *ltime, date_mode_t fuzzydate)
-{
-  /*
-    if the item was not null and convertion failed, we return a zero date
-    if allowed, otherwise - null.
-  */
-  bzero((char*) ltime,sizeof(*ltime));
-  if (fuzzydate & TIME_TIME_ONLY)
-  {
-    /*
-      In the following scenario:
-      - The caller expected to get a TIME value
-      - Item returned a not NULL string or numeric value
-      - But then conversion from string or number to TIME failed
-      we need to change the default time_type from MYSQL_TIMESTAMP_DATE
-      (which was set in bzero) to MYSQL_TIMESTAMP_TIME and therefore
-      return TIME'00:00:00' rather than DATE'0000-00-00'.
-      If we don't do this, methods like Item::get_time_with_conversion()
-      will erroneously subtract CURRENT_DATE from '0000-00-00 00:00:00'
-      and return TIME'-838:59:59' instead of TIME'00:00:00' as a result.
-    */
-    ltime->time_type= MYSQL_TIMESTAMP_TIME;
-  }
-  return !(fuzzydate & TIME_FUZZY_DATES);
+  StringBuffer<40> tmp;
+  Temporal::Warn_push warn(thd, field_name_or_null(), to, mode);
+  Temporal_hybrid *t= new(to) Temporal_hybrid(thd, &warn, val_str(&tmp), mode);
+  return !t->is_valid_temporal();
 }
 
 
@@ -3735,7 +3702,7 @@ my_decimal *Item_null::val_decimal(my_decimal *decimal_value)
 
 bool Item_null::get_date(THD *thd, MYSQL_TIME *ltime, date_mode_t fuzzydate)
 {
-  make_zero_date(ltime, fuzzydate);
+  set_zero_time(ltime, MYSQL_TIMESTAMP_NONE);
   return (null_value= true);
 }
 
@@ -4261,7 +4228,7 @@ bool Item_param::get_date(THD *thd, MYSQL_TIME *res, date_mode_t fuzzydate)
     *res= value.time;
     return 0;
   }
-  return type_handler()->Item_get_date(thd, this, res, fuzzydate);
+  return type_handler()->Item_get_date_with_warn(thd, this, res, fuzzydate);
 }
 
 

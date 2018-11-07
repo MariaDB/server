@@ -870,12 +870,6 @@ protected:
     return rc;
   }
 public:
-  /*
-    This method is used if the item was not null but convertion to
-    TIME/DATE/DATETIME failed. We return a zero date if allowed,
-    otherwise - null.
-  */
-  bool make_zero_date(MYSQL_TIME *ltime, date_mode_t fuzzydate);
 
   /*
     Cache val_str() into the own buffer, e.g. to evaluate constant
@@ -1172,6 +1166,12 @@ public:
       If value is not null null_value flag will be reset to FALSE.
   */
   virtual double val_real()=0;
+  Double_null to_double_null()
+  {
+    // val_real() must be caleed on a separate line. See to_longlong_null()
+    double nr= val_real();
+    return Double_null(nr, null_value);
+  }
   /*
     Return integer representation of item.
 
@@ -1192,6 +1192,10 @@ public:
       after the val_int() call, val_int() is caled on a separate line.
     */
     return Longlong_null(nr, null_value);
+  }
+  Longlong_hybrid_null to_longlong_hybrid_null()
+  {
+    return Longlong_hybrid_null(to_longlong_null(), unsigned_flag);
   }
   /**
     Get a value for CAST(x AS SIGNED).
@@ -3031,7 +3035,7 @@ public:
   Item *safe_charset_converter(THD *thd, CHARSET_INFO *tocs);
   bool get_date(THD *thd, MYSQL_TIME *ltime, date_mode_t fuzzydate)
   {
-    return type_handler()->Item_get_date(thd, this, ltime, fuzzydate);
+    return type_handler()->Item_get_date_with_warn(thd, this, ltime, fuzzydate);
   }
 };
 
@@ -4516,7 +4520,7 @@ public:
   String *val_str(String*) { return &str_value; }
   bool get_date(THD *thd, MYSQL_TIME *ltime, date_mode_t fuzzydate)
   {
-    return type_handler()->Item_get_date(thd, this, ltime, fuzzydate);
+    return type_handler()->Item_get_date_with_warn(thd, this, ltime, fuzzydate);
   }
 };
 
@@ -6389,10 +6393,9 @@ class Item_cache_year: public Item_cache_int
 public:
   Item_cache_year(THD *thd, const Type_handler *handler)
    :Item_cache_int(thd, handler) { }
-  bool get_date(THD *thd, MYSQL_TIME *ltime, date_mode_t fuzzydate)
+  bool get_date(THD *thd, MYSQL_TIME *to, date_mode_t mode)
   {
-    return null_value=
-      VYear(this).to_mysql_time_with_warn(thd, ltime, fuzzydate, NULL);
+    return type_handler_year.Item_get_date_with_warn(thd, this, to, mode);
   }
 };
 
@@ -6549,8 +6552,10 @@ public:
   longlong val_int();
   String* val_str(String *str);
   my_decimal *val_decimal(my_decimal *);
-  bool get_date(THD *thd, MYSQL_TIME *ltime, date_mode_t fuzzydate)
-  { return VDec(this).to_datetime_with_warn(thd, ltime, fuzzydate, this); }
+  bool get_date(THD *thd, MYSQL_TIME *to, date_mode_t mode)
+  {
+    return decimal_to_datetime_with_warn(thd, VDec(this).ptr(), to, mode, NULL);
+  }
   bool cache_value();
   Item *convert_to_basic_const_item(THD *thd);
   Item *get_copy(THD *thd)

@@ -2103,8 +2103,8 @@ TIME(0)=TIME('z') AS t;
 ts	d	t
 1	1	1
 Warnings:
-Warning	1292	Incorrect datetime value: 'z'
-Warning	1292	Incorrect datetime value: 'z'
+Warning	1292	Truncated incorrect datetime value: 'z'
+Warning	1292	Truncated incorrect datetime value: 'z'
 Warning	1292	Truncated incorrect time value: 'z'
 SELECT
 TIMESTAMP(0)=TIMESTAMP('') AS ts,
@@ -2113,9 +2113,60 @@ TIME(0)=TIME('') AS t;
 ts	d	t
 1	1	1
 Warnings:
-Warning	1292	Incorrect datetime value: ''
-Warning	1292	Incorrect datetime value: ''
+Warning	1292	Truncated incorrect datetime value: ''
+Warning	1292	Truncated incorrect datetime value: ''
 Warning	1292	Truncated incorrect time value: ''
+#
+# MDEV-17563 Different results using table or view when comparing values of time type
+#
+CREATE TABLE t1 (pk int, x1 time, x2 varchar(1));
+INSERT INTO t1 VALUES (17,'09:16:37','k'),(70,'19:44:22','k');
+CREATE VIEW v1 AS SELECT * FROM t1;
+SELECT pk FROM t1 WHERE x1 >x2;
+pk
+17
+70
+Warnings:
+Warning	1292	Truncated incorrect time value: 'k'
+Warning	1292	Truncated incorrect time value: 'k'
+SELECT pk FROM v1 WHERE x1 >x2;
+pk
+17
+70
+Warnings:
+Warning	1292	Truncated incorrect time value: 'k'
+Warning	1292	Truncated incorrect time value: 'k'
+DROP VIEW v1;
+DROP TABLE t1;
+CREATE TABLE t1 (pk int, x1 time, x2 varchar(1));
+INSERT INTO t1 VALUES (17,'09:16:37',''),(70,'19:44:22','k');
+CREATE VIEW v1 AS SELECT * FROM t1;
+SELECT pk FROM t1 WHERE x1 >x2;
+pk
+17
+70
+Warnings:
+Warning	1292	Truncated incorrect time value: ''
+Warning	1292	Truncated incorrect time value: 'k'
+SELECT pk FROM v1 WHERE x1 >x2;
+pk
+17
+70
+Warnings:
+Warning	1292	Truncated incorrect time value: ''
+Warning	1292	Truncated incorrect time value: 'k'
+DROP VIEW IF EXISTS v1;
+DROP TABLE IF EXISTS t1;
+#
+# MDEV-17625 Different warnings when comparing a garbage to DATETIME vs TIME
+#
+SELECT TIMESTAMP(0)='z', DATE(0)='z', TIME(0)='z';
+TIMESTAMP(0)='z'	DATE(0)='z'	TIME(0)='z'
+1	1	1
+Warnings:
+Warning	1292	Truncated incorrect datetime value: 'z'
+Warning	1292	Truncated incorrect datetime value: 'z'
+Warning	1292	Truncated incorrect time value: 'z'
 #
 # End of 10.4 tests
 #
