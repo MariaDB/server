@@ -14564,6 +14564,7 @@ load:
             lex->field_list.empty();
             lex->update_list.empty();
             lex->value_list.empty();
+            lex->many_values.empty();
           }
           opt_load_data_charset
           { Lex->exchange->cs= $15; }
