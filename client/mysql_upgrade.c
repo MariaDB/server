@@ -111,7 +111,7 @@ static struct my_option my_long_options[]=
    &opt_default_auth, &opt_default_auth, 0,
    GET_STR, REQUIRED_ARG, 0, 0, 0, 0, 0, 0},
   {"force", 'f', "Force execution of mysqlcheck even if mysql_upgrade "
-   "has already been executed for the current version of MySQL.",
+   "has already been executed for the current version of MariaDB.",
    &opt_force, &opt_force, 0, GET_BOOL, NO_ARG, 0, 0, 0, 0, 0, 0},
   {"host", 'h', "Connect to host.", 0,
    0, 0, GET_STR, REQUIRED_ARG, 0, 0, 0, 0, 0, 0},
@@ -808,7 +808,7 @@ static my_bool is_mysql()
       strstr(ds_events_struct.str, "IGNORE_BAD_TABLE_OPTIONS") != NULL)
     ret= FALSE;
   else
-    verbose("MySQL upgrade detected");
+    verbose("MariaDB upgrade detected");
 
   dynstr_free(&ds_events_struct);
   return(ret);
@@ -1192,7 +1192,7 @@ int main(int argc, char **argv)
   */
   if (!opt_force && upgrade_already_done(0))
   {
-    printf("This installation of MySQL is already upgraded to %s, "
+    printf("This installation of MariaDB is already upgraded to %s, "
            "use --force if you still need to run mysql_upgrade\n",
            MYSQL_SERVER_VERSION);
     goto end;

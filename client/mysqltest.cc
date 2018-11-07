@@ -7170,7 +7170,7 @@ void usage()
 {
   print_version();
   puts(ORACLE_WELCOME_COPYRIGHT_NOTICE("2000"));
-  printf("Runs a test against the mysql server and compares output with a results file.\n\n");
+  printf("Runs a test against the MariaDB server and compares output with a results file.\n\n");
   printf("Usage: %s [OPTIONS] [database] < test_file\n", my_progname);
   print_defaults("my",load_default_groups);
   puts("");
@@ -7928,7 +7928,7 @@ int append_warnings(DYNAMIC_STRING *ds, MYSQL* mysql)
 static void handle_no_active_connection(struct st_command *command, 
   struct st_connection *cn, DYNAMIC_STRING *ds)
 {
-  handle_error(command, 2006, "MySQL server has gone away", "000000", ds);
+  handle_error(command, 2006, "MariaDB server has gone away", "000000", ds);
   cn->pending= FALSE;
   var_set_errno(2006);
 }
@@ -9245,7 +9245,7 @@ int main(int argc, char **argv)
   if (mysql_server_init(embedded_server_arg_count,
 			embedded_server_args,
 			(char**) embedded_server_groups))
-    die("Can't initialize MySQL server");
+    die("Can't initialize MariaDB server");
   server_initialized= 1;
   if (cur_file == file_stack && cur_file->file == 0)
   {

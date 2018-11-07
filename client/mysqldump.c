@@ -254,10 +254,10 @@ static struct my_option my_long_options[] =
    1, 0, 0, 0, 0, 0},
   {"compatible", OPT_COMPATIBLE,
    "Change the dump to be compatible with a given mode. By default tables "
-   "are dumped in a format optimized for MySQL. Legal modes are: ansi, "
+   "are dumped in a format optimized for MariaDB. Legal modes are: ansi, "
    "mysql323, mysql40, postgresql, oracle, mssql, db2, maxdb, no_key_options, "
    "no_table_options, no_field_options. One can use several modes separated "
-   "by commas. Note: Requires MySQL server version 4.1.0 or higher. "
+   "by commas. Note: Requires MariaDB server version 4.1.0 or higher. "
    "This option is ignored with earlier server versions.",
    &opt_compatible_mode_str, &opt_compatible_mode_str, 0,
    GET_STR, REQUIRED_ARG, 0, 0, 0, 0, 0, 0},
@@ -274,7 +274,7 @@ static struct my_option my_long_options[] =
    &opt_compress, &opt_compress, 0, GET_BOOL, NO_ARG, 0, 0, 0,
    0, 0, 0},
   {"create-options", 'a',
-   "Include all MySQL specific create options.",
+   "Include all MariaDB specific create options.",
    &create_options, &create_options, 0, GET_BOOL, NO_ARG, 1,
    0, 0, 0, 0, 0},
   {"databases", 'B',
@@ -642,7 +642,7 @@ static void usage(void)
 {
   print_version();
   puts(ORACLE_WELCOME_COPYRIGHT_NOTICE("2000"));
-  puts("Dumping structure and contents of MySQL databases and tables.");
+  puts("Dumping structure and contents of MariaDB databases and tables.");
   short_usage_sub(stdout);
   print_defaults("my",load_default_groups);
   puts("");
@@ -700,7 +700,7 @@ static void write_header(FILE *sql_file, char *db_name)
   else if (!opt_compact)
   {
     print_comment(sql_file, 0,
-                  "-- MySQL dump %s  Distrib %s, for %s (%s)\n--\n",
+                  "-- MariaDB dump %s  Distrib %s, for %s (%s)\n--\n",
                   DUMP_VERSION, MYSQL_SERVER_VERSION, SYSTEM_TYPE,
                   MACHINE_TYPE);
     print_comment(sql_file, 0, "-- Host: %s    ",
@@ -5515,7 +5515,7 @@ static int start_transaction(MYSQL *mysql_con)
   if ((mysql_get_server_version(mysql_con) < 40100) && opt_master_data)
   {
     fprintf(stderr, "-- %s: the combination of --single-transaction and "
-            "--master-data requires a MySQL server version of at least 4.1 "
+            "--master-data requires a MariaDB server version of at least 4.1 "
             "(current server's version is %s). %s\n",
             ignore_errors ? "Warning" : "Error",
             mysql_con->server_version ? mysql_con->server_version : "unknown",
