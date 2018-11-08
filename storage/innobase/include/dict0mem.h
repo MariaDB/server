@@ -1589,7 +1589,9 @@ static_assert(sizeof(field_map_element_t) == 2,
 struct dict_instant_t
 {
 	/** Number of dropped columns */
-	unsigned n_dropped;
+	unsigned n_dropped:10;
+	/** Whether leaf pages may be in ROW_FORMAT=REDUNDANT */
+	unsigned leaf_redundant:1;
 	/** Dropped columns */
 	dict_col_t* dropped;
 	/** Map of clustered index non-PK fields[i - first_user_field()]
