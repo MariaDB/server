@@ -55,9 +55,6 @@ Created 3/26/1996 Heikki Tuuri
 
 #include <set>
 #include <new>
-#ifdef WITH_WSREP
-#include "mysql/service_wsrep.h"
-#endif /* WITH_WSREP */
 
 /** The bit pattern corresponding to TRX_ID_MAX */
 const byte trx_id_max_bytes[8] = {
