@@ -1523,7 +1523,9 @@ struct dict_vcol_templ_t {
 struct dict_instant_t
 {
 	/** Number of dropped columns */
-	unsigned n_dropped;
+	unsigned n_dropped:10;
+	/** Whether leaf pages may be in ROW_FORMAT=REDUNDANT */
+	unsigned leaf_redundant:1;
 	/** Dropped columns */
 	dict_col_t* dropped;
 	/** Mapping the non-pk field to column of the table. */

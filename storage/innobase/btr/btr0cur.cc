@@ -3350,6 +3350,14 @@ btr_cur_optimistic_insert(
 		goto convert_big_rec;
 	}
 
+	if (leaf && page_is_comp(page) && index->is_primary()
+	    && index->table->instant
+	    && index->table->instant->leaf_redundant) {
+		/* The page must be converted into ROW_FORMAT=REDUNDANT
+		in a pessimistic operation. */
+		return DB_TOO_BIG_RECORD;
+	}
+
 	/* Calculate the record size when entry is converted to a record */
 	rec_size = rec_get_converted_size(index, entry, n_ext);
 
@@ -4107,6 +4115,15 @@ btr_cur_update_in_place(
 		 << rec_printer(rec, offsets).str());
 
 	block = btr_cur_get_block(cursor);
+
+	if (page_is_comp(block->frame) && index->is_primary()
+	    && index->table->instant
+	    && index->table->instant->leaf_redundant) {
+		/* The page must be converted into ROW_FORMAT=REDUNDANT
+		in a pessimistic operation. */
+		return DB_TOO_BIG_RECORD;
+	}
+
 	page_zip = buf_block_get_page_zip(block);
 
 	/* Check that enough space is available on the compressed page. */
@@ -4351,6 +4368,14 @@ btr_cur_optimistic_update(
 	ut_a(!rec_offs_any_null_extern(rec, *offsets)
 	     || trx_is_recv(thr_get_trx(thr)));
 #endif /* UNIV_DEBUG || UNIV_BLOB_LIGHT_DEBUG */
+
+	if (page_is_comp(page) && index->is_primary()
+	    && index->table->instant
+	    && index->table->instant->leaf_redundant) {
+		/* The page must be converted into ROW_FORMAT=REDUNDANT
+		in a pessimistic operation. */
+		return DB_TOO_BIG_RECORD;
+	}
 
 	if (UNIV_LIKELY(!update->is_metadata())
 	    && !row_upd_changes_field_size_or_external(index, *offsets,

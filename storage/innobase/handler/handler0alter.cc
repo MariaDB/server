@@ -170,18 +170,33 @@ inline void dict_table_t::prepare_instant(const dict_table_t& old,
 		Therefore columns must have been added at the end,
 		or modified instantly in place. */
 		DBUG_ASSERT(index.n_fields >= oindex.n_fields);
-#ifdef UNIV_DEBUG
-		if (index.n_fields == oindex.n_fields) {
-			ut_ad(!dict_table_is_comp(this));
-			for (unsigned i = index.n_fields; i--; ) {
-				ut_ad(index.fields[i].col->same_format(
-					      *oindex.fields[i].col));
-			}
+		if (index.n_fields == oindex.n_fields
+		    && dict_table_is_comp(this)) {
+			instant = new (mem_heap_zalloc(
+					       heap, sizeof(dict_instant_t)))
+				dict_instant_t();
+			instant->leaf_redundant = 1;
 		}
-#endif
 set_core_fields:
 		index.n_core_fields = oindex.n_core_fields;
 		index.n_core_null_bytes = oindex.n_core_null_bytes;
+		if (instant && !instant->leaf_redundant
+		    && dict_table_is_comp(this)) {
+			for (unsigned i = oindex.n_fields; i--; ) {
+				DBUG_ASSERT(index.fields[i].col->same_format(
+						    *oindex.fields[i].col));
+				DBUG_ASSERT(!oindex.fields[i].col
+					    ->is_nullable()
+					    || index.fields[i].col
+					    ->is_nullable());
+
+				if (index.fields[i].col->is_nullable()
+				    && !oindex.fields[i].col->is_nullable()) {
+					instant->leaf_redundant = 1;
+					break;
+				}
+			}
+		}
 	} else {
 add_metadata:
 		const unsigned n_old_drop = old.n_dropped();
@@ -360,9 +375,6 @@ inline void dict_index_t::instant_add_field(const dict_index_t& instant)
 		/* Instant conversion from NULL to NOT NULL is not allowed. */
 		DBUG_ASSERT(!fields[i].col->is_nullable()
 			    || instant.fields[i].col->is_nullable());
-		DBUG_ASSERT(fields[i].col->is_nullable()
-			    == instant.fields[i].col->is_nullable()
-			    || !dict_table_is_comp(table));
 	}
 #endif
 	n_fields = instant.n_fields;
@@ -1382,11 +1394,13 @@ instant_alter_column_possible(
 		return false;
 	}
 
+#if 1 // FIXME: remove this. For !=REDUNDANT we must rebuild affected indexes.
 	if ((ha_alter_info->handler_flags
 	     & ALTER_COLUMN_NULLABLE)
 	    && dict_table_is_comp(&ib_table)) {
 		return false;
 	}
+#endif
 
 	return true;
 }
