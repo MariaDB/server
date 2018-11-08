@@ -684,6 +684,20 @@ public:
 		def_val.len = UNIV_SQL_DEFAULT;
 		def_val.data = NULL;
 	}
+
+	/** Determine if the columns have the same format
+	except for is_nullable() and is_versioned().
+	@param[in]	other	column to compare to
+	@return	whether the columns have the same format */
+	bool same_format(const dict_col_t& other) const
+	{
+		return mtype == other.mtype
+			&& len >= other.len
+			&& mbminlen == other.mbminlen
+			&& mbmaxlen == other.mbmaxlen
+			&& !((prtype ^ other.prtype)
+			     & ~(DATA_NOT_NULL | DATA_VERSIONED));
+	}
 };
 
 /** Index information put in a list of virtual column structure. Index
