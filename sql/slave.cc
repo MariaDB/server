@@ -4304,6 +4304,19 @@ static int exec_relay_log_event(THD* thd, Relay_log_info* rli,
         This is the case for pre-10.0 events without GTID, and for handling
         slave_skip_counter.
       */
+      if (!(ev->is_artificial_event() || ev->is_relay_log_event() || (ev->when == 0)))
+      {
+        /*
+          Ignore FD's timestamp as it does not reflect the slave execution
+          state but likely to reflect a deep past. Consequently when the first
+          data modification event execution last long all this time
+          Seconds_Behind_Master is zero.
+        */
+        if (ev->get_type_code() != FORMAT_DESCRIPTION_EVENT)
+          rli->last_master_timestamp= ev->when + (time_t) ev->exec_time;
+
+        DBUG_ASSERT(rli->last_master_timestamp >= 0);
+      }
     }
 
     if (typ == GTID_EVENT)
