@@ -170,8 +170,15 @@ inline void dict_table_t::prepare_instant(const dict_table_t& old,
 		Therefore columns must have been added at the end,
 		or modified instantly in place. */
 		DBUG_ASSERT(index.n_fields >= oindex.n_fields);
-		DBUG_ASSERT(index.n_fields > oindex.n_fields
-			    || !dict_table_is_comp(this));
+#ifdef UNIV_DEBUG
+		if (index.n_fields == oindex.n_fields) {
+			ut_ad(!dict_table_is_comp(this));
+			for (unsigned i = index.n_fields; i--; ) {
+				ut_ad(index.fields[i].col->same_format(
+					      *oindex.fields[i].col));
+			}
+		}
+#endif
 set_core_fields:
 		index.n_core_fields = oindex.n_core_fields;
 		index.n_core_null_bytes = oindex.n_core_null_bytes;
@@ -348,6 +355,8 @@ inline void dict_index_t::instant_add_field(const dict_index_t& instant)
 #ifndef DBUG_OFF
 	for (unsigned i = 0; i < n_fields; i++) {
 		DBUG_ASSERT(fields[i].same(instant.fields[i]));
+		DBUG_ASSERT(fields[i].col->same_format(*instant.fields[i]
+						       .col));
 		/* Instant conversion from NULL to NOT NULL is not allowed. */
 		DBUG_ASSERT(!fields[i].col->is_nullable()
 			    || instant.fields[i].col->is_nullable());
@@ -420,10 +429,7 @@ inline void dict_table_t::instant_column(const dict_table_t& table,
 
 		if (const dict_col_t* o = find(old_cols, col_map, n_cols, i)) {
 			c.def_val = o->def_val;
-			DBUG_ASSERT(!((c.prtype ^ o->prtype)
-				      & ~(DATA_NOT_NULL | DATA_VERSIONED)));
-			DBUG_ASSERT(c.mtype == o->mtype);
-			DBUG_ASSERT(c.len == o->len);
+			DBUG_ASSERT(c.same_format(*o));
 			continue;
 		}
 
@@ -5339,13 +5345,10 @@ static bool innobase_instant_try(
 
 		bool update = old && (!ctx->first_alter_pos
 				      || i < ctx->first_alter_pos - 1);
-		DBUG_ASSERT(!old || !((old->prtype ^ col->prtype)
-				      & ~(DATA_NOT_NULL | DATA_VERSIONED)));
+		DBUG_ASSERT(!old || col->same_format(*old));
 		if (update
 		    && old->prtype == d->type.prtype) {
 			/* The record is already present in SYS_COLUMNS. */
-			DBUG_ASSERT(old->mtype == col->mtype);
-			DBUG_ASSERT(old->len == col->len);
 		} else if (innodb_insert_sys_columns(user_table->id, i,
 						     (*af)->field_name.str,
 						     d->type.mtype,
