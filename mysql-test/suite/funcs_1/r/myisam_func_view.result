@@ -3784,9 +3784,9 @@ NULL	 ---äÖüß@µ*$-- 	4
 -00:00:01	-1	5
 41:58:00	1 17:58	23
 Warnings:
-Warning	1292	Truncated incorrect time value: ''
-Warning	1292	Truncated incorrect time value: '<---------1000 characters-------------------------------------------------------------------------------------------------------'
-Warning	1292	Truncated incorrect time value: ' ---\xC3\xA4\xC3\x96\xC3\xBC\xC3\x9F@\xC2\xB5*$-- '
+Warning	1292	Incorrect time value: ''
+Warning	1292	Incorrect time value: '<---------1000 characters-------------------------------------------------------------------------------------------------------'
+Warning	1292	Incorrect time value: ' ---\xC3\xA4\xC3\x96\xC3\xBC\xC3\x9F@\xC2\xB5*$-- '
 SHOW CREATE VIEW v1;
 View	Create View	character_set_client	collation_connection
 v1	CREATE ALGORITHM=UNDEFINED DEFINER=`root`@`localhost` SQL SECURITY DEFINER VIEW `v1` AS select cast(`t1_values`.`my_varbinary_1000` as time) AS `CAST(my_varbinary_1000 AS TIME)`,`t1_values`.`my_varbinary_1000` AS `my_varbinary_1000`,`t1_values`.`id` AS `id` from `t1_values`	latin1	latin1_swedish_ci
@@ -3801,9 +3801,9 @@ NULL	 ---äÖüß@µ*$-- 	4
 -00:00:01	-1	5
 41:58:00	1 17:58	23
 Warnings:
-Warning	1292	Truncated incorrect time value: ''
-Warning	1292	Truncated incorrect time value: '<---------1000 characters-------------------------------------------------------------------------------------------------------'
-Warning	1292	Truncated incorrect time value: ' ---\xC3\xA4\xC3\x96\xC3\xBC\xC3\x9F@\xC2\xB5*$-- '
+Warning	1292	Incorrect time value: ''
+Warning	1292	Incorrect time value: '<---------1000 characters-------------------------------------------------------------------------------------------------------'
+Warning	1292	Incorrect time value: ' ---\xC3\xA4\xC3\x96\xC3\xBC\xC3\x9F@\xC2\xB5*$-- '
 DROP VIEW v1;
 
 
@@ -3820,9 +3820,9 @@ NULL	 ---äÖüß@µ*$-- 	4
 -00:00:01	-1	5
 41:58:00	1 17:58	22
 Warnings:
-Warning	1292	Truncated incorrect time value: '\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00'
-Warning	1292	Truncated incorrect time value: '<--------30 characters------->'
-Warning	1292	Truncated incorrect time value: ' ---\xC3\xA4\xC3\x96\xC3\xBC\xC3\x9F@\xC2\xB5*$-- \x00\x00\x00\x00\x00\x00\x00\x00\x00\x00'
+Warning	1292	Incorrect time value: '\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00'
+Warning	1292	Incorrect time value: '<--------30 characters------->'
+Warning	1292	Incorrect time value: ' ---\xC3\xA4\xC3\x96\xC3\xBC\xC3\x9F@\xC2\xB5*$-- \x00\x00\x00\x00\x00\x00\x00\x00\x00\x00'
 Warning	1292	Truncated incorrect time value: '-1\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00'
 Warning	1292	Truncated incorrect time value: '1 17:58\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00'
 SHOW CREATE VIEW v1;
@@ -3839,9 +3839,9 @@ NULL	 ---äÖüß@µ*$--           	4
 -00:00:01	-1                            	5
 41:58:00	1 17:58                       	22
 Warnings:
-Warning	1292	Truncated incorrect time value: '\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00'
-Warning	1292	Truncated incorrect time value: '<--------30 characters------->'
-Warning	1292	Truncated incorrect time value: ' ---\xC3\xA4\xC3\x96\xC3\xBC\xC3\x9F@\xC2\xB5*$-- \x00\x00\x00\x00\x00\x00\x00\x00\x00\x00'
+Warning	1292	Incorrect time value: '\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00'
+Warning	1292	Incorrect time value: '<--------30 characters------->'
+Warning	1292	Incorrect time value: ' ---\xC3\xA4\xC3\x96\xC3\xBC\xC3\x9F@\xC2\xB5*$-- \x00\x00\x00\x00\x00\x00\x00\x00\x00\x00'
 Warning	1292	Truncated incorrect time value: '-1\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00'
 Warning	1292	Truncated incorrect time value: '1 17:58\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00'
 DROP VIEW v1;
@@ -3860,9 +3860,9 @@ NULL	 ---äÖüß@µ*$-- 	4
 -00:00:01	-1	5
 41:58:00	1 17:58	21
 Warnings:
-Warning	1292	Truncated incorrect time value: ''
-Warning	1292	Truncated incorrect time value: '<---------1000 characters-------------------------------------------------------------------------------------------------------'
-Warning	1292	Truncated incorrect time value: ' ---\xC3\xA4\xC3\x96\xC3\xBC\xC3\x9F@\xC2\xB5*$-- '
+Warning	1292	Incorrect time value: ''
+Warning	1292	Incorrect time value: '<---------1000 characters-------------------------------------------------------------------------------------------------------'
+Warning	1292	Incorrect time value: ' ---\xC3\xA4\xC3\x96\xC3\xBC\xC3\x9F@\xC2\xB5*$-- '
 SHOW CREATE VIEW v1;
 View	Create View	character_set_client	collation_connection
 v1	CREATE ALGORITHM=UNDEFINED DEFINER=`root`@`localhost` SQL SECURITY DEFINER VIEW `v1` AS select cast(`t1_values`.`my_varchar_1000` as time) AS `CAST(my_varchar_1000 AS TIME)`,`t1_values`.`my_varchar_1000` AS `my_varchar_1000`,`t1_values`.`id` AS `id` from `t1_values`	latin1	latin1_swedish_ci
@@ -3877,9 +3877,9 @@ NULL	 ---äÖüß@µ*$-- 	4
 -00:00:01	-1	5
 41:58:00	1 17:58	21
 Warnings:
-Warning	1292	Truncated incorrect time value: ''
-Warning	1292	Truncated incorrect time value: '<---------1000 characters-------------------------------------------------------------------------------------------------------'
-Warning	1292	Truncated incorrect time value: ' ---\xC3\xA4\xC3\x96\xC3\xBC\xC3\x9F@\xC2\xB5*$-- '
+Warning	1292	Incorrect time value: ''
+Warning	1292	Incorrect time value: '<---------1000 characters-------------------------------------------------------------------------------------------------------'
+Warning	1292	Incorrect time value: ' ---\xC3\xA4\xC3\x96\xC3\xBC\xC3\x9F@\xC2\xB5*$-- '
 DROP VIEW v1;
 
 
@@ -3896,9 +3896,9 @@ NULL	 ---äÖüß@µ*$--	4
 -00:00:01	-1	5
 41:58:00	1 17:58	20
 Warnings:
-Warning	1292	Truncated incorrect time value: ''
-Warning	1292	Truncated incorrect time value: '<--------30 characters------->'
-Warning	1292	Truncated incorrect time value: ' ---\xC3\xA4\xC3\x96\xC3\xBC\xC3\x9F@\xC2\xB5*$--'
+Warning	1292	Incorrect time value: ''
+Warning	1292	Incorrect time value: '<--------30 characters------->'
+Warning	1292	Incorrect time value: ' ---\xC3\xA4\xC3\x96\xC3\xBC\xC3\x9F@\xC2\xB5*$--'
 SHOW CREATE VIEW v1;
 View	Create View	character_set_client	collation_connection
 v1	CREATE ALGORITHM=UNDEFINED DEFINER=`root`@`localhost` SQL SECURITY DEFINER VIEW `v1` AS select cast(`t1_values`.`my_char_30` as time) AS `CAST(my_char_30 AS TIME)`,`t1_values`.`my_char_30` AS `my_char_30`,`t1_values`.`id` AS `id` from `t1_values`	latin1	latin1_swedish_ci
@@ -3913,9 +3913,9 @@ NULL	 ---äÖüß@µ*$--	4
 -00:00:01	-1	5
 41:58:00	1 17:58	20
 Warnings:
-Warning	1292	Truncated incorrect time value: ''
-Warning	1292	Truncated incorrect time value: '<--------30 characters------->'
-Warning	1292	Truncated incorrect time value: ' ---\xC3\xA4\xC3\x96\xC3\xBC\xC3\x9F@\xC2\xB5*$--'
+Warning	1292	Incorrect time value: ''
+Warning	1292	Incorrect time value: '<--------30 characters------->'
+Warning	1292	Incorrect time value: ' ---\xC3\xA4\xC3\x96\xC3\xBC\xC3\x9F@\xC2\xB5*$--'
 DROP VIEW v1;
 
 

@@ -67,4 +67,16 @@ public:
   }
 };
 
+
+class Longlong_hybrid_null: public Longlong_hybrid,
+                            public Null_flag
+{
+public:
+  Longlong_hybrid_null(const Longlong_null &nr, bool unsigned_flag)
+   :Longlong_hybrid(nr.value(), unsigned_flag),
+    Null_flag(nr.is_null())
+  { }
+};
+
+
 #endif // SQL_TYPE_INT_INCLUDED

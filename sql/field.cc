@@ -2253,16 +2253,13 @@ uint Field::fill_cache_field(CACHE_FIELD *copy)
 }
 
 
-bool Field::get_date(MYSQL_TIME *ltime,date_mode_t fuzzydate)
+bool Field::get_date(MYSQL_TIME *to, date_mode_t mode)
 {
-  char buff[40];
-  String tmp(buff,sizeof(buff),&my_charset_bin),*res;
-  if (!(res=val_str(&tmp)) ||
-      str_to_datetime_with_warn(get_thd(),
-                                res->charset(), res->ptr(), res->length(),
-                                ltime, fuzzydate))
-    return 1;
-  return 0;
+  StringBuffer<40> tmp;
+  Temporal::Warn_push warn(get_thd(), NullS, to, mode);
+  Temporal_hybrid *t= new(to) Temporal_hybrid(get_thd(), &warn,
+                                              val_str(&tmp), mode);
+  return !t->is_valid_temporal();
 }
 
 /**

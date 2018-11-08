@@ -914,5 +914,19 @@ DROP TABLE t1;
 
 
 --echo #
+--echo # MDEV-17563 Different results using table or view when comparing values of time type 
+--echo #
+
+CREATE TABLE t1 (pk int, x1 datetime, x2 varchar(1));
+INSERT INTO t1 VALUES (17,'2001-01-01 09:16:37','');
+INSERT INTO t1 VALUES (18,'2001-01-01 09:16:37','k');
+CREATE VIEW v1 AS SELECT * FROM t1;
+SELECT pk FROM t1 WHERE x1 >x2;
+SELECT pk FROM v1 WHERE x1 >x2;
+DROP VIEW v1;
+DROP TABLE t1;
+
+
+--echo #
 --echo # End of 10.4 tests
 --echo #

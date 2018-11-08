@@ -23,7 +23,7 @@
 #  Tool used for executing a suite of .test file
 #
 #  See the "MySQL Test framework manual" for more information
-#  http://dev.mysql.com/doc/mysqltest/en/index.html
+#  https://mariadb.com/kb/en/library/mysqltest/
 #
 #  Please keep the test framework tools identical in all versions!
 #

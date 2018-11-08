@@ -217,8 +217,6 @@ public:
   {
     return check_result(mask, decimal_round(this, to, (int) scale, mode));
   }
-  bool to_datetime_with_warn(THD *thd, MYSQL_TIME *to, date_mode_t fuzzydate,
-                             const char *field_name);
   int to_binary(uchar *bin, int prec, int scale,
                 uint mask= E_DEC_FATAL_ERROR) const;
 #endif

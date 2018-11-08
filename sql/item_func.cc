@@ -831,17 +831,6 @@ Item_func_hybrid_field_type::val_decimal_from_int_op(my_decimal *dec)
   return dec;
 }
 
-bool Item_func_hybrid_field_type::get_date_from_int_op(THD *thd,
-                                                       MYSQL_TIME *ltime,
-                                                       date_mode_t fuzzydate)
-{
-  Longlong_hybrid value(int_op(), unsigned_flag);
-  if (null_value || int_to_datetime_with_warn(thd, value,
-                                              ltime, fuzzydate, NULL))
-    return make_zero_mysql_time(ltime, fuzzydate);
-  return (null_value= 0);
-}
-
 
 String *Item_func_hybrid_field_type::val_str_from_real_op(String *str)
 {
@@ -865,17 +854,6 @@ Item_func_hybrid_field_type::val_decimal_from_real_op(my_decimal *dec)
     return NULL;
   double2my_decimal(E_DEC_FATAL_ERROR, result, dec);
   return dec;
-}
-
-bool Item_func_hybrid_field_type::get_date_from_real_op(THD *thd,
-                                                        MYSQL_TIME *ltime,
-                                                        date_mode_t fuzzydate)
-{
-  double value= real_op();
-  if (null_value ||
-      double_to_datetime_with_warn(thd, value, ltime, fuzzydate, NULL))
-    return make_zero_mysql_time(ltime, fuzzydate);
-  return (null_value= 0);
 }
 
 
@@ -973,19 +951,6 @@ Item_func_hybrid_field_type::val_decimal_from_str_op(my_decimal *decimal_value)
 {
   String *res= str_op_with_null_check(&str_value);
   return res ? decimal_from_string_with_check(decimal_value, res) : 0;
-}
-
-bool Item_func_hybrid_field_type::get_date_from_str_op(THD *thd,
-                                                       MYSQL_TIME *ltime,
-                                                       date_mode_t fuzzydate)
-{
-  StringBuffer<40> tmp;
-  String *res;
-  if (!(res= str_op_with_null_check(&tmp)) ||
-      str_to_datetime_with_warn(thd, res->charset(), res->ptr(), res->length(),
-                                ltime, fuzzydate))
-    return make_zero_mysql_time(ltime, fuzzydate);
-  return (null_value= 0);
 }
 
 
