@@ -748,7 +748,7 @@ void LEX::start(THD *thd_arg)
   profile_options= PROFILE_NONE;
   nest_level= 0;
   builtin_select.nest_level_base= &unit;
-  allow_sum_func= 0;
+  allow_sum_func.clear_all();
   in_sum_func= NULL;
 
   used_tables= 0;
@@ -2392,7 +2392,7 @@ void st_select_lex::init_select()
   m_non_agg_field_used= false;
   m_agg_func_used= false;
   m_custom_agg_func_used= false;
-  name_visibility_map= 0;
+  name_visibility_map.clear_all();
   with_dep= 0;
   join= 0;
   lock_type= TL_READ_DEFAULT;
@@ -3173,7 +3173,7 @@ LEX::LEX()
                       INITIAL_LEX_PLUGIN_LIST_SIZE, 0);
   reset_query_tables_list(TRUE);
   mi.init();
-  init_dynamic_array2(&delete_gtid_domain, sizeof(ulong*),
+  init_dynamic_array2(&delete_gtid_domain, sizeof(uint32),
                       gtid_domain_static_buffer,
                       initial_gtid_domain_buffer_size,
                       initial_gtid_domain_buffer_size, 0);
@@ -5252,6 +5252,9 @@ LEX::create_unit(SELECT_LEX *first_sel)
 {
   SELECT_LEX_UNIT *unit;
   DBUG_ENTER("LEX::create_unit");
+
+  if (first_sel->master_unit())
+    DBUG_RETURN(first_sel->master_unit());
 
   if (!(unit= alloc_unit()))
     DBUG_RETURN(NULL);

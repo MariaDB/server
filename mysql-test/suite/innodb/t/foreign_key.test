@@ -138,7 +138,60 @@ SET FOREIGN_KEY_CHECKS=DEFAULT;
 LOCK TABLE staff WRITE;
 UNLOCK TABLES;
 DROP TABLES staff, store;
+
 SET FOREIGN_KEY_CHECKS=1;
+
+--echo #
+--echo # MDEV-17531 Crash in RENAME TABLE with FOREIGN KEY and FULLTEXT INDEX
+--echo #
+
+--disable_query_log
+call mtr.add_suppression("InnoDB: Possible reasons:");
+call mtr.add_suppression("InnoDB: \\([12]\\) Table ");
+call mtr.add_suppression("InnoDB: If table `test`\\.`t2` is a temporary table");
+--enable_query_log
+
+CREATE TABLE t1 (a INT PRIMARY KEY) ENGINE=InnoDB;
+CREATE DATABASE best;
+CREATE TABLE t3 (a INT PRIMARY KEY,
+CONSTRAINT t2_ibfk_1 FOREIGN KEY (a) REFERENCES t1(a)) ENGINE=InnoDB;
+CREATE TABLE best.t2 (a INT PRIMARY KEY, b TEXT, FULLTEXT INDEX(b),
+FOREIGN KEY (a) REFERENCES test.t1(a)) ENGINE=InnoDB;
+--replace_regex /Table '.*t2'/Table 't2'/
+--error ER_TABLE_EXISTS_ERROR
+RENAME TABLE best.t2 TO test.t2;
+SHOW CREATE TABLE best.t2;
+DROP DATABASE best;
+
+--echo #
+--echo # MDEV-17541 KILL QUERY during lock wait in FOREIGN KEY check hangs
+--echo #
+connect (fk, localhost, root,,);
+INSERT INTO t1 SET a=1;
+BEGIN;
+DELETE FROM t1;
+
+connection default;
+let $ID= `SELECT @id := CONNECTION_ID()`;
+send INSERT INTO t3 SET a=1;
+
+connection fk;
+# Check that the above SELECT is blocked
+let $wait_condition=
+  select count(*) = 1 from information_schema.processlist
+  where state = 'update' and info = 'INSERT INTO t3 SET a=1';
+--source include/wait_condition.inc
+let $ignore= `SELECT @id := $ID`;
+kill query @id;
+
+connection default;
+--error ER_QUERY_INTERRUPTED
+reap;
+disconnect fk;
+
+DROP TABLE t3,t1;
+
+--echo # Start of 10.2 tests
 
 --echo #
 --echo # MDEV-13246 Stale rows despite ON DELETE CASCADE constraint
@@ -228,7 +281,6 @@ DELETE FROM t1 WHERE id = 1;
 
 --connection con1
 COMMIT;
---disconnect con1
 
 --connection default
 SELECT * FROM t2;
@@ -288,8 +340,6 @@ insert into t1 values(1, 1);
 insert into t2(f1) values(1);
 drop table t2, t1;
 
---source include/wait_until_count_sessions.inc
-
 #
 # MDEV-12669 Circular foreign keys cause a loop and OOM upon LOCK TABLE
 #
@@ -308,8 +358,44 @@ CREATE TABLE store (
   UNIQUE KEY idx_unique_manager (manager_staff_id),
   CONSTRAINT fk_store_staff FOREIGN KEY (manager_staff_id) REFERENCES staff (staff_id) ON DELETE RESTRICT ON UPDATE CASCADE
 ) ENGINE=InnoDB;
-SET FOREIGN_KEY_CHECKS=DEFAULT;
 
 LOCK TABLE staff WRITE;
 UNLOCK TABLES;
 DROP TABLES staff, store;
+SET FOREIGN_KEY_CHECKS=1;
+
+--echo #
+--echo # MDEV-17541 KILL QUERY during lock wait in FOREIGN KEY check hangs
+--echo #
+
+CREATE TABLE t1 (a INT PRIMARY KEY) ENGINE=InnoDB;
+CREATE TABLE t2 (a INT PRIMARY KEY, FOREIGN KEY (a) REFERENCES t1(a))
+ENGINE=InnoDB;
+
+connection con1;
+INSERT INTO t1 SET a=1;
+BEGIN;
+DELETE FROM t1;
+
+connection default;
+let $ID= `SELECT @id := CONNECTION_ID()`;
+send INSERT INTO t2 SET a=1;
+
+connection con1;
+let $wait_condition=
+  select count(*) = 1 from information_schema.processlist
+  where state = 'update' and info = 'INSERT INTO t2 SET a=1';
+--source include/wait_condition.inc
+let $ignore= `SELECT @id := $ID`;
+kill query @id;
+
+connection default;
+--error ER_QUERY_INTERRUPTED
+reap;
+disconnect con1;
+
+DROP TABLE t2,t1;
+
+--echo # End of 10.2 tests
+
+--source include/wait_until_count_sessions.inc

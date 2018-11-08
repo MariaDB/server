@@ -1255,7 +1255,7 @@ bool mysql_prepare_update(THD *thd, TABLE_LIST *table_list,
   table_list->register_want_access(SELECT_ACL);
 #endif
 
-  thd->lex->allow_sum_func= 0;
+  thd->lex->allow_sum_func.clear_all();
 
   /*
     We do not call DT_MERGE_FOR_INSERT because it has no sense for simple

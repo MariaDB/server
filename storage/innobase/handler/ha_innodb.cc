@@ -2915,7 +2915,7 @@ ha_innobase::ha_innobase(
 			  | HA_CAN_RTREEKEYS
                           | HA_CAN_TABLES_WITHOUT_ROLLBACK
 			  | HA_CONCURRENT_OPTIMIZE
-			  |  (srv_force_primary_key ? HA_REQUIRE_PRIMARY_KEY : 0)
+			  |  (srv_force_primary_key ? HA_WANTS_PRIMARY_KEY : 0)
 		  ),
 	m_start_of_scan(),
         m_mysql_has_locked()
@@ -5843,7 +5843,8 @@ innobase_build_v_templ(
 				name = dict_table_get_v_col_name(ib_table, z);
 			}
 
-			ut_ad(!ut_strcmp(name, field->field_name.str));
+			ut_ad(!my_strcasecmp(system_charset_info, name,
+					     field->field_name.str));
 #endif
 			const dict_v_col_t*	vcol;
 
@@ -5874,12 +5875,10 @@ innobase_build_v_templ(
 			dict_col_t*   col = dict_table_get_nth_col(
 						ib_table, j);
 
-#ifdef UNIV_DEBUG
-			const char*	name = dict_table_get_col_name(
-						ib_table, j);
-
-			ut_ad(!ut_strcmp(name, field->field_name.str));
-#endif
+			ut_ad(!my_strcasecmp(system_charset_info,
+					     dict_table_get_col_name(
+						     ib_table, j),
+					     field->field_name.str));
 
 			s_templ->vtempl[j] = static_cast<
 				mysql_row_templ_t*>(
@@ -10133,16 +10132,6 @@ next_record:
 	return(HA_ERR_END_OF_FILE);
 }
 
-/*************************************************************************
-*/
-
-void
-ha_innobase::ft_end()
-{
-	ib::info() << "ft_end()";
-
-	rnd_end();
-}
 #ifdef WITH_WSREP
 extern dict_index_t*
 wsrep_dict_foreign_find_index(
@@ -11628,21 +11617,18 @@ create_table_info_t::check_table_options()
 		options->encryption_key_id = FIL_DEFAULT_ENCRYPTION_KEY;
 	}
 
-	/* If default encryption is used make sure that used kay is found
-	from key file. */
-	if (encrypt == FIL_ENCRYPTION_DEFAULT &&
-		!srv_encrypt_tables &&
-		options->encryption_key_id != FIL_DEFAULT_ENCRYPTION_KEY) {
-		if (!encryption_key_id_exists((unsigned int)options->encryption_key_id)) {
-			push_warning_printf(
-				m_thd, Sql_condition::WARN_LEVEL_WARN,
-				HA_WRONG_CREATE_OPTION,
-				"InnoDB: ENCRYPTION_KEY_ID %u not available",
-				(uint)options->encryption_key_id
+	/* If default encryption is used and encryption is disabled, you may
+	not use nondefault encryption_key_id as it is not stored anywhere. */
+	if (encrypt == FIL_ENCRYPTION_DEFAULT
+	    && !srv_encrypt_tables
+	    && options->encryption_key_id != FIL_DEFAULT_ENCRYPTION_KEY) {
+		compile_time_assert(FIL_DEFAULT_ENCRYPTION_KEY == 1);
+		push_warning_printf(
+			m_thd, Sql_condition::WARN_LEVEL_WARN,
+			HA_WRONG_CREATE_OPTION,
+			"InnoDB: innodb_encrypt_tables=OFF only allows ENCRYPTION_KEY_ID=1"
 			);
-			return "ENCRYPTION_KEY_ID";
-
-		}
+		return "ENCRYPTION_KEY_ID";
 	}
 
 	return NULL;
@@ -19241,10 +19227,10 @@ static MYSQL_SYSVAR_ULONG(ft_total_cache_size, fts_max_total_cache_size,
   "Total memory allocated for InnoDB Fulltext Search cache",
   NULL, NULL, 640000000, 32000000, 1600000000, 0);
 
-static MYSQL_SYSVAR_ULONG(ft_result_cache_limit, fts_result_cache_limit,
+static MYSQL_SYSVAR_SIZE_T(ft_result_cache_limit, fts_result_cache_limit,
   PLUGIN_VAR_RQCMDARG,
   "InnoDB Fulltext search query result cache limit in bytes",
-  NULL, NULL, 2000000000L, 1000000L, 4294967295UL, 0);
+  NULL, NULL, 2000000000L, 1000000L, SIZE_T_MAX, 0);
 
 static MYSQL_SYSVAR_ULONG(ft_min_token_size, fts_min_token_size,
   PLUGIN_VAR_RQCMDARG | PLUGIN_VAR_READONLY,

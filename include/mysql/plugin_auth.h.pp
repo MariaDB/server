@@ -561,4 +561,8 @@ struct st_mysql_auth
   int interface_version;
   const char *client_auth_plugin;
   int (*authenticate_user)(MYSQL_PLUGIN_VIO *vio, MYSQL_SERVER_AUTH_INFO *info);
+  int (*hash_password)(const char *password, size_t password_length,
+                       char *hash, size_t *hash_length);
+  int (*preprocess_hash)(const char *hash, size_t hash_length,
+                         unsigned char *out, size_t *out_length);
 };

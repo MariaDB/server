@@ -349,7 +349,6 @@ private:
   /*
     Variables for lock structures.
   */
-  THR_LOCK_DATA lock;                   /* MySQL lock */
 
   bool auto_increment_lock;             /**< lock reading/updating auto_inc */
   /**
@@ -1040,6 +1039,10 @@ public:
     Can't define a table without primary key (and cannot handle a table
     with hidden primary key)
     (No handler has this limitation currently)
+
+    HA_WANTS_PRIMARY_KEY:
+    Can't define a table without primary key except sequences
+    (Only InnoDB has this when using innodb_force_primary_key == ON)
 
     HA_STATS_RECORDS_IS_EXACT:
     Does the counter of records after the info call specify an exact

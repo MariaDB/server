@@ -742,7 +742,7 @@ DROP DATABASE mysqltest;
 GRANT USAGE ON *.* TO user19857@localhost IDENTIFIED BY 'meow';
 GRANT SELECT, INSERT, UPDATE, DELETE, CREATE ROUTINE, ALTER ROUTINE ON test.* TO
 user19857@localhost;
-SELECT Host,User,Password FROM mysql.user WHERE User='user19857';
+SELECT Host,User,Plugin,Authentication_string FROM mysql.user WHERE User='user19857';
 
 --connect (mysqltest_2_con,localhost,user19857,meow,test)
 --connection mysqltest_2_con
@@ -770,7 +770,7 @@ DROP PROCEDURE IF EXISTS test.sp19857;
 
 --disconnect mysqltest_2_con
 
-SELECT Host,User,Password FROM mysql.user WHERE User='user19857';
+SELECT Host,User,Plugin,Authentication_string FROM mysql.user WHERE User='user19857';
 
 DROP USER user19857@localhost;
 
@@ -977,16 +977,7 @@ DROP DATABASE db1;
 # Bug#27407480: AUTOMATIC_SP_PRIVILEGES REQUIRES NEED THE INSERT PRIVILEGES FOR MYSQL.USER TABLE
 #
 create user foo@local_ost;
-#
-# Create a user with an authentification plugin 'foobar'.
-# Instead of using a normal "CREATE USER <user> IDENTIFIED VIA <plugin>"
-# we do CREATE (without VIA) followed by UPDATE and FLUSH.
-# This is to avoid installing a real plugin and thus avoid the test dependency.
-# We won't login under this user in the below test, so this is fine.
-#
-create user foo@`local\_ost`;
-update mysql.user set plugin='foobar' where host='local\\_ost';
-flush privileges;
+create user foo@`local\_ost` identified via mysql_old_password using '0123456789ABCDEF';
 create database foodb;
 grant create routine on foodb.* to foo@local_ost;
 connect con1,localhost,foo;

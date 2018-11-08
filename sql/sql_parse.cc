@@ -109,6 +109,7 @@
 #include "../storage/maria/ha_maria.h"
 #endif
 
+#include "wsrep.h"
 #include "wsrep_mysqld.h"
 #ifdef WITH_WSREP
 #include "mysql/service_wsrep.h"
@@ -3037,7 +3038,7 @@ static int mysql_create_routine(THD *thd, LEX *lex)
   if (sp_process_definer(thd))
     return true;
 
-  WSREP_TO_ISOLATION_BEGIN(WSREP_MYSQL_DB, NULL, NULL)
+  WSREP_TO_ISOLATION_BEGIN(WSREP_MYSQL_DB, NULL, NULL);
   if (!lex->sphead->m_handler->sp_create_routine(thd, lex->sphead))
   {
 #ifndef NO_EMBEDDED_ACCESS_CHECKS
@@ -3107,7 +3108,7 @@ static int mysql_create_routine(THD *thd, LEX *lex)
     return false;
   }
 #ifdef WITH_WSREP
-error: /* Used by WSREP_TO_ISOLATION_BEGIN */
+wsrep_error_label:
 #endif
   return true;
 }
@@ -6343,7 +6344,10 @@ end_with_restore_list:
   goto finish;
 
 error:
-  res= TRUE;
+#ifdef WITH_WSREP
+wsrep_error_label:
+#endif
+  res= true;
 
 finish:
 

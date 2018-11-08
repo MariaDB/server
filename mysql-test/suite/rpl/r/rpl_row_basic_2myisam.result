@@ -535,20 +535,12 @@ INSERT INTO t1 VALUES (1, "", 1);
 INSERT INTO t1 VALUES (2, repeat(_utf8'a', 16), 2);
 connection slave;
 include/diff_tables.inc [master:t1, slave:t1]
-Warnings:
-Warning	1287	'<select expression> INTO <destination>;' is deprecated and will be removed in a future release. Please use 'SELECT <select list> INTO <destination> FROM...' instead
-Warnings:
-Warning	1287	'<select expression> INTO <destination>;' is deprecated and will be removed in a future release. Please use 'SELECT <select list> INTO <destination> FROM...' instead
 [expecting slave to replicate correctly]
 connection master;
 INSERT INTO t2 VALUES (1, "", 1);
 INSERT INTO t2 VALUES (2, repeat(_utf8'a', 16), 2);
 connection slave;
 include/diff_tables.inc [master:t2, slave:t2]
-Warnings:
-Warning	1287	'<select expression> INTO <destination>;' is deprecated and will be removed in a future release. Please use 'SELECT <select list> INTO <destination> FROM...' instead
-Warnings:
-Warning	1287	'<select expression> INTO <destination>;' is deprecated and will be removed in a future release. Please use 'SELECT <select list> INTO <destination> FROM...' instead
 connection slave;
 SET GLOBAL SLAVE_TYPE_CONVERSIONS = @saved_slave_type_conversions;
 call mtr.add_suppression("Slave SQL.*Table definition on master and slave does not match: Column 1 size mismatch.* error.* 1535");
@@ -562,10 +554,6 @@ INSERT INTO t4 VALUES (1, "", 1);
 INSERT INTO t4 VALUES (2, repeat(_utf8'a', 128), 2);
 connection slave;
 include/diff_tables.inc [master:t4, slave:t4]
-Warnings:
-Warning	1287	'<select expression> INTO <destination>;' is deprecated and will be removed in a future release. Please use 'SELECT <select list> INTO <destination> FROM...' instead
-Warnings:
-Warning	1287	'<select expression> INTO <destination>;' is deprecated and will be removed in a future release. Please use 'SELECT <select list> INTO <destination> FROM...' instead
 [expecting slave to stop]
 connection master;
 INSERT INTO t5 VALUES (1, "", 1);
@@ -588,10 +576,6 @@ INSERT INTO t7 VALUES (1, "", 1);
 INSERT INTO t7 VALUES (2, repeat(_utf8'a', 255), 2);
 connection slave;
 include/diff_tables.inc [master:t7, slave:t7]
-Warnings:
-Warning	1287	'<select expression> INTO <destination>;' is deprecated and will be removed in a future release. Please use 'SELECT <select list> INTO <destination> FROM...' instead
-Warnings:
-Warning	1287	'<select expression> INTO <destination>;' is deprecated and will be removed in a future release. Please use 'SELECT <select list> INTO <destination> FROM...' instead
 connection master;
 drop table t1, t2, t3, t4, t5, t6, t7;
 connection slave;
@@ -603,10 +587,6 @@ ERROR 23000: Duplicate entry '10' for key 'PRIMARY'
 INSERT INTO t1 VALUES (4);
 connection slave;
 include/diff_tables.inc [master:t1, slave:t1]
-Warnings:
-Warning	1287	'<select expression> INTO <destination>;' is deprecated and will be removed in a future release. Please use 'SELECT <select list> INTO <destination> FROM...' instead
-Warnings:
-Warning	1287	'<select expression> INTO <destination>;' is deprecated and will be removed in a future release. Please use 'SELECT <select list> INTO <destination> FROM...' instead
 connection master;
 drop table t1;
 connection slave;
@@ -665,10 +645,6 @@ UPDATE t1 SET `int_key` = 4 ORDER BY `pk` LIMIT 6;
 connection slave;
 *** results: t2 must be consistent ****
 include/diff_tables.inc [master:t2, slave:t2]
-Warnings:
-Warning	1287	'<select expression> INTO <destination>;' is deprecated and will be removed in a future release. Please use 'SELECT <select list> INTO <destination> FROM...' instead
-Warnings:
-Warning	1287	'<select expression> INTO <destination>;' is deprecated and will be removed in a future release. Please use 'SELECT <select list> INTO <destination> FROM...' instead
 connection master;
 DROP TABLE t1, t2;
 EOF OF TESTS
@@ -688,10 +664,6 @@ UPDATE t1 SET a = 0 WHERE a < 4;
 UPDATE t1 SET a = 8 WHERE a < 5;
 connection slave;
 include/diff_tables.inc [master:t1, slave:t1]
-Warnings:
-Warning	1287	'<select expression> INTO <destination>;' is deprecated and will be removed in a future release. Please use 'SELECT <select list> INTO <destination> FROM...' instead
-Warnings:
-Warning	1287	'<select expression> INTO <destination>;' is deprecated and will be removed in a future release. Please use 'SELECT <select list> INTO <destination> FROM...' instead
 connection master;
 drop table t1;
 connection slave;
@@ -739,10 +711,6 @@ INSERT INTO t1 ( a ) VALUES ( 1 );
 UPDATE IGNORE t1 SET a = 9 WHERE a < 5 LIMIT 3;
 connection slave;
 include/diff_tables.inc [master:t1, slave:t1]
-Warnings:
-Warning	1287	'<select expression> INTO <destination>;' is deprecated and will be removed in a future release. Please use 'SELECT <select list> INTO <destination> FROM...' instead
-Warnings:
-Warning	1287	'<select expression> INTO <destination>;' is deprecated and will be removed in a future release. Please use 'SELECT <select list> INTO <destination> FROM...' instead
 connection master;
 drop table t1;
 connection slave;

@@ -118,6 +118,7 @@ my_bool check_date(const MYSQL_TIME *ltime, my_bool not_zero_date,
       We don't set *was_cut here to signal that the problem was a zero date
       and not an invalid date
     */
+    *was_cut|= MYSQL_TIME_WARN_ZERO_DATE;
     return TRUE;
   }
   return FALSE;
@@ -343,7 +344,7 @@ static my_bool find_body(my_bool *neg, const char *str, size_t length,
   *new_length= length;
   if (!length || !my_isdigit(&my_charset_latin1, *str))
   {
-    *warn|= MYSQL_TIME_WARN_TRUNCATED;
+    *warn|= MYSQL_TIME_WARN_EDOM;
     set_zero_time(to, MYSQL_TIMESTAMP_ERROR);
     return TRUE;
   }
@@ -702,7 +703,10 @@ str_to_datetime(const char *str, size_t length, MYSQL_TIME *l_time,
   if (rc)
     return rc;
   if ((l_time->neg= neg) && l_time->time_type != MYSQL_TIMESTAMP_TIME)
+  {
+    status->warnings|= MYSQL_TIME_WARN_OUT_OF_RANGE;
     return TRUE;
+  }
   return FALSE;
 }
 
@@ -725,7 +729,10 @@ str_to_DDhhmmssff_internal(my_bool neg, const char *str, size_t length,
   {
     value=value*10L + (long) (*str - '0');
     if (value >= 42949672955959ULL) /* i.e. UINT_MAX32 : 59 : 59 */
+    {
+      status->warnings|= MYSQL_TIME_WARN_OUT_OF_RANGE;
       goto err;
+    }
   }
 
   /* Skip all space after 'days' */
@@ -746,7 +753,10 @@ str_to_DDhhmmssff_internal(my_bool neg, const char *str, size_t length,
   {
     date[0]= 0;                                 /* Assume we found hours */
     if (value >= UINT_MAX32)
+    {
+      status->warnings|= MYSQL_TIME_WARN_OUT_OF_RANGE;
       goto err;
+    }
     date[1]= (ulong) value;
     state=2;
     found_hours=1;
@@ -1514,7 +1524,7 @@ longlong number_to_datetime(longlong nr, ulong sec_part, MYSQL_TIME *time_res,
 
   /* Don't want to have was_cut get set if NO_ZERO_DATE was violated. */
   if (nr || !(flags & C_TIME_NO_ZERO_DATE))
-    *was_cut= 1;
+    *was_cut= MYSQL_TIME_WARN_TRUNCATED;
   return -1;
 
  err:
@@ -1523,7 +1533,7 @@ longlong number_to_datetime(longlong nr, ulong sec_part, MYSQL_TIME *time_res,
     enum enum_mysql_timestamp_type save= time_res->time_type;
     bzero((char*) time_res, sizeof(*time_res));
     time_res->time_type= save;                     /* Restore range */
-    *was_cut= 1;                                /* Found invalid date */
+    *was_cut= MYSQL_TIME_WARN_TRUNCATED;           /* Found invalid date */
   }
   return -1;
 }

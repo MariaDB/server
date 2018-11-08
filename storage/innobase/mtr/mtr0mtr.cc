@@ -1,7 +1,7 @@
 /*****************************************************************************
 
 Copyright (c) 1995, 2017, Oracle and/or its affiliates. All Rights Reserved.
-Copyright (c) 2017, MariaDB Corporation.
+Copyright (c) 2017, 2018, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -382,18 +382,8 @@ public:
 	/** Constructor.
 	Takes ownership of the mtr->m_impl, is responsible for deleting it.
 	@param[in,out]	mtr	mini-transaction */
-	explicit Command(mtr_t* mtr)
-		:
-		m_locks_released()
-	{
-		init(mtr);
-	}
-
-	void init(mtr_t* mtr)
-	{
-		m_impl = &mtr->m_impl;
-		m_sync = mtr->m_sync;
-	}
+	explicit Command(mtr_t* mtr) : m_impl(&mtr->m_impl), m_locks_released()
+	{}
 
 	/** Destructor */
 	~Command()
@@ -425,9 +415,6 @@ private:
 	/** Prepare to write the mini-transaction log to the redo log buffer.
 	@return number of bytes to write in finish_write() */
 	ulint prepare_write();
-
-	/** true if it is a sync mini-transaction. */
-	bool			m_sync;
 
 	/** The mini-transaction state. */
 	mtr_t::Impl*		m_impl;
@@ -487,16 +474,12 @@ mtr_write_log(
 	log_close();
 }
 
-/** Start a mini-transaction.
-@param sync		true if it is a synchronous mini-transaction */
-void
-mtr_t::start(bool sync)
+/** Start a mini-transaction. */
+void mtr_t::start()
 {
 	UNIV_MEM_INVALID(this, sizeof(*this));
 
 	UNIV_MEM_INVALID(&m_impl, sizeof(m_impl));
-
-	m_sync =  sync;
 
 	m_commit_lsn = 0;
 

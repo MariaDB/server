@@ -38,7 +38,6 @@ Created 10/25/1995 Heikki Tuuri
 // Forward declaration
 extern my_bool srv_use_doublewrite_buf;
 extern struct buf_dblwr_t* buf_dblwr;
-struct trx_t;
 class page_id_t;
 
 /** Structure containing encryption specification */
@@ -1084,7 +1083,7 @@ dberr_t
 fil_io(
 	const IORequest&	type,
 	bool			sync,
-	const page_id_t&	page_id,
+	const page_id_t		page_id,
 	const page_size_t&	page_size,
 	ulint			byte_offset,
 	ulint			len,
@@ -1155,65 +1154,6 @@ fil_page_set_type(
 /*==============*/
 	byte*	page,	/*!< in/out: file page */
 	ulint	type);	/*!< in: type */
-/** Reset the page type.
-Data files created before MySQL 5.1 may contain garbage in FIL_PAGE_TYPE.
-In MySQL 3.23.53, only undo log pages and index pages were tagged.
-Any other pages were written with uninitialized bytes in FIL_PAGE_TYPE.
-@param[in]	page_id	page number
-@param[in,out]	page	page with invalid FIL_PAGE_TYPE
-@param[in]	type	expected page type
-@param[in,out]	mtr	mini-transaction */
-void
-fil_page_reset_type(
-	const page_id_t&	page_id,
-	byte*			page,
-	ulint			type,
-	mtr_t*			mtr);
-
-/** Get the file page type.
-@param[in]	page	file page
-@return page type */
-inline
-uint16_t
-fil_page_get_type(const byte*	page)
-{
-	return(mach_read_from_2(page + FIL_PAGE_TYPE));
-}
-
-/** Check (and if needed, reset) the page type.
-Data files created before MySQL 5.1 may contain
-garbage in the FIL_PAGE_TYPE field.
-In MySQL 3.23.53, only undo log pages and index pages were tagged.
-Any other pages were written with uninitialized bytes in FIL_PAGE_TYPE.
-@param[in]	page_id	page number
-@param[in,out]	page	page with possibly invalid FIL_PAGE_TYPE
-@param[in]	type	expected page type
-@param[in,out]	mtr	mini-transaction */
-inline
-void
-fil_page_check_type(
-	const page_id_t&	page_id,
-	byte*			page,
-	ulint			type,
-	mtr_t*			mtr)
-{
-	ulint	page_type	= fil_page_get_type(page);
-
-	if (page_type != type) {
-		fil_page_reset_type(page_id, page, type, mtr);
-	}
-}
-
-/** Check (and if needed, reset) the page type.
-Data files created before MySQL 5.1 may contain
-garbage in the FIL_PAGE_TYPE field.
-In MySQL 3.23.53, only undo log pages and index pages were tagged.
-Any other pages were written with uninitialized bytes in FIL_PAGE_TYPE.
-@param[in,out]	block	block with possibly invalid FIL_PAGE_TYPE
-@param[in]	type	expected page type
-@param[in,out]	mtr	mini-transaction */
-#define fil_block_check_type(block, type, mtr)				\
-	fil_page_check_type(block->page.id, block->frame, type, mtr)
 
 /********************************************************************//**
 Delete the tablespace file and any related files like .cfg.

@@ -73,6 +73,12 @@ static const alter_table_operations INNOBASE_DEFAULTS
 	= ALTER_COLUMN_NOT_NULLABLE
 	| ALTER_ADD_STORED_BASE_COLUMN;
 
+
+/** Operations that require knowledge about row_start, row_end values */
+static const alter_table_operations INNOBASE_ALTER_VERSIONED_REBUILD
+	= ALTER_ADD_SYSTEM_VERSIONING
+	| ALTER_DROP_SYSTEM_VERSIONING;
+
 /** Operations for rebuilding a table in place */
 static const alter_table_operations INNOBASE_ALTER_REBUILD
 	= ALTER_ADD_PK_INDEX
@@ -87,8 +93,7 @@ static const alter_table_operations INNOBASE_ALTER_REBUILD
 	/*
 	| ALTER_STORED_COLUMN_TYPE
 	*/
-	| ALTER_ADD_SYSTEM_VERSIONING
-	| ALTER_DROP_SYSTEM_VERSIONING
+	| INNOBASE_ALTER_VERSIONED_REBUILD
 	;
 
 /** Operations that require changes to data */
@@ -1497,13 +1502,11 @@ ha_innobase::check_if_supported_inplace_alter(
 {
 	DBUG_ENTER("check_if_supported_inplace_alter");
 
-	const bool need_rebuild = innobase_need_rebuild(ha_alter_info, table);
-
-	if (need_rebuild
-	    && (table->versioned(VERS_TIMESTAMP)
-		|| altered_table->versioned(VERS_TIMESTAMP))) {
+	if ((ha_alter_info->handler_flags
+	     & INNOBASE_ALTER_VERSIONED_REBUILD)
+	    && altered_table->versioned(VERS_TIMESTAMP)) {
 		ha_alter_info->unsupported_reason =
-			"Not implemented for system-versioned tables";
+			"Not implemented for system-versioned timestamp tables";
 		DBUG_RETURN(HA_ALTER_INPLACE_NOT_SUPPORTED);
 	}
 
@@ -1863,6 +1866,7 @@ ha_innobase::check_if_supported_inplace_alter(
 	cf_it.rewind();
 	Field **af = altered_table->field;
 	bool fts_need_rebuild = false;
+	const bool need_rebuild = innobase_need_rebuild(ha_alter_info, table);
 
 	while (Create_field* cf = cf_it++) {
 		DBUG_ASSERT(cf->field
@@ -2041,13 +2045,12 @@ cannot_create_many_fulltext_index:
 		}
 	}
 
-	// FIXME: implement Online DDL for system-versioned tables
-	if (need_rebuild &&
-	    (table->versioned(VERS_TRX_ID)
-	     || altered_table->versioned(VERS_TRX_ID))) {
+	// FIXME: implement Online DDL for system-versioned operations
+	if (ha_alter_info->handler_flags & INNOBASE_ALTER_VERSIONED_REBUILD) {
+
 		if (ha_alter_info->online) {
 			ha_alter_info->unsupported_reason =
-				"Not implemented for system-versioned tables";
+				"Not implemented for system-versioned operations";
 		}
 
 		online = false;
@@ -2327,8 +2330,7 @@ innobase_find_fk_index(
 	index = dict_table_get_first_index(table);
 
 	while (index != NULL) {
-		if (!(index->type & DICT_FTS)
-		    && dict_foreign_qualify_index(
+		if (dict_foreign_qualify_index(
 			    table, col_names, columns, n_cols,
 			    index, NULL, true, 0,
 			    NULL, NULL, NULL)) {
@@ -8459,7 +8461,6 @@ innobase_rename_column_try(
 
 	pars_info_add_ull_literal(info, "tableid", user_table->id);
 	pars_info_add_int4_literal(info, "nth", nth_col);
-	pars_info_add_str_literal(info, "old", from);
 	pars_info_add_str_literal(info, "new", to);
 
 	trx->op_info = "renaming column in SYS_COLUMNS";
@@ -8469,7 +8470,7 @@ innobase_rename_column_try(
 		"PROCEDURE RENAME_SYS_COLUMNS_PROC () IS\n"
 		"BEGIN\n"
 		"UPDATE SYS_COLUMNS SET NAME=:new\n"
-		"WHERE TABLE_ID=:tableid AND NAME=:old\n"
+		"WHERE TABLE_ID=:tableid\n"
 		"AND POS=:nth;\n"
 		"END;\n",
 		FALSE, trx);
@@ -8496,7 +8497,8 @@ err_exit:
 			const dict_field_t& f = index->fields[i];
 			DBUG_ASSERT(!f.name == f.col->is_dropped());
 
-			if (!f.name || strcmp(f.name, from)) {
+			if (!f.name || my_strcasecmp(system_charset_info,
+						     f.name, from)) {
 				continue;
 			}
 
@@ -8504,7 +8506,6 @@ err_exit:
 
 			pars_info_add_ull_literal(info, "indexid", index->id);
 			pars_info_add_int4_literal(info, "nth", i);
-			pars_info_add_str_literal(info, "old", from);
 			pars_info_add_str_literal(info, "new", to);
 
 			error = que_eval_sql(
@@ -8513,14 +8514,14 @@ err_exit:
 				"BEGIN\n"
 
 				"UPDATE SYS_FIELDS SET COL_NAME=:new\n"
-				"WHERE INDEX_ID=:indexid AND COL_NAME=:old\n"
+				"WHERE INDEX_ID=:indexid\n"
 				"AND POS=:nth;\n"
 
 				/* Try again, in case there is a prefix_len
 				encoded in SYS_FIELDS.POS */
 
 				"UPDATE SYS_FIELDS SET COL_NAME=:new\n"
-				"WHERE INDEX_ID=:indexid AND COL_NAME=:old\n"
+				"WHERE INDEX_ID=:indexid\n"
 				"AND POS>=65536*:nth AND POS<65536*(:nth+1);\n"
 
 				"END;\n",
@@ -8546,7 +8547,9 @@ rename_foreign:
 		foreign_modified = false;
 
 		for (unsigned i = 0; i < foreign->n_fields; i++) {
-			if (strcmp(foreign->foreign_col_names[i], from)) {
+			if (my_strcasecmp(system_charset_info,
+					  foreign->foreign_col_names[i],
+					  from)) {
 				continue;
 			}
 
@@ -8554,7 +8557,6 @@ rename_foreign:
 
 			pars_info_add_str_literal(info, "id", foreign->id);
 			pars_info_add_int4_literal(info, "nth", i);
-			pars_info_add_str_literal(info, "old", from);
 			pars_info_add_str_literal(info, "new", to);
 
 			error = que_eval_sql(
@@ -8563,8 +8565,7 @@ rename_foreign:
 				"BEGIN\n"
 				"UPDATE SYS_FOREIGN_COLS\n"
 				"SET FOR_COL_NAME=:new\n"
-				"WHERE ID=:id AND POS=:nth\n"
-				"AND FOR_COL_NAME=:old;\n"
+				"WHERE ID=:id AND POS=:nth;\n"
 				"END;\n",
 				FALSE, trx);
 
@@ -8588,7 +8589,9 @@ rename_foreign:
 		dict_foreign_t*	foreign = *it;
 
 		for (unsigned i = 0; i < foreign->n_fields; i++) {
-			if (strcmp(foreign->referenced_col_names[i], from)) {
+			if (my_strcasecmp(system_charset_info,
+					  foreign->referenced_col_names[i],
+					  from)) {
 				continue;
 			}
 
@@ -8596,7 +8599,6 @@ rename_foreign:
 
 			pars_info_add_str_literal(info, "id", foreign->id);
 			pars_info_add_int4_literal(info, "nth", i);
-			pars_info_add_str_literal(info, "old", from);
 			pars_info_add_str_literal(info, "new", to);
 
 			error = que_eval_sql(
@@ -8605,8 +8607,7 @@ rename_foreign:
 				"BEGIN\n"
 				"UPDATE SYS_FOREIGN_COLS\n"
 				"SET REF_COL_NAME=:new\n"
-				"WHERE ID=:id AND POS=:nth\n"
-				"AND REF_COL_NAME=:old;\n"
+				"WHERE ID=:id AND POS=:nth;\n"
 				"END;\n",
 				FALSE, trx);
 
@@ -9242,14 +9243,14 @@ innobase_update_foreign_cache(
 @retval false	on success */
 static
 bool
-change_field_versioning_try(
+vers_change_field_try(
 	trx_t* trx,
 	const char* table_name,
 	const table_id_t tableid,
 	const ulint pos,
 	const ulint prtype)
 {
-	DBUG_ENTER("change_field_versioning_try");
+	DBUG_ENTER("vers_change_field_try");
 
 	pars_info_t* info = pars_info_create();
 
@@ -9285,25 +9286,24 @@ change_field_versioning_try(
 @retval false	on success */
 static
 bool
-change_fields_versioning_try(
+vers_change_fields_try(
 	const Alter_inplace_info* ha_alter_info,
 	const ha_innobase_inplace_ctx* ctx,
 	trx_t* trx,
 	const TABLE* table)
 {
-	DBUG_ENTER("change_fields_versioning_try");
+	DBUG_ENTER("vers_change_fields_try");
 
 	DBUG_ASSERT(ha_alter_info);
 	DBUG_ASSERT(ctx);
-
-	if (!(ha_alter_info->handler_flags & ALTER_COLUMN_UNVERSIONED)){
-		DBUG_RETURN(false);
-	}
 
 	List_iterator_fast<Create_field> it(
 	    ha_alter_info->alter_info->create_list);
 
 	while (const Create_field* create_field = it++) {
+		if (!create_field->field) {
+			continue;
+		}
 		if (create_field->versioning
 		    == Column_definition::VERSIONING_NOT_SET) {
 			continue;
@@ -9322,9 +9322,9 @@ change_fields_versioning_try(
 			  ? col->prtype & ~DATA_VERSIONED
 			  : col->prtype | DATA_VERSIONED;
 
-		if (change_field_versioning_try(trx, table->s->table_name.str,
-						new_table->id, pos,
-						new_prtype)) {
+		if (vers_change_field_try(trx, table->s->table_name.str,
+					  new_table->id, pos,
+					  new_prtype)) {
 			DBUG_RETURN(true);
 		}
 	}
@@ -9339,12 +9339,12 @@ in the data dictionary cache.
 @param table MySQL table as it is before the ALTER operation */
 static
 void
-change_fields_versioning_cache(
+vers_change_fields_cache(
 	Alter_inplace_info*		ha_alter_info,
 	const ha_innobase_inplace_ctx*	ctx,
 	const TABLE*			table)
 {
-	DBUG_ENTER("change_fields_versioning");
+	DBUG_ENTER("vers_change_fields_cache");
 
 	DBUG_ASSERT(ha_alter_info);
 	DBUG_ASSERT(ctx);
@@ -9354,6 +9354,9 @@ change_fields_versioning_cache(
 	    ha_alter_info->alter_info->create_list);
 
 	while (const Create_field* create_field = it++) {
+		if (!create_field->field) {
+			continue;
+		}
 		dict_col_t* col = dict_table_get_nth_col(
 		    ctx->new_table, innodb_col_no(create_field->field));
 
@@ -9744,7 +9747,8 @@ commit_try_norebuild(
 		DBUG_RETURN(true);
 	}
 
-	if (change_fields_versioning_try(ha_alter_info, ctx, trx, old_table)) {
+	if ((ha_alter_info->handler_flags & ALTER_COLUMN_UNVERSIONED)
+	    && vers_change_fields_try(ha_alter_info, ctx, trx, old_table)) {
 		DBUG_RETURN(true);
 	}
 
@@ -10054,7 +10058,7 @@ commit_cache_norebuild(
 	}
 
 	if (ha_alter_info->handler_flags & ALTER_COLUMN_UNVERSIONED) {
-		change_fields_versioning_cache(ha_alter_info, ctx, table);
+		vers_change_fields_cache(ha_alter_info, ctx, table);
 	}
 
 #ifdef MYSQL_RENAME_INDEX

@@ -204,9 +204,8 @@ IF(MSVC)
 ENDIF()
 
 # Always link with socket library
-LINK_LIBRARIES(ws2_32)
-# ..also for tests
-SET(CMAKE_REQUIRED_LIBRARIES ws2_32)
+STRING(APPEND CMAKE_C_STANDARD_LIBRARIES " ws2_32.lib")
+STRING(APPEND CMAKE_CXX_STANDARD_LIBRARIES " ws2_32.lib")
 
 # System checks
 SET(SIGNAL_WITH_VIO_CLOSE 1) # Something that runtime team needs

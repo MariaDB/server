@@ -107,7 +107,7 @@ trx_read_roll_ptr(
 @return pointer to page x-latched */
 UNIV_INLINE
 page_t*
-trx_undo_page_get(const page_id_t& page_id, mtr_t* mtr);
+trx_undo_page_get(const page_id_t page_id, mtr_t* mtr);
 
 /** Gets an undo log page and s-latches it.
 @param[in]	page_id		page id
@@ -115,7 +115,7 @@ trx_undo_page_get(const page_id_t& page_id, mtr_t* mtr);
 @return pointer to page s-latched */
 UNIV_INLINE
 page_t*
-trx_undo_page_get_s_latched(const page_id_t& page_id, mtr_t* mtr);
+trx_undo_page_get_s_latched(const page_id_t page_id, mtr_t* mtr);
 
 /******************************************************************//**
 Returns the next undo log record on the page in the specified log, or

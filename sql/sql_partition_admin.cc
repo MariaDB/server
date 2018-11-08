@@ -1,6 +1,6 @@
 /* Copyright (c) 2010, 2013, Oracle and/or its affiliates. All rights reserved.
    Copyright (c) 2014, SkySQL Ab.
-   Copyright (c) 2016, MariaDB Corporation
+   Copyright (c) 2016, 2018, MariaDB Corporation.
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -99,7 +99,7 @@ bool Sql_cmd_alter_table_exchange_partition::execute(THD *thd)
   thd->prepare_logs_for_admin_command();
   DBUG_RETURN(exchange_partition(thd, first_table, &alter_info));
 #ifdef WITH_WSREP
- error:
+ wsrep_error_label:
   /* handle errors in TO_ISOLATION here */
   DBUG_RETURN(true);
 #endif /* WITH_WSREP */

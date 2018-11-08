@@ -10,149 +10,65 @@ insert into foo values ("BIGGER",NULL,"smaller",NULL);
 insert into foo values ("aaaaaaaaaa","bbbbbbbbbb","cccccccccc","dddddddddd");
 insert into bar select * from foo;
 include/diff_tables.inc [test.foo, test.bar]
-Warnings:
-Warning	1287	'<select expression> INTO <destination>;' is deprecated and will be removed in a future release. Please use 'SELECT <select list> INTO <destination> FROM...' instead
-Warnings:
-Warning	1287	'<select expression> INTO <destination>;' is deprecated and will be removed in a future release. Please use 'SELECT <select list> INTO <destination> FROM...' instead
 alter table foo add column e varchar(3000) default NULL;
 alter table bar add column e varchar(3000) default NULL;
 include/diff_tables.inc [test.foo, test.bar]
-Warnings:
-Warning	1287	'<select expression> INTO <destination>;' is deprecated and will be removed in a future release. Please use 'SELECT <select list> INTO <destination> FROM...' instead
-Warnings:
-Warning	1287	'<select expression> INTO <destination>;' is deprecated and will be removed in a future release. Please use 'SELECT <select list> INTO <destination> FROM...' instead
 alter table foo drop column e;
 alter table bar drop column e;
 include/diff_tables.inc [test.foo, test.bar]
-Warnings:
-Warning	1287	'<select expression> INTO <destination>;' is deprecated and will be removed in a future release. Please use 'SELECT <select list> INTO <destination> FROM...' instead
-Warnings:
-Warning	1287	'<select expression> INTO <destination>;' is deprecated and will be removed in a future release. Please use 'SELECT <select list> INTO <destination> FROM...' instead
 alter table foo add column e varchar(3000) default NULL first;
 alter table bar add column e varchar(3000) default NULL first;
 include/diff_tables.inc [test.foo, test.bar]
-Warnings:
-Warning	1287	'<select expression> INTO <destination>;' is deprecated and will be removed in a future release. Please use 'SELECT <select list> INTO <destination> FROM...' instead
-Warnings:
-Warning	1287	'<select expression> INTO <destination>;' is deprecated and will be removed in a future release. Please use 'SELECT <select list> INTO <destination> FROM...' instead
 alter table foo drop column e;
 alter table bar drop column e;
 include/diff_tables.inc [test.foo, test.bar]
-Warnings:
-Warning	1287	'<select expression> INTO <destination>;' is deprecated and will be removed in a future release. Please use 'SELECT <select list> INTO <destination> FROM...' instead
-Warnings:
-Warning	1287	'<select expression> INTO <destination>;' is deprecated and will be removed in a future release. Please use 'SELECT <select list> INTO <destination> FROM...' instead
 alter table foo add column e varchar(3000) default NULL after b;
 alter table bar add column e varchar(3000) default NULL after b;
 include/diff_tables.inc [test.foo, test.bar]
-Warnings:
-Warning	1287	'<select expression> INTO <destination>;' is deprecated and will be removed in a future release. Please use 'SELECT <select list> INTO <destination> FROM...' instead
-Warnings:
-Warning	1287	'<select expression> INTO <destination>;' is deprecated and will be removed in a future release. Please use 'SELECT <select list> INTO <destination> FROM...' instead
 alter table foo drop column e;
 alter table bar drop column e;
 include/diff_tables.inc [test.foo, test.bar]
-Warnings:
-Warning	1287	'<select expression> INTO <destination>;' is deprecated and will be removed in a future release. Please use 'SELECT <select list> INTO <destination> FROM...' instead
-Warnings:
-Warning	1287	'<select expression> INTO <destination>;' is deprecated and will be removed in a future release. Please use 'SELECT <select list> INTO <destination> FROM...' instead
 alter table foo add column e varchar(3000) default "abracadabraabracadabra";
 alter table bar add column e varchar(3000) default "abracadabraabracadabra";
 include/diff_tables.inc [test.foo, test.bar]
-Warnings:
-Warning	1287	'<select expression> INTO <destination>;' is deprecated and will be removed in a future release. Please use 'SELECT <select list> INTO <destination> FROM...' instead
-Warnings:
-Warning	1287	'<select expression> INTO <destination>;' is deprecated and will be removed in a future release. Please use 'SELECT <select list> INTO <destination> FROM...' instead
 alter table foo drop column e;
 alter table bar drop column e;
 include/diff_tables.inc [test.foo, test.bar]
-Warnings:
-Warning	1287	'<select expression> INTO <destination>;' is deprecated and will be removed in a future release. Please use 'SELECT <select list> INTO <destination> FROM...' instead
-Warnings:
-Warning	1287	'<select expression> INTO <destination>;' is deprecated and will be removed in a future release. Please use 'SELECT <select list> INTO <destination> FROM...' instead
 alter table foo add column e varchar(3000) default "abracadabraabracadabra" first;
 alter table bar add column e varchar(3000) default "abracadabraabracadabra" first;
 include/diff_tables.inc [test.foo, test.bar]
-Warnings:
-Warning	1287	'<select expression> INTO <destination>;' is deprecated and will be removed in a future release. Please use 'SELECT <select list> INTO <destination> FROM...' instead
-Warnings:
-Warning	1287	'<select expression> INTO <destination>;' is deprecated and will be removed in a future release. Please use 'SELECT <select list> INTO <destination> FROM...' instead
 alter table foo drop column e;
 alter table bar drop column e;
 include/diff_tables.inc [test.foo, test.bar]
-Warnings:
-Warning	1287	'<select expression> INTO <destination>;' is deprecated and will be removed in a future release. Please use 'SELECT <select list> INTO <destination> FROM...' instead
-Warnings:
-Warning	1287	'<select expression> INTO <destination>;' is deprecated and will be removed in a future release. Please use 'SELECT <select list> INTO <destination> FROM...' instead
 alter table foo add column e varchar(3000) default "abracadabraabracadabra" after b;
 alter table bar add column e varchar(3000) default "abracadabraabracadabra" after b;
 include/diff_tables.inc [test.foo, test.bar]
-Warnings:
-Warning	1287	'<select expression> INTO <destination>;' is deprecated and will be removed in a future release. Please use 'SELECT <select list> INTO <destination> FROM...' instead
-Warnings:
-Warning	1287	'<select expression> INTO <destination>;' is deprecated and will be removed in a future release. Please use 'SELECT <select list> INTO <destination> FROM...' instead
 alter table foo drop column e;
 alter table bar drop column e;
 include/diff_tables.inc [test.foo, test.bar]
-Warnings:
-Warning	1287	'<select expression> INTO <destination>;' is deprecated and will be removed in a future release. Please use 'SELECT <select list> INTO <destination> FROM...' instead
-Warnings:
-Warning	1287	'<select expression> INTO <destination>;' is deprecated and will be removed in a future release. Please use 'SELECT <select list> INTO <destination> FROM...' instead
 alter table foo add column e varchar(3000) default NULL after b;
 alter table bar add column e varchar(3000) default NULL after b;
 include/diff_tables.inc [test.foo, test.bar]
-Warnings:
-Warning	1287	'<select expression> INTO <destination>;' is deprecated and will be removed in a future release. Please use 'SELECT <select list> INTO <destination> FROM...' instead
-Warnings:
-Warning	1287	'<select expression> INTO <destination>;' is deprecated and will be removed in a future release. Please use 'SELECT <select list> INTO <destination> FROM...' instead
 alter table foo drop column e;
 alter table bar drop column e;
 include/diff_tables.inc [test.foo, test.bar]
-Warnings:
-Warning	1287	'<select expression> INTO <destination>;' is deprecated and will be removed in a future release. Please use 'SELECT <select list> INTO <destination> FROM...' instead
-Warnings:
-Warning	1287	'<select expression> INTO <destination>;' is deprecated and will be removed in a future release. Please use 'SELECT <select list> INTO <destination> FROM...' instead
 alter table foo add column e varchar(3000) NOT NULL default "abracadabraabracadabra";
 alter table bar add column e varchar(3000) NOT NULL default "abracadabraabracadabra";
 include/diff_tables.inc [test.foo, test.bar]
-Warnings:
-Warning	1287	'<select expression> INTO <destination>;' is deprecated and will be removed in a future release. Please use 'SELECT <select list> INTO <destination> FROM...' instead
-Warnings:
-Warning	1287	'<select expression> INTO <destination>;' is deprecated and will be removed in a future release. Please use 'SELECT <select list> INTO <destination> FROM...' instead
 alter table foo drop column e;
 alter table bar drop column e;
 include/diff_tables.inc [test.foo, test.bar]
-Warnings:
-Warning	1287	'<select expression> INTO <destination>;' is deprecated and will be removed in a future release. Please use 'SELECT <select list> INTO <destination> FROM...' instead
-Warnings:
-Warning	1287	'<select expression> INTO <destination>;' is deprecated and will be removed in a future release. Please use 'SELECT <select list> INTO <destination> FROM...' instead
 alter table foo add column e varchar(3000) NOT NULL default "abracadabraabracadabra" first;
 alter table bar add column e varchar(3000) NOT NULL default "abracadabraabracadabra" first;
 include/diff_tables.inc [test.foo, test.bar]
-Warnings:
-Warning	1287	'<select expression> INTO <destination>;' is deprecated and will be removed in a future release. Please use 'SELECT <select list> INTO <destination> FROM...' instead
-Warnings:
-Warning	1287	'<select expression> INTO <destination>;' is deprecated and will be removed in a future release. Please use 'SELECT <select list> INTO <destination> FROM...' instead
 alter table foo drop column e;
 alter table bar drop column e;
 include/diff_tables.inc [test.foo, test.bar]
-Warnings:
-Warning	1287	'<select expression> INTO <destination>;' is deprecated and will be removed in a future release. Please use 'SELECT <select list> INTO <destination> FROM...' instead
-Warnings:
-Warning	1287	'<select expression> INTO <destination>;' is deprecated and will be removed in a future release. Please use 'SELECT <select list> INTO <destination> FROM...' instead
 alter table foo add column e varchar(3000) NOT NULL default "abracadabraabracadabra" after b;
 alter table bar add column e varchar(3000) NOT NULL default "abracadabraabracadabra" after b;
 include/diff_tables.inc [test.foo, test.bar]
-Warnings:
-Warning	1287	'<select expression> INTO <destination>;' is deprecated and will be removed in a future release. Please use 'SELECT <select list> INTO <destination> FROM...' instead
-Warnings:
-Warning	1287	'<select expression> INTO <destination>;' is deprecated and will be removed in a future release. Please use 'SELECT <select list> INTO <destination> FROM...' instead
 alter table foo drop column e;
 alter table bar drop column e;
 include/diff_tables.inc [test.foo, test.bar]
-Warnings:
-Warning	1287	'<select expression> INTO <destination>;' is deprecated and will be removed in a future release. Please use 'SELECT <select list> INTO <destination> FROM...' instead
-Warnings:
-Warning	1287	'<select expression> INTO <destination>;' is deprecated and will be removed in a future release. Please use 'SELECT <select list> INTO <destination> FROM...' instead
 drop table foo;
 drop table bar;

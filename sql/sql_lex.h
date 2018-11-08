@@ -33,6 +33,10 @@
 #include "sql_tvc.h"
 #include "item.h"
 
+/* Used for flags of nesting constructs */
+#define SELECT_NESTING_MAP_SIZE 64
+typedef Bitmap<SELECT_NESTING_MAP_SIZE> nesting_map;
+
 /* YACC and LEX Definitions */
 
 
@@ -3285,7 +3289,7 @@ public:
   */
   DYNAMIC_ARRAY delete_gtid_domain;
   static const ulong initial_gtid_domain_buffer_size= 16;
-  ulong gtid_domain_static_buffer[initial_gtid_domain_buffer_size];
+  uint32 gtid_domain_static_buffer[initial_gtid_domain_buffer_size];
 
   inline void set_limit_rows_examined()
   {

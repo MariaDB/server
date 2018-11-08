@@ -2953,10 +2953,11 @@ bool wsrep_create_like_table(THD* thd, TABLE_LIST* table,
   }
 
   return(false);
-
-error:
+#ifdef WITH_WSREP
+wsrep_error_label:
   thd->wsrep_TOI_pre_query= NULL;
   return (true);
+#endif
 }
 
 int wsrep_create_trigger_query(THD *thd, uchar** buf, size_t* buf_len)

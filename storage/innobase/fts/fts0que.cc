@@ -75,7 +75,7 @@ struct fts_query_t {
 
 	fts_table_t	fts_index_table;/*!< FTS auxiliary index table def */
 
-	ulint		total_size;	/*!< total memory size used by query */
+	size_t		total_size;	/*!< total memory size used by query */
 
 	fts_doc_ids_t*	deleted;	/*!< Deleted doc ids that need to be
 					filtered from the output */

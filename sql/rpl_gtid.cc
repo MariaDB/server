@@ -2054,10 +2054,10 @@ rpl_binlog_state::drop_domain(DYNAMIC_ARRAY *ids,
   for (ulong i= 0; i < ids->elements; i++)
   {
     rpl_binlog_state::element *elem= NULL;
-    ulong *ptr_domain_id;
+    uint32 *ptr_domain_id;
     bool not_match;
 
-    ptr_domain_id= (ulong*) dynamic_array_ptr(ids, i);
+    ptr_domain_id= (uint32*) dynamic_array_ptr(ids, i);
     elem= (rpl_binlog_state::element *)
       my_hash_search(&hash, (const uchar *) ptr_domain_id, 0);
     if (!elem)
@@ -2078,7 +2078,7 @@ rpl_binlog_state::drop_domain(DYNAMIC_ARRAY *ids,
 
     if (not_match)
     {
-      sprintf(errbuf, "binlog files may contain gtids from the domain ('%lu') "
+      sprintf(errbuf, "binlog files may contain gtids from the domain ('%u') "
               "being deleted. Make sure to first purge those files",
               *ptr_domain_id);
       errmsg= errbuf;

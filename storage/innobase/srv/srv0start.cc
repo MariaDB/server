@@ -2102,24 +2102,24 @@ files_checked:
 				page_id_t(IBUF_SPACE_ID,
 					  FSP_IBUF_HEADER_PAGE_NO),
 				univ_page_size, RW_X_LATCH, &mtr);
-			fil_block_check_type(block, FIL_PAGE_TYPE_SYS, &mtr);
+			fil_block_check_type(*block, FIL_PAGE_TYPE_SYS, &mtr);
 			/* Already MySQL 3.23.53 initialized
 			FSP_IBUF_TREE_ROOT_PAGE_NO to
 			FIL_PAGE_INDEX. No need to reset that one. */
 			block = buf_page_get(
 				page_id_t(TRX_SYS_SPACE, TRX_SYS_PAGE_NO),
 				univ_page_size, RW_X_LATCH, &mtr);
-			fil_block_check_type(block, FIL_PAGE_TYPE_TRX_SYS,
+			fil_block_check_type(*block, FIL_PAGE_TYPE_TRX_SYS,
 					     &mtr);
 			block = buf_page_get(
 				page_id_t(TRX_SYS_SPACE,
 					  FSP_FIRST_RSEG_PAGE_NO),
 				univ_page_size, RW_X_LATCH, &mtr);
-			fil_block_check_type(block, FIL_PAGE_TYPE_SYS, &mtr);
+			fil_block_check_type(*block, FIL_PAGE_TYPE_SYS, &mtr);
 			block = buf_page_get(
 				page_id_t(TRX_SYS_SPACE, FSP_DICT_HDR_PAGE_NO),
 				univ_page_size, RW_X_LATCH, &mtr);
-			fil_block_check_type(block, FIL_PAGE_TYPE_SYS, &mtr);
+			fil_block_check_type(*block, FIL_PAGE_TYPE_SYS, &mtr);
 			mtr.commit();
 		}
 

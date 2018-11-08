@@ -10,15 +10,7 @@ commit;
 connection slave;
 TABLES t1 and t2 must be equal otherwise an error will be thrown.
 include/diff_tables.inc [master:test.t1, slave:test.t1]
-Warnings:
-Warning	1287	'<select expression> INTO <destination>;' is deprecated and will be removed in a future release. Please use 'SELECT <select list> INTO <destination> FROM...' instead
-Warnings:
-Warning	1287	'<select expression> INTO <destination>;' is deprecated and will be removed in a future release. Please use 'SELECT <select list> INTO <destination> FROM...' instead
 include/diff_tables.inc [master:test.t2, slave:test.t2]
-Warnings:
-Warning	1287	'<select expression> INTO <destination>;' is deprecated and will be removed in a future release. Please use 'SELECT <select list> INTO <destination> FROM...' instead
-Warnings:
-Warning	1287	'<select expression> INTO <destination>;' is deprecated and will be removed in a future release. Please use 'SELECT <select list> INTO <destination> FROM...' instead
 connection master;
 drop table t1,t2;
 include/rpl_end.inc

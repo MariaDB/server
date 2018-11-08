@@ -363,5 +363,6 @@ SELECT Grantor FROM mysql.tables_priv WHERE User='user_bug27606';
 
 --connection master
 DROP USER user_bug27606@localhost;
+update mysql.user set plugin='';
 
 --source include/rpl_end.inc

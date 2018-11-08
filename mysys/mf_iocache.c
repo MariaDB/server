@@ -297,6 +297,10 @@ int init_io_cache(IO_CACHE *info, File file, size_t cachesize,
   }
   info->inited=info->aio_result.pending=0;
 #endif
+  if (type == READ_CACHE || type == WRITE_CACHE || type == SEQ_READ_APPEND)
+    info->myflags|= MY_FULL_IO;
+  else
+    info->myflags&= ~MY_FULL_IO;
   DBUG_RETURN(0);
 }						/* init_io_cache */
 
@@ -354,6 +358,15 @@ int init_slave_io_cache(IO_CACHE *master, IO_CACHE *slave)
 
 void end_slave_io_cache(IO_CACHE *cache)
 {
+  /* Remove the cache from the next_file_user circular linked list. */
+  if (cache->next_file_user != cache)
+  {
+    IO_CACHE *p= cache->next_file_user;
+    while (p->next_file_user != cache)
+      p= p->next_file_user;
+    p->next_file_user= cache->next_file_user;
+
+  }
   my_free(cache->buffer);
 }
 
@@ -635,7 +648,7 @@ int _my_b_write(IO_CACHE *info, const uchar *Buffer, size_t Count)
 
 int _my_b_cache_read(IO_CACHE *info, uchar *Buffer, size_t Count)
 {
-  size_t length, diff_length, left_length= 0, max_length;
+  size_t length= 0, diff_length, left_length= 0, max_length;
   my_off_t pos_in_file;
   DBUG_ENTER("_my_b_cache_read");
 
@@ -751,7 +764,10 @@ int _my_b_cache_read(IO_CACHE *info, uchar *Buffer, size_t Count)
     else
     {
       info->error= 0;
-      DBUG_RETURN(0);                           /* EOF */
+      if (length == 0)                            /* nothing was read */
+        DBUG_RETURN(0);                           /* EOF */
+
+      length= 0;                       /* non-zero size read was done */
     }
   }
   else 

@@ -34,8 +34,8 @@ ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or FITNESS
 FOR A PARTICULAR PURPOSE. See the GNU General Public License for more details.
 
 You should have received a copy of the GNU General Public License along with
-this program; if not, write to the Free Software Foundation, Inc., 59 Temple
-Place, Suite 330, Boston, MA 02111-1307 USA
+this program; if not, write to the Free Software Foundation, Inc.,
+51 Franklin St, Fifth Floor, Boston, MA 02111-1301 USA
 
 *******************************************************/
 #define MYSQL_CLIENT
@@ -1759,55 +1759,56 @@ backup_cleanup()
 }
 
 
-static pthread_mutex_t mdl_lock_con_mutex;
 static MYSQL *mdl_con = NULL;
+
+std::map<ulint, std::string> spaceid_to_tablename;
 
 void
 mdl_lock_init()
 {
-  pthread_mutex_init(&mdl_lock_con_mutex, NULL);
   mdl_con = xb_mysql_connect();
-  if (mdl_con)
+  if (!mdl_con)
   {
-    xb_mysql_query(mdl_con, "BEGIN", false, true);
+    msg("FATAL: cannot create connection for MDL locks");
+    exit(1);
   }
+  const char *query =
+    "SELECT NAME, SPACE FROM INFORMATION_SCHEMA.INNODB_SYS_TABLES WHERE NAME LIKE '%%/%%'";
+
+  MYSQL_RES *mysql_result = xb_mysql_query(mdl_con, query, true, true);
+  while (MYSQL_ROW row = mysql_fetch_row(mysql_result)) {
+    int err;
+    ulint id = (ulint)my_strtoll10(row[1], 0, &err);
+    spaceid_to_tablename[id] = ut_get_name(0, row[0]);
+  }
+  mysql_free_result(mysql_result);
+
+  xb_mysql_query(mdl_con, "BEGIN", false, true);
 }
 
 void
 mdl_lock_table(ulint space_id)
 {
-  std::ostringstream oss;
-  oss << "SELECT NAME "
-    "FROM INFORMATION_SCHEMA.INNODB_SYS_TABLES "
-    "WHERE SPACE = " << space_id << " AND NAME LIKE '%%/%%'";
+  if (space_id == 0)
+    return;
 
-  pthread_mutex_lock(&mdl_lock_con_mutex);
+  std::string full_table_name = spaceid_to_tablename[space_id];
 
-  MYSQL_RES *mysql_result = xb_mysql_query(mdl_con, oss.str().c_str(), true, true);
+  DBUG_EXECUTE_IF("rename_during_mdl_lock_table",
+    if (full_table_name == "`test`.`t1`")
+      xb_mysql_query(mysql_connection, "RENAME TABLE test.t1 to test.t2", false, true);
+  );
 
-  while (MYSQL_ROW row = mysql_fetch_row(mysql_result)) {
-
-    DBUG_EXECUTE_IF("rename_during_mdl_lock_table",
-      if (strcmp(row[0], "test/t1") == 0)
-        xb_mysql_query(mysql_connection, "RENAME TABLE test.t1 to test.t2", false, true
-    ););
-
-    std::string full_table_name =  ut_get_name(0,row[0]);
-    std::ostringstream lock_query;
-    lock_query << "SELECT 1 FROM " << full_table_name  << " LIMIT 0";
-    msg_ts("Locking MDL for %s\n", full_table_name.c_str());
-    if (mysql_query(mdl_con, lock_query.str().c_str())) {
+  std::ostringstream lock_query;
+  lock_query << "SELECT 1 FROM " << full_table_name  << " LIMIT 0";
+  msg_ts("Locking MDL for %s\n", full_table_name.c_str());
+  if (mysql_query(mdl_con, lock_query.str().c_str())) {
       msg_ts("Warning : locking MDL failed for space id %zu, name %s\n", space_id, full_table_name.c_str());
-    } else {
+  } else {
       MYSQL_RES *r = mysql_store_result(mdl_con);
       mysql_free_result(r);
-    }
   }
-
-  pthread_mutex_unlock(&mdl_lock_con_mutex);
-  mysql_free_result(mysql_result);
 }
-
 
 void
 mdl_unlock_all()
@@ -1815,6 +1816,6 @@ mdl_unlock_all()
   msg_ts("Unlocking MDL for all tables\n");
   xb_mysql_query(mdl_con, "COMMIT", false, true);
   mysql_close(mdl_con);
-  pthread_mutex_destroy(&mdl_lock_con_mutex);
+  spaceid_to_tablename.clear();
 }
 

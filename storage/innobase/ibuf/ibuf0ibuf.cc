@@ -209,7 +209,7 @@ static ulint	ibuf_counts[IBUF_COUNT_N_SPACES][IBUF_COUNT_N_PAGES];
 UNIV_INLINE
 void
 ibuf_count_check(
-	const page_id_t&	page_id)
+	const page_id_t		page_id)
 {
 	if (page_id.space() < IBUF_COUNT_N_SPACES
 	    && page_id.page_no() < IBUF_COUNT_N_PAGES) {
@@ -417,9 +417,7 @@ ibuf_tree_root_get(
 @param[in]	page_id	page id
 @return number of entries in the insert buffer currently buffered for
 this page */
-ulint
-ibuf_count_get(
-	const page_id_t&	page_id)
+ulint ibuf_count_get(const page_id_t page_id)
 {
 	ibuf_count_check(page_id);
 
@@ -432,7 +430,7 @@ ibuf_count_get(
 static
 void
 ibuf_count_set(
-	const page_id_t&	page_id,
+	const page_id_t		page_id,
 	ulint			val)
 {
 	ibuf_count_check(page_id);
@@ -675,7 +673,7 @@ UNIV_INLINE
 ulint
 ibuf_bitmap_page_get_bits_low(
 	const page_t*		page,
-	const page_id_t&	page_id,
+	const page_id_t		page_id,
 	const page_size_t&	page_size,
 #ifdef UNIV_DEBUG
 	ulint			latch_type,
@@ -724,7 +722,7 @@ static
 void
 ibuf_bitmap_page_set_bits(
 	page_t*			page,
-	const page_id_t&	page_id,
+	const page_id_t		page_id,
 	const page_size_t&	page_size,
 	ulint			bit,
 	ulint			val,
@@ -775,7 +773,7 @@ ibuf_bitmap_page_set_bits(
 UNIV_INLINE
 const page_id_t
 ibuf_bitmap_page_no_calc(
-	const page_id_t&	page_id,
+	const page_id_t		page_id,
 	const page_size_t&	page_size)
 {
 	ulint	bitmap_page_no;
@@ -799,7 +797,7 @@ is x-latched */
 static
 page_t*
 ibuf_bitmap_get_map_page_func(
-	const page_id_t&	page_id,
+	const page_id_t		page_id,
 	const page_size_t&	page_size,
 	const char*		file,
 	unsigned		line,
@@ -1100,7 +1098,7 @@ ibuf_update_free_bits_for_two_pages_low(
 UNIV_INLINE
 ibool
 ibuf_fixed_addr_page(
-	const page_id_t&	page_id,
+	const page_id_t		page_id,
 	const page_size_t&	page_size)
 {
 	return((page_id.space() == IBUF_SPACE_ID
@@ -1122,7 +1120,7 @@ in which case a new transaction is created.
 @return TRUE if level 2 or level 3 page */
 ibool
 ibuf_page_low(
-	const page_id_t&	page_id,
+	const page_id_t		page_id,
 	const page_size_t&	page_size,
 #ifdef UNIV_DEBUG
 	ibool			x_latch,
@@ -3344,7 +3342,7 @@ ibuf_insert_low(
 	const dtuple_t*		entry,
 	ulint			entry_size,
 	dict_index_t*		index,
-	const page_id_t&	page_id,
+	const page_id_t		page_id,
 	const page_size_t&	page_size,
 	que_thr_t*		thr)
 {
@@ -3685,7 +3683,7 @@ ibuf_insert(
 	ibuf_op_t		op,
 	const dtuple_t*		entry,
 	dict_index_t*		index,
-	const page_id_t&	page_id,
+	const page_id_t		page_id,
 	const page_size_t&	page_size,
 	que_thr_t*		thr)
 {
@@ -4415,7 +4413,7 @@ want to update a non-existent bitmap page */
 void
 ibuf_merge_or_delete_for_page(
 	buf_block_t*		block,
-	const page_id_t&	page_id,
+	const page_id_t		page_id,
 	const page_size_t*	page_size,
 	ibool			update_ibuf_bitmap)
 {
@@ -4433,7 +4431,7 @@ ibuf_merge_or_delete_for_page(
 	ulint		mops[IBUF_OP_COUNT];
 	ulint		dops[IBUF_OP_COUNT];
 
-	ut_ad(block == NULL || page_id.equals_to(block->page.id));
+	ut_ad(block == NULL || page_id == block->page.id);
 	ut_ad(block == NULL || buf_block_get_io_fix(block) == BUF_IO_READ);
 
 	if (srv_force_recovery >= SRV_FORCE_NO_IBUF_MERGE

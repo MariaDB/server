@@ -171,6 +171,43 @@ UNLOCK TABLES;
 DROP TABLES staff, store;
 SET FOREIGN_KEY_CHECKS=1;
 #
+# MDEV-17531 Crash in RENAME TABLE with FOREIGN KEY and FULLTEXT INDEX
+#
+CREATE TABLE t1 (a INT PRIMARY KEY) ENGINE=InnoDB;
+CREATE DATABASE best;
+CREATE TABLE t3 (a INT PRIMARY KEY,
+CONSTRAINT t2_ibfk_1 FOREIGN KEY (a) REFERENCES t1(a)) ENGINE=InnoDB;
+CREATE TABLE best.t2 (a INT PRIMARY KEY, b TEXT, FULLTEXT INDEX(b),
+FOREIGN KEY (a) REFERENCES test.t1(a)) ENGINE=InnoDB;
+RENAME TABLE best.t2 TO test.t2;
+ERROR 42S01: Table 't2' already exists
+SHOW CREATE TABLE best.t2;
+Table	Create Table
+t2	CREATE TABLE `t2` (
+  `a` int(11) NOT NULL,
+  `b` text DEFAULT NULL,
+  PRIMARY KEY (`a`),
+  FULLTEXT KEY `b` (`b`),
+  CONSTRAINT `t2_ibfk_1` FOREIGN KEY (`a`) REFERENCES `test`.`t1` (`a`)
+) ENGINE=InnoDB DEFAULT CHARSET=latin1
+DROP DATABASE best;
+#
+# MDEV-17541 KILL QUERY during lock wait in FOREIGN KEY check hangs
+#
+connect  fk, localhost, root,,;
+INSERT INTO t1 SET a=1;
+BEGIN;
+DELETE FROM t1;
+connection default;
+INSERT INTO t3 SET a=1;
+connection fk;
+kill query @id;
+connection default;
+ERROR 70100: Query execution was interrupted
+disconnect fk;
+DROP TABLE t3,t1;
+# Start of 10.2 tests
+#
 # MDEV-13246 Stale rows despite ON DELETE CASCADE constraint
 #
 CREATE TABLE users (
@@ -252,7 +289,6 @@ DELETE FROM t1 WHERE id = 1;
 ERROR HY000: Lock wait timeout exceeded; try restarting transaction
 connection con1;
 COMMIT;
-disconnect con1;
 connection default;
 SELECT * FROM t2;
 id	ref_id	f
@@ -332,7 +368,26 @@ PRIMARY KEY  (store_id),
 UNIQUE KEY idx_unique_manager (manager_staff_id),
 CONSTRAINT fk_store_staff FOREIGN KEY (manager_staff_id) REFERENCES staff (staff_id) ON DELETE RESTRICT ON UPDATE CASCADE
 ) ENGINE=InnoDB;
-SET FOREIGN_KEY_CHECKS=DEFAULT;
 LOCK TABLE staff WRITE;
 UNLOCK TABLES;
 DROP TABLES staff, store;
+SET FOREIGN_KEY_CHECKS=1;
+#
+# MDEV-17541 KILL QUERY during lock wait in FOREIGN KEY check hangs
+#
+CREATE TABLE t1 (a INT PRIMARY KEY) ENGINE=InnoDB;
+CREATE TABLE t2 (a INT PRIMARY KEY, FOREIGN KEY (a) REFERENCES t1(a))
+ENGINE=InnoDB;
+connection con1;
+INSERT INTO t1 SET a=1;
+BEGIN;
+DELETE FROM t1;
+connection default;
+INSERT INTO t2 SET a=1;
+connection con1;
+kill query @id;
+connection default;
+ERROR 70100: Query execution was interrupted
+disconnect con1;
+DROP TABLE t2,t1;
+# End of 10.2 tests

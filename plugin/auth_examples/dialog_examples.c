@@ -81,7 +81,8 @@ static struct st_mysql_auth two_handler=
 {
   MYSQL_AUTHENTICATION_INTERFACE_VERSION,
   "dialog", /* requires dialog client plugin */
-  two_questions
+  two_questions,
+  NULL, NULL /* no PASSWORD() */
 };
 
 /* dialog demo where the number of questions is not known in advance */
@@ -118,7 +119,8 @@ static struct st_mysql_auth three_handler=
 {
   MYSQL_AUTHENTICATION_INTERFACE_VERSION,
   "dialog", /* requires dialog client plugin */
-  three_attempts 
+  three_attempts,
+  NULL, NULL /* no PASSWORD() */
 };
 
 mysql_declare_plugin(dialog)

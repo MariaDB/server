@@ -2416,10 +2416,10 @@ void Item_char_typecast::fix_length_and_dec_internal(CHARSET_INFO *from_cs)
 }
 
 
-bool Item_time_typecast::get_date(THD *thd, MYSQL_TIME *ltime, date_mode_t fuzzydate)
+bool Item_time_typecast::get_date(THD *thd, MYSQL_TIME *to, date_mode_t mode)
 {
-  Time *tm= new(ltime) Time(thd, args[0], Time::Options_for_cast(),
-                            MY_MIN(decimals, TIME_SECOND_PART_DIGITS));
+  Time *tm= new(to) Time(thd, args[0], Time::Options_for_cast(mode),
+                         MY_MIN(decimals, TIME_SECOND_PART_DIGITS));
   return (null_value= !tm->is_valid_time());
 }
 

@@ -25,10 +25,6 @@ ALTER TABLE ti CHANGE COLUMN b b MEDIUMBLOB ;
 ALTER TABLE t CHANGE COLUMN b b LONGBLOB ;
 ALTER TABLE ti CHANGE COLUMN b b LONGBLOB ;
 include/diff_tables.inc [test.t, test.ti]
-Warnings:
-Warning	1287	'<select expression> INTO <destination>;' is deprecated and will be removed in a future release. Please use 'SELECT <select list> INTO <destination> FROM...' instead
-Warnings:
-Warning	1287	'<select expression> INTO <destination>;' is deprecated and will be removed in a future release. Please use 'SELECT <select list> INTO <destination> FROM...' instead
 DROP TABLE t, ti;
 CREATE TABLE t (a TINYBLOB NOT NULL, b TINYBLOB NOT NULL);
 INSERT INTO t (a, b) VALUES ('T3V0h0kB7Z43jqSTiaI','czB9GVLA611e55NpukvYdrc4UOTWiIFEfvtvXcTMbn8TFqhie2D3gRzU5AjZoxtSSMMMcsWl0wnsoWtK2tfGQCRgayc9pv0t4NRCFwlH2Un3cpiiQdW59gYphjYXlE1q5ABTuPPv32nb0Ws5deOTxIc11qWPfYnHeuZ91SG94wXYxQLKAqMx1EHaUssU8N6cz8JKrJTVvp5cA4nbGgFLZKOEvqFuHq1mgcaFm71NvcOui2BaVRfUbl64shd');
@@ -54,10 +50,6 @@ ALTER TABLE ti CHANGE COLUMN b b MEDIUMBLOB NOT NULL;
 ALTER TABLE t CHANGE COLUMN b b LONGBLOB NOT NULL;
 ALTER TABLE ti CHANGE COLUMN b b LONGBLOB NOT NULL;
 include/diff_tables.inc [test.t, test.ti]
-Warnings:
-Warning	1287	'<select expression> INTO <destination>;' is deprecated and will be removed in a future release. Please use 'SELECT <select list> INTO <destination> FROM...' instead
-Warnings:
-Warning	1287	'<select expression> INTO <destination>;' is deprecated and will be removed in a future release. Please use 'SELECT <select list> INTO <destination> FROM...' instead
 DROP TABLE t, ti;
 CREATE TABLE t (v VARCHAR(32) DEFAULT '', a TINYBLOB , b TINYBLOB );
 INSERT INTO t (a, b) VALUES ('1pR3ukt4Ue1ddcv7l7cdLUtIvUrc','3KWeNropDQVN59sEvm1JNuyNGawl467fqCbpsyxZi9SsxJ8D0WLw6TdCCs2E7TOwtSD5g5rvVFelfdMCe59d9jJ06jpriiPl');
@@ -83,10 +75,6 @@ ALTER TABLE ti CHANGE COLUMN b b MEDIUMBLOB ;
 ALTER TABLE t CHANGE COLUMN b b LONGBLOB ;
 ALTER TABLE ti CHANGE COLUMN b b LONGBLOB ;
 include/diff_tables.inc [test.t, test.ti]
-Warnings:
-Warning	1287	'<select expression> INTO <destination>;' is deprecated and will be removed in a future release. Please use 'SELECT <select list> INTO <destination> FROM...' instead
-Warnings:
-Warning	1287	'<select expression> INTO <destination>;' is deprecated and will be removed in a future release. Please use 'SELECT <select list> INTO <destination> FROM...' instead
 DROP TABLE t, ti;
 CREATE TABLE t (v VARCHAR(32) DEFAULT '', a TINYBLOB NOT NULL, b TINYBLOB NOT NULL);
 INSERT INTO t (a, b) VALUES ('ZCcIgA','TgeHsGJbqV0cK6PHoJXwkuk3KeExgjHUouDUAHtuyIrkkegjoIkgZk8Ue77o3Rb4bLsf674Xs0OuzlXFOcaSqU');
@@ -112,10 +100,6 @@ ALTER TABLE ti CHANGE COLUMN b b MEDIUMBLOB NOT NULL;
 ALTER TABLE t CHANGE COLUMN b b LONGBLOB NOT NULL;
 ALTER TABLE ti CHANGE COLUMN b b LONGBLOB NOT NULL;
 include/diff_tables.inc [test.t, test.ti]
-Warnings:
-Warning	1287	'<select expression> INTO <destination>;' is deprecated and will be removed in a future release. Please use 'SELECT <select list> INTO <destination> FROM...' instead
-Warnings:
-Warning	1287	'<select expression> INTO <destination>;' is deprecated and will be removed in a future release. Please use 'SELECT <select list> INTO <destination> FROM...' instead
 DROP TABLE t, ti;
 CREATE TABLE t (v VARCHAR(32) DEFAULT '' NOT NULL, a TINYBLOB , b TINYBLOB );
 INSERT INTO t (a, b) VALUES ('4','8COJIsoEwzuFuY0XobeNMr1uhHotDoFksHC4sKkv3MLMI0Rm1XHKUKkEfnFYeog0y1qbkhyM5OhUhczN4uUH2rwA3BZb00rHLE5cxCFsQqGr3RlAX4uDGshnxozQfi7DL3IlRqYjwy0ItkISRHGYwPpW3CuC3cMSOidb48kt1cqqzy7XWtA93KNpBJhcYxAyPO1on5U5N4fgOl0JOZRvzxR5m5yma378hXl3C5W');
@@ -141,10 +125,6 @@ ALTER TABLE ti CHANGE COLUMN b b MEDIUMBLOB ;
 ALTER TABLE t CHANGE COLUMN b b LONGBLOB ;
 ALTER TABLE ti CHANGE COLUMN b b LONGBLOB ;
 include/diff_tables.inc [test.t, test.ti]
-Warnings:
-Warning	1287	'<select expression> INTO <destination>;' is deprecated and will be removed in a future release. Please use 'SELECT <select list> INTO <destination> FROM...' instead
-Warnings:
-Warning	1287	'<select expression> INTO <destination>;' is deprecated and will be removed in a future release. Please use 'SELECT <select list> INTO <destination> FROM...' instead
 DROP TABLE t, ti;
 CREATE TABLE t (v VARCHAR(32) DEFAULT '' NOT NULL, a TINYBLOB NOT NULL, b TINYBLOB NOT NULL);
 INSERT INTO t (a, b) VALUES ('zhUb9Hu5Wlv2kL3j9w','C4AQe2AZNlGu8CVuqp7Cygd1bF9pm7W6dBTdd6tAfe6Ac1GscSl');
@@ -170,10 +150,6 @@ ALTER TABLE ti CHANGE COLUMN b b MEDIUMBLOB NOT NULL;
 ALTER TABLE t CHANGE COLUMN b b LONGBLOB NOT NULL;
 ALTER TABLE ti CHANGE COLUMN b b LONGBLOB NOT NULL;
 include/diff_tables.inc [test.t, test.ti]
-Warnings:
-Warning	1287	'<select expression> INTO <destination>;' is deprecated and will be removed in a future release. Please use 'SELECT <select list> INTO <destination> FROM...' instead
-Warnings:
-Warning	1287	'<select expression> INTO <destination>;' is deprecated and will be removed in a future release. Please use 'SELECT <select list> INTO <destination> FROM...' instead
 DROP TABLE t, ti;
 CREATE TABLE t (f INT DEFAULT 0, a TINYBLOB , b TINYBLOB );
 INSERT INTO t (a, b) VALUES ('WdaEkmCiDOrvN5RGfjGGD17','Rv7pU4m11NDa2H2mE89d6ztify9OAlmPs');
@@ -199,10 +175,6 @@ ALTER TABLE ti CHANGE COLUMN b b MEDIUMBLOB ;
 ALTER TABLE t CHANGE COLUMN b b LONGBLOB ;
 ALTER TABLE ti CHANGE COLUMN b b LONGBLOB ;
 include/diff_tables.inc [test.t, test.ti]
-Warnings:
-Warning	1287	'<select expression> INTO <destination>;' is deprecated and will be removed in a future release. Please use 'SELECT <select list> INTO <destination> FROM...' instead
-Warnings:
-Warning	1287	'<select expression> INTO <destination>;' is deprecated and will be removed in a future release. Please use 'SELECT <select list> INTO <destination> FROM...' instead
 DROP TABLE t, ti;
 CREATE TABLE t (f INT DEFAULT 0, a TINYBLOB NOT NULL, b TINYBLOB NOT NULL);
 INSERT INTO t (a, b) VALUES ('2ajs1f82ZmqPhqXBpaH','N8Xvw6uv9i7oZJZ');
@@ -228,10 +200,6 @@ ALTER TABLE ti CHANGE COLUMN b b MEDIUMBLOB NOT NULL;
 ALTER TABLE t CHANGE COLUMN b b LONGBLOB NOT NULL;
 ALTER TABLE ti CHANGE COLUMN b b LONGBLOB NOT NULL;
 include/diff_tables.inc [test.t, test.ti]
-Warnings:
-Warning	1287	'<select expression> INTO <destination>;' is deprecated and will be removed in a future release. Please use 'SELECT <select list> INTO <destination> FROM...' instead
-Warnings:
-Warning	1287	'<select expression> INTO <destination>;' is deprecated and will be removed in a future release. Please use 'SELECT <select list> INTO <destination> FROM...' instead
 DROP TABLE t, ti;
 CREATE TABLE t (f INT DEFAULT 0, v VARCHAR(32) DEFAULT '', a TINYBLOB , b TINYBLOB );
 INSERT INTO t (a, b) VALUES ('EznArw','vo6j2j3be9KBIlTHlP4bUwWKoZhbVrl6y8utY7cLGtoAMNy7xQSUjbQk7q1eWkzqjhbNqxWcROhC3YNQpizFk8rKTX9cCMuiGrDVBaVnHEaIQ5xhOrao1RDIYctYYn');
@@ -257,10 +225,6 @@ ALTER TABLE ti CHANGE COLUMN b b MEDIUMBLOB ;
 ALTER TABLE t CHANGE COLUMN b b LONGBLOB ;
 ALTER TABLE ti CHANGE COLUMN b b LONGBLOB ;
 include/diff_tables.inc [test.t, test.ti]
-Warnings:
-Warning	1287	'<select expression> INTO <destination>;' is deprecated and will be removed in a future release. Please use 'SELECT <select list> INTO <destination> FROM...' instead
-Warnings:
-Warning	1287	'<select expression> INTO <destination>;' is deprecated and will be removed in a future release. Please use 'SELECT <select list> INTO <destination> FROM...' instead
 DROP TABLE t, ti;
 CREATE TABLE t (f INT DEFAULT 0, v VARCHAR(32) DEFAULT '', a TINYBLOB NOT NULL, b TINYBLOB NOT NULL);
 INSERT INTO t (a, b) VALUES ('lL','MjEImtvTwSkiFTBkVCjUv7ns1KFK6e7SQucDDCrKxVF9DLGnhNP1a4nnT9ix3PfdlCn08iu9FbMV0mVCisdmGhXgXxzjohZwBGrN54fLsg7L6h5O3KMvv2XeUB6AenAmZsKa6ZpRKYJiWmq64XLLocD9vjLDnRQ1Op10YuqBe08eNi0QU8oNJuMqnCrVLbw1a8bVrX6CvTRGETBPj4BWb2nyLCIQLZ2brn');
@@ -286,10 +250,6 @@ ALTER TABLE ti CHANGE COLUMN b b MEDIUMBLOB NOT NULL;
 ALTER TABLE t CHANGE COLUMN b b LONGBLOB NOT NULL;
 ALTER TABLE ti CHANGE COLUMN b b LONGBLOB NOT NULL;
 include/diff_tables.inc [test.t, test.ti]
-Warnings:
-Warning	1287	'<select expression> INTO <destination>;' is deprecated and will be removed in a future release. Please use 'SELECT <select list> INTO <destination> FROM...' instead
-Warnings:
-Warning	1287	'<select expression> INTO <destination>;' is deprecated and will be removed in a future release. Please use 'SELECT <select list> INTO <destination> FROM...' instead
 DROP TABLE t, ti;
 CREATE TABLE t (f INT DEFAULT 0, v VARCHAR(32) DEFAULT '' NOT NULL, a TINYBLOB , b TINYBLOB );
 INSERT INTO t (a, b) VALUES ('1N585BBQh0iEW93L','l6Rgi1dWfXEDfaibVhy8R3DvrDLuelXzLrwGW1FEQx2BgWGfzomHJfhGfzSVSqszNdifYmCyRheks');
@@ -315,10 +275,6 @@ ALTER TABLE ti CHANGE COLUMN b b MEDIUMBLOB ;
 ALTER TABLE t CHANGE COLUMN b b LONGBLOB ;
 ALTER TABLE ti CHANGE COLUMN b b LONGBLOB ;
 include/diff_tables.inc [test.t, test.ti]
-Warnings:
-Warning	1287	'<select expression> INTO <destination>;' is deprecated and will be removed in a future release. Please use 'SELECT <select list> INTO <destination> FROM...' instead
-Warnings:
-Warning	1287	'<select expression> INTO <destination>;' is deprecated and will be removed in a future release. Please use 'SELECT <select list> INTO <destination> FROM...' instead
 DROP TABLE t, ti;
 CREATE TABLE t (f INT DEFAULT 0, v VARCHAR(32) DEFAULT '' NOT NULL, a TINYBLOB NOT NULL, b TINYBLOB NOT NULL);
 INSERT INTO t (a, b) VALUES ('HhNGpHAPWQ8','0Q5hSkbZLKKzavHJ7sZ7S9GKzds4BhnE');
@@ -344,10 +300,6 @@ ALTER TABLE ti CHANGE COLUMN b b MEDIUMBLOB NOT NULL;
 ALTER TABLE t CHANGE COLUMN b b LONGBLOB NOT NULL;
 ALTER TABLE ti CHANGE COLUMN b b LONGBLOB NOT NULL;
 include/diff_tables.inc [test.t, test.ti]
-Warnings:
-Warning	1287	'<select expression> INTO <destination>;' is deprecated and will be removed in a future release. Please use 'SELECT <select list> INTO <destination> FROM...' instead
-Warnings:
-Warning	1287	'<select expression> INTO <destination>;' is deprecated and will be removed in a future release. Please use 'SELECT <select list> INTO <destination> FROM...' instead
 DROP TABLE t, ti;
 CREATE TABLE t (f INT DEFAULT 0 NOT NULL, a TINYBLOB , b TINYBLOB );
 INSERT INTO t (a, b) VALUES ('8P49xApofl0PNKnNcmj','DhRrz27wl2mOIoYOvZb6UCzr4u4rxwCoAFrMuM92y3hFjIu0iLUa7xUUZe1F8doEg9nBHcFo5NY4DMm0PNYKpkerTYPmIwE2gnTcCq77SgqgyeM60MdFsnO34MLEEA35Zr3MjeuJ37oGjf6vfSNUpiL0UAmhfWwfO6tLqrHtUtJhNVMvIS1pdahZJTV');
@@ -373,10 +325,6 @@ ALTER TABLE ti CHANGE COLUMN b b MEDIUMBLOB ;
 ALTER TABLE t CHANGE COLUMN b b LONGBLOB ;
 ALTER TABLE ti CHANGE COLUMN b b LONGBLOB ;
 include/diff_tables.inc [test.t, test.ti]
-Warnings:
-Warning	1287	'<select expression> INTO <destination>;' is deprecated and will be removed in a future release. Please use 'SELECT <select list> INTO <destination> FROM...' instead
-Warnings:
-Warning	1287	'<select expression> INTO <destination>;' is deprecated and will be removed in a future release. Please use 'SELECT <select list> INTO <destination> FROM...' instead
 DROP TABLE t, ti;
 CREATE TABLE t (f INT DEFAULT 0 NOT NULL, a TINYBLOB NOT NULL, b TINYBLOB NOT NULL);
 INSERT INTO t (a, b) VALUES ('hPDlpbufOe8shVHIYUo','W6SMefVaBzMArHmqFdw3Z9OAuZHMjfyQ');
@@ -402,10 +350,6 @@ ALTER TABLE ti CHANGE COLUMN b b MEDIUMBLOB NOT NULL;
 ALTER TABLE t CHANGE COLUMN b b LONGBLOB NOT NULL;
 ALTER TABLE ti CHANGE COLUMN b b LONGBLOB NOT NULL;
 include/diff_tables.inc [test.t, test.ti]
-Warnings:
-Warning	1287	'<select expression> INTO <destination>;' is deprecated and will be removed in a future release. Please use 'SELECT <select list> INTO <destination> FROM...' instead
-Warnings:
-Warning	1287	'<select expression> INTO <destination>;' is deprecated and will be removed in a future release. Please use 'SELECT <select list> INTO <destination> FROM...' instead
 DROP TABLE t, ti;
 CREATE TABLE t (f INT DEFAULT 0 NOT NULL, v VARCHAR(32) DEFAULT '', a TINYBLOB , b TINYBLOB );
 INSERT INTO t (a, b) VALUES ('rmCC1RZ8fu9Zq6DwO','0vLyV4LMJuHlwPG5245J5yVDuapHQWy3vqHdlTQkQGqJWcFUz0kDWL38DeyT8nQ5WLbDqGHREisps27bINC3Ew5p7Uuf4XBleBD12f6K7g59gWBnYxd6ZsYcwcphcMWq2c8bQmbwLy1fHQ2IJaCTTAjWGd4wBHcXyg5ogi9lomnebSeI1ox1HfjWI0H6GAdsHGibXcY7QPUgVOKA5BB7jrIVpj92YSW1YAbIJLSfncht4iUlSRdyA');
@@ -433,10 +377,6 @@ ALTER TABLE ti CHANGE COLUMN b b MEDIUMBLOB ;
 ALTER TABLE t CHANGE COLUMN b b LONGBLOB ;
 ALTER TABLE ti CHANGE COLUMN b b LONGBLOB ;
 include/diff_tables.inc [test.t, test.ti]
-Warnings:
-Warning	1287	'<select expression> INTO <destination>;' is deprecated and will be removed in a future release. Please use 'SELECT <select list> INTO <destination> FROM...' instead
-Warnings:
-Warning	1287	'<select expression> INTO <destination>;' is deprecated and will be removed in a future release. Please use 'SELECT <select list> INTO <destination> FROM...' instead
 DROP TABLE t, ti;
 CREATE TABLE t (f INT DEFAULT 0 NOT NULL, v VARCHAR(32) DEFAULT '', a TINYBLOB NOT NULL, b TINYBLOB NOT NULL);
 INSERT INTO t (a, b) VALUES ('84XkENBIpBOSIA9X','LLq2mrmKvbMURprQVllY6xdk1TyqLir7dVBLIcXMsroq60cdRUdMKNHhsMReUaIovhRPz9K20MJ45FRldiEcPig0YPQpPRchf8or8X9FDk4dnLBstqPdWPRN4yKcpQQ8d');
@@ -462,10 +402,6 @@ ALTER TABLE ti CHANGE COLUMN b b MEDIUMBLOB NOT NULL;
 ALTER TABLE t CHANGE COLUMN b b LONGBLOB NOT NULL;
 ALTER TABLE ti CHANGE COLUMN b b LONGBLOB NOT NULL;
 include/diff_tables.inc [test.t, test.ti]
-Warnings:
-Warning	1287	'<select expression> INTO <destination>;' is deprecated and will be removed in a future release. Please use 'SELECT <select list> INTO <destination> FROM...' instead
-Warnings:
-Warning	1287	'<select expression> INTO <destination>;' is deprecated and will be removed in a future release. Please use 'SELECT <select list> INTO <destination> FROM...' instead
 DROP TABLE t, ti;
 CREATE TABLE t (f INT DEFAULT 0 NOT NULL, v VARCHAR(32) DEFAULT '' NOT NULL, a TINYBLOB , b TINYBLOB );
 INSERT INTO t (a, b) VALUES ('9jLJ0ZIO55FP61poxeO4L','qDlG0rPg6pQ7scksQFOqxTGZIaOHz90VSV78nGu0wQQzXIEBiNp4Kq7hDgs1eW5ot9uKyvz');
@@ -491,10 +427,6 @@ ALTER TABLE ti CHANGE COLUMN b b MEDIUMBLOB ;
 ALTER TABLE t CHANGE COLUMN b b LONGBLOB ;
 ALTER TABLE ti CHANGE COLUMN b b LONGBLOB ;
 include/diff_tables.inc [test.t, test.ti]
-Warnings:
-Warning	1287	'<select expression> INTO <destination>;' is deprecated and will be removed in a future release. Please use 'SELECT <select list> INTO <destination> FROM...' instead
-Warnings:
-Warning	1287	'<select expression> INTO <destination>;' is deprecated and will be removed in a future release. Please use 'SELECT <select list> INTO <destination> FROM...' instead
 DROP TABLE t, ti;
 CREATE TABLE t (f INT DEFAULT 0 NOT NULL, v VARCHAR(32) DEFAULT '' NOT NULL, a TINYBLOB NOT NULL, b TINYBLOB NOT NULL);
 INSERT INTO t (a, b) VALUES ('Id','eKhtNKGQb2m0JpvyzVayefC7fAbhKzbR0wVzLCarlBdjxgEfVx4Fbm8C0uzQn9UuSsL5unnHgR2DQ9bzpbXY1ib7q5');
@@ -520,8 +452,4 @@ ALTER TABLE ti CHANGE COLUMN b b MEDIUMBLOB NOT NULL;
 ALTER TABLE t CHANGE COLUMN b b LONGBLOB NOT NULL;
 ALTER TABLE ti CHANGE COLUMN b b LONGBLOB NOT NULL;
 include/diff_tables.inc [test.t, test.ti]
-Warnings:
-Warning	1287	'<select expression> INTO <destination>;' is deprecated and will be removed in a future release. Please use 'SELECT <select list> INTO <destination> FROM...' instead
-Warnings:
-Warning	1287	'<select expression> INTO <destination>;' is deprecated and will be removed in a future release. Please use 'SELECT <select list> INTO <destination> FROM...' instead
 DROP TABLE t, ti;
