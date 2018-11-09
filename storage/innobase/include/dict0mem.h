@@ -1528,7 +1528,17 @@ struct dict_instant_t
 	unsigned leaf_redundant:1;
 	/** Dropped columns */
 	dict_col_t* dropped;
-	/** Mapping the non-pk field to column of the table. */
+	/** Map of clustered index fields[i - first_user_field()]
+	to table columns. The format of each element e is as follows:
+
+	if (e & 1U << 15): Dropped column; NOT NULL if (e & 1U << 14).
+	(e & ~(3U << 14)) are: 0 if variable-length with max_len<256 bytes
+	1 if variable-length with max_len>255 bytes
+	otherwise, 1 + the fixed length of the column.
+
+	if (!(e & 1U << 15)): Existing column at table->cols[e & ~(3U << 14)].
+	If (e & 1U << 14), the column was originally declared NOT NULL
+	and the table is not in ROW_FORMAT=REDUNDANT. */
 	uint16_t* non_pk_col_map;
 };
 

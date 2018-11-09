@@ -1225,8 +1225,10 @@ inline void dict_index_t::reconstruct_fields()
 			ut_ad(f.col->is_dropped());
 			f.fixed_len = dict_col_get_fixed_size(f.col, comp);
 		} else {
+			DBUG_ASSERT(!(c & 1U << 14)
+				    || dict_table_is_comp(table));
 			f = fields[o++];
-			f.col = dict_table_get_nth_col(table, c);
+			f.col = dict_table_get_nth_col(table, c & ~(3U << 14));
 			f.name = f.col->name(*table);
 		}
 
@@ -1272,14 +1274,14 @@ bool dict_table_t::deserialise_columns(const byte* metadata, ulint len)
 	for (unsigned i = 0; i < num_non_pk_fields; i++) {
 		non_pk_col_map[i] = mach_read_from_2(metadata);
 		metadata += 2;
+		auto col_ind = non_pk_col_map[i] & ~(3U << 14);
 
 		if (non_pk_col_map[i] & 1U << 15) {
-			if ((non_pk_col_map[i] & ~(3U << 14))
-			    > DICT_MAX_FIXED_COL_LEN + 1) {
+			if (col_ind > DICT_MAX_FIXED_COL_LEN + 1) {
 				return true;
 			}
 			n_dropped_cols++;
-		} else if (non_pk_col_map[i] >= n_cols) {
+		} else if (col_ind >= n_cols) {
 			return true;
 		}
 	}
