@@ -1562,6 +1562,7 @@ bool Item_func_json_array_append::fix_length_and_dec()
   }
 
   fix_char_length_ulonglong(char_length);
+  maybe_null= 1;
   return FALSE;
 }
 

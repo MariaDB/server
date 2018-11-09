@@ -810,3 +810,17 @@ SET @`json` := NULL, @`value` := NULL;
 SELECT JSON_MERGE('[1]', '[]');
 JSON_MERGE('[1]', '[]')
 [1]
+#
+# MDEV-16174 Assertion `0' failed in Type_handler_string_result::
+#       make_sort_key(uchar*, Item*, const SORT_FIELD_ATTR*, Sort_param*)
+#
+SET sql_mode='';
+CREATE TABLE t1 (fld varchar(16) NOT NULL);
+CREATE TABLE t2 SELECT JSON_ARRAY_INSERT(fld, '$.[0]', '0') FROM t1;
+SHOW CREATE TABLE t2;
+Table	Create Table
+t2	CREATE TABLE `t2` (
+  `JSON_ARRAY_INSERT(fld, '$.[0]', '0')` varchar(25) DEFAULT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=latin1
+DROP TABLE t1, t2;
+SET sql_mode=default;
