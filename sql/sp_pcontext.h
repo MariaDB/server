@@ -592,13 +592,7 @@ public:
                                      bool current_scope_only) const;
 
   sp_condition_value *
-  find_declared_or_predefined_condition(const LEX_CSTRING *name) const
-  {
-    sp_condition_value *p= find_condition(name, false);
-    if (p)
-      return p;
-    return find_predefined_condition(name);
-  }
+  find_declared_or_predefined_condition(THD *thd, const LEX_CSTRING *name) const;
 
   bool declare_condition(THD *thd, const LEX_CSTRING *name,
                                    sp_condition_value *val)

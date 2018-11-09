@@ -838,6 +838,24 @@ int Lex_input_stream::find_keyword(Lex_ident_cli_st *kwd,
     DBUG_ASSERT(tok >= get_buf());
     DBUG_ASSERT(tok < get_end_of_query());
 
+    if (m_thd->variables.sql_mode & MODE_ORACLE)
+    {
+      switch (symbol->tok) {
+      case BEGIN_MARIADB_SYM:          return BEGIN_ORACLE_SYM;
+      case BODY_MARIADB_SYM:           return BODY_ORACLE_SYM;
+      case CONTINUE_MARIADB_SYM:       return CONTINUE_ORACLE_SYM;
+      case ELSIF_MARIADB_SYM:          return ELSIF_ORACLE_SYM;
+      case EXCEPTION_MARIADB_SYM:      return EXCEPTION_ORACLE_SYM;
+      case EXIT_MARIADB_SYM:           return EXIT_ORACLE_SYM;
+      case GOTO_MARIADB_SYM:           return GOTO_ORACLE_SYM;
+      case OTHERS_MARIADB_SYM:         return OTHERS_ORACLE_SYM;
+      case PACKAGE_MARIADB_SYM:        return PACKAGE_ORACLE_SYM;
+      case RAISE_MARIADB_SYM:          return RAISE_ORACLE_SYM;
+      case RETURN_MARIADB_SYM:         return RETURN_ORACLE_SYM;
+      case ROWTYPE_MARIADB_SYM:        return ROWTYPE_ORACLE_SYM;
+      }
+    }
+
     if ((symbol->tok == NOT_SYM) &&
         (m_thd->variables.sql_mode & MODE_HIGH_NOT_PRECEDENCE))
       return NOT2_SYM;

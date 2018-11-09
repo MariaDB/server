@@ -255,7 +255,8 @@ void compute_tokens()
   set_start_expr_token(STARTS_SYM);
   set_start_expr_token(ENDS_SYM);
   set_start_expr_token(DEFAULT);
-  set_start_expr_token(RETURN_SYM);
+  set_start_expr_token(RETURN_MARIADB_SYM);
+  set_start_expr_token(RETURN_ORACLE_SYM);
   set_start_expr_token(IF_SYM);
   set_start_expr_token(ELSEIF_SYM);
   set_start_expr_token(CASE_SYM);

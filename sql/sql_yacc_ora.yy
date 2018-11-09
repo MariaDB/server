@@ -330,6 +330,7 @@ bool my_yyoverflow(short **a, YYSTYPE **b, size_t *yystacksize);
 %token  BIT_OR                        /* MYSQL-FUNC */
 %token  BIT_XOR                       /* MYSQL-FUNC */
 %token  BLOB_SYM                      /* SQL-2003-R */
+%token  BODY_ORACLE_SYM               /* Oracle-R   */
 %token  BOTH                          /* SQL-2003-R */
 %token  BY                            /* SQL-2003-R */
 %token  CALL_SYM                      /* SQL-2003-R */
@@ -342,7 +343,8 @@ bool my_yyoverflow(short **a, YYSTYPE **b, size_t *yystacksize);
 %token  COLLATE_SYM                   /* SQL-2003-R */
 %token  CONDITION_SYM                 /* SQL-2003-R, SQL-2008-R */
 %token  CONSTRAINT                    /* SQL-2003-R */
-%token  CONTINUE_SYM                  /* SQL-2003-R */
+%token  CONTINUE_MARIADB_SYM          /* SQL-2003-R, Oracle-R */
+%token  CONTINUE_ORACLE_SYM           /* SQL-2003-R, Oracle-R */
 %token  CONVERT_SYM                   /* SQL-2003-N */
 %token  COUNT_SYM                     /* SQL-2003-N */
 %token  CREATE                        /* SQL-2003-R */
@@ -381,6 +383,7 @@ bool my_yyoverflow(short **a, YYSTYPE **b, size_t *yystacksize);
 %token  EACH_SYM                      /* SQL-2003-R */
 %token  ELSE                          /* SQL-2003-R */
 %token  ELSEIF_SYM
+%token  ELSIF_ORACLE_SYM              /* PLSQL-R    */
 %token  ENCLOSED
 %token  END_OF_INPUT                  /* INTERNAL */
 %token  EQUAL_SYM                     /* OPERATOR */
@@ -399,6 +402,7 @@ bool my_yyoverflow(short **a, YYSTYPE **b, size_t *yystacksize);
 %token  FROM
 %token  FULLTEXT_SYM
 %token  GE
+%token  GOTO_ORACLE_SYM               /* Oracle-R   */
 %token  GRANT                         /* SQL-2003-R */
 %token  GROUP_SYM                     /* SQL-2003-R */
 %token  GROUP_CONCAT_SYM
@@ -484,10 +488,12 @@ bool my_yyoverflow(short **a, YYSTYPE **b, size_t *yystacksize);
 %token  OR2_SYM
 %token  ORDER_SYM                     /* SQL-2003-R */
 %token  OR_SYM                        /* SQL-2003-R */
+%token  OTHERS_ORACLE_SYM             /* SQL-2011-N, PLSQL-R */
 %token  OUTER
 %token  OUTFILE
 %token  OUT_SYM                       /* SQL-2003-R */
 %token  OVER_SYM
+%token  PACKAGE_ORACLE_SYM            /* Oracle-R   */
 %token  PAGE_CHECKSUM_SYM
 %token  PARAM_MARKER
 %token  PARSE_VCOL_EXPR_SYM
@@ -500,6 +506,7 @@ bool my_yyoverflow(short **a, YYSTYPE **b, size_t *yystacksize);
 %token  PRIMARY_SYM                   /* SQL-2003-R */
 %token  PROCEDURE_SYM                 /* SQL-2003-R */
 %token  PURGE
+%token  RAISE_ORACLE_SYM              /* PLSQL-R    */
 %token  RANGE_SYM                     /* SQL-2003-R */
 %token  RANK_SYM        
 %token  READS_SYM                     /* SQL-2003-R */
@@ -518,10 +525,12 @@ bool my_yyoverflow(short **a, YYSTYPE **b, size_t *yystacksize);
 %token  RESIGNAL_SYM                  /* SQL-2003-R */
 %token  RESTRICT
 %token  RETURNING_SYM
-%token  RETURN_SYM                    /* SQL-2003-R */
+%token  RETURN_MARIADB_SYM            /* SQL-2003-R, PLSQL-R */
+%token  RETURN_ORACLE_SYM             /* SQL-2003-R, PLSQL-R */
 %token  REVOKE                        /* SQL-2003-R */
 %token  RIGHT                         /* SQL-2003-R */
 %token  ROWS_SYM                      /* SQL-2003-R */
+%token  ROWTYPE_ORACLE_SYM            /* PLSQL-R    */
 %token  ROW_NUMBER_SYM
 %token  SECOND_MICROSECOND_SYM
 %token  SELECT_SYM                    /* SQL-2003-R */
@@ -606,13 +615,14 @@ bool my_yyoverflow(short **a, YYSTYPE **b, size_t *yystacksize);
 /*
   Keywords that have different reserved status in std/oracle modes.
 */
-%token  BODY_SYM                      /* Oracle-R   */
-%token  ELSIF_SYM                     /* Oracle, reserved in PL/SQL*/
-%token  GOTO_SYM                      /* Oracle, reserved in PL/SQL*/
-%token  OTHERS_SYM                    /* SQL-2011-N */
-%token  PACKAGE_SYM                   /* Oracle-R */
-%token  RAISE_SYM                     /* Oracle-PLSQL-R */
-%token  ROWTYPE_SYM                   /* Oracle-PLSQL-R */
+%token  <kwd>  BODY_MARIADB_SYM              // Oracle-R
+%token  <kwd>  ELSIF_MARIADB_SYM             // PLSQL-R
+%token  <kwd>  EXCEPTION_ORACLE_SYM          // SQL-2003-N, PLSQL-R
+%token  <kwd>  GOTO_MARIADB_SYM              // Oracle-R
+%token  <kwd>  OTHERS_MARIADB_SYM            // SQL-2011-N, PLSQL-R
+%token  <kwd>  PACKAGE_MARIADB_SYM           // Oracle-R
+%token  <kwd>  RAISE_MARIADB_SYM             // PLSQL-R
+%token  <kwd>  ROWTYPE_MARIADB_SYM           // PLSQL-R
 
 /*
   Non-reserved keywords
@@ -637,7 +647,8 @@ bool my_yyoverflow(short **a, YYSTYPE **b, size_t *yystacksize);
 %token  <kwd>  AVG_ROW_LENGTH
 %token  <kwd>  AVG_SYM                       /* SQL-2003-N */
 %token  <kwd>  BACKUP_SYM
-%token  <kwd>  BEGIN_SYM                     /* SQL-2003-R, PLSQL-R */
+%token  <kwd>  BEGIN_MARIADB_SYM             /* SQL-2003-R, PLSQL-R */
+%token  <kwd>  BEGIN_ORACLE_SYM              /* SQL-2003-R, PLSQL-R */
 %token  <kwd>  BINLOG_SYM
 %token  <kwd>  BIT_SYM                       /* MYSQL-FUNC */
 %token  <kwd>  BLOCK_SYM
@@ -727,8 +738,9 @@ bool my_yyoverflow(short **a, YYSTYPE **b, size_t *yystacksize);
 %token  <kwd>  EXAMINED_SYM
 %token  <kwd>  EXCLUDE_SYM                   /* SQL-2011-N */
 %token  <kwd>  EXECUTE_SYM                   /* SQL-2003-R */
-%token  <kwd>  EXCEPTION_SYM                 /* SQL-2003-N, Oracle-PLSQL-R */
-%token  <kwd>  EXIT_SYM
+%token  <kwd>  EXCEPTION_MARIADB_SYM         /* SQL-2003-N, PLSQL-R */
+%token  <kwd>  EXIT_MARIADB_SYM              /* PLSQL-R */
+%token  <kwd>  EXIT_ORACLE_SYM               /* PLSQL-R */
 %token  <kwd>  EXPANSION_SYM
 %token  <kwd>  EXPORT_SYM
 %token  <kwd>  EXTENDED_SYM
@@ -745,7 +757,7 @@ bool my_yyoverflow(short **a, YYSTYPE **b, size_t *yystacksize);
 %token  <kwd>  FORMAT_SYM
 %token  <kwd>  FOUND_SYM                     /* SQL-2003-R */
 %token  <kwd>  FULL                          /* SQL-2003-R */
-%token  <kwd>  FUNCTION_SYM                  /* SQL-2003-R, Oracle-PLSQL-R */
+%token  <kwd>  FUNCTION_SYM                  /* SQL-2003-R, Oracle-R */
 %token  <kwd>  GENERAL
 %token  <kwd>  GENERATED_SYM
 %token  <kwd>  GEOMETRYCOLLECTION
@@ -1087,7 +1099,7 @@ bool my_yyoverflow(short **a, YYSTYPE **b, size_t *yystacksize);
       SELECT TIMESTAMP '2001-01-01 10:20:30';
       SELECT * FROM t1 FOR SYSTEM_TIME AS OF TIMESTAMP CONCAT(@date,' ',@time);
 
-  - PERIOD: identifier, period for sytem time:
+  - PERIOD: identifier, period for system time:
       SELECT period FROM t1;
       ALTER TABLE DROP PERIOD FOR SYSTEM TIME;
 
@@ -1099,7 +1111,7 @@ bool my_yyoverflow(short **a, YYSTYPE **b, size_t *yystacksize);
       SELECT user FROM t1;
       KILL USER foo;
 
-   Note, we need here only tokens that cause shirt/reduce conflicts
+   Note, we need here only tokens that cause shift/reduce conflicts
    with keyword identifiers. For example:
       opt_clause1: %empty | KEYWORD ... ;
       clause2: opt_clause1 ident;
@@ -1452,7 +1464,7 @@ bool my_yyoverflow(short **a, YYSTYPE **b, size_t *yystacksize);
         query verb_clause create change select do drop insert replace insert2
         insert_values update delete truncate rename compound_statement
         show describe load alter optimize keycache preload flush
-        reset purge commit rollback savepoint release
+        reset purge begin_stmt_mariadb commit rollback savepoint release
         slave master_def master_defs master_file_def slave_until_opts
         repair analyze opt_with_admin opt_with_admin_option
         analyze_table_list analyze_table_elem_spec
@@ -1465,8 +1477,8 @@ bool my_yyoverflow(short **a, YYSTYPE **b, size_t *yystacksize);
         assign_to_keycache_parts
         preload_list preload_list_or_parts preload_keys preload_keys_parts
         select_item_list select_item values_list no_braces
-        no_braces_with_names opt_values_with_names values_with_names
         opt_limit_clause delete_limit_clause fields opt_values values
+        no_braces_with_names opt_values_with_names values_with_names
         procedure_list procedure_list2 procedure_item
         field_def handler opt_generated_always
         opt_ignore opt_column opt_restrict
@@ -1527,11 +1539,11 @@ END_OF_INPUT
 %type <NONE> sp_labeled_control sp_unlabeled_control
 %type <NONE> sp_labeled_block sp_unlabeled_block
 %type <NONE> sp_labelable_stmt
-%type <NONE> sp_proc_stmt_continue
-%type <NONE> sp_proc_stmt_exit
+%type <NONE> sp_proc_stmt_continue_oracle
+%type <NONE> sp_proc_stmt_exit_oracle
 %type <NONE> sp_proc_stmt_leave
 %type <NONE> sp_proc_stmt_iterate
-%type <NONE> sp_proc_stmt_goto
+%type <NONE> sp_proc_stmt_goto_oracle
 %type <NONE> sp_proc_stmt_open sp_proc_stmt_fetch sp_proc_stmt_close
 %type <NONE> case_stmt_specification
 %type <NONE> loop_body while_body repeat_body
@@ -1571,7 +1583,7 @@ END_OF_INPUT
 %type <num> index_hint_clause normal_join inner_join
 %type <filetype> data_or_xml
 
-%type <NONE> signal_stmt resignal_stmt raise_stmt
+%type <NONE> signal_stmt resignal_stmt raise_stmt_oracle
 %type <diag_condition_item_name> signal_condition_information_item_name
 
 %type <trg_execution_order> trigger_follows_precedes_clause;
@@ -1685,6 +1697,7 @@ opt_end_of_input:
 
 verb_clause:
           statement
+        | begin_stmt_mariadb
         | compound_statement
         ;
 
@@ -1724,7 +1737,7 @@ statement:
         | preload
         | prepare
         | purge
-        | raise_stmt
+        | raise_stmt_oracle
         | release
         | rename
         | repair
@@ -2305,7 +2318,7 @@ create:
         | create_or_replace { Lex->set_command(SQLCOM_CREATE_SERVER, $1); }
           server_def
           { }
-        | create_or_replace definer_opt PACKAGE_SYM
+        | create_or_replace definer_opt PACKAGE_ORACLE_SYM
           opt_if_not_exists sp_name opt_create_package_chistics_init
           sp_tail_is
           remember_name
@@ -2325,7 +2338,7 @@ create:
             if (unlikely(Lex->create_package_finalize(thd, $5, $13, $8, $12)))
               MYSQL_YYABORT;
           }
-        | create_or_replace definer_opt PACKAGE_SYM BODY_SYM
+        | create_or_replace definer_opt PACKAGE_ORACLE_SYM BODY_ORACLE_SYM
           opt_if_not_exists sp_name opt_create_package_chistics_init
           sp_tail_is
           remember_name
@@ -2365,11 +2378,11 @@ package_implementation_executable_section:
               MYSQL_YYABORT;
             $$.init(0);
           }
-        | BEGIN_SYM sp_block_statements_and_exceptions END { $$= $2; }
+        | BEGIN_ORACLE_SYM sp_block_statements_and_exceptions END { $$= $2; }
         ;
 
 /*
-  Inside CREATE PACKATE BODY, package-wide items (e.g. variables)
+  Inside CREATE PACKAGE BODY, package-wide items (e.g. variables)
   must be declared before routine definitions.
 */
 package_implementation_declare_section:
@@ -3054,12 +3067,12 @@ sp_param_name_and_type:
             if (unlikely(Lex->sphead->spvar_fill_type_reference(thd, $$= $1, $2, $4, $6)))
               MYSQL_YYABORT;
           }
-        | sp_param_name sp_decl_ident '%' ROWTYPE_SYM
+        | sp_param_name sp_decl_ident '%' ROWTYPE_ORACLE_SYM
           {
             if (unlikely(Lex->sphead->spvar_fill_table_rowtype_reference(thd, $$= $1, $2)))
               MYSQL_YYABORT;
           }
-        | sp_param_name sp_decl_ident '.' ident '%' ROWTYPE_SYM
+        | sp_param_name sp_decl_ident '.' ident '%' ROWTYPE_ORACLE_SYM
           {
             if (unlikely(Lex->sphead->spvar_fill_table_rowtype_reference(thd, $$= $1, $2, $4)))
               MYSQL_YYABORT;
@@ -3101,13 +3114,13 @@ sp_pdparam:
             if (unlikely(Lex->sphead->spvar_fill_type_reference(thd, $1, $3, $5, $7)))
               MYSQL_YYABORT;
           }
-        | sp_param_name sp_opt_inout sp_decl_ident '%' ROWTYPE_SYM
+        | sp_param_name sp_opt_inout sp_decl_ident '%' ROWTYPE_ORACLE_SYM
           {
             $1->mode= $2;
             if (unlikely(Lex->sphead->spvar_fill_table_rowtype_reference(thd, $1, $3)))
               MYSQL_YYABORT;
           }
-        | sp_param_name sp_opt_inout sp_decl_ident '.' ident '%' ROWTYPE_SYM
+        | sp_param_name sp_opt_inout sp_decl_ident '.' ident '%' ROWTYPE_ORACLE_SYM
           {
             $1->mode= $2;
             if (unlikely(Lex->sphead->spvar_fill_table_rowtype_reference(thd, $1, $3, $5)))
@@ -3320,7 +3333,7 @@ sp_decl_vars:
             $$.init_using_vars($1);
           }
         | sp_decl_idents_init_vars
-          optionally_qualified_column_ident '%' ROWTYPE_SYM
+          optionally_qualified_column_ident '%' ROWTYPE_ORACLE_SYM
           sp_opt_default
           {
             if (unlikely(Lex->sp_variable_declarations_rowtype_finalize(thd, $1, $2, $5)))
@@ -3346,7 +3359,7 @@ sp_decl_non_handler:
             $$.vars= $$.hndlrs= $$.curs= 0;
             $$.conds= 1;
           }
-        | ident_directly_assignable EXCEPTION_SYM
+        | ident_directly_assignable EXCEPTION_ORACLE_SYM
           {
             sp_condition_value *spcond= new (thd->mem_root)
                                         sp_condition_value_user_defined();
@@ -3420,8 +3433,10 @@ sp_cursor_stmt:
         ;
 
 sp_handler_type:
-          EXIT_SYM      { $$= sp_handler::EXIT; }
-        | CONTINUE_SYM  { $$= sp_handler::CONTINUE; }
+          EXIT_MARIADB_SYM      { $$= sp_handler::EXIT; }
+        | CONTINUE_MARIADB_SYM  { $$= sp_handler::CONTINUE; }
+        | EXIT_ORACLE_SYM      { $$= sp_handler::EXIT; }
+        | CONTINUE_ORACLE_SYM  { $$= sp_handler::CONTINUE; }
        /*| UNDO_SYM      { QQ No yet } */
         ;
 
@@ -3491,7 +3506,7 @@ sp_hcond:
           }
         | ident /* CONDITION name */
           {
-            $$= Lex->spcont->find_declared_or_predefined_condition(&$1);
+            $$= Lex->spcont->find_declared_or_predefined_condition(thd, &$1);
             if (unlikely($$ == NULL))
               my_yyabort_error((ER_SP_COND_MISMATCH, MYF(0), $1.str));
           }
@@ -3507,7 +3522,13 @@ sp_hcond:
             if (unlikely($$ == NULL))
               MYSQL_YYABORT;
           }
-        | OTHERS_SYM /* All other SQLSTATEs */
+        | SQLEXCEPTION_SYM /* All other SQLSTATEs */
+          {
+            $$= new (thd->mem_root) sp_condition_value(sp_condition_value::EXCEPTION);
+            if (unlikely($$ == NULL))
+              MYSQL_YYABORT;
+          }
+        | OTHERS_ORACLE_SYM /* All other SQLSTATEs */
           {
             $$= new (thd->mem_root) sp_condition_value(sp_condition_value::EXCEPTION);
             if (unlikely($$ == NULL))
@@ -3516,13 +3537,13 @@ sp_hcond:
         ;
 
 
-raise_stmt:
-          RAISE_SYM opt_set_signal_information
+raise_stmt_oracle:
+          RAISE_ORACLE_SYM opt_set_signal_information
           {
             if (unlikely(Lex->add_resignal_statement(thd, NULL)))
               MYSQL_YYABORT;
           }
-        | RAISE_SYM signal_value opt_set_signal_information
+        | RAISE_ORACLE_SYM signal_value opt_set_signal_information
           {
             if (unlikely(Lex->add_signal_statement(thd, $2)))
               MYSQL_YYABORT;
@@ -3546,7 +3567,7 @@ signal_value:
             /* SIGNAL foo cannot be used outside of stored programs */
             if (unlikely(lex->spcont == NULL))
               my_yyabort_error((ER_SP_COND_MISMATCH, MYF(0), $1.str));
-            cond= lex->spcont->find_declared_or_predefined_condition(&$1);
+            cond= lex->spcont->find_declared_or_predefined_condition(thd, &$1);
             if (unlikely(cond == NULL))
               my_yyabort_error((ER_SP_COND_MISMATCH, MYF(0), $1.str));
             if (unlikely(!cond->has_sql_state()))
@@ -3855,11 +3876,11 @@ sp_proc_stmt:
 
 sp_labelable_stmt:
           sp_proc_stmt_statement
-        | sp_proc_stmt_continue
-        | sp_proc_stmt_exit
+        | sp_proc_stmt_continue_oracle
+        | sp_proc_stmt_exit_oracle
         | sp_proc_stmt_leave
         | sp_proc_stmt_iterate
-        | sp_proc_stmt_goto
+        | sp_proc_stmt_goto_oracle
         | sp_proc_stmt_open
         | sp_proc_stmt_fetch
         | sp_proc_stmt_close
@@ -3956,8 +3977,14 @@ sp_proc_stmt_statement:
           }
         ;
 
+
+RETURN_ALLMODES_SYM:
+          RETURN_MARIADB_SYM
+        | RETURN_ORACLE_SYM
+        ;
+
 sp_proc_stmt_return:
-          RETURN_SYM 
+          RETURN_ALLMODES_SYM
           { Lex->sphead->reset_lex(thd); }
           expr
           {
@@ -3968,7 +3995,7 @@ sp_proc_stmt_return:
                 unlikely(sp->restore_lex(thd)))
               MYSQL_YYABORT;
           }
-        | RETURN_SYM
+        | RETURN_ORACLE_SYM
           {
             LEX *lex= Lex;
             sp_head *sp= lex->sphead;
@@ -3982,24 +4009,24 @@ reset_lex_expr:
           { Lex->sphead->reset_lex(thd); } expr { $$= $2; }
         ;
 
-sp_proc_stmt_exit:
-          EXIT_SYM
+sp_proc_stmt_exit_oracle:
+          EXIT_ORACLE_SYM
           {
             if (unlikely(Lex->sp_exit_statement(thd, NULL)))
               MYSQL_YYABORT;
           }
-        | EXIT_SYM label_ident
+        | EXIT_ORACLE_SYM label_ident
           {
             if (unlikely(Lex->sp_exit_statement(thd, &$2, NULL)))
               MYSQL_YYABORT;
           }
-        | EXIT_SYM WHEN_SYM reset_lex_expr
+        | EXIT_ORACLE_SYM WHEN_SYM reset_lex_expr
           {
             if (unlikely(Lex->sp_exit_statement(thd, $3)) ||
                 unlikely(Lex->sphead->restore_lex(thd)))
               MYSQL_YYABORT;
           }
-        | EXIT_SYM label_ident WHEN_SYM reset_lex_expr
+        | EXIT_ORACLE_SYM label_ident WHEN_SYM reset_lex_expr
           {
             if (unlikely(Lex->sp_exit_statement(thd, &$2, $4)) ||
                 unlikely(Lex->sphead->restore_lex(thd)))
@@ -4007,24 +4034,24 @@ sp_proc_stmt_exit:
           }
         ;
 
-sp_proc_stmt_continue:
-          CONTINUE_SYM
+sp_proc_stmt_continue_oracle:
+          CONTINUE_ORACLE_SYM
           {
             if (unlikely(Lex->sp_continue_statement(thd, NULL)))
               MYSQL_YYABORT;
           }
-        | CONTINUE_SYM label_ident
+        | CONTINUE_ORACLE_SYM label_ident
           {
             if (unlikely(Lex->sp_continue_statement(thd, &$2, NULL)))
               MYSQL_YYABORT;
           }
-        | CONTINUE_SYM WHEN_SYM reset_lex_expr
+        | CONTINUE_ORACLE_SYM WHEN_SYM reset_lex_expr
           {
             if (unlikely(Lex->sp_continue_statement(thd, $3)) ||
                 unlikely(Lex->sphead->restore_lex(thd)))
               MYSQL_YYABORT;
           }
-        | CONTINUE_SYM label_ident WHEN_SYM reset_lex_expr
+        | CONTINUE_ORACLE_SYM label_ident WHEN_SYM reset_lex_expr
           {
             if (unlikely(Lex->sp_continue_statement(thd, &$2, $4)) ||
                 unlikely(Lex->sphead->restore_lex(thd)))
@@ -4049,8 +4076,8 @@ sp_proc_stmt_iterate:
           }
         ;
 
-sp_proc_stmt_goto:
-          GOTO_SYM label_ident
+sp_proc_stmt_goto_oracle:
+          GOTO_ORACLE_SYM label_ident
           {
             if (unlikely(Lex->sp_goto_statement(thd, &$2)))
               MYSQL_YYABORT;
@@ -4245,7 +4272,7 @@ sp_if:
 
 sp_elseifs:
           /* Empty */
-        | ELSIF_SYM sp_if
+        | ELSIF_ORACLE_SYM sp_if
         | ELSE sp_proc_stmts1_implicit_block
         ;
 
@@ -4421,7 +4448,7 @@ sp_block_label:
 
 sp_labeled_block:
           sp_block_label
-          BEGIN_SYM
+          BEGIN_ORACLE_SYM
           {
             Lex->sp_block_init(thd, &$1);
             if (unlikely(Lex->sp_block_with_exceptions_finalize_declarations(thd)))
@@ -4444,7 +4471,7 @@ sp_labeled_block:
             if (unlikely(Lex->sp_block_with_exceptions_finalize_declarations(thd)))
               MYSQL_YYABORT;
           }
-          BEGIN_SYM
+          BEGIN_ORACLE_SYM
           sp_block_statements_and_exceptions
           END
           sp_opt_label
@@ -4461,7 +4488,7 @@ opt_not_atomic:
         ;
 
 sp_unlabeled_block:
-          BEGIN_SYM opt_not_atomic
+          BEGIN_ORACLE_SYM opt_not_atomic
           {
             if (unlikely(Lex->maybe_start_compound_statement(thd)))
               MYSQL_YYABORT;
@@ -4486,7 +4513,7 @@ sp_unlabeled_block:
             if (unlikely(Lex->sp_block_with_exceptions_finalize_declarations(thd)))
               MYSQL_YYABORT;
           }
-          BEGIN_SYM
+          BEGIN_ORACLE_SYM
           sp_block_statements_and_exceptions
           END
           {
@@ -4509,7 +4536,7 @@ sp_body:
             if (unlikely(Lex->sp_block_with_exceptions_finalize_declarations(thd)))
               MYSQL_YYABORT;
           }
-          BEGIN_SYM
+          BEGIN_ORACLE_SYM
           sp_block_statements_and_exceptions
           {
             $2.hndlrs+= $5.hndlrs;
@@ -4535,8 +4562,8 @@ sp_block_statements_and_exceptions:
         ;
 
 opt_exception_clause:
-          /* Empty */                      { $$= 0; }
-        | EXCEPTION_SYM exception_handlers { $$= $2; }
+          /* Empty */                             { $$= 0; }
+        | EXCEPTION_ORACLE_SYM exception_handlers { $$= $2; }
         ;
 
 exception_handlers:
@@ -12632,7 +12659,9 @@ opt_window_frame_exclusion:
           { $$= Window_frame::EXCL_GROUP; }
         | EXCLUDE_SYM TIES_SYM
           { $$= Window_frame::EXCL_TIES; }
-        | EXCLUDE_SYM NO_SYM OTHERS_SYM
+        | EXCLUDE_SYM NO_SYM OTHERS_MARIADB_SYM
+          { $$= Window_frame::EXCL_NONE; }
+        | EXCLUDE_SYM NO_SYM OTHERS_ORACLE_SYM
           { $$= Window_frame::EXCL_NONE; }
         ;      
        
@@ -13127,7 +13156,7 @@ drop:
             lex->set_command(SQLCOM_DROP_DB, $3);
             lex->name= $4;
           }
-        | DROP PACKAGE_SYM opt_if_exists sp_name
+        | DROP PACKAGE_ORACLE_SYM opt_if_exists sp_name
           {
             LEX *lex= Lex;
             lex->set_command(SQLCOM_DROP_PACKAGE, $3);
@@ -13135,7 +13164,7 @@ drop:
               my_yyabort_error((ER_SP_NO_DROP_SP, MYF(0), "PACKAGE"));
             lex->spname= $4;
           }
-        | DROP PACKAGE_SYM BODY_SYM opt_if_exists sp_name
+        | DROP PACKAGE_ORACLE_SYM BODY_ORACLE_SYM opt_if_exists sp_name
           {
             LEX *lex= Lex;
             lex->set_command(SQLCOM_DROP_PACKAGE_BODY, $4);
@@ -14144,13 +14173,13 @@ show_param:
             lex->sql_command = SQLCOM_SHOW_CREATE_FUNC;
             lex->spname= $3;
           }
-        | CREATE PACKAGE_SYM sp_name
+        | CREATE PACKAGE_ORACLE_SYM sp_name
           {
             LEX *lex= Lex;
             lex->sql_command = SQLCOM_SHOW_CREATE_PACKAGE;
             lex->spname= $3;
           }
-        | CREATE PACKAGE_SYM BODY_SYM sp_name
+        | CREATE PACKAGE_ORACLE_SYM BODY_ORACLE_SYM sp_name
           {
             LEX *lex= Lex;
             lex->sql_command = SQLCOM_SHOW_CREATE_PACKAGE_BODY;
@@ -14189,14 +14218,14 @@ show_param:
             if (unlikely(prepare_schema_table(thd, lex, 0, SCH_PROCEDURES)))
               MYSQL_YYABORT;
           }
-        | PACKAGE_SYM STATUS_SYM wild_and_where
+        | PACKAGE_ORACLE_SYM STATUS_SYM wild_and_where
           {
             LEX *lex= Lex;
             lex->sql_command= SQLCOM_SHOW_STATUS_PACKAGE;
             if (unlikely(prepare_schema_table(thd, lex, 0, SCH_PROCEDURES)))
               MYSQL_YYABORT;
           }
-        | PACKAGE_SYM BODY_SYM STATUS_SYM wild_and_where
+        | PACKAGE_ORACLE_SYM BODY_ORACLE_SYM STATUS_SYM wild_and_where
           {
             LEX *lex= Lex;
             lex->sql_command= SQLCOM_SHOW_STATUS_PACKAGE_BODY;
@@ -14213,7 +14242,7 @@ show_param:
             Lex->sql_command= SQLCOM_SHOW_FUNC_CODE;
             Lex->spname= $3;
           }
-        | PACKAGE_SYM BODY_SYM CODE_SYM sp_name
+        | PACKAGE_ORACLE_SYM BODY_ORACLE_SYM CODE_SYM sp_name
           {
             Lex->sql_command= SQLCOM_SHOW_PACKAGE_BODY_CODE;
             Lex->spname= $4;
@@ -15680,6 +15709,7 @@ keyword_sp_var_not_label:
         | INSTALL_SYM
         | OPTION
         | OPTIONS_SYM
+        | OTHERS_MARIADB_SYM
         | OWNER_SYM
         | PARSER_SYM
         | PERIOD_SYM
@@ -15783,8 +15813,8 @@ keyword_verb_clause:
   Keywords that start an SP block section.
 */
 keyword_sp_block_section:
-          BEGIN_SYM
-        | EXCEPTION_SYM
+          BEGIN_ORACLE_SYM
+        | EXCEPTION_ORACLE_SYM
         | END
         ;
 
@@ -15855,6 +15885,7 @@ keyword_sp_var_and_label:
         | AVG_ROW_LENGTH
         | AVG_SYM
         | BLOCK_SYM
+        | BODY_MARIADB_SYM
         | BTREE_SYM
         | CASCADED
         | CATALOG_NAME_SYM
@@ -15906,6 +15937,7 @@ keyword_sp_var_and_label:
         | DUMPFILE
         | DUPLICATE_SYM
         | DYNAMIC_SYM
+        | ELSIF_MARIADB_SYM
         | ENDS_SYM
         | ENGINE_SYM
         | ENGINES_SYM
@@ -15915,7 +15947,7 @@ keyword_sp_var_and_label:
         | EVENT_SYM
         | EVENTS_SYM
         | EVERY_SYM
-
+        | EXCEPTION_MARIADB_SYM
         | EXCHANGE_SYM
         | EXPANSION_SYM
         | EXPORT_SYM
@@ -15932,6 +15964,7 @@ keyword_sp_var_and_label:
         | GENERATED_SYM
         | GET_FORMAT
         | GRANTS
+        | GOTO_MARIADB_SYM
         | HASH_SYM
         | HARD_SYM
         | HOSTS_SYM
@@ -16025,7 +16058,7 @@ keyword_sp_var_and_label:
         | ONE_SYM
         | ONLINE_SYM
         | ONLY_SYM
-
+        | PACKAGE_MARIADB_SYM
         | PACK_KEYS_SYM
         | PAGE_SYM
         | PARTIAL
@@ -16048,7 +16081,7 @@ keyword_sp_var_and_label:
         | QUARTER_SYM
         | QUERY_SYM
         | QUICK
-
+        | RAISE_MARIADB_SYM
         | READ_ONLY_SYM
         | REBUILD_SYM
         | RECOVER_SYM
@@ -16075,6 +16108,7 @@ keyword_sp_var_and_label:
         | ROLLUP_SYM
         | ROUTINE_SYM
         | ROWCOUNT_SYM
+        | ROWTYPE_MARIADB_SYM
         | ROW_COUNT_SYM
         | ROW_FORMAT_SYM
         | RTREE_SYM
@@ -16801,13 +16835,15 @@ revoke_command:
                          TYPE_ENUM_PROCEDURE)))
               MYSQL_YYABORT;
           }
-        | grant_privileges ON PACKAGE_SYM grant_ident FROM user_and_role_list
+        | grant_privileges ON PACKAGE_ORACLE_SYM grant_ident
+          FROM user_and_role_list
           {
             if (unlikely(Lex->add_grant_command(thd, SQLCOM_REVOKE,
                                                 TYPE_ENUM_PACKAGE)))
               MYSQL_YYABORT;
           }
-        | grant_privileges ON PACKAGE_SYM BODY_SYM grant_ident FROM user_and_role_list
+        | grant_privileges ON PACKAGE_ORACLE_SYM BODY_ORACLE_SYM grant_ident
+          FROM user_and_role_list
           {
             if (unlikely(Lex->add_grant_command(thd, SQLCOM_REVOKE,
                                                 TYPE_ENUM_PACKAGE_BODY)))
@@ -16866,14 +16902,14 @@ grant_command:
                                                 TYPE_ENUM_PROCEDURE)))
               MYSQL_YYABORT;
           }
-        | grant_privileges ON PACKAGE_SYM grant_ident TO_SYM grant_list
+        | grant_privileges ON PACKAGE_ORACLE_SYM grant_ident TO_SYM grant_list
           opt_require_clause opt_grant_options
           {
             if (unlikely(Lex->add_grant_command(thd, SQLCOM_GRANT,
                                                 TYPE_ENUM_PACKAGE)))
               MYSQL_YYABORT;
           }
-        | grant_privileges ON PACKAGE_SYM BODY_SYM grant_ident TO_SYM grant_list
+        | grant_privileges ON PACKAGE_ORACLE_SYM BODY_ORACLE_SYM grant_ident TO_SYM grant_list
           opt_require_clause opt_grant_options
           {
             if (unlikely(Lex->add_grant_command(thd, SQLCOM_GRANT,
@@ -17290,6 +17326,16 @@ grant_option:
           GRANT OPTION { Lex->grant |= GRANT_ACL;}
 	| resource_option {}
         ;
+
+begin_stmt_mariadb:
+          BEGIN_MARIADB_SYM
+          {
+            LEX *lex=Lex;
+            lex->sql_command = SQLCOM_BEGIN;
+            lex->start_transaction_opt= 0;
+          }
+          opt_work {}
+          ;
 
 compound_statement:
           sp_proc_stmt_compound_ok
@@ -17858,7 +17904,7 @@ udf_tail:
 
 
 sf_return_type:
-          RETURN_SYM
+          RETURN_ORACLE_SYM
           {
             LEX *lex= Lex;
             lex->init_last_field(&lex->sphead->m_return_field_def,
@@ -18029,7 +18075,8 @@ xid:
         ;
 
 begin_or_start:
-          BEGIN_SYM {}
+          BEGIN_MARIADB_SYM {}
+        | BEGIN_ORACLE_SYM {}
         | START_SYM {}
         ;
 
