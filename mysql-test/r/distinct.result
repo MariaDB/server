@@ -1049,4 +1049,24 @@ b1+'0'	b2+'0'	b3+'0'	b4+'0'	b5+'0'	b6 +'0'
 1	0	0	1	0	1
 0	1	0	0	1	0
 DROP TABLE t1;
+#
+# MDEV-12575: Server crash in AGGR_OP::put_record or in JOIN_CACHE::free
+# or Invalid write in JOIN::make_aggr_tables_info
+#
+CREATE TABLE t1 (pk INT PRIMARY KEY);
+INSERT INTO t1 VALUES (1),(2);
+explain
+( SELECT DISTINCT 1 FROM t1 ORDER BY BENCHMARK(1, MIN(pk)) )
+UNION
+( SELECT DISTINCT 1 FROM t1 ORDER BY BENCHMARK(1, MIN(pk)) );
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	PRIMARY	t1	index	NULL	PRIMARY	4	NULL	2	Using index; Using temporary
+2	UNION	t1	index	NULL	PRIMARY	4	NULL	2	Using index; Using temporary
+NULL	UNION RESULT	<union1,2>	ALL	NULL	NULL	NULL	NULL	NULL	
+( SELECT DISTINCT 1 FROM t1 ORDER BY BENCHMARK(1, MIN(pk)) )
+UNION
+( SELECT DISTINCT 1 FROM t1 ORDER BY BENCHMARK(1, MIN(pk)) );
+1
+1
+drop table t1;
 End of 5.5 tests

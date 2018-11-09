@@ -2245,6 +2245,18 @@ setup_subq_exit:
   if (!tables_list || !table_count)
   {
     choose_tableless_subquery_plan();
+
+    /* The output has atmost one row */
+    if (group_list)
+    {
+      group_list= NULL;
+      group_optimized_away= 1;
+      rollup.state= ROLLUP::STATE_NONE;
+    }
+    order= NULL;
+    simple_order= TRUE;
+    select_distinct= FALSE;
+
     if (select_lex->have_window_funcs())
     {
       if (!(join_tab= (JOIN_TAB*) thd->alloc(sizeof(JOIN_TAB))))

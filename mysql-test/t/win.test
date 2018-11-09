@@ -2119,3 +2119,59 @@ SELECT name, test, score,
 FROM t1
 ORDER BY test, name;
 drop table t1;
+
+--echo #
+--echo # MDEV-12575: Server crash in AGGR_OP::put_record or in JOIN_CACHE::free
+--echo # or Invalid write in JOIN::make_aggr_tables_info
+--echo #
+
+SELECT DISTINCT BIT_OR(100) OVER () FROM dual
+GROUP BY LEFT('2018-08-24', 100)  order by 1+2;
+
+CREATE TABLE t1 (i INT);
+INSERT INTO t1 VALUES (1),(2);
+
+SELECT * FROM (
+  SELECT
+    ROW_NUMBER() OVER(), i, sum(i)
+    FROM t1
+    WHERE 1=0
+    limit 0
+) AS sq;
+
+SELECT * FROM (
+  SELECT
+    ROW_NUMBER() OVER(), i, sum(i)
+    FROM t1
+    WHERE 1=0
+    GROUP BY i
+) AS sq;
+drop table t1;
+
+create table t1 (a int);
+explain
+select distinct 1, row_number() over (order by 1) from t1 where a=0 group by a with rollup;
+select distinct 1, row_number() over (order by 1) from t1 where a=0 group by a with rollup;
+drop table t1;
+
+explain
+SELECT DISTINCT BIT_OR(100) OVER () FROM dual
+GROUP BY LEFT('2018-08-24', 100) WITH ROLLUP
+HAVING @A := 'qwerty';
+SELECT DISTINCT BIT_OR(100) OVER () FROM dual
+GROUP BY LEFT('2018-08-24', 100) WITH ROLLUP
+HAVING @A := 'qwerty';
+
+explain
+SELECT DISTINCT BIT_OR(100) OVER () FROM dual
+GROUP BY LEFT('2018-08-24', 100)
+HAVING @A := 'qwerty';
+SELECT DISTINCT BIT_OR(100) OVER () FROM dual
+GROUP BY LEFT('2018-08-24', 100)
+HAVING @A := 'qwerty';
+
+create table t1 (a int);
+explain
+SELECT DISTINCT BIT_OR(100) OVER () FROM t1
+GROUP BY LEFT('2018-08-24', 100) having 1=1 limit 0;
+drop table t1;

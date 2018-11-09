@@ -3361,3 +3361,65 @@ Esben	Tuning	31	68.7500
 Kaolin	Tuning	88	68.7500
 Tatiana	Tuning	83	68.7500
 drop table t1;
+#
+# MDEV-12575: Server crash in AGGR_OP::put_record or in JOIN_CACHE::free
+# or Invalid write in JOIN::make_aggr_tables_info
+#
+SELECT DISTINCT BIT_OR(100) OVER () FROM dual
+GROUP BY LEFT('2018-08-24', 100)  order by 1+2;
+BIT_OR(100) OVER ()
+100
+CREATE TABLE t1 (i INT);
+INSERT INTO t1 VALUES (1),(2);
+SELECT * FROM (
+SELECT
+ROW_NUMBER() OVER(), i, sum(i)
+FROM t1
+WHERE 1=0
+limit 0
+) AS sq;
+ROW_NUMBER() OVER()	i	sum(i)
+SELECT * FROM (
+SELECT
+ROW_NUMBER() OVER(), i, sum(i)
+FROM t1
+WHERE 1=0
+GROUP BY i
+) AS sq;
+ROW_NUMBER() OVER()	i	sum(i)
+drop table t1;
+create table t1 (a int);
+explain
+select distinct 1, row_number() over (order by 1) from t1 where a=0 group by a with rollup;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	NULL	NULL	NULL	NULL	NULL	NULL	NULL	Impossible WHERE noticed after reading const tables
+select distinct 1, row_number() over (order by 1) from t1 where a=0 group by a with rollup;
+1	row_number() over (order by 1)
+drop table t1;
+explain
+SELECT DISTINCT BIT_OR(100) OVER () FROM dual
+GROUP BY LEFT('2018-08-24', 100) WITH ROLLUP
+HAVING @A := 'qwerty';
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	NULL	NULL	NULL	NULL	NULL	NULL	NULL	Impossible HAVING
+SELECT DISTINCT BIT_OR(100) OVER () FROM dual
+GROUP BY LEFT('2018-08-24', 100) WITH ROLLUP
+HAVING @A := 'qwerty';
+BIT_OR(100) OVER ()
+explain
+SELECT DISTINCT BIT_OR(100) OVER () FROM dual
+GROUP BY LEFT('2018-08-24', 100)
+HAVING @A := 'qwerty';
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	NULL	NULL	NULL	NULL	NULL	NULL	NULL	Impossible HAVING
+SELECT DISTINCT BIT_OR(100) OVER () FROM dual
+GROUP BY LEFT('2018-08-24', 100)
+HAVING @A := 'qwerty';
+BIT_OR(100) OVER ()
+create table t1 (a int);
+explain
+SELECT DISTINCT BIT_OR(100) OVER () FROM t1
+GROUP BY LEFT('2018-08-24', 100) having 1=1 limit 0;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	NULL	NULL	NULL	NULL	NULL	NULL	NULL	Zero limit
+drop table t1;

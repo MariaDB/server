@@ -2832,3 +2832,13 @@ select distinct 1 from t1 group by a,b with rollup limit 1;
 1
 1
 drop table t1;
+CREATE TABLE t1 ( pk int, i1 int, v1 varchar(1));
+explain
+SELECT 1 FROM t1
+GROUP BY REPEAT((BINARY pk), v1), AES_DECRYPT((@A := i1), 20852) WITH ROLLUP HAVING LOAD_FILE('a') ;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	NULL	NULL	NULL	NULL	NULL	NULL	NULL	Impossible HAVING
+SELECT 1 FROM t1
+GROUP BY REPEAT((BINARY pk), v1), AES_DECRYPT((@A := i1), 20852) WITH ROLLUP HAVING LOAD_FILE('a') ;
+1
+drop table t1;

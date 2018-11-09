@@ -1948,3 +1948,15 @@ insert into t1 values(-126,7),(1,1),(0,0),(-1,1),(351,65534);
 select distinct 1 from t1 group by a,b with rollup limit 1;
 drop table t1;
 
+#
+# MDEV-12575: Server crash in AGGR_OP::put_record or in JOIN_CACHE::free
+# or Invalid write in JOIN::make_aggr_tables_info
+#
+
+CREATE TABLE t1 ( pk int, i1 int, v1 varchar(1));
+explain
+SELECT 1 FROM t1
+GROUP BY REPEAT((BINARY pk), v1), AES_DECRYPT((@A := i1), 20852) WITH ROLLUP HAVING LOAD_FILE('a') ;
+SELECT 1 FROM t1
+GROUP BY REPEAT((BINARY pk), v1), AES_DECRYPT((@A := i1), 20852) WITH ROLLUP HAVING LOAD_FILE('a') ;
+drop table t1;
