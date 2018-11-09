@@ -4025,7 +4025,7 @@ void JOIN::exec_inner()
                  procedure ? procedure_fields_list : *fields,
                  Protocol::SEND_NUM_ROWS | Protocol::SEND_EOF);
 
-  error= do_select(this, procedure);
+  error= result->view_structure_only() ? false : do_select(this, procedure);
   /* Accumulate the counts from all join iterations of all join parts. */
   thd->inc_examined_row_count(join_examined_rows);
   DBUG_PRINT("counts", ("thd->examined_row_count: %lu",

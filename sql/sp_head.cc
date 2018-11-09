@@ -4470,9 +4470,9 @@ sp_instr_cursor_copy_struct::exec_core(THD *thd, uint *nextp)
   */
   if (!row->arguments())
   {
-    sp_cursor tmp(thd, &m_lex_keeper);
+    sp_cursor tmp(thd, &m_lex_keeper, true);
     // Open the cursor without copying data
-    if (!(ret= tmp.open_view_structure_only(thd)))
+    if (!(ret= tmp.open(thd)))
     {
       Row_definition_list defs;
       if (!(ret= tmp.export_structure(thd, &defs)))

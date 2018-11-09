@@ -748,33 +748,6 @@ int sp_cursor::open(THD *thd)
 }
 
 
-/**
-  Open the cursor, but do not copy data.
-  This method is used to fetch the cursor structure
-  to cursor%ROWTYPE routine variables.
-  Data copying is suppressed by setting thd->lex->limit_rows_examined to 0.
-*/
-int sp_cursor::open_view_structure_only(THD *thd)
-{
-  int res;
-  int thd_no_errors_save= thd->no_errors;
-  Item *limit_rows_examined= thd->lex->limit_rows_examined; // No data copying
-  if (!(thd->lex->limit_rows_examined= new (thd->mem_root) Item_uint(thd, 0)))
-    return -1;
-  thd->no_errors= true; // Suppress ER_QUERY_EXCEEDED_ROWS_EXAMINED_LIMIT
-  DBUG_ASSERT(!thd->killed);
-  res= open(thd);
-  /*
-    The query possibly exited on LIMIT ROWS EXAMINED and set thd->killed.
-    Reset it now.
-  */
-  thd->reset_killed();
-  thd->no_errors= thd_no_errors_save;
-  thd->lex->limit_rows_examined= limit_rows_examined;
-  return res;
-}
-
-
 int sp_cursor::close(THD *thd)
 {
   if (! server_side_cursor)

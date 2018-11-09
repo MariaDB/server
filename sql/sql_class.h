@@ -5037,6 +5037,14 @@ public:
     Currently all intercepting classes derive from select_result_interceptor.
   */
   virtual bool is_result_interceptor()=0;
+
+  /*
+    This method is used to distinguish an normal SELECT from the cursor
+    structure discovery for cursor%ROWTYPE routine variables.
+    If this method returns "true", then a SELECT execution performs only
+    all preparation stages, but does not fetch any rows.
+  */
+  virtual bool view_structure_only() const { return false; }
 };
 
 
@@ -5156,9 +5164,13 @@ private:
   {
     List<sp_variable> *spvar_list;
     uint field_count;
+    bool m_view_structure_only;
     bool send_data_to_variable_list(List<sp_variable> &vars, List<Item> &items);
   public:
-    Select_fetch_into_spvars(THD *thd_arg): select_result_interceptor(thd_arg) {}
+    Select_fetch_into_spvars(THD *thd_arg, bool view_structure_only)
+     :select_result_interceptor(thd_arg),
+      m_view_structure_only(view_structure_only)
+    {}
     void reset(THD *thd_arg)
     {
       select_result_interceptor::reset(thd_arg);
@@ -5171,16 +5183,17 @@ private:
     virtual bool send_eof() { return FALSE; }
     virtual int send_data(List<Item> &items);
     virtual int prepare(List<Item> &list, SELECT_LEX_UNIT *u);
+    virtual bool view_structure_only() const { return m_view_structure_only; }
 };
 
 public:
   sp_cursor()
-   :result(NULL),
+   :result(NULL, false),
     m_lex_keeper(NULL),
     server_side_cursor(NULL)
   { }
-  sp_cursor(THD *thd_arg, sp_lex_keeper *lex_keeper)
-   :result(thd_arg),
+  sp_cursor(THD *thd_arg, sp_lex_keeper *lex_keeper, bool view_structure_only)
+   :result(thd_arg, view_structure_only),
     m_lex_keeper(lex_keeper),
     server_side_cursor(NULL)
   {}
@@ -5191,8 +5204,6 @@ public:
   sp_lex_keeper *get_lex_keeper() { return m_lex_keeper; }
 
   int open(THD *thd);
-
-  int open_view_structure_only(THD *thd);
 
   int close(THD *thd);
 
