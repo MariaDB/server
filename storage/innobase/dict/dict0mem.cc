@@ -1274,15 +1274,21 @@ bool dict_table_t::deserialise_columns(const byte* metadata, ulint len)
 	for (unsigned i = 0; i < num_non_pk_fields; i++) {
 		non_pk_col_map[i] = mach_read_from_2(metadata);
 		metadata += 2;
-		auto col_ind = non_pk_col_map[i] & ~(3U << 14);
+		auto c = non_pk_col_map[i];
+		auto col_ind = c & ~(3U << 14);
 
-		if (non_pk_col_map[i] & 1U << 15) {
+		if (c & 1U << 15) {
 			if (col_ind > DICT_MAX_FIXED_COL_LEN + 1) {
 				return true;
 			}
 			n_dropped_cols++;
-		} else if (col_ind >= n_cols) {
-			return true;
+		} else {
+			if (col_ind >= n_cols) {
+				return true;
+			}
+			if ((c & 1U << 14) && !dict_table_is_comp(this)) {
+				return true;
+			}
 		}
 	}
 
