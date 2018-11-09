@@ -4269,7 +4269,7 @@ static int init_common_variables()
 #endif /* HAVE_SOLARIS_LARGE_PAGES */
 
 
-#if defined(HAVE_POOL_OF_THREADS) && !defined(_WIN32)
+#if defined(HAVE_POOL_OF_THREADS)
   if (IS_SYSVAR_AUTOSIZE(&threadpool_size))
     SYSVAR_AUTOSIZE(threadpool_size, my_getncpus());
 #endif
