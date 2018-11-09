@@ -863,7 +863,7 @@ void wsrep_init_startup (bool sst_first)
 }
 
 
-void wsrep_deinit()
+void wsrep_deinit(bool free_options)
 {
   DBUG_ASSERT(wsrep_inited == 1);
   delete wsrep_schema;
@@ -884,6 +884,11 @@ void wsrep_deinit()
     char* p = wsrep_provider_capabilities;
     wsrep_provider_capabilities = NULL;
     free(p);
+  }
+
+  if (free_options)
+  {
+    wsrep_sst_auth_free();
   }
 }
 

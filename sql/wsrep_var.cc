@@ -349,7 +349,7 @@ bool wsrep_provider_update (sys_var *self, THD* thd, enum_var_type type)
   wsrep_free_status(thd);
 
   if (wsrep_inited == 1)
-    wsrep_deinit();
+    wsrep_deinit(false);
 
   char* tmp= strdup(wsrep_provider); // wsrep_init() rewrites provider
                                      //when fails

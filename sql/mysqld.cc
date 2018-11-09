@@ -1826,7 +1826,7 @@ static void close_connections(void)
 #ifdef WITH_WSREP
   if (wsrep_inited == 1)
   {
-    wsrep_deinit();
+    wsrep_deinit(true);
   }
   wsrep_deinit_server();
 #endif
@@ -2126,7 +2126,7 @@ extern "C" void unireg_abort(int exit_code)
     /* In bootstrap mode we deinitialize wsrep here. */
     if (opt_bootstrap)
     {
-      if (wsrep_inited) wsrep_deinit();
+      if (wsrep_inited) wsrep_deinit(true);
       wsrep_deinit_server();
     }
   }

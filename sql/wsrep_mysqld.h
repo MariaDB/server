@@ -154,7 +154,7 @@ void wsrep_update_cluster_state_uuid(const char* str);
 void wsrep_filter_new_cluster (int* argc, char* argv[]);
 
 int  wsrep_init();
-void wsrep_deinit();
+void wsrep_deinit(bool free_options);
 
 /* Initialize wsrep thread LOCKs and CONDs */
 void wsrep_thr_init();
