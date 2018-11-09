@@ -518,7 +518,7 @@ inline void dict_table_t::instant_column(const dict_table_t& table,
 
 	if (instant || table.instant) {
 		const unsigned u = index->first_user_field();
-		unsigned* non_pk_col_map = static_cast<unsigned*>(
+		uint16_t* non_pk_col_map = static_cast<uint16_t*>(
 			mem_heap_alloc(heap, (index->n_fields - u)
 				       * sizeof *non_pk_col_map));
 		/* FIXME: add instant->heap, and transfer ownership here */
@@ -555,9 +555,9 @@ dup_dropped:
 			ulint fixed_len = dict_col_get_fixed_size(
 				field->col, flags & DICT_TF_COMPACT);
 			*non_pk_col_map++ = 1U << 15
-				| unsigned(!field->col->is_nullable()) << 14
+				| uint16_t(!field->col->is_nullable()) << 14
 				| (fixed_len
-				   ? unsigned(fixed_len + 1)
+				   ? uint16_t(fixed_len + 1)
 				   : field->col->len > 255);
 			ut_ad(field->col >= table.instant->dropped);
 			ut_ad(field->col < table.instant->dropped

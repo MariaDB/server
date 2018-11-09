@@ -1529,7 +1529,7 @@ struct dict_instant_t
 	/** Dropped columns */
 	dict_col_t* dropped;
 	/** Mapping the non-pk field to column of the table. */
-	unsigned* non_pk_col_map;
+	uint16_t* non_pk_col_map;
 };
 
 /** These are used when MySQL FRM and InnoDB data dictionary are
