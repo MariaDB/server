@@ -487,7 +487,7 @@ inline void dict_table_t::instant_column(const dict_table_t& table,
 
 	if (instant || table.instant) {
 		const unsigned u = index->first_user_field();
-		unsigned* non_pk_col_map = static_cast<unsigned*>(
+		uint16_t* non_pk_col_map = static_cast<uint16_t*>(
 			mem_heap_alloc(heap, (index->n_fields - u)
 				       * sizeof *non_pk_col_map));
 		/* FIXME: add instant->heap, and transfer ownership here */
@@ -524,9 +524,9 @@ dup_dropped:
 			ulint fixed_len = dict_col_get_fixed_size(
 				field->col, flags & DICT_TF_COMPACT);
 			*non_pk_col_map++ = 1U << 15
-				| unsigned(!field->col->is_nullable()) << 14
+				| uint16_t(!field->col->is_nullable()) << 14
 				| (fixed_len
-				   ? unsigned(fixed_len + 1)
+				   ? uint16_t(fixed_len + 1)
 				   : field->col->len > 255);
 			ut_ad(field->col >= table.instant->dropped);
 			ut_ad(field->col < table.instant->dropped
@@ -5108,6 +5108,33 @@ innobase_drop_virtual_try(
 	}
 
 	return false;
+}
+
+/** Serialise metadata of dropped or reordered columns.
+@param[in,out]	heap	memory heap for allocation
+@param[out]	field	data field with the metadata */
+inline
+void dict_table_t::serialise_columns(mem_heap_t* heap, dfield_t* field) const
+{
+	DBUG_ASSERT(instant);
+	const dict_index_t& index = *UT_LIST_GET_FIRST(indexes);
+	unsigned n_fixed = index.first_user_field();
+	unsigned num_non_pk_fields = index.n_fields - n_fixed;
+
+	ulint len = 4 + num_non_pk_fields * 2;
+
+	byte* data = static_cast<byte*>(mem_heap_alloc(heap, len));
+
+	dfield_set_data(field, data, len);
+
+	mach_write_to_4(data, num_non_pk_fields);
+
+	data += 4;
+
+	for (ulint i = n_fixed; i < index.n_fields; i++) {
+		mach_write_to_2(data, instant->non_pk_col_map[i - n_fixed]);
+		data += 2;
+	}
 }
 
 /** Construct the metadata record for instant ALTER TABLE.

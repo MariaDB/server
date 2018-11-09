@@ -1513,7 +1513,7 @@ struct dict_instant_t
 	/** Dropped columns */
 	dict_col_t* dropped;
 	/** Mapping the non-pk field to column of the table. */
-	unsigned* non_pk_col_map;
+	uint16_t* non_pk_col_map;
 };
 
 /** These are used when MySQL FRM and InnoDB data dictionary are
@@ -1606,7 +1606,7 @@ struct dict_table_t {
 	/** Serialise metadata of dropped or reordered columns.
 	@param[in,out]	heap	memory heap for allocation
 	@param[out]	field	data field with the metadata */
-	void serialise_columns(mem_heap_t* heap, dfield_t* field) const;
+	inline void serialise_columns(mem_heap_t* heap, dfield_t* field) const;
 
 	/** Reconstruct dropped or reordered columns.
 	@param[in]	metadata	data from serialise_columns()
