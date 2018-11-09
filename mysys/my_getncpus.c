@@ -21,10 +21,36 @@
 #include <unistd.h>
 #endif
 
+#if defined(__FreeBSD__) && defined(HAVE_PTHREAD_GETAFFINITY_NP)
+#include <pthread_np.h>
+#include <sys/cpuset.h>
+#endif
+
 static int ncpus=0;
 
-int my_getncpus()
+int my_getncpus(void)
 {
+#if (defined(__linux__) || defined(__FreeBSD__)) && defined(HAVE_PTHREAD_GETAFFINITY_NP)
+  cpu_set_t set;
+
+  if (!ncpus)
+  {
+    if (pthread_getaffinity_np(pthread_self(), sizeof(set), &set) == 0)
+    {
+      ncpus= CPU_COUNT(&set);
+    }
+    else
+    {
+#ifdef _SC_NPROCESSORS_ONLN
+      ncpus= sysconf(_SC_NPROCESSORS_ONLN);
+#else
+      ncpus= 2;
+#endif
+    }
+  }
+
+#else /* __linux__ || FreeBSD && HAVE_PTHREAD_GETAFFINITY_NP */
+
   if (!ncpus)
   {
 #ifdef _SC_NPROCESSORS_ONLN
@@ -46,5 +72,8 @@ int my_getncpus()
     ncpus= 2;
 #endif
   }
+
+#endif /* __linux__ || FreeBSD && HAVE_PTHREAD_GETAFFINITY_NP */
+
   return ncpus;
 }
