@@ -102,3 +102,20 @@ SELECT * FROM long_enough_name AS tbl;
 SHOW CREATE TABLE long_enough_name;
  
 DROP TABLE long_enough_name;
+
+#
+# MDEV-17654 Incorrect syntax returned for column with CHECK constraint
+#            in the "SHOW CREATE TABLE ..." result
+#
+
+CREATE TABLE test.t(t int COMMENT 't_comment' CHECK(t>0));
+SHOW CREATE TABLE test.t;
+DROP table test.t;
+
+SET @OLD_SQL_MODE=@@SQL_MODE;
+SET SQL_MODE='IGNORE_BAD_TABLE_OPTIONS';
+
+CREATE TABLE test.t (f int foo=bar check(f>0));
+SHOW CREATE TABLE t;
+DROP table test.t;
+SET @@SQL_MODE=@OLD_SQL_MODE;
