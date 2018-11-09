@@ -177,6 +177,15 @@ inline void dict_table_t::init_instant(const dict_table_t& table)
 		mem_heap_zalloc(heap, (index.n_fields - u)
 				* sizeof *field_map_it));
 	instant->field_map = field_map_it;
+	if (table.instant) {
+		DBUG_ASSERT(table.instant->leaf_redundant
+			    || !instant->leaf_redundant);
+		instant->leaf_redundant= table.instant->leaf_redundant;
+		if (const auto omap = table.instant->field_map) {
+			memcpy(field_map_it, omap,
+			       (index.n_fields - u) * sizeof *omap);
+		}
+	}
 
 	ut_d(unsigned n_drop = 0);
 	ut_d(unsigned n_nullable = 0);
@@ -309,6 +318,8 @@ add_metadata:
 		instant = new (mem_heap_alloc(heap, sizeof(dict_instant_t)))
 			dict_instant_t();
 		instant->n_dropped = n_drop;
+		instant->leaf_redundant = old.instant
+			&& old.instant->leaf_redundant;
 		if (n_drop) {
 			instant->dropped
 				= static_cast<dict_col_t*>(

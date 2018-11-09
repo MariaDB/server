@@ -1542,13 +1542,18 @@ struct dict_vcol_templ_t {
 /** Metadata on clustered index fields starting from first_user_field() */
 class field_map_element_t
 {
+	/** Field metadata */
+	uint16_t data;
+
+public:
 	/** Number of bits for representing a column number */
 	static constexpr uint16_t IND_BITS = 10;
 
 	/** Set if the column of the field has been instantly dropped */
 	static constexpr uint16_t DROPPED = 1U << (IND_BITS + 5);
 
-	/** Set if the column was dropped and originally declared NOT NULL */
+	/** Set if the column was originally declared NOT NULL and
+	the column was dropped, or ROW_FORMAT is not REDUNDANT */
 	static constexpr uint16_t NOT_NULL = 1U << (IND_BITS + 4);
 
 	/** Column index (if !(data & DROPPED)): table->cols[data & IND],
@@ -1558,15 +1563,10 @@ class field_map_element_t
 	(data & IND) = 1 + L otherwise, with L=fixed length of the column */
 	static constexpr uint16_t IND = (1U << IND_BITS) - 1;
 
-	/** Field metadata */
-	uint16_t data;
-
-	void clear_not_null() { data &= ~NOT_NULL; }
-public:
 	bool is_dropped() const { return data & DROPPED; }
 	void set_dropped() { data |= DROPPED; }
 	bool is_not_null() const { return data & NOT_NULL; }
-	void set_not_null() { ut_ad(is_dropped()); data |= NOT_NULL; }
+	void set_not_null() { data |= NOT_NULL; }
 	uint16_t ind() const { return data & IND; }
 	void set_ind(uint16_t i)
 	{
