@@ -1622,7 +1622,7 @@ struct dict_table_t {
 	/** Serialise metadata of dropped or reordered columns.
 	@param[in,out]	heap	memory heap for allocation
 	@param[out]	field	data field with the metadata */
-	void serialise_columns(mem_heap_t* heap, dfield_t* field) const;
+	inline void serialise_columns(mem_heap_t* heap, dfield_t* field) const;
 
 	/** Reconstruct dropped or reordered columns.
 	@param[in]	metadata	data from serialise_columns()

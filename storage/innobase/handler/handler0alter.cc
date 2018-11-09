@@ -5169,6 +5169,33 @@ innobase_drop_virtual_try(
 	return false;
 }
 
+/** Serialise metadata of dropped or reordered columns.
+@param[in,out]	heap	memory heap for allocation
+@param[out]	field	data field with the metadata */
+inline
+void dict_table_t::serialise_columns(mem_heap_t* heap, dfield_t* field) const
+{
+	DBUG_ASSERT(instant);
+	const dict_index_t& index = *UT_LIST_GET_FIRST(indexes);
+	unsigned n_fixed = index.first_user_field();
+	unsigned num_non_pk_fields = index.n_fields - n_fixed;
+
+	ulint len = 4 + num_non_pk_fields * 2;
+
+	byte* data = static_cast<byte*>(mem_heap_alloc(heap, len));
+
+	dfield_set_data(field, data, len);
+
+	mach_write_to_4(data, num_non_pk_fields);
+
+	data += 4;
+
+	for (ulint i = n_fixed; i < index.n_fields; i++) {
+		mach_write_to_2(data, instant->non_pk_col_map[i - n_fixed]);
+		data += 2;
+	}
+}
+
 /** Construct the metadata record for instant ALTER TABLE.
 @param[in]	row	dummy or default values for existing columns
 @param[in,out]	heap	memory heap for allocations
