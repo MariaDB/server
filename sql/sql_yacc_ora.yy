@@ -708,7 +708,8 @@ bool my_yyoverflow(short **a, YYSTYPE **b, size_t *yystacksize);
 %token  <kwd>  DATE_SYM                      /* SQL-2003-R, Oracle-R, PLSQL-R */
 %token  <kwd>  DAY_SYM                       /* SQL-2003-R */
 %token  <kwd>  DEALLOCATE_SYM                /* SQL-2003-R */
-%token  <kwd>  DECODE_SYM                    /* Oracle function, non-reserved */
+%token  <kwd>  DECODE_MARIADB_SYM            /* Function, non-reserved */
+%token  <kwd>  DECODE_ORACLE_SYM             /* Function, non-reserved */
 %token  <kwd>  DEFINER_SYM
 %token  <kwd>  DELAYED_SYM
 %token  <kwd>  DELAY_KEY_WRITE_SYM
@@ -1364,7 +1365,7 @@ bool my_yyoverflow(short **a, YYSTYPE **b, size_t *yystacksize);
 %type <item_list>
         expr_list opt_udf_expr_list udf_expr_list when_list when_list_opt_else
         ident_list ident_list_arg opt_expr_list
-        decode_when_list
+        decode_when_list_oracle
 
 %type <sp_cursor_stmt>
         sp_cursor_stmt_lex
@@ -10211,24 +10212,6 @@ column_default_non_parenthesized_expr:
             if (unlikely($$ == NULL))
               MYSQL_YYABORT;
           }
-        | DATE_FORMAT_SYM '(' expr ',' expr ')'
-          {
-            $$= new (thd->mem_root) Item_func_date_format(thd, $3, $5);
-            if (unlikely($$ == NULL))
-              MYSQL_YYABORT;
-          }
-        | DATE_FORMAT_SYM '(' expr ',' expr ',' expr ')'
-          {
-            $$= new (thd->mem_root) Item_func_date_format(thd, $3, $5, $7);
-            if (unlikely($$ == NULL))
-              MYSQL_YYABORT;
-          }
-        | DECODE_SYM '(' expr ',' decode_when_list ')'
-          {
-            $5->push_front($3, thd->mem_root);
-            if (unlikely(!($$= new (thd->mem_root) Item_func_decode_oracle(thd, *$5))))
-              MYSQL_YYABORT;
-          }
         | DEFAULT '(' simple_ident ')'
           {
             Item_splocal *il= $3->get_item_splocal();
@@ -10563,6 +10546,30 @@ function_call_nonkeyword:
           {
             $$= new (thd->mem_root) Item_date_add_interval(thd, $3, $6, $7, 1);
             if (unlikely($$ == NULL))
+              MYSQL_YYABORT;
+          }
+        | DATE_FORMAT_SYM '(' expr ',' expr ')'
+          {
+            $$= new (thd->mem_root) Item_func_date_format(thd, $3, $5);
+            if (unlikely($$ == NULL))
+              MYSQL_YYABORT;
+          }
+        | DATE_FORMAT_SYM '(' expr ',' expr ',' expr ')'
+          {
+            $$= new (thd->mem_root) Item_func_date_format(thd, $3, $5, $7);
+            if (unlikely($$ == NULL))
+              MYSQL_YYABORT;
+          }
+        | DECODE_MARIADB_SYM '(' expr ',' expr ')'
+          {
+            $$= new (thd->mem_root) Item_func_decode(thd, $3, $5);
+            if (unlikely($$ == NULL))
+              MYSQL_YYABORT;
+          }
+        | DECODE_ORACLE_SYM '(' expr ',' decode_when_list_oracle ')'
+          {
+            $5->push_front($3, thd->mem_root);
+            if (unlikely(!($$= new (thd->mem_root) Item_func_decode_oracle(thd, *$5))))
               MYSQL_YYABORT;
           }
         | EXTRACT_SYM '(' interval FROM expr ')'
@@ -11730,7 +11737,7 @@ when_list_opt_else:
           }
         ;
 
-decode_when_list:
+decode_when_list_oracle:
           expr ',' expr
           {
             $$= new (thd->mem_root) List<Item>;
@@ -11740,7 +11747,7 @@ decode_when_list:
               MYSQL_YYABORT;
 
           }
-        | decode_when_list ',' expr
+        | decode_when_list_oracle ',' expr
           {
             $$= $1;
             if (unlikely($$->push_back($3, thd->mem_root)))
@@ -15704,7 +15711,6 @@ keyword_sp_var_not_label:
         | FORMAT_SYM
         | GET_SYM
         | HELP_SYM
-        | HISTORY_SYM
         | HOST_SYM
         | INSTALL_SYM
         | OPTION
@@ -15729,15 +15735,11 @@ keyword_sp_var_not_label:
         | START_SYM
         | STOP_SYM
         | STORED_SYM
-        | SYSTEM
-        | SYSTEM_TIME_SYM
         | TIES_SYM
         | UNICODE_SYM
         | UNINSTALL_SYM
         | UNBOUNDED_SYM
-        | VERSIONING_SYM
         | WITHIN
-        | WITHOUT
         | WRAPPER_SYM
         | XA_SYM
         | UPGRADE_SYM
@@ -15925,7 +15927,8 @@ keyword_sp_var_and_label:
         | DATAFILE_SYM
         | DATE_FORMAT_SYM
         | DAY_SYM
-        | DECODE_SYM
+        | DECODE_MARIADB_SYM
+        | DECODE_ORACLE_SYM
         | DEFINER_SYM
         | DELAY_KEY_WRITE_SYM
         | DES_KEY_FILE
@@ -15967,6 +15970,7 @@ keyword_sp_var_and_label:
         | GOTO_MARIADB_SYM
         | HASH_SYM
         | HARD_SYM
+        | HISTORY_SYM
         | HOSTS_SYM
         | HOUR_SYM
         | ID_SYM
@@ -16144,6 +16148,8 @@ keyword_sp_var_and_label:
         | SUSPEND_SYM
         | SWAPS_SYM
         | SWITCHES_SYM
+        | SYSTEM
+        | SYSTEM_TIME_SYM
         | TABLE_NAME_SYM
         | TABLES
         | TABLE_CHECKSUM_SYM
@@ -16169,6 +16175,7 @@ keyword_sp_var_and_label:
         | USER_SYM           %prec PREC_BELOW_CONTRACTION_TOKEN2
         | USE_FRM
         | VARIABLES
+        | VERSIONING_SYM
         | VIEW_SYM
         | VIRTUAL_SYM
         | VALUE_SYM
@@ -16176,6 +16183,7 @@ keyword_sp_var_and_label:
         | WAIT_SYM
         | WEEK_SYM
         | WEIGHT_STRING_SYM
+        | WITHOUT
         | WORK_SYM
         | X509_SYM
         | XML_SYM

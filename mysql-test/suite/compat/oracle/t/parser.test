@@ -258,3 +258,61 @@ enable_prepare_warnings;
 SELECT test.comment() FROM DUAL;
 disable_prepare_warnings;
 DROP FUNCTION comment;
+
+
+--echo #
+--echo # MDEV-17660 sql_mode=ORACLE: Some keywords do not work as label names: history, system, versioning, without
+--echo #
+
+DELIMITER /;
+BEGIN
+<<date_format>>
+  NULL;
+END;
+/
+DELIMITER ;/
+
+
+DELIMITER /;
+BEGIN
+<<decode>>
+  NULL;
+END;
+/
+DELIMITER ;/
+
+
+DELIMITER /;
+BEGIN
+<<history>>
+  NULL;
+END;
+/
+DELIMITER ;/
+
+
+DELIMITER /;
+BEGIN
+<<system>>
+  NULL;
+END;
+/
+DELIMITER ;/
+
+
+DELIMITER /;
+BEGIN
+<<versioning>>
+  NULL;
+END;
+/
+DELIMITER ;/
+
+
+DELIMITER /;
+BEGIN
+<<without>>
+  NULL;
+END;
+/
+DELIMITER ;/

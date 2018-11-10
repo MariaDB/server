@@ -499,3 +499,36 @@ test.comment()
 Warnings:
 Note	1585	This function 'comment' has the same name as a native function
 DROP FUNCTION comment;
+#
+# MDEV-17660 sql_mode=ORACLE: Some keywords do not work as label names: history, system, versioning, without
+#
+BEGIN
+<<date_format>>
+NULL;
+END;
+/
+BEGIN
+<<decode>>
+NULL;
+END;
+/
+BEGIN
+<<history>>
+NULL;
+END;
+/
+BEGIN
+<<system>>
+NULL;
+END;
+/
+BEGIN
+<<versioning>>
+NULL;
+END;
+/
+BEGIN
+<<without>>
+NULL;
+END;
+/
