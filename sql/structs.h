@@ -227,12 +227,11 @@ struct AUTHID
 
 struct LEX_USER: public AUTHID
 {
-  LEX_CSTRING plugin, auth;
-  LEX_CSTRING pwtext, pwhash;
+  LEX_CSTRING plugin, auth, pwtext;
   void reset_auth()
   {
-    pwtext.length= pwhash.length= plugin.length= auth.length= 0;
-    pwtext.str= pwhash.str= 0;
+    pwtext.length= plugin.length= auth.length= 0;
+    pwtext.str= 0;
     plugin.str= auth.str= "";
   }
 };

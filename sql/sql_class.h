@@ -581,6 +581,7 @@ typedef struct system_variables
   ha_rows max_join_size;
   ha_rows expensive_subquery_limit;
   ulong auto_increment_increment, auto_increment_offset;
+  uint eq_range_index_dive_limit;
   ulong column_compression_zlib_strategy;
   ulong lock_wait_timeout;
   ulong join_cache_level;
@@ -3124,6 +3125,9 @@ public:
     it returned an error on master, and this is OK on the slave.
   */
   bool       is_slave_error;
+  /* True if we have printed something to the error log for this statement */
+  bool       error_printed_to_log;
+
   /*
     True when a transaction is queued up for binlog group commit.
     Used so that if another transaction needs to wait for a row lock held by
@@ -3407,7 +3411,7 @@ public:
   }
   const Type_handler *type_handler_for_date() const;
   bool timestamp_to_TIME(MYSQL_TIME *ltime, my_time_t ts,
-                         ulong sec_part, ulonglong fuzzydate);
+                         ulong sec_part, date_mode_t fuzzydate);
   inline my_time_t query_start() { return start_time; }
   inline ulong query_start_sec_part()
   { query_start_sec_part_used=1; return start_time_sec_part; }
@@ -4037,6 +4041,10 @@ public:
     *format= (enum_binlog_format) variables.binlog_format;
     *current_format= current_stmt_binlog_format;
   }
+  inline enum_binlog_format get_current_stmt_binlog_format()
+  {
+    return current_stmt_binlog_format;
+  }
   inline void set_binlog_format(enum_binlog_format format,
                                 enum_binlog_format current_format)
   {
@@ -4080,11 +4088,6 @@ public:
       set_current_stmt_binlog_format_row();
 
     DBUG_VOID_RETURN;
-  }
-
-  inline enum_binlog_format get_current_stmt_binlog_format()
-  {
-    return current_stmt_binlog_format;
   }
 
   inline void set_current_stmt_binlog_format(enum_binlog_format format)
@@ -4693,6 +4696,7 @@ public:
 
   TMP_TABLE_SHARE* save_tmp_table_share(TABLE *table);
   void restore_tmp_table_share(TMP_TABLE_SHARE *share);
+  void close_unused_temporary_table_instances(const TABLE_LIST *tl);
 
 private:
   /* Whether a lock has been acquired? */
@@ -4950,10 +4954,17 @@ my_eof(THD *thd)
   (A)->variables.sql_log_bin_off= 0;}
 
 
-inline sql_mode_t sql_mode_for_dates(THD *thd)
+inline date_mode_t sql_mode_for_dates(THD *thd)
 {
-  return thd->variables.sql_mode &
-          (MODE_NO_ZERO_DATE | MODE_NO_ZERO_IN_DATE | MODE_INVALID_DATES);
+  static_assert(C_TIME_FUZZY_DATES   == date_mode_t::FUZZY_DATES &&
+                C_TIME_TIME_ONLY     == date_mode_t::TIME_ONLY,
+                "sql_mode_t and pure C library date flags must be equal");
+  static_assert(MODE_NO_ZERO_DATE    == date_mode_t::NO_ZERO_DATE &&
+                MODE_NO_ZERO_IN_DATE == date_mode_t::NO_ZERO_IN_DATE &&
+                MODE_INVALID_DATES   == date_mode_t::INVALID_DATES,
+                "sql_mode_t and date_mode_t values must be equal");
+  return date_mode_t(thd->variables.sql_mode &
+          (MODE_NO_ZERO_DATE | MODE_NO_ZERO_IN_DATE | MODE_INVALID_DATES));
 }
 
 /*
@@ -5022,7 +5033,8 @@ protected:
   SELECT_LEX_UNIT *unit;
   /* Something used only by the parser: */
 public:
-  select_result(THD *thd_arg): select_result_sink(thd_arg) {}
+  ha_rows est_records;  /* estimated number of records in the result */
+ select_result(THD *thd_arg): select_result_sink(thd_arg), est_records(0) {}
   void set_unit(SELECT_LEX_UNIT *unit_arg) { unit= unit_arg; }
   virtual ~select_result() {};
   /**
@@ -5594,7 +5606,6 @@ public:
   TMP_TABLE_PARAM tmp_table_param;
   int write_err; /* Error code from the last send_data->ha_write_row call. */
   TABLE *table;
-  ha_rows records;
 
   select_unit(THD *thd_arg):
     select_result_interceptor(thd_arg),
@@ -5632,7 +5643,6 @@ public:
     curr_sel= UINT_MAX;
     step= UNION_TYPE;
     write_err= 0;
-    records= 0;
   }
   void change_select();
 };
@@ -5646,10 +5656,16 @@ class select_union_recursive :public select_unit
   TABLE *first_rec_table_to_update;
   /* The temporary tables used for recursive table references */
   List<TABLE> rec_tables;
+  /*
+    The count of how many times cleanup() was called with cleaned==false
+    for the unit specifying the recursive CTE for which this object was created
+    or for the unit specifying a CTE that mutually recursive with this CTE.
+  */
+  uint cleanup_count;
 
   select_union_recursive(THD *thd_arg):
     select_unit(thd_arg),
-    incr_table(0), first_rec_table_to_update(0) {};
+    incr_table(0), first_rec_table_to_update(0), cleanup_count(0) {};
 
   int send_data(List<Item> &items);
   bool create_result_table(THD *thd, List<Item> *column_types,

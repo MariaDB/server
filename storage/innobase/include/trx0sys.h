@@ -49,9 +49,7 @@ typedef UT_LIST_BASE_NODE_T(trx_t) trx_ut_list_t;
 /** Checks if a page address is the trx sys header page.
 @param[in]	page_id	page id
 @return true if trx sys header page */
-inline
-bool
-trx_sys_hdr_page(const page_id_t& page_id)
+inline bool trx_sys_hdr_page(const page_id_t& page_id)
 {
 	return(page_id.space() == TRX_SYS_SPACE
 	       && page_id.page_no() == TRX_SYS_PAGE_NO);
@@ -646,8 +644,11 @@ public:
     {
       mutex_enter(&element->mutex);
       lf_hash_search_unpin(pins);
-      if ((trx= element->trx))
-      {
+      trx= element->trx;
+      if (!trx);
+      else if (UNIV_UNLIKELY(trx_id != trx->id))
+        trx= NULL;
+      else {
         if (do_ref_count)
           trx->reference();
         ut_d(validate_element(trx));

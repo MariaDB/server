@@ -12,7 +12,7 @@
 
    You should have received a copy of the GNU General Public License
    along with this program; if not, write to the Free Software
-   Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307  USA */
+   Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02111-1301 USA */
 #pragma once
 
 /* C++ system header files */
@@ -118,7 +118,7 @@ public:
                                      const rocksdb::Slice &value,
                                      rocksdb::EntryType type,
                                      rocksdb::SequenceNumber seq,
-                                     uint64_t file_size);
+                                     uint64_t file_size) override;
 
   virtual rocksdb::Status
   Finish(rocksdb::UserCollectedProperties *properties) override;
@@ -164,6 +164,7 @@ private:
   uint64_t m_file_size;
   Rdb_compact_params m_params;
   Rdb_tbl_card_coll m_cardinality_collector;
+  bool m_recorded;
 };
 
 class Rdb_tbl_prop_coll_factory

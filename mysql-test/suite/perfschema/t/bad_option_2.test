@@ -4,9 +4,13 @@
 --source include/not_embedded.inc
 --source include/have_perfschema.inc
 
+--source include/kill_mysqld.inc
+
 let $outfile= $MYSQLTEST_VARDIR/tmp/bad_option_2.txt;
+--disable_warnings
 --error 0,1
 --remove_file $outfile
+--enable_warnings
 --error 3
 --exec $MYSQLD_BOOTSTRAP_CMD --loose-console --enable-getopt-prefix-matching --performance-schema-max_=12 > $outfile 2>&1
 --let SEARCH_PATTERN=ambiguous option '--performance-schema-max_=12'
@@ -14,3 +18,4 @@ let $outfile= $MYSQLTEST_VARDIR/tmp/bad_option_2.txt;
 --source include/search_pattern_in_file.inc
 --remove_file $outfile
 
+--source include/start_mysqld.inc

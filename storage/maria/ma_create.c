@@ -827,6 +827,11 @@ int maria_create(const char *name, enum data_file_type datafile_type,
     */
     share.state.skip_redo_lsn= share.state.is_of_horizon=
       share.state.create_rename_lsn= LSN_MAX;
+    /*
+      We have to mark the table as not movable as the table will contain the
+      maria_uuid and create_rename_lsn
+    */
+    share.state.changed|= STATE_NOT_MOVABLE;
   }
 
   if (datafile_type == DYNAMIC_RECORD)
@@ -1446,6 +1451,7 @@ int _ma_update_state_lsns_sub(MARIA_SHARE *share, LSN lsn, TrID create_trid,
   uchar buf[LSN_STORE_SIZE * 3], *ptr;
   uchar trid_buff[8];
   File file= share->kfile.file;
+  DBUG_ENTER("_ma_update_state_lsns_sub");
   DBUG_ASSERT(file >= 0);
 
   if (lsn == LSN_IMPOSSIBLE)
@@ -1464,7 +1470,7 @@ int _ma_update_state_lsns_sub(MARIA_SHARE *share, LSN lsn, TrID create_trid,
                                               0].length,
                                     sizeof(log_array)/sizeof(log_array[0]),
                                     log_array, NULL, NULL)))
-      return res;
+      DBUG_RETURN(res);
   }
 
   for (ptr= buf; ptr < (buf + sizeof(buf)); ptr+= LSN_STORE_SIZE)
@@ -1497,13 +1503,13 @@ int _ma_update_state_lsns_sub(MARIA_SHARE *share, LSN lsn, TrID create_trid,
   }
   else
     lsn_store(buf, share->state.create_rename_lsn);
-  return (my_pwrite(file, buf, sizeof(buf),
-                    sizeof(share->state.header) +
-                    MARIA_FILE_CREATE_RENAME_LSN_OFFSET, MYF(MY_NABP)) ||
-          my_pwrite(file, trid_buff, sizeof(trid_buff),
-                    sizeof(share->state.header) +
-                    MARIA_FILE_CREATE_TRID_OFFSET, MYF(MY_NABP)) ||
-          (do_sync && mysql_file_sync(file, MYF(0))));
+  DBUG_RETURN(my_pwrite(file, buf, sizeof(buf),
+                        sizeof(share->state.header) +
+                        MARIA_FILE_CREATE_RENAME_LSN_OFFSET, MYF(MY_NABP)) ||
+              my_pwrite(file, trid_buff, sizeof(trid_buff),
+                        sizeof(share->state.header) +
+                        MARIA_FILE_CREATE_TRID_OFFSET, MYF(MY_NABP)) ||
+              (do_sync && mysql_file_sync(file, MYF(0))));
 }
 #if defined(_MSC_VER) && (_MSC_VER == 1310)
 #pragma optimize("",on)

@@ -1916,9 +1916,12 @@ do_possible_lock_wait:
 
 		thr->lock_state = QUE_THR_LOCK_NOLOCK;
 
-		if (check_table->to_be_dropped
-		    || trx->error_state == DB_LOCK_WAIT_TIMEOUT) {
+		err = trx->error_state;
+		if (err != DB_SUCCESS) {
+		} else if (check_table->to_be_dropped) {
 			err = DB_LOCK_WAIT_TIMEOUT;
+		} else {
+			err = DB_LOCK_WAIT;
 		}
 
 		check_table->dec_fk_checks();
@@ -2338,10 +2341,10 @@ row_ins_duplicate_error_in_clust(
 						  true,
 						  ULINT_UNDEFINED, &heap);
 
-			ulint lock_type;
-
-			lock_type =
+			ulint lock_type =
 				trx->isolation_level <= TRX_ISO_READ_COMMITTED
+				|| (trx->mysql_thd
+				    && !thd_rpl_stmt_based(trx->mysql_thd))
 				? LOCK_REC_NOT_GAP : LOCK_ORDINARY;
 
 			/* We set a lock on the possible duplicate: this
@@ -2381,10 +2384,7 @@ row_ins_duplicate_error_in_clust(
 
 			if (row_ins_dupl_error_with_rec(
 				    rec, entry, cursor->index, offsets)) {
-duplicate:
-				trx->error_info = cursor->index;
-				err = DB_DUPLICATE_KEY;
-				goto func_exit;
+				goto duplicate;
 			}
 		}
 	}
@@ -2427,7 +2427,10 @@ duplicate:
 
 			if (row_ins_dupl_error_with_rec(
 				    rec, entry, cursor->index, offsets)) {
-				goto duplicate;
+duplicate:
+				trx->error_info = cursor->index;
+				err = DB_DUPLICATE_KEY;
+				goto func_exit;
 			}
 		}
 
@@ -2490,10 +2493,8 @@ row_ins_index_entry_big_rec(
 	const big_rec_t*	big_rec,
 	ulint*			offsets,
 	mem_heap_t**		heap,
-#ifndef DBUG_OFF
-	const void*		thd,
-#endif /* DBUG_OFF */
-	dict_index_t*		index)
+	dict_index_t*		index,
+	const void*		thd __attribute__((unused)))
 {
 	mtr_t		mtr;
 	btr_pcur_t	pcur;
@@ -2533,14 +2534,6 @@ row_ins_index_entry_big_rec(
 
 	return(error);
 }
-
-#ifdef DBUG_OFF
-# define row_ins_index_entry_big_rec(e,big,ofs,heap,index,thd) \
-	row_ins_index_entry_big_rec(e,big,ofs,heap,index)
-#else /* DBUG_OFF */
-# define row_ins_index_entry_big_rec(e,big,ofs,heap,index,thd) \
-	row_ins_index_entry_big_rec(e,big,ofs,heap,thd,index)
-#endif /* DBUG_OFF */
 
 /***************************************************************//**
 Tries to insert an entry into a clustered index, ignoring foreign key
@@ -2652,7 +2645,7 @@ row_ins_clust_index_entry_low(
 #endif /* UNIV_DEBUG */
 
 	if (UNIV_UNLIKELY(entry->info_bits != 0)) {
-		ut_ad(entry->info_bits == REC_INFO_DEFAULT_ROW);
+		ut_ad(entry->is_metadata());
 		ut_ad(flags == BTR_NO_LOCKING_FLAG);
 		ut_ad(index->is_instant());
 		ut_ad(!dict_index_is_online_ddl(index));
@@ -2660,29 +2653,18 @@ row_ins_clust_index_entry_low(
 
 		const rec_t* rec = btr_cur_get_rec(cursor);
 
-		switch (rec_get_info_bits(rec, page_rec_is_comp(rec))
-			& (REC_INFO_MIN_REC_FLAG | REC_INFO_DELETED_FLAG)) {
-		case REC_INFO_MIN_REC_FLAG:
+		if (rec_get_info_bits(rec, page_rec_is_comp(rec))
+		    & REC_INFO_MIN_REC_FLAG) {
 			thr_get_trx(thr)->error_info = index;
 			err = DB_DUPLICATE_KEY;
 			goto err_exit;
-		case REC_INFO_MIN_REC_FLAG | REC_INFO_DELETED_FLAG:
-			/* The 'default row' is never delete-marked.
-			If a table loses its 'instantness', it happens
-			by the rollback of this first-time insert, or
-			by a call to btr_page_empty() on the root page
-			when the table becomes empty. */
-			err = DB_CORRUPTION;
-			goto err_exit;
-		default:
-			ut_ad(!row_ins_must_modify_rec(cursor));
-			goto do_insert;
 		}
+
+		ut_ad(!row_ins_must_modify_rec(cursor));
+		goto do_insert;
 	}
 
-	if (index->is_instant()) entry->trim(*index);
-
-	if (rec_is_default_row(btr_cur_get_rec(cursor), index)) {
+	if (rec_is_metadata(btr_cur_get_rec(cursor), *index)) {
 		goto do_insert;
 	}
 
@@ -2748,6 +2730,7 @@ err_exit:
 		mtr_commit(&mtr);
 		mem_heap_free(entry_heap);
 	} else {
+		if (index->is_instant()) entry->trim(*index);
 do_insert:
 		rec_t*	insert_rec;
 
@@ -3092,9 +3075,11 @@ row_ins_sec_index_entry_low(
 	if (!(flags & BTR_NO_LOCKING_FLAG)
 	    && dict_index_is_unique(index)
 	    && thr_get_trx(thr)->duplicates
-	    && thr_get_trx(thr)->isolation_level >= TRX_ISO_REPEATABLE_READ) {
+	    && thr_get_trx(thr)->isolation_level >= TRX_ISO_REPEATABLE_READ
+	    && thd_rpl_stmt_based(thr_get_trx(thr)->mysql_thd)) {
 
-		/* When using the REPLACE statement or ON DUPLICATE clause, a
+		/* In statement-based replication, when replicating a
+		REPLACE statement or ON DUPLICATE KEY UPDATE clause, a
 		gap lock is taken on the position of the to-be-inserted record,
 		to avoid other concurrent transactions from inserting the same
 		record. */
@@ -3427,8 +3412,8 @@ columns in row.
 @param[in]	index	index handler
 @param[out]	entry	index entry to make
 @param[in]	row	row
-
 @return DB_SUCCESS if the set is successful */
+static
 dberr_t
 row_ins_index_entry_set_vals(
 	const dict_index_t*	index,
@@ -3465,6 +3450,23 @@ row_ins_index_entry_set_vals(
 			ut_ad(dtuple_get_n_fields(row)
 			      == dict_table_get_n_cols(index->table));
 			row_field = dtuple_get_nth_v_field(row, v_col->v_pos);
+		} else if (col->is_dropped()) {
+			ut_ad(index->is_primary());
+
+			if (!(col->prtype & DATA_NOT_NULL)) {
+				field->data = NULL;
+				field->len = UNIV_SQL_NULL;
+				field->type.prtype = DATA_BINARY_TYPE;
+			} else {
+				ut_ad(col->len <= sizeof field_ref_zero);
+				dfield_set_data(field, field_ref_zero,
+						col->len);
+				field->type.prtype = DATA_NOT_NULL;
+			}
+
+			field->type.mtype = col->len
+				? DATA_FIXBINARY : DATA_BINARY;
+			continue;
 		} else {
 			row_field = dtuple_get_nth_field(
 				row, ind_field->col->ind);
@@ -3474,7 +3476,7 @@ row_ins_index_entry_set_vals(
 
 		/* Check column prefix indexes */
 		if (ind_field != NULL && ind_field->prefix_len > 0
-		    && dfield_get_len(row_field) != UNIV_SQL_NULL) {
+		    && len != UNIV_SQL_NULL) {
 
 			const	dict_col_t*	col
 				= dict_field_get_col(ind_field);
@@ -3528,7 +3530,8 @@ row_ins_index_entry_step(
 
 	ut_ad(dtuple_check_typed(node->row));
 
-	err = row_ins_index_entry_set_vals(node->index, node->entry, node->row);
+	err = row_ins_index_entry_set_vals(node->index, node->entry,
+					   node->row);
 
 	if (err != DB_SUCCESS) {
 		DBUG_RETURN(err);
@@ -3645,14 +3648,15 @@ row_ins(
 	ins_node_t*	node,	/*!< in: row insert node */
 	que_thr_t*	thr)	/*!< in: query thread */
 {
-	dberr_t	err;
-
 	DBUG_ENTER("row_ins");
 
 	DBUG_PRINT("row_ins", ("table: %s", node->table->name.m_name));
 
+	trx_t* trx = thr_get_trx(thr);
+
 	if (node->duplicate) {
-		thr_get_trx(thr)->error_state = DB_DUPLICATE_KEY;
+		ut_ad(thd_rpl_stmt_based(trx->mysql_thd));
+		trx->error_state = DB_DUPLICATE_KEY;
 	}
 
 	if (node->state == INS_NODE_ALLOC_ROW_ID) {
@@ -3678,7 +3682,7 @@ row_ins(
 
 	while (node->index != NULL) {
 		if (node->index->type != DICT_FTS) {
-			err = row_ins_index_entry_step(node, thr);
+			dberr_t err = row_ins_index_entry_step(node, thr);
 
 			switch (err) {
 			case DB_SUCCESS:
@@ -3691,9 +3695,11 @@ row_ins(
 			case DB_DUPLICATE_KEY:
 				ut_ad(dict_index_is_unique(node->index));
 
-				if (thr_get_trx(thr)->isolation_level
+				if (trx->isolation_level
 				    >= TRX_ISO_REPEATABLE_READ
-				    && thr_get_trx(thr)->duplicates) {
+				    && trx->duplicates
+				    && !node->table->is_temporary()
+				    && thd_rpl_stmt_based(trx->mysql_thd)) {
 
 					/* When we are in REPLACE statement or
 					INSERT ..  ON DUPLICATE UPDATE
@@ -3756,7 +3762,7 @@ row_ins(
 						/* Save 1st dup error. Ignore
 						subsequent dup errors. */
 						node->duplicate = node->index;
-						thr_get_trx(thr)->error_state
+						trx->error_state
 							= DB_DUPLICATE_KEY;
 					}
 					break;
@@ -3765,18 +3771,6 @@ row_ins(
 			default:
 				DBUG_RETURN(err);
 			}
-		}
-
-		if (node->duplicate && node->table->is_temporary()) {
-			ut_ad(thr_get_trx(thr)->error_state
-			      == DB_DUPLICATE_KEY);
-			/* For TEMPORARY TABLE, we won't lock anything,
-			so we can simply break here instead of requiring
-			GAP locks for other unique secondary indexes,
-			pretending we have consumed all indexes. */
-			node->index = NULL;
-			node->entry = NULL;
-			break;
 		}
 
 		node->index = dict_table_get_next_index(node->index);
@@ -3797,6 +3791,7 @@ row_ins(
 		insertion will take place.  These gap locks are needed
 		only for unique indexes.  So skipping non-unique indexes. */
 		if (node->duplicate) {
+			ut_ad(thd_rpl_stmt_based(trx->mysql_thd));
 			while (node->index
 			       && !dict_index_is_unique(node->index)) {
 
@@ -3805,13 +3800,13 @@ row_ins(
 				node->entry = UT_LIST_GET_NEXT(tuple_list,
 							       node->entry);
 			}
-			thr_get_trx(thr)->error_state = DB_DUPLICATE_KEY;
+			trx->error_state = DB_DUPLICATE_KEY;
 		}
 	}
 
 	ut_ad(node->entry == NULL);
 
-	thr_get_trx(thr)->error_info = node->duplicate;
+	trx->error_info = node->duplicate;
 	node->state = INS_NODE_ALLOC_ROW_ID;
 
 	DBUG_RETURN(node->duplicate ? DB_DUPLICATE_KEY : DB_SUCCESS);

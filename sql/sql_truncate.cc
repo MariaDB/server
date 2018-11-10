@@ -299,7 +299,7 @@ bool Sql_cmd_truncate_table::lock_table(THD *thd, TABLE_LIST *table_ref,
   if (thd->locked_tables_mode)
   {
     if (!(table= find_table_for_mdl_upgrade(thd, table_ref->db.str,
-                                            table_ref->table_name.str, FALSE)))
+                                            table_ref->table_name.str, NULL)))
       DBUG_RETURN(TRUE);
 
     *hton_can_recreate= ha_check_storage_engine_flag(table->file->ht,
@@ -350,7 +350,8 @@ bool Sql_cmd_truncate_table::lock_table(THD *thd, TABLE_LIST *table_ref,
   {
     DEBUG_SYNC(thd, "upgrade_lock_for_truncate");
     /* To remove the table from the cache we need an exclusive lock. */
-    if (wait_while_table_is_used(thd, table, HA_EXTRA_PREPARE_FOR_DROP))
+    if (wait_while_table_is_used(thd, table,
+          *hton_can_recreate ? HA_EXTRA_PREPARE_FOR_DROP : HA_EXTRA_NOT_USED))
       DBUG_RETURN(TRUE);
     m_ticket_downgrade= table->mdl_ticket;
     /* Close if table is going to be recreated. */
@@ -399,6 +400,8 @@ bool Sql_cmd_truncate_table::truncate_table(THD *thd, TABLE_LIST *table_ref)
   {
     /* In RBR, the statement is not binlogged if the table is temporary. */
     binlog_stmt= !thd->is_current_stmt_binlog_format_row();
+
+    thd->close_unused_temporary_table_instances(table_ref);
 
     error= handler_truncate(thd, table_ref, TRUE);
 

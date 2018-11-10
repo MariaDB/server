@@ -20,7 +20,7 @@
   Tool used for executing a .test file
 
   See the "MySQL Test framework manual" for more information
-  http://dev.mysql.com/doc/mysqltest/en/index.html
+  https://mariadb.com/kb/en/library/mysqltest/
 
   Please keep the test framework tools identical in all versions!
 
@@ -107,7 +107,6 @@ enum {
 static int record= 0, opt_sleep= -1;
 static char *opt_db= 0, *opt_pass= 0;
 const char *opt_user= 0, *opt_host= 0, *unix_sock= 0, *opt_basedir= "./";
-static char *shared_memory_base_name=0;
 const char *opt_logdir= "";
 const char *opt_prologue= 0, *opt_charsets_dir;
 static int opt_port= 0;
@@ -5950,7 +5949,6 @@ do_handle_error:
   <opts> - options to use for the connection
    * SSL - use SSL if available
    * COMPRESS - use compression if available
-   * SHM - use shared memory if available
    * PIPE - use named pipe if available
 
 */
@@ -5962,7 +5960,6 @@ void do_connect(struct st_command *command)
   char *ssl_cipher __attribute__((unused))= 0;
   my_bool con_ssl= 0, con_compress= 0;
   my_bool con_pipe= 0;
-  my_bool con_shm __attribute__ ((unused))= 0;
   int read_timeout= 0;
   int write_timeout= 0;
   int connect_timeout= 0;
@@ -5977,9 +5974,6 @@ void do_connect(struct st_command *command)
   static DYNAMIC_STRING ds_sock;
   static DYNAMIC_STRING ds_options;
   static DYNAMIC_STRING ds_default_auth;
-#ifdef HAVE_SMEM
-  static DYNAMIC_STRING ds_shm;
-#endif
   const struct command_arg connect_args[] = {
     { "connection name", ARG_STRING, TRUE, &ds_connection_name, "Name of the connection" },
     { "host", ARG_STRING, TRUE, &ds_host, "Host to connect to" },
@@ -6007,11 +6001,6 @@ void do_connect(struct st_command *command)
     if (con_port == 0)
       die("Illegal argument for port: '%s'", ds_port.str);
   }
-
-#ifdef HAVE_SMEM
-  /* Shared memory */
-  init_dynamic_string(&ds_shm, ds_sock.str, 0, 0);
-#endif
 
   /* Sock */
   if (ds_sock.length)
@@ -6061,8 +6050,6 @@ void do_connect(struct st_command *command)
       con_compress= 1;
     else if (length == 4 && !strncmp(con_options, "PIPE", 4))
       con_pipe= 1;
-    else if (length == 3 && !strncmp(con_options, "SHM", 3))
-      con_shm= 1;
     else if (strncasecmp(con_options, "read_timeout=",
                          sizeof("read_timeout=")-1) == 0)
     {
@@ -6168,22 +6155,6 @@ void do_connect(struct st_command *command)
                   (char*)&connect_timeout);
   }
 
-#ifdef HAVE_SMEM
-  if (con_shm)
-  {
-    uint protocol= MYSQL_PROTOCOL_MEMORY;
-    if (!ds_shm.length)
-      die("Missing shared memory base name");
-    mysql_options(con_slot->mysql, MYSQL_SHARED_MEMORY_BASE_NAME, ds_shm.str);
-    mysql_options(con_slot->mysql, MYSQL_OPT_PROTOCOL, &protocol);
-  }
-  else if (shared_memory_base_name)
-  {
-    mysql_options(con_slot->mysql, MYSQL_SHARED_MEMORY_BASE_NAME,
-                  shared_memory_base_name);
-  }
-#endif
-
   /* Use default db name */
   if (ds_database.length == 0)
     dynstr_set(&ds_database, opt_db);
@@ -6223,9 +6194,6 @@ void do_connect(struct st_command *command)
   dynstr_free(&ds_sock);
   dynstr_free(&ds_options);
   dynstr_free(&ds_default_auth);
-#ifdef HAVE_SMEM
-  dynstr_free(&ds_shm);
-#endif
   DBUG_VOID_RETURN;
 }
 
@@ -7109,7 +7077,7 @@ static struct my_option my_long_options[] =
    GET_INT, REQUIRED_ARG, DEFAULT_MAX_CONN, 8, 5120, 0, 0, 0},
   {"password", 'p', "Password to use when connecting to server.",
    0, 0, 0, GET_STR, OPT_ARG, 0, 0, 0, 0, 0, 0},
-  {"protocol", OPT_MYSQL_PROTOCOL, "The protocol of connection (tcp,socket,pipe,memory).",
+  {"protocol", OPT_MYSQL_PROTOCOL, "The protocol of connection (tcp,socket,pipe).",
    0, 0, 0, GET_STR,  REQUIRED_ARG, 0, 0, 0, 0, 0, 0},
   {"port", 'P', "Port number to use for connection or 0 for default to, in "
    "order of preference, my.cnf, $MYSQL_TCP_PORT, "
@@ -7142,10 +7110,6 @@ static struct my_option my_long_options[] =
    0, 0, 0, GET_STR, REQUIRED_ARG, 0, 0, 0, 0, 0, 0},
   {"server-file", 'F', "Read embedded server arguments from file.",
    0, 0, 0, GET_STR, REQUIRED_ARG, 0, 0, 0, 0, 0, 0},
-  {"shared-memory-base-name", 0,
-   "Base name of shared memory.", &shared_memory_base_name, 
-   &shared_memory_base_name, 0, GET_STR, REQUIRED_ARG, 0, 0, 0, 
-   0, 0, 0},
   {"silent", 's', "Suppress all normal output. Synonym for --quiet.",
    &silent, &silent, 0, GET_BOOL, NO_ARG, 0, 0, 0, 0, 0, 0},
   {"sleep", 'T', "Always sleep this many seconds on sleep commands.",
@@ -9338,11 +9302,6 @@ int main(int argc, char **argv)
                   &opt_ssl_verify_server_cert);
 #endif
   }
-#endif
-
-#ifdef HAVE_SMEM
-  if (shared_memory_base_name)
-    mysql_options(con->mysql,MYSQL_SHARED_MEMORY_BASE_NAME,shared_memory_base_name);
 #endif
 
   if (!(con->name = my_strdup("default", MYF(MY_WME))))

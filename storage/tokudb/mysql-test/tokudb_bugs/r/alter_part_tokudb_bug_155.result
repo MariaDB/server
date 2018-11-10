@@ -30,8 +30,4 @@ ALTER TABLE test REORGANIZE PARTITION p201312 INTO (PARTITION pOld VALUES LESS T
 create table test_copy like test;
 insert into test_copy select * from test;
 include/diff_tables.inc [test, test_copy]
-Warnings:
-Warning	1287	'<select expression> INTO <destination>;' is deprecated and will be removed in a future release. Please use 'SELECT <select list> INTO <destination> FROM...' instead
-Warnings:
-Warning	1287	'<select expression> INTO <destination>;' is deprecated and will be removed in a future release. Please use 'SELECT <select list> INTO <destination> FROM...' instead
 drop table test,test_copy;

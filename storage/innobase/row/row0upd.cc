@@ -286,29 +286,7 @@ row_upd_check_references_constraints(
 					FALSE, FALSE, DICT_ERR_IGNORE_NONE);
 			}
 
-			/* dict_operation_lock is held both here
-			(UPDATE or DELETE with FOREIGN KEY) and by TRUNCATE
-			TABLE operations.
-			If a TRUNCATE TABLE operation is in progress,
-			there can be 2 possible conditions:
-			1) row_truncate_table_for_mysql() is not yet called.
-			2) Truncate releases dict_operation_lock
-			during eviction of pages from buffer pool
-			for a file-per-table tablespace.
-
-			In case of (1), truncate will wait for FK operation
-			to complete.
-			In case of (2), truncate will be rolled forward even
-			if it is interrupted. So if the foreign table is
-			undergoing a truncate, ignore the FK check. */
-
 			if (foreign_table) {
-				if (foreign_table->space
-				    && foreign_table->space
-				    ->is_being_truncated) {
-					continue;
-				}
-
 				foreign_table->inc_fk_checks();
 			}
 
@@ -704,7 +682,7 @@ row_upd_rec_in_place(
 		switch (rec_get_status(rec)) {
 		case REC_STATUS_ORDINARY:
 			break;
-		case REC_STATUS_COLUMNS_ADDED:
+		case REC_STATUS_INSTANT:
 			ut_ad(index->is_instant());
 			break;
 		case REC_STATUS_NODE_PTR:
@@ -1278,7 +1256,7 @@ row_upd_index_replace_new_col_val(
 	len = dfield_get_len(dfield);
 	data = static_cast<const byte*>(dfield_get_data(dfield));
 
-	if (field->prefix_len > 0) {
+	if (field && field->prefix_len > 0) {
 		ibool		fetch_ext = dfield_is_ext(dfield)
 			&& len < (ulint) field->prefix_len
 			+ BTR_EXTERN_FIELD_REF_SIZE;
@@ -1344,6 +1322,57 @@ row_upd_index_replace_new_col_val(
 	}
 }
 
+/** Apply an update vector to an metadata entry.
+@param[in,out]	entry	clustered index metadata record to be updated
+@param[in]	index	index of the entry
+@param[in]	update	update vector built for the entry
+@param[in,out]	heap	memory heap for copying off-page columns */
+static
+void
+row_upd_index_replace_metadata(
+	dtuple_t*		entry,
+	const dict_index_t*	index,
+	const upd_t*		update,
+	mem_heap_t*		heap)
+{
+	ut_ad(!index->table->skip_alter_undo);
+	ut_ad(update->is_alter_metadata());
+	ut_ad(entry->info_bits == update->info_bits);
+	ut_ad(entry->n_fields == ulint(index->n_fields) + 1);
+	const page_size_t& page_size = dict_table_page_size(index->table);
+	const ulint first = index->first_user_field();
+	ut_d(bool found_mblob = false);
+
+	for (ulint i = upd_get_n_fields(update); i--; ) {
+		const upd_field_t* uf = upd_get_nth_field(update, i);
+		ut_ad(!upd_fld_is_virtual_col(uf));
+		ut_ad(uf->field_no >= first - 2);
+		ulint f = uf->field_no;
+		dfield_t* dfield = dtuple_get_nth_field(entry, f);
+
+		if (f == first) {
+			ut_d(found_mblob = true);
+			ut_ad(!dfield_is_null(&uf->new_val));
+			ut_ad(dfield_is_ext(dfield));
+			ut_ad(dfield_get_len(dfield) == FIELD_REF_SIZE);
+			ut_ad(!dfield_is_null(dfield));
+			dfield_set_data(dfield, uf->new_val.data,
+					uf->new_val.len);
+			if (dfield_is_ext(&uf->new_val)) {
+				dfield_set_ext(dfield);
+			}
+			continue;
+		}
+
+		f -= f > first;
+		const dict_field_t* field = dict_index_get_nth_field(index, f);
+		row_upd_index_replace_new_col_val(dfield, field, field->col,
+						  uf, heap, page_size);
+	}
+
+	ut_ad(found_mblob);
+}
+
 /** Apply an update vector to an index entry.
 @param[in,out]	entry	index entry to be updated; the clustered index record
 			must be covered by a lock or a page latch to prevent
@@ -1359,6 +1388,12 @@ row_upd_index_replace_new_col_vals_index_pos(
 	mem_heap_t*		heap)
 {
 	ut_ad(!index->table->skip_alter_undo);
+	ut_ad(!entry->is_metadata() || entry->info_bits == update->info_bits);
+
+	if (UNIV_UNLIKELY(entry->is_alter_metadata())) {
+		row_upd_index_replace_metadata(entry, index, update, heap);
+		return;
+	}
 
 	const page_size_t&	page_size = dict_table_page_size(index->table);
 
@@ -1815,8 +1850,31 @@ row_upd_changes_ord_field_binary_func(
 				if (flag == ROW_BUILD_FOR_UNDO
 				    && dict_table_has_atomic_blobs(
 					    index->table)) {
-					/* For undo, and the table is Barrcuda,
-					we need to skip the prefix data. */
+					/* For ROW_FORMAT=DYNAMIC
+					or COMPRESSED, a prefix of
+					off-page records is stored
+					in the undo log record
+					(for any column prefix indexes).
+					For SPATIAL INDEX, we must
+					ignore this prefix. The
+					full column value is stored in
+					the BLOB.
+					For non-spatial index, we
+					would have already fetched a
+					necessary prefix of the BLOB,
+					available in the "ext" parameter.
+
+					Here, for SPATIAL INDEX, we are
+					fetching the full column, which is
+					potentially wasting a lot of I/O,
+					memory, and possibly involving a
+					concurrency problem, similar to ones
+					that existed before the introduction
+					of row_ext_t.
+
+					MDEV-11657 FIXME: write the MBR
+					directly to the undo log record,
+					and avoid recomputing it here! */
 					flen = BTR_EXTERN_FIELD_REF_SIZE;
 					ut_ad(dfield_get_len(new_field) >=
 					      BTR_EXTERN_FIELD_REF_SIZE);
@@ -2163,6 +2221,7 @@ row_upd_store_v_row(
 				}
 
 				dfield_copy_data(dfield, upd_field->old_v_val);
+				dfield_dup(dfield, node->heap);
 				break;
 			}
 
@@ -2183,6 +2242,7 @@ row_upd_store_v_row(
 								update->old_vrow,
 								col_no);
 						dfield_copy_data(dfield, vfield);
+						dfield_dup(dfield, node->heap);
 					}
 				} else {
 					/* Need to compute, this happens when
@@ -2559,10 +2619,10 @@ row_upd_sec_step(
 }
 
 #ifdef UNIV_DEBUG
-# define row_upd_clust_rec_by_insert_inherit(rec,offsets,entry,update)	\
-	row_upd_clust_rec_by_insert_inherit_func(rec,offsets,entry,update)
+# define row_upd_clust_rec_by_insert_inherit(rec,index,offsets,entry,update) \
+	row_upd_clust_rec_by_insert_inherit_func(rec,index,offsets,entry,update)
 #else /* UNIV_DEBUG */
-# define row_upd_clust_rec_by_insert_inherit(rec,offsets,entry,update)	\
+# define row_upd_clust_rec_by_insert_inherit(rec,index,offsets,entry,update) \
 	row_upd_clust_rec_by_insert_inherit_func(rec,entry,update)
 #endif /* UNIV_DEBUG */
 /*******************************************************************//**
@@ -2577,6 +2637,7 @@ row_upd_clust_rec_by_insert_inherit_func(
 /*=====================================*/
 	const rec_t*	rec,	/*!< in: old record, or NULL */
 #ifdef UNIV_DEBUG
+	dict_index_t*	index,	/*!< in: index, or NULL */
 	const ulint*	offsets,/*!< in: rec_get_offsets(rec), or NULL */
 #endif /* UNIV_DEBUG */
 	dtuple_t*	entry,	/*!< in/out: updated entry to be
@@ -2587,6 +2648,8 @@ row_upd_clust_rec_by_insert_inherit_func(
 	ulint	i;
 
 	ut_ad(!rec == !offsets);
+	ut_ad(!rec == !index);
+	ut_ad(!rec || rec_offs_validate(rec, index, offsets));
 	ut_ad(!rec || rec_offs_any_extern(offsets));
 
 	for (i = 0; i < dtuple_get_n_fields(entry); i++) {
@@ -2597,6 +2660,9 @@ row_upd_clust_rec_by_insert_inherit_func(
 		ut_ad(!offsets
 		      || !rec_offs_nth_extern(offsets, i)
 		      == !dfield_is_ext(dfield)
+		      || (!dict_index_get_nth_field(index, i)->name
+			  && !dfield_is_ext(dfield)
+			  && (dfield_is_null(dfield) || dfield->len == 0))
 		      || upd_get_field_by_field_no(update, i, false));
 		if (!dfield_is_ext(dfield)
 		    || upd_get_field_by_field_no(update, i, false)) {
@@ -2704,7 +2770,7 @@ row_upd_clust_rec_by_insert(
 		/* A lock wait occurred in row_ins_clust_index_entry() in
 		the previous invocation of this function. */
 		row_upd_clust_rec_by_insert_inherit(
-			NULL, NULL, entry, node->update);
+			NULL, NULL, NULL, entry, node->update);
 		break;
 	case UPD_NODE_UPDATE_CLUSTERED:
 		/* This is the first invocation of the function where
@@ -2745,7 +2811,8 @@ err_exit:
 
 		if (rec_offs_any_extern(offsets)) {
 			if (row_upd_clust_rec_by_insert_inherit(
-				    rec, offsets, entry, node->update)) {
+				    rec, index, offsets,
+				    entry, node->update)) {
 				/* The blobs are disowned here, expecting the
 				insert down below to inherit them.  But if the
 				insert fails, then this disown will be undone

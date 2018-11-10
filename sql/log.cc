@@ -1162,6 +1162,10 @@ bool LOGGER::error_log_print(enum loglevel level, const char *format,
 {
   bool error= FALSE;
   Log_event_handler **current_handler;
+  THD *thd= current_thd;
+
+  if (likely(thd))
+    thd->error_printed_to_log= 1;
 
   /* currently we don't need locking here as there is no error_log table */
   for (current_handler= error_log_handler_list ; *current_handler ;)
@@ -1703,14 +1707,14 @@ static int binlog_close_connection(handlerton *hton, THD *thd)
     uchar *buf;
     size_t len=0;
     wsrep_write_cache_buf(cache, &buf, &len);
-    WSREP_WARN("binlog trx cache not empty (%lu bytes) @ connection close %lld",
-               (ulong) len, (longlong) thd->thread_id);
+    WSREP_WARN("binlog trx cache not empty (%zu bytes) @ connection close %lld",
+               len, (longlong) thd->thread_id);
     if (len > 0) wsrep_dump_rbr_buf(thd, buf, len);
 
     cache = cache_mngr->get_binlog_cache_log(false);
     wsrep_write_cache_buf(cache, &buf, &len);
-    WSREP_WARN("binlog stmt cache not empty (%lu bytes) @ connection close %lld",
-               (ulong) len, (longlong) thd->thread_id);
+    WSREP_WARN("binlog stmt cache not empty (%zu bytes) @ connection close %lld",
+               len, (longlong) thd->thread_id);
     if (len > 0) wsrep_dump_rbr_buf(thd, buf, len);
   }
 #endif /* WITH_WSREP */
@@ -2746,14 +2750,14 @@ void MYSQL_LOG::close(uint exiting)
     if (log_type == LOG_BIN && mysql_file_sync(log_file.file, MYF(MY_WME)) && ! write_error)
     {
       write_error= 1;
-      sql_print_error(ER_THD_OR_DEFAULT(current_thd, ER_ERROR_ON_WRITE), name, errno);
+      sql_print_error(ER_DEFAULT(ER_ERROR_ON_WRITE), name, errno);
     }
 
     if (!(exiting & LOG_CLOSE_DELAYED_CLOSE) &&
         mysql_file_close(log_file.file, MYF(MY_WME)) && ! write_error)
     {
       write_error= 1;
-      sql_print_error(ER_THD_OR_DEFAULT(current_thd, ER_ERROR_ON_WRITE), name, errno);
+      sql_print_error(ER_DEFAULT(ER_ERROR_ON_WRITE), name, errno);
     }
   }
 
@@ -2937,7 +2941,7 @@ err:
   if (!write_error)
   {
     write_error= 1;
-    sql_print_error(ER(ER_ERROR_ON_WRITE), name, errno);
+    sql_print_error(ER_DEFAULT(ER_ERROR_ON_WRITE), name, errno);
   }
   mysql_mutex_unlock(&LOCK_log);
   return TRUE;
@@ -8474,8 +8478,7 @@ void MYSQL_BIN_LOG::close(uint exiting)
         ! write_error)
     {
       write_error= 1;
-      sql_print_error(ER_THD_OR_DEFAULT(current_thd, ER_ERROR_ON_WRITE),
-                      index_file_name, errno);
+      sql_print_error(ER_DEFAULT(ER_ERROR_ON_WRITE), index_file_name, errno);
     }
   }
   log_state= (exiting & LOG_CLOSE_TO_BE_OPENED) ? LOG_TO_BE_OPENED : LOG_CLOSED;

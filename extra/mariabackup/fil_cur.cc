@@ -130,14 +130,15 @@ Open a source file cursor and initialize the associated read filter.
 be skipped and XB_FIL_CUR_ERROR on error. */
 xb_fil_cur_result_t
 xb_fil_cur_open(
-/*============*/
+	/*============*/
 	xb_fil_cur_t*	cursor,		/*!< out: source file cursor */
 	xb_read_filt_t*	read_filter,	/*!< in/out: the read filter */
 	fil_node_t*	node,		/*!< in: source tablespace node */
-	uint		thread_n)	/*!< thread number for diagnostics */
+	uint		thread_n,	/*!< thread number for diagnostics */
+	ulonglong max_file_size)
 {
 	bool	success;
-
+	int err;
 	/* Initialize these first so xb_fil_cur_close() handles them correctly
 	in case of error */
 	cursor->orig_buf = NULL;
@@ -172,7 +173,7 @@ xb_fil_cur_open(
 			    "tablespace %s\n",
 			    thread_n, cursor->abs_path);
 
-			return(XB_FIL_CUR_ERROR);
+			return(XB_FIL_CUR_SKIP);
 		}
 		mutex_enter(&fil_system.mutex);
 
@@ -193,14 +194,31 @@ xb_fil_cur_open(
 
 	cursor->node = node;
 	cursor->file = node->handle;
-
-	if (stat(cursor->abs_path, &cursor->statinfo)) {
-		msg("[%02u] mariabackup: error: cannot stat %s\n",
+#ifdef _WIN32
+    HANDLE hDup;
+    DuplicateHandle(GetCurrentProcess(),cursor->file.m_file,
+		GetCurrentProcess(), &hDup, 0, FALSE, DUPLICATE_SAME_ACCESS);
+	int filenr = _open_osfhandle((intptr_t)hDup, 0);
+	if (filenr < 0) {
+		err = EINVAL;
+	}
+	else {
+		err = _fstat64(filenr, &cursor->statinfo);
+		close(filenr);
+	}
+#else
+	err = fstat(cursor->file.m_file, &cursor->statinfo);
+#endif
+	if (max_file_size < (ulonglong)cursor->statinfo.st_size) {
+		cursor->statinfo.st_size = (ulonglong)max_file_size;
+	}
+	if (err) {
+		msg("[%02u] mariabackup: error: cannot fstat %s\n",
 		    thread_n, cursor->abs_path);
 
 		xb_fil_cur_close(cursor);
 
-		return(XB_FIL_CUR_ERROR);
+		return(XB_FIL_CUR_SKIP);
 	}
 
 	if (srv_file_flush_method == SRV_O_DIRECT
@@ -325,39 +343,39 @@ read_retry:
 	     page += page_size, i++) {
 		ulint page_no = cursor->buf_page_no + i;
 
-		if (cursor->space_id == TRX_SYS_SPACE &&
-		    page_no >= FSP_EXTENT_SIZE &&
-		    page_no < FSP_EXTENT_SIZE * 3) {
-			/* We ignore the doublewrite buffer pages */
-		} else if (!fil_space_verify_crypt_checksum(
-				   page, cursor->page_size, space->id, page_no)
-			   && buf_page_is_corrupted(true, page,
-						    cursor->page_size,
-						    space)) {
-			retry_count--;
-			if (retry_count == 0) {
-				msg("[%02u] mariabackup: "
-				    "Error: failed to read page after "
-				    "10 retries. File %s seems to be "
-				    "corrupted.\n", cursor->thread_n,
-				    cursor->abs_path);
-				ret = XB_FIL_CUR_ERROR;
-				break;
-			}
+                if (cursor->space_id == TRX_SYS_SPACE &&
+                    page_no >= FSP_EXTENT_SIZE &&
+                    page_no < FSP_EXTENT_SIZE * 3) {
+                        /* We ignore the doublewrite buffer pages */
+                } else if (!fil_space_verify_crypt_checksum(
+                                   page, cursor->page_size, space->id, page_no)
+                           && buf_page_is_corrupted(true, page,
+                                                    cursor->page_size,
+                                                    space)) {
+                        retry_count--;
+                        if (retry_count == 0) {
+                                msg("[%02u] mariabackup: "
+                                    "Error: failed to read page after "
+                                    "10 retries. File %s seems to be "
+                                    "corrupted.\n", cursor->thread_n,
+                                    cursor->abs_path);
+                                ret = XB_FIL_CUR_ERROR;
+                                break;
+                        }
 
-			if (retry_count == 9) {
-				msg("[%02u] mariabackup: "
-				    "Database page corruption detected at page "
-				    ULINTPF ", retrying...\n",
-				    cursor->thread_n, page_no);
-			}
+                        if (retry_count == 9) {
+                                msg("[%02u] mariabackup: "
+                                    "Database page corruption detected at page "
+                                    ULINTPF ", retrying...\n",
+                                    cursor->thread_n, page_no);
+                        }
 
-			os_thread_sleep(100000);
+                        os_thread_sleep(100000);
 
-			goto read_retry;
-		}
-		cursor->buf_read += page_size;
-		cursor->buf_npages++;
+                        goto read_retry;
+                }
+                cursor->buf_read += page_size;
+                cursor->buf_npages++;
 	}
 
 	posix_fadvise(cursor->file, offset, to_read, POSIX_FADV_DONTNEED);
@@ -373,7 +391,9 @@ xb_fil_cur_close(
 /*=============*/
 	xb_fil_cur_t *cursor)	/*!< in/out: source file cursor */
 {
-	cursor->read_filter->deinit(&cursor->read_filter_ctxt);
+	if (cursor->read_filter) {
+		cursor->read_filter->deinit(&cursor->read_filter_ctxt);
+	}
 
 	free(cursor->orig_buf);
 

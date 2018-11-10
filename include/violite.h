@@ -38,7 +38,7 @@ typedef struct st_vio Vio;
 enum enum_vio_type
 {
   VIO_CLOSED, VIO_TYPE_TCPIP, VIO_TYPE_SOCKET, VIO_TYPE_NAMEDPIPE,
-  VIO_TYPE_SSL, VIO_TYPE_SHARED_MEMORY
+  VIO_TYPE_SSL
 };
 
 /**
@@ -68,13 +68,6 @@ Vio* vio_new(my_socket sd, enum enum_vio_type type, uint flags);
 Vio*  mysql_socket_vio_new(MYSQL_SOCKET mysql_socket, enum enum_vio_type type, uint flags);
 #ifdef __WIN__
 Vio* vio_new_win32pipe(HANDLE hPipe);
-Vio* vio_new_win32shared_memory(HANDLE handle_file_map,
-                                HANDLE handle_map,
-                                HANDLE event_server_wrote,
-                                HANDLE event_server_read,
-                                HANDLE event_client_wrote,
-                                HANDLE event_client_read,
-                                HANDLE event_conn_closed);
 #else
 #define HANDLE void *
 #endif /* __WIN__ */
@@ -265,22 +258,9 @@ struct st_vio
 #ifdef HAVE_OPENSSL
   void	  *ssl_arg;
 #endif
-#ifdef HAVE_SMEM
-  HANDLE  handle_file_map;
-  char    *handle_map;
-  HANDLE  event_server_wrote;
-  HANDLE  event_server_read;
-  HANDLE  event_client_wrote;
-  HANDLE  event_client_read;
-  HANDLE  event_conn_closed;
-  size_t  shared_memory_remain;
-  char    *shared_memory_pos;
-#endif /* HAVE_SMEM */
 #ifdef _WIN32
   HANDLE hPipe;
   OVERLAPPED overlapped;
-  DWORD read_timeout_ms;
-  DWORD write_timeout_ms;
 #endif
 };
 #endif /* vio_violite_h_ */

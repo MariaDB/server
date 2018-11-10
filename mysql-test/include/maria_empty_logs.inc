@@ -92,3 +92,15 @@ connection default;
 --disable_query_log
 eval use $default_db;
 --enable_query_log
+
+#
+# Ensure that we don't get warnings from mysql.priv (used by check_mysqld)
+# or test running after this one.
+#
+--disable_query_log
+--disable_warnings
+--disable_result_log
+show table status from mysql;
+--enable_result_log
+--enable_warnings
+--enable_query_log

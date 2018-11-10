@@ -19,11 +19,16 @@ abandons
 connection slave;
 stop slave;
 connection master;
+create temporary table tmp select * from mysql.user where host="localhost" and user="root";
 set password for root@"localhost" = password('foo');
 connection slave;
 start slave;
 connection master;
-set password for root@"localhost" = password('');
+replace into mysql.user select * from tmp;
+Warnings:
+Note	1592	Unsafe statement written to the binary log using statement format since BINLOG_FORMAT = STATEMENT. REPLACE... SELECT is unsafe because the order in which rows are retrieved by the SELECT determines which (if any) rows are replaced. This order cannot be predicted and may differ on master and the slave
+drop temporary table tmp;
+flush privileges;
 create table t3(n int);
 insert into t3 values(1),(2);
 connection slave;

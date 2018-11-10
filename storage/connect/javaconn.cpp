@@ -82,29 +82,6 @@ GETDEF JAVAConn::GetDefaultJavaVMInitArgs = NULL;
 #endif  // !_DEBUG
 
 /***********************************************************************/
-/*  Allocate the structure used to refer to the result set.            */
-/***********************************************************************/
-static JCATPARM *AllocCatInfo(PGLOBAL g, JCATINFO fid, PCSZ db,
-	PCSZ tab, PQRYRES qrp)
-{
-	JCATPARM *cap;
-
-#if defined(_DEBUG)
-	assert(qrp);
-#endif
-
-	if ((cap = (JCATPARM *)PlgDBSubAlloc(g, NULL, sizeof(JCATPARM)))) {
-		memset(cap, 0, sizeof(JCATPARM));
-		cap->Id = fid;
-		cap->Qrp = qrp;
-		cap->DB = db;
-		cap->Tab = tab;
-	} // endif cap
-
-	return cap;
-} // end of AllocCatInfo
-
-/***********************************************************************/
 /*  JAVAConn construction/destruction.                                 */
 /***********************************************************************/
 JAVAConn::JAVAConn(PGLOBAL g, PCSZ wrapper)
@@ -138,6 +115,16 @@ JAVAConn::JAVAConn(PGLOBAL g, PCSZ wrapper)
 //  EndCom();
 
 //  } // end of ~JAVAConn
+char *JAVAConn::GetUTFString(jstring s)
+{
+	char *str;
+	const char *utf = env->GetStringUTFChars(s, nullptr);
+
+	str = PlugDup(m_G, utf);
+	env->ReleaseStringUTFChars(s, utf);
+	env->DeleteLocalRef(s);
+	return str;
+}	// end of GetUTFString
 
 /***********************************************************************/
 /*  Screen for errors.                                                 */
@@ -152,17 +139,15 @@ bool JAVAConn::Check(jint rc)
 			"toString", "()Ljava/lang/String;");
 
 		if (exc != nullptr && tid != nullptr) {
-			jstring s = (jstring)env->CallObjectMethod(exc, tid);
-			const char *utf = env->GetStringUTFChars(s, (jboolean)false);
-			env->DeleteLocalRef(s);
-			Msg = PlugDup(m_G, utf);
+			s = (jstring)env->CallObjectMethod(exc, tid);
+			Msg = GetUTFString(s);
 		} else
 			Msg = "Exception occured";
 
 		env->ExceptionClear();
 	} else if (rc < 0) {
 		s = (jstring)env->CallObjectMethod(job, errid);
-		Msg = (char*)env->GetStringUTFChars(s, (jboolean)false);
+		Msg = GetUTFString(s);
 	} else
 		Msg = NULL;
 
@@ -456,7 +441,7 @@ bool JAVAConn::Open(PGLOBAL g)
 
 		//=============== load and initialize Java VM and JNI interface =============
 		rc = CreateJavaVM(&jvm, (void**)&env, &vm_args);  // YES !!
-		delete options;    // we then no longer need the initialisation options.
+		delete[] options;    // we then no longer need the initialisation options.
 
 		switch (rc) {
 			case JNI_OK:

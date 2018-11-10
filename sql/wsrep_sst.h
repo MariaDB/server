@@ -31,6 +31,7 @@
 #define WSREP_SST_OPT_CONF_EXTRA  "--defaults-extra-file"
 #define WSREP_SST_OPT_PARENT   "--parent"
 #define WSREP_SST_OPT_BINLOG   "--binlog"
+#define WSREP_SST_OPT_BINLOG_INDEX "--binlog-index"
 
 // mysqldump-specific options
 #define WSREP_SST_OPT_USER     "--user"

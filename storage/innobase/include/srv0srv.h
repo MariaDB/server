@@ -900,23 +900,6 @@ srv_purge_wakeup();
 /** Shut down the purge threads. */
 void srv_purge_shutdown();
 
-/** Check if tablespace is being truncated.
-(Ignore system-tablespace as we don't re-create the tablespace
-and so some of the action that are suppressed by this function
-for independent tablespace are not applicable to system-tablespace).
-@param	space_id	space_id to check for truncate action
-@return true		if being truncated, false if not being
-			truncated or tablespace is system-tablespace. */
-bool
-srv_is_tablespace_truncated(ulint space_id);
-
-/** Check if tablespace was truncated.
-@param[in]	space	space object to check for truncate action
-@return true if tablespace was truncated and we still have an active
-MLOG_TRUNCATE REDO log record. */
-bool
-srv_was_tablespace_truncated(const fil_space_t* space);
-
 #ifdef UNIV_DEBUG
 /** Disables master thread. It's used by:
 	SET GLOBAL innodb_master_thread_disabled_debug = 1 (0).
@@ -993,6 +976,8 @@ struct export_var_t{
 	ulint innodb_truncated_status_writes;	/*!< srv_truncated_status_writes */
 	ulint innodb_available_undo_logs;       /*!< srv_available_undo_logs
 						*/
+	/** Number of undo tablespace truncation operations */
+	ulong innodb_undo_truncations;
 	ulint innodb_defragment_compression_failures; /*!< Number of
 						defragment re-compression
 						failures */
@@ -1009,12 +994,6 @@ struct export_var_t{
 	ulint innodb_onlineddl_rowlog_pct_used; /*!< Online alter percentage
 						of used row log buffer */
 	ulint innodb_onlineddl_pct_progress;	/*!< Online alter progress */
-
-#ifdef UNIV_DEBUG
-	ulint innodb_ahi_drop_lookups;		/*!< number of adaptive hash
-						index lookups when freeing
-						file pages */
-#endif /* UNIV_DEBUG */
 
 	int64_t innodb_page_compression_saved;/*!< Number of bytes saved
 						by page compression */

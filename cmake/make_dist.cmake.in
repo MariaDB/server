@@ -110,7 +110,7 @@ CONFIGURE_FILE(${CMAKE_BINARY_DIR}/sql/sql_yacc.cc
 CONFIGURE_FILE(${CMAKE_BINARY_DIR}/sql/sql_yacc_ora.hh
    ${PACKAGE_DIR}/sql/sql_yacc_ora.hh COPYONLY)
 CONFIGURE_FILE(${CMAKE_BINARY_DIR}/sql/sql_yacc_ora.cc
-   ${PACKAGE_DIR}/sql/sql_yacc_orac.cc COPYONLY)
+   ${PACKAGE_DIR}/sql/sql_yacc_ora.cc COPYONLY)
 
 # Add documentation, if user has specified where to find them
 IF(MYSQL_DOCS_LOCATION)

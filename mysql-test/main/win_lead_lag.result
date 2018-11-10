@@ -226,4 +226,15 @@ pk	a	b	a+b	lag(a + b) over (partition by a order by pk) + pk
 9	2	2	4	12
 10	2	0	2	14
 11	2	10	12	13
+#
+# MDEV-15204 - LAG function doesn't require ORDER BY in OVER clause
+#
+select pk,
+lag(pk, 1) over ()
+from t1;
+ERROR HY000: No order list in window specification for 'lag'
+select pk,
+lead(pk, 1) over ()
+from t1;
+ERROR HY000: No order list in window specification for 'lead'
 drop table t1;

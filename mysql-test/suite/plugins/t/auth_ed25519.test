@@ -28,6 +28,15 @@ query_vertical select * from information_schema.plugins where plugin_name='ed255
 let $pwd=`select ed25519_password("secret")`;
 eval create user test1@localhost identified via ed25519 using '$pwd';
 show grants for test1@localhost;
+drop user test1@localhost;
+create user test1@localhost identified via ed25519 using password('foo');
+show grants for test1@localhost;
+select ed25519_password('foo');
+set password for test1@localhost = password('bar');
+show create user test1@localhost;
+select ed25519_password('bar');
+eval set password for test1@localhost = '$pwd';
+show create user test1@localhost;
 
 replace_result $MASTER_MYPORT PORT $MASTER_MYSOCK SOCKET;
 error ER_ACCESS_DENIED_ERROR;

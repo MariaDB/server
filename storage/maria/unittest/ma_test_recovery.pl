@@ -235,8 +235,8 @@ sub main
           # It is impossible to do a "cmp" between .good and .after_undo,
           # because the UNDO phase generated log
           # records whose LSN tagged pages. Another reason is that rolling back
-          # INSERT only marks the rows free, does not empty them (optimization), so
-          # traces of the INSERT+rollback remain.
+          # INSERT only marks the rows free, does not empty them
+          # (optimization), so traces of the INSERT+rollback remain.
 
           check_table_is_same($table, $checksum);
           print MY_LOG "testing idempotency\n";

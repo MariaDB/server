@@ -1298,7 +1298,7 @@ buf_flush_page_try(
 static
 bool
 buf_flush_check_neighbor(
-	const page_id_t&	page_id,
+	const page_id_t		page_id,
 	buf_flush_t		flush_type)
 {
 	buf_page_t*	bpage;
@@ -1348,7 +1348,7 @@ buf_flush_check_neighbor(
 static
 ulint
 buf_flush_try_neighbors(
-	const page_id_t&	page_id,
+	const page_id_t		page_id,
 	buf_flush_t		flush_type,
 	ulint			n_flushed,
 	ulint			n_to_flush)
@@ -3769,18 +3769,12 @@ FlushObserver::~FlushObserver()
 	DBUG_LOG("flush", "~FlushObserver(): trx->id=" << m_trx->id);
 }
 
-/** Check whether trx is interrupted
-@return true if trx is interrupted */
-bool
-FlushObserver::check_interrupted()
+/** Check whether the operation has been interrupted */
+void FlushObserver::check_interrupted()
 {
 	if (trx_is_interrupted(m_trx)) {
 		interrupted();
-
-		return(true);
 	}
-
-	return(false);
 }
 
 /** Notify observer of a flush

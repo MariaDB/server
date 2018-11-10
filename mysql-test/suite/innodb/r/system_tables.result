@@ -5,4 +5,4 @@ select convert_tz(starttime,'UTC','Europe/Moscow') starttime from envois3;
 starttime
 2008-08-12 02:43:00
 drop table envois3;
-alter table mysql.time_zone_name engine=MyISAM;
+alter table mysql.time_zone_name engine=Aria;

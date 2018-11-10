@@ -583,6 +583,44 @@ fseg_free_step_not_header_func(
 	fseg_free_step_not_header_func(header, mtr)
 #endif /* BTR_CUR_HASH_ADAPT */
 
+/** Reset the page type.
+Data files created before MySQL 5.1.48 may contain garbage in FIL_PAGE_TYPE.
+In MySQL 3.23.53, only undo log pages and index pages were tagged.
+Any other pages were written with uninitialized bytes in FIL_PAGE_TYPE.
+@param[in]	block	block with invalid FIL_PAGE_TYPE
+@param[in]	type	expected page type
+@param[in,out]	mtr	mini-transaction */
+ATTRIBUTE_COLD
+void fil_block_reset_type(const buf_block_t& block, ulint type, mtr_t* mtr);
+
+/** Get the file page type.
+@param[in]	page	file page
+@return page type */
+inline uint16_t fil_page_get_type(const byte* page)
+{
+	return mach_read_from_2(page + FIL_PAGE_TYPE);
+}
+
+/** Check (and if needed, reset) the page type.
+Data files created before MySQL 5.1.48 may contain
+garbage in the FIL_PAGE_TYPE field.
+In MySQL 3.23.53, only undo log pages and index pages were tagged.
+Any other pages were written with uninitialized bytes in FIL_PAGE_TYPE.
+@param[in]	page_id	page number
+@param[in,out]	page	page with possibly invalid FIL_PAGE_TYPE
+@param[in]	type	expected page type
+@param[in,out]	mtr	mini-transaction */
+inline void
+fil_block_check_type(
+	const buf_block_t&	block,
+	ulint			type,
+	mtr_t*			mtr)
+{
+	if (UNIV_UNLIKELY(type != fil_page_get_type(block.frame))) {
+		fil_block_reset_type(block, type, mtr);
+	}
+}
+
 /** Checks if a page address is an extent descriptor page address.
 @param[in]	page_id		page id
 @param[in]	page_size	page size
@@ -590,7 +628,7 @@ fseg_free_step_not_header_func(
 UNIV_INLINE
 ibool
 fsp_descr_page(
-	const page_id_t&	page_id,
+	const page_id_t		page_id,
 	const page_size_t&	page_size);
 
 /***********************************************************//**

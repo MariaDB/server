@@ -454,7 +454,7 @@ int _ma_mark_file_changed_now(register MARIA_SHARE *share)
     }
     /* Set uuid of file if not yet set (zerofilled file) */
     if (share->base.born_transactional &&
-        !(share->state.changed & STATE_NOT_MOVABLE))
+        !(share->state.org_changed & STATE_NOT_MOVABLE))
     {
       /* Lock table to current installation */
       if (_ma_set_uuid(share, 0) ||
@@ -464,6 +464,7 @@ int _ma_mark_file_changed_now(register MARIA_SHARE *share)
                                      TRUE, TRUE)))
         goto err;
       share->state.changed|= STATE_NOT_MOVABLE;
+      share->state.org_changed|= STATE_NOT_MOVABLE;
     }
   }
   error= 0;

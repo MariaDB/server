@@ -414,9 +414,10 @@ bool close_cached_tables(THD *thd, TABLE_LIST *tables,
     for (TABLE_LIST *table_list= tables_to_reopen; table_list;
          table_list= table_list->next_global)
     {
+      int err;
       /* A check that the table was locked for write is done by the caller. */
       TABLE *table= find_table_for_mdl_upgrade(thd, table_list->db.str,
-                                               table_list->table_name.str, TRUE);
+                                            table_list->table_name.str, &err);
 
       /* May return NULL if this table has already been closed via an alias. */
       if (! table)
@@ -597,6 +598,7 @@ bool close_cached_connection_tables(THD *thd, LEX_CSTRING *connection)
 
 static void mark_used_tables_as_free_for_reuse(THD *thd, TABLE *table)
 {
+  DBUG_ENTER("mark_used_tables_as_free_for_reuse");
   for (; table ; table= table->next)
   {
     DBUG_ASSERT(table->pos_in_locked_tables == NULL ||
@@ -607,6 +609,7 @@ static void mark_used_tables_as_free_for_reuse(THD *thd, TABLE *table)
       table->file->ha_reset();
     }
   }
+  DBUG_VOID_RETURN;
 }
 
 
@@ -648,6 +651,7 @@ close_all_tables_for_name(THD *thd, TABLE_SHARE *share,
   size_t key_length= share->table_cache_key.length;
   const char *db= key;
   const char *table_name= db + share->db.length + 1;
+  bool remove_from_locked_tables= extra != HA_EXTRA_NOT_USED;
 
   memcpy(key, share->table_cache_key.str, key_length);
 
@@ -661,7 +665,7 @@ close_all_tables_for_name(THD *thd, TABLE_SHARE *share,
     {
       thd->locked_tables_list.unlink_from_list(thd,
                                                table->pos_in_locked_tables,
-                                               extra != HA_EXTRA_NOT_USED);
+                                               remove_from_locked_tables);
       /* Inform handler that there is a drop table or a rename going on */
       if (extra != HA_EXTRA_NOT_USED && table->db_stat)
       {
@@ -1499,6 +1503,65 @@ static int set_partitions_as_used(TABLE_LIST *tl, TABLE *t)
 
 
 /**
+  Check if the given table is actually a VIEW that was LOCK-ed
+
+  @param thd            Thread context.
+  @param t              Table to check.
+
+  @retval TRUE  The 't'-table is a locked view
+                needed to remedy problem before retrying again.
+  @retval FALSE 't' was not locked, not a VIEW or an error happened.
+*/
+bool is_locked_view(THD *thd, TABLE_LIST *t)
+{
+  DBUG_ENTER("check_locked_view");
+  /*
+   Is this table a view and not a base table?
+   (it is work around to allow to open view with locked tables,
+   real fix will be made after definition cache will be made)
+
+   Since opening of view which was not explicitly locked by LOCK
+   TABLES breaks metadata locking protocol (potentially can lead
+   to deadlocks) it should be disallowed.
+  */
+  if (thd->mdl_context.is_lock_owner(MDL_key::TABLE, t->db.str,
+                                     t->table_name.str, MDL_SHARED))
+  {
+    char path[FN_REFLEN + 1];
+    build_table_filename(path, sizeof(path) - 1,
+                         t->db.str, t->table_name.str, reg_ext, 0);
+    /*
+      Note that we can't be 100% sure that it is a view since it's
+      possible that we either simply have not found unused TABLE
+      instance in THD::open_tables list or were unable to open table
+      during prelocking process (in this case in theory we still
+      should hold shared metadata lock on it).
+    */
+    if (dd_frm_is_view(thd, path))
+    {
+      /*
+        If parent_l of the table_list is non null then a merge table
+        has this view as child table, which is not supported.
+      */
+      if (t->parent_l)
+      {
+        my_error(ER_WRONG_MRG_TABLE, MYF(0));
+        DBUG_RETURN(FALSE);
+      }
+
+      if (!tdc_open_view(thd, t, CHECK_METADATA_VERSION))
+      {
+        DBUG_ASSERT(t->view != 0);
+        DBUG_RETURN(TRUE); // VIEW
+      }
+    }
+  }
+
+  DBUG_RETURN(FALSE);
+}
+
+
+/**
   Open a base table.
 
   @param thd            Thread context.
@@ -1652,49 +1715,10 @@ bool open_table(THD *thd, TABLE_LIST *table_list, Open_table_context *ot_ctx)
 #endif
       goto reset;
     }
-    /*
-      Is this table a view and not a base table?
-      (it is work around to allow to open view with locked tables,
-      real fix will be made after definition cache will be made)
 
-      Since opening of view which was not explicitly locked by LOCK
-      TABLES breaks metadata locking protocol (potentially can lead
-      to deadlocks) it should be disallowed.
-    */
-    if (thd->mdl_context.is_lock_owner(MDL_key::TABLE,
-                                       table_list->db.str,
-                                       table_list->table_name.str,
-                                       MDL_SHARED))
-    {
-      char path[FN_REFLEN + 1];
-      build_table_filename(path, sizeof(path) - 1,
-                           table_list->db.str, table_list->table_name.str, reg_ext, 0);
-      /*
-        Note that we can't be 100% sure that it is a view since it's
-        possible that we either simply have not found unused TABLE
-        instance in THD::open_tables list or were unable to open table
-        during prelocking process (in this case in theory we still
-        should hold shared metadata lock on it).
-      */
-      if (dd_frm_is_view(thd, path))
-      {
-        /*
-          If parent_l of the table_list is non null then a merge table
-          has this view as child table, which is not supported.
-        */
-        if (table_list->parent_l)
-        {
-          my_error(ER_WRONG_MRG_TABLE, MYF(0));
-          DBUG_RETURN(true);
-        }
+    if (is_locked_view(thd, table_list))
+      DBUG_RETURN(FALSE); // VIEW
 
-        if (!tdc_open_view(thd, table_list, CHECK_METADATA_VERSION))
-        {
-          DBUG_ASSERT(table_list->view != 0);
-          DBUG_RETURN(FALSE); // VIEW
-        }
-      }
-    }
     /*
       No table in the locked tables list. In case of explicit LOCK TABLES
       this can happen if a user did not include the table into the list.
@@ -2064,8 +2088,9 @@ TABLE *find_locked_table(TABLE *list, const char *db, const char *table_name)
    @param thd        Thread context
    @param db         Database name.
    @param table_name Name of table.
-   @param no_error   Don't emit error if no suitable TABLE
-                     instance were found.
+   @param p_error    In the case of an error (when the function returns NULL)
+                     the error number is stored there.
+                     If the p_error is NULL, function launches the error itself.
 
    @note This function checks if the connection holds a global IX
          metadata lock. If no such lock is found, it is not safe to
@@ -2078,15 +2103,15 @@ TABLE *find_locked_table(TABLE *list, const char *db, const char *table_name)
 */
 
 TABLE *find_table_for_mdl_upgrade(THD *thd, const char *db,
-                                  const char *table_name, bool no_error)
+                                  const char *table_name, int *p_error)
 {
   TABLE *tab= find_locked_table(thd->open_tables, db, table_name);
+  int error;
 
   if (unlikely(!tab))
   {
-    if (!no_error)
-      my_error(ER_TABLE_NOT_LOCKED, MYF(0), table_name);
-    return NULL;
+    error= ER_TABLE_NOT_LOCKED;
+    goto err_exit;
   }
 
   /*
@@ -2098,9 +2123,8 @@ TABLE *find_table_for_mdl_upgrade(THD *thd, const char *db,
   if (unlikely(!thd->mdl_context.is_lock_owner(MDL_key::GLOBAL, "", "",
                                                MDL_INTENTION_EXCLUSIVE)))
   {
-    if (!no_error)
-      my_error(ER_TABLE_NOT_LOCKED_FOR_WRITE, MYF(0), table_name);
-    return NULL;
+    error= ER_TABLE_NOT_LOCKED_FOR_WRITE;
+    goto err_exit;
   }
 
   while (tab->mdl_ticket != NULL &&
@@ -2108,10 +2132,21 @@ TABLE *find_table_for_mdl_upgrade(THD *thd, const char *db,
          (tab= find_locked_table(tab->next, db, table_name)))
     continue;
 
-  if (unlikely(!tab && !no_error))
-    my_error(ER_TABLE_NOT_LOCKED_FOR_WRITE, MYF(0), table_name);
+  if (unlikely(!tab))
+  {
+    error= ER_TABLE_NOT_LOCKED_FOR_WRITE;
+    goto err_exit;
+  }
 
   return tab;
+
+err_exit:
+  if (p_error)
+    *p_error= error;
+  else
+    my_error(error, MYF(0), table_name);
+
+  return NULL;
 }
 
 
@@ -3399,6 +3434,15 @@ open_and_process_table(THD *thd, LEX *lex, TABLE_LIST *tables,
     */
     if (tables->with)
     {
+      if (tables->is_recursive_with_table() &&
+          !tables->is_with_table_recursive_reference())
+      {
+        tables->with->rec_outer_references++;
+        With_element *with_elem= tables->with;
+        while ((with_elem= with_elem->get_next_mutually_recursive()) !=
+               tables->with)
+	  with_elem->rec_outer_references++;
+      }
       if (tables->set_as_with_table(thd, tables->with))
         DBUG_RETURN(1);
       else
@@ -3813,6 +3857,10 @@ lock_table_names(THD *thd, const DDL_options_st &options,
     mdl_requests.push_front(&global_request);
 
     if (create_table)
+#ifdef WITH_WSREP
+      if (thd->lex->sql_command != SQLCOM_CREATE_TABLE &&
+          thd->wsrep_exec_mode != REPL_RECV)
+#endif
       lock_wait_timeout= 0;                     // Don't wait for timeout
   }
 
@@ -3917,7 +3965,8 @@ open_tables_check_upgradable_mdl(THD *thd, TABLE_LIST *tables_start,
       Note that find_table_for_mdl_upgrade() will report an error if
       no suitable ticket is found.
     */
-    if (!find_table_for_mdl_upgrade(thd, table->db.str, table->table_name.str, false))
+    if (!find_table_for_mdl_upgrade(thd, table->db.str, table->table_name.str,
+                                    NULL))
       return TRUE;
   }
 
@@ -4248,6 +4297,9 @@ restart:
   }
 
 error:
+#ifdef WITH_WSREP
+wsrep_error_label:
+#endif
   THD_STAGE_INFO(thd, stage_after_opening_tables);
   thd_proc_info(thd, 0);
 
@@ -4314,9 +4366,8 @@ handle_routine(THD *thd, Query_tables_list *prelocking_ctx,
   @note this can be changed to use a hash, instead of scanning the linked
   list, if the performance of this function will ever become an issue
 */
-static bool table_already_fk_prelocked(TABLE_LIST *tl, LEX_CSTRING *db,
-                                       LEX_CSTRING *table,
-                                       thr_lock_type lock_type)
+bool table_already_fk_prelocked(TABLE_LIST *tl, LEX_CSTRING *db,
+                                LEX_CSTRING *table, thr_lock_type lock_type)
 {
   for (; tl; tl= tl->next_global )
   {
@@ -6835,6 +6886,7 @@ store_natural_using_join_columns(THD *thd, TABLE_LIST *natural_using_join,
   Query_arena *arena, backup;
   bool result= TRUE;
   List<Natural_join_column> *non_join_columns;
+  List<Natural_join_column> *join_columns;
   DBUG_ENTER("store_natural_using_join_columns");
 
   DBUG_ASSERT(!natural_using_join->join_columns);
@@ -6842,7 +6894,7 @@ store_natural_using_join_columns(THD *thd, TABLE_LIST *natural_using_join,
   arena= thd->activate_stmt_arena_if_needed(&backup);
 
   if (!(non_join_columns= new List<Natural_join_column>) ||
-      !(natural_using_join->join_columns= new List<Natural_join_column>))
+      !(join_columns= new List<Natural_join_column>))
     goto err;
 
   /* Append the columns of the first join operand. */
@@ -6851,7 +6903,7 @@ store_natural_using_join_columns(THD *thd, TABLE_LIST *natural_using_join,
     nj_col_1= it_1.get_natural_column_ref();
     if (nj_col_1->is_common)
     {
-      natural_using_join->join_columns->push_back(nj_col_1, thd->mem_root);
+      join_columns->push_back(nj_col_1, thd->mem_root);
       /* Reset the common columns for the next call to mark_common_columns. */
       nj_col_1->is_common= FALSE;
     }
@@ -6872,7 +6924,7 @@ store_natural_using_join_columns(THD *thd, TABLE_LIST *natural_using_join,
     {
       const char *using_field_name_ptr= using_field_name->c_ptr();
       List_iterator_fast<Natural_join_column>
-        it(*(natural_using_join->join_columns));
+        it(*join_columns);
       Natural_join_column *common_field;
 
       for (;;)
@@ -6905,15 +6957,28 @@ store_natural_using_join_columns(THD *thd, TABLE_LIST *natural_using_join,
   }
 
   if (non_join_columns->elements > 0)
-    natural_using_join->join_columns->append(non_join_columns);
+    join_columns->append(non_join_columns);
+  natural_using_join->join_columns= join_columns;
   natural_using_join->is_join_columns_complete= TRUE;
 
   result= FALSE;
 
-err:
   if (arena)
     thd->restore_active_arena(arena, &backup);
   DBUG_RETURN(result);
+
+err:
+  /*
+     Actually we failed to build join columns list, so we have to
+     clear it to avoid problems with half-build join on next run.
+     The list was created in mark_common_columns().
+   */
+  table_ref_1->remove_join_columns();
+  table_ref_2->remove_join_columns();
+
+  if (arena)
+    thd->restore_active_arena(arena, &backup);
+  DBUG_RETURN(TRUE);
 }
 
 
@@ -7137,7 +7202,6 @@ static bool setup_natural_join_row_types(THD *thd,
     DBUG_PRINT("info", ("using cached setup_natural_join_row_types"));
     DBUG_RETURN(false);
   }
-  context->select_lex->first_natural_join_processing= false;
 
   List_iterator_fast<TABLE_LIST> table_ref_it(*from_clause);
   TABLE_LIST *table_ref; /* Current table reference. */
@@ -7182,6 +7246,7 @@ static bool setup_natural_join_row_types(THD *thd,
     change on re-execution
   */
   context->natural_join_first_table= context->first_name_resolution_table;
+  context->select_lex->first_natural_join_processing= false;
   DBUG_RETURN (false);
 }
 
@@ -7295,8 +7360,7 @@ bool setup_fields(THD *thd, Ref_ptr_array ref_pointer_array,
   thd->column_usage= column_usage;
   DBUG_PRINT("info", ("thd->column_usage: %d", thd->column_usage));
   if (allow_sum_func)
-    thd->lex->allow_sum_func|=
-      (nesting_map)1 << thd->lex->current_select->nest_level;
+    thd->lex->allow_sum_func.set_bit(thd->lex->current_select->nest_level);
   thd->where= THD::DEFAULT_WHERE;
   save_is_item_list_lookup= thd->lex->current_select->is_item_list_lookup;
   thd->lex->current_select->is_item_list_lookup= 0;
@@ -8768,6 +8832,13 @@ open_system_tables_for_read(THD *thd, TABLE_LIST *table_list,
 void
 close_system_tables(THD *thd, Open_tables_backup *backup)
 {
+  /*
+    Inform the transaction handler that we are closing the
+    system tables and we don't need the read view anymore.
+  */
+  for (TABLE *table= thd->open_tables ; table ; table= table->next)
+    table->file->extra(HA_EXTRA_PREPARE_FOR_FORCED_CLOSE);
+
   close_thread_tables(thd);
   thd->restore_backup_open_tables_state(backup);
 }

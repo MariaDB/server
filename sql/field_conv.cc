@@ -1,5 +1,5 @@
 /* Copyright (c) 2000, 2016, Oracle and/or its affiliates.
-   Copyright (c) 2010, 2016, MariaDB
+   Copyright (c) 2010, 2018, MariaDB Corporation
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -429,7 +429,7 @@ void Field::do_field_temporal(Copy_field *copy)
 {
   MYSQL_TIME ltime;
   // TODO: we now need to check result
-  if (copy->from_field->get_date(&ltime, 0))
+  if (copy->from_field->get_date(&ltime, date_mode_t(0)))
     copy->to_field->reset();
   else
     copy->to_field->store_time_dec(&ltime, copy->from_field->decimals());

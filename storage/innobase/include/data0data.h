@@ -1,7 +1,7 @@
 /*****************************************************************************
 
 Copyright (c) 1994, 2016, Oracle and/or its affiliates. All Rights Reserved.
-Copyright (c) 2017, MariaDB Corporation.
+Copyright (c) 2017, 2018, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -638,12 +638,40 @@ struct dtuple_t {
 
 	/** Trim the tail of an index tuple before insert or update.
 	After instant ADD COLUMN, if the last fields of a clustered index tuple
-	match the 'default row', there will be no need to store them.
+	match the default values that were explicitly specified or implied
+	during ADD COLUMN, there will be no need to store them.
 	NOTE: A page latch in the index must be held, so that the index
 	may not lose 'instantness' before the trimmed tuple has been
 	inserted or updated.
 	@param[in]	index	index possibly with instantly added columns */
 	void trim(const dict_index_t& index);
+
+	/**
+	@param info_bits	the info_bits of a data tuple
+	@return whether this is a hidden metadata record
+	for instant ADD COLUMN or ALTER TABLE */
+	static bool is_alter_metadata(ulint info_bits)
+	{
+		return UNIV_UNLIKELY(info_bits == REC_INFO_METADATA_ALTER);
+	}
+
+	/**
+	@param info_bits	the info_bits of a data tuple
+	@return whether this is a hidden metadata record
+	for instant ADD COLUMN or ALTER TABLE */
+	static bool is_metadata(ulint info_bits)
+	{
+		return UNIV_UNLIKELY((info_bits & ~REC_INFO_DELETED_FLAG)
+				     == REC_INFO_METADATA_ADD);
+	}
+
+	/** @return whether this is a hidden metadata record
+	for instant ALTER TABLE (not only ADD COLUMN) */
+	bool is_alter_metadata() const { return is_alter_metadata(info_bits); }
+
+	/** @return whether this is a hidden metadata record
+	for instant ADD COLUMN or ALTER TABLE */
+	bool is_metadata() const { return is_metadata(info_bits); }
 };
 
 /** A slot for a field in a big rec vector */

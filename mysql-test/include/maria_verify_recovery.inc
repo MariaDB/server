@@ -97,3 +97,15 @@ while ($mms_table_to_use)
 connection default;
 # the effect of "use" is lost after a restart so we are back into db "test"
 use mysqltest;
+
+#
+# Ensure that we don't get warnings from mysql.proc (used by check_mysqld)
+#
+
+--disable_query_log
+--disable_warnings
+--disable_result_log
+select count(*) from mysql.proc;
+--enable_result_log
+--enable_warnings
+--enable_query_log

@@ -4,9 +4,13 @@
 --source include/not_embedded.inc
 --source include/have_perfschema.inc
 
+--source include/kill_mysqld.inc
+
 let $outfile= $MYSQLTEST_VARDIR/tmp/bad_option_1.txt;
+--disable_warnings
 --error 0,1
 --remove_file $outfile
+--enable_warnings
 --error 7
 --exec $MYSQLD_BOOTSTRAP_CMD --loose-console --performance-schema-enabled=maybe > $outfile 2>&1
 
@@ -32,3 +36,4 @@ perl;
 EOF
 --remove_file $outfile
 
+--source include/start_mysqld.inc

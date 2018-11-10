@@ -135,8 +135,6 @@ enum dberr_t {
 	DB_FTS_TOO_MANY_WORDS_IN_PHRASE,
 					/*< Too many words in a phrase */
 
-	DB_TABLESPACE_TRUNCATED,	/*!< tablespace was truncated */
-
 	DB_DECRYPTION_FAILED,		/* Tablespace encrypted and
 					decrypt operation failed because
 					of missing key management plugin,

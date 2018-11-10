@@ -1,6 +1,6 @@
 /*
-   Copyright (c) 2000, 2014, Oracle and/or its affiliates.
-   Copyright (c) 2009, 2017, MariaDB
+   Copyright (c) 2000, 2018, Oracle and/or its affiliates.
+   Copyright (c) 2009, 2018, MariaDB Corporation
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -196,9 +196,6 @@ static char delimiter[16]= DEFAULT_DELIMITER;
 static uint delimiter_length= 1;
 unsigned short terminal_width= 80;
 
-#ifdef HAVE_SMEM
-static char *shared_memory_base_name=0;
-#endif
 static uint opt_protocol=0;
 static CHARSET_INFO *charset_info= &my_charset_latin1;
 
@@ -1340,9 +1337,6 @@ sig_handler mysql_end(int sig)
   my_free(full_username);
   my_free(part_username);
   my_free(default_prompt);
-#ifdef HAVE_SMEM
-  my_free(shared_memory_base_name);
-#endif
   my_free(current_prompt);
   while (embedded_server_arg_count > 1)
     my_free(embedded_server_args[--embedded_server_arg_count]);
@@ -1373,10 +1367,6 @@ static bool do_connect(MYSQL *mysql, const char *host, const char *user,
 #endif
   if (opt_protocol)
     mysql_options(mysql,MYSQL_OPT_PROTOCOL,(char*)&opt_protocol);
-#ifdef HAVE_SMEM
-  if (shared_memory_base_name)
-    mysql_options(mysql,MYSQL_SHARED_MEMORY_BASE_NAME,shared_memory_base_name);
-#endif
   if (opt_plugin_dir && *opt_plugin_dir)
     mysql_options(mysql, MYSQL_PLUGIN_DIR, opt_plugin_dir);
 
@@ -1493,7 +1483,7 @@ static struct my_option my_long_options[] =
   {"batch", 'B',
    "Don't use history file. Disable interactive behavior. (Enables --silent.)",
    0, 0, 0, GET_NO_ARG, NO_ARG, 0, 0, 0, 0, 0, 0},
-  {"binary-as-hex", 'b', "Print binary data as hex", &opt_binhex, &opt_binhex,
+  {"binary-as-hex", 0, "Print binary data as hex", &opt_binhex, &opt_binhex,
    0, GET_BOOL, NO_ARG, 0, 0, 0, 0, 0, 0},
   {"character-sets-dir", OPT_CHARSETS_DIR,
    "Directory for character set files.", &charsets_dir,
@@ -1612,7 +1602,7 @@ static struct my_option my_long_options[] =
   {"prompt", OPT_PROMPT, "Set the mysql prompt to this value.",
    &current_prompt, &current_prompt, 0, GET_STR_ALLOC,
    REQUIRED_ARG, 0, 0, 0, 0, 0, 0},
-  {"protocol", OPT_MYSQL_PROTOCOL, "The protocol to use for connection (tcp, socket, pipe, memory).",
+  {"protocol", OPT_MYSQL_PROTOCOL, "The protocol to use for connection (tcp, socket, pipe).",
    0, 0, 0, GET_STR,  REQUIRED_ARG, 0, 0, 0, 0, 0, 0},
   {"quick", 'q',
    "Don't cache result, print it row by row. This may slow down the server "
@@ -1626,11 +1616,6 @@ static struct my_option my_long_options[] =
    &opt_reconnect, &opt_reconnect, 0, GET_BOOL, NO_ARG, 1, 0, 0, 0, 0, 0},
   {"silent", 's', "Be more silent. Print results with a tab as separator, "
    "each row on new line.", 0, 0, 0, GET_NO_ARG, NO_ARG, 0, 0, 0, 0, 0, 0},
-#ifdef HAVE_SMEM
-  {"shared-memory-base-name", OPT_SHARED_MEMORY_BASE_NAME,
-   "Base name of shared memory.", &shared_memory_base_name,
-   &shared_memory_base_name, 0, GET_STR_ALLOC, REQUIRED_ARG, 0, 0, 0, 0, 0, 0},
-#endif
   {"socket", 'S', "The socket file to use for connection.",
    &opt_mysql_unix_port, &opt_mysql_unix_port, 0, GET_STR_ALLOC,
    REQUIRED_ARG, 0, 0, 0, 0, 0, 0},

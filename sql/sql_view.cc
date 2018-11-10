@@ -711,9 +711,10 @@ bool mysql_create_view(THD *thd, TABLE_LIST *views,
   DBUG_RETURN(0);
 
 #ifdef WITH_WSREP
- error:
-  res= TRUE;
-#endif /* WITH_WSREP */
+wsrep_error_label:
+  res= true;
+#endif
+
 err:
   lex->link_first_table_back(view, link_to_local);
   unit->cleanup();
@@ -1559,9 +1560,8 @@ bool mysql_make_view(THD *thd, TABLE_SHARE *share, TABLE_LIST *table,
       {
         /* We have to keep the lock type for sequence tables */
         if (!tbl->sequence)
-          tbl->lock_type= table->lock_type;
-        tbl->mdl_request.set_type((tbl->lock_type >= TL_WRITE_ALLOW_WRITE) ?
-                                  MDL_SHARED_WRITE : MDL_SHARED_READ);
+	  tbl->lock_type= table->lock_type;
+        tbl->mdl_request.set_type(table->mdl_request.type);
       }
       /*
         If the view is mergeable, we might want to

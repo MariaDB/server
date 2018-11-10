@@ -58,7 +58,7 @@ max_questions	0
 max_updates	0
 max_connections	0
 max_user_connections	0
-plugin	
+plugin	mysql_native_password
 authentication_string	
 password_expired	N
 is_role	N
@@ -134,7 +134,7 @@ max_questions	10
 max_updates	0
 max_connections	0
 max_user_connections	0
-plugin	
+plugin	mysql_native_password
 authentication_string	
 password_expired	N
 is_role	N
@@ -186,7 +186,7 @@ max_questions	10
 max_updates	20
 max_connections	30
 max_user_connections	0
-plugin	
+plugin	mysql_native_password
 authentication_string	
 password_expired	N
 is_role	N
@@ -1759,6 +1759,7 @@ drop user mysqltest@localhost;
 disconnect user1;
 drop database mysqltest;
 use test;
+call mtr.add_suppression("Can't open and lock privilege tables");
 FLUSH PRIVILEGES without procs_priv table.
 RENAME TABLE mysql.procs_priv TO mysql.procs_gone;
 FLUSH PRIVILEGES;
@@ -1852,8 +1853,6 @@ BEGIN
 SET @x = 0;
 REPEAT SET @x = @x + 1; UNTIL @x > p1 END REPEAT;
 END ;||
-Warnings:
-Warning	1404	Failed to grant EXECUTE and ALTER ROUTINE privileges
 connection default;
 SHOW GRANTS FOR 'user1'@'localhost';
 Grants for user1@localhost
@@ -1864,6 +1863,7 @@ SHOW GRANTS FOR 'user2';
 Grants for user2@%
 GRANT USAGE ON *.* TO 'user2'@'%'
 GRANT CREATE, CREATE ROUTINE ON `db1`.* TO 'user2'@'%'
+GRANT EXECUTE, ALTER ROUTINE ON PROCEDURE `db1`.`proc2` TO 'user2'@'%'
 disconnect con1;
 disconnect con2;
 DROP PROCEDURE db1.proc1;
@@ -2672,6 +2672,38 @@ disconnect conn2;
 disconnect conn3;
 DROP USER foo@'127.0.0.1';
 # End of Bug#12766319
+create user foo@localhost;
+create database foodb;
+grant create routine on foodb.* to foo@localhost;
+connect con1,localhost,foo;
+create procedure fooproc() select 'i am fooproc';
+show grants;
+Grants for foo@localhost
+GRANT USAGE ON *.* TO 'foo'@'localhost'
+GRANT CREATE ROUTINE ON `foodb`.* TO 'foo'@'localhost'
+GRANT EXECUTE, ALTER ROUTINE ON PROCEDURE `test`.`fooproc` TO 'foo'@'localhost'
+disconnect con1;
+connection default;
+rename table mysql.procs_priv to mysql.procs_priv1;
+flush privileges;
+show grants for foo@localhost;
+Grants for foo@localhost
+GRANT USAGE ON *.* TO 'foo'@'localhost'
+GRANT CREATE ROUTINE ON `foodb`.* TO 'foo'@'localhost'
+rename table mysql.procs_priv1 to mysql.procs_priv;
+show grants for foo@localhost;
+Grants for foo@localhost
+GRANT USAGE ON *.* TO 'foo'@'localhost'
+GRANT CREATE ROUTINE ON `foodb`.* TO 'foo'@'localhost'
+flush privileges;
+show grants for foo@localhost;
+Grants for foo@localhost
+GRANT USAGE ON *.* TO 'foo'@'localhost'
+GRANT CREATE ROUTINE ON `foodb`.* TO 'foo'@'localhost'
+GRANT EXECUTE, ALTER ROUTINE ON PROCEDURE `test`.`fooproc` TO 'foo'@'localhost'
+drop user foo@localhost;
+drop procedure fooproc;
+drop database foodb;
 #
 # Bug#11756966 - 48958: STORED PROCEDURES CAN BE LEVERAGED TO BYPASS
 #                DATABASE SECURITY

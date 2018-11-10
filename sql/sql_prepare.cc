@@ -893,6 +893,7 @@ static bool insert_params(Prepared_statement *stmt, uchar *null_array,
       DBUG_RETURN(1);
     if (param->convert_str_value(stmt->thd))
       DBUG_RETURN(1);                           /* out of memory */
+    param->sync_clones();
   }
   DBUG_RETURN(0);
 }
@@ -941,6 +942,7 @@ static bool insert_bulk_params(Prepared_statement *stmt,
     }
     else
       DBUG_RETURN(1); // long is not supported here
+    param->sync_clones();
   }
   DBUG_RETURN(0);
 }
@@ -969,6 +971,7 @@ static bool set_conversion_functions(Prepared_statement *stmt,
     read_pos+= 2;
     (**it).unsigned_flag= MY_TEST(typecode & signed_bit);
     (*it)->setup_conversion(thd, (uchar) (typecode & 0xff));
+    (*it)->sync_clones();
   }
   *data= read_pos;
   DBUG_RETURN(0);
@@ -1039,6 +1042,7 @@ static bool emb_insert_params(Prepared_statement *stmt, String *expanded_query)
         if (param->has_no_value())
           DBUG_RETURN(1);
       }
+      param->sync_clones();
     }
     if (param->convert_str_value(thd))
       DBUG_RETURN(1);                           /* out of memory */
@@ -1081,6 +1085,7 @@ static bool emb_insert_params_with_log(Prepared_statement *stmt, String *query)
 
     if (param->convert_str_value(thd))
       DBUG_RETURN(1);                           /* out of memory */
+    param->sync_clones();
   }
   if (acc.finalize())
     DBUG_RETURN(1);
@@ -1136,7 +1141,11 @@ swap_parameter_array(Item_param **param_array_dst,
   Item_param **end= param_array_dst + param_count;
 
   for (; dst < end; ++src, ++dst)
+  {
     (*dst)->set_param_type_and_swap_value(*src);
+    (*dst)->sync_clones();
+    (*src)->sync_clones();
+  }
 }
 
 
@@ -1167,6 +1176,7 @@ insert_params_from_actual_params(Prepared_statement *stmt,
     if (ps_param->save_in_param(stmt->thd, param) ||
         param->convert_str_value(stmt->thd))
       DBUG_RETURN(1);
+    param->sync_clones();
   }
   DBUG_RETURN(0);
 }
@@ -1209,6 +1219,8 @@ insert_params_from_actual_params_with_log(Prepared_statement *stmt,
 
     if (param->convert_str_value(thd))
       DBUG_RETURN(1);
+
+    param->sync_clones();
   }
   if (acc.finalize())
     DBUG_RETURN(1);
@@ -1582,7 +1594,7 @@ static bool mysql_test_do_fields(Prepared_statement *stmt,
     DBUG_RETURN(TRUE);
 
   if (open_normal_and_derived_tables(thd, tables, MYSQL_OPEN_FORCE_SHARED_MDL,
-                                     DT_PREPARE | DT_CREATE))
+                                     DT_INIT | DT_PREPARE | DT_CREATE))
     DBUG_RETURN(TRUE);
   DBUG_RETURN(setup_fields(thd, Ref_ptr_array(),
                            *values, COLUMNS_READ, 0, NULL, 0));
@@ -1614,7 +1626,7 @@ static bool mysql_test_set_fields(Prepared_statement *stmt,
   if ((tables &&
        check_table_access(thd, SELECT_ACL, tables, FALSE, UINT_MAX, FALSE)) ||
       open_normal_and_derived_tables(thd, tables, MYSQL_OPEN_FORCE_SHARED_MDL,
-                                     DT_PREPARE | DT_CREATE))
+                                     DT_INIT | DT_PREPARE | DT_CREATE))
     goto error;
 
   while ((var= it++))
@@ -1651,7 +1663,8 @@ static bool mysql_test_call_fields(Prepared_statement *stmt,
 
   if ((tables &&
        check_table_access(thd, SELECT_ACL, tables, FALSE, UINT_MAX, FALSE)) ||
-      open_normal_and_derived_tables(thd, tables, MYSQL_OPEN_FORCE_SHARED_MDL, DT_PREPARE))
+      open_normal_and_derived_tables(thd, tables, MYSQL_OPEN_FORCE_SHARED_MDL,
+                                     DT_INIT | DT_PREPARE))
     goto err;
 
   while ((item= it++))
@@ -1777,7 +1790,7 @@ static bool mysql_test_create_table(Prepared_statement *stmt)
 
     if (open_normal_and_derived_tables(stmt->thd, lex->query_tables,
                                        MYSQL_OPEN_FORCE_SHARED_MDL,
-                                       DT_PREPARE | DT_CREATE))
+                                       DT_INIT | DT_PREPARE | DT_CREATE))
       DBUG_RETURN(TRUE);
 
     select_lex->context.resolve_in_select_list= TRUE;
@@ -1798,7 +1811,7 @@ static bool mysql_test_create_table(Prepared_statement *stmt)
     */
     if (open_normal_and_derived_tables(stmt->thd, lex->query_tables,
                                        MYSQL_OPEN_FORCE_SHARED_MDL,
-                                       DT_PREPARE))
+                                       DT_INIT | DT_PREPARE))
       DBUG_RETURN(TRUE);
   }
 
@@ -2025,7 +2038,7 @@ static bool mysql_test_create_view(Prepared_statement *stmt)
 
   lex->context_analysis_only|= CONTEXT_ANALYSIS_ONLY_VIEW;
   if (open_normal_and_derived_tables(thd, tables, MYSQL_OPEN_FORCE_SHARED_MDL,
-                                     DT_PREPARE))
+                                     DT_INIT | DT_PREPARE))
     goto err;
 
   res= select_like_stmt_test(stmt, 0, 0);
@@ -3030,7 +3043,7 @@ void reinit_stmt_before_use(THD *thd, LEX *lex)
     lex->result->cleanup();
     lex->result->set_thd(thd);
   }
-  lex->allow_sum_func= 0;
+  lex->allow_sum_func.clear_all();
   lex->in_sum_func= NULL;
   DBUG_VOID_RETURN;
 }
@@ -3201,7 +3214,7 @@ static void mysql_stmt_execute_common(THD *thd,
   sp_cache_enforce_limit(thd->sp_package_body_cache, stored_program_cache_size);
 
   /* Close connection socket; for use with client testing (Bug#43560). */
-  DBUG_EXECUTE_IF("close_conn_after_stmt_execute", vio_close(thd->net.vio););
+  DBUG_EXECUTE_IF("close_conn_after_stmt_execute", vio_shutdown(thd->net.vio,SHUT_RD););
 
   DBUG_VOID_RETURN;
 }

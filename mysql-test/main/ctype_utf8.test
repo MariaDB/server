@@ -1890,6 +1890,13 @@ SELECT * FROM v1;
 DROP VIEW v1;
 
 
+#
+# MDEV-13118 Wrong results with LOWER and UPPER and subquery
+#
+SET NAMES utf8;
+--source include/ctype_mdev13118.inc
+
+
 --echo #
 --echo # End of 10.0 tests
 --echo #

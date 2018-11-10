@@ -228,8 +228,6 @@ FLUSH PRIVILEGES;
 connect  con1, localhost, mysqltest_1,,;
 connection con1;
 CREATE PROCEDURE p1(i INT) BEGIN END;
-Warnings:
-Warning	1404	Failed to grant EXECUTE and ALTER ROUTINE privileges
 disconnect con1;
 connection default;
 DROP PROCEDURE p1;
@@ -326,7 +324,7 @@ DROP EVENT teste_bug11763507;
 # -- End of 5.1 tests
 # ------------------------------------------------------------------
 grant create routine on test.* to foo1@localhost identified by 'foo';
-update mysql.user set password = replace(password, '*', '-') where user='foo1';
+update mysql.user set authentication_string = replace(authentication_string, '*', '-') where user='foo1';
 connect  foo,localhost,foo1,foo;
 show grants;
 Grants for foo1@localhost

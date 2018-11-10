@@ -261,7 +261,7 @@ static void usage(void)
   puts("This software comes with ABSOLUTELY NO WARRANTY. This is free software,");
   puts("and you are welcome to modify and redistribute it under the GPL license\n");
 
-  puts("Display and apply log records from a Aria transaction log");
+  puts("Display or apply log records from a Aria transaction log");
   puts("found in the current directory (for now)");
 #ifndef IDENTICAL_PAGES_AFTER_RECOVERY
   puts("\nNote: Aria is compiled without -DIDENTICAL_PAGES_AFTER_RECOVERY\n"
@@ -269,8 +269,8 @@ static void usage(void)
        "files created during normal execution. This should be ok, except for\n"
        "test scripts that tries to compare files before and after recovery.");
 #endif
-  printf("\nUsage: %s OPTIONS\n", my_progname_short);
-  puts("You need to use one of -d or -a");
+  printf("\nUsage: %s OPTIONS [-d | -a] -h `aria_log_directory`\n",
+         my_progname_short);
   my_print_help(my_long_options);
   print_defaults("my", load_default_groups);
   my_print_variables(my_long_options);

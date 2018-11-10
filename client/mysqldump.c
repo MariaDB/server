@@ -39,7 +39,7 @@
 ** 10 Jun 2003: SET NAMES and --no-set-names by Alexander Barkov
 */
 
-#define DUMP_VERSION "10.16"
+#define DUMP_VERSION "10.17"
 
 #include <my_global.h>
 #include <my_sys.h>
@@ -159,9 +159,6 @@ static MYSQL_RES *routine_res, *routine_list_res;
 FILE *md_result_file= 0;
 FILE *stderror_file=0;
 
-#ifdef HAVE_SMEM
-static char *shared_memory_base_name=0;
-#endif
 static uint opt_protocol= 0;
 static char *opt_plugin_dir= 0, *opt_default_auth= 0;
 
@@ -472,7 +469,7 @@ static struct my_option my_long_options[] =
    &opt_mysql_port, 0, GET_UINT, REQUIRED_ARG, 0, 0, 0, 0, 0,
    0},
   {"protocol", OPT_MYSQL_PROTOCOL, 
-   "The protocol to use for connection (tcp, socket, pipe, memory).",
+   "The protocol to use for connection (tcp, socket, pipe).",
    0, 0, 0, GET_STR, REQUIRED_ARG, 0, 0, 0, 0, 0, 0},
   {"quick", 'q', "Don't buffer query, dump directly to stdout.",
    &quick, &quick, 0, GET_BOOL, NO_ARG, 1, 0, 0, 0, 0, 0},
@@ -494,11 +491,6 @@ static struct my_option my_long_options[] =
    "Add 'SET NAMES default_character_set' to the output.",
    &opt_set_charset, &opt_set_charset, 0, GET_BOOL, NO_ARG, 1,
    0, 0, 0, 0, 0},
-#ifdef HAVE_SMEM
-  {"shared-memory-base-name", OPT_SHARED_MEMORY_BASE_NAME,
-   "Base name of shared memory.", &shared_memory_base_name, &shared_memory_base_name,
-   0, GET_STR_ALLOC, REQUIRED_ARG, 0, 0, 0, 0, 0, 0},
-#endif
   /*
     Note that the combination --single-transaction --master-data
     will give bullet-proof binlog position only if server >=4.1.3. That's the
@@ -1719,10 +1711,6 @@ static int connect_to_db(char *host, char *user,char *passwd)
 #endif
   if (opt_protocol)
     mysql_options(&mysql_connection,MYSQL_OPT_PROTOCOL,(char*)&opt_protocol);
-#ifdef HAVE_SMEM
-  if (shared_memory_base_name)
-    mysql_options(&mysql_connection,MYSQL_SHARED_MEMORY_BASE_NAME,shared_memory_base_name);
-#endif
   mysql_options(&mysql_connection, MYSQL_SET_CHARSET_NAME, default_charset);
 
   if (opt_plugin_dir && *opt_plugin_dir)
@@ -2141,7 +2129,7 @@ static void print_xml_row(FILE *xml_file, const char *row_name,
       {
         create_stmt_ptr= (*row)[i];
         create_stmt_len= lengths[i];
-#ifndef DBUG_OFF
+#ifdef DBUG_ASSERT_EXISTS
         body_found= 1;
 #endif
       }
@@ -6254,10 +6242,6 @@ err:
   /* if --dump-slave , start the slave sql thread */
   if (opt_slave_data)
     do_start_slave_sql(mysql);
-
-#ifdef HAVE_SMEM
-  my_free(shared_memory_base_name);
-#endif
 
   dbDisconnect(current_host);
   if (!path)

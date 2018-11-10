@@ -490,7 +490,8 @@ dict_table_get_nth_v_col(
 	ut_ad(table);
 	ut_ad(pos < table->n_v_def);
 	ut_ad(table->magic_n == DICT_TABLE_MAGIC_N);
-	ut_ad(!table->v_cols[pos].m_col.is_instant());
+	ut_ad(!table->v_cols[pos].m_col.is_added());
+	ut_ad(!table->v_cols[pos].m_col.is_dropped());
 	return &table->v_cols[pos];
 }
 

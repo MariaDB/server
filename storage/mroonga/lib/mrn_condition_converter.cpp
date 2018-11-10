@@ -258,7 +258,7 @@ namespace mrn {
     Item *real_value_item = value_item->real_item();
     switch (field_item->field->type()) {
     case MYSQL_TYPE_TIME:
-      error = real_value_item->get_time(mysql_time);
+      error = real_value_item->get_time(current_thd, mysql_time);
       break;
     case MYSQL_TYPE_YEAR:
       mysql_time->year        = static_cast<int>(value_item->val_int());
@@ -273,7 +273,7 @@ namespace mrn {
       error = false;
       break;
     default:
-      error = real_value_item->get_date(mysql_time, TIME_FUZZY_DATE);
+      error = real_value_item->get_date(current_thd, mysql_time, TIME_FUZZY_DATES);
       break;
     }
 

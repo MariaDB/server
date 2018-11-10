@@ -7,18 +7,10 @@ INSERT INTO `t1` VALUES ( 1, 1 );
 UPDATE t1 SET c1=NULL where c2=1;
 connection slave;
 include/diff_tables.inc [master:t1, slave:t1]
-Warnings:
-Warning	1287	'<select expression> INTO <destination>;' is deprecated and will be removed in a future release. Please use 'SELECT <select list> INTO <destination> FROM...' instead
-Warnings:
-Warning	1287	'<select expression> INTO <destination>;' is deprecated and will be removed in a future release. Please use 'SELECT <select list> INTO <destination> FROM...' instead
 connection master;
 DELETE FROM t1 WHERE c2=1 LIMIT 1;
 connection slave;
 include/diff_tables.inc [master:t1, slave:t1]
-Warnings:
-Warning	1287	'<select expression> INTO <destination>;' is deprecated and will be removed in a future release. Please use 'SELECT <select list> INTO <destination> FROM...' instead
-Warnings:
-Warning	1287	'<select expression> INTO <destination>;' is deprecated and will be removed in a future release. Please use 'SELECT <select list> INTO <destination> FROM...' instead
 connection master;
 DROP TABLE t1;
 connection slave;
@@ -32,18 +24,10 @@ w
 UPDATE t1 SET c1=NULL WHERE c1='w';
 connection slave;
 include/diff_tables.inc [master:t1, slave:t1]
-Warnings:
-Warning	1287	'<select expression> INTO <destination>;' is deprecated and will be removed in a future release. Please use 'SELECT <select list> INTO <destination> FROM...' instead
-Warnings:
-Warning	1287	'<select expression> INTO <destination>;' is deprecated and will be removed in a future release. Please use 'SELECT <select list> INTO <destination> FROM...' instead
 connection master;
 DELETE FROM t1 LIMIT 2;
 connection slave;
 include/diff_tables.inc [master:t1, slave:t1]
-Warnings:
-Warning	1287	'<select expression> INTO <destination>;' is deprecated and will be removed in a future release. Please use 'SELECT <select list> INTO <destination> FROM...' instead
-Warnings:
-Warning	1287	'<select expression> INTO <destination>;' is deprecated and will be removed in a future release. Please use 'SELECT <select list> INTO <destination> FROM...' instead
 connection master;
 DROP TABLE t1;
 connection slave;

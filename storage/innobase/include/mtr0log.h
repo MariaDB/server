@@ -1,6 +1,7 @@
 /*****************************************************************************
 
 Copyright (c) 1995, 2014, Oracle and/or its affiliates. All Rights Reserved.
+Copyright (c) 2018, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -72,6 +73,23 @@ mlog_log_string(
 	byte*	ptr,	/*!< in: pointer written to */
 	ulint	len,	/*!< in: string length */
 	mtr_t*	mtr);	/*!< in: mini-transaction handle */
+
+/** Initialize a string of bytes.
+@param[in,out]	b	buffer page
+@param[in]	ofs	byte offset from block->frame
+@param[in]	len	length of the data to write
+@param[in]	val	the data byte to write
+@param[in,out]	mtr	mini-transaction */
+void
+mlog_memset(buf_block_t* b, ulint ofs, ulint len, byte val, mtr_t* mtr);
+
+/** Initialize a string of bytes.
+@param[in,out]	byte	byte address
+@param[in]	len	length of the data to write
+@param[in]	val	the data byte to write
+@param[in,out]	mtr	mini-transaction */
+void mlog_memset(byte* b, ulint len, byte val, mtr_t* mtr);
+
 /********************************************************//**
 Writes initial part of a log record consisting of one-byte item
 type and four-byte space and page numbers. */
@@ -189,7 +207,7 @@ mlog_parse_initial_log_record(
 	ulint*		space,	/*!< out: space id */
 	ulint*		page_no);/*!< out: page number */
 /********************************************************//**
-Parses a log record written by mlog_write_ulint or mlog_write_ull.
+Parses a log record written by mlog_write_ulint, mlog_write_ull, mlog_memset.
 @return parsed record end, NULL if not a complete record */
 byte*
 mlog_parse_nbytes(

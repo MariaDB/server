@@ -94,7 +94,6 @@ packaging/rpm-oel/mysql.spec
 packaging/rpm-uln/mysql.10.0.11.spec
 packaging/solaris/postinstall-solaris
 pcre/config.h
-pcre/pcre*test.sh
 pcre/pcre.h
 pcre/pcre_chartables.c
 pcre/pcregrep
@@ -263,6 +262,7 @@ storage/mroonga/vendor/groonga/src/groonga-benchmark
 storage/mroonga/vendor/groonga/src/suggest/groonga-suggest-create-dataset
 storage/mroonga/mysql-test/mroonga/storage/r/information_schema_plugins.result
 storage/mroonga/mysql-test/mroonga/storage/r/variable_version.result
+zlib/zconf.h
 xxx/*
 yyy/*
 zzz/*

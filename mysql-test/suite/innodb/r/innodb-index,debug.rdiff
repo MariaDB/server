@@ -1,0 +1,10 @@
+--- innodb-index.result
++++ innodb-index.reject
+@@ -1851,6 +1851,7 @@
+ #
+ # MDEV-15325 Incomplete validation of missing tablespace during recovery
+ #
++SET GLOBAL DEBUG_DBUG='+d,fil_names_write_bogus';
+ CREATE TABLE t1(f1 INT PRIMARY KEY)ENGINE=InnoDB;
+ CREATE TABLE t2(f1 INT PRIMARY KEY)ENGINE=InnoDB;
+ # Kill the server

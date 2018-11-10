@@ -1706,7 +1706,7 @@ long long spider_direct_sql_body(
         error_num = ER_SPIDER_UDF_TMP_TABLE_NOT_FOUND_NUM;
         my_printf_error(ER_SPIDER_UDF_TMP_TABLE_NOT_FOUND_NUM,
           ER_SPIDER_UDF_TMP_TABLE_NOT_FOUND_STR,
-          MYF(0), table_list.db, table_list.table_name);
+          MYF(0), table_list.db.str, table_list.table_name.str);
         goto error;
 #if MYSQL_VERSION_ID < 50500
 #else

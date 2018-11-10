@@ -745,5 +745,16 @@ DROP TABLE t1;
 
 
 --echo #
+--echo # MDEV-16984 Assertion `dec' failed in Dec_ptr::cmp
+--echo #
+SET sql_mode='';
+CREATE TABLE t1 (dc decimal(10));
+INSERT INTO t1 VALUES (0000000),(NULL);
+SELECT 1 FROM t1 GROUP BY 'm' <=> dc;
+DROP TABLE t1;
+SET sql_mode=DEFAULT;
+
+
+--echo #
 --echo # End of 10.4 tests
 --echo #

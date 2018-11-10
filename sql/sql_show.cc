@@ -2616,7 +2616,7 @@ static int show_create_view(THD *thd, TABLE_LIST *table, String *buff)
     We can't just use table->query, because our SQL_MODE may trigger
     a different syntax, like when ANSI_QUOTES is defined.
   */
-  table->view->unit.print(buff, enum_query_type(QT_ORDINARY |
+  table->view->unit.print(buff, enum_query_type(QT_VIEW_INTERNAL |
                                                 QT_ITEM_ORIGINAL_FUNC_NULLIF));
 
   if (table->with_check != VIEW_CHECK_NONE)
@@ -5009,9 +5009,7 @@ public:
                         const char* msg,
                         Sql_condition ** cond_hdl)
   {
-    if (sql_errno == ER_PARSE_ERROR ||
-        sql_errno == ER_TRG_NO_DEFINER ||
-        sql_errno == ER_TRG_NO_CREATION_CTX)
+    if (sql_errno == ER_TRG_NO_DEFINER || sql_errno == ER_TRG_NO_CREATION_CTX)
       return true;
 
     if (*level != Sql_condition::WARN_LEVEL_ERROR)
@@ -6795,6 +6793,42 @@ store_constraints(THD *thd, TABLE *table, const LEX_CSTRING *db_name,
   return schema_table_store_record(thd, table);
 }
 
+static int get_check_constraints_record(THD *thd, TABLE_LIST *tables,
+                                        TABLE *table, bool res,
+                                        const LEX_CSTRING *db_name,
+                                        const LEX_CSTRING *table_name)
+{
+  DBUG_ENTER("get_check_constraints_record");
+  if (res)
+  {
+    if (thd->is_error())
+      push_warning(thd, Sql_condition::WARN_LEVEL_WARN,
+                   thd->get_stmt_da()->sql_errno(),
+                   thd->get_stmt_da()->message());
+    thd->clear_error();
+    DBUG_RETURN(0);
+  }
+  else if (!tables->view)
+  {
+    if (tables->table->s->table_check_constraints)
+    {
+      for (uint i= 0; i < tables->table->s->table_check_constraints; i++)
+      {
+        StringBuffer<MAX_FIELD_WIDTH> str(system_charset_info);
+        Virtual_column_info *check= tables->table->check_constraints[i];
+        restore_record(table, s->default_values);
+        table->field[0]->store(STRING_WITH_LEN("def"), system_charset_info);
+        table->field[1]->store(db_name->str, db_name->length, system_charset_info);
+        table->field[2]->store(check->name.str, check->name.length, system_charset_info);
+        table->field[3]->store(table_name->str, table_name->length, system_charset_info);
+        check->print(&str);
+        table->field[4]->store(str.ptr(), str.length(), system_charset_info);
+        schema_table_store_record(thd, table);
+      }
+    }
+  }
+  DBUG_RETURN(res);
+}
 
 static int get_schema_constraints_record(THD *thd, TABLE_LIST *tables,
 					 TABLE *table, bool res,
@@ -9715,6 +9749,18 @@ ST_FIELD_INFO spatial_ref_sys_fields_info[]=
 #endif /*HAVE_SPATIAL*/
 
 
+ST_FIELD_INFO check_constraints_fields_info[]=
+{
+  {"CONSTRAINT_CATALOG", FN_REFLEN, MYSQL_TYPE_STRING, 0, 0, 0, OPEN_FULL_TABLE},
+  {"CONSTRAINT_SCHEMA", NAME_CHAR_LEN, MYSQL_TYPE_STRING, 0, 0, 0,
+   OPEN_FULL_TABLE},
+  {"CONSTRAINT_NAME", NAME_CHAR_LEN, MYSQL_TYPE_STRING, 0, 0, 0,
+   OPEN_FULL_TABLE},
+  {"TABLE_NAME", NAME_CHAR_LEN, MYSQL_TYPE_STRING, 0, 0, 0, OPEN_FULL_TABLE},
+  {"CHECK_CLAUSE", NAME_CHAR_LEN, MYSQL_TYPE_STRING, 0, 0, 0,
+   OPEN_FULL_TABLE},
+  {0, 0, MYSQL_TYPE_STRING, 0, 0, 0, SKIP_OPEN_TABLE}
+};
 /*
   Description of ST_FIELD_INFO in table.h
 
@@ -9730,6 +9776,8 @@ ST_SCHEMA_TABLE schema_tables[]=
    fill_schema_applicable_roles, 0, 0, -1, -1, 0, 0},
   {"CHARACTER_SETS", charsets_fields_info, 0,
    fill_schema_charsets, make_character_sets_old_format, 0, -1, -1, 0, 0},
+  {"CHECK_CONSTRAINTS", check_constraints_fields_info, 0,
+   get_all_tables, 0, get_check_constraints_record, 1, 2, 0, OPTIMIZE_I_S_TABLE|OPEN_TABLE_ONLY},
   {"COLLATIONS", collation_fields_info, 0,
    fill_schema_collation, make_old_format, 0, -1, -1, 0, 0},
   {"COLLATION_CHARACTER_SET_APPLICABILITY", coll_charset_app_fields_info,

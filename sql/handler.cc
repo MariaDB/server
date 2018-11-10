@@ -21,6 +21,7 @@
 */
 
 #include "mariadb.h"
+#include <inttypes.h>
 #include "sql_priv.h"
 #include "unireg.h"
 #include "rpl_rli.h"
@@ -74,7 +75,7 @@ KEY_CREATE_INFO default_key_create_info=
 ulong total_ha= 0;
 /* number of storage engines (from handlertons[]) that support 2pc */
 ulong total_ha_2pc= 0;
-#ifndef DBUG_OFF
+#ifdef DBUG_ASSERT_EXISTS
 /*
   Number of non-mandatory 2pc handlertons whose initialization failed
   to estimate total_ha_2pc value under supposition of the failures
@@ -661,7 +662,7 @@ err_deinit:
     (void) plugin->plugin->deinit(NULL);
           
 err:
-#ifndef DBUG_OFF
+#ifdef DBUG_ASSERT_EXISTS
   if (hton->prepare && hton->state == SHOW_OPTION_YES)
     failed_ha_2pc++;
 #endif
@@ -3086,6 +3087,45 @@ void handler::adjust_next_insert_id_after_explicit_value(ulonglong nr)
 }
 
 
+/** @brief
+  Computes the largest number X:
+  - smaller than or equal to "nr"
+  - of the form: auto_increment_offset + N * auto_increment_increment
+  where N>=0.
+
+  SYNOPSIS
+    prev_insert_id
+      nr            Number to "round down"
+      variables     variables struct containing auto_increment_increment and
+                    auto_increment_offset
+
+  RETURN
+    The number X if it exists, "nr" otherwise.
+*/
+inline ulonglong
+prev_insert_id(ulonglong nr, struct system_variables *variables)
+{
+  if (unlikely(nr < variables->auto_increment_offset))
+  {
+    /*
+      There's nothing good we can do here. That is a pathological case, where
+      the offset is larger than the column's max possible value, i.e. not even
+      the first sequence value may be inserted. User will receive warning.
+    */
+    DBUG_PRINT("info",("auto_increment: nr: %lu cannot honour "
+                       "auto_increment_offset: %lu",
+                       (ulong) nr, variables->auto_increment_offset));
+    return nr;
+  }
+  if (variables->auto_increment_increment == 1)
+    return nr; // optimization of the formula below
+  nr= (((nr - variables->auto_increment_offset)) /
+       (ulonglong) variables->auto_increment_increment);
+  return (nr * (ulonglong) variables->auto_increment_increment +
+          variables->auto_increment_offset);
+}
+
+
 /**
   Update the auto_increment field if necessary.
 
@@ -4593,6 +4633,7 @@ handler::ha_create_partitioning_metadata(const char *name,
               (!old_name && strcmp(name, table_share->path.str)));
 
 
+  mark_trx_read_write();
   return create_partitioning_metadata(name, old_name, action_flag);
 }
 
@@ -6521,7 +6562,7 @@ void ha_fake_trx_id(THD *thd)
 
   if (thd->wsrep_ws_handle.trx_id != WSREP_UNDEFINED_TRX_ID)
   {
-    WSREP_DEBUG("fake trx id skipped: %lu", thd->wsrep_ws_handle.trx_id);
+    WSREP_DEBUG("fake trx id skipped: %" PRIu64, thd->wsrep_ws_handle.trx_id);
     DBUG_VOID_RETURN;
   }
 
@@ -6786,7 +6827,7 @@ int del_global_index_stats_for_table(THD *thd, uchar* cache_key, size_t cache_ke
 
 /* Remove a table from global table statistics */
 
-int del_global_table_stat(THD *thd, LEX_CSTRING *db, LEX_CSTRING *table)
+int del_global_table_stat(THD *thd, const LEX_CSTRING *db, const LEX_CSTRING *table)
 {
   TABLE_STATS *table_stats;
   int res = 0;
@@ -6927,7 +6968,7 @@ bool Vers_parse_info::fix_implicit(THD *thd, Alter_info *alter_info)
   return false;
 }
 
-bool Table_scope_and_contents_source_st::vers_native(THD *thd) const
+bool Table_scope_and_contents_source_pod_st::vers_native(THD *thd) const
 {
   if (ha_check_storage_engine_flag(db_type, HTON_NATIVE_SYS_VERSIONING))
     return true;

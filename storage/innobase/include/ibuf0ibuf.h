@@ -248,7 +248,7 @@ ibuf_inside(
 UNIV_INLINE
 ibool
 ibuf_bitmap_page(
-	const page_id_t&	page_id,
+	const page_id_t		page_id,
 	const page_size_t&	page_size);
 
 /** Checks if a page is a level 2 or 3 page in the ibuf hierarchy of pages.
@@ -265,7 +265,7 @@ in which case a new transaction is created.
 @return TRUE if level 2 or level 3 page */
 ibool
 ibuf_page_low(
-	const page_id_t&	page_id,
+	const page_id_t		page_id,
 	const page_size_t&	page_size,
 #ifdef UNIV_DEBUG
 	ibool			x_latch,
@@ -321,7 +321,7 @@ ibuf_insert(
 	ibuf_op_t		op,
 	const dtuple_t*		entry,
 	dict_index_t*		index,
-	const page_id_t&	page_id,
+	const page_id_t		page_id,
 	const page_size_t&	page_size,
 	que_thr_t*		thr);
 
@@ -340,7 +340,7 @@ want to update a non-existent bitmap page */
 void
 ibuf_merge_or_delete_for_page(
 	buf_block_t*		block,
-	const page_id_t&	page_id,
+	const page_id_t		page_id,
 	const page_size_t*	page_size,
 	ibool			update_ibuf_bitmap);
 
@@ -388,9 +388,7 @@ ibuf_parse_bitmap_init(
 @param[in]	page_id	page id
 @return number of entries in the insert buffer currently buffered for
 this page */
-ulint
-ibuf_count_get(
-	const page_id_t&	page_id);
+ulint ibuf_count_get(const page_id_t page_id);
 #endif
 /******************************************************************//**
 Looks if the insert buffer is empty.

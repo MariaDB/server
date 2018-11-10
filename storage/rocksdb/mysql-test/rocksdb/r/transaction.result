@@ -958,3 +958,20 @@ a
 rollback;
 drop function func;
 drop table t1,t2,t3;
+#
+# MDEV-16710: Slave SQL: Could not execute Update_rows_v1 event with RocksDB and triggers
+# Issue#857: MyRocks: Incorrect behavior when multiple statements fail inside a transaction
+#
+CREATE TABLE t1 (a INT PRIMARY KEY) ENGINE=RocksDB;
+INSERT INTO t1 VALUES (1);
+CREATE TABLE t2 (b INT PRIMARY KEY) ENGINE=RocksDB;
+CREATE TRIGGER tr AFTER INSERT ON t2 FOR EACH ROW INSERT INTO non_existing_table VALUES (NULL);
+BEGIN;
+DELETE FROM t1;
+INSERT INTO t2 VALUES (1);
+INSERT INTO t2 VALUES (2);
+# Must return empty result:
+SELECT * FROM t1;
+a
+COMMIT;
+drop table t1,t2;

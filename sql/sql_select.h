@@ -263,8 +263,12 @@ typedef struct st_join_table {
   /*
     Pointer to the associated ON expression. on_expr_ref=!NULL except for
     degenerate joins. 
-    *on_expr_ref!=NULL for tables that are first inner tables within an outer
-    join.
+
+    Optimization phase: *on_expr_ref!=NULL for tables that are the single
+      tables on the inner side of the outer join (t1 LEFT JOIN t2 ON...)
+
+    Execution phase: *on_expr_ref!=NULL for tables that are first inner tables
+      within an outer join (which may have multiple tables)
   */
   Item	       **on_expr_ref;
   COND_EQUAL    *cond_equal;    /**< multiple equalities for the on expression */

@@ -441,6 +441,7 @@ bool subquery_types_allow_materialization(Item_in_subselect *in_subs);
 static bool replace_where_subcondition(JOIN *, Item **, Item *, Item *, bool);
 static int subq_sj_candidate_cmp(Item_in_subselect* el1, Item_in_subselect* el2,
                                  void *arg);
+static void reset_equality_number_for_subq_conds(Item * cond);
 static bool convert_subq_to_sj(JOIN *parent_join, Item_in_subselect *subq_pred);
 static bool convert_subq_to_jtbm(JOIN *parent_join, 
                                  Item_in_subselect *subq_pred, bool *remove);
@@ -816,6 +817,9 @@ int check_and_do_in_subquery_rewrites(JOIN *join)
           details)
         * require that compared columns have exactly the same type. This is
           a temporary measure to avoid BUG#36752-type problems.
+
+    JOIN_TAB::keyuse_is_valid_for_access_in_chosen_plan expects that for Semi Join Materialization
+    Scan all the items in the select list of the IN Subquery are of the type Item::FIELD_ITEM.
 */
 
 static 
@@ -1430,6 +1434,67 @@ static int subq_sj_candidate_cmp(Item_in_subselect* el1, Item_in_subselect* el2,
 }
 
 
+/**
+    @brief
+    reset the value of the field in_eqaulity_no for all Item_func_eq
+    items in the where clause of the subquery.
+
+    Look for in_equality_no description in Item_func_eq class
+
+    DESCRIPTION
+    Lets have an example:
+    SELECT t1.a FROM t1 WHERE t1.a IN
+      (SELECT t2.a FROM t2 where t2.b IN
+          (select t3.b from t3 where t3.c=27 ))
+
+    So for such a query we have the parent, child and
+    grandchild select.
+
+    So for the equality t2.b = t3.b we set the value for in_equality_no to
+    0 according to its description. Wewe do the same for t1.a = t2.a.
+    But when we look at the child select (with the grandchild select merged),
+    the query would be
+
+    SELECT t1.a FROM t1 WHERE t1.a IN
+      (SELECT t2.a FROM t2 where t2.b = t3.b and t3.c=27)
+
+    and then when the child select is merged into the parent select the query
+    would look like
+
+    SELECT t1.a FROM t1, semi-join-nest(t2,t3)
+            WHERE t1.a =t2.a and t2.b = t3.b and t3.c=27
+
+    Still we would have in_equality_no set for t2.b = t3.b
+    though it does not take part in the semi-join equality for the parent select,
+    so we should reset its value to UINT_MAX.
+
+    @param cond WHERE clause of the subquery
+*/
+
+static void reset_equality_number_for_subq_conds(Item * cond)
+{
+  if (!cond)
+    return;
+  if (cond->type() == Item::COND_ITEM)
+  {
+    List_iterator<Item> li(*((Item_cond*) cond)->argument_list());
+    Item *item;
+    while ((item=li++))
+    {
+      if (item->type() == Item::FUNC_ITEM &&
+      ((Item_func*)item)->functype()== Item_func::EQ_FUNC)
+        ((Item_func_eq*)item)->in_equality_no= UINT_MAX;
+    }
+  }
+  else
+  {
+    if (cond->type() == Item::FUNC_ITEM &&
+      ((Item_func*)cond)->functype()== Item_func::EQ_FUNC)
+        ((Item_func_eq*)cond)->in_equality_no= UINT_MAX;
+  }
+  return;
+}
+
 /*
   Convert a subquery predicate into a TABLE_LIST semi-join nest
 
@@ -1694,6 +1759,7 @@ static bool convert_subq_to_sj(JOIN *parent_join, Item_in_subselect *subq_pred)
   */
   sj_nest->sj_in_exprs= subq_pred->left_expr->cols();
   sj_nest->nested_join->sj_outer_expr_list.empty();
+  reset_equality_number_for_subq_conds(sj_nest->sj_on_expr);
 
   if (subq_pred->left_expr->cols() == 1)
   {
@@ -3506,7 +3572,8 @@ void fix_semijoin_strategies_for_picked_join_order(JOIN *join)
       first= tablenr - sjm->tables + 1;
       join->best_positions[first].n_sj_tables= sjm->tables;
       join->best_positions[first].sj_strategy= SJ_OPT_MATERIALIZE;
-      join->sjm_lookup_tables|= s->table->map;
+      for (uint i= first; i < first+ sjm->tables; i++)
+        join->sjm_lookup_tables |= join->best_positions[i].table->table->map;
     }
     else if (pos->sj_strategy == SJ_OPT_MATERIALIZE_SCAN)
     {
@@ -5445,7 +5512,7 @@ int select_value_catcher::send_data(List<Item> &items)
 
 /**
   @brief
-    Conjugate conditions after optimize_cond() call
+    Add new conditions after optimize_cond() call
 
   @param thd         the thread handle
   @param cond        the condition where to attach new conditions
@@ -5494,8 +5561,8 @@ Item *and_new_conditions_to_optimized_cond(THD *thd, Item *cond,
                              Item::Context(Item::ANY_SUBST,
                              ((Item_func_equal *)item)->compare_type_handler(),
                              ((Item_func_equal *)item)->compare_collation()),
-                             ((Item_func *)item)->arguments()[0]->real_item(),
-                             ((Item_func *)item)->arguments()[1]->real_item(),
+                             ((Item_func *)item)->arguments()[0],
+                             ((Item_func *)item)->arguments()[1],
                              &new_cond_equal))
       li.remove();
   }
@@ -5600,31 +5667,31 @@ Item *and_new_conditions_to_optimized_cond(THD *thd, Item *cond,
       }
     }
 
+    if (is_mult_eq)
+    {
+      Item_equal *eq_cond= (Item_equal *)cond;
+      eq_cond->upper_levels= 0;
+      eq_cond->merge_into_list(thd, &new_cond_equal.current_level,
+                               false, false);
+
+       while ((equality= it++))
+       {
+         if (equality->const_item() && !equality->val_int())
+           is_simplified_cond= true;
+       }
+       (*cond_eq)->copy(new_cond_equal);
+    }
+
     if (new_cond_equal.current_level.elements > 0)
     {
-      if (is_mult_eq)
+      if (new_cond_equal.current_level.elements +
+          new_conds_list.elements == 1)
       {
-        Item_equal *eq_cond= (Item_equal *)cond;
-        eq_cond->upper_levels= 0;
-        eq_cond->merge_into_list(thd, &new_cond_equal.current_level,
-                                 false, false);
-
-        while ((equality= it++))
-        {
-          if (equality->const_item() && !equality->val_int())
-            is_simplified_cond= true;
-        }
-
-        if (new_cond_equal.current_level.elements +
-            new_conds_list.elements == 1)
-        {
-          it.rewind();
-          equality= it++;
-          equality->fixed= 0;
-          if (equality->fix_fields(thd, NULL))
-            return NULL;
-        }
-        (*cond_eq)->copy(new_cond_equal);
+        it.rewind();
+        equality= it++;
+        equality->fixed= 0;
+        if (equality->fix_fields(thd, NULL))
+          return NULL;
       }
       new_conds_list.append((List<Item> *)&new_cond_equal.current_level);
     }

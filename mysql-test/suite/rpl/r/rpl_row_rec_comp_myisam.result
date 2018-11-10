@@ -10,10 +10,6 @@ INSERT INTO t1(c1,c2) VALUES (NULL, b'1');
 UPDATE t1 SET c1= 0;
 connection slave;
 include/diff_tables.inc [master:t1, slave:t1]
-Warnings:
-Warning	1287	'<select expression> INTO <destination>;' is deprecated and will be removed in a future release. Please use 'SELECT <select list> INTO <destination> FROM...' instead
-Warnings:
-Warning	1287	'<select expression> INTO <destination>;' is deprecated and will be removed in a future release. Please use 'SELECT <select list> INTO <destination> FROM...' instead
 connection master;
 DROP TABLE t1;
 connection slave;
@@ -26,10 +22,6 @@ INSERT INTO t1 ( c5, c6 ) VALUES ( NULL, 35 );
 UPDATE IGNORE t1 SET c5 = 'a';
 connection slave;
 include/diff_tables.inc [master:t1, slave:t1]
-Warnings:
-Warning	1287	'<select expression> INTO <destination>;' is deprecated and will be removed in a future release. Please use 'SELECT <select list> INTO <destination> FROM...' instead
-Warnings:
-Warning	1287	'<select expression> INTO <destination>;' is deprecated and will be removed in a future release. Please use 'SELECT <select list> INTO <destination> FROM...' instead
 connection master;
 DROP TABLE t1;
 connection slave;
@@ -43,10 +35,6 @@ INSERT INTO t1 ( c5, c6 ) VALUES ( NULL, 35 );
 UPDATE IGNORE t1 SET c5 = 'a';
 connection slave;
 include/diff_tables.inc [master:t1, slave:t1]
-Warnings:
-Warning	1287	'<select expression> INTO <destination>;' is deprecated and will be removed in a future release. Please use 'SELECT <select list> INTO <destination> FROM...' instead
-Warnings:
-Warning	1287	'<select expression> INTO <destination>;' is deprecated and will be removed in a future release. Please use 'SELECT <select list> INTO <destination> FROM...' instead
 connection master;
 DROP TABLE t1;
 connection slave;
@@ -59,10 +47,6 @@ INSERT INTO t1(c1) VALUES (NULL);
 UPDATE t1 SET c1= 0;
 connection slave;
 include/diff_tables.inc [master:t1, slave:t1]
-Warnings:
-Warning	1287	'<select expression> INTO <destination>;' is deprecated and will be removed in a future release. Please use 'SELECT <select list> INTO <destination> FROM...' instead
-Warnings:
-Warning	1287	'<select expression> INTO <destination>;' is deprecated and will be removed in a future release. Please use 'SELECT <select list> INTO <destination> FROM...' instead
 connection master;
 DROP TABLE t1;
 connection slave;

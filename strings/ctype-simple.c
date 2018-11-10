@@ -236,28 +236,26 @@ size_t my_casedn_str_8bit(CHARSET_INFO * cs,char *str)
 }
 
 
-size_t my_caseup_8bit(CHARSET_INFO * cs, char *src, size_t srclen,
-                      char *dst __attribute__((unused)),
-                      size_t dstlen __attribute__((unused)))
+size_t my_caseup_8bit(CHARSET_INFO * cs, const char *src, size_t srclen,
+                      char *dst, size_t dstlen)
 {
-  char *end= src + srclen;
+  const char *end= src + srclen;
   register const uchar *map= cs->to_upper;
-  DBUG_ASSERT(src == dst && srclen == dstlen);
+  DBUG_ASSERT(srclen <= dstlen);
   for ( ; src != end ; src++)
-    *src= (char) map[(uchar) *src];
+    *dst++= (char) map[(uchar) *src];
   return srclen;
 }
 
 
-size_t my_casedn_8bit(CHARSET_INFO * cs, char *src, size_t srclen,
-                      char *dst __attribute__((unused)),
-                      size_t dstlen __attribute__((unused)))
+size_t my_casedn_8bit(CHARSET_INFO * cs, const char *src, size_t srclen,
+                      char *dst, size_t dstlen)
 {
-  char *end= src + srclen;
+  const char *end= src + srclen;
   register const uchar *map=cs->to_lower;
-  DBUG_ASSERT(src == dst && srclen == dstlen);
+  DBUG_ASSERT(srclen <= dstlen);
   for ( ; src != end ; src++)
-    *src= (char) map[(uchar) *src];
+    *dst++= (char) map[(uchar) *src];
   return srclen;
 }
 
@@ -494,7 +492,6 @@ ulong my_strntoul_8bit(CHARSET_INFO *cs,
   register uint cutlim;
   register uint32 i;
   register const char *s;
-  register uchar c;
   const char *save, *e;
   int overflow;
 
@@ -529,8 +526,9 @@ ulong my_strntoul_8bit(CHARSET_INFO *cs,
   overflow = 0;
   i = 0;
   
-  for (c = *s; s != e; c = *++s)
+  for ( ; s != e; ++s)
   {
+    register uchar c= *s;
     if (c>='0' && c<='9')
       c -= '0';
     else if (c>='A' && c<='Z')

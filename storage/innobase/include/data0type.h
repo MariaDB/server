@@ -554,10 +554,54 @@ struct dtype_t{
 	{
 		return (prtype & DATA_VERSIONED) == DATA_VERS_END;
 	}
+
+	/** Set the type of the BLOB in the hidden metadata record. */
+	void metadata_blob_init()
+	{
+		prtype = DATA_NOT_NULL;
+		mtype = DATA_BLOB;
+		len = 0;
+		mbminlen = 0;
+		mbmaxlen = 0;
+	}
 };
 
 /** The DB_TRX_ID,DB_ROLL_PTR values for "no history is available" */
 extern const byte reset_trx_id[DATA_TRX_ID_LEN + DATA_ROLL_PTR_LEN];
+
+/** Info bit denoting the predefined minimum record: this bit is set
+if and only if the record is the first user record on a non-leaf
+B-tree page that is the leftmost page on its level
+(PAGE_LEVEL is nonzero and FIL_PAGE_PREV is FIL_NULL). */
+#define REC_INFO_MIN_REC_FLAG	0x10UL
+/** The delete-mark flag in info bits */
+#define REC_INFO_DELETED_FLAG	0x20UL
+
+/** Record status values for ROW_FORMAT=COMPACT,DYNAMIC,COMPRESSED */
+enum rec_comp_status_t {
+	/** User record (PAGE_LEVEL=0, heap>=PAGE_HEAP_NO_USER_LOW) */
+	REC_STATUS_ORDINARY = 0,
+	/** Node pointer record (PAGE_LEVEL>=0, heap>=PAGE_HEAP_NO_USER_LOW) */
+	REC_STATUS_NODE_PTR = 1,
+	/** The page infimum pseudo-record (heap=PAGE_HEAP_NO_INFIMUM) */
+	REC_STATUS_INFIMUM = 2,
+	/** The page supremum pseudo-record (heap=PAGE_HEAP_NO_SUPREMUM) */
+	REC_STATUS_SUPREMUM = 3,
+	/** Clustered index record that has been inserted or updated
+	after instant ADD COLUMN (more than dict_index_t::n_core_fields) */
+	REC_STATUS_INSTANT = 4
+};
+
+/** The dtuple_t::info_bits of the hidden metadata of instant ADD COLUMN.
+@see rec_is_metadata()
+@see rec_is_alter_metadata() */
+static const byte REC_INFO_METADATA_ADD
+	= REC_INFO_MIN_REC_FLAG | REC_STATUS_INSTANT;
+
+/** The dtuple_t::info_bits of the hidden metadata of instant ALTER TABLE.
+@see rec_is_metadata() */
+static const byte REC_INFO_METADATA_ALTER
+	= REC_INFO_METADATA_ADD | REC_INFO_DELETED_FLAG;
 
 #include "data0type.ic"
 

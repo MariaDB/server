@@ -25,6 +25,8 @@
 #include <cstdlib>
 #include "debug_sync.h"
 
+extern handlerton *binlog_hton;
+extern int binlog_close_connection(handlerton *hton, THD *thd);
 extern ulonglong thd_to_trx_id(THD *thd);
 
 extern "C" int thd_binlog_format(const MYSQL_THD thd);
@@ -173,7 +175,10 @@ wsrep_close_connection(handlerton*  hton, THD* thd)
   {
     DBUG_RETURN(0);
   }
-  DBUG_RETURN(wsrep_binlog_close_connection (thd));
+
+  if (wsrep_emulate_bin_log && thd_get_ha_data(thd, binlog_hton) != NULL)
+    binlog_hton->close_connection (binlog_hton, thd);
+  DBUG_RETURN(0);
 }
 
 /*
@@ -264,7 +269,7 @@ static int wsrep_rollback(handlerton *hton, THD *thd, bool all)
   }
 
   if ((all || !thd_test_options(thd, OPTION_NOT_AUTOCOMMIT | OPTION_BEGIN)) &&
-      (thd->variables.wsrep_on && thd->wsrep_conflict_state != MUST_REPLAY))
+      thd->variables.wsrep_on && thd->wsrep_conflict_state != MUST_REPLAY)
   {
     if (wsrep && wsrep->post_rollback(wsrep, &thd->wsrep_ws_handle))
     {

@@ -33,7 +33,7 @@ endif()
 
 # Optional compression libraries.
 
-foreach(compression_lib LZ4 BZIP2 ZSTD snappy)
+foreach(compression_lib LZ4 BZIP2 zstd snappy)
   FIND_PACKAGE(${compression_lib} QUIET)
 
   SET(WITH_ROCKSDB_${compression_lib} AUTO CACHE STRING
@@ -76,7 +76,7 @@ if(ZSTD_FOUND AND (NOT WITH_ROCKSDB_ZSTD STREQUAL "OFF"))
   if (ZSTD_VALID)
     add_definitions(-DZSTD)
     include_directories(${ZSTD_INCLUDE_DIR})
-    list(APPEND THIRDPARTY_LIBS ${ZSTD_LIBRARY})
+    list(APPEND THIRDPARTY_LIBS ${ZSTD_LIBRARIES})
   endif()
 endif()
 
@@ -178,6 +178,7 @@ set(ROCKSDB_SOURCES
         db/db_info_dumper.cc
         db/db_iter.cc
         db/dbformat.cc
+        db/error_handler.cc
         db/event_helpers.cc
         db/experimental.cc
         db/external_sst_file_ingestion_job.cc
@@ -188,6 +189,7 @@ set(ROCKSDB_SOURCES
         db/internal_stats.cc
         db/log_reader.cc
         db/log_writer.cc
+        db/logs_with_prep_tracker.cc
         db/malloc_stats.cc
         db/managed_iterator.cc
         db/memtable.cc
@@ -284,6 +286,7 @@ set(ROCKSDB_SOURCES
         util/coding.cc
         util/compaction_job_stats_impl.cc
         util/comparator.cc
+        util/compression_context_cache.cc
         util/concurrent_arena.cc
         util/crc32c.cc
         util/delete_scheduler.cc
@@ -304,6 +307,7 @@ set(ROCKSDB_SOURCES
         util/status_message.cc
         util/string_util.cc
         util/sync_point.cc
+        util/sync_point_impl.cc
         util/testutil.cc
         util/thread_local.cc
         util/threadpool_imp.cc
@@ -352,6 +356,8 @@ set(ROCKSDB_SOURCES
         utilities/transactions/transaction_util.cc
         utilities/transactions/write_prepared_txn.cc
         utilities/transactions/write_prepared_txn_db.cc
+        utilities/transactions/write_unprepared_txn.cc
+        utilities/transactions/write_unprepared_txn_db.cc
         utilities/ttl/db_ttl_impl.cc
         utilities/write_batch_with_index/write_batch_with_index.cc
         utilities/write_batch_with_index/write_batch_with_index_internal.cc
@@ -377,6 +383,37 @@ FOREACH(s ${ROCKSDB_SOURCES})
   list(APPEND SOURCES ${ROCKSDB_SOURCE_DIR}/${s})
 ENDFOREACH()
 
+if(MSVC)
+  add_definitions(-DHAVE_SSE42 -DHAVE_PCLMUL)
+  # Workaround broken compilation with -DWIN32_LEAN_AND_MEAN
+  # (https://github.com/facebook/rocksdb/issues/4344)
+  set_source_files_properties(${ROCKSDB_SOURCE_DIR}/port/win/env_win.cc
+      PROPERTIES COMPILE_FLAGS "/FI\"windows.h\" /FI\"winioctl.h\"")
+
+  # Workaround Win8.1 SDK bug, that breaks /permissive-
+  string(REPLACE "/permissive-" "" CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS}")
+else()
+  set(CMAKE_REQUIRED_FLAGS "-msse4.2 -mpclmul ${CXX11_FLAGS}")
+
+  CHECK_CXX_SOURCE_COMPILES("
+#include <cstdint>
+#include <nmmintrin.h>
+#include <wmmintrin.h>
+int main() {
+  volatile uint32_t x = _mm_crc32_u32(0, 0);
+  const auto a = _mm_set_epi64x(0, 0);
+  const auto b = _mm_set_epi64x(0, 0);
+  const auto c = _mm_clmulepi64_si128(a, b, 0x00);
+  auto d = _mm_cvtsi128_si64(c);
+}
+" HAVE_SSE42)
+  if(HAVE_SSE42)
+    set_source_files_properties(${ROCKSDB_SOURCE_DIR}/util/crc32c.cc
+      PROPERTIES COMPILE_FLAGS "-DHAVE_SSE42 -DHAVE_PCLMUL -msse4.2 -mpclmul")
+  endif()
+  unset(CMAKE_REQUIRED_FLAGS)
+endif()
+
 IF(CMAKE_VERSION VERSION_GREATER "2.8.10")
   STRING(TIMESTAMP GIT_DATE_TIME "%Y-%m-%d %H:%M:%S")
 ENDIF()
@@ -390,4 +427,3 @@ target_link_libraries(rocksdblib ${THIRDPARTY_LIBS} ${SYSTEM_LIBS})
 IF(CMAKE_CXX_COMPILER_ID MATCHES "GNU" OR CMAKE_CXX_COMPILER_ID MATCHES "Clang")
   set_target_properties(rocksdblib PROPERTIES COMPILE_FLAGS "-fPIC -fno-builtin-memcmp -frtti")
 endif()
-

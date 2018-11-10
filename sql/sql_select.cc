@@ -293,6 +293,9 @@ static bool find_order_in_list(THD *, Ref_ptr_array, TABLE_LIST *, ORDER *,
 static double table_cond_selectivity(JOIN *join, uint idx, JOIN_TAB *s,
                                      table_map rem_tables);
 void set_postjoin_aggr_write_func(JOIN_TAB *tab);
+
+static Item **get_sargable_cond(JOIN *join, TABLE *table);
+
 #ifndef DBUG_OFF
 
 /*
@@ -643,7 +646,7 @@ setup_without_group(THD *thd, Ref_ptr_array ref_pointer_array,
   const bool saved_non_agg_field_used= select->non_agg_field_used();
   DBUG_ENTER("setup_without_group");
 
-  thd->lex->allow_sum_func&= ~((nesting_map)1 << select->nest_level);
+  thd->lex->allow_sum_func.clear_bit(select->nest_level);
   res= setup_conds(thd, tables, leaves, conds);
   if (thd->lex->current_select->first_cond_optimization)
   {
@@ -656,18 +659,18 @@ setup_without_group(THD *thd, Ref_ptr_array ref_pointer_array,
   /* it's not wrong to have non-aggregated columns in a WHERE */
   select->set_non_agg_field_used(saved_non_agg_field_used);
 
-  thd->lex->allow_sum_func|= (nesting_map)1 << select->nest_level;
+  thd->lex->allow_sum_func.set_bit(select->nest_level);
   
   save_place= thd->lex->current_select->context_analysis_place;
   thd->lex->current_select->context_analysis_place= IN_ORDER_BY;
   res= res || setup_order(thd, ref_pointer_array, tables, fields, all_fields,
                           order);
-  thd->lex->allow_sum_func&= ~((nesting_map)1 << select->nest_level);
+  thd->lex->allow_sum_func.clear_bit(select->nest_level);
   thd->lex->current_select->context_analysis_place= IN_GROUP_BY;
   res= res || setup_group(thd, ref_pointer_array, tables, fields, all_fields,
                           group, hidden_group_fields);
   thd->lex->current_select->context_analysis_place= save_place;
-  thd->lex->allow_sum_func|= (nesting_map)1 << select->nest_level;
+  thd->lex->allow_sum_func.set_bit(select->nest_level);
   res= res || setup_windows(thd, ref_pointer_array, tables, fields, all_fields,
                             win_specs, win_funcs);
   thd->lex->allow_sum_func= save_allow_sum_func;
@@ -1115,7 +1118,7 @@ JOIN::prepare(TABLE_LIST *tables_init,
                        select_lex->master_unit()->global_parameters())
   {
     nesting_map save_allow_sum_func= thd->lex->allow_sum_func;
-    thd->lex->allow_sum_func|= (nesting_map)1 << select_lex->nest_level;
+    thd->lex->allow_sum_func.set_bit(select_lex->nest_level);
     thd->where= "order clause";
     for (ORDER *order= select_lex->order_list.first; order; order= order->next)
     {
@@ -1133,7 +1136,7 @@ JOIN::prepare(TABLE_LIST *tables_init,
   {
     nesting_map save_allow_sum_func= thd->lex->allow_sum_func;
     thd->where="having clause";
-    thd->lex->allow_sum_func|= (nesting_map)1 << select_lex_arg->nest_level;
+    thd->lex->allow_sum_func.set_bit(select_lex_arg->nest_level);
     select_lex->having_fix_field= 1;
     /*
       Wrap alone field in HAVING clause in case it will be outer field
@@ -1643,6 +1646,13 @@ JOIN::optimize_inner()
   if (optimize_constant_subqueries())
     DBUG_RETURN(1);
 
+  if (conds && conds->with_subquery())
+    (void) conds->walk(&Item::cleanup_is_expensive_cache_processor,
+                       0, (void *) 0);
+  if (having && having->with_subquery())
+    (void) having->walk(&Item::cleanup_is_expensive_cache_processor,
+			0, (void *) 0);
+
   List<Item> eq_list;
 
   if (setup_degenerate_jtbm_semi_joins(this, join_list, eq_list))
@@ -1688,8 +1698,14 @@ JOIN::optimize_inner()
   conds= optimize_cond(this, conds, join_list, FALSE,
                        &cond_value, &cond_equal, OPT_LINK_EQUAL_FIELDS);
   
-  if (thd->lex->sql_command == SQLCOM_SELECT &&
-      optimizer_flag(thd, OPTIMIZER_SWITCH_COND_PUSHDOWN_FOR_SUBQUERY))
+  if (thd->is_error())
+  {
+    error= 1;
+    DBUG_PRINT("error",("Error from optimize_cond"));
+    DBUG_RETURN(1);
+  }
+
+  if (optimizer_flag(thd, OPTIMIZER_SWITCH_COND_PUSHDOWN_FOR_SUBQUERY))
   {
     TABLE_LIST *tbl;
     List_iterator_fast<TABLE_LIST> li(select_lex->leaf_tables);
@@ -1714,8 +1730,7 @@ JOIN::optimize_inner()
       DBUG_RETURN(TRUE);
   }
 
-  if (thd->lex->sql_command == SQLCOM_SELECT &&
-      optimizer_flag(thd, OPTIMIZER_SWITCH_COND_PUSHDOWN_FOR_DERIVED))
+  if (optimizer_flag(thd, OPTIMIZER_SWITCH_COND_PUSHDOWN_FOR_DERIVED))
   {
     TABLE_LIST *tbl;
     List_iterator_fast<TABLE_LIST> li(select_lex->leaf_tables);
@@ -1751,13 +1766,6 @@ JOIN::optimize_inner()
     /* Run optimize phase for all derived tables/views used in this SELECT. */
     if (select_lex->handle_derived(thd->lex, DT_OPTIMIZE))
       DBUG_RETURN(1);
-  }
-
-  if (unlikely(thd->is_error()))
-  {
-    error= 1;
-    DBUG_PRINT("error",("Error from optimize_cond"));
-    DBUG_RETURN(1);
   }
 
   {
@@ -1810,19 +1818,9 @@ JOIN::optimize_inner()
     List_iterator_fast<TABLE_LIST> li(select_lex->leaf_tables);
     while ((tbl= li++))
     {
-      /* 
-        If tbl->embedding!=NULL that means that this table is in the inner
-        part of the nested outer join, and we can't do partition pruning
-        (TODO: check if this limitation can be lifted)
-      */
-      if (!tbl->embedding ||
-          (tbl->embedding && tbl->embedding->sj_on_expr))
-      {
-        Item *prune_cond= tbl->on_expr? tbl->on_expr : conds;
-        tbl->table->all_partitions_pruned_away= prune_partitions(thd,
-                                                                 tbl->table,
-	                                                         prune_cond);
-       }
+      Item **prune_cond= get_sargable_cond(this, tbl->table);
+      tbl->table->all_partitions_pruned_away=
+        prune_partitions(thd, tbl->table, *prune_cond);
     }
   }
 #endif
@@ -1918,6 +1916,14 @@ JOIN::optimize_inner()
     {
       error= 1;
       DBUG_RETURN(1);
+    }
+    if (!group_list)
+    {
+      /* The output has only one row */
+      order=0;
+      simple_order=1;
+      group_optimized_away= 1;
+      select_distinct=0;
     }
   }
   
@@ -3159,7 +3165,7 @@ bool JOIN::make_aggr_tables_info()
         remove_duplicates() assumes there is a preceding computation step (and
         in the degenerate join, there's none)
       */
-      if (top_join_tab_count)
+      if (top_join_tab_count && tables_list)
         curr_tab->distinct= true;
 
       having= NULL;
@@ -3805,7 +3811,7 @@ bool JOIN::save_explain_data(Explain_query *output, bool can_overwrite,
     If there is SELECT in this statement with the same number it must be the
     same SELECT
   */
-  DBUG_ASSERT(select_lex->select_number == UINT_MAX ||
+  DBUG_SLOW_ASSERT(select_lex->select_number == UINT_MAX ||
               select_lex->select_number == INT_MAX ||
               !output ||
               !output->get_select(select_lex->select_number) ||
@@ -4342,6 +4348,84 @@ struct SARGABLE_PARAM
 };
 
 
+/*
+  Mark all tables inside a join nest as constant.
+
+  @detail  This is called when there is a local "Impossible WHERE" inside
+           a multi-table LEFT JOIN.
+*/
+
+void mark_join_nest_as_const(JOIN *join,
+                             TABLE_LIST *join_nest,
+                             table_map *found_const_table_map,
+                             uint *const_count)
+{
+  List_iterator<TABLE_LIST> it(join_nest->nested_join->join_list);
+  TABLE_LIST *tbl;
+  while ((tbl= it++))
+  {
+    if (tbl->nested_join)
+    {
+      mark_join_nest_as_const(join, tbl, found_const_table_map, const_count);
+      continue;
+    }
+    JOIN_TAB *tab= tbl->table->reginfo.join_tab;
+
+    if (!(join->const_table_map & tab->table->map))
+    {
+      tab->type= JT_CONST;
+      tab->info= ET_IMPOSSIBLE_ON_CONDITION;
+      tab->table->const_table= 1;
+
+      join->const_table_map|= tab->table->map;
+      *found_const_table_map|= tab->table->map;
+      set_position(join,(*const_count)++,tab,(KEYUSE*) 0);
+      mark_as_null_row(tab->table);		// All fields are NULL
+    }
+  }
+}
+
+
+/*
+  @brief Get the condition that can be used to do range analysis/partition
+    pruning/etc
+
+  @detail
+    Figure out which condition we can use:
+    - For INNER JOIN, we use the WHERE,
+    - "t1 LEFT JOIN t2 ON ..." uses t2's ON expression
+    - "t1 LEFT JOIN (...) ON ..." uses the join nest's ON expression.
+*/
+
+static Item **get_sargable_cond(JOIN *join, TABLE *table)
+{
+  Item **retval;
+  if (table->pos_in_table_list->on_expr)
+  {
+    /*
+      This is an inner table from a single-table LEFT JOIN, "t1 LEFT JOIN
+      t2 ON cond". Use the condition cond.
+    */
+    retval= &table->pos_in_table_list->on_expr;
+  }
+  else if (table->pos_in_table_list->embedding &&
+           !table->pos_in_table_list->embedding->sj_on_expr)
+  {
+    /*
+      This is the inner side of a multi-table outer join. Use the
+      appropriate ON expression.
+    */
+    retval= &(table->pos_in_table_list->embedding->on_expr);
+  }
+  else
+  {
+    /* The table is not inner wrt some LEFT JOIN. Use the WHERE clause */
+    retval= &join->conds;
+  }
+  return retval;
+}
+
+
 /**
   Calculate the best possible join and initialize the join structure.
 
@@ -4619,8 +4703,8 @@ make_join_statistics(JOIN *join, List<TABLE_LIST> &tables_list,
   int ref_changed;
   do
   {
-  more_const_tables_found:
     ref_changed = 0;
+  more_const_tables_found:
     found_ref=0;
 
     /*
@@ -4789,7 +4873,7 @@ make_join_statistics(JOIN *join, List<TABLE_LIST> &tables_list,
 	}
       }
     }
-  } while (join->const_table_map & found_ref && ref_changed);
+  } while (ref_changed);
  
   join->sort_by_table= get_sort_by_table(join->order, join->group_list,
                                          join->select_lex->leaf_tables,
@@ -4913,39 +4997,38 @@ make_join_statistics(JOIN *join, List<TABLE_LIST> &tables_list,
     
     /*
       Perform range analysis if there are keys it could use (1). 
-      Don't do range analysis if we're on the inner side of an outer join (2).
-      Do range analysis if we're on the inner side of a semi-join (3).
-      Don't do range analysis for materialized subqueries (4).
-      Don't do range analysis for materialized derived tables (5)
+      Don't do range analysis for materialized subqueries (2).
+      Don't do range analysis for materialized derived tables (3)
     */
     if ((!s->const_keys.is_clear_all() ||
 	 !bitmap_is_clear_all(&s->table->cond_set)) &&              // (1)
-        (!s->table->pos_in_table_list->embedding ||                 // (2)
-         (s->table->pos_in_table_list->embedding &&                 // (3)
-          s->table->pos_in_table_list->embedding->sj_on_expr)) &&   // (3)
-        !s->table->is_filled_at_execution() &&                      // (4)
-        !(s->table->pos_in_table_list->derived &&                   // (5)
-          s->table->pos_in_table_list->is_materialized_derived()))  // (5)
+        !s->table->is_filled_at_execution() &&                      // (2)
+        !(s->table->pos_in_table_list->derived &&                   // (3)
+          s->table->pos_in_table_list->is_materialized_derived()))  // (3)
     {
       bool impossible_range= FALSE;
       ha_rows records= HA_POS_ERROR;
       SQL_SELECT *select= 0;
+      Item **sargable_cond= NULL;
       if (!s->const_keys.is_clear_all())
       {
+        sargable_cond= get_sargable_cond(join, s->table);
+
         select= make_select(s->table, found_const_table_map,
 			    found_const_table_map,
-			    *s->on_expr_ref ? *s->on_expr_ref : join->conds,
+                            *sargable_cond,
                             (SORT_INFO*) 0,
 			    1, &error);
         if (!select)
           goto error;
         records= get_quick_record_count(join->thd, select, s->table,
 				        &s->const_keys, join->row_limit);
-        /* Range analyzer could modify the condition. */
-        if (*s->on_expr_ref)
-          *s->on_expr_ref= select->cond;
-        else
-          join->conds= select->cond;
+
+        /*
+          Range analyzer might have modified the condition. Put it the new
+          condition to where we got it from.
+        */
+        *sargable_cond= select->cond;
 
         s->quick=select->quick;
         s->needed_reg=select->needed_reg;
@@ -4958,10 +5041,11 @@ make_join_statistics(JOIN *join, List<TABLE_LIST> &tables_list,
       }
       if (!impossible_range)
       {
+        if (!sargable_cond)
+          sargable_cond= get_sargable_cond(join, s->table);
         if (join->thd->variables.optimizer_use_condition_selectivity > 1)
           calculate_cond_selectivity_for_table(join->thd, s->table, 
-                                               *s->on_expr_ref ?
-                                               s->on_expr_ref : &join->conds);
+                                               sargable_cond);
         if (s->table->reginfo.impossible_range)
 	{
           impossible_range= TRUE;
@@ -4970,23 +5054,33 @@ make_join_statistics(JOIN *join, List<TABLE_LIST> &tables_list,
       }
       if (impossible_range)
       {
-	/*
-	  Impossible WHERE or ON expression
-	  In case of ON, we mark that the we match one empty NULL row.
-	  In case of WHERE, don't set found_const_table_map to get the
-	  caller to abort with a zero row result.
-	*/
-	join->const_table_map|= s->table->map;
-	set_position(join,const_count++,s,(KEYUSE*) 0);
-	s->type= JT_CONST;
-        s->table->const_table= 1;
-	if (*s->on_expr_ref)
-	{
-	  /* Generate empty row */
-	  s->info= ET_IMPOSSIBLE_ON_CONDITION;
-	  found_const_table_map|= s->table->map;
-	  mark_as_null_row(s->table);		// All fields are NULL
-	}
+        /*
+          Impossible WHERE or ON expression
+          In case of ON, we mark that the we match one empty NULL row.
+          In case of WHERE, don't set found_const_table_map to get the
+          caller to abort with a zero row result.
+        */
+        TABLE_LIST *emb= s->table->pos_in_table_list->embedding;
+        if (emb && !emb->sj_on_expr)
+        {
+          /* Mark all tables in a multi-table join nest as const */
+          mark_join_nest_as_const(join, emb, &found_const_table_map,
+                                &const_count);
+        }
+        else
+        {
+          join->const_table_map|= s->table->map;
+          set_position(join,const_count++,s,(KEYUSE*) 0);
+          s->type= JT_CONST;
+          s->table->const_table= 1;
+          if (*s->on_expr_ref)
+          {
+            /* Generate empty row */
+            s->info= ET_IMPOSSIBLE_ON_CONDITION;
+            found_const_table_map|= s->table->map;
+            mark_as_null_row(s->table);		// All fields are NULL
+          }
+        }
       }
       if (records != HA_POS_ERROR)
       {
@@ -6575,7 +6669,7 @@ add_group_and_distinct_keys(JOIN *join, JOIN_TAB *join_tab)
   Item_field *cur_item;
   key_map possible_keys(0);
 
-  if (join->group_list || join->simple_group)
+  if (join->group_list)
   { /* Collect all query fields referenced in the GROUP clause. */
     for (cur_group= join->group_list; cur_group; cur_group= cur_group->next)
       (*cur_group->item)->walk(&Item::collect_item_field_processor, 0,
@@ -7310,8 +7404,13 @@ best_access_path(JOIN      *join,
         tmp+= (s->records - rnd_records)/(double) TIME_FOR_COMPARE;
       }
     }
+
     double best_records= rnd_records;
-    tmp += s->startup_cost;
+    /* Splitting technique cannot be used with join cache */
+    if (s->table->is_splittable())
+      tmp+= s->table->get_materialization_cost();
+    else
+      tmp+= s->startup_cost;
 
     filter= s->table->best_filter_for_current_join_order(MAX_KEY,
                                                          rnd_records,
@@ -7341,6 +7440,7 @@ best_access_path(JOIN      *join,
       best_ref_depends_map= 0;
       best_uses_jbuf= MY_TEST(!disable_jbuf && !((s->table->map &
                                                   join->outer_join)));
+      spl_plan= 0;
     }
   }
 
@@ -9050,8 +9150,13 @@ bool JOIN_TAB::keyuse_is_valid_for_access_in_chosen_plan(JOIN *join,
   st_select_lex *sjm_sel= emb_sj_nest->sj_subq_pred->unit->first_select(); 
   for (uint i= 0; i < sjm_sel->item_list.elements; i++)
   {
-    if (sjm_sel->ref_pointer_array[i] == keyuse->val)
-      return true;
+    DBUG_ASSERT(sjm_sel->ref_pointer_array[i]->real_item()->type() == Item::FIELD_ITEM);
+    if (keyuse->val->real_item()->type() == Item::FIELD_ITEM)
+    {
+      Field *field = ((Item_field*)sjm_sel->ref_pointer_array[i]->real_item())->field;
+      if (field->eq(((Item_field*)keyuse->val->real_item())->field))
+        return true;
+    }
   }
   return false; 
 }
@@ -9702,7 +9807,6 @@ static bool create_hj_key_for_table(JOIN *join, JOIN_TAB *join_tab,
       if (first_keyuse)
       {
         key_parts++;
-        first_keyuse= FALSE;
       }
       else
       {
@@ -9712,7 +9816,7 @@ static bool create_hj_key_for_table(JOIN *join, JOIN_TAB *join_tab,
           if (curr->keypart == keyuse->keypart &&
               !(~used_tables & curr->used_tables) &&
               join_tab->keyuse_is_valid_for_access_in_chosen_plan(join,
-                                                                  keyuse) &&
+                                                                  curr) &&
               are_tables_local(join_tab, curr->used_tables))
             break;
         }
@@ -9720,6 +9824,7 @@ static bool create_hj_key_for_table(JOIN *join, JOIN_TAB *join_tab,
            key_parts++;
       }
     }
+    first_keyuse= FALSE;
     keyuse++;
   } while (keyuse->table == table && keyuse->is_for_hash_join());
   if (!key_parts)
@@ -11677,7 +11782,15 @@ uint check_join_cache_usage(JOIN_TAB *tab,
     effort now.
   */
   if (tab->table->pos_in_table_list->is_materialized_derived())
+  {
     no_bka_cache= true;
+    /*
+      Don't use hash join algorithm if the temporary table for the rows
+      of the derived table will be created with an equi-join key.
+    */
+    if (tab->table->s->keys)
+      no_hashed_cache= true;
+  }
 
   /*
     Don't use join buffering if we're dictated not to by no_jbuf_after
@@ -22111,11 +22224,30 @@ test_if_skip_sort_order(JOIN_TAB *tab,ORDER *order,ha_rows select_limit,
       tmp_map.clear_all();       // Force the creation of quick select
       tmp_map.set_bit(best_key); // only best_key.
       select->quick= 0;
+
+      bool cond_saved= false;
+      Item *saved_cond;
+
+      /*
+        Index Condition Pushdown may have removed parts of the condition for
+        this table. Temporarily put them back because we want the whole
+        condition for the range analysis.
+      */
+      if (select->pre_idx_push_select_cond)
+      {
+        saved_cond= select->cond;
+        select->cond= select->pre_idx_push_select_cond;
+        cond_saved= true;
+      }
+
       select->test_quick_select(join->thd, tmp_map, 0,
                                 join->select_options & OPTION_FOUND_ROWS ?
                                 HA_POS_ERROR :
                                 join->unit->select_limit_cnt,
                                 TRUE, FALSE, FALSE);
+
+      if (cond_saved)
+        select->cond= saved_cond;
     }
     order_direction= best_key_direction;
     /*
@@ -23119,7 +23251,8 @@ setup_group(THD *thd, Ref_ptr_array ref_pointer_array, TABLE_LIST *tables,
       return 1;
     }
   }
-  if (thd->variables.sql_mode & MODE_ONLY_FULL_GROUP_BY)
+  if (thd->variables.sql_mode & MODE_ONLY_FULL_GROUP_BY &&
+      context_analysis_place == IN_GROUP_BY)
   {
     /*
       Don't allow one to use fields that is not used in GROUP BY
@@ -26087,7 +26220,7 @@ void TABLE_LIST::print(THD *thd, table_map eliminated_tables, String *str,
       LEX_CSTRING t_alias= alias;
 
       str->append(' ');
-      if (lower_case_table_names== 1)
+      if (lower_case_table_names == 1)
       {
         if (alias.str && alias.str[0])
         {
@@ -27292,9 +27425,10 @@ AGGR_OP::end_send()
 
   // Update ref array
   join_tab->join->set_items_ref_array(*join_tab->ref_array);
+  bool keep_last_filesort_result = join_tab->filesort ? false : true;
   if (join_tab->window_funcs_step)
   {
-    if (join_tab->window_funcs_step->exec(join))
+    if (join_tab->window_funcs_step->exec(join, keep_last_filesort_result))
       return NESTED_LOOP_ERROR;
   }
 
@@ -27346,6 +27480,12 @@ AGGR_OP::end_send()
       }
       rc= evaluate_join_record(join, join_tab, 0);
     }
+  }
+
+  if (keep_last_filesort_result)
+  {
+    delete join_tab->filesort_result;
+    join_tab->filesort_result= NULL;
   }
 
   // Finish rnd scn after sending records

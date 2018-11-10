@@ -1388,15 +1388,15 @@ bool Item_singlerow_subselect::val_bool()
 }
 
 
-bool Item_singlerow_subselect::get_date(MYSQL_TIME *ltime,ulonglong fuzzydate)
+bool Item_singlerow_subselect::get_date(THD *thd, MYSQL_TIME *ltime, date_mode_t fuzzydate)
 {
   DBUG_ASSERT(fixed == 1);
   if (forced_const)
-    return value->get_date(ltime, fuzzydate);
+    return value->get_date(thd, ltime, fuzzydate);
   if (!exec() && !value->null_value)
   {
     null_value= FALSE;
-    return value->get_date(ltime, fuzzydate);
+    return value->get_date(thd, ltime, fuzzydate);
   }
   else
   {
@@ -1991,8 +1991,7 @@ bool Item_allany_subselect::transform_into_max_min(JOIN *join)
                  print_where(item, "rewrite with MIN/MAX", QT_ORDINARY););
 
     save_allow_sum_func= thd->lex->allow_sum_func;
-    thd->lex->allow_sum_func|=
-        (nesting_map)1 << thd->lex->current_select->nest_level;
+    thd->lex->allow_sum_func.set_bit(thd->lex->current_select->nest_level);
     /*
       Item_sum_(max|min) can't substitute other item => we can use 0 as
       reference, also Item_sum_(max|min) can't be fixed after creation, so

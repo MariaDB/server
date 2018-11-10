@@ -30,7 +30,6 @@ Created 2/2/1994 Heikki Tuuri
 #include "page0zip.h"
 #include "buf0buf.h"
 #include "btr0btr.h"
-#include "row0trunc.h"
 #include "srv0srv.h"
 #include "lock0lock.h"
 #include "fut0lst.h"
@@ -454,22 +453,15 @@ page_create_zip(
 	ulint			level,		/*!< in: the B-tree level
 						of the page */
 	trx_id_t		max_trx_id,	/*!< in: PAGE_MAX_TRX_ID */
-	const redo_page_compress_t* page_comp_info,
-						/*!< in: used for applying
-						TRUNCATE log
-						record during recovery */
 	mtr_t*			mtr)		/*!< in/out: mini-transaction
 						handle */
 {
 	page_t*			page;
 	page_zip_des_t*		page_zip = buf_block_get_page_zip(block);
-	bool			is_spatial;
 
 	ut_ad(block);
 	ut_ad(page_zip);
-	ut_ad(index == NULL || dict_table_is_comp(index->table));
-	is_spatial = index ? dict_index_is_spatial(index)
-			   : page_comp_info->type & DICT_SPATIAL;
+	ut_ad(dict_table_is_comp(index->table));
 
 	/* PAGE_MAX_TRX_ID or PAGE_ROOT_AUTO_INC are always 0 for
 	temporary tables. */
@@ -487,22 +479,11 @@ page_create_zip(
 	      || !dict_index_is_sec_or_ibuf(index)
 	      || index->table->is_temporary());
 
-	page = page_create_low(block, TRUE, is_spatial);
+	page = page_create_low(block, TRUE, dict_index_is_spatial(index));
 	mach_write_to_2(PAGE_HEADER + PAGE_LEVEL + page, level);
 	mach_write_to_8(PAGE_HEADER + PAGE_MAX_TRX_ID + page, max_trx_id);
 
-	if (truncate_t::s_fix_up_active) {
-		/* Compress the index page created when applying
-		TRUNCATE log during recovery */
-		if (!page_zip_compress(page_zip, page, index, page_zip_level,
-				       page_comp_info, NULL)) {
-			/* The compression of a newly created
-			page should always succeed. */
-			ut_error;
-		}
-
-	} else if (!page_zip_compress(page_zip, page, index,
-				      page_zip_level, NULL, mtr)) {
+	if (!page_zip_compress(page_zip, page, index, page_zip_level, mtr)) {
 		/* The compression of a newly created
 		page should always succeed. */
 		ut_error;
@@ -546,7 +527,7 @@ page_create_empty(
 		ut_ad(!index->table->is_temporary());
 		page_create_zip(block, index,
 				page_header_get_field(page, PAGE_LEVEL),
-				max_trx_id, NULL, mtr);
+				max_trx_id, mtr);
 	} else {
 		page_create(block, mtr, page_is_comp(page),
 			    dict_index_is_spatial(index));
@@ -721,11 +702,8 @@ page_copy_rec_list_end(
 	if (new_page_zip) {
 		mtr_set_log_mode(mtr, log_mode);
 
-		if (!page_zip_compress(new_page_zip,
-				       new_page,
-				       index,
-				       page_zip_level,
-				       NULL, mtr)) {
+		if (!page_zip_compress(new_page_zip, new_page, index,
+				       page_zip_level, mtr)) {
 			/* Before trying to reorganize the page,
 			store the number of preceding records on the page. */
 			ulint	ret_pos
@@ -887,7 +865,7 @@ page_copy_rec_list_start(
 				goto zip_reorganize;);
 
 		if (!page_zip_compress(new_page_zip, new_page, index,
-				       page_zip_level, NULL, mtr)) {
+				       page_zip_level, mtr)) {
 			ulint	ret_pos;
 #ifndef DBUG_OFF
 zip_reorganize:
@@ -1826,6 +1804,7 @@ page_print_list(
 	count = 0;
 	for (;;) {
 		offsets = rec_get_offsets(cur.rec, index, offsets,
+					  page_rec_is_leaf(cur.rec),
 					  ULINT_UNDEFINED, &heap);
 		page_rec_print(cur.rec, offsets);
 
@@ -1848,6 +1827,7 @@ page_print_list(
 
 		if (count + pr_n >= n_recs) {
 			offsets = rec_get_offsets(cur.rec, index, offsets,
+						  page_rec_is_leaf(cur.rec),
 						  ULINT_UNDEFINED, &heap);
 			page_rec_print(cur.rec, offsets);
 		}
@@ -2810,7 +2790,7 @@ page_find_rec_max_not_deleted(
 	const rec_t*	prev_rec = NULL; // remove warning
 
 	/* Because the page infimum is never delete-marked
-	and never the 'default row' pseudo-record (MIN_REC_FLAG)),
+	and never the metadata pseudo-record (MIN_REC_FLAG)),
 	prev_rec will always be assigned to it first. */
 	ut_ad(!rec_get_info_bits(rec, page_rec_is_comp(rec)));
 	ut_ad(page_is_leaf(page));
@@ -2846,7 +2826,7 @@ void
 page_warn_strict_checksum(
 	srv_checksum_algorithm_t	curr_algo,
 	srv_checksum_algorithm_t	page_checksum,
-	const page_id_t&		page_id)
+	const page_id_t			page_id)
 {
 	srv_checksum_algorithm_t	curr_algo_nonstrict;
 	switch (curr_algo) {

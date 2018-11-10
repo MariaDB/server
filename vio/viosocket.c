@@ -74,8 +74,7 @@ int vio_errno(Vio *vio __attribute__((unused)))
 {
   /* These transport types are not Winsock based. */
 #ifdef _WIN32
-  if (vio->type == VIO_TYPE_NAMEDPIPE ||
-      vio->type == VIO_TYPE_SHARED_MEMORY)
+  if (vio->type == VIO_TYPE_NAMEDPIPE)
     return GetLastError();
 #endif
 
@@ -363,7 +362,7 @@ int vio_blocking(Vio *vio, my_bool set_blocking_mode, my_bool *old_mode)
   r= set_blocking_mode ? 0 : 1;
 #endif /* !defined(NO_FCNTL_NONBLOCK) */
 #else /* !defined(__WIN__) */
-  if (vio->type != VIO_TYPE_NAMEDPIPE && vio->type != VIO_TYPE_SHARED_MEMORY)
+  if (vio->type != VIO_TYPE_NAMEDPIPE)
   { 
     ulong arg;
     int old_fcntl=vio->fcntl_mode;
@@ -442,8 +441,7 @@ int vio_nodelay(Vio *vio, my_bool on)
   int no_delay= MY_TEST(on);
   DBUG_ENTER("vio_nodelay");
 
-  if (vio->type == VIO_TYPE_NAMEDPIPE || vio->type == VIO_TYPE_SHARED_MEMORY
-      || vio->type == VIO_TYPE_SOCKET)
+  if (vio->type == VIO_TYPE_NAMEDPIPE || vio->type == VIO_TYPE_SOCKET)
   {
     DBUG_RETURN(0);
   }
@@ -468,7 +466,7 @@ int vio_fastsend(Vio * vio)
   int r=0;
   DBUG_ENTER("vio_fastsend");
 
-  if (vio->type == VIO_TYPE_NAMEDPIPE ||vio->type == VIO_TYPE_SHARED_MEMORY)
+  if (vio->type == VIO_TYPE_NAMEDPIPE)
   {
     DBUG_RETURN(0);
   }
@@ -502,7 +500,7 @@ int vio_keepalive(Vio* vio, my_bool set_keep_alive)
                        (int)mysql_socket_getfd(vio->mysql_socket),
                        (int)set_keep_alive));
 
-  if (vio->type != VIO_TYPE_NAMEDPIPE && vio->type != VIO_TYPE_SHARED_MEMORY)
+  if (vio->type != VIO_TYPE_NAMEDPIPE)
   {
     if (set_keep_alive)
       opt = 1;
@@ -521,7 +519,7 @@ int vio_set_keepalive_options(Vio* vio, const struct vio_keepalive_opts *opts)
   struct tcp_keepalive s;
   DWORD  nbytes;
 
-  if (vio->type == VIO_TYPE_NAMEDPIPE || vio->type == VIO_TYPE_SHARED_MEMORY)
+  if (vio->type == VIO_TYPE_NAMEDPIPE)
     return 0;
 
   if (!opts->idle && !opts->interval)

@@ -531,6 +531,6 @@ void thd_wakeup_subsequent_commits(void* thd, int wakeup_error);
 struct st_mariadb_password_validation
 {
   int interface_version;
-  int (*validate_password)(MYSQL_CONST_LEX_STRING *username,
-                           MYSQL_CONST_LEX_STRING *password);
+  int (*validate_password)(const MYSQL_CONST_LEX_STRING *username,
+                           const MYSQL_CONST_LEX_STRING *password);
 };

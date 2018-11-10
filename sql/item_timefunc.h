@@ -26,7 +26,8 @@
 class MY_LOCALE;
 
 
-bool get_interval_value(Item *args,interval_type int_type, INTERVAL *interval);
+bool get_interval_value(THD *thd, Item *args,
+                        interval_type int_type, INTERVAL *interval);
 
 
 class Item_long_func_date_field: public Item_long_func
@@ -181,9 +182,9 @@ public:
     str->set(nr, collation.collation);
     return str;
   }
-  bool get_date(MYSQL_TIME *ltime, ulonglong fuzzydate)
+  bool get_date(THD *thd, MYSQL_TIME *ltime, date_mode_t fuzzydate)
   {
-    return get_date_from_int(ltime, fuzzydate);
+    return get_date_from_int(thd, ltime, fuzzydate);
   }
   const char *func_name() const { return "month"; }
   const Type_handler *type_handler() const { return &type_handler_long; }
@@ -454,9 +455,9 @@ public:
   {
      return (odbc_type ? "dayofweek" : "weekday");
   }
-  bool get_date(MYSQL_TIME *ltime, ulonglong fuzzydate)
+  bool get_date(THD *thd, MYSQL_TIME *ltime, date_mode_t fuzzydate)
   {
-    return type_handler()->Item_get_date(this, ltime, fuzzydate);
+    return type_handler()->Item_get_date_with_warn(thd, this, ltime, fuzzydate);
   }
   const Type_handler *type_handler() const { return &type_handler_long; }
   bool fix_length_and_dec()
@@ -511,7 +512,7 @@ public:
   }
   double real_op() { DBUG_ASSERT(0); return 0; }
   String *str_op(String *str) { DBUG_ASSERT(0); return 0; }
-  bool date_op(MYSQL_TIME *ltime, ulonglong fuzzydate)
+  bool date_op(THD *thd, MYSQL_TIME *ltime, date_mode_t fuzzydate)
   {
     DBUG_ASSERT(0);
     return true;
@@ -547,7 +548,8 @@ public:
   }
   bool fix_length_and_dec()
   {
-    fix_length_and_dec_generic(arg_count ?  args[0]->datetime_precision() : 0);
+    fix_length_and_dec_generic(arg_count ?
+                               args[0]->datetime_precision(current_thd) : 0);
     return FALSE;
   }
   longlong int_op();
@@ -571,7 +573,7 @@ public:
   }
   bool fix_length_and_dec()
   {
-    fix_length_and_dec_generic(args[0]->time_precision());
+    fix_length_and_dec_generic(args[0]->time_precision(current_thd));
     return FALSE;
   }
   longlong int_op();
@@ -643,7 +645,7 @@ public:
   { decimals= dec; }
   bool fix_fields(THD *, Item **);
   bool fix_length_and_dec() { fix_attributes_time(decimals); return FALSE; }
-  bool get_date(MYSQL_TIME *res, ulonglong fuzzy_date);
+  bool get_date(THD *thd, MYSQL_TIME *res, date_mode_t fuzzydate);
   /* 
     Abstract method that defines which time zone is used for conversion.
     Converts time current time in my_time_t representation to broken-down
@@ -688,7 +690,7 @@ class Item_func_curdate :public Item_datefunc
   MYSQL_TIME ltime;
 public:
   Item_func_curdate(THD *thd): Item_datefunc(thd), last_query_id(0) {}
-  bool get_date(MYSQL_TIME *res, ulonglong fuzzy_date);
+  bool get_date(THD *thd, MYSQL_TIME *res, date_mode_t fuzzydate);
   virtual void store_now_in_TIME(THD *thd, MYSQL_TIME *now_time)=0;
   bool check_vcol_func_processor(void *arg)
   {
@@ -731,7 +733,7 @@ public:
   bool fix_fields(THD *, Item **);
   bool fix_length_and_dec()
   { fix_attributes_datetime(decimals); return FALSE;}
-  bool get_date(MYSQL_TIME *res, ulonglong fuzzy_date);
+  bool get_date(THD *thd, MYSQL_TIME *res, date_mode_t fuzzydate);
   virtual void store_now_in_TIME(THD *thd, MYSQL_TIME *now_time)=0;
   bool check_vcol_func_processor(void *arg)
   {
@@ -786,7 +788,7 @@ public:
   bool const_item() const { return 0; }
   const char *func_name() const { return "sysdate"; }
   void store_now_in_TIME(THD *thd, MYSQL_TIME *now_time);
-  bool get_date(MYSQL_TIME *res, ulonglong fuzzy_date);
+  bool get_date(THD *thd, MYSQL_TIME *res, date_mode_t fuzzydate);
   table_map used_tables() const { return RAND_TABLE_BIT; }
   bool check_vcol_func_processor(void *arg)
   {
@@ -806,7 +808,7 @@ class Item_func_from_days :public Item_datefunc
 public:
   Item_func_from_days(THD *thd, Item *a): Item_datefunc(thd, a) {}
   const char *func_name() const { return "from_days"; }
-  bool get_date(MYSQL_TIME *res, ulonglong fuzzy_date);
+  bool get_date(THD *thd, MYSQL_TIME *res, date_mode_t fuzzydate);
   bool check_partition_func_processor(void *int_arg) {return FALSE;}
   bool check_vcol_func_processor(void *arg) { return FALSE;}
   bool check_valid_arguments_processor(void *int_arg)
@@ -871,7 +873,7 @@ class Item_func_from_unixtime :public Item_datetimefunc
   Item_func_from_unixtime(THD *thd, Item *a): Item_datetimefunc(thd, a) {}
   const char *func_name() const { return "from_unixtime"; }
   bool fix_length_and_dec();
-  bool get_date(MYSQL_TIME *res, ulonglong fuzzy_date);
+  bool get_date(THD *thd, MYSQL_TIME *res, date_mode_t fuzzydate);
   Item *get_copy(THD *thd)
   { return get_item_copy<Item_func_from_unixtime>(thd, this); }
 };
@@ -912,11 +914,11 @@ class Item_func_convert_tz :public Item_datetimefunc
   const char *func_name() const { return "convert_tz"; }
   bool fix_length_and_dec()
   {
-    fix_attributes_datetime(args[0]->datetime_precision());
+    fix_attributes_datetime(args[0]->datetime_precision(current_thd));
     maybe_null= true;
     return FALSE;
   }
-  bool get_date(MYSQL_TIME *res, ulonglong fuzzy_date);
+  bool get_date(THD *thd, MYSQL_TIME *res, date_mode_t fuzzydate);
   void cleanup();
   Item *get_copy(THD *thd)
   { return get_item_copy<Item_func_convert_tz>(thd, this); }
@@ -929,7 +931,7 @@ class Item_func_sec_to_time :public Item_timefunc
   { return args[0]->check_type_can_return_decimal(func_name()); }
 public:
   Item_func_sec_to_time(THD *thd, Item *item): Item_timefunc(thd, item) {}
-  bool get_date(MYSQL_TIME *res, ulonglong fuzzy_date);
+  bool get_date(THD *thd, MYSQL_TIME *res, date_mode_t fuzzydate);
   bool fix_length_and_dec()
   {
     fix_attributes_time(args[0]->decimals);
@@ -962,9 +964,17 @@ public:
 };
 
 
-class Item_extract :public Item_int_func
+class Item_extract :public Item_int_func,
+                    public Type_handler_hybrid_field_type
 {
-  bool date_value;
+  date_mode_t m_date_mode;
+  const Type_handler_int_result *handler_by_length(uint32 length,
+                                                   uint32 threashold)
+  {
+    if (length >= threashold)
+      return &type_handler_longlong;
+    return &type_handler_long;
+  }
   void set_date_length(uint32 length)
   {
     /*
@@ -973,48 +983,34 @@ class Item_extract :public Item_int_func
       because all around the code we assume that max_length is sign inclusive.
       Another options is to set unsigned_flag to "true".
     */
-    max_length= length; //QQ: see above
-    date_value= true;
+    set_handler(handler_by_length(max_length= length, 10)); // QQ: see above
+    m_date_mode= date_mode_t(0);
+  }
+  void set_day_length(uint32 length)
+  {
+    /*
+      Units starting with DAY can be negative:
+        EXTRACT(DAY FROM '-24:00:00') -> -1
+    */
+    set_handler(handler_by_length(max_length= length + 1/*sign*/, 11));
+    m_date_mode= date_mode_t(0);
   }
   void set_time_length(uint32 length)
   {
-    max_length= length + 1/*sign*/;
-    date_value= false;
+    set_handler(handler_by_length(max_length= length + 1/*sign*/, 11));
+    m_date_mode= TIME_TIME_ONLY;
   }
  public:
   const interval_type int_type; // keep it public
   Item_extract(THD *thd, interval_type type_arg, Item *a):
-    Item_int_func(thd, a), int_type(type_arg) {}
+    Item_int_func(thd, a),
+    Type_handler_hybrid_field_type(&type_handler_longlong),
+    m_date_mode(date_mode_t(0)),
+    int_type(type_arg)
+  { }
   const Type_handler *type_handler() const
   {
-    switch (int_type) {
-    case INTERVAL_YEAR:
-    case INTERVAL_YEAR_MONTH:
-    case INTERVAL_QUARTER:
-    case INTERVAL_MONTH:
-    case INTERVAL_WEEK:
-    case INTERVAL_DAY:
-    case INTERVAL_DAY_HOUR:
-    case INTERVAL_DAY_MINUTE:
-    case INTERVAL_DAY_SECOND:
-    case INTERVAL_HOUR:
-    case INTERVAL_HOUR_MINUTE:
-    case INTERVAL_HOUR_SECOND:
-    case INTERVAL_MINUTE:
-    case INTERVAL_MINUTE_SECOND:
-    case INTERVAL_SECOND:
-    case INTERVAL_MICROSECOND:
-    case INTERVAL_SECOND_MICROSECOND:
-      return &type_handler_long;
-    case INTERVAL_DAY_MICROSECOND:
-    case INTERVAL_HOUR_MICROSECOND:
-    case INTERVAL_MINUTE_MICROSECOND:
-      return &type_handler_longlong;
-    case INTERVAL_LAST:
-      break;
-    }
-    DBUG_ASSERT(0);
-    return &type_handler_longlong;
+    return Type_handler_hybrid_field_type::type_handler();
   }
   longlong val_int();
   enum Functype functype() const { return EXTRACT_FUNC; }
@@ -1119,7 +1115,7 @@ public:
   {
     print_cast_temporal(str, query_type);
   }
-  bool get_date(MYSQL_TIME *ltime, ulonglong fuzzy_date);
+  bool get_date(THD *thd, MYSQL_TIME *ltime, date_mode_t fuzzydate);
   bool fix_length_and_dec()
   {
     return args[0]->type_handler()->Item_date_typecast_fix_length_and_dec(this);
@@ -1139,7 +1135,7 @@ public:
   {
     print_cast_temporal(str, query_type);
   }
-  bool get_date(MYSQL_TIME *ltime, ulonglong fuzzy_date);
+  bool get_date(THD *thd, MYSQL_TIME *ltime, date_mode_t fuzzydate);
   bool fix_length_and_dec()
   {
     return args[0]->type_handler()->
@@ -1160,7 +1156,7 @@ public:
   {
     print_cast_temporal(str, query_type);
   }
-  bool get_date(MYSQL_TIME *ltime, ulonglong fuzzy_date);
+  bool get_date(THD *thd, MYSQL_TIME *ltime, date_mode_t fuzzydate);
   bool fix_length_and_dec()
   {
     return args[0]->type_handler()->
@@ -1179,7 +1175,7 @@ public:
   Item_func_makedate(THD *thd, Item *a, Item *b):
     Item_datefunc(thd, a, b) {}
   const char *func_name() const { return "makedate"; }
-  bool get_date(MYSQL_TIME *ltime, ulonglong fuzzy_date);
+  bool get_date(THD *thd, MYSQL_TIME *ltime, date_mode_t fuzzydate);
   Item *get_copy(THD *thd)
   { return get_item_copy<Item_func_makedate>(thd, this); }
 };
@@ -1199,19 +1195,23 @@ public:
   const char *func_name() const { return "timestamp"; }
   bool fix_length_and_dec()
   {
-    uint dec= MY_MAX(args[0]->datetime_precision(), args[1]->time_precision());
-    fix_attributes_datetime(dec);
+    THD *thd= current_thd;
+    uint dec0= args[0]->datetime_precision(thd);
+    uint dec1= Interval_DDhhmmssff::fsp(thd, args[1]);
+    fix_attributes_datetime(MY_MAX(dec0, dec1));
     maybe_null= true;
     return false;
   }
-  bool get_date(MYSQL_TIME *ltime, ulonglong fuzzy_date)
+  bool get_date(THD *thd, MYSQL_TIME *ltime, date_mode_t fuzzydate)
   {
-    Datetime dt(current_thd, args[0], 0);
-    MYSQL_TIME ltime2;
-    return (null_value= (!dt.is_valid_datetime() ||
-                         args[1]->get_time(&ltime2) ||
-                         Sec6_add(dt.get_mysql_time(), &ltime2, 1).
-                           to_datetime(ltime)));
+    Datetime dt(thd, args[0], date_mode_t(0));
+    if (!dt.is_valid_datetime())
+      return null_value= true;
+    Interval_DDhhmmssff it(thd, args[1]);
+    if (!it.is_valid_interval_DDhhmmssff())
+      return null_value= true;
+    return (null_value= Sec6_add(dt.get_mysql_time(), it.get_mysql_time(), 1).
+                           to_datetime(ltime));
   }
   Item *get_copy(THD *thd)
   { return get_item_copy<Item_func_timestamp>(thd, this); }
@@ -1251,12 +1251,14 @@ public:
   const char *func_name() const { return "timediff"; }
   bool fix_length_and_dec()
   {
-    uint dec= MY_MAX(args[0]->time_precision(), args[1]->time_precision());
+    THD *thd= current_thd;
+    uint dec= MY_MAX(args[0]->time_precision(thd),
+                     args[1]->time_precision(thd));
     fix_attributes_time(dec);
     maybe_null= true;
     return FALSE;
   }
-  bool get_date(MYSQL_TIME *ltime, ulonglong fuzzy_date);
+  bool get_date(THD *thd, MYSQL_TIME *ltime, date_mode_t fuzzydate);
   Item *get_copy(THD *thd)
   { return get_item_copy<Item_func_timediff>(thd, this); }
 };
@@ -1279,7 +1281,7 @@ public:
     return FALSE;
   }
   const char *func_name() const { return "maketime"; }
-  bool get_date(MYSQL_TIME *ltime, ulonglong fuzzy_date);
+  bool get_date(THD *thd, MYSQL_TIME *ltime, date_mode_t fuzzydate);
   Item *get_copy(THD *thd)
   { return get_item_copy<Item_func_maketime>(thd, this); }
 };
@@ -1369,7 +1371,8 @@ public:
     Item_handled_func(thd, a, b), const_item(false),
     internal_charset(NULL)
   {}
-  bool get_date_common(MYSQL_TIME *ltime, ulonglong fuzzy_date, timestamp_type);
+  bool get_date_common(THD *thd, MYSQL_TIME *ltime, date_mode_t fuzzydate,
+                       timestamp_type);
   const char *func_name() const { return "str_to_date"; }
   bool fix_length_and_dec();
   Item *get_copy(THD *thd)
@@ -1384,7 +1387,7 @@ class Item_func_last_day :public Item_datefunc
 public:
   Item_func_last_day(THD *thd, Item *a): Item_datefunc(thd, a) {}
   const char *func_name() const { return "last_day"; }
-  bool get_date(MYSQL_TIME *res, ulonglong fuzzy_date);
+  bool get_date(THD *thd, MYSQL_TIME *res, date_mode_t fuzzydate);
   Item *get_copy(THD *thd)
   { return get_item_copy<Item_func_last_day>(thd, this); }
 };
@@ -1413,14 +1416,14 @@ protected:
   {
     return static_cast<const Item_date_add_interval*>(item)->date_sub_interval;
   }
-  bool add(Item *item, interval_type type, bool sub, MYSQL_TIME *to) const
+  bool add(THD *thd, Item *item, interval_type type, bool sub, MYSQL_TIME *to) const
   {
     INTERVAL interval;
-    if (get_interval_value(item, type, &interval))
+    if (get_interval_value(thd, item, type, &interval))
       return true;
     if (sub)
       interval.neg = !interval.neg;
-    return date_add_interval(to, type, interval);
+    return date_add_interval(thd, to, type, interval);
   }
 };
 
@@ -1432,19 +1435,20 @@ class Func_handler_date_add_interval_datetime:
 public:
   bool fix_length_and_dec(Item_handled_func *item) const
   {
-    uint dec= MY_MAX(item->arguments()[0]->datetime_precision(),
+    uint dec= MY_MAX(item->arguments()[0]->datetime_precision(current_thd),
                      interval_dec(item->arguments()[1], int_type(item)));
     item->fix_attributes_datetime(dec);
     return false;
   }
-  bool get_date(Item_handled_func *item, MYSQL_TIME *to, ulonglong fuzzy) const
+  bool get_date(THD *thd, Item_handled_func *item,
+                MYSQL_TIME *to, date_mode_t fuzzy) const
   {
-    Datetime dt(current_thd, item->arguments()[0], 0);
+    Datetime dt(thd, item->arguments()[0], date_mode_t(0));
     if (!dt.is_valid_datetime() ||
-         dt.check_date_with_warn(TIME_NO_ZERO_DATE | TIME_NO_ZERO_IN_DATE))
+         dt.check_date_with_warn(thd, TIME_NO_ZERO_DATE | TIME_NO_ZERO_IN_DATE))
       return (item->null_value= true);
     dt.copy_to_mysql_time(to);
-    return (item->null_value= add(item->arguments()[1],
+    return (item->null_value= add(thd, item->arguments()[1],
                                   int_type(item), sub(item), to));
   }
 };
@@ -1454,7 +1458,8 @@ class Func_handler_date_add_interval_datetime_arg0_time:
         public Func_handler_date_add_interval_datetime
 {
 public:
-  bool get_date(Item_handled_func *item, MYSQL_TIME *to, ulonglong fuzzy) const;
+  bool get_date(THD *thd, Item_handled_func *item,
+                MYSQL_TIME *to, date_mode_t fuzzy) const;
 };
 
 
@@ -1463,14 +1468,15 @@ class Func_handler_date_add_interval_date:
         public Func_handler_date_add_interval
 {
 public:
-  bool get_date(Item_handled_func *item, MYSQL_TIME *to, ulonglong fuzzy) const
+  bool get_date(THD *thd, Item_handled_func *item,
+                MYSQL_TIME *to, date_mode_t fuzzy) const
   {
-    Date d(current_thd, item->arguments()[0], 0);
+    Date d(thd, item->arguments()[0], date_mode_t(0));
     if (!d.is_valid_date() ||
-         d.check_date_with_warn(TIME_NO_ZERO_DATE | TIME_NO_ZERO_IN_DATE))
+         d.check_date_with_warn(thd, TIME_NO_ZERO_DATE | TIME_NO_ZERO_IN_DATE))
       return (item->null_value= true);
     d.copy_to_mysql_time(to);
-    return (item->null_value= add(item->arguments()[1],
+    return (item->null_value= add(thd, item->arguments()[1],
                                   int_type(item), sub(item), to));
   }
 };
@@ -1483,18 +1489,19 @@ class Func_handler_date_add_interval_time:
 public:
   bool fix_length_and_dec(Item_handled_func *item) const
   {
-    uint dec= MY_MAX(item->arguments()[0]->time_precision(),
+    uint dec= MY_MAX(item->arguments()[0]->time_precision(current_thd),
                      interval_dec(item->arguments()[1], int_type(item)));
     item->fix_attributes_time(dec);
     return false;
   }
-  bool get_date(Item_handled_func *item, MYSQL_TIME *to, ulonglong fuzzy) const
+  bool get_date(THD *thd, Item_handled_func *item,
+                MYSQL_TIME *to, date_mode_t fuzzy) const
   {
-    Time t(item->arguments()[0]);
+    Time t(thd, item->arguments()[0]);
     if (!t.is_valid_time())
       return (item->null_value= true);
     t.copy_to_mysql_time(to);
-    return (item->null_value= add(item->arguments()[1],
+    return (item->null_value= add(thd, item->arguments()[1],
                                   int_type(item), sub(item), to));
   }
 };
@@ -1507,21 +1514,22 @@ class Func_handler_date_add_interval_string:
 public:
   bool fix_length_and_dec(Item_handled_func *item) const
   {
-    uint dec= MY_MAX(item->arguments()[0]->datetime_precision(),
+    uint dec= MY_MAX(item->arguments()[0]->datetime_precision(current_thd),
                      interval_dec(item->arguments()[1], int_type(item)));
     item->collation.set(item->default_charset(),
                         DERIVATION_COERCIBLE, MY_REPERTOIRE_ASCII);
     item->fix_char_length_temporal_not_fixed_dec(MAX_DATETIME_WIDTH, dec);
     return false;
   }
-  bool get_date(Item_handled_func *item, MYSQL_TIME *to, ulonglong fuzzy) const
+  bool get_date(THD *thd, Item_handled_func *item,
+                MYSQL_TIME *to, date_mode_t fuzzy) const
   {
-    if (item->arguments()[0]->get_date(to, 0) ||
+    if (item->arguments()[0]->get_date(thd, to, date_mode_t(0)) ||
         (to->time_type != MYSQL_TIMESTAMP_TIME &&
-         check_date_with_warn(to, TIME_NO_ZERO_DATE | TIME_NO_ZERO_IN_DATE,
+         check_date_with_warn(thd, to, TIME_NO_ZERO_DATE | TIME_NO_ZERO_IN_DATE,
                               MYSQL_TIMESTAMP_ERROR)))
       return (item->null_value= true);
-    return (item->null_value= add(item->arguments()[1],
+    return (item->null_value= add(thd, item->arguments()[1],
                                   int_type(item), sub(item), to));
   }
 };
@@ -1545,19 +1553,24 @@ public:
   { }
   bool fix_length_and_dec(Item_handled_func *item) const
   {
-    uint dec= MY_MAX(item->arguments()[0]->datetime_precision(),
-                     item->arguments()[1]->time_precision());
-    item->fix_attributes_datetime(dec);
+    THD *thd= current_thd;
+    uint dec0= item->arguments()[0]->datetime_precision(thd);
+    uint dec1= Interval_DDhhmmssff::fsp(thd, item->arguments()[1]);
+    item->fix_attributes_datetime(MY_MAX(dec0, dec1));
     return false;
   }
-  bool get_date(Item_handled_func *item, MYSQL_TIME *to, ulonglong fuzzy) const
+  bool get_date(THD *thd, Item_handled_func *item,
+                MYSQL_TIME *to, date_mode_t fuzzy) const
   {
     DBUG_ASSERT(item->is_fixed());
-    MYSQL_TIME l_time2;
-    Datetime dt(current_thd, item->arguments()[0], 0);
-    return (item->null_value= (!dt.is_valid_datetime() ||
-                               item->arguments()[1]->get_time(&l_time2) ||
-                               Sec6_add(dt.get_mysql_time(), &l_time2, m_sign).
+    Datetime dt(thd, item->arguments()[0], date_mode_t(0));
+    if (!dt.is_valid_datetime())
+      return item->null_value= true;
+    Interval_DDhhmmssff it(thd, item->arguments()[1]);
+    if (!it.is_valid_interval_DDhhmmssff())
+      return item->null_value= true;
+    return (item->null_value= (Sec6_add(dt.get_mysql_time(),
+                                        it.get_mysql_time(), m_sign).
                                 to_datetime(to)));
   }
 };
@@ -1573,20 +1586,25 @@ public:
   { }
   bool fix_length_and_dec(Item_handled_func *item) const
   {
-    uint dec= MY_MAX(item->arguments()[0]->time_precision(),
-                     item->arguments()[1]->time_precision());
-    item->fix_attributes_time(dec);
+    THD *thd= current_thd;
+    uint dec0= item->arguments()[0]->time_precision(thd);
+    uint dec1= Interval_DDhhmmssff::fsp(thd, item->arguments()[1]);
+    item->fix_attributes_time(MY_MAX(dec0, dec1));
     return false;
   }
-  bool get_date(Item_handled_func *item, MYSQL_TIME *to, ulonglong fuzzy) const
+  bool get_date(THD *thd, Item_handled_func *item,
+                MYSQL_TIME *to, date_mode_t fuzzy) const
   {
     DBUG_ASSERT(item->is_fixed());
-    MYSQL_TIME l_time2;
-    Time t(item->arguments()[0]);
-    return (item->null_value= (!t.is_valid_time() ||
-                               item->arguments()[1]->get_time(&l_time2) ||
-                               Sec6_add(t.get_mysql_time(), &l_time2, m_sign).
-                                 to_time(to, item->decimals)));
+    Time t(thd, item->arguments()[0]);
+    if (!t.is_valid_time())
+      return item->null_value= true;
+    Interval_DDhhmmssff i(thd, item->arguments()[1]);
+    if (!i.is_valid_interval_DDhhmmssff())
+      return item->null_value= true;
+    return (item->null_value= (Sec6_add(t.get_mysql_time(),
+                                        i.get_mysql_time(), m_sign).
+                                 to_time(thd, to, item->decimals)));
   }
 };
 
@@ -1601,24 +1619,29 @@ public:
   { }
   bool fix_length_and_dec(Item_handled_func *item) const
   {
-    uint dec= MY_MAX(item->arguments()[0]->decimals,
-                     item->arguments()[1]->decimals);
+    uint dec0= item->arguments()[0]->decimals;
+    uint dec1= Interval_DDhhmmssff::fsp(current_thd, item->arguments()[1]);
+    uint dec= MY_MAX(dec0, dec1);
     item->collation.set(item->default_charset(),
                         DERIVATION_COERCIBLE, MY_REPERTOIRE_ASCII);
     item->fix_char_length_temporal_not_fixed_dec(MAX_DATETIME_WIDTH, dec);
     return false;
   }
-  bool get_date(Item_handled_func *item, MYSQL_TIME *to, ulonglong fuzzy) const
+  bool get_date(THD *thd, Item_handled_func *item,
+                MYSQL_TIME *to, date_mode_t fuzzy) const
   {
     DBUG_ASSERT(item->is_fixed());
     // Detect a proper timestamp type based on the argument values
-    MYSQL_TIME l_time1, l_time2;
-    if (item->arguments()[0]->get_time(&l_time1) ||
-        item->arguments()[1]->get_time(&l_time2))
+    Temporal_hybrid l_time1(thd, item->arguments()[0], TIME_TIME_ONLY);
+    if (!l_time1.is_valid_temporal())
       return (item->null_value= true);
-    Sec6_add add(&l_time1, &l_time2, m_sign);
-    return (item->null_value= (l_time1.time_type == MYSQL_TIMESTAMP_TIME ?
-                               add.to_time(to, item->decimals) :
+    Interval_DDhhmmssff l_time2(thd, item->arguments()[1]);
+    if (!l_time2.is_valid_interval_DDhhmmssff())
+      return (item->null_value= true);
+    Sec6_add add(l_time1.get_mysql_time(), l_time2.get_mysql_time(), m_sign);
+    return (item->null_value= (l_time1.get_mysql_time()->time_type ==
+                                 MYSQL_TIMESTAMP_TIME ?
+                               add.to_time(thd, to, item->decimals) :
                                add.to_datetime(to)));
   }
 };
@@ -1633,10 +1656,11 @@ public:
     item->fix_attributes_datetime(0);
     return false;
   }
-  bool get_date(Item_handled_func *item, MYSQL_TIME *to, ulonglong fuzzy) const
+  bool get_date(THD *thd, Item_handled_func *item,
+                MYSQL_TIME *to, date_mode_t fuzzy) const
   {
     return static_cast<Item_func_str_to_date*>(item)->
-             get_date_common(to, fuzzy, MYSQL_TIMESTAMP_DATETIME);
+             get_date_common(thd, to, fuzzy, MYSQL_TIMESTAMP_DATETIME);
   }
 };
 
@@ -1650,10 +1674,11 @@ public:
     item->fix_attributes_datetime(TIME_SECOND_PART_DIGITS);
     return false;
   }
-  bool get_date(Item_handled_func *item, MYSQL_TIME *to, ulonglong fuzzy) const
+  bool get_date(THD *thd, Item_handled_func *item,
+                MYSQL_TIME *to, date_mode_t fuzzy) const
   {
     return static_cast<Item_func_str_to_date*>(item)->
-             get_date_common(to, fuzzy, MYSQL_TIMESTAMP_DATETIME);
+             get_date_common(thd, to, fuzzy, MYSQL_TIMESTAMP_DATETIME);
   }
 };
 
@@ -1661,10 +1686,11 @@ public:
 class Func_handler_str_to_date_date: public Item_handled_func::Handler_date
 {
 public:
-  bool get_date(Item_handled_func *item, MYSQL_TIME *to, ulonglong fuzzy) const
+  bool get_date(THD *thd, Item_handled_func *item,
+                MYSQL_TIME *to, date_mode_t fuzzy) const
   {
     return static_cast<Item_func_str_to_date*>(item)->
-             get_date_common(to, fuzzy, MYSQL_TIMESTAMP_DATE);
+             get_date_common(thd, to, fuzzy, MYSQL_TIMESTAMP_DATE);
   }
 };
 
@@ -1672,10 +1698,11 @@ public:
 class Func_handler_str_to_date_time: public Item_handled_func::Handler_time
 {
 public:
-  bool get_date(Item_handled_func *item, MYSQL_TIME *to, ulonglong fuzzy) const
+  bool get_date(THD *thd, Item_handled_func *item,
+                MYSQL_TIME *to, date_mode_t fuzzy) const
   {
     if (static_cast<Item_func_str_to_date*>(item)->
-         get_date_common(to, fuzzy, MYSQL_TIMESTAMP_TIME))
+         get_date_common(thd, to, fuzzy, MYSQL_TIMESTAMP_TIME))
       return true;
     if (to->day)
     {

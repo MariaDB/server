@@ -1,6 +1,6 @@
 /*****************************************************************************
 
-Copyright (c) 1996, 2018, Oracle and/or its affiliates. All Rights Reserved.
+Copyright (c) 1996, 2016, Oracle and/or its affiliates. All Rights Reserved.
 Copyright (c) 2012, Facebook Inc.
 Copyright (c) 2013, 2018, MariaDB Corporation.
 
@@ -611,7 +611,7 @@ dict_table_has_column(
 }
 
 /** Retrieve the column name.
-@param[in]	table	table name */
+@param[in]	table	the table of this column */
 const char* dict_col_t::name(const dict_table_t& table) const
 {
 	ut_ad(table.magic_n == DICT_TABLE_MAGIC_N);
@@ -1435,7 +1435,7 @@ dict_make_room_in_cache(
 					ut_ad(0);
 				  }
 			};);
-			dict_table_remove_from_cache_low(table, TRUE);
+			dict_table_remove_from_cache(table, true);
 
 			++n_evicted;
 		}
@@ -1556,9 +1556,14 @@ dict_table_rename_in_cache(
 /*=======================*/
 	dict_table_t*	table,		/*!< in/out: table */
 	const char*	new_name,	/*!< in: new name */
-	ibool		rename_also_foreigns)/*!< in: in ALTER TABLE we want
+	bool		rename_also_foreigns,
+					/*!< in: in ALTER TABLE we want
 					to preserve the original table name
 					in constraints which reference it */
+	bool		replace_new_file)
+					/*!< in: whether to replace the
+					file with the new name
+					(as part of rolling back TRUNCATE) */
 {
 	dberr_t		err;
 	dict_foreign_t*	foreign;
@@ -1658,7 +1663,8 @@ dict_table_rename_in_cache(
 		}
 
 		/* New filepath must not exist. */
-		err = table->space->rename(new_name, new_path, true);
+		err = table->space->rename(new_name, new_path, true,
+					   replace_new_file);
 		ut_free(new_path);
 
 		/* If the tablespace is remote, a new .isl file was created
@@ -1963,14 +1969,11 @@ dict_table_change_id_in_cache(
 		    ut_fold_ull(table->id), table);
 }
 
-/**********************************************************************//**
-Removes a table object from the dictionary cache. */
-void
-dict_table_remove_from_cache_low(
-/*=============================*/
-	dict_table_t*	table,		/*!< in, own: table */
-	ibool		lru_evict)	/*!< in: TRUE if table being evicted
-					to make room in the table LRU list */
+/** Evict a table definition from the InnoDB data dictionary cache.
+@param[in,out]	table	cached table definition to be evicted
+@param[in]	lru	whether this is part of least-recently-used eviction
+@param[in]	keep	whether to keep (not free) the object */
+void dict_table_remove_from_cache(dict_table_t* table, bool lru, bool keep)
 {
 	dict_foreign_t*	foreign;
 	dict_index_t*	index;
@@ -2003,7 +2006,7 @@ dict_table_remove_from_cache_low(
 	     index != NULL;
 	     index = UT_LIST_GET_LAST(table->indexes)) {
 
-		dict_index_remove_from_cache_low(table, index, lru_evict);
+		dict_index_remove_from_cache_low(table, index, lru);
 	}
 
 	/* Remove table from the hash tables of tables */
@@ -2025,7 +2028,7 @@ dict_table_remove_from_cache_low(
 
 	ut_ad(dict_lru_validate());
 
-	if (lru_evict && table->drop_aborted) {
+	if (lru && table->drop_aborted) {
 		/* When evicting the table definition,
 		drop the orphan indexes from the data dictionary
 		and free the index pages. */
@@ -2050,17 +2053,9 @@ dict_table_remove_from_cache_low(
 		UT_DELETE(table->vc_templ);
 	}
 
-	dict_mem_table_free(table);
-}
-
-/**********************************************************************//**
-Removes a table object from the dictionary cache. */
-void
-dict_table_remove_from_cache(
-/*=========================*/
-	dict_table_t*	table)	/*!< in, own: table */
-{
-	dict_table_remove_from_cache_low(table, FALSE);
+	if (!keep) {
+		dict_mem_table_free(table);
+	}
 }
 
 /****************************************************************//**
@@ -2086,93 +2081,6 @@ dict_col_name_is_reserved(
 	}
 
 	return(FALSE);
-}
-
-/****************************************************************//**
-Return maximum size of the node pointer record.
-@return maximum size of the record in bytes */
-ulint
-dict_index_node_ptr_max_size(
-/*=========================*/
-	const dict_index_t*	index)	/*!< in: index */
-{
-	ulint	comp;
-	ulint	i;
-	/* maximum possible storage size of a record */
-	ulint	rec_max_size;
-
-	if (dict_index_is_ibuf(index)) {
-		/* cannot estimate accurately */
-		/* This is universal index for change buffer.
-		The max size of the entry is about max key length * 2.
-		(index key + primary key to be inserted to the index)
-		(The max key length is srv_page_size / 16 * 3 at
-		 ha_innobase::max_supported_key_length(),
-		 considering MAX_KEY_LENGTH = 3072 at MySQL imposes
-		 the 3500 historical InnoDB value for 16K page size case.)
-		For the universal index, node_ptr contains most of the entry.
-		And 512 is enough to contain ibuf columns and meta-data */
-		return(srv_page_size / 8 * 3 + 512);
-	}
-
-	comp = dict_table_is_comp(index->table);
-
-	/* Each record has page_no, length of page_no and header. */
-	rec_max_size = comp
-		? REC_NODE_PTR_SIZE + 1 + REC_N_NEW_EXTRA_BYTES
-		: REC_NODE_PTR_SIZE + 2 + REC_N_OLD_EXTRA_BYTES;
-
-	if (comp) {
-		/* Include the "null" flags in the
-		maximum possible record size. */
-		rec_max_size += UT_BITS_IN_BYTES(unsigned(index->n_nullable));
-	} else {
-		/* For each column, include a 2-byte offset and a
-		"null" flag. */
-		rec_max_size += 2 * unsigned(index->n_fields);
-	}
-
-	/* Compute the maximum possible record size. */
-	for (i = 0; i < dict_index_get_n_unique_in_tree(index); i++) {
-		const dict_field_t*	field
-			= dict_index_get_nth_field(index, i);
-		const dict_col_t*	col
-			= dict_field_get_col(field);
-		ulint			field_max_size;
-		ulint			field_ext_max_size;
-
-		/* Determine the maximum length of the index field. */
-
-		field_max_size = dict_col_get_fixed_size(col, comp);
-		if (field_max_size) {
-			/* dict_index_add_col() should guarantee this */
-			ut_ad(!field->prefix_len
-			      || field->fixed_len == field->prefix_len);
-			/* Fixed lengths are not encoded
-			in ROW_FORMAT=COMPACT. */
-			rec_max_size += field_max_size;
-			continue;
-		}
-
-		field_max_size = dict_col_get_max_size(col);
-		field_ext_max_size = field_max_size < 256 ? 1 : 2;
-
-		if (field->prefix_len
-		    && field->prefix_len < field_max_size) {
-			field_max_size = field->prefix_len;
-		}
-
-		if (comp) {
-			/* Add the extra size for ROW_FORMAT=COMPACT.
-			For ROW_FORMAT=REDUNDANT, these bytes were
-			added to rec_max_size before this loop. */
-			rec_max_size += field_ext_max_size;
-		}
-
-		rec_max_size += field_max_size;
-	}
-
-	return(rec_max_size);
 }
 
 /****************************************************************//**
@@ -3357,8 +3265,6 @@ dict_foreign_find_index(
 
 	while (index != NULL) {
 		if (types_idx != index
-		    && !(index->type & DICT_FTS)
-		    && !dict_index_is_spatial(index)
 		    && !index->to_be_dropped
 		    && !dict_index_is_online_ddl(index)
 		    && dict_foreign_qualify_index(
@@ -6197,7 +6103,7 @@ dict_table_get_index_on_name(
 
 	while (index != NULL) {
 		if (index->is_committed() == committed
-		    && innobase_strcasecmp(index->name, name) == 0) {
+		    && strcmp(index->name, name) == 0) {
 
 			return(index);
 		}
@@ -6460,8 +6366,17 @@ dict_table_schema_check(
 		compare column types and flags */
 
 		/* check length for exact match */
-		if (req_schema->columns[i].len != table->cols[j].len) {
-
+		if (req_schema->columns[i].len == table->cols[j].len) {
+		} else if (!strcmp(req_schema->table_name, TABLE_STATS_NAME)
+			   || !strcmp(req_schema->table_name,
+				      INDEX_STATS_NAME)) {
+			ut_ad(table->cols[j].len < req_schema->columns[i].len);
+			ib::warn() << "Table " << req_schema->table_name
+				   << " has length mismatch in the"
+				   << " column name "
+				   << req_schema->columns[i].name
+				   << ".  Please run mysql_upgrade";
+		} else {
 			CREATE_TYPES_NAMES();
 
 			snprintf(errstr, errstr_sz,
@@ -6840,6 +6755,10 @@ dict_foreign_qualify_index(
 {
 	if (dict_index_get_n_fields(index) < n_cols) {
 		return(false);
+	}
+
+	if (index->type & (DICT_SPATIAL | DICT_FTS)) {
+		return false;
 	}
 
 	for (ulint i = 0; i < n_cols; i++) {

@@ -54,18 +54,6 @@ static my_bool has_no_data(Vio *vio __attribute__((unused)))
 }
 
 #ifdef _WIN32
-my_bool vio_shared_memory_has_data(Vio *vio)
-{
-  return (vio->shared_memory_remain > 0);
-}
-
-int vio_shared_memory_shutdown(Vio *vio, int how)
-{
-  SetEvent(vio->event_conn_closed);
-  SetEvent(vio->event_server_wrote);
-  return 0;
-}
-
 int vio_pipe_shutdown(Vio *vio, int how)
 {
   return CancelIoEx(vio->hPipe, NULL);
@@ -116,28 +104,7 @@ static void vio_init(Vio *vio, enum enum_vio_type type,
     DBUG_VOID_RETURN;
   }
 #endif
-#ifdef HAVE_SMEM
-  if (type == VIO_TYPE_SHARED_MEMORY)
-  {
-    vio->viodelete	=vio_delete;
-    vio->vioerrno	=vio_errno;
-    vio->read           =vio_read_shared_memory;
-    vio->write          =vio_write_shared_memory;
-    vio->fastsend	=vio_fastsend;
-    vio->viokeepalive	=vio_keepalive;
-    vio->should_retry	=vio_should_retry;
-    vio->was_timeout    =vio_was_timeout;
-    vio->vioclose	=vio_close_shared_memory;
-    vio->peer_addr	=vio_peer_addr;
-    vio->vioblocking	=vio_blocking;
-    vio->is_blocking	=vio_is_blocking;
-    vio->io_wait        =no_io_wait;
-    vio->is_connected   =vio_is_connected_shared_memory;
-    vio->has_data       =vio_shared_memory_has_data;
-    vio->shutdown       =vio_shared_memory_shutdown;
-    DBUG_VOID_RETURN;
-  }
-#endif
+
 #ifdef HAVE_OPENSSL
   if (type == VIO_TYPE_SSL)
   {
@@ -296,31 +263,7 @@ Vio *vio_new_win32pipe(HANDLE hPipe)
   DBUG_RETURN(vio);
 }
 
-#ifdef HAVE_SMEM
-Vio *vio_new_win32shared_memory(HANDLE handle_file_map, HANDLE handle_map,
-                                HANDLE event_server_wrote, HANDLE event_server_read,
-                                HANDLE event_client_wrote, HANDLE event_client_read,
-                                HANDLE event_conn_closed)
-{
-  Vio *vio;
-  DBUG_ENTER("vio_new_win32shared_memory");
-  if ((vio = (Vio*) my_malloc(sizeof(Vio),MYF(MY_WME))))
-  {
-    vio_init(vio, VIO_TYPE_SHARED_MEMORY, 0, VIO_LOCALHOST);
-    vio->desc= "shared memory";
-    vio->handle_file_map= handle_file_map;
-    vio->handle_map= handle_map;
-    vio->event_server_wrote= event_server_wrote;
-    vio->event_server_read= event_server_read;
-    vio->event_client_wrote= event_client_wrote;
-    vio->event_client_read= event_client_read;
-    vio->event_conn_closed= event_conn_closed;
-    vio->shared_memory_remain= 0;
-    vio->shared_memory_pos= handle_map;
-  }
-  DBUG_RETURN(vio);
-}
-#endif
+
 #endif
 
 

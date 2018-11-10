@@ -12,7 +12,7 @@
 
    You should have received a copy of the GNU General Public License
    along with this program; if not, write to the Free Software
-   Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307  USA */
+   Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02111-1301 USA */
 
 #ifdef USE_PRAGMA_IMPLEMENTATION
 #pragma implementation // gcc: Class implementation
@@ -334,8 +334,6 @@ Rdb_cf_options::get_cf_merge_operator(const std::string &cf_name) {
 
 void Rdb_cf_options::get_cf_options(const std::string &cf_name,
                                     rocksdb::ColumnFamilyOptions *const opts) {
-  DBUG_ASSERT(opts != nullptr);
-
   *opts = m_default_cf_opts;
   get(cf_name, opts);
 

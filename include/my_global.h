@@ -133,11 +133,6 @@
 #define F_UNLCK 3
 #define F_TO_EOF 0x3FFFFFFF
 
-/* Shared memory and named pipe connections are supported. */
-#define HAVE_SMEM 1
-#define HAVE_NAMED_PIPE 1
-#define shared_memory_buffer_length 16000
-#define default_shared_memory_base_name "MYSQL"
 #endif /* _WIN32*/
 
 
@@ -246,7 +241,9 @@
   AIX includes inttypes.h from sys/types.h
   Explicitly request format macros before the first inclusion of inttypes.h
 */
-#define __STDC_FORMAT_MACROS  
+#if !defined(__STDC_FORMAT_MACROS)
+#define __STDC_FORMAT_MACROS
+#endif  // !defined(__STDC_FORMAT_MACROS)
 #endif
 
 
@@ -984,7 +981,6 @@ typedef unsigned long my_off_t;
   TODO Convert these to use Bitmap class.
  */
 typedef ulonglong table_map;          /* Used for table bits in join */
-typedef ulong nesting_map;  /* Used for flags of nesting constructs */
 
 /* often used type names - opaque declarations */
 typedef const struct charset_info_st CHARSET_INFO;
@@ -1052,7 +1048,9 @@ typedef ulong		myf;	/* Type of MyFlags in my_funcs */
 
 #include <my_byteorder.h>
 
-#ifdef HAVE_CHARSET_utf8
+#ifdef HAVE_CHARSET_utf8mb4
+#define MYSQL_UNIVERSAL_CLIENT_CHARSET "utf8mb4"
+#elif defined(HAVE_CHARSET_utf8)
 #define MYSQL_UNIVERSAL_CLIENT_CHARSET "utf8"
 #else
 #define MYSQL_UNIVERSAL_CLIENT_CHARSET MYSQL_DEFAULT_CHARSET_NAME
@@ -1185,8 +1183,6 @@ typedef struct { const char *dli_fname, dli_fbase; } Dl_info;
 
 /* Things we don't need in the embedded version of MySQL */
 /* TODO HF add #undef HAVE_VIO if we don't want client in embedded library */
-
-#undef HAVE_SMEM				/* No shared memory */
 
 #else
 #define HAVE_REPLICATION

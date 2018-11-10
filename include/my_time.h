@@ -61,18 +61,23 @@ extern uchar days_in_month[];
   TIME_FUZZY_DATES is used for the result will only be used for comparison
   purposes. Conversion is as relaxed as possible.
 */
-#define TIME_FUZZY_DATES        1U
-#define TIME_DATETIME_ONLY	2U
-#define TIME_TIME_ONLY	        4U
-#define TIME_NO_ZERO_IN_DATE    (1UL << 23) /* == MODE_NO_ZERO_IN_DATE */
-#define TIME_NO_ZERO_DATE	(1UL << 24) /* == MODE_NO_ZERO_DATE    */
-#define TIME_INVALID_DATES	(1UL << 25) /* == MODE_INVALID_DATES   */
+#define C_TIME_FUZZY_DATES      1U
+#define C_TIME_DATETIME_ONLY    2U
+#define C_TIME_TIME_ONLY        4U
+#define C_TIME_NO_ZERO_IN_DATE  (1UL << 23) /* == MODE_NO_ZERO_IN_DATE */
+#define C_TIME_NO_ZERO_DATE     (1UL << 24) /* == MODE_NO_ZERO_DATE    */
+#define C_TIME_INVALID_DATES    (1UL << 25) /* == MODE_INVALID_DATES   */
 
 #define MYSQL_TIME_WARN_TRUNCATED    1U
 #define MYSQL_TIME_WARN_OUT_OF_RANGE 2U
+#define MYSQL_TIME_WARN_EDOM         4U
+#define MYSQL_TIME_WARN_ZERO_DATE    8U
 #define MYSQL_TIME_NOTE_TRUNCATED    16U
 
-#define MYSQL_TIME_WARN_WARNINGS (MYSQL_TIME_WARN_TRUNCATED|MYSQL_TIME_WARN_OUT_OF_RANGE)
+#define MYSQL_TIME_WARN_WARNINGS (MYSQL_TIME_WARN_TRUNCATED|\
+                                  MYSQL_TIME_WARN_OUT_OF_RANGE|\
+                                  MYSQL_TIME_WARN_EDOM|\
+                                  MYSQL_TIME_WARN_ZERO_DATE)
 #define MYSQL_TIME_WARN_NOTES    (MYSQL_TIME_NOTE_TRUNCATED)
 
 #define MYSQL_TIME_WARN_HAVE_WARNINGS(x) MY_TEST((x) & MYSQL_TIME_WARN_WARNINGS)
@@ -110,22 +115,14 @@ static inline void my_time_status_init(MYSQL_TIME_STATUS *status)
 
 my_bool check_date(const MYSQL_TIME *ltime, my_bool not_zero_date,
                    ulonglong flags, int *was_cut);
+my_bool str_to_DDhhmmssff(const char *str, size_t length, MYSQL_TIME *l_time,
+                          ulong max_hour, MYSQL_TIME_STATUS *status);
 my_bool str_to_time(const char *str, size_t length, MYSQL_TIME *l_time, 
                     ulonglong flag, MYSQL_TIME_STATUS *status);
 my_bool str_to_datetime(const char *str, size_t length, MYSQL_TIME *l_time,
                         ulonglong flags, MYSQL_TIME_STATUS *status);
 longlong number_to_datetime(longlong nr, ulong sec_part, MYSQL_TIME *time_res,
                             ulonglong flags, int *was_cut);
-
-static inline
-longlong double_to_datetime(double nr, MYSQL_TIME *ltime, ulonglong flags, int *cut)
-{
-  if (nr < 0 || nr > LONGLONG_MAX)
-    nr= (double)LONGLONG_MAX;
-  return number_to_datetime((longlong) floor(nr),
-                            (ulong)((nr-floor(nr))*TIME_SECOND_PART_FACTOR),
-                            ltime, flags, cut);
-}
 
 int number_to_time(my_bool neg, ulonglong nr, ulong sec_part,
                    MYSQL_TIME *ltime, int *was_cut);

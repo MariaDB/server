@@ -1,7 +1,7 @@
 call mtr.add_suppression("Can't find record in '.*'");
 select * from INFORMATION_SCHEMA.ENGINES where ENGINE="ARIA";
 ENGINE	SUPPORT	COMMENT	TRANSACTIONS	XA	SAVEPOINTS
-Aria	YES	Crash-safe tables with MyISAM heritage	NO	NO	NO
+Aria	YES	Crash-safe tables with MyISAM heritage. Used for internal temporary tables and privilege tables	NO	NO	NO
 set global storage_engine=aria;
 set session storage_engine=aria;
 set global aria_page_checksum=0;
@@ -2227,9 +2227,9 @@ Block_size:                      8192
 Recordlength:                      99
 
 Table description:
-Key Start Len Index   Type
-1   2     30  multip. varchar                
-2   33    30  multip. char NULL              
+Key Start Len Index    Type
+1   2     30  multip.  varchar                
+2   33    30  multip.  char NULL              
 DROP TABLE t1;
 create table t1 (n int not null, c char(1)) transactional=1;
 show create table t1;
@@ -2790,6 +2790,10 @@ SELECT * FROM t1;
 id	name
 -1	dog
 2	cat
+DROP TABLE t1;
+CREATE TABLE t1 (pk int, i2 int) ENGINE=Aria;
+INSERT INTO t1 VALUES (1,2), (2,3),(3,4);
+DELETE FROM tt.*, t1.* USING t1 AS tt LEFT JOIN t1 ON (tt.i2 = t1.pk);
 DROP TABLE t1;
 #
 # End of 5.5 tests

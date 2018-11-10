@@ -603,7 +603,7 @@ String *Item_func_concat::val_str(String *str)
     goto null;
 
   if (res != str)
-    str->copy(res->ptr(), res->length(), res->charset());
+    str->copy_or_move(res->ptr(), res->length(), res->charset());
 
   for (uint i= 1 ; i < arg_count ; i++)
   {
@@ -1568,32 +1568,18 @@ String *Item_str_conv::val_str(String *str)
 {
   DBUG_ASSERT(fixed == 1);
   String *res;
-  if (!(res=args[0]->val_str(str)))
-  {
-    null_value=1; /* purecov: inspected */
-    return 0; /* purecov: inspected */
-  }
-  null_value=0;
-  if (multiply == 1)
-  {
-    size_t len;
-    res= copy_if_not_alloced(&tmp_value, res, res->length());
-    len= converter(collation.collation, (char*) res->ptr(), res->length(),
-                                        (char*) res->ptr(), res->length());
-    DBUG_ASSERT(len <= res->length());
-    res->length(len);
-  }
-  else
-  {
-    size_t len= res->length() * multiply;
-    tmp_value.alloc(len);
-    tmp_value.set_charset(collation.collation);
-    len= converter(collation.collation, (char*) res->ptr(), res->length(),
-                                        (char*) tmp_value.ptr(), len);
-    tmp_value.length(len);
-    res= &tmp_value;
-  }
-  return res;
+  size_t alloced_length, len;
+
+  if ((null_value= (!(res= args[0]->val_str(&tmp_value)) ||
+                    str->alloc((alloced_length= res->length() * multiply)))))
+    return 0;
+
+  len= converter(collation.collation, (char*) res->ptr(), res->length(),
+                                      (char*) str->ptr(), alloced_length);
+  DBUG_ASSERT(len <= alloced_length);
+  str->set_charset(collation.collation);
+  str->length(len);
+  return str;
 }
 
 
@@ -1796,7 +1782,7 @@ String *Item_func_substr_index::val_str(String *str)
   DBUG_ASSERT(fixed == 1);
   char buff[MAX_FIELD_WIDTH];
   String tmp(buff,sizeof(buff),system_charset_info);
-  String *res= args[0]->val_str(str);
+  String *res= args[0]->val_str(&tmp_value);
   String *delimiter= args[1]->val_str(&tmp);
   int32 count= (int32) args[2]->val_int();
   uint offset;
@@ -1845,20 +1831,31 @@ String *Item_func_substr_index::val_str(String *str)
       if (pass == 0) /* count<0 */
       {
         c+=n+1;
-        if (c<=0) return res; /* not found, return original string */
+        if (c<=0)
+        {
+          str->copy(res->ptr(), res->length(), collation.collation);
+          return str; // not found, return the original string
+        }
         ptr=res->ptr();
       }
       else
       {
-        if (c) return res; /* Not found, return original string */
+        if (c)
+        {
+          str->copy(res->ptr(), res->length(), collation.collation);
+          return str; // not found, return the original string
+        }
         if (count>0) /* return left part */
         {
-	  tmp_value.set(*res,0,(ulong) (ptr-res->ptr()));
+          str->copy(res->ptr(), (uint32) (ptr-res->ptr()), collation.collation);
+          return str;
         }
         else /* return right part */
         {
-	  ptr+= delimiter_length;
-	  tmp_value.set(*res,(ulong) (ptr-res->ptr()), (ulong) (strend-ptr));
+          ptr+= delimiter_length;
+          str->copy(res->ptr() + (ptr-res->ptr()), (uint32) (strend - ptr),
+                    collation.collation);
+          return str;
         }
       }
     }
@@ -1870,13 +1867,16 @@ String *Item_func_substr_index::val_str(String *str)
     {					// start counting from the beginning
       for (offset=0; ; offset+= delimiter_length)
       {
-	if ((int) (offset= res->strstr(*delimiter, offset)) < 0)
-	  return res;			// Didn't find, return org string
-	if (!--count)
-	{
-	  tmp_value.set(*res,0,offset);
-	  break;
-	}
+        if ((int) (offset= res->strstr(*delimiter, offset)) < 0)
+        {
+          str->copy(res->ptr(), res->length(), collation.collation);
+          return str; // not found, return the original string
+        }
+        if (!--count)
+        {
+          str->copy(res->ptr(), offset, collation.collation);
+          return str;
+        }
       }
     }
     else
@@ -1891,30 +1891,32 @@ String *Item_func_substr_index::val_str(String *str)
           address space less than where the found substring is located
           in res
         */
-	if ((int) (offset= res->strrstr(*delimiter, offset)) < 0)
-	  return res;			// Didn't find, return org string
+        if ((int) (offset= res->strrstr(*delimiter, offset)) < 0)
+        {
+          str->copy(res->ptr(), res->length(), collation.collation);
+          return str; // not found, return the original string
+        }
         /*
           At this point, we've searched for the substring
           the number of times as supplied by the index value
         */
-	if (!++count)
-	{
-	  offset+= delimiter_length;
-	  tmp_value.set(*res,offset,res->length()- offset);
-	  break;
-	}
+        if (!++count)
+        {
+          offset+= delimiter_length;
+          str->copy(res->ptr() + offset, res->length() - offset,
+                    collation.collation);
+          return str;
+        }
       }
       if (count)
-        return res;                     // Didn't find, return org string
+      {
+        str->copy(res->ptr(), res->length(), collation.collation);
+        return str; // not found, return the original string
+      }
     }
   }
-  /*
-    We always mark tmp_value as const so that if val_str() is called again
-    on this object, we don't disrupt the contents of tmp_value when it was
-    derived from another String.
-  */
-  tmp_value.mark_as_const();
-  return (&tmp_value);
+  DBUG_ASSERT(0);
+  return NULL;
 }
 
 /*
@@ -4541,11 +4543,11 @@ bool Item_func_dyncol_create::prepare_arguments(THD *thd, bool force_names_arg)
       break;
     case DYN_COL_DATETIME:
     case DYN_COL_DATE:
-      args[valpos]->get_date(&vals[i].x.time_value,
+      args[valpos]->get_date(thd, &vals[i].x.time_value,
                              sql_mode_for_dates(thd));
       break;
     case DYN_COL_TIME:
-      args[valpos]->get_time(&vals[i].x.time_value);
+      args[valpos]->get_time(thd, &vals[i].x.time_value);
       break;
     default:
       DBUG_ASSERT(0);
@@ -5111,7 +5113,7 @@ null:
 }
 
 
-bool Item_dyncol_get::get_date(MYSQL_TIME *ltime, ulonglong fuzzy_date)
+bool Item_dyncol_get::get_date(THD *thd, MYSQL_TIME *ltime, date_mode_t fuzzydate)
 {
   DYNAMIC_COLUMN_VALUE val;
   char buff[STRING_BUFFER_USUAL_SIZE];
@@ -5132,10 +5134,8 @@ bool Item_dyncol_get::get_date(MYSQL_TIME *ltime, ulonglong fuzzy_date)
     if (signed_value || val.x.ulong_value <= LONGLONG_MAX)
     {
       longlong llval = (longlong)val.x.ulong_value;
-      bool neg = llval < 0;
-      if (int_to_datetime_with_warn(neg, (ulonglong)(neg ? -llval :
-                                                llval),
-                                    ltime, fuzzy_date, 0 /* TODO */))
+      if (int_to_datetime_with_warn(thd, Longlong_hybrid(llval, !signed_value),
+                                    ltime, fuzzydate, 0 /* TODO */))
         goto null;
       return 0;
     }
@@ -5143,20 +5143,20 @@ bool Item_dyncol_get::get_date(MYSQL_TIME *ltime, ulonglong fuzzy_date)
     val.x.double_value= static_cast<double>(ULONGLONG_MAX);
     /* fall through */
   case DYN_COL_DOUBLE:
-    if (double_to_datetime_with_warn(val.x.double_value, ltime, fuzzy_date,
+    if (double_to_datetime_with_warn(thd, val.x.double_value, ltime, fuzzydate,
                                      0 /* TODO */))
       goto null;
     return 0;
   case DYN_COL_DECIMAL:
-    if (decimal_to_datetime_with_warn((my_decimal*)&val.x.decimal.value, ltime,
-                                      fuzzy_date, 0 /* TODO */))
+    if (decimal_to_datetime_with_warn(thd, (my_decimal*)&val.x.decimal.value,
+                                      ltime, fuzzydate, 0 /* TODO */))
       goto null;
     return 0;
   case DYN_COL_STRING:
-    if (str_to_datetime_with_warn(&my_charset_numeric,
+    if (str_to_datetime_with_warn(thd, &my_charset_numeric,
                                   val.x.string.value.str,
                                   val.x.string.value.length,
-                                  ltime, fuzzy_date))
+                                  ltime, fuzzydate))
       goto null;
     return 0;
   case DYN_COL_DATETIME:

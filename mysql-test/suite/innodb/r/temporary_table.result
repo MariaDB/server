@@ -650,6 +650,19 @@ SELECT * FROM t1;
 f1
 0
 DROP TABLE t1;
+create procedure t1_proc()
+begin
+DECLARE var INT UNSIGNED;
+CREATE TEMPORARY TABLE t1(f1 INT UNSIGNED, f2 INT UNSIGNED, KEY( f1, f2 ) )engine=innodb;
+SET TRANSACTION ISOLATION LEVEL READ COMMITTED;
+START TRANSACTION;
+INSERT INTO t1 SET f1 = 1, f2 = 1;
+UPDATE t1 SET f2 = 2;
+SET var = ( SELECT 1 FROM t1 );
+DROP TABLE t1;
+END//
+call t1_proc;
+drop procedure t1_proc;
 #
 # MDEV-15874 CREATE TABLE creates extra transaction
 #

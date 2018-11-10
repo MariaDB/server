@@ -31,12 +31,7 @@ Created June 2005 by Marko Makela
 /** A BLOB field reference full of zero, for use in assertions and tests.
 Initially, BLOB field references are set to zero, in
 dtuple_convert_big_rec(). */
-const byte field_ref_zero[FIELD_REF_SIZE] = {
-        0, 0, 0, 0, 0,
-        0, 0, 0, 0, 0,
-        0, 0, 0, 0, 0,
-        0, 0, 0, 0, 0,
-};
+const byte field_ref_zero[UNIV_PAGE_SIZE_MAX] = { 0, };
 
 #ifndef UNIV_INNOCHECKSUM
 #include "page0page.h"
@@ -46,7 +41,6 @@ const byte field_ref_zero[FIELD_REF_SIZE] = {
 #include "page0types.h"
 #include "log0recv.h"
 #include "row0row.h"
-#include "row0trunc.h"
 #include "zlib.h"
 #include "buf0buf.h"
 #include "buf0types.h"
@@ -106,11 +100,11 @@ Compare at most sizeof(field_ref_zero) bytes.
 @param s in: size of the memory block, in bytes */
 #define ASSERT_ZERO(b, s)			\
 	ut_ad(!memcmp(b, field_ref_zero,	\
-		      ut_min(static_cast<size_t>(s), sizeof field_ref_zero)));
+		      std::min<size_t>(s, sizeof field_ref_zero)));
 /** Assert that a BLOB pointer is filled with zero bytes.
 @param b in: BLOB pointer */
 #define ASSERT_ZERO_BLOB(b) \
-	ut_ad(!memcmp(b, field_ref_zero, sizeof field_ref_zero))
+	ut_ad(!memcmp(b, field_ref_zero, FIELD_REF_SIZE))
 
 /* Enable some extra debugging output.  This code can be enabled
 independently of any UNIV_ debugging conditions. */
@@ -1248,17 +1242,11 @@ page_zip_compress(
 	dict_index_t*		index,		/*!< in: index of the B-tree
 						node */
 	ulint			level,		/*!< in: commpression level */
-	const redo_page_compress_t* page_comp_info,
-						/*!< in: used for applying
-						TRUNCATE log
-						record during recovery */
 	mtr_t*			mtr)		/*!< in/out: mini-transaction,
 						or NULL */
 {
 	z_stream		c_stream;
 	int			err;
-	ulint			n_fields;	/* number of index fields
-						needed */
 	byte*			fields;		/*!< index field information */
 	byte*			buf;		/*!< compressed payload of the
 						page */
@@ -1273,7 +1261,6 @@ page_zip_compress(
 	ulint			n_blobs	= 0;
 	byte*			storage;	/* storage of uncompressed
 						columns */
-	index_id_t		ind_id;
 	uintmax_t		usec = ut_time_us(NULL);
 #ifdef PAGE_ZIP_COMPRESS_DBG
 	FILE*			logfile = NULL;
@@ -1288,10 +1275,8 @@ page_zip_compress(
 	ut_a(fil_page_index_page_check(page));
 	ut_ad(page_simple_validate_new((page_t*) page));
 	ut_ad(page_zip_simple_validate(page_zip));
-	ut_ad(!index
-	      || (index
-		  && dict_table_is_comp(index->table)
-		  && !dict_index_is_ibuf(index)));
+	ut_ad(dict_table_is_comp(index->table));
+	ut_ad(!dict_index_is_ibuf(index));
 
 	UNIV_MEM_ASSERT_RW(page, srv_page_size);
 
@@ -1311,18 +1296,10 @@ page_zip_compress(
 		     == PAGE_NEW_SUPREMUM);
 	}
 
-	if (truncate_t::s_fix_up_active) {
-		ut_ad(page_comp_info != NULL);
-		n_fields = page_comp_info->n_fields;
-		ind_id = page_comp_info->index_id;
-	} else {
-		if (page_is_leaf(page)) {
-			n_fields = dict_index_get_n_fields(index);
-		} else {
-			n_fields = dict_index_get_n_unique_in_tree_nonleaf(index);
-		}
-		ind_id = index->id;
-	}
+	const ulint n_fields = page_is_leaf(page)
+		? dict_index_get_n_fields(index)
+		: dict_index_get_n_unique_in_tree_nonleaf(index);
+	index_id_t ind_id = index->id;
 
 	/* The dense directory excludes the infimum and supremum records. */
 	n_dense = ulint(page_dir_get_n_heap(page)) - PAGE_HEAP_NO_USER_LOW;
@@ -1433,20 +1410,11 @@ page_zip_compress(
 
 	/* Dense page directory and uncompressed columns, if any */
 	if (page_is_leaf(page)) {
-		if ((index && dict_index_is_clust(index))
-		    || (page_comp_info
-			&& (page_comp_info->type & DICT_CLUSTERED))) {
-
-			if (index) {
-				trx_id_col = dict_index_get_sys_col_pos(
-					index, DATA_TRX_ID);
-				ut_ad(trx_id_col > 0);
-				ut_ad(trx_id_col != ULINT_UNDEFINED);
-			} else if (page_comp_info
-				   && (page_comp_info->type
-				       & DICT_CLUSTERED)) {
-				trx_id_col = page_comp_info->trx_id_pos;
-			}
+		if (dict_index_is_clust(index)) {
+			trx_id_col = dict_index_get_sys_col_pos(
+				index, DATA_TRX_ID);
+			ut_ad(trx_id_col > 0);
+			ut_ad(trx_id_col != ULINT_UNDEFINED);
 
 			slot_size = PAGE_ZIP_DIR_SLOT_SIZE
 				+ DATA_TRX_ID_LEN + DATA_ROLL_PTR_LEN;
@@ -1454,10 +1422,8 @@ page_zip_compress(
 		} else {
 			/* Signal the absence of trx_id
 			in page_zip_fields_encode() */
-			if (index) {
-				ut_ad(dict_index_get_sys_col_pos(
-					index, DATA_TRX_ID) == ULINT_UNDEFINED);
-			}
+			ut_ad(dict_index_get_sys_col_pos(
+				      index, DATA_TRX_ID) == ULINT_UNDEFINED);
 			trx_id_col = 0;
 			slot_size = PAGE_ZIP_DIR_SLOT_SIZE;
 		}
@@ -1471,19 +1437,9 @@ page_zip_compress(
 		goto zlib_error;
 	}
 
-	c_stream.avail_out -= static_cast<uInt>(n_dense * slot_size);
-	if (truncate_t::s_fix_up_active) {
-		ut_ad(page_comp_info != NULL);
-		c_stream.avail_in = static_cast<uInt>(
-			page_comp_info->field_len);
-		for (ulint i = 0; i < page_comp_info->field_len; i++) {
-			fields[i] = page_comp_info->fields[i];
-		}
-	} else {
-		c_stream.avail_in = static_cast<uInt>(
-			page_zip_fields_encode(
-				n_fields, index, trx_id_col, fields));
-	}
+	c_stream.avail_out -= uInt(n_dense * slot_size);
+	c_stream.avail_in = uInt(page_zip_fields_encode(n_fields, index,
+							trx_id_col, fields));
 	c_stream.next_in = fields;
 
 	if (UNIV_LIKELY(!trx_id_col)) {
@@ -1637,7 +1593,7 @@ err_exit:
 		mutex_exit(&page_zip_stat_per_index_mutex);
 	}
 
-	if (page_is_leaf(page) && !truncate_t::s_fix_up_active) {
+	if (page_is_leaf(page)) {
 		dict_index_zip_success(index);
 	}
 
@@ -2169,6 +2125,10 @@ page_zip_apply_log(
 		rec_get_offsets_reverse(data, index,
 					hs & REC_STATUS_NODE_PTR,
 					offsets);
+		/* Silence a debug assertion in rec_offs_make_valid().
+		This will be overwritten in page_zip_set_extra_bytes(),
+		called by page_zip_decompress_low(). */
+		ut_d(rec[-REC_NEW_INFO_BITS] = 0);
 		rec_offs_make_valid(rec, index, is_leaf, offsets);
 
 		/* Copy the extra bytes (backwards). */
@@ -4807,9 +4767,7 @@ page_zip_reorganize(
 	/* Restore logging. */
 	mtr_set_log_mode(mtr, log_mode);
 
-	if (!page_zip_compress(page_zip, page, index,
-			       page_zip_level, NULL, mtr)) {
-
+	if (!page_zip_compress(page_zip, page, index, page_zip_level, mtr)) {
 		buf_block_free(temp_block);
 		return(FALSE);
 	}

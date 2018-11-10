@@ -270,3 +270,9 @@ explain select * from t1 where invisible =9;
 show indexes in t1;
 drop table t1;
 set @old_debug= @@debug_dbug;
+## MDEV 15127
+CREATE TABLE t1 (i INT );
+SET debug_dbug="+d,test_completely_invisible,test_invisible_index";
+CREATE TABLE t2 LIKE t1;
+SET debug_dbug= DEFAULT;
+DROP TABLE t1, t2;

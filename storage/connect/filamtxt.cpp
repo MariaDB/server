@@ -1173,11 +1173,11 @@ int DOSFAM::RenameTempFile(PGLOBAL g)
     remove(filetemp);   // May still be there from previous error
 
     if (rename(filename, filetemp)) {    // Save file for security
-      sprintf(g->Message, MSG(RENAME_ERROR),
+      snprintf(g->Message, MAX_STR, MSG(RENAME_ERROR),
               filename, filetemp, strerror(errno));
 			throw 51;
 		} else if (rename(tempname, filename)) {
-      sprintf(g->Message, MSG(RENAME_ERROR),
+      snprintf(g->Message, MAX_STR, MSG(RENAME_ERROR),
               tempname, filename, strerror(errno));
       rc = rename(filetemp, filename);   // Restore saved file
 			throw 52;

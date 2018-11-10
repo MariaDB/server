@@ -4679,15 +4679,20 @@ SPIDER_SHARE *spider_get_share(
       }
       if (!share->link_status_init)
       {
-        if (
-          (
-            table_share->tmp_table == NO_TMP_TABLE &&
-            sql_command != SQLCOM_DROP_TABLE &&
-            sql_command != SQLCOM_SHOW_CREATE
-          ) ||
-          /* for alter change link status */
-          sql_command == SQLCOM_ALTER_TABLE
-        ) {
+        /*
+          The link statuses need to be refreshed from the spider_tables table
+          if the operation:
+          - Is not a DROP TABLE on a permanent table; or
+          - Is an ALTER TABLE.
+
+          Note that SHOW CREATE TABLE is not excluded, because the commands
+          that follow it require up-to-date link statuses.
+        */
+        if ((table_share->tmp_table == NO_TMP_TABLE &&
+             sql_command != SQLCOM_DROP_TABLE) ||
+            /* for alter change link status */
+            sql_command == SQLCOM_ALTER_TABLE)
+        {
           SPD_INIT_ALLOC_ROOT(&mem_root, 4096, 0, MYF(MY_WME));
           init_mem_root = TRUE;
           if (

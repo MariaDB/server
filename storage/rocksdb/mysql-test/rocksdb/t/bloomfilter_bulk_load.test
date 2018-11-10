@@ -1,0 +1,35 @@
+--source include/have_rocksdb.inc
+
+create table r1 (id bigint primary key, value bigint) engine=rocksdb;
+create table r2 (id bigint, value bigint, primary key (id) comment 'cf2') engine=rocksdb;
+set session rocksdb_bulk_load=1;
+--disable_query_log
+let $t = 1;
+let $i = 1;
+while ($t <= 2) {
+  while ($i <= 1000) {
+    let $insert = INSERT INTO r$t VALUES($i, $i);
+    #skipping a row
+    if ($i != 100) {
+      eval $insert;
+    }
+    inc $i;
+  }
+  inc $t;
+}
+--enable_query_log
+set session rocksdb_bulk_load=0;
+
+# bloom filter should be useful on insert (calling GetForUpdate)
+select variable_value into @h from information_schema.global_status where variable_name='rocksdb_block_cache_filter_hit';
+insert into r1 values (100, 100);
+select variable_value-@h from information_schema.global_status where variable_name='rocksdb_block_cache_filter_hit';
+
+# cf2 has no bloo filter in the bottommost level
+select variable_value into @h from information_schema.global_status where variable_name='rocksdb_block_cache_filter_hit';
+insert into r2 values (100, 100);
+select variable_value-@h from information_schema.global_status where variable_name='rocksdb_block_cache_filter_hit';
+
+DROP TABLE r1, r2;
+
+

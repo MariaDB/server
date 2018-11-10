@@ -216,7 +216,8 @@ enum mlog_id_t {
 	/** initialize a file page */
 	MLOG_INIT_FILE_PAGE2 = 59,
 
-	/** Table is being truncated. (Marked only for file-per-table) */
+	/** Table is being truncated. (Was used in 10.2 and 10.3;
+	not supported for crash-upgrade to 10.4 or later.) */
 	MLOG_TRUNCATE = 60,
 
 	/** notify that an index tree is being loaded without writing
@@ -227,8 +228,11 @@ enum mlog_id_t {
 	of a ROW_FORMAT=COMPRESSED table */
 	MLOG_ZIP_WRITE_TRX_ID = 62,
 
+	/** initialize a page with a string of identical bytes */
+	MLOG_MEMSET = 63,
+
 	/** biggest value (used in assertions) */
-	MLOG_BIGGEST_TYPE = MLOG_ZIP_WRITE_TRX_ID,
+	MLOG_BIGGEST_TYPE = MLOG_MEMSET,
 
 	/** log record for writing/updating crypt data of
 	a tablespace */

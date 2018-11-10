@@ -58,7 +58,7 @@ struct xb_fil_cur_t {
 	ulint		space_size;	/*!< space size in pages */
 
 	/** TODO: remove this default constructor */
-	xb_fil_cur_t() : page_size(0), read_filter_ctxt() {}
+	xb_fil_cur_t() : page_size(0), read_filter(0), read_filter_ctxt() {}
 
 	/** @return whether this is not a file-per-table tablespace */
 	bool is_system() const
@@ -87,7 +87,8 @@ xb_fil_cur_open(
 	xb_fil_cur_t*	cursor,		/*!< out: source file cursor */
 	xb_read_filt_t*	read_filter,	/*!< in/out: the read filter */
 	fil_node_t*	node,		/*!< in: source tablespace node */
-	uint		thread_n);	/*!< thread number for diagnostics */
+	uint		thread_n,	/*!< thread number for diagnostics */
+	ulonglong max_file_size = ULLONG_MAX);
 
 /************************************************************************
 Reads and verifies the next block of pages from the source

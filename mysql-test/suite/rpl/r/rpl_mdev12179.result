@@ -49,7 +49,7 @@ a
 1
 include/stop_slave.inc
 SET sql_log_bin=0;
-ALTER TABLE mysql.gtid_slave_pos ENGINE=MyISAM;
+ALTER TABLE mysql.gtid_slave_pos ENGINE=Aria;
 CREATE TABLE mysql.gtid_slave_pos_innodb LIKE mysql.gtid_slave_pos;
 ALTER TABLE mysql.gtid_slave_pos_innodb ENGINE=InnoDB;
 INSERT INTO mysql.gtid_slave_pos_innodb SELECT * FROM mysql.gtid_slave_pos;
@@ -77,7 +77,7 @@ SELECT table_name, engine FROM information_schema.tables
 WHERE table_schema='mysql' AND table_name LIKE 'gtid_slave_pos%'
  ORDER BY table_name;
 table_name	engine
-gtid_slave_pos	MyISAM
+gtid_slave_pos	Aria
 gtid_slave_pos_innodb	InnoDB
 SELECT @@gtid_pos_auto_engines;
 @@gtid_pos_auto_engines
@@ -122,7 +122,7 @@ table_name	engine
 gtid_slave_pos	InnoDB
 include/stop_slave.inc
 SET sql_log_bin=0;
-ALTER TABLE mysql.gtid_slave_pos ENGINE=MyISAM;
+ALTER TABLE mysql.gtid_slave_pos ENGINE=Aria;
 SET sql_log_bin=1;
 connection server_1;
 INSERT INTO t1 VALUES (5);
@@ -157,7 +157,7 @@ SELECT lower(table_name), engine FROM information_schema.tables
 WHERE table_schema='mysql' AND table_name LIKE 'gtid_slave_pos%'
  ORDER BY table_name;
 lower(table_name)	engine
-gtid_slave_pos	MyISAM
+gtid_slave_pos	Aria
 gtid_slave_pos_innodb	InnoDB
 include/stop_slave.inc
 SET sql_log_bin=0;
@@ -202,7 +202,7 @@ SELECT table_name, engine FROM information_schema.tables
 WHERE table_schema='mysql' AND table_name LIKE 'gtid_slave_pos%'
  ORDER BY table_name;
 table_name	engine
-gtid_slave_pos	MyISAM
+gtid_slave_pos	Aria
 SELECT domain_id, max(seq_no) FROM mysql.gtid_slave_pos GROUP BY domain_id;
 domain_id	max(seq_no)
 0	11
@@ -250,7 +250,7 @@ SELECT lower(table_name), engine FROM information_schema.tables
 WHERE table_schema='mysql' AND table_name LIKE 'gtid_slave_pos%'
  ORDER BY table_name;
 lower(table_name)	engine
-gtid_slave_pos	MyISAM
+gtid_slave_pos	Aria
 gtid_slave_pos_innodb	InnoDB
 SELECT domain_id, max(seq_no) FROM mysql.gtid_slave_pos GROUP BY domain_id;
 domain_id	max(seq_no)

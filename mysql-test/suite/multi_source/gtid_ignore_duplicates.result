@@ -492,21 +492,21 @@ SET GLOBAL slave_parallel_threads= @old_parallel;
 SET GLOBAL gtid_ignore_duplicates= @old_ignore_duplicates;
 connection server_1;
 DROP TABLE t1;
-ALTER TABLE mysql.gtid_slave_pos ENGINE=MyISAM;
+ALTER TABLE mysql.gtid_slave_pos ENGINE=Aria;
 include/reset_master_slave.inc
 disconnect server_1;
 connection server_2;
 DROP TABLE t1;
-ALTER TABLE mysql.gtid_slave_pos ENGINE=MyISAM;
+ALTER TABLE mysql.gtid_slave_pos ENGINE=Aria;
 include/reset_master_slave.inc
 disconnect server_2;
 connection server_3;
 DROP TABLE t1;
-ALTER TABLE mysql.gtid_slave_pos ENGINE=MyISAM;
+ALTER TABLE mysql.gtid_slave_pos ENGINE=Aria;
 include/reset_master_slave.inc
 disconnect server_3;
 connection server_4;
 DROP TABLE t1;
-ALTER TABLE mysql.gtid_slave_pos ENGINE=MyISAM;
+ALTER TABLE mysql.gtid_slave_pos ENGINE=Aria;
 include/reset_master_slave.inc
 disconnect server_4;

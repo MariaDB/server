@@ -824,7 +824,7 @@ btr_rec_set_deleted_flag(
 btr_latch_leaves_t
 btr_cur_latch_leaves(
 	buf_block_t*		block,
-	const page_id_t&	page_id,
+	const page_id_t		page_id,
 	const page_size_t&	page_size,
 	ulint			latch_mode,
 	btr_cur_t*		cursor,
@@ -955,6 +955,26 @@ struct btr_cur_t {
 	rtr_info_t*	rtr_info;	/*!< rtree search info */
 	btr_cur_t():thr(NULL), rtr_info(NULL) {}
 					/* default values */
+	/** Zero-initialize all fields */
+	void init()
+	{
+		index = NULL;
+		memset(&page_cur, 0, sizeof page_cur);
+		purge_node = NULL;
+		left_block = NULL;
+		thr = NULL;
+		flag = btr_cur_method(0);
+		tree_height = 0;
+		up_match = 0;
+		up_bytes = 0;
+		low_match = 0;
+		low_bytes = 0;
+		n_fields = 0;
+		n_bytes = 0;
+		fold = 0;
+		path_arr = NULL;
+		rtr_info = NULL;
+	}
 };
 
 /******************************************************//**

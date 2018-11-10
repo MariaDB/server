@@ -463,6 +463,7 @@ void tc_release_table(TABLE *table)
   DBUG_ENTER("tc_release_table");
   DBUG_ASSERT(table->in_use);
   DBUG_ASSERT(table->file);
+  DBUG_ASSERT(!table->pos_in_locked_tables);
 
   mysql_mutex_lock(&tc[i].LOCK_table_cache);
   if (table->needs_reopen() || table->s->tdc->flushed ||
@@ -644,7 +645,7 @@ bool tdc_init(void)
 
 void tdc_start_shutdown(void)
 {
-  DBUG_ENTER("table_def_start_shutdown");
+  DBUG_ENTER("tdc_start_shutdown");
   if (tdc_inited)
   {
     /*
@@ -1140,11 +1141,10 @@ bool tdc_remove_table(THD *thd, enum_tdc_remove_table_type remove_type,
     All_share_tables_list::Iterator it(element->all_tables);
     while ((table= it++))
     {
-      my_refs++;
-      DBUG_ASSERT(table->in_use == thd);
+      if (table->in_use == thd)
+        my_refs++;
     }
   }
-  DBUG_ASSERT(element->all_tables.is_empty() || remove_type != TDC_RT_REMOVE_ALL);
   mysql_mutex_unlock(&element->LOCK_table_share);
 
   while ((table= purge_tables.pop_front()))
@@ -1176,6 +1176,17 @@ bool tdc_remove_table(THD *thd, enum_tdc_remove_table_type remove_type,
     mysql_mutex_lock(&element->LOCK_table_share);
     while (element->ref_count > my_refs)
       mysql_cond_wait(&element->COND_release, &element->LOCK_table_share);
+    DBUG_ASSERT(element->all_tables.is_empty() ||
+                remove_type != TDC_RT_REMOVE_ALL);
+#ifndef DBUG_OFF
+    if (remove_type == TDC_RT_REMOVE_NOT_OWN ||
+        remove_type == TDC_RT_REMOVE_NOT_OWN_KEEP_SHARE)
+    {
+      All_share_tables_list::Iterator it(element->all_tables);
+      while ((table= it++))
+        DBUG_ASSERT(table->in_use == thd);
+    }
+#endif
     mysql_mutex_unlock(&element->LOCK_table_share);
   }
 

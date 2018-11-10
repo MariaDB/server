@@ -240,21 +240,16 @@ COMMIT;
 
 connect(truncate,localhost,root,,);
 REPLACE INTO t1(pk, y) SELECT pk,y FROM t1;
-SET DEBUG_SYNC='row_trunc_before_dict_lock SIGNAL commit WAIT_FOR release';
 send TRUNCATE TABLE t1;
 
 connection prevent_purge;
-SET DEBUG_SYNC='now WAIT_FOR commit';
 COMMIT;
 SET DEBUG_SYNC='now SIGNAL purge_start';
 disconnect prevent_purge;
 
 connection default;
 SET DEBUG_SYNC='now WAIT_FOR purge_start';
-let $wait_all_purged=2;
 --source ../../innodb/include/wait_all_purged.inc
-let $wait_all_purged=0;
-SET DEBUG_SYNC='now SIGNAL release';
 SET GLOBAL debug_dbug=@old_dbug;
 
 connection truncate;
@@ -262,7 +257,6 @@ reap;
 disconnect truncate;
 
 connection default;
---source ../../innodb/include/wait_all_purged.inc
 DROP TABLE t1, t2;
 
 --source include/wait_until_count_sessions.inc

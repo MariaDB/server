@@ -20,6 +20,7 @@ set -u
 
 WSREP_SST_OPT_BYPASS=0
 WSREP_SST_OPT_BINLOG=""
+WSREP_SST_OPT_BINLOG_INDEX=""
 WSREP_SST_OPT_DATA=""
 WSREP_SST_OPT_AUTH=${WSREP_SST_OPT_AUTH:-}
 WSREP_SST_OPT_USER=${WSREP_SST_OPT_USER:-}
@@ -27,6 +28,8 @@ WSREP_SST_OPT_PSWD=${WSREP_SST_OPT_PSWD:-}
 WSREP_SST_OPT_DEFAULT=""
 WSREP_SST_OPT_EXTRA_DEFAULT=""
 WSREP_SST_OPT_SUFFIX_DEFAULT=""
+WSREP_SST_OPT_SUFFIX_VALUE=""
+INNODB_DATA_HOME_DIR_ARG=""
 
 while [ $# -gt 0 ]; do
 case "$1" in
@@ -54,9 +57,18 @@ case "$1" in
         readonly WSREP_SST_OPT_MODULE=${remain%%/*}
         readonly WSREP_SST_OPT_PATH=${WSREP_SST_OPT_ADDR#*/}
         remain=${WSREP_SST_OPT_PATH#*/}
-        readonly WSREP_SST_OPT_LSN=${remain%%/*}
-        remain=${remain#*/}
-        readonly WSREP_SST_OPT_SST_VER=${remain%%/*}
+        if [ "$remain" != "${WSREP_SST_OPT_PATH}" ]; then
+            readonly WSREP_SST_OPT_LSN=${remain%%/*}
+            remain=${remain#*/}
+            if [ "$remain" != "${WSREP_SST_OPT_LSN}" ]; then
+                readonly WSREP_SST_OPT_SST_VER=${remain%%/*}
+            else
+                readonly WSREP_SST_OPT_SST_VER=""
+            fi
+        else
+            readonly WSREP_SST_OPT_LSN=""
+            readonly WSREP_SST_OPT_SST_VER=""
+        fi
         shift
         ;;
     '--bypass')
@@ -64,6 +76,10 @@ case "$1" in
         ;;
     '--datadir')
         readonly WSREP_SST_OPT_DATA="$2"
+        shift
+        ;;
+    '--innodb-data-home-dir')
+        readonly INNODB_DATA_HOME_DIR_ARG="$2"
         shift
         ;;
     '--defaults-file')
@@ -76,6 +92,7 @@ case "$1" in
         ;;
     '--defaults-group-suffix')
         readonly WSREP_SST_OPT_SUFFIX_DEFAULT="$1=$2"
+        readonly WSREP_SST_OPT_SUFFIX_VALUE="$2"
         shift
         ;;
     '--host')
@@ -118,6 +135,10 @@ case "$1" in
         WSREP_SST_OPT_BINLOG="$2"
         shift
         ;;
+    '--binlog-index')
+	WSREP_SST_OPT_BINLOG_INDEX="$2"
+	shift
+	;;
     '--gtid-domain-id')
         readonly WSREP_SST_OPT_GTID_DOMAIN_ID="$2"
         shift
@@ -131,6 +152,7 @@ shift
 done
 readonly WSREP_SST_OPT_BYPASS
 readonly WSREP_SST_OPT_BINLOG
+readonly WSREP_SST_OPT_BINLOG_INDEX
 
 if [ -n "${WSREP_SST_OPT_ADDR_PORT:-}" ]; then
   if [ -n "${WSREP_SST_OPT_PORT:-}" ]; then
@@ -272,8 +294,8 @@ parse_cnf()
     reval=$($MY_PRINT_DEFAULTS "${group}" | awk -v var="${var}" 'BEGIN { OFS=FS="=" } { gsub(/_/,"-",$1); if ( $1=="--"var) lastval=substr($0,length($1)+2) } END { print lastval}')
 
     # use default if we haven't found a value
-    if [ -z $reval ]; then
-        [ -n $3 ] && reval=$3
+    if [ -z "$reval" ]; then
+        [ -n "$3" ] && reval=$3
     fi
     echo $reval
 }

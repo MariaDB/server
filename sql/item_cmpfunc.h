@@ -1011,8 +1011,8 @@ public:
   longlong int_op();
   String *str_op(String *);
   my_decimal *decimal_op(my_decimal *);
-  bool date_op(MYSQL_TIME *ltime, ulonglong fuzzydate);
-  bool time_op(MYSQL_TIME *ltime);
+  bool date_op(THD *thd, MYSQL_TIME *ltime, date_mode_t fuzzydate);
+  bool time_op(THD *thd, MYSQL_TIME *ltime);
   bool fix_length_and_dec()
   {
     if (aggregate_for_result(func_name(), args, arg_count, true))
@@ -1090,8 +1090,8 @@ public:
   longlong int_op();
   String *str_op(String *str);
   my_decimal *decimal_op(my_decimal *);
-  bool date_op(MYSQL_TIME *ltime, ulonglong fuzzydate);
-  bool time_op(MYSQL_TIME *ltime);
+  bool date_op(THD *thd, MYSQL_TIME *ltime, date_mode_t fuzzydate);
+  bool time_op(THD *thd, MYSQL_TIME *ltime);
   bool fix_length_and_dec()
   {
     if (Item_func_case_abbreviation2::fix_length_and_dec2(args))
@@ -1125,12 +1125,12 @@ public:
     :Item_func_case_abbreviation2(thd, a, b, c)
   { }
 
-  bool date_op(MYSQL_TIME *ltime, ulonglong fuzzydate)
+  bool date_op(THD *thd, MYSQL_TIME *ltime, date_mode_t fuzzydate)
   {
-    Datetime dt(current_thd, find_item(), fuzzydate);
+    Datetime dt(thd, find_item(), fuzzydate);
     return (null_value= dt.copy_to_mysql_time(ltime, mysql_timestamp_type()));
   }
-  bool time_op(MYSQL_TIME *ltime)
+  bool time_op(THD *thd, MYSQL_TIME *ltime)
   {
     return (null_value= Time(find_item()).copy_to_mysql_time(ltime));
   }
@@ -1243,8 +1243,8 @@ public:
     Item_func_hybrid_field_type::cleanup();
     arg_count= 2; // See the comment to the constructor
   }
-  bool date_op(MYSQL_TIME *ltime, ulonglong fuzzydate);
-  bool time_op(MYSQL_TIME *ltime);
+  bool date_op(THD *thd, MYSQL_TIME *ltime, date_mode_t fuzzydate);
+  bool time_op(THD *thd, MYSQL_TIME *ltime);
   double real_op();
   longlong int_op();
   String *str_op(String *str);
@@ -1641,7 +1641,7 @@ public:
   { }
   void store_value(Item *item)
   {
-    value= item->val_datetime_packed();
+    value= item->val_datetime_packed(current_thd);
     m_null_value= item->null_value;
   }
   int cmp_not_null(const Value *val);
@@ -1658,7 +1658,7 @@ public:
   { }
   void store_value(Item *item)
   {
-    value= item->val_time_packed();
+    value= item->val_time_packed(current_thd);
     m_null_value= item->null_value;
   }
   int cmp_not_null(const Value *val);
@@ -1897,7 +1897,7 @@ class Predicant_to_list_comparator
       return UNKNOWN;
     return in_item->cmp(args->arguments()[m_comparators[i].m_arg_index]);
   }
-  int cmp_args_nulls_equal(Item_args *args, uint i)
+  int cmp_args_nulls_equal(THD *thd, Item_args *args, uint i)
   {
     Predicant_to_value_comparator *cmp=
       &m_comparators[m_comparators[i].m_handler_index];
@@ -1908,7 +1908,7 @@ class Predicant_to_list_comparator
     ValueBuffer<MAX_FIELD_WIDTH> val;
     if (m_comparators[i].m_handler_index == i)
       in_item->store_value(predicant);
-    m_comparators[i].m_handler->Item_save_in_value(arg, &val);
+    m_comparators[i].m_handler->Item_save_in_value(thd, arg, &val);
     if (predicant->null_value && val.is_null())
       return FALSE; // Two nulls are equal
     if (predicant->null_value || val.is_null())
@@ -2089,12 +2089,12 @@ public:
   /*
     Same as above, but treats two NULLs as equal, e.g. as in DECODE_ORACLE().
   */
-  bool cmp_nulls_equal(Item_args *args, uint *idx)
+  bool cmp_nulls_equal(THD *thd, Item_args *args, uint *idx)
   {
     for (uint i= 0 ; i < m_comparator_count ; i++)
     {
       DBUG_ASSERT(m_comparators[i].m_handler != NULL);
-      if (cmp_args_nulls_equal(args, i) == FALSE)
+      if (cmp_args_nulls_equal(thd, args, i) == FALSE)
       {
         *idx= m_comparators[i].m_arg_index;
         return false; // Found a matching value
@@ -2130,8 +2130,8 @@ public:
   longlong int_op();
   String *str_op(String *);
   my_decimal *decimal_op(my_decimal *);
-  bool date_op(MYSQL_TIME *ltime, ulonglong fuzzydate);
-  bool time_op(MYSQL_TIME *ltime);
+  bool date_op(THD *thd, MYSQL_TIME *ltime, date_mode_t fuzzydate);
+  bool time_op(THD *thd, MYSQL_TIME *ltime);
   bool fix_fields(THD *thd, Item **ref);
   table_map not_null_tables() const { return 0; }
   const char *func_name() const { return "case"; }
@@ -2160,6 +2160,7 @@ public:
     DBUG_ASSERT(arg_count >= 2);
     reorder_args(0);
   }
+  enum Functype functype() const   { return CASE_SEARCHED_FUNC; }
   void print(String *str, enum_query_type query_type);
   bool fix_length_and_dec();
   Item *propagate_equal_fields(THD *thd, const Context &ctx, COND_EQUAL *cond)
@@ -2212,6 +2213,7 @@ public:
     Predicant_to_list_comparator::cleanup();
     DBUG_VOID_RETURN;
   }
+  enum Functype functype() const   { return CASE_SIMPLE_FUNC; }
   void print(String *str, enum_query_type query_type);
   bool fix_length_and_dec();
   Item *propagate_equal_fields(THD *thd, const Context &ctx, COND_EQUAL *cond);
@@ -2846,16 +2848,7 @@ public:
   bool fix_length_and_dec();
   const char *func_name() const { return "regexp"; }
   enum precedence precedence() const { return CMP_PRECEDENCE; }
-  Item *get_copy(THD *thd)
-  { return get_item_copy<Item_func_regex>(thd, this); }
-  Item *build_clone(THD *thd)
-  {
-    Item_func_regex *clone= (Item_func_regex*) Item_bool_func::build_clone(thd);
-    if (clone)
-      clone->re.reset();
-    return clone;
-  }
-
+  Item *get_copy(THD *) { return 0; }
   void print(String *str, enum_query_type query_type)
   {
     print_op(str, query_type);
@@ -2895,8 +2888,7 @@ public:
   bool fix_fields(THD *thd, Item **ref);
   bool fix_length_and_dec();
   const char *func_name() const { return "regexp_instr"; }
-  Item *get_copy(THD *thd)
-  { return get_item_copy<Item_func_regexp_instr>(thd, this); }
+  Item *get_copy(THD *thd) { return 0; }
 };
 
 
@@ -2974,6 +2966,7 @@ public:
                 Item_transformer transformer, uchar *arg_t);
   bool eval_not_null_tables(void *opt_arg);
   Item *build_clone(THD *thd);
+  bool excl_dep_on_grouping_fields(st_select_lex *sel);
 };
 
 template <template<class> class LI, class T> class Item_equal_iterator;

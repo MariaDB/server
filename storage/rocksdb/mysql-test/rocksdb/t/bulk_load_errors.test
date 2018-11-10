@@ -60,6 +60,13 @@ SELECT * FROM t1;
 
 --source include/wait_until_count_sessions.inc
 
+# Note: in MariaDB, session count will be decremented *before* 
+#   myrocks::rocksdb_close_connection is called. This causes a race condition:
+#   we may grep the error log before bulk load is finalized.
+#   To prevent that, do a soft restart of the server (I wasnt able to find
+#   any other reliable way)
+--source include/restart_mysqld_with_option.inc
+
 --let SEARCH_FILE=$LOG2
 --let SEARCH_PATTERN=RocksDB: Error [0-9]+ finalizing last SST file while disconnecting
 --source include/search_pattern_in_file.inc

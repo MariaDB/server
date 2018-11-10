@@ -374,21 +374,12 @@ dict_table_add_system_columns(
 	dict_table_t*	table,	/*!< in/out: table */
 	mem_heap_t*	heap)	/*!< in: temporary heap */
 	MY_ATTRIBUTE((nonnull));
-/**********************************************************************//**
-Removes a table object from the dictionary cache. */
-void
-dict_table_remove_from_cache(
-/*=========================*/
-	dict_table_t*	table)	/*!< in, own: table */
-	MY_ATTRIBUTE((nonnull));
-/**********************************************************************//**
-Removes a table object from the dictionary cache. */
-void
-dict_table_remove_from_cache_low(
-/*=============================*/
-	dict_table_t*	table,		/*!< in, own: table */
-	ibool		lru_evict)	/*!< in: TRUE if table being evicted
-					to make room in the table LRU list */
+/** Evict a table definition from the InnoDB data dictionary cache.
+@param[in,out]	table	cached table definition to be evicted
+@param[in]	lru	whether this is part of least-recently-used evictiono
+@param[in]	keep	whether to keep (not free) the object */
+void dict_table_remove_from_cache(dict_table_t* table, bool lru = false,
+				  bool keep = false)
 	MY_ATTRIBUTE((nonnull));
 /**********************************************************************//**
 Renames a table object.
@@ -398,10 +389,14 @@ dict_table_rename_in_cache(
 /*=======================*/
 	dict_table_t*	table,		/*!< in/out: table */
 	const char*	new_name,	/*!< in: new name */
-	ibool		rename_also_foreigns)
+	bool		rename_also_foreigns,
 					/*!< in: in ALTER TABLE we want
 					to preserve the original table name
 					in constraints which reference it */
+	bool		replace_new_file = false)
+					/*!< in: whether to replace the
+					file with the new name
+					(as part of rolling back TRUNCATE) */
 	MY_ATTRIBUTE((nonnull));
 
 /** Removes an index from the dictionary cache.
@@ -1862,14 +1857,6 @@ const char*
 dict_tf_to_row_format_string(
 /*=========================*/
 	ulint	table_flag);		/*!< in: row format setting */
-/****************************************************************//**
-Return maximum size of the node pointer record.
-@return maximum size of the record in bytes */
-ulint
-dict_index_node_ptr_max_size(
-/*=========================*/
-	const dict_index_t*	index)	/*!< in: index */
-	MY_ATTRIBUTE((warn_unused_result));
 
 /** encode number of columns and number of virtual columns in one
 4 bytes value. We could do this because the number of columns in

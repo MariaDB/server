@@ -72,14 +72,15 @@ size_t Item_sum::ram_limitation(THD *thd)
 bool Item_sum::init_sum_func_check(THD *thd)
 {
   SELECT_LEX *curr_sel= thd->lex->current_select;
-  if (curr_sel && !curr_sel->name_visibility_map)
+  if (curr_sel && curr_sel->name_visibility_map.is_clear_all())
   {
     for (SELECT_LEX *sl= curr_sel; sl; sl= sl->context.outer_select())
     {
-      curr_sel->name_visibility_map|= (1 << sl-> nest_level);
+      curr_sel->name_visibility_map.set_bit(sl->nest_level);
     }
   }
-  if (!curr_sel || !(thd->lex->allow_sum_func & curr_sel->name_visibility_map))
+  if (!curr_sel ||
+      !(thd->lex->allow_sum_func.is_overlapping(curr_sel->name_visibility_map)))
   {
     my_message(ER_INVALID_GROUP_FUNC_USE, ER_THD(thd, ER_INVALID_GROUP_FUNC_USE),
                MYF(0));
@@ -155,10 +156,11 @@ bool Item_sum::init_sum_func_check(THD *thd)
 bool Item_sum::check_sum_func(THD *thd, Item **ref)
 {
   SELECT_LEX *curr_sel= thd->lex->current_select;
-  nesting_map allow_sum_func= (thd->lex->allow_sum_func &
-                               curr_sel->name_visibility_map);
+  nesting_map allow_sum_func(thd->lex->allow_sum_func);
+  allow_sum_func.intersect(curr_sel->name_visibility_map);
   bool invalid= FALSE;
-  DBUG_ASSERT(curr_sel->name_visibility_map); // should be set already
+  // should be set already
+  DBUG_ASSERT(!curr_sel->name_visibility_map.is_clear_all());
 
   /*
      Window functions can not be used as arguments to sum functions.
@@ -189,10 +191,10 @@ bool Item_sum::check_sum_func(THD *thd, Item **ref)
       If it is there under a construct where it is not allowed 
       we report an error. 
     */ 
-    invalid= !(allow_sum_func & ((nesting_map)1 << max_arg_level));
+    invalid= !(allow_sum_func.is_set(max_arg_level));
   }
   else if (max_arg_level >= 0 ||
-           !(allow_sum_func & ((nesting_map)1 << nest_level)))
+           !(allow_sum_func.is_set(nest_level)))
   {
     /*
       The set function can be aggregated only in outer subqueries.
@@ -202,7 +204,7 @@ bool Item_sum::check_sum_func(THD *thd, Item **ref)
     if (register_sum_func(thd, ref))
       return TRUE;
     invalid= aggr_level < 0 &&
-             !(allow_sum_func & ((nesting_map)1 << nest_level));
+             !(allow_sum_func.is_set(nest_level));
     if (!invalid && thd->variables.sql_mode & MODE_ANSI)
       invalid= aggr_level < 0 && max_arg_level < nest_level;
   }
@@ -354,14 +356,14 @@ bool Item_sum::register_sum_func(THD *thd, Item **ref)
        sl= sl->context.outer_select())
   {
     if (aggr_level < 0 &&
-        (allow_sum_func & ((nesting_map)1 << sl->nest_level)))
+        (allow_sum_func.is_set(sl->nest_level)))
     {
       /* Found the most nested subquery where the function can be aggregated */
       aggr_level= sl->nest_level;
       aggr_sel= sl;
     }
   }
-  if (sl && (allow_sum_func & ((nesting_map)1 << sl->nest_level)))
+  if (sl && (allow_sum_func.is_set(sl->nest_level)))
   {
     /* 
       We reached the subquery of level max_arg_level and checked
@@ -2305,12 +2307,12 @@ void Item_sum_hybrid::clear()
 
 
 bool
-Item_sum_hybrid::get_date(MYSQL_TIME *ltime, ulonglong fuzzydate)
+Item_sum_hybrid::get_date(THD *thd, MYSQL_TIME *ltime, date_mode_t fuzzydate)
 {
   DBUG_ASSERT(fixed == 1);
   if (null_value)
     return true;
-  bool retval= value->get_date(ltime, fuzzydate);
+  bool retval= value->get_date(thd, ltime, fuzzydate);
   if ((null_value= value->null_value))
     DBUG_ASSERT(retval == true);
   return retval;

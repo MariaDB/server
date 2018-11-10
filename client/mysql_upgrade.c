@@ -135,13 +135,8 @@ static struct my_option my_long_options[]=
    "built-in default (" STRINGIFY_ARG(MYSQL_PORT) ").",
    0, 0, 0, GET_STR, REQUIRED_ARG, 0, 0, 0, 0, 0, 0},
   {"protocol", OPT_MYSQL_PROTOCOL,
-   "The protocol to use for connection (tcp, socket, pipe, memory).",
+   "The protocol to use for connection (tcp, socket, pipe).",
    0, 0, 0, GET_STR, REQUIRED_ARG, 0, 0, 0, 0, 0, 0},
-#ifdef HAVE_SMEM
-  {"shared-memory-base-name", OPT_SHARED_MEMORY_BASE_NAME,
-   "Base name of shared memory.", 0,
-   0, 0, GET_STR, REQUIRED_ARG, 0, 0, 0, 0, 0, 0},
-#endif
   {"silent", OPT_SILENT, "Print less information", &opt_silent,
    &opt_silent, 0, GET_BOOL, NO_ARG, 0, 0, 0, 0, 0, 0},
   {"socket", 'S', "The socket file to use for connection.",
@@ -354,7 +349,6 @@ get_one_option(int optid, const struct my_option *opt,
   case 'P': /* --port */
   case 'S': /* --socket */
   case OPT_MYSQL_PROTOCOL: /* --protocol */
-  case OPT_SHARED_MEMORY_BASE_NAME: /* --shared-memory-base-name */
   case OPT_PLUGIN_DIR:                          /* --plugin-dir */
   case OPT_DEFAULT_AUTH:                        /* --default-auth */
     add_one_option_cmd_line(&conn_args, opt, argument);

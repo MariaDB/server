@@ -2,7 +2,7 @@
 #define HANDLER_INCLUDED
 /*
    Copyright (c) 2000, 2016, Oracle and/or its affiliates.
-   Copyright (c) 2009, 2017, MariaDB Corporation.
+   Copyright (c) 2009, 2018, MariaDB
 
    This program is free software; you can redistribute it and/or
    modify it under the terms of the GNU General Public License
@@ -151,7 +151,6 @@ enum enum_alter_inplace_result {
 #define HA_HAS_OLD_CHECKSUM    (1ULL << 24)
 /* Table data are stored in separate files (for lower_case_table_names) */
 #define HA_FILE_BASED	       (1ULL << 26)
-#define HA_NO_VARCHAR	       (1ULL << 27) /* unused */
 #define HA_CAN_BIT_FIELD       (1ULL << 28) /* supports bit fields */
 #define HA_NEED_READ_RANGE_BUFFER (1ULL << 29) /* for read_multi_range */
 #define HA_ANY_INDEX_MAY_BE_UNIQUE (1ULL << 30)
@@ -301,6 +300,9 @@ enum enum_alter_inplace_result {
 
 /* calling cmp_ref() on the engine is expensive */
 #define HA_CMP_REF_IS_EXPENSIVE (1ULL << 54)
+
+/* Engine wants primary keys for everything except sequences */
+#define HA_WANTS_PRIMARY_KEY (1ULL << 55)
 
 /* bits in index_flags(index_number) for what you can do with index */
 #define HA_READ_NEXT            1       /* TODO really use this flag */
@@ -818,7 +820,7 @@ struct xid_t {
     bqual_length= b;
     memcpy(data, d, g+b);
   }
-  bool is_null() { return formatID == -1; }
+  bool is_null() const { return formatID == -1; }
   void null() { formatID= -1; }
   my_xid quick_get_my_xid()
   {
@@ -950,6 +952,7 @@ enum enum_schema_tables
   SCH_ALL_PLUGINS,
   SCH_APPLICABLE_ROLES,
   SCH_CHARSETS,
+  SCH_CHECK_CONSTRAINTS,
   SCH_COLLATIONS,
   SCH_COLLATION_CHARACTER_SET_APPLICABILITY,
   SCH_COLUMNS,
@@ -1905,6 +1908,8 @@ enum vers_sys_type_t
   VERS_TRX_ID
 };
 
+extern const LEX_CSTRING null_clex_str;
+
 struct Vers_parse_info
 {
   Vers_parse_info() :
@@ -1912,6 +1917,15 @@ struct Vers_parse_info
     versioned_fields(false),
     unversioned_fields(false)
   {}
+
+  void init() // Deep initialization
+  {
+    system_time= start_end_t(null_clex_str, null_clex_str);
+    as_row= start_end_t(null_clex_str, null_clex_str);
+    check_unit= VERS_UNDEFINED;
+    versioned_fields= false;
+    unversioned_fields= false;
+  }
 
   struct start_end_t
   {
@@ -1992,7 +2006,7 @@ public:
      - [AS] SELECT ...             // Copy structure from a subquery
 */
 
-struct Table_scope_and_contents_source_st
+struct Table_scope_and_contents_source_pod_st // For trivial members
 {
   CHARSET_INFO *table_charset;
   LEX_CUSTRING tabledef_version;
@@ -2018,7 +2032,6 @@ struct Table_scope_and_contents_source_st
   uint options;				/* OR of HA_CREATE_ options */
   uint merge_insert_method;
   uint extra_size;                      /* length of extra data segment */
-  SQL_I_List<TABLE_LIST> merge_list;
   handlerton *db_type;
   /**
     Row type of the table definition.
@@ -2052,15 +2065,6 @@ struct Table_scope_and_contents_source_st
   bool table_was_deleted;
   sequence_definition *seq_create_info;
 
-  Vers_parse_info vers_info;
-
-  bool vers_fix_system_fields(THD *thd, Alter_info *alter_info,
-                         const TABLE_LIST &create_table,
-                         bool create_select= false);
-
-  bool vers_check_system_fields(THD *thd, Alter_info *alter_info,
-                                const TABLE_LIST &create_table);
-
   bool vers_native(THD *thd) const;
 
   void init()
@@ -2078,6 +2082,30 @@ struct Table_scope_and_contents_source_st
   {
     return options & HA_VERSIONED_TABLE;
   }
+};
+
+
+struct Table_scope_and_contents_source_st:
+         public Table_scope_and_contents_source_pod_st
+{
+  SQL_I_List<TABLE_LIST> merge_list;
+
+  Vers_parse_info vers_info;
+
+  void init()
+  {
+    Table_scope_and_contents_source_pod_st::init();
+    merge_list.empty();
+    vers_info.init();
+  }
+
+  bool vers_fix_system_fields(THD *thd, Alter_info *alter_info,
+                         const TABLE_LIST &create_table,
+                         bool create_select= false);
+
+  bool vers_check_system_fields(THD *thd, Alter_info *alter_info,
+                                const TABLE_LIST &create_table);
+
 };
 
 
@@ -3096,7 +3124,7 @@ public:
   bool keyread_enabled() { return keyread < MAX_KEY; }
   int ha_start_keyread(uint idx)
   {
-    int res= keyread_enabled() ? 0 : extra(HA_EXTRA_KEYREAD);
+    int res= keyread_enabled() ? 0 : extra_opt(HA_EXTRA_KEYREAD, idx);
     keyread= idx;
     return res;
   }
@@ -3227,7 +3255,7 @@ public:
 
   /*
     True if changes to the table is persistent (no rollback)
-    This is manly used to decide how to log changes to the table in
+    This is mainly used to decide how to log changes to the table in
     the binary log.
   */
   bool has_transactions()
@@ -3610,7 +3638,7 @@ public:
   { return 0; }
   virtual int extra(enum ha_extra_function operation)
   { return 0; }
-  virtual int extra_opt(enum ha_extra_function operation, ulong cache_size)
+  virtual int extra_opt(enum ha_extra_function operation, ulong arg)
   { return extra(operation); }
 
   /**
@@ -4831,5 +4859,5 @@ void print_keydup_error(TABLE *table, KEY *key, const char *msg, myf errflag);
 void print_keydup_error(TABLE *table, KEY *key, myf errflag);
 
 int del_global_index_stat(THD *thd, TABLE* table, KEY* key_info);
-int del_global_table_stat(THD *thd, LEX_CSTRING *db, LEX_CSTRING *table);
+int del_global_table_stat(THD *thd, const  LEX_CSTRING *db, const LEX_CSTRING *table);
 #endif /* HANDLER_INCLUDED */

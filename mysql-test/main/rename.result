@@ -144,3 +144,7 @@ select * from t2;
 a
 1
 drop table tmp,t2;
+create table t1 (a int) engine=memory;
+rename table t1 to non_existent.t2;
+ERROR 42000: Unknown database 'non_existent'
+drop table t1;

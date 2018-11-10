@@ -1653,7 +1653,7 @@ my_tz_init(THD *org_thd, const char *default_tzname, my_bool bootstrap)
   {
     /* If we are in bootstrap mode we should not load time zone tables */
     return_val= time_zone_tables_exist= 0;
-    goto end_with_setting_default_tz;
+    goto end_with_cleanup;
   }
 
   /*

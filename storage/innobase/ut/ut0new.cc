@@ -150,7 +150,6 @@ ut_new_boot()
 		"row0merge",
 		"row0mysql",
 		"row0sel",
-		"row0trunc",
 		"srv0conc",
 		"srv0srv",
 		"srv0start",

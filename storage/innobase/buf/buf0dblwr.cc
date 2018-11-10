@@ -556,11 +556,9 @@ buf_dblwr_process()
 
 		if (page_no >= space->size) {
 
-			/* Do not report the warning if the tablespace
-			is scheduled for truncation or was truncated
-			and we have parsed an MLOG_TRUNCATE record. */
-			if (!srv_is_tablespace_truncated(space_id)
-			    && !srv_was_tablespace_truncated(space)) {
+			/* Do not report the warning for undo
+			tablespaces, because they can be truncated in place. */
+			if (!srv_is_undo_tablespace(space_id)) {
 				ib::warn() << "A copy of page " << page_id
 					<< " in the doublewrite buffer slot "
 					<< page_no_dblwr
@@ -855,7 +853,7 @@ buf_dblwr_check_block(
 		but just happens to have wrongly set FIL_PAGE_TYPE,
 		such pages should never be modified to without also
 		adjusting the page type during page allocation or
-		buf_flush_init_for_writing() or fil_page_reset_type(). */
+		buf_flush_init_for_writing() or fil_block_reset_type(). */
 		break;
 	case FIL_PAGE_TYPE_FSP_HDR:
 	case FIL_PAGE_IBUF_BITMAP:

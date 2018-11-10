@@ -521,7 +521,7 @@ HEX(c8)
 
 ROLLBACK;
 ALTER TABLE tab add COLUMN c9 POINT NOT NULL AFTER c5, ALGORITHM = INPLACE, LOCK=NONE;
-ERROR 0A000: LOCK=NONE is not supported. Reason: Do not support online operation on table with GIS index. Try LOCK=SHARED
+ALTER TABLE tab DROP COLUMN c9, ALGORITHM=INSTANT;
 SHOW CREATE TABLE tab;
 Table	Create Table
 tab	CREATE TABLE `tab` (

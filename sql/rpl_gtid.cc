@@ -79,7 +79,7 @@ rpl_slave_state::record_and_update_gtid(THD *thd, rpl_group_info *rgi)
     rgi->gtid_pending= false;
     if (rgi->gtid_ignore_duplicate_state!=rpl_group_info::GTID_DUPLICATE_IGNORE)
     {
-      if (record_gtid(thd, &rgi->current_gtid, sub_id, false, false, &hton))
+      if (record_gtid(thd, &rgi->current_gtid, sub_id, NULL, false, &hton))
         DBUG_RETURN(1);
       update_state_hash(sub_id, &rgi->current_gtid, hton, rgi);
     }
@@ -331,6 +331,10 @@ rpl_slave_state::update(uint32 domain_id, uint32 server_id, uint64 sub_id,
       }
     }
     rgi->gtid_ignore_duplicate_state= rpl_group_info::GTID_DUPLICATE_NULL;
+
+#ifdef HAVE_REPLICATION
+    rgi->pending_gtid_deletes_clear();
+#endif
   }
 
   if (!(list_elem= (list_element *)my_malloc(sizeof(*list_elem), MYF(MY_WME))))
@@ -381,15 +385,24 @@ int
 rpl_slave_state::put_back_list(uint32 domain_id, list_element *list)
 {
   element *e;
+  int err= 0;
+
+  mysql_mutex_lock(&LOCK_slave_state);
   if (!(e= (element *)my_hash_search(&hash, (const uchar *)&domain_id, 0)))
-    return 1;
+  {
+    err= 1;
+    goto end;
+  }
   while (list)
   {
     list_element *next= list->next;
     e->add(list);
     list= next;
   }
-  return 0;
+
+end:
+  mysql_mutex_unlock(&LOCK_slave_state);
+  return err;
 }
 
 
@@ -403,6 +416,8 @@ rpl_slave_state::truncate_state_table(THD *thd)
   tlist.init_one_table(&MYSQL_SCHEMA_NAME, &rpl_gtid_slave_state_table_name, NULL, TL_WRITE);
   if (!(err= open_and_lock_tables(thd, &tlist, FALSE, 0)))
   {
+    tdc_remove_table(thd, TDC_RT_REMOVE_UNUSED, "mysql",
+                     rpl_gtid_slave_state_table_name.str, false);
     err= tlist.table->file->ha_truncate();
 
     if (err)
@@ -557,12 +572,12 @@ rpl_slave_state::select_gtid_pos_table(THD *thd, LEX_CSTRING *out_tablename)
 /*
   Write a gtid to the replication slave state table.
 
-  Do it as part of the transaction, to get slave crash safety, or as a separate
-  transaction if !in_transaction (eg. MyISAM or DDL).
-
     gtid    The global transaction id for this event group.
     sub_id  Value allocated within the sub_id when the event group was
             read (sub_id must be consistent with commit order in master binlog).
+    rgi     rpl_group_info context, if we are recording the gtid transactionally
+            as part of replicating a transactional event. NULL if called from
+            outside of a replicated transaction.
 
   Note that caller must later ensure that the new gtid and sub_id is inserted
   into the appropriate HASH element with rpl_slave_state.add(), so that it can
@@ -570,7 +585,7 @@ rpl_slave_state::select_gtid_pos_table(THD *thd, LEX_CSTRING *out_tablename)
 */
 int
 rpl_slave_state::record_gtid(THD *thd, const rpl_gtid *gtid, uint64 sub_id,
-                             bool in_transaction, bool in_statement,
+                             rpl_group_info *rgi, bool in_statement,
                              void **out_hton)
 {
   TABLE_LIST tlist;
@@ -669,7 +684,7 @@ rpl_slave_state::record_gtid(THD *thd, const rpl_gtid *gtid, uint64 sub_id,
   thd->wsrep_ignore_table= true;
 #endif
 
-  if (!in_transaction)
+  if (!rgi)
   {
     DBUG_PRINT("info", ("resetting OPTION_BEGIN"));
     thd->variables.option_bits&=
@@ -774,7 +789,8 @@ rpl_slave_state::record_gtid(THD *thd, const rpl_gtid *gtid, uint64 sub_id,
     table->file->print_error(err, MYF(0));
     goto end;
   }
-  while (delete_list)
+  cur = delete_list;
+  while (cur)
   {
     uchar key_buffer[4+8];
 
@@ -784,9 +800,9 @@ rpl_slave_state::record_gtid(THD *thd, const rpl_gtid *gtid, uint64 sub_id,
                       /* `break' does not work inside DBUG_EXECUTE_IF */
                       goto dbug_break; });
 
-    next= delete_list->next;
+    next= cur->next;
 
-    table->field[1]->store(delete_list->sub_id, true);
+    table->field[1]->store(cur->sub_id, true);
     /* domain_id is already set in table->record[0] from write_row() above. */
     key_copy(key_buffer, table->record[0], &table->key_info[0], 0, false);
     if (table->file->ha_index_read_map(table->record[1], key_buffer,
@@ -800,8 +816,7 @@ rpl_slave_state::record_gtid(THD *thd, const rpl_gtid *gtid, uint64 sub_id,
       not want to endlessly error on the same element in case of table
       corruption or such.
     */
-    my_free(delete_list);
-    delete_list= next;
+    cur= next;
     if (err)
       break;
   }
@@ -824,18 +839,35 @@ end:
       */
       if (delete_list)
       {
-        mysql_mutex_lock(&LOCK_slave_state);
         put_back_list(gtid->domain_id, delete_list);
-        mysql_mutex_unlock(&LOCK_slave_state);
+        delete_list = 0;
       }
 
       ha_rollback_trans(thd, FALSE);
     }
     close_thread_tables(thd);
-    if (in_transaction)
+    if (rgi)
+    {
       thd->mdl_context.release_statement_locks();
+      /*
+        Save the list of old gtid entries we deleted. If this transaction
+        fails later for some reason and is rolled back, the deletion of those
+        entries will be rolled back as well, and we will need to put them back
+        on the to-be-deleted list so we can re-do the deletion. Otherwise
+        redundant rows in mysql.gtid_slave_pos may accumulate if transactions
+        are rolled back and retried after record_gtid().
+      */
+#ifdef HAVE_REPLICATION
+      rgi->pending_gtid_deletes_save(gtid->domain_id, delete_list);
+#endif
+    }
     else
+    {
       thd->mdl_context.release_transactional_locks();
+#ifdef HAVE_REPLICATION
+      rpl_group_info::pending_gtid_deletes_free(delete_list);
+#endif
+    }
   }
   thd->lex->restore_backup_query_tables_list(&lex_backup);
   thd->variables.option_bits= thd_saved_option;
@@ -1219,7 +1251,7 @@ rpl_slave_state::load(THD *thd, const char *state_from_master, size_t len,
 
     if (gtid_parser_helper(&state_from_master, end, &gtid) ||
         !(sub_id= next_sub_id(gtid.domain_id)) ||
-        record_gtid(thd, &gtid, sub_id, false, in_statement, &hton) ||
+        record_gtid(thd, &gtid, sub_id, NULL, in_statement, &hton) ||
         update(gtid.domain_id, gtid.server_id, sub_id, gtid.seq_no, hton, NULL))
       return 1;
     if (state_from_master == end)
@@ -2022,10 +2054,10 @@ rpl_binlog_state::drop_domain(DYNAMIC_ARRAY *ids,
   for (ulong i= 0; i < ids->elements; i++)
   {
     rpl_binlog_state::element *elem= NULL;
-    ulong *ptr_domain_id;
+    uint32 *ptr_domain_id;
     bool not_match;
 
-    ptr_domain_id= (ulong*) dynamic_array_ptr(ids, i);
+    ptr_domain_id= (uint32*) dynamic_array_ptr(ids, i);
     elem= (rpl_binlog_state::element *)
       my_hash_search(&hash, (const uchar *) ptr_domain_id, 0);
     if (!elem)
@@ -2046,7 +2078,7 @@ rpl_binlog_state::drop_domain(DYNAMIC_ARRAY *ids,
 
     if (not_match)
     {
-      sprintf(errbuf, "binlog files may contain gtids from the domain ('%lu') "
+      sprintf(errbuf, "binlog files may contain gtids from the domain ('%u') "
               "being deleted. Make sure to first purge those files",
               *ptr_domain_id);
       errmsg= errbuf;

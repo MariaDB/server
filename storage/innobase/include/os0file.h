@@ -1241,17 +1241,18 @@ bool
 os_file_set_eof(
 	FILE*		file);	/*!< in: file to be truncated */
 
-/** Truncates a file to a specified size in bytes. Do nothing if the size
-preserved is smaller or equal than current size of file.
+/** Truncate a file to a specified size in bytes.
 @param[in]	pathname	file path
 @param[in]	file		file to be truncated
 @param[in]	size		size preserved in bytes
+@param[in]	allow_shrink	whether to allow the file to become smaller
 @return true if success */
 bool
 os_file_truncate(
 	const char*	pathname,
 	os_file_t	file,
-	os_offset_t	size);
+	os_offset_t	size,
+	bool		allow_shrink = false);
 
 /** NOTE! Use the corresponding macro os_file_flush(), not directly this
 function!

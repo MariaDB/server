@@ -24,6 +24,9 @@ SET NAMES binary;
 --echo #
 SELECT _binary 0x7E, _binary X'7E', _binary B'01111110';
 
+SET NAMES utf8, character_set_connection=binary;
+--source include/ctype_mdev13118.inc
+
 --echo #
 --echo # End of 10.0 tests
 --echo #

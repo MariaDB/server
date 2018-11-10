@@ -140,10 +140,11 @@ row_undo_ins_remove_clust_rec(
 		break;
 	case DICT_COLUMNS_ID:
 		/* This is rolling back an INSERT into SYS_COLUMNS.
-		If it was part of an instant ADD COLUMN operation, we
-		must modify the table definition. At this point, any
-		corresponding operation to the 'default row' will have
-		been rolled back. */
+		If it was part of an instant ALTER TABLE operation, we
+		must evict the table definition, so that it can be
+		reloaded after the dictionary operation has been
+		completed. At this point, any corresponding operation
+		to the metadata record will have been rolled back. */
 		ut_ad(!online);
 		ut_ad(node->trx->dict_operation_lock_mode == RW_X_LATCH);
 		ut_ad(node->rec_type == TRX_UNDO_INSERT_REC);
@@ -158,33 +159,7 @@ row_undo_ins_remove_clust_rec(
 		if (len != 8) {
 			break;
 		}
-		const table_id_t table_id = mach_read_from_8(data);
-		data = rec_get_nth_field_old(rec, DICT_FLD__SYS_COLUMNS__POS,
-					     &len);
-		if (len != 4) {
-			break;
-		}
-		const unsigned pos = mach_read_from_4(data);
-		if (pos == 0 || pos >= (1U << 16)) {
-			break;
-		}
-		dict_table_t* table = dict_table_open_on_id(
-			table_id, true, DICT_TABLE_OP_OPEN_ONLY_IF_CACHED);
-		if (!table) {
-			break;
-		}
-
-		dict_index_t* index = dict_table_get_first_index(table);
-
-		if (index && index->is_instant()
-		    && DATA_N_SYS_COLS + 1 + pos == table->n_cols) {
-			/* This is the rollback of an instant ADD COLUMN.
-			Remove the column from the dictionary cache,
-			but keep the system columns. */
-			table->rollback_instant(pos);
-		}
-
-		dict_table_close(table, true, false);
+		node->trx->evict_table(mach_read_from_8(data));
 	}
 
 	if (btr_cur_optimistic_delete(btr_cur, 0, &mtr)) {
@@ -227,7 +202,7 @@ retry:
 
 func_exit:
 	btr_pcur_commit_specify_mtr(&node->pcur, &mtr);
-	if (err == DB_SUCCESS && node->rec_type == TRX_UNDO_INSERT_DEFAULT) {
+	if (err == DB_SUCCESS && node->rec_type == TRX_UNDO_INSERT_METADATA) {
 		/* When rolling back the very first instant ADD COLUMN
 		operation, reset the root page to the basic state. */
 		ut_ad(!index->table->is_temporary());
@@ -272,8 +247,6 @@ row_undo_ins_remove_sec_low(
 	mtr_t			mtr;
 	enum row_search_result	search_result;
 	const bool		modify_leaf = mode == BTR_MODIFY_LEAF;
-
-	memset(&pcur, 0, sizeof(pcur));
 
 	row_mtr_start(&mtr, index, !modify_leaf);
 
@@ -424,7 +397,7 @@ row_undo_ins_parse_undo_rec(
 	default:
 		ut_ad(!"wrong undo record type");
 		goto close_table;
-	case TRX_UNDO_INSERT_DEFAULT:
+	case TRX_UNDO_INSERT_METADATA:
 	case TRX_UNDO_INSERT_REC:
 		break;
 	case TRX_UNDO_RENAME_TABLE:
@@ -437,7 +410,8 @@ row_undo_ins_parse_undo_rec(
 		ptr[len] = 0;
 		const char* name = reinterpret_cast<char*>(ptr);
 		if (strcmp(table->name.m_name, name)) {
-			dict_table_rename_in_cache(table, name, false);
+			dict_table_rename_in_cache(table, name, false,
+						   table_id != 0);
 		}
 		goto close_table;
 	}
@@ -446,8 +420,8 @@ row_undo_ins_parse_undo_rec(
 close_table:
 		/* Normally, tables should not disappear or become
 		unaccessible during ROLLBACK, because they should be
-		protected by InnoDB table locks. TRUNCATE TABLE
-		or table corruption could be valid exceptions.
+		protected by InnoDB table locks. Corruption could be
+		a valid exception.
 
 		FIXME: When running out of temporary tablespace, it
 		would probably be better to just drop all temporary
@@ -465,7 +439,7 @@ close_table:
 					ptr, clust_index, &node->ref,
 					node->heap);
 			} else {
-				node->ref = &trx_undo_default_rec;
+				node->ref = &trx_undo_metadata;
 			}
 
 			if (!row_undo_search_clust_to_pcur(node)) {
@@ -597,7 +571,7 @@ row_undo_ins(
 		}
 
 		/* fall through */
-	case TRX_UNDO_INSERT_DEFAULT:
+	case TRX_UNDO_INSERT_METADATA:
 		log_free_check();
 
 		if (node->table->id == DICT_INDEXES_ID) {
@@ -631,7 +605,8 @@ row_undo_ins(
 			already be holding dict_sys->mutex, which
 			would be acquired when updating statistics. */
 			if (!dict_locked) {
-				dict_stats_update_if_needed(node->table);
+				dict_stats_update_if_needed(
+					node->table, node->trx->mysql_thd);
 			}
 		}
 	}

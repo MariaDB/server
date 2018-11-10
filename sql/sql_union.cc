@@ -1321,6 +1321,8 @@ bool st_select_lex_unit::optimize()
           thd->lex->current_select= lex_select_save;
           DBUG_RETURN(TRUE);
         }
+        if (derived)
+	  sl->increase_derived_records(sl->tvc->get_records());
 	continue;
       }
       thd->lex->current_select= sl;
@@ -1726,6 +1728,7 @@ bool st_select_lex_unit::exec_recursive()
       }
     }
     thd->lex->current_select= sl;
+    set_limit(sl);
     if (sl->tvc)
       sl->tvc->exec(sl);
     else
@@ -1794,6 +1797,37 @@ bool st_select_lex_unit::cleanup()
   {
     DBUG_RETURN(FALSE);
   }
+  /*
+    When processing a PS/SP or an EXPLAIN command cleanup of a unit can
+    be performed immediately when the unit is reached in the cleanup
+    traversal initiated by the cleanup of the main unit.
+  */
+  if (!thd->stmt_arena->is_stmt_prepare() && !thd->lex->describe &&
+      with_element && with_element->is_recursive && union_result)
+  {
+    select_union_recursive *result= with_element->rec_result;
+    if (++result->cleanup_count == with_element->rec_outer_references)
+    {
+      /*
+        Perform cleanup for with_element and for all with elements
+        mutually recursive with it.
+      */
+      cleaned= 1;
+      with_element->get_next_mutually_recursive()->spec->cleanup();
+    }
+    else
+    {
+      /*
+        Just increment by 1 cleanup_count for with_element and
+        for all with elements mutually recursive with it.
+      */
+      With_element *with_elem= with_element;
+      while ((with_elem= with_elem->get_next_mutually_recursive()) !=
+             with_element)
+        with_elem->rec_result->cleanup_count++;
+      DBUG_RETURN(FALSE);
+    }
+  }
   cleaned= 1;
 
   for (SELECT_LEX *sl= first_select(); sl; sl= sl->next_select())
@@ -1824,7 +1858,7 @@ bool st_select_lex_unit::cleanup()
 
   if (with_element && with_element->is_recursive)
   {
-    if (union_result )
+    if (union_result)
     {
       ((select_union_recursive *) union_result)->cleanup();
       delete union_result;

@@ -29,6 +29,8 @@
 #ifndef my_decimal_h
 #define my_decimal_h
 
+#include "sql_basic_types.h"
+
 #if defined(MYSQL_SERVER) || defined(EMBEDDED_LIBRARY)
 #include "sql_string.h"                         /* String */
 #endif
@@ -215,8 +217,6 @@ public:
   {
     return check_result(mask, decimal_round(this, to, (int) scale, mode));
   }
-  bool to_datetime_with_warn(MYSQL_TIME *to, ulonglong fuzzydate,
-                             const char *field_name);
   int to_binary(uchar *bin, int prec, int scale,
                 uint mask= E_DEC_FATAL_ERROR) const;
 #endif

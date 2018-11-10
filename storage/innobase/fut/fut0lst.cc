@@ -58,8 +58,8 @@ flst_add_to_empty(
 	flst_write_addr(base + FLST_LAST, node_addr, mtr);
 
 	/* Set prev and next fields of node to add */
-	flst_write_addr(node + FLST_PREV, fil_addr_null, mtr);
-	flst_write_addr(node + FLST_NEXT, fil_addr_null, mtr);
+	flst_zero_addr(node + FLST_PREV, mtr);
+	flst_zero_addr(node + FLST_NEXT, mtr);
 
 	/* Update len of base node */
 	mlog_write_ulint(base + FLST_LEN, 1, MLOG_4BYTES, mtr);

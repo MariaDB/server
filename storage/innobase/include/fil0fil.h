@@ -38,9 +38,7 @@ Created 10/25/1995 Heikki Tuuri
 // Forward declaration
 extern my_bool srv_use_doublewrite_buf;
 extern struct buf_dblwr_t* buf_dblwr;
-struct trx_t;
 class page_id_t;
-class truncate_t;
 
 /** Structure containing encryption specification */
 struct fil_space_crypt_t;
@@ -97,10 +95,8 @@ struct fil_space_t {
 				new write operations because we don't
 				check this flag when doing flush
 				batches. */
+	/** whether undo tablespace truncation is in progress */
 	bool		is_being_truncated;
-				/*!< this is set to true when we prepare to
-				truncate a single-table tablespace and its
-				.ibd file */
 #ifdef UNIV_DEBUG
 	ulint		redo_skipped_count;
 				/*!< reference count for operations who want
@@ -181,12 +177,8 @@ struct fil_space_t {
 
 	ulint		magic_n;/*!< FIL_SPACE_MAGIC_N */
 
-	/** @return whether the tablespace is about to be dropped or
-	truncated */
-	bool is_stopping() const
-	{
-		return stop_new_ops || is_being_truncated;
-	}
+	/** @return whether the tablespace is about to be dropped */
+	bool is_stopping() const { return stop_new_ops;	}
 
 	/** @return whether doublewrite buffering is needed */
 	bool use_doublewrite() const
@@ -224,9 +216,11 @@ struct fil_space_t {
 	@param[in]	name	table name after renaming
 	@param[in]	path	tablespace file name after renaming
 	@param[in]	log	whether to write redo log
+	@param[in]	replace	whether to ignore the existence of path
 	@return	error code
 	@retval	DB_SUCCESS	on success */
-	dberr_t rename(const char* name, const char* path, bool log);
+	dberr_t rename(const char* name, const char* path, bool log,
+		       bool replace = false);
 
 	/** Note that the tablespace has been imported.
 	Initially, purpose=FIL_TYPE_IMPORT so that no redo log is
@@ -327,6 +321,9 @@ struct fil_node_t {
 	{
 		return(handle != OS_FILE_CLOSED);
 	}
+
+	/** Close the file handle. */
+	void close();
 };
 
 /** Value of fil_node_t::magic_n */
@@ -368,18 +365,11 @@ typedef	byte	fil_faddr_t;	/*!< 'type' definition in C: an address
 #define	FIL_ADDR_BYTE	4U	/* then comes 2-byte byte offset within page*/
 #define	FIL_ADDR_SIZE	6U	/* address size is 6 bytes */
 
-#ifndef UNIV_INNOCHECKSUM
-
 /** File space address */
 struct fil_addr_t {
 	ulint	page;		/*!< page number within a space */
 	ulint	boffset;	/*!< byte offset within the page */
 };
-
-/** The null file address */
-extern const fil_addr_t	fil_addr_null;
-
-#endif /* !UNIV_INNOCHECKSUM */
 
 /** The byte offsets on a file page for various variables @{ */
 #define FIL_PAGE_SPACE_OR_CHKSUM 0	/*!< in < MySQL-4.0.14 space id the
@@ -878,7 +868,8 @@ fil_op_replay_rename(
 not (necessarily) protected by meta-data locks.
 (Rollback would generally be protected, but rollback of
 FOREIGN KEY CASCADE/SET NULL is not protected by meta-data locks
-but only by InnoDB table locks, which may be broken by TRUNCATE TABLE.)
+but only by InnoDB table locks, which may be broken by
+lock_remove_all_on_table().)
 @param[in]	table	persistent table
 checked @return whether the table is accessible */
 bool
@@ -896,22 +887,15 @@ fil_delete_tablespace(
 #endif /* BTR_CUR_HASH_ADAPT */
 	);
 
-/** Truncate the tablespace to needed size.
-@param[in,out]	space		tablespace truncate
-@param[in]	size_in_pages	truncate size.
-@return true if truncate was successful. */
-bool fil_truncate_tablespace(fil_space_t* space, ulint size_in_pages);
+/** Prepare to truncate an undo tablespace.
+@param[in]	space_id	undo tablespace id
+@return	the tablespace
+@retval	NULL if the tablespace does not exist */
+fil_space_t* fil_truncate_prepare(ulint space_id);
 
-/*******************************************************************//**
-Prepare for truncating a single-table tablespace. The tablespace
-must be cached in the memory cache.
-1) Check pending operations on a tablespace;
-2) Remove all insert buffer entries for the tablespace;
-@return DB_SUCCESS or error */
-dberr_t
-fil_prepare_for_truncate(
-/*=====================*/
-	ulint	id);			/*!< in: space id */
+/** Write log about an undo tablespace truncate operation. */
+void fil_truncate_log(fil_space_t* space, ulint size, mtr_t* mtr)
+	MY_ATTRIBUTE((nonnull));
 
 /*******************************************************************//**
 Closes a single-table tablespace. The tablespace must be cached in the
@@ -1093,13 +1077,13 @@ fil_space_extend(
 @param[in]	message		message for aio handler if non-sync aio
 				used, else ignored
 @param[in]	ignore_missing_space true=ignore missing space during read
-@return DB_SUCCESS, DB_TABLESPACE_DELETED or DB_TABLESPACE_TRUNCATED
+@return DB_SUCCESS, or DB_TABLESPACE_DELETED
 if we are trying to do i/o on a tablespace which does not exist */
 dberr_t
 fil_io(
 	const IORequest&	type,
 	bool			sync,
-	const page_id_t&	page_id,
+	const page_id_t		page_id,
 	const page_size_t&	page_size,
 	ulint			byte_offset,
 	ulint			len,
@@ -1170,65 +1154,6 @@ fil_page_set_type(
 /*==============*/
 	byte*	page,	/*!< in/out: file page */
 	ulint	type);	/*!< in: type */
-/** Reset the page type.
-Data files created before MySQL 5.1 may contain garbage in FIL_PAGE_TYPE.
-In MySQL 3.23.53, only undo log pages and index pages were tagged.
-Any other pages were written with uninitialized bytes in FIL_PAGE_TYPE.
-@param[in]	page_id	page number
-@param[in,out]	page	page with invalid FIL_PAGE_TYPE
-@param[in]	type	expected page type
-@param[in,out]	mtr	mini-transaction */
-void
-fil_page_reset_type(
-	const page_id_t&	page_id,
-	byte*			page,
-	ulint			type,
-	mtr_t*			mtr);
-
-/** Get the file page type.
-@param[in]	page	file page
-@return page type */
-inline
-uint16_t
-fil_page_get_type(const byte*	page)
-{
-	return(mach_read_from_2(page + FIL_PAGE_TYPE));
-}
-
-/** Check (and if needed, reset) the page type.
-Data files created before MySQL 5.1 may contain
-garbage in the FIL_PAGE_TYPE field.
-In MySQL 3.23.53, only undo log pages and index pages were tagged.
-Any other pages were written with uninitialized bytes in FIL_PAGE_TYPE.
-@param[in]	page_id	page number
-@param[in,out]	page	page with possibly invalid FIL_PAGE_TYPE
-@param[in]	type	expected page type
-@param[in,out]	mtr	mini-transaction */
-inline
-void
-fil_page_check_type(
-	const page_id_t&	page_id,
-	byte*			page,
-	ulint			type,
-	mtr_t*			mtr)
-{
-	ulint	page_type	= fil_page_get_type(page);
-
-	if (page_type != type) {
-		fil_page_reset_type(page_id, page, type, mtr);
-	}
-}
-
-/** Check (and if needed, reset) the page type.
-Data files created before MySQL 5.1 may contain
-garbage in the FIL_PAGE_TYPE field.
-In MySQL 3.23.53, only undo log pages and index pages were tagged.
-Any other pages were written with uninitialized bytes in FIL_PAGE_TYPE.
-@param[in,out]	block	block with possibly invalid FIL_PAGE_TYPE
-@param[in]	type	expected page type
-@param[in,out]	mtr	mini-transaction */
-#define fil_block_check_type(block, type, mtr)				\
-	fil_page_check_type(block->page.id, block->frame, type, mtr)
 
 /********************************************************************//**
 Delete the tablespace file and any related files like .cfg.

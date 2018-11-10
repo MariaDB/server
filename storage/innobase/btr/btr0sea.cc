@@ -111,7 +111,7 @@ rec_fold(
 	ut_ad(rec_offs_validate(rec, NULL, offsets));
 	ut_ad(rec_validate(rec, offsets));
 	ut_ad(page_rec_is_leaf(rec));
-	ut_ad(!page_rec_is_default_row(rec));
+	ut_ad(!page_rec_is_metadata(rec));
 	ut_ad(n_fields > 0 || n_bytes > 0);
 
 	n_fields_rec = rec_offs_n_fields(offsets);
@@ -1190,7 +1190,7 @@ retry:
 
 	rec = page_get_infimum_rec(page);
 	rec = page_rec_get_next_low(rec, page_is_comp(page));
-	if (rec_is_default_row(rec, index)) {
+	if (rec_is_metadata(rec, *index)) {
 		rec = page_rec_get_next_low(rec, page_is_comp(page));
 	}
 
@@ -1273,13 +1273,11 @@ cleanup:
 /** Drop possible adaptive hash index entries when a page is evicted
 from the buffer pool or freed in a file, or the index is being dropped.
 @param[in]	page_id		page id */
-void btr_search_drop_page_hash_when_freed(const page_id_t& page_id)
+void btr_search_drop_page_hash_when_freed(const page_id_t page_id)
 {
 	buf_block_t*	block;
 	mtr_t		mtr;
 	dberr_t		err = DB_SUCCESS;
-
-	ut_d(export_vars.innodb_ahi_drop_lookups++);
 
 	mtr_start(&mtr);
 
@@ -1400,7 +1398,7 @@ btr_search_build_page_hash_index(
 
 	rec = page_rec_get_next_const(page_get_infimum_rec(page));
 
-	if (rec_is_default_row(rec, index)) {
+	if (rec_is_metadata(rec, *index)) {
 		rec = page_rec_get_next_const(rec);
 		if (!--n_recs) return;
 	}
@@ -1864,7 +1862,7 @@ btr_search_update_hash_on_insert(btr_cur_t* cursor, rw_lock_t* ahi_latch)
 				     n_bytes, index->id);
 	}
 
-	if (!page_rec_is_infimum(rec) && !rec_is_default_row(rec, index)) {
+	if (!page_rec_is_infimum(rec) && !rec_is_metadata(rec, *index)) {
 		offsets = rec_get_offsets(
 			rec, index, offsets, true,
 			btr_search_get_n_fields(n_fields, n_bytes), &heap);

@@ -624,9 +624,7 @@ fsp_space_modify_check(
 	case MTR_LOG_NO_REDO:
 		ut_ad(space->purpose == FIL_TYPE_TEMPORARY
 		      || space->purpose == FIL_TYPE_IMPORT
-		      || my_atomic_loadlint(&space->redo_skipped_count)
-		      || space->is_being_truncated
-		      || srv_is_tablespace_truncated(space->id));
+		      || my_atomic_loadlint(&space->redo_skipped_count));
 		return;
 	case MTR_LOG_ALL:
 		/* We may only write redo log for a persistent tablespace. */
@@ -732,23 +730,23 @@ void fsp_header_init(fil_space_t* space, ulint size, mtr_t* mtr)
 
 	mlog_write_ulint(FSP_HEADER_OFFSET + FSP_SPACE_ID + block->frame,
 			 space->id, MLOG_4BYTES, mtr);
-	mlog_write_ulint(FSP_HEADER_OFFSET + FSP_NOT_USED + block->frame, 0,
-			 MLOG_4BYTES, mtr);
+	ut_ad(0 == mach_read_from_4(FSP_HEADER_OFFSET + FSP_NOT_USED
+				    + block->frame));
 	mlog_write_ulint(FSP_HEADER_OFFSET + FSP_SIZE + block->frame, size,
 			 MLOG_4BYTES, mtr);
-	mlog_write_ulint(FSP_HEADER_OFFSET + FSP_FREE_LIMIT + block->frame, 0,
-			 MLOG_4BYTES, mtr);
+	ut_ad(0 == mach_read_from_4(FSP_HEADER_OFFSET + FSP_FREE_LIMIT
+				    + block->frame));
 	mlog_write_ulint(FSP_HEADER_OFFSET + FSP_SPACE_FLAGS + block->frame,
 			 space->flags & ~FSP_FLAGS_MEM_MASK,
 			 MLOG_4BYTES, mtr);
-	mlog_write_ulint(FSP_HEADER_OFFSET + FSP_FRAG_N_USED + block->frame, 0,
-			 MLOG_4BYTES, mtr);
+	ut_ad(0 == mach_read_from_4(FSP_HEADER_OFFSET + FSP_FRAG_N_USED
+				    + block->frame));
 
-	flst_init(FSP_HEADER_OFFSET + FSP_FREE + block->frame, mtr);
-	flst_init(FSP_HEADER_OFFSET + FSP_FREE_FRAG + block->frame, mtr);
-	flst_init(FSP_HEADER_OFFSET + FSP_FULL_FRAG + block->frame, mtr);
-	flst_init(FSP_HEADER_OFFSET + FSP_SEG_INODES_FULL + block->frame, mtr);
-	flst_init(FSP_HEADER_OFFSET + FSP_SEG_INODES_FREE + block->frame, mtr);
+	flst_init(block, FSP_HEADER_OFFSET + FSP_FREE, mtr);
+	flst_init(block, FSP_HEADER_OFFSET + FSP_FREE_FRAG, mtr);
+	flst_init(block, FSP_HEADER_OFFSET + FSP_FULL_FRAG, mtr);
+	flst_init(block, FSP_HEADER_OFFSET + FSP_SEG_INODES_FULL, mtr);
+	flst_init(block, FSP_HEADER_OFFSET + FSP_SEG_INODES_FREE, mtr);
 
 	mlog_write_ull(FSP_HEADER_OFFSET + FSP_SEG_ID + block->frame, 1, mtr);
 
@@ -964,6 +962,22 @@ fsp_get_pages_to_extend_ibd(
 	return(size_increase);
 }
 
+/** Reset the page type.
+Data files created before MySQL 5.1.48 may contain garbage in FIL_PAGE_TYPE.
+In MySQL 3.23.53, only undo log pages and index pages were tagged.
+Any other pages were written with uninitialized bytes in FIL_PAGE_TYPE.
+@param[in]	block	block with invalid FIL_PAGE_TYPE
+@param[in]	type	expected page type
+@param[in,out]	mtr	mini-transaction */
+ATTRIBUTE_COLD
+void fil_block_reset_type(const buf_block_t& block, ulint type, mtr_t* mtr)
+{
+	ib::info()
+		<< "Resetting invalid page " << block.page.id << " type "
+		<< fil_page_get_type(block.frame) << " to " << type << ".";
+	mlog_write_ulint(block.frame + FIL_PAGE_TYPE, type, MLOG_2BYTES, mtr);
+}
+
 /** Put new extents to the free list if there are free extents above the free
 limit. If an extent happens to contain an extent descriptor page, the extent
 is put to the FSP_FREE_FRAG list with the page marked as used.
@@ -1066,13 +1080,6 @@ fsp_fill_free_list(
 				mtr_start(&ibuf_mtr);
 				ibuf_mtr.set_named_space(space);
 
-				/* Avoid logging while truncate table
-				fix-up is active. */
-				if (srv_is_tablespace_truncated(space->id)) {
-					mtr_set_log_mode(
-						&ibuf_mtr, MTR_LOG_NO_REDO);
-				}
-
 				const page_id_t	page_id(
 					space->id,
 					i + FSP_IBUF_BITMAP_OFFSET);
@@ -1099,7 +1106,7 @@ fsp_fill_free_list(
 			header, space, i, mtr, init_space, &desc_block);
 		if (desc_block != NULL) {
 			fil_block_check_type(
-				desc_block, FIL_PAGE_TYPE_XDES, mtr);
+				*desc_block, FIL_PAGE_TYPE_XDES, mtr);
 		}
 		xdes_init(descr, mtr);
 
@@ -1158,7 +1165,7 @@ fsp_alloc_free_extent(
 		header, space, hint, mtr, false, &desc_block);
 
 	if (desc_block != NULL) {
-		fil_block_check_type(desc_block, FIL_PAGE_TYPE_XDES, mtr);
+		fil_block_check_type(*desc_block, FIL_PAGE_TYPE_XDES, mtr);
 	}
 
 	if (descr && (xdes_get_state(descr, mtr) == XDES_FREE)) {
@@ -1700,7 +1707,7 @@ fsp_alloc_seg_inode(
 
 	block = buf_page_get(page_id, page_size, RW_SX_LATCH, mtr);
 	buf_block_dbg_add_level(block, SYNC_FSP_PAGE);
-	fil_block_check_type(block, FIL_PAGE_INODE, mtr);
+	fil_block_check_type(*block, FIL_PAGE_INODE, mtr);
 
 	page = buf_block_get_frame(block);
 
@@ -2006,7 +2013,7 @@ fseg_create(
 			? FIL_PAGE_TYPE_TRX_SYS
 			: FIL_PAGE_TYPE_SYS;
 
-		fil_block_check_type(block, type, mtr);
+		fil_block_check_type(*block, type, mtr);
 	}
 
 	if (!has_done_reservation
@@ -2571,7 +2578,7 @@ fseg_alloc_free_page_general(
 	const page_size_t	page_size(space->flags);
 
 	inode = fseg_inode_get(seg_header, space_id, page_size, mtr, &iblock);
-	fil_block_check_type(iblock, FIL_PAGE_INODE, mtr);
+	fil_block_check_type(*iblock, FIL_PAGE_INODE, mtr);
 
 	if (!has_done_reservation
 	    && !fsp_reserve_free_extents(&n_reserved, space, 2,
@@ -2991,7 +2998,7 @@ fseg_free_page_func(
 
 	seg_inode = fseg_inode_get(seg_header, space_id, page_size, mtr,
 				   &iblock);
-	fil_block_check_type(iblock, FIL_PAGE_INODE, mtr);
+	fil_block_check_type(*iblock, FIL_PAGE_INODE, mtr);
 
 	fseg_free_page_low(seg_inode, space, page, page_size, ahi, mtr);
 
@@ -3171,7 +3178,7 @@ fseg_free_step_func(
 		DBUG_RETURN(TRUE);
 	}
 
-	fil_block_check_type(iblock, FIL_PAGE_INODE, mtr);
+	fil_block_check_type(*iblock, FIL_PAGE_INODE, mtr);
 	descr = fseg_get_first_extent(inode, space, page_size, mtr);
 
 	if (descr != NULL) {
@@ -3239,7 +3246,7 @@ fseg_free_step_not_header_func(
 	buf_block_t*		iblock;
 
 	inode = fseg_inode_get(header, space_id, page_size, mtr, &iblock);
-	fil_block_check_type(iblock, FIL_PAGE_INODE, mtr);
+	fil_block_check_type(*iblock, FIL_PAGE_INODE, mtr);
 
 	descr = fseg_get_first_extent(inode, space, page_size, mtr);
 

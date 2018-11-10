@@ -337,7 +337,7 @@ create index idx4 on worklog5743(a1, a2);
 ERROR 42000: Specified key was too long; max key length is 3072 bytes
 show warnings;
 Level	Code	Message
-Error	1071	Specified key was too long; max key length is 3072 bytes
+Warning	1071	Specified key was too long; max key length is 3072 bytes
 Error	1071	Specified key was too long; max key length is 3072 bytes
 create index idx5 on worklog5743(a1, a5);
 ERROR 42000: Specified key was too long; max key length is 3072 bytes

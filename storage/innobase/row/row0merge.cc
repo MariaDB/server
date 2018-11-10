@@ -1873,9 +1873,9 @@ row_merge_read_clustered_index(
 	btr_pcur_open_at_index_side(
 		true, clust_index, BTR_SEARCH_LEAF, &pcur, true, 0, &mtr);
 	btr_pcur_move_to_next_user_rec(&pcur, &mtr);
-	if (rec_is_default_row(btr_pcur_get_rec(&pcur), clust_index)) {
+	if (rec_is_metadata(btr_pcur_get_rec(&pcur), *clust_index)) {
 		ut_ad(btr_pcur_is_on_user_rec(&pcur));
-		/* Skip the 'default row' pseudo-record. */
+		/* Skip the metadata pseudo-record. */
 	} else {
 		ut_ad(!clust_index->is_instant());
 		btr_pcur_move_to_prev_on_page(&pcur);
@@ -2528,17 +2528,16 @@ write_buffers:
 					if (clust_btr_bulk == NULL) {
 						clust_btr_bulk = UT_NEW_NOKEY(
 							BtrBulk(index[i],
-								trx->id,
-								observer));
-
-						clust_btr_bulk->init();
+								trx,
+								observer/**/));
 					} else {
 						clust_btr_bulk->latch();
 					}
 
 					err = row_merge_insert_index_tuples(
 						index[i], old_table,
-						OS_FILE_CLOSED, NULL, buf, clust_btr_bulk,
+						OS_FILE_CLOSED, NULL, buf,
+						clust_btr_bulk,
 						table_total_rows,
 						curr_progress,
 						pct_cost,
@@ -2643,13 +2642,13 @@ write_buffers:
 						trx->error_key_num = i;
 						goto all_done;);
 
-					BtrBulk	btr_bulk(index[i], trx->id,
+					BtrBulk	btr_bulk(index[i], trx,
 							 observer);
-					btr_bulk.init();
 
 					err = row_merge_insert_index_tuples(
 						index[i], old_table,
-						OS_FILE_CLOSED, NULL, buf, &btr_bulk,
+						OS_FILE_CLOSED, NULL, buf,
+						&btr_bulk,
 						table_total_rows,
 						curr_progress,
 						pct_cost,
@@ -3935,17 +3934,6 @@ row_merge_drop_indexes(
 					ut_ad(prev);
 					ut_a(table->fts);
 					fts_drop_index(table, index, trx);
-					/* Since
-					INNOBASE_SHARE::idx_trans_tbl
-					is shared between all open
-					ha_innobase handles to this
-					table, no thread should be
-					accessing this dict_index_t
-					object. Also, we should be
-					holding LOCK=SHARED MDL on the
-					table even after the MDL
-					upgrade timeout. */
-
 					/* We can remove a DICT_FTS
 					index from the cache, because
 					we do not allow ADD FULLTEXT INDEX
@@ -4120,25 +4108,31 @@ pfs_os_file_t
 row_merge_file_create_low(
 	const char*	path)
 {
-	pfs_os_file_t	fd;
 #ifdef UNIV_PFS_IO
 	/* This temp file open does not go through normal
 	file APIs, add instrumentation to register with
 	performance schema */
-	struct PSI_file_locker*	locker = NULL;
+	struct PSI_file_locker*	locker;
 	PSI_file_locker_state	state;
+	if (!path) {
+		path = mysql_tmpdir;
+	}
+	static const char label[] = "/Innodb Merge Temp File";
+	char* name = static_cast<char*>(
+		ut_malloc_nokey(strlen(path) + sizeof label));
+	strcpy(name, path);
+	strcat(name, label);
 
 	register_pfs_file_open_begin(
 		&state, locker, innodb_temp_file_key,
-		PSI_FILE_CREATE,
-		"Innodb Merge Temp File", 
-		__FILE__, __LINE__);
-	
+		PSI_FILE_CREATE, path ? name : label, __FILE__, __LINE__);
+
 #endif
-	fd = innobase_mysql_tmpfile(path);
+	pfs_os_file_t fd = innobase_mysql_tmpfile(path);
 #ifdef UNIV_PFS_IO
 	register_pfs_file_open_end(locker, fd, 
 		(fd == OS_FILE_CLOSED)?NULL:&fd);
+	ut_free(name);
 #endif
 
 	if (fd == OS_FILE_CLOSED) {
@@ -4528,7 +4522,7 @@ row_merge_drop_table(
 	ut_a(table->get_ref_count() == 0);
 
 	return(row_drop_table_for_mysql(table->name.m_name,
-			trx, false, false, false));
+			trx, SQLCOM_DROP_TABLE, false, false));
 }
 
 /** Write an MLOG_INDEX_LOAD record to indicate in the redo-log
@@ -4673,11 +4667,15 @@ row_merge_build_indexes(
 	we use bulk load to create all types of indexes except spatial index,
 	for which redo logging is enabled. If we create only spatial indexes,
 	we don't need to flush dirty pages at all. */
-	bool	need_flush_observer = (old_table != new_table);
+	bool	need_flush_observer = bool(innodb_log_optimize_ddl);
 
-	for (i = 0; i < n_indexes; i++) {
-		if (!dict_index_is_spatial(indexes[i])) {
-			need_flush_observer = true;
+	if (need_flush_observer) {
+		need_flush_observer = old_table != new_table;
+
+		for (i = 0; i < n_indexes; i++) {
+			if (!dict_index_is_spatial(indexes[i])) {
+				need_flush_observer = true;
+			}
 		}
 	}
 
@@ -4921,9 +4919,8 @@ wait_again:
 				os_thread_sleep(20000000););  /* 20 sec */
 
 			if (error == DB_SUCCESS) {
-				BtrBulk	btr_bulk(sort_idx, trx->id,
+				BtrBulk	btr_bulk(sort_idx, trx,
 						 flush_observer);
-				btr_bulk.init();
 
 				pct_cost = (COST_BUILD_INDEX_STATIC +
 					(total_dynamic_cost * merge_files[i].offset /
@@ -4976,14 +4973,16 @@ wait_again:
 			ut_ad(sort_idx->online_status
 			      == ONLINE_INDEX_COMPLETE);
 		} else {
-			ut_ad(need_flush_observer);
+			if (flush_observer) {
+				flush_observer->flush();
+				row_merge_write_redo(indexes[i]);
+			}
+
 			if (global_system_variables.log_warnings > 2) {
 				sql_print_information(
 					"InnoDB: Online DDL : Applying"
 					" log to index");
 			}
-			flush_observer->flush();
-			row_merge_write_redo(indexes[i]);
 
 			DEBUG_SYNC_C("row_log_apply_before");
 			error = row_log_apply(trx, sort_idx, table, stage);

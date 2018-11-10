@@ -242,7 +242,7 @@ public:
     Number of children of this element in the RB-tree, plus 1 for this
     element itself.
   */
-  uint16 elements;
+  uint32 elements;
   /*
     Valid only for elements which are RB-tree roots: Number of times this
     RB-tree is referred to (it is referred by SEL_ARG::next_key_part or by
@@ -1723,6 +1723,9 @@ SQL_SELECT *make_select(TABLE *head, table_map const_tables,
                         bool allow_null_cond,  int *error);
 
 bool calculate_cond_selectivity_for_table(THD *thd, TABLE *table, Item **cond);
+
+bool eq_ranges_exceeds_limit(RANGE_SEQ_IF *seq, void *seq_init_param,
+                             uint limit);
 
 #ifdef WITH_PARTITION_STORAGE_ENGINE
 bool prune_partitions(THD *thd, TABLE *table, Item *pprune_cond);

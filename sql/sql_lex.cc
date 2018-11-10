@@ -693,6 +693,7 @@ void LEX::start(THD *thd_arg)
   curr_with_clause= 0;
   with_clauses_list= 0;
   with_clauses_list_last_next= &with_clauses_list;
+  clone_spec_offset= 0;
   create_view= NULL;
   field_list.empty();
   value_list.empty();
@@ -744,7 +745,7 @@ void LEX::start(THD *thd_arg)
   profile_options= PROFILE_NONE;
   nest_level= 0;
   builtin_select.nest_level_base= &unit;
-  allow_sum_func= 0;
+  allow_sum_func.clear_all();
   in_sum_func= NULL;
 
   used_tables= 0;
@@ -2388,7 +2389,7 @@ void st_select_lex::init_select()
   m_non_agg_field_used= false;
   m_agg_func_used= false;
   m_custom_agg_func_used= false;
-  name_visibility_map= 0;
+  name_visibility_map.clear_all();
   with_dep= 0;
   join= 0;
   lock_type= TL_READ_DEFAULT;
@@ -3169,7 +3170,7 @@ LEX::LEX()
                       INITIAL_LEX_PLUGIN_LIST_SIZE, 0);
   reset_query_tables_list(TRUE);
   mi.init();
-  init_dynamic_array2(&delete_gtid_domain, sizeof(ulong*),
+  init_dynamic_array2(&delete_gtid_domain, sizeof(uint32),
                       gtid_domain_static_buffer,
                       initial_gtid_domain_buffer_size,
                       initial_gtid_domain_buffer_size, 0);
@@ -4765,18 +4766,18 @@ void SELECT_LEX::increase_derived_records(ha_rows records)
       return; 
   }
   
-  select_unit *result= (select_unit*)unit->result;
+  select_result *result= unit->result;
   switch (linkage)
   {
   case INTERSECT_TYPE:
     // result of intersect can't be more then one of components
-    set_if_smaller(result->records, records);
+    set_if_smaller(result->est_records, records);
   case EXCEPT_TYPE:
     // in worse case none of record will be removed
     break;
   default:
     // usual UNION
-    result->records+= records;
+    result->est_records+= records;
     break;
   }
 }
@@ -5248,6 +5249,9 @@ LEX::create_unit(SELECT_LEX *first_sel)
 {
   SELECT_LEX_UNIT *unit;
   DBUG_ENTER("LEX::create_unit");
+
+  if (first_sel->master_unit())
+    DBUG_RETURN(first_sel->master_unit());
 
   if (!(unit= alloc_unit()))
     DBUG_RETURN(NULL);
@@ -6937,6 +6941,14 @@ Item *LEX::make_item_sysvar(THD *thd,
 }
 
 
+static bool param_push_or_clone(THD *thd, LEX *lex, Item_param *item)
+{
+  return !lex->clone_spec_offset ?
+         lex->param_list.push_back(item, thd->mem_root) :
+         item->add_as_clone(thd);
+}
+
+
 Item_param *LEX::add_placeholder(THD *thd, const LEX_CSTRING *name,
                                  const char *start, const char *end)
 {
@@ -6953,7 +6965,7 @@ Item_param *LEX::add_placeholder(THD *thd, const LEX_CSTRING *name,
   Query_fragment pos(thd, sphead, start, end);
   Item_param *item= new (thd->mem_root) Item_param(thd, name,
                                                    pos.pos(), pos.length());
-  if (unlikely(!item) || unlikely(param_list.push_back(item, thd->mem_root)))
+  if (unlikely(!item) || unlikely(param_push_or_clone(thd, this, item)))
   {
     my_error(ER_OUT_OF_RESOURCES, MYF(0));
     return NULL;

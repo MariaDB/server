@@ -141,7 +141,7 @@ FLUSH PRIVILEGES;
 --sorted_result
 SELECT user,plugin,authentication_string FROM mysql.user WHERE user != 'root';
 --disable_query_log
---error ER_PLUGIN_IS_NOT_LOADED
+--error ER_ACCESS_DENIED_ERROR
 connect(plug_user,localhost,new_user,new_dest);
 --enable_query_log
 UPDATE mysql.user SET plugin='test_plugin_server' WHERE user='new_user';

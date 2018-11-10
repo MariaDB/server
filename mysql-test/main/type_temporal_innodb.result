@@ -56,7 +56,7 @@ SELECT DATE'0000-00-00'='';
 DATE'0000-00-00'=''
 1
 Warnings:
-Warning	1292	Incorrect datetime value: ''
+Warning	1292	Truncated incorrect datetime value: ''
 CREATE TABLE t1 (a ENUM('a'), b DATE, c INT, KEY(b)) ENGINE=InnoDB;
 INSERT IGNORE INTO t1 VALUES ('','0000-00-00',0);
 Warnings:
@@ -65,49 +65,49 @@ SELECT * FROM t1 WHERE b='';
 a	b	c
 	0000-00-00	0
 Warnings:
-Warning	1292	Incorrect datetime value: ''
+Warning	1292	Truncated incorrect datetime value: ''
 SELECT * FROM t1 IGNORE KEY (b) WHERE b='';
 a	b	c
 	0000-00-00	0
 Warnings:
-Warning	1292	Incorrect datetime value: ''
+Warning	1292	Truncated incorrect datetime value: ''
 SELECT * FROM t1 WHERE a=b;
 a	b	c
 	0000-00-00	0
 Warnings:
-Warning	1292	Incorrect datetime value: ''
+Warning	1292	Truncated incorrect datetime value: ''
 SELECT 1 FROM t1 WHERE (SELECT a FROM t1 group by c) = b;
 1
 1
 Warnings:
-Warning	1292	Incorrect datetime value: ''
+Warning	1292	Truncated incorrect datetime value: ''
 ALTER TABLE t1 ENGINE=MyISAM;
 SELECT * FROM t1 WHERE b='';
 a	b	c
 	0000-00-00	0
 Warnings:
-Warning	1292	Incorrect datetime value: ''
+Warning	1292	Truncated incorrect datetime value: ''
 SELECT * FROM t1 IGNORE KEY (b) WHERE b='';
 a	b	c
 	0000-00-00	0
 Warnings:
-Warning	1292	Incorrect datetime value: ''
+Warning	1292	Truncated incorrect datetime value: ''
 SELECT * FROM t1 WHERE a=b;
 a	b	c
 	0000-00-00	0
 Warnings:
-Warning	1292	Incorrect datetime value: ''
+Warning	1292	Truncated incorrect datetime value: ''
 SELECT 1 FROM t1 WHERE (SELECT a FROM t1 group by c) = b;
 1
 1
 Warnings:
-Warning	1292	Incorrect datetime value: ''
+Warning	1292	Truncated incorrect datetime value: ''
 DROP TABLE t1;
 SELECT TIMESTAMP'0000-00-00 00:00:00'='';
 TIMESTAMP'0000-00-00 00:00:00'=''
 1
 Warnings:
-Warning	1292	Incorrect datetime value: ''
+Warning	1292	Truncated incorrect datetime value: ''
 CREATE TABLE t1 (a ENUM('a'), b DATETIME, c INT, KEY(b)) ENGINE=InnoDB;
 INSERT IGNORE INTO t1 VALUES ('','0000-00-00 00:00:00',0);
 Warnings:
@@ -116,43 +116,43 @@ SELECT * FROM t1 WHERE b='';
 a	b	c
 	0000-00-00 00:00:00	0
 Warnings:
-Warning	1292	Incorrect datetime value: ''
+Warning	1292	Truncated incorrect datetime value: ''
 SELECT * FROM t1 IGNORE KEY (b) WHERE b='';
 a	b	c
 	0000-00-00 00:00:00	0
 Warnings:
-Warning	1292	Incorrect datetime value: ''
+Warning	1292	Truncated incorrect datetime value: ''
 SELECT * FROM t1 WHERE a=b;
 a	b	c
 	0000-00-00 00:00:00	0
 Warnings:
-Warning	1292	Incorrect datetime value: ''
+Warning	1292	Truncated incorrect datetime value: ''
 SELECT 1 FROM t1 WHERE (SELECT a FROM t1 group by c) = b;
 1
 1
 Warnings:
-Warning	1292	Incorrect datetime value: ''
+Warning	1292	Truncated incorrect datetime value: ''
 ALTER TABLE t1 ENGINE=MyISAM;
 SELECT * FROM t1 WHERE b='';
 a	b	c
 	0000-00-00 00:00:00	0
 Warnings:
-Warning	1292	Incorrect datetime value: ''
+Warning	1292	Truncated incorrect datetime value: ''
 SELECT * FROM t1 IGNORE KEY (b) WHERE b='';
 a	b	c
 	0000-00-00 00:00:00	0
 Warnings:
-Warning	1292	Incorrect datetime value: ''
+Warning	1292	Truncated incorrect datetime value: ''
 SELECT * FROM t1 WHERE a=b;
 a	b	c
 	0000-00-00 00:00:00	0
 Warnings:
-Warning	1292	Incorrect datetime value: ''
+Warning	1292	Truncated incorrect datetime value: ''
 SELECT 1 FROM t1 WHERE (SELECT a FROM t1 group by c) = b;
 1
 1
 Warnings:
-Warning	1292	Incorrect datetime value: ''
+Warning	1292	Truncated incorrect datetime value: ''
 DROP TABLE t1;
 CREATE TABLE t1 (d DATE) ENGINE=InnoDB;
 INSERT INTO t1 VALUES ('2012-12-21');

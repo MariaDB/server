@@ -29,7 +29,7 @@
 #include "lock.h"       // mysql_unlock_tables
 #include "strfunc.h"    // find_type2, find_set
 #include "sql_truncate.h"                       // regenerate_locked_table 
-#include "sql_partition.h"                   // generate_partition_syntax,
+#include "sql_partition.h"                      // mem_alloc_error,
                                                 // partition_info
                                                 // NOT_A_PARTITION_ID
 #include "sql_db.h"                             // load_db_opt_by_name
@@ -1838,13 +1838,10 @@ bool mysql_write_frm(ALTER_PARTITION_PARAM_TYPE *lpt, uint flags)
       partition_info *part_info= lpt->table->part_info;
       if (part_info)
       {
-        if (!(part_syntax_buf= generate_partition_syntax(lpt->thd, part_info,
-                                                         &syntax_len, TRUE,
-                                                         lpt->create_info,
-                                                         lpt->alter_info)))
-        {
+        part_syntax_buf= generate_partition_syntax_for_frm(lpt->thd, part_info,
+                               &syntax_len, lpt->create_info, lpt->alter_info);
+        if (!part_syntax_buf)
           DBUG_RETURN(TRUE);
-        }
         part_info->part_info_string= part_syntax_buf;
         part_info->part_info_len= syntax_len;
       }
@@ -1921,10 +1918,9 @@ bool mysql_write_frm(ALTER_PARTITION_PARAM_TYPE *lpt, uint flags)
     {
       TABLE_SHARE *share= lpt->table->s;
       char *tmp_part_syntax_str;
-      if (!(part_syntax_buf= generate_partition_syntax(lpt->thd, part_info,
-                                                       &syntax_len, TRUE,
-                                                       lpt->create_info,
-                                                       lpt->alter_info)))
+      part_syntax_buf= generate_partition_syntax_for_frm(lpt->thd,
+                   part_info, &syntax_len, lpt->create_info, lpt->alter_info);
+      if (!part_syntax_buf)
       {
         error= 1;
         goto err;
@@ -2113,7 +2109,7 @@ bool mysql_rm_table(THD *thd,TABLE_LIST *tables, bool if_exists,
             in its elements.
           */
           table->table= find_table_for_mdl_upgrade(thd, table->db.str,
-                                                   table->table_name.str, false);
+                                                   table->table_name.str, NULL);
           if (!table->table)
             DBUG_RETURN(true);
           table->mdl_request.ticket= table->table->mdl_ticket;
@@ -2939,20 +2935,6 @@ uint Column_definition::pack_flag_numeric(uint dec) const
 
 bool Column_definition::prepare_stage2_varchar(ulonglong table_flags)
 {
-#ifndef QQ_ALL_HANDLERS_SUPPORT_VARCHAR
-  if (table_flags & HA_NO_VARCHAR)
-  {
-    /* convert VARCHAR to CHAR because handler is not yet up to date */
-    set_handler(&type_handler_var_string);
-    pack_length= type_handler()->calc_pack_length((uint) length);
-    if ((length / charset->mbmaxlen) > MAX_FIELD_CHARLENGTH)
-    {
-      my_error(ER_TOO_BIG_FIELDLENGTH, MYF(0), field_name.str,
-               static_cast<ulong>(MAX_FIELD_CHARLENGTH));
-      return true;
-    }
-  }
-#endif
   pack_flag= (charset->state & MY_CS_BINSORT) ? FIELDFLAG_BINARY : 0;
   return false;
 }
@@ -3455,6 +3437,10 @@ mysql_prepare_create_table(THD *thd, HA_CREATE_INFO *create_info,
     if ((sql_field->flags & BINCMP_FLAG) &&
         !(sql_field->charset= find_bin_collation(sql_field->charset)))
       DBUG_RETURN(true);
+
+    /* Virtual fields are always NULL */
+    if (sql_field->vcol_info)
+      sql_field->flags&= ~NOT_NULL_FLAG;
 
     if (sql_field->prepare_stage1(thd, thd->mem_root,
                                   file, file->ha_table_flags()))
@@ -4148,7 +4134,9 @@ mysql_prepare_create_table(THD *thd, HA_CREATE_INFO *create_info,
   }
 
   if (!unique_key && !primary_key &&
-      (file->ha_table_flags() & HA_REQUIRE_PRIMARY_KEY))
+      ((file->ha_table_flags() & HA_REQUIRE_PRIMARY_KEY) ||
+       ((file->ha_table_flags() & HA_WANTS_PRIMARY_KEY) &&
+        !create_info->sequence)))
   {
     my_message(ER_REQUIRES_PRIMARY_KEY, ER_THD(thd, ER_REQUIRES_PRIMARY_KEY),
                MYF(0));
@@ -4260,11 +4248,9 @@ mysql_prepare_create_table(THD *thd, HA_CREATE_INFO *create_info,
   }
 
   /* Give warnings for not supported table options */
-#if defined(WITH_ARIA_STORAGE_ENGINE)
   extern handlerton *maria_hton;
-  if (file->partition_ht() != maria_hton)
-#endif
-    if (create_info->transactional)
+  if (file->partition_ht() != maria_hton && create_info->transactional &&
+      !file->has_transaction_manager())
       push_warning_printf(thd, Sql_condition::WARN_LEVEL_WARN,
                           ER_ILLEGAL_HA_CREATE_OPTION,
                           ER_THD(thd, ER_ILLEGAL_HA_CREATE_OPTION),
@@ -4615,11 +4601,8 @@ handler *mysql_create_frm_image(THD *thd,
       We reverse the partitioning parser and generate a standard format
       for syntax stored in frm file.
     */
-    sql_mode_t old_mode= thd->variables.sql_mode;
-    thd->variables.sql_mode &= ~MODE_ANSI_QUOTES;
-    part_syntax_buf= generate_partition_syntax(thd, part_info, &syntax_len,
-                                               true, create_info, alter_info);
-    thd->variables.sql_mode= old_mode;
+    part_syntax_buf= generate_partition_syntax_for_frm(thd, part_info,
+                                      &syntax_len, create_info, alter_info);
     if (!part_syntax_buf)
       goto err;
     part_info->part_info_string= part_syntax_buf;
@@ -4862,6 +4845,8 @@ int create_table_impl(THD *thd,
     {
       if (options.or_replace())
       {
+        (void) delete_statistics_for_table(thd, db, table_name);
+
         TABLE_LIST table_list;
         table_list.init_one_table(db, table_name, 0, TL_WRITE_ALLOW_WRITE);
         table_list.table= create_info->table;
@@ -5485,13 +5470,13 @@ mysql_rename_table(handlerton *base, const LEX_CSTRING *old_db,
   }
   delete file;
 
-  if (unlikely(error))
-  {
-    if (error == HA_ERR_WRONG_COMMAND)
-      my_error(ER_NOT_SUPPORTED_YET, MYF(0), "ALTER TABLE");
-    else
-      my_error(ER_ERROR_ON_RENAME, MYF(0), from, to, error);
-  }
+  if (error == HA_ERR_WRONG_COMMAND)
+    my_error(ER_NOT_SUPPORTED_YET, MYF(0), "ALTER TABLE");
+  else if (error ==  ENOTDIR)
+    my_error(ER_BAD_DB_ERROR, MYF(0), new_db->str);
+  else if (error)
+    my_error(ER_ERROR_ON_RENAME, MYF(0), from, to, error);
+
   else if (!(flags & FN_IS_TMP))
     mysql_audit_rename_table(thd, old_db, old_name, new_db, new_name);
 
@@ -9563,8 +9548,6 @@ bool mysql_alter_table(THD *thd, const LEX_CSTRING *new_db,
   }
 
   DEBUG_SYNC(thd, "alter_table_before_create_table_no_lock");
-  /* We can abort alter table for any table type */
-  thd->abort_on_warning= !ignore && thd->is_strict_mode();
 
   /*
     Create .FRM for new version of table with a temporary name.
@@ -9594,7 +9577,6 @@ bool mysql_alter_table(THD *thd, const LEX_CSTRING *new_db,
                            C_ALTER_TABLE_FRM_ONLY, NULL,
                            &key_info, &key_count, &frm);
   reenable_binlog(thd);
-  thd->abort_on_warning= false;
   if (unlikely(error))
   {
     my_free(const_cast<uchar*>(frm.str));
@@ -9797,8 +9779,10 @@ bool mysql_alter_table(THD *thd, const LEX_CSTRING *new_db,
       Table can be found in the list of open tables in THD::all_temp_tables
       list.
     */
-    tbl.table= thd->find_temporary_table(&tbl);
+    if ((tbl.table= thd->find_temporary_table(&tbl)) == NULL)
+      goto err_new_table_cleanup;
     new_table= tbl.table;
+    DBUG_ASSERT(new_table);
   }
   else
   {
@@ -9812,10 +9796,60 @@ bool mysql_alter_table(THD *thd, const LEX_CSTRING *new_db,
                                      alter_ctx.new_db.str,
                                      alter_ctx.tmp_name.str,
                                      true, true);
+    if (!new_table)
+      goto err_new_table_cleanup;
+
+    /*
+      Normally, an attempt to modify an FK parent table will cause
+      FK children to be prelocked, so the table-being-altered cannot
+      be modified by a cascade FK action, because ALTER holds a lock
+      and prelocking will wait.
+
+      But if a new FK is being added by this very ALTER, then the target
+      table is not locked yet (it's a temporary table). So, we have to
+      lock FK parents explicitly.
+    */
+    if (alter_info->flags & ALTER_ADD_FOREIGN_KEY)
+    {
+      List <FOREIGN_KEY_INFO> fk_list;
+      List_iterator<FOREIGN_KEY_INFO> fk_list_it(fk_list);
+      FOREIGN_KEY_INFO *fk;
+
+      /* tables_opened can be > 1 only for MERGE tables */
+      DBUG_ASSERT(tables_opened == 1);
+      DBUG_ASSERT(&table_list->next_global == thd->lex->query_tables_last);
+
+      new_table->file->get_foreign_key_list(thd, &fk_list);
+      while ((fk= fk_list_it++))
+      {
+        if (lower_case_table_names)
+        {
+         char buf[NAME_LEN];
+         size_t len;
+         strmake_buf(buf, fk->referenced_db->str);
+         len = my_casedn_str(files_charset_info, buf);
+         thd->make_lex_string(fk->referenced_db, buf, len);
+         strmake_buf(buf, fk->referenced_table->str);
+         len = my_casedn_str(files_charset_info, buf);
+         thd->make_lex_string(fk->referenced_table, buf, len);
+        }
+        if (table_already_fk_prelocked(table_list, fk->referenced_db,
+                                       fk->referenced_table, TL_READ_NO_INSERT))
+          continue;
+
+        TABLE_LIST *tl= (TABLE_LIST *) thd->alloc(sizeof(TABLE_LIST));
+        tl->init_one_table_for_prelocking(fk->referenced_db, fk->referenced_table,
+                           NULL, TL_READ_NO_INSERT, TABLE_LIST::PRELOCK_FK,
+                           NULL, 0, &thd->lex->query_tables_last);
+      }
+
+      if (open_tables(thd, &table_list->next_global, &tables_opened, 0,
+                      &alter_prelocking_strategy))
+        goto err_new_table_cleanup;
+    }
   }
-  if (!new_table)
-    goto err_new_table_cleanup;
   new_table->s->orig_table_name= table->s->table_name.str;
+
   /*
     Note: In case of MERGE table, we do not attach children. We do not
     copy data for MERGE tables. Only the children have data.

@@ -40,10 +40,6 @@ include/wait_for_slave_sql_to_stop.inc
 # Slave should stop after the transaction has committed.
 # So t1 on master is same to t1 on slave.
 include/diff_tables.inc [master:t1, slave:t1]
-Warnings:
-Warning	1287	'<select expression> INTO <destination>;' is deprecated and will be removed in a future release. Please use 'SELECT <select list> INTO <destination> FROM...' instead
-Warnings:
-Warning	1287	'<select expression> INTO <destination>;' is deprecated and will be removed in a future release. Please use 'SELECT <select list> INTO <destination> FROM...' instead
 connection slave;
 START SLAVE SQL_THREAD;
 include/wait_for_slave_sql_to_start.inc
@@ -72,10 +68,6 @@ include/wait_for_slave_sql_to_stop.inc
 # Slave should stop after the transaction has committed.
 # So t1 on master is same to t1 on slave.
 include/diff_tables.inc [master:t1, slave:t1]
-Warnings:
-Warning	1287	'<select expression> INTO <destination>;' is deprecated and will be removed in a future release. Please use 'SELECT <select list> INTO <destination> FROM...' instead
-Warnings:
-Warning	1287	'<select expression> INTO <destination>;' is deprecated and will be removed in a future release. Please use 'SELECT <select list> INTO <destination> FROM...' instead
 connection slave;
 START SLAVE SQL_THREAD;
 include/wait_for_slave_sql_to_start.inc

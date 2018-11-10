@@ -1,0 +1,35 @@
+SET @old_instant=
+(SELECT variable_value FROM information_schema.global_status
+WHERE variable_name = 'innodb_instant_alter_column');
+CREATE TABLE t(a INT PRIMARY KEY, b INT, c INT, d INT, e INT)
+ENGINE=InnoDB;
+INSERT INTO t VALUES(1,2,3,4,5);
+SELECT * FROM t;
+b	d	a	c	e
+NULL	NULL	1	NULL	NULL
+ALTER TABLE t DROP b, DROP c, DROP d, DROP e,
+ADD COLUMN b INT, ALGORITHM=INSTANT;
+ERROR 0A000: ALGORITHM=INSTANT is not supported for this operation. Try ALGORITHM=INPLACE
+ALTER TABLE t CHANGE COLUMN b beta INT AFTER a, ALGORITHM=INSTANT;
+ALTER TABLE t DROP e, DROP c, DROP d, ALGORITHM=INSTANT;
+SELECT * FROM t;
+a	beta
+1	NULL
+ALTER TABLE t DROP COLUMN beta, ALGORITHM=INSTANT;
+ALTER TABLE t ADD COLUMN b INT NOT NULL, ALGORITHM=INSTANT;
+ERROR 0A000: ALGORITHM=INSTANT is not supported for this operation. Try ALGORITHM=INPLACE
+SELECT variable_value-@old_instant instants
+FROM information_schema.global_status
+WHERE variable_name = 'innodb_instant_alter_column';
+instants
+256
+ALTER TABLE t ADD COLUMN b INT NOT NULL;
+SELECT variable_value-@old_instant instants
+FROM information_schema.global_status
+WHERE variable_name = 'innodb_instant_alter_column';
+instants
+256
+SELECT * FROM t;
+a	b
+1	0
+DROP TABLE t;

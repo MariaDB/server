@@ -68,7 +68,7 @@ ALTER TABLE t1 ADD INDEX kb(b), ALGORITHM=INPLACE;
 # hitting max row locks (1M)
 set @tmp= @@rocksdb_max_row_locks;
 set session rocksdb_max_row_locks=1000;
---error ER_RDB_STATUS_GENERAL
+--error ER_GET_ERRMSG 
 ALTER TABLE t1 ADD INDEX kb_copy(b), ALGORITHM=COPY;
 set session rocksdb_bulk_load=1;
 ALTER TABLE t1 ADD INDEX kb_copy(b), ALGORITHM=COPY;

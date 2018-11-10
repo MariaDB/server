@@ -24,7 +24,9 @@
   sd-daemon.h may include inttypes.h. Explicitly request format macros before
   the first inclusion of inttypes.h.
 */
+#if !defined(__STDC_FORMAT_MACROS)
 #define __STDC_FORMAT_MACROS
+#endif  // !defined(__STDC_FORMAT_MACROS)
 #include <systemd/sd-daemon.h>
 /** INTERVAL in seconds followed by printf style status */
 #define service_manager_extend_timeout(INTERVAL, FMTSTR, ...) \

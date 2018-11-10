@@ -1204,5 +1204,19 @@ Warnings:
 Note	1003	select `test`.`t1`.`a` AS `a` from `test`.`t1` where <cache>(octet_length(10.0)) + `test`.`t1`.`a` <=> <cache>(octet_length(10.00)) + `test`.`t1`.`a`
 DROP TABLE t1;
 #
+# MDEV-16984 Assertion `dec' failed in Dec_ptr::cmp
+#
+SET sql_mode='';
+CREATE TABLE t1 (dc decimal(10));
+INSERT INTO t1 VALUES (0000000),(NULL);
+SELECT 1 FROM t1 GROUP BY 'm' <=> dc;
+1
+1
+1
+Warnings:
+Warning	1292	Truncated incorrect DECIMAL value: 'm'
+DROP TABLE t1;
+SET sql_mode=DEFAULT;
+#
 # End of 10.4 tests
 #
