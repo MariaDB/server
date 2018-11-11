@@ -532,3 +532,17 @@ BEGIN
 NULL;
 END;
 /
+#
+# MDEV-17666 sql_mode=ORACLE: Keyword ELSEIF should not be reserved
+#
+DECLARE
+ELSEIF INT;
+BEGIN
+ELSEIF:=1;
+END;
+/
+BEGIN
+<<ELSEIF>>
+NULL;
+END;
+/

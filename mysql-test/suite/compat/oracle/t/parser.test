@@ -316,3 +316,26 @@ BEGIN
 END;
 /
 DELIMITER ;/
+
+
+--echo #
+--echo # MDEV-17666 sql_mode=ORACLE: Keyword ELSEIF should not be reserved
+--echo #
+
+DELIMITER /;
+DECLARE
+  ELSEIF INT;
+BEGIN
+  ELSEIF:=1;
+END;
+/
+DELIMITER ;/
+
+DELIMITER /;
+BEGIN
+<<ELSEIF>>
+  NULL;
+END;
+/
+DELIMITER ;/
+

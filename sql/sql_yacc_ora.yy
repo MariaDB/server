@@ -378,7 +378,7 @@ bool my_yyoverflow(short **a, YYSTYPE **b, size_t *yystacksize);
 %token  DUAL_SYM
 %token  EACH_SYM                      /* SQL-2003-R */
 %token  ELSE                          /* SQL-2003-R */
-%token  ELSEIF_SYM
+%token  ELSEIF_MARIADB_SYM
 %token  ELSIF_ORACLE_SYM              /* PLSQL-R    */
 %token  ENCLOSED
 %token  END_OF_INPUT                  /* INTERNAL */
@@ -613,6 +613,7 @@ bool my_yyoverflow(short **a, YYSTYPE **b, size_t *yystacksize);
   Keywords that have different reserved status in std/oracle modes.
 */
 %token  <kwd>  BODY_MARIADB_SYM              // Oracle-R
+%token  <kwd>  ELSEIF_ORACLE_SYM
 %token  <kwd>  ELSIF_MARIADB_SYM             // PLSQL-R
 %token  <kwd>  EXCEPTION_ORACLE_SYM          // SQL-2003-N, PLSQL-R
 %token  <kwd>  GOTO_MARIADB_SYM              // Oracle-R
@@ -15917,6 +15918,7 @@ keyword_sp_var_and_label:
         | DUMPFILE
         | DUPLICATE_SYM
         | DYNAMIC_SYM
+        | ELSEIF_ORACLE_SYM
         | ELSIF_MARIADB_SYM
         | ENDS_SYM
         | ENGINE_SYM

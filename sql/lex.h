@@ -205,7 +205,7 @@ static SYMBOL symbols[] = {
   { "DYNAMIC",		SYM(DYNAMIC_SYM)},
   { "EACH",             SYM(EACH_SYM)},
   { "ELSE",             SYM(ELSE)},
-  { "ELSEIF",           SYM(ELSEIF_SYM)},
+  { "ELSEIF",           SYM(ELSEIF_MARIADB_SYM)},
   { "ELSIF",            SYM(ELSIF_MARIADB_SYM)},
   { "ENABLE",		SYM(ENABLE_SYM)},
   { "ENCLOSED",		SYM(ENCLOSED)},

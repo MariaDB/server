@@ -845,6 +845,7 @@ int Lex_input_stream::find_keyword(Lex_ident_cli_st *kwd,
       case BODY_MARIADB_SYM:           return BODY_ORACLE_SYM;
       case CONTINUE_MARIADB_SYM:       return CONTINUE_ORACLE_SYM;
       case DECODE_MARIADB_SYM:         return DECODE_ORACLE_SYM;
+      case ELSEIF_MARIADB_SYM:         return ELSEIF_ORACLE_SYM;
       case ELSIF_MARIADB_SYM:          return ELSIF_ORACLE_SYM;
       case EXCEPTION_MARIADB_SYM:      return EXCEPTION_ORACLE_SYM;
       case EXIT_MARIADB_SYM:           return EXIT_ORACLE_SYM;
