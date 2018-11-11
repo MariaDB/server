@@ -3004,12 +3004,10 @@ mysql_execute_command(THD *thd)
   case SQLCOM_SHOW_PROFILE:
   case SQLCOM_SELECT:
    {
-#ifdef WITH_WSREP
       if (lex->sql_command == SQLCOM_SELECT)
-        WSREP_SYNC_WAIT(thd, WSREP_SYNC_WAIT_BEFORE_READ)
+        WSREP_SYNC_WAIT(thd, WSREP_SYNC_WAIT_BEFORE_READ);
       else
-        WSREP_SYNC_WAIT(thd, WSREP_SYNC_WAIT_BEFORE_SHOW)
-#endif /* WITH_WSREP */
+        WSREP_SYNC_WAIT(thd, WSREP_SYNC_WAIT_BEFORE_SHOW);
 
     thd->status_var.last_query_cost= 0.0;
 
@@ -5959,8 +5957,8 @@ static bool execute_sqlcom_select(THD *thd, TABLE_LIST *all_tables)
       Protocol *save_protocol= NULL;
       if (lex->analyze_stmt)
       {
-        if (result && result->is_result_interceptor())
-          ((select_result_interceptor*)result)->disable_my_ok_calls();
+        if (result && result->result_interceptor())
+          result->result_interceptor()->disable_my_ok_calls();
         else 
         {
           DBUG_ASSERT(thd->protocol);

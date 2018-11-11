@@ -4262,6 +4262,7 @@ public:
   virtual ~select_result_sink() {};
 };
 
+class select_result_interceptor;
 
 /*
   Interface for sending tabular data, together with some other stuff:
@@ -4350,11 +4351,10 @@ public:
 
   /*
     This returns
-    - FALSE if the class sends output row to the client
-    - TRUE if the output is set elsewhere (a file, @variable, or table).
-    Currently all intercepting classes derive from select_result_interceptor.
+    - NULL if the class sends output row to the client
+    - this if the output is set elsewhere (a file, @variable, or table).
   */
-  virtual bool is_result_interceptor()=0;
+  virtual select_result_interceptor *result_interceptor()=0;
 };
 
 
@@ -4422,7 +4422,7 @@ public:
   }              /* Remove gcc warning */
   uint field_count(List<Item> &fields) const { return 0; }
   bool send_result_set_metadata(List<Item> &fields, uint flag) { return FALSE; }
-  bool is_result_interceptor() { return true; }
+  select_result_interceptor *result_interceptor() { return this; }
 
   /*
     Instruct the object to not call my_ok(). Client output will be handled
@@ -4450,7 +4450,7 @@ public:
   virtual bool check_simple_select() const { return FALSE; }
   void abort_result_set();
   virtual void cleanup();
-  bool is_result_interceptor() { return false; }
+  select_result_interceptor *result_interceptor() { return NULL; }
 };
 
 

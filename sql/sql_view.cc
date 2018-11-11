@@ -891,15 +891,8 @@ static int mysql_register_view(THD *thd, TABLE_LIST *view,
 
     View definition query is stored in the client character set.
   */
-  char view_query_buff[4096];
-  String view_query(view_query_buff,
-                    sizeof (view_query_buff),
-                    thd->charset());
-
-  char is_query_buff[4096];
-  String is_query(is_query_buff,
-                  sizeof (is_query_buff),
-                  system_charset_info);
+  StringBuffer<4096> view_query(thd->charset());
+  StringBuffer<4096> is_query(system_charset_info);
 
   char md5[MD5_BUFF_LENGTH];
   bool can_be_merged;

@@ -1142,13 +1142,14 @@ mysqld_show_create_get_fields(THD *thd, TABLE_LIST *table_list,
                               List<Item> *field_list, String *buffer)
 {
   bool error= TRUE;
+  LEX *lex= thd->lex;
   MEM_ROOT *mem_root= thd->mem_root;
   DBUG_ENTER("mysqld_show_create_get_fields");
   DBUG_PRINT("enter",("db: %s  table: %s",table_list->db,
                       table_list->table_name));
 
   /* We want to preserve the tree for views. */
-  thd->lex->context_analysis_only|= CONTEXT_ANALYSIS_ONLY_VIEW;
+  lex->context_analysis_only|= CONTEXT_ANALYSIS_ONLY_VIEW;
 
   {
     /*
@@ -1163,14 +1164,14 @@ mysqld_show_create_get_fields(THD *thd, TABLE_LIST *table_list,
     bool open_error=
       open_tables(thd, &table_list, &counter,
                   MYSQL_OPEN_FORCE_SHARED_HIGH_PRIO_MDL) ||
-                  mysql_handle_derived(thd->lex, DT_PREPARE);
+                  mysql_handle_derived(lex, DT_PREPARE);
     thd->pop_internal_handler();
     if (open_error && (thd->killed || thd->is_error()))
       goto exit;
   }
 
   /* TODO: add environment variables show when it become possible */
-  if (thd->lex->only_view && !table_list->view)
+  if (lex->only_view && !table_list->view)
   {
     my_error(ER_WRONG_OBJECT, MYF(0),
              table_list->db, table_list->table_name, "VIEW");
