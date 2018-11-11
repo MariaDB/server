@@ -481,3 +481,9 @@ SHOW CREATE TABLE t2;
 DROP TABLE t1, t2;
 SET sql_mode=default;
 
+--echo #
+--echo # MDEV-17454 JSON_VALID( '{"a":1]' ) evaluates to 1
+--echo #
+
+select JSON_VALID( '{"a":1]' );
+

@@ -824,3 +824,9 @@ t2	CREATE TABLE `t2` (
 ) ENGINE=MyISAM DEFAULT CHARSET=latin1
 DROP TABLE t1, t2;
 SET sql_mode=default;
+#
+# MDEV-17454 JSON_VALID( '{"a":1]' ) evaluates to 1
+#
+select JSON_VALID( '{"a":1]' );
+JSON_VALID( '{"a":1]' )
+0
