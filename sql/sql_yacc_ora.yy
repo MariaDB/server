@@ -183,11 +183,6 @@ void ORAerror(THD *thd, const char *s)
   Lex_for_loop_st for_loop;
   Lex_for_loop_bounds_st for_loop_bounds;
   Lex_trim_st trim;
-  struct
-  {
-    LEX_CSTRING name;
-    uint offset;
-  } sp_cursor_name_and_offset;
   vers_history_point_t vers_history_point;
 
   /* pointers */
@@ -272,6 +267,7 @@ void ORAerror(THD *thd, const char *s)
   DDL_options_st object_ddl_options;
   enum vers_sys_type_t vers_range_unit;
   enum Column_definition::enum_column_versioning vers_column_versioning;
+  enum plsql_cursor_attr_t plsql_cursor_attr;
 }
 
 %{
@@ -498,6 +494,7 @@ bool my_yyoverflow(short **a, YYSTYPE **b, size_t *yystacksize);
 %token  PARAM_MARKER
 %token  PARSE_VCOL_EXPR_SYM
 %token  PARTITION_SYM                 /* SQL-2003-R */
+%token  PERCENT_ORACLE_SYM            /* INTERNAL   */
 %token  PERCENT_RANK_SYM
 %token  PERCENTILE_CONT_SYM
 %token  PERCENTILE_DISC_SYM
@@ -672,6 +669,7 @@ bool my_yyoverflow(short **a, YYSTYPE **b, size_t *yystacksize);
 %token  <kwd>  COALESCE                      /* SQL-2003-N */
 %token  <kwd>  CODE_SYM
 %token  <kwd>  COLLATION_SYM                 /* SQL-2003-N */
+%token  <kwd>  COLON_ORACLE_SYM              /* INTERNAL   */
 %token  <kwd>  COLUMNS
 %token  <kwd>  COLUMN_ADD_SYM
 %token  <kwd>  COLUMN_CHECK_SYM
@@ -1081,7 +1079,7 @@ bool my_yyoverflow(short **a, YYSTYPE **b, size_t *yystacksize);
 %left   '&'
 %left   SHIFT_LEFT SHIFT_RIGHT
 %left   '-' '+' ORACLE_CONCAT_SYM
-%left   '*' '/' DIV_SYM MOD_SYM
+%left   '*' '/' '%' DIV_SYM MOD_SYM
 %left   '^'
 %left   MYSQL_CONCAT_SYM
 %left   NEG '~' NOT2_SYM BINARY
@@ -1242,7 +1240,6 @@ bool my_yyoverflow(short **a, YYSTYPE **b, size_t *yystacksize);
         remember_name remember_end remember_end_opt
         remember_tok_start remember_tok_end
         wild_and_where
-        colon_with_pos
 
 %type <const_simple_string>
         field_length opt_field_length opt_field_length_default_1
@@ -1551,6 +1548,8 @@ END_OF_INPUT
 
 %type <num> view_algorithm view_check_option
 %type <view_suid> view_suid opt_view_suid
+
+%type <plsql_cursor_attr> plsql_cursor_attr
 %type <sp_suid> sp_suid
 
 %type <num> sp_decl_idents sp_decl_idents_init_vars
@@ -1568,7 +1567,6 @@ END_OF_INPUT
 %type <spblock_handlers> sp_block_statements_and_exceptions
 %type <spblock_handlers> package_implementation_executable_section
 %type <sp_instr_addr> sp_instr_addr
-%type <sp_cursor_name_and_offset> sp_cursor_name_and_offset
 %type <num> opt_exception_clause exception_handlers
 %type <lex> remember_lex package_routine_lex
             package_specification_function
@@ -3058,22 +3056,22 @@ sp_param_name_and_type:
             if (unlikely(Lex->sp_param_fill_definition($$= $1)))
               MYSQL_YYABORT;
           }
-        | sp_param_name sp_decl_ident '.' ident '%' TYPE_SYM
+        | sp_param_name sp_decl_ident '.' ident PERCENT_ORACLE_SYM TYPE_SYM
           {
             if (unlikely(Lex->sphead->spvar_fill_type_reference(thd, $$= $1, $2, $4)))
               MYSQL_YYABORT;
           }
-        | sp_param_name sp_decl_ident '.' ident '.' ident '%' TYPE_SYM
+        | sp_param_name sp_decl_ident '.' ident '.' ident PERCENT_ORACLE_SYM TYPE_SYM
           {
             if (unlikely(Lex->sphead->spvar_fill_type_reference(thd, $$= $1, $2, $4, $6)))
               MYSQL_YYABORT;
           }
-        | sp_param_name sp_decl_ident '%' ROWTYPE_ORACLE_SYM
+        | sp_param_name sp_decl_ident PERCENT_ORACLE_SYM ROWTYPE_ORACLE_SYM
           {
             if (unlikely(Lex->sphead->spvar_fill_table_rowtype_reference(thd, $$= $1, $2)))
               MYSQL_YYABORT;
           }
-        | sp_param_name sp_decl_ident '.' ident '%' ROWTYPE_ORACLE_SYM
+        | sp_param_name sp_decl_ident '.' ident PERCENT_ORACLE_SYM ROWTYPE_ORACLE_SYM
           {
             if (unlikely(Lex->sphead->spvar_fill_table_rowtype_reference(thd, $$= $1, $2, $4)))
               MYSQL_YYABORT;
@@ -3103,25 +3101,25 @@ sp_pdparam:
             if (unlikely(Lex->sp_param_fill_definition($1)))
               MYSQL_YYABORT;
           }
-        | sp_param_name sp_opt_inout sp_decl_ident '.' ident '%' TYPE_SYM
+        | sp_param_name sp_opt_inout sp_decl_ident '.' ident PERCENT_ORACLE_SYM TYPE_SYM
           {
             $1->mode= $2;
             if (unlikely(Lex->sphead->spvar_fill_type_reference(thd, $1, $3, $5)))
               MYSQL_YYABORT;
           }
-        | sp_param_name sp_opt_inout sp_decl_ident '.' ident '.' ident '%' TYPE_SYM
+        | sp_param_name sp_opt_inout sp_decl_ident '.' ident '.' ident PERCENT_ORACLE_SYM TYPE_SYM
           {
             $1->mode= $2;
             if (unlikely(Lex->sphead->spvar_fill_type_reference(thd, $1, $3, $5, $7)))
               MYSQL_YYABORT;
           }
-        | sp_param_name sp_opt_inout sp_decl_ident '%' ROWTYPE_ORACLE_SYM
+        | sp_param_name sp_opt_inout sp_decl_ident PERCENT_ORACLE_SYM ROWTYPE_ORACLE_SYM
           {
             $1->mode= $2;
             if (unlikely(Lex->sphead->spvar_fill_table_rowtype_reference(thd, $1, $3)))
               MYSQL_YYABORT;
           }
-        | sp_param_name sp_opt_inout sp_decl_ident '.' ident '%' ROWTYPE_ORACLE_SYM
+        | sp_param_name sp_opt_inout sp_decl_ident '.' ident PERCENT_ORACLE_SYM ROWTYPE_ORACLE_SYM
           {
             $1->mode= $2;
             if (unlikely(Lex->sphead->spvar_fill_table_rowtype_reference(thd, $1, $3, $5)))
@@ -3326,7 +3324,7 @@ sp_decl_vars:
             $$.init_using_vars($1);
           }
         | sp_decl_idents_init_vars
-          optionally_qualified_column_ident '%' TYPE_SYM
+          optionally_qualified_column_ident PERCENT_ORACLE_SYM TYPE_SYM
           sp_opt_default
           {
             if (unlikely(Lex->sp_variable_declarations_with_ref_finalize(thd, $1, $2, $5)))
@@ -3334,7 +3332,7 @@ sp_decl_vars:
             $$.init_using_vars($1);
           }
         | sp_decl_idents_init_vars
-          optionally_qualified_column_ident '%' ROWTYPE_ORACLE_SYM
+          optionally_qualified_column_ident PERCENT_ORACLE_SYM ROWTYPE_ORACLE_SYM
           sp_opt_default
           {
             if (unlikely(Lex->sp_variable_declarations_rowtype_finalize(thd, $1, $2, $5)))
@@ -9496,13 +9494,6 @@ select_item:
           }
         ;
 
-colon_with_pos:
-          ':'
-          {
-            $$= (char *) YYLIP->get_tok_start();
-          }
-        ;
-
 remember_tok_start:
           {
             $$= (char*) YYLIP->get_tok_start();
@@ -9932,6 +9923,12 @@ bit_expr:
             if (unlikely($$ == NULL))
               MYSQL_YYABORT;
           }
+        | bit_expr '%' bit_expr %prec '%'
+          {
+            $$= new (thd->mem_root) Item_func_mod(thd, $1, $3);
+            if (unlikely($$ == NULL))
+              MYSQL_YYABORT;
+          }
         | bit_expr DIV_SYM bit_expr %prec DIV_SYM
           {
             $$= new (thd->mem_root) Item_func_int_div(thd, $1, $3);
@@ -10068,43 +10065,22 @@ dyncall_create_list:
        }
    ;
 
-sp_cursor_name_and_offset:
-          ident
-          {
-            LEX *lex= Lex;
-            $$.name= $1;
-            if (unlikely(!lex->spcont ||
-                         !lex->spcont->find_cursor(&$1, &$$.offset, false)))
-              my_yyabort_error((ER_SP_CURSOR_MISMATCH, MYF(0), $1.str));
-          }
+
+plsql_cursor_attr:
+          ISOPEN_SYM    { $$= PLSQL_CURSOR_ATTR_ISOPEN; }
+        | FOUND_SYM     { $$= PLSQL_CURSOR_ATTR_FOUND; }
+        | NOTFOUND_SYM  { $$= PLSQL_CURSOR_ATTR_NOTFOUND; }
+        | ROWCOUNT_SYM  { $$= PLSQL_CURSOR_ATTR_ROWCOUNT; }
         ;
 
 explicit_cursor_attr:
-          sp_cursor_name_and_offset '%' ISOPEN_SYM
+          ident PERCENT_ORACLE_SYM plsql_cursor_attr
           {
-            if (unlikely(!($$= new (thd->mem_root)
-                           Item_func_cursor_isopen(thd, &$1.name, $1.offset))))
-              MYSQL_YYABORT;
-          }
-        | sp_cursor_name_and_offset '%' FOUND_SYM
-          {
-            if (unlikely(!($$= new (thd->mem_root)
-                           Item_func_cursor_found(thd, &$1.name, $1.offset))))
-              MYSQL_YYABORT;
-          }
-        | sp_cursor_name_and_offset '%' NOTFOUND_SYM
-          {
-            if (unlikely(!($$= new (thd->mem_root)
-                          Item_func_cursor_notfound(thd, &$1.name, $1.offset))))
-              MYSQL_YYABORT;
-          }
-        | sp_cursor_name_and_offset '%' ROWCOUNT_SYM
-          {
-            if (unlikely(!($$= new (thd->mem_root)
-                           Item_func_cursor_rowcount(thd, &$1.name, $1.offset))))
+            if (unlikely(!($$= Lex->make_item_plsql_cursor_attr(thd, &$1, $3))))
               MYSQL_YYABORT;
           }
         ;
+
 
 trim_operands:
           expr                     { $$.set(TRIM_BOTH, $1);         }
@@ -10456,7 +10432,7 @@ function_call_keyword:
             if (unlikely($$ == NULL))
               MYSQL_YYABORT;
           }
-        | SQL_SYM '%' ROWCOUNT_SYM
+        | SQL_SYM PERCENT_ORACLE_SYM ROWCOUNT_SYM
           {
             $$= new (thd->mem_root) Item_func_oracle_sql_rowcount(thd);
             if (unlikely($$ == NULL))
@@ -15006,16 +14982,17 @@ param_marker:
                                                     YYLIP->get_tok_start() + 1))))
               MYSQL_YYABORT;
           }
-        | colon_with_pos ident_cli
+        | COLON_ORACLE_SYM ident_cli
           {
             if (unlikely(!($$= Lex->add_placeholder(thd, &null_clex_str,
-                                           $1, $2.end()))))
+                                                    $1.pos(), $2.end()))))
               MYSQL_YYABORT;
           }
-        | colon_with_pos NUM
+        | COLON_ORACLE_SYM NUM
           {
             if (unlikely(!($$= Lex->add_placeholder(thd, &null_clex_str,
-                                                    $1, YYLIP->get_ptr()))))
+                                                    $1.pos(),
+                                                    YYLIP->get_ptr()))))
               MYSQL_YYABORT;
           }
         ;
@@ -15327,7 +15304,7 @@ simple_ident:
             if (unlikely(!($$= Lex->create_item_ident(thd, &$1, &$3, &$5))))
               MYSQL_YYABORT;
           }
-        | colon_with_pos ident_cli '.' ident_cli
+        | COLON_ORACLE_SYM ident_cli '.' ident_cli
           {
             if (unlikely(!($$= Lex->make_item_colon_ident_ident(thd, &$2, &$4))))
               MYSQL_YYABORT;
@@ -15345,7 +15322,7 @@ simple_ident_nospvar:
             if (unlikely(!($$= Lex->create_item_ident_nospvar(thd, &$1, &$3))))
               MYSQL_YYABORT;
           }
-        | colon_with_pos ident_cli '.' ident_cli
+        | COLON_ORACLE_SYM ident_cli '.' ident_cli
           {
             if (unlikely(!($$= Lex->make_item_colon_ident_ident(thd, &$2, &$4))))
               MYSQL_YYABORT;
@@ -16252,12 +16229,12 @@ set_assign:
                 unlikely(lex->sphead->restore_lex(thd)))
               MYSQL_YYABORT;
           }
-        | colon_with_pos ident '.' ident SET_VAR
+        | COLON_ORACLE_SYM ident '.' ident SET_VAR
           {
             LEX *lex= Lex;
             if (unlikely(!lex->is_trigger_new_or_old_reference(&$2)))
             {
-              thd->parse_error(ER_SYNTAX_ERROR, $1);
+              thd->parse_error(ER_SYNTAX_ERROR, $1.pos());
               MYSQL_YYABORT;
             }
             lex->set_stmt_init();

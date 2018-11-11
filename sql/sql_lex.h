@@ -182,6 +182,16 @@ enum enum_view_suid
   VIEW_SUID_DEFAULT= 2
 };
 
+
+enum plsql_cursor_attr_t
+{
+  PLSQL_CURSOR_ATTR_ISOPEN,
+  PLSQL_CURSOR_ATTR_FOUND,
+  PLSQL_CURSOR_ATTR_NOTFOUND,
+  PLSQL_CURSOR_ATTR_ROWCOUNT
+};
+
+
 /* These may not be declared yet */
 class Table_ident;
 class sql_exchange;
@@ -3642,6 +3652,10 @@ public:
   Item *make_item_colon_ident_ident(THD *thd,
                                     const Lex_ident_cli_st *a,
                                     const Lex_ident_cli_st *b);
+  // PLSQL: cursor%ISOPEN etc
+  Item *make_item_plsql_cursor_attr(THD *thd, const LEX_CSTRING *name,
+                                    plsql_cursor_attr_t attr);
+
   // For "SELECT @@var", "SELECT @@var.field"
   Item *make_item_sysvar(THD *thd,
                          enum_var_type type,

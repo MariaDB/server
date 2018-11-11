@@ -790,11 +790,6 @@ Virtual_column_info *add_virtual_expression(THD *thd, Item *expr)
   Lex_for_loop_st for_loop;
   Lex_for_loop_bounds_st for_loop_bounds;
   Lex_trim_st trim;
-  struct
-  {
-    LEX_CSTRING name;
-    uint offset;
-  } sp_cursor_name_and_offset;
   vers_history_point_t vers_history_point;
 
   /* pointers */
@@ -878,6 +873,7 @@ Virtual_column_info *add_virtual_expression(THD *thd, Item *expr)
   DDL_options_st object_ddl_options;
   enum vers_sys_type_t vers_range_unit;
   enum Column_definition::enum_column_versioning vers_column_versioning;
+  enum plsql_cursor_attr_t plsql_cursor_attr;
 }
 
 %{
@@ -1104,6 +1100,7 @@ bool my_yyoverflow(short **a, YYSTYPE **b, size_t *yystacksize);
 %token  PARAM_MARKER
 %token  PARSE_VCOL_EXPR_SYM
 %token  PARTITION_SYM                 /* SQL-2003-R */
+%token  PERCENT_ORACLE_SYM            /* INTERNAL   */
 %token  PERCENT_RANK_SYM
 %token  PERCENTILE_CONT_SYM
 %token  PERCENTILE_DISC_SYM
@@ -1278,6 +1275,7 @@ bool my_yyoverflow(short **a, YYSTYPE **b, size_t *yystacksize);
 %token  <kwd>  COALESCE                      /* SQL-2003-N */
 %token  <kwd>  CODE_SYM
 %token  <kwd>  COLLATION_SYM                 /* SQL-2003-N */
+%token  <kwd>  COLON_ORACLE_SYM              /* INTERNAL   */
 %token  <kwd>  COLUMNS
 %token  <kwd>  COLUMN_ADD_SYM
 %token  <kwd>  COLUMN_CHECK_SYM
@@ -1933,7 +1931,7 @@ bool my_yyoverflow(short **a, YYSTYPE **b, size_t *yystacksize);
         geometry_function signed_literal expr_or_literal
         opt_escape
         sp_opt_default
-        simple_ident_nospvar simple_ident_q simple_ident_q2
+        simple_ident_nospvar
         field_or_var limit_option
         part_func_expr
         window_func_expr
@@ -1942,6 +1940,7 @@ bool my_yyoverflow(short **a, YYSTYPE **b, size_t *yystacksize);
         inverse_distribution_function
         percentile_function
         inverse_distribution_function_def
+        explicit_cursor_attr
         function_call_keyword
         function_call_keyword_timestamp
         function_call_nonkeyword
@@ -2143,6 +2142,8 @@ END_OF_INPUT
 
 %type <num> view_algorithm view_check_option
 %type <view_suid> view_suid opt_view_suid
+
+%type <plsql_cursor_attr> plsql_cursor_attr
 
 %type <num> sp_decl_idents sp_decl_idents_init_vars
 %type <num> sp_handler_type sp_hcond_list
@@ -10095,6 +10096,23 @@ dyncall_create_list:
        }
    ;
 
+
+plsql_cursor_attr:
+          ISOPEN_SYM    { $$= PLSQL_CURSOR_ATTR_ISOPEN; }
+        | FOUND_SYM     { $$= PLSQL_CURSOR_ATTR_FOUND; }
+        | NOTFOUND_SYM  { $$= PLSQL_CURSOR_ATTR_NOTFOUND; }
+        | ROWCOUNT_SYM  { $$= PLSQL_CURSOR_ATTR_ROWCOUNT; }
+        ;
+
+explicit_cursor_attr:
+          ident PERCENT_ORACLE_SYM plsql_cursor_attr
+          {
+            if (unlikely(!($$= Lex->make_item_plsql_cursor_attr(thd, &$1, $3))))
+              MYSQL_YYABORT;
+          }
+        ;
+
+
 trim_operands:
           expr                     { $$.set(TRIM_BOTH, $1);         }
         | LEADING  expr FROM expr  { $$.set(TRIM_LEADING, $2, $4);  }
@@ -10258,6 +10276,7 @@ column_default_non_parenthesized_expr:
 
 primary_expr:
           column_default_non_parenthesized_expr
+        | explicit_cursor_attr
         | '(' parenthesized_expr ')' { $$= $2; }
         ;
 
@@ -10443,6 +10462,14 @@ function_call_keyword:
             $$= new (thd->mem_root) Item_func_second(thd, $3);
             if (unlikely($$ == NULL))
               MYSQL_YYABORT;
+          }
+        | SQL_SYM PERCENT_ORACLE_SYM ROWCOUNT_SYM
+          {
+            $$= new (thd->mem_root) Item_func_oracle_sql_rowcount(thd);
+            if (unlikely($$ == NULL))
+              MYSQL_YYABORT;
+            Lex->set_stmt_unsafe(LEX::BINLOG_STMT_UNSAFE_SYSTEM_FUNCTION);
+            Lex->safe_to_cache_query= 0;
           }
         | TIME_SYM '(' expr ')'
           {
@@ -14956,6 +14983,19 @@ param_marker:
                                                     YYLIP->get_tok_start() + 1))))
               MYSQL_YYABORT;
           }
+        | COLON_ORACLE_SYM ident_cli
+          {
+            if (unlikely(!($$= Lex->add_placeholder(thd, &null_clex_str,
+                                                    $1.pos(), $2.end()))))
+              MYSQL_YYABORT;
+          }
+        | COLON_ORACLE_SYM NUM
+          {
+            if (unlikely(!($$= Lex->add_placeholder(thd, &null_clex_str,
+                                                    $1.pos(),
+                                                    YYLIP->get_ptr()))))
+              MYSQL_YYABORT;
+          }
         ;
 
 signed_literal:
@@ -15265,6 +15305,11 @@ simple_ident:
             if (unlikely(!($$= Lex->create_item_ident(thd, &$1, &$3, &$5))))
               MYSQL_YYABORT;
           }
+        | COLON_ORACLE_SYM ident_cli '.' ident_cli
+          {
+            if (unlikely(!($$= Lex->make_item_colon_ident_ident(thd, &$2, &$4))))
+              MYSQL_YYABORT;
+          }
         ;
 
 simple_ident_nospvar:
@@ -15273,20 +15318,17 @@ simple_ident_nospvar:
             if (unlikely(!($$= Lex->create_item_ident_nosp(thd, &$1))))
               MYSQL_YYABORT;
           }
-        | simple_ident_q { $$= $1; }
-        ;
-
-simple_ident_q:
-          ident '.' ident
+        | ident '.' ident
           {
             if (unlikely(!($$= Lex->create_item_ident_nospvar(thd, &$1, &$3))))
               MYSQL_YYABORT;
           }
-        | simple_ident_q2
-        ;
-
-simple_ident_q2:
-          '.' ident '.' ident
+        | COLON_ORACLE_SYM ident_cli '.' ident_cli
+          {
+            if (unlikely(!($$= Lex->make_item_colon_ident_ident(thd, &$2, &$4))))
+              MYSQL_YYABORT;
+          }
+        | '.' ident '.' ident
           {
             Lex_ident_sys none;
             if (unlikely(!($$= Lex->create_item_ident(thd, &none, &$2, &$4))))

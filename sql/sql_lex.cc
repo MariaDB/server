@@ -1423,6 +1423,13 @@ int Lex_input_stream::lex_one_token(YYSTYPE *yylval, THD *thd)
       }
       /* Fall through */
     case MY_LEX_CHAR:                          // Unknown or single char token
+    {
+      if (c == '%' && (m_thd->variables.sql_mode & MODE_ORACLE))
+      {
+        next_state= MY_LEX_START;
+        return PERCENT_ORACLE_SYM;
+      }
+    }
     case MY_LEX_SKIP:                          // This should not happen
       if (c != ')')
         next_state= MY_LEX_START;         // Allow signed numbers
@@ -1861,8 +1868,13 @@ int Lex_input_stream::lex_one_token(YYSTYPE *yylval, THD *thd)
     case MY_LEX_SET_VAR:                // Check if ':='
       if (yyPeek() != '=')
       {
-        state= MY_LEX_CHAR;              // Return ':'
-        break;
+        next_state= MY_LEX_START;
+        if (m_thd->variables.sql_mode & MODE_ORACLE)
+        {
+          yylval->kwd.set_keyword(m_tok_start, 1);
+          return COLON_ORACLE_SYM;
+        }
+        return (int) ':';
       }
       yySkip();
       return (SET_VAR);
@@ -6652,6 +6664,30 @@ Item *LEX::make_item_colon_ident_ident(THD *thd,
   }
   bool new_row= (a.str[0] == 'N' || a.str[0] == 'n');
   return create_and_link_Item_trigger_field(thd, &b, new_row);
+}
+
+
+Item *LEX::make_item_plsql_cursor_attr(THD *thd, const LEX_CSTRING *name,
+                                       plsql_cursor_attr_t attr)
+{
+  uint offset;
+  if (unlikely(!spcont || !spcont->find_cursor(name, &offset, false)))
+  {
+    my_error(ER_SP_CURSOR_MISMATCH, MYF(0), name->str);
+    return NULL;
+  }
+  switch (attr) {
+  case PLSQL_CURSOR_ATTR_ISOPEN:
+    return new (thd->mem_root) Item_func_cursor_isopen(thd, name, offset);
+  case PLSQL_CURSOR_ATTR_FOUND:
+    return new (thd->mem_root) Item_func_cursor_found(thd, name, offset);
+  case PLSQL_CURSOR_ATTR_NOTFOUND:
+    return new (thd->mem_root) Item_func_cursor_notfound(thd, name, offset);
+  case PLSQL_CURSOR_ATTR_ROWCOUNT:
+    return new (thd->mem_root) Item_func_cursor_rowcount(thd, name, offset);
+  }
+  DBUG_ASSERT(0);
+  return NULL;
 }
 
 
