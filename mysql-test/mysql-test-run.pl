@@ -5398,7 +5398,12 @@ sub stop_servers($$) {
   }
 }
 
-
+#
+# run_query_output
+#
+# Run a query against a server using mysql client. The output of
+# the query will be written into outfile.
+#
 sub run_query_output {
   my ($mysqld, $query, $outfile)= @_;
   my $args;
@@ -5422,6 +5427,16 @@ sub run_query_output {
 }
 
 
+#
+# wsrep_wait_ready
+#
+# Wait until the server has been joined to the cluster and is
+# ready for operation.
+#
+# RETURN
+# 1 Server is ready
+# 0 Server didn't transition to ready state within start timeout
+#
 sub wait_wsrep_ready($$) {
   my ($tinfo, $mysqld)= @_;
 
@@ -5435,7 +5450,7 @@ sub wait_wsrep_ready($$) {
               FROM INFORMATION_SCHEMA.GLOBAL_STATUS
               WHERE VARIABLE_NAME = 'wsrep_ready'";
 
-  for (my $loop= 1; $loop <= $loops; $loop++)	
+  for (my $loop= 1; $loop <= $loops; $loop++)
   {
     if (run_query_output($mysqld, $query, $outfile) == 0 &&
         mtr_grab_file($outfile) =~ /^ON/)
@@ -5443,15 +5458,23 @@ sub wait_wsrep_ready($$) {
       unlink($outfile);
       return 1;
     }
-    
     mtr_milli_sleep($sleeptime);
   }
 
-  $tinfo->{logfile}= "WSREP did not transition to state READY";	
+  $tinfo->{logfile}= "WSREP did not transition to state READY";
   return 0;
 }
 
-
+#
+# wsrep_is_bootstrap_server
+#
+# Check if the server is the first one to be started in the
+# cluster.
+#
+# RETURN
+# true The server is a bootstrap server
+# false The server is not a bootstrap server
+#
 sub wsrep_is_bootstrap_server($) {
   my $mysqld= shift;
   return $mysqld->if_exist('wsrep_cluster_address') &&
@@ -5459,8 +5482,16 @@ sub wsrep_is_bootstrap_server($) {
      $mysqld->value('wsrep_cluster_address') eq "'gcomm://'");
 }
 
-
-sub wsrep_on($_) {
+#
+# wsrep_on
+#
+# Check if wsrep has been enabled for a server.
+#
+# RETURN
+# 1 Wsrep has been enabled
+# 0 Wsrep is not enabled
+#
+sub wsrep_on($) {
   my $mysqld= shift;
   #check if wsrep_on=  is set in configuration
   if ($mysqld->if_exist('wsrep-on')) {
@@ -5485,30 +5516,33 @@ sub wsrep_on($_) {
 sub start_servers($) {
   my ($tinfo)= @_;
 
-  for (all_servers()) {
-    $_->{START}->($_, $tinfo) if $_->{START};
+  # Note: Do not use default variable in this loop. In some cases
+  # the default variable may become undefined after the server
+  # start call.
+  foreach my $server (all_servers()) {
+    $server->{START}->($server, $tinfo) if $server->{START};
     # If wsrep is on, we need to wait until the first
     # server starts and bootstraps the cluster before
     # starting other servers. The bootsrap server in the
     # configuration should always be the first which has
     # wsrep_on=ON and should be tagged with "#wsrep-new-cluster".
     # option
-    if (wsrep_on($_) && wsrep_is_bootstrap_server($_))
+    if (wsrep_on($server) && wsrep_is_bootstrap_server($server))
     {
-      if ($_->{WAIT}->($_) && !wait_wsrep_ready($tinfo, $_)) {
+      if ($server->{WAIT}->($server) && !wait_wsrep_ready($tinfo, $server)) {
         return 1;
       }
     }
   }
 
-  for (all_servers()) {
-    next unless $_->{WAIT} and started($_);
-    if ($_->{WAIT}->($_)) {
-      $tinfo->{comment}= "Failed to start ".$_->name() . "\n";
+  foreach my $server (all_servers()) {
+    next unless $server->{WAIT} and started($server);
+    if ($server->{WAIT}->($server)) {
+      $tinfo->{comment}= "Failed to start ".$server->name() . "\n";
       return 1;
     }
-    if (wsrep_on($_)) {
-      if (!wait_wsrep_ready($tinfo, $_)){
+    if (wsrep_on($server)) {
+      if (!wait_wsrep_ready($tinfo, $server)){
         return 1;
       }
     }
