@@ -1112,6 +1112,9 @@ struct dict_index_t {
 	/** @return whether the index is corrupted */
 	inline bool is_corrupted() const;
 
+	/** @return whether the leaf pages are in dual format */
+	inline bool dual_format() const;
+
 	/** Detach the columns from the index that is to be freed. */
 	void detach_columns()
 	{
@@ -1612,6 +1615,14 @@ struct dict_table_t {
 
 	/** @return the number of instantly dropped columns */
 	unsigned n_dropped() const { return instant ? instant->n_dropped : 0; }
+
+	/** @return whether the leaf pages are in dual format */
+	bool dual_format() const
+	{
+		bool dual = instant && instant->leaf_redundant;
+		DBUG_ASSERT(!dual || not_redundant());
+		return dual;
+	}
 
 	/** Look up an old column.
 	@param[in]	cols	the old columns of the table
@@ -2122,6 +2133,11 @@ inline bool dict_index_t::is_corrupted() const
 	return UNIV_UNLIKELY(online_status >= ONLINE_INDEX_ABORTED
 			     || (type & DICT_CORRUPT)
 			     || (table && table->corrupted));
+}
+
+inline bool dict_index_t::dual_format() const
+{
+	return is_primary() && table->dual_format();
 }
 
 inline void dict_index_t::clear_instant_add()

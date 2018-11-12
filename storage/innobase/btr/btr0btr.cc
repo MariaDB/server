@@ -3642,6 +3642,12 @@ btr_lift_page_up(
 	if (page_level == 0 && index->is_instant()) {
 		ut_ad(!father_page_zip);
 		btr_set_instant(father_block, *index, mtr);
+#if 0 /* FIXME: convert father_block to "instant" format if needed */
+		if (index->dual_format() && !page_is_comp(block_orig->frame)) {
+			ut_ad(page_is_leaf(block_orig->frame));
+			ut_ad(page_is_comp(father_block->frame));
+		}
+#endif
 	}
 
 	page_level++;
@@ -3889,6 +3895,12 @@ retry:
 		ut_a(page_zip_validate(page_zip, page, index));
 	}
 #endif /* UNIV_ZIP_DEBUG */
+
+#if 0 /* FIXME: convert both pages to "instant" format if needed */
+	if (index->dual_format()
+	    && page_is_comp(page) && page_is_leaf(page)) {
+	}
+#endif
 
 	/* Move records to the merge page */
 	if (is_left) {

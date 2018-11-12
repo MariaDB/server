@@ -1227,6 +1227,7 @@ inline void dict_index_t::reconstruct_fields()
 		} else {
 			DBUG_ASSERT(!(c & 1U << 14)
 				    || dict_table_is_comp(table));
+			DBUG_ASSERT(!(c & 1U << 14) || table->dual_format());
 			f = fields[o++];
 			f.col = dict_table_get_nth_col(table, c & ~(3U << 14));
 			f.name = f.col->name(*table);

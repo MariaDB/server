@@ -3350,9 +3350,7 @@ btr_cur_optimistic_insert(
 		goto convert_big_rec;
 	}
 
-	if (leaf && page_is_comp(page) && index->is_primary()
-	    && index->table->instant
-	    && index->table->instant->leaf_redundant) {
+	if (leaf && page_is_comp(page) && index->dual_format()) {
 		/* The page must be converted into ROW_FORMAT=REDUNDANT
 		in a pessimistic operation. */
 		return DB_TOO_BIG_RECORD;
@@ -3638,6 +3636,13 @@ btr_cur_pessimistic_insert(
 	ut_ad(!dict_index_is_online_ddl(index)
 	      || dict_index_is_clust(index)
 	      || (flags & BTR_CREATE_FLAG));
+
+	if (index->dual_format()
+	    && page_is_comp(btr_cur_get_page(cursor))
+	    && page_is_leaf(btr_cur_get_page(cursor))) {
+		/* FIXME: convert to ROW_FORMAT=REDUNDANT */
+		return DB_TOO_BIG_RECORD;
+	}
 
 	cursor->flag = BTR_CUR_BINARY;
 
@@ -4116,9 +4121,7 @@ btr_cur_update_in_place(
 
 	block = btr_cur_get_block(cursor);
 
-	if (page_is_comp(block->frame) && index->is_primary()
-	    && index->table->instant
-	    && index->table->instant->leaf_redundant) {
+	if (page_is_comp(block->frame) && index->dual_format()) {
 		/* The page must be converted into ROW_FORMAT=REDUNDANT
 		in a pessimistic operation. */
 		return DB_TOO_BIG_RECORD;
@@ -4369,9 +4372,7 @@ btr_cur_optimistic_update(
 	     || trx_is_recv(thr_get_trx(thr)));
 #endif /* UNIV_DEBUG || UNIV_BLOB_LIGHT_DEBUG */
 
-	if (page_is_comp(page) && index->is_primary()
-	    && index->table->instant
-	    && index->table->instant->leaf_redundant) {
+	if (page_is_comp(page) && index->dual_format()) {
 		/* The page must be converted into ROW_FORMAT=REDUNDANT
 		in a pessimistic operation. */
 		return DB_TOO_BIG_RECORD;
@@ -4754,6 +4755,11 @@ btr_cur_pessimistic_update(
 		}
 
 		return(err);
+	}
+
+	if (page_is_comp(page) && page_is_leaf(page) && index->dual_format()) {
+		/* FIXME: convert to ROW_FORMAT=REDUNDANT */
+		return DB_TOO_BIG_RECORD;
 	}
 
 	rec = btr_cur_get_rec(cursor);
