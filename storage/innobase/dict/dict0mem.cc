@@ -1286,7 +1286,7 @@ bool dict_table_t::deserialise_columns(const byte* metadata, ulint len)
 			if (col_ind >= n_cols) {
 				return true;
 			}
-			if ((c & 1U << 14) && !dict_table_is_comp(this)) {
+			if ((c & 1U << 14) && !not_redundant()) {
 				return true;
 			}
 		}

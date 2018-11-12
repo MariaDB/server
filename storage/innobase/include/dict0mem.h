@@ -1584,6 +1584,9 @@ struct dict_table_t {
 		return flags2 & DICT_TF2_TEMPORARY;
 	}
 
+	/** @return whether the table is not in ROW_FORMAT=REDUNDANT */
+	bool not_redundant() const { return flags & DICT_TF_COMPACT; }
+
 	/** @return whether this table is readable
 	@retval	true	normally
 	@retval	false	if this is a single-table tablespace

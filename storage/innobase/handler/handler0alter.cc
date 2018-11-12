@@ -150,7 +150,7 @@ inline void dict_table_t::prepare_instant(const dict_table_t& old,
 	DBUG_ASSERT(n_dropped() == 0);
 	DBUG_ASSERT(old.n_cols == old.n_def);
 	DBUG_ASSERT(n_cols == n_def);
-	DBUG_ASSERT(dict_table_is_comp(&old) == dict_table_is_comp(this));
+	DBUG_ASSERT(old.not_redundant() == not_redundant());
 	DBUG_ASSERT(old.supports_instant());
 	DBUG_ASSERT(supports_instant());
 
@@ -170,8 +170,7 @@ inline void dict_table_t::prepare_instant(const dict_table_t& old,
 		Therefore columns must have been added at the end,
 		or modified instantly in place. */
 		DBUG_ASSERT(index.n_fields >= oindex.n_fields);
-		if (index.n_fields == oindex.n_fields
-		    && dict_table_is_comp(this)) {
+		if (index.n_fields == oindex.n_fields && not_redundant()) {
 			instant = new (mem_heap_zalloc(
 					       heap, sizeof(dict_instant_t)))
 				dict_instant_t();
@@ -180,8 +179,7 @@ inline void dict_table_t::prepare_instant(const dict_table_t& old,
 set_core_fields:
 		index.n_core_fields = oindex.n_core_fields;
 		index.n_core_null_bytes = oindex.n_core_null_bytes;
-		if (instant && !instant->leaf_redundant
-		    && dict_table_is_comp(this)) {
+		if (instant && !instant->leaf_redundant && not_redundant()) {
 			for (unsigned i = oindex.n_fields; i--; ) {
 				DBUG_ASSERT(index.fields[i].col->same_format(
 						    *oindex.fields[i].col));

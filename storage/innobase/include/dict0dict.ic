@@ -532,19 +532,6 @@ dict_table_get_sys_col_no(
 	return unsigned(table->n_cols) + (sys - DATA_N_SYS_COLS);
 }
 
-/********************************************************************//**
-Check whether the table uses the compact page format.
-@return TRUE if table uses the compact page format */
-UNIV_INLINE
-bool
-dict_table_is_comp(
-/*===============*/
-	const dict_table_t*	table)	/*!< in: table */
-{
-	ut_ad(table);
-	return (table->flags & DICT_TF_COMPACT) != 0;
-}
-
 /************************************************************************
 Check if the table has an FTS index. */
 UNIV_INLINE
