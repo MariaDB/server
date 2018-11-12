@@ -931,7 +931,8 @@ bool my_yyoverflow(short **a, YYSTYPE **b, size_t *yystacksize);
 %token  BIT_AND                       /* MYSQL-FUNC */
 %token  BIT_OR                        /* MYSQL-FUNC */
 %token  BIT_XOR                       /* MYSQL-FUNC */
-%token  BLOB_SYM                      /* SQL-2003-R */
+%token  BLOB_MARIADB_SYM              /* SQL-2003-R */
+%token  BLOB_ORACLE_SYM               /* Oracle-R   */
 %token  BODY_ORACLE_SYM               /* Oracle-R   */
 %token  BOTH                          /* SQL-2003-R */
 %token  BY                            /* SQL-2003-R */
@@ -1272,7 +1273,8 @@ bool my_yyoverflow(short **a, YYSTYPE **b, size_t *yystacksize);
 %token  <kwd>  CIPHER_SYM
 %token  <kwd>  CLASS_ORIGIN_SYM              /* SQL-2003-N */
 %token  <kwd>  CLIENT_SYM
-%token  <kwd>  CLOB                          /* SQL-2003-R */
+%token  <kwd>  CLOB_MARIADB_SYM              /* SQL-2003-R */
+%token  <kwd>  CLOB_ORACLE_SYM               /* Oracle-R   */
 %token  <kwd>  CLOSE_SYM                     /* SQL-2003-R */
 %token  <kwd>  COALESCE                      /* SQL-2003-N */
 %token  <kwd>  CODE_SYM
@@ -1477,7 +1479,8 @@ bool my_yyoverflow(short **a, YYSTYPE **b, size_t *yystacksize);
 %token  <kwd>  NOMINVALUE_SYM
 %token  <kwd>  NO_WAIT_SYM
 %token  <kwd>  NOWAIT_SYM
-%token  <kwd>  NUMBER_SYM                    /* SQL-2003-N, Oracle-R, PLSQL-R */
+%token  <kwd>  NUMBER_MARIADB_SYM            /* SQL-2003-N  */
+%token  <kwd>  NUMBER_ORACLE_SYM             /* Oracle-R, PLSQL-R */
 %token  <kwd>  NVARCHAR_SYM
 %token  <kwd>  OF_SYM                        /* SQL-1992-R, Oracle-R */
 %token  <kwd>  OFFSET_SYM
@@ -1519,7 +1522,8 @@ bool my_yyoverflow(short **a, YYSTYPE **b, size_t *yystacksize);
 %token  <kwd>  QUARTER_SYM
 %token  <kwd>  QUERY_SYM
 %token  <kwd>  QUICK
-%token  <kwd>  RAW                           /* Oracle-R */
+%token  <kwd>  RAW_MARIADB_SYM
+%token  <kwd>  RAW_ORACLE_SYM                /* Oracle-R */
 %token  <kwd>  READ_ONLY_SYM
 %token  <kwd>  REBUILD_SYM
 %token  <kwd>  RECOVER_SYM
@@ -1638,7 +1642,8 @@ bool my_yyoverflow(short **a, YYSTYPE **b, size_t *yystacksize);
 %token  <kwd>  USER_SYM                      /* SQL-2003-R */
 %token  <kwd>  USE_FRM
 %token  <kwd>  VALUE_SYM                     /* SQL-2003-R */
-%token  <kwd>  VARCHAR2                      /* Oracle-R, PLSQL-R */
+%token  <kwd>  VARCHAR2_MARIADB_SYM
+%token  <kwd>  VARCHAR2_ORACLE_SYM           /* Oracle-R, PLSQL-R */
 %token  <kwd>  VARIABLES
 %token  <kwd>  VERSIONING_SYM                /* SQL-2011-R */
 %token  <kwd>  VIA_SYM
@@ -4008,7 +4013,9 @@ simple_target_specification:
         ;
 
 statement_information_item_name:
-          NUMBER_SYM
+          NUMBER_MARIADB_SYM
+          { $$= Statement_information_item::NUMBER; }
+        | NUMBER_ORACLE_SYM
           { $$= Statement_information_item::NUMBER; }
         | ROW_COUNT_SYM
           { $$= Statement_information_item::ROW_COUNT; }
@@ -6961,6 +6968,13 @@ field_type_numeric:
           }
         | DECIMAL_SYM float_options field_options
           { $$.set(&type_handler_newdecimal, $2);}
+        | NUMBER_ORACLE_SYM float_options field_options
+          {
+            if ($2.length() != 0)
+              $$.set(&type_handler_newdecimal, $2);
+            else
+              $$.set(&type_handler_double);
+          }
         | NUMERIC_SYM float_options field_options
           { $$.set(&type_handler_newdecimal, $2);}
         | FIXED_SYM float_options field_options
@@ -6987,6 +7001,10 @@ field_type_string:
           {
             $$.set(&type_handler_varchar, $2);
           }
+        | VARCHAR2_ORACLE_SYM field_length opt_binary
+          {
+            $$.set(&type_handler_varchar, $2);
+          }
         | nvarchar field_length opt_bin_mod
           {
             $$.set(&type_handler_varchar, $2);
@@ -6995,6 +7013,11 @@ field_type_string:
         | VARBINARY field_length
           {
             Lex->charset=&my_charset_bin;
+            $$.set(&type_handler_varchar, $2);
+          }
+        | RAW_ORACLE_SYM field_length
+          {
+            Lex->charset= &my_charset_bin;
             $$.set(&type_handler_varchar, $2);
           }
         ;
@@ -7063,10 +7086,15 @@ field_type_lob:
             Lex->charset=&my_charset_bin;
             $$.set(&type_handler_tiny_blob);
           }
-        | BLOB_SYM opt_field_length
+        | BLOB_MARIADB_SYM opt_field_length
           {
             Lex->charset=&my_charset_bin;
             $$.set(&type_handler_blob, $2);
+          }
+        | BLOB_ORACLE_SYM opt_field_length
+          {
+            Lex->charset=&my_charset_bin;
+            $$.set(&type_handler_long_blob);
           }
         | spatial_type float_options srid_option
           {
@@ -7103,6 +7131,8 @@ field_type_lob:
         | MEDIUMTEXT opt_binary
           { $$.set(&type_handler_medium_blob); }
         | LONGTEXT opt_binary
+          { $$.set(&type_handler_long_blob); }
+        | CLOB_ORACLE_SYM opt_binary
           { $$.set(&type_handler_long_blob); }
         | LONG_SYM opt_binary
           { $$.set(&type_handler_medium_blob); }
@@ -11649,6 +11679,14 @@ cast_type:
           { Lex->charset= thd->variables.collation_connection; }
           opt_binary
           { $$.set(&type_handler_long_blob, $2); }
+        | VARCHAR field_length
+          { Lex->charset= thd->variables.collation_connection; }
+          opt_binary
+          { $$.set(&type_handler_long_blob, $2); }
+        | VARCHAR2_ORACLE_SYM field_length
+          { Lex->charset= thd->variables.collation_connection; }
+          opt_binary
+          { $$.set(&type_handler_long_blob, $2); }
         | NCHAR_SYM opt_field_length
           {
             Lex->charset= national_charset_info;
@@ -15785,7 +15823,8 @@ keyword_data_type:
           BIT_SYM
         | BOOLEAN_SYM
         | BOOL_SYM
-        | CLOB
+        | CLOB_MARIADB_SYM
+        | CLOB_ORACLE_SYM
         | DATE_SYM           %prec PREC_BELOW_CONTRACTION_TOKEN2
         | DATETIME
         | ENUM
@@ -15800,17 +15839,20 @@ keyword_data_type:
         | MULTIPOLYGON
         | NATIONAL_SYM
         | NCHAR_SYM
-        | NUMBER_SYM
+        | NUMBER_MARIADB_SYM
+        | NUMBER_ORACLE_SYM
         | NVARCHAR_SYM
         | POINT_SYM
         | POLYGON
-        | RAW
+        | RAW_MARIADB_SYM
+        | RAW_ORACLE_SYM
         | ROW_SYM
         | SERIAL_SYM
         | TEXT_SYM
         | TIMESTAMP          %prec PREC_BELOW_CONTRACTION_TOKEN2
         | TIME_SYM           %prec PREC_BELOW_CONTRACTION_TOKEN2
-        | VARCHAR2
+        | VARCHAR2_MARIADB_SYM
+        | VARCHAR2_ORACLE_SYM
         | YEAR_SYM
         ;
 
