@@ -176,7 +176,7 @@ static SYMBOL symbols[] = {
   { "DEALLOCATE",       SYM(DEALLOCATE_SYM)},     
   { "DEC",		SYM(DECIMAL_SYM)},
   { "DECIMAL",		SYM(DECIMAL_SYM)},
-  { "DECLARE",          SYM(DECLARE_SYM)},
+  { "DECLARE",          SYM(DECLARE_MARIADB_SYM)},
   { "DEFAULT",		SYM(DEFAULT)},
   { "DEFINER",          SYM(DEFINER_SYM)},
   { "DELAYED",		SYM(DELAYED_SYM)},

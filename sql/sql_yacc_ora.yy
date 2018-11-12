@@ -361,7 +361,8 @@ bool my_yyoverflow(short **a, YYSTYPE **b, size_t *yystacksize);
 %token  DAY_SECOND_SYM
 %token  DECIMAL_NUM
 %token  DECIMAL_SYM                   /* SQL-2003-R */
-%token  DECLARE_SYM                   /* SQL-2003-R */
+%token  DECLARE_MARIADB_SYM           /* SQL-2003-R */
+%token  DECLARE_ORACLE_SYM            /* Oracle-R   */
 %token  DEFAULT                       /* SQL-2003-R */
 %token  DELETE_DOMAIN_ID_SYM
 %token  DELETE_SYM                    /* SQL-2003-R */
@@ -4462,7 +4463,7 @@ sp_labeled_block:
               MYSQL_YYABORT;
           }
         | sp_block_label
-          DECLARE_SYM
+          DECLARE_ORACLE_SYM
           {
             Lex->sp_block_init(thd, &$1);
           }
@@ -4502,7 +4503,7 @@ sp_unlabeled_block:
             if (unlikely(Lex->sp_block_finalize(thd, Lex_spblock($4))))
               MYSQL_YYABORT;
           }
-        | DECLARE_SYM
+        | DECLARE_ORACLE_SYM
           {
             if (unlikely(Lex->maybe_start_compound_statement(thd)))
               MYSQL_YYABORT;

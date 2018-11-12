@@ -967,7 +967,8 @@ bool my_yyoverflow(short **a, YYSTYPE **b, size_t *yystacksize);
 %token  DAY_SECOND_SYM
 %token  DECIMAL_NUM
 %token  DECIMAL_SYM                   /* SQL-2003-R */
-%token  DECLARE_SYM                   /* SQL-2003-R */
+%token  DECLARE_MARIADB_SYM           /* SQL-2003-R */
+%token  DECLARE_ORACLE_SYM            /* Oracle-R   */
 %token  DEFAULT                       /* SQL-2003-R */
 %token  DELETE_DOMAIN_ID_SYM
 %token  DELETE_SYM                    /* SQL-2003-R */
@@ -2149,6 +2150,7 @@ END_OF_INPUT
 %type <num> sp_decl_idents sp_decl_idents_init_vars
 %type <num> sp_handler_type sp_hcond_list
 %type <spcondvalue> sp_cond sp_hcond sqlstate signal_value opt_signal_value
+%type <spblock> sp_decl_handler
 %type <spblock> sp_decls sp_decl sp_decl_body sp_decl_variable_list
 %type <spname> sp_name
 %type <spvar> sp_param_name sp_param_name_and_type
@@ -3503,7 +3505,7 @@ sp_decls:
         ;
 
 sp_decl:
-          DECLARE_SYM sp_decl_body { $$= $2; }
+          DECLARE_MARIADB_SYM sp_decl_body { $$= $2; }
         ;
 
 
@@ -3619,18 +3621,7 @@ sp_decl_body:
             $$.vars= $$.hndlrs= $$.curs= 0;
             $$.conds= 1;
           }
-        | sp_handler_type HANDLER_SYM FOR_SYM
-          {
-            if (unlikely(Lex->sp_handler_declaration_init(thd, $1)))
-              MYSQL_YYABORT;
-          }
-          sp_hcond_list sp_proc_stmt
-          {
-            if (unlikely(Lex->sp_handler_declaration_finalize(thd, $1)))
-              MYSQL_YYABORT;
-            $$.vars= $$.conds= $$.curs= 0;
-            $$.hndlrs= 1;
-          }
+        | sp_decl_handler
         | sp_decl_ident CURSOR_SYM
           {
             Lex->sp_block_init(thd);
@@ -3645,6 +3636,21 @@ sp_decl_body:
               MYSQL_YYABORT;
             $$.vars= $$.conds= $$.hndlrs= 0;
             $$.curs= 1;
+          }
+        ;
+
+sp_decl_handler:
+          sp_handler_type HANDLER_SYM FOR_SYM
+          {
+            if (unlikely(Lex->sp_handler_declaration_init(thd, $1)))
+              MYSQL_YYABORT;
+          }
+          sp_hcond_list sp_proc_stmt
+          {
+            if (unlikely(Lex->sp_handler_declaration_finalize(thd, $1)))
+              MYSQL_YYABORT;
+            $$.vars= $$.conds= $$.curs= 0;
+            $$.hndlrs= 1;
           }
         ;
 

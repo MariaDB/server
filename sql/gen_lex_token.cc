@@ -33,7 +33,7 @@
   from bison.
   See also YYMAXUTOK.
 */
-#define MY_MAX_TOKEN 1000
+#define MY_MAX_TOKEN 1100
 /** Generated token. */
 struct gen_lex_token_string
 {
