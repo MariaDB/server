@@ -2038,8 +2038,8 @@ retry_share:
     tc_add_table(thd, table);
   }
 
-
-  if (!(flags & MYSQL_OPEN_HAS_MDL_LOCK))
+  if (!(flags & MYSQL_OPEN_HAS_MDL_LOCK) &&
+      table->s->table_category < TABLE_CATEGORY_INFORMATION)
   {
     /*
       We are not under LOCK TABLES and going to acquire write-lock/

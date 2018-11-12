@@ -395,28 +395,6 @@ enum enum_table_category
   TABLE_CATEGORY_SYSTEM=3,
 
   /**
-    Information schema tables.
-    These tables are an interface provided by the system
-    to inspect the system metadata.
-    These tables do *not* honor:
-    - LOCK TABLE t FOR READ/WRITE
-    - FLUSH TABLES WITH READ LOCK
-    - SET GLOBAL READ_ONLY = ON
-    as there is no point in locking explicitly
-    an INFORMATION_SCHEMA table.
-    Nothing is directly written to information schema tables.
-    Note that this value is not used currently,
-    since information schema tables are not shared,
-    but implemented as session specific temporary tables.
-  */
-  /*
-    TODO: Fixing the performance issues of I_S will lead
-    to I_S tables in the table cache, which should use
-    this table type.
-  */
-  TABLE_CATEGORY_INFORMATION=4,
-
-  /**
     Log tables.
     These tables are an interface provided by the system
     to inspect the system logs.
@@ -436,7 +414,33 @@ enum enum_table_category
     The server implementation perform writes.
     Log tables are cached in the table cache.
   */
-  TABLE_CATEGORY_LOG=5,
+  TABLE_CATEGORY_LOG=4,
+
+  /*
+    Types below are read only tables, not affected by FLUSH TABLES or
+    MDL locks.
+  */
+  /**
+    Information schema tables.
+    These tables are an interface provided by the system
+    to inspect the system metadata.
+    These tables do *not* honor:
+    - LOCK TABLE t FOR READ/WRITE
+    - FLUSH TABLES WITH READ LOCK
+    - SET GLOBAL READ_ONLY = ON
+    as there is no point in locking explicitly
+    an INFORMATION_SCHEMA table.
+    Nothing is directly written to information schema tables.
+    Note that this value is not used currently,
+    since information schema tables are not shared,
+    but implemented as session specific temporary tables.
+  */
+  /*
+    TODO: Fixing the performance issues of I_S will lead
+    to I_S tables in the table cache, which should use
+    this table type.
+  */
+  TABLE_CATEGORY_INFORMATION=5,
 
   /**
     Performance schema tables.
@@ -460,6 +464,7 @@ enum enum_table_category
   */
   TABLE_CATEGORY_PERFORMANCE=6
 };
+
 typedef enum enum_table_category TABLE_CATEGORY;
 
 TABLE_CATEGORY get_table_category(const LEX_CSTRING *db,
