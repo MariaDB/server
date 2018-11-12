@@ -210,6 +210,8 @@ add_metadata:
 		instant = new (mem_heap_alloc(heap, sizeof(dict_instant_t)))
 			dict_instant_t();
 		instant->n_dropped = n_drop;
+		instant->leaf_redundant = old.instant
+			&& old.instant->leaf_redundant;
 		if (n_drop) {
 			instant->dropped
 				= static_cast<dict_col_t*>(
@@ -538,6 +540,12 @@ dup_dropped:
 		}
 
 		instant->non_pk_col_map = non_pk_col_map;
+		if (table.instant) {
+			DBUG_ASSERT(table.instant->leaf_redundant
+				    || !instant->leaf_redundant);
+			instant->leaf_redundant= table.instant->leaf_redundant;
+		}
+
 		ut_d(unsigned n_drop = 0);
 		for (unsigned i = u; i < index->n_fields; i++) {
 			dict_field_t* field = &index->fields[i];

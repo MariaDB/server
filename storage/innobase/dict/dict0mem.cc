@@ -1271,6 +1271,7 @@ bool dict_table_t::deserialise_columns(const byte* metadata, ulint len)
 			       num_non_pk_fields * sizeof *non_pk_col_map));
 
 	unsigned n_dropped_cols = 0;
+	bool leaf_redundant = false;
 
 	for (unsigned i = 0; i < num_non_pk_fields; i++) {
 		non_pk_col_map[i] = mach_read_from_2(metadata);
@@ -1287,8 +1288,11 @@ bool dict_table_t::deserialise_columns(const byte* metadata, ulint len)
 			if (col_ind >= n_cols) {
 				return true;
 			}
-			if ((c & 1U << 14) && !not_redundant()) {
-				return true;
+			if (c & 1U << 14) {
+				if (!not_redundant()) {
+					return true;
+				}
+				leaf_redundant = true;
 			}
 		}
 	}
@@ -1296,6 +1300,7 @@ bool dict_table_t::deserialise_columns(const byte* metadata, ulint len)
 	dict_col_t* dropped_cols = static_cast<dict_col_t*>(mem_heap_zalloc(
 		heap, n_dropped_cols * sizeof(dict_col_t)));
 	instant = new (mem_heap_alloc(heap, sizeof *instant)) dict_instant_t();
+	instant->leaf_redundant = leaf_redundant;
 	instant->n_dropped = n_dropped_cols;
 	instant->dropped = dropped_cols;
 	instant->non_pk_col_map = non_pk_col_map;
