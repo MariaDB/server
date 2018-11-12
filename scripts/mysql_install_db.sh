@@ -422,6 +422,31 @@ then
   hostname=`echo "$resolved" | awk '/ /{print $6}'`
 fi
 
+UMASK_DIR="${UMASK_DIR}"
+if [ -z $UMASK_DIR ]
+then
+  umask 0077 # analog to chown 700
+else
+  dmode=`echo "$UMASK_DIR" | sed -e 's/[^01234567]//g'`
+  octalp=`echo "$dmode"|cut -c1`
+  dmlen=`echo "$dmode"|wc -c|sed -e 's/ //g'`
+  if [ "x$octalp" != "x0" -o "x$UMASK_DIR" != "x$dmode" -o "x$dmlen" != "x5" ]
+  then
+    dmode=0077
+    echo "UMASK_DIR must be a 3-digit mode with an additional leading 0 to indicate octal." >&2
+    echo "The first digit will be corrected to 0, the others may be 0, 1,  2, 3,  4, 5, 6 or 7." >&2
+  else
+    dmode=`echo "$dmode"|cut -c3-4`
+    dmode="0$dmode"
+    if [ "x$UMASK_DIR" != "x0$dmode" ]
+    then
+      echo "UMASK_DIR corrected from $UMASK_DIR to 0$dmode ..."
+    fi
+  fi
+    umask $dmode
+fi
+printenv UMASK_DIR
+
 # Create database directories
 for dir in "$ldata" "$ldata/mysql" "$ldata/test"
 do
@@ -433,7 +458,6 @@ do
       link_to_help
       exit 1
     fi
-    chmod 700 "$dir"
   fi
   if test -n "$user"
   then
