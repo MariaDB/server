@@ -1227,6 +1227,7 @@ inline void dict_index_t::reconstruct_fields()
 		} else {
 			DBUG_ASSERT(!c.is_not_null()
 				    || !table->not_redundant());
+			DBUG_ASSERT(!c.is_not_null() || table->dual_format());
 			const auto old = std::find_if(
 				fields + n_first, fields + n_fields,
 				[c](const dict_field_t& o)
