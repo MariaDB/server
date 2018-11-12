@@ -136,7 +136,7 @@ SET (SQL_SOURCE
                opt_split.cc
 	       ${WSREP_SOURCES}
                table_cache.cc encryption.cc temporary_tables.cc
-               proxy_protocol.cc
+               proxy_protocol.cc backup.cc
                ${CMAKE_CURRENT_BINARY_DIR}/sql_builtin.cc
                ${CMAKE_CURRENT_BINARY_DIR}/sql_yacc.cc
                ${CMAKE_CURRENT_BINARY_DIR}/sql_yacc_ora.cc

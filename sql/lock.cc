@@ -861,7 +861,7 @@ bool lock_schema_name(THD *thd, const char *db)
     return TRUE;
   }
 
-  if (thd->global_read_lock.can_acquire_protection())
+  if (thd->has_read_only_protection())
     return TRUE;
   global_request.init(MDL_key::BACKUP, "", "", MDL_BACKUP_DDL, MDL_STATEMENT);
   mdl_request.init(MDL_key::SCHEMA, db, "", MDL_EXCLUSIVE, MDL_TRANSACTION);
@@ -919,7 +919,7 @@ bool lock_object_name(THD *thd, MDL_key::enum_mdl_namespace mdl_type,
   DBUG_ASSERT(name);
   DEBUG_SYNC(thd, "before_wait_locked_pname");
 
-  if (thd->global_read_lock.can_acquire_protection())
+  if (thd->has_read_only_protection())
     return TRUE;
   global_request.init(MDL_key::BACKUP, "", "", MDL_BACKUP_DDL, MDL_STATEMENT);
   schema_request.init(MDL_key::SCHEMA, db, "", MDL_INTENTION_EXCLUSIVE,
@@ -1027,6 +1027,12 @@ bool Global_read_lock::lock_global_read_lock(THD *thd)
     MDL_deadlock_and_lock_abort_error_handler mdl_deadlock_handler;
     MDL_request mdl_request;
     bool result;
+
+    if (thd->current_backup_stage != BACKUP_FINISHED)
+    {
+      my_error(ER_BACKUP_LOCK_IS_ACTIVE, MYF(0));
+      DBUG_RETURN(1);
+    }
 
     mysql_ha_cleanup_no_free(thd);
 

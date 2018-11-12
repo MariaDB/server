@@ -1823,7 +1823,7 @@ int wsrep_to_isolation_begin(THD *thd, const char *db_, const char *table_,
   DBUG_ASSERT(thd->wsrep_exec_mode == LOCAL_STATE);
   DBUG_ASSERT(thd->wsrep_trx_meta.gtid.seqno == WSREP_SEQNO_UNDEFINED);
 
-  if (thd->global_read_lock.can_acquire_protection())
+  if (thd->has_read_only_protection())
   {
     WSREP_DEBUG("Aborting TOI: Global Read-Lock (FTWRL) in place: %s %lld",
                 thd->query(), (longlong) thd->thread_id);

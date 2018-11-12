@@ -547,7 +547,7 @@ bool open_and_lock_for_insert_delayed(THD *thd, TABLE_LIST *table_list)
     If this goes ok, the tickets are cloned and added to the list of granted
     locks held by the handler thread.
   */
-  if (thd->global_read_lock.can_acquire_protection())
+  if (thd->has_read_only_protection())
     DBUG_RETURN(TRUE);
 
   protection_request.init(MDL_key::BACKUP, "", "", MDL_BACKUP_DML,

@@ -770,6 +770,7 @@ void init_update_queries(void)
   sql_command_flags[SQLCOM_CREATE_SERVER]=      CF_AUTO_COMMIT_TRANS;
   sql_command_flags[SQLCOM_ALTER_SERVER]=       CF_AUTO_COMMIT_TRANS;
   sql_command_flags[SQLCOM_DROP_SERVER]=        CF_AUTO_COMMIT_TRANS;
+  sql_command_flags[SQLCOM_BACKUP]=             CF_AUTO_COMMIT_TRANS;
 
   /*
     The following statements can deal with temporary tables,
@@ -5170,7 +5171,8 @@ end_with_restore_list:
       thd->mdl_context.release_transactional_locks();
       thd->variables.option_bits&= ~(OPTION_TABLE_LOCK);
     }
-    if (thd->global_read_lock.is_acquired())
+    if (thd->global_read_lock.is_acquired() &&
+        thd->current_backup_stage == BACKUP_FINISHED)
       thd->global_read_lock.unlock_global_read_lock(thd);
     if (res)
       goto error;
@@ -5184,6 +5186,13 @@ end_with_restore_list:
     thd->mdl_context.release_transactional_locks();
     if (res)
       goto error;
+
+    /* We can't have any kind of table locks while backup is active */
+    if (thd->current_backup_stage != BACKUP_FINISHED)
+    {
+      my_error(ER_BACKUP_LOCK_IS_ACTIVE, MYF(0));
+      goto error;
+    }
 
     /*
       Here we have to pre-open temporary tables for LOCK TABLES.
@@ -5216,6 +5225,12 @@ end_with_restore_list:
 #endif /*HAVE_QUERY_CACHE*/
       my_ok(thd);
     }
+    break;
+  case SQLCOM_BACKUP:
+    if (check_global_access(thd, RELOAD_ACL))
+      goto error;
+    if (!(res= run_backup_stage(thd, lex->backup_stage)))
+      my_ok(thd);
     break;
   case SQLCOM_CREATE_DB:
   {

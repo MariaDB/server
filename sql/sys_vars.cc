@@ -2585,13 +2585,15 @@ static Sys_var_ulong Sys_read_buff_size(
 static bool check_read_only(sys_var *self, THD *thd, set_var *var)
 {
   /* Prevent self dead-lock */
-  if (thd->locked_tables_mode || thd->in_active_multi_stmt_transaction())
+  if (thd->locked_tables_mode || thd->in_active_multi_stmt_transaction() ||
+      thd->current_backup_stage != BACKUP_FINISHED)
   {
     my_error(ER_LOCK_OR_ACTIVE_TRANSACTION, MYF(0));
     return true;
   }
   return false;
 }
+
 static bool fix_read_only(sys_var *self, THD *thd, enum_var_type type)
 {
   bool result= true;

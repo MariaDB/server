@@ -1627,7 +1627,7 @@ MDL_lock::MDL_object_lock::m_waiting_incompatible[MDL_TYPE_END]=
      Request  |               Pending backup lock                       |
       type    | S0  S1  S2  S3  S4  F1  F2   D  TD  SD   DD  BL  AC  C  |
     ----------+---------------------------------------------------------+
-    S0        |  -   -   -   -   -   +   +   +   +   +   +   +   +   +  |
+    S0        |  +   -   -   -   -   +   +   +   +   +   +   +   +   +  |
     S1        |  +   +   +   +   +   +   +   +   +   +   +   +   +   +  |
     S2        |  +   +   +   +   +   +   +   +   +   +   +   +   +   +  |
     S3        |  +   +   +   +   +   +   +   +   +   +   +   +   +   +  |
@@ -1682,7 +1682,7 @@ const MDL_lock::bitmap_t
 MDL_lock::MDL_backup_lock::m_waiting_incompatible[MDL_BACKUP_END]=
 {
   /* MDL_BACKUP_START */
-  MDL_BIT(MDL_BACKUP_START) | MDL_BIT(MDL_BACKUP_FLUSH) | MDL_BIT(MDL_BACKUP_WAIT_FLUSH) | MDL_BIT(MDL_BACKUP_WAIT_DDL) | MDL_BIT(MDL_BACKUP_WAIT_COMMIT),
+  MDL_BIT(MDL_BACKUP_FLUSH) | MDL_BIT(MDL_BACKUP_WAIT_FLUSH) | MDL_BIT(MDL_BACKUP_WAIT_DDL) | MDL_BIT(MDL_BACKUP_WAIT_COMMIT),
   0,
   0,
   0,

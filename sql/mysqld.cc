@@ -3667,6 +3667,7 @@ SHOW_VAR com_status_vars[]= {
   {"alter_user",           STMT_STATUS(SQLCOM_ALTER_USER)},
   {"analyze",              STMT_STATUS(SQLCOM_ANALYZE)},
   {"assign_to_keycache",   STMT_STATUS(SQLCOM_ASSIGN_TO_KEYCACHE)},
+  {"backup",               STMT_STATUS(SQLCOM_BACKUP)},
   {"begin",                STMT_STATUS(SQLCOM_BEGIN)},
   {"binlog",               STMT_STATUS(SQLCOM_BINLOG_BASE64_EVENT)},
   {"call_procedure",       STMT_STATUS(SQLCOM_CALL)},
@@ -4935,6 +4936,7 @@ static int init_server_components()
   my_rnd_init(&sql_rand,(ulong) server_start_time,(ulong) server_start_time/2);
   setup_fpu();
   init_thr_lock();
+  backup_init();
 
 #ifndef EMBEDDED_LIBRARY
   if (init_thr_timer(thread_scheduler->max_threads + extra_max_connections))

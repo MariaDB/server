@@ -1219,6 +1219,7 @@ void THD::init(bool skip_lock)
   first_successful_insert_id_in_prev_stmt= 0;
   first_successful_insert_id_in_prev_stmt_for_binlog= 0;
   first_successful_insert_id_in_cur_stmt= 0;
+  current_backup_stage= BACKUP_FINISHED;
 #ifdef WITH_WSREP
   wsrep_exec_mode= wsrep_applier ? REPL_RECV :  LOCAL_STATE;
   wsrep_conflict_state= NO_CONFLICT;
@@ -1487,6 +1488,7 @@ void THD::cleanup(void)
   */
   mdl_context.release_transactional_locks();
 
+  backup_end(this);
   /* Release the global read lock, if acquired. */
   if (global_read_lock.is_acquired())
     global_read_lock.unlock_global_read_lock(this);
@@ -2494,6 +2496,16 @@ void THD::update_charset()
                               &not_used);
 }
 
+void THD::give_protection_error()
+{
+  if (current_backup_stage != BACKUP_FINISHED)
+    my_error(ER_BACKUP_LOCK_IS_ACTIVE, MYF(0));
+  else
+  {
+    DBUG_ASSERT(global_read_lock.is_acquired());
+    my_error(ER_CANT_UPDATE_WITH_READLOCK, MYF(0));
+  }
+}
 
 /* routings to adding tables to list of changed in transaction tables */
 

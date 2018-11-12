@@ -3139,6 +3139,7 @@ public:
   uint profile_query_id;
   uint profile_options;
   uint grant, grant_tot_col, which_columns;
+  enum backup_stages backup_stage;
   enum Foreign_key::fk_match_opt fk_match_option;
   enum_fk_option fk_update_opt;
   enum_fk_option fk_delete_opt;

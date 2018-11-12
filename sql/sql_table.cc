@@ -7397,6 +7397,9 @@ static bool mysql_inplace_alter_table(THD *thd,
   thd->count_cuted_fields = CHECK_FIELD_WARN;
   DBUG_ENTER("mysql_inplace_alter_table");
 
+  /* Downgrade DDL lock while we are waiting for exclusive lock below */
+  backup_set_alter_copy_lock(thd, table);
+
   /*
     Upgrade to EXCLUSIVE lock if:
     - This is requested by the storage engine
@@ -7469,9 +7472,7 @@ static bool mysql_inplace_alter_table(THD *thd,
       thd->mdl_context.upgrade_shared_lock(table->mdl_ticket,
                                            MDL_SHARED_NO_WRITE,
                                            thd->variables.lock_wait_timeout))
-  {
     goto cleanup;
-  }
 
   // It's now safe to take the table level lock.
   if (lock_tables(thd, table_list, alter_ctx->tables_opened, 0))
@@ -7508,9 +7509,7 @@ static bool mysql_inplace_alter_table(THD *thd,
 
   if (table->file->ha_prepare_inplace_alter_table(altered_table,
                                                   ha_alter_info))
-  {
     goto rollback;
-  }
 
   /*
     Downgrade the lock if storage engine has told us that exclusive lock was
@@ -7550,6 +7549,10 @@ static bool mysql_inplace_alter_table(THD *thd,
 
   // Upgrade to EXCLUSIVE before commit.
   if (wait_while_table_is_used(thd, table, HA_EXTRA_PREPARE_FOR_RENAME))
+    goto rollback;
+
+  /* Set MDL_BACKUP_DDL */
+  if (backup_reset_alter_copy_lock(thd))
     goto rollback;
 
   /*
@@ -7611,7 +7614,7 @@ static bool mysql_inplace_alter_table(THD *thd,
     Rename to the new name (if needed) will be handled separately below.
 
     TODO: remove this check of thd->is_error() (now it intercept
-    errors in some val_*() methoids and bring some single place to
+    errors in some val_*() methods and bring some single place to
     such error interception).
   */
   if (mysql_rename_table(db_type, &alter_ctx->new_db, &alter_ctx->tmp_name,
@@ -9083,6 +9086,7 @@ bool mysql_alter_table(THD *thd, const LEX_CSTRING *new_db,
   uint tables_opened;
 
   thd->open_options|= HA_OPEN_FOR_ALTER;
+  thd->mdl_backup_ticket= 0;
   bool error= open_tables(thd, &table_list, &tables_opened, 0,
                           &alter_prelocking_strategy);
   thd->open_options&= ~HA_OPEN_FOR_ALTER;
@@ -10236,6 +10240,8 @@ copy_data_between_tables(THD *thd, TABLE *from, TABLE *to,
     DBUG_RETURN(-1);
   }
 
+  backup_set_alter_copy_lock(thd, from);
+
   alter_table_manage_keys(to, from->file->indexes_are_disabled(), keys_onoff);
 
   from->default_column_bitmaps();
@@ -10516,6 +10522,9 @@ copy_data_between_tables(THD *thd, TABLE *from, TABLE *to,
 
   cleanup_done= 1;
   to->file->extra(HA_EXTRA_NO_IGNORE_DUP_KEY);
+
+  if (backup_reset_alter_copy_lock(thd))
+    error= 1;
 
   if (unlikely(mysql_trans_commit_alter_copy_data(thd)))
     error= 1;

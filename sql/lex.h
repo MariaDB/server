@@ -589,6 +589,7 @@ static SYMBOL symbols[] = {
   { "SONAME",		SYM(SONAME_SYM)},
   { "SOUNDS",		SYM(SOUNDS_SYM)},
   { "SOURCE",           SYM(SOURCE_SYM)},
+  { "STAGE",            SYM(STAGE_SYM)},
   { "STORED",           SYM(STORED_SYM)},
   { "SPATIAL",		SYM(SPATIAL_SYM)},
   { "SPECIFIC",         SYM(SPECIFIC_SYM)},
