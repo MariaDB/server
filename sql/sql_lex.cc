@@ -5695,7 +5695,7 @@ bool LEX::sp_for_loop_implicit_cursor_statement(THD *thd,
     return true;
   DBUG_ASSERT(thd->lex == this);
   bounds->m_direction= 1;
-  bounds->m_upper_bound= NULL;
+  bounds->m_target_bound= NULL;
   bounds->m_implicit_cursor= true;
   return false;
 }
@@ -5739,7 +5739,7 @@ bool LEX::sp_for_loop_condition(THD *thd, const Lex_for_loop_st &loop)
   Item_splocal *args[2];
   for (uint i= 0 ; i < 2; i++)
   {
-    sp_variable *src= i == 0 ? loop.m_index : loop.m_upper_bound;
+    sp_variable *src= i == 0 ? loop.m_index : loop.m_target_bound;
     args[i]= new (thd->mem_root)
               Item_splocal(thd, &sp_rcontext_handler_local,
                            &src->name, src->offset, src->type_handler());
@@ -5800,11 +5800,11 @@ bool LEX::sp_for_loop_intrange_declarations(THD *thd, Lex_for_loop_st *loop,
                  sp_add_for_loop_variable(thd, index,
                                           bounds.m_index->get_item()))))
     return true;
-  if (unlikely(!(loop->m_upper_bound=
-                 bounds.m_upper_bound->
-                 sp_add_for_loop_upper_bound(thd,
-                                             bounds.
-                                             m_upper_bound->get_item()))))
+  if (unlikely(!(loop->m_target_bound=
+                 bounds.m_target_bound->
+                 sp_add_for_loop_target_bound(thd,
+                                              bounds.
+                                              m_target_bound->get_item()))))
      return true;
   loop->m_direction= bounds.m_direction;
   loop->m_implicit_cursor= 0;
@@ -5867,7 +5867,7 @@ bool LEX::sp_for_loop_cursor_declarations(THD *thd,
                                                        bounds.m_index,
                                                        item_func_sp)))
     return true;
-  loop->m_upper_bound= NULL;
+  loop->m_target_bound= NULL;
   loop->m_direction= bounds.m_direction;
   loop->m_cursor_offset= coffs;
   loop->m_implicit_cursor= bounds.m_implicit_cursor;

@@ -4769,16 +4769,13 @@ sp_for_loop_bounds:
           IN_SYM opt_sp_for_loop_direction for_loop_bound_expr
           DOT_DOT_SYM for_loop_bound_expr
           {
-            $$.m_direction= $2;
-            $$.m_index= $3;
-            $$.m_upper_bound= $5;
-            $$.m_implicit_cursor= false;
+            $$= Lex_for_loop_bounds_intrange($2, $3, $5);
           }
         | IN_SYM opt_sp_for_loop_direction for_loop_bound_expr
           {
             $$.m_direction= $2;
             $$.m_index= $3;
-            $$.m_upper_bound= NULL;
+            $$.m_target_bound= NULL;
             $$.m_implicit_cursor= false;
           }
         | IN_SYM opt_sp_for_loop_direction '(' sp_cursor_stmt ')'

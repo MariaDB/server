@@ -3736,9 +3736,9 @@ public:
   /* Integer range FOR LOOP methods */
   sp_variable *sp_add_for_loop_variable(THD *thd, const LEX_CSTRING *name,
                                         Item *value);
-  sp_variable *sp_add_for_loop_upper_bound(THD *thd, Item *value)
+  sp_variable *sp_add_for_loop_target_bound(THD *thd, Item *value)
   {
-    LEX_CSTRING name= { STRING_WITH_LEN("[upper_bound]") };
+    LEX_CSTRING name= { STRING_WITH_LEN("[target_bound]") };
     return sp_add_for_loop_variable(thd, &name, value);
   }
   bool sp_for_loop_intrange_declarations(THD *thd, Lex_for_loop_st *loop,
