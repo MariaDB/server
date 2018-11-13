@@ -193,10 +193,22 @@ inline void dict_table_t::init_instant(const dict_table_t& table)
 		auto& f = index.fields[i];
 		DBUG_ASSERT(dict_col_get_fixed_size(f.col, not_redundant())
 			    <= DICT_MAX_FIXED_COL_LEN);
-		ut_d(n_nullable += f.col->is_nullable());
-
+#ifdef UNIV_DEBUG
+		if (!f.col->is_nullable()) {
+			ut_ad(field_map_it->is_dropped()
+			      || !field_map_it->is_not_null());
+		} else if (field_map_it->is_dropped()
+			   || !field_map_it->is_not_null()) {
+			n_nullable++;
+		}
+#endif
 		if (!f.col->is_dropped()) {
-			(*field_map_it++).set_ind(f.col->ind);
+			DBUG_ASSERT(!field_map_it->is_dropped());
+			if (f.col->is_nullable()
+			    && !oindex.fields[i].col->is_nullable()) {
+				field_map_it->set_not_null();
+			}
+			field_map_it++->set_ind(f.col->ind);
 			continue;
 		}
 
@@ -286,9 +298,9 @@ inline void dict_table_t::prepare_instant(const dict_table_t& old,
 set_core_fields:
 		index.n_core_fields = oindex.n_core_fields;
 		index.n_core_null_bytes = oindex.n_core_null_bytes;
-		if (instant && !instant->leaf_redundant
-		    && dict_table_is_comp(this)) {
-			for (unsigned i = oindex.n_fields; i--; ) {
+		if (instant && !instant->leaf_redundant && not_redundant()) {
+			const unsigned u = index.first_user_field();
+			for (unsigned i = oindex.n_fields; --i > u; ) {
 				DBUG_ASSERT(index.fields[i].col->same_format(
 						    *oindex.fields[i].col));
 				DBUG_ASSERT(!oindex.fields[i].col
@@ -302,6 +314,9 @@ set_core_fields:
 					break;
 				}
 			}
+		}
+		if (dual_format()) {
+			init_instant(old);
 		}
 	} else {
 add_metadata:

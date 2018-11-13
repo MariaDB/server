@@ -1574,7 +1574,7 @@ public:
 	void set_ind(uint16_t i)
 	{
 		DBUG_ASSERT(i <= IND);
-		DBUG_ASSERT(!ind());
+		data &= ~IND;
 		data |= i;
 	}
 	field_map_element_t& operator= (uint16_t value)
