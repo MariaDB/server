@@ -513,3 +513,6 @@ compile_commands.json
 .editorconfig
 .kateconfig
 *.kdev4
+
+# Clion && other JetBrains ides
+.idea
