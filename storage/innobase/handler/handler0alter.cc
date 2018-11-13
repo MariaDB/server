@@ -138,6 +138,78 @@ static const alter_table_operations INNOBASE_ALTER_INSTANT
 	| ALTER_COLUMN_UNVERSIONED
 	| ALTER_DROP_VIRTUAL_COLUMN;
 
+/** Initialize instant->non_pk_col_map.
+@tparam	replace_dropped	whether to point clustered index fields
+to instant->dropped[]
+@param[in]	table	table definition to copy from */
+template<bool replace_dropped>
+inline void dict_table_t::init_instant(const dict_table_t& table)
+{
+	const dict_index_t& oindex = *table.indexes.start;
+	dict_index_t& index = *indexes.start;
+	const unsigned u = index.first_user_field();
+	DBUG_ASSERT(u == oindex.first_user_field());
+	DBUG_ASSERT(not_redundant() == table.not_redundant());
+	DBUG_ASSERT(index.n_fields >= oindex.n_fields);
+
+	uint16_t* non_pk_col_map = static_cast<uint16_t*>(
+		mem_heap_zalloc(heap, (index.n_fields - u)
+				* sizeof *non_pk_col_map));
+	instant->non_pk_col_map = non_pk_col_map;
+	if (table.instant) {
+		DBUG_ASSERT(table.instant->leaf_redundant
+			    || !instant->leaf_redundant);
+		instant->leaf_redundant= table.instant->leaf_redundant;
+	}
+
+	ut_d(unsigned n_drop = 0);
+	ut_d(unsigned n_nullable = 0);
+	for (unsigned i = u; i < index.n_fields; i++) {
+		auto& f = index.fields[i];
+		DBUG_ASSERT(dict_col_get_fixed_size(f.col, not_redundant())
+			    <= DICT_MAX_FIXED_COL_LEN);
+#ifdef UNIV_DEBUG
+		if (!f.col->is_nullable()) {
+			ut_ad((*non_pk_col_map & 3U << 15) != 1U << 14);
+		} else if ((*non_pk_col_map & 3U << 15) != 1U << 14) {
+			n_nullable++;
+		}
+#endif
+		if (!f.col->is_dropped()) {
+			auto c = *non_pk_col_map & 3U << 14;
+			DBUG_ASSERT(!(c & 1U << 15));
+			if (!c
+			    && f.col->is_nullable()
+			    && !oindex.fields[i].col->is_nullable()) {
+				c = 1U << 14;
+			}
+			*non_pk_col_map++ = c | f.col->ind;
+			continue;
+		}
+
+		auto fixed_len = dict_col_get_fixed_size(
+			f.col, not_redundant());
+		*non_pk_col_map++ = 1U << 15
+			| uint16_t(!f.col->is_nullable()) << 14
+			| (fixed_len
+			   ? uint16_t(fixed_len + 1)
+			   : f.col->len > 255);
+		ut_ad(f.col >= table.instant->dropped);
+		ut_ad(f.col < table.instant->dropped
+		      + table.instant->n_dropped);
+		ut_d(n_drop++);
+		if (replace_dropped) {
+			size_t d = f.col - table.instant->dropped;
+			ut_ad(f.col == &table.instant->dropped[d]);
+			ut_ad(d <= instant->n_dropped);
+			f.col = &instant->dropped[d];
+		}
+	}
+	ut_ad(n_drop == n_dropped());
+	ut_ad(non_pk_col_map == &instant->non_pk_col_map[index.n_fields - u]);
+	ut_ad(index.n_nullable == n_nullable);
+}
+
 /** Set is_instant() before instant_column().
 @param[in]	old		previous table definition
 @param[in]	col_map		map from old.cols[] and old.v_cols[] to this
@@ -179,8 +251,9 @@ inline void dict_table_t::prepare_instant(const dict_table_t& old,
 set_core_fields:
 		index.n_core_fields = oindex.n_core_fields;
 		index.n_core_null_bytes = oindex.n_core_null_bytes;
+		const unsigned u = index.first_user_field();
 		if (instant && !instant->leaf_redundant && not_redundant()) {
-			for (unsigned i = oindex.n_fields; i--; ) {
+			for (unsigned i = oindex.n_fields; --i > u; ) {
 				DBUG_ASSERT(index.fields[i].col->same_format(
 						    *oindex.fields[i].col));
 				DBUG_ASSERT(!oindex.fields[i].col
@@ -194,6 +267,9 @@ set_core_fields:
 					break;
 				}
 			}
+		}
+		if (dual_format()) {
+			init_instant(old);
 		}
 	} else {
 add_metadata:
@@ -342,7 +418,6 @@ found_j:
 	DBUG_ASSERT(index.n_core_fields == oindex.n_core_fields);
 	DBUG_ASSERT(index.n_core_null_bytes == oindex.n_core_null_bytes);
 }
-
 
 /** Adjust index metadata for instant ADD/DROP/reorder COLUMN.
 @param[in]	clustered index definition after instant ALTER TABLE */
@@ -517,10 +592,6 @@ inline void dict_table_t::instant_column(const dict_table_t& table,
 	index->instant_add_field(*dict_table_get_first_index(&table));
 
 	if (instant || table.instant) {
-		const unsigned u = index->first_user_field();
-		uint16_t* non_pk_col_map = static_cast<uint16_t*>(
-			mem_heap_alloc(heap, (index->n_fields - u)
-				       * sizeof *non_pk_col_map));
 		/* FIXME: add instant->heap, and transfer ownership here */
 		if (!instant) {
 			instant = new (mem_heap_zalloc(heap, sizeof *instant))
@@ -539,44 +610,7 @@ dup_dropped:
 			       * sizeof *instant->dropped);
 		}
 
-		instant->non_pk_col_map = non_pk_col_map;
-		if (table.instant) {
-			DBUG_ASSERT(table.instant->leaf_redundant
-				    || !instant->leaf_redundant);
-			instant->leaf_redundant= table.instant->leaf_redundant;
-		}
-
-		ut_d(unsigned n_drop = 0);
-		for (unsigned i = u; i < index->n_fields; i++) {
-			dict_field_t* field = &index->fields[i];
-			DBUG_ASSERT(dict_col_get_fixed_size(
-					    field->col,
-					    flags & DICT_TF_COMPACT)
-				    <= DICT_MAX_FIXED_COL_LEN);
-			if (!field->col->is_dropped()) {
-				*non_pk_col_map++ = field->col->ind;
-				continue;
-			}
-
-			ulint fixed_len = dict_col_get_fixed_size(
-				field->col, flags & DICT_TF_COMPACT);
-			*non_pk_col_map++ = 1U << 15
-				| uint16_t(!field->col->is_nullable()) << 14
-				| (fixed_len
-				   ? uint16_t(fixed_len + 1)
-				   : field->col->len > 255);
-			ut_ad(field->col >= table.instant->dropped);
-			ut_ad(field->col < table.instant->dropped
-			      + table.instant->n_dropped);
-			ut_d(n_drop++);
-			size_t d = field->col - table.instant->dropped;
-			ut_ad(field->col == &table.instant->dropped[d]);
-			ut_ad(d <= instant->n_dropped);
-			field->col = &instant->dropped[d];
-		}
-		ut_ad(n_drop == n_dropped());
-		ut_ad(non_pk_col_map
-		      == &instant->non_pk_col_map[index->n_fields - u]);
+		init_instant<true>(table);
 	}
 
 	while ((index = dict_table_get_next_index(index)) != NULL) {
