@@ -10,10 +10,10 @@ create user foo2@test identified by 'password';
 show create user foo2@test;
 CREATE USER for foo2@test
 CREATE USER 'foo2'@'test' IDENTIFIED BY PASSWORD '*2470C0C06DEE42FD1618BB99005ADCA2EC9D1E19'
-alter user foo2@test identified with 'someplugin' as 'somepassword';
+alter user foo2@test identified with 'mysql_old_password' as '0123456789ABCDEF';
 show create user foo2@test;
 CREATE USER for foo2@test
-CREATE USER 'foo2'@'test' IDENTIFIED VIA someplugin USING 'somepassword'
+CREATE USER 'foo2'@'test' IDENTIFIED BY PASSWORD '0123456789ABCDEF'
 create user foo3@test require SSL;
 show create user foo3@test;
 CREATE USER for foo3@test

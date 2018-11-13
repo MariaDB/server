@@ -70,9 +70,14 @@ extern uchar days_in_month[];
 
 #define MYSQL_TIME_WARN_TRUNCATED    1U
 #define MYSQL_TIME_WARN_OUT_OF_RANGE 2U
+#define MYSQL_TIME_WARN_EDOM         4U
+#define MYSQL_TIME_WARN_ZERO_DATE    8U
 #define MYSQL_TIME_NOTE_TRUNCATED    16U
 
-#define MYSQL_TIME_WARN_WARNINGS (MYSQL_TIME_WARN_TRUNCATED|MYSQL_TIME_WARN_OUT_OF_RANGE)
+#define MYSQL_TIME_WARN_WARNINGS (MYSQL_TIME_WARN_TRUNCATED|\
+                                  MYSQL_TIME_WARN_OUT_OF_RANGE|\
+                                  MYSQL_TIME_WARN_EDOM|\
+                                  MYSQL_TIME_WARN_ZERO_DATE)
 #define MYSQL_TIME_WARN_NOTES    (MYSQL_TIME_NOTE_TRUNCATED)
 
 #define MYSQL_TIME_WARN_HAVE_WARNINGS(x) MY_TEST((x) & MYSQL_TIME_WARN_WARNINGS)
@@ -110,6 +115,8 @@ static inline void my_time_status_init(MYSQL_TIME_STATUS *status)
 
 my_bool check_date(const MYSQL_TIME *ltime, my_bool not_zero_date,
                    ulonglong flags, int *was_cut);
+my_bool str_to_DDhhmmssff(const char *str, size_t length, MYSQL_TIME *l_time,
+                          ulong max_hour, MYSQL_TIME_STATUS *status);
 my_bool str_to_time(const char *str, size_t length, MYSQL_TIME *l_time, 
                     ulonglong flag, MYSQL_TIME_STATUS *status);
 my_bool str_to_datetime(const char *str, size_t length, MYSQL_TIME *l_time,

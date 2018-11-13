@@ -1622,13 +1622,15 @@ String *Item_func_json_array_append::val_str(String *str)
 
     if (je.value_type == JSON_VALUE_ARRAY)
     {
-      if (json_skip_level(&je))
+      int n_items;
+      if (json_skip_level_and_count(&je, &n_items))
         goto js_error;
 
       ar_end= je.s.c_str - je.sav_c_len;
       str_rest_len= js->length() - (ar_end - (const uchar *) js->ptr());
       str->q_append(js->ptr(), ar_end-(const uchar *) js->ptr());
-      str->append(", ", 2);
+      if (n_items)
+        str->append(", ", 2);
       if (append_json_value(str, args[n_arg+1], &tmp_val))
         goto return_null; /* Out of memory. */
 
@@ -2019,23 +2021,14 @@ continue_j2:
   else
   {
     const uchar *end1, *beg1, *end2, *beg2;
-    int empty_array= 0;
+    int n_items1=1, n_items2= 1;
 
     beg1= je1->value_begin;
 
     /* Merge as a single array. */
     if (je1->value_type == JSON_VALUE_ARRAY)
     {
-      int cur_level= je1->stack_p;
-      empty_array= 1;
-      while (json_scan_next(je1) == 0)
-      {
-        if (je1->stack_p < cur_level)
-          break;
-        empty_array= 0;
-      }
-
-      if (unlikely(je1->s.error))
+      if (json_skip_level_and_count(je1, &n_items1))
         return 1;
 
       end1= je1->s.c_str - je1->sav_c_len;
@@ -2054,8 +2047,7 @@ continue_j2:
         end1= je1->value_end;
     }
 
-    if (str->append((const char*) beg1, end1 - beg1) ||
-        (!empty_array && str->append(", ", 2)))
+    if (str->append((const char*) beg1, end1 - beg1))
       return 3;
 
     if (json_value_scalar(je2))
@@ -2066,15 +2058,22 @@ continue_j2:
     else
     {
       if (je2->value_type == JSON_VALUE_OBJECT)
+      {
         beg2= je2->value_begin;
+        if (json_skip_level(je2))
+          return 2;
+      }
       else
+      {
         beg2= je2->s.c_str;
-      if (json_skip_level(je2))
-        return 2;
+        if (json_skip_level_and_count(je2, &n_items2))
+          return 2;
+      }
       end2= je2->s.c_str;
     }
 
-    if (str->append((const char*) beg2, end2 - beg2))
+    if ((n_items1 && n_items2 && str->append(", ", 2)) ||
+        str->append((const char*) beg2, end2 - beg2))
       return 3;
 
     if (je2->value_type != JSON_VALUE_ARRAY &&
@@ -3057,7 +3056,7 @@ static int append_json_path(String *str, const json_path_t *p)
 String *Item_func_json_search::val_str(String *str)
 {
   String *js= args[0]->val_json(&tmp_js);
-  String *s_str= args[2]->val_str(&tmp_js);
+  String *s_str= args[2]->val_str(&tmp_path);
   json_engine_t je;
   json_path_t p, sav_path;
   uint n_arg;
@@ -3306,5 +3305,3 @@ int Arg_comparator::compare_e_json_str_basic(Item *j, Item *s)
 
   return MY_TEST(sortcmp(res1, res2, compare_collation()) == 0);
 }
-
-

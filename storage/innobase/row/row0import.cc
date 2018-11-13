@@ -1462,7 +1462,7 @@ IndexPurge::open() UNIV_NOTHROW
 	btr_pcur_open_at_index_side(
 		true, m_index, BTR_MODIFY_LEAF, &m_pcur, true, 0, &m_mtr);
 	btr_pcur_move_to_next_user_rec(&m_pcur, &m_mtr);
-	if (rec_is_metadata(btr_pcur_get_rec(&m_pcur), m_index)) {
+	if (rec_is_metadata(btr_pcur_get_rec(&m_pcur), *m_index)) {
 		ut_ad(btr_pcur_is_on_user_rec(&m_pcur));
 		/* Skip the metadata pseudo-record. */
 	} else {
@@ -2267,7 +2267,7 @@ row_import_set_sys_max_row_id(
 	if (page_rec_is_infimum(rec)) {
 		/* The table is empty. */
 		err = DB_SUCCESS;
-	} else if (rec_is_metadata(rec, index)) {
+	} else if (rec_is_metadata(rec, *index)) {
 		/* The clustered index contains the metadata record only,
 		that is, the table is empty. */
 		err = DB_SUCCESS;
@@ -3654,7 +3654,7 @@ fil_tablespace_iterate(
 	buf_block_t* block = reinterpret_cast<buf_block_t*>
 		(ut_zalloc_nokey(sizeof *block));
 	block->frame = page;
-	block->page.id.copy_from(page_id_t(0, 0));
+	block->page.id = page_id_t(0, 0);
 	block->page.io_fix = BUF_IO_NONE;
 	block->page.buf_fix_count = 1;
 	block->page.state = BUF_BLOCK_FILE_PAGE;
@@ -3672,8 +3672,7 @@ fil_tablespace_iterate(
 	}
 
 	if (err == DB_SUCCESS) {
-		block->page.id.copy_from(
-			page_id_t(callback.get_space_id(), 0));
+		block->page.id = page_id_t(callback.get_space_id(), 0);
 		block->page.size.copy_from(callback.get_page_size());
 		if (block->page.size.is_compressed()) {
 			page_zip_set_size(&block->page.zip,

@@ -12,7 +12,7 @@
 
    You should have received a copy of the GNU General Public License
    along with this program; if not, write to the Free Software
-   Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307  USA */
+   Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02111-1301 USA */
 #pragma once
 
 /* C++ standard header files */
@@ -43,7 +43,7 @@ void rdb_handle_io_error(const rocksdb::Status status,
 #if defined(__clang__)
     MY_ATTRIBUTE((optnone));
 #else
-    MY_ATTRIBUTE((optimize("O0")));
+    MY_ATTRIBUTE((noinline,noclone));
 #endif
 
 int rdb_normalize_tablename(const std::string &tablename, std::string *str)

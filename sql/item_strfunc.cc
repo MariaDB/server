@@ -603,7 +603,7 @@ String *Item_func_concat::val_str(String *str)
     goto null;
 
   if (res != str)
-    str->copy(res->ptr(), res->length(), res->charset());
+    str->copy_or_move(res->ptr(), res->length(), res->charset());
 
   for (uint i= 1 ; i < arg_count ; i++)
   {
@@ -5134,9 +5134,7 @@ bool Item_dyncol_get::get_date(THD *thd, MYSQL_TIME *ltime, date_mode_t fuzzydat
     if (signed_value || val.x.ulong_value <= LONGLONG_MAX)
     {
       longlong llval = (longlong)val.x.ulong_value;
-      bool neg = llval < 0;
-      if (int_to_datetime_with_warn(thd, neg, (ulonglong)(neg ? -llval :
-                                                llval),
+      if (int_to_datetime_with_warn(thd, Longlong_hybrid(llval, !signed_value),
                                     ltime, fuzzydate, 0 /* TODO */))
         goto null;
       return 0;

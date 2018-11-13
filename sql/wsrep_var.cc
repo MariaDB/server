@@ -580,8 +580,7 @@ static void wsrep_slave_count_change_update ()
   // wsrep_running_threads = appliers threads + 2 rollbacker threads
   wsrep_slave_count_change = (wsrep_slave_threads - wsrep_running_threads + 2);
   WSREP_DEBUG("Change on slave threads: New %lu old %lu difference %d",
-               wsrep_slave_threads, wsrep_running_threads,
-               wsrep_slave_count_change);
+      wsrep_slave_threads, wsrep_running_threads, wsrep_slave_count_change);
 }
 
 bool wsrep_slave_threads_update (sys_var *self, THD* thd, enum_var_type type)
@@ -755,54 +754,6 @@ wsrep_assign_to_mysql (SHOW_VAR* mysql, wsrep_stats_var* wsrep_var)
     break;
   }
 }
-
-#ifdef OLD_MARIADB
-int wsrep_show_status (THD *thd, SHOW_VAR *var, char *buff,
-                       enum enum_var_type scope)
-{
-  uint i, maxi= SHOW_VAR_FUNC_BUFF_SIZE / sizeof(*var) - 1;
-  SHOW_VAR *v= (SHOW_VAR *)buff;
-
-  var->type= SHOW_ARRAY;
-  var->value= buff;
-
-  for (i=0; i < array_elements(wsrep_status_vars); i++)
-    *v++= wsrep_status_vars[i];
-
-  DBUG_ASSERT(i < maxi);
-
-  if (wsrep != NULL)
-  {
-    wsrep_stats_var* stats= wsrep->stats_get(wsrep);
-    for (wsrep_stats_var *sv= stats;
-         i < maxi && sv && sv->name; i++,
-           sv++, v++)
-    {
-      v->name = thd->strdup(sv->name);
-      switch (sv->type) {
-      case WSREP_VAR_INT64:
-        v->value = (char*)thd->memdup(&sv->value._integer64, sizeof(longlong));
-        v->type  = SHOW_LONGLONG;
-        break;
-      case WSREP_VAR_STRING:
-        v->value = thd->strdup(sv->value._string);
-        v->type  = SHOW_CHAR;
-        break;
-      case WSREP_VAR_DOUBLE:
-        v->value = (char*)thd->memdup(&sv->value._double, sizeof(double));
-        v->type  = SHOW_DOUBLE;
-        break;
-      }
-    }
-    wsrep->stats_free(wsrep, stats);
-  }
-
-  my_qsort(buff, i, sizeof(*v), show_var_cmp);
-
-  v->name= 0;                                   // terminator
-  return 0;
-}
-#endif
 
 #if DYNAMIC
 // somehow this mysql status thing works only with statically allocated arrays.

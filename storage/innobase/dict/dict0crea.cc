@@ -1525,6 +1525,21 @@ dict_create_or_check_foreign_constraint_tables(void)
 
 	row_mysql_lock_data_dictionary(trx);
 
+	DBUG_EXECUTE_IF(
+		"create_and_drop_garbage",
+		err = que_eval_sql(
+			NULL,
+			"PROCEDURE CREATE_GARBAGE_TABLE_PROC () IS\n"
+			"BEGIN\n"
+			"CREATE TABLE\n"
+			"\"test/#sql-ib-garbage\"(ID CHAR);\n"
+			"CREATE UNIQUE CLUSTERED INDEX PRIMARY"
+			" ON \"test/#sql-ib-garbage\"(ID);\n"
+			"END;\n", FALSE, trx);
+		ut_ad(err == DB_SUCCESS);
+		row_drop_table_for_mysql("test/#sql-ib-garbage", trx,
+					 SQLCOM_DROP_DB, true););
+
 	/* Check which incomplete table definition to drop. */
 
 	if (sys_foreign_err == DB_CORRUPTION) {
@@ -2012,86 +2027,6 @@ dict_create_add_foreign_to_dictionary(
 	DBUG_RETURN(error);
 }
 
-/** Check whether a column is in an index by the column name
-@param[in]	col_name	column name for the column to be checked
-@param[in]	index		the index to be searched
-@return	true if this column is in the index, otherwise, false */
-static
-bool
-dict_index_has_col_by_name(
-/*=======================*/
-	const char*		col_name,
-	const dict_index_t*	index)
-{
-	for (ulint i = 0; i < index->n_fields; i++) {
-		dict_field_t*   field = dict_index_get_nth_field(index, i);
-
-		if (strcmp(field->name, col_name) == 0) {
-			return(true);
-		}
-	}
-	return(false);
-}
-
-/** Check whether the foreign constraint could be on a column that is
-part of a virtual index (index contains virtual column) in the table
-@param[in]	fk_col_name	FK column name to be checked
-@param[in]	table		the table
-@return	true if this column is indexed with other virtual columns */
-bool
-dict_foreign_has_col_in_v_index(
-	const char*		fk_col_name,
-	const dict_table_t*	table)
-{
-	/* virtual column can't be Primary Key, so start with secondary index */
-	for (dict_index_t* index = dict_table_get_next_index(
-		     dict_table_get_first_index(table));
-	     index;
-	     index = dict_table_get_next_index(index)) {
-
-		if (dict_index_has_virtual(index)) {
-			if (dict_index_has_col_by_name(fk_col_name, index)) {
-				return(true);
-			}
-		}
-	}
-
-	return(false);
-}
-
-
-/** Check whether the foreign constraint could be on a column that is
-a base column of some indexed virtual columns.
-@param[in]	col_name	column name for the column to be checked
-@param[in]	table		the table
-@return	true if this column is a base column, otherwise, false */
-bool
-dict_foreign_has_col_as_base_col(
-	const char*		col_name,
-	const dict_table_t*	table)
-{
-	/* Loop through each virtual column and check if its base column has
-	the same name as the column name being checked */
-	for (ulint i = 0; i < table->n_v_cols; i++) {
-		dict_v_col_t*	v_col = dict_table_get_nth_v_col(table, i);
-
-		/* Only check if the virtual column is indexed */
-		if (!v_col->m_col.ord_part) {
-			continue;
-		}
-
-		for (ulint j = 0; j < v_col->num_base; j++) {
-			if (strcmp(col_name, dict_table_get_col_name(
-					   table,
-					   v_col->base_col[j]->ind)) == 0) {
-				return(true);
-			}
-		}
-	}
-
-	return(false);
-}
-
 /** Check if a foreign constraint is on the given column name.
 @param[in]	col_name	column name to be searched for fk constraint
 @param[in]	table		table to which foreign key constraint belongs
@@ -2166,43 +2101,6 @@ dict_foreigns_has_s_base_col(
 	return(false);
 }
 
-/** Check if a column is in foreign constraint with CASCADE properties or
-SET NULL
-@param[in]	table		table
-@param[in]	fk_col_name	name for the column to be checked
-@return true if the column is in foreign constraint, otherwise, false */
-bool
-dict_foreigns_has_this_col(
-	const dict_table_t*	table,
-	const char*		col_name)
-{
-	dict_foreign_t*		foreign;
-	const dict_foreign_set*	local_fk_set = &table->foreign_set;
-
-	for (dict_foreign_set::const_iterator it = local_fk_set->begin();
-	     it != local_fk_set->end();
-	     ++it) {
-		foreign = *it;
-		ut_ad(foreign->id != NULL);
-		ulint	type = foreign->type;
-
-		type &= ~(DICT_FOREIGN_ON_DELETE_NO_ACTION
-			  | DICT_FOREIGN_ON_UPDATE_NO_ACTION);
-
-		if (type == 0) {
-			continue;
-		}
-
-		for (ulint i = 0; i < foreign->n_fields; i++) {
-			if (strcmp(foreign->foreign_col_names[i],
-				   col_name) == 0) {
-				return(true);
-			}
-		}
-	}
-	return(false);
-}
-
 /** Adds the given set of foreign key objects to the dictionary tables
 in the database. This function does not modify the dictionary cache. The
 caller must ensure that all foreign key objects contain a valid constraint
@@ -2233,6 +2131,8 @@ dict_create_add_foreigns_to_dictionary(
 		return(DB_ERROR);
 	}
 
+	error = DB_SUCCESS;
+
 	for (dict_foreign_set::const_iterator it = local_fk_set.begin();
 	     it != local_fk_set.end();
 	     ++it) {
@@ -2244,21 +2144,11 @@ dict_create_add_foreigns_to_dictionary(
 			table->name.m_name, foreign, trx);
 
 		if (error != DB_SUCCESS) {
-
-			return(error);
+			break;
 		}
 	}
 
-	trx->op_info = "committing foreign key definitions";
-
-	if (trx_is_started(trx)) {
-
-		trx_commit(trx);
-	}
-
-	trx->op_info = "";
-
-	return(DB_SUCCESS);
+	return error;
 }
 
 /****************************************************************//**

@@ -140,10 +140,11 @@ row_undo_ins_remove_clust_rec(
 		break;
 	case DICT_COLUMNS_ID:
 		/* This is rolling back an INSERT into SYS_COLUMNS.
-		If it was part of an instant ADD COLUMN operation, we
-		must modify the table definition. At this point, any
-		corresponding operation to the metadata record will have
-		been rolled back. */
+		If it was part of an instant ALTER TABLE operation, we
+		must evict the table definition, so that it can be
+		reloaded after the dictionary operation has been
+		completed. At this point, any corresponding operation
+		to the metadata record will have been rolled back. */
 		ut_ad(!online);
 		ut_ad(node->trx->dict_operation_lock_mode == RW_X_LATCH);
 		ut_ad(node->rec_type == TRX_UNDO_INSERT_REC);
@@ -158,33 +159,7 @@ row_undo_ins_remove_clust_rec(
 		if (len != 8) {
 			break;
 		}
-		const table_id_t table_id = mach_read_from_8(data);
-		data = rec_get_nth_field_old(rec, DICT_FLD__SYS_COLUMNS__POS,
-					     &len);
-		if (len != 4) {
-			break;
-		}
-		const unsigned pos = mach_read_from_4(data);
-		if (pos == 0 || pos >= (1U << 16)) {
-			break;
-		}
-		dict_table_t* table = dict_table_open_on_id(
-			table_id, true, DICT_TABLE_OP_OPEN_ONLY_IF_CACHED);
-		if (!table) {
-			break;
-		}
-
-		dict_index_t* index = dict_table_get_first_index(table);
-
-		if (index && index->is_instant()
-		    && DATA_N_SYS_COLS + 1 + pos == table->n_cols) {
-			/* This is the rollback of an instant ADD COLUMN.
-			Remove the column from the dictionary cache,
-			but keep the system columns. */
-			table->rollback_instant(pos);
-		}
-
-		dict_table_close(table, true, false);
+		node->trx->evict_table(mach_read_from_8(data));
 	}
 
 	if (btr_cur_optimistic_delete(btr_cur, 0, &mtr)) {

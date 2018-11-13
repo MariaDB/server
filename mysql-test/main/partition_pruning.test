@@ -1535,4 +1535,35 @@ select * from t1 where (a = 1 AND b < 'd' AND (c = 'b' OR (c = 'c' AND d = 1)) O
                        (a = 1 AND b >= 'a' AND (c = 'c' OR (c = 'd' AND d = 2))));
 drop table t1;
 
+--echo #
+--echo # MDEV-17493: Partition pruning doesn't work for nested outer joins
+--echo #
+
+create table t0(a int);
+insert into t0 values (0),(1),(2),(3),(4),(5),(6),(7),(8),(9);
+create table t1 (a int, b int, c int);
+insert into t1 select a,a,a from t0;
+create table t2 (a int, b int, c int);
+insert into t2 select a,a,a from t0;
+ 
+create table t3 (
+  part_id int,
+  a int
+) partition by list (part_id) (
+  partition p0 values in (0),
+  partition p1 values in (1),
+  partition p2 values in (2),
+  partition p3 values in (3),
+  partition p4 values in (4)
+);
+insert into t3 select mod(a,5), a from t0;
+
+explain partitions
+select * from t1 left join t3 on (t1.a=t3.a and t3.part_id=3);
+
+--echo # The following should have partitions="p3", NOT p0,p1,p2,p3,p4:
+explain partitions
+select * from t1 left join (t3 join t2) on (t1.a=t3.a and t3.a=t2.b and t3.part_id=3);
+
+drop table t0,t1,t2,t3;
 

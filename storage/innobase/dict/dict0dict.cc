@@ -1,6 +1,6 @@
 /*****************************************************************************
 
-Copyright (c) 1996, 2018, Oracle and/or its affiliates. All Rights Reserved.
+Copyright (c) 1996, 2016, Oracle and/or its affiliates. All Rights Reserved.
 Copyright (c) 2012, Facebook Inc.
 Copyright (c) 2013, 2018, MariaDB Corporation.
 
@@ -611,7 +611,7 @@ dict_table_has_column(
 }
 
 /** Retrieve the column name.
-@param[in]	table	table name */
+@param[in]	table	the table of this column */
 const char* dict_col_t::name(const dict_table_t& table) const
 {
 	ut_ad(table.magic_n == DICT_TABLE_MAGIC_N);
@@ -1435,7 +1435,7 @@ dict_make_room_in_cache(
 					ut_ad(0);
 				  }
 			};);
-			dict_table_remove_from_cache_low(table, TRUE);
+			dict_table_remove_from_cache(table, true);
 
 			++n_evicted;
 		}
@@ -1969,14 +1969,11 @@ dict_table_change_id_in_cache(
 		    ut_fold_ull(table->id), table);
 }
 
-/**********************************************************************//**
-Removes a table object from the dictionary cache. */
-void
-dict_table_remove_from_cache_low(
-/*=============================*/
-	dict_table_t*	table,		/*!< in, own: table */
-	ibool		lru_evict)	/*!< in: TRUE if table being evicted
-					to make room in the table LRU list */
+/** Evict a table definition from the InnoDB data dictionary cache.
+@param[in,out]	table	cached table definition to be evicted
+@param[in]	lru	whether this is part of least-recently-used eviction
+@param[in]	keep	whether to keep (not free) the object */
+void dict_table_remove_from_cache(dict_table_t* table, bool lru, bool keep)
 {
 	dict_foreign_t*	foreign;
 	dict_index_t*	index;
@@ -2009,7 +2006,7 @@ dict_table_remove_from_cache_low(
 	     index != NULL;
 	     index = UT_LIST_GET_LAST(table->indexes)) {
 
-		dict_index_remove_from_cache_low(table, index, lru_evict);
+		dict_index_remove_from_cache_low(table, index, lru);
 	}
 
 	/* Remove table from the hash tables of tables */
@@ -2031,7 +2028,7 @@ dict_table_remove_from_cache_low(
 
 	ut_ad(dict_lru_validate());
 
-	if (lru_evict && table->drop_aborted) {
+	if (lru && table->drop_aborted) {
 		/* When evicting the table definition,
 		drop the orphan indexes from the data dictionary
 		and free the index pages. */
@@ -2056,17 +2053,9 @@ dict_table_remove_from_cache_low(
 		UT_DELETE(table->vc_templ);
 	}
 
-	dict_mem_table_free(table);
-}
-
-/**********************************************************************//**
-Removes a table object from the dictionary cache. */
-void
-dict_table_remove_from_cache(
-/*=========================*/
-	dict_table_t*	table)	/*!< in, own: table */
-{
-	dict_table_remove_from_cache_low(table, FALSE);
+	if (!keep) {
+		dict_mem_table_free(table);
+	}
 }
 
 /****************************************************************//**
@@ -3276,8 +3265,6 @@ dict_foreign_find_index(
 
 	while (index != NULL) {
 		if (types_idx != index
-		    && !(index->type & DICT_FTS)
-		    && !dict_index_is_spatial(index)
 		    && !index->to_be_dropped
 		    && !dict_index_is_online_ddl(index)
 		    && dict_foreign_qualify_index(
@@ -6768,6 +6755,10 @@ dict_foreign_qualify_index(
 {
 	if (dict_index_get_n_fields(index) < n_cols) {
 		return(false);
+	}
+
+	if (index->type & (DICT_SPATIAL | DICT_FTS)) {
+		return false;
 	}
 
 	for (ulint i = 0; i < n_cols; i++) {

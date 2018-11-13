@@ -35,16 +35,6 @@
 #include "sp_cache.h"                     // sp_invalidate_cache
 #include <mysys_err.h>
 
-LEX_CSTRING *make_lex_string(LEX_CSTRING *lex_str,
-                             const char* str, size_t length,
-                             MEM_ROOT *mem_root)
-{
-  if (!(lex_str->str= strmake_root(mem_root, str, length)))
-    return 0;
-  lex_str->length= length;
-  return lex_str;
-}
-
 /*************************************************************************/
 
 /**
@@ -515,7 +505,10 @@ bool mysql_create_or_drop_trigger(THD *thd, TABLE_LIST *tables, bool create)
     if (err_status)
       goto end;
   }
+
+#ifdef WITH_WSREP
   WSREP_TO_ISOLATION_BEGIN(WSREP_MYSQL_DB, NULL, NULL);
+#endif
 
   /* We should have only one table in table list. */
   DBUG_ASSERT(tables->next_global == 0);
@@ -543,7 +536,7 @@ bool mysql_create_or_drop_trigger(THD *thd, TABLE_LIST *tables, bool create)
     /* Under LOCK TABLES we must only accept write locked tables. */
     if (!(tables->table= find_table_for_mdl_upgrade(thd, tables->db.str,
                                                     tables->table_name.str,
-                                                    FALSE)))
+                                                    NULL)))
       goto end;
   }
   else
@@ -619,9 +612,9 @@ end:
 
   DBUG_RETURN(result);
 #ifdef WITH_WSREP
- error:
+wsrep_error_label:
   DBUG_RETURN(true);
-#endif /* WITH_WSREP */
+#endif
 }
 
 
@@ -1499,8 +1492,8 @@ bool Table_triggers_list::check_n_load(THD *thd, const LEX_CSTRING *db,
 
           if (likely((name= error_handler.get_trigger_name())))
           {
-            if (unlikely(!(make_lex_string(&trigger->name, name->str,
-                                           name->length, &table->mem_root))))
+            trigger->name= safe_lexcstrdup_root(&table->mem_root, *name);
+            if (unlikely(!trigger->name.str))
               goto err_with_lex_cleanup;
           }
           trigger->definer= ((!trg_definer || !trg_definer->length) ?

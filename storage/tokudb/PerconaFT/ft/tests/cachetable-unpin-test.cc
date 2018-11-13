@@ -102,7 +102,6 @@ unpin_and_evictor_test(enum unpin_evictor_test_type test_type) {
     evictor_test_helpers::disable_ev_thread(&ct->ev);
 
     void* value2;
-    long size2;
     CACHETABLE_WRITE_CALLBACK wc = def_write_callback(NULL);
     // this should put in the cachetable a pair of size 8
     r = toku_cachetable_get_and_pin(
@@ -110,7 +109,6 @@ unpin_and_evictor_test(enum unpin_evictor_test_type test_type) {
         make_blocknum(1),
         1,
         &value2,
-        &size2,
         wc, 
         def_fetch,
         def_pf_req_callback,

@@ -41,7 +41,7 @@ Created 1/20/1994 Heikki Tuuri
 
 #define INNODB_VERSION_MAJOR	5
 #define INNODB_VERSION_MINOR	7
-#define INNODB_VERSION_BUGFIX	23
+#define INNODB_VERSION_BUGFIX	24
 
 /* The following is the InnoDB version as shown in
 SELECT plugin_version FROM information_schema.plugins;
@@ -104,7 +104,6 @@ support cross-platform development and expose comonly used SQL names. */
 #endif
 
 #include <stdint.h>
-#define __STDC_FORMAT_MACROS    /* Enable C99 printf format macros */
 #include <inttypes.h>
 #ifdef HAVE_UNISTD_H
 #include <unistd.h>

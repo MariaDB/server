@@ -136,10 +136,6 @@ connection master;
 connection slave;
 use b48297_db1;
 include/diff_tables.inc [master:b48297_db1.t1, slave:b48297_db1.t1]
-Warnings:
-Warning	1287	'<select expression> INTO <destination>;' is deprecated and will be removed in a future release. Please use 'SELECT <select list> INTO <destination> FROM...' instead
-Warnings:
-Warning	1287	'<select expression> INTO <destination>;' is deprecated and will be removed in a future release. Please use 'SELECT <select list> INTO <destination> FROM...' instead
 connection master;
 DROP DATABASE b48297_db1;
 DROP DATABASE b42897_db2;

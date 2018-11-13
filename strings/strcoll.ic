@@ -15,9 +15,16 @@
    Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA  02110-1301  USA
 */
 
-
 #ifndef MY_FUNCTION_NAME
 #error MY_FUNCTION_NAME is not defined
+#endif
+
+/*
+  Define strnncoll() and strnncollsp() by default,
+  unless "#define DEFINE_STRNNCOLL 0" is specified.
+*/
+#ifndef DEFINE_STRNNCOLL
+#define DEFINE_STRNNCOLL 1
 #endif
 
 
@@ -53,6 +60,8 @@
 #define WEIGHT_ILSEQ(x)   (0xFF00 + (x))
 #endif
 
+
+#if DEFINE_STRNNCOLL
 
 /**
   Scan a valid character, or a bad byte, or an auto-padded space
@@ -278,6 +287,8 @@ MY_FUNCTION_NAME(strnncollsp)(CHARSET_INFO *cs __attribute__((unused)),
 }
 #endif
 
+#endif /* DEFINE_STRNNCOLL */
+
 
 #ifdef DEFINE_STRNXFRM
 #ifndef WEIGHT_MB2_FRM
@@ -322,11 +333,261 @@ MY_FUNCTION_NAME(strnxfrm)(CHARSET_INFO *cs,
 #endif /* DEFINE_STRNXFRM */
 
 
+#if defined(DEFINE_STRNXFRM_UNICODE) || defined(DEFINE_STRNXFRM_UNICODE_NOPAD)
+
+/*
+  Store sorting weights using 2 bytes per character.
+
+  This function is shared between
+  - utf8mb3_general_ci, utf8_bin, ucs2_general_ci, ucs2_bin
+    which support BMP only (U+0000..U+FFFF).
+  - utf8mb4_general_ci, utf16_general_ci, utf32_general_ci,
+    which map all supplementary characters to weight 0xFFFD.
+*/
+
+#ifndef MY_MB_WC
+#error MY_MB_WC must be defined for DEFINE_STRNXFRM_UNICODE
+#endif
+
+#ifndef OPTIMIZE_ASCII
+#error OPTIMIZE_ASCII must be defined for DEFINE_STRNXFRM_UNICODE
+#endif
+
+#ifndef UNICASE_MAXCHAR
+#error UNICASE_MAXCHAR must be defined for DEFINE_STRNXFRM_UNICODE
+#endif
+
+#ifndef UNICASE_PAGE0
+#error UNICASE_PAGE0 must be defined for DEFINE_STRNXFRM_UNICODE
+#endif
+
+#ifndef UNICASE_PAGES
+#error UNICASE_PAGES must be defined for DEFINE_STRNXFRM_UNICODE
+#endif
+
+
+static size_t
+MY_FUNCTION_NAME(strnxfrm_internal)(CHARSET_INFO *cs,
+                                    uchar *dst, uchar *de,
+                                    uint *nweights,
+                                    const uchar *src, const uchar *se)
+{
+  my_wc_t UNINIT_VAR(wc);
+  uchar *dst0= dst;
+
+  DBUG_ASSERT(src || !se);
+  DBUG_ASSERT((cs->state & MY_CS_LOWER_SORT) == 0);
+  DBUG_ASSERT(0x7F <= UNICASE_MAXCHAR);
+
+  for (; dst < de && *nweights; (*nweights)--)
+  {
+    int res;
+#if OPTIMIZE_ASCII
+    if (src >= se)
+      break;
+    if (src[0] <= 0x7F)
+    {
+      wc= UNICASE_PAGE0[*src++].sort;
+      PUT_WC_BE2_HAVE_1BYTE(dst, de, wc);
+      continue;
+    }
+#endif
+    if ((res= MY_MB_WC(cs, &wc, src, se)) <= 0)
+      break;
+    src+= res;
+    if (wc <= UNICASE_MAXCHAR)
+    {
+      MY_UNICASE_CHARACTER *page;
+      if ((page= UNICASE_PAGES[wc >> 8]))
+        wc= page[wc & 0xFF].sort;
+    }
+    else
+      wc= MY_CS_REPLACEMENT_CHARACTER;
+    PUT_WC_BE2_HAVE_1BYTE(dst, de, wc);
+  }
+  return dst - dst0;
+}
+
+
+static size_t
+MY_FUNCTION_NAME(strnxfrm)(CHARSET_INFO *cs,
+                           uchar *dst, size_t dstlen, uint nweights,
+                           const uchar *src, size_t srclen, uint flags)
+{
+  uchar *dst0= dst;
+  uchar *de= dst + dstlen;
+  dst+= MY_FUNCTION_NAME(strnxfrm_internal)(cs, dst, de, &nweights,
+                                            src, src + srclen);
+  DBUG_ASSERT(dst <= de); /* Safety */
+
+  if (dst < de && nweights && (flags & MY_STRXFRM_PAD_WITH_SPACE))
+    dst+= my_strxfrm_pad_nweights_unicode(dst, de, nweights);
+
+  my_strxfrm_desc_and_reverse(dst0, dst, flags, 0);
+
+  if ((flags & MY_STRXFRM_PAD_TO_MAXLEN) && dst < de)
+    dst+= my_strxfrm_pad_unicode(dst, de);
+  return dst - dst0;
+}
+
+
+#ifdef DEFINE_STRNXFRM_UNICODE_NOPAD
+static size_t
+MY_FUNCTION_NAME(strnxfrm_nopad)(CHARSET_INFO *cs,
+                                 uchar *dst, size_t dstlen,
+                                 uint nweights,
+                                 const uchar *src, size_t srclen, uint flags)
+{
+  uchar *dst0= dst;
+  uchar *de= dst + dstlen;
+  dst+= MY_FUNCTION_NAME(strnxfrm_internal)(cs, dst, de, &nweights,
+                                            src, src + srclen);
+  DBUG_ASSERT(dst <= de); /* Safety */
+
+  if (dst < de && nweights && (flags & MY_STRXFRM_PAD_WITH_SPACE))
+  {
+    size_t len= de - dst;
+    set_if_smaller(len, nweights * 2);
+    memset(dst, 0x00, len);
+    dst+= len;
+  }
+
+  my_strxfrm_desc_and_reverse(dst0, dst, flags, 0);
+
+  if ((flags & MY_STRXFRM_PAD_TO_MAXLEN) && dst < de)
+  {
+    memset(dst, 0x00, de - dst);
+    dst= de;
+  }
+  return dst - dst0;
+}
+#endif
+
+#endif /* DEFINE_STRNXFRM_UNICODE || DEFINE_STRNXFRM_UNICODE_NOPAD */
+
+
+
+#ifdef DEFINE_STRNXFRM_UNICODE_BIN2
+
+/*
+  Store sorting weights using 2 bytes per character.
+
+  These functions are shared between
+  - utf8mb3_general_ci, utf8_bin, ucs2_general_ci, ucs2_bin
+    which support BMP only (U+0000..U+FFFF).
+  - utf8mb4_general_ci, utf16_general_ci, utf32_general_ci,
+    which map all supplementary characters to weight 0xFFFD.
+*/
+
+#ifndef MY_MB_WC
+#error MY_MB_WC must be defined for DEFINE_STRNXFRM_UNICODE_BIN2
+#endif
+
+#ifndef OPTIMIZE_ASCII
+#error OPTIMIZE_ASCII must be defined for DEFINE_STRNXFRM_UNICODE_BIN2
+#endif
+
+
+static size_t
+MY_FUNCTION_NAME(strnxfrm_internal)(CHARSET_INFO *cs,
+                                    uchar *dst, uchar *de,
+                                    uint *nweights,
+                                    const uchar *src,
+                                    const uchar *se)
+{
+  my_wc_t UNINIT_VAR(wc);
+  uchar *dst0= dst;
+
+  DBUG_ASSERT(src || !se);
+
+  for (; dst < de && *nweights; (*nweights)--)
+  {
+    int res;
+#if OPTIMIZE_ASCII
+    if (src >= se)
+      break;
+    if (src[0] <= 0x7F)
+    {
+      wc= *src++;
+      PUT_WC_BE2_HAVE_1BYTE(dst, de, wc);
+      continue;
+    }
+#endif
+    if ((res= MY_MB_WC(cs, &wc, src, se)) <= 0)
+      break;
+    src+= res;
+    if (wc > 0xFFFF)
+      wc= MY_CS_REPLACEMENT_CHARACTER;
+    PUT_WC_BE2_HAVE_1BYTE(dst, de, wc);
+  }
+  return dst - dst0;
+}
+
+
+static size_t
+MY_FUNCTION_NAME(strnxfrm)(CHARSET_INFO *cs,
+                           uchar *dst, size_t dstlen, uint nweights,
+                           const uchar *src, size_t srclen, uint flags)
+{
+  uchar *dst0= dst;
+  uchar *de= dst + dstlen;
+  dst+= MY_FUNCTION_NAME(strnxfrm_internal)(cs, dst, de, &nweights,
+                                            src, src + srclen);
+  DBUG_ASSERT(dst <= de); /* Safety */
+
+  if (dst < de && nweights && (flags & MY_STRXFRM_PAD_WITH_SPACE))
+    dst+= my_strxfrm_pad_nweights_unicode(dst, de, nweights);
+
+  my_strxfrm_desc_and_reverse(dst0, dst, flags, 0);
+
+  if ((flags & MY_STRXFRM_PAD_TO_MAXLEN) && dst < de)
+    dst+= my_strxfrm_pad_unicode(dst, de);
+  return dst - dst0;
+}
+
+
+static size_t
+MY_FUNCTION_NAME(strnxfrm_nopad)(CHARSET_INFO *cs,
+                                 uchar *dst, size_t dstlen, uint nweights,
+                                 const uchar *src, size_t srclen, uint flags)
+{
+  uchar *dst0= dst;
+  uchar *de= dst + dstlen;
+  dst+= MY_FUNCTION_NAME(strnxfrm_internal)(cs, dst, de, &nweights,
+                                            src, src + srclen);
+  DBUG_ASSERT(dst <= de); /* Safety */
+
+  if (dst < de && nweights && (flags & MY_STRXFRM_PAD_WITH_SPACE))
+  {
+    size_t len= de - dst;
+    set_if_smaller(len, nweights * 2);
+    memset(dst, 0x00, len);
+    dst+= len;
+  }
+
+  my_strxfrm_desc_and_reverse(dst0, dst, flags, 0);
+
+  if ((flags & MY_STRXFRM_PAD_TO_MAXLEN) && dst < de)
+  {
+    memset(dst, 0x00, de - dst);
+    dst= de;
+  }
+  return dst - dst0;
+}
+
+#endif /* DEFINE_STRNXFRM_UNICODE_BIN2 */
+
+
 /*
   We usually include this file at least two times from the same source file,
   for the _ci and the _bin collations. Prepare for the second inclusion.
 */
 #undef MY_FUNCTION_NAME
+#undef MY_MB_WC
+#undef OPTIMIZE_ASCII
+#undef UNICASE_MAXCHAR
+#undef UNICASE_PAGE0
+#undef UNICASE_PAGES
 #undef WEIGHT_ILSEQ
 #undef WEIGHT_MB1
 #undef WEIGHT_MB2
@@ -335,4 +596,8 @@ MY_FUNCTION_NAME(strnxfrm)(CHARSET_INFO *cs,
 #undef WEIGHT_PAD_SPACE
 #undef WEIGHT_MB2_FRM
 #undef DEFINE_STRNXFRM
+#undef DEFINE_STRNXFRM_UNICODE
+#undef DEFINE_STRNXFRM_UNICODE_NOPAD
+#undef DEFINE_STRNXFRM_UNICODE_BIN2
+#undef DEFINE_STRNNCOLL
 #undef DEFINE_STRNNCOLLSP_NOPAD

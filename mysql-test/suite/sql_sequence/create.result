@@ -644,3 +644,12 @@ TABLE_ID	NAME	FLAG	N_COLS	SPACE	ROW_FORMAT	ZIP_PAGE_SIZE	SPACE_TYPE
 DROP SEQUENCE seq1;
 CREATE TEMPORARY SEQUENCE seq1 ENGINE=InnoDB ROW_FORMAT=REDUNDANT;
 DROP TEMPORARY SEQUENCE seq1;
+#
+# MDEV-17503 CREATE SEQUENCE failed with innodb_force_primary_key =1
+#
+set global innodb_force_primary_key =1;
+CREATE SEQUENCE s1 START WITH 100 INCREMENT BY 10 ENGINE=innodb;
+set global innodb_force_primary_key=default;
+ALTER TABLE s1 ADD PRIMARY KEY (next_not_cached_value);
+ERROR HY000: Sequence 'test.s1' table structure is invalid (Sequence tables cannot have any keys)
+DROP SEQUENCE s1;

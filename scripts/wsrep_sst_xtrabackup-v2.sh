@@ -890,7 +890,31 @@ fi
 get_stream
 get_transfer
 
-INNOAPPLY="${INNOBACKUPEX_BIN} $disver $iapts --apply-log \$rebuildcmd \${DATA} ${INNOAPPLY}"
+INNODB_DATA_HOME_DIR=${INNODB_DATA_HOME_DIR:-""}
+# Try to set INNODB_DATA_HOME_DIR from the command line:
+if [ ! -z "$INNODB_DATA_HOME_DIR_ARG" ]; then
+    INNODB_DATA_HOME_DIR=$INNODB_DATA_HOME_DIR_ARG
+fi
+# if INNODB_DATA_HOME_DIR env. variable is not set, try to get it from my.cnf
+if [ -z "$INNODB_DATA_HOME_DIR" ]; then
+    INNODB_DATA_HOME_DIR=$(parse_cnf mysqld$WSREP_SST_OPT_SUFFIX_VALUE innodb-data-home-dir '')
+fi
+if [ -z "$INNODB_DATA_HOME_DIR" ]; then
+    INNODB_DATA_HOME_DIR=$(parse_cnf --mysqld innodb-data-home-dir "")
+fi
+if [ ! -z "$INNODB_DATA_HOME_DIR" ]; then
+   INNOEXTRA+=" --innodb-data-home-dir=$INNODB_DATA_HOME_DIR"
+fi
+
+if [ -n "$INNODB_DATA_HOME_DIR" ]; then
+    # handle both relative and absolute paths
+    INNODB_DATA_HOME_DIR=$(cd $DATA; mkdir -p "$INNODB_DATA_HOME_DIR"; cd $INNODB_DATA_HOME_DIR; pwd -P)
+else
+    # default to datadir
+    INNODB_DATA_HOME_DIR=$(cd $DATA; pwd -P)
+fi
+
+INNOAPPLY="${INNOBACKUPEX_BIN} $disver $iapts \$INNOEXTRA --apply-log \$rebuildcmd \${DATA} ${INNOAPPLY}"
 INNOMOVE="${INNOBACKUPEX_BIN} ${WSREP_SST_OPT_CONF} $disver $impts  --move-back --force-non-empty-directories \${DATA} ${INNOMOVE}"
 INNOBACKUP="${INNOBACKUPEX_BIN} ${WSREP_SST_OPT_CONF} $disver $iopts \$tmpopts \$INNOEXTRA --galera-info --stream=\$sfmt \$itmpdir ${INNOBACKUP}"
 
@@ -1026,7 +1050,7 @@ then
     [[ -e $SST_PROGRESS_FILE ]] && wsrep_log_info "Stale sst_in_progress file: $SST_PROGRESS_FILE"
     [[ -n $SST_PROGRESS_FILE ]] && touch $SST_PROGRESS_FILE
 
-    ib_home_dir=$(parse_cnf --mysqld innodb-data-home-dir "")
+    ib_home_dir=$INNODB_DATA_HOME_DIR
     ib_log_dir=$(parse_cnf --mysqld innodb-log-group-home-dir "")
     ib_undo_dir=$(parse_cnf --mysqld innodb-undo-directory "")
 

@@ -24,6 +24,7 @@ select_for_update_skip_locked_nowait: MDEV-11481
 create_no_primary_key_table: MariaDB doesn't have --block_create_no_primary_key
 explicit_snapshot: MariaDB doesn't support Shared/Explicit snapshots
 percona_nonflushing_analyze_debug : Requires Percona Server's Non-flushing ANALYZE feature
+com_rpc_tx : Requires connection attributes and detached sessions
 
 ##
 ##  Tests that do not fit MariaDB's test environment. Upstream seems to test

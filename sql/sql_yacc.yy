@@ -817,10 +817,10 @@ bool my_yyoverflow(short **a, YYSTYPE **b, size_t *yystacksize);
 %parse-param { THD *thd }
 %lex-param { THD *thd }
 /*
-  Currently there are 58 shift/reduce conflicts.
+  Currently there are 52 shift/reduce conflicts.
   We should not introduce new conflicts any more.
 */
-%expect 58
+%expect 52
 
 /*
    Comments for TOKENS.
@@ -1582,6 +1582,16 @@ bool my_yyoverflow(short **a, YYSTYPE **b, size_t *yystacksize);
 %left   JOIN_SYM INNER_SYM STRAIGHT_JOIN CROSS LEFT RIGHT
 /* A dummy token to force the priority of table_ref production in a join. */
 %left   TABLE_REF_PRIORITY
+
+/*
+  Give ESCAPE (in LIKE) a very low precedence.
+  This allows the concatenation operator || to be used on the right
+  side of "LIKE" with sql_mode=PIPES_AS_CONCAT (without ORACLE):
+    SELECT 'ab' LIKE 'a'||'b'||'c';
+*/
+%left   PREC_BELOW_ESCAPE
+%left   ESCAPE_SYM
+
 %left   SET_VAR
 %left   OR_SYM OR2_SYM
 %left   XOR
@@ -1591,7 +1601,7 @@ bool my_yyoverflow(short **a, YYSTYPE **b, size_t *yystacksize);
 %left   NOT_SYM
 
 %left   BETWEEN_SYM CASE_SYM WHEN_SYM THEN_SYM ELSE
-%left   '=' EQUAL_SYM GE '>' LE '<' NE IS LIKE REGEXP IN_SYM
+%left   '=' EQUAL_SYM GE '>' LE '<' NE IS LIKE SOUNDS_SYM REGEXP IN_SYM
 %left   '|'
 %left   '&'
 %left   SHIFT_LEFT SHIFT_RIGHT
@@ -1622,6 +1632,10 @@ bool my_yyoverflow(short **a, YYSTYPE **b, size_t *yystacksize);
   - SYSTEM: identifier, system versioning:
       SELECT system FROM t1;
       ALTER TABLE DROP SYSTEM VERSIONIONG;
+
+  - USER: identifier, user:
+      SELECT user FROM t1;
+      KILL USER foo;
 
    Note, we need here only tokens that cause shirt/reduce conflicts
    with keyword identifiers. For example:
@@ -1661,7 +1675,7 @@ bool my_yyoverflow(short **a, YYSTYPE **b, size_t *yystacksize);
    and until NEXT_SYM / PREVIOUS_SYM.
 */
 %left   PREC_BELOW_IDENTIFIER_OPT_SPECIAL_CASE
-%left   TRANSACTION_SYM TIMESTAMP PERIOD_SYM SYSTEM
+%left   TRANSACTION_SYM TIMESTAMP PERIOD_SYM SYSTEM USER
 
 
 /*
@@ -1747,7 +1761,8 @@ bool my_yyoverflow(short **a, YYSTYPE **b, size_t *yystacksize);
         optionally_qualified_column_ident
 
 %type <simple_string>
-        remember_name remember_end remember_tok_start
+        remember_name remember_end
+        remember_tok_start remember_tok_end
         wild_and_where
 
 %type <const_simple_string>
@@ -2875,8 +2890,8 @@ create:
           {
             Lex->pop_select(); //main select
           }
-        | create_or_replace USER_SYM opt_if_not_exists clear_privileges grant_list
-          opt_require_clause opt_resource_options
+        | create_or_replace USER_SYM opt_if_not_exists clear_privileges
+          grant_list opt_require_clause opt_resource_options
           {
             if (unlikely(Lex->set_command_with_check(SQLCOM_CREATE_USER,
                                                      $1 | $3)))
@@ -9426,6 +9441,12 @@ remember_tok_start:
           }
         ;
 
+remember_tok_end:
+          {
+            $$= (char*) YYLIP->get_tok_end();
+          }
+        ;
+
 remember_name:
           {
             $$= (char*) YYLIP->get_cpp_tok_start();
@@ -9714,14 +9735,14 @@ predicate:
             if (unlikely($$ == NULL))
               MYSQL_YYABORT;
           }
-        | bit_expr LIKE mysql_concatenation_expr opt_escape
+        | bit_expr LIKE bit_expr opt_escape
           {
             $$= new (thd->mem_root) Item_func_like(thd, $1, $3, $4,
                                                    Lex->escape_used);
             if (unlikely($$ == NULL))
               MYSQL_YYABORT;
           }
-        | bit_expr not LIKE mysql_concatenation_expr opt_escape
+        | bit_expr not LIKE bit_expr opt_escape
           {
             Item *item= new (thd->mem_root) Item_func_like(thd, $1, $4, $5,
                                                              Lex->escape_used);
@@ -12107,7 +12128,7 @@ opt_escape:
             Lex->escape_used= TRUE;
             $$= $2;
           }
-        | /* empty */
+        | /* empty */        %prec PREC_BELOW_ESCAPE
           {
             Lex->escape_used= FALSE;
             $$= ((thd->variables.sql_mode & MODE_NO_BACKSLASH_ESCAPES) ?
@@ -14297,9 +14318,18 @@ delete_domain_id_list:
         ;
 
 delete_domain_id:
-          ulong_num
+          ulonglong_num
           {
-            insert_dynamic(&Lex->delete_gtid_domain, (uchar*) &($1));
+            uint32 value= (uint32) $1;
+            if ($1 > UINT_MAX32)
+            {
+              my_printf_error(ER_BINLOG_CANT_DELETE_GTID_DOMAIN,
+                              "The value of gtid domain being deleted ('%llu') "
+                              "exceeds its maximum size "
+                              "of 32 bit unsigned integer", MYF(0), $1);
+              MYSQL_YYABORT;
+            }
+            insert_dynamic(&Lex->delete_gtid_domain, (uchar*) &value);
           }
         ;
 
@@ -14479,6 +14509,7 @@ load:
             lex->field_list.empty();
             lex->update_list.empty();
             lex->value_list.empty();
+            lex->many_values.empty();
           }
           opt_load_data_charset
           { Lex->exchange->cs= $15; }
@@ -14917,12 +14948,17 @@ with_list_element:
               MYSQL_YYABORT;
             Lex->with_column_list.empty();
           }
-          AS '(' remember_name query_expression remember_end ')'
+          AS '(' remember_tok_start query_expression remember_tok_end ')'
  	  {
+            LEX *lex= thd->lex;
+            const char *query_start= lex->sphead ? lex->sphead->m_tmp_query
+                                                 : thd->query();
+            char *spec_start= $6 + 1;
             With_element *elem= new With_element($1, *$2, $7);
 	    if (elem == NULL || Lex->curr_with_clause->add_with_element(elem))
 	      MYSQL_YYABORT;
-	    if (unlikely(elem->set_unparsed_spec(thd, $6+1, $8)))
+            if (elem->set_unparsed_spec(thd, spec_start, $8,
+                                        spec_start - query_start))
               MYSQL_YYABORT;
 	  }
 	;
@@ -15830,7 +15866,7 @@ keyword_sp_var_and_label:
         | UNDOFILE_SYM
         | UNKNOWN_SYM
         | UNTIL_SYM
-        | USER_SYM
+        | USER_SYM           %prec PREC_BELOW_CONTRACTION_TOKEN2
         | USE_FRM
         | VARIABLES
         | VERSIONING_SYM
@@ -16228,14 +16264,14 @@ opt_for_user:
         ;
 
 text_or_password:
-          TEXT_STRING { Lex->definer->pwhash= $1;}
+          TEXT_STRING { Lex->definer->auth= $1;}
         | PASSWORD_SYM '(' TEXT_STRING ')' { Lex->definer->pwtext= $3; }
         | OLD_PASSWORD_SYM '(' TEXT_STRING ')'
           {
             Lex->definer->pwtext= $3;
-            Lex->definer->pwhash.str= Item_func_password::alloc(thd,
+            Lex->definer->auth.str= Item_func_password::alloc(thd,
                                    $3.str, $3.length, Item_func_password::OLD);
-            Lex->definer->pwhash.length=  SCRAMBLED_PASSWORD_CHAR_LENGTH_323;
+            Lex->definer->auth.length=  SCRAMBLED_PASSWORD_CHAR_LENGTH_323;
           }
         ;
 
@@ -16793,13 +16829,11 @@ grant_user:
           {
             $$= $1;
             $1->pwtext= $4;
-            if (unlikely(Lex->sql_command == SQLCOM_REVOKE))
-              MYSQL_YYABORT;
           }
         | user IDENTIFIED_SYM BY PASSWORD_SYM TEXT_STRING
           { 
             $$= $1; 
-            $1->pwhash= $5;
+            $1->auth= $5;
           }
         | user IDENTIFIED_SYM via_or_with ident_or_text
           {
@@ -16807,11 +16841,19 @@ grant_user:
             $1->plugin= $4;
             $1->auth= empty_clex_str;
           }
-        | user IDENTIFIED_SYM via_or_with ident_or_text using_or_as TEXT_STRING_sys
+        | user IDENTIFIED_SYM via_or_with ident_or_text using_or_as
+          TEXT_STRING_sys
           {
             $$= $1;
             $1->plugin= $4;
             $1->auth= $6;
+          }
+        | user IDENTIFIED_SYM via_or_with ident_or_text using_or_as
+          PASSWORD_SYM '(' TEXT_STRING ')'
+          {
+            $$= $1;
+            $1->plugin= $4;
+            $1->pwtext= $8;
           }
         | user_or_role
           { $$= $1; }
@@ -17464,12 +17506,15 @@ opt_migrate:
         ;
 
 install:
-          INSTALL_SYM PLUGIN_SYM ident SONAME_SYM TEXT_STRING_sys
+          INSTALL_SYM PLUGIN_SYM opt_if_not_exists ident SONAME_SYM TEXT_STRING_sys
           {
             LEX *lex= Lex;
+            lex->create_info.init();
+            if (lex->add_create_options_with_check($3))
+              MYSQL_YYABORT;
             lex->sql_command= SQLCOM_INSTALL_PLUGIN;
-            lex->comment= $3;
-            lex->ident= $5;
+            lex->comment= $4;
+            lex->ident= $6;
           }
         | INSTALL_SYM SONAME_SYM TEXT_STRING_sys
           {
@@ -17481,18 +17526,24 @@ install:
         ;
 
 uninstall:
-          UNINSTALL_SYM PLUGIN_SYM ident
+          UNINSTALL_SYM PLUGIN_SYM opt_if_exists ident
           {
             LEX *lex= Lex;
+            lex->check_opt.init();
+            if (lex->add_create_options_with_check($3))
+              MYSQL_YYABORT;
             lex->sql_command= SQLCOM_UNINSTALL_PLUGIN;
-            lex->comment= $3;
+            lex->comment= $4;
           }
-        | UNINSTALL_SYM SONAME_SYM TEXT_STRING_sys
+        | UNINSTALL_SYM SONAME_SYM opt_if_exists TEXT_STRING_sys
           {
             LEX *lex= Lex;
+            lex->check_opt.init();
+            if (lex->add_create_options_with_check($3))
+              MYSQL_YYABORT;
             lex->sql_command= SQLCOM_UNINSTALL_PLUGIN;
             lex->comment= null_clex_str;
-            lex->ident= $3;
+            lex->ident= $4;
           }
         ;
 

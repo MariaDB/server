@@ -149,3 +149,6 @@ my_bool wsrep_thd_is_aborting(const void *)
 
 void wsrep_unlock_rollback()
 { }
+
+void wsrep_set_data_home_dir(const char *)
+{ }

@@ -217,6 +217,9 @@ struct TrxFactory {
 
 		lock_trx_lock_list_init(&trx->lock.trx_locks);
 
+		UT_LIST_INIT(trx->lock.evicted_tables,
+			     &dict_table_t::table_LRU);
+
 		UT_LIST_INIT(
 			trx->trx_savepoints,
 			&trx_named_savept_t::trx_savepoints);
@@ -241,6 +244,7 @@ struct TrxFactory {
 		}
 
 		ut_a(UT_LIST_GET_LEN(trx->lock.trx_locks) == 0);
+		ut_ad(UT_LIST_GET_LEN(trx->lock.evicted_tables) == 0);
 
 		UT_DELETE(trx->xid);
 		ut_free(trx->detailed_error);
@@ -393,6 +397,7 @@ trx_t *trx_create()
 	ut_ad(trx->lock.n_rec_locks == 0);
 	ut_ad(trx->lock.table_cached == 0);
 	ut_ad(trx->lock.rec_cached == 0);
+	ut_ad(UT_LIST_GET_LEN(trx->lock.evicted_tables) == 0);
 
 #ifdef WITH_WSREP
 	trx->wsrep_event = NULL;
@@ -1253,6 +1258,37 @@ trx_update_mod_tables_timestamp(
 	trx->mod_tables.clear();
 }
 
+/** Evict a table definition due to the rollback of ALTER TABLE.
+@param[in]	table_id	table identifier */
+void trx_t::evict_table(table_id_t table_id)
+{
+	ut_ad(in_rollback);
+
+	dict_table_t* table = dict_table_open_on_id(
+		table_id, true, DICT_TABLE_OP_OPEN_ONLY_IF_CACHED);
+	if (!table) {
+		return;
+	}
+
+	if (!table->release()) {
+		/* This must be a DDL operation that is being rolled
+		back in an active connection. */
+		ut_a(table->get_ref_count() == 1);
+		ut_ad(!is_recovered);
+		ut_ad(mysql_thd);
+		return;
+	}
+
+	/* This table should only be locked by this transaction, if at all. */
+	ut_ad(UT_LIST_GET_LEN(table->locks) <= 1);
+	const bool locked = UT_LIST_GET_LEN(table->locks);
+	ut_ad(!locked || UT_LIST_GET_FIRST(table->locks)->trx == this);
+	dict_table_remove_from_cache(table, true, locked);
+	if (locked) {
+		UT_LIST_ADD_FIRST(lock.evicted_tables, table);
+	}
+}
+
 /****************************************************************//**
 Commits a transaction in memory. */
 static
@@ -1318,9 +1354,16 @@ trx_commit_in_memory(
 			trx_update_mod_tables_timestamp(trx);
 			MONITOR_INC(MONITOR_TRX_RW_COMMIT);
 		}
+
+		while (dict_table_t* table = UT_LIST_GET_FIRST(
+			       trx->lock.evicted_tables)) {
+			UT_LIST_REMOVE(trx->lock.evicted_tables, table);
+			dict_mem_table_free(table);
+		}
 	}
 
 	ut_ad(!trx->rsegs.m_redo.undo);
+	ut_ad(UT_LIST_GET_LEN(trx->lock.evicted_tables) == 0);
 
 	if (trx_rseg_t*	rseg = trx->rsegs.m_redo.rseg) {
 		mutex_enter(&rseg->mutex);
@@ -1467,9 +1510,6 @@ void trx_commit_low(trx_t* trx, mtr_t* mtr)
 #endif
 
 	if (mtr != NULL) {
-
-		mtr->set_sync();
-
 		trx_write_serialisation_history(trx, mtr);
 
 		/* The following call commits the mini-transaction, making the
@@ -1531,7 +1571,7 @@ trx_commit(
 
 	if (trx->has_logged_or_recovered()) {
 		mtr = &local_mtr;
-		mtr_start_sync(mtr);
+		mtr->start();
 	} else {
 
 		mtr = NULL;
@@ -1965,7 +2005,7 @@ trx_prepare_low(trx_t* trx)
 	trx_rseg_t*	rseg = trx->rsegs.m_redo.rseg;
 	ut_ad(undo->rseg == rseg);
 
-	mtr.start(true);
+	mtr.start();
 
 	/* Change the undo log segment states from TRX_UNDO_ACTIVE to
 	TRX_UNDO_PREPARED: these modifications to the file data

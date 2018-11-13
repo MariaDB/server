@@ -69,7 +69,8 @@ static struct st_mysql_auth auth_test_handler=
 {
   MYSQL_AUTHENTICATION_INTERFACE_VERSION,
   "auth_test_plugin", /* requires test_plugin client's plugin */
-  auth_test_plugin
+  auth_test_plugin,
+  NULL, NULL /* no PASSWORD() */
 };
 
 /**
@@ -99,7 +100,8 @@ static struct st_mysql_auth auth_cleartext_handler=
 {
   MYSQL_AUTHENTICATION_INTERFACE_VERSION,
   "mysql_clear_password", /* requires the clear text plugin */
-  auth_cleartext_plugin
+  auth_cleartext_plugin,
+  NULL, NULL /* no PASSWORD() */
 };
 
 mysql_declare_plugin(test_plugin)

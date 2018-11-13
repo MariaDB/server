@@ -936,7 +936,7 @@ int mysql_prepare_delete(THD *thd, TABLE_LIST *table_list,
   List<Item> all_fields;
 
   *delete_while_scanning= true;
-  thd->lex->allow_sum_func= 0;
+  thd->lex->allow_sum_func.clear_all();
   if (setup_tables_and_check_access(thd,
                                     &thd->lex->first_select_lex()->context,
                                     &thd->lex->first_select_lex()->
@@ -1216,6 +1216,7 @@ multi_delete::~multi_delete()
   {
     TABLE *table= table_being_deleted->table;
     table->no_keyread=0;
+    table->no_cache= 0;
   }
 
   for (uint counter= 0; counter < num_of_tables; counter++)

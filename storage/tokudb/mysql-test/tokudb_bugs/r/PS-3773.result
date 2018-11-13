@@ -1,0 +1,8 @@
+CREATE TABLE t1(a INT, b INT, c INT, PRIMARY KEY(a), KEY(b)) ENGINE=TokuDB;
+SET tokudb_auto_analyze=0;
+INSERT INTO t1 VALUES(0,0,0), (1,1,1), (2,2,2), (3,3,3), (4,4,4), (5,5,5);
+SET GLOBAL debug_dbug = "+d,tokudb_fake_db_notfound_error_in_read_full_row";
+SELECT * FROM t1 WHERE b = 2;
+ERROR HY000: Index for table 't1' is corrupt; try to repair it
+DROP TABLE t1;
+FOUND 1 /ha_tokudb::read_full_row on table/ in tokudb.bugs.PS-3773.log

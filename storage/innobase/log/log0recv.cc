@@ -1981,10 +1981,7 @@ recv_recover_page(bool just_read_in, buf_block_t* block)
 page number.
 @param[in]	page_id	page id
 @return number of pages found */
-static
-ulint
-recv_read_in_area(
-	const page_id_t&	page_id)
+static ulint recv_read_in_area(const page_id_t page_id)
 {
 	recv_addr_t* recv_addr;
 	ulint	page_nos[RECV_READ_AHEAD_AREA];
@@ -3400,6 +3397,8 @@ recv_recovery_from_checkpoint_start(lsn_t flush_lsn)
 		then there is a possiblity that hash table will not contain
 		all space ids redo logs. Rescan the remaining unstored
 		redo logs for the validation of missing tablespace. */
+		ut_ad(rescan || !missing_tablespace);
+
 		while (missing_tablespace) {
 			DBUG_PRINT("ib_log", ("Rescan of redo log to validate "
 					      "the missing tablespace. Scan "
@@ -3423,6 +3422,8 @@ recv_recovery_from_checkpoint_start(lsn_t flush_lsn)
 				log_mutex_exit();
 				return err;
 			}
+
+			rescan = true;
 		}
 
 		if (srv_operation == SRV_OPERATION_NORMAL) {

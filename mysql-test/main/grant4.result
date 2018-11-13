@@ -199,14 +199,14 @@ grant select on test.* to foo7 identified via mysql_native_password using '11111
 grant select on test.* to foo8 identified via mysql_old_password using '2222222222222222';
 select user,password,plugin,authentication_string from mysql.user where user like 'foo%';
 user	password	plugin	authentication_string
-foo1	11111111111111111111111111111111111111111		
-foo2	2222222222222222		
-foo3	11111111111111111111111111111111111111111		
-foo4	2222222222222222		
-foo5	11111111111111111111111111111111111111111		
-foo6	2222222222222222		
-foo7	11111111111111111111111111111111111111111		
-foo8	2222222222222222		
+foo1		mysql_native_password	11111111111111111111111111111111111111111
+foo2		mysql_old_password	2222222222222222
+foo3		mysql_native_password	11111111111111111111111111111111111111111
+foo4		mysql_old_password	2222222222222222
+foo5		mysql_native_password	11111111111111111111111111111111111111111
+foo6		mysql_old_password	2222222222222222
+foo7		mysql_native_password	11111111111111111111111111111111111111111
+foo8		mysql_old_password	2222222222222222
 drop user foo1;
 drop user foo2;
 drop user foo3;

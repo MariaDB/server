@@ -231,28 +231,40 @@ grant select on *.* to 'mysqltest_2';
 grant insert on test.* to 'mysqltest_2';
 grant update on test.t1 to 'mysqltest_2';
 grant update (c2) on test.t2 to 'mysqltest_2';
-select host,user,password from mysql.user where user like 'mysqltest_%' order by host,user,password;
-select host,db,user from mysql.db where user like 'mysqltest_%' order by host,db,user;
-select host,db,user,table_name from mysql.tables_priv where user like 'mysqltest_%' order by host,db,user,table_name;
-select host,db,user,table_name,column_name from mysql.columns_priv where user like 'mysqltest_%' order by host,db,user,table_name,column_name;
+--sorted_result
+select host,user,password,plugin,authentication_string from mysql.user where user like 'mysqltest_%';
+--sorted_result
+select host,db,user from mysql.db where user like 'mysqltest_%';
+--sorted_result
+select host,db,user,table_name from mysql.tables_priv where user like 'mysqltest_%';
+--sorted_result
+select host,db,user,table_name,column_name from mysql.columns_priv where user like 'mysqltest_%';
 show grants for 'mysqltest_1';
 show grants for 'mysqltest_2';
 #
 # Drop
 drop user 'mysqltest_1';
-select host,user,password from mysql.user where user like 'mysqltest_%' order by host,user,password;
-select host,db,user from mysql.db where user like 'mysqltest_%' order by host,db,user;
-select host,db,user,table_name from mysql.tables_priv where user like 'mysqltest_%' order by host,db,user,table_name;
-select host,db,user,table_name,column_name from mysql.columns_priv where user like 'mysqltest_%' order by host,db,user,table_name,column_name;
+--sorted_result
+select host,user,password,plugin,authentication_string from mysql.user where user like 'mysqltest_%';
+--sorted_result
+select host,db,user from mysql.db where user like 'mysqltest_%';
+--sorted_result
+select host,db,user,table_name from mysql.tables_priv where user like 'mysqltest_%';
+--sorted_result
+select host,db,user,table_name,column_name from mysql.columns_priv where user like 'mysqltest_%';
 --error ER_NONEXISTING_GRANT
 show grants for 'mysqltest_1';
 #
 # Rename
 rename user 'mysqltest_2' to 'mysqltest_1';
-select host,user,password from mysql.user where user like 'mysqltest_%' order by host,user,password;
-select host,db,user from mysql.db where user like 'mysqltest_%' order by host,db,user;
-select host,db,user,table_name from mysql.tables_priv where user like 'mysqltest_%' order by host,db,user,table_name;
-select host,db,user,table_name,column_name from mysql.columns_priv where user like 'mysqltest_%' order by host,db,user,table_name,column_name;
+--sorted_result
+select host,user,password,plugin,authentication_string from mysql.user where user like 'mysqltest_%' ;
+--sorted_result
+select host,db,user from mysql.db where user like 'mysqltest_%' ;
+--sorted_result
+select host,db,user,table_name from mysql.tables_priv where user like 'mysqltest_%' ;
+--sorted_result
+select host,db,user,table_name,column_name from mysql.columns_priv where user like 'mysqltest_%' ;
 show grants for 'mysqltest_1';
 drop user 'mysqltest_1', 'mysqltest_3';
 --error ER_CANNOT_USER
@@ -269,7 +281,8 @@ show grants for 'mysqltest_1';
 --error ER_REVOKE_GRANTS
 revoke all privileges, grant option from 'mysqltest_1';
 drop user 'mysqltest_1';
-select host,db,user from mysql.db where user = 'mysqltest_1' order by host,db,user;
+--sorted_result
+select host,db,user from mysql.db where user = 'mysqltest_1' ;
 #
 # Add a stray record
 insert into mysql.tables_priv set host='%', db='test', user='mysqltest_1', table_name='t1';
@@ -277,7 +290,8 @@ flush privileges;
 --error ER_NONEXISTING_GRANT
 show grants for 'mysqltest_1';
 drop user 'mysqltest_1';
-select host,db,user,table_name from mysql.tables_priv where user = 'mysqltest_1' order by host,db,user,table_name;
+--sorted_result
+select host,db,user,table_name from mysql.tables_priv where user = 'mysqltest_1' ;
 #
 # Add a stray record
 insert into mysql.columns_priv set host='%', db='test', user='mysqltest_1', table_name='t1', column_name='c1';
@@ -285,7 +299,8 @@ flush privileges;
 --error ER_NONEXISTING_GRANT
 show grants for 'mysqltest_1';
 drop user 'mysqltest_1';
-select host,db,user,table_name,column_name from mysql.columns_priv where user = 'mysqltest_1' order by host,db,user,table_name,column_name;
+--sorted_result
+select host,db,user,table_name,column_name from mysql.columns_priv where user = 'mysqltest_1' ;
 #
 # Handle multi user lists
 create user 'mysqltest_1', 'mysqltest_2', 'mysqltest_3';
@@ -330,7 +345,7 @@ grant create user on *.* to mysqltest_2@localhost;
 connect (user3,localhost,mysqltest_2,,);
 connection user3;
 --error ER_TABLEACCESS_DENIED_ERROR
-select host,user,password from mysql.user where user like 'mysqltest_%' order by host,user,password;
+select host,user,password,plugin,authentication_string from mysql.user where user like 'mysqltest_%' ;
 create user mysqltest_A@'%';
 rename user mysqltest_A@'%' to mysqltest_B@'%';
 drop user mysqltest_B@'%';
@@ -345,7 +360,7 @@ connect (user4,localhost,mysqltest_3,,);
 connection user4;
 show grants;
 --error ER_TABLEACCESS_DENIED_ERROR
-select host,user,password from mysql.user where user like 'mysqltest_%' order by host,user,password;
+select host,user,password,plugin,authentication_string from mysql.user where user like 'mysqltest_%' ;
 insert into mysql.user set host='%', user='mysqltest_B';
 create user mysqltest_A@'%';
 rename user mysqltest_B@'%' to mysqltest_C@'%';
@@ -642,26 +657,25 @@ DROP DATABASE db1;
 USE mysql;
 SELECT LEFT(CURRENT_USER(),INSTR(CURRENT_USER(),'@')-1) INTO @u;
 SELECT MID(CURRENT_USER(),INSTR(CURRENT_USER(),'@')+1)  INTO @h;
-SELECT password FROM user WHERE user=@u AND host=@h INTO @pwd;
 
 # show current privs.
-SELECT user,host,password,insert_priv FROM user WHERE user=@u AND host=@h;
+SELECT user,host,password,plugin,authentication_string,insert_priv FROM user WHERE user=@u AND host=@h;
 
 # toggle INSERT
 UPDATE user SET insert_priv='N' WHERE user=@u AND host=@h;
-SELECT user,host,password,insert_priv FROM user WHERE user=@u AND host=@h;
+SELECT user,host,password,plugin,authentication_string,insert_priv FROM user WHERE user=@u AND host=@h;
 
 # show that GRANT ... TO CURRENT_USER() no longer crashes
 GRANT INSERT ON *.* TO CURRENT_USER();
-SELECT user,host,password,insert_priv FROM user WHERE user=@u AND host=@h;
+SELECT user,host,password,plugin,authentication_string,insert_priv FROM user WHERE user=@u AND host=@h;
 UPDATE user SET insert_priv='N' WHERE user=@u AND host=@h;
 
 # show that GRANT ... TO CURRENT_USER() IDENTIFIED BY ... works now
 GRANT INSERT ON *.* TO CURRENT_USER() IDENTIFIED BY 'keksdose';
-SELECT user,host,password,insert_priv FROM user WHERE user=@u AND host=@h;
+SELECT user,host,password,plugin,authentication_string,insert_priv FROM user WHERE user=@u AND host=@h;
 
-UPDATE user SET password=@pwd WHERE user=@u AND host=@h;
-SELECT user,host,password,insert_priv FROM user WHERE user=@u AND host=@h;
+UPDATE user SET plugin='', authentication_string='' WHERE user=@u AND host=@h;
+SELECT user,host,password,plugin,authentication_string,insert_priv FROM user WHERE user=@u AND host=@h;
 
 FLUSH PRIVILEGES;
 

@@ -492,3 +492,5 @@ SELECT COUNT(*) FROM t FOR SYSTEM_TIME ALL;
 
 DROP TABLE t;
 SET @@SYSTEM_VERSIONING_ALTER_HISTORY=ERROR;
+
+SELECT count(*) from mysql.transaction_registry where begin_timestamp>=commit_timestamp;

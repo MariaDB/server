@@ -41,6 +41,7 @@
 #include "set_var.h"
 #include "sql_locale.h"          // MY_LOCALE my_locale_en_US
 #include "strfunc.h"             // check_word
+#include "sql_type_int.h"        // Longlong_hybrid
 #include "sql_time.h"            // make_truncated_value_warning,
                                  // get_date_from_daynr,
                                  // calc_weekday, calc_week,
@@ -2097,7 +2098,7 @@ bool Item_extract::fix_length_and_dec()
   case INTERVAL_QUARTER:          set_date_length(2); break; // 1..4
   case INTERVAL_MONTH:            set_date_length(2); break; // MM
   case INTERVAL_WEEK:             set_date_length(2); break; // 0..52
-  case INTERVAL_DAY:              set_date_length(2); break; // DD
+  case INTERVAL_DAY:              set_day_length(2); break; // DD
   case INTERVAL_DAY_HOUR:         set_time_length(4); break; // DDhh
   case INTERVAL_DAY_MINUTE:       set_time_length(6); break; // DDhhmm
   case INTERVAL_DAY_SECOND:       set_time_length(8); break; // DDhhmmss
@@ -2118,69 +2119,45 @@ bool Item_extract::fix_length_and_dec()
 }
 
 
+uint Extract_source::week(THD *thd) const
+{
+  DBUG_ASSERT(is_valid_extract_source());
+  uint year;
+  ulong week_format= current_thd->variables.default_week_format;
+  return calc_week(this, week_mode(week_format), &year);
+}
+
+
 longlong Item_extract::val_int()
 {
   DBUG_ASSERT(fixed == 1);
-  MYSQL_TIME ltime;
-  uint year;
-  ulong week_format;
-  long neg;
-  date_mode_t is_time_flag = date_value ? date_mode_t(0) : TIME_TIME_ONLY;
-
-  // Not using get_arg0_date to avoid automatic TIME to DATETIME conversion
-  if ((null_value= args[0]->get_date(current_thd, &ltime, is_time_flag)))
+  Extract_source dt(current_thd, args[0], m_date_mode);
+  if ((null_value= !dt.is_valid_extract_source()))
     return 0;
-
-  neg= ltime.neg ? -1 : 1;
-
-  DBUG_ASSERT(ltime.time_type != MYSQL_TIMESTAMP_TIME ||  ltime.day == 0);
-  if (ltime.time_type == MYSQL_TIMESTAMP_TIME)
-    time_to_daytime_interval(&ltime);
-
   switch (int_type) {
-  case INTERVAL_YEAR:		return ltime.year;
-  case INTERVAL_YEAR_MONTH:	return ltime.year*100L+ltime.month;
-  case INTERVAL_QUARTER:	return (ltime.month+2)/3;
-  case INTERVAL_MONTH:		return ltime.month;
-  case INTERVAL_WEEK:
-  {
-    week_format= current_thd->variables.default_week_format;
-    return calc_week(&ltime, week_mode(week_format), &year);
-  }
-  case INTERVAL_DAY:		return ltime.day;
-  case INTERVAL_DAY_HOUR:	return (long) (ltime.day*100L+ltime.hour)*neg;
-  case INTERVAL_DAY_MINUTE:	return (long) (ltime.day*10000L+
-					       ltime.hour*100L+
-					       ltime.minute)*neg;
-  case INTERVAL_DAY_SECOND:	 return ((longlong) ltime.day*1000000L+
-					 (longlong) (ltime.hour*10000L+
-						     ltime.minute*100+
-						     ltime.second))*neg;
-  case INTERVAL_HOUR:		return (long) ltime.hour*neg;
-  case INTERVAL_HOUR_MINUTE:	return (long) (ltime.hour*100+ltime.minute)*neg;
-  case INTERVAL_HOUR_SECOND:	return (long) (ltime.hour*10000+ltime.minute*100+
-					       ltime.second)*neg;
-  case INTERVAL_MINUTE:		return (long) ltime.minute*neg;
-  case INTERVAL_MINUTE_SECOND:	return (long) (ltime.minute*100+ltime.second)*neg;
-  case INTERVAL_SECOND:		return (long) ltime.second*neg;
-  case INTERVAL_MICROSECOND:	return (long) ltime.second_part*neg;
-  case INTERVAL_DAY_MICROSECOND: return (((longlong)ltime.day*1000000L +
-					  (longlong)ltime.hour*10000L +
-					  ltime.minute*100 +
-					  ltime.second)*1000000L +
-					 ltime.second_part)*neg;
-  case INTERVAL_HOUR_MICROSECOND: return (((longlong)ltime.hour*10000L +
-					   ltime.minute*100 +
-					   ltime.second)*1000000L +
-					  ltime.second_part)*neg;
-  case INTERVAL_MINUTE_MICROSECOND: return (((longlong)(ltime.minute*100+
-							ltime.second))*1000000L+
-					    ltime.second_part)*neg;
-  case INTERVAL_SECOND_MICROSECOND: return ((longlong)ltime.second*1000000L+
-					    ltime.second_part)*neg;
+  case INTERVAL_YEAR:                return dt.year();
+  case INTERVAL_YEAR_MONTH:          return dt.year_month();
+  case INTERVAL_QUARTER:             return dt.quarter();
+  case INTERVAL_MONTH:               return dt.month();
+  case INTERVAL_WEEK:                return dt.week(current_thd);
+  case INTERVAL_DAY:                 return dt.day();
+  case INTERVAL_DAY_HOUR:            return dt.day_hour();
+  case INTERVAL_DAY_MINUTE:          return dt.day_minute();
+  case INTERVAL_DAY_SECOND:          return dt.day_second();
+  case INTERVAL_HOUR:                return dt.hour();
+  case INTERVAL_HOUR_MINUTE:         return dt.hour_minute();
+  case INTERVAL_HOUR_SECOND:         return dt.hour_second();
+  case INTERVAL_MINUTE:              return dt.minute();
+  case INTERVAL_MINUTE_SECOND:       return dt.minute_second();
+  case INTERVAL_SECOND:              return dt.second();
+  case INTERVAL_MICROSECOND:         return dt.microsecond();
+  case INTERVAL_DAY_MICROSECOND:     return dt.day_microsecond();
+  case INTERVAL_HOUR_MICROSECOND:    return dt.hour_microsecond();
+  case INTERVAL_MINUTE_MICROSECOND:  return dt.minute_microsecond();
+  case INTERVAL_SECOND_MICROSECOND:  return dt.second_microsecond();
   case INTERVAL_LAST: DBUG_ASSERT(0); break;  /* purecov: deadcode */
   }
-  return 0;					// Impossible
+  return 0;                                        // Impossible
 }
 
 bool Item_extract::eq(const Item *item, bool binary_cmp) const
@@ -2439,10 +2416,10 @@ void Item_char_typecast::fix_length_and_dec_internal(CHARSET_INFO *from_cs)
 }
 
 
-bool Item_time_typecast::get_date(THD *thd, MYSQL_TIME *ltime, date_mode_t fuzzydate)
+bool Item_time_typecast::get_date(THD *thd, MYSQL_TIME *to, date_mode_t mode)
 {
-  Time *tm= new(ltime) Time(thd, args[0], Time::Options_for_cast(),
-                            MY_MIN(decimals, TIME_SECOND_PART_DIGITS));
+  Time *tm= new(to) Time(thd, args[0], Time::Options_for_cast(mode),
+                         MY_MIN(decimals, TIME_SECOND_PART_DIGITS));
   return (null_value= !tm->is_valid_time());
 }
 
@@ -2588,8 +2565,7 @@ bool Item_func_timediff::get_date(THD *thd, MYSQL_TIME *ltime, date_mode_t fuzzy
 bool Item_func_maketime::get_date(THD *thd, MYSQL_TIME *ltime, date_mode_t fuzzydate)
 {
   DBUG_ASSERT(fixed == 1);
-  bool overflow= 0;
-  longlong hour=   args[0]->val_int();
+  Longlong_hybrid hour(args[0]->val_int(), args[0]->unsigned_flag);
   longlong minute= args[1]->val_int();
   VSec6 sec(thd, args[2], "seconds", 59);
 
@@ -2600,32 +2576,23 @@ bool Item_func_maketime::get_date(THD *thd, MYSQL_TIME *ltime, date_mode_t fuzzy
 
   bzero(ltime, sizeof(*ltime));
   ltime->time_type= MYSQL_TIMESTAMP_TIME;
+  ltime->neg= hour.neg();
 
-  /* Check for integer overflows */
-  if (hour < 0)
+  if (hour.abs() <= TIME_MAX_HOUR)
   {
-    if (args[0]->unsigned_flag)
-      overflow= 1;
-    else
-      ltime->neg= 1;
-  }
-  if (-hour > TIME_MAX_HOUR || hour > TIME_MAX_HOUR)
-    overflow= 1;
-
-  if (!overflow)
-  {
-    ltime->hour=   (uint) ((hour < 0 ? -hour : hour));
+    ltime->hour=   (uint) hour.abs();
     ltime->minute= (uint) minute;
     ltime->second= (uint) sec.sec();
     ltime->second_part= sec.usec();
   }
   else
   {
-    ltime->hour= TIME_MAX_HOUR;
-    ltime->minute= TIME_MAX_MINUTE;
-    ltime->second= TIME_MAX_SECOND;
+    // use check_time_range() to set ltime to the max value depending on dec
+    int unused;
+    ltime->hour= TIME_MAX_HOUR + 1;
+    check_time_range(ltime, decimals, &unused);
     char buf[28];
-    char *ptr= longlong10_to_str(hour, buf, args[0]->unsigned_flag ? 10 : -10);
+    char *ptr= longlong10_to_str(hour.value(), buf, hour.is_unsigned() ? 10 : -10);
     int len = (int)(ptr - buf) + sprintf(ptr, ":%02u:%02u",
                                          (uint) minute, (uint) sec.sec());
     ErrConvString err(buf, len, &my_charset_bin);

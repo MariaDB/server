@@ -120,6 +120,10 @@
 #include <poll.h>
 #endif
 
+#ifdef _WIN32
+#include <handle_connections_win.h>
+#endif
+
 #include <my_service_manager.h>
 
 #define mysqld_charset &my_charset_latin1
@@ -322,16 +326,6 @@ MY_TIMER_INFO sys_timer_info;
 /* static variables */
 
 #ifdef HAVE_PSI_INTERFACE
-#if defined(_WIN32) && !defined(EMBEDDED_LIBRARY)
-static PSI_thread_key key_thread_handle_con_namedpipes;
-static PSI_cond_key key_COND_handler_count;
-static PSI_thread_key key_thread_handle_con_sockets;
-#endif /* _WIN32 |&& !EMBEDDED_LIBRARY */
-
-#ifdef _WIN32
-static PSI_thread_key key_thread_handle_shutdown;
-#endif
-
 #ifdef HAVE_OPENSSL10
 static PSI_rwlock_key key_rwlock_openssl;
 #endif
@@ -367,6 +361,7 @@ static char *character_set_filesystem_name;
 static char *lc_messages;
 static char *lc_time_names_name;
 char *my_bind_addr_str;
+int server_socket_ai_family;
 static char *default_collation_name;
 char *default_storage_engine, *default_tmp_storage_engine;
 char *enforced_storage_engine=NULL;
@@ -740,7 +735,6 @@ mysql_mutex_t LOCK_thread_count;
   other threads.
 
   It also protects these variables:
-  handler_count
   in_bootstrap
   select_thread_in_use
   slave_init_thread_running
@@ -795,6 +789,7 @@ char *master_info_file;
 char *relay_log_info_file, *report_user, *report_password, *report_host;
 char *opt_relay_logname = 0, *opt_relaylog_index_name=0;
 char *opt_logname, *opt_slow_logname, *opt_bin_logname;
+char *opt_binlog_index_name=0;
 
 /* Static variables */
 
@@ -804,7 +799,6 @@ my_bool opt_expect_abort= 0, opt_bootstrap= 0;
 static my_bool opt_myisam_log;
 static int cleanup_done;
 static ulong opt_specialflag;
-static char *opt_binlog_index_name;
 char *mysql_home_ptr, *pidfile_name_ptr;
 /** Initial command line arguments (count), after load_defaults().*/
 static int defaults_argc;
@@ -1094,9 +1088,6 @@ PSI_cond_key key_COND_ack_receiver;
 
 static PSI_cond_info all_server_conds[]=
 {
-#if defined(_WIN32) && !defined(EMBEDDED_LIBRARY)
-  { &key_COND_handler_count, "COND_handler_count", PSI_FLAG_GLOBAL},
-#endif /* _WIN32  && !EMBEDDED_LIBRARY */
 #ifdef HAVE_MMAP
   { &key_PAGE_cond, "PAGE::cond", 0},
   { &key_COND_active, "TC_LOG_MMAP::COND_active", 0},
@@ -1157,12 +1148,6 @@ PSI_thread_key key_thread_ack_receiver;
 
 static PSI_thread_info all_server_threads[]=
 {
-#if (defined (_WIN32) && !defined (EMBEDDED_LIBRARY))
-  { &key_thread_handle_con_namedpipes, "con_named_pipes", PSI_FLAG_GLOBAL},
-  { &key_thread_handle_con_sockets, "con_sockets", PSI_FLAG_GLOBAL},
-  { &key_thread_handle_shutdown, "shutdown", PSI_FLAG_GLOBAL},
-#endif
-
   { &key_thread_bootstrap, "bootstrap", PSI_FLAG_GLOBAL},
   { &key_thread_delayed_insert, "delayed_insert", 0},
   { &key_thread_handle_manager, "manager", PSI_FLAG_GLOBAL},
@@ -1405,10 +1390,10 @@ void Buffered_logs::print()
 /** Logs reported before a logger is available. */
 static Buffered_logs buffered_logs;
 
-static MYSQL_SOCKET unix_sock, base_ip_sock, extra_ip_sock;
 struct my_rnd_struct sql_rand; ///< used by sql_class.cc:THD::THD()
 
 #ifndef EMBEDDED_LIBRARY
+MYSQL_SOCKET unix_sock, base_ip_sock, extra_ip_sock;
 /**
   Error reporter that buffer log messages.
   @param level          log message level
@@ -1464,26 +1449,17 @@ static pthread_t select_thread;
 #undef	 getpid
 #include <process.h>
 
-static mysql_cond_t COND_handler_count;
-static uint handler_count;
 static bool start_mode=0, use_opt_args;
 static int opt_argc;
 static char **opt_argv;
 
 #if !defined(EMBEDDED_LIBRARY)
-static HANDLE hEventShutdown;
+HANDLE hEventShutdown;
 static char shutdown_event_name[40];
 #include "nt_servc.h"
 static	 NTService  Service;	      ///< Service object for WinNT
 #endif /* EMBEDDED_LIBRARY */
 #endif /* __WIN__ */
-
-#ifdef _WIN32
-#include <sddl.h> /* ConvertStringSecurityDescriptorToSecurityDescriptor */
-static char pipe_name[512];
-static SECURITY_ATTRIBUTES saPipeSecurity;
-static HANDLE hPipe = INVALID_HANDLE_VALUE;
-#endif
 
 #ifndef EMBEDDED_LIBRARY
 bool mysqld_embedded=0;
@@ -1557,16 +1533,13 @@ extern "C" my_bool mysqld_get_one_option(int, const struct my_option *, char *);
 static int init_thread_environment();
 static char *get_relative_path(const char *path);
 static int fix_paths(void);
+#ifndef _WIN32
 void handle_connections_sockets();
-#ifdef _WIN32
-pthread_handler_t handle_connections_sockets_thread(void *arg);
 #endif
+
 pthread_handler_t kill_server_thread(void *arg);
 static void bootstrap(MYSQL_FILE *file);
 static bool read_init_file(char *file_name);
-#ifdef _WIN32
-pthread_handler_t handle_connections_namedpipes(void *arg);
-#endif
 pthread_handler_t handle_slave(void *arg);
 static void clean_up(bool print_message);
 static int test_if_case_insensitive(const char *dir_name);
@@ -1599,6 +1572,7 @@ static void close_connections(void)
   /* Clear thread cache */
   kill_cached_threads++;
   flush_thread_cache();
+
 
   /* kill connection thread */
 #if !defined(__WIN__)
@@ -1649,30 +1623,7 @@ static void close_connections(void)
       extra_ip_sock= MYSQL_INVALID_SOCKET;
     }
   }
-#ifdef _WIN32
-  if (hPipe != INVALID_HANDLE_VALUE && opt_enable_named_pipe)
-  {
-    HANDLE temp;
-    DBUG_PRINT("quit", ("Closing named pipes") );
 
-    /* Create connection to the handle named pipe handler to break the loop */
-    if ((temp = CreateFile(pipe_name,
-			   GENERIC_READ | GENERIC_WRITE,
-			   0,
-			   NULL,
-			   OPEN_EXISTING,
-			   0,
-			   NULL )) != INVALID_HANDLE_VALUE)
-    {
-      WaitNamedPipe(pipe_name, 1000);
-      DWORD dwMode = PIPE_READMODE_BYTE | PIPE_WAIT;
-      SetNamedPipeHandleState(temp, &dwMode, NULL, NULL);
-      CancelIo(temp);
-      DisconnectNamedPipe(temp);
-      CloseHandle(temp);
-    }
-  }
-#endif
 #ifdef HAVE_SYS_UN_H
   if (mysql_socket_getfd(unix_sock) != INVALID_SOCKET)
   {
@@ -1787,7 +1738,14 @@ static void close_connections(void)
                           (ulong) tmp->thread_id,
                           (tmp->main_security_ctx.user ?
                            tmp->main_security_ctx.user : ""));
+      /*
+        close_connection() might need a valid current_thd
+        for memory allocation tracking.
+      */
+      THD* save_thd= current_thd;
+      set_current_thd(tmp);
       close_connection(tmp,ER_SERVER_SHUTDOWN);
+      set_current_thd(save_thd);
     }
 #endif
 
@@ -1921,12 +1879,6 @@ void kill_mysql(THD *thd)
     {
       DBUG_PRINT("error",("Got error: %ld from SetEvent",GetLastError()));
     }
-    /*
-      or:
-      HANDLE hEvent=OpenEvent(0, FALSE, "MySqlShutdown");
-      SetEvent(hEventShutdown);
-      CloseHandle(hEvent);
-    */
   }
 #endif
 #elif defined(HAVE_PTHREAD_KILL)
@@ -1958,7 +1910,7 @@ void kill_mysql(THD *thd)
 /**
   Force server down. Kill all connections and threads and exit.
 
-  @param  sig_ptr       Signal number that caused kill_server to be called.
+  @param  sig       Signal number that caused kill_server to be called.
 
   @note
     A signal number of 0 mean that the function was not called
@@ -1966,22 +1918,14 @@ void kill_mysql(THD *thd)
     or stop, we just want to kill the server.
 */
 
-#if !defined(__WIN__)
-static void *kill_server(void *sig_ptr)
-#define RETURN_FROM_KILL_SERVER return 0
-#else
-static void __cdecl kill_server(int sig_ptr)
-#define RETURN_FROM_KILL_SERVER return
-#endif
+static void kill_server(int sig)
 {
   DBUG_ENTER("kill_server");
 #ifndef EMBEDDED_LIBRARY
-  int sig=(int) (long) sig_ptr;			// This is passed a int
   // if there is a signal during the kill in progress, ignore the other
   if (kill_in_progress)				// Safety
   {
-    DBUG_LEAVE;
-    RETURN_FROM_KILL_SERVER;
+    DBUG_VOID_RETURN;
   }
   kill_in_progress=TRUE;
   abort_loop=1;					// This should be set
@@ -2014,20 +1958,9 @@ static void __cdecl kill_server(int sig_ptr)
   else
     unireg_end();
 
-  /* purecov: begin deadcode */
-  DBUG_LEAVE;                                   // Must match DBUG_ENTER()
-  my_thread_end();
-  pthread_exit(0);
-  /* purecov: end */
+#endif /* EMBEDDED_LIBRARY*/
 
-  RETURN_FROM_KILL_SERVER;                      // Avoid compiler warnings
-
-#else /* EMBEDDED_LIBRARY*/
-
-  DBUG_LEAVE;
-  RETURN_FROM_KILL_SERVER;
-
-#endif /* EMBEDDED_LIBRARY */
+   DBUG_VOID_RETURN;
 }
 
 
@@ -2036,11 +1969,9 @@ pthread_handler_t kill_server_thread(void *arg __attribute__((unused)))
 {
   my_thread_init();				// Initialize new thread
   kill_server(0);
-  /* purecov: begin deadcode */
   my_thread_end();
   pthread_exit(0);
   return 0;
-  /* purecov: end */
 }
 #endif
 
@@ -2086,13 +2017,7 @@ static void clean_up_error_log_mutex()
 void unireg_end(void)
 {
   clean_up(1);
-  my_thread_end();
   sd_notify(0, "STATUS=MariaDB server is down");
-#if defined(SIGNALS_DONT_BREAK_READ)
-  exit(0);
-#else
-  pthread_exit(0);				// Exit is in main thread
-#endif
 }
 
 
@@ -2589,6 +2514,7 @@ static MYSQL_SOCKET activate_tcp_port(uint port)
     }
     else 
     {
+      server_socket_ai_family= a->ai_family;
       sql_print_information("Server socket created on IP: '%s'.",
                           (const char *) ip_addr);
       break;
@@ -2714,44 +2640,6 @@ static void network_init(void)
     if (mysqld_extra_port)
       extra_ip_sock= activate_tcp_port(mysqld_extra_port);
   }
-
-#ifdef _WIN32
-  /* create named pipe */
-  if (mysqld_unix_port[0] && !opt_bootstrap &&
-      opt_enable_named_pipe)
-  {
-
-    strxnmov(pipe_name, sizeof(pipe_name)-1, "\\\\.\\pipe\\",
-	     mysqld_unix_port, NullS);
-    /*
-      Create a security descriptor for pipe.
-      - Use low integrity level, so that it is possible to connect
-      from any process.
-      - Give Everyone read/write access to pipe.
-    */
-    if (!ConvertStringSecurityDescriptorToSecurityDescriptor(
-         "S:(ML;; NW;;; LW) D:(A;; FRFW;;; WD)",
-         SDDL_REVISION_1, &saPipeSecurity.lpSecurityDescriptor, NULL))
-    {
-      sql_perror("Can't start server : Initialize security descriptor");
-      unireg_abort(1);
-    }
-    saPipeSecurity.nLength = sizeof(SECURITY_ATTRIBUTES);
-    saPipeSecurity.bInheritHandle = FALSE;
-    if ((hPipe= CreateNamedPipe(pipe_name,
-        PIPE_ACCESS_DUPLEX | FILE_FLAG_OVERLAPPED | FILE_FLAG_FIRST_PIPE_INSTANCE,
-        PIPE_TYPE_BYTE | PIPE_READMODE_BYTE | PIPE_WAIT,
-        PIPE_UNLIMITED_INSTANCES,
-        (int) global_system_variables.net_buffer_length,
-        (int) global_system_variables.net_buffer_length,
-        NMPWAIT_USE_DEFAULT_WAIT,
-        &saPipeSecurity)) == INVALID_HANDLE_VALUE)
-    {
-      sql_perror("Create named pipe failed");
-      unireg_abort(1);
-    }
-  }
-#endif
 
 #if defined(HAVE_SYS_UN_H)
   /*
@@ -2987,10 +2875,6 @@ static bool cache_thread(THD *thd)
     while (_db_is_pushed_())
       _db_pop_();
 #endif
-
-    /* Clear warnings. */
-    if (!thd->get_stmt_da()->is_warning_info_empty())
-      thd->get_stmt_da()->clear_warning_info(thd->query_id);
 
     set_timespec(abstime, THREAD_CACHE_TIMEOUT);
     while (!abort_loop && ! wake_thread && ! kill_cached_threads)
@@ -3581,7 +3465,7 @@ pthread_handler_t signal_hand(void *arg __attribute__((unused)))
           sql_print_error("Can't create thread to kill server (errno= %d)",
                           error);
 #else
-	kill_server((void*) sig);	// MIT THREAD has a alarm thread
+	kill_server(sig);	// MIT THREAD has a alarm thread
 #endif
       }
       break;
@@ -3696,23 +3580,6 @@ void *my_str_malloc_mysqld(size_t size)
   return my_malloc(size, MYF(MY_FAE));
 }
 
-
-#ifdef __WIN__
-
-pthread_handler_t handle_shutdown(void *arg)
-{
-  MSG msg;
-  my_thread_init();
-
-  /* this call should create the message queue for this thread */
-  PeekMessage(&msg, NULL, 1, 65534,PM_NOREMOVE);
-#if !defined(EMBEDDED_LIBRARY)
-  if (WaitForSingleObject(hEventShutdown,INFINITE)==WAIT_OBJECT_0)
-#endif /* EMBEDDED_LIBRARY */
-     kill_server(MYSQL_KILL_SIGNAL);
-  return 0;
-}
-#endif
 
 #include <mysqld_default_groups.h>
 
@@ -4073,14 +3940,16 @@ static void my_malloc_size_cb_func(long long size, my_bool is_thread_specific)
 {
   THD *thd= current_thd;
 
-  if (is_thread_specific)  /* If thread specific memory */
-  {
-    /*
-      When thread specfic is set, both mysqld_server_initialized and thd
-      must be set
-    */
-    DBUG_ASSERT(mysqld_server_initialized && thd);
+  /*
+    When thread specific is set, both mysqld_server_initialized and thd
+    must be set, and we check that with DBUG_ASSERT.
 
+    However, do not crash, if current_thd is NULL, in release version.
+  */
+  DBUG_ASSERT(!is_thread_specific || (mysqld_server_initialized && thd));
+
+  if (is_thread_specific && likely(thd))  /* If thread specific memory */
+  {
     DBUG_PRINT("info", ("thd memory_used: %lld  size: %lld",
                         (longlong) thd->status_var.local_memory_used,
                         size));
@@ -4472,6 +4341,11 @@ static int init_common_variables()
     /* MyISAM requires two file handles per table. */
     wanted_files= (extra_files + max_connections + extra_max_connections +
                    tc_size * 2);
+#if defined(HAVE_POOL_OF_THREADS) && !defined(__WIN__)
+    // add epoll or kevent fd for each threadpool group, in case pool of threads is used
+    wanted_files+= (thread_handling > SCHEDULER_NO_THREADS) ? 0 : threadpool_size;
+#endif
+
     min_tc_size= MY_MIN(tc_size, TABLE_OPEN_CACHE_MIN);
     org_max_connections= max_connections;
     org_tc_size= tc_size;
@@ -5615,78 +5489,14 @@ static int init_server_components()
 
 #ifndef EMBEDDED_LIBRARY
 #ifdef _WIN32
-static void create_shutdown_thread()
+static void create_shutdown_event()
 {
-#ifdef __WIN__
   hEventShutdown=CreateEvent(0, FALSE, FALSE, shutdown_event_name);
-  pthread_t hThread;
-  int error;
-  if (unlikely((error= mysql_thread_create(key_thread_handle_shutdown,
-                                           &hThread, &connection_attrib,
-                                           handle_shutdown, 0))))
-    sql_print_warning("Can't create thread to handle shutdown requests"
-                      " (errno= %d)", error);
   // On "Stop Service" we have to do regular shutdown
   Service.SetShutdownEvent(hEventShutdown);
-#endif /* __WIN__ */
 }
-
-static void handle_connections_methods()
-{
-  pthread_t hThread;
-  int error;
-  DBUG_ENTER("handle_connections_methods");
-  if (hPipe == INVALID_HANDLE_VALUE && opt_disable_networking)
-  {
-    sql_print_error("TCP/IP, or --named-pipe should be configured on Windows");
-    unireg_abort(1);				// Will not return
-  }
-
-  mysql_mutex_lock(&LOCK_start_thread);
-  mysql_cond_init(key_COND_handler_count, &COND_handler_count, NULL);
-  handler_count=0;
-  if (hPipe != INVALID_HANDLE_VALUE)
-  {
-    handler_count++;
-    if ((error= mysql_thread_create(key_thread_handle_con_namedpipes,
-                                    &hThread, &connection_attrib,
-                                    handle_connections_namedpipes, 0)))
-    {
-      sql_print_warning("Can't create thread to handle named pipes"
-                        " (errno= %d)", error);
-      handler_count--;
-    }
-  }
-  if (have_tcpip && !opt_disable_networking)
-  {
-    handler_count++;
-    if ((error= mysql_thread_create(key_thread_handle_con_sockets,
-                                    &hThread, &connection_attrib,
-                                    handle_connections_sockets_thread, 0)))
-    {
-      sql_print_warning("Can't create thread to handle TCP/IP",
-                        " (errno= %d)", error);
-      handler_count--;
-    }
-  }
-
-  while (handler_count > 0)
-    mysql_cond_wait(&COND_handler_count, &LOCK_start_thread);
-  mysql_mutex_unlock(&LOCK_start_thread);
-  DBUG_VOID_RETURN;
-}
-
-void decrement_handler_count()
-{
-  mysql_mutex_lock(&LOCK_start_thread);
-  if (--handler_count == 0)
-    mysql_cond_signal(&COND_handler_count);
-  mysql_mutex_unlock(&LOCK_start_thread);
-  my_thread_end();
-}
-#else /* WIN32*/
-#define create_shutdown_thread()
-#define decrement_handler_count()
+#else /*_WIN32*/
+#define create_shutdown_event()
 #endif
 #endif /* EMBEDDED_LIBRARY */
 
@@ -6079,7 +5889,7 @@ int mysqld_main(int argc, char **argv)
     }
   }
 
-  create_shutdown_thread();
+  create_shutdown_event();
   start_handle_manager();
 
   /* Copy default global rpl_filter to global_rpl_filter */
@@ -6149,7 +5959,8 @@ int mysqld_main(int argc, char **argv)
   start_memory_used= global_status_var.global_memory_used;
 
 #ifdef _WIN32
-  handle_connections_methods();
+  handle_connections_win();
+  kill_server(0);
 #else
   handle_connections_sockets();
 #endif /* _WIN32 */
@@ -6561,7 +6372,7 @@ void create_thread_to_handle_connection(CONNECT *connect)
   @param[in,out] thd    Thread handle of future thread.
 */
 
-static void create_new_thread(CONNECT *connect)
+void create_new_thread(CONNECT *connect)
 {
   DBUG_ENTER("create_new_thread");
 
@@ -6629,18 +6440,107 @@ inline void kill_broken_server()
 
 #ifndef EMBEDDED_LIBRARY
 
+void handle_accepted_socket(MYSQL_SOCKET new_sock, MYSQL_SOCKET sock)
+{
+  CONNECT *connect;
+  bool is_unix_sock;
+
+#ifdef FD_CLOEXEC
+  (void) fcntl(mysql_socket_getfd(new_sock), F_SETFD, FD_CLOEXEC);
+#endif
+
+#ifdef HAVE_LIBWRAP
+  {
+    if (mysql_socket_getfd(sock) == mysql_socket_getfd(base_ip_sock) ||
+      mysql_socket_getfd(sock) == mysql_socket_getfd(extra_ip_sock))
+    {
+      struct request_info req;
+      signal(SIGCHLD, SIG_DFL);
+      request_init(&req, RQ_DAEMON, libwrapName, RQ_FILE,
+        mysql_socket_getfd(new_sock), NULL);
+      my_fromhost(&req);
+      if (!my_hosts_access(&req))
+      {
+        /*
+          This may be stupid but refuse() includes an exit(0)
+          which we surely don't want...
+          clean_exit() - same stupid thing ...
+        */
+        syslog(deny_severity, "refused connect from %s",
+          my_eval_client(&req));
+
+        /*
+          C++ sucks (the gibberish in front just translates the supplied
+          sink function pointer in the req structure from a void (*sink)();
+          to a void(*sink)(int) if you omit the cast, the C++ compiler
+          will cry...
+        */
+        if (req.sink)
+          ((void(*)(int))req.sink)(req.fd);
+
+        (void)mysql_socket_shutdown(new_sock, SHUT_RDWR);
+        (void)mysql_socket_close(new_sock);
+        /*
+          The connection was refused by TCP wrappers.
+          There are no details (by client IP) available to update the
+          host_cache.
+        */
+        statistic_increment(connection_errors_tcpwrap, &LOCK_status);
+        return;
+      }
+    }
+  }
+#endif /* HAVE_LIBWRAP */
+
+  DBUG_PRINT("info", ("Creating CONNECT for new connection"));
+
+  if ((connect= new CONNECT()))
+  {
+    is_unix_sock= (mysql_socket_getfd(sock) ==
+      mysql_socket_getfd(unix_sock));
+
+    if (!(connect->vio=
+      mysql_socket_vio_new(new_sock,
+        is_unix_sock ? VIO_TYPE_SOCKET :
+        VIO_TYPE_TCPIP,
+        is_unix_sock ? VIO_LOCALHOST : 0)))
+    {
+      delete connect;
+      connect= 0;                             // Error handling below
+    }
+  }
+
+  if (!connect)
+  {
+    /* Connect failure */
+    (void)mysql_socket_close(new_sock);
+    statistic_increment(aborted_connects, &LOCK_status);
+    statistic_increment(connection_errors_internal, &LOCK_status);
+    return;
+  }
+
+  if (is_unix_sock)
+    connect->host= my_localhost;
+
+  if (mysql_socket_getfd(sock) == mysql_socket_getfd(extra_ip_sock))
+  {
+    connect->extra_port= 1;
+    connect->scheduler= extra_thread_scheduler;
+  }
+  create_new_thread(connect);
+}
+
+#ifndef _WIN32
 void handle_connections_sockets()
 {
   MYSQL_SOCKET sock= mysql_socket_invalid();
   MYSQL_SOCKET new_sock= mysql_socket_invalid();
   uint error_count=0;
-  CONNECT *connect;
   struct sockaddr_storage cAddr;
   int ip_flags __attribute__((unused))=0;
   int socket_flags __attribute__((unused))= 0;
   int extra_ip_flags __attribute__((unused))=0;
   int flags=0,retval;
-  bool is_unix_sock;
 #ifdef HAVE_POLL
   int socket_count= 0;
   struct pollfd fds[3]; // for ip_sock, unix_sock and extra_ip_sock
@@ -6772,10 +6672,7 @@ void handle_connections_sockets()
       }
 #endif
     }
-#if !defined(NO_FCNTL_NONBLOCK)
-    if (!(test_flags & TEST_BLOCKING))
-      fcntl(mysql_socket_getfd(sock), F_SETFL, flags);
-#endif
+
     if (mysql_socket_getfd(new_sock) == INVALID_SOCKET)
     {
       /*
@@ -6791,199 +6688,18 @@ void handle_connections_sockets()
 	sleep(1);				// Give other threads some time
       continue;
     }
-#ifdef FD_CLOEXEC
-    (void) fcntl(mysql_socket_getfd(new_sock), F_SETFD, FD_CLOEXEC);
+#if !defined(NO_FCNTL_NONBLOCK)
+	if (!(test_flags & TEST_BLOCKING))
+		fcntl(mysql_socket_getfd(sock), F_SETFL, flags);
 #endif
-
-#ifdef HAVE_LIBWRAP
-    {
-      if (mysql_socket_getfd(sock) == mysql_socket_getfd(base_ip_sock) ||
-          mysql_socket_getfd(sock) == mysql_socket_getfd(extra_ip_sock))
-      {
-	struct request_info req;
-	signal(SIGCHLD, SIG_DFL);
-	request_init(&req, RQ_DAEMON, libwrapName, RQ_FILE,
-                     mysql_socket_getfd(new_sock), NULL);
-	my_fromhost(&req);
-	if (!my_hosts_access(&req))
-	{
-	  /*
-	    This may be stupid but refuse() includes an exit(0)
-	    which we surely don't want...
-	    clean_exit() - same stupid thing ...
-	  */
-	  syslog(deny_severity, "refused connect from %s",
-		 my_eval_client(&req));
-
-	  /*
-	    C++ sucks (the gibberish in front just translates the supplied
-	    sink function pointer in the req structure from a void (*sink)();
-	    to a void(*sink)(int) if you omit the cast, the C++ compiler
-	    will cry...
-	  */
-	  if (req.sink)
-	    ((void (*)(int))req.sink)(req.fd);
-
-	  (void) mysql_socket_shutdown(new_sock, SHUT_RDWR);
-	  (void) mysql_socket_close(new_sock);
-          /*
-            The connection was refused by TCP wrappers.
-            There are no details (by client IP) available to update the
-            host_cache.
-          */
-          statistic_increment(connection_errors_tcpwrap, &LOCK_status);
-	  continue;
-	}
-      }
-    }
-#endif /* HAVE_LIBWRAP */
-
-    DBUG_PRINT("info", ("Creating CONNECT for new connection"));
-
-    if ((connect= new CONNECT()))
-    {
-      is_unix_sock= (mysql_socket_getfd(sock) ==
-                     mysql_socket_getfd(unix_sock));
-
-      if (!(connect->vio=
-            mysql_socket_vio_new(new_sock,
-                                 is_unix_sock ? VIO_TYPE_SOCKET :
-                                 VIO_TYPE_TCPIP,
-                                 is_unix_sock ? VIO_LOCALHOST: 0)))
-      {
-        delete connect;
-        connect= 0;                             // Error handling below
-      }
-    }
-
-    if (!connect)
-    {
-      /* Connect failure */
-      (void) mysql_socket_shutdown(new_sock, SHUT_RDWR);
-      (void) mysql_socket_close(new_sock);
-      statistic_increment(aborted_connects,&LOCK_status);
-      statistic_increment(connection_errors_internal, &LOCK_status);
-      continue;
-    }
-
-    if (is_unix_sock)
-      connect->host= my_localhost;
-
-    if (mysql_socket_getfd(sock) == mysql_socket_getfd(extra_ip_sock))
-    {
-      connect->extra_port= 1;
-      connect->scheduler= extra_thread_scheduler;
-    }
-    create_new_thread(connect);
+    handle_accepted_socket(new_sock, sock);
   }
   sd_notify(0, "STOPPING=1\n"
             "STATUS=Shutdown in progress\n");
   DBUG_VOID_RETURN;
 }
 
-
-#ifdef _WIN32
-pthread_handler_t handle_connections_sockets_thread(void *arg)
-{
-  my_thread_init();
-  handle_connections_sockets();
-  decrement_handler_count();
-  return 0;
-}
-
-pthread_handler_t handle_connections_namedpipes(void *arg)
-{
-  HANDLE hConnectedPipe;
-  OVERLAPPED connectOverlapped= {0};
-  my_thread_init();
-  DBUG_ENTER("handle_connections_namedpipes");
-  connectOverlapped.hEvent= CreateEvent(NULL, TRUE, FALSE, NULL);
-  if (!connectOverlapped.hEvent)
-  {
-    sql_print_error("Can't create event, last error=%u", GetLastError());
-    unireg_abort(1);
-  }
-  DBUG_PRINT("general",("Waiting for named pipe connections."));
-  while (!abort_loop)
-  {
-    /* wait for named pipe connection */
-    BOOL fConnected= ConnectNamedPipe(hPipe, &connectOverlapped);
-    if (!fConnected && (GetLastError() == ERROR_IO_PENDING))
-    {
-        /*
-          ERROR_IO_PENDING says async IO has started but not yet finished.
-          GetOverlappedResult will wait for completion.
-        */
-        DWORD bytes;
-        fConnected= GetOverlappedResult(hPipe, &connectOverlapped,&bytes, TRUE);
-    }
-    if (abort_loop)
-      break;
-    if (!fConnected)
-      fConnected = GetLastError() == ERROR_PIPE_CONNECTED;
-    if (!fConnected)
-    {
-      CloseHandle(hPipe);
-      if ((hPipe= CreateNamedPipe(pipe_name,
-                                  PIPE_ACCESS_DUPLEX |
-                                  FILE_FLAG_OVERLAPPED,
-                                  PIPE_TYPE_BYTE |
-                                  PIPE_READMODE_BYTE |
-                                  PIPE_WAIT,
-                                  PIPE_UNLIMITED_INSTANCES,
-                                  (int) global_system_variables.
-                                  net_buffer_length,
-                                  (int) global_system_variables.
-                                  net_buffer_length,
-                                  NMPWAIT_USE_DEFAULT_WAIT,
-                                  &saPipeSecurity)) ==
-	  INVALID_HANDLE_VALUE)
-      {
-	sql_perror("Can't create new named pipe!");
-	break;					// Abort
-      }
-    }
-    hConnectedPipe = hPipe;
-    /* create new pipe for new connection */
-    if ((hPipe = CreateNamedPipe(pipe_name,
-                 PIPE_ACCESS_DUPLEX |
-                 FILE_FLAG_OVERLAPPED,
-				 PIPE_TYPE_BYTE |
-				 PIPE_READMODE_BYTE |
-				 PIPE_WAIT,
-				 PIPE_UNLIMITED_INSTANCES,
-				 (int) global_system_variables.net_buffer_length,
-				 (int) global_system_variables.net_buffer_length,
-				 NMPWAIT_USE_DEFAULT_WAIT,
-				 &saPipeSecurity)) ==
-	INVALID_HANDLE_VALUE)
-    {
-      sql_perror("Can't create new named pipe!");
-      hPipe=hConnectedPipe;
-      continue;					// We have to try again
-    }
-    CONNECT *connect;
-    if (!(connect= new CONNECT) ||
-        !(connect->vio= vio_new_win32pipe(hConnectedPipe)))
-    {
-      DisconnectNamedPipe(hConnectedPipe);
-      CloseHandle(hConnectedPipe);
-      delete connect;
-      statistic_increment(aborted_connects,&LOCK_status);
-      statistic_increment(connection_errors_internal, &LOCK_status);
-      continue;
-    }
-    connect->host= my_localhost;
-    create_new_thread(connect);
-  }
-  LocalFree(saPipeSecurity.lpSecurityDescriptor);
-  CloseHandle(connectOverlapped.hEvent);
-  DBUG_LEAVE;
-  decrement_handler_count();
-  return 0;
-}
-#endif /* _WIN32 */
-
+#endif /* _WIN32*/
 #endif /* EMBEDDED_LIBRARY */
 
 
@@ -8687,7 +8403,9 @@ static int mysql_init_variables(void)
   character_set_filesystem= &my_charset_bin;
 
   opt_specialflag= SPECIAL_ENGLISH;
+#ifndef EMBEDDED_LIBRARY 
   unix_sock= base_ip_sock= extra_ip_sock= MYSQL_INVALID_SOCKET;
+#endif
   mysql_home_ptr= mysql_home;
   log_error_file_ptr= log_error_file;
   protocol_version= PROTOCOL_VERSION;

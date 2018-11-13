@@ -5,8 +5,6 @@ drop table if exists t;
 connection slave;
 show variables like 'tokudb_rpl_unique_checks%';
 Variable_name	Value
-tokudb_rpl_unique_checks	OFF
-tokudb_rpl_unique_checks_delay	5000
 connection master;
 create table t (a bigint not null, primary key(a)) engine=tokudb;
 insert into t values (1);
@@ -17,10 +15,6 @@ connection master;
 connection slave;
 connection master;
 include/diff_tables.inc [master:test.t, slave:test.t]
-Warnings:
-Warning	1287	'<select expression> INTO <destination>;' is deprecated and will be removed in a future release. Please use 'SELECT <select list> INTO <destination> FROM...' instead
-Warnings:
-Warning	1287	'<select expression> INTO <destination>;' is deprecated and will be removed in a future release. Please use 'SELECT <select list> INTO <destination> FROM...' instead
 connection master;
 drop table if exists t;
 connection slave;
