@@ -1,0 +1,56 @@
+create or replace table t(id int, val int, s date, e date,
+period for p(s,e),
+primary key(id, p without overlaps)) engine=myisam;
+insert into t values (1, 1, '2003-01-01', '2003-03-01'),
+(1, 2, '2003-05-01', '2003-07-01');
+# This just inserts a row; no rows matched
+insert into t values (2, 3, '2003-01-01', '2003-04-01')
+on duplicate key update val=3;
+# The following command is equivalent to
+# MERGE INTO t USING t
+#  ON id = 1 AND s <= 2003-04-01 AND e > 2003-01-01
+#  WHEN MATCHED UPDATE SET val=3
+#  WHEN NOT MATCHED INSERT VALUES (1, 3, '2003-01-01', '2003-04-01');
+insert into t values (1, 3, '2003-01-01', '2003-04-01')
+on duplicate key update val=3;
+select row_count();
+row_count()
+2
+select * from t;
+id	val	s	e
+1	3	2003-01-01	2003-03-01
+1	2	2003-05-01	2003-07-01
+2	3	2003-01-01	2003-04-01
+insert into t values (1, 3, '2003-01-01', '2003-06-01')
+on duplicate key update val=4;
+select row_count();
+row_count()
+4
+select * from t;
+id	val	s	e
+1	4	2003-01-01	2003-03-01
+1	4	2003-05-01	2003-07-01
+2	3	2003-01-01	2003-04-01
+# No rows matched
+insert into t values (1, 3, '2003-07-01', '2003-08-01')
+on duplicate key update val=5;
+select row_count();
+row_count()
+1
+select * from t;
+id	val	s	e
+1	4	2003-01-01	2003-03-01
+1	4	2003-05-01	2003-07-01
+2	3	2003-01-01	2003-04-01
+1	3	2003-07-01	2003-08-01
+replace into t values(1, 6, '2003-01-01', '2003-06-01');
+select row_count();
+row_count()
+4
+select * from t;
+id	val	s	e
+1	6	2003-01-01	2003-06-01
+1	4	2003-06-01	2003-07-01
+2	3	2003-01-01	2003-04-01
+1	3	2003-07-01	2003-08-01
+drop table t;

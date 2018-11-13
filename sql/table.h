@@ -1155,7 +1155,8 @@ public:
   uchar *write_row_record;		/* Used as optimisation in
 					   THD::write_row */
   uchar *insert_values;                  /* used by INSERT ... UPDATE */
-  /* 
+  uchar *key_buffer;                     /* buffer for INSERT/REPLACE*/
+  /*
     Map of keys that can be used to retrieve all data from this table 
     needed by the query without reading the row.
   */
@@ -2842,7 +2843,7 @@ typedef struct st_nested_join
     set to JOIN_OP_NEST.
   */
   uint nest_type;
-  /* 
+  /*
     Bitmap of tables within this nested join (including those embedded within
     its children), including tables removed by table elimination.
   */

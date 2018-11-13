@@ -3014,6 +3014,7 @@ public:
   handlerton *ht;                 /* storage engine of this handler */
   uchar *ref;				/* Pointer to current row */
   uchar *dup_ref;			/* Pointer to duplicate row */
+  uchar *overlap_ref;                   /* Pointer to overlapping row */
   uchar *lookup_buffer;
 
   ha_statistics stats;
@@ -3210,7 +3211,7 @@ public:
     :table_share(share_arg), table(0),
     estimation_rows_to_insert(0),
     lookup_handler(NULL),
-    ht(ht_arg), ref(0), lookup_buffer(NULL), end_range(NULL),
+    ht(ht_arg), ref(0), overlap_ref(NULL), lookup_buffer(NULL), end_range(NULL),
     implicit_emptied(0),
     mark_trx_read_write_done(0),
     check_table_binlog_row_based_done(0),

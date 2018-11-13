@@ -782,7 +782,7 @@ static bool create_key_infos(const uchar *strpos, const uchar *frm_image_end,
 
     if (i == 0)
     {
-      (*ext_key_parts)+= (share->use_ext_keys ? first_keyinfo->user_defined_key_parts*(keys-1) : 0); 
+      (*ext_key_parts)+= (share->use_ext_keys ? first_keyinfo->user_defined_key_parts*(keys-1) : 0);
       n_length=keys * sizeof(KEY) + *ext_key_parts * sizeof(KEY_PART_INFO);
       if (!(keyinfo= (KEY*) alloc_root(&share->mem_root,
 				       n_length + len)))
@@ -2767,7 +2767,7 @@ int TABLE_SHARE::init_from_binary_frm_image(THD *thd, bool write,
         if ((keyinfo-1)->algorithm == HA_KEY_ALG_LONG_HASH)
           new_key_part++; // reserved for the hash value
 
-        /* 
+        /*
           Do not extend the key that contains a component
           defined over the beginning of a field.
 	*/ 

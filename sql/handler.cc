@@ -6551,6 +6551,7 @@ int handler::ha_external_lock(THD *thd, int lock_type)
     lookup_handler->close();
     delete lookup_handler;
     lookup_handler= NULL;
+    overlap_ref= NULL;
   }
 
   if (MYSQL_HANDLER_RDLOCK_DONE_ENABLED() ||
@@ -7120,7 +7121,7 @@ Compare_keys handler::compare_key_parts(const Field &old_field,
   Creates a clone of handler used for unique hash key and WITHOUT OVERLAPS.
   @return error code
 */
-int handler::create_lookup_handler() 
+int handler::create_lookup_handler()
 {
   if (lookup_handler)
     return 0;
@@ -7226,7 +7227,10 @@ int handler::ha_check_overlaps(const uchar *old_data, const uchar* new_data)
       error= 0;
 
     if (error == HA_ERR_FOUND_DUPP_KEY)
+    {
       lookup_errkey= key_nr;
+      overlap_ref= lookup_buffer;
+    }
 
     int end_error= handler->ha_end_keyread();
     DBUG_ASSERT(!end_error);
