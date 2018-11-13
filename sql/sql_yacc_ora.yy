@@ -278,10 +278,10 @@ bool my_yyoverflow(short **a, YYSTYPE **b, size_t *yystacksize);
 %parse-param { THD *thd }
 %lex-param { THD *thd }
 /*
-  Currently there are 57 shift/reduce conflicts.
+  Currently there are 53 shift/reduce conflicts.
   We should not introduce new conflicts any more.
 */
-%expect 57
+%expect 53
 
 /*
    Comments for TOKENS.
@@ -1203,6 +1203,7 @@ bool my_yyoverflow(short **a, YYSTYPE **b, size_t *yystacksize);
         ident
         label_ident
         sp_decl_ident
+        ident_set_usual_case
         ident_or_empty
         ident_table_alias
         ident_sysvar_name
@@ -1225,6 +1226,8 @@ bool my_yyoverflow(short **a, YYSTYPE **b, size_t *yystacksize);
         keyword_data_type
         keyword_ident
         keyword_label
+        keyword_set_special_case
+        keyword_set_usual_case
         keyword_sp_block_section
         keyword_sp_decl
         keyword_sp_head
@@ -15477,6 +15480,14 @@ ident_table_alias:
           }
         ;
 
+ident_set_usual_case:
+          IDENT_sys
+        | keyword_set_usual_case
+          {
+            if (unlikely($$.copy_keyword(thd, &$1)))
+              MYSQL_YYABORT;
+          }
+        ;
 
 ident_sysvar_name:
           IDENT_sys
@@ -15608,6 +15619,7 @@ user: user_maybe_role
 /* Keywords which we allow as table aliases. */
 keyword_table_alias:
           keyword_data_type
+        | keyword_set_special_case
         | keyword_sp_block_section
         | keyword_sp_head
         | keyword_sp_var_and_label
@@ -15620,6 +15632,7 @@ keyword_table_alias:
 /* Keyword that we allow for identifiers (except SP labels) */
 keyword_ident:
           keyword_data_type
+        | keyword_set_special_case
         | keyword_sp_block_section
         | keyword_sp_head
         | keyword_sp_var_and_label
@@ -15636,6 +15649,7 @@ keyword_ident:
 */
 keyword_label:
           keyword_data_type
+        | keyword_set_special_case
         | keyword_sp_var_and_label
         | keyword_sysvar_type
         | FUNCTION_SYM
@@ -15643,6 +15657,7 @@ keyword_label:
 
 keyword_sysvar_name:
           keyword_data_type
+        | keyword_set_special_case
         | keyword_sp_block_section
         | keyword_sp_head
         | keyword_sp_var_and_label
@@ -15654,6 +15669,7 @@ keyword_sysvar_name:
 
 keyword_sp_decl:
           keyword_sp_head
+        | keyword_set_special_case
         | keyword_sp_var_and_label
         | keyword_sp_var_not_label
         | keyword_sysvar_type
@@ -15661,8 +15677,21 @@ keyword_sp_decl:
         | WINDOW_SYM
         ;
 
+keyword_set_usual_case:
+          keyword_data_type
+        | keyword_sp_block_section
+        | keyword_sp_head
+        | keyword_sp_var_and_label
+        | keyword_sp_var_not_label
+        | keyword_sysvar_type
+        | keyword_verb_clause
+        | FUNCTION_SYM
+        | WINDOW_SYM
+        ;
+
 keyword_directly_assignable:
           keyword_data_type
+        | keyword_set_special_case
         | keyword_sp_var_and_label
         | keyword_sp_var_not_label
         | keyword_sysvar_type
@@ -15800,6 +15829,12 @@ keyword_verb_clause:
         | SAVEPOINT_SYM         /* Verb clause. Reserved in Oracle */
         | SHUTDOWN              /* Verb clause                     */
         | TRUNCATE_SYM          /* Verb clause. Reserved in Oracle */
+        ;
+
+keyword_set_special_case:
+          NAMES_SYM
+        | ROLE_SYM
+        | PASSWORD_SYM
         ;
 
 /*
@@ -16039,7 +16074,6 @@ keyword_sp_var_and_label:
         | MYSQL_SYM
         | MYSQL_ERRNO_SYM
         | NAME_SYM
-        | NAMES_SYM
         | NEXT_SYM           %prec PREC_BELOW_CONTRACTION_TOKEN2
         | NEXTVAL_SYM
         | NEW_SYM
@@ -16064,7 +16098,6 @@ keyword_sp_var_and_label:
         | PARTIAL
         | PARTITIONING_SYM
         | PARTITIONS_SYM
-        | PASSWORD_SYM
         | PERSISTENT_SYM
         | PHASE_SYM
         | PLUGIN_SYM
@@ -16104,7 +16137,6 @@ keyword_sp_var_and_label:
         | RETURNS_SYM
         | REUSE_SYM
         | REVERSE_SYM
-        | ROLE_SYM
         | ROLLUP_SYM
         | ROUTINE_SYM
         | ROWCOUNT_SYM
@@ -16397,7 +16429,7 @@ option_value_following_option_type:
 
 /* Option values without preceding option_type. */
 option_value_no_option_type:
-          ident equal set_expr_or_default
+          ident_set_usual_case equal set_expr_or_default
           {
             if (unlikely(Lex->set_variable(&$1, $3)))
               MYSQL_YYABORT;
@@ -16512,6 +16544,11 @@ option_value_no_option_type:
             set_var_role *var= new (thd->mem_root) set_var_role($2);
             if (unlikely(var == NULL) ||
                 unlikely(lex->var_list.push_back(var, thd->mem_root)))
+              MYSQL_YYABORT;
+          }
+        | ROLE_SYM equal set_expr_or_default
+          {
+            if (unlikely(Lex->set_variable(&$1, $3)))
               MYSQL_YYABORT;
           }
         | PASSWORD_SYM opt_for_user text_or_password
