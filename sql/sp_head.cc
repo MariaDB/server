@@ -4475,19 +4475,21 @@ sp_instr_cursor_copy_struct::exec_core(THD *thd, uint *nextp)
     if (!(ret= tmp.open(thd)))
     {
       Row_definition_list defs;
+      /*
+        Create row elements on the caller arena.
+        It's the same arena that was used during sp_rcontext::create().
+        This puts cursor%ROWTYPE elements on the same mem_root
+        where explicit ROW elements and table%ROWTYPE reside:
+        - tmp.export_structure() allocates new Spvar_definition instances
+          and their components (such as TYPELIBs).
+        - row->row_create_items() creates new Item_field instances.
+        They all are created on the same mem_root.
+      */
+      Query_arena current_arena;
+      thd->set_n_backup_active_arena(thd->spcont->callers_arena, &current_arena);
       if (!(ret= tmp.export_structure(thd, &defs)))
-      {
-        /*
-          Create row elements on the caller arena.
-          It's the same arena that was used during sp_rcontext::create().
-          This puts cursor%ROWTYPE elements on the same mem_root
-          where explicit ROW elements and table%ROWTYPE reside.
-        */
-        Query_arena current_arena;
-        thd->set_n_backup_active_arena(thd->spcont->callers_arena, &current_arena);
         row->row_create_items(thd, &defs);
-        thd->restore_active_arena(thd->spcont->callers_arena, &current_arena);
-      }
+      thd->restore_active_arena(thd->spcont->callers_arena, &current_arena);
       tmp.close(thd);
     }
   }
