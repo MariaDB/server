@@ -504,6 +504,12 @@ int mysql_load(THD *thd, const sql_exchange *ex, TABLE_LIST *table_list,
     DBUG_RETURN(TRUE);
   }
 
+//  if (table->s->period.name && handle_duplicates != DUP_ERROR)
+//  {
+//    if (table_list->set_insert_values(thd->mem_root))
+//      DBUG_RETURN(1);
+//  }
+
   /* We can't give an error in the middle when using LOCAL files */
   if (read_file_from_client && handle_duplicates == DUP_ERROR)
     ignore= 1;
