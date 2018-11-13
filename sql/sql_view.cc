@@ -843,13 +843,13 @@ int mariadb_fix_view(THD *thd, TABLE_LIST *view, bool wrong_checksum,
     swap_alg= 0;
   if (wrong_checksum)
   {
-    if (view->md5.length != 32)
+    if (view->md5.length != VIEW_MD5_LEN)
     {
-       if ((view->md5.str= (char *)thd->alloc(32 + 1)) == NULL)
+       if ((view->md5.str= (char *)thd->alloc(VIEW_MD5_LEN + 1)) == NULL)
          DBUG_RETURN(HA_ADMIN_FAILED);
     }
     view->calc_md5(const_cast<char*>(view->md5.str));
-    view->md5.length= 32;
+    view->md5.length= VIEW_MD5_LEN;
   }
   view->mariadb_version= MYSQL_VERSION_ID;
 
@@ -972,13 +972,13 @@ static int mysql_register_view(THD *thd, TABLE_LIST *view,
   view->file_version= 2;
   view->mariadb_version= MYSQL_VERSION_ID;
   view->calc_md5(md5);
-  if (!(view->md5.str= (char*) thd->memdup(md5, 32)))
+  if (!(view->md5.str= (char*) thd->memdup(md5, VIEW_MD5_LEN)))
   {
     my_error(ER_OUT_OF_RESOURCES, MYF(0));
     error= -1;
     goto err;   
   }
-  view->md5.length= 32;
+  view->md5.length= VIEW_MD5_LEN;
   can_be_merged= lex->can_be_merged();
   if (lex->create_view->algorithm == VIEW_ALGORITHM_MERGE &&
       !lex->can_be_merged())
@@ -2093,10 +2093,10 @@ bool insert_view_fields(THD *thd, List<Item> *list, TABLE_LIST *view)
 int view_checksum(THD *thd, TABLE_LIST *view)
 {
   char md5[MD5_BUFF_LENGTH];
-  if (!view->view || view->md5.length != 32)
+  if (!view->view || view->md5.length != VIEW_MD5_LEN)
     return HA_ADMIN_NOT_IMPLEMENTED;
   view->calc_md5(md5);
-  return (strncmp(md5, view->md5.str, 32) ?
+  return (strncmp(md5, view->md5.str, VIEW_MD5_LEN) ?
           HA_ADMIN_WRONG_CHECKSUM :
           HA_ADMIN_OK);
 }
