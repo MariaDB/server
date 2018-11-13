@@ -187,7 +187,7 @@ public:
     m_fds= m_init_fds;
     struct timeval tv= {1,0};
     /* select requires max fd + 1 for the first argument */
-    return select(m_max_fd+1, &m_fds, NULL, NULL, &tv);
+    return select((int) m_max_fd+1, &m_fds, NULL, NULL, &tv);
   }
 
   bool is_socket_active(const Slave *slave)
@@ -202,7 +202,7 @@ public:
 
   uint init_slave_sockets()
   {
-    Slave_ilist_iterator it(m_slaves);
+    Slave_ilist_iterator it(const_cast<Slave_ilist&>(m_slaves));
     Slave *slave;
     uint fds_index= 0;
 

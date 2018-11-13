@@ -239,7 +239,8 @@ void Ack_receiver::run()
 #ifdef HAVE_POLL
       DBUG_PRINT("info", ("fd count %u", slave_count));
 #else     
-      DBUG_PRINT("info", ("fd count %u, max_fd %d", slave_count,(int) max_fd));
+      DBUG_PRINT("info", ("fd count %u, max_fd %d", slave_count,
+                          (int) listener.get_max_fd()));
 #endif
     }
 
