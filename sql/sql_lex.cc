@@ -1430,13 +1430,12 @@ int Lex_input_stream::lex_one_token(YYSTYPE *yylval, THD *thd)
       }
       /* Fall through */
     case MY_LEX_CHAR:                          // Unknown or single char token
-    {
       if (c == '%' && (m_thd->variables.sql_mode & MODE_ORACLE))
       {
         next_state= MY_LEX_START;
         return PERCENT_ORACLE_SYM;
       }
-    }
+      /* Fall through */
     case MY_LEX_SKIP:                          // This should not happen
       if (c != ')')
         next_state= MY_LEX_START;         // Allow signed numbers
