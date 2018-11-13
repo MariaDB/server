@@ -1716,6 +1716,14 @@ struct dict_table_t {
 		ut_ad(fk_checks > 0);
 	}
 
+private:
+	/** Initialize instant->non_pk_col_map.
+	@tparam	replace_dropped	whether to point clustered index fields
+				to instant->dropped[]
+	@param[in]	table	table definition to copy from */
+	template<bool replace_dropped = false>
+	inline void init_instant(const dict_table_t& table);
+public:
 	/** Id of the table. */
 	table_id_t				id;
 
