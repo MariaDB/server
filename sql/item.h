@@ -1028,6 +1028,10 @@ public:
       If value is not null null_value flag will be reset to FALSE.
   */
   virtual longlong val_int()=0;
+  Longlong_hybrid to_longlong_hybrid()
+  {
+    return Longlong_hybrid(val_int(), unsigned_flag);
+  }
   /**
     Get a value for CAST(x AS SIGNED).
     Too large positive unsigned integer values are converted
