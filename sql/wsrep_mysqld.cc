@@ -1159,15 +1159,18 @@ static bool wsrep_prepare_key_for_isolation(const char* db,
 {
   if (*key_len < 2) return false;
 
-    switch (wsrep_protocol_version)
-    {
-    case 0:
-      *key_len= 0;
-      break;
-    case 1:
-    case 2:
-    case 3:
-    case 4:
+  switch (wsrep_protocol_version)
+  {
+  case 0:
+    *key_len= 0;
+    break;
+  case 1:
+  case 2:
+  case 3:
+  case 4:
+  {
+    *key_len= 0;
+    if (db)
     {
       // sql_print_information("%s.%s", db, table);
       key[*key_len].ptr= db;
@@ -1180,12 +1183,14 @@ static bool wsrep_prepare_key_for_isolation(const char* db,
         ++(*key_len);
       }
     }
-    default:
-        assert(0);
-        WSREP_ERROR("Unsupported protocol version: %ld", wsrep_protocol_version);
-        unireg_abort(1);
-        return false;
-    }
+    break;
+  }
+  default:
+    assert(0);
+    WSREP_ERROR("Unsupported protocol version: %ld", wsrep_protocol_version);
+    unireg_abort(1);
+    return false;
+  }
 
     return true;
 }
@@ -1197,7 +1202,7 @@ static bool wsrep_prepare_key_for_isolation(const char* db,
   wsrep_key_t* tmp;
   tmp= (wsrep_key_t*)my_realloc(ka->keys,
                                 (ka->keys_len + 1) * sizeof(wsrep_key_t),
-                                MYF(0));
+                                MYF(MY_ALLOW_ZERO_PTR));
   if (!tmp)
   {
     WSREP_ERROR("Can't allocate memory for key_array");
