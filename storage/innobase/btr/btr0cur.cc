@@ -3353,7 +3353,7 @@ btr_cur_optimistic_insert(
 	if (leaf && page_is_comp(page) && index->dual_format()) {
 		/* The page must be converted into ROW_FORMAT=REDUNDANT
 		in a pessimistic operation. */
-		return DB_TOO_BIG_RECORD;
+		return DB_FAIL;
 	}
 
 	/* Calculate the record size when entry is converted to a record */
@@ -3636,13 +3636,6 @@ btr_cur_pessimistic_insert(
 	ut_ad(!dict_index_is_online_ddl(index)
 	      || dict_index_is_clust(index)
 	      || (flags & BTR_CREATE_FLAG));
-
-	if (index->dual_format()
-	    && page_is_comp(btr_cur_get_page(cursor))
-	    && page_is_leaf(btr_cur_get_page(cursor))) {
-		/* FIXME: convert to ROW_FORMAT=REDUNDANT */
-		return DB_TOO_BIG_RECORD;
-	}
 
 	cursor->flag = BTR_CUR_BINARY;
 
@@ -4124,7 +4117,7 @@ btr_cur_update_in_place(
 	if (page_is_comp(block->frame) && index->dual_format()) {
 		/* The page must be converted into ROW_FORMAT=REDUNDANT
 		in a pessimistic operation. */
-		return DB_TOO_BIG_RECORD;
+		return DB_OVERFLOW;
 	}
 
 	page_zip = buf_block_get_page_zip(block);
@@ -4375,7 +4368,7 @@ btr_cur_optimistic_update(
 	if (page_is_comp(page) && index->dual_format()) {
 		/* The page must be converted into ROW_FORMAT=REDUNDANT
 		in a pessimistic operation. */
-		return DB_TOO_BIG_RECORD;
+		return DB_OVERFLOW;
 	}
 
 	if (UNIV_LIKELY(!update->is_metadata())
@@ -4757,10 +4750,11 @@ btr_cur_pessimistic_update(
 		return(err);
 	}
 
+#if 1 // FIXME: convert to ROW_FORMAT=REDUNDANT
 	if (page_is_comp(page) && page_is_leaf(page) && index->dual_format()) {
-		/* FIXME: convert to ROW_FORMAT=REDUNDANT */
 		return DB_TOO_BIG_RECORD;
 	}
+#endif
 
 	rec = btr_cur_get_rec(cursor);
 
