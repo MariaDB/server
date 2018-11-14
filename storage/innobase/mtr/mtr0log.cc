@@ -507,7 +507,8 @@ mlog_open_and_write_index(
 	const byte*	log_start;
 	const byte*	log_end;
 
-	ut_ad(!!page_rec_is_comp(rec) == dict_table_is_comp(index->table));
+	ut_ad(!!page_rec_is_comp(rec) == dict_table_is_comp(index->table)
+	      || index->dual_format());
 
 	mtr->set_modified();
 	switch (mtr->get_log_mode()) {
