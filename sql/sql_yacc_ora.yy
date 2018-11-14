@@ -4023,44 +4023,8 @@ sp_proc_stmt_statement:
           }
           sp_statement
           {
-            LEX *lex= thd->lex;
-            Lex_input_stream *lip= YYLIP;
-            sp_head *sp= lex->sphead;
-
-            sp->m_flags|= sp_get_flags_for_command(lex);
-            /* "USE db" doesn't work in a procedure */
-            if (unlikely(lex->sql_command == SQLCOM_CHANGE_DB))
-              my_yyabort_error((ER_SP_BADSTATEMENT, MYF(0), "USE"));
-            /*
-              Don't add an instruction for SET statements, since all
-              instructions for them were already added during processing
-              of "set" rule.
-            */
-            DBUG_ASSERT(lex->sql_command != SQLCOM_SET_OPTION ||
-                        lex->var_list.is_empty());
-            if (lex->sql_command != SQLCOM_SET_OPTION)
-            {
-              sp_instr_stmt *i=new (thd->mem_root)
-                sp_instr_stmt(sp->instructions(), lex->spcont, lex);
-              if (unlikely(i == NULL))
-                MYSQL_YYABORT;
-
-              /*
-                Extract the query statement from the tokenizer.  The
-                end is either lex->ptr, if there was no lookahead,
-                lex->tok_end otherwise.
-              */
-              if (yychar == YYEMPTY)
-                i->m_query.length= lip->get_ptr() - sp->m_tmp_query;
-              else
-                i->m_query.length= lip->get_tok_start() - sp->m_tmp_query;;
-              if (unlikely(!(i->m_query.str= strmake_root(thd->mem_root,
-                                                          sp->m_tmp_query,
-                                                          i->m_query.length))) ||
-                  unlikely(sp->add_instr(i)))
-                MYSQL_YYABORT;
-            }
-            if (unlikely(sp->restore_lex(thd)))
+            if (Lex->sp_proc_stmt_statement_finalize(thd, yychar == YYEMPTY) ||
+                Lex->sphead->restore_lex(thd))
               MYSQL_YYABORT;
           }
         ;
