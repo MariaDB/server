@@ -6653,7 +6653,7 @@ static bool execute_show_status(THD *thd, TABLE_LIST *all_tables)
   mysql_mutex_unlock(&LOCK_status);
   return res;
 #ifdef WITH_WSREP
- error: /* see WSREP_SYNC_WAIT() macro above */
+wsrep_error_label: /* see WSREP_SYNC_WAIT() macro above */
   return true;
 #endif /* WITH_WSREP */
 }
