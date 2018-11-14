@@ -4630,6 +4630,9 @@ wait_table_again:
 
 		rec = btr_pcur_get_rec(pcur);
 		ut_ad(page_rec_is_leaf(rec));
+		comp = page_rec_is_comp(rec);
+		ut_ad(!!comp == prebuilt->table->not_redundant()
+		      || index->dual_format());
 
 		if (!moves_up
 		    && !page_rec_is_supremum(rec)
@@ -4701,7 +4704,7 @@ rec_loop:
 		goto lock_wait_or_error;
 	}
 
-	ut_ad(!!page_rec_is_comp(rec) == comp);
+	ut_ad(!page_rec_is_comp(rec) == !comp);
 	ut_ad(page_rec_is_leaf(rec));
 
 	if (page_rec_is_infimum(rec)) {
@@ -4756,6 +4759,9 @@ rec_loop:
 	/* Do sanity checks in case our cursor has bumped into page
 	corruption */
 
+	comp = page_rec_is_comp(rec);
+	ut_ad(!!comp == prebuilt->table->not_redundant()
+	      || index->dual_format());
 	if (comp) {
 		if (rec_get_info_bits(rec, true) & REC_INFO_MIN_REC_FLAG) {
 			/* Skip the metadata pseudo-record. */
@@ -5313,6 +5319,12 @@ requires_clust_rec:
 			goto lock_wait_or_error;
 		}
 
+#if 0 // TODO: do this inside row_sel_get_clust_rec_for_mysql()
+		comp = page_rec_is_comp(clust_rec);
+		ut_ad(!!comp == prebuilt->table->not_redundant()
+		      || index->dual_format());
+#endif
+
 		if (rec_get_deleted_flag(clust_rec, comp)) {
 
 			/* The record is delete marked: we can skip it */
@@ -5468,6 +5480,8 @@ use_covering_index:
 							  ULINT_UNDEFINED,
 							  &heap);
 				result_rec = rec;
+				comp = prebuilt->table->not_redundant();
+				ut_ad(!comp == !rec_offs_comp(offsets));
 			}
 
 			memcpy(buf + 4, result_rec
