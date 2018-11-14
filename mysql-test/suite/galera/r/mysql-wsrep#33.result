@@ -1,3 +1,5 @@
+connection node_2;
+connection node_1;
 connection node_1;
 connection node_2;
 Setting SST method to mysqldump ...
@@ -56,6 +58,9 @@ INSERT INTO t1 VALUES ('node1_to_be_rollbacked_after');
 INSERT INTO t1 VALUES ('node1_to_be_rollbacked_after');
 connection node_2;
 Loading wsrep provider ...
+disconnect node_2;
+connect node_2, 127.0.0.1, root, , test, $NODE_MYPORT_2;
+connection node_2;
 SET AUTOCOMMIT=OFF;
 START TRANSACTION;
 INSERT INTO t1 VALUES ('node2_committed_after');
@@ -114,5 +119,6 @@ CALL mtr.add_suppression("Can't open and lock time zone table");
 CALL mtr.add_suppression("Can't open and lock privilege tables");
 CALL mtr.add_suppression("Info table is not ready to be used");
 CALL mtr.add_suppression("Native table .* has the wrong structure");
+CALL mtr.add_suppression("Table \'mysql.gtid_slave_pos\' doesn\'t exist");
 connection node_2;
 Restarting server ...

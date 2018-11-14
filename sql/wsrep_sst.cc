@@ -439,10 +439,14 @@ static void* sst_joiner_thread (void* a)
       const char *pos= strchr(out, ' ');
 
       if (!pos) {
-        // There is no wsrep_gtid_domain_id (some older version SST script?).
-        WSREP_WARN("Did not find domain ID from SST script output '%s'. "
-                   "Domain ID must be set manually to keep binlog consistent",
-                   out);
+
+        if (wsrep_gtid_mode)
+        {
+          // There is no wsrep_gtid_domain_id (some older version SST script?).
+          WSREP_WARN("Did not find domain ID from SST script output '%s'. "
+                     "Domain ID must be set manually to keep binlog consistent",
+                     out);
+        }
         err= sst_scan_uuid_seqno (out, &ret_uuid, &ret_seqno);
 
       } else {

@@ -227,6 +227,7 @@ void Wsrep_server_service::log_state_change(
   {
   case Wsrep_server_state::s_synced:
     wsrep_ready= TRUE;
+    WSREP_INFO("Synchronized with group, ready for connections");
     /* fall through */
   case Wsrep_server_state::s_joined:
   case Wsrep_server_state::s_donor:
