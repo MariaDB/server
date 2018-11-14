@@ -2347,7 +2347,7 @@ int multi_update::do_updates()
     check_opt_it.rewind();
     while(TABLE *tbl= check_opt_it++)
     {
-      if ((local_error= tbl->file->ha_rnd_init(1)))
+      if ((local_error= tbl->file->ha_rnd_init(0)))
       {
         err_table= tbl;
         goto err;
