@@ -267,7 +267,10 @@ public:
   // Convert a number in format hhhmmss.ff to TIME'hhh:mm:ss.ff'
   bool to_time(MYSQL_TIME *to, int *warn) const
   {
-    bool rc= number_to_time(m_neg, m_sec, m_usec, to, warn);
+    bool rc= (m_sec > 9999999 && m_sec <= 99991231235959ULL && !neg()) ?
+      number_to_datetime_or_date(m_sec, m_usec, to,
+                                 C_TIME_INVALID_DATES, warn) < 0 :
+      number_to_time_only(m_neg, m_sec, m_usec, to, warn);
     DBUG_ASSERT(*warn || !rc);
     return rc;
   }
@@ -282,7 +285,7 @@ public:
       *warn= MYSQL_TIME_WARN_OUT_OF_RANGE;
       return true;
     }
-    bool rc= number_to_datetime(m_sec, m_usec, to,
+    bool rc= number_to_datetime_or_date(m_sec, m_usec, to,
                                 ulonglong(flags & TIME_MODE_FOR_XXX_TO_DATE),
                                 warn) == -1;
     DBUG_ASSERT(*warn || !rc);
@@ -576,10 +579,13 @@ protected:
     if (warn->warnings)
       warn->set_decimal(nr);
   }
-  bool str_to_time(MYSQL_TIME_STATUS *st, const char *str, size_t length,
-                   CHARSET_INFO *cs, date_mode_t fuzzydate);
-  bool str_to_datetime(MYSQL_TIME_STATUS *st, const char *str, size_t length,
-                       CHARSET_INFO *cs, date_mode_t fuzzydate);
+  bool str_to_datetime_or_date_or_time(MYSQL_TIME_STATUS *st,
+                                       const char *str, size_t length,
+                                       CHARSET_INFO *cs, date_mode_t fuzzydate);
+  bool str_to_datetime_or_date(MYSQL_TIME_STATUS *st,
+                               const char *str, size_t length,
+                               CHARSET_INFO *cs, date_mode_t fuzzydate);
+
   bool has_valid_mmssff() const
   {
     return minute <= TIME_MAX_MINUTE &&
@@ -990,7 +996,7 @@ private:
   /*
     Convert a valid DATE or DATETIME to TIME.
     Before this call, "this" must be a valid DATE or DATETIME value,
-    e.g. returned from Item::get_date(), str_to_time(), number_to_time().
+    e.g. returned from Item::get_date(), str_to_xxx(), number_to_xxx().
     After this call, "this" is a valid TIME value.
   */
   void valid_datetime_to_valid_time(THD *thd, int *warn, const Options opt)
@@ -999,7 +1005,7 @@ private:
                 time_type == MYSQL_TIMESTAMP_DATETIME);
     /*
       We're dealing with a DATE or DATETIME returned from
-      str_to_time(), number_to_time() or unpack_time().
+      str_to_xxx(), number_to_xxx() or unpack_time().
       Do some asserts to make sure the result hour value
       after mixing days to hours does not go out of the valid TIME range.
       The maximum hour value after mixing days will be 31*24+23=767,
@@ -1025,7 +1031,7 @@ private:
   /**
     Convert valid DATE/DATETIME to valid TIME if needed.
     This method is called after Item::get_date(),
-    str_to_time(), number_to_time().
+    str_to_xxx(), number_to_xxx().
     which can return only valid TIME/DATE/DATETIME values.
     Before this call, "this" is:
     - either a valid TIME/DATE/DATETIME value
@@ -1061,14 +1067,14 @@ private:
   }
 
   /*
-    This method is called after number_to_time() and str_to_time(),
+    This method is called after number_to_xxx() and str_to_xxx(),
     which can return DATE or DATETIME values. Convert to TIME if needed.
     We trust that xxx_to_time() returns a valid TIME/DATE/DATETIME value,
     so here we need to do only simple validation.
   */
   void xxx_to_time_result_to_valid_value(THD *thd, int *warn, const Options opt)
   {
-    // str_to_time(), number_to_time() never return MYSQL_TIMESTAMP_ERROR
+    // str_to_xxx(), number_to_xxx() never return MYSQL_TIMESTAMP_ERROR
     DBUG_ASSERT(time_type != MYSQL_TIMESTAMP_ERROR);
     valid_MYSQL_TIME_to_valid_value(thd, warn, opt);
   }
@@ -1106,7 +1112,8 @@ public:
        const char *str, size_t len, CHARSET_INFO *cs,
        const Options opt)
   {
-    if (str_to_time(status, str, len, cs, opt.get_date_flags()))
+    if (str_to_datetime_or_date_or_time(status, str, len, cs,
+                                        opt.get_date_flags()))
       time_type= MYSQL_TIMESTAMP_NONE;
     // The below call will optionally add notes to already collected warnings:
     xxx_to_time_result_to_valid_value(thd, &status->warnings, opt);
@@ -1306,7 +1313,7 @@ protected:
                      date_mode_t flags)
   {
     DBUG_ASSERT(bool(flags & TIME_TIME_ONLY) == false);
-    if (str_to_datetime(status, str, len, cs, flags))
+    if (str_to_datetime_or_date(status, str, len, cs, flags))
       time_type= MYSQL_TIMESTAMP_NONE;
   }
 public:

@@ -180,7 +180,10 @@ void Temporal::make_from_str(THD *thd, Warn *warn,
   DBUG_EXECUTE_IF("str_to_datetime_warn",
                   push_warning(thd, Sql_condition::WARN_LEVEL_NOTE,
                                ER_YES, ErrConvString(str, length,cs).ptr()););
-  if (str_to_datetime(warn, str, length, cs, fuzzydate))
+
+  if (fuzzydate & TIME_TIME_ONLY ?
+      str_to_datetime_or_date_or_time(warn, str, length, cs, fuzzydate) :
+      str_to_datetime_or_date(warn, str, length, cs, fuzzydate))
     make_fuzzy_date(&warn->warnings, fuzzydate);
   if (warn->warnings)
     warn->set_str(str, length, &my_charset_bin);

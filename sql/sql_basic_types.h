@@ -33,8 +33,12 @@ class date_mode_t
 public:
   enum value_t
   {
-    FUZZY_DATES=     1U,           // C_TIME_FUZZY_DATES
-    TIME_ONLY=       4U,           // C_TIME_TIME_ONLY
+    /*
+      FUZZY_DATES is used for the result will only be used for comparison
+      purposes. Conversion is as relaxed as possible.
+    */
+    FUZZY_DATES=     1U,
+    TIME_ONLY=       4U,
     NO_ZERO_IN_DATE= (1UL << 23),  // MODE_NO_ZERO_IN_DATE
     NO_ZERO_DATE=    (1UL << 24),  // MODE_NO_ZERO_DATE
     INVALID_DATES=   (1UL << 25)   // MODE_INVALID_DATES
@@ -98,11 +102,10 @@ const date_mode_t
   TIME_NO_ZERO_DATE           (date_mode_t::value_t::NO_ZERO_DATE),
   TIME_INVALID_DATES          (date_mode_t::value_t::INVALID_DATES);
 
-// Flags understood by str_to_datetime, str_to_time, number_to_time, check_date
+// Flags understood by str_to_xxx, number_to_xxx, check_date
 static const date_mode_t
   TIME_MODE_FOR_XXX_TO_DATE   (date_mode_t::NO_ZERO_IN_DATE |
                                date_mode_t::NO_ZERO_DATE    |
-                               date_mode_t::INVALID_DATES   |
-                               date_mode_t::TIME_ONLY);
+                               date_mode_t::INVALID_DATES);
 
 #endif
