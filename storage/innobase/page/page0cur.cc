@@ -1937,7 +1937,8 @@ page_copy_rec_list_to_created_page_write_log(
 {
 	byte*	log_ptr;
 
-	ut_ad(!!page_is_comp(page) == dict_table_is_comp(index->table));
+	ut_ad(!!page_is_comp(page) == dict_table_is_comp(index->table)
+	      || index->dual_format());
 	ut_ad(mtr->is_named_space(index->table->space));
 
 	log_ptr = mlog_open_and_write_index(mtr, page, index,
@@ -2050,7 +2051,11 @@ page_copy_rec_list_end_to_created_page(
 
 	ut_ad(page_dir_get_n_heap(new_page) == PAGE_HEAP_NO_USER_LOW);
 	ut_ad(page_align(rec) != new_page);
-	ut_ad(page_rec_is_comp(rec) == page_is_comp(new_page));
+	ut_ad(page_rec_is_comp(rec) == page_is_comp(new_page)
+	      || index->dual_format());
+	/* In dual-format, we cannot copy from flexible to original format. */
+	ut_ad(page_rec_is_comp(rec) || !page_is_comp(new_page));
+
 	/* This function is never invoked on the clustered index root page,
 	except in btr_lift_page_up(). */
 	ut_ad(!page_get_instant(new_page) || page_is_root(new_page));

@@ -648,7 +648,10 @@ page_copy_rec_list_end(
 #endif /* UNIV_ZIP_DEBUG */
 	ut_ad(buf_block_get_frame(block) == page);
 	ut_ad(page_is_leaf(page) == page_is_leaf(new_page));
-	ut_ad(page_is_comp(page) == page_is_comp(new_page));
+	ut_ad(page_is_comp(page) == page_is_comp(new_page)
+	      || index->dual_format());
+	/* In dual-format, we cannot copy from flexible to original format. */
+	ut_ad(page_is_comp(page) || !page_is_comp(new_page));
 	/* Here, "ret" may be pointing to a user record or the
 	predefined supremum record. */
 

@@ -1,6 +1,7 @@
 /*****************************************************************************
 
 Copyright (c) 1994, 2016, Oracle and/or its affiliates. All Rights Reserved.
+Copyright (c) 2018, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -188,4 +189,129 @@ page_zip_dir_add_slot(
 					zero for others */
 	MY_ATTRIBUTE((nonnull));
 #endif /* !UNIV_INNOCHECKSUM */
+
+/*			PAGE HEADER
+			===========
+
+Index page header starts at the first offset left free by the FIL-module */
+
+#define	PAGE_HEADER	FSEG_PAGE_DATA	/* index page header starts at this
+				offset */
+/*-----------------------------*/
+#define PAGE_N_DIR_SLOTS 0	/* number of slots in page directory */
+#define	PAGE_HEAP_TOP	 2	/* pointer to record heap top */
+#define	PAGE_N_HEAP	 4	/* number of records in the heap,
+				bit 15=flag: new-style compact page format */
+#define	PAGE_FREE	 6	/* pointer to start of page free record list */
+#define	PAGE_GARBAGE	 8	/* number of bytes in deleted records */
+#define	PAGE_LAST_INSERT 10	/* pointer to the last inserted record, or
+				0 if this info has been reset by a delete,
+				for example */
+
+/** This 10-bit field is usually 0. In B-tree index pages of
+ROW_FORMAT=REDUNDANT tables, this byte can contain garbage if the .ibd
+file was created in MySQL 4.1.0 or if the table resides in the system
+tablespace and was created before MySQL 4.1.1 or MySQL 4.0.14.
+In this case, the FIL_PAGE_TYPE would be FIL_PAGE_INDEX.
+
+In ROW_FORMAT=COMPRESSED tables, this field is always 0, because
+instant ADD COLUMN is not supported.
+
+In ROW_FORMAT=COMPACT and ROW_FORMAT=DYNAMIC tables, this field is
+always 0, except in the root page of the clustered index after instant
+ADD COLUMN.
+
+Instant ADD COLUMN will change FIL_PAGE_TYPE to FIL_PAGE_TYPE_INSTANT
+and initialize the PAGE_INSTANT field to the original number of
+fields in the clustered index (dict_index_t::n_core_fields).  The most
+significant bits are in the first byte, and the least significant 5
+bits are stored in the most significant 5 bits of PAGE_DIRECTION_B.
+
+These FIL_PAGE_TYPE_INSTANT and PAGE_INSTANT may be assigned even if
+instant ADD COLUMN was not committed. Changes to these page header fields
+are not undo-logged, but changes to the hidden metadata record are.
+If the server is killed and restarted, the page header fields could
+remain set even though no metadata record is present.
+
+When the table becomes empty, the PAGE_INSTANT field and the
+FIL_PAGE_TYPE can be reset and any metadata record be removed. */
+#define PAGE_INSTANT	12
+
+/** last insert direction: PAGE_LEFT, ....
+In ROW_FORMAT=REDUNDANT tables created before MySQL 4.1.1 or MySQL 4.0.14,
+this byte can be garbage. */
+#define	PAGE_DIRECTION_B 13
+#define	PAGE_N_DIRECTION 14	/* number of consecutive inserts to the same
+				direction */
+#define	PAGE_N_RECS	 16	/* number of user records on the page */
+/** The largest DB_TRX_ID that may have modified a record on the page;
+Defined only in secondary index leaf pages and in change buffer leaf pages.
+Otherwise written as 0. @see PAGE_ROOT_AUTO_INC */
+#define PAGE_MAX_TRX_ID	 18
+/** The AUTO_INCREMENT value (on persistent clustered index root pages). */
+#define PAGE_ROOT_AUTO_INC	PAGE_MAX_TRX_ID
+#define PAGE_HEADER_PRIV_END 26	/* end of private data structure of the page
+				header which are set in a page create */
+/*----*/
+#define	PAGE_LEVEL	 26	/* level of the node in an index tree; the
+				leaf level is the level 0.  This field should
+				not be written to after page creation. */
+#define	PAGE_INDEX_ID	 28	/* index id where the page belongs.
+				This field should not be written to after
+				page creation. */
+
+#define PAGE_BTR_SEG_LEAF 36	/* file segment header for the leaf pages in
+				a B-tree: defined only on the root page of a
+				B-tree, but not in the root of an ibuf tree */
+#define PAGE_BTR_IBUF_FREE_LIST	PAGE_BTR_SEG_LEAF
+#define PAGE_BTR_IBUF_FREE_LIST_NODE PAGE_BTR_SEG_LEAF
+				/* in the place of PAGE_BTR_SEG_LEAF and _TOP
+				there is a free list base node if the page is
+				the root page of an ibuf tree, and at the same
+				place is the free list node if the page is in
+				a free list */
+#define PAGE_BTR_SEG_TOP (36 + FSEG_HEADER_SIZE)
+				/* file segment header for the non-leaf pages
+				in a B-tree: defined only on the root page of
+				a B-tree, but not in the root of an ibuf
+				tree */
+/*----*/
+#define PAGE_DATA	(PAGE_HEADER + 36 + 2 * FSEG_HEADER_SIZE)
+				/* start of data on the page */
+
+#define PAGE_OLD_INFIMUM	(PAGE_DATA + 1 + REC_N_OLD_EXTRA_BYTES)
+				/* offset of the page infimum record on an
+				old-style page */
+#define PAGE_OLD_SUPREMUM	(PAGE_DATA + 2 + 2 * REC_N_OLD_EXTRA_BYTES + 8)
+				/* offset of the page supremum record on an
+				old-style page */
+#define PAGE_OLD_SUPREMUM_END (PAGE_OLD_SUPREMUM + 9)
+				/* offset of the page supremum record end on
+				an old-style page */
+#define PAGE_NEW_INFIMUM	(PAGE_DATA + REC_N_NEW_EXTRA_BYTES)
+				/* offset of the page infimum record on a
+				new-style compact page */
+#define PAGE_NEW_SUPREMUM	(PAGE_DATA + 2 * REC_N_NEW_EXTRA_BYTES + 8)
+				/* offset of the page supremum record on a
+				new-style compact page */
+#define PAGE_NEW_SUPREMUM_END (PAGE_NEW_SUPREMUM + 8)
+				/* offset of the page supremum record end on
+				a new-style compact page */
+/*-----------------------------*/
+
+/* Heap numbers */
+#define PAGE_HEAP_NO_INFIMUM	0U	/* page infimum */
+#define PAGE_HEAP_NO_SUPREMUM	1U	/* page supremum */
+#define PAGE_HEAP_NO_USER_LOW	2U	/* first user record in
+					creation (insertion) order,
+					not necessarily collation order;
+					this record may have been deleted */
+
+/* Directions of cursor movement */
+#define	PAGE_LEFT		1
+#define	PAGE_RIGHT		2
+#define	PAGE_SAME_REC		3
+#define	PAGE_SAME_PAGE		4
+#define	PAGE_NO_DIRECTION	5
+
 #endif

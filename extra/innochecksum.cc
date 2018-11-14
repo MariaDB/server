@@ -44,7 +44,7 @@ The parts not included are excluded by #ifndef UNIV_INNOCHECKSUM. */
 
 typedef void fil_space_t;
 
-#include "univ.i"                /*  include all of this */
+#include "fil0fil.h"
 #include "page0size.h"
 
 #define FLST_BASE_NODE_SIZE (4 + 2 * FIL_ADDR_SIZE)

@@ -438,9 +438,12 @@ btr_page_create(
 	ut_ad(mtr_memo_contains(mtr, block, MTR_MEMO_PAGE_X_FIX));
 
 	if (page_zip) {
+		ut_ad(!index->dual_format());
 		page_create_zip(block, index, level, 0, mtr);
 	} else {
-		page_create(block, mtr, dict_table_is_comp(index->table),
+		const bool comp = index->table->not_redundant()
+			&& (level || !index->dual_format());
+		page_create(block, mtr, comp,
 			    dict_index_is_spatial(index));
 		/* Set the level of the new index page */
 		btr_page_set_level(page, NULL, level, mtr);
@@ -3074,10 +3077,10 @@ func_start:
 
 	new_page = buf_block_get_frame(new_block);
 	new_page_zip = buf_block_get_page_zip(new_block);
-	btr_page_create(new_block, new_page_zip, cursor->index,
-			btr_page_get_level(page), mtr);
+	const auto level = btr_page_get_level(page);
+	btr_page_create(new_block, new_page_zip, cursor->index, level, mtr);
 	/* Only record the leaf level page splits. */
-	if (page_is_leaf(page)) {
+	if (!level) {
 		cursor->index->stat_defrag_n_page_split ++;
 		cursor->index->stat_defrag_modified_counter ++;
 		btr_defragment_save_defrag_stats_if_needed(cursor->index);
@@ -3091,7 +3094,7 @@ func_start:
 		first_rec = move_limit = split_rec;
 
 		*offsets = rec_get_offsets(split_rec, cursor->index, *offsets,
-					   page_is_leaf(page), n_uniq, heap);
+					   !level, n_uniq, heap);
 
 		if (tuple != NULL) {
 			insert_left = cmp_dtuple_rec(
@@ -3151,9 +3154,7 @@ insert_empty:
 						offsets, tuple, n_ext, heap);
 	}
 
-	if (!srv_read_only_mode
-	    && insert_will_fit
-	    && page_is_leaf(page)
+	if (!level && insert_will_fit && !srv_read_only_mode
 	    && !dict_index_is_online_ddl(cursor->index)) {
 
 		mtr->memo_release(
@@ -3341,9 +3342,8 @@ func_exit:
 	/* Insert fit on the page: update the free bits for the
 	left and right pages in the same mtr */
 
-	if (!dict_index_is_clust(cursor->index)
-	    && !cursor->index->table->is_temporary()
-	    && page_is_leaf(page)) {
+	if (!level && !dict_index_is_clust(cursor->index)
+	    && !cursor->index->table->is_temporary()) {
 
 		ibuf_update_free_bits_for_two_pages_low(
 			left_block, right_block, mtr);

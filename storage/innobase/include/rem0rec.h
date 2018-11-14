@@ -27,12 +27,10 @@ Created 5/30/1994 Heikki Tuuri
 #ifndef rem0rec_h
 #define rem0rec_h
 
+#include "page0types.h"
 #ifndef UNIV_INNOCHECKSUM
-#include "univ.i"
 #include "data0data.h"
 #include "rem0types.h"
-#include "mtr0types.h"
-#include "page0types.h"
 #include "dict0dict.h"
 #include "trx0types.h"
 #endif /*! UNIV_INNOCHECKSUM */
@@ -100,7 +98,44 @@ const ulint REC_OFFS_DEFAULT = REC_OFFS_COMPACT >> 2;
 /** Mask for offsets returned by rec_get_offsets() */
 const ulint REC_OFFS_MASK = REC_OFFS_DEFAULT - 1;
 
+/** Get the start of a page frame.
+@param[in]	ptr	pointer within a page frame
+@return start of the page frame */
+MY_ATTRIBUTE((const))
+inline page_t* page_align(const void* ptr)
+{
+	return static_cast<page_t*>(ut_align_down(ptr, srv_page_size));
+}
+
+/** Determine whether an index page is not in ROW_FORMAT=REDUNDANT.
+@param[in]	page	index page
+@return	nonzero	if ROW_FORMAT is one of COMPACT,DYNAMIC,COMPRESSED
+@retval	0	if ROW_FORMAT=REDUNDANT */
+inline byte page_is_comp(const page_t* page)
+{
+	ut_ad(!ut_align_offset(page, UNIV_ZIP_SIZE_MIN));
+	return page[PAGE_HEADER + PAGE_N_HEAP] & 0x80;
+}
+
 #ifndef UNIV_INNOCHECKSUM
+/** Gets the byte offset within a page frame.
+@param[in]	ptr	pointer within a page frame
+@return offset from the start of the page */
+MY_ATTRIBUTE((const))
+inline ulint page_offset(const void* ptr)
+{
+	return ut_align_offset(ptr, srv_page_size);
+}
+
+/** Determine whether an index page record is not in ROW_FORMAT=REDUNDANT.
+@param[in]	rec	record in an index page frame (not a copy)
+@return	nonzero	if ROW_FORMAT is one of COMPACT,DYNAMIC,COMPRESSED
+@retval	0	if ROW_FORMAT=REDUNDANT */
+inline byte page_rec_is_comp(const byte* rec)
+{
+	return page_is_comp(page_align(rec));
+}
+
 /******************************************************//**
 The following function is used to get the pointer of the next chained record
 on the same page.
@@ -770,7 +805,9 @@ in the clustered index for instant ADD COLUMN or ALTER TABLE.
 @return	whether the record is the metadata pseudo-record */
 inline bool rec_is_metadata(const rec_t* rec, const dict_index_t& index)
 {
-	bool is = rec_is_metadata(rec, dict_table_is_comp(index.table));
+	bool is = rec_is_metadata(rec, page_rec_is_comp(rec));
+	ut_ad(!!page_rec_is_comp(rec) == index.table->not_redundant()
+	      || index.dual_format());
 	ut_ad(!is || index.is_instant());
 	return is;
 }
@@ -794,7 +831,9 @@ in the clustered index for instant ADD COLUMN (not other ALTER TABLE).
 @return	whether the record is the metadata pseudo-record */
 inline bool rec_is_add_metadata(const rec_t* rec, const dict_index_t& index)
 {
-	bool is = rec_is_add_metadata(rec, dict_table_is_comp(index.table));
+	bool is = rec_is_add_metadata(rec, page_rec_is_comp(rec));
+	ut_ad(!!page_rec_is_comp(rec) == index.table->not_redundant()
+	      || index.dual_format());
 	ut_ad(!is || index.is_instant());
 	return is;
 }
@@ -819,7 +858,13 @@ in the clustered index for instant ALTER TABLE (not plain ADD COLUMN).
 @return	whether the record is the ALTER TABLE metadata pseudo-record */
 inline bool rec_is_alter_metadata(const rec_t* rec, const dict_index_t& index)
 {
-	bool is = rec_is_alter_metadata(rec, dict_table_is_comp(index.table));
+#if 0 // FIXME: ensure that rec is a physical record!
+	bool is = rec_is_alter_metadata(rec, page_rec_is_comp(rec));
+	ut_ad(!!page_rec_is_comp(rec) == index.table->not_redundant()
+	      || index.dual_format());
+#else
+	bool is = rec_is_alter_metadata(rec, index.table->not_redundant());
+#endif
 	ut_ad(!is || index.is_dummy || index.is_instant());
 	return is;
 }

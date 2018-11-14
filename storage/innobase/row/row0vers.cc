@@ -105,6 +105,7 @@ row_vers_impl_x_locked_low(
 	DBUG_ENTER("row_vers_impl_x_locked_low");
 
 	ut_ad(rec_offs_validate(rec, index, offsets));
+	ut_ad(!rec_is_metadata(rec, *index));
 
 	if (ulint trx_id_offset = clust_index->trx_id_offset) {
 		trx_id = mach_read_from_6(clust_rec + trx_id_offset);
