@@ -904,15 +904,8 @@ dict_index_get_min_size(
 /*====================*/
 	const dict_index_t*	index)	/*!< in: index */
 	MY_ATTRIBUTE((nonnull, warn_unused_result));
-/********************************************************************//**
-Check whether the table uses the compact page format.
-@return TRUE if table uses the compact page format */
-UNIV_INLINE
-bool
-dict_table_is_comp(
-/*===============*/
-	const dict_table_t*	table)	/*!< in: table */
-	MY_ATTRIBUTE((nonnull, warn_unused_result));
+
+#define dict_table_is_comp(table) (table)->not_redundant()
 
 /** Determine if a table uses atomic BLOBs (no locally stored prefix).
 @param[in]	table	InnoDB table

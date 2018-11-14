@@ -58,6 +58,12 @@ class Lex_cstring : public LEX_CSTRING
     str= _str;
     length= _len;
   }
+  Lex_cstring(const char *start, const char *end)
+  {
+    DBUG_ASSERT(start <= end);
+    str= start;
+    length= end - start;
+  }
   void set(const char *_str, size_t _len)
   {
     str= _str;

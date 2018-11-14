@@ -3558,6 +3558,11 @@ public:
   bool last_field_generated_always_as_row_end();
   bool set_bincmp(CHARSET_INFO *cs, bool bin);
 
+  bool new_sp_instr_stmt(THD *, const LEX_CSTRING &prefix,
+                         const LEX_CSTRING &suffix);
+  bool sp_proc_stmt_statement_finalize_buf(THD *, const LEX_CSTRING &qbuf);
+  bool sp_proc_stmt_statement_finalize(THD *, bool no_lookahead);
+
   bool get_dynamic_sql_string(LEX_CSTRING *dst, String *buffer);
   bool prepared_stmt_params_fix_fields(THD *thd)
   {

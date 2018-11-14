@@ -1216,10 +1216,10 @@ inline void dict_index_t::reconstruct_fields()
 	n_nullable = 0;
 	ulint n_core_null = 0;
 	const bool comp = dict_table_is_comp(table);
-	const unsigned* non_pk_col_map = table->instant->non_pk_col_map;
+	const auto* non_pk_col_map = table->instant->non_pk_col_map;
 	for (unsigned i = n_first, o = i, j = 0; i < n_fields; ) {
 		dict_field_t& f = tfields[i++];
-		unsigned c = *non_pk_col_map++;
+		auto c = *non_pk_col_map++;
 		if (c & 1U << 15) {
 			f.col = &table->instant->dropped[j++];
 			ut_ad(f.col->is_dropped());
@@ -1239,32 +1239,6 @@ inline void dict_index_t::reconstruct_fields()
 
 	fields = tfields;
 	n_core_null_bytes = UT_BITS_IN_BYTES(n_core_null);
-}
-
-/** Serialise metadata of dropped or reordered columns.
-@param[in,out]	heap	memory heap for allocation
-@param[out]	field	data field with the metadata */
-void dict_table_t::serialise_columns(mem_heap_t* heap, dfield_t* field) const
-{
-	DBUG_ASSERT(instant);
-	const dict_index_t& index = *UT_LIST_GET_FIRST(indexes);
-	unsigned n_fixed = index.first_user_field();
-	unsigned num_non_pk_fields = index.n_fields - n_fixed;
-
-	ulint len = 4 + num_non_pk_fields * 2;
-
-	byte* data = static_cast<byte*>(mem_heap_alloc(heap, len));
-
-	dfield_set_data(field, data, len);
-
-	mach_write_to_4(data, num_non_pk_fields);
-
-	data += 4;
-
-	for (ulint i = n_fixed; i < index.n_fields; i++) {
-		mach_write_to_2(data, instant->non_pk_col_map[i - n_fixed]);
-		data += 2;
-	}
 }
 
 /** Reconstruct dropped or reordered columns.
@@ -1289,7 +1263,7 @@ bool dict_table_t::deserialise_columns(const byte* metadata, ulint len)
 		return true;
 	}
 
-	unsigned* non_pk_col_map = static_cast<unsigned*>(
+	uint16_t* non_pk_col_map = static_cast<uint16_t*>(
 		mem_heap_alloc(heap,
 			       num_non_pk_fields * sizeof *non_pk_col_map));
 
@@ -1320,7 +1294,7 @@ bool dict_table_t::deserialise_columns(const byte* metadata, ulint len)
 	dict_col_t* col = dropped_cols;
 	for (unsigned i = 0; i < num_non_pk_fields; i++) {
 		if (non_pk_col_map[i] & 1U << 15) {
-			unsigned fixed_len = non_pk_col_map[i] & ~(3U << 14);
+			auto fixed_len = non_pk_col_map[i] & ~(3U << 14);
 			DBUG_ASSERT(fixed_len <= DICT_MAX_FIXED_COL_LEN + 1);
 			(col++)->set_dropped(non_pk_col_map[i] & 1U << 14,
 					     fixed_len == 1,
