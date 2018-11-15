@@ -13158,7 +13158,7 @@ int ha_innobase::truncate()
 	dict_table_t*	ib_table = m_prebuilt->table;
 	const time_t	update_time = ib_table->update_time;
 	const ulint	stored_lock = m_prebuilt->stored_select_lock_type;
-	memset(&info, 0, sizeof info);
+	info.init();
 	update_create_info_from_table(&info, table);
 
 	if (ib_table->is_temporary()) {

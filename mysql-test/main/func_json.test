@@ -467,6 +467,25 @@ SET @`json` := NULL, @`value` := NULL;
 SELECT JSON_MERGE('[1]', '[]');
 
 --echo #
+--echo # MDEV-16174 Assertion `0' failed in Type_handler_string_result::
+--echo #       make_sort_key(uchar*, Item*, const SORT_FIELD_ATTR*, Sort_param*)
+--echo #
+
+SET sql_mode='';
+CREATE TABLE t1 (fld varchar(16) NOT NULL);
+CREATE TABLE t2 SELECT JSON_ARRAY_INSERT(fld, '$.[0]', '0') FROM t1;
+SHOW CREATE TABLE t2;
+DROP TABLE t1, t2;
+SET sql_mode=default;
+
+--echo #
+--echo # MDEV-17454 JSON_VALID( '{"a":1]' ) evaluates to 1
+--echo #
+
+select JSON_VALID( '{"a":1]' );
+
+
+--echo #
 --echo # End of 10.2 tests
 --echo #
 

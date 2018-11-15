@@ -1,5 +1,5 @@
 /*
-  Copyright (c) 2016 MariaDB Corporation
+  Copyright (c) 2016,2018 MariaDB Corporation
 
   This program is free software; you can redistribute it and/or modify
   it under the terms of the GNU General Public License as published by
@@ -489,6 +489,7 @@ bool THD::close_temporary_tables()
   }
 
   DBUG_ASSERT(!rgi_slave);
+  lex->sql_command = SQLCOM_DROP_TABLE;
 
   /*
     Ensure we don't have open HANDLERs for tables we are about to close.

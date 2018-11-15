@@ -1039,7 +1039,7 @@ not_found:
 	os_file_truncate(file->name, file->handle,
 			 os_offset_t(size) << srv_page_size_shift, true);
 
-	/* This is only executed by the srv_coordinator_thread. */
+	/* This is only executed by the srv_purge_coordinator_thread. */
 	export_vars.innodb_undo_truncations++;
 
 	/* TODO: PUNCH_HOLE the garbage (with write-ahead logging) */

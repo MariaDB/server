@@ -8,13 +8,21 @@ explain extended select default(str), default(strnull), default(intg), default(r
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
 1	SIMPLE	t1	system	NULL	NULL	NULL	NULL	1	100.00	
 Warnings:
-Note	1003	select default('') AS `default(str)`,default('') AS `default(strnull)`,default(0) AS `default(intg)`,default(0) AS `default(rel)` from dual
+Note	1003	select default(`test`.`t1`.`str`) AS `default(str)`,default(`test`.`t1`.`strnull`) AS `default(strnull)`,default(`test`.`t1`.`intg`) AS `default(intg)`,default(`test`.`t1`.`rel`) AS `default(rel)` from dual
 select * from t1 where str <> default(str);
 str	strnull	intg	rel
 		0	0
 explain select * from t1 where str <> default(str);
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 1	SIMPLE	t1	system	NULL	NULL	NULL	NULL	1	
+create view v1 as select default(str), default(strnull), default(intg), default(rel) from t1;
+select * from v1;
+default(str)	default(strnull)	default(intg)	default(rel)
+def	NULL	10	3.14
+show create view v1;
+View	Create View	character_set_client	collation_connection
+v1	CREATE ALGORITHM=UNDEFINED DEFINER=`root`@`localhost` SQL SECURITY DEFINER VIEW `v1` AS select default(`t1`.`str`) AS `default(str)`,default(`t1`.`strnull`) AS `default(strnull)`,default(`t1`.`intg`) AS `default(intg)`,default(`t1`.`rel`) AS `default(rel)` from `t1`	latin1	latin1_swedish_ci
+drop view v1;
 drop table t1;
 CREATE TABLE t1 (id int(11), s varchar(20));
 INSERT INTO t1 VALUES (1, 'one'), (2, 'two'), (3, 'three');

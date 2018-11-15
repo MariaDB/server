@@ -772,7 +772,7 @@ static json_state_handler json_actions[NR_JSON_STATES][NR_C_CLASSES]=
     syntax_error,   syntax_error, syntax_error, syntax_error, syntax_error,
     syntax_error,   syntax_error, syntax_error, not_json_chr, bad_chr},
   {/*OBJ_CONT*/
-    unexpected_eos, syntax_error, end_object,    syntax_error,   end_array,
+    unexpected_eos, syntax_error, end_object,    syntax_error,   syntax_error,
     syntax_error,   next_key,     syntax_error,  syntax_error,   syntax_error,
     syntax_error,    syntax_error,    syntax_error,    not_json_chr, bad_chr},
   {/*ARRAY_CONT*/
