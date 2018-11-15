@@ -846,6 +846,11 @@ public:
                                       cond);
     return this;
   }
+
+  longlong val_int_cmp_string();
+  longlong val_int_cmp_int();
+  longlong val_int_cmp_real();
+  longlong val_int_cmp_decimal();
 };
 
 
