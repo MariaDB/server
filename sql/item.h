@@ -995,6 +995,10 @@ public:
     Values of non-integer data types are adjusted to the UNSIGNED range.
   */
   virtual longlong val_int_unsigned_typecast();
+  Longlong_hybrid to_longlong_hybrid()
+  {
+    return Longlong_hybrid(val_int(), unsigned_flag);
+  }
   /*
     This is just a shortcut to avoid the cast. You should still use
     unsigned_flag to check the sign of the item.
