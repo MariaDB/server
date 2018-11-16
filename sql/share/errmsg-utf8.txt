@@ -7921,3 +7921,5 @@ ER_KEY_DOESNT_SUPPORT
         eng "%s index %`s does not support this operation"
 ER_ALTER_OPERATION_TABLE_OPTIONS_NEED_REBUILD
 	eng "Changing table options requires the table to be rebuilt"
+ER_WARN_HISTORY_ROW_START_TIME
+        eng "History row start time changed for `%s.%s` from '%s' to '%s'"

@@ -135,6 +135,7 @@ drop table t1;
 
 --echo # MDEV-16370 row-based binlog events (updates by primary key)
 --echo # can not be applied multiple times to system versioned tables
+--echo # Case 1: versioned -> versioned replication
 create or replace table t1 (pk int primary key, x int) with system versioning;
 insert into t1 values (1, 1);
 --sync_slave_with_master
@@ -146,7 +147,32 @@ select * from t1;
 --let $datadir= `select @@datadir`
 --let $f2= query_get_value(SHOW SLAVE STATUS, Relay_Log_File, 1)
 --echo # Replaying binlog...
---exec $MYSQL_BINLOG $datadir/$f2| $MYSQL -S $SLAVE_MYSOCK test
+--exec $MYSQL_BINLOG $datadir/$f2| $MYSQL -P $SLAVE_MYPORT -S $SLAVE_MYSOCK test
+select * from t1;
+--connection master
+
+--echo # Case 2: not versioned -> versioned replication
+create or replace table t1 (pk int primary key, x int);
+insert into t1 values (1, 1);
+--sync_slave_with_master
+create or replace table t1 (pk int primary key, x int) with system versioning;
+insert into t1 values (1, 1);
+flush logs;
+--connection master
+update t1 set x= 2 where pk = 1;
+update t1 set x= 3 where pk = 1;
+--sync_slave_with_master
+select * from t1 for system_time all order by row_end;
+
+set timestamp= unix_timestamp() + 10;
+create or replace table t1 (pk int primary key, x int) with system versioning;
+insert into t1 values (1, 1);
+--let $datadir= `select @@datadir`
+--let $f= query_get_value(SHOW SLAVE STATUS, Relay_Log_File, 1)
+set timestamp= default;
+--echo # Replaying binlog...
+--exec $MYSQL_BINLOG $datadir/$f| $MYSQL -P $SLAVE_MYPORT -S $SLAVE_MYSOCK test
+--exec $MYSQL_BINLOG $datadir/$f| $MYSQL -P $SLAVE_MYPORT -S $SLAVE_MYSOCK test
 select * from t1;
 --connection master
 

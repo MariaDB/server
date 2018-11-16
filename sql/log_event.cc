@@ -14358,6 +14358,8 @@ Update_rows_log_event::do_exec_row(rpl_group_info *rgi)
   {
     store_record(m_table, record[2]);
     error= vers_insert_history_row(m_table);
+    if (unlikely(error == HA_ERR_FOUND_DUPP_KEY))
+      error= 0;
     restore_record(m_table, record[2]);
   }
   m_table->default_column_bitmaps();
