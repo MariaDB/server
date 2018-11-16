@@ -2610,7 +2610,18 @@ void wsrep_close_client_connections(my_bool wait_to_end, THD* except_caller_thd)
       continue;
 
     WSREP_DEBUG("closing connection %lld", (longlong) tmp->thread_id);
-    wsrep_close_thread(tmp);
+
+    /*
+      instead of wsrep_close_thread() we do now  soft kill by THD::awake
+     */
+    mysql_mutex_lock(&tmp->LOCK_thd_data);
+    mysql_mutex_lock(&tmp->LOCK_thd_kill);
+
+    tmp->awake_no_mutex(KILL_CONNECTION);
+
+    mysql_mutex_unlock(&tmp->LOCK_thd_kill);
+    mysql_mutex_unlock(&tmp->LOCK_thd_data);
+
   }
   mysql_mutex_unlock(&LOCK_thread_count);
 
