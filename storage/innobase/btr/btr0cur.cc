@@ -3229,8 +3229,11 @@ btr_cur_ins_lock_and_undo(
 		roll_ptr = roll_ptr_t(1) << ROLL_PTR_INSERT_FLAG_POS;
 		if (!(flags & BTR_KEEP_SYS_FLAG)) {
 upd_sys:
-			row_upd_index_entry_sys_field(entry, index,
-						      DATA_ROLL_PTR, roll_ptr);
+			dfield_t* r = dtuple_get_nth_field(
+				entry, index->db_roll_ptr());
+			ut_ad(r->len == DATA_ROLL_PTR_LEN);
+			trx_write_roll_ptr(static_cast<byte*>(r->data),
+					   roll_ptr);
 		}
 	} else {
 		err = trx_undo_report_row_operation(thr, index, entry,
@@ -3819,6 +3822,50 @@ btr_cur_upd_lock_and_undo(
 		       cmpl_info, rec, offsets, roll_ptr));
 }
 
+/** Copy DB_TRX_ID,DB_ROLL_PTR to the redo log.
+@param[in]	index	clustered index
+@param[in]	trx_id_t	DB_TRX_ID
+@param[in]	roll_ptr	DB_ROLL_PTR
+@param[in,out]	log_ptr		redo log buffer
+@return current end of the redo log buffer */
+static byte*
+btr_cur_log_sys(
+	const dict_index_t*	index,
+	trx_id_t		trx_id,
+	roll_ptr_t		roll_ptr,
+	byte*			log_ptr)
+{
+	log_ptr += mach_write_compressed(log_ptr, index->db_trx_id());
+	/* Yes, we are writing DB_ROLL_PTR,DB_TRX_ID in reverse order,
+	after emitting the position of DB_TRX_ID in the index.
+	This is how row_upd_write_sys_vals_to_log()
+	originally worked, and it is part of the redo log format. */
+	trx_write_roll_ptr(log_ptr, roll_ptr);
+	log_ptr += DATA_ROLL_PTR_LEN;
+	log_ptr += mach_u64_write_compressed(log_ptr, trx_id);
+
+	return log_ptr;
+}
+
+/** Write DB_TRX_ID,DB_ROLL_PTR to a clustered index entry.
+@param[in,out]	entry		clustered index entry
+@param[in]	index		clustered index
+@param[in]	trx_id		DB_TRX_ID
+@param[in]	roll_ptr	DB_ROLL_PTR */
+static void btr_cur_write_sys(
+	dtuple_t*		entry,
+	const dict_index_t*	index,
+	trx_id_t		trx_id,
+	roll_ptr_t		roll_ptr)
+{
+	dfield_t* t = dtuple_get_nth_field(entry, index->db_trx_id());
+	ut_ad(t->len == DATA_TRX_ID_LEN);
+	trx_write_trx_id(static_cast<byte*>(t->data), trx_id);
+	dfield_t* r = dtuple_get_nth_field(entry, index->db_roll_ptr());
+	ut_ad(r->len == DATA_ROLL_PTR_LEN);
+	trx_write_roll_ptr(static_cast<byte*>(r->data), roll_ptr);
+}
+
 /***********************************************************//**
 Writes a redo log record of updating a record in-place. */
 void
@@ -3858,8 +3905,7 @@ btr_cur_update_in_place_log(
 	log_ptr++;
 
 	if (dict_index_is_clust(index)) {
-		log_ptr = row_upd_write_sys_vals_to_log(
-				index, trx_id, roll_ptr, log_ptr, mtr);
+		log_ptr = btr_cur_log_sys(index, trx_id, roll_ptr, log_ptr);
 	} else {
 		/* Dummy system fields for a secondary index */
 		/* TRX_ID Position */
@@ -4532,10 +4578,7 @@ any_extern:
 	page_cur_move_to_prev(page_cursor);
 
 	if (!(flags & BTR_KEEP_SYS_FLAG)) {
-		row_upd_index_entry_sys_field(new_entry, index, DATA_ROLL_PTR,
-					      roll_ptr);
-		row_upd_index_entry_sys_field(new_entry, index, DATA_TRX_ID,
-					      trx_id);
+		btr_cur_write_sys(new_entry, index, trx_id, roll_ptr);
 	}
 
 	/* There are no externally stored columns in new_entry */
@@ -4850,10 +4893,7 @@ btr_cur_pessimistic_update(
 	}
 
 	if (!(flags & BTR_KEEP_SYS_FLAG)) {
-		row_upd_index_entry_sys_field(new_entry, index, DATA_ROLL_PTR,
-					      roll_ptr);
-		row_upd_index_entry_sys_field(new_entry, index, DATA_TRX_ID,
-					      trx_id);
+		btr_cur_write_sys(new_entry, index, trx_id, roll_ptr);
 	}
 
 	if (!page_zip) {
@@ -5125,8 +5165,7 @@ btr_cur_del_mark_set_clust_rec_log(
 	*log_ptr++ = 0;
 	*log_ptr++ = 1;
 
-	log_ptr = row_upd_write_sys_vals_to_log(
-		index, trx_id, roll_ptr, log_ptr, mtr);
+	log_ptr = btr_cur_log_sys(index, trx_id, roll_ptr, log_ptr);
 	mach_write_to_2(log_ptr, page_offset(rec));
 	log_ptr += 2;
 

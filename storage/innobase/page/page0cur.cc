@@ -1787,17 +1787,11 @@ too_small:
 			columns of free_rec, in case it will not be
 			overwritten by insert_rec. */
 
-			ulint	trx_id_col;
 			ulint	trx_id_offs;
 			ulint	len;
 
-			trx_id_col = dict_index_get_sys_col_pos(index,
-								DATA_TRX_ID);
-			ut_ad(trx_id_col > 0);
-			ut_ad(trx_id_col != ULINT_UNDEFINED);
-
-			trx_id_offs = rec_get_nth_field_offs(foffsets,
-							     trx_id_col, &len);
+			trx_id_offs = rec_get_nth_field_offs(
+				foffsets, index->db_trx_id(), &len);
 			ut_ad(len == DATA_TRX_ID_LEN);
 
 			if (DATA_TRX_ID_LEN + DATA_ROLL_PTR_LEN + trx_id_offs
@@ -1813,7 +1807,7 @@ too_small:
 
 			ut_ad(free_rec + trx_id_offs + DATA_TRX_ID_LEN
 			      == rec_get_nth_field(free_rec, foffsets,
-						   trx_id_col + 1, &len));
+						   index->db_roll_ptr(), &len));
 			ut_ad(len == DATA_ROLL_PTR_LEN);
 		}
 

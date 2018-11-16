@@ -925,31 +925,6 @@ dict_index_get_nth_field(
 }
 #endif /* UNIV_DEBUG */
 
-/********************************************************************//**
-Returns the position of a system column in an index.
-@return position, ULINT_UNDEFINED if not contained */
-UNIV_INLINE
-ulint
-dict_index_get_sys_col_pos(
-/*=======================*/
-	const dict_index_t*	index,	/*!< in: index */
-	ulint			type)	/*!< in: DATA_ROW_ID, ... */
-{
-	ut_ad(index);
-	ut_ad(index->magic_n == DICT_INDEX_MAGIC_N);
-	ut_ad(!dict_index_is_ibuf(index));
-
-	if (dict_index_is_clust(index)) {
-
-		return(dict_col_get_clust_pos(
-			       dict_table_get_sys_col(index->table, type),
-			       index));
-	}
-
-	return(dict_index_get_nth_col_pos(
-			index, dict_table_get_sys_col_no(index->table, type), NULL));
-}
-
 /*********************************************************************//**
 Gets the field column.
 @return field->col, pointer to the table column */

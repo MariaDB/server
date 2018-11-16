@@ -497,39 +497,6 @@ row_upd_rec_sys_fields_in_recovery(
 	}
 }
 
-/*********************************************************************//**
-Sets the trx id or roll ptr field of a clustered index entry. */
-void
-row_upd_index_entry_sys_field(
-/*==========================*/
-	dtuple_t*	entry,	/*!< in/out: index entry, where the memory
-				buffers for sys fields are already allocated:
-				the function just copies the new values to
-				them */
-	dict_index_t*	index,	/*!< in: clustered index */
-	ulint		type,	/*!< in: DATA_TRX_ID or DATA_ROLL_PTR */
-	ib_uint64_t	val)	/*!< in: value to write */
-{
-	dfield_t*	dfield;
-	byte*		field;
-	ulint		pos;
-
-	ut_ad(dict_index_is_clust(index));
-
-	pos = dict_index_get_sys_col_pos(index, type);
-
-	dfield = dtuple_get_nth_field(entry, pos);
-	field = static_cast<byte*>(dfield_get_data(dfield));
-
-	if (type == DATA_TRX_ID) {
-		ut_ad(val > 0);
-		trx_write_trx_id(field, val);
-	} else {
-		ut_ad(type == DATA_ROLL_PTR);
-		trx_write_roll_ptr(field, val);
-	}
-}
-
 /***********************************************************//**
 Returns TRUE if row update changes size of some field in index or if some
 field to be updated is stored externally in rec or update.
@@ -730,35 +697,6 @@ row_upd_rec_in_place(
 	if (page_zip) {
 		page_zip_write_rec(page_zip, rec, index, offsets, 0);
 	}
-}
-
-/*********************************************************************//**
-Writes into the redo log the values of trx id and roll ptr and enough info
-to determine their positions within a clustered index record.
-@return new pointer to mlog */
-byte*
-row_upd_write_sys_vals_to_log(
-/*==========================*/
-	dict_index_t*	index,	/*!< in: clustered index */
-	trx_id_t	trx_id,	/*!< in: transaction id */
-	roll_ptr_t	roll_ptr,/*!< in: roll ptr of the undo log record */
-	byte*		log_ptr,/*!< pointer to a buffer of size > 20 opened
-				in mlog */
-	mtr_t*		mtr MY_ATTRIBUTE((unused))) /*!< in: mtr */
-{
-	ut_ad(dict_index_is_clust(index));
-	ut_ad(mtr);
-
-	log_ptr += mach_write_compressed(log_ptr,
-					 dict_index_get_sys_col_pos(
-						 index, DATA_TRX_ID));
-
-	trx_write_roll_ptr(log_ptr, roll_ptr);
-	log_ptr += DATA_ROLL_PTR_LEN;
-
-	log_ptr += mach_u64_write_compressed(log_ptr, trx_id);
-
-	return(log_ptr);
 }
 
 /*********************************************************************//**
@@ -1055,7 +993,6 @@ row_upd_build_difference_binary(
 	ulint		len;
 	upd_t*		update;
 	ulint		n_diff;
-	ulint		trx_id_pos;
 	ulint		i;
 	ulint		offsets_[REC_OFFS_NORMAL_SIZE];
 	ulint		n_fld = dtuple_get_n_fields(entry);
@@ -1069,10 +1006,6 @@ row_upd_build_difference_binary(
 	update = upd_create(n_fld + n_v_fld, heap);
 
 	n_diff = 0;
-
-	trx_id_pos = dict_index_get_sys_col_pos(index, DATA_TRX_ID);
-	ut_ad(dict_index_get_sys_col_pos(index, DATA_ROLL_PTR)
-	      == trx_id_pos + 1);
 
 	if (!offsets) {
 		offsets = rec_get_offsets(rec, index, offsets_, true,
@@ -1088,16 +1021,9 @@ row_upd_build_difference_binary(
 
 		/* NOTE: we compare the fields as binary strings!
 		(No collation) */
-		if (no_sys) {
-			/* TRX_ID */
-			if (i == trx_id_pos) {
-				continue;
-			}
-
-			/* DB_ROLL_PTR */
-			if (i == trx_id_pos + 1) {
-				continue;
-			}
+		if (no_sys && (i == index->db_trx_id()
+			       || i == index->db_roll_ptr())) {
+			continue;
 		}
 
 		if (!dfield_is_ext(dfield)
@@ -2761,7 +2687,11 @@ row_upd_clust_rec_by_insert(
 	if (index->is_instant()) entry->trim(*index);
 	ut_ad(dtuple_get_info_bits(entry) == 0);
 
-	row_upd_index_entry_sys_field(entry, index, DATA_TRX_ID, trx->id);
+	{
+		dfield_t* t = dtuple_get_nth_field(entry, index->db_trx_id());
+		ut_ad(t->len == DATA_TRX_ID_LEN);
+		trx_write_trx_id(static_cast<byte*>(t->data), trx->id);
+	}
 
 	switch (node->state) {
 	default:

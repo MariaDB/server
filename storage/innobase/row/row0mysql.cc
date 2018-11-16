@@ -34,7 +34,6 @@ Created 9/17/2000 Heikki Tuuri
 #include "btr0sea.h"
 #include "dict0boot.h"
 #include "dict0crea.h"
-#include <sql_const.h>
 #include "dict0dict.h"
 #include "dict0load.h"
 #include "dict0priv.h"

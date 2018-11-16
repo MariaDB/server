@@ -954,9 +954,7 @@ trx_undo_page_report_modify(
 	*ptr++ = (byte) rec_get_info_bits(rec, dict_table_is_comp(table));
 
 	/* Store the values of the system columns */
-	field = rec_get_nth_field(rec, offsets,
-				  dict_index_get_sys_col_pos(
-					  index, DATA_TRX_ID), &flen);
+	field = rec_get_nth_field(rec, offsets, index->db_trx_id(), &flen);
 	ut_ad(flen == DATA_TRX_ID_LEN);
 
 	trx_id = trx_read_trx_id(field);
@@ -970,9 +968,7 @@ trx_undo_page_report_modify(
 	}
 	ptr += mach_u64_write_compressed(ptr, trx_id);
 
-	field = rec_get_nth_field(rec, offsets,
-				  dict_index_get_sys_col_pos(
-					  index, DATA_ROLL_PTR), &flen);
+	field = rec_get_nth_field(rec, offsets, index->db_roll_ptr(), &flen);
 	ut_ad(flen == DATA_ROLL_PTR_LEN);
 	ut_ad(memcmp(field, field_ref_zero, DATA_ROLL_PTR_LEN));
 
@@ -1578,9 +1574,7 @@ trx_undo_update_rec_get_update(
 
 	mach_write_to_6(buf, trx_id);
 
-	upd_field_set_field_no(upd_field,
-			       dict_index_get_sys_col_pos(index, DATA_TRX_ID),
-			       index);
+	upd_field_set_field_no(upd_field, index->db_trx_id(), index);
 	dfield_set_data(&(upd_field->new_val), buf, DATA_TRX_ID_LEN);
 
 	upd_field = upd_get_nth_field(update, n_fields + 1);
@@ -1589,9 +1583,7 @@ trx_undo_update_rec_get_update(
 
 	trx_write_roll_ptr(buf, roll_ptr);
 
-	upd_field_set_field_no(
-		upd_field, dict_index_get_sys_col_pos(index, DATA_ROLL_PTR),
-		index);
+	upd_field_set_field_no(upd_field, index->db_roll_ptr(), index);
 	dfield_set_data(&(upd_field->new_val), buf, DATA_ROLL_PTR_LEN);
 
 	/* Store then the updated ordinary columns to the update vector */

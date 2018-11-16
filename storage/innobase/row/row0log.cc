@@ -1244,19 +1244,16 @@ row_log_table_get_pk(
 			ulint	trx_id_offs = index->trx_id_offset;
 
 			if (!trx_id_offs) {
-				ulint	pos = dict_index_get_sys_col_pos(
-					index, DATA_TRX_ID);
 				ulint	len;
-				ut_ad(pos > 0);
 
 				if (!offsets) {
 					offsets = rec_get_offsets(
 						rec, index, NULL, true,
-						pos + 1, heap);
+						index->db_trx_id() + 1, heap);
 				}
 
 				trx_id_offs = rec_get_nth_field_offs(
-					offsets, pos, &len);
+					offsets, index->db_trx_id(), &len);
 				ut_ad(len == DATA_TRX_ID_LEN);
 			}
 
