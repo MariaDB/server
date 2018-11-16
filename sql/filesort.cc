@@ -60,9 +60,7 @@ static bool save_index(Sort_param *param, uint count,
 static uint suffix_length(ulong string_length);
 static uint sortlength(THD *thd, SORT_FIELD *sortorder, uint s_length,
 		       bool *multi_byte_charset);
-static SORT_ADDON_FIELD *get_addon_fields(ulong max_length_for_sort_data,
-                                          Field **ptabfield,
-                                          uint sortlength,
+static SORT_ADDON_FIELD *get_addon_fields(TABLE *table, uint sortlength,
                                           LEX_STRING *addon_buf);
 static void unpack_addon_fields(struct st_sort_addon_field *addon_field,
                                 uchar *buff, uchar *buff_end);
@@ -71,7 +69,6 @@ static bool check_if_pq_applicable(Sort_param *param, SORT_INFO *info,
                                    ha_rows records, size_t memory_available);
 
 void Sort_param::init_for_filesort(uint sortlen, TABLE *table,
-                                   ulong max_length_for_sort_data,
                                    ha_rows maxrows, bool sort_positions)
 {
   DBUG_ASSERT(addon_field == 0 && addon_buf.length == 0);
@@ -85,8 +82,7 @@ void Sort_param::init_for_filesort(uint sortlen, TABLE *table,
       Get the descriptors of all fields whose values are appended 
       to sorted fields and get its total length in addon_buf.length
     */
-    addon_field= get_addon_fields(max_length_for_sort_data,
-                                  table->field, sort_length, &addon_buf);
+    addon_field= get_addon_fields(table, sort_length, &addon_buf);
   }
   if (addon_field)
   {
@@ -190,9 +186,7 @@ SORT_INFO *filesort(THD *thd, TABLE *table, Filesort *filesort,
 
   param.init_for_filesort(sortlength(thd, filesort->sortorder, s_length,
                                      &multi_byte_charset),
-                          table,
-                          thd->variables.max_length_for_sort_data,
-                          max_rows, filesort->sort_positions);
+                          table, max_rows, filesort->sort_positions);
 
   sort->addon_buf=    param.addon_buf;
   sort->addon_field=  param.addon_field;
@@ -1970,7 +1964,7 @@ sortlength(THD *thd, SORT_FIELD *sortorder, uint s_length,
 
   The function first finds out what fields are used in the result set.
   Then it calculates the length of the buffer to store the values of
-  these fields together with the value of sort values. 
+  these fields together with the value of sort values.
   If the calculated length is not greater than max_length_for_sort_data
   the function allocates memory for an array of descriptors containing
   layouts for the values of the non-sorted fields in the buffer and
@@ -1992,8 +1986,7 @@ sortlength(THD *thd, SORT_FIELD *sortorder, uint s_length,
 */
 
 static SORT_ADDON_FIELD *
-get_addon_fields(ulong max_length_for_sort_data,
-                 Field **ptabfield, uint sortlength, LEX_STRING *addon_buf)
+get_addon_fields(TABLE *table, uint sortlength, LEX_STRING *addon_buf)
 {
   Field **pfield;
   Field *field;
@@ -2001,7 +1994,8 @@ get_addon_fields(ulong max_length_for_sort_data,
   uint length= 0;
   uint fields= 0;
   uint null_fields= 0;
-  MY_BITMAP *read_set= (*ptabfield)->table->read_set;
+  MY_BITMAP *read_set= table->read_set;
+  ulong max_sort_len= table->in_use->variables.max_length_for_sort_data;
   DBUG_ENTER("get_addon_fields");
 
   /*
@@ -2010,14 +2004,14 @@ get_addon_fields(ulong max_length_for_sort_data,
     Note for future refinement:
     This this a too strong condition.
     Actually we need only the fields referred in the
-    result set. And for some of them it makes sense to use 
+    result set. And for some of them it makes sense to use
     the values directly from sorted fields.
     But beware the case when item->cmp_type() != item->result_type()
   */
   addon_buf->str= 0;
   addon_buf->length= 0;
 
-  for (pfield= ptabfield; (field= *pfield) ; pfield++)
+  for (pfield= table->field; (field= *pfield) ; pfield++)
   {
     if (!bitmap_is_set(read_set, field->field_index))
       continue;
@@ -2027,12 +2021,12 @@ get_addon_fields(ulong max_length_for_sort_data,
     if (field->maybe_null())
       null_fields++;
     fields++;
-  } 
+  }
   if (!fields)
     DBUG_RETURN(0);
   length+= (null_fields+7)/8;
 
-  if (length+sortlength > max_length_for_sort_data ||
+  if (length+sortlength > max_sort_len ||
       !my_multi_malloc(MYF(MY_WME | MY_THREAD_SPECIFIC),
                        &addonf, sizeof(SORT_ADDON_FIELD) * (fields+1),
                        &addon_buf->str, length,
@@ -2043,7 +2037,7 @@ get_addon_fields(ulong max_length_for_sort_data,
   addon_buf->length= length;
   length= (null_fields+7)/8;
   null_fields= 0;
-  for (pfield= ptabfield; (field= *pfield) ; pfield++)
+  for (pfield= table->field; (field= *pfield) ; pfield++)
   {
     if (!bitmap_is_set(read_set, field->field_index))
       continue;
@@ -2065,7 +2059,7 @@ get_addon_fields(ulong max_length_for_sort_data,
     addonf++;
   }
   addonf->field= 0;     // Put end marker
-  
+
   DBUG_PRINT("info",("addon_length: %d",length));
   DBUG_RETURN(addonf-fields);
 }

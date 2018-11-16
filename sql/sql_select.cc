@@ -2501,7 +2501,7 @@ int JOIN::optimize_stage2()
   {
      JOIN_TAB *tab= &join_tab[const_tables];
 
-    if (order)
+    if (order && !need_tmp)
     {
       /*
         Force using of tmp table if sorting by a SP or UDF function due to
@@ -3206,7 +3206,7 @@ bool JOIN::make_aggr_tables_info()
         or end_write_group()) if JOIN::group is set to false.
       */
       // the temporary table was explicitly requested
-      DBUG_ASSERT(MY_TEST(select_options & OPTION_BUFFER_RESULT));
+      DBUG_ASSERT(select_options & OPTION_BUFFER_RESULT);
       // the temporary table does not have a grouping expression
       DBUG_ASSERT(!curr_tab->table->group); 
     }
@@ -13191,7 +13191,8 @@ remove_const(JOIN *join,ORDER *first_order, COND *cond,
          tab++)
       tab->cached_eq_ref_table= FALSE;
 
-    *simple_order= *join->join_tab[join->const_tables].on_expr_ref ? 0 : 1;
+    JOIN_TAB *head= join->join_tab + join->const_tables;
+    *simple_order= head->on_expr_ref[0] == NULL;
   }
   else
   {
