@@ -1957,6 +1957,30 @@ sortlength(THD *thd, SORT_FIELD *sortorder, uint s_length,
   return length;
 }
 
+bool filesort_use_addons(TABLE *table, uint sortlength,
+                         uint *length, uint *fields, uint *null_fields)
+{
+  Field **pfield, *field;
+  *length= *fields= *null_fields= 0;
+
+  for (pfield= table->field; (field= *pfield) ; pfield++)
+  {
+    if (!bitmap_is_set(table->read_set, field->field_index))
+      continue;
+    if (field->flags & BLOB_FLAG)
+      return false;
+    (*length)+= field->max_packed_col_length(field->pack_length());
+    if (field->maybe_null())
+      (*null_fields)++;
+    (*fields)++;
+  }
+  if (!*fields)
+    return false;
+  (*length)+= (*null_fields+7)/8;
+
+  return *length + sortlength <
+         table->in_use->variables.max_length_for_sort_data;
+}
 
 /**
   Get descriptors of fields appended to sorted fields and
@@ -1991,11 +2015,8 @@ get_addon_fields(TABLE *table, uint sortlength, LEX_STRING *addon_buf)
   Field **pfield;
   Field *field;
   SORT_ADDON_FIELD *addonf;
-  uint length= 0;
-  uint fields= 0;
-  uint null_fields= 0;
+  uint length, fields, null_fields;
   MY_BITMAP *read_set= table->read_set;
-  ulong max_sort_len= table->in_use->variables.max_length_for_sort_data;
   DBUG_ENTER("get_addon_fields");
 
   /*
@@ -2011,26 +2032,14 @@ get_addon_fields(TABLE *table, uint sortlength, LEX_STRING *addon_buf)
   addon_buf->str= 0;
   addon_buf->length= 0;
 
-  for (pfield= table->field; (field= *pfield) ; pfield++)
-  {
-    if (!bitmap_is_set(read_set, field->field_index))
-      continue;
-    if (field->flags & BLOB_FLAG)
-      DBUG_RETURN(0);
-    length+= field->max_packed_col_length(field->pack_length());
-    if (field->maybe_null())
-      null_fields++;
-    fields++;
-  }
-  if (!fields)
-    DBUG_RETURN(0);
-  length+= (null_fields+7)/8;
+  // see remove_const() for HA_SLOW_RND_POS explanation
+  if (table->file->ha_table_flags() & HA_SLOW_RND_POS)
+    sortlength= 0;
 
-  if (length+sortlength > max_sort_len ||
-      !my_multi_malloc(MYF(MY_WME | MY_THREAD_SPECIFIC),
-                       &addonf, sizeof(SORT_ADDON_FIELD) * (fields+1),
-                       &addon_buf->str, length,
-                       NullS))
+  if (!filesort_use_addons(table, sortlength, &length, &fields, &null_fields) ||
+      !my_multi_malloc(MYF(MY_WME | MY_THREAD_SPECIFIC), &addonf,
+                       sizeof(SORT_ADDON_FIELD) * (fields+1),
+                       &addon_buf->str, length, NullS))
 
     DBUG_RETURN(0);
 

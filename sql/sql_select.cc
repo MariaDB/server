@@ -13193,6 +13193,21 @@ remove_const(JOIN *join,ORDER *first_order, COND *cond,
 
     JOIN_TAB *head= join->join_tab + join->const_tables;
     *simple_order= head->on_expr_ref[0] == NULL;
+    if (*simple_order && head->table->file->ha_table_flags() & HA_SLOW_RND_POS)
+    {
+      uint u1, u2, u3;
+      /*
+        normally the condition is (see filesort_use_addons())
+
+          length + sortlength <= max_length_for_sort_data
+
+        but for HA_SLOW_RND_POS tables we relax it a bit, as the alternative
+        is to use a temporary table, which is rather expensive.
+
+        TODO proper cost estimations
+      */
+      *simple_order= filesort_use_addons(head->table, 0, &u1, &u2, &u3);
+    }
   }
   else
   {

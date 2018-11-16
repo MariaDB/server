@@ -308,6 +308,13 @@ enum enum_alter_inplace_result {
 #define HA_SLOW_CMP_REF         (1ULL << 54)
 #define HA_CMP_REF_IS_EXPENSIVE HA_SLOW_CMP_REF
 
+/**
+  Some engines are unable to provide an efficient implementation for rnd_pos().
+  Server will try to avoid it, if possible
+
+  TODO better to do it with cost estimates, not with an explicit flag
+*/
+#define HA_SLOW_RND_POS  (1ULL << 55)
 
 /* bits in index_flags(index_number) for what you can do with index */
 #define HA_READ_NEXT            1       /* TODO really use this flag */
