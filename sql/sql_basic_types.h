@@ -37,11 +37,13 @@ public:
       FUZZY_DATES is used for the result will only be used for comparison
       purposes. Conversion is as relaxed as possible.
     */
-    FUZZY_DATES=     1U,
-    TIME_ONLY=       4U,
-    NO_ZERO_IN_DATE= (1UL << 23),  // MODE_NO_ZERO_IN_DATE
-    NO_ZERO_DATE=    (1UL << 24),  // MODE_NO_ZERO_DATE
-    INVALID_DATES=   (1UL << 25)   // MODE_INVALID_DATES
+    FUZZY_DATES=        1U,
+    TIME_ONLY=          4U,
+    INTERVAL_hhmmssff=  8U,
+    INTERVAL_DAY=      16U,
+    NO_ZERO_IN_DATE=   (1UL << 23),  // MODE_NO_ZERO_IN_DATE
+    NO_ZERO_DATE=      (1UL << 24),  // MODE_NO_ZERO_DATE
+    INVALID_DATES=     (1UL << 25)   // MODE_INVALID_DATES
   };
 
 private:
@@ -98,6 +100,8 @@ public:
 const date_mode_t
   TIME_FUZZY_DATES            (date_mode_t::value_t::FUZZY_DATES),
   TIME_TIME_ONLY              (date_mode_t::value_t::TIME_ONLY),
+  TIME_INTERVAL_hhmmssff      (date_mode_t::value_t::INTERVAL_hhmmssff),
+  TIME_INTERVAL_DAY           (date_mode_t::value_t::INTERVAL_DAY),
   TIME_NO_ZERO_IN_DATE        (date_mode_t::value_t::NO_ZERO_IN_DATE),
   TIME_NO_ZERO_DATE           (date_mode_t::value_t::NO_ZERO_DATE),
   TIME_INVALID_DATES          (date_mode_t::value_t::INVALID_DATES);

@@ -367,9 +367,7 @@ extract(DAY_MINUTE FROM "02 10:11:12")
 21011
 select extract(DAY_SECOND FROM "225 10:11:12");
 extract(DAY_SECOND FROM "225 10:11:12")
-34225959
-Warnings:
-Warning	1292	Truncated incorrect time value: '225 10:11:12'
+225101112
 select extract(HOUR FROM "1999-01-02 10:11:12");
 extract(HOUR FROM "1999-01-02 10:11:12")
 10
@@ -1033,9 +1031,7 @@ Note	1105	Cast to unsigned converted negative integer to it's positive complemen
 Warning	1292	Truncated incorrect time value: '18446744073709551615:00:00'
 SELECT EXTRACT(HOUR FROM '10000:02:03');
 EXTRACT(HOUR FROM '10000:02:03')
-22
-Warnings:
-Warning	1292	Truncated incorrect time value: '10000:02:03'
+16
 CREATE TABLE t1(f1 TIME);
 INSERT IGNORE INTO t1 VALUES('916:00:00 a');
 Warnings:

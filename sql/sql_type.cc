@@ -181,9 +181,7 @@ void Temporal::make_from_str(THD *thd, Warn *warn,
                   push_warning(thd, Sql_condition::WARN_LEVEL_NOTE,
                                ER_YES, ErrConvString(str, length,cs).ptr()););
 
-  if (fuzzydate & TIME_TIME_ONLY ?
-      str_to_datetime_or_date_or_time(warn, str, length, cs, fuzzydate) :
-      str_to_datetime_or_date(warn, str, length, cs, fuzzydate))
+  if (str_to_temporal(warn, str, length, cs, fuzzydate))
     make_fuzzy_date(&warn->warnings, fuzzydate);
   if (warn->warnings)
     warn->set_str(str, length, &my_charset_bin);
@@ -232,8 +230,11 @@ void Sec6::make_truncated_warning(THD *thd, const char *type_str) const
 bool Sec6::convert_to_mysql_time(THD *thd, int *warn, MYSQL_TIME *ltime,
                                  date_mode_t fuzzydate) const
 {
-  bool is_time= bool(fuzzydate & TIME_TIME_ONLY);
-  bool rc= is_time ? to_time(ltime, warn) : to_datetime(ltime, fuzzydate, warn);
+  bool rc= fuzzydate & (TIME_INTERVAL_hhmmssff | TIME_INTERVAL_DAY) ?
+             to_datetime_or_to_interval_hhmmssff(ltime, warn) :
+           fuzzydate & TIME_TIME_ONLY ?
+             to_datetime_or_time(ltime, warn, fuzzydate) :
+             to_datetime_or_date(ltime, warn, fuzzydate);
   DBUG_ASSERT(*warn || !rc);
   if (truncated())
     *warn|= MYSQL_TIME_WARN_TRUNCATED;
