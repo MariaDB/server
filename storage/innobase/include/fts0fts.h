@@ -1,7 +1,7 @@
 /*****************************************************************************
 
 Copyright (c) 2011, 2018, Oracle and/or its affiliates. All Rights Reserved.
-Copyright (c) 2016, 2017, MariaDB Corporation.
+Copyright (c) 2016, 2018, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -614,17 +614,15 @@ fts_get_doc_id_from_row(
 						want to extract.*/
 
 /** Extract the doc id from the record that belongs to index.
-@param[in]	table	table
-@param[in]	rec	record contains FTS_DOC_ID
+@param[in]	rec	record containing FTS_DOC_ID
 @param[in]	index	index of rec
-@param[in]	heap	heap memory
+@param[in]	offsets	rec_get_offsets(rec,index)
 @return doc id that was extracted from rec */
 doc_id_t
 fts_get_doc_id_from_rec(
-        dict_table_t*           table,
-        const rec_t*            rec,
-        const dict_index_t*     index,
-        mem_heap_t*             heap);
+	const rec_t*		rec,
+	const dict_index_t*	index,
+	const ulint*		offsets);
 
 /** Add new fts doc id to the update vector.
 @param[in]	table		the table that contains the FTS index.

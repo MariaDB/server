@@ -3214,7 +3214,7 @@ row_sel_store_mysql_rec(
 		if (dict_index_is_clust(index)
 		    || prebuilt->fts_doc_id_in_read_set) {
 			prebuilt->fts_doc_id = fts_get_doc_id_from_rec(
-				prebuilt->table, rec, index, NULL);
+				rec, index, offsets);
 		}
 	}
 

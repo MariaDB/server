@@ -1276,8 +1276,10 @@ row_ins_foreign_check_on_constraint(
 	}
 
 	if (table->fts) {
-		doc_id = fts_get_doc_id_from_rec(table, clust_rec,
-						 clust_index, tmp_heap);
+		doc_id = fts_get_doc_id_from_rec(
+			clust_rec, clust_index,
+			rec_get_offsets(clust_rec, clust_index, NULL, true,
+					ULINT_UNDEFINED, &tmp_heap));
 	}
 
 	if (node->is_delete
