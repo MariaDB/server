@@ -13187,17 +13187,25 @@ inline int ha_innobase::delete_table(const char* name, enum_sql_command sqlcom)
 int ha_innobase::delete_table(const char* name)
 {
 	enum_sql_command sqlcom = enum_sql_command(thd_sql_command(ha_thd()));
+	/* SQLCOM_TRUNCATE should be passed via ha_innobase::truncate() only.
 
-        if (sqlcom == SQLCOM_TRUNCATE
-            && thd_killed(ha_thd())
-            && (m_prebuilt == NULL
-                || dict_table_is_temporary(m_prebuilt->table))) {
-                sqlcom = SQLCOM_DROP_TABLE;
-        }
+	On client disconnect, when dropping temporary tables, the
+	previous sqlcom would not be overwritten.  In such a case, we
+	will have thd_kill_level() != NOT_KILLED, !m_prebuilt can
+	hold, and sqlcom could be anything, including TRUNCATE.
 
-	/* SQLCOM_TRUNCATE will be passed via ha_innobase::truncate() only. */
-        DBUG_ASSERT(sqlcom != SQLCOM_TRUNCATE);
-        return delete_table(name, sqlcom);
+	The sqlcom only matters for persistent tables; no persistent
+	metadata or FOREIGN KEY metadata is kept for temporary
+	tables. Therefore, we relax the assertion. If there is a bug
+	that slips through this assertion due to !m_prebuilt, the
+	worst impact should be that on DROP TABLE of a persistent
+	table, FOREIGN KEY constraints will be ignored and their
+	metadata will not be removed. */
+	DBUG_ASSERT(sqlcom != SQLCOM_TRUNCATE
+		    || (thd_kill_level(ha_thd()) != NOT_KILLED
+			&& (!m_prebuilt
+			    || m_prebuilt->table->is_temporary())));
+	return delete_table(name, sqlcom);
 }
 
 /** Remove all tables in the named database inside InnoDB.
