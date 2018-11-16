@@ -371,13 +371,14 @@ public:
 };
 
 
-/* Character set-aware version of str_to_time() */
-bool Temporal::str_to_time(MYSQL_TIME_STATUS *status,
-                           const char *str, size_t length, CHARSET_INFO *cs,
-                           date_mode_t fuzzydate)
+/* Character set-aware version of str_to_datetime_or_date_or_time() */
+bool Temporal::str_to_datetime_or_date_or_time(MYSQL_TIME_STATUS *status,
+                                               const char *str, size_t length,
+                                               CHARSET_INFO *cs,
+                                               date_mode_t fuzzydate)
 {
   TemporalAsciiBuffer tmp(str, length, cs);
-  bool rc= ::str_to_time(tmp.str, tmp.length, this,
+  bool rc= ::str_to_datetime_or_date_or_time(tmp.str, tmp.length, this,
                        ulonglong(fuzzydate & TIME_MODE_FOR_XXX_TO_DATE),
                        status);
   DBUG_ASSERT(status->warnings || !rc);
@@ -385,13 +386,14 @@ bool Temporal::str_to_time(MYSQL_TIME_STATUS *status,
 }
 
 
-/* Character set-aware version of str_to_datetime() */
-bool Temporal::str_to_datetime(MYSQL_TIME_STATUS *status,
-                               const char *str, size_t length, CHARSET_INFO *cs,
-                               date_mode_t flags)
+/* Character set-aware version of str_to_datetime_or_date() */
+bool Temporal::str_to_datetime_or_date(MYSQL_TIME_STATUS *status,
+                                       const char *str, size_t length,
+                                       CHARSET_INFO *cs,
+                                       date_mode_t flags)
 {
   TemporalAsciiBuffer tmp(str, length, cs);
-  bool rc= ::str_to_datetime(tmp.str, tmp.length, this,
+  bool rc= ::str_to_datetime_or_date(tmp.str, tmp.length, this,
                            ulonglong(flags & TIME_MODE_FOR_XXX_TO_DATE),
                            status);
   DBUG_ASSERT(status->warnings || !rc);
@@ -416,7 +418,7 @@ bool Interval_DDhhmmssff::str_to_DDhhmmssff(MYSQL_TIME_STATUS *status,
   if string was truncated during conversion.
 
   NOTE
-    See description of str_to_datetime() for more information.
+    See description of str_to_datetime_xxx() for more information.
 */
 
 bool

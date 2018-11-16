@@ -2641,8 +2641,6 @@ rec_get_trx_id(
 	const rec_t*		rec,
 	const dict_index_t*	index)
 {
-	ulint		trx_id_col
-		= dict_index_get_sys_col_pos(index, DATA_TRX_ID);
 	const byte*	trx_id;
 	ulint		len;
 	mem_heap_t*	heap		= NULL;
@@ -2650,15 +2648,10 @@ rec_get_trx_id(
 	rec_offs_init(offsets_);
 	ulint* offsets = offsets_;
 
-	ut_ad(trx_id_col <= MAX_REF_PARTS);
-	ut_ad(dict_index_is_clust(index));
-	ut_ad(trx_id_col > 0);
-	ut_ad(trx_id_col != ULINT_UNDEFINED);
-
 	offsets = rec_get_offsets(rec, index, offsets, true,
-				  trx_id_col + 1, &heap);
+				  index->db_trx_id() + 1, &heap);
 
-	trx_id = rec_get_nth_field(rec, offsets, trx_id_col, &len);
+	trx_id = rec_get_nth_field(rec, offsets, index->db_trx_id(), &len);
 
 	ut_ad(len == DATA_TRX_ID_LEN);
 

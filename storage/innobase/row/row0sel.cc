@@ -2695,44 +2695,6 @@ row_sel_convert_mysql_key_to_innobase(
 }
 
 /**************************************************************//**
-Stores the row id to the prebuilt struct. */
-static
-void
-row_sel_store_row_id_to_prebuilt(
-/*=============================*/
-	row_prebuilt_t*		prebuilt,	/*!< in/out: prebuilt */
-	const rec_t*		index_rec,	/*!< in: record */
-	const dict_index_t*	index,		/*!< in: index of the record */
-	const ulint*		offsets)	/*!< in: rec_get_offsets
-						(index_rec, index) */
-{
-	const byte*	data;
-	ulint		len;
-
-	ut_ad(rec_offs_validate(index_rec, index, offsets));
-
-	data = rec_get_nth_field(
-		index_rec, offsets,
-		dict_index_get_sys_col_pos(index, DATA_ROW_ID), &len);
-
-	if (UNIV_UNLIKELY(len != DATA_ROW_ID_LEN)) {
-
-		ib::error() << "Row id field is wrong length " << len << " in"
-			" index " << index->name
-			<< " of table " << index->table->name
-			<< ", Field number "
-			<< dict_index_get_sys_col_pos(index, DATA_ROW_ID)
-			<< ", record:";
-
-		rec_print_new(stderr, index_rec, offsets);
-		putc('\n', stderr);
-		ut_error;
-	}
-
-	ut_memcpy(prebuilt->row_id, data, len);
-}
-
-/**************************************************************//**
 Stores a non-SQL-NULL field in the MySQL format. The counterpart of this
 function is row_mysql_store_col_in_innobase_format() in row0mysql.cc. */
 void
@@ -3214,7 +3176,7 @@ row_sel_store_mysql_rec(
 		if (dict_index_is_clust(index)
 		    || prebuilt->fts_doc_id_in_read_set) {
 			prebuilt->fts_doc_id = fts_get_doc_id_from_rec(
-				prebuilt->table, rec, index, NULL);
+				rec, index, offsets);
 		}
 	}
 
@@ -5508,11 +5470,19 @@ use_covering_index:
 			}
 		}
 
-		if (prebuilt->clust_index_was_generated) {
-			row_sel_store_row_id_to_prebuilt(
-				prebuilt, result_rec,
-				result_rec == rec ? index : clust_index,
-				offsets);
+		if (!prebuilt->clust_index_was_generated) {
+		} else if (result_rec != rec || index->is_primary()) {
+			memcpy(prebuilt->row_id, result_rec, DATA_ROW_ID_LEN);
+		} else {
+			ulint len;
+			const byte* data = rec_get_nth_field(
+				result_rec, offsets, index->n_fields - 1,
+				&len);
+			ut_ad(dict_index_get_nth_col(index,
+						     index->n_fields - 1)
+			      ->prtype == (DATA_ROW_ID | DATA_NOT_NULL));
+			ut_ad(len == DATA_ROW_ID_LEN);
+			memcpy(prebuilt->row_id, data, DATA_ROW_ID_LEN);
 		}
 	}
 

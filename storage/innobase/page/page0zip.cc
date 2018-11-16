@@ -1411,10 +1411,7 @@ page_zip_compress(
 	/* Dense page directory and uncompressed columns, if any */
 	if (page_is_leaf(page)) {
 		if (dict_index_is_clust(index)) {
-			trx_id_col = dict_index_get_sys_col_pos(
-				index, DATA_TRX_ID);
-			ut_ad(trx_id_col > 0);
-			ut_ad(trx_id_col != ULINT_UNDEFINED);
+			trx_id_col = index->db_trx_id();
 
 			slot_size = PAGE_ZIP_DIR_SLOT_SIZE
 				+ DATA_TRX_ID_LEN + DATA_ROLL_PTR_LEN;
@@ -1422,8 +1419,6 @@ page_zip_compress(
 		} else {
 			/* Signal the absence of trx_id
 			in page_zip_fields_encode() */
-			ut_ad(dict_index_get_sys_col_pos(
-				      index, DATA_TRX_ID) == ULINT_UNDEFINED);
 			trx_id_col = 0;
 			slot_size = PAGE_ZIP_DIR_SLOT_SIZE;
 		}
@@ -3730,29 +3725,25 @@ page_zip_write_rec(
 		ulint		len;
 
 		if (dict_index_is_clust(index)) {
-			ulint		trx_id_col;
-
-			trx_id_col = dict_index_get_sys_col_pos(index,
-								DATA_TRX_ID);
-			ut_ad(trx_id_col != ULINT_UNDEFINED);
-
 			/* Store separately trx_id, roll_ptr and
 			the BTR_EXTERN_FIELD_REF of each BLOB column. */
 			if (rec_offs_any_extern(offsets)) {
 				data = page_zip_write_rec_ext(
 					page_zip, page,
 					rec, index, offsets, create,
-					trx_id_col, heap_no, storage, data);
+					index->db_trx_id(), heap_no,
+					storage, data);
 			} else {
 				/* Locate trx_id and roll_ptr. */
 				const byte*	src
 					= rec_get_nth_field(rec, offsets,
-							    trx_id_col, &len);
+							    index->db_trx_id(),
+							    &len);
 				ut_ad(len == DATA_TRX_ID_LEN);
 				ut_ad(src + DATA_TRX_ID_LEN
 				      == rec_get_nth_field(
 					      rec, offsets,
-					      trx_id_col + 1, &len));
+					      index->db_roll_ptr(), &len));
 				ut_ad(len == DATA_ROLL_PTR_LEN);
 
 				/* Log the preceding fields. */
@@ -3780,8 +3771,6 @@ page_zip_write_rec(
 		} else {
 			/* Leaf page of a secondary index:
 			no externally stored columns */
-			ut_ad(dict_index_get_sys_col_pos(index, DATA_TRX_ID)
-			      == ULINT_UNDEFINED);
 			ut_ad(!rec_offs_any_extern(offsets));
 
 			/* Log the entire record. */

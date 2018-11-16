@@ -4955,9 +4955,6 @@ my_eof(THD *thd)
 
 inline date_mode_t sql_mode_for_dates(THD *thd)
 {
-  static_assert(C_TIME_FUZZY_DATES   == date_mode_t::FUZZY_DATES &&
-                C_TIME_TIME_ONLY     == date_mode_t::TIME_ONLY,
-                "sql_mode_t and pure C library date flags must be equal");
   static_assert(MODE_NO_ZERO_DATE    == date_mode_t::NO_ZERO_DATE &&
                 MODE_NO_ZERO_IN_DATE == date_mode_t::NO_ZERO_IN_DATE &&
                 MODE_INVALID_DATES   == date_mode_t::INVALID_DATES,

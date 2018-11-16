@@ -9470,3 +9470,59 @@ bool SELECT_LEX::make_unique_derived_name(THD *thd, LEX_CSTRING *alias)
   alias->str= thd->strmake(buff, alias->length);
   return !alias->str;
 }
+
+
+/*
+  Make a new sp_instr_stmt and set its m_query to a concatenation
+  of two strings.
+*/
+bool LEX::new_sp_instr_stmt(THD *thd,
+                            const LEX_CSTRING &prefix,
+                            const LEX_CSTRING &suffix)
+{
+  LEX_STRING qbuff;
+  sp_instr_stmt *i;
+
+  if (!(i= new (thd->mem_root) sp_instr_stmt(sphead->instructions(),
+                                             spcont, this)))
+    return true;
+
+  qbuff.length= prefix.length + suffix.length;
+  if (!(qbuff.str= (char*) alloc_root(thd->mem_root, qbuff.length + 1)))
+    return true;
+  memcpy(qbuff.str, prefix.str, prefix.length);
+  strmake(qbuff.str + prefix.length, suffix.str, suffix.length);
+  i->m_query= qbuff;
+  return sphead->add_instr(i);
+}
+
+
+bool LEX::sp_proc_stmt_statement_finalize_buf(THD *thd, const LEX_CSTRING &qbuf)
+{
+  sphead->m_flags|= sp_get_flags_for_command(this);
+  /* "USE db" doesn't work in a procedure */
+  if (unlikely(sql_command == SQLCOM_CHANGE_DB))
+  {
+    my_error(ER_SP_BADSTATEMENT, MYF(0), "USE");
+    return true;
+  }
+  /*
+    Don't add an instruction for SET statements, since all
+    instructions for them were already added during processing
+    of "set" rule.
+  */
+  DBUG_ASSERT(sql_command != SQLCOM_SET_OPTION || var_list.is_empty());
+  if (sql_command != SQLCOM_SET_OPTION)
+    return new_sp_instr_stmt(thd, empty_clex_str, qbuf);
+  return false;
+}
+
+
+bool LEX::sp_proc_stmt_statement_finalize(THD *thd, bool no_lookahead)
+{
+  // Extract the query statement from the tokenizer
+  Lex_input_stream *lip= &thd->m_parser_state->m_lip;
+  Lex_cstring qbuf(sphead->m_tmp_query, no_lookahead ? lip->get_ptr() :
+                                                       lip->get_tok_start());
+  return LEX::sp_proc_stmt_statement_finalize_buf(thd, qbuf);
+}

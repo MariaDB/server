@@ -28,7 +28,6 @@ Created 1/8/1996 Heikki Tuuri
 #ifndef dict0mem_h
 #define dict0mem_h
 
-#include "univ.i"
 #include "dict0types.h"
 #include "data0type.h"
 #include "mem0mem.h"
@@ -50,6 +49,7 @@ Created 1/8/1996 Heikki Tuuri
 #include "ut0new.h"
 #include "fil0fil.h"
 #include "fil0crypt.h"
+#include <sql_const.h>
 #include <set>
 #include <algorithm>
 #include <iterator>
@@ -1099,15 +1099,37 @@ struct dict_index_t {
 		return DICT_CLUSTERED == (type & (DICT_CLUSTERED | DICT_IBUF));
 	}
 
+	/** @return whether this is a generated clustered index */
+	bool is_gen_clust() const { return type == DICT_CLUSTERED; }
+
+	/** @return whether this is a clustered index */
+	bool is_clust() const { return type & DICT_CLUSTERED; }
+
+	/** @return whether this is a unique index */
+	bool is_unique() const { return type & DICT_UNIQUE; }
+
+	/** @return whether this is a spatial index */
+	bool is_spatial() const { return UNIV_UNLIKELY(type & DICT_SPATIAL); }
+
+	/** @return whether this is the change buffer */
+	bool is_ibuf() const { return UNIV_UNLIKELY(type & DICT_IBUF); }
+
 	/** @return whether the index includes virtual columns */
 	bool has_virtual() const { return type & DICT_VIRTUAL; }
 
+	/** @return the position of DB_TRX_ID */
+	unsigned db_trx_id() const {
+		DBUG_ASSERT(is_primary());
+		DBUG_ASSERT(n_uniq);
+		DBUG_ASSERT(n_uniq <= MAX_REF_PARTS);
+		return n_uniq;
+	}
+	/** @return the position of DB_ROLL_PTR */
+	unsigned db_roll_ptr() const { return db_trx_id() + 1; }
+
 	/** @return the offset of the metadata BLOB field,
 	or the first user field after the PRIMARY KEY,DB_TRX_ID,DB_ROLL_PTR */
-	unsigned first_user_field() const {
-		ut_ad(is_primary());
-		return n_uniq + 2;
-	}
+	unsigned first_user_field() const { return db_trx_id() + 2; }
 
 	/** @return whether the index is corrupted */
 	inline bool is_corrupted() const;

@@ -261,89 +261,6 @@ dict_table_get_next_index(
 #endif /* UNIV_DEBUG */
 
 /********************************************************************//**
-Check whether the index is the clustered index.
-@return nonzero for clustered index, zero for other indexes */
-UNIV_INLINE
-ulint
-dict_index_is_clust(
-/*================*/
-	const dict_index_t*	index)	/*!< in: index */
-{
-	ut_ad(index->magic_n == DICT_INDEX_MAGIC_N);
-	return(index->type & DICT_CLUSTERED);
-}
-
-/** Check if index is auto-generated clustered index.
-@param[in]	index	index
-
-@return true if index is auto-generated clustered index. */
-UNIV_INLINE
-bool
-dict_index_is_auto_gen_clust(
-	const dict_index_t*	index)
-{
-	return(index->type == DICT_CLUSTERED);
-}
-
-/********************************************************************//**
-Check whether the index is unique.
-@return nonzero for unique index, zero for other indexes */
-UNIV_INLINE
-ulint
-dict_index_is_unique(
-/*=================*/
-	const dict_index_t*	index)	/*!< in: index */
-{
-	ut_ad(index->magic_n == DICT_INDEX_MAGIC_N);
-
-	return(index->type & DICT_UNIQUE);
-}
-
-/********************************************************************//**
-Check whether the index is a Spatial Index.
-@return	nonzero for Spatial Index, zero for other indexes */
-UNIV_INLINE
-ulint
-dict_index_is_spatial(
-/*==================*/
-	const dict_index_t*	index)	/*!< in: index */
-{
-	ut_ad(index);
-	ut_ad(index->magic_n == DICT_INDEX_MAGIC_N);
-
-	return ulint(UNIV_EXPECT(index->type & DICT_SPATIAL, 0));
-}
-
-/********************************************************************//**
-Check whether the index is the insert buffer tree.
-@return nonzero for insert buffer, zero for other indexes */
-UNIV_INLINE
-ulint
-dict_index_is_ibuf(
-/*===============*/
-	const dict_index_t*	index)	/*!< in: index */
-{
-	ut_ad(index);
-	ut_ad(index->magic_n == DICT_INDEX_MAGIC_N);
-
-	return(index->type & DICT_IBUF);
-}
-
-/********************************************************************//**
-Check whether the index is a secondary index or the insert buffer tree.
-@return nonzero for insert buffer, zero for other indexes */
-UNIV_INLINE
-ulint
-dict_index_is_sec_or_ibuf(
-/*======================*/
-	const dict_index_t*	index)	/*!< in: index */
-{
-	ut_ad(index->magic_n == DICT_INDEX_MAGIC_N);
-
-	return((index->type & (DICT_CLUSTERED | DICT_IBUF)) != DICT_CLUSTERED);
-}
-
-/********************************************************************//**
 Gets the number of user-defined non-virtual columns in a table in the
 dictionary cache.
 @return number of user-defined (e.g., not ROW_ID) non-virtual
@@ -1007,31 +924,6 @@ dict_index_get_nth_field(
 	return((dict_field_t*) (index->fields) + pos);
 }
 #endif /* UNIV_DEBUG */
-
-/********************************************************************//**
-Returns the position of a system column in an index.
-@return position, ULINT_UNDEFINED if not contained */
-UNIV_INLINE
-ulint
-dict_index_get_sys_col_pos(
-/*=======================*/
-	const dict_index_t*	index,	/*!< in: index */
-	ulint			type)	/*!< in: DATA_ROW_ID, ... */
-{
-	ut_ad(index);
-	ut_ad(index->magic_n == DICT_INDEX_MAGIC_N);
-	ut_ad(!dict_index_is_ibuf(index));
-
-	if (dict_index_is_clust(index)) {
-
-		return(dict_col_get_clust_pos(
-			       dict_table_get_sys_col(index->table, type),
-			       index));
-	}
-
-	return(dict_index_get_nth_col_pos(
-			index, dict_table_get_sys_col_no(index->table, type), NULL));
-}
 
 /*********************************************************************//**
 Gets the field column.

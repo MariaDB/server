@@ -7685,11 +7685,11 @@ copy_event_to_schema_table(THD *thd, TABLE *sch_table, TABLE *event_table)
     sch_table->field[ISE_ON_COMPLETION]->
                                 store(STRING_WITH_LEN("PRESERVE"), scs);
 
-  number_to_datetime(et.created, 0, &time, 0, &not_used);
+  number_to_datetime_or_date(et.created, 0, &time, 0, &not_used);
   DBUG_ASSERT(not_used==0);
   sch_table->field[ISE_CREATED]->store_time(&time);
 
-  number_to_datetime(et.modified, 0, &time, 0, &not_used);
+  number_to_datetime_or_date(et.modified, 0, &time, 0, &not_used);
   DBUG_ASSERT(not_used==0);
   sch_table->field[ISE_LAST_ALTERED]->store_time(&time);
 

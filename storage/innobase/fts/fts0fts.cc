@@ -3713,13 +3713,6 @@ fts_get_max_doc_id(
 
 	if (!page_is_empty(btr_pcur_get_page(&pcur))) {
 		const rec_t*    rec = NULL;
-		ulint		offsets_[REC_OFFS_NORMAL_SIZE];
-		ulint*		offsets = offsets_;
-		mem_heap_t*	heap = NULL;
-		ulint		len;
-		const void*	data;
-
-		rec_offs_init(offsets_);
 
 		do {
 			rec = btr_pcur_get_rec(&pcur);
@@ -3729,18 +3722,11 @@ fts_get_max_doc_id(
 			}
 		} while (btr_pcur_move_to_prev(&pcur, &mtr));
 
-		if (!rec) {
+		if (!rec || rec_is_metadata(rec, *index)) {
 			goto func_exit;
 		}
 
-		ut_ad(!rec_is_metadata(rec, *index));
-		offsets = rec_get_offsets(
-			rec, index, offsets, true, ULINT_UNDEFINED, &heap);
-
-		data = rec_get_nth_field(rec, offsets, 0, &len);
-
-		doc_id = static_cast<doc_id_t>(fts_read_doc_id(
-			static_cast<const byte*>(data)));
+		doc_id = fts_read_doc_id(rec);
 	}
 
 func_exit:
@@ -5222,49 +5208,23 @@ fts_get_doc_id_from_row(
 }
 
 /** Extract the doc id from the record that belongs to index.
-@param[in]	table	table
-@param[in]	rec	record contains FTS_DOC_ID
+@param[in]	rec	record containing FTS_DOC_ID
 @param[in]	index	index of rec
-@param[in]	heap	heap memory
+@param[in]	offsets	rec_get_offsets(rec,index)
 @return doc id that was extracted from rec */
 doc_id_t
 fts_get_doc_id_from_rec(
-	dict_table_t*		table,
 	const rec_t*		rec,
 	const dict_index_t*	index,
-	mem_heap_t*		heap)
+	const ulint*		offsets)
 {
-	ulint		len;
-	const byte*	data;
-	ulint		col_no;
-	doc_id_t	doc_id = 0;
-	ulint		offsets_[REC_OFFS_NORMAL_SIZE];
-	ulint*		offsets = offsets_;
-	mem_heap_t*	my_heap = heap;
-
-	ut_a(table->fts->doc_col != ULINT_UNDEFINED);
-
-	rec_offs_init(offsets_);
-
-	offsets = rec_get_offsets(
-		rec, index, offsets, true, ULINT_UNDEFINED, &my_heap);
-
-	col_no = dict_col_get_index_pos(
-		&table->cols[table->fts->doc_col], index);
-
-	ut_ad(col_no != ULINT_UNDEFINED);
-
-	data = rec_get_nth_field(rec, offsets, col_no, &len);
-
-	ut_a(len == 8);
-	ut_ad(8 == sizeof(doc_id));
-	doc_id = static_cast<doc_id_t>(mach_read_from_8(data));
-
-	if (my_heap && !heap) {
-		mem_heap_free(my_heap);
-	}
-
-	return(doc_id);
+	ulint f = dict_col_get_index_pos(
+		&index->table->cols[index->table->fts->doc_col], index);
+	ulint len;
+	doc_id_t doc_id = mach_read_from_8(
+		rec_get_nth_field(rec, offsets, f, &len));
+	ut_ad(len == 8);
+	return doc_id;
 }
 
 /*********************************************************************//**

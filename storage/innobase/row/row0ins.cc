@@ -1276,8 +1276,10 @@ row_ins_foreign_check_on_constraint(
 	}
 
 	if (table->fts) {
-		doc_id = fts_get_doc_id_from_rec(table, clust_rec,
-						 clust_index, tmp_heap);
+		doc_id = fts_get_doc_id_from_rec(
+			clust_rec, clust_index,
+			rec_get_offsets(clust_rec, clust_index, NULL, true,
+					ULINT_UNDEFINED, &tmp_heap));
 	}
 
 	if (node->is_delete
@@ -2597,25 +2599,32 @@ row_ins_clust_index_entry_low(
 	} else {
 		index->set_modified(mtr);
 
-		if (mode == BTR_MODIFY_LEAF
-		    && dict_index_is_online_ddl(index)) {
-			mode = BTR_MODIFY_LEAF_ALREADY_S_LATCHED;
-			mtr_s_lock(dict_index_get_lock(index), &mtr);
-		}
+		if (UNIV_UNLIKELY(entry->is_metadata())) {
+			ut_ad(index->is_instant());
+			ut_ad(!dict_index_is_online_ddl(index));
+			ut_ad(mode == BTR_MODIFY_TREE);
+		} else {
+			if (mode == BTR_MODIFY_LEAF
+			    && dict_index_is_online_ddl(index)) {
+				mode = BTR_MODIFY_LEAF_ALREADY_S_LATCHED;
+				mtr_s_lock(dict_index_get_lock(index), &mtr);
+			}
 
-		if (unsigned ai = index->table->persistent_autoinc) {
-			/* Prepare to persist the AUTO_INCREMENT value
-			from the index entry to PAGE_ROOT_AUTO_INC. */
-			const dfield_t* dfield = dtuple_get_nth_field(
-				entry, ai - 1);
-			auto_inc = dfield_is_null(dfield)
-				? 0
-				: row_parse_int(static_cast<const byte*>(
+			if (unsigned ai = index->table->persistent_autoinc) {
+				/* Prepare to persist the AUTO_INCREMENT value
+				from the index entry to PAGE_ROOT_AUTO_INC. */
+				const dfield_t* dfield = dtuple_get_nth_field(
+					entry, ai - 1);
+				if (!dfield_is_null(dfield)) {
+					auto_inc = row_parse_int(
+						static_cast<const byte*>(
 							dfield->data),
 						dfield->len,
 						dfield->type.mtype,
 						dfield->type.prtype
 						& DATA_UNSIGNED);
+				}
+			}
 		}
 	}
 
