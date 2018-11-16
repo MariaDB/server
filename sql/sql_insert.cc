@@ -1643,8 +1643,24 @@ int vers_insert_history_row(TABLE *table)
 
   Field *row_start= table->vers_start_field();
   Field *row_end= table->vers_end_field();
-  if (row_start->cmp(row_start->ptr, row_end->ptr) >= 0)
+  int cmp_res= row_start->cmp(row_start->ptr, row_end->ptr);
+  if (cmp_res == 0)
     return 0;
+  if (cmp_res > 0) {
+    int err;
+    String from, to;
+    table->vers_start_field()->val_str(&from);
+    if (table->vers_start_field()->store_timestamp(table->in_use->query_start() - 1, 0))
+      DBUG_ASSERT(0);
+    table->vers_start_field()->val_str(&to);
+    err= table->file->ha_write_row(table->record[0]);
+    if (!err)
+      push_warning_printf(table->in_use, Sql_condition::WARN_LEVEL_NOTE,
+                          ER_WARN_HISTORY_ROW_START_TIME,
+                          ER_THD(table->in_use, ER_WARN_HISTORY_ROW_START_TIME),
+                          table->s->db.str, table->s->table_name.str, from.c_ptr(), to.c_ptr());
+    return err;
+  }
 
   return table->file->ha_write_row(table->record[0]);
 }
