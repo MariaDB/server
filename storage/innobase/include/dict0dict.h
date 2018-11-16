@@ -689,64 +689,13 @@ do {								\
 	dict_table_skip_corrupt_index(index);			\
 } while (0)
 
-/********************************************************************//**
-Check whether the index is the clustered index.
-@return nonzero for clustered index, zero for other indexes */
-UNIV_INLINE
-ulint
-dict_index_is_clust(
-/*================*/
-	const dict_index_t*	index)	/*!< in: index */
-	MY_ATTRIBUTE((warn_unused_result));
-
-/** Check if index is auto-generated clustered index.
-@param[in]	index	index
-
-@return true if index is auto-generated clustered index. */
-UNIV_INLINE
-bool
-dict_index_is_auto_gen_clust(
-	const dict_index_t*	index);
-
-/********************************************************************//**
-Check whether the index is unique.
-@return nonzero for unique index, zero for other indexes */
-UNIV_INLINE
-ulint
-dict_index_is_unique(
-/*=================*/
-	const dict_index_t*	index)	/*!< in: index */
-	MY_ATTRIBUTE((warn_unused_result));
-/********************************************************************//**
-Check whether the index is a Spatial Index.
-@return	nonzero for Spatial Index, zero for other indexes */
-UNIV_INLINE
-ulint
-dict_index_is_spatial(
-/*==================*/
-	const dict_index_t*	index)	/*!< in: index */
-	MY_ATTRIBUTE((warn_unused_result));
-
+#define dict_index_is_clust(index) (index)->is_clust()
+#define dict_index_is_auto_gen_clust(index) (index)->is_gen_clust()
+#define dict_index_is_unique(index) (index)->is_unique()
+#define dict_index_is_spatial(index) (index)->is_spatial()
+#define dict_index_is_ibuf(index) (index)->is_ibuf()
+#define dict_index_is_sec_or_ibuf(index) !(index)->is_primary()
 #define dict_index_has_virtual(index) (index)->has_virtual()
-
-/********************************************************************//**
-Check whether the index is the insert buffer tree.
-@return nonzero for insert buffer, zero for other indexes */
-UNIV_INLINE
-ulint
-dict_index_is_ibuf(
-/*===============*/
-	const dict_index_t*	index)	/*!< in: index */
-	MY_ATTRIBUTE((warn_unused_result));
-/********************************************************************//**
-Check whether the index is a secondary index or the insert buffer tree.
-@return nonzero for insert buffer, zero for other indexes */
-UNIV_INLINE
-ulint
-dict_index_is_sec_or_ibuf(
-/*======================*/
-	const dict_index_t*	index)	/*!< in: index */
-	MY_ATTRIBUTE((warn_unused_result));
 
 /** Get all the FTS indexes on a table.
 @param[in]	table	table

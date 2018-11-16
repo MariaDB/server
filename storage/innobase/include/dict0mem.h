@@ -1085,6 +1085,21 @@ struct dict_index_t {
 		return DICT_CLUSTERED == (type & (DICT_CLUSTERED | DICT_IBUF));
 	}
 
+	/** @return whether this is a generated clustered index */
+	bool is_gen_clust() const { return type == DICT_CLUSTERED; }
+
+	/** @return whether this is a clustered index */
+	bool is_clust() const { return type & DICT_CLUSTERED; }
+
+	/** @return whether this is a unique index */
+	bool is_unique() const { return type & DICT_UNIQUE; }
+
+	/** @return whether this is a spatial index */
+	bool is_spatial() const { return UNIV_UNLIKELY(type & DICT_SPATIAL); }
+
+	/** @return whether this is the change buffer */
+	bool is_ibuf() const { return UNIV_UNLIKELY(type & DICT_IBUF); }
+
 	/** @return whether the index includes virtual columns */
 	bool has_virtual() const { return type & DICT_VIRTUAL; }
 
