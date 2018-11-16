@@ -2227,17 +2227,15 @@ row_import_adjust_root_pages_of_secondary_indexes(
 }
 
 /*****************************************************************//**
-Ensure that dict_sys->row_id exceeds SELECT MAX(DB_ROW_ID).
-@return error code */
-static	MY_ATTRIBUTE((nonnull, warn_unused_result))
-dberr_t
+Ensure that dict_sys->row_id exceeds SELECT MAX(DB_ROW_ID). */
+MY_ATTRIBUTE((nonnull)) static
+void
 row_import_set_sys_max_row_id(
 /*==========================*/
 	row_prebuilt_t*		prebuilt,	/*!< in/out: prebuilt from
 						handler */
 	const dict_table_t*	table)		/*!< in: table to import */
 {
-	dberr_t			err;
 	const rec_t*		rec;
 	mtr_t			mtr;
 	btr_pcur_t		pcur;
@@ -2245,7 +2243,8 @@ row_import_set_sys_max_row_id(
 	dict_index_t*		index;
 
 	index = dict_table_get_first_index(table);
-	ut_a(dict_index_is_clust(index));
+	ut_ad(index->is_primary());
+	ut_ad(dict_index_is_auto_gen_clust(index));
 
 	mtr_start(&mtr);
 
@@ -2266,57 +2265,17 @@ row_import_set_sys_max_row_id(
 	/* Check for empty table. */
 	if (page_rec_is_infimum(rec)) {
 		/* The table is empty. */
-		err = DB_SUCCESS;
 	} else if (rec_is_metadata(rec, *index)) {
 		/* The clustered index contains the metadata record only,
 		that is, the table is empty. */
-		err = DB_SUCCESS;
 	} else {
-		ulint		len;
-		const byte*	field;
-		mem_heap_t*	heap = NULL;
-		ulint		offsets_[1 + REC_OFFS_HEADER_SIZE];
-		ulint*		offsets;
-
-		rec_offs_init(offsets_);
-
-		offsets = rec_get_offsets(
-			rec, index, offsets_, true, ULINT_UNDEFINED, &heap);
-
-		field = rec_get_nth_field(
-			rec, offsets,
-			dict_index_get_sys_col_pos(index, DATA_ROW_ID),
-			&len);
-
-		if (len == DATA_ROW_ID_LEN) {
-			row_id = mach_read_from_6(field);
-			err = DB_SUCCESS;
-		} else {
-			err = DB_CORRUPTION;
-		}
-
-		if (heap != NULL) {
-			mem_heap_free(heap);
-		}
+		row_id = mach_read_from_6(rec);
 	}
 
 	btr_pcur_close(&pcur);
 	mtr_commit(&mtr);
 
-	DBUG_EXECUTE_IF("ib_import_set_max_rowid_failure",
-			err = DB_CORRUPTION;);
-
-	if (err != DB_SUCCESS) {
-		ib_errf(prebuilt->trx->mysql_thd,
-			IB_LOG_LEVEL_WARN,
-			ER_INNODB_INDEX_CORRUPT,
-			"Index `%s` corruption detected, invalid DB_ROW_ID"
-			" in index.", index->name());
-
-		return(err);
-
-	} else if (row_id > 0) {
-
+	if (row_id) {
 		/* Update the system row id if the imported index row id is
 		greater than the max system row id. */
 
@@ -2329,8 +2288,6 @@ row_import_set_sys_max_row_id(
 
 		mutex_exit(&dict_sys->mutex);
 	}
-
-	return(DB_SUCCESS);
 }
 
 /*****************************************************************//**
@@ -4076,12 +4033,7 @@ row_import_for_mysql(
 	any DB_ROW_ID stored in the table. */
 
 	if (prebuilt->clust_index_was_generated) {
-
-		err = row_import_set_sys_max_row_id(prebuilt, table);
-
-		if (err != DB_SUCCESS) {
-			return(row_import_error(prebuilt, trx, err));
-		}
+		row_import_set_sys_max_row_id(prebuilt, table);
 	}
 
 	ib::info() << "Phase III - Flush changes to disk";
