@@ -64,7 +64,8 @@ alter table t1 drop column f2, add column f3 int default 3, algorithm=instant;
 select * from t1;
 update t1 set f3 = 19;
 select * from t1;
-alter table t1 drop column f1, add column f5 int default 10, algorithm=instant;
+alter table t1 drop column f1, add column f5 tinyint default 10 first,
+algorithm=instant;
 insert into t1 values(4, 10);
 select * from t1;
 

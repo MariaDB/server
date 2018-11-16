@@ -410,6 +410,13 @@ UPDATE t1 SET a=a+2;
 SELECT * FROM t1;
 DROP TABLE t1;
 
+eval CREATE TABLE t1 (i INT) $engine;
+INSERT INTO t1 SET i=1;
+ALTER TABLE t1 ADD COLUMN b BIT FIRST;
+ALTER TABLE t1 ADD COLUMN v INT AS (i) VIRTUAL;
+SELECT * FROM t1;
+DROP TABLE t1;
+
 dec $format;
 }
 disconnect analyze;
