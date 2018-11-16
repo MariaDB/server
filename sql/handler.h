@@ -305,7 +305,8 @@ enum enum_alter_inplace_result {
 #define HA_CAN_MULTISTEP_MERGE (1LL << 53)
 
 /* calling cmp_ref() on the engine is expensive */
-#define HA_CMP_REF_IS_EXPENSIVE (1ULL << 54)
+#define HA_SLOW_CMP_REF         (1ULL << 54)
+#define HA_CMP_REF_IS_EXPENSIVE HA_SLOW_CMP_REF
 
 
 /* bits in index_flags(index_number) for what you can do with index */
