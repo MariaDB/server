@@ -115,7 +115,13 @@ enum enum_alter_inplace_result {
 #define HA_NO_BLOBS            (1ULL << 9) /* Doesn't support blobs */
 #define HA_CAN_INDEX_BLOBS     (1ULL << 10)
 #define HA_AUTO_PART_KEY       (1ULL << 11) /* auto-increment in multi-part key */
-#define HA_REQUIRE_PRIMARY_KEY (1ULL << 12) /* .. and can't create a hidden one */
+/*
+  The engine requires every table to have a user-specified PRIMARY KEY.
+  Do not set the flag if the engine can generate a hidden primary key internally.
+  This flag is ignored if a SEQUENCE is created (which, in turn, needs
+  HA_CAN_TABLES_WITHOUT_ROLLBACK flag)
+*/
+#define HA_REQUIRE_PRIMARY_KEY (1ULL << 12)
 #define HA_STATS_RECORDS_IS_EXACT (1ULL << 13) /* stats.records is exact */
 /*
   INSERT_DELAYED only works with handlers that uses MySQL internal table
@@ -301,8 +307,6 @@ enum enum_alter_inplace_result {
 /* calling cmp_ref() on the engine is expensive */
 #define HA_CMP_REF_IS_EXPENSIVE (1ULL << 54)
 
-/* Engine wants primary keys for everything except sequences */
-#define HA_WANTS_PRIMARY_KEY (1ULL << 55)
 
 /* bits in index_flags(index_number) for what you can do with index */
 #define HA_READ_NEXT            1       /* TODO really use this flag */
