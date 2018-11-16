@@ -235,8 +235,8 @@ sub main
           # It is impossible to do a "cmp" between .good and .after_undo,
           # because the UNDO phase generated log
           # records whose LSN tagged pages. Another reason is that rolling back
-          # INSERT only marks the rows free, does not empty them (optimization), so
-          # traces of the INSERT+rollback remain.
+          # INSERT only marks the rows free, does not empty them
+          # (optimization), so traces of the INSERT+rollback remain.
 
           check_table_is_same($table, $checksum);
           print MY_LOG "testing idempotency\n";
@@ -298,11 +298,11 @@ sub check_table_is_same
 
   $com=  "$maria_exe_path/aria_chk$suffix -dvv $table | grep -v \"Creation time:\" | grep -v \"recover time:\"";
   $com.= "| grep -v \"file length\" | grep -v \"LSNs:\" | grep -v \"UUID:\" > $tmp/aria_chk_message.txt 2>&1";
-  $res= `$com`;
+  $res= my_exec2($com);
   print MY_LOG $res;
-  $res= `$maria_exe_path/aria_chk$suffix -ss -e --read-only $table`;
+  $res= my_exec2("$maria_exe_path/aria_chk$suffix -ss -e --read-only $table");
   print MY_LOG $res;
-  $checksum2= `$maria_exe_path/aria_chk$suffix -dss $table`;
+  $checksum2= my_exec2("$maria_exe_path/aria_chk$suffix -dss $table");
   if ("$checksum" ne "$checksum2")
   {
     print MY_LOG "checksum differs for $table before and after recovery\n";
@@ -311,7 +311,7 @@ sub check_table_is_same
 
   $com=  "diff $tmp/aria_chk_message.good.txt $tmp/aria_chk_message.txt ";
   $com.= "> $tmp/aria_chk_diff.txt || true";
-  $res= `$com`;
+  $res= my_exec2($com);
   print MY_LOG $res;
 
   if (-s "$tmp/aria_chk_diff.txt")
@@ -450,6 +450,21 @@ sub my_exec
   $res= `$command`;
   if ($? != 0 && $opt_abort_on_error)
   {
+    exit(1);
+  }
+  return $res;
+}
+
+sub my_exec2
+{
+  my($command)= @_;
+  my $res, $err;
+  $res= `$command`;
+  if ($? != 0 && $opt_abort_on_error)
+  {
+    $err= $?;
+    print "$command\n";
+    print "failed with error: $err\n";
     exit(1);
   }
   return $res;
