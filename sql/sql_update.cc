@@ -957,7 +957,7 @@ update_begin:
             if (table->versioned(VERS_TIMESTAMP))
             {
               store_record(table, record[2]);
-              error= vers_insert_history_row(table);
+              error= table->vers_insert_history_row();
               restore_record(table, record[2]);
             }
             if (likely(!error))
@@ -2403,7 +2403,7 @@ int multi_update::send_data(List<Item> &not_used_values)
             if (table->versioned(VERS_TIMESTAMP))
             {
               store_record(table, record[2]);
-              if (vers_insert_history_row(table))
+              if (table->vers_insert_history_row())
               {
                 restore_record(table, record[2]);
                 error= 1;
@@ -2716,7 +2716,7 @@ int multi_update::do_updates()
             if (table->versioned(VERS_TIMESTAMP))
             {
               store_record(table, record[2]);
-              if ((local_error= vers_insert_history_row(table)))
+              if ((local_error= table->vers_insert_history_row()))
               {
                 restore_record(table, record[2]);
                 err_table = table;

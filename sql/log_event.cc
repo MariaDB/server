@@ -14357,7 +14357,7 @@ Update_rows_log_event::do_exec_row(rpl_group_info *rgi)
   if (m_vers_from_plain && m_table->versioned(VERS_TIMESTAMP))
   {
     store_record(m_table, record[2]);
-    error= vers_insert_history_row(m_table);
+    error= m_table->vers_insert_history_row();
     if (unlikely(error == HA_ERR_FOUND_DUPP_KEY))
       error= 0;
     restore_record(m_table, record[2]);
