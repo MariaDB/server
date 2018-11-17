@@ -1648,20 +1648,20 @@ static int last_uniq_key(TABLE *table,uint keynr)
  sets Sys_end to now() and calls ha_write_row() .
 */
 
-int vers_insert_history_row(TABLE *table)
+int TABLE::vers_insert_history_row()
 {
-  DBUG_ASSERT(table->versioned(VERS_TIMESTAMP));
-  restore_record(table,record[1]);
+  DBUG_ASSERT(versioned(VERS_TIMESTAMP));
+  restore_record(this, record[1]);
 
   // Set Sys_end to now()
-  table->vers_update_end();
+  vers_update_end();
 
-  Field *row_start= table->vers_start_field();
-  Field *row_end= table->vers_end_field();
+  Field *row_start= vers_start_field();
+  Field *row_end= vers_end_field();
   if (row_start->cmp(row_start->ptr, row_end->ptr) >= 0)
     return 0;
 
-  return table->file->ha_write_row(table->record[0]);
+  return file->ha_write_row(record[0]);
 }
 
 /*
@@ -1874,7 +1874,7 @@ int write_record(THD *thd, TABLE *table,COPY_INFO *info)
               if (table->versioned(VERS_TIMESTAMP))
               {
                 store_record(table, record[2]);
-                if ((error= vers_insert_history_row(table)))
+                if ((error= table->vers_insert_history_row()))
                 {
                   info->last_errno= error;
                   table->file->print_error(error, MYF(0));
@@ -1960,7 +1960,7 @@ int write_record(THD *thd, TABLE *table,COPY_INFO *info)
             if (table->versioned(VERS_TIMESTAMP))
             {
               store_record(table, record[2]);
-              error= vers_insert_history_row(table);
+              error= table->vers_insert_history_row();
               restore_record(table, record[2]);
               if (unlikely(error))
                 goto err;

@@ -14681,7 +14681,7 @@ Update_rows_log_event::do_exec_row(rpl_group_info *rgi)
   if (m_vers_from_plain && m_table->versioned(VERS_TIMESTAMP))
   {
     store_record(m_table, record[2]);
-    error= vers_insert_history_row(m_table);
+    error= m_table->vers_insert_history_row();
     restore_record(m_table, record[2]);
   }
   m_table->default_column_bitmaps();
