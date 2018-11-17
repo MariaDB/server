@@ -1551,7 +1551,7 @@ public:
 
   int delete_row();
   void vers_update_fields();
-  void vers_update_end();
+  void vers_update_end(bool fix_row_start= true);
   int vers_insert_history_row();
 
 /** Number of additional fields used in versioned tables */

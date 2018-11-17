@@ -1637,7 +1637,7 @@ int TABLE::vers_insert_history_row()
   restore_record(this, record[1]);
 
   // Set Sys_end to now()
-  vers_update_end();
+  vers_update_end(false);
 
   Field *row_start= vers_start_field();
   Field *row_end= vers_end_field();

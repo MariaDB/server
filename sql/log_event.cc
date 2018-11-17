@@ -14076,10 +14076,8 @@ int Delete_rows_log_event::do_exec_row(rpl_group_info *rgi)
       m_table->mark_columns_per_binlog_row_image();
       if (m_vers_from_plain && m_table->versioned(VERS_TIMESTAMP))
       {
-        Field *end= m_table->vers_end_field();
-        bitmap_set_bit(m_table->write_set, end->field_index);
         store_record(m_table, record[1]);
-        end->set_time();
+        m_table->vers_update_end();
         error= m_table->file->ha_update_row(m_table->record[1],
                                             m_table->record[0]);
       }

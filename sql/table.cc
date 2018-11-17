@@ -7909,11 +7909,30 @@ void TABLE::vers_update_fields()
 }
 
 
-void TABLE::vers_update_end()
+void TABLE::vers_update_end(bool fix_row_start)
 {
-  if (vers_end_field()->store_timestamp(in_use->query_start(),
-                                        in_use->query_start_sec_part()))
+  bitmap_set_bit(write_set, vers_end_field()->field_index);
+  if (vers_end_field()->set_time())
     DBUG_ASSERT(0);
+
+  if (fix_row_start)
+  {
+    Field *row_start= vers_start_field();
+    Field *row_end= vers_end_field();
+    int cmp_res= row_start->cmp(row_start->ptr, row_end->ptr);
+    if (cmp_res <= 0)
+      return;
+    String from, to;
+    vers_start_field()->val_str(&from);
+    bitmap_set_bit(write_set, vers_start_field()->field_index);
+    if (vers_start_field()->store_timestamp(in_use->query_start() - 1, 0))
+      DBUG_ASSERT(0);
+    vers_start_field()->val_str(&to);
+    push_warning_printf(in_use, Sql_condition::WARN_LEVEL_NOTE,
+                        ER_WARN_HISTORY_ROW_START_TIME,
+                        ER_THD(in_use, ER_WARN_HISTORY_ROW_START_TIME),
+                        s->db.str, s->table_name.str, from.c_ptr(), to.c_ptr());
+  }
 }
 
 /**
