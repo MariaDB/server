@@ -1417,6 +1417,9 @@ extern my_bool maria_page_crc_check_bitmap(int, PAGECACHE_IO_HOOK_ARGS *args);
 extern my_bool maria_page_crc_check_data(int, PAGECACHE_IO_HOOK_ARGS *args);
 extern my_bool maria_page_crc_check_index(int, PAGECACHE_IO_HOOK_ARGS *args);
 extern my_bool maria_page_crc_check_none(int, PAGECACHE_IO_HOOK_ARGS *args);
+extern my_bool maria_page_crc_check(uchar *page, pgcache_page_no_t page_no,
+                                    MARIA_SHARE *share, uint32 no_crc_val,
+                                    int data_length);
 extern my_bool maria_page_filler_set_bitmap(PAGECACHE_IO_HOOK_ARGS *args);
 extern my_bool maria_page_filler_set_normal(PAGECACHE_IO_HOOK_ARGS *args);
 extern my_bool maria_page_filler_set_none(PAGECACHE_IO_HOOK_ARGS *args);
