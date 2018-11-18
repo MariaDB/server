@@ -29,8 +29,8 @@ after password_expired;
 create role test_role;
 create user test_user@localhost;
 grant test_role to test_user@localhost;
---replace_regex /10\d\d\d\d/MYSQL_VERSION_ID/
---error ER_COL_COUNT_DOESNT_MATCH_PLEASE_UPDATE
+#--replace_regex /10\d\d\d\d/MYSQL_VERSION_ID/
+#--error ER_COL_COUNT_DOESNT_MATCH_PLEASE_UPDATE
 set default role test_role for root@localhost;
 drop role test_role;
 drop user test_user@localhost;
