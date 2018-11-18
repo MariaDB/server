@@ -2092,16 +2092,18 @@ void Item_extract::print(String *str, enum_query_type query_type)
 bool Item_extract::fix_length_and_dec()
 {
   maybe_null=1;					// If wrong date
+  uint32 daylen= args[0]->cmp_type() == TIME_RESULT ? 2 :
+                 TIME_MAX_INTERVAL_DAY_CHAR_LENGTH;
   switch (int_type) {
   case INTERVAL_YEAR:             set_date_length(4); break; // YYYY
   case INTERVAL_YEAR_MONTH:       set_date_length(6); break; // YYYYMM
   case INTERVAL_QUARTER:          set_date_length(2); break; // 1..4
   case INTERVAL_MONTH:            set_date_length(2); break; // MM
   case INTERVAL_WEEK:             set_date_length(2); break; // 0..52
-  case INTERVAL_DAY:              set_day_length(2); break; // DD
-  case INTERVAL_DAY_HOUR:         set_time_length(4); break; // DDhh
-  case INTERVAL_DAY_MINUTE:       set_time_length(6); break; // DDhhmm
-  case INTERVAL_DAY_SECOND:       set_time_length(8); break; // DDhhmmss
+  case INTERVAL_DAY:              set_day_length(daylen); break; // DD
+  case INTERVAL_DAY_HOUR:         set_day_length(daylen+2); break; // DDhh
+  case INTERVAL_DAY_MINUTE:       set_day_length(daylen+4); break; // DDhhmm
+  case INTERVAL_DAY_SECOND:       set_day_length(daylen+6); break; // DDhhmmss
   case INTERVAL_HOUR:             set_time_length(2); break; // hh
   case INTERVAL_HOUR_MINUTE:      set_time_length(4); break; // hhmm
   case INTERVAL_HOUR_SECOND:      set_time_length(6); break; // hhmmss
@@ -2109,7 +2111,7 @@ bool Item_extract::fix_length_and_dec()
   case INTERVAL_MINUTE_SECOND:    set_time_length(4); break; // mmss
   case INTERVAL_SECOND:           set_time_length(2); break; // ss
   case INTERVAL_MICROSECOND:      set_time_length(6); break; // ffffff
-  case INTERVAL_DAY_MICROSECOND:  set_time_length(14); break; // DDhhmmssffffff
+  case INTERVAL_DAY_MICROSECOND:  set_time_length(daylen+12); break; // DDhhmmssffffff
   case INTERVAL_HOUR_MICROSECOND: set_time_length(12); break; // hhmmssffffff
   case INTERVAL_MINUTE_MICROSECOND: set_time_length(10); break; // mmssffffff
   case INTERVAL_SECOND_MICROSECOND: set_time_length(8); break; // ssffffff

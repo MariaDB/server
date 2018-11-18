@@ -79,6 +79,16 @@ extern uchar days_in_month[];
 /* Useful constants */
 #define SECONDS_IN_24H 86400L
 
+/* Limits for the INTERVAL data type */
+
+ /* Number of hours between '0001-01-01 00h' and '9999-12-31 23h' */
+#define TIME_MAX_INTERVAL_HOUR             87649415
+#define TIME_MAX_INTERVAL_HOUR_CHAR_LENGTH 8
+
+/* Number of full days between '0001-01-01' and '9999-12-31'*/
+#define TIME_MAX_INTERVAL_DAY              3652058 /*87649415/24*/
+#define TIME_MAX_INTERVAL_DAY_CHAR_LENGTH  7
+
 /* Limits for the TIME data type */
 #define TIME_MAX_HOUR 838
 #define TIME_MAX_MINUTE 59
@@ -112,7 +122,21 @@ my_bool str_to_DDhhmmssff(const char *str, size_t length, MYSQL_TIME *l_time,
                           ulong max_hour, MYSQL_TIME_STATUS *status);
 my_bool str_to_datetime_or_date_or_time(const char *str, size_t length,
                                         MYSQL_TIME *to, ulonglong flag,
-                                        MYSQL_TIME_STATUS *status);
+                                        MYSQL_TIME_STATUS *status,
+                                        ulong time_max_hour,
+                                        ulong time_err_hour);
+my_bool
+str_to_datetime_or_date_or_interval_hhmmssff(const char *str, size_t length,
+                                             MYSQL_TIME *to, ulonglong flag,
+                                             MYSQL_TIME_STATUS *status,
+                                             ulong time_max_hour,
+                                             ulong time_err_hour);
+my_bool
+str_to_datetime_or_date_or_interval_day(const char *str, size_t length,
+                                        MYSQL_TIME *to, ulonglong flag,
+                                        MYSQL_TIME_STATUS *status,
+                                        ulong time_max_hour,
+                                        ulong time_err_hour);
 my_bool str_to_datetime_or_date(const char *str, size_t length, MYSQL_TIME *to,
                                 ulonglong flags, MYSQL_TIME_STATUS *status);
 
@@ -120,7 +144,7 @@ longlong number_to_datetime_or_date(longlong nr, ulong sec_part,
                                     MYSQL_TIME *time_res,
                                     ulonglong flags, int *was_cut);
 int number_to_time_only(my_bool neg, ulonglong nr, ulong sec_part,
-                        MYSQL_TIME *ltime, int *was_cut);
+                        ulong max_hour, MYSQL_TIME *to, int *was_cut);
 
 ulonglong TIME_to_ulonglong_datetime(const MYSQL_TIME *);
 ulonglong TIME_to_ulonglong_date(const MYSQL_TIME *);

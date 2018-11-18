@@ -3215,7 +3215,8 @@ static void fetch_string_with_conversion(MYSQL_BIND *param, char *value, size_t 
   {
     MYSQL_TIME *tm= (MYSQL_TIME *)buffer;
     MYSQL_TIME_STATUS status;
-    str_to_datetime_or_date_or_time(value, length, tm, 0, &status);
+    str_to_datetime_or_date_or_time(value, length, tm, 0, &status,
+                                    TIME_MAX_HOUR, UINT_MAX32);
     err= status.warnings;
     *param->error= MY_TEST(err);
     break;

@@ -264,21 +264,59 @@ public:
                              MYSQL_TIME *ltime,
                              date_mode_t fuzzydate) const;
 
-  // Convert a number in format hhhmmss.ff to TIME'hhh:mm:ss.ff'
-  bool to_time(MYSQL_TIME *to, int *warn) const
+protected:
+
+  bool to_interval_hhmmssff_only(MYSQL_TIME *to, int *warn) const
   {
-    bool rc= (m_sec > 9999999 && m_sec <= 99991231235959ULL && !neg()) ?
-      number_to_datetime_or_date(m_sec, m_usec, to,
-                                 C_TIME_INVALID_DATES, warn) < 0 :
-      number_to_time_only(m_neg, m_sec, m_usec, to, warn);
+    return number_to_time_only(m_neg, m_sec, m_usec,
+                               TIME_MAX_INTERVAL_HOUR, to, warn);
+  }
+  bool to_datetime_or_to_interval_hhmmssff(MYSQL_TIME *to, int *warn) const
+  {
+    /*
+      Convert a number to a time interval.
+      The following formats are understood:
+      -            0 <= x <=   999999995959 - parse as hhhhmmss
+      - 999999995959 <  x <= 99991231235959 - parse as YYYYMMDDhhmmss
+       (YYMMDDhhmmss)       (YYYYMMDDhhmmss)
+
+      Note, these formats are NOT understood:
+      - YYMMDD       - overlaps with INTERVAL range
+      - YYYYMMDD     - overlaps with INTERVAL range
+      - YYMMDDhhmmss - overlaps with INTERVAL range, partially
+                       (see TIME_MAX_INTERVAL_HOUR)
+
+      If we ever need wider intervals, this code switching between
+      full datetime and interval-only should be rewised.
+    */
+    DBUG_ASSERT(TIME_MAX_INTERVAL_HOUR <= 999999995959);
+    /*            (YYMMDDhhmmss) */
+    if (m_sec >    999999995959ULL &&
+        m_sec <= 99991231235959ULL && m_neg == 0)
+      return to_datetime_or_date(to, warn, TIME_INVALID_DATES);
+    if (m_sec / 10000 > TIME_MAX_INTERVAL_HOUR)
+    {
+      *warn= MYSQL_TIME_WARN_OUT_OF_RANGE;
+      return true;
+    }
+    return to_interval_hhmmssff_only(to, warn);
+  }
+public:
+  // [-][DD]hhhmmss.ff,  YYMMDDhhmmss.ff, YYYYMMDDhhmmss.ff
+  bool to_datetime_or_time(MYSQL_TIME *to, int *warn, date_mode_t mode) const
+  {
+    bool rc= m_sec > 9999999 && m_sec <= 99991231235959ULL && !m_neg ?
+             ::number_to_datetime_or_date(m_sec, m_usec, to,
+                        ulonglong(mode & TIME_MODE_FOR_XXX_TO_DATE), warn) < 0 :
+             ::number_to_time_only(m_neg, m_sec, m_usec, TIME_MAX_HOUR, to, warn);
     DBUG_ASSERT(*warn || !rc);
     return rc;
   }
   /*
-    Convert a number in format YYYYMMDDhhmmss.ff to
+    Convert a number in formats YYYYMMDDhhmmss.ff or YYMMDDhhmmss.ff to
     TIMESTAMP'YYYY-MM-DD hh:mm:ss.ff'
   */
-  bool to_datetime(MYSQL_TIME *to, date_mode_t flags, int *warn) const
+  bool to_datetime_or_date(MYSQL_TIME *to, int *warn, date_mode_t flags) const
   {
     if (m_neg)
     {
@@ -458,6 +496,8 @@ public:
                                  timestamp_type tstype, const char *name)
     {
       const char *typestr= tstype >= 0 ? type_name_by_timestamp_type(tstype) :
+                           mode & (TIME_INTERVAL_hhmmssff | TIME_INTERVAL_DAY) ?
+                           "interval" :
                            mode & TIME_TIME_ONLY ? "time" : "datetime";
       Temporal::push_conversion_warnings(thd, totally_useless_value, warnings, typestr,
                                          name, ptr());
@@ -579,6 +619,60 @@ protected:
     if (warn->warnings)
       warn->set_decimal(nr);
   }
+  bool ascii_to_temporal(MYSQL_TIME_STATUS *st,
+                         const char *str, size_t length,
+                         date_mode_t mode)
+  {
+    if (mode & (TIME_INTERVAL_hhmmssff | TIME_INTERVAL_DAY))
+      return ascii_to_datetime_or_date_or_interval_DDhhmmssff(st, str, length,
+                                                              mode);
+    if (mode & TIME_TIME_ONLY)
+      return ascii_to_datetime_or_date_or_time(st, str, length, mode);
+    return ascii_to_datetime_or_date(st, str, length, mode);
+  }
+  bool ascii_to_datetime_or_date_or_interval_DDhhmmssff(MYSQL_TIME_STATUS *st,
+                                                        const char *str,
+                                                        size_t length,
+                                                        date_mode_t mode)
+  {
+    longlong cflags= ulonglong(mode & TIME_MODE_FOR_XXX_TO_DATE);
+    bool rc= mode & TIME_INTERVAL_DAY ?
+      ::str_to_datetime_or_date_or_interval_day(str, length, this, cflags, st,
+                                                TIME_MAX_INTERVAL_HOUR,
+                                                TIME_MAX_INTERVAL_HOUR) :
+      ::str_to_datetime_or_date_or_interval_hhmmssff(str, length, this,
+                                                     cflags, st,
+                                                     TIME_MAX_INTERVAL_HOUR,
+                                                     TIME_MAX_INTERVAL_HOUR);
+    DBUG_ASSERT(!rc || st->warnings);
+    return rc;
+  }
+  bool ascii_to_datetime_or_date_or_time(MYSQL_TIME_STATUS *status,
+                                         const char *str, size_t length,
+                                         date_mode_t fuzzydate)
+  {
+    ulonglong cflags= ulonglong(fuzzydate & TIME_MODE_FOR_XXX_TO_DATE);
+    bool rc= ::str_to_datetime_or_date_or_time(str, length, this,
+                                               cflags, status,
+                                               TIME_MAX_HOUR, UINT_MAX32);
+    DBUG_ASSERT(!rc || status->warnings);
+    return rc;
+  }
+  bool ascii_to_datetime_or_date(MYSQL_TIME_STATUS *status,
+                                 const char *str, size_t length,
+                                 date_mode_t fuzzydate)
+  {
+    DBUG_ASSERT(bool(fuzzydate & TIME_TIME_ONLY) == false);
+    bool rc= ::str_to_datetime_or_date(str, length, this,
+                             ulonglong(fuzzydate & TIME_MODE_FOR_XXX_TO_DATE),
+                             status);
+    DBUG_ASSERT(!rc || status->warnings);
+    return rc;
+  }
+  // Character set aware versions for string conversion routines
+  bool str_to_temporal(MYSQL_TIME_STATUS *st,
+                       const char *str, size_t length,
+                       CHARSET_INFO *cs, date_mode_t fuzzydate);
   bool str_to_datetime_or_date_or_time(MYSQL_TIME_STATUS *st,
                                        const char *str, size_t length,
                                        CHARSET_INFO *cs, date_mode_t fuzzydate);
@@ -858,7 +952,7 @@ public:
   */
   static uint max_useful_hour()
   {
-    return 87649415;
+    return TIME_MAX_INTERVAL_HOUR;
   }
 public:
   Interval_DDhhmmssff(THD *thd, Status *st, bool push_warnings,
@@ -1120,7 +1214,7 @@ public:
   }
   Time(THD *thd, int *warn, const Sec6 &nr, const Options opt)
   {
-    if (nr.to_time(this, warn))
+    if (nr.to_datetime_or_time(this, warn, TIME_INVALID_DATES))
       time_type= MYSQL_TIMESTAMP_NONE;
     xxx_to_time_result_to_valid_value(thd, warn, opt);
   }
@@ -1305,7 +1399,7 @@ protected:
   Temporal_with_date(int *warn, const Sec6 &nr, date_mode_t flags)
   {
     DBUG_ASSERT(bool(flags & TIME_TIME_ONLY) == false);
-    if (nr.to_datetime(this, flags, warn))
+    if (nr.to_datetime_or_date(this, warn, flags))
       time_type= MYSQL_TIMESTAMP_NONE;
   }
   Temporal_with_date(MYSQL_TIME_STATUS *status,

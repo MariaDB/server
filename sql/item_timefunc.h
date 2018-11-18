@@ -993,12 +993,12 @@ class Item_extract :public Item_int_func,
         EXTRACT(DAY FROM '-24:00:00') -> -1
     */
     set_handler(handler_by_length(max_length= length + 1/*sign*/, 11));
-    m_date_mode= date_mode_t(0);
+    m_date_mode= TIME_INTERVAL_DAY;
   }
   void set_time_length(uint32 length)
   {
     set_handler(handler_by_length(max_length= length + 1/*sign*/, 11));
-    m_date_mode= TIME_TIME_ONLY;
+    m_date_mode= TIME_INTERVAL_hhmmssff;
   }
  public:
   const interval_type int_type; // keep it public

@@ -371,18 +371,14 @@ public:
 };
 
 
-/* Character set-aware version of str_to_datetime_or_date_or_time() */
-bool Temporal::str_to_datetime_or_date_or_time(MYSQL_TIME_STATUS *status,
+/* Character set-aware version of ascii_to_datetime_or_date_or_time() */
+bool Temporal::str_to_datetime_or_date_or_time(MYSQL_TIME_STATUS *st,
                                                const char *str, size_t length,
                                                CHARSET_INFO *cs,
                                                date_mode_t fuzzydate)
 {
   TemporalAsciiBuffer tmp(str, length, cs);
-  bool rc= ::str_to_datetime_or_date_or_time(tmp.str, tmp.length, this,
-                       ulonglong(fuzzydate & TIME_MODE_FOR_XXX_TO_DATE),
-                       status);
-  DBUG_ASSERT(status->warnings || !rc);
-  return rc;
+  return ascii_to_datetime_or_date_or_time(st, tmp.str, tmp.length, fuzzydate);
 }
 
 
@@ -393,11 +389,17 @@ bool Temporal::str_to_datetime_or_date(MYSQL_TIME_STATUS *status,
                                        date_mode_t flags)
 {
   TemporalAsciiBuffer tmp(str, length, cs);
-  bool rc= ::str_to_datetime_or_date(tmp.str, tmp.length, this,
-                           ulonglong(flags & TIME_MODE_FOR_XXX_TO_DATE),
-                           status);
-  DBUG_ASSERT(status->warnings || !rc);
-  return rc;
+  return ascii_to_datetime_or_date(status, tmp.str, tmp.length, flags);
+}
+
+
+/* Character set-aware version of ascii_to_temporal() */
+bool Temporal::str_to_temporal(MYSQL_TIME_STATUS *status,
+                               const char *str, size_t length, CHARSET_INFO *cs,
+                               date_mode_t flags)
+{
+  TemporalAsciiBuffer tmp(str, length, cs);
+  return ascii_to_temporal(status, tmp.str, tmp.length, flags);
 }
 
 
