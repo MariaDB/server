@@ -1,4 +1,4 @@
-/* Copyright (C) 2009-2017 Kentoku Shiba
+/* Copyright (C) 2009-2018 Kentoku Shiba
 
   This program is free software; you can redistribute it and/or modify
   it under the terms of the GNU General Public License as published by
@@ -27,6 +27,7 @@
 #include "sql_partition.h"
 #include "sql_base.h"
 #include "sql_servers.h"
+#include "tztime.h"
 #endif
 #include "spd_err.h"
 #include "spd_param.h"
@@ -64,6 +65,9 @@ extern pthread_mutex_t spider_conn_mutex;
 extern pthread_mutex_t spider_conn_id_mutex;
 extern pthread_mutex_t spider_ipport_conn_mutex;
 extern ulonglong spider_conn_id;
+
+/* UTC time zone for timestamp columns */
+extern Time_zone *UTC;
 
 uint spider_udf_calc_hash(
   char *key,
@@ -132,7 +136,7 @@ int spider_udf_direct_sql_create_table_list(
       &direct_sql->tables, sizeof(TABLE*) * table_count,
       &tmp_name_ptr, sizeof(char) * (
         table_name_list_length +
-        thd->db.length * table_count +
+        SPIDER_THD_db_length(thd) * table_count +
         2 * table_count
       ),
       &direct_sql->iop, sizeof(int) * table_count,
@@ -163,11 +167,11 @@ int spider_udf_direct_sql_create_table_list(
       tmp_name_ptr += length + 1;
       tmp_ptr = tmp_ptr3 + 1;
     } else {
-      if (thd->db.str)
+      if (SPIDER_THD_db_str(thd))
       {
-        memcpy(tmp_name_ptr, thd->db.str,
-          thd->db.length + 1);
-        tmp_name_ptr += thd->db.length + 1;
+        memcpy(tmp_name_ptr, SPIDER_THD_db_str(thd),
+          SPIDER_THD_db_length(thd) + 1);
+        tmp_name_ptr += SPIDER_THD_db_length(thd) + 1;
       } else {
         direct_sql->db_names[roop_count] = (char *) "";
       }
@@ -394,6 +398,13 @@ SPIDER_CONN *spider_udf_direct_sql_create_conn(
   char *tmp_ssl_cipher, *tmp_ssl_key, *tmp_default_file, *tmp_default_group;
   int *need_mon;
   DBUG_ENTER("spider_udf_direct_sql_create_conn");
+
+  if (unlikely(!UTC))
+  {
+    /* UTC time zone for timestamp columns */
+    String tz_00_name(STRING_WITH_LEN("+00:00"), &my_charset_bin);
+    UTC = my_tz_find(current_thd, &tz_00_name);
+  }
 
 #if defined(HS_HAS_SQLCOM) && defined(HAVE_HANDLERSOCKET)
   if (direct_sql->access_mode == 0)
@@ -976,8 +987,7 @@ error:
         start_ptr, TRUE, &param_string_parse))) \
         direct_sql->SPIDER_PARAM_STR_LEN(param_name) = \
           strlen(direct_sql->param_name); \
-      else \
-      { \
+      else { \
         error_num = param_string_parse.print_param_error(); \
         goto error; \
       } \
@@ -1330,10 +1340,10 @@ int spider_udf_set_direct_sql_param_default(
   if (!direct_sql->tgt_default_db_name)
   {
     DBUG_PRINT("info",("spider create default tgt_default_db_name"));
-    direct_sql->tgt_default_db_name_length = trx->thd->db.length;
+    direct_sql->tgt_default_db_name_length = SPIDER_THD_db_length(trx->thd);
     if (
       !(direct_sql->tgt_default_db_name = spider_create_string(
-        trx->thd->db.str,
+        SPIDER_THD_db_str(trx->thd),
         direct_sql->tgt_default_db_name_length))
     ) {
       my_error(ER_OUT_OF_RESOURCES, MYF(0), HA_ERR_OUT_OF_MEM);
@@ -1686,14 +1696,29 @@ long long spider_direct_sql_body(
   for (roop_count = 0; roop_count < direct_sql->table_count; roop_count++)
   {
 #ifdef SPIDER_NEED_INIT_ONE_TABLE_FOR_FIND_TEMPORARY_TABLE
-    LEX_CSTRING db_name=  { direct_sql->db_names[roop_count],
-                           strlen(direct_sql->db_names[roop_count]) };
-    LEX_CSTRING tbl_name= { direct_sql->table_names[roop_count],
-                            strlen(direct_sql->table_names[roop_count]) };
+#ifdef SPIDER_use_LEX_CSTRING_for_database_tablename_alias
+    LEX_CSTRING db_name =
+    {
+      direct_sql->db_names[roop_count],
+      strlen(direct_sql->db_names[roop_count])
+    };
+    LEX_CSTRING tbl_name =
+    {
+      direct_sql->table_names[roop_count],
+      strlen(direct_sql->table_names[roop_count])
+    };
     table_list.init_one_table(&db_name, &tbl_name, 0, TL_WRITE);
 #else
-    table_list.db = direct_sql->db_names[roop_count];
-    table_list.table_name = direct_sql->table_names[roop_count];
+    table_list.init_one_table(direct_sql->db_names[roop_count],
+      strlen(direct_sql->db_names[roop_count]),
+      direct_sql->table_names[roop_count],
+      strlen(direct_sql->table_names[roop_count]),
+      direct_sql->table_names[roop_count], TL_WRITE);
+#endif
+#else
+    SPIDER_TABLE_LIST_db_str(&table_list) = direct_sql->db_names[roop_count];
+    SPIDER_TABLE_LIST_table_name_str(&table_list) =
+      direct_sql->table_names[roop_count];
 #endif
     if (!(direct_sql->tables[roop_count] =
       SPIDER_find_temporary_table(thd, &table_list)))
@@ -1706,16 +1731,28 @@ long long spider_direct_sql_body(
         error_num = ER_SPIDER_UDF_TMP_TABLE_NOT_FOUND_NUM;
         my_printf_error(ER_SPIDER_UDF_TMP_TABLE_NOT_FOUND_NUM,
           ER_SPIDER_UDF_TMP_TABLE_NOT_FOUND_STR,
-          MYF(0), table_list.db.str, table_list.table_name.str);
+          MYF(0), SPIDER_TABLE_LIST_db_str(&table_list),
+          SPIDER_TABLE_LIST_table_name_str(&table_list));
         goto error;
 #if MYSQL_VERSION_ID < 50500
 #else
       }
       TABLE_LIST *tables = &direct_sql->table_list[roop_count];
-
-      table_list.init_one_table(&table_list.db, &table_list.table_name, 0, TL_WRITE);
-      tables->mdl_request.init(MDL_key::TABLE, table_list.db.str,
-                               table_list.table_name.str, MDL_SHARED_WRITE, MDL_TRANSACTION);
+#ifdef SPIDER_use_LEX_CSTRING_for_database_tablename_alias
+      table_list.init_one_table(
+        &table_list.db, &table_list.table_name, 0, TL_WRITE);
+#else
+      tables->init_one_table(
+        SPIDER_TABLE_LIST_db_str(&table_list),
+        SPIDER_TABLE_LIST_db_length(&table_list),
+        SPIDER_TABLE_LIST_table_name_str(&table_list),
+        SPIDER_TABLE_LIST_table_name_length(&table_list),
+        SPIDER_TABLE_LIST_table_name_str(&table_list), TL_WRITE);
+#endif
+      tables->mdl_request.init(MDL_key::TABLE,
+        SPIDER_TABLE_LIST_db_str(&table_list),
+        SPIDER_TABLE_LIST_table_name_str(&table_list),
+        MDL_SHARED_WRITE, MDL_TRANSACTION);
       if (!direct_sql->table_list_first)
       {
         direct_sql->table_list_first = tables;

@@ -1,4 +1,4 @@
-/* Copyright (C) 2008-2017 Kentoku Shiba
+/* Copyright (C) 2008-2018 Kentoku Shiba
 
   This program is free software; you can redistribute it and/or modify
   it under the terms of the GNU General Public License as published by
@@ -1439,9 +1439,10 @@ void spider_conn_queue_time_zone(
   DBUG_VOID_RETURN;
 }
 
-void spider_conn_queue_UTC_time_zone(SPIDER_CONN *conn)
-{
-  DBUG_ENTER("spider_conn_queue_time_zone");
+void spider_conn_queue_UTC_time_zone(
+  SPIDER_CONN *conn
+) {
+  DBUG_ENTER("spider_conn_queue_UTC_time_zone");
   DBUG_PRINT("info", ("spider conn=%p", conn));
   spider_conn_queue_time_zone(conn, UTC);
   DBUG_VOID_RETURN;

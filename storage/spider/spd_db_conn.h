@@ -1,4 +1,4 @@
-/* Copyright (C) 2008-2017 Kentoku Shiba
+/* Copyright (C) 2008-2018 Kentoku Shiba
 
   This program is free software; you can redistribute it and/or modify
   it under the terms of the GNU General Public License as published by
@@ -412,7 +412,20 @@ int spider_db_unlock_tables(
 
 int spider_db_append_name_with_quote_str(
   spider_string *str,
-  char *name,
+  const char *name,
+  uint dbton_id
+);
+
+int spider_db_append_name_with_quote_str(
+  spider_string *str,
+  LEX_CSTRING &name,
+  uint dbton_id
+);
+
+int spider_db_append_name_with_quote_str_internal(
+  spider_string *str,
+  const char *name,
+  int length,
   uint dbton_id
 );
 
@@ -857,6 +870,12 @@ int spider_db_print_item_type(
   uint dbton_id,
   bool use_fields,
   spider_fields *fields
+);
+
+int spider_db_print_item_type_default(
+  Item *item,
+  ha_spider *spider,
+  spider_string *str
 );
 
 int spider_db_open_item_cond(
