@@ -25,8 +25,6 @@ The page cursor
 Created 10/4/1994 Heikki Tuuri
 *************************************************************************/
 
-#include "ha_prototypes.h"
-
 #include "page0cur.h"
 #include "page0zip.h"
 #include "btr0btr.h"

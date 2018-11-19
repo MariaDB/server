@@ -36,6 +36,8 @@ Created 3/26/1996 Heikki Tuuri
 #include "fil0fil.h"
 #include "read0types.h"
 
+#include <queue>
+
 /** A dummy undo record used as a return value when we have a whole undo log
 which needs no purge */
 extern trx_undo_rec_t	trx_purge_dummy_rec;

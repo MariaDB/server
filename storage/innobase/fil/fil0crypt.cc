@@ -39,7 +39,6 @@ Modified           Jan Lindström jan.lindstrom@mariadb.com
 #include "btr0scrub.h"
 #include "fsp0fsp.h"
 #include "fil0pagecompress.h"
-#include "ha_prototypes.h" // IB_LOG_
 #include <my_crypt.h>
 
 /** Mutex for keys */

@@ -24,8 +24,6 @@ SQL data field and tuple
 Created 5/30/1994 Heikki Tuuri
 *************************************************************************/
 
-#include "ha_prototypes.h"
-
 #include "data0data.h"
 #include "rem0rec.h"
 #include "rem0cmp.h"

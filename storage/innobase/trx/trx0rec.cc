@@ -38,7 +38,6 @@ Created 3/26/1996 Heikki Tuuri
 #include "trx0purge.h"
 #include "trx0rseg.h"
 #include "row0row.h"
-#include "fsp0sysspace.h"
 #include "row0mysql.h"
 
 /*=========== UNDO LOG RECORD CREATION AND DECODING ====================*/

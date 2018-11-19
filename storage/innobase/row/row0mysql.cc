@@ -25,7 +25,7 @@ Contains also create table and other data dictionary operations.
 Created 9/17/2000 Heikki Tuuri
 *******************************************************/
 
-#include "ha_prototypes.h"
+#include "univ.i"
 #include <debug_sync.h>
 #include <gstream.h>
 #include <spatial.h>
@@ -46,7 +46,6 @@ Created 9/17/2000 Heikki Tuuri
 #include "fil0fil.h"
 #include "fil0crypt.h"
 #include "fsp0file.h"
-#include "fsp0sysspace.h"
 #include "fts0fts.h"
 #include "fts0types.h"
 #include "ibuf0ibuf.h"
@@ -68,7 +67,6 @@ Created 9/17/2000 Heikki Tuuri
 #include "srv0start.h"
 #include "row0ext.h"
 #include "srv0start.h"
-#include "ut0new.h"
 
 #include <algorithm>
 #include <deque>

@@ -27,11 +27,9 @@ Created 2013-7-26 by Kevin Lewis
 #ifndef fsp0space_h
 #define fsp0space_h
 
-#include "univ.i"
 #include "fsp0file.h"
 #include "fsp0fsp.h"
 #include "fsp0types.h"
-#include "ut0new.h"
 
 #include <vector>
 

@@ -34,11 +34,8 @@ Created 10/21/1995 Heikki Tuuri
 *******************************************************/
 
 #ifndef UNIV_INNOCHECKSUM
-
-#include "ha_prototypes.h"
-#include "sql_const.h"
-
 #include "os0file.h"
+#include "sql_const.h"
 
 #ifdef UNIV_LINUX
 #include <sys/types.h>
@@ -48,9 +45,6 @@ Created 10/21/1995 Heikki Tuuri
 #include "srv0srv.h"
 #include "srv0start.h"
 #include "fil0fil.h"
-#include "fil0crypt.h"
-#include "fsp0fsp.h"
-#include "fil0pagecompress.h"
 #include "srv0srv.h"
 #ifdef HAVE_LINUX_UNISTD_H
 #include "unistd.h"

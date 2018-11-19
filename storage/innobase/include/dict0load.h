@@ -28,13 +28,11 @@ Created 4/24/1996 Heikki Tuuri
 #ifndef dict0load_h
 #define dict0load_h
 
-#include "univ.i"
 #include "dict0types.h"
 #include "trx0types.h"
 #include "ut0byte.h"
 #include "mem0mem.h"
 #include "btr0types.h"
-#include "ut0new.h"
 
 #include <deque>
 

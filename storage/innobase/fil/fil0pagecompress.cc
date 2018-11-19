@@ -47,7 +47,6 @@ Updated 14/02/2015
 #include "page0zip.h"
 #include "trx0sys.h"
 #include "row0mysql.h"
-#include "ha_prototypes.h"  // IB_LOG_
 #include "buf0lru.h"
 #include "ibuf0ibuf.h"
 #include "sync0sync.h"

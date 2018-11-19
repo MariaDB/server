@@ -24,8 +24,6 @@ Data types
 Created 1/16/1996 Heikki Tuuri
 *******************************************************/
 
-#include "ha_prototypes.h"
-
 #include "data0type.h"
 
 /* At the database startup we store the default-charset collation number of

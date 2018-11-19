@@ -27,20 +27,18 @@ Created 3/26/1996 Heikki Tuuri
 #ifndef trx0trx_h
 #define trx0trx_h
 
-#include <set>
-
-#include "ha_prototypes.h"
-
 #include "dict0types.h"
 #include "trx0types.h"
 
 #include "lock0types.h"
-#include "log0log.h"
 #include "que0types.h"
 #include "mem0mem.h"
 #include "trx0xa.h"
 #include "ut0vec.h"
 #include "fts0fts.h"
+
+#include <vector>
+#include <set>
 
 // Forward declaration
 struct mtr_t;

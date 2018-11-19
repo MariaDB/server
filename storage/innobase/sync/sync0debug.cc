@@ -32,11 +32,8 @@ Created 2012-08-21 Sunny Bains
 
 #include "sync0sync.h"
 #include "sync0debug.h"
-
-#include "ut0new.h"
 #include "srv0start.h"
 
-#include <map>
 #include <vector>
 #include <string>
 #include <algorithm>

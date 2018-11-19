@@ -24,8 +24,6 @@ Update of a row
 Created 12/27/1996 Heikki Tuuri
 *******************************************************/
 
-#include "ha_prototypes.h"
-
 #include "row0upd.h"
 #include "dict0dict.h"
 #include "dict0mem.h"

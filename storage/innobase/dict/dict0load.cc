@@ -25,8 +25,6 @@ from dictionary tables
 Created 4/24/1996 Heikki Tuuri
 *******************************************************/
 
-#include "ha_prototypes.h"
-
 #include "dict0load.h"
 
 #include "mysql_version.h"
@@ -39,7 +37,6 @@ Created 4/24/1996 Heikki Tuuri
 #include "dict0priv.h"
 #include "dict0stats.h"
 #include "fsp0file.h"
-#include "fsp0sysspace.h"
 #include "fts0priv.h"
 #include "mach0data.h"
 #include "page0page.h"

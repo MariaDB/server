@@ -47,7 +47,6 @@ Created 11/5/1995 Heikki Tuuri
 #include "btr0btr.h"
 #include "fil0fil.h"
 #include "fil0crypt.h"
-#include "fsp0sysspace.h"
 #include "buf0buddy.h"
 #include "lock0lock.h"
 #include "sync0rw.h"
@@ -62,12 +61,10 @@ Created 11/5/1995 Heikki Tuuri
 #include "dict0dict.h"
 #include "log0recv.h"
 #include "srv0mon.h"
-#include "fsp0sysspace.h"
 #endif /* !UNIV_INNOCHECKSUM */
 #include "page0zip.h"
 #include "sync0sync.h"
 #include "buf0dump.h"
-#include "ut0new.h"
 #include <new>
 #include <map>
 #include <sstream>
@@ -75,7 +72,6 @@ Created 11/5/1995 Heikki Tuuri
 #include "fil0pagecompress.h"
 #include "fsp0pagecompress.h"
 #endif
-#include "ha_prototypes.h"
 #include "ut0byte.h"
 #include <new>
 

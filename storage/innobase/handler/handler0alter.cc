@@ -23,7 +23,7 @@ Smart ALTER TABLE
 *******************************************************/
 
 /* Include necessary SQL headers */
-#include "ha_prototypes.h"
+#include "univ.i"
 #include <debug_sync.h>
 #include <log.h>
 #include <sql_lex.h>
@@ -38,7 +38,6 @@ Smart ALTER TABLE
 #include "dict0priv.h"
 #include "dict0stats.h"
 #include "dict0stats_bg.h"
-#include "fsp0sysspace.h"
 #include "log0log.h"
 #include "rem0types.h"
 #include "row0log.h"
@@ -52,7 +51,6 @@ Smart ALTER TABLE
 #include "pars0pars.h"
 #include "row0sel.h"
 #include "ha_innodb.h"
-#include "ut0new.h"
 #include "ut0stage.h"
 
 static const char *MSG_UNSUPPORTED_ALTER_ONLINE_ON_VIRTUAL_COLUMN=

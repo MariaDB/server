@@ -1,7 +1,7 @@
 /*****************************************************************************
 
 Copyright (c) 1995, 2016, Oracle and/or its affiliates. All Rights Reserved.
-Copyright (c) 2017, MariaDB Corporation.
+Copyright (c) 2017, 2018, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -24,13 +24,9 @@ The interface to the operating system thread control primitives
 Created 9/8/1995 Heikki Tuuri
 *******************************************************/
 
-#include "ha_prototypes.h"
-
+#include "univ.i"
 #include "os0thread.h"
-#include "ut0new.h"
 #include "srv0srv.h"
-#include "os0event.h"
-#include <map>
 
 /** Number of threads active. */
 ulint	os_thread_count;

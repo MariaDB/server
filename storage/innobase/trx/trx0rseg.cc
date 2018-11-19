@@ -30,7 +30,6 @@ Created 3/26/1996 Heikki Tuuri
 #include "srv0srv.h"
 #include "trx0purge.h"
 #include "srv0mon.h"
-#include "fsp0sysspace.h"
 
 #include <algorithm>
 

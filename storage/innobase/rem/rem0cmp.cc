@@ -23,17 +23,10 @@ Comparison services for records
 Created 7/1/1994 Heikki Tuuri
 ************************************************************************/
 
-#include "ha_prototypes.h"
-
 #include "rem0cmp.h"
+#include "rem0rec.h"
+#include "dict0mem.h"
 #include "handler0alter.h"
-#include "srv0srv.h"
-
-#include <gstream.h>
-#include <spatial.h>
-#include <gis0geo.h>
-#include <page0cur.h>
-#include <algorithm>
 
 /*		ALPHABETICAL ORDER
 		==================

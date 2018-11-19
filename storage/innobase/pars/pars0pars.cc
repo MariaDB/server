@@ -26,8 +26,6 @@ Created 11/19/1996 Heikki Tuuri
 /* Historical note: Innobase executed its first SQL string (CREATE TABLE)
 on 1/27/1998 */
 
-#include "ha_prototypes.h"
-
 #include "pars0pars.h"
 #include "row0sel.h"
 #include "row0ins.h"
@@ -42,7 +40,6 @@ on 1/27/1998 */
 #include "data0type.h"
 #include "trx0trx.h"
 #include "trx0roll.h"
-#include "lock0lock.h"
 #include "eval0eval.h"
 
 /* Global variable used while parsing a single procedure or query : the code is

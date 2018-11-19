@@ -24,8 +24,6 @@ Transaction system
 Created 3/26/1996 Heikki Tuuri
 *******************************************************/
 
-#include "ha_prototypes.h"
-
 #include "mysqld.h"
 #include "trx0sys.h"
 #include "sql_error.h"
@@ -43,7 +41,6 @@ Created 3/26/1996 Heikki Tuuri
 #include "log0recv.h"
 #include "os0file.h"
 #include "read0read.h"
-#include "fsp0sysspace.h"
 
 #include <mysql/service_wsrep.h>
 

@@ -30,7 +30,6 @@ Created Apr 25, 2012 Vasil Dimov
 #include "dict0defrag_bg.h"
 #include "row0mysql.h"
 #include "srv0start.h"
-#include "ut0new.h"
 #include "fil0fil.h"
 #ifdef WITH_WSREP
 # include "mysql/service_wsrep.h"

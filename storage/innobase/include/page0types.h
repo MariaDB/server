@@ -29,7 +29,6 @@ Created 2/2/1994 Heikki Tuuri
 #include "univ.i"
 #include "dict0types.h"
 #include "mtr0types.h"
-#include "ut0new.h"
 
 #include <map>
 

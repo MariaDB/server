@@ -26,8 +26,7 @@ Created 5/7/1996 Heikki Tuuri
 
 #define LOCK_MODULE_IMPLEMENTATION
 
-
-#include "ha_prototypes.h"
+#include "univ.i"
 
 #include <mysql/service_thd_error_context.h>
 #include <sql_class.h>
@@ -37,11 +36,8 @@ Created 5/7/1996 Heikki Tuuri
 #include "dict0mem.h"
 #include "trx0purge.h"
 #include "trx0sys.h"
-#include "srv0mon.h"
 #include "ut0vec.h"
-#include "btr0btr.h"
-#include "dict0boot.h"
-#include "ut0new.h"
+#include "btr0cur.h"
 #include "row0sel.h"
 #include "row0mysql.h"
 #include "row0vers.h"

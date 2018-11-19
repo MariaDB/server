@@ -24,16 +24,11 @@ Create Full Text Index with (parallel) merge sort
 Created 10/13/2010 Jimmy Yang
 *******************************************************/
 
-#include "ha_prototypes.h"
-
-#include "dict0dict.h"
-#include "row0merge.h"
-#include "pars0pars.h"
 #include "row0ftsort.h"
+#include "dict0dict.h"
 #include "row0merge.h"
 #include "row0row.h"
 #include "btr0cur.h"
-#include "btr0bulk.h"
 #include "fts0plugin.h"
 #include "log0crypt.h"
 

@@ -28,7 +28,6 @@ Created 03/11/2014 Shaohua Wang
 
 #include "dict0dict.h"
 #include "page0cur.h"
-#include "ut0new.h"
 
 #include <vector>
 
