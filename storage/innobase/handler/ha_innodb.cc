@@ -13202,7 +13202,7 @@ int ha_innobase::delete_table(const char* name)
 	table, FOREIGN KEY constraints will be ignored and their
 	metadata will not be removed. */
 	DBUG_ASSERT(sqlcom != SQLCOM_TRUNCATE
-		    || (thd_kill_level(ha_thd()) != NOT_KILLED
+		    || (thd_kill_level(ha_thd()) != THD_IS_NOT_KILLED
 			&& (!m_prebuilt
 			    || m_prebuilt->table->is_temporary())));
 	return delete_table(name, sqlcom);
