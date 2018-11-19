@@ -3331,7 +3331,8 @@ TABLE *spider_mk_sys_tmp_table(
     goto error_push_item;
 
   if (!(tmp_table = create_tmp_table(thd, tmp_tbl_prm,
-    i_list, (ORDER*) NULL, FALSE, FALSE, TMP_TABLE_FORCE_MYISAM,
+    i_list, (ORDER*) NULL, FALSE, FALSE,
+    (TMP_TABLE_FORCE_MYISAM | TMP_TABLE_ALL_COLUMNS),
     HA_POS_ERROR, &SPIDER_empty_string)))
     goto error_create_tmp_table;
   DBUG_RETURN(tmp_table);
@@ -3452,7 +3453,8 @@ TABLE *spider_mk_sys_tmp_table_for_result(
     goto error_push_item3;
 
   if (!(tmp_table = create_tmp_table(thd, tmp_tbl_prm,
-    i_list, (ORDER*) NULL, FALSE, FALSE, TMP_TABLE_FORCE_MYISAM,
+    i_list, (ORDER*) NULL, FALSE, FALSE,
+    (TMP_TABLE_FORCE_MYISAM | TMP_TABLE_ALL_COLUMNS),
     HA_POS_ERROR, &SPIDER_empty_string)))
     goto error_create_tmp_table;
   DBUG_RETURN(tmp_table);
