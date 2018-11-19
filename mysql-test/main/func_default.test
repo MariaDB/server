@@ -11,6 +11,11 @@ explain extended select default(str), default(strnull), default(intg), default(r
 select * from t1 where str <> default(str);
 explain select * from t1 where str <> default(str);
 
+create view v1 as select default(str), default(strnull), default(intg), default(rel) from t1;
+select * from v1;
+show create view v1;
+drop view v1;
+
 #TODO: uncomment when bug will be fixed
 #create table t2 select default(str), default(strnull), default(intg), default(rel) from t1;
 #show create table from t1;

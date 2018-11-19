@@ -28,7 +28,6 @@ Created 11/26/1995 Heikki Tuuri
 
 #include "buf0buf.h"
 #include "buf0flu.h"
-#include "fsp0sysspace.h"
 #include "page0types.h"
 #include "mtr0log.h"
 #include "log0log.h"

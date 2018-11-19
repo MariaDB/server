@@ -34,7 +34,6 @@ Created 1/8/1996 Heikki Tuuri
 #include "dict0mem.h"
 #include "dict0types.h"
 #include "fsp0fsp.h"
-#include "fsp0sysspace.h"
 #include "hash0hash.h"
 #include "mem0mem.h"
 #include "rem0types.h"
@@ -42,7 +41,6 @@ Created 1/8/1996 Heikki Tuuri
 #include "trx0types.h"
 #include "ut0byte.h"
 #include "ut0mem.h"
-#include "ut0new.h"
 #include "ut0rnd.h"
 #include <deque>
 #include "fsp0fsp.h"

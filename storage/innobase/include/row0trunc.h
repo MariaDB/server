@@ -31,7 +31,6 @@ Created 2013-04-25 Krunal Bauskar
 #include "dict0boot.h"
 #include "fil0fil.h"
 #include "srv0start.h"
-#include "ut0new.h"
 
 #include <vector>
 

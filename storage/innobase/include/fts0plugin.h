@@ -26,7 +26,7 @@ Created 2013/06/04 Shaohua Wang
 #ifndef INNOBASE_FTS0PLUGIN_H
 #define INNOBASE_FTS0PLUGIN_H
 
-#include "ha_prototypes.h"
+#include "univ.i"
 
 extern struct st_mysql_ftparser fts_default_parser;
 

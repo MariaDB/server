@@ -989,6 +989,38 @@ SELECT b FROM t1 WHERE b = 0;
 DROP TABLE t1;
 
 --echo #
+--echo # MDEV-11167: InnoDB: Warning: using a partial-field key prefix
+--echo # in search, results in assertion failure or "Can't find record" error
+--echo #
+
+set @save_sql_mode = @@sql_mode;
+set sql_mode="";
+CREATE TABLE t1 (a INT) ENGINE=InnoDB;
+CREATE TABLE t2 (b INT, c INT, KEY(b)) ENGINE=InnoDB PARTITION BY HASH(c) PARTITIONS 2;
+CREATE ALGORITHM = MERGE VIEW v AS SELECT a, b FROM t1 STRAIGHT_JOIN t2 WHERE b = 'foo' WITH CHECK OPTION;
+
+INSERT INTO t1 VALUES (1),(2);
+INSERT IGNORE INTO t2 VALUES (2,2),('three',3),(4,4);
+UPDATE v SET a = NULL;
+
+DROP view v;
+DROP TABLE t1, t2;
+
+SET @save_isp=@@innodb_stats_persistent;
+SET GLOBAL innodb_stats_persistent= ON;
+
+CREATE TABLE t (f1 INT, f2 INT, KEY(f2)) ENGINE=InnoDB PARTITION BY HASH (f1) PARTITIONS 2;
+INSERT IGNORE INTO t VALUES (NULL,0),(NULL,0),(0,21),(4,0),(1,8),(5,66);
+CREATE ALGORITHM=MERGE VIEW v AS SELECT t1.* FROM t t1 JOIN t t2 WHERE t1.f1 < t2.f2 WITH LOCAL CHECK OPTION;
+--error ER_VIEW_CHECK_FAILED
+UPDATE v SET f2 = NULL;
+
+SET GLOBAL innodb_stats_persistent= @save_isp;
+DROP view v;
+DROP TABLE t;
+set sql_mode= @save_sql_mode;
+
+--echo #
 --echo # Bug#26390658 RENAMING A PARTITIONED TABLE DOES NOT UPDATE
 --echo #              MYSQL.INNODB_TABLE_STATS
 --echo #

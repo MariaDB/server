@@ -24,8 +24,6 @@ Insert buffer
 Created 7/19/1997 Heikki Tuuri
 *******************************************************/
 
-#include "ha_prototypes.h"
-
 #include "ibuf0ibuf.h"
 #include "sync0sync.h"
 #include "btr0sea.h"
@@ -55,7 +53,6 @@ my_bool	srv_ibuf_disable_background_merge;
 #include "log0recv.h"
 #include "que0que.h"
 #include "srv0start.h" /* srv_shutdown_state */
-#include "fsp0sysspace.h"
 #include "rem0cmp.h"
 
 /*	STRUCTURE OF AN INSERT BUFFER RECORD

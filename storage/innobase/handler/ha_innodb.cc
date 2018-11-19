@@ -78,8 +78,6 @@ this program; if not, write to the Free Software Foundation, Inc.,
 #include "dict0stats_bg.h"
 #include "fil0fil.h"
 #include "fsp0fsp.h"
-#include "fsp0space.h"
-#include "fsp0sysspace.h"
 #include "fts0fts.h"
 #include "fts0plugin.h"
 #include "fts0priv.h"
@@ -12927,16 +12925,25 @@ inline int ha_innobase::delete_table(const char* name, enum_sql_command sqlcom)
 int ha_innobase::delete_table(const char* name)
 {
 	enum_sql_command sqlcom = enum_sql_command(thd_sql_command(ha_thd()));
+	/* SQLCOM_TRUNCATE should be passed via ha_innobase::truncate() only.
 
-        if (sqlcom == SQLCOM_TRUNCATE
-            && thd_killed(ha_thd())
-            && (m_prebuilt == NULL || m_prebuilt->table->is_temporary())) {
-                sqlcom = SQLCOM_DROP_TABLE;
-        }
+	On client disconnect, when dropping temporary tables, the
+	previous sqlcom would not be overwritten.  In such a case, we
+	will have thd_kill_level() != NOT_KILLED, !m_prebuilt can
+	hold, and sqlcom could be anything, including TRUNCATE.
 
-	/* SQLCOM_TRUNCATE will be passed via ha_innobase::truncate() only. */
-        DBUG_ASSERT(sqlcom != SQLCOM_TRUNCATE);
-        return delete_table(name, sqlcom);
+	The sqlcom only matters for persistent tables; no persistent
+	metadata or FOREIGN KEY metadata is kept for temporary
+	tables. Therefore, we relax the assertion. If there is a bug
+	that slips through this assertion due to !m_prebuilt, the
+	worst impact should be that on DROP TABLE of a persistent
+	table, FOREIGN KEY constraints will be ignored and their
+	metadata will not be removed. */
+	DBUG_ASSERT(sqlcom != SQLCOM_TRUNCATE
+		    || (thd_kill_level(ha_thd()) != THD_IS_NOT_KILLED
+			&& (!m_prebuilt
+			    || m_prebuilt->table->is_temporary())));
+	return delete_table(name, sqlcom);
 }
 
 /** Remove all tables in the named database inside InnoDB.
@@ -13158,7 +13165,7 @@ int ha_innobase::truncate()
 	dict_table_t*	ib_table = m_prebuilt->table;
 	const time_t	update_time = ib_table->update_time;
 	const ulint	stored_lock = m_prebuilt->stored_select_lock_type;
-	memset(&info, 0, sizeof info);
+	info.init();
 	update_create_info_from_table(&info, table);
 
 	if (ib_table->is_temporary()) {

@@ -2121,6 +2121,103 @@ ORDER BY test, name;
 drop table t1;
 
 --echo #
+--echo # MDEV-12575: Server crash in AGGR_OP::put_record or in JOIN_CACHE::free
+--echo # or Invalid write in JOIN::make_aggr_tables_info
+--echo #
+
+SELECT DISTINCT BIT_OR(100) OVER () FROM dual
+GROUP BY LEFT('2018-08-24', 100)  order by 1+2;
+
+CREATE TABLE t1 (i INT);
+INSERT INTO t1 VALUES (1),(2);
+
+SELECT * FROM (
+  SELECT
+    ROW_NUMBER() OVER(), i, sum(i)
+    FROM t1
+    WHERE 1=0
+    limit 0
+) AS sq;
+
+SELECT * FROM (
+  SELECT
+    ROW_NUMBER() OVER(), i, sum(i)
+    FROM t1
+    WHERE 1=0
+    GROUP BY i
+) AS sq;
+drop table t1;
+
+create table t1 (a int);
+explain
+select distinct 1, row_number() over (order by 1) from t1 where a=0 group by a with rollup;
+select distinct 1, row_number() over (order by 1) from t1 where a=0 group by a with rollup;
+drop table t1;
+
+explain
+SELECT DISTINCT BIT_OR(100) OVER () FROM dual
+GROUP BY LEFT('2018-08-24', 100) WITH ROLLUP
+HAVING @A := 'qwerty';
+SELECT DISTINCT BIT_OR(100) OVER () FROM dual
+GROUP BY LEFT('2018-08-24', 100) WITH ROLLUP
+HAVING @A := 'qwerty';
+
+explain
+SELECT DISTINCT BIT_OR(100) OVER () FROM dual
+GROUP BY LEFT('2018-08-24', 100)
+HAVING @A := 'qwerty';
+SELECT DISTINCT BIT_OR(100) OVER () FROM dual
+GROUP BY LEFT('2018-08-24', 100)
+HAVING @A := 'qwerty';
+
+create table t1 (a int);
+explain
+SELECT DISTINCT BIT_OR(100) OVER () FROM t1
+GROUP BY LEFT('2018-08-24', 100) having 1=1 limit 0;
+drop table t1;
+
+--echo #
+--echo # MDEV-13170: Database service (MySQL) stops after update with trigger
+--echo #
+
+CREATE TABLE t1 ( t1_id int, point_id int, ml_id int,  UNIQUE KEY t1_ml_u (ml_id,point_id)) ;
+INSERT INTO t1 VALUES (1,1,8884),(2,1,8885);
+
+CREATE TABLE t2 ( db_time datetime, au_nr int, col_id int, new_val int);
+CREATE TABLE t3 (id1 int, id2 int, d1 int);
+
+delimiter //;
+
+CREATE  TRIGGER t1_aurtrg AFTER UPDATE ON t1 FOR EACH ROW begin
+CREATE OR REPLACE TEMPORARY TABLE trg_u AS
+WITH l AS
+  (SELECT a.*,
+          Max(t2.col_id) over (PARTITION BY a.d1),
+          Max(t2.new_val) over (PARTITION BY a.d1)
+   FROM
+   (SELECT d1 , id1, id2  FROM t3) a
+   JOIN t2  ON (a.d1=t2.db_time AND a.id1=t2.au_nr))
+SELECT 1;
+
+ END;//
+
+ delimiter ;//
+--error 1062
+update t1 set ml_id=8884 where point_id=1;
+--error 1062
+update t1 set ml_id=8884 where point_id=1;
+drop table t1, t2,t3;
+
+CREATE TABLE t1 (i INT, a char);
+INSERT INTO t1 VALUES (1, 'a'),(2, 'b');
+create view v1 as select * from t1;
+PREPARE stmt FROM "SELECT i, row_number() over (partition by i order by i) FROM v1";
+execute stmt;
+deallocate prepare stmt;
+drop table t1;
+drop view v1;
+
+--echo #
 --echo # Start of 10.3 tests
 --echo #
 

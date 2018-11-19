@@ -24,8 +24,6 @@ File space management
 Created 11/29/1995 Heikki Tuuri
 ***********************************************************************/
 
-#include "ha_prototypes.h"
-
 #include "fsp0fsp.h"
 #include "buf0buf.h"
 #include "fil0fil.h"
@@ -41,7 +39,6 @@ Created 11/29/1995 Heikki Tuuri
 #include "btr0sea.h"
 #include "dict0boot.h"
 #include "log0log.h"
-#include "fsp0sysspace.h"
 #include "dict0mem.h"
 #include "fsp0types.h"
 

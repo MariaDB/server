@@ -34,7 +34,6 @@ Created 1/8/1996 Heikki Tuuri
 #include "row0types.h"
 #include "mtr0mtr.h"
 #include "fil0crypt.h"
-#include "fsp0space.h"
 
 /*********************************************************************//**
 Creates a table create graph.

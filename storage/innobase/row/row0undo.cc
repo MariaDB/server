@@ -24,8 +24,6 @@ Row undo
 Created 1/8/1997 Heikki Tuuri
 *******************************************************/
 
-#include "ha_prototypes.h"
-
 #include "row0undo.h"
 #include "fsp0fsp.h"
 #include "mach0data.h"

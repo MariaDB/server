@@ -24,7 +24,6 @@ Doublwrite buffer module
 Created 2011/12/19
 *******************************************************/
 
-#include "ha_prototypes.h"
 #include "buf0dblwr.h"
 #include "buf0buf.h"
 #include "buf0checksum.h"

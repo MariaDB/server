@@ -26,8 +26,6 @@ Created 2013/03/27 Jimmy Yang
 #ifndef gis0type_h
 #define gis0type_h
 
-#include "univ.i"
-
 #include "buf0buf.h"
 #include "data0type.h"
 #include "data0types.h"
@@ -41,7 +39,6 @@ Created 2013/03/27 Jimmy Yang
 #include "ut0wqueue.h"
 #include "que0types.h"
 #include "gis0geo.h"
-#include "ut0new.h"
 
 #include <vector>
 #include <list>

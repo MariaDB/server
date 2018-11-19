@@ -28,21 +28,19 @@ Created 9/17/2000 Heikki Tuuri
 #ifndef row0mysql_h
 #define row0mysql_h
 
-#include "ha_prototypes.h"
-#include "sql_list.h"
-#include "sql_cmd.h"
-
 #include "data0data.h"
 #include "que0types.h"
 #include "dict0types.h"
 #include "trx0types.h"
 #include "row0types.h"
-#include "btr0pcur.h"
-#include "trx0types.h"
-#include "fil0crypt.h"
+#include "btr0types.h"
+#include "lock0types.h"
+#include "fil0fil.h"
+#include "fts0fts.h"
+#include "gis0type.h"
 
-// Forward declaration
-struct SysIndexCallback;
+#include "sql_list.h"
+#include "sql_cmd.h"
 
 extern ibool row_rollback_on_timeout;
 

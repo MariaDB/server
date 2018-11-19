@@ -29,12 +29,8 @@ Created 2012-03-24 Sunny Bains.
 #ifndef ut0mutex_h
 #define ut0mutex_h
 
-extern uint	srv_spin_wait_delay;
-extern ulong	srv_n_spin_wait_rounds;
-
 #include "sync0policy.h"
 #include "ib0mutex.h"
-#include <set>
 
 /** Create a typedef using the MutexType<PolicyType>
 @param[in]	M		Mutex type

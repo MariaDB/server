@@ -24,9 +24,6 @@ Shared tablespace implementation.
 Created 2012-11-16 by Sunny Bains as srv/srv0space.cc
 *******************************************************/
 
-#include "ha_prototypes.h"
-
-#include "fsp0space.h"
 #include "fsp0sysspace.h"
 #include "fsp0fsp.h"
 #include "os0file.h"

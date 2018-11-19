@@ -10403,6 +10403,99 @@ f
 3
 DROP VIEW v1;
 DROP TABLE t1;
+#
+# MDEV-17574: pushdown into derived from mergeable view
+#             used in multi-table UPDATE
+#             pushdown into materialized derived from mergeable view
+#             used in SELECT
+#
+CREATE TABLE t1 (f1 text, f2 int);
+INSERT INTO t1 VALUES ('x',1), ('y',2);
+CREATE VIEW v1 AS SELECT f2 FROM ( SELECT f2 FROM t1 ) AS t;
+UPDATE v1, t1 SET t1.f1 = 'z' WHERE v1.f2 < 2 AND t1.f2 = v1.f2;
+EXPLAIN FORMAT=JSON UPDATE v1, t1 SET t1.f1 = 'z' WHERE v1.f2 < 2 AND t1.f2 = v1.f2;
+EXPLAIN
+{
+  "query_block": {
+    "select_id": 1,
+    "table": {
+      "table_name": "<derived3>",
+      "access_type": "ALL",
+      "rows": 2,
+      "filtered": 100,
+      "attached_condition": "t.f2 < 2",
+      "materialized": {
+        "query_block": {
+          "select_id": 3,
+          "table": {
+            "table_name": "t1",
+            "access_type": "ALL",
+            "rows": 2,
+            "filtered": 100,
+            "attached_condition": "t1.f2 < 2"
+          }
+        }
+      }
+    },
+    "table": {
+      "table_name": "t1",
+      "access_type": "ALL",
+      "rows": 2,
+      "filtered": 100,
+      "attached_condition": "t1.f2 = t.f2"
+    }
+  }
+}
+SELECT * FROM t1;
+f1	f2
+z	1
+y	2
+CREATE VIEW v2 AS SELECT f2 FROM ( SELECT DISTINCT f2 FROM t1 ) AS t;
+SELECT * FROM v2, t1 WHERE v2.f2 < 2 AND t1.f2 = v2.f2;
+f2	f1	f2
+1	z	1
+EXPLAIN FORMAT=JSON SELECT * FROM v2, t1 WHERE v2.f2 < 2 AND t1.f2 = v2.f2;
+EXPLAIN
+{
+  "query_block": {
+    "select_id": 1,
+    "table": {
+      "table_name": "<derived3>",
+      "access_type": "ALL",
+      "rows": 2,
+      "filtered": 100,
+      "attached_condition": "t.f2 < 2",
+      "materialized": {
+        "query_block": {
+          "select_id": 3,
+          "temporary_table": {
+            "table": {
+              "table_name": "t1",
+              "access_type": "ALL",
+              "rows": 2,
+              "filtered": 100,
+              "attached_condition": "t1.f2 < 2"
+            }
+          }
+        }
+      }
+    },
+    "block-nl-join": {
+      "table": {
+        "table_name": "t1",
+        "access_type": "ALL",
+        "rows": 2,
+        "filtered": 100
+      },
+      "buffer_type": "flat",
+      "buffer_size": "256Kb",
+      "join_type": "BNL",
+      "attached_condition": "t1.f2 = t.f2"
+    }
+  }
+}
+DROP VIEW v1,v2;
+DROP TABLE t1;
 # End of 10.2 tests
 #
 # MDEV-14579: pushdown conditions into materialized views/derived tables

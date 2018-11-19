@@ -30,8 +30,6 @@ Completed by Sunny Bains and Marko Makela
 
 #include <math.h>
 
-#include "ha_prototypes.h"
-
 #include "row0merge.h"
 #include "row0ext.h"
 #include "row0log.h"
@@ -49,8 +47,6 @@ Completed by Sunny Bains and Marko Makela
 #include "row0vers.h"
 #include "handler0alter.h"
 #include "btr0bulk.h"
-#include "fsp0sysspace.h"
-#include "ut0new.h"
 #include "ut0stage.h"
 #include "fil0crypt.h"
 
