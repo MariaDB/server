@@ -2655,6 +2655,18 @@ setup_subq_exit:
   if (!tables_list || !table_count)
   {
     choose_tableless_subquery_plan();
+
+    /* The output has atmost one row */
+    if (group_list)
+    {
+      group_list= NULL;
+      group_optimized_away= 1;
+      rollup.state= ROLLUP::STATE_NONE;
+    }
+    order= NULL;
+    simple_order= TRUE;
+    select_distinct= FALSE;
+
     if (select_lex->have_window_funcs())
     {
       if (!(join_tab= (JOIN_TAB*) thd->alloc(sizeof(JOIN_TAB))))
@@ -4079,7 +4091,7 @@ void JOIN::exec_inner()
                  procedure ? procedure_fields_list : *fields,
                  Protocol::SEND_NUM_ROWS | Protocol::SEND_EOF);
 
-  error= do_select(this, procedure);
+  error= result->view_structure_only() ? false : do_select(this, procedure);
   /* Accumulate the counts from all join iterations of all join parts. */
   thd->inc_examined_row_count(join_examined_rows);
   DBUG_PRINT("counts", ("thd->examined_row_count: %lu",

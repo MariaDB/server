@@ -51,11 +51,24 @@ class Longlong_hybrid: public Longlong
 {
 protected:
   bool m_unsigned;
+  int cmp_signed(const Longlong_hybrid& other) const
+  {
+    return m_value < other.m_value ? -1 : m_value == other.m_value ? 0 : 1;
+  }
+  int cmp_unsigned(const Longlong_hybrid& other) const
+  {
+    return (ulonglong) m_value < (ulonglong) other.m_value ? -1 :
+            m_value == other.m_value ? 0 : 1;
+  }
 public:
   Longlong_hybrid(longlong nr, bool unsigned_flag)
    :Longlong(nr), m_unsigned(unsigned_flag)
   { }
   bool is_unsigned() const { return m_unsigned; }
+  bool is_unsigned_outside_of_signed_range() const
+  {
+    return m_unsigned && ((ulonglong) m_value) > (ulonglong) LONGLONG_MAX;
+  }
   bool neg() const { return m_value < 0 && !m_unsigned; }
   ulonglong abs() const
   {
@@ -64,6 +77,21 @@ public:
     if (m_value == LONGLONG_MIN) // avoid undefined behavior
       return ((ulonglong) LONGLONG_MAX) + 1;
     return m_value < 0 ? -m_value : m_value;
+  }
+  int cmp(const Longlong_hybrid& other) const
+  {
+    if (m_unsigned == other.m_unsigned)
+      return m_unsigned ? cmp_unsigned(other) : cmp_signed(other);
+    if (is_unsigned_outside_of_signed_range())
+      return 1;
+    if (other.is_unsigned_outside_of_signed_range())
+      return -1;
+    /*
+      The unsigned argument is in the range 0..LONGLONG_MAX.
+      The signed argument is in the range LONGLONG_MIN..LONGLONG_MAX.
+      Safe to compare as signed.
+    */
+    return cmp_signed(other);
   }
 };
 

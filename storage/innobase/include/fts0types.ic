@@ -27,9 +27,6 @@ Created 2007-03-27 Sunny Bains
 #ifndef INNOBASE_FTS0TYPES_IC
 #define INNOBASE_FTS0TYPES_IC
 
-#include "rem0cmp.h"
-#include "ha_prototypes.h"
-
 /******************************************************************//**
 Duplicate a string.
 @return < 0 if n1 < n2, 0 if n1 == n2, > 0 if n1 > n2 */

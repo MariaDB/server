@@ -41,8 +41,6 @@ Created 2/16/1996 Heikki Tuuri
 
 #include "my_global.h"
 
-#include "ha_prototypes.h"
-
 #include "mysqld.h"
 #include "mysql/psi/mysql_stage.h"
 #include "mysql/psi/psi.h"
@@ -76,7 +74,6 @@ Created 2/16/1996 Heikki Tuuri
 #include "srv0start.h"
 #include "srv0srv.h"
 #include "btr0defragment.h"
-#include "fsp0sysspace.h"
 #include "mysql/service_wsrep.h" /* wsrep_recovery */
 #include "trx0rseg.h"
 #include "os0proc.h"
@@ -104,7 +101,6 @@ Created 2/16/1996 Heikki Tuuri
 #include "zlib.h"
 #include "ut0crc32.h"
 #include "btr0scrub.h"
-#include "ut0new.h"
 
 /** Log sequence number immediately after startup */
 lsn_t	srv_start_lsn;

@@ -35,7 +35,6 @@ Created 2011-05-26 Marko Makela
 #include "que0que.h"
 #include "srv0mon.h"
 #include "handler0alter.h"
-#include "ut0new.h"
 #include "ut0stage.h"
 #include "trx0rec.h"
 

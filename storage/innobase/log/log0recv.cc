@@ -25,7 +25,7 @@ Recovery
 Created 9/20/1997 Heikki Tuuri
 *******************************************************/
 
-#include "ha_prototypes.h"
+#include "univ.i"
 
 #include <vector>
 #include <map>
@@ -52,8 +52,6 @@ Created 9/20/1997 Heikki Tuuri
 #include "trx0undo.h"
 #include "trx0rec.h"
 #include "fil0fil.h"
-#include "fsp0sysspace.h"
-#include "ut0new.h"
 #include "buf0rea.h"
 #include "srv0srv.h"
 #include "srv0start.h"

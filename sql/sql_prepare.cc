@@ -2915,6 +2915,7 @@ void reinit_stmt_before_use(THD *thd, LEX *lex)
 {
   SELECT_LEX *sl= lex->all_selects_list;
   DBUG_ENTER("reinit_stmt_before_use");
+  Window_spec *win_spec;
 
   /*
     We have to update "thd" pointer in LEX, all its units and in LEX::result,
@@ -2983,6 +2984,17 @@ void reinit_stmt_before_use(THD *thd, LEX *lex)
       /* Fix ORDER list */
       for (order= sl->order_list.first; order; order= order->next)
         order->item= &order->item_ptr;
+      /* Fix window functions too */
+      List_iterator<Window_spec> it(sl->window_specs);
+
+      while ((win_spec= it++))
+      {
+        for (order= win_spec->partition_list->first; order; order= order->next)
+          order->item= &order->item_ptr;
+        for (order= win_spec->order_list->first; order; order= order->next)
+          order->item= &order->item_ptr;
+      }
+
       {
 #ifdef DBUG_ASSERT_EXISTS
         bool res=

@@ -258,3 +258,157 @@ enable_prepare_warnings;
 SELECT test.comment() FROM DUAL;
 disable_prepare_warnings;
 DROP FUNCTION comment;
+
+
+--echo #
+--echo # MDEV-17660 sql_mode=ORACLE: Some keywords do not work as label names: history, system, versioning, without
+--echo #
+
+DELIMITER /;
+BEGIN
+<<date_format>>
+  NULL;
+END;
+/
+DELIMITER ;/
+
+
+DELIMITER /;
+BEGIN
+<<decode>>
+  NULL;
+END;
+/
+DELIMITER ;/
+
+
+DELIMITER /;
+BEGIN
+<<history>>
+  NULL;
+END;
+/
+DELIMITER ;/
+
+
+DELIMITER /;
+BEGIN
+<<system>>
+  NULL;
+END;
+/
+DELIMITER ;/
+
+
+DELIMITER /;
+BEGIN
+<<versioning>>
+  NULL;
+END;
+/
+DELIMITER ;/
+
+
+DELIMITER /;
+BEGIN
+<<without>>
+  NULL;
+END;
+/
+DELIMITER ;/
+
+
+--echo #
+--echo # MDEV-17666 sql_mode=ORACLE: Keyword ELSEIF should not be reserved
+--echo #
+
+DELIMITER /;
+DECLARE
+  ELSEIF INT;
+BEGIN
+  ELSEIF:=1;
+END;
+/
+DELIMITER ;/
+
+DELIMITER /;
+BEGIN
+<<ELSEIF>>
+  NULL;
+END;
+/
+DELIMITER ;/
+
+
+--echo #
+--echo # MDEV-17693 Shift/reduce conflicts for NAMES,ROLE,PASSWORD in the option_value_no_option_type grammar
+--echo #
+
+CREATE TABLE names (names INT);
+SELECT names FROM names AS names;
+DROP TABLE names;
+
+CREATE TABLE password (password INT);
+SELECT password FROM password AS password;
+DROP TABLE password;
+
+CREATE TABLE role (role INT);
+SELECT role FROM role AS role;
+DROP TABLE role;
+
+DELIMITER $$;
+DECLARE
+  names    VARCHAR(32) DEFAULT '[names]';
+  password VARCHAR(32) DEFAULT '[password]';
+  role     VARCHAR(32) DEFAULT '[role]';
+BEGIN
+<<names>>
+   SELECT names;
+<<password>>
+   SELECT password;
+<<role>>
+  SELECT role;
+END;
+$$
+DELIMITER ;$$
+
+DELIMITER $$;
+--error ER_SP_BAD_VAR_SHADOW
+DECLARE
+  names VARCHAR(32);
+BEGIN
+  SET names='[names]';
+END;
+$$
+DELIMITER ;$$
+
+DELIMITER $$;
+--error ER_SP_BAD_VAR_SHADOW
+DECLARE
+  password VARCHAR(32);
+BEGIN
+  SET password='[password]';
+END;
+$$
+DELIMITER ;$$
+
+DELIMITER $$;
+DECLARE
+  role VARCHAR(32);
+BEGIN
+  SET role='[role]';
+END;
+$$
+DELIMITER ;$$
+
+--error ER_UNKNOWN_SYSTEM_VARIABLE
+SELECT @@GLOBAL.names;
+--error ER_UNKNOWN_SYSTEM_VARIABLE
+SELECT @@GLOBAL.password;
+--error ER_UNKNOWN_SYSTEM_VARIABLE
+SELECT @@GLOBAL.role;
+
+
+--echo #
+--echo # End of 10.3 tests
+--echo #

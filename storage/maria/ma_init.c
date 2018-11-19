@@ -81,6 +81,7 @@ int maria_init(void)
 
 void maria_end(void)
 {
+  DBUG_ENTER("maria_end");
   if (maria_inited)
   {
     TrID trid;
@@ -111,6 +112,7 @@ void maria_end(void)
     mysql_mutex_destroy(&THR_LOCK_maria);
     my_hash_free(&maria_stored_state);
   }
+  DBUG_VOID_RETURN;
 }
 
 /**

@@ -25,9 +25,8 @@ The database buffer buf_pool flush algorithm
 Created 11/11/1995 Heikki Tuuri
 *******************************************************/
 
-#include "ha_prototypes.h"
+#include "univ.i"
 #include <mysql/service_thd_wait.h>
-#include <my_dbug.h>
 #include <sql_class.h>
 
 #include "buf0flu.h"
@@ -46,7 +45,6 @@ Created 11/11/1995 Heikki Tuuri
 #include "os0file.h"
 #include "trx0sys.h"
 #include "srv0mon.h"
-#include "fsp0sysspace.h"
 #include "ut0stage.h"
 #include "fil0pagecompress.h"
 #ifdef UNIV_LINUX

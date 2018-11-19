@@ -32,15 +32,6 @@ Created 9/11/1995 Heikki Tuuri
 *******************************************************/
 
 #include "sync0rw.h"
-#include "ha_prototypes.h"
-
-#include "os0thread.h"
-#include "mem0mem.h"
-#include "srv0srv.h"
-#include "os0event.h"
-#include "srv0mon.h"
-#include "sync0debug.h"
-#include "ha_prototypes.h"
 #include "my_cpu.h"
 #include <my_sys.h>
 

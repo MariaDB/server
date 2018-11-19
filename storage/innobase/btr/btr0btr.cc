@@ -26,9 +26,7 @@ Created 6/2/1994 Heikki Tuuri
 *******************************************************/
 
 #include "btr0btr.h"
-#include "ha_prototypes.h"
 
-#include "fsp0sysspace.h"
 #include "page0page.h"
 #include "page0zip.h"
 #include "gis0rtree.h"
@@ -43,7 +41,6 @@ Created 6/2/1994 Heikki Tuuri
 #include "trx0trx.h"
 #include "srv0mon.h"
 #include "gis0geo.h"
-#include "ut0new.h"
 #include "dict0boot.h"
 #include "row0sel.h" /* row_search_max_autoinc() */
 

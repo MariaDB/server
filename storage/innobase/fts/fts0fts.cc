@@ -22,8 +22,6 @@ this program; if not, write to the Free Software Foundation, Inc.,
 Full Text Search interface
 ***********************************************************************/
 
-#include "ha_prototypes.h"
-
 #include "trx0roll.h"
 #include "row0mysql.h"
 #include "row0upd.h"
@@ -40,7 +38,6 @@ Full Text Search interface
 #include "dict0stats.h"
 #include "btr0pcur.h"
 #include "sync0sync.h"
-#include "ut0new.h"
 
 static const ulint FTS_MAX_ID_LEN = 32;
 

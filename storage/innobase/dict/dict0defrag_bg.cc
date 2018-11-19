@@ -27,11 +27,8 @@ Created 25/08/2016 Jan Lindström
 #include "dict0stats.h"
 #include "dict0stats_bg.h"
 #include "dict0defrag_bg.h"
-#include "row0mysql.h"
+#include "btr0btr.h"
 #include "srv0start.h"
-#include "ut0new.h"
-
-#include <vector>
 
 static ib_mutex_t		defrag_pool_mutex;
 

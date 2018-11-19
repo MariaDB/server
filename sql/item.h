@@ -151,6 +151,7 @@ bool mark_unsupported_function(const char *w1, const char *w2,
 
 #define NO_EXTRACTION_FL              (1 << 6)
 #define FULL_EXTRACTION_FL            (1 << 7)
+#define SUBSTITUTION_FL               (1 << 8)
 #define EXTRACTION_MASK               (NO_EXTRACTION_FL | FULL_EXTRACTION_FL)
 
 extern const char *item_empty_name;
@@ -1183,6 +1184,10 @@ public:
       If value is not null null_value flag will be reset to FALSE.
   */
   virtual longlong val_int()=0;
+  Longlong_hybrid to_longlong_hybrid()
+  {
+    return Longlong_hybrid(val_int(), unsigned_flag);
+  }
   Longlong_null to_longlong_null()
   {
     longlong nr= val_int();
@@ -6020,6 +6025,11 @@ public:
     return false;
   }
   table_map used_tables() const;
+  virtual void update_used_tables()
+  {
+    if (field && field->default_value)
+      field->default_value->expr->update_used_tables();
+  }
   Field *get_tmp_table_field() { return 0; }
   Item *get_tmp_table_item(THD *thd) { return this; }
   Item_field *field_for_view_update() { return 0; }

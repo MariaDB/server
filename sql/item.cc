@@ -7375,13 +7375,21 @@ Item *Item_field::derived_field_transformer_for_having(THD *thd, uchar *arg)
     return this;
   if (!item_equal && used_tables() != tab_map)
     return this;
-  return get_field_item_for_having(thd, this, sel);
+  Item *item= get_field_item_for_having(thd, this, sel);
+  if (item)
+    item->marker|= SUBSTITUTION_FL;
+  return item;
 }
 
 
 Item *Item_direct_view_ref::derived_field_transformer_for_having(THD *thd,
                                                                  uchar *arg)
 {
+  if ((*ref)->marker & SUBSTITUTION_FL)
+  {
+    this->marker|= SUBSTITUTION_FL;
+    return this;
+  }
   st_select_lex *sel= (st_select_lex *)arg;
   table_map tab_map= sel->master_unit()->derived->table->map;
   if ((item_equal && !(item_equal->used_tables() & tab_map)) ||
@@ -7432,13 +7440,20 @@ Item *Item_field::derived_field_transformer_for_where(THD *thd, uchar *arg)
   st_select_lex *sel= (st_select_lex *)arg;
   Item *producing_item= find_producing_item(this, sel);
   if (producing_item)
-    return producing_item->build_clone(thd);
+  {
+    Item *producing_clone= producing_item->build_clone(thd);
+    if (producing_clone)
+      producing_clone->marker|= SUBSTITUTION_FL;
+    return producing_clone;
+  }
   return this;
 }
 
 Item *Item_direct_view_ref::derived_field_transformer_for_where(THD *thd,
                                                                 uchar *arg)
 {
+  if ((*ref)->marker & SUBSTITUTION_FL)
+    return (*ref);
   if (item_equal)
   {
     st_select_lex *sel= (st_select_lex *)arg;
@@ -7489,7 +7504,13 @@ Item *Item_field::grouping_field_transformer_for_where(THD *thd, uchar *arg)
   st_select_lex *sel= (st_select_lex *)arg;
   Field_pair *gr_field= find_matching_grouping_field(this, sel);
   if (gr_field)
-    return gr_field->corresponding_item->build_clone(thd);
+  {
+    Item *producing_clone=
+      gr_field->corresponding_item->build_clone(thd);
+    if (producing_clone)
+      producing_clone->marker|= SUBSTITUTION_FL;
+    return producing_clone;
+  }
   return this;
 }
 
@@ -7498,6 +7519,11 @@ Item *
 Item_direct_view_ref::grouping_field_transformer_for_where(THD *thd,
                                                            uchar *arg)
 {
+  if ((*ref)->marker & SUBSTITUTION_FL)
+  {
+    this->marker|= SUBSTITUTION_FL;
+    return this;
+  }
   if (!item_equal)
     return this;
   st_select_lex *sel= (st_select_lex *)arg;
@@ -9021,8 +9047,19 @@ bool Item_default_value::fix_fields(THD *thd, Item **items)
     fixed= 1;
     return FALSE;
   }
+
+  /*
+    DEFAULT() do not need table field so should not ask handler to bring
+    field value (mark column for read)
+  */
+  enum_column_usage save_column_usage= thd->column_usage;
+  thd->column_usage= COLUMNS_READ;
   if (arg->fix_fields_if_needed(thd, &arg))
+  {
+    thd->column_usage= save_column_usage;
     goto error;
+  }
+  thd->column_usage= save_column_usage;
 
   real_arg= arg->real_item();
   if (real_arg->type() != FIELD_ITEM)
@@ -9042,15 +9079,19 @@ bool Item_default_value::fix_fields(THD *thd, Item **items)
     goto error;
   memcpy((void *)def_field, (void *)field_arg->field,
          field_arg->field->size_of());
-  IF_DBUG_ASSERT(def_field->is_stat_field=1,); // a hack to fool ASSERT_COLUMN_MARKED_FOR_WRITE_OR_COMPUTED
+  // If non-constant default value expression
   if (def_field->default_value && def_field->default_value->flags)
   {
     uchar *newptr= (uchar*) thd->alloc(1+def_field->pack_length());
     if (!newptr)
       goto error;
+    /*
+      Even if DEFAULT() do not read tables fields, the default value
+      expression can do it.
+    */
     fix_session_vcol_expr_for_read(thd, def_field, def_field->default_value);
     if (should_mark_column(thd->column_usage))
-      def_field->default_value->expr->walk(&Item::register_field_in_read_map, 1, 0);
+      def_field->default_value->expr->update_used_tables();
     def_field->move_field(newptr+1, def_field->maybe_null() ? newptr : 0, 1);
   }
   else
@@ -9074,6 +9115,12 @@ void Item_default_value::print(String *str, enum_query_type query_type)
     return;
   }
   str->append(STRING_WITH_LEN("default("));
+  /*
+    We take DEFAULT from a field so do not need it value in case of const
+    tables but its name so we set QT_NO_DATA_EXPANSION (as we print for
+    table definition, also we do not need table and database name)
+  */
+  query_type= (enum_query_type) (query_type | QT_NO_DATA_EXPANSION);
   arg->print(str, query_type);
   str->append(')');
 }

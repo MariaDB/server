@@ -24,6 +24,7 @@ Created 7/1/1994 Heikki Tuuri
 ************************************************************************/
 
 #include <mysql_com.h>
+#include <my_sys.h>
 
 /** Compare two data fields.
 @param[in] dfield1 data field; must have type field set
