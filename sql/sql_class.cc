@@ -2040,20 +2040,7 @@ bool THD::notify_shared_lock(MDL_context_owner *ctx_in_use,
         */
         if (!thd_table->needs_reopen())
         {
-#ifdef WITH_WSREP
           signalled|= mysql_lock_abort_for_thread(this, thd_table);
-          if (WSREP_NNULL(this) && wsrep_thd_is_BF((const void*)this, FALSE))
-          {
-            WSREP_DEBUG("remove_table_from_cache: %llu",
-                        (unsigned long long) this->real_id);
-            wsrep_abort_thd((void *)this, (void *)in_use, FALSE);
-          }
-        }
-        else
-        {
-#else
-          signalled|= mysql_lock_abort_for_thread(this, thd_table);
-#endif /* WITH_WSREP */
         }
       }
     }
