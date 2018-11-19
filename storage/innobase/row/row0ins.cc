@@ -337,12 +337,13 @@ row_ins_clust_index_entry_by_modify(
 	dberr_t		err;
 	btr_cur_t*	cursor	= btr_pcur_get_btr_cur(pcur);
 	TABLE*		mysql_table = NULL;
-	ut_ad(dict_index_is_clust(cursor->index));
+	ut_ad(cursor->index->is_primary());
 
 	rec = btr_cur_get_rec(cursor);
 
-	ut_ad(rec_get_deleted_flag(rec,
-				   dict_table_is_comp(cursor->index->table)));
+	ut_ad(!!page_rec_is_comp(rec) == cursor->index->table->not_redundant()
+	      || cursor->index->dual_format());
+	ut_ad(rec_get_deleted_flag(rec, page_rec_is_comp(rec)));
 	/* In delete-marked records, DB_TRX_ID must
 	always refer to an existing undo log record. */
 	ut_ad(rec_get_trx_id(rec, cursor->index));

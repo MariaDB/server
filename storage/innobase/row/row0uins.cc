@@ -105,15 +105,12 @@ row_undo_ins_remove_clust_rec(
 	ut_a(success);
 
 	btr_cur = btr_pcur_get_btr_cur(&node->pcur);
+	const rec_t* rec = btr_cur_get_rec(btr_cur);
 
-	ut_ad(rec_get_trx_id(btr_cur_get_rec(btr_cur), btr_cur->index)
-	      == node->trx->id);
-	ut_ad(!rec_get_deleted_flag(
-		      btr_cur_get_rec(btr_cur),
-		      dict_table_is_comp(btr_cur->index->table)));
+	ut_ad(rec_get_trx_id(rec, btr_cur->index) == node->trx->id);
+	ut_ad(!rec_get_deleted_flag(rec, page_rec_is_comp(rec)));
 
 	if (online && dict_index_is_online_ddl(index)) {
-		const rec_t*	rec	= btr_cur_get_rec(btr_cur);
 		mem_heap_t*	heap	= NULL;
 		const ulint*	offsets	= rec_get_offsets(
 			rec, index, NULL, page_rec_is_comp(rec)

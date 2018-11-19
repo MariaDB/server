@@ -484,8 +484,7 @@ row_undo_mod_clust(
 		}
 
 		if (trx_read_trx_id(rec + trx_id_offset) == node->new_trx_id) {
-			ut_ad(!rec_get_deleted_flag(
-				      rec, dict_table_is_comp(node->table))
+			ut_ad(!rec_get_deleted_flag(rec, page_rec_is_comp(rec))
 			      || rec_is_alter_metadata(rec, *index));
 			index->set_modified(mtr);
 			if (page_zip_des_t* page_zip = buf_block_get_page_zip(

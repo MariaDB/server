@@ -1425,7 +1425,6 @@ dberr_t
 IndexPurge::garbage_collect() UNIV_NOTHROW
 {
 	dberr_t	err;
-	ibool	comp = dict_table_is_comp(m_index->table);
 
 	/* Open the persistent cursor and start the mini-transaction. */
 
@@ -1433,10 +1432,9 @@ IndexPurge::garbage_collect() UNIV_NOTHROW
 
 	while ((err = next()) == DB_SUCCESS) {
 
-		rec_t*	rec = btr_pcur_get_rec(&m_pcur);
-		ibool	deleted = rec_get_deleted_flag(rec, comp);
+		const rec_t* rec = btr_pcur_get_rec(&m_pcur);
 
-		if (!deleted) {
+		if (!rec_get_deleted_flag(rec, page_rec_is_comp(rec))) {
 			++m_n_rows;
 		} else {
 			purge();
@@ -1528,9 +1526,9 @@ IndexPurge::purge_pessimistic_delete() UNIV_NOTHROW
 	btr_pcur_restore_position(BTR_MODIFY_TREE | BTR_LATCH_FOR_DELETE,
 				  &m_pcur, &m_mtr);
 
-	ut_ad(rec_get_deleted_flag(
-			btr_pcur_get_rec(&m_pcur),
-			dict_table_is_comp(m_index->table)));
+	ut_ad(rec_get_deleted_flag(btr_pcur_get_rec(&m_pcur),
+				   page_rec_is_comp(btr_pcur_get_rec(
+							    &m_pcur))));
 
 	btr_cur_pessimistic_delete(
 		&err, FALSE, btr_pcur_get_btr_cur(&m_pcur), 0, false, &m_mtr);

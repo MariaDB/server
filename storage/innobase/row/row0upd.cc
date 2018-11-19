@@ -2844,8 +2844,9 @@ row_upd_clust_rec(
 	btr_cur = btr_pcur_get_btr_cur(pcur);
 
 	ut_ad(btr_cur_get_index(btr_cur) == index);
-	ut_ad(!rec_get_deleted_flag(btr_cur_get_rec(btr_cur),
-				    dict_table_is_comp(index->table)));
+	ut_ad(!rec_get_deleted_flag(
+		      btr_cur_get_rec(btr_cur),
+		      page_rec_is_comp(btr_cur_get_rec(btr_cur))));
 	ut_ad(rec_offs_validate(btr_cur_get_rec(btr_cur), index, offsets));
 
 	if (dict_index_is_online_ddl(index)) {
@@ -2903,7 +2904,7 @@ row_upd_clust_rec(
 	ut_a(btr_pcur_restore_position(BTR_MODIFY_TREE, pcur, mtr));
 
 	ut_ad(!rec_get_deleted_flag(btr_pcur_get_rec(pcur),
-				    dict_table_is_comp(index->table)));
+				    page_rec_is_comp(btr_pcur_get_rec(pcur))));
 
 	if (!heap) {
 		heap = mem_heap_create(1024);
