@@ -1,4 +1,4 @@
-/* Copyright (C) 2008-2017 Kentoku Shiba
+/* Copyright (C) 2008-2018 Kentoku Shiba
 
   This program is free software; you can redistribute it and/or modify
   it under the terms of the GNU General Public License as published by
@@ -3123,6 +3123,30 @@ int spider_param_bka_table_name_type(
     bka_table_name_type : THDVAR(thd, bka_table_name_type));
 }
 
+/*
+ -1 :use table parameter
+  0 :off
+  1 :on
+ */
+static MYSQL_THDVAR_INT(
+  use_cond_other_than_pk_for_update, /* name */
+  PLUGIN_VAR_RQCMDARG, /* opt */
+  "Use all conditions even if condition has pk", /* comment */
+  NULL, /* check */
+  NULL, /* update */
+  1, /* def */
+  0, /* min */
+  1, /* max */
+  0 /* blk */
+);
+
+int spider_param_use_cond_other_than_pk_for_update(
+  THD *thd
+) {
+  DBUG_ENTER("spider_param_reset_sql_alloc");
+  DBUG_RETURN(THDVAR(thd, use_cond_other_than_pk_for_update));
+}
+
 static int spider_store_last_sts;
 /*
  -1 : use table parameter
@@ -3421,6 +3445,7 @@ static struct st_mysql_sys_var* spider_system_variables[] = {
   MYSQL_SYSVAR(dry_access),
   MYSQL_SYSVAR(delete_all_rows_type),
   MYSQL_SYSVAR(bka_table_name_type),
+  MYSQL_SYSVAR(use_cond_other_than_pk_for_update),
   MYSQL_SYSVAR(connect_error_interval),
 #ifndef WITHOUT_SPIDER_BG_SEARCH
   MYSQL_SYSVAR(table_sts_thread_count),
