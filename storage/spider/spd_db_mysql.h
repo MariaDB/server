@@ -1,4 +1,4 @@
-/* Copyright (C) 2012-2017 Kentoku Shiba
+/* Copyright (C) 2012-2018 Kentoku Shiba
 
   This program is free software; you can redistribute it and/or modify
   it under the terms of the GNU General Public License as published by
@@ -12,8 +12,6 @@
   You should have received a copy of the GNU General Public License
   along with this program; if not, write to the Free Software
   Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307  USA */
-
-#include "tztime.h"
 
 class spider_db_mysql_util: public spider_db_util
 {
@@ -121,9 +119,46 @@ public:
     String *from
   );
 #ifdef SPIDER_HAS_GROUP_BY_HANDLER
-  int append_from_and_tables(
+  int append_table(
+    ha_spider *spider,
     spider_fields *fields,
-    spider_string *str
+    spider_string *str,
+    TABLE_LIST *table_list,
+    TABLE_LIST **used_table_list,
+    uint *current_pos,
+    TABLE_LIST **cond_table_list_ptr,
+    bool top_down,
+    bool first
+  );
+  int append_tables_top_down(
+    ha_spider *spider,
+    spider_fields *fields,
+    spider_string *str,
+    TABLE_LIST *table_list,
+    TABLE_LIST **used_table_list,
+    uint *current_pos,
+    TABLE_LIST **cond_table_list_ptr
+  );
+  int append_tables_top_down_check(
+    TABLE_LIST *table_list,
+    TABLE_LIST **used_table_list,
+    uint *current_pos
+  );
+  int append_embedding_tables(
+    ha_spider *spider,
+    spider_fields *fields,
+    spider_string *str,
+    TABLE_LIST *table_list,
+    TABLE_LIST **used_table_list,
+    uint *current_pos,
+    TABLE_LIST **cond_table_list_ptr
+  );
+  int append_from_and_tables(
+    ha_spider *spider,
+    spider_fields *fields,
+    spider_string *str,
+    TABLE_LIST *table_list,
+    uint table_count
   );
   int reappend_tables(
     spider_fields *fields,

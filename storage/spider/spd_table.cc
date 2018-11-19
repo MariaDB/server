@@ -1,4 +1,4 @@
-/* Copyright (C) 2008-2017 Kentoku Shiba
+/* Copyright (C) 2008-2018 Kentoku Shiba
 
   This program is free software; you can redistribute it and/or modify
   it under the terms of the GNU General Public License as published by
@@ -1721,8 +1721,7 @@ int st_spider_param_string_parse::print_param_error()
       if ((share->param_name = spider_get_string_between_quote( \
         start_ptr, TRUE, &connect_string_parse))) \
         share->SPIDER_PARAM_STR_LEN(param_name) = strlen(share->param_name); \
-      else \
-      { \
+      else { \
         error_num = connect_string_parse.print_param_error(); \
         goto error; \
       } \
@@ -5219,15 +5218,20 @@ SPIDER_SHARE *spider_get_share(
       }
       if (!share->link_status_init)
       {
-        if (
-          (
-            table_share->tmp_table == NO_TMP_TABLE &&
-            sql_command != SQLCOM_DROP_TABLE &&
-            sql_command != SQLCOM_SHOW_CREATE
-          ) ||
-          /* for alter change link status */
-          sql_command == SQLCOM_ALTER_TABLE
-        ) {
+        /*
+          The link statuses need to be refreshed from the spider_tables table
+          if the operation:
+          - Is not a DROP TABLE on a permanent table; or
+          - Is an ALTER TABLE.
+
+          Note that SHOW CREATE TABLE is not excluded, because the commands
+          that follow it require up-to-date link statuses.
+        */
+        if ((table_share->tmp_table == NO_TMP_TABLE &&
+             sql_command != SQLCOM_DROP_TABLE) ||
+            /* for alter change link status */
+            sql_command == SQLCOM_ALTER_TABLE)
+        {
           SPD_INIT_ALLOC_ROOT(&mem_root, 4096, 0, MYF(MY_WME));
           init_mem_root = TRUE;
           if (
@@ -8965,7 +8969,9 @@ bool spider_check_direct_order_limit(
 int spider_set_direct_limit_offset(
   ha_spider *spider
 ) {
+#ifndef SPIDER_ENGINE_CONDITION_PUSHDOWN_IS_ALWAYS_ON
   THD *thd = spider->trx->thd;
+#endif
   st_select_lex *select_lex;
   longlong select_limit;
   longlong offset_limit;
@@ -9037,7 +9043,11 @@ int spider_set_direct_limit_offset(
     DBUG_RETURN(FALSE);
 
   // ignore condition like 1=1
+#ifdef SPIDER_has_Item_with_subquery
   if (select_lex->where && select_lex->where->with_subquery())
+#else
+  if (select_lex->where && select_lex->where->with_subselect)
+#endif
     DBUG_RETURN(FALSE);
 
   if (
@@ -9048,14 +9058,8 @@ int spider_set_direct_limit_offset(
   )
     DBUG_RETURN(FALSE);
 
-  /*
-    TODO: following comment is wrong or the check is wrong (correct
-    check for derived table will be something like select_lex->linkage,
-    if they need only top level it is better to check nested level and do
-      not loose UNIONS & Co
-  */
   // must not be derived table
-  if (thd->lex->first_select_lex() != select_lex)
+  if (SPIDER_get_linkage(select_lex) == DERIVED_TABLE_TYPE)
     DBUG_RETURN(FALSE);
 
   spider->direct_select_offset = offset_limit;
@@ -9497,7 +9501,8 @@ int spider_discover_table_structure(
   uint collatelen = strlen(table_charset->name);
   if (str.reserve(SPIDER_SQL_CLOSE_PAREN_LEN + SPIDER_SQL_DEFAULT_CHARSET_LEN +
     csnamelen + SPIDER_SQL_COLLATE_LEN + collatelen +
-    SPIDER_SQL_CONNECTION_LEN + SPIDER_SQL_VALUE_QUOTE_LEN
+    SPIDER_SQL_CONNECTION_LEN + SPIDER_SQL_VALUE_QUOTE_LEN +
+    (share->comment.length * 2)
   )) {
     DBUG_RETURN(HA_ERR_OUT_OF_MEM);
   }
@@ -9510,7 +9515,8 @@ int spider_discover_table_structure(
   str.q_append(SPIDER_SQL_VALUE_QUOTE_STR, SPIDER_SQL_VALUE_QUOTE_LEN);
   str.append_escape_string(share->comment.str, share->comment.length);
   if (str.reserve(SPIDER_SQL_CONNECTION_LEN +
-    (SPIDER_SQL_VALUE_QUOTE_LEN * 2)))
+    (SPIDER_SQL_VALUE_QUOTE_LEN * 2) +
+    (share->connect_string.length * 2)))
   {
     DBUG_RETURN(HA_ERR_OUT_OF_MEM);
   }
