@@ -2108,9 +2108,7 @@ end_of_index:
 				rec_trx_id = 0;
 			}
 
-			if (rec_get_deleted_flag(
-				    rec,
-				    dict_table_is_comp(old_table))) {
+			if (rec_get_deleted_flag(rec, page_rec_is_comp(rec))) {
 				/* In delete-marked records, DB_TRX_ID must
 				always refer to an existing undo log record.
 				Above, we did reset rec_trx_id = 0
@@ -2126,8 +2124,7 @@ end_of_index:
 			}
 
 			ut_ad(!rec_offs_any_null_extern(rec, offsets));
-		} else if (rec_get_deleted_flag(
-				   rec, dict_table_is_comp(old_table))) {
+		} else if (rec_get_deleted_flag(rec, page_rec_is_comp(rec))) {
 			/* In delete-marked records, DB_TRX_ID must
 			always refer to an existing undo log record. */
 			ut_d(rec_trx_id = rec_get_trx_id(rec, clust_index));

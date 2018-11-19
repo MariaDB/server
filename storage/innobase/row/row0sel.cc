@@ -1530,7 +1530,7 @@ exhausted:
 		goto retry;
 	}
 
-	if (rec_get_deleted_flag(rec, dict_table_is_comp(plan->table))) {
+	if (rec_get_deleted_flag(rec, page_rec_is_comp(rec))) {
 		goto exhausted;
 	}
 
@@ -3861,7 +3861,7 @@ exhausted:
 		goto retry;
 	}
 
-	if (rec_get_deleted_flag(rec, dict_table_is_comp(index->table))) {
+	if (rec_get_deleted_flag(rec, page_rec_is_comp(rec))) {
 		/* In delete-marked records, DB_TRX_ID must
 		always refer to an existing undo log record. */
 		ut_ad(row_get_rec_trx_id(rec, index, *offsets));

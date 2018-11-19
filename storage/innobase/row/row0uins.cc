@@ -111,9 +111,9 @@ row_undo_ins_remove_clust_rec(
 	rec_t* rec = btr_pcur_get_rec(&node->pcur);
 
 	ut_ad(rec_get_trx_id(rec, index) == node->trx->id);
-	ut_ad(!rec_get_deleted_flag(rec, index->table->not_redundant())
-	      || rec_is_alter_metadata(rec, index->table->not_redundant()));
-	ut_ad(rec_is_metadata(rec, index->table->not_redundant())
+	ut_ad(!rec_get_deleted_flag(rec, page_rec_is_comp(rec))
+	      || rec_is_alter_metadata(rec, page_rec_is_comp(rec)));
+	ut_ad(rec_is_metadata(rec, page_rec_is_comp(rec))
 	      == (node->rec_type == TRX_UNDO_INSERT_METADATA));
 
 	if (online && dict_index_is_online_ddl(index)) {
