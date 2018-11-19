@@ -3424,47 +3424,54 @@ lock_update_discard(
 
 	lock_mutex_enter();
 
-	if (!lock_rec_get_first_on_page(lock_sys->rec_hash, block)
-	    && (!lock_rec_get_first_on_page(lock_sys->prdt_hash, block))) {
-		/* No locks exist on page, nothing to do */
+	if (lock_rec_get_first_on_page(lock_sys->rec_hash, block)) {
+		ut_ad(!lock_rec_get_first_on_page(lock_sys->prdt_hash, block));
+		ut_ad(!lock_rec_get_first_on_page(lock_sys->prdt_page_hash,
+						  block));
+		/* Inherit all the locks on the page to the record and
+		reset all the locks on the page */
 
-		lock_mutex_exit();
+		if (page_is_comp(page)) {
+			rec = page + PAGE_NEW_INFIMUM;
 
-		return;
-	}
+			do {
+				heap_no = rec_get_heap_no_new(rec);
 
-	/* Inherit all the locks on the page to the record and reset all
-	the locks on the page */
+				lock_rec_inherit_to_gap(heir_block, block,
+							heir_heap_no, heap_no);
 
-	if (page_is_comp(page)) {
-		rec = page + PAGE_NEW_INFIMUM;
+				lock_rec_reset_and_release_wait(
+					block, heap_no);
 
-		do {
-			heap_no = rec_get_heap_no_new(rec);
+				rec = page + rec_get_next_offs(rec, TRUE);
+			} while (heap_no != PAGE_HEAP_NO_SUPREMUM);
+		} else {
+			rec = page + PAGE_OLD_INFIMUM;
 
-			lock_rec_inherit_to_gap(heir_block, block,
-						heir_heap_no, heap_no);
+			do {
+				heap_no = rec_get_heap_no_old(rec);
 
-			lock_rec_reset_and_release_wait(block, heap_no);
+				lock_rec_inherit_to_gap(heir_block, block,
+							heir_heap_no, heap_no);
 
-			rec = page + rec_get_next_offs(rec, TRUE);
-		} while (heap_no != PAGE_HEAP_NO_SUPREMUM);
+				lock_rec_reset_and_release_wait(
+					block, heap_no);
+
+				rec = page + rec_get_next_offs(rec, FALSE);
+			} while (heap_no != PAGE_HEAP_NO_SUPREMUM);
+		}
+
+		lock_rec_free_all_from_discard_page_low(
+			block->page.id.space(), block->page.id.page_no(),
+			lock_sys->rec_hash);
 	} else {
-		rec = page + PAGE_OLD_INFIMUM;
-
-		do {
-			heap_no = rec_get_heap_no_old(rec);
-
-			lock_rec_inherit_to_gap(heir_block, block,
-						heir_heap_no, heap_no);
-
-			lock_rec_reset_and_release_wait(block, heap_no);
-
-			rec = page + rec_get_next_offs(rec, FALSE);
-		} while (heap_no != PAGE_HEAP_NO_SUPREMUM);
+		lock_rec_free_all_from_discard_page_low(
+			block->page.id.space(), block->page.id.page_no(),
+			lock_sys->prdt_hash);
+		lock_rec_free_all_from_discard_page_low(
+			block->page.id.space(), block->page.id.page_no(),
+			lock_sys->prdt_page_hash);
 	}
-
-	lock_rec_free_all_from_discard_page(block);
 
 	lock_mutex_exit();
 }
