@@ -971,28 +971,10 @@ lock_tables(MYSQL *connection)
 	}
 
 	if (opt_lock_ddl_per_table) {
+		/* TODO : Remove after MDEV-17772 is fixed */
 		start_mdl_waiters_killer();
 	}
 
-	if (!opt_lock_wait_timeout && !opt_kill_long_queries_timeout) {
-
-		/* We do first a FLUSH TABLES. If a long update is running, the
-		FLUSH TABLES will wait but will not stall the whole mysqld, and
-		when the long update is done the FLUSH TABLES WITH READ LOCK
-		will start and succeed quickly. So, FLUSH TABLES is to lower
-		the probability of a stage where both mysqldump and most client
-		connections are stalled. Of course, if a second long update
-		starts between the two FLUSHes, we have that bad stall.
-
-		Option lock_wait_timeout serve the same purpose and is not
-		compatible with this trick.
-		*/
-
-		msg_ts("Executing FLUSH NO_WRITE_TO_BINLOG TABLES...\n");
-
-		xb_mysql_query(connection,
-			       "FLUSH NO_WRITE_TO_BINLOG TABLES", false);
-	}
 
 	if (opt_lock_wait_timeout) {
 		if (!wait_for_no_updates(connection, opt_lock_wait_timeout,
@@ -1001,7 +983,7 @@ lock_tables(MYSQL *connection)
 		}
 	}
 
-	msg_ts("Executing FLUSH TABLES WITH READ LOCK...\n");
+	msg_ts("Acquiring BACKUP LOCKS...\n");
 
 	if (opt_kill_long_queries_timeout) {
 		start_query_killer();
@@ -1012,9 +994,13 @@ lock_tables(MYSQL *connection)
 				"SET SESSION wsrep_causal_reads=0", false);
 	}
 
-	xb_mysql_query(connection, "FLUSH TABLES WITH READ LOCK", false);
+	xb_mysql_query(connection, "BACKUP STAGE START", true);
+	//xb_mysql_query(connection, "BACKUP STAGE FLUSH", true);
+	//xb_mysql_query(connection, "BACKUP STAGE BLOCK_DDL", true);
+	xb_mysql_query(connection, "BACKUP STAGE BLOCK_COMMIT", true);
 
 	if (opt_lock_ddl_per_table) {
+		/* TODO : Remove after MDEV-17772 is fixed */
 		stop_mdl_waiters_killer();
 	}
 
@@ -1058,13 +1044,8 @@ unlock_all(MYSQL *connection)
 		os_thread_sleep(opt_debug_sleep_before_unlock * 1000);
 	}
 
-	if (binlog_locked) {
-		msg_ts("Executing UNLOCK BINLOG\n");
-		xb_mysql_query(connection, "UNLOCK BINLOG", false);
-	}
-
-	msg_ts("Executing UNLOCK TABLES\n");
-	xb_mysql_query(connection, "UNLOCK TABLES", false);
+	msg_ts("Executing BACKUP STAGE END\n");
+	xb_mysql_query(connection, "BACKUP STAGE END", false);
 
 	msg_ts("All tables unlocked\n");
 }

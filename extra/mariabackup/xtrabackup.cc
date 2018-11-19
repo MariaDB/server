@@ -474,9 +474,18 @@ DECLARE_THREAD(dbug_execute_in_new_connection)(void *arg)
 	dbug_thread_param_t *par= (dbug_thread_param_t *)arg;
 	int err = mysql_query(par->con, par->query);
 	int err_no = mysql_errno(par->con);
-	DBUG_ASSERT(par->expect_err == err);
-	if (err && par->expect_errno)
-		DBUG_ASSERT(err_no == par->expect_errno);
+	if(par->expect_err != err)
+	{
+		msg("FATAL: dbug_execute_in_new_connection : mysql_query '%s' returns %d, instead of expected %d",
+			par->query, err, par->expect_err);
+		_exit(1);
+	}
+	if (err && par->expect_errno && par->expect_errno != err_no)
+	{
+		msg("FATAL: dbug_execute_in_new_connection: mysql_query '%s' returns mysql_errno %d, instead of expected %d",
+			par->query, err_no, par->expect_errno);
+		_exit(1);
+	}
 	mysql_close(par->con);
 	mysql_thread_end();
 	os_event_t done = par->done_event;
