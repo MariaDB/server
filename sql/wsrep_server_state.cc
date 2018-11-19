@@ -18,9 +18,12 @@
 #include "wsrep_server_state.h"
 
 mysql_mutex_t LOCK_wsrep_server_state;
-PSI_mutex_key key_LOCK_wsrep_server_state;
 mysql_cond_t  COND_wsrep_server_state;
+
+#ifdef HAVE_PSI_INTERFACE
+PSI_mutex_key key_LOCK_wsrep_server_state;
 PSI_cond_key  key_COND_wsrep_server_state;
+#endif
 
 Wsrep_server_state::Wsrep_server_state(const std::string& name,
                                        const std::string& id,
