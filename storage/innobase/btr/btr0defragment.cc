@@ -337,7 +337,6 @@ btr_defragment_calc_n_recs_for_size(
 	ulint* n_recs_size)	/*!< out: actual size of the records that fit
 				in size_limit. */
 {
-	page_t* page = buf_block_get_frame(block);
 	ulint n_recs = 0;
 	ulint offsets_[REC_OFFS_NORMAL_SIZE];
 	ulint* offsets = offsets_;
@@ -348,11 +347,17 @@ btr_defragment_calc_n_recs_for_size(
 
 	page_cur_set_before_first(block, &cur);
 	page_cur_move_to_next(&cur);
-	while (page_cur_get_rec(&cur) != page_get_supremum_rec(page)) {
+	const rec_fmt_t format = page_is_leaf(block->frame)
+		? (page_is_comp(block->frame)
+		   ? REC_FMT_LEAF : REC_FMT_LEAF_FLEXIBLE)
+		: REC_FMT_NODE_PTR;
+	ut_ad(!!page_is_comp(block->frame) == index->table->not_redundant()
+	      || index->dual_format());
+
+	while (!page_rec_is_supremum(page_cur_get_rec(&cur))) {
 		rec_t* cur_rec = page_cur_get_rec(&cur);
 		offsets = rec_get_offsets(cur_rec, index, offsets,
-					  page_is_leaf(page),
-					  ULINT_UNDEFINED, &heap);
+					  format, ULINT_UNDEFINED, &heap);
 		ulint rec_size = rec_offs_size(offsets);
 		size += rec_size;
 		if (size > size_limit) {
@@ -384,10 +389,9 @@ btr_defragment_merge_pages(
 	mem_heap_t*	heap,		/*!< in/out: pointer to memory heap */
 	mtr_t*		mtr)		/*!< in/out: mini-transaction */
 {
-	page_t* from_page = buf_block_get_frame(from_block);
 	page_t* to_page = buf_block_get_frame(to_block);
-	ulint level = btr_page_get_level(from_page);
-	ulint n_recs = page_get_n_recs(from_page);
+	ulint level = btr_page_get_level(from_block->frame);
+	ulint n_recs = page_get_n_recs(from_block->frame);
 	ulint new_data_size = page_get_data_size(to_page);
 	ulint max_ins_size =
 		page_get_max_insert_size(to_page, n_recs);
@@ -402,7 +406,7 @@ btr_defragment_merge_pages(
 	ulint target_n_recs = 0;
 	rec_t* orig_pred;
 
-	// Estimate how many records can be moved from the from_page to
+	// Estimate how many records can be moved from the from_block to
 	// the to_page.
 	if (page_size.is_compressed()) {
 		ulint page_diff = srv_page_size - *max_data_size;
@@ -438,8 +442,7 @@ btr_defragment_merge_pages(
 	orig_pred = NULL;
 	target_n_recs = n_recs_to_move;
 	while (n_recs_to_move > 0) {
-		rec = page_rec_get_nth(from_page,
-					n_recs_to_move + 1);
+		rec = page_rec_get_nth(from_block->frame, n_recs_to_move + 1);
 		orig_pred = page_copy_rec_list_start(
 			to_block, from_block, rec, index, mtr);
 		if (orig_pred)
@@ -490,10 +493,8 @@ btr_defragment_merge_pages(
 		btr_search_drop_page_hash_index(from_block);
 		btr_level_list_remove(
 			index->table->space->id,
-			page_size, from_page, index, mtr);
+			page_size, from_block->frame, index, mtr);
 		btr_node_ptr_delete(index, from_block, mtr);
-		/* btr_blob_dbg_remove(from_page, index,
-		"btr_defragment_n_pages"); */
 		btr_page_free(index, from_block, mtr);
 	} else {
 		// There are still records left on the page, so
@@ -511,9 +512,13 @@ btr_defragment_merge_pages(
 						    from_block);
 			btr_node_ptr_delete(index, from_block, mtr);
 			rec = page_rec_get_next(
-				page_get_infimum_rec(from_page));
+				page_get_infimum_rec(from_block->frame));
 			node_ptr = dict_index_build_node_ptr(
-				index, rec, page_get_page_no(from_page),
+				index, rec, page_is_leaf(from_block->frame)
+				? (page_is_comp(from_block->frame)
+				   ? REC_FMT_LEAF : REC_FMT_LEAF_FLEXIBLE)
+				: REC_FMT_NODE_PTR,
+				from_block->page.id.page_no(),
 				heap, level);
 			btr_insert_on_non_leaf_level(0, index, level+1,
 						     node_ptr, mtr);

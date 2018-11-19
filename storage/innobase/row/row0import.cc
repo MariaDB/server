@@ -1723,12 +1723,20 @@ dberr_t
 PageConverter::update_records(
 	buf_block_t*	block) UNIV_NOTHROW
 {
-	ibool	comp = dict_table_is_comp(m_cfg->m_table);
 	bool	clust_index = m_index->m_srv_index == m_cluster_index;
 
 	/* This will also position the cursor on the first user record. */
 
 	m_rec_iter.open(block);
+	const ibool comp = page_is_comp(block->frame);
+	if (!comp == m_cfg->m_table->not_redundant()
+	    && (!clust_index || !m_cfg->m_table->dual_format())) {
+		return(DB_CORRUPTION);
+	}
+
+	const rec_fmt_t format = page_is_leaf(block->frame)
+		? (comp ? REC_FMT_LEAF : REC_FMT_LEAF_FLEXIBLE)
+		: REC_FMT_NODE_PTR;
 
 	while (!m_rec_iter.end()) {
 		rec_t*	rec = m_rec_iter.current();
@@ -1741,7 +1749,7 @@ PageConverter::update_records(
 
 		if (deleted || clust_index) {
 			m_offsets = rec_get_offsets(
-				rec, m_index->m_srv_index, m_offsets, true,
+				rec, m_index->m_srv_index, m_offsets, format,
 				ULINT_UNDEFINED, &m_heap);
 		}
 

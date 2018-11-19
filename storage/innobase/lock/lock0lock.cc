@@ -4508,7 +4508,9 @@ lock_rec_print(FILE* file, const lock_t* lock)
 			ut_ad(!page_rec_is_metadata(rec));
 
 			offsets = rec_get_offsets(
-				rec, lock->index, offsets, true,
+				rec, lock->index, offsets,
+				page_rec_is_comp(rec)
+				? REC_FMT_LEAF : REC_FMT_LEAF_FLEXIBLE,
 				ULINT_UNDEFINED, &heap);
 
 			putc(' ', file);
@@ -5041,8 +5043,6 @@ lock_rec_validate_page(
 	ulint*		offsets		= offsets_;
 	rec_offs_init(offsets_);
 
-	ut_ad(!lock_mutex_own());
-
 	lock_mutex_enter();
 loop:
 	lock = lock_rec_get_first_on_page_addr(
@@ -5066,18 +5066,25 @@ loop:
 
 	ut_ad(!trx_is_ac_nl_ro(lock->trx));
 
+	ut_ad(page_is_leaf(block->frame));
+	ut_ad(!!page_is_comp(block->frame)
+	      == lock->index->table->not_redundant()
+	      || lock->index->dual_format());
+
+	i = nth_bit;
 	/* Only validate the record queues when this thread is not
 	holding a space->latch. */
 	if (!sync_check_find(SYNC_FSP))
-	for (i = nth_bit; i < lock_rec_get_n_bits(lock); i++) {
+	for (const rec_fmt_t format = page_is_comp(block->frame)
+		     ? REC_FMT_LEAF : REC_FMT_LEAF_FLEXIBLE;
+	     i < lock_rec_get_n_bits(lock); i++) {
 
 		if (i == 1 || lock_rec_get_nth_bit(lock, i)) {
 
 			rec = page_find_rec_with_heap_no(block->frame, i);
 			ut_a(rec);
-			ut_ad(page_rec_is_leaf(rec));
 			offsets = rec_get_offsets(rec, lock->index, offsets,
-						  true, ULINT_UNDEFINED,
+						  format, ULINT_UNDEFINED,
 						  &heap);
 
 			/* If this thread is holding the file space
@@ -5102,7 +5109,7 @@ loop:
 function_exit:
 	lock_mutex_exit();
 
-	if (heap != NULL) {
+	if (UNIV_LIKELY_NULL(heap)) {
 		mem_heap_free(heap);
 	}
 	return(TRUE);
@@ -5408,7 +5415,10 @@ lock_rec_insert_check_and_lock(
 		const ulint*	offsets;
 		rec_offs_init(offsets_);
 
-		offsets = rec_get_offsets(next_rec, index, offsets_, true,
+		offsets = rec_get_offsets(next_rec, index, offsets_,
+					  page_rec_is_comp(next_rec)
+					  ? REC_FMT_LEAF
+					  : REC_FMT_LEAF_FLEXIBLE,
 					  ULINT_UNDEFINED, &heap);
 
 		ut_ad(lock_rec_queue_validate(
@@ -5722,7 +5732,7 @@ lock_sec_rec_modify_check_and_lock(
 		const ulint*	offsets;
 		rec_offs_init(offsets_);
 
-		offsets = rec_get_offsets(rec, index, offsets_, true,
+		offsets = rec_get_offsets(rec, index, offsets_, REC_FMT_LEAF,
 					  ULINT_UNDEFINED, &heap);
 
 		ut_ad(lock_rec_queue_validate(
@@ -5917,7 +5927,8 @@ lock_clust_rec_read_check_and_lock_alt(
 	rec_offs_init(offsets_);
 
 	ut_ad(page_rec_is_leaf(rec));
-	offsets = rec_get_offsets(rec, index, offsets, true,
+	offsets = rec_get_offsets(rec, index, offsets, page_rec_is_comp(rec)
+				  ? REC_FMT_LEAF : REC_FMT_LEAF_FLEXIBLE,
 				  ULINT_UNDEFINED, &tmp_heap);
 	err = lock_clust_rec_read_check_and_lock(flags, block, rec, index,
 						 offsets, mode, gap_mode, thr);

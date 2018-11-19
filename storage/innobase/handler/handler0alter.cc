@@ -5580,7 +5580,9 @@ add_all_virtual:
 
 		offsets = rec_get_offsets(
 			btr_pcur_get_rec(&pcur), index, offsets,
-			true, ULINT_UNDEFINED, &offsets_heap);
+			page_rec_is_comp(btr_pcur_get_rec(&pcur))
+			? REC_FMT_LEAF : REC_FMT_LEAF_FLEXIBLE,
+			ULINT_UNDEFINED, &offsets_heap);
 		if (big_rec) {
 			if (err == DB_SUCCESS) {
 				err = btr_store_big_rec_extern_fields(
@@ -5603,7 +5605,9 @@ empty_table:
 		index->clear_instant_alter();
 		goto func_exit;
 	} else if (!user_table->is_instant()) {
-		ut_ad(!dict_table_is_comp(user_table));
+		/* We can remove NOT NULL attribute in ROW_FORMAT=REDUNDANT
+		tables without adding any metadata record. */
+		ut_ad(!user_table->not_redundant());
 		goto func_exit;
 	}
 

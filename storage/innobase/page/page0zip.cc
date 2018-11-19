@@ -877,7 +877,8 @@ page_zip_compress_node_ptrs(
 	do {
 		const rec_t*	rec = *recs++;
 
-		offsets = rec_get_offsets(rec, index, offsets, false,
+		offsets = rec_get_offsets(rec, index, offsets,
+					  REC_FMT_NODE_PTR,
 					  ULINT_UNDEFINED, &heap);
 		/* Only leaf nodes may contain externally stored columns. */
 		ut_ad(!rec_offs_any_extern(offsets));
@@ -1126,7 +1127,7 @@ page_zip_compress_clust(
 	do {
 		const rec_t*	rec = *recs++;
 
-		offsets = rec_get_offsets(rec, index, offsets, true,
+		offsets = rec_get_offsets(rec, index, offsets, REC_FMT_LEAF,
 					  ULINT_UNDEFINED, &heap);
 		ut_ad(rec_offs_n_fields(offsets)
 		      == dict_index_get_n_fields(index));
@@ -2106,7 +2107,9 @@ page_zip_apply_log(
 			/* Clear the data bytes of the record. */
 			mem_heap_t*	heap	= NULL;
 			ulint*		offs;
-			offs = rec_get_offsets(rec, index, offsets, is_leaf,
+			offs = rec_get_offsets(rec, index, offsets, is_leaf
+					       ? REC_FMT_LEAF
+					       : REC_FMT_NODE_PTR,
 					       ULINT_UNDEFINED, &heap);
 			memset(rec, 0, rec_offs_data_size(offs));
 
@@ -2304,7 +2307,8 @@ page_zip_decompress_node_ptrs(
 		}
 
 		/* Read the offsets. The status bits are needed here. */
-		offsets = rec_get_offsets(rec, index, offsets, false,
+		offsets = rec_get_offsets(rec, index, offsets,
+					  REC_FMT_NODE_PTR,
 					  ULINT_UNDEFINED, &heap);
 
 		/* Non-leaf nodes should not have any externally
@@ -2422,7 +2426,8 @@ zlib_done:
 	for (slot = 0; slot < n_dense; slot++) {
 		rec_t*		rec	= recs[slot];
 
-		offsets = rec_get_offsets(rec, index, offsets, false,
+		offsets = rec_get_offsets(rec, index, offsets,
+					  REC_FMT_NODE_PTR,
 					  ULINT_UNDEFINED, &heap);
 		/* Non-leaf nodes should not have any externally
 		stored columns. */
@@ -2747,7 +2752,7 @@ page_zip_decompress_clust(
 		}
 
 		/* Read the offsets. The status bits are needed here. */
-		offsets = rec_get_offsets(rec, index, offsets, true,
+		offsets = rec_get_offsets(rec, index, offsets, REC_FMT_LEAF,
 					  ULINT_UNDEFINED, &heap);
 
 		/* This is a leaf page in a clustered index. */
@@ -2910,7 +2915,7 @@ zlib_done:
 		rec_t*	rec	= recs[slot];
 		bool	exists	= !page_zip_dir_find_free(
 			page_zip, page_offset(rec));
-		offsets = rec_get_offsets(rec, index, offsets, true,
+		offsets = rec_get_offsets(rec, index, offsets, REC_FMT_LEAF,
 					  ULINT_UNDEFINED, &heap);
 
 		dst = rec_get_nth_field(rec, offsets,
@@ -3436,7 +3441,8 @@ page_zip_validate_low(
 			if (index) {
 				/* Compare the data. */
 				offsets = rec_get_offsets(
-					rec, index, offsets, is_leaf,
+					rec, index, offsets, is_leaf
+					? REC_FMT_LEAF : REC_FMT_NODE_PTR,
 					ULINT_UNDEFINED, &heap);
 
 				if (memcmp(rec - rec_offs_extra_size(offsets),

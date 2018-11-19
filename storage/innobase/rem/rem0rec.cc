@@ -551,6 +551,8 @@ rec_offs_validate(
 		ulint max_n_fields = ut_max(
 			dict_index_get_n_fields(index),
 			dict_index_get_n_unique_in_tree(index) + 1);
+		ut_ad(!!comp == index->table->not_redundant()
+		      || index->dual_format());
 		if (comp && rec) {
 			switch (rec_get_status(rec)) {
 			case REC_STATUS_INSTANT:
@@ -606,14 +608,14 @@ high-order bit of the offset at [i+1] is set (REC_OFFS_EXTERNAL), the
 field i is being stored externally.
 @param[in]	rec	record
 @param[in]	index	the index that the record belongs in
-@param[in]	leaf	whether the record resides in a leaf page
+@param[in]	format	record format
 @param[in,out]	offsets	array of offsets, with valid rec_offs_n_fields() */
 static
 void
 rec_init_offsets(
 	const rec_t*		rec,
 	const dict_index_t*	index,
-	bool			leaf,
+	rec_fmt_t		format,
 	ulint*			offsets)
 {
 	ulint	i	= 0;
@@ -623,7 +625,7 @@ rec_init_offsets(
 	ut_d(offsets[2] = ulint(rec));
 	ut_d(offsets[3] = ulint(index));
 
-	if (dict_table_is_comp(index->table)) {
+	if (format != REC_FMT_LEAF_FLEXIBLE && index->table->not_redundant()) {
 		const byte*	nulls;
 		const byte*	lens;
 		dict_field_t*	field;
@@ -640,20 +642,20 @@ rec_init_offsets(
 			rec_offs_base(offsets)[1] = 8;
 			return;
 		case REC_STATUS_NODE_PTR:
-			ut_ad(!leaf);
+			ut_ad(format == REC_FMT_NODE_PTR);
 			n_node_ptr_field
 				= dict_index_get_n_unique_in_tree_nonleaf(
 					index);
 			break;
 		case REC_STATUS_INSTANT:
-			ut_ad(leaf);
+			ut_ad(format == REC_FMT_LEAF);
 			rec_init_offsets_comp_ordinary(rec, index, offsets,
 						       index->n_core_fields,
 						       NULL,
 						       REC_LEAF_INSTANT);
 			return;
 		case REC_STATUS_ORDINARY:
-			ut_ad(leaf);
+			ut_ad(format == REC_FMT_LEAF);
 			rec_init_offsets_comp_ordinary(rec, index, offsets,
 						       index->n_core_fields,
 						       NULL,
@@ -807,7 +809,7 @@ resolved:
 @param[in]	index		the index that the record belongs to
 @param[in,out]	offsets		array comprising offsets[0] allocated elements,
 				or an array from rec_get_offsets(), or NULL
-@param[in]	leaf		whether this is a leaf-page record
+@param[in]	format		record format
 @param[in]	n_fields	maximum number of offsets to compute
 				(ULINT_UNDEFINED to compute all offsets)
 @param[in,out]	heap		memory heap
@@ -817,7 +819,7 @@ rec_get_offsets_func(
 	const rec_t*		rec,
 	const dict_index_t*	index,
 	ulint*			offsets,
-	bool			leaf,
+	rec_fmt_t		format,
 	ulint			n_fields,
 #ifdef UNIV_DEBUG
 	const char*		file,	/*!< in: file name where called */
@@ -833,21 +835,21 @@ rec_get_offsets_func(
 	ut_ad(index);
 	ut_ad(heap);
 
-	if (dict_table_is_comp(index->table)) {
+	if (format != REC_FMT_LEAF_FLEXIBLE && index->table->not_redundant()) {
 		switch (UNIV_EXPECT(rec_get_status(rec),
 				    REC_STATUS_ORDINARY)) {
 		case REC_STATUS_INSTANT:
 			alter_metadata = rec_is_alter_metadata(rec, true);
 			/* fall through */
 		case REC_STATUS_ORDINARY:
-			ut_ad(leaf);
+			ut_ad(format == REC_FMT_LEAF);
 			n = dict_index_get_n_fields(index) + alter_metadata;
 			break;
 		case REC_STATUS_NODE_PTR:
 			/* Node pointer records consist of the
 			uniquely identifying fields of the record
 			followed by a child page number field. */
-			ut_ad(!leaf);
+			ut_ad(format == REC_FMT_NODE_PTR);
 			n = dict_index_get_n_unique_in_tree_nonleaf(index) + 1;
 			break;
 		case REC_STATUS_INFIMUM:
@@ -876,19 +878,22 @@ rec_get_offsets_func(
 			>= PAGE_HEAP_NO_USER_LOW;
 		/* The infimum and supremum records carry 1 field. */
 		ut_ad(is_user_rec || n == 1);
-		ut_ad(!is_user_rec || leaf || index->is_dummy
+		ut_ad(!is_user_rec || format != REC_FMT_NODE_PTR
+		      || index->is_dummy
 		      || dict_index_is_ibuf(index)
 		      || n == n_fields /* dict_stats_analyze_index_level() */
 		      || n
 		      == dict_index_get_n_unique_in_tree_nonleaf(index) + 1);
-		ut_ad(!is_user_rec || !leaf || index->is_dummy
+		ut_ad(!is_user_rec || format == REC_FMT_NODE_PTR
+		      || index->is_dummy
 		      || dict_index_is_ibuf(index)
 		      || n == n_fields /* btr_pcur_restore_position() */
 		      || (n + (index->id == DICT_INDEXES_ID)
 			  >= index->n_core_fields && n <= index->n_fields
 			  + unsigned(rec_is_alter_metadata(rec, false))));
 
-		if (is_user_rec && leaf && n < index->n_fields) {
+		if (is_user_rec && format != REC_FMT_NODE_PTR
+		    && n < index->n_fields) {
 			ut_ad(!index->is_dummy);
 			ut_ad(!dict_index_is_ibuf(index));
 			n = index->n_fields;
@@ -917,11 +922,10 @@ rec_get_offsets_func(
 
 	rec_offs_set_n_fields(offsets, n);
 
-	if (UNIV_UNLIKELY(alter_metadata)
-	    && dict_table_is_comp(index->table)) {
+	if (UNIV_UNLIKELY(alter_metadata) && index->table->not_redundant()) {
 		ut_d(offsets[2] = ulint(rec));
 		ut_d(offsets[3] = ulint(index));
-		ut_ad(leaf);
+		ut_ad(format == REC_FMT_LEAF);
 		ut_ad(index->is_dummy || index->table->instant);
 		ut_ad(index->is_dummy || index->is_instant());
 		ut_ad(rec_offs_n_fields(offsets)
@@ -931,7 +935,7 @@ rec_get_offsets_func(
 						     NULL,
 						     REC_LEAF_INSTANT);
 	} else {
-		rec_init_offsets(rec, index, leaf, offsets);
+		rec_init_offsets(rec, index, format, offsets);
 	}
 	return offsets;
 }
@@ -1865,7 +1869,7 @@ rec_convert_dtuple_to_temp(
 The fields are copied into the memory heap.
 @param[out]	tuple		data tuple
 @param[in]	rec		index record, or a copy thereof
-@param[in]	is_leaf		whether rec is a leaf page record
+@param[in]	format		record format
 @param[in]	n_fields	number of fields to copy
 @param[in,out]	heap		memory heap */
 void
@@ -1873,7 +1877,7 @@ rec_copy_prefix_to_dtuple(
 	dtuple_t*		tuple,
 	const rec_t*		rec,
 	const dict_index_t*	index,
-	bool			is_leaf,
+	rec_fmt_t		format,
 	ulint			n_fields,
 	mem_heap_t*		heap)
 {
@@ -1881,10 +1885,10 @@ rec_copy_prefix_to_dtuple(
 	ulint*	offsets	= offsets_;
 	rec_offs_init(offsets_);
 
-	ut_ad(is_leaf || n_fields
+	ut_ad(format != REC_FMT_NODE_PTR || n_fields
 	      <= dict_index_get_n_unique_in_tree_nonleaf(index) + 1);
 
-	offsets = rec_get_offsets(rec, index, offsets, is_leaf,
+	offsets = rec_get_offsets(rec, index, offsets, format,
 				  n_fields, &heap);
 
 	ut_ad(rec_validate(rec, offsets));
@@ -2523,17 +2527,22 @@ rec_print(
 {
 	ut_ad(index);
 
-	if (!dict_table_is_comp(index->table)) {
+	if (!page_rec_is_comp(rec)) {
+		ut_ad(!index->table->not_redundant()
+		      || (page_rec_is_leaf(rec) && index->dual_format()));
 		rec_print_old(file, rec);
 		return;
 	} else {
+		ut_ad(index->table->not_redundant());
 		mem_heap_t*	heap	= NULL;
 		ulint		offsets_[REC_OFFS_NORMAL_SIZE];
 		rec_offs_init(offsets_);
 
 		rec_print_new(file, rec,
 			      rec_get_offsets(rec, index, offsets_,
-					      page_rec_is_leaf(rec),
+					      page_rec_is_leaf(rec)
+					      ? REC_FMT_LEAF
+					      : REC_FMT_NODE_PTR,
 					      ULINT_UNDEFINED, &heap));
 		if (UNIV_LIKELY_NULL(heap)) {
 			mem_heap_free(heap);
@@ -2609,7 +2618,10 @@ operator<<(std::ostream& o, const rec_index_print& r)
 {
 	mem_heap_t*	heap	= NULL;
 	ulint*		offsets	= rec_get_offsets(
-		r.m_rec, r.m_index, NULL, page_rec_is_leaf(r.m_rec),
+		r.m_rec, r.m_index, NULL, page_rec_is_leaf(r.m_rec)
+		? (page_rec_is_comp(r.m_rec)
+		   ? REC_FMT_LEAF : REC_FMT_LEAF_FLEXIBLE)
+		: REC_FMT_NODE_PTR,
 		ULINT_UNDEFINED, &heap);
 	rec_print(o, r.m_rec,
 		  rec_get_info_bits(r.m_rec, rec_offs_comp(offsets)),
@@ -2648,7 +2660,9 @@ rec_get_trx_id(
 	rec_offs_init(offsets_);
 	ulint* offsets = offsets_;
 
-	offsets = rec_get_offsets(rec, index, offsets, true,
+	offsets = rec_get_offsets(rec, index, offsets,
+				  page_rec_is_comp(rec)
+				  ? REC_FMT_LEAF : REC_FMT_LEAF_FLEXIBLE,
 				  index->db_trx_id() + 1, &heap);
 
 	trx_id = rec_get_nth_field(rec, offsets, index->db_trx_id(), &len);
@@ -2697,12 +2711,10 @@ wsrep_rec_get_foreign_key(
 	ut_ad(index_ref);
 
         rec_offs_init(offsets_);
-	offsets = rec_get_offsets(rec, index_for, offsets_, true,
+	offsets = rec_get_offsets(rec, index_for, offsets_,
+				  page_rec_is_comp(rec)
+				  ? REC_FMT_LEAF : REC_FMT_LEAF_FLEXIBLE,
 				  ULINT_UNDEFINED, &heap);
-
-	ut_ad(rec_offs_validate(rec, NULL, offsets));
-
-	ut_ad(rec);
 
 	key_parts = dict_index_get_n_unique_in_tree(index_for);
 	for (i = 0; 

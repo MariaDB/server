@@ -1297,6 +1297,7 @@ dict_index_build_node_ptr(
 	const dict_index_t*	index,	/*!< in: index */
 	const rec_t*		rec,	/*!< in: record for which to build node
 					pointer */
+	rec_fmt_t		format,	/*!< in: format of rec */
 	ulint			page_no,/*!< in: page number to put in node
 					pointer */
 	mem_heap_t*		heap,	/*!< in: memory heap where pointer
@@ -1322,7 +1323,7 @@ dict_index_copy_rec_order_prefix(
 /** Convert a physical record into a search tuple.
 @param[in]	rec		index record (not necessarily in an index page)
 @param[in]	index		index
-@param[in]	leaf		whether rec is in a leaf page
+@param[in]	format		record format
 @param[in]	n_fields	number of data fields
 @param[in,out]	heap		memory heap for allocation
 @return own: data tuple */
@@ -1330,7 +1331,7 @@ dtuple_t*
 dict_index_build_data_tuple(
 	const rec_t*		rec,
 	const dict_index_t*	index,
-	bool			leaf,
+	rec_fmt_t		format,
 	ulint			n_fields,
 	mem_heap_t*		heap)
 	MY_ATTRIBUTE((nonnull, warn_unused_result));

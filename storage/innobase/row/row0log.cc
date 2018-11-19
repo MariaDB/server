@@ -1248,7 +1248,10 @@ row_log_table_get_pk(
 
 				if (!offsets) {
 					offsets = rec_get_offsets(
-						rec, index, NULL, true,
+						rec, index, NULL,
+						page_rec_is_comp(rec)
+						? REC_FMT_LEAF
+						: REC_FMT_LEAF_FLEXIBLE,
 						index->db_trx_id() + 1, heap);
 				}
 
@@ -1298,7 +1301,10 @@ row_log_table_get_pk(
 		}
 
 		if (!offsets) {
-			offsets = rec_get_offsets(rec, index, NULL, true,
+			offsets = rec_get_offsets(rec, index, NULL,
+						  page_rec_is_comp(rec)
+						  ? REC_FMT_LEAF
+						  : REC_FMT_LEAF_FLEXIBLE,
 						  ULINT_UNDEFINED, heap);
 		}
 
@@ -1972,7 +1978,8 @@ all_done:
 		return(DB_SUCCESS);
 	}
 
-	offsets = rec_get_offsets(btr_pcur_get_rec(&pcur), index, NULL, true,
+	offsets = rec_get_offsets(btr_pcur_get_rec(&pcur), index, NULL,
+				  REC_FMT_LEAF,
 				  ULINT_UNDEFINED, &offsets_heap);
 #if defined UNIV_DEBUG || defined UNIV_BLOB_LIGHT_DEBUG
 	ut_a(!rec_offs_any_null_extern(btr_pcur_get_rec(&pcur), offsets));
@@ -2169,7 +2176,7 @@ func_exit_committed:
 
 	/* Prepare to update (or delete) the record. */
 	ulint*		cur_offsets	= rec_get_offsets(
-		btr_pcur_get_rec(&pcur), index, NULL, true,
+		btr_pcur_get_rec(&pcur), index, NULL, REC_FMT_LEAF,
 		ULINT_UNDEFINED, &offsets_heap);
 
 	if (!log->same_pk) {

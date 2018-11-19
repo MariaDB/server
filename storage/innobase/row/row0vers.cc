@@ -92,8 +92,6 @@ row_vers_impl_x_locked_low(
 	mtr_t*		mtr)
 {
 	trx_id_t	trx_id;
-	ulint		comp;
-	ulint		rec_del;
 	const rec_t*	version;
 	rec_t*		prev_version = NULL;
 	ulint*		clust_offsets;
@@ -117,8 +115,11 @@ row_vers_impl_x_locked_low(
 
 	heap = mem_heap_create(1024);
 
+	const rec_fmt_t format = page_rec_is_comp(clust_rec)
+		? REC_FMT_LEAF : REC_FMT_LEAF_FLEXIBLE;
+
 	clust_offsets = rec_get_offsets(
-		clust_rec, clust_index, NULL, true, ULINT_UNDEFINED, &heap);
+		clust_rec, clust_index, NULL, format, ULINT_UNDEFINED, &heap);
 
 	trx_id = row_get_rec_trx_id(clust_rec, clust_index, clust_offsets);
 	if (trx_id == 0) {
@@ -147,12 +148,12 @@ row_vers_impl_x_locked_low(
 		}
 	}
 
-	comp = page_rec_is_comp(rec);
 	ut_ad(index->table == clust_index->table);
-	ut_ad(!!comp == dict_table_is_comp(index->table));
-	ut_ad(!comp == !page_rec_is_comp(clust_rec));
+	ut_ad(!!page_rec_is_comp(rec) == index->table->not_redundant());
+	ut_ad(page_rec_is_comp(rec) == page_rec_is_comp(clust_rec)
+	      || (page_rec_is_comp(rec) && clust_index->dual_format()));
 
-	rec_del = rec_get_deleted_flag(rec, comp);
+	const ulint rec_del = rec_get_deleted_flag(rec, page_rec_is_comp(rec));
 
 	if (dict_index_has_virtual(index)) {
 		ulint	n_ext;
@@ -201,7 +202,7 @@ row_vers_impl_x_locked_low(
 		delete-marked, because we never start a transaction by
 		inserting a delete-marked record. */
 		ut_ad(prev_version
-		      || !rec_get_deleted_flag(version, comp)
+		      || !rec_get_deleted_flag(version, format == REC_FMT_LEAF)
 		      || !trx_sys.is_registered(caller_trx, trx_id));
 
 		/* Free version and clust_offsets. */
@@ -234,10 +235,11 @@ row_vers_impl_x_locked_low(
 		}
 
 		clust_offsets = rec_get_offsets(
-			prev_version, clust_index, NULL, true,
+			prev_version, clust_index, NULL, format,
 			ULINT_UNDEFINED, &heap);
 
-		vers_del = rec_get_deleted_flag(prev_version, comp);
+		vers_del = rec_get_deleted_flag(prev_version,
+						format == REC_FMT_LEAF);
 
 		prev_trx_id = row_get_rec_trx_id(prev_version, clust_index,
 						 clust_offsets);
@@ -545,6 +547,8 @@ row_vers_build_cur_vrow_low(
 	const ulint	status = in_purge
 		? TRX_UNDO_PREV_IN_PURGE | TRX_UNDO_GET_OLD_V_VALUE
 		: TRX_UNDO_GET_OLD_V_VALUE;
+	const rec_fmt_t format = page_rec_is_comp(rec)
+		? REC_FMT_LEAF : REC_FMT_LEAF_FLEXIBLE;
 
 	while (!all_filled) {
 		mem_heap_t*	heap2 = heap;
@@ -566,8 +570,8 @@ row_vers_build_cur_vrow_low(
 		}
 
 		clust_offsets = rec_get_offsets(prev_version, clust_index,
-						NULL,
-						true, ULINT_UNDEFINED, &heap);
+						NULL, format,
+						ULINT_UNDEFINED, &heap);
 
 		ulint	entry_len = dict_index_get_n_fields(index);
 
@@ -685,6 +689,8 @@ row_vers_vc_matches_cluster(
 	}
 
 	version = rec;
+	const rec_fmt_t format = page_rec_is_comp(rec)
+		? REC_FMT_LEAF : REC_FMT_LEAF_FLEXIBLE;
 
 	/* If this is called by purge thread, set TRX_UNDO_PREV_IN_PURGE
 	bit to search the undo log until we hit the current undo log with
@@ -715,8 +721,8 @@ row_vers_vc_matches_cluster(
 		}
 
 		clust_offsets = rec_get_offsets(prev_version, clust_index,
-						NULL,
-						true, ULINT_UNDEFINED, &heap);
+						NULL, format,
+						ULINT_UNDEFINED, &heap);
 
 		ulint	entry_len = dict_index_get_n_fields(index);
 
@@ -851,7 +857,10 @@ row_vers_build_cur_vrow(
 			index, roll_ptr, trx_id, v_heap, &cur_vrow, mtr);
 	}
 
-	*clust_offsets = rec_get_offsets(rec, clust_index, NULL, true,
+	*clust_offsets = rec_get_offsets(rec, clust_index, *clust_offsets,
+					 rec_offs_comp(*clust_offsets)
+					 ? REC_FMT_LEAF
+					 : REC_FMT_LEAF_FLEXIBLE,
 					 ULINT_UNDEFINED, &heap);
 	return(cur_vrow);
 }
@@ -893,7 +902,6 @@ row_vers_old_has_index_entry(
 	mem_heap_t*	heap2;
 	dtuple_t*	row;
 	const dtuple_t*	entry;
-	ulint		comp;
 	const dtuple_t*	vrow = NULL;
 	mem_heap_t*	v_heap = NULL;
 	const dtuple_t*	cur_vrow = NULL;
@@ -904,10 +912,11 @@ row_vers_old_has_index_entry(
 
 	clust_index = dict_table_get_first_index(index->table);
 
-	comp = page_rec_is_comp(rec);
-	ut_ad(!dict_table_is_comp(index->table) == !comp);
+	const ulint comp = page_rec_is_comp(rec);
+	ut_ad(!index->table->not_redundant() == !comp || index->dual_format());
 	heap = mem_heap_create(1024);
-	clust_offsets = rec_get_offsets(rec, clust_index, NULL, true,
+	clust_offsets = rec_get_offsets(rec, clust_index, NULL, comp
+					? REC_FMT_LEAF : REC_FMT_LEAF_FLEXIBLE,
 					ULINT_UNDEFINED, &heap);
 
 	if (dict_index_has_virtual(index)) {
@@ -991,9 +1000,10 @@ row_vers_old_has_index_entry(
 					goto safe_to_purge;
 				}
 			}
-			clust_offsets = rec_get_offsets(rec, clust_index, NULL,
-							true,
-							ULINT_UNDEFINED, &heap);
+			clust_offsets = rec_get_offsets(
+				rec, clust_index, NULL,
+				comp ? REC_FMT_LEAF : REC_FMT_LEAF_FLEXIBLE,
+				ULINT_UNDEFINED, &heap);
 		} else {
 
 			entry = row_build_index_entry(
@@ -1071,9 +1081,10 @@ unsafe_to_purge:
 			return false;
 		}
 
-		clust_offsets = rec_get_offsets(prev_version, clust_index,
-						NULL, true,
-						ULINT_UNDEFINED, &heap);
+		clust_offsets = rec_get_offsets(
+			prev_version, clust_index, NULL,
+			comp ? REC_FMT_LEAF : REC_FMT_LEAF_FLEXIBLE,
+			ULINT_UNDEFINED, &heap);
 
 		if (dict_index_has_virtual(index)) {
 			if (vrow) {
@@ -1212,8 +1223,9 @@ row_vers_build_for_consistent_read(
 		}
 
 		*offsets = rec_get_offsets(
-			prev_version, index, *offsets,
-			true, ULINT_UNDEFINED, offset_heap);
+			prev_version, index, *offsets, rec_offs_comp(*offsets)
+			? REC_FMT_LEAF : REC_FMT_LEAF_FLEXIBLE,
+			ULINT_UNDEFINED, offset_heap);
 
 #if defined UNIV_DEBUG || defined UNIV_BLOB_LIGHT_DEBUG
 		ut_a(!rec_offs_any_null_extern(prev_version, *offsets));
@@ -1329,11 +1341,11 @@ committed_version_trx:
 				semi-consistent read. */
 
 				version = rec;
-				*offsets = rec_get_offsets(version,
-							   index, *offsets,
-							   true,
-							   ULINT_UNDEFINED,
-							   offset_heap);
+				*offsets = rec_get_offsets(
+					version, index, *offsets,
+					rec_offs_comp(*offsets)
+					? REC_FMT_LEAF : REC_FMT_LEAF_FLEXIBLE,
+					ULINT_UNDEFINED, offset_heap);
 			}
 
 			buf = static_cast<byte*>(
@@ -1376,7 +1388,10 @@ committed_version_trx:
 		}
 
 		version = prev_version;
-		*offsets = rec_get_offsets(version, index, *offsets, true,
+		*offsets = rec_get_offsets(version, index, *offsets,
+					   rec_offs_comp(*offsets)
+					   ? REC_FMT_LEAF
+					   : REC_FMT_LEAF_FLEXIBLE,
 					   ULINT_UNDEFINED, offset_heap);
 #if defined UNIV_DEBUG || defined UNIV_BLOB_LIGHT_DEBUG
 		ut_a(!rec_offs_any_null_extern(version, *offsets));

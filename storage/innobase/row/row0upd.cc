@@ -999,8 +999,7 @@ row_upd_build_difference_binary(
 	ulint		n_v_fld = dtuple_get_n_v_fields(entry);
 	rec_offs_init(offsets_);
 
-	/* This function is used only for a clustered index */
-	ut_a(dict_index_is_clust(index));
+	ut_ad(index->is_primary());
 	ut_ad(!index->table->skip_alter_undo);
 
 	update = upd_create(n_fld + n_v_fld, heap);
@@ -1008,7 +1007,10 @@ row_upd_build_difference_binary(
 	n_diff = 0;
 
 	if (!offsets) {
-		offsets = rec_get_offsets(rec, index, offsets_, true,
+		offsets = rec_get_offsets(rec, index, offsets_,
+					  page_rec_is_comp(rec)
+					  ? REC_FMT_LEAF
+					  : REC_FMT_LEAF_FLEXIBLE,
 					  ULINT_UNDEFINED, &heap);
 	} else {
 		ut_ad(rec_offs_validate(rec, index, offsets));
@@ -2220,7 +2222,9 @@ row_upd_store_row(
 
 	rec = btr_pcur_get_rec(node->pcur);
 
-	offsets = rec_get_offsets(rec, clust_index, offsets_, true,
+	offsets = rec_get_offsets(rec, clust_index, offsets_,
+				  page_rec_is_comp(rec)
+				  ? REC_FMT_LEAF : REC_FMT_LEAF_FLEXIBLE,
 				  ULINT_UNDEFINED, &heap);
 
 	if (dict_table_has_atomic_blobs(node->table)) {
@@ -2447,7 +2451,8 @@ row_upd_sec_index_entry(
 			    && !wsrep_thd_is_BF(trx->mysql_thd, FALSE)) {
 
 				ulint*	offsets = rec_get_offsets(
-					rec, index, NULL, true,
+					rec, index, NULL, page_rec_is_comp(rec)
+					? REC_FMT_LEAF : REC_FMT_LEAF_FLEXIBLE,
 					ULINT_UNDEFINED, &heap);
 
 				err = wsrep_row_upd_check_foreign_constraints(
@@ -2481,11 +2486,10 @@ row_upd_sec_index_entry(
 
 		if (referenced) {
 
-			ulint*	offsets;
-
-			offsets = rec_get_offsets(
-				rec, index, NULL, true, ULINT_UNDEFINED,
-				&heap);
+			ulint*	offsets = rec_get_offsets(
+				rec, index, NULL, page_rec_is_comp(rec)
+				? REC_FMT_LEAF : REC_FMT_LEAF_FLEXIBLE,
+				ULINT_UNDEFINED, &heap);
 
 			/* NOTE that the following call loses
 			the position of pcur ! */
@@ -2707,7 +2711,10 @@ row_upd_clust_rec_by_insert(
 		we update the primary key.  Delete-mark the old record
 		in the clustered index and prepare to insert a new entry. */
 		rec = btr_cur_get_rec(btr_cur);
-		offsets = rec_get_offsets(rec, index, NULL, true,
+		offsets = rec_get_offsets(rec, index, NULL,
+					  page_rec_is_comp(rec)
+					  ? REC_FMT_LEAF
+					  : REC_FMT_LEAF_FLEXIBLE,
 					  ULINT_UNDEFINED, &heap);
 		ut_ad(page_rec_is_user_rec(rec));
 
@@ -3139,7 +3146,8 @@ row_upd_clust_step(
 	}
 
 	rec = btr_pcur_get_rec(pcur);
-	offsets = rec_get_offsets(rec, index, offsets_, true,
+	offsets = rec_get_offsets(rec, index, offsets_, page_rec_is_comp(rec)
+				  ? REC_FMT_LEAF : REC_FMT_LEAF_FLEXIBLE,
 				  ULINT_UNDEFINED, &heap);
 
 	if (!flags && !node->has_clust_rec_x_lock) {

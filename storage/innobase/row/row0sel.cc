@@ -151,20 +151,22 @@ NOTE: the comparison is NOT done as a binary comparison, but character
 fields are compared with collation!
 @param[in]	sec_rec		secondary index record
 @param[in]	sec_index	secondary index
-@param[in]	clust_rec	clustered index record;
+@param[in]	clust_rec	clustered index record or a copy of it;
 				must be protected by a page s-latch
 @param[in]	clust_index	clustered index
+@param[in]	offsets		rec_get_offsets(clust_rec, clust_index)
 @param[in]	thr		query thread
 @return TRUE if the secondary record is equal to the corresponding
 fields in the clustered record, when compared with collation;
 FALSE if not equal or if the clustered record has been marked for deletion */
 static
-ibool
+bool
 row_sel_sec_rec_is_for_clust_rec(
 	const rec_t*	sec_rec,
 	dict_index_t*	sec_index,
 	const rec_t*	clust_rec,
 	dict_index_t*	clust_index,
+	const ulint*	offsets,
 	que_thr_t*	thr)
 {
 	const byte*	sec_field;
@@ -173,36 +175,34 @@ row_sel_sec_rec_is_for_clust_rec(
 	ulint		n;
 	ulint		i;
 	mem_heap_t*	heap		= NULL;
-	ulint		clust_offsets_[REC_OFFS_NORMAL_SIZE];
 	ulint		sec_offsets_[REC_OFFS_SMALL_SIZE];
-	ulint*		clust_offs	= clust_offsets_;
 	ulint*		sec_offs	= sec_offsets_;
-	ibool		is_equal	= TRUE;
 	VCOL_STORAGE*	vcol_storage= 0;
 	byte*		record;
 
-	rec_offs_init(clust_offsets_);
-	rec_offs_init(sec_offsets_);
+	ut_ad(page_rec_is_leaf(sec_rec));
+	ut_ad(clust_index->is_primary());
+	ut_ad(rec_offs_validate(clust_rec, clust_index, offsets));
 
-	if (rec_get_deleted_flag(clust_rec,
-				 dict_table_is_comp(clust_index->table))) {
+	if (rec_get_deleted_flag(clust_rec, rec_offs_comp(offsets))) {
 		/* In delete-marked records, DB_TRX_ID must
 		always refer to an existing undo log record. */
-		ut_ad(rec_get_trx_id(clust_rec, clust_index));
-
+		ut_ad(row_get_rec_trx_id(clust_rec, clust_index, offsets));
 		/* The clustered index record is delete-marked;
 		it is not visible in the read view.  Besides,
 		if there are any externally stored columns,
 		some of them may have already been purged. */
-		return(FALSE);
+		return false;
 	}
+
+	rec_offs_init(sec_offsets_);
 
 	heap = mem_heap_create(256);
 
-	clust_offs = rec_get_offsets(clust_rec, clust_index, clust_offs,
-				     true, ULINT_UNDEFINED, &heap);
 	sec_offs = rec_get_offsets(sec_rec, sec_index, sec_offs,
-				   true, ULINT_UNDEFINED, &heap);
+				   REC_FMT_LEAF, ULINT_UNDEFINED, &heap);
+
+	bool equal = false;
 
 	n = dict_index_get_n_ordering_defined_by_user(sec_index);
 
@@ -241,8 +241,7 @@ row_sel_sec_rec_is_for_clust_rec(
 			v_col = reinterpret_cast<const dict_v_col_t*>(col);
 
 			row = row_build(ROW_COPY_POINTERS,
-					clust_index, clust_rec,
-					clust_offs,
+					clust_index, clust_rec, offsets,
 					NULL, NULL, NULL, &ext, heap);
 
 			vfield = innobase_get_computed_value(
@@ -256,9 +255,9 @@ row_sel_sec_rec_is_for_clust_rec(
 			clust_field = static_cast<byte*>(vfield->data);
 		} else {
 			clust_pos = dict_col_get_clust_pos(col, clust_index);
-			ut_ad(!rec_offs_nth_default(clust_offs, clust_pos));
+			ut_ad(!rec_offs_nth_default(offsets, clust_pos));
 			clust_field = rec_get_nth_field(
-				clust_rec, clust_offs, clust_pos, &clust_len);
+				clust_rec, offsets, clust_pos, &clust_len);
 		}
 
 		sec_field = rec_get_nth_field(sec_rec, sec_offs, i, &sec_len);
@@ -268,7 +267,7 @@ row_sel_sec_rec_is_for_clust_rec(
 		if (ifield->prefix_len > 0 && len != UNIV_SQL_NULL
 		    && sec_len != UNIV_SQL_NULL && !is_virtual) {
 
-			if (rec_offs_nth_extern(clust_offs, clust_pos)) {
+			if (rec_offs_nth_extern(offsets, clust_pos)) {
 				len -= BTR_EXTERN_FIELD_REF_SIZE;
 			}
 
@@ -276,7 +275,7 @@ row_sel_sec_rec_is_for_clust_rec(
 				col->prtype, col->mbminlen, col->mbmaxlen,
 				ifield->prefix_len, len, (char*) clust_field);
 
-			if (rec_offs_nth_extern(clust_offs, clust_pos)
+			if (rec_offs_nth_extern(offsets, clust_pos)
 			    && len < sec_len) {
 				if (!row_sel_sec_rec_is_for_blob(
 					    col->mtype, col->prtype,
@@ -304,7 +303,7 @@ row_sel_sec_rec_is_for_clust_rec(
 
 			/* For externally stored field, we need to get full
 			geo data to generate the MBR for comparing. */
-			if (rec_offs_nth_extern(clust_offs, clust_pos)) {
+			if (rec_offs_nth_extern(offsets, clust_pos)) {
 				dptr = btr_copy_externally_stored_field(
 					&clust_len, dptr,
 					page_size_t(clust_index->table->space
@@ -321,7 +320,6 @@ row_sel_sec_rec_is_for_clust_rec(
 			rtr_read_mbr(sec_field, &sec_mbr);
 
 			if (!MBR_EQUAL_CMP(&sec_mbr, &tmp_mbr)) {
-				is_equal = FALSE;
 				goto func_exit;
 			}
 		} else {
@@ -330,11 +328,12 @@ row_sel_sec_rec_is_for_clust_rec(
 					       clust_field, len,
 					       sec_field, sec_len)) {
 inequal:
-				is_equal = FALSE;
 				goto func_exit;
 			}
 		}
 	}
+
+	equal = true;
 
 func_exit:
 	if (UNIV_LIKELY_NULL(heap)) {
@@ -342,7 +341,7 @@ func_exit:
 			innobase_free_row_for_vcol(vcol_storage);
 		mem_heap_free(heap);
 	}
-	return(is_equal);
+	return equal;
 }
 
 /*********************************************************************//**
@@ -918,7 +917,8 @@ row_sel_get_clust_rec(
 
 	offsets = rec_get_offsets(rec,
 				  btr_pcur_get_btr_cur(&plan->pcur)->index,
-				  offsets, true, ULINT_UNDEFINED, &heap);
+				  offsets, REC_FMT_LEAF,
+				  ULINT_UNDEFINED, &heap);
 
 	row_build_row_ref_fast(plan->clust_ref, plan->clust_map, rec, offsets);
 
@@ -953,7 +953,9 @@ row_sel_get_clust_rec(
 		goto func_exit;
 	}
 
-	offsets = rec_get_offsets(clust_rec, index, offsets, true,
+	offsets = rec_get_offsets(clust_rec, index, offsets,
+				  page_rec_is_comp(clust_rec)
+				  ? REC_FMT_LEAF : REC_FMT_LEAF_FLEXIBLE,
 				  ULINT_UNDEFINED, &heap);
 
 	if (!node->read_view) {
@@ -1031,11 +1033,11 @@ row_sel_get_clust_rec(
 		exist in our snapshot. */
 
 		if ((old_vers
-		     || rec_get_deleted_flag(rec, dict_table_is_comp(
-						     plan->table)))
+		     || rec_get_deleted_flag(rec,
+					     index->table->not_redundant()))
 		    && !row_sel_sec_rec_is_for_clust_rec(rec, plan->index,
 							 clust_rec, index,
-							 thr)) {
+							 offsets, thr)) {
 			goto func_exit;
 		}
 	}
@@ -1173,7 +1175,8 @@ re_scan:
 
 		rec = btr_pcur_get_rec(pcur);
 		my_offsets = offsets_;
-		my_offsets = rec_get_offsets(rec, index, my_offsets, true,
+		my_offsets = rec_get_offsets(rec, index, my_offsets,
+					     REC_FMT_LEAF,
 					     ULINT_UNDEFINED, &heap);
 
 		/* No match record */
@@ -1196,7 +1199,7 @@ re_scan:
 		rtr_rec_t*	rtr_rec = &(*it);
 
 		my_offsets = rec_get_offsets(
-			rtr_rec->r_rec, index, my_offsets, true,
+			rtr_rec->r_rec, index, my_offsets, REC_FMT_LEAF,
 			ULINT_UNDEFINED, &heap);
 
 		err = lock_sec_rec_read_check_and_lock(
@@ -1514,7 +1517,8 @@ exhausted:
 	ulint		offsets_[REC_OFFS_NORMAL_SIZE];
 	ulint*		offsets		= offsets_;
 	rec_offs_init(offsets_);
-	offsets = rec_get_offsets(rec, index, offsets, true,
+	offsets = rec_get_offsets(rec, index, offsets, page_rec_is_comp(rec)
+				  ? REC_FMT_LEAF : REC_FMT_LEAF_FLEXIBLE,
 				  ULINT_UNDEFINED, &heap);
 
 	if (dict_index_is_clust(index)) {
@@ -1735,7 +1739,9 @@ rec_loop:
 			trx = thr_get_trx(thr);
 
 			offsets = rec_get_offsets(next_rec, index, offsets,
-						  true,
+						  page_rec_is_comp(next_rec)
+						  ? REC_FMT_LEAF
+						  : REC_FMT_LEAF_FLEXIBLE,
 						  ULINT_UNDEFINED, &heap);
 
 			/* If innodb_locks_unsafe_for_binlog option is used
@@ -1800,7 +1806,10 @@ skip_lock:
 		ulint	lock_type;
 		trx_t*	trx;
 
-		offsets = rec_get_offsets(rec, index, offsets, true,
+		offsets = rec_get_offsets(rec, index, offsets,
+					  page_rec_is_comp(rec)
+					  ? REC_FMT_LEAF
+					  : REC_FMT_LEAF_FLEXIBLE,
 					  ULINT_UNDEFINED, &heap);
 
 		trx = thr_get_trx(thr);
@@ -1887,7 +1896,8 @@ skip_lock:
 	/* PHASE 3: Get previous version in a consistent read */
 
 	cons_read_requires_clust_rec = FALSE;
-	offsets = rec_get_offsets(rec, index, offsets, true,
+	offsets = rec_get_offsets(rec, index, offsets, page_rec_is_comp(rec)
+				  ? REC_FMT_LEAF : REC_FMT_LEAF_FLEXIBLE,
 				  ULINT_UNDEFINED, &heap);
 
 	if (consistent_read) {
@@ -1918,7 +1928,10 @@ skip_lock:
 					exhausted. */
 
 					offsets = rec_get_offsets(
-						rec, index, offsets, true,
+						rec, index, offsets,
+						page_rec_is_comp(rec)
+						? REC_FMT_LEAF
+						: REC_FMT_LEAF_FLEXIBLE,
 						ULINT_UNDEFINED, &heap);
 
 					/* Fetch the columns needed in
@@ -1976,7 +1989,7 @@ skip_lock:
 		goto table_exhausted;
 	}
 
-	if (rec_get_deleted_flag(rec, dict_table_is_comp(plan->table))
+	if (rec_get_deleted_flag(rec, page_rec_is_comp(rec))
 	    && !cons_read_requires_clust_rec) {
 
 		/* The record is delete marked: we can skip it if this is
@@ -2021,7 +2034,7 @@ skip_lock:
 		}
 
 		if (rec_get_deleted_flag(clust_rec,
-					 dict_table_is_comp(plan->table))) {
+					 page_rec_is_comp(clust_rec))) {
 			/* In delete-marked records, DB_TRX_ID must
 			always refer to an existing update_undo log record. */
 			ut_ad(rec_get_trx_id(clust_rec,
@@ -3333,7 +3346,7 @@ row_sel_get_clust_rec_for_mysql(
 				__FILE__, __LINE__, mtr, &err);
 			mem_heap_t*	heap = mem_heap_create(256);
 			dtuple_t*       tuple = dict_index_build_data_tuple(
-				rec, sec_index, true,
+				rec, sec_index, REC_FMT_LEAF,
 				sec_index->n_fields, heap);
 			page_cur_t     page_cursor;
 
@@ -3383,7 +3396,9 @@ row_sel_get_clust_rec_for_mysql(
 		goto func_exit;
 	}
 
-	*offsets = rec_get_offsets(clust_rec, clust_index, *offsets, true,
+	*offsets = rec_get_offsets(clust_rec, clust_index, *offsets,
+				   page_rec_is_comp(clust_rec)
+				   ? REC_FMT_LEAF : REC_FMT_LEAF_FLEXIBLE,
 				   ULINT_UNDEFINED, offset_heap);
 
 	if (prebuilt->select_lock_type != LOCK_NONE) {
@@ -3453,10 +3468,11 @@ row_sel_get_clust_rec_for_mysql(
 		    && (old_vers
 			|| trx->isolation_level <= TRX_ISO_READ_UNCOMMITTED
 			|| dict_index_is_spatial(sec_index)
-			|| rec_get_deleted_flag(rec, dict_table_is_comp(
-							sec_index->table)))
+			|| rec_get_deleted_flag(
+				rec, sec_index->table->not_redundant()))
 		    && !row_sel_sec_rec_is_for_clust_rec(
-			    rec, sec_index, clust_rec, clust_index, thr)) {
+			    rec, sec_index, clust_rec, clust_index, *offsets,
+			    thr)) {
 			clust_rec = NULL;
 		}
 
@@ -3838,7 +3854,8 @@ exhausted:
 	/* This is a non-locking consistent read: if necessary, fetch
 	a previous version of the record */
 
-	*offsets = rec_get_offsets(rec, index, *offsets, true,
+	*offsets = rec_get_offsets(rec, index, *offsets, page_rec_is_comp(rec)
+				   ? REC_FMT_LEAF : REC_FMT_LEAF_FLEXIBLE,
 				   ULINT_UNDEFINED, heap);
 
 	if (!lock_clust_rec_cons_read_sees(rec, index, *offsets,
@@ -3972,7 +3989,7 @@ row_sel_fill_vrow(
 	ut_ad(!index->is_instant());
 	ut_ad(page_rec_is_leaf(rec));
 
-	offsets = rec_get_offsets(rec, index, offsets, true,
+	offsets = rec_get_offsets(rec, index, offsets, REC_FMT_LEAF,
 				  ULINT_UNDEFINED, &heap);
 
 	*vrow = dtuple_create_with_vcol(
@@ -4148,7 +4165,6 @@ row_search_mvcc(
 	DBUG_ASSERT(prebuilt->index->table == prebuilt->table);
 
 	dict_index_t*	index		= prebuilt->index;
-	ibool		comp		= dict_table_is_comp(prebuilt->table);
 	const dtuple_t*	search_tuple	= prebuilt->search_tuple;
 	btr_pcur_t*	pcur		= prebuilt->pcur;
 	trx_t*		trx		= prebuilt->trx;
@@ -4369,7 +4385,8 @@ row_search_mvcc(
 				row_sel_try_search_shortcut_for_mysql().
 				The latch will not be released until
 				mtr.commit(). */
-				ut_ad(!rec_get_deleted_flag(rec, comp));
+				ut_ad(!rec_get_deleted_flag(
+					      rec, page_rec_is_comp(rec)));
 
 				if (prebuilt->idx_cond) {
 					switch (row_search_idx_cond_check(
@@ -4592,9 +4609,6 @@ wait_table_again:
 
 		rec = btr_pcur_get_rec(pcur);
 		ut_ad(page_rec_is_leaf(rec));
-		comp = page_rec_is_comp(rec);
-		ut_ad(!!comp == prebuilt->table->not_redundant()
-		      || index->dual_format());
 
 		if (!moves_up
 		    && !page_rec_is_supremum(rec)
@@ -4609,7 +4623,9 @@ wait_table_again:
 			const rec_t*	next_rec = page_rec_get_next_const(rec);
 
 			offsets = rec_get_offsets(next_rec, index, offsets,
-						  true,
+						  page_rec_is_comp(rec)
+						  ? REC_FMT_LEAF
+						  : REC_FMT_LEAF_FLEXIBLE,
 						  ULINT_UNDEFINED, &heap);
 			err = sel_set_rec_lock(pcur,
 					       next_rec, index, offsets,
@@ -4659,14 +4675,16 @@ rec_loop:
 	/*-------------------------------------------------------------*/
 	/* PHASE 4: Look for matching records in a loop */
 
-	rec = btr_pcur_get_rec(pcur);
-
 	if (!index->table->is_readable()) {
 		err = DB_DECRYPTION_FAILED;
+		rec = NULL;
 		goto lock_wait_or_error;
 	}
 
-	ut_ad(!page_rec_is_comp(rec) == !comp);
+	rec = btr_pcur_get_rec(pcur);
+
+	ut_ad(!!page_rec_is_comp(rec) == index->table->not_redundant()
+	      || index->dual_format());
 	ut_ad(page_rec_is_leaf(rec));
 
 	if (page_rec_is_infimum(rec)) {
@@ -4693,7 +4711,10 @@ rec_loop:
 			level we do not lock gaps. Supremum record is really
 			a gap and therefore we do not set locks there. */
 
-			offsets = rec_get_offsets(rec, index, offsets, true,
+			offsets = rec_get_offsets(rec, index, offsets,
+						  page_rec_is_comp(rec)
+						  ? REC_FMT_LEAF
+						  : REC_FMT_LEAF_FLEXIBLE,
 						  ULINT_UNDEFINED, &heap);
 			err = sel_set_rec_lock(pcur,
 					       rec, index, offsets,
@@ -4721,10 +4742,7 @@ rec_loop:
 	/* Do sanity checks in case our cursor has bumped into page
 	corruption */
 
-	comp = page_rec_is_comp(rec);
-	ut_ad(!!comp == prebuilt->table->not_redundant()
-	      || index->dual_format());
-	if (comp) {
+	if (page_rec_is_comp(rec)) {
 		if (rec_get_info_bits(rec, true) & REC_INFO_MIN_REC_FLAG) {
 			/* Skip the metadata pseudo-record. */
 			ut_ad(index->is_instant());
@@ -4798,7 +4816,8 @@ wrong_offs:
 	ut_ad(fil_page_index_page_check(btr_pcur_get_page(pcur)));
 	ut_ad(btr_page_get_index_id(btr_pcur_get_page(pcur)) == index->id);
 
-	offsets = rec_get_offsets(rec, index, offsets, true,
+	offsets = rec_get_offsets(rec, index, offsets, page_rec_is_comp(rec)
+				  ? REC_FMT_LEAF : REC_FMT_LEAF_FLEXIBLE,
 				  ULINT_UNDEFINED, &heap);
 
 	if (UNIV_UNLIKELY(srv_force_recovery > 0)) {
@@ -4938,7 +4957,8 @@ wrong_offs:
 			/* At READ COMMITTED or READ UNCOMMITTED
 			isolation levels, do not lock committed
 			delete-marked records. */
-			if (!rec_get_deleted_flag(rec, comp)) {
+			if (!rec_get_deleted_flag(rec,
+						  page_rec_is_comp(rec))) {
 				goto no_gap_lock;
 			}
 
@@ -4978,7 +4998,8 @@ wrong_offs:
 		}
 
 		if (!set_also_gap_locks
-		    || (unique_search && !rec_get_deleted_flag(rec, comp))
+		    || (unique_search
+			&& !rec_get_deleted_flag(rec, page_rec_is_comp(rec)))
 		    || dict_index_is_spatial(index)) {
 
 			goto no_gap_lock;
@@ -5061,7 +5082,9 @@ no_gap_lock:
 				Do a normal locking read. */
 
 				offsets = rec_get_offsets(
-					rec, index, offsets, true,
+					rec, index, offsets,
+					page_rec_is_comp(rec)
+					? REC_FMT_LEAF : REC_FMT_LEAF_FLEXIBLE,
 					ULINT_UNDEFINED, &heap);
 				goto locks_ok;
 			case DB_DEADLOCK:
@@ -5179,7 +5202,7 @@ locks_ok:
 	point that rec is on a buffer pool page. Functions like
 	page_rec_is_comp() cannot be used! */
 
-	if (rec_get_deleted_flag(rec, comp)) {
+	if (rec_get_deleted_flag(rec, rec_offs_comp(offsets))) {
 locks_ok_del_marked:
 		/* In delete-marked records, DB_TRX_ID must
 		always refer to an existing undo log record. */
@@ -5281,13 +5304,8 @@ requires_clust_rec:
 			goto lock_wait_or_error;
 		}
 
-#if 0 // TODO: do this inside row_sel_get_clust_rec_for_mysql()
-		comp = page_rec_is_comp(clust_rec);
-		ut_ad(!!comp == prebuilt->table->not_redundant()
-		      || index->dual_format());
-#endif
-
-		if (rec_get_deleted_flag(clust_rec, comp)) {
+		if (rec_get_deleted_flag(clust_rec,
+					 page_rec_is_comp(clust_rec))) {
 
 			/* The record is delete marked: we can skip it */
 
@@ -5345,7 +5363,7 @@ use_covering_index:
 	ut_ad(rec_offs_validate(result_rec,
 				result_rec != rec ? clust_index : index,
 				offsets));
-	ut_ad(!rec_get_deleted_flag(result_rec, comp));
+	ut_ad(!rec_get_deleted_flag(result_rec, rec_offs_comp(offsets)));
 
 	/* Decide whether to prefetch extra rows.
 	At this point, the clustered index record is protected
@@ -5438,12 +5456,10 @@ use_covering_index:
 				/* We used 'offsets' for the clust
 				rec, recalculate them for 'rec' */
 				offsets = rec_get_offsets(rec, index, offsets,
-							  true,
+							  REC_FMT_LEAF,
 							  ULINT_UNDEFINED,
 							  &heap);
 				result_rec = rec;
-				comp = prebuilt->table->not_redundant();
-				ut_ad(!comp == !rec_offs_comp(offsets));
 			}
 
 			memcpy(buf + 4, result_rec
@@ -5893,7 +5909,8 @@ row_search_autoinc_read_column(
 	rec_offs_init(offsets_);
 	ut_ad(page_rec_is_leaf(rec));
 
-	offsets = rec_get_offsets(rec, index, offsets, true,
+	offsets = rec_get_offsets(rec, index, offsets, page_rec_is_comp(rec)
+				  ? REC_FMT_LEAF : REC_FMT_LEAF_FLEXIBLE,
 				  col_no + 1, &heap);
 
 	if (rec_offs_nth_sql_null(offsets, col_no)) {

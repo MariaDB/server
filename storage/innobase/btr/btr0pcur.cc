@@ -302,6 +302,7 @@ btr_pcur_restore_position_func(
 				btr_pcur_get_block(cursor),
 				dict_index_is_ibuf(index)
 				? SYNC_IBUF_TREE_NODE : SYNC_TREE_NODE);
+			ut_ad(page_rec_is_leaf(btr_pcur_get_rec(cursor)));
 
 			if (cursor->rel_pos == BTR_PCUR_ON) {
 #ifdef UNIV_DEBUG
@@ -312,10 +313,12 @@ btr_pcur_restore_position_func(
 
 				heap = mem_heap_create(256);
 				offsets1 = rec_get_offsets(
-					cursor->old_rec, index, NULL, true,
+					cursor->old_rec, index, NULL,
+					REC_FMT_LEAF,
 					cursor->old_n_fields, &heap);
 				offsets2 = rec_get_offsets(
-					rec, index, NULL, true,
+					rec, index, NULL, page_rec_is_comp(rec)
+					? REC_FMT_LEAF : REC_FMT_LEAF_FLEXIBLE,
 					cursor->old_n_fields, &heap);
 
 				ut_ad(!cmp_rec_rec(cursor->old_rec,
@@ -340,7 +343,8 @@ btr_pcur_restore_position_func(
 
 	heap = mem_heap_create(256);
 
-	tuple = dict_index_build_data_tuple(cursor->old_rec, index, true,
+	tuple = dict_index_build_data_tuple(cursor->old_rec, index,
+					    REC_FMT_LEAF,
 					    cursor->old_n_fields, heap);
 
 	/* Save the old search mode of the cursor */
@@ -378,7 +382,12 @@ btr_pcur_restore_position_func(
 	    && btr_pcur_is_on_user_rec(cursor)
 	    && !cmp_dtuple_rec(tuple, btr_pcur_get_rec(cursor),
 			       rec_get_offsets(btr_pcur_get_rec(cursor),
-					       index, NULL, true,
+					       index, NULL,
+					       page_rec_is_comp(
+						       btr_pcur_get_rec(
+							       cursor))
+					       ? REC_FMT_LEAF
+					       : REC_FMT_LEAF_FLEXIBLE,
 					       ULINT_UNDEFINED, &heap))) {
 
 		/* We have to store the NEW value for the modify clock,

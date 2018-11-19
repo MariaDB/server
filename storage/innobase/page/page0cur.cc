@@ -109,9 +109,14 @@ page_cur_try_search_shortcut(
 
 	ut_ad(dtuple_check_typed(tuple));
 	ut_ad(page_is_leaf(page));
+	ut_ad(!!page_is_comp(page) == index->table->not_redundant()
+	      || index->dual_format());
+
+	const rec_fmt_t format = page_is_comp(page)
+		? REC_FMT_LEAF : REC_FMT_LEAF_FLEXIBLE;
 
 	rec = page_header_get_ptr(page, PAGE_LAST_INSERT);
-	offsets = rec_get_offsets(rec, index, offsets, true,
+	offsets = rec_get_offsets(rec, index, offsets, format,
 				  dtuple_get_n_fields(tuple), &heap);
 
 	ut_ad(rec);
@@ -126,7 +131,7 @@ page_cur_try_search_shortcut(
 
 	next_rec = page_rec_get_next_const(rec);
 	if (!page_rec_is_supremum(next_rec)) {
-		offsets = rec_get_offsets(next_rec, index, offsets, true,
+		offsets = rec_get_offsets(next_rec, index, offsets, format,
 					  dtuple_get_n_fields(tuple), &heap);
 
 		if (cmp_dtuple_rec_with_match(tuple, next_rec, offsets,
@@ -193,9 +198,13 @@ page_cur_try_search_shortcut_bytes(
 
 	ut_ad(dtuple_check_typed(tuple));
 	ut_ad(page_is_leaf(page));
+	ut_ad(!!page_is_comp(page) == index->table->not_redundant()
+	      || index->dual_format());
+	const rec_fmt_t format = page_is_comp(page)
+		? REC_FMT_LEAF : REC_FMT_LEAF_FLEXIBLE;
 
 	rec = page_header_get_ptr(page, PAGE_LAST_INSERT);
-	offsets = rec_get_offsets(rec, index, offsets, true,
+	offsets = rec_get_offsets(rec, index, offsets, format,
 				  dtuple_get_n_fields(tuple), &heap);
 
 	ut_ad(rec);
@@ -216,7 +225,7 @@ page_cur_try_search_shortcut_bytes(
 
 	next_rec = page_rec_get_next_const(rec);
 	if (!page_rec_is_supremum(next_rec)) {
-		offsets = rec_get_offsets(next_rec, index, offsets, true,
+		offsets = rec_get_offsets(next_rec, index, offsets, format,
 					  dtuple_get_n_fields(tuple), &heap);
 
 		if (cmp_dtuple_rec_with_match_bytes(
@@ -357,10 +366,11 @@ page_cur_search_with_match(
 #endif /* UNIV_ZIP_DEBUG */
 
 	ut_d(page_check_dir(page));
-	const bool is_leaf = page_is_leaf(page);
+	ut_ad(!!page_is_comp(page) == index->table->not_redundant()
+	      || (page_is_leaf(page) && index->dual_format()));
 
 #ifdef BTR_CUR_HASH_ADAPT
-	if (is_leaf
+	if (page_is_leaf(page)
 	    && page_get_direction(page) == PAGE_RIGHT
 	    && page_header_get_offs(page, PAGE_LAST_INSERT)
 	    && mode == PAGE_CUR_LE
@@ -378,12 +388,16 @@ page_cur_search_with_match(
 # endif
 #endif /* BTR_CUR_HASH_ADAPT */
 
+	const rec_fmt_t format = page_is_leaf(page)
+		? (page_is_comp(page) ? REC_FMT_LEAF : REC_FMT_LEAF_FLEXIBLE)
+		: REC_FMT_NODE_PTR;
+
 	/* If the mode is for R-tree indexes, use the special MBR
 	related compare functions */
 	if (dict_index_is_spatial(index) && mode > PAGE_CUR_LE) {
 		/* For leaf level insert, we still use the traditional
 		compare function for now */
-		if (mode == PAGE_CUR_RTREE_INSERT && is_leaf) {
+		if (mode == PAGE_CUR_RTREE_INSERT && page_is_leaf(page)) {
 			mode = PAGE_CUR_LE;
 		} else {
 			rtr_cur_search_with_match(
@@ -428,7 +442,7 @@ page_cur_search_with_match(
 
 		offsets = offsets_;
 		offsets = rec_get_offsets(
-			mid_rec, index, offsets, is_leaf,
+			mid_rec, index, offsets, format,
 			dtuple_get_n_fields_cmp(tuple), &heap);
 
 		cmp = cmp_dtuple_rec_with_match(
@@ -482,7 +496,7 @@ up_slot_match:
 
 		offsets = offsets_;
 		offsets = rec_get_offsets(
-			mid_rec, index, offsets, is_leaf,
+			mid_rec, index, offsets, format,
 			dtuple_get_n_fields_cmp(tuple), &heap);
 
 		cmp = cmp_dtuple_rec_with_match(
@@ -663,7 +677,9 @@ page_cur_search_with_match_bytes(
 
 	/* Perform binary search until the lower and upper limit directory
 	slots come to the distance 1 of each other */
-	const bool is_leaf = page_is_leaf(page);
+	const rec_fmt_t format = page_is_leaf(page)
+		? (page_is_comp(page) ? REC_FMT_LEAF : REC_FMT_LEAF_FLEXIBLE)
+		: REC_FMT_NODE_PTR;
 
 	while (up - low > 1) {
 		mid = (low + up) / 2;
@@ -675,7 +691,7 @@ page_cur_search_with_match_bytes(
 			    up_matched_fields, up_matched_bytes);
 
 		offsets = rec_get_offsets(
-			mid_rec, index, offsets_, is_leaf,
+			mid_rec, index, offsets_, format,
 			dtuple_get_n_fields_cmp(tuple), &heap);
 
 		cmp = cmp_dtuple_rec_with_match_bytes(
@@ -743,7 +759,7 @@ up_slot_match:
 		}
 
 		offsets = rec_get_offsets(
-			mid_rec, index, offsets_, is_leaf,
+			mid_rec, index, offsets_, format,
 			dtuple_get_n_fields_cmp(tuple), &heap);
 
 		cmp = cmp_dtuple_rec_with_match_bytes(
@@ -854,10 +870,13 @@ page_cur_insert_rec_write_log(
 	ut_a(rec_size < srv_page_size);
 	ut_ad(mtr->is_named_space(index->table->space));
 	ut_ad(page_align(insert_rec) == page_align(cursor_rec));
-	ut_ad(!page_rec_is_comp(insert_rec)
-	      == !dict_table_is_comp(index->table));
+	ut_ad(!!page_rec_is_comp(cursor_rec) == index->table->not_redundant()
+	      || (page_rec_is_leaf(cursor_rec) && index->dual_format()));
 
-	const bool is_leaf = page_rec_is_leaf(cursor_rec);
+	const rec_fmt_t format = page_rec_is_leaf(cursor_rec)
+		? (page_rec_is_comp(cursor_rec)
+		   ? REC_FMT_LEAF : REC_FMT_LEAF_FLEXIBLE)
+		: REC_FMT_NODE_PTR;
 
 	{
 		mem_heap_t*	heap		= NULL;
@@ -871,9 +890,9 @@ page_cur_insert_rec_write_log(
 		rec_offs_init(ins_offs_);
 
 		cur_offs = rec_get_offsets(cursor_rec, index, cur_offs_,
-					   is_leaf, ULINT_UNDEFINED, &heap);
+					   format, ULINT_UNDEFINED, &heap);
 		ins_offs = rec_get_offsets(insert_rec, index, ins_offs_,
-					   is_leaf, ULINT_UNDEFINED, &heap);
+					   format, ULINT_UNDEFINED, &heap);
 
 		extra_size = rec_offs_extra_size(ins_offs);
 		cur_extra_size = rec_offs_extra_size(cur_offs);
@@ -1131,9 +1150,10 @@ page_cur_parse_insert_rec(
 	/* Read from the log the inserted index record end segment which
 	differs from the cursor record */
 
-	const bool is_leaf = page_is_leaf(page);
+	const rec_fmt_t format = page_is_leaf(page)
+		? REC_FMT_LEAF : REC_FMT_NODE_PTR;
 
-	offsets = rec_get_offsets(cursor_rec, index, offsets, is_leaf,
+	offsets = rec_get_offsets(cursor_rec, index, offsets, format,
 				  ULINT_UNDEFINED, &heap);
 
 	if (!(end_seg_len & 0x1UL)) {
@@ -1182,7 +1202,7 @@ page_cur_parse_insert_rec(
 	page_cur_position(cursor_rec, block, &cursor);
 
 	offsets = rec_get_offsets(buf + origin_offset, index, offsets,
-				  is_leaf, ULINT_UNDEFINED, &heap);
+				  format, ULINT_UNDEFINED, &heap);
 	if (UNIV_UNLIKELY(!page_cur_rec_insert(&cursor,
 					       buf + origin_offset,
 					       index, offsets, mtr))) {
@@ -1305,6 +1325,12 @@ page_cur_insert_rec_low(
 	}
 #endif /* UNIV_DEBUG_VALGRIND */
 
+	ut_ad(!!page_is_comp(page) == index->table->not_redundant()
+	      || (page_is_leaf(page) && index->dual_format()));
+	const rec_fmt_t format = page_is_leaf(page)
+		? (page_is_comp(page) ? REC_FMT_LEAF : REC_FMT_LEAF_FLEXIBLE)
+		: REC_FMT_NODE_PTR;
+
 	/* 2. Try to find suitable space from page memory management */
 
 	free_rec = page_header_get_ptr(page, PAGE_FREE);
@@ -1317,7 +1343,7 @@ page_cur_insert_rec_low(
 		rec_offs_init(foffsets_);
 
 		foffsets = rec_get_offsets(
-			free_rec, index, foffsets, page_is_leaf(page),
+			free_rec, index, foffsets, format,
 			ULINT_UNDEFINED, &heap);
 		if (rec_offs_size(foffsets) < rec_size) {
 			if (UNIV_LIKELY_NULL(heap)) {
@@ -1357,7 +1383,8 @@ use_heap:
 
 	/* 3. Create the record */
 	insert_rec = rec_copy(insert_buf, rec, offsets);
-	rec_offs_make_valid(insert_rec, index, page_is_leaf(page), offsets);
+	rec_offs_make_valid(insert_rec, index, format != REC_FMT_NODE_PTR,
+			    offsets);
 
 	/* 4. Insert the record in the linked list of records */
 	ut_ad(current_rec != insert_rec);
@@ -1730,7 +1757,9 @@ page_cur_insert_rec_zip(
 		rec_offs_init(foffsets_);
 
 		foffsets = rec_get_offsets(free_rec, index, foffsets,
-					   page_rec_is_leaf(free_rec),
+					   page_rec_is_leaf(free_rec)
+					   ? REC_FMT_LEAF
+					   : REC_FMT_NODE_PTR,
 					   ULINT_UNDEFINED, &heap);
 		if (rec_offs_size(foffsets) < rec_size) {
 too_small:
@@ -2045,8 +2074,9 @@ page_copy_rec_list_end_to_created_page(
 
 	ut_ad(page_dir_get_n_heap(new_page) == PAGE_HEAP_NO_USER_LOW);
 	ut_ad(page_align(rec) != new_page);
+	ut_ad(page_rec_is_leaf(rec) == page_is_leaf(new_page));
 	ut_ad(page_rec_is_comp(rec) == page_is_comp(new_page)
-	      || index->dual_format());
+	      || (page_is_leaf(new_page) && index->dual_format()));
 	/* In dual-format, we cannot copy from flexible to original format. */
 	ut_ad(page_rec_is_comp(rec) || !page_is_comp(new_page));
 
@@ -2095,8 +2125,17 @@ page_copy_rec_list_end_to_created_page(
 
 	const bool is_leaf = page_is_leaf(new_page);
 
+#if 0 // FIXME: convert to REC_FMT_LEAF_FLEXIBLE while copying
+	if (UNIV_UNLIKELY(page_is_comp(new_page) != page_rec_is_comp(rec))) {
+		ut_ad(index->dual_format());
+		ut_ad(page_is_leaf(new_page));
+		ut_ad(!page_is_comp(new_page));
+	}
+#endif
+
 	do {
-		offsets = rec_get_offsets(rec, index, offsets, is_leaf,
+		offsets = rec_get_offsets(rec, index, offsets, is_leaf
+					  ? REC_FMT_LEAF : REC_FMT_NODE_PTR,
 					  ULINT_UNDEFINED, &heap);
 		insert_rec = rec_copy(heap_top, rec, offsets);
 
@@ -2273,7 +2312,9 @@ page_cur_parse_delete_rec(
 
 		page_cur_delete_rec(&cursor, index,
 				    rec_get_offsets(rec, index, offsets_,
-						    page_rec_is_leaf(rec),
+						    page_rec_is_leaf(rec)
+						    ? REC_FMT_LEAF
+						    : REC_FMT_NODE_PTR,
 						    ULINT_UNDEFINED, &heap),
 				    mtr);
 		if (UNIV_LIKELY_NULL(heap)) {

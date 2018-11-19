@@ -215,7 +215,10 @@ static ulint row_trx_id_offset(const rec_t* rec, const dict_index_t* index)
 		rec_offs_init(offsets_);
 		mem_heap_t* heap = NULL;
 		const ulint trx_id_pos = index->n_uniq ? index->n_uniq : 1;
-		ulint* offsets = rec_get_offsets(rec, index, offsets_, true,
+		ulint* offsets = rec_get_offsets(rec, index, offsets_,
+						 page_rec_is_comp(rec)
+						 ? REC_FMT_LEAF
+						 : REC_FMT_LEAF_FLEXIBLE,
 						 trx_id_pos + 1, &heap);
 		ut_ad(!heap);
 		ulint len;
@@ -399,7 +402,8 @@ row_undo_mod_clust(
 		}
 
 		ut_ad(rec_get_deleted_flag(btr_pcur_get_rec(pcur),
-					   dict_table_is_comp(node->table)));
+					   page_rec_is_comp(
+						   btr_pcur_get_rec(pcur))));
 		if (btr_cur_optimistic_delete(&pcur->btr_cur, 0, &mtr)) {
 			goto mtr_commit_exit;
 		}
@@ -423,7 +427,8 @@ row_undo_mod_clust(
 		}
 
 		ut_ad(rec_get_deleted_flag(btr_pcur_get_rec(pcur),
-					   dict_table_is_comp(node->table)));
+					   page_rec_is_comp(
+						   btr_pcur_get_rec(pcur))));
 
 		/* This operation is analogous to purge, we can free
 		also inherited externally stored fields. We can also
@@ -469,8 +474,9 @@ row_undo_mod_clust(
 					 + 2];
 			rec_offs_init(offsets_);
 			offsets = rec_get_offsets(
-				rec, index, offsets_, true, trx_id_pos + 2,
-				&heap);
+				rec, index, offsets_, page_rec_is_comp(rec)
+				? REC_FMT_LEAF : REC_FMT_LEAF_FLEXIBLE,
+				trx_id_pos + 2, &heap);
 			ulint len;
 			trx_id_offset = rec_get_nth_field_offs(
 				offsets, trx_id_pos, &len);
@@ -857,7 +863,8 @@ try_again:
 		offsets_heap = NULL;
 		offsets = rec_get_offsets(
 			btr_cur_get_rec(btr_cur),
-			index, NULL, true, ULINT_UNDEFINED, &offsets_heap);
+			index, NULL, REC_FMT_LEAF, ULINT_UNDEFINED,
+			&offsets_heap);
 		update = row_upd_build_sec_rec_difference_binary(
 			btr_cur_get_rec(btr_cur), index, offsets, entry, heap);
 		if (upd_get_n_fields(update) == 0) {

@@ -2070,7 +2070,10 @@ row_unlock_for_mysql(
 			ulint*	offsets				= offsets_;
 
 			rec_offs_init(offsets_);
-			offsets = rec_get_offsets(rec, index, offsets, true,
+			offsets = rec_get_offsets(rec, index, offsets,
+						  page_rec_is_comp(rec)
+						  ? REC_FMT_LEAF
+						  : REC_FMT_LEAF_FLEXIBLE,
 						  ULINT_UNDEFINED, &heap);
 
 			rec_trx_id = row_get_rec_trx_id(rec, index, offsets);
@@ -4855,8 +4858,11 @@ func_exit:
 	template */
 
 	rec = buf + mach_read_from_4(buf);
-
-	offsets = rec_get_offsets(rec, index, offsets_, true,
+	// FIXME: get also offsets from buf
+	offsets = rec_get_offsets(rec, index, offsets_,
+				  index->dual_format()
+				  ? REC_FMT_LEAF_FLEXIBLE
+				  : REC_FMT_LEAF,
 				  ULINT_UNDEFINED, &heap);
 
 	if (prev_entry != NULL) {

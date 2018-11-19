@@ -1131,6 +1131,11 @@ dict_stats_analyze_index_level(
 			(*total_pages)++;
 		}
 
+		const rec_fmt_t format = level
+			? REC_FMT_NODE_PTR
+			: (page_is_comp(btr_pcur_get_page(&pcur))
+			   ? REC_FMT_LEAF : REC_FMT_LEAF_FLEXIBLE);
+
 		/* Skip delete-marked records on the leaf level. If we
 		do not skip them, then ANALYZE quickly after DELETE
 		could count them or not (purge may have already wiped
@@ -1151,8 +1156,7 @@ dict_stats_analyze_index_level(
 
 				prev_rec_offsets = rec_get_offsets(
 					prev_rec, index, prev_rec_offsets,
-					true,
-					n_uniq, &heap);
+					format, n_uniq, &heap);
 
 				prev_rec = rec_copy_prefix_to_buf(
 					prev_rec, index, n_uniq,
@@ -1164,16 +1168,18 @@ dict_stats_analyze_index_level(
 			continue;
 		}
 		rec_offsets = rec_get_offsets(
-			rec, index, rec_offsets, !level, n_uniq, &heap);
+			rec, index, rec_offsets, format, n_uniq, &heap);
 
 		(*total_recs)++;
 
 		if (prev_rec != NULL) {
 			ulint	matched_fields;
 
+			/* FIXME: add prev_rec_format,
+			in case prev_rec is in a different page  */
 			prev_rec_offsets = rec_get_offsets(
-				prev_rec, index, prev_rec_offsets, !level,
-				n_uniq, &heap);
+				prev_rec, index, prev_rec_offsets,
+				format, n_uniq, &heap);
 
 			cmp_rec_rec_with_match(rec,
 					       prev_rec,
@@ -1378,7 +1384,11 @@ dict_stats_scan_page(
 		return(NULL);
 	}
 
-	offsets_rec = rec_get_offsets(rec, index, offsets_rec, is_leaf,
+	const rec_fmt_t format = is_leaf
+		? (page_is_comp(page) ? REC_FMT_LEAF : REC_FMT_LEAF_FLEXIBLE)
+		: REC_FMT_NODE_PTR;
+
+	offsets_rec = rec_get_offsets(rec, index, offsets_rec, format,
 				      ULINT_UNDEFINED, &heap);
 
 	if (should_count_external_pages) {
@@ -1395,7 +1405,7 @@ dict_stats_scan_page(
 		ulint	matched_fields;
 
 		offsets_next_rec = rec_get_offsets(next_rec, index,
-						   offsets_next_rec, is_leaf,
+						   offsets_next_rec, format,
 						   ULINT_UNDEFINED,
 						   &heap);
 
@@ -1503,7 +1513,7 @@ dict_stats_analyze_index_below_cur(
 	rec = btr_cur_get_rec(cur);
 	ut_ad(!page_rec_is_leaf(rec));
 
-	offsets_rec = rec_get_offsets(rec, index, offsets1, false,
+	offsets_rec = rec_get_offsets(rec, index, offsets1, REC_FMT_NODE_PTR,
 				      ULINT_UNDEFINED, &heap);
 
 	page_id_t		page_id(index->table->space->id,

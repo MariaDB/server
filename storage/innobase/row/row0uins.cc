@@ -73,7 +73,7 @@ row_undo_ins_remove_clust_rec(
 	dict_index_t*	index	= node->pcur.btr_cur.index;
 	bool		online;
 
-	ut_ad(dict_index_is_clust(index));
+	ut_ad(index->is_primary());
 	ut_ad(node->trx->in_rollback);
 
 	mtr.start();
@@ -116,7 +116,9 @@ row_undo_ins_remove_clust_rec(
 		const rec_t*	rec	= btr_cur_get_rec(btr_cur);
 		mem_heap_t*	heap	= NULL;
 		const ulint*	offsets	= rec_get_offsets(
-			rec, index, NULL, true, ULINT_UNDEFINED, &heap);
+			rec, index, NULL, page_rec_is_comp(rec)
+			? REC_FMT_LEAF : REC_FMT_LEAF_FLEXIBLE,
+			ULINT_UNDEFINED, &heap);
 		row_log_table_delete(rec, index, offsets, NULL);
 		mem_heap_free(heap);
 	}

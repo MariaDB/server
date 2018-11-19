@@ -572,10 +572,12 @@ page_copy_rec_list_end_no_locks(
 	}
 
 	btr_assert_not_corrupted(new_block, index);
+	// FIXME: If needed, copy and convert to REC_FMT_LEAF_FLEXIBLE
 	ut_a(page_is_comp(new_page) == page_rec_is_comp(rec));
 	ut_a(mach_read_from_2(new_page + srv_page_size - 10) == (ulint)
 	     (page_is_comp(new_page) ? PAGE_NEW_INFIMUM : PAGE_OLD_INFIMUM));
-	const bool is_leaf = page_is_leaf(block->frame);
+	const rec_fmt_t format = page_is_leaf(block->frame)
+		? REC_FMT_LEAF : REC_FMT_NODE_PTR;
 
 	cur2 = page_get_infimum_rec(buf_block_get_frame(new_block));
 
@@ -584,7 +586,7 @@ page_copy_rec_list_end_no_locks(
 	while (!page_cur_is_after_last(&cur1)) {
 		rec_t*	cur1_rec = page_cur_get_rec(&cur1);
 		rec_t*	ins_rec;
-		offsets = rec_get_offsets(cur1_rec, index, offsets, is_leaf,
+		offsets = rec_get_offsets(cur1_rec, index, offsets, format,
 					  ULINT_UNDEFINED, &heap);
 		ins_rec = page_cur_insert_rec_low(cur2, index,
 						  cur1_rec, offsets, mtr);
@@ -795,6 +797,8 @@ page_copy_rec_list_start(
 	ulint*		offsets		= offsets_;
 	rec_offs_init(offsets_);
 
+	ut_ad(page_is_leaf(new_block->frame) == page_is_leaf(block->frame));
+
 	/* Here, "ret" may be pointing to a user record or the
 	predefined infimum record. */
 
@@ -814,8 +818,6 @@ page_copy_rec_list_start(
 
 	cur2 = ret;
 
-	const bool is_leaf = page_rec_is_leaf(rec);
-
 	/* Copy records from the original page to the new page */
 	if (dict_index_is_spatial(index)) {
 		ulint		max_to_move = page_get_n_recs(
@@ -833,11 +835,16 @@ page_copy_rec_list_start(
 						      rec_move, max_to_move,
 						      &num_moved, mtr);
 	} else {
+		// FIXME: If needed, copy and convert to REC_FMT_LEAF_FLEXIBLE
+		ut_ad(page_is_comp(new_block->frame)
+		      == page_is_comp(block->frame));
+		const rec_fmt_t format = page_is_leaf(block->frame)
+			? REC_FMT_LEAF : REC_FMT_NODE_PTR;
 
 		while (page_cur_get_rec(&cur1) != rec) {
 			rec_t*	cur1_rec = page_cur_get_rec(&cur1);
 			offsets = rec_get_offsets(cur1_rec, index, offsets,
-						  is_leaf,
+						  format,
 						  ULINT_UNDEFINED, &heap);
 			cur2 = page_cur_insert_rec_low(cur2, index,
 						       cur1_rec, offsets, mtr);
@@ -854,7 +861,7 @@ page_copy_rec_list_start(
 	same temp-table in parallel.
 	max_trx_id is ignored for temp tables because it not required
 	for MVCC. */
-	if (is_leaf && dict_index_is_sec_or_ibuf(index)
+	if (page_is_leaf(block->frame) && dict_index_is_sec_or_ibuf(index)
 	    && !index->table->is_temporary()) {
 		page_update_max_trx_id(new_block, NULL,
 				       page_get_max_trx_id(page_align(rec)),
@@ -1085,7 +1092,9 @@ delete_all:
 				       ? MLOG_COMP_LIST_END_DELETE
 				       : MLOG_LIST_END_DELETE, mtr);
 
-	const bool is_leaf = page_is_leaf(page);
+	const rec_fmt_t format = page_is_leaf(page)
+		? (page_is_comp(page) ? REC_FMT_LEAF : REC_FMT_LEAF_FLEXIBLE)
+		: REC_FMT_NODE_PTR;
 
 	if (page_zip) {
 		mtr_log_t	log_mode;
@@ -1099,7 +1108,7 @@ delete_all:
 			page_cur_t	cur;
 			page_cur_position(rec, block, &cur);
 
-			offsets = rec_get_offsets(rec, index, offsets, is_leaf,
+			offsets = rec_get_offsets(rec, index, offsets, format,
 						  ULINT_UNDEFINED, &heap);
 			rec = rec_get_next_ptr(rec, TRUE);
 #ifdef UNIV_ZIP_DEBUG
@@ -1132,8 +1141,7 @@ delete_all:
 
 		do {
 			ulint	s;
-			offsets = rec_get_offsets(rec2, index, offsets,
-						  is_leaf,
+			offsets = rec_get_offsets(rec2, index, offsets, format,
 						  ULINT_UNDEFINED, &heap);
 			s = rec_offs_size(offsets);
 			ut_ad(ulint(rec2 - page) + s
@@ -1277,11 +1285,14 @@ page_delete_rec_list_start(
 	/* Individual deletes are not logged */
 
 	mtr_log_t	log_mode = mtr_set_log_mode(mtr, MTR_LOG_NONE);
-	const bool	is_leaf = page_rec_is_leaf(rec);
+	const rec_fmt_t	format = page_rec_is_leaf(rec)
+		? (page_rec_is_comp(rec)
+		   ? REC_FMT_LEAF : REC_FMT_LEAF_FLEXIBLE)
+		: REC_FMT_NODE_PTR;
 
 	while (page_cur_get_rec(&cur1) != rec) {
 		offsets = rec_get_offsets(page_cur_get_rec(&cur1), index,
-					  offsets, is_leaf,
+					  offsets, format,
 					  ULINT_UNDEFINED, &heap);
 		page_cur_delete_rec(&cur1, index, offsets, mtr);
 	}
@@ -2387,8 +2398,13 @@ page_validate(
 	}
 #endif /* UNIV_DEBUG */
 
-	if (UNIV_UNLIKELY((ibool) !!page_is_comp(page)
-			  != dict_table_is_comp(index->table))) {
+	const rec_fmt_t format = page_is_leaf(page)
+		? (page_is_comp(page)
+		   ? REC_FMT_LEAF : REC_FMT_LEAF_FLEXIBLE)
+		: REC_FMT_NODE_PTR;
+
+	if (UNIV_UNLIKELY(!!page_is_comp(page) != index->table->not_redundant()
+			  && !index->dual_format())) {
 		ib::error() << "'compact format' flag mismatch";
 		goto func_exit2;
 	}
@@ -2457,8 +2473,7 @@ page_validate(
 
 	for (;;) {
 		offsets = rec_get_offsets(rec, index, offsets,
-					  page_is_leaf(page),
-					  ULINT_UNDEFINED, &heap);
+					  format, ULINT_UNDEFINED, &heap);
 
 		if (page_is_comp(page) && page_rec_is_user_rec(rec)
 		    && UNIV_UNLIKELY(rec_get_node_ptr_flag(rec)
@@ -2627,8 +2642,7 @@ n_owned_zero:
 
 	while (rec != NULL) {
 		offsets = rec_get_offsets(rec, index, offsets,
-					  page_is_leaf(page),
-					  ULINT_UNDEFINED, &heap);
+					  format, ULINT_UNDEFINED, &heap);
 		if (UNIV_UNLIKELY(!page_rec_validate(rec, offsets))) {
 
 			goto func_exit;

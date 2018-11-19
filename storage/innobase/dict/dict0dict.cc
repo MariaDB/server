@@ -5385,6 +5385,7 @@ dict_index_build_node_ptr(
 	const dict_index_t*	index,	/*!< in: index */
 	const rec_t*		rec,	/*!< in: record for which to build node
 					pointer */
+	rec_fmt_t		format,	/*!< in: format of rec */
 	ulint			page_no,/*!< in: page number to put in node
 					pointer */
 	mem_heap_t*		heap,	/*!< in: memory heap where pointer
@@ -5396,6 +5397,8 @@ dict_index_build_node_ptr(
 	dfield_t*	field;
 	byte*		buf;
 	ulint		n_unique;
+
+	ut_ad((level > 0) == (format == REC_FMT_NODE_PTR));
 
 	if (dict_index_is_ibuf(index)) {
 		/* In a universal index tree, we take the whole record as
@@ -5435,7 +5438,7 @@ dict_index_build_node_ptr(
 
 	dtype_set(dfield_get_type(field), DATA_SYS_CHILD, DATA_NOT_NULL, 4);
 
-	rec_copy_prefix_to_dtuple(tuple, rec, index, !level, n_unique, heap);
+	rec_copy_prefix_to_dtuple(tuple, rec, index, format, n_unique, heap);
 	dtuple_set_info_bits(tuple, dtuple_get_info_bits(tuple)
 			     | REC_STATUS_NODE_PTR);
 
@@ -5487,7 +5490,7 @@ dict_index_copy_rec_order_prefix(
 /** Convert a physical record into a search tuple.
 @param[in]	rec		index record (not necessarily in an index page)
 @param[in]	index		index
-@param[in]	leaf		whether rec is in a leaf page
+@param[in]	format		record format
 @param[in]	n_fields	number of data fields
 @param[in,out]	heap		memory heap for allocation
 @return own: data tuple */
@@ -5495,7 +5498,7 @@ dtuple_t*
 dict_index_build_data_tuple(
 	const rec_t*		rec,
 	const dict_index_t*	index,
-	bool			leaf,
+	rec_fmt_t		format,
 	ulint			n_fields,
 	mem_heap_t*		heap)
 {
@@ -5503,7 +5506,7 @@ dict_index_build_data_tuple(
 
 	dict_index_copy_types(tuple, index, n_fields);
 
-	rec_copy_prefix_to_dtuple(tuple, rec, index, leaf, n_fields, heap);
+	rec_copy_prefix_to_dtuple(tuple, rec, index, format, n_fields, heap);
 
 	ut_ad(dtuple_check_typed(tuple));
 

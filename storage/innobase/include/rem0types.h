@@ -1,6 +1,7 @@
 /*****************************************************************************
 
 Copyright (c) 1994, 2015, Oracle and/or its affiliates. All Rights Reserved.
+Copyright (c) 2018, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -62,12 +63,22 @@ prefix column longer than that. */
 /** Innodb row types are a subset of the MySQL global enum row_type.
 They are made into their own enum so that switch statements can account
 for each of them. */
-enum rec_format_enum {
+enum rec_format_t {
 	REC_FORMAT_REDUNDANT	= 0,	/*!< REDUNDANT row format */
 	REC_FORMAT_COMPACT	= 1,	/*!< COMPACT row format */
 	REC_FORMAT_COMPRESSED	= 2,	/*!< COMPRESSED row format */
 	REC_FORMAT_DYNAMIC	= 3	/*!< DYNAMIC row format */
 };
-typedef enum rec_format_enum rec_format_t;
+
+/** Record format for rec_get_offsets() and friends */
+enum rec_fmt_t
+{
+	/** node pointer record in the format of the index */
+	REC_FMT_NODE_PTR = 0,
+	/** leaf page record in the format of the index */
+	REC_FMT_LEAF,
+	/** leaf page record in flexible format, or ROW_FORMAT=REDUNDANT */
+	REC_FMT_LEAF_FLEXIBLE
+};
 
 #endif

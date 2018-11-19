@@ -784,10 +784,14 @@ btr_page_free_low(
 		mem_heap_t* heap = NULL;
 		ulint* offsets = NULL;
 		rec_t* rec = page_rec_get_next(page_get_infimum_rec(page));
+		const rec_fmt_t format = page_is_leaf(page)
+			? (page_is_comp(page)
+			   ? REC_FMT_LEAF : REC_FMT_LEAF_FLEXIBLE)
+			: REC_FMT_NODE_PTR;
+
 		while (!page_rec_is_supremum(rec)) {
 			offsets = rec_get_offsets(rec, index, offsets,
-						  page_is_leaf(page),
-						  ULINT_UNDEFINED,
+						  format, ULINT_UNDEFINED,
 						  &heap);
 			ulint size = rec_offs_data_size(offsets);
 			memset(rec, 0, size);
@@ -984,7 +988,12 @@ btr_page_get_father_node_ptr_func(
 	user_rec = btr_cur_get_rec(cursor);
 	ut_a(page_rec_is_user_rec(user_rec));
 
-	tuple = dict_index_build_node_ptr(index, user_rec, 0, heap, level);
+	tuple = dict_index_build_node_ptr(index, user_rec, level
+					  ? REC_FMT_NODE_PTR
+					  : (page_rec_is_comp(user_rec)
+					     ? REC_FMT_LEAF
+					     : REC_FMT_LEAF_FLEXIBLE),
+					  0, heap, level);
 	dberr_t err = DB_SUCCESS;
 
 	err = btr_cur_search_to_nth_level(
@@ -1004,7 +1013,7 @@ btr_page_get_father_node_ptr_func(
 
 	node_ptr = btr_cur_get_rec(cursor);
 
-	offsets = rec_get_offsets(node_ptr, index, offsets, false,
+	offsets = rec_get_offsets(node_ptr, index, offsets, REC_FMT_NODE_PTR,
 				  ULINT_UNDEFINED, &heap);
 
 	if (btr_node_ptr_get_child_page_no(node_ptr, offsets) != page_no) {
@@ -1021,10 +1030,15 @@ btr_page_get_father_node_ptr_func(
 		print_rec = page_rec_get_next(
 			page_get_infimum_rec(page_align(user_rec)));
 		offsets = rec_get_offsets(print_rec, index, offsets,
-					  page_rec_is_leaf(user_rec),
+					  page_rec_is_leaf(user_rec)
+					  ? (page_rec_is_comp(user_rec)
+					     ? REC_FMT_LEAF
+					     : REC_FMT_LEAF_FLEXIBLE)
+					  : REC_FMT_NODE_PTR,
 					  ULINT_UNDEFINED, &heap);
 		page_rec_print(print_rec, offsets);
-		offsets = rec_get_offsets(node_ptr, index, offsets, false,
+		offsets = rec_get_offsets(node_ptr, index, offsets,
+					  REC_FMT_NODE_PTR,
 					  ULINT_UNDEFINED, &heap);
 		page_rec_print(node_ptr, offsets);
 
@@ -1911,7 +1925,7 @@ btr_page_empty(
 	if (page_zip) {
 		page_create_zip(block, index, level, autoinc, mtr);
 	} else {
-		page_create(block, mtr, dict_table_is_comp(index->table),
+		page_create(block, mtr, page_is_comp(block->frame),
 			    dict_index_is_spatial(index));
 		btr_page_set_level(page, NULL, level, mtr);
 		if (autoinc) {
@@ -2143,7 +2157,11 @@ btr_root_raise_and_insert(
 			index, &new_mbr, rec, new_page_no, *heap);
 	} else {
 		node_ptr = dict_index_build_node_ptr(
-			index, rec, new_page_no, *heap, level);
+			index, rec, level
+			? REC_FMT_NODE_PTR
+			: (page_rec_is_comp(rec)
+			   ? REC_FMT_LEAF : REC_FMT_LEAF_FLEXIBLE),
+			new_page_no, *heap, level);
 	}
 	/* The node pointer must be marked as the predefined minimum record,
 	as there is no lower alphabetical limit to records in the leftmost
@@ -2320,6 +2338,7 @@ rec_t*
 btr_page_get_split_rec(
 /*===================*/
 	btr_cur_t*	cursor,	/*!< in: cursor at which insert should be made */
+	rec_fmt_t	format,	/*!< in: record format */
 	const dtuple_t*	tuple,	/*!< in: tuple to insert */
 	ulint		n_ext)	/*!< in: number of externally stored columns */
 {
@@ -2393,7 +2412,7 @@ btr_page_get_split_rec(
 			incl_data += insert_size;
 		} else {
 			offsets = rec_get_offsets(rec, cursor->index, offsets,
-						  page_is_leaf(page),
+						  format,
 						  ULINT_UNDEFINED, &heap);
 			incl_data += rec_offs_size(offsets);
 		}
@@ -2497,13 +2516,18 @@ btr_page_insert_fits(
 		return(true);
 	}
 
+	const rec_fmt_t format = page_is_leaf(page)
+		? (page_is_comp(page)
+		   ? REC_FMT_LEAF
+		   : REC_FMT_LEAF_FLEXIBLE)
+		: REC_FMT_NODE_PTR;
+
 	while (rec != end_rec) {
 		/* In this loop we calculate the amount of reserved
 		space after rec is removed from page. */
 
 		*offsets = rec_get_offsets(rec, cursor->index, *offsets,
-					   page_is_leaf(page),
-					   ULINT_UNDEFINED, heap);
+					   format, ULINT_UNDEFINED, heap);
 
 		total_data -= rec_offs_size(*offsets);
 		total_n_recs--;
@@ -2622,6 +2646,7 @@ btr_attach_half_pages(
 	buf_block_t*	block,		/*!< in/out: page to be split */
 	const rec_t*	split_rec,	/*!< in: first record on upper
 					half page */
+	rec_fmt_t	format,		/*!< in: format of split_rec */
 	buf_block_t*	new_block,	/*!< in/out: the new half page */
 	ulint		direction,	/*!< in: FSP_UP or FSP_DOWN */
 	mtr_t*		mtr)		/*!< in: mtr */
@@ -2706,7 +2731,7 @@ btr_attach_half_pages(
 	/* Build the node pointer (= node key and page address) for the upper
 	half */
 
-	node_ptr_upper = dict_index_build_node_ptr(index, split_rec,
+	node_ptr_upper = dict_index_build_node_ptr(index, split_rec, format,
 						   upper_page_no, heap, level);
 
 	/* Insert it next to the pointer to the lower half. Note that this
@@ -2772,6 +2797,7 @@ bool
 btr_page_tuple_smaller(
 /*===================*/
 	btr_cur_t*	cursor,	/*!< in: b-tree cursor */
+	rec_fmt_t	format,	/*!< in: record format */
 	const dtuple_t*	tuple,	/*!< in: tuple to consider */
 	ulint**		offsets,/*!< in/out: temporary storage */
 	ulint		n_uniq,	/*!< in: number of unique fields
@@ -2789,8 +2815,7 @@ btr_page_tuple_smaller(
 	first_rec = page_cur_get_rec(&pcur);
 
 	*offsets = rec_get_offsets(
-		first_rec, cursor->index, *offsets, page_is_leaf(block->frame),
-		n_uniq, heap);
+		first_rec, cursor->index, *offsets, format, n_uniq, heap);
 
 	return(cmp_dtuple_rec(tuple, first_rec, *offsets) < 0);
 }
@@ -2905,7 +2930,11 @@ btr_insert_into_right_sibling(
 	}
 
 	dtuple_t*	node_ptr = dict_index_build_node_ptr(
-		cursor->index, rec, next_block->page.id.page_no(),
+		cursor->index, rec, level
+		? REC_FMT_NODE_PTR
+		: (page_rec_is_comp(rec)
+		   ? REC_FMT_LEAF : REC_FMT_LEAF_FLEXIBLE),
+		next_block->page.id.page_no(),
 		heap, level);
 
 	btr_insert_on_non_leaf_level(
@@ -2973,7 +3002,6 @@ btr_page_split_and_insert(
 	byte*		buf = 0; /* remove warning */
 	rec_t*		move_limit;
 	ibool		insert_will_fit;
-	ibool		insert_left;
 	ulint		n_iterations = 0;
 	rec_t*		rec;
 	ulint		n_uniq;
@@ -3024,16 +3052,20 @@ func_start:
 	/* 1. Decide the split record; split_rec == NULL means that the
 	tuple to be inserted should be the first record on the upper
 	half-page */
-	insert_left = FALSE;
+	bool insert_left = false;
+	rec_fmt_t format = page_is_leaf(page)
+		? (page_is_comp(page) ? REC_FMT_LEAF : REC_FMT_LEAF_FLEXIBLE)
+		: REC_FMT_NODE_PTR;
 
 	if (tuple != NULL && n_iterations > 0) {
 		direction = FSP_UP;
 		hint_page_no = page_no + 1;
-		split_rec = btr_page_get_split_rec(cursor, tuple, n_ext);
+		split_rec = btr_page_get_split_rec(
+			cursor, format, tuple, n_ext);
 
 		if (split_rec == NULL) {
 			insert_left = btr_page_tuple_smaller(
-				cursor, tuple, offsets, n_uniq, heap);
+				cursor, format, tuple, offsets, n_uniq, heap);
 		}
 	} else if (btr_page_get_split_rec_to_right(cursor, &split_rec)) {
 		direction = FSP_UP;
@@ -3054,7 +3086,7 @@ func_start:
 
 		if (page_get_n_recs(page) > 1) {
 			split_rec = page_get_middle_rec(page);
-		} else if (btr_page_tuple_smaller(cursor, tuple,
+		} else if (btr_page_tuple_smaller(cursor, format, tuple,
 						  offsets, n_uniq, heap)) {
 			split_rec = page_rec_get_next(
 				page_get_infimum_rec(page));
@@ -3068,8 +3100,9 @@ func_start:
 			return(NULL););
 
 	/* 2. Allocate a new page to the index */
+	const auto level = btr_page_get_level(page);
 	new_block = btr_page_alloc(cursor->index, hint_page_no, direction,
-				   btr_page_get_level(page), mtr, mtr);
+				   level, mtr, mtr);
 
 	if (new_block == NULL && os_has_said_disk_full) {
 		return(NULL);
@@ -3077,10 +3110,9 @@ func_start:
 
 	new_page = buf_block_get_frame(new_block);
 	new_page_zip = buf_block_get_page_zip(new_block);
-	const auto level = btr_page_get_level(page);
 	btr_page_create(new_block, new_page_zip, cursor->index, level, mtr);
 	/* Only record the leaf level page splits. */
-	if (!level) {
+	if (format != REC_FMT_NODE_PTR) {
 		cursor->index->stat_defrag_n_page_split ++;
 		cursor->index->stat_defrag_modified_counter ++;
 		btr_defragment_save_defrag_stats_if_needed(cursor->index);
@@ -3094,7 +3126,7 @@ func_start:
 		first_rec = move_limit = split_rec;
 
 		*offsets = rec_get_offsets(split_rec, cursor->index, *offsets,
-					   !level, n_uniq, heap);
+					   format, n_uniq, heap);
 
 		if (tuple != NULL) {
 			insert_left = cmp_dtuple_rec(
@@ -3122,15 +3154,19 @@ insert_empty:
 			byte,
 			rec_get_converted_size(cursor->index, tuple, n_ext));
 
+		/* FIXME: pass format? */
 		first_rec = rec_convert_dtuple_to_rec(buf, cursor->index,
 						      tuple, n_ext);
+		if (format == REC_FMT_LEAF && cursor->index->dual_format()) {
+			format = REC_FMT_LEAF_FLEXIBLE;
+		}
 		move_limit = page_rec_get_next(btr_cur_get_rec(cursor));
 	}
 
 	/* 4. Do first the modifications in the tree structure */
 
-	btr_attach_half_pages(flags, cursor->index, block,
-			      first_rec, new_block, direction, mtr);
+	btr_attach_half_pages(flags, cursor->index, block, first_rec, format,
+			      new_block, direction, mtr);
 
 	/* If the split is made on the leaf level and the insert will fit
 	on the appropriate half-page, we may release the tree x-latch.
@@ -3154,7 +3190,8 @@ insert_empty:
 						offsets, tuple, n_ext, heap);
 	}
 
-	if (!level && insert_will_fit && !srv_read_only_mode
+	if (format != REC_FMT_NODE_PTR && insert_will_fit
+	    && !srv_read_only_mode
 	    && !dict_index_is_online_ddl(cursor->index)) {
 
 		mtr->memo_release(
@@ -3342,7 +3379,7 @@ func_exit:
 	/* Insert fit on the page: update the free bits for the
 	left and right pages in the same mtr */
 
-	if (!level && !dict_index_is_clust(cursor->index)
+	if (format != REC_FMT_NODE_PTR && !dict_index_is_clust(cursor->index)
 	    && !cursor->index->table->is_temporary()) {
 
 		ibuf_update_free_bits_for_two_pages_low(
@@ -3927,7 +3964,8 @@ retry:
 
 			offsets2 = rec_get_offsets(
 				btr_cur_get_rec(&cursor2), index, NULL,
-				page_is_leaf(cursor2.page_cur.block->frame),
+				page_is_leaf(cursor2.page_cur.block->frame)
+				? REC_FMT_LEAF : REC_FMT_NODE_PTR,
 				ULINT_UNDEFINED, &heap);
 
 			/* Check if parent entry needs to be updated */
@@ -4107,7 +4145,8 @@ retry:
 
 			offsets2 = rec_get_offsets(
 				btr_cur_get_rec(&cursor2), index, NULL,
-				page_is_leaf(cursor2.page_cur.block->frame),
+				page_is_leaf(cursor2.page_cur.block->frame)
+				? REC_FMT_LEAF : REC_FMT_NODE_PTR,
 				ULINT_UNDEFINED, &heap);
 
 			ut_ad(btr_node_ptr_get_child_page_no(
@@ -4334,7 +4373,10 @@ btr_discard_only_page_on_level(
 		ut_ad(rec_is_metadata(r, *index) == index->is_instant());
 		if (rec_is_alter_metadata(r, *index)) {
 			heap = mem_heap_create(srv_page_size);
-			offsets = rec_get_offsets(r, index, NULL, true,
+			offsets = rec_get_offsets(r, index, NULL,
+						  page_rec_is_comp(r)
+						  ? REC_FMT_LEAF
+						  : REC_FMT_LEAF_FLEXIBLE,
 						  ULINT_UNDEFINED, &heap);
 			rec = rec_copy(mem_heap_alloc(heap,
 						      rec_offs_size(offsets)),
@@ -4613,7 +4655,7 @@ btr_print_recursive(
 			node_ptr = page_cur_get_rec(&cursor);
 
 			*offsets = rec_get_offsets(
-				node_ptr, index, *offsets, false,
+				node_ptr, index, *offsets, REC_FMT_NODE_PTR,
 				ULINT_UNDEFINED, heap);
 			btr_print_recursive(index,
 					    btr_node_ptr_get_child(node_ptr,
@@ -4703,8 +4745,8 @@ btr_check_node_ptr(
 	}
 
 	tuple = dict_index_build_node_ptr(
-		index, page_rec_get_next(page_get_infimum_rec(page)), 0, heap,
-		btr_page_get_level(page));
+		index, page_rec_get_next(page_get_infimum_rec(page)),
+		REC_FMT_NODE_PTR, 0, heap, btr_page_get_level(page));
 
 	/* For spatial index, the MBR in the parent rec could be different
 	with that of first rec of child, their relationship should be
@@ -4826,7 +4868,10 @@ n_field_mismatch:
 		}
 	}
 
-	offsets = rec_get_offsets(rec, index, offsets, page_is_leaf(page),
+	offsets = rec_get_offsets(rec, index, offsets, page_is_leaf(page)
+				  ? (page_is_comp(page)
+				     ? REC_FMT_LEAF : REC_FMT_LEAF_FLEXIBLE)
+				  : REC_FMT_NODE_PTR,
 				  ULINT_UNDEFINED, &heap);
 	const dict_field_t* field = index->fields;
 	ut_ad(rec_offs_n_fields(offsets)
@@ -5092,7 +5137,8 @@ btr_validate_level(
 		page_cur_move_to_next(&cursor);
 
 		node_ptr = page_cur_get_rec(&cursor);
-		offsets = rec_get_offsets(node_ptr, index, offsets, false,
+		offsets = rec_get_offsets(node_ptr, index, offsets,
+					  REC_FMT_NODE_PTR,
 					  ULINT_UNDEFINED, &heap);
 
 		savepoint2 = mtr_set_savepoint(&mtr);
@@ -5218,10 +5264,18 @@ loop:
 		right_rec = page_rec_get_next(page_get_infimum_rec(
 						      right_page));
 		offsets = rec_get_offsets(rec, index, offsets,
-					  page_is_leaf(page),
+					  page_is_leaf(page)
+					  ? (page_is_comp(page)
+					     ? REC_FMT_LEAF
+					     : REC_FMT_LEAF_FLEXIBLE)
+					  : REC_FMT_NODE_PTR,
 					  ULINT_UNDEFINED, &heap);
 		offsets2 = rec_get_offsets(right_rec, index, offsets2,
-					   page_is_leaf(right_page),
+					   page_is_leaf(right_page)
+					   ? (page_is_comp(right_page)
+					      ? REC_FMT_LEAF
+					      : REC_FMT_LEAF_FLEXIBLE)
+					   : REC_FMT_NODE_PTR,
 					   ULINT_UNDEFINED, &heap);
 
 		/* For spatial index, we cannot guarantee the key ordering
@@ -5320,6 +5374,7 @@ loop:
 			node_ptr_tuple = dict_index_build_node_ptr(
 				index,
 				page_rec_get_next(page_get_infimum_rec(page)),
+				REC_FMT_NODE_PTR,
 				0, heap, btr_page_get_level(page));
 
 			if (cmp_dtuple_rec(node_ptr_tuple, node_ptr,

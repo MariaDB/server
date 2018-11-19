@@ -2067,7 +2067,10 @@ end_of_index:
 		rec = page_cur_get_rec(cur);
 
 		if (online) {
-			offsets = rec_get_offsets(rec, clust_index, NULL, true,
+			offsets = rec_get_offsets(rec, clust_index, NULL,
+						  page_rec_is_comp(rec)
+						  ? REC_FMT_LEAF
+						  : REC_FMT_LEAF_FLEXIBLE,
 						  ULINT_UNDEFINED, &row_heap);
 			rec_trx_id = row_get_rec_trx_id(rec, clust_index,
 							offsets);
@@ -2159,7 +2162,10 @@ end_of_index:
 			duplicate keys. */
 			continue;
 		} else {
-			offsets = rec_get_offsets(rec, clust_index, NULL, true,
+			offsets = rec_get_offsets(rec, clust_index, NULL,
+						  page_rec_is_comp(rec)
+						  ? REC_FMT_LEAF
+						  : REC_FMT_LEAF_FLEXIBLE,
 						  ULINT_UNDEFINED, &row_heap);
 			/* This is a locking ALTER TABLE.
 

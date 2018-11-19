@@ -1362,22 +1362,28 @@ dict_index_t::vers_history_row(
 	ut_ad(!is_primary());
 
 	bool error = false;
-	mem_heap_t* heap = NULL;
 	dict_index_t* clust_index = NULL;
-	ulint offsets_[REC_OFFS_NORMAL_SIZE];
-	ulint* offsets = offsets_;
-	rec_offs_init(offsets_);
 
 	mtr_t mtr;
 	mtr.start();
 
-	rec_t* clust_rec =
-	    row_get_clust_rec(BTR_SEARCH_LEAF, rec, this, &clust_index, &mtr);
-	if (clust_rec) {
-		offsets = rec_get_offsets(clust_rec, clust_index, offsets, true,
-					  ULINT_UNDEFINED, &heap);
+	if (const rec_t* clust_rec =
+	    row_get_clust_rec(BTR_SEARCH_LEAF, rec, this,
+			      &clust_index, &mtr)) {
+		mem_heap_t* heap = NULL;
+		ulint offsets_[REC_OFFS_NORMAL_SIZE];
+		rec_offs_init(offsets_);
+		ulint* offsets = rec_get_offsets(clust_rec, clust_index,
+						 offsets_,
+						 page_rec_is_comp(clust_rec)
+						 ? REC_FMT_LEAF
+						 : REC_FMT_LEAF_FLEXIBLE,
+						 ULINT_UNDEFINED, &heap);
 
 		history_row = clust_index->vers_history_row(clust_rec, offsets);
+		if (UNIV_LIKELY_NULL(heap)) {
+			mem_heap_free(heap);
+		}
         } else {
 		ib::error() << "foreign constraints: secondary index is out of "
 			       "sync";
@@ -1385,8 +1391,5 @@ dict_index_t::vers_history_row(
 		error = true;
 	}
 	mtr.commit();
-	if (heap) {
-		mem_heap_free(heap);
-	}
 	return(error);
 }

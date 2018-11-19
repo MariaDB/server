@@ -278,7 +278,11 @@ page_cur_tuple_insert(
 					index, tuple, n_ext);
 
 	*offsets = rec_get_offsets(rec, index, *offsets,
-				   page_is_leaf(cursor->block->frame),
+				   page_is_leaf(cursor->block->frame)
+				   ? (page_is_comp(cursor->block->frame)
+				      ? REC_FMT_LEAF
+				      : REC_FMT_LEAF_FLEXIBLE)
+				   : REC_FMT_NODE_PTR,
 				   ULINT_UNDEFINED, heap);
 	ut_ad(size == rec_offs_size(*offsets));
 

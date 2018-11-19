@@ -3529,7 +3529,7 @@ fts_add_doc_by_id(
 
 		/* Doc could be deleted */
 		if (page_rec_is_infimum(rec)
-		    || rec_get_deleted_flag(rec, dict_table_is_comp(table))) {
+		    || rec_get_deleted_flag(rec, page_rec_is_comp(rec))) {
 
 			goto func_exit;
 		}
@@ -3559,7 +3559,10 @@ fts_add_doc_by_id(
 
 		}
 
-		offsets = rec_get_offsets(clust_rec, clust_index, NULL, true,
+		offsets = rec_get_offsets(clust_rec, clust_index, NULL,
+					  page_rec_is_comp(clust_rec)
+					  ? REC_FMT_LEAF
+					  : REC_FMT_LEAF_FLEXIBLE,
 					  ULINT_UNDEFINED, &heap);
 
 		for (ulint i = 0; i < num_idx; ++i) {

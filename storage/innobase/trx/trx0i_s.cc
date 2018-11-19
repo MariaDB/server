@@ -688,7 +688,6 @@ fill_lock_data(
 	mtr_t			mtr;
 
 	const buf_block_t*	block;
-	const page_t*		page;
 	const rec_t*		rec;
 	const dict_index_t*	index;
 	ulint			n_fields;
@@ -714,12 +713,10 @@ fill_lock_data(
 		return(TRUE);
 	}
 
-	page = reinterpret_cast<const page_t*>(buf_block_get_frame(block));
-
 	rec_offs_init(offsets_onstack);
 	offsets = offsets_onstack;
 
-	rec = page_find_rec_with_heap_no(page, heap_no);
+	rec = page_find_rec_with_heap_no(block->frame, heap_no);
 
 	index = lock_rec_get_index(lock);
 
@@ -728,7 +725,9 @@ fill_lock_data(
 	ut_a(n_fields > 0);
 
 	heap = NULL;
-	offsets = rec_get_offsets(rec, index, offsets, true, n_fields, &heap);
+	offsets = rec_get_offsets(rec, index, offsets, page_rec_is_comp(rec)
+				  ? REC_FMT_LEAF : REC_FMT_LEAF_FLEXIBLE,
+				  n_fields, &heap);
 
 	/* format and store the data */
 
@@ -740,27 +739,22 @@ fill_lock_data(
 			i, index, rec, offsets) - 1;
 	}
 
+	mtr.commit();
+
 	*lock_data = (const char*) ha_storage_put_memlim(
 		cache->storage, buf, buf_used + 1,
 		MAX_ALLOWED_FOR_STORAGE(cache));
 
-	if (heap != NULL) {
+	if (UNIV_LIKELY_NULL(heap)) {
 
 		/* this means that rec_get_offsets() has created a new
 		heap and has stored offsets in it; check that this is
 		really the case and free the heap */
-		ut_a(offsets != offsets_onstack);
+		ut_ad(offsets != offsets_onstack);
 		mem_heap_free(heap);
 	}
 
-	mtr_commit(&mtr);
-
-	if (*lock_data == NULL) {
-
-		return(FALSE);
-	}
-
-	return(TRUE);
+	return *lock_data != NULL;
 }
 
 /*******************************************************************//**

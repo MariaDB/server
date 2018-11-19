@@ -151,9 +151,12 @@ row_purge_remove_clust_if_poss_low(
 	}
 
 	rec = btr_pcur_get_rec(&node->pcur);
+	ut_ad(page_rec_is_leaf(rec));
 
 	offsets = rec_get_offsets(
-		rec, index, offsets_, true, ULINT_UNDEFINED, &heap);
+		rec, index, offsets_,
+		page_rec_is_comp(rec) ? REC_FMT_LEAF : REC_FMT_LEAF_FLEXIBLE,
+		ULINT_UNDEFINED, &heap);
 
 	if (node->roll_ptr != row_get_rec_roll_ptr(rec, index, offsets)) {
 		/* Someone else has modified the record later: do not remove */
@@ -822,13 +825,17 @@ static void row_purge_reset_trx_id(purge_node_t* node, mtr_t* mtr)
 			node->table);
 		ulint	trx_id_pos = index->n_uniq ? index->n_uniq : 1;
 		rec_t*	rec = btr_pcur_get_rec(&node->pcur);
+		ut_ad(page_rec_is_leaf(rec));
 		mem_heap_t*	heap = NULL;
 		/* Reserve enough offsets for the PRIMARY KEY and 2 columns
 		so that we can access DB_TRX_ID, DB_ROLL_PTR. */
 		ulint	offsets_[REC_OFFS_HEADER_SIZE + MAX_REF_PARTS + 2];
 		rec_offs_init(offsets_);
 		ulint*	offsets = rec_get_offsets(
-			rec, index, offsets_, true, trx_id_pos + 2, &heap);
+			rec, index, offsets_,
+			page_rec_is_comp(rec)
+			? REC_FMT_LEAF : REC_FMT_LEAF_FLEXIBLE,
+			trx_id_pos + 2, &heap);
 		ut_ad(heap == NULL);
 
 		ut_ad(dict_index_get_nth_field(index, trx_id_pos)
@@ -1388,7 +1395,7 @@ purge_node_t::validate_pcur()
 	dict_index_t*	clust_index = pcur.btr_cur.index;
 
 	ulint*	offsets = rec_get_offsets(
-		pcur.old_rec, clust_index, NULL, true,
+		pcur.old_rec, clust_index, NULL, REC_FMT_LEAF,
 		pcur.old_n_fields, &heap);
 
 	/* Here we are comparing the purge ref record and the stored initial

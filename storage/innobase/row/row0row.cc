@@ -435,7 +435,10 @@ row_build_low(
 	ut_ad(!col_map || col_table);
 
 	if (!offsets) {
-		offsets = rec_get_offsets(rec, index, offsets_, true,
+		offsets = rec_get_offsets(rec, index, offsets_,
+					  page_rec_is_comp(rec)
+					  ? REC_FMT_LEAF
+					  : REC_FMT_LEAF_FLEXIBLE,
 					  ULINT_UNDEFINED, &tmp_heap);
 	} else {
 		ut_ad(rec_offs_validate(rec, index, offsets));
@@ -1010,7 +1013,7 @@ row_build_row_ref(
 	ut_ad(heap != NULL);
 	ut_ad(!dict_index_is_clust(index));
 
-	offsets = rec_get_offsets(rec, index, offsets, true,
+	offsets = rec_get_offsets(rec, index, offsets, REC_FMT_LEAF,
 				  ULINT_UNDEFINED, &tmp_heap);
 	/* Secondary indexes must not contain externally stored columns. */
 	ut_ad(!rec_offs_any_extern(offsets));
@@ -1122,7 +1125,7 @@ row_build_row_ref_in_tuple(
 	ut_ad(clust_index);
 
 	if (!offsets) {
-		offsets = rec_get_offsets(rec, index, offsets_, true,
+		offsets = rec_get_offsets(rec, index, offsets_, REC_FMT_LEAF,
 					  ULINT_UNDEFINED, &heap);
 	} else {
 		ut_ad(rec_offs_validate(rec, index, offsets));
