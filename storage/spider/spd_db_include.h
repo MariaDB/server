@@ -1,4 +1,4 @@
-/* Copyright (C) 2008-2017 Kentoku Shiba
+/* Copyright (C) 2008-2018 Kentoku Shiba
 
   This program is free software; you can redistribute it and/or modify
   it under the terms of the GNU General Public License as published by
@@ -17,7 +17,6 @@
 #if defined(HS_HAS_SQLCOM) && defined(HAVE_HANDLERSOCKET)
 #include "hstcpcli.hpp"
 #endif
-#include "tztime.h"
 
 #define SPIDER_DBTON_SIZE 15
 
@@ -703,6 +702,8 @@ public:
   );
   void set_pos_to_first_table_holder();
   SPIDER_TABLE_HOLDER *get_next_table_holder();
+  SPIDER_TABLE_HOLDER *get_table_holder(TABLE *table);
+  uint get_table_count();
   int add_field(Field *field_arg);
   SPIDER_FIELD_HOLDER *create_field_holder();
   void set_pos_to_first_field_holder();
@@ -888,8 +889,11 @@ public:
   ) = 0;
 #ifdef SPIDER_HAS_GROUP_BY_HANDLER
   virtual int append_from_and_tables(
+    ha_spider *spider,
     spider_fields *fields,
-    spider_string *str
+    spider_string *str,
+    TABLE_LIST *table_list,
+    uint table_count
   ) = 0;
   virtual int reappend_tables(
     spider_fields *fields,

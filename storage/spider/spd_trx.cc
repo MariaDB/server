@@ -1,4 +1,4 @@
-/* Copyright (C) 2008-2017 Kentoku Shiba
+/* Copyright (C) 2008-2018 Kentoku Shiba
 
   This program is free software; you can redistribute it and/or modify
   it under the terms of the GNU General Public License as published by
@@ -26,7 +26,6 @@
 #include "sql_class.h"
 #include "sql_partition.h"
 #include "records.h"
-#include "tztime.h"
 #endif
 #include "spd_err.h"
 #include "spd_param.h"
@@ -1648,9 +1647,7 @@ int spider_check_and_set_sql_log_off(
     if (internal_sql_log_off)
     {
       spider_conn_queue_sql_log_off(conn, TRUE);
-    }
-    else
-    {
+    } else {
       spider_conn_queue_sql_log_off(conn, FALSE);
     }
   }
@@ -2764,7 +2761,8 @@ int spider_initinal_xa_recover(
       FALSE, FALSE);
   }
   SPD_INIT_ALLOC_ROOT(&mem_root, 4096, 0, MYF(MY_WME));
-  while ((!(read_record->read_record())) && cnt < (int) len)
+  while ((!(read_record->SPIDER_read_record_read_record(read_record))) &&
+    cnt < (int) len)
   {
     spider_get_sys_xid(table_xa, &xid_list[cnt], &mem_root);
     cnt++;
@@ -2813,7 +2811,7 @@ int spider_internal_xa_commit_by_xid(
   SPIDER_TRX *trx,
   XID* xid
 ) {
-  TABLE *table_xa, *table_xa_member= 0;
+  TABLE *table_xa, *table_xa_member = 0;
   int error_num;
   char xa_key[MAX_KEY_LENGTH];
   char xa_member_key[MAX_KEY_LENGTH];
@@ -3048,7 +3046,7 @@ int spider_internal_xa_rollback_by_xid(
   SPIDER_TRX *trx,
   XID* xid
 ) {
-  TABLE *table_xa, *table_xa_member= 0;
+  TABLE *table_xa, *table_xa_member = 0;
   int error_num;
   char xa_key[MAX_KEY_LENGTH];
   char xa_member_key[MAX_KEY_LENGTH];

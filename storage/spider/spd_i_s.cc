@@ -1,4 +1,4 @@
-/* Copyright (C) 2012-2017 Kentoku Shiba
+/* Copyright (C) 2012-2018 Kentoku Shiba
 
   This program is free software; you can redistribute it and/or modify
   it under the terms of the GNU General Public License as published by
@@ -164,6 +164,6 @@ struct st_maria_plugin spider_i_s_alloc_mem_maria =
   NULL,
   NULL,
   "1.0",
-  MariaDB_PLUGIN_MATURITY_STABLE
+  MariaDB_PLUGIN_MATURITY_STABLE,
 };
 #endif
