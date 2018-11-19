@@ -50,3 +50,12 @@ galera_pc_ignore_sb : MDEV-17357 Test failure on galera.galera_pc_ignore_sb
 MW-328A : MDEV-17847 Galera test failure on MW-328[A|B|C]
 MW-328B : MDEV-17847 Galera test failure on MW-328[A|B|C]
 MW-328C : MDEV-17847 Galera test failure on MW-328[A|B|C]
+galera_autoinc_sst_xtrabackup : xtrabackup is deprecated
+galera_ist_xtrabackup-v2 : xtrabackup is deprecated
+galera_sst_xtrabackup-v2_data_dir : xtrabackup is deprecated
+galera_sst_xtrabackup-v2_encrypt_with_key : xtrabackup is deprecated
+galera_sst_xtrabackup-v2-options : xtrabackup is deprecated
+galera_ist_innodb_flush_logs : xtrabackup is deprecated
+galera_sst_xtrabackup-v2 : xtrabackup is deprecated
+galera.galera_encrypt_tmp_files : Get error failed to enable encryption of temporary files
+galera.galera_var_reject_queries : assertion in inline_mysql_socket_send
