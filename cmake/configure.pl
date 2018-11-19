@@ -190,6 +190,16 @@ foreach my $option (@ARGV)
     $cmakeargs = $cmakeargs." -DCMAKE_BUILD_TYPE=Debug -DSECURITY_HARDENED=OFF";
     next;
   }
+  if($option =~ /with-(.*)=(.*)/)
+  {
+    $cmakeargs = $cmakeargs. " -DWITH_" . uc($1) . "=" . uc($2);
+    next;
+  }
+  if($option =~ /without-(.*)=(.*)/)
+  {
+    $cmakeargs = $cmakeargs. " -DWITHOUT_" . uc($1) . "=" . uc($2);
+    next;
+  }
   if($option =~ /prefix=/)
   {
     $cmake_install_prefix= substr($option, 7);
