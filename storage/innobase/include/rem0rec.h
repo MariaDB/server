@@ -520,7 +520,7 @@ rec_get_n_extern_new(
 @param[in]	index		the index that the record belongs to
 @param[in,out]	offsets		array comprising offsets[0] allocated elements,
 				or an array from rec_get_offsets(), or NULL
-@param[in]	leaf		whether this is a leaf-page record
+@param[in]	format		record format
 @param[in]	n_fields	maximum number of offsets to compute
 				(ULINT_UNDEFINED to compute all offsets)
 @param[in,out]	heap		memory heap
@@ -530,7 +530,7 @@ rec_get_offsets_func(
 	const rec_t*		rec,
 	const dict_index_t*	index,
 	ulint*			offsets,
-	bool			leaf,
+	rec_fmt_t		format,
 	ulint			n_fields,
 #ifdef UNIV_DEBUG
 	const char*		file,	/*!< in: file name where called */
@@ -544,11 +544,11 @@ rec_get_offsets_func(
 #endif /* UNIV_DEBUG */
 
 #ifdef UNIV_DEBUG
-# define rec_get_offsets(rec, index, offsets, leaf, n, heap)		\
-	rec_get_offsets_func(rec,index,offsets,leaf,n,__FILE__,__LINE__,heap)
+# define rec_get_offsets(rec, index, offsets, format, n, heap)		\
+	rec_get_offsets_func(rec,index,offsets,format,n,__FILE__,__LINE__,heap)
 #else /* UNIV_DEBUG */
-# define rec_get_offsets(rec, index, offsets, leaf, n, heap)		\
-	rec_get_offsets_func(rec, index, offsets, leaf, n, heap)
+# define rec_get_offsets(rec, index, offsets, format, n, heap)		\
+	rec_get_offsets_func(rec, index, offsets, format, n, heap)
 #endif /* UNIV_DEBUG */
 
 /******************************************************//**
@@ -1181,7 +1181,7 @@ rec_get_converted_size(
 The fields are copied into the memory heap.
 @param[out]	tuple		data tuple
 @param[in]	rec		index record, or a copy thereof
-@param[in]	is_leaf		whether rec is a leaf page record
+@param[in]	format		record format
 @param[in]	n_fields	number of fields to copy
 @param[in,out]	heap		memory heap */
 void
@@ -1189,7 +1189,7 @@ rec_copy_prefix_to_dtuple(
 	dtuple_t*		tuple,
 	const rec_t*		rec,
 	const dict_index_t*	index,
-	bool			is_leaf,
+	rec_fmt_t		format,
 	ulint			n_fields,
 	mem_heap_t*		heap)
 	MY_ATTRIBUTE((nonnull));

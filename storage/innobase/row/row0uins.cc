@@ -119,7 +119,9 @@ row_undo_ins_remove_clust_rec(
 	if (online && dict_index_is_online_ddl(index)) {
 		mem_heap_t*	heap	= NULL;
 		const ulint*	offsets	= rec_get_offsets(
-			rec, index, NULL, true, ULINT_UNDEFINED, &heap);
+			rec, index, NULL, page_rec_is_comp(rec)
+			? REC_FMT_LEAF : REC_FMT_LEAF_FLEXIBLE,
+			ULINT_UNDEFINED, &heap);
 		row_log_table_delete(rec, index, offsets, NULL);
 		mem_heap_free(heap);
 	} else {
