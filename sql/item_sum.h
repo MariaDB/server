@@ -1563,6 +1563,8 @@ public:
 
   void clear();
   bool add();
+  bool supports_removal() const;
+  void remove();
   void reset_field() {};
   void update_field() {};
   void cleanup();

@@ -23,6 +23,13 @@ EXPORTS
   avgcost_add
   avgcost_clear
   avgcost
+  avg2_init
+  avg2_deinit
+  avg2_reset
+  avg2_add
+  avg2_remove
+  avg2_clear
+  avg2
   is_const
   is_const_init
   check_const_len
