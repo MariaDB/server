@@ -35,8 +35,8 @@ insert into t values (1,1,1,1);
 set @id = (select table_id from information_schema.innodb_sys_tables
 where name = 'test/t');
 
-select name,prtype from information_schema.innodb_sys_columns
-where table_id=@id;
+--replace_column 1 TABLE_ID
+select * from information_schema.innodb_sys_columns where table_id=@id;
 
 alter table t modify a int NULL, algorithm=instant;
 insert into t values (2, NULL, 2, 2);
@@ -47,8 +47,8 @@ insert into t values (3, NULL, NULL, 3);
 alter table t modify c int NULL, algorithm=inplace;
 insert into t values (4, NULL, NULL, NULL);
 
-select name,prtype from information_schema.innodb_sys_columns
-where table_id=@id;
+--replace_column 1 TABLE_ID
+select * from information_schema.innodb_sys_columns where table_id=@id;
 
 select * from t;
 

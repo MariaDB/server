@@ -4858,7 +4858,7 @@ static bool innodb_insert_sys_columns(
 			    "BEGIN\n"
 			    "UPDATE SYS_COLUMNS SET\n"
 			    "NAME=:name, MTYPE=:mtype, PRTYPE=:prtype, "
-			    "LEN=:prtype, PREC=:base\n"
+			    "LEN=:len, PREC=:base\n"
 			    "WHERE TABLE_ID=:id AND POS=:pos;\n"
 			    "END;\n", FALSE, trx)) {
 			my_error(ER_INTERNAL_ERROR, MYF(0),
