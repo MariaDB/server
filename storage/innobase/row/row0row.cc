@@ -908,19 +908,22 @@ row_rec_to_index_entry(
 	rec_offs_make_valid(copy_rec, index, true,
 			    const_cast<ulint*>(offsets));
 
-	dtuple_t* entry = rec_is_alter_metadata(copy_rec, *index)
-		? row_rec_to_index_entry_impl<true,1>(
-			copy_rec, index, offsets, n_ext, heap)
-		: row_rec_to_index_entry_impl<true>(
+	dtuple_t* entry;
+
+	if (rec_is_alter_metadata(rec, *index)) {
+		entry = row_rec_to_index_entry_impl<true,1>(
 			copy_rec, index, offsets, n_ext, heap);
+		dtuple_set_info_bits(entry, REC_INFO_METADATA_ALTER);
+	} else {
+		entry = row_rec_to_index_entry_impl<true>(
+			copy_rec, index, offsets, n_ext, heap);
+		dtuple_set_info_bits(
+			entry,
+			rec_get_info_bits(rec, rec_offs_comp(offsets)));
+	}
 
-	rec_offs_make_valid(rec, index, true,
-			    const_cast<ulint*>(offsets));
-
-	dtuple_set_info_bits(entry,
-			     rec_get_info_bits(rec, rec_offs_comp(offsets)));
-
-	return(entry);
+	rec_offs_make_valid(rec, index, true, const_cast<ulint*>(offsets));
+	return entry;
 }
 
 /** Convert a metadata record to a data tuple.

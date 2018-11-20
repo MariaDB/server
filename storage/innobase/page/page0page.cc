@@ -552,7 +552,7 @@ page_copy_rec_list_end_no_locks(
 /*============================*/
 	buf_block_t*	new_block,	/*!< in: index page to copy to */
 	buf_block_t*	block,		/*!< in: index page of rec */
-	rec_t*		rec,		/*!< in: record on page */
+	const rec_t*	rec,		/*!< in: record on page */
 	dict_index_t*	index,		/*!< in: record descriptor */
 	mtr_t*		mtr)		/*!< in: mtr */
 {
@@ -664,7 +664,7 @@ page_copy_rec_list_end(
 	}
 
 	if (page_dir_get_n_heap(new_page) == PAGE_HEAP_NO_USER_LOW) {
-		page_copy_rec_list_end_to_created_page(new_page, rec,
+		page_copy_rec_list_end_to_created_page(new_block, rec,
 						       index, mtr);
 	} else {
 		if (dict_index_is_spatial(index)) {

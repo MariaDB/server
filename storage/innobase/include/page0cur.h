@@ -228,8 +228,8 @@ or by invoking ibuf_reset_free_bits() before mtr_commit(). */
 void
 page_copy_rec_list_end_to_created_page(
 /*===================================*/
-	page_t*		new_page,	/*!< in/out: index page to copy to */
-	rec_t*		rec,		/*!< in: first record to copy */
+	buf_block_t*	new_block,	/*!< in/out: index page to copy to */
+	const rec_t*	rec,		/*!< in: first record to copy */
 	dict_index_t*	index,		/*!< in: record descriptor */
 	mtr_t*		mtr);		/*!< in: mtr */
 /***********************************************************//**

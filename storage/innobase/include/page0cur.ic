@@ -274,6 +274,7 @@ page_cur_tuple_insert(
 					* sizeof **offsets);
 	}
 
+	/* FIXME: specify format */
 	rec = rec_convert_dtuple_to_rec((byte*) mem_heap_alloc(*heap, size),
 					index, tuple, n_ext);
 
