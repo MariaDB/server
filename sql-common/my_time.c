@@ -1465,6 +1465,46 @@ static char* fmt_number(uint val, char *out, uint digits)
 }
 
 
+static int my_mmssff_to_str(const MYSQL_TIME *ltime, char *to, uint fsp)
+{
+  char *pos= to;
+  if (fsp == AUTO_SEC_PART_DIGITS)
+    fsp= ltime->second_part ? TIME_SECOND_PART_DIGITS : 0;
+  DBUG_ASSERT(fsp <= TIME_SECOND_PART_DIGITS);
+  pos= fmt_number(ltime->minute, pos, 2);
+  *pos++= ':';
+  pos= fmt_number(ltime->second, pos, 2);
+  if (fsp)
+  {
+    *pos++= '.';
+    pos= fmt_number((uint)sec_part_shift(ltime->second_part, fsp), pos, fsp);
+  }
+  return (int) (pos - to);
+}
+
+
+int my_interval_DDhhmmssff_to_str(const MYSQL_TIME *ltime, char *to, uint fsp)
+{
+  uint hour= ltime->day * 24 + ltime->hour;
+  char *pos= to;
+  DBUG_ASSERT(!ltime->year);
+  DBUG_ASSERT(!ltime->month);
+
+  if(ltime->neg)
+    *pos++= '-';
+  if (hour >= 24)
+  {
+    pos= longlong10_to_str((longlong) hour / 24, pos, 10);
+    *pos++= ' ';
+  }
+  pos= fmt_number(hour % 24, pos, 2);
+  *pos++= ':';
+  pos+= my_mmssff_to_str(ltime, pos, fsp);
+  *pos= 0;
+  return (int) (pos-to);
+}
+
+
 /*
   Functions to convert time/date/datetime value to a string,
   using default format.
@@ -1482,11 +1522,6 @@ int my_time_to_str(const MYSQL_TIME *l_time, char *to, uint digits)
   uint hour=  day * 24 + l_time->hour;
   char*pos= to;
 
-  if (digits == AUTO_SEC_PART_DIGITS)
-    digits= l_time->second_part ? TIME_SECOND_PART_DIGITS : 0;
-
-  DBUG_ASSERT(digits <= TIME_SECOND_PART_DIGITS);
-
   if(l_time->neg)
     *pos++= '-';
 
@@ -1497,17 +1532,7 @@ int my_time_to_str(const MYSQL_TIME *l_time, char *to, uint digits)
     pos= fmt_number(hour, pos, 2);
 
   *pos++= ':';
-  pos= fmt_number(l_time->minute, pos, 2);
-  *pos++= ':';
-  pos= fmt_number(l_time->second, pos, 2);
-
-  if (digits)
-  {
-    *pos++= '.';
-    pos= fmt_number((uint)sec_part_shift(l_time->second_part, digits), 
-       pos, digits);
-  }
-
+  pos+= my_mmssff_to_str(l_time, pos, digits);
   *pos= 0;
   return (int) (pos-to);
 }
@@ -1529,12 +1554,6 @@ int my_date_to_str(const MYSQL_TIME *l_time, char *to)
 int my_datetime_to_str(const MYSQL_TIME *l_time, char *to, uint digits)
 {
   char *pos= to;
-
-  if (digits == AUTO_SEC_PART_DIGITS)
-    digits= l_time->second_part ? TIME_SECOND_PART_DIGITS : 0;
-
-  DBUG_ASSERT(digits <= TIME_SECOND_PART_DIGITS);
-
   pos= fmt_number(l_time->year, pos, 4);
   *pos++='-';
   pos= fmt_number(l_time->month, pos, 2);
@@ -1543,17 +1562,7 @@ int my_datetime_to_str(const MYSQL_TIME *l_time, char *to, uint digits)
   *pos++=' ';
   pos= fmt_number(l_time->hour, pos, 2);
   *pos++= ':';
-  pos= fmt_number(l_time->minute, pos, 2);
-  *pos++= ':';
-  pos= fmt_number(l_time->second, pos, 2);
-
-  if (digits)
-  {
-    *pos++='.';
-    pos= fmt_number((uint) sec_part_shift(l_time->second_part, digits), pos, 
-      digits);
-  }
-
+  pos+= my_mmssff_to_str(l_time, pos, digits);
   *pos= 0;
   return (int)(pos - to);
 }

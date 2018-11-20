@@ -954,6 +954,16 @@ public:
   {
     return TIME_MAX_INTERVAL_HOUR;
   }
+  static uint max_int_part_char_length()
+  {
+    // e.g. '+3652058 23:59:59'
+    return 1/*sign*/ + TIME_MAX_INTERVAL_DAY_CHAR_LENGTH + 1 + 8/*hh:mm:ss*/;
+  }
+  static uint max_char_length(uint fsp)
+  {
+    DBUG_ASSERT(fsp <= TIME_SECOND_PART_DIGITS);
+    return max_int_part_char_length() + (fsp ? 1 : 0) + fsp;
+  }
 public:
   Interval_DDhhmmssff(THD *thd, Status *st, bool push_warnings,
                       Item *item, ulong max_hour);
@@ -974,6 +984,17 @@ public:
   bool is_valid_value() const
   {
     return time_type == MYSQL_TIMESTAMP_NONE || is_valid_interval_DDhhmmssff();
+  }
+  String *to_string(String *str, uint dec) const
+  {
+    if (!is_valid_interval_DDhhmmssff())
+      return NULL;
+    str->set_charset(&my_charset_numeric);
+    if (!str->alloc(MAX_DATE_STRING_REP_LENGTH))
+      str->length(my_interval_DDhhmmssff_to_str(this,
+                                                const_cast<char*>(str->ptr()),
+                                                dec));
+    return str;
   }
 };
 
@@ -5311,6 +5332,16 @@ public:
 };
 
 
+// A pseudo type handler, mostly for test purposes for now
+class Type_handler_interval_DDhhmmssff: public Type_handler_long_blob
+{
+public:
+  Item *create_typecast_item(THD *thd, Item *item,
+                             const Type_cast_attributes &attr) const;
+};
+
+
+
 /**
   A handler for hybrid type functions, e.g.
   COALESCE(), IF(), IFNULL(), NULLIF(), CASE,
@@ -5442,6 +5473,9 @@ extern MYSQL_PLUGIN_IMPORT Type_handler_tiny_blob   type_handler_tiny_blob;
 extern MYSQL_PLUGIN_IMPORT Type_handler_blob        type_handler_blob;
 extern MYSQL_PLUGIN_IMPORT Type_handler_medium_blob type_handler_medium_blob;
 extern MYSQL_PLUGIN_IMPORT Type_handler_long_blob   type_handler_long_blob;
+
+extern MYSQL_PLUGIN_IMPORT Type_handler_interval_DDhhmmssff
+  type_handler_interval_DDhhmmssff;
 
 class Type_aggregator
 {

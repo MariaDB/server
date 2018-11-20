@@ -1106,6 +1106,24 @@ public:
 };
 
 
+class Item_interval_DDhhmmssff_typecast :public Item_char_typecast
+{
+  uint m_fsp;
+public:
+  Item_interval_DDhhmmssff_typecast(THD *thd, Item *a, uint fsp)
+   :Item_char_typecast(thd, a,Interval_DDhhmmssff::max_char_length(fsp),
+                       &my_charset_latin1),
+    m_fsp(fsp)
+  { }
+  String *val_str(String *to)
+  {
+    Interval_DDhhmmssff it(current_thd, args[0]);
+    null_value= !it.is_valid_interval_DDhhmmssff();
+    return it.to_string(to, m_fsp);
+  }
+};
+
+
 class Item_date_typecast :public Item_datefunc
 {
 public:

@@ -11737,6 +11737,10 @@ cast_type_temporal:
           DATE_SYM                       { $$.set(&type_handler_newdate); }
         | TIME_SYM opt_field_length      { $$.set(&type_handler_time2, 0, $2); }
         | DATETIME opt_field_length      { $$.set(&type_handler_datetime2, 0, $2); }
+        | INTERVAL_SYM DAY_SECOND_SYM field_length
+          {
+            $$.set(&type_handler_interval_DDhhmmssff, 0, $3);
+          }
         ;
 
 opt_expr_list:
