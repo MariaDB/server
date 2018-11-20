@@ -9225,7 +9225,11 @@ bool Item_default_value::fix_fields(THD *thd, Item **items)
     field value (mark column for read)
   */
   enum_column_usage save_column_usage= thd->column_usage;
-  thd->column_usage= COLUMNS_READ;
+  /*
+    Fields which has defult value could be read, so it is better hide system
+    invisible columns.
+  */
+  thd->column_usage= COLUMNS_WRITE;
   if (arg->fix_fields_if_needed(thd, &arg))
   {
     thd->column_usage= save_column_usage;
