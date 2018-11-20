@@ -24,12 +24,9 @@ Transaction rollback
 Created 3/26/1996 Heikki Tuuri
 *******************************************************/
 
-#include "my_config.h"
-#include <my_service_manager.h>
-
-#include "ha_prototypes.h"
 #include "trx0roll.h"
 
+#include <my_service_manager.h>
 #include <mysql/service_wsrep.h>
 
 #include "fsp0fsp.h"
@@ -46,7 +43,6 @@ Created 3/26/1996 Heikki Tuuri
 #include "trx0sys.h"
 #include "trx0trx.h"
 #include "trx0undo.h"
-#include "ha_prototypes.h"
 
 /** This many pages must be undone before a truncate is tried within
 rollback */

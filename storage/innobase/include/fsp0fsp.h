@@ -33,7 +33,6 @@ Created 12/18/1995 Heikki Tuuri
 
 #ifndef UNIV_INNOCHECKSUM
 
-#include "fsp0space.h"
 #include "fut0lst.h"
 #include "mtr0mtr.h"
 #include "page0types.h"

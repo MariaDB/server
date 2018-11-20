@@ -68,6 +68,8 @@ Type_handler_long_blob   type_handler_long_blob;
 Type_handler_blob        type_handler_blob;
 static Type_handler_blob_compressed type_handler_blob_compressed;
 
+Type_handler_interval_DDhhmmssff type_handler_interval_DDhhmmssff;
+
 #ifdef HAVE_SPATIAL
 Type_handler_geometry    type_handler_geometry;
 #endif
@@ -6566,6 +6568,20 @@ Item *Type_handler_long_blob::
     len= (int) attr.length();
   }
   return new (thd->mem_root) Item_char_typecast(thd, item, len, real_cs);
+}
+
+Item *Type_handler_interval_DDhhmmssff::
+        create_typecast_item(THD *thd, Item *item,
+                             const Type_cast_attributes &attr) const
+{
+  if (attr.decimals() > MAX_DATETIME_PRECISION)
+  {
+    wrong_precision_error(ER_TOO_BIG_PRECISION, item, attr.decimals(),
+                          MAX_DATETIME_PRECISION);
+    return 0;
+  }
+  return new (thd->mem_root) Item_interval_DDhhmmssff_typecast(thd, item,
+                                                               attr.decimals());
 }
 
 /***************************************************************************/

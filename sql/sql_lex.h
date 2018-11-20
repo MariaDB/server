@@ -207,6 +207,16 @@ enum enum_view_suid
   VIEW_SUID_DEFAULT= 2
 };
 
+
+enum plsql_cursor_attr_t
+{
+  PLSQL_CURSOR_ATTR_ISOPEN,
+  PLSQL_CURSOR_ATTR_FOUND,
+  PLSQL_CURSOR_ATTR_NOTFOUND,
+  PLSQL_CURSOR_ATTR_ROWCOUNT
+};
+
+
 /* These may not be declared yet */
 class Table_ident;
 class sql_exchange;
@@ -3878,6 +3888,10 @@ public:
   Item *make_item_colon_ident_ident(THD *thd,
                                     const Lex_ident_cli_st *a,
                                     const Lex_ident_cli_st *b);
+  // PLSQL: cursor%ISOPEN etc
+  Item *make_item_plsql_cursor_attr(THD *thd, const LEX_CSTRING *name,
+                                    plsql_cursor_attr_t attr);
+
   // For "SELECT @@var", "SELECT @@var.field"
   Item *make_item_sysvar(THD *thd,
                          enum_var_type type,
@@ -3958,9 +3972,9 @@ public:
   /* Integer range FOR LOOP methods */
   sp_variable *sp_add_for_loop_variable(THD *thd, const LEX_CSTRING *name,
                                         Item *value);
-  sp_variable *sp_add_for_loop_upper_bound(THD *thd, Item *value)
+  sp_variable *sp_add_for_loop_target_bound(THD *thd, Item *value)
   {
-    LEX_CSTRING name= { STRING_WITH_LEN("[upper_bound]") };
+    LEX_CSTRING name= { STRING_WITH_LEN("[target_bound]") };
     return sp_add_for_loop_variable(thd, &name, value);
   }
   bool sp_for_loop_intrange_declarations(THD *thd, Lex_for_loop_st *loop,

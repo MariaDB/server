@@ -25,7 +25,6 @@ Created Jan 06, 2010 Vasil Dimov
 *******************************************************/
 
 #include "univ.i"
-
 #include "ut0ut.h"
 #include "ut0rnd.h"
 #include "dyn0buf.h"
@@ -33,8 +32,6 @@ Created Jan 06, 2010 Vasil Dimov
 #include "trx0trx.h"
 #include "pars0pars.h"
 #include "dict0stats.h"
-#include "ha_prototypes.h"
-#include "ut0new.h"
 #include <mysql_com.h>
 #include "btr0btr.h"
 

@@ -24,11 +24,8 @@ Import a tablespace to a running instance.
 Created 2012-02-08 by Sunny Bains.
 *******************************************************/
 
-#include "ha_prototypes.h"
-
 #include "row0import.h"
 #include "btr0pcur.h"
-#include "btr0sea.h"
 #include "que0que.h"
 #include "dict0boot.h"
 #include "ibuf0ibuf.h"
@@ -39,7 +36,6 @@ Created 2012-02-08 by Sunny Bains.
 #include "row0quiesce.h"
 #include "fil0pagecompress.h"
 #include "trx0undo.h"
-#include "ut0new.h"
 #ifdef HAVE_LZO
 #include "lzo/lzo1x.h"
 #endif

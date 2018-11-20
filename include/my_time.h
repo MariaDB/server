@@ -208,6 +208,7 @@ void set_zero_time(MYSQL_TIME *tm, enum enum_mysql_timestamp_type time_type);
 #define MAX_DATE_STRING_REP_LENGTH 30
 #define AUTO_SEC_PART_DIGITS DECIMAL_NOT_SPECIFIED
 
+int my_interval_DDhhmmssff_to_str(const MYSQL_TIME *, char *to, uint digits);
 int my_time_to_str(const MYSQL_TIME *l_time, char *to, uint digits);
 int my_date_to_str(const MYSQL_TIME *l_time, char *to);
 int my_datetime_to_str(const MYSQL_TIME *l_time, char *to, uint digits);

@@ -46,7 +46,6 @@ Created 1/8/1996 Heikki Tuuri
 #include "buf0buf.h"
 #include "gis0type.h"
 #include "os0once.h"
-#include "ut0new.h"
 #include "fil0fil.h"
 #include "fil0crypt.h"
 #include <sql_const.h>
@@ -2200,39 +2199,26 @@ inline void dict_index_t::clear_instant_alter()
 		DBUG_ASSERT(!fields[i].col->is_nullable());
 	}
 #endif
+	dict_field_t* const begin = &fields[first_user_field()];
 	dict_field_t* end = &fields[n_fields];
+	while (end[-1].col->is_dropped()) end--;
 
-	for (dict_field_t* d = &fields[first_user_field()]; d < end; d++) {
+	for (dict_field_t* d = begin; d < end; d++) {
 		/* Move fields for dropped columns to the end. */
-		while (d->col->is_dropped()) {
+		if (d->col->is_dropped()) {
 			if (d->col->is_nullable()) {
 				n_nullable--;
 			}
 
 			std::swap(*d, *--end);
-
-			if (d == end) {
-				goto done;
-			}
-		}
-
-		/* Ensure that the surviving fields are sorted by
-		ascending order of columns. */
-		const unsigned c = d->col->ind;
-
-		for (dict_field_t* s = d + 1; s < end; s++) {
-			if (s->col->ind < c) {
-				std::swap(*d, *s);
-				break;
-			}
 		}
 	}
 
-done:
 	DBUG_ASSERT(&fields[n_fields - table->n_dropped()] == end);
-
 	n_core_fields = n_fields = n_def = end - fields;
 	n_core_null_bytes = UT_BITS_IN_BYTES(n_nullable);
+	std::sort(begin, end, [](const dict_field_t& a, const dict_field_t& b)
+		  { return a.col->ind < b.col->ind; });
 	table->instant = NULL;
 }
 

@@ -490,9 +490,11 @@ IF(WIN32)
 
   ADD_LIBRARY(winservice STATIC winservice.c)
   TARGET_LINK_LIBRARIES(winservice shell32)
+
   MYSQL_ADD_EXECUTABLE(mysql_upgrade_service
     mysql_upgrade_service.cc
-    COMPONENT Server)	
+    upgrade_conf_file.cc
+    COMPONENT Server)
   TARGET_LINK_LIBRARIES(mysql_upgrade_service mysys winservice)
 ENDIF(WIN32)
 

@@ -60,7 +60,6 @@ ib_warn_row_too_big(const dict_table_t*	table);
 #include "dict0mem.h"
 #include "dict0priv.h"
 #include "dict0stats.h"
-#include "fsp0sysspace.h"
 #include "fts0fts.h"
 #include "fts0types.h"
 #include "lock0lock.h"
@@ -81,7 +80,6 @@ ib_warn_row_too_big(const dict_table_t*	table);
 #include "srv0start.h"
 #include "sync0sync.h"
 #include "trx0undo.h"
-#include "ut0new.h"
 
 #include <vector>
 #include <algorithm>

@@ -31,7 +31,6 @@ Created 2012-03-24 Sunny Bains.
 
 #include "sync0policy.h"
 #include "ib0mutex.h"
-#include <set>
 
 /** Create a typedef using the MutexType<PolicyType>
 @param[in]	M		Mutex type
