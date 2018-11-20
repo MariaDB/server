@@ -232,9 +232,8 @@ static void recv_addr_trim(ulint space_id, unsigned pages, lsn_t lsn)
 		hash_cell_t* const cell = hash_get_nth_cell(
 			recv_sys->addr_hash, i);
 		for (recv_addr_t* addr = static_cast<recv_addr_t*>(cell->node),
-			     *prev = NULL, *next;
-		     addr;
-		     prev = addr, addr = next) {
+			     *next;
+		     addr; addr = next) {
 			next = static_cast<recv_addr_t*>(addr->addr_hash);
 
 			if (addr->space != space_id || addr->page_no < pages) {
@@ -255,22 +254,6 @@ static void recv_addr_trim(ulint space_id, unsigned pages, lsn_t lsn)
 					UT_LIST_REMOVE(addr->rec_list, recv);
 				}
 				recv = n;
-			}
-
-			if (UT_LIST_GET_LEN(addr->rec_list)) {
-				DBUG_PRINT("ib_log",
-					   ("preserving " ULINTPF
-					    " records for page %u:%u",
-					    UT_LIST_GET_LEN(addr->rec_list),
-					    addr->space, addr->page_no));
-			} else {
-				ut_ad(recv_sys->n_addrs);
-				--recv_sys->n_addrs;
-				if (addr == cell->node) {
-					cell->node = next;
-				} else {
-					prev->addr_hash = next;
-				}
 			}
 		}
 	}
@@ -2119,8 +2102,7 @@ static ulint recv_read_in_area(const page_id_t page_id)
 /** Apply the hash table of stored log records to persistent data pages.
 @param[in]	last_batch	whether the change buffer merge will be
 				performed as part of the operation */
-void
-recv_apply_hashed_log_recs(bool last_batch)
+void recv_apply_hashed_log_recs(bool last_batch)
 {
 	ut_ad(srv_operation == SRV_OPERATION_NORMAL
 	      || srv_operation == SRV_OPERATION_RESTORE
@@ -2183,7 +2165,8 @@ recv_apply_hashed_log_recs(bool last_batch)
 				continue;
 			}
 
-			if (recv_addr->state == RECV_DISCARDED) {
+			if (recv_addr->state == RECV_DISCARDED
+			    || !UT_LIST_GET_LEN(recv_addr->rec_list)) {
 				ut_a(recv_sys->n_addrs);
 				recv_sys->n_addrs--;
 				continue;
