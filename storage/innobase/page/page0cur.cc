@@ -29,6 +29,7 @@ Created 10/4/1994 Heikki Tuuri
 #include "page0zip.h"
 #include "btr0btr.h"
 #include "mtr0log.h"
+#include "row0row.h"
 #include "log0recv.h"
 #include "rem0cmp.h"
 #include "gis0rtree.h"
@@ -2050,8 +2051,8 @@ or by invoking ibuf_reset_free_bits() before mtr_commit(). */
 void
 page_copy_rec_list_end_to_created_page(
 /*===================================*/
-	page_t*		new_page,	/*!< in/out: index page to copy to */
-	rec_t*		rec,		/*!< in: first record to copy */
+	buf_block_t*	new_block,	/*!< in/out: index page to copy to */
+	const rec_t*	rec,		/*!< in: first record to copy */
 	dict_index_t*	index,		/*!< in: record descriptor */
 	mtr_t*		mtr)		/*!< in: mtr */
 {
@@ -2070,6 +2071,7 @@ page_copy_rec_list_end_to_created_page(
 	ulint*		offsets		= offsets_;
 	rec_offs_init(offsets_);
 
+	page_t* const new_page = new_block->frame;
 	ut_ad(page_dir_get_n_heap(new_page) == PAGE_HEAP_NO_USER_LOW);
 	ut_ad(page_align(rec) != new_page);
 	ut_ad(page_rec_is_leaf(rec) == page_is_leaf(new_page));
@@ -2084,7 +2086,7 @@ page_copy_rec_list_end_to_created_page(
 
 	if (page_rec_is_infimum(rec)) {
 
-		rec = page_rec_get_next(rec);
+		rec = page_rec_get_next_const(rec);
 	}
 
 	if (page_rec_is_supremum(rec)) {
@@ -2099,8 +2101,8 @@ page_copy_rec_list_end_to_created_page(
 	page_header_set_ptr(new_page, NULL, PAGE_HEAP_TOP,
 			    new_page + srv_page_size - 1);
 #endif
-	log_ptr = page_copy_rec_list_to_created_page_write_log(new_page,
-							       index, mtr);
+	log_ptr = page_copy_rec_list_to_created_page_write_log(
+		new_page, index, mtr);
 
 	log_data_len = mtr->get_log()->size();
 
@@ -2111,10 +2113,11 @@ page_copy_rec_list_end_to_created_page(
 		? mtr_get_log_mode(mtr)
 		: mtr_set_log_mode(mtr, MTR_LOG_SHORT_INSERTS);
 
-	prev_rec = page_get_infimum_rec(new_page);
 	if (page_is_comp(new_page)) {
+		prev_rec = new_page + PAGE_NEW_INFIMUM;
 		heap_top = new_page + PAGE_NEW_SUPREMUM_END;
 	} else {
+		prev_rec = new_page + PAGE_OLD_INFIMUM;
 		heap_top = new_page + PAGE_OLD_SUPREMUM_END;
 	}
 	count = 0;
@@ -2123,13 +2126,40 @@ page_copy_rec_list_end_to_created_page(
 
 	const bool is_leaf = page_is_leaf(new_page);
 
-#if 0 // FIXME: convert to REC_FMT_LEAF_FLEXIBLE while copying
 	if (UNIV_UNLIKELY(page_is_comp(new_page) != page_rec_is_comp(rec))) {
 		ut_ad(index->dual_format());
-		ut_ad(page_is_leaf(new_page));
+		ut_ad(is_leaf);
 		ut_ad(!page_is_comp(new_page));
+		page_cur_t cursor;
+		page_cur_position(prev_rec, new_block, &cursor);
+		mem_heap_t* row_heap = mem_heap_create(1024);
+
+		do {
+			offsets = rec_get_offsets(rec, index, offsets,
+						  REC_FMT_LEAF,
+						  ULINT_UNDEFINED, &heap);
+			ulint n_ext;
+			/* FIXME: skip rec_copy() here */
+			dtuple_t* dtuple = row_rec_to_index_entry(
+				rec, index, offsets, &n_ext, row_heap);
+			ut_ad(!!n_ext == rec_offs_any_extern(offsets));
+			/* TODO: ensure that we trim CHAR columns that
+			use variable-width character set encoding and that
+			we store no BLOB prefix in ROW_FORMAT=DYNAMIC */
+			rec_t* insert_rec = page_cur_tuple_insert(
+				&cursor, dtuple, index, &offsets,
+				&row_heap, n_ext, mtr);
+			if (!insert_rec) {
+				ut_ad(!"page overflow");
+			}
+
+			mem_heap_empty(row_heap);
+			rec = page_rec_get_next_low(rec, 0);
+		} while (!page_rec_is_supremum(rec));
+
+		mem_heap_free(row_heap);
+		goto end;
 	}
-#endif
 
 	do {
 		offsets = rec_get_offsets(rec, index, offsets, is_leaf
@@ -2179,9 +2209,10 @@ page_copy_rec_list_end_to_created_page(
 		page_cur_insert_rec_write_log(insert_rec, rec_size, prev_rec,
 					      index, mtr);
 		prev_rec = insert_rec;
-		rec = page_rec_get_next(rec);
+		rec = page_rec_get_next_const(rec);
 	} while (!page_rec_is_supremum(rec));
 
+end:
 	if ((slot_index > 0) && (count + 1
 				 + (PAGE_DIR_SLOT_MAX_N_OWNED + 1) / 2
 				 <= PAGE_DIR_SLOT_MAX_N_OWNED)) {
