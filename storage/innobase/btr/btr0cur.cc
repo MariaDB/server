@@ -3362,6 +3362,8 @@ btr_cur_optimistic_insert(
 
 	if (UNIV_UNLIKELY(entry->is_alter_metadata())) {
 		ut_ad(leaf);
+		rec_size = rec_get_converted_size(REC_FMT_LEAF,
+						  index, entry, n_ext);
 		goto convert_big_rec;
 	}
 
@@ -3372,7 +3374,8 @@ btr_cur_optimistic_insert(
 	}
 
 	/* Calculate the record size when entry is converted to a record */
-	rec_size = rec_get_converted_size(leaf ? REC_FMT_LEAF : REC_FMT_NODE_PTR,
+	rec_size = rec_get_converted_size(leaf
+					  ? REC_FMT_LEAF : REC_FMT_NODE_PTR,
 					  index, entry, n_ext);
 
 	if (page_zip_rec_needs_ext(rec_size, page_is_comp(page),
