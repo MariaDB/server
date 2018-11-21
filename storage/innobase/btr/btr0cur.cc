@@ -3331,7 +3331,6 @@ btr_cur_optimistic_insert(
 	buf_block_t*	block;
 	page_t*		page;
 	rec_t*		dummy;
-	bool		leaf;
 	bool		reorg;
 	bool		inherit = true;
 	ulint		rec_size;
@@ -3359,7 +3358,7 @@ btr_cur_optimistic_insert(
 	}
 #endif /* UNIV_DEBUG_VALGRIND */
 
-	leaf = page_is_leaf(page);
+	const bool leaf = page_is_leaf(page);
 
 	if (UNIV_UNLIKELY(entry->is_alter_metadata())) {
 		ut_ad(leaf);
@@ -3373,21 +3372,26 @@ btr_cur_optimistic_insert(
 	}
 
 	/* Calculate the record size when entry is converted to a record */
-	rec_size = rec_get_converted_size(index, entry, n_ext);
+	rec_size = rec_get_converted_size(leaf ? REC_FMT_LEAF : REC_FMT_NODE_PTR,
+					  index, entry, n_ext);
 
 	if (page_zip_rec_needs_ext(rec_size, page_is_comp(page),
 				   dtuple_get_n_fields(entry), page_size)) {
+		if (!leaf || !index->is_primary()) {
+			return DB_TOO_BIG_RECORD;
+		}
 convert_big_rec:
 		/* The record is so big that we have to store some fields
 		externally on separate database pages */
-		big_rec_vec = dtuple_convert_big_rec(index, 0, entry, &n_ext);
+		big_rec_vec = dtuple_convert_big_rec(index, rec_size, NULL,
+						     entry, &n_ext);
 
 		if (UNIV_UNLIKELY(big_rec_vec == NULL)) {
 
 			return(DB_TOO_BIG_RECORD);
 		}
 
-		rec_size = rec_get_converted_size(index, entry, n_ext);
+		rec_size = rec_get_converted_size(REC_FMT_LEAF, index, entry, n_ext);
 	}
 
 	if (page_size.is_compressed() && page_zip_is_too_big(index, entry)) {
@@ -3413,7 +3417,7 @@ fail:
 
 		/* prefetch siblings of the leaf for the pessimistic
 		operation, if the page is leaf. */
-		if (page_is_leaf(page)) {
+		if (leaf) {
 			btr_cur_prefetch_siblings(block);
 		}
 fail_err:
@@ -3680,10 +3684,20 @@ btr_cur_pessimistic_insert(
 		}
 	}
 
-	if (page_zip_rec_needs_ext(rec_get_converted_size(index, entry, n_ext),
-				   dict_table_is_comp(index->table),
+	const rec_fmt_t format = page_is_leaf(btr_cur_get_page(cursor))
+		? (page_is_comp(btr_cur_get_page(cursor))
+		   ? REC_FMT_LEAF : REC_FMT_LEAF_FLEXIBLE)
+		: REC_FMT_NODE_PTR;
+	const ulint rec_size = rec_get_converted_size(format, index, entry,
+						      n_ext);
+
+	if (page_zip_rec_needs_ext(rec_size,
+				   page_is_comp(btr_cur_get_page(cursor)),
 				   dtuple_get_n_fields(entry),
-				   dict_table_page_size(index->table))) {
+				   btr_cur_get_block(cursor)->page.size)) {
+		if (format == REC_FMT_NODE_PTR || !index->is_primary()) {
+			return DB_TOO_BIG_RECORD;
+		}
 		/* The record is so big that we have to store some fields
 		externally on separate database pages */
 
@@ -3694,7 +3708,8 @@ btr_cur_pessimistic_insert(
 			dtuple_convert_back_big_rec(index, entry, big_rec_vec);
 		}
 
-		big_rec_vec = dtuple_convert_big_rec(index, 0, entry, &n_ext);
+		big_rec_vec = dtuple_convert_big_rec(index, rec_size, NULL,
+						     entry, &n_ext);
 
 		if (big_rec_vec == NULL) {
 
@@ -4495,7 +4510,8 @@ any_extern:
 						     *heap);
 	btr_cur_trim(new_entry, index, update, thr);
 	old_rec_size = rec_offs_size(*offsets);
-	new_rec_size = rec_get_converted_size(index, new_entry, 0);
+	new_rec_size = rec_get_converted_size(REC_FMT_LEAF, index, new_entry,
+					      0);
 
 	page_zip = buf_block_get_page_zip(block);
 #ifdef UNIV_ZIP_DEBUG
@@ -4817,11 +4833,12 @@ btr_cur_pessimistic_update(
 
 	rec = btr_cur_get_rec(cursor);
 
-	*offsets = rec_get_offsets(
-		rec, index, *offsets, page_is_leaf(page)
+	const rec_fmt_t format = page_is_leaf(page)
 		? (page_is_comp(page) ? REC_FMT_LEAF : REC_FMT_LEAF_FLEXIBLE)
-		: REC_FMT_NODE_PTR,
-		ULINT_UNDEFINED, offsets_heap);
+		: REC_FMT_NODE_PTR;
+
+	*offsets = rec_get_offsets(rec, index, *offsets, format,
+				   ULINT_UNDEFINED, offsets_heap);
 
 	dtuple_t* new_entry;
 
@@ -4879,16 +4896,19 @@ btr_cur_pessimistic_update(
 			index, rec, page_zip, *offsets, update, true, mtr);
 	}
 
-	if (page_zip_rec_needs_ext(
-		    rec_get_converted_size(index, new_entry, n_ext),
-		    page_is_comp(page),
-		    dict_index_get_n_fields(index),
-		    block->page.size)
+	const ulint rec_size = rec_get_converted_size(format, index, new_entry,
+						      n_ext);
+
+	if (page_zip_rec_needs_ext(rec_size, page_is_comp(page),
+				   index->n_fields, block->page.size)
 	    || (UNIV_UNLIKELY(update->is_alter_metadata())
 		&& !dfield_is_ext(dtuple_get_nth_field(
 					  new_entry,
 					  index->first_user_field())))) {
-		big_rec_vec = dtuple_convert_big_rec(index, update, new_entry, &n_ext);
+		big_rec_vec = index->is_primary()
+			? dtuple_convert_big_rec(index, rec_size, update,
+						 new_entry, &n_ext)
+			: NULL;
 		if (UNIV_UNLIKELY(big_rec_vec == NULL)) {
 
 			/* We cannot goto return_after_reservations,
@@ -4905,7 +4925,6 @@ btr_cur_pessimistic_update(
 		}
 
 		ut_ad(page_is_leaf(page));
-		ut_ad(dict_index_is_clust(index));
 		ut_ad(flags & BTR_KEEP_POS_FLAG);
 	}
 

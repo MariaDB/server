@@ -2470,10 +2470,13 @@ trx_undo_prev_version_build(
 		following call is safe. */
 		row_upd_index_replace_new_col_vals(entry, index, update, heap);
 
-		buf = static_cast<byte*>(mem_heap_alloc(
-			heap, rec_get_converted_size(index, entry, n_ext)));
+		const rec_fmt_t format = rec_offs_comp(offsets)
+			? REC_FMT_LEAF : REC_FMT_LEAF_FLEXIBLE;
 
-		*old_vers = rec_convert_dtuple_to_rec(buf, index,
+		buf = static_cast<byte*>(mem_heap_alloc(
+			heap, rec_get_converted_size(format, index, entry, n_ext)));
+
+		*old_vers = rec_convert_dtuple_to_rec(buf, format, index,
 						      entry, n_ext);
 	} else {
 		buf = static_cast<byte*>(mem_heap_alloc(

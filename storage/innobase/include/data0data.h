@@ -547,7 +547,8 @@ short fields in entry or the index is clustered */
 big_rec_t*
 dtuple_convert_big_rec(
 /*===================*/
-	dict_index_t*	index,	/*!< in: index */
+	dict_index_t*	index,	/*!< in: primary key */
+	ulint		size,	/*!< in: initial converted size */
 	upd_t*		upd,	/*!< in/out: update vector */
 	dtuple_t*	entry,	/*!< in/out: index entry */
 	ulint*		n_ext)	/*!< in/out: number of

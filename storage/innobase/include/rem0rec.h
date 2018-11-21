@@ -1123,6 +1123,7 @@ rec_convert_dtuple_to_rec(
 /*======================*/
 	byte*			buf,	/*!< in: start address of the
 					physical record */
+	rec_fmt_t		format,	/*!< in: record format */
 	const dict_index_t*	index,	/*!< in: record descriptor */
 	const dtuple_t*		dtuple,	/*!< in: data tuple */
 	ulint			n_ext)	/*!< in: number of
@@ -1173,6 +1174,7 @@ UNIV_INLINE
 ulint
 rec_get_converted_size(
 /*===================*/
+	rec_fmt_t	format,	/*!< in: record format */
 	dict_index_t*	index,	/*!< in: record descriptor */
 	const dtuple_t*	dtuple,	/*!< in: data tuple */
 	ulint		n_ext)	/*!< in: number of externally stored columns */

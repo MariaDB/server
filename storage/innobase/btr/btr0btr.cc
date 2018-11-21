@@ -2356,7 +2356,8 @@ btr_page_get_split_rec(
 
 	page = btr_cur_get_page(cursor);
 
-	insert_size = rec_get_converted_size(cursor->index, tuple, n_ext);
+	insert_size = rec_get_converted_size(format, cursor->index, tuple,
+					     n_ext);
 	free_space  = page_get_free_space_of_empty(page_is_comp(page));
 
 	page_zip = btr_cur_get_page_zip(cursor);
@@ -2478,8 +2479,11 @@ btr_page_insert_fits(
 	      || !page_is_comp(page) == !rec_offs_comp(*offsets));
 	ut_ad(!split_rec
 	      || rec_offs_validate(split_rec, cursor->index, *offsets));
+	const rec_fmt_t format = page_is_leaf(page)
+		? (page_is_comp(page) ? REC_FMT_LEAF : REC_FMT_LEAF_FLEXIBLE)
+		: REC_FMT_NODE_PTR;
 
-	insert_size = rec_get_converted_size(cursor->index, tuple, n_ext);
+	insert_size = rec_get_converted_size(format, cursor->index, tuple, n_ext);
 	free_space  = page_get_free_space_of_empty(page_is_comp(page));
 
 	/* free_space is now the free space of a created new page */
@@ -2512,12 +2516,6 @@ btr_page_insert_fits(
 
 		return(true);
 	}
-
-	const rec_fmt_t format = page_is_leaf(page)
-		? (page_is_comp(page)
-		   ? REC_FMT_LEAF
-		   : REC_FMT_LEAF_FLEXIBLE)
-		: REC_FMT_NODE_PTR;
 
 	while (rec != end_rec) {
 		/* In this loop we calculate the amount of reserved
@@ -3147,16 +3145,17 @@ func_start:
 insert_empty:
 		ut_ad(!split_rec);
 		ut_ad(!insert_left);
-		buf = UT_NEW_ARRAY_NOKEY(
-			byte,
-			rec_get_converted_size(cursor->index, tuple, n_ext));
-
-		/* FIXME: pass format? */
-		first_rec = rec_convert_dtuple_to_rec(buf, cursor->index,
-						      tuple, n_ext);
 		if (format == REC_FMT_LEAF && cursor->index->dual_format()) {
 			format = REC_FMT_LEAF_FLEXIBLE;
 		}
+		buf = UT_NEW_ARRAY_NOKEY(
+			byte,
+			rec_get_converted_size(format, cursor->index, tuple,
+					       n_ext));
+
+		first_rec = rec_convert_dtuple_to_rec(buf, format,
+						      cursor->index,
+						      tuple, n_ext);
 		move_limit = page_rec_get_next(btr_cur_get_rec(cursor));
 	}
 

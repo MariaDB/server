@@ -592,7 +592,8 @@ short fields in entry or the index is clustered */
 big_rec_t*
 dtuple_convert_big_rec(
 /*===================*/
-	dict_index_t*	index,	/*!< in: index */
+	dict_index_t*	index,	/*!< in: primary key */
+	ulint		size,	/*!< in: initial converted size */
 	upd_t*		upd,	/*!< in/out: update vector */
 	dtuple_t*	entry,	/*!< in/out: index entry */
 	ulint*		n_ext)	/*!< in/out: number of
@@ -601,27 +602,14 @@ dtuple_convert_big_rec(
 	mem_heap_t*	heap;
 	big_rec_t*	vector;
 	dfield_t*	dfield;
-	ulint		size;
 	ulint		n_fields;
 	ulint		local_len;
 	ulint		local_prefix_len;
 
-	if (!dict_index_is_clust(index)) {
-		return(NULL);
-	}
-
+	ut_ad(index->is_primary());
 	ut_ad(index->n_uniq > 0);
 
 	ut_a(dtuple_check_typed_no_assert(entry));
-
-	size = rec_get_converted_size(index, entry, *n_ext);
-
-	if (UNIV_UNLIKELY(size > 1000000000)) {
-		ib::warn() << "Tuple size is very big: " << size;
-		fputs("InnoDB: Tuple contents: ", stderr);
-		dtuple_print(stderr, entry);
-		putc('\n', stderr);
-	}
 
 	heap = mem_heap_create(size + dtuple_get_n_fields(entry)
 			       * sizeof(big_rec_field_t) + 1000);
@@ -655,10 +643,11 @@ dtuple_convert_big_rec(
 		local_len = BTR_EXTERN_FIELD_REF_SIZE;
 	}
 
-	while (page_zip_rec_needs_ext(rec_get_converted_size(index, entry,
+	while (page_zip_rec_needs_ext(rec_get_converted_size(REC_FMT_LEAF,//FIXME
+							     index, entry,
 							     *n_ext),
-				      dict_table_is_comp(index->table),
-				      dict_index_get_n_fields(index),
+				      dict_table_is_comp(index->table),//FIXME: block
+				      index->n_fields,
 				      dict_table_page_size(index->table))) {
 		longest_i = 0;
 		for (ulint i = index->first_user_field(), longest = 0;

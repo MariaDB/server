@@ -111,9 +111,9 @@ rtr_page_split_initialize_nodes(
 		dtuple_get_nth_field(tuple, 0)));
 	cur->coords = reserve_coords(buf_pos, SPDIMS);
 	rec = (byte*) mem_heap_alloc(
-		heap, rec_get_converted_size(cursor->index, tuple, 0));
+		heap, rec_get_converted_size(format, cursor->index, tuple, 0));
 
-	rec = rec_convert_dtuple_to_rec(rec, cursor->index, tuple, 0);
+	rec = rec_convert_dtuple_to_rec(rec, format, cursor->index, tuple, 0);
 	cur->key = rec;
 
 	memcpy(cur->coords, source_cur, DATA_MBR_LEN);
@@ -1076,7 +1076,9 @@ func_start:
 	}
 #endif
 
-	insert_size = rec_get_converted_size(cursor->index, tuple, n_ext);
+	insert_size = rec_get_converted_size(page_level
+					     ? REC_FMT_NODE_PTR : REC_FMT_LEAF,
+					     cursor->index, tuple, n_ext);
 	total_data = page_get_data_size(page) + insert_size;
 	first_rec_group = split_rtree_node(rtr_split_node_array,
 					   static_cast<int>(n_recs),

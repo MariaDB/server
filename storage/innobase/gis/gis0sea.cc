@@ -1706,10 +1706,12 @@ rtr_cur_search_with_match(
 	avoid it if possible */
 	if (mode == PAGE_CUR_RTREE_INSERT && !page_rec_is_supremum(rec)) {
 
-		ulint	new_rec_size = rec_get_converted_size(index, tuple, 0);
+		const rec_fmt_t format = level
+			? REC_FMT_NODE_PTR : REC_FMT_LEAF;
+		ulint	new_rec_size = rec_get_converted_size(format, index,
+							      tuple, 0);
 
-		offsets = rec_get_offsets(rec, index, offsets, level
-					  ? REC_FMT_NODE_PTR : REC_FMT_LEAF,
+		offsets = rec_get_offsets(rec, index, offsets, format,
 					  dtuple_get_n_fields_cmp(tuple),
 					  &heap);
 
