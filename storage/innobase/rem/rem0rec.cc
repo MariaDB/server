@@ -1753,26 +1753,20 @@ rec_convert_dtuple_to_rec(
 /*======================*/
 	byte*			buf,	/*!< in: start address of the
 					physical record */
+	rec_fmt_t		format,	/*!< in: record format */
 	const dict_index_t*	index,	/*!< in: record descriptor */
 	const dtuple_t*		dtuple,	/*!< in: data tuple */
 	ulint			n_ext)	/*!< in: number of
 					externally stored columns */
 {
-	rec_t*	rec;
-
-	ut_ad(buf != NULL);
-	ut_ad(index != NULL);
-	ut_ad(dtuple != NULL);
 	ut_ad(dtuple_validate(dtuple));
 	ut_ad(dtuple_check_typed(dtuple));
 
-	if (dict_table_is_comp(index->table)) {
-		rec = rec_convert_dtuple_to_rec_new(buf, index, dtuple);
+	if (format != REC_FMT_LEAF_FLEXIBLE && index->table->not_redundant()) {
+		return rec_convert_dtuple_to_rec_new(buf, index, dtuple);
 	} else {
-		rec = rec_convert_dtuple_to_rec_old(buf, dtuple, n_ext);
+		return rec_convert_dtuple_to_rec_old(buf, dtuple, n_ext);
 	}
-
-	return(rec);
 }
 
 /** Determine the size of a data tuple prefix in a temporary file.

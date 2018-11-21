@@ -1730,7 +1730,8 @@ ibuf_rec_get_volume_func(
 		entry = ibuf_build_entry_from_ibuf_rec(mtr, ibuf_rec,
 			heap, &dummy_index);
 
-		volume = rec_get_converted_size(dummy_index, entry, 0);
+		volume = rec_get_converted_size(REC_FMT_LEAF, dummy_index,
+						entry, 0);
 
 		ibuf_dummy_index_free(dummy_index);
 		mem_heap_free(heap);
@@ -2941,7 +2942,8 @@ get_volume_comp:
 		entry = ibuf_build_entry_from_ibuf_rec(
 			mtr, rec, heap, &dummy_index);
 
-		volume = rec_get_converted_size(dummy_index, entry, 0);
+		volume = rec_get_converted_size(REC_FMT_LEAF, dummy_index,
+						entry, 0);
 
 		ibuf_dummy_index_free(dummy_index);
 		mem_heap_free(heap);
@@ -3779,7 +3781,7 @@ check_watch:
 	}
 
 skip_watch:
-	entry_size = rec_get_converted_size(index, entry, 0);
+	entry_size = rec_get_converted_size(REC_FMT_LEAF, index, entry, 0);
 
 	if (entry_size
 	    >= page_get_free_space_of_empty(dict_table_is_comp(index->table))
@@ -3863,7 +3865,7 @@ ibuf_insert_to_index_page_low(
 
 	ib::error() << "Insert buffer insert fails; page free "
 		<< page_get_max_insert_size(page, 1) << ", dtuple size "
-		<< rec_get_converted_size(index, entry, 0);
+		<< rec_get_converted_size(REC_FMT_LEAF, index, entry, 0);
 
 	fputs("InnoDB: Cannot insert index record ", stderr);
 	dtuple_print(stderr, entry);

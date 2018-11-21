@@ -862,7 +862,9 @@ BtrBulk::insert(
 	}
 
 	ulint		n_ext = 0;
-	ulint		rec_size = rec_get_converted_size(m_index, tuple, n_ext);
+	const rec_fmt_t	format = level ? REC_FMT_NODE_PTR : REC_FMT_LEAF;
+	ulint		rec_size = rec_get_converted_size(format, m_index,
+							  tuple, n_ext);
 	big_rec_t*	big_rec = NULL;
 	rec_t*		rec = NULL;
 	ulint*		offsets = NULL;
@@ -870,19 +872,26 @@ BtrBulk::insert(
 	if (page_bulk->needExt(tuple, rec_size)) {
 		/* The record is so big that we have to store some fields
 		externally on separate database pages */
-		big_rec = dtuple_convert_big_rec(m_index, 0, tuple, &n_ext);
+		big_rec = dtuple_convert_big_rec(m_index, rec_size, NULL,
+						 tuple, &n_ext);
 
 		if (big_rec == NULL) {
 			return(DB_TOO_BIG_RECORD);
 		}
 
-		rec_size = rec_get_converted_size(m_index, tuple, n_ext);
+		rec_size = rec_get_converted_size(format, m_index,
+						  tuple, n_ext);
 	}
 
 	if (page_bulk->getPageZip() != NULL
 	    && page_zip_is_too_big(m_index, tuple)) {
 		err = DB_TOO_BIG_RECORD;
-		goto func_exit;
+func_exit:
+		if (big_rec) {
+			dtuple_convert_back_big_rec(m_index, tuple, big_rec);
+		}
+
+		return err;
 	}
 
 	if (!page_bulk->isSpaceAvailable(rec_size)) {
@@ -933,10 +942,11 @@ BtrBulk::insert(
 	}
 
 	/* Convert tuple to rec. */
-        rec = rec_convert_dtuple_to_rec(static_cast<byte*>(mem_heap_alloc(
-		page_bulk->m_heap, rec_size)), m_index, tuple, n_ext);
-        offsets = rec_get_offsets(rec, m_index, offsets,
-				  level ? REC_FMT_NODE_PTR : REC_FMT_LEAF,
+        rec = rec_convert_dtuple_to_rec(
+		static_cast<byte*>(mem_heap_alloc(page_bulk->m_heap,
+						  rec_size)),
+		format, m_index, tuple, n_ext);
+        offsets = rec_get_offsets(rec, m_index, offsets, format,
 				  ULINT_UNDEFINED, &page_bulk->m_heap);
 
 	page_bulk->insert(rec, offsets);
@@ -960,14 +970,11 @@ BtrBulk::insert(
 			PageBulk*    page_bulk = m_page_bulks.at(level);
 			page_bulk->latch();
 		}
-	}
 
-func_exit:
-	if (big_rec != NULL) {
 		dtuple_convert_back_big_rec(m_index, tuple, big_rec);
 	}
 
-	return(err);
+	return err;
 }
 
 /** Btree bulk load finish. We commit the last page in each level
