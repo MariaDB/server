@@ -479,7 +479,9 @@ rec_offs_make_valid(
 	ulint*			offsets)
 {
 	const bool is_alter_metadata = leaf
-		&& rec_is_alter_metadata(rec, *index);
+		&& rec_is_alter_metadata(rec, rec_offs_comp(offsets));
+	ut_ad(!!rec_offs_comp(offsets) == index->table->not_redundant()
+	      || (leaf && index->dual_format()));
 	ut_ad(is_alter_metadata
 	      || rec_offs_n_fields(offsets)
 	      <= (leaf
@@ -490,7 +492,9 @@ rec_offs_make_valid(
 				  ? rec_get_heap_no_new(rec)
 				  : rec_get_heap_no_old(rec))
 		>= PAGE_HEAP_NO_USER_LOW;
-	ulint n = rec_get_n_fields(rec, index);
+	ulint n = rec_offs_comp(offsets)
+		? rec_get_n_fields(rec, index)
+		: rec_get_n_fields_old(rec);
 	/* The infimum and supremum records carry 1 field. */
 	ut_ad(is_user_rec || n == 1);
 	ut_ad(is_user_rec || rec_offs_n_fields(offsets) == 1);
