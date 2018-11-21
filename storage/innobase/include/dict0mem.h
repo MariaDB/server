@@ -2153,9 +2153,11 @@ inline void dict_index_t::clear_instant_alter()
 	dict_field_t* end = &fields[n_fields];
 	while (end[-1].col->is_dropped()) end--;
 
-	for (dict_field_t* d = begin; d < end; d++) {
+	for (dict_field_t* d = begin; d < end; ) {
 		/* Move fields for dropped columns to the end. */
-		if (d->col->is_dropped()) {
+		if (!d->col->is_dropped()) {
+			d++;
+		} else {
 			if (d->col->is_nullable()) {
 				n_nullable--;
 			}
