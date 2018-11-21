@@ -892,6 +892,7 @@ static MYSQL_THDVAR_ULONGLONG(
     1);
 #endif // defined(TOKU_INCLUDE_RFR) && TOKU_INCLUDE_RFR
 
+#if defined(TOKU_INCLUDE_UPSERT)
 static MYSQL_THDVAR_BOOL(
     enable_fast_update,
     PLUGIN_VAR_THDLOCAL,
@@ -900,13 +901,14 @@ static MYSQL_THDVAR_BOOL(
     NULL,
     false);
 
-static MYSQL_THDVAR_BOOL(
+    static MYSQL_THDVAR_BOOL(
     enable_fast_upsert,
     PLUGIN_VAR_THDLOCAL,
     "disable slow upsert",
     NULL,
     NULL,
     false);
+#endif
 
 #if TOKU_INCLUDE_XA
 static MYSQL_THDVAR_BOOL(
