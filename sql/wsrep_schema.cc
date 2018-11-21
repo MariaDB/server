@@ -734,13 +734,12 @@ Wsrep_view Wsrep_schema::restore_view(THD* thd, const Wsrep_id& own_id) const {
   wsrep_cap_t capabilities;
   std::vector<Wsrep_view::member> members;
 
-  if (!thd) {
-    WSREP_ERROR("Failed to allocate THD for restore view");
-    DBUG_RETURN(Wsrep_view());
-  }
+  // we don't want causal waits for reading non-replicated private data
+  int const wsrep_sync_wait_saved = thd->variables.wsrep_sync_wait;
+  thd->variables.wsrep_sync_wait = 0;
 
   if (trans_begin(thd, MYSQL_START_TRANS_OPT_READ_ONLY)) {
-    WSREP_ERROR("Failed to start transaction");
+    WSREP_ERROR("wsrep_schema::restore_view(): Failed to start transaction");
     goto out;
   }
 
@@ -824,6 +823,8 @@ Wsrep_view Wsrep_schema::restore_view(THD* thd, const Wsrep_id& own_id) const {
   }
   thd->mdl_context.release_transactional_locks();
 
+  thd->variables.wsrep_sync_wait = wsrep_sync_wait_saved;
+
   if (0 == ret) {
     Wsrep_view ret_view(
       wsrep::gtid(cluster_uuid, Wsrep_seqno(view_seqno)),
@@ -844,6 +845,7 @@ Wsrep_view Wsrep_schema::restore_view(THD* thd, const Wsrep_id& own_id) const {
   }
   else
   {
+    WSREP_ERROR("wsrep_schema::recover_view() failed.");
     Wsrep_view ret_view;
     DBUG_RETURN(ret_view);
   }

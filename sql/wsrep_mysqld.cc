@@ -1072,8 +1072,10 @@ bool wsrep_sync_wait (THD* thd, uint mask)
 {
   if (wsrep_must_sync_wait(thd, mask))
   {
-    WSREP_DEBUG("wsrep_sync_wait: thd->variables.wsrep_sync_wait = %u, mask = %u",
-                thd->variables.wsrep_sync_wait, mask);
+    WSREP_DEBUG("wsrep_sync_wait: thd->variables.wsrep_sync_wait = %u, "
+                "mask = %u, thd->variables.wsrep_on",
+                thd->variables.wsrep_sync_wait, mask,
+                thd->variables.wsrep_on);
     // This allows autocommit SELECTs and a first SELECT after SET AUTOCOMMIT=0
     // TODO: modify to check if thd has locked any rows.
     // enum wsrep::provider::status ret = wsrep_sync_wait_upto(thd, NULL, -1);

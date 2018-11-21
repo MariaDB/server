@@ -496,6 +496,13 @@ err:
 
     thd= new THD(next_thread_id());
 
+    if (!thd)
+    {
+      WSREP_ERROR("Failed to allocate THD to restore view from local state, "
+                  "can't signal end of SST. Aborting.");
+      unireg_abort(1);
+    }
+
     thd->thread_stack= (char*) &thd;
     thd->security_ctx->skip_grants();
     thd->system_thread= SYSTEM_THREAD_GENERIC;
