@@ -2757,7 +2757,7 @@ lock_move_rec_list_end(
 	const ulint	comp	= page_rec_is_comp(rec);
 
 	ut_ad(buf_block_get_frame(block) == page_align(rec));
-	ut_ad(comp == page_is_comp(buf_block_get_frame(new_block)));
+	ut_ad(comp || !page_is_comp(buf_block_get_frame(new_block)));
 
 	lock_mutex_enter();
 
@@ -2778,9 +2778,8 @@ lock_move_rec_list_end(
 				rec1 = page_rec_get_next_low(rec1, TRUE);
 			}
 
-			rec2 = page_rec_get_next_low(
-				buf_block_get_frame(new_block)
-				+ PAGE_NEW_INFIMUM, TRUE);
+			rec2 = page_rec_get_next_const(
+				page_get_infimum_rec(new_block->frame));
 		} else {
 			if (page_offset(rec1) == PAGE_OLD_INFIMUM) {
 				rec1 = page_rec_get_next_low(rec1, FALSE);
@@ -2809,9 +2808,19 @@ lock_move_rec_list_end(
 					break;
 				}
 
-				rec2_heap_no = rec_get_heap_no_new(rec2);
 				rec1 = page_rec_get_next_low(rec1, TRUE);
-				rec2 = page_rec_get_next_low(rec2, TRUE);
+
+				if (page_is_comp(new_block->frame)) {
+					rec2_heap_no = rec_get_heap_no_new(
+						rec2);
+					rec2 = page_rec_get_next_low(
+						rec2, TRUE);
+				} else {
+					rec2_heap_no = rec_get_heap_no_new(
+						rec2);
+					rec2 = page_rec_get_next_low(
+						rec2, TRUE);
+				}
 			} else {
 				rec1_heap_no = rec_get_heap_no_old(rec1);
 
