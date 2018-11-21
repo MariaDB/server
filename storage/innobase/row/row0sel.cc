@@ -1987,7 +1987,7 @@ skip_lock:
 		goto table_exhausted;
 	}
 
-	if (rec_get_deleted_flag(rec, page_rec_is_comp(rec))
+	if (rec_get_deleted_flag(rec, rec_offs_comp(offsets))
 	    && !cons_read_requires_clust_rec) {
 
 		/* The record is delete marked: we can skip it if this is
@@ -2031,13 +2031,13 @@ skip_lock:
 			goto next_rec;
 		}
 
-		if (rec_get_deleted_flag(clust_rec,
-					 page_rec_is_comp(clust_rec))) {
+		if (rec_get_deleted_flag(clust_rec, rec_offs_comp(offsets))) {
 			/* In delete-marked records, DB_TRX_ID must
 			always refer to an existing update_undo log record. */
-			ut_ad(rec_get_trx_id(clust_rec,
-					     dict_table_get_first_index(
-						     plan->table)));
+			ut_ad(row_get_rec_trx_id(
+				      clust_rec,
+				      dict_table_get_first_index(plan->table),
+				      offsets));
 
 			/* The record is delete marked: we can skip it */
 
@@ -5302,8 +5302,7 @@ requires_clust_rec:
 			goto lock_wait_or_error;
 		}
 
-		if (rec_get_deleted_flag(clust_rec,
-					 page_rec_is_comp(clust_rec))) {
+		if (rec_get_deleted_flag(clust_rec, rec_offs_comp(offsets))) {
 
 			/* The record is delete marked: we can skip it */
 
