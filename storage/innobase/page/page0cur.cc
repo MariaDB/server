@@ -2092,24 +2092,10 @@ page_copy_rec_list_end_to_created_page(
 		return;
 	}
 
-#ifdef UNIV_DEBUG
-	/* To pass the debug tests we have to set these dummy values
-	in the debug version */
-	page_dir_set_n_slots(new_page, NULL, srv_page_size / 2);
-	page_header_set_ptr(new_page, NULL, PAGE_HEAP_TOP,
-			    new_page + srv_page_size - 1);
-#endif
 	log_ptr = page_copy_rec_list_to_created_page_write_log(
 		new_page, index, mtr);
 
 	log_data_len = mtr->get_log()->size();
-
-	/* Individual inserts are logged in a shorter form */
-
-	const mtr_log_t	log_mode = index->table->is_temporary()
-	    || !index->is_readable() /* IMPORT TABLESPACE */
-		? mtr_get_log_mode(mtr)
-		: mtr_set_log_mode(mtr, MTR_LOG_SHORT_INSERTS);
 
 	if (page_is_comp(new_page)) {
 		prev_rec = new_page + PAGE_NEW_INFIMUM;
@@ -2152,16 +2138,34 @@ page_copy_rec_list_end_to_created_page(
 			}
 
 			mem_heap_empty(row_heap);
-			rec = page_rec_get_next_low(rec, 0);
+			rec = page_rec_get_next_low(rec, TRUE);
 		} while (!page_rec_is_supremum(rec));
 
 		mem_heap_free(row_heap);
-		goto end;
+		if (UNIV_LIKELY_NULL(heap)) {
+			mem_heap_free(heap);
+		}
+		return;
 	}
 
+	/* Individual inserts are logged in a shorter form */
+
+	const mtr_log_t	log_mode = index->table->is_temporary()
+	    || !index->is_readable() /* IMPORT TABLESPACE */
+		? mtr_get_log_mode(mtr)
+		: mtr_set_log_mode(mtr, MTR_LOG_SHORT_INSERTS);
+
+	ut_d(page_dir_set_n_slots(new_page, NULL, srv_page_size / 2));
+	ut_d(page_header_set_ptr(new_page, NULL, PAGE_HEAP_TOP,
+				 new_page + srv_page_size - 1));
+
+	const rec_fmt_t format = is_leaf
+		? (page_is_comp(new_page)
+		   ? REC_FMT_LEAF : REC_FMT_LEAF_FLEXIBLE)
+		: REC_FMT_NODE_PTR;
+
 	do {
-		offsets = rec_get_offsets(rec, index, offsets, is_leaf
-					  ? REC_FMT_LEAF : REC_FMT_NODE_PTR,
+		offsets = rec_get_offsets(rec, index, offsets, format,
 					  ULINT_UNDEFINED, &heap);
 		insert_rec = rec_copy(heap_top, rec, offsets);
 
@@ -2210,7 +2214,6 @@ page_copy_rec_list_end_to_created_page(
 		rec = page_rec_get_next_const(rec);
 	} while (!page_rec_is_supremum(rec));
 
-end:
 	if ((slot_index > 0) && (count + 1
 				 + (PAGE_DIR_SLOT_MAX_N_OWNED + 1) / 2
 				 <= PAGE_DIR_SLOT_MAX_N_OWNED)) {
