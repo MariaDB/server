@@ -1537,11 +1537,14 @@ instant_alter_column_possible(
 	}
 
 	if (ha_alter_info->handler_flags & ALTER_COLUMN_NULLABLE) {
-#if 1 // FIXME: remove this. For !=REDUNDANT we must rebuild affected indexes.
 		if (ib_table.not_redundant()) {
+#if 1 // FIXME: remove this
 			return false;
-		}
+#else // FIXME: Rebuild the affected indexes, not the whole table!
+			return ib_table.indexes.count == 1;
 #endif
+		}
+
 		const dict_index_t* pk = ib_table.indexes.start;
 		Field** af = altered_table->field;
 		Field** const end = altered_table->field
