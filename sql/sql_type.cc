@@ -6581,6 +6581,7 @@ Item *Type_handler_interval_DDhhmmssff::
     return 0;
   }
   return new (thd->mem_root) Item_interval_DDhhmmssff_typecast(thd, item,
+                                                               (uint)
                                                                attr.decimals());
 }
 

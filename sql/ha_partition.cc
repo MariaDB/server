@@ -5281,7 +5281,7 @@ bool ha_partition::init_record_priority_queue()
     /* Initialize priority queue, initialized to reading forward. */
     int (*cmp_func)(void *, uchar *, uchar *);
     void *cmp_arg= (void*) this;
-    if (!m_using_extended_keys && !(table_flags() & HA_CMP_REF_IS_EXPENSIVE))
+    if (!m_using_extended_keys && !(table_flags() & HA_SLOW_CMP_REF))
       cmp_func= cmp_key_rowid_part_id;
     else
       cmp_func= cmp_key_part_id;

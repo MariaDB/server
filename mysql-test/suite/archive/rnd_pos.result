@@ -1,0 +1,56 @@
+create table t1(c1 int not null, c2 double not null, c3 char(255) not null) engine=archive;
+insert t1 select seq, seq+0.7, concat('row with c1 = ', seq) from seq_1_to_10;
+explain partitions select c1,c3 from t1 order by c2;
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	NULL	ALL	NULL	NULL	NULL	NULL	10	Using filesort
+set max_length_for_sort_data = 4;
+explain partitions select c1,c3 from t1 order by c2;
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	NULL	ALL	NULL	NULL	NULL	NULL	10	Using temporary; Using filesort
+flush status;
+select c1,c3 from t1 order by c2;
+c1	c3
+1	row with c1 = 1
+2	row with c1 = 2
+3	row with c1 = 3
+4	row with c1 = 4
+5	row with c1 = 5
+6	row with c1 = 6
+7	row with c1 = 7
+8	row with c1 = 8
+9	row with c1 = 9
+10	row with c1 = 10
+set max_length_for_sort_data = default;
+show status where variable_name like '%tmp%' and value != 0;
+Variable_name	Value
+Created_tmp_tables	1
+Handler_tmp_write	10
+Rows_tmp_read	20
+alter table t1 partition by hash (c1) partitions 3;
+explain partitions select c1,c3 from t1 order by c2;
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	p0,p1,p2	ALL	NULL	NULL	NULL	NULL	10	Using filesort
+set max_length_for_sort_data = 4;
+explain partitions select c1,c3 from t1 order by c2;
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	p0,p1,p2	ALL	NULL	NULL	NULL	NULL	10	Using temporary; Using filesort
+flush status;
+select c1,c3 from t1 order by c2;
+c1	c3
+1	row with c1 = 1
+2	row with c1 = 2
+3	row with c1 = 3
+4	row with c1 = 4
+5	row with c1 = 5
+6	row with c1 = 6
+7	row with c1 = 7
+8	row with c1 = 8
+9	row with c1 = 9
+10	row with c1 = 10
+set max_length_for_sort_data = default;
+show status where variable_name like '%tmp%' and value != 0;
+Variable_name	Value
+Created_tmp_tables	1
+Handler_tmp_write	10
+Rows_tmp_read	20
+drop table t1;

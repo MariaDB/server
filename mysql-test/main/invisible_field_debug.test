@@ -13,6 +13,8 @@ select a , invisible from t1;
 --error ER_BAD_FIELD_ERROR
 insert into t1(a, invisible) values(99,99);
 --error ER_BAD_FIELD_ERROR
+select default(invisible) from t1;
+--error ER_BAD_FIELD_ERROR
 insert into t1(invisible) values(99);
 insert into t_tmp select a, invisible from t1;
 --error ER_WRONG_VALUE_COUNT_ON_ROW
