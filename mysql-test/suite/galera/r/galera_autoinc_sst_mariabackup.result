@@ -1,0 +1,36 @@
+CREATE TABLE t1 (f1 INTEGER PRIMARY KEY AUTO_INCREMENT) ENGINE=InnoDB;
+CREATE PROCEDURE p1 ()
+BEGIN
+DECLARE x INT DEFAULT 1;
+DECLARE CONTINUE HANDLER FOR SQLEXCEPTION BEGIN END;
+WHILE 1 DO
+INSERT INTO t1 VALUES (DEFAULT);
+COMMIT;
+END WHILE;
+END|
+CALL p1();;
+CALL p1();;
+Killing server ...
+INSERT INTO t1 VALUES (DEFAULT);
+INSERT INTO t1 VALUES (DEFAULT);
+Got one of the listed errors
+Got one of the listed errors
+count_equal
+1
+CALL mtr.add_suppression("WSREP: Action message in non-primary configuration from member 0");
+SELECT VARIABLE_VALUE FROM INFORMATION_SCHEMA.GLOBAL_STATUS WHERE VARIABLE_NAME = 'wsrep_cluster_size';
+VARIABLE_VALUE
+2
+SELECT VARIABLE_VALUE = 2 FROM INFORMATION_SCHEMA.GLOBAL_STATUS WHERE VARIABLE_NAME = 'wsrep_cluster_size';
+VARIABLE_VALUE = 2
+1
+SELECT VARIABLE_VALUE FROM INFORMATION_SCHEMA.GLOBAL_STATUS WHERE VARIABLE_NAME = 'wsrep_cluster_size';
+VARIABLE_VALUE
+2
+SELECT VARIABLE_VALUE = 2 FROM INFORMATION_SCHEMA.GLOBAL_STATUS WHERE VARIABLE_NAME = 'wsrep_cluster_size';
+VARIABLE_VALUE = 2
+1
+DROP PROCEDURE p1;
+DROP TABLE t1;
+CALL mtr.add_suppression("gcs_caused\\(\\) returned -1 \\(Operation not permitted\\)");
+CALL mtr.add_suppression("WSREP: Action message in non-primary configuration from member 0");
