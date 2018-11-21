@@ -1,0 +1,2 @@
+--innodb-file-format='Barracuda'
+--innodb-file-per-table=ON
