@@ -725,6 +725,7 @@ row_rec_to_index_entry_impl(
 	ut_ad(heap != NULL);
 	ut_ad(index != NULL);
 	ut_ad(!mblob || index->is_primary());
+	ut_ad(!mblob || !index->table->is_temporary());
 	ut_ad(!mblob || !dict_index_is_spatial(index));
 	compile_time_assert(!mblob || metadata);
 	compile_time_assert(mblob <= 2);
@@ -759,7 +760,8 @@ row_rec_to_index_entry_impl(
 	      || rec_len == dict_index_get_n_fields(index) + uint(mblob == 1)
 	      /* a record for older SYS_INDEXES table
 	      (missing merge_threshold column) is acceptable. */
-	      || (index->table->id == DICT_INDEXES_ID
+	      || (!index->table->is_temporary()
+		  && index->table->id == DICT_INDEXES_ID
 		  && rec_len == dict_index_get_n_fields(index) - 1));
 
 	ulint i;

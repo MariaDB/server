@@ -500,8 +500,6 @@ mtr_commit_exit:
 	btr_pcur_commit_specify_mtr(pcur, &mtr);
 
 func_exit:
-	node->state = UNDO_NODE_FETCH_NEXT;
-
 	if (offsets_heap) {
 		mem_heap_free(offsets_heap);
 	}
@@ -1203,14 +1201,10 @@ row_undo_mod_upd_exist_sec(
 	return(err);
 }
 
-/***********************************************************//**
-Parses the row reference and other info in a modify undo log record. */
-static MY_ATTRIBUTE((nonnull))
-void
-row_undo_mod_parse_undo_rec(
-/*========================*/
-	undo_node_t*	node,		/*!< in: row undo node */
-	ibool		dict_locked)	/*!< in: TRUE if own dict_sys->mutex */
+/** Parse an update undo record.
+@param[in,out]	node		row rollback state
+@param[in]	dict_locked	whether the data dictionary cache is locked */
+static bool row_undo_mod_parse_undo_rec(undo_node_t* node, bool dict_locked)
 {
 	dict_index_t*	clust_index;
 	byte*		ptr;
@@ -1223,19 +1217,28 @@ row_undo_mod_parse_undo_rec(
 	ulint		cmpl_info;
 	bool		dummy_extern;
 
+	ut_ad(node->state == UNDO_UPDATE_PERSISTENT
+	      || node->state == UNDO_UPDATE_TEMPORARY);
+	ut_ad(node->trx->in_rollback);
+	ut_ad(!trx_undo_roll_ptr_is_insert(node->roll_ptr));
+
 	ptr = trx_undo_rec_get_pars(node->undo_rec, &type, &cmpl_info,
 				    &dummy_extern, &undo_no, &table_id);
 	node->rec_type = type;
 
-	node->table = dict_table_open_on_id(
-		table_id, dict_locked, DICT_TABLE_OP_NORMAL);
+	if (node->state == UNDO_UPDATE_PERSISTENT) {
+		node->table = dict_table_open_on_id(table_id, dict_locked,
+						    DICT_TABLE_OP_NORMAL);
+	} else if (!dict_locked) {
+		mutex_enter(&dict_sys->mutex);
+		node->table = dict_sys->get_temporary_table(table_id);
+		mutex_exit(&dict_sys->mutex);
+	} else {
+		node->table = dict_sys->get_temporary_table(table_id);
+	}
 
-	/* TODO: other fixes associated with DROP TABLE + rollback in the
-	same table by another user */
-
-	if (node->table == NULL) {
-		/* Table was dropped */
-		return;
+	if (!node->table) {
+		return false;
 	}
 
 	ut_ad(!node->table->skip_alter_undo);
@@ -1253,7 +1256,7 @@ close_table:
 		connection, instead of doing this rollback. */
 		dict_table_close(node->table, dict_locked, FALSE);
 		node->table = NULL;
-		return;
+		return false;
 	}
 
 	clust_index = dict_table_get_first_index(node->table);
@@ -1324,6 +1327,8 @@ close_table:
 				     (node->cmpl_info & UPD_NODE_NO_ORD_CHANGE)
 					? NULL : ptr);
 	}
+
+	return true;
 }
 
 /***********************************************************//**
@@ -1336,27 +1341,12 @@ row_undo_mod(
 	que_thr_t*	thr)	/*!< in: query thread */
 {
 	dberr_t	err;
-	ibool	dict_locked;
-
-	ut_ad(node != NULL);
-	ut_ad(thr != NULL);
-	ut_ad(node->state == UNDO_NODE_MODIFY);
-	ut_ad(node->trx->in_rollback);
-	ut_ad(!trx_undo_roll_ptr_is_insert(node->roll_ptr));
-
-	dict_locked = thr_get_trx(thr)->dict_operation_lock_mode == RW_X_LATCH;
-
 	ut_ad(thr_get_trx(thr) == node->trx);
+	const bool dict_locked = node->trx->dict_operation_lock_mode
+		== RW_X_LATCH;
 
-	row_undo_mod_parse_undo_rec(node, dict_locked);
-
-	if (node->table == NULL) {
-		/* It is already undone, or will be undone by another query
-		thread, or table was dropped */
-
-		node->state = UNDO_NODE_FETCH_NEXT;
-
-		return(DB_SUCCESS);
+	if (!row_undo_mod_parse_undo_rec(node, dict_locked)) {
+		return DB_SUCCESS;
 	}
 
 	node->index = dict_table_get_first_index(node->table);

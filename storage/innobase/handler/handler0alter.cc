@@ -5228,9 +5228,10 @@ inline dberr_t dict_table_t::reassign_id(trx_t* trx)
 {
 	DBUG_ASSERT(instant);
 	ut_ad(magic_n == DICT_TABLE_MAGIC_N);
+	ut_ad(!is_temporary());
 
 	table_id_t new_id;
-	dict_hdr_get_new_id(&new_id, NULL, NULL, NULL, false);
+	dict_hdr_get_new_id(&new_id, NULL, NULL);
 	pars_info_t*	pinfo = pars_info_create();
 
 	pars_info_add_ull_literal(pinfo, "old", id);

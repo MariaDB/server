@@ -180,9 +180,7 @@ trx_undo_free_last_page(trx_undo_t* undo, mtr_t* mtr)
 @param[in,out]	undo	undo log
 @param[in]	limit	all undo logs after this limit will be discarded
 @param[in]	is_temp	whether this is temporary undo log */
-void
-trx_undo_truncate_end(trx_undo_t* undo, undo_no_t limit, bool is_temp)
-	MY_ATTRIBUTE((nonnull));
+void trx_undo_truncate_end(trx_undo_t& undo, undo_no_t limit, bool is_temp);
 
 /** Truncate the head of an undo log.
 NOTE that only whole pages are freed; the header page is not

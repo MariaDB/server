@@ -11030,9 +11030,8 @@ err_col:
 	dict_table_add_system_columns(table, heap);
 
 	if (table->is_temporary()) {
-		/* Get a new table ID. FIXME: Make this a private
-		sequence, not shared with persistent tables! */
-		dict_table_assign_new_id(table, m_trx);
+		m_trx->table_id = table->id
+			= dict_sys->get_temporary_table_id();
 		ut_ad(dict_tf_get_rec_format(table->flags)
 		      != REC_FORMAT_COMPRESSED);
 		table->space_id = SRV_TMP_SPACE_ID;

@@ -4253,6 +4253,7 @@ lock_check_dict_lock(
 	const lock_t*	lock)	/*!< in: lock to check */
 {
 	if (lock_get_type_low(lock) == LOCK_REC) {
+		ut_ad(!lock->index->table->is_temporary());
 
 		/* Check if the transcation locked a record
 		in a system table in X mode. It should have set
@@ -4266,9 +4267,8 @@ lock_check_dict_lock(
 	} else {
 		ut_ad(lock_get_type_low(lock) & LOCK_TABLE);
 
-		const dict_table_t*	table;
-
-		table = lock->un_member.tab_lock.table;
+		const dict_table_t* table = lock->un_member.tab_lock.table;
+		ut_ad(!table->is_temporary());
 
 		/* Check if the transcation locked a system table
 		in IX mode. It should have set the dict_op code
@@ -6127,10 +6127,8 @@ lock_get_table_id(
 /*==============*/
 	const lock_t*	lock)	/*!< in: lock */
 {
-	dict_table_t*	table;
-
-	table = lock_get_table(lock);
-
+	dict_table_t* table = lock_get_table(lock);
+	ut_ad(!table->is_temporary());
 	return(table->id);
 }
 

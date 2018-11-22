@@ -80,8 +80,19 @@ row_undo_ins_remove_clust_rec(
 	if (index->table->is_temporary()) {
 		ut_ad(node->rec_type == TRX_UNDO_INSERT_REC);
 		mtr.set_log_mode(MTR_LOG_NO_REDO);
+		ut_ad(!dict_index_is_online_ddl(index));
+		ut_ad(index->table->id >= DICT_HDR_FIRST_ID);
+		online = false;
 	} else {
 		index->set_modified(mtr);
+		online = dict_index_is_online_ddl(index);
+		if (online) {
+			ut_ad(node->trx->dict_operation_lock_mode
+			      != RW_X_LATCH);
+			ut_ad(node->table->id != DICT_INDEXES_ID);
+			ut_ad(node->table->id != DICT_COLUMNS_ID);
+			mtr_s_lock(dict_index_get_lock(index), &mtr);
+		}
 	}
 
 	/* This is similar to row_undo_mod_clust(). The DDL thread may
@@ -89,14 +100,6 @@ row_undo_ins_remove_clust_rec(
 	We must log the removal, so that the row will be correctly
 	purged. However, we can log the removal out of sync with the
 	B-tree modification. */
-
-	online = dict_index_is_online_ddl(index);
-	if (online) {
-		ut_ad(node->trx->dict_operation_lock_mode
-		      != RW_X_LATCH);
-		ut_ad(node->table->id != DICT_INDEXES_ID);
-		mtr_s_lock(dict_index_get_lock(index), &mtr);
-	}
 
 	success = btr_pcur_restore_position(
 		online
@@ -119,47 +122,47 @@ row_undo_ins_remove_clust_rec(
 			rec, index, NULL, true, ULINT_UNDEFINED, &heap);
 		row_log_table_delete(rec, index, offsets, NULL);
 		mem_heap_free(heap);
-	}
+	} else {
+		switch (node->table->id) {
+		case DICT_INDEXES_ID:
+			ut_ad(!online);
+			ut_ad(node->trx->dict_operation_lock_mode
+			      == RW_X_LATCH);
+			ut_ad(node->rec_type == TRX_UNDO_INSERT_REC);
 
-	switch (node->table->id) {
-	case DICT_INDEXES_ID:
-		ut_ad(!online);
-		ut_ad(node->trx->dict_operation_lock_mode == RW_X_LATCH);
-		ut_ad(node->rec_type == TRX_UNDO_INSERT_REC);
+			dict_drop_index_tree(btr_pcur_get_rec(&node->pcur),
+					     &node->pcur, &mtr);
+			mtr.commit();
 
-		dict_drop_index_tree(
-			btr_pcur_get_rec(&node->pcur), &(node->pcur), &mtr);
-
-		mtr.commit();
-
-		mtr.start();
-
-		success = btr_pcur_restore_position(
-			BTR_MODIFY_LEAF, &node->pcur, &mtr);
-		ut_a(success);
-		break;
-	case DICT_COLUMNS_ID:
-		/* This is rolling back an INSERT into SYS_COLUMNS.
-		If it was part of an instant ALTER TABLE operation, we
-		must evict the table definition, so that it can be
-		reloaded after the dictionary operation has been
-		completed. At this point, any corresponding operation
-		to the metadata record will have been rolled back. */
-		ut_ad(!online);
-		ut_ad(node->trx->dict_operation_lock_mode == RW_X_LATCH);
-		ut_ad(node->rec_type == TRX_UNDO_INSERT_REC);
-		const rec_t* rec = btr_pcur_get_rec(&node->pcur);
-		if (rec_get_n_fields_old(rec)
-		    != DICT_NUM_FIELDS__SYS_COLUMNS) {
+			mtr.start();
+			success = btr_pcur_restore_position(
+				BTR_MODIFY_LEAF, &node->pcur, &mtr);
+			ut_a(success);
 			break;
+		case DICT_COLUMNS_ID:
+			/* This is rolling back an INSERT into SYS_COLUMNS.
+			If it was part of an instant ALTER TABLE operation, we
+			must evict the table definition, so that it can be
+			reloaded after the dictionary operation has been
+			completed. At this point, any corresponding operation
+			to the metadata record will have been rolled back. */
+			ut_ad(!online);
+			ut_ad(node->trx->dict_operation_lock_mode
+			      == RW_X_LATCH);
+			ut_ad(node->rec_type == TRX_UNDO_INSERT_REC);
+			const rec_t* rec = btr_pcur_get_rec(&node->pcur);
+			if (rec_get_n_fields_old(rec)
+			    != DICT_NUM_FIELDS__SYS_COLUMNS) {
+				break;
+			}
+			ulint len;
+			const byte* data = rec_get_nth_field_old(
+				rec, DICT_FLD__SYS_COLUMNS__TABLE_ID, &len);
+			if (len != 8) {
+				break;
+			}
+			node->trx->evict_table(mach_read_from_8(data));
 		}
-		ulint len;
-		const byte* data = rec_get_nth_field_old(
-			rec, DICT_FLD__SYS_COLUMNS__TABLE_ID, &len);
-		if (len != 8) {
-			break;
-		}
-		node->trx->evict_table(mach_read_from_8(data));
 	}
 
 	if (btr_cur_optimistic_delete(btr_cur, 0, &mtr)) {
@@ -363,14 +366,10 @@ retry:
 	return(err);
 }
 
-/***********************************************************//**
-Parses the row reference and other info in a fresh insert undo record. */
-static
-void
-row_undo_ins_parse_undo_rec(
-/*========================*/
-	undo_node_t*	node,		/*!< in/out: row undo node */
-	ibool		dict_locked)	/*!< in: TRUE if own dict_sys->mutex */
+/** Parse an insert undo record.
+@param[in,out]	node		row rollback state
+@param[in]	dict_locked	whether the data dictionary cache is locked */
+static bool row_undo_ins_parse_undo_rec(undo_node_t* node, bool dict_locked)
 {
 	dict_index_t*	clust_index;
 	byte*		ptr;
@@ -379,18 +378,28 @@ row_undo_ins_parse_undo_rec(
 	ulint		dummy;
 	bool		dummy_extern;
 
-	ut_ad(node);
+	ut_ad(node->state == UNDO_INSERT_PERSISTENT
+	      || node->state == UNDO_INSERT_TEMPORARY);
+	ut_ad(node->trx->in_rollback);
+	ut_ad(trx_undo_roll_ptr_is_insert(node->roll_ptr));
 
 	ptr = trx_undo_rec_get_pars(node->undo_rec, &node->rec_type, &dummy,
 				    &dummy_extern, &undo_no, &table_id);
 
 	node->update = NULL;
-	node->table = dict_table_open_on_id(
-		table_id, dict_locked, DICT_TABLE_OP_NORMAL);
+	if (node->state == UNDO_INSERT_PERSISTENT) {
+		node->table = dict_table_open_on_id(table_id, dict_locked,
+						    DICT_TABLE_OP_NORMAL);
+	} else if (!dict_locked) {
+		mutex_enter(&dict_sys->mutex);
+		node->table = dict_sys->get_temporary_table(table_id);
+		mutex_exit(&dict_sys->mutex);
+	} else {
+		node->table = dict_sys->get_temporary_table(table_id);
+	}
 
-	/* Skip the UNDO if we can't find the table or the .ibd file. */
-	if (UNIV_UNLIKELY(node->table == NULL)) {
-		return;
+	if (!node->table) {
+		return false;
 	}
 
 	switch (node->rec_type) {
@@ -429,6 +438,7 @@ close_table:
 		connection, instead of doing this rollback. */
 		dict_table_close(node->table, dict_locked, FALSE);
 		node->table = NULL;
+		return false;
 	} else {
 		ut_ad(!node->table->skip_alter_undo);
 		clust_index = dict_table_get_first_index(node->table);
@@ -460,6 +470,8 @@ close_table:
 			goto close_table;
 		}
 	}
+
+	return true;
 }
 
 /***************************************************************//**
@@ -536,18 +548,10 @@ row_undo_ins(
 	que_thr_t*	thr)	/*!< in: query thread */
 {
 	dberr_t	err;
-	ibool	dict_locked;
+	bool dict_locked = node->trx->dict_operation_lock_mode == RW_X_LATCH;
 
-	ut_ad(node->state == UNDO_NODE_INSERT);
-	ut_ad(node->trx->in_rollback);
-	ut_ad(trx_undo_roll_ptr_is_insert(node->roll_ptr));
-
-	dict_locked = node->trx->dict_operation_lock_mode == RW_X_LATCH;
-
-	row_undo_ins_parse_undo_rec(node, dict_locked);
-
-	if (node->table == NULL) {
-		return(DB_SUCCESS);
+	if (!row_undo_ins_parse_undo_rec(node, dict_locked)) {
+		return DB_SUCCESS;
 	}
 
 	/* Iterate over all the indexes and undo the insert.*/
@@ -570,26 +574,19 @@ row_undo_ins(
 			break;
 		}
 
-		/* fall through */
-	case TRX_UNDO_INSERT_METADATA:
 		log_free_check();
 
 		if (node->table->id == DICT_INDEXES_ID) {
-			ut_ad(node->rec_type == TRX_UNDO_INSERT_REC);
-
+			ut_ad(!node->table->is_temporary());
 			if (!dict_locked) {
 				mutex_enter(&dict_sys->mutex);
 			}
-		}
-
-		// FIXME: We need to update the dict_index_t::space and
-		// page number fields too.
-		err = row_undo_ins_remove_clust_rec(node);
-
-		if (node->table->id == DICT_INDEXES_ID
-		    && !dict_locked) {
-
-			mutex_exit(&dict_sys->mutex);
+			err = row_undo_ins_remove_clust_rec(node);
+			if (!dict_locked) {
+				mutex_exit(&dict_sys->mutex);
+			}
+		} else {
+			err = row_undo_ins_remove_clust_rec(node);
 		}
 
 		if (err == DB_SUCCESS && node->table->stat_initialized) {
@@ -609,6 +606,12 @@ row_undo_ins(
 					node->table, node->trx->mysql_thd);
 			}
 		}
+		break;
+
+	case TRX_UNDO_INSERT_METADATA:
+		log_free_check();
+		ut_ad(!node->table->is_temporary());
+		err = row_undo_ins_remove_clust_rec(node);
 	}
 
 	dict_table_close(node->table, dict_locked, FALSE);

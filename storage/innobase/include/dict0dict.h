@@ -28,7 +28,6 @@ Created 1/8/1996 Heikki Tuuri
 #ifndef dict0dict_h
 #define dict0dict_h
 
-#include "univ.i"
 #include "data0data.h"
 #include "data0type.h"
 #include "dict0mem.h"
@@ -42,14 +41,16 @@ Created 1/8/1996 Heikki Tuuri
 #include "ut0byte.h"
 #include "ut0mem.h"
 #include "ut0rnd.h"
-#include <deque>
 #include "fsp0fsp.h"
-#include "dict0pagecompress.h"
+#include "sync0rw.h"
+#include <atomic>
 
 extern bool innodb_table_stats_not_found;
 extern bool innodb_index_stats_not_found;
 
-#include "sync0rw.h"
+/** the first table or index ID for other than hard-coded system tables */
+#define	DICT_HDR_FIRST_ID	10
+
 /********************************************************************//**
 Get the database name length in a table name.
 @return database name length */
@@ -1572,8 +1573,10 @@ struct dict_sys_t{
 					the log records */
 	hash_table_t*	table_hash;	/*!< hash table of the tables, based
 					on name */
-	hash_table_t*	table_id_hash;	/*!< hash table of the tables, based
-					on id */
+	/** hash table of persistent table IDs */
+	hash_table_t*	table_id_hash;
+	/** hash table of temporary table IDs */
+	hash_table_t*	temp_id_hash;
 	dict_table_t*	sys_tables;	/*!< SYS_TABLES table */
 	dict_table_t*	sys_columns;	/*!< SYS_COLUMNS table */
 	dict_table_t*	sys_indexes;	/*!< SYS_INDEXES table */
@@ -1587,6 +1590,52 @@ struct dict_sys_t{
 	UT_LIST_BASE_NODE_T(dict_table_t)
 			table_non_LRU;	/*!< List of tables that can't be
 					evicted from the cache */
+
+	/** @return a new temporary table ID */
+	table_id_t get_temporary_table_id() {
+		return temp_table_id.fetch_add(1, std::memory_order_relaxed);
+	}
+
+	/** Look up a temporary table.
+	@param id	temporary table ID
+	@return	temporary table
+	@retval	NULL	if the table does not exist
+	(should only happen during the rollback of CREATE...SELECT) */
+	dict_table_t* get_temporary_table(table_id_t id)
+	{
+		ut_ad(mutex_own(&mutex));
+		dict_table_t* table;
+		ulint fold = ut_fold_ull(id);
+		HASH_SEARCH(id_hash, temp_id_hash, fold, dict_table_t*, table,
+			    ut_ad(table->cached), table->id == id);
+		if (UNIV_LIKELY(table != NULL)) {
+			DBUG_ASSERT(table->is_temporary());
+			DBUG_ASSERT(table->id >= DICT_HDR_FIRST_ID);
+			table->acquire();
+		}
+		return table;
+	}
+
+	/** Look up a persistent table.
+	@param id	table ID
+	@return	table
+	@retval	NULL	if not cached */
+	dict_table_t* get_table(table_id_t id)
+	{
+		ut_ad(mutex_own(&mutex));
+		dict_table_t* table;
+		ulint fold = ut_fold_ull(id);
+		HASH_SEARCH(id_hash, table_id_hash, fold, dict_table_t*, table,
+			    ut_ad(table->cached), table->id == id);
+		DBUG_ASSERT(!table || !table->is_temporary());
+		return table;
+	}
+
+	dict_sys_t() : temp_table_id(DICT_HDR_FIRST_ID) {}
+
+private:
+	/** the sequence of temporary table IDs */
+	std::atomic<table_id_t> temp_table_id;
 };
 
 /** dummy index for ROW_FORMAT=REDUNDANT supremum and infimum records */
