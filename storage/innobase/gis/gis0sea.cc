@@ -268,7 +268,7 @@ rtr_pcur_getnext_from_path(
 		dberr_t err = DB_SUCCESS;
 
 		block = buf_page_get_gen(
-			page_id_t(index->table->space->id,
+			page_id_t(index->table->space_id,
 				  next_rec.page_no), page_size,
 			rw_latch, NULL, BUF_GET, __FILE__, __LINE__, mtr, &err);
 
@@ -298,7 +298,7 @@ rtr_pcur_getnext_from_path(
 			    && mode != PAGE_CUR_RTREE_LOCATE) {
 				ut_ad(rtr_info->thr);
 				lock_place_prdt_page_lock(
-					index->table->space->id,
+					index->table->space_id,
 					next_page_no, index,
 					rtr_info->thr);
 			}
@@ -422,7 +422,7 @@ rtr_pcur_getnext_from_path(
 
 					btr_cur_latch_leaves(
 						block,
-						page_id_t(index->table->space->id,
+						page_id_t(index->table->space_id,
 							  block->page.id.page_no()),
 						page_size, BTR_MODIFY_TREE,
 						btr_cur, mtr);
@@ -1360,7 +1360,7 @@ search_again:
 	dberr_t err = DB_SUCCESS;
 
 	block = buf_page_get_gen(
-		page_id_t(index->table->space->id, page_no),
+		page_id_t(index->table->space_id, page_no),
 		page_size, RW_X_LATCH, NULL,
 		BUF_GET, __FILE__, __LINE__, mtr, &err);
 

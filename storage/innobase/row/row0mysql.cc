@@ -2462,7 +2462,7 @@ err_exit:
 		/* We already have .ibd file here. it should be deleted. */
 
 		if (dict_table_is_file_per_table(table)
-		    && fil_delete_tablespace(table->space->id) != DB_SUCCESS) {
+		    && fil_delete_tablespace(table->space_id) != DB_SUCCESS) {
 			ib::error() << "Cannot delete the file of table "
 				<< table->name;
 		}
@@ -3805,7 +3805,7 @@ do_drop:
 		    && dict_table_get_low("SYS_DATAFILES")) {
 			info = pars_info_create();
 			pars_info_add_int4_literal(info, "id",
-						   lint(table->space->id));
+						   lint(table->space_id));
 			err = que_eval_sql(
 				info,
 				"PROCEDURE DROP_SPACE_PROC () IS\n"
