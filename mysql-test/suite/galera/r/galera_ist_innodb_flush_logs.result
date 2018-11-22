@@ -96,6 +96,8 @@ COUNT(*) = 0
 DROP TABLE t1;
 COMMIT;
 SET AUTOCOMMIT=ON;
+Performing State Transfer on a server that has been killed and restarted
+while a DDL was in progress on it
 connection node_1;
 connection node_2;
 connection node_1;

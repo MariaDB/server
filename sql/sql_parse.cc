@@ -7979,7 +7979,6 @@ static bool wsrep_mysql_parse(THD *thd, char *rawbuf, uint length,
       WSREP_DEBUG("Retry autocommit query: %s", thd->query());
       mysql_parse(thd, rawbuf, length, parser_state, is_com_multi, is_next_command);
 
-
     /*
       Convert all ER_QUERY_INTERRUPTED errors to ER_LOCK_DEADLOCK
       if the transaction was BF aborted. This can happen when the

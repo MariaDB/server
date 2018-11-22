@@ -1,3 +1,5 @@
+connection node_2;
+connection node_1;
 CREATE TABLE t1 (f1 INTEGER AUTO_INCREMENT PRIMARY KEY, f2 CHAR(20) DEFAULT 'abc') ENGINE=InnoDB;
 INSERT INTO t1 (f1) VALUES (1);
 CREATE TABLE t2 (f1 CHAR(20)) ENGINE=InnoDB;
@@ -21,17 +23,22 @@ connection node_1;
 DROP PROCEDURE proc_update;
 DROP TABLE t1, t2;
 CALL mtr.add_suppression("conflict state 3 after post commit");
+connection node_1;
 CREATE TABLE t1 (i int primary key, j int) engine=innodb;
 INSERT INTO t1 values (1,0);
 BEGIN;
 UPDATE t1 SET j=1 WHERE i=1;
+connection node_2;
 UPDATE t1 SET j=2 WHERE i=1;
+connection node_1;
 COMMIT;
 ERROR 40001: Deadlock found when trying to get lock; try restarting transaction
 SELECT * FROM t1;
 i	j
 1	2
+connection node_2;
 SELECT * FROM t1;
 i	j
 1	2
+connection node_1;
 DROP TABLE t1;

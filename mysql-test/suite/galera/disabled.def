@@ -34,6 +34,10 @@ galera_ist_progress: MDEV-15236 galera_ist_progress fails when trying to read tr
 pxc-421: Lock timeout exceeded
 galera_sst_mysqldump_with_key : MDEV-16890 Galera test failure
 galera_sst_xtrabackup-v2-options : Failed to read uuid:seqno and wsrep_gtid_domain_id from joiner script
+galera_sst_xtrabackup-v2_data_dir : xtrabackup is deprecated, use mariabackup
+galera_sst_xtrabackup : xtrabackup is deprecated, use mariabackup
+galera_sst_xtrabackup-v2 : xtrabackup is deprecated, use mariabackup
+galera_sst_xtrabackup-v2_encrypt_with_key : xtrabackup is deprecated, use mariabackup
 MW-328C : Timeouts
 galera_gcs_fc_limit : Timeouts
 pool_of_threads: WSREP has not yet prepared node for application use
