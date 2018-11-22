@@ -1,5 +1,8 @@
+connection node_1;
+connection node_2;
 Performing State Transfer on a server that starts from a clean var directory
 This is accomplished by shutting down node #2 and removing its var directory before restarting it
+connection node_1;
 CREATE TABLE t1 (f1 CHAR(255)) ENGINE=InnoDB;
 CREATE TABLE t2 (f1 CHAR(255)) ENGINE=InnoDB PAGE_COMPRESSED=1;
 CREATE TABLE t3 (f1 CHAR(255)) ENGINE=InnoDB PAGE_COMPRESSED=1 ENCRYPTED=NO;
@@ -57,6 +60,7 @@ insert into t1 values ('node1_committed_before');
 insert into t1 values ('node1_committed_before');
 insert into t1 values ('node1_committed_before');
 COMMIT;
+connection node_2;
 SET AUTOCOMMIT=OFF;
 START TRANSACTION;
 insert into t9 values ('node2_committed_before');
@@ -106,6 +110,7 @@ insert into t1 values ('node2_committed_before');
 insert into t1 values ('node2_committed_before');
 COMMIT;
 Shutting down server ...
+connection node_1;
 Cleaning var directory ...
 SET AUTOCOMMIT=OFF;
 START TRANSACTION;
@@ -201,6 +206,7 @@ insert into t1 values ('node1_to_be_committed_after');
 insert into t1 values ('node1_to_be_committed_after');
 insert into t1 values ('node1_to_be_committed_after');
 insert into t1 values ('node1_to_be_committed_after');
+connect node_1a_galera_st_clean_slave, 127.0.0.1, root, , test, $NODE_MYPORT_1;
 SET AUTOCOMMIT=OFF;
 START TRANSACTION;
 insert into t9 values ('node1_to_be_rollbacked_after');
@@ -248,10 +254,12 @@ insert into t1 values ('node1_to_be_rollbacked_after');
 insert into t1 values ('node1_to_be_rollbacked_after');
 insert into t1 values ('node1_to_be_rollbacked_after');
 insert into t1 values ('node1_to_be_rollbacked_after');
+connection node_2;
 Starting server ...
 SET AUTOCOMMIT=OFF;
 START TRANSACTION;
 COMMIT;
+connection node_1;
 insert into t9 values ('node1_to_be_committed_after');
 insert into t9 values ('node1_to_be_committed_after');
 insert into t9 values ('node1_to_be_committed_after');
@@ -346,6 +354,7 @@ insert into t1 values ('node1_committed_after');
 insert into t1 values ('node1_committed_after');
 insert into t1 values ('node1_committed_after');
 COMMIT;
+connection node_1a_galera_st_clean_slave;
 ROLLBACK;
 SELECT COUNT(*) FROM t1;
 COUNT(*)
@@ -664,6 +673,7 @@ node1_committed_after
 node1_committed_after
 COMMIT;
 SET AUTOCOMMIT=ON;
+connection node_1;
 SELECT COUNT(*) FROM t1;
 COUNT(*)
 30
@@ -983,3 +993,5 @@ COMMIT;
 DROP TABLE t1,t2,t3,t4,t5,t6,t7,t8,t9;
 COMMIT;
 SET AUTOCOMMIT=ON;
+disconnect node_2;
+disconnect node_1;
