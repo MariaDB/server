@@ -1210,6 +1210,7 @@ public:
     All constructors that accept an "int *warn" parameter initialize *warn.
     The old value gets lost.
   */
+  Time(int *warn, bool neg, ulonglong hour, uint minute, const Sec6 &second);
   Time() { time_type= MYSQL_TIMESTAMP_NONE; }
   Time(Item *item)
    :Time(current_thd, item, Options())
@@ -1233,14 +1234,24 @@ public:
     // The below call will optionally add notes to already collected warnings:
     xxx_to_time_result_to_valid_value(thd, &status->warnings, opt);
   }
+
+protected:
   Time(THD *thd, int *warn, const Sec6 &nr, const Options opt)
   {
     if (nr.to_datetime_or_time(this, warn, TIME_INVALID_DATES))
       time_type= MYSQL_TIMESTAMP_NONE;
     xxx_to_time_result_to_valid_value(thd, warn, opt);
   }
-  Time(THD *thd, int *warn, const Sec6 &nr)
-   :Time(thd, warn, nr, Options())
+
+public:
+  Time(THD *thd, int *warn, const Longlong_hybrid &nr, const Options &opt)
+   :Time(thd, warn, Sec6(nr), opt)
+  { }
+  Time(THD *thd, int *warn, double nr, const Options &opt)
+   :Time(thd, warn, Sec6(nr), opt)
+  { }
+  Time(THD *thd, int *warn, const my_decimal *d, const Options &opt)
+   :Time(thd, warn, Sec6(d), opt)
   { }
 
   Time(THD *thd, Item *item, const Options opt, uint dec)
@@ -1260,8 +1271,23 @@ public:
   {
     trunc(dec);
   }
-  Time(THD *thd, int *warn, const Sec6 &nr, uint dec)
-   :Time(thd, warn, nr)
+  Time(THD *thd, int *warn, const Longlong_hybrid &nr,
+       const Options &opt, uint dec)
+   :Time(thd, warn, nr, opt)
+  {
+    /*
+      Decimal digit truncation is needed here in case if nr was out
+      of the supported TIME range, so "this" was set to '838:59:59.999999'.
+    */
+    trunc(dec);
+  }
+  Time(THD *thd, int *warn, double nr, const Options &opt, uint dec)
+   :Time(thd, warn, nr, opt)
+  {
+    trunc(dec);
+  }
+  Time(THD *thd, int *warn, const my_decimal *d, const Options &opt, uint dec)
+   :Time(thd, warn, d, opt)
   {
     trunc(dec);
   }
@@ -1615,12 +1641,26 @@ public:
     date_to_datetime_if_needed();
     DBUG_ASSERT(is_valid_value_slow());
   }
+
+protected:
   Datetime(int *warn, const Sec6 &nr, date_mode_t flags)
    :Temporal_with_date(warn, nr, flags)
   {
     date_to_datetime_if_needed();
     DBUG_ASSERT(is_valid_value_slow());
   }
+
+public:
+  Datetime(int *warn, const Longlong_hybrid &nr, date_mode_t mode)
+   :Datetime(warn, Sec6(nr), mode)
+  { }
+  Datetime(int *warn, double nr, date_mode_t fuzzydate)
+   :Datetime(warn, Sec6(nr), fuzzydate)
+  { }
+  Datetime(int *warn, const my_decimal *d, date_mode_t fuzzydate)
+   :Datetime(warn, Sec6(d), fuzzydate)
+  { }
+  Datetime(THD *thd, const timeval &tv);
 
   Datetime(THD *thd, Item *item, date_mode_t flags, uint dec)
    :Datetime(thd, item, flags)
@@ -1634,8 +1674,13 @@ public:
   {
     trunc(dec);
   }
-  Datetime(int *warn, const Sec6 &nr, date_mode_t fuzzydate, uint dec)
+  Datetime(int *warn, double nr, date_mode_t fuzzydate, uint dec)
    :Datetime(warn, nr, fuzzydate)
+  {
+    trunc(dec);
+  }
+  Datetime(int *warn, const my_decimal *d, date_mode_t fuzzydate, uint dec)
+   :Datetime(warn, d, fuzzydate)
   {
     trunc(dec);
   }
@@ -1643,6 +1688,12 @@ public:
            date_mode_t fuzzydate, uint dec)
    :Datetime(thd, warn, from, fuzzydate)
   {
+    trunc(dec);
+  }
+  Datetime(THD *thd, const timeval &tv, uint dec)
+   :Datetime(thd, tv)
+  {
+    DBUG_ASSERT(dec <= TIME_SECOND_PART_DIGITS);
     trunc(dec);
   }
 
@@ -1754,6 +1805,21 @@ public:
     if (is_valid_datetime())
       my_time_trunc(this, dec);
     DBUG_ASSERT(is_valid_value_slow());
+    return *this;
+  }
+};
+
+
+class Timestamp: protected Timeval
+{
+public:
+  Timestamp(my_time_t timestamp, ulong sec_part)
+   :Timeval(timestamp, sec_part)
+  { }
+  const struct timeval &tv() const { return *this; }
+  Timestamp &trunc(uint dec)
+  {
+    my_timeval_trunc(this, dec);
     return *this;
   }
 };

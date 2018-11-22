@@ -425,24 +425,32 @@ void Field::do_field_timestamp(Copy_field *copy)
 }
 
 
-void Field::do_field_temporal(Copy_field *copy)
+void Field::do_field_temporal(Copy_field *copy, date_mode_t fuzzydate)
 {
   MYSQL_TIME ltime;
   // TODO: we now need to check result
-  if (copy->from_field->get_date(&ltime, date_mode_t(0)))
+  if (copy->from_field->get_date(&ltime, fuzzydate))
     copy->to_field->reset();
   else
     copy->to_field->store_time_dec(&ltime, copy->from_field->decimals());
 }
 
 
+void Field::do_field_datetime(Copy_field *copy)
+{
+  return do_field_temporal(copy, date_mode_t(0));
+}
+
+
+void Field::do_field_date(Copy_field *copy)
+{
+  return do_field_temporal(copy, date_mode_t(0));
+}
+
+
 void Field_time::do_field_time(Copy_field *copy)
 {
-  MYSQL_TIME ltime;
-  if (copy->from_field->get_date(&ltime, TIME_TIME_ONLY))
-    copy->to_field->reset();
-  else
-    copy->to_field->store_time_dec(&ltime, copy->from_field->decimals());
+  return do_field_temporal(copy, TIME_TIME_ONLY);
 }
 
 
@@ -720,10 +728,17 @@ void Copy_field::set(Field *to,Field *from,bool save)
 Field::Copy_func *Field_timestamp::get_copy_func(const Field *from) const
 {
   Field::Copy_func *copy= Field_temporal::get_copy_func(from);
-  if (copy == do_field_temporal && from->type() == MYSQL_TYPE_TIMESTAMP)
+  if (copy == do_field_datetime && from->type() == MYSQL_TYPE_TIMESTAMP)
     return do_field_timestamp;
   else
     return copy;
+}
+
+
+Field::Copy_func *Field_date_common::get_copy_func(const Field *from) const
+{
+  Field::Copy_func *copy= Field_temporal::get_copy_func(from);
+  return copy == do_field_datetime ? do_field_date : copy;
 }
 
 
@@ -739,7 +754,7 @@ Field::Copy_func *Field_temporal::get_copy_func(const Field *from) const
   if (!eq_def(from) ||
       (table->in_use->variables.sql_mode &
        (MODE_NO_ZERO_IN_DATE | MODE_NO_ZERO_DATE)))
-    return do_field_temporal;
+    return do_field_datetime;
   return get_identical_copy_func();
 }
 

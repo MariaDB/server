@@ -610,7 +610,9 @@ protected:
   static void do_field_int(Copy_field *copy);
   static void do_field_real(Copy_field *copy);
   static void do_field_string(Copy_field *copy);
-  static void do_field_temporal(Copy_field *copy);
+  static void do_field_date(Copy_field *copy);
+  static void do_field_temporal(Copy_field *copy, date_mode_t fuzzydate);
+  static void do_field_datetime(Copy_field *copy);
   static void do_field_timestamp(Copy_field *copy);
   static void do_field_decimal(Copy_field *copy);
 public:
@@ -2690,6 +2692,10 @@ public:
 class Field_temporal_with_date: public Field_temporal {
 protected:
   virtual void store_TIME(const MYSQL_TIME *ltime) = 0;
+  void store_datetime(const Datetime &dt)
+  {
+    return store_TIME(dt.get_mysql_time());
+  }
   virtual bool get_TIME(MYSQL_TIME *ltime, const uchar *pos,
                         date_mode_t fuzzydate) const = 0;
   bool validate_MMDD(bool not_zero_date, uint month, uint day,
@@ -2721,6 +2727,10 @@ protected:
   virtual void store_TIMEVAL(const timeval &tv)
   {
     int4store(ptr, tv.tv_sec);
+  }
+  void store_TIMESTAMP(const Timestamp &ts)
+  {
+    store_TIMEVAL(ts.tv());
   }
 public:
   Field_timestamp(uchar *ptr_arg, uint32 len_arg,
@@ -2761,9 +2771,10 @@ public:
   {
     return get_timestamp(ptr, sec_part);
   }
+  // This is used by storage/perfschema
   void store_TIME(my_time_t timestamp, ulong sec_part)
   {
-    store_TIMEVAL(Timeval(timestamp, sec_part).trunc(decimals()));
+    store_TIMESTAMP(Timestamp(timestamp, sec_part).trunc(decimals()));
   }
   bool get_date(MYSQL_TIME *ltime, date_mode_t fuzzydate);
   uchar *pack(uchar *to, const uchar *from,
@@ -2924,7 +2935,7 @@ public:
       return do_field_string;
     }
     case TIME_RESULT:
-      return do_field_temporal;
+      return do_field_date;
     case DECIMAL_RESULT:
       return do_field_decimal;
     case REAL_RESULT:
@@ -2970,6 +2981,7 @@ public:
                               null_ptr_arg, null_bit_arg,
                               unireg_check_arg, field_name_arg)
   {}
+  Copy_func *get_copy_func(const Field *from) const;
   SEL_ARG *get_mm_leaf(RANGE_OPT_PARAM *param, KEY_PART *key_part,
                        const Item_bool_func *cond,
                        scalar_comparison_op op, Item *value);
@@ -3054,6 +3066,10 @@ class Field_time :public Field_temporal {
   long curdays;
 protected:
   virtual void store_TIME(const MYSQL_TIME *ltime);
+  void store_TIME(const Time &t)
+  {
+    return store_TIME(t.get_mysql_time());
+  }
   int store_TIME_with_warning(const Time *ltime, const ErrConv *str, int warn);
   bool check_zero_in_date_with_warn(date_mode_t fuzzydate);
   static void do_field_time(Copy_field *copy);
