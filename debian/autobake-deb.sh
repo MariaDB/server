@@ -102,7 +102,7 @@ fi
 # AWS SDK also requires the build machine to have network access and git, so
 # it cannot be part of the base version included in Linux distros, but a pure
 # custom built plugin.
-if [[ $GCCVERSION -gt 40800 ]] && [[ ! $TRAVIS ]] && wget --timeout 15 --tries 1 --quiet --output-document /dev/null https://github.com/
+if [[ $GCCVERSION -gt 40800 ]] && [[ ! $TRAVIS ]] && [[ -x "$(command -v git)" ]] && $(timeout 3s bash -c 'cat </dev/tcp/github.com/22')
 then
   cat <<EOF >> debian/control
 
