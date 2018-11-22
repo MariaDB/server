@@ -101,3 +101,6 @@ ENDFOREACH()
 
 ADD_DEFINITIONS(-DHAVE_DLOPEN)
 
+
+# MariaDB symlinks
+MARIADB_INSTALL_SYMLINK("/usr/bin/mysqlslap" "/usr/bin/mariadb-slap")
