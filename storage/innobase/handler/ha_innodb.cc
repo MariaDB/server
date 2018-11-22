@@ -71,6 +71,7 @@ this program; if not, write to the Free Software Foundation, Inc.,
 #include "buf0flu.h"
 #include "buf0lru.h"
 #include "dict0boot.h"
+#include "dict0load.h"
 #include "btr0defragment.h"
 #include "dict0crea.h"
 #include "dict0dict.h"
