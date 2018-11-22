@@ -11,7 +11,7 @@
 	sharedscripts
 	postrotate
           test -x /usr/bin/mysqladmin || exit 0
-          if [ -f `my_print_defaults --mysqld | grep -oP "pid-file=\K[^$]+"` ]; then
+          if [ -f `my_print_defaults --mysqld | grep -m 1 -oP "pid-file=\K.+$"` ]; then
             # If this fails, check debian.conf!
             mysqladmin --defaults-file=/etc/mysql/debian.cnf --local flush-error-log \
               flush-engine-log flush-general-log flush-slow-log
