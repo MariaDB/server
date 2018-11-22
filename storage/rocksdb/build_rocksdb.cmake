@@ -112,6 +112,24 @@ if(NOT WIN32)
   add_definitions(-DROCKSDB_PLATFORM_POSIX -DROCKSDB_LIB_IO_POSIX)
 endif()
 
+include(CheckCCompilerFlag)
+# ppc64 or ppc64le
+if(CMAKE_SYSTEM_PROCESSOR MATCHES "ppc64")
+  CHECK_C_COMPILER_FLAG("-maltivec" HAS_ALTIVEC)
+  if(HAS_ALTIVEC)
+    message(STATUS " HAS_ALTIVEC yes")
+    set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -maltivec")
+    set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -maltivec")
+  endif(HAS_ALTIVEC)
+  if(NOT CMAKE_C_FLAGS MATCHES "m(cpu|tune)")
+    set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -mcpu=power8")
+  endif()
+  if(NOT CMAKE_CXX_FLAGS MATCHES "m(cpu|tune)")
+    set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -mcpu=power8")
+  endif()
+  ADD_DEFINITIONS(-DHAVE_POWER8 -DHAS_ALTIVEC)
+endif(CMAKE_SYSTEM_PROCESSOR MATCHES "ppc64")
+
 option(WITH_FALLOCATE "build with fallocate" ON)
 
 if(WITH_FALLOCATE AND UNIX)
@@ -377,6 +395,13 @@ else()
     port/port_posix.cc
     env/env_posix.cc
     env/io_posix.cc)
+  # ppc64 or ppc64le
+  if(CMAKE_SYSTEM_PROCESSOR MATCHES "ppc64")
+    enable_language(ASM)
+    list(APPEND ROCKSDB_SOURCES
+      util/crc32c_ppc.c
+      util/crc32c_ppc_asm.S)
+  endif(CMAKE_SYSTEM_PROCESSOR MATCHES "ppc64")
 endif()
 SET(SOURCES)
 FOREACH(s ${ROCKSDB_SOURCES})
