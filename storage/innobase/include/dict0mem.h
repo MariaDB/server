@@ -1677,6 +1677,15 @@ struct dict_table_t {
 		const char*	old_v_col_names,
 		const ulint*	col_map);
 
+	/** Assign a new id to invalidate old undo log records, so
+	that purge will be unable to refer to fields that used to be
+	instantly added to the end of the index. This is only to be
+	used during ALTER TABLE when the table is empty, before
+	invoking dict_index_t::clear_instant_alter().
+	@param[in,out] trx	dictionary transaction
+	@return	error code */
+	inline dberr_t reassign_id(trx_t* trx);
+
 	/** Add the table definition to the data dictionary cache */
 	void add_to_cache();
 

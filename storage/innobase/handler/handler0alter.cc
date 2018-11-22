@@ -5217,6 +5217,51 @@ dict_index_t::instant_metadata(const dtuple_t& row, mem_heap_t* heap) const
 	return entry;
 }
 
+/** Assign a new id to invalidate old undo log records, so
+that purge will be unable to refer to fields that used to be
+instantly added to the end of the index. This is only to be
+used during ALTER TABLE when the table is empty, before
+invoking dict_index_t::clear_instant_alter().
+@param[in,out] trx	dictionary transaction
+@return	error code */
+inline dberr_t dict_table_t::reassign_id(trx_t* trx)
+{
+	DBUG_ASSERT(instant);
+	ut_ad(magic_n == DICT_TABLE_MAGIC_N);
+
+	table_id_t new_id;
+	dict_hdr_get_new_id(&new_id, NULL, NULL, NULL, false);
+	pars_info_t*	pinfo = pars_info_create();
+
+	pars_info_add_ull_literal(pinfo, "old", id);
+	pars_info_add_ull_literal(pinfo, "new", new_id);
+
+	ut_ad(mutex_own(&dict_sys->mutex));
+	ut_ad(rw_lock_own(dict_operation_lock, RW_LOCK_X));
+	ut_ad(trx->dict_operation_lock_mode == RW_X_LATCH);
+
+	dberr_t err = que_eval_sql(
+		pinfo,
+		"PROCEDURE RENUMBER_TABLE_ID_PROC () IS\n"
+		"BEGIN\n"
+		"UPDATE SYS_TABLES SET ID=:new WHERE ID=:old;\n"
+		"UPDATE SYS_COLUMNS SET TABLE_ID=:new WHERE TABLE_ID=:old;\n"
+		"UPDATE SYS_INDEXES SET TABLE_ID=:new WHERE TABLE_ID=:old;\n"
+		"END;\n"
+		, FALSE, trx);
+	if (err == DB_SUCCESS) {
+		auto fold = ut_fold_ull(id);
+		HASH_DELETE(dict_table_t, id_hash, dict_sys->table_id_hash,
+			    fold, this);
+		id = new_id;
+		fold = ut_fold_ull(id);
+		HASH_INSERT(dict_table_t, id_hash, dict_sys->table_id_hash,
+			    fold, this);
+	}
+
+	return err;
+}
+
 /** Insert or update SYS_COLUMNS and the hidden metadata record
 for instant ALTER TABLE.
 @param[in]	ha_alter_info	ALTER TABLE context
@@ -5495,6 +5540,20 @@ add_all_virtual:
 empty_table:
 		/* The table is empty. */
 		ut_ad(page_is_root(block->frame));
+		if (index->table->instant) {
+			/* Assign a new dict_table_t::id
+			to invalidate old undo log records in purge,
+			so that they cannot refer to fields that were
+			instantly added to the end of the index,
+			instead of using the canonical positions
+			that will be replaced below
+			by index->clear_instant_alter(). */
+			err = index->table->reassign_id(trx);
+			if (err != DB_SUCCESS) {
+				goto func_exit;
+			}
+		}
+		/* MDEV-17383: free metadata BLOBs! */
 		btr_page_empty(block, NULL, index, 0, &mtr);
 		index->clear_instant_alter();
 		err = DB_SUCCESS;
