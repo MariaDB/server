@@ -5247,6 +5247,7 @@ inline dberr_t dict_table_t::reassign_id(trx_t* trx)
 		"UPDATE SYS_TABLES SET ID=:new WHERE ID=:old;\n"
 		"UPDATE SYS_COLUMNS SET TABLE_ID=:new WHERE TABLE_ID=:old;\n"
 		"UPDATE SYS_INDEXES SET TABLE_ID=:new WHERE TABLE_ID=:old;\n"
+		"UPDATE SYS_VIRTUAL SET TABLE_ID=:new WHERE TABLE_ID=:old;\n"
 		"END;\n"
 		, FALSE, trx);
 	if (err == DB_SUCCESS) {
