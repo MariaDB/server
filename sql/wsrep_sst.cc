@@ -191,30 +191,23 @@ bool wsrep_before_SE()
 }
 
 // Signal end of SST
-void wsrep_sst_complete (const wsrep_uuid_t* sst_uuid,
-                         wsrep_seqno_t       sst_seqno,
-                         bool                needed)
+static void wsrep_sst_complete (THD*                thd,
+                                const wsrep::gtid&  sst_gtid,
+                                int const           rcode)
 {
-  wsrep::gtid gtid(wsrep::id(sst_uuid->data, sizeof(sst_uuid->data)),
-                   wsrep::seqno(sst_seqno));
-  Wsrep_server_state::instance().sst_received(gtid, 0);
+  Wsrep_client_service client_service(thd, thd->wsrep_cs());
+  Wsrep_server_state::instance().sst_received(client_service, sst_gtid, rcode);
 }
 
   /*
   If wsrep provider is loaded, inform that the new state snapshot
   has been received. Also update the local checkpoint.
 
-  @param wsrep     [IN]               wsrep handle
+  @param thd       [IN]
   @param uuid      [IN]               Initial state UUID
   @param seqno     [IN]               Initial state sequence number
   @param state     [IN]               Always NULL, also ignored by wsrep provider (?)
   @param state_len [IN]               Always 0, also ignored by wsrep provider (?)
-  @param implicit  [IN]               Whether invoked implicitly due to SST
-                                      (true) or explicitly because if change
-                                      in wsrep_start_position by user (false).
-  @return false                       Success
-          true                        Error
-
 */
 void wsrep_sst_received (THD*                thd,
                          const wsrep_uuid_t& uuid,
@@ -237,13 +230,12 @@ void wsrep_sst_received (THD*                thd,
       Reset the SE checkpoint before recovering view in order to avoid
       sanity check failure.
      */
+    wsrep::gtid const sst_gtid(wsrep::id(uuid.data, sizeof(uuid.data)),
+                               wsrep::seqno(seqno));
+
     if (!wsrep_before_SE()) {
-      // wsrep_seqno_t se_seqno= -1;
-      // wsrep_uuid_t se_uuid= WSREP_UUID_UNDEFINED;
       wsrep_set_SE_checkpoint(wsrep::gtid::undefined());
-      wsrep_set_SE_checkpoint(wsrep::gtid(wsrep::id(uuid.data,
-                                                    sizeof(uuid.data)),
-                                          wsrep::seqno(seqno)));
+      wsrep_set_SE_checkpoint(sst_gtid);
     }
     wsrep_verify_SE_checkpoint(uuid, seqno);
 
@@ -259,9 +251,7 @@ void wsrep_sst_received (THD*                thd,
     }
 
     int const rcode(seqno < 0 ? seqno : 0);
-    wsrep::gtid gtid(wsrep::id(uuid.data, sizeof(uuid.data)),
-                     wsrep::seqno(seqno));
-    Wsrep_server_state::instance().sst_received(gtid, rcode);
+    wsrep_sst_complete(thd, sst_gtid, rcode);
 }
 
 struct sst_thread_arg
@@ -369,6 +359,7 @@ static void* sst_joiner_thread (void* a)
   int err= 1;
 
   {
+    THD* thd;
     const char magic[] = "ready";
     const size_t magic_len = sizeof(magic) - 1;
     const size_t out_len = 512;
@@ -482,14 +473,57 @@ static void* sst_joiner_thread (void* a)
 
 err:
 
+    wsrep::gtid ret_gtid;
+
     if (err)
     {
-      ret_uuid= WSREP_UUID_UNDEFINED;
-      ret_seqno= -err;
+      ret_gtid= wsrep::gtid::undefined();
+    }
+    else
+    {
+      ret_gtid= wsrep::gtid(wsrep::id(ret_uuid.data, sizeof(ret_uuid.data)),
+                            wsrep::seqno(ret_seqno));
     }
 
     // Tell initializer thread that SST is complete
-    wsrep_sst_complete (&ret_uuid, ret_seqno, true);
+    // For that initialize a THD
+    if (my_thread_init())
+    {
+      WSREP_ERROR("my_thread_init() failed, can't signal end of SST. "
+                  "Aborting.");
+      unireg_abort(1);
+    }
+
+    thd= new THD(next_thread_id());
+
+    if (!thd)
+    {
+      WSREP_ERROR("Failed to allocate THD to restore view from local state, "
+                  "can't signal end of SST. Aborting.");
+      unireg_abort(1);
+    }
+
+    thd->thread_stack= (char*) &thd;
+    thd->security_ctx->skip_grants();
+    thd->system_thread= SYSTEM_THREAD_GENERIC;
+    thd->real_id= pthread_self();
+
+    thd->store_globals();
+
+    /* */
+    thd->variables.wsrep_on     = 0;
+    /* No binlogging */
+    thd->variables.sql_log_bin  = 0;
+    thd->variables.option_bits &= ~OPTION_BIN_LOG;
+    /* No general log */
+    thd->variables.option_bits |= OPTION_LOG_OFF;
+    /* Read committed isolation to avoid gap locking */
+    thd->variables.tx_isolation = ISO_READ_COMMITTED;
+
+    wsrep_sst_complete (thd, ret_gtid, -err);
+
+    delete thd;
+    my_thread_end();
   }
 
   return NULL;

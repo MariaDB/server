@@ -41,7 +41,7 @@ void debug_sync_caller(THD* thd, const char* sync_point)
   debug_sync_set_action(thd, sync_point, strlen(sync_point));
 #endif
 #ifdef ENABLED_DEBUG_SYNC
-  debug_sync_service(thd, sync_point, strlen(sync_point));
+  if (debug_sync_service) debug_sync_service(thd,sync_point,strlen(sync_point));
 #endif
 
 }

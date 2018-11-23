@@ -167,6 +167,7 @@ static struct wsrep_service_st wsrep_handler = {
   wsrep_thd_is_aborting,
   wsrep_trx_order_before,
   wsrep_thd_xid,
+  //wsrep_unlock_rollback,
   wsrep_set_data_home_dir
 };
 

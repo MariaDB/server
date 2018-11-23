@@ -1146,32 +1146,32 @@ bool tdc_remove_table(THD *thd, enum_tdc_remove_table_type remove_type,
           remove_type == TDC_RT_REMOVE_NOT_OWN ||
           remove_type == TDC_RT_REMOVE_NOT_OWN_KEEP_SHARE)
       {
-	if (table->in_use != thd)
+        if (table->in_use != thd)
         {
-	  /*
-	    We may end up here if we were granted some MDL
-	    lock even if another thd was already granted.
-	    In that case we expect their wsrep_conflict_state
-	    to be either ABORTING or CERT_FAILURE.
-	    See wsrep_grant_mdl_exception()
-	  */
-	  enum wsrep::transaction::state state=
-	    table->in_use->wsrep_trx().state();
-	  if (state == wsrep::transaction::s_cert_failed ||
-	      state == wsrep::transaction::s_aborting)
+          /*
+            We may end up here if we were granted some MDL
+            lock even if another thd was already granted.
+            In that case we expect their wsrep_conflict_state
+            to be either ABORTING or CERT_FAILURE.
+            See wsrep_grant_mdl_exception()
+          */
+          enum wsrep::transaction::state state=
+            table->in_use->wsrep_trx().state();
+          if (state == wsrep::transaction::s_cert_failed ||
+              state == wsrep::transaction::s_aborting)
           {
-	    WSREP_DEBUG("Table_cache_manager::free_table assert skipped");
-	  }
-	  else
+            WSREP_DEBUG("Table_cache_manager::free_table assert skipped");
+          }
+          else
           {
-	    DBUG_ASSERT(0);
+            DBUG_ASSERT(0);
 	  }
-	}
+        }
       }
       my_refs++;
 #else
+      if (table->in_use == thd)
         my_refs++;
-
 #endif /* WITH_WSREP */
     }
   }

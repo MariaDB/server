@@ -511,11 +511,14 @@ static std::string wsrep_server_node_address()
 {
 
   std::string ret;
-  if (!(wsrep_node_address && strlen(wsrep_node_address)))
-  {
   if (!wsrep_data_home_dir || strlen(wsrep_data_home_dir) == 0)
     wsrep_data_home_dir = mysql_real_data_home;
 
+  /* Initialize node address */
+  char node_addr[512]= { 0, };
+  size_t const node_addr_max= sizeof(node_addr) - 1;
+  if (!wsrep_node_address || !strcmp(wsrep_node_address, ""))
+  {
     char node_addr[512] = {0, };
     const size_t node_addr_max= sizeof(node_addr) - 1;
     size_t guess_ip_ret= wsrep_guess_ip(node_addr, node_addr_max);
@@ -670,7 +673,6 @@ int wsrep_init_server()
     }
 
     Wsrep_server_state::init_once(server_name,
-                                  server_id,
                                   incoming_address,
                                   node_address,
                                   working_dir,
@@ -1070,8 +1072,10 @@ bool wsrep_sync_wait (THD* thd, uint mask)
 {
   if (wsrep_must_sync_wait(thd, mask))
   {
-    WSREP_DEBUG("wsrep_sync_wait: thd->variables.wsrep_sync_wait = %u, mask = %u",
-                thd->variables.wsrep_sync_wait, mask);
+    WSREP_DEBUG("wsrep_sync_wait: thd->variables.wsrep_sync_wait = %u, "
+                "mask = %u, thd->variables.wsrep_on",
+                thd->variables.wsrep_sync_wait, mask,
+                thd->variables.wsrep_on);
     // This allows autocommit SELECTs and a first SELECT after SET AUTOCOMMIT=0
     // TODO: modify to check if thd has locked any rows.
     // enum wsrep::provider::status ret = wsrep_sync_wait_upto(thd, NULL, -1);
@@ -1139,7 +1143,6 @@ void wsrep_keys_free(wsrep_key_arr_t* key_arr)
     key_arr->keys_len= 0;
 }
 
-
 /*!
  * @param db      Database string
  * @param table   Table string
@@ -1165,7 +1168,7 @@ static bool wsrep_prepare_key_for_isolation(const char* db,
   case 1:
   case 2:
   case 3:
-    case 4:
+  case 4:
   {
     *key_len= 0;
     if (db)
@@ -1184,28 +1187,23 @@ static bool wsrep_prepare_key_for_isolation(const char* db,
     break;
   }
   default:
-        assert(0);
-        WSREP_ERROR("Unsupported protocol version: %ld", wsrep_protocol_version);
-        unireg_abort(1);
+    assert(0);
+    WSREP_ERROR("Unsupported protocol version: %ld", wsrep_protocol_version);
+    unireg_abort(1);
     return false;
   }
-  return true;
-}
 
+    return true;
+}
 
 static bool wsrep_prepare_key_for_isolation(const char* db,
                                             const char* table,
                                             wsrep_key_arr_t* ka)
 {
   wsrep_key_t* tmp;
-
-  if (!ka->keys)
-    tmp= (wsrep_key_t*)my_malloc((ka->keys_len + 1) * sizeof(wsrep_key_t),
-                                 MYF(0));
-  else
-    tmp= (wsrep_key_t*)my_realloc(ka->keys,
-                                 (ka->keys_len + 1) * sizeof(wsrep_key_t),
-                                  MY_ALLOW_ZERO_PTR);
+  tmp= (wsrep_key_t*)my_realloc(ka->keys,
+                                (ka->keys_len + 1) * sizeof(wsrep_key_t),
+                                MYF(MY_ALLOW_ZERO_PTR));
   if (!tmp)
   {
     WSREP_ERROR("Can't allocate memory for key_array");
@@ -1230,7 +1228,6 @@ static bool wsrep_prepare_key_for_isolation(const char* db,
 
   return true;
 }
-
 
 static bool wsrep_prepare_keys_for_alter_add_fk(const char* child_table_db,
                                                 Alter_info* alter_info,
@@ -1257,7 +1254,6 @@ static bool wsrep_prepare_keys_for_alter_add_fk(const char* child_table_db,
   }
   return true;
 }
-
 
 static bool wsrep_prepare_keys_for_isolation(THD*              thd,
                                              const char*       db,
@@ -1286,16 +1282,19 @@ static bool wsrep_prepare_keys_for_isolation(THD*              thd,
     if (!wsrep_prepare_keys_for_alter_add_fk(table_list->db.str, alter_info, ka))
       goto err;
   }
-
   return false;
 
 err:
-  wsrep_keys_free(ka);
-  return true;
+    wsrep_keys_free(ka);
+    return true;
 }
 
+/*
+ * Prepare key list from db/table and table_list
+ *
+ * Return zero in case of success, 1 in case of failure.
+ */
 
-/* Prepare key list from db/table and table_list */
 bool wsrep_prepare_keys_for_isolation(THD*              thd,
                                       const char*       db,
                                       const char*       table,
@@ -2606,7 +2605,18 @@ void wsrep_close_client_connections(my_bool wait_to_end, THD* except_caller_thd)
       continue;
 
     WSREP_DEBUG("closing connection %lld", (longlong) tmp->thread_id);
-    wsrep_close_thread(tmp);
+
+    /*
+      instead of wsrep_close_thread() we do now  soft kill by THD::awake
+     */
+    mysql_mutex_lock(&tmp->LOCK_thd_data);
+    mysql_mutex_lock(&tmp->LOCK_thd_kill);
+
+    tmp->awake_no_mutex(KILL_CONNECTION);
+
+    mysql_mutex_unlock(&tmp->LOCK_thd_kill);
+    mysql_mutex_unlock(&tmp->LOCK_thd_data);
+
   }
   mysql_mutex_unlock(&LOCK_thread_count);
 
@@ -3205,3 +3215,16 @@ my_bool get_wsrep_certify_nonPK()
 {
   return wsrep_certify_nonPK;
 }
+
+#ifdef MARIADB_OLD
+void wsrep_lock_rollback()
+{
+  mysql_mutex_lock(&LOCK_wsrep_rollback);
+}
+
+void wsrep_unlock_rollback()
+{
+  mysql_cond_signal(&COND_wsrep_rollback);
+  mysql_mutex_unlock(&LOCK_wsrep_rollback);
+}
+#endif

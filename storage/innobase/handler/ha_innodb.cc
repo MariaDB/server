@@ -18512,13 +18512,14 @@ wsrep_innobase_kill_one_trx(
 		DBUG_RETURN(1);
 	}
 	WSREP_LOG_CONFLICT((const void*)bf_thd, (const void*)thd, TRUE);
-
 	wsrep_thd_LOCK(thd);
-	WSREP_DEBUG("BF kill (%lu, seqno: %lld), victim: (%lu) trx: %llu",
-		    signal, (long long)bf_seqno, thd_get_thread_id(thd),
-		    (long long)victim_trx->id);
+	WSREP_DEBUG("BF kill (" ULINTPF ", seqno: " INT64PF
+		    "), victim: (%lu) trx: " TRX_ID_FMT,
+		    signal, bf_seqno,
+		    thd_get_thread_id(thd),
+		    victim_trx->id);
 
-	WSREP_DEBUG("Aborting query: %s conf %s trx: %lld",
+	WSREP_DEBUG("Aborting query: %s conf %s trx: %" PRId64,
 		    (thd && wsrep_thd_query(thd)) ? wsrep_thd_query(thd) : "void",
 		    wsrep_thd_transaction_state_str(thd),
 		    wsrep_thd_transaction_id(thd));

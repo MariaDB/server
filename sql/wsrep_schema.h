@@ -68,7 +68,7 @@ class Wsrep_schema
   /*
     Restore view info from stable storage.
   */
-  int restore_view(const wsrep_uuid_t& node_uuid, wsrep_view_info_t**) const;
+  Wsrep_view restore_view(THD* thd, const Wsrep_id& own_id) const;
 
   /*
     Append transaction fragment to fragment storage.
