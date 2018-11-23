@@ -31,6 +31,9 @@ if [[ "${TRAVIS_OS_NAME}" == 'linux' ]]; then
       export CXX=${CXX}-${CC_VERSION}
     fi
     export CC=${CXX/++/}
+    # excess warnings about unused include path
+    export CFLAGS='-Wno-unused-command-line-argument'
+    export CXXFLAGS='-Wno-unused-command-line-argument'
   elif [[ "${CXX}" == 'g++' ]]; then
     export CXX=g++-${CC_VERSION}
     export CC=gcc-${CC_VERSION}
