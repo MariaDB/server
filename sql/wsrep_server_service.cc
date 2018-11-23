@@ -209,19 +209,18 @@ void Wsrep_server_service::log_view(
         }
         applier->m_thd->mdl_context.release_transactional_locks();
       }
+
+      if (m_server_state.provider().last_committed_gtid().seqno() !=
+          view.state_id().seqno())
+      {
+        wsrep_set_SE_checkpoint(view.state_id());
+      }
     }
     else
     {
-      WSREP_WARN("No applier in Wsrep_server_service::log_view(), "
-                 "skipping write to wsrep_schema");
+      WSREP_DEBUG("No applier in Wsrep_server_service::log_view(), "
+                  "skipping write to wsrep_schema");
     }
-  }
-
-  if (view.status() == wsrep::view::primary &&
-      m_server_state.provider().last_committed_gtid().seqno() !=
-      view.state_id().seqno())
-  {
-    wsrep_set_SE_checkpoint(view.state_id());
   }
 }
 
