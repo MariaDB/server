@@ -6046,6 +6046,14 @@ initialize_auto_increment(dict_table_t* table, const Field* field)
 int
 ha_innobase::open(const char* name, int, uint)
 {
+	/* TODO: If trx_rollback_recovered(bool all=false) is ever
+	removed, the first-time open() must hold (or acquire and release)
+	a table lock that conflicts with trx_resurrect_table_locks(),
+	to ensure that any recovered incomplete ALTER TABLE will have been
+	rolled back. Otherwise, dict_table_t::instant could be cleared by
+	the rollback invoking dict_index_t::clear_instant_alter() while
+	open table handles exist in client connections. */
+
 	dict_table_t*		ib_table;
 	char			norm_name[FN_REFLEN];
 	dict_err_ignore_t	ignore_err = DICT_ERR_IGNORE_NONE;
