@@ -28,7 +28,7 @@ SET SESSION TRANSACTION ISOLATION LEVEL READ UNCOMMITTED;
 # Observe the block from a separate connection
 --connect node_2a, 127.0.0.1, root, , test, $NODE_MYPORT_2
 
---let $wait_condition = SELECT COUNT(*) = 1 FROM INFORMATION_SCHEMA.PROCESSLIST WHERE STATE LIKE 'committed%';
+--let $wait_condition = SELECT COUNT(*) = 1 FROM INFORMATION_SCHEMA.PROCESSLIST WHERE STATE LIKE 'wsrep applier committed%';
 --source include/wait_condition.inc
 
 --let $wait_condition = SELECT COUNT(*) = 1 FROM INFORMATION_SCHEMA.PROCESSLIST WHERE STATE LIKE 'update';
