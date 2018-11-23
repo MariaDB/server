@@ -156,9 +156,21 @@ VDec_op::VDec_op(Item_func_hybrid_field_type *item)
 }
 
 
-date_mode_t Temporal::sql_mode_for_dates(THD *thd)
+date_conv_mode_t Temporal::sql_mode_for_dates(THD *thd)
 {
   return ::sql_mode_for_dates(thd);
+}
+
+
+time_round_mode_t Temporal::default_round_mode(THD *thd)
+{
+  return thd->temporal_round_mode();
+}
+
+
+time_round_mode_t Timestamp::default_round_mode(THD *thd)
+{
+  return thd->temporal_round_mode();
 }
 
 
@@ -183,8 +195,8 @@ void Temporal::make_from_str(THD *thd, Warn *warn,
                   push_warning(thd, Sql_condition::WARN_LEVEL_NOTE,
                                ER_YES, ErrConvString(str, length,cs).ptr()););
 
-  if (str_to_temporal(warn, str, length, cs, fuzzydate))
-    make_fuzzy_date(&warn->warnings, fuzzydate);
+  if (str_to_temporal(thd, warn, str, length, cs, fuzzydate))
+    make_fuzzy_date(&warn->warnings, date_conv_mode_t(fuzzydate));
   if (warn->warnings)
     warn->set_str(str, length, &my_charset_bin);
 }
@@ -197,14 +209,14 @@ Temporal_hybrid::Temporal_hybrid(THD *thd, Item *item, date_mode_t fuzzydate)
 }
 
 
-void Sec6::make_from_decimal(const my_decimal *d)
+void Sec6::make_from_decimal(const my_decimal *d, ulong *nanoseconds)
 {
-  m_neg= my_decimal2seconds(d, &m_sec, &m_usec);
+  m_neg= my_decimal2seconds(d, &m_sec, &m_usec, nanoseconds);
   m_truncated= (m_sec >= LONGLONG_MAX);
 }
 
 
-void Sec6::make_from_double(double nr)
+void Sec6::make_from_double(double nr, ulong *nanoseconds)
 {
   if ((m_neg= nr < 0))
     nr= -nr;
@@ -216,7 +228,9 @@ void Sec6::make_from_double(double nr)
   else
   {
     m_sec= (ulonglong) nr;
-    m_usec= (ulong) ((nr - floor(nr)) * 1000000);
+    m_usec= (ulong) ((nr - floor(nr)) * 1000000000);
+    *nanoseconds= m_usec % 1000;
+    m_usec/= 1000;
   }
 }
 
@@ -235,8 +249,8 @@ bool Sec6::convert_to_mysql_time(THD *thd, int *warn, MYSQL_TIME *ltime,
   bool rc= fuzzydate & (TIME_INTERVAL_hhmmssff | TIME_INTERVAL_DAY) ?
              to_datetime_or_to_interval_hhmmssff(ltime, warn) :
            fuzzydate & TIME_TIME_ONLY ?
-             to_datetime_or_time(ltime, warn, fuzzydate) :
-             to_datetime_or_date(ltime, warn, fuzzydate);
+             to_datetime_or_time(ltime, warn, date_conv_mode_t(fuzzydate)) :
+             to_datetime_or_date(ltime, warn, date_conv_mode_t(fuzzydate));
   DBUG_ASSERT(*warn || !rc);
   if (truncated())
     *warn|= MYSQL_TIME_WARN_TRUNCATED;
@@ -259,7 +273,7 @@ void Temporal::push_conversion_warnings(THD *thd, bool totally_useless_value, in
 }
 
 
-VSec6::VSec6(THD *thd, Item *item, const char *type_str, ulonglong limit)
+VSec9::VSec9(THD *thd, Item *item, const char *type_str, ulonglong limit)
 {
   if (item->decimals == 0)
   { // optimize for an important special case
@@ -277,7 +291,7 @@ VSec6::VSec6(THD *thd, Item *item, const char *type_str, ulonglong limit)
   else if (item->cmp_type() == REAL_RESULT)
   {
     double nr= item->val_real();
-    make_from_double(nr);
+    make_from_double(nr, &m_nsec);
     m_is_null= item->null_value;
     if (!m_is_null && m_sec > limit)
     {
@@ -293,7 +307,7 @@ VSec6::VSec6(THD *thd, Item *item, const char *type_str, ulonglong limit)
   else
   {
     VDec tmp(item);
-    (m_is_null= tmp.is_null()) ? reset() : make_from_decimal(tmp.ptr());
+    (m_is_null= tmp.is_null()) ? reset() : make_from_decimal(tmp.ptr(), &m_nsec);
     if (!m_is_null && m_sec > limit)
     {
       m_sec= limit;
@@ -352,7 +366,8 @@ const LEX_CSTRING Interval_DDhhmmssff::m_type_name=
 
 Interval_DDhhmmssff::Interval_DDhhmmssff(THD *thd, Status *st,
                                          bool push_warnings,
-                                         Item *item, ulong max_hour)
+                                         Item *item, ulong max_hour,
+                                         time_round_mode_t mode, uint dec)
 {
   switch (item->cmp_type()) {
   case ROW_RESULT:
@@ -361,7 +376,8 @@ Interval_DDhhmmssff::Interval_DDhhmmssff(THD *thd, Status *st,
     break;
   case TIME_RESULT:
     {
-      if (item->get_date(thd, this, TIME_TIME_ONLY))
+      // Rounding mode is not important here
+      if (item->get_date(thd, this, Options(TIME_TIME_ONLY, TIME_FRAC_NONE)))
         time_type= MYSQL_TIMESTAMP_NONE;
       else if (time_type != MYSQL_TIMESTAMP_TIME)
       {
@@ -392,6 +408,8 @@ Interval_DDhhmmssff::Interval_DDhhmmssff(THD *thd, Status *st,
       }
       else
       {
+        if (mode == TIME_FRAC_ROUND)
+          time_round_or_set_max(dec, &st->warnings, max_hour, st->nanoseconds);
         if (hour > max_hour)
         {
           st->warnings|= MYSQL_TIME_WARN_OUT_OF_RANGE;
@@ -450,7 +468,8 @@ uint Interval_DDhhmmssff::fsp(THD *thd, Item *item)
   if (!item->const_item() || item->is_expensive())
     return TIME_SECOND_PART_DIGITS;
   Status st;
-  Interval_DDhhmmssff it(thd, &st, false/*no warnings*/, item, UINT_MAX32);
+  Interval_DDhhmmssff it(thd, &st, false/*no warnings*/, item, UINT_MAX32,
+                         TIME_FRAC_TRUNCATE, TIME_SECOND_PART_DIGITS);
   return it.is_valid_interval_DDhhmmssff() ? st.precision :
                                              TIME_SECOND_PART_DIGITS;
 }
@@ -459,12 +478,100 @@ uint Interval_DDhhmmssff::fsp(THD *thd, Item *item)
 void Time::make_from_item(THD *thd, int *warn, Item *item, const Options opt)
 {
   *warn= 0;
-  if (item->get_date(thd, this, opt.get_date_flags()))
+  if (item->get_date(thd, this, opt))
     time_type= MYSQL_TIMESTAMP_NONE;
   else
     valid_MYSQL_TIME_to_valid_value(thd, warn, opt);
 }
 
+
+static uint msec_round_add[7]=
+{
+  500000000,
+  50000000,
+  5000000,
+  500000,
+  50000,
+  5000,
+  0
+};
+
+
+Sec9 & Sec9::round(uint dec)
+{
+  DBUG_ASSERT(dec <= TIME_SECOND_PART_DIGITS);
+  if (Sec6::add_nanoseconds(m_nsec + msec_round_add[dec]))
+    m_sec++;
+  m_nsec= 0;
+  Sec6::trunc(dec);
+  return *this;
+}
+
+
+void Timestamp::round_or_set_max(uint dec, int *warn)
+{
+  DBUG_ASSERT(dec <= TIME_SECOND_PART_DIGITS);
+  if (add_nanoseconds_usec(msec_round_add[dec]) &&
+      tv_sec++ >= TIMESTAMP_MAX_VALUE)
+  {
+    tv_sec= TIMESTAMP_MAX_VALUE;
+    tv_usec= TIME_MAX_SECOND_PART;
+    *warn|= MYSQL_TIME_WARN_OUT_OF_RANGE;
+  }
+  my_timeval_trunc(this, dec);
+}
+
+
+bool Temporal::add_nanoseconds_with_round(THD *thd, int *warn,
+                                          date_conv_mode_t mode,
+                                          ulong nsec)
+{
+  switch (time_type) {
+  case MYSQL_TIMESTAMP_TIME:
+  {
+    ulong max_hour= (mode & (TIME_INTERVAL_DAY | TIME_INTERVAL_hhmmssff)) ?
+                    TIME_MAX_INTERVAL_HOUR : TIME_MAX_HOUR;
+    time_round_or_set_max(6, warn, max_hour, nsec);
+    return false;
+  }
+  case MYSQL_TIMESTAMP_DATETIME:
+    return datetime_round_or_invalidate(thd, 6, warn, nsec);
+  case MYSQL_TIMESTAMP_DATE:
+    return false;
+  case MYSQL_TIMESTAMP_NONE:
+    return false;
+  case MYSQL_TIMESTAMP_ERROR:
+    break;
+  }
+  DBUG_ASSERT(0);
+  return false;
+}
+
+
+void Temporal::time_round_or_set_max(uint dec, int *warn,
+                                     ulong max_hour, ulong nsec)
+{
+  DBUG_ASSERT(dec <= TIME_SECOND_PART_DIGITS);
+  if (add_nanoseconds_mmssff(nsec) && ++hour > max_hour)
+  {
+    time_hhmmssff_set_max(max_hour);
+    *warn|= MYSQL_TIME_WARN_OUT_OF_RANGE;
+  }
+  my_time_trunc(this, dec);
+}
+
+
+void Time::round_or_set_max(uint dec, int *warn, ulong nsec)
+{
+  Temporal::time_round_or_set_max(dec, warn, TIME_MAX_HOUR, nsec);
+  DBUG_ASSERT(is_valid_time_slow());
+}
+
+
+void Time::round_or_set_max(uint dec, int *warn)
+{
+  round_or_set_max(dec, warn, msec_round_add[dec]);
+}
 
 /**
   Create from a DATETIME by subtracting a given number of days,
@@ -586,9 +693,10 @@ Time::Time(int *warn, bool neg, ulonglong hour, uint minute, const Sec6 &second)
 }
 
 
-void Temporal_with_date::make_from_item(THD *thd, Item *item, date_mode_t flags)
+void Temporal_with_date::make_from_item(THD *thd, Item *item,
+                                        date_mode_t fuzzydate)
 {
-  flags&= ~TIME_TIME_ONLY;
+  date_conv_mode_t flags= date_conv_mode_t(fuzzydate) & ~TIME_TIME_ONLY;
   /*
     Some TIME type items return error when trying to do get_date()
     without TIME_TIME_ONLY set (e.g. Item_field for Field_time).
@@ -596,10 +704,11 @@ void Temporal_with_date::make_from_item(THD *thd, Item *item, date_mode_t flags)
     In the legacy time->datetime conversion mode we do not add TIME_TIME_ONLY
     and leave it to get_date() to check date.
   */
-  date_mode_t time_flag= (item->field_type() == MYSQL_TYPE_TIME &&
+  date_conv_mode_t time_flag= (item->field_type() == MYSQL_TYPE_TIME &&
               !(thd->variables.old_behavior & OLD_MODE_ZERO_DATE_TIME_CAST)) ?
-              TIME_TIME_ONLY : date_mode_t(0);
-  if (item->get_date(thd, this, flags | time_flag))
+              TIME_TIME_ONLY : TIME_CONV_NONE;
+  Options opt(flags | time_flag, time_round_mode_t(fuzzydate));
+  if (item->get_date(thd, this, opt))
     time_type= MYSQL_TIMESTAMP_NONE;
   else if (time_type == MYSQL_TIMESTAMP_TIME)
   {
@@ -612,22 +721,17 @@ void Temporal_with_date::make_from_item(THD *thd, Item *item, date_mode_t flags)
 }
 
 
-void Temporal_with_date::make_from_item(THD *thd, Item *item)
+void Temporal_with_date::check_date_or_invalidate(int *warn,
+                                                  date_conv_mode_t flags)
 {
-  return make_from_item(thd, item, sql_mode_for_dates(thd));
-}
-
-
-void Temporal_with_date::check_date_or_invalidate(int *warn, date_mode_t flags)
-{
-  if (check_date(this, pack_time(this) != 0,
-                 ulonglong(flags & TIME_MODE_FOR_XXX_TO_DATE), warn))
+  if (::check_date(this, pack_time(this) != 0,
+                   ulonglong(flags & TIME_MODE_FOR_XXX_TO_DATE), warn))
     time_type= MYSQL_TIMESTAMP_NONE;
 }
 
 
 void Datetime::make_from_time(THD *thd, int *warn, const MYSQL_TIME *from,
-                              date_mode_t flags)
+                              date_conv_mode_t flags)
 {
   DBUG_ASSERT(from->time_type == MYSQL_TIMESTAMP_TIME);
   if (time_to_datetime(thd, from, this))
@@ -641,7 +745,7 @@ void Datetime::make_from_time(THD *thd, int *warn, const MYSQL_TIME *from,
 
 
 void Datetime::make_from_datetime(THD *thd, int *warn, const MYSQL_TIME *from,
-                                  date_mode_t flags)
+                                  date_conv_mode_t flags)
 {
   DBUG_ASSERT(from->time_type == MYSQL_TIMESTAMP_DATE ||
               from->time_type == MYSQL_TIMESTAMP_DATETIME);
@@ -667,7 +771,7 @@ Datetime::Datetime(THD *thd, const timeval &tv)
 
 
 Datetime::Datetime(THD *thd, int *warn, const MYSQL_TIME *from,
-                   date_mode_t flags)
+                   date_conv_mode_t flags)
 {
   DBUG_ASSERT(bool(flags & TIME_TIME_ONLY) == false);
   switch (from->time_type) {
@@ -686,6 +790,82 @@ Datetime::Datetime(THD *thd, int *warn, const MYSQL_TIME *from,
   DBUG_ASSERT(is_valid_value_slow());
 }
 
+
+bool Temporal::datetime_add_nanoseconds_or_invalidate(THD *thd, int *warn, ulong nsec)
+{
+  if (!add_nanoseconds_mmssff(nsec))
+    return false;
+  /*
+    Overflow happened on minutes. Now we need to add 1 hour to the value.
+    Catch a special case for the maximum possible date and hour==23, to
+    truncate '9999-12-31 23:59:59.9999999' (with 7 fractional digits)
+          to '9999-12-31 23:59:59.999999'  (with 6 fractional digits),
+    with a warning, instead of returning an error, so this statement:
+      INSERT INTO (datetime_column) VALUES ('9999-12-31 23:59:59.9999999');
+    inserts a value truncated to 6 fractional digits, instead of zero
+    date '0000-00-00 00:00:00.000000'.
+  */
+  if (year == 9999 && month == 12 && day == 31 && hour == 23)
+  {
+    minute= 59;
+    second= 59;
+    second_part= 999999;
+    *warn= MYSQL_TIME_WARN_OUT_OF_RANGE;
+    return false;
+  }
+  INTERVAL interval;
+  memset(&interval, 0, sizeof(interval));
+  interval.hour= 1;
+  /* date_add_interval cannot handle bad dates */
+  if (check_date(TIME_NO_ZERO_IN_DATE | TIME_NO_ZERO_DATE, warn) ||
+      date_add_interval(thd, this, INTERVAL_HOUR, interval))
+  {
+    make_from_out_of_range(warn);
+    return true;
+  }
+  return false;
+}
+
+
+bool Temporal::datetime_round_or_invalidate(THD *thd, uint dec, int *warn, ulong nsec)
+{
+  DBUG_ASSERT(dec <= TIME_SECOND_PART_DIGITS);
+  if (datetime_add_nanoseconds_or_invalidate(thd, warn, nsec))
+    return true;
+  my_time_trunc(this, dec);
+  return false;
+
+}
+
+
+bool Datetime::round_or_invalidate(THD *thd, uint dec, int *warn)
+{
+  return round_or_invalidate(thd, dec, warn, msec_round_add[dec]);
+}
+
+
+Datetime_from_temporal::Datetime_from_temporal(THD *thd, Item *temporal,
+                                               date_conv_mode_t fuzzydate)
+ :Datetime(thd, temporal, Options(fuzzydate, TIME_FRAC_NONE))
+{
+  // Exact rounding mode does not matter
+  DBUG_ASSERT(temporal->cmp_type() == TIME_RESULT);
+}
+
+
+Datetime_truncation_not_needed::Datetime_truncation_not_needed(THD *thd, Item *item,
+                                                               date_conv_mode_t mode)
+ :Datetime(thd, item, Options(mode, TIME_FRAC_NONE))
+{
+  /*
+    The called Datetime() constructor only would truncate nanoseconds if they
+    existed (but we know there were no nanoseconds). Here we assert that there
+    are also no microsecond digits outside of the scale specified in "dec".
+  */
+  DBUG_ASSERT(!is_valid_datetime() || fraction_remainder(item->decimals) == 0);
+}
+
+/********************************************************************/
 
 uint Type_std_attributes::count_max_decimals(Item **item, uint nitems)
 {
@@ -3151,14 +3331,16 @@ void Type_handler_row::Item_update_null_value(Item *item) const
 void Type_handler_time_common::Item_update_null_value(Item *item) const
 {
   MYSQL_TIME ltime;
-  (void) item->get_date(current_thd, &ltime, TIME_TIME_ONLY);
+  THD *thd= current_thd;
+  (void) item->get_date(thd, &ltime, Time::Options(TIME_TIME_ONLY, thd));
 }
 
 
 void Type_handler_temporal_with_date::Item_update_null_value(Item *item) const
 {
   MYSQL_TIME ltime;
-  (void) item->get_date(current_thd, &ltime, sql_mode_for_dates(current_thd));
+  THD *thd= current_thd;
+  (void) item->get_date(thd, &ltime, Datetime::Options(thd));
 }
 
 
@@ -5013,7 +5195,7 @@ bool Type_handler_temporal_result::
   */
   return func->get_date_native(thd, ltime,
                                fuzzydate & TIME_TIME_ONLY ?
-                               sql_mode_for_dates(thd) :
+                               Datetime::Options(thd) :
                                fuzzydate);
 }
 
@@ -5847,14 +6029,15 @@ uint Type_handler_string_result::Item_temporal_precision(THD *thd, Item *item,
   String *tmp;
   MYSQL_TIME_STATUS status;
   DBUG_ASSERT(item->is_fixed());
+  // Nanosecond rounding is not needed here, for performance purposes
   if ((tmp= item->val_str(&buf)) &&
       (is_time ?
        Time(thd, &status, tmp->ptr(), tmp->length(), tmp->charset(),
-            Time::Options(TIME_TIME_ONLY,
+            Time::Options(TIME_TIME_ONLY, TIME_FRAC_TRUNCATE,
                           Time::DATETIME_TO_TIME_YYYYMMDD_TRUNCATE)).
          is_valid_time() :
-       Datetime(&status, tmp->ptr(), tmp->length(), tmp->charset(),
-                TIME_FUZZY_DATES).
+       Datetime(thd, &status, tmp->ptr(), tmp->length(), tmp->charset(),
+                Datetime::Options(TIME_FUZZY_DATES, TIME_FRAC_TRUNCATE)).
          is_valid_datetime()))
     return MY_MIN(status.precision, TIME_SECOND_PART_DIGITS);
   return MY_MIN(item->decimals, TIME_SECOND_PART_DIGITS);
@@ -6104,7 +6287,8 @@ bool Type_handler_temporal_with_date::
        Item_save_in_value(THD *thd, Item *item, st_value *value) const
 {
   value->m_type= DYN_COL_DATETIME;
-  item->get_date(thd, &value->value.m_time, sql_mode_for_dates(thd));
+  item->get_date(thd, &value->value.m_time,
+                 Datetime::Options(thd, TIME_FRAC_NONE));
   return check_null(item, value);
 }
 
@@ -6298,7 +6482,7 @@ bool Type_handler::
        Item_send_datetime(Item *item, Protocol *protocol, st_value *buf) const
 {
   item->get_date(protocol->thd, &buf->value.m_time,
-                 sql_mode_for_dates(protocol->thd));
+                 Datetime::Options(protocol->thd));
   if (!item->null_value)
     return protocol->store(&buf->value.m_time, item->decimals);
   return protocol->store_null();
@@ -6309,7 +6493,7 @@ bool Type_handler::
        Item_send_date(Item *item, Protocol *protocol, st_value *buf) const
 {
   item->get_date(protocol->thd, &buf->value.m_time,
-                 sql_mode_for_dates(protocol->thd));
+                 Date::Options(protocol->thd));
   if (!item->null_value)
     return protocol->store_date(&buf->value.m_time);
   return protocol->store_null();
@@ -7502,8 +7686,8 @@ int Type_handler_temporal_with_date::stored_field_cmp_to_item(THD *thd,
                                                               Item *item) const
 {
   MYSQL_TIME field_time, item_time, item_time2, *item_time_cmp= &item_time;
-  field->get_date(&field_time, TIME_INVALID_DATES);
-  item->get_date(thd, &item_time, TIME_INVALID_DATES);
+  field->get_date(&field_time, Datetime::Options(TIME_INVALID_DATES, thd));
+  item->get_date(thd, &item_time, Datetime::Options(TIME_INVALID_DATES, thd));
   if (item_time.time_type == MYSQL_TIMESTAMP_TIME &&
       time_to_datetime(thd, &item_time, item_time_cmp= &item_time2))
     return 1;
@@ -7516,8 +7700,8 @@ int Type_handler_time_common::stored_field_cmp_to_item(THD *thd,
                                                        Item *item) const
 {
   MYSQL_TIME field_time, item_time;
-  field->get_time(&field_time);
-  item->get_time(thd, &item_time);
+  field->get_date(&field_time, Time::Options(thd));
+  item->get_date(thd, &item_time, Time::Options(thd));
   return my_time_compare(&field_time, &item_time);
 }
 
@@ -7612,7 +7796,7 @@ Type_handler_date_common::create_literal_item(THD *thd,
 {
   Temporal::Warn st;
   Item_literal *item= NULL;
-  Temporal_hybrid tmp(thd, &st, str, length, cs, sql_mode_for_dates(thd));
+  Temporal_hybrid tmp(thd, &st, str, length, cs, Temporal_hybrid::Options(thd));
   if (tmp.is_valid_temporal() &&
       tmp.get_mysql_time()->time_type == MYSQL_TIMESTAMP_DATE &&
       !have_important_literal_warnings(&st))
@@ -7632,7 +7816,7 @@ Type_handler_temporal_with_date::create_literal_item(THD *thd,
 {
   Temporal::Warn st;
   Item_literal *item= NULL;
-  Temporal_hybrid tmp(thd, &st, str, length, cs, sql_mode_for_dates(thd));
+  Temporal_hybrid tmp(thd, &st, str, length, cs, Temporal_hybrid::Options(thd));
   if (tmp.is_valid_temporal() &&
       tmp.get_mysql_time()->time_type == MYSQL_TIMESTAMP_DATETIME &&
       !have_important_literal_warnings(&st))
@@ -7653,7 +7837,7 @@ Type_handler_time_common::create_literal_item(THD *thd,
 {
   MYSQL_TIME_STATUS st;
   Item_literal *item= NULL;
-  Time::Options opt(TIME_TIME_ONLY, Time::DATETIME_TO_TIME_DISALLOW);
+  Time::Options opt(TIME_TIME_ONLY, thd, Time::DATETIME_TO_TIME_DISALLOW);
   Time tmp(thd, &st, str, length, cs, opt);
   if (tmp.is_valid_time() &&
       !have_important_literal_warnings(&st))

@@ -1051,7 +1051,10 @@ Type_handler_temporal_result::make_sort_key(uchar *to, Item *item,
                                             Sort_param *param) const
 {
   MYSQL_TIME buf;
-  if (item->get_date_result(current_thd, &buf, TIME_INVALID_DATES))
+  // This is a temporal type. No nanoseconds. Rounding mode is not important.
+  DBUG_ASSERT(item->cmp_type() == TIME_RESULT);
+  static const Temporal::Options opt(TIME_INVALID_DATES, TIME_FRAC_NONE);
+  if (item->get_date_result(current_thd, &buf, opt))
   {
     DBUG_ASSERT(item->maybe_null);
     DBUG_ASSERT(item->null_value);

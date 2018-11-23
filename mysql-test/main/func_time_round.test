@@ -1,0 +1,461 @@
+SET sql_mode=IF(@@version LIKE '%MariaDB%', 'TIME_ROUND_FRACTIONAL', '');
+SET @default_sql_mode=@@sql_mode;
+
+CREATE TABLE t1_datetime_in_varchar (id SERIAL, a VARCHAR(64));
+INSERT INTO t1_datetime_in_varchar (a) VALUES
+('2000-12-31 23:59:59'),
+('2000-12-31 23:59:59.9'),
+('2000-12-31 23:59:59.99'),
+('2000-12-31 23:59:59.999'),
+('2000-12-31 23:59:59.9999'),
+('2000-12-31 23:59:59.99999'),
+('2000-12-31 23:59:59.999999'),
+('2000-12-31 23:59:59.9999999');
+
+CREATE TABLE t1_datetime_in_decimal (id SERIAL, a DECIMAL(38,10));
+INSERT INTO t1_datetime_in_decimal (a) VALUES
+(20001231235959),
+(20001231235959.9),
+(20001231235959.99),
+(20001231235959.999),
+(20001231235959.9999),
+(20001231235959.99999),
+(20001231235959.999999),
+(20001231235959.9999999);
+
+
+CREATE TABLE t1_time_in_varchar (id SERIAL, a VARCHAR(64));
+INSERT INTO t1_time_in_varchar (a) VALUES
+('00:00:00'),
+('00:00:00.9'),
+('00:00:00.99'),
+('00:00:00.999'),
+('00:00:00.9999'),
+('00:00:00.99999'),
+('00:00:00.999999'),
+('00:00:00.9999999');
+INSERT INTO t1_time_in_varchar (a) VALUES
+('837:59:59.9999999'),
+('838:59:59'),
+('838:59:59.9'),
+('838:59:59.99'),
+('838:59:59.999'),
+('838:59:59.9999'),
+('838:59:59.99999'),
+('838:59:59.999999'),
+('838:59:59.9999999'),
+('839:59:59.9999999'),
+('87649414:59:59.999999'),
+('87649414:59:59.9999999'),
+('87649415:59:59.999999'),
+('87649415:59:59.9999999');
+
+
+CREATE TABLE t1_time_in_decimal (id SERIAL, a DECIMAL(38,10));
+INSERT INTO t1_time_in_decimal (a) VALUES
+(0),
+(0.9),
+(0.99),
+(0.999),
+(0.9999),
+(0.99999),
+(0.999999),
+(0.9999999);
+INSERT INTO t1_time_in_decimal (a) VALUES
+(8375959.9999999),
+(8385959),
+(8385959.9),
+(8385959.99),
+(8385959.999),
+(8385959.9999),
+(8385959.99999),
+(8385959.999999),
+(8385959.9999999),
+(8395959.9999999),
+(876494145959.999999),
+(876494145959.9999999),
+(876494155959.999999),
+(876494155959.9999999);
+
+--echo #
+--echo # TIME: LEAST/GREATEST
+--echo #
+
+SELECT GREATEST(TIME'00:00:00', a) FROM t1_time_in_varchar;
+SELECT GREATEST(TIME'00:00:00', a) FROM t1_time_in_decimal;
+
+SELECT GREATEST(TIME'00:00:00', '00:00:00.0000004');
+SELECT GREATEST(TIME'00:00:00', 0.0000004);
+
+SELECT GREATEST(TIME'00:00:00', '00:00:00.0000005');
+SELECT GREATEST(TIME'00:00:00', 0.0000005);
+
+
+--echo #
+--echo # Functions with a single TIME input, conversion from DATETIME-in-VARCHAR
+--echo #
+
+SELECT SECOND(a), CAST(a AS TIME(6)), a FROM t1_datetime_in_varchar ORDER BY id;
+SELECT MINUTE(a), CAST(a AS TIME(6)), a FROM t1_datetime_in_varchar ORDER BY id;
+SELECT HOUR(a), CAST(a AS TIME(6)), a FROM t1_datetime_in_varchar ORDER BY id;
+
+SELECT EXTRACT(SECOND FROM a), CAST(a AS TIME(6)), a FROM t1_datetime_in_varchar ORDER BY id;
+SELECT EXTRACT(MINUTE FROM a), CAST(a AS TIME(6)), a FROM t1_datetime_in_varchar ORDER BY id;
+SELECT EXTRACT(HOUR FROM a), CAST(a AS TIME(6)), a FROM t1_datetime_in_varchar ORDER BY id;
+
+SELECT TIME_TO_SEC(a), CAST(a AS TIME(6)), a FROM t1_datetime_in_varchar ORDER BY id;
+
+
+--echo #
+--echo # Functions with a single TIME input, conversion from DATETIME-in-DECIMAL
+--echo #
+
+
+SELECT SECOND(a), CAST(a AS TIME(6)), a FROM t1_datetime_in_decimal ORDER BY id;
+SELECT MINUTE(a), CAST(a AS TIME(6)), a FROM t1_datetime_in_decimal ORDER BY id;
+SELECT HOUR(a), CAST(a AS TIME(6)), a FROM t1_datetime_in_decimal ORDER BY id;
+
+SELECT EXTRACT(SECOND FROM a), CAST(a AS TIME(6)), a FROM t1_datetime_in_decimal ORDER BY id;
+SELECT EXTRACT(MINUTE FROM a), CAST(a AS TIME(6)), a FROM t1_datetime_in_decimal ORDER BY id;
+SELECT EXTRACT(HOUR FROM a), CAST(a AS TIME(6)), a FROM t1_datetime_in_decimal ORDER BY id;
+
+SELECT TIME_TO_SEC(a), CAST(a AS TIME(6)), a FROM t1_datetime_in_decimal ORDER BY id;
+
+
+--echo #
+--echo # Functions with a single TIME interval input, conversion from TIME-interval-in-VARCHAR
+--echo #
+
+SELECT
+  EXTRACT(DAY FROM a),
+  EXTRACT(HOUR FROM a),
+  EXTRACT(MINUTE FROM a),
+  EXTRACT(SECOND FROM a),
+  EXTRACT(MICROSECOND FROM a),
+  CAST(a AS INTERVAL DAY_SECOND(6)),
+  a
+FROM t1_time_in_varchar ORDER BY id;
+
+SELECT
+  TIME_TO_SEC(a),
+  CAST(a AS TIME(6)),
+  a
+FROM t1_time_in_varchar ORDER BY id;
+
+--echo #
+--echo # Functions with a single TIME interval input, conversion from TIME-interval-in-DECIMAL
+--echo #
+
+SELECT
+  EXTRACT(DAY FROM a),
+  EXTRACT(HOUR FROM a),
+  EXTRACT(MINUTE FROM a),
+  EXTRACT(SECOND FROM a),
+  EXTRACT(MICROSECOND FROM a),
+  CAST(a AS INTERVAL DAY_SECOND(6)),
+  a
+FROM t1_time_in_decimal ORDER BY id;
+
+SELECT
+  TIME_TO_SEC(a),
+  CAST(a AS TIME(6)),
+  a
+FROM t1_time_in_decimal ORDER BY id;
+
+
+--echo #
+--echo # Functions with a single DATE input, conversion from DATETIME-in-VARCHAR
+--echo #
+
+SELECT QUARTER(a), CAST(a AS DATE),  a FROM t1_datetime_in_varchar ORDER BY id;
+SELECT DAY(a), CAST(a AS DATE), a FROM t1_datetime_in_varchar ORDER BY id;
+SELECT MONTH(a), CAST(a AS DATE), a FROM t1_datetime_in_varchar ORDER BY id;
+SELECT YEAR(a), CAST(a AS DATE), a FROM t1_datetime_in_varchar ORDER BY id;
+
+SELECT DAYNAME(a), CAST(a AS DATE), a FROM t1_datetime_in_varchar ORDER BY id;
+SELECT MONTHNAME(a), CAST(a AS DATE), a FROM t1_datetime_in_varchar ORDER BY id;
+
+SELECT LAST_DAY(a), CAST(a AS DATE), a FROM t1_datetime_in_varchar ORDER BY id;
+SELECT TO_DAYS(a), CAST(a AS DATE), a FROM t1_datetime_in_varchar ORDER BY id;
+SELECT DAYOFYEAR(a), CAST(a AS DATE), a FROM t1_datetime_in_varchar ORDER BY id;
+
+
+CREATE TABLE t1 (a VARCHAR(32));
+INSERT INTO t1 VALUES
+('2002-01-05 23:59:59'),
+('2002-01-05 23:59:59.999999'),
+('2002-01-05 23:59:59.9999999');
+SELECT YEARWEEK(a), a FROM t1;
+SELECT WEEK(a), a FROM t1;
+SELECT WEEKDAY(a), a FROM t1;
+DROP TABLE t1;
+
+CREATE TABLE t1 (a DECIMAL(32,9));
+INSERT INTO t1 VALUES
+(20020105235959),
+(20020105235959.999999),
+(20020105235959.9999999);
+SELECT YEARWEEK(a), a FROM t1;
+SELECT WEEK(a), a FROM t1;
+SELECT WEEKDAY(a), a FROM t1;
+DROP TABLE t1;
+
+--echo #
+--echo # Functions with a single DATE input, conversion from DATETIME-in-DECIMAL
+--echo #
+
+SELECT QUARTER(a), CAST(a AS DATE),  a FROM t1_datetime_in_decimal ORDER BY id;
+SELECT DAY(a), CAST(a AS DATE), a FROM t1_datetime_in_decimal ORDER BY id;
+SELECT MONTH(a), CAST(a AS DATE), a FROM t1_datetime_in_decimal ORDER BY id;
+SELECT YEAR(a), CAST(a AS DATE), a FROM t1_datetime_in_decimal ORDER BY id;
+
+SELECT DAYNAME(a), CAST(a AS DATE), a FROM t1_datetime_in_decimal ORDER BY id;
+SELECT MONTHNAME(a), CAST(a AS DATE), a FROM t1_datetime_in_decimal ORDER BY id;
+SELECT YEARWEEK(a), CAST(a AS DATE), a FROM t1_datetime_in_decimal ORDER BY id;
+
+SELECT LAST_DAY(a), CAST(a AS DATE), a FROM t1_datetime_in_decimal ORDER BY id;
+SELECT TO_DAYS(a), CAST(a AS DATE), a FROM t1_datetime_in_decimal ORDER BY id;
+SELECT DAYOFYEAR(a), CAST(a AS DATE), a FROM t1_datetime_in_decimal ORDER BY id;
+SELECT DAYOFMONTH(a), CAST(a AS DATE), a FROM t1_datetime_in_decimal ORDER BY id;
+
+
+--echo #
+--echo # Functions with a single DATETIME input, conversion from DATETIME-in-VARCHAR
+--echo #
+
+SELECT TO_SECONDS(a), CAST(a AS DATETIME(6)), a FROM t1_datetime_in_varchar ORDER BY id;
+
+SET time_zone='+00:00';
+SELECT UNIX_TIMESTAMP(a), CAST(a AS DATETIME(6)), a FROM t1_datetime_in_varchar ORDER BY id;
+SET time_zone=DEFAULT;
+
+SELECT CONVERT_TZ(a, '+00:00','+00:00'), CAST(a AS DATETIME(6)), a FROM t1_datetime_in_varchar ORDER BY id;
+
+
+--echo #
+--echo # Functions with a single DATETIME input, conversion from DATETIME-in-DECIMAL
+--echo #
+
+SELECT TO_SECONDS(a), CAST(a AS DATETIME(6)), a FROM t1_datetime_in_decimal ORDER BY id;
+
+SET time_zone='+00:00';
+SELECT UNIX_TIMESTAMP(a), CAST(a AS DATETIME(6)), a FROM t1_datetime_in_decimal ORDER BY id;
+SET time_zone=DEFAULT;
+
+SELECT CONVERT_TZ(a, '+00:00','+00:00'), CAST(a AS DATETIME(6)), a FROM t1_datetime_in_decimal ORDER BY id;
+
+DROP TABLE t1_datetime_in_varchar;
+DROP TABLE t1_datetime_in_decimal;
+DROP TABLE t1_time_in_varchar;
+DROP TABLE t1_time_in_decimal;
+
+
+--echo #
+--echo # Functions that construct DATETIME
+--echo #
+
+SET time_zone='+00:00';
+CREATE TABLE t1_unix_timestamp (id SERIAL, a DECIMAL(30,10));
+INSERT INTO t1_unix_timestamp (a) VALUES
+(980639999),
+(980639999.9),
+(980639999.999999),
+(980639999.9999999),
+(2147483647),
+(2147483647.9),
+(2147483647.999999),
+(2147483647.9999999);
+SELECT a, FROM_UNIXTIME(a) FROM t1_unix_timestamp ORDER BY id;
+DROP TABLE t1_unix_timestamp;
+SET time_zone=DEFAULT;
+
+
+--echo #
+--echo # Functions that construct TIME
+--echo #
+
+CREATE TABLE t1_sec (id SERIAL, a DECIMAL(38,10));
+INSERT INTO t1_sec (a) VALUES
+(59),
+(59.9),
+(59.999999),
+(59.9999999),
+(3020398),
+(3020398.999999),
+(3020398.9999999),
+(3020399),
+(3020399.999999),
+(3020399.9999999),
+(9223372036854775807),
+(9223372036854775807.9),
+(9223372036854775807.999999),
+(9223372036854775807.9999999),
+(18446744073709551615),
+(18446744073709551615.9),
+(18446744073709551615.999999),
+(18446744073709551615.9999999);
+SELECT a, SEC_TO_TIME(a) FROM t1_sec ORDER BY id;
+DROP TABLE t1_sec;
+
+
+CREATE TABLE t1_sec (id SERIAL, a DECIMAL(38,10));
+INSERT INTO t1_sec (a) VALUES
+(0),
+(0.9),
+(0.999999),
+(0.9999999);
+SELECT a, MAKETIME(0, 0, a) FROM t1_sec ORDER BY id;
+DROP TABLE t1_sec;
+
+
+CREATE TABLE t1 (a VARCHAR(64));
+INSERT INTO t1 VALUES
+('2017-12-31 23:59:59'),
+('2017-12-31 23:59:59.9'),
+('2017-12-31 23:59:59.999999'),
+('2017-12-31 23:59:59.9999999');
+--vertical_results
+SELECT
+  '----',
+  a,
+  DATE_FORMAT(a, '%Y') AS yyyy,
+  DATE_FORMAT(a, '%Y-%m-%d') AS d,
+  DATE_FORMAT(a, '%H:%i:%s') AS t0,
+  DATE_FORMAT(a, '%H:%i:%s.%f') AS t6,
+  DATE_FORMAT(a, '%Y-%m-%d %H:%i:%s') AS dt0,
+  DATE_FORMAT(a, '%Y-%m-%d %H:%i:%s.%f') AS dt6
+FROM t1;
+--horizontal_results
+DROP TABLE t1;
+
+CREATE TABLE t1 (a DECIMAL(32,9));
+INSERT INTO t1 VALUES
+(20171231235959),
+(20171231235959.9),
+(20171231235959.999999),
+(20171231235959.9999999);
+--vertical_results
+SELECT
+  '----',
+  a,
+  DATE_FORMAT(a, '%Y') AS yyyy,
+  DATE_FORMAT(a, '%Y-%m-%d') AS d,
+  DATE_FORMAT(a, '%H:%i:%s') AS t0,
+  DATE_FORMAT(a, '%H:%i:%s.%f') AS t6,
+  DATE_FORMAT(a, '%Y-%m-%d %H:%i:%s') AS dt0,
+  DATE_FORMAT(a, '%Y-%m-%d %H:%i:%s.%f') AS dt6
+FROM t1;
+--horizontal_results
+DROP TABLE t1;
+
+
+--echo #
+--echo # Functions with two temporal parameters that round nanoseconds in both parameters in MySQL
+--echo #
+
+CREATE TABLE t1 (a VARCHAR(64));
+CREATE TABLE t2 (a VARCHAR(64));
+INSERT INTO t1 VALUES
+('2017-12-31 23:59:59'),
+('2017-12-31 23:59:59.9'),
+('2017-12-31 23:59:59.999999'),
+('2017-12-31 23:59:59.9999999');
+INSERT INTO t2 VALUES
+('00:00:00'),
+('00:00:00.9'),
+('00:00:00.999999'),
+('00:00:00.9999999');
+
+SELECT TIMESTAMP(t1.a, t2.a), t1.a, t2.a FROM t1,t2 ORDER BY t1.a, t2.a;
+SELECT ADDTIME(t1.a, t2.a), t1.a, t2.a FROM t1,t2 ORDER BY t1.a, t2.a;
+
+DROP TABLE t1, t2;
+
+
+CREATE TABLE t1 (a VARCHAR(64));
+CREATE TABLE t2 (a VARCHAR(64));
+INSERT INTO t1 VALUES
+('23:59:59'),
+('23:59:59.9'),
+('23:59:59.999999'),
+('23:59:59.9999999');
+INSERT INTO t2 VALUES
+('00:00:00'),
+('00:00:00.9'),
+('00:00:00.999999'),
+('00:00:00.9999999');
+SELECT TIMEDIFF(t1.a, t2.a), t1.a, t2.a FROM t1,t2 ORDER BY t1.a, t2.a;
+DROP TABLE t1, t2;
+
+
+CREATE TABLE t1 (a VARCHAR(64));
+CREATE TABLE t2 (a VARCHAR(64));
+INSERT INTO t1 VALUES
+('2001-12-31 23:59:59'),
+('2001-12-31 23:59:59.9'),
+('2001-12-31 23:59:59.999999'),
+('2001-12-31 23:59:59.9999999');
+INSERT INTO t2 VALUES
+('2001-12-31 23:59:59'),
+('2001-12-31 23:59:59.9'),
+('2001-12-31 23:59:59.999999'),
+('2001-12-31 23:59:59.9999999');
+SELECT TIMESTAMPDIFF(MICROSECOND,t1.a, t2.a), t1.a, t2.a FROM t1,t2 ORDER BY t1.a, t2.a;
+DROP TABLE t1, t2;
+
+CREATE TABLE t1 (a VARCHAR(64));
+CREATE TABLE t2 (a VARCHAR(64));
+INSERT INTO t1 VALUES
+('23:59:59'),
+('23:59:59.9'),
+('23:59:59.999999'),
+('23:59:59.9999999');
+INSERT INTO t2 VALUES
+('00:00:00'),
+('00:00:00.9'),
+('00:00:00.999999'),
+('00:00:00.9999999');
+SELECT TIMEDIFF(t1.a, t2.a), t1.a, t2.a FROM t1,t2 ORDER BY t1.a, t2.a;
+DROP TABLE t1, t2;
+
+
+--echo #
+--echo # STR_TO_DATE behaviour is questionable in MySQL 5.6 (MySQL Bug #92474)
+--echo #
+
+--echo # It truncates nanoseconds, but this may change in the future.
+CREATE TABLE t1 (a VARCHAR(64));
+INSERT INTO t1 VALUES
+('2017-12-31 23:59:59'),
+('2017-12-31 23:59:59.9'),
+('2017-12-31 23:59:59.999999'),
+('2017-12-31 23:59:59.9999999');
+
+SELECT
+  a,
+  STR_TO_DATE(a, '%Y-%m-%d %H:%i:%s') AS c0,
+  STR_TO_DATE(a, '%Y-%m-%d %H:%i:%s.%f') AS c6
+FROM t1;
+DROP TABLE t1;
+
+
+--echo #
+--echo # DATE_ADD behaviour is questionable in MySQL 5.6 (MySQL Bug#92473)
+--echo # It rounds nanoseconds in the first argument, but truncates nanoseconds in the second argument.
+--echo # This may change in the future, to round both arguments.
+--echo #
+
+CREATE TABLE t1 (a VARCHAR(64));
+INSERT INTO t1 VALUES
+('2017-12-31 23:59:59'),
+('2017-12-31 23:59:59.9'),
+('2017-12-31 23:59:59.999999'),
+('2017-12-31 23:59:59.9999999');
+CREATE TABLE t2 (b DECIMAL(32,9));
+INSERT INTO t2 VALUES
+(0),
+(0.9),
+(0.999999),
+(0.9999999);
+SELECT a, b, DATE_ADD(a, INTERVAL b SECOND) FROM t1,t2 ORDER BY a,b;
+DROP TABLE t1, t2;

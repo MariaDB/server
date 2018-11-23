@@ -310,8 +310,14 @@ SELECT @@global.sql_mode;
 SET @@global.sql_mode = 17179869183;
 SELECT @@global.sql_mode;
 
---Error ER_WRONG_VALUE_FOR_VAR
 SET @@global.sql_mode = 17179869184;
+SELECT @@global.sql_mode;
+
+SET @@global.sql_mode = 34359738367;
+SELECT @@global.sql_mode;
+
+--Error ER_WRONG_VALUE_FOR_VAR
+SET @@global.sql_mode = 34359738368;
 
 # use of decimal values
 

@@ -87,3 +87,13 @@ select * from t for system_time between '0-0-0' and current_timestamp(6);
 show status like "Feature_system_versioning";
 
 drop table t;
+
+
+--echo #
+--echo # MDEV-16991 Rounding vs truncation for TIME, DATETIME, TIMESTAMP
+--echo #
+
+SET sql_mode=TIME_ROUND_FRACTIONAL;
+SET @@global.system_versioning_asof= timestamp'2001-12-31 23:59:59.9999999';
+SELECT @@global.system_versioning_asof;
+SET @@global.system_versioning_asof= DEFAULT;

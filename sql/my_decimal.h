@@ -362,7 +362,8 @@ inline bool str_set_decimal(const my_decimal *val, String *str,
 }
 
 
-bool my_decimal2seconds(const my_decimal *d, ulonglong *sec, ulong *microsec);
+bool my_decimal2seconds(const my_decimal *d, ulonglong *sec,
+                        ulong *microsec, ulong *nanosec);
 
 my_decimal *seconds2my_decimal(bool sign, ulonglong sec, ulong microsec,
                                my_decimal *d);

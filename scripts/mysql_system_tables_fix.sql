@@ -417,7 +417,8 @@ ALTER TABLE proc MODIFY name char(64) DEFAULT '' NOT NULL,
                             'NO_ENGINE_SUBSTITUTION',
                             'PAD_CHAR_TO_FULL_LENGTH',
                             'EMPTY_STRING_IS_NULL',
-                            'SIMULTANEOUS_ASSIGNMENT'
+                            'SIMULTANEOUS_ASSIGNMENT',
+                            'TIME_ROUND_FRACTIONAL'
                             ) DEFAULT '' NOT NULL,
                  DEFAULT CHARACTER SET utf8;
 
@@ -553,7 +554,8 @@ ALTER TABLE event MODIFY sql_mode
                             'NO_ENGINE_SUBSTITUTION',
                             'PAD_CHAR_TO_FULL_LENGTH',
                             'EMPTY_STRING_IS_NULL',
-                            'SIMULTANEOUS_ASSIGNMENT'
+                            'SIMULTANEOUS_ASSIGNMENT',
+                            'TIME_ROUND_FRACTIONAL'
                             ) DEFAULT '' NOT NULL AFTER on_completion;
 ALTER TABLE event MODIFY name char(64) CHARACTER SET utf8 NOT NULL default '';
 

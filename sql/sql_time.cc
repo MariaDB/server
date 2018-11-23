@@ -289,8 +289,8 @@ ulong convert_month_to_period(ulong month)
 
 
 bool
-check_date_with_warn(THD *thd, const MYSQL_TIME *ltime, date_mode_t fuzzydate,
-                     timestamp_type ts_type)
+check_date_with_warn(THD *thd, const MYSQL_TIME *ltime,
+                     date_conv_mode_t fuzzydate, timestamp_type ts_type)
 {
   int unused;
   if (check_date(ltime, fuzzydate, &unused))
@@ -372,34 +372,37 @@ public:
 
 
 /* Character set-aware version of ascii_to_datetime_or_date_or_time() */
-bool Temporal::str_to_datetime_or_date_or_time(MYSQL_TIME_STATUS *st,
+bool Temporal::str_to_datetime_or_date_or_time(THD *thd, MYSQL_TIME_STATUS *st,
                                                const char *str, size_t length,
                                                CHARSET_INFO *cs,
                                                date_mode_t fuzzydate)
 {
   TemporalAsciiBuffer tmp(str, length, cs);
-  return ascii_to_datetime_or_date_or_time(st, tmp.str, tmp.length, fuzzydate);
+  return ascii_to_datetime_or_date_or_time(st, tmp.str, tmp.length, fuzzydate)||
+         add_nanoseconds(thd, &st->warnings, fuzzydate, st->nanoseconds);
 }
 
 
 /* Character set-aware version of str_to_datetime_or_date() */
-bool Temporal::str_to_datetime_or_date(MYSQL_TIME_STATUS *status,
+bool Temporal::str_to_datetime_or_date(THD *thd, MYSQL_TIME_STATUS *status,
                                        const char *str, size_t length,
                                        CHARSET_INFO *cs,
                                        date_mode_t flags)
 {
   TemporalAsciiBuffer tmp(str, length, cs);
-  return ascii_to_datetime_or_date(status, tmp.str, tmp.length, flags);
+  return ascii_to_datetime_or_date(status, tmp.str, tmp.length, flags) ||
+         add_nanoseconds(thd, &status->warnings, flags, status->nanoseconds);
 }
 
 
 /* Character set-aware version of ascii_to_temporal() */
-bool Temporal::str_to_temporal(MYSQL_TIME_STATUS *status,
+bool Temporal::str_to_temporal(THD *thd, MYSQL_TIME_STATUS *status,
                                const char *str, size_t length, CHARSET_INFO *cs,
                                date_mode_t flags)
 {
   TemporalAsciiBuffer tmp(str, length, cs);
-  return ascii_to_temporal(status, tmp.str, tmp.length, flags);
+  return ascii_to_temporal(status, tmp.str, tmp.length, flags) ||
+         add_nanoseconds(thd, &status->warnings, flags, status->nanoseconds);
 }
 
 
@@ -1307,7 +1310,7 @@ time_to_datetime(THD *thd, const MYSQL_TIME *from, MYSQL_TIME *to)
 bool
 time_to_datetime_with_warn(THD *thd,
                            const MYSQL_TIME *from, MYSQL_TIME *to,
-                           date_mode_t fuzzydate)
+                           date_conv_mode_t fuzzydate)
 {
   int warn= 0;
   DBUG_ASSERT(from->time_type == MYSQL_TIMESTAMP_TIME);
