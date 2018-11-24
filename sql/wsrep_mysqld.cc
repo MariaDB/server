@@ -515,8 +515,6 @@ static std::string wsrep_server_node_address()
     wsrep_data_home_dir = mysql_real_data_home;
 
   /* Initialize node address */
-  char node_addr[512]= { 0, };
-  size_t const node_addr_max= sizeof(node_addr) - 1;
   if (!wsrep_node_address || !strcmp(wsrep_node_address, ""))
   {
     char node_addr[512] = {0, };
@@ -1073,7 +1071,7 @@ bool wsrep_sync_wait (THD* thd, uint mask)
   if (wsrep_must_sync_wait(thd, mask))
   {
     WSREP_DEBUG("wsrep_sync_wait: thd->variables.wsrep_sync_wait = %u, "
-                "mask = %u, thd->variables.wsrep_on",
+                "mask = %u, thd->variables.wsrep_on = %d",
                 thd->variables.wsrep_sync_wait, mask,
                 thd->variables.wsrep_on);
     // This allows autocommit SELECTs and a first SELECT after SET AUTOCOMMIT=0
