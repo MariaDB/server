@@ -1631,7 +1631,7 @@ let $wait_condition=
           info = "flush tables t1";
 --source include/wait_condition.inc
 --vertical_results
-select * from information_schema.views;
+select * from information_schema.views where table_schema='test';
 --horizontal_results
 unlock tables;
 

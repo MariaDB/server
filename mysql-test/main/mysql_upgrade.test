@@ -227,7 +227,8 @@ SET GLOBAL enforce_storage_engine=NULL;
 --echo # on upgrade from 10.2
 --echo #
 
-flush privileges;
+--source include/switch_to_mysql_user.inc
+drop view mysql.user_bak;
 CREATE USER 'user3'@'%';
 GRANT USAGE ON *.* TO 'user3'@'%';
 GRANT ALL PRIVILEGES ON `roelt`.`test2` TO 'user3'@'%';
@@ -241,3 +242,5 @@ flush privileges;
 SHOW GRANTS FOR 'user3'@'%';
 DROP USER 'user3'@'%';
 update mysql.db set Delete_history_priv='Y' where db like 'test%';
+drop table mysql.global_priv;
+rename table mysql.global_priv_bak to mysql.global_priv;

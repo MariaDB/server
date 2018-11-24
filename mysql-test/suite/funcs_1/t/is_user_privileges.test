@@ -77,9 +77,6 @@ WHERE table_catalog IS NULL OR table_catalog <> 'def';
 # 3.2.16.4: Ensure that the table does not show any information on any
 #           privileges that are not user privileges for the current user.
 #
---disable_warnings
-DROP DATABASE IF EXISTS db_datadict;
---enable_warnings
 CREATE DATABASE db_datadict;
 
 --error 0,ER_CANNOT_USER
@@ -93,7 +90,7 @@ DROP   USER 'testuser3'@'localhost';
 CREATE USER 'testuser3'@'localhost';
 
 GRANT SELECT ON db_datadict.* TO 'testuser1'@'localhost';
-GRANT SELECT ON mysql.user TO 'testuser1'@'localhost';
+GRANT SELECT ON mysql.global_priv TO 'testuser1'@'localhost';
 
 GRANT INSERT ON *.* TO 'testuser2'@'localhost';
 GRANT UPDATE ON *.* TO 'testuser2'@'localhost';
@@ -101,7 +98,7 @@ GRANT UPDATE ON *.* TO 'testuser2'@'localhost';
 let $my_select1= SELECT * FROM information_schema.user_privileges
 WHERE grantee LIKE '''testuser%'''
 ORDER BY grantee, table_catalog, privilege_type;
-let $my_select2= SELECT * FROM mysql.user
+let $my_select2= SELECT host,user,json_detailed(priv) FROM mysql.global_priv
 WHERE user LIKE 'testuser%' ORDER BY host, user;
 let $my_show= SHOW GRANTS;
 --vertical_results
@@ -203,10 +200,10 @@ eval $my_show;
 CREATE TABLE db_datadict.tb_66 ( c1 TEXT );
 
 --echo
---echo # Add ALL on db_datadict.* (and select on mysql.user) to testuser1;
+--echo # Add ALL on db_datadict.* (and select on mysql.global_priv) to testuser1;
 connection default;
 GRANT ALL ON db_datadict.* TO 'testuser1'@'localhost' WITH GRANT OPTION;
-GRANT SELECT ON mysql.user TO 'testuser1'@'localhost';
+GRANT SELECT ON mysql.global_priv TO 'testuser1'@'localhost';
 --vertical_results
 eval $my_select1;
 eval $my_select2;

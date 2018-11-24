@@ -5,9 +5,7 @@
 --echo #             unsupported 3.20 format
 --echo #
 
-
-create table backup_user like mysql.user;
-insert into backup_user select * from mysql.user;
+--source include/switch_to_mysql_user.inc
 
 --echo #
 --echo # Original mysql.user table
@@ -90,11 +88,7 @@ select user, host, select_priv, plugin, authentication_string from mysql.user
 where user like "%oo"
 order by user;
 
-
 --echo #
 --echo # Reset to final original state.
 --echo #
-drop table mysql.user;
-rename table backup_user to mysql.user;
-
-flush privileges;
+--source include/switch_to_mysql_global_priv.inc

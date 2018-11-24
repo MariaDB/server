@@ -23,6 +23,8 @@ invoke() {
 
 MYSQL_BOOTSTRAP="/usr/sbin/mysqld --bootstrap --user=mysql --disable-log-bin --skip-grant-tables --default-storage-engine=myisam"
 
+have_global_priv_table=
+
 set_mysql_rootpw() {
        # forget we ever saw the password.  don't use reset to keep the seen status
        db_set mysql-server/root_password ""
@@ -33,13 +35,23 @@ set_mysql_rootpw() {
                return 1
        fi
 
-       # this avoids us having to call "test" or "[" on $rootpw
        cat << EOF > $tfile
 USE mysql;
 SET sql_log_bin=0;
+EOF
+       if test -n "$have_global_priv_table"; then
+           cat << EOF >> $tfile
+UPDATE global_priv SET priv=json_set(priv, '$.plugin', 'mysql_native_password', '$.authentication_string', PASSWORD("$rootpw")) WHERE user='root';
+EOF
+       else
+           cat << EOF >> $tfile
 UPDATE user SET password=PASSWORD("$rootpw") WHERE user='root';
+EOF
+       fi
+       cat << EOF >> $tfile
 FLUSH PRIVILEGES;
 EOF
+       # this avoids us having to call "test" or "[" on $rootpw
        if grep -q 'PASSWORD("")' $tfile; then
                retval=0
        else
@@ -146,6 +158,9 @@ EOF
                                    $ERR_LOGGER
     set -e
 
+    if test -f $mysql_datadir/mysql/global_priv.frm; then
+        have_global_priv_table=yes
+    fi
 
     ## On every reconfiguration the maintenance user is recreated.
     #
@@ -191,20 +206,29 @@ EOF
     chown 0:0 $dc
     chmod 0600 $dc
 
-    replace_query=`/bin/echo -e \
+    if test -n "$have_global_priv_table"; then
+      replace_query=`/bin/echo -e \
         "USE mysql;\n" \
-        "SET sql_mode='';\n" \
-        "REPLACE INTO user SET " \
-        "  host='localhost', user='debian-sys-maint', password=password('$pass'), " \
-        "  Select_priv='Y', Insert_priv='Y', Update_priv='Y', Delete_priv='Y', " \
-        "  Create_priv='Y', Drop_priv='Y', Reload_priv='Y', Shutdown_priv='Y', " \
-        "  Process_priv='Y',  File_priv='Y', Grant_priv='Y', References_priv='Y', " \
-        "  Index_priv='Y', Alter_priv='Y', Super_priv='Y', Show_db_priv='Y', "\
-        "  Create_tmp_table_priv='Y', Lock_tables_priv='Y', Execute_priv='Y', "\
-        "  Repl_slave_priv='Y', Repl_client_priv='Y', Create_view_priv='Y', "\
-        "  Show_view_priv='Y', Create_routine_priv='Y', Alter_routine_priv='Y', "\
-        "  Create_user_priv='Y', Event_priv='Y', Trigger_priv='Y',"\
-        "  ssl_cipher='', x509_issuer='', x509_subject='';"`;
+        "SELECT json_object('access',cast(-1 as unsigned), " \
+          "'plugin', 'mysql_native_password', " \
+          "'authentication_string', password('$pass')) INTO @all_privileges;\n"\
+        "REPLACE global_priv VALUES ('localhost', 'debian-sys-maint', @all_privileges);"`
+    else
+      replace_query=`/bin/echo -e \
+         "USE mysql;\n" \
+         "SET sql_mode='';\n" \
+         "REPLACE INTO user SET " \
+         "  host='localhost', user='debian-sys-maint', password=password('$pass'), " \
+         "  Select_priv='Y', Insert_priv='Y', Update_priv='Y', Delete_priv='Y', " \
+         "  Create_priv='Y', Drop_priv='Y', Reload_priv='Y', Shutdown_priv='Y', " \
+         "  Process_priv='Y',  File_priv='Y', Grant_priv='Y', References_priv='Y', " \
+         "  Index_priv='Y', Alter_priv='Y', Super_priv='Y', Show_db_priv='Y', "\
+         "  Create_tmp_table_priv='Y', Lock_tables_priv='Y', Execute_priv='Y', "\
+         "  Repl_slave_priv='Y', Repl_client_priv='Y', Create_view_priv='Y', "\
+         "  Show_view_priv='Y', Create_routine_priv='Y', Alter_routine_priv='Y', "\
+         "  Create_user_priv='Y', Event_priv='Y', Trigger_priv='Y',"\
+         "  ssl_cipher='', x509_issuer='', x509_subject='';"`;
+    fi
 
     db_get mysql-server/root_password && rootpw="$RET"
     if ! set_mysql_rootpw; then

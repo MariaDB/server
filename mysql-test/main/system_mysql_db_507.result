@@ -3,8 +3,6 @@
 #             Fatal error: mysql.user table is damaged or in
 #             unsupported 3.20 format
 #
-create table backup_user like mysql.user;
-insert into backup_user select * from mysql.user;
 #
 # Original mysql.user table
 #
@@ -169,6 +167,3 @@ ioo	%	Y	mysql_old_password	7a8f886d28473e85
 #
 # Reset to final original state.
 #
-drop table mysql.user;
-rename table backup_user to mysql.user;
-flush privileges;

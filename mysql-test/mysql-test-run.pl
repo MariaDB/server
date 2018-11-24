@@ -3263,7 +3263,7 @@ sub mysql_install_db {
 
     # Remove anonymous users
     mtr_tofile($bootstrap_sql_file,
-         "DELETE FROM mysql.user where user= '';\n");
+         "DELETE FROM mysql.global_priv where user= '';\n");
 
     # Create mtr database
     mtr_tofile($bootstrap_sql_file,

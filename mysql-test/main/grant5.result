@@ -38,19 +38,19 @@ ERROR HY000: Password hash should be a 41-digit hexadecimal number
 set password for u7@h = old_password('pwd');
 create user u8@h identified with 'mysql_old_password';
 set password for u8@h = '78a302dd267f6044';
-select user,host,password,plugin,authentication_string from mysql.user where host='h';
-user	host	password	plugin	authentication_string
-u1	h		mysql_native_password	*975B2CD4FF9AE554FE8AD33168FBFC326D2021DD
-u2	h		mysql_native_password	*975B2CD4FF9AE554FE8AD33168FBFC326D2021DD
-u3	h		mysql_native_password	*975B2CD4FF9AE554FE8AD33168FBFC326D2021DD
-u4	h		mysql_native_password	*975B2CD4FF9AE554FE8AD33168FBFC326D2021DD
-u5	h		mysql_old_password	78a302dd267f6044
-u6	h		mysql_old_password	78a302dd267f6044
-u7	h		mysql_old_password	78a302dd267f6044
-u8	h		mysql_old_password	78a302dd267f6044
-update mysql.user set authentication_string='bad' where user='u1';
-update mysql.user set authentication_string='bad' where user='u5';
-update mysql.user set plugin='nonexistent' where user='u8';
+select user,host,plugin,authentication_string from mysql.user where host='h';
+User	Host	plugin	authentication_string
+u1	h	mysql_native_password	*975B2CD4FF9AE554FE8AD33168FBFC326D2021DD
+u2	h	mysql_native_password	*975B2CD4FF9AE554FE8AD33168FBFC326D2021DD
+u3	h	mysql_native_password	*975B2CD4FF9AE554FE8AD33168FBFC326D2021DD
+u4	h	mysql_native_password	*975B2CD4FF9AE554FE8AD33168FBFC326D2021DD
+u5	h	mysql_old_password	78a302dd267f6044
+u6	h	mysql_old_password	78a302dd267f6044
+u7	h	mysql_old_password	78a302dd267f6044
+u8	h	mysql_old_password	78a302dd267f6044
+update mysql.global_priv set priv=json_set(priv, '$.authentication_string', 'bad') where user='u1';
+update mysql.global_priv set priv=json_set(priv, '$.authentication_string', 'bad') where user='u5';
+update mysql.global_priv set priv=json_set(priv, '$.plugin', 'nonexistent') where user='u8';
 flush privileges;
 Warnings:
 Error	1372	Password hash should be a 41-digit hexadecimal number
@@ -89,7 +89,7 @@ grant select on *.* to u7@h;
 grant select on *.* to u8@h;
 ERROR 28000: Can't find any matching row in the user table
 select user,select_priv,plugin,authentication_string from mysql.user where user like 'u_';
-user	select_priv	plugin	authentication_string
+User	Select_priv	plugin	authentication_string
 u1	N	mysql_native_password	bad
 u2	Y	mysql_native_password	*975B2CD4FF9AE554FE8AD33168FBFC326D2021DD
 u3	Y	mysql_native_password	*975B2CD4FF9AE554FE8AD33168FBFC326D2021DD

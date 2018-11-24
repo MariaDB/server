@@ -615,6 +615,7 @@ select is_updatable from information_schema.views;
 is_updatable
 YES
 YES
+YES
 select * from t1;
 col1	col2
 5	Hello, view world

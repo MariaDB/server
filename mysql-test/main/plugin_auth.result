@@ -362,6 +362,7 @@ uplain@localhost	uplain@localhost
 connection default;
 disconnect cleartext_con;
 DROP USER uplain@localhost;
+drop view mysql.user_bak;
 #
 # Bug #59038 : mysql.user.authentication_string column 
 #   causes configuration wizard to fail
@@ -443,6 +444,8 @@ ORDER BY COLUMN_NAME;
 IS_NULLABLE	COLUMN_NAME
 NO	authentication_string
 NO	plugin
+drop table mysql.global_priv;
+rename table mysql.global_priv_bak to mysql.global_priv;
 #
 # Bug # 11766641: 59792: BIN/MYSQL -UUNKNOWN -PUNKNOWN 
 #  .-> USING PASSWORD: NO 

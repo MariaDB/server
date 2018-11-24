@@ -45,6 +45,7 @@ MDL_BACKUP_DDL	Backup lock
 MDL_SHARED_NO_READ_WRITE	Table metadata lock	mysql	user
 MDL_SHARED_NO_READ_WRITE	Table metadata lock	test	t1
 MDL_INTENTION_EXCLUSIVE	Schema metadata lock	mysql	
+MDL_SHARED_NO_READ_WRITE	Table metadata lock	mysql	global_priv
 MDL_INTENTION_EXCLUSIVE	Schema metadata lock	test	
 UNLOCK TABLES;
 LOCK TABLES mysql.general_log WRITE;

@@ -322,12 +322,12 @@ TIME,HOSTNAME,root,localhost,ID,ID,WRITE,mysql,columns_priv,
 TIME,HOSTNAME,root,localhost,ID,ID,WRITE,mysql,procs_priv,
 TIME,HOSTNAME,root,localhost,ID,ID,WRITE,mysql,proxies_priv,
 TIME,HOSTNAME,root,localhost,ID,ID,WRITE,mysql,roles_mapping,
-TIME,HOSTNAME,root,localhost,ID,ID,WRITE,mysql,user,
+TIME,HOSTNAME,root,localhost,ID,ID,WRITE,mysql,global_priv,
 TIME,HOSTNAME,root,localhost,ID,ID,QUERY,sa_db,'CREATE USER u1 IDENTIFIED BY *****',0
 TIME,HOSTNAME,root,localhost,ID,ID,WRITE,mysql,tables_priv,
-TIME,HOSTNAME,root,localhost,ID,ID,WRITE,mysql,user,
+TIME,HOSTNAME,root,localhost,ID,ID,WRITE,mysql,global_priv,
 TIME,HOSTNAME,root,localhost,ID,ID,QUERY,sa_db,'GRANT ALL ON sa_db TO u2 IDENTIFIED BY *****',0
-TIME,HOSTNAME,root,localhost,ID,ID,WRITE,mysql,user,
+TIME,HOSTNAME,root,localhost,ID,ID,WRITE,mysql,global_priv,
 TIME,HOSTNAME,root,localhost,ID,ID,QUERY,sa_db,'SET PASSWORD FOR u1 = PASSWORD(*****)',0
 TIME,HOSTNAME,root,localhost,ID,ID,WRITE,mysql,db,
 TIME,HOSTNAME,root,localhost,ID,ID,WRITE,mysql,tables_priv,
@@ -335,7 +335,7 @@ TIME,HOSTNAME,root,localhost,ID,ID,WRITE,mysql,columns_priv,
 TIME,HOSTNAME,root,localhost,ID,ID,WRITE,mysql,procs_priv,
 TIME,HOSTNAME,root,localhost,ID,ID,WRITE,mysql,proxies_priv,
 TIME,HOSTNAME,root,localhost,ID,ID,WRITE,mysql,roles_mapping,
-TIME,HOSTNAME,root,localhost,ID,ID,WRITE,mysql,user,
+TIME,HOSTNAME,root,localhost,ID,ID,WRITE,mysql,global_priv,
 TIME,HOSTNAME,root,localhost,ID,ID,QUERY,sa_db,'CREATE USER u3 IDENTIFIED BY *****',0
 TIME,HOSTNAME,root,localhost,ID,ID,WRITE,mysql,db,
 TIME,HOSTNAME,root,localhost,ID,ID,WRITE,mysql,tables_priv,
@@ -343,7 +343,7 @@ TIME,HOSTNAME,root,localhost,ID,ID,WRITE,mysql,columns_priv,
 TIME,HOSTNAME,root,localhost,ID,ID,WRITE,mysql,procs_priv,
 TIME,HOSTNAME,root,localhost,ID,ID,WRITE,mysql,proxies_priv,
 TIME,HOSTNAME,root,localhost,ID,ID,WRITE,mysql,roles_mapping,
-TIME,HOSTNAME,root,localhost,ID,ID,WRITE,mysql,user,
+TIME,HOSTNAME,root,localhost,ID,ID,WRITE,mysql,global_priv,
 TIME,HOSTNAME,root,localhost,ID,ID,QUERY,sa_db,'drop user u1, u2, u3',0
 TIME,HOSTNAME,root,localhost,ID,ID,QUERY,sa_db,'create table t1(id int)',0
 TIME,HOSTNAME,root,localhost,ID,ID,QUERY,sa_db,'drop table t1',0

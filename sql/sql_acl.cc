@@ -816,7 +816,7 @@ class User_table: public Grant_table_base
   }
 
   virtual LEX_CSTRING& name() const = 0;
-  virtual void get_auth(THD *, MEM_ROOT *, const char **, const char **) const= 0;
+  virtual int get_auth(THD *, MEM_ROOT *, const char **, const char **) const= 0;
   virtual void set_auth(const char *, size_t, const char *, size_t) const = 0;
   virtual ulong get_access() const = 0;
   virtual void set_access(ulong rights, bool revoke) const = 0;
@@ -866,7 +866,7 @@ class User_table_tabular: public User_table
 
   LEX_CSTRING& name() const { return MYSQL_TABLE_NAME_USER; }
 
-  void get_auth(THD *thd, MEM_ROOT *root, const char **plugin, const char **authstr) const
+  int get_auth(THD *thd, MEM_ROOT *root, const char **plugin, const char **authstr) const
   {
     if (have_password())
     {
@@ -900,6 +900,7 @@ class User_table_tabular: public User_table
         }
       }
     }
+    return 0;
   }
 
   void set_auth(const char *p, size_t pl, const char *as, size_t asl) const
@@ -1185,46 +1186,222 @@ class User_table_tabular: public User_table
   Field* authstr() const  { return get_field(end_priv_columns + 9, MYSQL_TYPE_BLOB); }
 };
 
-/* MariaDB 10.4 and up `global_priv` table */
+/*
+  MariaDB 10.4 and up `global_priv` table
+
+  TODO possible optimizations:
+  * update json in-place if the new value can fit
+  * don't repeat get_value for every key, but use a streaming parser
+    to convert json into in-memory object (ACL_USER?) in one json scan.
+    - this makes sense for acl_load(), but hardly for GRANT
+  * similarly, pack ACL_USER (?) into json in one go.
+    - doesn't make sense? GRANT rarely updates more than one field.
+*/
 class User_table_json: public User_table
 {
   LEX_CSTRING& name() const { return MYSQL_TABLE_NAME[USER_TABLE]; }
-  void get_auth(THD *, MEM_ROOT *, const char **, const char **) const
-  { DBUG_ASSERT(0); }
-  void set_auth(const char *, size_t, const char *, size_t) const
-  { DBUG_ASSERT(0); }
-  ulong get_access() const
-  { DBUG_ASSERT(0); return 0; }
-  void set_access(ulong rights, bool revoke) const
-  { DBUG_ASSERT(0); }
 
-  SSL_type get_ssl_type () const { DBUG_ASSERT(0); return SSL_TYPE_NONE; }
-  int set_ssl_type (SSL_type x) const { DBUG_ASSERT(0); return 0; }
-  const char* get_ssl_cipher (MEM_ROOT *root) const { DBUG_ASSERT(0); return 0; }
-  int set_ssl_cipher (const char *s, size_t l) const { DBUG_ASSERT(0); return 0; }
-  const char* get_x509_issuer (MEM_ROOT *root) const { DBUG_ASSERT(0); return 0; }
-  int set_x509_issuer (const char *s, size_t l) const { DBUG_ASSERT(0); return 0; }
-  const char* get_x509_subject (MEM_ROOT *root) const { DBUG_ASSERT(0); return 0; }
-  int set_x509_subject (const char *s, size_t l) const { DBUG_ASSERT(0); return 0; }
-  longlong get_max_questions () const { DBUG_ASSERT(0); return 0; }
-  int set_max_questions (longlong x) const { DBUG_ASSERT(0); return 0; }
-  longlong get_max_updates () const { DBUG_ASSERT(0); return 0; }
-  int set_max_updates (longlong x) const { DBUG_ASSERT(0); return 0; }
-  longlong get_max_connections () const { DBUG_ASSERT(0); return 0; }
-  int set_max_connections (longlong x) const { DBUG_ASSERT(0); return 0; }
-  longlong get_max_user_connections () const { DBUG_ASSERT(0); return 0; }
-  int set_max_user_connections (longlong x) const { DBUG_ASSERT(0); return 0; }
-  double get_max_statement_time () const { DBUG_ASSERT(0); return 0; }
-  int set_max_statement_time (double x) const { DBUG_ASSERT(0); return 0; }
-  bool get_is_role () const { DBUG_ASSERT(0); return 0; }
-  int set_is_role (bool x) const { DBUG_ASSERT(0); return 0; }
-  const char* get_default_role (MEM_ROOT *root) const { DBUG_ASSERT(0); return 0; }
-  int set_default_role (const char *s, size_t l) const { DBUG_ASSERT(0); return 0; }
+  int get_auth(THD *thd, MEM_ROOT *root, const char **plugin, const char **authstr) const
+  {
+    *plugin= get_str_value(root, STRING_WITH_LEN("plugin"));
+    if (!**plugin)
+      *plugin= native_password_plugin_name.str;
+    *authstr= get_str_value(root, STRING_WITH_LEN("authentication_string"));
+    return *plugin == NULL || *authstr == NULL;
+  }
+  void set_auth(const char *p, size_t pl, const char *as, size_t asl) const
+  {
+    set_str_value(STRING_WITH_LEN("plugin"), p, pl);
+    set_str_value(STRING_WITH_LEN("authentication_string"), as, asl);
+  }
+  ulong get_access() const
+  {
+    /*
+      when new privileges will be added, we'll start storing GLOBAL_ACLS
+      (or, for example, my_count_bits(GLOBAL_ACLS))
+      in the json too, and it'll allow us to do privilege upgrades
+    */
+    return get_int_value(STRING_WITH_LEN("access")) & GLOBAL_ACLS;
+  }
+  void set_access(ulong rights, bool revoke) const
+  {
+    ulong access= get_access();
+    if (revoke)
+      access&= ~rights;
+    else
+      access|= rights;
+    set_int_value(STRING_WITH_LEN("access"), access & GLOBAL_ACLS);
+  }
+
+  SSL_type get_ssl_type () const
+  { return (SSL_type)get_int_value(STRING_WITH_LEN("ssl_type")); }
+  int set_ssl_type (SSL_type x) const
+  { return set_int_value(STRING_WITH_LEN("ssl_type"), x); }
+  const char* get_ssl_cipher (MEM_ROOT *root) const
+  { return get_str_value(root, STRING_WITH_LEN("ssl_cipher")); }
+  int set_ssl_cipher (const char *s, size_t l) const
+  { return set_str_value(STRING_WITH_LEN("ssl_cipher"), s, l); }
+  const char* get_x509_issuer (MEM_ROOT *root) const
+  { return get_str_value(root, STRING_WITH_LEN("x509_issuer")); }
+  int set_x509_issuer (const char *s, size_t l) const
+  { return set_str_value(STRING_WITH_LEN("x509_issuer"), s, l); }
+  const char* get_x509_subject (MEM_ROOT *root) const
+  { return get_str_value(root, STRING_WITH_LEN("x509_subject")); }
+  int set_x509_subject (const char *s, size_t l) const
+  { return set_str_value(STRING_WITH_LEN("x509_subject"), s, l); }
+  longlong get_max_questions () const
+  { return get_int_value(STRING_WITH_LEN("max_questions")); }
+  int set_max_questions (longlong x) const
+  { return set_int_value(STRING_WITH_LEN("max_questions"), x); }
+  longlong get_max_updates () const
+  { return get_int_value(STRING_WITH_LEN("max_updates")); }
+  int set_max_updates (longlong x) const
+  { return set_int_value(STRING_WITH_LEN("max_updates"), x); }
+  longlong get_max_connections () const
+  { return get_int_value(STRING_WITH_LEN("max_connections")); }
+  int set_max_connections (longlong x) const
+  { return set_int_value(STRING_WITH_LEN("max_connections"), x); }
+  longlong get_max_user_connections () const
+  { return get_int_value(STRING_WITH_LEN("max_user_connections")); }
+  int set_max_user_connections (longlong x) const
+  { return set_int_value(STRING_WITH_LEN("max_user_connections"), x); }
+  double get_max_statement_time () const
+  { return get_double_value(STRING_WITH_LEN("max_statement_time")); }
+  int set_max_statement_time (double x) const
+  { return set_double_value(STRING_WITH_LEN("max_statement_time"), x); }
+  bool get_is_role () const
+  { return get_bool_value(STRING_WITH_LEN("is_role")); }
+  int set_is_role (bool x) const
+  { return set_bool_value(STRING_WITH_LEN("is_role"), x); }
+  const char* get_default_role (MEM_ROOT *root) const
+  { return get_str_value(root, STRING_WITH_LEN("default_role")); }
+  int set_default_role (const char *s, size_t l) const
+  { return set_str_value(STRING_WITH_LEN("default_role"), s, l); }
 
   ~User_table_json() {}
  private:
   friend class Grant_tables;
-  int setup_sysvars() const { DBUG_ASSERT(0); return 1; }
+  static const uint JSON_SIZE=1024;
+  int setup_sysvars() const
+  {
+    using_global_priv_table= true;
+    username_char_length= MY_MIN(m_table->field[1]->char_length(),
+                                 USERNAME_CHAR_LENGTH);
+    return 0;
+  }
+  bool get_value(const char *key, size_t klen,
+                 enum json_value_types vt, const char **v, size_t *vl) const
+  {
+    enum json_value_types value_type;
+    String str, *res= m_table->field[2]->val_str(&str);
+    if (!res || json_get_object_by_key(res->ptr(), res->length(), key, klen,
+                                       &value_type, v, vl))
+      return 1; // invalid
+    return value_type != vt;
+  }
+  const char *get_str_value(MEM_ROOT *root, const char *key, size_t klen) const
+  {
+    size_t value_len;
+    const char *value_start;
+    if (get_value(key, klen, JSON_VALUE_STRING, &value_start, &value_len))
+      return "";
+    char *ptr= (char*)alloca(value_len);
+    int len= json_unescape(m_table->field[2]->charset(),
+                           (const uchar*)value_start,
+                           (const uchar*)value_start + value_len,
+                           system_charset_info,
+                           (uchar*)ptr, (uchar*)ptr + value_len);
+    if (len < 0)
+      return NULL;
+    return strmake_root(root, ptr, len);
+  }
+  longlong get_int_value(const char *key, size_t klen) const
+  {
+    int err;
+    size_t value_len;
+    const char *value_start;
+    if (get_value(key, klen, JSON_VALUE_NUMBER, &value_start, &value_len))
+      return 0;
+    const char *value_end= value_start + value_len;
+    return my_strtoll10(value_start, (char**)&value_end, &err);
+  }
+  double get_double_value(const char *key, size_t klen) const
+  {
+    int err;
+    size_t value_len;
+    const char *value_start;
+    if (get_value(key, klen, JSON_VALUE_NUMBER, &value_start, &value_len))
+      return 0;
+    const char *value_end= value_start + value_len;
+    return my_strtod(value_start, (char**)&value_end, &err);
+  }
+  bool get_bool_value(const char *key, size_t klen) const
+  {
+    size_t value_len;
+    const char *value_start;
+    if (get_value(key, klen, JSON_VALUE_TRUE, &value_start, &value_len))
+      return false;
+    return true;
+  }
+  bool set_value(const char *key, size_t klen,
+                 const char *val, size_t vlen, bool string) const
+  {
+    size_t value_len;
+    const char *value_start;
+    enum json_value_types value_type;
+    String str, *res= m_table->field[2]->val_str(&str);
+    if (!res || !res->length())
+      (res= &str)->set(STRING_WITH_LEN("{}"), m_table->field[2]->charset());
+    if (json_get_object_by_key(res->ptr(), res->length(), key, klen,
+                               &value_type, &value_start, &value_len))
+      return 1; // invalid
+    StringBuffer<JSON_SIZE> json(res->charset());
+    json.copy(res->ptr(), value_start - res->ptr(), res->charset());
+    if (!value_type)
+    {
+      if (value_len)
+        json.append(',');
+      json.append('"');
+      json.append(key, klen);
+      json.append(STRING_WITH_LEN("\":"));
+      if (string)
+        json.append('"');
+    }
+    else
+      value_start+= value_len;
+    json.append(val, vlen);
+    if (!value_type && string)
+      json.append('"');
+    json.append(value_start, res->end() - value_start);
+    DBUG_ASSERT(json_valid(json.ptr(), json.length(), json.charset()));
+    m_table->field[2]->store(json.ptr(), json.length(), json.charset());
+    return 0;
+  }
+  bool set_str_value(const char *key, size_t klen, const char *val, size_t vlen) const
+  {
+    char buf[JSON_SIZE];
+    int blen= json_escape(system_charset_info,
+                          (const uchar*)val, (const uchar*)val + vlen,
+                          m_table->field[2]->charset(),
+                          (uchar*)buf, (uchar*)buf+sizeof(buf));
+    if (blen < 0)
+      return 1;
+    return set_value(key, klen, buf, blen, true);
+  }
+  bool set_int_value(const char *key, size_t klen, longlong val) const
+  {
+    char v[MY_INT64_NUM_DECIMAL_DIGITS+1];
+    size_t vlen= longlong10_to_str(val, v, -10) - v;
+    return set_value(key, klen, v, vlen, false);
+  }
+  bool set_double_value(const char *key, size_t klen, double val) const
+  {
+    char v[FLOATING_POINT_BUFFER+1];
+    size_t vlen= my_fcvt(val, TIME_SECOND_PART_DIGITS, v, NULL);
+    return set_value(key, klen, v, vlen, false);
+  }
+  bool set_bool_value(const char *key, size_t klen, bool val) const
+  { return set_value(key, klen, val ? "true" : "false", val ? 4 : 5, false); }
 };
 
 class Db_table: public Grant_table_base
@@ -1921,24 +2098,25 @@ static bool acl_load(THD *thd, const Grant_tables& tables)
         continue;
       }
 
-      user_table.get_auth(thd, &acl_memroot,
-                          &user.plugin.str, &user.auth_string.str);
+      if (user_table.get_auth(thd, &acl_memroot,
+                              &user.plugin.str, &user.auth_string.str))
+        continue;
       user.plugin.length= strlen(user.plugin.str);
       user.auth_string.length= strlen(user.auth_string.str);
       fix_user_plugin_ptr(&user);
 
       user.ssl_type=     user_table.get_ssl_type();
       user.ssl_cipher=   user_table.get_ssl_cipher(&acl_memroot);
-      user.x509_issuer=  user_table.get_x509_issuer(&acl_memroot);
-      user.x509_subject= user_table.get_x509_subject(&acl_memroot);
-      user.user_resource.questions= user_table.get_max_questions();
-      user.user_resource.updates= user_table.get_max_updates();
-      user.user_resource.conn_per_hour= user_table.get_max_connections();
+      user.x509_issuer=  safe_str(user_table.get_x509_issuer(&acl_memroot));
+      user.x509_subject= safe_str(user_table.get_x509_subject(&acl_memroot));
+      user.user_resource.questions= (uint)user_table.get_max_questions();
+      user.user_resource.updates= (uint)user_table.get_max_updates();
+      user.user_resource.conn_per_hour= (uint)user_table.get_max_connections();
       if (user.user_resource.questions || user.user_resource.updates ||
           user.user_resource.conn_per_hour)
         mqh_used=1;
 
-      user.user_resource.user_conn= user_table.get_max_user_connections();
+      user.user_resource.user_conn= (int)user_table.get_max_user_connections();
       user.user_resource.max_statement_time= user_table.get_max_statement_time();
 
       user.default_rolename.str= user_table.get_default_role(&acl_memroot);
@@ -2696,8 +2874,8 @@ static int acl_user_update(THD *thd, ACL_USER *acl_user, const ACL_USER *from,
   {
     acl_user->ssl_type= ssl_type;
     acl_user->ssl_cipher= safe_strdup_root(&acl_memroot, ssl_cipher);
-    acl_user->x509_issuer= safe_strdup_root(&acl_memroot,x509_issuer);
-    acl_user->x509_subject= safe_strdup_root(&acl_memroot,x509_subject);
+    acl_user->x509_issuer= safe_strdup_root(&acl_memroot, safe_str(x509_issuer));
+    acl_user->x509_subject= safe_strdup_root(&acl_memroot, safe_str(x509_subject));
   }
   return 0;
 }
@@ -8190,14 +8368,14 @@ static void add_user_parameters(String *result, ACL_USER* acl_user,
   {
     int ssl_options = 0;
     result->append(STRING_WITH_LEN(" REQUIRE "));
-    if (acl_user->x509_issuer)
+    if (acl_user->x509_issuer[0])
     {
       ssl_options++;
       result->append(STRING_WITH_LEN("ISSUER \'"));
       result->append(acl_user->x509_issuer,strlen(acl_user->x509_issuer));
       result->append('\'');
     }
-    if (acl_user->x509_subject)
+    if (acl_user->x509_subject[0])
     {
       if (ssl_options++)
         result->append(' ');
@@ -12882,24 +13060,25 @@ static bool acl_check_ssl(THD *thd, const ACL_USER *acl_user)
       return 1;
     if (acl_user->ssl_cipher)
     {
+      const char *ssl_cipher= SSL_get_cipher(ssl);
       DBUG_PRINT("info", ("comparing ciphers: '%s' and '%s'",
-                         acl_user->ssl_cipher, SSL_get_cipher(ssl)));
-      if (strcmp(acl_user->ssl_cipher, SSL_get_cipher(ssl)))
+                         acl_user->ssl_cipher, ssl_cipher));
+      if (strcmp(acl_user->ssl_cipher, ssl_cipher))
       {
         if (global_system_variables.log_warnings)
           sql_print_information("X509 ciphers mismatch: should be '%s' but is '%s'",
-                            acl_user->ssl_cipher, SSL_get_cipher(ssl));
+                            acl_user->ssl_cipher, ssl_cipher);
         return 1;
       }
     }
-    if (!acl_user->x509_issuer && !acl_user->x509_subject)
+    if (!acl_user->x509_issuer[0] && !acl_user->x509_subject[0])
       return 0; // all done
 
     /* Prepare certificate (if exists) */
     if (!(cert= SSL_get_peer_certificate(ssl)))
       return 1;
     /* If X509 issuer is specified, we check it... */
-    if (acl_user->x509_issuer)
+    if (acl_user->x509_issuer[0])
     {
       char *ptr= X509_NAME_oneline(X509_get_issuer_name(cert), 0, 0);
       DBUG_PRINT("info", ("comparing issuers: '%s' and '%s'",
@@ -12916,7 +13095,7 @@ static bool acl_check_ssl(THD *thd, const ACL_USER *acl_user)
       free(ptr);
     }
     /* X509 subject is specified, we check it .. */
-    if (acl_user->x509_subject)
+    if (acl_user->x509_subject[0])
     {
       char *ptr= X509_NAME_oneline(X509_get_subject_name(cert), 0, 0);
       DBUG_PRINT("info", ("comparing subjects: '%s' and '%s'",

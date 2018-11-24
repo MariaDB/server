@@ -22,17 +22,17 @@ GRANT role_a TO 'user_a'@'localhost'
 GRANT USAGE ON *.* TO 'user_a'@'localhost'
 GRANT SELECT ON *.* TO 'role_a'
 select user, host, default_role from mysql.user where user like 'user_%';
-user	host	default_role
+User	Host	default_role
 user_a	localhost	role_a
 user_b	localhost	role_b
 set default role NONE for current_user;
 select user, host, default_role from mysql.user where user like 'user_%';
-user	host	default_role
+User	Host	default_role
 user_a	localhost	
 user_b	localhost	role_b
 set default role current_role for current_user;
 select user, host, default_role from mysql.user where user like 'user_%';
-user	host	default_role
+User	Host	default_role
 user_a	localhost	role_a
 user_b	localhost	role_b
 set default role role_b for current_user;
@@ -44,12 +44,6 @@ GRANT USAGE ON *.* TO 'user_b'@'localhost'
 GRANT INSERT, UPDATE ON *.* TO 'role_b'
 select user, host, default_role from mysql.user where user like 'user_%';
 ERROR 42000: SELECT command denied to user 'user_b'@'localhost' for table 'user'
-insert ignore into mysql.user (user, host) values ('someuser', 'somehost');
-Warnings:
-Warning	1364	Field 'ssl_cipher' doesn't have a default value
-Warning	1364	Field 'x509_issuer' doesn't have a default value
-Warning	1364	Field 'x509_subject' doesn't have a default value
-Warning	1364	Field 'authentication_string' doesn't have a default value
 set default role NONE for user_a@localhost;
 show grants;
 Grants for user_a@localhost
@@ -60,6 +54,5 @@ select user, host, default_role from mysql.user where user like 'user_%';
 ERROR 42000: SELECT command denied to user 'user_a'@'localhost' for table 'user'
 drop role role_a;
 drop role role_b;
-delete from mysql.user where user = 'someuser' && host = 'somehost';
 drop user user_a@localhost;
 drop user user_b@localhost;
