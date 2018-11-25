@@ -69,14 +69,6 @@ dict_create_table_step(
 /*===================*/
 	que_thr_t*	thr);		/*!< in: query thread */
 
-/** Assign a new table ID and put it into the table cache and the transaction.
-@param[in,out]	table	Table that needs an ID
-@param[in,out]	trx	Transaction */
-void
-dict_table_assign_new_id(
-	dict_table_t*	table,
-	trx_t*		trx);
-
 /***********************************************************//**
 Creates an index. This is a high-level function used in SQL execution
 graphs.

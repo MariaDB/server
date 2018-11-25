@@ -853,11 +853,6 @@ public:
     tv_sec= sec;
     tv_usec= usec;
   }
-  Timeval &trunc(uint dec)
-  {
-    my_timeval_trunc(this, dec);
-    return *this;
-  }
 };
 
 

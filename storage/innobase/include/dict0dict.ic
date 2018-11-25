@@ -24,13 +24,9 @@ Data dictionary system
 Created 1/8/1996 Heikki Tuuri
 ***********************************************************************/
 
-#include "data0type.h"
-#include "dict0load.h"
-#include "rem0types.h"
-#include "fsp0fsp.h"
 #include "srv0srv.h"
-#include "sync0rw.h"
 #include "fsp0sysspace.h"
+#include "dict0pagecompress.h"
 
 /*********************************************************************//**
 Gets the minimum number of bytes per character.

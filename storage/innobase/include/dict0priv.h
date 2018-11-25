@@ -47,18 +47,6 @@ dict_table_check_if_in_cache_low(
 /*=============================*/
 	const char*	table_name);		/*!< in: table name */
 
-/**********************************************************************//**
-Returns a table object based on table id.
-@return table, NULL if does not exist */
-UNIV_INLINE
-dict_table_t*
-dict_table_open_on_id_low(
-/*=====================*/
-	table_id_t		table_id,	/*!< in: table id */
-	dict_err_ignore_t	ignore_err,	/*!< in: errors to ignore
-						when loading the table */
-	ibool			open_only_if_in_cache);
-
 #include "dict0priv.ic"
 
 #endif /* dict0priv.h */

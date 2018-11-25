@@ -127,36 +127,34 @@ row_purge_remove_clust_if_poss_low(
 	purge_node_t*	node,	/*!< in/out: row purge node */
 	ulint		mode)	/*!< in: BTR_MODIFY_LEAF or BTR_MODIFY_TREE */
 {
-	dict_index_t*		index;
-	bool			success		= true;
-	mtr_t			mtr;
-	rec_t*			rec;
-	mem_heap_t*		heap		= NULL;
-	ulint*			offsets;
-	ulint			offsets_[REC_OFFS_NORMAL_SIZE];
-	rec_offs_init(offsets_);
-
 	ut_ad(rw_lock_own(dict_operation_lock, RW_LOCK_S)
 	      || node->vcol_info.is_used());
 
-	index = dict_table_get_first_index(node->table);
+	dict_index_t* index = dict_table_get_first_index(node->table);
 
 	log_free_check();
-	mtr_start(&mtr);
-	index->set_modified(mtr);
+
+	mtr_t mtr;
+	mtr.start();
 
 	if (!row_purge_reposition_pcur(mode, node, &mtr)) {
 		/* The record was already removed. */
-		goto func_exit;
+		mtr.commit();
+		return true;
 	}
 
-	rec = btr_pcur_get_rec(&node->pcur);
-	ut_ad(page_rec_is_leaf(rec));
+	ut_d(const bool was_instant = !!index->table->instant);
+	index->set_modified(mtr);
 
-	offsets = rec_get_offsets(
+	rec_t* rec = btr_pcur_get_rec(&node->pcur);
+	ulint offsets_[REC_OFFS_NORMAL_SIZE];
+	rec_offs_init(offsets_);
+	mem_heap_t* heap = NULL;
+	ulint* offsets = rec_get_offsets(
 		rec, index, offsets_,
 		page_rec_is_comp(rec) ? REC_FMT_LEAF : REC_FMT_LEAF_FLEXIBLE,
 		ULINT_UNDEFINED, &heap);
+	bool success = true;
 
 	if (node->roll_ptr != row_get_rec_roll_ptr(rec, index, offsets)) {
 		/* Someone else has modified the record later: do not remove */
@@ -188,6 +186,10 @@ row_purge_remove_clust_if_poss_low(
 			ut_error;
 		}
 	}
+
+	/* Prove that dict_index_t::clear_instant_alter() was
+	not called with index->table->instant != NULL. */
+	ut_ad(!was_instant || index->table->instant);
 
 func_exit:
 	if (heap) {

@@ -3415,6 +3415,10 @@ public:
   inline ulong query_start_sec_part()
   { query_start_sec_part_used=1; return start_time_sec_part; }
   MYSQL_TIME query_start_TIME();
+  Timeval query_start_timeval()
+  {
+    return Timeval(query_start(), query_start_sec_part());
+  }
 
 private:
   struct {

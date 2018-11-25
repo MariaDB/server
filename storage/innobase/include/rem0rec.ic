@@ -1391,6 +1391,7 @@ rec_get_converted_size(
 	} else if (index->table->id == DICT_INDEXES_ID) {
 		/* The column SYS_INDEXES.MERGE_THRESHOLD was
 		instantly added in MariaDB 10.2.2 (MySQL 5.7). */
+		ut_ad(!index->table->is_temporary());
 		ut_ad(index->n_fields == DICT_NUM_FIELDS__SYS_INDEXES);
 		ut_ad(dtuple->n_fields == DICT_NUM_FIELDS__SYS_INDEXES
 		      || dtuple->n_fields

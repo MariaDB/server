@@ -6332,7 +6332,6 @@ bool store_schema_params(THD *thd, TABLE *table, TABLE *proc_table,
 bool store_schema_proc(THD *thd, TABLE *table, TABLE *proc_table,
                        const char *wild, bool full_access, const char *sp_user)
 {
-  MYSQL_TIME time;
   LEX *lex= thd->lex;
   CHARSET_INFO *cs= system_charset_info;
   const Sp_handler *sph;
@@ -6420,14 +6419,11 @@ bool store_schema_proc(THD *thd, TABLE *table, TABLE *proc_table,
       copy_field_as_string(table->field[22],
                            proc_table->field[MYSQL_PROC_FIELD_SECURITY_TYPE]);
 
-      bzero((char *)&time, sizeof(time));
-      ((Field_timestamp *) proc_table->field[MYSQL_PROC_FIELD_CREATED])->
-        get_time(&time);
-      table->field[23]->store_time(&time);
-      bzero((char *)&time, sizeof(time));
-      ((Field_timestamp *) proc_table->field[MYSQL_PROC_FIELD_MODIFIED])->
-        get_time(&time);
-      table->field[24]->store_time(&time);
+      proc_table->field[MYSQL_PROC_FIELD_CREATED]->
+             save_in_field(table->field[23]);
+      proc_table->field[MYSQL_PROC_FIELD_MODIFIED]->
+             save_in_field(table->field[24]);
+
       copy_field_as_string(table->field[25],
                            proc_table->field[MYSQL_PROC_FIELD_SQL_MODE]);
       copy_field_as_string(table->field[26],

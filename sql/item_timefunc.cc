@@ -2576,18 +2576,9 @@ bool Item_func_maketime::get_date(THD *thd, MYSQL_TIME *ltime, date_mode_t fuzzy
        minute < 0 || minute > 59 || sec.neg() || sec.truncated())
     return (null_value= 1);
 
-  bzero(ltime, sizeof(*ltime));
-  ltime->time_type= MYSQL_TIMESTAMP_TIME;
-  ltime->neg= hour.neg();
-
-  if (hour.abs() <= TIME_MAX_HOUR)
-  {
-    ltime->hour=   (uint) hour.abs();
-    ltime->minute= (uint) minute;
-    ltime->second= (uint) sec.sec();
-    ltime->second_part= sec.usec();
-  }
-  else
+  int warn;
+  new(ltime) Time(&warn, hour.neg(), hour.abs(), (uint) minute, sec);
+  if (warn)
   {
     // use check_time_range() to set ltime to the max value depending on dec
     int unused;

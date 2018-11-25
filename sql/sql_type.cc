@@ -571,6 +571,21 @@ Time::Time(int *warn, const MYSQL_TIME *from, long curdays)
 }
 
 
+Time::Time(int *warn, bool neg, ulonglong hour, uint minute, const Sec6 &second)
+{
+  DBUG_ASSERT(second.sec() <= 59);
+  *warn= 0;
+  set_zero_time(this, MYSQL_TIMESTAMP_TIME);
+  MYSQL_TIME::neg= neg;
+  MYSQL_TIME::hour= hour > TIME_MAX_HOUR ? (uint) (TIME_MAX_HOUR + 1) :
+                                           (uint) hour;
+  MYSQL_TIME::minute= minute;
+  MYSQL_TIME::second= (uint) second.sec();
+  MYSQL_TIME::second_part= second.usec();
+  adjust_time_range_or_invalidate(warn);
+}
+
+
 void Temporal_with_date::make_from_item(THD *thd, Item *item, date_mode_t flags)
 {
   flags&= ~TIME_TIME_ONLY;
@@ -639,6 +654,15 @@ void Datetime::make_from_datetime(THD *thd, int *warn, const MYSQL_TIME *from,
     date_to_datetime(this);
     check_date_or_invalidate(warn, flags);
   }
+}
+
+
+Datetime::Datetime(THD *thd, const timeval &tv)
+{
+  thd->variables.time_zone->gmt_sec_to_TIME(this, tv.tv_sec);
+  second_part= tv.tv_usec;
+  thd->time_zone_used= 1;
+  DBUG_ASSERT(is_valid_value_slow());
 }
 
 

@@ -352,10 +352,12 @@ dict_build_table_def_step(
 {
 	ut_ad(mutex_own(&dict_sys->mutex));
 	dict_table_t*	table = node->table;
+	trx_t* trx = thr_get_trx(thr);
 	ut_ad(!table->is_temporary());
 	ut_ad(!table->space);
 	ut_ad(table->space_id == ULINT_UNDEFINED);
-	dict_table_assign_new_id(table, thr_get_trx(thr));
+	dict_hdr_get_new_id(&table->id, NULL, NULL);
+	trx->table_id = table->id;
 
 	/* Always set this bit for all new created tables */
 	DICT_TF2_FLAG_SET(table, DICT_TF2_FTS_AUX_HEX_NAME);
@@ -368,8 +370,6 @@ dict_build_table_def_step(
 
 		ut_ad(DICT_TF_GET_ZIP_SSIZE(table->flags) == 0
 		      || dict_table_has_atomic_blobs(table));
-		trx_t* trx = thr_get_trx(thr);
-		ut_ad(trx->table_id);
 		mtr_t mtr;
 		trx_undo_t* undo = trx->rsegs.m_redo.undo;
 		if (undo && !undo->table_id
@@ -397,7 +397,7 @@ dict_build_table_def_step(
 		}
 		/* Get a new tablespace ID */
 		ulint space_id;
-		dict_hdr_get_new_id(NULL, NULL, &space_id, table, false);
+		dict_hdr_get_new_id(NULL, NULL, &space_id);
 
 		DBUG_EXECUTE_IF(
 			"ib_create_table_fail_out_of_space_ids",
@@ -745,7 +745,7 @@ dict_build_index_def_step(
 	ut_ad((UT_LIST_GET_LEN(table->indexes) > 0)
 	      || dict_index_is_clust(index));
 
-	dict_hdr_get_new_id(NULL, &index->id, NULL, table, false);
+	dict_hdr_get_new_id(NULL, &index->id, NULL);
 
 	/* Inherit the space id from the table; we store all indexes of a
 	table in the same tablespace */
@@ -785,7 +785,7 @@ dict_build_index_def(
 	ut_ad((UT_LIST_GET_LEN(table->indexes) > 0)
 	      || dict_index_is_clust(index));
 
-	dict_hdr_get_new_id(NULL, &index->id, NULL, table, false);
+	dict_hdr_get_new_id(NULL, &index->id, NULL);
 
 	/* Note that the index was created by this transaction. */
 	index->trx_id = trx->id;
@@ -2375,16 +2375,4 @@ dict_delete_tablespace_and_datafiles(
 	trx->op_info = "";
 
 	return(err);
-}
-
-/** Assign a new table ID and put it into the table cache and the transaction.
-@param[in,out]	table	Table that needs an ID
-@param[in,out]	trx	Transaction */
-void
-dict_table_assign_new_id(
-	dict_table_t*	table,
-	trx_t*		trx)
-{
-	dict_hdr_get_new_id(&table->id, NULL, NULL, table, false);
-	trx->table_id = table->id;
 }

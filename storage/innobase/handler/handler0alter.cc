@@ -208,6 +208,30 @@ inline void dict_table_t::init_instant(const dict_table_t& table)
 	ut_ad(index.n_nullable == n_nullable);
 }
 
+/** Acquire a page latch on the possible metadata record,
+to prevent concurrent invocation of dict_index_t::clear_instant_alter()
+by purge when the table turns out to be empty.
+@param[in,out]	index	clustered index
+@param[in,out]	mtr	mini-transaction */
+static void instant_metadata_lock(dict_index_t& index, mtr_t& mtr)
+{
+	DBUG_ASSERT(index.is_primary());
+
+	if (!index.is_instant()) {
+		/* dict_index_t::clear_instant_alter() cannot be called.
+		No need for a latch. */
+		return;
+	}
+
+	btr_cur_t btr_cur;
+	btr_cur_open_at_index_side(true, &index, BTR_SEARCH_LEAF,
+				   &btr_cur, 0, &mtr);
+	ut_ad(page_cur_is_before_first(btr_cur_get_page_cur(&btr_cur)));
+	ut_ad(page_is_leaf(btr_cur_get_page(&btr_cur)));
+	ut_ad(!page_has_prev(btr_cur_get_page(&btr_cur)));
+	ut_ad(!buf_block_get_page_zip(btr_cur_get_block(&btr_cur)));
+}
+
 /** Set is_instant() before instant_column().
 @param[in]	old		previous table definition
 @param[in]	col_map		map from old.cols[] and old.v_cols[] to this
@@ -224,11 +248,18 @@ inline void dict_table_t::prepare_instant(const dict_table_t& old,
 	DBUG_ASSERT(old.supports_instant());
 	DBUG_ASSERT(supports_instant());
 
-	const dict_index_t& oindex = *old.indexes.start;
+	dict_index_t& oindex = *old.indexes.start;
 	dict_index_t& index = *indexes.start;
 	first_alter_pos = 0;
 
-	for (unsigned i = 0; i + DATA_N_SYS_COLS < old.n_cols; i++) {
+	mtr_t mtr;
+	mtr.start();
+	/* Prevent oindex.n_core_fields and others, so that
+	purge cannot invoke dict_index_t::clear_instant_alter(). */
+	instant_metadata_lock(oindex, mtr);
+
+	for (unsigned i = 0; i + DATA_N_SYS_COLS < old.n_cols;
+	     i++) {
 		if (col_map[i] != i) {
 			first_alter_pos = 1 + i;
 			goto add_metadata;
@@ -415,6 +446,7 @@ found_j:
 	DBUG_ASSERT(n_dropped() >= old.n_dropped());
 	DBUG_ASSERT(index.n_core_fields == oindex.n_core_fields);
 	DBUG_ASSERT(index.n_core_null_bytes == oindex.n_core_null_bytes);
+	mtr.commit();
 }
 
 /** Adjust index metadata for instant ADD/DROP/reorder COLUMN.
@@ -434,8 +466,15 @@ inline void dict_index_t::instant_add_field(const dict_index_t& instant)
 	DBUG_ASSERT(n_uniq == instant.n_uniq);
 	DBUG_ASSERT(instant.n_fields >= n_fields);
 	DBUG_ASSERT(instant.n_nullable >= n_nullable);
-	DBUG_ASSERT(instant.n_core_fields == n_core_fields);
-	DBUG_ASSERT(instant.n_core_null_bytes == n_core_null_bytes);
+	/* dict_table_t::prepare_instant() initialized n_core_fields
+	to be equal. However, after that purge could have emptied the
+	table and invoked dict_index_t::clear_instant_alter(). */
+	DBUG_ASSERT(instant.n_core_fields <= n_core_fields);
+	DBUG_ASSERT(instant.n_core_null_bytes <= n_core_null_bytes);
+	DBUG_ASSERT(instant.n_core_fields == n_core_fields
+		    || (!is_instant() && instant.is_instant()));
+	DBUG_ASSERT(instant.n_core_null_bytes == n_core_null_bytes
+		    || (!is_instant() && instant.is_instant()));
 
 	/* instant will have all fields (including ones for columns
 	that have been or are being instantly dropped) in the same position
@@ -695,7 +734,13 @@ inline void dict_table_t::rollback_instant(
 	const ulint*	col_map)
 {
 	ut_ad(mutex_own(&dict_sys->mutex));
+	ut_ad(rw_lock_own(dict_operation_lock, RW_LOCK_X));
 	dict_index_t* index = indexes.start;
+	mtr_t mtr;
+	mtr.start();
+	/* Prevent concurrent execution of dict_index_t::clear_instant_alter()
+	by acquiring a latch on the leftmost leaf page. */
+	instant_metadata_lock(*index, mtr);
 	/* index->is_instant() does not necessarily hold here, because
 	the table may have been emptied */
 	DBUG_ASSERT(old_n_cols >= DATA_N_SYS_COLS);
@@ -735,6 +780,7 @@ inline void dict_table_t::rollback_instant(
 	n_t_def = n_t_cols = n_cols + n_v_cols;
 
 	index->fields = old_fields;
+	mtr.commit();
 
 	while ((index = dict_table_get_next_index(index)) != NULL) {
 		if (index->to_be_dropped) {
@@ -990,6 +1036,15 @@ struct ha_innobase_inplace_ctx : public inplace_alter_handler_ctx
 
 		instant_table->prepare_instant(*old_table, col_map,
 					       first_alter_pos);
+	}
+
+	/** Adjust table metadata for instant ADD/DROP/reorder COLUMN. */
+	void instant_column()
+	{
+		DBUG_ASSERT(is_instant());
+		DBUG_ASSERT(old_n_fields
+			    == old_table->indexes.start->n_fields);
+		old_table->instant_column(*instant_table, col_map);
 	}
 
 	/** Revert prepare_instant() if the transaction is rolled back. */
@@ -5315,6 +5370,53 @@ dict_index_t::instant_metadata(const dtuple_t& row, mem_heap_t* heap) const
 	return entry;
 }
 
+/** Assign a new id to invalidate old undo log records, so
+that purge will be unable to refer to fields that used to be
+instantly added to the end of the index. This is only to be
+used during ALTER TABLE when the table is empty, before
+invoking dict_index_t::clear_instant_alter().
+@param[in,out] trx	dictionary transaction
+@return	error code */
+inline dberr_t dict_table_t::reassign_id(trx_t* trx)
+{
+	DBUG_ASSERT(instant);
+	ut_ad(magic_n == DICT_TABLE_MAGIC_N);
+	ut_ad(!is_temporary());
+
+	table_id_t new_id;
+	dict_hdr_get_new_id(&new_id, NULL, NULL);
+	pars_info_t*	pinfo = pars_info_create();
+
+	pars_info_add_ull_literal(pinfo, "old", id);
+	pars_info_add_ull_literal(pinfo, "new", new_id);
+
+	ut_ad(mutex_own(&dict_sys->mutex));
+	ut_ad(rw_lock_own(dict_operation_lock, RW_LOCK_X));
+	ut_ad(trx->dict_operation_lock_mode == RW_X_LATCH);
+
+	dberr_t err = que_eval_sql(
+		pinfo,
+		"PROCEDURE RENUMBER_TABLE_ID_PROC () IS\n"
+		"BEGIN\n"
+		"UPDATE SYS_TABLES SET ID=:new WHERE ID=:old;\n"
+		"UPDATE SYS_COLUMNS SET TABLE_ID=:new WHERE TABLE_ID=:old;\n"
+		"UPDATE SYS_INDEXES SET TABLE_ID=:new WHERE TABLE_ID=:old;\n"
+		"UPDATE SYS_VIRTUAL SET TABLE_ID=:new WHERE TABLE_ID=:old;\n"
+		"END;\n"
+		, FALSE, trx);
+	if (err == DB_SUCCESS) {
+		auto fold = ut_fold_ull(id);
+		HASH_DELETE(dict_table_t, id_hash, dict_sys->table_id_hash,
+			    fold, this);
+		id = new_id;
+		fold = ut_fold_ull(id);
+		HASH_INSERT(dict_table_t, id_hash, dict_sys->table_id_hash,
+			    fold, this);
+	}
+
+	return err;
+}
+
 /** Insert or update SYS_COLUMNS and the hidden metadata record
 for instant ALTER TABLE.
 @param[in]	ha_alter_info	ALTER TABLE context
@@ -5338,13 +5440,24 @@ static bool innobase_instant_try(
 	dict_table_t* user_table = ctx->old_table;
 
 	dict_index_t* index = dict_table_get_first_index(user_table);
-	uint n_old_fields = index->n_fields;
+	mtr_t mtr;
+	mtr.start();
+	/* Prevent purge from calling dict_index_t::clear_instant_alter(),
+	to protect index->n_core_fields, index->table->instant and others
+	from changing during ctx->instant_column(). */
+	instant_metadata_lock(*index, mtr);
+	const unsigned n_old_fields = index->n_fields;
 	const dict_col_t* old_cols = user_table->cols;
 	DBUG_ASSERT(user_table->n_cols == ctx->old_n_cols);
 
-	user_table->instant_column(*ctx->instant_table, ctx->col_map);
+	ctx->instant_column();
 
 	DBUG_ASSERT(index->n_fields >= n_old_fields);
+	/* Release the page latch. Between this and the next
+	btr_pcur_open_at_index_side(), data fields such as
+	index->n_core_fields and index->table->instant could change,
+	but we would handle that in empty_table: below. */
+	mtr.commit();
 	/* The table may have been emptied and may have lost its
 	'instantness' during this ALTER TABLE. */
 
@@ -5498,7 +5611,6 @@ add_all_virtual:
 	memset(roll_ptr, 0, sizeof roll_ptr);
 
 	dtuple_t* entry = index->instant_metadata(*row, ctx->heap);
-	mtr_t mtr;
 	mtr.start();
 	index->set_modified(mtr);
 	btr_pcur_t pcur;
@@ -5601,6 +5713,20 @@ add_all_virtual:
 empty_table:
 		/* The table is empty. */
 		ut_ad(page_is_root(block->frame));
+		if (index->table->instant) {
+			/* Assign a new dict_table_t::id
+			to invalidate old undo log records in purge,
+			so that they cannot refer to fields that were
+			instantly added to the end of the index,
+			instead of using the canonical positions
+			that will be replaced below
+			by index->clear_instant_alter(). */
+			err = index->table->reassign_id(trx);
+			if (err != DB_SUCCESS) {
+				goto func_exit;
+			}
+		}
+		/* MDEV-17383: free metadata BLOBs! */
 		btr_page_empty(block, NULL, index, 0, &mtr);
 		index->clear_instant_alter();
 		goto func_exit;

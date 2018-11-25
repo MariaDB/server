@@ -888,54 +888,55 @@ trx_undo_free_last_page(trx_undo_t* undo, mtr_t* mtr)
 @param[in,out]	undo	undo log
 @param[in]	limit	all undo logs after this limit will be discarded
 @param[in]	is_temp	whether this is temporary undo log */
-void
-trx_undo_truncate_end(trx_undo_t* undo, undo_no_t limit, bool is_temp)
+void trx_undo_truncate_end(trx_undo_t& undo, undo_no_t limit, bool is_temp)
 {
-	ut_ad(mutex_own(&undo->rseg->mutex));
-	ut_ad(is_temp == !undo->rseg->is_persistent());
+	mtr_t mtr;
+	ut_ad(is_temp == !undo.rseg->is_persistent());
 
 	for (;;) {
-		mtr_t		mtr;
 		mtr.start();
 		if (is_temp) {
 			mtr.set_log_mode(MTR_LOG_NO_REDO);
 		}
 
 		trx_undo_rec_t* trunc_here = NULL;
+		mutex_enter(&undo.rseg->mutex);
 		page_t*		undo_page = trx_undo_page_get(
-			page_id_t(undo->rseg->space->id, undo->last_page_no),
+			page_id_t(undo.rseg->space->id, undo.last_page_no),
 			&mtr);
 		trx_undo_rec_t* rec = trx_undo_page_get_last_rec(
-			undo_page, undo->hdr_page_no, undo->hdr_offset);
+			undo_page, undo.hdr_page_no, undo.hdr_offset);
 		while (rec) {
-			if (trx_undo_rec_get_undo_no(rec) >= limit) {
-				/* Truncate at least this record off, maybe
-				more */
-				trunc_here = rec;
-			} else {
-				goto function_exit;
+			if (trx_undo_rec_get_undo_no(rec) < limit) {
+				goto func_exit;
 			}
+			/* Truncate at least this record off, maybe more */
+			trunc_here = rec;
 
 			rec = trx_undo_page_get_prev_rec(rec,
-							 undo->hdr_page_no,
-							 undo->hdr_offset);
+							 undo.hdr_page_no,
+							 undo.hdr_offset);
 		}
 
-		if (undo->last_page_no == undo->hdr_page_no) {
-function_exit:
-			if (trunc_here) {
-				mlog_write_ulint(undo_page + TRX_UNDO_PAGE_HDR
-						 + TRX_UNDO_PAGE_FREE,
-						 ulint(trunc_here - undo_page),
-						 MLOG_2BYTES, &mtr);
-			}
-
+		if (undo.last_page_no != undo.hdr_page_no) {
+			trx_undo_free_last_page(&undo, &mtr);
+			mutex_exit(&undo.rseg->mutex);
 			mtr.commit();
-			return;
+			continue;
 		}
 
-		trx_undo_free_last_page(undo, &mtr);
+func_exit:
+		mutex_exit(&undo.rseg->mutex);
+
+		if (trunc_here) {
+			mlog_write_ulint(undo_page + TRX_UNDO_PAGE_HDR
+					 + TRX_UNDO_PAGE_FREE,
+					 ulint(trunc_here - undo_page),
+					 MLOG_2BYTES, &mtr);
+		}
+
 		mtr.commit();
+		return;
 	}
 }
 

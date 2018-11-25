@@ -5035,13 +5035,13 @@ int Field_timestamp::store_TIME_with_warning(THD *thd, const Datetime *dt,
                                              const ErrConv *str, int was_cut)
 {
   ASSERT_COLUMN_MARKED_FOR_WRITE_OR_COMPUTED;
-  static const timeval zero= {0, (uint) 0 };
+  static const Timestamp zero(0, 0);
 
   // Handle totally bad values
   if (!dt->is_valid_datetime())
   {
     set_datetime_warning(WARN_DATA_TRUNCATED, str, MYSQL_TIMESTAMP_DATETIME, 1);
-    store_TIMEVAL(zero);
+    store_TIMESTAMP(zero);
     return 1;
   }
 
@@ -5053,7 +5053,7 @@ int Field_timestamp::store_TIME_with_warning(THD *thd, const Datetime *dt,
       Return success or a warning about non-fatal truncation, e.g.:
         INSERT INTO t1 (ts) VALUES ('0000-00-00 00:00:00 some tail');
     */
-    store_TIMEVAL(zero);
+    store_TIMESTAMP(zero);
     return store_TIME_return_code_with_warnings(was_cut, str,
                                                 MYSQL_TIMESTAMP_DATETIME);
   }
@@ -5065,13 +5065,13 @@ int Field_timestamp::store_TIME_with_warning(THD *thd, const Datetime *dt,
   if (timestamp == 0 && l_time->second_part == 0)
   {
     set_datetime_warning(ER_WARN_DATA_OUT_OF_RANGE, str, MYSQL_TIMESTAMP_DATETIME, 1);
-    store_TIMEVAL(zero);
+    store_TIMESTAMP(zero);
     return 1; // date was fine but pointed to a DST gap
   }
 
   // Store the value
   DBUG_ASSERT(!dt->fraction_remainder(decimals()));
-  store_TIMEVAL(Timeval(timestamp, l_time->second_part));
+  store_TIMESTAMP(Timestamp(timestamp, l_time->second_part));
 
   // Calculate return value and send warnings if needed
   if (unlikely(conversion_error)) // e.g. DATETIME in the DST gap
@@ -5116,7 +5116,7 @@ int Field_timestamp::store(double nr)
   int error;
   ErrConvDouble str(nr);
   THD *thd= get_thd();
-  Datetime dt(&error, Sec6(nr), sql_mode_for_timestamp(thd), decimals());
+  Datetime dt(&error, nr, sql_mode_for_timestamp(thd), decimals());
   return store_TIME_with_warning(thd, &dt, &str, error);
 }
 
@@ -5124,16 +5124,17 @@ int Field_timestamp::store(double nr)
 int Field_timestamp::store(longlong nr, bool unsigned_val)
 {
   int error;
-  ErrConvInteger str(Longlong_hybrid(nr, unsigned_val));
+  Longlong_hybrid tmp(nr, unsigned_val);
+  ErrConvInteger str(tmp);
   THD *thd= get_thd();
-  Datetime dt(&error, Sec6(nr, unsigned_val), sql_mode_for_timestamp(thd));
+  Datetime dt(&error, tmp, sql_mode_for_timestamp(thd));
   return store_TIME_with_warning(thd, &dt, &str, error);
 }
 
 
 int Field_timestamp::store_timestamp(my_time_t ts, ulong sec_part)
 {
-  store_TIME(ts, sec_part);
+  store_TIMESTAMP(Timestamp(ts, sec_part).trunc(decimals()));
   if (ts == 0 && sec_part == 0 &&
       get_thd()->variables.sql_mode & (ulonglong) TIME_NO_ZERO_DATE)
   {
@@ -5298,7 +5299,7 @@ void Field_timestamp::sql_type(String &res) const
 int Field_timestamp::set_time()
 {
   set_notnull();
-  store_TIME(get_thd()->query_start(), 0);
+  store_TIMESTAMP(Timestamp(get_thd()->query_start(), 0));
   return 0;
 }
 
@@ -5426,7 +5427,7 @@ int Field_timestamp::store_decimal(const my_decimal *d)
   int error;
   THD *thd= get_thd();
   ErrConvDecimal str(d);
-  Datetime dt(&error, Sec6(d), sql_mode_for_timestamp(thd), decimals());
+  Datetime dt(&error, d, sql_mode_for_timestamp(thd), decimals());
   return store_TIME_with_warning(thd, &dt, &str, error);
 }
 
@@ -5435,7 +5436,8 @@ int Field_timestamp_with_dec::set_time()
   THD *thd= get_thd();
   set_notnull();
   // Avoid writing microseconds into binlog for FSP=0
-  store_TIME(thd->query_start(), decimals() ? thd->query_start_sec_part() : 0);
+  ulong msec= decimals() ? thd->query_start_sec_part() : 0;
+  store_TIMESTAMP(Timestamp(thd->query_start(), msec).trunc(decimals()));
   return 0;
 }
 
@@ -5557,7 +5559,7 @@ int Field_datetime::store_TIME_with_warning(const Datetime *dt,
     return store_invalid_with_warning(str, was_cut, MYSQL_TIMESTAMP_DATETIME);
   // Store the value
   DBUG_ASSERT(!dt->fraction_remainder(decimals()));
-  store_TIME(dt->get_mysql_time());
+  store_datetime(*dt);
   // Caclulate return value and send warnings if needed
   return store_TIME_return_code_with_warnings(was_cut, str,
                                               MYSQL_TIMESTAMP_DATETIME);
@@ -5576,7 +5578,7 @@ int Field_datetime::store(double nr)
 {
   int error;
   ErrConvDouble str(nr);
-  Datetime dt(&error, Sec6(nr), sql_mode_for_dates(get_thd()), decimals());
+  Datetime dt(&error, nr, sql_mode_for_dates(get_thd()), decimals());
   return store_TIME_with_warning(&dt, &str, error);
 }
 
@@ -5584,8 +5586,9 @@ int Field_datetime::store(double nr)
 int Field_datetime::store(longlong nr, bool unsigned_val)
 {
   int error;
-  ErrConvInteger str(Longlong_hybrid(nr, unsigned_val));
-  Datetime dt(&error, Sec6(nr, unsigned_val), sql_mode_for_dates(get_thd()));
+  Longlong_hybrid tmp(nr, unsigned_val);
+  ErrConvInteger str(tmp);
+  Datetime dt(&error, tmp, sql_mode_for_dates(get_thd()));
   return store_TIME_with_warning(&dt, &str, error);
 }
 
@@ -5603,9 +5606,10 @@ int Field_datetime::store_decimal(const my_decimal *d)
 {
   int error;
   ErrConvDecimal str(d);
-  Datetime tm(&error, Sec6(d), sql_mode_for_dates(get_thd()), decimals());
+  Datetime tm(&error, d, sql_mode_for_dates(get_thd()), decimals());
   return store_TIME_with_warning(&tm, &str, error);
 }
+
 
 bool
 Field_temporal_with_date::validate_value_in_record(THD *thd,
@@ -5698,7 +5702,7 @@ int Field_time::store_TIME_with_warning(const Time *t,
     return store_invalid_with_warning(str, warn, MYSQL_TIMESTAMP_TIME);
   // Store the value
   DBUG_ASSERT(!t->fraction_remainder(decimals()));
-  store_TIME(t->get_mysql_time());
+  store_TIME(*t);
   // Calculate return value and send warnings if needed
   return store_TIME_return_code_with_warnings(warn, str, MYSQL_TIMESTAMP_TIME);
 }
@@ -5738,17 +5742,18 @@ int Field_time::store(double nr)
 {
   ErrConvDouble str(nr);
   int was_cut;
-  Time tm(get_thd(), &was_cut, Sec6(nr), decimals());
+  Time tm(get_thd(), &was_cut, nr, Time::Options(), decimals());
   return store_TIME_with_warning(&tm, &str, was_cut);
 }
 
 
 int Field_time::store(longlong nr, bool unsigned_val)
 {
-  ErrConvInteger str(Longlong_hybrid(nr, unsigned_val));
+  Longlong_hybrid tmp(nr, unsigned_val);
+  ErrConvInteger str(tmp);
   int was_cut;
   // Need fractional digit truncation if nr overflows to '838:59:59.999999'
-  Time tm(get_thd(), &was_cut, Sec6(nr, unsigned_val), decimals());
+  Time tm(get_thd(), &was_cut, tmp, Time::Options(), decimals());
   return store_TIME_with_warning(&tm, &str, was_cut);
 }
 
@@ -5906,7 +5911,7 @@ int Field_time::store_decimal(const my_decimal *d)
 {
   ErrConvDecimal str(d);
   int was_cut;
-  Time tm(get_thd(), &was_cut, Sec6(d), decimals());
+  Time tm(get_thd(), &was_cut, d, Time::Options(), decimals());
   return store_TIME_with_warning(&tm, &str, was_cut);
 }
 
@@ -6253,7 +6258,7 @@ int Field_date_common::store_TIME_with_warning(const Datetime *dt,
   // Store the value
   if (!dt->hhmmssff_is_zero())
     was_cut|= MYSQL_TIME_NOTE_TRUNCATED;
-  store_TIME(dt->get_mysql_time());
+  store_datetime(*dt);
   // Caclulate return value and send warnings if needed
   return store_TIME_return_code_with_warnings(was_cut, str,
                                               MYSQL_TIMESTAMP_DATE);
@@ -6271,15 +6276,16 @@ int Field_date_common::store(double nr)
 {
   int error;
   ErrConvDouble str(nr);
-  Datetime dt(&error, Sec6(nr), sql_mode_for_dates(get_thd()));
+  Datetime dt(&error, nr, sql_mode_for_dates(get_thd()));
   return store_TIME_with_warning(&dt, &str, error);
 }
 
 int Field_date_common::store(longlong nr, bool unsigned_val)
 {
   int error;
-  ErrConvInteger str(Longlong_hybrid(nr, unsigned_val));
-  Datetime dt(&error, Sec6(nr, unsigned_val), sql_mode_for_dates(get_thd()));
+  Longlong_hybrid tmp(nr, unsigned_val);
+  ErrConvInteger str(tmp);
+  Datetime dt(&error, tmp, sql_mode_for_dates(get_thd()));
   return store_TIME_with_warning(&dt, &str, error);
 }
 
@@ -6296,7 +6302,7 @@ int Field_date_common::store_decimal(const my_decimal *d)
 {
   int error;
   ErrConvDecimal str(d);
-  Datetime tm(&error, Sec6(d), sql_mode_for_dates(get_thd()));
+  Datetime tm(&error, d, sql_mode_for_dates(get_thd()));
   return store_TIME_with_warning(&tm, &str, error);
 }
 
@@ -6686,13 +6692,8 @@ void Field_datetime::sql_type(String &res) const
 int Field_datetime::set_time()
 {
   THD *thd= table->in_use;
-  MYSQL_TIME now_time;
-  thd->variables.time_zone->gmt_sec_to_TIME(&now_time, thd->query_start());
-  now_time.second_part= thd->query_start_sec_part();
   set_notnull();
-  my_time_trunc(&now_time, decimals());
-  store_TIME(&now_time);
-  thd->time_zone_used= 1;
+  store_datetime(Datetime(thd, thd->query_start_timeval(), decimals()));
   return 0;
 }
 
