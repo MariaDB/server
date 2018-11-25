@@ -112,6 +112,12 @@ extern	char *strcont(const char *src, const char *set);
 extern	char *strxmov(char *dst, const char *src, ...);
 extern	char *strxnmov(char *dst, size_t len, const char *src, ...);
 
+/*
+  These functions were protected by INNODB_COMPATIBILITY_HOOKS
+ */
+extern  uint strconvert(CHARSET_INFO *from_cs, const char *from, size_t from_length,
+                CHARSET_INFO *to_cs, char *to, size_t to_length, uint *errors);
+
 /* Prototypes of normal stringfunctions (with may ours) */
 #ifndef HAVE_STRNLEN
 extern size_t strnlen(const char *s, size_t n);
