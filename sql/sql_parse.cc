@@ -1224,6 +1224,7 @@ bool do_command(THD *thd)
   char *packet= 0;
 #ifdef WITH_WSREP
   ulong packet_length= 0; // just to avoid (false positive) compiler warning
+  int err;
 #else
   ulong packet_length;
 #endif /* WITH_WSREP */
@@ -1328,6 +1329,46 @@ bool do_command(THD *thd)
   command= fetch_command(thd, packet);
 
 #ifdef WITH_WSREP
+  err= wsrep_before_command(thd);
+  WSREP_DEBUG("wsrep_before_command %d", err);
+  /*
+    Aborted by background rollbacker thread.
+    Handle error here and jump straight to out
+  */
+  if (err)
+  {
+    thd->store_globals();
+    WSREP_LOG_THD(thd, "enter found BF aborted");
+    DBUG_ASSERT(!thd->mdl_context.has_locks());
+    DBUG_ASSERT(!thd->get_stmt_da()->is_set());
+    /* We let COM_QUIT and COM_STMT_CLOSE to execute even if wsrep aborted. */
+    if (command != COM_STMT_CLOSE &&
+        command != COM_QUIT)
+    {
+      my_error(ER_LOCK_DEADLOCK, MYF(0));
+      WSREP_DEBUG("Deadlock error for: %s", thd->query());
+      thd->reset_killed();
+      thd->mysys_var->abort     = 0;
+      thd->wsrep_retry_counter  = 0;
+
+      /* Instrument this broken statement as "statement/com/error" */
+      thd->m_statement_psi= MYSQL_REFINE_STATEMENT(thd->m_statement_psi,
+                                                 com_statement_info[COM_END].
+                                                 m_key);
+
+      thd->protocol->end_statement();
+
+      /* Mark the statement completed. */
+      MYSQL_END_STATEMENT(thd->m_statement_psi, thd->get_stmt_da());
+      thd->m_statement_psi= NULL;
+      thd->m_digest= NULL;
+      return_value= FALSE;
+
+      wsrep_after_command_before_result(thd);
+      goto out;
+    }
+  }
+
   if (WSREP(thd))
   {
     /*
@@ -1352,7 +1393,6 @@ bool do_command(THD *thd)
     }
   }
 #endif /* WITH_WSREP */
-
   /* Restore read timeout value */
   my_net_set_read_timeout(net, thd->variables.net_read_timeout);
 
@@ -1367,6 +1407,9 @@ out:
   /* The statement instrumentation must be closed in all cases. */
   DBUG_ASSERT(thd->m_digest == NULL);
   DBUG_ASSERT(thd->m_statement_psi == NULL);
+#ifdef WITH_WSREP
+  wsrep_after_command_after_result(thd);
+#endif /* WITH_WSREP */
   DBUG_RETURN(return_value);
 }
 #endif  /* EMBEDDED_LIBRARY */
@@ -1544,31 +1587,6 @@ bool dispatch_command(enum enum_server_command command, THD *thd,
   /* keep it withing 1 byte */
   compile_time_assert(COM_END == 255);
 
-#ifdef WITH_WSREP
-  int err= wsrep_before_command(thd);
-  /*
-    Aborted by background rollbacker thread. Jump straight to dispatch_end
-    label where the error handling is performed.
-  */
-  if (err)
-  {
-    thd->store_globals();
-    WSREP_LOG_THD(thd, "enter found BF aborted");
-    DBUG_ASSERT(!thd->mdl_context.has_locks());
-    DBUG_ASSERT(!thd->get_stmt_da()->is_set());
-    /* We let COM_QUIT and COM_STMT_CLOSE to execute even if wsrep aborted. */
-    if (command != COM_STMT_CLOSE && 
-        command != COM_QUIT)
-    {
-      my_error(ER_LOCK_DEADLOCK, MYF(0));
-      WSREP_DEBUG("Deadlock error for: %s", thd->query());
-      thd->reset_killed();
-      thd->mysys_var->abort     = 0;
-      thd->wsrep_retry_counter  = 0;
-      goto dispatch_end;
-    }
-  }
-#endif /* WITH_WSREP */
 #if defined(ENABLED_PROFILING)
   thd->profiling.start_new_query();
 #endif
@@ -2482,9 +2500,6 @@ com_multi_end:
   /* Check that some variables are reset properly */
   DBUG_ASSERT(thd->abort_on_warning == 0);
   thd->lex->restore_set_statement_var();
-#ifdef WITH_WSREP
-  wsrep_after_command_after_result(thd);
-#endif /* WITH_WSREP */
   DBUG_RETURN(error);
 }
 
