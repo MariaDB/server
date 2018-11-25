@@ -37,6 +37,7 @@ Created 9/17/2000 Heikki Tuuri
 #include <sql_const.h>
 #include "dict0dict.h"
 #include "dict0load.h"
+#include "dict0priv.h"
 #include "dict0stats.h"
 #include "dict0stats_bg.h"
 #include "dict0defrag_bg.h"
@@ -330,6 +331,7 @@ row_mysql_read_geometry(
 	ulint		col_len)	/*!< in: MySQL format length */
 {
 	byte*		data;
+	ut_ad(col_len > 8);
 
 	*len = mach_read_from_n_little_endian(ref, col_len - 8);
 
@@ -829,7 +831,8 @@ row_create_prebuilt(
 	clust_index = dict_table_get_first_index(table);
 
 	/* Make sure that search_tuple is long enough for clustered index */
-	ut_a(2 * dict_table_get_n_cols(table) >= clust_index->n_fields);
+	ut_a(2 * unsigned(table->n_cols) >= unsigned(clust_index->n_fields)
+	     - clust_index->table->n_dropped());
 
 	ref_len = dict_index_get_n_unique(clust_index);
 
@@ -2604,16 +2607,10 @@ error_handling:
 		trx->error_state = DB_SUCCESS;
 
 		if (trx_is_started(trx)) {
-
+			row_drop_table_for_mysql(table->name.m_name, trx,
+						 SQLCOM_DROP_TABLE, true);
 			trx_rollback_to_savepoint(trx, NULL);
-		}
-
-		row_drop_table_for_mysql(table->name.m_name, trx,
-					 SQLCOM_DROP_TABLE, true);
-
-		if (trx_is_started(trx)) {
-
-			trx_commit_for_mysql(trx);
+			ut_ad(!trx_is_started(trx));
 		}
 
 		trx->error_state = DB_SUCCESS;
@@ -2691,15 +2688,13 @@ row_table_add_foreign_constraints(
 		trx->error_state = DB_SUCCESS;
 
 		if (trx_is_started(trx)) {
-
+			/* FIXME: Introduce an undo log record for
+			creating tablespaces and data files, so that
+			they would be deleted on rollback. */
+			row_drop_table_for_mysql(name, trx, SQLCOM_DROP_TABLE,
+						 true);
 			trx_rollback_to_savepoint(trx, NULL);
-		}
-
-		row_drop_table_for_mysql(name, trx, SQLCOM_DROP_TABLE, true);
-
-		if (trx_is_started(trx)) {
-
-			trx_commit_for_mysql(trx);
+			ut_ad(!trx_is_started(trx));
 		}
 
 		trx->error_state = DB_SUCCESS;
@@ -3712,129 +3707,111 @@ defer:
 	/* Deleting a row from SYS_INDEXES table will invoke
 	dict_drop_index_tree(). */
 	info = pars_info_create();
-	pars_info_add_str_literal(info, "table_name", name);
-	err = (sqlcom == SQLCOM_TRUNCATE) ? DB_SUCCESS : que_eval_sql(
-		info,
-		"PROCEDURE DROP_FOREIGN_PROC () IS\n"
-		"sys_foreign_id CHAR;\n"
-		"table_id CHAR;\n"
-		"foreign_id CHAR;\n"
-		"space_id INT;\n"
-		"found INT;\n"
 
-		"DECLARE CURSOR cur_fk IS\n"
-		"SELECT ID FROM SYS_FOREIGN\n"
-		"WHERE FOR_NAME = :table_name\n"
-		"AND TO_BINARY(FOR_NAME)\n"
-		"  = TO_BINARY(:table_name)\n"
-		"FOR UPDATE;\n"
+	pars_info_add_str_literal(info, "name", name);
 
-		"BEGIN\n"
-
-		"SELECT ID INTO table_id\n"
-		"FROM SYS_TABLES\n"
-		"WHERE NAME = :table_name\n"
-		"FOR UPDATE;\n"
-		"IF (SQL % NOTFOUND) THEN\n"
-		"       RETURN;\n"
-		"END IF;\n"
-
-		"SELECT SPACE INTO space_id\n"
-		"FROM SYS_TABLES\n"
-		"WHERE NAME = :table_name;\n"
-		"IF (SQL % NOTFOUND) THEN\n"
-		"       RETURN;\n"
-		"END IF;\n"
-
-		"found := 1;\n"
-		"SELECT ID INTO sys_foreign_id\n"
-		"FROM SYS_TABLES\n"
-		"WHERE NAME = 'SYS_FOREIGN'\n"
-		"FOR UPDATE;\n"
-		"IF (SQL % NOTFOUND) THEN\n"
-		"       found := 0;\n"
-		"END IF;\n"
-		"IF (:table_name = 'SYS_FOREIGN') THEN\n"
-		"       found := 0;\n"
-		"END IF;\n"
-		"IF (:table_name = 'SYS_FOREIGN_COLS') \n"
-		"THEN\n"
-		"       found := 0;\n"
-		"END IF;\n"
-
-		"OPEN cur_fk;\n"
-		"WHILE found = 1 LOOP\n"
-		"       FETCH cur_fk INTO foreign_id;\n"
-		"       IF (SQL % NOTFOUND) THEN\n"
-		"               found := 0;\n"
-		"       ELSE\n"
-		"               DELETE FROM \n"
-		"		   SYS_FOREIGN_COLS\n"
-		"               WHERE ID = foreign_id;\n"
-		"               DELETE FROM SYS_FOREIGN\n"
-		"               WHERE ID = foreign_id;\n"
-		"       END IF;\n"
-		"END LOOP;\n"
-		"CLOSE cur_fk;\n"
-
-		"END;\n",
-		FALSE, trx);
-	if (err == DB_SUCCESS) {
-		if (sqlcom != SQLCOM_TRUNCATE) {
-			info = pars_info_create();
-			pars_info_add_str_literal(info, "table_name", name);
-		}
-
+	if (sqlcom != SQLCOM_TRUNCATE
+	    && strchr(name, '/')
+	    && dict_table_get_low("SYS_FOREIGN")
+	    && dict_table_get_low("SYS_FOREIGN_COLS")) {
 		err = que_eval_sql(
 			info,
-			"PROCEDURE DROP_TABLE_PROC () IS\n"
-			"table_id CHAR;\n"
-			"space_id INT;\n"
-			"index_id CHAR;\n"
+			"PROCEDURE DROP_FOREIGN_PROC () IS\n"
+			"fid CHAR;\n"
 
-			"DECLARE CURSOR cur_idx IS\n"
-			"SELECT ID FROM SYS_INDEXES\n"
-			"WHERE TABLE_ID = table_id\n"
+			"DECLARE CURSOR fk IS\n"
+			"SELECT ID FROM SYS_FOREIGN\n"
+			"WHERE FOR_NAME = :name\n"
+			"AND TO_BINARY(FOR_NAME) = TO_BINARY(:name)\n"
 			"FOR UPDATE;\n"
 
 			"BEGIN\n"
-			"SELECT ID, SPACE INTO table_id,space_id\n"
-			"FROM SYS_TABLES\n"
-			"WHERE NAME = :table_name FOR UPDATE;\n"
-			"IF (SQL % NOTFOUND) THEN\n"
-			"       RETURN;\n"
-			"END IF;\n"
+			"OPEN fk;\n"
+			"WHILE 1 = 1 LOOP\n"
+			"  FETCH fk INTO fid;\n"
+			"  IF (SQL % NOTFOUND) THEN RETURN; END IF;\n"
+			"  DELETE FROM SYS_FOREIGN_COLS WHERE ID=fid;\n"
+			"  DELETE FROM SYS_FOREIGN WHERE ID=fid;\n"
+			"END LOOP;\n"
+			"CLOSE fk;\n"
+			"END;\n", FALSE, trx);
+		if (err == DB_SUCCESS) {
+			info = pars_info_create();
+			pars_info_add_str_literal(info, "name", name);
+			goto do_drop;
+		}
+	} else {
+do_drop:
+		if (dict_table_get_low("SYS_VIRTUAL")) {
+			err = que_eval_sql(
+				info,
+				"PROCEDURE DROP_VIRTUAL_PROC () IS\n"
+				"tid CHAR;\n"
 
-			"DELETE FROM SYS_COLUMNS\n"
-			"WHERE TABLE_ID = table_id;\n"
-			"DELETE FROM SYS_TABLES\n"
-			"WHERE NAME = :table_name;\n"
+				"BEGIN\n"
+				"SELECT ID INTO tid FROM SYS_TABLES\n"
+				"WHERE NAME = :name FOR UPDATE;\n"
+				"IF (SQL % NOTFOUND) THEN RETURN;"
+				" END IF;\n"
+				"DELETE FROM SYS_VIRTUAL"
+				" WHERE TABLE_ID = tid;\n"
+				"END;\n", FALSE, trx);
+			if (err == DB_SUCCESS) {
+				info = pars_info_create();
+				pars_info_add_str_literal(
+					info, "name", name);
+			}
+		} else {
+			err = DB_SUCCESS;
+		}
 
-			"DELETE FROM SYS_TABLESPACES\n"
-			"WHERE SPACE = space_id;\n"
-			"DELETE FROM SYS_DATAFILES\n"
-			"WHERE SPACE = space_id;\n"
+		err = err == DB_SUCCESS ? que_eval_sql(
+			info,
+			"PROCEDURE DROP_TABLE_PROC () IS\n"
+			"tid CHAR;\n"
+			"iid CHAR;\n"
 
-			"DELETE FROM SYS_VIRTUAL\n"
-			"WHERE TABLE_ID = table_id;\n"
+			"DECLARE CURSOR cur_idx IS\n"
+			"SELECT ID FROM SYS_INDEXES\n"
+			"WHERE TABLE_ID = tid FOR UPDATE;\n"
+
+			"BEGIN\n"
+			"SELECT ID INTO tid FROM SYS_TABLES\n"
+			"WHERE NAME = :name FOR UPDATE;\n"
+			"IF (SQL % NOTFOUND) THEN RETURN; END IF;\n"
 
 			"OPEN cur_idx;\n"
 			"WHILE 1 = 1 LOOP\n"
-			"       FETCH cur_idx INTO index_id;\n"
-			"       IF (SQL % NOTFOUND) THEN\n"
-			"		EXIT;\n"
-			"       ELSE\n"
-			"               DELETE FROM SYS_FIELDS\n"
-			"               WHERE INDEX_ID = index_id;\n"
-			"               DELETE FROM SYS_INDEXES\n"
-			"               WHERE ID = index_id\n"
-			"               AND TABLE_ID = table_id;\n"
-			"       END IF;\n"
+			"  FETCH cur_idx INTO iid;\n"
+			"  IF (SQL % NOTFOUND) THEN EXIT; END IF;\n"
+			"  DELETE FROM SYS_FIELDS\n"
+			"  WHERE INDEX_ID = iid;\n"
+			"  DELETE FROM SYS_INDEXES\n"
+			"  WHERE ID = iid AND TABLE_ID = tid;\n"
 			"END LOOP;\n"
 			"CLOSE cur_idx;\n"
 
-			"END;\n",
-			FALSE, trx);
+			"DELETE FROM SYS_COLUMNS WHERE TABLE_ID=tid;\n"
+			"DELETE FROM SYS_TABLES WHERE NAME=:name;\n"
+
+			"END;\n", FALSE, trx) : err;
+
+		if (err == DB_SUCCESS && table->space
+		    && dict_table_get_low("SYS_TABLESPACES")
+		    && dict_table_get_low("SYS_DATAFILES")) {
+			info = pars_info_create();
+			pars_info_add_int4_literal(info, "id",
+						   lint(table->space->id));
+			err = que_eval_sql(
+				info,
+				"PROCEDURE DROP_SPACE_PROC () IS\n"
+				"BEGIN\n"
+				"DELETE FROM SYS_TABLESPACES\n"
+				"WHERE SPACE = :id;\n"
+				"DELETE FROM SYS_DATAFILES\n"
+				"WHERE SPACE = :id;\n"
+				"END;\n", FALSE, trx);
+		}
 	}
 
 	switch (err) {
@@ -4585,6 +4562,9 @@ row_rename_table_for_mysql(
 			"    = TO_BINARY(:old_table_name);\n"
 			"END;\n"
 			, FALSE, trx);
+		if (err != DB_SUCCESS) {
+			goto end;
+		}
 
 	} else if (n_constraints_to_drop > 0) {
 		/* Drop some constraints of tmp tables. */

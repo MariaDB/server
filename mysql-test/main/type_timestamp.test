@@ -606,3 +606,25 @@ DROP TABLE t1;
 --echo #
 --echo # End of 10.3 tests
 --echo #
+
+--echo #
+--echo # Start of 10.4 tests
+--echo #
+
+--echo #
+--echo # MDEV-17216 Assertion `!dt->fraction_remainder(decimals())' failed in Field_temporal_with_date::store_TIME_with_warning
+--echo #
+
+CREATE TABLE t1 (b BIT(20));
+CREATE TABLE t2 (t TIMESTAMP);
+INSERT IGNORE INTO t1 VALUES (b'000001001100000');
+INSERT INTO t2 SELECT * FROM t1;
+DROP TABLE t1, t2;
+
+CREATE TABLE t1 (a TIMESTAMP);
+INSERT INTO t1 SELECT CAST(20010101 AS UNSIGNED);
+DROP TABLE t1;
+
+--echo #
+--echo # End of 10.4 tests
+--echo #

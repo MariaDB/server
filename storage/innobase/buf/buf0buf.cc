@@ -2323,7 +2323,8 @@ buf_page_realloc(
 		memset(block->frame + FIL_PAGE_ARCH_LOG_NO_OR_SPACE_ID, 0xff, 4);
 		UNIV_MEM_INVALID(block->frame, srv_page_size);
 		buf_block_set_state(block, BUF_BLOCK_REMOVE_HASH);
-		block->page.id.reset();
+		block->page.id
+		    = page_id_t(ULINT32_UNDEFINED, ULINT32_UNDEFINED);
 
 		/* Relocate buf_pool->flush_list. */
 		if (block->page.oldest_modification) {
@@ -3550,7 +3551,7 @@ hash_lock and reacquire it.
 static
 buf_page_t*
 buf_pool_watch_set(
-	const page_id_t&	page_id,
+	const page_id_t		page_id,
 	rw_lock_t**		hash_lock)
 {
 	buf_page_t*	bpage;
@@ -3628,7 +3629,7 @@ page_found:
 			buf_block_t::mutex or buf_pool->zip_mutex or both. */
 
 			bpage->state = BUF_BLOCK_ZIP_PAGE;
-			bpage->id.copy_from(page_id);
+			bpage->id = page_id;
 			bpage->buf_fix_count = 1;
 
 			ut_d(bpage->in_page_hash = TRUE);
@@ -3692,9 +3693,7 @@ buf_pool_watch_remove(
 /** Stop watching if the page has been read in.
 buf_pool_watch_set(same_page_id) must have returned NULL before.
 @param[in]	page_id	page id */
-void
-buf_pool_watch_unset(
-	const page_id_t&	page_id)
+void buf_pool_watch_unset(const page_id_t page_id)
 {
 	buf_page_t*	bpage;
 	buf_pool_t*	buf_pool = buf_pool_get(page_id);
@@ -3726,12 +3725,10 @@ buf_pool_watch_unset(
 This may only be called after buf_pool_watch_set(same_page_id)
 has returned NULL and before invoking buf_pool_watch_unset(same_page_id).
 @param[in]	page_id	page id
-@return FALSE if the given page was not read in, TRUE if it was */
-ibool
-buf_pool_watch_occurred(
-	const page_id_t&	page_id)
+@return false if the given page was not read in, true if it was */
+bool buf_pool_watch_occurred(const page_id_t page_id)
 {
-	ibool		ret;
+	bool		ret;
 	buf_page_t*	bpage;
 	buf_pool_t*	buf_pool = buf_pool_get(page_id);
 	rw_lock_t*	hash_lock = buf_page_hash_lock_get(buf_pool, page_id);
@@ -3801,9 +3798,7 @@ debug version to check that it is not accessed any more unless
 reallocated.
 @param[in]	page_id	page id
 @return control block if found in page hash table, otherwise NULL */
-buf_page_t*
-buf_page_set_file_page_was_freed(
-	const page_id_t&	page_id)
+buf_page_t* buf_page_set_file_page_was_freed(const page_id_t page_id)
 {
 	buf_page_t*	bpage;
 	buf_pool_t*	buf_pool = buf_pool_get(page_id);
@@ -3831,9 +3826,7 @@ debug version to check that it is not accessed any more unless
 reallocated.
 @param[in]	page_id	page id
 @return control block if found in page hash table, otherwise NULL */
-buf_page_t*
-buf_page_reset_file_page_was_freed(
-	const page_id_t&	page_id)
+buf_page_t* buf_page_reset_file_page_was_freed(const page_id_t page_id)
 {
 	buf_page_t*	bpage;
 	buf_pool_t*	buf_pool = buf_pool_get(page_id);
@@ -3855,12 +3848,8 @@ buf_page_reset_file_page_was_freed(
 
 /** Attempts to discard the uncompressed frame of a compressed page.
 The caller should not be holding any mutexes when this function is called.
-@param[in]	page_id	page id
-@return TRUE if successful, FALSE otherwise. */
-static
-void
-buf_block_try_discard_uncompressed(
-	const page_id_t&	page_id)
+@param[in]	page_id	page id */
+static void buf_block_try_discard_uncompressed(const page_id_t page_id)
 {
 	buf_page_t*	bpage;
 	buf_pool_t*	buf_pool = buf_pool_get(page_id);
@@ -3894,7 +3883,7 @@ the same set of mutexes or latches.
 @return pointer to the block */
 buf_page_t*
 buf_page_get_zip(
-	const page_id_t&	page_id,
+	const page_id_t		page_id,
 	const page_size_t&	page_size)
 {
 	buf_page_t*	bpage;
@@ -4348,7 +4337,7 @@ BUF_PEEK_IF_IN_POOL, BUF_GET_NO_LATCH, or BUF_GET_IF_IN_POOL_OR_WATCH
 @return pointer to the block or NULL */
 buf_block_t*
 buf_page_get_gen(
-	const page_id_t&	page_id,
+	const page_id_t		page_id,
 	const page_size_t&	page_size,
 	ulint			rw_latch,
 	buf_block_t*		guess,
@@ -4425,7 +4414,7 @@ loop:
 		it may have been freed by buf_relocate(). */
 
 		if (!buf_block_is_uncompressed(buf_pool, block)
-		    || !page_id.equals_to(block->page.id)
+		    || page_id != block->page.id
 		    || buf_block_get_state(block) != BUF_BLOCK_FILE_PAGE) {
 
 			/* Our guess was bogus or things have changed
@@ -5257,7 +5246,7 @@ Suitable for using when holding the lock_sys_t::mutex.
 @return pointer to a page or NULL */
 buf_block_t*
 buf_page_try_get_func(
-	const page_id_t&	page_id,
+	const page_id_t		page_id,
 	const char*		file,
 	unsigned		line,
 	mtr_t*			mtr)
@@ -5286,7 +5275,7 @@ buf_page_try_get_func(
 
 #if defined UNIV_DEBUG || defined UNIV_BUF_DEBUG
 	ut_a(buf_block_get_state(block) == BUF_BLOCK_FILE_PAGE);
-	ut_a(page_id.equals_to(block->page.id));
+	ut_a(page_id == block->page.id);
 #endif /* UNIV_DEBUG || UNIV_BUF_DEBUG */
 
 	buf_block_buf_fix_inc(block, file, line);
@@ -5370,7 +5359,7 @@ static
 void
 buf_page_init(
 	buf_pool_t*		buf_pool,
-	const page_id_t&	page_id,
+	const page_id_t		page_id,
 	const page_size_t&	page_size,
 	buf_block_t*		block)
 {
@@ -5438,7 +5427,7 @@ buf_page_init(
 	ut_ad(!block->page.in_page_hash);
 	ut_d(block->page.in_page_hash = TRUE);
 
-	block->page.id.copy_from(page_id);
+	block->page.id = page_id;
 	block->page.size.copy_from(page_size);
 
 	HASH_INSERT(buf_page_t, hash, buf_pool->page_hash,
@@ -5468,7 +5457,7 @@ buf_page_t*
 buf_page_init_for_read(
 	dberr_t*		err,
 	ulint			mode,
-	const page_id_t&	page_id,
+	const page_id_t		page_id,
 	const page_size_t&	page_size,
 	bool			unzip)
 {
@@ -5637,7 +5626,7 @@ buf_page_init_for_read(
 		buf_page_init_low(bpage);
 
 		bpage->state = BUF_BLOCK_ZIP_PAGE;
-		bpage->id.copy_from(page_id);
+		bpage->id = page_id;
 		bpage->flush_observer = NULL;
 
 		ut_d(bpage->in_page_hash = FALSE);
@@ -5706,7 +5695,7 @@ FILE_PAGE (the other is buf_page_get_gen).
 @return pointer to the block, page bufferfixed */
 buf_block_t*
 buf_page_create(
-	const page_id_t&	page_id,
+	const page_id_t		page_id,
 	const page_size_t&	page_size,
 	mtr_t*			mtr)
 {
@@ -7411,7 +7400,7 @@ buf_pool_check_no_pending_io(void)
 std::ostream&
 operator<<(
 	std::ostream&		out,
-	const page_id_t&	page_id)
+	const page_id_t		page_id)
 {
 	out << "[page id: space=" << page_id.m_space
 		<< ", page number=" << page_id.m_page_no << "]";

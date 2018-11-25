@@ -45,12 +45,14 @@ struct show_table_contributors_st show_table_contributors[]= {
   {"Visma", "https://visma.com", "Gold Sponsor of the MariaDB Foundation"},
   {"DBS", "https://dbs.com", "Gold Sponsor of the MariaDB Foundation"},
   {"IBM", "https://www.ibm.com", "Gold Sponsor of the MariaDB Foundation"},
+  {"Tencent Games", "http://game.qq.com/", "Gold Sponsor of the MariaDB Foundation"},
   {"Nexedi", "https://www.nexedi.com", "Silver Sponsor of the MariaDB Foundation"},
-  {"Acronis", "http://www.acronis.com", "Silver Sponsor of the MariaDB Foundation"},
+  {"Acronis", "https://www.acronis.com", "Silver Sponsor of the MariaDB Foundation"},
   {"Verkkokauppa.com", "https://www.verkkokauppa.com", "Bronze Sponsor of the MariaDB Foundation"},
   {"Virtuozzo", "https://virtuozzo.com", "Bronze Sponsor of the MariaDB Foundation"},
   {"Tencent Game DBA", "http://tencentdba.com/about", "Bronze Sponsor of the MariaDB Foundation"},
   {"Tencent TDSQL", "http://tdsql.org", "Bronze Sponsor of the MariaDB Foundation"},
+  {"Percona", "https://www.percona.com/", "Bronze Sponsor of the MariaDB Foundation"},
 
   /* Sponsors of important features */
   {"Google", "USA", "Sponsoring encryption, parallel replication and GTID"},

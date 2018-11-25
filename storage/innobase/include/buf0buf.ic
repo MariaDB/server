@@ -463,10 +463,10 @@ UNIV_INLINE
 void
 buf_block_set_file_page(
 	buf_block_t*		block,
-	const page_id_t&	page_id)
+	const page_id_t		page_id)
 {
 	buf_block_set_state(block, BUF_BLOCK_FILE_PAGE);
-	block->page.id.copy_from(page_id);
+	block->page.id = page_id;
 }
 
 /*********************************************************************//**
@@ -1043,10 +1043,7 @@ buf_block_buf_fix_dec(
 /** Returns the buffer pool instance given a page id.
 @param[in]	page_id	page id
 @return buffer pool */
-UNIV_INLINE
-buf_pool_t*
-buf_pool_get(
-	const page_id_t&	page_id)
+inline buf_pool_t* buf_pool_get(const page_id_t page_id)
 {
         /* 2log of BUF_READ_AHEAD_AREA (64) */
         ulint		ignored_page_no = page_id.page_no() >> 6;
@@ -1081,7 +1078,7 @@ UNIV_INLINE
 buf_page_t*
 buf_page_hash_get_low(
 	buf_pool_t*		buf_pool,
-	const page_id_t&	page_id)
+	const page_id_t		page_id)
 {
 	buf_page_t*	bpage;
 
@@ -1099,7 +1096,7 @@ buf_page_hash_get_low(
 		    bpage,
 		    ut_ad(bpage->in_page_hash && !bpage->in_zip_hash
 			  && buf_page_in_file(bpage)),
-		    page_id.equals_to(bpage->id));
+		    page_id == bpage->id);
 	if (bpage) {
 		ut_a(buf_page_in_file(bpage));
 		ut_ad(bpage->in_page_hash);
@@ -1130,7 +1127,7 @@ UNIV_INLINE
 buf_page_t*
 buf_page_hash_get_locked(
 	buf_pool_t*		buf_pool,
-	const page_id_t&	page_id,
+	const page_id_t		page_id,
 	rw_lock_t**		lock,
 	ulint			lock_mode,
 	bool			watch)
@@ -1174,7 +1171,7 @@ buf_page_hash_get_locked(
 	}
 
 	ut_ad(buf_page_in_file(bpage));
-	ut_ad(page_id.equals_to(bpage->id));
+	ut_ad(page_id == bpage->id);
 
 	if (lock == NULL) {
 		/* The caller wants us to release the page_hash lock */
@@ -1213,7 +1210,7 @@ UNIV_INLINE
 buf_block_t*
 buf_block_hash_get_locked(
 	buf_pool_t*		buf_pool,
-	const page_id_t&	page_id,
+	const page_id_t		page_id,
 	rw_lock_t**		lock,
 	ulint			lock_mode)
 {
@@ -1253,11 +1250,8 @@ buf_block_hash_get_locked(
 NOTE that it is possible that the page is not yet read from disk,
 though.
 @param[in]	page_id	page id
-@return TRUE if found in the page hash table */
-UNIV_INLINE
-ibool
-buf_page_peek(
-	const page_id_t&	page_id)
+@return true if found in the page hash table */
+inline bool buf_page_peek(const page_id_t page_id)
 {
 	buf_pool_t*	buf_pool = buf_pool_get(page_id);
 

@@ -159,11 +159,8 @@ public:
 	int rnd_pos(uchar * buf, uchar *pos);
 
 	int ft_init();
-
-	void ft_end();
-
-	FT_INFO* ft_init_ext(uint flags, uint inx, String* key);
-
+	void ft_end() { rnd_end(); }
+	FT_INFO *ft_init_ext(uint flags, uint inx, String* key);
 	int ft_read(uchar* buf);
 
 	void position(const uchar *record);
@@ -424,9 +421,6 @@ public:
 	Item* idx_cond_push(uint keyno, Item* idx_cond);
 	/* @} */
 
-	/* An helper function for index_cond_func_innodb: */
-	bool is_thd_killed();
-
 protected:
 
 	/**
@@ -483,8 +477,6 @@ protected:
 	/** Thread handle of the user currently using the handler;
 	this is set in external_lock function */
 	THD*			m_user_thd;
-
-	THR_LOCK_DATA	lock;
 
 	/** buffer used in updates */
 	uchar*			m_upd_buf;

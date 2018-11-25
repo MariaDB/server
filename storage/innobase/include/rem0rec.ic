@@ -67,7 +67,7 @@ most significant bytes and bits are written below less significant.
 					001=REC_STATUS_NODE_PTR
 					010=REC_STATUS_INFIMUM
 					011=REC_STATUS_SUPREMUM
-					100=REC_STATUS_COLUMNS_ADDED
+					100=REC_STATUS_INSTANT
 					1xx=reserved
 				5 bits heap number
 			4	8 bits heap number
@@ -453,7 +453,7 @@ rec_get_n_fields(
 	}
 
 	switch (rec_get_status(rec)) {
-	case REC_STATUS_COLUMNS_ADDED:
+	case REC_STATUS_INSTANT:
 	case REC_STATUS_ORDINARY:
 		return(dict_index_get_n_fields(index));
 	case REC_STATUS_NODE_PTR:
@@ -549,19 +549,6 @@ rec_set_n_owned_new(
 	}
 }
 
-#ifdef UNIV_DEBUG
-/** Check if the info bits are valid.
-@param[in]	bits	info bits to check
-@return true if valid */
-inline
-bool
-rec_info_bits_valid(
-	ulint	bits)
-{
-	return(0 == (bits & ~(REC_INFO_DELETED_FLAG | REC_INFO_MIN_REC_FLAG)));
-}
-#endif /* UNIV_DEBUG */
-
 /******************************************************//**
 The following function is used to retrieve the info bits of a record.
 @return info bits */
@@ -575,7 +562,6 @@ rec_get_info_bits(
 	const ulint	val = rec_get_bit_field_1(
 		rec, comp ? REC_NEW_INFO_BITS : REC_OLD_INFO_BITS,
 		REC_INFO_BITS_MASK, REC_INFO_BITS_SHIFT);
-	ut_ad(rec_info_bits_valid(val));
 	return(val);
 }
 
@@ -588,7 +574,6 @@ rec_set_info_bits_old(
 	rec_t*	rec,	/*!< in: old-style physical record */
 	ulint	bits)	/*!< in: info bits */
 {
-	ut_ad(rec_info_bits_valid(bits));
 	rec_set_bit_field_1(rec, bits, REC_OLD_INFO_BITS,
 			    REC_INFO_BITS_MASK, REC_INFO_BITS_SHIFT);
 }
@@ -601,7 +586,6 @@ rec_set_info_bits_new(
 	rec_t*	rec,	/*!< in/out: new-style physical record */
 	ulint	bits)	/*!< in: info bits */
 {
-	ut_ad(rec_info_bits_valid(bits));
 	rec_set_bit_field_1(rec, bits, REC_NEW_INFO_BITS,
 			    REC_INFO_BITS_MASK, REC_INFO_BITS_SHIFT);
 }
@@ -894,7 +878,6 @@ rec_get_nth_field_offs(
 				if SQL null; UNIV_SQL_DEFAULT is default value */
 {
 	ulint	offs;
-	ulint	length;
 	ut_ad(n < rec_offs_n_fields(offsets));
 	ut_ad(len);
 
@@ -904,7 +887,7 @@ rec_get_nth_field_offs(
 		offs = rec_offs_base(offsets)[n] & REC_OFFS_MASK;
 	}
 
-	length = rec_offs_base(offsets)[1 + n];
+	ulint length = rec_offs_base(offsets)[1 + n];
 
 	if (length & REC_OFFS_SQL_NULL) {
 		length = UNIV_SQL_NULL;
@@ -953,21 +936,6 @@ rec_offs_any_null_extern(
 	}
 
 	return(NULL);
-}
-
-/******************************************************//**
-Returns nonzero if the extern bit is set in nth field of rec.
-@return nonzero if externally stored */
-UNIV_INLINE
-ulint
-rec_offs_nth_extern_old(
-/*================*/
-	const rec_t*	rec,	/*!< in: record */
-	ulint		    n	/*!< in: index of the field */)
-{
-	if(rec_get_1byte_offs_flag(rec))
-		return 0;
-	return (rec_2_get_field_end_info(rec,n) & REC_2BYTE_EXTERN_MASK);
 }
 
 /******************************************************//**
@@ -1278,8 +1246,9 @@ rec_offs_data_size(
 	ulint	size;
 
 	ut_ad(rec_offs_validate(NULL, NULL, offsets));
-	size = rec_offs_base(offsets)[rec_offs_n_fields(offsets)]
-		& REC_OFFS_MASK;
+
+	ulint n = rec_offs_n_fields(offsets);
+	size = rec_offs_base(offsets)[n] & REC_OFFS_MASK;
 	ut_ad(size < srv_page_size);
 	return(size);
 }
@@ -1426,18 +1395,13 @@ rec_get_converted_size(
 		      == DICT_FLD__SYS_INDEXES__MERGE_THRESHOLD);
 	} else {
 		ut_ad(dtuple->n_fields >= index->n_core_fields);
-		ut_ad(dtuple->n_fields <= index->n_fields);
+		ut_ad(dtuple->n_fields <= index->n_fields
+		      || dtuple->is_alter_metadata());
 	}
 #endif
 
 	if (dict_table_is_comp(index->table)) {
-		return(rec_get_converted_size_comp(
-			       index,
-			       static_cast<rec_comp_status_t>(
-				       dtuple->info_bits
-				       & REC_NEW_STATUS_MASK),
-			       dtuple->fields,
-			       dtuple->n_fields, NULL));
+		return rec_get_converted_size_comp(index, dtuple, NULL);
 	}
 
 	data_size = dtuple_get_data_size(dtuple, 0);

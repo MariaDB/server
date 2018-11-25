@@ -21,6 +21,7 @@
 */
 
 #include "mariadb.h"
+#include <inttypes.h>
 #include "sql_priv.h"
 #include "unireg.h"
 #include "rpl_rli.h"
@@ -4760,6 +4761,7 @@ handler::ha_create_partitioning_metadata(const char *name,
               (!old_name && strcmp(name, table_share->path.str)));
 
 
+  mark_trx_read_write();
   return create_partitioning_metadata(name, old_name, action_flag);
 }
 
@@ -7107,7 +7109,7 @@ bool Vers_parse_info::fix_implicit(THD *thd, Alter_info *alter_info)
   return false;
 }
 
-bool Table_scope_and_contents_source_st::vers_native(THD *thd) const
+bool Table_scope_and_contents_source_pod_st::vers_native(THD *thd) const
 {
   if (ha_check_storage_engine_flag(db_type, HTON_NATIVE_SYS_VERSIONING))
     return true;

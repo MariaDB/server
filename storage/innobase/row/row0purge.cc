@@ -375,6 +375,13 @@ retry_purge_sec:
 
 	ut_ad(mtr.has_committed());
 
+	/* If the virtual column info is not used then reset the virtual column
+	info. */
+	if (node->vcol_info.is_requested()
+	    && !node->vcol_info.is_used()) {
+		node->vcol_info.reset();
+	}
+
 	if (store_cur && !row_purge_restore_vsec_cur(
 		    node, index, sec_pcur, sec_mtr, is_tree)) {
 		return false;
@@ -838,8 +845,9 @@ static void row_purge_reset_trx_id(purge_node_t* node, mtr_t* mtr)
 		became purgeable) */
 		if (node->roll_ptr
 		    == row_get_rec_roll_ptr(rec, index, offsets)) {
-			ut_ad(!rec_get_deleted_flag(rec,
-						    rec_offs_comp(offsets)));
+			ut_ad(!rec_get_deleted_flag(
+					rec, rec_offs_comp(offsets))
+			      || rec_is_alter_metadata(rec, *index));
 			DBUG_LOG("purge", "reset DB_TRX_ID="
 				 << ib::hex(row_get_rec_trx_id(
 						    rec, index, offsets)));
@@ -1100,8 +1108,10 @@ try_again:
 			goto try_again;
 		}
 
-		/* Initialize the template for the table */
-		innobase_init_vc_templ(node->table);
+		node->vcol_info.set_requested();
+		node->vcol_info.set_used();
+		node->vcol_info.set_table(innobase_init_vc_templ(node->table));
+		node->vcol_info.set_used();
 	}
 
 	clust_index = dict_table_get_first_index(node->table);
@@ -1138,10 +1148,13 @@ err_exit:
 	/* Read to the partial row the fields that occur in indexes */
 
 	if (!(node->cmpl_info & UPD_NODE_NO_ORD_CHANGE)) {
+		ut_ad(!(node->update->info_bits & REC_INFO_MIN_REC_FLAG));
 		ptr = trx_undo_rec_get_partial_row(
 			ptr, clust_index, node->update, &node->row,
 			type == TRX_UNDO_UPD_DEL_REC,
 			node->heap);
+	} else if (node->update->info_bits & REC_INFO_MIN_REC_FLAG) {
+		node->ref = &trx_undo_metadata;
 	}
 
 	return(true);

@@ -2915,7 +2915,7 @@ ha_innobase::ha_innobase(
 			  | HA_CAN_RTREEKEYS
                           | HA_CAN_TABLES_WITHOUT_ROLLBACK
 			  | HA_CONCURRENT_OPTIMIZE
-			  |  (srv_force_primary_key ? HA_REQUIRE_PRIMARY_KEY : 0)
+			  |  (srv_force_primary_key ? HA_WANTS_PRIMARY_KEY : 0)
 		  ),
 	m_start_of_scan(),
         m_mysql_has_locked()
@@ -5843,7 +5843,8 @@ innobase_build_v_templ(
 				name = dict_table_get_v_col_name(ib_table, z);
 			}
 
-			ut_ad(!ut_strcmp(name, field->field_name.str));
+			ut_ad(!my_strcasecmp(system_charset_info, name,
+					     field->field_name.str));
 #endif
 			const dict_v_col_t*	vcol;
 
@@ -5874,12 +5875,10 @@ innobase_build_v_templ(
 			dict_col_t*   col = dict_table_get_nth_col(
 						ib_table, j);
 
-#ifdef UNIV_DEBUG
-			const char*	name = dict_table_get_col_name(
-						ib_table, j);
-
-			ut_ad(!ut_strcmp(name, field->field_name.str));
-#endif
+			ut_ad(!my_strcasecmp(system_charset_info,
+					     dict_table_get_col_name(
+						     ib_table, j),
+					     field->field_name.str));
 
 			s_templ->vtempl[j] = static_cast<
 				mysql_row_templ_t*>(
@@ -9485,12 +9484,14 @@ ha_innobase::change_active_index(
 		}
 #endif
 	} else {
-		dtuple_set_n_fields(m_prebuilt->search_tuple,
-				    m_prebuilt->index->n_fields);
+		ulint n_fields = dict_index_get_n_unique_in_tree(
+			m_prebuilt->index);
+
+		dtuple_set_n_fields(m_prebuilt->search_tuple, n_fields);
 
 		dict_index_copy_types(
 			m_prebuilt->search_tuple, m_prebuilt->index,
-			m_prebuilt->index->n_fields);
+			n_fields);
 
 		/* If it's FTS query and FTS_DOC_ID exists FTS_DOC_ID field is
 		always added to read_set. */
@@ -10131,16 +10132,6 @@ next_record:
 	return(HA_ERR_END_OF_FILE);
 }
 
-/*************************************************************************
-*/
-
-void
-ha_innobase::ft_end()
-{
-	ib::info() << "ft_end()";
-
-	rnd_end();
-}
 #ifdef WITH_WSREP
 extern dict_index_t*
 wsrep_dict_foreign_find_index(
@@ -11626,21 +11617,18 @@ create_table_info_t::check_table_options()
 		options->encryption_key_id = FIL_DEFAULT_ENCRYPTION_KEY;
 	}
 
-	/* If default encryption is used make sure that used kay is found
-	from key file. */
-	if (encrypt == FIL_ENCRYPTION_DEFAULT &&
-		!srv_encrypt_tables &&
-		options->encryption_key_id != FIL_DEFAULT_ENCRYPTION_KEY) {
-		if (!encryption_key_id_exists((unsigned int)options->encryption_key_id)) {
-			push_warning_printf(
-				m_thd, Sql_condition::WARN_LEVEL_WARN,
-				HA_WRONG_CREATE_OPTION,
-				"InnoDB: ENCRYPTION_KEY_ID %u not available",
-				(uint)options->encryption_key_id
+	/* If default encryption is used and encryption is disabled, you may
+	not use nondefault encryption_key_id as it is not stored anywhere. */
+	if (encrypt == FIL_ENCRYPTION_DEFAULT
+	    && !srv_encrypt_tables
+	    && options->encryption_key_id != FIL_DEFAULT_ENCRYPTION_KEY) {
+		compile_time_assert(FIL_DEFAULT_ENCRYPTION_KEY == 1);
+		push_warning_printf(
+			m_thd, Sql_condition::WARN_LEVEL_WARN,
+			HA_WRONG_CREATE_OPTION,
+			"InnoDB: innodb_encrypt_tables=OFF only allows ENCRYPTION_KEY_ID=1"
 			);
-			return "ENCRYPTION_KEY_ID";
-
-		}
+		return "ENCRYPTION_KEY_ID";
 	}
 
 	return NULL;
@@ -12384,12 +12372,9 @@ int create_table_info_t::create_table(bool create_fk)
 		error = convert_error_code_to_mysql(err, 0, NULL);
 
 		if (error) {
-			trx_rollback_to_savepoint(m_trx, NULL);
-			m_trx->error_state = DB_SUCCESS;
-
 			row_drop_table_for_mysql(m_table_name, m_trx,
 						 SQLCOM_DROP_DB);
-
+			trx_rollback_to_savepoint(m_trx, NULL);
 			m_trx->error_state = DB_SUCCESS;
 			DBUG_RETURN(error);
 		}
@@ -12614,6 +12599,8 @@ ha_innobase::create(
 	}
 
 	if ((error = info.create_table(own_trx))) {
+		row_drop_table_for_mysql(norm_name, trx, SQLCOM_DROP_TABLE,
+					 true);
 		trx_rollback_for_mysql(trx);
 		row_mysql_unlock_data_dictionary(trx);
 		if (own_trx) {
@@ -14720,7 +14707,7 @@ get_foreign_key_info(
 
 	/* Referenced (parent) table name */
 	ptr = dict_remove_db_name(foreign->referenced_table_name);
-	len = filename_to_tablename(ptr, name_buff, sizeof(name_buff));
+	len = filename_to_tablename(ptr, name_buff, sizeof(name_buff), 1);
 	f_key_info.referenced_table = thd_make_lex_string(
 		thd, 0, name_buff, len, 1);
 
@@ -14736,7 +14723,7 @@ get_foreign_key_info(
 
 	/* Dependent (child) table name */
 	ptr = dict_remove_db_name(foreign->foreign_table_name);
-	len = filename_to_tablename(ptr, name_buff, sizeof(name_buff));
+	len = filename_to_tablename(ptr, name_buff, sizeof(name_buff), 1);
 	f_key_info.foreign_table = thd_make_lex_string(
 		thd, 0, name_buff, len, 1);
 
@@ -16290,73 +16277,6 @@ ha_innobase::store_lock(
 		m_prebuilt->stored_select_lock_type = LOCK_NONE;
 	}
 
-	if (lock_type != TL_IGNORE && lock.type == TL_UNLOCK) {
-
-		/* Starting from 5.0.7, we weaken also the table locks
-		set at the start of a MySQL stored procedure call, just like
-		we weaken the locks set at the start of an SQL statement.
-		MySQL does set in_lock_tables TRUE there, but in reality
-		we do not need table locks to make the execution of a
-		single transaction stored procedure call deterministic
-		(if it does not use a consistent read). */
-
-		if (lock_type == TL_READ
-		    && sql_command == SQLCOM_LOCK_TABLES) {
-			/* We come here if MySQL is processing LOCK TABLES
-			... READ LOCAL. MyISAM under that table lock type
-			reads the table as it was at the time the lock was
-			granted (new inserts are allowed, but not seen by the
-			reader). To get a similar effect on an InnoDB table,
-			we must use LOCK TABLES ... READ. We convert the lock
-			type here, so that for InnoDB, READ LOCAL is
-			equivalent to READ. This will change the InnoDB
-			behavior in mysqldump, so that dumps of InnoDB tables
-			are consistent with dumps of MyISAM tables. */
-
-			lock_type = TL_READ_NO_INSERT;
-		}
-
-		/* If we are not doing a LOCK TABLE, DISCARD/IMPORT
-		TABLESPACE or TRUNCATE TABLE then allow multiple
-		writers. Note that ALTER TABLE uses a TL_WRITE_ALLOW_READ
-		< TL_WRITE_CONCURRENT_INSERT.
-
-		We especially allow multiple writers if MySQL is at the
-		start of a stored procedure call (SQLCOM_CALL) or a
-		stored function call (MySQL does have in_lock_tables
-		TRUE there). */
-
-		if ((lock_type >= TL_WRITE_CONCURRENT_INSERT
-		     && lock_type <= TL_WRITE)
-		    && !(in_lock_tables
-			 && sql_command == SQLCOM_LOCK_TABLES)
-		    && !thd_tablespace_op(thd)
-		    && sql_command != SQLCOM_TRUNCATE
-		    && sql_command != SQLCOM_OPTIMIZE
-		    && sql_command != SQLCOM_CREATE_TABLE) {
-
-			lock_type = TL_WRITE_ALLOW_WRITE;
-		}
-
-		/* In queries of type INSERT INTO t1 SELECT ... FROM t2 ...
-		MySQL would use the lock TL_READ_NO_INSERT on t2, and that
-		would conflict with TL_WRITE_ALLOW_WRITE, blocking all inserts
-		to t2. Convert the lock to a normal read lock to allow
-		concurrent inserts to t2.
-
-		We especially allow concurrent inserts if MySQL is at the
-		start of a stored procedure call (SQLCOM_CALL)
-		(MySQL does have thd_in_lock_tables() TRUE there). */
-
-		if (lock_type == TL_READ_NO_INSERT
-		    && sql_command != SQLCOM_LOCK_TABLES) {
-
-			lock_type = TL_READ;
-		}
-
-		lock.type = lock_type;
-	}
-
 	if (!trx_is_started(trx)
 	    && (m_prebuilt->select_lock_type != LOCK_NONE
 	        || m_prebuilt->stored_select_lock_type != LOCK_NONE)) {
@@ -17307,7 +17227,7 @@ innodb_internal_table_validate(
 
 		DBUG_EXECUTE_IF("innodb_evict_autoinc_table",
 			mutex_enter(&dict_sys->mutex);
-			dict_table_remove_from_cache_low(user_table, TRUE);
+			dict_table_remove_from_cache(user_table, true);
 			mutex_exit(&dict_sys->mutex);
 		);
 	}
@@ -18594,11 +18514,13 @@ wsrep_innobase_kill_one_trx(
 	WSREP_LOG_CONFLICT((const void*)bf_thd, (const void*)thd, TRUE);
 
 	wsrep_thd_LOCK(thd);
-	WSREP_DEBUG("BF kill (%lu, seqno: %lld), victim: (%lu) trx: %llu",
-		    signal, (long long)bf_seqno, thd_get_thread_id(thd),
-		    (long long)victim_trx->id);
+	WSREP_DEBUG("BF kill (" ULINTPF ", seqno: " INT64PF
+		    "), victim: (%lu) trx: " TRX_ID_FMT,
+		    signal, bf_seqno,
+		    thd_get_thread_id(thd),
+		    victim_trx->id);
 
-	WSREP_DEBUG("Aborting query: %s conf %s trx: %lld",
+	WSREP_DEBUG("Aborting query: %s conf %s trx: %" PRId64,
 		    (thd && wsrep_thd_query(thd)) ? wsrep_thd_query(thd) : "void",
 		    wsrep_thd_transaction_state_str(thd),
 		    wsrep_thd_transaction_id(thd));
@@ -19307,10 +19229,10 @@ static MYSQL_SYSVAR_ULONG(ft_total_cache_size, fts_max_total_cache_size,
   "Total memory allocated for InnoDB Fulltext Search cache",
   NULL, NULL, 640000000, 32000000, 1600000000, 0);
 
-static MYSQL_SYSVAR_ULONG(ft_result_cache_limit, fts_result_cache_limit,
+static MYSQL_SYSVAR_SIZE_T(ft_result_cache_limit, fts_result_cache_limit,
   PLUGIN_VAR_RQCMDARG,
   "InnoDB Fulltext search query result cache limit in bytes",
-  NULL, NULL, 2000000000L, 1000000L, 4294967295UL, 0);
+  NULL, NULL, 2000000000L, 1000000L, SIZE_T_MAX, 0);
 
 static MYSQL_SYSVAR_ULONG(ft_min_token_size, fts_min_token_size,
   PLUGIN_VAR_RQCMDARG | PLUGIN_VAR_READONLY,
@@ -20313,6 +20235,7 @@ static bool table_name_parse(
 
 	if (char *is_part = strchr(tbl_buf, '#')) {
 		*is_part = '\0';
+		tblnamelen = is_part - tbl_buf;
 	}
 
 	filename_to_tablename(tbl_buf, tblname, MAX_TABLE_NAME_LEN + 1, true);
@@ -20430,13 +20353,12 @@ static TABLE* innodb_find_table_for_vc(THD* thd, dict_table_t* table)
 }
 
 /** Get the computed value by supplying the base column values.
-@param[in,out]	table	table whose virtual column template to be built */
-void
-innobase_init_vc_templ(
-	dict_table_t*	table)
+@param[in,out]	table		table whose virtual column
+				template to be built */
+TABLE* innobase_init_vc_templ(dict_table_t* table)
 {
 	if (table->vc_templ != NULL) {
-		return;
+		return NULL;
 	}
 
 	table->vc_templ = UT_NEW_NOKEY(dict_vcol_templ_t());
@@ -20445,12 +20367,13 @@ innobase_init_vc_templ(
 
 	ut_ad(mysql_table);
 	if (!mysql_table) {
-		return;
+		return NULL;
 	}
 
 	mutex_enter(&dict_sys->mutex);
 	innobase_build_v_templ(mysql_table, table, table->vc_templ, NULL, true);
 	mutex_exit(&dict_sys->mutex);
+	return mysql_table;
 }
 
 /** Change dbname and table name in table->vc_templ.

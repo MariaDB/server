@@ -87,6 +87,8 @@ extern struct wsrep_service_st {
   my_bool                     (*wsrep_thd_is_aborting_func)(const void* thd);
   my_bool                     (*wsrep_trx_order_before_func)(const void* left_ptr, const void* right_ptr);
   void                        (*wsrep_thd_xid_func)(const void *thd_ptr, void *xid, size_t xid_size);
+  //  void                        (*wsrep_unlock_rollback_func)();
+  void                        (*wsrep_set_data_home_dir_func)(const char *data_dir);
 } *wsrep_service;
 
 #define MYSQL_SERVICE_WSREP_INCLUDED
@@ -119,6 +121,8 @@ extern struct wsrep_service_st {
 #define wsrep_thd_trx_seqno(T) wsrep_service->wsrep_thd_trx_seqno_func(T)
 #define wsrep_trx_order_before(T1,T2) wsrep_service->wsrep_trx_order_before_func(T1,T2)
 #define wsrep_thd_xid(T,X,S) wsrep_service->wsrep_thd_xid_func(T,X,S)
+//#define wsrep_unlock_rollback() wsrep_service->wsrep_unlock_rollback_func()
+#define wsrep_set_data_home_dir(A) wsrep_service->wsrep_set_data_home_dir_func(A)
 
 #define wsrep_thd_is_BF(T,S) wsrep_service->wsrep_thd_is_BF_func(T,S)
 
@@ -153,6 +157,8 @@ struct wsrep_ws_handle *wsrep_thd_ws_handle(THD *thd);
 void wsrep_aborting_thd_enqueue(THD *thd);
 void wsrep_post_commit(THD* thd, bool all);
 bool wsrep_thd_ignore_table(THD *thd);
+//void wsrep_unlock_rollback();
+void wsrep_set_data_home_dir(const char *data_dir);
 
 
 /* from mysql wsrep-lib */

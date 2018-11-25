@@ -106,11 +106,11 @@ static inline uint32 my_clear_highest_bit(uint32 v)
 
 static inline uint32 my_reverse_bits(uint32 key)
 {
-  return (uint32)
-    (_my_bits_reverse_table[ key      & 255] << 24) |
-    (_my_bits_reverse_table[(key>> 8) & 255] << 16) |
-    (_my_bits_reverse_table[(key>>16) & 255] <<  8) |
-     _my_bits_reverse_table[(key>>24)      ];
+  return
+    ((uint32)_my_bits_reverse_table[ key      & 255] << 24) |
+    ((uint32)_my_bits_reverse_table[(key>> 8) & 255] << 16) |
+    ((uint32)_my_bits_reverse_table[(key>>16) & 255] <<  8) |
+     (uint32)_my_bits_reverse_table[(key>>24)      ];
 }
 
 /*

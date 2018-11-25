@@ -2077,8 +2077,9 @@ public:
   }
   bool get_date(MYSQL_TIME *ltime, date_mode_t fuzzydate)
   {
-    return my_decimal(ptr, precision, dec).
-             to_datetime_with_warn(get_thd(), ltime, fuzzydate, field_name.str);
+    my_decimal nr(ptr, precision, dec);
+    return decimal_to_datetime_with_warn(get_thd(), &nr, ltime,
+                                         fuzzydate, field_name.str);
   }
   bool val_bool()
   {
@@ -2612,9 +2613,10 @@ protected:
   int store_invalid_with_warning(const ErrConv *str, int was_cut,
                                  timestamp_type ts_type)
   {
+    DBUG_ASSERT(was_cut);
     reset();
     Sql_condition::enum_warning_level level= Sql_condition::WARN_LEVEL_WARN;
-    if (was_cut == 0) // special case: zero date
+    if (was_cut & MYSQL_TIME_WARN_ZERO_DATE)
     {
       DBUG_ASSERT(ts_type != MYSQL_TIMESTAMP_TIME);
       set_warnings(level, str, MYSQL_TIME_WARN_OUT_OF_RANGE, ts_type);

@@ -29,7 +29,6 @@ class Wsrep_server_state : public wsrep::server_state
 {
 public:
   static void init_once(const std::string& name,
-                        const std::string& id,
                         const std::string& incoming_address,
                         const std::string& address,
                         const std::string& working_dir,
@@ -52,7 +51,6 @@ public:
   }
 private:
   Wsrep_server_state(const std::string& name,
-                     const std::string& id,
                      const std::string& incoming_address,
                      const std::string& address,
                      const std::string& working_dir,

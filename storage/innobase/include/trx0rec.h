@@ -167,8 +167,7 @@ trx_undo_rec_get_partial_row(
 @param[in,out]	trx	transaction
 @param[in]	table	table that is being renamed
 @return	DB_SUCCESS or error code */
-dberr_t
-trx_undo_report_rename(trx_t* trx, const dict_table_t* table)
+dberr_t trx_undo_report_rename(trx_t* trx, const dict_table_t* table)
 	MY_ATTRIBUTE((nonnull, warn_unused_result));
 /***********************************************************************//**
 Writes information to an undo log about an insert, update, or a delete marking

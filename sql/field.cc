@@ -2067,9 +2067,8 @@ my_decimal* Field_int::val_decimal(my_decimal *decimal_value)
 bool Field_int::get_date(MYSQL_TIME *ltime,date_mode_t fuzzydate)
 {
   ASSERT_COLUMN_MARKED_FOR_READ;
-  longlong nr= val_int();
-  bool neg= !(flags & UNSIGNED_FLAG) && nr < 0;
-  return int_to_datetime_with_warn(get_thd(), neg, neg ? -nr : nr, ltime,
+  Longlong_hybrid nr(val_int(), (flags & UNSIGNED_FLAG));
+  return int_to_datetime_with_warn(get_thd(), nr, ltime,
                                    fuzzydate, field_name.str);
 }
 
@@ -2254,16 +2253,13 @@ uint Field::fill_cache_field(CACHE_FIELD *copy)
 }
 
 
-bool Field::get_date(MYSQL_TIME *ltime,date_mode_t fuzzydate)
+bool Field::get_date(MYSQL_TIME *to, date_mode_t mode)
 {
-  char buff[40];
-  String tmp(buff,sizeof(buff),&my_charset_bin),*res;
-  if (!(res=val_str(&tmp)) ||
-      str_to_datetime_with_warn(get_thd(),
-                                res->charset(), res->ptr(), res->length(),
-                                ltime, fuzzydate))
-    return 1;
-  return 0;
+  StringBuffer<40> tmp;
+  Temporal::Warn_push warn(get_thd(), NullS, to, mode);
+  Temporal_hybrid *t= new(to) Temporal_hybrid(get_thd(), &warn,
+                                              val_str(&tmp), mode);
+  return !t->is_valid_temporal();
 }
 
 /**
@@ -3107,6 +3103,12 @@ Field *Field_decimal::make_new_field(MEM_ROOT *root, TABLE *new_table,
 ** Field_new_decimal
 ****************************************************************************/
 
+static uint get_decimal_precision(uint len, uint8 dec, bool unsigned_val)
+{
+  uint precision= my_decimal_length_to_precision(len, dec, unsigned_val);
+  return MY_MIN(precision, DECIMAL_MAX_PRECISION);
+}
+
 Field_new_decimal::Field_new_decimal(uchar *ptr_arg,
                                      uint32 len_arg, uchar *null_ptr_arg,
                                      uchar null_bit_arg,
@@ -3117,8 +3119,7 @@ Field_new_decimal::Field_new_decimal(uchar *ptr_arg,
   :Field_num(ptr_arg, len_arg, null_ptr_arg, null_bit_arg,
              unireg_check_arg, field_name_arg, dec_arg, zero_arg, unsigned_arg)
 {
-  precision= my_decimal_length_to_precision(len_arg, dec_arg, unsigned_arg);
-  set_if_smaller(precision, DECIMAL_MAX_PRECISION);
+  precision= get_decimal_precision(len_arg, dec_arg, unsigned_arg);
   DBUG_ASSERT((precision <= DECIMAL_MAX_PRECISION) &&
               (dec <= DECIMAL_MAX_SCALE));
   bin_size= my_decimal_get_binary_size(precision, dec);
@@ -4508,7 +4509,7 @@ longlong Field_float::val_int(void)
 {
   float j;
   float4get(j,ptr);
-  return (longlong) rint(j);
+  return Converter_double_to_longlong(j, false).result();
 }
 
 
@@ -5107,7 +5108,7 @@ int Field_timestamp::store(double nr)
   int error;
   ErrConvDouble str(nr);
   THD *thd= get_thd();
-  Datetime dt(&error, nr, sql_mode_for_timestamp(thd), decimals());
+  Datetime dt(&error, Sec6(nr), sql_mode_for_timestamp(thd), decimals());
   return store_TIME_with_warning(thd, &dt, &str, error);
 }
 
@@ -5115,9 +5116,9 @@ int Field_timestamp::store(double nr)
 int Field_timestamp::store(longlong nr, bool unsigned_val)
 {
   int error;
-  ErrConvInteger str(nr, unsigned_val);
+  ErrConvInteger str(Longlong_hybrid(nr, unsigned_val));
   THD *thd= get_thd();
-  Datetime dt(&error, nr, unsigned_val, sql_mode_for_timestamp(thd));
+  Datetime dt(&error, Sec6(nr, unsigned_val), sql_mode_for_timestamp(thd));
   return store_TIME_with_warning(thd, &dt, &str, error);
 }
 
@@ -5417,7 +5418,7 @@ int Field_timestamp::store_decimal(const my_decimal *d)
   int error;
   THD *thd= get_thd();
   ErrConvDecimal str(d);
-  Datetime dt(&error, d, sql_mode_for_timestamp(thd), decimals());
+  Datetime dt(&error, Sec6(d), sql_mode_for_timestamp(thd), decimals());
   return store_TIME_with_warning(thd, &dt, &str, error);
 }
 
@@ -5567,7 +5568,7 @@ int Field_datetime::store(double nr)
 {
   int error;
   ErrConvDouble str(nr);
-  Datetime dt(&error, nr, sql_mode_for_dates(get_thd()), decimals());
+  Datetime dt(&error, Sec6(nr), sql_mode_for_dates(get_thd()), decimals());
   return store_TIME_with_warning(&dt, &str, error);
 }
 
@@ -5575,8 +5576,8 @@ int Field_datetime::store(double nr)
 int Field_datetime::store(longlong nr, bool unsigned_val)
 {
   int error;
-  ErrConvInteger str(nr, unsigned_val);
-  Datetime dt(&error, nr, unsigned_val, sql_mode_for_dates(get_thd()));
+  ErrConvInteger str(Longlong_hybrid(nr, unsigned_val));
+  Datetime dt(&error, Sec6(nr, unsigned_val), sql_mode_for_dates(get_thd()));
   return store_TIME_with_warning(&dt, &str, error);
 }
 
@@ -5594,7 +5595,7 @@ int Field_datetime::store_decimal(const my_decimal *d)
 {
   int error;
   ErrConvDecimal str(d);
-  Datetime tm(&error, d, sql_mode_for_dates(get_thd()), decimals());
+  Datetime tm(&error, Sec6(d), sql_mode_for_dates(get_thd()), decimals());
   return store_TIME_with_warning(&tm, &str, error);
 }
 
@@ -5729,17 +5730,17 @@ int Field_time::store(double nr)
 {
   ErrConvDouble str(nr);
   int was_cut;
-  Time tm(get_thd(), &was_cut, nr, decimals());
+  Time tm(get_thd(), &was_cut, Sec6(nr), decimals());
   return store_TIME_with_warning(&tm, &str, was_cut);
 }
 
 
 int Field_time::store(longlong nr, bool unsigned_val)
 {
-  ErrConvInteger str(nr, unsigned_val);
+  ErrConvInteger str(Longlong_hybrid(nr, unsigned_val));
   int was_cut;
   // Need fractional digit truncation if nr overflows to '838:59:59.999999'
-  Time tm(get_thd(), &was_cut, nr, unsigned_val, decimals());
+  Time tm(get_thd(), &was_cut, Sec6(nr, unsigned_val), decimals());
   return store_TIME_with_warning(&tm, &str, was_cut);
 }
 
@@ -5897,7 +5898,7 @@ int Field_time::store_decimal(const my_decimal *d)
 {
   ErrConvDecimal str(d);
   int was_cut;
-  Time tm(get_thd(), &was_cut, d, decimals());
+  Time tm(get_thd(), &was_cut, Sec6(d), decimals());
   return store_TIME_with_warning(&tm, &str, was_cut);
 }
 
@@ -6217,7 +6218,8 @@ bool Field_year::get_date(MYSQL_TIME *ltime,date_mode_t fuzzydate)
   int tmp= (int) ptr[0];
   if (tmp || field_length != 4)
     tmp+= 1900;
-  return int_to_datetime_with_warn(get_thd(), false, tmp * 10000,
+  return int_to_datetime_with_warn(get_thd(),
+                                    Longlong_hybrid(tmp * 10000, true),
                                     ltime, fuzzydate, field_name.str);
 }
 
@@ -6261,15 +6263,15 @@ int Field_date_common::store(double nr)
 {
   int error;
   ErrConvDouble str(nr);
-  Datetime dt(&error, nr, sql_mode_for_dates(get_thd()));
+  Datetime dt(&error, Sec6(nr), sql_mode_for_dates(get_thd()));
   return store_TIME_with_warning(&dt, &str, error);
 }
 
 int Field_date_common::store(longlong nr, bool unsigned_val)
 {
   int error;
-  ErrConvInteger str(nr, unsigned_val);
-  Datetime dt(&error, nr, unsigned_val, sql_mode_for_dates(get_thd()));
+  ErrConvInteger str(Longlong_hybrid(nr, unsigned_val));
+  Datetime dt(&error, Sec6(nr, unsigned_val), sql_mode_for_dates(get_thd()));
   return store_TIME_with_warning(&dt, &str, error);
 }
 
@@ -6286,7 +6288,7 @@ int Field_date_common::store_decimal(const my_decimal *d)
 {
   int error;
   ErrConvDecimal str(d);
-  Datetime tm(&error, d, sql_mode_for_dates(get_thd()));
+  Datetime tm(&error, Sec6(d), sql_mode_for_dates(get_thd()));
   return store_TIME_with_warning(&tm, &str, error);
 }
 
@@ -8427,9 +8429,7 @@ void Field_blob::sort_string(uchar *to,uint length)
         Store length of blob last in blob to shorter blobs before longer blobs
       */
       length-= packlength;
-
-      uint key_length = MY_MIN(buf.length(), length);
-      store_bigendian(key_length, to + length, packlength);
+      store_bigendian(buf.length(), to + length, packlength);
     }
 
 #ifdef DBUG_ASSERT_EXISTS
@@ -10172,12 +10172,9 @@ void Column_definition::create_length_to_internal_length_bit()
 
 void Column_definition::create_length_to_internal_length_newdecimal()
 {
-  key_length= pack_length=
-    my_decimal_get_binary_size(my_decimal_length_to_precision((uint) length,
-                                                              decimals,
-                                                              flags &
-                                                              UNSIGNED_FLAG),
-                               decimals);
+  DBUG_ASSERT(length < UINT_MAX32);
+  uint prec= get_decimal_precision((uint)length, decimals, flags & UNSIGNED_FLAG);
+  key_length= pack_length= my_decimal_get_binary_size(prec, decimals);
 }
 
 

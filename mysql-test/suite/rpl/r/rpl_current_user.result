@@ -27,78 +27,36 @@ connection conn1;
 REVOKE ALL PRIVILEGES, GRANT OPTION FROM CURRENT_USER();
 include/rpl_sync.inc
 include/diff_tables.inc [server_1:v_user, server_2:v_user, server_3:v_user]
-Warnings:
-Warning	1287	'<select expression> INTO <destination>;' is deprecated and will be removed in a future release. Please use 'SELECT <select list> INTO <destination> FROM...' instead
-Warnings:
-Warning	1287	'<select expression> INTO <destination>;' is deprecated and will be removed in a future release. Please use 'SELECT <select list> INTO <destination> FROM...' instead
-Warnings:
-Warning	1287	'<select expression> INTO <destination>;' is deprecated and will be removed in a future release. Please use 'SELECT <select list> INTO <destination> FROM...' instead
 
 # Verify 'GRANT ... ON TABLE ...' statement
 GRANT CREATE, INSERT, SELECT ON TABLE test.t1 TO CURRENT_USER();
 include/rpl_sync.inc
 include/diff_tables.inc [server_1:v_tables_priv, server_2:v_tables_priv, server_3:v_tables_priv]
-Warnings:
-Warning	1287	'<select expression> INTO <destination>;' is deprecated and will be removed in a future release. Please use 'SELECT <select list> INTO <destination> FROM...' instead
-Warnings:
-Warning	1287	'<select expression> INTO <destination>;' is deprecated and will be removed in a future release. Please use 'SELECT <select list> INTO <destination> FROM...' instead
-Warnings:
-Warning	1287	'<select expression> INTO <destination>;' is deprecated and will be removed in a future release. Please use 'SELECT <select list> INTO <destination> FROM...' instead
 
 # Verify 'GRANT ... ON PROCEDURE...' statement
 GRANT ALTER ROUTINE, EXECUTE ON PROCEDURE p1 TO CURRENT_USER();
 include/rpl_sync.inc
 include/diff_tables.inc [server_1:v_procs_priv, server_2:v_procs_priv, server_3:v_procs_priv]
-Warnings:
-Warning	1287	'<select expression> INTO <destination>;' is deprecated and will be removed in a future release. Please use 'SELECT <select list> INTO <destination> FROM...' instead
-Warnings:
-Warning	1287	'<select expression> INTO <destination>;' is deprecated and will be removed in a future release. Please use 'SELECT <select list> INTO <destination> FROM...' instead
-Warnings:
-Warning	1287	'<select expression> INTO <destination>;' is deprecated and will be removed in a future release. Please use 'SELECT <select list> INTO <destination> FROM...' instead
 
 # Verify 'GRANT ... ON *.* ...' statement
 GRANT ALL PRIVILEGES ON *.* TO CURRENT_USER() WITH GRANT OPTION;
 include/rpl_sync.inc
 include/diff_tables.inc [server_1:v_procs_priv, server_2:v_procs_priv, server_3:v_procs_priv]
-Warnings:
-Warning	1287	'<select expression> INTO <destination>;' is deprecated and will be removed in a future release. Please use 'SELECT <select list> INTO <destination> FROM...' instead
-Warnings:
-Warning	1287	'<select expression> INTO <destination>;' is deprecated and will be removed in a future release. Please use 'SELECT <select list> INTO <destination> FROM...' instead
-Warnings:
-Warning	1287	'<select expression> INTO <destination>;' is deprecated and will be removed in a future release. Please use 'SELECT <select list> INTO <destination> FROM...' instead
 
 # Verify 'REVOKE ... ON TABLE ...' statement
 REVOKE CREATE, INSERT, SELECT ON TABLE t1 FROM CURRENT_USER();
 include/rpl_sync.inc
 include/diff_tables.inc [server_1:v_tables_priv, server_2:v_tables_priv, server_3:v_tables_priv]
-Warnings:
-Warning	1287	'<select expression> INTO <destination>;' is deprecated and will be removed in a future release. Please use 'SELECT <select list> INTO <destination> FROM...' instead
-Warnings:
-Warning	1287	'<select expression> INTO <destination>;' is deprecated and will be removed in a future release. Please use 'SELECT <select list> INTO <destination> FROM...' instead
-Warnings:
-Warning	1287	'<select expression> INTO <destination>;' is deprecated and will be removed in a future release. Please use 'SELECT <select list> INTO <destination> FROM...' instead
 
 # Verify 'REVOKE ... ON PROCEDURE...' statement
 REVOKE ALTER ROUTINE, EXECUTE ON PROCEDURE p1 FROM CURRENT_USER();
 include/rpl_sync.inc
 include/diff_tables.inc [server_1:v_procs_priv, server_2:v_procs_priv, server_3:v_procs_priv]
-Warnings:
-Warning	1287	'<select expression> INTO <destination>;' is deprecated and will be removed in a future release. Please use 'SELECT <select list> INTO <destination> FROM...' instead
-Warnings:
-Warning	1287	'<select expression> INTO <destination>;' is deprecated and will be removed in a future release. Please use 'SELECT <select list> INTO <destination> FROM...' instead
-Warnings:
-Warning	1287	'<select expression> INTO <destination>;' is deprecated and will be removed in a future release. Please use 'SELECT <select list> INTO <destination> FROM...' instead
 
 # Verify 'REVOKE ... ON *.* ...' statement
 REVOKE ALL PRIVILEGES ON *.* FROM CURRENT_USER();
 include/rpl_sync.inc
 include/diff_tables.inc [server_1:v_user, server_2:v_user, server_3:v_user]
-Warnings:
-Warning	1287	'<select expression> INTO <destination>;' is deprecated and will be removed in a future release. Please use 'SELECT <select list> INTO <destination> FROM...' instead
-Warnings:
-Warning	1287	'<select expression> INTO <destination>;' is deprecated and will be removed in a future release. Please use 'SELECT <select list> INTO <destination> FROM...' instead
-Warnings:
-Warning	1287	'<select expression> INTO <destination>;' is deprecated and will be removed in a future release. Please use 'SELECT <select list> INTO <destination> FROM...' instead
 
 # Verify 'GRANT ...' statement in the procedure
 CREATE PROCEDURE my_grant()
@@ -106,12 +64,6 @@ GRANT CREATE, INSERT, SELECT ON TABLE test.t1 TO CURRENT_USER();
 call my_grant;
 include/rpl_sync.inc
 include/diff_tables.inc [server_1:v_tables_priv, server_2:v_tables_priv, server_3:v_tables_priv]
-Warnings:
-Warning	1287	'<select expression> INTO <destination>;' is deprecated and will be removed in a future release. Please use 'SELECT <select list> INTO <destination> FROM...' instead
-Warnings:
-Warning	1287	'<select expression> INTO <destination>;' is deprecated and will be removed in a future release. Please use 'SELECT <select list> INTO <destination> FROM...' instead
-Warnings:
-Warning	1287	'<select expression> INTO <destination>;' is deprecated and will be removed in a future release. Please use 'SELECT <select list> INTO <destination> FROM...' instead
 
 # Verify 'REVOKE ... ON TABLE ...' statement in the procedure
 CREATE PROCEDURE my_revoke()
@@ -119,23 +71,11 @@ REVOKE CREATE, INSERT, SELECT ON TABLE t1 FROM CURRENT_USER();
 call my_revoke;
 include/rpl_sync.inc
 include/diff_tables.inc [server_1:v_tables_priv, server_2:v_tables_priv, server_3:v_tables_priv]
-Warnings:
-Warning	1287	'<select expression> INTO <destination>;' is deprecated and will be removed in a future release. Please use 'SELECT <select list> INTO <destination> FROM...' instead
-Warnings:
-Warning	1287	'<select expression> INTO <destination>;' is deprecated and will be removed in a future release. Please use 'SELECT <select list> INTO <destination> FROM...' instead
-Warnings:
-Warning	1287	'<select expression> INTO <destination>;' is deprecated and will be removed in a future release. Please use 'SELECT <select list> INTO <destination> FROM...' instead
 
 # Verify 'RENAME USER ...' statement
 RENAME USER CURRENT_USER TO 'bug48321_2'@'localhost';
 include/rpl_sync.inc
 include/diff_tables.inc [server_1:v_user, server_2:v_user, server_3:v_user]
-Warnings:
-Warning	1287	'<select expression> INTO <destination>;' is deprecated and will be removed in a future release. Please use 'SELECT <select list> INTO <destination> FROM...' instead
-Warnings:
-Warning	1287	'<select expression> INTO <destination>;' is deprecated and will be removed in a future release. Please use 'SELECT <select list> INTO <destination> FROM...' instead
-Warnings:
-Warning	1287	'<select expression> INTO <destination>;' is deprecated and will be removed in a future release. Please use 'SELECT <select list> INTO <destination> FROM...' instead
 disconnect conn1;
 
 # Verify 'DROP USER ...' statement
@@ -146,12 +86,6 @@ connection conn1;
 DROP USER CURRENT_USER();
 include/rpl_sync.inc
 include/diff_tables.inc [server_1:v_user, server_2:v_user, server_3:v_user]
-Warnings:
-Warning	1287	'<select expression> INTO <destination>;' is deprecated and will be removed in a future release. Please use 'SELECT <select list> INTO <destination> FROM...' instead
-Warnings:
-Warning	1287	'<select expression> INTO <destination>;' is deprecated and will be removed in a future release. Please use 'SELECT <select list> INTO <destination> FROM...' instead
-Warnings:
-Warning	1287	'<select expression> INTO <destination>;' is deprecated and will be removed in a future release. Please use 'SELECT <select list> INTO <destination> FROM...' instead
 
 # Verify 'ALTER EVENT...' statement
 connection master;
@@ -160,24 +94,12 @@ CREATE EVENT e1 ON SCHEDULE EVERY 1 DAY DO SELECT * FROM t1;
 ALTER DEFINER=CURRENT_USER() EVENT e1 ENABLE;
 include/rpl_sync.inc
 include/diff_tables.inc [server_1:v_event, server_2:v_event, server_3:v_event]
-Warnings:
-Warning	1287	'<select expression> INTO <destination>;' is deprecated and will be removed in a future release. Please use 'SELECT <select list> INTO <destination> FROM...' instead
-Warnings:
-Warning	1287	'<select expression> INTO <destination>;' is deprecated and will be removed in a future release. Please use 'SELECT <select list> INTO <destination> FROM...' instead
-Warnings:
-Warning	1287	'<select expression> INTO <destination>;' is deprecated and will be removed in a future release. Please use 'SELECT <select list> INTO <destination> FROM...' instead
 
 # Session user will be set as definer, if the statement does not assign
 # a definer
 ALTER EVENT e1 ENABLE;
 include/rpl_sync.inc
 include/diff_tables.inc [server_1:v_event, server_2:v_event, server_3:v_event]
-Warnings:
-Warning	1287	'<select expression> INTO <destination>;' is deprecated and will be removed in a future release. Please use 'SELECT <select list> INTO <destination> FROM...' instead
-Warnings:
-Warning	1287	'<select expression> INTO <destination>;' is deprecated and will be removed in a future release. Please use 'SELECT <select list> INTO <destination> FROM...' instead
-Warnings:
-Warning	1287	'<select expression> INTO <destination>;' is deprecated and will be removed in a future release. Please use 'SELECT <select list> INTO <destination> FROM...' instead
 
 # Verify that this patch does not affect the calling of CURRENT_USER() 
 # in the other statements

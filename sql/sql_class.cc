@@ -1402,6 +1402,11 @@ void THD::change_user(void)
   cleanup_done= 0;
   reset_killed();
   thd_clear_errors(this);
+
+  /* Clear warnings. */
+  if (!get_stmt_da()->is_warning_info_empty())
+    get_stmt_da()->clear_warning_info(0);
+
   init();
   stmt_map.reset();
   my_hash_init(&user_vars, system_charset_info, USER_VARS_HASH_SIZE, 0, 0,
@@ -2035,20 +2040,7 @@ bool THD::notify_shared_lock(MDL_context_owner *ctx_in_use,
         */
         if (!thd_table->needs_reopen())
         {
-#ifdef WITH_WSREP
           signalled|= mysql_lock_abort_for_thread(this, thd_table);
-          if (WSREP_NNULL(this) && wsrep_thd_is_BF((const void*)this, FALSE))
-          {
-            WSREP_DEBUG("remove_table_from_cache: %llu",
-                        (unsigned long long) this->real_id);
-            wsrep_abort_thd((void *)this, (void *)in_use, FALSE);
-          }
-        }
-        else
-        {
-#else
-          signalled|= mysql_lock_abort_for_thread(this, thd_table);
-#endif /* WITH_WSREP */
         }
       }
     }
@@ -4838,6 +4830,14 @@ extern "C" int thd_slave_thread(const MYSQL_THD thd)
 {
   return(thd->slave_thread);
 }
+
+
+extern "C" int thd_rpl_stmt_based(const MYSQL_THD thd)
+{
+  return !thd->is_current_stmt_binlog_format_row() &&
+    !thd->is_current_stmt_binlog_disabled();
+}
+
 
 /* Returns high resolution timestamp for the start
   of the current query. */

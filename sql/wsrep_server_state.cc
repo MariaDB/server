@@ -23,7 +23,6 @@ mysql_cond_t  COND_wsrep_server_state;
 PSI_cond_key  key_COND_wsrep_server_state;
 
 Wsrep_server_state::Wsrep_server_state(const std::string& name,
-                                       const std::string& id,
                                        const std::string& incoming_address,
                                        const std::string& address,
                                        const std::string& working_dir,
@@ -33,7 +32,6 @@ Wsrep_server_state::Wsrep_server_state(const std::string& name,
                         m_cond,
                         m_service,
                         name,
-                        id,
                         incoming_address,
                         address,
                         working_dir,
@@ -48,7 +46,6 @@ Wsrep_server_state::Wsrep_server_state(const std::string& name,
 }
 
 void Wsrep_server_state::init_once(const std::string& name,
-                                   const std::string& id,
                                    const std::string& incoming_address,
                                    const std::string& address,
                                    const std::string& working_dir,
@@ -61,7 +58,6 @@ void Wsrep_server_state::init_once(const std::string& name,
                      MY_MUTEX_INIT_FAST);
     mysql_cond_init(key_COND_wsrep_server_state, &COND_wsrep_server_state, 0);
     m_instance = new Wsrep_server_state(name,
-                                        id,
                                         incoming_address,
                                         address,
                                         working_dir,

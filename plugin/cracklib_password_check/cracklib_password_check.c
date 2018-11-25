@@ -21,7 +21,8 @@
 
 static char *dictionary;
 
-static int crackme(MYSQL_CONST_LEX_STRING *username, MYSQL_CONST_LEX_STRING *password)
+static int crackme(const MYSQL_CONST_LEX_STRING *username,
+                   const MYSQL_CONST_LEX_STRING *password)
 {
   char *user= alloca(username->length + 1);
   char *host;

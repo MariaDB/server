@@ -83,6 +83,8 @@ push @::global_suppressions,
      qr|WSREP: JOIN message from member .* in non-primary configuration. Ignored.|,
      qr|Query apply failed:*|,
      qr(WSREP: Ignoring error*),
+     qr(WSREP: Failed to remove page file .*),
+     qr(WSREP: wsrep_sst_method is set to 'mysqldump' yet mysqld bind_address is set to .*),
    );
 
 $ENV{PATH}="$epath:$ENV{PATH}";

@@ -23,6 +23,8 @@
 #include <my_sys.h>
 #include <stdarg.h>
 
+#include "ctype-unidata.h"
+
 
 #if defined(HAVE_CHARSET_utf16) || defined(HAVE_CHARSET_ucs2)
 #define HAVE_CHARSET_mb2
@@ -1184,35 +1186,7 @@ my_lengthsp_mb2(CHARSET_INFO *cs __attribute__((unused)),
   but the JSON functions needed my_utf16_uni()
   so the #ifdef was moved lower.
 */
-
-
-/*
-  D800..DB7F - Non-provate surrogate high (896 pages)
-  DB80..DBFF - Private surrogate high     (128 pages)
-  DC00..DFFF - Surrogate low              (1024 codes in a page)
-*/
-#define MY_UTF16_SURROGATE_HIGH_FIRST 0xD800
-#define MY_UTF16_SURROGATE_HIGH_LAST  0xDBFF
-#define MY_UTF16_SURROGATE_LOW_FIRST  0xDC00
-#define MY_UTF16_SURROGATE_LOW_LAST   0xDFFF
-
-#define MY_UTF16_HIGH_HEAD(x)      ((((uchar) (x)) & 0xFC) == 0xD8)
-#define MY_UTF16_LOW_HEAD(x)       ((((uchar) (x)) & 0xFC) == 0xDC)
-/* Test if a byte is a leading byte of a high or low surrogate head: */
-#define MY_UTF16_SURROGATE_HEAD(x) ((((uchar) (x)) & 0xF8) == 0xD8)
-/* Test if a Unicode code point is a high or low surrogate head */
-#define MY_UTF16_SURROGATE(x)      (((x) & 0xF800) == 0xD800)
-
-#define MY_UTF16_WC2(a, b)         ((a << 8) + b)
-
-/*
-  a= 110110??  (<< 18)
-  b= ????????  (<< 10)
-  c= 110111??  (<<  8)
-  d= ????????  (<<  0)
-*/
-#define MY_UTF16_WC4(a, b, c, d) (((a & 3) << 18) + (b << 10) + \
-                                  ((c & 3) << 8) + d + 0x10000)
+#include "ctype-utf16.h"
 
 #define IS_MB2_CHAR(b0,b1)       (!MY_UTF16_SURROGATE_HEAD(b0))
 #define IS_MB4_CHAR(b0,b1,b2,b3) (MY_UTF16_HIGH_HEAD(b0) && MY_UTF16_LOW_HEAD(b2))
@@ -1220,10 +1194,17 @@ my_lengthsp_mb2(CHARSET_INFO *cs __attribute__((unused)),
 static inline int my_weight_mb2_utf16mb2_general_ci(uchar b0, uchar b1)
 {
   my_wc_t wc= MY_UTF16_WC2(b0, b1);
-  MY_UNICASE_CHARACTER *page= my_unicase_default.page[wc >> 8];
+  MY_UNICASE_CHARACTER *page= my_unicase_default_pages[wc >> 8];
   return (int) (page ? page[wc & 0xFF].sort : wc);
 }
 #define MY_FUNCTION_NAME(x)      my_ ## x ## _utf16_general_ci
+#define DEFINE_STRNXFRM_UNICODE
+#define DEFINE_STRNXFRM_UNICODE_NOPAD
+#define MY_MB_WC(cs, pwc, s, e)  my_mb_wc_utf16_quick(pwc, s, e)
+#define OPTIMIZE_ASCII           0
+#define UNICASE_MAXCHAR          MY_UNICASE_INFO_DEFAULT_MAXCHAR
+#define UNICASE_PAGE0            my_unicase_default_page00
+#define UNICASE_PAGES            my_unicase_default_pages
 #define WEIGHT_ILSEQ(x)          (0xFF0000 + (uchar) (x))
 #define WEIGHT_MB2(b0,b1)        my_weight_mb2_utf16mb2_general_ci(b0,b1)
 #define WEIGHT_MB4(b0,b1,b2,b3)  MY_CS_REPLACEMENT_CHARACTER
@@ -1261,32 +1242,7 @@ static inline int my_weight_mb2_utf16mb2_general_ci(uchar b0, uchar b1)
 my_utf16_uni(CHARSET_INFO *cs __attribute__((unused)),
              my_wc_t *pwc, const uchar *s, const uchar *e)
 {
-  if (s + 2 > e)
-    return MY_CS_TOOSMALL2;
-  
-  /*
-    High bytes: 0xD[89AB] = B'110110??'
-    Low bytes:  0xD[CDEF] = B'110111??'
-    Surrogate mask:  0xFC = B'11111100'
-  */
-
-  if (MY_UTF16_HIGH_HEAD(*s)) /* Surrogate head */
-  {
-    if (s + 4 > e)
-      return MY_CS_TOOSMALL4;
-
-    if (!MY_UTF16_LOW_HEAD(s[2]))  /* Broken surrigate pair */
-      return MY_CS_ILSEQ;
-
-    *pwc= MY_UTF16_WC4(s[0], s[1], s[2], s[3]);
-    return 4;
-  }
-
-  if (MY_UTF16_LOW_HEAD(*s)) /* Low surrogate part without high part */
-    return MY_CS_ILSEQ;
-
-  *pwc= MY_UTF16_WC2(s[0], s[1]);
-  return 2;
+  return my_mb_wc_utf16_quick(pwc, s, e);
 }
 
 
@@ -1546,7 +1502,7 @@ static MY_COLLATION_HANDLER my_collation_utf16_general_ci_handler =
   NULL,                /* init */
   my_strnncoll_utf16_general_ci,
   my_strnncollsp_utf16_general_ci,
-  my_strnxfrm_unicode,
+  my_strnxfrm_utf16_general_ci,
   my_strnxfrmlen_unicode,
   my_like_range_generic,
   my_wildcmp_utf16_ci,
@@ -1578,7 +1534,7 @@ static MY_COLLATION_HANDLER my_collation_utf16_general_nopad_ci_handler =
   NULL,                /* init */
   my_strnncoll_utf16_general_ci,
   my_strnncollsp_utf16_general_nopad_ci,
-  my_strnxfrm_unicode_nopad,
+  my_strnxfrm_nopad_utf16_general_ci,
   my_strnxfrmlen_unicode,
   my_like_range_generic,
   my_wildcmp_utf16_ci,
@@ -1775,6 +1731,13 @@ struct charset_info_st my_charset_utf16_nopad_bin=
 #define IS_MB4_CHAR(b0,b1,b2,b3) (MY_UTF16_HIGH_HEAD(b1) && MY_UTF16_LOW_HEAD(b3))
 
 #define MY_FUNCTION_NAME(x)      my_ ## x ## _utf16le_general_ci
+#define DEFINE_STRNXFRM_UNICODE
+#define DEFINE_STRNXFRM_UNICODE_NOPAD
+#define MY_MB_WC(cs, pwc, s, e)  (cs->cset->mb_wc(cs, pwc, s, e))
+#define OPTIMIZE_ASCII           0
+#define UNICASE_MAXCHAR          MY_UNICASE_INFO_DEFAULT_MAXCHAR
+#define UNICASE_PAGE0            my_unicase_default_page00
+#define UNICASE_PAGES            my_unicase_default_pages
 #define WEIGHT_ILSEQ(x)          (0xFF0000 + (uchar) (x))
 #define WEIGHT_MB2(b0,b1)        my_weight_mb2_utf16mb2_general_ci(b1,b0)
 #define WEIGHT_MB4(b0,b1,b2,b3)  MY_CS_REPLACEMENT_CHARACTER
@@ -1879,7 +1842,7 @@ static MY_COLLATION_HANDLER my_collation_utf16le_general_ci_handler =
   NULL,                /* init */
   my_strnncoll_utf16le_general_ci,
   my_strnncollsp_utf16le_general_ci,
-  my_strnxfrm_unicode,
+  my_strnxfrm_utf16le_general_ci,
   my_strnxfrmlen_unicode,
   my_like_range_generic,
   my_wildcmp_utf16_ci,
@@ -1911,7 +1874,7 @@ static MY_COLLATION_HANDLER my_collation_utf16le_general_nopad_ci_handler =
   NULL,                /* init */
   my_strnncoll_utf16le_general_ci,
   my_strnncollsp_utf16le_general_nopad_ci,
-  my_strnxfrm_unicode_nopad,
+  my_strnxfrm_nopad_utf16le_general_ci,
   my_strnxfrmlen_unicode,
   my_like_range_generic,
   my_wildcmp_utf16_ci,
@@ -2109,6 +2072,8 @@ struct charset_info_st my_charset_utf16le_nopad_bin=
 
 #ifdef HAVE_CHARSET_utf32
 
+#include "ctype-utf32.h"
+
 /*
   Check is b0 and b1 start a valid UTF32 four-byte sequence.
   Don't accept characters greater than U+10FFFF.
@@ -2117,8 +2082,6 @@ struct charset_info_st my_charset_utf16le_nopad_bin=
 
 #define IS_MB4_CHAR(b0,b1,b2,b3)   (IS_UTF32_MBHEAD4(b0,b1))
 
-#define MY_UTF32_WC4(b0,b1,b2,b3)  ((((my_wc_t)b0) << 24) + (b1 << 16) + \
-                                                (b2 << 8) + (b3))
 
 static inline int my_weight_utf32_general_ci(uchar b0, uchar b1,
                                              uchar b2, uchar b3)
@@ -2126,12 +2089,19 @@ static inline int my_weight_utf32_general_ci(uchar b0, uchar b1,
   my_wc_t wc= MY_UTF32_WC4(b0, b1, b2, b3);
   if (wc <= 0xFFFF)
   {
-    MY_UNICASE_CHARACTER *page= my_unicase_default.page[wc >> 8];
+    MY_UNICASE_CHARACTER *page= my_unicase_default_pages[wc >> 8];
     return (int) (page ? page[wc & 0xFF].sort : wc);
   }
   return MY_CS_REPLACEMENT_CHARACTER;
 }
 #define MY_FUNCTION_NAME(x)      my_ ## x ## _utf32_general_ci
+#define DEFINE_STRNXFRM_UNICODE
+#define DEFINE_STRNXFRM_UNICODE_NOPAD
+#define MY_MB_WC(cs, pwc, s, e)  my_mb_wc_utf32_quick(pwc, s, e)
+#define OPTIMIZE_ASCII           0
+#define UNICASE_MAXCHAR          MY_UNICASE_INFO_DEFAULT_MAXCHAR
+#define UNICASE_PAGE0            my_unicase_default_page00
+#define UNICASE_PAGES            my_unicase_default_pages
 #define WEIGHT_ILSEQ(x)          (0xFF0000 + (uchar) (x))
 #define WEIGHT_MB4(b0,b1,b2,b3)  my_weight_utf32_general_ci(b0, b1, b2, b3)
 #include "strcoll.ic"
@@ -2161,10 +2131,7 @@ static int
 my_utf32_uni(CHARSET_INFO *cs __attribute__((unused)),
              my_wc_t *pwc, const uchar *s, const uchar *e)
 {
-  if (s + 4 > e)
-    return MY_CS_TOOSMALL4;
-  *pwc= MY_UTF32_WC4(s[0], s[1], s[2], s[3]);
-  return *pwc > 0x10FFFF ? MY_CS_ILSEQ : 4;
+  return my_mb_wc_utf32_quick(pwc, s, e);
 }
 
 
@@ -2698,7 +2665,7 @@ static MY_COLLATION_HANDLER my_collation_utf32_general_ci_handler =
   NULL, /* init */
   my_strnncoll_utf32_general_ci,
   my_strnncollsp_utf32_general_ci,
-  my_strnxfrm_unicode,
+  my_strnxfrm_utf32_general_ci,
   my_strnxfrmlen_unicode,
   my_like_range_generic,
   my_wildcmp_utf32_ci,
@@ -2730,7 +2697,7 @@ static MY_COLLATION_HANDLER my_collation_utf32_general_nopad_ci_handler =
   NULL, /* init */
   my_strnncoll_utf32_general_ci,
   my_strnncollsp_utf32_general_nopad_ci,
-  my_strnxfrm_unicode_nopad,
+  my_strnxfrm_nopad_utf32_general_ci,
   my_strnxfrmlen_unicode,
   my_like_range_generic,
   my_wildcmp_utf32_ci,
@@ -2928,6 +2895,8 @@ struct charset_info_st my_charset_utf32_nopad_bin=
 
 #ifdef HAVE_CHARSET_ucs2
 
+#include "ctype-ucs2.h"
+
 static const uchar ctype_ucs2[] = {
     0,
    32, 32, 32, 32, 32, 32, 32, 32, 32, 40, 40, 40, 40, 40, 32, 32,
@@ -2995,20 +2964,30 @@ static const uchar to_upper_ucs2[] = {
 static inline int my_weight_mb2_ucs2_general_ci(uchar b0, uchar b1)
 {
   my_wc_t wc= UCS2_CODE(b0, b1);
-  MY_UNICASE_CHARACTER *page= my_unicase_default.page[wc >> 8];
+  MY_UNICASE_CHARACTER *page= my_unicase_default_pages[wc >> 8];
   return (int) (page ? page[wc & 0xFF].sort : wc);
 }
 
 
-#define MY_FUNCTION_NAME(x)    my_ ## x ## _ucs2_general_ci
-#define WEIGHT_ILSEQ(x)        (0xFF0000 + (uchar) (x))
-#define WEIGHT_MB2(b0,b1)      my_weight_mb2_ucs2_general_ci(b0,b1)
+#define MY_FUNCTION_NAME(x)      my_ ## x ## _ucs2_general_ci
+#define DEFINE_STRNXFRM_UNICODE
+#define DEFINE_STRNXFRM_UNICODE_NOPAD
+#define MY_MB_WC(cs, pwc, s, e)  my_mb_wc_ucs2_quick(pwc, s, e)
+#define OPTIMIZE_ASCII           0
+#define UNICASE_MAXCHAR          MY_UNICASE_INFO_DEFAULT_MAXCHAR
+#define UNICASE_PAGE0            my_unicase_default_page00
+#define UNICASE_PAGES            my_unicase_default_pages
+#define WEIGHT_ILSEQ(x)          (0xFF0000 + (uchar) (x))
+#define WEIGHT_MB2(b0,b1)        my_weight_mb2_ucs2_general_ci(b0,b1)
 #include "strcoll.ic"
 
 
-#define MY_FUNCTION_NAME(x)    my_ ## x ## _ucs2_bin
-#define WEIGHT_ILSEQ(x)        (0xFF0000 + (uchar) (x))
-#define WEIGHT_MB2(b0,b1)      UCS2_CODE(b0,b1)
+#define MY_FUNCTION_NAME(x)      my_ ## x ## _ucs2_bin
+#define DEFINE_STRNXFRM_UNICODE_BIN2
+#define MY_MB_WC(cs, pwc, s, e)  my_mb_wc_ucs2_quick(pwc, s, e)
+#define OPTIMIZE_ASCII           0
+#define WEIGHT_ILSEQ(x)          (0xFF0000 + (uchar) (x))
+#define WEIGHT_MB2(b0,b1)        UCS2_CODE(b0,b1)
 #include "strcoll.ic"
 
 
@@ -3037,11 +3016,7 @@ my_charlen_ucs2(CHARSET_INFO *cs __attribute__((unused)),
 static int my_ucs2_uni(CHARSET_INFO *cs __attribute__((unused)),
 		       my_wc_t * pwc, const uchar *s, const uchar *e)
 {
-  if (s+2 > e) /* Need 2 characters */
-    return MY_CS_TOOSMALL2;
-  
-  *pwc= ((uchar)s[0]) * 256  + ((uchar)s[1]);
-  return 2;
+  return my_mb_wc_ucs2_quick(pwc, s, e);
 }
 
 static int my_uni_ucs2(CHARSET_INFO *cs __attribute__((unused)) ,
@@ -3280,7 +3255,7 @@ static MY_COLLATION_HANDLER my_collation_ucs2_general_ci_handler =
     NULL,		/* init */
     my_strnncoll_ucs2_general_ci,
     my_strnncollsp_ucs2_general_ci,
-    my_strnxfrm_unicode,
+    my_strnxfrm_ucs2_general_ci,
     my_strnxfrmlen_unicode,
     my_like_range_generic,
     my_wildcmp_ucs2_ci,
@@ -3296,7 +3271,7 @@ static MY_COLLATION_HANDLER my_collation_ucs2_bin_handler =
     NULL,		/* init */
     my_strnncoll_ucs2_bin,
     my_strnncollsp_ucs2_bin,
-    my_strnxfrm_unicode,
+    my_strnxfrm_ucs2_bin,
     my_strnxfrmlen_unicode,
     my_like_range_generic,
     my_wildcmp_ucs2_bin,
@@ -3312,7 +3287,7 @@ static MY_COLLATION_HANDLER my_collation_ucs2_general_nopad_ci_handler =
     NULL,		/* init */
     my_strnncoll_ucs2_general_ci,
     my_strnncollsp_ucs2_general_nopad_ci,
-    my_strnxfrm_unicode_nopad,
+    my_strnxfrm_nopad_ucs2_general_ci,
     my_strnxfrmlen_unicode,
     my_like_range_generic,
     my_wildcmp_ucs2_ci,
@@ -3328,7 +3303,7 @@ static MY_COLLATION_HANDLER my_collation_ucs2_nopad_bin_handler =
     NULL,		/* init */
     my_strnncoll_ucs2_bin,
     my_strnncollsp_ucs2_nopad_bin,
-    my_strnxfrm_unicode_nopad,
+    my_strnxfrm_nopad_ucs2_bin,
     my_strnxfrmlen_unicode,
     my_like_range_generic,
     my_wildcmp_ucs2_bin,

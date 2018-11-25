@@ -217,7 +217,7 @@ btr_rec_free_externally_stored_fields(
 btr_latch_leaves_t
 btr_cur_latch_leaves(
 	buf_block_t*		block,
-	const page_id_t&	page_id,
+	const page_id_t		page_id,
 	const page_size_t&	page_size,
 	ulint			latch_mode,
 	btr_cur_t*		cursor,
@@ -392,27 +392,32 @@ when loading a table definition.
 @return	error code
 @retval	DB_SUCCESS	if no error occurred
 @retval	DB_CORRUPTION	if any corruption was noticed */
-static
-dberr_t
-btr_cur_instant_init_low(dict_index_t* index, mtr_t* mtr)
+static dberr_t btr_cur_instant_init_low(dict_index_t* index, mtr_t* mtr)
 {
 	ut_ad(index->is_primary());
 	ut_ad(index->n_core_null_bytes == dict_index_t::NO_CORE_NULL_BYTES);
 	ut_ad(index->table->supports_instant());
 	ut_ad(index->table->is_readable());
 
-	page_t* root = btr_root_get(index, mtr);
-
-	if (!root || btr_cur_instant_root_init(index, root)) {
+	const fil_space_t* space = index->table->space;
+	if (!space) {
+unreadable:
 		ib::error() << "Table " << index->table->name
 			    << " has an unreadable root page";
 		index->table->corrupted = true;
 		return DB_CORRUPTION;
 	}
 
+	page_t* root = btr_root_get(index, mtr);
+
+	if (!root || btr_cur_instant_root_init(index, root)) {
+		goto unreadable;
+	}
+
 	ut_ad(index->n_core_null_bytes != dict_index_t::NO_CORE_NULL_BYTES);
 
-	if (!index->is_instant()) {
+	if (fil_page_get_type(root) == FIL_PAGE_INDEX) {
+		ut_ad(!index->is_instant());
 		return DB_SUCCESS;
 	}
 
@@ -430,26 +435,35 @@ btr_cur_instant_init_low(dict_index_t* index, mtr_t* mtr)
 	page_cur_move_to_next(&cur.page_cur);
 
 	const rec_t* rec = cur.page_cur.rec;
+	const ulint comp = dict_table_is_comp(index->table);
+	const ulint info_bits = rec_get_info_bits(rec, comp);
 
-	if (page_rec_is_supremum(rec) || !rec_is_metadata(rec, index)) {
+	if (page_rec_is_supremum(rec)
+	    || !(info_bits & REC_INFO_MIN_REC_FLAG)) {
+		if (!index->is_instant()) {
+			/* The FIL_PAGE_TYPE_INSTANT and PAGE_INSTANT may be
+			assigned even if instant ADD COLUMN was not
+			committed. Changes to these page header fields are not
+			undo-logged, but changes to the hidden metadata record
+			are. If the server is killed and restarted, the page
+			header fields could remain set even though no metadata
+			record is present. */
+			return DB_SUCCESS;
+		}
+
 		ib::error() << "Table " << index->table->name
 			    << " is missing instant ALTER metadata";
 		index->table->corrupted = true;
 		return DB_CORRUPTION;
 	}
 
-	if (dict_table_is_comp(index->table)) {
-		if (rec_get_info_bits(rec, true) != REC_INFO_MIN_REC_FLAG
-		    && rec_get_status(rec) != REC_STATUS_COLUMNS_ADDED) {
+	if ((info_bits & ~REC_INFO_DELETED_FLAG) != REC_INFO_MIN_REC_FLAG
+	    || (comp && rec_get_status(rec) != REC_STATUS_INSTANT)) {
 incompatible:
-			ib::error() << "Table " << index->table->name
-				<< " contains unrecognizable "
-				"instant ALTER metadata";
-			index->table->corrupted = true;
-			return DB_CORRUPTION;
-		}
-	} else if (rec_get_info_bits(rec, false) != REC_INFO_MIN_REC_FLAG) {
-		goto incompatible;
+		ib::error() << "Table " << index->table->name
+			<< " contains unrecognizable instant ALTER metadata";
+		index->table->corrupted = true;
+		return DB_CORRUPTION;
 	}
 
 	/* Read the metadata. We can get here on server restart
@@ -461,6 +475,72 @@ incompatible:
 	MDL_EXCLUSIVE and LOCK_X|LOCK_TABLE, which would prevent any
 	concurrent operations on the table, including table eviction
 	from the cache. */
+
+	if (info_bits & REC_INFO_DELETED_FLAG) {
+		/* This metadata record includes a BLOB that identifies
+		any dropped or reordered columns. */
+		ulint trx_id_offset = index->trx_id_offset;
+		if (!trx_id_offset) {
+			/* The PRIMARY KEY contains variable-length columns.
+			For the metadata record, variable-length columns are
+			always written with zero length. The DB_TRX_ID will
+			start right after any fixed-length columns. */
+			for (uint i = index->n_uniq; i--; ) {
+				trx_id_offset += index->fields[0].fixed_len;
+			}
+		}
+
+		const byte* ptr = rec + trx_id_offset
+			+ (DATA_TRX_ID_LEN + DATA_ROLL_PTR_LEN);
+
+		if (mach_read_from_4(ptr + BTR_EXTERN_LEN)) {
+			goto incompatible;
+		}
+
+		uint len = mach_read_from_4(ptr + BTR_EXTERN_LEN + 4);
+		if (!len
+		    || mach_read_from_4(ptr + BTR_EXTERN_OFFSET)
+		    != FIL_PAGE_DATA
+		    || mach_read_from_4(ptr + BTR_EXTERN_SPACE_ID)
+		    != space->id) {
+			goto incompatible;
+		}
+
+		buf_block_t* block = buf_page_get(
+			page_id_t(space->id,
+				  mach_read_from_4(ptr + BTR_EXTERN_PAGE_NO)),
+			univ_page_size, RW_S_LATCH, mtr);
+		buf_block_dbg_add_level(block, SYNC_EXTERN_STORAGE);
+		if (fil_page_get_type(block->frame) != FIL_PAGE_TYPE_BLOB
+		    || mach_read_from_4(&block->frame[FIL_PAGE_DATA
+						      + BTR_BLOB_HDR_NEXT_PAGE_NO])
+		    != FIL_NULL
+		    || mach_read_from_4(&block->frame[FIL_PAGE_DATA
+						      + BTR_BLOB_HDR_PART_LEN])
+		    != len) {
+			goto incompatible;
+		}
+
+		/* The unused part of the BLOB page should be zero-filled. */
+		for (const byte* b = block->frame
+		       + (FIL_PAGE_DATA + BTR_BLOB_HDR_SIZE) + len,
+		       * const end = block->frame + srv_page_size
+		       - BTR_EXTERN_LEN;
+		     b < end; ) {
+			if (*b++) {
+				goto incompatible;
+			}
+		}
+
+		if (index->table->deserialise_columns(
+			    &block->frame[FIL_PAGE_DATA + BTR_BLOB_HDR_SIZE],
+			    len)) {
+			goto incompatible;
+		}
+
+		/* Proceed to initialize the default values of
+		any instantly added columns. */
+	}
 
 	mem_heap_t* heap = NULL;
 	ulint* offsets = rec_get_offsets(rec, index, NULL, true,
@@ -475,7 +555,8 @@ inconsistent:
 	record, it is also OK to perform READ UNCOMMITTED and
 	then ignore any extra fields, provided that
 	trx_sys.is_registered(DB_TRX_ID). */
-	if (rec_offs_n_fields(offsets) > index->n_fields
+	if (rec_offs_n_fields(offsets)
+	    > ulint(index->n_fields) + !!index->table->instant
 	    && !trx_sys.is_registered(current_trx(),
 				      row_get_rec_trx_id(rec, index,
 							 offsets))) {
@@ -483,10 +564,11 @@ inconsistent:
 	}
 
 	for (unsigned i = index->n_core_fields; i < index->n_fields; i++) {
-		ulint len;
-		const byte* data = rec_get_nth_field(rec, offsets, i, &len);
 		dict_col_t* col = index->fields[i].col;
-		ut_ad(!col->is_instant());
+		const unsigned o = i + !!index->table->instant;
+		ulint len;
+		const byte* data = rec_get_nth_field(rec, offsets, o, &len);
+		ut_ad(!col->is_added());
 		ut_ad(!col->def_val.data);
 		col->def_val.len = len;
 		switch (len) {
@@ -497,7 +579,7 @@ inconsistent:
 			continue;
 		}
 		ut_ad(len != UNIV_SQL_DEFAULT);
-		if (!rec_offs_nth_extern(offsets, i)) {
+		if (!rec_offs_nth_extern(offsets, o)) {
 			col->def_val.data = mem_heap_dup(
 				index->table->heap, data, len);
 		} else if (len < BTR_EXTERN_FIELD_REF_SIZE
@@ -541,8 +623,7 @@ index root page.
 @param[in]	index	clustered index that is on its first access
 @param[in]	page	clustered index root page
 @return	whether the page is corrupted */
-bool
-btr_cur_instant_root_init(dict_index_t* index, const page_t* page)
+bool btr_cur_instant_root_init(dict_index_t* index, const page_t* page)
 {
 	ut_ad(page_is_root(page));
 	ut_ad(!page_is_comp(page) == !dict_table_is_comp(index->table));
@@ -573,23 +654,51 @@ btr_cur_instant_root_init(dict_index_t* index, const page_t* page)
 		break;
 	}
 
-	uint16_t n = page_get_instant(page);
-	if (n < index->n_uniq + DATA_ROLL_PTR || n > index->n_fields) {
+	const uint16_t n = page_get_instant(page);
+
+	if (n < index->n_uniq + DATA_ROLL_PTR) {
 		/* The PRIMARY KEY (or hidden DB_ROW_ID) and
 		DB_TRX_ID,DB_ROLL_PTR columns must always be present
-		as 'core' fields. All fields, including those for
-		instantly added columns, must be present in the data
-		dictionary. */
+		as 'core' fields. */
 		return true;
 	}
+
+	if (n > REC_MAX_N_FIELDS) {
+		return true;
+	}
+
 	index->n_core_fields = n;
-	ut_ad(!index->is_dummy);
-	ut_d(index->is_dummy = true);
-	index->n_core_null_bytes = n == index->n_fields
-		? UT_BITS_IN_BYTES(unsigned(index->n_nullable))
-		: UT_BITS_IN_BYTES(index->get_n_nullable(n));
-	ut_d(index->is_dummy = false);
-	return false;
+
+	const rec_t* infimum = page_get_infimum_rec(page);
+	const rec_t* supremum = page_get_supremum_rec(page);
+
+	if (!memcmp(infimum, "infimum", 8)
+	    && !memcmp(supremum, "supremum", 8)) {
+		if (n > index->n_fields) {
+			/* All fields, including those for instantly
+			added columns, must be present in the
+			data dictionary. */
+			return true;
+		}
+
+		ut_ad(!index->is_dummy);
+		ut_d(index->is_dummy = true);
+		index->n_core_null_bytes = UT_BITS_IN_BYTES(
+			index->get_n_nullable(n));
+		ut_d(index->is_dummy = false);
+		return false;
+	}
+
+	if (memcmp(infimum, field_ref_zero, 8)
+	    || memcmp(supremum, field_ref_zero, 7)) {
+		/* The infimum and supremum records must either contain
+		the original strings, or they must be filled with zero
+		bytes, except for the bytes that we have repurposed. */
+		return true;
+	}
+
+	index->n_core_null_bytes = supremum[7];
+	return index->n_core_null_bytes > 128;
 }
 
 /** Optimistically latches the leaf page or pages requested.
@@ -2270,9 +2379,10 @@ need_opposite_intention:
 			ut_ad(index->is_instant());
 			/* This may be a search tuple for
 			btr_pcur_restore_position(). */
-			ut_ad(tuple->info_bits == REC_INFO_METADATA
-			      || tuple->info_bits == REC_INFO_MIN_REC_FLAG);
-		} else if (rec_is_metadata(btr_cur_get_rec(cursor), index)) {
+			ut_ad(tuple->is_metadata()
+			      || (tuple->is_metadata(tuple->info_bits
+						     ^ REC_STATUS_INSTANT)));
+		} else if (rec_is_metadata(btr_cur_get_rec(cursor), *index)) {
 			/* Only user records belong in the adaptive
 			hash index. */
 		} else {
@@ -3235,12 +3345,17 @@ btr_cur_optimistic_insert(
 
 	leaf = page_is_leaf(page);
 
+	if (UNIV_UNLIKELY(entry->is_alter_metadata())) {
+		ut_ad(leaf);
+		goto convert_big_rec;
+	}
+
 	/* Calculate the record size when entry is converted to a record */
 	rec_size = rec_get_converted_size(index, entry, n_ext);
 
 	if (page_zip_rec_needs_ext(rec_size, page_is_comp(page),
 				   dtuple_get_n_fields(entry), page_size)) {
-
+convert_big_rec:
 		/* The record is so big that we have to store some fields
 		externally on separate database pages */
 		big_rec_vec = dtuple_convert_big_rec(index, 0, entry, &n_ext);
@@ -3411,7 +3526,7 @@ fail_err:
 	} else if (index->disable_ahi) {
 # endif
 	} else if (entry->info_bits & REC_INFO_MIN_REC_FLAG) {
-		ut_ad(entry->info_bits == REC_INFO_METADATA);
+		ut_ad(entry->is_metadata());
 		ut_ad(index->is_instant());
 		ut_ad(flags == BTR_NO_LOCKING_FLAG);
 	} else {
@@ -3619,7 +3734,7 @@ btr_cur_pessimistic_insert(
 		if (index->disable_ahi); else
 # endif
 		if (entry->info_bits & REC_INFO_MIN_REC_FLAG) {
-			ut_ad(entry->info_bits == REC_INFO_METADATA);
+			ut_ad(entry->is_metadata());
 			ut_ad(index->is_instant());
 			ut_ad((flags & ulint(~BTR_KEEP_IBUF_BITMAP))
 			      == BTR_NO_LOCKING_FLAG);
@@ -4118,13 +4233,11 @@ btr_cur_trim(
 	const que_thr_t*	thr)
 {
 	if (!index->is_instant()) {
-	} else if (UNIV_UNLIKELY(update->info_bits == REC_INFO_METADATA)) {
+	} else if (UNIV_UNLIKELY(update->is_metadata())) {
 		/* We are either updating a metadata record
-		(instantly adding columns to a table where instant ADD was
+		(instant ALTER TABLE on a table where instant ALTER was
 		already executed) or rolling back such an operation. */
 		ut_ad(!upd_get_nth_field(update, 0)->orig_len);
-		ut_ad(upd_get_nth_field(update, 0)->field_no
-		      > index->n_core_fields);
 
 		if (thr->graph->trx->in_rollback) {
 			/* This rollback can occur either as part of
@@ -4141,6 +4254,19 @@ btr_cur_trim(
 			first instantly added column logged by
 			innobase_add_instant_try(). */
 			ut_ad(update->n_fields > 2);
+			if (update->is_alter_metadata()) {
+				ut_ad(update->fields[0].field_no
+				      == index->first_user_field());
+				ut_ad(update->fields[0].new_val.ext);
+				ut_ad(update->fields[0].new_val.len
+				      == FIELD_REF_SIZE);
+				ut_ad(entry->n_fields - 1 == index->n_fields);
+				ulint n_fields = update->fields[1].field_no;
+				ut_ad(n_fields <= index->n_fields);
+				entry->n_fields = n_fields;
+				return;
+			}
+
 			ulint n_fields = upd_get_nth_field(update, 0)
 				->field_no;
 			ut_ad(n_fields + 1 >= entry->n_fields);
@@ -4226,9 +4352,7 @@ btr_cur_optimistic_update(
 	     || trx_is_recv(thr_get_trx(thr)));
 #endif /* UNIV_DEBUG || UNIV_BLOB_LIGHT_DEBUG */
 
-	const bool is_metadata = update->info_bits == REC_INFO_METADATA;
-
-	if (UNIV_LIKELY(!is_metadata)
+	if (UNIV_LIKELY(!update->is_metadata())
 	    && !row_upd_changes_field_size_or_external(index, *offsets,
 						       update)) {
 
@@ -4252,6 +4376,10 @@ any_extern:
 		btr_cur_prefetch_siblings(block);
 
 		return(DB_OVERFLOW);
+	}
+
+	if (rec_is_metadata(rec, *index) && index->table->instant) {
+		goto any_extern;
 	}
 
 	for (i = 0; i < upd_get_n_fields(update); i++) {
@@ -4312,10 +4440,10 @@ any_extern:
 	}
 
 	/* We limit max record size to 16k even for 64k page size. */
-  if (new_rec_size >= COMPRESSED_REC_MAX_DATA_SIZE ||
-      (!dict_table_is_comp(index->table)
-       && new_rec_size >= REDUNDANT_REC_MAX_DATA_SIZE)) {
-          err = DB_OVERFLOW;
+	if (new_rec_size >= COMPRESSED_REC_MAX_DATA_SIZE ||
+			(!dict_table_is_comp(index->table)
+			 && new_rec_size >= REDUNDANT_REC_MAX_DATA_SIZE)) {
+		err = DB_OVERFLOW;
 
 		goto func_exit;
 	}
@@ -4388,8 +4516,8 @@ any_extern:
 		lock_rec_store_on_page_infimum(block, rec);
 	}
 
-	if (UNIV_UNLIKELY(is_metadata)) {
-		ut_ad(new_entry->info_bits == REC_INFO_METADATA);
+	if (UNIV_UNLIKELY(update->is_metadata())) {
+		ut_ad(new_entry->is_metadata());
 		ut_ad(index->is_instant());
 		/* This can be innobase_add_instant_try() performing a
 		subsequent instant ADD COLUMN, or its rollback by
@@ -4415,7 +4543,7 @@ any_extern:
 		cursor, new_entry, offsets, heap, 0/*n_ext*/, mtr);
 	ut_a(rec); /* <- We calculated above the insert would fit */
 
-	if (UNIV_UNLIKELY(is_metadata)) {
+	if (UNIV_UNLIKELY(update->is_metadata())) {
 		/* We must empty the PAGE_FREE list, because if this
 		was a rollback, the shortened metadata record
 		would have too many fields, and we would be unable to
@@ -4609,8 +4737,25 @@ btr_cur_pessimistic_update(
 		rec, index, *offsets, page_is_leaf(page),
 		ULINT_UNDEFINED, offsets_heap);
 
-	dtuple_t*	new_entry = row_rec_to_index_entry(
-		rec, index, *offsets, &n_ext, entry_heap);
+	dtuple_t* new_entry;
+
+	const bool is_metadata = rec_is_metadata(rec, *index);
+
+	if (UNIV_UNLIKELY(is_metadata)) {
+		ut_ad(update->is_metadata());
+		ut_ad(flags & BTR_NO_LOCKING_FLAG);
+		ut_ad(index->is_instant());
+		new_entry = row_metadata_to_tuple(
+			rec, index, *offsets,
+			&n_ext, entry_heap,
+			update->info_bits, !thr_get_trx(thr)->in_rollback);
+		ut_ad(new_entry->n_fields
+		      == ulint(index->n_fields)
+		      + update->is_alter_metadata());
+	} else {
+		new_entry = row_rec_to_index_entry(rec, index, *offsets,
+						   &n_ext, entry_heap);
+	}
 
 	/* The page containing the clustered index record
 	corresponding to new_entry is latched in mtr.  If the
@@ -4621,9 +4766,6 @@ btr_cur_pessimistic_update(
 	row_upd_index_replace_new_col_vals_index_pos(new_entry, index, update,
 						     entry_heap);
 	btr_cur_trim(new_entry, index, update, thr);
-
-	const bool is_metadata = new_entry->info_bits
-		& REC_INFO_MIN_REC_FLAG;
 
 	/* We have to set appropriate extern storage bits in the new
 	record to be inserted: we have to remember which fields were such */
@@ -4652,11 +4794,14 @@ btr_cur_pessimistic_update(
 	}
 
 	if (page_zip_rec_needs_ext(
-			rec_get_converted_size(index, new_entry, n_ext),
-			page_is_comp(page),
-			dict_index_get_n_fields(index),
-			block->page.size)) {
-
+		    rec_get_converted_size(index, new_entry, n_ext),
+		    page_is_comp(page),
+		    dict_index_get_n_fields(index),
+		    block->page.size)
+	    || (UNIV_UNLIKELY(update->is_alter_metadata())
+		&& !dfield_is_ext(dtuple_get_nth_field(
+					  new_entry,
+					  index->first_user_field())))) {
 		big_rec_vec = dtuple_convert_big_rec(index, update, new_entry, &n_ext);
 		if (UNIV_UNLIKELY(big_rec_vec == NULL)) {
 
@@ -4717,10 +4862,10 @@ btr_cur_pessimistic_update(
 	}
 
 	if (UNIV_UNLIKELY(is_metadata)) {
-		ut_ad(new_entry->info_bits == REC_INFO_METADATA);
+		ut_ad(new_entry->is_metadata());
 		ut_ad(index->is_instant());
 		/* This can be innobase_add_instant_try() performing a
-		subsequent instant ADD COLUMN, or its rollback by
+		subsequent instant ALTER TABLE, or its rollback by
 		row_undo_mod_clust_low(). */
 		ut_ad(flags & BTR_NO_LOCKING_FLAG);
 	} else {
@@ -4769,7 +4914,8 @@ btr_cur_pessimistic_update(
 				btr_cur_get_block(cursor), rec, block);
 		}
 
-		if (!rec_get_deleted_flag(rec, rec_offs_comp(*offsets))) {
+		if (!rec_get_deleted_flag(rec, rec_offs_comp(*offsets))
+		    || rec_is_alter_metadata(rec, *index)) {
 			/* The new inserted record owns its possible externally
 			stored fields */
 			btr_cur_unmark_extern_fields(
@@ -5412,42 +5558,41 @@ btr_cur_optimistic_delete_func(
 	if (UNIV_UNLIKELY(page_is_root(block->frame)
 			  && page_get_n_recs(block->frame) == 1
 			  + (cursor->index->is_instant()
-			     && !rec_is_metadata(rec, cursor->index)))) {
+			     && !rec_is_metadata(rec, *cursor->index)))) {
 		/* The whole index (and table) becomes logically empty.
 		Empty the whole page. That is, if we are deleting the
 		only user record, also delete the metadata record
-		if one exists (it exists if and only if is_instant()).
+		if one exists for instant ADD COLUMN (not generic ALTER TABLE).
 		If we are deleting the metadata record and the
 		table becomes empty, clean up the whole page. */
 		dict_index_t* index = cursor->index;
+		const rec_t* first_rec = page_rec_get_next_const(
+			page_get_infimum_rec(block->frame));
 		ut_ad(!index->is_instant()
-		      || rec_is_metadata(
-			      page_rec_get_next_const(
-				      page_get_infimum_rec(block->frame)),
-			      index));
-		if (UNIV_UNLIKELY(rec_get_info_bits(rec, page_rec_is_comp(rec))
-				  & REC_INFO_MIN_REC_FLAG)) {
-			/* This should be rolling back instant ADD COLUMN.
-			If this is a recovered transaction, then
-			index->is_instant() will hold until the
-			insert into SYS_COLUMNS is rolled back. */
-			ut_ad(index->table->supports_instant());
-			ut_ad(index->is_primary());
-		} else {
-			lock_update_delete(block, rec);
+		      || rec_is_metadata(first_rec, *index));
+		const bool is_metadata = rec_is_metadata(rec, *index);
+		/* We can remove the metadata when rolling back an
+		instant ALTER TABLE operation, or when deleting the
+		last user record on the page such that only metadata for
+		instant ADD COLUMN (not generic ALTER TABLE) remains. */
+		const bool empty_table = is_metadata
+			|| !index->is_instant()
+			|| (first_rec != rec
+			    && rec_is_add_metadata(first_rec, *index));
+		if (UNIV_LIKELY(empty_table)) {
+			if (UNIV_LIKELY(!is_metadata)) {
+				lock_update_delete(block, rec);
+			}
+			btr_page_empty(block, buf_block_get_page_zip(block),
+				       index, 0, mtr);
+			if (index->is_instant()) {
+				/* MDEV-17383: free metadata BLOBs! */
+				index->clear_instant_alter();
+			}
+			page_cur_set_after_last(block,
+						btr_cur_get_page_cur(cursor));
+			return true;
 		}
-		btr_page_empty(block, buf_block_get_page_zip(block),
-			       index, 0, mtr);
-		page_cur_set_after_last(block, btr_cur_get_page_cur(cursor));
-
-		if (index->is_primary()) {
-			/* Concurrent access is prevented by
-			root_block->lock X-latch, so this should be
-			safe. */
-			index->remove_instant();
-		}
-
-		return true;
 	}
 
 	offsets = rec_get_offsets(rec, cursor->index, offsets, true,
@@ -5627,10 +5772,10 @@ btr_cur_pessimistic_delete(
 	}
 
 	if (page_is_leaf(page)) {
-		const bool is_metadata = rec_get_info_bits(
-			rec, page_rec_is_comp(rec)) & REC_INFO_MIN_REC_FLAG;
+		const bool is_metadata = rec_is_metadata(
+			rec, page_rec_is_comp(rec));
 		if (UNIV_UNLIKELY(is_metadata)) {
-			/* This should be rolling back instant ADD COLUMN.
+			/* This should be rolling back instant ALTER TABLE.
 			If this is a recovered transaction, then
 			index->is_instant() will hold until the
 			insert into SYS_COLUMNS is rolled back. */
@@ -5646,30 +5791,33 @@ btr_cur_pessimistic_delete(
 				goto discard_page;
 			}
 		} else if (page_get_n_recs(page) == 1
-			   + (index->is_instant()
-			      && !rec_is_metadata(rec, index))) {
+			   + (index->is_instant() && !is_metadata)) {
 			/* The whole index (and table) becomes logically empty.
 			Empty the whole page. That is, if we are deleting the
 			only user record, also delete the metadata record
-			if one exists (it exists if and only if is_instant()).
+			if one exists for instant ADD COLUMN
+			(not generic ALTER TABLE).
 			If we are deleting the metadata record and the
 			table becomes empty, clean up the whole page. */
+
+			const rec_t* first_rec = page_rec_get_next_const(
+				page_get_infimum_rec(page));
 			ut_ad(!index->is_instant()
-			      || rec_is_metadata(
-				      page_rec_get_next_const(
-					      page_get_infimum_rec(page)),
-					      index));
-			btr_page_empty(block, page_zip, index, 0, mtr);
-			page_cur_set_after_last(block,
-						btr_cur_get_page_cur(cursor));
-			if (index->is_primary()) {
-				/* Concurrent access is prevented by
-				index->lock and root_block->lock
-				X-latch, so this should be safe. */
-				index->remove_instant();
+			      || rec_is_metadata(first_rec, *index));
+			if (is_metadata || !index->is_instant()
+			    || (first_rec != rec
+				&& rec_is_add_metadata(first_rec, *index))) {
+				btr_page_empty(block, page_zip, index, 0, mtr);
+				if (index->is_instant()) {
+					/* MDEV-17383: free metadata BLOBs! */
+					index->clear_instant_alter();
+				}
+				page_cur_set_after_last(
+					block,
+					btr_cur_get_page_cur(cursor));
+				ret = TRUE;
+				goto return_after_reservations;
 			}
-			ret = TRUE;
-			goto return_after_reservations;
 		}
 
 		if (UNIV_LIKELY(!is_metadata)) {

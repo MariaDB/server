@@ -167,7 +167,7 @@ while ($_dt_tables)
   # the table to a file.
   --let $_dt_outfile= `SELECT @@datadir`
   --let $_dt_outfile= $_dt_outfile/diff_table-$_dt_connection-$_dt_database-$_dt_table
-  eval SELECT * FROM $_dt_database.$_dt_table ORDER BY `$_dt_column_list` INTO OUTFILE '$_dt_outfile';
+  eval SELECT * INTO OUTFILE '$_dt_outfile' FROM $_dt_database.$_dt_table ORDER BY `$_dt_column_list`;
 
   # Compare files.
   if ($_dt_prev_outfile)

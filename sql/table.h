@@ -720,6 +720,9 @@ struct TABLE_SHARE
   uint column_bitmap_size;
   uchar frm_version;
 
+  enum enum_v_keys { NOT_INITIALIZED=0, NO_V_KEYS, V_KEYS };
+  enum_v_keys check_set_initialized;
+
   bool use_ext_keys;                    /* Extended keys can be used */
   bool null_field_first;
   bool system;                          /* Set if system table (one record) */
@@ -731,7 +734,6 @@ struct TABLE_SHARE
   bool table_creation_was_logged;
   bool non_determinstic_insert;
   bool vcols_need_refixing;
-  bool check_set_initialized;
   bool has_update_default_function;
   bool can_do_row_logging;              /* 1 if table supports RBR */
 
@@ -1927,6 +1929,14 @@ struct TABLE_LIST
                              const LEX_CSTRING *alias_arg,
                              enum thr_lock_type lock_type_arg)
   {
+    enum enum_mdl_type mdl_type;
+    if (lock_type_arg >= TL_WRITE_ALLOW_WRITE)
+      mdl_type= MDL_SHARED_WRITE;
+    else if (lock_type_arg == TL_READ_NO_INSERT)
+      mdl_type= MDL_SHARED_NO_WRITE;
+    else
+      mdl_type= MDL_SHARED_READ;
+
     bzero((char*) this, sizeof(*this));
     DBUG_ASSERT(!db_arg->str || strlen(db_arg->str) == db_arg->length);
     DBUG_ASSERT(!table_name_arg->str || strlen(table_name_arg->str) == table_name_arg->length);
@@ -1935,9 +1945,7 @@ struct TABLE_LIST
     table_name= *table_name_arg;
     alias= (alias_arg ? *alias_arg : *table_name_arg);
     lock_type= lock_type_arg;
-    mdl_request.init(MDL_key::TABLE, db.str, table_name.str,
-                     (lock_type >= TL_WRITE_ALLOW_WRITE) ?
-                     MDL_SHARED_WRITE : MDL_SHARED_READ,
+    mdl_request.init(MDL_key::TABLE, db.str, table_name.str, mdl_type,
                      MDL_TRANSACTION);
   }
 
@@ -1972,6 +1980,7 @@ struct TABLE_LIST
     prev_global= *last_ptr;
     *last_ptr= &next_global;
   }
+
 
   /*
     List of tables local to a subquery (used by SQL_I_List). Considers
@@ -2584,6 +2593,16 @@ struct TABLE_LIST
     return false;
   } 
   void set_lock_type(THD* thd, enum thr_lock_type lock);
+
+  void remove_join_columns()
+  {
+    if (join_columns)
+    {
+      join_columns->empty();
+      join_columns= NULL;
+      is_join_columns_complete= FALSE;
+    }
+  }
 
 private:
   bool prep_check_option(THD *thd, uint8 check_opt_type);

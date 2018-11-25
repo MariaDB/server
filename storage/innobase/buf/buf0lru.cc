@@ -2160,7 +2160,8 @@ buf_LRU_block_free_hashed_page(
 	buf_page_mutex_enter(block);
 
 	if (buf_pool->flush_rbt == NULL) {
-		block->page.id.reset();
+		block->page.id
+		    = page_id_t(ULINT32_UNDEFINED, ULINT32_UNDEFINED);
 	}
 
 	buf_block_set_state(block, BUF_BLOCK_MEMORY);

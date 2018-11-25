@@ -824,7 +824,7 @@ btr_rec_set_deleted_flag(
 btr_latch_leaves_t
 btr_cur_latch_leaves(
 	buf_block_t*		block,
-	const page_id_t&	page_id,
+	const page_id_t		page_id,
 	const page_size_t&	page_size,
 	ulint			latch_mode,
 	btr_cur_t*		cursor,

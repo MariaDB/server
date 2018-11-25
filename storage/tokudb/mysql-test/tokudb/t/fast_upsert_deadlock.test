@@ -1,30 +1,32 @@
 source include/have_tokudb.inc;
 
-disable_warnings;
-drop table if exists t;
-enable_warnings;
+set tokudb_enable_fast_upsert=1;
+source ../include/setup_fast_update_upsert.inc;
 
-set default_storage_engine='tokudb';
-
-create table t (id bigint primary key, b bigint not null default 0);
+create table t (id bigint primary key, b bigint not null default 0)
+  engine = tokudb;
 
 connect (conn1,localhost,root,,);
+SET SESSION sql_mode=(SELECT REPLACE(@@sql_mode,'STRICT_TRANS_TABLES',''));
+SET SESSION sql_mode=(SELECT REPLACE(@@sql_mode,'STRICT_ALL_TABLES',''));
+
+set tokudb_enable_fast_upsert=1;
 
 connection default;
 begin;
-insert noar into t (id) values (1) on duplicate key update b=b+1;
+insert into t (id) values (1) on duplicate key update b=b+1;
 
 connection conn1;
 begin;
-insert noar into t (id) values (2) on duplicate key update b=b-1;
+insert into t (id) values (2) on duplicate key update b=b-1;
 
 connection default;
-send insert noar into t (id) values (2) on duplicate key update b=b+1;
+send insert into t (id) values (2) on duplicate key update b=b+1;
 
 connection conn1;
 sleep 1;
 error 1205,1213;
-insert noar into t (id) values (1) on duplicate key update b=b-1;
+insert into t (id) values (1) on duplicate key update b=b-1;
 rollback;
 
 connection default;

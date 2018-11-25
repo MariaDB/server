@@ -1,0 +1,188 @@
+--source include/have_tokudb.inc
+
+#
+# Create a table and get the underlying main ft file name
+#
+create table t1(id int auto_increment, name varchar(30), primary key(id)) engine=TokuDB;
+--let $ori_file= `select internal_file_name from information_schema.tokudb_file_map where table_schema='test' and table_name='t1' and table_dictionary_name='main'`
+
+#
+# Case 1: alter create options that are ignored by TokuDB
+#
+
+# Alter table with min_rows
+alter table t1 min_rows = 8;
+show create table t1;
+--let $new_file=`select internal_file_name from information_schema.tokudb_file_map where table_schema='test' and table_name='t1' and table_dictionary_name='main'`
+--let $assert_text= underlying ft file name not changed after alter min_rows
+--let $assert_cond= "$ori_file" = "$new_file"
+--source include/assert.inc
+
+# Alter table with max_rows
+alter table t1 max_rows = 100;
+show create table t1;
+--let $new_file=`select internal_file_name from information_schema.tokudb_file_map where table_schema='test' and table_name='t1' and table_dictionary_name='main'`
+--let $assert_text= underlying ft file name not changed after alter max_rows
+--let $assert_cond= "$ori_file" = "$new_file"
+--source include/assert.inc
+
+# Alter table with avg_row_length
+alter table t1 avg_row_length = 100;
+show create table t1;
+--let $new_file=`select internal_file_name from information_schema.tokudb_file_map where table_schema='test' and table_name='t1' and table_dictionary_name='main'`
+--let $assert_text= underlying ft file name not changed after alter avg_row_length
+--let $assert_cond= "$ori_file" = "$new_file"
+--source include/assert.inc
+
+# Alter table with pack_keys
+alter table t1 pack_keys = 1;
+show create table t1;
+--let $new_file=`select internal_file_name from information_schema.tokudb_file_map where table_schema='test' and table_name='t1' and table_dictionary_name='main'`
+--let $assert_text= underlying ft file name not changed after alter pack_keys
+--let $assert_cond= "$ori_file" = "$new_file"
+--source include/assert.inc
+
+# Alter table with default character set
+alter table t1 character set = utf8;
+show create table t1;
+--let $new_file=`select internal_file_name from information_schema.tokudb_file_map where table_schema='test' and table_name='t1' and table_dictionary_name='main'`
+--let $assert_text= underlying ft file name not changed after alter character set
+--let $assert_cond= "$ori_file" = "$new_file"
+--source include/assert.inc
+
+# Alter table with data directory
+alter table t1 data directory = '/tmp';
+show create table t1;
+--let $new_file=`select internal_file_name from information_schema.tokudb_file_map where table_schema='test' and table_name='t1' and table_dictionary_name='main'`
+--let $assert_text= underlying ft file name not changed after alter data directory
+--let $assert_cond= "$ori_file" = "$new_file"
+--source include/assert.inc
+
+# Alter table with index directory
+alter table t1 index directory = '/tmp';
+show create table t1;
+--let $new_file=`select internal_file_name from information_schema.tokudb_file_map where table_schema='test' and table_name='t1' and table_dictionary_name='main'`
+--let $assert_text= underlying ft file name not changed after alter index directory
+--let $assert_cond= "$ori_file" = "$new_file"
+--source include/assert.inc
+
+# Alter table with checksum
+alter table t1 checksum = 1;
+show create table t1;
+--let $new_file=`select internal_file_name from information_schema.tokudb_file_map where table_schema='test' and table_name='t1' and table_dictionary_name='main'`
+--let $assert_text= underlying ft file name not changed after alter checksum
+--let $assert_cond= "$ori_file" = "$new_file"
+--source include/assert.inc
+
+# Alter table with delay_key_write
+alter table t1 delay_key_write=1;
+show create table t1;
+--let $new_file=`select internal_file_name from information_schema.tokudb_file_map where table_schema='test' and table_name='t1' and table_dictionary_name='main'`
+--let $assert_text= underlying ft file name not changed after alter delay_key_write
+--let $assert_cond= "$ori_file" = "$new_file"
+--source include/assert.inc
+
+# Alter table with comment
+alter table t1 comment = 'test table';
+show create table t1;
+--let $new_file=`select internal_file_name from information_schema.tokudb_file_map where table_schema='test' and table_name='t1' and table_dictionary_name='main'`
+--let $assert_text= underlying ft file name not changed after alter comment
+--let $assert_cond= "$ori_file" = "$new_file"
+--source include/assert.inc
+
+# Alter table with password
+alter table t1 password = '123456';
+show create table t1;
+--let $new_file=`select internal_file_name from information_schema.tokudb_file_map where table_schema='test' and table_name='t1' and table_dictionary_name='main'`
+--let $assert_text= underlying ft file name not changed after alter password
+--let $assert_cond= "$ori_file" = "$new_file"
+--source include/assert.inc
+
+# Alter table with connection
+alter table t1 connection = '127.0.0.1:3306';
+show create table t1;
+--let $new_file=`select internal_file_name from information_schema.tokudb_file_map where table_schema='test' and table_name='t1' and table_dictionary_name='main'`
+--let $assert_text= underlying ft file name not changed after alter connection
+--let $assert_cond= "$ori_file" = "$new_file"
+--source include/assert.inc
+
+
+#
+# In mariadb changing of key_block_size treated as index change
+#
+# Alter table with key_block_size
+#alter table t1 key_block_size=32;
+#show create table t1;
+#--let $new_file=`select internal_file_name from information_schema.tokudb_file_map where table_schema='test' and table_name='t1' and table_dictionary_name='main'`
+#--let $assert_text= underlying ft file name not changed after alter key_block_size
+#--let $assert_cond= "$ori_file" = "$new_file"
+#--source include/assert.inc
+
+# Alter table with stats_persistent
+alter table t1 stats_persistent = 1;
+show create table t1;
+--let $new_file=`select internal_file_name from information_schema.tokudb_file_map where table_schema='test' and table_name='t1' and table_dictionary_name='main'`
+--let $assert_text= underlying ft file name not changed after alter stats_persistent
+--let $assert_cond= "$ori_file" = "$new_file"
+--source include/assert.inc
+
+# Alter table with stats_auto_recalc
+alter table t1 stats_auto_recalc = 1;
+show create table t1;
+--let $new_file=`select internal_file_name from information_schema.tokudb_file_map where table_schema='test' and table_name='t1' and table_dictionary_name='main'`
+--let $assert_text= underlying ft file name not changed after alter stats_auto_recalc
+--let $assert_cond= "$ori_file" = "$new_file"
+--source include/assert.inc
+
+# Alter table with stats_sample_pages
+alter table t1 stats_sample_pages = 1;
+show create table t1;
+--let $new_file=`select internal_file_name from information_schema.tokudb_file_map where table_schema='test' and table_name='t1' and table_dictionary_name='main'`
+--let $assert_text= underlying ft file name not changed after alter stats_sample_pages
+--let $assert_cond= "$ori_file" = "$new_file"
+--source include/assert.inc
+
+#
+# Case 2: alter create options that only update meta info, i.e inplace
+#
+
+# Alter table with auto_increment
+alter table t1 auto_increment = 1000;
+show create table t1;
+--let $new_file=`select internal_file_name from information_schema.tokudb_file_map where table_schema='test' and table_name='t1' and table_dictionary_name='main'`
+--let $assert_text= underlying ft file name not changed after alter auto_increment
+--let $assert_cond= "$ori_file" = "$new_file"
+--source include/assert.inc
+
+# Alter table with compression method
+alter table t1 compression=tokudb_lzma;
+show create table t1;
+--let $new_file=`select internal_file_name from information_schema.tokudb_file_map where table_schema='test' and table_name='t1' and table_dictionary_name='main'`
+--let $assert_text= underlying ft file name not changed after alter compression method
+--let $assert_cond= "$ori_file" = "$new_file"
+--source include/assert.inc
+
+#
+# Case 3: alter create options that rebuild table using copy algorithm
+#
+
+# Alter table with engine type
+alter table t1 engine=TokuDB;
+show create table t1;
+--let $new_file=`select internal_file_name from information_schema.tokudb_file_map where table_schema='test' and table_name='t1' and table_dictionary_name='main'`
+--let $assert_text= underlying ft file name changed after alter engine type
+--let $assert_cond= "$ori_file" != "$new_file"
+--source include/assert.inc
+
+# Alter table with convert character
+alter table t1 convert to character set utf8;
+show create table t1;
+--let $new_file=`select internal_file_name from information_schema.tokudb_file_map where table_schema='test' and table_name='t1' and table_dictionary_name='main'`
+--let $assert_text= underlying ft file name changed after alter convert character
+--let $assert_cond= "$ori_file" != "$new_file"
+--source include/assert.inc
+
+#
+# clean up
+#
+drop table t1;

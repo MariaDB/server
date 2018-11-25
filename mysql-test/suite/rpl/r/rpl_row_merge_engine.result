@@ -10,30 +10,14 @@ ALTER TABLE tt1_merge ENGINE=MERGE UNION (t2, t1);
 CREATE TABLE t1_merge LIKE tt1_merge;
 connection slave;
 include/diff_tables.inc [master:test.t1, slave:test.t1]
-Warnings:
-Warning	1287	'<select expression> INTO <destination>;' is deprecated and will be removed in a future release. Please use 'SELECT <select list> INTO <destination> FROM...' instead
-Warnings:
-Warning	1287	'<select expression> INTO <destination>;' is deprecated and will be removed in a future release. Please use 'SELECT <select list> INTO <destination> FROM...' instead
 include/diff_tables.inc [master:test.t2, slave:test.t2]
-Warnings:
-Warning	1287	'<select expression> INTO <destination>;' is deprecated and will be removed in a future release. Please use 'SELECT <select list> INTO <destination> FROM...' instead
-Warnings:
-Warning	1287	'<select expression> INTO <destination>;' is deprecated and will be removed in a future release. Please use 'SELECT <select list> INTO <destination> FROM...' instead
 connection master;
 UPDATE t1_merge SET a=10 WHERE a=1;
 DELETE FROM t1_merge WHERE a=10;
 connection slave;
 connection master;
 include/diff_tables.inc [master:test.t1, slave:test.t1]
-Warnings:
-Warning	1287	'<select expression> INTO <destination>;' is deprecated and will be removed in a future release. Please use 'SELECT <select list> INTO <destination> FROM...' instead
-Warnings:
-Warning	1287	'<select expression> INTO <destination>;' is deprecated and will be removed in a future release. Please use 'SELECT <select list> INTO <destination> FROM...' instead
 include/diff_tables.inc [master:test.t2, slave:test.t2]
-Warnings:
-Warning	1287	'<select expression> INTO <destination>;' is deprecated and will be removed in a future release. Please use 'SELECT <select list> INTO <destination> FROM...' instead
-Warnings:
-Warning	1287	'<select expression> INTO <destination>;' is deprecated and will be removed in a future release. Please use 'SELECT <select list> INTO <destination> FROM...' instead
 DROP TABLE t1_merge, t1, t2;
 connection slave;
 include/rpl_end.inc

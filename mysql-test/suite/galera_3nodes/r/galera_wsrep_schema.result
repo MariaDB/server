@@ -7,6 +7,7 @@ cluster	CREATE TABLE `cluster` (
   `view_id` bigint(20) NOT NULL,
   `view_seqno` bigint(20) NOT NULL,
   `protocol_version` int(11) NOT NULL,
+  `capabilities` int(11) NOT NULL,
   PRIMARY KEY (`cluster_uuid`)
 ) ENGINE=InnoDB DEFAULT CHARSET=latin1
 SHOW CREATE TABLE wsrep_schema.members;

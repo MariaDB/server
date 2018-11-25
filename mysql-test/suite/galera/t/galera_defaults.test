@@ -13,7 +13,7 @@
 
 # Make sure that the test is operating on the right version of galera library.
 --disable_query_log
---let $galera_version=3.20
+--let $galera_version=25.3.20
 source ../wsrep/include/check_galera_version.inc;
 --enable_query_log
 
@@ -61,14 +61,3 @@ ORDER BY VARIABLE_NAME;
 	$wsrep_provider_options =~ s/repl.proto_max = .*?;\s*/<REPL_PROTO_MAX>;/sgio;
 	print $wsrep_provider_options."\n";
 EOF
-
-# Global Status
-
-SELECT COUNT(*) FROM INFORMATION_SCHEMA.GLOBAL_STATUS
-WHERE VARIABLE_NAME LIKE 'wsrep_%'
-AND VARIABLE_NAME != 'wsrep_debug_sync_waiters';
-
-SELECT VARIABLE_NAME FROM INFORMATION_SCHEMA.GLOBAL_STATUS
-WHERE VARIABLE_NAME LIKE 'wsrep_%'
-AND VARIABLE_NAME != 'wsrep_debug_sync_waiters'
-ORDER BY VARIABLE_NAME;

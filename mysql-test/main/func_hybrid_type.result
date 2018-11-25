@@ -3774,8 +3774,8 @@ LEAST(20010001,TIMESTAMP'2001-01-01 00:00:00') AS i4;
 Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
 def					s1	10	10	0	Y	128	0	63
 def					s2	10	10	0	Y	128	0	63
-def					s3	12	26	0	Y	128	6	63
-def					s4	12	26	0	Y	128	6	63
+def					s3	12	26	0	Y	128	0	63
+def					s4	12	26	0	Y	128	0	63
 def					i1	10	10	0	Y	128	0	63
 def					i2	10	10	0	Y	128	0	63
 def					i3	12	19	0	Y	128	0	63
@@ -3818,8 +3818,8 @@ Table	Create Table
 t1	CREATE TABLE `t1` (
   `s1` date DEFAULT NULL,
   `s2` date DEFAULT NULL,
-  `s3` datetime(6) DEFAULT NULL,
-  `s4` datetime(6) DEFAULT NULL,
+  `s3` datetime DEFAULT NULL,
+  `s4` datetime DEFAULT NULL,
   `i1` date DEFAULT NULL,
   `i2` date DEFAULT NULL,
   `i3` datetime DEFAULT NULL,

@@ -223,86 +223,46 @@ public:
 	@param[in]	space	tablespace id
 	@param[in]	page_no	page number */
 	page_id_t(ulint space, ulint page_no)
-		:
-		m_space(static_cast<ib_uint32_t>(space)),
-		m_page_no(static_cast<ib_uint32_t>(page_no)),
-		m_fold(ULINT_UNDEFINED)
+		: m_space(uint32_t(space)), m_page_no(uint32(page_no))
 	{
 		ut_ad(space <= 0xFFFFFFFFU);
 		ut_ad(page_no <= 0xFFFFFFFFU);
 	}
 
+	bool operator==(const page_id_t& rhs) const
+	{
+		return m_space == rhs.m_space && m_page_no == rhs.m_page_no;
+	}
+	bool operator!=(const page_id_t& rhs) const { return !(*this == rhs); }
+
 	/** Retrieve the tablespace id.
 	@return tablespace id */
-	inline ib_uint32_t space() const
-	{
-		return(m_space);
-	}
+	uint32_t space() const { return m_space; }
 
 	/** Retrieve the page number.
 	@return page number */
-	inline ib_uint32_t page_no() const
-	{
-		return(m_page_no);
-	}
+	uint32_t page_no() const { return m_page_no; }
 
 	/** Retrieve the fold value.
 	@return fold value */
-	inline ulint fold() const
-	{
-		/* Initialize m_fold if it has not been initialized yet. */
-		if (m_fold == ULINT_UNDEFINED) {
-			m_fold = (m_space << 20) + m_space + m_page_no;
-			ut_ad(m_fold != ULINT_UNDEFINED);
-		}
-
-		return(m_fold);
-	}
-
-	/** Copy the values from a given page_id_t object.
-	@param[in]	src	page id object whose values to fetch */
-	inline void copy_from(const page_id_t& src)
-	{
-		m_space = src.space();
-		m_page_no = src.page_no();
-		m_fold = src.fold();
-	}
-
-	/** Reset the object. */
-	void reset() { m_space= ~0U; m_page_no= ~0U; m_fold= ULINT_UNDEFINED; }
+	ulint fold() const { return (m_space << 20) + m_space + m_page_no; }
 
 	/** Reset the page number only.
 	@param[in]	page_no	page number */
 	inline void set_page_no(ulint page_no)
 	{
-		m_page_no = static_cast<ib_uint32_t>(page_no);
-		m_fold = ULINT_UNDEFINED;
+		m_page_no = uint32_t(page_no);
 
 		ut_ad(page_no <= 0xFFFFFFFFU);
-	}
-
-	/** Check if a given page_id_t object is equal to the current one.
-	@param[in]	a	page_id_t object to compare
-	@return true if equal */
-	inline bool equals_to(const page_id_t& a) const
-	{
-		return(a.space() == m_space && a.page_no() == m_page_no);
 	}
 
 private:
 
 	/** Tablespace id. */
-	ib_uint32_t	m_space;
+	uint32_t	m_space;
 
 	/** Page number. */
-	ib_uint32_t	m_page_no;
-
-	/** A fold value derived from m_space and m_page_no,
-	used in hashing. */
-	mutable ulint	m_fold;
-
-	/* Disable implicit copying. */
-	void operator=(const page_id_t&);
+	uint32_t	m_page_no;
 
 	/** Declare the overloaded global operator<< as a friend of this
 	class. Refer to the global declaration for further details.  Print
@@ -314,7 +274,7 @@ private:
         std::ostream&
         operator<<(
                 std::ostream&           out,
-                const page_id_t&        page_id);
+                const page_id_t        page_id);
 };
 
 /** Print the given page_id_t object.
@@ -324,7 +284,7 @@ private:
 std::ostream&
 operator<<(
 	std::ostream&		out,
-	const page_id_t&	page_id);
+	const page_id_t		page_id);
 
 #ifndef UNIV_INNOCHECKSUM
 /********************************************************************//**
@@ -507,7 +467,7 @@ Suitable for using when holding the lock_sys_t::mutex.
 @return pointer to a page or NULL */
 buf_block_t*
 buf_page_try_get_func(
-	const page_id_t&	page_id,
+	const page_id_t		page_id,
 	const char*		file,
 	unsigned		line,
 	mtr_t*			mtr);
@@ -533,7 +493,7 @@ the same set of mutexes or latches.
 @return pointer to the block */
 buf_page_t*
 buf_page_get_zip(
-	const page_id_t&	page_id,
+	const page_id_t		page_id,
 	const page_size_t&	page_size);
 
 /** This is the general function used to get access to a database page.
@@ -549,7 +509,7 @@ BUF_PEEK_IF_IN_POOL, BUF_GET_NO_LATCH, or BUF_GET_IF_IN_POOL_OR_WATCH
 @return pointer to the block or NULL */
 buf_block_t*
 buf_page_get_gen(
-	const page_id_t&	page_id,
+	const page_id_t		page_id,
 	const page_size_t&	page_size,
 	ulint			rw_latch,
 	buf_block_t*		guess,
@@ -569,7 +529,7 @@ FILE_PAGE (the other is buf_page_get_gen).
 @return pointer to the block, page bufferfixed */
 buf_block_t*
 buf_page_create(
-	const page_id_t&	page_id,
+	const page_id_t		page_id,
 	const page_size_t&	page_size,
 	mtr_t*			mtr);
 
@@ -603,10 +563,7 @@ NOTE that it is possible that the page is not yet read from disk,
 though.
 @param[in]	page_id	page id
 @return TRUE if found in the page hash table */
-UNIV_INLINE
-ibool
-buf_page_peek(
-	const page_id_t&	page_id);
+inline bool buf_page_peek(const page_id_t page_id);
 
 #ifdef UNIV_DEBUG
 
@@ -616,9 +573,7 @@ debug version to check that it is not accessed any more unless
 reallocated.
 @param[in]	page_id	page id
 @return control block if found in page hash table, otherwise NULL */
-buf_page_t*
-buf_page_set_file_page_was_freed(
-	const page_id_t&	page_id);
+buf_page_t* buf_page_set_file_page_was_freed(const page_id_t page_id);
 
 /** Sets file_page_was_freed FALSE if the page is found in the buffer pool.
 This function should be called when we free a file page and want the
@@ -626,9 +581,7 @@ debug version to check that it is not accessed any more unless
 reallocated.
 @param[in]	page_id	page id
 @return control block if found in page hash table, otherwise NULL */
-buf_page_t*
-buf_page_reset_file_page_was_freed(
-	const page_id_t&	page_id);
+buf_page_t* buf_page_reset_file_page_was_freed(const page_id_t page_id);
 
 #endif /* UNIV_DEBUG */
 /********************************************************************//**
@@ -1076,7 +1029,7 @@ UNIV_INLINE
 void
 buf_block_set_file_page(
 	buf_block_t*		block,
-	const page_id_t&	page_id);
+	const page_id_t		page_id);
 
 /*********************************************************************//**
 Gets the io_fix state of a block.
@@ -1257,7 +1210,7 @@ buf_page_t*
 buf_page_init_for_read(
 	dberr_t*		err,
 	ulint			mode,
-	const page_id_t&	page_id,
+	const page_id_t		page_id,
 	const page_size_t&	page_size,
 	bool			unzip);
 
@@ -1305,10 +1258,7 @@ buf_pool_from_block(
 /** Returns the buffer pool instance given a page id.
 @param[in]	page_id	page id
 @return buffer pool */
-UNIV_INLINE
-buf_pool_t*
-buf_pool_get(
-	const page_id_t&	page_id);
+inline buf_pool_t* buf_pool_get(const page_id_t page_id);
 
 /******************************************************************//**
 Returns the buffer pool instance given its array index
@@ -1328,7 +1278,7 @@ UNIV_INLINE
 buf_page_t*
 buf_page_hash_get_low(
 	buf_pool_t*		buf_pool,
-	const page_id_t&	page_id);
+	const page_id_t		page_id);
 
 /** Returns the control block of a file page, NULL if not found.
 If the block is found and lock is not NULL then the appropriate
@@ -1350,7 +1300,7 @@ UNIV_INLINE
 buf_page_t*
 buf_page_hash_get_locked(
 	buf_pool_t*		buf_pool,
-	const page_id_t&	page_id,
+	const page_id_t		page_id,
 	rw_lock_t**		lock,
 	ulint			lock_mode,
 	bool			watch = false);
@@ -1373,7 +1323,7 @@ UNIV_INLINE
 buf_block_t*
 buf_block_hash_get_locked(
 	buf_pool_t*		buf_pool,
-	const page_id_t&	page_id,
+	const page_id_t		page_id,
 	rw_lock_t**		lock,
 	ulint			lock_mode);
 
@@ -1413,18 +1363,14 @@ buf_pool_watch_is_sentinel(
 /** Stop watching if the page has been read in.
 buf_pool_watch_set(space,offset) must have returned NULL before.
 @param[in]	page_id	page id */
-void
-buf_pool_watch_unset(
-	const page_id_t&	page_id);
+void buf_pool_watch_unset(const page_id_t page_id);
 
 /** Check if the page has been read in.
 This may only be called after buf_pool_watch_set(space,offset)
 has returned NULL and before invoking buf_pool_watch_unset(space,offset).
 @param[in]	page_id	page id
 @return FALSE if the given page was not read in, TRUE if it was */
-ibool
-buf_pool_watch_occurred(
-	const page_id_t&	page_id)
+bool buf_pool_watch_occurred(const page_id_t page_id)
 MY_ATTRIBUTE((warn_unused_result));
 
 /********************************************************************//**

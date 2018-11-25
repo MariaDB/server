@@ -23,10 +23,6 @@ include/wait_for_slave_sql_error_and_skip.inc [errno=1590]
 Got one of the listed errors
 include/wait_for_slave_sql_error_and_skip.inc [errno=1590]
 include/diff_tables.inc [master:t1,slave:t1]
-Warnings:
-Warning	1287	'<select expression> INTO <destination>;' is deprecated and will be removed in a future release. Please use 'SELECT <select list> INTO <destination> FROM...' instead
-Warnings:
-Warning	1287	'<select expression> INTO <destination>;' is deprecated and will be removed in a future release. Please use 'SELECT <select list> INTO <destination> FROM...' instead
 ########################################################################################
 #                             2 - BEGIN - IMPLICIT COMMIT by DDL
 ########################################################################################
@@ -59,10 +55,6 @@ INSERT INTO t1 (a, data) VALUES (29, 's');;
 CREATE TABLE t5 (a int);
 connection slave;
 include/diff_tables.inc [master:t1,slave:t1]
-Warnings:
-Warning	1287	'<select expression> INTO <destination>;' is deprecated and will be removed in a future release. Please use 'SELECT <select list> INTO <destination> FROM...' instead
-Warnings:
-Warning	1287	'<select expression> INTO <destination>;' is deprecated and will be removed in a future release. Please use 'SELECT <select list> INTO <destination> FROM...' instead
 ########################################################################################
 #                                     3 - BEGIN - COMMIT
 ########################################################################################
@@ -77,10 +69,6 @@ Got one of the listed errors
 COMMIT;
 connection slave;
 include/diff_tables.inc [master:t1,slave:t1]
-Warnings:
-Warning	1287	'<select expression> INTO <destination>;' is deprecated and will be removed in a future release. Please use 'SELECT <select list> INTO <destination> FROM...' instead
-Warnings:
-Warning	1287	'<select expression> INTO <destination>;' is deprecated and will be removed in a future release. Please use 'SELECT <select list> INTO <destination> FROM...' instead
 ########################################################################################
 #                                      4 - BEGIN - ROLLBACK
 ########################################################################################
@@ -97,10 +85,6 @@ Warnings:
 Warning	1196	Some non-transactional changed tables couldn't be rolled back
 connection slave;
 include/diff_tables.inc [master:t1,slave:t1]
-Warnings:
-Warning	1287	'<select expression> INTO <destination>;' is deprecated and will be removed in a future release. Please use 'SELECT <select list> INTO <destination> FROM...' instead
-Warnings:
-Warning	1287	'<select expression> INTO <destination>;' is deprecated and will be removed in a future release. Please use 'SELECT <select list> INTO <destination> FROM...' instead
 ########################################################################################
 #                                         5 - PROCEDURE 
 ########################################################################################
@@ -127,10 +111,6 @@ Got one of the listed errors
 ROLLBACK;
 connection slave;
 include/diff_tables.inc [master:t1,slave:t1]
-Warnings:
-Warning	1287	'<select expression> INTO <destination>;' is deprecated and will be removed in a future release. Please use 'SELECT <select list> INTO <destination> FROM...' instead
-Warnings:
-Warning	1287	'<select expression> INTO <destination>;' is deprecated and will be removed in a future release. Please use 'SELECT <select list> INTO <destination> FROM...' instead
 ########################################################################################
 #                                           6 - XID
 ########################################################################################
@@ -151,10 +131,6 @@ Warning	1196	Some non-transactional changed tables couldn't be rolled back
 COMMIT;
 connection slave;
 include/diff_tables.inc [master:t1,slave:t1]
-Warnings:
-Warning	1287	'<select expression> INTO <destination>;' is deprecated and will be removed in a future release. Please use 'SELECT <select list> INTO <destination> FROM...' instead
-Warnings:
-Warning	1287	'<select expression> INTO <destination>;' is deprecated and will be removed in a future release. Please use 'SELECT <select list> INTO <destination> FROM...' instead
 ########################################################################################
 #                                        7 - NON-TRANS TABLE
 ########################################################################################
@@ -176,10 +152,6 @@ Got one of the listed errors
 COMMIT;
 connection slave;
 include/diff_tables.inc [master:t1,slave:t1]
-Warnings:
-Warning	1287	'<select expression> INTO <destination>;' is deprecated and will be removed in a future release. Please use 'SELECT <select list> INTO <destination> FROM...' instead
-Warnings:
-Warning	1287	'<select expression> INTO <destination>;' is deprecated and will be removed in a future release. Please use 'SELECT <select list> INTO <destination> FROM...' instead
 ########################################################################
 #      8 - Bug#55375(Regression Bug) Transaction bigger than
 #          max_binlog_cache_size crashes slave

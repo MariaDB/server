@@ -6570,7 +6570,7 @@ ER_ACCESS_DENIED_NO_PASSWORD_ERROR 28000
         ukr "Доступ заборонено для користувача: '%s'@'%s'"
 
 ER_SET_PASSWORD_AUTH_PLUGIN
-        eng "SET PASSWORD has no significance for users authenticating via plugins"
+        eng "SET PASSWORD is ignored for users authenticating via %s plugin"
 
 ER_GRANT_PLUGIN_USER_EXISTS
         eng "GRANT with IDENTIFIED WITH is illegal because the user %-.*s already exists"

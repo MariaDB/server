@@ -650,7 +650,17 @@
    </Feature>
    
    <?endif ?>
-   
+
+   <?if "@VCRedist_MSM@" != "" ?>
+   <!-- VC runtime merge module -->
+   <DirectoryRef Id="TARGETDIR">
+    <Merge Id="VCRedist" SourceFile="@VCRedist_MSM@" DiskId="1" Language="0"/>
+   </DirectoryRef>
+   <Feature Id="VCRedist" Title="Visual C++ Runtime" AllowAdvertise="no" Display="hidden" Level="1">
+    <MergeRef Id="VCRedist"/>
+   </Feature>
+   <?endif?>
+
     <!--  Custom action, call mysql_install_db  -->
     <SetProperty  Sequence='execute'  Before='CreateDatabaseCommand' Id="SKIPNETWORKING"  Value="--skip-networking" >SKIPNETWORKING</SetProperty>
     <SetProperty Sequence='execute'  Before='CreateDatabaseCommand'  Id="ALLOWREMOTEROOTACCESS" Value="--allow-remote-root-access">ALLOWREMOTEROOTACCESS</SetProperty>

@@ -50,7 +50,6 @@
 #include "lf.h"
 #include "table.h"
 #include "sql_base.h"
-#include "sql_statistics.h"
 
 
 /** Configuration. */
@@ -464,6 +463,7 @@ void tc_release_table(TABLE *table)
   DBUG_ENTER("tc_release_table");
   DBUG_ASSERT(table->in_use);
   DBUG_ASSERT(table->file);
+  DBUG_ASSERT(!table->pos_in_locked_tables);
 
   mysql_mutex_lock(&tc[i].LOCK_table_cache);
   if (table->needs_reopen() || table->s->tdc->flushed ||
@@ -992,7 +992,6 @@ void tdc_release_share(TABLE_SHARE *share)
   }
   if (share->tdc->flushed || tdc_records() > tdc_size)
   {
-    delete_stat_values_for_table_share(share);
     mysql_mutex_unlock(&LOCK_unused_shares);
     tdc_delete_share_from_hash(share->tdc);
     DBUG_VOID_RETURN;
@@ -1147,37 +1146,35 @@ bool tdc_remove_table(THD *thd, enum_tdc_remove_table_type remove_type,
           remove_type == TDC_RT_REMOVE_NOT_OWN ||
           remove_type == TDC_RT_REMOVE_NOT_OWN_KEEP_SHARE)
       {
-	if (table->in_use != thd)
+        if (table->in_use != thd)
         {
-	  /*
-	    We may end up here if we were granted some MDL
-	    lock even if another thd was already granted.
-	    In that case we expect their wsrep_conflict_state
-	    to be either ABORTING or CERT_FAILURE.
-	    See wsrep_grant_mdl_exception()
-	  */
-	  enum wsrep::transaction::state state=
-	    table->in_use->wsrep_trx().state();
-	  if (state == wsrep::transaction::s_cert_failed ||
-	      state == wsrep::transaction::s_aborting)
+          /*
+            We may end up here if we were granted some MDL
+            lock even if another thd was already granted.
+            In that case we expect their wsrep_conflict_state
+            to be either ABORTING or CERT_FAILURE.
+            See wsrep_grant_mdl_exception()
+          */
+          enum wsrep::transaction::state state=
+            table->in_use->wsrep_trx().state();
+          if (state == wsrep::transaction::s_cert_failed ||
+              state == wsrep::transaction::s_aborting)
           {
-	    WSREP_DEBUG("Table_cache_manager::free_table assert skipped");
-	  }
-	  else
+            WSREP_DEBUG("Table_cache_manager::free_table assert skipped");
+          }
+          else
           {
-	    DBUG_ASSERT(0);
+            DBUG_ASSERT(0);
 	  }
-	}
+        }
       }
       my_refs++;
 #else
-      my_refs++;
-      DBUG_ASSERT(table->in_use == thd);
-
+      if (table->in_use == thd)
+        my_refs++;
 #endif /* WITH_WSREP */
     }
   }
-  DBUG_ASSERT(element->all_tables.is_empty() || remove_type != TDC_RT_REMOVE_ALL);
   mysql_mutex_unlock(&element->LOCK_table_share);
 
   while ((table= purge_tables.pop_front()))
@@ -1209,6 +1206,17 @@ bool tdc_remove_table(THD *thd, enum_tdc_remove_table_type remove_type,
     mysql_mutex_lock(&element->LOCK_table_share);
     while (element->ref_count > my_refs)
       mysql_cond_wait(&element->COND_release, &element->LOCK_table_share);
+    DBUG_ASSERT(element->all_tables.is_empty() ||
+                remove_type != TDC_RT_REMOVE_ALL);
+#ifndef DBUG_OFF
+    if (remove_type == TDC_RT_REMOVE_NOT_OWN ||
+        remove_type == TDC_RT_REMOVE_NOT_OWN_KEEP_SHARE)
+    {
+      All_share_tables_list::Iterator it(element->all_tables);
+      while ((table= it++))
+        DBUG_ASSERT(table->in_use == thd);
+    }
+#endif
     mysql_mutex_unlock(&element->LOCK_table_share);
   }
 

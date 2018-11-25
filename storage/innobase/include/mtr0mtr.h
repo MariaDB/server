@@ -2,7 +2,7 @@
 
 Copyright (c) 1995, 2017, Oracle and/or its affiliates. All Rights Reserved.
 Copyright (c) 2012, Facebook Inc.
-Copyright (c) 2013, 2017, MariaDB Corporation
+Copyright (c) 2013, 2018, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -34,12 +34,6 @@ Created 11/26/1995 Heikki Tuuri
 
 /** Start a mini-transaction. */
 #define mtr_start(m)		(m)->start()
-
-/** Start a synchronous mini-transaction */
-#define mtr_start_sync(m)	(m)->start(true)
-
-/** Start an asynchronous read-only mini-transaction */
-#define mtr_start_ro(m)	(m)->start(true, true)
 
 /** Commit a mini-transaction. */
 #define mtr_commit(m)		(m)->commit()
@@ -198,21 +192,8 @@ struct mtr_t {
 
 	~mtr_t() { }
 
-	/** Start a mini-transaction.
-	@param sync		true if it is a synchronous mini-transaction */
-	void start(bool sync = true);
-
-	/** @return whether this is an asynchronous mini-transaction. */
-	bool is_async() const
-	{
-		return(!m_sync);
-	}
-
-	/** Request a future commit to be synchronous. */
-	void set_sync()
-	{
-		m_sync = true;
-	}
+	/** Start a mini-transaction. */
+	void start();
 
 	/** Commit the mini-transaction. */
 	void commit();
@@ -558,9 +539,6 @@ private:
 
 	/** LSN at commit time */
 	volatile lsn_t		m_commit_lsn;
-
-	/** true if it is synchronous mini-transaction */
-	bool			m_sync;
 };
 
 #include "mtr0mtr.ic"

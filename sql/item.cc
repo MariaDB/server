@@ -1276,62 +1276,28 @@ Item *Item_param::safe_charset_converter(THD *thd, CHARSET_INFO *tocs)
 
 bool Item::get_date_from_int(THD *thd, MYSQL_TIME *ltime, date_mode_t fuzzydate)
 {
-  longlong value= val_int();
-  bool neg= !unsigned_flag && value < 0;
-  if (null_value || int_to_datetime_with_warn(thd, neg, neg ? -value : value,
-                                              ltime, fuzzydate,
-                                              field_name_or_null()))
-    return null_value|= make_zero_date(ltime, fuzzydate);
-  return null_value= false;
+  Longlong_hybrid value(val_int(), unsigned_flag);
+  return null_value || int_to_datetime_with_warn(thd, value,
+                                                 ltime, fuzzydate,
+                                                 field_name_or_null());
 }
 
 
 bool Item::get_date_from_real(THD *thd, MYSQL_TIME *ltime, date_mode_t fuzzydate)
 {
   double value= val_real();
-  if (null_value || double_to_datetime_with_warn(thd, value, ltime, fuzzydate,
-                                                 field_name_or_null()))
-    return null_value|= make_zero_date(ltime, fuzzydate);
-  return null_value= false;
+  return null_value || double_to_datetime_with_warn(thd, value,
+                                                    ltime, fuzzydate,
+                                                    field_name_or_null());
 }
 
 
-bool Item::get_date_from_string(THD *thd, MYSQL_TIME *ltime, date_mode_t fuzzydate)
+bool Item::get_date_from_string(THD *thd, MYSQL_TIME *to, date_mode_t mode)
 {
-  char buff[40];
-  String tmp(buff,sizeof(buff), &my_charset_bin),*res;
-  if (!(res=val_str(&tmp)) ||
-      str_to_datetime_with_warn(thd, res->charset(), res->ptr(), res->length(),
-                                ltime, fuzzydate))
-    return null_value|= make_zero_date(ltime, fuzzydate);
-  return null_value= false;
-}
-
-
-bool Item::make_zero_date(MYSQL_TIME *ltime, date_mode_t fuzzydate)
-{
-  /*
-    if the item was not null and convertion failed, we return a zero date
-    if allowed, otherwise - null.
-  */
-  bzero((char*) ltime,sizeof(*ltime));
-  if (fuzzydate & TIME_TIME_ONLY)
-  {
-    /*
-      In the following scenario:
-      - The caller expected to get a TIME value
-      - Item returned a not NULL string or numeric value
-      - But then conversion from string or number to TIME failed
-      we need to change the default time_type from MYSQL_TIMESTAMP_DATE
-      (which was set in bzero) to MYSQL_TIMESTAMP_TIME and therefore
-      return TIME'00:00:00' rather than DATE'0000-00-00'.
-      If we don't do this, methods like Item::get_time_with_conversion()
-      will erroneously subtract CURRENT_DATE from '0000-00-00 00:00:00'
-      and return TIME'-838:59:59' instead of TIME'00:00:00' as a result.
-    */
-    ltime->time_type= MYSQL_TIMESTAMP_TIME;
-  }
-  return !(fuzzydate & TIME_FUZZY_DATES);
+  StringBuffer<40> tmp;
+  Temporal::Warn_push warn(thd, field_name_or_null(), to, mode);
+  Temporal_hybrid *t= new(to) Temporal_hybrid(thd, &warn, val_str(&tmp), mode);
+  return !t->is_valid_temporal();
 }
 
 
@@ -1431,7 +1397,14 @@ Query_fragment::Query_fragment(THD *thd, sp_head *sphead,
                                const char *start, const char *end)
 {
   DBUG_ASSERT(start <= end);
-  if (sphead)
+  if (thd->lex->clone_spec_offset)
+  {
+    Lex_input_stream *lip= (& thd->m_parser_state->m_lip);
+    DBUG_ASSERT(lip->get_buf() <= start);
+    DBUG_ASSERT(end <= lip->get_end_of_query());
+    set(start - lip->get_buf(), end - start);
+  }
+  else if (sphead)
   {
     if (sphead->m_tmp_query)
     {
@@ -3729,7 +3702,7 @@ my_decimal *Item_null::val_decimal(my_decimal *decimal_value)
 
 bool Item_null::get_date(THD *thd, MYSQL_TIME *ltime, date_mode_t fuzzydate)
 {
-  make_zero_date(ltime, fuzzydate);
+  set_zero_time(ltime, MYSQL_TIMESTAMP_NONE);
   return (null_value= true);
 }
 
@@ -3788,7 +3761,8 @@ Item_param::Item_param(THD *thd, const LEX_CSTRING *name_arg,
     For dynamic SQL, settability depends on the type of Item passed
     as an actual parameter. See Item_param::set_from_item().
   */
-  m_is_settable_routine_parameter(true)
+  m_is_settable_routine_parameter(true),
+  m_clones(thd->mem_root)
 {
   name= *name_arg;
   /*
@@ -3797,6 +3771,59 @@ Item_param::Item_param(THD *thd, const LEX_CSTRING *name_arg,
     value is set.
   */
   maybe_null= 1;
+}
+
+
+/* Add reference to Item_param used in a copy of CTE to its master as a clone */
+
+bool Item_param::add_as_clone(THD *thd)
+{
+  LEX *lex= thd->lex;
+  my_ptrdiff_t master_pos= pos_in_query + lex->clone_spec_offset;
+  List_iterator_fast<Item_param> it(lex->param_list);
+  Item_param *master_param;
+  while ((master_param = it++))
+  {
+    if (master_pos == master_param->pos_in_query)
+      return master_param->register_clone(this);
+  }
+  DBUG_ASSERT(false);
+  return false;
+}
+
+
+/* Update all clones of Item_param to sync their values with the item's value */
+
+void Item_param::sync_clones()
+{
+  Item_param **c_ptr= m_clones.begin();
+  Item_param **end= m_clones.end();
+  for ( ; c_ptr < end; c_ptr++)
+  {
+    Item_param *c= *c_ptr;
+    /* Scalar-type members: */
+    c->maybe_null= maybe_null;
+    c->null_value= null_value;
+    c->Type_std_attributes::operator=(*this);
+    c->Type_handler_hybrid_field_type::operator=(*this);
+    c->Type_geometry_attributes::operator=(*this);
+
+    c->state= state;
+    c->m_empty_string_is_null= m_empty_string_is_null;
+
+    c->value.PValue_simple::operator=(value);
+    c->value.Type_handler_hybrid_field_type::operator=(value);
+    type_handler()->Item_param_setup_conversion(current_thd, c);
+
+    /* Class-type members: */
+    c->value.m_decimal= value.m_decimal;
+    /*
+      Note that String's assignment op properly sets m_is_alloced to 'false',
+      which is correct here: c->str_value doesn't own anything.
+    */
+    c->value.m_string= value.m_string;
+    c->value.m_string_ptr= value.m_string_ptr;
+  }
 }
 
 
@@ -4201,7 +4228,7 @@ bool Item_param::get_date(THD *thd, MYSQL_TIME *res, date_mode_t fuzzydate)
     *res= value.time;
     return 0;
   }
-  return type_handler()->Item_get_date(thd, this, res, fuzzydate);
+  return type_handler()->Item_get_date_with_warn(thd, this, res, fuzzydate);
 }
 
 
@@ -4234,7 +4261,7 @@ longlong Item_param::PValue::val_int(const Type_std_attributes *attr) const
 {
   switch (type_handler()->cmp_type()) {
   case REAL_RESULT:
-    return (longlong) rint(real);
+    return Converter_double_to_longlong(real, attr->unsigned_flag).result();
   case INT_RESULT:
     return integer;
   case DECIMAL_RESULT:
@@ -4702,32 +4729,6 @@ bool Item_param::append_for_log(THD *thd, String *str)
   return str->append(*val);
 }
 
-/****************************************************************************
-  Item_copy
-****************************************************************************/
-
-Item_copy *Item_copy::create(THD *thd, Item *item)
-{
-  MEM_ROOT *mem_root= thd->mem_root;
-  switch (item->result_type())
-  {
-    case STRING_RESULT:
-      return new (mem_root) Item_copy_string(thd, item);
-    case REAL_RESULT:
-      return new (mem_root) Item_copy_float(thd, item);
-    case INT_RESULT:
-      return item->unsigned_flag ?
-        new (mem_root) Item_copy_uint(thd, item) :
-        new (mem_root) Item_copy_int(thd, item);
-    case DECIMAL_RESULT:
-      return new (mem_root) Item_copy_decimal(thd, item);
-    case TIME_RESULT:
-    case ROW_RESULT:
-      DBUG_ASSERT (0);
-  }
-  /* should not happen */
-  return NULL;
-}
 
 /****************************************************************************
   Item_copy_string
@@ -4782,138 +4783,6 @@ my_decimal *Item_copy_string::val_decimal(my_decimal *decimal_value)
     return (my_decimal *) 0;
   string2my_decimal(E_DEC_FATAL_ERROR, &str_value, decimal_value);
   return (decimal_value);
-}
-
-
-/****************************************************************************
-  Item_copy_int
-****************************************************************************/
-
-void Item_copy_int::copy()
-{
-  cached_value= item->val_int();
-  null_value=item->null_value;
-}
-
-static int save_int_value_in_field (Field *, longlong, bool, bool);
-
-int Item_copy_int::save_in_field(Field *field, bool no_conversions)
-{
-  return save_int_value_in_field(field, cached_value, 
-                                 null_value, unsigned_flag);
-}
-
-
-String *Item_copy_int::val_str(String *str)
-{
-  if (null_value)
-    return (String *) 0;
-
-  str->set(cached_value, &my_charset_bin);
-  return str;
-}
-
-
-my_decimal *Item_copy_int::val_decimal(my_decimal *decimal_value)
-{
-  if (null_value)
-    return (my_decimal *) 0;
-
-  int2my_decimal(E_DEC_FATAL_ERROR, cached_value, unsigned_flag, decimal_value);
-  return decimal_value;
-}
-
-
-/****************************************************************************
-  Item_copy_uint
-****************************************************************************/
-
-String *Item_copy_uint::val_str(String *str)
-{
-  if (null_value)
-    return (String *) 0;
-
-  str->set((ulonglong) cached_value, &my_charset_bin);
-  return str;
-}
-
-
-/****************************************************************************
-  Item_copy_float
-****************************************************************************/
-
-String *Item_copy_float::val_str(String *str)
-{
-  if (null_value)
-    return (String *) 0;
-  else
-  {
-    double nr= val_real();
-    str->set_real(nr,decimals, &my_charset_bin);
-    return str;
-  }
-}
-
-
-my_decimal *Item_copy_float::val_decimal(my_decimal *decimal_value)
-{
-  if (null_value)
-    return (my_decimal *) 0;
-  else
-  {
-    double nr= val_real();
-    double2my_decimal(E_DEC_FATAL_ERROR, nr, decimal_value);
-    return decimal_value;
-  }
-}
-
-
-int Item_copy_float::save_in_field(Field *field, bool no_conversions)
-{
-  if (null_value)
-    return set_field_to_null(field);
-  field->set_notnull();
-  return field->store(cached_value);
-}
-
-
-/****************************************************************************
-  Item_copy_decimal
-****************************************************************************/
-
-int Item_copy_decimal::save_in_field(Field *field, bool no_conversions)
-{
-  if (null_value)
-    return set_field_to_null(field);
-  field->set_notnull();
-  return field->store_decimal(&cached_value);
-}
-
-
-String *Item_copy_decimal::val_str(String *result)
-{
-  return null_value ? NULL : cached_value.to_string(result);
-}
-
-
-double Item_copy_decimal::val_real()
-{
-  return null_value ? 0.0 : cached_value.to_double();
-}
-
-
-longlong Item_copy_decimal::val_int()
-{
-  return null_value ? 0 : cached_value.to_longlong(unsigned_flag);
-}
-
-
-void Item_copy_decimal::copy()
-{
-  my_decimal *nr= item->val_decimal(&cached_value);
-  if (nr && nr != &cached_value)
-    my_decimal2decimal (nr, &cached_value);
-  null_value= item->null_value;
 }
 
 
@@ -7577,7 +7446,7 @@ Item *Item_direct_view_ref::derived_field_transformer_for_where(THD *thd,
     DBUG_ASSERT (producing_item != NULL);
     return producing_item->build_clone(thd);
   }
-  return this;
+  return (*ref);
 }
 
 static
@@ -9588,13 +9457,11 @@ void Item_trigger_field::cleanup()
 
 Item_result item_cmp_type(Item_result a,Item_result b)
 {
-  if (a == STRING_RESULT && b == STRING_RESULT)
-    return STRING_RESULT;
-  if (a == INT_RESULT && b == INT_RESULT)
-    return INT_RESULT;
-  else if (a == ROW_RESULT || b == ROW_RESULT)
+  if (a == b)
+    return a;
+  if (a == ROW_RESULT || b == ROW_RESULT)
     return ROW_RESULT;
-  else if (a == TIME_RESULT || b == TIME_RESULT)
+  if (a == TIME_RESULT || b == TIME_RESULT)
     return TIME_RESULT;
   if ((a == INT_RESULT || a == DECIMAL_RESULT) &&
       (b == INT_RESULT || b == DECIMAL_RESULT))
@@ -9800,8 +9667,6 @@ bool Item_cache_time::cache_value()
 
 bool Item_cache_temporal::get_date(THD *thd, MYSQL_TIME *ltime, date_mode_t fuzzydate)
 {
-  ErrConvInteger str(value);
-
   if (!has_value())
   {
     bzero((char*) ltime,sizeof(*ltime));
@@ -9899,7 +9764,7 @@ longlong Item_cache_real::val_int()
 {
   if (!has_value())
     return 0;
-  return (longlong) rint(value);
+  return Converter_double_to_longlong(value, unsigned_flag).result();
 }
 
 

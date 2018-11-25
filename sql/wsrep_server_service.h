@@ -56,6 +56,8 @@ public:
 
   void log_view(wsrep::high_priority_service*, const wsrep::view&);
 
+  wsrep::view get_view(wsrep::client_service&, const wsrep::id& own_id);
+
   void log_state_change(enum wsrep::server_state::state,
                         enum wsrep::server_state::state);
 

@@ -1149,7 +1149,7 @@ btr_free_root_invalidate(
 static MY_ATTRIBUTE((warn_unused_result))
 buf_block_t*
 btr_free_root_check(
-	const page_id_t&	page_id,
+	const page_id_t		page_id,
 	const page_size_t&	page_size,
 	index_id_t		index_id,
 	mtr_t*			mtr)
@@ -1377,7 +1377,7 @@ top_loop:
 @param[in,out]	mtr		mini-transaction */
 void
 btr_free_if_exists(
-	const page_id_t&	page_id,
+	const page_id_t		page_id,
 	const page_size_t&	page_size,
 	index_id_t		index_id,
 	mtr_t*			mtr)
@@ -1401,7 +1401,7 @@ btr_free_if_exists(
 @param[in]	page_size	page size */
 void
 btr_free(
-	const page_id_t&	page_id,
+	const page_id_t		page_id,
 	const page_size_t&	page_size)
 {
 	mtr_t		mtr;
@@ -1660,11 +1660,6 @@ btr_page_reorganize_low(
 		goto func_exit;
 	}
 
-	if (!recovery && !dict_table_is_locking_disabled(index->table)) {
-		/* Update the record lock bitmaps */
-		lock_move_reorganize_page(block, temp_block);
-	}
-
 	data_size2 = page_get_data_size(page);
 	max_ins_size2 = page_get_max_insert_size_after_reorganize(page, 1);
 
@@ -1688,21 +1683,41 @@ btr_page_reorganize_low(
 		ut_ad(cursor->rec == page_get_infimum_rec(page));
 	}
 
-func_exit:
 #ifdef UNIV_ZIP_DEBUG
 	ut_a(!page_zip || page_zip_validate(page_zip, page, index));
 #endif /* UNIV_ZIP_DEBUG */
 
-	if (!recovery && page_is_root(temp_page)
-	    && fil_page_get_type(temp_page) == FIL_PAGE_TYPE_INSTANT) {
-		/* Preserve the PAGE_INSTANT information. */
-		ut_ad(!page_zip);
-		ut_ad(index->is_instant());
-		memcpy(FIL_PAGE_TYPE + page, FIL_PAGE_TYPE + temp_page, 2);
-		memcpy(PAGE_HEADER + PAGE_INSTANT + page,
-		       PAGE_HEADER + PAGE_INSTANT + temp_page, 2);
+	if (!recovery) {
+		if (page_is_root(temp_page)
+		    && fil_page_get_type(temp_page) == FIL_PAGE_TYPE_INSTANT) {
+			/* Preserve the PAGE_INSTANT information. */
+			ut_ad(!page_zip);
+			ut_ad(index->is_instant());
+			memcpy(FIL_PAGE_TYPE + page,
+			       FIL_PAGE_TYPE + temp_page, 2);
+			memcpy(PAGE_HEADER + PAGE_INSTANT + page,
+			       PAGE_HEADER + PAGE_INSTANT + temp_page, 2);
+			if (!index->table->instant) {
+			} else if (page_is_comp(page)) {
+				memcpy(PAGE_NEW_INFIMUM + page,
+				       PAGE_NEW_INFIMUM + temp_page, 8);
+				memcpy(PAGE_NEW_SUPREMUM + page,
+				       PAGE_NEW_SUPREMUM + temp_page, 8);
+			} else {
+				memcpy(PAGE_OLD_INFIMUM + page,
+				       PAGE_OLD_INFIMUM + temp_page, 8);
+				memcpy(PAGE_OLD_SUPREMUM + page,
+				       PAGE_OLD_SUPREMUM + temp_page, 8);
+			}
+		}
+
+		if (!dict_table_is_locking_disabled(index->table)) {
+			/* Update the record lock bitmaps */
+			lock_move_reorganize_page(block, temp_block);
+		}
 	}
 
+func_exit:
 	buf_block_free(temp_block);
 
 	/* Restore logging mode */
@@ -1748,6 +1763,14 @@ func_exit:
 				 mach_read_from_2(PAGE_HEADER + PAGE_INSTANT
 						  + page),
 				 MLOG_2BYTES, mtr);
+		if (!index->table->instant) {
+		} else if (page_is_comp(page)) {
+			mlog_log_string(PAGE_NEW_INFIMUM + page, 8, mtr);
+			mlog_log_string(PAGE_NEW_SUPREMUM + page, 8, mtr);
+		} else {
+			mlog_log_string(PAGE_OLD_INFIMUM + page, 8, mtr);
+			mlog_log_string(PAGE_OLD_SUPREMUM + page, 8, mtr);
+		}
 	}
 
 	return(success);
@@ -1892,6 +1915,59 @@ btr_page_empty(
 			mlog_write_ull(PAGE_HEADER + PAGE_MAX_TRX_ID + page,
 				       autoinc, mtr);
 		}
+	}
+}
+
+/** Write instant ALTER TABLE metadata to a root page.
+@param[in,out]	root	clustered index root page
+@param[in]	index	clustered index with instant ALTER TABLE
+@param[in,out]	mtr	mini-transaction */
+void btr_set_instant(buf_block_t* root, const dict_index_t& index, mtr_t* mtr)
+{
+	ut_ad(index.n_core_fields > 0);
+	ut_ad(index.n_core_fields < REC_MAX_N_FIELDS);
+	ut_ad(index.is_instant());
+	ut_ad(page_is_root(root->frame));
+
+	rec_t* infimum = page_get_infimum_rec(root->frame);
+	rec_t* supremum = page_get_supremum_rec(root->frame);
+	byte* page_type = root->frame + FIL_PAGE_TYPE;
+	uint16_t i = page_header_get_field(root->frame, PAGE_INSTANT);
+
+	switch (mach_read_from_2(page_type)) {
+	case FIL_PAGE_TYPE_INSTANT:
+		ut_ad(page_get_instant(root->frame) == index.n_core_fields);
+		if (memcmp(infimum, "infimum", 8)
+		    || memcmp(supremum, "supremum", 8)) {
+			ut_ad(index.table->instant);
+			ut_ad(!memcmp(infimum, field_ref_zero, 8));
+			ut_ad(!memcmp(supremum, field_ref_zero, 7));
+			ut_ad(supremum[7] == index.n_core_null_bytes);
+			return;
+		}
+		break;
+	default:
+		ut_ad(!"wrong page type");
+		/* fall through */
+	case FIL_PAGE_INDEX:
+		ut_ad(!page_is_comp(root->frame)
+		      || !page_get_instant(root->frame));
+		ut_ad(!memcmp(infimum, "infimum", 8));
+		ut_ad(!memcmp(supremum, "supremum", 8));
+		mlog_write_ulint(page_type, FIL_PAGE_TYPE_INSTANT,
+				 MLOG_2BYTES, mtr);
+		ut_ad(i <= PAGE_NO_DIRECTION);
+		i |= index.n_core_fields << 3;
+		mlog_write_ulint(PAGE_HEADER + PAGE_INSTANT + root->frame, i,
+				 MLOG_2BYTES, mtr);
+		break;
+	}
+
+	if (index.table->instant) {
+		mlog_memset(root, infimum - root->frame, 8, 0, mtr);
+		mlog_memset(root, supremum - root->frame, 7, 0, mtr);
+		mlog_write_ulint(&supremum[7], index.n_core_null_bytes,
+				 MLOG_1BYTE, mtr);
 	}
 }
 
@@ -2080,11 +2156,7 @@ btr_root_raise_and_insert(
 
 	if (index->is_instant()) {
 		ut_ad(!root_page_zip);
-		byte* page_type = root_block->frame + FIL_PAGE_TYPE;
-		ut_ad(mach_read_from_2(page_type) == FIL_PAGE_INDEX);
-		mlog_write_ulint(page_type, FIL_PAGE_TYPE_INSTANT,
-				 MLOG_2BYTES, mtr);
-		page_set_instant(root_block->frame, index->n_core_fields, mtr);
+		btr_set_instant(root_block, *index, mtr);
 	}
 
 	/* Set the next node and previous node fields, although
@@ -3569,12 +3641,7 @@ btr_lift_page_up(
 
 	if (page_level == 0 && index->is_instant()) {
 		ut_ad(!father_page_zip);
-		byte* page_type = father_block->frame + FIL_PAGE_TYPE;
-		ut_ad(mach_read_from_2(page_type) == FIL_PAGE_INDEX);
-		mlog_write_ulint(page_type, FIL_PAGE_TYPE_INSTANT,
-				 MLOG_2BYTES, mtr);
-		page_set_instant(father_block->frame,
-				 index->n_core_fields, mtr);
+		btr_set_instant(father_block, *index, mtr);
 	}
 
 	page_level++;
@@ -4246,15 +4313,42 @@ btr_discard_only_page_on_level(
 	}
 #endif /* UNIV_BTR_DEBUG */
 
+	mem_heap_t* heap = NULL;
+	const rec_t* rec = NULL;
+	ulint* offsets = NULL;
+	if (index->table->instant) {
+		const rec_t* r = page_rec_get_next(page_get_infimum_rec(
+							   block->frame));
+		ut_ad(rec_is_metadata(r, *index) == index->is_instant());
+		if (rec_is_alter_metadata(r, *index)) {
+			heap = mem_heap_create(srv_page_size);
+			offsets = rec_get_offsets(r, index, NULL, true,
+						  ULINT_UNDEFINED, &heap);
+			rec = rec_copy(mem_heap_alloc(heap,
+						      rec_offs_size(offsets)),
+				       r, offsets);
+			rec_offs_make_valid(rec, index, true, offsets);
+		}
+	}
+
 	btr_page_empty(block, buf_block_get_page_zip(block), index, 0, mtr);
 	ut_ad(page_is_leaf(buf_block_get_frame(block)));
 	/* btr_page_empty() is supposed to zero-initialize the field. */
 	ut_ad(!page_get_instant(block->frame));
 
 	if (index->is_primary()) {
-		/* Concurrent access is prevented by the root_block->lock
-		X-latch, so this should be safe. */
-		index->remove_instant();
+		if (rec) {
+			DBUG_ASSERT(index->table->instant);
+			DBUG_ASSERT(rec_is_alter_metadata(rec, *index));
+			btr_set_instant(block, *index, mtr);
+			rec = page_cur_insert_rec_low(
+				page_get_infimum_rec(block->frame),
+				index, rec, offsets, mtr);
+			ut_ad(rec);
+			mem_heap_free(heap);
+		} else if (index->is_instant()) {
+			index->clear_instant_add();
+		}
 	} else if (!index->table->is_temporary()) {
 		/* We play it safe and reset the free bits for the root */
 		ibuf_reset_free_bits(block);
@@ -4678,14 +4772,32 @@ btr_index_rec_validate(
 		return(FALSE);
 	}
 
+	const bool is_alter_metadata = page_is_leaf(page)
+		&& !page_has_prev(page)
+		&& index->is_primary() && index->table->instant
+		&& rec == page_rec_get_next_const(page_get_infimum_rec(page));
+
+	if (is_alter_metadata
+	    && !rec_is_alter_metadata(rec, page_is_comp(page))) {
+		btr_index_rec_validate_report(page, rec, index);
+
+		ib::error() << "First record is not ALTER TABLE metadata";
+		return FALSE;
+	}
+
 	if (!page_is_comp(page)) {
 		const ulint n_rec_fields = rec_get_n_fields_old(rec);
 		if (n_rec_fields == DICT_FLD__SYS_INDEXES__MERGE_THRESHOLD
 		    && index->id == DICT_INDEXES_ID) {
 			/* A record for older SYS_INDEXES table
 			(missing merge_threshold column) is acceptable. */
+		} else if (is_alter_metadata) {
+			if (n_rec_fields != ulint(index->n_fields) + 1) {
+				goto n_field_mismatch;
+			}
 		} else if (n_rec_fields < index->n_core_fields
 			   || n_rec_fields > index->n_fields) {
+n_field_mismatch:
 			btr_index_rec_validate_report(page, rec, index);
 
 			ib::error() << "Has " << rec_get_n_fields_old(rec)
@@ -4704,14 +4816,27 @@ btr_index_rec_validate(
 
 	offsets = rec_get_offsets(rec, index, offsets, page_is_leaf(page),
 				  ULINT_UNDEFINED, &heap);
+	const dict_field_t* field = index->fields;
+	ut_ad(rec_offs_n_fields(offsets)
+	      == ulint(index->n_fields) + is_alter_metadata);
 
-	for (unsigned i = 0; i < index->n_fields; i++) {
-		dict_field_t*	field = dict_index_get_nth_field(index, i);
-		ulint		fixed_size = dict_col_get_fixed_size(
-						dict_field_get_col(field),
-						page_is_comp(page));
-
+	for (unsigned i = 0; i < rec_offs_n_fields(offsets); i++) {
 		rec_get_nth_field_offs(offsets, i, &len);
+
+		ulint fixed_size;
+
+		if (is_alter_metadata && i == index->first_user_field()) {
+			fixed_size = FIELD_REF_SIZE;
+			if (len != FIELD_REF_SIZE
+			    || !rec_offs_nth_extern(offsets, i)) {
+				goto len_mismatch;
+			}
+
+			continue;
+		} else {
+			fixed_size = dict_col_get_fixed_size(
+				field->col, page_is_comp(page));
+		}
 
 		/* Note that if fixed_size != 0, it equals the
 		length of a fixed-size column in the clustered index.
@@ -4724,8 +4849,8 @@ btr_index_rec_validate(
 		    && (field->prefix_len
 			? len > field->prefix_len
 			: (fixed_size && len != fixed_size))) {
+len_mismatch:
 			btr_index_rec_validate_report(page, rec, index);
-
 			ib::error	error;
 
 			error << "Field " << i << " len is " << len
@@ -4743,6 +4868,8 @@ btr_index_rec_validate(
 			}
 			return(FALSE);
 		}
+
+		field++;
 	}
 
 #ifdef VIRTUAL_INDEX_DEBUG

@@ -1255,7 +1255,7 @@ bool mysql_prepare_update(THD *thd, TABLE_LIST *table_list,
   table_list->register_want_access(SELECT_ACL);
 #endif
 
-  thd->lex->allow_sum_func= 0;
+  thd->lex->allow_sum_func.clear_all();
 
   /*
     We do not call DT_MERGE_FOR_INSERT because it has no sense for simple
@@ -2268,7 +2268,7 @@ multi_update::~multi_update()
   TABLE_LIST *table;
   for (table= update_tables ; table; table= table->next_local)
   {
-    table->table->no_keyread= table->table->no_cache= 0;
+    table->table->no_keyread= 0;
     if (ignore)
       table->table->file->extra(HA_EXTRA_NO_IGNORE_DUP_KEY);
   }

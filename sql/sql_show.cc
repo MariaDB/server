@@ -5009,9 +5009,7 @@ public:
                         const char* msg,
                         Sql_condition ** cond_hdl)
   {
-    if (sql_errno == ER_PARSE_ERROR ||
-        sql_errno == ER_TRG_NO_DEFINER ||
-        sql_errno == ER_TRG_NO_CREATION_CTX)
+    if (sql_errno == ER_TRG_NO_DEFINER || sql_errno == ER_TRG_NO_CREATION_CTX)
       return true;
 
     if (*level != Sql_condition::WARN_LEVEL_ERROR)
