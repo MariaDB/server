@@ -225,8 +225,8 @@ DROP TABLE t1;
 --connection node_2
 SET GLOBAL wsrep_ignore_apply_errors = 7;
 
+CALL mtr.add_suppression("Can't find record in 't.*'");
 CALL mtr.add_suppression("Slave SQL: Could not execute Delete_rows event");
-
 CALL mtr.add_suppression("Slave SQL: Error 'Unknown table 'test.t1'' on query. Default database: 'test'. Query: 'DROP TABLE t1', Error_code: 1051");
 CALL mtr.add_suppression("Slave SQL: Error 'Can't drop database 's1'; database doesn't exist' on query. Default database: 'test'. Query: 'DROP SCHEMA s1', Error_code: 1008");
 CALL mtr.add_suppression("Slave SQL: Error 'Can't DROP 'idx1'; check that column/key exists' on query. Default database: 'test'. Query: 'DROP INDEX idx1 ON t1', Error_code: 1091");
