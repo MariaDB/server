@@ -13,9 +13,6 @@ binlog-format=row
 innodb_lock_schedule_algorithm=FCFS
 
 [mysqld.1]
-#galera_port=@OPT.port
-#ist_port=@OPT.port
-#sst_port=@OPT.port
 wsrep-on=1
 
 log-slave-updates
@@ -63,9 +60,6 @@ server-id=2
 innodb_lock_schedule_algorithm=FCFS
 
 [mysqld.3]
-#galera_port=@OPT.port
-#ist_port=@OPT.port
-#sst_port=@OPT.port
 wsrep-on=1
 
 log-slave-updates
