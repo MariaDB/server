@@ -3,6 +3,11 @@
 --source include/innodb_encrypt_tables.inc
 --source include/have_mariabackup.inc
 
+# Save original auto_increment_offset values.
+--let $node_1=node_1
+--let $node_2=node_2
+--source include/auto_increment_offset_save.inc
+
 --echo Performing State Transfer on a server that starts from a clean var directory
 --echo This is accomplished by shutting down node #2 and removing its var directory before restarting it
 
@@ -216,3 +221,6 @@ COMMIT;
 DROP TABLE t1,t2,t3,t4,t5,t6,t7,t8,t9;
 COMMIT;
 SET AUTOCOMMIT=ON;
+
+# Restore original auto_increment_offset values.
+--source include/auto_increment_offset_restore.inc
