@@ -285,4 +285,8 @@ extern mysql_mutex_t LOCK_gdl;
 
 bool check_engine(THD *, const char *, const char *, HA_CREATE_INFO *);
 
+// Checks that key definition (not name!) has changed.
+bool key_has_changed(const KEY *table_key, const KEY *new_key,
+                     Alter_info *alter_info, const TABLE *table);
+
 #endif /* SQL_TABLE_INCLUDED */

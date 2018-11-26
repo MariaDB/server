@@ -1,0 +1,129 @@
+--source include/have_innodb.inc
+--source include/have_debug.inc
+
+delimiter |;
+create function get_index_id(tbl_id int, index_name char(100))
+  returns int
+begin
+  declare res int;
+  select index_id into res from information_schema.innodb_sys_indexes where
+    name=index_name and table_id = tbl_id;
+  return res;
+end|
+
+delimiter ;|
+
+create table t (
+  pk int primary key,
+  a int,
+  b int,
+  c int,
+  unique index a_key (a),
+  key c_key (c)
+) engine=innodb;
+
+insert into t values (1, 1, 1, 1);
+
+set @table_id = (select table_id from information_schema.innodb_sys_tables where name='test/t');
+
+set @a_key_id = get_index_id(@table_id, 'a_key');
+set @c_key_id = get_index_id(@table_id, 'c_key');
+set @primary_id = get_index_id(@table_id, 'primary');
+
+alter table t
+  drop index a_key,
+  add unique index a_key_strikes_back (a);
+
+check table t;
+select @a_key_id = get_index_id(@table_id, 'a_key_strikes_back'),
+  @c_key_id = get_index_id(@table_id, 'c_key'),
+  @primary_id = get_index_id(@table_id, 'primary');
+
+set @a_key_strikes_back_id = get_index_id(@table_id, 'a_key_strikes_back');
+set @c_key_id = get_index_id(@table_id, 'c_key');
+set @primary_id = get_index_id(@table_id, 'primary');
+
+alter table t
+  drop index a_key_strikes_back,
+  add unique index a_key_returns (a),
+  drop primary key,
+  add primary key (pk),
+  add unique index b_key (b);
+
+check table t;
+select @a_key_strikes_back_id = get_index_id(@table_id, 'a_key_returns'),
+  @c_key_id = get_index_id(@table_id, 'c_key'),
+  @primary_id = get_index_id(@table_id, 'primary');
+
+set @a_key_returns_id = get_index_id(@table_id, 'a_key_returns');
+set @b_key_id = get_index_id(@table_id, 'b_key');
+set @c_key_id = get_index_id(@table_id, 'c_key');
+set @primary_id = get_index_id(@table_id, 'primary');
+
+alter table t
+  drop key c_key,
+  add key c_key2 (c);
+
+check table t;
+select @a_key_returns_id = get_index_id(@table_id, 'a_key_returns'),
+  @b_key_id = get_index_id(@table_id, 'b_key'),
+  @c_key_id = get_index_id(@table_id, 'c_key2'),
+  @primary_id = get_index_id(@table_id, 'primary');
+
+drop table t;
+drop function get_index_id;
+
+create table errors (
+  a int,
+  unique key a_key (a)
+) engine=innodb;
+
+--error ER_CANT_DROP_FIELD_OR_KEY
+alter table errors
+  drop key a_key,
+  drop key a_key,
+  add unique key a_key2 (a);
+
+--error ER_CANT_DROP_FIELD_OR_KEY
+alter table errors
+  drop key a_key,
+  drop key a_key2,
+  add unique key a_key2 (a);
+
+drop table errors;
+
+--disable_query_log
+call mtr.add_suppression("Flagged corruption of.* in table .* in .*");
+--enable_query_log
+
+create table corrupted (
+  a int,
+  key a_key (a)
+) engine=innodb;
+
+insert into corrupted values (1);
+
+select * from corrupted;
+
+SET @save_dbug = @@SESSION.debug_dbug;
+SET debug_dbug = '+d,dict_set_index_corrupted';
+check table corrupted;
+SET debug_dbug = @save_dbug;
+
+--error ER_INDEX_CORRUPT
+select * from corrupted;
+
+--error ER_INDEX_CORRUPT
+alter table corrupted
+  drop key a_key,
+  add key a_key2 (a);
+
+alter table corrupted
+  drop key a_key;
+
+select * from corrupted;
+
+check table corrupted;
+
+drop table corrupted;
+

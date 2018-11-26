@@ -223,7 +223,7 @@ SET lock_wait_timeout = 10;
 --send
 # FIXME: MDEV-13668
 #ALTER TABLE t1 CHANGE c2 c22 INT, DROP INDEX c2d, ADD INDEX c2e(c22),
-ALTER TABLE t1 DROP INDEX c2d, ADD INDEX c2e(c2),
+ALTER TABLE t1 DROP INDEX c2d, ADD INDEX c2e(c2, c3(10)),
 ALGORITHM = INPLACE;
 
 # Generate some log (delete-mark, delete-unmark, insert etc.)

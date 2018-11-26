@@ -6424,31 +6424,60 @@ remove_key:
 }
 
 
-/**
-  Get Create_field object for newly created table by field index.
-
-  @param alter_info  Alter_info describing newly created table.
-  @param idx         Field index.
-*/
-
-static Create_field *get_field_by_index(Alter_info *alter_info, uint idx)
-{
-  List_iterator_fast<Create_field> field_it(alter_info->create_list);
-  uint field_idx= 0;
-  Create_field *field;
-
-  while ((field= field_it++) && field_idx < idx)
-  { field_idx++; }
-
-  return field;
-}
-
-
 static int compare_uint(const uint *s, const uint *t)
 {
   return (*s < *t) ? -1 : ((*s > *t) ? 1 : 0);
 }
 
+bool key_has_changed(const KEY *table_key, const KEY *new_key,
+                     Alter_info *alter_info, const TABLE *table)
+{
+  /* Check that the key types are compatible between old and new tables. */
+  if (table_key->algorithm != new_key->algorithm)
+    return true;
+  if ((table_key->flags & HA_KEYFLAG_MASK) !=
+      (new_key->flags & HA_KEYFLAG_MASK))
+    return true;
+  if (table_key->user_defined_key_parts != new_key->user_defined_key_parts)
+    return true;
+  if (table_key->block_size != new_key->block_size)
+    return true;
+
+  if (engine_options_differ(table_key->option_struct, new_key->option_struct,
+                            table->file->ht->index_options))
+    return true;
+
+  for (KEY_PART_INFO *key_part= table_key->key_part,
+                     *new_part= new_key->key_part;
+       key_part < table_key->key_part + table_key->user_defined_key_parts;
+       key_part++, new_part++)
+  {
+    /*
+      Key definition has changed if we are using a different field or
+      if the used key part length is different. It makes sense to
+      check lengths first as in case when fields differ it is likely
+      that lengths differ too and checking fields is more expensive
+      in general case.
+    */
+    if (key_part->length != new_part->length)
+      return true;
+
+    const Create_field *new_field=
+        alter_info->create_list.elem(new_part->fieldnr);
+
+    /*
+      For prefix keys KEY_PART_INFO::field points to cloned Field
+      object with adjusted length. So below we have to check field
+      indexes instead of simply comparing pointers to Field objects.
+    */
+    if (!new_field->field)
+      return true;
+    if (new_field->field->field_index != key_part->fieldnr - 1)
+      return true;
+  }
+
+  return false;
+}
 
 /**
    Compare original and new versions of a table and fill Alter_inplace_info
@@ -6500,8 +6529,6 @@ static bool fill_alter_inplace_info(THD *thd,
   Field **f_ptr, *field;
   List_iterator_fast<Create_field> new_field_it;
   Create_field *new_field;
-  KEY_PART_INFO *key_part, *new_part;
-  KEY_PART_INFO *end;
   uint candidate_key_count= 0;
   Alter_info *alter_info= ha_alter_info->alter_info;
   DBUG_ENTER("fill_alter_inplace_info");
@@ -6831,62 +6858,9 @@ static bool fill_alter_inplace_info(THD *thd,
       continue;
     }
 
-    /* Check that the key types are compatible between old and new tables. */
-    if ((table_key->algorithm != new_key->algorithm) ||
-        ((table_key->flags & HA_KEYFLAG_MASK) !=
-         (new_key->flags & HA_KEYFLAG_MASK)) ||
-        (table_key->user_defined_key_parts !=
-         new_key->user_defined_key_parts))
-      goto index_changed;
+    if (!key_has_changed(table_key, new_key, alter_info, table))
+      continue;
 
-    if (table_key->block_size != new_key->block_size)
-      goto index_changed;
-
-    if (engine_options_differ(table_key->option_struct, new_key->option_struct,
-                              table->file->ht->index_options))
-      goto index_changed;
-
-    /*
-      Check that the key parts remain compatible between the old and
-      new tables.
-    */
-    end= table_key->key_part + table_key->user_defined_key_parts;
-    for (key_part= table_key->key_part, new_part= new_key->key_part;
-         key_part < end;
-         key_part++, new_part++)
-    {
-      /*
-        Key definition has changed if we are using a different field or
-        if the used key part length is different. It makes sense to
-        check lengths first as in case when fields differ it is likely
-        that lengths differ too and checking fields is more expensive
-        in general case.
-      */
-      if (key_part->length != new_part->length)
-        goto index_changed;
-
-      new_field= get_field_by_index(alter_info, new_part->fieldnr);
-
-      /*
-        For prefix keys KEY_PART_INFO::field points to cloned Field
-        object with adjusted length. So below we have to check field
-        indexes instead of simply comparing pointers to Field objects.
-      */
-      if (! new_field->field ||
-          new_field->field->field_index != key_part->fieldnr - 1)
-        goto index_changed;
-    }
-
-    /* Check that key comment is not changed. */
-    if (table_key->comment.length != new_key->comment.length ||
-        (table_key->comment.length &&
-         memcmp(table_key->comment.str, new_key->comment.str,
-                table_key->comment.length) != 0))
-      goto index_changed;
-
-    continue;
-
-  index_changed:
     /* Key modified. Add the key / key offset to both buffers. */
     ha_alter_info->index_drop_buffer
       [ha_alter_info->index_drop_count++]=
@@ -6924,6 +6898,37 @@ static bool fill_alter_inplace_info(THD *thd,
     else
       ha_alter_info->create_info->indexes_option_struct[table_key - table->key_info]=
         new_key->option_struct;
+  }
+
+  uint &add_count= ha_alter_info->index_add_count;
+  for (uint i= 0; i < add_count; i++)
+  {
+    uint *&add_buffer= ha_alter_info->index_add_buffer;
+    const KEY *new_key= ha_alter_info->key_info_buffer + add_buffer[i];
+
+    uint &drop_count= ha_alter_info->index_drop_count;
+    for (uint j= 0; j < drop_count; j++)
+    {
+      KEY **&drop_buffer= ha_alter_info->index_drop_buffer;
+      const KEY *old_key= drop_buffer[j];
+
+      if (lex_string_cmp(system_charset_info, &old_key->name, &new_key->name) &&
+          !key_has_changed(old_key, new_key, alter_info, table))
+      {
+        ha_alter_info->handler_flags|= ALTER_RENAME_INDEX;
+        ha_alter_info->rename_keys.push_back(
+            Alter_inplace_info::Rename_key_pair{old_key, new_key});
+
+        memcpy(add_buffer + i, add_buffer + i + 1,
+               sizeof(add_buffer[0]) * (add_count - i + 1));
+        memcpy(drop_buffer + j, drop_buffer + j + 1,
+               sizeof(drop_buffer[0]) * (drop_count - j + 1));
+        --add_count;
+        --drop_count;
+        --i; // this index once again
+        break;
+      }
+    }
   }
 
   /*

@@ -43,6 +43,7 @@
 #include <keycache.h>
 #include <mysql/psi/mysql_table.h>
 #include "sql_sequence.h"
+#include <vector>
 
 class Alter_info;
 class Virtual_column_info;
@@ -607,6 +608,7 @@ typedef ulonglong alter_table_operations;
 #define ALTER_KEYS_ONOFF            (1ULL <<  9)
 // Set for FORCE, ENGINE(same engine), by mysql_recreate_table()
 #define ALTER_RECREATE              (1ULL << 10)
+#define ALTER_RENAME_INDEX          (1ULL << 11)
 // Set for ADD FOREIGN KEY
 #define ALTER_ADD_FOREIGN_KEY       (1ULL << 21)
 // Set for DROP FOREIGN KEY
@@ -2294,6 +2296,25 @@ public:
      sorted in increasing order.
   */
   uint *index_add_buffer;
+
+  /**
+     Old and new index names. Used for index rename.
+  */
+  struct Rename_key_pair
+  {
+    const KEY *old_key;
+    const KEY *new_key;
+  };
+  /**
+     Vector of key pairs from DROP/ADD index which can be renamed.
+  */
+  typedef std::vector<Rename_key_pair> Rename_keys_vector;
+
+  /**
+     A list of indexes which should be renamed.
+     Index definitions stays the same.
+  */
+  Rename_keys_vector rename_keys;
 
   /**
      Context information to allow handlers to keep context between in-place
