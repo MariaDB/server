@@ -2354,9 +2354,8 @@ err_exit:
 }
 
 /*********************************************************************//**
-Does an index creation operation for MySQL. TODO: currently failure
-to create an index results in dropping the whole table! This is no problem
-currently as all indexes must be created at the same time as the table.
+Create an index when creating a table.
+On failure, the caller must drop the table!
 @return error number or DB_SUCCESS */
 dberr_t
 row_create_index_for_mysql(
@@ -2489,27 +2488,6 @@ row_create_index_for_mysql(
 
 error_handling:
 	dict_table_close(table, TRUE, FALSE);
-
-	if (err != DB_SUCCESS) {
-		/* We have special error handling here */
-
-		trx->error_state = DB_SUCCESS;
-
-		if (trx_is_started(trx)) {
-
-			trx_rollback_to_savepoint(trx, NULL);
-		}
-
-		row_drop_table_for_mysql(table_name, trx, SQLCOM_DROP_TABLE,
-					 true);
-
-		if (trx_is_started(trx)) {
-
-			trx_commit_for_mysql(trx);
-		}
-
-		trx->error_state = DB_SUCCESS;
-	}
 
 	trx->op_info = "";
 

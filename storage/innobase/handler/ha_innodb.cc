@@ -12589,11 +12589,14 @@ int create_table_info_t::create_table(bool create_fk)
 		dict_table_close(innobase_table, TRUE, FALSE);
 
 		if (error) {
-			trx_rollback_to_savepoint(m_trx, NULL);
+			/* Drop the being-created table before rollback,
+			so that rollback can possibly rename back a table
+			that could have been renamed before
+			the failed creation. */
 			m_trx->error_state = DB_SUCCESS;
-
 			row_drop_table_for_mysql(m_table_name, m_trx,
 						 SQLCOM_DROP_DB);
+			trx_rollback_to_savepoint(m_trx, NULL);
 
 			m_trx->error_state = DB_SUCCESS;
 			DBUG_RETURN(error);
@@ -12835,12 +12838,18 @@ ha_innobase::create(
 	}
 
 	if ((error = info.create_table(own_trx))) {
+		/* Drop the being-created table before rollback,
+		so that rollback can possibly rename back a table
+		that could have been renamed before the failed creation. */
+		trx->error_state = DB_SUCCESS;
+		row_drop_table_for_mysql(info.table_name(), trx,
+					 SQLCOM_DROP_DB, true);
 		trx_rollback_for_mysql(trx);
 		row_mysql_unlock_data_dictionary(trx);
 		if (own_trx) {
 			trx_free_for_mysql(trx);
-			DBUG_RETURN(error);
 		}
+		DBUG_RETURN(error);
 	}
 
 	innobase_commit_low(trx);

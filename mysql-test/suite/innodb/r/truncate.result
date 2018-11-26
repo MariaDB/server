@@ -6,3 +6,15 @@ connection default;
 TRUNCATE TABLE t;
 disconnect dml;
 DROP TABLE t;
+#
+# MDEV-17816 Crash in TRUNCATE TABLE when table creation fails
+#
+CREATE TABLE t1 (c VARCHAR(1024), KEY(c)) ENGINE=InnoDB ROW_FORMAT=DYNAMIC;
+INSERT INTO t1 SET c='character';
+ALTER TABLE t1 ROW_FORMAT=REDUNDANT;
+TRUNCATE TABLE t1;
+ERROR HY000: Index column size too large. The maximum column size is 767 bytes
+SELECT * FROM t1;
+c
+character
+DROP TABLE t1;
