@@ -5765,8 +5765,7 @@ int mysqld_main(int argc, char **argv)
       set_user(mysqld_user, user_info);
   }
 
-  if (WSREP_ON && wsrep_check_opts())
-    global_system_variables.wsrep_on= 0;
+  if (WSREP_ON && wsrep_check_opts()) unireg_abort(1);
 
   /* 
    The subsequent calls may take a long time : e.g. innodb log read.

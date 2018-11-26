@@ -2,8 +2,6 @@ connection node_2;
 connection node_1;
 connection node_1;
 connection node_2;
-connection node_1;
-connection node_2;
 connection node_2;
 CREATE TABLE t1(i INT) ENGINE=INNODB;
 INSERT INTO t1 VALUES(1);
@@ -54,4 +52,3 @@ i
 DROP TABLE t1;
 disconnect node_2;
 disconnect node_1;
-# End of test

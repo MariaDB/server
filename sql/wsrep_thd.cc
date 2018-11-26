@@ -156,25 +156,16 @@ static bool create_wsrep_THD(Wsrep_thd_args* args)
 
 void wsrep_create_appliers(long threads)
 {
-  /*
-    Todo: We should somehow verify here that the provider has been
-    connected. However, currently the wsrep_connected status variable
-    is updated in Wsrep_server_service::log_state_change() after the
-    Wsrep_server_state reaches connected state. Due to the differences
-    in Wsrep_server_state state machine with different SST methods,
-    it is not straightforward to wait for certain state. Perhaps
-    connecting state needs to be implemented separately.
-   */
-  if (false)
+  /*  Dont' start slave threads if wsrep-provider or wsrep-cluster-address
+      is not set.
+  */
+  if (!WSREP_PROVIDER_EXISTS) 
   {
-    /* see wsrep_replication_start() for the logic */
-    if (wsrep_cluster_address && strlen(wsrep_cluster_address) &&
-        wsrep_provider && strcasecmp(wsrep_provider, "none"))
-    {
-      WSREP_ERROR("Trying to launch slave threads before creating "
-                  "connection at '%s'", wsrep_cluster_address);
-      assert(0);
-    }
+    return; 
+  }
+
+  if (!wsrep_cluster_address || wsrep_cluster_address[0]== 0)
+  {
     return;
   }
 
