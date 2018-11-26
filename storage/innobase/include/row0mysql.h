@@ -372,9 +372,8 @@ row_create_table_for_mysql(
 	MY_ATTRIBUTE((warn_unused_result));
 
 /*********************************************************************//**
-Does an index creation operation for MySQL. TODO: currently failure
-to create an index results in dropping the whole table! This is no problem
-currently as all indexes must be created at the same time as the table.
+Create an index when creating a table.
+On failure, the caller must drop the table!
 @return error number or DB_SUCCESS */
 dberr_t
 row_create_index_for_mysql(

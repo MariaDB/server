@@ -145,8 +145,8 @@ void close_thread_tables(THD* thd);
 
 #ifdef WITH_WSREP
 #include "dict0priv.h"
-#include "ut0byte.h"
 #include <mysql/service_md5.h>
+#include "wsrep_sst.h"
 
 extern MYSQL_PLUGIN_IMPORT MYSQL_BIN_LOG mysql_bin_log;
 
@@ -3732,6 +3732,15 @@ static int innodb_init_params()
 	    && global_system_variables.wsrep_on) {
 		ib::info() << "For Galera, using innodb_lock_schedule_algorithm=fcfs";
 		innodb_lock_schedule_algorithm = INNODB_LOCK_SCHEDULE_ALGORITHM_FCFS;
+	}
+
+	/* Print deprecation info if xtrabackup is used for SST method */
+	if (global_system_variables.wsrep_on
+	    && wsrep_sst_method
+	    && (!strcmp(wsrep_sst_method, "xtrabackup")
+	        || !strcmp(wsrep_sst_method, "xtrabackup-v2"))) {
+		ib::info() << "Galera SST method xtrabackup is deprecated and the "
+			" support for it may be removed in future releases.";
 	}
 #endif /* WITH_WSREP */
 
@@ -12345,11 +12354,14 @@ int create_table_info_t::create_table(bool create_fk)
 		error = convert_error_code_to_mysql(err, 0, NULL);
 
 		if (error) {
-			trx_rollback_to_savepoint(m_trx, NULL);
+			/* Drop the being-created table before rollback,
+			so that rollback can possibly rename back a table
+			that could have been renamed before
+			the failed creation. */
 			m_trx->error_state = DB_SUCCESS;
-
 			row_drop_table_for_mysql(m_table_name, m_trx,
 						 SQLCOM_DROP_DB);
+			trx_rollback_to_savepoint(m_trx, NULL);
 
 			m_trx->error_state = DB_SUCCESS;
 			DBUG_RETURN(error);
@@ -12575,12 +12587,18 @@ ha_innobase::create(
 	}
 
 	if ((error = info.create_table(own_trx))) {
+		/* Drop the being-created table before rollback,
+		so that rollback can possibly rename back a table
+		that could have been renamed before the failed creation. */
+		trx->error_state = DB_SUCCESS;
+		row_drop_table_for_mysql(info.table_name(), trx,
+					 SQLCOM_DROP_DB, true);
 		trx_rollback_for_mysql(trx);
 		row_mysql_unlock_data_dictionary(trx);
 		if (own_trx) {
 			trx_free(trx);
-			DBUG_RETURN(error);
 		}
+		DBUG_RETURN(error);
 	}
 
 	innobase_commit_low(trx);
