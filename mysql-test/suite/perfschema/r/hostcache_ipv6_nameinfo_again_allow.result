@@ -118,7 +118,7 @@ Con4 is alive
 Con4 is alive
 select current_user();
 current_user()
-root@2001:db8::6:6
+root@santa.claus.ipv6.example.com
 disconnect con4;
 connection default;
 "Dumping performance_schema.host_cache"
@@ -155,7 +155,7 @@ Con5 is alive
 Con5 is alive
 select current_user();
 current_user()
-root@2001:db8::6:6
+root@santa.claus.ipv6.example.com
 disconnect con5;
 connection default;
 "Dumping performance_schema.host_cache"
