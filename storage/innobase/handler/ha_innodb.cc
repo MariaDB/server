@@ -12613,7 +12613,7 @@ int create_table_info_t::create_table(bool create_fk)
 			the failed creation. */
 			m_trx->error_state = DB_SUCCESS;
 			row_drop_table_for_mysql(m_table_name, m_trx,
-						 SQLCOM_DROP_DB);
+						 SQLCOM_TRUNCATE);
 			trx_rollback_to_savepoint(m_trx, NULL);
 
 			m_trx->error_state = DB_SUCCESS;
@@ -12861,7 +12861,7 @@ ha_innobase::create(
 		that could have been renamed before the failed creation. */
 		trx->error_state = DB_SUCCESS;
 		row_drop_table_for_mysql(info.table_name(), trx,
-					 SQLCOM_DROP_DB, true);
+					 SQLCOM_TRUNCATE, true);
 		trx_rollback_for_mysql(trx);
 		row_mysql_unlock_data_dictionary(trx);
 		if (own_trx) {
