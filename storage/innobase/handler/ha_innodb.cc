@@ -154,6 +154,7 @@ innodb_check_deprecated(void);
 #include "dict0priv.h"
 #include "ut0byte.h"
 #include <mysql/service_md5.h>
+#include "wsrep_sst.h"
 
 extern MYSQL_PLUGIN_IMPORT MYSQL_BIN_LOG mysql_bin_log;
 
@@ -3859,6 +3860,23 @@ innobase_init(
 	    && global_system_variables.wsrep_on) {
 		ib::info() << "For Galera, using innodb_lock_schedule_algorithm=fcfs";
 		innodb_lock_schedule_algorithm = INNODB_LOCK_SCHEDULE_ALGORITHM_FCFS;
+	}
+
+	/* Print deprecation info if xtrabackup is used for SST method */
+	if (global_system_variables.wsrep_on
+	    && wsrep_sst_method
+	    && (!strcmp(wsrep_sst_method, "xtrabackup")
+	        || !strcmp(wsrep_sst_method, "xtrabackup-v2"))) {
+		ib::info() << "Galera SST method xtrabackup is deprecated and the "
+			" support for it may be removed in future releases.";
+
+		/* We can't blindly turn on this as it will cause a
+		modification of the redo log format identifier. See
+		MDEV-13564 for more information. */
+		if (!srv_safe_truncate) {
+			ib::info() << "Requested xtrabackup based SST for Galera but"
+				   << "innodb_safe_truncate is disabled.";
+		}
 	}
 #endif /* WITH_WSREP */
 
