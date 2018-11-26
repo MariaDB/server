@@ -7,7 +7,6 @@ SET GLOBAL wsrep_reject_queries = ALL;
 SELECT * FROM t1;
 ERROR 08S01: WSREP has not yet prepared node for application use
 SET GLOBAL wsrep_reject_queries = ALL_KILL;
-ERROR HY000: Lost connection to MySQL server during query
 connection node_1a;
 SELECT * FROM t1;
 Got one of the listed errors

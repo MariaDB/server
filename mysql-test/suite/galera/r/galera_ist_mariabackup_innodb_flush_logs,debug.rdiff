@@ -1,6 +1,6 @@
---- r/galera_ist_mysqldump.result	2018-11-22 14:25:28.551554055 +0200
-+++ r/galera_ist_mysqldump.reject	2018-11-22 15:46:33.119441931 +0200
-@@ -200,6 +200,114 @@
+--- r/galera_ist_mariabackup_innodb_flush_logs.result	2018-11-21 21:34:20.157054441 +0200
++++ r/galera_ist_mariabackup_innodb_flush_logs.reject	2018-11-22 09:16:16.824604445 +0200
+@@ -94,3 +94,111 @@
  DROP TABLE t1;
  COMMIT;
  SET AUTOCOMMIT=ON;
@@ -112,6 +112,3 @@
 +COMMIT;
 +SET AUTOCOMMIT=ON;
 +SET GLOBAL debug_dbug = $debug_orig;
- connection node_1;
- CALL mtr.add_suppression("Slave SQL: Error 'The MySQL server is running with the --skip-grant-tables option so it cannot execute this statement' on query");
- DROP USER sst;

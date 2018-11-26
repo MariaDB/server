@@ -3007,7 +3007,7 @@ err_exit:
 	}
 
 	if (err == DB_SUCCESS && cached && table->is_readable()) {
-		if (table->space && !fil_space_get_size(table->space->id)) {
+		if (table->space && !fil_space_get_size(table->space_id)) {
 			table->corrupted = true;
 			table->file_unreadable = true;
 		} else if (table->supports_instant()) {

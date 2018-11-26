@@ -1503,7 +1503,7 @@ dict_stats_analyze_index_below_cur(
 	offsets_rec = rec_get_offsets(rec, index, offsets1, false,
 				      ULINT_UNDEFINED, &heap);
 
-	page_id_t		page_id(index->table->space->id,
+	page_id_t		page_id(index->table->space_id,
 					btr_node_ptr_get_child_page_no(
 						rec, offsets_rec));
 	const page_size_t	page_size(index->table->space->flags);

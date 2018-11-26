@@ -44,8 +44,16 @@ galera_kill_ddl : MDEV-17108 Test failure on galera.galera_kill_ddl
 galera_var_node_address : MDEV-17151 Galera test failure on galera.galera_var_node_address
 galera_binlog_stmt_autoinc: MDEV-17106 Test failure on galera.galera_binlog_stmt_autoinc
 galera_gc_fc_limit : MDEV-17061 Test failure on galera.galera_gc_fc_limit
-partition : MDEV-13881 galera.partition failed in buildbot with wrong result
 galera_as_slave_replication_budle : MDEV-15785 Test case galera_as_slave_replication_bundle caused debug assertion
 galera_wan : MDEV-17259: Test failure on galera.galera_wan
 galera_pc_ignore_sb : MDEV-17357 Test failure on galera.galera_pc_ignore_sb
 galera_drop_database : test
+galera_autoinc_sst_xtrabackup : xtrabackup is deprecated
+galera_ist_xtrabackup-v2 : xtrabackup is deprecated
+galera_sst_xtrabackup-v2_data_dir : xtrabackup is deprecated
+galera_sst_xtrabackup-v2_encrypt_with_key : xtrabackup is deprecated
+galera_sst_xtrabackup-v2-options : xtrabackup is deprecated
+galera_ist_innodb_flush_logs : xtrabackup is deprecated
+galera_sst_xtrabackup-v2 : xtrabackup is deprecated
+
+galera_sst_mariabackup_table_options : refuses to start due to encryption

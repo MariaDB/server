@@ -4859,8 +4859,8 @@ fil_mtr_rename_log(
 {
 	ut_ad(old_table->space != fil_system.temp_space);
 	ut_ad(new_table->space != fil_system.temp_space);
-	ut_ad(old_table->space_id == old_table->space->id);
-	ut_ad(new_table->space_id == new_table->space->id);
+	ut_ad(old_table->space->id == old_table->space_id);
+	ut_ad(new_table->space->id == new_table->space_id);
 
 	/* If neither table is file-per-table,
 	there will be no renaming of files. */

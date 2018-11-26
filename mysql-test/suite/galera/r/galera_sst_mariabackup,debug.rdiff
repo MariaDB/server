@@ -1,5 +1,5 @@
---- galera_sst_mariabackup.result
-+++ galera_sst_mariabackup,debug.reject
+--- r/galera_sst_mariabackup.result	2018-11-21 16:50:35.766982279 +0200
++++ r/galera_sst_mariabackup.reject	2018-11-22 09:20:10.344408266 +0200
 @@ -286,5 +286,113 @@
  DROP TABLE t1;
  COMMIT;
