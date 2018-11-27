@@ -190,7 +190,7 @@ rec_get_n_extern_new(
 			= dict_field_get_col(field);
 		ulint			len;
 
-		if (!(col->prtype & DATA_NOT_NULL)) {
+		if (!col->was_not_null()) {
 			/* nullable field => read the null flag */
 
 			if (UNIV_UNLIKELY(!(byte) null_mask)) {
@@ -684,8 +684,7 @@ rec_init_offsets(
 			}
 
 			field = dict_index_get_nth_field(index, i);
-			if (!(dict_field_get_col(field)->prtype
-			      & DATA_NOT_NULL)) {
+			if (!dict_field_get_col(field)->was_not_null()) {
 				/* nullable field => read the null flag */
 
 				if (UNIV_UNLIKELY(!(byte) null_mask)) {
@@ -996,7 +995,7 @@ rec_get_offsets_reverse(
 		}
 
 		field = dict_index_get_nth_field(index, i);
-		if (!(dict_field_get_col(field)->prtype & DATA_NOT_NULL)) {
+		if (!dict_field_get_col(field)->was_not_null()) {
 			/* nullable field => read the null flag */
 
 			if (UNIV_UNLIKELY(!(byte) null_mask)) {
@@ -1651,6 +1650,8 @@ start:
 
 		const dict_field_t* ifield
 			= dict_index_get_nth_field(index, i);
+		ut_ad(!(field->type.prtype & DATA_NOT_NULL)
+		      == ifield->col->is_nullable());
 		ulint fixed_len = ifield->fixed_len;
 
 		if (temp && fixed_len
@@ -1996,7 +1997,7 @@ rec_copy_prefix_to_buf(
 		if (dict_index_is_spatial(index)) {
 			ut_ad(index->n_core_null_bytes == 0);
 			ut_ad(n_fields == DICT_INDEX_SPATIAL_NODEPTR_SIZE + 1);
-			ut_ad(index->fields[0].col->prtype & DATA_NOT_NULL);
+			ut_ad(!index->fields[0].col->is_nullable());
 			ut_ad(DATA_BIG_COL(index->fields[0].col));
 			/* This is a deficiency of the format introduced
 			in MySQL 5.7. The length in the R-tree index should
@@ -2040,7 +2041,7 @@ rec_copy_prefix_to_buf(
 		field = dict_index_get_nth_field(index, i);
 		col = dict_field_get_col(field);
 
-		if (!(col->prtype & DATA_NOT_NULL)) {
+		if (!col->was_not_null()) {
 			/* nullable field => read the null flag */
 			if (UNIV_UNLIKELY(!(byte) null_mask)) {
 				nulls--;
@@ -2733,11 +2734,11 @@ wsrep_rec_get_foreign_key(
 		}
 
 		if (len == UNIV_SQL_NULL) {
-			ut_a(!(col_f->prtype & DATA_NOT_NULL));
+			ut_a(col_f->is_nullable());
 			*buf++ = 1;
 			key_len++;
 		} else if (!new_protocol) {
-			if (!(col_r->prtype & DATA_NOT_NULL)) {
+			if (col_r->is_nullable()) {
 				*buf++ = 0;
 				key_len++;
 			}
@@ -2747,7 +2748,7 @@ wsrep_rec_get_foreign_key(
 				(uint)dtype_get_charset_coll(col_f->prtype),
 				buf, len, *buf_len);
 		} else { /* new protocol */
-			if (!(col_r->prtype & DATA_NOT_NULL)) {
+			if (col_r->is_nullable()) {
 				*buf++ = 0;
 				key_len++;
 			}

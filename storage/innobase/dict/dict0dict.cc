@@ -2712,7 +2712,7 @@ dict_index_add_col(
 	change, which would be a disaster. */
 	compile_time_assert(DICT_MAX_FIXED_COL_LEN == 768);
 
-	if (!(col->prtype & DATA_NOT_NULL)) {
+	if (!col->was_not_null()) {
 		index->n_nullable++;
 	}
 }
@@ -5029,10 +5029,9 @@ scan_on_conditions:
 	}
 
 	for (j = 0; j < foreign->n_fields; j++) {
-		if ((dict_index_get_nth_col(foreign->foreign_index, j)->prtype)
-		    & DATA_NOT_NULL) {
-			const dict_col_t*	col
-				= dict_index_get_nth_col(foreign->foreign_index, j);
+		const dict_col_t*	col
+			= dict_index_get_nth_col(foreign->foreign_index, j);
+		if (!col->is_nullable()) {
 			const char* col_name = dict_table_get_col_name(foreign->foreign_index->table,
 				dict_col_get_no(col));
 
@@ -5500,7 +5499,7 @@ dict_index_calc_min_rec_len(
 {
 	ulint	sum	= 0;
 	ulint	i;
-	ulint	comp	= dict_table_is_comp(index->table);
+	ulint	comp	= dict_table_is_comp(index->table);// FIXME
 
 	if (comp) {
 		ulint nullable = 0;
@@ -5514,7 +5513,7 @@ dict_index_calc_min_rec_len(
 				size = col->len;
 				sum += size < 128 ? 1 : 2;
 			}
-			if (!(col->prtype & DATA_NOT_NULL)) {
+			if (col->is_nullable()) {
 				nullable++;
 			}
 		}
@@ -6764,8 +6763,7 @@ dict_foreign_qualify_index(
 			return(false);
 		}
 
-		if (check_null
-		    && (field->col->prtype & DATA_NOT_NULL)) {
+		if (check_null && !field->col->is_nullable()) {
 			if (error && err_col_no && err_index) {
 				*error = DB_FOREIGN_KEY_COL_NOT_NULL;
 				*err_col_no = i;

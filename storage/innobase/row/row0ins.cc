@@ -560,7 +560,7 @@ row_ins_cascade_calc_update_vec(
 				updated as NULL */
 
 				if (dfield_is_null(&ufield->new_val)
-				    && (col->prtype & DATA_NOT_NULL)) {
+				    && !col->is_nullable()) {
 					goto err_exit;
 				}
 
@@ -3466,7 +3466,7 @@ row_ins_index_entry_set_vals(
 		} else if (col->is_dropped()) {
 			ut_ad(index->is_primary());
 
-			if (!(col->prtype & DATA_NOT_NULL)) {
+			if (col->is_nullable()) {
 				field->data = NULL;
 				field->len = UNIV_SQL_NULL;
 				field->type.prtype = DATA_BINARY_TYPE;
