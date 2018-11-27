@@ -207,6 +207,7 @@ inline void dict_table_t::init_instant(const dict_table_t& table)
 			if (f.col->is_nullable()
 			    && !oindex.fields[i].col->is_nullable()) {
 				field_map_it->set_not_null();
+				ut_d(n_nullable--);
 			}
 			field_map_it++->set_ind(f.col->ind);
 			continue;
