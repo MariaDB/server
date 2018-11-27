@@ -98,6 +98,8 @@ if (which(socat)) {
 
 sub skip_combinations {
   my %skip = ();
+  $skip{'include/have_filekeymanagement.inc'} = 'needs file_key_management plugin'
+             unless $ENV{FILE_KEY_MANAGEMENT_SO};
   $skip{'include/have_mariabackup.inc'} = 'Need mariabackup'
              unless which(mariabackup);
   $skip{'include/have_mariabackup.inc'} = 'Need ss'

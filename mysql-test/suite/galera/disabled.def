@@ -56,4 +56,3 @@ galera_sst_xtrabackup-v2-options : xtrabackup is deprecated
 galera_ist_innodb_flush_logs : xtrabackup is deprecated
 galera_sst_xtrabackup-v2 : xtrabackup is deprecated
 
-galera_sst_mariabackup_table_options : refuses to start due to encryption
