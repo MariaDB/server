@@ -196,9 +196,10 @@ inline void dict_table_t::init_instant(const dict_table_t& table)
 		if (!f.col->is_dropped()) {
 			DBUG_ASSERT(!field_map_it->is_dropped());
 			if (!f.col->is_nullable()) {
-				DBUG_ASSERT(!field_map_it->is_not_null());
+				DBUG_ASSERT(!field_map_it->is_dropped()
+					    || !field_map_it->is_not_null());
 			} else if (oindex.was_not_null(i)) {
-				field_map_it++->set_not_null();
+				field_map_it->set_not_null();
 				f.col->set_was_not_null();
 			} else {
 				n_nullable++;

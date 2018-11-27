@@ -1225,8 +1225,6 @@ inline void dict_index_t::reconstruct_fields()
 			DBUG_ASSERT(f.col->is_dropped());
 			f.fixed_len = dict_col_get_fixed_size(f.col, comp);
 		} else {
-			DBUG_ASSERT(!c.is_not_null()
-				    || !table->not_redundant());
 			DBUG_ASSERT(!c.is_not_null() || table->dual_format());
 			const auto old = std::find_if(
 				fields + n_first, fields + n_fields,
