@@ -138,9 +138,6 @@ ulint	fil_n_pending_log_flushes		= 0;
 /** Number of pending tablespace flushes */
 ulint	fil_n_pending_tablespace_flushes	= 0;
 
-/** Number of files currently open */
-ulint	fil_n_file_opened			= 0;
-
 /** The null file address */
 fil_addr_t	fil_addr_null = {FIL_NULL, 0};
 
@@ -758,7 +755,6 @@ retry:
 	ut_a(node->is_open());
 
 	fil_system->n_open++;
-	fil_n_file_opened++;
 
 	if (fil_space_belongs_in_lru(space)) {
 
@@ -797,7 +793,6 @@ fil_node_close_file(
 	ut_ad(!node->is_open());
 	ut_a(fil_system->n_open > 0);
 	fil_system->n_open--;
-	fil_n_file_opened--;
 
 	if (fil_space_belongs_in_lru(node->space)) {
 

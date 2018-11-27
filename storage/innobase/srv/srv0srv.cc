@@ -1626,7 +1626,7 @@ srv_export_innodb_status(void)
 	export_vars.innodb_system_rows_deleted =
 		srv_stats.n_system_rows_deleted;
 
-	export_vars.innodb_num_open_files = fil_n_file_opened;
+	export_vars.innodb_num_open_files = fil_system->n_open;
 
 	export_vars.innodb_truncated_status_writes =
 		srv_truncated_status_writes;

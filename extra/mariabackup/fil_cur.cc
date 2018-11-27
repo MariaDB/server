@@ -110,7 +110,6 @@ xb_fil_node_close_file(
 
 	ut_a(fil_system->n_open > 0);
 	fil_system->n_open--;
-	fil_n_file_opened--;
 
 	if (node->space->purpose == FIL_TYPE_TABLESPACE &&
 	    fil_is_user_tablespace_id(node->space->id)) {
@@ -179,7 +178,6 @@ xb_fil_cur_open(
 		mutex_enter(&fil_system->mutex);
 
 		fil_system->n_open++;
-		fil_n_file_opened++;
 
 		if (node->space->purpose == FIL_TYPE_TABLESPACE &&
 		    fil_is_user_tablespace_id(node->space->id)) {
