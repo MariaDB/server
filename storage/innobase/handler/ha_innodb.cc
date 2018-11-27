@@ -18519,7 +18519,7 @@ wsrep_innobase_kill_one_trx(
 		    thd_get_thread_id(thd),
 		    victim_trx->id);
 
-	WSREP_DEBUG("Aborting query: %s conf %s trx: %" PRId64,
+	WSREP_DEBUG("Aborting query: %s conf %s trx: %lld",
 		    (thd && wsrep_thd_query(thd)) ? wsrep_thd_query(thd) : "void",
 		    wsrep_thd_transaction_state_str(thd),
 		    wsrep_thd_transaction_id(thd));
