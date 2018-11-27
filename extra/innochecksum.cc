@@ -42,22 +42,12 @@
 /* Only parts of these files are included from the InnoDB codebase.
 The parts not included are excluded by #ifndef UNIV_INNOCHECKSUM. */
 
-typedef void fil_space_t;
-
-#include "page0size.h"
-#include "ut0ut.h"
-#include "mtr0types.h"
 #include "mach0data.h"
-#include "fsp0types.h"
-#include "rem0rec.h"
+#include "page0page.h"
 #include "buf0checksum.h"        /* buf_calc_page_*() */
 #include "buf0buf.h"             /* buf_page_is_corrupted */
-#include "fil0fil.h"             /* FIL_* */
-#include "page0page.h"           /* PAGE_* */
 #include "page0zip.h"            /* page_zip_*() */
 #include "trx0undo.h"            /* TRX_* */
-#include "fsp0fsp.h"             /* fsp_flags_get_page_size() &
-                                    fsp_flags_get_zip_size() */
 #include "ut0crc32.h"            /* ut_crc32_init() */
 #include "fsp0pagecompress.h"    /* fil_get_compression_alg_name */
 #include "fil0crypt.h"           /* fil_space_verify_crypt_checksum */

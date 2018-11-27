@@ -1539,6 +1539,52 @@ struct dict_vcol_templ_t {
 	dict_vcol_templ_t() : vtempl(0), mysql_table_query_id(~0ULL) {}
 };
 
+/** Metadata on clustered index fields starting from first_user_field() */
+class field_map_element_t
+{
+	/** Number of bits for representing a column number */
+	static constexpr uint16_t IND_BITS = 10;
+
+	/** Set if the column of the field has been instantly dropped */
+	static constexpr uint16_t DROPPED = 1U << (IND_BITS + 5);
+
+	/** Set if the column was dropped and originally declared NOT NULL */
+	static constexpr uint16_t NOT_NULL = 1U << (IND_BITS + 4);
+
+	/** Column index (if !(data & DROPPED)): table->cols[data & IND],
+	or field length (if (data & DROPPED)):
+	(data & IND) = 0 if variable-length with max_len < 256 bytes;
+	(data & IND) = 1 if variable-length with max_len > 255 bytes;
+	(data & IND) = 1 + L otherwise, with L=fixed length of the column */
+	static constexpr uint16_t IND = (1U << IND_BITS) - 1;
+
+	/** Field metadata */
+	uint16_t data;
+
+	void clear_not_null() { data &= ~NOT_NULL; }
+public:
+	bool is_dropped() const { return data & DROPPED; }
+	void set_dropped() { data |= DROPPED; }
+	bool is_not_null() const { return data & NOT_NULL; }
+	void set_not_null() { ut_ad(is_dropped()); data |= NOT_NULL; }
+	uint16_t ind() const { return data & IND; }
+	void set_ind(uint16_t i)
+	{
+		DBUG_ASSERT(i <= IND);
+		DBUG_ASSERT(!ind());
+		data |= i;
+	}
+	field_map_element_t& operator= (uint16_t value)
+	{
+		data = value;
+		return *this;
+	}
+	operator uint16_t() { return data; }
+};
+
+static_assert(sizeof(field_map_element_t) == 2,
+	      "Size mismatch for a persistent data item!");
+
 /** Instantly dropped or reordered columns */
 struct dict_instant_t
 {
@@ -1546,8 +1592,9 @@ struct dict_instant_t
 	unsigned n_dropped;
 	/** Dropped columns */
 	dict_col_t* dropped;
-	/** Mapping the non-pk field to column of the table. */
-	uint16_t* non_pk_col_map;
+	/** Map of clustered index non-PK fields[i - first_user_field()]
+	to table columns */
+	field_map_element_t* field_map;
 };
 
 /** These are used when MySQL FRM and InnoDB data dictionary are
@@ -1717,7 +1764,7 @@ struct dict_table_t {
 	}
 
 private:
-	/** Initialize instant->non_pk_col_map.
+	/** Initialize instant->field_map.
 	@tparam	replace_dropped	whether to point clustered index fields
 				to instant->dropped[]
 	@param[in]	table	table definition to copy from */
