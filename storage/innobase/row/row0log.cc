@@ -1657,9 +1657,7 @@ blob_done:
 			continue;
 		}
 
-		if ((new_col->prtype & DATA_NOT_NULL)
-		    && dfield_is_null(dfield)) {
-
+		if (!new_col->is_nullable() && dfield_is_null(dfield)) {
 			const dfield_t& default_field
 				= log->defaults->fields[col_no];
 			Field* field = log->old_table->field[col_no];

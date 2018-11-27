@@ -1055,8 +1055,7 @@ cmp_rec_rec_simple(
 		      == rec_offs_nth_sql_null(offsets2, n));
 
 		if (rec_offs_nth_sql_null(offsets1, n)) {
-			ut_ad(!(dict_index_get_nth_col(index, n)->prtype
-				& DATA_NOT_NULL));
+			ut_ad(dict_index_get_nth_col(index, n)->is_nullable());
 			null_eq = true;
 		}
 	}

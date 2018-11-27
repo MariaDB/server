@@ -611,6 +611,11 @@ public:
 	bool is_virtual() const { return prtype & DATA_VIRTUAL; }
 	/** @return whether NULL is an allowed value for this column */
 	bool is_nullable() const { return !(prtype & DATA_NOT_NULL); }
+	/** @return whether this column originally was NOT NULL
+	@see dict_index_t::dual_format() */
+	bool was_not_null() const {
+		return prtype & (DATA_WAS_NOT_NULL | DATA_NOT_NULL);
+	}
 
 	/** @return whether table of this system field is TRX_ID-based */
 	bool vers_native() const
@@ -697,7 +702,8 @@ public:
 			&& mbminlen == other.mbminlen
 			&& mbmaxlen == other.mbmaxlen
 			&& !((prtype ^ other.prtype)
-			     & ~(DATA_NOT_NULL | DATA_VERSIONED));
+			     & ~(DATA_NOT_NULL | DATA_VERSIONED
+				 | DATA_WAS_NOT_NULL));
 	}
 };
 

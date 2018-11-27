@@ -583,7 +583,7 @@ mlog_open_and_write_index(
 				with maximum length > 255 */
 				len = 0x7fff;
 			}
-			if (col->prtype & DATA_NOT_NULL) {
+			if (col->was_not_null()) {
 				len |= 0x8000;
 			}
 			if (log_ptr + 2 > log_end) {

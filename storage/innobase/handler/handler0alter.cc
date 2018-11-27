@@ -157,38 +157,51 @@ inline void dict_table_t::init_instant(const dict_table_t& table)
 		DBUG_ASSERT(table.instant->leaf_redundant
 			    || !instant->leaf_redundant);
 		instant->leaf_redundant= table.instant->leaf_redundant;
+		if (const auto omap = table.instant->non_pk_col_map) {
+			memcpy(non_pk_col_map, omap,
+			       (index.n_fields - u) * sizeof *omap);
+		}
 	}
 
 	ut_d(unsigned n_drop = 0);
-	ut_d(unsigned n_nullable = 0);
+	unsigned n_nullable = 0;
 	for (unsigned i = u; i < index.n_fields; i++) {
 		auto& f = index.fields[i];
 		DBUG_ASSERT(dict_col_get_fixed_size(f.col, not_redundant())
 			    <= DICT_MAX_FIXED_COL_LEN);
-#ifdef UNIV_DEBUG
-		if (!f.col->is_nullable()) {
-			ut_ad((*non_pk_col_map & 3U << 14) != 1U << 14);
-		} else if ((*non_pk_col_map & 3U << 14) != 1U << 14) {
-			n_nullable++;
-		}
-#endif
 		if (!f.col->is_dropped()) {
 			auto c = *non_pk_col_map & 3U << 14;
 			DBUG_ASSERT(!(c & 1U << 15));
-			if (!c
-			    && f.col->is_nullable()
-			    && !oindex.fields[i].col->is_nullable()) {
+			if (!f.col->is_nullable()) {
+				DBUG_ASSERT(!c);
+			} else if (oindex.fields[i].col->was_not_null()) {
 				c = 1U << 14;
-				ut_d(n_nullable--);
+				f.col->prtype |= DATA_WAS_NOT_NULL;
+				ut_ad(f.col->was_not_null());
+			} else {
+				n_nullable++;
 			}
 			*non_pk_col_map++ = c | f.col->ind;
 			continue;
 		}
 
+		if (f.col->was_not_null()) {
+			DBUG_ASSERT(!table.instant
+				    || !table.instant->non_pk_col_map
+				    || (*non_pk_col_map & 1U << 14));
+		} else if (!(*non_pk_col_map & 1U << 14)) {
+			n_nullable++;
+		} else {
+			f.col->prtype |= DATA_WAS_NOT_NULL;
+		}
+
+		DBUG_ASSERT(f.col->was_not_null()
+			    == oindex.fields[i].col->was_not_null());
+
 		auto fixed_len = dict_col_get_fixed_size(
 			f.col, not_redundant());
 		*non_pk_col_map++ = 1U << 15
-			| uint16_t(!f.col->is_nullable()) << 14
+			| uint16_t(f.col->was_not_null()) << 14
 			| (fixed_len
 			   ? uint16_t(fixed_len + 1)
 			   : f.col->len > 255);
@@ -205,7 +218,8 @@ inline void dict_table_t::init_instant(const dict_table_t& table)
 	}
 	ut_ad(n_drop == n_dropped());
 	ut_ad(non_pk_col_map == &instant->non_pk_col_map[index.n_fields - u]);
-	ut_ad(index.n_nullable == n_nullable);
+	ut_ad(index.n_nullable >= n_nullable);
+	index.n_nullable = n_nullable;
 }
 
 /** Acquire a page latch on the possible metadata record,
@@ -504,7 +518,7 @@ inline void dict_index_t::instant_add_field(const dict_index_t& instant)
 	for (unsigned i = 0; i < n_fields; i++) {
 		const dict_col_t* icol = instant.fields[i].col;
 		dict_field_t& f = fields[i];
-		ut_d(n_null += icol->is_nullable());
+		ut_d(n_null += !icol->was_not_null());
 		DBUG_ASSERT(!icol->is_virtual());
 		if (icol->is_dropped()) {
 			ut_d(n_dropped++);
@@ -1619,7 +1633,7 @@ innobase_fts_check_doc_id_col(
 			internally created FTS_DOC_ID column. */
 			ut_ad(col->mtype == DATA_INT);
 			ut_ad(col->len == 8);
-			ut_ad(col->prtype & DATA_NOT_NULL);
+			ut_ad(!col->is_nullable());
 			ut_ad(col->prtype & DATA_UNSIGNED);
 #endif /* UNIV_DEBUG */
 			*fts_doc_col_no = i;
@@ -2336,10 +2350,9 @@ innobase_check_fk_option(
 			     | DICT_FOREIGN_ON_DELETE_SET_NULL)) {
 
 		for (ulint j = 0; j < foreign->n_fields; j++) {
-			if ((dict_index_get_nth_col(
-				     foreign->foreign_index, j)->prtype)
-			    & DATA_NOT_NULL) {
-
+			const dict_col_t* col = dict_index_get_nth_col(
+				foreign->foreign_index, j);
+			if (!col->is_nullable()) {
 				/* It is not sensible to define
 				SET NULL if the column is not
 				allowed to be NULL! */
@@ -3497,7 +3510,7 @@ innobase_fts_check_doc_id_index(
 		if (strcmp(field->name, FTS_DOC_ID_COL_NAME) == 0
 		    && field->col->mtype == DATA_INT
 		    && field->col->len == 8
-		    && field->col->prtype & DATA_NOT_NULL
+		    && !field->col->is_nullable()
 		    && !field->col->is_virtual()) {
 			if (fts_doc_col_no) {
 				*fts_doc_col_no = dict_col_get_no(field->col);
@@ -4907,7 +4920,8 @@ static bool innodb_insert_sys_columns(
 	pars_info_add_int4_literal(info, "pos", pos);
 	pars_info_add_str_literal(info, "name", field_name);
 	pars_info_add_int4_literal(info, "mtype", mtype);
-	pars_info_add_int4_literal(info, "prtype", prtype);
+	pars_info_add_int4_literal(info, "prtype", prtype
+				   & ~DATA_WAS_NOT_NULL);
 	pars_info_add_int4_literal(info, "len", len);
 	pars_info_add_int4_literal(info, "base", n_base);
 

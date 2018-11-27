@@ -721,7 +721,7 @@ row_merge_buf_add(
 		len = dfield_get_len(field);
 
 		if (dfield_is_null(field)) {
-			ut_ad(!(col->prtype & DATA_NOT_NULL));
+			ut_ad(col->is_nullable());
 			continue;
 		} else if (!ext) {
 		} else if (dict_index_is_clust(index)) {
@@ -1888,8 +1888,8 @@ row_merge_read_clustered_index(
 				  * sizeof *nonnull));
 
 		for (ulint i = 0; i < dict_table_get_n_cols(old_table); i++) {
-			if (dict_table_get_nth_col(old_table, i)->prtype
-			    & DATA_NOT_NULL) {
+			if (!dict_table_get_nth_col(old_table, i)
+			    ->is_nullable()) {
 				continue;
 			}
 
@@ -1900,8 +1900,8 @@ row_merge_read_clustered_index(
 				continue;
 			}
 
-			if (dict_table_get_nth_col(new_table, j)->prtype
-			    & DATA_NOT_NULL) {
+			if (!dict_table_get_nth_col(new_table, j)
+			    ->is_nullable()) {
 				nonnull[n_nonnull++] = j;
 			}
 		}

@@ -195,6 +195,9 @@ be less than 256 */
 /** system-versioned user data column */
 #define DATA_VERSIONED (DATA_VERS_START|DATA_VERS_END)
 
+/** the original NOT NULL attribute of a column before instant ALTER */
+#define DATA_WAS_NOT_NULL (1U << 31)
+
 /** Check whether locking is disabled (never). */
 #define dict_table_is_locking_disabled(table) false
 

@@ -534,13 +534,7 @@ page_zip_fields_encode(
 
 	for (i = col = 0; i < n; i++) {
 		dict_field_t*	field = dict_index_get_nth_field(index, i);
-		ulint		val;
-
-		if (dict_field_get_col(field)->prtype & DATA_NOT_NULL) {
-			val = 1; /* set the "not nullable" flag */
-		} else {
-			val = 0; /* nullable field */
-		}
+		ulint val = !field->col->is_nullable();
 
 		if (!field->fixed_len) {
 			/* variable-length field */
