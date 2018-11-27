@@ -136,7 +136,7 @@ static const alter_table_operations INNOBASE_ALTER_INSTANT
 	| ALTER_COLUMN_UNVERSIONED
 	| ALTER_DROP_VIRTUAL_COLUMN;
 
-/** Initialize instant->non_pk_col_map.
+/** Initialize instant->field_map.
 @tparam	replace_dropped	whether to point clustered index fields
 to instant->dropped[]
 @param[in]	table	table definition to copy from */
@@ -149,16 +149,16 @@ inline void dict_table_t::init_instant(const dict_table_t& table)
 	DBUG_ASSERT(u == oindex.first_user_field());
 	DBUG_ASSERT(index.n_fields >= oindex.n_fields);
 
-	uint16_t* non_pk_col_map = static_cast<uint16_t*>(
+	field_map_element_t* field_map_it = static_cast<field_map_element_t*>(
 		mem_heap_zalloc(heap, (index.n_fields - u)
-				* sizeof *non_pk_col_map));
-	instant->non_pk_col_map = non_pk_col_map;
+				* sizeof *field_map_it));
+	instant->field_map = field_map_it;
 	if (table.instant) {
 		DBUG_ASSERT(table.instant->leaf_redundant
 			    || !instant->leaf_redundant);
 		instant->leaf_redundant= table.instant->leaf_redundant;
-		if (const auto omap = table.instant->non_pk_col_map) {
-			memcpy(non_pk_col_map, omap,
+		if (const auto omap = table.instant->field_map) {
+			memcpy(field_map_it, omap,
 			       (index.n_fields - u) * sizeof *omap);
 		}
 	}
@@ -170,25 +170,26 @@ inline void dict_table_t::init_instant(const dict_table_t& table)
 		DBUG_ASSERT(dict_col_get_fixed_size(f.col, not_redundant())
 			    <= DICT_MAX_FIXED_COL_LEN);
 		if (!f.col->is_dropped()) {
-			auto c = *non_pk_col_map & 3U << 14;
-			DBUG_ASSERT(!(c & 1U << 15));
+			DBUG_ASSERT(!field_map_it->is_dropped());
 			if (!f.col->is_nullable()) {
-				DBUG_ASSERT(!c);
+				DBUG_ASSERT(!(field_map_it->is_dropped()
+					      && field_map_it->is_not_null()));
 			} else if (oindex.was_not_null(i)) {
-				c = 1U << 14;
+				field_map_it->set_not_null();
 				f.col->set_was_not_null();
 			} else {
 				n_nullable++;
 			}
-			*non_pk_col_map++ = c | f.col->ind;
+			field_map_it->set_ind(f.col->ind);
+			field_map_it++;
 			continue;
 		}
 
 		if (f.col->was_not_null()) {
 			DBUG_ASSERT(!table.instant
-				    || !table.instant->non_pk_col_map
-				    || (*non_pk_col_map & 1U << 14));
-		} else if (!(*non_pk_col_map & 1U << 14)) {
+				    || !table.instant->field_map
+				    || field_map_it->is_not_null());
+		} else if (!field_map_it->is_not_null()) {
 			n_nullable++;
 		} else {
 			f.col->set_was_not_null();
@@ -198,11 +199,12 @@ inline void dict_table_t::init_instant(const dict_table_t& table)
 
 		auto fixed_len = dict_col_get_fixed_size(
 			f.col, not_redundant());
-		*non_pk_col_map++ = 1U << 15
-			| uint16_t(f.col->was_not_null()) << 14
-			| (fixed_len
-			   ? uint16_t(fixed_len + 1)
-			   : f.col->len > 255);
+		field_map_it->set_dropped();
+		field_map_it->set_not_null(f.col->was_not_null());
+		field_map_it->set_ind(fixed_len
+					? uint16_t(fixed_len + 1)
+					: f.col->len > 255);
+		field_map_it++;
 		ut_ad(f.col >= table.instant->dropped);
 		ut_ad(f.col < table.instant->dropped
 		      + table.instant->n_dropped);
@@ -215,7 +217,7 @@ inline void dict_table_t::init_instant(const dict_table_t& table)
 		}
 	}
 	ut_ad(n_drop == n_dropped());
-	ut_ad(non_pk_col_map == &instant->non_pk_col_map[index.n_fields - u]);
+	ut_ad(field_map_it == &instant->field_map[index.n_fields - u]);
 	ut_ad(index.n_nullable >= n_nullable);
 	index.n_nullable = n_nullable;
 }
@@ -5305,7 +5307,7 @@ void dict_table_t::serialise_columns(mem_heap_t* heap, dfield_t* field) const
 	data += 4;
 
 	for (ulint i = n_fixed; i < index.n_fields; i++) {
-		mach_write_to_2(data, instant->non_pk_col_map[i - n_fixed]);
+		mach_write_to_2(data, instant->field_map[i - n_fixed]);
 		data += 2;
 	}
 }

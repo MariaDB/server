@@ -1565,6 +1565,66 @@ struct dict_vcol_templ_t {
 	dict_vcol_templ_t() : vtempl(0), mysql_table_query_id(~0ULL) {}
 };
 
+/** Metadata about clustered index non-PK field */
+class field_map_element_t
+{
+	static constexpr uint16_t IND_BITS = 10;
+
+	/** Current element represents info about dropped or existing column */
+	static constexpr uint16_t DROPPED = 1U << (IND_BITS + 5);
+
+	/** NOT NULL info
+	for existing:
+		the column was originally declared NOT NULL and the table is not
+		in ROW_FORMAT=REDUNDANT
+	for dropped:
+		the column was NOT NULL
+	*/
+	static constexpr uint16_t NOT_NULL = 1U << (IND_BITS + 4);
+
+	/** Field index (data & DROPPED == 0) or field length (data & DROPPED != 0)
+	In case of field index addresses:
+		exising column at table->cols[data & IND];
+
+	In case of field length (data & IND) equals to:
+		0: if variable-length with max_len < 256 bytes
+		1: if variable-length with max_len > 255 bytes, otherwise
+		1 + L: where L is fixed length of the column.
+	*/
+	static constexpr uint16_t IND = (1U << IND_BITS) - 1;
+
+	uint16_t data;
+
+public:
+	bool is_dropped() const		{ return data & DROPPED; }
+	void set_dropped()		{ data |= DROPPED; }
+	bool is_not_null() const	{ return data & NOT_NULL; }
+	void set_not_null()		{ data |= NOT_NULL; }
+	void clear_not_null()		{ data &= ~NOT_NULL; }
+	void set_not_null(bool not_null)
+	{
+		if (not_null) {
+			set_not_null();
+		} else {
+			clear_not_null();
+		}
+	}
+	uint16_t ind() const		{ return data & IND; }
+	void set_ind(uint16_t ind)
+	{
+		ut_ad(ind <= IND);
+		data |= ind;
+	}
+	field_map_element_t& operator= (uint16_t value)
+	{
+		data = value;
+		return *this;
+	}
+	operator uint16_t ()		{ return data; }
+};
+
+static_assert(sizeof(field_map_element_t) == 2, "Wrong field_map_element_t size!");
+
 /** Instantly dropped or reordered columns */
 struct dict_instant_t
 {
@@ -1574,18 +1634,9 @@ struct dict_instant_t
 	unsigned leaf_redundant:1;
 	/** Dropped columns */
 	dict_col_t* dropped;
-	/** Map of clustered index fields[i - first_user_field()]
-	to table columns. The format of each element e is as follows:
-
-	if (e & 1U << 15): Dropped column; NOT NULL if (e & 1U << 14).
-	(e & ~(3U << 14)) are: 0 if variable-length with max_len<256 bytes
-	1 if variable-length with max_len>255 bytes
-	otherwise, 1 + the fixed length of the column.
-
-	if (!(e & 1U << 15)): Existing column at table->cols[e & ~(3U << 14)].
-	If (e & 1U << 14), the column was originally declared NOT NULL
-	and the table is not in ROW_FORMAT=REDUNDANT. */
-	uint16_t* non_pk_col_map;
+	/** Map of clustered index non-PK fields[i - first_user_field()]
+	to table columns */
+	field_map_element_t* field_map;
 };
 
 /** These are used when MySQL FRM and InnoDB data dictionary are
@@ -1772,7 +1823,7 @@ struct dict_table_t {
 	}
 
 private:
-	/** Initialize instant->non_pk_col_map.
+	/** Initialize instant->field_map.
 	@tparam	replace_dropped	whether to point clustered index fields
 				to instant->dropped[]
 	@param[in]	table	table definition to copy from */

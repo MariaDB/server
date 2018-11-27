@@ -1216,24 +1216,24 @@ inline void dict_index_t::reconstruct_fields()
 	n_nullable = 0;
 	ulint n_core_null = 0;
 	const bool comp = dict_table_is_comp(table);
-	const auto* non_pk_col_map = table->instant->non_pk_col_map;
+	const auto* field_map_it = table->instant->field_map;
 	for (unsigned i = n_first, j = 0; i < n_fields; ) {
 		dict_field_t& f = tfields[i++];
-		auto c = *non_pk_col_map++;
-		if (c & 1U << 15) {
+		auto c = *field_map_it++;
+		if (c.is_dropped()) {
 			f.col = &table->instant->dropped[j++];
 			DBUG_ASSERT(f.col->is_dropped());
 			f.fixed_len = dict_col_get_fixed_size(f.col, comp);
 		} else {
-			DBUG_ASSERT(!(c & 1U << 14) || table->dual_format());
+			DBUG_ASSERT(!c.is_not_null() || table->dual_format());
 			const auto old = std::find_if(
 				fields + n_first, fields + n_fields,
 				[c](const dict_field_t& o)
-				{ return o.col->ind == c; });
+				{ return o.col->ind == c.ind(); });
 			ut_ad(old >= &fields[n_first]);
 			ut_ad(old < &fields[n_fields]);
 			DBUG_ASSERT(!old->prefix_len);
-			DBUG_ASSERT(old->col == &table->cols[c]);
+			DBUG_ASSERT(old->col == &table->cols[c.ind()]);
 			f = *old;
 		}
 
@@ -1270,20 +1270,20 @@ bool dict_table_t::deserialise_columns(const byte* metadata, ulint len)
 		return true;
 	}
 
-	uint16_t* non_pk_col_map = static_cast<uint16_t*>(
+	field_map_element_t* field_map = static_cast<field_map_element_t*>(
 		mem_heap_alloc(heap,
-			       num_non_pk_fields * sizeof *non_pk_col_map));
+			       num_non_pk_fields * sizeof *field_map));
 
 	unsigned n_dropped_cols = 0;
 	bool leaf_redundant = false;
 
 	for (unsigned i = 0; i < num_non_pk_fields; i++) {
-		non_pk_col_map[i] = mach_read_from_2(metadata);
+		field_map[i] = mach_read_from_2(metadata);
 		metadata += 2;
-		auto c = non_pk_col_map[i];
-		auto col_ind = c & ~(3U << 14);
+		auto c = field_map[i];
+		auto col_ind = c.ind();
 
-		if (c & 1U << 15) {
+		if (c.is_dropped()) {
 			if (col_ind > DICT_MAX_FIXED_COL_LEN + 1) {
 				return true;
 			}
@@ -1292,7 +1292,7 @@ bool dict_table_t::deserialise_columns(const byte* metadata, ulint len)
 			if (col_ind >= n_cols) {
 				return true;
 			}
-			if (c & 1U << 14) {
+			if (c.is_not_null()) {
 				if (!not_redundant()) {
 					return true;
 				}
@@ -1307,14 +1307,14 @@ bool dict_table_t::deserialise_columns(const byte* metadata, ulint len)
 	instant->leaf_redundant = leaf_redundant;
 	instant->n_dropped = n_dropped_cols;
 	instant->dropped = dropped_cols;
-	instant->non_pk_col_map = non_pk_col_map;
+	instant->field_map = field_map;
 
 	dict_col_t* col = dropped_cols;
 	for (unsigned i = 0; i < num_non_pk_fields; i++) {
-		if (non_pk_col_map[i] & 1U << 15) {
-			auto fixed_len = non_pk_col_map[i] & ~(3U << 14);
+		if (field_map[i].is_dropped()) {
+			auto fixed_len = field_map[i].ind();
 			DBUG_ASSERT(fixed_len <= DICT_MAX_FIXED_COL_LEN + 1);
-			(col++)->set_dropped(non_pk_col_map[i] & 1U << 14,
+			(col++)->set_dropped(field_map[i].is_not_null(),
 					     fixed_len == 1,
 					     fixed_len > 1 ? fixed_len - 1
 					     : 0);
