@@ -147,7 +147,6 @@ inline void dict_table_t::init_instant(const dict_table_t& table)
 	dict_index_t& index = *indexes.start;
 	const unsigned u = index.first_user_field();
 	DBUG_ASSERT(u == oindex.first_user_field());
-	DBUG_ASSERT(not_redundant() == table.not_redundant());
 	DBUG_ASSERT(index.n_fields >= oindex.n_fields);
 
 	uint16_t* non_pk_col_map = static_cast<uint16_t*>(
@@ -168,8 +167,8 @@ inline void dict_table_t::init_instant(const dict_table_t& table)
 			    <= DICT_MAX_FIXED_COL_LEN);
 #ifdef UNIV_DEBUG
 		if (!f.col->is_nullable()) {
-			ut_ad((*non_pk_col_map & 3U << 15) != 1U << 14);
-		} else if ((*non_pk_col_map & 3U << 15) != 1U << 14) {
+			ut_ad((*non_pk_col_map & 3U << 14) != 1U << 14);
+		} else if ((*non_pk_col_map & 3U << 14) != 1U << 14) {
 			n_nullable++;
 		}
 #endif
@@ -180,6 +179,7 @@ inline void dict_table_t::init_instant(const dict_table_t& table)
 			    && f.col->is_nullable()
 			    && !oindex.fields[i].col->is_nullable()) {
 				c = 1U << 14;
+				ut_d(n_nullable--);
 			}
 			*non_pk_col_map++ = c | f.col->ind;
 			continue;
