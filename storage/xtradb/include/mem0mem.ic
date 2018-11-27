@@ -24,6 +24,7 @@ Created 6/8/1994 Heikki Tuuri
 *************************************************************************/
 
 #include "mem0dbg.ic"
+#include "my_valgrind.h"
 #ifndef UNIV_HOTBACKUP
 # include "mem0pool.h"
 #endif /* !UNIV_HOTBACKUP */
@@ -222,6 +223,7 @@ mem_heap_alloc(
 	buf = (byte*) buf + MEM_FIELD_HEADER_SIZE;
 
 #endif
+	MY_ASAN_UNPOISON_MEMORY_REGION(buf, n);
 	UNIV_MEM_ALLOC(buf, n);
 	return(buf);
 }
@@ -315,6 +317,8 @@ mem_heap_free_heap_top(
 	mem_current_allocated_memory -= (total_size - size);
 	mutex_exit(&mem_hash_mutex);
 #endif /* UNIV_MEM_DEBUG */
+	MY_ASAN_POISON_MEMORY_REGION(old_top,
+				     (byte*)block + block->len - old_top);
 	UNIV_MEM_FREE(old_top, (byte*)block + block->len - old_top);
 
 	/* If free == start, we may free the block if it is not the first
@@ -412,6 +416,8 @@ mem_heap_free_top(
 				== mem_block_get_start(block))) {
 		mem_heap_block_free(heap, block);
 	} else {
+		MY_ASAN_POISON_MEMORY_REGION(
+		    (byte*)block + mem_block_get_free(block), n);
 		UNIV_MEM_FREE((byte*) block + mem_block_get_free(block), n);
 	}
 }

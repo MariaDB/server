@@ -29,6 +29,8 @@
 
 #if defined(HAVE_VALGRIND) && defined(HAVE_valgrind)
 # include <valgrind/memcheck.h>
+# define MY_ASAN_POISON_MEMORY_REGION(a,len) ((void)(a), (void)(len))
+# define MY_ASAN_UNPOISON_MEMORY_REGION(a,len) ((void)(a), (void)(len))
 # define MEM_UNDEFINED(a,len) VALGRIND_MAKE_MEM_UNDEFINED(a,len)
 # define MEM_NOACCESS(a,len) VALGRIND_MAKE_MEM_NOACCESS(a,len)
 # define MEM_CHECK_ADDRESSABLE(a,len) VALGRIND_CHECK_MEM_IS_ADDRESSABLE(a,len)
@@ -37,11 +39,15 @@
 # include <sanitizer/asan_interface.h>
 /* How to do manual poisoning:
 https://github.com/google/sanitizers/wiki/AddressSanitizerManualPoisoning */
+# define MY_ASAN_POISON_MEMORY_REGION(a,len) ASAN_POISON_MEMORY_REGION(a,len)
+# define MY_ASAN_UNPOISON_MEMORY_REGION(a,len) ASAN_UNPOISON_MEMORY_REGION(a,len)
 # define MEM_UNDEFINED(a,len) ASAN_UNPOISON_MEMORY_REGION(a,len)
 # define MEM_NOACCESS(a,len) ASAN_POISON_MEMORY_REGION(a,len)
 # define MEM_CHECK_ADDRESSABLE(a,len) ((void) 0)
 # define MEM_CHECK_DEFINED(a,len) ((void) 0)
 #else
+# define MY_ASAN_POISON_MEMORY_REGION(a,len) ((void)(a), (void)(len))
+# define MY_ASAN_UNPOISON_MEMORY_REGION(a,len) ((void)(a), (void)(len))
 # define MEM_UNDEFINED(a,len) ((void) 0)
 # define MEM_NOACCESS(a,len) ((void) 0)
 # define MEM_CHECK_ADDRESSABLE(a,len) ((void) 0)

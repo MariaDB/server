@@ -409,6 +409,7 @@ mem_heap_create_block_func(
 	/* Poison all available memory. Individual chunks will be unpoisoned on
 	every mem_heap_alloc() call. */
 	compile_time_assert(MEM_BLOCK_HEADER_SIZE >= sizeof *block);
+	MY_ASAN_POISON_MEMORY_REGION(block + 1, len - sizeof *block);
 	UNIV_MEM_FREE(block + 1, len - sizeof *block);
 
 	ut_ad((ulint)MEM_BLOCK_HEADER_SIZE < len);
@@ -527,7 +528,7 @@ mem_heap_block_free(
 		mem_area_free(block, mem_comm_pool);
 	} else {
 		ut_ad(type & MEM_HEAP_BUFFER);
-
+		MY_ASAN_UNPOISON_MEMORY_REGION(block, len);
 		buf_block_free(buf_block);
 	}
 #else /* !UNIV_HOTBACKUP */
