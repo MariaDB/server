@@ -2808,7 +2808,8 @@ int wsrep_ignored_error_code(Log_event* ev, int error)
   if ((wsrep_ignore_apply_errors & WSREP_IGNORE_ERRORS_ON_RECONCILING_DML))
   {
     const int ev_type= ev->get_type_code();
-    if (ev_type == DELETE_ROWS_EVENT && error == ER_KEY_NOT_FOUND)
+    if ((ev_type == DELETE_ROWS_EVENT || ev_type == DELETE_ROWS_EVENT_V1)
+        && error == ER_KEY_NOT_FOUND)
       goto ignore_error;
   }
 
