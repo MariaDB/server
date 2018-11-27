@@ -42,10 +42,9 @@ galera_as_slave_replication_budle : MDEV-15785 Test case galera_as_slave_replica
 galera_wan : MDEV-17259: Test failure on galera.galera_wan
 galera_pc_ignore_sb : MDEV-17357 Test failure on galera.galera_pc_ignore_sb
 galera_drop_database : test
-galera_autoinc_sst_xtrabackup : xtrabackup is deprecated
-galera_ist_xtrabackup-v2 : xtrabackup is deprecated
-galera_sst_xtrabackup-v2_data_dir : xtrabackup is deprecated
-galera_sst_xtrabackup-v2_encrypt_with_key : xtrabackup is deprecated
-galera_sst_xtrabackup-v2-options : xtrabackup is deprecated
-galera_ist_innodb_flush_logs : xtrabackup is deprecated
-galera_sst_xtrabackup-v2 : xtrabackup is deprecated
+galera_ist_innodb_flush_logs
+galera.MW-328A : MDEV-17847 Galera test failure on MW-328[A|B|C]
+galera.MW-328B : MDEV-17847 Galera test failure on MW-328[A|B|C]
+galera.MW-328C : MDEV-17847 Galera test failure on MW-328[A|B|C]
+galera.galera_sst_xtrabackup-v2 : MDEV-17848 Galera test failure on galera_sst_xtrabackup-v2[_data_dir]
+galera.galera_sst_xtrabackup-v2_data_dir : MDEV-17848 Galera test failure on galera_sst_xtrabackup-v2[_data_dir]

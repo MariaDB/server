@@ -4,6 +4,7 @@
 wsrep_sst_method=xtrabackup-v2
 wsrep_sst_auth="root:"
 wsrep_debug=ON
+innodb_safe_truncate=OFF
 
 [xtrabackup]
 backup-locks
