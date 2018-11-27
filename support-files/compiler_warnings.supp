@@ -204,7 +204,6 @@
 .*/ctype-simple\.c : .*unary minus operator applied to unsigned type, result still unsigned.*
 .*/sql/sys_vars\.cc : invalid access to non-static data member
 .*/string3\.h : memset used with constant zero length parameter
-.*/sql/wsrep_hton\.cc : NULL used in arithmetic : 500-600
 .* : missing-declarations.*is valid
 
 #

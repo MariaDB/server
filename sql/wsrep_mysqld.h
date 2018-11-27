@@ -327,7 +327,6 @@ extern int           wsrep_to_isolation;
 extern rpl_sidno     wsrep_sidno;
 #endif /* GTID_SUPPORT */
 extern my_bool       wsrep_preordered_opt;
-extern handlerton    *wsrep_hton;
 
 #ifdef HAVE_PSI_INTERFACE
 
