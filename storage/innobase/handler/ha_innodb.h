@@ -450,7 +450,7 @@ protected:
 #ifdef WITH_WSREP
 	int wsrep_append_keys(
 		THD *thd,
-		wsrep_key_type key_type,
+		Wsrep_key_type key_type,
 		const uchar* record0,
 		const uchar* record1);
 #endif

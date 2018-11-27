@@ -1040,11 +1040,11 @@ func_exit:
 
 #ifdef WITH_WSREP
 dberr_t wsrep_append_foreign_key(trx_t *trx,
-			       dict_foreign_t*	foreign,
-			       const rec_t*	clust_rec,
-			       dict_index_t*	clust_index,
-			       ibool		referenced,
-			       wsrep_key_type	key_type);
+				 dict_foreign_t*	foreign,
+				 const rec_t*		clust_rec,
+				 dict_index_t*		clust_index,
+				 ibool			referenced,
+				 Wsrep_key_type		key_type);
 #endif /* WITH_WSREP */
 
 /*********************************************************************//**
@@ -1431,7 +1431,7 @@ row_ins_foreign_check_on_constraint(
 
 #ifdef WITH_WSREP
 	err = wsrep_append_foreign_key(trx, foreign, clust_rec, clust_index,
-				       FALSE,  WSREP_KEY_EXCLUSIVE);
+				       FALSE, wsrep_key_exclusive);
 	if (err != DB_SUCCESS) {
 		fprintf(stderr,
 			"WSREP: foreign key append failed: %d\n", err);
@@ -1806,13 +1806,20 @@ row_ins_check_foreign_constraint(
 				if (check_ref) {
 					err = DB_SUCCESS;
 #ifdef WITH_WSREP
+					Wsrep_key_type key_type;
+					if (upd_node != NULL &&
+					    wsrep_protocol_version < 4) {
+						key_type = wsrep_key_shared;
+					} else {
+						key_type = wsrep_key_reference;
+					}
 					err = wsrep_append_foreign_key(
 						thr_get_trx(thr),
 						foreign,
 						rec,
 						check_index,
 						check_ref,
-						upd_node != NULL ? WSREP_KEY_SHARED : WSREP_KEY_SEMI);
+						key_type);
 #endif /* WITH_WSREP */
 					goto end_scan;
 				} else if (foreign->type != 0) {

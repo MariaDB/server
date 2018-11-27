@@ -295,9 +295,9 @@ map_key_type(enum Wsrep_key_type type)
 {
   switch (type)
   {
-  case wsrep_key_shared: return wsrep::key::shared;
-  case wsrep_key_semi_shared: return wsrep::key::semi_shared;
-  case wsrep_key_semi_exclusive: return wsrep::key::semi_exclusive;
+  case wsrep_key_shared:    return wsrep::key::shared;
+  case wsrep_key_reference: return wsrep::key::reference;
+  case wsrep_key_update:    return wsrep::key::update;
   case wsrep_key_exclusive: return wsrep::key::exclusive;
   }
   return wsrep::key::exclusive;

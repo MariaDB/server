@@ -194,8 +194,8 @@ extern "C" my_bool wsrep_thd_is_aborting(const void*);
 enum Wsrep_key_type
 {
     wsrep_key_shared,
-    wsrep_key_semi_shared,
-    wsrep_key_semi_exclusive,
+    wsrep_key_reference,
+    wsrep_key_update,
     wsrep_key_exclusive
 };
 struct wsrep_key;
