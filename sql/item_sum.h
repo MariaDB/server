@@ -384,7 +384,9 @@ protected:
   Item **orig_args, *tmp_orig_args[2];
   
   static size_t ram_limitation(THD *thd);
-
+public:
+  // Methods used by ColumnStore
+  Item **get_orig_args() const { return orig_args; }
 public:  
 
   void mark_as_sum_func();
@@ -1825,6 +1827,14 @@ class Item_func_group_concat : public Item_sum
   friend int dump_leaf_key(void* key_arg,
                            element_count count __attribute__((unused)),
 			   void* item_arg);
+public:
+  // Methods used by ColumnStore
+  bool get_distinct() const { return distinct; }
+  uint get_count_field() const { return arg_count_field; }
+  uint get_order_field() const { return arg_count_order; }
+  const String* get_separator() const { return separator; }
+  ORDER** get_order() const { return order; }
+
 public:
   Item_func_group_concat(THD *thd, Name_resolution_context *context_arg,
                          bool is_distinct, List<Item> *is_select,
