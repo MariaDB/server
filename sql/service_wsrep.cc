@@ -323,13 +323,3 @@ extern "C" int wsrep_thd_append_key(void* thd_ptr,
   }
   return ret;
 }
-
-extern "C" long long get_wsrep_xid_seqno(const struct xid_t* xid)
-{
-  return wsrep_xid_seqno(*xid).get();
-}
-
-extern  const unsigned char* get_wsrep_xid_uuid(const struct xid_t* xid)
-{
-  return (const unsigned char*)wsrep_xid_uuid(*xid).data();
-}
