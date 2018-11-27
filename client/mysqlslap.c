@@ -1169,6 +1169,9 @@ get_options(int *argc,char ***argv)
   MY_STAT sbuf;  /* Stat information for the data file */
 
   DBUG_ENTER("get_options");
+
+  host= (char *) getenv("MYSQL_HOST");
+
   if ((ho_error= handle_options(argc, argv, my_long_options, get_one_option)))
     exit(ho_error);
   if (debug_info_flag)

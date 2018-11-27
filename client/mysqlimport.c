@@ -267,6 +267,8 @@ static int get_options(int *argc, char ***argv)
 {
   int ho_error;
 
+  current_host= (char *) getenv("MYSQL_HOST");
+
   if ((ho_error=handle_options(argc, argv, my_long_options, get_one_option)))
     exit(ho_error);
   if (debug_info_flag)

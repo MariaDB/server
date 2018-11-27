@@ -73,6 +73,8 @@ char upgrade_from_version[sizeof("10.20.456-MariaDB")+1];
 
 static my_bool opt_write_binlog;
 
+static my_bool default_env_host= 1;
+
 #define OPT_SILENT OPT_MAX_CLIENT_OPTION
 
 static struct my_option my_long_options[]=
@@ -113,6 +115,7 @@ static struct my_option my_long_options[]=
   {"force", 'f', "Force execution of mysqlcheck even if mysql_upgrade "
    "has already been executed for the current version of MariaDB.",
    &opt_force, &opt_force, 0, GET_BOOL, NO_ARG, 0, 0, 0, 0, 0, 0},
+#define HOST_OPT 11
   {"host", 'h', "Connect to host.", 0,
    0, 0, GET_STR, REQUIRED_ARG, 0, 0, 0, 0, 0, 0},
 #define PASSWORD_OPT 12
@@ -345,6 +348,8 @@ get_one_option(int optid, const struct my_option *opt,
     break;
 
   case 'h': /* --host */
+    default_env_host= 0;
+    /* FALLTHROUGH */
   case 'W': /* --pipe */
   case 'P': /* --port */
   case 'S': /* --socket */
@@ -1158,6 +1163,16 @@ int main(int argc, char **argv)
     my_end_arg= MY_CHECK_ERROR | MY_GIVE_INFO;
   if (debug_check_flag)
     my_end_arg= MY_CHECK_ERROR;
+
+  if (default_env_host)
+  {
+    char *host= (char *) getenv("MYSQL_HOST");
+    if (host)
+    {
+      add_one_option_cmd_line(&conn_args, &my_long_options[HOST_OPT], host);
+      add_one_option_cnf_file(&ds_args, &my_long_options[HOST_OPT], host);
+    }
+  }
 
   if (tty_password)
   {

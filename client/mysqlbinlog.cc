@@ -2064,6 +2064,10 @@ get_one_option(int optid, const struct my_option *opt __attribute__((unused)),
 static int parse_args(int *argc, char*** argv)
 {
   int ho_error;
+  char *tmp;
+
+  if ((tmp= (char *) getenv("MYSQL_HOST")))
+    host= my_strdup(tmp, MYF(MY_WME));
 
   if ((ho_error=handle_options(argc, argv, my_options, get_one_option)))
     exit(ho_error);
