@@ -918,6 +918,9 @@ SysTablespace::open_or_create(
 				name(), space_id(), flags(), is_temp
 				? FIL_TYPE_TEMPORARY : FIL_TYPE_TABLESPACE,
 				NULL);
+			if (!space) {
+				return DB_ERROR;
+			}
 		}
 
 		ut_a(fil_validate());
@@ -928,15 +931,8 @@ SysTablespace::open_or_create(
 				       : m_last_file_size_max)
 				    : it->m_size);
 
-		/* Add the datafile to the fil_system cache. */
-		if (!fil_node_create(
-			    it->m_filepath, it->m_size,
-			    space, it->m_type != SRV_NOT_RAW,
-			    TRUE, max_size)) {
-
-			err = DB_ERROR;
-			break;
-		}
+		space->add(it->m_filepath, OS_FILE_CLOSED, it->m_size,
+			   it->m_type != SRV_NOT_RAW, true, max_size);
 	}
 
 	return(err);
