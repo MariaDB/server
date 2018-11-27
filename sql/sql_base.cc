@@ -8885,7 +8885,6 @@ open_system_tables_for_read(THD *thd, TABLE_LIST *table_list,
 {
   Query_tables_list query_tables_list_backup;
   LEX *lex= thd->lex;
-
   DBUG_ENTER("open_system_tables_for_read");
 
   /*
@@ -8899,9 +8898,15 @@ open_system_tables_for_read(THD *thd, TABLE_LIST *table_list,
   thd->reset_n_backup_open_tables_state(backup);
   thd->lex->sql_command= SQLCOM_SELECT;
 
+  /*
+    Only use MYSQL_LOCK_IGNORE_TIMEOUT for tables opened for read.
+    This is to ensure that lock_wait_timeout is honored when trying
+    to update stats tables.
+  */
   if (open_and_lock_tables(thd, table_list, FALSE,
-                           MYSQL_OPEN_IGNORE_FLUSH |
-                           MYSQL_LOCK_IGNORE_TIMEOUT))
+                           (MYSQL_OPEN_IGNORE_FLUSH |
+                            (table_list->lock_type < TL_WRITE_ALLOW_WRITE ?
+                             MYSQL_LOCK_IGNORE_TIMEOUT : 0))))
   {
     lex->restore_backup_query_tables_list(&query_tables_list_backup);
     thd->restore_backup_open_tables_state(backup);

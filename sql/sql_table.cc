@@ -2040,18 +2040,6 @@ bool mysql_rm_table(THD *thd,TABLE_LIST *tables, bool if_exists,
 
   if (!drop_temporary)
   {
-    if (!in_bootstrap)
-    {
-      for (table= tables; table; table= table->next_local)
-      {
-        LEX_CSTRING db_name= table->db;
-        LEX_CSTRING table_name= table->table_name;
-        if (table->open_type == OT_BASE_ONLY ||
-            !thd->find_temporary_table(table))
-          (void) delete_statistics_for_table(thd, &db_name, &table_name);
-      }
-    }
-
     if (!thd->locked_tables_mode)
     {
       if (drop_sequence)
@@ -2115,6 +2103,18 @@ bool mysql_rm_table(THD *thd,TABLE_LIST *tables, bool if_exists,
         }
       }
     }
+    /* We remove statistics for table last, after we have the DDL lock */
+    if (!in_bootstrap)
+    {
+      for (table= tables; table; table= table->next_local)
+      {
+        LEX_CSTRING db_name= table->db;
+        LEX_CSTRING table_name= table->table_name;
+        if (table->open_type == OT_BASE_ONLY ||
+            !thd->find_temporary_table(table))
+          (void) delete_statistics_for_table(thd, &db_name, &table_name);
+      }
+    }
   }
 
   /* mark for close and remove all cached entries */
@@ -2127,7 +2127,6 @@ bool mysql_rm_table(THD *thd,TABLE_LIST *tables, bool if_exists,
     DBUG_RETURN(TRUE);
   my_ok(thd);
   DBUG_RETURN(FALSE);
-
 }
 
 

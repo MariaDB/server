@@ -3253,7 +3253,7 @@ int read_statistics_for_tables_if_needed(THD *thd, TABLE_LIST *tables)
 {
   TABLE_LIST stat_tables[STATISTICS_TABLES];
   Open_tables_backup open_tables_backup;
-
+  bool has_error_active= thd->is_error();
   DBUG_ENTER("read_statistics_for_tables_if_needed");
 
   DEBUG_SYNC(thd, "statistics_read_start");
@@ -3263,7 +3263,8 @@ int read_statistics_for_tables_if_needed(THD *thd, TABLE_LIST *tables)
 
   if (open_stat_tables(thd, stat_tables, &open_tables_backup, FALSE))
   {
-    thd->clear_error();
+    if (!has_error_active)
+      thd->clear_error();
     DBUG_RETURN(1);
   }
 
@@ -3317,7 +3318,7 @@ int read_statistics_for_tables_if_needed(THD *thd, TABLE_LIST *tables)
   'db' from all statistical tables: table_stats, column_stats, index_stats.
 
   @retval
-  0         If all deletions are successful  
+  0         If all deletions are successful or we couldn't open statistics table
   @retval
   1         Otherwise
 
@@ -3325,7 +3326,8 @@ int read_statistics_for_tables_if_needed(THD *thd, TABLE_LIST *tables)
   The function is called when executing the statement DROP TABLE 'tab'.
 */
 
-int delete_statistics_for_table(THD *thd, const LEX_CSTRING *db, const LEX_CSTRING *tab)
+int delete_statistics_for_table(THD *thd, const LEX_CSTRING *db,
+                                const LEX_CSTRING *tab)
 {
   int err;
   enum_binlog_format save_binlog_format;
@@ -3333,11 +3335,15 @@ int delete_statistics_for_table(THD *thd, const LEX_CSTRING *db, const LEX_CSTRI
   TABLE_LIST tables[STATISTICS_TABLES];
   Open_tables_backup open_tables_backup;
   int rc= 0;
-
+  bool has_error_active= thd->is_error();
   DBUG_ENTER("delete_statistics_for_table");
    
   if (open_stat_tables(thd, tables, &open_tables_backup, TRUE))
-    DBUG_RETURN(rc);
+  {
+    if (!has_error_active)
+      thd->clear_error();
+    DBUG_RETURN(0);
+  }
 
   save_binlog_format= thd->set_current_stmt_binlog_format_stmt();
 
@@ -3402,7 +3408,7 @@ int delete_statistics_for_table(THD *thd, const LEX_CSTRING *db, const LEX_CSTRI
   'tab' from the statistical table column_stats. 
 
   @retval
-  0         If the deletion is successful  
+  0         If all deletions are successful or we couldn't open statistics table
   @retval
   1         Otherwise
 
@@ -3419,14 +3425,15 @@ int delete_statistics_for_column(THD *thd, TABLE *tab, Field *col)
   TABLE_LIST tables;
   Open_tables_backup open_tables_backup;
   int rc= 0;
-
+  bool has_error_active= thd->is_error();
   DBUG_ENTER("delete_statistics_for_column");
    
   if (open_single_stat_table(thd, &tables, &stat_table_name[1],
                              &open_tables_backup, TRUE))
   {
-    thd->clear_error();
-    DBUG_RETURN(rc);
+    if (!has_error_active)
+      thd->clear_error();
+    DBUG_RETURN(0);
   }
 
   save_binlog_format= thd->set_current_stmt_binlog_format_stmt();
@@ -3468,7 +3475,7 @@ int delete_statistics_for_column(THD *thd, TABLE *tab, Field *col)
   defined on the table 'tab' from the statistical table index_stats.
 
   @retval
-  0         If the deletion is successful  
+  0         If all deletions are successful or we couldn't open statistics table
   @retval
   1         Otherwise
 
@@ -3486,14 +3493,15 @@ int delete_statistics_for_index(THD *thd, TABLE *tab, KEY *key_info,
   TABLE_LIST tables;
   Open_tables_backup open_tables_backup;
   int rc= 0;
-
+  bool has_error_active= thd->is_error();
   DBUG_ENTER("delete_statistics_for_index");
    
   if (open_single_stat_table(thd, &tables, &stat_table_name[2],
 			     &open_tables_backup, TRUE))
   {
-    thd->clear_error();
-    DBUG_RETURN(rc);
+    if (!has_error_active)
+      thd->clear_error();
+    DBUG_RETURN(0);
   }
 
   save_binlog_format= thd->set_current_stmt_binlog_format_stmt();
@@ -3563,8 +3571,10 @@ int delete_statistics_for_index(THD *thd, TABLE *tab, KEY *key_info,
   The function is called when executing any statement that renames a table
 */
 
-int rename_table_in_stat_tables(THD *thd, const LEX_CSTRING *db, const LEX_CSTRING *tab,
-                                const LEX_CSTRING *new_db, const LEX_CSTRING *new_tab)
+int rename_table_in_stat_tables(THD *thd, const LEX_CSTRING *db,
+                                const LEX_CSTRING *tab,
+                                const LEX_CSTRING *new_db,
+                                const LEX_CSTRING *new_tab)
 {
   int err;
   enum_binlog_format save_binlog_format;
@@ -3575,7 +3585,9 @@ int rename_table_in_stat_tables(THD *thd, const LEX_CSTRING *db, const LEX_CSTRI
   DBUG_ENTER("rename_table_in_stat_tables");
    
   if (open_stat_tables(thd, tables, &open_tables_backup, TRUE))
+  {
     DBUG_RETURN(0); // not an error
+  }
 
   save_binlog_format= thd->set_current_stmt_binlog_format_stmt();
 
@@ -3667,7 +3679,7 @@ int rename_column_in_stat_tables(THD *thd, TABLE *tab, Field *col,
   TABLE_LIST tables;
   Open_tables_backup open_tables_backup;
   int rc= 0;
-
+  bool has_error_active= thd->is_error();
   DBUG_ENTER("rename_column_in_stat_tables");
   
   if (tab->s->tmp_table != NO_TMP_TABLE)
@@ -3676,7 +3688,8 @@ int rename_column_in_stat_tables(THD *thd, TABLE *tab, Field *col,
   if (open_single_stat_table(thd, &tables, &stat_table_name[1],
                              &open_tables_backup, TRUE))
   {
-    thd->clear_error();
+    if (!has_error_active)
+      thd->clear_error();
     DBUG_RETURN(rc);
   }
 
