@@ -18573,16 +18573,6 @@ wsrep_innobase_kill_one_trx(
 				victim_trx->lock.was_chosen_as_deadlock_victim= TRUE;
 				lock_cancel_waiting_and_release(wait_lock);
 			}
-			wsrep_thd_awake((const void*)thd, signal); 
-		} else {
-			/* abort currently executing query */
-			DBUG_PRINT("wsrep",("sending KILL_QUERY to: %lu",
-					    thd_get_thread_id(thd)));
-			WSREP_DEBUG("kill query for: %lu",
-				    thd_get_thread_id(thd));
-			/* Note that innobase_kill_query will take lock_mutex
-			and trx_mutex */
-			wsrep_thd_awake((const void*)thd, signal);
 		}
 	}
 
