@@ -570,20 +570,17 @@ mlog_open_and_write_index(
 
 		for (i = 0; i < n; i++) {
 			dict_field_t*		field;
-			const dict_col_t*	col;
 			ulint			len;
 
 			field = dict_index_get_nth_field(index, i);
-			col = dict_field_get_col(field);
 			len = field->fixed_len;
 			ut_ad(len < 0x7fff);
-			if (len == 0
-			    && (DATA_BIG_COL(col))) {
+			if (len == 0 && (DATA_BIG_COL(field->col))) {
 				/* variable-length field
 				with maximum length > 255 */
 				len = 0x7fff;
 			}
-			if (col->was_not_null()) {
+			if (index->was_not_null(i)) {
 				len |= 0x8000;
 			}
 			if (log_ptr + 2 > log_end) {

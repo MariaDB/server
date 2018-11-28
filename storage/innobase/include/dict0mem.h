@@ -616,6 +616,12 @@ public:
 	bool was_not_null() const {
 		return prtype & (DATA_WAS_NOT_NULL | DATA_NOT_NULL);
 	}
+	/** Indicate that a column originally was declared NOT NULL. */
+	void set_was_not_null()
+	{
+		DBUG_ASSERT(is_nullable());
+		prtype |= DATA_WAS_NOT_NULL;
+	}
 
 	/** @return whether table of this system field is TRX_ID-based */
 	bool vers_native() const
@@ -1198,6 +1204,17 @@ struct dict_index_t {
 	@return	metadata record */
 	inline dtuple_t*
 	instant_metadata(const dtuple_t& row, mem_heap_t* heap) const;
+
+	/** Determine whether an index field is NOT NULL in storage.
+	@param[in]	i	field index
+	@return	whether the index field is NOT NULL */
+	bool was_not_null(ulint i) const
+	{
+		ut_ad(i < n_fields);
+		return is_primary()
+			? fields[i].col->was_not_null()
+			: !fields[i].col->is_nullable();
+	}
 
 	/** Check if record in clustered index is historical row.
 	@param[in]	rec	clustered row
