@@ -197,10 +197,9 @@ inline void dict_table_t::init_instant(const dict_table_t& table)
 			DBUG_ASSERT(!field_map_it->is_dropped());
 			if (!f.col->is_nullable()) {
 				DBUG_ASSERT(!field_map_it->is_not_null());
-			} else if (oindex.fields[i].col->was_not_null()) {
+			} else if (oindex.was_not_null(i)) {
 				field_map_it++->set_not_null();
-				f.col->prtype |= DATA_WAS_NOT_NULL;
-				ut_ad(f.col->was_not_null());
+				f.col->set_was_not_null();
 			} else {
 				n_nullable++;
 			}
@@ -215,11 +214,10 @@ inline void dict_table_t::init_instant(const dict_table_t& table)
 		} else if (!field_map_it->is_not_null()) {
 			n_nullable++;
 		} else {
-			f.col->prtype |= DATA_WAS_NOT_NULL;
+			f.col->set_was_not_null();
 		}
 
-		DBUG_ASSERT(f.col->was_not_null()
-			    == oindex.fields[i].col->was_not_null());
+		DBUG_ASSERT(f.col->was_not_null() == oindex.was_not_null(i));
 
 		auto fixed_len = dict_col_get_fixed_size(
 			f.col, not_redundant());

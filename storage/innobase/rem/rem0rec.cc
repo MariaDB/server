@@ -184,13 +184,7 @@ rec_get_n_extern_new(
 
 	/* read the lengths of fields 0..n */
 	do {
-		const dict_field_t*	field
-			= dict_index_get_nth_field(index, i);
-		const dict_col_t*	col
-			= dict_field_get_col(field);
-		ulint			len;
-
-		if (!col->was_not_null()) {
+		if (!index->was_not_null(i)) {
 			/* nullable field => read the null flag */
 
 			if (UNIV_UNLIKELY(!(byte) null_mask)) {
@@ -206,9 +200,12 @@ rec_get_n_extern_new(
 			null_mask <<= 1;
 		}
 
+		const dict_field_t*	field
+			= dict_index_get_nth_field(index, i);
+
 		if (UNIV_UNLIKELY(!field->fixed_len)) {
 			/* Variable-length field: read the length */
-			len = *lens--;
+			ulint len = *lens--;
 			/* If the maximum length of the field is up
 			to 255 bytes, the actual length is always
 			stored in one byte. If the maximum length is
@@ -216,14 +213,12 @@ rec_get_n_extern_new(
 			stored in one byte for 0..127.  The length
 			will be encoded in two bytes when it is 128 or
 			more, or when the field is stored externally. */
-			if (DATA_BIG_COL(col)) {
-				if (len & 0x80) {
-					/* 1exxxxxxx xxxxxxxx */
-					if (len & 0x40) {
-						n_extern++;
-					}
-					lens--;
+			if ((len & 0x80) && DATA_BIG_COL(field->col)) {
+				/* 1exxxxxxx xxxxxxxx */
+				if (len & 0x40) {
+					n_extern++;
 				}
+				lens--;
 			}
 		}
 	} while (++i < n);
@@ -402,9 +397,7 @@ start:
 			continue;
 		}
 
-		const dict_col_t* col = field->col;
-
-		if (col->is_nullable()) {
+		if (!index->was_not_null(field - index->fields)) {
 			/* nullable field => read the null flag */
 			ut_ad(n_null--);
 
@@ -427,7 +420,7 @@ start:
 
 		if (!field->fixed_len
 		    || (format == REC_LEAF_TEMP
-			&& !dict_col_get_fixed_size(col, true))) {
+			&& !dict_col_get_fixed_size(field->col, true))) {
 			/* Variable-length field: read the length */
 			len = *lens--;
 			/* If the maximum length of the field is up
@@ -437,14 +430,14 @@ start:
 			stored in one byte for 0..127.  The length
 			will be encoded in two bytes when it is 128 or
 			more, or when the field is stored externally. */
-			if ((len & 0x80) && DATA_BIG_COL(col)) {
+			if ((len & 0x80) && DATA_BIG_COL(field->col)) {
 				/* 1exxxxxxx xxxxxxxx */
 				len <<= 8;
 				len |= *lens--;
 
 				offs += len & 0x3fff;
 				if (UNIV_UNLIKELY(len & 0x4000)) {
-					ut_ad(dict_index_is_clust(index));
+					ut_ad(index->is_primary());
 					any |= REC_OFFS_EXTERNAL;
 					len = offs | REC_OFFS_EXTERNAL;
 				} else {
@@ -625,7 +618,6 @@ rec_init_offsets(
 	if (format != REC_FMT_LEAF_FLEXIBLE && index->table->not_redundant()) {
 		const byte*	nulls;
 		const byte*	lens;
-		dict_field_t*	field;
 		ulint		null_mask;
 		rec_comp_status_t status = rec_get_status(rec);
 		ulint		n_node_ptr_field = ULINT_UNDEFINED;
@@ -680,11 +672,12 @@ rec_init_offsets(
 			ulint	len;
 			if (UNIV_UNLIKELY(i == n_node_ptr_field)) {
 				len = offs += REC_NODE_PTR_SIZE;
-				goto resolved;
+resolved:
+				rec_offs_base(offsets)[i + 1] = len;
+				continue;
 			}
 
-			field = dict_index_get_nth_field(index, i);
-			if (!dict_field_get_col(field)->was_not_null()) {
+			if (!index->was_not_null(i)) {
 				/* nullable field => read the null flag */
 
 				if (UNIV_UNLIKELY(!(byte) null_mask)) {
@@ -704,9 +697,10 @@ rec_init_offsets(
 				null_mask <<= 1;
 			}
 
+			const dict_field_t* field = dict_index_get_nth_field(
+				index, i);
+
 			if (UNIV_UNLIKELY(!field->fixed_len)) {
-				const dict_col_t*	col
-					= dict_field_get_col(field);
 				/* Variable-length field: read the length */
 				len = *lens--;
 				/* If the maximum length of the field
@@ -718,31 +712,29 @@ rec_init_offsets(
 				encoded in two bytes when it is 128 or
 				more, or when the field is stored
 				externally. */
-				if (DATA_BIG_COL(col)) {
-					if (len & 0x80) {
-						/* 1exxxxxxx xxxxxxxx */
+				if ((len & 0x80) && DATA_BIG_COL(field->col)) {
+					/* 1exxxxxxx xxxxxxxx */
 
-						len <<= 8;
-						len |= *lens--;
+					len <<= 8;
+					len |= *lens--;
 
-						/* B-tree node pointers
-						must not contain externally
-						stored columns.  Thus
-						the "e" flag must be 0. */
-						ut_a(!(len & 0x4000));
-						offs += len & 0x3fff;
-						len = offs;
+					/* B-tree node pointers
+					must not contain externally
+					stored columns.  Thus
+					the "e" flag must be 0. */
+					ut_a(!(len & 0x4000));
+					offs += len & 0x3fff;
+					len = offs;
 
-						goto resolved;
-					}
+					goto resolved;
 				}
 
 				len = offs += len;
 			} else {
 				len = offs += field->fixed_len;
 			}
-resolved:
-			rec_offs_base(offsets)[i + 1] = len;
+
+			goto resolved;
 		} while (++i < rec_offs_n_fields(offsets));
 
 		*rec_offs_base(offsets)
@@ -958,7 +950,6 @@ rec_get_offsets_reverse(
 	ulint		any_ext;
 	const byte*	nulls;
 	const byte*	lens;
-	dict_field_t*	field;
 	ulint		null_mask;
 	ulint		n_node_ptr_field;
 
@@ -991,11 +982,12 @@ rec_get_offsets_reverse(
 		ulint	len;
 		if (UNIV_UNLIKELY(i == n_node_ptr_field)) {
 			len = offs += REC_NODE_PTR_SIZE;
-			goto resolved;
+resolved:
+			rec_offs_base(offsets)[i + 1] = len;
+			continue;
 		}
 
-		field = dict_index_get_nth_field(index, i);
-		if (!dict_field_get_col(field)->was_not_null()) {
+		if (!index->was_not_null(i)) {
 			/* nullable field => read the null flag */
 
 			if (UNIV_UNLIKELY(!(byte) null_mask)) {
@@ -1015,10 +1007,9 @@ rec_get_offsets_reverse(
 			null_mask <<= 1;
 		}
 
+		const dict_field_t* field = dict_index_get_nth_field(index, i);
 		if (UNIV_UNLIKELY(!field->fixed_len)) {
 			/* Variable-length field: read the length */
-			const dict_col_t*	col
-				= dict_field_get_col(field);
 			len = *lens++;
 			/* If the maximum length of the field is up
 			to 255 bytes, the actual length is always
@@ -1027,30 +1018,26 @@ rec_get_offsets_reverse(
 			stored in one byte for 0..127.  The length
 			will be encoded in two bytes when it is 128 or
 			more, or when the field is stored externally. */
-			if (DATA_BIG_COL(col)) {
-				if (len & 0x80) {
-					/* 1exxxxxxx xxxxxxxx */
-					len <<= 8;
-					len |= *lens++;
+			if ((len & 0x80) && DATA_BIG_COL(field->col)) {
+				/* 1exxxxxxx xxxxxxxx */
+				len <<= 8;
+				len |= *lens++;
 
-					offs += len & 0x3fff;
-					if (UNIV_UNLIKELY(len & 0x4000)) {
-						any_ext = REC_OFFS_EXTERNAL;
-						len = offs | REC_OFFS_EXTERNAL;
-					} else {
-						len = offs;
-					}
-
-					goto resolved;
+				offs += len & 0x3fff;
+				if (UNIV_UNLIKELY(len & 0x4000)) {
+					any_ext = REC_OFFS_EXTERNAL;
+					len = offs | REC_OFFS_EXTERNAL;
+				} else {
+					len = offs;
 				}
+			} else {
+				len = offs += len;
 			}
-
-			len = offs += len;
 		} else {
 			len = offs += field->fixed_len;
 		}
-resolved:
-		rec_offs_base(offsets)[i + 1] = len;
+
+		goto resolved;
 	} while (++i < rec_offs_n_fields(offsets));
 
 	ut_ad(lens >= extra);
@@ -1196,7 +1183,7 @@ rec_get_converted_size_comp_prefix_low(
 #endif
 
 		/* All NULLable fields must be included in the n_null count. */
-		ut_ad(!field->col->is_nullable() || n_null--);
+		ut_ad(index->was_not_null(i) || n_null--);
 
 		if (dfield_is_null(dfield)) {
 			/* No length is stored for NULL fields. */
@@ -1651,7 +1638,7 @@ start:
 		const dict_field_t* ifield
 			= dict_index_get_nth_field(index, i);
 		ut_ad(!(field->type.prtype & DATA_NOT_NULL)
-		      == ifield->col->is_nullable());
+		      == !index->was_not_null(i));
 		ulint fixed_len = ifield->fixed_len;
 
 		if (temp && fixed_len
@@ -2035,13 +2022,7 @@ rec_copy_prefix_to_buf(
 
 	/* read the lengths of fields 0..n */
 	for (ulint i = 0, null_mask = 1; i < n_fields; i++) {
-		const dict_field_t*	field;
-		const dict_col_t*	col;
-
-		field = dict_index_get_nth_field(index, i);
-		col = dict_field_get_col(field);
-
-		if (!col->was_not_null()) {
+		if (!index->was_not_null(i)) {
 			/* nullable field => read the null flag */
 			if (UNIV_UNLIKELY(!(byte) null_mask)) {
 				nulls--;
@@ -2056,6 +2037,8 @@ rec_copy_prefix_to_buf(
 			null_mask <<= 1;
 		}
 
+		const dict_field_t* field = dict_index_get_nth_field(index, i);
+
 		if (field->fixed_len) {
 			prefix_len += field->fixed_len;
 		} else {
@@ -2067,14 +2050,12 @@ rec_copy_prefix_to_buf(
 			stored in one byte for 0..127.  The length
 			will be encoded in two bytes when it is 128 or
 			more, or when the column is stored externally. */
-			if (DATA_BIG_COL(col)) {
-				if (len & 0x80) {
-					/* 1exxxxxx */
-					len &= 0x3f;
-					len <<= 8;
-					len |= *lens--;
-					UNIV_PREFETCH_R(lens);
-				}
+			if ((len & 0x80) && DATA_BIG_COL(field->col)) {
+				/* 1exxxxxx */
+				len &= 0x3f;
+				len <<= 8;
+				len |= *lens--;
+				UNIV_PREFETCH_R(lens);
 			}
 			prefix_len += len;
 		}
