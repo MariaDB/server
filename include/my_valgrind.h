@@ -13,6 +13,9 @@
    along with this program; if not, write to the Free Software
    Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02110-1335 USA */
 
+#ifndef _my_valgrind_h
+#define _my_valgrind_h
+
 /* clang -> gcc */
 #ifndef __has_feature
 # define __has_feature(x) 0
@@ -49,9 +52,13 @@ https://github.com/google/sanitizers/wiki/AddressSanitizerManualPoisoning */
 #endif /* HAVE_VALGRIND */
 
 #ifndef DBUG_OFF
+static const size_t REDZONE_SIZE= 8;
 #define TRASH_FILL(A,B,C) do { const size_t trash_tmp= (B); MEM_UNDEFINED(A, trash_tmp); memset(A, C, trash_tmp); } while (0)
 #else
+static const size_t REDZONE_SIZE= 0;
 #define TRASH_FILL(A,B,C) do { MEM_UNDEFINED((A), (B)); } while (0)
 #endif
 #define TRASH_ALLOC(A,B) do { TRASH_FILL(A,B,0xA5); MEM_UNDEFINED(A,B); } while(0)
 #define TRASH_FREE(A,B) do { TRASH_FILL(A,B,0x8F); MEM_NOACCESS(A,B); } while(0)
+
+#endif /* _my_valgrind_h */

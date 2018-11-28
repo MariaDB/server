@@ -197,7 +197,7 @@ void *alloc_root(MEM_ROOT *mem_root, size_t length)
                     DBUG_SET("-d,simulate_out_of_memory");
                     DBUG_RETURN((void*) 0); /* purecov: inspected */
                   });
-  length= ALIGN_SIZE(length);
+  length= ALIGN_SIZE(length) + REDZONE_SIZE;
   if ((*(prev= &mem_root->free)) != NULL)
   {
     if ((*prev)->left < length &&
@@ -242,6 +242,7 @@ void *alloc_root(MEM_ROOT *mem_root, size_t length)
     mem_root->used= next;
     mem_root->first_block_usage= 0;
   }
+  point+= REDZONE_SIZE;
   TRASH_ALLOC(point, original_length);
   DBUG_PRINT("exit",("ptr: 0x%lx", (ulong) point));
   DBUG_RETURN((void*) point);
