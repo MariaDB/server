@@ -48,6 +48,7 @@ COUNT(*) = 0
 SELECT COUNT(*) = 1 FROM t2;
 COUNT(*) = 1
 1
+SET debug_sync='RESET';
 connection node_2;
 SELECT COUNT(*) = 0 FROM t1;
 COUNT(*) = 0

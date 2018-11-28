@@ -88,6 +88,7 @@ SET DEBUG_SYNC= 'now SIGNAL continue';
 
 SELECT COUNT(*) = 0 FROM t1;
 SELECT COUNT(*) = 1 FROM t2;
+SET debug_sync='RESET';
 
 --connection node_2
 SELECT COUNT(*) = 0 FROM t1;
