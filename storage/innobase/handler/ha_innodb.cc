@@ -71,6 +71,7 @@ this program; if not, write to the Free Software Foundation, Inc.,
 #include "buf0flu.h"
 #include "buf0lru.h"
 #include "dict0boot.h"
+#include "dict0load.h"
 #include "btr0defragment.h"
 #include "dict0crea.h"
 #include "dict0dict.h"
@@ -78,8 +79,6 @@ this program; if not, write to the Free Software Foundation, Inc.,
 #include "dict0stats_bg.h"
 #include "fil0fil.h"
 #include "fsp0fsp.h"
-#include "fsp0space.h"
-#include "fsp0sysspace.h"
 #include "fts0fts.h"
 #include "fts0plugin.h"
 #include "fts0priv.h"
@@ -146,8 +145,8 @@ void close_thread_tables(THD* thd);
 
 #ifdef WITH_WSREP
 #include "dict0priv.h"
-#include "ut0byte.h"
 #include <mysql/service_md5.h>
+#include "wsrep_sst.h"
 
 extern MYSQL_PLUGIN_IMPORT MYSQL_BIN_LOG mysql_bin_log;
 
@@ -2915,7 +2914,7 @@ ha_innobase::ha_innobase(
 			  | HA_CAN_RTREEKEYS
                           | HA_CAN_TABLES_WITHOUT_ROLLBACK
 			  | HA_CONCURRENT_OPTIMIZE
-			  |  (srv_force_primary_key ? HA_WANTS_PRIMARY_KEY : 0)
+			  |  (srv_force_primary_key ? HA_REQUIRE_PRIMARY_KEY : 0)
 		  ),
 	m_start_of_scan(),
         m_mysql_has_locked()
@@ -3731,6 +3730,15 @@ static int innodb_init_params()
 	    && global_system_variables.wsrep_on) {
 		ib::info() << "For Galera, using innodb_lock_schedule_algorithm=fcfs";
 		innodb_lock_schedule_algorithm = INNODB_LOCK_SCHEDULE_ALGORITHM_FCFS;
+	}
+
+	/* Print deprecation info if xtrabackup is used for SST method */
+	if (global_system_variables.wsrep_on
+	    && wsrep_sst_method
+	    && (!strcmp(wsrep_sst_method, "xtrabackup")
+	        || !strcmp(wsrep_sst_method, "xtrabackup-v2"))) {
+		ib::info() << "Galera SST method xtrabackup is deprecated and the "
+			" support for it may be removed in future releases.";
 	}
 #endif /* WITH_WSREP */
 
@@ -6070,6 +6078,14 @@ initialize_auto_increment(dict_table_t* table, const Field* field)
 int
 ha_innobase::open(const char* name, int, uint)
 {
+	/* TODO: If trx_rollback_recovered(bool all=false) is ever
+	removed, the first-time open() must hold (or acquire and release)
+	a table lock that conflicts with trx_resurrect_table_locks(),
+	to ensure that any recovered incomplete ALTER TABLE will have been
+	rolled back. Otherwise, dict_table_t::instant could be cleared by
+	the rollback invoking dict_index_t::clear_instant_alter() while
+	open table handles exist in client connections. */
+
 	dict_table_t*		ib_table;
 	char			norm_name[FN_REFLEN];
 	dict_err_ignore_t	ignore_err = DICT_ERR_IGNORE_NONE;
@@ -11060,9 +11076,8 @@ err_col:
 	dict_table_add_system_columns(table, heap);
 
 	if (table->is_temporary()) {
-		/* Get a new table ID. FIXME: Make this a private
-		sequence, not shared with persistent tables! */
-		dict_table_assign_new_id(table, m_trx);
+		m_trx->table_id = table->id
+			= dict_sys->get_temporary_table_id();
 		ut_ad(dict_tf_get_rec_format(table->flags)
 		      != REC_FORMAT_COMPRESSED);
 		table->space_id = SRV_TMP_SPACE_ID;
@@ -12372,9 +12387,15 @@ int create_table_info_t::create_table(bool create_fk)
 		error = convert_error_code_to_mysql(err, 0, NULL);
 
 		if (error) {
+			/* Drop the being-created table before rollback,
+			so that rollback can possibly rename back a table
+			that could have been renamed before
+			the failed creation. */
+			m_trx->error_state = DB_SUCCESS;
 			row_drop_table_for_mysql(m_table_name, m_trx,
-						 SQLCOM_DROP_DB);
+						 SQLCOM_TRUNCATE);
 			trx_rollback_to_savepoint(m_trx, NULL);
+
 			m_trx->error_state = DB_SUCCESS;
 			DBUG_RETURN(error);
 		}
@@ -12599,14 +12620,18 @@ ha_innobase::create(
 	}
 
 	if ((error = info.create_table(own_trx))) {
-		row_drop_table_for_mysql(norm_name, trx, SQLCOM_DROP_TABLE,
-					 true);
+		/* Drop the being-created table before rollback,
+		so that rollback can possibly rename back a table
+		that could have been renamed before the failed creation. */
+		trx->error_state = DB_SUCCESS;
+		row_drop_table_for_mysql(info.table_name(), trx,
+					 SQLCOM_TRUNCATE, true);
 		trx_rollback_for_mysql(trx);
 		row_mysql_unlock_data_dictionary(trx);
 		if (own_trx) {
 			trx_free(trx);
-			DBUG_RETURN(error);
 		}
+		DBUG_RETURN(error);
 	}
 
 	innobase_commit_low(trx);
@@ -12951,16 +12976,25 @@ inline int ha_innobase::delete_table(const char* name, enum_sql_command sqlcom)
 int ha_innobase::delete_table(const char* name)
 {
 	enum_sql_command sqlcom = enum_sql_command(thd_sql_command(ha_thd()));
+	/* SQLCOM_TRUNCATE should be passed via ha_innobase::truncate() only.
 
-        if (sqlcom == SQLCOM_TRUNCATE
-            && thd_killed(ha_thd())
-            && (m_prebuilt == NULL || m_prebuilt->table->is_temporary())) {
-                sqlcom = SQLCOM_DROP_TABLE;
-        }
+	On client disconnect, when dropping temporary tables, the
+	previous sqlcom would not be overwritten.  In such a case, we
+	will have thd_kill_level() != NOT_KILLED, !m_prebuilt can
+	hold, and sqlcom could be anything, including TRUNCATE.
 
-	/* SQLCOM_TRUNCATE will be passed via ha_innobase::truncate() only. */
-        DBUG_ASSERT(sqlcom != SQLCOM_TRUNCATE);
-        return delete_table(name, sqlcom);
+	The sqlcom only matters for persistent tables; no persistent
+	metadata or FOREIGN KEY metadata is kept for temporary
+	tables. Therefore, we relax the assertion. If there is a bug
+	that slips through this assertion due to !m_prebuilt, the
+	worst impact should be that on DROP TABLE of a persistent
+	table, FOREIGN KEY constraints will be ignored and their
+	metadata will not be removed. */
+	DBUG_ASSERT(sqlcom != SQLCOM_TRUNCATE
+		    || (thd_kill_level(ha_thd()) != THD_IS_NOT_KILLED
+			&& (!m_prebuilt
+			    || m_prebuilt->table->is_temporary())));
+	return delete_table(name, sqlcom);
 }
 
 /** Remove all tables in the named database inside InnoDB.
@@ -13182,7 +13216,7 @@ int ha_innobase::truncate()
 	dict_table_t*	ib_table = m_prebuilt->table;
 	const time_t	update_time = ib_table->update_time;
 	const ulint	stored_lock = m_prebuilt->stored_select_lock_type;
-	memset(&info, 0, sizeof info);
+	info.init();
 	update_create_info_from_table(&info, table);
 
 	if (ib_table->is_temporary()) {

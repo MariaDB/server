@@ -108,14 +108,14 @@ struct ib_counter_t {
 
 private:
 	/** Atomic which occupies whole CPU cache line */
-	struct MY_ALIGNED(CACHE_LINE_SIZE) ib_counter_element_t {
+	union ib_counter_element_t {
 		std::atomic<Type> value;
-		byte padding[CACHE_LINE_SIZE - sizeof(value)];
+		byte padding[CACHE_LINE_SIZE];
 	};
 	static_assert(sizeof(ib_counter_element_t) == CACHE_LINE_SIZE, "");
 
 	/** Array of counter elements */
-	ib_counter_element_t m_counter[N];
+	MY_ALIGNED(CACHE_LINE_SIZE) ib_counter_element_t m_counter[N];
 };
 
 #endif /* ut0counter_h */

@@ -28,21 +28,19 @@ Created 9/17/2000 Heikki Tuuri
 #ifndef row0mysql_h
 #define row0mysql_h
 
-#include "ha_prototypes.h"
-#include "sql_list.h"
-#include "sql_cmd.h"
-
 #include "data0data.h"
 #include "que0types.h"
 #include "dict0types.h"
 #include "trx0types.h"
 #include "row0types.h"
-#include "btr0pcur.h"
-#include "trx0types.h"
-#include "fil0crypt.h"
+#include "btr0types.h"
+#include "lock0types.h"
+#include "fil0fil.h"
+#include "fts0fts.h"
+#include "gis0type.h"
 
-// Forward declaration
-struct SysIndexCallback;
+#include "sql_list.h"
+#include "sql_cmd.h"
 
 extern ibool row_rollback_on_timeout;
 
@@ -374,9 +372,8 @@ row_create_table_for_mysql(
 	MY_ATTRIBUTE((warn_unused_result));
 
 /*********************************************************************//**
-Does an index creation operation for MySQL. TODO: currently failure
-to create an index results in dropping the whole table! This is no problem
-currently as all indexes must be created at the same time as the table.
+Create an index when creating a table.
+On failure, the caller must drop the table!
 @return error number or DB_SUCCESS */
 dberr_t
 row_create_index_for_mysql(

@@ -17,10 +17,7 @@ Warnings:
 Warning	1292	Incorrect datetime value: '0'
 select extract(hour from '100000:02:03'), extract(hour from '100000:02:03 ');
 extract(hour from '100000:02:03')	extract(hour from '100000:02:03 ')
-NULL	NULL
-Warnings:
-Warning	1292	Incorrect time value: '100000:02:03'
-Warning	1292	Incorrect time value: '100000:02:03 '
+16	16
 #
 # backward compatibility craziness
 #

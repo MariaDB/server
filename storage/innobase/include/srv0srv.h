@@ -42,12 +42,12 @@ Created 10/10/1995 Heikki Tuuri
 #ifndef srv0srv_h
 #define srv0srv_h
 
-#include "my_global.h"
+#include "univ.i"
 
 #include "mysql/psi/mysql_stage.h"
 #include "mysql/psi/psi.h"
 
-#include "univ.i"
+#include "log0log.h"
 #include "os0event.h"
 #include "que0types.h"
 #include "trx0types.h"

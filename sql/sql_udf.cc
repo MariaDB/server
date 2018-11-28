@@ -76,6 +76,8 @@ static const char *init_syms(udf_func *tmp, char *nm)
     (void)strmov(end, "_add");
     if (!((tmp->func_add= (Udf_func_add) dlsym(tmp->dlhandle, nm))))
       return nm;
+    (void)strmov(end, "_remove");
+    tmp->func_remove= (Udf_func_add) dlsym(tmp->dlhandle, nm);
   }
 
   (void) strmov(end,"_deinit");
@@ -565,6 +567,7 @@ int mysql_create_function(THD *thd,udf_func *udf)
   u_d->func_deinit= udf->func_deinit;
   u_d->func_clear= udf->func_clear;
   u_d->func_add= udf->func_add;
+  u_d->func_remove= udf->func_remove;
 
   /* create entry in mysql.func table */
 

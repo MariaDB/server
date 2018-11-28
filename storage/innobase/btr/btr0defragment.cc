@@ -166,7 +166,7 @@ btr_defragment_add_index(
 	mtr_start(&mtr);
 	// Load index rood page.
 	buf_block_t* block = btr_block_get(
-		page_id_t(index->table->space->id, index->page),
+		page_id_t(index->table->space_id, index->page),
 		page_size_t(index->table->space->flags),
 		RW_NO_LATCH, index, &mtr);
 	page_t* page = NULL;
@@ -314,7 +314,7 @@ btr_defragment_save_defrag_stats_if_needed(
 	dict_index_t*	index)	/*!< in: index */
 {
 	if (srv_defragment_stats_accuracy != 0 // stats tracking disabled
-	    && index->table->space->id != 0 // do not track system tables
+	    && index->table->space_id != 0 // do not track system tables
 	    && index->stat_defrag_modified_counter
 	       >= srv_defragment_stats_accuracy) {
 		dict_stats_defrag_pool_add(index);
@@ -489,7 +489,7 @@ btr_defragment_merge_pages(
 				       from_block);
 		btr_search_drop_page_hash_index(from_block);
 		btr_level_list_remove(
-			index->table->space->id,
+			index->table->space_id,
 			page_size, from_page, index, mtr);
 		btr_node_ptr_delete(index, from_block, mtr);
 		/* btr_blob_dbg_remove(from_page, index,
@@ -564,7 +564,7 @@ btr_defragment_n_pages(
 		return NULL;
 	}
 
-	if (!index->table->space || !index->table->space->id) {
+	if (!index->table->space || !index->table->space_id) {
 		/* Ignore space 0. */
 		return NULL;
 	}
@@ -589,7 +589,7 @@ btr_defragment_n_pages(
 			break;
 		}
 
-		blocks[i] = btr_block_get(page_id_t(index->table->space->id,
+		blocks[i] = btr_block_get(page_id_t(index->table->space_id,
 						    page_no), page_size,
 					  RW_X_LATCH, index, mtr);
 	}

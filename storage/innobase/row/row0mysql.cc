@@ -25,7 +25,7 @@ Contains also create table and other data dictionary operations.
 Created 9/17/2000 Heikki Tuuri
 *******************************************************/
 
-#include "ha_prototypes.h"
+#include "univ.i"
 #include <debug_sync.h>
 #include <gstream.h>
 #include <spatial.h>
@@ -34,7 +34,6 @@ Created 9/17/2000 Heikki Tuuri
 #include "btr0sea.h"
 #include "dict0boot.h"
 #include "dict0crea.h"
-#include <sql_const.h>
 #include "dict0dict.h"
 #include "dict0load.h"
 #include "dict0priv.h"
@@ -45,7 +44,6 @@ Created 9/17/2000 Heikki Tuuri
 #include "fil0fil.h"
 #include "fil0crypt.h"
 #include "fsp0file.h"
-#include "fsp0sysspace.h"
 #include "fts0fts.h"
 #include "fts0types.h"
 #include "ibuf0ibuf.h"
@@ -67,7 +65,6 @@ Created 9/17/2000 Heikki Tuuri
 #include "srv0start.h"
 #include "row0ext.h"
 #include "srv0start.h"
-#include "ut0new.h"
 
 #include <algorithm>
 #include <deque>
@@ -2466,7 +2463,7 @@ err_exit:
 		/* We already have .ibd file here. it should be deleted. */
 
 		if (dict_table_is_file_per_table(table)
-		    && fil_delete_tablespace(table->space->id) != DB_SUCCESS) {
+		    && fil_delete_tablespace(table->space_id) != DB_SUCCESS) {
 			ib::error() << "Cannot delete the file of table "
 				<< table->name;
 		}
@@ -2489,9 +2486,8 @@ err_exit:
 }
 
 /*********************************************************************//**
-Does an index creation operation for MySQL. TODO: currently failure
-to create an index results in dropping the whole table! This is no problem
-currently as all indexes must be created at the same time as the table.
+Create an index when creating a table.
+On failure, the caller must drop the table!
 @return error number or DB_SUCCESS */
 dberr_t
 row_create_index_for_mysql(
@@ -2514,15 +2510,8 @@ row_create_index_for_mysql(
 	ulint		len;
 	dict_table_t*	table = index->table;
 
-	trx->op_info = "creating index";
-
 	ut_ad(rw_lock_own(dict_operation_lock, RW_LOCK_X));
 	ut_ad(mutex_own(&dict_sys->mutex));
-
-
-	if (!table->is_temporary()) {
-		trx_start_if_not_started_xa(trx, true);
-	}
 
 	for (i = 0; i < index->n_def; i++) {
 		/* Check that prefix_len and actual length
@@ -2541,19 +2530,19 @@ row_create_index_for_mysql(
 
 		/* Column or prefix length exceeds maximum column length */
 		if (len > (ulint) DICT_MAX_FIELD_LEN_BY_FORMAT(table)) {
-			err = DB_TOO_BIG_INDEX_COL;
-
 			dict_mem_index_free(index);
-			goto error_handling;
+			return DB_TOO_BIG_INDEX_COL;
 		}
 	}
 
-	trx_set_dict_operation(trx, TRX_DICT_OP_TABLE);
+	trx->op_info = "creating index";
 
 	/* For temp-table we avoid insertion into SYSTEM TABLES to
 	maintain performance and so we have separate path that directly
 	just updates dictonary cache. */
 	if (!table->is_temporary()) {
+		trx_start_if_not_started_xa(trx, true);
+		trx_set_dict_operation(trx, TRX_DICT_OP_TABLE);
 		/* Note that the space id where we store the index is
 		inherited from the table in dict_build_index_def_step()
 		in dict0crea.cc. */
@@ -2598,22 +2587,6 @@ row_create_index_for_mysql(
 				dict_index_remove_from_cache(table, index);
 			}
 		}
-	}
-
-	if (err != DB_SUCCESS) {
-error_handling:
-		/* We have special error handling here */
-
-		trx->error_state = DB_SUCCESS;
-
-		if (trx_is_started(trx)) {
-			row_drop_table_for_mysql(table->name.m_name, trx,
-						 SQLCOM_DROP_TABLE, true);
-			trx_rollback_to_savepoint(trx, NULL);
-			ut_ad(!trx_is_started(trx));
-		}
-
-		trx->error_state = DB_SUCCESS;
 	}
 
 	trx->op_info = "";
@@ -2951,7 +2924,7 @@ row_mysql_table_id_reassign(
 	dberr_t		err;
 	pars_info_t*	info	= pars_info_create();
 
-	dict_hdr_get_new_id(new_id, NULL, NULL, table, false);
+	dict_hdr_get_new_id(new_id, NULL, NULL);
 
 	pars_info_add_ull_literal(info, "old_id", table->id);
 	pars_info_add_ull_literal(info, "new_id", *new_id);
@@ -3801,7 +3774,7 @@ do_drop:
 		    && dict_table_get_low("SYS_DATAFILES")) {
 			info = pars_info_create();
 			pars_info_add_int4_literal(info, "id",
-						   lint(table->space->id));
+						   lint(table->space_id));
 			err = que_eval_sql(
 				info,
 				"PROCEDURE DROP_SPACE_PROC () IS\n"

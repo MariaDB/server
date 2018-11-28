@@ -1,4 +1,5 @@
 --source include/have_aria.inc
+--source include/have_aria_used_for_temp_tables.inc
 --source include/word_size.inc
 
 --vertical_results

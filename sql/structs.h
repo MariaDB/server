@@ -691,26 +691,41 @@ public:
 struct Lex_for_loop_bounds_st
 {
 public:
-  class sp_assignment_lex *m_index;
-  class sp_assignment_lex *m_upper_bound;
+  class sp_assignment_lex *m_index;  // The first iteration value (or cursor)
+  class sp_assignment_lex *m_target_bound; // The last iteration value
   int8 m_direction;
   bool m_implicit_cursor;
-  bool is_for_loop_cursor() const { return m_upper_bound == NULL; }
+  bool is_for_loop_cursor() const { return m_target_bound == NULL; }
+};
+
+
+class Lex_for_loop_bounds_intrange: public Lex_for_loop_bounds_st
+{
+public:
+  Lex_for_loop_bounds_intrange(int8 direction,
+                               class sp_assignment_lex *left_expr,
+                               class sp_assignment_lex *right_expr)
+  {
+    m_direction= direction;
+    m_index=        direction > 0 ? left_expr  : right_expr;
+    m_target_bound= direction > 0 ? right_expr : left_expr;
+    m_implicit_cursor= false;
+  }
 };
 
 
 struct Lex_for_loop_st
 {
 public:
-  class sp_variable *m_index;
-  class sp_variable *m_upper_bound;
+  class sp_variable *m_index;  // The first iteration value (or cursor)
+  class sp_variable *m_target_bound; // The last iteration value
   int m_cursor_offset;
   int8 m_direction;
   bool m_implicit_cursor;
   void init()
   {
     m_index= 0;
-    m_upper_bound= 0;
+    m_target_bound= 0;
     m_direction= 0;
     m_implicit_cursor= false;
   }
@@ -718,7 +733,7 @@ public:
   {
     *this= other;
   }
-  bool is_for_loop_cursor() const { return m_upper_bound == NULL; }
+  bool is_for_loop_cursor() const { return m_target_bound == NULL; }
   bool is_for_loop_explicit_cursor() const
   {
     return is_for_loop_cursor() && !m_implicit_cursor;
@@ -837,11 +852,6 @@ public:
   {
     tv_sec= sec;
     tv_usec= usec;
-  }
-  Timeval &trunc(uint dec)
-  {
-    my_timeval_trunc(this, dec);
-    return *this;
   }
 };
 

@@ -618,6 +618,15 @@ SPIDER_DB_ROW *spider_db_mysql_result::fetch_row_from_tmp_table(
   DBUG_RETURN((SPIDER_DB_ROW *) &row);
 }
 
+
+static my_bool str_to_datetime(const char *str, size_t length,
+                               MYSQL_TIME *l_time,
+                               ulonglong flags, MYSQL_TIME_STATUS *status)
+{
+  return str_to_datetime_or_date(str, length, l_time, flags, status);
+}
+
+
 int spider_db_mysql_result::fetch_table_status(
   int mode,
   ha_rows &records,

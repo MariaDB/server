@@ -161,6 +161,9 @@ SORT_INFO *filesort(THD *thd, TABLE *table, Filesort *filesort,
                     Filesort_tracker* tracker, JOIN *join=NULL,
                     table_map first_table_bit=0);
 
+bool filesort_use_addons(TABLE *table, uint sortlength,
+                         uint *length, uint *fields, uint *null_fields);
+
 void change_double_for_sort(double nr,uchar *to);
 
 #endif /* FILESORT_INCLUDED */

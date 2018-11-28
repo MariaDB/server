@@ -31,23 +31,19 @@ Created 10/25/1995 Heikki Tuuri
 #include "buf0buf.h"
 #include "dict0boot.h"
 #include "dict0dict.h"
-#include "fsp0file.h"
+#include "dict0load.h"
 #include "fsp0file.h"
 #include "fsp0fsp.h"
-#include "fsp0space.h"
-#include "fsp0sysspace.h"
 #include "hash0hash.h"
 #include "log0log.h"
 #include "log0recv.h"
 #include "mach0data.h"
-#include "mem0mem.h"
 #include "mtr0log.h"
 #include "os0file.h"
 #include "page0zip.h"
 #include "row0mysql.h"
 #include "srv0start.h"
 #include "trx0purge.h"
-#include "ut0new.h"
 #include "buf0lru.h"
 #include "ibuf0ibuf.h"
 #include "os0event.h"
@@ -4863,8 +4859,8 @@ fil_mtr_rename_log(
 {
 	ut_ad(old_table->space != fil_system.temp_space);
 	ut_ad(new_table->space != fil_system.temp_space);
-	ut_ad(old_table->space_id == old_table->space->id);
-	ut_ad(new_table->space_id == new_table->space->id);
+	ut_ad(old_table->space->id == old_table->space_id);
+	ut_ad(new_table->space->id == new_table->space_id);
 
 	/* If neither table is file-per-table,
 	there will be no renaming of files. */

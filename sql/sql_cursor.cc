@@ -92,6 +92,11 @@ public:
     if (materialized_cursor)
       materialized_cursor->on_table_fill_finished();
   }
+
+  bool view_structure_only() const
+  {
+    return result->view_structure_only();
+  }
 };
 
 

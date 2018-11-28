@@ -121,9 +121,9 @@ SET GLOBAL wsrep_load_data_splitting = ON;
 CREATE TABLE t1 (pk INT PRIMARY KEY)
 ENGINE=INNODB PARTITION BY HASH(pk) PARTITIONS 2;
 connection node_2;
-SELECT COUNT(*) = 20002 FROM t1;
-COUNT(*) = 20002
-1
+SELECT COUNT(*) FROM t1;
+COUNT(*)
+20002
 wsrep_last_committed_diff
 AS_EXPECTED_3_or_5
 DROP TABLE t1;
@@ -133,9 +133,9 @@ SET GLOBAL wsrep_load_data_splitting = ON;
 CREATE TABLE t1 (pk INT PRIMARY KEY)
 ENGINE=INNODB PARTITION BY HASH(pk) PARTITIONS 2;
 connection node_2;
-SELECT COUNT(*) = 101 FROM t1;
-COUNT(*) = 101
-1
+SELECT COUNT(*) FROM t1;
+COUNT(*)
+101
 wsrep_last_committed_diff
 1
 DROP TABLE t1;
@@ -146,9 +146,9 @@ SET GLOBAL wsrep_load_data_splitting = OFF;
 CREATE TABLE t1 (pk INT PRIMARY KEY)
 ENGINE=INNODB PARTITION BY HASH(pk) PARTITIONS 2;
 connection node_2;
-SELECT COUNT(*) = 20002 FROM t1;
-COUNT(*) = 20002
-1
+SELECT COUNT(*) FROM t1;
+COUNT(*)
+20002
 wsrep_last_committed_diff
 AS_EXPECTED_1_or_2
 DROP TABLE t1;

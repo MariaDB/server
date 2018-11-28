@@ -28,7 +28,6 @@ Created 1/8/1996 Heikki Tuuri
 #ifndef dict0mem_h
 #define dict0mem_h
 
-#include "univ.i"
 #include "dict0types.h"
 #include "data0type.h"
 #include "mem0mem.h"
@@ -47,9 +46,9 @@ Created 1/8/1996 Heikki Tuuri
 #include "buf0buf.h"
 #include "gis0type.h"
 #include "os0once.h"
-#include "ut0new.h"
 #include "fil0fil.h"
 #include "fil0crypt.h"
+#include <sql_const.h>
 #include <set>
 #include <algorithm>
 #include <iterator>
@@ -1085,15 +1084,37 @@ struct dict_index_t {
 		return DICT_CLUSTERED == (type & (DICT_CLUSTERED | DICT_IBUF));
 	}
 
+	/** @return whether this is a generated clustered index */
+	bool is_gen_clust() const { return type == DICT_CLUSTERED; }
+
+	/** @return whether this is a clustered index */
+	bool is_clust() const { return type & DICT_CLUSTERED; }
+
+	/** @return whether this is a unique index */
+	bool is_unique() const { return type & DICT_UNIQUE; }
+
+	/** @return whether this is a spatial index */
+	bool is_spatial() const { return UNIV_UNLIKELY(type & DICT_SPATIAL); }
+
+	/** @return whether this is the change buffer */
+	bool is_ibuf() const { return UNIV_UNLIKELY(type & DICT_IBUF); }
+
 	/** @return whether the index includes virtual columns */
 	bool has_virtual() const { return type & DICT_VIRTUAL; }
 
+	/** @return the position of DB_TRX_ID */
+	unsigned db_trx_id() const {
+		DBUG_ASSERT(is_primary());
+		DBUG_ASSERT(n_uniq);
+		DBUG_ASSERT(n_uniq <= MAX_REF_PARTS);
+		return n_uniq;
+	}
+	/** @return the position of DB_ROLL_PTR */
+	unsigned db_roll_ptr() const { return db_trx_id() + 1; }
+
 	/** @return the offset of the metadata BLOB field,
 	or the first user field after the PRIMARY KEY,DB_TRX_ID,DB_ROLL_PTR */
-	unsigned first_user_field() const {
-		ut_ad(is_primary());
-		return n_uniq + 2;
-	}
+	unsigned first_user_field() const { return db_trx_id() + 2; }
 
 	/** @return whether the index is corrupted */
 	inline bool is_corrupted() const;
@@ -1656,6 +1677,15 @@ struct dict_table_t {
 		const char*	old_v_col_names,
 		const ulint*	col_map);
 
+	/** Assign a new id to invalidate old undo log records, so
+	that purge will be unable to refer to fields that used to be
+	instantly added to the end of the index. This is only to be
+	used during ALTER TABLE when the table is empty, before
+	invoking dict_index_t::clear_instant_alter().
+	@param[in,out] trx	dictionary transaction
+	@return	error code */
+	inline dberr_t reassign_id(trx_t* trx);
+
 	/** Add the table definition to the data dictionary cache */
 	void add_to_cache();
 
@@ -2128,39 +2158,27 @@ inline void dict_index_t::clear_instant_alter()
 		DBUG_ASSERT(!fields[i].col->is_nullable());
 	}
 #endif
+	dict_field_t* const begin = &fields[first_user_field()];
 	dict_field_t* end = &fields[n_fields];
 
-	for (dict_field_t* d = &fields[first_user_field()]; d < end; d++) {
+	for (dict_field_t* d = begin; d < end; ) {
 		/* Move fields for dropped columns to the end. */
-		while (d->col->is_dropped()) {
+		if (!d->col->is_dropped()) {
+			d++;
+		} else {
 			if (d->col->is_nullable()) {
 				n_nullable--;
 			}
 
 			std::swap(*d, *--end);
-
-			if (d == end) {
-				goto done;
-			}
-		}
-
-		/* Ensure that the surviving fields are sorted by
-		ascending order of columns. */
-		const unsigned c = d->col->ind;
-
-		for (dict_field_t* s = d + 1; s < end; s++) {
-			if (s->col->ind < c) {
-				std::swap(*d, *s);
-				break;
-			}
 		}
 	}
 
-done:
 	DBUG_ASSERT(&fields[n_fields - table->n_dropped()] == end);
-
 	n_core_fields = n_fields = n_def = end - fields;
 	n_core_null_bytes = UT_BITS_IN_BYTES(n_nullable);
+	std::sort(begin, end, [](const dict_field_t& a, const dict_field_t& b)
+		  { return a.col->ind < b.col->ind; });
 	table->instant = NULL;
 }
 

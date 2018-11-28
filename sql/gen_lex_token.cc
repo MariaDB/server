@@ -33,7 +33,7 @@
   from bison.
   See also YYMAXUTOK.
 */
-#define MY_MAX_TOKEN 1000
+#define MY_MAX_TOKEN 1100
 /** Generated token. */
 struct gen_lex_token_string
 {
@@ -255,9 +255,11 @@ void compute_tokens()
   set_start_expr_token(STARTS_SYM);
   set_start_expr_token(ENDS_SYM);
   set_start_expr_token(DEFAULT);
-  set_start_expr_token(RETURN_SYM);
+  set_start_expr_token(RETURN_MARIADB_SYM);
+  set_start_expr_token(RETURN_ORACLE_SYM);
   set_start_expr_token(IF_SYM);
-  set_start_expr_token(ELSEIF_SYM);
+  set_start_expr_token(ELSEIF_MARIADB_SYM);
+  set_start_expr_token(ELSEIF_ORACLE_SYM);
   set_start_expr_token(CASE_SYM);
   set_start_expr_token(WHEN_SYM);
   set_start_expr_token(WHILE_SYM);

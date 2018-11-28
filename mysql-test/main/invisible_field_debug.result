@@ -17,6 +17,8 @@ a	invisible
 1	9
 insert into t1(a, invisible) values(99,99);
 ERROR 42S22: Unknown column 'invisible' in 'field list'
+select default(invisible) from t1;
+ERROR 42S22: Unknown column 'invisible' in 'field list'
 insert into t1(invisible) values(99);
 ERROR 42S22: Unknown column 'invisible' in 'field list'
 insert into t_tmp select a, invisible from t1;

@@ -25,7 +25,6 @@ Created Jan 06, 2010 Vasil Dimov
 *******************************************************/
 
 #include "univ.i"
-
 #include "ut0ut.h"
 #include "ut0rnd.h"
 #include "dyn0buf.h"
@@ -33,8 +32,6 @@ Created Jan 06, 2010 Vasil Dimov
 #include "trx0trx.h"
 #include "pars0pars.h"
 #include "dict0stats.h"
-#include "ha_prototypes.h"
-#include "ut0new.h"
 #include <mysql_com.h>
 #include "btr0btr.h"
 
@@ -1506,7 +1503,7 @@ dict_stats_analyze_index_below_cur(
 	offsets_rec = rec_get_offsets(rec, index, offsets1, false,
 				      ULINT_UNDEFINED, &heap);
 
-	page_id_t		page_id(index->table->space->id,
+	page_id_t		page_id(index->table->space_id,
 					btr_node_ptr_get_child_page_no(
 						rec, offsets_rec));
 	const page_size_t	page_size(index->table->space->flags);

@@ -22,8 +22,6 @@ this program; if not, write to the Free Software Foundation, Inc.,
 Full Text Search interface
 ***********************************************************************/
 
-#include "ha_prototypes.h"
-
 #include "trx0roll.h"
 #include "row0mysql.h"
 #include "row0upd.h"
@@ -40,7 +38,6 @@ Full Text Search interface
 #include "dict0stats.h"
 #include "btr0pcur.h"
 #include "sync0sync.h"
-#include "ut0new.h"
 
 static const ulint FTS_MAX_ID_LEN = 32;
 
@@ -1744,7 +1741,7 @@ fts_create_in_mem_aux_table(
 {
 	dict_table_t*	new_table = dict_mem_table_create(
 		aux_table_name, NULL, n_cols, 0, table->flags,
-		table->space->id == TRX_SYS_SPACE
+		table->space_id == TRX_SYS_SPACE
 		? 0 : table->space->purpose == FIL_TYPE_TEMPORARY
 		? DICT_TF2_TEMPORARY : DICT_TF2_USE_FILE_PER_TABLE);
 
@@ -1773,7 +1770,7 @@ fts_create_one_common_table(
 	const char*		fts_suffix,
 	mem_heap_t*		heap)
 {
-	dict_table_t*		new_table = NULL;
+	dict_table_t*		new_table;
 	dberr_t			error;
 	bool			is_config = strcmp(fts_suffix, "CONFIG") == 0;
 
@@ -1826,11 +1823,13 @@ fts_create_one_common_table(
 	}
 
 	if (error != DB_SUCCESS) {
-		trx->error_state = error;
 		dict_mem_table_free(new_table);
 		new_table = NULL;
 		ib::warn() << "Failed to create FTS common table "
 			<< fts_table_name;
+		trx->error_state = DB_SUCCESS;
+		row_drop_table_for_mysql(fts_table_name, trx, SQLCOM_DROP_DB);
+		trx->error_state = error;
 	}
 	return(new_table);
 }
@@ -1971,7 +1970,7 @@ fts_create_one_index_table(
 	mem_heap_t*		heap)
 {
 	dict_field_t*		field;
-	dict_table_t*		new_table = NULL;
+	dict_table_t*		new_table;
 	char			table_name[MAX_FULL_NAME_LEN];
 	dberr_t			error;
 	CHARSET_INFO*		charset;
@@ -2035,11 +2034,13 @@ fts_create_one_index_table(
 	}
 
 	if (error != DB_SUCCESS) {
-		trx->error_state = error;
 		dict_mem_table_free(new_table);
 		new_table = NULL;
 		ib::warn() << "Failed to create FTS index table "
 			<< table_name;
+		trx->error_state = DB_SUCCESS;
+		row_drop_table_for_mysql(table_name, trx, SQLCOM_DROP_DB);
+		trx->error_state = error;
 	}
 
 	return(new_table);
@@ -3713,13 +3714,6 @@ fts_get_max_doc_id(
 
 	if (!page_is_empty(btr_pcur_get_page(&pcur))) {
 		const rec_t*    rec = NULL;
-		ulint		offsets_[REC_OFFS_NORMAL_SIZE];
-		ulint*		offsets = offsets_;
-		mem_heap_t*	heap = NULL;
-		ulint		len;
-		const void*	data;
-
-		rec_offs_init(offsets_);
 
 		do {
 			rec = btr_pcur_get_rec(&pcur);
@@ -3729,18 +3723,11 @@ fts_get_max_doc_id(
 			}
 		} while (btr_pcur_move_to_prev(&pcur, &mtr));
 
-		if (!rec) {
+		if (!rec || rec_is_metadata(rec, *index)) {
 			goto func_exit;
 		}
 
-		ut_ad(!rec_is_metadata(rec, *index));
-		offsets = rec_get_offsets(
-			rec, index, offsets, true, ULINT_UNDEFINED, &heap);
-
-		data = rec_get_nth_field(rec, offsets, 0, &len);
-
-		doc_id = static_cast<doc_id_t>(fts_read_doc_id(
-			static_cast<const byte*>(data)));
+		doc_id = fts_read_doc_id(rec);
 	}
 
 func_exit:
@@ -5222,49 +5209,23 @@ fts_get_doc_id_from_row(
 }
 
 /** Extract the doc id from the record that belongs to index.
-@param[in]	table	table
-@param[in]	rec	record contains FTS_DOC_ID
+@param[in]	rec	record containing FTS_DOC_ID
 @param[in]	index	index of rec
-@param[in]	heap	heap memory
+@param[in]	offsets	rec_get_offsets(rec,index)
 @return doc id that was extracted from rec */
 doc_id_t
 fts_get_doc_id_from_rec(
-	dict_table_t*		table,
 	const rec_t*		rec,
 	const dict_index_t*	index,
-	mem_heap_t*		heap)
+	const ulint*		offsets)
 {
-	ulint		len;
-	const byte*	data;
-	ulint		col_no;
-	doc_id_t	doc_id = 0;
-	ulint		offsets_[REC_OFFS_NORMAL_SIZE];
-	ulint*		offsets = offsets_;
-	mem_heap_t*	my_heap = heap;
-
-	ut_a(table->fts->doc_col != ULINT_UNDEFINED);
-
-	rec_offs_init(offsets_);
-
-	offsets = rec_get_offsets(
-		rec, index, offsets, true, ULINT_UNDEFINED, &my_heap);
-
-	col_no = dict_col_get_index_pos(
-		&table->cols[table->fts->doc_col], index);
-
-	ut_ad(col_no != ULINT_UNDEFINED);
-
-	data = rec_get_nth_field(rec, offsets, col_no, &len);
-
-	ut_a(len == 8);
-	ut_ad(8 == sizeof(doc_id));
-	doc_id = static_cast<doc_id_t>(mach_read_from_8(data));
-
-	if (my_heap && !heap) {
-		mem_heap_free(my_heap);
-	}
-
-	return(doc_id);
+	ulint f = dict_col_get_index_pos(
+		&index->table->cols[index->table->fts->doc_col], index);
+	ulint len;
+	doc_id_t doc_id = mach_read_from_8(
+		rec_get_nth_field(rec, offsets, f, &len));
+	ut_ad(len == 8);
+	return doc_id;
 }
 
 /*********************************************************************//**

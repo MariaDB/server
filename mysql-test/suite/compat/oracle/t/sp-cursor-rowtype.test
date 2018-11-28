@@ -1572,3 +1572,26 @@ DELIMITER ;$$
 SELECT f1();
 DROP FUNCTION f1;
 DROP TABLE t1;
+
+
+--echo #
+--echo # MDEV-17278 CURSOR FOR LOOP - ERROR: unexpected end of stream, read 0 bytes (SERVER CRASH)
+--echo #
+
+CREATE TABLE t1 (id2 int, id int, en1 enum('aaa','a','b','c'));
+INSERT INTO t1 VALUES(1,1,'aaa'),(2,2,'a'),(3,3,'b'),(4,4,'c');
+
+DELIMITER $$;
+CREATE PROCEDURE p1()
+AS
+BEGIN
+  FOR rec IN (SELECT en1 FROM t1)
+  LOOP
+    SELECT rec.en1;
+  END LOOP;
+END;
+$$
+DELIMITER ;$$
+CALL p1();
+DROP PROCEDURE p1;
+DROP TABLE t1;

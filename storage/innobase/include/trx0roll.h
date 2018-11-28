@@ -53,16 +53,6 @@ trx_savept_take(
 /*============*/
 	trx_t*	trx);	/*!< in: transaction */
 
-/** Get the last undo log record of a transaction (for rollback).
-@param[in,out]	trx		transaction
-@param[out]	roll_ptr	DB_ROLL_PTR to the undo record
-@param[in,out]	heap		memory heap for allocation
-@return	undo log record copied to heap
-@retval	NULL if none left or the roll_limit (savepoint) was reached */
-trx_undo_rec_t*
-trx_roll_pop_top_rec_of_trx(trx_t* trx, roll_ptr_t* roll_ptr, mem_heap_t* heap)
-	MY_ATTRIBUTE((nonnull, warn_unused_result));
-
 /** Report progress when rolling back a row of a recovered transaction. */
 void trx_roll_report_progress();
 /*******************************************************************//**

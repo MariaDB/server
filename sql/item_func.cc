@@ -2613,13 +2613,13 @@ bool Item_func_min_max::get_time_native(THD *thd, MYSQL_TIME *ltime)
 {
   DBUG_ASSERT(fixed == 1);
 
-  Time value(thd, args[0], Time::Options(), decimals);
+  Time value(thd, args[0], Time::Options(thd), decimals);
   if (!value.is_valid_time())
     return (null_value= true);
 
   for (uint i= 1; i < arg_count ; i++)
   {
-    Time tmp(thd, args[i], Time::Options(), decimals);
+    Time tmp(thd, args[i], Time::Options(thd), decimals);
     if (!tmp.is_valid_time())
       return (null_value= true);
 

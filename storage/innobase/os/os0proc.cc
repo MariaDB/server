@@ -24,12 +24,7 @@ process control primitives
 Created 9/30/1995 Heikki Tuuri
 *******************************************************/
 
-#include "ha_prototypes.h"
-
-#include "os0proc.h"
-#include "srv0srv.h"
-#include "ut0mem.h"
-#include "ut0byte.h"
+#include "univ.i"
 
 /* FreeBSD for example has only MAP_ANON, Linux has MAP_ANONYMOUS and
 MAP_ANON but MAP_ANON is marked as deprecated */

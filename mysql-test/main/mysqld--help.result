@@ -1209,7 +1209,8 @@ The following specify which files/extra groups are read (specified before remain
  ERROR_FOR_DIVISION_BY_ZERO, TRADITIONAL, 
  NO_AUTO_CREATE_USER, HIGH_NOT_PRECEDENCE, 
  NO_ENGINE_SUBSTITUTION, PAD_CHAR_TO_FULL_LENGTH, 
- EMPTY_STRING_IS_NULL, SIMULTANEOUS_ASSIGNMENT
+ EMPTY_STRING_IS_NULL, SIMULTANEOUS_ASSIGNMENT, 
+ TIME_ROUND_FRACTIONAL
  --sql-safe-updates  If set to 1, UPDATEs and DELETEs need either a key in the
  WHERE clause, or a LIMIT clause, or else they will
  aborted. Prevents the common mistake of accidentally

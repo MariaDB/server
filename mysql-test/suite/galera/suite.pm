@@ -100,10 +100,6 @@ if (which(socat)) {
 
 sub skip_combinations {
   my %skip = ();
-  $skip{'include/have_xtrabackup.inc'} = 'Need innobackupex'
-             unless which(innobackupex);
-  $skip{'include/have_xtrabackup.inc'} = 'Need socat or nc'
-             unless $ENV{MTR_GALERA_TFMT};
   $skip{'include/have_mariabackup.inc'} = 'Need mariabackup'
              unless which(mariabackup);
   $skip{'include/have_mariabackup.inc'} = 'Need ss'

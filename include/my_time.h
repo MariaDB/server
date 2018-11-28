@@ -57,13 +57,6 @@ extern uchar days_in_month[];
 
 /* Flags to str_to_datetime */
 
-/*
-  TIME_FUZZY_DATES is used for the result will only be used for comparison
-  purposes. Conversion is as relaxed as possible.
-*/
-#define C_TIME_FUZZY_DATES      1U
-#define C_TIME_DATETIME_ONLY    2U
-#define C_TIME_TIME_ONLY        4U
 #define C_TIME_NO_ZERO_IN_DATE  (1UL << 23) /* == MODE_NO_ZERO_IN_DATE */
 #define C_TIME_NO_ZERO_DATE     (1UL << 24) /* == MODE_NO_ZERO_DATE    */
 #define C_TIME_INVALID_DATES    (1UL << 25) /* == MODE_INVALID_DATES   */
@@ -86,6 +79,16 @@ extern uchar days_in_month[];
 /* Useful constants */
 #define SECONDS_IN_24H 86400L
 
+/* Limits for the INTERVAL data type */
+
+ /* Number of hours between '0001-01-01 00h' and '9999-12-31 23h' */
+#define TIME_MAX_INTERVAL_HOUR             87649415
+#define TIME_MAX_INTERVAL_HOUR_CHAR_LENGTH 8
+
+/* Number of full days between '0001-01-01' and '9999-12-31'*/
+#define TIME_MAX_INTERVAL_DAY              3652058 /*87649415/24*/
+#define TIME_MAX_INTERVAL_DAY_CHAR_LENGTH  7
+
 /* Limits for the TIME data type */
 #define TIME_MAX_HOUR 838
 #define TIME_MAX_MINUTE 59
@@ -105,27 +108,46 @@ typedef struct st_mysql_time_status
 {
   int warnings;
   uint precision;
+  uint nanoseconds;
 } MYSQL_TIME_STATUS;
 
 static inline void my_time_status_init(MYSQL_TIME_STATUS *status)
 {
   status->warnings= 0;
   status->precision= 0;
+  status->nanoseconds= 0;
 }
 
 my_bool check_date(const MYSQL_TIME *ltime, my_bool not_zero_date,
                    ulonglong flags, int *was_cut);
 my_bool str_to_DDhhmmssff(const char *str, size_t length, MYSQL_TIME *l_time,
                           ulong max_hour, MYSQL_TIME_STATUS *status);
-my_bool str_to_time(const char *str, size_t length, MYSQL_TIME *l_time, 
-                    ulonglong flag, MYSQL_TIME_STATUS *status);
-my_bool str_to_datetime(const char *str, size_t length, MYSQL_TIME *l_time,
-                        ulonglong flags, MYSQL_TIME_STATUS *status);
-longlong number_to_datetime(longlong nr, ulong sec_part, MYSQL_TIME *time_res,
-                            ulonglong flags, int *was_cut);
+my_bool str_to_datetime_or_date_or_time(const char *str, size_t length,
+                                        MYSQL_TIME *to, ulonglong flag,
+                                        MYSQL_TIME_STATUS *status,
+                                        ulong time_max_hour,
+                                        ulong time_err_hour);
+my_bool
+str_to_datetime_or_date_or_interval_hhmmssff(const char *str, size_t length,
+                                             MYSQL_TIME *to, ulonglong flag,
+                                             MYSQL_TIME_STATUS *status,
+                                             ulong time_max_hour,
+                                             ulong time_err_hour);
+my_bool
+str_to_datetime_or_date_or_interval_day(const char *str, size_t length,
+                                        MYSQL_TIME *to, ulonglong flag,
+                                        MYSQL_TIME_STATUS *status,
+                                        ulong time_max_hour,
+                                        ulong time_err_hour);
+my_bool str_to_datetime_or_date(const char *str, size_t length, MYSQL_TIME *to,
+                                ulonglong flags, MYSQL_TIME_STATUS *status);
 
-int number_to_time(my_bool neg, ulonglong nr, ulong sec_part,
-                   MYSQL_TIME *ltime, int *was_cut);
+longlong number_to_datetime_or_date(longlong nr, ulong sec_part,
+                                    MYSQL_TIME *time_res,
+                                    ulonglong flags, int *was_cut);
+int number_to_time_only(my_bool neg, ulonglong nr, ulong sec_part,
+                        ulong max_hour, MYSQL_TIME *to, int *was_cut);
+
 ulonglong TIME_to_ulonglong_datetime(const MYSQL_TIME *);
 ulonglong TIME_to_ulonglong_date(const MYSQL_TIME *);
 ulonglong TIME_to_ulonglong_time(const MYSQL_TIME *);
@@ -188,6 +210,7 @@ void set_zero_time(MYSQL_TIME *tm, enum enum_mysql_timestamp_type time_type);
 #define MAX_DATE_STRING_REP_LENGTH 30
 #define AUTO_SEC_PART_DIGITS DECIMAL_NOT_SPECIFIED
 
+int my_interval_DDhhmmssff_to_str(const MYSQL_TIME *, char *to, uint digits);
 int my_time_to_str(const MYSQL_TIME *l_time, char *to, uint digits);
 int my_date_to_str(const MYSQL_TIME *l_time, char *to);
 int my_datetime_to_str(const MYSQL_TIME *l_time, char *to, uint digits);

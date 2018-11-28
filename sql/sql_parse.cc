@@ -2405,11 +2405,9 @@ com_multi_end:
     /* wsrep BF abort in query exec phase */
     mysql_mutex_lock(&thd->LOCK_thd_data);
     do_end_of_statement=
-      thd->wsrep_trx().state() != wsrep::transaction::s_replaying;
-#ifdef TODO
-            thd->wsrep_conflict_state != REPLAYING &&
-            thd->wsrep_conflict_state != RETRY_AUTOCOMMIT;
-#endif
+      thd->wsrep_trx().state() != wsrep::transaction::s_replaying
+      && !thd->killed;
+
     mysql_mutex_unlock(&thd->LOCK_thd_data);
   }
   else

@@ -147,7 +147,6 @@ trx_nl_ro_commits	disabled
 trx_commits_insert_update	disabled
 trx_rollbacks	disabled
 trx_rollbacks_savepoint	disabled
-trx_rollback_active	disabled
 trx_active_transactions	disabled
 trx_rseg_history_len	disabled
 trx_undo_slots_used	disabled

@@ -2044,7 +2044,7 @@ bool Item_func_between::fix_length_and_dec()
   if (!args[0] || !args[1] || !args[2])
     return TRUE;
   if (m_comparator.aggregate_for_comparison(Item_func_between::func_name(),
-                                            args, 3, true))
+                                            args, 3, false))
   {
     DBUG_ASSERT(current_thd->is_error());
     return TRUE;
@@ -2152,12 +2152,20 @@ longlong Item_func_between::val_int_cmp_string()
 
 longlong Item_func_between::val_int_cmp_int()
 {
-  longlong value= args[0]->val_int(), a, b;
+  Longlong_hybrid value= args[0]->to_longlong_hybrid();
   if ((null_value= args[0]->null_value))
     return 0;					/* purecov: inspected */
-  a= args[1]->val_int();
-  b= args[2]->val_int();
-  return val_int_cmp_int_finalize(value, a, b);
+  Longlong_hybrid a= args[1]->to_longlong_hybrid();
+  Longlong_hybrid b= args[2]->to_longlong_hybrid();
+  if (!args[1]->null_value && !args[2]->null_value)
+    return (longlong) ((value.cmp(a) >= 0 && value.cmp(b) <= 0) != negated);
+  if (args[1]->null_value && args[2]->null_value)
+    null_value= true;
+  else if (args[1]->null_value)
+    null_value= value.cmp(b) <= 0;              // not null if false range.
+  else
+    null_value= value.cmp(a) >= 0;
+  return (longlong) (!null_value && negated);
 }
 
 
@@ -2304,7 +2312,8 @@ bool Item_func_ifnull::date_op(THD *thd, MYSQL_TIME *ltime, date_mode_t fuzzydat
   DBUG_ASSERT(fixed == 1);
   for (uint i= 0; i < 2; i++)
   {
-    Datetime dt(thd, args[i], fuzzydate & ~TIME_FUZZY_DATES);
+    Datetime_truncation_not_needed dt(thd, args[i],
+                                      fuzzydate & ~TIME_FUZZY_DATES);
     if (!(dt.copy_to_mysql_time(ltime, mysql_timestamp_type())))
       return (null_value= false);
   }
@@ -2804,7 +2813,7 @@ Item_func_nullif::date_op(THD *thd, MYSQL_TIME *ltime, date_mode_t fuzzydate)
   DBUG_ASSERT(fixed == 1);
   if (!compare())
     return (null_value= true);
-  Datetime dt(thd, args[2], fuzzydate);
+  Datetime_truncation_not_needed dt(thd, args[2], fuzzydate);
   return (null_value= dt.copy_to_mysql_time(ltime, mysql_timestamp_type()));
 }
 
@@ -2979,7 +2988,7 @@ bool Item_func_case::date_op(THD *thd, MYSQL_TIME *ltime, date_mode_t fuzzydate)
   Item *item= find_item();
   if (!item)
     return (null_value= true);
-  Datetime dt(thd, item, fuzzydate);
+  Datetime_truncation_not_needed dt(thd, item, fuzzydate);
   return (null_value= dt.copy_to_mysql_time(ltime, mysql_timestamp_type()));
 }
 
@@ -3331,7 +3340,8 @@ bool Item_func_coalesce::date_op(THD *thd, MYSQL_TIME *ltime, date_mode_t fuzzyd
   DBUG_ASSERT(fixed == 1);
   for (uint i= 0; i < arg_count; i++)
   {
-    Datetime dt(thd, args[i], fuzzydate & ~TIME_FUZZY_DATES);
+    Datetime_truncation_not_needed dt(thd, args[i],
+                                      fuzzydate & ~TIME_FUZZY_DATES);
     if (!dt.copy_to_mysql_time(ltime, mysql_timestamp_type()))
       return (null_value= false);
   }

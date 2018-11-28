@@ -24,8 +24,7 @@ Debug utilities for Innobase.
 Created 1/30/1994 Heikki Tuuri
 **********************************************************************/
 
-#include "ha_prototypes.h"
-
+#include "univ.i"
 #include "ut0dbg.h"
 
 /*************************************************************//**

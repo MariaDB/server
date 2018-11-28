@@ -2501,7 +2501,7 @@ int JOIN::optimize_stage2()
   {
      JOIN_TAB *tab= &join_tab[const_tables];
 
-    if (order)
+    if (order && !need_tmp)
     {
       /*
         Force using of tmp table if sorting by a SP or UDF function due to
@@ -2655,6 +2655,18 @@ setup_subq_exit:
   if (!tables_list || !table_count)
   {
     choose_tableless_subquery_plan();
+
+    /* The output has atmost one row */
+    if (group_list)
+    {
+      group_list= NULL;
+      group_optimized_away= 1;
+      rollup.state= ROLLUP::STATE_NONE;
+    }
+    order= NULL;
+    simple_order= TRUE;
+    select_distinct= FALSE;
+
     if (select_lex->have_window_funcs())
     {
       if (!(join_tab= (JOIN_TAB*) thd->alloc(sizeof(JOIN_TAB))))
@@ -3194,7 +3206,7 @@ bool JOIN::make_aggr_tables_info()
         or end_write_group()) if JOIN::group is set to false.
       */
       // the temporary table was explicitly requested
-      DBUG_ASSERT(MY_TEST(select_options & OPTION_BUFFER_RESULT));
+      DBUG_ASSERT(select_options & OPTION_BUFFER_RESULT);
       // the temporary table does not have a grouping expression
       DBUG_ASSERT(!curr_tab->table->group); 
     }
@@ -4079,7 +4091,7 @@ void JOIN::exec_inner()
                  procedure ? procedure_fields_list : *fields,
                  Protocol::SEND_NUM_ROWS | Protocol::SEND_EOF);
 
-  error= do_select(this, procedure);
+  error= result->view_structure_only() ? false : do_select(this, procedure);
   /* Accumulate the counts from all join iterations of all join parts. */
   thd->inc_examined_row_count(join_examined_rows);
   DBUG_PRINT("counts", ("thd->examined_row_count: %lu",
@@ -13179,7 +13191,23 @@ remove_const(JOIN *join,ORDER *first_order, COND *cond,
          tab++)
       tab->cached_eq_ref_table= FALSE;
 
-    *simple_order= *join->join_tab[join->const_tables].on_expr_ref ? 0 : 1;
+    JOIN_TAB *head= join->join_tab + join->const_tables;
+    *simple_order= head->on_expr_ref[0] == NULL;
+    if (*simple_order && head->table->file->ha_table_flags() & HA_SLOW_RND_POS)
+    {
+      uint u1, u2, u3;
+      /*
+        normally the condition is (see filesort_use_addons())
+
+          length + sortlength <= max_length_for_sort_data
+
+        but for HA_SLOW_RND_POS tables we relax it a bit, as the alternative
+        is to use a temporary table, which is rather expensive.
+
+        TODO proper cost estimations
+      */
+      *simple_order= filesort_use_addons(head->table, 0, &u1, &u2, &u3);
+    }
   }
   else
   {

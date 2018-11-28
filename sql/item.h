@@ -151,6 +151,7 @@ bool mark_unsupported_function(const char *w1, const char *w2,
 
 #define NO_EXTRACTION_FL              (1 << 6)
 #define FULL_EXTRACTION_FL            (1 << 7)
+#define SUBSTITUTION_FL               (1 << 8)
 #define EXTRACTION_MASK               (NO_EXTRACTION_FL | FULL_EXTRACTION_FL)
 
 extern const char *item_empty_name;
@@ -1183,6 +1184,10 @@ public:
       If value is not null null_value flag will be reset to FALSE.
   */
   virtual longlong val_int()=0;
+  Longlong_hybrid to_longlong_hybrid()
+  {
+    return Longlong_hybrid(val_int(), unsigned_flag);
+  }
   Longlong_null to_longlong_null()
   {
     longlong nr= val_int();
@@ -1631,28 +1636,28 @@ public:
   bool get_date_from_real(THD *thd, MYSQL_TIME *ltime, date_mode_t fuzzydate);
   bool get_date_from_string(THD *thd, MYSQL_TIME *ltime, date_mode_t fuzzydate);
   bool get_time(THD *thd, MYSQL_TIME *ltime)
-  { return get_date(thd, ltime, Time::flags_for_get_date()); }
+  { return get_date(thd, ltime, Time::Options(thd)); }
   // Get a DATE or DATETIME value in numeric packed format for comparison
   virtual longlong val_datetime_packed(THD *thd)
   {
-    date_mode_t fuzzydate= Datetime::comparison_flags_for_get_date();
-    return Datetime(current_thd, this, fuzzydate).to_packed();
+    return Datetime(thd, this, Datetime::Options_cmp(thd)).to_packed();
   }
   // Get a TIME value in numeric packed format for comparison
   virtual longlong val_time_packed(THD *thd)
   {
-    return Time(thd, this, Time::comparison_flags_for_get_date()).to_packed();
+    return Time(thd, this, Time::Options_cmp(thd)).to_packed();
   }
   longlong val_datetime_packed_result(THD *thd);
   longlong val_time_packed_result(THD *thd)
   {
     MYSQL_TIME ltime;
-    date_mode_t fuzzydate= Time::comparison_flags_for_get_date();
-    return get_date_result(thd, &ltime, fuzzydate) ? 0 : pack_time(&ltime);
+    return get_date_result(thd, &ltime, Time::Options_cmp(thd)) ? 0 :
+           pack_time(&ltime);
   }
 
   virtual bool get_date_result(THD *thd, MYSQL_TIME *ltime, date_mode_t fuzzydate)
   { return get_date(thd, ltime,fuzzydate); }
+
   /*
     The method allows to determine nullness of a complex expression 
     without fully evaluating it, instead of calling val/result*() then 
@@ -6020,6 +6025,11 @@ public:
     return false;
   }
   table_map used_tables() const;
+  virtual void update_used_tables()
+  {
+    if (field && field->default_value)
+      field->default_value->expr->update_used_tables();
+  }
   Field *get_tmp_table_field() { return 0; }
   Item *get_tmp_table_item(THD *thd) { return this; }
   Item_field *field_for_view_update() { return 0; }
@@ -6431,8 +6441,8 @@ public:
   Item *make_literal(THD *);
   longlong val_datetime_packed(THD *thd)
   {
-    date_mode_t fuzzy= Datetime::comparison_flags_for_get_date();
-    return has_value() ? Datetime(thd, this, fuzzy).to_packed() : 0;
+    Datetime::Options_cmp opt(thd);
+    return has_value() ? Datetime(thd, this, opt).to_packed() : 0;
   }
   longlong val_time_packed(THD *thd)
   {
@@ -6471,7 +6481,7 @@ public:
   }
   longlong val_time_packed(THD *thd)
   {
-    return Time(thd, this, Time::comparison_flags_for_get_date()).to_packed();
+    return Time(thd, this, Time::Options_cmp(thd)).to_packed();
   }
   longlong val_int()
   {
@@ -6506,7 +6516,7 @@ public:
   }
   longlong val_time_packed(THD *thd)
   {
-    return Time(thd, this, Time::comparison_flags_for_get_date()).to_packed();
+    return Time(thd, this, Time::Options_cmp(thd)).to_packed();
   }
   longlong val_int() { return has_value() ? Date(this).to_longlong() : 0; }
   double val_real() { return has_value() ? Date(this).to_double() : 0; }

@@ -1893,7 +1893,7 @@ static my_time_t convert_str_to_timestamp(const char* str)
   uint dummy_in_dst_time_gap;
   
   /* We require a total specification (date AND time) */
-  if (str_to_datetime(str, (uint) strlen(str), &l_time, 0, &status) ||
+  if (str_to_datetime_or_date(str, (uint) strlen(str), &l_time, 0, &status) ||
       l_time.time_type != MYSQL_TIMESTAMP_DATETIME || status.warnings)
   {
     error("Incorrect date and time argument: %s", str);

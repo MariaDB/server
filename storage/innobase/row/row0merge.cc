@@ -30,8 +30,6 @@ Completed by Sunny Bains and Marko Makela
 
 #include <math.h>
 
-#include "ha_prototypes.h"
-
 #include "row0merge.h"
 #include "row0ext.h"
 #include "row0log.h"
@@ -49,8 +47,6 @@ Completed by Sunny Bains and Marko Makela
 #include "row0vers.h"
 #include "handler0alter.h"
 #include "btr0bulk.h"
-#include "fsp0sysspace.h"
-#include "ut0new.h"
 #include "ut0stage.h"
 #include "fil0crypt.h"
 
@@ -2542,7 +2538,7 @@ write_buffers:
 						curr_progress,
 						pct_cost,
 						crypt_block,
-						new_table->space->id);
+						new_table->space_id);
 
 					if (row == NULL) {
 						err = clust_btr_bulk->finish(
@@ -2653,7 +2649,7 @@ write_buffers:
 						curr_progress,
 						pct_cost,
 						crypt_block,
-						new_table->space->id);
+						new_table->space_id);
 
 					err = btr_bulk.finish(err);
 
@@ -2687,7 +2683,7 @@ write_buffers:
 					if (!row_merge_write(
 						    file->fd, file->offset++,
 						    block, crypt_block,
-						    new_table->space->id)) {
+						    new_table->space_id)) {
 						err = DB_TEMP_FILE_WRITE_FAIL;
 						trx->error_key_num = i;
 						break;
@@ -4307,7 +4303,7 @@ row_make_new_pathname(
 	dict_table_t*	table,		/*!< in: table to be renamed */
 	const char*	new_name)	/*!< in: new name */
 {
-	ut_ad(!is_system_tablespace(table->space->id));
+	ut_ad(!is_system_tablespace(table->space_id));
 	return os_file_make_new_pathname(table->space->chain.start->name,
 					 new_name);
 }
@@ -4542,7 +4538,7 @@ row_merge_write_redo(
 	log_ptr = mlog_open(&mtr, 11 + 8);
 	log_ptr = mlog_write_initial_log_record_low(
 		MLOG_INDEX_LOAD,
-		index->table->space->id, index->page, log_ptr, &mtr);
+		index->table->space_id, index->page, log_ptr, &mtr);
 	mach_write_to_8(log_ptr, index->id);
 	mlog_close(&mtr, log_ptr + 8);
 	mtr.commit();
@@ -4900,7 +4896,7 @@ wait_again:
 					trx, &dup, &merge_files[i],
 					block, &tmpfd, true,
 					pct_progress, pct_cost,
-					crypt_block, new_table->space->id,
+					crypt_block, new_table->space_id,
 					stage);
 
 			pct_progress += pct_cost;
@@ -4943,7 +4939,7 @@ wait_again:
 					merge_files[i].fd, block, NULL,
 					&btr_bulk,
 					merge_files[i].n_rec, pct_progress, pct_cost,
-					crypt_block, new_table->space->id,
+					crypt_block, new_table->space_id,
 					stage);
 
 				error = btr_bulk.finish(error);

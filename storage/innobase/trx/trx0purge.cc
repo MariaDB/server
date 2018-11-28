@@ -24,8 +24,6 @@ Purge old versions
 Created 3/26/1996 Heikki Tuuri
 *******************************************************/
 
-#include "ha_prototypes.h"
-
 #include "trx0purge.h"
 #include "fsp0fsp.h"
 #include "fut0fut.h"
@@ -36,7 +34,6 @@ Created 3/26/1996 Heikki Tuuri
 #include "row0purge.h"
 #include "row0upd.h"
 #include "srv0mon.h"
-#include "fsp0sysspace.h"
 #include "srv0srv.h"
 #include "srv0start.h"
 #include "sync0sync.h"
@@ -783,7 +780,7 @@ not_free:
 				 os_offset_t(size) << srv_page_size_shift,
 				 true);
 
-		/* This is only executed by the srv_coordinator_thread. */
+		/* This is only executed by srv_purge_coordinator_thread. */
 		export_vars.innodb_undo_truncations++;
 
 		/* TODO: PUNCH_HOLE the garbage (with write-ahead logging) */

@@ -1,5 +1,7 @@
 ###################### tmp_memory_table_size_func.test ########################
 
+--source include/have_aria_used_for_temp_tables.inc
+
 --source include/load_sysvars.inc
 --source include/have_sequence.inc
 

@@ -1217,17 +1217,23 @@ inline void dict_index_t::reconstruct_fields()
 	ulint n_core_null = 0;
 	const bool comp = dict_table_is_comp(table);
 	const auto* non_pk_col_map = table->instant->non_pk_col_map;
-	for (unsigned i = n_first, o = i, j = 0; i < n_fields; ) {
+	for (unsigned i = n_first, j = 0; i < n_fields; ) {
 		dict_field_t& f = tfields[i++];
 		auto c = *non_pk_col_map++;
 		if (c & 1U << 15) {
 			f.col = &table->instant->dropped[j++];
-			ut_ad(f.col->is_dropped());
+			DBUG_ASSERT(f.col->is_dropped());
 			f.fixed_len = dict_col_get_fixed_size(f.col, comp);
 		} else {
-			f = fields[o++];
-			f.col = dict_table_get_nth_col(table, c);
-			f.name = f.col->name(*table);
+			const auto old = std::find_if(
+				fields + n_first, fields + n_fields,
+				[c](const dict_field_t& o)
+				{ return o.col->ind == c; });
+			ut_ad(old >= &fields[n_first]);
+			ut_ad(old < &fields[n_fields]);
+			DBUG_ASSERT(!old->prefix_len);
+			DBUG_ASSERT(old->col == &table->cols[c]);
+			f = *old;
 		}
 
 		f.col->clear_instant();

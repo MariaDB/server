@@ -24,8 +24,6 @@ Created 2012-11-16 by Sunny Bains as srv/srv0space.cc
 Refactored 2013-7-26 by Kevin Lewis
 *******************************************************/
 
-#include "ha_prototypes.h"
-
 #include "fsp0sysspace.h"
 #include "srv0start.h"
 #include "trx0sys.h"
@@ -33,7 +31,6 @@ Refactored 2013-7-26 by Kevin Lewis
 #include "mem0mem.h"
 #include "os0file.h"
 #include "row0mysql.h"
-#include "ut0new.h"
 
 /** The server header file is included to access opt_initialize global variable.
 If server passes the option for create/open DB to SE, we should remove such

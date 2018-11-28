@@ -499,3 +499,113 @@ test.comment()
 Warnings:
 Note	1585	This function 'comment' has the same name as a native function
 DROP FUNCTION comment;
+#
+# MDEV-17660 sql_mode=ORACLE: Some keywords do not work as label names: history, system, versioning, without
+#
+BEGIN
+<<date_format>>
+NULL;
+END;
+/
+BEGIN
+<<decode>>
+NULL;
+END;
+/
+BEGIN
+<<history>>
+NULL;
+END;
+/
+BEGIN
+<<system>>
+NULL;
+END;
+/
+BEGIN
+<<versioning>>
+NULL;
+END;
+/
+BEGIN
+<<without>>
+NULL;
+END;
+/
+#
+# MDEV-17666 sql_mode=ORACLE: Keyword ELSEIF should not be reserved
+#
+DECLARE
+ELSEIF INT;
+BEGIN
+ELSEIF:=1;
+END;
+/
+BEGIN
+<<ELSEIF>>
+NULL;
+END;
+/
+#
+# MDEV-17693 Shift/reduce conflicts for NAMES,ROLE,PASSWORD in the option_value_no_option_type grammar
+#
+CREATE TABLE names (names INT);
+SELECT names FROM names AS names;
+names
+DROP TABLE names;
+CREATE TABLE password (password INT);
+SELECT password FROM password AS password;
+password
+DROP TABLE password;
+CREATE TABLE role (role INT);
+SELECT role FROM role AS role;
+role
+DROP TABLE role;
+DECLARE
+names    VARCHAR(32) DEFAULT '[names]';
+password VARCHAR(32) DEFAULT '[password]';
+role     VARCHAR(32) DEFAULT '[role]';
+BEGIN
+<<names>>
+SELECT names;
+<<password>>
+SELECT password;
+<<role>>
+SELECT role;
+END;
+$$
+names
+[names]
+password
+[password]
+role
+[role]
+DECLARE
+names VARCHAR(32);
+BEGIN
+SET names='[names]';
+END;
+$$
+ERROR 42000: Variable 'names' must be quoted with `...`, or renamed
+DECLARE
+password VARCHAR(32);
+BEGIN
+SET password='[password]';
+END;
+$$
+ERROR 42000: Variable 'password' must be quoted with `...`, or renamed
+DECLARE
+role VARCHAR(32);
+BEGIN
+SET role='[role]';
+END;
+$$
+SELECT @@GLOBAL.names;
+ERROR HY000: Unknown system variable 'names'
+SELECT @@GLOBAL.password;
+ERROR HY000: Unknown system variable 'password'
+SELECT @@GLOBAL.role;
+ERROR HY000: Unknown system variable 'role'
+#
+# End of 10.3 tests
+#

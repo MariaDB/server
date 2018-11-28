@@ -1040,10 +1040,6 @@ public:
     with hidden primary key)
     (No handler has this limitation currently)
 
-    HA_WANTS_PRIMARY_KEY:
-    Can't define a table without primary key except sequences
-    (Only InnoDB has this when using innodb_force_primary_key == ON)
-
     HA_STATS_RECORDS_IS_EXACT:
     Does the counter of records after the info call specify an exact
     value or not. If it does this flag is set.
