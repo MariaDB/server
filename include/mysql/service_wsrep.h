@@ -106,8 +106,8 @@ extern struct wsrep_service_st {
 #define get_wsrep_protocol_version() wsrep_service->get_wsrep_protocol_version_func()
 #define wsrep_consistency_check(T) wsrep_service->wsrep_consistency_check_func(T)
 #define wsrep_is_wsrep_xid(X) wsrep_service->wsrep_is_wsrep_xid_func(X)
-#define get_wsrep_xid_seqno(X) wsrep_service->wsrep_xid_seqno_func(X)
-#define get_wsrep_xid_uuid(X) wsrep_service->wsrep_xid_uuid_func(X)
+#define wsrep_xid_seqno(X) wsrep_service->wsrep_xid_seqno_func(X)
+#define wsrep_xid_uuid(X) wsrep_service->wsrep_xid_uuid_func(X)
 #define wsrep_on(X) wsrep_service->wsrep_on_func(X)
 #define wsrep_prepare_key_for_innodb(A,B,C,D,E,F,G) wsrep_service->wsrep_prepare_key_for_innodb_func(A,B,C,D,E,F.G)
 #define wsrep_thd_LOCK(T) wsrep_service->wsrep_thd_LOCK_func(T)
@@ -140,9 +140,9 @@ extern long wsrep_protocol_version;
 extern "C" bool wsrep_consistency_check(THD *thd);
 bool wsrep_prepare_key_for_innodb(THD* thd, const unsigned char* cache_key, size_t cache_key_len, const unsigned char* row_id, size_t row_id_len, struct wsrep_buf* key, size_t* key_len);
 extern "C" const char *wsrep_thd_query(const void* thd);
-int wsrep_is_wsrep_xid(const void* xid);
-extern "C" long long get_wsrep_xid_seqno(const struct xid_t* xid);
-const unsigned char* get_wsrep_xid_uuid(const struct xid_t* xid);
+extern "C" int wsrep_is_wsrep_xid(const void* xid);
+extern "C" long long wsrep_xid_seqno(const struct xid_t* xid);
+const unsigned char* wsrep_xid_uuid(const struct xid_t* xid);
 my_bool wsrep_trx_order_before(const void* thd1, const void* thd2);
 long get_wsrep_protocol_version();
 extern "C" long long wsrep_thd_trx_seqno(const void* thd);
