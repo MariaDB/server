@@ -82,8 +82,20 @@ bool Wsrep_client_service::interrupted() const
 {
   DBUG_ASSERT(m_thd == current_thd);
   mysql_mutex_lock(&m_thd->LOCK_thd_data);
-  bool ret= (m_thd->killed != NOT_KILLED);
+
+  /* wsrep state can be interrupted only if THD was explicitly killed,
+     for wsrep conflicts, we use deadlock error only
+   */
+  bool ret= (m_thd->killed != NOT_KILLED                                    &&
+             m_thd->wsrep_trx().state() != wsrep::transaction::s_must_abort &&
+             m_thd->wsrep_trx().state() != wsrep::transaction::s_aborting   &&
+             m_thd->wsrep_trx().state() != wsrep::transaction::s_aborted);
   mysql_mutex_unlock(&m_thd->LOCK_thd_data);
+  if (ret)
+  {
+      WSREP_DEBUG("wsrep state is interrupted, THD::killed %d trx state %d",
+                  m_thd->killed,  m_thd->wsrep_trx().state());
+  }
   return ret;
 }
 
