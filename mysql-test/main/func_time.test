@@ -3123,3 +3123,10 @@ SELECT
   CAST('50326 garbage' as time);
 
 SELECT TIME('- 01:00:00'), TIME('- 1 01:00:00');
+
+
+--echo #
+--echo # MDEV-17854 Assertion `decimals <= 6' failed in my_time_fraction_remainder on SELECT with NULLIF and FROM_UNIXTIME on incorrect time
+--echo #
+
+SELECT NULLIF(FROM_UNIXTIME('foo'), '2012-12-12 21:10:14');

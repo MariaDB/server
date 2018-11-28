@@ -862,7 +862,9 @@ Datetime_truncation_not_needed::Datetime_truncation_not_needed(THD *thd, Item *i
     existed (but we know there were no nanoseconds). Here we assert that there
     are also no microsecond digits outside of the scale specified in "dec".
   */
-  DBUG_ASSERT(!is_valid_datetime() || fraction_remainder(item->decimals) == 0);
+  DBUG_ASSERT(!is_valid_datetime() ||
+              fraction_remainder(MY_MIN(item->decimals,
+                                        TIME_SECOND_PART_DIGITS)) == 0);
 }
 
 /********************************************************************/
