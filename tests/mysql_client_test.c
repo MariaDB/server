@@ -19674,8 +19674,8 @@ static void test_big_packet()
                            opt_password, current_db, opt_port,
                            opt_unix_socket, 0)))
   {
-    mysql_close(mysql_local);
     fprintf(stderr, "\n connection failed(%s)", mysql_error(mysql_local));
+    mysql_close(mysql_local);
     exit(1);
   }
 
