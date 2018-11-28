@@ -2029,7 +2029,6 @@ end_of_index:
 					row = NULL;
 					mtr_commit(&mtr);
 					mem_heap_free(row_heap);
-					ut_free(nonnull);
 					goto write_buffers;
 				}
 			} else {
