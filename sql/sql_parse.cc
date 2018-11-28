@@ -1408,7 +1408,11 @@ out:
   DBUG_ASSERT(thd->m_digest == NULL);
   DBUG_ASSERT(thd->m_statement_psi == NULL);
 #ifdef WITH_WSREP
-  wsrep_after_command_after_result(thd);
+  if (packet_length != packet_error)
+  {
+    /* there was a command to process, and before_command() has been called */
+    wsrep_after_command_after_result(thd);
+  }
 #endif /* WITH_WSREP */
   DBUG_RETURN(return_value);
 }
