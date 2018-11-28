@@ -10966,6 +10966,7 @@ create_table_info_t::create_table_def()
 	DBUG_PRINT("enter", ("table_name: %s", m_table_name));
 
 	DBUG_ASSERT(m_trx->mysql_thd == m_thd);
+	DBUG_ASSERT(!m_drop_before_rollback);
 
 	/* MySQL does the name length check. But we do additional check
 	on the name length here */
@@ -11228,6 +11229,7 @@ err_col:
 				table, m_trx,
 				(fil_encryption_t)options->encryption,
 				(uint32_t)options->encryption_key_id);
+			m_drop_before_rollback = (err == DB_SUCCESS);
 		}
 
 		DBUG_EXECUTE_IF("ib_crash_during_create_for_encryption",
@@ -12531,6 +12533,9 @@ int create_table_info_t::create_table(bool create_fk)
 		DBUG_RETURN(error);
 	}
 
+	DBUG_ASSERT(m_drop_before_rollback
+		    == !(m_flags2 & DICT_TF2_TEMPORARY));
+
 	/* Create the keys */
 
 	if (m_form->s->keys == 0 || primary_key_no == -1) {
@@ -12591,6 +12596,7 @@ int create_table_info_t::create_table(bool create_fk)
 			dict_table_close(innobase_table, TRUE, FALSE);
 			my_error(ER_WRONG_NAME_FOR_INDEX, MYF(0),
 				 FTS_DOC_ID_INDEX_NAME);
+			m_drop_before_rollback = false;
 			error = -1;
 			DBUG_RETURN(error);
 		case FTS_EXIST_DOC_ID_INDEX:
@@ -12607,16 +12613,6 @@ int create_table_info_t::create_table(bool create_fk)
 		dict_table_close(innobase_table, TRUE, FALSE);
 
 		if (error) {
-			/* Drop the being-created table before rollback,
-			so that rollback can possibly rename back a table
-			that could have been renamed before
-			the failed creation. */
-			m_trx->error_state = DB_SUCCESS;
-			row_drop_table_for_mysql(m_table_name, m_trx,
-						 SQLCOM_TRUNCATE);
-			trx_rollback_to_savepoint(m_trx, NULL);
-
-			m_trx->error_state = DB_SUCCESS;
 			DBUG_RETURN(error);
 		}
 	}
@@ -12686,6 +12682,9 @@ int create_table_info_t::create_table(bool create_fk)
 		error = convert_error_code_to_mysql(err, m_flags, NULL);
 
 		if (error) {
+			/* row_table_add_foreign_constraints() dropped
+			the table */
+			m_drop_before_rollback = false;
 			DBUG_RETURN(error);
 		}
 	}
@@ -12859,9 +12858,11 @@ ha_innobase::create(
 		/* Drop the being-created table before rollback,
 		so that rollback can possibly rename back a table
 		that could have been renamed before the failed creation. */
-		trx->error_state = DB_SUCCESS;
-		row_drop_table_for_mysql(info.table_name(), trx,
-					 SQLCOM_TRUNCATE, true);
+		if (info.drop_before_rollback()) {
+			trx->error_state = DB_SUCCESS;
+			row_drop_table_for_mysql(info.table_name(),
+						 trx, SQLCOM_TRUNCATE, true);
+		}
 		trx_rollback_for_mysql(trx);
 		row_mysql_unlock_data_dictionary(trx);
 		if (own_trx) {

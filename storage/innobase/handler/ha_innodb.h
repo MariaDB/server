@@ -646,7 +646,7 @@ public:
 	m_trx(trx),
 	m_form(form),
 	m_create_info(create_info),
-	m_table_name(table_name),
+	m_table_name(table_name), m_drop_before_rollback(false),
 	m_remote_path(remote_path),
 	m_innodb_file_per_table(file_per_table)
 	{}
@@ -719,6 +719,9 @@ public:
 	const char* table_name() const
 	{ return(m_table_name); }
 
+	/** @return whether the table needs to be dropped on rollback */
+	bool drop_before_rollback() const { return m_drop_before_rollback; }
+
 	THD* thd() const
 	{ return(m_thd); }
 
@@ -760,6 +763,8 @@ private:
 
 	/** Table name */
 	char*		m_table_name;
+	/** Whether the table needs to be dropped before rollback */
+	bool		m_drop_before_rollback;
 
 	/** Remote path (DATA DIRECTORY) or zero length-string */
 	char*		m_remote_path;
