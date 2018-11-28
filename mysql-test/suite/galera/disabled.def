@@ -41,8 +41,6 @@ galera_gc_fc_limit : MDEV-17061 Test failure on galera.galera_gc_fc_limit
 galera_as_slave_replication_budle : MDEV-15785 Test case galera_as_slave_replication_bundle caused debug assertion
 galera_wan : MDEV-17259: Test failure on galera.galera_wan
 galera_pc_ignore_sb : MDEV-17357 Test failure on galera.galera_pc_ignore_sb
-galera_drop_database : test
-galera_ist_innodb_flush_logs
 galera.MW-328A : MDEV-17847 Galera test failure on MW-328[A|B|C]
 galera.MW-328B : MDEV-17847 Galera test failure on MW-328[A|B|C]
 galera.MW-328C : MDEV-17847 Galera test failure on MW-328[A|B|C]
