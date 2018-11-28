@@ -174,10 +174,25 @@ btr_pcur_store_position(
 		cursor->rel_pos = BTR_PCUR_ON;
 	}
 
-	cursor->old_rec = dict_index_copy_rec_order_prefix(
-		index, rec, &cursor->old_n_fields,
-		&cursor->old_rec_buf, &cursor->buf_size);
+	if (index->is_ibuf()) {
+		ut_ad(!index->table->not_redundant());
+		cursor->old_n_fields = rec_get_n_fields_old(rec);
+	} else if (page_rec_is_leaf(rec)) {
+		cursor->old_n_fields = dict_index_get_n_unique_in_tree(index);
+	} else if (index->is_spatial()) {
+		ut_ad(dict_index_get_n_unique_in_tree_nonleaf(index)
+		      == DICT_INDEX_SPATIAL_NODEPTR_SIZE);
+		/* For R-tree, we have to compare
+		the child page numbers as well. */
+		cursor->old_n_fields = DICT_INDEX_SPATIAL_NODEPTR_SIZE + 1;
+	} else {
+		cursor->old_n_fields = dict_index_get_n_unique_in_tree(index);
+	}
 
+	cursor->old_rec = rec_copy_prefix_to_buf(rec, index,
+						 cursor->old_n_fields,
+						 &cursor->old_rec_buf,
+						 &cursor->buf_size);
 	cursor->block_when_stored = block;
 
 	/* Function try to check if block is S/X latch. */
