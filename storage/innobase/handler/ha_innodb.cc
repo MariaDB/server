@@ -18558,11 +18558,17 @@ wsrep_innobase_kill_one_trx(
 		    wsrep_thd_transaction_state_str(thd),
 		    wsrep_thd_transaction_id(thd));
 
+	/*
+	 * we mark with was_chosen_as_deadlock_victim transaction,
+	 * which is already marked as BF victim
+	 * lock_sys is held until this vicitm has aborted
+	 */
+	bool was_chosen_as_deadlock_victim= victim_trx->lock.was_chosen_as_deadlock_victim;
+	victim_trx->lock.was_chosen_as_deadlock_victim= TRUE;
+
 	wsrep_thd_UNLOCK(thd);
 	if (wsrep_thd_bf_abort(bf_thd, thd, signal))
 	{
-		victim_trx->lock.was_chosen_as_deadlock_victim= TRUE;
-
 		if (victim_trx->lock.wait_lock) {
 			WSREP_DEBUG("victim has wait flag: %lu",
 				    thd_get_thread_id(thd));
@@ -18574,6 +18580,10 @@ wsrep_innobase_kill_one_trx(
 				lock_cancel_waiting_and_release(wait_lock);
 			}
 		}
+	}
+	else {
+		/* victim was not BF aborted, after all */
+		victim_trx->lock.was_chosen_as_deadlock_victim= was_chosen_as_deadlock_victim;
 	}
 
 	DBUG_RETURN(0);
