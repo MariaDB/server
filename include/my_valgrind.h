@@ -13,6 +13,9 @@
    along with this program; if not, write to the Free Software
    Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307  USA */
 
+#ifndef _my_valgrind_h
+#define _my_valgrind_h
+
 /* clang -> gcc */
 #ifndef __has_feature
 # define __has_feature(x) 0
@@ -29,6 +32,7 @@
 
 #if defined(HAVE_VALGRIND) && defined(HAVE_valgrind)
 # include <valgrind/memcheck.h>
+static const size_t REDZONE_SIZE= 0;
 # define MEM_UNDEFINED(a,len) VALGRIND_MAKE_MEM_UNDEFINED(a,len)
 # define MEM_NOACCESS(a,len) VALGRIND_MAKE_MEM_NOACCESS(a,len)
 # define MEM_CHECK_ADDRESSABLE(a,len) VALGRIND_CHECK_MEM_IS_ADDRESSABLE(a,len)
@@ -37,11 +41,13 @@
 # include <sanitizer/asan_interface.h>
 /* How to do manual poisoning:
 https://github.com/google/sanitizers/wiki/AddressSanitizerManualPoisoning */
+static const size_t REDZONE_SIZE= 8;
 # define MEM_UNDEFINED(a,len) ASAN_UNPOISON_MEMORY_REGION(a,len)
 # define MEM_NOACCESS(a,len) ASAN_POISON_MEMORY_REGION(a,len)
 # define MEM_CHECK_ADDRESSABLE(a,len) ((void) 0)
 # define MEM_CHECK_DEFINED(a,len) ((void) 0)
 #else
+static const size_t REDZONE_SIZE= 0;
 # define MEM_UNDEFINED(a,len) ((void) (a), (void) (len))
 # define MEM_NOACCESS(a,len) ((void) 0)
 # define MEM_CHECK_ADDRESSABLE(a,len) ((void) 0)
@@ -55,3 +61,5 @@ https://github.com/google/sanitizers/wiki/AddressSanitizerManualPoisoning */
 #endif
 #define TRASH_ALLOC(A,B) do { TRASH_FILL(A,B,0xA5); MEM_UNDEFINED(A,B); } while(0)
 #define TRASH_FREE(A,B) do { TRASH_FILL(A,B,0x8F); MEM_NOACCESS(A,B); } while(0)
+
+#endif /* _my_valgrind_h */
