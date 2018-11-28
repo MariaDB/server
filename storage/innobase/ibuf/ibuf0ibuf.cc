@@ -3371,7 +3371,7 @@ ibuf_insert_low(
 	ut_ad(!dict_index_is_spatial(index));
 	ut_ad(dtuple_check_typed(entry));
 	ut_ad(!no_counter || op == IBUF_OP_INSERT);
-	ut_ad(page_id.space() == index->table->space->id);
+	ut_ad(page_id.space() == index->table->space_id);
 	ut_a(op < IBUF_OP_COUNT);
 
 	do_merge = FALSE;

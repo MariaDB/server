@@ -2262,7 +2262,7 @@ int wsrep_wait_committing_connections_close(int wait_time)
 }
 
 
-void wsrep_close_client_connections(my_bool wait_to_end)
+void wsrep_close_client_connections(my_bool wait_to_end, THD *except_caller_thd)
 {
   /*
     First signal all threads that it's time to die
@@ -2284,6 +2284,12 @@ void wsrep_close_client_connections(my_bool wait_to_end)
     if (!is_client_connection(tmp))
       continue;
 
+    if (tmp == except_caller_thd)
+    {
+      DBUG_ASSERT(is_client_connection(tmp));
+      continue;
+    }
+
     if (is_replaying_connection(tmp))
     {
       tmp->set_killed(KILL_CONNECTION);
@@ -2295,7 +2301,16 @@ void wsrep_close_client_connections(my_bool wait_to_end)
       continue;
 
     WSREP_DEBUG("closing connection %lld", (longlong) tmp->thread_id);
-    wsrep_close_thread(tmp);
+
+    /*
+      instead of wsrep_close_thread() we do now  soft kill by THD::awake
+     */
+    mysql_mutex_lock(&tmp->LOCK_thd_data);
+
+    tmp->awake(KILL_CONNECTION);
+
+    mysql_mutex_unlock(&tmp->LOCK_thd_data);
+
   }
   mysql_mutex_unlock(&LOCK_thread_count);
 
@@ -2313,7 +2328,8 @@ void wsrep_close_client_connections(my_bool wait_to_end)
 #ifndef __bsdi__				// Bug in BSDI kernel
     if (is_client_connection(tmp) &&
         !abort_replicated(tmp)    &&
-	!is_replaying_connection(tmp))
+        !is_replaying_connection(tmp) &&
+        tmp != except_caller_thd)
     {
       WSREP_INFO("killing local connection: %lld", (longlong) tmp->thread_id);
       close_connection(tmp,0);

@@ -3083,11 +3083,8 @@ xb_load_single_table_tablespace(
 
 		ut_a(space != NULL);
 
-		if (!fil_node_create(file->filepath(), ulint(n_pages), space,
-				     false, false)) {
-			ut_error;
-		}
-
+		space->add(file->filepath(), OS_FILE_CLOSED, ulint(n_pages),
+			   false, false);
 		/* by opening the tablespace we forcing node and space objects
 		in the cache to be populated with fields from space header */
 		space->open();
@@ -3764,21 +3761,16 @@ xb_filters_free()
 }
 
 /*********************************************************************//**
-Creates or opens the log files and closes them.
-@return	DB_SUCCESS or error code */
+Create log file metadata. */
 static
-ulint
+void
 open_or_create_log_file(
 /*====================*/
 	fil_space_t* space,
-	ibool*	log_file_created,	/*!< out: TRUE if new log file
-					created */
 	ulint	i)			/*!< in: log file number in group */
 {
 	char	name[10000];
 	ulint	dirnamelen;
-
-	*log_file_created = FALSE;
 
 	os_normalize_path(srv_log_group_home_dir);
 
@@ -3791,14 +3783,13 @@ open_or_create_log_file(
 		name[dirnamelen++] = OS_PATH_SEPARATOR;
 	}
 
-	sprintf(name + dirnamelen, "%s%lu", "ib_logfile", (ulong) i);
+	sprintf(name + dirnamelen, "%s%zu", "ib_logfile", i);
 
 	ut_a(fil_validate());
 
-	ut_a(fil_node_create(name, ulint(srv_log_file_size >> srv_page_size_shift),
-			     space, false, false));
-
-	return(DB_SUCCESS);
+	space->add(name, OS_FILE_CLOSED,
+		   ulint(srv_log_file_size >> srv_page_size_shift),
+		   false, false);
 }
 
 /***********************************************************************
@@ -4058,13 +4049,6 @@ fail:
 
 	xb_filters_init();
 
-	{
-	ibool	log_file_created;
-	ibool	log_created	= FALSE;
-	ibool	log_opened	= FALSE;
-	ulint	err;
-	ulint	i;
-
 	xb_fil_io_init();
 	srv_n_file_io_threads = srv_n_read_io_threads;
 
@@ -4077,36 +4061,8 @@ fail:
 		"innodb_redo_log", SRV_LOG_SPACE_FIRST_ID, 0,
 		FIL_TYPE_LOG, NULL);
 
-	for (i = 0; i < srv_n_log_files; i++) {
-		err = open_or_create_log_file(space, &log_file_created, i);
-		if (err != DB_SUCCESS) {
-			goto fail;
-		}
-
-		if (log_file_created) {
-			log_created = TRUE;
-		} else {
-			log_opened = TRUE;
-		}
-		if ((log_opened && log_created)) {
-			msg(
-	"mariabackup: Error: all log files must be created at the same time.\n"
-	"mariabackup: All log files must be created also in database creation.\n"
-	"mariabackup: If you want bigger or smaller log files, shut down the\n"
-	"mariabackup: database and make sure there were no errors in shutdown.\n"
-	"mariabackup: Then delete the existing log files. Edit the .cnf file\n"
-	"mariabackup: and start the database again.\n");
-
-			goto fail;
-		}
-	}
-
-	/* log_file_created must not be TRUE, if online */
-	if (log_file_created) {
-		msg("mariabackup: Something wrong with source files...\n");
-		goto fail;
-	}
-
+	for (ulint i = 0; i < srv_n_log_files; i++) {
+		open_or_create_log_file(space, i);
 	}
 
 	/* create extra LSN dir if it does not exist. */

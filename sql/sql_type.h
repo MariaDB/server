@@ -216,8 +216,8 @@ protected:
   ulong     m_usec;      // The fractional part, between 0 and 999999
   bool      m_neg;       // false if positive, true of negative
   bool      m_truncated; // Indicates if the constructor truncated the value
-  void make_from_decimal(const my_decimal *d);
-  void make_from_double(double d);
+  void make_from_decimal(const my_decimal *d, ulong *nanoseconds);
+  void make_from_double(double d, ulong *nanoseconds);
   void make_from_int(const Longlong_hybrid &nr)
   {
     m_neg= nr.neg();
@@ -230,14 +230,27 @@ protected:
     m_sec= m_usec= m_neg= m_truncated= 0;
   }
   Sec6() { }
+  bool add_nanoseconds(uint nanoseconds)
+  {
+    DBUG_ASSERT(nanoseconds <= 1000000000);
+    if (nanoseconds < 500)
+      return false;
+    m_usec+= (nanoseconds + 500) / 1000;
+    if (m_usec < 1000000)
+      return false;
+    m_usec%= 1000000;
+    return true;
+  }
 public:
   explicit Sec6(double nr)
   {
-    make_from_double(nr);
+    ulong nanoseconds;
+    make_from_double(nr, &nanoseconds);
   }
   explicit Sec6(const my_decimal *d)
   {
-    make_from_decimal(d);
+    ulong nanoseconds;
+    make_from_decimal(d, &nanoseconds);
   }
   explicit Sec6(const Longlong_hybrid &nr)
   {
@@ -303,7 +316,8 @@ protected:
   }
 public:
   // [-][DD]hhhmmss.ff,  YYMMDDhhmmss.ff, YYYYMMDDhhmmss.ff
-  bool to_datetime_or_time(MYSQL_TIME *to, int *warn, date_mode_t mode) const
+  bool to_datetime_or_time(MYSQL_TIME *to, int *warn,
+                           date_conv_mode_t mode) const
   {
     bool rc= m_sec > 9999999 && m_sec <= 99991231235959ULL && !m_neg ?
              ::number_to_datetime_or_date(m_sec, m_usec, to,
@@ -316,7 +330,8 @@ public:
     Convert a number in formats YYYYMMDDhhmmss.ff or YYMMDDhhmmss.ff to
     TIMESTAMP'YYYY-MM-DD hh:mm:ss.ff'
   */
-  bool to_datetime_or_date(MYSQL_TIME *to, int *warn, date_mode_t flags) const
+  bool to_datetime_or_date(MYSQL_TIME *to, int *warn,
+                           date_conv_mode_t flags) const
   {
     if (m_neg)
     {
@@ -349,6 +364,11 @@ public:
     ltime->second_part= m_usec;
     return false;
   }
+  Sec6 &trunc(uint dec)
+  {
+    m_usec-= my_time_fraction_remainder(m_usec, dec);
+    return *this;
+  }
   size_t to_string(char *to, size_t nbytes) const
   {
     return m_usec ?
@@ -360,11 +380,45 @@ public:
 };
 
 
-class VSec6: public Sec6
+class Sec9: public Sec6
+{
+protected:
+  ulong m_nsec; // Nanoseconds 0..999
+  void make_from_int(const Longlong_hybrid &nr)
+  {
+    Sec6::make_from_int(nr);
+    m_nsec= 0;
+  }
+  Sec9() { }
+public:
+  Sec9(const my_decimal *d)
+  {
+    Sec6::make_from_decimal(d, &m_nsec);
+  }
+  Sec9(double d)
+  {
+    Sec6::make_from_double(d, &m_nsec);
+  }
+  ulong nsec() const { return m_nsec; }
+  Sec9 &trunc(uint dec)
+  {
+    m_nsec= 0;
+    Sec6::trunc(dec);
+    return *this;
+  }
+  Sec9 &round(uint dec);
+  Sec9 &round(uint dec, time_round_mode_t mode)
+  {
+    return mode == TIME_FRAC_TRUNCATE  ? trunc(dec) : round(dec);
+  }
+};
+
+
+class VSec9: public Sec9
 {
   bool m_is_null;
 public:
-  VSec6(THD *thd, Item *item, const char *type_str, ulonglong limit);
+  VSec9(THD *thd, Item *item, const char *type_str, ulonglong limit);
   bool is_null() const { return m_is_null; }
 };
 
@@ -524,7 +578,24 @@ public:
   };
 
 public:
-  static date_mode_t sql_mode_for_dates(THD *thd);
+  static date_conv_mode_t sql_mode_for_dates(THD *thd);
+  static time_round_mode_t default_round_mode(THD *thd);
+  class Options: public date_mode_t
+  {
+  public:
+    explicit Options(date_mode_t flags)
+     :date_mode_t(flags)
+    { }
+    Options(date_conv_mode_t flags, time_round_mode_t round_mode)
+     :date_mode_t(flags | round_mode)
+    {
+      DBUG_ASSERT(ulonglong(flags) <= UINT_MAX32);
+    }
+    Options(date_conv_mode_t flags, THD *thd)
+     :Options(flags, default_round_mode(thd))
+    { }
+  };
+
   bool is_valid_temporal() const
   {
     DBUG_ASSERT(time_type != MYSQL_TIMESTAMP_ERROR);
@@ -550,7 +621,7 @@ public:
     TIME/DATE/DATETIME failed. We return a zero date if allowed,
     otherwise - null.
   */
-  void make_fuzzy_date(int *warn, date_mode_t fuzzydate)
+  void make_fuzzy_date(int *warn, date_conv_mode_t fuzzydate)
   {
     /*
       In the following scenario:
@@ -590,14 +661,21 @@ protected:
                       const Sec6 &nr, date_mode_t mode)
   {
     if (nr.convert_to_mysql_time(thd, &st->warnings, this, mode))
-      make_fuzzy_date(&st->warnings, mode);
+      make_fuzzy_date(&st->warnings, date_conv_mode_t(mode));
+  }
+  void make_from_sec9(THD *thd, MYSQL_TIME_STATUS *st,
+                      const Sec9 &nr, date_mode_t mode)
+  {
+    if (nr.convert_to_mysql_time(thd, &st->warnings, this, mode) ||
+        add_nanoseconds(thd, &st->warnings, mode, nr.nsec()))
+      make_fuzzy_date(&st->warnings, date_conv_mode_t(mode));
   }
   void make_from_str(THD *thd, Warn *warn,
                      const char *str, size_t length, CHARSET_INFO *cs,
                      date_mode_t fuzzydate);
   void make_from_double(THD *thd, Warn *warn, double nr, date_mode_t mode)
   {
-    make_from_sec6(thd, warn, Sec6(nr), mode);
+    make_from_sec9(thd, warn, Sec9(nr), mode);
     if (warn->warnings)
       warn->set_double(nr);
   }
@@ -615,7 +693,7 @@ protected:
   void make_from_decimal(THD *thd, Warn *warn,
                          const my_decimal *nr, date_mode_t mode)
   {
-    make_from_sec6(thd, warn, Sec6(nr), mode);
+    make_from_sec9(thd, warn, Sec9(nr), mode);
     if (warn->warnings)
       warn->set_decimal(nr);
   }
@@ -670,15 +748,15 @@ protected:
     return rc;
   }
   // Character set aware versions for string conversion routines
-  bool str_to_temporal(MYSQL_TIME_STATUS *st,
+  bool str_to_temporal(THD *thd, MYSQL_TIME_STATUS *st,
                        const char *str, size_t length,
                        CHARSET_INFO *cs, date_mode_t fuzzydate);
-  bool str_to_datetime_or_date_or_time(MYSQL_TIME_STATUS *st,
+  bool str_to_datetime_or_date_or_time(THD *thd, MYSQL_TIME_STATUS *st,
                                        const char *str, size_t length,
-                                       CHARSET_INFO *cs, date_mode_t fuzzydate);
-  bool str_to_datetime_or_date(MYSQL_TIME_STATUS *st,
+                                       CHARSET_INFO *cs, date_mode_t mode);
+  bool str_to_datetime_or_date(THD *thd, MYSQL_TIME_STATUS *st,
                                const char *str, size_t length,
-                               CHARSET_INFO *cs, date_mode_t fuzzydate);
+                               CHARSET_INFO *cs, date_mode_t mode);
 
   bool has_valid_mmssff() const
   {
@@ -693,6 +771,67 @@ protected:
   bool has_zero_YYYYMMDD() const
   {
     return year == 0 && month == 0 && day == 0;
+  }
+  bool check_date(date_conv_mode_t flags, int *warn) const
+  {
+    return ::check_date(this, flags, warn);
+  }
+  void time_hhmmssff_set_max(ulong max_hour)
+  {
+    hour= max_hour;
+    minute= TIME_MAX_MINUTE;
+    second= TIME_MAX_SECOND;
+    second_part= TIME_MAX_SECOND_PART;
+  }
+  /*
+    Add nanoseconds to ssff
+    retval   true if seconds overflowed (the caller should increment minutes)
+             false if no overflow happened
+  */
+  bool add_nanoseconds_ssff(uint nanoseconds)
+  {
+    DBUG_ASSERT(nanoseconds <= 1000000000);
+    if (nanoseconds < 500)
+      return false;
+    second_part+= (nanoseconds + 500) / 1000;
+    if (second_part < 1000000)
+      return false;
+    second_part%= 1000000;
+    if (second < 59)
+    {
+      second++;
+      return false;
+    }
+    second= 0;
+    return true;
+  }
+  /*
+    Add nanoseconds to mmssff
+    retval   true if hours overflowed (the caller should increment hours)
+             false if no overflow happened
+  */
+  bool add_nanoseconds_mmssff(uint nanoseconds)
+  {
+    if (!add_nanoseconds_ssff(nanoseconds))
+      return false;
+    if (minute < 59)
+    {
+      minute++;
+      return false;
+    }
+    minute= 0;
+    return true;
+  }
+  void time_round_or_set_max(uint dec, int *warn, ulong max_hour, ulong nsec);
+  bool datetime_add_nanoseconds_or_invalidate(THD *thd, int *warn, ulong nsec);
+  bool datetime_round_or_invalidate(THD *thd, uint dec, int *warn, ulong nsec);
+  bool add_nanoseconds_with_round(THD *thd, int *warn,
+                                  date_conv_mode_t mode, ulong nsec);
+  bool add_nanoseconds(THD *thd, int *warn, date_mode_t mode, ulong nsec)
+  {
+    date_conv_mode_t cmode= date_conv_mode_t(mode);
+    return time_round_mode_t(mode) == TIME_FRAC_ROUND ?
+           add_nanoseconds_with_round(thd, warn, cmode, nsec) : false;
   }
 public:
   static void *operator new(size_t size, MYSQL_TIME *ltime) throw()
@@ -717,10 +856,28 @@ public:
 class Temporal_hybrid: public Temporal
 {
 public:
+  class Options: public Temporal::Options
+  {
+  public:
+    Options(THD *thd)
+     :Temporal::Options(sql_mode_for_dates(thd), default_round_mode(thd))
+    { }
+    Options(date_conv_mode_t flags, time_round_mode_t round_mode)
+     :Temporal::Options(flags, round_mode)
+    { }
+    explicit Options(const Temporal::Options &opt)
+     :Temporal::Options(opt)
+    { }
+    explicit Options(date_mode_t fuzzydate)
+     :Temporal::Options(fuzzydate)
+    { }
+  };
+
+public:
   // Contructors for Item
   Temporal_hybrid(THD *thd, Item *item, date_mode_t fuzzydate);
   Temporal_hybrid(THD *thd, Item *item)
-   :Temporal_hybrid(thd, item, sql_mode_for_dates(thd))
+   :Temporal_hybrid(thd, item, Options(thd))
   { }
   Temporal_hybrid(Item *item)
    :Temporal_hybrid(current_thd, item)
@@ -964,14 +1121,20 @@ public:
     DBUG_ASSERT(fsp <= TIME_SECOND_PART_DIGITS);
     return max_int_part_char_length() + (fsp ? 1 : 0) + fsp;
   }
+
 public:
   Interval_DDhhmmssff(THD *thd, Status *st, bool push_warnings,
-                      Item *item, ulong max_hour);
-  Interval_DDhhmmssff(THD *thd, Item *item)
+                      Item *item, ulong max_hour,
+                      time_round_mode_t mode, uint dec);
+  Interval_DDhhmmssff(THD *thd, Item *item, uint dec)
   {
     Status st;
-    new(this) Interval_DDhhmmssff(thd, &st, true, item, max_useful_hour());
+    new(this) Interval_DDhhmmssff(thd, &st, true, item, max_useful_hour(),
+                                  default_round_mode(thd), dec);
   }
+  Interval_DDhhmmssff(THD *thd, Item *item)
+   :Interval_DDhhmmssff(thd, item, TIME_SECOND_PART_DIGITS)
+  { }
   const MYSQL_TIME *get_mysql_time() const
   {
     DBUG_ASSERT(is_valid_interval_DDhhmmssff_slow());
@@ -1028,27 +1191,35 @@ public:
     DATETIME_TO_TIME_YYYYMMDD_00000000_ONLY,
     DATETIME_TO_TIME_MINUS_CURRENT_DATE
   };
-  class Options
+  class Options: public Temporal::Options
   {
-    date_mode_t             m_get_date_flags;
     datetime_to_time_mode_t m_datetime_to_time_mode;
   public:
-    Options()
-     :m_get_date_flags(flags_for_get_date()),
-      m_datetime_to_time_mode(DATETIME_TO_TIME_YYYYMMDD_000000DD_MIX_TO_HOURS)
+    Options(THD *thd)
+     :Temporal::Options(default_flags_for_get_date(), default_round_mode(thd)),
+      m_datetime_to_time_mode(default_datetime_to_time_mode())
     { }
-    Options(date_mode_t flags)
-     :m_get_date_flags(flags),
-      m_datetime_to_time_mode(DATETIME_TO_TIME_YYYYMMDD_000000DD_MIX_TO_HOURS)
+    Options(date_conv_mode_t flags, THD *thd)
+     :Temporal::Options(flags, default_round_mode(thd)),
+      m_datetime_to_time_mode(default_datetime_to_time_mode())
     { }
-    Options(date_mode_t flags, datetime_to_time_mode_t dtmode)
-     :m_get_date_flags(flags),
+    Options(date_conv_mode_t flags, THD *thd, datetime_to_time_mode_t dtmode)
+     :Temporal::Options(flags, default_round_mode(thd)),
       m_datetime_to_time_mode(dtmode)
     { }
-    date_mode_t get_date_flags() const
-    { return m_get_date_flags; }
+    Options(date_conv_mode_t fuzzydate, time_round_mode_t round_mode,
+            datetime_to_time_mode_t datetime_to_time_mode)
+     :Temporal::Options(fuzzydate, round_mode),
+       m_datetime_to_time_mode(datetime_to_time_mode)
+    { }
+
     datetime_to_time_mode_t datetime_to_time_mode() const
     { return m_datetime_to_time_mode; }
+
+    static datetime_to_time_mode_t default_datetime_to_time_mode()
+    {
+      return DATETIME_TO_TIME_YYYYMMDD_000000DD_MIX_TO_HOURS;
+    }
   };
   /*
     CAST(AS TIME) historically does not mix days to hours.
@@ -1058,12 +1229,26 @@ public:
   class Options_for_cast: public Options
   {
   public:
-    Options_for_cast()
-     :Options(flags_for_get_date(), DATETIME_TO_TIME_YYYYMMDD_TRUNCATE)
-    { }
-    Options_for_cast(date_mode_t mode)
-     :Options(flags_for_get_date() | (mode & TIME_FUZZY_DATES),
+    Options_for_cast(THD *thd)
+     :Options(default_flags_for_get_date(), default_round_mode(thd),
               DATETIME_TO_TIME_YYYYMMDD_TRUNCATE)
+    { }
+    Options_for_cast(date_mode_t mode, THD *thd)
+     :Options(default_flags_for_get_date() | (mode & TIME_FUZZY_DATES),
+              default_round_mode(thd),
+              DATETIME_TO_TIME_YYYYMMDD_TRUNCATE)
+    { }
+  };
+
+  class Options_cmp: public Options
+  {
+  public:
+    Options_cmp(THD *thd)
+     :Options(comparison_flags_for_get_date(), thd)
+    { }
+    Options_cmp(THD *thd, datetime_to_time_mode_t dtmode)
+     :Options(comparison_flags_for_get_date(),
+              default_round_mode(thd), dtmode)
     { }
   };
 private:
@@ -1199,6 +1384,15 @@ private:
       time_type= MYSQL_TIMESTAMP_NONE;
     DBUG_ASSERT(is_valid_value_slow());
   }
+public:
+  void round_or_set_max(uint dec, int *warn, ulong nsec);
+private:
+  void round_or_set_max(uint dec, int *warn);
+
+  /*
+    All make_from_xxx() methods initialize *warn.
+    The old value gets lost.
+  */
   void make_from_datetime_move_day_to_hour(int *warn, const MYSQL_TIME *from);
   void make_from_datetime_with_days_diff(int *warn, const MYSQL_TIME *from,
                                          long curdays);
@@ -1213,7 +1407,7 @@ public:
   Time(int *warn, bool neg, ulonglong hour, uint minute, const Sec6 &second);
   Time() { time_type= MYSQL_TIMESTAMP_NONE; }
   Time(Item *item)
-   :Time(current_thd, item, Options())
+   :Time(current_thd, item)
   { }
   Time(THD *thd, Item *item, const Options opt)
   {
@@ -1221,18 +1415,18 @@ public:
     make_from_item(thd, &warn, item, opt);
   }
   Time(THD *thd, Item *item)
-   :Time(thd, item, Options())
+   :Time(thd, item, Options(thd))
   { }
   Time(int *warn, const MYSQL_TIME *from, long curdays);
   Time(THD *thd, MYSQL_TIME_STATUS *status,
        const char *str, size_t len, CHARSET_INFO *cs,
        const Options opt)
   {
-    if (str_to_datetime_or_date_or_time(status, str, len, cs,
-                                        opt.get_date_flags()))
+    if (str_to_datetime_or_date_or_time(thd, status, str, len, cs, opt))
       time_type= MYSQL_TIMESTAMP_NONE;
     // The below call will optionally add notes to already collected warnings:
-    xxx_to_time_result_to_valid_value(thd, &status->warnings, opt);
+    else
+      xxx_to_time_result_to_valid_value(thd, &status->warnings, opt);
   }
 
 protected:
@@ -1242,34 +1436,50 @@ protected:
       time_type= MYSQL_TIMESTAMP_NONE;
     xxx_to_time_result_to_valid_value(thd, warn, opt);
   }
+  Time(THD *thd, int *warn, const Sec9 &nr, const Options &opt)
+   :Time(thd, warn, static_cast<Sec6>(nr), opt)
+  {
+    if (is_valid_time() && time_round_mode_t(opt) == TIME_FRAC_ROUND)
+      round_or_set_max(6, warn, nr.nsec());
+  }
 
 public:
   Time(THD *thd, int *warn, const Longlong_hybrid &nr, const Options &opt)
    :Time(thd, warn, Sec6(nr), opt)
   { }
   Time(THD *thd, int *warn, double nr, const Options &opt)
-   :Time(thd, warn, Sec6(nr), opt)
+   :Time(thd, warn, Sec9(nr), opt)
   { }
   Time(THD *thd, int *warn, const my_decimal *d, const Options &opt)
-   :Time(thd, warn, Sec6(d), opt)
+   :Time(thd, warn, Sec9(d), opt)
   { }
 
   Time(THD *thd, Item *item, const Options opt, uint dec)
    :Time(thd, item, opt)
   {
-    trunc(dec);
+    round(dec, time_round_mode_t(opt));
   }
-  Time(int *warn, const MYSQL_TIME *from, long curdays, uint dec)
+  Time(int *warn, const MYSQL_TIME *from, long curdays,
+       const Time::Options &opt, uint dec)
    :Time(warn, from, curdays)
   {
-    trunc(dec);
+    round(dec, time_round_mode_t(opt), warn);
+  }
+  Time(int *warn, bool neg, ulonglong hour, uint minute, const Sec9 &second,
+       time_round_mode_t mode, uint dec)
+   :Time(warn, neg, hour, minute, second)
+  {
+    DBUG_ASSERT(is_valid_time());
+    if ((ulonglong) mode == (ulonglong) TIME_FRAC_ROUND)
+      round_or_set_max(6, warn, second.nsec());
+    round(dec, mode, warn);
   }
   Time(THD *thd, MYSQL_TIME_STATUS *status,
        const char *str, size_t len, CHARSET_INFO *cs,
        const Options &opt, uint dec)
    :Time(thd, status, str, len, cs, opt)
   {
-    trunc(dec);
+    round(dec, time_round_mode_t(opt), &status->warnings);
   }
   Time(THD *thd, int *warn, const Longlong_hybrid &nr,
        const Options &opt, uint dec)
@@ -1278,23 +1488,24 @@ public:
     /*
       Decimal digit truncation is needed here in case if nr was out
       of the supported TIME range, so "this" was set to '838:59:59.999999'.
+      We always do truncation (not rounding) here, independently from "opt".
     */
     trunc(dec);
   }
   Time(THD *thd, int *warn, double nr, const Options &opt, uint dec)
    :Time(thd, warn, nr, opt)
   {
-    trunc(dec);
+    round(dec, time_round_mode_t(opt), warn);
   }
   Time(THD *thd, int *warn, const my_decimal *d, const Options &opt, uint dec)
    :Time(thd, warn, d, opt)
   {
-    trunc(dec);
+    round(dec, time_round_mode_t(opt), warn);
   }
 
-  static date_mode_t flags_for_get_date()
+  static date_conv_mode_t default_flags_for_get_date()
   { return TIME_TIME_ONLY | TIME_INVALID_DATES; }
-  static date_mode_t comparison_flags_for_get_date()
+  static date_conv_mode_t comparison_flags_for_get_date()
   { return TIME_TIME_ONLY | TIME_INVALID_DATES | TIME_FUZZY_DATES; }
   bool is_valid_time() const
   {
@@ -1367,6 +1578,12 @@ public:
   {
     return is_valid_time() ? Temporal::to_packed() : 0;
   }
+  long fraction_remainder(uint dec) const
+  {
+    DBUG_ASSERT(is_valid_time());
+    return Temporal::fraction_remainder(dec);
+  }
+
   Time &trunc(uint dec)
   {
     if (is_valid_time())
@@ -1374,6 +1591,32 @@ public:
     DBUG_ASSERT(is_valid_value_slow());
     return *this;
   }
+  Time &round(uint dec, int *warn)
+  {
+    if (is_valid_time())
+      round_or_set_max(dec, warn);
+    DBUG_ASSERT(is_valid_value_slow());
+    return *this;
+  }
+  Time &round(uint dec, time_round_mode_t mode, int *warn)
+  {
+    switch (mode.mode()) {
+    case time_round_mode_t::FRAC_NONE:
+      DBUG_ASSERT(fraction_remainder(dec) == 0);
+      return trunc(dec);
+    case time_round_mode_t::FRAC_TRUNCATE:
+      return trunc(dec);
+    case time_round_mode_t::FRAC_ROUND:
+      return round(dec, warn);
+    }
+    return *this;
+  }
+  Time &round(uint dec, time_round_mode_t mode)
+  {
+    int warn= 0;
+    return round(dec, mode, &warn);
+  }
+
 };
 
 
@@ -1402,10 +1645,23 @@ public:
 
 class Temporal_with_date: public Temporal
 {
+public:
+  class Options: public Temporal::Options
+  {
+  public:
+    Options(date_conv_mode_t fuzzydate, time_round_mode_t mode):
+     Temporal::Options(fuzzydate, mode)
+    {}
+    explicit Options(const Temporal::Options &opt)
+     :Temporal::Options(opt)
+    { }
+    explicit Options(date_mode_t mode)
+     :Temporal::Options(mode)
+    { }
+  };
 protected:
-  void check_date_or_invalidate(int *warn, date_mode_t flags);
+  void check_date_or_invalidate(int *warn, date_conv_mode_t flags);
   void make_from_item(THD *thd, Item *item, date_mode_t flags);
-  void make_from_item(THD *thd, Item *item);
 
   ulong daynr() const
   {
@@ -1430,39 +1686,35 @@ protected:
     uint week= calc_week(this, week_behaviour, &year);
     return week + year * 100;
   }
-
+public:
   Temporal_with_date()
   {
     time_type= MYSQL_TIMESTAMP_NONE;
   }
-  Temporal_with_date(THD *thd, Item *item, date_mode_t flags)
+  Temporal_with_date(THD *thd, Item *item, date_mode_t fuzzydate)
   {
-    make_from_item(thd, item, flags);
-  }
-  Temporal_with_date(THD *thd, Item *item)
-  {
-    make_from_item(thd, item);
+    make_from_item(thd, item, fuzzydate);
   }
   Temporal_with_date(int *warn, const Sec6 &nr, date_mode_t flags)
   {
     DBUG_ASSERT(bool(flags & TIME_TIME_ONLY) == false);
-    if (nr.to_datetime_or_date(this, warn, flags))
+    if (nr.to_datetime_or_date(this, warn, date_conv_mode_t(flags)))
       time_type= MYSQL_TIMESTAMP_NONE;
   }
-  Temporal_with_date(MYSQL_TIME_STATUS *status,
+  Temporal_with_date(THD *thd, MYSQL_TIME_STATUS *status,
                      const char *str, size_t len, CHARSET_INFO *cs,
                      date_mode_t flags)
   {
     DBUG_ASSERT(bool(flags & TIME_TIME_ONLY) == false);
-    if (str_to_datetime_or_date(status, str, len, cs, flags))
+    if (str_to_datetime_or_date(thd, status, str, len, cs, flags))
       time_type= MYSQL_TIMESTAMP_NONE;
   }
 public:
-  bool check_date_with_warn(THD *thd, date_mode_t flags)
+  bool check_date_with_warn(THD *thd, date_conv_mode_t flags)
   {
     return ::check_date_with_warn(thd, this, flags, MYSQL_TIMESTAMP_ERROR);
   }
-  static date_mode_t comparison_flags_for_get_date()
+  static date_conv_mode_t comparison_flags_for_get_date()
   { return TIME_INVALID_DATES | TIME_FUZZY_DATES; }
 };
 
@@ -1488,22 +1740,41 @@ class Date: public Temporal_with_date
     return !check_datetime_range(this);
   }
 public:
-  Date(THD *thd, Item *item, date_mode_t flags)
-   :Temporal_with_date(thd, item, flags)
+  class Options: public Temporal_with_date::Options
+  {
+  public:
+    explicit Options(date_conv_mode_t fuzzydate)
+     :Temporal_with_date::Options(fuzzydate, TIME_FRAC_TRUNCATE)
+    { }
+    Options(THD *thd, time_round_mode_t mode)
+     :Temporal_with_date::Options(sql_mode_for_dates(thd), mode)
+    { }
+    explicit Options(THD *thd)
+     :Temporal_with_date::Options(sql_mode_for_dates(thd), TIME_FRAC_TRUNCATE)
+    { }
+    explicit Options(date_mode_t fuzzydate)
+     :Temporal_with_date::Options(fuzzydate)
+    { }
+  };
+public:
+  Date(Item *item, date_mode_t fuzzydate)
+   :Date(current_thd, item, fuzzydate)
+  { }
+  Date(THD *thd, Item *item, date_mode_t fuzzydate)
+   :Temporal_with_date(thd, item, fuzzydate)
   {
     if (time_type == MYSQL_TIMESTAMP_DATETIME)
       datetime_to_date(this);
     DBUG_ASSERT(is_valid_value_slow());
   }
+  Date(THD *thd, Item *item, date_conv_mode_t fuzzydate)
+   :Date(thd, item, Options(fuzzydate))
+  { }
   Date(THD *thd, Item *item)
-   :Temporal_with_date(thd, item)
-  {
-    if (time_type == MYSQL_TIMESTAMP_DATETIME)
-      datetime_to_date(this);
-    DBUG_ASSERT(is_valid_value_slow());
-  }
+   :Temporal_with_date(Date(thd, item, Options(thd, TIME_FRAC_TRUNCATE)))
+  { }
   Date(Item *item)
-   :Date(current_thd, item)
+   :Temporal_with_date(Date(current_thd, item))
   { }
   Date(const Temporal_with_date *d)
    :Temporal_with_date(*d)
@@ -1603,98 +1874,141 @@ class Datetime: public Temporal_with_date
     DBUG_ASSERT(time_type == MYSQL_TIMESTAMP_DATETIME);
     return !check_datetime_range(this);
   }
+  bool add_nanoseconds_or_invalidate(THD *thd, int *warn, ulong nsec)
+  {
+    DBUG_ASSERT(is_valid_datetime_slow());
+    bool rc= Temporal::datetime_add_nanoseconds_or_invalidate(thd, warn, nsec);
+    DBUG_ASSERT(is_valid_value_slow());
+    return rc;
+  }
   void date_to_datetime_if_needed()
   {
     if (time_type == MYSQL_TIMESTAMP_DATE)
       date_to_datetime(this);
   }
   void make_from_time(THD *thd, int *warn, const MYSQL_TIME *from,
-                      date_mode_t flags);
+                      date_conv_mode_t flags);
   void make_from_datetime(THD *thd, int *warn, const MYSQL_TIME *from,
-                          date_mode_t flags);
+                          date_conv_mode_t flags);
+  bool round_or_invalidate(THD *thd, uint dec, int *warn);
+  bool round_or_invalidate(THD *thd, uint dec, int *warn, ulong nsec)
+  {
+    DBUG_ASSERT(is_valid_datetime_slow());
+    bool rc= Temporal::datetime_round_or_invalidate(thd, dec, warn, nsec);
+    DBUG_ASSERT(is_valid_value_slow());
+    return rc;
+  }
 public:
-  Datetime(THD *thd, Item *item, date_mode_t flags)
-   :Temporal_with_date(thd, item, flags)
+
+  class Options: public Temporal_with_date::Options
+  {
+  public:
+    Options(date_conv_mode_t fuzzydate, time_round_mode_t nanosecond_rounding)
+     :Temporal_with_date::Options(fuzzydate, nanosecond_rounding)
+    { }
+    Options(THD *thd)
+     :Temporal_with_date::Options(sql_mode_for_dates(thd), default_round_mode(thd))
+    { }
+    Options(THD *thd, time_round_mode_t rounding_mode)
+     :Temporal_with_date::Options(sql_mode_for_dates(thd), rounding_mode)
+    { }
+    Options(date_conv_mode_t fuzzydate, THD *thd)
+     :Temporal_with_date::Options(fuzzydate, default_round_mode(thd))
+    { }
+  };
+
+  class Options_cmp: public Options
+  {
+  public:
+    Options_cmp(THD *thd)
+     :Options(comparison_flags_for_get_date(), thd)
+    { }
+  };
+
+public:
+  Datetime(THD *thd, Item *item, date_mode_t fuzzydate)
+   :Temporal_with_date(thd, item, fuzzydate)
   {
     date_to_datetime_if_needed();
     DBUG_ASSERT(is_valid_value_slow());
   }
   Datetime(THD *thd, Item *item)
-   :Temporal_with_date(thd, item)
-  {
-    date_to_datetime_if_needed();
-    DBUG_ASSERT(is_valid_value_slow());
-  }
+   :Temporal_with_date(Datetime(thd, item, Options(thd)))
+  { }
   Datetime(Item *item)
    :Datetime(current_thd, item)
   { }
-  Datetime(THD *thd, int *warn, const MYSQL_TIME *from, date_mode_t flags);
+
+  Datetime(THD *thd, int *warn, const MYSQL_TIME *from, date_conv_mode_t flags);
   Datetime()
   {
     set_zero_time(this, MYSQL_TIMESTAMP_DATETIME);
   }
-  Datetime(MYSQL_TIME_STATUS *status,
+  Datetime(THD *thd, MYSQL_TIME_STATUS *status,
            const char *str, size_t len, CHARSET_INFO *cs,
-           date_mode_t flags)
-   :Temporal_with_date(status, str, len, cs, flags)
+           const date_mode_t fuzzydate)
+   :Temporal_with_date(thd, status, str, len, cs, fuzzydate)
   {
     date_to_datetime_if_needed();
     DBUG_ASSERT(is_valid_value_slow());
   }
 
 protected:
-  Datetime(int *warn, const Sec6 &nr, date_mode_t flags)
+  Datetime(THD *thd, int *warn, const Sec6 &nr, date_mode_t flags)
    :Temporal_with_date(warn, nr, flags)
   {
     date_to_datetime_if_needed();
     DBUG_ASSERT(is_valid_value_slow());
   }
+  Datetime(THD *thd, int *warn, const Sec9 &nr, date_mode_t fuzzydate)
+   :Datetime(thd, warn, static_cast<const Sec6>(nr), fuzzydate)
+  {
+    if (is_valid_datetime() &&
+        time_round_mode_t(fuzzydate) == TIME_FRAC_ROUND)
+      round_or_invalidate(thd, 6, warn, nr.nsec());
+    DBUG_ASSERT(is_valid_value_slow());
+  }
 
 public:
-  Datetime(int *warn, const Longlong_hybrid &nr, date_mode_t mode)
-   :Datetime(warn, Sec6(nr), mode)
+  Datetime(THD *thd, int *warn, const Longlong_hybrid &nr, date_mode_t mode)
+   :Datetime(thd, warn, Sec6(nr), mode)
   { }
-  Datetime(int *warn, double nr, date_mode_t fuzzydate)
-   :Datetime(warn, Sec6(nr), fuzzydate)
+  Datetime(THD *thd, int *warn, double nr, date_mode_t fuzzydate)
+   :Datetime(thd, warn, Sec9(nr), fuzzydate)
   { }
-  Datetime(int *warn, const my_decimal *d, date_mode_t fuzzydate)
-   :Datetime(warn, Sec6(d), fuzzydate)
+  Datetime(THD *thd, int *warn, const my_decimal *d, date_mode_t fuzzydate)
+   :Datetime(thd, warn, Sec9(d), fuzzydate)
   { }
   Datetime(THD *thd, const timeval &tv);
 
-  Datetime(THD *thd, Item *item, date_mode_t flags, uint dec)
-   :Datetime(thd, item, flags)
+  Datetime(THD *thd, Item *item, date_mode_t fuzzydate, uint dec)
+   :Datetime(thd, item, fuzzydate)
   {
-    trunc(dec);
+    int warn= 0;
+    round(thd, dec, time_round_mode_t(fuzzydate), &warn);
   }
-  Datetime(MYSQL_TIME_STATUS *status,
+  Datetime(THD *thd, MYSQL_TIME_STATUS *status,
            const char *str, size_t len, CHARSET_INFO *cs,
            date_mode_t fuzzydate, uint dec)
-   :Datetime(status, str, len, cs, fuzzydate)
+   :Datetime(thd, status, str, len, cs, fuzzydate)
   {
-    trunc(dec);
+    round(thd, dec, time_round_mode_t(fuzzydate), &status->warnings);
   }
-  Datetime(int *warn, double nr, date_mode_t fuzzydate, uint dec)
-   :Datetime(warn, nr, fuzzydate)
+  Datetime(THD *thd, int *warn, double nr, date_mode_t fuzzydate, uint dec)
+   :Datetime(thd, warn, nr, fuzzydate)
   {
-    trunc(dec);
+    round(thd, dec, time_round_mode_t(fuzzydate), warn);
   }
-  Datetime(int *warn, const my_decimal *d, date_mode_t fuzzydate, uint dec)
-   :Datetime(warn, d, fuzzydate)
+  Datetime(THD *thd, int *warn, const my_decimal *d, date_mode_t fuzzydate, uint dec)
+   :Datetime(thd, warn, d, fuzzydate)
   {
-    trunc(dec);
+    round(thd, dec, time_round_mode_t(fuzzydate), warn);
   }
   Datetime(THD *thd, int *warn, const MYSQL_TIME *from,
            date_mode_t fuzzydate, uint dec)
-   :Datetime(thd, warn, from, fuzzydate)
+   :Datetime(thd, warn, from, date_conv_mode_t(fuzzydate) & ~TIME_TIME_ONLY)
   {
-    trunc(dec);
-  }
-  Datetime(THD *thd, const timeval &tv, uint dec)
-   :Datetime(thd, tv)
-  {
-    DBUG_ASSERT(dec <= TIME_SECOND_PART_DIGITS);
-    trunc(dec);
+    round(thd, dec, time_round_mode_t(fuzzydate), warn);
   }
 
   bool is_valid_datetime() const
@@ -1706,14 +2020,14 @@ public:
     DBUG_ASSERT(is_valid_value_slow());
     return time_type == MYSQL_TIMESTAMP_DATETIME;
   }
-  bool check_date(date_mode_t flags, int *warnings) const
+  bool check_date(date_conv_mode_t flags, int *warnings) const
   {
     DBUG_ASSERT(is_valid_datetime_slow());
     return ::check_date(this, (year || month || day),
                         ulonglong(flags & TIME_MODE_FOR_XXX_TO_DATE),
                         warnings);
   }
-  bool check_date(date_mode_t flags) const
+  bool check_date(date_conv_mode_t flags) const
   {
     int dummy; /* unused */
     return check_date(flags, &dummy);
@@ -1728,6 +2042,27 @@ public:
     DBUG_ASSERT(is_valid_datetime_slow());
     return Temporal_with_date::daynr();
   }
+  ulong dayofyear() const
+  {
+    DBUG_ASSERT(is_valid_datetime_slow());
+    return Temporal_with_date::dayofyear();
+  }
+  uint quarter() const
+  {
+    DBUG_ASSERT(is_valid_datetime_slow());
+    return Temporal_with_date::quarter();
+  }
+  uint week(uint week_behaviour) const
+  {
+    DBUG_ASSERT(is_valid_datetime_slow());
+    return Temporal_with_date::week(week_behaviour);
+  }
+  uint yearweek(uint week_behaviour) const
+  {
+    DBUG_ASSERT(is_valid_datetime_slow());
+    return Temporal_with_date::yearweek(week_behaviour);
+  }
+
   longlong hhmmss_to_seconds_abs() const
   {
     DBUG_ASSERT(is_valid_datetime_slow());
@@ -1800,6 +2135,12 @@ public:
   {
     return is_valid_datetime() ? Temporal::to_packed() : 0;
   }
+  long fraction_remainder(uint dec) const
+  {
+    DBUG_ASSERT(is_valid_datetime());
+    return Temporal::fraction_remainder(dec);
+  }
+
   Datetime &trunc(uint dec)
   {
     if (is_valid_datetime())
@@ -1807,20 +2148,128 @@ public:
     DBUG_ASSERT(is_valid_value_slow());
     return *this;
   }
+  Datetime &round(THD *thd, uint dec, int *warn)
+  {
+    if (is_valid_datetime())
+      round_or_invalidate(thd, dec, warn);
+    DBUG_ASSERT(is_valid_value_slow());
+    return *this;
+  }
+  Datetime &round(THD *thd, uint dec, time_round_mode_t mode, int *warn)
+  {
+    switch (mode.mode()) {
+    case time_round_mode_t::FRAC_NONE:
+      DBUG_ASSERT(fraction_remainder(dec) == 0);
+      return trunc(dec);
+    case time_round_mode_t::FRAC_TRUNCATE:
+      return trunc(dec);
+    case time_round_mode_t::FRAC_ROUND:
+      return round(thd, dec, warn);
+    }
+    return *this;
+  }
+  Datetime &round(THD *thd, uint dec, time_round_mode_t mode)
+  {
+    int warn= 0;
+    return round(thd, dec, mode, &warn);
+  }
+
+};
+
+
+/*
+  Datetime to be created from an Item who is known to be of a temporal
+  data type. For temporal data types we don't need nanosecond rounding
+  or truncation, as their precision is limited.
+*/
+class Datetime_from_temporal: public Datetime
+{
+public:
+  // The constructor DBUG_ASSERTs on a proper Item data type.
+  Datetime_from_temporal(THD *thd, Item *temporal, date_conv_mode_t flags);
+};
+
+
+/*
+  Datetime to be created from an Item who is known not to have digits outside
+  of the specified scale. So it's not important which rounding method to use.
+  TRUNCATE should work.
+  Typically, Item is of a temporal data type, but this is not strictly required.
+*/
+class Datetime_truncation_not_needed: public Datetime
+{
+public:
+  Datetime_truncation_not_needed(THD *thd, Item *item, date_conv_mode_t mode);
+  Datetime_truncation_not_needed(THD *thd, Item *item, date_mode_t mode)
+   :Datetime_truncation_not_needed(thd, item, date_conv_mode_t(mode))
+  { }
 };
 
 
 class Timestamp: protected Timeval
 {
+protected:
+  void round_or_set_max(uint dec, int *warn);
+  bool add_nanoseconds_usec(uint nanoseconds)
+  {
+    DBUG_ASSERT(nanoseconds <= 1000000000);
+    if (nanoseconds < 500)
+      return false;
+    tv_usec+= (nanoseconds + 500) / 1000;
+    if (tv_usec < 1000000)
+      return false;
+    tv_usec%= 1000000;
+    return true;
+  }
+public:
+  static date_conv_mode_t sql_mode_for_timestamp(THD *thd);
+  static time_round_mode_t default_round_mode(THD *thd);
+  class DatetimeOptions: public date_mode_t
+  {
+  public:
+    DatetimeOptions(date_conv_mode_t fuzzydate, time_round_mode_t round_mode)
+     :date_mode_t(fuzzydate | round_mode)
+    { }
+    DatetimeOptions(THD *thd)
+     :DatetimeOptions(sql_mode_for_timestamp(thd), default_round_mode(thd))
+    { }
+  };
 public:
   Timestamp(my_time_t timestamp, ulong sec_part)
    :Timeval(timestamp, sec_part)
   { }
   const struct timeval &tv() const { return *this; }
+  long fraction_remainder(uint dec) const
+  {
+    return my_time_fraction_remainder(tv_usec, dec);
+  }
   Timestamp &trunc(uint dec)
   {
     my_timeval_trunc(this, dec);
     return *this;
+  }
+  Timestamp &round(uint dec, int *warn)
+  {
+    round_or_set_max(dec, warn);
+    return *this;
+  }
+  Timestamp &round(uint dec, time_round_mode_t mode, int *warn)
+  {
+    switch (mode.mode()) {
+    case time_round_mode_t::FRAC_NONE:
+      DBUG_ASSERT(fraction_remainder(dec) == 0);
+      return trunc(dec);
+    case time_round_mode_t::FRAC_TRUNCATE:
+      return trunc(dec);
+    case time_round_mode_t::FRAC_ROUND:
+      return round(dec, warn);
+    }
+    return *this;
+  }
+  Timestamp &round(uint dec, time_round_mode_t mode)
+  {
+    int warn= 0;
+    return round(dec, mode, &warn);
   }
 };
 

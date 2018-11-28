@@ -141,7 +141,7 @@ row_quiesce_write_indexes(
 		mach_write_to_8(ptr, index->id);
 		ptr += sizeof(index_id_t);
 
-		mach_write_to_4(ptr, table->space->id);
+		mach_write_to_4(ptr, table->space_id);
 		ptr += sizeof(ib_uint32_t);
 
 		mach_write_to_4(ptr, index->page);
@@ -525,7 +525,7 @@ row_quiesce_table_start(
 	}
 
 	for (ulint count = 0;
-	     ibuf_merge_space(table->space->id) != 0
+	     ibuf_merge_space(table->space_id) != 0
 	     && !trx_is_interrupted(trx);
 	     ++count) {
 		if (!(count % 20)) {
@@ -537,7 +537,7 @@ row_quiesce_table_start(
 	if (!trx_is_interrupted(trx)) {
 		{
 			FlushObserver observer(table->space, trx, NULL);
-			buf_LRU_flush_or_remove_pages(table->space->id,
+			buf_LRU_flush_or_remove_pages(table->space_id,
 						      &observer);
 		}
 
@@ -637,7 +637,7 @@ row_quiesce_set_state(
 			    ER_CANNOT_DISCARD_TEMPORARY_TABLE);
 
 		return(DB_UNSUPPORTED);
-	} else if (table->space->id == TRX_SYS_SPACE) {
+	} else if (table->space_id == TRX_SYS_SPACE) {
 
 		char	table_name[MAX_FULL_NAME_LEN + 1];
 

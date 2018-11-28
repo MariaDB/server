@@ -256,6 +256,14 @@ static void get_microseconds(ulong *val, MYSQL_TIME_STATUS *status,
     *val= (ulong) (tmp * log_10_int[6 - (*str - start)]);
   else
     *val= tmp;
+  if (str[0] < end && my_isdigit(&my_charset_latin1, str[0][0]))
+  {
+    /*
+      We don't need the exact nanoseconds value.
+      Knowing the first digit is enough for rounding.
+    */
+    status->nanoseconds= 100 * (uint)(str[0][0] - '0');
+  }
   if (skip_digits(str, end))
     status->warnings|= MYSQL_TIME_NOTE_TRUNCATED;
 }

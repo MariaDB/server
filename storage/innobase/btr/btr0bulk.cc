@@ -120,7 +120,7 @@ PageBulk::init()
 		}
 	} else {
 		new_block = btr_block_get(
-			page_id_t(m_index->table->space->id, m_page_no),
+			page_id_t(m_index->table->space_id, m_page_no),
 			page_size_t(m_index->table->space->flags),
 			RW_X_LATCH, m_index, &m_mtr);
 
@@ -669,7 +669,7 @@ PageBulk::latch()
 	if (!buf_page_optimistic_get(RW_X_LATCH, m_block, m_modify_clock,
 				     __FILE__, __LINE__, &m_mtr)) {
 		m_block = buf_page_get_gen(
-			page_id_t(m_index->table->space->id, m_page_no),
+			page_id_t(m_index->table->space_id, m_page_no),
 			page_size_t(m_index->table->space->flags),
 			RW_X_LATCH, m_block, BUF_GET_IF_IN_POOL,
 			__FILE__, __LINE__, &m_mtr, &m_err);
@@ -1029,7 +1029,7 @@ BtrBulk::finish(dberr_t	err)
 
 		ut_ad(last_page_no != FIL_NULL);
 		last_block = btr_block_get(
-			page_id_t(m_index->table->space->id, last_page_no),
+			page_id_t(m_index->table->space_id, last_page_no),
 			page_size_t(m_index->table->space->flags),
 			RW_X_LATCH, m_index, &mtr);
 		first_rec = page_rec_get_next(

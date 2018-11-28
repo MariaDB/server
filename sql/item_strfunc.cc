@@ -4544,7 +4544,7 @@ bool Item_func_dyncol_create::prepare_arguments(THD *thd, bool force_names_arg)
     case DYN_COL_DATETIME:
     case DYN_COL_DATE:
       args[valpos]->get_date(thd, &vals[i].x.time_value,
-                             sql_mode_for_dates(thd));
+                             Datetime::Options(thd));
       break;
     case DYN_COL_TIME:
       args[valpos]->get_time(thd, &vals[i].x.time_value);

@@ -244,9 +244,12 @@ inline void dict_table_t::prepare_instant(const dict_table_t& old,
 	DBUG_ASSERT(n_dropped() == 0);
 	DBUG_ASSERT(old.n_cols == old.n_def);
 	DBUG_ASSERT(n_cols == n_def);
-	DBUG_ASSERT(old.not_redundant() == not_redundant());
 	DBUG_ASSERT(old.supports_instant());
-	DBUG_ASSERT(supports_instant());
+	/* supports_instant() does not necessarily hold here,
+	in case ROW_FORMAT=COMPRESSED according to the
+	MariaDB data dictionary, and ALTER_OPTIONS was not set.
+	If that is the case, the instant ALTER TABLE would keep
+	the InnoDB table in its current format. */
 
 	dict_index_t& oindex = *old.indexes.start;
 	dict_index_t& index = *indexes.start;

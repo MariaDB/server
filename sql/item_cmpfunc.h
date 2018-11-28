@@ -1127,7 +1127,7 @@ public:
 
   bool date_op(THD *thd, MYSQL_TIME *ltime, date_mode_t fuzzydate)
   {
-    Datetime dt(thd, find_item(), fuzzydate);
+    Datetime_truncation_not_needed dt(thd, find_item(), fuzzydate);
     return (null_value= dt.copy_to_mysql_time(ltime, mysql_timestamp_type()));
   }
   bool time_op(THD *thd, MYSQL_TIME *ltime)

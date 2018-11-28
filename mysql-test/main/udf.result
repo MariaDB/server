@@ -465,3 +465,108 @@ a	b
 Hello	HL
 DROP FUNCTION METAPHON;
 DROP TABLE t1;
+
+MDEV-15073: Generic UDAF parser code in server for windows functions
+
+CREATE AGGREGATE FUNCTION avgcost
+RETURNS REAL SONAME "UDF_EXAMPLE_LIB";
+CREATE AGGREGATE FUNCTION avg2
+RETURNS REAL SONAME "UDF_EXAMPLE_LIB";
+CREATE FUNCTION myfunc_double RETURNS REAL SONAME "UDF_EXAMPLE_LIB";
+create table t1(pk int primary key,
+a int,
+sum int,
+price float(24));
+insert into t1 values
+(1, 1, 100, 50.00),
+(2, 1, 100, 100.00),
+(3, 1, 100, 50.00),
+(4, 1, 100, 50.00),
+(5, 1, 100, 50.00),
+(6, 1, 100, NULL),
+(7, 1, NULL, NULL),
+(8, 2, 2,   2),
+(9, 2, 4,   4);
+select pk, a, sum, price, avgcost(sum, price) over (partition by a order by pk ROWS BETWEEN 1 PRECEDING AND 1 FOLLOWING)
+from t1;
+pk	a	sum	price	avgcost(sum, price) over (partition by a order by pk ROWS BETWEEN 1 PRECEDING AND 1 FOLLOWING)
+1	1	100	50	75.0000
+2	1	100	100	66.6667
+3	1	100	50	66.6667
+4	1	100	50	50.0000
+5	1	100	50	50.0000
+6	1	100	NULL	50.0000
+7	1	NULL	NULL	0.0000
+8	2	2	2	3.3333
+9	2	4	4	3.3333
+select pk, a, sum, price, avgcost(sum, price) over (partition by a order by pk ROWS BETWEEN 1 PRECEDING AND 0 FOLLOWING)
+from t1;
+pk	a	sum	price	avgcost(sum, price) over (partition by a order by pk ROWS BETWEEN 1 PRECEDING AND 0 FOLLOWING)
+1	1	100	50	50.0000
+2	1	100	100	75.0000
+3	1	100	50	75.0000
+4	1	100	50	50.0000
+5	1	100	50	50.0000
+6	1	100	NULL	50.0000
+7	1	NULL	NULL	0.0000
+8	2	2	2	2.0000
+9	2	4	4	3.3333
+select pk, a, sum, price, avg2(sum, price) over (partition by a order by pk ROWS BETWEEN 1 PRECEDING AND 1 FOLLOWING)
+from t1;
+pk	a	sum	price	avg2(sum, price) over (partition by a order by pk ROWS BETWEEN 1 PRECEDING AND 1 FOLLOWING)
+1	1	100	50	0.7500
+2	1	100	100	0.6667
+3	1	100	50	0.6667
+4	1	100	50	0.5000
+5	1	100	50	0.5000
+6	1	100	NULL	0.5000
+7	1	NULL	NULL	0.0000
+8	2	2	2	1.0000
+9	2	4	4	1.0000
+select pk, a, sum, price, avg2(sum, price) over (partition by a order by pk ROWS BETWEEN 1 PRECEDING AND 0 FOLLOWING)
+from t1;
+pk	a	sum	price	avg2(sum, price) over (partition by a order by pk ROWS BETWEEN 1 PRECEDING AND 0 FOLLOWING)
+1	1	100	50	0.5000
+2	1	100	100	0.7500
+3	1	100	50	0.7500
+4	1	100	50	0.5000
+5	1	100	50	0.5000
+6	1	100	NULL	0.5000
+7	1	NULL	NULL	0.0000
+8	2	2	2	1.0000
+9	2	4	4	1.0000
+select pk, a, sum, price, tttttttt(sprice,sum) over (partition by a order by pk ROWS BETWEEN 1 PRECEDING AND 0 FOLLOWING)
+from t1;
+ERROR 42000: You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near 'over (partition by a order by pk ROWS BETWEEN 1 PRECEDING AND 0 FOLLOWING)
+from ' at line 1
+select pk, a, sum, price, myfunc_double(sum) over (partition by a order by pk ROWS BETWEEN 1 PRECEDING AND 0 FOLLOWING)
+from t1;
+ERROR 42000: You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near 'over (partition by a order by pk ROWS BETWEEN 1 PRECEDING AND 0 FOLLOWING)
+from ' at line 1
+select pk, a, sum, price, round(sprice,sum) over (partition by a order by pk ROWS BETWEEN 1 PRECEDING AND 0 FOLLOWING)
+from t1;
+ERROR 42000: You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near 'over (partition by a order by pk ROWS BETWEEN 1 PRECEDING AND 0 FOLLOWING)
+from ' at line 1
+select pk, a, sum, price, myfunc_double(sum) over (partition by a order by pk ROWS BETWEEN 1 PRECEDING AND 0 FOLLOWING)
+from t1;
+ERROR 42000: You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near 'over (partition by a order by pk ROWS BETWEEN 1 PRECEDING AND 0 FOLLOWING)
+from ' at line 1
+set @save_sql_mode = @@sql_mode;
+set sql_mode="oracle";
+select pk, a, sum, price, avg2(sum, price) over (partition by a order by pk ROWS BETWEEN 1 PRECEDING AND 0 FOLLOWING)
+from t1;
+pk	a	sum	price	avg2(sum, price) over (partition by a order by pk ROWS BETWEEN 1 PRECEDING AND 0 FOLLOWING)
+1	1	100	50	0.5000
+2	1	100	100	0.7500
+3	1	100	50	0.7500
+4	1	100	50	0.5000
+5	1	100	50	0.5000
+6	1	100	NULL	0.5000
+7	1	NULL	NULL	0.0000
+8	2	2	2	1.0000
+9	2	4	4	1.0000
+set sql_mode= @save_sql_mode;
+drop table t1;
+DROP FUNCTION avgcost;
+DROP FUNCTION avg2;
+DROP FUNCTION myfunc_double;

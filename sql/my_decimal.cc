@@ -268,7 +268,8 @@ int str2my_decimal(uint mask, const char *from, size_t length,
   integer part cannot be larger that 1e18 (otherwise it's an overflow).
   fractional part is microseconds.
 */
-bool my_decimal2seconds(const my_decimal *d, ulonglong *sec, ulong *microsec)
+bool my_decimal2seconds(const my_decimal *d, ulonglong *sec,
+                        ulong *microsec, ulong *nanosec)
 {
   int pos;
   
@@ -286,6 +287,7 @@ bool my_decimal2seconds(const my_decimal *d, ulonglong *sec, ulong *microsec)
   }
 
   *microsec= d->frac ? static_cast<longlong>(d->buf[pos+1]) / (DIG_BASE/1000000) : 0;
+  *nanosec=  d->frac ? static_cast<longlong>(d->buf[pos+1]) % (DIG_BASE/1000000) : 0;
 
   if (pos > 1)
   {

@@ -216,7 +216,13 @@ Event_parse_data::init_execute_at(THD *thd)
                       (starts_null && ends_null)));
   DBUG_ASSERT(starts_null && ends_null);
 
-  if (item_execute_at->get_date(thd, &ltime, TIME_NO_ZERO_DATE))
+  /*
+    The expected data type is DATETIME. No nanoseconds truncation should
+    normally be needed. Using the default rounding mode.
+    See more comments in event_data_object.cc.
+  */
+  if (item_execute_at->get_date(thd, &ltime, TIME_NO_ZERO_DATE |
+                                             thd->temporal_round_mode()))
     goto wrong_value;
 
   ltime_utc= TIME_to_timestamp(thd,&ltime,&not_used);
@@ -378,7 +384,8 @@ Event_parse_data::init_starts(THD *thd)
   if (item_starts->fix_fields(thd, &item_starts))
     goto wrong_value;
 
-  if (item_starts->get_date(thd, &ltime, TIME_NO_ZERO_DATE))
+  if (item_starts->get_date(thd, &ltime, TIME_NO_ZERO_DATE |
+                                         thd->temporal_round_mode()))
     goto wrong_value;
 
   ltime_utc= TIME_to_timestamp(thd, &ltime, &not_used);
@@ -433,7 +440,8 @@ Event_parse_data::init_ends(THD *thd)
     goto error_bad_params;
 
   DBUG_PRINT("info", ("convert to TIME"));
-  if (item_ends->get_date(thd, &ltime, TIME_NO_ZERO_DATE))
+  if (item_ends->get_date(thd, &ltime, TIME_NO_ZERO_DATE |
+                                       thd->temporal_round_mode()))
     goto error_bad_params;
 
   ltime_utc= TIME_to_timestamp(thd, &ltime, &not_used);

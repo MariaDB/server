@@ -435,7 +435,7 @@ row_log_online_op(
 			if (!log_tmp_block_encrypt(
 				    buf, srv_sort_buf_size,
 				    log->crypt_tail, byte_offset,
-				    index->table->space->id)) {
+				    index->table->space_id)) {
 				log->error = DB_DECRYPTION_FAILED;
 				goto write_failed;
 			}
@@ -573,7 +573,7 @@ row_log_table_close_func(
 			if (!log_tmp_block_encrypt(
 				    log->tail.block, srv_sort_buf_size,
 				    log->crypt_tail, byte_offset,
-				    index->table->space->id)) {
+				    index->table->space_id)) {
 				log->error = DB_DECRYPTION_FAILED;
 				goto err_exit;
 			}
@@ -2878,7 +2878,7 @@ all_done:
 			if (!log_tmp_block_decrypt(
 				    buf, srv_sort_buf_size,
 				    index->online_log->crypt_head,
-				    ofs, index->table->space->id)) {
+				    ofs, index->table->space_id)) {
 				error = DB_DECRYPTION_FAILED;
 				goto func_exit;
 			}
@@ -3782,7 +3782,7 @@ all_done:
 			if (!log_tmp_block_decrypt(
 				    buf, srv_sort_buf_size,
 				    index->online_log->crypt_head,
-				    ofs, index->table->space->id)) {
+				    ofs, index->table->space_id)) {
 				error = DB_DECRYPTION_FAILED;
 				goto func_exit;
 			}

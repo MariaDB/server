@@ -3235,6 +3235,25 @@ bool Item_udf_sum::add()
   DBUG_RETURN(0);
 }
 
+
+bool Item_udf_sum::supports_removal() const
+{
+  DBUG_ENTER("Item_udf_sum::supports_remove");
+  DBUG_PRINT("info", ("support: %d", udf.supports_removal()));
+  DBUG_RETURN(udf.supports_removal());
+}
+
+
+void Item_udf_sum::remove()
+{
+  my_bool tmp_null_value;
+  DBUG_ENTER("Item_udf_sum::remove");
+  udf.remove(&tmp_null_value);
+  null_value= tmp_null_value;
+  DBUG_VOID_RETURN;
+}
+
+
 void Item_udf_sum::cleanup()
 {
   /*

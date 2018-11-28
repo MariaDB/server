@@ -761,7 +761,7 @@ btr_cur_optimistic_latch_leaves(
 
 		if (left_page_no != FIL_NULL) {
 			cursor->left_block = btr_block_get(
-				page_id_t(cursor->index->table->space->id,
+				page_id_t(cursor->index->table->space_id,
 					  left_page_no),
 				page_size_t(cursor->index->table->space
 					    ->flags),
@@ -1440,7 +1440,7 @@ btr_cur_search_to_nth_level_func(
 	const page_size_t	page_size(index->table->space->flags);
 
 	/* Start with the root page. */
-	page_id_t		page_id(index->table->space->id, index->page);
+	page_id_t		page_id(index->table->space_id, index->page);
 
 	if (root_leaf_rw_latch == RW_X_LATCH) {
 		node_ptr_max_size = btr_node_ptr_max_size(index);
@@ -2552,7 +2552,7 @@ btr_cur_open_at_index_side_func(
 	page_cursor = btr_cur_get_page_cur(cursor);
 	cursor->index = index;
 
-	page_id_t		page_id(index->table->space->id, index->page);
+	page_id_t		page_id(index->table->space_id, index->page);
 	const page_size_t	page_size(index->table->space->flags);
 
 	if (root_leaf_rw_latch == RW_X_LATCH) {
@@ -2910,7 +2910,7 @@ btr_cur_open_at_rnd_pos_func(
 	page_cursor = btr_cur_get_page_cur(cursor);
 	cursor->index = index;
 
-	page_id_t		page_id(index->table->space->id, index->page);
+	page_id_t		page_id(index->table->space_id, index->page);
 	const page_size_t	page_size(index->table->space->flags);
 	dberr_t			err = DB_SUCCESS;
 
@@ -7430,7 +7430,7 @@ struct btr_blob_log_check_t {
 		if (m_op == BTR_STORE_INSERT_BULK) {
 			mtr_x_lock(dict_index_get_lock(index), m_mtr);
 			m_pcur->btr_cur.page_cur.block = btr_block_get(
-				page_id_t(index->table->space->id, page_no),
+				page_id_t(index->table->space_id, page_no),
 				page_size_t(index->table->space->flags),
 				RW_X_LATCH, index, m_mtr);
 			m_pcur->btr_cur.page_cur.rec
@@ -8038,6 +8038,7 @@ btr_free_externally_stored_field(
 	        & ~((BTR_EXTERN_OWNER_FLAG
 	             | BTR_EXTERN_INHERITED_FLAG) << 24)));
 	ut_ad(space_id == index->table->space->id);
+	ut_ad(space_id == index->table->space_id);
 
 	const page_size_t	ext_page_size(dict_table_page_size(index->table));
 	const page_size_t&	rec_page_size(rec == NULL

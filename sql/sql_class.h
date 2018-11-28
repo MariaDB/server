@@ -158,6 +158,7 @@ enum enum_binlog_row_image {
 #define MODE_PAD_CHAR_TO_FULL_LENGTH    (1ULL << 31)
 #define MODE_EMPTY_STRING_IS_NULL       (1ULL << 32)
 #define MODE_SIMULTANEOUS_ASSIGNMENT    (1ULL << 33)
+#define MODE_TIME_ROUND_FRACTIONAL      (1ULL << 34)
 
 /* Bits for different old style modes */
 #define OLD_MODE_NO_DUP_KEY_WARNINGS_WITH_IGNORE	(1 << 0)
@@ -3419,6 +3420,11 @@ public:
   {
     return Timeval(query_start(), query_start_sec_part());
   }
+  time_round_mode_t temporal_round_mode() const
+  {
+    return variables.sql_mode & MODE_TIME_ROUND_FRACTIONAL ?
+           TIME_FRAC_ROUND : TIME_FRAC_TRUNCATE;
+  }
 
 private:
   struct {
@@ -4957,13 +4963,17 @@ my_eof(THD *thd)
   (A)->variables.sql_log_bin_off= 0;}
 
 
-inline date_mode_t sql_mode_for_dates(THD *thd)
+inline date_conv_mode_t sql_mode_for_dates(THD *thd)
 {
+  static_assert((date_conv_mode_t::KNOWN_MODES &
+                time_round_mode_t::KNOWN_MODES) == 0,
+                "date_conv_mode_t and time_round_mode_t must use different "
+                "bit values");
   static_assert(MODE_NO_ZERO_DATE    == date_mode_t::NO_ZERO_DATE &&
                 MODE_NO_ZERO_IN_DATE == date_mode_t::NO_ZERO_IN_DATE &&
                 MODE_INVALID_DATES   == date_mode_t::INVALID_DATES,
                 "sql_mode_t and date_mode_t values must be equal");
-  return date_mode_t(thd->variables.sql_mode &
+  return date_conv_mode_t(thd->variables.sql_mode &
           (MODE_NO_ZERO_DATE | MODE_NO_ZERO_IN_DATE | MODE_INVALID_DATES));
 }
 
@@ -6103,6 +6113,10 @@ class multi_delete :public select_result_interceptor
   */
   bool error_handled;
 
+public:
+  // Methods used by ColumnStore
+  uint get_num_of_tables() const { return num_of_tables; }
+  TABLE_LIST* get_tables() const { return delete_tables; }
 public:
   multi_delete(THD *thd_arg, TABLE_LIST *dt, uint num_of_tables);
   ~multi_delete();

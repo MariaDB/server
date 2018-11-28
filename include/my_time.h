@@ -108,12 +108,14 @@ typedef struct st_mysql_time_status
 {
   int warnings;
   uint precision;
+  uint nanoseconds;
 } MYSQL_TIME_STATUS;
 
 static inline void my_time_status_init(MYSQL_TIME_STATUS *status)
 {
   status->warnings= 0;
   status->precision= 0;
+  status->nanoseconds= 0;
 }
 
 my_bool check_date(const MYSQL_TIME *ltime, my_bool not_zero_date,

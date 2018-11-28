@@ -438,19 +438,19 @@ void Field::do_field_temporal(Copy_field *copy, date_mode_t fuzzydate)
 
 void Field::do_field_datetime(Copy_field *copy)
 {
-  return do_field_temporal(copy, date_mode_t(0));
+  return do_field_temporal(copy, Datetime::Options(TIME_CONV_NONE, current_thd));
 }
 
 
 void Field::do_field_date(Copy_field *copy)
 {
-  return do_field_temporal(copy, date_mode_t(0));
+  return do_field_temporal(copy, Date::Options(TIME_CONV_NONE));
 }
 
 
 void Field_time::do_field_time(Copy_field *copy)
 {
-  return do_field_temporal(copy, TIME_TIME_ONLY);
+  return do_field_temporal(copy, Time::Options(current_thd));
 }
 
 

@@ -18,8 +18,11 @@ SET GLOBAL wsrep_reject_queries = ALL;
 --error ER_UNKNOWN_COM_ERROR
 SELECT * FROM t1;
 
-# Lost connection
---error 2013
+#
+# Original behavior was lost connection,
+# but since 10.1, we allow controlling connection to remain alive
+#
+--error 0,2013
 SET GLOBAL wsrep_reject_queries = ALL_KILL;
 
 --connection node_1a

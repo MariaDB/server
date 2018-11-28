@@ -2312,7 +2312,8 @@ bool Item_func_ifnull::date_op(THD *thd, MYSQL_TIME *ltime, date_mode_t fuzzydat
   DBUG_ASSERT(fixed == 1);
   for (uint i= 0; i < 2; i++)
   {
-    Datetime dt(thd, args[i], fuzzydate & ~TIME_FUZZY_DATES);
+    Datetime_truncation_not_needed dt(thd, args[i],
+                                      fuzzydate & ~TIME_FUZZY_DATES);
     if (!(dt.copy_to_mysql_time(ltime, mysql_timestamp_type())))
       return (null_value= false);
   }
@@ -2812,7 +2813,7 @@ Item_func_nullif::date_op(THD *thd, MYSQL_TIME *ltime, date_mode_t fuzzydate)
   DBUG_ASSERT(fixed == 1);
   if (!compare())
     return (null_value= true);
-  Datetime dt(thd, args[2], fuzzydate);
+  Datetime_truncation_not_needed dt(thd, args[2], fuzzydate);
   return (null_value= dt.copy_to_mysql_time(ltime, mysql_timestamp_type()));
 }
 
@@ -2987,7 +2988,7 @@ bool Item_func_case::date_op(THD *thd, MYSQL_TIME *ltime, date_mode_t fuzzydate)
   Item *item= find_item();
   if (!item)
     return (null_value= true);
-  Datetime dt(thd, item, fuzzydate);
+  Datetime_truncation_not_needed dt(thd, item, fuzzydate);
   return (null_value= dt.copy_to_mysql_time(ltime, mysql_timestamp_type()));
 }
 
@@ -3339,7 +3340,8 @@ bool Item_func_coalesce::date_op(THD *thd, MYSQL_TIME *ltime, date_mode_t fuzzyd
   DBUG_ASSERT(fixed == 1);
   for (uint i= 0; i < arg_count; i++)
   {
-    Datetime dt(thd, args[i], fuzzydate & ~TIME_FUZZY_DATES);
+    Datetime_truncation_not_needed dt(thd, args[i],
+                                      fuzzydate & ~TIME_FUZZY_DATES);
     if (!dt.copy_to_mysql_time(ltime, mysql_timestamp_type()))
       return (null_value= false);
   }

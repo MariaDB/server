@@ -4923,6 +4923,8 @@ lock_rec_queue_validate(
 		goto func_exit;
 	}
 
+	ut_ad(page_rec_is_leaf(rec));
+
 	if (index == NULL) {
 
 		/* Nothing we can do */
@@ -5091,10 +5093,13 @@ loop:
 		     ? REC_FMT_LEAF : REC_FMT_LEAF_FLEXIBLE;
 	     i < lock_rec_get_n_bits(lock); i++) {
 
-		if (i == 1 || lock_rec_get_nth_bit(lock, i)) {
+		if (i == PAGE_HEAP_NO_SUPREMUM
+		    || lock_rec_get_nth_bit(lock, i)) {
 
 			rec = page_find_rec_with_heap_no(block->frame, i);
 			ut_a(rec);
+			ut_ad(!lock_rec_get_nth_bit(lock, i)
+			      || page_rec_is_leaf(rec));
 			offsets = rec_get_offsets(rec, lock->index, offsets,
 						  format, ULINT_UNDEFINED,
 						  &heap);
@@ -5313,7 +5318,7 @@ lock_rec_insert_check_and_lock(
 {
 	ut_ad(block->frame == page_align(rec));
 	ut_ad(!dict_index_is_online_ddl(index)
-	      || dict_index_is_clust(index)
+	      || index->is_primary()
 	      || (flags & BTR_CREATE_FLAG));
 	ut_ad(mtr->is_named_space(index->table->space));
 	ut_ad(page_rec_is_leaf(rec));
@@ -5324,6 +5329,7 @@ lock_rec_insert_check_and_lock(
 	}
 
 	ut_ad(!index->table->is_temporary());
+	ut_ad(page_is_leaf(block->frame));
 
 	dberr_t		err;
 	lock_t*		lock;

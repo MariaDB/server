@@ -663,7 +663,7 @@ btr_search_update_hash_ref(
 	const rec_fmt_t format = page_is_comp(block->frame)
 		? REC_FMT_LEAF : REC_FMT_LEAF_FLEXIBLE;
 
-	ut_ad(block->page.id.space() == index->table->space->id);
+	ut_ad(block->page.id.space() == index->table->space_id);
 	ut_ad(index == cursor->index);
 	ut_ad(!dict_index_is_ibuf(index));
 	ut_ad(!!page_is_comp(block->frame) == index->table->not_redundant()
@@ -1372,7 +1372,7 @@ btr_search_build_page_hash_index(
 	rec_offs_init(offsets_);
 	ut_ad(ahi_latch == btr_get_search_latch(index));
 	ut_ad(index);
-	ut_ad(block->page.id.space() == index->table->space->id);
+	ut_ad(block->page.id.space() == index->table->space_id);
 	ut_a(!dict_index_is_ibuf(index));
 	ut_ad(page_is_leaf(block->frame));
 
@@ -1691,7 +1691,7 @@ void btr_search_update_hash_on_delete(btr_cur_t* cursor)
 		return;
 	}
 
-	ut_ad(block->page.id.space() == index->table->space->id);
+	ut_ad(block->page.id.space() == index->table->space_id);
 	ut_a(index == cursor->index);
 	ut_a(block->curr_n_fields > 0 || block->curr_n_bytes > 0);
 	ut_a(!dict_index_is_ibuf(index));
@@ -1852,7 +1852,7 @@ btr_search_update_hash_on_insert(btr_cur_t* cursor, rw_lock_t* ahi_latch)
 		return;
 	}
 
-	ut_ad(block->page.id.space() == index->table->space->id);
+	ut_ad(block->page.id.space() == index->table->space_id);
 	btr_search_check_free_space_in_heap(index);
 
 	table = btr_get_search_table(index);

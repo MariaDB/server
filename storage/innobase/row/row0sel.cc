@@ -1133,7 +1133,7 @@ re_scan:
 				btr_pcur_get_page(pcur));
 
 			cur_block = buf_page_get_gen(
-				page_id_t(index->table->space->id, page_no),
+				page_id_t(index->table->space_id, page_no),
 				page_size_t(index->table->space->flags),
 				RW_X_LATCH, NULL, BUF_GET,
 				__FILE__, __LINE__, mtr, &err);

@@ -118,12 +118,12 @@ void Item::push_note_converted_to_positive_complement(THD *thd)
 longlong Item::val_datetime_packed_result(THD *thd)
 {
   MYSQL_TIME ltime, tmp;
-  if (get_date_result(thd, &ltime, Datetime::comparison_flags_for_get_date()))
+  if (get_date_result(thd, &ltime, Datetime::Options_cmp(thd)))
     return 0;
   if (ltime.time_type != MYSQL_TIMESTAMP_TIME)
     return pack_time(&ltime);
-  if ((null_value= time_to_datetime_with_warn(thd, &ltime,
-                                              &tmp, date_mode_t(0))))
+  if ((null_value= time_to_datetime_with_warn(thd, &ltime, &tmp,
+                                              TIME_CONV_NONE)))
     return 0;
   return pack_time(&tmp);
 }
@@ -305,7 +305,7 @@ int Item::save_date_in_field(Field *field, bool no_conversions)
 {
   MYSQL_TIME ltime;
   THD *thd= field->table->in_use;
-  if (get_date(thd, &ltime, sql_mode_for_dates(thd)))
+  if (get_date(thd, &ltime, Datetime::Options(thd)))
     return set_field_to_null_with_conversions(field, no_conversions);
   field->set_notnull();
   return field->store_time_dec(&ltime, decimals);
@@ -9732,7 +9732,8 @@ bool Item_cache_temporal::get_date(THD *thd, MYSQL_TIME *ltime, date_mode_t fuzz
 int Item_cache_temporal::save_in_field(Field *field, bool no_conversions)
 {
   MYSQL_TIME ltime;
-  if (get_date(field->get_thd(), &ltime, date_mode_t(0)))
+  // This is a temporal type. No nanoseconds, so round mode is not important.
+  if (get_date(field->get_thd(), &ltime, TIME_CONV_NONE | TIME_FRAC_NONE))
     return set_field_to_null_with_conversions(field, no_conversions);
   field->set_notnull();
   int error= field->store_time_dec(&ltime, decimals);

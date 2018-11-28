@@ -11350,6 +11350,21 @@ window_func:
           {
             ((Item_sum *) $1)->mark_as_window_func_sum_expr();
           }
+        |
+          function_call_generic
+          {
+            Item* item = (Item*)$1;
+            /* Only UDF aggregate here possible */
+            if ((item == NULL) ||
+                (item->type() != Item::SUM_FUNC_ITEM)
+                || (((Item_sum *)item)->sum_func() != Item_sum::UDF_SUM_FUNC))
+            {
+              thd->parse_error();
+              MYSQL_YYABORT;
+            }
+
+            ((Item_sum *) $1)->mark_as_window_func_sum_expr();
+          }
         ;
 
 simple_window_func:
