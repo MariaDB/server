@@ -28,15 +28,14 @@
     goto wsrep_error_label;
 
 #define WSREP_TO_ISOLATION_BEGIN_ALTER(db_, table_, table_list_, alter_info_) \
-  if (WSREP_ON && WSREP(thd) && wsrep_thd_is_local(thd) &&                          \
-       wsrep_to_isolation_begin(thd, db_, table_,                        \
+  if (WSREP(thd) && wsrep_thd_is_local(thd) &&                          \
+      wsrep_to_isolation_begin(thd, db_, table_,                        \
                                table_list_, alter_info_))               \
     goto wsrep_error_label;
 
 #define WSREP_TO_ISOLATION_END                                          \
-  if (WSREP_ON && WSREP(thd) &&						\
-      (wsrep_thd_is_local_toi(thd) ||             			\
-       wsrep_thd_is_in_rsu(thd)))                                       \
+  if ((WSREP(thd) && wsrep_thd_is_local_toi(thd)) ||                    \
+      wsrep_thd_is_in_rsu(thd))                                         \
     wsrep_to_isolation_end(thd);
 
 /*
@@ -69,6 +68,8 @@
 //#define WSREP_WARN(...)
 #define WSREP_ERROR(...)
 #define WSREP_TO_ISOLATION_BEGIN(db_, table_, table_list_) do { } while(0)
+#define WSREP_TO_ISOLATION_BEGIN_ALTER(db_, table_, table_list_, alter_info_)
+#define WSREP_TO_ISOLATION_END
 #define WSREP_TO_ISOLATION_BEGIN_WRTCHK(db_, table_, table_list_)
 #define WSREP_SYNC_WAIT(thd_, before_)
 #endif /* WITH_WSREP */
