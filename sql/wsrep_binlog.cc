@@ -509,7 +509,6 @@ void wsrep_dump_rbr_buf_with_header(THD *thd, const void *rbr_buf,
 
   if (init_io_cache(&cache, file, 0, WRITE_CACHE, 0, 0, MYF(MY_WME | MY_NABP)))
   {
-    mysql_file_close(file, MYF(MY_WME));
     goto cleanup2;
   }
 
