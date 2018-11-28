@@ -13583,7 +13583,7 @@ static int old_password_authenticate(MYSQL_PLUGIN_VIO *vio,
     pkt_len= (int)strnlen((char*)pkt, pkt_len);
 
   if (pkt_len == 0) /* no password */
-    return info->auth_string[0] ? CR_AUTH_USER_CREDENTIALS : CR_OK;
+    return info->auth_string_length ? CR_AUTH_USER_CREDENTIALS : CR_OK;
 
   if (secure_auth(thd))
     return CR_AUTH_HANDSHAKE;
