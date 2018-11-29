@@ -168,6 +168,7 @@ public:
   ub2                     *coltp;
   ub2                     *colsz;
   uint                    field_count;
+  uint                    record_size;
   ulong                   *row_size;
   ulong                   *row_size_first;
   CHARSET_INFO            *access_charset;
@@ -201,6 +202,7 @@ public:
     TABLE *tmp_table,
     spider_string *str
   );
+  uint get_byte_size();
   /* for oracle */
   int init();
   void deinit();

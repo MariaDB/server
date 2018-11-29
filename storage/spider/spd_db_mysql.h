@@ -182,6 +182,7 @@ public:
   ulong               *lengths;
   ulong               *lengths_first;
   uint                field_count;
+  uint                record_size;
   bool                cloned;
   spider_db_mysql_row();
   ~spider_db_mysql_row();
@@ -210,6 +211,7 @@ public:
     TABLE *tmp_table,
     spider_string *str
   );
+  uint get_byte_size();
 };
 
 class spider_db_mysql_result: public spider_db_result

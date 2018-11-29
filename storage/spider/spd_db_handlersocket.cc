@@ -359,7 +359,7 @@ spider_string *spider_db_hs_str_buffer::add(
 
 spider_db_handlersocket_row::spider_db_handlersocket_row() :
   spider_db_row(spider_dbton_handlersocket.dbton_id),
-  hs_row(NULL), field_count(0), cloned(FALSE)
+  hs_row(NULL), field_count(0), row_size(0), cloned(FALSE)
 {
   DBUG_ENTER("spider_db_handlersocket_row::spider_db_handlersocket_row");
   DBUG_PRINT("info",("spider this=%p", this));
@@ -497,17 +497,12 @@ SPIDER_DB_ROW *spider_db_handlersocket_row::clone()
 {
   spider_db_handlersocket_row *clone_row;
   char *tmp_char;
-  uint row_size, i;
+  uint i;
   DBUG_ENTER("spider_db_handlersocket_row::clone");
   DBUG_PRINT("info",("spider this=%p", this));
   if (!(clone_row = new spider_db_handlersocket_row()))
   {
     DBUG_RETURN(NULL);
-  }
-  row_size = 0;
-  for (i = 0; i < field_count; i++)
-  {
-    row_size += hs_row_first[i].size();
   }
   if (!spider_bulk_malloc(spider_current_trx, 169, MYF(MY_WME),
     &clone_row->hs_row, sizeof(SPIDER_HS_STRING_REF) * field_count,
@@ -525,6 +520,7 @@ SPIDER_DB_ROW *spider_db_handlersocket_row::clone()
   }
   clone_row->hs_row_first = clone_row->hs_row;
   clone_row->cloned = TRUE;;
+  clone_row->row_size = row_size;;
   DBUG_RETURN(NULL);
 }
 
@@ -558,6 +554,13 @@ int spider_db_handlersocket_row::store_to_tmp_table(
     str->ptr(), str->length(), &my_charset_bin);
   tmp_table->field[2]->set_null();
   DBUG_RETURN(tmp_table->file->ha_write_row(tmp_table->record[0]));
+}
+
+uint spider_db_handlersocket_row::get_byte_size()
+{
+  DBUG_ENTER("spider_db_handlersocket_row::get_byte_size");
+  DBUG_PRINT("info",("spider this=%p", this));
+  DBUG_RETURN(row_size);
 }
 
 
@@ -676,6 +679,7 @@ SPIDER_DB_ROW *spider_db_handlersocket_result::fetch_row()
   }
   row.field_count = field_count;
   row.hs_row_first = row.hs_row;
+  row.row_size = (*hs_conn_p)->get_row_size();
   DBUG_RETURN((SPIDER_DB_ROW *) &row);
 }
 
@@ -694,6 +698,7 @@ SPIDER_DB_ROW *spider_db_handlersocket_result::fetch_row_from_result_buffer(
   }
   row.field_count = field_count;
   row.hs_row_first = row.hs_row;
+  row.row_size = (*hs_conn_p)->get_row_size_from_result(hs_res_buf->hs_result);
   DBUG_RETURN((SPIDER_DB_ROW *) &row);
 }
 
@@ -729,6 +734,7 @@ SPIDER_DB_ROW *spider_db_handlersocket_result::fetch_row_from_tmp_table(
     }
     tmp_hs_row++;
   }
+  row.row_size = row_ptr - tmp_str2.ptr();
   DBUG_RETURN((SPIDER_DB_ROW *) &row);
 }
 

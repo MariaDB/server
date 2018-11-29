@@ -67,6 +67,8 @@ struct hstcpcli : public hstcpcli_i, private noncopyable {
   virtual int get_result(hstresult& result);
   virtual const string_ref *get_next_row();
   virtual const string_ref *get_next_row_from_result(hstresult& result);
+  virtual size_t get_row_size();
+  virtual size_t get_row_size_from_result(hstresult& result);
   virtual void response_buf_remove();
   virtual int get_error_code();
   virtual String& get_error();
@@ -93,6 +95,7 @@ struct hstcpcli : public hstcpcli_i, private noncopyable {
   string_buffer writebuf;
   size_t response_end_offset; /* incl newline */
   size_t cur_row_offset;
+  size_t cur_row_size;
   size_t num_flds;
   size_t num_req_bufd; /* buffered but not yet sent */
   size_t num_req_sent; /* sent but not yet received */
@@ -104,8 +107,9 @@ struct hstcpcli : public hstcpcli_i, private noncopyable {
 };
 
 hstcpcli::hstcpcli(const socket_args& args)
-  : sargs(args), response_end_offset(0), cur_row_offset(0), num_flds(0),
-    num_req_bufd(0), num_req_sent(0), num_req_rcvd(0), error_code(0), errno_buf(0)
+  : sargs(args), response_end_offset(0), cur_row_offset(0), cur_row_size(0),
+    num_flds(0), num_req_bufd(0), num_req_sent(0), num_req_rcvd(0),
+    error_code(0), errno_buf(0)
 {
   String err;
   SPD_INIT_DYNAMIC_ARRAY2(&flds, sizeof(string_ref), NULL, 16, 16, MYF(MY_WME));
@@ -503,6 +507,7 @@ hstcpcli::response_recv(size_t& num_flds_r)
     }
     return set_error(resp_code, e);
   }
+  cur_row_size = 0;
   cur_row_offset = start - readbuf.begin();
   DBG(fprintf(stderr, "[%s] ro=%zu eol=%zu\n",
     String(readbuf.begin(), readbuf.begin() + response_end_offset)
@@ -529,6 +534,7 @@ hstcpcli::get_result(hstresult& result)
   result.readbuf.space_wrote(response_end_offset);
   result.response_end_offset = response_end_offset;
   result.num_flds = num_flds;
+  result.cur_row_size = cur_row_size;
   result.cur_row_offset = cur_row_offset;
   if (result.flds.max_element < num_flds)
   {
@@ -566,6 +572,7 @@ hstcpcli::get_next_row()
       ((string_ref *) flds.buffer)[i] = string_ref(fld_begin, wp);
     }
   }
+  cur_row_size = start - (readbuf.begin() + cur_row_offset);
   cur_row_offset = start - readbuf.begin();
   return (string_ref *) flds.buffer;
 }
@@ -597,8 +604,22 @@ hstcpcli::get_next_row_from_result(hstresult& result)
       ((string_ref *) result.flds.buffer)[i] = string_ref(fld_begin, wp);
     }
   }
+  result.cur_row_size =
+    start - (result.readbuf.begin() + result.cur_row_offset);
   result.cur_row_offset = start - result.readbuf.begin();
   return (string_ref *) result.flds.buffer;
+}
+
+size_t
+hstcpcli::get_row_size()
+{
+  return cur_row_size;
+}
+
+size_t
+hstcpcli::get_row_size_from_result(hstresult& result)
+{
+  return result.cur_row_size;
 }
 
 void

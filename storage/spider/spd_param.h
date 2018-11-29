@@ -171,6 +171,10 @@ longlong spider_param_quick_page_size(
   THD *thd,
   longlong quick_page_size
 );
+longlong spider_param_quick_page_byte(
+  THD *thd,
+  longlong quick_page_byte
+);
 int spider_param_low_mem_read(
   THD *thd,
   int low_mem_read

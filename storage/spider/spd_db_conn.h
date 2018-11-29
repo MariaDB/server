@@ -579,6 +579,10 @@ void spider_db_free_one_result(
   SPIDER_RESULT *result
 );
 
+void spider_db_free_one_quick_result(
+  SPIDER_RESULT *result
+);
+
 int spider_db_free_result(
   ha_spider *spider,
   bool final

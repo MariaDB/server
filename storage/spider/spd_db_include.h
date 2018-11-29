@@ -941,6 +941,7 @@ public:
     TABLE *tmp_table,
     spider_string *str
   ) = 0;
+  virtual uint get_byte_size() = 0;
 };
 
 class spider_db_result_buffer
@@ -1947,6 +1948,7 @@ typedef struct st_spider_result_list
   int                     max_order;
   int                     quick_mode;
   longlong                quick_page_size;
+  longlong                quick_page_byte;
   int                     low_mem_read;
   int                     bulk_update_mode;
   int                     bulk_update_size;

@@ -2087,6 +2087,7 @@ void spider_bg_all_conn_break(
 #endif
     if (spider->quick_targets[roop_count])
     {
+      spider_db_free_one_quick_result((SPIDER_RESULT *) result_list->current);
       DBUG_ASSERT(spider->quick_targets[roop_count] == conn->quick_target);
       DBUG_PRINT("info", ("spider conn[%p]->quick_target=NULL", conn));
       conn->quick_target = NULL;

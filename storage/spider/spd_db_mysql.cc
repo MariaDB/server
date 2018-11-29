@@ -415,11 +415,17 @@ SPIDER_DB_ROW *spider_db_mysql_row::clone()
   {
     DBUG_RETURN(NULL);
   }
-  row_size = field_count;
-  for (i = 0; i < field_count; i++)
+  if (!record_size)
   {
-    row_size += *tmp_lengths;
-    tmp_lengths++;
+    row_size = field_count;
+    for (i = 0; i < field_count; i++)
+    {
+      row_size += *tmp_lengths;
+      tmp_lengths++;
+    }
+    record_size = row_size - field_count;
+  } else {
+    row_size = record_size + field_count;
   }
   if (!spider_bulk_malloc(spider_current_trx, 29, MYF(MY_WME),
     &clone_row->row, sizeof(char*) * field_count,
@@ -451,6 +457,7 @@ SPIDER_DB_ROW *spider_db_mysql_row::clone()
     tmp_row++;
   }
   clone_row->field_count = field_count;
+  clone_row->record_size = record_size;
   clone_row->row_first = clone_row->row;
   clone_row->lengths_first = clone_row->lengths;
   clone_row->cloned = TRUE;
@@ -491,6 +498,23 @@ int spider_db_mysql_row::store_to_tmp_table(
   tmp_table->field[2]->store(
     (char *) row, (uint) (sizeof(char *) * field_count), &my_charset_bin);
   DBUG_RETURN(tmp_table->file->ha_write_row(tmp_table->record[0]));
+}
+
+uint spider_db_mysql_row::get_byte_size()
+{
+  ulong *tmp_lengths = lengths_first;
+  uint i;
+  DBUG_ENTER("spider_db_mysql_row::get_byte_size");
+  DBUG_PRINT("info",("spider this=%p", this));
+  if (!record_size)
+  {
+    for (i = 0; i < field_count; i++)
+    {
+      record_size += *tmp_lengths;
+      tmp_lengths++;
+    }
+  }
+  DBUG_RETURN(record_size);
 }
 
 spider_db_mysql_result::spider_db_mysql_result(SPIDER_DB_CONN *in_db_conn) :
@@ -559,6 +583,7 @@ SPIDER_DB_ROW *spider_db_mysql_result::fetch_row()
   row.field_count = mysql_num_fields(db_result);
   row.row_first = row.row;
   row.lengths_first = row.lengths;
+  row.record_size = 0;
   DBUG_RETURN((SPIDER_DB_ROW *) &row);
 }
 
@@ -582,6 +607,7 @@ SPIDER_DB_ROW *spider_db_mysql_result::fetch_row_from_result_buffer(
   row.field_count = mysql_num_fields(db_result);
   row.row_first = row.row;
   row.lengths_first = row.lengths;
+  row.record_size = 0;
   DBUG_RETURN((SPIDER_DB_ROW *) &row);
 }
 
@@ -614,6 +640,7 @@ SPIDER_DB_ROW *spider_db_mysql_result::fetch_row_from_tmp_table(
   row.field_count = field_count;
   row.row_first = row.row;
   row.lengths_first = row.lengths;
+  row.record_size = tmp_str2.length();
   for (i = 0; i < field_count; i++)
   {
     if (*tmp_row)

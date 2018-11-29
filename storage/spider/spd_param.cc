@@ -1364,6 +1364,31 @@ longlong spider_param_quick_page_size(
 
 /*
  -1 :use table parameter
+  0-:the limitation of memory size
+ */
+static MYSQL_THDVAR_LONGLONG(
+  quick_page_byte, /* name */
+  PLUGIN_VAR_RQCMDARG, /* opt */
+  "The limitation of memory size in a page when acquisition one by one", /* comment */
+  NULL, /* check */
+  NULL, /* update */
+  -1, /* def */
+  -1, /* min */
+  9223372036854775807LL, /* max */
+  0 /* blk */
+);
+
+longlong spider_param_quick_page_byte(
+  THD *thd,
+  longlong quick_page_byte
+) {
+  DBUG_ENTER("spider_param_quick_page_byte");
+  DBUG_RETURN(THDVAR(thd, quick_page_byte) < 0 ?
+    quick_page_byte : THDVAR(thd, quick_page_byte));
+}
+
+/*
+ -1 :use table parameter
   0 :It doesn't use low memory mode.
   1 :It uses low memory mode.
  */
@@ -3354,6 +3379,7 @@ static struct st_mysql_sys_var* spider_system_variables[] = {
   MYSQL_SYSVAR(net_write_timeout),
   MYSQL_SYSVAR(quick_mode),
   MYSQL_SYSVAR(quick_page_size),
+  MYSQL_SYSVAR(quick_page_byte),
   MYSQL_SYSVAR(low_mem_read),
   MYSQL_SYSVAR(select_column_mode),
 #ifndef WITHOUT_SPIDER_BG_SEARCH

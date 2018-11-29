@@ -960,6 +960,7 @@ typedef struct st_spider_share
   longlong           priority;
   int                quick_mode;
   longlong           quick_page_size;
+  longlong           quick_page_byte;
   int                low_mem_read;
   int                table_count_mode;
   int                select_column_mode;

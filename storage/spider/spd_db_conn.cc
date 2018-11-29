@@ -3473,6 +3473,22 @@ void spider_db_free_one_result(
   DBUG_VOID_RETURN;
 }
 
+void spider_db_free_one_quick_result(
+  SPIDER_RESULT *result
+) {
+  DBUG_ENTER("spider_db_free_one_quick_result");
+  if (result && result->result)
+  {
+    result->result->free_result();
+    if (!result->result_tmp_tbl)
+    {
+      delete result->result;
+      result->result = NULL;
+    }
+  }
+  DBUG_VOID_RETURN;
+}
+
 int spider_db_free_result(
   ha_spider *spider,
   bool final
@@ -3999,11 +4015,22 @@ int spider_db_store_result(
       SPIDER_DB_ROW *tmp_row;
       uint field_count = current->result->num_fields();
       SPIDER_POSITION *position;
-      longlong page_size =
-        !result_list->quick_page_size ||
-        result_list->limit_num < result_list->quick_page_size ?
-        result_list->limit_num : result_list->quick_page_size;
+      longlong page_size;
       int roop_count = 0;
+      if (!result_list->quick_page_size)
+      {
+        if (result_list->quick_mode == 3)
+        {
+          page_size = 0;
+        } else {
+          result_list->quick_page_size = result_list->limit_num;
+          page_size = result_list->limit_num;
+        }
+      } else {
+        page_size =
+          result_list->limit_num < result_list->quick_page_size ?
+          result_list->limit_num : result_list->quick_page_size;
+      }
       current->field_count = field_count;
       if (!(position = (SPIDER_POSITION *)
         spider_bulk_malloc(spider_current_trx, 7, MYF(MY_WME | MY_ZEROFILL),
@@ -4015,22 +4042,56 @@ int spider_db_store_result(
       current->pos_page_size = (int) page_size;
       current->first_position = position;
       current->tmp_tbl_row = tmp_row;
-      do {
-        if (!(position->row = row->clone()))
+      if (result_list->quick_mode == 3)
+      {
+        while (page_size > roop_count && row)
         {
-          DBUG_RETURN(HA_ERR_OUT_OF_MEM);
+          if (result_list->quick_page_byte < row->get_byte_size())
+          {
+            current->pos_page_size = roop_count;
+            page_size = roop_count;
+            result_list->quick_page_size = roop_count;
+            result_list->quick_page_byte = 0;
+            break;
+          } else {
+            result_list->quick_page_byte -= row->get_byte_size();
+          }
+          if (!(position->row = row->clone()))
+          {
+            DBUG_RETURN(HA_ERR_OUT_OF_MEM);
+          }
+          position++;
+          roop_count++;
+          row = current->result->fetch_row();
         }
-        position++;
-        roop_count++;
-      } while (
-        page_size > roop_count &&
-        (row = current->result->fetch_row())
-      );
+      } else {
+        do {
+          if (!(position->row = row->clone()))
+          {
+            DBUG_RETURN(HA_ERR_OUT_OF_MEM);
+          }
+          position++;
+          roop_count++;
+          if (result_list->quick_page_byte < row->get_byte_size())
+          {
+            current->pos_page_size = roop_count;
+            page_size = roop_count;
+            result_list->quick_page_size = roop_count;
+            result_list->quick_page_byte = 0;
+            break;
+          } else {
+            result_list->quick_page_byte -= row->get_byte_size();
+          }
+        } while (
+          page_size > roop_count &&
+          (row = current->result->fetch_row())
+        );
+      }
       if (
         result_list->quick_mode == 3 &&
         page_size == roop_count &&
         result_list->limit_num > roop_count &&
-        (row = current->result->fetch_row())
+        row
       ) {
         THD *thd = current_thd;
         char buf[MAX_FIELD_WIDTH];
@@ -4076,7 +4137,11 @@ int spider_db_store_result(
       result_list->record_num += roop_count;
       if (
         result_list->internal_limit <= result_list->record_num ||
-        page_size > roop_count
+        page_size > roop_count ||
+        (
+          result_list->quick_mode == 3 &&
+          result_list->limit_num > roop_count
+        )
       ) {
         DBUG_PRINT("info",("spider set finish_flg point 4"));
         DBUG_PRINT("info",("spider current->finish_flg = TRUE"));
