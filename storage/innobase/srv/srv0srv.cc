@@ -2424,8 +2424,6 @@ static bool srv_purge_should_exit()
 				"InnoDB: to purge " ULINTPF " transactions",
 				history_size);
 		}
-#else
-		(void)history_size; /* unused variable warning */
 #endif
 		return false;
 	}

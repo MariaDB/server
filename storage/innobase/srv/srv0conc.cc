@@ -120,7 +120,7 @@ srv_conc_enter_innodb_with_atomics(
 	for (;;) {
 		ulint	sleep_in_us;
 #ifdef WITH_WSREP
-		if (wsrep_on(trx->mysql_thd) && 
+		if (wsrep_on(trx->mysql_thd) &&
 		    wsrep_thd_is_aborting(trx->mysql_thd)) {
 			if (wsrep_debug)
 				ib::info() <<

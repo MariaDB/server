@@ -4168,10 +4168,10 @@ static int innodb_init(void* p)
 		| HTON_NATIVE_SYS_VERSIONING;
 
 #ifdef WITH_WSREP
-        innobase_hton->abort_transaction=wsrep_abort_transaction;
-        innobase_hton->set_checkpoint=innobase_wsrep_set_checkpoint;
-        innobase_hton->get_checkpoint=innobase_wsrep_get_checkpoint;
-        innobase_hton->fake_trx_id=NULL;
+	innobase_hton->abort_transaction=wsrep_abort_transaction;
+	innobase_hton->set_checkpoint=innobase_wsrep_set_checkpoint;
+	innobase_hton->get_checkpoint=innobase_wsrep_get_checkpoint;
+	innobase_hton->fake_trx_id=NULL;
 #endif /* WITH_WSREP */
 
 	innobase_hton->tablefile_extensions = ha_innobase_exts;
@@ -4637,16 +4637,6 @@ innobase_commit(
 		visible to others. So we can wakeup other commits waiting for
 		this one, to allow then to group commit with us. */
 		thd_wakeup_subsequent_commits(thd, 0);
-
-#ifdef WITH_WSREP
-		/* Serialisation history has been written, so the
-		commit is now ordered.
-		This seems to be problematic with load data splitting.
-		Commented out for now. */
-		// if (trx->mysql_thd) {
-		//		(void)wsrep_ordered_commit_if_no_binlog(trx->mysql_thd);
-		// }
-#endif /* WITH_WSREP */
 
 		/* Now do a write + flush of logs. */
 		trx_commit_complete_for_mysql(trx);
@@ -5140,20 +5130,20 @@ static void innobase_kill_query(handlerton*, THD* thd, enum thd_kill_levels)
 
 	if (trx_t* trx = thd_to_trx(thd)) {
 #ifdef WITH_WSREP
-	  bool locked= trx->lock.was_chosen_as_deadlock_victim;
-	  if (locked) {
-		lock_mutex_exit();
-		trx_mutex_exit(trx);
-	  }
+		bool locked= trx->lock.was_chosen_as_deadlock_victim;
+		if (locked) {
+			lock_mutex_exit();
+			trx_mutex_exit(trx);
+		}
 #endif /* WITH_WSREP */
 		ut_ad(trx->mysql_thd == thd);
 		/* Cancel a pending lock request if there are any */
 		lock_trx_handle_wait(trx);
 #ifdef WITH_WSREP
-	  if (locked) {
-		lock_mutex_enter();
-		trx_mutex_enter(trx);
-	  }
+		if (locked) {
+			lock_mutex_enter();
+			trx_mutex_enter(trx);
+		}
 #endif /* WITH_WSREP */
 	}
 
@@ -6973,8 +6963,7 @@ wsrep_store_key_val_for_row(
 {
 	KEY*		key_info	= table->key_info + keynr;
 	KEY_PART_INFO*	key_part	= key_info->key_part;
-	KEY_PART_INFO*	end		=
-		key_part + key_info->user_defined_key_parts;
+	KEY_PART_INFO*	end		= key_part + key_info->user_defined_key_parts;
 	char*		buff_start	= buff;
 	enum_field_types mysql_type;
 	Field*		field;
@@ -8204,11 +8193,13 @@ report_error:
 		error, m_prebuilt->table->flags, m_user_thd);
 
 #ifdef WITH_WSREP
-	if (!error_result && wsrep_thd_is_local(m_user_thd)               &&
-	    wsrep_on(m_user_thd) && !wsrep_consistency_check(m_user_thd)  &&
-	    (thd_sql_command(m_user_thd) != SQLCOM_CREATE_TABLE)          &&
-	    (thd_sql_command(m_user_thd) != SQLCOM_LOAD ||
-	     thd_binlog_format(m_user_thd) == BINLOG_FORMAT_ROW)) {
+	if (!error_result
+	    && wsrep_on(m_user_thd)
+	    && wsrep_thd_is_local(m_user_thd)
+	    && !wsrep_consistency_check(m_user_thd)
+	    && (thd_sql_command(m_user_thd) != SQLCOM_CREATE_TABLE)
+	    && (thd_sql_command(m_user_thd) != SQLCOM_LOAD ||
+	        thd_binlog_format(m_user_thd) == BINLOG_FORMAT_ROW)) {
 		if (wsrep_append_keys(m_user_thd, WSREP_KEY_EXCLUSIVE, record,
 				      NULL)) {
  			DBUG_PRINT("wsrep", ("row key failed"));
@@ -8905,8 +8896,9 @@ func_exit:
 	innobase_active_small();
 
 #ifdef WITH_WSREP
-	if (error == DB_SUCCESS && wsrep_thd_is_local(m_user_thd) &&
-            wsrep_on(m_user_thd)) {
+	if (error == DB_SUCCESS
+	    && wsrep_on(m_user_thd)
+	    && wsrep_thd_is_local(m_user_thd)) {
 
 		DBUG_PRINT("wsrep", ("update row key"));
 
@@ -8971,9 +8963,10 @@ ha_innobase::delete_row(
 	innobase_active_small();
 
 #ifdef WITH_WSREP
-	if (error == DB_SUCCESS && wsrep_thd_is_local(m_user_thd) &&
-            wsrep_on(m_user_thd)                                  &&
-	    !wsrep_thd_ignore_table(m_user_thd)) {
+	if (error == DB_SUCCESS
+	    && wsrep_on(m_user_thd)
+	    && wsrep_thd_is_local(m_user_thd)
+	    && !wsrep_thd_ignore_table(m_user_thd)) {
 
 		if (wsrep_append_keys(m_user_thd, WSREP_KEY_EXCLUSIVE, record,
 				      NULL)) {
@@ -10525,8 +10518,8 @@ ha_innobase::wsrep_append_keys(
 
 					if (rcode) DBUG_RETURN(rcode);
 
-					if (key_info->flags & HA_NOSAME ||
-					    key_type == WSREP_KEY_SHARED)
+					if (key_info->flags & HA_NOSAME
+					    || key_type == WSREP_KEY_SHARED)
 						key_appended = true;
 				} else {
 					WSREP_DEBUG("NULL key skipped: %s",
@@ -18656,15 +18649,6 @@ innobase_wsrep_get_checkpoint(
         trx_rseg_read_wsrep_checkpoint(*xid);
         return 0;
 }
-#if UNUSED /* 2b27ac8282ed (Marko Mäkelä 2018-05-01) */
-static void wsrep_fake_trx_id(handlerton *, THD *thd)
-{
-	trx_id_t trx_id = trx_sys.get_new_trx_id();
-	WSREP_DEBUG("innodb fake trx id: " TRX_ID_FMT " thd: %s",
-		    trx_id, wsrep_thd_query(thd));
-	wsrep_ws_handle_for_trx(wsrep_thd_ws_handle(thd), trx_id);
-}
-#endif /* UNUSED */
 #endif /* WITH_WSREP */
 
 /* plugin options */

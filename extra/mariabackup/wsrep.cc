@@ -83,7 +83,7 @@ xb_write_galera_info(bool incremental_prepare)
 	}
 
 	wsrep_uuid_t uuid;
-	memcpy(&uuid, wsrep_xid_uuid(&xid), sizeof(uuid));
+	memcpy(uuid.data, wsrep_xid_uuid(&xid), sizeof(uuid.data));
 	if (wsrep_uuid_print(&uuid, uuid_str,
 			     sizeof(uuid_str)) < 0) {
 		return;
