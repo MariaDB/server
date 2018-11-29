@@ -29,6 +29,9 @@ Created 2/23/1996 Heikki Tuuri
 #include "rem0cmp.h"
 #include "trx0trx.h"
 
+/* FIXME: move this to a proper .h file */
+extern const dtuple_t trx_undo_metadata;
+
 /**************************************************************//**
 Allocates memory for a persistent cursor object and initializes the cursor.
 @return own: persistent cursor */
@@ -177,9 +180,8 @@ btr_pcur_store_position(
 	if (index->is_ibuf()) {
 		ut_ad(!index->table->not_redundant());
 		cursor->old_n_fields = rec_get_n_fields_old(rec);
-	} else if (page_rec_is_leaf(rec)) {
-		cursor->old_n_fields = dict_index_get_n_unique_in_tree(index);
-	} else if (index->is_spatial()) {
+	} else if (UNIV_UNLIKELY(!page_rec_is_leaf(rec)
+				 && index->is_spatial())) {
 		ut_ad(dict_index_get_n_unique_in_tree_nonleaf(index)
 		      == DICT_INDEX_SPATIAL_NODEPTR_SIZE);
 		/* For R-tree, we have to compare
@@ -252,10 +254,8 @@ btr_pcur_restore_position_func(
 	mtr_t*		mtr)		/*!< in: mtr */
 {
 	dict_index_t*	index;
-	dtuple_t*	tuple;
 	page_cur_mode_t	mode;
 	page_cur_mode_t	old_mode;
-	mem_heap_t*	heap;
 
 	ut_ad(mtr->is_active());
 	//ut_ad(cursor->old_stored);
@@ -326,7 +326,7 @@ btr_pcur_restore_position_func(
 				const ulint*	offsets2;
 				rec = btr_pcur_get_rec(cursor);
 
-				heap = mem_heap_create(256);
+				mem_heap_t* heap = mem_heap_create(256);
 				offsets1 = rec_get_offsets(
 					cursor->old_rec, index, NULL,
 					REC_FMT_LEAF,
@@ -355,12 +355,34 @@ btr_pcur_restore_position_func(
 	}
 
 	/* If optimistic restoration did not succeed, open the cursor anew */
+	if (UNIV_UNLIKELY(reinterpret_cast<const byte*>(&trx_undo_metadata)
+			  == cursor->old_rec)) {
+		btr_pcur_open_at_index_side(true, index, cursor->latch_mode,
+					    cursor, true, 0, mtr);
+		ut_ad(btr_pcur_is_before_first_on_page(cursor));
+		btr_pcur_move_to_next_on_page(cursor);
+		/* We have to store the NEW value for the modify clock,
+		since the cursor can now be on a different page! */
+		if (!page_rec_is_metadata(btr_pcur_get_rec(cursor))) {
+not_found:
+			btr_pcur_store_position(cursor, mtr);
+			return(FALSE);
+		}
+found:
+		/* We can retain the value of old_rec */
+		cursor->block_when_stored = btr_pcur_get_block(cursor);
+		cursor->modify_clock = buf_block_get_modify_clock(
+			cursor->block_when_stored);
+		cursor->old_stored = true;
+		cursor->withdraw_clock = buf_withdraw_clock;
+		return(TRUE);
+	}
 
-	heap = mem_heap_create(256);
+	mem_heap_t* heap = mem_heap_create(256);
 
-	tuple = dict_index_build_data_tuple(cursor->old_rec, index,
-					    REC_FMT_LEAF,
-					    cursor->old_n_fields, heap);
+	const dtuple_t* tuple = dict_index_build_data_tuple(
+		cursor->old_rec, index, REC_FMT_LEAF,
+		cursor->old_n_fields, heap);
 
 	/* Save the old search mode of the cursor */
 	old_mode = cursor->search_mode;
@@ -404,31 +426,12 @@ btr_pcur_restore_position_func(
 					       ? REC_FMT_LEAF
 					       : REC_FMT_LEAF_FLEXIBLE,
 					       ULINT_UNDEFINED, &heap))) {
-
-		/* We have to store the NEW value for the modify clock,
-		since the cursor can now be on a different page!
-		But we can retain the value of old_rec */
-
-		cursor->block_when_stored = btr_pcur_get_block(cursor);
-		cursor->modify_clock = buf_block_get_modify_clock(
-						cursor->block_when_stored);
-		cursor->old_stored = true;
-		cursor->withdraw_clock = buf_withdraw_clock;
-
 		mem_heap_free(heap);
-
-		return(TRUE);
+		goto found;
 	}
 
 	mem_heap_free(heap);
-
-	/* We have to store new position information, modify_clock etc.,
-	to the cursor because it can now be on a different page, the record
-	under it may have been removed, etc. */
-
-	btr_pcur_store_position(cursor, mtr);
-
-	return(FALSE);
+	goto not_found;
 }
 
 /*********************************************************//**

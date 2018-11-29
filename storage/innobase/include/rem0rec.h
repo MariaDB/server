@@ -1102,7 +1102,7 @@ rec_convert_dtuple_to_temp(
 Copies the first n fields of a physical record to a new physical record in
 a buffer.
 @return own: copied record */
-rec_t*
+const rec_t*
 rec_copy_prefix_to_buf(
 /*===================*/
 	const rec_t*		rec,		/*!< in: physical record */

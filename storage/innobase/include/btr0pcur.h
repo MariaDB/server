@@ -508,7 +508,7 @@ struct btr_pcur_t{
 	bool		old_stored;
 	/** if cursor position is stored, contains an initial segment of the
 	latest record cursor was positioned either on, before or after */
-	rec_t*		old_rec;
+	const rec_t*	old_rec;
 	/** number of fields in old_rec */
 	ulint		old_n_fields;
 	/** BTR_PCUR_ON, BTR_PCUR_BEFORE, or BTR_PCUR_AFTER, depending on
