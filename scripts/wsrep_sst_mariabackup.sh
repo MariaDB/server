@@ -651,13 +651,12 @@ monitor_process()
 
     while true ; do
 
-        if ! ps --pid "${WSREP_SST_OPT_PARENT}" &>/dev/null; then
+        if ! ps -p "${WSREP_SST_OPT_PARENT}" &>/dev/null; then
             wsrep_log_error "Parent mysqld process (PID:${WSREP_SST_OPT_PARENT}) terminated unexpectedly." 
-            kill -- -"${WSREP_SST_OPT_PARENT}"
             exit 32
         fi
 
-        if ! ps --pid "${sst_stream_pid}" &>/dev/null; then 
+        if ! ps -p "${sst_stream_pid}" &>/dev/null; then 
             break
         fi
 
