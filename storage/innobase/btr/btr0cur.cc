@@ -3378,19 +3378,22 @@ btr_cur_optimistic_insert(
 
 	const bool leaf = page_is_leaf(page);
 
-	auto rec_size = rec_get_converted_size(
-		leaf ? REC_FMT_LEAF : REC_FMT_NODE_PTR,
-		index, entry, n_ext);
-
-	if (UNIV_UNLIKELY(entry->is_alter_metadata())) {
-		ut_ad(leaf);
-		goto convert_big_rec;
-	}
+	ut_ad(leaf || !entry->is_alter_metadata());
 
 	if (leaf && page_is_comp(page) && index->dual_format()) {
 		/* The page must be converted into ROW_FORMAT=REDUNDANT
 		in a pessimistic operation. */
 		return DB_FAIL;
+	}
+
+	const rec_fmt_t format = leaf
+		? (index->dual_format() ? REC_FMT_LEAF_FLEXIBLE : REC_FMT_LEAF)
+		: REC_FMT_NODE_PTR;
+	auto rec_size = rec_get_converted_size(format, index, entry, n_ext);
+
+	if (UNIV_UNLIKELY(entry->is_alter_metadata())) {
+		ut_ad(leaf);
+		goto convert_big_rec;
 	}
 
 	if (page_zip_rec_needs_ext(rec_size, page_is_comp(page),
@@ -3409,7 +3412,7 @@ convert_big_rec:
 			return(DB_TOO_BIG_RECORD);
 		}
 
-		rec_size = rec_get_converted_size(REC_FMT_LEAF, index, entry, n_ext);
+		rec_size = rec_get_converted_size(format, index, entry, n_ext);
 	}
 
 	if (page_size.is_compressed() && page_zip_is_too_big(index, entry)) {
@@ -3708,11 +3711,14 @@ btr_cur_pessimistic_insert(
 						 index->first_user_field())));
 
 	const rec_fmt_t format = page_is_leaf(btr_cur_get_page(cursor))
-		? (page_is_comp(btr_cur_get_page(cursor))
-		   ? REC_FMT_LEAF : REC_FMT_LEAF_FLEXIBLE)
+		? (index->dual_format() ? REC_FMT_LEAF_FLEXIBLE : REC_FMT_LEAF)
 		: REC_FMT_NODE_PTR;
 	const ulint rec_size = rec_get_converted_size(format, index, entry,
 						      n_ext);
+	if (UNIV_UNLIKELY(entry->is_alter_metadata())) {
+		ut_ad(page_is_leaf(btr_cur_get_page(cursor)));
+		goto convert_big_rec;
+	}
 
 	if (page_zip_rec_needs_ext(rec_size,
 				   page_is_comp(btr_cur_get_page(cursor)),
@@ -3722,6 +3728,7 @@ btr_cur_pessimistic_insert(
 		if (format == REC_FMT_NODE_PTR || !index->is_primary()) {
 			return DB_TOO_BIG_RECORD;
 		}
+convert_big_rec:
 		/* The record is so big that we have to store some fields
 		externally on separate database pages */
 
