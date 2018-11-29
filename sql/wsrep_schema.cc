@@ -240,8 +240,8 @@ static void store(TABLE* table, uint field, const Wsrep_id& id) {
   std::ostringstream os;
   os << id;
   table->field[field]->store(os.str().c_str(),
-			     os.str().size(),
-			     &my_charset_bin);
+                             os.str().size(),
+                             &my_charset_bin);
 }
 
 
@@ -726,12 +726,13 @@ Wsrep_view Wsrep_schema::restore_view(THD* thd, const Wsrep_id& own_id) const {
   TABLE* members_table= 0;
   bool end_members_scan= false;
 
+  /* variables below need to be initialized in case cluster table is empty */
   Wsrep_id cluster_uuid;
-  wsrep_seqno_t view_id;
-  wsrep_seqno_t view_seqno;
+  wsrep_seqno_t view_id= -1;
+  wsrep_seqno_t view_seqno= -1;
   int my_idx= -1;
-  int proto_ver;
-  wsrep_cap_t capabilities;
+  int proto_ver= 0;
+  wsrep_cap_t capabilities= 0;
   std::vector<Wsrep_view::member> members;
 
   // we don't want causal waits for reading non-replicated private data
@@ -752,12 +753,13 @@ Wsrep_view Wsrep_schema::restore_view(THD* thd, const Wsrep_id& own_id) const {
     goto out;
   }
 
-  if (Wsrep_schema_impl::next_record(cluster_table) ||
-      Wsrep_schema_impl::scan(cluster_table, 0, cluster_uuid) ||
-      Wsrep_schema_impl::scan(cluster_table, 1, view_id) ||
-      Wsrep_schema_impl::scan(cluster_table, 2, view_seqno) ||
-      Wsrep_schema_impl::scan(cluster_table, 3, proto_ver) ||
-      Wsrep_schema_impl::scan(cluster_table, 4, capabilities)) {
+  if (((error= Wsrep_schema_impl::next_record(cluster_table)) != 0 ||
+       Wsrep_schema_impl::scan(cluster_table, 0, cluster_uuid) ||
+       Wsrep_schema_impl::scan(cluster_table, 1, view_id) ||
+       Wsrep_schema_impl::scan(cluster_table, 2, view_seqno) ||
+       Wsrep_schema_impl::scan(cluster_table, 3, proto_ver) ||
+       Wsrep_schema_impl::scan(cluster_table, 4, capabilities)) &&
+      error != HA_ERR_END_OF_FILE) {
     end_cluster_scan= true;
     goto out;
   }
@@ -845,7 +847,7 @@ Wsrep_view Wsrep_schema::restore_view(THD* thd, const Wsrep_id& own_id) const {
   }
   else
   {
-    WSREP_ERROR("wsrep_schema::recover_view() failed.");
+    WSREP_ERROR("wsrep_schema::restore_view() failed.");
     Wsrep_view ret_view;
     DBUG_RETURN(ret_view);
   }
