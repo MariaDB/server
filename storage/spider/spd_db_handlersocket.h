@@ -145,6 +145,7 @@ public:
   SPIDER_HS_STRING_REF *hs_row;
   SPIDER_HS_STRING_REF *hs_row_first;
   uint                 field_count;
+  uint                 row_size;
   bool                 cloned;
   spider_db_handlersocket_row();
   ~spider_db_handlersocket_row();
@@ -173,6 +174,7 @@ public:
     TABLE *tmp_table,
     spider_string *str
   );
+  uint get_byte_size();
 };
 
 class spider_db_handlersocket_result_buffer: public spider_db_result_buffer

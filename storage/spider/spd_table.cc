@@ -2045,6 +2045,7 @@ int spider_parse_connect_info(
   share->priority = -1;
   share->quick_mode = -1;
   share->quick_page_size = -1;
+  share->quick_page_byte = -1;
   share->low_mem_read = -1;
   share->table_count_mode = -1;
   share->select_column_mode = -1;
@@ -2290,6 +2291,7 @@ int spider_parse_connect_info(
           SPIDER_PARAM_INT_WITH_MAX("qch", query_cache, 0, 2);
           SPIDER_PARAM_INT_WITH_MAX("qcs", query_cache_sync, 0, 3);
           SPIDER_PARAM_INT_WITH_MAX("qmd", quick_mode, 0, 3);
+          SPIDER_PARAM_LONGLONG("qpb", quick_page_byte, 0);
           SPIDER_PARAM_LONGLONG("qps", quick_page_size, 0);
           SPIDER_PARAM_INT_WITH_MAX("rom", read_only_mode, 0, 1);
           SPIDER_PARAM_DOUBLE("rrt", read_rate, 0);
@@ -2459,6 +2461,7 @@ int spider_parse_connect_info(
           SPIDER_PARAM_LONGLONG("internal_offset", internal_offset, 0);
           SPIDER_PARAM_INT_WITH_MAX("reset_sql_alloc", reset_sql_alloc, 0, 1);
           SPIDER_PARAM_INT_WITH_MAX("semi_table_lock", semi_table_lock, 0, 1);
+          SPIDER_PARAM_LONGLONG("quick_page_byte", quick_page_byte, 0);
           SPIDER_PARAM_LONGLONG("quick_page_size", quick_page_size, 0);
 #ifndef WITHOUT_SPIDER_BG_SEARCH
           SPIDER_PARAM_LONGLONG("bgs_second_read", bgs_second_read, 0);
@@ -3824,9 +3827,11 @@ int spider_set_connect_info_default(
   if (share->priority == -1)
     share->priority = 1000000;
   if (share->quick_mode == -1)
-    share->quick_mode = 0;
+    share->quick_mode = 3;
   if (share->quick_page_size == -1)
-    share->quick_page_size = 100;
+    share->quick_page_size = 1024;
+  if (share->quick_page_byte == -1)
+    share->quick_page_byte = 10485760;
   if (share->low_mem_read == -1)
     share->low_mem_read = 1;
   if (share->table_count_mode == -1)
@@ -7997,6 +8002,8 @@ void spider_set_result_list_param(
     spider_param_quick_mode(thd, share->quick_mode);
   result_list->quick_page_size =
     spider_param_quick_page_size(thd, share->quick_page_size);
+  result_list->quick_page_byte =
+    spider_param_quick_page_byte(thd, share->quick_page_byte);
   result_list->low_mem_read =
     spider_param_low_mem_read(thd, share->low_mem_read);
   DBUG_VOID_RETURN;
