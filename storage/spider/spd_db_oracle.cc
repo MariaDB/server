@@ -519,6 +519,7 @@ SPIDER_DB_ROW *spider_db_oracle_row::clone()
   clone_row->db_conn = db_conn;
   clone_row->result = result;
   clone_row->field_count = field_count;
+  clone_row->record_size = record_size;
   clone_row->access_charset = access_charset;
   clone_row->cloned = TRUE;
   if (clone_row->init())
@@ -569,6 +570,13 @@ int spider_db_oracle_row::store_to_tmp_table(
   tmp_table->field[2]->store(
     (char *) ind_first, (uint) (sizeof(sb2) * field_count), &my_charset_bin);
   DBUG_RETURN(tmp_table->file->ha_write_row(tmp_table->record[0]));
+}
+
+uint spider_db_oracle_row::get_byte_size()
+{
+  DBUG_ENTER("spider_db_oracle_row::get_byte_size");
+  DBUG_PRINT("info",("spider this=%p", this));
+  DBUG_RETURN(record_size);
 }
 
 int spider_db_oracle_row::init()
@@ -696,6 +704,7 @@ int spider_db_oracle_row::fetch()
   uint i;
   DBUG_ENTER("spider_db_oracle_row::fetch");
   DBUG_PRINT("info",("spider this=%p", this));
+  record_size = 0;
   for (i = 0; i < field_count; i++)
   {
     if (ind[i] == -1)
@@ -757,6 +766,7 @@ int spider_db_oracle_row::fetch()
       }
     }
     row_size[i] = val_str[i].length();
+    record_size += row_size[i];
   }
   DBUG_RETURN(0);
 }
@@ -911,6 +921,7 @@ SPIDER_DB_ROW *spider_db_oracle_result::fetch_row_from_tmp_table(
       str += row.row_size[i];
     }
   }
+  row.record_size = tmp_str2.length();
   DBUG_RETURN((SPIDER_DB_ROW *) &row);
 }
 
