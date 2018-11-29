@@ -1425,8 +1425,8 @@ lock_rec_create_low(
 		lock_t *hash	= (lock_t *)c_lock->hash;
 		lock_t *prev	= NULL;
 
-		while (hash && wsrep_thd_is_BF(((lock_t *)hash)->trx->mysql_thd, TRUE)
-		       && wsrep_thd_order_before(((lock_t *)hash)->trx->mysql_thd,
+		while (hash && wsrep_thd_is_BF(hash->trx->mysql_thd, TRUE)
+		       && wsrep_thd_order_before(hash->trx->mysql_thd,
 						 trx->mysql_thd)) {
 			prev = hash;
 			hash = (lock_t *)hash->hash;
