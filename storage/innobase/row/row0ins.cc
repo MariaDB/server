@@ -44,10 +44,7 @@ Created 4/20/1996 Heikki Tuuri
 #include "buf0lru.h"
 #include "fts0fts.h"
 #include "fts0types.h"
-#include "wsrep_api.h"
-#include "mysql/service_wsrep.h"
 #include "wsrep_mysqld.h"
-#include "mysql/service_wsrep.h"
 
 /*************************************************************************
 IMPORTANT NOTE: Any operation that generates redo MUST check that there
@@ -1809,19 +1806,13 @@ row_ins_check_foreign_constraint(
 				if (check_ref) {
 					err = DB_SUCCESS;
 #ifdef WITH_WSREP
-					wsrep_key_type key_type;
-					if (upd_node != NULL) {
-						key_type = WSREP_KEY_SHARED;
-					} else {
-						key_type = WSREP_KEY_SEMI;
-					}
 					err = wsrep_append_foreign_key(
 						thr_get_trx(thr),
 						foreign,
 						rec,
 						check_index,
 						check_ref,
-						key_type);
+						upd_node != NULL ? WSREP_KEY_SHARED : WSREP_KEY_SEMI);
 #endif /* WITH_WSREP */
 					goto end_scan;
 				} else if (foreign->type != 0) {
