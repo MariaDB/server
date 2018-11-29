@@ -30,6 +30,9 @@ Created 5/30/1994 Heikki Tuuri
 #include "fts0fts.h"
 #include "trx0sys.h"
 
+/* FIXME: move this to a proper .h file */
+extern const dtuple_t trx_undo_metadata;
+
 /*			PHYSICAL RECORD (OLD STYLE)
 			===========================
 
@@ -1895,52 +1898,10 @@ rec_copy_prefix_to_dtuple(
 }
 
 /**************************************************************//**
-Copies the first n fields of an old-style physical record
-to a new physical record in a buffer.
-@return own: copied record */
-static
-rec_t*
-rec_copy_prefix_to_buf_old(
-/*=======================*/
-	const rec_t*	rec,		/*!< in: physical record */
-	ulint		n_fields,	/*!< in: number of fields to copy */
-	ulint		area_end,	/*!< in: end of the prefix data */
-	byte**		buf,		/*!< in/out: memory buffer for
-					the copied prefix, or NULL */
-	ulint*		buf_size)	/*!< in/out: buffer size */
-{
-	rec_t*	copy_rec;
-	ulint	area_start;
-	ulint	prefix_len;
-
-	if (rec_get_1byte_offs_flag(rec)) {
-		area_start = REC_N_OLD_EXTRA_BYTES + n_fields;
-	} else {
-		area_start = REC_N_OLD_EXTRA_BYTES + 2 * n_fields;
-	}
-
-	prefix_len = area_start + area_end;
-
-	if ((*buf == NULL) || (*buf_size < prefix_len)) {
-		ut_free(*buf);
-		*buf_size = prefix_len;
-		*buf = static_cast<byte*>(ut_malloc_nokey(prefix_len));
-	}
-
-	ut_memcpy(*buf, rec - area_start, prefix_len);
-
-	copy_rec = *buf + area_start;
-
-	rec_set_n_fields_old(copy_rec, n_fields);
-
-	return(copy_rec);
-}
-
-/**************************************************************//**
 Copies the first n fields of a physical record to a new physical record in
 a buffer.
 @return own: copied record */
-rec_t*
+const rec_t*
 rec_copy_prefix_to_buf(
 /*===================*/
 	const rec_t*		rec,		/*!< in: physical record */
@@ -1952,16 +1913,105 @@ rec_copy_prefix_to_buf(
 						or NULL */
 	ulint*			buf_size)	/*!< in/out: buffer size */
 {
-	ut_ad(n_fields <= index->n_fields || dict_index_is_ibuf(index));
+	ut_ad(n_fields <= index->n_fields || index->is_ibuf());
 	ut_ad(index->n_core_null_bytes <= UT_BITS_IN_BYTES(index->n_nullable));
 	UNIV_PREFETCH_RW(*buf);
+	ut_ad(!!page_rec_is_comp(rec) == index->table->not_redundant()
+	      || index->dual_format());
 
-	if (!dict_table_is_comp(index->table)) {
+	if (!page_rec_is_comp(rec)) {
 		ut_ad(rec_validate_old(rec));
-		return(rec_copy_prefix_to_buf_old(
-			       rec, n_fields,
-			       rec_get_field_start_offs(rec, n_fields),
-			       buf, buf_size));
+		const ulint data_size = rec_get_field_start_offs(rec, n_fields);
+		ulint extra_size;
+		const bool convert = index->table->not_redundant();
+		if (convert) {
+			ut_ad(n_fields <= index->first_user_field());
+			if (UNIV_UNLIKELY(rec_is_metadata(rec, false))
+			    && page_rec_is_leaf(rec)) {
+				return reinterpret_cast<const rec_t*>(
+					&trx_undo_metadata);
+			}
+			extra_size = (REC_N_NEW_EXTRA_BYTES + 1)
+				+ index->n_core_null_bytes;
+			if (rec_get_1byte_offs_flag(rec)) {
+				for (unsigned i = index->n_uniq; i--; ) {
+					if (!index->fields[i].fixed_len) {
+						extra_size++;
+					}
+				}
+			} else {
+				for (unsigned i = index->n_uniq; i--; ) {
+					const auto& f = index->fields[i];
+					if (f.fixed_len) {
+						continue;
+					}
+					if (!DATA_BIG_COL(f.col)
+					    || rec_get_nth_field_size(rec, i)
+					    < 128) {
+						extra_size++;
+					} else {
+						extra_size += 2;
+					}
+				}
+			}
+		} else {
+			extra_size = rec_get_1byte_offs_flag(rec)
+				? REC_N_OLD_EXTRA_BYTES + n_fields
+				: REC_N_OLD_EXTRA_BYTES + 2 * n_fields;
+		}
+		const ulint size = extra_size + data_size;
+		if (!*buf || *buf_size < size) {
+			ut_free(*buf);
+			*buf_size = size;
+			*buf = static_cast<byte*>(ut_malloc_nokey(size));
+		}
+		byte* copy_rec = *buf + extra_size;
+		if (convert) {
+			memcpy(*buf, rec, data_size);
+			byte* lens = copy_rec - (REC_N_NEW_EXTRA_BYTES + 2)
+				- index->n_core_null_bytes;
+			memset(lens, 0, copy_rec - lens);
+			compile_time_assert(REC_STATUS_ORDINARY == 0);
+
+			if (rec_get_1byte_offs_flag(rec)) {
+				for (unsigned i = 0; i < n_fields; i++) {
+					auto e = rec_1_get_prev_field_end_info(
+						rec, i);
+					/* PRIMARY KEY is NOT NULL */
+					ut_ad(!(e & REC_1BYTE_SQL_NULL_MASK));
+					ut_ad(e < 128);
+					if (!index->fields[i].fixed_len) {
+						*lens-- = e;
+					}
+				}
+			} else {
+				for (unsigned i = index->n_uniq; i--; ) {
+					const auto& f = index->fields[i];
+					if (f.fixed_len) {
+						continue;
+					}
+					auto e = rec_2_get_prev_field_end_info(
+						rec, i);
+					/* PRIMARY KEY is NOT NULL and
+					always stored locally */
+					ut_ad(!(e
+						& (REC_2BYTE_SQL_NULL_MASK
+						   | REC_2BYTE_EXTERN_MASK)));
+					ut_ad(e < 16384);
+					if (e < 128 || !DATA_BIG_COL(f.col)) {
+						*lens-- = e;
+					} else {
+						*lens-- = byte(e >> 8) | 0x80U;
+						*lens-- = byte(e & 0xff);
+					}
+				}
+			}
+			ut_ad(lens + 1 == *buf);
+		} else {
+			memcpy(*buf, rec - extra_size, size);
+			rec_set_n_fields_old(copy_rec, n_fields);
+		}
+		return *buf + extra_size;
 	}
 
 	ulint		prefix_len	= 0;
