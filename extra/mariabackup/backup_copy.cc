@@ -1216,6 +1216,7 @@ copy_or_move_file(const char *src_file_path,
 
 			if (!directory_exists(dst_dir, true)) {
 				ret = false;
+				free(link_filepath);
 				goto cleanup;
 			}
 
