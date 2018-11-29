@@ -27,12 +27,7 @@ Created 2/17/1996 Heikki Tuuri
 #ifndef btr0sea_h
 #define btr0sea_h
 
-#include "univ.i"
-
-#include "rem0rec.h"
 #include "dict0dict.h"
-#include "btr0types.h"
-#include "mtr0mtr.h"
 #ifdef BTR_CUR_HASH_ADAPT
 #include "ha0ha.h"
 

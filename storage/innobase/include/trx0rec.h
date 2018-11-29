@@ -27,12 +27,9 @@ Created 3/26/1996 Heikki Tuuri
 #ifndef trx0rec_h
 #define trx0rec_h
 
-#include "univ.i"
 #include "trx0types.h"
 #include "row0types.h"
 #include "mtr0mtr.h"
-#include "dict0types.h"
-#include "data0data.h"
 #include "rem0types.h"
 #include "page0types.h"
 #include "row0log.h"

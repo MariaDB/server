@@ -28,22 +28,10 @@ Created 1/8/1996 Heikki Tuuri
 #ifndef dict0dict_h
 #define dict0dict_h
 
-#include "univ.i"
 #include "data0data.h"
-#include "data0type.h"
 #include "dict0mem.h"
-#include "dict0types.h"
 #include "fsp0fsp.h"
-#include "hash0hash.h"
-#include "mem0mem.h"
-#include "rem0types.h"
-#include "row0types.h"
-#include "trx0types.h"
-#include "ut0byte.h"
-#include "ut0mem.h"
-#include "ut0rnd.h"
 #include <deque>
-#include "fsp0fsp.h"
 #include "dict0pagecompress.h"
 
 extern bool innodb_table_stats_not_found;

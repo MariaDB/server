@@ -2,7 +2,7 @@
 
 Copyright (c) 1994, 2016, Oracle and/or its affiliates. All Rights Reserved.
 Copyright (c) 2012, Facebook Inc.
-Copyright (c) 2014, 2017, MariaDB Corporation.
+Copyright (c) 2014, 2018, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -28,12 +28,9 @@ Created 6/2/1994 Heikki Tuuri
 #ifndef btr0btr_h
 #define btr0btr_h
 
-#include "univ.i"
-
 #include "dict0dict.h"
 #include "data0data.h"
 #include "page0cur.h"
-#include "mtr0mtr.h"
 #include "btr0types.h"
 #include "gis0type.h"
 

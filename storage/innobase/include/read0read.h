@@ -26,8 +26,6 @@ Created 2/16/1997 Heikki Tuuri
 #ifndef read0read_h
 #define read0read_h
 
-#include "univ.i"
-
 #include "read0types.h"
 
 #include <algorithm>

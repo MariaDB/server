@@ -26,7 +26,6 @@ Created 2007-03-20 Sunny Bains
 #define INNOBASE_UT0RBT_H
 
 #if !defined(IB_RBT_TESTING)
-#include "univ.i"
 #include "ut0mem.h"
 #else
 #include <stdio.h>

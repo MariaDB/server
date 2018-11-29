@@ -31,7 +31,6 @@ Created December 2006 by Marko Makela
 # define UNIV_INLINE
 #endif
 
-#include "univ.i"
 #include "buf0types.h"
 
 /**********************************************************************//**

@@ -35,8 +35,6 @@ Created 1/30/1994 Heikki Tuuri
 
 /* Do not include univ.i because univ.i includes this. */
 
-#include "os0thread.h"
-
 /*************************************************************//**
 Report a failed assertion. */
 ATTRIBUTE_NORETURN ATTRIBUTE_COLD __attribute__((nonnull(2)))

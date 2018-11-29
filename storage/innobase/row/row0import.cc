@@ -28,6 +28,7 @@ Created 2012-02-08 by Sunny Bains.
 #include "btr0pcur.h"
 #include "que0que.h"
 #include "dict0boot.h"
+#include "dict0load.h"
 #include "ibuf0ibuf.h"
 #include "pars0pars.h"
 #include "row0upd.h"

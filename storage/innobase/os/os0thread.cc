@@ -25,7 +25,6 @@ Created 9/8/1995 Heikki Tuuri
 *******************************************************/
 
 #include "univ.i"
-#include "os0thread.h"
 #include "srv0srv.h"
 
 /** Number of threads active. */

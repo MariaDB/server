@@ -3,13 +3,7 @@
 #ifndef btr0scrub_h
 #define btr0scrub_h
 
-#include "univ.i"
-
 #include "dict0dict.h"
-#include "data0data.h"
-#include "page0cur.h"
-#include "mtr0mtr.h"
-#include "btr0types.h"
 
 /**
  * enum describing page allocation status

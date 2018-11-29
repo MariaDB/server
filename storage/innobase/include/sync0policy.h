@@ -27,10 +27,8 @@ Created 2012-08-21 Sunny Bains.
 #ifndef sync0policy_h
 #define sync0policy_h
 
-#include "univ.i"
 #include "ut0rnd.h"
 #include "os0thread.h"
-#include "sync0types.h"
 #include "srv0mon.h"
 
 #ifdef UNIV_DEBUG

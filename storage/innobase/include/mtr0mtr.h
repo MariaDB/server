@@ -28,7 +28,6 @@ Created 11/26/1995 Heikki Tuuri
 #ifndef mtr0mtr_h
 #define mtr0mtr_h
 
-#include "univ.i"
 #include "log0types.h"
 #include "mtr0types.h"
 #include "buf0types.h"

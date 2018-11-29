@@ -1,7 +1,7 @@
 /*****************************************************************************
 
 Copyright (c) 1994, 2016, Oracle and/or its affiliates. All Rights Reserved.
-Copyright (c) 2017, MariaDB Corporation.
+Copyright (c) 2017, 2018, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -27,9 +27,7 @@ Created 6/9/1994 Heikki Tuuri
 #ifndef mem0mem_h
 #define mem0mem_h
 
-#include "univ.i"
 #include "ut0mem.h"
-#include "ut0byte.h"
 #include "ut0rnd.h"
 #include "mach0data.h"
 

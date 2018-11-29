@@ -27,16 +27,11 @@ Created 10/13/2010 Jimmy Yang
 #ifndef row0ftsort_h
 #define row0ftsort_h
 
-#include "univ.i"
 #include "data0data.h"
-#include "dict0types.h"
-#include "row0mysql.h"
 #include "fts0fts.h"
-#include "fts0types.h"
 #include "fts0priv.h"
 #include "row0merge.h"
 #include "btr0bulk.h"
-#include "os0thread.h"
 
 /** This structure defineds information the scan thread will fetch
 and put to the linked list for parallel tokenization/sort threads

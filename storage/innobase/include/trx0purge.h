@@ -27,14 +27,9 @@ Created 3/26/1996 Heikki Tuuri
 #ifndef trx0purge_h
 #define trx0purge_h
 
-#include "univ.i"
-#include "trx0types.h"
-#include "mtr0mtr.h"
 #include "trx0sys.h"
 #include "que0types.h"
 #include "page0page.h"
-#include "fil0fil.h"
-#include "read0types.h"
 
 #include <queue>
 

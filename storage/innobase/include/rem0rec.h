@@ -28,7 +28,6 @@ Created 5/30/1994 Heikki Tuuri
 #define rem0rec_h
 
 #ifndef UNIV_INNOCHECKSUM
-#include "univ.i"
 #include "data0data.h"
 #include "rem0types.h"
 #include "mtr0types.h"

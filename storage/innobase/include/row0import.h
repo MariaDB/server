@@ -27,7 +27,6 @@ Created 2012-02-08 by Sunny Bains
 #ifndef row0import_h
 #define row0import_h
 
-#include "univ.i"
 #include "dict0types.h"
 
 // Forward declarations

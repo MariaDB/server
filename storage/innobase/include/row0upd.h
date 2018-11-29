@@ -27,11 +27,9 @@ Created 12/27/1996 Heikki Tuuri
 #ifndef row0upd_h
 #define row0upd_h
 
-#include "univ.i"
 #include "data0data.h"
 #include "row0types.h"
 #include "btr0types.h"
-#include "dict0types.h"
 #include "trx0types.h"
 #include "btr0pcur.h"
 #include "que0types.h"

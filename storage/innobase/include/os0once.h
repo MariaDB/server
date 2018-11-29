@@ -28,7 +28,6 @@ Created Feb 20, 2014 Vasil Dimov
 #define os0once_h
 
 #include "univ.i"
-
 #include "ut0ut.h"
 
 /** Execute a given function exactly once in a multi-threaded environment

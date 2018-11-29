@@ -1,7 +1,7 @@
 /*****************************************************************************
 
 Copyright (c) 1996, 2016, Oracle and/or its affiliates. All Rights Reserved.
-Copyright (c) 2017, MariaDB Corporation.
+Copyright (c) 2017, 2018, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -27,14 +27,9 @@ Created 2/23/1996 Heikki Tuuri
 #ifndef btr0pcur_h
 #define btr0pcur_h
 
-#include "univ.i"
 #include "dict0dict.h"
-#include "data0data.h"
-#include "mtr0mtr.h"
-#include "page0cur.h"
 #include "btr0cur.h"
 #include "btr0btr.h"
-#include "btr0types.h"
 #include "gis0rtree.h"
 
 /* Relative positions for a stored cursor position */

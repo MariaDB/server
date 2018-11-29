@@ -28,8 +28,6 @@ Created 11/28/1995 Heikki Tuuri
 
 #ifndef UNIV_INNOCHECKSUM
 
-#include "univ.i"
-
 #include "fil0fil.h"
 #include "mtr0mtr.h"
 

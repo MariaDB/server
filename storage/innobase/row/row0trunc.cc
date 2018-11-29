@@ -29,6 +29,7 @@ Created 2013-04-12 Sunny Bains
 #include "btr0pcur.h"
 #include "dict0crea.h"
 #include "dict0boot.h"
+#include "dict0load.h"
 #include "dict0stats.h"
 #include "dict0stats_bg.h"
 #include "lock0lock.h"

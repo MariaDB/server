@@ -24,7 +24,6 @@ Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA
 #include <mysys_err.h>
 #include "common.h"
 #include "datasink.h"
-#include "univ.i"
 #include "fsp0fsp.h"
 #ifdef _WIN32
 #include <winioctl.h>

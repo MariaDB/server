@@ -1,7 +1,7 @@
 /*****************************************************************************
 
 Copyright (c) 2014, 2016, Oracle and/or its affiliates. All Rights Reserved.
-Copyright (c) 2017, MariaDB Corporation.
+Copyright (c) 2017, 2018, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -27,23 +27,6 @@ Created 2013/03/27 Jimmy Yang and Allen Lai
 #ifndef gis0rtree_h
 #define gis0rtree_h
 
-#include "univ.i"
-
-#include "data0type.h"
-#include "data0types.h"
-#include "dict0types.h"
-#include "hash0hash.h"
-#include "mem0mem.h"
-#include "page0page.h"
-#include "rem0types.h"
-#include "row0types.h"
-#include "trx0types.h"
-#include "ut0vec.h"
-#include "ut0wqueue.h"
-#include "que0types.h"
-#include "gis0geo.h"
-#include "gis0type.h"
-#include "btr0types.h"
 #include "btr0cur.h"
 
 /* Whether MBR 'a' contains 'b' */

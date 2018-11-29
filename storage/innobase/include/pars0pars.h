@@ -27,7 +27,6 @@ Created 11/19/1996 Heikki Tuuri
 #ifndef pars0pars_h
 #define pars0pars_h
 
-#include "univ.i"
 #include "que0types.h"
 #include "pars0types.h"
 #include "row0types.h"

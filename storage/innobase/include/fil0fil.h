@@ -26,7 +26,6 @@ Created 10/25/1995 Heikki Tuuri
 
 #ifndef fil0fil_h
 #define fil0fil_h
-#include "univ.i"
 
 #ifndef UNIV_INNOCHECKSUM
 
@@ -453,6 +452,8 @@ enum fil_encryption_t {
 	FIL_ENCRYPTION_OFF
 };
 
+#ifndef UNIV_INNOCHECKSUM
+
 /** The number of fsyncs done to the log */
 extern ulint	fil_n_log_flushes;
 
@@ -460,8 +461,6 @@ extern ulint	fil_n_log_flushes;
 extern ulint	fil_n_pending_log_flushes;
 /** Number of pending tablespace flushes */
 extern ulint	fil_n_pending_tablespace_flushes;
-
-#ifndef UNIV_INNOCHECKSUM
 
 /** Look up a tablespace.
 The caller should hold an InnoDB table lock or a MDL that prevents
