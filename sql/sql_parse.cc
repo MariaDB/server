@@ -6504,6 +6504,7 @@ finish:
     transaction as empty.
   */
   if (!thd->in_active_multi_stmt_transaction() &&
+      !thd->in_sub_stmt &&
       thd->wsrep_trx().active() &&
       thd->wsrep_trx().state() == wsrep::transaction::s_executing)
   {
