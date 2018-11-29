@@ -381,6 +381,12 @@ log_online_setup_bitmap_file_range(
 
 			msg("InnoDB: Error: inconsistent bitmap file "
 			    "directory\n");
+
+			if (UNIV_UNLIKELY(os_file_closedir(bitmap_dir))) {
+				os_file_get_last_error(TRUE);
+				msg("InnoDB: Error: cannot close \'%s\'\n", srv_data_home);
+			}
+
 			free(bitmap_files->files);
 			return FALSE;
 		}
