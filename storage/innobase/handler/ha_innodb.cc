@@ -12514,8 +12514,6 @@ int create_table_info_t::create_table(bool create_fk)
 	int		primary_key_no;
 	uint		i;
 	dict_table_t*	innobase_table = NULL;
-	const char*	stmt;
-	size_t		stmt_len;
 
 	DBUG_ENTER("create_table");
 
@@ -12596,9 +12594,7 @@ int create_table_info_t::create_table(bool create_fk)
 			dict_table_close(innobase_table, TRUE, FALSE);
 			my_error(ER_WRONG_NAME_FOR_INDEX, MYF(0),
 				 FTS_DOC_ID_INDEX_NAME);
-			m_drop_before_rollback = false;
-			error = -1;
-			DBUG_RETURN(error);
+			DBUG_RETURN(-1);
 		case FTS_EXIST_DOC_ID_INDEX:
 		case FTS_NOT_EXIST_DOC_ID_INDEX:
 			break;
@@ -12638,15 +12634,28 @@ int create_table_info_t::create_table(bool create_fk)
 		dict_table_get_all_fts_indexes(innobase_table, fts->indexes);
 	}
 
-	stmt = innobase_get_stmt_unsafe(m_thd, &stmt_len);
-
-	if (stmt) {
-		dberr_t	err = row_table_add_foreign_constraints(
-			create_fk ? m_trx : NULL, stmt, stmt_len, m_table_name,
-			m_create_info->options & HA_LEX_CREATE_TMP_TABLE);
+	size_t stmt_len;
+	if (const char* stmt = innobase_get_stmt_unsafe(m_thd, &stmt_len)) {
+		dberr_t err = create_fk
+			? dict_create_foreign_constraints(
+				m_trx, stmt, stmt_len, m_table_name,
+				m_flags2 & DICT_TF2_TEMPORARY)
+			: DB_SUCCESS;
+		if (err == DB_SUCCESS) {
+			/* Check that also referencing constraints are ok */
+			dict_names_t	fk_tables;
+			err = dict_load_foreigns(m_table_name, NULL,
+						 false, true,
+						 DICT_ERR_IGNORE_NONE,
+						 fk_tables);
+			while (err == DB_SUCCESS && !fk_tables.empty()) {
+				dict_load_table(fk_tables.front(), true,
+						DICT_ERR_IGNORE_NONE);
+				fk_tables.pop_front();
+			}
+		}
 
 		switch (err) {
-
 		case DB_PARENT_NO_INDEX:
 			push_warning_printf(
 				m_thd, Sql_condition::WARN_LEVEL_WARN,
@@ -12679,13 +12688,9 @@ int create_table_info_t::create_table(bool create_fk)
 			break;
 		}
 
-		error = convert_error_code_to_mysql(err, m_flags, NULL);
-
-		if (error) {
-			/* row_table_add_foreign_constraints() dropped
-			the table */
-			m_drop_before_rollback = false;
-			DBUG_RETURN(error);
+		if (err != DB_SUCCESS) {
+			DBUG_RETURN(convert_error_code_to_mysql(
+					    err, m_flags, NULL));
 		}
 	}
 
