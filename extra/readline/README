@@ -10,7 +10,7 @@ additional functions to maintain a list of previously-entered command
 lines, to recall and perhaps reedit those lines, and perform csh-like
 history expansion on previous commands.
 
-The history facilites are also placed into a separate library, the
+The history facilities are also placed into a separate library, the
 History library, as part of the build process.  The History library
 may be used without Readline in applications which desire its
 capabilities.
@@ -76,65 +76,62 @@ instance, FreeBSD 4.2 with any version of gcc is identified as
 In the stanza for your operating system-compiler pair, you will need to
 define several variables.  They are:
 
-SHOBJ_CC	The C compiler used to compile source files into shareable
-		object files.  This is normally set to the value of ${CC}
-		by configure, and should not need to be changed.
+SHOBJ_CC    The C compiler used to compile source files into shareable
+        object files.  This is normally set to the value of ${CC}
+        by configure, and should not need to be changed.
 
-SHOBJ_CFLAGS	Flags to pass to the C compiler ($SHOBJ_CC) to create
-		position-independent code.  If you are using gcc, this
-		should probably be set to `-fpic'.
+SHOBJ_CFLAGS    Flags to pass to the C compiler ($SHOBJ_CC) to create
+        position-independent code.  If you are using gcc, this
+        should probably be set to `-fpic'.
 
-SHOBJ_LD	The link editor to be used to create the shared library from
-		the object files created by $SHOBJ_CC.  If you are using
-		gcc, a value of `gcc' will probably work.
+SHOBJ_LD    The link editor to be used to create the shared library from
+        the object files created by $SHOBJ_CC.  If you are using
+        gcc, a value of `gcc' will probably work.
 
-SHOBJ_LDFLAGS	Flags to pass to SHOBJ_LD to enable shared object creation.
-		If you are using gcc, `-shared' may be all that is necessary.
-		These should be the flags needed for generic shared object
-		creation.
+SHOBJ_LDFLAGS    Flags to pass to SHOBJ_LD to enable shared object creation.
+        If you are using gcc, `-shared' may be all that is necessary.
+        These should be the flags needed for generic shared object
+        creation.
 
-SHLIB_XLDFLAGS	Additional flags to pass to SHOBJ_LD for shared library
-		creation.  Many systems use the -R option to the link
-		editor to embed a path within the library for run-time
-		library searches.  A reasonable value for such systems would
-		be `-R$(libdir)'.
+SHLIB_XLDFLAGS    Additional flags to pass to SHOBJ_LD for shared library
+        creation.  Many systems use the -R option to the link-editor to embed a path within the library for run-time
+        library searches.  A reasonable value for such systems would be `-R$(libdir)'.
 
-SHLIB_LIBS	Any additional libraries that shared libraries should be
-		linked against when they are created.
+SHLIB_LIBS    Any additional libraries that shared libraries should be
+        linked against when they are created.
 
-SHLIB_LIBPREF	The prefix to use when generating the filename of the shared
-		library.  The default is `lib'; Cygwin uses `cyg'.
+SHLIB_LIBPREF    The prefix to use when generating the filename of the shared
+        library.  The default is `lib'; Cygwin uses `cyg'.
 
-SHLIB_LIBSUFF	The suffix to add to `libreadline' and `libhistory' when
-		generating the filename of the shared library.  Many systems
-		use `so'; HP-UX uses `sl'.
+SHLIB_LIBSUFF    The suffix to add to `libreadline' and `libhistory' when
+        generating the filename of the shared library.  Many systems
+        use `so'; HP-UX uses `sl'.
 
 SHLIB_LIBVERSION The string to append to the filename to indicate the version
-		of the shared library.  It should begin with $(SHLIB_LIBSUFF),
-		and possibly include version information that allows the
-		run-time loader to load the version of the shared library
-		appropriate for a particular program.  Systems using shared
-		libraries similar to SunOS 4.x use major and minor library
-		version numbers; for those systems a value of
-		`$(SHLIB_LIBSUFF).$(SHLIB_MAJOR)$(SHLIB_MINOR)' is appropriate.
-		Systems based on System V Release 4 don't use minor version
-		numbers; use `$(SHLIB_LIBSUFF).$(SHLIB_MAJOR)' on those systems.
-		Other Unix versions use different schemes.
+        of the shared library.  It should begin with $(SHLIB_LIBSUFF),
+        and possibly include version information that allows the
+        run-time loader to load the version of the shared library
+        appropriate for a particular program.  Systems using shared
+        libraries similar to SunOS 4.x use major and minor library
+        version numbers; for those systems a value of
+        `$(SHLIB_LIBSUFF).$(SHLIB_MAJOR)$(SHLIB_MINOR)' is appropriate.
+        Systems based on System V Release 4 don't use minor version
+        numbers; use `$(SHLIB_LIBSUFF).$(SHLIB_MAJOR)' on those systems.
+        Other Unix versions use different schemes.
 
 SHLIB_DLLVERSION The version number for shared libraries that determines API
-		compatibility between readline versions and the underlying
-		system.  Used only on Cygwin.  Defaults to $SHLIB_MAJOR, but
-		can be overridden at configuration time by defining DLLVERSION
-		in the environment.
+        compatibility between readline versions and the underlying
+        system.  Used only on Cygwin.  Defaults to $SHLIB_MAJOR, but
+        can be overridden at configuration time by defining DLL VERSION
+        in the environment.
 
-SHLIB_DOT	The character used to separate the name of the shared library
-		from the suffix and version information.  The default is `.';
-		systems like Cygwin which don't separate version information
-		from the library name should set this to the empty string.
+SHLIB_DOT    The character used to separate the name of the shared library
+        from the suffix and version information.  The default is `.';
+        systems like Cygwin which don't separate version information from the library name should set this to the empty string.
 
-SHLIB_STATUS	Set this to `supported' when you have defined the other
-		necessary variables.  Make uses this to determine whether
-		or not shared library creation should be attempted.
+SHLIB_STATUS    Set this to `supported' when you have defined the other
+        necessary variables.  Make uses this to determine whether
+        or not shared library creation should be attempted.
 
 You should look at the existing stanzas in support/shobj-conf for ideas.
 
@@ -183,4 +180,4 @@ list (mirrored to the Usenet newsgroup gnu.bash.bug) often contains
 Readline bug reports and fixes. 
 
 Chet Ramey
-chet.ramey@case.edu
+chet.ramey@case.ed
