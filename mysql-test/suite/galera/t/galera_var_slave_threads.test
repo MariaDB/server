@@ -44,10 +44,10 @@ SELECT COUNT(*) = 1 FROM t1;
 #
 # note, in wsrep API #26, we have 2 rollbacker threads, counted as system user's
 #
-SELECT COUNT(*) = @@wsrep_slave_threads + 2 FROM INFORMATION_SCHEMA.PROCESSLIST WHERE USER = 'system user' AND COMMAND != 'Daemon';
+
 SELECT COUNT(*) = 1 FROM INFORMATION_SCHEMA.PROCESSLIST WHERE USER = 'system user' AND STATE LIKE '%wsrep aborter%';
 
---let $wait_condition = SELECT COUNT(*) = @@wsrep_slave_threads + 2 FROM INFORMATION_SCHEMA.PROCESSLIST WHERE USER = 'system user' AND (STATE IS NULL OR STATE NOT LIKE 'InnoDB%');
+--let $wait_condition = SELECT VARIABLE_VALUE = @@wsrep_slave_threads + 2 FROM INFORMATION_SCHEMA.GLOBAL_STATUS WHERE VARIABLE_NAME = 'wsrep_thread_count';
 --source include/wait_condition.inc
 
 #
@@ -73,18 +73,17 @@ while ($count)
 --connection node_2
 SELECT COUNT(*) = 64 FROM t2;
 
-SELECT COUNT(*) = @@wsrep_slave_threads + 2 FROM INFORMATION_SCHEMA.PROCESSLIST WHERE USER = 'system user' AND COMMAND != 'Daemon';
 SELECT COUNT(*) = 1 FROM INFORMATION_SCHEMA.PROCESSLIST WHERE USER = 'system user' AND STATE LIKE '%wsrep aborter%';
 
---let $wait_condition = SELECT COUNT(*) = @@wsrep_slave_threads + 2 FROM INFORMATION_SCHEMA.PROCESSLIST WHERE USER = 'system user' AND (STATE IS NULL OR STATE NOT LIKE 'InnoDB%')
+--let $wait_condition = SELECT VARIABLE_VALUE = @@wsrep_slave_threads + 2 FROM INFORMATION_SCHEMA.GLOBAL_STATUS WHERE VARIABLE_NAME = 'wsrep_thread_count';
 --source include/wait_condition.inc
-SELECT COUNT(*) FROM INFORMATION_SCHEMA.PROCESSLIST WHERE USER = 'system user' AND STATE LIKE '%wsrep aborter%';
 
 --let $wsrep_cluster_address_node2 = `SELECT @@wsrep_cluster_address`
 --let $wsrep_provider_node2 = `SELECT @@wsrep_provider`
 
 SET GLOBAL wsrep_slave_threads = 5;
---let $wait_condition = SELECT COUNT(*) = @@wsrep_slave_threads + 2 FROM INFORMATION_SCHEMA.PROCESSLIST WHERE USER = 'system user' AND COMMAND != 'Daemon'
+
+--let $wait_condition = SELECT VARIABLE_VALUE = @@wsrep_slave_threads + 2 FROM INFORMATION_SCHEMA.GLOBAL_STATUS WHERE VARIABLE_NAME = 'wsrep_thread_count';
 --source include/wait_condition.inc
 
 SET GLOBAL wsrep_slave_threads = 1;
@@ -100,13 +99,14 @@ SET GLOBAL wsrep_slave_threads = 1;
 
 # wait until node_1 is ready as one node cluster
 --connection node_1
---let $wait_condition = SELECT VARIABLE_VALUE = 1 FROM INFORMATION_SCHEMA.GLOBAL_STATUS WHERE VARIABLE_NAME = 'wsrep_cluster_size'
+
+--let $wait_condition = SELECT VARIABLE_VALUE = @@wsrep_slave_threads + 2 FROM INFORMATION_SCHEMA.GLOBAL_STATUS WHERE VARIABLE_NAME = 'wsrep_thread_count';
 --source include/wait_condition.inc
 show status like 'wsrep_cluster_size';
 
 # step up slave threads to 6, and make sure all appliers and rollbacker thread are running
 SET GLOBAL wsrep_slave_threads = 6;
---let $wait_condition = SELECT COUNT(*) = @@wsrep_slave_threads + 2 FROM INFORMATION_SCHEMA.PROCESSLIST WHERE USER = 'system user' AND COMMAND != 'Daemon'
+--let $wait_condition = SELECT VARIABLE_VALUE = @@wsrep_slave_threads + 2 FROM INFORMATION_SCHEMA.GLOBAL_STATUS WHERE VARIABLE_NAME = 'wsrep_thread_count';
 --source include/wait_condition.inc
 
 # change to invalid cluster address
@@ -123,7 +123,7 @@ SET GLOBAL wsrep_cluster_address='gcomm://';
 
 # test if we can increase applier count now (fails in bug #319)
 SET GLOBAL wsrep_slave_threads = 10;
---let $wait_condition = SELECT COUNT(*) = @@wsrep_slave_threads + 2 FROM INFORMATION_SCHEMA.PROCESSLIST WHERE USER = 'system user' AND COMMAND != 'Daemon'
+--let $wait_condition = SELECT VARIABLE_VALUE = @@wsrep_slave_threads + 2 FROM INFORMATION_SCHEMA.GLOBAL_STATUS WHERE VARIABLE_NAME = 'wsrep_thread_count';
 --source include/wait_condition.inc
 
 # restart node 2
@@ -143,6 +143,9 @@ SELECT COUNT(*) = @@wsrep_slave_threads + 2 FROM INFORMATION_SCHEMA.PROCESSLIST 
 --connection node_2
 --eval SET GLOBAL wsrep_slave_threads = $wsrep_slave_threads_orig
 
+
+--disable_result_log
+--disable_query_log
 # Generate 64 replication events, to help node 1 to purge excessive applier threads
 --let $count = 64
 while ($count)
@@ -150,8 +153,12 @@ while ($count)
   INSERT INTO t2 VALUES (DEFAULT);
   --dec $count
 }
+--enable_query_log
+--enable_result_log
 
 --connection node_1
+--disable_result_log
+--disable_query_log
 # Generate 64 replication events, to help node 2 to purge excessive applier threads
 --let $count = 64
 while ($count)
@@ -159,13 +166,15 @@ while ($count)
   INSERT INTO t2 VALUES (DEFAULT);
   --dec $count
 }
+--enable_query_log
+--enable_result_log
 
---let $wait_condition = SELECT COUNT(*) = @@wsrep_slave_threads + 2 FROM INFORMATION_SCHEMA.PROCESSLIST WHERE USER = 'system user' AND COMMAND != 'Daemon'
+--let $wait_condition = SELECT VARIABLE_VALUE = @@wsrep_slave_threads + 2 FROM INFORMATION_SCHEMA.GLOBAL_STATUS WHERE VARIABLE_NAME = 'wsrep_thread_count';
 --source include/wait_condition.inc
 
 
 --connection node_2
---let $wait_condition = SELECT COUNT(*) = @@wsrep_slave_threads + 2 FROM INFORMATION_SCHEMA.PROCESSLIST WHERE USER = 'system user' AND COMMAND != 'Daemon'
+--let $wait_condition = SELECT VARIABLE_VALUE = @@wsrep_slave_threads + 2 FROM INFORMATION_SCHEMA.GLOBAL_STATUS WHERE VARIABLE_NAME = 'wsrep_thread_count';
 --source include/wait_condition.inc
 
 DROP TABLE t1;
