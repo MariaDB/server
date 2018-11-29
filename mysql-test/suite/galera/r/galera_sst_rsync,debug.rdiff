@@ -1,6 +1,14 @@
---- galera_sst_rsync.result
-+++ galera_sst_rsync,debug.reject
-@@ -284,3 +284,111 @@
+--- galera_sst_rsync.result	2018-11-21 18:14:26.125258909 +0100
++++ galera_sst_rsync,debug.reject	2018-11-29 18:07:44.596107999 +0100
+@@ -1,5 +1,7 @@
+ connection node_2;
+ connection node_1;
++connection node_1;
++connection node_2;
+ Performing State Transfer on a server that has been shut down cleanly and restarted
+ connection node_1;
+ CREATE TABLE t1 (f1 CHAR(255)) ENGINE=InnoDB;
+@@ -286,3 +288,111 @@
  DROP TABLE t1;
  COMMIT;
  SET AUTOCOMMIT=ON;
