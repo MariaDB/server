@@ -1242,8 +1242,8 @@ page_delete_rec_list_start(
 
 	rec_offs_init(offsets_);
 
-	ut_ad((ibool) !!page_rec_is_comp(rec)
-	      == dict_table_is_comp(index->table));
+	ut_ad(!!page_rec_is_comp(rec) == index->table->not_redundant()
+	      || index->dual_format());
 #ifdef UNIV_ZIP_DEBUG
 	{
 		page_zip_des_t*	page_zip= buf_block_get_page_zip(block);

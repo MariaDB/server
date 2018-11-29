@@ -2130,10 +2130,10 @@ page_copy_rec_list_end_to_created_page(
 			/* TODO: ensure that we trim CHAR columns that
 			use variable-width character set encoding and that
 			we store no BLOB prefix in ROW_FORMAT=DYNAMIC */
-			rec_t* insert_rec = page_cur_tuple_insert(
+			cursor.rec = page_cur_tuple_insert(
 				&cursor, dtuple, index, &offsets,
 				&row_heap, n_ext, mtr);
-			if (!insert_rec) {
+			if (!cursor.rec) {
 				ut_ad(!"page overflow");
 			}
 
