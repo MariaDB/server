@@ -1,29 +1,29 @@
-File   : README
-Author : Richard A. O'Keefe.
+File: README
+Author: Richard A. O'Keefe.
 Updated: 30 April 1984
 Purpose: Explain the new strings package.
 
     The UNIX string libraries (described in the string(3) manual page)
 differ from UNIX to UNIX (e.g. strtok is not in V7 or 4.1bsd).  Worse,
 the sources are not in the public domain, so that if there is a string
-routine which is nearly what you want but not quite you can't  take  a
-copy  and  modify it.  And of course C programmers on non-UNIX systems
+routine which is nearly what you want but not quite you can't take a
+copy and modify it.  And of course, C programmers on non-UNIX systems
 are at the mercy of their supplier.
 
     This package was designed to let me do reasonable things with  C's
-strings  whatever UNIX (V7, PaNiX, UX63, 4.1bsd) I happen to be using.
+strings whatever UNIX (V7, PaNiX, UX63, 4.1bsd) I happen to be using.
 Everything in the System III manual is here and does just what the  S3
-manual  says  it does.  There are also lots of new goodies.  I'm sorry
-about the names, but the routines do have to work  on  asphyxiated-at-
-birth  systems  which  truncate identifiers.  The convention is that a
+manual says it does.  There are also lots of new goodies.  I'm sorry
+about the names, but the routines do have to work on asphyxiated-at-
+which truncate identifiers.  The convention is that a
 routine is called
  str [n] [c] <operation>
 If there is an "n", it means that the function takes an (int) "length"
-argument, which bounds the number of characters to be moved or  looked
+argument, which bounds the number of characters to be moved or looked
 at.  If the function has a "set" argument, a "c" in the name indicates
-that  the complement of the set is used.  Functions or variables whose
-names start with _ are support routines which aren't really meant  for
-general  use.  I don't know what the "p" is doing in "strpbrk", but it
+that the complement of the set is used.  Functions or variables whose
+names start with _ are support routines which aren't really meant for
+general use.  I don't know what the "p" is doing in "strpbrk", but it
 is there in the S3 manual so it's here too.  "istrtok" does not follow
 this rule, but with 7 letters what can you do?
 
@@ -48,13 +48,13 @@ will be short, define VaxAsm in the makefile, but in general, and when
 using other machines, do not define it.
 
     To use this library, you need the "strings.a" library file and the
-"strings.h" and "ctypes.h" header files.  The other header  files  are
+"strings.h" and "ctypes.h" header files.  The other header files are
 for compiling the library itself, though if you are hacking extensions
-you  may  find  them useful.  General users really shouldn't see them.
+you  might find them useful.  General users really shouldn't see them.
 I've defined a few macros I find useful in "strings.h"; if you have no
 need for "index", "rindex", "streql", and "beql", just edit them  out.
-On the 4.1bsd system I am using declaring all these functions 'extern'
-does not mean that they will all be loaded; but only the ones you use.
+On the 4.1bsd system, I am using declaring all these functions 'extern'
+does not mean that they will all be loaded, but only the ones you use.
 When using lesser systems you may find it necessary to break strings.h
 up, or you could get by with just adding "extern" declarations for the
 functions you want as you need them.  Many of these functions have the
@@ -73,10 +73,9 @@ don't happen to have put it in nroff -man form.   Had I done so, the .3
 files would have outbulked the .c files!
 
     These files are in the public domain.  This includes getopt.c, which
-is the work of Henry Spencer, University of Toronto Zoology, who says of
+is the work of Henry Spencer, the University of Toronto Zoology, who says of
 it "None of this software is derived from Bell software. I had no access
 to the source for Bell's versions at the time I wrote it.  This software
 is hereby explicitly placed in the public domain.  It may  be  used  for
 any purpose on any machine by anyone." I would greatly prefer it if *my*
 material received no military use.
-
