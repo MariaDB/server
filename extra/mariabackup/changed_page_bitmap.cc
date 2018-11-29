@@ -381,6 +381,7 @@ log_online_setup_bitmap_file_range(
 
 			msg("InnoDB: Error: inconsistent bitmap file "
 			    "directory\n");
+			os_file_closedir(bitmap_dir);
 			free(bitmap_files->files);
 			return FALSE;
 		}
