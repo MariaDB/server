@@ -1547,7 +1547,7 @@ instant_alter_column_possible(
 
 	if (ha_alter_info->handler_flags & ALTER_COLUMN_NULLABLE) {
 		if (ib_table.not_redundant()) {
-#if 1 // FIXME: remove this
+#if 0 // FIXME: remove this
 			return false;
 #else // FIXME: Rebuild the affected indexes, not the whole table!
 			return ib_table.indexes.count == 1;

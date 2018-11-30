@@ -1,16 +1,6 @@
---source include/have_innodb.inc
+--source include/innodb_row_format.inc
 
 create table t (a int NOT NULL) engine=innodb row_format=   compressed;
---error ER_ALTER_OPERATION_NOT_SUPPORTED
-alter table t modify a int NULL, algorithm=instant;
-drop table t;
-
-create table t (a int NOT NULL) engine=innodb row_format=   dynamic;
---error ER_ALTER_OPERATION_NOT_SUPPORTED
-alter table t modify a int NULL, algorithm=instant;
-drop table t;
-
-create table t (a int NOT NULL) engine=innodb row_format=   compact;
 --error ER_ALTER_OPERATION_NOT_SUPPORTED
 alter table t modify a int NULL, algorithm=instant;
 drop table t;
@@ -19,9 +9,8 @@ create table t (
   id int primary key,
   a int NOT NULL default 0,
   b int NOT NULL default 0,
-  c int NOT NULL default 0,
-  index idx (a,b,c)
-) engine=innodb row_format=redundant;
+  c int NOT NULL default 0
+) engine=innodb;
 
 --error ER_BAD_NULL_ERROR
 insert into t (id, a) values (0, NULL);
