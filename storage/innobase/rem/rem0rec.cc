@@ -1931,7 +1931,7 @@ rec_copy_prefix_to_buf(
 			    && page_rec_is_leaf(rec)) {
 				return &rec_prefix_metadata;
 			}
-			extra_size = (REC_N_NEW_EXTRA_BYTES + 1)
+			extra_size = (REC_N_NEW_EXTRA_BYTES + 2)
 				+ index->n_core_null_bytes;
 			if (rec_get_1byte_offs_flag(rec)) {
 				for (unsigned i = index->n_uniq; i--; ) {
@@ -1967,7 +1967,7 @@ rec_copy_prefix_to_buf(
 		}
 		byte* copy_rec = *buf + extra_size;
 		if (convert) {
-			memcpy(*buf, rec, data_size);
+			memcpy(copy_rec, rec, data_size);
 			byte* lens = copy_rec - (REC_N_NEW_EXTRA_BYTES + 2)
 				- index->n_core_null_bytes;
 			memset(lens, 0, copy_rec - lens);
@@ -2006,7 +2006,7 @@ rec_copy_prefix_to_buf(
 					}
 				}
 			}
-			ut_ad(lens + 1 == *buf);
+			ut_ad(lens == *buf);
 		} else {
 			memcpy(*buf, rec - extra_size, size);
 			rec_set_n_fields_old(copy_rec, n_fields);
