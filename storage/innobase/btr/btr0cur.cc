@@ -3923,7 +3923,8 @@ btr_cur_update_in_place_log(
 	byte*		log_ptr;
 	const page_t*	page	= page_align(rec);
 	ut_ad(flags < 256);
-	ut_ad(!!page_is_comp(page) == dict_table_is_comp(index->table));
+	ut_ad(!!page_is_comp(page) == index->table->not_redundant()
+	      || index->dual_format());
 
 	log_ptr = mlog_open_and_write_index(mtr, rec, index, page_is_comp(page)
 					    ? MLOG_COMP_REC_UPDATE_IN_PLACE
@@ -4175,7 +4176,8 @@ btr_cur_update_in_place(
 	rec = btr_cur_get_rec(cursor);
 	index = cursor->index;
 	ut_ad(rec_offs_validate(rec, index, offsets));
-	ut_ad(!!page_rec_is_comp(rec) == dict_table_is_comp(index->table));
+	ut_ad(!!page_rec_is_comp(rec) == index->table->not_redundant()
+	      || index->dual_format());
 	ut_ad(trx_id > 0 || (flags & BTR_KEEP_SYS_FLAG));
 	/* The insert buffer tree should never be updated in place. */
 	ut_ad(!dict_index_is_ibuf(index));
@@ -4425,7 +4427,8 @@ btr_cur_optimistic_update(
 	rec = btr_cur_get_rec(cursor);
 	index = cursor->index;
 	ut_ad(trx_id > 0 || (flags & BTR_KEEP_SYS_FLAG));
-	ut_ad(!!page_rec_is_comp(rec) == dict_table_is_comp(index->table));
+	ut_ad(!!page_rec_is_comp(rec) == index->table->not_redundant()
+	      || index->dual_format());
 	ut_ad(mtr_memo_contains(mtr, block, MTR_MEMO_PAGE_X_FIX));
 	/* This is intended only for leaf page updates */
 	ut_ad(page_is_leaf(page));
