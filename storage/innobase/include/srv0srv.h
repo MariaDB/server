@@ -42,19 +42,16 @@ Created 10/10/1995 Heikki Tuuri
 #ifndef srv0srv_h
 #define srv0srv_h
 
-#include "univ.i"
-
-#include "mysql/psi/mysql_stage.h"
-#include "mysql/psi/psi.h"
-
 #include "log0log.h"
 #include "os0event.h"
 #include "que0types.h"
 #include "trx0types.h"
 #include "srv0conc.h"
 #include "buf0checksum.h"
-#include "ut0counter.h"
 #include "fil0fil.h"
+
+#include "mysql/psi/mysql_stage.h"
+#include "mysql/psi/psi.h"
 
 /** Global counters used inside InnoDB. */
 struct srv_stats_t

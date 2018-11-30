@@ -24,6 +24,7 @@ The transaction lock system global types
 Created 5/7/1996 Heikki Tuuri
 *******************************************************/
 
+#include "dict0types.h"
 #include "ut0lst.h"
 
 #ifndef lock0types_h

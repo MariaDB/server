@@ -27,7 +27,6 @@ Created 5/20/1997 Heikki Tuuri
 #ifndef hash0hash_h
 #define hash0hash_h
 
-#include "univ.i"
 #include "mem0mem.h"
 #include "sync0rw.h"
 

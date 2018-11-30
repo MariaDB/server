@@ -27,8 +27,6 @@ Created 3/26/1996 Heikki Tuuri
 #ifndef trx0sys_h
 #define trx0sys_h
 
-#include "univ.i"
-
 #include "buf0buf.h"
 #include "fil0fil.h"
 #include "trx0types.h"

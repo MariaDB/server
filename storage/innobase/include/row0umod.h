@@ -27,9 +27,7 @@ Created 2/27/1997 Heikki Tuuri
 #ifndef row0umod_h
 #define row0umod_h
 
-#include "univ.i"
 #include "data0data.h"
-#include "dict0types.h"
 #include "trx0types.h"
 #include "que0types.h"
 #include "row0types.h"

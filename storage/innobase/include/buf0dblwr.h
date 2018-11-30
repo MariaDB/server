@@ -27,7 +27,6 @@ Created 2011/12/19 Inaam Rana
 #ifndef buf0dblwr_h
 #define buf0dblwr_h
 
-#include "univ.i"
 #include "ut0byte.h"
 #include "log0log.h"
 #include "buf0types.h"

@@ -27,10 +27,8 @@ Created 12/21/1997 Heikki Tuuri
 #ifndef pars0opt_h
 #define pars0opt_h
 
-#include "univ.i"
 #include "que0types.h"
 #include "pars0sym.h"
-#include "dict0types.h"
 #include "row0sel.h"
 
 /*******************************************************************//**

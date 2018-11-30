@@ -26,8 +26,6 @@ Created 2/2/1994 Heikki Tuuri
 #ifndef page0page_h
 #define page0page_h
 
-#include "univ.i"
-
 #include "page0types.h"
 #ifndef UNIV_INNOCHECKSUM
 #include "fil0fil.h"
