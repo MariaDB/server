@@ -47,7 +47,6 @@ Created 10/10/1995 Heikki Tuuri
 #include "que0types.h"
 #include "trx0types.h"
 #include "srv0conc.h"
-#include "buf0checksum.h"
 #include "fil0fil.h"
 
 #include "mysql/psi/mysql_stage.h"

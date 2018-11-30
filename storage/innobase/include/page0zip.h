@@ -28,27 +28,11 @@ Created June 2005 by Marko Makela
 #ifndef page0zip_h
 #define page0zip_h
 
-#ifdef UNIV_MATERIALIZE
-# undef UNIV_INLINE
-# define UNIV_INLINE
-#endif
-
-#ifdef UNIV_INNOCHECKSUM
-#include "buf0buf.h"
-#include "ut0crc32.h"
-#include "buf0checksum.h"
-#include "mach0data.h"
-#include "zlib.h"
-#endif /* UNIV_INNOCHECKSUM */
+#include "buf0types.h"
 
 #ifndef UNIV_INNOCHECKSUM
 #include "mtr0types.h"
 #include "page0types.h"
-#endif /* !UNIV_INNOCHECKSUM */
-
-#include "buf0types.h"
-
-#ifndef UNIV_INNOCHECKSUM
 #include "dict0types.h"
 #include "srv0srv.h"
 #include "trx0types.h"
@@ -562,11 +546,6 @@ UNIV_INLINE
 void
 page_zip_reset_stat_per_index();
 /*===========================*/
-
-#ifdef UNIV_MATERIALIZE
-# undef UNIV_INLINE
-# define UNIV_INLINE	UNIV_INLINE_ORIGINAL
-#endif
 
 #include "page0zip.ic"
 #endif /* !UNIV_INNOCHECKSUM */

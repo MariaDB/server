@@ -1,6 +1,6 @@
 /*
    Copyright (c) 2005, 2016, Oracle and/or its affiliates. All rights reserved.
-   Copyright (c) 2014, 2017, MariaDB Corporation.
+   Copyright (c) 2014, 2018, MariaDB Corporation.
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -45,15 +45,7 @@ The parts not included are excluded by #ifndef UNIV_INNOCHECKSUM. */
 typedef void fil_space_t;
 
 #include "page0size.h"
-
-#define FLST_BASE_NODE_SIZE (4 + 2 * FIL_ADDR_SIZE)
-#define FLST_NODE_SIZE (2 * FIL_ADDR_SIZE)
-#define FSEG_PAGE_DATA FIL_PAGE_DATA
-#define FSEG_HEADER_SIZE	10
-#define UT_BITS_IN_BYTES(b) (((b) + 7) / 8)
-
 #include "ut0ut.h"
-#include "ut0byte.h"
 #include "mtr0types.h"
 #include "mach0data.h"
 #include "fsp0types.h"
@@ -71,12 +63,6 @@ typedef void fil_space_t;
 #include "fil0crypt.h"           /* fil_space_verify_crypt_checksum */
 
 #include <string.h>
-
-#ifdef UNIV_NONINL
-# include "fsp0fsp.ic"
-# include "mach0data.ic"
-# include "ut0rnd.ic"
-#endif
 
 #ifndef PRIuMAX
 #define PRIuMAX   "llu"

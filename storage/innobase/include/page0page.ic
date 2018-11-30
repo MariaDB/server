@@ -29,17 +29,9 @@ Created 2/2/1994 Heikki Tuuri
 
 #ifndef UNIV_INNOCHECKSUM
 #include "mach0data.h"
-#ifdef UNIV_DEBUG
-# include "log0recv.h"
-#endif /* !UNIV_DEBUG */
 #include "rem0cmp.h"
 #include "mtr0log.h"
 #include "page0zip.h"
-
-#ifdef UNIV_MATERIALIZE
-#undef UNIV_INLINE
-#define UNIV_INLINE
-#endif
 
 /*************************************************************//**
 Returns the max trx id field value. */
@@ -1099,10 +1091,5 @@ page_get_instant(const page_t* page)
 	return(i >> 3);
 }
 #endif /* !UNIV_INNOCHECKSUM */
-
-#ifdef UNIV_MATERIALIZE
-#undef UNIV_INLINE
-#define UNIV_INLINE	UNIV_INLINE_ORIGINAL
-#endif
 
 #endif

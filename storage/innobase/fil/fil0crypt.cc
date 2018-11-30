@@ -23,16 +23,16 @@ Created            Jonas Oreland Google
 Modified           Jan Lindström jan.lindstrom@mariadb.com
 *******************************************************/
 
-#include "fil0fil.h"
+#include "fil0crypt.h"
 #include "mtr0types.h"
 #include "mach0data.h"
-#include "page0size.h"
 #include "page0zip.h"
-#ifndef UNIV_INNOCHECKSUM
-#include "fil0crypt.h"
+#include "buf0checksum.h"
+#ifdef UNIV_INNOCHECKSUM
+# include "buf0buf.h"
+#else
 #include "srv0srv.h"
 #include "srv0start.h"
-#include "log0recv.h"
 #include "mtr0mtr.h"
 #include "mtr0log.h"
 #include "ut0ut.h"

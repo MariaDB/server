@@ -24,12 +24,7 @@ The page cursor
 Created 10/4/1994 Heikki Tuuri
 *************************************************************************/
 
-#include "page0page.h"
-#include "buf0types.h"
-
 #ifdef UNIV_DEBUG
-# include "rem0cmp.h"
-
 /*********************************************************//**
 Gets pointer to the page frame where the cursor is positioned.
 @return page */
