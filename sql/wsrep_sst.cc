@@ -296,7 +296,7 @@ static int sst_scan_uuid_seqno (const char* str,
   }
 
   WSREP_ERROR("Failed to parse uuid:seqno pair: '%s'", str);
-  return EINVAL;
+  return -EINVAL;
 }
 
 // get rid of trailing \n
@@ -625,7 +625,7 @@ static ssize_t sst_prepare_other (const char*  method,
                  " %s "
                  WSREP_SST_OPT_PARENT " '%d'"
                  " %s '%s'"
-	         " %s '%s'",
+                 " %s '%s'",
                  method, addr_in, mysql_real_data_home,
                  wsrep_defaults_file,
                  (int)getpid(), binlog_opt, binlog_opt_val,
@@ -1035,7 +1035,7 @@ static int sst_flush_tables(THD* thd)
       WSREP_WARN("Current client character set is non-supported parser character set: %s", current_charset->csname);
       thd->variables.character_set_client = &my_charset_latin1;
       WSREP_WARN("For SST temporally setting character set to : %s",
-	      my_charset_latin1.csname);
+                 my_charset_latin1.csname);
   }
 
   if (run_sql_command(thd, "FLUSH TABLES WITH READ LOCK"))
@@ -1137,7 +1137,7 @@ static void sst_disallow_writes (THD* thd, bool yes)
       WSREP_WARN("Current client character set is non-supported parser character set: %s", current_charset->csname);
       thd->variables.character_set_client = &my_charset_latin1;
       WSREP_WARN("For SST temporally setting character set to : %s",
-	      my_charset_latin1.csname);
+                 my_charset_latin1.csname);
   }
 
   snprintf (query_str, query_max, "SET GLOBAL innodb_disallow_writes=%d",
@@ -1170,7 +1170,7 @@ static void* sst_donor_thread (void* a)
                        // operate with wsrep_ready == OFF
   wsp::process proc(arg->cmd, "r", arg->env);
 
-  err= proc.error();
+  err= -proc.error();
 
 /* Inform server about SST script startup and release TO isolation */
   mysql_mutex_lock   (&arg->lock);
@@ -1233,6 +1233,7 @@ wait_signal:
       else
       {
         WSREP_WARN("Received unknown signal: '%s'", out);
+        proc.wait();
       }
     }
     else
@@ -1240,7 +1241,7 @@ wait_signal:
       WSREP_ERROR("Failed to read from: %s", proc.cmd());
       proc.wait();
     }
-    if (!err && proc.error()) err= proc.error();
+    if (!err && proc.error()) err= -proc.error();
   }
   else
   {
