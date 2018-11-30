@@ -1130,28 +1130,26 @@ cmp_rec_rec_with_match(
 					in rec field */
 	ulint		cur_field = 0;	/* current field number */
 	int		ret = 0;	/* return value */
-	ulint		comp;
 
 	ut_ad(rec1 != NULL);
 	ut_ad(rec2 != NULL);
 	ut_ad(index != NULL);
 	ut_ad(rec_offs_validate(rec1, index, offsets1));
 	ut_ad(rec_offs_validate(rec2, index, offsets2));
-	ut_ad(rec_offs_comp(offsets1) == rec_offs_comp(offsets2));
 
-	comp = rec_offs_comp(offsets1);
 	rec1_n_fields = rec_offs_n_fields(offsets1);
 	rec2_n_fields = rec_offs_n_fields(offsets2);
 
 	/* Test if rec is the predefined minimum record */
-	if (UNIV_UNLIKELY(rec_get_info_bits(rec1, comp)
+	if (UNIV_UNLIKELY(rec_get_info_bits(rec1, rec_offs_comp(offsets1))
 			  & REC_INFO_MIN_REC_FLAG)) {
-		ret = UNIV_UNLIKELY(rec_get_info_bits(rec2, comp)
+		ret = UNIV_UNLIKELY(rec_get_info_bits(rec2,
+						      rec_offs_comp(offsets2))
 				    & REC_INFO_MIN_REC_FLAG)
 			? 0 : -1;
 		goto order_resolved;
 	} else if (UNIV_UNLIKELY
-		   (rec_get_info_bits(rec2, comp)
+		   (rec_get_info_bits(rec2, rec_offs_comp(offsets2))
 		    & REC_INFO_MIN_REC_FLAG)) {
 		ret = 1;
 		goto order_resolved;
