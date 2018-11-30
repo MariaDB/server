@@ -2062,8 +2062,6 @@ page_copy_rec_list_end_to_created_page(
 	ulint	n_recs;
 	ulint	slot_index;
 	ulint	rec_size;
-	byte*	log_ptr;
-	ulint	log_data_len;
 	mem_heap_t*	heap		= NULL;
 	ulint		offsets_[REC_OFFS_NORMAL_SIZE];
 	ulint*		offsets		= offsets_;
@@ -2091,11 +2089,6 @@ page_copy_rec_list_end_to_created_page(
 
 		return;
 	}
-
-	log_ptr = page_copy_rec_list_to_created_page_write_log(
-		new_page, index, mtr);
-
-	log_data_len = mtr->get_log()->size();
 
 	if (page_is_comp(new_page)) {
 		prev_rec = new_page + PAGE_NEW_INFIMUM;
@@ -2147,6 +2140,10 @@ page_copy_rec_list_end_to_created_page(
 		}
 		return;
 	}
+
+	byte* log_ptr = page_copy_rec_list_to_created_page_write_log(
+		new_page, index, mtr);
+	ulint	log_data_len = mtr->get_log()->size();
 
 	/* Individual inserts are logged in a shorter form */
 
