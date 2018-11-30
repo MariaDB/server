@@ -1389,6 +1389,7 @@ bool do_command(THD *thd)
       thd->m_digest= NULL;
 
       return_value= FALSE;
+      wsrep_after_command_before_result(thd);
       goto out;
     }
   }

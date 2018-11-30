@@ -31,7 +31,8 @@ class THD;
  */
 static inline bool wsrep_is_active(THD* thd)
 {
-  return (wsrep_on(thd) && thd->wsrep_cs().transaction().active());
+  return (thd->wsrep_cs().state() != wsrep::client_state::s_none  &&
+	  thd->wsrep_cs().transaction().active());
 }
 
 /*
@@ -85,7 +86,7 @@ static inline bool wsrep_streaming_enabled(THD* thd)
 
 static inline int wsrep_start_transaction(THD* thd, wsrep_trx_id_t trx_id)
 {
-  return (wsrep_on(thd) ?
+  return (thd->wsrep_cs().state() != wsrep::client_state::s_none  ?
           thd->wsrep_cs().start_transaction(wsrep::transaction_id(trx_id)) :
           0);
 }
@@ -110,7 +111,8 @@ static inline int wsrep_start_trx_if_not_started(THD* thd)
  */
 static inline int wsrep_after_row(THD* thd, bool)
 {
-  if (wsrep_on(thd) && wsrep_thd_is_local(thd))
+  if (thd->wsrep_cs().state() != wsrep::client_state::s_none  &&
+      wsrep_thd_is_local(thd))
   {
     if (wsrep_check_pk(thd))
     {
@@ -282,14 +284,15 @@ static inline int wsrep_after_rollback(THD* thd, bool all)
 
 static inline int wsrep_before_statement(THD* thd)
 {
-  return (wsrep_on(thd) ? thd->wsrep_cs().before_statement() : 0);
+  return (thd->wsrep_cs().state() != wsrep::client_state::s_none ?
+	  thd->wsrep_cs().before_statement() : 0);
 }
 
 static inline
 int wsrep_after_statement(THD* thd)
 {
   DBUG_ENTER("wsrep_after_statement");
-  DBUG_RETURN(wsrep_on((const void*)thd) ?
+  DBUG_RETURN(thd->wsrep_cs().state() != wsrep::client_state::s_none ?
               thd->wsrep_cs().after_statement() : 0);
 }
 
@@ -303,7 +306,7 @@ static inline void wsrep_after_apply(THD* thd)
 static inline void wsrep_open(THD* thd)
 {
   DBUG_ENTER("wsrep_open");
-  if (wsrep_global_on())
+  if (wsrep_on(thd))
   {
     thd->wsrep_cs().open(wsrep::client_id(thd->thread_id));
     thd->wsrep_cs().debug_log_level(wsrep_debug);
@@ -314,7 +317,7 @@ static inline void wsrep_open(THD* thd)
 static inline void wsrep_close(THD* thd)
 {
   DBUG_ENTER("wsrep_close");
-  if (wsrep_global_on())
+  if (thd->wsrep_cs().state() != wsrep::client_state::s_none)
   {
     thd->wsrep_cs().close();
   }
@@ -323,7 +326,8 @@ static inline void wsrep_close(THD* thd)
 
 static inline int wsrep_before_command(THD* thd)
 {
-  return (wsrep_global_on() ? thd->wsrep_cs().before_command() : 0);
+  return (thd->wsrep_cs().state() != wsrep::client_state::s_none ?
+	  thd->wsrep_cs().before_command() : 0);
 }
 /*
   Called after each command.
@@ -332,7 +336,7 @@ static inline int wsrep_before_command(THD* thd)
 */
 static inline void wsrep_after_command_before_result(THD* thd)
 {
-  if (wsrep_global_on())
+  if (thd->wsrep_cs().state() != wsrep::client_state::s_none)
   {
     thd->wsrep_cs().after_command_before_result();
   }
@@ -340,7 +344,7 @@ static inline void wsrep_after_command_before_result(THD* thd)
 
 static inline void wsrep_after_command_after_result(THD* thd)
 {
-  if (wsrep_global_on())
+  if (thd->wsrep_cs().state() != wsrep::client_state::s_none)
   {
     thd->wsrep_cs().after_command_after_result();
   }
