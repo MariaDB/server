@@ -187,12 +187,14 @@ btr_corruption_report(
 /** Assert that a B-tree page is not corrupted.
 @param block buffer block containing a B-tree page
 @param index the B-tree index */
-#define btr_assert_not_corrupted(block, index)			\
-	if ((ibool) !!page_is_comp(buf_block_get_frame(block))	\
-	    != dict_table_is_comp((index)->table)) {		\
-		btr_corruption_report(block, index);		\
-		ut_error;					\
+inline void
+btr_assert_not_corrupted(const buf_block_t* block, const dict_index_t* index)
+{
+	if (!!page_is_comp(block->frame)
+	    != index->table->not_redundant() && !index->dual_format()) {
+		btr_corruption_report(block, index);
 	}
+}
 
 /**************************************************************//**
 Gets the root node of a tree and sx-latches it for segment access.

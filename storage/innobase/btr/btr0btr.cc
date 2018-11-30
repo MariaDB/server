@@ -65,7 +65,7 @@ btr_corruption_report(
 	const buf_block_t*	block,	/*!< in: corrupted block */
 	const dict_index_t*	index)	/*!< in: index tree */
 {
-	ib::error()
+	ib::fatal()
 		<< "Flag mismatch in page " << block->page.id
 		<< " index " << index->name
 		<< " of table " << index->table->name;
