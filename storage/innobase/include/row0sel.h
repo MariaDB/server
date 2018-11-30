@@ -27,10 +27,8 @@ Created 12/19/1997 Heikki Tuuri
 #ifndef row0sel_h
 #define row0sel_h
 
-#include "univ.i"
 #include "data0data.h"
 #include "que0types.h"
-#include "dict0types.h"
 #include "trx0types.h"
 #include "read0types.h"
 #include "row0types.h"

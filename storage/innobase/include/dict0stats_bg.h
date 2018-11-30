@@ -27,8 +27,6 @@ Created Apr 26, 2012 Vasil Dimov
 #ifndef dict0stats_bg_h
 #define dict0stats_bg_h
 
-#include "univ.i"
-
 #include "dict0types.h"
 #include "os0event.h"
 #include "os0thread.h"

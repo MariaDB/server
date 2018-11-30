@@ -29,7 +29,6 @@ Created 7/1/1994 Heikki Tuuri
 
 #include "data0data.h"
 #include "data0type.h"
-#include "dict0types.h"
 #include "rem0types.h"
 #include "page0types.h"
 

@@ -34,7 +34,6 @@ Created June 2005 by Marko Makela
 #endif
 
 #ifdef UNIV_INNOCHECKSUM
-#include "univ.i"
 #include "buf0buf.h"
 #include "ut0crc32.h"
 #include "buf0checksum.h"

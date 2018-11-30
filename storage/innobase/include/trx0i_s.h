@@ -29,7 +29,6 @@ Created July 17, 2007 Vasil Dimov
 #ifndef trx0i_s_h
 #define trx0i_s_h
 
-#include "univ.i"
 #include "trx0types.h"
 #include "dict0types.h"
 

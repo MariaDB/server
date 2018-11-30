@@ -27,9 +27,7 @@ Created 3/26/1996 Heikki Tuuri
 #ifndef trx0roll_h
 #define trx0roll_h
 
-#include "univ.i"
 #include "trx0trx.h"
-#include "trx0types.h"
 #include "mtr0mtr.h"
 #include "trx0sys.h"
 

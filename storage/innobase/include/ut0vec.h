@@ -26,7 +26,6 @@ Created 4/6/2006 Osku Salerma
 #ifndef IB_VECTOR_H
 #define IB_VECTOR_H
 
-#include "univ.i"
 #include "mem0mem.h"
 
 struct ib_alloc_t;

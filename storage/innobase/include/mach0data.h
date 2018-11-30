@@ -28,9 +28,10 @@ Created 11/28/1995 Heikki Tuuri
 #ifndef mach0data_h
 #define mach0data_h
 
+#include "univ.i"
+
 #ifndef UNIV_INNOCHECKSUM
 
-#include "univ.i"
 #include "mtr0types.h"
 
 /* The data and all fields are always stored in a database file

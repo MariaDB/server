@@ -27,7 +27,6 @@ Created 12/29/1997 Heikki Tuuri
 #ifndef eval0eval_h
 #define eval0eval_h
 
-#include "univ.i"
 #include "que0types.h"
 #include "pars0sym.h"
 #include "pars0pars.h"

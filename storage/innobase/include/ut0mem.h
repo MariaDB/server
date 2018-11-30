@@ -26,7 +26,6 @@ Created 5/30/1994 Heikki Tuuri
 #ifndef ut0mem_h
 #define ut0mem_h
 
-#include "univ.i"
 #include "os0event.h"
 #include "ut0mutex.h"
 

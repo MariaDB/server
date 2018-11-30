@@ -29,21 +29,10 @@ Created 1/8/1996 Heikki Tuuri
 #define dict0dict_h
 
 #include "data0data.h"
-#include "data0type.h"
 #include "dict0mem.h"
-#include "dict0types.h"
 #include "fsp0fsp.h"
-#include "hash0hash.h"
-#include "mem0mem.h"
-#include "rem0types.h"
-#include "row0types.h"
-#include "trx0types.h"
-#include "ut0byte.h"
-#include "ut0mem.h"
-#include "ut0rnd.h"
-#include "fsp0fsp.h"
-#include "sync0rw.h"
 #include <atomic>
+#include <deque>
 
 extern bool innodb_table_stats_not_found;
 extern bool innodb_index_stats_not_found;
