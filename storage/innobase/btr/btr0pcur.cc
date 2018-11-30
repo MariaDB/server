@@ -29,9 +29,6 @@ Created 2/23/1996 Heikki Tuuri
 #include "rem0cmp.h"
 #include "trx0trx.h"
 
-/* FIXME: move this to a proper .h file */
-extern const dtuple_t trx_undo_metadata;
-
 /**************************************************************//**
 Allocates memory for a persistent cursor object and initializes the cursor.
 @return own: persistent cursor */
@@ -355,8 +352,7 @@ btr_pcur_restore_position_func(
 	}
 
 	/* If optimistic restoration did not succeed, open the cursor anew */
-	if (UNIV_UNLIKELY(reinterpret_cast<const byte*>(&trx_undo_metadata)
-			  == cursor->old_rec)) {
+	if (UNIV_UNLIKELY(cursor->old_rec == &rec_prefix_metadata)) {
 		btr_pcur_open_at_index_side(true, index, cursor->latch_mode,
 					    cursor, true, 0, mtr);
 		ut_ad(btr_pcur_is_before_first_on_page(cursor));

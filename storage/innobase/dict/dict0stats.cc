@@ -1012,7 +1012,6 @@ dict_stats_analyze_index_level(
 	mem_heap_t*	heap;
 	btr_pcur_t	pcur;
 	const page_t*	page;
-	const rec_t*	rec;
 	const rec_t*	prev_rec;
 	bool		prev_rec_is_copied;
 	byte*		prev_rec_buf = NULL;
@@ -1105,21 +1104,15 @@ dict_stats_analyze_index_level(
 	for (;
 	     btr_pcur_is_on_user_rec(&pcur);
 	     btr_pcur_move_to_next_user_rec(&pcur, mtr)) {
-
-		bool	rec_is_last_on_page;
-
-		rec = btr_pcur_get_rec(&pcur);
+		const rec_t* rec = btr_pcur_get_rec(&pcur);
 
 		/* If rec and prev_rec are on different pages, then prev_rec
 		must have been copied, because we hold latch only on the page
 		where rec resides. */
-		if (prev_rec != NULL
-		    && page_align(rec) != page_align(prev_rec)) {
+		ut_ad(!prev_rec || prev_rec_is_copied
+		      || page_align(rec) == page_align(prev_rec));
 
-			ut_a(prev_rec_is_copied);
-		}
-
-		rec_is_last_on_page =
+		const bool rec_is_last_on_page =
 			page_rec_is_supremum(page_rec_get_next_const(rec));
 
 		/* increment the pages counter at the end of each page */
@@ -1169,7 +1162,7 @@ dict_stats_analyze_index_level(
 
 		(*total_recs)++;
 
-		if (prev_rec != NULL) {
+		if (prev_rec && prev_rec != &rec_prefix_metadata) {
 			ulint	matched_fields;
 
 			/* FIXME: add prev_rec_format,

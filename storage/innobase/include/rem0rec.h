@@ -1098,21 +1098,25 @@ rec_convert_dtuple_to_temp(
 	rec_comp_status_t	status = REC_STATUS_ORDINARY)
 	MY_ATTRIBUTE((nonnull));
 
-/**************************************************************//**
-Copies the first n fields of a physical record to a new physical record in
-a buffer.
-@return own: copied record */
+/** A special return value of rec_copy_prefix_to_buf() to indicate
+a metadata record. */
+extern const rec_t rec_prefix_metadata;
+
+/** Copy the first key of a record in a page to a buffer.
+@param[in]	rec		record in an index page
+@param[in]	index		the index tree
+@param[in]	n_fields	number of fields to copy
+@param[in,out]	buf		memory buffer for the copied prefix
+@param[in,out]	buf_size	size of buf, in bytes
+@return	copied record
+@retval	&rec_prefix_metadata	if this is a metadata record */
 const rec_t*
 rec_copy_prefix_to_buf(
-/*===================*/
-	const rec_t*		rec,		/*!< in: physical record */
-	const dict_index_t*	index,		/*!< in: record descriptor */
-	ulint			n_fields,	/*!< in: number of fields
-						to copy */
-	byte**			buf,		/*!< in/out: memory buffer
-						for the copied prefix,
-						or NULL */
-	ulint*			buf_size)	/*!< in/out: buffer size */
+	const rec_t*		rec,
+	const dict_index_t*	index,
+	ulint			n_fields,
+	byte**			buf,
+	ulint*			buf_size)
 	MY_ATTRIBUTE((nonnull));
 /*********************************************************//**
 Builds a physical record out of a data tuple and
