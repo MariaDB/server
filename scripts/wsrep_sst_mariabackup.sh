@@ -33,6 +33,7 @@ ssystag=""
 XTRABACKUP_PID=""
 SST_PORT=""
 REMOTEIP=""
+REMOTEHOST=""
 tcert=""
 tpem=""
 tkey=""
@@ -76,7 +77,7 @@ sdecomp=""
 # 5.6.21 PXC and later can't donate to an older joiner
 sst_ver=1
 
-if which pv &>/dev/null && pv --help | grep -q FORMAT;then 
+if which pv &>/dev/null && pv --help | grep -q FORMAT;then
     pvopts+=$pvformat
 fi
 pcmd="pv $pvopts"
@@ -100,7 +101,7 @@ timeit(){
     local cmd="$@"
     local x1 x2 took extcode
 
-    if [[ $ttime -eq 1 ]];then 
+    if [[ $ttime -eq 1 ]];then
         x1=$(date +%s)
         wsrep_log_info "Evaluating $cmd"
         eval "$cmd"
@@ -109,7 +110,7 @@ timeit(){
         took=$(( x2-x1 ))
         wsrep_log_info "NOTE: $stage took $took seconds"
         totime=$(( totime+took ))
-    else 
+    else
         wsrep_log_info "Evaluating $cmd"
         eval "$cmd"
         extcode=$?
@@ -120,11 +121,11 @@ timeit(){
 get_keys()
 {
     # $encrypt -eq 1 is for internal purposes only
-    if [[ $encrypt -ge 2 || $encrypt -eq -1 ]];then 
-        return 
+    if [[ $encrypt -ge 2 || $encrypt -eq -1 ]];then
+        return
     fi
 
-    if [[ $encrypt -eq 0 ]];then 
+    if [[ $encrypt -eq 0 ]];then
         if $MY_PRINT_DEFAULTS xtrabackup | grep -q encrypt;then
             wsrep_log_error "Unexpected option combination. SST may fail. Refer to http://www.percona.com/doc/percona-xtradb-cluster/manual/xtrabackup_sst.html "
         fi
@@ -164,20 +165,20 @@ get_keys()
 
 get_transfer()
 {
-    if [[ -z $SST_PORT ]];then 
+    if [[ -z $SST_PORT ]];then
         TSST_PORT=4444
-    else 
+    else
         TSST_PORT=$SST_PORT
     fi
 
     if [[ $tfmt == 'nc' ]];then
-        if [[ ! -x `which nc` ]];then 
+        if [[ ! -x `which nc` ]];then
             wsrep_log_error "nc(netcat) not found in path: $PATH"
             exit 2
         fi
         wsrep_log_info "Using netcat as streamer"
         if [[ "$WSREP_SST_OPT_ROLE"  == "joiner" ]];then
-            if nc -h 2>&1 | grep -q ncat;then 
+            if nc -h 2>&1 | grep -q ncat;then
                 # Ncat
                 tcmd="nc -l ${TSST_PORT}"
             elif nc -h 2>&1 | grep -q -- '-d\>';then
@@ -202,7 +203,7 @@ get_transfer()
     else
         tfmt='socat'
         wsrep_log_info "Using socat as streamer"
-        if [[ ! -x `which socat` ]];then 
+        if [[ ! -x `which socat` ]];then
             wsrep_log_error "socat not found in path: $PATH"
             exit 2
         fi
@@ -212,9 +213,9 @@ get_transfer()
             exit 2
         fi
 
-        if [[ $encrypt -eq 2 ]];then 
+        if [[ $encrypt -eq 2 ]];then
             wsrep_log_info "Using openssl based encryption with socat: with crt and pem"
-            if [[ -z $tpem || -z $tcert ]];then 
+            if [[ -z $tpem || -z $tcert ]];then
                 wsrep_log_error "Both PEM and CRT files required"
                 exit 22
             fi
@@ -224,7 +225,7 @@ get_transfer()
                 tcmd="socat -u openssl-listen:${TSST_PORT},reuseaddr,cert=${tpem},cafile=${tcert}${sockopt} stdio"
             else
                 wsrep_log_info "Encrypting with cert=${tpem}, cafile=${tcert}"
-                tcmd="socat -u stdio openssl-connect:${REMOTEIP}:${TSST_PORT},cert=${tpem},cafile=${tcert}${sockopt}"
+                tcmd="socat -u stdio openssl-connect:${REMOTEHOST}:${TSST_PORT},cert=${tpem},cafile=${tcert}${sockopt}"
             fi
         elif [[ $encrypt -eq 3 ]];then
             wsrep_log_info "Using openssl based encryption with socat: with key and crt"
@@ -247,11 +248,11 @@ get_transfer()
                     tcmd="socat -u stdio openssl-connect:${REMOTEIP}:${TSST_PORT},cert=${tpem},key=${tkey},verify=0${sockopt}"
                 else
                     wsrep_log_info "Encrypting with cert=${tpem}, key=${tkey}, cafile=${tcert}"
-                    tcmd="socat -u stdio openssl-connect:${REMOTEIP}:${TSST_PORT},cert=${tpem},key=${tkey},cafile=${tcert}${sockopt}"
+                    tcmd="socat -u stdio openssl-connect:${REMOTEHOST}:${TSST_PORT},cert=${tpem},key=${tkey},cafile=${tcert}${sockopt}"
                 fi
             fi
 
-        else 
+        else
             if [[ "$WSREP_SST_OPT_ROLE"  == "joiner" ]];then
                 tcmd="socat -u TCP-LISTEN:${TSST_PORT},reuseaddr${sockopt} stdio"
             else
@@ -271,7 +272,7 @@ parse_cnf()
     # then grep for needed variable
     # finally get the variable value (if variables has been specified multiple time use the last value only)
     reval=$($MY_PRINT_DEFAULTS $group | awk -F= '{if ($1 ~ /_/) { gsub(/_/,"-",$1); print $1"="$2 } else { print $0 }}' | grep -- "--$var=" | cut -d= -f2- | tail -1)
-    if [[ -z $reval ]];then 
+    if [[ -z $reval ]];then
         [[ -n $3 ]] && reval=$3
     fi
     echo $reval
@@ -281,7 +282,7 @@ get_footprint()
 {
     pushd $WSREP_SST_OPT_DATA 1>/dev/null
     payload=$(find . -regex '.*\.ibd$\|.*\.MYI$\|.*\.MYD$\|.*ibdata1$' -type f -print0 | du --files0-from=- --block-size=1 -c | awk 'END { print $1 }')
-    if $MY_PRINT_DEFAULTS xtrabackup | grep -q -- "--compress";then 
+    if $MY_PRINT_DEFAULTS xtrabackup | grep -q -- "--compress";then
         # QuickLZ has around 50% compression ratio
         # When compression/compaction used, the progress is only an approximate.
         payload=$(( payload*1/2 ))
@@ -294,7 +295,7 @@ get_footprint()
 adjust_progress()
 {
 
-    if [[ ! -x `which pv` ]];then 
+    if [[ ! -x `which pv` ]];then
         wsrep_log_error "pv not found in path: $PATH"
         wsrep_log_error "Disabling all progress/rate-limiting"
         pcmd=""
@@ -303,16 +304,16 @@ adjust_progress()
         return
     fi
 
-    if [[ -n $progress && $progress != '1' ]];then 
-        if [[ -e $progress ]];then 
+    if [[ -n $progress && $progress != '1' ]];then
+        if [[ -e $progress ]];then
             pcmd+=" 2>>$progress"
-        else 
+        else
             pcmd+=" 2>$progress"
         fi
-    elif [[ -z $progress && -n $rlimit  ]];then 
+    elif [[ -z $progress && -n $rlimit  ]];then
             # When rlimit is non-zero
             pcmd="pv -q"
-    fi 
+    fi
 
     if [[ -n $rlimit && "$WSREP_SST_OPT_ROLE"  == "donor" ]];then
         wsrep_log_info "Rate-limiting SST to $rlimit"
@@ -339,7 +340,7 @@ read_cnf()
     scomp=$(parse_cnf sst compressor "")
     sdecomp=$(parse_cnf sst decompressor "")
 
-    # Refer to http://www.percona.com/doc/percona-xtradb-cluster/manual/xtrabackup_sst.html 
+    # Refer to http://www.percona.com/doc/percona-xtradb-cluster/manual/xtrabackup_sst.html
     if [[ -z $ealgo ]];then
         ealgo=$(parse_cnf sst encrypt-algo "")
         ekey=$(parse_cnf sst encrypt-key "")
@@ -357,13 +358,13 @@ read_cnf()
     ssystag=$(parse_cnf mysqld_safe syslog-tag "${SST_SYSLOG_TAG:-}")
     ssystag+="-"
 
-    if [[ $speciald -eq 0 ]];then 
+    if [[ $speciald -eq 0 ]];then
         wsrep_log_error "sst-special-dirs equal to 0 is not supported, falling back to 1"
         speciald=1
-    fi 
+    fi
 
-    if [[ $ssyslog -ne -1 ]];then 
-        if $MY_PRINT_DEFAULTS mysqld_safe | tr '_' '-' | grep -q -- "--syslog";then 
+    if [[ $ssyslog -ne -1 ]];then
+        if $MY_PRINT_DEFAULTS mysqld_safe | tr '_' '-' | grep -q -- "--syslog";then
             ssyslog=1
         fi
     fi
@@ -377,7 +378,7 @@ read_cnf()
 
 get_stream()
 {
-    if [[ $sfmt == 'xbstream' ]];then 
+    if [[ $sfmt == 'xbstream' ]];then
         wsrep_log_info "Streaming with xbstream"
         if [[ "$WSREP_SST_OPT_ROLE"  == "joiner" ]];then
             strmcmd="${XBSTREAM_BIN} -x"
@@ -414,21 +415,21 @@ cleanup_joiner()
 {
     # Since this is invoked just after exit NNN
     local estatus=$?
-    if [[ $estatus -ne 0 ]];then 
+    if [[ $estatus -ne 0 ]];then
         wsrep_log_error "Cleanup after exit with status:$estatus"
     elif [ "${WSREP_SST_OPT_ROLE}" = "joiner" ];then
         wsrep_log_info "Removing the sst_in_progress file"
         wsrep_cleanup_progress_file
     fi
-    if [[ -n $progress && -p $progress ]];then 
+    if [[ -n $progress && -p $progress ]];then
         wsrep_log_info "Cleaning up fifo file $progress"
         rm $progress
     fi
-    if [[ -n ${STATDIR:-} ]];then 
+    if [[ -n ${STATDIR:-} ]];then
        [[ -d $STATDIR ]] && rm -rf $STATDIR
     fi
 
-    # Final cleanup 
+    # Final cleanup
     pgid=$(ps -o pgid= $$ | grep -o '[0-9]*')
 
     # This means no setsid done in mysqld.
@@ -436,8 +437,8 @@ cleanup_joiner()
     if [[ $$ -eq $pgid ]];then
 
         # This means a signal was delivered to the process.
-        # So, more cleanup. 
-        if [[ $estatus -ge 128 ]];then 
+        # So, more cleanup.
+        if [[ $estatus -ge 128 ]];then
             kill -KILL -$$ || true
         fi
 
@@ -456,11 +457,11 @@ cleanup_donor()
 {
     # Since this is invoked just after exit NNN
     local estatus=$?
-    if [[ $estatus -ne 0 ]];then 
+    if [[ $estatus -ne 0 ]];then
         wsrep_log_error "Cleanup after exit with status:$estatus"
     fi
 
-    if [[ -n ${XTRABACKUP_PID:-} ]];then 
+    if [[ -n ${XTRABACKUP_PID:-} ]];then
         if check_pid $XTRABACKUP_PID
         then
             wsrep_log_error "xtrabackup process is still running. Killing... "
@@ -470,22 +471,22 @@ cleanup_donor()
     fi
     rm -f ${DATA}/${IST_FILE} || true
 
-    if [[ -n $progress && -p $progress ]];then 
+    if [[ -n $progress && -p $progress ]];then
         wsrep_log_info "Cleaning up fifo file $progress"
         rm -f $progress || true
     fi
 
     wsrep_log_info "Cleaning up temporary directories"
 
-    if [[ -n $xtmpdir ]];then 
+    if [[ -n $xtmpdir ]];then
        [[ -d $xtmpdir ]] &&  rm -rf $xtmpdir || true
     fi
 
-    if [[ -n $itmpdir ]];then 
+    if [[ -n $itmpdir ]];then
        [[ -d $itmpdir ]] &&  rm -rf $itmpdir || true
     fi
 
-    # Final cleanup 
+    # Final cleanup
     pgid=$(ps -o pgid= $$ | grep -o '[0-9]*')
 
     # This means no setsid done in mysqld.
@@ -493,8 +494,8 @@ cleanup_donor()
     if [[ $$ -eq $pgid ]];then
 
         # This means a signal was delivered to the process.
-        # So, more cleanup. 
-        if [[ $estatus -ge 128 ]];then 
+        # So, more cleanup.
+        if [[ $estatus -ge 128 ]];then
             kill -KILL -$$ || true
         fi
 
@@ -517,6 +518,10 @@ setup_ports()
     if [[ "$WSREP_SST_OPT_ROLE"  == "donor" ]];then
         SST_PORT=$(echo $WSREP_SST_OPT_ADDR | awk -F '[:/]' '{ print $2 }')
         REMOTEIP=$(echo $WSREP_SST_OPT_ADDR | awk -F ':' '{ print $1 }')
+        REMOTEHOST=$(getent hosts $REMOTEIP | awk '{ print $2 }')
+        if [[ -z $REMOTEHOST ]];then
+            REMOTEHOST=$REMOTEIP
+        fi
         lsn=$(echo $WSREP_SST_OPT_ADDR | awk -F '[:/]' '{ print $4 }')
         sst_ver=$(echo $WSREP_SST_OPT_ADDR | awk -F '[:/]' '{ print $5 }')
     else
@@ -542,20 +547,20 @@ wait_for_listen()
 check_extra()
 {
     local use_socket=1
-    if [[ $uextra -eq 1 ]];then 
-        if $MY_PRINT_DEFAULTS --mysqld | tr '_' '-' | grep -- "--thread-handling=" | grep -q 'pool-of-threads';then 
+    if [[ $uextra -eq 1 ]];then
+        if $MY_PRINT_DEFAULTS --mysqld | tr '_' '-' | grep -- "--thread-handling=" | grep -q 'pool-of-threads';then
             local eport=$($MY_PRINT_DEFAULTS --mysqld | tr '_' '-' | grep -- "--extra-port=" | cut -d= -f2)
-            if [[ -n $eport ]];then 
+            if [[ -n $eport ]];then
                 # Xtrabackup works only locally.
-                # Hence, setting host to 127.0.0.1 unconditionally. 
+                # Hence, setting host to 127.0.0.1 unconditionally.
                 wsrep_log_info "SST through extra_port $eport"
                 INNOEXTRA+=" --host=127.0.0.1 --port=$eport "
                 use_socket=0
-            else 
+            else
                 wsrep_log_error "Extra port $eport null, failing"
                 exit 1
             fi
-        else 
+        else
             wsrep_log_info "Thread pool not set, ignore the option use_extra"
         fi
     fi
@@ -567,7 +572,7 @@ check_extra()
 recv_joiner()
 {
     local dir=$1
-    local msg=$2 
+    local msg=$2
     local tmt=$3
     local checkf=$4
     local ltcmd
@@ -580,27 +585,27 @@ recv_joiner()
     pushd ${dir} 1>/dev/null
     set +e
 
-    if [[ $tmt -gt 0 && -x `which timeout` ]];then 
-        if timeout --help | grep -q -- '-k';then 
+    if [[ $tmt -gt 0 && -x `which timeout` ]];then
+        if timeout --help | grep -q -- '-k';then
             ltcmd="timeout -k $(( tmt+10 )) $tmt $tcmd"
-        else 
+        else
             ltcmd="timeout -s9 $tmt $tcmd"
         fi
         timeit "$msg" "$ltcmd | $strmcmd; RC=( "\${PIPESTATUS[@]}" )"
-    else 
+    else
         timeit "$msg" "$tcmd | $strmcmd; RC=( "\${PIPESTATUS[@]}" )"
     fi
 
     set -e
-    popd 1>/dev/null 
+    popd 1>/dev/null
 
-    if [[ ${RC[0]} -eq 124 ]];then 
+    if [[ ${RC[0]} -eq 124 ]];then
         wsrep_log_error "Possible timeout in receving first data from donor in gtid stage"
         exit 32
     fi
 
-    for ecode in "${RC[@]}";do 
-        if [[ $ecode -ne 0 ]];then 
+    for ecode in "${RC[@]}";do
+        if [[ $ecode -ne 0 ]];then
             wsrep_log_error "Error while getting data from donor node: " \
                             "exit codes: ${RC[@]}"
             exit 32
@@ -610,7 +615,7 @@ recv_joiner()
     if [[ $checkf -eq 1 && ! -r "${MAGIC_FILE}" ]];then
         # this message should cause joiner to abort
         wsrep_log_error "xtrabackup process ended without creating '${MAGIC_FILE}'"
-        wsrep_log_info "Contents of datadir" 
+        wsrep_log_info "Contents of datadir"
         wsrep_log_info "$(ls -l ${dir}/*)"
         exit 32
     fi
@@ -620,17 +625,17 @@ recv_joiner()
 send_donor()
 {
     local dir=$1
-    local msg=$2 
+    local msg=$2
 
     pushd ${dir} 1>/dev/null
     set +e
     timeit "$msg" "$strmcmd | $tcmd; RC=( "\${PIPESTATUS[@]}" )"
     set -e
-    popd 1>/dev/null 
+    popd 1>/dev/null
 
 
-    for ecode in "${RC[@]}";do 
-        if [[ $ecode -ne 0 ]];then 
+    for ecode in "${RC[@]}";do
+        if [[ $ecode -ne 0 ]];then
             wsrep_log_error "Error while getting data from donor node: " \
                             "exit codes: ${RC[@]}"
             exit 32
@@ -646,12 +651,12 @@ monitor_process()
     while true ; do
 
         if ! ps --pid "${WSREP_SST_OPT_PARENT}" &>/dev/null; then
-            wsrep_log_error "Parent mysqld process (PID:${WSREP_SST_OPT_PARENT}) terminated unexpectedly." 
+            wsrep_log_error "Parent mysqld process (PID:${WSREP_SST_OPT_PARENT}) terminated unexpectedly."
             kill -- -"${WSREP_SST_OPT_PARENT}"
             exit 32
         fi
 
-        if ! ps --pid "${sst_stream_pid}" &>/dev/null; then 
+        if ! ps --pid "${sst_stream_pid}" &>/dev/null; then
             break
         fi
 
@@ -660,14 +665,14 @@ monitor_process()
     done
 }
 
-if [[ ! -x `which $INNOBACKUPEX_BIN` ]];then 
+if [[ ! -x `which $INNOBACKUPEX_BIN` ]];then
     wsrep_log_error "${INNOBACKUPEX_BIN} not in path: $PATH"
     exit 2
 fi
 
 rm -f "${MAGIC_FILE}"
 
-if [[ ! ${WSREP_SST_OPT_ROLE} == 'joiner' && ! ${WSREP_SST_OPT_ROLE} == 'donor' ]];then 
+if [[ ! ${WSREP_SST_OPT_ROLE} == 'joiner' && ! ${WSREP_SST_OPT_ROLE} == 'donor' ]];then
     wsrep_log_error "Invalid role ${WSREP_SST_OPT_ROLE}"
     exit 22
 fi
@@ -675,11 +680,11 @@ fi
 read_cnf
 setup_ports
 
-if ${INNOBACKUPEX_BIN} /tmp --help 2>/dev/null | grep -q -- '--version-check'; then 
+if ${INNOBACKUPEX_BIN} /tmp --help 2>/dev/null | grep -q -- '--version-check'; then
     disver="--no-version-check"
 fi
 
-if [[ ${FORCE_FTWRL:-0} -eq 1 ]];then 
+if [[ ${FORCE_FTWRL:-0} -eq 1 ]];then
     wsrep_log_info "Forcing FTWRL due to environment variable FORCE_FTWRL equal to $FORCE_FTWRL"
     iopts+=" --no-backup-locks "
 fi
@@ -687,9 +692,9 @@ fi
 
 INNOEXTRA=""
 
-if [[ $ssyslog -eq 1 ]];then 
+if [[ $ssyslog -eq 1 ]];then
 
-    if [[ ! -x `which logger` ]];then 
+    if [[ ! -x `which logger` ]];then
         wsrep_log_error "logger not in path: $PATH. Ignoring"
     else
 
@@ -699,12 +704,12 @@ if [[ $ssyslog -eq 1 ]];then
 
         wsrep_log_error()
         {
-            logger  -p daemon.err -t ${ssystag}wsrep-sst-$WSREP_SST_OPT_ROLE "$@" 
+            logger  -p daemon.err -t ${ssystag}wsrep-sst-$WSREP_SST_OPT_ROLE "$@"
         }
 
         wsrep_log_info()
         {
-            logger  -p daemon.info -t ${ssystag}wsrep-sst-$WSREP_SST_OPT_ROLE "$@" 
+            logger  -p daemon.info -t ${ssystag}wsrep-sst-$WSREP_SST_OPT_ROLE "$@"
         }
 
         INNOAPPLY="${INNOBACKUPEX_BIN} --innobackupex $disver $iapts --apply-log \$rebuildcmd \${DATA} 2>&1  | logger -p daemon.err -t ${ssystag}innobackupex-apply "
@@ -712,7 +717,7 @@ if [[ $ssyslog -eq 1 ]];then
         INNOBACKUP="${INNOBACKUPEX_BIN} --innobackupex ${WSREP_SST_OPT_CONF} $disver $iopts \$tmpopts \$INNOEXTRA --galera-info --stream=\$sfmt \$itmpdir 2> >(logger -p daemon.err -t ${ssystag}innobackupex-backup)"
     fi
 
-else 
+else
     INNOAPPLY="${INNOBACKUPEX_BIN} --innobackupex $disver $iapts --apply-log \$rebuildcmd \${DATA} &>\${DATA}/innobackup.prepare.log"
     INNOMOVE="${INNOBACKUPEX_BIN} --innobackupex ${WSREP_SST_OPT_CONF} $disver $impts  --move-back --force-non-empty-directories \${DATA} &>\${DATA}/innobackup.move.log"
     INNOBACKUP="${INNOBACKUPEX_BIN} --innobackupex ${WSREP_SST_OPT_CONF} $disver $iopts \$tmpopts \$INNOEXTRA --galera-info --stream=\$sfmt \$itmpdir 2>\${DATA}/innobackup.backup.log"
@@ -728,13 +733,13 @@ then
     if [ $WSREP_SST_OPT_BYPASS -eq 0 ]
     then
         usrst=0
-        if [[ -z $sst_ver ]];then 
+        if [[ -z $sst_ver ]];then
             wsrep_log_error "Upgrade joiner to 5.6.21 or higher for backup locks support"
             wsrep_log_error "The joiner is not supported for this version of donor"
             exit 93
         fi
 
-        if [[ -z $(parse_cnf mysqld tmpdir "") && -z $(parse_cnf xtrabackup tmpdir "") ]];then 
+        if [[ -z $(parse_cnf mysqld tmpdir "") && -z $(parse_cnf xtrabackup tmpdir "") ]];then
             xtmpdir=$(mktemp -d)
             tmpopts=" --tmpdir=$xtmpdir "
             wsrep_log_info "Using $xtmpdir as xtrabackup temporary directory"
@@ -759,7 +764,7 @@ then
         if [[ $encrypt -eq 1 ]];then
             if [[ -n $ekey ]];then
                 INNOEXTRA+=" --encrypt=$ealgo --encrypt-key=$ekey "
-            else 
+            else
                 INNOEXTRA+=" --encrypt=$ealgo --encrypt-key-file=$ekeyfile "
             fi
         fi
@@ -776,12 +781,12 @@ then
         ttcmd="$tcmd"
 
         if [[ $encrypt -eq 1 ]];then
-            if [[ -n $scomp ]];then 
+            if [[ -n $scomp ]];then
                 tcmd=" $ecmd | $scomp | $tcmd "
-            else 
+            else
                 tcmd=" $ecmd | $tcmd "
             fi
-        elif [[ -n $scomp ]];then 
+        elif [[ -n $scomp ]];then
             tcmd=" $scomp | $tcmd "
         fi
 
@@ -789,10 +794,10 @@ then
         send_donor $DATA "${stagemsg}-gtid"
 
         tcmd="$ttcmd"
-        if [[ -n $progress ]];then 
+        if [[ -n $progress ]];then
             get_footprint
             tcmd="$pcmd | $tcmd"
-        elif [[ -n $rlimit ]];then 
+        elif [[ -n $rlimit ]];then
             adjust_progress
             tcmd="$pcmd | $tcmd"
         fi
@@ -802,7 +807,7 @@ then
 
         wsrep_log_info "Streaming the backup to joiner at ${REMOTEIP} ${SST_PORT:-4444}"
 
-        if [[ -n $scomp ]];then 
+        if [[ -n $scomp ]];then
             tcmd="$scomp | $tcmd"
         fi
 
@@ -814,7 +819,7 @@ then
           wsrep_log_error "${INNOBACKUPEX_BIN} finished with error: ${RC[0]}. " \
                           "Check ${DATA}/innobackup.backup.log"
           exit 22
-        elif [[ ${RC[$(( ${#RC[@]}-1 ))]} -eq 1 ]];then 
+        elif [[ ${RC[$(( ${#RC[@]}-1 ))]} -eq 1 ]];then
           wsrep_log_error "$tcmd finished with error: ${RC[1]}"
           exit 22
         fi
@@ -834,12 +839,12 @@ then
         echo "1" > "${DATA}/${IST_FILE}"
         get_keys
         if [[ $encrypt -eq 1 ]];then
-            if [[ -n $scomp ]];then 
+            if [[ -n $scomp ]];then
                 tcmd=" $ecmd | $scomp | $tcmd "
             else
                 tcmd=" $ecmd | $tcmd "
             fi
-        elif [[ -n $scomp ]];then 
+        elif [[ -n $scomp ]];then
             tcmd=" $scomp | $tcmd "
         fi
         strmcmd+=" \${IST_FILE}"
@@ -885,19 +890,19 @@ then
     trap sig_joiner_cleanup HUP PIPE INT TERM
     trap cleanup_joiner EXIT
 
-    if [[ -n $progress ]];then 
+    if [[ -n $progress ]];then
         adjust_progress
         tcmd+=" | $pcmd"
     fi
 
     get_keys
     if [[ $encrypt -eq 1 && $sencrypted -eq 1 ]];then
-        if [[ -n $sdecomp ]];then 
+        if [[ -n $sdecomp ]];then
             strmcmd=" $sdecomp | $ecmd | $strmcmd"
-        else 
+        else
             strmcmd=" $ecmd | $strmcmd"
         fi
-    elif [[ -n $sdecomp ]];then 
+    elif [[ -n $sdecomp ]];then
             strmcmd=" $sdecomp | $strmcmd"
     fi
 
@@ -908,7 +913,7 @@ then
 
     if ! ps -p ${WSREP_SST_OPT_PARENT} &>/dev/null
     then
-        wsrep_log_error "Parent mysqld process (PID:${WSREP_SST_OPT_PARENT}) terminated unexpectedly." 
+        wsrep_log_error "Parent mysqld process (PID:${WSREP_SST_OPT_PARENT}) terminated unexpectedly."
         exit 32
     fi
 
@@ -952,18 +957,18 @@ then
 
         get_proc
 
-        if [[ ! -s ${DATA}/xtrabackup_checkpoints ]];then 
+        if [[ ! -s ${DATA}/xtrabackup_checkpoints ]];then
             wsrep_log_error "xtrabackup_checkpoints missing, failed innobackupex/SST on donor"
             exit 2
         fi
 
         # Rebuild indexes for compact backups
-        if grep -q 'compact = 1' ${DATA}/xtrabackup_checkpoints;then 
+        if grep -q 'compact = 1' ${DATA}/xtrabackup_checkpoints;then
             wsrep_log_info "Index compaction detected"
             rebuild=1
         fi
 
-        if [[ $rebuild -eq 1 ]];then 
+        if [[ $rebuild -eq 1 ]];then
             nthreads=$(parse_cnf xtrabackup rebuild-threads $nproc)
             wsrep_log_info "Rebuilding during prepare with $nthreads threads"
             rebuildcmd="--rebuild-indexes --rebuild-threads=$nthreads"
@@ -973,7 +978,7 @@ then
 
             wsrep_log_info "Compressed qpress files found"
 
-            if [[ ! -x `which qpress` ]];then 
+            if [[ ! -x `which qpress` ]];then
                 wsrep_log_error "qpress not found in path: $PATH"
                 exit 22
             fi
@@ -981,28 +986,28 @@ then
             if [[ -n $progress ]] && pv --help | grep -q 'line-mode';then
                 count=$(find ${DATA} -type f -name '*.qp' | wc -l)
                 count=$(( count*2 ))
-                if pv --help | grep -q FORMAT;then 
+                if pv --help | grep -q FORMAT;then
                     pvopts="-f -s $count -l -N Decompression -F '%N => Rate:%r Elapsed:%t %e Progress: [%b/$count]'"
-                else 
+                else
                     pvopts="-f -s $count -l -N Decompression"
                 fi
                 pcmd="pv $pvopts"
                 adjust_progress
                 dcmd="$pcmd | xargs -n 2 qpress -T${nproc}d"
-            else 
+            else
                 dcmd="xargs -n 2 qpress -T${nproc}d"
             fi
 
 
-            # Decompress the qpress files 
+            # Decompress the qpress files
             wsrep_log_info "Decompression with $nproc threads"
             timeit "Joiner-Decompression" "find ${DATA} -type f -name '*.qp' -printf '%p\n%h\n' | $dcmd"
             extcode=$?
 
             if [[ $extcode -eq 0 ]];then
                 wsrep_log_info "Removing qpress files after decompression"
-                find ${DATA} -type f -name '*.qp' -delete 
-                if [[ $? -ne 0 ]];then 
+                find ${DATA} -type f -name '*.qp' -delete
+                if [[ $? -ne 0 ]];then
                     wsrep_log_error "Something went wrong with deletion of qpress files. Investigate"
                 fi
             else
@@ -1017,7 +1022,7 @@ then
             BINLOG_DIRNAME=$(dirname $WSREP_SST_OPT_BINLOG)
             BINLOG_FILENAME=$(basename $WSREP_SST_OPT_BINLOG)
 
-            # To avoid comparing data directory and BINLOG_DIRNAME 
+            # To avoid comparing data directory and BINLOG_DIRNAME
             mv $DATA/${BINLOG_FILENAME}.* $BINLOG_DIRNAME/ 2>/dev/null || true
 
             pushd $BINLOG_DIRNAME &>/dev/null
@@ -1033,7 +1038,7 @@ then
 
         if [ $? -ne 0 ];
         then
-            wsrep_log_error "${INNOBACKUPEX_BIN} apply finished with errors. Check ${DATA}/innobackup.prepare.log" 
+            wsrep_log_error "${INNOBACKUPEX_BIN} apply finished with errors. Check ${DATA}/innobackup.prepare.log"
             exit 22
         fi
 
@@ -1043,22 +1048,22 @@ then
         set -e
         wsrep_log_info "Moving the backup to ${TDATA}"
         timeit "Xtrabackup move stage" "$INNOMOVE"
-        if [[ $? -eq 0 ]];then 
+        if [[ $? -eq 0 ]];then
             wsrep_log_info "Move successful, removing ${DATA}"
             rm -rf $DATA
             DATA=${TDATA}
-        else 
+        else
             wsrep_log_error "Move failed, keeping ${DATA} for further diagnosis"
             wsrep_log_error "Check ${DATA}/innobackup.move.log for details"
             exit 22
         fi
 
 
-    else 
+    else
         wsrep_log_info "${IST_FILE} received from donor: Running IST"
     fi
 
-    if [[ ! -r ${MAGIC_FILE} ]];then 
+    if [[ ! -r ${MAGIC_FILE} ]];then
         wsrep_log_error "SST magic file ${MAGIC_FILE} not found/readable"
         exit 2
     fi
