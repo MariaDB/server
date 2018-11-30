@@ -108,7 +108,6 @@ page_is_leaf(const page_t* page)
 }
 
 #ifndef UNIV_INNOCHECKSUM
-# ifdef UNIV_DEBUG
 /** Determine if the record is the metadata pseudo-record
 in the clustered index.
 @param[in]	rec	leaf page record on an index page
@@ -118,7 +117,6 @@ inline bool page_rec_is_metadata(const rec_t* rec)
 	return rec_get_info_bits(rec, page_rec_is_comp(rec))
 		& REC_INFO_MIN_REC_FLAG;
 }
-# endif /* UNIV_DEBUG */
 
 /** Determine the offset of the infimum record on the page.
 @param[in]	page	index page

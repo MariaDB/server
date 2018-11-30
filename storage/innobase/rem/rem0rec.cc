@@ -1981,7 +1981,7 @@ rec_copy_prefix_to_buf(
 					ut_ad(!(e & REC_1BYTE_SQL_NULL_MASK));
 					ut_ad(e < 128);
 					if (!index->fields[i].fixed_len) {
-						*lens-- = e;
+						*lens-- = byte(e);
 					}
 				}
 			} else {
@@ -1999,7 +1999,7 @@ rec_copy_prefix_to_buf(
 						   | REC_2BYTE_EXTERN_MASK)));
 					ut_ad(e < 16384);
 					if (e < 128 || !DATA_BIG_COL(f.col)) {
-						*lens-- = e;
+						*lens-- = byte(e);
 					} else {
 						*lens-- = byte(e >> 8) | 0x80U;
 						*lens-- = byte(e & 0xff);
