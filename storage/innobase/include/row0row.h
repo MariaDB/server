@@ -27,12 +27,9 @@ Created 4/20/1996 Heikki Tuuri
 #ifndef row0row_h
 #define row0row_h
 
-#include "univ.i"
-#include "data0data.h"
-#include "dict0types.h"
+#include "que0types.h"
 #include "ibuf0ibuf.h"
 #include "trx0types.h"
-#include "que0types.h"
 #include "mtr0mtr.h"
 #include "rem0types.h"
 #include "row0types.h"

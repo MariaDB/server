@@ -27,10 +27,9 @@ Created 2013-03-16 Sunny Bains
 #ifndef dyn0buf_h
 #define dyn0buf_h
 
-#include "univ.i"
-#include "ut0lst.h"
 #include "mem0mem.h"
 #include "dyn0types.h"
+#include "ut0lst.h"
 
 /** Class that manages dynamic buffers. It uses a UT_LIST of
 mtr_buf_t::block_t instances. We don't use STL containers in

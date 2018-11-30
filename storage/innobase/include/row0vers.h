@@ -27,9 +27,7 @@ Created 2/6/1997 Heikki Tuuri
 #ifndef row0vers_h
 #define row0vers_h
 
-#include "univ.i"
 #include "data0data.h"
-#include "dict0types.h"
 #include "trx0types.h"
 #include "que0types.h"
 #include "rem0types.h"

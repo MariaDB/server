@@ -27,6 +27,8 @@ Created May 26, 2009 Vasil Dimov
 #ifndef fsp0types_h
 #define fsp0types_h
 
+#include "univ.i"
+
 #ifndef UNIV_INNOCHECKSUM
 
 /** The fil_space_t::id of the redo log. All persistent tablespaces
@@ -35,7 +37,6 @@ have a smaller fil_space_t::id. */
 /** The fil_space_t::id of the innodb_temporary tablespace. */
 #define SRV_TMP_SPACE_ID		0xFFFFFFFEU
 
-#include "univ.i"
 #include "ut0byte.h"
 
 /** @name Flags for inserting records in order

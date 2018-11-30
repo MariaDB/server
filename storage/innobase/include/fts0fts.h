@@ -29,8 +29,6 @@ Created 2011/09/02 Sunny Bains
 
 #include "data0type.h"
 #include "data0types.h"
-#include "dict0types.h"
-#include "hash0hash.h"
 #include "mem0mem.h"
 #include "rem0types.h"
 #include "row0types.h"

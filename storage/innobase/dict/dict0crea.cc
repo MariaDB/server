@@ -2150,15 +2150,6 @@ dict_create_add_foreigns_to_dictionary(
 		}
 	}
 
-	trx->op_info = "committing foreign key definitions";
-
-	if (trx_is_started(trx)) {
-
-		trx_commit(trx);
-	}
-
-	trx->op_info = "";
-
 	return(DB_SUCCESS);
 }
 

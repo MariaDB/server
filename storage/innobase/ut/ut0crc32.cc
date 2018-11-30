@@ -83,7 +83,6 @@ mysys/my_perf.c, contributed by Facebook under the following license.
 #include "my_config.h"
 #include <string.h>
 
-#include "univ.i"
 #include "ut0crc32.h"
 
 #ifdef _MSC_VER

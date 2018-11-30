@@ -1,7 +1,7 @@
 /*****************************************************************************
 
 Copyright (c) 1994, 2016, Oracle and/or its affiliates. All Rights Reserved.
-Copyright (c) 2017, MariaDB Corporation.
+Copyright (c) 2017, 2018, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -26,8 +26,6 @@ Created 5/30/1994 Heikki Tuuri
 
 #ifndef data0data_h
 #define data0data_h
-
-#include "univ.i"
 
 #include "data0types.h"
 #include "data0type.h"

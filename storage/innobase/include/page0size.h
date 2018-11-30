@@ -27,7 +27,6 @@ Created Nov 14, 2013 Vasil Dimov
 #ifndef page0size_t
 #define page0size_t
 
-#include "univ.i"
 #include "fsp0types.h"
 
 #define FIELD_REF_SIZE 20U

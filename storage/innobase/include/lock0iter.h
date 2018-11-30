@@ -26,7 +26,6 @@ Created July 16, 2007 Vasil Dimov
 #ifndef lock0iter_h
 #define lock0iter_h
 
-#include "univ.i"
 #include "lock0types.h"
 
 struct lock_queue_iterator_t {

@@ -27,9 +27,7 @@ Created 3/26/1996 Heikki Tuuri
 #ifndef trx0trx_h
 #define trx0trx_h
 
-#include "dict0types.h"
 #include "trx0types.h"
-
 #include "lock0types.h"
 #include "que0types.h"
 #include "mem0mem.h"
