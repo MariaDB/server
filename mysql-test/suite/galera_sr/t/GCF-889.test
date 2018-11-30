@@ -21,6 +21,7 @@ SELECT COUNT(*) = 1;
 --connection node_2
 SELECT COUNT(*) = 1;
 CALL mtr.add_suppression("Could not execute Delete_rows event on table");
+CALL mtr.add_suppression("Can't find record in 't1'");
 SET GLOBAL wsrep_ignore_apply_errors = 7;
 
 --connection node_1
