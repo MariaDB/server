@@ -481,13 +481,11 @@ rec_offs_make_valid(
 		  ? dict_index_get_n_fields(index)
 		  : dict_index_get_n_unique_in_tree_nonleaf(index) + 1)
 	      || index->is_dummy || dict_index_is_ibuf(index));
-	const bool is_user_rec = (dict_table_is_comp(index->table)
+	const bool is_user_rec = (rec_offs_comp(offsets)
 				  ? rec_get_heap_no_new(rec)
 				  : rec_get_heap_no_old(rec))
 		>= PAGE_HEAP_NO_USER_LOW;
-	ulint n = rec_offs_comp(offsets)
-		? rec_get_n_fields(rec, index)
-		: rec_get_n_fields_old(rec);
+	ulint n = rec_get_n_fields(rec, index, rec_offs_comp(offsets));
 	/* The infimum and supremum records carry 1 field. */
 	ut_ad(is_user_rec || n == 1);
 	ut_ad(is_user_rec || rec_offs_n_fields(offsets) == 1);
