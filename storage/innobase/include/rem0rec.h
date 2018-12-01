@@ -199,17 +199,13 @@ rec_get_n_fields_old(
 /*=================*/
 	const rec_t*	rec)	/*!< in: physical record */
 	MY_ATTRIBUTE((warn_unused_result));
-/******************************************************//**
-The following function is used to get the number of fields
-in a record.
+/** Determine the number of fields in a record.
+@param[in]	rec	record
+@param[in]	index	index tree
+@param[in]	comp	nonzero if the record is not in ROW_FORMAT=REDUNDANT
 @return number of data fields */
-UNIV_INLINE
-ulint
-rec_get_n_fields(
-/*=============*/
-	const rec_t*		rec,	/*!< in: physical record */
-	const dict_index_t*	index)	/*!< in: record descriptor */
-	MY_ATTRIBUTE((warn_unused_result));
+inline ulint
+rec_get_n_fields(const rec_t* rec, const dict_index_t* index, ulint comp);
 
 /** Confirms the n_fields of the entry is sane with comparing the other
 record in the same page specified

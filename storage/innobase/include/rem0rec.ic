@@ -434,37 +434,32 @@ rec_set_n_fields_old(
 			    REC_OLD_N_FIELDS_MASK, REC_OLD_N_FIELDS_SHIFT);
 }
 
-/******************************************************//**
-The following function is used to get the number of fields
-in a record.
+/** Determine the number of fields in a record.
+@param[in]	rec	record
+@param[in]	index	index tree
+@param[in]	comp	nonzero if the record is not in ROW_FORMAT=REDUNDANT
 @return number of data fields */
-UNIV_INLINE
-ulint
-rec_get_n_fields(
-/*=============*/
-	const rec_t*		rec,	/*!< in: physical record */
-	const dict_index_t*	index)	/*!< in: record descriptor */
+inline ulint
+rec_get_n_fields(const rec_t* rec, const dict_index_t* index, ulint comp)
 {
-	ut_ad(rec);
-	ut_ad(index);
+	ut_ad(!!comp == index->table->not_redundant() || index->dual_format());
 
-	if (!dict_table_is_comp(index->table)) {
-		return(rec_get_n_fields_old(rec));
+	if (!comp) {
+		return rec_get_n_fields_old(rec);
 	}
 
 	switch (rec_get_status(rec)) {
 	case REC_STATUS_INSTANT:
 	case REC_STATUS_ORDINARY:
-		return(dict_index_get_n_fields(index));
+		return index->n_fields;
 	case REC_STATUS_NODE_PTR:
-		return(dict_index_get_n_unique_in_tree(index) + 1);
+		return dict_index_get_n_unique_in_tree(index) + 1;
 	case REC_STATUS_INFIMUM:
 	case REC_STATUS_SUPREMUM:
-		return(1);
+		return 1;
 	}
 
-	ut_error;
-	return(ULINT_UNDEFINED);
+	return ULINT_UNDEFINED;
 }
 
 /** Confirms the n_fields of the entry is sane with comparing the other
@@ -480,7 +475,8 @@ rec_n_fields_is_sane(
 	const rec_t*	rec,
 	const dtuple_t*	entry)
 {
-	const ulint n_fields = rec_get_n_fields(rec, index);
+	const ulint n_fields = rec_get_n_fields(rec, index,
+						page_rec_is_comp(rec));
 
 	return(n_fields == dtuple_get_n_fields(entry)
 	       || (index->is_instant()
