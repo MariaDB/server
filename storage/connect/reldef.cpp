@@ -522,8 +522,15 @@ PTABDEF OEMDEF::GetXdef(PGLOBAL g)
 
   // Get the function returning an instance of the external DEF class
   if (!(getdef = (XGETDEF)GetProcAddress((HINSTANCE)Hdll, getname))) {
-    sprintf(g->Message, MSG(PROCADD_ERROR), GetLastError(), getname);
-    FreeLibrary((HMODULE)Hdll);
+		char  buf[256];
+		DWORD rc = GetLastError();
+
+		sprintf(g->Message, MSG(PROCADD_ERROR), rc, getname);
+		FormatMessage(FORMAT_MESSAGE_FROM_SYSTEM |
+			FORMAT_MESSAGE_IGNORE_INSERTS, NULL, rc, 0,
+			(LPTSTR)buf, sizeof(buf), NULL);
+		strcat(strcat(g->Message, ": "), buf);
+		FreeLibrary((HMODULE)Hdll);
     return NULL;
     } // endif getdef
 #else   // !__WIN__

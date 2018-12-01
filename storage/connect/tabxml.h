@@ -9,6 +9,8 @@ typedef class XMLDEF *PXMLDEF;
 typedef class TDBXML *PTDBXML;
 typedef class XMLCOL *PXMLCOL;
 
+DllExport PQRYRES XMLColumns(PGLOBAL, char *, char *, PTOS, bool);
+
 /* --------------------------- XML classes --------------------------- */
 
 /***********************************************************************/
@@ -100,8 +102,7 @@ class DllExport TDBXML : public TDBASE {
   virtual int   DeleteDB(PGLOBAL g, int irc);
   virtual void  CloseDB(PGLOBAL g);
   virtual int   CheckWrite(PGLOBAL g) {Checked = true; return 0;}
-  virtual const CHARSET_INFO *data_charset()
-                  {return &my_charset_utf8_general_ci;}
+	virtual const CHARSET_INFO *data_charset();
 
  protected:
   // Members
