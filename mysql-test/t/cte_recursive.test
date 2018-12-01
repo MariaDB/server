@@ -2495,3 +2495,42 @@ SELECT GROUP_CONCAT(
   FROM Zt
 GROUP BY Iy
 ORDER BY Iy;
+
+--echo #
+--echo # MDEV-17871: EXPLAIN for query with not used recursive cte
+--echo #
+
+create table t1 (a int);
+insert into t1 values (2), (1), (4), (3);
+
+let $rec_cte =
+with recursive cte as
+  (select * from t1 where a=1 union select a+1 from cte where a<3);
+
+eval
+explain extended
+$rec_cte
+select * from cte as t;
+
+eval
+$rec_cte
+select * from cte as t;
+
+eval
+explain extended
+$rec_cte
+select * from t1 as t;
+
+eval
+$rec_cte
+select * from t1 as t;
+
+create table t2 ( i1 int, i2 int);
+insert into t2 values (1,1),(2,2);
+
+explain
+with recursive cte as
+ ( select * from t1 union select s1.* from t1 as s1, cte where s1.i1 = cte.i2 )
+select * from t1 as t;
+
+drop table t1,t2;

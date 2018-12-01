@@ -694,8 +694,11 @@ bool st_select_lex_unit::prepare(THD *thd_arg, select_result *sel_result,
                                               instantiate_tmp_table, false))
           goto err;
         if (!derived->table)
-          derived->table= derived->derived_result->table= 
-            with_element->rec_result->rec_tables.head();
+        {
+          derived->table= with_element->rec_result->rec_tables.head();
+          if (derived->derived_result)
+            derived->derived_result->table= derived->table;
+        }
         with_element->mark_as_with_prepared_anchor();
         is_rec_result_table_created= true;
       }
