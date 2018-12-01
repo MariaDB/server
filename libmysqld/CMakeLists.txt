@@ -145,7 +145,7 @@ ENDIF()
 
 
 SET(LIBS 
-  dbug strings mysys mysys_ssl pcre vio 
+  dbug strings mysys mysys_ssl pcre vio ${LIBATOMIC}
   ${ZLIB_LIBRARY} ${SSL_LIBRARIES} 
   ${LIBWRAP} ${LIBCRYPT} ${LIBDL}
   ${MYSQLD_STATIC_PLUGIN_LIBS}
