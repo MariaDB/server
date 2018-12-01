@@ -306,7 +306,7 @@ set_core_fields:
 					    ->is_nullable());
 
 				if (index.fields[i].col->is_nullable()
-				    && !oindex.fields[i].col->is_nullable()) {
+				    && oindex.fields[i].col->was_not_null()) {
 					instant->leaf_redundant = 1;
 					break;
 				}
@@ -383,7 +383,7 @@ add_metadata:
 					DBUG_ASSERT(!f.name);
 					f.col = instant->dropped + d;
 				}
-				if (f.col->is_nullable()) {
+				if (!f.col->was_not_null()) {
 found_nullable:
 					n_nullable++;
 					ut_d(core_null
@@ -419,8 +419,13 @@ found_j:
 				DBUG_ASSERT(!fields[i].col->is_dropped());
 				DBUG_ASSERT(fields[i].name
 					    == fields[i].col->name(*this));
+				DBUG_ASSERT(fields[i].same(oindex.fields[i]));
 				if (fields[i].col->is_nullable()) {
-					goto found_nullable;
+					if (!oindex.fields[i]
+					    .col->was_not_null()) {
+						goto found_nullable;
+					}
+					fields[i].col->set_was_not_null();
 				}
 				continue;
 			}
@@ -429,7 +434,7 @@ found_j:
 			DBUG_ASSERT(d < n_drop);
 			f.col = &instant->dropped[d++];
 			f.name = NULL;
-			if (f.col->is_nullable()) {
+			if (!f.col->was_not_null()) {
 				goto found_nullable;
 			}
 		}
@@ -443,7 +448,7 @@ found_j:
 		DBUG_ASSERT(d == n_drop);
 		for (; i < n_fields; i++) {
 			fields[i] = index.fields[j++];
-			n_nullable += fields[i].col->is_nullable();
+			n_nullable += !fields[i].col->was_not_null();
 			DBUG_ASSERT(!fields[i].col->is_dropped());
 			DBUG_ASSERT(fields[i].name
 				    == fields[i].col->name(*this));
@@ -451,7 +456,6 @@ found_j:
 		DBUG_ASSERT(j == index.n_fields);
 		index.n_fields = index.n_def = n_fields;
 		index.fields = fields;
-		DBUG_ASSERT(n_nullable >= index.n_nullable);
 		DBUG_ASSERT(n_nullable >= oindex.n_nullable);
 		index.n_nullable = n_nullable;
 		goto set_core_fields;
