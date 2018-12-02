@@ -1,11 +1,11 @@
 /*************** tabjson H Declares Source Code File (.H) **************/
 /*  Name: tabjson.h   Version 1.3                                      */
 /*                                                                     */
-/*  (C) Copyright to the author Olivier BERTRAND          2014 - 2017  */
+/*  (C) Copyright to the author Olivier BERTRAND          2014 - 2018  */
 /*                                                                     */
 /*  This file contains the JSON classes declares.                      */
 /***********************************************************************/
-#include "osutil.h"
+//#include "osutil.h"				// Unuseful and bad for OEM
 #include "block.h"
 #include "colblk.h"
 #include "json.h"
@@ -16,7 +16,7 @@ typedef class JSONDEF *PJDEF;
 typedef class TDBJSON *PJTDB;
 typedef class JSONCOL *PJCOL;
 class TDBJSN;
-PQRYRES JSONColumns(PGLOBAL g, PCSZ db, PCSZ dsn, PTOS topt, bool info);
+DllExport PQRYRES JSONColumns(PGLOBAL, PCSZ, PCSZ, PTOS, bool);
 
 /***********************************************************************/
 /*  The JSON tree node. Can be an Object or an Array.           	  	 */
