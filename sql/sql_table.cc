@@ -33,7 +33,6 @@
                                                 // partition_info
                                                 // NOT_A_PARTITION_ID
 #include "sql_db.h"                             // load_db_opt_by_name
-#include "sql_time.h"                  // make_truncated_value_warning
 #include "records.h"             // init_read_record, end_read_record
 #include "filesort.h"            // filesort_free_buffers
 #include "sql_select.h"                // setup_order

@@ -2168,5 +2168,14 @@ Warning	1292	Truncated incorrect datetime value: 'z'
 Warning	1292	Truncated incorrect datetime value: 'z'
 Warning	1292	Truncated incorrect time value: 'z'
 #
+# MDEV-17319 Assertion `ts_type != MYSQL_TIMESTAMP_TIME' failed upon inserting into TIME field
+#
+CREATE TABLE t1 (t TIME);
+SET SESSION SQL_MODE='TRADITIONAL';
+INSERT INTO t1 VALUES ('0000-00-00 00:00:00'),('0000-00-00 00:00:00');
+ERROR 22007: Incorrect time value: '0000-00-00 00:00:00' for column 't' at row 1
+SET sql_mode=DEFAULT;
+DROP TABLE t1;
+#
 # End of 10.4 tests
 #
