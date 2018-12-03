@@ -7,6 +7,11 @@
 # leave the cluster.
 #
 
+# Save original auto_increment_offset values.
+--let $node_1=node_1
+--let $node_2=node_2
+--source ../galera/include/auto_increment_offset_save.inc
+
 --connection node_2
 CREATE TABLE t1 (f1 INTEGER) ENGINE=InnoDB;
 
@@ -32,13 +37,16 @@ SELECT COUNT(*) > 0 FROM wsrep_schema.SR;
 
 --connect node_2a, 127.0.0.1, root, , test, $NODE_MYPORT_2
 --connection node_2a
+SET SESSION wsrep_sync_wait=0;
 --let $wsrep_cluster_address_orig = `SELECT @@wsrep_cluster_address`
 SET GLOBAL wsrep_cluster_address = '';
 
---sleep 2
---connection node_2
+--let $wait_condition = SELECT VARIABLE_VALUE = 0 FROM INFORMATION_SCHEMA.GLOBAL_STATUS WHERE VARIABLE_NAME = 'wsrep_cluster_size'
+--source include/wait_condition.inc
+SET SESSION wsrep_sync_wait = DEFAULT;
 
---error 2013,ER_UNKNOWN_COM_ERROR
+--connection node_2
+--error 2013 # CR_SERVER_LOST
 INSERT INTO t1 VALUES (6);
 
 --connection node_1
@@ -50,7 +58,6 @@ SELECT COUNT(*) = 0 FROM wsrep_schema.SR;
 --disable_query_log
 --eval SET GLOBAL wsrep_cluster_address='gcomm://127.0.0.1:$NODE_GALERAPORT_1';
 --enable_query_log
---sleep 2
 
 --connection node_1
 --let $wait_condition = SELECT VARIABLE_VALUE = 2 FROM INFORMATION_SCHEMA.GLOBAL_STATUS WHERE VARIABLE_NAME = 'wsrep_cluster_size'
@@ -83,5 +90,9 @@ SELECT COUNT(*) = 0 FROM wsrep_schema.SR;
 DROP TABLE t1;
 
 --connection node_2b
-CALL mtr.add_suppression("WSREP: failed to send SR rollback for");
+CALL mtr.add_suppression("WSREP: Failed to replicate rollback fragment for");
 
+--disconnect node_2
+--connect node_2, 127.0.0.1, root, , test, $NODE_MYPORT_2
+# Restore original auto_increment_offset values.
+--source ../galera/include/auto_increment_offset_restore.inc

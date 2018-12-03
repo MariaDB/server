@@ -1,3 +1,8 @@
+connection node_2;
+connection node_1;
+connection node_1;
+connection node_2;
+connection node_2;
 CREATE TABLE t1 (f1 INTEGER) ENGINE=InnoDB;
 SET SESSION wsrep_trx_fragment_size = 1;
 SET AUTOCOMMIT=OFF;
@@ -10,15 +15,26 @@ INSERT INTO t1 VALUES (5);
 SELECT COUNT(*) > 0 FROM wsrep_schema.SR;
 COUNT(*) > 0
 1
+connection node_1;
 SELECT COUNT(*) > 0 FROM wsrep_schema.SR;
 COUNT(*) > 0
 1
+connect node_2a, 127.0.0.1, root, , test, $NODE_MYPORT_2;
+connection node_2a;
+SET SESSION wsrep_sync_wait=0;
 SET GLOBAL wsrep_cluster_address = '';
+SET SESSION wsrep_sync_wait = DEFAULT;
+connection node_2;
 INSERT INTO t1 VALUES (6);
-Got one of the listed errors
+ERROR HY000: Lost connection to MySQL server during query
+connection node_1;
 SELECT COUNT(*) = 0 FROM wsrep_schema.SR;
 COUNT(*) = 0
 1
+connection node_2a;
+connection node_1;
+connect node_2b, 127.0.0.1, root, , test, $NODE_MYPORT_2;
+connection node_2b;
 SELECT * FROM wsrep_schema.SR;
 node_uuid	trx_id	seqno	flags	frag
 SELECT COUNT(*) = 0 FROM wsrep_schema.SR;
@@ -35,6 +51,7 @@ COMMIT;
 SELECT COUNT(*) = 0 FROM wsrep_schema.SR;
 COUNT(*) = 0
 1
+connection node_1;
 SELECT COUNT(*) = 5 FROM t1;
 COUNT(*) = 5
 1
@@ -42,4 +59,7 @@ SELECT COUNT(*) = 0 FROM wsrep_schema.SR;
 COUNT(*) = 0
 1
 DROP TABLE t1;
-CALL mtr.add_suppression("WSREP: failed to send SR rollback for");
+connection node_2b;
+CALL mtr.add_suppression("WSREP: Failed to replicate rollback fragment for");
+disconnect node_2;
+connect node_2, 127.0.0.1, root, , test, $NODE_MYPORT_2;
