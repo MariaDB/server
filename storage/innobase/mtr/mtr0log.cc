@@ -507,7 +507,7 @@ mlog_open_and_write_index(
 	const byte*	log_start;
 	const byte*	log_end;
 
-	ut_ad(!!page_rec_is_comp(rec) == dict_table_is_comp(index->table)
+	ut_ad(!!page_rec_is_comp(rec) == index->table->not_redundant()
 	      || index->dual_format());
 
 	mtr->set_modified();
