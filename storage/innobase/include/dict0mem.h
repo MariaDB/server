@@ -618,7 +618,8 @@ public:
 		ut_ad(mtype == DATA_INT || mtype == DATA_FIXBINARY);
 		return mtype == DATA_INT;
 	}
-	/** @return whether this is system versioned */
+	/** @return whether this user column (not row_start, row_end)
+		    has System Versioning property */
 	bool is_versioned() const { return !(~prtype & DATA_VERSIONED); }
 	/** @return whether this is the system version start */
 	bool vers_sys_start() const
