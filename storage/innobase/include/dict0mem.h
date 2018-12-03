@@ -1565,42 +1565,34 @@ struct dict_vcol_templ_t {
 	dict_vcol_templ_t() : vtempl(0), mysql_table_query_id(~0ULL) {}
 };
 
-/** Metadata about clustered index non-PK field */
+/** Metadata on clustered index fields starting from first_user_field() */
 class field_map_element_t
 {
+	/** Number of bits for representing a column number */
 	static constexpr uint16_t IND_BITS = 10;
 
-	/** Current element represents info about dropped or existing column */
+	/** Set if the column of the field has been instantly dropped */
 	static constexpr uint16_t DROPPED = 1U << (IND_BITS + 5);
 
-	/** NOT NULL info
-	for existing:
-		the column was originally declared NOT NULL and the table is not
-		in ROW_FORMAT=REDUNDANT
-	for dropped:
-		the column was NOT NULL
-	*/
+	/** Set if the column of the field was originally declared NOT NULL */
 	static constexpr uint16_t NOT_NULL = 1U << (IND_BITS + 4);
 
-	/** Field index (data & DROPPED == 0) or field length (data & DROPPED != 0)
-	In case of field index addresses:
-		exising column at table->cols[data & IND];
-
-	In case of field length (data & IND) equals to:
-		0: if variable-length with max_len < 256 bytes
-		1: if variable-length with max_len > 255 bytes, otherwise
-		1 + L: where L is fixed length of the column.
-	*/
+	/** Column index (if !(data & DROPPED)): table->cols[data & IND],
+	or field length (if (data & DROPPED)):
+	(data & IND) = 0 if variable-length with max_len < 256 bytes;
+	(data & IND) = 1 if variable-length with max_len > 255 bytes;
+	(data & IND) = 1 + L otherwise, with L=fixed length of the column */
 	static constexpr uint16_t IND = (1U << IND_BITS) - 1;
 
+	/** Field metadata */
 	uint16_t data;
 
+	void clear_not_null() { data &= ~NOT_NULL; }
 public:
-	bool is_dropped() const		{ return data & DROPPED; }
-	void set_dropped()		{ data |= DROPPED; }
-	bool is_not_null() const	{ return data & NOT_NULL; }
-	void set_not_null()		{ data |= NOT_NULL; }
-	void clear_not_null()		{ data &= ~NOT_NULL; }
+	bool is_dropped() const { return data & DROPPED; }
+	void set_dropped() { data |= DROPPED; }
+	bool is_not_null() const { return data & NOT_NULL; }
+	void set_not_null() { data |= NOT_NULL; }
 	void set_not_null(bool not_null)
 	{
 		if (not_null) {
@@ -1609,10 +1601,10 @@ public:
 			clear_not_null();
 		}
 	}
-	uint16_t ind() const		{ return data & IND; }
+	uint16_t ind() const { return data & IND; }
 	void set_ind(uint16_t ind)
 	{
-		ut_ad(ind <= IND);
+		DBUG_ASSERT(ind <= IND);
 		data |= ind;
 	}
 	field_map_element_t& operator= (uint16_t value)
@@ -1620,10 +1612,11 @@ public:
 		data = value;
 		return *this;
 	}
-	operator uint16_t ()		{ return data; }
+	operator uint16_t() { return data; }
 };
 
-static_assert(sizeof(field_map_element_t) == 2, "Wrong field_map_element_t size!");
+static_assert(sizeof(field_map_element_t) == 2,
+	      "Wrong field_map_element_t size!");
 
 /** Instantly dropped or reordered columns */
 struct dict_instant_t

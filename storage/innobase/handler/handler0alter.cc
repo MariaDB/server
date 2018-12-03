@@ -202,8 +202,8 @@ inline void dict_table_t::init_instant(const dict_table_t& table)
 		field_map_it->set_dropped();
 		field_map_it->set_not_null(f.col->was_not_null());
 		field_map_it->set_ind(fixed_len
-					? uint16_t(fixed_len + 1)
-					: f.col->len > 255);
+				      ? uint16_t(fixed_len + 1)
+				      : f.col->len > 255);
 		field_map_it++;
 		ut_ad(f.col >= table.instant->dropped);
 		ut_ad(f.col < table.instant->dropped
