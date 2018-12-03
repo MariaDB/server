@@ -7910,8 +7910,8 @@ bool rpl_master_has_bug(const Relay_log_info *rli, uint bug_id, bool report,
 {
   struct st_version_range_for_one_bug {
     uint        bug_id;
-    const uchar introduced_in[3]; // first version with bug
-    const uchar fixed_in[3];      // first version with fix
+    Version introduced_in; // first version with bug
+    Version fixed_in;      // first version with fix
   };
   static struct st_version_range_for_one_bug versions_for_all_bugs[]=
   {
@@ -7921,19 +7921,17 @@ bool rpl_master_has_bug(const Relay_log_info *rli, uint bug_id, bool report,
     {33029, { 5, 1,  0 }, { 5, 1, 12 } },
     {37426, { 5, 1,  0 }, { 5, 1, 26 } },
   };
-  const uchar *master_ver=
-    rli->relay_log.description_event_for_exec->server_version_split.ver;
-
-  DBUG_ASSERT(sizeof(rli->relay_log.description_event_for_exec->server_version_split.ver) == 3);
+  const Version &master_ver=
+    rli->relay_log.description_event_for_exec->server_version_split;
 
   for (uint i= 0;
        i < sizeof(versions_for_all_bugs)/sizeof(*versions_for_all_bugs);i++)
   {
-    const uchar *introduced_in= versions_for_all_bugs[i].introduced_in,
-      *fixed_in= versions_for_all_bugs[i].fixed_in;
+    const Version &introduced_in= versions_for_all_bugs[i].introduced_in;
+    const Version &fixed_in= versions_for_all_bugs[i].fixed_in;
     if ((versions_for_all_bugs[i].bug_id == bug_id) &&
-        (memcmp(introduced_in, master_ver, 3) <= 0) &&
-        (memcmp(fixed_in,      master_ver, 3) >  0) &&
+        introduced_in <= master_ver &&
+        fixed_in > master_ver &&
         (pred == NULL || (*pred)(param)))
     {
       if (!report)

@@ -101,16 +101,11 @@ TYPELIB binlog_checksum_typelib=
    TODO: correct the constant when it has been determined 
    (which main tree to push and when) 
 */
-const uchar checksum_version_split_mysql[3]= {5, 6, 1};
-const ulong checksum_version_product_mysql=
-  (checksum_version_split_mysql[0] * 256 +
-   checksum_version_split_mysql[1]) * 256 +
-  checksum_version_split_mysql[2];
-const uchar checksum_version_split_mariadb[3]= {5, 3, 0};
-const ulong checksum_version_product_mariadb=
-  (checksum_version_split_mariadb[0] * 256 +
-   checksum_version_split_mariadb[1]) * 256 +
-  checksum_version_split_mariadb[2];
+const Version checksum_version_split_mysql(5, 6, 1);
+const Version checksum_version_split_mariadb(5, 3, 0);
+
+// First MySQL version with fraction seconds
+const Version fsp_version_split_mysql(5, 6, 0);
 
 #if !defined(MYSQL_CLIENT) && defined(HAVE_REPLICATION)
 static int rows_event_stmt_cleanup(rpl_group_info *rgi, THD* thd);
@@ -4541,6 +4536,7 @@ code_name(int code)
 }
 #endif
 
+
 /**
    Macro to check that there is enough space to read from memory.
 
@@ -4763,6 +4759,30 @@ Query_log_event::Query_log_event(const char* buf, uint event_len,
       pos= (const uchar*) end;                         // Break loop
     }
   }
+
+#if !defined(MYSQL_CLIENT)
+  if (description_event->server_version_split.kind ==
+      Format_description_log_event::master_version_split::KIND_MYSQL)
+  {
+    // Handle MariaDB/MySQL incompatible sql_mode bits
+    sql_mode_t mysql_sql_mode= sql_mode;
+    sql_mode&= MODE_MASK_MYSQL_COMPATIBLE; // Unset MySQL specific bits
+
+    /*
+      sql_mode flags related to fraction second rounding/truncation
+      have opposite meaning in MySQL vs MariaDB.
+      MySQL:
+       - rounds fractional seconds by default
+       - truncates if TIME_TRUNCATE_FRACTIONAL is set
+      MariaDB:
+       - truncates fractional seconds by default
+       - rounds if TIME_ROUND_FRACTIONAL is set
+    */
+    if (description_event->server_version_split >= fsp_version_split_mysql &&
+       !(mysql_sql_mode & MODE_MYSQL80_TIME_TRUNCATE_FRACTIONAL))
+      sql_mode|= MODE_TIME_ROUND_FRACTIONAL;
+  }
+#endif
 
   /**
     Layout for the data buffer is as follows
@@ -6549,26 +6569,24 @@ bool Format_description_log_event::start_decryption(Start_encryption_log_event* 
   return crypto_data.init(sele->crypto_scheme, sele->key_version);
 }
 
-static inline void
-do_server_version_split(char* version,
-                        Format_description_log_event::master_version_split *split_versions)
+
+Version::Version(const char *version, const char **endptr)
 {
-  char *p= version, *r;
+  const char *p= version;
   ulong number;
   for (uint i= 0; i<=2; i++)
   {
+    char *r;
     number= strtoul(p, &r, 10);
     /*
       It is an invalid version if any version number greater than 255 or
       first number is not followed by '.'.
     */
     if (number < 256 && (*r == '.' || i != 0))
-      split_versions->ver[i]= (uchar) number;
+      m_ver[i]= (uchar) number;
     else
     {
-      split_versions->ver[0]= 0;
-      split_versions->ver[1]= 0;
-      split_versions->ver[2]= 0;
+      *this= Version();
       break;
     }
 
@@ -6576,12 +6594,19 @@ do_server_version_split(char* version,
     if (*r == '.')
       p++; // skip the dot
   }
+  endptr[0]= p;
+}
+
+
+Format_description_log_event::
+  master_version_split::master_version_split(const char *version)
+{
+  const char *p;
+  static_cast<Version*>(this)[0]= Version(version, &p);
   if (strstr(p, "MariaDB") != 0 || strstr(p, "-maria-") != 0)
-    split_versions->kind=
-      Format_description_log_event::master_version_split::KIND_MARIADB;
+    kind= KIND_MARIADB;
   else
-    split_versions->kind=
-      Format_description_log_event::master_version_split::KIND_MYSQL;
+    kind= KIND_MYSQL;
 }
 
 
@@ -6595,20 +6620,14 @@ do_server_version_split(char* version,
 */
 void Format_description_log_event::calc_server_version_split()
 {
-  do_server_version_split(server_version, &server_version_split);
+  server_version_split= master_version_split(server_version);
 
   DBUG_PRINT("info",("Format_description_log_event::server_version_split:"
                      " '%s' %d %d %d", server_version,
-                     server_version_split.ver[0],
-                     server_version_split.ver[1], server_version_split.ver[2]));
+                     server_version_split[0],
+                     server_version_split[1], server_version_split[2]));
 }
 
-static inline ulong
-version_product(const Format_description_log_event::master_version_split* version_split)
-{
-  return ((version_split->ver[0] * 256 + version_split->ver[1]) * 256
-          + version_split->ver[2]);
-}
 
 /**
    @return TRUE is the event's version is earlier than one that introduced
@@ -6618,9 +6637,9 @@ bool
 Format_description_log_event::is_version_before_checksum(const master_version_split
                                                          *version_split)
 {
-  return version_product(version_split) <
+  return *version_split <
     (version_split->kind == master_version_split::KIND_MARIADB ?
-     checksum_version_product_mariadb : checksum_version_product_mysql);
+     checksum_version_split_mariadb : checksum_version_split_mysql);
 }
 
 /**
@@ -6636,7 +6655,6 @@ enum enum_binlog_checksum_alg get_checksum_alg(const char* buf, ulong len)
 {
   enum enum_binlog_checksum_alg ret;
   char version[ST_SERVER_VER_LEN];
-  Format_description_log_event::master_version_split version_split;
 
   DBUG_ENTER("get_checksum_alg");
   DBUG_ASSERT(buf[EVENT_TYPE_OFFSET] == FORMAT_DESCRIPTION_EVENT);
@@ -6646,7 +6664,7 @@ enum enum_binlog_checksum_alg get_checksum_alg(const char* buf, ulong len)
          ST_SERVER_VER_LEN);
   version[ST_SERVER_VER_LEN - 1]= 0;
   
-  do_server_version_split(version, &version_split);
+  Format_description_log_event::master_version_split version_split(version);
   ret= Format_description_log_event::is_version_before_checksum(&version_split)
     ? BINLOG_CHECKSUM_ALG_UNDEF
     : (enum_binlog_checksum_alg)buf[len - BINLOG_CHECKSUM_LEN - BINLOG_CHECKSUM_ALG_DESC_LEN];
