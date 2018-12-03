@@ -5786,7 +5786,7 @@ btr_cur_optimistic_delete_func(
 				lock_update_delete(block, rec);
 			}
 			btr_page_empty(block, buf_block_get_page_zip(block),
-				       index, 0, mtr);
+				       index, false, 0, mtr);
 			if (index->is_instant()) {
 				/* MDEV-17383: free metadata BLOBs! */
 				index->clear_instant_alter();
@@ -6016,7 +6016,8 @@ btr_cur_pessimistic_delete(
 			if (is_metadata || !index->is_instant()
 			    || (first_rec != rec
 				&& rec_is_add_metadata(first_rec, *index))) {
-				btr_page_empty(block, page_zip, index, 0, mtr);
+				btr_page_empty(block, page_zip, index, false,
+					       0, mtr);
 				if (index->is_instant()) {
 					/* MDEV-17383: free metadata BLOBs! */
 					index->clear_instant_alter();
