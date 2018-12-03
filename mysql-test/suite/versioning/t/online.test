@@ -148,5 +148,29 @@ alter table t drop column s, drop column e;
 --error ER_ALTER_OPERATION_NOT_SUPPORTED_REASON
 alter table t drop system versioning, lock=none;
 
+--echo #
+--echo # MDEV-17697 Broken versioning info after instant drop column
+--echo #
+set @@system_versioning_alter_history= keep;
+create or replace table t1 (a int, b int) with system versioning;
+insert into t1 values (1, 1);
+alter table t1 drop column b, algorithm=instant;
+alter table t1 drop system versioning;
+
+create or replace table t1 (a int, b int) with system versioning;
+insert into t1 values (1, 1);
+
+if ($have_debug) {
+--disable_query_log
+--disable_result_log
+set debug_dbug='+d,ib_commit_inplace_fail_1';
+--error ER_INTERNAL_ERROR
+alter table t1 drop column b, algorithm=instant;
+set debug_dbug= default;
+--enable_query_log
+--enable_result_log
+}
+alter table t1 drop system versioning;
+
 drop database test;
 create database test;

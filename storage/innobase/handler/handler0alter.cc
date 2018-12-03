@@ -457,6 +457,13 @@ inline void dict_table_t::instant_column(const dict_table_t& table,
 
 		if (const dict_col_t* o = find(old_cols, col_map, n_cols, i)) {
 			c.def_val = o->def_val;
+			if (o->vers_sys_start()) {
+				ut_ad(o->ind == vers_start);
+				vers_start = i;
+			} else if (o->vers_sys_end()) {
+				ut_ad(o->ind == vers_end);
+				vers_end = i;
+			}
 			continue;
 		}
 
@@ -707,6 +714,8 @@ inline void dict_table_t::rollback_instant(
 		index->n_core_null_bytes = UT_BITS_IN_BYTES(index->n_nullable);
 	}
 
+	index->n_core_fields = old_n_fields;
+
 	const dict_col_t* const new_cols = cols;
 	const dict_col_t* const new_cols_end = cols + n_cols;
 	const dict_v_col_t* const new_v_cols = v_cols;
@@ -719,6 +728,16 @@ inline void dict_table_t::rollback_instant(
 	n_def = n_cols = old_n_cols;
 	n_v_def = n_v_cols = old_n_v_cols;
 	n_t_def = n_t_cols = n_cols + n_v_cols;
+
+	if (versioned()) {
+		for (unsigned i = 0; i < n_cols; ++i) {
+			if (cols[i].vers_sys_start()) {
+				vers_start = i;
+			} else if (cols[i].vers_sys_end()) {
+				vers_end = i;
+			}
+		}
+	}
 
 	index->fields = old_fields;
 	mtr.commit();
@@ -3991,7 +4010,7 @@ innobase_build_col_map(
 	Alter_inplace_info*	ha_alter_info,
 	const TABLE*		altered_table,
 	const TABLE*		table,
-	const dict_table_t*	new_table,
+	dict_table_t*		new_table,
 	const dict_table_t*	old_table,
 	dtuple_t*		defaults,
 	mem_heap_t*		heap)
@@ -4065,6 +4084,13 @@ innobase_build_col_map(
 				}
 
 				col_map[old_i - num_old_v] = i;
+				if (old_table->versioned()) {
+					if (old_i == old_table->vers_start) {
+						new_table->vers_start = i;
+					} else if (old_i == old_table->vers_end) {
+						new_table->vers_end = i;
+					}
+				}
 				goto found_col;
 			}
 		}
