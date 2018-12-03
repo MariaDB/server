@@ -1,0 +1,27 @@
+# Tests for SSL connections, only run if mysqld is compiled
+# with support for SSL.
+-- source include/have_ssl_communication.inc
+source include/require_openssl_client.inc;
+
+--enable_warnings
+create user ssl_user1@localhost;
+grant select on test.* to ssl_user1@localhost;
+flush privileges;
+
+let tls_config=`select @@tls_version`;
+
+--exec $MYSQL -ussl_user1 --ssl --tls-version=$tls_config -e"SELECT @@tls_version='$tls_config' as tls_version_ok;";
+let $tls_version= "";
+if ($tls_config == "TLSv1.0")
+{
+  --error 1
+  --exec $MYSQL -ussl_user1 --ssl --tls-version=TLSv1.1 -e"SELECT @@tls_version='TLSv1.1' as tls_version_ok;";
+}
+if ($tls_config != "TLSv1.0")
+{
+--error 1
+--exec $MYSQL -ussl_user1 --ssl --tls-version=TLSv1.0 -e"SELECT @@tls_version='TLSv1.0' as tls_version_ok;";
+}
+
+drop user ssl_user1@localhost;
+

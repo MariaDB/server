@@ -1504,8 +1504,8 @@ HANDLE smem_event_connect_request= 0;
 my_bool opt_use_ssl  = 0;
 char *opt_ssl_ca= NULL, *opt_ssl_capath= NULL, *opt_ssl_cert= NULL,
   *opt_ssl_cipher= NULL, *opt_ssl_key= NULL, *opt_ssl_crl= NULL,
-  *opt_ssl_crlpath= NULL;
-
+  *opt_ssl_crlpath= NULL, *opt_tls_version= NULL;
+long tls_version= 0;
 
 static scheduler_functions thread_scheduler_struct, extra_thread_scheduler_struct;
 scheduler_functions *thread_scheduler= &thread_scheduler_struct,
@@ -4865,7 +4865,8 @@ static void init_ssl()
     ssl_acceptor_fd= new_VioSSLAcceptorFd(opt_ssl_key, opt_ssl_cert,
 					  opt_ssl_ca, opt_ssl_capath,
 					  opt_ssl_cipher, &error,
-                                          opt_ssl_crl, opt_ssl_crlpath);
+            opt_ssl_crl, opt_ssl_crlpath,
+					  tls_version);
     DBUG_PRINT("info",("ssl_acceptor_fd: %p", ssl_acceptor_fd));
     if (!ssl_acceptor_fd)
     {
@@ -7922,16 +7923,6 @@ static int show_ssl_ctx_sess_accept_good(THD *thd, SHOW_VAR *var, char *buff,
   return 0;
 }
 
-static int show_ssl_ctx_sess_connect_good(THD *thd, SHOW_VAR *var, char *buff,
-                                          enum enum_var_type scope)
-{
-  var->type= SHOW_LONG;
-  var->value= buff;
-  *((long *)buff)= (!ssl_acceptor_fd ? 0 :
-                     SSL_CTX_sess_connect_good(ssl_acceptor_fd->ssl_context));
-  return 0;
-}
-
 static int show_ssl_ctx_sess_accept_renegotiate(THD *thd, SHOW_VAR *var,
                                                 char *buff,
                                                 enum enum_var_type scope)
@@ -7940,17 +7931,6 @@ static int show_ssl_ctx_sess_accept_renegotiate(THD *thd, SHOW_VAR *var,
   var->value= buff;
   *((long *)buff)= (!ssl_acceptor_fd ? 0 :
                      SSL_CTX_sess_accept_renegotiate(ssl_acceptor_fd->ssl_context));
-  return 0;
-}
-
-static int show_ssl_ctx_sess_connect_renegotiate(THD *thd, SHOW_VAR *var,
-                                                 char *buff,
-                                                 enum enum_var_type scope)
-{
-  var->type= SHOW_LONG;
-  var->value= buff;
-  *((long *)buff)= (!ssl_acceptor_fd ? 0 :
-                     SSL_CTX_sess_connect_renegotiate(ssl_acceptor_fd->ssl_context));
   return 0;
 }
 
@@ -8014,16 +7994,6 @@ static int show_ssl_ctx_sess_number(THD *thd, SHOW_VAR *var, char *buff,
   return 0;
 }
 
-static int show_ssl_ctx_sess_connect(THD *thd, SHOW_VAR *var, char *buff,
-                                     enum enum_var_type scope)
-{
-  var->type= SHOW_LONG;
-  var->value= buff;
-  *((long *)buff)= (!ssl_acceptor_fd ? 0 :
-                     SSL_CTX_sess_connect(ssl_acceptor_fd->ssl_context));
-  return 0;
-}
-
 static int show_ssl_ctx_sess_get_cache_size(THD *thd, SHOW_VAR *var,
                                             char *buff,
                                             enum enum_var_type scope)
@@ -8032,26 +8002,6 @@ static int show_ssl_ctx_sess_get_cache_size(THD *thd, SHOW_VAR *var,
   var->value= buff;
   *((long *)buff)= (!ssl_acceptor_fd ? 0 :
                      SSL_CTX_sess_get_cache_size(ssl_acceptor_fd->ssl_context));
-  return 0;
-}
-
-static int show_ssl_ctx_get_verify_mode(THD *thd, SHOW_VAR *var, char *buff,
-                                        enum enum_var_type scope)
-{
-  var->type= SHOW_LONG;
-  var->value= buff;
-  *((long *)buff)= (!ssl_acceptor_fd ? 0 :
-                     SSL_CTX_get_verify_mode(ssl_acceptor_fd->ssl_context));
-  return 0;
-}
-
-static int show_ssl_ctx_get_verify_depth(THD *thd, SHOW_VAR *var, char *buff,
-                                         enum enum_var_type scope)
-{
-  var->type= SHOW_LONG;
-  var->value= buff;
-  *((long *)buff)= (!ssl_acceptor_fd ? 0 :
-                     SSL_CTX_get_verify_depth(ssl_acceptor_fd->ssl_context));
   return 0;
 }
 
@@ -8542,13 +8492,8 @@ SHOW_VAR status_vars[]= {
   {"Ssl_callback_cache_hits",  (char*) &show_ssl_ctx_sess_cb_hits, SHOW_SIMPLE_FUNC},
   {"Ssl_cipher",               (char*) &show_ssl_get_cipher, SHOW_SIMPLE_FUNC},
   {"Ssl_cipher_list",          (char*) &show_ssl_get_cipher_list, SHOW_SIMPLE_FUNC},
-  {"Ssl_client_connects",      (char*) &show_ssl_ctx_sess_connect, SHOW_SIMPLE_FUNC},
-  {"Ssl_connect_renegotiates", (char*) &show_ssl_ctx_sess_connect_renegotiate, SHOW_SIMPLE_FUNC},
-  {"Ssl_ctx_verify_depth",     (char*) &show_ssl_ctx_get_verify_depth, SHOW_SIMPLE_FUNC},
-  {"Ssl_ctx_verify_mode",      (char*) &show_ssl_ctx_get_verify_mode, SHOW_SIMPLE_FUNC},
   {"Ssl_default_timeout",      (char*) &show_ssl_get_default_timeout, SHOW_SIMPLE_FUNC},
   {"Ssl_finished_accepts",     (char*) &show_ssl_ctx_sess_accept_good, SHOW_SIMPLE_FUNC},
-  {"Ssl_finished_connects",    (char*) &show_ssl_ctx_sess_connect_good, SHOW_SIMPLE_FUNC},
   {"Ssl_server_not_after",     (char*) &show_ssl_get_server_not_after, SHOW_SIMPLE_FUNC},
   {"Ssl_server_not_before",    (char*) &show_ssl_get_server_not_before, SHOW_SIMPLE_FUNC},
   {"Ssl_session_cache_hits",   (char*) &show_ssl_ctx_sess_hits, SHOW_SIMPLE_FUNC},

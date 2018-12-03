@@ -34,7 +34,7 @@ disconnect ssl_con;
 
 create user mysqltest_1@localhost;
 grant usage on mysqltest.* to mysqltest_1@localhost require cipher "AES256-SHA";
---exec $MYSQL -umysqltest_1 --ssl-cipher=AES256-SHA -e "show status like 'ssl_cipher'" 2>&1
+--exec $MYSQL -umysqltest_1 --tls_version=TLSv1.2 --ssl-cipher=AES256-SHA -e "show status like 'ssl_cipher'" 2>&1
 drop user mysqltest_1@localhost;
 
 # Wait till all disconnects are completed

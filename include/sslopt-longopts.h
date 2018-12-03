@@ -46,6 +46,11 @@
     "Certificate revocation list path (implies --ssl).",
    &opt_ssl_crlpath, &opt_ssl_crlpath, 0, GET_STR, REQUIRED_ARG,
    0, 0, 0, 0, 0, 0},
+  {"tls-version", OPT_TLS_VERSION,
+    "TLS protocol version for secure connection.",
+   &opt_tls_version, &opt_tls_version, 0, GET_STR, REQUIRED_ARG,
+   0, 0, 0, 0, 0, 0}, 
+
 #ifdef MYSQL_CLIENT
   {"ssl-verify-server-cert", OPT_SSL_VERIFY_SERVER_CERT,
    "Verify server's \"Common Name\" in its cert against hostname used "

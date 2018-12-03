@@ -13,8 +13,13 @@
 connect (ssl_con,localhost,root,,,,,SSL);
 
 # Check Cipher Name and Cipher List
-SHOW STATUS LIKE 'Ssl_cipher';
-SHOW STATUS LIKE 'Ssl_cipher_list';
+select variable_value into @a from information_schema.session_status where variable_name like 'SSL_CIPHER';
+# Check if cipher is empty
+select length(@a) > 0;
+# check if cipher list is empty
+select length(VARIABLE_VALUE) > 0  from information_schema.session_status where variable_name like 'SSL_CIPHER_LIST';
+# check if cipher is in list
+select position(@a in VARIABLE_VALUE) > 0  from information_schema.session_status where variable_name like 'SSL_CIPHER_LIST';
 
 connection default;
 disconnect ssl_con;

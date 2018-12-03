@@ -199,6 +199,7 @@ static char*	log_ignored_opt;
 
 
 extern my_bool opt_use_ssl;
+extern const char *opt_tls_version;
 my_bool opt_ssl_verify_server_cert;
 
 /* === metadata of backup === */
@@ -837,6 +838,7 @@ enum options_xtrabackup
   OPT_ROCKSDB_DATADIR,
   OPT_BACKUP_ROCKSDB
 };
+
 
 struct my_option xb_client_options[] =
 {

@@ -1,0 +1,6 @@
+create user ssl_user1@localhost;
+grant select on test.* to ssl_user1@localhost;
+flush privileges;
+tls_version_ok
+1
+drop user ssl_user1@localhost;

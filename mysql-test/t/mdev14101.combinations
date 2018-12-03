@@ -1,0 +1,11 @@
+[TLSv1.0]
+--loose-tls-version=TLSv1.0
+
+[TLSv1.1]
+--loose-tls-version=TLSv1.1
+
+[TLSv1.2]
+--loose-tls-version=TLSv1.2
+
+[TLSv1.3]
+--loose-tls-version=TLSv1.3

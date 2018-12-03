@@ -588,6 +588,7 @@ extern int32 thread_count, service_thread_count;
 
 extern char *opt_ssl_ca, *opt_ssl_capath, *opt_ssl_cert, *opt_ssl_cipher,
   *opt_ssl_key, *opt_ssl_crl, *opt_ssl_crlpath;
+extern long tls_version;
 
 extern MYSQL_PLUGIN_IMPORT pthread_key(THD*, THR_THD);
 
@@ -650,6 +651,7 @@ enum options_mysqld
   OPT_WSREP_SYNC_WAIT,
 #endif /* WITH_WSREP */
   OPT_MYSQL_COMPATIBILITY,
+  OPT_TLS_VERSION,
   OPT_MYSQL_TO_BE_IMPLEMENTED,
   OPT_which_is_always_the_last
 };

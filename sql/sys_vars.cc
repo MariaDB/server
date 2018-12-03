@@ -3198,6 +3198,39 @@ static Sys_var_charptr Sys_ssl_crlpath(
        READ_ONLY GLOBAL_VAR(opt_ssl_crlpath), SSL_OPT(OPT_SSL_CRLPATH),
        IN_FS_CHARSET, DEFAULT(0));
 
+static const char *tls_version_names[]=
+{
+  "TLSv1.0", "TLSv1.1",
+#ifdef TLS1_2_VERSION
+  "TLSv1.2",
+#endif
+#ifdef TLS1_3_VERSION
+  "TLSv1.3",
+#endif
+  0
+};
+
+export bool tls_version_string_representation(THD *thd, sql_mode_t sql_mode,
+                                              LEX_STRING *ls)
+{
+  set_to_string(thd, ls, tls_version, tls_version_names);
+  return ls->str == 0;
+}
+
+static Sys_var_set Sys_tls_version(
+       "tls_version",
+       "TLS protocol version for secure connections.",
+       READ_ONLY GLOBAL_VAR(tls_version), CMD_LINE(REQUIRED_ARG),
+       tls_version_names,
+       DEFAULT(VIO_TLSv1_0 | VIO_TLSv1_1
+#ifdef TLS1_2_VERSION
+               | VIO_TLSv1_2
+#endif
+#ifdef TLS1_3_VERSION
+               | VIO_TLSv1_3
+#endif
+       ));
+
 static Sys_var_mybool Sys_standard_compliant_cte(
        "standard_compliant_cte",
        "Allow only CTEs compliant to SQL standard",
