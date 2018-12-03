@@ -1796,7 +1796,7 @@ page_print_list(
 	dict_index_t*	index,	/*!< in: dictionary index of the page */
 	ulint		pr_n)	/*!< in: print n first and n last entries */
 {
-	page_t*		page		= block->frame;
+	const page_t*	page		= block->frame;
 	page_cur_t	cur;
 	ulint		count;
 	ulint		n_recs;
@@ -1805,20 +1805,23 @@ page_print_list(
 	ulint*		offsets		= offsets_;
 	rec_offs_init(offsets_);
 
-	ut_a((ibool)!!page_is_comp(page) == dict_table_is_comp(index->table));
+	ut_a(!!page_is_comp(page) == index->table->not_redundant()
+	     || index->dual_format());
 
-	fprint(stderr,
+	fprintf(stderr,
 		"--------------------------------\n"
 		"PAGE RECORD LIST\n"
 		"Page address %p\n", page);
 
 	n_recs = page_get_n_recs(page);
+	const rec_fmt_t format = page_is_leaf(page)
+		? (page_is_comp(page) ? REC_FMT_LEAF : REC_FMT_LEAF_FLEXIBLE)
+		: REC_FMT_NODE_PTR;
 
 	page_cur_set_before_first(block, &cur);
 	count = 0;
 	for (;;) {
-		offsets = rec_get_offsets(cur.rec, index, offsets,
-					  page_rec_is_leaf(cur.rec),
+		offsets = rec_get_offsets(cur.rec, index, offsets, format,
 					  ULINT_UNDEFINED, &heap);
 		page_rec_print(cur.rec, offsets);
 
@@ -1841,7 +1844,7 @@ page_print_list(
 
 		if (count + pr_n >= n_recs) {
 			offsets = rec_get_offsets(cur.rec, index, offsets,
-						  page_rec_is_leaf(cur.rec),
+						  format,
 						  ULINT_UNDEFINED, &heap);
 			page_rec_print(cur.rec, offsets);
 		}

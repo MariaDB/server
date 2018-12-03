@@ -1957,7 +1957,7 @@ page_copy_rec_list_to_created_page_write_log(
 {
 	byte*	log_ptr;
 
-	ut_ad(!!page_is_comp(page) == dict_table_is_comp(index->table)
+	ut_ad(!!page_is_comp(page) == index->table->not_redundant()
 	      || index->dual_format());
 	ut_ad(mtr->is_named_space(index->table->space));
 
@@ -2278,7 +2278,8 @@ page_cur_delete_rec_write_log(
 {
 	byte*	log_ptr;
 
-	ut_ad(!!page_rec_is_comp(rec) == dict_table_is_comp(index->table));
+	ut_ad(!!page_rec_is_comp(rec) == index->table->not_redundant()
+	      || index->dual_format());
 	ut_ad(mtr->is_named_space(index->table->space));
 
 	log_ptr = mlog_open_and_write_index(mtr, rec, index,
@@ -2389,7 +2390,8 @@ page_cur_delete_rec(
 
 	current_rec = cursor->rec;
 	ut_ad(rec_offs_validate(current_rec, index, offsets));
-	ut_ad(!!page_is_comp(page) == dict_table_is_comp(index->table));
+	ut_ad(!!page_is_comp(page) == index->table->not_redundant()
+	      || index->dual_format());
 	ut_ad(fil_page_index_page_check(page));
 	ut_ad(mach_read_from_8(page + PAGE_HEADER + PAGE_INDEX_ID) == index->id
 	      || index->is_dummy

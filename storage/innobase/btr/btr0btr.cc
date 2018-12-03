@@ -4814,11 +4814,12 @@ btr_index_rec_validate(
 		fprintf(stderr, "index name is %s\n", index->name());
 	}
 #endif
-	if ((ibool)!!page_is_comp(page) != dict_table_is_comp(index->table)) {
+	if (!!page_is_comp(page) != index->table->not_redundant()
+	    && !index->dual_format()) {
 		btr_index_rec_validate_report(page, rec, index);
 
 		ib::error() << "Compact flag=" << !!page_is_comp(page)
-			<< ", should be " << dict_table_is_comp(index->table);
+			    << ", should be " << index->table->not_redundant();
 
 		return(FALSE);
 	}

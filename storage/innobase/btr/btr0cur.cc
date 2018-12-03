@@ -633,7 +633,9 @@ index root page.
 bool btr_cur_instant_root_init(dict_index_t* index, const page_t* page)
 {
 	ut_ad(page_is_root(page));
-	ut_ad(!page_is_comp(page) == !dict_table_is_comp(index->table));
+	ut_ad(!index->dual_format());
+	ut_ad(!!page_is_comp(page) == index->table->not_redundant()
+	      || (!page_is_comp(page) && page_is_leaf(page)));
 	ut_ad(index->is_primary());
 	ut_ad(!index->is_instant());
 	ut_ad(index->table->supports_instant());
@@ -5219,7 +5221,8 @@ btr_cur_del_mark_set_clust_rec_log(
 {
 	byte*	log_ptr;
 
-	ut_ad(!!page_rec_is_comp(rec) == dict_table_is_comp(index->table));
+	ut_ad(!!page_rec_is_comp(rec) == index->table->not_redundant()
+	      || index->dual_format());
 	ut_ad(mtr->is_named_space(index->table->space));
 
 	log_ptr = mlog_open_and_write_index(mtr, rec, index,
@@ -5372,7 +5375,8 @@ btr_cur_del_mark_set_clust_rec(
 
 	ut_ad(dict_index_is_clust(index));
 	ut_ad(rec_offs_validate(rec, index, offsets));
-	ut_ad(!!page_rec_is_comp(rec) == dict_table_is_comp(index->table));
+	ut_ad(!!page_rec_is_comp(rec) == index->table->not_redundant()
+	      || index->dual_format());
 	ut_ad(buf_block_get_frame(block) == page_align(rec));
 	ut_ad(page_rec_is_leaf(rec));
 	ut_ad(mtr->is_named_space(index->table->space));
