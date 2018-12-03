@@ -773,7 +773,7 @@ rtr_page_get_father_node_ptr(
 		error << ". You should dump + drop + reimport the table to"
 			" fix the corruption. If the crash happens at"
 			" database startup, see "
-			"https://mariadb.com/kb/en/library/xtradbinnodb-recovery-modes/"
+			"https://mariadb.com/kb/en/library/innodb-recovery-modes/"
 			" about forcing"
 			" recovery. Then dump + drop + reimport.";
 	}
