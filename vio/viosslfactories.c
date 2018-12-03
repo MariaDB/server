@@ -176,7 +176,9 @@ static long vio_tls_protocol_options(long tls_version)
 #ifdef TLS1_2_VERSION
     SSL_OP_NO_TLSv1_2 |
 #endif
+#ifdef TLS1_1_VERSION
     SSL_OP_NO_TLSv1_1 |
+#endif
     SSL_OP_NO_TLSv1;
    long disabled_tls_protocols= tls_protocol_flags,
         disabled_ssl_protocols= SSL_OP_NO_SSLv2 | SSL_OP_NO_SSLv3;
@@ -186,8 +188,10 @@ static long vio_tls_protocol_options(long tls_version)
 
   if (tls_version & VIO_TLSv1_0)
     disabled_tls_protocols&= ~SSL_OP_NO_TLSv1;
+#ifdef TLS1_1_VERSION
   if (tls_version & VIO_TLSv1_1)
     disabled_tls_protocols&= ~SSL_OP_NO_TLSv1_1;
+#endif
 #ifdef TLS1_2_VERSION
   if (tls_version & VIO_TLSv1_2)
     disabled_tls_protocols&= ~SSL_OP_NO_TLSv1_2;
