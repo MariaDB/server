@@ -847,24 +847,6 @@ inline bool rec_is_alter_metadata(const rec_t* rec, ulint comp)
 	return is;
 }
 
-/** Determine if the record is the metadata pseudo-record
-in the clustered index for instant ALTER TABLE (not plain ADD COLUMN).
-@param[in]	rec	leaf page record
-@param[in]	index	index of the record
-@return	whether the record is the ALTER TABLE metadata pseudo-record */
-inline bool rec_is_alter_metadata(const rec_t* rec, const dict_index_t& index)
-{
-#if 0 // FIXME: ensure that rec is a physical record!
-	bool is = rec_is_alter_metadata(rec, page_rec_is_comp(rec));
-	ut_ad(!!page_rec_is_comp(rec) == index.table->not_redundant()
-	      || index.dual_format());
-#else
-	bool is = rec_is_alter_metadata(rec, index.table->not_redundant());
-#endif
-	ut_ad(!is || index.is_dummy || index.is_instant());
-	return is;
-}
-
 /** Determine if a record is delete-marked (not a metadata pseudo-record).
 @param[in]	rec	record
 @param[in]	comp	nonzero if ROW_FORMAT!=REDUNDANT

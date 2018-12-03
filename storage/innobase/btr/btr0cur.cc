@@ -5027,7 +5027,7 @@ btr_cur_pessimistic_update(
 		}
 
 		if (!rec_get_deleted_flag(rec, rec_offs_comp(*offsets))
-		    || rec_is_alter_metadata(rec, *index)) {
+		    || rec_is_alter_metadata(rec, rec_offs_comp(*offsets))) {
 			/* The new inserted record owns its possible externally
 			stored fields */
 			btr_cur_unmark_extern_fields(

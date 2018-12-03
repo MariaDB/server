@@ -518,7 +518,7 @@ row_build_low(
 
 	for (ulint i = 0; i < rec_offs_n_fields(offsets); i++) {
 		if (i == index->first_user_field()
-		    && rec_is_alter_metadata(rec, *index)) {
+		    && rec_is_alter_metadata(rec, rec_offs_comp(offsets))) {
 			ut_ad(rec_offs_nth_extern(offsets, i));
 			ut_d(ulint len);
 			ut_d(rec_get_nth_field_offs(offsets, i, &len));
@@ -738,7 +738,8 @@ row_rec_to_index_entry_impl(
 	ut_ad(n_ext);
 	*n_ext = 0;
 
-	const bool got = mblob == 2 && rec_is_alter_metadata(rec, *index);
+	const bool got = mblob == 2
+		&& rec_is_alter_metadata(rec, rec_offs_comp(offsets));
 	ulint rec_len = rec_offs_n_fields(offsets);
 	if (mblob == 2) {
 		ut_ad(info_bits == REC_INFO_METADATA_ALTER
@@ -912,7 +913,7 @@ row_rec_to_index_entry(
 
 	dtuple_t* entry;
 
-	if (rec_is_alter_metadata(rec, *index)) {
+	if (rec_is_alter_metadata(rec, rec_offs_comp(offsets))) {
 		entry = row_rec_to_index_entry_impl<true,1>(
 			copy_rec, index, offsets, n_ext, heap);
 		dtuple_set_info_bits(entry, REC_INFO_METADATA_ALTER);
@@ -960,7 +961,7 @@ row_metadata_to_tuple(
 			    const_cast<ulint*>(offsets));
 
 	dtuple_t* entry = info_bits == REC_INFO_METADATA_ALTER
-		|| rec_is_alter_metadata(copy_rec, *index)
+		|| rec_is_alter_metadata(copy_rec, rec_offs_comp(offsets))
 		? row_rec_to_index_entry_impl<true,2>(
 			copy_rec, index, offsets, n_ext, heap, info_bits, pad)
 		: row_rec_to_index_entry_impl<true>(

@@ -4367,7 +4367,7 @@ btr_discard_only_page_on_level(
 		const rec_t* r = page_rec_get_next(page_get_infimum_rec(
 							   block->frame));
 		ut_ad(rec_is_metadata(r, *index) == index->is_instant());
-		if (rec_is_alter_metadata(r, *index)) {
+		if (rec_is_alter_metadata(r, page_rec_is_comp(r))) {
 			heap = mem_heap_create(srv_page_size);
 			offsets = rec_get_offsets(r, index, NULL,
 						  page_rec_is_comp(r)
@@ -4389,7 +4389,8 @@ btr_discard_only_page_on_level(
 	if (index->is_primary()) {
 		if (rec) {
 			DBUG_ASSERT(index->table->instant);
-			DBUG_ASSERT(rec_is_alter_metadata(rec, *index));
+			DBUG_ASSERT(rec_is_alter_metadata(
+					    rec, page_rec_is_comp(rec)));
 			btr_set_instant(block, *index, mtr);
 			rec = page_cur_insert_rec_low(
 				page_get_infimum_rec(block->frame),
