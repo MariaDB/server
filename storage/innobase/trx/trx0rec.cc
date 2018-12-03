@@ -1045,7 +1045,8 @@ trx_undo_page_report_modify(
 			ut_ad(!dfield_is_null(&update->fields[0].new_val));
 			/* The instant ADD COLUMN metadata record does not
 			contain the BLOB. Do not write anything for it. */
-			i = !rec_is_alter_metadata(rec, *index);
+			i = !rec_is_alter_metadata(rec,
+						   rec_offs_comp(offsets));
 			n_updated -= i;
 		}
 
@@ -1114,7 +1115,8 @@ trx_undo_page_report_modify(
 				ut_ad(pos >= index->first_user_field());
 				ut_ad(rec_is_metadata(rec, *index));
 
-				if (rec_is_alter_metadata(rec, *index)) {
+				if (rec_is_alter_metadata(
+					    rec, rec_offs_comp(offsets))) {
 					ut_ad(update->is_alter_metadata());
 
 					field = rec_offs_n_fields(offsets)
@@ -1165,7 +1167,8 @@ write_field:
 				ut_ad(col || pos == index->first_user_field());
 				ut_ad(col || update->is_alter_metadata());
 				ut_ad(col
-				      || rec_is_alter_metadata(rec, *index));
+				      || rec_is_alter_metadata(
+					      rec, rec_offs_comp(offsets)));
 				ulint prefix_len = col
 					? dict_max_field_len_store_undo(
 						table, col)
