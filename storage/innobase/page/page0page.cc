@@ -556,9 +556,7 @@ page_copy_rec_list_end_no_locks(
 	dict_index_t*	index,		/*!< in: record descriptor */
 	mtr_t*		mtr)		/*!< in: mtr */
 {
-	page_t*		new_page	= buf_block_get_frame(new_block);
 	page_cur_t	cur1;
-	rec_t*		cur2;
 	mem_heap_t*	heap		= NULL;
 	ulint		offsets_[REC_OFFS_NORMAL_SIZE];
 	ulint*		offsets		= offsets_;
@@ -573,13 +571,17 @@ page_copy_rec_list_end_no_locks(
 
 	btr_assert_not_corrupted(new_block, index);
 	// FIXME: If needed, copy and convert to REC_FMT_LEAF_FLEXIBLE
-	ut_a(page_is_comp(new_page) == page_rec_is_comp(rec));
-	ut_a(mach_read_from_2(new_page + srv_page_size - 10) == (ulint)
-	     (page_is_comp(new_page) ? PAGE_NEW_INFIMUM : PAGE_OLD_INFIMUM));
+	ut_ad(page_is_comp(new_block->frame) == page_rec_is_comp(rec)
+	      || index->dual_format());
+	ut_ad(mach_read_from_2(new_block->frame + srv_page_size - 10) ==
+	      (page_is_comp(new_block->frame)
+	       ? PAGE_NEW_INFIMUM : PAGE_OLD_INFIMUM));
 	const rec_fmt_t format = page_is_leaf(block->frame)
-		? REC_FMT_LEAF : REC_FMT_NODE_PTR;
+		? (page_is_comp(block->frame)
+		   ? REC_FMT_LEAF : REC_FMT_LEAF_FLEXIBLE)
+		: REC_FMT_NODE_PTR;
 
-	cur2 = page_get_infimum_rec(buf_block_get_frame(new_block));
+	rec_t* cur2 = page_get_infimum_rec(new_block->frame);
 
 	/* Copy records from the original page to the new page */
 

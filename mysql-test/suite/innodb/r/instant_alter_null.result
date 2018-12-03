@@ -37,10 +37,10 @@ TABLE_ID	b	2	6	1027	4
 TABLE_ID	c	3	6	1027	4
 select * from t;
 id	a	b	c
-4	NULL	NULL	NULL
-3	NULL	NULL	3
-2	NULL	2	2
 1	1	1	1
+2	NULL	2	2
+3	NULL	NULL	3
+4	NULL	NULL	NULL
 check table t;
 Table	Op	Msg_type	Msg_text
 test.t	check	status	OK

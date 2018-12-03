@@ -1606,7 +1606,9 @@ btr_page_reorganize_low(
 	/* Recreate the page: note that global data on page (possible
 	segment headers, next page-field, etc.) is preserved intact */
 
-	page_create(block, mtr, dict_table_is_comp(index->table), is_spatial);
+	page_create(block, mtr, index->table->not_redundant()
+		    && (!page_is_leaf(page) || !index->dual_format()),
+		    is_spatial);
 
 	/* Copy the records from the temporary space to the recreated page;
 	do not copy the lock bits yet */
@@ -1920,9 +1922,11 @@ btr_page_empty(
 		: 0;
 
 	if (page_zip) {
+		ut_ad(!index->table->dual_format());
 		page_create_zip(block, index, level, autoinc, mtr);
 	} else {
-		page_create(block, mtr, page_is_comp(block->frame),
+		page_create(block, mtr, index->table->not_redundant()
+			    && (level || !index->dual_format()),
 			    dict_index_is_spatial(index));
 		btr_page_set_level(page, NULL, level, mtr);
 		if (autoinc) {
