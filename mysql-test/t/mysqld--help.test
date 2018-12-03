@@ -23,7 +23,7 @@ perl;
                log-slow-queries pid-file slow-query-log-file log-basename
                datadir slave-load-tmpdir tmpdir socket thread-pool-size
                large-files-support lower-case-file-system system-time-zone
-               collation-server character-set-server log-tc-size version.*/;
+               collation-server character-set-server log-tc-size tls-version version.*/;
 
   # Plugins which may or may not be there:
   @plugins=qw/innodb archive blackhole federated partition
@@ -54,6 +54,9 @@ perl;
     $skip=1 if / --($re2)\b/;
     y!\\!/!;
     s/[ ]+/ /; # squeeze spaces to remove table formatting
+    # fix tls_version
+    s/, TLSv1.2//;
+    s/, TLSv1.3//;
     # fixes for 32-bit
     s/\b4294967295\b/18446744073709551615/;
     s/\b2146435072\b/9223372036853727232/;
