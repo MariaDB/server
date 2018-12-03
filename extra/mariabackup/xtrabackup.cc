@@ -5266,6 +5266,7 @@ xb_process_datadir(
 					    path, NULL,
 					    fileinfo.name, data))
 				{
+					os_file_closedir(dbdir);
 					return(FALSE);
 				}
 			}
@@ -5326,6 +5327,7 @@ next_file_item_1:
 						    dbinfo.name,
 						    fileinfo.name, data))
 					{
+						os_file_closedir(dbdir);
 						return(FALSE);
 					}
 				}
