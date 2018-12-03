@@ -5170,6 +5170,7 @@ xb_process_datadir(
 					    path, NULL,
 					    fileinfo.name, NULL))
 				{
+					os_file_closedir(dbdir);
 					return(FALSE);
 				}
 			}
