@@ -5748,7 +5748,7 @@ empty_table:
 			}
 		}
 		/* MDEV-17383: free metadata BLOBs! */
-		btr_page_empty(block, NULL, index, 0, &mtr);
+		btr_page_empty(block, NULL, index, false, 0, &mtr);
 		index->clear_instant_alter();
 		goto func_exit;
 	} else if (!user_table->is_instant()) {

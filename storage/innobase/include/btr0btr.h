@@ -702,6 +702,7 @@ btr_page_free(
 @param[in,out]	block		page to be emptied
 @param[in,out]	page_zip	compressed page frame, or NULL
 @param[in]	index		index of the page
+@param[in]	flexible	whether to invoke index->dual_format()
 @param[in]	level		B-tree level of the page (0=leaf)
 @param[in,out]	mtr		mini-transaction */
 void
@@ -709,9 +710,10 @@ btr_page_empty(
 	buf_block_t*	block,
 	page_zip_des_t*	page_zip,
 	dict_index_t*	index,
+	bool		flexible,
 	ulint		level,
 	mtr_t*		mtr)
-	MY_ATTRIBUTE((nonnull(1, 3, 5)));
+	MY_ATTRIBUTE((nonnull(1, 3, 6)));
 /**************************************************************//**
 Creates a new index page (not the root, and also not
 used in page reorganization).  @see btr_page_empty(). */

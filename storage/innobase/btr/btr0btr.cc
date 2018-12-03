@@ -1891,6 +1891,7 @@ btr_parse_page_reorganize(
 @param[in,out]	block		page to be emptied
 @param[in,out]	page_zip	compressed page frame, or NULL
 @param[in]	index		index of the page
+@param[in]	flexible	whether to invoke index->dual_format()
 @param[in]	level		B-tree level of the page (0=leaf)
 @param[in,out]	mtr		mini-transaction */
 void
@@ -1898,6 +1899,7 @@ btr_page_empty(
 	buf_block_t*	block,
 	page_zip_des_t*	page_zip,
 	dict_index_t*	index,
+	bool		flexible,
 	ulint		level,
 	mtr_t*		mtr)
 {
@@ -1926,7 +1928,7 @@ btr_page_empty(
 		page_create_zip(block, index, level, autoinc, mtr);
 	} else {
 		page_create(block, mtr, index->table->not_redundant()
-			    && (level || !index->dual_format()),
+			    && (level || !flexible || !index->dual_format()),
 			    dict_index_is_spatial(index));
 		btr_page_set_level(page, NULL, level, mtr);
 		if (autoinc) {
@@ -2172,7 +2174,8 @@ btr_root_raise_and_insert(
 			     | REC_INFO_MIN_REC_FLAG);
 
 	/* Rebuild the root page to get free space */
-	btr_page_empty(root_block, root_page_zip, index, level + 1, mtr);
+	btr_page_empty(root_block, root_page_zip, index, false, level + 1,
+		       mtr);
 	/* btr_page_empty() is supposed to zero-initialize the field. */
 	ut_ad(!page_get_instant(root_block->frame));
 
@@ -3672,19 +3675,14 @@ btr_lift_page_up(
 	btr_search_drop_page_hash_index(block);
 
 	/* Make the father empty */
-	btr_page_empty(father_block, father_page_zip, index, page_level, mtr);
+	btr_page_empty(father_block, father_page_zip, index, true,
+		       page_level, mtr);
 	/* btr_page_empty() is supposed to zero-initialize the field. */
 	ut_ad(!page_get_instant(father_block->frame));
 
 	if (page_level == 0 && index->is_instant()) {
 		ut_ad(!father_page_zip);
 		btr_set_instant(father_block, *index, mtr);
-#if 0 /* FIXME: convert father_block to "instant" format if needed */
-		if (index->dual_format() && !page_is_comp(block_orig->frame)) {
-			ut_ad(page_is_leaf(block_orig->frame));
-			ut_ad(page_is_comp(father_block->frame));
-		}
-#endif
 	}
 
 	page_level++;
@@ -4385,7 +4383,8 @@ btr_discard_only_page_on_level(
 		}
 	}
 
-	btr_page_empty(block, buf_block_get_page_zip(block), index, 0, mtr);
+	btr_page_empty(block, buf_block_get_page_zip(block), index, true,
+		       0, mtr);
 	ut_ad(page_is_leaf(buf_block_get_frame(block)));
 	/* btr_page_empty() is supposed to zero-initialize the field. */
 	ut_ad(!page_get_instant(block->frame));
