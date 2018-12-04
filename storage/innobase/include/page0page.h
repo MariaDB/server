@@ -878,6 +878,15 @@ page_create_empty(
 	dict_index_t*	index,	/*!< in: the index of the page */
 	mtr_t*		mtr)	/*!< in/out: mini-transaction */
 	MY_ATTRIBUTE((nonnull(1,2)));
+/** Copy and convert a list of records after instant ALTER TABLE.
+@param[in,out]	dest	cursor on the destination page
+@param[in]	src	first record to copy
+@param[in]	limit	first record not to copy from the source page
+@param[in,out]	offsets	scratch area for rec_get_offsets()
+@param[in,out]	mtr	mini-transaction */
+void page_copy_rec_list_convert(page_cur_t& dest, const rec_t* src,
+				const rec_t* limit, ulint* offsets,
+				mtr_t& mtr);
 /*************************************************************//**
 Differs from page_copy_rec_list_end, because this function does not
 touch the lock table and max trx id on page or compress the page.
