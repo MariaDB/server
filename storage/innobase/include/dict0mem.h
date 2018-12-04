@@ -615,11 +615,16 @@ public:
 	bool was_not_null() const {
 		return prtype & (DATA_WAS_NOT_NULL | DATA_NOT_NULL);
 	}
-	/** Indicate that a column originally was declared NOT NULL. */
-	void set_was_not_null()
+	/** Indicate whether a column originally was declared NOT NULL.
+	@param[in]	was_not_null	whether the column was NOT NULL */
+	void set_was_not_null(bool was_not_null = true)
 	{
 		DBUG_ASSERT(is_nullable());
-		prtype |= DATA_WAS_NOT_NULL;
+		if (was_not_null) {
+			prtype |= DATA_WAS_NOT_NULL;
+		} else {
+			prtype &= ~DATA_WAS_NOT_NULL;
+		}
 	}
 
 	/** @return whether table of this system field is TRX_ID-based */
@@ -2276,18 +2281,20 @@ inline void dict_index_t::clear_instant_alter()
 #endif
 	dict_field_t* const begin = &fields[first_user_field()];
 	dict_field_t* end = &fields[n_fields];
+	n_nullable = 0;
 
 	for (dict_field_t* d = begin; d < end; ) {
 		/* Move fields for dropped columns to the end. */
-		if (!d->col->is_dropped()) {
-			d++;
-		} else {
-			if (d->col->is_nullable()) {
-				n_nullable--;
-			}
-
+		if (d->col->is_dropped()) {
 			std::swap(*d, *--end);
+			continue;
 		}
+		/* Clear traces of instantly removed NOT NULL. */
+		if (d->col->is_nullable()) {
+			d->col->set_was_not_null(false);
+			n_nullable++;
+		}
+		d++;
 	}
 
 	DBUG_ASSERT(&fields[n_fields - table->n_dropped()] == end);
