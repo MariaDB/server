@@ -29,10 +29,9 @@ Created 11/28/1995 Heikki Tuuri
 #define mach0data_h
 
 #include "univ.i"
+#include "mtr0types.h"
 
 #ifndef UNIV_INNOCHECKSUM
-
-#include "mtr0types.h"
 
 /* The data and all fields are always stored in a database file
 in the same format: ascii, big-endian, ... .
