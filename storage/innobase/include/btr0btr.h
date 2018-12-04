@@ -179,7 +179,7 @@ btr_corruption_report(
 /*==================*/
 	const buf_block_t*	block,	/*!< in: corrupted block */
 	const dict_index_t*	index)	/*!< in: index tree */
-	ATTRIBUTE_COLD __attribute__((nonnull));
+	ATTRIBUTE_COLD ATTRIBUTE_NORETURN MY_ATTRIBUTE((nonnull));
 
 /** Assert that a B-tree page is not corrupted.
 @param block buffer block containing a B-tree page
