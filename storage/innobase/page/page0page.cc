@@ -541,6 +541,54 @@ page_create_empty(
 	}
 }
 
+/** Copy and convert a list of records after instant ALTER TABLE.
+@param[in,out]	dest	cursor on the destination page
+@param[in]	src	first record to copy
+@param[in]	limit	first record not to copy from the source page
+@param[in,out]	offsets	scratch area for rec_get_offsets()
+@param[in,out]	mtr	mini-transaction */
+void page_copy_rec_list_convert(page_cur_t& dest, const rec_t* src,
+				const rec_t* limit, ulint* offsets,
+				mtr_t& mtr)
+{
+	DBUG_ASSERT(page_rec_is_comp(src));
+	DBUG_ASSERT(!page_is_comp(dest.block->frame));
+	DBUG_ASSERT(page_rec_is_leaf(src));
+	DBUG_ASSERT(page_is_leaf(dest.block->frame));
+	DBUG_ASSERT(dest.index->dual_format());
+
+	mem_heap_t* heap = NULL;
+	mem_heap_t* row_heap = mem_heap_create(1024);
+
+	while (src != limit) {
+		offsets = rec_get_offsets(src, dest.index, offsets,
+					  REC_FMT_LEAF, ULINT_UNDEFINED,
+					  &heap);
+		ulint n_ext;
+		/* FIXME: skip rec_copy() here */
+		dtuple_t* dtuple = row_rec_to_index_entry(
+			src, dest.index, offsets, &n_ext, row_heap);
+		ut_ad(!!n_ext == rec_offs_any_extern(offsets));
+		/* TODO: ensure that we trim CHAR columns that
+		use variable-width character set encoding and that
+		we store no BLOB prefix in ROW_FORMAT=DYNAMIC */
+		dest.rec = page_cur_tuple_insert(
+			&dest, dtuple, const_cast<dict_index_t*>(dest.index),
+			&offsets, &row_heap, n_ext, &mtr);
+		if (!dest.rec) {
+			ut_ad(!"page overflow");
+		}
+
+		mem_heap_empty(row_heap);
+		src += int16_t(mach_read_from_2(src - REC_NEXT));
+	}
+
+	mem_heap_free(row_heap);
+	if (heap) {
+		mem_heap_free(heap);
+	}
+}
+
 /*************************************************************//**
 Differs from page_copy_rec_list_end, because this function does not
 touch the lock table and max trx id on page or compress the page.
@@ -575,50 +623,24 @@ page_copy_rec_list_end_no_locks(
 	ut_ad(mach_read_from_2(new_block->frame + srv_page_size - 10) ==
 	      (page_is_comp(new_block->frame)
 	       ? PAGE_NEW_INFIMUM : PAGE_OLD_INFIMUM));
-	const rec_fmt_t format = page_is_leaf(block->frame)
-		? (page_is_comp(block->frame)
-		   ? REC_FMT_LEAF : REC_FMT_LEAF_FLEXIBLE)
-		: REC_FMT_NODE_PTR;
-
 	rec_t* cur2 = page_get_infimum_rec(new_block->frame);
 
 	/* Copy records from the original page to the new page */
 
 	if (page_is_comp(new_block->frame) != page_rec_is_comp(rec)) {
-		DBUG_ASSERT(!page_is_comp(new_block->frame));
-		DBUG_ASSERT(index->dual_format());
-		/* FIXME: deduplicate code that is shared with
-		page_copy_rec_list_end_to_created_page() */
 		page_cur_t cursor;
+		cursor.index = index;
 		page_cur_position(cur2, new_block, &cursor);
-		mem_heap_t* row_heap = mem_heap_create(1024);
-
-		while (!page_cur_is_after_last(&cur1)) {
-			offsets = rec_get_offsets(cur1.rec, index, offsets,
-						  format,
-						  ULINT_UNDEFINED, &heap);
-			ulint n_ext;
-			/* FIXME: skip rec_copy() here */
-			dtuple_t* dtuple = row_rec_to_index_entry(
-				cur1.rec, index, offsets, &n_ext, row_heap);
-			ut_ad(!!n_ext == rec_offs_any_extern(offsets));
-			/* TODO: ensure that we trim CHAR columns that
-			use variable-width character set encoding and that
-			we store no BLOB prefix in ROW_FORMAT=DYNAMIC */
-			cursor.rec = page_cur_tuple_insert(
-				&cursor, dtuple, index, &offsets,
-				&row_heap, n_ext, mtr);
-			if (!cursor.rec) {
-				ut_ad(!"page overflow");
-			}
-
-			mem_heap_empty(row_heap);
-			page_cur_move_to_next(&cur1);
-		}
-
-		mem_heap_free(row_heap);
-		goto func_exit;
+		page_copy_rec_list_convert(cursor, cur1.rec,
+					   page_get_supremum_rec(block->frame),
+					   offsets, *mtr);
+		return;
 	}
+
+	const rec_fmt_t format = page_is_leaf(block->frame)
+		? (page_is_comp(block->frame)
+		   ? REC_FMT_LEAF : REC_FMT_LEAF_FLEXIBLE)
+		: REC_FMT_NODE_PTR;
 
 	while (!page_cur_is_after_last(&cur1)) {
 		offsets = rec_get_offsets(cur1.rec, index, offsets, format,
@@ -636,7 +658,6 @@ page_copy_rec_list_end_no_locks(
 		cur2 = ins_rec;
 	}
 
-func_exit:
 	if (UNIV_LIKELY_NULL(heap)) {
 		mem_heap_free(heap);
 	}
@@ -870,10 +891,8 @@ page_copy_rec_list_start(
 						      block, rec, index, heap,
 						      rec_move, max_to_move,
 						      &num_moved, mtr);
-	} else {
-		// FIXME: If needed, copy and convert to REC_FMT_LEAF_FLEXIBLE
-		ut_ad(page_is_comp(new_block->frame)
-		      == page_is_comp(block->frame));
+	} else if (page_is_comp(new_block->frame)
+		   == page_is_comp(block->frame)) {
 		const rec_fmt_t format = page_is_leaf(block->frame)
 			? REC_FMT_LEAF : REC_FMT_NODE_PTR;
 
@@ -888,6 +907,12 @@ page_copy_rec_list_start(
 
 			page_cur_move_to_next(&cur1);
 		}
+	} else {
+		page_cur_t cursor;
+		cursor.index = index;
+		page_cur_position(cur2, new_block, &cursor);
+		page_copy_rec_list_convert(cursor, cur1.rec, rec, offsets,
+					   *mtr);
 	}
 
 	/* Update PAGE_MAX_TRX_ID on the uncompressed page.

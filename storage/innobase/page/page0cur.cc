@@ -2107,37 +2107,12 @@ page_copy_rec_list_end_to_created_page(
 		ut_ad(index->dual_format());
 		ut_ad(is_leaf);
 		ut_ad(!page_is_comp(new_page));
-		page_cur_t cursor;
-		page_cur_position(prev_rec, new_block, &cursor);
-		mem_heap_t* row_heap = mem_heap_create(1024);
-
-		do {
-			offsets = rec_get_offsets(rec, index, offsets,
-						  REC_FMT_LEAF,
-						  ULINT_UNDEFINED, &heap);
-			ulint n_ext;
-			/* FIXME: skip rec_copy() here */
-			dtuple_t* dtuple = row_rec_to_index_entry(
-				rec, index, offsets, &n_ext, row_heap);
-			ut_ad(!!n_ext == rec_offs_any_extern(offsets));
-			/* TODO: ensure that we trim CHAR columns that
-			use variable-width character set encoding and that
-			we store no BLOB prefix in ROW_FORMAT=DYNAMIC */
-			cursor.rec = page_cur_tuple_insert(
-				&cursor, dtuple, index, &offsets,
-				&row_heap, n_ext, mtr);
-			if (!cursor.rec) {
-				ut_ad(!"page overflow");
-			}
-
-			mem_heap_empty(row_heap);
-			rec = page_rec_get_next_low(rec, TRUE);
-		} while (!page_rec_is_supremum(rec));
-
-		mem_heap_free(row_heap);
-		if (UNIV_LIKELY_NULL(heap)) {
-			mem_heap_free(heap);
-		}
+		page_cur_t dest;
+		dest.index = index;
+		page_cur_position(prev_rec, new_block, &dest);
+		page_copy_rec_list_convert(
+			dest, rec, page_get_supremum_rec(page_align(rec)),
+			offsets, *mtr);
 		return;
 	}
 
