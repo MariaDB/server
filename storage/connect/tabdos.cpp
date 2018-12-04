@@ -2045,24 +2045,25 @@ int TDBDOS::GetMaxSize(PGLOBAL g)
   if (!Cardinality(NULL)) {
     int len = GetFileLength(g);
 
-    if (len >= 0) {
-      int rec;
+		if (len >= 0) {
+			int rec;
 
-      if (trace(1))
-        htrc("Estimating lines len=%d ending=%d/n",
-              len, ((PDOSDEF)To_Def)->Ending);
+			if (trace(1))
+				htrc("Estimating lines len=%d ending=%d/n",
+					len, ((PDOSDEF)To_Def)->Ending);
 
-      /*****************************************************************/
-      /*  Estimate the number of lines in the table (if not known) by  */
-      /*  dividing the file length by minimum record length.           */
-      /*****************************************************************/
-      rec = EstimatedLength() + ((PDOSDEF)To_Def)->Ending;
-      MaxSize = (len + rec - 1) / rec;
+			/*****************************************************************/
+			/*  Estimate the number of lines in the table (if not known) by  */
+			/*  dividing the file length by minimum record length.           */
+			/*****************************************************************/
+			rec = (AvgLen <= 0 ? rec = EstimatedLength() : AvgLen)
+				  + ((PDOSDEF)To_Def)->Ending;
+			MaxSize = (len + rec - 1) / rec;
 
-      if (trace(1))
-        htrc("avglen=%d MaxSize%d\n", rec, MaxSize);
+			if (trace(1))
+				htrc("avglen=%d MaxSize%d\n", rec, MaxSize);
 
-      } // endif len
+		} // endif len
 
   } else
     MaxSize = Cardinality(g);

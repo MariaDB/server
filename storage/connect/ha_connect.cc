@@ -170,12 +170,12 @@
 #define JSONMAX      10             // JSON Default max grp size
 
 extern "C" {
-	char version[] = "Version 1.06.0008 October 06, 2018";
+	char version[]= "Version 1.06.0008 October 06, 2018";
 #if defined(__WIN__)
-	char compver[] = "Version 1.06.0008 " __DATE__ " "  __TIME__;
-	char slash = '\\';
+	char compver[]= "Version 1.06.0008 " __DATE__ " "  __TIME__;
+	char slash= '\\';
 #else   // !__WIN__
-	char slash = '/';
+	char slash= '/';
 #endif  // !__WIN__
 } // extern "C"
 
@@ -4191,7 +4191,7 @@ int ha_connect::rnd_pos(uchar *buf, uchar *pos)
     rc= rnd_next(buf);
 	} else {
 		PGLOBAL g = GetPlug((table) ? table->in_use : NULL, xp);
-		strcpy(g->Message, "Not supported by this table type");
+//	strcpy(g->Message, "Not supported by this table type");
 		my_message(ER_ILLEGAL_HA, g->Message, MYF(0));
 		rc= HA_ERR_INTERNAL_ERROR;
 	}	// endif SetRecpos
@@ -4606,6 +4606,7 @@ MODE ha_connect::CheckMode(PGLOBAL g, THD *thd,
     switch (thd_sql_command(thd)) {
       case SQLCOM_CREATE_TABLE:
         *chk= true;
+				break;
 			case SQLCOM_UPDATE_MULTI:
 			case SQLCOM_DELETE_MULTI:
 				*cras= true;
