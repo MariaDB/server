@@ -1,3 +1,5 @@
+--source include/have_binlog_format_statement.inc
+
 --echo #
 --echo # MDEV-8894 Inserting fractional seconds into MySQL 5.6 master breaks consistency on MariaDB 10 slave
 --echo #
@@ -6,6 +8,7 @@
 --source include/master-slave.inc
 
 --connection slave
+CREATE TABLE t1 (id SERIAL, a DATETIME(3));
 --source include/stop_slave.inc
 
 --connection master
@@ -19,10 +22,15 @@
 #
 # Simulate MySQL 5.7.x master
 #
-# mysql-5.7.11-stm-temporal-round-binlog.000001 was recorded with
-# "mysqld --log-bin --binlog-format=statement", with the following SQL script:
-#
+# mysql-5.7.11-stm-temporal-round-binlog.000001 was recorded against a
+# table with this structure:
 #CREATE TABLE t1 (id SERIAL, a DATETIME(3));
+# (note, the CREATE statement is not inside the binary log)
+#
+# using this command line:
+#   mysqld --log-bin --binlog-format=statement
+# with the following single SQL statement:
+#
 #INSERT INTO t1 (a) VALUES ('2001-01-01 00:00:00.999999');
 #
 
