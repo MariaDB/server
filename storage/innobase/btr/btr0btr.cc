@@ -1679,7 +1679,15 @@ btr_page_reorganize_low(
 	data_size2 = page_get_data_size(page);
 	max_ins_size2 = page_get_max_insert_size_after_reorganize(page, 1);
 
-	if (data_size1 != data_size2 || max_ins_size1 != max_ins_size2) {
+	if (data_size1 == data_size2 && max_ins_size1 == max_ins_size2) {
+		success = true;
+	} else if (page_is_comp(temp_page) && page_is_leaf(temp_page)
+		   && index->dual_format()) {
+		/* On format conversion, the size can differ. */
+		ut_ad(data_size2 >= data_size1);
+		ut_ad(max_ins_size2 <= max_ins_size1);
+		success = true; /* FIXME: return false on overflow */
+	} else {
 		ib::error()
 			<< "Page old data size " << data_size1
 			<< " new data size " << data_size2
@@ -1688,15 +1696,16 @@ btr_page_reorganize_low(
 
 		ib::error() << BUG_REPORT_MSG;
 		ut_ad(0);
-	} else {
-		success = true;
 	}
 
 	/* Restore the cursor position. */
 	if (pos > 0) {
 		cursor->rec = page_rec_get_nth(page, pos);
 	} else {
-		ut_ad(cursor->rec == page_get_infimum_rec(page));
+		ut_ad(cursor->rec == page_get_infimum_rec(page)
+		      || (!page_is_comp(page) && page_is_comp(temp_page)
+			  && page_is_leaf(page) && index->dual_format()));
+		cursor->rec = page_get_infimum_rec(page);
 	}
 
 #ifdef UNIV_ZIP_DEBUG
@@ -1718,6 +1727,12 @@ btr_page_reorganize_low(
 				memcpy(PAGE_NEW_INFIMUM + page,
 				       PAGE_NEW_INFIMUM + temp_page, 8);
 				memcpy(PAGE_NEW_SUPREMUM + page,
+				       PAGE_NEW_SUPREMUM + temp_page, 8);
+			} else if (page_is_comp(temp_page)) {
+				ut_ad(index->dual_format());
+				memcpy(PAGE_OLD_INFIMUM + page,
+				       PAGE_NEW_INFIMUM + temp_page, 8);
+				memcpy(PAGE_OLD_SUPREMUM + page,
 				       PAGE_NEW_SUPREMUM + temp_page, 8);
 			} else {
 				memcpy(PAGE_OLD_INFIMUM + page,

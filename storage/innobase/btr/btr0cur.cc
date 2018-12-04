@@ -3333,9 +3333,7 @@ btr_cur_optimistic_insert(
 	buf_block_t*	block;
 	page_t*		page;
 	rec_t*		dummy;
-	bool		reorg;
 	bool		inherit = true;
-	ulint		rec_size;
 	dberr_t		err;
 
 	ut_ad(thr || !(~flags & (BTR_NO_LOCKING_FLAG | BTR_NO_UNDO_LOG_FLAG)));
@@ -3361,31 +3359,22 @@ btr_cur_optimistic_insert(
 #endif /* UNIV_DEBUG_VALGRIND */
 
 	const bool leaf = page_is_leaf(page);
+	const rec_fmt_t format = leaf
+		? (index->dual_format() ? REC_FMT_LEAF_FLEXIBLE : REC_FMT_LEAF)
+		: REC_FMT_NODE_PTR;
 
-	if (leaf && page_is_comp(page) && index->dual_format()) {
-		/* The page must be converted into ROW_FORMAT=REDUNDANT
-		in a pessimistic operation. */
-		return DB_FAIL;
-	}
-
-	if (UNIV_UNLIKELY(entry->is_alter_metadata())) {
-		ut_ad(leaf);
-		rec_size = rec_get_converted_size(REC_FMT_LEAF,
-						  index, entry, n_ext);
-		goto convert_big_rec;
-	}
+	ut_ad(leaf || !entry->is_alter_metadata());
 
 	/* Calculate the record size when entry is converted to a record */
-	rec_size = rec_get_converted_size(leaf
-					  ? REC_FMT_LEAF : REC_FMT_NODE_PTR,
-					  index, entry, n_ext);
+	ulint rec_size = rec_get_converted_size(format, index, entry, n_ext);
 
-	if (page_zip_rec_needs_ext(rec_size, page_is_comp(page),
-				   dtuple_get_n_fields(entry), page_size)) {
+	if (UNIV_UNLIKELY(entry->is_alter_metadata())
+	    || page_zip_rec_needs_ext(rec_size, page_is_comp(page),
+				      dtuple_get_n_fields(entry), page_size)) {
 		if (!leaf || !index->is_primary()) {
 			return DB_TOO_BIG_RECORD;
 		}
-convert_big_rec:
+
 		/* The record is so big that we have to store some fields
 		externally on separate database pages */
 		big_rec_vec = dtuple_convert_big_rec(index, rec_size, NULL,
@@ -3396,7 +3385,7 @@ convert_big_rec:
 			return(DB_TOO_BIG_RECORD);
 		}
 
-		rec_size = rec_get_converted_size(REC_FMT_LEAF, index, entry, n_ext);
+		rec_size = rec_get_converted_size(format, index, entry, n_ext);
 	}
 
 	if (page_size.is_compressed() && page_zip_is_too_big(index, entry)) {
@@ -3467,8 +3456,12 @@ fail_err:
 		 "insert " << index->name << " (" << index->id << ") by "
 		 << ib::hex(thr ? thr->graph->trx->id : 0)
 		 << ' ' << rec_printer(entry).str());
-	DBUG_EXECUTE_IF("do_page_reorganize",
-			btr_page_reorganize(page_cursor, index, mtr););
+
+	bool reorg = leaf && page_is_comp(page) && index->dual_format();
+	DBUG_EXECUTE_IF("do_page_reorganize", reorg = true; );
+	if (reorg) {
+		btr_page_reorganize(page_cursor, index, mtr);
+	}
 
 	/* Now, try the insert */
 	{
@@ -3512,7 +3505,11 @@ fail_err:
 			page_cursor, entry, index, offsets, heap,
 			n_ext, mtr);
 
-		reorg = page_cursor_rec != page_cur_get_rec(page_cursor);
+		if (reorg) {
+			ut_ad(page_cursor_rec == page_cursor->rec);
+		} else {
+			reorg = page_cursor_rec != page_cursor->rec;
+		}
 	}
 
 	if (*rec) {

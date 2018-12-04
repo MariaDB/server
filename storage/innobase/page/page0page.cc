@@ -35,6 +35,7 @@ Created 2/2/1994 Heikki Tuuri
 #include "fut0lst.h"
 #include "btr0sea.h"
 #include "trx0sys.h"
+#include "row0row.h"
 
 /*			THE INDEX PAGE
 			==============
@@ -570,9 +571,6 @@ page_copy_rec_list_end_no_locks(
 	}
 
 	btr_assert_not_corrupted(new_block, index);
-	// FIXME: If needed, copy and convert to REC_FMT_LEAF_FLEXIBLE
-	ut_ad(page_is_comp(new_block->frame) == page_rec_is_comp(rec)
-	      || index->dual_format());
 	ut_ad(mach_read_from_2(new_block->frame + srv_page_size - 10) ==
 	      (page_is_comp(new_block->frame)
 	       ? PAGE_NEW_INFIMUM : PAGE_OLD_INFIMUM));
@@ -585,13 +583,47 @@ page_copy_rec_list_end_no_locks(
 
 	/* Copy records from the original page to the new page */
 
+	if (page_is_comp(new_block->frame) != page_rec_is_comp(rec)) {
+		DBUG_ASSERT(!page_is_comp(new_block->frame));
+		DBUG_ASSERT(index->dual_format());
+		/* FIXME: deduplicate code that is shared with
+		page_copy_rec_list_end_to_created_page() */
+		page_cur_t cursor;
+		page_cur_position(cur2, new_block, &cursor);
+		mem_heap_t* row_heap = mem_heap_create(1024);
+
+		while (!page_cur_is_after_last(&cur1)) {
+			offsets = rec_get_offsets(cur1.rec, index, offsets,
+						  format,
+						  ULINT_UNDEFINED, &heap);
+			ulint n_ext;
+			/* FIXME: skip rec_copy() here */
+			dtuple_t* dtuple = row_rec_to_index_entry(
+				cur1.rec, index, offsets, &n_ext, row_heap);
+			ut_ad(!!n_ext == rec_offs_any_extern(offsets));
+			/* TODO: ensure that we trim CHAR columns that
+			use variable-width character set encoding and that
+			we store no BLOB prefix in ROW_FORMAT=DYNAMIC */
+			cursor.rec = page_cur_tuple_insert(
+				&cursor, dtuple, index, &offsets,
+				&row_heap, n_ext, mtr);
+			if (!cursor.rec) {
+				ut_ad(!"page overflow");
+			}
+
+			mem_heap_empty(row_heap);
+			page_cur_move_to_next(&cur1);
+		}
+
+		mem_heap_free(row_heap);
+		goto func_exit;
+	}
+
 	while (!page_cur_is_after_last(&cur1)) {
-		rec_t*	cur1_rec = page_cur_get_rec(&cur1);
-		rec_t*	ins_rec;
-		offsets = rec_get_offsets(cur1_rec, index, offsets, format,
+		offsets = rec_get_offsets(cur1.rec, index, offsets, format,
 					  ULINT_UNDEFINED, &heap);
-		ins_rec = page_cur_insert_rec_low(cur2, index,
-						  cur1_rec, offsets, mtr);
+		rec_t* ins_rec = page_cur_insert_rec_low(cur2, index, cur1.rec,
+							 offsets, mtr);
 		if (UNIV_UNLIKELY(!ins_rec)) {
 			ib::fatal() << "Rec offset " << page_offset(rec)
 				<< ", cur1 offset "
@@ -603,6 +635,7 @@ page_copy_rec_list_end_no_locks(
 		cur2 = ins_rec;
 	}
 
+func_exit:
 	if (UNIV_LIKELY_NULL(heap)) {
 		mem_heap_free(heap);
 	}
