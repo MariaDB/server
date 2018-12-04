@@ -121,15 +121,7 @@ static bool wsrep_load_data_split(THD *thd, const TABLE *table,
     if (hton->db_type != DB_TYPE_INNODB)
       DBUG_RETURN(false);
     WSREP_DEBUG("intermediate transaction commit in LOAD DATA");
-#ifdef OUT /* this is old mariadb implementation... */
-    if (wsrep_run_wsrep_commit(thd, true) != WSREP_TRX_OK) DBUG_RETURN(true);
-    if (binlog_hton->commit(binlog_hton, thd, true)) DBUG_RETURN(true);
-    wsrep_post_commit(thd, true);
-    hton->commit(hton, thd, true);
-#else
-    /* ...which is replaced by this */
     wsrep_tc_log_commit(thd);
-#endif
     table->file->extra(HA_EXTRA_FAKE_START_STMT);
   }
 
