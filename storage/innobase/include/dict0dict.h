@@ -1156,21 +1156,6 @@ dict_index_get_nth_col_or_prefix_pos(
 	ulint*			prefix_col_pos) /*!< out: col num if prefix
 						*/
 	__attribute__((warn_unused_result));
-
-/********************************************************************//**
-Returns TRUE if the index contains a column or a prefix of that column.
-@param[in]	index		index
-@param[in]	n		column number
-@param[in]	is_virtual	whether it is a virtual col
-@return TRUE if contains the column or its prefix */
-bool
-dict_index_contains_col_or_prefix(
-/*==============================*/
-	const dict_index_t*	index,	/*!< in: index */
-	ulint			n,	/*!< in: column number */
-	bool			is_virtual)
-					/*!< in: whether it is a virtual col */
-	MY_ATTRIBUTE((warn_unused_result));
 /********************************************************************//**
 Looks for a matching field in an index. The column has to be the same. The
 column in index must be complete, or must contain a prefix longer than the
