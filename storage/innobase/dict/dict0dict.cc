@@ -5499,7 +5499,9 @@ dict_index_calc_min_rec_len(
 {
 	ulint	sum	= 0;
 	ulint	i;
-	ulint	comp	= dict_table_is_comp(index->table);// FIXME
+	ut_ad(index->is_primary());
+	const bool comp = index->table->not_redundant()
+		&& !index->table->dual_format();
 
 	if (comp) {
 		ulint nullable = 0;
