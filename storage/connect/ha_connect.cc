@@ -7307,7 +7307,7 @@ maria_declare_plugin(connect)
   PLUGIN_LICENSE_GPL,
   connect_init_func,                            /* Plugin Init */
   connect_done_func,                            /* Plugin Deinit */
-  0x0107,                                       /* version number (1.05) */
+  0x0106,                                       /* version number (1.06) */
   NULL,                                         /* status variables */
   connect_system_variables,                     /* system variables */
   "1.06.0008",                                  /* string version */
