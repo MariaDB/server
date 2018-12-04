@@ -627,6 +627,9 @@ dtuple_convert_big_rec(
 	ut_ad(entry->n_fields >= index->first_user_field() + mblob);
 	ut_ad(entry->n_fields - mblob <= index->n_fields);
 
+	const bool comp = index->table->not_redundant()
+		&& !index->table->dual_format();
+
 	if (mblob) {
 		longest_i = index->first_user_field();
 		dfield = dtuple_get_nth_field(entry, longest_i);
@@ -643,10 +646,12 @@ dtuple_convert_big_rec(
 		local_len = BTR_EXTERN_FIELD_REF_SIZE;
 	}
 
-	while (page_zip_rec_needs_ext(rec_get_converted_size(REC_FMT_LEAF,//FIXME
-							     index, entry,
-							     *n_ext),
-				      dict_table_is_comp(index->table),//FIXME: block
+	while (page_zip_rec_needs_ext(rec_get_converted_size(
+					      comp
+					      ? REC_FMT_LEAF
+					      : REC_FMT_LEAF_FLEXIBLE,
+					      index, entry, *n_ext),
+				      comp,
 				      index->n_fields,
 				      dict_table_page_size(index->table))) {
 		longest_i = 0;

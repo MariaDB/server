@@ -4452,9 +4452,10 @@ btr_cur_optimistic_update(
 #endif /* UNIV_DEBUG || UNIV_BLOB_LIGHT_DEBUG */
 
 	if (page_is_comp(page) && index->dual_format()) {
-		/* The page must be converted into ROW_FORMAT=REDUNDANT
-		in a pessimistic operation. */
-		return DB_OVERFLOW;
+		/* Convert to flexible format */
+		btr_page_reorganize(btr_cur_get_page_cur(cursor), index, mtr);
+		/* FIXME: handle page overflow */
+		ut_ad(!page_is_comp(page));
 	}
 
 	if (UNIV_LIKELY(!update->is_metadata())
@@ -4834,11 +4835,12 @@ btr_cur_pessimistic_update(
 		return(err);
 	}
 
-#if 1 // FIXME: convert to ROW_FORMAT=REDUNDANT
 	if (page_is_comp(page) && page_is_leaf(page) && index->dual_format()) {
-		return DB_TOO_BIG_RECORD;
+		/* Convert to flexible format */
+		btr_page_reorganize(btr_cur_get_page_cur(cursor), index, mtr);
+		/* FIXME: handle page overflow */
+		ut_ad(!page_is_comp(page));
 	}
-#endif
 
 	rec = btr_cur_get_rec(cursor);
 
