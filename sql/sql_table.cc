@@ -7971,6 +7971,7 @@ mysql_prepare_alter_table(THD *thd, TABLE *table,
     if (def && field->invisible < INVISIBLE_SYSTEM)
     {						// Field is changed
       def->field=field;
+      def->altered= true;
       /*
         Add column being updated to the list of new columns.
         Note that columns with AFTER clauses are added to the end

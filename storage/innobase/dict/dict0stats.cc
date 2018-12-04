@@ -449,6 +449,7 @@ dict_stats_table_clone_create(
 		idx->type = index->type;
 
 		idx->to_be_dropped = 0;
+		idx->to_be_rebuilt = false;
 
 		idx->online_status = ONLINE_INDEX_COMPLETE;
 		idx->set_committed(true);

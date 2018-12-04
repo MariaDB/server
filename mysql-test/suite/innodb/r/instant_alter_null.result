@@ -45,3 +45,33 @@ check table t;
 Table	Op	Msg_type	Msg_text
 test.t	check	status	OK
 drop table t;
+create table t (
+a int,
+b int not null,
+c int,
+index (a),
+index (b),
+index (c),
+index abc (a, b, c)
+) engine=innodb;
+alter table t drop index a, drop index c, drop index abc, drop index b, modify b int, algorithm=instant;
+check table t;
+Table	Op	Msg_type	Msg_text
+test.t	check	status	OK
+drop table t;
+create table t (
+a int,
+b int not null,
+c int,
+index (a),
+index (b),
+index (c),
+index abc (a, b, c)
+) engine=innodb;
+insert into t values (1, 1, 1);
+alter table t modify b int, algorithm=inplace;
+update t set b= null;
+check table t;
+Table	Op	Msg_type	Msg_text
+test.t	check	status	OK
+drop table t;

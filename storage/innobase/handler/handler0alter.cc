@@ -1441,6 +1441,126 @@ check_v_col_in_order(
 	return(true);
 }
 
+/** Iterate through array of known size. */
+template <class element_t>
+class array_iterator
+{
+	element_t* array;
+	element_t* array_end;
+public:
+	typedef std::ptrdiff_t		difference_type;
+	typedef element_t		value_type;
+	typedef value_type*		pointer;
+	typedef value_type&		reference;
+	typedef size_t			size_type;
+	typedef std::forward_iterator_tag iterator_category;
+	typedef array_iterator iterator_type;
+
+	array_iterator(element_t* buffer, uint count)
+	: array(buffer), array_end(&buffer[count]) {}
+	array_iterator& operator++ ()
+	{
+		ut_ad(array < array_end);
+		++array;
+		return *this;
+	}
+	value_type operator* () const
+	{
+		ut_ad(array < array_end);
+		return *array;
+	}
+	operator bool () const { return array == array_end; }
+	bool operator==(const iterator_type& rhs) const
+	{
+		return array == rhs.array;
+	}
+	bool operator!=(const iterator_type& rhs) const
+	{
+		return !(*this == rhs);
+	}
+	iterator_type end() const { return array_iterator(array_end, 0); }
+};
+
+/** Iterate through table secondary indexes with altered-nullable columns. */
+class altered_nullable_index_iterator : public dict_index_iterator
+{
+	List_iterator_fast<Create_field> create_it;
+protected:
+	altered_nullable_index_iterator() : dict_index_iterator() {}
+public:
+	typedef altered_nullable_index_iterator iterator_type;
+
+	altered_nullable_index_iterator(const dict_table_t& table,
+					const Alter_inplace_info* ha_alter_info)
+	: dict_index_iterator(table),
+	create_it(ha_alter_info->alter_info->create_list) { ++(*this); }
+	iterator_type& operator++()
+	{
+		auto &it = static_cast<dict_index_iterator &>(*this);
+		List_iterator_fast<Create_field> &cf_it = create_it;
+		++it;
+		it = std::find_if(it, it.end(), [&cf_it](decltype(*it) index) {
+			cf_it.rewind();
+			while (const Create_field* cf = cf_it++) {
+				Field *f = cf->field;
+				if (!(cf->altered && f && f->stored_in_db()
+				    && (f->flags & NOT_NULL_FLAG)
+				    && !(cf->flags & NOT_NULL_FLAG))) {
+					continue;
+				}
+				unsigned col_no = innodb_col_no(cf->field);
+				if (index->contains_col_or_prefix(col_no, false)) {
+					return true;
+				}
+			}
+			return false;
+		});
+		return *this;
+	}
+	bool operator==(const iterator_type& rhs) const
+	{
+		return static_cast<const dict_index_iterator &>(*this)
+			== static_cast<const dict_index_iterator &>(rhs);
+	}
+	bool operator!=(const iterator_type& rhs) const
+	{
+		return !(*this == rhs);
+	}
+	static iterator_type end() { return iterator_type(); }
+};
+
+/** Check if all nullable-affected table indexes are already in DROP INDEX clause.
+@param[in]	ib_table	InnoDB table definition
+@param[in]	ha_alter_info	the ALTER TABLE operation */
+static inline
+bool
+instant_alter_indexes_possible(const dict_table_t& ib_table,
+			       Alter_inplace_info* ha_alter_info)
+{
+	altered_nullable_index_iterator it(ib_table, ha_alter_info);
+	array_iterator<KEY *> keys(ha_alter_info->index_drop_buffer,
+				   ha_alter_info->index_drop_count);
+	bool all_in_drop_buf = true;
+	for(; *it; ++it)
+	{
+		dict_index_t *index = *it;
+		bool in_drop_buf = keys.end() != std::find_if(
+			keys, keys.end(),
+			[&index](decltype(*keys) key)
+			{
+				return 0 == strcmp(index->name, key->name.str);
+			});
+		if (!in_drop_buf) {
+			++ha_alter_info->index_rebuild_count;
+			index->to_be_rebuilt = true;
+			all_in_drop_buf = false;
+		} else {
+			index->to_be_rebuilt = false;
+		}
+	};
+	return all_in_drop_buf;
+}
+
 /** Determine if an instant operation is possible for altering columns.
 @param[in]	ib_table	InnoDB table definition
 @param[in]	ha_alter_info	the ALTER TABLE operation
@@ -1449,7 +1569,7 @@ static
 bool
 instant_alter_column_possible(
 	const dict_table_t&		ib_table,
-	const Alter_inplace_info*	ha_alter_info,
+	Alter_inplace_info*		ha_alter_info,
 	const TABLE*			table)
 {
 	if (!ib_table.supports_instant()) {
@@ -1545,11 +1665,12 @@ instant_alter_column_possible(
 	if ((ha_alter_info->handler_flags
 	     & ALTER_COLUMN_NULLABLE)
 	    && ib_table.not_redundant()) {
-#if 0 // FIXME: remove this
-		return false;
-#else // FIXME: Rebuild the affected indexes, not the whole table!
-		return ib_table.indexes.count == 1;
-#endif
+		if (!instant_alter_indexes_possible(ib_table, ha_alter_info)) {
+			ha_alter_info->handler_flags
+				|= ALTER_ADD_NON_UNIQUE_NON_PRIM_INDEX
+				| ALTER_DROP_NON_UNIQUE_NON_PRIM_INDEX;
+			return false;
+		}
 	}
 
 	return true;
@@ -3771,6 +3892,30 @@ created_clustered:
 			}
 
 			indexdef++;
+		}
+
+		if (ha_alter_info->index_rebuild_count) {
+			for (dict_index_iterator it(*old_table, true); *it; ++it) {
+				dict_index_t *index = *it;
+				if (!index->to_be_rebuilt) {
+					continue;
+				}
+				for (uint i = 0; i < ha_alter_info->key_count; ++i) {
+					if (strcmp(index->name, key_info[i].name.str)) {
+						continue;
+					}
+					innobase_create_index_def(
+						altered_table, key_info, i,
+						false, false, indexdef, heap);
+					n_add++;
+
+					if (indexdef->ind_type & DICT_FTS) {
+						n_fts_add++;
+					}
+					indexdef++;
+					break;
+				}
+			}
 		}
 	}
 
@@ -7700,7 +7845,8 @@ found_fk:
 		drop_fk = NULL;
 	}
 
-	if (ha_alter_info->index_drop_count) {
+	if (ha_alter_info->index_drop_count
+	    || ha_alter_info->index_rebuild_count) {
 		dict_index_t*	drop_primary = NULL;
 
 		DBUG_ASSERT(ha_alter_info->handler_flags
@@ -7710,7 +7856,8 @@ found_fk:
 		/* Check which indexes to drop. */
 		drop_index = static_cast<dict_index_t**>(
 			mem_heap_alloc(
-				heap, (ha_alter_info->index_drop_count + 1)
+				heap, (ha_alter_info->index_drop_count
+				       + ha_alter_info->index_rebuild_count + 1)
 				* sizeof *drop_index));
 
 		for (uint i = 0; i < ha_alter_info->index_drop_count; i++) {
@@ -7734,6 +7881,13 @@ found_fk:
 				} else {
 					drop_primary = index;
 				}
+			}
+		}
+
+		for (dict_index_iterator it(*indexed_table, true); *it; ++it) {
+			if ((*it)->to_be_rebuilt) {
+				ut_ad(!(*it)->is_primary());
+				drop_index[n_drop_index++] = *it;
 			}
 		}
 
@@ -7793,7 +7947,8 @@ check_if_can_drop_indexes:
 			for (uint i = 0; i < n_drop_index; i++) {
 				dict_index_t*	index = drop_index[i];
 
-				if (innobase_check_foreign_key_index(
+				if (!index->to_be_rebuilt
+				    && innobase_check_foreign_key_index(
 						ha_alter_info, index,
 						indexed_table, col_names,
 						m_prebuilt->trx, drop_fk, n_drop_fk)) {

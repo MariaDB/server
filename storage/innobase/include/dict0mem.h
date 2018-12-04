@@ -975,6 +975,9 @@ struct dict_index_t {
 	unsigned	to_be_dropped:1;
 				/*!< TRUE if the index is to be dropped;
 				protected by dict_operation_lock */
+	unsigned	to_be_rebuilt:1;
+				/*!< TRUE if the index is to be rebuilt in
+				the process of inplace ALTER */
 	unsigned	online_status:2;
 				/*!< enum online_index_status.
 				Transitions from ONLINE_INDEX_COMPLETE (to
@@ -2222,6 +2225,43 @@ public:
 	/** mysql_row_templ_t for base columns used for compute the virtual
 	columns */
 	dict_vcol_templ_t*			vc_templ;
+};
+
+/** STL-compatible iterator over dict_index_t list. */
+class dict_index_iterator
+{
+	dict_index_t* index;
+protected:
+	dict_index_iterator() : index(nullptr) {}
+public:
+	typedef std::ptrdiff_t		difference_type;
+	typedef dict_index_t*		value_type;
+	typedef value_type*		pointer;
+	typedef value_type&		reference;
+	typedef size_t			size_type;
+	typedef std::forward_iterator_tag iterator_category;
+	typedef dict_index_iterator iterator_type;
+	dict_index_iterator(const dict_table_t& table, bool secondary = false)
+	: index(UT_LIST_GET_FIRST(table.indexes)) {
+		if (secondary) {
+			++(*this);
+		}
+	}
+	iterator_type& operator++()
+	{
+		index = UT_LIST_GET_NEXT(indexes, index);
+		return *this;
+	}
+	value_type operator* () const { return index; }
+	bool operator==(const iterator_type& rhs) const
+	{
+		return index == rhs.index;
+	}
+	bool operator!=(const iterator_type& rhs) const
+	{
+		return !(*this == rhs);
+	}
+	static iterator_type end() { return iterator_type(); }
 };
 
 inline void dict_index_t::set_modified(mtr_t& mtr) const

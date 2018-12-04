@@ -4897,11 +4897,12 @@ public:
   uint	offset;
   uint8 interval_id;                    // For rea_create_table
   bool create_if_not_exists;            // Used in ALTER TABLE IF NOT EXISTS
+  bool altered;                         // listed in an ALTER TABLE statement
 
   Create_field():
     Column_definition(),
     field(0), option_struct(NULL),
-    create_if_not_exists(false)
+    create_if_not_exists(false), altered(false)
   {
     change= after= null_clex_str;
   }
@@ -4909,7 +4910,7 @@ public:
     Column_definition(thd, old_field, orig_field),
     change(old_field->field_name),
     field(old_field), option_struct(old_field->option_struct),
-    create_if_not_exists(false)
+    create_if_not_exists(false), altered(false)
   {
     after= null_clex_str;
   }

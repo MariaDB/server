@@ -2310,6 +2310,11 @@ public:
   inplace_alter_handler_ctx *handler_ctx;
 
   /**
+    Pre-context atributes used while handler_ctx is not yet available
+  */
+  uint index_rebuild_count;
+
+  /**
     If the table uses several handlers, like ha_partition uses one handler
     per partition, this contains a Null terminated array of ctx pointers
     that should all be committed together.
@@ -2372,6 +2377,7 @@ public:
     index_add_count(0),
     index_add_buffer(NULL),
     handler_ctx(NULL),
+    index_rebuild_count(0),
     group_commit_ctx(NULL),
     handler_flags(0),
     modified_part_info(modified_part_info_arg),
