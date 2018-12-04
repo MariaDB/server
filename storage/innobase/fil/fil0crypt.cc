@@ -2562,7 +2562,7 @@ fil_space_verify_crypt_checksum(
 		return (true);
 	}
 
-	uint32 cchecksum1, cchecksum2;
+	uint32_t cchecksum1, cchecksum2;
 
 	/* Calculate checksums */
 	if (page_size.is_compressed()) {
@@ -2645,10 +2645,19 @@ fil_space_verify_crypt_checksum(
 #else /* UNIV_INNOCHECKSUM */
 		ib::error()
 			<< " Page " << space << ":" << offset
-			<< " may be corrupted."
-			" Post encryption checksum " << checksum
-			<< " stored [" << checksum1 << ":" << checksum2
+			<< " may be corrupted.";
+		ib::info()
+			<< "If encrypted:  stored checksum" << checksum
+			<< " calculated checksum [" << cchecksum1 << ":" << cchecksum2
 			<< "] key_version " << key_version;
+		ib::info()
+			<< "If unencrypted: stored checksum [" << checksum1
+			<< ":" << checksum2 << "] calculated crc32 ["
+			<< buf_calc_page_crc32(page, false) << ":"
+			<< buf_calc_page_crc32(page, true) << "] innodb ["
+			<< buf_calc_page_old_checksum(page) << ":"
+			<< buf_calc_page_new_checksum(page) << "] LSN "
+			<< mach_read_from_4(page + FIL_PAGE_LSN);
 #endif
 		encrypted = false;
 	}

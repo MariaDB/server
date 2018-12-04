@@ -192,3 +192,8 @@ ib_logfile0
 ib_logfile1
 ibdata1
 sys_tables.bin
+call mtr.add_suppression("ERROR HY000: Can't create table `test`.`t1`");
+CREATE TABLE t1(f1 INT, f2 VARCHAR(1), KEY k1(f2),
+FULLTEXT KEY(f2),
+FOREIGN KEY (f2) REFERENCES t1(f3))ENGINE=InnoDB;
+ERROR HY000: Can't create table `test`.`t1` (errno: 150 "Foreign key constraint is incorrectly formed")
