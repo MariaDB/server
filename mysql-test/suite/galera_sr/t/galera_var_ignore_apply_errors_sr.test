@@ -35,3 +35,4 @@ DROP TABLE t1;
 
 SET GLOBAL wsrep_ignore_apply_errors = 7;
 CALL mtr.add_suppression("Slave SQL: Could not execute Delete_rows event");
+CALL mtr.add_suppression("Can't find record in 't1'");
