@@ -906,38 +906,36 @@ dict_index_get_nth_col_or_prefix_pos(
 }
 
 /** Returns TRUE if the index contains a column or a prefix of that column.
-@param[in]	index		index
 @param[in]	n		column number
 @param[in]	is_virtual	whether it is a virtual col
 @return TRUE if contains the column or its prefix */
 bool
-dict_index_contains_col_or_prefix(
-	const dict_index_t*	index,
+dict_index_t::contains_col_or_prefix(
 	ulint			n,
-	bool			is_virtual)
+	bool			is_virtual) const
 {
 	const dict_field_t*	field;
 	const dict_col_t*	col;
 	ulint			pos;
 	ulint			n_fields;
 
-	ut_ad(index);
-	ut_ad(index->magic_n == DICT_INDEX_MAGIC_N);
+	ut_ad(this);
+	ut_ad(this->magic_n == DICT_INDEX_MAGIC_N);
 
-	if (dict_index_is_clust(index)) {
+	if (dict_index_is_clust(this)) {
 		return(!is_virtual);
 	}
 
 	if (is_virtual) {
-		col = &dict_table_get_nth_v_col(index->table, n)->m_col;
+		col = &dict_table_get_nth_v_col(this->table, n)->m_col;
 	} else {
-		col = dict_table_get_nth_col(index->table, n);
+		col = dict_table_get_nth_col(this->table, n);
 	}
 
-	n_fields = dict_index_get_n_fields(index);
+	n_fields = dict_index_get_n_fields(this);
 
 	for (pos = 0; pos < n_fields; pos++) {
-		field = dict_index_get_nth_field(index, pos);
+		field = dict_index_get_nth_field(this, pos);
 
 		if (col == field->col) {
 

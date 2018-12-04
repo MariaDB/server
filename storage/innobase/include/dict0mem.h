@@ -1236,6 +1236,14 @@ struct dict_index_t {
 
 	/** Reconstruct the clustered index fields. */
 	inline void reconstruct_fields();
+
+	/** Returns TRUE if the index contains a column or a prefix of that column.
+	@param[in]	n		column number
+	@param[in]	is_virtual	whether it is a virtual col
+	@return TRUE if contains the column or its prefix */
+	bool
+	contains_col_or_prefix(ulint n, bool is_virtual) const
+	MY_ATTRIBUTE((warn_unused_result));
 };
 
 /** Detach a column from an index.

@@ -7243,8 +7243,8 @@ const Field*
 build_template_needs_field(
 /*=======================*/
 	ibool		index_contains,	/*!< in:
-					dict_index_contains_col_or_prefix(
-					index, i) */
+					dict_index_t::contains_col_or_prefix(
+					i) */
 	ibool		read_just_key,	/*!< in: TRUE when MySQL calls
 					ha_innobase::extra with the
 					argument HA_EXTRA_KEYREAD; it is enough
@@ -7312,11 +7312,11 @@ build_template_needs_field_in_icp(
 	bool			is_virtual)
 					/*!< in: a virtual column or not */
 {
-	ut_ad(contains == dict_index_contains_col_or_prefix(index, i, is_virtual));
+	ut_ad(contains == index->contains_col_or_prefix(i, is_virtual));
 
 	return(index == prebuilt->index
 	       ? contains
-	       : dict_index_contains_col_or_prefix(prebuilt->index, i, is_virtual));
+	       : prebuilt->index->contains_col_or_prefix(i, is_virtual));
 }
 
 /**************************************************************//**
@@ -7596,16 +7596,16 @@ ha_innobase::build_template(
 			ibool		index_contains;
 
 			if (innobase_is_v_fld(table->field[i])) {
-				index_contains = dict_index_contains_col_or_prefix(
-					index, num_v, true);
+				index_contains = index->contains_col_or_prefix(
+					num_v, true);
                                 if (index_contains)
                                 {
                                         m_prebuilt->n_template = 0;
                                         goto no_icp;
                                 }
 			} else {
-				index_contains = dict_index_contains_col_or_prefix(
-					index, i - num_v, false);
+				index_contains = index->contains_col_or_prefix(
+					i - num_v, false);
 			}
 
 			/* Test if an end_range or an index condition
@@ -7741,11 +7741,11 @@ ha_innobase::build_template(
 			ibool			index_contains;
 
 			if (innobase_is_v_fld(table->field[i])) {
-				index_contains = dict_index_contains_col_or_prefix(
-					index, num_v, true);
+				index_contains = index->contains_col_or_prefix(
+					num_v, true);
 			} else {
-				index_contains = dict_index_contains_col_or_prefix(
-					index, i - num_v, false);
+				index_contains = index->contains_col_or_prefix(
+					i - num_v, false);
 			}
 
 			bool	is_v = innobase_is_v_fld(table->field[i]);
@@ -7803,8 +7803,8 @@ no_icp:
 				cluster index. */
 				if (innobase_is_v_fld(table->field[i])
 				    && m_prebuilt->read_just_key
-				    && !dict_index_contains_col_or_prefix(
-					m_prebuilt->index, num_v, true))
+				    && !m_prebuilt->index->contains_col_or_prefix(
+					num_v, true))
 				{
 					/* Turn off ROW_MYSQL_WHOLE_ROW */
 					m_prebuilt->template_type =
@@ -7818,19 +7818,18 @@ no_icp:
 				ibool	contain;
 
 				if (!innobase_is_v_fld(table->field[i])) {
-					contain = dict_index_contains_col_or_prefix(
-						index, i - num_v,
-						false);
+					contain = index->contains_col_or_prefix(
+						i - num_v, false);
 				} else if (dict_index_is_clust(index)) {
 					num_v++;
 					continue;
 				} else {
-					contain = dict_index_contains_col_or_prefix(
-						index, num_v, true);
+					contain = index->contains_col_or_prefix(
+						num_v, true);
 				}
 
 				field = build_template_needs_field(
-					contain,
+					contain,+
 					m_prebuilt->read_just_key,
 					fetch_all_in_key,
 					fetch_primary_key_cols,
