@@ -26,11 +26,6 @@ Created December 2006 by Marko Makela
 #ifndef buf0buddy_h
 #define buf0buddy_h
 
-#ifdef UNIV_MATERIALIZE
-# undef UNIV_INLINE
-# define UNIV_INLINE
-#endif
-
 #include "buf0types.h"
 
 /**********************************************************************//**

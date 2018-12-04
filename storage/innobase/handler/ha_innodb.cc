@@ -12600,7 +12600,8 @@ ha_innobase::create(
 		if (info.drop_before_rollback()) {
 			trx->error_state = DB_SUCCESS;
 			row_drop_table_for_mysql(info.table_name(),
-						 trx, SQLCOM_TRUNCATE, true);
+						 trx, SQLCOM_TRUNCATE, true,
+						 false);
 		}
 		trx_rollback_for_mysql(trx);
 		row_mysql_unlock_data_dictionary(trx);

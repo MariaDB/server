@@ -27,10 +27,6 @@ Created May 26, 2009 Vasil Dimov
 #ifndef fsp0types_h
 #define fsp0types_h
 
-#include "univ.i"
-
-#ifndef UNIV_INNOCHECKSUM
-
 /** The fil_space_t::id of the redo log. All persistent tablespaces
 have a smaller fil_space_t::id. */
 #define SRV_LOG_SPACE_FIRST_ID		0xFFFFFFF0U
@@ -50,7 +46,6 @@ fseg_alloc_free_page) */
 #define	FSP_NO_DIR	((byte)113)	/*!< no order */
 /* @} */
 
-#endif /* !UNIV_INNOCHECKSUM */
 /** File space extent size in pages
 page size | file space extent size
 ----------+-----------------------
@@ -73,7 +68,6 @@ page size | file space extent size
 offset */
 #define FSEG_PAGE_DATA		FIL_PAGE_DATA
 
-#ifndef UNIV_INNOCHECKSUM
 /** @name File segment header
 The file segment header points to the inode describing the file segment. */
 /* @{ */
@@ -88,6 +82,7 @@ typedef	byte	fseg_header_t;
 					header, in bytes */
 /* @} */
 
+#ifndef UNIV_INNOCHECKSUM
 #ifdef UNIV_DEBUG
 
 struct mtr_t;

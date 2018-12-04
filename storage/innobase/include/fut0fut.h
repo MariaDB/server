@@ -27,7 +27,6 @@ Created 12/13/1995 Heikki Tuuri
 #ifndef fut0fut_h
 #define fut0fut_h
 
-#include "fil0fil.h"
 #include "mtr0mtr.h"
 
 /** Gets a pointer to a file address and latches the page.

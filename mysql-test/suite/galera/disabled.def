@@ -29,12 +29,12 @@ MW-416 : MDEV-13549 Galera test failures
 MW-388 : MDEV-13549 Galera test failures
 MW-44 : MDEV-15809 Test failure on galera.MW-44
 galera_pc_ignore_sb : MDEV-15811 Test failure on galera_pc_ignore_sb
+galera_drop_database : MDEV-17421 mtr does not restart the server whose parameters were changed
 galera_kill_applier : race condition at the start of the test
 galera_ist_progress: MDEV-15236 galera_ist_progress fails when trying to read transfer status
 pxc-421: Lock timeout exceeded
 galera_sst_mysqldump_with_key : MDEV-16890 Galera test failure
 galera_sst_xtrabackup-v2-options : Failed to read uuid:seqno and wsrep_gtid_domain_id from joiner script
-MW-328C : Timeouts
 galera_gcs_fc_limit : Timeouts
 pool_of_threads: WSREP has not yet prepared node for application use
 galera_var_innodb_disallow_writes : Timeout
@@ -47,7 +47,6 @@ galera_gc_fc_limit : MDEV-17061 Test failure on galera.galera_gc_fc_limit
 galera_as_slave_replication_budle : MDEV-15785 Test case galera_as_slave_replication_bundle caused debug assertion
 galera_wan : MDEV-17259: Test failure on galera.galera_wan
 galera_pc_ignore_sb : MDEV-17357 Test failure on galera.galera_pc_ignore_sb
-galera_drop_database : test
-galera.MW-328A : MDEV-17847 Galera test failure on MW-328[A|B|C]
-galera.MW-328B : MDEV-17847 Galera test failure on MW-328[A|B|C]
-galera.MW-328C : MDEV-17847 Galera test failure on MW-328[A|B|C]
+MW-328A : MDEV-17847 Galera test failure on MW-328[A|B|C]
+MW-328B : MDEV-17847 Galera test failure on MW-328[A|B|C]
+MW-328C : MDEV-17847 Galera test failure on MW-328[A|B|C]

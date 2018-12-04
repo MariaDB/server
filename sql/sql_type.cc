@@ -7767,7 +7767,6 @@ static bool have_important_literal_warnings(const MYSQL_TIME_STATUS *status)
 
 static void literal_warn(THD *thd, const Item *item,
                          const char *str, size_t length, CHARSET_INFO *cs,
-                         timestamp_type time_type,
                          const MYSQL_TIME_STATUS *st,
                          const char *typestr, bool send_error)
 {
@@ -7776,9 +7775,9 @@ static void literal_warn(THD *thd, const Item *item,
     if (st->warnings) // e.g. a note on nanosecond truncation
     {
       ErrConvString err(str, length, cs);
-      make_truncated_value_warning(thd,
+      thd->push_warning_wrong_or_truncated_value(
                                    Sql_condition::time_warn_level(st->warnings),
-                                   &err, time_type, 0);
+                                   false, typestr, err.ptr(), NullS);
     }
   }
   else if (send_error)
@@ -7803,8 +7802,7 @@ Type_handler_date_common::create_literal_item(THD *thd,
       tmp.get_mysql_time()->time_type == MYSQL_TIMESTAMP_DATE &&
       !have_important_literal_warnings(&st))
     item= new (thd->mem_root) Item_date_literal(thd, tmp.get_mysql_time());
-  literal_warn(thd, item, str, length, cs, MYSQL_TIMESTAMP_DATE,
-               &st, "DATE", send_error);
+  literal_warn(thd, item, str, length, cs, &st, "DATE", send_error);
   return item;
 }
 
@@ -7824,8 +7822,7 @@ Type_handler_temporal_with_date::create_literal_item(THD *thd,
       !have_important_literal_warnings(&st))
     item= new (thd->mem_root) Item_datetime_literal(thd, tmp.get_mysql_time(),
                                                     st.precision);
-  literal_warn(thd, item, str, length, cs, MYSQL_TIMESTAMP_DATETIME,
-               &st, "DATETIME", send_error);
+  literal_warn(thd, item, str, length, cs, &st, "DATETIME", send_error);
   return item;
 }
 
@@ -7845,7 +7842,6 @@ Type_handler_time_common::create_literal_item(THD *thd,
       !have_important_literal_warnings(&st))
     item= new (thd->mem_root) Item_time_literal(thd, tmp.get_mysql_time(),
                                                 st.precision);
-  literal_warn(thd, item, str, length, cs, MYSQL_TIMESTAMP_TIME,
-               &st, "TIME", send_error);
+  literal_warn(thd, item, str, length, cs, &st, "TIME", send_error);
   return item;
 }

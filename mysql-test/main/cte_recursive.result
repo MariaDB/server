@@ -3606,6 +3606,54 @@ Mandelbrot Set
                 ..............................................................................        
                   ...........................................................................         
                    ........................................................................           
+#
+# MDEV-17871: EXPLAIN for query with not used recursive cte
+#
+create table t1 (a int);
+insert into t1 values (2), (1), (4), (3);
+explain extended
+with recursive cte as
+(select * from t1 where a=1 union select a+1 from cte where a<3)
+select * from cte as t;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	PRIMARY	<derived2>	ALL	NULL	NULL	NULL	NULL	4	100.00	
+2	DERIVED	t1	ALL	NULL	NULL	NULL	NULL	4	100.00	Using where
+3	RECURSIVE UNION	<derived2>	ALL	NULL	NULL	NULL	NULL	4	100.00	Using where
+NULL	UNION RESULT	<union2,3>	ALL	NULL	NULL	NULL	NULL	NULL	NULL	
+Warnings:
+Note	1003	with recursive cte as (/* select#2 */ select `test`.`t1`.`a` AS `a` from `test`.`t1` where `test`.`t1`.`a` = 1 union /* select#3 */ select `cte`.`a` + 1 AS `a+1` from `cte` where `cte`.`a` < 3)/* select#1 */ select `t`.`a` AS `a` from `cte` `t`
+with recursive cte as
+(select * from t1 where a=1 union select a+1 from cte where a<3)
+select * from cte as t;
+a
+1
+2
+3
+explain extended
+with recursive cte as
+(select * from t1 where a=1 union select a+1 from cte where a<3)
+select * from t1 as t;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	PRIMARY	t	ALL	NULL	NULL	NULL	NULL	4	100.00	
+Warnings:
+Note	1003	with recursive cte as (/* select#2 */ select `*` AS `*` from `test`.`t1` where `a` = 1 union /* select#3 */ select `a` + 1 AS `a+1` from `cte` where `a` < 3)/* select#1 */ select `test`.`t`.`a` AS `a` from `test`.`t1` `t`
+with recursive cte as
+(select * from t1 where a=1 union select a+1 from cte where a<3)
+select * from t1 as t;
+a
+2
+1
+4
+3
+create table t2 ( i1 int, i2 int);
+insert into t2 values (1,1),(2,2);
+explain
+with recursive cte as
+( select * from t1 union select s1.* from t1 as s1, cte where s1.i1 = cte.i2 )
+select * from t1 as t;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	PRIMARY	t	ALL	NULL	NULL	NULL	NULL	4	
+drop table t1,t2;
 # End of 10.2 tests
 #
 # MDEV-14217 [db crash] Recursive CTE when SELECT includes new field

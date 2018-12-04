@@ -28,15 +28,15 @@ Created 12/18/1995 Heikki Tuuri
 #define fsp0fsp_h
 
 #include "fsp0types.h"
+#include "fut0lst.h"
+#include "ut0byte.h"
 
 #ifndef UNIV_INNOCHECKSUM
-
-#include "fut0lst.h"
 #include "mtr0mtr.h"
 #include "page0types.h"
 #include "rem0types.h"
-#include "ut0byte.h"
-
+#else
+# include "mach0data.h"
 #endif /* !UNIV_INNOCHECKSUM */
 
 /** @return the PAGE_SSIZE flags for the current innodb_page_size */

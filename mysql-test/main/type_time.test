@@ -1410,5 +1410,17 @@ SELECT TIMESTAMP(0)='z', DATE(0)='z', TIME(0)='z';
 
 
 --echo #
+--echo # MDEV-17319 Assertion `ts_type != MYSQL_TIMESTAMP_TIME' failed upon inserting into TIME field
+--echo #
+
+CREATE TABLE t1 (t TIME);
+SET SESSION SQL_MODE='TRADITIONAL';
+--error ER_TRUNCATED_WRONG_VALUE
+INSERT INTO t1 VALUES ('0000-00-00 00:00:00'),('0000-00-00 00:00:00');
+SET sql_mode=DEFAULT;
+DROP TABLE t1;
+
+
+--echo #
 --echo # End of 10.4 tests
 --echo #

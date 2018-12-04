@@ -35,11 +35,8 @@ Created 11/5/1995 Heikki Tuuri
 #include "mach0data.h"
 #include "page0size.h"
 #include "buf0buf.h"
+#include "buf0checksum.h"
 #include <string.h>
-
-#ifdef UNIV_NONINL
-#include "buf0buf.ic"
-#endif
 
 #ifndef UNIV_INNOCHECKSUM
 #include "mem0mem.h"
@@ -60,19 +57,14 @@ Created 11/5/1995 Heikki Tuuri
 #include "dict0dict.h"
 #include "log0recv.h"
 #include "srv0mon.h"
+#include "fil0pagecompress.h"
+#include "fsp0pagecompress.h"
 #endif /* !UNIV_INNOCHECKSUM */
 #include "page0zip.h"
 #include "sync0sync.h"
 #include "buf0dump.h"
-#include <new>
 #include <map>
 #include <sstream>
-#ifndef UNIV_INNOCHECKSUM
-#include "fil0pagecompress.h"
-#include "fsp0pagecompress.h"
-#endif
-#include "ut0byte.h"
-#include <new>
 
 #ifdef UNIV_LINUX
 #include <stdlib.h>

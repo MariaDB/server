@@ -27,11 +27,12 @@ Created 10/25/1995 Heikki Tuuri
 #ifndef fil0fil_h
 #define fil0fil_h
 
+#include "page0size.h"
+
 #ifndef UNIV_INNOCHECKSUM
 
 #include "log0recv.h"
 #include "dict0types.h"
-#include "page0size.h"
 
 // Forward declaration
 extern my_bool srv_use_doublewrite_buf;
