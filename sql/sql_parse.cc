@@ -2404,6 +2404,10 @@ com_multi_end:
   /*
     BF aborted before sending response back to client
   */
+  if (thd->killed == KILL_QUERY)
+  {
+    WSREP_DEBUG("THD is killed at dispatch_end");
+  }
   wsrep_after_command_before_result(thd);
   if (wsrep_current_error(thd) &&
       !(command == COM_STMT_PREPARE          ||
@@ -7987,16 +7991,7 @@ static bool wsrep_mysql_parse(THD *thd, char *rawbuf, uint length,
   do
   {
     retry_autocommit= false;
-    DBUG_EXECUTE_IF("sync.wsrep_retry_autocommit",
-                    {
-                      const char act[]=
-                        "now "
-                        "SIGNAL wsrep_retry_autocommit_reached "
-       	                "WAIT_FOR wsrep_retry_autocommit_continue";
-       	              DBUG_ASSERT(!debug_sync_set_action(thd, STRING_WITH_LEN(act)));
-                    });
-      WSREP_DEBUG("Retry autocommit query: %s", thd->query());
-      mysql_parse(thd, rawbuf, length, parser_state, is_com_multi, is_next_command);
+    mysql_parse(thd, rawbuf, length, parser_state, is_com_multi, is_next_command);
 
     /*
       Convert all ER_QUERY_INTERRUPTED errors to ER_LOCK_DEADLOCK
@@ -8028,6 +8023,14 @@ static bool wsrep_mysql_parse(THD *thd, char *rawbuf, uint length,
           thd->lex->sql_command != SQLCOM_SELECT  &&
           thd->wsrep_retry_counter < thd->variables.wsrep_retry_autocommit)
       {
+	DBUG_EXECUTE_IF("sync.wsrep_retry_autocommit",
+                    {
+                      const char act[]=
+                        "now "
+                        "SIGNAL wsrep_retry_autocommit_reached "
+                        "WAIT_FOR wsrep_retry_autocommit_continue";
+                      DBUG_ASSERT(!debug_sync_set_action(thd, STRING_WITH_LEN(act)));
+                    });
         WSREP_DEBUG("wsrep retrying AC query: %lu  %s",
                     thd->wsrep_retry_counter, WSREP_QUERY(thd));
         wsrep_prepare_for_autocommit_retry(thd, rawbuf, length, parser_state);
