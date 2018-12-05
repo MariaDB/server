@@ -31,7 +31,7 @@
 ** String functions
 *****************************************************************************/
 
-bool String::real_alloc(size_t length)
+bool Binary_string::real_alloc(size_t length)
 {
   size_t arg_length= ALIGN_SIZE(length + 1);
   DBUG_ASSERT(arg_length > length);
@@ -81,7 +81,7 @@ bool String::real_alloc(size_t length)
 
    @retval true An error occurred when attempting to allocate memory.
 */
-bool String::realloc_raw(size_t alloc_length)
+bool Binary_string::realloc_raw(size_t alloc_length)
 {
   if (Alloced_length <= alloc_length)
   {
@@ -132,13 +132,12 @@ bool String::set_int(longlong num, bool unsigned_flag, CHARSET_INFO *cs)
 
 
 // Convert a number into its HEX representation
-bool String::set_hex(ulonglong num)
+bool Binary_string::set_hex(ulonglong num)
 {
   char *n_end;
   if (alloc(65) || !(n_end= longlong2str(num, Ptr, 16)))
     return true;
   length((uint32) (n_end - Ptr));
-  set_charset(&my_charset_latin1);
   return false;
 }
 
@@ -166,7 +165,7 @@ void Static_binary_string::qs_append_hex(const char *str, uint32 len)
 
 
 // Convert a string to its HEX representation
-bool String::set_hex(const char *str, uint32 len)
+bool Binary_string::set_hex(const char *str, uint32 len)
 {
   /*
     Safety: cut the source string if "len" is too large.
@@ -180,7 +179,6 @@ bool String::set_hex(const char *str, uint32 len)
     return true;
   length(0);
   qs_append_hex(str, len);
-  set_charset(&my_charset_latin1);
   return false;
 }
 
@@ -203,7 +201,7 @@ bool String::set_real(double num,uint decimals, CHARSET_INFO *cs)
 }
 
 
-bool String::copy()
+bool Binary_string::copy()
 {
   if (!alloced)
   {
@@ -224,18 +222,17 @@ bool String::copy()
    @retval false Success.
    @retval true Memory allocation failed.
 */
-bool String::copy(const String &str)
+bool Binary_string::copy(const Binary_string &str)
 {
   if (alloc(str.str_length))
     return TRUE;
   str_length=str.str_length;
   bmove(Ptr,str.Ptr,str_length);		// May be overlapping
   Ptr[str_length]=0;
-  set_charset(str);
   return FALSE;
 }
 
-bool String::copy(const char *str,size_t arg_length, CHARSET_INFO *cs)
+bool Binary_string::copy(const char *str, size_t arg_length)
 {
   DBUG_ASSERT(arg_length < UINT_MAX32);
   if (alloc(arg_length))
@@ -252,7 +249,6 @@ bool String::copy(const char *str,size_t arg_length, CHARSET_INFO *cs)
   else if ((str_length=uint32(arg_length)))
     memcpy(Ptr,str,arg_length);
   Ptr[arg_length]=0;
-  set_charset(cs);
   return FALSE;
 }
 
@@ -262,7 +258,7 @@ bool String::copy(const char *str,size_t arg_length, CHARSET_INFO *cs)
   from valgrind
 */
 
-bool String::copy_or_move(const char *str,size_t arg_length, CHARSET_INFO *cs)
+bool Binary_string::copy_or_move(const char *str, size_t arg_length)
 {
   DBUG_ASSERT(arg_length < UINT_MAX32);
   if (alloc(arg_length))
@@ -270,7 +266,6 @@ bool String::copy_or_move(const char *str,size_t arg_length, CHARSET_INFO *cs)
   if ((str_length=uint32(arg_length)))
     memmove(Ptr,str,arg_length);
   Ptr[arg_length]=0;
-  set_charset(cs);
   return FALSE;
 }
 
@@ -488,7 +483,7 @@ bool String::set_ascii(const char *str, size_t arg_length)
 
 /* This is used by mysql.cc */
 
-bool String::fill(uint32 max_length,char fill_char)
+bool Binary_string::fill(uint32 max_length,char fill_char)
 {
   if (str_length > max_length)
     Ptr[str_length=max_length]=0;
@@ -506,18 +501,6 @@ void String::strip_sp()
 {
    while (str_length && my_isspace(charset(), Ptr[str_length-1]))
     str_length--;
-}
-
-bool String::append(const String &s)
-{
-  if (s.length())
-  {
-    if (realloc_with_extra_if_needed(str_length+s.length()))
-      return TRUE;
-    memcpy(Ptr+str_length,s.ptr(),s.length());
-    str_length+=s.length();
-  }
-  return FALSE;
 }
 
 
@@ -550,24 +533,11 @@ bool String::append(const char *s,size_t size)
   /*
     For an ASCII compatinble string we can just append.
   */
-  if (realloc_with_extra_if_needed(str_length+arg_length))
-    return TRUE;
-  memcpy(Ptr+str_length,s,arg_length);
-  str_length+=arg_length;
-  return FALSE;
+  return Binary_string::append(s, arg_length);
 }
 
 
-/*
-  Append a 0-terminated ASCII string
-*/
-
-bool String::append(const char *s)
-{
-  return append(s, (uint) strlen(s));
-}
-
-bool String::append_longlong(longlong val)
+bool Binary_string::append_longlong(longlong val)
 {
   if (realloc(str_length+MAX_BIGINT_WIDTH+2))
     return TRUE;
@@ -577,7 +547,7 @@ bool String::append_longlong(longlong val)
 }
 
 
-bool String::append_ulonglong(ulonglong val)
+bool Binary_string::append_ulonglong(ulonglong val)
 {
   if (realloc(str_length+MAX_BIGINT_WIDTH+2))
     return TRUE;
@@ -617,18 +587,13 @@ bool String::append(const char *s, size_t arg_length, CHARSET_INFO *cs)
       return TRUE;
     str_length+= copy_and_convert(Ptr + str_length, (uint32)add_length, charset(),
                                   s, (uint32)arg_length, cs, &dummy_errors);
+    return false;
   }
-  else
-  {
-    if (realloc_with_extra_if_needed(str_length + arg_length)) 
-      return TRUE;
-    memcpy(Ptr + str_length, s, arg_length);
-    str_length+= (uint32)arg_length;
-  }
-  return FALSE;
+  return Binary_string::append(s, arg_length);
 }
 
-bool String::append(IO_CACHE* file, uint32 arg_length)
+
+bool Binary_string::append(IO_CACHE* file, uint32 arg_length)
 {
   if (realloc_with_extra_if_needed(str_length+arg_length))
     return TRUE;
@@ -735,18 +700,9 @@ skip:
   return -1;
 }
 
-/*
-  Replace substring with string
-  If wrong parameter or not enough memory, do nothing
-*/
 
-bool String::replace(uint32 offset,uint32 arg_length,const String &to)
-{
-  return replace(offset,arg_length,to.ptr(),to.length());
-}
-
-bool String::replace(uint32 offset,uint32 arg_length,
-                     const char *to, uint32 to_length)
+bool Binary_string::replace(uint32 offset, uint32 arg_length,
+                            const char *to, uint32 to_length)
 {
   long diff = (long) to_length-(long) arg_length;
   if (offset+arg_length <= str_length)
@@ -777,7 +733,7 @@ bool String::replace(uint32 offset,uint32 arg_length,
 
 
 // added by Holyfoot for "geometry" needs
-int String::reserve(size_t space_needed, size_t grow_by)
+int Binary_string::reserve(size_t space_needed, size_t grow_by)
 {
   if (Alloced_length < str_length + space_needed)
   {
@@ -936,12 +892,12 @@ String *copy_if_not_alloced(String *to,String *from,uint32 from_length)
        of a constant string.
        Not safe to reuse.
   */
-  if (from->Alloced_length > 0) // "from" is  #c or #d (not a constant)
+  if (from->alloced_length() > 0) // "from" is  #c or #d (not a constant)
   {
-    if (from->Alloced_length >= from_length)
+    if (from->alloced_length() >= from_length)
       return from; // #c or #d (large enough to store from_length bytes)
 
-    if (from->alloced)
+    if (from->is_alloced())
     {
       (void) from->realloc(from_length);
       return from; // #d (reallocated to fit from_length bytes)
@@ -980,7 +936,7 @@ String *copy_if_not_alloced(String *to,String *from,uint32 from_length)
       Note, as we can't distinguish between #a and #b for sure,
       so we can't assert "not #a", but we can at least assert "not #e".
     */
-    DBUG_ASSERT(!from->alloced || from->Alloced_length > 0); // Not #e
+    DBUG_ASSERT(!from->is_alloced() || from->alloced_length() > 0); // Not #e
 
     (void) from->realloc(from_length);
     return from;
