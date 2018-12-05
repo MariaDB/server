@@ -1175,7 +1175,7 @@ struct dict_index_t {
 		for (; n_prefix < n_fields; n_prefix++) {
 			const dict_col_t* col = fields[n_prefix].col;
 			DBUG_ASSERT(!col->is_virtual());
-			n -= col->is_nullable();
+			n -= !col->was_not_null();
 		}
 		DBUG_ASSERT(n < n_def);
 		return n;
