@@ -1610,7 +1610,8 @@ start:
 			break;
 		}
 
-		if (!(field->type.prtype & DATA_NOT_NULL)) {
+		if (!(field->type.prtype
+		      & (DATA_NOT_NULL | DATA_WAS_NOT_NULL))) {
 			/* nullable field */
 			ut_ad(n_null--);
 
@@ -1635,7 +1636,8 @@ start:
 
 		const dict_field_t* ifield
 			= dict_index_get_nth_field(index, i);
-		ut_ad(!(field->type.prtype & DATA_NOT_NULL)
+		ut_ad(!(field->type.prtype
+			& (DATA_NOT_NULL | DATA_WAS_NOT_NULL))
 		      == !index->was_not_null(i));
 		ulint fixed_len = ifield->fixed_len;
 

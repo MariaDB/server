@@ -2629,7 +2629,6 @@ lock_move_reorganize_page(
 	lock_t*		lock;
 	UT_LIST_BASE_NODE_T(lock_t)	old_locks;
 	mem_heap_t*	heap		= NULL;
-	ulint		comp;
 
 	lock_mutex_enter();
 
@@ -2667,9 +2666,6 @@ lock_move_reorganize_page(
 		lock = lock_rec_get_next_on_page(lock);
 	} while (lock != NULL);
 
-	comp = page_is_comp(block->frame);
-	ut_ad(comp == page_is_comp(oblock->frame));
-
 	lock_move_granted_locks_to_front(old_locks);
 
 	DBUG_EXECUTE_IF("do_lock_reverse_page_reorganize",
@@ -2695,19 +2691,22 @@ lock_move_reorganize_page(
 			ut_ad(page_rec_is_metadata(rec1)
 			      == page_rec_is_metadata(rec2));
 
-			if (comp) {
-				old_heap_no = rec_get_heap_no_new(rec2);
+			if (page_is_comp(block->frame)) {
 				new_heap_no = rec_get_heap_no_new(rec1);
-
 				rec1 = page_rec_get_next_low(rec1, TRUE);
+			} else {
+				new_heap_no = rec_get_heap_no_old(rec1);
+				ut_ad(page_is_comp(oblock->frame)
+				      || !memcmp(rec1, rec2,
+						 rec_get_data_size_old(rec2)));
+				rec1 = page_rec_get_next_low(rec1, FALSE);
+			}
+
+			if (page_is_comp(oblock->frame)) {
+				old_heap_no = rec_get_heap_no_new(rec2);
 				rec2 = page_rec_get_next_low(rec2, TRUE);
 			} else {
 				old_heap_no = rec_get_heap_no_old(rec2);
-				new_heap_no = rec_get_heap_no_old(rec1);
-				ut_ad(!memcmp(rec1, rec2,
-					      rec_get_data_size_old(rec2)));
-
-				rec1 = page_rec_get_next_low(rec1, FALSE);
 				rec2 = page_rec_get_next_low(rec2, FALSE);
 			}
 

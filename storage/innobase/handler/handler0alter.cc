@@ -5516,11 +5516,12 @@ static bool innobase_instant_try(
 		DBUG_ASSERT(!strcmp((*af)->field_name.str,
 				    dict_table_get_col_name(user_table, i)));
 		DBUG_ASSERT(old || col->is_added());
+		DBUG_ASSERT(col->is_nullable() == (*af)->real_maybe_null());
 
 		if (col->is_added()) {
 			dfield_set_data(d, col->def_val.data,
 					col->def_val.len);
-		} else if ((*af)->real_maybe_null()) {
+		} else if (!col->was_not_null()) {
 			/* Store NULL for nullable 'core' columns. */
 			dfield_set_null(d);
 		} else {

@@ -3457,7 +3457,11 @@ fail_err:
 		 << ib::hex(thr ? thr->graph->trx->id : 0)
 		 << ' ' << rec_printer(entry).str());
 
-	bool reorg = leaf && page_is_comp(page) && index->dual_format();
+	/* When inserting a metadata record that introduces
+	index->dual_format(), we must not convert the page into
+	flexible format, because we want to be able to roll back. */
+	bool reorg = leaf && page_is_comp(page) && index->dual_format()
+		&& !entry->is_alter_metadata();
 	DBUG_EXECUTE_IF("do_page_reorganize", reorg = true; );
 	if (reorg && !btr_page_reorganize(page_cursor, index, mtr)) {
 		goto fail;
@@ -4423,11 +4427,9 @@ btr_cur_optimistic_update(
 
 	block = btr_cur_get_block(cursor);
 	page = buf_block_get_frame(block);
-	rec = btr_cur_get_rec(cursor);
 	index = cursor->index;
+
 	ut_ad(trx_id > 0 || (flags & BTR_KEEP_SYS_FLAG));
-	ut_ad(!!page_rec_is_comp(rec) == index->table->not_redundant()
-	      || index->dual_format());
 	ut_ad(mtr_memo_contains(mtr, block, MTR_MEMO_PAGE_X_FIX));
 	/* This is intended only for leaf page updates */
 	ut_ad(page_is_leaf(page));
@@ -4442,6 +4444,17 @@ btr_cur_optimistic_update(
 	ut_ad(fil_page_index_page_check(page));
 	ut_ad(btr_page_get_index_id(page) == index->id);
 
+	if (page_is_comp(page) && index->dual_format()
+	    && !btr_page_reorganize(btr_cur_get_page_cur(cursor), index,
+				    mtr)) {
+		/* Conversion to flexible format failed.
+		We must split the page in a pessimistic operation. */
+		return DB_OVERFLOW;
+	}
+
+	rec = btr_cur_get_rec(cursor);
+	ut_ad(!!page_rec_is_comp(rec) == index->table->not_redundant()
+	      || index->dual_format());
 	*offsets = rec_get_offsets(rec, index, *offsets,
 				   page_is_comp(page)
 				   ? REC_FMT_LEAF : REC_FMT_LEAF_FLEXIBLE,
@@ -4450,14 +4463,6 @@ btr_cur_optimistic_update(
 	ut_a(!rec_offs_any_null_extern(rec, *offsets)
 	     || trx_is_recv(thr_get_trx(thr)));
 #endif /* UNIV_DEBUG || UNIV_BLOB_LIGHT_DEBUG */
-
-	if (page_is_comp(page) && index->dual_format()
-	    && !btr_page_reorganize(btr_cur_get_page_cur(cursor), index,
-				    mtr)) {
-		/* Conversion to flexible format failed.
-		We must split the page in a pessimistic operation. */
-		return DB_OVERFLOW;
-	}
 
 	if (UNIV_LIKELY(!update->is_metadata())
 	    && !row_upd_changes_field_size_or_external(index, *offsets,
