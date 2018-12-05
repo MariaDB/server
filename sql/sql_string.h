@@ -126,31 +126,64 @@ uint convert_to_printable(char *to, size_t to_len,
                           const char *from, size_t from_len,
                           CHARSET_INFO *from_cs, size_t nbytes= 0);
 
-class String
+
+class Charset
+{
+  CHARSET_INFO *m_charset;
+public:
+  Charset() :m_charset(&my_charset_bin) { }
+  Charset(CHARSET_INFO *cs) :m_charset(cs) { }
+
+  CHARSET_INFO *charset() const { return m_charset; }
+  uint mbminlen() const { return m_charset->mbminlen; }
+  uint mbmaxlen() const { return m_charset->mbmaxlen; }
+
+  size_t numchars(const char *str, const char *end) const
+  {
+    return m_charset->cset->numchars(m_charset, str, end);
+  }
+  size_t charpos(const char *str, const char *end, size_t pos) const
+  {
+    return m_charset->cset->charpos(m_charset, str, end, pos);
+  }
+  void set_charset(CHARSET_INFO *charset_arg)
+  {
+    m_charset= charset_arg;
+  }
+  void set_charset(const Charset &other)
+  {
+    m_charset= other.m_charset;
+  }
+  void swap(Charset &other)
+  {
+    swap_variables(CHARSET_INFO*, m_charset, other.m_charset);
+  }
+};
+
+
+
+class String: public Charset
 {
   char *Ptr;
   uint32 str_length,Alloced_length, extra_alloc;
   bool alloced,thread_specific;
-  CHARSET_INFO *str_charset;
 public:
   String()
   { 
     Ptr=0; str_length=Alloced_length=extra_alloc=0;
     alloced= thread_specific= 0; 
-    str_charset= &my_charset_bin; 
   }
   String(size_t length_arg)
   { 
     alloced= thread_specific= 0;
     Alloced_length= extra_alloc= 0; (void) real_alloc(length_arg); 
-    str_charset= &my_charset_bin;
   }
   String(const char *str, CHARSET_INFO *cs)
+   :Charset(cs)
   { 
     Ptr=(char*) str; str_length= (uint32) strlen(str);
     Alloced_length= extra_alloc= 0;
     alloced= thread_specific= 0;
-    str_charset=cs;
   }
   /*
     NOTE: If one intend to use the c_ptr() method, the following two
@@ -158,23 +191,23 @@ public:
     room for zero termination).
   */
   String(const char *str,size_t len, CHARSET_INFO *cs)
+   :Charset(cs)
   { 
     Ptr=(char*) str; str_length=(uint32)len; Alloced_length= extra_alloc=0;
     alloced= thread_specific= 0;
-    str_charset=cs;
   }
   String(char *str,size_t len, CHARSET_INFO *cs)
+   :Charset(cs)
   { 
     Ptr=(char*) str; Alloced_length=str_length=(uint32)len; extra_alloc= 0;
     alloced= thread_specific= 0;
-    str_charset=cs;
   }
   String(const String &str)
+   :Charset(str)
   { 
     Ptr=str.Ptr ; str_length=str.str_length ;
     Alloced_length=str.Alloced_length; extra_alloc= 0;
     alloced= thread_specific= 0;
-    str_charset=str.str_charset;
   }
   static void *operator new(size_t size, MEM_ROOT *mem_root) throw ()
   { return (void*) alloc_root(mem_root, size); }
@@ -201,9 +234,6 @@ public:
     if (!alloced)
       thread_specific= 1;
   }
-  inline void set_charset(CHARSET_INFO *charset_arg)
-  { str_charset= charset_arg; }
-  inline CHARSET_INFO *charset() const { return str_charset; }
   inline uint32 length() const { return str_length;}
   inline uint32 alloced_length() const { return Alloced_length;}
   inline uint32 extra_allocation() const { return extra_alloc;}
@@ -255,7 +285,7 @@ public:
     Ptr=(char*) str.ptr()+offset; str_length=(uint32)arg_length;
     if (str.Alloced_length)
       Alloced_length=(uint32)(str.Alloced_length-offset);
-    str_charset=str.str_charset;
+    set_charset(str);
   }
 
 
@@ -271,13 +301,13 @@ public:
   {
     free();
     Ptr=(char*) str; str_length=Alloced_length=(uint32)arg_length;
-    str_charset=cs;
+    set_charset(cs);
   }
   inline void set(const char *str,size_t arg_length, CHARSET_INFO *cs)
   {
     free();
     Ptr=(char*) str; str_length=(uint32)arg_length;
-    str_charset=cs;
+    set_charset(cs);
   }
   bool set_ascii(const char *str, size_t arg_length);
   inline void set_quick(char *str,size_t arg_length, CHARSET_INFO *cs)
@@ -286,7 +316,7 @@ public:
     {
       Ptr=(char*) str; str_length=Alloced_length=(uint32)arg_length;
     }
-    str_charset=cs;
+    set_charset(cs);
   }
   bool set_int(longlong num, bool unsigned_flag, CHARSET_INFO *cs);
   bool set(int num, CHARSET_INFO *cs) { return set_int(num, false, cs); }
@@ -308,7 +338,7 @@ public:
     Ptr= ptr_arg;
     str_length= (uint32)length_arg;
     Alloced_length= (uint32)alloced_length_arg;
-    str_charset= cs;
+    set_charset(cs);
     alloced= ptr_arg != 0;
   }
 
@@ -429,7 +459,7 @@ public:
       DBUG_ASSERT(!s.uses_buffer_owned_by(this));
       free();
       Ptr=s.Ptr ; str_length=s.str_length ; Alloced_length=s.Alloced_length;
-      str_charset=s.str_charset;
+      set_charset(s);
     }
     return *this;
   }
@@ -461,7 +491,7 @@ public:
       return true;
     str_length= copier->well_formed_copy(tocs, Ptr, Alloced_length,
                                          fromcs, src, (uint)src_length, (uint)nchars);
-    str_charset= tocs;
+    set_charset(tocs);
     return false;
   }
   void move(String &s)
@@ -539,8 +569,16 @@ public:
   friend int stringcmp(const String *a,const String *b);
   friend String *copy_if_not_alloced(String *a,String *b,uint32 arg_length);
   friend class Field;
-  uint32 numchars() const;
-  int charpos(longlong i,uint32 offset=0);
+  uint32 numchars() const
+  {
+    return (uint32) Charset::numchars(ptr(), end());
+  }
+  int charpos(longlong i, uint32 offset=0)
+  {
+    if (i <= 0)
+      return (int) i;
+    return (int) Charset::charpos(ptr() + offset, end(), (size_t) i);
+  }
 
   int reserve(size_t space_needed)
   {
