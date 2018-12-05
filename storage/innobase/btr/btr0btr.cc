@@ -2879,19 +2879,14 @@ btr_insert_into_right_sibling(
 
 	page_cur_t	next_page_cursor;
 	buf_block_t*	next_block;
-	page_t*		next_page;
 	btr_cur_t	next_father_cursor;
 	rec_t*		rec = NULL;
-	ulint		max_size;
 
 	const ulint	space = block->page.id.space();
 
 	next_block = btr_block_get(
 		page_id_t(space, next_page_no), block->page.size,
 		RW_X_LATCH, cursor->index, mtr);
-	next_page = buf_block_get_frame(next_block);
-
-	bool	is_leaf = page_is_leaf(next_page);
 
 	btr_page_get_father(
 		cursor->index, next_block, mtr, &next_father_cursor);
@@ -2900,7 +2895,22 @@ btr_insert_into_right_sibling(
 		next_block, cursor->index, tuple, PAGE_CUR_LE,
 		&next_page_cursor);
 
-	max_size = page_get_max_insert_size_after_reorganize(next_page, 1);
+	const bool is_leaf = page_is_leaf(next_block->frame);
+	ulint max_size;
+
+	if (!is_leaf) {
+		max_size = 0; /* disable warning */
+	} else if (page_is_comp(next_block->frame)
+		   && cursor->index->dual_format()) {
+		if (!btr_page_reorganize(&next_page_cursor, cursor->index,
+					 mtr)) {
+			return NULL;
+		}
+		max_size = page_get_max_insert_size(next_block->frame, 1);
+	} else {
+		max_size = page_get_max_insert_size_after_reorganize(
+			next_block->frame, 1);
+	}
 
 	/* Extends gap lock for the next page */
 	if (!dict_table_is_locking_disabled(cursor->index->table)) {
@@ -2926,13 +2936,14 @@ btr_insert_into_right_sibling(
 
 	ibool	compressed;
 	dberr_t	err;
-	ulint	level = btr_page_get_level(next_page);
 
 	/* adjust cursor position */
 	*btr_cur_get_page_cur(cursor) = next_page_cursor;
 
-	ut_ad(btr_cur_get_rec(cursor) == page_get_infimum_rec(next_page));
-	ut_ad(page_rec_get_next(page_get_infimum_rec(next_page)) == rec);
+	ut_ad(btr_cur_get_rec(cursor)
+	      == page_get_infimum_rec(next_block->frame));
+	ut_ad(page_rec_get_next(page_get_infimum_rec(next_block->frame))
+	      == rec);
 
 	/* We have to change the parent node pointer */
 
@@ -2946,6 +2957,7 @@ btr_insert_into_right_sibling(
 		btr_cur_compress_if_useful(&next_father_cursor, FALSE, mtr);
 	}
 
+	ulint		level = btr_page_get_level(next_block->frame);
 	dtuple_t*	node_ptr = dict_index_build_node_ptr(
 		cursor->index, rec, level
 		? REC_FMT_NODE_PTR
@@ -3946,11 +3958,9 @@ retry:
 	}
 #endif /* UNIV_ZIP_DEBUG */
 
-#if 0 /* FIXME: convert both pages to "instant" format if needed */
-	if (index->dual_format()
-	    && page_is_comp(page) && page_is_leaf(page)) {
-	}
-#endif
+	/* Leaf pages should have been converted to flexible format by now. */
+	ut_ad(!page_is_leaf(page) || !page_is_comp(page)
+	      || !index->dual_format());
 
 	/* Move records to the merge page */
 	if (is_left) {

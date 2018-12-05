@@ -4768,7 +4768,6 @@ btr_cur_pessimistic_update(
 	page_t*		page;
 	page_zip_des_t*	page_zip;
 	rec_t*		rec;
-	page_cur_t*	page_cursor;
 	dberr_t		err;
 	dberr_t		optim_err;
 	roll_ptr_t	roll_ptr;
@@ -5002,7 +5001,7 @@ btr_cur_pessimistic_update(
 #ifdef UNIV_ZIP_DEBUG
 	ut_a(!page_zip || page_zip_validate(page_zip, page, index));
 #endif /* UNIV_ZIP_DEBUG */
-	page_cursor = btr_cur_get_page_cur(cursor);
+	page_cur_t* page_cursor = btr_cur_get_page_cur(cursor);
 
 	page_cur_delete_rec(page_cursor, index, *offsets, mtr);
 
@@ -6063,6 +6062,17 @@ discard_page:
 
 		if (!ret && btr_cur_compress_recommendation(cursor, mtr)) {
 			if (UNIV_LIKELY(allow_merge)) {
+				/* Convert to flexible format if needed. */
+				if (page_is_comp(page) && index->dual_format()
+				    && !btr_page_reorganize(
+					    btr_cur_get_page_cur(cursor),
+					    index, mtr)) {
+					/* Conversion failed. Skip the
+					btr_compress(), because it
+					requires that the page be in
+					flexible format. */
+					goto return_after_reservations;
+				}
 				ret = btr_cur_compress_if_useful(
 					cursor, FALSE, mtr);
 			} else {
