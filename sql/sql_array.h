@@ -107,8 +107,7 @@ public:
 
   void init(uint prealloc=16, uint increment=16)
   {
-    my_init_dynamic_array(&array, sizeof(Elem), prealloc, increment,
-                          MYF(0));
+    init_dynamic_array2(&array, sizeof(Elem), 0, prealloc, increment, MYF(0));
   }
 
   /**
@@ -201,6 +200,11 @@ public:
     set_dynamic(&array, &el, idx);
   }
 
+  void freeze()
+  {
+    freeze_size(&array);
+  }
+
   bool resize(size_t new_size, Elem default_val)
   {
     size_t old_size= elements();
@@ -219,6 +223,11 @@ public:
   }
 
   ~Dynamic_array()
+  {
+    delete_dynamic(&array);
+  }
+
+  void free_memory()
   {
     delete_dynamic(&array);
   }

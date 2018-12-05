@@ -714,7 +714,9 @@ bool ROLE_GRANT_PAIR::init(MEM_ROOT *mem, char *username,
 /* Flag to mark that on_node was already called for this role */
 #define ROLE_OPENED             (1L << 3)
 
-static DYNAMIC_ARRAY acl_hosts, acl_users, acl_dbs, acl_proxy_users;
+static DYNAMIC_ARRAY acl_hosts, acl_users, acl_proxy_users;
+static Dynamic_array<ACL_DB> acl_dbs(0U,50U);
+typedef Dynamic_array<ACL_DB>::CMP_FUNC acl_dbs_cmp;
 static HASH acl_roles;
 /*
   An hash containing mappings user <--> role
@@ -1408,12 +1410,11 @@ static my_bool acl_load(THD *thd, TABLE_LIST *tables)
 	db.access|=REFERENCES_ACL | INDEX_ACL | ALTER_ACL;
     }
 #endif
-    (void) push_dynamic(&acl_dbs,(uchar*) &db);
+    acl_dbs.push(db);
   }
-  my_qsort((uchar*) dynamic_element(&acl_dbs,0,ACL_DB*),acl_dbs.elements,
-	   sizeof(ACL_DB),(qsort_cmp) acl_compare);
   end_read_record(&read_record_info);
-  freeze_size(&acl_dbs);
+  acl_dbs.sort((acl_dbs_cmp)acl_compare);
+  acl_dbs.freeze();
 
   if (tables[3].table)
   {
@@ -1502,7 +1503,7 @@ void acl_free(bool end)
   free_root(&acl_memroot,MYF(0));
   delete_dynamic(&acl_hosts);
   delete_dynamic_with_callback(&acl_users, (FREE_FUNC) free_acl_user);
-  delete_dynamic(&acl_dbs);
+  acl_dbs.free_memory();
   delete_dynamic(&acl_wild_hosts);
   delete_dynamic(&acl_proxy_users);
   my_hash_free(&acl_check_hosts);
@@ -1541,7 +1542,8 @@ void acl_free(bool end)
 my_bool acl_reload(THD *thd)
 {
   TABLE_LIST tables[5];
-  DYNAMIC_ARRAY old_acl_hosts, old_acl_users, old_acl_dbs, old_acl_proxy_users;
+  DYNAMIC_ARRAY old_acl_hosts, old_acl_users, old_acl_proxy_users;
+  Dynamic_array<ACL_DB> old_acl_dbs(0U,0U);
   HASH old_acl_roles, old_acl_roles_mappings;
   MEM_ROOT old_mem;
   my_bool return_val= TRUE;
@@ -1595,7 +1597,7 @@ my_bool acl_reload(THD *thd)
   old_acl_dbs= acl_dbs;
   my_init_dynamic_array(&acl_hosts, sizeof(ACL_HOST), 20, 50, MYF(0));
   my_init_dynamic_array(&acl_users, sizeof(ACL_USER), 50, 100, MYF(0));
-  my_init_dynamic_array(&acl_dbs, sizeof(ACL_DB), 50, 100, MYF(0));
+  acl_dbs.init(50, 100);
   my_init_dynamic_array(&acl_proxy_users, sizeof(ACL_PROXY_USER), 50, 100, MYF(0));
   my_hash_init2(&acl_roles,50, &my_charset_utf8_bin,
                 0, 0, 0, (my_hash_get_key) acl_role_get_key, 0,
@@ -1616,6 +1618,7 @@ my_bool acl_reload(THD *thd)
     acl_roles_mappings= old_acl_roles_mappings;
     acl_proxy_users= old_acl_proxy_users;
     acl_dbs= old_acl_dbs;
+    old_acl_dbs.init(0,0);
     acl_memroot= old_mem;
     init_check_host();
   }
@@ -1626,7 +1629,6 @@ my_bool acl_reload(THD *thd)
     delete_dynamic(&old_acl_hosts);
     delete_dynamic_with_callback(&old_acl_users, (FREE_FUNC) free_acl_user);
     delete_dynamic(&old_acl_proxy_users);
-    delete_dynamic(&old_acl_dbs);
     my_hash_free(&old_acl_roles_mappings);
   }
   mysql_mutex_unlock(&acl_cache->lock);
@@ -1809,9 +1811,9 @@ bool acl_getroot(Security_context *sctx, char *user, char *host,
     if (acl_user)
     {
       res= 0;
-      for (i=0 ; i < acl_dbs.elements ; i++)
+      for (i=0 ; i < acl_dbs.elements() ; i++)
       {
-        ACL_DB *acl_db= dynamic_element(&acl_dbs, i, ACL_DB*);
+        ACL_DB *acl_db= &acl_dbs.at(i);
         if (!acl_db->user ||
             (user && user[0] && !strcmp(user, acl_db->user)))
         {
@@ -1840,9 +1842,9 @@ bool acl_getroot(Security_context *sctx, char *user, char *host,
     if (acl_role)
     {
       res= 0;
-      for (i=0 ; i < acl_dbs.elements ; i++)
+      for (i=0 ; i < acl_dbs.elements() ; i++)
       {
-        ACL_DB *acl_db= dynamic_element(&acl_dbs, i, ACL_DB*);
+        ACL_DB *acl_db= &acl_dbs.at(i);
         if (!acl_db->user ||
             (user && user[0] && !strcmp(user, acl_db->user)))
         {
@@ -2136,9 +2138,9 @@ static bool acl_update_db(const char *user, const char *host, const char *db,
 
   bool updated= false;
 
-  for (uint i=0 ; i < acl_dbs.elements ; i++)
+  for (uint i=0 ; i < acl_dbs.elements() ; i++)
   {
-    ACL_DB *acl_db=dynamic_element(&acl_dbs,i,ACL_DB*);
+    ACL_DB *acl_db= &acl_dbs.at(i);
     if ((!acl_db->user && !user[0]) ||
         (acl_db->user &&
          !strcmp(user,acl_db->user)))
@@ -2157,7 +2159,7 @@ static bool acl_update_db(const char *user, const char *host, const char *db,
             acl_db->initial_access= acl_db->access;
           }
           else
-            delete_dynamic_element(&acl_dbs,i);
+            acl_dbs.del(i);
           updated= true;
         }
       }
@@ -2192,9 +2194,8 @@ static void acl_insert_db(const char *user, const char *host, const char *db,
   acl_db.db=strdup_root(&acl_memroot,db);
   acl_db.initial_access= acl_db.access= privileges;
   acl_db.sort=get_sort(3,acl_db.host.hostname,acl_db.db,acl_db.user);
-  (void) push_dynamic(&acl_dbs,(uchar*) &acl_db);
-  my_qsort((uchar*) dynamic_element(&acl_dbs,0,ACL_DB*),acl_dbs.elements,
-	   sizeof(ACL_DB),(qsort_cmp) acl_compare);
+  acl_dbs.push(acl_db);
+  acl_dbs.sort((acl_dbs_cmp)acl_compare);
 }
 
 
@@ -2240,9 +2241,9 @@ ulong acl_get(const char *host, const char *ip,
   /*
     Check if there are some access rights for database and user
   */
-  for (i=0 ; i < acl_dbs.elements ; i++)
+  for (i=0 ; i < acl_dbs.elements() ; i++)
   {
-    ACL_DB *acl_db=dynamic_element(&acl_dbs,i,ACL_DB*);
+    ACL_DB *acl_db= &acl_dbs.at(i);
     if (!acl_db->user || !strcmp(user,acl_db->user))
     {
       if (compare_hostname(&acl_db->host,host,ip))
@@ -4931,7 +4932,7 @@ static int update_role_db(ACL_DB *merged, ACL_DB **first, ulong access, char *ro
     acl_db.access= access;
     acl_db.initial_access= 0;
     acl_db.sort=get_sort(3, "", acl_db.db, role);
-    push_dynamic(&acl_dbs,(uchar*) &acl_db);
+    acl_dbs.push(acl_db);
     return 2;
   }
   else if (access == 0)
@@ -4976,9 +4977,9 @@ static bool merge_role_db_privileges(ACL_ROLE *grantee, const char *dbname,
 
     Collect these applicable db grants.
   */
-  for (uint i=0 ; i < acl_dbs.elements ; i++)
+  for (uint i=0 ; i < acl_dbs.elements() ; i++)
   {
-    ACL_DB *db= dynamic_element(&acl_dbs,i,ACL_DB*);
+    ACL_DB *db= &acl_dbs.at(i);
     if (db->host.hostname[0])
       continue;
     if (dbname && strcmp(db->db, dbname))
@@ -5022,14 +5023,12 @@ static bool merge_role_db_privileges(ACL_ROLE *grantee, const char *dbname,
   */
   if (update_flags & (2|4))
   { // inserted or deleted, need to sort
-    my_qsort((uchar*) dynamic_element(&acl_dbs,0,ACL_DB*),acl_dbs.elements,
-             sizeof(ACL_DB),(qsort_cmp) acl_compare);
+    acl_dbs.sort((acl_dbs_cmp)acl_compare);
   }
   if (update_flags & 4)
   { // deleted, trim the end
-    while (acl_dbs.elements &&
-           dynamic_element(&acl_dbs, acl_dbs.elements-1, ACL_DB*)->sort == 0)
-      acl_dbs.elements--;
+    while (acl_dbs.elements() && acl_dbs.back()->sort == 0)
+      acl_dbs.pop();
   }
   return update_flags;
 }
@@ -7911,16 +7910,14 @@ static bool show_database_privileges(THD *thd, const char *username,
                                      const char *hostname,
                                      char *buff, size_t buffsize)
 {
-  ACL_DB *acl_db;
   ulong want_access;
-  uint counter;
   Protocol *protocol= thd->protocol;
 
-  for (counter=0 ; counter < acl_dbs.elements ; counter++)
+  for (uint i=0 ; i < acl_dbs.elements() ; i++)
   {
     const char *user, *host;
 
-    acl_db=dynamic_element(&acl_dbs,counter,ACL_DB*);
+    ACL_DB *acl_db= &acl_dbs.at(i);
     user= safe_str(acl_db->user);
     host=acl_db->host.hostname;
 
@@ -8798,7 +8795,7 @@ static int handle_grant_struct(enum enum_acl_lists struct_no, bool drop,
     elements= acl_users.elements;
     break;
   case DB_ACL:
-    elements= acl_dbs.elements;
+    elements= acl_dbs.elements();
     break;
   case COLUMN_PRIVILEGES_HASH:
     grant_name_hash= &column_priv_hash;
@@ -8842,7 +8839,7 @@ static int handle_grant_struct(enum enum_acl_lists struct_no, bool drop,
     break;
 
     case DB_ACL:
-      acl_db= dynamic_element(&acl_dbs, idx, ACL_DB*);
+      acl_db= &acl_dbs.at(idx);
       user= acl_db->user;
       host= acl_db->host.hostname;
       break;
@@ -8926,7 +8923,7 @@ static int handle_grant_struct(enum enum_acl_lists struct_no, bool drop,
         break;
 
       case DB_ACL:
-        delete_dynamic_element(&acl_dbs, idx);
+        acl_dbs.del(idx);
         break;
 
       case COLUMN_PRIVILEGES_HASH:
@@ -9614,11 +9611,11 @@ bool mysql_revoke_all(THD *thd,  List <LEX_USER> &list)
      */
     do
     {
-      for (counter= 0, revoked= 0 ; counter < acl_dbs.elements ; )
+      for (counter= 0, revoked= 0 ; counter < acl_dbs.elements() ; )
       {
 	const char *user,*host;
 
-	acl_db=dynamic_element(&acl_dbs,counter,ACL_DB*);
+        acl_db=&acl_dbs.at(counter);
 
         user= safe_str(acl_db->user);
         host= safe_str(acl_db->host.hostname);
@@ -10451,11 +10448,11 @@ int fill_schema_schema_privileges(THD *thd, TABLE_LIST *tables, COND *cond)
     DBUG_RETURN(0);
   mysql_mutex_lock(&acl_cache->lock);
 
-  for (counter=0 ; counter < acl_dbs.elements ; counter++)
+  for (counter=0 ; counter < acl_dbs.elements() ; counter++)
   {
     const char *user, *host, *is_grantable="YES";
 
-    acl_db=dynamic_element(&acl_dbs,counter,ACL_DB*);
+    acl_db=&acl_dbs.at(counter);
     user= safe_str(acl_db->user);
     host= safe_str(acl_db->host.hostname);
 
