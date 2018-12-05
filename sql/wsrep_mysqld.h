@@ -327,7 +327,6 @@ extern int           wsrep_to_isolation;
 extern rpl_sidno     wsrep_sidno;
 #endif /* GTID_SUPPORT */
 extern my_bool       wsrep_preordered_opt;
-extern handlerton    *wsrep_hton;
 
 #ifdef HAVE_PSI_INTERFACE
 
@@ -367,7 +366,6 @@ void wsrep_end_nbo_lock(THD*, const TABLE_LIST *table_list);
 
 void wsrep_to_isolation_end(THD *thd);
 
-void wsrep_cleanup_transaction(THD *thd);
 bool wsrep_append_SR_keys(THD *thd);
 int wsrep_to_buf_helper(
   THD* thd, const char *query, uint query_len, uchar** buf, size_t* buf_len);
@@ -600,29 +598,17 @@ void wsrep_deinit_server();
 #define WSREP_ON  (0)
 #define WSREP_EMULATE_BINLOG(thd) (0)
 #define WSREP_EMULATE_BINLOG_NNULL(thd) (0)
-//#define WSREP_CLIENT(thd) (0)
 #define WSREP_BINLOG_FORMAT(my_format) ((ulong)my_format)
 #define WSREP_PROVIDER_EXISTS (0)
 #define wsrep_emulate_bin_log (0)
 #define wsrep_to_isolation (0)
-//#define wsrep_init() (1)
-//#define wsrep_prepend_PATH(X)
-//#define wsrep_before_SE() (0)
-//#define wsrep_init_startup(X)
-//#define wsrep_must_sync_wait(...) (0)
-//#define wsrep_sync_wait(...) (0)
-//#define wsrep_to_isolation_begin(...) (0)
-//#define wsrep_register_hton(...) do { } while(0)
-//#define wsrep_check_opts() (0)
-//#define wsrep_stop_replication(X) do { } while(0)
-//#define wsrep_inited (0)
-//#define wsrep_deinit(X) do { } while(0)
-//#define wsrep_recover() do { } while(0)
-//#define wsrep_slave_threads (1)
-//#define wsrep_replicate_myisam (0)
-//#define wsrep_thr_init() do {} while(0)
+#define wsrep_before_SE() (0)
+#define wsrep_init_startup(X)
+#define wsrep_check_opts() (0)
+#define wsrep_thr_init() do {} while(0)
 #define wsrep_thr_deinit() do {} while(0)
-//#define wsrep_running_threads (0)
+#define wsrep_init_globals() do {} while(0)
+#define wsrep_create_appliers(X) do {} while(0)
 
 #endif /* WITH_WSREP */
 
