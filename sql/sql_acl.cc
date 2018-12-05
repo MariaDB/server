@@ -147,6 +147,7 @@ public:
   size_t hostname_length;
   USER_RESOURCES user_resource;
   enum SSL_type ssl_type;
+  uint password_errors;
   const char *ssl_cipher, *x509_issuer, *x509_subject;
   LEX_CSTRING plugin;
   LEX_CSTRING auth_string;
@@ -12325,6 +12326,23 @@ static bool send_plugin_request_packet(MPVIO_EXT *mpvio,
 }
 
 #ifndef NO_EMBEDDED_ACCESS_CHECKS
+
+/**
+  Safeguard to avoid blocking the root, when max_password_errors
+  limit is reached.
+
+  Currently, we allow password errors for superuser on localhost.
+
+  @return true, if password errors should be ignored, and user should not be locked.
+*/
+static bool ignore_max_password_errors(const ACL_USER *acl_user)
+{
+ const char *host= acl_user->host.hostname;
+ return (acl_user->access & SUPER_ACL)
+   && (!strcasecmp(host, "localhost") ||
+       !strcmp(host, "127.0.0.1") ||
+       !strcmp(host, "::1"));
+}
 /**
    Finds acl entry in user database for authentication purposes.
 
@@ -12343,6 +12361,16 @@ static bool find_mpvio_user(MPVIO_EXT *mpvio)
   mysql_mutex_lock(&acl_cache->lock);
 
   ACL_USER *user= find_user_or_anon(sctx->host, sctx->user, sctx->ip);
+
+  if (user && user->password_errors >= max_password_errors && !ignore_max_password_errors(user))
+  {
+    mysql_mutex_unlock(&acl_cache->lock);
+    my_error(ER_USER_IS_BLOCKED, MYF(0));
+    general_log_print(mpvio->auth_info.thd, COM_CONNECT,
+      ER_THD(mpvio->auth_info.thd, ER_USER_IS_BLOCKED));
+    DBUG_RETURN(1);
+  }
+
   if (user)
     mpvio->acl_user= user->copy(mpvio->auth_info.thd->mem_root);
 
@@ -13188,6 +13216,38 @@ static int do_auth_once(THD *thd, const LEX_CSTRING *auth_plugin_name,
   return res;
 }
 
+enum PASSWD_ERROR_ACTION
+{
+  PASSWD_ERROR_CLEAR,
+  PASSWD_ERROR_INCREMENT
+};
+
+/* Increment, or clear password errors for a user. */
+static void handle_password_errors(const char *user, const char *hostname, PASSWD_ERROR_ACTION action)
+{
+#ifndef NO_EMBEDDED_ACCESS_CHECKS
+  mysql_mutex_assert_not_owner(&acl_cache->lock);
+  mysql_mutex_lock(&acl_cache->lock);
+  ACL_USER *u = find_user_exact(hostname, user);
+  if (u)
+  {
+    switch(action)
+    {
+      case PASSWD_ERROR_INCREMENT:
+        u->password_errors++;
+        break;
+      case PASSWD_ERROR_CLEAR:
+        u->password_errors= 0;
+        break;
+      default:
+        DBUG_ASSERT(0);
+        break;
+    }
+  }
+  mysql_mutex_unlock(&acl_cache->lock);
+#endif
+}
+
 
 /**
   Perform the handshake, authorize the client and update thd sctx variables.
@@ -13307,6 +13367,8 @@ bool acl_authenticate(THD *thd, uint com_change_user_pkt_len)
       break;
     case CR_AUTH_USER_CREDENTIALS:
       errors.m_authentication= 1;
+      if (thd->password && !mpvio.make_it_fail)
+        handle_password_errors(acl_user->user.str, acl_user->host.hostname, PASSWD_ERROR_INCREMENT);
       break;
     case CR_ERROR:
     default:
@@ -13321,6 +13383,11 @@ bool acl_authenticate(THD *thd, uint com_change_user_pkt_len)
   }
 
   sctx->proxy_user[0]= 0;
+  if (thd->password && acl_user->password_errors)
+  {
+    /* Login succeeded, clear password errors.*/
+    handle_password_errors(acl_user->user.str, acl_user->host.hostname, PASSWD_ERROR_CLEAR);
+  }
 
   if (initialized) // if not --skip-grant-tables
   {
