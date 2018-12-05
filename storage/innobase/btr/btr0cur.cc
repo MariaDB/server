@@ -5750,7 +5750,7 @@ btr_cur_optimistic_delete_func(
 
 		if (UNIV_UNLIKELY(rec_get_info_bits(rec, page_rec_is_comp(rec))
 				  & REC_INFO_MIN_REC_FLAG)) {
-			/* This should be rolling back instant ADD COLUMN.
+			/* This should be rolling back instant ALTER TABLE.
 			If this is a recovered transaction, then
 			index->is_instant() will hold until the
 			insert into SYS_COLUMNS is rolled back. */
@@ -5763,8 +5763,9 @@ btr_cur_optimistic_delete_func(
 			after rollback, this deleted metadata record
 			would have too many fields, and we would be
 			unable to know the size of the freed record. */
-			btr_page_reorganize(btr_cur_get_page_cur(cursor),
-					    cursor->index, mtr);
+			btr_page_reorganize_low(REORGANIZE_KEEP_FORMAT, 0,
+						btr_cur_get_page_cur(cursor),
+						cursor->index, mtr);
 			goto func_exit;
 		} else {
 			lock_update_delete(block, rec);
@@ -5974,8 +5975,9 @@ btr_cur_pessimistic_delete(
 			after rollback, this deleted metadata record
 			would carry too many fields, and we would be
 			unable to know the size of the freed record. */
-			btr_page_reorganize(btr_cur_get_page_cur(cursor),
-					    index, mtr);
+			btr_page_reorganize_low(REORGANIZE_KEEP_FORMAT, 0,
+						btr_cur_get_page_cur(cursor),
+						index, mtr);
 			ut_ad(!ret);
 			goto return_after_reservations;
 		}

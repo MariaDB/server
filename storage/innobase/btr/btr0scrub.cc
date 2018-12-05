@@ -372,8 +372,8 @@ btr_optimistic_scrub(
 
 	page_cur_t cur;
 	page_cur_set_before_first(block, &cur);
-	bool recovery = false;
-	if (!btr_page_reorganize_low(recovery, scrub_compression_level,
+	if (!btr_page_reorganize_low(REORGANIZE_CONVERT,
+				     scrub_compression_level,
 				     &cur, index, mtr)) {
 		return DB_OVERFLOW;
 	}

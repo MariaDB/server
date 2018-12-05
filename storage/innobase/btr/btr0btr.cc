@@ -1542,15 +1542,11 @@ ibuf_reset_free_bits() before mtr_commit(). On uncompressed pages,
 IBUF_BITMAP_FREE is unaffected by reorganization.
 
 @retval true if the operation was successful
-@retval false if it is a compressed page, and recompression failed */
+@retval false on overflow (mode=REORGANIZE_CONVERT or ROW_FORMAT=COMPRESSED) */
 bool
 btr_page_reorganize_low(
 /*====================*/
-	bool		recovery,/*!< in: true if called in recovery:
-				locks should not be updated, i.e.,
-				there cannot exist locks on the
-				page, and a hash index should not be
-				dropped: it cannot exist */
+	reorganize_t	mode,	/*!< in: mode of operation */
 	ulint		z_level,/*!< in: compression level to be used
 				if dealing with compressed page */
 	page_cur_t*	cursor,	/*!< in/out: page cursor */
@@ -1567,7 +1563,6 @@ btr_page_reorganize_low(
 	ulint		data_size2;
 	ulint		max_ins_size1;
 	ulint		max_ins_size2;
-	bool		success		= false;
 	ulint		pos;
 	bool		log_compressed;
 	bool		is_spatial;
@@ -1577,6 +1572,9 @@ btr_page_reorganize_low(
 #ifdef UNIV_ZIP_DEBUG
 	ut_a(!page_zip || page_zip_validate(page_zip, page, index));
 #endif /* UNIV_ZIP_DEBUG */
+	ut_ad(mode != REORGANIZE_KEEP_FORMAT
+	      || !!page_is_comp(page) == index->table->not_redundant());
+
 	data_size1 = page_get_data_size(page);
 	max_ins_size1 = page_get_max_insert_size_after_reorganize(page, 1);
 
@@ -1596,7 +1594,7 @@ btr_page_reorganize_low(
 	/* Copy the old page to temporary space */
 	buf_frame_copy(temp_page, page);
 
-	if (!recovery) {
+	if (mode != REORGANIZE_RECOVERY) {
 		btr_search_drop_page_hash_index(block);
 	}
 
@@ -1607,16 +1605,22 @@ btr_page_reorganize_low(
 	segment headers, next page-field, etc.) is preserved intact */
 
 	page_create(block, mtr, index->table->not_redundant()
-		    && (recovery || !page_is_leaf(page)
+		    && (mode != REORGANIZE_CONVERT || !page_is_leaf(page)
 			|| !index->dual_format()),
 		    is_spatial);
 
 	/* Copy the records from the temporary space to the recreated page;
 	do not copy the lock bits yet */
 
-	page_copy_rec_list_end_no_locks(block, temp_block,
-					page_get_infimum_rec(temp_page),
-					index, mtr);
+	if (!page_copy_rec_list_end_no_locks(block, temp_block,
+					     page_get_infimum_rec(temp_page),
+					     index, mtr)) {
+		DBUG_ASSERT(mode == REORGANIZE_CONVERT);
+fail:
+		buf_frame_copy(page, temp_page);
+		mtr->set_log_mode(log_mode);
+		return false;
+	}
 
 	/* Copy the PAGE_MAX_TRX_ID or PAGE_ROOT_AUTO_INC. */
 	memcpy(page + (PAGE_HEADER + PAGE_MAX_TRX_ID),
@@ -1630,13 +1634,13 @@ btr_page_reorganize_low(
 
 	During redo log apply, dict_index_is_sec_or_ibuf() always
 	holds, even for clustered indexes. */
-	ut_ad(recovery || index->table->is_temporary()
+	ut_ad(mode == REORGANIZE_RECOVERY || index->table->is_temporary()
 	      || !page_is_leaf(temp_page)
 	      || !dict_index_is_sec_or_ibuf(index)
 	      || page_get_max_trx_id(page) != 0);
 	/* PAGE_MAX_TRX_ID must be zero on non-leaf pages other than
 	clustered index root pages. */
-	ut_ad(recovery
+	ut_ad(mode == REORGANIZE_RECOVERY
 	      || page_get_max_trx_id(page) == 0
 	      || (dict_index_is_sec_or_ibuf(index)
 		  ? page_is_leaf(temp_page)
@@ -1650,9 +1654,10 @@ btr_page_reorganize_low(
 		mtr_set_log_mode(mtr, log_mode);
 	}
 
-	if (page_zip
-	    && !page_zip_compress(page_zip, page, index, z_level, mtr)) {
+	bool success = !page_zip
+		|| page_zip_compress(page_zip, page, index, z_level, mtr);
 
+	if (!success) {
 		/* Restore the old page and exit. */
 #if defined UNIV_DEBUG || defined UNIV_ZIP_DEBUG
 		/* Check that the bytes that we skip are identical. */
@@ -1681,13 +1686,11 @@ btr_page_reorganize_low(
 	max_ins_size2 = page_get_max_insert_size_after_reorganize(page, 1);
 
 	if (data_size1 == data_size2 && max_ins_size1 == max_ins_size2) {
-		success = true;
 	} else if (page_is_comp(temp_page) && page_is_leaf(temp_page)
 		   && index->dual_format()) {
 		/* On format conversion, the size can differ. */
 		ut_ad(data_size2 >= data_size1);
 		ut_ad(max_ins_size2 <= max_ins_size1);
-		success = true; /* FIXME: return false on overflow */
 	} else {
 		ib::error()
 			<< "Page old data size " << data_size1
@@ -1696,7 +1699,7 @@ btr_page_reorganize_low(
 			<< " new max ins size " << max_ins_size2;
 
 		ib::error() << BUG_REPORT_MSG;
-		ut_ad(0);
+		goto fail;
 	}
 
 	/* Restore the cursor position. */
@@ -1713,7 +1716,7 @@ btr_page_reorganize_low(
 	ut_a(!page_zip || page_zip_validate(page_zip, page, index));
 #endif /* UNIV_ZIP_DEBUG */
 
-	if (!recovery) {
+	if (mode != REORGANIZE_RECOVERY) {
 		if (page_is_root(temp_page)
 		    && fil_page_get_type(temp_page) == FIL_PAGE_TYPE_INSTANT) {
 			/* Preserve the PAGE_INSTANT information. */
@@ -1788,7 +1791,7 @@ func_exit:
 		/* Log the PAGE_INSTANT information. */
 		ut_ad(!page_zip);
 		ut_ad(index->is_instant());
-		ut_ad(!recovery);
+		ut_ad(mode != REORGANIZE_RECOVERY);
 		mlog_write_ulint(FIL_PAGE_TYPE + page, FIL_PAGE_TYPE_INSTANT,
 				 MLOG_2BYTES, mtr);
 		mlog_write_ulint(PAGE_HEADER + PAGE_INSTANT + page,
@@ -1805,7 +1808,7 @@ func_exit:
 		}
 	}
 
-	return(success);
+	return success;
 }
 
 /*************************************************************//**
@@ -1836,7 +1839,10 @@ btr_page_reorganize_block(
 	page_cur_t	cur;
 	page_cur_set_before_first(block, &cur);
 
-	return(btr_page_reorganize_low(recovery, z_level, &cur, index, mtr));
+	return btr_page_reorganize_low(recovery
+				       ? REORGANIZE_RECOVERY
+				       : REORGANIZE_CONVERT,
+				       z_level, &cur, index, mtr);
 }
 
 /*************************************************************//**
@@ -1857,8 +1863,8 @@ btr_page_reorganize(
 	dict_index_t*	index,	/*!< in: the index tree of the page */
 	mtr_t*		mtr)	/*!< in/out: mini-transaction */
 {
-	return(btr_page_reorganize_low(false, page_zip_level,
-				       cursor, index, mtr));
+	return btr_page_reorganize_low(REORGANIZE_CONVERT, page_zip_level,
+				       cursor, index, mtr);
 }
 
 /***********************************************************//**

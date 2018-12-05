@@ -878,15 +878,6 @@ page_create_empty(
 	dict_index_t*	index,	/*!< in: the index of the page */
 	mtr_t*		mtr)	/*!< in/out: mini-transaction */
 	MY_ATTRIBUTE((nonnull(1,2)));
-/** Copy and convert a list of records after instant ALTER TABLE.
-@param[in,out]	dest	cursor on the destination page
-@param[in]	src	first record to copy
-@param[in]	limit	first record not to copy from the source page
-@param[in,out]	offsets	scratch area for rec_get_offsets()
-@param[in,out]	mtr	mini-transaction */
-void page_copy_rec_list_convert(page_cur_t& dest, const rec_t* src,
-				const rec_t* limit, ulint* offsets,
-				mtr_t& mtr);
 /*************************************************************//**
 Differs from page_copy_rec_list_end, because this function does not
 touch the lock table and max trx id on page or compress the page.
@@ -894,8 +885,10 @@ touch the lock table and max trx id on page or compress the page.
 IMPORTANT: The caller will have to update IBUF_BITMAP_FREE
 if new_block is a compressed leaf page in a secondary index.
 This has to be done either within the same mini-transaction,
-or by invoking ibuf_reset_free_bits() before mtr_commit(). */
-void
+or by invoking ibuf_reset_free_bits() before mtr_commit().
+
+@return	whether copying the records succeeded */
+bool
 page_copy_rec_list_end_no_locks(
 /*============================*/
 	buf_block_t*	new_block,	/*!< in: index page to copy to */

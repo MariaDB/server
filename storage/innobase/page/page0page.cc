@@ -546,10 +546,11 @@ page_create_empty(
 @param[in]	src	first record to copy
 @param[in]	limit	first record not to copy from the source page
 @param[in,out]	offsets	scratch area for rec_get_offsets()
-@param[in,out]	mtr	mini-transaction */
-void page_copy_rec_list_convert(page_cur_t& dest, const rec_t* src,
-				const rec_t* limit, ulint* offsets,
-				mtr_t& mtr)
+@param[in,out]	mtr	mini-transaction
+@return	whether copying the records succeeded */
+static bool page_copy_rec_list_convert(page_cur_t& dest, const rec_t* src,
+				       const rec_t* limit, ulint* offsets,
+				       mtr_t& mtr)
 {
 	DBUG_ASSERT(page_rec_is_comp(src));
 	DBUG_ASSERT(!page_is_comp(dest.block->frame));
@@ -557,10 +558,12 @@ void page_copy_rec_list_convert(page_cur_t& dest, const rec_t* src,
 	DBUG_ASSERT(page_is_leaf(dest.block->frame));
 	DBUG_ASSERT(dest.index->dual_format());
 
+	rec_t* const first_dest = dest.rec;
+
 	mem_heap_t* heap = NULL;
 	mem_heap_t* row_heap = mem_heap_create(1024);
 
-	while (src != limit) {
+	for (ulint n_recs = 0, size = 0; src != limit; n_recs++) {
 		offsets = rec_get_offsets(src, dest.index, offsets,
 					  REC_FMT_LEAF, ULINT_UNDEFINED,
 					  &heap);
@@ -576,9 +579,14 @@ void page_copy_rec_list_convert(page_cur_t& dest, const rec_t* src,
 			&dest, dtuple, const_cast<dict_index_t*>(dest.index),
 			&offsets, &row_heap, n_ext, &mtr);
 		if (!dest.rec) {
-			ut_ad(!"page overflow");
+			page_delete_rec_list_end(first_dest, dest.block,
+						 const_cast<dict_index_t*>
+						 (dest.index),
+						 n_recs, size, &mtr);
+			return false;
 		}
 
+		size += rec_offs_size(offsets);
 		mem_heap_empty(row_heap);
 		src += int16_t(mach_read_from_2(src - REC_NEXT));
 	}
@@ -587,6 +595,8 @@ void page_copy_rec_list_convert(page_cur_t& dest, const rec_t* src,
 	if (heap) {
 		mem_heap_free(heap);
 	}
+
+	return true;
 }
 
 /*************************************************************//**
@@ -596,8 +606,10 @@ touch the lock table and max trx id on page or compress the page.
 IMPORTANT: The caller will have to update IBUF_BITMAP_FREE
 if new_block is a compressed leaf page in a secondary index.
 This has to be done either within the same mini-transaction,
-or by invoking ibuf_reset_free_bits() before mtr_commit(). */
-void
+or by invoking ibuf_reset_free_bits() before mtr_commit().
+
+@return	whether copying the records succeeded */
+bool
 page_copy_rec_list_end_no_locks(
 /*============================*/
 	buf_block_t*	new_block,	/*!< in: index page to copy to */
@@ -631,10 +643,9 @@ page_copy_rec_list_end_no_locks(
 		page_cur_t cursor;
 		cursor.index = index;
 		page_cur_position(cur2, new_block, &cursor);
-		page_copy_rec_list_convert(cursor, cur1.rec,
-					   page_get_supremum_rec(block->frame),
-					   offsets, *mtr);
-		return;
+		return page_copy_rec_list_convert(
+			cursor, cur1.rec, page_get_supremum_rec(block->frame),
+			offsets, *mtr);
 	}
 
 	const rec_fmt_t format = page_is_leaf(block->frame)
@@ -661,6 +672,234 @@ page_copy_rec_list_end_no_locks(
 	if (UNIV_LIKELY_NULL(heap)) {
 		mem_heap_free(heap);
 	}
+
+	return true;
+}
+
+/** Write a log record of copying a record list end to a new created page.
+@param[in]	block	index page
+@param[in]	index	index tree
+@param[in,out]	mtr	mini-transaction
+@return 4-byte field where to write the log data length
+@retval	NULL if logging is disabled */
+static inline byte* page_copy_rec_list_to_created_page_write_log(
+	const buf_block_t* block, const dict_index_t* index, mtr_t& mtr)
+{
+	ut_ad(!!page_is_comp(block->frame) == index->table->not_redundant()
+	      || index->dual_format());
+	ut_ad(mtr.is_named_space(index->table->space));
+
+	byte* log_ptr = mlog_open_and_write_index(
+		&mtr, block->frame, index,
+		page_is_comp(block->frame)
+		? MLOG_COMP_LIST_END_COPY_CREATED
+		: MLOG_LIST_END_COPY_CREATED, 4);
+	if (UNIV_LIKELY(log_ptr != NULL)) {
+		/* The 4 bytes will be written by the caller. */
+		mlog_close(&mtr, log_ptr + 4);
+	}
+
+	return log_ptr;
+}
+
+/** Copy records to a newly created page, from a given record onward,
+including that record.
+@param[in,out]	new_block	index page to copy to
+@param[in]	rec		first record to copy
+@param[in]	index		record descriptor
+@param[in,out]	mtr		mini-transaction
+@return	whether copying the records succeeded */
+static inline bool page_copy_rec_list_end_to_created_page(
+	const buf_block_t*	new_block,
+	const rec_t*		rec,
+	const dict_index_t*	index,
+	mtr_t*			mtr)
+{
+	page_dir_slot_t* slot = 0; /* remove warning */
+	byte*	heap_top;
+	rec_t*	insert_rec = 0; /* remove warning */
+	rec_t*	prev_rec;
+	ulint	count;
+	ulint	n_recs;
+	ulint	slot_index;
+	ulint	rec_size;
+	mem_heap_t*	heap		= NULL;
+	ulint		offsets_[REC_OFFS_NORMAL_SIZE];
+	ulint*		offsets		= offsets_;
+	rec_offs_init(offsets_);
+
+	page_t* const new_page = new_block->frame;
+	ut_ad(page_dir_get_n_heap(new_page) == PAGE_HEAP_NO_USER_LOW);
+	ut_ad(page_align(rec) != new_page);
+	ut_ad(page_rec_is_leaf(rec) == page_is_leaf(new_page));
+	ut_ad(page_rec_is_comp(rec) == page_is_comp(new_page)
+	      || (page_is_leaf(new_page) && index->dual_format()));
+	/* In dual-format, we cannot copy from flexible to original format. */
+	ut_ad(page_rec_is_comp(rec) || !page_is_comp(new_page));
+
+	/* This function is never invoked on the clustered index root page,
+	except in btr_lift_page_up(). */
+	ut_ad(!page_get_instant(new_page) || page_is_root(new_page));
+
+	if (page_rec_is_infimum(rec)) {
+		rec = page_rec_get_next_const(rec);
+	}
+
+	if (page_rec_is_supremum(rec)) {
+		/* nothing to do */
+		return true;
+	}
+
+	if (page_is_comp(new_page)) {
+		prev_rec = new_page + PAGE_NEW_INFIMUM;
+		heap_top = new_page + PAGE_NEW_SUPREMUM_END;
+	} else {
+		prev_rec = new_page + PAGE_OLD_INFIMUM;
+		heap_top = new_page + PAGE_OLD_SUPREMUM_END;
+	}
+
+	count = 0;
+	slot_index = 0;
+	n_recs = 0;
+
+	const bool is_leaf = page_is_leaf(new_page);
+
+	if (UNIV_UNLIKELY(page_is_comp(new_page) != page_rec_is_comp(rec))) {
+		ut_ad(index->dual_format());
+		ut_ad(is_leaf);
+		ut_ad(!page_is_comp(new_page));
+		page_cur_t dest;
+		dest.index = index;
+		page_cur_position(prev_rec, new_block, &dest);
+		return page_copy_rec_list_convert(
+			dest, rec, page_get_supremum_rec(page_align(rec)),
+			offsets, *mtr);
+	}
+
+	byte* log_ptr = page_copy_rec_list_to_created_page_write_log(
+		new_block, index, *mtr);
+	ulint	log_data_len = mtr->get_log()->size();
+
+	/* Individual inserts are logged in a shorter form */
+
+	const mtr_log_t	log_mode = index->table->is_temporary()
+	    || !index->is_readable() /* IMPORT TABLESPACE */
+		? mtr_get_log_mode(mtr)
+		: mtr_set_log_mode(mtr, MTR_LOG_SHORT_INSERTS);
+
+	ut_d(page_dir_set_n_slots(new_page, NULL, srv_page_size / 2));
+	ut_d(page_header_set_ptr(new_page, NULL, PAGE_HEAP_TOP,
+				 new_page + srv_page_size - 1));
+
+	const rec_fmt_t format = is_leaf
+		? (page_is_comp(new_page)
+		   ? REC_FMT_LEAF : REC_FMT_LEAF_FLEXIBLE)
+		: REC_FMT_NODE_PTR;
+
+	do {
+		offsets = rec_get_offsets(rec, index, offsets, format,
+					  ULINT_UNDEFINED, &heap);
+		insert_rec = rec_copy(heap_top, rec, offsets);
+
+		if (page_is_comp(new_page)) {
+			rec_set_next_offs_new(prev_rec,
+					      page_offset(insert_rec));
+
+			rec_set_n_owned_new(insert_rec, NULL, 0);
+			rec_set_heap_no_new(insert_rec,
+					    PAGE_HEAP_NO_USER_LOW + n_recs);
+		} else {
+			rec_set_next_offs_old(prev_rec,
+					      page_offset(insert_rec));
+
+			rec_set_n_owned_old(insert_rec, 0);
+			rec_set_heap_no_old(insert_rec,
+					    PAGE_HEAP_NO_USER_LOW + n_recs);
+		}
+
+		count++;
+		n_recs++;
+
+		if (UNIV_UNLIKELY
+		    (count == (PAGE_DIR_SLOT_MAX_N_OWNED + 1) / 2)) {
+
+			slot_index++;
+
+			slot = page_dir_get_nth_slot(new_page, slot_index);
+
+			page_dir_slot_set_rec(slot, insert_rec);
+			page_dir_slot_set_n_owned(slot, NULL, count);
+
+			count = 0;
+		}
+
+		rec_size = rec_offs_size(offsets);
+
+		ut_ad(heap_top < new_page + srv_page_size);
+
+		heap_top += rec_size;
+
+		rec_offs_make_valid(insert_rec, index, is_leaf, offsets);
+		page_cur_insert_rec_write_log(insert_rec, rec_size, prev_rec,
+					      index, mtr);
+		prev_rec = insert_rec;
+		rec = page_rec_get_next_const(rec);
+	} while (!page_rec_is_supremum(rec));
+
+	if ((slot_index > 0) && (count + 1
+				 + (PAGE_DIR_SLOT_MAX_N_OWNED + 1) / 2
+				 <= PAGE_DIR_SLOT_MAX_N_OWNED)) {
+		/* We can merge the two last dir slots. This operation is
+		here to make this function imitate exactly the equivalent
+		task made using page_cur_insert_rec, which we use in database
+		recovery to reproduce the task performed by this function.
+		To be able to check the correctness of recovery, it is good
+		that it imitates exactly. */
+
+		count += (PAGE_DIR_SLOT_MAX_N_OWNED + 1) / 2;
+
+		page_dir_slot_set_n_owned(slot, NULL, 0);
+
+		slot_index--;
+	}
+
+	if (UNIV_LIKELY_NULL(heap)) {
+		mem_heap_free(heap);
+	}
+
+	/* Restore the log mode */
+
+	mtr_set_log_mode(mtr, log_mode);
+
+	log_data_len = mtr->get_log()->size() - log_data_len;
+
+	ut_a(log_data_len < 100U << srv_page_size_shift);
+
+	if (log_ptr != NULL) {
+		mach_write_to_4(log_ptr, log_data_len);
+	}
+
+	if (page_is_comp(new_page)) {
+		rec_set_next_offs_new(insert_rec, PAGE_NEW_SUPREMUM);
+	} else {
+		rec_set_next_offs_old(insert_rec, PAGE_OLD_SUPREMUM);
+	}
+
+	slot = page_dir_get_nth_slot(new_page, 1 + slot_index);
+
+	page_dir_slot_set_rec(slot, page_get_supremum_rec(new_page));
+	page_dir_slot_set_n_owned(slot, NULL, count + 1);
+
+	page_dir_set_n_slots(new_page, NULL, 2 + slot_index);
+	page_header_set_ptr(new_page, NULL, PAGE_HEAP_TOP, heap_top);
+	page_dir_set_n_heap(new_page, NULL, PAGE_HEAP_NO_USER_LOW + n_recs);
+	page_header_set_field(new_page, NULL, PAGE_N_RECS, n_recs);
+
+	*reinterpret_cast<uint16_t*>(PAGE_HEADER + PAGE_LAST_INSERT + new_page)
+		= 0;
+	page_direction_reset(PAGE_HEADER + PAGE_DIRECTION_B + new_page,
+			     new_page, NULL);
+	return true;
 }
 
 /*************************************************************//**
@@ -721,8 +960,10 @@ page_copy_rec_list_end(
 	}
 
 	if (page_dir_get_n_heap(new_page) == PAGE_HEAP_NO_USER_LOW) {
-		page_copy_rec_list_end_to_created_page(new_block, rec,
-						       index, mtr);
+		if (!page_copy_rec_list_end_to_created_page(new_block, rec,
+							    index, mtr)) {
+			return NULL;
+		}
 	} else {
 		if (dict_index_is_spatial(index)) {
 			ulint	max_to_move = page_get_n_recs(
@@ -741,9 +982,9 @@ page_copy_rec_list_end(
 							    max_to_move,
 							    &num_moved,
 							    mtr);
-		} else {
-			page_copy_rec_list_end_no_locks(new_block, block, rec,
-							index, mtr);
+		} else if (!page_copy_rec_list_end_no_locks(new_block, block,
+							    rec, index, mtr)) {
+			return NULL;
 		}
 	}
 
@@ -911,8 +1152,10 @@ page_copy_rec_list_start(
 		page_cur_t cursor;
 		cursor.index = index;
 		page_cur_position(cur2, new_block, &cursor);
-		page_copy_rec_list_convert(cursor, cur1.rec, rec, offsets,
-					   *mtr);
+		if (!page_copy_rec_list_convert(cursor, cur1.rec, rec, offsets,
+						*mtr)) {
+			return NULL;
+		}
 	}
 
 	/* Update PAGE_MAX_TRX_ID on the uncompressed page.

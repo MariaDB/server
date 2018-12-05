@@ -448,6 +448,17 @@ btr_root_raise_and_insert(
 	ulint		n_ext,	/*!< in: number of externally stored columns */
 	mtr_t*		mtr)	/*!< in: mtr */
 	MY_ATTRIBUTE((warn_unused_result));
+
+/** Mode of btr_page_reorganize_low() operation */
+enum reorganize_t {
+	/** Convert leaf pages to flexible format if needed */
+	REORGANIZE_CONVERT,
+	/** Crash recovery: do not update locks or adaptive hash index */
+	REORGANIZE_RECOVERY,
+	/** Keep the current leaf page format */
+	REORGANIZE_KEEP_FORMAT
+};
+
 /*************************************************************//**
 Reorganizes an index page.
 
@@ -458,21 +469,16 @@ ibuf_reset_free_bits() before mtr_commit(). On uncompressed pages,
 IBUF_BITMAP_FREE is unaffected by reorganization.
 
 @retval true if the operation was successful
-@retval false if it is a compressed page, and recompression failed */
+@retval false on overflow (mode=REORGANIZE_CONVERT or ROW_FORMAT=COMPRESSED) */
 bool
 btr_page_reorganize_low(
 /*====================*/
-	bool		recovery,/*!< in: true if called in recovery:
-				locks should not be updated, i.e.,
-				there cannot exist locks on the
-				page, and a hash index should not be
-				dropped: it cannot exist */
+	reorganize_t	mode,	/*!< in: mode of operation */
 	ulint		z_level,/*!< in: compression level to be used
 				if dealing with compressed page */
 	page_cur_t*	cursor,	/*!< in/out: page cursor */
 	dict_index_t*	index,	/*!< in: the index tree of the page */
-	mtr_t*		mtr)	/*!< in/out: mini-transaction */
-	MY_ATTRIBUTE((warn_unused_result));
+	mtr_t*		mtr);	/*!< in/out: mini-transaction */
 /*************************************************************//**
 Reorganizes an index page.
 
