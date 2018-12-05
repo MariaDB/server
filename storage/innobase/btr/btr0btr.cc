@@ -1607,7 +1607,8 @@ btr_page_reorganize_low(
 	segment headers, next page-field, etc.) is preserved intact */
 
 	page_create(block, mtr, index->table->not_redundant()
-		    && (!page_is_leaf(page) || !index->dual_format()),
+		    && (recovery || !page_is_leaf(page)
+			|| !index->dual_format()),
 		    is_spatial);
 
 	/* Copy the records from the temporary space to the recreated page;

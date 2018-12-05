@@ -3459,8 +3459,8 @@ fail_err:
 
 	bool reorg = leaf && page_is_comp(page) && index->dual_format();
 	DBUG_EXECUTE_IF("do_page_reorganize", reorg = true; );
-	if (reorg) {
-		btr_page_reorganize(page_cursor, index, mtr);
+	if (reorg && !btr_page_reorganize(page_cursor, index, mtr)) {
+		goto fail;
 	}
 
 	/* Now, try the insert */
@@ -4451,11 +4451,12 @@ btr_cur_optimistic_update(
 	     || trx_is_recv(thr_get_trx(thr)));
 #endif /* UNIV_DEBUG || UNIV_BLOB_LIGHT_DEBUG */
 
-	if (page_is_comp(page) && index->dual_format()) {
-		/* Convert to flexible format */
-		btr_page_reorganize(btr_cur_get_page_cur(cursor), index, mtr);
-		/* FIXME: handle page overflow */
-		ut_ad(!page_is_comp(page));
+	if (page_is_comp(page) && index->dual_format()
+	    && !btr_page_reorganize(btr_cur_get_page_cur(cursor), index,
+				    mtr)) {
+		/* Conversion to flexible format failed.
+		We must split the page in a pessimistic operation. */
+		return DB_OVERFLOW;
 	}
 
 	if (UNIV_LIKELY(!update->is_metadata())
@@ -4652,7 +4653,14 @@ any_extern:
 		was a rollback, the shortened metadata record
 		would have too many fields, and we would be unable to
 		know the size of the freed record. */
+#ifdef UNIV_DEBUG
+		const bool reorganized =
+#endif
 		btr_page_reorganize(page_cursor, index, mtr);
+		/* The page was already converted to flexible format
+		if needed, and instant ALTER is never allowed on
+		compressed pages. Therefore, we must succeed here. */
+		ut_ad(reorganized);
 	} else if (!dict_table_is_locking_disabled(index->table)) {
 		/* Restore the old explicit lock state on the record */
 		lock_rec_restore_from_page_infimum(block, rec, block);
@@ -4767,7 +4775,6 @@ btr_cur_pessimistic_update(
 	buf_block_t*	block;
 	page_t*		page;
 	page_zip_des_t*	page_zip;
-	rec_t*		rec;
 	dberr_t		err;
 	dberr_t		optim_err;
 	roll_ptr_t	roll_ptr;
@@ -4834,20 +4841,16 @@ btr_cur_pessimistic_update(
 		return(err);
 	}
 
-	if (page_is_comp(page) && page_is_leaf(page) && index->dual_format()) {
-		/* Convert to flexible format */
-		btr_page_reorganize(btr_cur_get_page_cur(cursor), index, mtr);
-		/* FIXME: handle page overflow */
-		ut_ad(!page_is_comp(page));
-	}
-
-	rec = btr_cur_get_rec(cursor);
-
-	const rec_fmt_t format = page_is_leaf(page)
+	const rec_fmt_t rformat = page_is_leaf(page)
 		? (page_is_comp(page) ? REC_FMT_LEAF : REC_FMT_LEAF_FLEXIBLE)
 		: REC_FMT_NODE_PTR;
+	const rec_fmt_t format = page_is_leaf(page)
+		? ((page_is_comp(page) && !index->dual_format())
+		   ? REC_FMT_LEAF : REC_FMT_LEAF_FLEXIBLE)
+		: REC_FMT_NODE_PTR;
 
-	*offsets = rec_get_offsets(rec, index, *offsets, format,
+	rec_t* rec = btr_cur_get_rec(cursor);
+	*offsets = rec_get_offsets(rec, index, *offsets, rformat,
 				   ULINT_UNDEFINED, offsets_heap);
 
 	dtuple_t* new_entry;
@@ -5007,10 +5010,16 @@ btr_cur_pessimistic_update(
 
 	page_cur_move_to_prev(page_cursor);
 
-	rec = btr_cur_insert_if_possible(cursor, new_entry,
-					 offsets, offsets_heap, n_ext, mtr);
+	ut_ad(rformat == format || index->dual_format());
 
-	if (rec) {
+	if (rformat != format
+	    && !btr_page_reorganize(page_cursor, index, mtr)) {
+		/* Conversion to flexible format failed. It will
+		be converted in btr_cur_pessimistic_insert(). */
+		rec = NULL;
+	} else if ((rec = btr_cur_insert_if_possible(cursor, new_entry,
+						     offsets, offsets_heap,
+						     n_ext, mtr)) != NULL) {
 		page_cursor->rec = rec;
 
 		if (UNIV_UNLIKELY(is_metadata)) {
@@ -5018,7 +5027,14 @@ btr_cur_pessimistic_update(
 			was a rollback, the shortened metadata record
 			would have too many fields, and we would be unable to
 			know the size of the freed record. */
+#ifdef UNIV_DEBUG
+			const bool reorganized =
+#endif
 			btr_page_reorganize(page_cursor, index, mtr);
+			/* The page was already converted to flexible format
+			if needed, and instant ALTER is never allowed on
+			compressed pages. Therefore, we must succeed here. */
+			ut_ad(reorganized);
 			rec = page_cursor->rec;
 			rec_offs_make_valid(rec, index, true, *offsets);
 		} else if (!dict_table_is_locking_disabled(index->table)) {
@@ -5175,7 +5191,14 @@ btr_cur_pessimistic_update(
 		was a rollback, the shortened metadata record
 		would have too many fields, and we would be unable to
 		know the size of the freed record. */
+#ifdef UNIV_DEBUG
+		const bool reorganized =
+#endif
 		btr_page_reorganize(page_cursor, index, mtr);
+		/* The page was already converted to flexible format
+		if needed, and instant ALTER is never allowed on
+		compressed pages. Therefore, we must succeed here. */
+		ut_ad(reorganized);
 		rec = page_cursor->rec;
 	} else if (!dict_table_is_locking_disabled(index->table)) {
 		lock_rec_restore_from_page_infimum(
