@@ -53,8 +53,16 @@ enum enum_vio_io_event
 
 #define VIO_TLSv1_0   1
 #define VIO_TLSv1_1   2
+#ifdef TLS1_2_VERSION
 #define VIO_TLSv1_2   4
+#else
+#define VIO_TLSv1_2   0
+#endif
+#ifdef TLS1_3_VERSION
 #define VIO_TLSv1_3   8
+#else
+#define VIO_TLSv1_3   0
+#endif
 
 #define VIO_LOCALHOST 1U                        /* a localhost connection */
 #define VIO_BUFFERED_READ 2U                    /* use buffered read */
@@ -171,7 +179,7 @@ struct st_VioSSLFd
                       const char *ca_file,const char *ca_path,
                       const char *cipher, enum enum_ssl_init_error *error,
                       const char *crl_file, const char *crl_path,
-		                  long tls_version);
+		                  ulonglong tls_version);
 void free_vio_ssl_acceptor_fd(struct st_VioSSLFd *fd);
 #endif /* HAVE_OPENSSL */
 
