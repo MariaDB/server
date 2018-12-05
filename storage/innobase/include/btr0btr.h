@@ -720,17 +720,22 @@ btr_page_empty(
 	ulint		level,
 	mtr_t*		mtr)
 	MY_ATTRIBUTE((nonnull(1, 3, 6)));
-/**************************************************************//**
-Creates a new index page (not the root, and also not
-used in page reorganization).  @see btr_page_empty(). */
+/** Create an index page (not the root, not in page reorganization).
+@see btr_page_empty().
+@param[in,out]	block		page to be created
+@param[in,out]	page_zip	compressed page frame, or NULL
+@param[in]	index		index of the page
+@param[in]	flexible	whether to invoke index->dual_format()
+@param[in]	level		B-tree level of the page (0=leaf)
+@param[in,out]	mtr		mini-transaction */
 void
 btr_page_create(
-/*============*/
-	buf_block_t*	block,	/*!< in/out: page to be created */
-	page_zip_des_t*	page_zip,/*!< in/out: compressed page, or NULL */
-	dict_index_t*	index,	/*!< in: index */
-	ulint		level,	/*!< in: the B-tree level of the page */
-	mtr_t*		mtr);	/*!< in: mtr */
+	buf_block_t*	block,
+	page_zip_des_t*	page_zip,
+	dict_index_t*	index,
+	bool		flexible,
+	ulint		level,
+	mtr_t*		mtr);
 /**************************************************************//**
 Frees a file page used in an index tree. Can be used also to BLOB
 external storage pages. */

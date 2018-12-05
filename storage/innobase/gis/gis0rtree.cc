@@ -1092,7 +1092,7 @@ func_start:
 	new_block = btr_page_alloc(cursor->index, hint_page_no, FSP_UP,
 				   page_level, mtr, mtr);
 	new_page_zip = buf_block_get_page_zip(new_block);
-	btr_page_create(new_block, new_page_zip, cursor->index,
+	btr_page_create(new_block, new_page_zip, cursor->index, false,
 			page_level, mtr);
 
 	new_page = buf_block_get_frame(new_block);

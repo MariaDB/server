@@ -418,17 +418,22 @@ btr_root_adjust_on_import(
 	return(err);
 }
 
-/**************************************************************//**
-Creates a new index page (not the root, and also not
-used in page reorganization).  @see btr_page_empty(). */
+/** Create an index page (not the root, not in page reorganization).
+@see btr_page_empty().
+@param[in,out]	block		page to be created
+@param[in,out]	page_zip	compressed page frame, or NULL
+@param[in]	index		index of the page
+@param[in]	flexible	whether to invoke index->dual_format()
+@param[in]	level		B-tree level of the page (0=leaf)
+@param[in,out]	mtr		mini-transaction */
 void
 btr_page_create(
-/*============*/
-	buf_block_t*	block,	/*!< in/out: page to be created */
-	page_zip_des_t*	page_zip,/*!< in/out: compressed page, or NULL */
-	dict_index_t*	index,	/*!< in: index */
-	ulint		level,	/*!< in: the B-tree level of the page */
-	mtr_t*		mtr)	/*!< in: mtr */
+	buf_block_t*	block,
+	page_zip_des_t*	page_zip,
+	dict_index_t*	index,
+	bool		flexible,
+	ulint		level,
+	mtr_t*		mtr)
 {
 	page_t*		page = buf_block_get_frame(block);
 
@@ -439,7 +444,7 @@ btr_page_create(
 		page_create_zip(block, index, level, 0, mtr);
 	} else {
 		const bool comp = index->table->not_redundant()
-			&& (level || !index->dual_format());
+			&& (!flexible || level || !index->dual_format());
 		page_create(block, mtr, comp,
 			    dict_index_is_spatial(index));
 		/* Set the level of the new index page */
@@ -2082,7 +2087,7 @@ btr_root_raise_and_insert(
 
 	new_block = btr_page_alloc(index, 0, FSP_NO_DIR, level, mtr, mtr);
 
-	if (new_block == NULL && os_has_said_disk_full) {
+	if (!new_block) {
 		return(NULL);
 	}
 
@@ -2093,7 +2098,8 @@ btr_root_raise_and_insert(
 	     || page_zip_get_size(new_page_zip)
 	     == page_zip_get_size(root_page_zip));
 
-	btr_page_create(new_block, new_page_zip, index, level, mtr);
+	btr_page_create(new_block, new_page_zip, index,
+			!page_is_comp(root), level, mtr);
 
 	/* Set the next node and previous node fields of new page */
 	btr_page_set_next(new_page, new_page_zip, FIL_NULL, mtr);
@@ -2108,6 +2114,9 @@ btr_root_raise_and_insert(
 	    || !page_copy_rec_list_end(new_block, root_block,
 				       page_get_infimum_rec(root),
 				       index, mtr)) {
+		/* Because btr_page_create() did not use the flexible format
+		(unless the root page already was in the flexible format),
+		the copying can only fail if ROW_FORMAT=COMPRESSED. */
 		ut_a(new_page_zip);
 
 		/* Copy the page byte for byte. */
@@ -3140,13 +3149,14 @@ func_start:
 	new_block = btr_page_alloc(cursor->index, hint_page_no, direction,
 				   level, mtr, mtr);
 
-	if (new_block == NULL && os_has_said_disk_full) {
+	if (!new_block) {
 		return(NULL);
 	}
 
 	new_page = buf_block_get_frame(new_block);
 	new_page_zip = buf_block_get_page_zip(new_block);
-	btr_page_create(new_block, new_page_zip, cursor->index, level, mtr);
+	btr_page_create(new_block, new_page_zip, cursor->index,
+			!page_is_comp(page), level, mtr);
 	/* Only record the leaf level page splits. */
 	if (format != REC_FMT_NODE_PTR) {
 		cursor->index->stat_defrag_n_page_split ++;
@@ -3164,12 +3174,8 @@ func_start:
 		*offsets = rec_get_offsets(split_rec, cursor->index, *offsets,
 					   format, n_uniq, heap);
 
-		if (tuple != NULL) {
-			insert_left = cmp_dtuple_rec(
-				tuple, split_rec, *offsets) < 0;
-		} else {
-			insert_left = 1;
-		}
+		insert_left = !tuple
+			|| cmp_dtuple_rec(tuple, split_rec, *offsets) < 0;
 
 		if (!insert_left && new_page_zip && n_iterations > 0) {
 			/* If a compressed page has already been split,
@@ -3186,7 +3192,7 @@ func_start:
 insert_empty:
 		ut_ad(!split_rec);
 		ut_ad(!insert_left);
-		if (format == REC_FMT_LEAF && cursor->index->dual_format()) {
+		if (format == REC_FMT_LEAF && !page_is_comp(new_page)) {
 			format = REC_FMT_LEAF_FLEXIBLE;
 		}
 		buf = UT_NEW_ARRAY_NOKEY(
@@ -3255,6 +3261,9 @@ insert_empty:
 			and then delete the records from both pages
 			as appropriate.  Deleting will always succeed. */
 			ut_a(new_page_zip);
+			/* btr_page_create() created new_block in the
+			format of the old page, so we cannot get here due
+			to overflow when converting to flexible format. */
 
 			page_zip_copy_recs(new_page_zip, new_page,
 					   page_zip, page, cursor->index, mtr);
@@ -3298,6 +3307,9 @@ insert_empty:
 			and then delete the records from both pages
 			as appropriate.  Deleting will always succeed. */
 			ut_a(new_page_zip);
+			/* btr_page_create() created new_block in the
+			format of the old page, so we cannot get here due
+			to overflow when converting to flexible format. */
 
 			page_zip_copy_recs(new_page_zip, new_page,
 					   page_zip, page, cursor->index, mtr);
@@ -3358,6 +3370,15 @@ insert_empty:
 
 	page_cur_search(insert_block, cursor->index, tuple, page_cursor);
 
+	if (page_is_comp(insert_block->frame) && cursor->index->dual_format()
+	    && !tuple->is_metadata()) {
+		if (btr_page_reorganize(page_cursor, cursor->index, mtr)) {
+			goto reorganized;
+		}
+
+		goto insert_failed;
+	}
+
 	rec = page_cur_tuple_insert(page_cursor, tuple, cursor->index,
 				    offsets, heap, n_ext, mtr);
 
@@ -3390,6 +3411,7 @@ insert_empty:
 		goto insert_failed;
 	}
 
+reorganized:
 	rec = page_cur_tuple_insert(page_cursor, tuple, cursor->index,
 				    offsets, heap, n_ext, mtr);
 
@@ -3709,10 +3731,12 @@ btr_lift_page_up(
 	btr_search_drop_page_hash_index(block);
 
 	/* Make the father empty */
-	btr_page_empty(father_block, father_page_zip, index, true,
-		       page_level, mtr);
+	btr_page_empty(father_block, father_page_zip, index,
+		       !page_is_comp(block->frame), page_level, mtr);
 	/* btr_page_empty() is supposed to zero-initialize the field. */
 	ut_ad(!page_get_instant(father_block->frame));
+	ut_ad(page_is_comp(father_block->frame)
+	      == page_is_comp(block->frame));
 
 	if (page_level == 0 && index->is_instant()) {
 		ut_ad(!father_page_zip);
@@ -3729,6 +3753,10 @@ btr_lift_page_up(
 	    || !page_copy_rec_list_end(father_block, block,
 				       page_get_infimum_rec(page),
 				       index, mtr)) {
+		/* Because btr_page_empty() did not convert the
+		father block to flexible format (unless block already
+		was in flexible format), the copying can only fail
+		if ROW_FORMAT=COMPRESSED. */
 		const page_zip_des_t*	page_zip
 			= buf_block_get_page_zip(block);
 		ut_a(father_page_zip);
@@ -4117,6 +4145,9 @@ retry:
 						   cursor->index, mtr);
 
 		if (!orig_succ) {
+			/* btr_can_merge_with_page() already ensured that
+			both blocks are in the same format. Thus, the copying
+			can only fail if ROW_FORMAT=COMPRESSED. */
 			ut_a(merge_page_zip);
 #ifdef UNIV_BTR_DEBUG
 			if (left_page_no == FIL_NULL) {
@@ -5692,12 +5723,15 @@ btr_can_merge_with_page(
 	DBUG_ENTER("btr_can_merge_with_page");
 
 	if (page_no == FIL_NULL) {
+error:
 		*merge_block = NULL;
 		DBUG_RETURN(false);
 	}
 
 	index = btr_cur_get_index(cursor);
 	page = btr_cur_get_page(cursor);
+
+	DBUG_ASSERT(!page_is_comp(page) || !index->dual_format());
 
 	const page_id_t		page_id(index->table->space_id, page_no);
 	const page_size_t	page_size(index->table->space->flags);
@@ -5708,8 +5742,16 @@ btr_can_merge_with_page(
 	n_recs = page_get_n_recs(page);
 	data_size = page_get_data_size(page);
 
-	max_ins_size_reorg = page_get_max_insert_size_after_reorganize(
-		mpage, n_recs);
+	if (!page_is_comp(page) && page_is_comp(mpage)) {
+		DBUG_ASSERT(index->dual_format());
+		if (!btr_page_reorganize_block(false, 0, mblock, index, mtr)) {
+			goto error;
+		}
+		max_ins_size_reorg = page_get_max_insert_size(mpage, n_recs);
+	} else {
+		max_ins_size_reorg = page_get_max_insert_size_after_reorganize(
+			mpage, n_recs);
+	}
 
 	if (data_size > max_ins_size_reorg) {
 		goto error;
@@ -5753,8 +5795,4 @@ btr_can_merge_with_page(
 
 	*merge_block = mblock;
 	DBUG_RETURN(true);
-
-error:
-	*merge_block = NULL;
-	DBUG_RETURN(false);
 }

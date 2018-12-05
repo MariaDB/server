@@ -3735,7 +3735,7 @@ convert_big_rec:
 			flags, cursor, offsets, heap, entry, n_ext, mtr);
 	}
 
-	if (*rec == NULL && os_has_said_disk_full) {
+	if (*rec == NULL) {
 		return(DB_OUT_OF_FILE_SPACE);
 	}
 
