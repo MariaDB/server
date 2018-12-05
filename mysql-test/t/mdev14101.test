@@ -1,6 +1,7 @@
 # Tests for SSL connections, only run if mysqld is compiled
 # with support for SSL.
 -- source include/have_ssl_communication.inc
+source include/have_openssl.inc;
 source include/require_openssl_client.inc;
 
 --enable_warnings
