@@ -1,5 +1,7 @@
 connection node_2;
 connection node_1;
+connection node_1;
+connection node_2;
 connection node_2;
 CREATE TABLE t1 (f1 INTEGER PRIMARY KEY) ENGINE = InnoDB;
 SET AUTOCOMMIT=OFF;
@@ -26,4 +28,4 @@ COUNT(*) = 3
 1
 DROP TABLE t1;
 connection node_2;
-CALL mtr.add_suppression("WSREP: failed to send SR rollback for ");
+CALL mtr.add_suppression("WSREP: Failed to replicate rollback fragment for ");

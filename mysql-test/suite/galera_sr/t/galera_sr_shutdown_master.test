@@ -4,6 +4,11 @@
 
 --source include/galera_cluster.inc
 
+# Save original auto_increment_offset values.
+--let $node_1=node_1
+--let $node_2=node_2
+--source ../galera/include/auto_increment_offset_save.inc
+
 --connection node_2
 CREATE TABLE t1 (f1 INTEGER PRIMARY KEY) ENGINE = InnoDB;
 
@@ -42,4 +47,7 @@ SELECT COUNT(*) = 3 FROM t1;
 DROP TABLE t1;
 
 --connection node_2
-CALL mtr.add_suppression("WSREP: failed to send SR rollback for ");
+CALL mtr.add_suppression("WSREP: Failed to replicate rollback fragment for ");
+
+# Restore original auto_increment_offset values.
+--source ../galera/include/auto_increment_offset_restore.inc
