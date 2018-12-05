@@ -156,7 +156,7 @@ static inline void APPEND_HEX(char *&to, uchar value)
 }
 
 
-void String::qs_append_hex(const char *str, uint32 len)
+void Static_binary_string::qs_append_hex(const char *str, uint32 len)
 {
   const char *str_end= str + len;
   for (char *to= Ptr + str_length ; str < str_end; str++)
@@ -677,7 +677,7 @@ bool String::append_with_prefill(const char *s,uint32 arg_length,
 }
 
 
-int String::strstr(const String &s,uint32 offset)
+int Static_binary_string::strstr(const Static_binary_string &s, uint32 offset)
 {
   if (s.length()+offset <= str_length)
   {
@@ -708,7 +708,7 @@ skip:
 ** Search string from end. Offset is offset to the end of string
 */
 
-int String::strrstr(const String &s,uint32 offset)
+int Static_binary_string::strrstr(const Static_binary_string &s, uint32 offset)
 {
   if (s.length() <= offset && offset <= str_length)
   {
@@ -787,34 +787,34 @@ int String::reserve(size_t space_needed, size_t grow_by)
   return FALSE;
 }
 
-void String::qs_append(const char *str, size_t len)
+void Static_binary_string::qs_append(const char *str, size_t len)
 {
   memcpy(Ptr + str_length, str, len + 1);
   str_length += (uint32)len;
 }
 
-void String::qs_append(double d)
+void Static_binary_string::qs_append(double d)
 {
   char *buff = Ptr + str_length;
   str_length+= (uint32) my_gcvt(d, MY_GCVT_ARG_DOUBLE, FLOATING_POINT_BUFFER - 1, buff,
                        NULL);
 }
 
-void String::qs_append(double *d)
+void Static_binary_string::qs_append(double *d)
 {
   double ld;
   float8get(ld, (char*) d);
   qs_append(ld);
 }
 
-void String::qs_append(int i)
+void Static_binary_string::qs_append(int i)
 {
   char *buff= Ptr + str_length;
   char *end= int10_to_str(i, buff, -10);
   str_length+= (int) (end-buff);
 }
 
-void String::qs_append(ulonglong i)
+void Static_binary_string::qs_append(ulonglong i)
 {
   char *buff= Ptr + str_length;
   char *end= longlong10_to_str(i, buff, 10);
@@ -1146,26 +1146,6 @@ void String::print_with_conversion(String *print, CHARSET_INFO *cs) const
   uint errors= 0;
   tmp.copy(this, cs, &errors);
   tmp.print(print);
-}
-
-
-/*
-  Exchange state of this object and argument.
-
-  SYNOPSIS
-    String::swap()
-
-  RETURN
-    Target string will contain state of this object and vice versa.
-*/
-
-void String::swap(String &s)
-{
-  swap_variables(char *, Ptr, s.Ptr);
-  swap_variables(uint32, str_length, s.str_length);
-  swap_variables(uint32, Alloced_length, s.Alloced_length);
-  swap_variables(bool, alloced, s.alloced);
-  Charset::swap(s);
 }
 
 
