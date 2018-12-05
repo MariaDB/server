@@ -22,6 +22,7 @@
 #include "wsrep_priv.h"
 #include "wsrep_thd.h"
 #include "wsrep_xid.h"
+#include "wsrep_binlog.h" /* wsrep_fragment_unit() */
 #include <my_dir.h>
 #include <cstdio>
 #include <cstdlib>
@@ -673,11 +674,12 @@ bool wsrep_trx_fragment_size_check (sys_var *self, THD* thd, set_var* var)
 
 bool wsrep_trx_fragment_size_update(sys_var* self, THD *thd, enum_var_type)
 {
-  WSREP_INFO("wsrep_trx_fragment_size_update: %lu", thd->variables.wsrep_trx_fragment_size);
+  WSREP_DEBUG("wsrep_trx_fragment_size_update: %lu",
+              thd->variables.wsrep_trx_fragment_size);
   if (thd->variables.wsrep_trx_fragment_size)
   {
     return thd->wsrep_cs().enable_streaming(
-      thd->wsrep_sr().fragment_unit(),
+      wsrep_fragment_unit(thd->variables.wsrep_trx_fragment_unit),
       thd->variables.wsrep_trx_fragment_size);
   }
   else
@@ -685,6 +687,19 @@ bool wsrep_trx_fragment_size_update(sys_var* self, THD *thd, enum_var_type)
     thd->wsrep_cs().disable_streaming();
     return false;
   }
+}
+
+bool wsrep_trx_fragment_unit_update(sys_var* self, THD *thd, enum_var_type)
+{
+  WSREP_DEBUG("wsrep_trx_fragment_unit_update: %lu",
+              thd->variables.wsrep_trx_fragment_unit);
+  if (thd->variables.wsrep_trx_fragment_size)
+  {
+    return thd->wsrep_cs().enable_streaming(
+      wsrep_fragment_unit(thd->variables.wsrep_trx_fragment_unit),
+      thd->variables.wsrep_trx_fragment_size);
+  }
+  return false;
 }
 
 bool wsrep_max_ws_size_check(sys_var *self, THD* thd, set_var* var)

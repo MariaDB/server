@@ -15,33 +15,40 @@ SET SESSION wsrep_trx_fragment_unit = 'statements';
 SET AUTOCOMMIT=OFF;
 START TRANSACTION;
 INSERT INTO t1 VALUES (1);
+
+# Expect noting is replicated yet, so far we have 2 statements
+--connection node_2
+SET SESSION TRANSACTION ISOLATION LEVEL READ UNCOMMITTED;
+SELECT COUNT(*) FROM t1;
+SELECT COUNT(*) FROM wsrep_schema.SR;
+
+--connection node_1
 INSERT INTO t1 VALUES (2);
 
-# The table count on the slave should jump from 0
+# Expect 2 rows in t1 and 1 fragment in SR table
 --connection node_2
---sleep 1
-SET SESSION TRANSACTION ISOLATION LEVEL READ UNCOMMITTED;
-SELECT COUNT(*) = 0 FROM t1;
+SELECT COUNT(*) FROM t1;
+SELECT COUNT(*) FROM wsrep_schema.SR;
 
+ --connection node_1
 INSERT INTO t1 VALUES (3);
 INSERT INTO t1 VALUES (4);
 INSERT INTO t1 VALUES (5);
 
-# to 3
+# Expect 5 rows in t1 and 2 fragments in SR table
 --connection node_2
-SET SESSION TRANSACTION ISOLATION LEVEL READ UNCOMMITTED;
---let $wait_condition = SELECT COUNT(*) = 3 FROM t1;
---source include/wait_condition.inc
-
---connection node_1
-INSERT INTO t1 VALUES (6);
-
-# and then to to 6
---connection node_2
---let $wait_condition = SELECT COUNT(*) = 6 FROM t1;
---source include/wait_condition.inc
+SELECT COUNT(*) FROM t1;
+SELECT COUNT(*) FROM wsrep_schema.SR;
 
 --connection node_1
 COMMIT;
+
+# Expect 5 rows in t1 and empty SR table
+SELECT COUNT(*) FROM t1;
+SELECT COUNT(*) FROM wsrep_schema.SR;
+
+--connection node_2
+SELECT COUNT(*) FROM t1;
+SELECT COUNT(*) FROM wsrep_schema.SR;
 
 DROP TABLE t1;
