@@ -390,6 +390,11 @@ void wsrep_provider_init (const char* value)
 
 bool wsrep_provider_options_check(sys_var *self, THD* thd, set_var* var)
 {
+  if (!WSREP_ON)
+  {
+    my_message(ER_WRONG_ARGUMENTS, "WSREP (galera) not started", MYF(0));
+    return true;
+  }
   return false;
 }
 

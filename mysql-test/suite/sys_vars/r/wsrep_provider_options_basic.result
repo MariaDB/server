@@ -16,18 +16,21 @@ ERROR HY000: Variable 'wsrep_provider_options' is a GLOBAL variable
 SET @@global.wsrep_provider_options='option1';
 SELECT @@global.wsrep_provider_options;
 @@global.wsrep_provider_options
-option1
+
 
 # valid values
 SET @@global.wsrep_provider_options='name1=value1;name2=value2';
+ERROR HY000: WSREP (galera) not started
 SELECT @@global.wsrep_provider_options;
 @@global.wsrep_provider_options
-name1=value1;name2=value2
+
 SET @@global.wsrep_provider_options='hyphenated-name:value';
+ERROR HY000: WSREP (galera) not started
 SELECT @@global.wsrep_provider_options;
 @@global.wsrep_provider_options
-hyphenated-name:value
+
 SET @@global.wsrep_provider_options=default;
+ERROR HY000: WSREP (galera) not started
 SELECT @@global.wsrep_provider_options;
 @@global.wsrep_provider_options
 
@@ -42,8 +45,9 @@ SET @@global.wsrep_provider_options=NULL;
 Got one of the listed errors
 SELECT @@global.wsrep_provider_options;
 @@global.wsrep_provider_options
-NULL
+
 
 # restore the initial value
 SET @@global.wsrep_provider_options = @wsrep_provider_options_global_saved;
+ERROR HY000: WSREP (galera) not started
 # End of test

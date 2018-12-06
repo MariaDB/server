@@ -24,13 +24,13 @@ SELECT @@global.wsrep_provider_options;
 
 --echo
 --echo # valid values
---error 0,ER_WRONG_ARGUMENTS
+--error ER_WRONG_ARGUMENTS
 SET @@global.wsrep_provider_options='name1=value1;name2=value2';
 SELECT @@global.wsrep_provider_options;
---error 0,ER_WRONG_ARGUMENTS
+--error ER_WRONG_ARGUMENTS
 SET @@global.wsrep_provider_options='hyphenated-name:value';
 SELECT @@global.wsrep_provider_options;
---error 0,ER_WRONG_ARGUMENTS
+--error ER_WRONG_ARGUMENTS
 SET @@global.wsrep_provider_options=default;
 SELECT @@global.wsrep_provider_options;
 
@@ -45,7 +45,7 @@ SELECT @@global.wsrep_provider_options;
 
 --echo
 --echo # restore the initial value
---error 0,ER_WRONG_ARGUMENTS
+--error ER_WRONG_ARGUMENTS
 SET @@global.wsrep_provider_options = @wsrep_provider_options_global_saved;
 
 --echo # End of test
