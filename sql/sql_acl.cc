@@ -4888,9 +4888,9 @@ static bool merge_role_global_privileges(ACL_ROLE *grantee)
   return old != grantee->access;
 }
 
-static int db_name_sort(ACL_DB * const *db1, ACL_DB * const *db2)
+static int db_name_sort(const int *db1, const int *db2)
 {
-  return strcmp((*db1)->db, (*db2)->db);
+  return strcmp(acl_dbs.at(*db1).db, acl_dbs.at(*db2).db);
 }
 
 /**
@@ -4906,14 +4906,14 @@ static int db_name_sort(ACL_DB * const *db1, ACL_DB * const *db2)
           2 - ACL_DB was added
           4 - ACL_DB was deleted
 */
-static int update_role_db(ACL_DB *merged, ACL_DB **first, ulong access, char *role)
+static int update_role_db(int merged, int first, ulong access, char *role)
 {
-  if (!first)
+  if (first < 0)
     return 0;
 
   DBUG_EXECUTE_IF("role_merge_stats", role_db_merges++;);
 
-  if (merged == NULL)
+  if (merged < 0)
   {
     /*
       there's no ACL_DB for this role (all db grants come from granted roles)
@@ -4928,7 +4928,7 @@ static int update_role_db(ACL_DB *merged, ACL_DB **first, ulong access, char *ro
     acl_db.user= role;
     acl_db.host.hostname= const_cast<char*>("");
     acl_db.host.ip= acl_db.host.ip_mask= 0;
-    acl_db.db= first[0]->db;
+    acl_db.db= acl_dbs.at(first).db;
     acl_db.access= access;
     acl_db.initial_access= 0;
     acl_db.sort=get_sort(3, "", acl_db.db, role);
@@ -4948,13 +4948,13 @@ static int update_role_db(ACL_DB *merged, ACL_DB **first, ulong access, char *ro
       2. it's O(N) operation, and we may need many of them
       so we only mark elements deleted and will delete later.
     */
-    merged->sort= 0; // lower than any valid ACL_DB sort value, will be sorted last
+    acl_dbs.at(merged).sort= 0; // lower than any valid ACL_DB sort value, will be sorted last
     return 4;
   }
-  else if (merged->access != access)
+  else if (acl_dbs.at(merged).access != access)
   {
     /* this is easy */
-    merged->access= access;
+    acl_dbs.at(merged).access= access;
     return 1;
   }
   return 0;
@@ -4969,7 +4969,7 @@ static int update_role_db(ACL_DB *merged, ACL_DB **first, ulong access, char *ro
 static bool merge_role_db_privileges(ACL_ROLE *grantee, const char *dbname,
                                      role_hash_t *rhash)
 {
-  Dynamic_array<ACL_DB *> dbs; 
+  Dynamic_array<int> dbs;
 
   /*
     Supposedly acl_dbs can be huge, but only a handful of db grants
@@ -4987,7 +4987,7 @@ static bool merge_role_db_privileges(ACL_ROLE *grantee, const char *dbname,
     ACL_ROLE *r= rhash->find(db->user, strlen(db->user));
     if (!r)
       continue;
-    dbs.append(db);
+    dbs.append(i);
   }
   dbs.sort(db_name_sort);
 
@@ -4996,21 +4996,21 @@ static bool merge_role_db_privileges(ACL_ROLE *grantee, const char *dbname,
     (that should be merged) are sorted together. The grantee's ACL_DB element
     is not necessarily the first and may be not present at all.
   */
-  ACL_DB **first= NULL, *UNINIT_VAR(merged);
+  int first= -1, merged= -1;
   ulong UNINIT_VAR(access), update_flags= 0;
-  for (ACL_DB **cur= dbs.front(); cur <= dbs.back(); cur++)
+  for (int *p= dbs.front(); p <= dbs.back(); p++)
   {
-    if (!first || (!dbname && strcmp(cur[0]->db, cur[-1]->db)))
+    if (first<0 || (!dbname && strcmp(acl_dbs.at(*p).db, acl_dbs.at(*p-1).db)))
     { // new db name series
       update_flags|= update_role_db(merged, first, access, grantee->user.str);
-      merged= NULL;
+      merged= -1;
       access= 0;
-      first= cur;
+      first= *p;
     }
-    if (strcmp(cur[0]->user, grantee->user.str) == 0)
-      access|= (merged= cur[0])->initial_access;
+    if (strcmp(acl_dbs.at(*p).user, grantee->user.str) == 0)
+      access|= acl_dbs.at(merged= *p).initial_access;
     else
-      access|= cur[0]->access;
+      access|= acl_dbs.at(*p).access;
   }
   update_flags|= update_role_db(merged, first, access, grantee->user.str);
 
