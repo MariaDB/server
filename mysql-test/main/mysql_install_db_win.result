@@ -1,0 +1,10 @@
+# Kill the server
+Running bootstrap
+Removing default user
+Creating my.ini file
+Creation of the database was successful
+my.ini
+SELECT @@datadir;
+@@datadir
+DATADIR/
+# Kill the server
