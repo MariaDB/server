@@ -74,9 +74,3 @@ NODE_MYSOCK_2= @mysqld.2.socket
 
 NODE_MYPORT_3= @mysqld.3.port
 NODE_MYSOCK_3= @mysqld.3.socket
-
-NODE_GALERAPORT_1= @mysqld.1.#galera_port
-NODE_GALERAPORT_2= @mysqld.2.#galera_port
-
-NODE_SSTPORT_1= @mysqld.1.#sst_port
-NODE_SSTPORT_2= @mysqld.2.#sst_port
