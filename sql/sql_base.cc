@@ -3883,6 +3883,39 @@ end:
 }
 
 
+static bool upgrade_lock_if_not_exists(THD *thd,
+                                       const DDL_options_st &create_info,
+                                       TABLE_LIST *create_table,
+                                       ulong lock_wait_timeout)
+{
+  DBUG_ENTER("upgrade_lock_if_not_exists");
+
+  if (thd->lex->sql_command == SQLCOM_CREATE_TABLE ||
+      thd->lex->sql_command == SQLCOM_CREATE_SEQUENCE)
+  {
+    if (!create_info.or_replace() &&
+        ha_table_exists(thd, &create_table->db, &create_table->table_name))
+    {
+      if (create_info.if_not_exists())
+      {
+        push_warning_printf(thd, Sql_condition::WARN_LEVEL_NOTE,
+                            ER_TABLE_EXISTS_ERROR,
+                            ER_THD(thd, ER_TABLE_EXISTS_ERROR),
+                            create_table->table_name.str);
+      }
+      else
+        my_error(ER_TABLE_EXISTS_ERROR, MYF(0), create_table->table_name.str);
+      DBUG_RETURN(true);
+    }
+    DBUG_RETURN(thd->mdl_context.upgrade_shared_lock(
+                                   create_table->mdl_request.ticket,
+                                   MDL_EXCLUSIVE,
+                                   lock_wait_timeout));
+  }
+  DBUG_RETURN(false);
+}
+
+
 /**
   Acquire upgradable (SNW, SNRW) metadata locks on tables used by
   LOCK TABLES or by a DDL statement. Under LOCK TABLES, we can't take
@@ -3920,10 +3953,7 @@ lock_table_names(THD *thd, const DDL_options_st &options,
   MDL_request_list mdl_requests;
   TABLE_LIST *table;
   MDL_request global_request;
-  ulong org_lock_wait_timeout= lock_wait_timeout;
-  /* Check if we are using CREATE TABLE ... IF NOT EXISTS */
-  bool create_table;
-  Dummy_error_handler error_handler;
+  MDL_savepoint mdl_savepoint;
   DBUG_ENTER("lock_table_names");
 
   DBUG_ASSERT(!thd->locked_tables_mode);
@@ -3966,75 +3996,48 @@ lock_table_names(THD *thd, const DDL_options_st &options,
   if (mdl_requests.is_empty())
     DBUG_RETURN(FALSE);
 
-  /* Check if CREATE TABLE without REPLACE was used */
-  create_table= ((thd->lex->sql_command == SQLCOM_CREATE_TABLE ||
-                  thd->lex->sql_command == SQLCOM_CREATE_SEQUENCE) &&
-                 !options.or_replace());
-
-  if (!(flags & MYSQL_OPEN_SKIP_SCOPED_MDL_LOCK))
+  if (flags & MYSQL_OPEN_SKIP_SCOPED_MDL_LOCK)
   {
-    /*
-      Protect this statement against concurrent global read lock
-      by acquiring global intention exclusive lock with statement
-      duration.
-    */
-    if (thd->has_read_only_protection())
-      DBUG_RETURN(TRUE);
-    global_request.init(MDL_key::BACKUP, "", "", MDL_BACKUP_DDL,
-                        MDL_STATEMENT);
-    mdl_requests.push_front(&global_request);
-
-    if (create_table)
-#ifdef WITH_WSREP
-      if (thd->lex->sql_command != SQLCOM_CREATE_TABLE &&
-          thd->wsrep_exec_mode != REPL_RECV)
-#endif
-      lock_wait_timeout= 0;                     // Don't wait for timeout
+    DBUG_RETURN(thd->mdl_context.acquire_locks(&mdl_requests,
+                                               lock_wait_timeout) ||
+                upgrade_lock_if_not_exists(thd, options, tables_start,
+                                           lock_wait_timeout));
   }
 
-  for (;;)
+  /* Protect this statement against concurrent BACKUP STAGE or FTWRL. */
+  if (thd->has_read_only_protection())
+    DBUG_RETURN(true);
+
+  global_request.init(MDL_key::BACKUP, "", "", MDL_BACKUP_DDL, MDL_STATEMENT);
+  mdl_savepoint= thd->mdl_context.mdl_savepoint();
+
+  while (!thd->mdl_context.acquire_locks(&mdl_requests, lock_wait_timeout) &&
+         !upgrade_lock_if_not_exists(thd, options, tables_start,
+                                     lock_wait_timeout) &&
+         !thd->mdl_context.try_acquire_lock(&global_request))
   {
-    if (create_table)
-      thd->push_internal_handler(&error_handler);  // Avoid warnings & errors
-    bool res= thd->mdl_context.acquire_locks(&mdl_requests, lock_wait_timeout);
-    if (!(flags & MYSQL_OPEN_SKIP_SCOPED_MDL_LOCK))
-      thd->mdl_backup_ticket= global_request.ticket;
-    if (create_table)
-      thd->pop_internal_handler();
-    if (!res)
-      DBUG_RETURN(FALSE);                       // Got locks
-
-    if (!create_table)
-      DBUG_RETURN(TRUE);                        // Return original error
-
-    /*
-      We come here in the case of lock timeout when executing CREATE TABLE.
-      Verify that table does exist (it usually does, as we got a lock conflict)
-    */
-    if (ha_table_exists(thd, &tables_start->db, &tables_start->table_name))
+    if (global_request.ticket)
     {
-      if (options.if_not_exists())
-      {
-        push_warning_printf(thd, Sql_condition::WARN_LEVEL_NOTE,
-                            ER_TABLE_EXISTS_ERROR,
-                            ER_THD(thd, ER_TABLE_EXISTS_ERROR),
-                            tables_start->table_name.str);
-      }
-      else
-        my_error(ER_TABLE_EXISTS_ERROR, MYF(0), tables_start->table_name.str);
-      DBUG_RETURN(TRUE);
+      thd->mdl_backup_ticket= global_request.ticket;
+      DBUG_RETURN(false);
     }
+
     /*
-      We got error from acquire_locks, but the table didn't exists.
-      This could happen if another connection runs a statement
-      involving this non-existent table, and this statement took the mdl,
-      but didn't error out with ER_NO_SUCH_TABLE yet (yes, a race condition).
-      We play safe and restart the original acquire_locks with the
-      original timeout.
+      There is ongoing or pending BACKUP STAGE or FTWRL.
+      Wait until it finishes and re-try.
     */
-    create_table= 0;
-    lock_wait_timeout= org_lock_wait_timeout;
+    thd->mdl_context.rollback_to_savepoint(mdl_savepoint);
+    if (thd->mdl_context.acquire_lock(&global_request, lock_wait_timeout))
+      break;
+    thd->mdl_context.rollback_to_savepoint(mdl_savepoint);
+
+    /* Reset tickets for all acquired locks */
+    global_request.ticket= 0;
+    MDL_request_list::Iterator it(mdl_requests);
+    while (auto mdl_request= it++)
+      mdl_request->ticket= 0;
   }
+  DBUG_RETURN(true);
 }
 
 

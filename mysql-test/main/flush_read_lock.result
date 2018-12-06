@@ -1693,13 +1693,39 @@ disconnect con2;
 #
 connection default;
 FLUSH TABLES WITH READ LOCK;
+UNLOCK TABLES;
+HANDLER t1 CLOSE;
 #
 connection con1;
 UNLOCK TABLES;
 disconnect con1;
 #
 connection default;
+DROP TABLE t1;
+SET DEBUG_SYNC= 'RESET';
+#
+# Make sure pending LOCK TABLES doesn't block FTWRL
+#
+CREATE TABLE t1(a INT);
+LOCK TABLE t1 READ;
+#
+connect  con1,localhost,root,,;
+SET DEBUG_SYNC= 'mdl_acquire_lock_wait SIGNAL ready';
+LOCK TABLE t1 WRITE;
+#
+connect  con2,localhost,root,,;
+SET DEBUG_SYNC= 'now WAIT_FOR ready';
+FLUSH TABLES WITH READ LOCK;
 UNLOCK TABLES;
-HANDLER t1 CLOSE;
+disconnect con2;
+#
+connection default;
+UNLOCK TABLES;
+#
+connection con1;
+UNLOCK TABLES;
+disconnect con1;
+#
+connection default;
 DROP TABLE t1;
 SET DEBUG_SYNC= 'RESET';

@@ -107,12 +107,10 @@ backup stage start;
 backup stage flush;
 SET STATEMENT lock_wait_timeout=0 FOR SELECT * FROM t1;
 ERROR HY000: Lock wait timeout exceeded; try restarting transaction
-SET STATEMENT lock_wait_timeout=0 FOR backup stage block_ddl;
-ERROR HY000: Lock wait timeout exceeded; try restarting transaction
+backup stage block_ddl;
 SELECT LOCK_MODE, LOCK_TYPE, TABLE_SCHEMA, TABLE_NAME FROM information_schema.metadata_lock_info;
 LOCK_MODE	LOCK_TYPE	TABLE_SCHEMA	TABLE_NAME
-MDL_BACKUP_DDL	Backup lock		
-MDL_BACKUP_FLUSH	Backup lock		
+MDL_BACKUP_WAIT_DDL	Backup lock		
 MDL_SHARED_WRITE	Table metadata lock	test	t1
 MDL_INTENTION_EXCLUSIVE	Schema metadata lock	test	
 backup stage end;

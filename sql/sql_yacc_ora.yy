@@ -2165,7 +2165,7 @@ create:
             LEX *lex= thd->lex;
             if (!lex->first_select_lex()->
                 add_table_to_list(thd, $6, NULL, TL_OPTION_UPDATING,
-                                  TL_WRITE, MDL_EXCLUSIVE))
+                                  TL_WRITE, MDL_SHARED_UPGRADABLE))
               MYSQL_YYABORT;
             lex->alter_info.reset();
             /*

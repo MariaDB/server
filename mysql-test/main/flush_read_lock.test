@@ -2037,7 +2037,9 @@ disconnect con2;
 
 --echo #
 connection default;
---send FLUSH TABLES WITH READ LOCK
+FLUSH TABLES WITH READ LOCK;
+UNLOCK TABLES;
+HANDLER t1 CLOSE;
 
 --echo #
 connection con1;
@@ -2047,8 +2049,39 @@ disconnect con1;
 
 --echo #
 connection default;
+DROP TABLE t1;
+SET DEBUG_SYNC= 'RESET';
+
+
+--echo #
+--echo # Make sure pending LOCK TABLES doesn't block FTWRL
+--echo #
+CREATE TABLE t1(a INT);
+LOCK TABLE t1 READ;
+
+--echo #
+connect (con1,localhost,root,,);
+SET DEBUG_SYNC= 'mdl_acquire_lock_wait SIGNAL ready';
+--send LOCK TABLE t1 WRITE
+
+--echo #
+connect (con2,localhost,root,,);
+SET DEBUG_SYNC= 'now WAIT_FOR ready';
+FLUSH TABLES WITH READ LOCK;
+UNLOCK TABLES;
+disconnect con2;
+
+--echo #
+connection default;
+UNLOCK TABLES;
+
+--echo #
+connection con1;
 reap;
 UNLOCK TABLES;
-HANDLER t1 CLOSE;
+disconnect con1;
+
+--echo #
+connection default;
 DROP TABLE t1;
 SET DEBUG_SYNC= 'RESET';

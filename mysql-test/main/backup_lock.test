@@ -142,8 +142,7 @@ let $wait_condition=
 --error ER_LOCK_WAIT_TIMEOUT
 SET STATEMENT lock_wait_timeout=0 FOR SELECT * FROM t1;
 
---error ER_LOCK_WAIT_TIMEOUT
-SET STATEMENT lock_wait_timeout=0 FOR backup stage block_ddl;
+backup stage block_ddl;
 SELECT LOCK_MODE, LOCK_TYPE, TABLE_SCHEMA, TABLE_NAME FROM information_schema.metadata_lock_info;
 backup stage end;
 
@@ -195,15 +194,10 @@ SET STATEMENT lock_wait_timeout=0 FOR DROP TABLE t1;
 connection con2;
 backup stage start;
 backup stage flush;
---send backup stage block_ddl
+backup stage block_ddl;
 connection default;
-let $wait_condition=
-    select count(*) = 1 from information_schema.processlist
-    where state = "Waiting for backup lock";
---source include/wait_condition.inc
 commit;
 connection con2;
---reap
 backup stage end;
 connection con1;
 --reap  # DROP TABLE
