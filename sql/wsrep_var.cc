@@ -648,11 +648,6 @@ bool wsrep_desync_update (sys_var *self, THD* thd, enum_var_type type)
   return false;
 }
 
-bool wsrep_max_ws_size_check(sys_var *self, THD* thd, set_var* var)
-{
-  return false;
-}
-
 bool wsrep_trx_fragment_size_check (sys_var *self, THD* thd, set_var* var)
 {
   if (var->value == NULL) {
@@ -697,7 +692,17 @@ bool wsrep_trx_fragment_size_update(sys_var* self, THD *thd, enum_var_type)
   }
 }
 
-bool wsrep_max_ws_size_update (sys_var *self, THD *thd, enum_var_type)
+bool wsrep_max_ws_size_check(sys_var *self, THD* thd, set_var* var)
+{
+  if (!WSREP_ON)
+  {
+    my_message(ER_WRONG_ARGUMENTS, "WSREP (galera) not started", MYF(0));
+    return true;
+  }
+  return false;
+}
+
+bool wsrep_max_ws_size_update(sys_var *self, THD *thd, enum_var_type)
 {
   char max_ws_size_opt[128];
   my_snprintf(max_ws_size_opt, sizeof(max_ws_size_opt),
@@ -710,6 +715,7 @@ bool wsrep_max_ws_size_update (sys_var *self, THD *thd, enum_var_type)
   }
   return refresh_provider_options();
 }
+
 #if UNUSED /* eaec266eb16c (Sergei Golubchik  2014-09-28) */
 static SHOW_VAR wsrep_status_vars[]=
 {
