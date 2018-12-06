@@ -8,6 +8,10 @@
 --source include/have_innodb.inc
 --source include/have_mariabackup.inc
 
+--let $node_1=node_1
+--let $node_2=node_2
+--source include/auto_increment_offset_save.inc
+
 --connection node_1
 --let $connection_id = `SELECT CONNECTION_ID()`
 
@@ -94,3 +98,7 @@ DROP TABLE t1;
 
 CALL mtr.add_suppression("gcs_caused\\(\\) returned -1 \\(Operation not permitted\\)");
 CALL mtr.add_suppression("WSREP: Action message in non-primary configuration from member 0");
+
+--let $node_1=node_1a
+--let $node_2=node_2a
+--source include/auto_increment_offset_restore.inc
