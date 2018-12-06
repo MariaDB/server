@@ -30,6 +30,7 @@
 #include "opt_range.h"
 #include "my_atomic.h"
 #include "sql_show.h"
+#include "sql_partition.h"
 
 /*
   The system variable 'use_stat_tables' can take one of the
@@ -3589,6 +3590,22 @@ void set_statistics_for_table(THD *thd, TABLE *table)
     (use_stat_table_mode <= COMPLEMENTARY ||
      !table->stats_is_read || read_stats->cardinality_is_null) ?
     table->file->stats.records : read_stats->cardinality;
+
+  /*
+    For partitioned table, EITS statistics is based on data from all partitions.
+
+    On the other hand, Partition Pruning figures which partitions will be
+    accessed and then computes the estimate of rows in used_partitions.
+
+    Use the estimate from Partition Pruning as it is typically more precise.
+    Ideally, EITS should provide per-partition statistics but this is not
+    implemented currently.
+  */
+  #ifdef WITH_PARTITION_STORAGE_ENGINE
+    if (table->part_info)
+      table->used_stat_records= table->file->stats.records;
+  #endif
+
   KEY *key_info, *key_info_end;
   for (key_info= table->key_info, key_info_end= key_info+table->s->keys;
        key_info < key_info_end; key_info++)
@@ -3903,4 +3920,32 @@ bool is_stat_table(const char *db, const char *table)
     }
   }
   return false;
+}
+
+/*
+  Check wheter we can use EITS statistics for a field or not
+
+  TRUE : Use EITS for the columns
+  FALSE: Otherwise
+*/
+
+bool is_eits_usable(Field *field)
+{
+  partition_info *part_info= NULL;
+  #ifdef WITH_PARTITION_STORAGE_ENGINE
+    part_info= field->table->part_info;
+  #endif
+  /*
+    (1): checks if we have EITS statistics for a particular column
+    (2): Don't use EITS for GEOMETRY columns
+    (3): Disabling reading EITS statistics for columns involved in the
+         partition list of a table. We assume the selecticivity for
+         such columns would be handled during partition pruning.
+  */
+  Column_statistics* col_stats= field->read_stats;
+  if (col_stats && !col_stats->no_stat_values_provided() &&        //(1)
+      field->type() != MYSQL_TYPE_GEOMETRY &&                      //(2)
+      (!part_info || !part_info->field_in_partition_expr(field)))  //(3)
+    return TRUE;
+  return FALSE;
 }

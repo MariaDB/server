@@ -3322,14 +3322,17 @@ bool create_key_parts_for_pseudo_indexes(RANGE_OPT_PARAM *param,
 {
   Field **field_ptr;
   TABLE *table= param->table;
+  partition_info *part_info= NULL;
+  #ifdef WITH_PARTITION_STORAGE_ENGINE
+    part_info= table->part_info;
+  #endif
   uint parts= 0;
 
   for (field_ptr= table->field; *field_ptr; field_ptr++)
   {
-    Column_statistics* col_stats= (*field_ptr)->read_stats;
-    if (bitmap_is_set(used_fields, (*field_ptr)->field_index)
-       && col_stats && !col_stats->no_stat_values_provided()
-       && !((*field_ptr)->type() == MYSQL_TYPE_GEOMETRY))
+    Field *field= *field_ptr;
+    if (bitmap_is_set(used_fields, field->field_index) &&
+        is_eits_usable(field))
       parts++;
   }
 
@@ -3347,12 +3350,10 @@ bool create_key_parts_for_pseudo_indexes(RANGE_OPT_PARAM *param,
   uint max_key_len= 0;
   for (field_ptr= table->field; *field_ptr; field_ptr++)
   {
-    if (bitmap_is_set(used_fields, (*field_ptr)->field_index))
+    Field *field= *field_ptr;
+    if (bitmap_is_set(used_fields, field->field_index))
     {
-      Field *field= *field_ptr;
-      Column_statistics* col_stats= field->read_stats;
-      if (field->type() == MYSQL_TYPE_GEOMETRY ||
-           !col_stats || col_stats->no_stat_values_provided())
+      if (!is_eits_usable(field))
         continue;
 
       uint16 store_length;

@@ -3164,6 +3164,23 @@ void partition_info::print_debug(const char *str, uint *value)
     DBUG_PRINT("info", ("parser: %s", str));
   DBUG_VOID_RETURN;
 }
+
+bool partition_info::field_in_partition_expr(Field *field) const
+{
+  uint i;
+  for (i= 0; i < num_part_fields; i++)
+  {
+    if (field->eq(part_field_array[i]))
+      return TRUE;
+  }
+  for (i= 0; i < num_subpart_fields; i++)
+  {
+    if (field->eq(subpart_field_array[i]))
+      return TRUE;
+  }
+  return FALSE;
+}
+
 #else /* WITH_PARTITION_STORAGE_ENGINE */
  /*
    For builds without partitioning we need to define these functions
