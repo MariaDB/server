@@ -1,9 +1,8 @@
-# Kill the server
 Running bootstrap
 Removing default user
 Creating my.ini file
 Creation of the database was successful
-my.ini
+# Kill the server
 SELECT @@datadir;
 @@datadir
 DATADIR/
