@@ -5527,7 +5527,7 @@ extern const char *wsrep_fragment_units[];
 static Sys_var_enum Sys_wsrep_trx_fragment_unit(
       "wsrep_trx_fragment_unit",
       "Unit for streaming replication transaction fragments' size: bytes, "
-      "events, rows, statements",
+      "rows, statements",
       SESSION_VAR(wsrep_trx_fragment_unit), CMD_LINE(REQUIRED_ARG),
       wsrep_fragment_units,
       DEFAULT(WSREP_FRAG_BYTES),

@@ -770,8 +770,7 @@ int wsrep_init()
                             &wsrep_provider_capabilities);
 
   WSREP_DEBUG("SR storage init for: %s",
-              (wsrep_SR_store_type == WSREP_SR_STORE_TABLE) ? "table" :
-              (wsrep_SR_store_type == WSREP_SR_STORE_FILE) ? "file" : "void");
+              (wsrep_SR_store_type == WSREP_SR_STORE_TABLE) ? "table" : "void");
 
   return 0;
 }

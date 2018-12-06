@@ -37,8 +37,7 @@ wsrep_fragment_unit(ulong unit)
 }
 
 #define WSREP_SR_STORE_NONE      0
-#define WSREP_SR_STORE_FILE      1
-#define WSREP_SR_STORE_TABLE     2
+#define WSREP_SR_STORE_TABLE     1
 
 extern ulong wsrep_SR_store_type;
 extern const char *wsrep_fragment_units[];
