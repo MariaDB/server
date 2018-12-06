@@ -43,8 +43,6 @@ UPDATE t1 SET f2 = 'c' WHERE f1 > 2;
 # ... and restart provider to force IST
 --echo Loading wsrep_provider ...
 --disable_query_log
-# base_port setting is lost for some reason when unloading provider, so we need to restore it
---eval SET GLOBAL wsrep_provider_options= 'base_port=$NODE_GALERAPORT_2';
 --eval SET GLOBAL wsrep_provider = '$wsrep_provider_orig';
 # Make sure IST will block ...
 --let $galera_sync_point = recv_IST_after_apply_trx
