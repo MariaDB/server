@@ -148,7 +148,7 @@ extern "C" my_bool wsrep_thd_is_BF(const void *thd_ptr, my_bool sync)
 {
   THD* thd= (THD*)thd_ptr;
   my_bool status = FALSE;
-  if (thd_ptr)
+  if (thd_ptr && WSREP(thd))
   {
     if (sync) mysql_mutex_lock(&thd->LOCK_thd_data);
     status = (wsrep_thd_is_applying(thd) || wsrep_thd_is_toi(thd));
@@ -167,7 +167,7 @@ extern "C" void wsrep_handle_SR_rollback(void *bf_thd_ptr,
                                          void *victim_thd_ptr)
 {
   DBUG_ASSERT(victim_thd_ptr);
-  if (!victim_thd_ptr) return;
+  if (!victim_thd_ptr || (bf_thd_ptr && !wsrep_on(bf_thd_ptr))) return;
 
   THD* bf_thd= (THD*)bf_thd_ptr;
   THD* victim_thd= (THD*)victim_thd_ptr;

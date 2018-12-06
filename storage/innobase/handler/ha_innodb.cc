@@ -5130,7 +5130,7 @@ static void innobase_kill_query(handlerton*, THD* thd, enum thd_kill_levels)
 
 	if (trx_t* trx = thd_to_trx(thd)) {
 #ifdef WITH_WSREP
-		bool locked= trx->lock.was_chosen_as_deadlock_victim;
+		bool locked= trx->lock.was_chosen_as_deadlock_victim && (wsrep_on(thd));
 		if (locked) {
 			lock_mutex_exit();
 			trx_mutex_exit(trx);
