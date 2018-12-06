@@ -110,17 +110,3 @@ NODE_MYSOCK_5= @mysqld.5.socket
 
 NODE_MYPORT_6= @mysqld.6.port
 NODE_MYSOCK_6= @mysqld.6.socket
-
-NODE_GALERAPORT_1= @mysqld.1.#galera_port
-NODE_GALERAPORT_2= @mysqld.2.#galera_port
-NODE_GALERAPORT_3= @mysqld.3.#galera_port
-NODE_GALERAPORT_4= @mysqld.4.#galera_port
-NODE_GALERAPORT_5= @mysqld.5.#galera_port
-NODE_GALERAPORT_6= @mysqld.6.#galera_port
-
-NODE_SSTPORT_1= @mysqld.1.#sst_port
-NODE_SSTPORT_2= @mysqld.2.#sst_port
-NODE_SSTPORT_3= @mysqld.3.#sst_port
-NODE_SSTPORT_4= @mysqld.4.#sst_port
-NODE_SSTPORT_5= @mysqld.5.#sst_port
-NODE_SSTPORT_6= @mysqld.6.#sst_port

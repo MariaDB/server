@@ -64,4 +64,3 @@ NODE_MYSOCK_1= @mysqld.1.socket
 
 NODE_MYPORT_2= @mysqld.2.port
 NODE_MYSOCK_2= @mysqld.2.socket
-
