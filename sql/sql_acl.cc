@@ -9621,7 +9621,7 @@ static int handle_grant_struct(enum enum_acl_lists struct_no, bool drop,
     elements= acl_users.elements;
     break;
   case DB_ACL:
-    elements= acl_dbs.elements();
+    elements= int(acl_dbs.elements());
     break;
   case COLUMN_PRIVILEGES_HASH:
     grant_name_hash= &column_priv_hash;
@@ -11274,7 +11274,7 @@ static int show_database_grants(THD *thd, SHOW_VAR *var, char *buff,
 {
   var->type= SHOW_UINT;
   var->value= buff;
-  *(uint *)buff= acl_dbs.elements();
+  *(uint *)buff= uint(acl_dbs.elements());
   return 0;
 }
 
