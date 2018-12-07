@@ -1,0 +1,22 @@
+#
+# MDEV-8894 Inserting fractional seconds into MySQL 5.6 master breaks consistency on MariaDB 10 slave
+#
+include/master-slave.inc
+[connection master]
+connection slave;
+CREATE TABLE t1 (id SERIAL, a DATETIME(3));
+include/stop_slave.inc
+connection master;
+include/rpl_stop_server.inc [server_number=1]
+include/rpl_start_server.inc [server_number=1]
+connection slave;
+CHANGE MASTER TO master_host='127.0.0.1', master_port=SERVER_MYPORT_1, master_user='root', master_log_file='master-bin.000001', master_log_pos=4;
+include/start_slave.inc
+connection master;
+connection slave;
+SELECT * FROM t1 ORDER BY id;
+id	a
+1	2001-01-01 00:00:01.000
+include/stop_slave.inc
+DROP TABLE t1;
+include/rpl_end.inc

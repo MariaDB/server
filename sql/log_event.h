@@ -2728,6 +2728,38 @@ protected:
 };
 
 
+class Version
+{
+protected:
+  uchar m_ver[3];
+  int cmp(const Version &other) const
+  {
+    return memcmp(m_ver, other.m_ver, 3);
+  }
+public:
+  Version()
+  {
+    m_ver[0]= m_ver[1]= m_ver[2]= '\0';
+  }
+  Version(uchar v0, uchar v1, uchar v2)
+  {
+    m_ver[0]= v0;
+    m_ver[1]= v1;
+    m_ver[2]= v2;
+  }
+  Version(const char *version, const char **endptr);
+  const uchar& operator [] (size_t i) const
+  {
+    DBUG_ASSERT(i < 3);
+    return m_ver[i];
+  }
+  bool operator<(const Version &other) const { return cmp(other) < 0; }
+  bool operator>(const Version &other) const { return cmp(other) > 0; }
+  bool operator<=(const Version &other) const { return cmp(other) <= 0; }
+  bool operator>=(const Version &other) const { return cmp(other) >= 0; }
+};
+
+
 /**
   @class Format_description_log_event
 
@@ -2754,10 +2786,17 @@ public:
      by the checksum alg decription byte
   */
   uint8 *post_header_len;
-  struct master_version_split {
+  class master_version_split: public Version {
+  public:
     enum {KIND_MYSQL, KIND_MARIADB};
     int kind;
-    uchar ver[3];
+    master_version_split() :kind(KIND_MARIADB) { }
+    master_version_split(const char *version);
+    bool version_is_valid() const
+    {
+      /* It is invalid only when all version numbers are 0 */
+      return !(m_ver[0] == 0 && m_ver[1] == 0 && m_ver[2] == 0);
+    }
   };
   master_version_split server_version_split;
   const uint8 *event_type_permutation;
@@ -2781,17 +2820,9 @@ public:
             (post_header_len != NULL));
   }
 
-  bool version_is_valid() const
-  {
-    /* It is invalid only when all version numbers are 0 */
-    return !(server_version_split.ver[0] == 0 &&
-             server_version_split.ver[1] == 0 &&
-             server_version_split.ver[2] == 0);
-  }
-
   bool is_valid() const
   {
-    return header_is_valid() && version_is_valid();
+    return header_is_valid() && server_version_split.version_is_valid();
   }
 
   int get_data_size()

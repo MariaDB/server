@@ -640,7 +640,7 @@ create_insert_stmt_from_insert_delayed(THD *thd, String *buf)
   if (buf->append(thd->query()) ||
       buf->replace(thd->lex->keyword_delayed_begin_offset,
                    thd->lex->keyword_delayed_end_offset -
-                   thd->lex->keyword_delayed_begin_offset, 0))
+                   thd->lex->keyword_delayed_begin_offset, NULL, 0))
     return 1;
   return 0;
 }

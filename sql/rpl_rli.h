@@ -757,11 +757,6 @@ struct rpl_group_info
   /* Needs room for "Gtid D-S-N\x00". */
   char gtid_info_buf[5+10+1+10+1+20+1];
 
-  /* List of not yet committed deletions in mysql.gtid_slave_pos. */
-  rpl_slave_state::list_element *pending_gtid_delete_list;
-  /* Domain associated with pending_gtid_delete_list. */
-  uint32 pending_gtid_delete_list_domain;
-
   /*
     The timestamp, from the master, of the commit event.
     Used to do delayed update of rli->last_master_timestamp, for getting
@@ -902,12 +897,6 @@ struct rpl_group_info
   void mark_start_commit();
   char *gtid_info();
   void unmark_start_commit();
-
-  static void pending_gtid_deletes_free(rpl_slave_state::list_element *list);
-  void pending_gtid_deletes_save(uint32 domain_id,
-                                 rpl_slave_state::list_element *list);
-  void pending_gtid_deletes_put_back();
-  void pending_gtid_deletes_clear();
 
   longlong get_row_stmt_start_timestamp()
   {

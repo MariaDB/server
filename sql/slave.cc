@@ -465,6 +465,8 @@ static struct slave_background_gtid_pos_create_t {
   void *hton;
 } *slave_background_gtid_pos_create_list;
 
+static volatile bool slave_background_gtid_pending_delete_flag;
+
 
 pthread_handler_t
 handle_slave_background(void *arg __attribute__((unused)))
@@ -499,6 +501,7 @@ handle_slave_background(void *arg __attribute__((unused)))
   {
     slave_background_kill_t *kill_list;
     slave_background_gtid_pos_create_t *create_list;
+    bool pending_deletes;
 
     thd->ENTER_COND(&COND_slave_background, &LOCK_slave_background,
                     &stage_slave_background_wait_request,
@@ -508,13 +511,15 @@ handle_slave_background(void *arg __attribute__((unused)))
       stop= abort_loop || thd->killed || slave_background_thread_stop;
       kill_list= slave_background_kill_list;
       create_list= slave_background_gtid_pos_create_list;
-      if (stop || kill_list || create_list)
+      pending_deletes= slave_background_gtid_pending_delete_flag;
+      if (stop || kill_list || create_list || pending_deletes)
         break;
       mysql_cond_wait(&COND_slave_background, &LOCK_slave_background);
     }
 
     slave_background_kill_list= NULL;
     slave_background_gtid_pos_create_list= NULL;
+    slave_background_gtid_pending_delete_flag= false;
     thd->EXIT_COND(&old_stage);
 
     while (kill_list)
@@ -539,6 +544,17 @@ handle_slave_background(void *arg __attribute__((unused)))
       handle_gtid_pos_auto_create_request(thd, hton);
       my_free(create_list);
       create_list= next;
+    }
+
+    if (pending_deletes)
+    {
+      rpl_slave_state::list_element *list;
+
+      slave_background_gtid_pending_delete_flag= false;
+      list= rpl_global_gtid_slave_state->gtid_grab_pending_delete_list();
+      rpl_global_gtid_slave_state->gtid_delete_pending(thd, &list);
+      if (list)
+        rpl_global_gtid_slave_state->put_back_list(list);
     }
 
     mysql_mutex_lock(&LOCK_slave_background);
@@ -611,6 +627,23 @@ slave_background_gtid_pos_create_request(
   slave_background_gtid_pos_create_list= p;
   mysql_cond_signal(&COND_slave_background);
   mysql_mutex_unlock(&LOCK_slave_background);
+}
+
+
+/*
+  Request the slave background thread to delete no longer used rows from the
+  mysql.gtid_slave_pos* tables.
+
+  This is called from time-critical rpl_slave_state::update(), so we avoid
+  taking any locks here. This means we may race with the background thread
+  to occasionally lose a signal. This is not a problem; any pending rows to
+  be deleted will just be deleted a bit later as part of the next batch.
+*/
+void
+slave_background_gtid_pending_delete_request(void)
+{
+  slave_background_gtid_pending_delete_flag= true;
+  mysql_cond_signal(&COND_slave_background);
 }
 
 
@@ -7910,8 +7943,8 @@ bool rpl_master_has_bug(const Relay_log_info *rli, uint bug_id, bool report,
 {
   struct st_version_range_for_one_bug {
     uint        bug_id;
-    const uchar introduced_in[3]; // first version with bug
-    const uchar fixed_in[3];      // first version with fix
+    Version introduced_in; // first version with bug
+    Version fixed_in;      // first version with fix
   };
   static struct st_version_range_for_one_bug versions_for_all_bugs[]=
   {
@@ -7921,19 +7954,17 @@ bool rpl_master_has_bug(const Relay_log_info *rli, uint bug_id, bool report,
     {33029, { 5, 1,  0 }, { 5, 1, 12 } },
     {37426, { 5, 1,  0 }, { 5, 1, 26 } },
   };
-  const uchar *master_ver=
-    rli->relay_log.description_event_for_exec->server_version_split.ver;
-
-  DBUG_ASSERT(sizeof(rli->relay_log.description_event_for_exec->server_version_split.ver) == 3);
+  const Version &master_ver=
+    rli->relay_log.description_event_for_exec->server_version_split;
 
   for (uint i= 0;
        i < sizeof(versions_for_all_bugs)/sizeof(*versions_for_all_bugs);i++)
   {
-    const uchar *introduced_in= versions_for_all_bugs[i].introduced_in,
-      *fixed_in= versions_for_all_bugs[i].fixed_in;
+    const Version &introduced_in= versions_for_all_bugs[i].introduced_in;
+    const Version &fixed_in= versions_for_all_bugs[i].fixed_in;
     if ((versions_for_all_bugs[i].bug_id == bug_id) &&
-        (memcmp(introduced_in, master_ver, 3) <= 0) &&
-        (memcmp(fixed_in,      master_ver, 3) >  0) &&
+        introduced_in <= master_ver &&
+        fixed_in > master_ver &&
         (pred == NULL || (*pred)(param)))
     {
       if (!report)

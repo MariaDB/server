@@ -1940,10 +1940,6 @@ public:
   { }
 
   Datetime(THD *thd, int *warn, const MYSQL_TIME *from, date_conv_mode_t flags);
-  Datetime()
-  {
-    set_zero_time(this, MYSQL_TIMESTAMP_DATETIME);
-  }
   Datetime(THD *thd, MYSQL_TIME_STATUS *status,
            const char *str, size_t len, CHARSET_INFO *cs,
            const date_mode_t fuzzydate)

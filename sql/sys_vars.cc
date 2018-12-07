@@ -1942,6 +1942,19 @@ Sys_var_last_gtid::session_value_ptr(THD *thd, const LEX_CSTRING *base)
 }
 
 
+static Sys_var_uint Sys_gtid_cleanup_batch_size(
+       "gtid_cleanup_batch_size",
+       "Normally does not need tuning. How many old rows must accumulate in "
+       "the mysql.gtid_slave_pos table before a background job will be run to "
+       "delete them. Can be increased to reduce number of commits if "
+       "using many different engines with --gtid_pos_auto_engines, or to "
+       "reduce CPU overhead if using a huge number of different "
+       "gtid_domain_ids. Can be decreased to reduce number of old rows in the "
+       "table.",
+       GLOBAL_VAR(opt_gtid_cleanup_batch_size), CMD_LINE(REQUIRED_ARG),
+       VALID_RANGE(0,2147483647), DEFAULT(64), BLOCK_SIZE(1));
+
+
 static bool
 check_slave_parallel_threads(sys_var *self, THD *thd, set_var *var)
 {

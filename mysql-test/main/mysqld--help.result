@@ -294,6 +294,15 @@ The following specify which files/extra groups are read (specified before remain
  --group-concat-max-len=# 
  The maximum length of the result of function
  GROUP_CONCAT()
+ --gtid-cleanup-batch-size=# 
+ Normally does not need tuning. How many old rows must
+ accumulate in the mysql.gtid_slave_pos table before a
+ background job will be run to delete them. Can be
+ increased to reduce number of commits if using many
+ different engines with --gtid_pos_auto_engines, or to
+ reduce CPU overhead if using a huge number of different
+ gtid_domain_ids. Can be decreased to reduce number of old
+ rows in the table.
  --gtid-domain-id=#  Used with global transaction ID to identify logically
  independent replication streams. When events can
  propagate through multiple parallel paths (for example
@@ -1434,6 +1443,7 @@ gdb FALSE
 general-log FALSE
 getopt-prefix-matching FALSE
 group-concat-max-len 1048576
+gtid-cleanup-batch-size 64
 gtid-domain-id 0
 gtid-ignore-duplicates FALSE
 gtid-pos-auto-engines 

@@ -12,6 +12,8 @@ SET GLOBAL slave_parallel_threads=10;
 CHANGE MASTER TO master_use_gtid=slave_pos;
 SET @old_parallel_mode=@@GLOBAL.slave_parallel_mode;
 SET GLOBAL slave_parallel_mode='optimistic';
+SET @old_gtid_cleanup_batch_size= @@GLOBAL.gtid_cleanup_batch_size;
+SET GLOBAL gtid_cleanup_batch_size= 1000000;
 connection server_1;
 INSERT INTO t1 VALUES(1,1);
 BEGIN;
@@ -131,6 +133,11 @@ c
 204
 205
 206
+SELECT IF(COUNT(*) >= 30, "OK", CONCAT("Error: too few old rows found: ", COUNT(*)))
+FROM mysql.gtid_slave_pos;
+IF(COUNT(*) >= 30, "OK", CONCAT("Error: too few old rows found: ", COUNT(*)))
+OK
+SET GLOBAL gtid_cleanup_batch_size=1;
 *** Test @@skip_parallel_replication. ***
 connection server_2;
 include/stop_slave.inc
@@ -651,9 +658,10 @@ DROP TABLE t1, t2, t3;
 include/save_master_gtid.inc
 connection server_2;
 include/sync_with_master_gtid.inc
-Check that no more than the expected last four GTIDs are in mysql.gtid_slave_pos
-select count(4) <= 4 from mysql.gtid_slave_pos order by domain_id, sub_id;
-count(4) <= 4
+SELECT COUNT(*) <= 5*@@GLOBAL.gtid_cleanup_batch_size
+FROM mysql.gtid_slave_pos;
+COUNT(*) <= 5*@@GLOBAL.gtid_cleanup_batch_size
 1
+SET GLOBAL gtid_cleanup_batch_size= @old_gtid_cleanup_batch_size;
 connection server_1;
 include/rpl_end.inc
