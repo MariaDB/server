@@ -2411,12 +2411,12 @@ template<typename T> uint find_first_user(T* arr, uint len, const char *user)
   return  (!found || low == len || strcmp(arr[low].get_username(), user)!=0 )?UINT_MAX:low;
 }
 
-static uint acl_find_user_by_name(const char *user)
+static size_t acl_find_user_by_name(const char *user)
 {
   return find_first_user<ACL_USER>((ACL_USER *)acl_users.buffer,acl_users.elements,user);
 }
 
-static uint acl_find_db_by_username(const char *user)
+static size_t acl_find_db_by_username(const char *user)
 {
   return find_first_user<ACL_DB>(acl_dbs.front(), acl_dbs.elements(), user);
 }
@@ -2754,7 +2754,7 @@ static bool acl_update_db(const char *user, const char *host, const char *db,
 
   bool updated= false;
 
-  for (uint i= acl_find_db_by_username(user); i < acl_dbs.elements(); i++)
+  for (size_t i= acl_find_db_by_username(user); i < acl_dbs.elements(); i++)
   {
     ACL_DB *acl_db= &acl_dbs.at(i);
     if (!strcmp(user,acl_db->user))
@@ -3532,9 +3532,9 @@ static ACL_USER *find_user_or_anon(const char *host, const char *user, const cha
 static ACL_USER *find_user_exact(const char *host, const char *user)
 {
   mysql_mutex_assert_owner(&acl_cache->lock);
-  uint start= acl_find_user_by_name(user);
+  size_t start= acl_find_user_by_name(user);
 
-  for (uint i= start; i < acl_users.elements; i++)
+  for (size_t i= start; i < acl_users.elements; i++)
   {
     ACL_USER *acl_user= dynamic_element(&acl_users, i, ACL_USER*);
     if (i > start && strcmp(acl_user->user.str, user))
@@ -3553,9 +3553,9 @@ static ACL_USER * find_user_wild(const char *host, const char *user, const char 
 {
   mysql_mutex_assert_owner(&acl_cache->lock);
 
-  uint start = acl_find_user_by_name(user);
+  size_t start = acl_find_user_by_name(user);
 
-  for (uint i= start; i < acl_users.elements; i++)
+  for (size_t i= start; i < acl_users.elements; i++)
   {
     ACL_USER *acl_user=dynamic_element(&acl_users,i,ACL_USER*);
     if (i > start && strcmp(acl_user->user.str, user))
@@ -9531,7 +9531,7 @@ static int handle_grant_struct(enum enum_acl_lists struct_no, bool drop,
     elements= acl_users.elements;
     break;
   case DB_ACL:
-    elements= acl_dbs.elements();
+    elements= int(acl_dbs.elements());
     break;
   case COLUMN_PRIVILEGES_HASH:
     grant_name_hash= &column_priv_hash;
@@ -11174,7 +11174,7 @@ static int show_database_grants(THD *thd, SHOW_VAR *var, char *buff,
 {
   var->type= SHOW_UINT;
   var->value= buff;
-  *(uint *)buff= acl_dbs.elements();
+  *(uint *)buff= uint(acl_dbs.elements());
   return 0;
 }
 
