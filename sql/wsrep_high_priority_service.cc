@@ -218,7 +218,7 @@ int Wsrep_high_priority_service::append_fragment_and_commit(
   const wsrep::ws_meta& ws_meta,
   const wsrep::const_buffer& data)
 {
-  DBUG_ENTER("Wsrep_high_priority_service::append_fragment");
+  DBUG_ENTER("Wsrep_high_priority_service::append_fragment_and_commit");
   int ret= start_transaction(ws_handle, ws_meta);
   ret= ret || wsrep_schema->append_fragment(m_thd,
                                             ws_meta.server_id(),
@@ -269,6 +269,9 @@ int Wsrep_high_priority_service::append_fragment_and_commit(
   }
   m_thd->wsrep_cs().after_applying();
   m_thd->mdl_context.release_transactional_locks();
+
+  thd_proc_info(m_thd, "wsrep applier committed");
+
   DBUG_RETURN(ret);
 }
 
