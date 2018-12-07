@@ -1688,12 +1688,12 @@ row_fts_merge_insert(
 
 	/* Set TRX_ID and ROLL_PTR */
 	trx_write_trx_id(sys_buf, trx->id);
-	trx_write_roll_ptr(sys_buf + DATA_TRX_ID_LEN,
+	trx_write_roll_ptr(&sys_buf[DATA_TRX_ID_LEN],
 			   1ULL << ROLL_PTR_INSERT_FLAG_POS);
 	dfield_set_data(dtuple_get_nth_field(ins_ctx.tuple, 2),
-			&sys_buf, DATA_TRX_ID_LEN);
+			sys_buf, DATA_TRX_ID_LEN);
 	dfield_set_data(dtuple_get_nth_field(ins_ctx.tuple, 3),
-			&sys_buf + DATA_TRX_ID_LEN, DATA_ROLL_PTR_LEN);
+			&sys_buf[DATA_TRX_ID_LEN], DATA_ROLL_PTR_LEN);
 
 	ut_d(ins_ctx.aux_index_id = id);
 
