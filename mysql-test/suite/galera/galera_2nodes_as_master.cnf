@@ -16,6 +16,10 @@ default-storage-engine=innodb
 innodb_lock_schedule_algorithm=FCFS
 
 [mysqld.1]
+#galera_port=@OPT.port
+#ist_port=@OPT.port
+#sst_port=@OPT.port
+
 server-id=1
 log_slave_updates
 
@@ -34,6 +38,10 @@ wsrep-sync-wait=15
 innodb_lock_schedule_algorithm=FCFS
 
 [mysqld.2]
+#galera_port=@OPT.port
+#ist_port=@OPT.port
+#sst_port=@OPT.port
+
 server-id=2
 log_slave_updates
 
