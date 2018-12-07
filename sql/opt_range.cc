@@ -2869,7 +2869,9 @@ bool create_key_parts_for_pseudo_indexes(RANGE_OPT_PARAM *param,
     if (bitmap_is_set(used_fields, (*field_ptr)->field_index))
     {
       Field *field= *field_ptr;
-      if (field->type() == MYSQL_TYPE_GEOMETRY)
+      Column_statistics* col_stats= field->read_stats;
+      if (field->type() == MYSQL_TYPE_GEOMETRY ||
+           !col_stats || col_stats->no_stat_values_provided())
         continue;
 
       uint16 store_length;

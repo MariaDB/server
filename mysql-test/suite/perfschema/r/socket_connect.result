@@ -167,19 +167,6 @@ connection default;
 
 # 6.1 Verify that there are no TCP/IP connections in the socket instance table
 
-SELECT COUNT(*) = 0 AS 'Expect 1'
-FROM performance_schema.socket_instances
-WHERE EVENT_NAME LIKE '%client_connection%'
-  AND OBJECT_INSTANCE_BEGIN <> @default_object_instance_begin
-AND (IP LIKE '%127.0.0.1' OR IP LIKE '%::1');
-Expect 1
-1
 
 # 6.2 Verify that there are no TCP/IP connections in the summary instance table
 
-SELECT COUNT(*) = 0 AS 'Expect 1'
-FROM performance_schema.socket_summary_by_instance
-WHERE EVENT_NAME LIKE '%client_connection%'
-  AND OBJECT_INSTANCE_BEGIN <> @default_object_instance_begin;
-Expect 1
-1
