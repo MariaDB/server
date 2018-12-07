@@ -3458,21 +3458,14 @@ pthread_handler_t signal_hand(void *arg __attribute__((unused)))
 			      REFRESH_GRANT |
 			      REFRESH_THREADS | REFRESH_HOSTS),
 			     (TABLE_LIST*) 0, &not_used); // Flush logs
-      }
-      /* reenable logs after the options were reloaded */
-      if (log_output_options & LOG_NONE)
-      {
-        logger.set_handlers(LOG_FILE,
-                            global_system_variables.sql_log_slow ?
-                            LOG_TABLE : LOG_NONE,
-                            opt_log ? LOG_TABLE : LOG_NONE);
-      }
-      else
-      {
-        logger.set_handlers(LOG_FILE,
-                            global_system_variables.sql_log_slow ?
-                            log_output_options : LOG_NONE,
-                            opt_log ? log_output_options : LOG_NONE);
+
+        /* reenable logs after the options were reloaded */
+        ulonglong fixed_log_output_options=
+          log_output_options & LOG_NONE ? LOG_TABLE : log_output_options;
+
+        logger.set_handlers(LOG_FILE, global_system_variables.sql_log_slow
+                                      ? fixed_log_output_options : LOG_NONE,
+                            opt_log ? fixed_log_output_options : LOG_NONE);
       }
       break;
 #ifdef USE_ONE_SIGNAL_HAND
