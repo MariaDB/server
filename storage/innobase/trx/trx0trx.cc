@@ -1448,6 +1448,7 @@ trx_commit_in_memory(
 	if (trx->mysql_thd && wsrep_on(trx->mysql_thd)) {
 		trx->lock.was_chosen_as_deadlock_victim = FALSE;
 	}
+	trx->lock.was_chosen_as_wsrep_victim = FALSE;
 #endif
 
 	DBUG_LOG("trx", "Commit in memory: " << trx);

@@ -457,6 +457,7 @@ trx_rollback_to_savepoint_for_mysql_low(
 	    trx->lock.was_chosen_as_deadlock_victim) {
 		trx->lock.was_chosen_as_deadlock_victim = FALSE;
 	}
+	trx->lock.was_chosen_as_wsrep_victim = FALSE;
 #endif
 	return(err);
 }
