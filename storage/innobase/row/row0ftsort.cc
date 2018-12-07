@@ -1581,9 +1581,7 @@ row_fts_merge_insert(
 	dict_table_t*		aux_table;
 	dict_index_t*		aux_index;
 	trx_t*			trx;
-	byte			trx_id_buf[6];
-	roll_ptr_t		roll_ptr = 0;
-	dfield_t*		field;
+	byte			sys_buf[DATA_TRX_ID_LEN + DATA_ROLL_PTR_LEN];
 
 	ut_ad(index);
 	ut_ad(table);
@@ -1689,16 +1687,16 @@ row_fts_merge_insert(
 			      dict_index_get_n_fields(aux_index));
 
 	/* Set TRX_ID and ROLL_PTR */
-	trx_write_trx_id(trx_id_buf, trx->id);
-	field = dtuple_get_nth_field(ins_ctx.tuple, 2);
-	dfield_set_data(field, &trx_id_buf, 6);
+	trx_write_trx_id(sys_buf, trx->id);
+	trx_write_roll_ptr(sys_buf + DATA_TRX_ID_LEN,
+			   1ULL << ROLL_PTR_INSERT_FLAG_POS);
+	dfield_set_data(dtuple_get_nth_field(ins_ctx.tuple, 2),
+			&sys_buf, DATA_TRX_ID_LEN);
+	dfield_set_data(dtuple_get_nth_field(ins_ctx.tuple, 3),
+			&sys_buf + DATA_TRX_ID_LEN, DATA_ROLL_PTR_LEN);
 
-	field = dtuple_get_nth_field(ins_ctx.tuple, 3);
-	dfield_set_data(field, &roll_ptr, 7);
+	ut_d(ins_ctx.aux_index_id = id);
 
-#ifdef UNIV_DEBUG
-	ins_ctx.aux_index_id = id;
-#endif
 	const ulint space = table->space;
 
 	for (i = 0; i < fts_sort_pll_degree; i++) {
