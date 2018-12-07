@@ -250,8 +250,11 @@ void wsrep_sst_received (THD*                thd,
       my_pthread_setspecific_ptr(THR_THD, NULL);
     }
 
-    int const rcode(seqno < 0 ? seqno : 0);
-    wsrep_sst_complete(thd, sst_gtid, rcode);
+    if (WSREP_ON)
+    {
+      int const rcode(seqno < 0 ? seqno : 0);
+      wsrep_sst_complete(thd, sst_gtid, rcode);
+    }
 }
 
 struct sst_thread_arg
