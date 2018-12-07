@@ -3249,9 +3249,10 @@ row_ins_clust_index_entry(
 #ifdef WITH_WSREP
 	const bool skip_locking
 		= wsrep_thd_skip_locking(thr_get_trx(thr)->mysql_thd);
-	ulint	flags = skip_locking | index->table->is_temporary()
-		? BTR_NO_LOCKING_FLAG
-		: index->table->no_rollback() ? BTR_NO_ROLLBACK : 0;
+	ulint	flags = skip_locking |
+			index->table->no_rollback() ? BTR_NO_ROLLBACK
+		: index->table->is_temporary()
+		? BTR_NO_LOCKING_FLAG : 0;
 #ifdef UNIV_DEBUG
 	if (skip_locking && sr_table_name_full_str != index->table->name.m_name) {
 		WSREP_ERROR("Record locking is disabled in this thread, "
