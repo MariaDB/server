@@ -3402,14 +3402,15 @@ pthread_handler_t signal_hand(void *arg __attribute__((unused)))
   (void) pthread_sigmask(SIG_BLOCK,&set,NULL);
   for (;;)
   {
-    int error;					// Used when debugging
+    int error;
+    int origin;
     if (shutdown_in_progress && !abort_loop)
     {
       sig= SIGTERM;
       error=0;
     }
     else
-      while ((error=my_sigwait(&set,&sig)) == EINTR) ;
+      while ((error= my_sigwait(&set, &sig, &origin)) == EINTR) /* no-op */;
     if (cleanup_done)
     {
       DBUG_PRINT("quit",("signal_handler: calling my_thread_end()"));
@@ -3449,7 +3450,7 @@ pthread_handler_t signal_hand(void *arg __attribute__((unused)))
       }
       break;
     case SIGHUP:
-      if (!abort_loop)
+      if (!abort_loop && origin != SI_KERNEL)
       {
         int not_used;
 	mysql_print_status();		// Print some debug info
