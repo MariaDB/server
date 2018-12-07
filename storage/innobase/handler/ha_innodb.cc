@@ -11254,10 +11254,6 @@ err_col:
 			 : ER_TABLESPACE_EXISTS, MYF(0), display_name);
 	}
 
-	if (err == DB_SUCCESS && (m_flags2 & DICT_TF2_FTS)) {
-		fts_optimize_add_table(table);
-	}
-
 error_ret:
 	DBUG_RETURN(convert_error_code_to_mysql(err, m_flags, m_thd));
 }
@@ -12754,6 +12750,10 @@ create_table_info_t::create_table_update_dict()
 			trx_free_for_mysql(m_trx);
 			DBUG_RETURN(-1);
 		}
+
+		mutex_enter(&dict_sys->mutex);
+		fts_optimize_add_table(innobase_table);
+		mutex_exit(&dict_sys->mutex);
 	}
 
 	if (const Field* ai = m_form->found_next_number_field) {

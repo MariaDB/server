@@ -11547,10 +11547,6 @@ err_col:
 			 : ER_TABLESPACE_EXISTS, MYF(0), display_name);
 	}
 
-	if (err == DB_SUCCESS && (flags2 & DICT_TF2_FTS)) {
-		fts_optimize_add_table(table);
-	}
-
 error_ret:
 	DBUG_RETURN(convert_error_code_to_mysql(err, flags, thd));
 }
@@ -12832,6 +12828,10 @@ ha_innobase::create(
 			trx_free_for_mysql(trx);
 			DBUG_RETURN(-1);
 		}
+
+		mutex_enter(&dict_sys->mutex);
+		fts_optimize_add_table(innobase_table);
+		mutex_exit(&dict_sys->mutex);
 	}
 
 	/* Note: We can't call update_thd() as prebuilt will not be
