@@ -2444,7 +2444,7 @@ drop procedure if exists bug4904|
 create procedure bug4904()
 begin
 declare continue handler for sqlstate 'HY000' begin end;
-create table t2 as select * from t3;
+create table not_existing_table as select * from t3;
 end|
 call bug4904()|
 ERROR 42S02: Table 'test.t3' doesn't exist
