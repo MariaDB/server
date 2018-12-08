@@ -225,6 +225,12 @@ extern "C" my_bool wsrep_thd_bf_abort(const void* bf_thd_ptr,
 {
   const THD* bf_thd= (const THD*)bf_thd_ptr;
   THD* victim_thd= (THD*)victim_thd_ptr;
+
+  if (!victim_thd->wsrep_trx().active())
+  {
+    WSREP_DEBUG("BF abort for non active transaction");
+    wsrep_start_transaction(victim_thd, victim_thd->wsrep_next_trx_id());
+  }
   my_bool ret= wsrep_bf_abort(bf_thd, victim_thd);
   /*
     Send awake signal if victim was BF aborted or does not
