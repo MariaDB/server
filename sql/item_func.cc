@@ -2730,6 +2730,28 @@ my_decimal *Item_func_min_max::val_decimal_native(my_decimal *dec)
 }
 
 
+bool Item_func_min_max::val_native(THD *thd, Native *native)
+{
+  DBUG_ASSERT(fixed == 1);
+  const Type_handler *handler= Item_hybrid_func::type_handler();
+  NativeBuffer<STRING_BUFFER_USUAL_SIZE> cur;
+  for (uint i= 0; i < arg_count; i++)
+  {
+    if (val_native_with_conversion_from_item(thd, args[i],
+                                             i == 0 ? native : &cur,
+                                             handler))
+      return true;
+    if (i > 0)
+    {
+      int cmp= handler->cmp_native(*native, cur);
+      if ((cmp_sign < 0 ? cmp : -cmp) < 0 && native->copy(cur))
+        return null_value= true;
+    }
+  }
+  return null_value= false;
+}
+
+
 longlong Item_func_bit_length::val_int()
 {
   DBUG_ASSERT(fixed == 1);
@@ -6452,6 +6474,14 @@ String *Item_func_last_value::val_str(String *str)
   null_value= last_value->null_value;
   return tmp;
 }
+
+
+bool Item_func_last_value::val_native(THD *thd, Native *to)
+{
+  evaluate_sideeffects();
+  return val_native_from_item(thd, last_value, to);
+}
+
 
 longlong Item_func_last_value::val_int()
 {

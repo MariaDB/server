@@ -209,6 +209,104 @@ Temporal_hybrid::Temporal_hybrid(THD *thd, Item *item, date_mode_t fuzzydate)
 }
 
 
+uint Timestamp::binary_length_to_precision(uint length)
+{
+  switch (length) {
+  case 4: return 0;
+  case 5: return 2;
+  case 6: return 4;
+  case 7: return 6;
+  }
+  DBUG_ASSERT(0);
+  return 0;
+}
+
+
+Timestamp::Timestamp(const Native &native)
+{
+  DBUG_ASSERT(native.length() >= 4 && native.length() <= 7);
+  uint dec= binary_length_to_precision(native.length());
+  my_timestamp_from_binary(this, (const uchar *) native.ptr(), dec);
+}
+
+
+bool Timestamp::to_native(Native *to, uint decimals) const
+{
+  uint len= my_timestamp_binary_length(decimals);
+  if (to->reserve(len))
+    return true;
+  my_timestamp_to_binary(this, (uchar *) to->ptr(), decimals);
+  to->length(len);
+  return false;
+}
+
+
+bool Timestamp::to_TIME(THD *thd, MYSQL_TIME *to, date_mode_t fuzzydate) const
+{
+  return thd->timestamp_to_TIME(to, tv_sec, tv_usec, fuzzydate);
+}
+
+
+Timestamp::Timestamp(THD *thd, const MYSQL_TIME *ltime, uint *error_code)
+ :Timeval(TIME_to_timestamp(thd, ltime, error_code), ltime->second_part)
+{ }
+
+
+Timestamp_or_zero_datetime::Timestamp_or_zero_datetime(THD *thd,
+                                                       const MYSQL_TIME *ltime,
+                                                       uint *error_code)
+ :Timestamp(thd, ltime, error_code),
+  m_is_zero_datetime(*error_code == ER_WARN_DATA_OUT_OF_RANGE)
+{
+  if (m_is_zero_datetime)
+  {
+    if (!non_zero_date(ltime))
+      *error_code= 0;  // ltime was '0000-00-00 00:00:00'
+  }
+  else if (*error_code == ER_WARN_INVALID_TIMESTAMP)
+    *error_code= 0; // ltime fell into spring time gap, adjusted.
+}
+
+
+bool Timestamp_or_zero_datetime::to_TIME(THD *thd, MYSQL_TIME *to,
+                                         date_mode_t fuzzydate) const
+{
+  if (m_is_zero_datetime)
+  {
+    set_zero_time(to, MYSQL_TIMESTAMP_DATETIME);
+    return false;
+  }
+  return Timestamp::to_TIME(thd, to, fuzzydate);
+}
+
+
+bool Timestamp_or_zero_datetime::to_native(Native *to, uint decimals) const
+{
+  if (m_is_zero_datetime)
+  {
+    to->length(0);
+    return false;
+  }
+  return Timestamp::to_native(to, decimals);
+}
+
+
+int Timestamp_or_zero_datetime_native::save_in_field(Field *field,
+                                                     uint decimals) const
+{
+  field->set_notnull();
+  if (field->type_handler()->type_handler_for_native_format() ==
+      &type_handler_timestamp2)
+    return field->store_native(*this);
+  if (is_zero_datetime())
+  {
+    static Datetime zero(Datetime::zero());
+    return field->store_time_dec(zero.get_mysql_time(), decimals);
+  }
+  return field->store_timestamp_dec(Timestamp(*this).tv(), decimals);
+}
+
+
 void Sec6::make_from_decimal(const my_decimal *d, ulong *nanoseconds)
 {
   m_neg= my_decimal2seconds(d, &m_sec, &m_usec, nanoseconds);
@@ -1272,7 +1370,7 @@ const Type_handler *Type_handler_datetime_common::type_handler_for_comparison() 
 
 const Type_handler *Type_handler_timestamp_common::type_handler_for_comparison() const
 {
-  return &type_handler_datetime;
+  return &type_handler_timestamp;
 }
 
 
@@ -1280,6 +1378,15 @@ const Type_handler *Type_handler_row::type_handler_for_comparison() const
 {
   return &type_handler_row;
 }
+
+/***************************************************************************/
+
+const Type_handler *
+Type_handler_timestamp_common::type_handler_for_native_format() const
+{
+  return &type_handler_timestamp2;
+}
+
 
 /***************************************************************************/
 
@@ -1457,6 +1564,16 @@ Type_handler_hybrid_field_type::aggregate_for_comparison(const Type_handler *h)
       */
       if (b == TIME_RESULT)
         m_type_handler= h; // Temporal types bit non-temporal types
+      /*
+        Compare TIMESTAMP to a non-temporal type as DATETIME.
+        This is needed to make queries with fuzzy dates work:
+        SELECT * FROM t1
+        WHERE
+          ts BETWEEN '0000-00-00' AND '2010-00-01 00:00:00';
+      */
+      if (m_type_handler->type_handler_for_native_format() ==
+          &type_handler_timestamp2)
+        m_type_handler= &type_handler_datetime;
     }
     else
     {
@@ -1540,7 +1657,19 @@ Type_handler_hybrid_field_type::aggregate_for_min_max(const Type_handler *h)
   }
   else if (a == TIME_RESULT || b == TIME_RESULT)
   {
-    if ((a == TIME_RESULT) + (b == TIME_RESULT) == 1)
+    if ((m_type_handler->type_handler_for_native_format() ==
+         &type_handler_timestamp2) +
+        (h->type_handler_for_native_format() ==
+         &type_handler_timestamp2) == 1)
+    {
+      /*
+        Handle LEAST(TIMESTAMP, non-TIMESTAMP) as DATETIME,
+        to make sure fuzzy dates work in this context:
+          LEAST('2001-00-00', timestamp_field)
+      */
+      m_type_handler= &type_handler_datetime2;
+    }
+    else if ((a == TIME_RESULT) + (b == TIME_RESULT) == 1)
     {
       /*
         We're here if there's only one temporal data type:
@@ -3395,6 +3524,18 @@ int Type_handler_temporal_with_date::Item_save_in_field(Item *item,
 }
 
 
+int Type_handler_timestamp_common::Item_save_in_field(Item *item,
+                                                      Field *field,
+                                                      bool no_conversions)
+                                                      const
+{
+  Timestamp_or_zero_datetime_native_null tmp(field->table->in_use, item, true);
+  if (tmp.is_null())
+    return set_field_to_null_with_conversions(field, no_conversions);
+  return tmp.save_in_field(field, item->decimals);
+}
+
+
 int Type_handler_string_result::Item_save_in_field(Item *item, Field *field,
                                                    bool no_conversions) const
 {
@@ -3459,6 +3600,12 @@ bool
 Type_handler_temporal_with_date::set_comparator_func(Arg_comparator *cmp) const
 {
   return cmp->set_cmp_func_datetime();
+}
+
+bool
+Type_handler_timestamp_common::set_comparator_func(Arg_comparator *cmp) const
+{
+  return cmp->set_cmp_func_native();
 }
 
 
@@ -3596,7 +3743,7 @@ Type_handler_string_result::Item_get_cache(THD *thd, const Item *item) const
 Item_cache *
 Type_handler_timestamp_common::Item_get_cache(THD *thd, const Item *item) const
 {
-  return new (thd->mem_root) Item_cache_datetime(thd);
+  return new (thd->mem_root) Item_cache_timestamp(thd);
 }
 
 Item_cache *
@@ -4763,6 +4910,12 @@ longlong Type_handler_time_common::
   return func->val_int_cmp_time();
 }
 
+longlong Type_handler_timestamp_common::
+           Item_func_between_val_int(Item_func_between *func) const
+{
+  return func->val_int_cmp_native();
+}
+
 longlong Type_handler_int_result::
            Item_func_between_val_int(Item_func_between *func) const
 {
@@ -4826,6 +4979,12 @@ cmp_item *Type_handler_temporal_with_date::make_cmp_item(THD *thd,
   return new (thd->mem_root) cmp_item_datetime;
 }
 
+cmp_item *Type_handler_timestamp_common::make_cmp_item(THD *thd,
+                                                       CHARSET_INFO *cs) const
+{
+  return new (thd->mem_root) cmp_item_timestamp;
+}
+
 /***************************************************************************/
 
 static int srtcmp_in(CHARSET_INFO *cs, const String *x,const String *y)
@@ -4883,6 +5042,15 @@ Type_handler_temporal_with_date::make_in_vector(THD *thd,
                                                 uint nargs) const
 {
   return new (thd->mem_root) in_datetime(thd, nargs);
+}
+
+
+in_vector *
+Type_handler_timestamp_common::make_in_vector(THD *thd,
+                                              const Item_func_in *func,
+                                              uint nargs) const
+{
+  return new (thd->mem_root) in_timestamp(thd, nargs);
 }
 
 
@@ -5004,7 +5172,9 @@ String *Type_handler_datetime_common::
 String *Type_handler_timestamp_common::
           Item_func_min_max_val_str(Item_func_min_max *func, String *str) const
 {
-  return Datetime(func).to_string(str, func->decimals);
+  THD *thd= current_thd;
+  return Timestamp_or_zero_datetime_native_null(thd, func).
+           to_datetime(thd).to_string(str, func->decimals);
 }
 
 
@@ -5056,10 +5226,13 @@ double Type_handler_datetime_common::
   return Datetime(current_thd, func).to_double();
 }
 
+
 double Type_handler_timestamp_common::
          Item_func_min_max_val_real(Item_func_min_max *func) const
 {
-  return Datetime(current_thd, func).to_double();
+  THD *thd= current_thd;
+  return Timestamp_or_zero_datetime_native_null(thd, func).
+           to_datetime(thd).to_double();
 }
 
 
@@ -5101,7 +5274,9 @@ longlong Type_handler_datetime_common::
 longlong Type_handler_timestamp_common::
          Item_func_min_max_val_int(Item_func_min_max *func) const
 {
-  return Datetime(current_thd, func).to_longlong();
+  THD *thd= current_thd;
+  return Timestamp_or_zero_datetime_native_null(thd, func).
+           to_datetime(thd).to_longlong();
 }
 
 
@@ -5156,7 +5331,9 @@ my_decimal *Type_handler_timestamp_common::
             Item_func_min_max_val_decimal(Item_func_min_max *func,
                                           my_decimal *dec) const
 {
-  return Datetime(current_thd, func).to_decimal(dec);
+  THD *thd= current_thd;
+  return Timestamp_or_zero_datetime_native_null(thd, func).
+           to_datetime(thd).to_decimal(dec);
 }
 
 
@@ -5206,6 +5383,15 @@ bool Type_handler_time_common::
                                   MYSQL_TIME *ltime, date_mode_t fuzzydate) const
 {
   return func->get_time_native(thd, ltime);
+}
+
+
+bool Type_handler_timestamp_common::
+       Item_func_min_max_get_date(THD *thd, Item_func_min_max *func,
+                                  MYSQL_TIME *ltime, date_mode_t fuzzydate) const
+{
+  return Timestamp_or_zero_datetime_native_null(thd, func).
+           to_datetime(thd).copy_to_mysql_time(ltime);
 }
 
 /***************************************************************************/
@@ -6480,6 +6666,18 @@ bool Type_handler::
 }
 
 
+bool Type_handler::Item_send_timestamp(Item *item,
+                                       Protocol *protocol,
+                                       st_value *buf) const
+{
+  Timestamp_or_zero_datetime_native_null native(protocol->thd, item);
+  if (native.is_null())
+    return protocol->store_null();
+  native.to_TIME(protocol->thd, &buf->value.m_time);
+  return protocol->store(&buf->value.m_time, item->decimals);
+}
+
+
 bool Type_handler::
        Item_send_datetime(Item *item, Protocol *protocol, st_value *buf) const
 {
@@ -7628,6 +7826,16 @@ bool Type_handler_temporal_with_date::Item_eq_value(THD *thd,
 }
 
 
+bool Type_handler_timestamp_common::Item_eq_value(THD *thd,
+                                                  const Type_cmp_attributes *attr,
+                                                  Item *a, Item *b) const
+{
+  Timestamp_or_zero_datetime_native_null na(thd, a, true);
+  Timestamp_or_zero_datetime_native_null nb(thd, b, true);
+  return !na.is_null() && !nb.is_null() && !cmp_native(na, nb);
+}
+
+
 bool Type_handler_string_result::Item_eq_value(THD *thd,
                                                const Type_cmp_attributes *attr,
                                                Item *a, Item *b) const
@@ -7844,4 +8052,114 @@ Type_handler_time_common::create_literal_item(THD *thd,
                                                 st.precision);
   literal_warn(thd, item, str, length, cs, &st, "TIME", send_error);
   return item;
+}
+
+
+bool Type_handler_timestamp_common::TIME_to_native(THD *thd,
+                                                   const MYSQL_TIME *ltime,
+                                                   Native *to,
+                                                   uint decimals) const
+{
+  uint error_code;
+  Timestamp_or_zero_datetime tm(thd, ltime, &error_code);
+  if (error_code)
+    return true;
+  tm.trunc(decimals);
+  return tm.to_native(to, decimals);
+}
+
+
+bool
+Type_handler_timestamp_common::Item_val_native_with_conversion(THD *thd,
+                                                               Item *item,
+                                                               Native *to) const
+{
+  MYSQL_TIME ltime;
+  if (item->type_handler()->type_handler_for_native_format() ==
+      &type_handler_timestamp2)
+    return item->val_native(thd, to);
+  return
+    item->get_date(thd, &ltime, Datetime::Options(TIME_NO_ZERO_IN_DATE, thd)) ||
+    TIME_to_native(thd, &ltime, to, item->datetime_precision(thd));
+}
+
+
+bool
+Type_handler_timestamp_common::Item_val_native_with_conversion_result(THD *thd,
+                                                                      Item *item,
+                                                                      Native *to)
+                                                                      const
+{
+  MYSQL_TIME ltime;
+  if (item->type_handler()->type_handler_for_native_format() ==
+      &type_handler_timestamp2)
+    return item->val_native_result(thd, to);
+  return
+    item->get_date_result(thd, &ltime,
+                          Datetime::Options(TIME_NO_ZERO_IN_DATE, thd)) ||
+    TIME_to_native(thd, &ltime, to, item->datetime_precision(thd));
+}
+
+
+int Type_handler_timestamp_common::cmp_native(const Native &a,
+                                              const Native &b) const
+{
+  /*
+    Optimize a simple case:
+    Either both timeatamp values have the same fractional precision,
+    or both values are zero datetime '0000-00-00 00:00:00.000000',
+  */
+  if (a.length() == b.length())
+    return memcmp(a.ptr(), b.ptr(), a.length());
+  return Timestamp_or_zero_datetime(a).cmp(Timestamp_or_zero_datetime(b));
+}
+
+
+Timestamp_or_zero_datetime_native_null::
+  Timestamp_or_zero_datetime_native_null(THD *thd, Item *item, bool conv)
+   :Null_flag(false)
+{
+  DBUG_ASSERT(item->type_handler()->type_handler_for_native_format() ==
+              &type_handler_timestamp2 || conv);
+  if (conv ?
+      type_handler_timestamp2.Item_val_native_with_conversion(thd, item, this) :
+      item->val_native(thd, this))
+    Null_flag::operator=(true);
+  // If no conversion, then is_null() should be equal to item->null_value
+  DBUG_ASSERT(is_null() == item->null_value || conv);
+  /*
+    is_null() can be true together with item->null_value==false, which means
+    a non-NULL item was evaluated, but then the conversion to TIMESTAMP failed.
+    But is_null() can never be false if item->null_value==true.
+  */
+  DBUG_ASSERT(is_null() >= item->null_value);
+}
+
+
+bool
+Type_handler::Item_param_val_native(THD *thd,
+                                        Item_param *item,
+                                        Native *to) const
+{
+  DBUG_ASSERT(0); // TODO-TYPE: MDEV-14271
+  return item->null_value= true;
+}
+
+
+bool
+Type_handler_timestamp_common::Item_param_val_native(THD *thd,
+                                                         Item_param *item,
+                                                         Native *to) const
+{
+  /*
+    The below code may not run well in corner cases.
+    This will be fixed under terms of MDEV-14271.
+    Item_param should:
+    - either remember @@time_zone at bind time
+    - or store TIMESTAMP in my_time_t format, rather than in MYSQL_TIME format.
+  */
+  MYSQL_TIME ltime;
+  return
+    item->get_date(thd, &ltime, Datetime::Options(TIME_NO_ZERO_IN_DATE, thd)) ||
+    TIME_to_native(thd, &ltime, to, item->datetime_precision(thd));
 }

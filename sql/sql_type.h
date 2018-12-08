@@ -25,6 +25,7 @@
 #include "sql_array.h"
 #include "sql_const.h"
 #include "sql_time.h"
+#include "compat56.h"
 
 class Field;
 class Column_definition;
@@ -88,6 +89,25 @@ enum scalar_comparison_op
   SCALAR_CMP_GE,
   SCALAR_CMP_GT
 };
+
+
+class Native: public Binary_string
+{
+public:
+  Native(char *str, size_t len)
+   :Binary_string(str, len)
+  { }
+};
+
+
+template<size_t buff_sz>
+class NativeBuffer: public Native
+{
+  char buff[buff_sz];
+public:
+  NativeBuffer() : Native(buff, buff_sz) { length(0); }
+};
+
 
 
 class Dec_ptr
@@ -1925,7 +1945,16 @@ public:
     { }
   };
 
+  static Datetime zero()
+  {
+    int warn;
+    static Longlong_hybrid nr(0, false);
+    return Datetime(&warn, nr, date_mode_t(0));
+  }
 public:
+  Datetime() // NULL value
+   :Temporal_with_date()
+  { }
   Datetime(THD *thd, Item *item, date_mode_t fuzzydate)
    :Temporal_with_date(thd, item, fuzzydate)
   {
@@ -2204,6 +2233,7 @@ public:
 
 class Timestamp: protected Timeval
 {
+  static uint binary_length_to_precision(uint length);
 protected:
   void round_or_set_max(uint dec, int *warn);
   bool add_nanoseconds_usec(uint nanoseconds)
@@ -2237,7 +2267,18 @@ public:
   explicit Timestamp(const timeval &tv)
    :Timeval(tv)
   { }
+  explicit Timestamp(const Native &native);
+  Timestamp(THD *thd, const MYSQL_TIME *ltime, uint *error_code);
   const struct timeval &tv() const { return *this; }
+  int cmp(const Timestamp &other) const
+  {
+    return tv_sec < other.tv_sec   ? -1 :
+           tv_sec > other.tv_sec   ? +1 :
+           tv_usec < other.tv_usec ? -1 :
+           tv_usec > other.tv_usec ? +1 : 0;
+  }
+  bool to_TIME(THD *thd, MYSQL_TIME *ltime, date_mode_t fuzzydate) const;
+  bool to_native(Native *to, uint decimals) const;
   long fraction_remainder(uint dec) const
   {
     return my_time_fraction_remainder(tv_usec, dec);
@@ -2269,6 +2310,117 @@ public:
   {
     int warn= 0;
     return round(dec, mode, &warn);
+  }
+};
+
+
+/**
+  A helper class to store MariaDB TIMESTAMP values, which can be:
+  - real TIMESTAMP (seconds and microseconds since epoch), or
+  - zero datetime '0000-00-00 00:00:00.000000'
+*/
+class Timestamp_or_zero_datetime: public Timestamp
+{
+  bool m_is_zero_datetime;
+public:
+  Timestamp_or_zero_datetime()
+   :Timestamp(0,0), m_is_zero_datetime(true)
+  { }
+  Timestamp_or_zero_datetime(const Native &native)
+   :Timestamp(native.length() ? Timestamp(native) : Timestamp(0,0)),
+    m_is_zero_datetime(native.length() == 0)
+  { }
+  Timestamp_or_zero_datetime(const Timestamp &tm, bool is_zero_datetime)
+   :Timestamp(tm), m_is_zero_datetime(is_zero_datetime)
+  { }
+  Timestamp_or_zero_datetime(THD *thd, const MYSQL_TIME *ltime, uint *err_code);
+  Datetime to_datetime(THD *thd) const
+  {
+    return Datetime(thd, *this);
+  }
+  bool is_zero_datetime() const { return m_is_zero_datetime; }
+  const struct timeval &tv() const
+  {
+    DBUG_ASSERT(!is_zero_datetime());
+    return Timestamp::tv();
+  }
+  void trunc(uint decimals)
+  {
+    if (!is_zero_datetime())
+     Timestamp::trunc(decimals);
+  }
+  int cmp(const Timestamp_or_zero_datetime &other) const
+  {
+    if (is_zero_datetime())
+      return other.is_zero_datetime() ? 0 : -1;
+    if (other.is_zero_datetime())
+      return 1;
+    return Timestamp::cmp(other);
+  }
+  bool to_TIME(THD *thd, MYSQL_TIME *to, date_mode_t fuzzydate) const;
+  /*
+    Convert to native format:
+    - Real timestamps are encoded in the same way how Field_timestamp2 stores
+      values (big endian seconds followed by big endian microseconds)
+    - Zero datetime '0000-00-00 00:00:00.000000' is encoded as empty string.
+    Two native values are binary comparable.
+  */
+  bool to_native(Native *to, uint decimals) const;
+};
+
+
+/**
+  A helper class to store non-null MariaDB TIMESTAMP values in
+  the native binary encoded representation.
+*/
+class Timestamp_or_zero_datetime_native:
+          public NativeBuffer<STRING_BUFFER_TIMESTAMP_BINARY_SIZE>
+{
+public:
+  Timestamp_or_zero_datetime_native() { }
+  Timestamp_or_zero_datetime_native(const Timestamp_or_zero_datetime &ts,
+                                    uint decimals)
+  {
+    if (ts.to_native(this, decimals))
+      length(0); // safety
+  }
+  int save_in_field(Field *field, uint decimals) const;
+  bool is_zero_datetime() const
+  {
+    return length() == 0;
+  }
+};
+
+
+/**
+  A helper class to store nullable MariaDB TIMESTAMP values in
+  the native binary encoded representation.
+*/
+class Timestamp_or_zero_datetime_native_null: public Timestamp_or_zero_datetime_native,
+                                              public Null_flag
+{
+public:
+  // With optional data type conversion
+  Timestamp_or_zero_datetime_native_null(THD *thd, Item *item, bool conv);
+  // Without data type conversion: item is known to be of the TIMESTAMP type
+  Timestamp_or_zero_datetime_native_null(THD *thd, Item *item)
+   :Timestamp_or_zero_datetime_native_null(thd, item, false)
+  { }
+  Datetime to_datetime(THD *thd) const
+  {
+    return is_null() ? Datetime() :
+                       Datetime(thd, Timestamp_or_zero_datetime(*this).tv());
+  }
+  void to_TIME(THD *thd, MYSQL_TIME *to)
+  {
+    DBUG_ASSERT(!is_null());
+    Datetime::Options opt(TIME_CONV_NONE, TIME_FRAC_NONE);
+    Timestamp_or_zero_datetime(*this).to_TIME(thd, to, opt);
+  }
+  bool is_zero_datetime() const
+  {
+    DBUG_ASSERT(!is_null());
+    return Timestamp_or_zero_datetime_native::is_zero_datetime();
   }
 };
 
@@ -2905,6 +3057,7 @@ protected:
   bool Item_send_double(Item *item, Protocol *protocol, st_value *buf) const;
   bool Item_send_time(Item *item, Protocol *protocol, st_value *buf) const;
   bool Item_send_date(Item *item, Protocol *protocol, st_value *buf) const;
+  bool Item_send_timestamp(Item *item, Protocol *protocol, st_value *buf) const;
   bool Item_send_datetime(Item *item, Protocol *protocol, st_value *buf) const;
   bool Column_definition_prepare_stage2_legacy(Column_definition *c,
                                                enum_field_types type)
@@ -3026,6 +3179,10 @@ public:
   */
   virtual bool is_param_long_data_type() const { return false; }
   virtual const Type_handler *type_handler_for_comparison() const= 0;
+  virtual const Type_handler *type_handler_for_native_format() const
+  {
+    return this;
+  }
   virtual const Type_handler *type_handler_for_item_field() const
   {
     return this;
@@ -3208,6 +3365,9 @@ public:
                                          Item_param *param,
                                          const Type_all_attributes *attr,
                                          const st_value *value) const= 0;
+  virtual bool Item_param_val_native(THD *thd,
+                                         Item_param *item,
+                                         Native *to) const;
   virtual bool Item_send(Item *item, Protocol *p, st_value *buf) const= 0;
   virtual int Item_save_in_field(Item *item, Field *field,
                                  bool no_conversions) const= 0;
@@ -3310,6 +3470,11 @@ public:
     DBUG_ASSERT(0);
     return NULL;
   }
+  virtual int cmp_native(const Native &a, const Native &b) const
+  {
+    DBUG_ASSERT(0);
+    return 0;
+  }
   virtual bool set_comparator_func(Arg_comparator *cmp) const= 0;
   virtual bool Item_const_eq(const Item_const *a, const Item_const *b,
                              bool binary_cmp) const
@@ -3333,6 +3498,17 @@ public:
   virtual bool Item_sum_avg_fix_length_and_dec(Item_sum_avg *) const= 0;
   virtual
   bool Item_sum_variance_fix_length_and_dec(Item_sum_variance *) const= 0;
+
+  virtual bool Item_val_native_with_conversion(THD *thd, Item *item,
+                                               Native *to) const
+  {
+    return true;
+  }
+  virtual bool Item_val_native_with_conversion_result(THD *thd, Item *item,
+                                                      Native *to) const
+  {
+    return true;
+  }
 
   virtual bool Item_val_bool(Item *item) const= 0;
   virtual void Item_get_date(THD *thd, Item *item,
@@ -5187,10 +5363,13 @@ public:
 class Type_handler_timestamp_common: public Type_handler_temporal_with_date
 {
   static const Name m_name_timestamp;
+protected:
+  bool TIME_to_native(THD *, const MYSQL_TIME *from, Native *to, uint dec) const;
 public:
   virtual ~Type_handler_timestamp_common() {}
   const Name name() const { return m_name_timestamp; }
   const Type_handler *type_handler_for_comparison() const;
+  const Type_handler *type_handler_for_native_format() const;
   enum_field_types field_type() const { return MYSQL_TYPE_TIMESTAMP; }
   enum_mysql_timestamp_type mysql_timestamp_type() const
   {
@@ -5201,6 +5380,20 @@ public:
     return true;
   }
   void Column_definition_implicit_upgrade(Column_definition *c) const;
+  bool Item_eq_value(THD *thd, const Type_cmp_attributes *attr,
+                     Item *a, Item *b) const;
+  bool Item_val_native_with_conversion(THD *thd, Item *, Native *to) const;
+  bool Item_val_native_with_conversion_result(THD *thd, Item *, Native *to) const;
+  bool Item_param_val_native(THD *thd, Item_param *item, Native *to) const;
+  int cmp_native(const Native &a, const Native &b) const;
+  longlong Item_func_between_val_int(Item_func_between *func) const;
+  cmp_item *make_cmp_item(THD *thd, CHARSET_INFO *cs) const;
+  in_vector *make_in_vector(THD *thd, const Item_func_in *f, uint nargs) const;
+  void make_sort_key(uchar *to, Item *item, const SORT_FIELD_ATTR *sort_field,
+                     Sort_param *param) const;
+  void sortlength(THD *thd,
+                  const Type_std_attributes *item,
+                  SORT_FIELD_ATTR *attr) const;
   bool Column_definition_fix_attributes(Column_definition *c) const;
   uint Item_decimal_scale(const Item *item) const
   {
@@ -5213,8 +5406,9 @@ public:
   }
   bool Item_send(Item *item, Protocol *protocol, st_value *buf) const
   {
-    return Item_send_datetime(item, protocol, buf);
+    return Item_send_timestamp(item, protocol, buf);
   }
+  int Item_save_in_field(Item *item, Field *field, bool no_conversions) const;
   String *print_item_value(THD *thd, Item *item, String *str) const;
   Item_cache *Item_get_cache(THD *thd, const Item *item) const;
   String *Item_func_min_max_val_str(Item_func_min_max *, String *) const;
@@ -5222,6 +5416,7 @@ public:
   longlong Item_func_min_max_val_int(Item_func_min_max *) const;
   my_decimal *Item_func_min_max_val_decimal(Item_func_min_max *,
                                             my_decimal *) const;
+  bool set_comparator_func(Arg_comparator *cmp) const;
   bool Item_hybrid_func_fix_attributes(THD *thd,
                                        const char *name,
                                        Type_handler_hybrid_field_type *,
@@ -5229,6 +5424,8 @@ public:
                                        Item **items, uint nitems) const;
   void Item_param_set_param_func(Item_param *param,
                                  uchar **pos, ulong len) const;
+  bool Item_func_min_max_get_date(THD *thd, Item_func_min_max*,
+                                  MYSQL_TIME *, date_mode_t fuzzydate) const;
 };
 
 

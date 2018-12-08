@@ -768,6 +768,12 @@ public:
            Item_func_hybrid_field_type_get_date_with_warn(thd, this, to, mode);
   }
 
+  bool val_native(THD *thd, Native *to)
+  {
+    DBUG_ASSERT(fixed);
+    return native_op(thd, to);
+  }
+
   /**
      @brief Performs the operation that this functions implements when the
      result type is INT.
@@ -838,6 +844,7 @@ public:
   */
   virtual bool time_op(THD *thd, MYSQL_TIME *res)= 0;
 
+  virtual bool native_op(THD *thd, Native *native)= 0;
 };
 
 
@@ -901,6 +908,11 @@ public:
     return true;
   }
   bool time_op(THD *thd, MYSQL_TIME *ltime)
+  {
+    DBUG_ASSERT(0);
+    return true;
+  }
+  bool native_op(THD *thd, Native *to)
   {
     DBUG_ASSERT(0);
     return true;
@@ -1771,6 +1783,7 @@ public:
     return Item_func_min_max::type_handler()->
              Item_func_min_max_get_date(thd, this, res, fuzzydate);
   }
+  bool val_native(THD *thd, Native *to);
   void aggregate_attributes_real(Item **items, uint nitems)
   {
     /*
@@ -1834,6 +1847,8 @@ public:
   double val_real() { return val_real_from_item(args[0]); }
   longlong val_int() { return val_int_from_item(args[0]); }
   String *val_str(String *str) { return val_str_from_item(args[0], str); }
+  bool val_native(THD *thd, Native *to)
+    { return val_native_from_item(thd, args[0], to); }
   my_decimal *val_decimal(my_decimal *dec)
     { return val_decimal_from_item(args[0], dec); }
   bool get_date(THD *thd, MYSQL_TIME *ltime, date_mode_t fuzzydate)
@@ -3153,6 +3168,13 @@ public:
     return str;
   }
 
+  bool val_native(THD *thd, Native *to)
+  {
+    if (execute())
+      return true;
+    return null_value= sp_result_field->val_native(to);
+  }
+
   void update_null_value()
   { 
     execute();
@@ -3282,6 +3304,7 @@ public:
   String *val_str(String *);
   my_decimal *val_decimal(my_decimal *);
   bool get_date(THD *thd, MYSQL_TIME *ltime, date_mode_t fuzzydate);
+  bool val_native(THD *thd, Native *);
   bool fix_length_and_dec();
   const char *func_name() const { return "last_value"; }
   const Type_handler *type_handler() const { return last_value->type_handler(); }

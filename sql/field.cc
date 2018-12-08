@@ -5023,6 +5023,15 @@ my_time_t Field_timestamp::get_timestamp(const uchar *pos,
 }
 
 
+bool Field_timestamp::val_native(Native *to)
+{
+  ASSERT_COLUMN_MARKED_FOR_READ;
+  my_time_t sec= (my_time_t) sint4korr(ptr);
+  return Timestamp_or_zero_datetime(Timestamp(sec, 0), sec == 0).
+           to_native(to, 0);
+}
+
+
 int Field_timestamp::store_TIME_with_warning(THD *thd, const Datetime *dt,
                                              const ErrConv *str, int was_cut)
 {
@@ -5143,6 +5152,14 @@ int Field_timestamp::store_timestamp_dec(const timeval &ts, uint dec)
   }
   if (ts.tv_sec == 0 && ts.tv_usec == 0 &&
       get_thd()->variables.sql_mode & (ulonglong) TIME_NO_ZERO_DATE)
+    return zero_time_stored_return_code_with_warning();
+  return 0;
+}
+
+
+int Field_timestamp::zero_time_stored_return_code_with_warning()
+{
+  if (get_thd()->variables.sql_mode & (ulonglong) TIME_NO_ZERO_DATE)
   {
     ErrConvString s(
       STRING_WITH_LEN("0000-00-00 00:00:00.000000") - (decimals() ? 6 - decimals() : 7),
@@ -5151,6 +5168,23 @@ int Field_timestamp::store_timestamp_dec(const timeval &ts, uint dec)
     return 1;
   }
   return 0;
+
+}
+
+
+int Field_timestamp::store_native(const Native &value)
+{
+  if (!value.length()) // Zero datetime
+  {
+    reset();
+    return zero_time_stored_return_code_with_warning();
+  }
+  /*
+    The exact second precision is not important here.
+    Field_timestamp*::store_timestamp_dec() do not use the "dec" parameter.
+    Passing TIME_SECOND_PART_DIGITS is OK.
+  */
+  return store_timestamp_dec(Timestamp(value).tv(), TIME_SECOND_PART_DIGITS);
 }
 
 
@@ -5410,6 +5444,18 @@ my_time_t Field_timestamp_hires::get_timestamp(const uchar *pos,
   return mi_uint4korr(pos);
 }
 
+
+bool Field_timestamp_hires::val_native(Native *to)
+{
+  ASSERT_COLUMN_MARKED_FOR_READ;
+  struct timeval tm;
+  tm.tv_sec= mi_uint4korr(ptr);
+  tm.tv_usec= (ulong) sec_part_unshift(read_bigendian(ptr+4, sec_part_bytes(dec)), dec);
+  return Timestamp_or_zero_datetime(Timestamp(tm), tm.tv_sec == 0).
+           to_native(to, dec);
+}
+
+
 double Field_timestamp_with_dec::val_real(void)
 {
   MYSQL_TIME ltime;
@@ -5513,6 +5559,19 @@ my_time_t Field_timestampf::get_timestamp(const uchar *pos,
   my_timestamp_from_binary(&tm, pos, dec);
   *sec_part= tm.tv_usec;
   return tm.tv_sec;
+}
+
+
+bool Field_timestampf::val_native(Native *to)
+{
+  ASSERT_COLUMN_MARKED_FOR_READ;
+  // Check if it's '0000-00-00 00:00:00' rather than a real timestamp
+  if (ptr[0] == 0 && ptr[1] == 0 && ptr[2] == 0 && ptr[3] == 0)
+  {
+    to->length(0);
+    return false;
+  }
+  return Field::val_native(to);
 }
 
 

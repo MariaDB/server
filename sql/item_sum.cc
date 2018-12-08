@@ -2381,6 +2381,15 @@ Item_sum_hybrid::val_str(String *str)
 }
 
 
+bool Item_sum_hybrid::val_native(THD *thd, Native *to)
+{
+  DBUG_ASSERT(fixed == 1);
+  if (null_value)
+    return true;
+  return val_native_from_item(thd, value, to);
+}
+
+
 void Item_sum_hybrid::cleanup()
 {
   DBUG_ENTER("Item_sum_hybrid::cleanup");

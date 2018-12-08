@@ -567,6 +567,18 @@ bool Arg_comparator::set_cmp_func_datetime()
 }
 
 
+bool Arg_comparator::set_cmp_func_native()
+{
+  THD *thd= current_thd;
+  m_compare_collation= &my_charset_numeric;
+  func= is_owner_equal_func() ? &Arg_comparator::compare_e_native :
+                                &Arg_comparator::compare_native;
+  a= cache_converted_constant(thd, a, &a_cache, compare_type_handler());
+  b= cache_converted_constant(thd, b, &b_cache, compare_type_handler());
+  return false;
+}
+
+
 bool Arg_comparator::set_cmp_func_int()
 {
   THD *thd= current_thd;
@@ -767,6 +779,39 @@ int Arg_comparator::compare_e_string()
   if (!res1 || !res2)
     return MY_TEST(res1 == res2);
   return MY_TEST(sortcmp(res1, res2, compare_collation()) == 0);
+}
+
+
+int Arg_comparator::compare_native()
+{
+  THD *thd= current_thd;
+  if (!(*a)->val_native_with_conversion(thd, &m_native1,
+                                        compare_type_handler()))
+  {
+    if (!(*b)->val_native_with_conversion(thd, &m_native2,
+                                          compare_type_handler()))
+    {
+      if (set_null)
+        owner->null_value= 0;
+      return compare_type_handler()->cmp_native(m_native1, m_native2);
+    }
+  }
+  if (set_null)
+    owner->null_value= 1;
+  return -1;
+}
+
+
+int Arg_comparator::compare_e_native()
+{
+  THD *thd= current_thd;
+  bool res1= (*a)->val_native_with_conversion(thd, &m_native1,
+                                              compare_type_handler());
+  bool res2= (*b)->val_native_with_conversion(thd, &m_native2,
+                                              compare_type_handler());
+  if (res1 || res2)
+    return MY_TEST(res1 == res2);
+  return MY_TEST(compare_type_handler()->cmp_native(m_native1, m_native2) == 0);
 }
 
 
@@ -2121,6 +2166,29 @@ longlong Item_func_between::val_int_cmp_time()
 }
 
 
+longlong Item_func_between::val_int_cmp_native()
+{
+  THD *thd= current_thd;
+  const Type_handler *h= m_comparator.type_handler();
+  NativeBuffer<STRING_BUFFER_USUAL_SIZE> value, a, b;
+  if (val_native_with_conversion_from_item(thd, args[0], &value, h))
+    return 0;
+  bool ra= args[1]->val_native_with_conversion(thd, &a, h);
+  bool rb= args[2]->val_native_with_conversion(thd, &b, h);
+  if (!ra && !rb)
+    return (longlong)
+      ((h->cmp_native(value, a) >= 0 &&
+        h->cmp_native(value, b) <= 0) != negated);
+  if (ra && rb)
+    null_value= true;
+  else if (ra)
+    null_value= h->cmp_native(value, b) <= 0;
+  else
+    null_value= h->cmp_native(value, a) >= 0;
+  return (longlong) (!null_value && negated);
+}
+
+
 longlong Item_func_between::val_int_cmp_string()
 {
   String *value,*a,*b;
@@ -2303,6 +2371,15 @@ Item_func_ifnull::str_op(String *str)
     return 0;
   res->set_charset(collation.collation);
   return res;
+}
+
+
+bool Item_func_ifnull::native_op(THD *thd, Native *to)
+{
+  DBUG_ASSERT(fixed == 1);
+  if (!val_native_with_conversion_from_item(thd, args[0], to, type_handler()))
+    return false;
+  return val_native_with_conversion_from_item(thd, args[1], to, type_handler());
 }
 
 
@@ -2829,6 +2906,16 @@ Item_func_nullif::time_op(THD *thd, MYSQL_TIME *ltime)
 
 
 bool
+Item_func_nullif::native_op(THD *thd, Native *to)
+{
+  DBUG_ASSERT(fixed == 1);
+  if (!compare())
+    return (null_value= true);
+  return val_native_with_conversion_from_item(thd, args[2], to, type_handler());
+}
+
+
+bool
 Item_func_nullif::is_null()
 {
   return (null_value= (!compare() ? 1 : args[2]->is_null()));
@@ -2999,6 +3086,16 @@ bool Item_func_case::time_op(THD *thd, MYSQL_TIME *ltime)
   if (!item)
     return (null_value= true);
   return (null_value= Time(thd, item).copy_to_mysql_time(ltime));
+}
+
+
+bool Item_func_case::native_op(THD *thd, Native *to)
+{
+  DBUG_ASSERT(fixed == 1);
+  Item *item= find_item();
+  if (!item)
+    return (null_value= true);
+  return val_native_with_conversion_from_item(thd, item, to, type_handler());
 }
 
 
@@ -3360,6 +3457,18 @@ bool Item_func_coalesce::time_op(THD *thd, MYSQL_TIME *ltime)
 }
 
 
+bool Item_func_coalesce::native_op(THD *thd, Native *to)
+{
+  DBUG_ASSERT(fixed == 1);
+  for (uint i= 0; i < arg_count; i++)
+  {
+    if (!val_native_with_conversion_from_item(thd, args[i], to, type_handler()))
+      return false;
+  }
+  return (null_value= true);
+}
+
+
 my_decimal *Item_func_coalesce::decimal_op(my_decimal *decimal_value)
 {
   DBUG_ASSERT(fixed == 1);
@@ -3634,6 +3743,53 @@ Item *in_longlong::create_item(THD *thd)
      general case (see BUG#19342).
   */
   return new (thd->mem_root) Item_int(thd, (longlong)0);
+}
+
+
+static int cmp_timestamp(void *cmp_arg,
+                         Timestamp_or_zero_datetime *a,
+                         Timestamp_or_zero_datetime *b)
+{
+  return a->cmp(*b);
+}
+
+
+in_timestamp::in_timestamp(THD *thd, uint elements)
+  :in_vector(thd, elements, sizeof(Value), (qsort2_cmp) cmp_timestamp, 0)
+{}
+
+
+void in_timestamp::set(uint pos, Item *item)
+{
+  Timestamp_or_zero_datetime *buff= &((Timestamp_or_zero_datetime *) base)[pos];
+  Timestamp_or_zero_datetime_native_null native(current_thd, item, true);
+  if (native.is_null())
+    *buff= Timestamp_or_zero_datetime();
+  else
+    *buff= Timestamp_or_zero_datetime(native);
+}
+
+
+uchar *in_timestamp::get_value(Item *item)
+{
+  Timestamp_or_zero_datetime_native_null native(current_thd, item, true);
+  if (native.is_null())
+    return 0;
+  tmp= Timestamp_or_zero_datetime(native);
+  return (uchar*) &tmp;
+}
+
+
+Item *in_timestamp::create_item(THD *thd)
+{
+  return new (thd->mem_root) Item_timestamp_literal(thd);
+}
+
+
+void in_timestamp::value_to_item(uint pos, Item *item)
+{
+  const Timestamp_or_zero_datetime &buff= (((Timestamp_or_zero_datetime*) base)[pos]);
+  static_cast<Item_timestamp_literal*>(item)->set_value(buff);
 }
 
 
@@ -4042,6 +4198,49 @@ cmp_item *cmp_item_time::make_same()
 {
   return new cmp_item_time();
 }
+
+
+void cmp_item_timestamp::store_value(Item *item)
+{
+  item->val_native_with_conversion(current_thd, &m_native,
+                                   &type_handler_timestamp2);
+  m_null_value= item->null_value;
+}
+
+
+int cmp_item_timestamp::cmp_not_null(const Value *val)
+{
+  /*
+    This method will be implemented when we add this syntax:
+      SELECT TIMESTAMP WITH LOCAL TIME ZONE '2001-01-01 10:20:30'
+    For now TIMESTAMP is compared to non-TIMESTAMP using DATETIME.
+  */
+  DBUG_ASSERT(0);
+  return 0;
+}
+
+
+int cmp_item_timestamp::cmp(Item *arg)
+{
+  THD *thd= current_thd;
+  Timestamp_or_zero_datetime_native_null tmp(thd, arg, true);
+  return m_null_value || tmp.is_null() ? UNKNOWN :
+         type_handler_timestamp2.cmp_native(m_native, tmp) != 0;
+}
+
+
+int cmp_item_timestamp::compare(cmp_item *arg)
+{
+  cmp_item_timestamp *tmp= static_cast<cmp_item_timestamp*>(arg);
+  return type_handler_timestamp2.cmp_native(m_native, tmp->m_native);
+}
+
+
+cmp_item* cmp_item_timestamp::make_same()
+{
+  return new cmp_item_timestamp();
+}
+
 
 
 bool Item_func_in::count_sargable_conds(void *arg)

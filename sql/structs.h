@@ -847,6 +847,8 @@ public:
 
 class Timeval: public timeval
 {
+protected:
+  Timeval() { }
 public:
   Timeval(my_time_t sec, ulong usec)
   {
