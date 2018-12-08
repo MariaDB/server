@@ -2378,19 +2378,19 @@ static void rebuild_acl_dbs()
 
 /*
   Return index of the first entry with given user in the array,
-  or UINT_MAX if not found.
+  or SIZE_T_MAX if not found.
 
   Assumes the array is sorted by get_username
 */
-template<typename T> uint find_first_user(T* arr, uint len, const char *user)
+template<typename T> size_t find_first_user(T* arr, size_t len, const char *user)
 {
-  uint low= 0;
-  uint high= len;
-  uint mid;
+  size_t low= 0;
+  size_t high= len;
+  size_t mid;
 
   bool found= false;
   if(!len)
-    return  UINT_MAX;
+    return  SIZE_T_MAX;
 
 #ifndef DBUG_OFF
   for (uint i = 0; i < len - 1; i++)
@@ -2408,7 +2408,7 @@ template<typename T> uint find_first_user(T* arr, uint len, const char *user)
     else
       low= mid + 1;
   }
-  return  (!found || low == len || strcmp(arr[low].get_username(), user)!=0 )?UINT_MAX:low;
+  return  (!found || low == len || strcmp(arr[low].get_username(), user)!=0 )?SIZE_T_MAX:low;
 }
 
 static size_t acl_find_user_by_name(const char *user)
