@@ -91,7 +91,7 @@ static rpl_group_info* wsrep_relay_group_init(const char* log_fname)
     to not free the "wsrep" rpl_filter. It will eventually be freed by
     free_all_rpl_filters() when server terminates.
   */
-  rli->mi = new Master_info(&connection_name, false);
+  rli->mi= new Master_info(&connection_name, false);
 
   struct rpl_group_info *rgi= new rpl_group_info(rli);
   rgi->thd= rli->sql_driver_thd= current_thd;
@@ -130,16 +130,15 @@ Wsrep_high_priority_service::Wsrep_high_priority_service(THD* thd)
   , m_rli()
 {
   LEX_CSTRING db_str= { NULL, 0 };
-  m_shadow.option_bits   = thd->variables.option_bits;
-  m_shadow.server_status = thd->server_status;
-  m_shadow.vio           = thd->net.vio;
-  m_shadow.tx_isolation  = thd->variables.tx_isolation;
-  m_shadow.db            = (char *)thd->db.str;
-  m_shadow.db_length     = thd->db.length;
-  //m_shadow.user_time     = hrtime_to_my_time(thd->user_time);
-  m_shadow.user_time     = thd->user_time;
+  m_shadow.option_bits  = thd->variables.option_bits;
+  m_shadow.server_status= thd->server_status;
+  m_shadow.vio          = thd->net.vio;
+  m_shadow.tx_isolation = thd->variables.tx_isolation;
+  m_shadow.db           = (char *)thd->db.str;
+  m_shadow.db_length    = thd->db.length;
+  m_shadow.user_time    = thd->user_time;
   m_shadow.row_count_func= thd->get_row_count_func();
-  m_shadow.wsrep_applier = thd->wsrep_applier;
+  m_shadow.wsrep_applier= thd->wsrep_applier;
 
   /* Disable general logging on applier threads */
   thd->variables.option_bits |= OPTION_LOG_OFF;
@@ -152,8 +151,8 @@ Wsrep_high_priority_service::Wsrep_high_priority_service(THD* thd)
   thd->net.vio= 0;
   thd->reset_db(&db_str);
   thd->clear_error();
-  thd->variables.tx_isolation = ISO_READ_COMMITTED;
-  thd->tx_isolation           = ISO_READ_COMMITTED;
+  thd->variables.tx_isolation= ISO_READ_COMMITTED;
+  thd->tx_isolation          = ISO_READ_COMMITTED;
 
   /* From trans_begin() */
   thd->variables.option_bits|= OPTION_BEGIN;
@@ -165,7 +164,7 @@ Wsrep_high_priority_service::Wsrep_high_priority_service(THD* thd)
   if (!thd->wsrep_rgi) thd->wsrep_rgi= wsrep_relay_group_init("wsrep_relay");
 
   m_rgi= thd->wsrep_rgi;
-  m_rgi->thd = thd;
+  m_rgi->thd= thd;
   m_rli= m_rgi->rli;
   thd_proc_info(thd, "wsrep applier idle");
 }
@@ -173,13 +172,13 @@ Wsrep_high_priority_service::Wsrep_high_priority_service(THD* thd)
 Wsrep_high_priority_service::~Wsrep_high_priority_service()
 {
   THD* thd= m_thd;
-  thd->variables.option_bits  = m_shadow.option_bits;
-  thd->server_status          = m_shadow.server_status;
-  thd->net.vio                = m_shadow.vio;
-  thd->variables.tx_isolation = m_shadow.tx_isolation;
+  thd->variables.option_bits = m_shadow.option_bits;
+  thd->server_status         = m_shadow.server_status;
+  thd->net.vio               = m_shadow.vio;
+  thd->variables.tx_isolation= m_shadow.tx_isolation;
   LEX_CSTRING db_str= { m_shadow.db, m_shadow.db_length };
   thd->reset_db(&db_str);
-  thd->user_time              = m_shadow.user_time;
+  thd->user_time             = m_shadow.user_time;
   
   if (thd->wsrep_rgi && thd->wsrep_rgi->rli)
     delete thd->wsrep_rgi->rli->mi;
@@ -189,7 +188,7 @@ Wsrep_high_priority_service::~Wsrep_high_priority_service()
   thd->wsrep_rgi= NULL;
   
   thd->set_row_count_func(m_shadow.row_count_func);
-  thd->wsrep_applier          = m_shadow.wsrep_applier;
+  thd->wsrep_applier         = m_shadow.wsrep_applier;
 }
 
 int Wsrep_high_priority_service::start_transaction(
@@ -336,7 +335,7 @@ int Wsrep_high_priority_service::commit(const wsrep::ws_handle& ws_handle,
     m_thd->wsrep_cs().after_rollback();
   }
 
-  must_exit_ = check_exit_status();
+  must_exit_= check_exit_status();
   DBUG_RETURN(ret);
 }
 
@@ -376,25 +375,9 @@ int Wsrep_high_priority_service::apply_toi(const wsrep::ws_meta& ws_meta,
   trans_commit(thd);
 
   thd->close_temporary_tables();
-#ifdef OUT
-  bool locked;
-  TMP_TABLE_SHARE *share;
-  locked= lock_temporary_tables();
-  All_tmp_tables_list::Iterator it(*thd->temporary_tables);
-  while ((share= it++))
-  {
-    WSREP_DEBUG("Applier %lu, has temporary tables: %s.%s",
-                thd->thread_id, share->db.str, share->table_name.str);
-    close_temporary_table(thd, share, 1, 1);
-  }
-  if (locked)
-  {
-    unlock_temporary_tables();
-  }
-#endif
   wsrep_set_SE_checkpoint(client_state.toi_meta().gtid());
 
-  must_exit_ = check_exit_status();
+  must_exit_= check_exit_status();
 
   DBUG_RETURN(ret);
 }
@@ -509,17 +492,6 @@ int Wsrep_applier_service::apply_write_set(const wsrep::ws_meta& ws_meta,
   }
 
   thd->close_temporary_tables();
-#ifdef OUT
-  TABLE *tmp;
-  while ((tmp = thd->temporary_tables))
-  {
-    WSREP_DEBUG("Applier %lu, has temporary tables: %s.%s",
-                m_thd->thread_id,
-                (tmp->s) ? tmp->s->db.str : "void",
-                (tmp->s) ? tmp->s->table_name.str : "void");
-    close_temporary_table(m_thd, tmp, 1, 1);
-  }
-#endif
   if (!ret && !(ws_meta.flags() & wsrep::provider::flag::commit))
   {
     thd->wsrep_cs().fragment_applied(ws_meta.seqno());
@@ -532,7 +504,6 @@ void Wsrep_applier_service::after_apply()
 {
   DBUG_ENTER("Wsrep_applier_service::after_apply");
   wsrep_after_apply(m_thd);
-  // thd_proc_info(m_thd, "wsrep applier idle");
   DBUG_VOID_RETURN;
 }
 
@@ -663,17 +634,6 @@ int Wsrep_replayer_service::apply_write_set(const wsrep::ws_meta& ws_meta,
   }
 
   thd->close_temporary_tables();
-#ifdef OUT
-  TABLE *tmp;
-  while ((tmp = thd->temporary_tables))
-  {
-    WSREP_DEBUG("Applier %lu, has temporary tables: %s.%s",
-                m_thd->thread_id,
-                (tmp->s) ? tmp->s->db.str : "void",
-                (tmp->s) ? tmp->s->table_name.str : "void");
-    close_temporary_table(m_thd, tmp, 1, 1);
-  }
-#endif
   if (!ret && !(ws_meta.flags() & wsrep::provider::flag::commit))
   {
     thd->wsrep_cs().fragment_applied(ws_meta.seqno());

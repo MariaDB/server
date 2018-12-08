@@ -43,9 +43,9 @@ void wsrep_notify_status (wsrep_member_status_t    status,
   }
 
   char  cmd_buf[1 << 16]; // this can be long
-  long  cmd_len = sizeof(cmd_buf) - 1;
-  char* cmd_ptr = cmd_buf;
-  long  cmd_off = 0;
+  long  cmd_len= sizeof(cmd_buf) - 1;
+  char* cmd_ptr= cmd_buf;
+  long  cmd_off= 0;
 
   cmd_off += snprintf (cmd_ptr + cmd_off, cmd_len - cmd_off, "%s",
                        wsrep_notify_cmd);
@@ -80,7 +80,7 @@ void wsrep_notify_status (wsrep_member_status_t    status,
     {
         cmd_off += snprintf (cmd_ptr + cmd_off, cmd_len - cmd_off, " --members");
 
-        for (int i = 0; i < view->memb_num; i++)
+        for (int i= 0; i < view->memb_num; i++)
         {
             wsrep_uuid_print (&view->members[i].id, uuid_str, sizeof(uuid_str));
             cmd_off += snprintf (cmd_ptr + cmd_off, cmd_len - cmd_off,
@@ -101,7 +101,7 @@ void wsrep_notify_status (wsrep_member_status_t    status,
   wsp::process p(cmd_ptr, "r", NULL);
 
   p.wait();
-  int err = p.error();
+  int err= p.error();
 
   if (err)
   {

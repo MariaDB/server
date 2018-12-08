@@ -20,13 +20,12 @@
 #include "wsrep_thd_pool.h"
 #include "wsrep_utils.h"
 #include "sql_class.h"
-//#include "global_threads.h"
 
 #include <list>
 
 static THD* wsrep_thd_pool_new_thd()
 {
-  THD *thd = new THD(next_thread_id());
+  THD *thd= new THD(next_thread_id());
   thd->thread_stack= (char*) &thd;
   thd->security_ctx->skip_grants();
   thd->system_thread= SYSTEM_THREAD_GENERIC;
@@ -41,14 +40,14 @@ static THD* wsrep_thd_pool_new_thd()
   (void) mysql_mutex_unlock(&LOCK_thread_count);
 
   /* */
-  thd->variables.wsrep_on     = 0;
+  thd->variables.wsrep_on    = 0;
   /* No binlogging */
-  thd->variables.sql_log_bin  = 0;
+  thd->variables.sql_log_bin = 0;
   thd->variables.option_bits &= ~OPTION_BIN_LOG;
   /* No general log */
   thd->variables.option_bits |= OPTION_LOG_OFF;
   /* Read committed isolation to avoid gap locking */
-  thd->variables.tx_isolation = ISO_READ_COMMITTED;
+  thd->variables.tx_isolation= ISO_READ_COMMITTED;
 
   return thd;
 }
@@ -72,7 +71,7 @@ Wsrep_thd_pool::~Wsrep_thd_pool()
   wsp::auto_lock lock(&LOCK_wsrep_thd_pool);
   while (!pool_.empty())
   {
-    THD *thd = pool_.back();
+    THD *thd= pool_.back();
     WSREP_DEBUG("Wsrep_thd_pool: closing thread %lld",
                 (long long)thd->thread_id);
 
@@ -97,7 +96,7 @@ THD* Wsrep_thd_pool::get_thd(THD* thd)
   }
   if (thd)
   {
-    ret->thread_stack = thd->thread_stack;
+    ret->thread_stack= thd->thread_stack;
   }
   else
   {

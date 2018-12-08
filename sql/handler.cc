@@ -6736,9 +6736,6 @@ void ha_fake_trx_id(THD *thd)
   {
     DBUG_VOID_RETURN;
   }
-#ifdef OUT
-  (void *)wsrep_ws_handle_for_trx(&thd->wsrep_ws_handle, thd->query_id);
-#endif
   DBUG_VOID_RETURN;
 }
 #endif /* WITH_WSREP */

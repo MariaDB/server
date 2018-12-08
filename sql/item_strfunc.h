@@ -1817,8 +1817,8 @@ public:
   String *val_str_ascii(String *);
   bool fix_length_and_dec()
   {
-    max_length = WSREP_GTID_STR_LEN;
-    maybe_null = true;
+    max_length= WSREP_GTID_STR_LEN;
+    maybe_null= true;
     return FALSE;
   }
   Item *get_copy(THD *thd)
@@ -1834,8 +1834,8 @@ public:
   String *val_str_ascii(String *);
   bool fix_length_and_dec()
   {
-    max_length = WSREP_GTID_STR_LEN;
-    maybe_null = true;
+    max_length= WSREP_GTID_STR_LEN;
+    maybe_null= true;
     return FALSE;
   }
   Item *get_copy(THD *thd)

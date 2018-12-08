@@ -2047,9 +2047,11 @@ extern "C" void unireg_abort(int exit_code)
     wsrep_close_threads(NULL); /* this won't close all threads */
     sleep(1); /* so give some time to exit for those which can */
     WSREP_INFO("Some threads may fail to exit.");
-
+  }
+  if (WSREP_ON)
+  {
     /* In bootstrap mode we deinitialize wsrep here. */
-    if (opt_bootstrap)
+    if (opt_bootstrap || wsrep_recovery)
     {
       if (wsrep_inited) wsrep_deinit(true);
       wsrep_deinit_server();
@@ -2098,9 +2100,7 @@ static void mysqld_exit(int exit_code)
 #ifdef SAFEMALLOC
     sf_report_leaked_memory(0);
 #endif
-#ifdef TODO
     DBUG_SLOW_ASSERT(global_status_var.global_memory_used == 0);
-#endif
   }
   cleanup_tls();
   DBUG_LEAVE;

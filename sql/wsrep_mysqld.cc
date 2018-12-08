@@ -54,7 +54,7 @@
 /* wsrep-lib */
 Wsrep_server_state* Wsrep_server_state::m_instance;
 
-my_bool wsrep_emulate_bin_log   = FALSE; // activating parts of binlog interface
+my_bool wsrep_emulate_bin_log  = FALSE; // activating parts of binlog interface
 #ifdef GTID_SUPPORT
 /* Sidno in global_sid_map corresponding to group uuid */
 rpl_sidno wsrep_sidno= -1;
@@ -152,7 +152,7 @@ mysql_mutex_t LOCK_wsrep_thd_pool; /* locking policy:
                                    */
 
 int wsrep_replaying= 0;
-ulong  wsrep_running_threads = 0; // # of currently running wsrep threads
+ulong  wsrep_running_threads= 0; // # of currently running wsrep threads
 ulong  my_bind_addr;
 
 #ifdef HAVE_PSI_INTERFACE
@@ -205,10 +205,10 @@ static PSI_file_info wsrep_files[]=
 };
 #endif
 
-my_bool wsrep_inited                   = 0; // initialized ?
+my_bool wsrep_inited= 0; // initialized ?
 
 static wsrep_uuid_t node_uuid= WSREP_UUID_UNDEFINED;
-static wsrep_uuid_t cluster_uuid = WSREP_UUID_UNDEFINED;
+static wsrep_uuid_t cluster_uuid= WSREP_UUID_UNDEFINED;
 static char         cluster_uuid_str[40]= { 0, };
 
 static char provider_name[256]= { 0, };
@@ -219,26 +219,26 @@ static char provider_vendor[256]= { 0, };
  * Wsrep status variables. LOCK_status must be locked When modifying
  * these variables,
  */
-my_bool     wsrep_connected          = FALSE;
-my_bool     wsrep_ready              = FALSE;
-const char* wsrep_cluster_state_uuid = cluster_uuid_str;
-long long   wsrep_cluster_conf_id    = WSREP_SEQNO_UNDEFINED;
-const char* wsrep_cluster_status     = "Disconnected";
-long        wsrep_cluster_size       = 0;
-long        wsrep_local_index        = -1;
-long long   wsrep_local_bf_aborts    = 0;
-const char* wsrep_provider_name      = provider_name;
-const char* wsrep_provider_version   = provider_version;
-const char* wsrep_provider_vendor    = provider_vendor;
-char* wsrep_provider_capabilities    = NULL;
-char* wsrep_cluster_capabilities     = NULL;
+my_bool     wsrep_connected         = FALSE;
+my_bool     wsrep_ready             = FALSE;
+const char* wsrep_cluster_state_uuid= cluster_uuid_str;
+long long   wsrep_cluster_conf_id   = WSREP_SEQNO_UNDEFINED;
+const char* wsrep_cluster_status    = "Disconnected";
+long        wsrep_cluster_size      = 0;
+long        wsrep_local_index       = -1;
+long long   wsrep_local_bf_aborts   = 0;
+const char* wsrep_provider_name     = provider_name;
+const char* wsrep_provider_version  = provider_version;
+const char* wsrep_provider_vendor   = provider_vendor;
+char* wsrep_provider_capabilities   = NULL;
+char* wsrep_cluster_capabilities    = NULL;
 /* End wsrep status variables */
 
 wsp::Config_state *wsrep_config_state;
 
 
-wsrep_uuid_t               local_uuid        = WSREP_UUID_UNDEFINED;
-wsrep_seqno_t              local_seqno       = WSREP_SEQNO_UNDEFINED;
+wsrep_uuid_t               local_uuid       = WSREP_UUID_UNDEFINED;
+wsrep_seqno_t              local_seqno      = WSREP_SEQNO_UNDEFINED;
 wsp::node_status           local_status;
 
 /*
@@ -273,7 +273,6 @@ static void wsrep_log_cb(wsrep::log::level level, const char *msg)
   }
 }
 
-//#ifdef GTID_SUPPORT
 void wsrep_init_sidno(const wsrep::id& uuid)
 {
   /*
@@ -291,18 +290,17 @@ void wsrep_init_sidno(const wsrep::id& uuid)
     wsrep_uuid_t ltid_uuid;
     for (size_t i= 0; i < sizeof(ltid_uuid.data); ++i)
     {
-      ltid_uuid.data[i] = ~((const uchar*)uuid.data())[i];
+      ltid_uuid.data[i]= ~((const uchar*)uuid.data())[i];
     }
     memcpy((void*)&sid, (const uchar*)ltid_uuid.data,16);
   }
-#ifdef NOT_MERGED
+#ifdef GTID_SUPPORT
   global_sid_lock->wrlock();
   wsrep_sidno= global_sid_map->add_sid(sid);
   WSREP_INFO("Initialized wsrep sidno %d", wsrep_sidno);
   global_sid_lock->unlock();
 #endif
 }
-//#endif /* GTID_SUPPORT */
 
 void wsrep_init_schema()
 {
@@ -311,10 +309,8 @@ void wsrep_init_schema()
   WSREP_INFO("wsrep_init_schema_and_SR %p", wsrep_schema);
   if (!wsrep_schema)
   {
-    // if (wsrep_before_SE()) {
     DBUG_ASSERT(!wsrep_thd_pool);
     wsrep_thd_pool= new Wsrep_thd_pool(WSREP_THD_POOL_SIZE);
-    //}
     wsrep_schema= new Wsrep_schema(wsrep_thd_pool);
     if (wsrep_schema->init())
     {
@@ -373,13 +369,13 @@ static void wsrep_capabilities_export(wsrep_cap_t const cap, char** str)
   };
 
   std::string s;
-  for (size_t i = 0; i < sizeof(names) / sizeof(names[0]); ++i)
+  for (size_t i= 0; i < sizeof(names) / sizeof(names[0]); ++i)
   {
     if (cap & (1ULL << i))
     {
       if (s.empty())
       {
-        s = ":";
+        s= ":";
       }
       s += names[i];
       s += ":";
@@ -389,9 +385,9 @@ static void wsrep_capabilities_export(wsrep_cap_t const cap, char** str)
   /* A read from the string pointed to by *str may be started at any time,
    * so it must never point to free(3)d memory or non '\0' terminated string. */
 
-  char* const previous = *str;
+  char* const previous= *str;
 
-  *str = strdup(s.c_str());
+  *str= strdup(s.c_str());
 
   if (previous != NULL)
   {
@@ -404,20 +400,6 @@ static void wsrep_capabilities_export(wsrep_cap_t const cap, char** str)
 void wsrep_verify_SE_checkpoint(const wsrep_uuid_t& uuid,
                                 wsrep_seqno_t const seqno)
 {
-#if 0
-  wsrep_get_SE_checkpoint(local_uuid, local_seqno);
-
-  if (memcmp(&local_uuid, &uuid, sizeof (wsrep_uuid_t)) ||
-             local_seqno > seqno)
-  {
-    WSREP_ERROR("Failed to update SE checkpoint. Can't continue.");
-    wsrep_log_states(WSREP_LOG_FATAL, &uuid, seqno,
-                     &local_uuid, local_seqno);
-    assert(0);
-    unireg_abort(1);
-  }
-#endif
-  // wsrep_init_sidno(local_uuid);
 }
 
 /*
@@ -451,37 +433,6 @@ void wsrep_update_cluster_state_uuid(const char* uuid)
 
 static void wsrep_init_position()
 {
-#if 0
-  /* read XIDs from storage engines */
-  wsrep_uuid_t uuid;
-  wsrep_seqno_t seqno;
-  wsrep_get_SE_checkpoint(uuid, seqno);
-
-  if (wsrep_uuid_compare(&uuid, &WSREP_UUID_UNDEFINED) == 0)
-  {
-    WSREP_INFO("Read nil XID from storage engines, skipping position init");
-    return;
-  }
-
-  char uuid_str[40] = {0, };
-  wsrep_uuid_print(&uuid, uuid_str, sizeof(uuid_str));
-  WSREP_INFO("Storage engines initial position: %s:%lld",
-             uuid_str, (long long)seqno);
-
-  if (wsrep_uuid_compare(&local_uuid, &WSREP_UUID_UNDEFINED) == 0 &&
-      local_seqno == WSREP_SEQNO_UNDEFINED)
-  {
-    // Initial state
-    local_uuid= uuid;
-    local_seqno= seqno;
-  }
-  else if (memcmp(&local_uuid, &uuid, sizeof(local_uuid)) ||
-           local_seqno != seqno)
-  {
-    WSREP_WARN("Initial position was provided by configuration or SST, "
-               "avoiding override");
-  }
-#endif
 }
 
 /****************************************************************************
@@ -495,11 +446,6 @@ static std::string wsrep_server_name()
 
 static std::string wsrep_server_id()
 {
-#ifdef WSREP_TODO
-  std::stringstream ss;
-  ss << server_id;
-  return(ss.str());
-#endif
   /* using empty server_id, which enables view change handler to
      set final server_id later on
   */
@@ -512,12 +458,12 @@ static std::string wsrep_server_node_address()
 
   std::string ret;
   if (!wsrep_data_home_dir || strlen(wsrep_data_home_dir) == 0)
-    wsrep_data_home_dir = mysql_real_data_home;
+    wsrep_data_home_dir= mysql_real_data_home;
 
   /* Initialize node address */
   if (!wsrep_node_address || !strcmp(wsrep_node_address, ""))
   {
-    char node_addr[512] = {0, };
+    char node_addr[512]= {0, };
     const size_t node_addr_max= sizeof(node_addr) - 1;
     size_t guess_ip_ret= wsrep_guess_ip(node_addr, node_addr_max);
     if (!(guess_ip_ret > 0 && guess_ip_ret < node_addr_max))
@@ -527,12 +473,12 @@ static std::string wsrep_server_node_address()
     }
     else
     {
-      ret = node_addr;
+      ret= node_addr;
     }
   }
   else
   {
-    ret = wsrep_node_address;
+    ret= wsrep_node_address;
   }
   return ret;
 }
@@ -621,7 +567,7 @@ static std::string wsrep_server_incoming_address()
   }
   
  done:
-  ret = wsrep_node_incoming_address;
+  ret= wsrep_node_incoming_address;
   return ret;
 }
 
@@ -630,11 +576,11 @@ static std::string wsrep_server_working_dir()
   std::string ret;
   if (!wsrep_data_home_dir || strlen(wsrep_data_home_dir) == 0)
   {
-    ret = mysql_real_data_home;
+    ret= mysql_real_data_home;
   }
   else
   {
-    ret = wsrep_data_home_dir;
+    ret= wsrep_data_home_dir;
   }
   return ret;
 }
@@ -722,7 +668,7 @@ int wsrep_init()
       !strcmp(wsrep_provider, WSREP_NONE))
   {
     // enable normal operation in case no provider is specified
-    global_system_variables.wsrep_on = 0;
+    global_system_variables.wsrep_on= 0;
     int err= Wsrep_server_state::instance().load_provider(wsrep_provider, wsrep_provider_options ? wsrep_provider_options : "");
     if (err)
     {
@@ -732,7 +678,7 @@ int wsrep_init()
     return err;
   }
 
-  global_system_variables.wsrep_on = 1;
+  global_system_variables.wsrep_on= 1;
 
   if (wsrep_gtid_mode && opt_bin_log && !opt_log_slave_updates)
   {
@@ -743,7 +689,7 @@ int wsrep_init()
   }
 
   if (!wsrep_data_home_dir || strlen(wsrep_data_home_dir) == 0)
-    wsrep_data_home_dir = mysql_real_data_home;
+    wsrep_data_home_dir= mysql_real_data_home;
 
   if (Wsrep_server_state::instance().load_provider(wsrep_provider,
                                                    wsrep_provider_options))
@@ -779,7 +725,7 @@ int wsrep_init()
 void wsrep_thr_init()
 {
   DBUG_ENTER("wsrep_thr_init");
-  wsrep_config_state = new wsp::Config_state;
+  wsrep_config_state= new wsp::Config_state;
 #ifdef HAVE_PSI_INTERFACE
   mysql_mutex_register("sql", wsrep_mutexes, array_elements(wsrep_mutexes));
   mysql_cond_register("sql", wsrep_conds, array_elements(wsrep_conds));
@@ -879,8 +825,8 @@ void wsrep_deinit(bool free_options)
 
   if (wsrep_provider_capabilities != NULL)
   {
-    char* p = wsrep_provider_capabilities;
-    wsrep_provider_capabilities = NULL;
+    char* p= wsrep_provider_capabilities;
+    wsrep_provider_capabilities= NULL;
     free(p);
   }
 
@@ -916,8 +862,8 @@ void wsrep_thr_deinit()
 
   if (wsrep_cluster_capabilities != NULL)
   {
-    char* p = wsrep_cluster_capabilities;
-    wsrep_cluster_capabilities = NULL;
+    char* p= wsrep_cluster_capabilities;
+    wsrep_cluster_capabilities= NULL;
     free(p);
   }
 }
@@ -980,7 +926,6 @@ void wsrep_shutdown_replication()
   }
 
   wsrep_close_client_connections(TRUE);
-  // wsrep_close_SR_transactions(NULL);
 
   /* wait until appliers have stopped */
   wsrep_wait_appliers_close(NULL);
@@ -990,7 +935,6 @@ void wsrep_shutdown_replication()
   {
     /* Undocking the thread specific data. */
     my_pthread_setspecific_ptr(THR_THD, NULL);
-    //my_pthread_setspecific_ptr(THR_MALLOC, NULL);
   }
 }
 
@@ -1060,7 +1004,6 @@ bool wsrep_must_sync_wait (THD* thd, uint mask)
     thd->wsrep_trx().state() !=
     wsrep::transaction::s_replaying &&
     thd->wsrep_cs().sync_wait_gtid().is_undefined();
-    // thd->wsrep_sync_wait_gtid.seqno == WSREP_SEQNO_UNDEFINED;
   mysql_mutex_unlock(&thd->LOCK_thd_data);
   return ret;
 }
@@ -1069,22 +1012,25 @@ bool wsrep_sync_wait (THD* thd, uint mask)
 {
   if (wsrep_must_sync_wait(thd, mask))
   {
-    WSREP_DEBUG("wsrep_sync_wait: thd->variables.wsrep_sync_wait = %u, "
-                "mask = %u, thd->variables.wsrep_on = %d",
+    WSREP_DEBUG("wsrep_sync_wait: thd->variables.wsrep_sync_wait= %u, "
+                "mask= %u, thd->variables.wsrep_on= %d",
                 thd->variables.wsrep_sync_wait, mask,
                 thd->variables.wsrep_on);
-    // This allows autocommit SELECTs and a first SELECT after SET AUTOCOMMIT=0
-    // TODO: modify to check if thd has locked any rows.
-    // enum wsrep::provider::status ret = wsrep_sync_wait_upto(thd, NULL, -1);
+    /*
+      This allows autocommit SELECTs and a first SELECT after SET AUTOCOMMIT=0
+      TODO: modify to check if thd has locked any rows.
+    */
     if (thd->wsrep_cs().sync_wait(-1))
     {
       const char* msg;
       int err;
 
-      // Possibly relevant error codes:
-      // ER_CHECKREAD, ER_ERROR_ON_READ, ER_INVALID_DEFAULT, ER_EMPTY_QUERY,
-      // ER_FUNCTION_NOT_DEFINED, ER_NOT_ALLOWED_COMMAND, ER_NOT_SUPPORTED_YET,
-      // ER_FEATURE_DISABLED, ER_QUERY_INTERRUPTED
+      /*
+        Possibly relevant error codes:
+        ER_CHECKREAD, ER_ERROR_ON_READ, ER_INVALID_DEFAULT, ER_EMPTY_QUERY,
+        ER_FUNCTION_NOT_DEFINED, ER_NOT_ALLOWED_COMMAND, ER_NOT_SUPPORTED_YET,
+        ER_FEATURE_DISABLED, ER_QUERY_INTERRUPTED
+      */
 
       switch (thd->wsrep_cs().current_error())
       {
@@ -1170,7 +1116,6 @@ static bool wsrep_prepare_key_for_isolation(const char* db,
     *key_len= 0;
     if (db)
     {
-      // sql_print_information("%s.%s", db, table);
       key[*key_len].ptr= db;
       key[*key_len].len= strlen(db);
       ++(*key_len);
@@ -1312,10 +1257,10 @@ bool wsrep_prepare_key(const uchar* cache_key, size_t cache_key_len,
     {
     case 0:
     {
-        key[0].ptr = cache_key;
-        key[0].len = cache_key_len;
+        key[0].ptr= cache_key;
+        key[0].len= cache_key_len;
 
-        *key_len = 1;
+        *key_len= 1;
         break;
     }
     case 1:
@@ -1323,21 +1268,21 @@ bool wsrep_prepare_key(const uchar* cache_key, size_t cache_key_len,
     case 3:
     case 4:
     {
-        key[0].ptr = cache_key;
-        key[0].len = strlen( (char*)cache_key );
+        key[0].ptr= cache_key;
+        key[0].len= strlen( (char*)cache_key );
 
-        key[1].ptr = cache_key + strlen( (char*)cache_key ) + 1;
-        key[1].len = strlen( (char*)(key[1].ptr) );
+        key[1].ptr= cache_key + strlen( (char*)cache_key ) + 1;
+        key[1].len= strlen( (char*)(key[1].ptr) );
 
-        *key_len = 2;
+        *key_len= 2;
         break;
     }
     default:
         return false;
     }
 
-    key[*key_len].ptr = row_id;
-    key[*key_len].len = row_id_len;
+    key[*key_len].ptr= row_id;
+    key[*key_len].len= row_id_len;
     ++(*key_len);
 
     return true;
@@ -1514,7 +1459,7 @@ create_view_query(THD *thd, uchar** buf, size_t* buf_len)
     LEX *lex= thd->lex;
     SELECT_LEX *select_lex= lex->first_select_lex();
     TABLE_LIST *first_table= select_lex->table_list.first;
-    TABLE_LIST *views = first_table;
+    TABLE_LIST *views= first_table;
     LEX_USER *definer;
     String buff;
     const LEX_CSTRING command[3]=
@@ -1539,16 +1484,16 @@ create_view_query(THD *thd, uchar** buf, size_t* buf_len)
 
     if (definer)
     {
-      views->definer.user = definer->user;
-      views->definer.host = definer->host;
+      views->definer.user= definer->user;
+      views->definer.host= definer->host;
     } else {
       WSREP_ERROR("Failed to get DEFINER for VIEW.");
       return 1;
     }
 
-    views->algorithm    = lex->create_view->algorithm;
-    views->view_suid    = lex->create_view->suid;
-    views->with_check   = lex->create_view->check;
+    views->algorithm   = lex->create_view->algorithm;
+    views->view_suid   = lex->create_view->suid;
+    views->with_check  = lex->create_view->check;
 
     view_store_options(thd, views, &buff);
     buff.append(STRING_WITH_LEN("VIEW "));
@@ -1574,12 +1519,8 @@ create_view_query(THD *thd, uchar** buf, size_t* buf_len)
       buff.append(')');
     }
     buff.append(STRING_WITH_LEN(" AS "));
-    //buff.append(views->source.str, views->source.length);
     buff.append(thd->lex->create_view->select.str,
                 thd->lex->create_view->select.length);
-    //int errcode= query_error_code(thd, TRUE);
-    //if (thd->binlog_query(THD::STMT_QUERY_TYPE,
-    //                      buff.ptr(), buff.length(), FALSE, FALSE, FALSE, errcod
     return wsrep_to_buf_helper(thd, buff.ptr(), buff.length(), buf, buf_len);
 }
 
@@ -1775,7 +1716,7 @@ static bool wsrep_can_run_in_nbo(THD *thd)
 static int wsrep_create_sp(THD *thd, uchar** buf, size_t* buf_len)
 {
   String log_query;
-  sp_head *sp = thd->lex->sphead;
+  sp_head *sp= thd->lex->sphead;
   sql_mode_t saved_mode= thd->variables.sql_mode;
   String retstr(64);
   LEX_CSTRING returns= empty_clex_str;
@@ -1851,13 +1792,6 @@ static void wsrep_TOI_begin_failed(THD* thd, const wsrep_buf_t* /* const err */)
     /* GTID was granted and TO acquired - need to log event and release TO */
     if (wsrep_emulate_bin_log) wsrep_thd_binlog_trx_reset(thd);
     if (wsrep_write_dummy_event(thd, "TOI begin failed")) { goto fail; }
-#if 0
-    /* todo */
-    wsrep_xid_init(&thd->wsrep_xid,
-                   thd->wsrep_trx_meta.gtid.uuid,
-                   thd->wsrep_trx_meta.gtid.seqno);
-    if (tc_log) tc_log->commit(thd, true);
-#endif /* 0 */
     wsrep::client_state& cs(thd->wsrep_cs());
     int const ret= cs.leave_toi();
     if (ret)
@@ -1924,8 +1858,6 @@ static int wsrep_TOI_begin(THD *thd, const char *db, const char *table,
   bool run_in_nbo= (thd->variables.wsrep_OSU_method == WSREP_OSU_NBO &&
                     can_run_in_nbo);
 
-  // uint32_t flags= (run_in_nbo ? WSREP_FLAG_TRX_START :
-  //                WSREP_FLAG_TRX_START | WSREP_FLAG_TRX_END);
   uchar* buf= 0;
   size_t buf_len(0);
   int buf_err;
@@ -2030,13 +1962,8 @@ static int wsrep_TOI_begin(THD *thd, const char *db, const char *table,
         ::abort();
       }
 
-      // thd->wsrep_exec_mode= TOTAL_ORDER;
       ++wsrep_to_isolation;
 
-      // WSREP_DEBUG("TO BEGIN(%lu): %lld, %d, %s",
-      //          thd->thread_id,
-      //         (long long)wsrep_thd_trx_seqno(thd),
-      //            thd->wsrep_exec_mode, WSREP_QUERY(thd));
       rc= 0;
 
     }
@@ -2080,8 +2007,6 @@ static void wsrep_TOI_end(THD *thd) {
     {
       wsrep_apply_error err;
       err.store(thd);
-      // wsrep_buf_t const tmp= err.get_buf();
-      // ret= wsrep_ptr->to_execute_end(wsrep_ptr, thd->thread_id, &tmp);
       client_state.leave_toi();
     }
     else
@@ -2117,7 +2042,7 @@ static int wsrep_RSU_begin(THD *thd, const char *db_, const char *table_)
   }
   else
   {
-    thd->variables.wsrep_on = 0;
+    thd->variables.wsrep_on= 0;
   }
   return 0;
 }
@@ -2130,7 +2055,7 @@ static void wsrep_RSU_end(THD *thd)
   {
     WSREP_WARN("Failed to end RSU, server may need to be restarted");
   }
-  thd->variables.wsrep_on = 1;
+  thd->variables.wsrep_on= 1;
 }
 
 int wsrep_to_isolation_begin(THD *thd, const char *db_, const char *table_,
@@ -2179,8 +2104,8 @@ int wsrep_to_isolation_begin(THD *thd, const char *db_, const char *table_,
    */
   if (wsrep_auto_increment_control)
   {
-    thd->variables.auto_increment_offset = 1;
-    thd->variables.auto_increment_increment = 1;
+    thd->variables.auto_increment_offset= 1;
+    thd->variables.auto_increment_increment= 1;
   }
 
   if (thd->variables.wsrep_on && wsrep_thd_is_local(thd))
@@ -2203,7 +2128,7 @@ int wsrep_to_isolation_begin(THD *thd, const char *db_, const char *table_,
     case 0: /* wsrep_TOI_begin sould set toi mode */ break;
     case 1:
       /* TOI replication skipped, treat as success */
-      ret = 0;
+      ret= 0;
       break;
     case -1:
       /* TOI replication failed, treat as error */
@@ -2238,95 +2163,11 @@ void wsrep_to_isolation_end(THD *thd)
 void wsrep_begin_nbo_unlock(THD* thd)
 {
   DBUG_ASSERT(0);
-#if 0
-  DBUG_ASSERT(thd->wsrep_nbo_ctx);
-  if (wsrep_thd_is_toi(thd))
-  {
-    if (wsrep_ptr->to_execute_end(wsrep_ptr, thd->thread_id, NULL) != WSREP_OK) {
-      WSREP_ERROR("Non-blocking operation failed to release provider "
-                  "resources, cannot continue");
-      unireg_abort(1);
-    }
-  }
-  else if (wsrep_thd_is_applying(thd))
-  {
-    thd->wsrep_nbo_ctx->signal();
-  }
-  thd->wsrep_nbo_ctx->set_toi_released(true);
-#endif
 }
 
 void wsrep_end_nbo_lock(THD* thd, const TABLE_LIST *table_list)
 {
   DBUG_ASSERT(0);
-#if 0
-  DBUG_ASSERT(thd->wsrep_nbo_ctx);
-
-  // Release TOI critical section if not released yet. This
-  // may happen if operation fails in early phase.
-  if (thd->wsrep_nbo_ctx->toi_released() == false) {
-    wsrep_begin_nbo_unlock(thd);
-  }
-
-  DBUG_ASSERT(wsrep_thd_is_toi(thd) || wsrep_thd_is_applying(thd));
-  wsrep_status_t ret;
-  uint32_t flags= WSREP_FLAG_TRX_END;
-
-  wsrep_key_arr_t key_arr= {0, 0};
-
-  if (wsrep_prepare_keys_for_isolation(thd, NULL, NULL, table_list, &key_arr))
-  {
-    WSREP_ERROR("Failed to prepare keys for NBO end. This is fatal, must abort");
-    unireg_abort(1);
-
-  }
-  thd_proc_info(thd, "acquiring total order isolation for NBO end");
-
-  DBUG_ASSERT(key_arr.keys_len > 0);
-
-  time_t wait_start= time(NULL);
-  while ((ret= wsrep_ptr->to_execute_start(wsrep_ptr, thd->thread_id,
-                                       key_arr.keys, key_arr.keys_len, 0, 0,
-                                       flags,
-                                       &thd->wsrep_trx_meta))
-         == WSREP_CONN_FAIL) {
-    if (thd->killed != NOT_KILLED) {
-      WSREP_ERROR("Non-blocking operation end failed to sync with group, "
-                  "thd killed %d", thd->killed);
-      /* Error handling happens outside of while() */
-      break;
-    }
-    usleep(100000);
-    if (ulong(time(NULL) - wait_start) >= thd->variables.lock_wait_timeout)
-    {
-      WSREP_ERROR("Lock wait timeout while waiting NBO end to replicate.");
-      break;
-    }
-  }
-
-  if (ret != WSREP_OK)
-  {
-    WSREP_ERROR("Failed to acquire total order isolation for non-blocking DDL "
-                "end event, provider returned error code %d: "
-                "(schema: %s, query: %s)",
-                ret, (thd->db.str ? thd->db.str : "(null)"),
-                WSREP_QUERY(thd));
-    thd->get_stmt_da()->set_overwrite_status(true);
-    my_error(ER_ERROR_DURING_COMMIT, MYF(0), ret);
-    thd->get_stmt_da()->set_overwrite_status(false);
-    WSREP_ERROR("This will leave database in inconsistent state since DDL "
-                "execution cannot be terminated in order. Node must rejoin "
-                "the cluster via SST");
-    wsrep_ptr->free_connection(wsrep_ptr, thd->thread_id);
-    wsrep_ptr->disconnect(wsrep_ptr);
-    // We let the operation to finish out of order in order to release
-    // all resources properly. However GTID is cleared so that the
-    // event won't be binlogged with incorrect GTID.
-    thd->wsrep_trx_meta.gtid= WSREP_GTID_UNDEFINED;
-  }
-
-  thd->wsrep_nbo_ctx->set_toi_released(false);
-#endif
 }
 
 #define WSREP_MDL_LOG(severity, msg, schema, schema_len, req, gra)             \
@@ -2387,7 +2228,7 @@ bool wsrep_grant_mdl_exception(MDL_context *requestor_ctx,
                       schema, schema_len, request_thd, granted_thd);
         mysql_mutex_unlock(&granted_thd->LOCK_thd_data);
         wsrep_abort_thd((void*)request_thd, (void*)granted_thd, 1);
-        ret = FALSE;
+        ret= FALSE;
       }
       else
       {
@@ -2395,7 +2236,7 @@ bool wsrep_grant_mdl_exception(MDL_context *requestor_ctx,
                       request_thd, granted_thd);
         ticket->wsrep_report(true);
         mysql_mutex_unlock(&granted_thd->LOCK_thd_data);
-        ret = TRUE;
+        ret= TRUE;
       }
     }
     else if (granted_thd->lex->sql_command == SQLCOM_FLUSH ||
@@ -2404,7 +2245,7 @@ bool wsrep_grant_mdl_exception(MDL_context *requestor_ctx,
       WSREP_DEBUG("BF thread waiting for FLUSH");
       ticket->wsrep_report(wsrep_debug);
       mysql_mutex_unlock(&granted_thd->LOCK_thd_data);
-      ret = FALSE;
+      ret= FALSE;
     }
     else if (request_thd->lex->sql_command == SQLCOM_DROP_TABLE)
     {
@@ -2413,7 +2254,7 @@ bool wsrep_grant_mdl_exception(MDL_context *requestor_ctx,
       ticket->wsrep_report(wsrep_debug);
       mysql_mutex_unlock(&granted_thd->LOCK_thd_data);
       wsrep_abort_thd((void*)request_thd, (void*)granted_thd, 1);
-      ret = FALSE;
+      ret= FALSE;
     }
     else
     {
@@ -2688,9 +2529,11 @@ void wsrep_wait_appliers_close(THD *thd)
   /* Wait for wsrep appliers to gracefully exit */
   mysql_mutex_lock(&LOCK_thread_count);
   while (wsrep_running_threads > 2)
-  // 2 is for rollbacker thread which needs to be killed explicitly.
-  // This gotta be fixed in a more elegant manner if we gonna have arbitrary
-  // number of non-applier wsrep threads.
+    /*
+      2 is for rollbacker thread which needs to be killed explicitly.
+      This gotta be fixed in a more elegant manner if we gonna have arbitrary
+      number of non-applier wsrep threads.
+    */
   {
     if (thread_handling > SCHEDULER_ONE_THREAD_PER_CONNECTION)
     {
@@ -2745,7 +2588,6 @@ void wsrep_kill_mysql(THD *thd)
 void
 wsrep_last_committed_id(wsrep_gtid_t* gtid)
 {
-  // wsrep_ptr->last_committed_id(wsrep_ptr, gtid);
   wsrep::gtid ret= Wsrep_server_state::instance().last_committed_gtid();
   memcpy(gtid->uuid.data, ret.id().data(), sizeof(gtid->uuid.data));
   gtid->seqno= ret.seqno().get();
@@ -2754,7 +2596,7 @@ wsrep_last_committed_id(wsrep_gtid_t* gtid)
 void
 wsrep_node_uuid(wsrep_uuid_t& uuid)
 {
-  uuid = node_uuid;
+  uuid= node_uuid;
 }
 
 int wsrep_must_ignore_error(THD* thd)
@@ -3030,7 +2872,6 @@ int wsrep_create_trigger_query(THD *thd, uchar** buf, size_t* buf_len)
 void* start_wsrep_THD(void *arg)
 {
   THD *thd;
-  //wsrep_thd_processor_fun processor= (wsrep_thd_processor_fun)arg;
 
   Wsrep_thd_args* thd_args= (Wsrep_thd_args*) arg;
 
@@ -3103,7 +2944,6 @@ void* start_wsrep_THD(void *arg)
   thd->security_ctx->skip_grants();
 
   /* handle_one_connection() again... */
-  //thd->version= refresh_version;
   thd->proc_info= 0;
   thd->set_command(COM_SLEEP);
   thd->init_for_queries();
@@ -3134,10 +2974,12 @@ void* start_wsrep_THD(void *arg)
   mysql_cond_broadcast(&COND_thread_count);
   mysql_mutex_unlock(&LOCK_thread_count);
   DBUG_ASSERT(current_thd);
-  // Note: We can't call THD destructor without crashing
-  // if plugins have not been initialized. However, in most of the
-  // cases this means that pre SE initialization SST failed and
-  // we are going to exit anyway.
+  /*
+    Note: We can't call THD destructor without crashing
+    if plugins have not been initialized. However, in most of the
+    cases this means that pre SE initialization SST failed and
+    we are going to exit anyway.
+  */
   if (plugins_are_initialized)
   {
     net_end(&thd->net);
@@ -3145,9 +2987,11 @@ void* start_wsrep_THD(void *arg)
   }
   else
   {
-    // TODO: lightweight cleanup to get rid of:
-    // 'Error in my_thread_global_end(): 2 threads didn't exit'
-    // at server shutdown
+    /*
+      TODO: lightweight cleanup to get rid of:
+      'Error in my_thread_global_end(): 2 threads didn't exit'
+      at server shutdown
+    */
   }
 
   unlink_not_visible_thd(thd);
@@ -3203,25 +3047,7 @@ bool wsrep_consistency_check(THD *thd)
   return thd->wsrep_consistency_check == CONSISTENCY_CHECK_RUNNING;
 }
 
-//wsrep_t *get_wsrep()
-//{
-//  return wsrep;
-//}
-
 my_bool get_wsrep_certify_nonPK()
 {
   return wsrep_certify_nonPK;
 }
-
-#ifdef MARIADB_OLD
-void wsrep_lock_rollback()
-{
-  mysql_mutex_lock(&LOCK_wsrep_rollback);
-}
-
-void wsrep_unlock_rollback()
-{
-  mysql_cond_signal(&COND_wsrep_rollback);
-  mysql_mutex_unlock(&LOCK_wsrep_rollback);
-}
-#endif

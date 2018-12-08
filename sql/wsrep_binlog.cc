@@ -23,9 +23,8 @@
 
 #include "transaction.h"
 
-const char *wsrep_fragment_units[] = { "bytes", "rows", "statements", NullS };
-const char *wsrep_SR_store_types[] = { "none", "table", NullS };
-
+const char *wsrep_fragment_units[]= { "bytes", "rows", "statements", NullS };
+const char *wsrep_SR_store_types[]= { "none", "table", NullS };
 
 extern handlerton *binlog_hton;
 /*
@@ -47,10 +46,10 @@ int wsrep_write_cache_buf(IO_CACHE *cache, uchar **buf, size_t *buf_len)
     DBUG_RETURN(ER_ERROR_ON_WRITE);
   }
 
-  uint length = my_b_bytes_in_cache(cache);
-  if (unlikely(0 == length)) length = my_b_fill(cache);
+  uint length= my_b_bytes_in_cache(cache);
+  if (unlikely(0 == length)) length= my_b_fill(cache);
 
-  size_t total_length = 0;
+  size_t total_length= 0;
 
   if (likely(length > 0)) do
   {
@@ -67,7 +66,7 @@ int wsrep_write_cache_buf(IO_CACHE *cache, uchar **buf, size_t *buf_len)
                      wsrep_max_ws_size, total_length);
           goto error;
       }
-      uchar* tmp = (uchar *)my_realloc(*buf, total_length,
+      uchar* tmp= (uchar *)my_realloc(*buf, total_length,
                                        MYF(MY_ALLOW_ZERO_PTR));
       if (!tmp)
       {
@@ -75,17 +74,17 @@ int wsrep_write_cache_buf(IO_CACHE *cache, uchar **buf, size_t *buf_len)
                       *buf_len, length);
           goto error;
       }
-      *buf = tmp;
+      *buf= tmp;
 
       memcpy(*buf + *buf_len, cache->read_pos, length);
-      *buf_len = total_length;
+      *buf_len= total_length;
 
       if (cache->file < 0)
       {
         cache->read_pos= cache->read_end;
         break;
       }
-  } while ((length = my_b_fill(cache)));
+  } while ((length= my_b_fill(cache)));
 
   if (reinit_io_cache(cache, WRITE_CACHE, saved_pos, 0, 0))
   {
@@ -143,7 +142,7 @@ static int wsrep_write_cache_inc(THD*      const thd,
   size_t total_length(0);
 
   uint length(my_b_bytes_in_cache(cache));
-  if (unlikely(0 == length)) length = my_b_fill(cache);
+  if (unlikely(0 == length)) length= my_b_fill(cache);
 
   if (likely(length > 0))
   {
@@ -158,13 +157,13 @@ static int wsrep_write_cache_inc(THD*      const thd,
       {
         WSREP_WARN("transaction size limit (%lu) exceeded: %zu",
                    wsrep_max_ws_size, total_length);
-        ret = 1;
+        ret= 1;
         goto cleanup;
       }
       if (thd->wsrep_cs().append_data(wsrep::const_buffer(cache->read_pos, length)))
         goto cleanup;
-      cache->read_pos = cache->read_end;
-    } while ((cache->file >= 0) && (length = my_b_fill(cache)));
+      cache->read_pos= cache->read_end;
+    } while ((cache->file >= 0) && (length= my_b_fill(cache)));
   }
   if (ret == 0)
   {
@@ -172,7 +171,7 @@ static int wsrep_write_cache_inc(THD*      const thd,
   }
 
 cleanup:
-  *len = total_length;
+  *len= total_length;
   if (reinit_io_cache(cache, WRITE_CACHE, saved_pos, 0, 0))
   {
     WSREP_ERROR("failed to reinitialize io-cache");
@@ -256,79 +255,16 @@ int wsrep_binlog_close_connection(THD* thd)
 int wsrep_binlog_savepoint_set(THD *thd,  void *sv)
 {
   if (!wsrep_emulate_bin_log) return 0;
-  int rcode = binlog_hton->savepoint_set(binlog_hton, thd, sv);
+  int rcode= binlog_hton->savepoint_set(binlog_hton, thd, sv);
   return rcode;
 }
 
 int wsrep_binlog_savepoint_rollback(THD *thd, void *sv)
 {
   if (!wsrep_emulate_bin_log) return 0;
-  int rcode = binlog_hton->savepoint_rollback(binlog_hton, thd, sv);
+  int rcode= binlog_hton->savepoint_rollback(binlog_hton, thd, sv);
   return rcode;
 }
-
-#if 0
-void wsrep_dump_rbr_direct(THD* thd, IO_CACHE* cache)
-{
-  char filename[PATH_MAX]= {0};
-  int len= snprintf(filename, PATH_MAX, "%s/GRA_%lld_%lld.log",
-                    wsrep_data_home_dir, (longlong) thd->thread_id,
-                    (longlong) wsrep_thd_trx_seqno(thd));
-  size_t bytes_in_cache = 0;
-  // check path
-  if (len >= PATH_MAX)
-  {
-    WSREP_ERROR("RBR dump path too long: %d, skipping dump.", len);
-    return ;
-  }
-  // init cache
-  my_off_t const saved_pos(my_b_tell(cache));
-  if (reinit_io_cache(cache, READ_CACHE, 0, 0, 0))
-  {
-    WSREP_ERROR("failed to initialize io-cache");
-    return ;
-  }
-  // open file
-  FILE* of = fopen(filename, "wb");
-  if (!of)
-  {
-    WSREP_ERROR("Failed to open file '%s': %d (%s)",
-                filename, errno, strerror(errno));
-    goto cleanup;
-  }
-  // ready to write
-  bytes_in_cache= my_b_bytes_in_cache(cache);
-  if (unlikely(bytes_in_cache == 0)) bytes_in_cache = my_b_fill(cache);
-  if (likely(bytes_in_cache > 0)) do
-  {
-    if (my_fwrite(of, cache->read_pos, bytes_in_cache,
-                  MYF(MY_WME | MY_NABP)) == (size_t) -1)
-    {
-      WSREP_ERROR("Failed to write file '%s'", filename);
-      goto cleanup;
-    }
-
-    if (cache->file < 0)
-    {
-      cache->read_pos= cache->read_end;
-      break;
-    }
-  } while ((bytes_in_cache= my_b_fill(cache)));
-  if (cache->error == -1)
-  {
-    WSREP_ERROR("RBR inconsistent");
-    goto cleanup;
-  }
-cleanup:
-  // init back
-  if (reinit_io_cache(cache, WRITE_CACHE, saved_pos, 0, 0))
-  {
-    WSREP_ERROR("failed to reinitialize io-cache");
-  }
-  // close file
-  if (of) fclose(of);
-}
-#endif
 
 void thd_binlog_flush_pending_rows_event(THD *thd, bool stmt_end)
 {
@@ -422,7 +358,6 @@ cleanup1:
 extern Wsrep_thd_pool *wsrep_thd_pool;
 
 #include "log_event.h"
-// #include "binlog.h"
 
 int wsrep_write_skip_event(THD* thd)
 {
@@ -433,7 +368,7 @@ int wsrep_write_skip_event(THD* thd)
   {
     WSREP_WARN("wsrep_write_skip_event: write to binlog failed: %d", ret);
   }
-  if (!ret && (ret = trans_commit_stmt(thd)))
+  if (!ret && (ret= trans_commit_stmt(thd)))
   {
     WSREP_WARN("wsrep_write_skip_event: statt commit failed");
   }
@@ -444,96 +379,9 @@ int wsrep_write_dummy_event_low(THD *thd, const char *msg)
 {
   ::abort();
   return 0;
-#if 0
-  int ret= 0;
-  if (mysql_bin_log.is_open() && wsrep_gtid_mode)
-  {
-    DBUG_ASSERT(thd->wsrep_trx_meta.gtid.seqno != WSREP_SEQNO_UNDEFINED);
-
-    /* For restoring orig thd state before returing it back to pool */
-    int wsrep_on= thd->variables.wsrep_on;
-    int sql_log_bin= thd->variables.sql_log_bin;
-    int option_bits= thd->variables.option_bits;
-    enum wsrep_exec_mode exec_mode= thd->wsrep_exec_mode;
-
-    /*
-      Fake that the connection is local client connection for the duration
-      of mysql_bin_log.write_event(), otherwise the write will fail.
-    */
-    thd->wsrep_exec_mode= LOCAL_STATE;
-    thd->variables.wsrep_on= 1;
-    thd->variables.sql_log_bin= 1;
-    thd->variables.option_bits |= OPTION_BIN_LOG;
-
-    Ignorable_log_event skip_event(thd);
-    ret= mysql_bin_log.write_event(&skip_event);
-
-    /* Restore original thd state */
-    thd->wsrep_exec_mode= exec_mode;
-    thd->variables.wsrep_on= wsrep_on;
-    thd->variables.sql_log_bin= sql_log_bin;
-    thd->variables.option_bits= option_bits;
-
-    if (ret)
-    {
-      WSREP_ERROR("Write to binlog failed: %d", ret);
-      abort();
-      unireg_abort(1);
-    }
-    ret= trans_commit_stmt(thd);
-    if (ret)
-    {
-      WSREP_ERROR("STMT commit failed: %d", ret);
-      abort();
-    }
-  }
-
-  return ret;
-#endif
 }
 
 int wsrep_write_dummy_event(THD *orig_thd, const char *msg)
 {
   return 0;
-#if 0
-  if (WSREP_EMULATE_BINLOG(orig_thd))
-  {
-    return 0;
-  }
-
-  /* Use tmp thd for the transaction to avoid messing up orig_thd
-     transaction state */
-  THD* thd= wsrep_thd_pool->get_thd(0);
-
-  if (!thd)
-  {
-    return 1;
-  }
-
-  /*
-    Use original THD wsrep TRX meta data and WS handle to make
-    commit generate GTID and go through commit ordering hooks.
-   */
-  wsrep_trx_meta_t meta_save= thd->wsrep_trx_meta;
-  thd->wsrep_trx_meta= orig_thd->wsrep_trx_meta;
-  wsrep_ws_handle_t handle_save= thd->wsrep_ws_handle;
-  thd->wsrep_ws_handle= orig_thd->wsrep_ws_handle;
-
-  int ret= wsrep_write_dummy_event_low(thd, msg);
-
-  if (ret || (ret= trans_commit(thd)))
-  {
-    WSREP_ERROR("Failed to write skip event into binlog");
-    abort();
-    unireg_abort(1);
-  }
-
-  thd->wsrep_trx_meta= meta_save;
-  thd->wsrep_ws_handle= handle_save;
-
-  wsrep_thd_pool->release_thd(thd);
-
-  orig_thd->store_globals();
-  return ret;
-#endif
 }

@@ -33,7 +33,7 @@ int wsrep_check_opts()
         autoinc_lock_mode->val_int(&is_null, 0, OPT_GLOBAL, 0) != 2)
     {
       WSREP_ERROR("Parallel applying (wsrep_slave_threads > 1) requires"
-                  " innodb_autoinc_lock_mode = 2.");
+                  " innodb_autoinc_lock_mode= 2.");
       return 1;
     }
   }
@@ -88,7 +88,7 @@ int wsrep_check_opts()
   {
     if (global_system_variables.binlog_format != BINLOG_FORMAT_ROW)
     {
-      WSREP_ERROR("Only binlog_format = 'ROW' is currently supported. "
+      WSREP_ERROR("Only binlog_format= 'ROW' is currently supported. "
                   "Configured value: '%s'. Please adjust your "
                   "configuration.",
                   binlog_format_names[global_system_variables.binlog_format]);

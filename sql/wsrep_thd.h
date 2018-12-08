@@ -229,10 +229,4 @@ static inline void wsrep_log_thd(THD *thd,
 
 #define WSREP_LOG_THD(thd_, message_) wsrep_log_thd(thd_, message_, __FUNCTION__)
 
-#else /* WITH_WSREP */
-
-//#define wsrep_thd_is_BF(T, S) (0)
-//#define wsrep_abort_thd(X,Y,Z) do { } while(0)
-//#define wsrep_create_appliers(T) do { } while(0)
-
 #endif /* WSREP_THD_H */
