@@ -60,7 +60,12 @@ max_statement_time	decimal(12,6)	NO		0.000000
 #
 # Drop the password column.
 #
-alter table mysql.user drop column password;
+alter table mysql.user drop column password,
+drop column is_role,
+drop column default_role,
+add column password_last_changed timestamp null default null after password_expired,
+add column password_lifetime smallint unsigned after password_last_changed,
+add column account_locked enum('n','y') character set utf8 not null default 'n' after password_lifetime;
 flush privileges;
 #
 # Create users without the password column present.
