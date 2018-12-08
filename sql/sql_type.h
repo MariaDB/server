@@ -2234,6 +2234,9 @@ public:
   Timestamp(my_time_t timestamp, ulong sec_part)
    :Timeval(timestamp, sec_part)
   { }
+  explicit Timestamp(const timeval &tv)
+   :Timeval(tv)
+  { }
   const struct timeval &tv() const { return *this; }
   long fraction_remainder(uint dec) const
   {

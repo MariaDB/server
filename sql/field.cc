@@ -1831,12 +1831,9 @@ int Field::store(const char *to, size_t length, CHARSET_INFO *cs,
 }
 
 
-int Field::store_timestamp(my_time_t ts, ulong sec_part)
+int Field::store_timestamp_dec(const timeval &ts, uint dec)
 {
-  MYSQL_TIME ltime;
-  THD *thd= get_thd();
-  thd->timestamp_to_TIME(&ltime, ts, sec_part, date_mode_t(0));
-  return store_time_dec(&ltime, decimals());
+  return store_time_dec(Datetime(get_thd(), ts).get_mysql_time(), dec);
 }
 
 /**
@@ -5014,7 +5011,7 @@ int Field_timestamp::save_in_field(Field *to)
 {
   ulong sec_part;
   my_time_t ts= get_timestamp(&sec_part);
-  return to->store_timestamp(ts, sec_part);
+  return to->store_timestamp_dec(Timeval(ts, sec_part), decimals());
 }
 
 my_time_t Field_timestamp::get_timestamp(const uchar *pos,
@@ -5126,11 +5123,11 @@ int Field_timestamp::store(longlong nr, bool unsigned_val)
 }
 
 
-int Field_timestamp::store_timestamp(my_time_t ts, ulong sec_part)
+int Field_timestamp::store_timestamp_dec(const timeval &ts, uint dec)
 {
   int warn= 0;
   time_round_mode_t mode= Datetime::default_round_mode(get_thd());
-  store_TIMESTAMP(Timestamp(ts, sec_part).round(decimals(), mode, &warn));
+  store_TIMESTAMP(Timestamp(ts).round(decimals(), mode, &warn));
   if (warn)
   {
     /*
@@ -5144,7 +5141,7 @@ int Field_timestamp::store_timestamp(my_time_t ts, ulong sec_part)
     */
     set_warning(Sql_condition::WARN_LEVEL_WARN, ER_WARN_DATA_OUT_OF_RANGE, 1);
   }
-  if (ts == 0 && sec_part == 0 &&
+  if (ts.tv_sec == 0 && ts.tv_usec == 0 &&
       get_thd()->variables.sql_mode & (ulonglong) TIME_NO_ZERO_DATE)
   {
     ErrConvString s(

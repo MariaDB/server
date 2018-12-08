@@ -625,6 +625,41 @@ CREATE TABLE t1 (a TIMESTAMP);
 INSERT INTO t1 SELECT CAST(20010101 AS UNSIGNED);
 DROP TABLE t1;
 
+
+--echo #
+--echo # MDEV-17928 Conversion from TIMESTAMP to VARCHAR SP variables does not work well on fractional digits
+--echo #
+
+SET time_zone='+00:00';
+SET timestamp=UNIX_TIMESTAMP('2001-01-01 10:20:30.123456');
+DELIMITER $$;
+CREATE PROCEDURE p1()
+BEGIN
+  DECLARE ts10 TIMESTAMP(1) DEFAULT NOW();
+  DECLARE ts16 TIMESTAMP(1) DEFAULT NOW(6);
+  DECLARE dt10 DATETIME(1) DEFAULT NOW();
+  DECLARE dt16 DATETIME(1) DEFAULT NOW(6);
+  DECLARE vts10 VARCHAR(32) DEFAULT ts10;
+  DECLARE vts16 VARCHAR(32) DEFAULT ts16;
+  DECLARE vdt10 VARCHAR(32) DEFAULT dt10;
+  DECLARE vdt16 VARCHAR(32) DEFAULT dt16;
+  DECLARE tts10 TEXT(32) DEFAULT ts10;
+  DECLARE tts16 TEXT(32) DEFAULT ts16;
+  DECLARE tdt10 TEXT(32) DEFAULT dt10;
+  DECLARE tdt16 TEXT(32) DEFAULT dt16;
+
+  SELECT vts10, vts16, vdt10, vdt16;
+  SELECT tts10, tts16, tdt10, tdt16;
+END;
+$$
+DELIMITER ;$$
+--vertical_results
+CALL p1;
+--horizontal_results
+DROP PROCEDURE p1;
+SET timestamp=DEFAULT;
+SET time_zone=DEFAULT;
+
 --echo #
 --echo # End of 10.4 tests
 --echo #

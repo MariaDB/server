@@ -853,6 +853,9 @@ public:
     tv_sec= sec;
     tv_usec= usec;
   }
+  explicit Timeval(const timeval &tv)
+   :timeval(tv)
+  { }
 };
 
 
