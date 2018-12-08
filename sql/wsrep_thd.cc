@@ -21,7 +21,6 @@
 #include "rpl_rli.h"
 #include "log_event.h"
 #include "sql_parse.h"
-//#include "global_threads.h" // LOCK_thread_count, etc.
 #include "sql_base.h" // close_thread_tables()
 #include "mysqld.h"   // start_wsrep_THD();
 #include "wsrep_applier.h"   // start_wsrep_THD();
@@ -31,8 +30,8 @@
 #include "rpl_rli.h"
 #include "rpl_mi.h"
 
-static Wsrep_thd_queue* wsrep_rollback_queue = 0;
-static Wsrep_thd_queue* wsrep_post_rollback_queue = 0;
+static Wsrep_thd_queue* wsrep_rollback_queue= 0;
+static Wsrep_thd_queue* wsrep_post_rollback_queue= 0;
 
 #if (__LP64__)
 static volatile int64 wsrep_bf_aborts_counter(0);
@@ -47,9 +46,9 @@ static volatile int32 wsrep_bf_aborts_counter(0);
 int wsrep_show_bf_aborts (THD *thd, SHOW_VAR *var, char *buff,
                           enum enum_var_type scope)
 {
-  wsrep_local_bf_aborts = WSREP_ATOMIC_LOAD_LONG(&wsrep_bf_aborts_counter);
-  var->type = SHOW_LONGLONG;
-  var->value = (char*)&wsrep_local_bf_aborts;
+  wsrep_local_bf_aborts= WSREP_ATOMIC_LOAD_LONG(&wsrep_bf_aborts_counter);
+  var->type= SHOW_LONGLONG;
+  var->value= (char*)&wsrep_local_bf_aborts;
   return 0;
 }
 
@@ -82,7 +81,7 @@ static rpl_group_info* wsrep_relay_group_init(const char* log_fname)
     to not free the "wsrep" rpl_filter. It will eventually be freed by
     free_all_rpl_filters() when server terminates.
   */
-  rli->mi = new Master_info(&connection_name, false);
+  rli->mi= new Master_info(&connection_name, false);
 
   struct rpl_group_info *rgi= new rpl_group_info(rli);
   rgi->thd= rli->sql_driver_thd= current_thd;
@@ -123,7 +122,7 @@ static void wsrep_replication_process(THD *thd,
   
   thd->wsrep_rgi->cleanup_after_session();
   delete thd->wsrep_rgi;
-  thd->wsrep_rgi = NULL;
+  thd->wsrep_rgi= NULL;
 
 
   if(thd->has_thd_temporary_tables())
@@ -371,17 +370,7 @@ void wsrep_create_rollbacker()
       WSREP_WARN("Can't create thread to manage wsrep post rollback");
    }
 }
-#if 0
-void wsrep_thd_set_PA_safe(void *thd_ptr, my_bool safe)
-{ 
-  if (thd_ptr) 
-  {
-    THD* thd = (THD*)thd_ptr;
-    thd->wsrep_PA_safe = safe;
-  }
-}
 
-#endif
 /*
   Start async rollback process
 
@@ -403,8 +392,8 @@ void wsrep_fire_rollbacker(THD *thd)
 int wsrep_abort_thd(void *bf_thd_ptr, void *victim_thd_ptr, my_bool signal)
 {
   DBUG_ENTER("wsrep_abort_thd");
-  THD *victim_thd = (THD *) victim_thd_ptr;
-  THD *bf_thd     = (THD *) bf_thd_ptr;
+  THD *victim_thd= (THD *) victim_thd_ptr;
+  THD *bf_thd= (THD *) bf_thd_ptr;
   mysql_mutex_lock(&victim_thd->LOCK_thd_data);
   if ( (WSREP(bf_thd) ||
          ( (WSREP_ON || bf_thd->variables.wsrep_OSU_method == WSREP_OSU_RSU) &&
@@ -425,22 +414,6 @@ int wsrep_abort_thd(void *bf_thd_ptr, void *victim_thd_ptr, my_bool signal)
   mysql_mutex_unlock(&victim_thd->LOCK_thd_data);
   DBUG_RETURN(1);
 }
-#if 0
-int wsrep_thd_in_locking_session(void *thd_ptr)
-{
-  if (thd_ptr && ((THD *)thd_ptr)->in_lock_tables) {
-    return 1;
-  }
-  return 0;
-}
-
-bool wsrep_thd_has_explicit_locks(THD *thd)
-{
-  assert(thd);
-  return thd->mdl_context.has_explicit_locks();
-}
-
-#endif
 
 bool wsrep_bf_abort(const THD* bf_thd, THD* victim_thd)
 {

@@ -440,7 +440,7 @@ static int scan(TABLE* table, uint field, wsrep::id& id)
   assert(field < table->s->fields);
   String uuid_str;
   (void)table->field[field]->val_str(&uuid_str);
-  id = wsrep::id(std::string(uuid_str.c_ptr(), uuid_str.length()));
+  id= wsrep::id(std::string(uuid_str.c_ptr(), uuid_str.length()));
   return 0;
 }
 
@@ -457,7 +457,7 @@ static int scan(TABLE* table, uint field, char* strbuf, uint strbuf_len)
   String str;
   (void)table->field[field]->val_str(&str);
   strncpy(strbuf, str.c_ptr(), std::min(str.length(), strbuf_len));
-  strbuf[strbuf_len - 1] = '\0';
+  strbuf[strbuf_len - 1]= '\0';
   return 0;
 }
 
@@ -470,8 +470,8 @@ static int scan_member(TABLE* table,
                        std::vector<Wsrep_view::member>& members)
 {
   Wsrep_id member_id;
-  char member_name[128] = { 0, };
-  char member_incoming[128] = { 0, };
+  char member_name[128]= { 0, };
+  char member_incoming[128]= { 0, };
 
   if (scan(table, 0, member_id) ||
       scan(table, 2, member_name, sizeof(member_name)) ||
@@ -559,7 +559,7 @@ static void make_key(TABLE* table, uchar* key, key_part_map* map, int parts) {
   KEY_PART_INFO* key_part= table->key_info->key_part;
   for (int i=0; i < parts; i++)
     prefix_length += key_part[i].store_length;
-  *map = make_prev_keypart_map(parts);
+  *map= make_prev_keypart_map(parts);
   key_copy(key, table->record[0], table->key_info, prefix_length);
 }
 } /* namespace Wsrep_schema_impl */
@@ -736,8 +736,8 @@ Wsrep_view Wsrep_schema::restore_view(THD* thd, const Wsrep_id& own_id) const {
   std::vector<Wsrep_view::member> members;
 
   // we don't want causal waits for reading non-replicated private data
-  int const wsrep_sync_wait_saved = thd->variables.wsrep_sync_wait;
-  thd->variables.wsrep_sync_wait = 0;
+  int const wsrep_sync_wait_saved= thd->variables.wsrep_sync_wait;
+  thd->variables.wsrep_sync_wait= 0;
 
   if (trans_begin(thd, MYSQL_START_TRANS_OPT_READ_ONLY)) {
     WSREP_ERROR("wsrep_schema::restore_view(): Failed to start transaction");
@@ -825,7 +825,7 @@ Wsrep_view Wsrep_schema::restore_view(THD* thd, const Wsrep_id& own_id) const {
   }
   thd->mdl_context.release_transactional_locks();
 
-  thd->variables.wsrep_sync_wait = wsrep_sync_wait_saved;
+  thd->variables.wsrep_sync_wait= wsrep_sync_wait_saved;
 
   if (0 == ret) {
     Wsrep_view ret_view(
@@ -1281,7 +1281,7 @@ int Wsrep_schema::recover_sr_transactions()
                              flags);
 
       wsrep::high_priority_service* applier;
-      if (!(applier = server_state.find_streaming_applier(server_id,
+      if (!(applier= server_state.find_streaming_applier(server_id,
                                                           transaction_id)))
       {
         DBUG_ASSERT(wsrep::starts_transaction(flags));

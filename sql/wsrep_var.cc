@@ -51,7 +51,7 @@ bool wsrep_on_update (sys_var *self, THD* thd, enum_var_type var_type)
 {
   if (var_type == OPT_GLOBAL) {
     // FIXME: this variable probably should be changed only per session
-    thd->variables.wsrep_on = global_system_variables.wsrep_on;
+    thd->variables.wsrep_on= global_system_variables.wsrep_on;
   }
 
   return false;
@@ -75,10 +75,6 @@ bool wsrep_on_check(sys_var *self, THD* thd, set_var* var)
 
 bool wsrep_causal_reads_update (sys_var *self, THD* thd, enum_var_type var_type)
 {
-  // global setting should not affect session setting.
-  // if (var_type == OPT_GLOBAL) {
-  //   thd->variables.wsrep_causal_reads = global_system_variables.wsrep_causal_reads;
-  // }
   if (thd->variables.wsrep_causal_reads) {
     thd->variables.wsrep_sync_wait |= WSREP_SYNC_WAIT_BEFORE_READ;
   } else {
@@ -97,15 +93,11 @@ bool wsrep_causal_reads_update (sys_var *self, THD* thd, enum_var_type var_type)
 
 bool wsrep_sync_wait_update (sys_var* self, THD* thd, enum_var_type var_type)
 {
-  // global setting should not affect session setting.
-  // if (var_type == OPT_GLOBAL) {
-  //   thd->variables.wsrep_sync_wait = global_system_variables.wsrep_sync_wait;
-  // }
-  thd->variables.wsrep_causal_reads = thd->variables.wsrep_sync_wait &
+  thd->variables.wsrep_causal_reads= thd->variables.wsrep_sync_wait &
           WSREP_SYNC_WAIT_BEFORE_READ;
 
   // update global settings too
-  global_system_variables.wsrep_causal_reads = global_system_variables.wsrep_sync_wait &
+  global_system_variables.wsrep_causal_reads= global_system_variables.wsrep_sync_wait &
           WSREP_SYNC_WAIT_BEFORE_READ;
 
   return false;
@@ -127,7 +119,7 @@ bool wsrep_start_position_verify (const char* start_str)
   ssize_t       uuid_len;
 
   // Check whether it has minimum acceptable length.
-  start_len = strlen (start_str);
+  start_len= strlen (start_str);
   if (start_len < 34)
     return true;
 
@@ -135,7 +127,7 @@ bool wsrep_start_position_verify (const char* start_str)
     Parse the input to check whether UUID length is acceptable
     and seqno has been provided.
   */
-  uuid_len = wsrep_uuid_scan (start_str, start_len, &uuid);
+  uuid_len= wsrep_uuid_scan (start_str, start_len, &uuid);
   if (uuid_len < 0 || (start_len - uuid_len) < 2)
     return true;
 
@@ -159,15 +151,14 @@ bool wsrep_set_local_position(THD* thd, const char* const value,
                               size_t length, bool const sst)
 {
   wsrep_uuid_t uuid;
-  size_t const uuid_len = wsrep_uuid_scan(value, length, &uuid);
-  wsrep_seqno_t const seqno = strtoll(value + uuid_len + 1, NULL, 10);
+  size_t const uuid_len= wsrep_uuid_scan(value, length, &uuid);
+  wsrep_seqno_t const seqno= strtoll(value + uuid_len + 1, NULL, 10);
 
   if (sst) {
     wsrep_sst_received (thd, uuid, seqno, NULL, 0);
   } else {
-    // initialization
-    local_uuid = uuid;
-    local_seqno = seqno;
+    local_uuid= uuid;
+    local_seqno= seqno;
   }
   return false;
 }
@@ -357,7 +348,7 @@ bool wsrep_provider_update (sys_var *self, THD* thd, enum_var_type type)
   if (wsrep_init())
   {
     my_error(ER_CANT_OPEN_LIBRARY, MYF(0), tmp, my_error, "wsrep_init failed");
-    rcode = true;
+    rcode= true;
   }
   free(tmp);
 
@@ -385,7 +376,7 @@ void wsrep_provider_init (const char* value)
   }
 
   if (wsrep_provider) my_free((void *)wsrep_provider);
-  wsrep_provider = my_strdup(value, MYF(0));
+  wsrep_provider= my_strdup(value, MYF(0));
 }
 
 bool wsrep_provider_options_check(sys_var *self, THD* thd, set_var* var)
@@ -415,7 +406,7 @@ void wsrep_provider_options_init(const char* value)
 {
   if (wsrep_provider_options && wsrep_provider_options != value) 
     my_free((void *)wsrep_provider_options);
-  wsrep_provider_options = (value) ? my_strdup(value, MYF(0)) : NULL;
+  wsrep_provider_options= (value) ? my_strdup(value, MYF(0)) : NULL;
 }
 
 bool wsrep_reject_queries_update(sys_var *self, THD* thd, enum_var_type type)
@@ -578,13 +569,12 @@ void wsrep_node_address_init (const char* value)
   if (wsrep_node_address && strcmp(wsrep_node_address, value))
     my_free ((void*)wsrep_node_address);
 
-  wsrep_node_address = (value) ? my_strdup(value, MYF(0)) : NULL;
+  wsrep_node_address= (value) ? my_strdup(value, MYF(0)) : NULL;
 }
 
 static void wsrep_slave_count_change_update ()
 {
-  // wsrep_running_threads = appliers threads + 2 rollbacker threads
-  wsrep_slave_count_change = (wsrep_slave_threads - wsrep_running_threads + 2);
+  wsrep_slave_count_change= (wsrep_slave_threads - wsrep_running_threads + 2);
   WSREP_DEBUG("Change on slave threads: New %lu old %lu difference %d",
       wsrep_slave_threads, wsrep_running_threads, wsrep_slave_count_change);
 }
@@ -595,7 +585,7 @@ bool wsrep_slave_threads_update (sys_var *self, THD* thd, enum_var_type type)
   if (wsrep_slave_count_change > 0)
   {
     wsrep_create_appliers(wsrep_slave_count_change);
-    wsrep_slave_count_change = 0;
+    wsrep_slave_count_change= 0;
   }
   return false;
 }
@@ -659,7 +649,7 @@ bool wsrep_trx_fragment_size_check (sys_var *self, THD* thd, set_var* var)
     return false;
   }
 
-  const ulong new_trx_fragment_size = var->value->val_uint();
+  const ulong new_trx_fragment_size= var->value->val_uint();
 
   if (!WSREP(thd) && new_trx_fragment_size > 0) {
     push_warning (thd, Sql_condition::WARN_LEVEL_WARN,
@@ -750,43 +740,43 @@ static int show_var_cmp(const void *var1, const void *var2)
 static inline void
 wsrep_assign_to_mysql (SHOW_VAR* mysql, wsrep_stats_var* wsrep_var)
 {
-  mysql->name = wsrep_var->name;
+  mysql->name= wsrep_var->name;
   switch (wsrep_var->type) {
   case WSREP_VAR_INT64:
-    mysql->value = (char*) &wsrep_var->value._int64;
-    mysql->type  = SHOW_LONGLONG;
+    mysql->value= (char*) &wsrep_var->value._int64;
+    mysql->type= SHOW_LONGLONG;
     break;
   case WSREP_VAR_STRING:
-    mysql->value = (char*) &wsrep_var->value._string;
-    mysql->type  = SHOW_CHAR_PTR;
+    mysql->value= (char*) &wsrep_var->value._string;
+    mysql->type= SHOW_CHAR_PTR;
     break;
   case WSREP_VAR_DOUBLE:
-    mysql->value = (char*) &wsrep_var->value._double;
-    mysql->type  = SHOW_DOUBLE;
+    mysql->value= (char*) &wsrep_var->value._double;
+    mysql->type= SHOW_DOUBLE;
     break;
   }
 }
 
 #if DYNAMIC
 // somehow this mysql status thing works only with statically allocated arrays.
-static SHOW_VAR*          mysql_status_vars = NULL;
-static int                mysql_status_len  = -1;
+static SHOW_VAR*          mysql_status_vars= NULL;
+static int                mysql_status_len= -1;
 #else
 static SHOW_VAR           mysql_status_vars[512 + 1];
-static const int          mysql_status_len  = 512;
+static const int          mysql_status_len= 512;
 #endif
 
 static void export_wsrep_status_to_mysql(THD* thd)
 {
   int wsrep_status_len, i;
 
-  thd->wsrep_status_vars = Wsrep_server_state::instance().status();
+  thd->wsrep_status_vars= Wsrep_server_state::instance().status();
 
   wsrep_status_len= thd->wsrep_status_vars.size();
 
 #if DYNAMIC
   if (wsrep_status_len != mysql_status_len) {
-    void* tmp = realloc (mysql_status_vars,
+    void* tmp= realloc (mysql_status_vars,
                          (wsrep_status_len + 1) * sizeof(SHOW_VAR));
     if (!tmp) {
 
@@ -795,15 +785,15 @@ static void export_wsrep_status_to_mysql(THD* thd)
       return;
     }
 
-    mysql_status_len  = wsrep_status_len;
-    mysql_status_vars = (SHOW_VAR*)tmp;
+    mysql_status_len= wsrep_status_len;
+    mysql_status_vars= (SHOW_VAR*)tmp;
   }
   /* @TODO: fix this: */
 #else
   if (mysql_status_len < wsrep_status_len) wsrep_status_len= mysql_status_len;
 #endif
 
-  for (i = 0; i < wsrep_status_len; i++)
+  for (i= 0; i < wsrep_status_len; i++)
   {
     mysql_status_vars[i].name= (char*)thd->wsrep_status_vars[i].name().c_str();
     mysql_status_vars[i].value= (char*)thd->wsrep_status_vars[i].value().c_str();

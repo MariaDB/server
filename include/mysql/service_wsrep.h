@@ -18,45 +18,7 @@
 #include <my_pthread.h>
 #ifdef __cplusplus
 #endif
-enum wsrep_conflict_state {
-    NO_CONFLICT,
-    MUST_ABORT,
-    ABORTING,
-    ABORTED,
-    MUST_REPLAY,
-    REPLAYING,
-    RETRY_AUTOCOMMIT,
-    CERT_FAILURE,
-};
 
-enum wsrep_exec_mode {
-    /* Transaction processing before replication. */
-    LOCAL_STATE,
-    /* Slave thread applying write sets from other nodes or replaying thread. */
-    REPL_RECV,
-    /* Total-order-isolation mode. */
-    TOTAL_ORDER,
-    /*
-      Transaction procession after it has been replicated in prepare stage and
-      has passed certification.
-    */
-    LOCAL_COMMIT,
-    LOCAL_ROLLBACK,
-};
-
-enum wsrep_query_state {
-    QUERY_IDLE,
-    QUERY_EXEC,
-    QUERY_COMMITTING,
-    QUERY_EXITING,
-};
-
-enum wsrep_trx_status {
-    WSREP_TRX_OK,
-    WSREP_TRX_CERT_FAIL,      /* certification failure, must abort */
-    WSREP_TRX_SIZE_EXCEEDED,  /* trx size exceeded */
-    WSREP_TRX_ERROR,          /* native mysql error */
-};
 struct xid_t;
 struct wsrep_ws_handle;
 struct wsrep_buf;

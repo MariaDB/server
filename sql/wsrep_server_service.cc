@@ -48,7 +48,7 @@ wsrep::storage_service* Wsrep_server_service::storage_service(
 {
   Wsrep_client_service& cs=
     static_cast<Wsrep_client_service&>(client_service);
-  THD* thd = new THD(next_thread_id(), true, true);
+  THD* thd= new THD(next_thread_id(), true, true);
   init_service_thd(thd, cs.m_thd->thread_stack);
   WSREP_DEBUG("Created storage service with thread id %llu",
               thd->thread_id);
@@ -60,7 +60,7 @@ wsrep::storage_service* Wsrep_server_service::storage_service(
 {
   Wsrep_high_priority_service& hps=
     static_cast<Wsrep_high_priority_service&>(high_priority_service);
-  THD* thd = new THD(next_thread_id(), true, true);
+  THD* thd= new THD(next_thread_id(), true, true);
   init_service_thd(thd, hps.m_thd->thread_stack);
   WSREP_DEBUG("Created high priority storage service with thread id %llu",
               thd->thread_id);
@@ -158,7 +158,7 @@ void Wsrep_server_service::log_view(
   {
     global_system_variables.auto_increment_offset= view.own_index() + 1;
     global_system_variables.auto_increment_increment= view.members().size();
-    wsrep_protocol_version = view.protocol_version();
+    wsrep_protocol_version= view.protocol_version();
   }
   mysql_mutex_unlock(&LOCK_global_system_variables);
 

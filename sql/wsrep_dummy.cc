@@ -35,7 +35,7 @@ long long wsrep_xid_seqno(const XID* x)
 
 const unsigned char* wsrep_xid_uuid(const XID*)
 {
-    static const unsigned char uuid[16] = {0};
+    static const unsigned char uuid[16]= {0};
     return uuid;
 }
 

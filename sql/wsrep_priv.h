@@ -47,6 +47,6 @@ void wsrep_sst_received(THD*, const wsrep_uuid_t&, wsrep_seqno_t,
                         const void*, size_t);
 
 void wsrep_notify_status (wsrep_member_status_t new_status,
-                          const wsrep_view_info_t* view = 0);
+                          const wsrep_view_info_t* view= 0);
 
 #endif /* WSREP_PRIV_H */

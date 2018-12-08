@@ -49,7 +49,7 @@ static wsp::string wsrep_PATH;
 void
 wsrep_prepend_PATH (const char* path)
 {
-    int count = 0;
+    int count= 0;
 
     while (environ[count])
     {
@@ -74,7 +74,7 @@ wsrep_prepend_PATH (const char* path)
                       old_path + strlen("PATH="));
 
             wsrep_PATH.set (new_path);
-            environ[count] = new_path;
+            environ[count]= new_path;
         }
         else
         {
@@ -95,28 +95,28 @@ namespace wsp
 bool
 env::ctor_common(char** e)
 {
-    env_ = static_cast<char**>(malloc((len_ + 1) * sizeof(char*)));
+    env_= static_cast<char**>(malloc((len_ + 1) * sizeof(char*)));
 
     if (env_)
     {
         for (size_t i(0); i < len_; ++i)
         {
             assert(e[i]); // caller should make sure about len_
-            env_[i] = strdup(e[i]);
+            env_[i]= strdup(e[i]);
             if (!env_[i])
             {
-                errno_ = errno;
+                errno_= errno;
                 WSREP_ERROR("Failed to allocate env. var: %s", e[i]);
                 return true;
             }
         }
 
-        env_[len_] = NULL;
+        env_[len_]= NULL;
         return false;
     }
     else
     {
-        errno_ = errno;
+        errno_= errno;
         WSREP_ERROR("Failed to allocate env. var vector of length: %zu", len_);
         return true;
     }
@@ -130,15 +130,15 @@ env::dtor()
         /* don't need to go beyond the first NULL */
         for (size_t i(0); env_[i] != NULL; ++i) { free(env_[i]); }
         free(env_);
-        env_ = NULL;
+        env_= NULL;
     }
-    len_ = 0;
+    len_= 0;
 }
 
 env::env(char** e)
     : len_(0), env_(NULL), errno_(0)
 {
-    if (!e) { e = environ; }
+    if (!e) { e= environ; }
     /* count the size of the vector */
     while (e[len_]) { ++len_; }
 
@@ -156,21 +156,21 @@ env::~env() { dtor(); }
 int
 env::append(const char* val)
 {
-    char** tmp = static_cast<char**>(realloc(env_, (len_ + 2)*sizeof(char*)));
+    char** tmp= static_cast<char**>(realloc(env_, (len_ + 2)*sizeof(char*)));
 
     if (tmp)
     {
-        env_ = tmp;
-        env_[len_] = strdup(val);
+        env_= tmp;
+        env_[len_]= strdup(val);
 
         if (env_[len_])
         {
             ++len_;
-            env_[len_] = NULL;
+            env_[len_]= NULL;
         }
-        else errno_ = errno;
+        else errno_= errno;
     }
-    else errno_ = errno;
+    else errno_= errno;
 
     return errno_;
 }
@@ -191,7 +191,7 @@ process::process (const char* cmd, const char* type, char** env)
     if (0 == str_)
     {
         WSREP_ERROR ("Can't allocate command line of size: %zu", strlen(cmd));
-        err_ = ENOMEM;
+        err_= ENOMEM;
         return;
     }
 
@@ -207,12 +207,12 @@ process::process (const char* cmd, const char* type, char** env)
         return;
     }
 
-    if (NULL == env) { env = environ; } // default to global environment
+    if (NULL == env) { env= environ; } // default to global environment
 
-    int pipe_fds[2] = { -1, };
+    int pipe_fds[2]= { -1, };
     if (::pipe(pipe_fds))
     {
-        err_ = errno;
+        err_= errno;
         WSREP_ERROR ("pipe() failed: %d (%s)", err_, strerror(err_));
         return;
     }
@@ -222,16 +222,16 @@ process::process (const char* cmd, const char* type, char** env)
     int const child_end  (parent_end == PIPE_READ ? PIPE_WRITE : PIPE_READ);
     int const close_fd   (parent_end == PIPE_READ ? STDOUT_FD : STDIN_FD);
 
-    char* const pargv[4] = { strdup("sh"), strdup("-c"), strdup(str_), NULL };
+    char* const pargv[4]= { strdup("sh"), strdup("-c"), strdup(str_), NULL };
     if (!(pargv[0] && pargv[1] && pargv[2]))
     {
-        err_ = ENOMEM;
+        err_= ENOMEM;
         WSREP_ERROR ("Failed to allocate pargv[] array.");
         goto cleanup_pipe;
     }
 
     posix_spawnattr_t attr;
-    err_ = posix_spawnattr_init (&attr);
+    err_= posix_spawnattr_init (&attr);
     if (err_)
     {
         WSREP_ERROR ("posix_spawnattr_init() failed: %d (%s)",
@@ -241,7 +241,7 @@ process::process (const char* cmd, const char* type, char** env)
 
     /* make sure that no signlas are masked in child process */
     sigset_t sigmask_empty; sigemptyset(&sigmask_empty);
-    err_ = posix_spawnattr_setsigmask(&attr, &sigmask_empty);
+    err_= posix_spawnattr_setsigmask(&attr, &sigmask_empty);
     if (err_)
     {
         WSREP_ERROR ("posix_spawnattr_setsigmask() failed: %d (%s)",
@@ -257,7 +257,7 @@ process::process (const char* cmd, const char* type, char** env)
     sigaddset(&default_signals, SIGPIPE);
     sigaddset(&default_signals, SIGTERM);
     sigaddset(&default_signals, SIGCHLD);
-    err_ = posix_spawnattr_setsigdefault(&attr, &default_signals);
+    err_= posix_spawnattr_setsigdefault(&attr, &default_signals);
     if (err_)
     {
         WSREP_ERROR ("posix_spawnattr_setsigdefault() failed: %d (%s)",
@@ -265,7 +265,7 @@ process::process (const char* cmd, const char* type, char** env)
         goto cleanup_attr;
     }
 
-    err_ = posix_spawnattr_setflags (&attr, POSIX_SPAWN_SETSIGDEF  |
+    err_= posix_spawnattr_setflags (&attr, POSIX_SPAWN_SETSIGDEF  |
                                             POSIX_SPAWN_SETSIGMASK |
                                             POSIX_SPAWN_USEVFORK);
     if (err_)
@@ -276,7 +276,7 @@ process::process (const char* cmd, const char* type, char** env)
     }
 
     posix_spawn_file_actions_t fact;
-    err_ = posix_spawn_file_actions_init (&fact);
+    err_= posix_spawn_file_actions_init (&fact);
     if (err_)
     {
         WSREP_ERROR ("posix_spawn_file_actions_init() failed: %d (%s)",
@@ -285,7 +285,7 @@ process::process (const char* cmd, const char* type, char** env)
     }
 
     // close child's stdout|stdin depending on what we returning
-    err_ = posix_spawn_file_actions_addclose (&fact, close_fd);
+    err_= posix_spawn_file_actions_addclose (&fact, close_fd);
     if (err_)
     {
         WSREP_ERROR ("posix_spawn_file_actions_addclose() failed: %d (%s)",
@@ -294,7 +294,7 @@ process::process (const char* cmd, const char* type, char** env)
     }
 
     // substitute our pipe descriptor in place of the closed one
-    err_ = posix_spawn_file_actions_adddup2 (&fact,
+    err_= posix_spawn_file_actions_adddup2 (&fact,
                                              pipe_fds[child_end], close_fd);
     if (err_)
     {
@@ -303,30 +303,30 @@ process::process (const char* cmd, const char* type, char** env)
         goto cleanup_fact;
     }
 
-    err_ = posix_spawnp (&pid_, pargv[0], &fact, &attr, pargv, env);
+    err_= posix_spawnp (&pid_, pargv[0], &fact, &attr, pargv, env);
     if (err_)
     {
         WSREP_ERROR ("posix_spawnp(%s) failed: %d (%s)",
                      pargv[2], err_, strerror(err_));
-        pid_ = 0; // just to make sure it was not messed up in the call
+        pid_= 0; // just to make sure it was not messed up in the call
         goto cleanup_fact;
     }
 
-    io_ = fdopen (pipe_fds[parent_end], type);
+    io_= fdopen (pipe_fds[parent_end], type);
 
     if (io_)
     {
-        pipe_fds[parent_end] = -1; // skip close on cleanup
+        pipe_fds[parent_end]= -1; // skip close on cleanup
     }
     else
     {
-        err_ = errno;
+        err_= errno;
         WSREP_ERROR ("fdopen() failed: %d (%s)", err_, strerror(err_));
     }
 
 cleanup_fact:
     int err; // to preserve err_ code
-    err = posix_spawn_file_actions_destroy (&fact);
+    err= posix_spawn_file_actions_destroy (&fact);
     if (err)
     {
         WSREP_ERROR ("posix_spawn_file_actions_destroy() failed: %d (%s)\n",
@@ -334,7 +334,7 @@ cleanup_fact:
     }
 
 cleanup_attr:
-    err = posix_spawnattr_destroy (&attr);
+    err= posix_spawnattr_destroy (&attr);
     if (err)
     {
         WSREP_ERROR ("posix_spawnattr_destroy() failed: %d (%s)",
@@ -362,7 +362,7 @@ process::~process ()
 
         if (fclose (io_) == -1)
         {
-            err_ = errno;
+            err_= errno;
             WSREP_ERROR("fclose() failed: %d (%s)", err_, strerror(err_));
         }
     }
@@ -378,34 +378,34 @@ process::wait ()
       int status;
       if (-1 == waitpid(pid_, &status, 0))
       {
-          err_ = errno; assert (err_);
+          err_= errno; assert (err_);
           WSREP_ERROR("Waiting for process failed: %s, PID(%ld): %d (%s)",
                       str_, (long)pid_, err_, strerror (err_));
       }
       else
       {                // command completed, check exit status
           if (WIFEXITED (status)) {
-              err_ = WEXITSTATUS (status);
+              err_= WEXITSTATUS (status);
           }
           else {       // command didn't complete with exit()
               WSREP_ERROR("Process was aborted.");
-              err_ = errno ? errno : ECHILD;
+              err_= errno ? errno : ECHILD;
           }
 
           if (err_) {
               switch (err_) /* Translate error codes to more meaningful */
               {
-              case 126: err_ = EACCES; break; /* Permission denied */
-              case 127: err_ = ENOENT; break; /* No such file or directory */
-              case 143: err_ = EINTR;  break; /* Subprocess killed */
+              case 126: err_= EACCES; break; /* Permission denied */
+              case 127: err_= ENOENT; break; /* No such file or directory */
+              case 143: err_= EINTR;  break; /* Subprocess killed */
               }
               WSREP_ERROR("Process completed with error: %s: %d (%s)",
                           str_, err_, strerror(err_));
           }
 
-          pid_ = 0;
+          pid_= 0;
           if (io_) fclose (io_);
-          io_ = NULL;
+          io_= NULL;
       }
   }
   else {
@@ -423,7 +423,7 @@ thd::thd (my_bool won) : init(), ptr(new THD(0))
     ptr->thread_stack= (char*) &ptr;
     ptr->store_globals();
     ptr->variables.option_bits&= ~OPTION_BIN_LOG; // disable binlog
-    ptr->variables.wsrep_on = won;
+    ptr->variables.wsrep_on= won;
     ptr->security_ctx->master_access= ~(ulong)0;
     lex_start(ptr);
   }
@@ -443,7 +443,7 @@ thd::~thd ()
 /* Returns INADDR_NONE, INADDR_ANY, INADDR_LOOPBACK or something else */
 unsigned int wsrep_check_ip (const char* const addr, bool *is_ipv6)
 {
-  unsigned int ret = INADDR_NONE;
+  unsigned int ret= INADDR_NONE;
   struct addrinfo *res, hints;
 
   memset (&hints, 0, sizeof(hints));
@@ -453,7 +453,7 @@ unsigned int wsrep_check_ip (const char* const addr, bool *is_ipv6)
 
   *is_ipv6= false;
 
-  int gai_ret = getaddrinfo(addr, NULL, &hints, &res);
+  int gai_ret= getaddrinfo(addr, NULL, &hints, &res);
   if (0 == gai_ret)
   {
     if (AF_INET == res->ai_family) /* IPv4 */
@@ -541,7 +541,7 @@ size_t wsrep_guess_ip (char* buf, size_t buf_len)
 
   if (getifaddrs(&ifaddr) == 0)
   {
-    for (ifa= ifaddr; ifa != NULL; ifa = ifa->ifa_next)
+    for (ifa= ifaddr; ifa != NULL; ifa= ifa->ifa_next)
     {
       if (!ifa->ifa_addr)
         continue;
