@@ -10365,9 +10365,9 @@ bool mysql_rename_user(THD *thd, List <LEX_USER> &list)
       continue;
     }
     some_users_renamed= TRUE;
+    rebuild_acl_users();
   }
 
-  rebuild_acl_users();
 
   /* Rebuild 'acl_check_hosts' since 'acl_users' has been modified */
   rebuild_check_host();

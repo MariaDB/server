@@ -2258,3 +2258,12 @@ DROP USER dummy@localhost;
 --echo #
 --echo # End of 10.2 tests
 --echo #
+
+--echo #
+--echo # MDEV-17932 : Assertion upon double RENAME USER
+--echo #
+CREATE USER foo@localhost;
+CREATE USER bar2@localhost;
+RENAME USER foo@localhost TO bar1@localhost, bar1@localhost TO bar3@localhost;
+DROP USER bar2@localhost;
+DROP USER bar3@localhost;
