@@ -4186,11 +4186,7 @@ mysql_execute_command(THD *thd)
         goto end_with_restore_list;
       }
 
-      /* Copy temporarily the statement flags to thd for lock_table_names() */
-      uint save_thd_create_info_options= thd->lex->create_info.options;
-      thd->lex->create_info.options|= create_info.options;
       res= open_and_lock_tables(thd, create_info, lex->query_tables, TRUE, 0);
-      thd->lex->create_info.options= save_thd_create_info_options;
       if (unlikely(res))
       {
         /* Got error or warning. Set res to 1 if error */

@@ -5543,12 +5543,7 @@ bool mysql_create_like_table(THD* thd, TABLE_LIST* table,
     properly isolated from all concurrent operations which matter.
   */
 
-  /* Copy temporarily the statement flags to thd for lock_table_names() */
-  // QQ: is this really needed???
-  uint save_thd_create_info_options= thd->lex->create_info.options;
-  thd->lex->create_info.options|= create_info->options;
-  res= open_tables(thd, &thd->lex->query_tables, &not_used, 0);
-  thd->lex->create_info.options= save_thd_create_info_options;
+  res= open_tables(thd, *create_info, &thd->lex->query_tables, &not_used, 0);
 
   if (res)
   {
