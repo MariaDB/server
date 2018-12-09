@@ -1358,7 +1358,8 @@ The following specify which files/extra groups are read (specified before remain
  (usually get from GUI tools)
  --use-stat-tables=name 
  Specifies how to use system statistics tables. One of: 
- NEVER, COMPLEMENTARY, PREFERABLY
+ NEVER, COMPLEMENTARY, PREFERABLY, 
+ COMPLEMENTARY_FOR_QUERIES, PREFERABLY_FOR_QUERIES
  -u, --user=name     Run mysqld daemon as user.
  --userstat          Enables statistics gathering for USER_STATISTICS,
  CLIENT_STATISTICS, INDEX_STATISTICS and TABLE_STATISTICS
@@ -1723,7 +1724,7 @@ transaction-isolation REPEATABLE-READ
 transaction-prealloc-size 4096
 transaction-read-only FALSE
 updatable-views-with-limit YES
-use-stat-tables PREFERABLY
+use-stat-tables PREFERABLY_FOR_QUERIES
 userstat FALSE
 verbose TRUE
 wait-timeout 28800

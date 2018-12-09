@@ -5855,12 +5855,13 @@ static Sys_var_ulong Sys_progress_report_time(
        VALID_RANGE(0, UINT_MAX), DEFAULT(5), BLOCK_SIZE(1));
 
 const char *use_stat_tables_modes[] =
-           {"NEVER", "COMPLEMENTARY", "PREFERABLY", 0};
+           {"NEVER", "COMPLEMENTARY", "PREFERABLY",
+           "COMPLEMENTARY_FOR_QUERIES", "PREFERABLY_FOR_QUERIES", 0};
 static Sys_var_enum Sys_optimizer_use_stat_tables(
        "use_stat_tables",
        "Specifies how to use system statistics tables",
        SESSION_VAR(use_stat_tables), CMD_LINE(REQUIRED_ARG),
-       use_stat_tables_modes, DEFAULT(2));
+       use_stat_tables_modes, DEFAULT(4));
 
 static Sys_var_ulong Sys_histogram_size(
        "histogram_size",

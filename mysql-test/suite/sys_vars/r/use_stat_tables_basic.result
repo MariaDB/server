@@ -10,7 +10,7 @@ SET @@global.use_stat_tables = 2;
 SET @@global.use_stat_tables = DEFAULT;
 SELECT @@global.use_stat_tables;
 @@global.use_stat_tables
-PREFERABLY
+PREFERABLY_FOR_QUERIES
 SET @@global.use_stat_tables = 0;
 SELECT @@global.use_stat_tables;
 @@global.use_stat_tables

@@ -3720,9 +3720,8 @@ void set_statistics_for_table(THD *thd, TABLE *table)
 {
   TABLE_STATISTICS_CB *stats_cb= &table->s->stats_cb;
   Table_statistics *read_stats= stats_cb->table_stats;
-  Use_stat_tables_mode use_stat_table_mode= get_use_stat_tables_mode(thd);
   table->used_stat_records= 
-    (use_stat_table_mode <= COMPLEMENTARY ||
+    (!check_eits_preferred(thd) ||
      !table->stats_is_read || read_stats->cardinality_is_null) ?
     table->file->stats.records : read_stats->cardinality;
   KEY *key_info, *key_info_end;
@@ -3730,7 +3729,7 @@ void set_statistics_for_table(THD *thd, TABLE *table)
        key_info < key_info_end; key_info++)
   {
     key_info->is_statistics_from_stat_tables=
-      (use_stat_table_mode > COMPLEMENTARY &&
+      (check_eits_preferred(thd) &&
        table->stats_is_read &&
        key_info->read_stats->avg_frequency_is_inited() &&
        key_info->read_stats->get_avg_frequency(0) > 0.5);
