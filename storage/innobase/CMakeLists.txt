@@ -196,8 +196,6 @@ IF(MSVC)
   TARGET_COMPILE_OPTIONS(innobase PRIVATE "/wd4065")
 ENDIF()
 
-ADD_SUBDIRECTORY(${CMAKE_SOURCE_DIR}/extra/mariabackup ${CMAKE_BINARY_DIR}/extra/mariabackup)
-
-IF(TARGET innobase)
-  ADD_DEPENDENCIES(innobase GenError)
+IF(NOT (PLUGIN_INNOBASE STREQUAL DYNAMIC))
+  ADD_SUBDIRECTORY(${CMAKE_SOURCE_DIR}/extra/mariabackup ${CMAKE_BINARY_DIR}/extra/mariabackup)
 ENDIF()
