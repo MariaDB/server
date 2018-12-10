@@ -871,83 +871,6 @@ stop_query_killer()
 }
 
 
-/*
-Killing connections that wait for MDL lock.
-If lock-ddl-per-table is used, there can be some DDL statements
-
-FLUSH TABLES would hang infinitely, if DDL statements are waiting for
-MDL lock, which mariabackup currently holds. Therefore we start killing
-those  statements from a dedicated thread, until FLUSH TABLES WITH READ LOCK
-succeeds.
-*/
-
-static os_event_t mdl_killer_stop_event;
-static os_event_t mdl_killer_finished_event;
-
-static
-os_thread_ret_t
-DECLARE_THREAD(kill_mdl_waiters_thread(void *))
-{
-	MYSQL	*mysql;
-	if ((mysql = xb_mysql_connect()) == NULL) {
-		msg("Error: kill mdl waiters thread failed to connect\n");
-		goto stop_thread;
-	}
-
-	for(;;){
-		if (os_event_wait_time(mdl_killer_stop_event, 1000) == 0)
-			break;
-
-		MYSQL_RES *result = xb_mysql_query(mysql,
-			"SELECT ID, COMMAND, INFO FROM INFORMATION_SCHEMA.PROCESSLIST "
-			" WHERE State='Waiting for table metadata lock'",
-			true, true);
-		while (MYSQL_ROW row = mysql_fetch_row(result))
-		{
-			char query[64];
-
-			if (row[1] && !strcmp(row[1], "Killed"))
-				continue;
-
-			msg_ts("Killing MDL waiting %s ('%s') on connection %s\n",
-				row[1], row[2], row[0]);
-			snprintf(query, sizeof(query), "KILL QUERY %s", row[0]);
-			if (mysql_query(mysql, query) && (mysql_errno(mysql) != ER_NO_SUCH_THREAD)) {
-				msg("Error: failed to execute query %s: %s\n", query,mysql_error(mysql));
-				exit(EXIT_FAILURE);
-			}
-		}
-		mysql_free_result(result);
-	}
-
-	mysql_close(mysql);
-
-stop_thread:
-	msg_ts("Kill mdl waiters thread stopped\n");
-	os_event_set(mdl_killer_finished_event);
-	os_thread_exit();
-	return os_thread_ret_t(0);
-}
-
-
-static void start_mdl_waiters_killer()
-{
-	mdl_killer_stop_event = os_event_create(0);
-	mdl_killer_finished_event = os_event_create(0);
-	os_thread_create(kill_mdl_waiters_thread, 0, 0);
-}
-
-
-/* Tell MDL killer to stop and finish for its completion*/
-static void stop_mdl_waiters_killer()
-{
-	os_event_set(mdl_killer_stop_event);
-	os_event_wait(mdl_killer_finished_event);
-
-	os_event_destroy(mdl_killer_stop_event);
-	os_event_destroy(mdl_killer_finished_event);
-}
-
 /*********************************************************************//**
 Function acquires either a backup tables lock, if supported
 by the server, or a global read lock (FLUSH TABLES WITH READ LOCK)
@@ -969,12 +892,6 @@ lock_tables(MYSQL *connection)
 		xb_mysql_query(connection, "LOCK TABLES FOR BACKUP", false);
 		return(true);
 	}
-
-	if (opt_lock_ddl_per_table) {
-		/* TODO : Remove after MDEV-17772 is fixed */
-		start_mdl_waiters_killer();
-	}
-
 
 	if (opt_lock_wait_timeout) {
 		if (!wait_for_no_updates(connection, opt_lock_wait_timeout,
@@ -998,11 +915,6 @@ lock_tables(MYSQL *connection)
 	//xb_mysql_query(connection, "BACKUP STAGE FLUSH", true);
 	//xb_mysql_query(connection, "BACKUP STAGE BLOCK_DDL", true);
 	xb_mysql_query(connection, "BACKUP STAGE BLOCK_COMMIT", true);
-
-	if (opt_lock_ddl_per_table) {
-		/* TODO : Remove after MDEV-17772 is fixed */
-		stop_mdl_waiters_killer();
-	}
 
 	if (opt_kill_long_queries_timeout) {
 		stop_query_killer();

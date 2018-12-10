@@ -4245,7 +4245,7 @@ fail_before_log_copying_thread_start:
 		DBUG_EXECUTE_IF("check_mdl_lock_works",
 			dbug_alter_thread_done =
 			dbug_start_query_thread("ALTER TABLE test.t ADD COLUMN mdl_lock_column int",
-				"Waiting for table metadata lock", 1, ER_QUERY_INTERRUPTED););
+				"Waiting for table metadata lock", 0, 0););
 	}
 
 	datafiles_iter_t *it = datafiles_iter_new();
@@ -4463,6 +4463,7 @@ void backup_fix_ddl(void)
 	}
 	datafiles_iter_free(it);
 
+	DBUG_EXECUTE_IF("check_mdl_lock_works", DBUG_ASSERT(new_tables.size() == 0););
 	for (std::set<std::string>::iterator iter = new_tables.begin();
 		iter != new_tables.end(); iter++) {
 		const char *space_name = iter->c_str();
