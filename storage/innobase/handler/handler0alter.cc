@@ -1088,8 +1088,7 @@ struct ha_innobase_inplace_ctx : public inplace_alter_handler_ctx
 		return instant_table;
 	}
 
-	/*******************************************************************//**
-	Create an index table where indexes are ordered as follows:
+	/** Create an index table where indexes are ordered as follows:
 
 	IF a new primary key is defined for the table THEN
 
@@ -1106,7 +1105,6 @@ struct ha_innobase_inplace_ctx : public inplace_alter_handler_ctx
 	MY_ATTRIBUTE((nonnull, warn_unused_result, malloc))
 	index_def_t*
 	create_key_defs(
-	/*=====================*/
 		const Alter_inplace_info*	ha_alter_info,
 				/*!< in: alter operation */
 		const TABLE*			altered_table,
@@ -3601,8 +3599,7 @@ innobase_fts_check_doc_id_index_in_def(
 	return(FTS_NOT_EXIST_DOC_ID_INDEX);
 }
 
-/*******************************************************************//**
-Create an index table where indexes are ordered as follows:
+/** Create an index table where indexes are ordered as follows:
 
 IF a new primary key is defined for the table THEN
 
@@ -3619,7 +3616,6 @@ ENDIF
 MY_ATTRIBUTE((nonnull, warn_unused_result, malloc))
 index_def_t*
 ha_innobase_inplace_ctx::create_key_defs(
-/*=====================*/
 	const Alter_inplace_info*	ha_alter_info,
 			/*!< in: alter operation */
 	const TABLE*			altered_table,
@@ -3638,9 +3634,7 @@ ha_innobase_inplace_ctx::create_key_defs(
 			/*!< in: MySQL table that is being altered */
 {
 	ulint&			n_add = num_to_add_index;
-	bool 			got_default_clust
-		= dict_index_is_auto_gen_clust(
-			dict_table_get_first_index(new_table));
+	const bool got_default_clust = new_table->indexes.start->is_gen_clust();
 
 	index_def_t*		indexdef;
 	index_def_t*		indexdefs;

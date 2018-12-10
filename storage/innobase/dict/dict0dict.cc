@@ -914,30 +914,23 @@ dict_index_t::contains_col_or_prefix(
 	ulint			n,
 	bool			is_virtual) const
 {
-	const dict_field_t*	field;
 	const dict_col_t*	col;
-	ulint			pos;
-	ulint			n_fields;
 
-	ut_ad(this);
-	ut_ad(this->magic_n == DICT_INDEX_MAGIC_N);
+	ut_ad(magic_n == DICT_INDEX_MAGIC_N);
 
-	if (dict_index_is_clust(this)) {
+	if (is_primary()) {
 		return(!is_virtual);
 	}
 
 	if (is_virtual) {
-		col = &dict_table_get_nth_v_col(this->table, n)->m_col;
+		col = &dict_table_get_nth_v_col(table, n)->m_col;
 	} else {
-		col = dict_table_get_nth_col(this->table, n);
+		col = dict_table_get_nth_col(table, n);
 	}
 
-	n_fields = dict_index_get_n_fields(this);
+	for (ulint pos = 0; pos < n_fields; pos++) {
 
-	for (pos = 0; pos < n_fields; pos++) {
-		field = dict_index_get_nth_field(this, pos);
-
-		if (col == field->col) {
+		if (col == fields[pos].col) {
 
 			return(true);
 		}

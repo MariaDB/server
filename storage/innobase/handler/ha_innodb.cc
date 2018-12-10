@@ -7242,19 +7242,19 @@ static
 const Field*
 build_template_needs_field(
 /*=======================*/
-	ibool		index_contains,	/*!< in:
+	bool		index_contains,	/*!< in:
 					dict_index_t::contains_col_or_prefix(
 					i) */
-	ibool		read_just_key,	/*!< in: TRUE when MySQL calls
+	bool		read_just_key,	/*!< in: TRUE when MySQL calls
 					ha_innobase::extra with the
 					argument HA_EXTRA_KEYREAD; it is enough
 					to read just columns defined in
 					the index (i.e., no read of the
 					clustered index record necessary) */
-	ibool		fetch_all_in_key,
+	bool		fetch_all_in_key,
 					/*!< in: true=fetch all fields in
 					the index */
-	ibool		fetch_primary_key_cols,
+	bool		fetch_primary_key_cols,
 					/*!< in: true=fetch the
 					primary key columns */
 	dict_index_t*	index,		/*!< in: InnoDB index to use */
