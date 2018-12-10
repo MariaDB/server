@@ -680,7 +680,6 @@ inline void dict_table_t::rollback_instant(
 	DBUG_ASSERT(old_n_cols >= DATA_N_SYS_COLS);
 	DBUG_ASSERT(n_cols == n_def);
 	DBUG_ASSERT(index->n_def == index->n_fields);
-	DBUG_ASSERT(index->n_core_fields <= old_n_fields);
 	DBUG_ASSERT(index->n_core_fields <= index->n_fields);
 	DBUG_ASSERT(instant || !old_instant);
 
@@ -699,6 +698,10 @@ inline void dict_table_t::rollback_instant(
 	}
 
 	index->n_def = index->n_fields = old_n_fields;
+	if (index->n_core_fields > old_n_fields) {
+		index->n_core_fields = old_n_fields;
+		index->n_core_null_bytes = UT_BITS_IN_BYTES(index->n_nullable);
+	}
 
 	const dict_col_t* const new_cols = cols;
 	const dict_col_t* const new_cols_end = cols + n_cols;
