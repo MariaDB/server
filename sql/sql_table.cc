@@ -6844,16 +6844,6 @@ static bool fill_alter_inplace_info(THD *thd,
          key_part < end;
          key_part++, new_part++)
     {
-      /*
-        Key definition has changed if we are using a different field or
-        if the used key part length is different. It makes sense to
-        check lengths first as in case when fields differ it is likely
-        that lengths differ too and checking fields is more expensive
-        in general case.
-      */
-      if (key_part->length != new_part->length)
-        goto index_changed;
-
       new_field= get_field_by_index(alter_info, new_part->fieldnr);
 
       /*
@@ -6861,9 +6851,23 @@ static bool fill_alter_inplace_info(THD *thd,
         object with adjusted length. So below we have to check field
         indexes instead of simply comparing pointers to Field objects.
       */
-      if (! new_field->field ||
-          new_field->field->field_index != key_part->fieldnr - 1)
+      if (!new_field->field)
         goto index_changed;
+      if (new_field->field->field_index != key_part->fieldnr - 1)
+        goto index_changed;
+
+      switch (new_field->field->is_equal(new_field)) {
+      case IS_EQUAL_YES:
+        if (key_part->length != new_part->length)
+          goto index_changed;
+      case IS_EQUAL_PACK_LENGTH:
+        DBUG_ASSERT(key_part->length <= new_part->length);
+        break;
+      case IS_EQUAL_NO:
+        goto index_changed;
+      default:
+	DBUG_ASSERT(false);
+      }
     }
 
     /* Check that key comment is not changed. */

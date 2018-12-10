@@ -1,0 +1,52 @@
+--source include/innodb_row_format.inc
+
+create table t (
+  a varchar(25),
+  b varchar(25) unique key,
+  c varchar(25) primary key
+) engine=innodb;
+
+insert into t values
+  ('AAA', 'AAA', 'AAA'),
+  ('bbb', 'bbb', 'bbb'),
+  ('CCC', 'CCC', 'CCC');
+
+select a from t order by a;
+select b from t order by b;
+select c from t order by c;
+
+alter table t modify a varchar(50), algorithm=instant;
+check table t;
+
+alter table t modify b varchar(50), algorithm=instant;
+check table t;
+
+alter table t modify c varchar(50), algorithm=instant;
+check table t;
+
+update t set a=concat(a, a), b=concat(b, b), c=concat(c, c);
+
+select a from t order by a;
+select b from t order by b;
+select c from t order by c;
+
+drop table t;
+
+# can not increase size from less than 256 to more or equal than 256
+create table innodb_internals_specific (
+  a varchar(150) unique key
+) engine=innodb;
+
+--error ER_ALTER_OPERATION_NOT_SUPPORTED_REASON
+alter table innodb_internals_specific modify a varchar(350), algorithm=instant;
+
+drop table innodb_internals_specific;
+
+create table errors (
+  a varchar(100) unique key
+) engine=innodb;
+
+--error ER_ALTER_OPERATION_NOT_SUPPORTED_REASON
+alter table errors modify a varchar(99), algorithm=instant;
+
+drop table errors;

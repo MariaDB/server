@@ -1,0 +1,65 @@
+create table t (
+a varchar(25),
+b varchar(25) unique key,
+c varchar(25) primary key
+) engine=innodb;
+insert into t values
+('AAA', 'AAA', 'AAA'),
+('bbb', 'bbb', 'bbb'),
+('CCC', 'CCC', 'CCC');
+select a from t order by a;
+a
+AAA
+bbb
+CCC
+select b from t order by b;
+b
+AAA
+bbb
+CCC
+select c from t order by c;
+c
+AAA
+bbb
+CCC
+alter table t modify a varchar(50), algorithm=instant;
+check table t;
+Table	Op	Msg_type	Msg_text
+test.t	check	status	OK
+alter table t modify b varchar(50), algorithm=instant;
+check table t;
+Table	Op	Msg_type	Msg_text
+test.t	check	status	OK
+alter table t modify c varchar(50), algorithm=instant;
+check table t;
+Table	Op	Msg_type	Msg_text
+test.t	check	status	OK
+update t set a=concat(a, a), b=concat(b, b), c=concat(c, c);
+select a from t order by a;
+a
+AAAAAA
+bbbbbb
+CCCCCC
+select b from t order by b;
+b
+AAAAAA
+bbbbbb
+CCCCCC
+select c from t order by c;
+c
+AAAAAA
+bbbbbb
+CCCCCC
+drop table t;
+create table innodb_internals_specific (
+a varchar(150) unique key
+) engine=innodb;
+alter table innodb_internals_specific modify a varchar(350), algorithm=instant;
+ERROR 0A000: ALGORITHM=INSTANT is not supported. Reason: Cannot change column type INPLACE. Try ALGORITHM=COPY
+drop table innodb_internals_specific;
+create table errors (
+a varchar(100) unique key
+) engine=innodb;
+alter table errors modify a varchar(99), algorithm=instant;
+ERROR 0A000: ALGORITHM=INSTANT is not supported. Reason: Cannot change column type INPLACE. Try ALGORITHM=COPY
+drop table errors;
