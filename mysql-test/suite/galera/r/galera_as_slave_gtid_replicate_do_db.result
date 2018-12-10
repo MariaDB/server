@@ -1,19 +1,18 @@
-connect node_2a, 127.0.0.1, root, , test, $NODE_MYPORT_2;
 connection node_2;
 connection node_1;
-connection node_1;
-RESET MASTER;
 connect node_3, 127.0.0.1, root, , test, $NODE_MYPORT_3;
-connection node_3;
+connection node_1;
 SET global wsrep_on=OFF;
 RESET MASTER;
 SET global wsrep_on=ON;
+connection node_3;
+RESET MASTER;
 connection node_2;
 SET global wsrep_on=OFF;
 RESET MASTER;
 SET global wsrep_on=ON;
 START SLAVE;
-connection node_1;
+connection node_3;
 CREATE SCHEMA test1;
 CREATE SCHEMA test2;
 USE test1;
@@ -47,99 +46,99 @@ SHOW BINLOG EVENTS IN 'master-bin.000001' FROM 256;
 Log_name	Pos	Event_type	Server_id	End_log_pos	Info
 master-bin.000001	256	Gtid_list	2	285	[]
 master-bin.000001	285	Binlog_checkpoint	2	329	master-bin.000001
-master-bin.000001	329	Gtid	1	371	GTID 0-1-1
-master-bin.000001	371	Query	1	458	CREATE SCHEMA test1
-master-bin.000001	458	Gtid	1	500	GTID 0-1-3
-master-bin.000001	500	Query	1	647	use `test1`; CREATE TABLE t1 (f1 INTEGER PRIMARY KEY,f2 CHAR(5) DEFAULT 'abc') ENGINE=InnoDB
-master-bin.000001	647	Gtid	1	689	BEGIN GTID 0-1-5
-master-bin.000001	689	Annotate_rows	1	748	INSERT INTO test1.t1 (f1) VALUES (1)
-master-bin.000001	748	Table_map	1	797	table_id: ### (test1.t1)
-master-bin.000001	797	Write_rows_v1	1	839	table_id: ### flags: STMT_END_F
-master-bin.000001	839	Xid	1	870	COMMIT /* xid=### */
-master-bin.000001	870	Gtid	1	912	BEGIN GTID 0-1-7
-master-bin.000001	912	Annotate_rows	1	971	INSERT INTO test1.t1 (f1) VALUES (2)
-master-bin.000001	971	Table_map	1	1020	table_id: ### (test1.t1)
-master-bin.000001	1020	Write_rows_v1	1	1062	table_id: ### flags: STMT_END_F
-master-bin.000001	1062	Xid	1	1093	COMMIT /* xid=### */
-master-bin.000001	1093	Gtid	1	1135	BEGIN GTID 0-1-9
-master-bin.000001	1135	Annotate_rows	1	1194	INSERT INTO test1.t1 (f1) VALUES (3)
-master-bin.000001	1194	Table_map	1	1243	table_id: ### (test1.t1)
-master-bin.000001	1243	Write_rows_v1	1	1285	table_id: ### flags: STMT_END_F
-master-bin.000001	1285	Xid	1	1316	COMMIT /* xid=### */
-master-bin.000001	1316	Gtid	1	1358	BEGIN GTID 0-1-12
-master-bin.000001	1358	Annotate_rows	1	1451	UPDATE test1.t1, test2.t1 SET test1.t1.f2 = 'klm', test2.t1.f2 = 'xyz'
-master-bin.000001	1451	Table_map	1	1500	table_id: ### (test1.t1)
-master-bin.000001	1500	Update_rows_v1	1	1588	table_id: ### flags: STMT_END_F
-master-bin.000001	1588	Xid	1	1619	COMMIT /* xid=### */
-master-bin.000001	1619	Gtid	1	1661	BEGIN GTID 0-1-13
-master-bin.000001	1661	Annotate_rows	1	1795	DELETE test1.t1, test2.t1 FROM test1.t1 INNER JOIN test2.t1 WHERE test1.t1.f1 = test2.t1.f1 AND test1.t1.f1 = 3
-master-bin.000001	1795	Table_map	1	1844	table_id: ### (test1.t1)
-master-bin.000001	1844	Delete_rows_v1	1	1886	table_id: ### flags: STMT_END_F
-master-bin.000001	1886	Xid	1	1917	COMMIT /* xid=### */
-master-bin.000001	1917	Gtid	1	1959	BEGIN GTID 0-1-15
-master-bin.000001	1959	Annotate_rows	1	2020	INSERT INTO test1.t1 (f1) VALUES (111)
-master-bin.000001	2020	Table_map	1	2069	table_id: ### (test1.t1)
-master-bin.000001	2069	Write_rows_v1	1	2111	table_id: ### flags: STMT_END_F
-master-bin.000001	2111	Annotate_rows	1	2172	INSERT INTO test1.t1 (f1) VALUES (222)
-master-bin.000001	2172	Table_map	1	2221	table_id: ### (test1.t1)
-master-bin.000001	2221	Write_rows_v1	1	2263	table_id: ### flags: STMT_END_F
-master-bin.000001	2263	Xid	1	2294	COMMIT /* xid=### */
-master-bin.000001	2294	Gtid	1	2336	BEGIN GTID <effective_uuid>
-master-bin.000001	2336	Annotate_rows	1	2397	INSERT INTO test1.t1 (f1) VALUES (333)
-master-bin.000001	2397	Table_map	1	2446	table_id: ### (test1.t1)
-master-bin.000001	2446	Write_rows_v1	1	2488	table_id: ### flags: STMT_END_F
-master-bin.000001	2488	Xid	1	2519	COMMIT /* xid=### */
-connection node_3;
+master-bin.000001	329	Gtid	3	371	GTID 0-3-1
+master-bin.000001	371	Query	3	458	CREATE SCHEMA test1
+master-bin.000001	458	Gtid	3	500	GTID 0-3-3
+master-bin.000001	500	Query	3	647	use `test1`; CREATE TABLE t1 (f1 INTEGER PRIMARY KEY,f2 CHAR(5) DEFAULT 'abc') ENGINE=InnoDB
+master-bin.000001	647	Gtid	3	689	BEGIN GTID 0-3-5
+master-bin.000001	689	Annotate_rows	3	748	INSERT INTO test1.t1 (f1) VALUES (1)
+master-bin.000001	748	Table_map	3	797	table_id: ### (test1.t1)
+master-bin.000001	797	Write_rows_v1	3	839	table_id: ### flags: STMT_END_F
+master-bin.000001	839	Xid	3	870	COMMIT /* xid=### */
+master-bin.000001	870	Gtid	3	912	BEGIN GTID 0-3-7
+master-bin.000001	912	Annotate_rows	3	971	INSERT INTO test1.t1 (f1) VALUES (2)
+master-bin.000001	971	Table_map	3	1020	table_id: ### (test1.t1)
+master-bin.000001	1020	Write_rows_v1	3	1062	table_id: ### flags: STMT_END_F
+master-bin.000001	1062	Xid	3	1093	COMMIT /* xid=### */
+master-bin.000001	1093	Gtid	3	1135	BEGIN GTID 0-3-9
+master-bin.000001	1135	Annotate_rows	3	1194	INSERT INTO test1.t1 (f1) VALUES (3)
+master-bin.000001	1194	Table_map	3	1243	table_id: ### (test1.t1)
+master-bin.000001	1243	Write_rows_v1	3	1285	table_id: ### flags: STMT_END_F
+master-bin.000001	1285	Xid	3	1316	COMMIT /* xid=### */
+master-bin.000001	1316	Gtid	3	1358	BEGIN GTID 0-3-12
+master-bin.000001	1358	Annotate_rows	3	1451	UPDATE test1.t1, test2.t1 SET test1.t1.f2 = 'klm', test2.t1.f2 = 'xyz'
+master-bin.000001	1451	Table_map	3	1500	table_id: ### (test1.t1)
+master-bin.000001	1500	Update_rows_v1	3	1588	table_id: ### flags: STMT_END_F
+master-bin.000001	1588	Xid	3	1619	COMMIT /* xid=### */
+master-bin.000001	1619	Gtid	3	1661	BEGIN GTID 0-3-13
+master-bin.000001	1661	Annotate_rows	3	1795	DELETE test1.t1, test2.t1 FROM test1.t1 INNER JOIN test2.t1 WHERE test1.t1.f1 = test2.t1.f1 AND test1.t1.f1 = 3
+master-bin.000001	1795	Table_map	3	1844	table_id: ### (test1.t1)
+master-bin.000001	1844	Delete_rows_v1	3	1886	table_id: ### flags: STMT_END_F
+master-bin.000001	1886	Xid	3	1917	COMMIT /* xid=### */
+master-bin.000001	1917	Gtid	3	1959	BEGIN GTID 0-3-15
+master-bin.000001	1959	Annotate_rows	3	2020	INSERT INTO test1.t1 (f1) VALUES (111)
+master-bin.000001	2020	Table_map	3	2069	table_id: ### (test1.t1)
+master-bin.000001	2069	Write_rows_v1	3	2111	table_id: ### flags: STMT_END_F
+master-bin.000001	2111	Annotate_rows	3	2172	INSERT INTO test1.t1 (f1) VALUES (222)
+master-bin.000001	2172	Table_map	3	2221	table_id: ### (test1.t1)
+master-bin.000001	2221	Write_rows_v1	3	2263	table_id: ### flags: STMT_END_F
+master-bin.000001	2263	Xid	3	2294	COMMIT /* xid=### */
+master-bin.000001	2294	Gtid	3	2336	BEGIN GTID <effective_uuid>
+master-bin.000001	2336	Annotate_rows	3	2397	INSERT INTO test1.t1 (f1) VALUES (333)
+master-bin.000001	2397	Table_map	3	2446	table_id: ### (test1.t1)
+master-bin.000001	2446	Write_rows_v1	3	2488	table_id: ### flags: STMT_END_F
+master-bin.000001	2488	Xid	3	2519	COMMIT /* xid=### */
+connection node_1;
 gtid_executed_equal
 0
 SHOW BINLOG EVENTS IN 'master-bin.000001' FROM 256;
 Log_name	Pos	Event_type	Server_id	End_log_pos	Info
-master-bin.000001	256	Gtid_list	3	285	[]
-master-bin.000001	285	Binlog_checkpoint	3	329	master-bin.000001
-master-bin.000001	329	Gtid	1	371	GTID 0-1-1
-master-bin.000001	371	Query	1	458	CREATE SCHEMA test1
-master-bin.000001	458	Gtid	1	500	GTID 0-1-2
-master-bin.000001	500	Query	1	647	use `test1`; CREATE TABLE t1 (f1 INTEGER PRIMARY KEY,f2 CHAR(5) DEFAULT 'abc') ENGINE=InnoDB
-master-bin.000001	647	Gtid	1	689	BEGIN GTID 0-1-3
-master-bin.000001	689	Annotate_rows	1	748	INSERT INTO test1.t1 (f1) VALUES (1)
-master-bin.000001	748	Table_map	1	797	table_id: ### (test1.t1)
-master-bin.000001	797	Write_rows_v1	1	839	table_id: ### flags: STMT_END_F
-master-bin.000001	839	Xid	1	870	COMMIT /* xid=### */
-master-bin.000001	870	Gtid	1	912	BEGIN GTID 0-1-4
-master-bin.000001	912	Annotate_rows	1	971	INSERT INTO test1.t1 (f1) VALUES (2)
-master-bin.000001	971	Table_map	1	1020	table_id: ### (test1.t1)
-master-bin.000001	1020	Write_rows_v1	1	1062	table_id: ### flags: STMT_END_F
-master-bin.000001	1062	Xid	1	1093	COMMIT /* xid=### */
-master-bin.000001	1093	Gtid	1	1135	BEGIN GTID 0-1-5
-master-bin.000001	1135	Annotate_rows	1	1194	INSERT INTO test1.t1 (f1) VALUES (3)
-master-bin.000001	1194	Table_map	1	1243	table_id: ### (test1.t1)
-master-bin.000001	1243	Write_rows_v1	1	1285	table_id: ### flags: STMT_END_F
-master-bin.000001	1285	Xid	1	1316	COMMIT /* xid=### */
-master-bin.000001	1316	Gtid	1	1358	BEGIN GTID 0-1-6
-master-bin.000001	1358	Annotate_rows	1	1451	UPDATE test1.t1, test2.t1 SET test1.t1.f2 = 'klm', test2.t1.f2 = 'xyz'
-master-bin.000001	1451	Table_map	1	1500	table_id: ### (test1.t1)
-master-bin.000001	1500	Update_rows_v1	1	1588	table_id: ### flags: STMT_END_F
-master-bin.000001	1588	Xid	1	1619	COMMIT /* xid=### */
-master-bin.000001	1619	Gtid	1	1661	BEGIN GTID 0-1-7
-master-bin.000001	1661	Annotate_rows	1	1795	DELETE test1.t1, test2.t1 FROM test1.t1 INNER JOIN test2.t1 WHERE test1.t1.f1 = test2.t1.f1 AND test1.t1.f1 = 3
-master-bin.000001	1795	Table_map	1	1844	table_id: ### (test1.t1)
-master-bin.000001	1844	Delete_rows_v1	1	1886	table_id: ### flags: STMT_END_F
-master-bin.000001	1886	Xid	1	1917	COMMIT /* xid=### */
-master-bin.000001	1917	Gtid	1	1959	BEGIN GTID 0-1-8
-master-bin.000001	1959	Annotate_rows	1	2020	INSERT INTO test1.t1 (f1) VALUES (111)
-master-bin.000001	2020	Table_map	1	2069	table_id: ### (test1.t1)
-master-bin.000001	2069	Write_rows_v1	1	2111	table_id: ### flags: STMT_END_F
-master-bin.000001	2111	Annotate_rows	1	2172	INSERT INTO test1.t1 (f1) VALUES (222)
-master-bin.000001	2172	Table_map	1	2221	table_id: ### (test1.t1)
-master-bin.000001	2221	Write_rows_v1	1	2263	table_id: ### flags: STMT_END_F
-master-bin.000001	2263	Xid	1	2294	COMMIT /* xid=### */
-master-bin.000001	2294	Gtid	1	2336	BEGIN GTID 0-1-9
-master-bin.000001	2336	Annotate_rows	1	2397	INSERT INTO test1.t1 (f1) VALUES (333)
-master-bin.000001	2397	Table_map	1	2446	table_id: ### (test1.t1)
-master-bin.000001	2446	Write_rows_v1	1	2488	table_id: ### flags: STMT_END_F
-master-bin.000001	2488	Xid	1	2519	COMMIT /* xid=### */
-include/diff_servers.inc [servers=2 3]
-connection node_3;
+master-bin.000001	256	Gtid_list	1	285	[]
+master-bin.000001	285	Binlog_checkpoint	1	329	master-bin.000001
+master-bin.000001	329	Gtid	3	371	GTID 0-3-1
+master-bin.000001	371	Query	3	458	CREATE SCHEMA test1
+master-bin.000001	458	Gtid	3	500	GTID 0-3-2
+master-bin.000001	500	Query	3	647	use `test1`; CREATE TABLE t1 (f1 INTEGER PRIMARY KEY,f2 CHAR(5) DEFAULT 'abc') ENGINE=InnoDB
+master-bin.000001	647	Gtid	3	689	BEGIN GTID 0-3-3
+master-bin.000001	689	Annotate_rows	3	748	INSERT INTO test1.t1 (f1) VALUES (1)
+master-bin.000001	748	Table_map	3	797	table_id: ### (test1.t1)
+master-bin.000001	797	Write_rows_v1	3	839	table_id: ### flags: STMT_END_F
+master-bin.000001	839	Xid	3	870	COMMIT /* xid=### */
+master-bin.000001	870	Gtid	3	912	BEGIN GTID 0-3-4
+master-bin.000001	912	Annotate_rows	3	971	INSERT INTO test1.t1 (f1) VALUES (2)
+master-bin.000001	971	Table_map	3	1020	table_id: ### (test1.t1)
+master-bin.000001	1020	Write_rows_v1	3	1062	table_id: ### flags: STMT_END_F
+master-bin.000001	1062	Xid	3	1093	COMMIT /* xid=### */
+master-bin.000001	1093	Gtid	3	1135	BEGIN GTID 0-3-5
+master-bin.000001	1135	Annotate_rows	3	1194	INSERT INTO test1.t1 (f1) VALUES (3)
+master-bin.000001	1194	Table_map	3	1243	table_id: ### (test1.t1)
+master-bin.000001	1243	Write_rows_v1	3	1285	table_id: ### flags: STMT_END_F
+master-bin.000001	1285	Xid	3	1316	COMMIT /* xid=### */
+master-bin.000001	1316	Gtid	3	1358	BEGIN GTID 0-3-6
+master-bin.000001	1358	Annotate_rows	3	1451	UPDATE test1.t1, test2.t1 SET test1.t1.f2 = 'klm', test2.t1.f2 = 'xyz'
+master-bin.000001	1451	Table_map	3	1500	table_id: ### (test1.t1)
+master-bin.000001	1500	Update_rows_v1	3	1588	table_id: ### flags: STMT_END_F
+master-bin.000001	1588	Xid	3	1619	COMMIT /* xid=### */
+master-bin.000001	1619	Gtid	3	1661	BEGIN GTID 0-3-7
+master-bin.000001	1661	Annotate_rows	3	1795	DELETE test1.t1, test2.t1 FROM test1.t1 INNER JOIN test2.t1 WHERE test1.t1.f1 = test2.t1.f1 AND test1.t1.f1 = 3
+master-bin.000001	1795	Table_map	3	1844	table_id: ### (test1.t1)
+master-bin.000001	1844	Delete_rows_v1	3	1886	table_id: ### flags: STMT_END_F
+master-bin.000001	1886	Xid	3	1917	COMMIT /* xid=### */
+master-bin.000001	1917	Gtid	3	1959	BEGIN GTID 0-3-8
+master-bin.000001	1959	Annotate_rows	3	2020	INSERT INTO test1.t1 (f1) VALUES (111)
+master-bin.000001	2020	Table_map	3	2069	table_id: ### (test1.t1)
+master-bin.000001	2069	Write_rows_v1	3	2111	table_id: ### flags: STMT_END_F
+master-bin.000001	2111	Annotate_rows	3	2172	INSERT INTO test1.t1 (f1) VALUES (222)
+master-bin.000001	2172	Table_map	3	2221	table_id: ### (test1.t1)
+master-bin.000001	2221	Write_rows_v1	3	2263	table_id: ### flags: STMT_END_F
+master-bin.000001	2263	Xid	3	2294	COMMIT /* xid=### */
+master-bin.000001	2294	Gtid	3	2336	BEGIN GTID 0-3-9
+master-bin.000001	2336	Annotate_rows	3	2397	INSERT INTO test1.t1 (f1) VALUES (333)
+master-bin.000001	2397	Table_map	3	2446	table_id: ### (test1.t1)
+master-bin.000001	2446	Write_rows_v1	3	2488	table_id: ### flags: STMT_END_F
+master-bin.000001	2488	Xid	3	2519	COMMIT /* xid=### */
+include/diff_servers.inc [servers=1 2]
+connection node_1;
 SELECT COUNT(*) = 2 FROM test1.t1 WHERE f1 IN (1,2);
 COUNT(*) = 2
 1
@@ -151,10 +150,10 @@ COUNT(*) = 2
 1
 USE test2;
 ERROR 42000: Unknown database 'test2'
-connection node_1;
+connection node_3;
 DROP SCHEMA test1;
 DROP SCHEMA test2;
-connection node_3;
+connection node_1;
 connection node_2;
 STOP SLAVE;
 RESET SLAVE ALL;
