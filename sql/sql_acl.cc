@@ -10368,6 +10368,8 @@ bool mysql_rename_user(THD *thd, List <LEX_USER> &list)
     rebuild_acl_users();
   }
 
+  /* Rebuild 'acl_dbs' since 'acl_users' has been modified */
+  rebuild_acl_dbs();
 
   /* Rebuild 'acl_check_hosts' since 'acl_users' has been modified */
   rebuild_check_host();

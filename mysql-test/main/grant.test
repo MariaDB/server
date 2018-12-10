@@ -2267,3 +2267,14 @@ CREATE USER bar2@localhost;
 RENAME USER foo@localhost TO bar1@localhost, bar1@localhost TO bar3@localhost;
 DROP USER bar2@localhost;
 DROP USER bar3@localhost;
+
+--echo #
+--echo # MDEV-17946 : Unsorted acl_dbs after RENAME USER
+--echo #
+CREATE USER foo;
+GRANT SELECT ON test.* TO foo;
+RENAME USER '' TO 'name';
+GRANT UPDATE ON test.* TO foo;
+RENAME USER 'name' to '';
+DROP USER foo;
+
