@@ -1950,14 +1950,14 @@ public:
   }
 
 protected:
-  Datetime(THD *thd, int *warn, const Sec6 &nr, date_mode_t flags)
+  Datetime(int *warn, const Sec6 &nr, date_mode_t flags)
    :Temporal_with_date(warn, nr, flags)
   {
     date_to_datetime_if_needed();
     DBUG_ASSERT(is_valid_value_slow());
   }
   Datetime(THD *thd, int *warn, const Sec9 &nr, date_mode_t fuzzydate)
-   :Datetime(thd, warn, static_cast<const Sec6>(nr), fuzzydate)
+   :Datetime(warn, static_cast<const Sec6>(nr), fuzzydate)
   {
     if (is_valid_datetime() &&
         time_round_mode_t(fuzzydate) == TIME_FRAC_ROUND)
@@ -1966,8 +1966,8 @@ protected:
   }
 
 public:
-  Datetime(THD *thd, int *warn, const Longlong_hybrid &nr, date_mode_t mode)
-   :Datetime(thd, warn, Sec6(nr), mode)
+  Datetime(int *warn, const Longlong_hybrid &nr, date_mode_t mode)
+   :Datetime(warn, Sec6(nr), mode)
   { }
   Datetime(THD *thd, int *warn, double nr, date_mode_t fuzzydate)
    :Datetime(thd, warn, Sec9(nr), fuzzydate)

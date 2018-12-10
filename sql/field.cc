@@ -5118,7 +5118,7 @@ int Field_timestamp::store(longlong nr, bool unsigned_val)
   Longlong_hybrid tmp(nr, unsigned_val);
   ErrConvInteger str(tmp);
   THD *thd= get_thd();
-  Datetime dt(thd, &error, tmp, Timestamp::DatetimeOptions(thd));
+  Datetime dt(&error, tmp, Timestamp::DatetimeOptions(thd));
   return store_TIME_with_warning(thd, &dt, &str, error);
 }
 
@@ -5596,7 +5596,7 @@ int Field_datetime::store(longlong nr, bool unsigned_val)
   Longlong_hybrid tmp(nr, unsigned_val);
   ErrConvInteger str(tmp);
   THD *thd= get_thd();
-  Datetime dt(thd, &error, tmp, Datetime::Options(thd));
+  Datetime dt(&error, tmp, Datetime::Options(thd));
   return store_TIME_with_warning(&dt, &str, error);
 }
 
@@ -6314,7 +6314,7 @@ int Field_date_common::store(longlong nr, bool unsigned_val)
   Longlong_hybrid tmp(nr, unsigned_val);
   ErrConvInteger str(tmp);
   THD *thd= get_thd();
-  Datetime dt(thd, &error, tmp, Date::Options(thd));
+  Datetime dt(&error, tmp, Date::Options(thd));
   return store_TIME_with_warning(&dt, &str, error);
 }
 
