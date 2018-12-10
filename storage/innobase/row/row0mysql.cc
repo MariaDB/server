@@ -3519,7 +3519,8 @@ defer:
 			ib::info() << "Deferring DROP TABLE " << table->name
 				   << "; renaming to " << tmp_name;
 			err = row_rename_table_for_mysql(
-				table->name.m_name, tmp_name, trx, false);
+				table->name.m_name, tmp_name, trx,
+				false, false);
 		} else {
 			err = DB_SUCCESS;
 		}
@@ -4144,7 +4145,9 @@ row_rename_table_for_mysql(
 	const char*	old_name,	/*!< in: old table name */
 	const char*	new_name,	/*!< in: new table name */
 	trx_t*		trx,		/*!< in/out: transaction */
-	bool		commit)		/*!< in: whether to commit trx */
+	bool		commit,		/*!< in: whether to commit trx */
+	bool		use_fk)		/*!< in: whether to parse and enforce
+					FOREIGN KEY constraints */
 {
 	dict_table_t*	table			= NULL;
 	ibool		dict_locked		= FALSE;
@@ -4248,7 +4251,7 @@ row_rename_table_for_mysql(
 
 		goto funct_exit;
 
-	} else if (!old_is_tmp && new_is_tmp) {
+	} else if (use_fk && !old_is_tmp && new_is_tmp) {
 		/* MySQL is doing an ALTER TABLE command and it renames the
 		original table to a temporary table name. We want to preserve
 		the original foreign key constraint definitions despite the
