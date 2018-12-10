@@ -4420,8 +4420,6 @@ select_create::prepare(List<Item> &_values, SELECT_LEX_UNIT *u)
     thd->binlog_start_trans_and_stmt();
   }
 
-  DEBUG_SYNC(thd,"create_table_select_before_check_if_exists");
-
   if (!(table= create_table_from_items(thd, &values, &extra_lock, hook_ptr)))
     /* abort() deletes table */
     DBUG_RETURN(-1);

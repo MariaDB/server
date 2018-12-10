@@ -3893,6 +3893,7 @@ static bool upgrade_lock_if_not_exists(THD *thd,
   if (thd->lex->sql_command == SQLCOM_CREATE_TABLE ||
       thd->lex->sql_command == SQLCOM_CREATE_SEQUENCE)
   {
+    DEBUG_SYNC(thd,"create_table_before_check_if_exists");
     if (!create_info.or_replace() &&
         ha_table_exists(thd, &create_table->db, &create_table->table_name))
     {
