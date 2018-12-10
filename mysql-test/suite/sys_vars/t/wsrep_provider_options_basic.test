@@ -6,11 +6,6 @@
 
 call mtr.add_suppression("WSREP: Failed to get provider options");
 
-SET @@global.wsrep_provider =  @@global.wsrep_provider;
-
---echo # save the initial value
-SET @wsrep_provider_options_global_saved = @@global.wsrep_provider_options;
-
 --echo # default
 SELECT @@global.wsrep_provider_options;
 
@@ -42,10 +37,5 @@ SELECT @@global.wsrep_provider_options;
 --error ER_WRONG_ARGUMENTS,ER_WRONG_ARGUMENTS
 SET @@global.wsrep_provider_options=NULL;
 SELECT @@global.wsrep_provider_options;
-
---echo
---echo # restore the initial value
---error ER_WRONG_ARGUMENTS
-SET @@global.wsrep_provider_options = @wsrep_provider_options_global_saved;
 
 --echo # End of test
