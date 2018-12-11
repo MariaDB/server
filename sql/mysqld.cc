@@ -3963,7 +3963,26 @@ static void my_malloc_size_cb_func(long long size, my_bool is_thread_specific)
   else
     update_global_memory_status(size);
 }
+
+int json_escape_string(const char *str,const char *str_end,
+                       char *json, char *json_end)
+{
+  return json_escape(system_charset_info,
+                     (const uchar *) str, (const uchar *) str_end,
+                     &my_charset_utf8mb4_bin,
+                     (uchar *) json, (uchar *) json_end);
 }
+
+
+int json_unescape_json(const char *json_str, const char *json_end,
+                       char *res, char *res_end)
+{
+  return json_unescape(&my_charset_utf8mb4_bin,
+                       (const uchar *) json_str, (const uchar *) json_end,
+                       system_charset_info, (uchar *) res, (uchar *) res_end);
+}
+
+} /*extern "C"*/
 
 
 /**

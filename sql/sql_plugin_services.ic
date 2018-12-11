@@ -217,6 +217,16 @@ static struct my_print_error_service_st my_print_error_handler=
   my_printv_error
 };
 
+struct json_service_st json_handler=
+{
+  json_type,
+  json_get_array_item,
+  json_get_object_key,
+  json_get_object_nkey,
+  json_escape_string,
+  json_unescape_json
+};
+
 static struct st_service_ref list_of_services[]=
 {
   { "base64_service",              VERSION_base64,              &base64_handler },
@@ -239,6 +249,7 @@ static struct st_service_ref list_of_services[]=
   { "thd_specifics_service",       VERSION_thd_specifics,       &thd_specifics_handler },
   { "thd_timezone_service",        VERSION_thd_timezone,        &thd_timezone_handler },
   { "thd_wait_service",            VERSION_thd_wait,            &thd_wait_handler },
-  { "wsrep_service",               VERSION_wsrep,               &wsrep_handler }
+  { "wsrep_service",               VERSION_wsrep,               &wsrep_handler },
+  { "json_service",                VERSION_json,                &json_handler }
 };
 

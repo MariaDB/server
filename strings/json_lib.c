@@ -1846,3 +1846,35 @@ int json_path_compare(const json_path_t *a, const json_path_t *b,
                                  b->steps+1, b->last_step, vt);
 }
 
+
+enum json_types json_type(const char *js, const char *js_end,
+                          const char **v, int *vlen)
+{
+  return JSV_NOTHING;
+}
+
+
+enum json_types json_get_array_item(const char *js, const char *js_end,
+                                    int n_item,
+                                    const char **v, int *vlen)
+{
+  return JSV_NOTHING;
+}
+
+
+enum json_types json_get_object_key(const char *js, const char *js_end,
+                                    const char *key,
+                                    const char **v, int *vlen)
+{
+  return JSV_NOTHING;
+}
+
+
+enum json_types json_get_object_nkey(const char *js,const char *js_end, int nkey,
+                       const char **keyname, const char **keyname_end,
+                       const char **v, int *vlen)
+{
+  return JSV_NOTHING;
+}
+
+
