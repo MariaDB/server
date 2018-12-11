@@ -947,11 +947,8 @@ void wsrep_shutdown_replication()
   wsrep_wait_appliers_close(NULL);
   node_uuid= WSREP_UUID_UNDEFINED;
 
-  if (current_thd)
-  {
-    /* Undocking the thread specific data. */
-    my_pthread_setspecific_ptr(THR_THD, NULL);
-  }
+  /* Undocking the thread specific data. */
+  my_pthread_setspecific_ptr(THR_THD, NULL);
 }
 
 bool wsrep_start_replication()

@@ -1628,7 +1628,7 @@ int ha_commit_trans(THD *thd, bool all)
     goto end;
   }
 
- done:
+done:
   DBUG_EXECUTE_IF("crash_commit_after", DBUG_SUICIDE(););
 
   mysql_mutex_assert_not_owner(&LOCK_prepare_ordered);
@@ -1643,7 +1643,7 @@ int ha_commit_trans(THD *thd, bool all)
 
   /* Come here if error and we need to rollback. */
 #ifdef WITH_WSREP
- wsrep_err:
+wsrep_err:
   mysql_mutex_lock(&thd->LOCK_thd_data);
   if (thd->wsrep_trx().state() == wsrep::transaction::s_must_abort)
   {
@@ -1669,7 +1669,7 @@ int ha_commit_trans(THD *thd, bool all)
     WSREP_DEBUG("rollback skipped %p %d",thd->rgi_slave,
                 thd->rgi_slave->is_parallel_exec);
   }
-end:
+ end:
   if (rw_trans && mdl_request.ticket)
   {
     /*
@@ -6249,16 +6249,6 @@ static int binlog_log_row_internal(TABLE* table,
   bool error= 0;
   THD *const thd= table->in_use;
 
-#ifdef WITH_WSREP
-  /* only InnoDB tables will be replicated through binlog emulation */
-  if (WSREP_EMULATE_BINLOG(thd) &&
-      table->file->ht->db_type != DB_TYPE_INNODB &&
-      !(table->file->ht->db_type == DB_TYPE_PARTITION_DB &&
-        (((ha_partition*)(table->file))->wsrep_db_type() == DB_TYPE_INNODB)))
-  {
-      return 0;
-  }
-#endif /* WITH_WSREP */
   /*
     If there are no table maps written to the binary log, this is
     the first row handled in this statement. In that case, we need
@@ -6289,9 +6279,11 @@ int binlog_log_row(TABLE* table, const uchar *before_record,
   THD *const thd= table->in_use;
 
   /* only InnoDB tables will be replicated through binlog emulation */
-  if ((WSREP_EMULATE_BINLOG(thd) &&
-       table->file->partition_ht()->db_type != DB_TYPE_INNODB) ||
-       (thd->wsrep_ignore_table == true))
+  if (WSREP_EMULATE_BINLOG(thd) &&
+      table->file->ht->db_type != DB_TYPE_INNODB &&
+      !(table->file->ht->db_type == DB_TYPE_PARTITION_DB &&
+        (((ha_partition*)(table->file))->wsrep_db_type() == DB_TYPE_INNODB)) ||
+      (thd->wsrep_ignore_table == true))
     return 0;
 #endif
 

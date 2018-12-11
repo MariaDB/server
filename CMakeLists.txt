@@ -383,8 +383,10 @@ INCLUDE(mariadb_connector_c) # this does ADD_SUBDIRECTORY(libmariadb)
 # Add storage engines and plugins.
 CONFIGURE_PLUGINS()
 
-IF(WITH_WSREP)
-  ADD_SUBDIRECTORY(wsrep-lib)
+IF(NOT WITHOUT_SERVER)
+  IF(WITH_WSREP)
+    ADD_SUBDIRECTORY(wsrep-lib)
+  ENDIF()
 ENDIF()
 
 ADD_SUBDIRECTORY(include)
@@ -427,7 +429,6 @@ INCLUDE(cmake/tags.cmake)
 
 
 
-#INCLUDE(for_clients)
 ADD_SUBDIRECTORY(scripts)
 ADD_SUBDIRECTORY(support-files)
 

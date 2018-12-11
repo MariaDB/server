@@ -14,7 +14,6 @@
    Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1301  USA */
 
 #include "my_global.h"
-//#include "mysql/service_wsrep.h"
 #include "wsrep_server_service.h"
 #include "wsrep_server_state.h"
 #include "wsrep_client_state.h"
@@ -30,14 +29,12 @@
 
 #include "log.h" /* sql_print_xxx() */
 #include "sql_class.h" /* system variables */
-//#include "global_threads.h" /* LOCK_thread_count */
 #include "transaction.h" /* trans_xxx */
 #include "sql_base.h" /* close_thread_tables */
 
 static void init_service_thd(THD* thd, char* thread_stack)
 {
   thd->thread_stack= thread_stack;
-  //thd->thread_id= 0;
   thd->real_id= pthread_self();
   thd->prior_thr_create_utime= thd->start_utime= microsecond_interval_timer();
   thd->set_command(COM_SLEEP);

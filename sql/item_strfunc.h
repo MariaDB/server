@@ -1806,7 +1806,8 @@ public:
 };
 #ifdef WITH_WSREP
 
-#include "../wsrep/wsrep_api.h"
+//#include "../wsrep/wsrep_api.h"
+#include "wsrep_api.h"
 
 class Item_func_wsrep_last_written_gtid: public Item_str_ascii_func
 {

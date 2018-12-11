@@ -22,7 +22,6 @@
 #include <my_global.h>
 #include "wsrep_mysqld.h"
 #include "wsrep_schema.h"
-#include "../wsrep/wsrep_api.h"
 
 #include <log.h>
 #include <pthread.h>
