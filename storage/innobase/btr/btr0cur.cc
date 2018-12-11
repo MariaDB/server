@@ -5836,7 +5836,8 @@ btr_cur_pessimistic_delete(
 			only user record, also delete the metadata record
 			if one exists for instant ADD COLUMN
 			(not generic ALTER TABLE).
-			If we are deleting the metadata record and the
+			If we are deleting the metadata record
+			(in the rollback of instant ALTER TABLE) and the
 			table becomes empty, clean up the whole page. */
 
 			const rec_t* first_rec = page_rec_get_next_const(

@@ -1548,7 +1548,6 @@ trx_undo_update_rec_get_update(
 	upd_t*		update;
 	ulint		n_fields;
 	byte*		buf;
-	ulint		i;
 	bool		first_v_col = true;
 	bool		is_undo_log = true;
 	ulint		n_skip_field = 0;
@@ -1561,7 +1560,7 @@ trx_undo_update_rec_get_update(
 		n_fields = 0;
 	}
 
-	update = upd_create(n_fields + 2, heap);
+	*upd = update = upd_create(n_fields + 2, heap);
 
 	update->info_bits = info_bits;
 
@@ -1587,8 +1586,7 @@ trx_undo_update_rec_get_update(
 
 	/* Store then the updated ordinary columns to the update vector */
 
-	for (i = 0; i < n_fields; i++) {
-
+	for (ulint i = 0; i < n_fields; i++) {
 		const byte*	field;
 		ulint		len;
 		ulint		orig_len;
@@ -1621,23 +1619,53 @@ trx_undo_update_rec_get_update(
 			upd_field_set_v_field_no(upd_field, field_no, index);
 		} else if (UNIV_UNLIKELY((update->info_bits
 					  & ~REC_INFO_DELETED_FLAG)
-					 == REC_INFO_MIN_REC_FLAG)
-			   && index->is_instant()) {
+					 == REC_INFO_MIN_REC_FLAG)) {
+			ut_ad(type == TRX_UNDO_UPD_EXIST_REC);
 			const ulint uf = index->first_user_field();
 			ut_ad(field_no >= uf);
 
 			if (update->info_bits != REC_INFO_MIN_REC_FLAG) {
+				/* Generic instant ALTER TABLE */
 				if (field_no == uf) {
 					upd_field->new_val.type
 						.metadata_blob_init();
+				} else if (field_no >= index->n_fields) {
+					/* This is reachable during
+					purge if the table was emptied
+					and converted to the canonical
+					format on a later ALTER TABLE.
+					In this case,
+					row_purge_upd_exist_or_extern()
+					would only be interested in
+					freeing any BLOBs that were
+					updated, that is, the metadata
+					BLOB above.  Other BLOBs in
+					the metadata record are never
+					updated; they are for the
+					initial DEFAULT values of the
+					instantly added columns, and
+					they will never change.
+
+					Note: if the table becomes
+					empty during ROLLBACK or is
+					empty during subsequent ALTER
+					TABLE, and btr_page_empty() is
+					called to re-create the root
+					page without the metadata
+					record, in that case we should
+					only free the latest version
+					of BLOBs in the record,
+					which purge would never touch. */
+					field_no = REC_MAX_N_FIELDS;
+					n_skip_field++;
 				} else {
-					ut_ad(field_no > uf);
 					dict_col_copy_type(
 						dict_index_get_nth_col(
 							index, field_no - 1),
 						&upd_field->new_val.type);
 				}
 			} else {
+				/* Instant ADD COLUMN...LAST */
 				dict_col_copy_type(
 					dict_index_get_nth_col(index,
 							       field_no),
@@ -1701,31 +1729,23 @@ trx_undo_update_rec_get_update(
 		}
 	}
 
-	/* In rare scenario, we could have skipped virtual column (as they
-	are dropped. We will regenerate a update vector and skip them */
-	if (n_skip_field > 0) {
-		ulint	n = 0;
-		ut_ad(n_skip_field <= n_fields);
+	/* We may have to skip dropped indexed virtual columns.
+	Also, we may have to trim the update vector of a metadata record
+	if dict_index_t::clear_instant_alter() was invoked on the table
+	later, and the number of fields no longer matches. */
 
-		upd_t*	new_update = upd_create(
-			n_fields + 2 - n_skip_field, heap);
+	if (n_skip_field) {
+		upd_field_t* d = upd_get_nth_field(update, 0);
+		const upd_field_t* const end = d + n_fields + 2;
 
-		for (i = 0; i < n_fields + 2; i++) {
-			upd_field = upd_get_nth_field(update, i);
-
-			if (upd_field->field_no == REC_MAX_N_FIELDS) {
-				continue;
+		for (const upd_field_t* s = d; s != end; s++) {
+			if (s->field_no != REC_MAX_N_FIELDS) {
+				*d++ = *s;
 			}
-
-			upd_field_t*	new_upd_field
-				 = upd_get_nth_field(new_update, n);
-			*new_upd_field = *upd_field;
-			n++;
 		}
-		ut_ad(n == n_fields + 2 - n_skip_field);
-		*upd = new_update;
-	} else {
-		*upd = update;
+
+		ut_ad(d + n_skip_field == end);
+		update->n_fields = d - upd_get_nth_field(update, 0);
 	}
 
 	return(const_cast<byte*>(ptr));
