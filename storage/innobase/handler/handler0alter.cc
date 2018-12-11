@@ -183,12 +183,16 @@ inline void dict_table_t::init_instant(const dict_table_t& table)
 	ut_d(unsigned n_nullable = 0);
 	for (unsigned i = u; i < index.n_fields; i++) {
 		auto& f = index.fields[i];
+		/* FIXME: CHAR of arbitrary size is now allowed. */
 		DBUG_ASSERT(dict_col_get_fixed_size(f.col, not_redundant())
-			    <= DICT_MAX_FIXED_COL_LEN);
+			    <= DICT_MAX_FIXED_COL_LEN
+			    || !not_redundant());
 		ut_d(n_nullable += f.col->is_nullable());
 
 		if (!f.col->is_dropped()) {
-			(*field_map_it++).set_ind(f.col->ind);
+			field_map_it->set_ind(f.col->ind);
+			field_map_it->or_unsigned_len(f.col->unsigned_len);
+			field_map_it++;
 			continue;
 		}
 
@@ -562,6 +566,16 @@ inline bool dict_table_t::instant_column(const dict_table_t& table,
 				    || !not_redundant());
 			DBUG_ASSERT(c.mtype == o->mtype || !not_redundant());
 			DBUG_ASSERT(c.len >= o->len);
+
+			if (o->mtype == DATA_INT && !(c.prtype & DATA_UNSIGNED)) {
+				DBUG_ASSERT(c.mtype == o->mtype);
+				if (o->prtype & DATA_UNSIGNED) {
+					DBUG_ASSERT(c.len > o->len);
+					c.unsigned_len = o->len;
+				} else {
+					c.unsigned_len = o->unsigned_len;
+				}
+			}
 
 			if (o->vers_sys_start()) {
 				ut_ad(o->ind == vers_start);
@@ -2981,7 +2995,7 @@ innobase_col_to_mysql(
 			*--ptr = *data++;
 		}
 
-		if (!(col->prtype & DATA_UNSIGNED)) {
+		if (!(col->prtype & DATA_UNSIGNED) && len > col->unsigned_len) {
 			((byte*) dest)[len - 1] ^= 0x80;
 		}
 
@@ -4265,6 +4279,8 @@ innobase_build_col_map(
 				}
 
 				col_map[old_i - num_old_v] = i;
+				new_table->cols[i].unsigned_len =
+					old_table->cols[old_i].unsigned_len;
 				if (old_table->versioned()) {
 					if (old_i == old_table->vers_start) {
 						new_table->vers_start = i + num_v;

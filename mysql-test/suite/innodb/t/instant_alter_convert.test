@@ -137,6 +137,40 @@ select * from t2;
 check table t2 extended;
 call check_table('t2');
 
+--echo # Case 4: instant conversion unsigned -> signed
+create or replace table t(x int) row_format=redundant;
+--error ER_ALTER_OPERATION_NOT_SUPPORTED_REASON
+alter table t modify x int unsigned, algorithm=instant;
+--error ER_ALTER_OPERATION_NOT_SUPPORTED_REASON
+alter table t modify x bigint unsigned, algorithm=instant;
+
+create or replace table t(x tinyint unsigned) row_format=redundant;
+insert into t values (255);
+
+alter table t modify x smallint unsigned, algorithm=instant;
+insert into t values (255);
+select * from t;
+check table t extended;
+call check_table('t');
+
+alter table t modify x mediumint, algorithm=instant;
+insert into t values (255);
+select * from t;
+check table t extended;
+call check_table('t');
+
+alter table t modify x int, algorithm=instant;
+insert into t values (255);
+select * from t;
+check table t extended;
+call check_table('t');
+
+alter table t modify x bigint, algorithm=instant;
+insert into t values (255);
+select * from t;
+check table t extended;
+call check_table('t');
+
 --echo # Check innobase_col_to_mysql() len < flen
 create or replace table t1 (x mediumint) row_format=redundant;
 insert into t1 values (1);
