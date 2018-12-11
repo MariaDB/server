@@ -1007,6 +1007,9 @@ void my_uuid_init(ulong seed1, ulong seed2);
 void my_uuid(uchar *guid);
 void my_uuid2str(const uchar *guid, char *s);
 void my_uuid_end(void);
+int my_uuid_parse(const char *in_string, size_t len,
+                  unsigned char *out_str);
+my_bool my_uuid_is_valid(const char *s, size_t len);
 
 const char *my_dlerror(const char *dlpath);
 

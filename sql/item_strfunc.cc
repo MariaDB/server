@@ -3294,6 +3294,112 @@ String *Item_func_rpad::val_str(String *str)
 }
 
 
+String* Item_func_uuid_to_bin::val_str(String *str)
+{
+  DBUG_ASSERT(fixed && (arg_count == 1 || arg_count == 2));
+  null_value= true;
+
+  String *res= args[0]->val_str(str);
+  if (!res || args[0]->null_value)
+    return NULL;
+
+  if (my_uuid_parse(res->ptr(), res->length(), m_bin_buf))
+    goto err;
+
+  /*
+    If there is a second argument which is true, it means
+    that the uuid is version 1 which has the time-low part at the beginning
+    of the uuid. So in order to make it index-friendly the time-low
+    will be swapped with the time-high and the time-mid groups.
+    Time-high has length 4, time-mid and time-low have length 2.
+    (time-low)-(time-mid)-(time-high) => (time-high)-(time-mid)-(time-low)
+  */
+  if (arg_count == 2 && args[1]->val_bool())
+  {
+    swap_variables(uchar, m_bin_buf[4], m_bin_buf[6]);
+    swap_variables(uchar, m_bin_buf[5], m_bin_buf[7]);
+    swap_variables(uchar, m_bin_buf[0], m_bin_buf[4]);
+    swap_variables(uchar, m_bin_buf[1], m_bin_buf[5]);
+    swap_variables(uchar, m_bin_buf[2], m_bin_buf[6]);
+    swap_variables(uchar, m_bin_buf[3], m_bin_buf[7]);
+  }
+
+  null_value= false;
+  str->set(reinterpret_cast<char *>(m_bin_buf), MY_UUID_SIZE,
+            &my_charset_bin);
+  return str;
+
+err:
+  ErrConvString err(res);
+  my_error(ER_WRONG_VALUE_FOR_TYPE, MYF(0), "string", err.ptr(), func_name());
+
+  return NULL;
+}
+
+String *Item_func_bin_to_uuid::val_str_ascii(String *str)
+{
+  DBUG_ASSERT(fixed && (arg_count == 1 || arg_count == 2));
+  null_value= true;
+
+  String *res= args[0]->val_str(str);
+  if (!res || args[0]->null_value)
+    return NULL;
+
+  if (res->length() != MY_UUID_SIZE)
+    goto err;
+
+  /*
+    If there is a second argument which is true,
+    the time-mid and time-high parts of uuid needs to be replaced
+    by time-low as they were previously shuffled to become index-friendly.
+    Time-high has length 4, time-mid and time-low have length 2.
+    (time-high)-(time-mid)-(time-low) => (time-low)-(time-mid)-(time-high)
+  */
+  if (arg_count == 2 && args[1]->val_bool())
+  {
+    uchar rearranged[MY_UUID_SIZE];
+    // The first 4 bytes are restored to "time-low".
+    memcpy(rearranged, &res->ptr()[4], 4);
+    // Bytes starting with 4th will be restored to "time-mid".
+    memcpy(&rearranged[4], &res->ptr()[2], 2);
+    // Bytes starting with 6th will be restored to "time-high".
+    memcpy(&rearranged[6], &res->ptr()[0], 2);
+    // The last 8 bytes were not changed so we just copy them.
+    memcpy(&rearranged[8], &res->ptr()[8], 8);
+    my_uuid2str(rearranged, m_text_buf);
+  }
+  else
+    my_uuid2str(reinterpret_cast<const uchar *>(res->ptr()),
+                                m_text_buf);
+
+  null_value= false;
+  str->set(m_text_buf, MY_UUID_STRING_LENGTH, default_charset());
+  return str;
+
+err:
+  ErrConvString err(res);
+  my_error(ER_WRONG_VALUE_FOR_TYPE, MYF(0), "string", err.ptr(), func_name());
+
+  return NULL;
+}
+
+
+longlong Item_func_is_uuid::val_int()
+{
+  DBUG_ASSERT(fixed && arg_count == 1);
+  null_value= true;
+
+  String buffer;
+  String *arg_str= args[0]->val_str(&buffer);
+
+  if (!arg_str)
+    return 0;
+
+  null_value= false;
+  return my_uuid_is_valid(arg_str->ptr(), arg_str->length());
+}
+
+
 String *Item_func_lpad::val_str(String *str)
 {
   DBUG_ASSERT(fixed == 1);
