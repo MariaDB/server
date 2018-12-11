@@ -119,6 +119,47 @@ check table t extended;
 call check_table('t');
 
 
+--echo # Case 4: instant conversion unsigned -> signed
+create or replace table t(x int) row_format=redundant;
+--error ER_ALTER_OPERATION_NOT_SUPPORTED_REASON
+alter table t modify x int unsigned, algorithm=instant;
+--error ER_ALTER_OPERATION_NOT_SUPPORTED_REASON
+alter table t modify x bigint unsigned, algorithm=instant;
+
+create or replace table t(x tinyint unsigned) row_format=redundant;
+insert into t values (255);
+
+alter table t modify x smallint unsigned, algorithm=instant;
+insert into t values (255);
+select * from t;
+check table t extended;
+call check_table('t');
+
+alter table t modify x mediumint, algorithm=instant;
+insert into t values (255);
+select * from t;
+check table t extended;
+call check_table('t');
+
+alter table t modify x int, algorithm=instant;
+insert into t values (255);
+select * from t;
+check table t extended;
+call check_table('t');
+
+alter table t modify x bigint, algorithm=instant;
+insert into t values (255);
+select * from t;
+check table t extended;
+call check_table('t');
+
+create or replace table t1 (x mediumint unsigned) row_format=redundant;
+insert into t1 values (1);
+insert into t1 values (1);
+alter table t1 add column y int first, modify x int;
+--error ER_DUP_ENTRY
+alter table t1 add column z int first, add primary key (x);
+
 --echo # Check assertion in wrong instant operation
 create or replace table t1 (a varchar(26) not null) default character set utf8mb4 row_format=redundant;
 alter table t1 modify a varchar(25) not null;

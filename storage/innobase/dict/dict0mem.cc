@@ -719,6 +719,7 @@ dict_mem_fill_column_struct(
 	dtype_get_mblen(mtype, prtype, &mbminlen, &mbmaxlen);
 	column->mbminlen = mbminlen;
 	column->mbmaxlen = mbmaxlen;
+	column->unsigned_len = 0;
 	column->def_val.data = NULL;
 	column->def_val.len = UNIV_SQL_DEFAULT;
 	ut_ad(!column->is_dropped());
@@ -1242,6 +1243,7 @@ inline void dict_index_t::reconstruct_fields()
 			n_nullable++;
 			n_core_null += i <= n_core_fields;
 		}
+		f.col->unsigned_len = c.unsigned_len();
 	}
 
 	fields = tfields;
