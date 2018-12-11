@@ -197,6 +197,7 @@ main.func_test
 main.func_time
 main.func_time_hires
 main.func_timestamp
+main.func_uuid
 main.function_defaults
 main.function_defaults_innodb
 main.gcc296
