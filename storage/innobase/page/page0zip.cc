@@ -2,7 +2,7 @@
 
 Copyright (c) 2005, 2016, Oracle and/or its affiliates. All Rights Reserved.
 Copyright (c) 2012, Facebook Inc.
-Copyright (c) 2017, MariaDB Corporation.
+Copyright (c) 2014, 2018, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -48,8 +48,6 @@ using namespace std;
 #include "btr0cur.h"
 #include "page0types.h"
 #include "log0recv.h"
-#else
-#define page_warn_strict_checksum(A,B,C,D)
 #endif /* !UNIV_INNOCHECKSUM */
 #include "zlib.h"
 #ifndef UNIV_HOTBACKUP
@@ -4926,13 +4924,6 @@ page_zip_verify_checksum(
 	stored = static_cast<ib_uint32_t>(mach_read_from_4(
 		static_cast<const unsigned char*>(data) + FIL_PAGE_SPACE_OR_CHKSUM));
 
-	ulint	page_no MY_ATTRIBUTE((unused)) =
-                mach_read_from_4(static_cast<const unsigned char*>
-                                 (data) + FIL_PAGE_OFFSET);
-	ulint	space_id MY_ATTRIBUTE((unused)) =
-                mach_read_from_4(static_cast<const unsigned char*>
-                                 (data) + FIL_PAGE_SPACE_ID);
-
 #if FIL_PAGE_LSN % 8
 #error "FIL_PAGE_LSN must be 64 bit aligned"
 #endif
@@ -4974,97 +4965,31 @@ page_zip_verify_checksum(
 
 	switch (curr_algo) {
 	case SRV_CHECKSUM_ALGORITHM_STRICT_CRC32:
-	case SRV_CHECKSUM_ALGORITHM_CRC32:
-
-		if (stored == BUF_NO_CHECKSUM_MAGIC) {
-			if (curr_algo
-			    == SRV_CHECKSUM_ALGORITHM_STRICT_CRC32) {
-				page_warn_strict_checksum(
-					curr_algo,
-					SRV_CHECKSUM_ALGORITHM_NONE,
-					space_id, page_no);
-			}
-
-			return(TRUE);
-		}
-
-		innodb = static_cast<ib_uint32_t>(page_zip_calc_checksum(
-			data, size, SRV_CHECKSUM_ALGORITHM_INNODB));
-
-		if (stored == innodb) {
-			if (curr_algo
-			    == SRV_CHECKSUM_ALGORITHM_STRICT_CRC32) {
-				page_warn_strict_checksum(
-					curr_algo,
-					SRV_CHECKSUM_ALGORITHM_INNODB,
-					space_id, page_no);
-			}
-
-			return(TRUE);
-		}
-
-		break;
 	case SRV_CHECKSUM_ALGORITHM_STRICT_INNODB:
-	case SRV_CHECKSUM_ALGORITHM_INNODB:
-
-		if (stored == BUF_NO_CHECKSUM_MAGIC) {
-			if (curr_algo
-			    == SRV_CHECKSUM_ALGORITHM_STRICT_INNODB) {
-				page_warn_strict_checksum(
-					curr_algo,
-					SRV_CHECKSUM_ALGORITHM_NONE,
-					space_id, page_no);
-			}
-
-			return(TRUE);
-		}
-
-		crc32 = static_cast<ib_uint32_t>(page_zip_calc_checksum(
-			data, size, SRV_CHECKSUM_ALGORITHM_CRC32));
-
-		if (stored == crc32) {
-			if (curr_algo
-			    == SRV_CHECKSUM_ALGORITHM_STRICT_INNODB) {
-				page_warn_strict_checksum(
-					curr_algo,
-					SRV_CHECKSUM_ALGORITHM_CRC32,
-					space_id, page_no);
-			}
-
-			return(TRUE);
-		}
-
-		break;
 	case SRV_CHECKSUM_ALGORITHM_STRICT_NONE:
+		return stored == calc;
 
-		crc32 = static_cast<ib_uint32_t>(page_zip_calc_checksum(
-			data, size, SRV_CHECKSUM_ALGORITHM_CRC32));
-
-		if (stored == crc32) {
-			page_warn_strict_checksum(
-				curr_algo, SRV_CHECKSUM_ALGORITHM_CRC32,
-				space_id, page_no);
-
+	case SRV_CHECKSUM_ALGORITHM_CRC32:
+		if (stored == BUF_NO_CHECKSUM_MAGIC) {
 			return(TRUE);
 		}
 
+		crc32 = calc;
 		innodb = static_cast<ib_uint32_t>(page_zip_calc_checksum(
 			data, size, SRV_CHECKSUM_ALGORITHM_INNODB));
-
-		if (stored == innodb) {
-			page_warn_strict_checksum(
-				curr_algo,
-				SRV_CHECKSUM_ALGORITHM_INNODB,
-				space_id, page_no);
-			return(TRUE);
+		break;
+	case SRV_CHECKSUM_ALGORITHM_INNODB:
+		if (stored == BUF_NO_CHECKSUM_MAGIC) {
+			return TRUE;
 		}
 
+		crc32 = static_cast<ib_uint32_t>(page_zip_calc_checksum(
+			data, size, SRV_CHECKSUM_ALGORITHM_CRC32));
+		innodb = calc;
 		break;
 	case SRV_CHECKSUM_ALGORITHM_NONE:
-		ut_error;
-	/* no default so the compiler will emit a warning if new enum
-	is added and not handled here */
+		return TRUE;
 	}
 
-	return(FALSE);
+	return (stored == crc32 || stored == innodb);
 }
