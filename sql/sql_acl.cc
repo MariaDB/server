@@ -12641,7 +12641,12 @@ static ulong parse_client_handshake_packet(MPVIO_EXT *mpvio,
       return packet_error;
 
     DBUG_PRINT("info", ("IO layer change in progress..."));
-    if (sslaccept(ssl_acceptor_fd, net->vio, net->read_timeout, &errptr))
+    mysql_rwlock_rdlock(&LOCK_ssl_refresh);
+    int ssl_ret = sslaccept(ssl_acceptor_fd, net->vio, net->read_timeout, &errptr);
+    mysql_rwlock_unlock(&LOCK_ssl_refresh);
+    ssl_acceptor_stats_update(ssl_ret);
+
+    if(ssl_ret)
     {
       DBUG_PRINT("error", ("Failed to accept new SSL connection"));
       return packet_error;

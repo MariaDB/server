@@ -96,6 +96,9 @@ extern void init_net_server_extension(THD *thd);
 extern void handle_accepted_socket(MYSQL_SOCKET new_sock, MYSQL_SOCKET sock);
 extern void create_new_thread(CONNECT *connect);
 
+extern void ssl_acceptor_stats_update(int sslaccept_ret);
+extern int reinit_ssl();
+
 extern "C" MYSQL_PLUGIN_IMPORT CHARSET_INFO *system_charset_info;
 extern MYSQL_PLUGIN_IMPORT CHARSET_INFO *files_charset_info ;
 extern MYSQL_PLUGIN_IMPORT CHARSET_INFO *national_charset_info;
@@ -633,6 +636,7 @@ extern mysql_mutex_t LOCK_des_key_file;
 extern mysql_mutex_t LOCK_server_started;
 extern mysql_cond_t COND_server_started;
 extern mysql_rwlock_t LOCK_grant, LOCK_sys_init_connect, LOCK_sys_init_slave;
+extern mysql_rwlock_t LOCK_ssl_refresh;
 extern mysql_prlock_t LOCK_system_variables_hash;
 extern mysql_cond_t COND_thread_count, COND_start_thread;
 extern mysql_cond_t COND_manager;

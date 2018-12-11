@@ -416,6 +416,11 @@ bool reload_acl_and_cache(THD *thd, unsigned long long options,
 #endif
  if (options & REFRESH_USER_RESOURCES)
    reset_mqh((LEX_USER *) NULL, 0);             /* purecov: inspected */
+ if (options & REFRESH_SSL)
+ {
+   if (reinit_ssl())
+     result= 1;
+ }
  if (options & REFRESH_GENERIC)
  {
    List_iterator_fast<LEX_CSTRING> li(thd->lex->view_list);
