@@ -20,6 +20,7 @@
 
 
 /* This file defines all string functions */
+#include "item_cmpfunc.h"             // Item_bool_func
 
 #ifdef USE_PRAGMA_INTERFACE
 #pragma interface			/* gcc class implementation */
@@ -844,6 +845,60 @@ public:
   String *val_str(String *);
   void fix_length_and_dec();
   const char *func_name() const { return "lpad"; }
+};
+
+
+class Item_func_uuid_to_bin : public Item_str_func
+{
+  /// Buffer to store the binary result
+  uchar m_bin_buf[MY_UUID_SIZE];
+public:
+  Item_func_uuid_to_bin(THD *thd, Item *arg1)
+    :Item_str_func(thd, arg1)
+  {}
+  Item_func_uuid_to_bin(THD *thd, Item *arg1, Item *arg2)
+    :Item_str_func(thd, arg1, arg2)
+  {}
+  String *val_str(String *);
+  void fix_length_and_dec()
+  {
+    collation.set(&my_charset_bin);
+    max_length= MY_UUID_SIZE;
+    maybe_null= 1;
+  }
+  const char *func_name() const { return "uuid_to_bin"; }
+};
+
+
+class Item_func_bin_to_uuid : public Item_str_ascii_func
+{
+  /// Buffer to store the text result
+  char m_text_buf[MY_UUID_STRING_LENGTH + 1];
+public:
+  Item_func_bin_to_uuid(THD *thd, Item *arg1)
+    :Item_str_ascii_func(thd, arg1)
+  {}
+  Item_func_bin_to_uuid(THD *thd, Item *arg1, Item *arg2)
+    :Item_str_ascii_func(thd, arg1, arg2)
+  {}
+  String *val_str_ascii(String *);
+  void fix_length_and_dec()
+  {
+    decimals= 0;
+    fix_length_and_charset(MY_UUID_STRING_LENGTH, default_charset());
+    maybe_null= true;
+  }
+  const char *func_name() const { return "bin_to_uuid"; }
+};
+
+
+class Item_func_is_uuid : public Item_bool_func
+{
+  typedef Item_bool_func super;
+public:
+  Item_func_is_uuid(THD *thd, Item *a): Item_bool_func(thd, a) {}
+  longlong val_int();
+  const char *func_name() const { return "is_uuid"; }
 };
 
 

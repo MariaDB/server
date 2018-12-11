@@ -1,4 +1,5 @@
 /* Copyright (C) 2007 MySQL AB, Sergei Golubchik & Michael Widenius
+   Copyright (c) 2014, 2017, 2018 Oracle and/or its affiliates.
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -243,4 +244,94 @@ void my_uuid_end()
     my_uuid_inited= 0;
     mysql_mutex_destroy(&LOCK_uuid_generator);
   }
+}
+
+static const int my_uuid_bytes_per_section[] = {4, 2, 2, 2, 6};
+
+#define NUMBER_OF_SECTIONS (sizeof(my_uuid_bytes_per_section)/sizeof(my_uuid_bytes_per_section[0]))
+
+static const int my_uuid_hex_to_byte[] = {
+    -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1,
+    -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1,
+    -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, 0,  1,  2,  3,  4,  5,  6,  7,  8,
+    9,  -1, -1, -1, -1, -1, -1, -1, 10, 11, 12, 13, 14, 15, -1, -1, -1, -1, -1,
+    -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1,
+    -1, -1, 10, 11, 12, 13, 14, 15, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1,
+    -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1,
+    -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1,
+    -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1,
+    -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1,
+    -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1,
+    -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1,
+    -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1,
+    -1, -1, -1, -1, -1, -1, -1, -1, -1,
+};
+
+static my_bool my_uuid_read_section(int section_len, const char **section_string,
+                                    unsigned char ** out_binary_str)
+{
+  int j;
+  for (j = 0; j < section_len; j++) {
+    int hi = my_uuid_hex_to_byte[**section_string];
+    if (hi == -1) return TRUE;
+    (*section_string)++;
+    int lo = my_uuid_hex_to_byte[**section_string];
+    if (lo == -1) return TRUE;
+    (*section_string)++;
+    if (out_binary_str) {
+      unsigned char *u = *out_binary_str;
+      *u = ((hi << 4) + lo);
+      (*out_binary_str)++;
+    }
+  }
+  return FALSE;
+}
+
+/**
+   Convert string to uuid binary representation
+
+   @func  my_uuid_parse()
+   @param in_string  input string
+   @param len        length of input string
+   @param out_str    Output buffer. Must be at least MY_UUID_SIZE large.
+   @retval 0 if successful
+*/
+int my_uuid_parse(const char *in_string, size_t len,
+                  unsigned char *out_str)
+{
+  int i;
+  unsigned char **p_out_str = out_str ? &out_str : NULL;
+
+  switch (len) {
+    // UUID without dashes. ex 12345678123456781234567812345678
+    case MY_UUID_STRING_LENGTH - 4:
+      if (my_uuid_read_section((MY_UUID_STRING_LENGTH - 4) / 2, &in_string, p_out_str)) return 1;
+      break;
+    // UUID with braces ex {12345678-1234-5678-1234-567812345678}
+    case MY_UUID_STRING_LENGTH + 2:
+      if (*in_string != '{' || in_string[MY_UUID_STRING_LENGTH + 1] != '}') return 1;
+      in_string++;
+      // intentionally fall through
+    // standard UUID ex 12345678-1234-5678-1234-567812345678
+    case MY_UUID_STRING_LENGTH:
+      for (i = 0; i < NUMBER_OF_SECTIONS - 1; i++) {
+        if (my_uuid_read_section(my_uuid_bytes_per_section[i], &in_string, p_out_str)) return 1;
+        if (*in_string == '-')
+          in_string++;
+        else
+          return 1;
+      }
+      if (my_uuid_read_section(my_uuid_bytes_per_section[NUMBER_OF_SECTIONS - 1], &in_string,
+                       p_out_str))
+        return 1;
+      break;
+    default:
+      return 1;
+  }
+  return 0;
+}
+
+my_bool my_uuid_is_valid(const char *s, size_t len)
+{
+  return my_uuid_parse(s, len, NULL) == 0;
 }
