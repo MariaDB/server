@@ -173,6 +173,8 @@ inline void dict_table_t::prepare_instant(const dict_table_t& old,
 	DBUG_ASSERT(old.n_cols == old.n_def);
 	DBUG_ASSERT(n_cols == n_def);
 	DBUG_ASSERT(old.supports_instant());
+	DBUG_ASSERT(!persistent_autoinc
+		    || persistent_autoinc == old.persistent_autoinc);
 	/* supports_instant() does not necessarily hold here,
 	in case ROW_FORMAT=COMPRESSED according to the
 	MariaDB data dictionary, and ALTER_OPTIONS was not set.
@@ -431,6 +433,8 @@ inline void dict_table_t::instant_column(const dict_table_t& table,
 	DBUG_ASSERT(n_v_def == n_v_cols);
 	DBUG_ASSERT(table.n_v_def == table.n_v_cols);
 	DBUG_ASSERT(table.n_cols + table.n_dropped() >= n_cols + n_dropped());
+	DBUG_ASSERT(!table.persistent_autoinc
+		    || persistent_autoinc == table.persistent_autoinc);
 	ut_ad(mutex_own(&dict_sys->mutex));
 
 	{
@@ -6202,6 +6206,9 @@ new_clustered_failed:
 			    == !!new_clustered);
 	}
 
+	DBUG_ASSERT(!ctx->need_rebuild()
+		    || !ctx->new_table->persistent_autoinc);
+
 	if (ctx->need_rebuild() && instant_alter_column_possible(
 		    *user_table, ha_alter_info, old_table)
 #if 1 // MDEV-17459: adjust fts_fetch_doc_from_rec() and friends; remove this
@@ -6329,6 +6336,11 @@ new_clustered_failed:
 				&& !strcmp(dict_table_get_col_name(
 						   ctx->new_table, i),
 				   FTS_DOC_ID_COL_NAME)));
+
+		if (altered_table->found_next_number_field) {
+			ctx->new_table->persistent_autoinc
+				= ctx->old_table->persistent_autoinc;
+		}
 
 		ctx->prepare_instant();
 	}
@@ -6462,7 +6474,6 @@ new_table_failed:
 		ut_ad(new_clust_index->n_core_null_bytes
 		      == UT_BITS_IN_BYTES(new_clust_index->n_nullable));
 
-		DBUG_ASSERT(!ctx->new_table->persistent_autoinc);
 		if (const Field* ai = altered_table->found_next_number_field) {
 			const unsigned	col_no = innodb_col_no(ai);
 
@@ -10142,8 +10153,8 @@ commit_cache_norebuild(
 		}
 
 		if (ha_alter_info->handler_flags & ALTER_DROP_STORED_COLUMN) {
-			dict_index_t* index = dict_table_get_first_index(
-				ctx->new_table);
+			const dict_index_t* index = ctx->new_table->indexes.start;
+
 			for (const dict_field_t* f = index->fields,
 				     * const end = f + index->n_fields;
 			     f != end; f++) {
@@ -10155,6 +10166,14 @@ commit_cache_norebuild(
 							  && c.len > 255),
 						      f->fixed_len);
 				}
+			}
+
+			DBUG_ASSERT(!ctx->instant_table->persistent_autoinc
+				    || ctx->new_table->persistent_autoinc
+				    == ctx->instant_table->persistent_autoinc);
+
+			if (!ctx->instant_table->persistent_autoinc) {
+				ctx->new_table->persistent_autoinc = 0;
 			}
 		}
 	}

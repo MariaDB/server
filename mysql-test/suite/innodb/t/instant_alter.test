@@ -437,6 +437,16 @@ ALTER TABLE t1 DROP f4;
 ALTER TABLE t1 DROP f1;
 DROP TABLE t1;
 
+# MDEV-17901 Crash after instant DROP COLUMN of AUTO_INCREMENT column
+eval CREATE TABLE t1 (id INT NOT NULL AUTO_INCREMENT, f INT, KEY(id)) $engine;
+ALTER TABLE t1 DROP COLUMN id;
+INSERT INTO t1 () VALUES (),();
+SELECT * FROM t1;
+# Adding AUTO_INCREMENT column will always require rebuild.
+ALTER TABLE t1 ADD COLUMN id INT NOT NULL AUTO_INCREMENT FIRST, ADD KEY(id);
+SELECT * FROM t1;
+DROP TABLE t1;
+
 dec $format;
 }
 disconnect analyze;
