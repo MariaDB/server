@@ -1129,5 +1129,19 @@ Warnings:
 Warning	1292	Truncated incorrect datetime value: 'N/A'
 DROP TABLE t1;
 #
+# MDEV-17972 Assertion `is_valid_value_slow()' failed in Datetime::Datetime
+#
+SET time_zone='+00:00';
+CREATE TABLE t1 (a TIMESTAMP(6)) ENGINE=MyISAM;
+INSERT INTO t1 VALUES ('2001-01-01 10:20:30');
+FLUSH TABLES;
+MYD
+FF77777777FFFFFF
+SELECT a, CAST(a AS DATETIME) AS dt0, CAST(a AS DATETIME(6)) AS dt6 FROM t1;
+a	dt0	dt6
+2033-07-07 03:01:11.999999	2033-07-07 03:01:11	2033-07-07 03:01:11.999999
+DROP TABLE t1;
+SET time_zone=DEFAULT;
+#
 # End of 10.4 tests
 #
