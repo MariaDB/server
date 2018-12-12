@@ -13531,7 +13531,8 @@ int ha_innobase::truncate()
 		row_mysql_unlock_data_dictionary(trx);
 	} else {
 		err = create(name, table, &info,
-			     dict_table_is_file_per_table(ib_table), trx);
+			     ib_table->is_temporary()
+			     || dict_table_is_file_per_table(ib_table), trx);
 	}
 
 	trx_free_for_mysql(trx);
