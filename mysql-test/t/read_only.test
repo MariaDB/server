@@ -310,3 +310,16 @@ set global read_only= @start_read_only;
 # Wait till all disconnects are completed
 --source include/wait_until_count_sessions.inc
 
+--echo #
+--echo # MDEV-16987 - ALTER DATABASE possible in read-only mode
+--echo #
+GRANT ALTER ON test1.* TO user1@localhost;
+CREATE DATABASE test1;
+SET GLOBAL read_only=1;
+change_user user1;
+--error ER_OPTION_PREVENTS_STATEMENT
+ALTER DATABASE test1 CHARACTER SET utf8;
+change_user root;
+SET GLOBAL read_only=0;
+DROP DATABASE test1;
+DROP USER user1@localhost;
