@@ -709,6 +709,14 @@ UPDATE t1 SET a=COALESCE(b);
 DROP TABLE t1;
 SET sql_mode=DEFAULT;
 
+--echo #
+--echo # MDEV-17979 Assertion `0' failed in Item::val_native upon SELECT with timestamp, NULLIF, GROUP BY
+--echo #
+
+CREATE TABLE t1 (a INT, b TIMESTAMP) ENGINE=MyISAM;
+INSERT INTO t1 VALUES (1,'2018-06-19 00:00:00');
+SELECT NULLIF(b, 'N/A') AS f, MAX(a) FROM t1 GROUP BY f;
+DROP TABLE t1;
 
 --echo #
 --echo # End of 10.4 tests

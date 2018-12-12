@@ -1118,5 +1118,16 @@ ERROR 22007: Incorrect datetime value: '0000-00-00 00:00:00' for column 'a' at r
 DROP TABLE t1;
 SET sql_mode=DEFAULT;
 #
+# MDEV-17979 Assertion `0' failed in Item::val_native upon SELECT with timestamp, NULLIF, GROUP BY
+#
+CREATE TABLE t1 (a INT, b TIMESTAMP) ENGINE=MyISAM;
+INSERT INTO t1 VALUES (1,'2018-06-19 00:00:00');
+SELECT NULLIF(b, 'N/A') AS f, MAX(a) FROM t1 GROUP BY f;
+f	MAX(a)
+2018-06-19 00:00:00	1
+Warnings:
+Warning	1292	Truncated incorrect datetime value: 'N/A'
+DROP TABLE t1;
+#
 # End of 10.4 tests
 #

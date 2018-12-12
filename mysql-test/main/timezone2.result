@@ -542,5 +542,18 @@ SELECT * FROM t1 WHERE a IN ((SELECT MAX(b) FROM t1), (SELECT MIN(b) FROM t1));
 a	b
 DROP TABLE t1;
 #
+# MDEV-17979 Assertion `0' failed in Item::val_native upon SELECT with timestamp, NULLIF, GROUP BY
+#
+SET time_zone='+00:00';
+CREATE TABLE t1 (a INT, ts TIMESTAMP) ENGINE=MyISAM;
+INSERT INTO t1 VALUES (1, FROM_UNIXTIME(1288481126) /*winter time in Moscow*/);
+SET time_zone='Europe/Moscow';
+CREATE TABLE t2 AS SELECT ts, COALESCE(ts) AS cts FROM t1 GROUP BY cts;
+SELECT ts, cts, UNIX_TIMESTAMP(ts) AS uts, UNIX_TIMESTAMP(cts) AS ucts FROM t2;
+ts	cts	uts	ucts
+2010-10-31 02:25:26	2010-10-31 02:25:26	1288481126	1288481126
+DROP TABLE t1,t2;
+SET time_zone=DEFAULT;
+#
 # End of 10.4 tests
 #

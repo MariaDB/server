@@ -23907,7 +23907,7 @@ setup_copy_fields(THD *thd, TMP_TABLE_PARAM *param,
 	 on how the value is to be used: In some cases this may be an
 	 argument in a group function, like: IF(ISNULL(col),0,COUNT(*))
       */
-      if (!(pos=new (thd->mem_root) Item_copy_string(thd, pos)))
+      if (!(pos= pos->type_handler()->create_item_copy(thd, pos)))
 	goto err;
       if (i < border)                           // HAVING, ORDER and GROUP BY
       {

@@ -35,6 +35,7 @@ class Item_const;
 class Item_literal;
 class Item_param;
 class Item_cache;
+class Item_copy;
 class Item_func_or_sum;
 class Item_sum_hybrid;
 class Item_sum_sum;
@@ -3470,6 +3471,7 @@ public:
     DBUG_ASSERT(0);
     return NULL;
   }
+  virtual Item_copy *create_item_copy(THD *thd, Item *item) const;
   virtual int cmp_native(const Native &a, const Native &b) const
   {
     DBUG_ASSERT(0);
@@ -3771,6 +3773,11 @@ public:
   }
   Item *make_const_item_for_comparison(THD *, Item *src, const Item *cmp) const;
   Item_cache *Item_get_cache(THD *thd, const Item *item) const;
+  Item_copy *create_item_copy(THD *thd, Item *item) const
+  {
+    DBUG_ASSERT(0);
+    return NULL;
+  }
   bool set_comparator_func(Arg_comparator *cmp) const;
   bool Item_hybrid_func_fix_attributes(THD *thd,
                                        const char *name,
@@ -5411,6 +5418,7 @@ public:
   int Item_save_in_field(Item *item, Field *field, bool no_conversions) const;
   String *print_item_value(THD *thd, Item *item, String *str) const;
   Item_cache *Item_get_cache(THD *thd, const Item *item) const;
+  Item_copy *create_item_copy(THD *thd, Item *item) const;
   String *Item_func_min_max_val_str(Item_func_min_max *, String *) const;
   double Item_func_min_max_val_real(Item_func_min_max *) const;
   longlong Item_func_min_max_val_int(Item_func_min_max *) const;

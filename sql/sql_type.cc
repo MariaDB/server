@@ -3764,6 +3764,22 @@ Type_handler_date_common::Item_get_cache(THD *thd, const Item *item) const
   return new (thd->mem_root) Item_cache_date(thd);
 }
 
+
+/*************************************************************************/
+
+Item_copy *
+Type_handler::create_item_copy(THD *thd, Item *item) const
+{
+  return new (thd->mem_root) Item_copy_string(thd, item);
+}
+
+
+Item_copy *
+Type_handler_timestamp_common::create_item_copy(THD *thd, Item *item) const
+{
+  return new (thd->mem_root) Item_copy_timestamp(thd, item);
+}
+
 /*************************************************************************/
 
 bool Type_handler_int_result::
