@@ -1733,14 +1733,6 @@ MDL_lock::can_grant_lock(enum_mdl_type type_arg,
     if (! (m_granted.bitmap() & granted_incompat_map))
       can_grant= TRUE;
 #ifdef WITH_WSREP
-    else if (wsrep_thd_is_BF((void *)(requestor_ctx->get_thd()),false) &&
-             key.mdl_namespace() == MDL_key::GLOBAL)
-    {
-      WSREP_DEBUG("global lock granted for BF: %lld %s",
-		  wsrep_thd_thread_id((const void*)requestor_ctx->get_thd()),
-		  wsrep_thd_query(requestor_ctx->get_thd()));
-      can_grant= TRUE;
-    }
     else
     {
       Ticket_iterator it(m_granted);
@@ -1753,7 +1745,6 @@ MDL_lock::can_grant_lock(enum_mdl_type type_arg,
         if (ticket->get_ctx() != requestor_ctx &&
             ticket->is_incompatible_when_granted(type_arg))
         {
-#ifdef WITH_WSREP
 	    if ((wsrep_thd_is_toi(requestor_ctx->get_thd()) ||
 		 wsrep_thd_is_applying(requestor_ctx->get_thd())) &&
 		key.mdl_namespace() == MDL_key::BACKUP)

@@ -1111,7 +1111,6 @@ void Global_read_lock::unlock_global_read_lock(THD *thd)
       server_state.resume_and_resync();
     }
   }
-#endif /* WITH_WSREP */
 
   m_mdl_global_read_lock= NULL;
   m_state= GRL_NONE;
@@ -1143,14 +1142,6 @@ bool Global_read_lock::make_global_read_lock_block_commit(THD *thd)
     make_global_read_lock_block_commit(), do nothing.
   */
 
-#ifdef WITH_WSREP
-  if (WSREP(thd) && m_mdl_blocks_commits_lock)
-  {
-    WSREP_DEBUG("GRL was in block commit mode when entering "
-		"make_global_read_lock_block_commit");
-    DBUG_RETURN(FALSE);
-  }
-#endif /* WITH_WSREP */
   if (m_state != GRL_ACQUIRED)
     DBUG_RETURN(0);
 
@@ -1186,27 +1177,6 @@ bool Global_read_lock::make_global_read_lock_block_commit(THD *thd)
   if (paused_seqno.get() >= 0)
   {
     wsrep_locked_seqno= paused_seqno.get();
-  }
-  else if (ret != -ENOSYS) /* -ENOSYS - no provider */
-  {
-    long long ret = server_state.pause();
-    if (ret >= 0)
-    {
-      wsrep_locked_seqno= ret;
-    }
-    else if (ret != -ENOSYS) /* -ENOSYS - no provider */
-    {
-      WSREP_ERROR("Failed to pause provider: %lld (%s)", -ret, strerror(-ret));
-
-      /*
-        For some reason Galera wants to crash here in debug build.
-        It is equivalent of original assertion.
-      */
-      DBUG_ASSERT(0);
-      wsrep_locked_seqno= WSREP_SEQNO_UNDEFINED;
-      my_error(ER_LOCK_DEADLOCK, MYF(0));
-      DBUG_RETURN(TRUE);
-     }
   }
 #endif /* WITH_WSREP */
   DBUG_RETURN(FALSE);
