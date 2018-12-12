@@ -5895,7 +5895,7 @@ int spider_mysql_share::convert_key_hint_str()
   DBUG_ENTER("spider_mysql_share::convert_key_hint_str");
   if (spider_share->access_charset->cset != system_charset_info->cset)
   {
-    /* need convertion */
+    /* need conversion */
     for (roop_count = 0, tmp_key_hint = key_hint;
       roop_count < (int) table_share->keys; roop_count++, tmp_key_hint++)
     {
