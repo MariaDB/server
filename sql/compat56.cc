@@ -21,7 +21,7 @@
 #include "my_time.h"
 
 
-static uint my_max_usec_value[7]
+static const int my_max_usec_value[7]
 {
   0,
   900000,
