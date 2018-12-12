@@ -753,6 +753,25 @@ static ulint btr_node_ptr_max_size(const dict_index_t* index)
 
 		field_max_size = dict_col_get_max_size(col);
 		if (UNIV_UNLIKELY(!field_max_size)) {
+			switch (col->mtype) {
+			case DATA_CHAR:
+			case DATA_MYSQL:
+				/* CHAR(0) is a possible data type.
+				The InnoDB internal SQL parser maps
+				CHAR to DATA_VARCHAR, so DATA_CHAR (or
+				DATA_MYSQL) is only coming from the
+				MariaDB SQL layer. */
+				if (comp) {
+					/* Add a length byte, because
+					fixed-length empty field are
+					encoded as variable-length.
+					For ROW_FORMAT=REDUNDANT,
+					these bytes were added to
+					rec_max_size before this loop. */
+					rec_max_size++;
+				}
+				continue;
+			}
 			/* SYS_FOREIGN.ID is defined as CHAR in the
 			InnoDB internal SQL parser, which translates
 			into the incorrect VARCHAR(0).  InnoDB does
