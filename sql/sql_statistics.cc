@@ -3931,9 +3931,8 @@ bool is_stat_table(const char *db, const char *table)
 
 bool is_eits_usable(Field *field)
 {
-  partition_info *part_info= NULL;
   #ifdef WITH_PARTITION_STORAGE_ENGINE
-    part_info= field->table->part_info;
+    partition_info *part_info= field->table->part_info;
   #endif
   /*
     (1): checks if we have EITS statistics for a particular column
@@ -3944,8 +3943,11 @@ bool is_eits_usable(Field *field)
   */
   Column_statistics* col_stats= field->read_stats;
   if (col_stats && !col_stats->no_stat_values_provided() &&        //(1)
-      field->type() != MYSQL_TYPE_GEOMETRY &&                      //(2)
-      (!part_info || !part_info->field_in_partition_expr(field)))  //(3)
+      field->type() != MYSQL_TYPE_GEOMETRY                         //(2)
+      #ifdef WITH_PARTITION_STORAGE_ENGINE
+       && (!part_info || !part_info->field_in_partition_expr(field))  //(3)
+      #endif
+     )
     return TRUE;
   return FALSE;
 }
