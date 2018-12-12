@@ -384,6 +384,7 @@ private:
   bool is_full_part_expr_in_fields(List<Item> &fields);
 public:
   bool has_unique_name(partition_element *element);
+  bool field_in_partition_expr(Field *field) const;
 };
 
 uint32 get_next_partition_id_range(struct st_partition_iter* part_iter);
