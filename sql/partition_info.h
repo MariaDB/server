@@ -347,6 +347,7 @@ private:
   bool add_named_partition(const char *part_name, uint length);
 public:
   bool has_unique_name(partition_element *element);
+  bool field_in_partition_expr(Field *field) const;
 };
 
 uint32 get_next_partition_id_range(struct st_partition_iter* part_iter);
