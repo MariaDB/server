@@ -392,6 +392,7 @@ private:
 public:
   bool set_read_partitions(List<char> *partition_names);
   bool has_unique_name(partition_element *element);
+  bool field_in_partition_expr(Field *field) const;
 
   bool vers_init_info(THD *thd);
   bool vers_set_interval(THD *thd, Item *item,

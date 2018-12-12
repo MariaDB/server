@@ -699,8 +699,6 @@ Warning	1264	Out of range value for column 'b' at row 1
 SELECT * FROM t WHERE c = '0';
 a	b	c
 1	127	0
-Warnings:
-Warning	1264	Out of range value for column 'b' at row 1
 DROP TABLE t;
 #
 # Bug#21688115 VIRTUAL COLUMN COMPUTATION SAVE_IN_FIELD()

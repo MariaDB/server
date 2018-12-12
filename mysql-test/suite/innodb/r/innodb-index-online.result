@@ -144,8 +144,6 @@ DROP INDEX c2 ON t1;
 ANALYZE TABLE t1_c2_stats;
 Table	Op	Msg_type	Msg_text
 test.t1_c2_stats	analyze	status	Engine-independent statistics collected
-test.t1_c2_stats	analyze	Note	Data truncated for column 'avg_length' at row 1
-test.t1_c2_stats	analyze	Note	Data truncated for column 'nulls_ratio' at row 1
 test.t1_c2_stats	analyze	status	OK
 SELECT * FROM mysql.innodb_index_stats WHERE table_name IN ('t1', 't1_c2_stats');
 database_name	table_name	index_name	last_update	stat_name	stat_value	sample_size	stat_description

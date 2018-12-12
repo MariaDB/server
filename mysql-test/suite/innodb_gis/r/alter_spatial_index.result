@@ -588,8 +588,6 @@ tab	1	idx6	1	c4	A	#	10	NULL		BTREE
 ANALYZE TABLE tab;
 Table	Op	Msg_type	Msg_text
 test.tab	analyze	status	Engine-independent statistics collected
-test.tab	analyze	Note	Data truncated for column 'avg_length' at row 1
-test.tab	analyze	Note	Data truncated for column 'avg_length' at row 1
 test.tab	analyze	status	OK
 SET @g1 = ST_GeomFromText('POLYGON((5010 5010,5020 5020,5030 5030,5040 5030,5020 5010,5010 5010))');
 SET @g2 = ST_GeomFromText('LINESTRING(140 140,150 150,160 160)');
