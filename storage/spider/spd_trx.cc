@@ -1586,21 +1586,23 @@ int spider_check_and_set_trx_isolation(
   SPIDER_CONN *conn,
   int *need_mon
 ) {
+  THD *thd = conn->thd;
   int trx_isolation;
   DBUG_ENTER("spider_check_and_set_trx_isolation");
-
-  trx_isolation = thd_tx_isolation(conn->thd);
-  DBUG_PRINT("info",("spider local trx_isolation=%d", trx_isolation));
-/*
-  DBUG_PRINT("info",("spider conn->trx_isolation=%d", conn->trx_isolation));
-  if (conn->trx_isolation != trx_isolation)
+  if (thd->system_thread == SYSTEM_THREAD_SLAVE_SQL)
   {
-*/
-    spider_conn_queue_trx_isolation(conn, trx_isolation);
-/*
-    conn->trx_isolation = trx_isolation;
+    if ((trx_isolation = spider_param_slave_trx_isolation()) == -1)
+    {
+      trx_isolation = thd_tx_isolation(thd);
+      DBUG_PRINT("info",("spider local trx_isolation=%d", trx_isolation));
+    } else {
+      DBUG_PRINT("info",("spider slave trx_isolation=%d", trx_isolation));
+    }
+  } else {
+    trx_isolation = thd_tx_isolation(thd);
+    DBUG_PRINT("info",("spider local trx_isolation=%d", trx_isolation));
   }
-*/
+  spider_conn_queue_trx_isolation(conn, trx_isolation);
   DBUG_RETURN(0);
 }
 

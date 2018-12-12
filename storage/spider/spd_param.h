@@ -420,3 +420,4 @@ int spider_param_load_crd_at_startup(
 uint spider_param_table_sts_thread_count();
 uint spider_param_table_crd_thread_count();
 #endif
+int spider_param_slave_trx_isolation();
