@@ -3328,6 +3328,33 @@ uint spider_param_table_crd_thread_count()
 }
 #endif
 
+static int spider_slave_trx_isolation;
+/*
+ -1 :off
+  0 :read uncommitted
+  1 :read committed
+  2 :repeatable read
+  3 :serializable
+ */
+static MYSQL_SYSVAR_INT(
+  slave_trx_isolation,
+  spider_slave_trx_isolation,
+  PLUGIN_VAR_RQCMDARG,
+  "Transaction isolation level when Spider table is used by slave SQL thread",
+  NULL, /* check */
+  NULL, /* update */
+  -1, /* def */
+  -1, /* min */
+  3, /* max */
+  0 /* blk */
+);
+
+int spider_param_slave_trx_isolation()
+{
+  DBUG_ENTER("spider_param_slave_trx_isolation");
+  DBUG_RETURN(spider_slave_trx_isolation);
+}
+
 static struct st_mysql_storage_engine spider_storage_engine =
 { MYSQL_HANDLERTON_INTERFACE_VERSION };
 
@@ -3477,6 +3504,7 @@ static struct st_mysql_sys_var* spider_system_variables[] = {
   MYSQL_SYSVAR(table_sts_thread_count),
   MYSQL_SYSVAR(table_crd_thread_count),
 #endif
+  MYSQL_SYSVAR(slave_trx_isolation),
   NULL
 };
 

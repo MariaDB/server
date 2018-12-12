@@ -822,7 +822,7 @@ void spider_fields::choose_a_conn(
     current_conn_holder = first_conn_holder;
   }
 
-  DBUG_PRINT("info",("spider choosed connection is %p",
+  DBUG_PRINT("info",("spider chosen connection is %p",
     current_conn_holder->conn));
   last_conn_holder = current_conn_holder;
   current_conn_holder = current_conn_holder->next;
@@ -2065,7 +2065,7 @@ group_by_handler *spider_create_group_by_handler(
   fields->check_support_dbton(dbton_bitmap);
   if (!fields->has_conn_holder())
   {
-    DBUG_PRINT("info",("spider all choosed connections can't match dbton_id"));
+    DBUG_PRINT("info",("spider all chosen connections can't match dbton_id"));
     delete fields;
     DBUG_RETURN(NULL);
   }
