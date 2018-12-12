@@ -3661,10 +3661,16 @@ btr_cur_pessimistic_insert(
 		}
 	}
 
+	DBUG_ASSERT(!entry->is_alter_metadata()
+		    || !dfield_is_ext(
+			    dtuple_get_nth_field(entry,
+						 index->first_user_field())));
+
 	if (page_zip_rec_needs_ext(rec_get_converted_size(index, entry, n_ext),
 				   dict_table_is_comp(index->table),
 				   dtuple_get_n_fields(entry),
-				   dict_table_page_size(index->table))) {
+				   dict_table_page_size(index->table))
+	    || UNIV_UNLIKELY(entry->is_alter_metadata())) {
 		/* The record is so big that we have to store some fields
 		externally on separate database pages */
 
