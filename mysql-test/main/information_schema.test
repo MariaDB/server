@@ -1622,12 +1622,13 @@ alter table t1 change b c int;
 lock table t1 read;
 connect(con1, localhost, root,,);
 connection con1;
-send flush tables;
+flush tables;
+send flush tables t1;
 connection default;
 let $wait_condition=
   select count(*) = 1 from information_schema.processlist
-    where state = "Waiting for table flush" and
-          info = "flush tables";
+    where state = "Waiting for table metadata lock" and
+          info = "flush tables t1";
 --source include/wait_condition.inc
 --vertical_results
 select * from information_schema.views;

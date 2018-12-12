@@ -26,7 +26,6 @@ Created 9/7/2013 Jimmy Yang
 #ifndef lock0prdt_h
 #define lock0prdt_h
 
-#include "univ.i"
 #include "lock0lock.h"
 
 /* Predicate lock data */

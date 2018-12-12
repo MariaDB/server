@@ -7921,3 +7921,13 @@ ER_KEY_DOESNT_SUPPORT
         eng "%s index %`s does not support this operation"
 ER_ALTER_OPERATION_TABLE_OPTIONS_NEED_REBUILD
 	eng "Changing table options requires the table to be rebuilt"
+ER_BACKUP_LOCK_IS_ACTIVE
+        eng "Can't execute the command as you have a BACKUP STAGE active"
+ER_BACKUP_NOT_RUNNING
+        eng "You must start backup with \"BACKUP STAGE START\""
+ER_BACKUP_WRONG_STAGE
+        eng "Backup stage '%s' is same or before current backup stage '%s'"
+ER_BACKUP_STAGE_FAILED
+        eng "Backup stage '%s' failed"
+ER_BACKUP_UNKNOWN_STAGE
+        eng "Unknown backup stage: '%s'. Stage should be one of START, FLUSH, BLOCK_DDL, BLOCK_COMMIT or END"

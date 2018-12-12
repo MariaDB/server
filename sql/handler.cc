@@ -692,7 +692,7 @@ int ha_init()
     binary log (which is considered a transaction-capable storage engine in
     counting total_ha)
   */
-  opt_using_transactions= total_ha>(ulong)opt_bin_log;
+  opt_using_transactions= total_ha > (ulong) opt_bin_log;
   savepoint_alloc_size+= sizeof(SAVEPOINT);
   DBUG_RETURN(error);
 }
@@ -701,7 +701,6 @@ int ha_end()
 {
   int error= 0;
   DBUG_ENTER("ha_end");
-
 
   /* 
     This should be eventualy based  on the graceful shutdown flag.
@@ -829,6 +828,43 @@ void ha_kill_query(THD* thd, enum thd_kill_levels level)
   DBUG_ENTER("ha_kill_query");
   plugin_foreach(thd, kill_handlerton, MYSQL_STORAGE_ENGINE_PLUGIN, &level);
   DBUG_VOID_RETURN;
+}
+
+
+/*****************************************************************************
+  Backup functions
+******************************************************************************/
+
+static my_bool plugin_prepare_for_backup(THD *unused1, plugin_ref plugin,
+                                         void *not_used)
+{
+  handlerton *hton= plugin_hton(plugin);
+  if (hton->state == SHOW_OPTION_YES && hton->prepare_for_backup)
+    hton->prepare_for_backup();
+  return FALSE;
+}
+
+void ha_prepare_for_backup()
+{
+  plugin_foreach_with_mask(0, plugin_prepare_for_backup,
+                           MYSQL_STORAGE_ENGINE_PLUGIN,
+                           PLUGIN_IS_DELETED|PLUGIN_IS_READY, 0);
+}
+
+static my_bool plugin_end_backup(THD *unused1, plugin_ref plugin,
+                                 void *not_used)
+{
+  handlerton *hton= plugin_hton(plugin);
+  if (hton->state == SHOW_OPTION_YES && hton->end_backup)
+    hton->end_backup();
+  return FALSE;
+}
+
+void ha_end_backup()
+{
+  plugin_foreach_with_mask(0, plugin_end_backup,
+                           MYSQL_STORAGE_ENGINE_PLUGIN,
+                           PLUGIN_IS_DELETED|PLUGIN_IS_READY, 0);
 }
 
 
@@ -1427,8 +1463,7 @@ int ha_commit_trans(THD *thd, bool all)
       We allow the owner of FTWRL to COMMIT; we assume that it knows
       what it does.
     */
-    mdl_request.init(MDL_key::COMMIT, "", "", MDL_INTENTION_EXCLUSIVE,
-                     MDL_EXPLICIT);
+    mdl_request.init(MDL_key::BACKUP, "", "", MDL_BACKUP_COMMIT, MDL_EXPLICIT);
 
     if (!WSREP(thd) &&
       thd->mdl_context.acquire_lock(&mdl_request,
@@ -7027,6 +7062,10 @@ int del_global_index_stat(THD *thd, TABLE* table, KEY* key_info)
   mysql_mutex_unlock(&LOCK_global_index_stats);
   DBUG_RETURN(res);
 }
+
+/*****************************************************************************
+  VERSIONING functions
+******************************************************************************/
 
 bool Vers_parse_info::is_start(const char *name) const
 {

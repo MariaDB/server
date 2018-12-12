@@ -27,9 +27,7 @@ Created 12/15/1997 Heikki Tuuri
 #ifndef pars0sym_h
 #define pars0sym_h
 
-#include "univ.i"
 #include "que0types.h"
-#include "dict0types.h"
 #include "pars0types.h"
 #include "row0types.h"
 

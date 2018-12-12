@@ -1217,15 +1217,13 @@ bool Item_func_unix_timestamp::get_timestamp_value(my_time_t *seconds,
     }
   }
 
-  THD *thd= current_thd;
-  Datetime dt(thd, args[0], Datetime::Options(TIME_NO_ZERO_IN_DATE, thd));
-  if ((null_value= !dt.is_valid_datetime()))
+  Timestamp_or_zero_datetime_native_null native(current_thd, args[0], true);
+  if ((null_value= native.is_null() || native.is_zero_datetime()))
     return true;
-
-  uint error_code;
-  *seconds= TIME_to_timestamp(thd, dt.get_mysql_time(), &error_code);
-  *second_part= dt.get_mysql_time()->second_part;
-  return (null_value= (error_code == ER_WARN_DATA_OUT_OF_RANGE));
+  Timestamp_or_zero_datetime tm(native);
+  *seconds= tm.tv().tv_sec;
+  *second_part= tm.tv().tv_usec;
+  return false;
 }
 
 

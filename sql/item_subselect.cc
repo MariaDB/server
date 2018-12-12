@@ -1352,6 +1352,24 @@ String *Item_singlerow_subselect::val_str(String *str)
 }
 
 
+bool Item_singlerow_subselect::val_native(THD *thd, Native *to)
+{
+  DBUG_ASSERT(fixed == 1);
+  if (forced_const)
+    return value->val_native(thd, to);
+  if (!exec() && !value->null_value)
+  {
+    null_value= false;
+    return value->val_native(thd, to);
+  }
+  else
+  {
+    reset();
+    return true;
+  }
+}
+
+
 my_decimal *Item_singlerow_subselect::val_decimal(my_decimal *decimal_value)
 {
   DBUG_ASSERT(fixed == 1);

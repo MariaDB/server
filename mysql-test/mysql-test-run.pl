@@ -102,6 +102,7 @@ use mtr_unique;
 use mtr_results;
 use IO::Socket::INET;
 use IO::Select;
+use Time::HiRes qw(gettimeofday);
 
 require "mtr_process.pl";
 require "mtr_io.pl";
@@ -2292,6 +2293,10 @@ sub environment_setup {
   $ENV{'EXE_MYSQL'}=                $exe_mysql;
   $ENV{'MYSQL_PLUGIN'}=             $exe_mysql_plugin;
   $ENV{'MYSQL_EMBEDDED'}=           $exe_mysql_embedded;
+  if(IS_WINDOWS)
+  {
+     $ENV{'MYSQL_INSTALL_DB_EXE'}=  mtr_exe_exists("$bindir/sql$opt_vs_config/mysql_install_db");
+  }
 
   my $client_config_exe=
     mtr_exe_maybe_exists(
@@ -3281,6 +3286,7 @@ sub mysql_install_db {
   # Create directories mysql and test
   mkpath("$install_datadir/mysql");
 
+  my $realtime= gettimeofday();
   if ( My::SafeProcess->run
        (
 	name          => "bootstrap",
@@ -3297,6 +3303,10 @@ sub mysql_install_db {
     mtr_error("Error executing mysqld --bootstrap\n" .
               "Could not install system database from $bootstrap_sql_file\n" .
 	      "The $path_bootstrap_log file contains:\n$data\n");
+  }
+  else
+  {
+    mtr_verbose("Spent " . sprintf("%.3f", (gettimeofday() - $realtime)) . " seconds in bootstrap");
   }
 }
 

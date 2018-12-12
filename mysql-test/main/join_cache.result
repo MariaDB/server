@@ -79,9 +79,9 @@ City.Name LIKE 'L%' AND Country.Population > 3000000 AND
 CountryLanguage.Percentage > 50 AND
 LENGTH(Language) < LENGTH(City.Name) - 2;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	Country	ALL	NULL	NULL	NULL	NULL	239	Using where
+1	SIMPLE	City	ALL	NULL	NULL	NULL	NULL	4079	Using where
+1	SIMPLE	Country	ALL	NULL	NULL	NULL	NULL	239	Using where; Using join buffer (flat, BNL join)
 1	SIMPLE	CountryLanguage	ALL	NULL	NULL	NULL	NULL	984	Using where; Using join buffer (flat, BNL join)
-1	SIMPLE	City	ALL	NULL	NULL	NULL	NULL	4079	Using where; Using join buffer (flat, BNL join)
 SELECT City.Name, Country.Name, CountryLanguage.Language
 FROM City,Country,CountryLanguage
 WHERE City.Country=Country.Code AND
@@ -157,9 +157,9 @@ City.Name LIKE 'L%' AND Country.Population > 3000000 AND
 CountryLanguage.Percentage > 50 AND
 LENGTH(Language) < LENGTH(City.Name) - 2;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	Country	ALL	NULL	NULL	NULL	NULL	239	Using where
-1	SIMPLE	CountryLanguage	ALL	NULL	NULL	NULL	NULL	984	Using where; Using join buffer (flat, BNL join)
-1	SIMPLE	City	ALL	NULL	NULL	NULL	NULL	4079	Using where; Using join buffer (incremental, BNL join)
+1	SIMPLE	City	ALL	NULL	NULL	NULL	NULL	4079	Using where
+1	SIMPLE	Country	ALL	NULL	NULL	NULL	NULL	239	Using where; Using join buffer (flat, BNL join)
+1	SIMPLE	CountryLanguage	ALL	NULL	NULL	NULL	NULL	984	Using where; Using join buffer (incremental, BNL join)
 SELECT City.Name, Country.Name, CountryLanguage.Language
 FROM City,Country,CountryLanguage
 WHERE City.Country=Country.Code AND
@@ -236,8 +236,8 @@ CountryLanguage.Percentage > 50 AND
 LENGTH(Language) < LENGTH(City.Name) - 2;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 1	SIMPLE	Country	ALL	NULL	NULL	NULL	NULL	239	Using where
-1	SIMPLE	CountryLanguage	hash_ALL	NULL	#hash#$hj	3	world.Country.Code	984	Using where; Using join buffer (flat, BNLH join)
 1	SIMPLE	City	hash_ALL	NULL	#hash#$hj	3	world.Country.Code	4079	Using where; Using join buffer (flat, BNLH join)
+1	SIMPLE	CountryLanguage	hash_ALL	NULL	#hash#$hj	3	world.Country.Code	984	Using where; Using join buffer (flat, BNLH join)
 SELECT City.Name, Country.Name, CountryLanguage.Language
 FROM City,Country,CountryLanguage
 WHERE City.Country=Country.Code AND
@@ -314,8 +314,8 @@ CountryLanguage.Percentage > 50 AND
 LENGTH(Language) < LENGTH(City.Name) - 2;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 1	SIMPLE	Country	ALL	NULL	NULL	NULL	NULL	239	Using where
-1	SIMPLE	CountryLanguage	hash_ALL	NULL	#hash#$hj	3	world.Country.Code	984	Using where; Using join buffer (flat, BNLH join)
-1	SIMPLE	City	hash_ALL	NULL	#hash#$hj	3	world.Country.Code	4079	Using where; Using join buffer (incremental, BNLH join)
+1	SIMPLE	City	hash_ALL	NULL	#hash#$hj	3	world.Country.Code	4079	Using where; Using join buffer (flat, BNLH join)
+1	SIMPLE	CountryLanguage	hash_ALL	NULL	#hash#$hj	3	world.Country.Code	984	Using where; Using join buffer (incremental, BNLH join)
 SELECT City.Name, Country.Name, CountryLanguage.Language
 FROM City,Country,CountryLanguage
 WHERE City.Country=Country.Code AND
@@ -402,7 +402,7 @@ ON City.Country=Country.Code AND City.Population > 5000000
 WHERE Country.Name LIKE 'C%' AND Country.Population > 10000000;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 1	SIMPLE	Country	ALL	NULL	NULL	NULL	NULL	239	Using where
-1	SIMPLE	City	hash_range	City_Population	#hash#$hj:City_Population	3:4	world.Country.Code	25	Using where; Rowid-ordered scan; Using join buffer (flat, BNLH join)
+1	SIMPLE	City	range	City_Population	City_Population	4	NULL	25	Using where; Rowid-ordered scan; Using join buffer (flat, BNL join)
 SELECT Country.Name, Country.Population, City.Name, City.Population 
 FROM Country LEFT JOIN City
 ON City.Country=Country.Code AND City.Population > 5000000
@@ -497,9 +497,9 @@ City.Name LIKE 'L%' AND Country.Population > 3000000 AND
 CountryLanguage.Percentage > 50 AND
 LENGTH(Language) < LENGTH(City.Name) - 2;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	Country	ALL	NULL	NULL	NULL	NULL	239	Using where
+1	SIMPLE	City	ALL	NULL	NULL	NULL	NULL	4079	Using where
 1	SIMPLE	CountryLanguage	ALL	NULL	NULL	NULL	NULL	984	Using where; Using join buffer (flat, BNL join)
-1	SIMPLE	City	ALL	NULL	NULL	NULL	NULL	4079	Using where; Using join buffer (flat, BNL join)
+1	SIMPLE	Country	ALL	NULL	NULL	NULL	NULL	239	Using where; Using join buffer (flat, BNL join)
 SELECT City.Name, Country.Name, CountryLanguage.Language
 FROM City,Country,CountryLanguage
 WHERE City.Country=Country.Code AND
@@ -575,9 +575,9 @@ City.Name LIKE 'L%' AND Country.Population > 3000000 AND
 CountryLanguage.Percentage > 50 AND
 LENGTH(Language) < LENGTH(City.Name) - 2;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	Country	ALL	NULL	NULL	NULL	NULL	239	Using where
+1	SIMPLE	City	ALL	NULL	NULL	NULL	NULL	4079	Using where
 1	SIMPLE	CountryLanguage	ALL	NULL	NULL	NULL	NULL	984	Using where; Using join buffer (flat, BNL join)
-1	SIMPLE	City	ALL	NULL	NULL	NULL	NULL	4079	Using where; Using join buffer (incremental, BNL join)
+1	SIMPLE	Country	ALL	NULL	NULL	NULL	NULL	239	Using where; Using join buffer (incremental, BNL join)
 SELECT City.Name, Country.Name, CountryLanguage.Language
 FROM City,Country,CountryLanguage
 WHERE City.Country=Country.Code AND
@@ -653,9 +653,9 @@ City.Name LIKE 'L%' AND Country.Population > 3000000 AND
 CountryLanguage.Percentage > 50 AND
 LENGTH(Language) < LENGTH(City.Name) - 2;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	Country	ALL	NULL	NULL	NULL	NULL	239	Using where
-1	SIMPLE	CountryLanguage	hash_ALL	NULL	#hash#$hj	3	world.Country.Code	984	Using where; Using join buffer (flat, BNLH join)
-1	SIMPLE	City	hash_ALL	NULL	#hash#$hj	3	world.Country.Code	4079	Using where; Using join buffer (flat, BNLH join)
+1	SIMPLE	City	ALL	NULL	NULL	NULL	NULL	4079	Using where
+1	SIMPLE	CountryLanguage	hash_ALL	NULL	#hash#$hj	3	world.City.Country	984	Using where; Using join buffer (flat, BNLH join)
+1	SIMPLE	Country	hash_ALL	NULL	#hash#$hj	3	world.City.Country	239	Using where; Using join buffer (flat, BNLH join)
 SELECT City.Name, Country.Name, CountryLanguage.Language
 FROM City,Country,CountryLanguage
 WHERE City.Country=Country.Code AND
@@ -731,9 +731,9 @@ City.Name LIKE 'L%' AND Country.Population > 3000000 AND
 CountryLanguage.Percentage > 50 AND
 LENGTH(Language) < LENGTH(City.Name) - 2;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	Country	ALL	NULL	NULL	NULL	NULL	239	Using where
-1	SIMPLE	CountryLanguage	hash_ALL	NULL	#hash#$hj	3	world.Country.Code	984	Using where; Using join buffer (flat, BNLH join)
-1	SIMPLE	City	hash_ALL	NULL	#hash#$hj	3	world.Country.Code	4079	Using where; Using join buffer (incremental, BNLH join)
+1	SIMPLE	City	ALL	NULL	NULL	NULL	NULL	4079	Using where
+1	SIMPLE	CountryLanguage	hash_ALL	NULL	#hash#$hj	3	world.City.Country	984	Using where; Using join buffer (flat, BNLH join)
+1	SIMPLE	Country	hash_ALL	NULL	#hash#$hj	3	world.City.Country	239	Using where; Using join buffer (incremental, BNLH join)
 SELECT City.Name, Country.Name, CountryLanguage.Language
 FROM City,Country,CountryLanguage
 WHERE City.Country=Country.Code AND
@@ -848,9 +848,9 @@ City.Name LIKE 'L%' AND Country.Population > 3000000 AND
 CountryLanguage.Percentage > 50 AND
 LENGTH(Language) < LENGTH(City.Name) - 2;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	CountryLanguage	ALL	PRIMARY,Percentage	NULL	NULL	NULL	984	Using where
-1	SIMPLE	Country	hash_ALL	PRIMARY	#hash#PRIMARY	3	world.CountryLanguage.Country	239	Using where; Using join buffer (flat, BNLH join)
-1	SIMPLE	City	hash_ALL	Country	#hash#Country	3	world.CountryLanguage.Country	4079	Using where; Using join buffer (flat, BNLH join)
+1	SIMPLE	City	ALL	Country	NULL	NULL	NULL	4079	Using where
+1	SIMPLE	CountryLanguage	hash_ALL	PRIMARY,Percentage	#hash#PRIMARY	3	world.City.Country	984	Using where; Using join buffer (flat, BNLH join)
+1	SIMPLE	Country	hash_ALL	PRIMARY	#hash#PRIMARY	3	world.City.Country	239	Using where; Using join buffer (flat, BNLH join)
 SELECT City.Name, Country.Name, CountryLanguage.Language
 FROM City,Country,CountryLanguage
 WHERE City.Country=Country.Code AND
@@ -1048,9 +1048,9 @@ City.Name LIKE 'L%' AND Country.Population > 3000000 AND
 CountryLanguage.Percentage > 50 AND
 LENGTH(Language) < LENGTH(City.Name) - 2;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	CountryLanguage	ALL	PRIMARY,Percentage	NULL	NULL	NULL	984	Using where
-1	SIMPLE	Country	hash_ALL	PRIMARY	#hash#PRIMARY	3	world.CountryLanguage.Country	239	Using where; Using join buffer (flat, BNLH join)
-1	SIMPLE	City	hash_ALL	Country	#hash#Country	3	world.CountryLanguage.Country	4079	Using where; Using join buffer (incremental, BNLH join)
+1	SIMPLE	City	ALL	Country	NULL	NULL	NULL	4079	Using where
+1	SIMPLE	CountryLanguage	hash_ALL	PRIMARY,Percentage	#hash#PRIMARY	3	world.City.Country	984	Using where; Using join buffer (flat, BNLH join)
+1	SIMPLE	Country	hash_ALL	PRIMARY	#hash#PRIMARY	3	world.City.Country	239	Using where; Using join buffer (incremental, BNLH join)
 SELECT City.Name, Country.Name, CountryLanguage.Language
 FROM City,Country,CountryLanguage
 WHERE City.Country=Country.Code AND
@@ -1278,7 +1278,7 @@ WHERE City.Country=Country.Code AND
 Country.Name LIKE 'L%' AND City.Population > 100000;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 1	SIMPLE	Country	range	PRIMARY,Name	Name	52	NULL	10	Using index condition; Rowid-ordered scan
-1	SIMPLE	City	ref	Population,Country	Country	3	world.Country.Code	18	Using where; Using join buffer (flat, BKA join); Key-ordered Rowid-ordered scan
+1	SIMPLE	City	ref	Population,Country	Country	3	world.Country.Code	17	Using where; Using join buffer (flat, BKA join); Key-ordered Rowid-ordered scan
 SELECT City.Name, Country.Name FROM City,Country
 WHERE City.Country=Country.Code AND 
 Country.Name LIKE 'L%' AND City.Population > 100000;
@@ -1307,9 +1307,9 @@ City.Name LIKE 'L%' AND Country.Population > 3000000 AND
 CountryLanguage.Percentage > 50 AND
 LENGTH(Language) < LENGTH(City.Name) - 2;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	CountryLanguage	ALL	PRIMARY,Percentage	NULL	NULL	NULL	984	Using where
-1	SIMPLE	Country	eq_ref	PRIMARY	PRIMARY	3	world.CountryLanguage.Country	1	Using where; Using join buffer (flat, BKA join); Key-ordered Rowid-ordered scan
-1	SIMPLE	City	ref	Country	Country	3	world.CountryLanguage.Country	18	Using where; Using join buffer (flat, BKA join); Key-ordered Rowid-ordered scan
+1	SIMPLE	City	ALL	Country	NULL	NULL	NULL	4079	Using where
+1	SIMPLE	CountryLanguage	ref	PRIMARY,Percentage	PRIMARY	3	world.City.Country	4	Using index condition(BKA); Using where; Using join buffer (flat, BKA join); Key-ordered Rowid-ordered scan
+1	SIMPLE	Country	eq_ref	PRIMARY	PRIMARY	3	world.City.Country	1	Using where; Using join buffer (flat, BKA join); Key-ordered Rowid-ordered scan
 SELECT City.Name, Country.Name, CountryLanguage.Language
 FROM City,Country,CountryLanguage
 WHERE City.Country=Country.Code AND
@@ -1318,41 +1318,41 @@ City.Name LIKE 'L%' AND Country.Population > 3000000 AND
 CountryLanguage.Percentage > 50 AND
 LENGTH(Language) < LENGTH(City.Name) - 2;
 Name	Name	Language
-La Matanza	Argentina	Spanish
 Lomas de Zamora	Argentina	Spanish
+La Matanza	Argentina	Spanish
 Lauro de Freitas	Brazil	Portuguese
 Los Angeles	Chile	Spanish
 Las Palmas de Gran Canaria	Spain	Spanish
-L´Hospitalet de Llobregat	Spain	Spanish
 Lleida (Lérida)	Spain	Spanish
+L´Hospitalet de Llobregat	Spain	Spanish
 Liupanshui	China	Chinese
-Lianyungang	China	Chinese
 Liangcheng	China	Chinese
+Lianyungang	China	Chinese
 Lengshuijiang	China	Chinese
 Lázaro Cárdenas	Mexico	Spanish
 Lagos de Moreno	Mexico	Spanish
 Las Margaritas	Mexico	Spanish
 Lashio (Lasho)	Myanmar	Burmese
 Lalitapur	Nepal	Nepali
-Ludwigshafen am Rhein	Germany	German
 Leverkusen	Germany	German
+Ludwigshafen am Rhein	Germany	German
 Luchou	Taiwan	Min
 Lungtan	Taiwan	Min
 Lower Hutt	New Zealand	English
 Los Teques	Venezuela	Spanish
 Leninsk-Kuznetski	Russian Federation	Russian
-Los Angeles	United States	English
 Long Beach	United States	English
 Lexington-Fayette	United States	English
 Louisville	United States	English
 Little Rock	United States	English
+Los Angeles	United States	English
 EXPLAIN
 SELECT Name FROM City
 WHERE City.Country IN (SELECT Code FROM Country WHERE Country.Name LIKE 'L%') AND
 City.Population > 100000;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 1	PRIMARY	Country	range	PRIMARY,Name	Name	52	NULL	10	Using index condition; Rowid-ordered scan
-1	PRIMARY	City	ref	Population,Country	Country	3	world.Country.Code	18	Using where; Using join buffer (flat, BKA join); Key-ordered Rowid-ordered scan
+1	PRIMARY	City	ref	Population,Country	Country	3	world.Country.Code	17	Using where; Using join buffer (flat, BKA join); Key-ordered Rowid-ordered scan
 SELECT Name FROM City
 WHERE City.Country IN (SELECT Code FROM Country WHERE Country.Name LIKE 'L%') AND
 City.Population > 100000;
@@ -1475,7 +1475,7 @@ WHERE City.Country=Country.Code AND
 Country.Name LIKE 'L%' AND City.Population > 100000;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 1	SIMPLE	Country	range	PRIMARY,Name	Name	52	NULL	10	Using index condition; Rowid-ordered scan
-1	SIMPLE	City	ref	Population,Country	Country	3	world.Country.Code	18	Using where; Using join buffer (flat, BKA join); Key-ordered Rowid-ordered scan
+1	SIMPLE	City	ref	Population,Country	Country	3	world.Country.Code	17	Using where; Using join buffer (flat, BKA join); Key-ordered Rowid-ordered scan
 SELECT City.Name, Country.Name FROM City,Country
 WHERE City.Country=Country.Code AND 
 Country.Name LIKE 'L%' AND City.Population > 100000;
@@ -1504,9 +1504,9 @@ City.Name LIKE 'L%' AND Country.Population > 3000000 AND
 CountryLanguage.Percentage > 50 AND
 LENGTH(Language) < LENGTH(City.Name) - 2;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	CountryLanguage	ALL	PRIMARY,Percentage	NULL	NULL	NULL	984	Using where
-1	SIMPLE	Country	eq_ref	PRIMARY	PRIMARY	3	world.CountryLanguage.Country	1	Using where; Using join buffer (flat, BKA join); Key-ordered Rowid-ordered scan
-1	SIMPLE	City	ref	Country	Country	3	world.CountryLanguage.Country	18	Using where; Using join buffer (incremental, BKA join); Key-ordered Rowid-ordered scan
+1	SIMPLE	City	ALL	Country	NULL	NULL	NULL	4079	Using where
+1	SIMPLE	CountryLanguage	ref	PRIMARY,Percentage	PRIMARY	3	world.City.Country	4	Using index condition(BKA); Using where; Using join buffer (flat, BKA join); Key-ordered Rowid-ordered scan
+1	SIMPLE	Country	eq_ref	PRIMARY	PRIMARY	3	world.City.Country	1	Using where; Using join buffer (incremental, BKA join); Key-ordered Rowid-ordered scan
 SELECT City.Name, Country.Name, CountryLanguage.Language
 FROM City,Country,CountryLanguage
 WHERE City.Country=Country.Code AND
@@ -1515,41 +1515,41 @@ City.Name LIKE 'L%' AND Country.Population > 3000000 AND
 CountryLanguage.Percentage > 50 AND
 LENGTH(Language) < LENGTH(City.Name) - 2;
 Name	Name	Language
-La Matanza	Argentina	Spanish
 Lomas de Zamora	Argentina	Spanish
+La Matanza	Argentina	Spanish
 Lauro de Freitas	Brazil	Portuguese
 Los Angeles	Chile	Spanish
 Las Palmas de Gran Canaria	Spain	Spanish
-L´Hospitalet de Llobregat	Spain	Spanish
 Lleida (Lérida)	Spain	Spanish
+L´Hospitalet de Llobregat	Spain	Spanish
 Liupanshui	China	Chinese
-Lianyungang	China	Chinese
 Liangcheng	China	Chinese
 Lengshuijiang	China	Chinese
-Lázaro Cárdenas	Mexico	Spanish
-Lagos de Moreno	Mexico	Spanish
+Lianyungang	China	Chinese
 Las Margaritas	Mexico	Spanish
+Lagos de Moreno	Mexico	Spanish
+Lázaro Cárdenas	Mexico	Spanish
 Lashio (Lasho)	Myanmar	Burmese
 Lalitapur	Nepal	Nepali
-Ludwigshafen am Rhein	Germany	German
 Leverkusen	Germany	German
+Ludwigshafen am Rhein	Germany	German
 Luchou	Taiwan	Min
 Lungtan	Taiwan	Min
 Lower Hutt	New Zealand	English
 Los Teques	Venezuela	Spanish
 Leninsk-Kuznetski	Russian Federation	Russian
-Los Angeles	United States	English
-Long Beach	United States	English
-Lexington-Fayette	United States	English
-Louisville	United States	English
 Little Rock	United States	English
+Louisville	United States	English
+Lexington-Fayette	United States	English
+Long Beach	United States	English
+Los Angeles	United States	English
 EXPLAIN
 SELECT Name FROM City
 WHERE City.Country IN (SELECT Code FROM Country WHERE Country.Name LIKE 'L%') AND
 City.Population > 100000;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 1	PRIMARY	Country	range	PRIMARY,Name	Name	52	NULL	10	Using index condition; Rowid-ordered scan
-1	PRIMARY	City	ref	Population,Country	Country	3	world.Country.Code	18	Using where; Using join buffer (flat, BKA join); Key-ordered Rowid-ordered scan
+1	PRIMARY	City	ref	Population,Country	Country	3	world.Country.Code	17	Using where; Using join buffer (flat, BKA join); Key-ordered Rowid-ordered scan
 SELECT Name FROM City
 WHERE City.Country IN (SELECT Code FROM Country WHERE Country.Name LIKE 'L%') AND
 City.Population > 100000;
@@ -1672,7 +1672,7 @@ WHERE City.Country=Country.Code AND
 Country.Name LIKE 'L%' AND City.Population > 100000;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 1	SIMPLE	Country	range	PRIMARY,Name	Name	52	NULL	10	Using index condition; Rowid-ordered scan
-1	SIMPLE	City	ref	Population,Country	Country	3	world.Country.Code	18	Using where; Using join buffer (flat, BKAH join); Key-ordered Rowid-ordered scan
+1	SIMPLE	City	ref	Population,Country	Country	3	world.Country.Code	17	Using where; Using join buffer (flat, BKAH join); Key-ordered Rowid-ordered scan
 SELECT City.Name, Country.Name FROM City,Country
 WHERE City.Country=Country.Code AND 
 Country.Name LIKE 'L%' AND City.Population > 100000;
@@ -1701,9 +1701,9 @@ City.Name LIKE 'L%' AND Country.Population > 3000000 AND
 CountryLanguage.Percentage > 50 AND
 LENGTH(Language) < LENGTH(City.Name) - 2;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	CountryLanguage	ALL	PRIMARY,Percentage	NULL	NULL	NULL	984	Using where
-1	SIMPLE	Country	eq_ref	PRIMARY	PRIMARY	3	world.CountryLanguage.Country	1	Using where; Using join buffer (flat, BKAH join); Key-ordered Rowid-ordered scan
-1	SIMPLE	City	ref	Country	Country	3	world.CountryLanguage.Country	18	Using where; Using join buffer (flat, BKAH join); Key-ordered Rowid-ordered scan
+1	SIMPLE	City	ALL	Country	NULL	NULL	NULL	4079	Using where
+1	SIMPLE	CountryLanguage	ref	PRIMARY,Percentage	PRIMARY	3	world.City.Country	4	Using index condition(BKA); Using where; Using join buffer (flat, BKAH join); Key-ordered Rowid-ordered scan
+1	SIMPLE	Country	eq_ref	PRIMARY	PRIMARY	3	world.City.Country	1	Using where; Using join buffer (flat, BKAH join); Key-ordered Rowid-ordered scan
 SELECT City.Name, Country.Name, CountryLanguage.Language
 FROM City,Country,CountryLanguage
 WHERE City.Country=Country.Code AND
@@ -1716,37 +1716,37 @@ La Matanza	Argentina	Spanish
 Lomas de Zamora	Argentina	Spanish
 Lauro de Freitas	Brazil	Portuguese
 Los Angeles	Chile	Spanish
+Lleida (Lérida)	Spain	Spanish
 Las Palmas de Gran Canaria	Spain	Spanish
 L´Hospitalet de Llobregat	Spain	Spanish
-Lleida (Lérida)	Spain	Spanish
-Liupanshui	China	Chinese
 Lianyungang	China	Chinese
 Liangcheng	China	Chinese
 Lengshuijiang	China	Chinese
-Lázaro Cárdenas	Mexico	Spanish
+Liupanshui	China	Chinese
 Lagos de Moreno	Mexico	Spanish
 Las Margaritas	Mexico	Spanish
+Lázaro Cárdenas	Mexico	Spanish
 Lashio (Lasho)	Myanmar	Burmese
 Lalitapur	Nepal	Nepali
-Ludwigshafen am Rhein	Germany	German
 Leverkusen	Germany	German
+Ludwigshafen am Rhein	Germany	German
 Luchou	Taiwan	Min
 Lungtan	Taiwan	Min
 Lower Hutt	New Zealand	English
 Los Teques	Venezuela	Spanish
 Leninsk-Kuznetski	Russian Federation	Russian
-Los Angeles	United States	English
-Long Beach	United States	English
 Lexington-Fayette	United States	English
 Louisville	United States	English
+Los Angeles	United States	English
 Little Rock	United States	English
+Long Beach	United States	English
 EXPLAIN
 SELECT Name FROM City
 WHERE City.Country IN (SELECT Code FROM Country WHERE Country.Name LIKE 'L%') AND
 City.Population > 100000;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 1	PRIMARY	Country	range	PRIMARY,Name	Name	52	NULL	10	Using index condition; Rowid-ordered scan
-1	PRIMARY	City	ref	Population,Country	Country	3	world.Country.Code	18	Using where; Using join buffer (flat, BKAH join); Key-ordered Rowid-ordered scan
+1	PRIMARY	City	ref	Population,Country	Country	3	world.Country.Code	17	Using where; Using join buffer (flat, BKAH join); Key-ordered Rowid-ordered scan
 SELECT Name FROM City
 WHERE City.Country IN (SELECT Code FROM Country WHERE Country.Name LIKE 'L%') AND
 City.Population > 100000;
@@ -1869,7 +1869,7 @@ WHERE City.Country=Country.Code AND
 Country.Name LIKE 'L%' AND City.Population > 100000;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 1	SIMPLE	Country	range	PRIMARY,Name	Name	52	NULL	10	Using index condition; Rowid-ordered scan
-1	SIMPLE	City	ref	Population,Country	Country	3	world.Country.Code	18	Using where; Using join buffer (flat, BKAH join); Key-ordered Rowid-ordered scan
+1	SIMPLE	City	ref	Population,Country	Country	3	world.Country.Code	17	Using where; Using join buffer (flat, BKAH join); Key-ordered Rowid-ordered scan
 SELECT City.Name, Country.Name FROM City,Country
 WHERE City.Country=Country.Code AND 
 Country.Name LIKE 'L%' AND City.Population > 100000;
@@ -1898,9 +1898,9 @@ City.Name LIKE 'L%' AND Country.Population > 3000000 AND
 CountryLanguage.Percentage > 50 AND
 LENGTH(Language) < LENGTH(City.Name) - 2;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	CountryLanguage	ALL	PRIMARY,Percentage	NULL	NULL	NULL	984	Using where
-1	SIMPLE	Country	eq_ref	PRIMARY	PRIMARY	3	world.CountryLanguage.Country	1	Using where; Using join buffer (flat, BKAH join); Key-ordered Rowid-ordered scan
-1	SIMPLE	City	ref	Country	Country	3	world.CountryLanguage.Country	18	Using where; Using join buffer (incremental, BKAH join); Key-ordered Rowid-ordered scan
+1	SIMPLE	City	ALL	Country	NULL	NULL	NULL	4079	Using where
+1	SIMPLE	CountryLanguage	ref	PRIMARY,Percentage	PRIMARY	3	world.City.Country	4	Using index condition(BKA); Using where; Using join buffer (flat, BKAH join); Key-ordered Rowid-ordered scan
+1	SIMPLE	Country	eq_ref	PRIMARY	PRIMARY	3	world.City.Country	1	Using where; Using join buffer (incremental, BKAH join); Key-ordered Rowid-ordered scan
 SELECT City.Name, Country.Name, CountryLanguage.Language
 FROM City,Country,CountryLanguage
 WHERE City.Country=Country.Code AND
@@ -1913,28 +1913,28 @@ La Matanza	Argentina	Spanish
 Lomas de Zamora	Argentina	Spanish
 Lauro de Freitas	Brazil	Portuguese
 Los Angeles	Chile	Spanish
+Lleida (Lérida)	Spain	Spanish
 Las Palmas de Gran Canaria	Spain	Spanish
 L´Hospitalet de Llobregat	Spain	Spanish
-Lleida (Lérida)	Spain	Spanish
-Liupanshui	China	Chinese
 Lianyungang	China	Chinese
 Liangcheng	China	Chinese
 Lengshuijiang	China	Chinese
-Lázaro Cárdenas	Mexico	Spanish
+Liupanshui	China	Chinese
 Lagos de Moreno	Mexico	Spanish
+Lázaro Cárdenas	Mexico	Spanish
 Las Margaritas	Mexico	Spanish
 Lashio (Lasho)	Myanmar	Burmese
 Lalitapur	Nepal	Nepali
-Ludwigshafen am Rhein	Germany	German
 Leverkusen	Germany	German
+Ludwigshafen am Rhein	Germany	German
 Luchou	Taiwan	Min
 Lungtan	Taiwan	Min
 Lower Hutt	New Zealand	English
 Los Teques	Venezuela	Spanish
 Leninsk-Kuznetski	Russian Federation	Russian
+Lexington-Fayette	United States	English
 Los Angeles	United States	English
 Long Beach	United States	English
-Lexington-Fayette	United States	English
 Louisville	United States	English
 Little Rock	United States	English
 EXPLAIN
@@ -1943,7 +1943,7 @@ WHERE City.Country IN (SELECT Code FROM Country WHERE Country.Name LIKE 'L%') AN
 City.Population > 100000;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 1	PRIMARY	Country	range	PRIMARY,Name	Name	52	NULL	10	Using index condition; Rowid-ordered scan
-1	PRIMARY	City	ref	Population,Country	Country	3	world.Country.Code	18	Using where; Using join buffer (flat, BKAH join); Key-ordered Rowid-ordered scan
+1	PRIMARY	City	ref	Population,Country	Country	3	world.Country.Code	17	Using where; Using join buffer (flat, BKAH join); Key-ordered Rowid-ordered scan
 SELECT Name FROM City
 WHERE City.Country IN (SELECT Code FROM Country WHERE Country.Name LIKE 'L%') AND
 City.Population > 100000;
@@ -2099,9 +2099,9 @@ City.Name LIKE 'L%' AND Country.Population > 3000000 AND
 CountryLanguage.Percentage > 50 AND
 LENGTH(Language) < LENGTH(City.Name) - 2;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	CountryLanguage	ALL	PRIMARY,Percentage	NULL	NULL	NULL	984	Using where
-1	SIMPLE	Country	hash_ALL	PRIMARY	#hash#PRIMARY	3	world.CountryLanguage.Country	239	Using where; Using join buffer (flat, BNLH join)
-1	SIMPLE	City	hash_ALL	Country	#hash#Country	3	world.CountryLanguage.Country	4079	Using where; Using join buffer (flat, BNLH join)
+1	SIMPLE	City	ALL	Country	NULL	NULL	NULL	4079	Using where
+1	SIMPLE	CountryLanguage	hash_ALL	PRIMARY,Percentage	#hash#PRIMARY	3	world.City.Country	984	Using where; Using join buffer (flat, BNLH join)
+1	SIMPLE	Country	hash_ALL	PRIMARY	#hash#PRIMARY	3	world.City.Country	239	Using where; Using join buffer (flat, BNLH join)
 SELECT City.Name, Country.Name, CountryLanguage.Language
 FROM City,Country,CountryLanguage
 WHERE City.Country=Country.Code AND
@@ -2203,9 +2203,9 @@ City.Name LIKE 'L%' AND Country.Population > 3000000 AND
 CountryLanguage.Percentage > 50 AND
 LENGTH(Language) < LENGTH(City.Name) - 2;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	CountryLanguage	ALL	PRIMARY,Percentage	NULL	NULL	NULL	984	Using where
-1	SIMPLE	Country	hash_ALL	PRIMARY	#hash#PRIMARY	3	world.CountryLanguage.Country	239	Using where; Using join buffer (flat, BNLH join)
-1	SIMPLE	City	hash_ALL	Country	#hash#Country	3	world.CountryLanguage.Country	4079	Using where; Using join buffer (incremental, BNLH join)
+1	SIMPLE	City	ALL	Country	NULL	NULL	NULL	4079	Using where
+1	SIMPLE	CountryLanguage	hash_ALL	PRIMARY,Percentage	#hash#PRIMARY	3	world.City.Country	984	Using where; Using join buffer (flat, BNLH join)
+1	SIMPLE	Country	hash_ALL	PRIMARY	#hash#PRIMARY	3	world.City.Country	239	Using where; Using join buffer (incremental, BNLH join)
 SELECT City.Name, Country.Name, CountryLanguage.Language
 FROM City,Country,CountryLanguage
 WHERE City.Country=Country.Code AND
@@ -2278,7 +2278,7 @@ WHERE City.Country=Country.Code AND
 Country.Name LIKE 'L%' AND City.Population > 100000;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 1	SIMPLE	Country	range	PRIMARY,Name	Name	52	NULL	10	Using index condition; Rowid-ordered scan
-1	SIMPLE	City	ref	Population,Country	Country	3	world.Country.Code	18	Using where; Using join buffer (flat, BKA join); Key-ordered Rowid-ordered scan
+1	SIMPLE	City	ref	Population,Country	Country	3	world.Country.Code	17	Using where; Using join buffer (flat, BKA join); Key-ordered Rowid-ordered scan
 SELECT City.Name, Country.Name FROM City,Country
 WHERE City.Country=Country.Code AND 
 Country.Name LIKE 'L%' AND City.Population > 100000;
@@ -2307,9 +2307,9 @@ City.Name LIKE 'L%' AND Country.Population > 3000000 AND
 CountryLanguage.Percentage > 50 AND
 LENGTH(Language) < LENGTH(City.Name) - 2;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	CountryLanguage	ALL	PRIMARY,Percentage	NULL	NULL	NULL	984	Using where
-1	SIMPLE	Country	eq_ref	PRIMARY	PRIMARY	3	world.CountryLanguage.Country	1	Using where; Using join buffer (flat, BKA join); Key-ordered Rowid-ordered scan
-1	SIMPLE	City	ref	Country	Country	3	world.CountryLanguage.Country	18	Using where; Using join buffer (flat, BKA join); Key-ordered Rowid-ordered scan
+1	SIMPLE	City	ALL	Country	NULL	NULL	NULL	4079	Using where
+1	SIMPLE	CountryLanguage	ref	PRIMARY,Percentage	PRIMARY	3	world.City.Country	4	Using index condition(BKA); Using where; Using join buffer (flat, BKA join); Key-ordered Rowid-ordered scan
+1	SIMPLE	Country	eq_ref	PRIMARY	PRIMARY	3	world.City.Country	1	Using where; Using join buffer (flat, BKA join); Key-ordered Rowid-ordered scan
 SELECT City.Name, Country.Name, CountryLanguage.Language
 FROM City,Country,CountryLanguage
 WHERE City.Country=Country.Code AND
@@ -2352,7 +2352,7 @@ WHERE City.Country IN (SELECT Code FROM Country WHERE Country.Name LIKE 'L%') AN
 City.Population > 100000;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 1	PRIMARY	Country	range	PRIMARY,Name	Name	52	NULL	10	Using index condition; Rowid-ordered scan
-1	PRIMARY	City	ref	Population,Country	Country	3	world.Country.Code	18	Using where; Using join buffer (flat, BKA join); Key-ordered Rowid-ordered scan
+1	PRIMARY	City	ref	Population,Country	Country	3	world.Country.Code	17	Using where; Using join buffer (flat, BKA join); Key-ordered Rowid-ordered scan
 SELECT Name FROM City
 WHERE City.Country IN (SELECT Code FROM Country WHERE Country.Name LIKE 'L%') AND
 City.Population > 100000;
@@ -2382,7 +2382,7 @@ WHERE City.Country=Country.Code AND
 Country.Name LIKE 'L%' AND City.Population > 100000;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 1	SIMPLE	Country	range	PRIMARY,Name	Name	52	NULL	10	Using index condition; Rowid-ordered scan
-1	SIMPLE	City	ref	Population,Country	Country	3	world.Country.Code	18	Using where; Using join buffer (flat, BKA join); Key-ordered Rowid-ordered scan
+1	SIMPLE	City	ref	Population,Country	Country	3	world.Country.Code	17	Using where; Using join buffer (flat, BKA join); Key-ordered Rowid-ordered scan
 SELECT City.Name, Country.Name FROM City,Country
 WHERE City.Country=Country.Code AND 
 Country.Name LIKE 'L%' AND City.Population > 100000;
@@ -2411,9 +2411,9 @@ City.Name LIKE 'L%' AND Country.Population > 3000000 AND
 CountryLanguage.Percentage > 50 AND
 LENGTH(Language) < LENGTH(City.Name) - 2;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	CountryLanguage	ALL	PRIMARY,Percentage	NULL	NULL	NULL	984	Using where
-1	SIMPLE	Country	eq_ref	PRIMARY	PRIMARY	3	world.CountryLanguage.Country	1	Using where; Using join buffer (flat, BKA join); Key-ordered Rowid-ordered scan
-1	SIMPLE	City	ref	Country	Country	3	world.CountryLanguage.Country	18	Using where; Using join buffer (incremental, BKA join); Key-ordered Rowid-ordered scan
+1	SIMPLE	City	ALL	Country	NULL	NULL	NULL	4079	Using where
+1	SIMPLE	CountryLanguage	ref	PRIMARY,Percentage	PRIMARY	3	world.City.Country	4	Using index condition(BKA); Using where; Using join buffer (flat, BKA join); Key-ordered Rowid-ordered scan
+1	SIMPLE	Country	eq_ref	PRIMARY	PRIMARY	3	world.City.Country	1	Using where; Using join buffer (incremental, BKA join); Key-ordered Rowid-ordered scan
 SELECT City.Name, Country.Name, CountryLanguage.Language
 FROM City,Country,CountryLanguage
 WHERE City.Country=Country.Code AND
@@ -2456,7 +2456,7 @@ WHERE City.Country IN (SELECT Code FROM Country WHERE Country.Name LIKE 'L%') AN
 City.Population > 100000;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 1	PRIMARY	Country	range	PRIMARY,Name	Name	52	NULL	10	Using index condition; Rowid-ordered scan
-1	PRIMARY	City	ref	Population,Country	Country	3	world.Country.Code	18	Using where; Using join buffer (flat, BKA join); Key-ordered Rowid-ordered scan
+1	PRIMARY	City	ref	Population,Country	Country	3	world.Country.Code	17	Using where; Using join buffer (flat, BKA join); Key-ordered Rowid-ordered scan
 SELECT Name FROM City
 WHERE City.Country IN (SELECT Code FROM Country WHERE Country.Name LIKE 'L%') AND
 City.Population > 100000;
@@ -2486,7 +2486,7 @@ WHERE City.Country=Country.Code AND
 Country.Name LIKE 'L%' AND City.Population > 100000;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 1	SIMPLE	Country	range	PRIMARY,Name	Name	52	NULL	10	Using index condition; Rowid-ordered scan
-1	SIMPLE	City	ref	Population,Country	Country	3	world.Country.Code	18	Using where; Using join buffer (flat, BKAH join); Key-ordered Rowid-ordered scan
+1	SIMPLE	City	ref	Population,Country	Country	3	world.Country.Code	17	Using where; Using join buffer (flat, BKAH join); Key-ordered Rowid-ordered scan
 SELECT City.Name, Country.Name FROM City,Country
 WHERE City.Country=Country.Code AND 
 Country.Name LIKE 'L%' AND City.Population > 100000;
@@ -2515,9 +2515,9 @@ City.Name LIKE 'L%' AND Country.Population > 3000000 AND
 CountryLanguage.Percentage > 50 AND
 LENGTH(Language) < LENGTH(City.Name) - 2;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	CountryLanguage	ALL	PRIMARY,Percentage	NULL	NULL	NULL	984	Using where
-1	SIMPLE	Country	eq_ref	PRIMARY	PRIMARY	3	world.CountryLanguage.Country	1	Using where; Using join buffer (flat, BKAH join); Key-ordered Rowid-ordered scan
-1	SIMPLE	City	ref	Country	Country	3	world.CountryLanguage.Country	18	Using where; Using join buffer (flat, BKAH join); Key-ordered Rowid-ordered scan
+1	SIMPLE	City	ALL	Country	NULL	NULL	NULL	4079	Using where
+1	SIMPLE	CountryLanguage	ref	PRIMARY,Percentage	PRIMARY	3	world.City.Country	4	Using index condition(BKA); Using where; Using join buffer (flat, BKAH join); Key-ordered Rowid-ordered scan
+1	SIMPLE	Country	eq_ref	PRIMARY	PRIMARY	3	world.City.Country	1	Using where; Using join buffer (flat, BKAH join); Key-ordered Rowid-ordered scan
 SELECT City.Name, Country.Name, CountryLanguage.Language
 FROM City,Country,CountryLanguage
 WHERE City.Country=Country.Code AND
@@ -2534,12 +2534,12 @@ Las Palmas de Gran Canaria	Spain	Spanish
 L´Hospitalet de Llobregat	Spain	Spanish
 Lleida (Lérida)	Spain	Spanish
 Liupanshui	China	Chinese
-Lianyungang	China	Chinese
 Liangcheng	China	Chinese
+Lianyungang	China	Chinese
 Lengshuijiang	China	Chinese
 Lázaro Cárdenas	Mexico	Spanish
-Lagos de Moreno	Mexico	Spanish
 Las Margaritas	Mexico	Spanish
+Lagos de Moreno	Mexico	Spanish
 Lashio (Lasho)	Myanmar	Burmese
 Lalitapur	Nepal	Nepali
 Ludwigshafen am Rhein	Germany	German
@@ -2549,9 +2549,9 @@ Lungtan	Taiwan	Min
 Lower Hutt	New Zealand	English
 Los Teques	Venezuela	Spanish
 Leninsk-Kuznetski	Russian Federation	Russian
+Lexington-Fayette	United States	English
 Los Angeles	United States	English
 Long Beach	United States	English
-Lexington-Fayette	United States	English
 Louisville	United States	English
 Little Rock	United States	English
 EXPLAIN
@@ -2560,7 +2560,7 @@ WHERE City.Country IN (SELECT Code FROM Country WHERE Country.Name LIKE 'L%') AN
 City.Population > 100000;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 1	PRIMARY	Country	range	PRIMARY,Name	Name	52	NULL	10	Using index condition; Rowid-ordered scan
-1	PRIMARY	City	ref	Population,Country	Country	3	world.Country.Code	18	Using where; Using join buffer (flat, BKAH join); Key-ordered Rowid-ordered scan
+1	PRIMARY	City	ref	Population,Country	Country	3	world.Country.Code	17	Using where; Using join buffer (flat, BKAH join); Key-ordered Rowid-ordered scan
 SELECT Name FROM City
 WHERE City.Country IN (SELECT Code FROM Country WHERE Country.Name LIKE 'L%') AND
 City.Population > 100000;
@@ -2590,7 +2590,7 @@ WHERE City.Country=Country.Code AND
 Country.Name LIKE 'L%' AND City.Population > 100000;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 1	SIMPLE	Country	range	PRIMARY,Name	Name	52	NULL	10	Using index condition; Rowid-ordered scan
-1	SIMPLE	City	ref	Population,Country	Country	3	world.Country.Code	18	Using where; Using join buffer (flat, BKAH join); Key-ordered Rowid-ordered scan
+1	SIMPLE	City	ref	Population,Country	Country	3	world.Country.Code	17	Using where; Using join buffer (flat, BKAH join); Key-ordered Rowid-ordered scan
 SELECT City.Name, Country.Name FROM City,Country
 WHERE City.Country=Country.Code AND 
 Country.Name LIKE 'L%' AND City.Population > 100000;
@@ -2619,9 +2619,9 @@ City.Name LIKE 'L%' AND Country.Population > 3000000 AND
 CountryLanguage.Percentage > 50 AND
 LENGTH(Language) < LENGTH(City.Name) - 2;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	CountryLanguage	ALL	PRIMARY,Percentage	NULL	NULL	NULL	984	Using where
-1	SIMPLE	Country	eq_ref	PRIMARY	PRIMARY	3	world.CountryLanguage.Country	1	Using where; Using join buffer (flat, BKAH join); Key-ordered Rowid-ordered scan
-1	SIMPLE	City	ref	Country	Country	3	world.CountryLanguage.Country	18	Using where; Using join buffer (incremental, BKAH join); Key-ordered Rowid-ordered scan
+1	SIMPLE	City	ALL	Country	NULL	NULL	NULL	4079	Using where
+1	SIMPLE	CountryLanguage	ref	PRIMARY,Percentage	PRIMARY	3	world.City.Country	4	Using index condition(BKA); Using where; Using join buffer (flat, BKAH join); Key-ordered Rowid-ordered scan
+1	SIMPLE	Country	eq_ref	PRIMARY	PRIMARY	3	world.City.Country	1	Using where; Using join buffer (incremental, BKAH join); Key-ordered Rowid-ordered scan
 SELECT City.Name, Country.Name, CountryLanguage.Language
 FROM City,Country,CountryLanguage
 WHERE City.Country=Country.Code AND
@@ -2664,7 +2664,7 @@ WHERE City.Country IN (SELECT Code FROM Country WHERE Country.Name LIKE 'L%') AN
 City.Population > 100000;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 1	PRIMARY	Country	range	PRIMARY,Name	Name	52	NULL	10	Using index condition; Rowid-ordered scan
-1	PRIMARY	City	ref	Population,Country	Country	3	world.Country.Code	18	Using where; Using join buffer (flat, BKAH join); Key-ordered Rowid-ordered scan
+1	PRIMARY	City	ref	Population,Country	Country	3	world.Country.Code	17	Using where; Using join buffer (flat, BKAH join); Key-ordered Rowid-ordered scan
 SELECT Name FROM City
 WHERE City.Country IN (SELECT Code FROM Country WHERE Country.Name LIKE 'L%') AND
 City.Population > 100000;
@@ -3044,7 +3044,7 @@ id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 1	SIMPLE	t3	ref	t3_metaid,t3_formatid,t3_metaidformatid	t3_metaidformatid	4	test.t1.metaid	1	Using index condition; Using join buffer (incremental, BKA join); Key-ordered Rowid-ordered scan
 1	SIMPLE	t4	eq_ref	PRIMARY,t4_formatclassid,t4_formats_idx	PRIMARY	4	test.t3.formatid	1	Using where; Using join buffer (incremental, BKA join); Key-ordered Rowid-ordered scan
 1	SIMPLE	t5	eq_ref	PRIMARY,t5_formattypeid	PRIMARY	4	test.t4.formatclassid	1	Using where; Using join buffer (incremental, BKA join); Key-ordered Rowid-ordered scan
-1	SIMPLE	t9	index	PRIMARY,t9_subgenreid,t9_metaid	PRIMARY	8	NULL	2	Using where; Using index; Using join buffer (incremental, BNL join)
+1	SIMPLE	t9	ref	PRIMARY,t9_subgenreid,t9_metaid	t9_metaid	4	test.t1.metaid	2	Using join buffer (incremental, BKA join); Key-ordered Rowid-ordered scan
 1	SIMPLE	t10	eq_ref	PRIMARY,t10_genreid	PRIMARY	4	test.t9.subgenreid	1	Using join buffer (incremental, BKA join); Key-ordered Rowid-ordered scan
 1	SIMPLE	t11	eq_ref	PRIMARY	PRIMARY	4	test.t10.genreid	1	Using join buffer (incremental, BKA join); Key-ordered Rowid-ordered scan
 SELECT t1.uniquekey, t1.xml AS affiliateXml,
@@ -3665,8 +3665,8 @@ where t2.b=t1.b and t3.d=t1.d and t4.c=t1.c;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	7	Using where
 1	SIMPLE	t2	ref	idx	idx	5	test.t1.b	1	
-1	SIMPLE	t3	ref	idx	idx	5	test.t1.d	1	
 1	SIMPLE	t4	ref	idx	idx	5	test.t1.c	1	
+1	SIMPLE	t3	ref	idx	idx	5	test.t1.d	1	
 select t1.a, t1.b, t1.c, t1.d, t2.e, t3.f, t4.g from t1,t2,t3,t4
 where t2.b=t1.b and t3.d=t1.d and t4.c=t1.c;
 a	b	c	d	e	f	g
@@ -3678,8 +3678,8 @@ where t2.b=t1.b and t3.d=t1.d and t4.c=t1.c;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	7	Using where
 1	SIMPLE	t2	ref	idx	idx	5	test.t1.b	1	Using join buffer (flat, BKA join); Key-ordered Rowid-ordered scan
-1	SIMPLE	t3	ref	idx	idx	5	test.t1.d	1	Using join buffer (incremental, BKA join); Key-ordered Rowid-ordered scan
 1	SIMPLE	t4	ref	idx	idx	5	test.t1.c	1	Using join buffer (incremental, BKA join); Key-ordered Rowid-ordered scan
+1	SIMPLE	t3	ref	idx	idx	5	test.t1.d	1	Using join buffer (incremental, BKA join); Key-ordered Rowid-ordered scan
 select t1.a, t1.b, t1.c, t1.d, t2.e, t3.f, t4.g from t1,t2,t3,t4
 where t2.b=t1.b and t3.d=t1.d and t4.c=t1.c;
 a	b	c	d	e	f	g

@@ -399,8 +399,11 @@ INSERT INTO t3 SELECT * FROM t4;
 INSERT INTO t3 VALUES (2), (3);
 ANALYZE table t1, t2, t3;
 Table	Op	Msg_type	Msg_text
+test.t1	analyze	status	Engine-independent statistics collected
 test.t1	analyze	status	OK
+test.t2	analyze	status	Engine-independent statistics collected
 test.t2	analyze	status	OK
+test.t3	analyze	status	Engine-independent statistics collected
 test.t3	analyze	status	OK
 SELECT COUNT(*) FROM t3;
 COUNT(*)

@@ -855,6 +855,25 @@ protected:
       res= NULL;
     return res;
   }
+  bool val_native_from_item(THD *thd, Item *item, Native *to)
+  {
+    DBUG_ASSERT(is_fixed());
+    null_value= item->val_native(thd, to);
+    DBUG_ASSERT(null_value == item->null_value);
+    return null_value;
+  }
+  bool val_native_from_field(Field *field, Native *to)
+  {
+    if ((null_value= field->is_null()))
+      return true;
+    return (null_value= field->val_native(to));
+  }
+  bool val_native_with_conversion_from_item(THD *thd, Item *item, Native *to,
+                                            const Type_handler *handler)
+  {
+    DBUG_ASSERT(is_fixed());
+    return null_value= item->val_native_with_conversion(thd, to, handler);
+  }
   my_decimal *val_decimal_from_item(Item *item, my_decimal *decimal_value)
   {
     DBUG_ASSERT(is_fixed());
@@ -1275,6 +1294,60 @@ public:
       If value is not null null_value flag will be reset to FALSE.
   */
   virtual String *val_str(String *str)=0;
+
+
+  bool val_native_with_conversion(THD *thd, Native *to, const Type_handler *th)
+  {
+    return th->Item_val_native_with_conversion(thd, this, to);
+  }
+  bool val_native_with_conversion_result(THD *thd, Native *to,
+                                         const Type_handler *th)
+  {
+    return th->Item_val_native_with_conversion_result(thd, this, to);
+  }
+
+  virtual bool val_native(THD *thd, Native *to)
+  {
+   /*
+     The default implementation for the Items that do not need native format:
+     - Item_basic_value
+     - Item_ident_for_show
+     - Item_copy
+     - Item_exists_subselect
+     - Item_sum_field
+     - Item_sum_or_func (default implementation)
+     - Item_proc
+     - Item_type_holder (as val_xxx() are never called for it);
+     - TODO: Item_name_const will need val_native() in the future,
+       when we add this syntax:
+         TIMESTAMP WITH LOCAL TIMEZONE'2001-01-01 00:00:00'
+
+     These hybrid Item types override val_native():
+     - Item_field
+     - Item_param
+     - Item_sp_variable
+     - Item_ref
+     - Item_cache_wrapper
+     - Item_direct_ref
+     - Item_direct_view_ref
+     - Item_ref_null_helper
+     - Item_sum_or_func
+         Note, these hybrid type Item_sum_or_func descendants
+         override the default implementation:
+         * Item_sum_hybrid
+         * Item_func_hybrid_field_type
+         * Item_func_min_max
+         * Item_func_sp
+         * Item_func_last_value
+         * Item_func_rollup_const
+   */
+    DBUG_ASSERT(0);
+    return null_value= true;
+  }
+  virtual bool val_native_result(THD *thd, Native *to)
+  {
+    return val_native(thd, to);
+  }
 
   /*
     Returns string representation of this item in ASCII format.
@@ -2689,6 +2762,7 @@ public:
   String *val_str(String *sp);
   my_decimal *val_decimal(my_decimal *decimal_value);
   bool get_date(THD *thd, MYSQL_TIME *ltime, date_mode_t fuzzydate);
+  bool val_native(THD *thd, Native *to);
   bool is_null();
 
 public:
@@ -3229,6 +3303,8 @@ public:
   void save_result(Field *to);
   double val_result();
   longlong val_int_result();
+  bool val_native(THD *thd, Native *to);
+  bool val_native_result(THD *thd, Native *to);
   String *str_result(String* tmp);
   my_decimal *val_decimal_result(my_decimal *);
   bool val_bool_result();
@@ -3815,6 +3891,11 @@ public:
     return can_return_value() ? value.val_str(str, this) : NULL;
   }
   bool get_date(THD *thd, MYSQL_TIME *tm, date_mode_t fuzzydate);
+  bool val_native(THD *thd, Native *to)
+  {
+    return Item_param::type_handler()->Item_param_val_native(thd, this, to);
+  }
+
   int  save_in_field(Field *field, bool no_conversions);
 
   void set_default();
@@ -4614,6 +4695,54 @@ public:
 };
 
 
+class Item_timestamp_literal: public Item_literal
+{
+  Timestamp_or_zero_datetime m_value;
+public:
+  Item_timestamp_literal(THD *thd)
+   :Item_literal(thd)
+  { }
+  const Type_handler *type_handler() const { return &type_handler_timestamp2; }
+  int save_in_field(Field *field, bool no_conversions)
+  {
+    Timestamp_or_zero_datetime_native native(m_value, decimals);
+    return native.save_in_field(field, decimals);
+  }
+  longlong val_int()
+  {
+    return m_value.to_datetime(current_thd).to_longlong();
+  }
+  double val_real()
+  {
+    return m_value.to_datetime(current_thd).to_double();
+  }
+  String *val_str(String *to)
+  {
+    return m_value.to_datetime(current_thd).to_string(to, decimals);
+  }
+  my_decimal *val_decimal(my_decimal *to)
+  {
+    return m_value.to_datetime(current_thd).to_decimal(to);
+  }
+  bool get_date(THD *thd, MYSQL_TIME *ltime, date_mode_t fuzzydate)
+  {
+    bool res= m_value.to_TIME(thd, ltime, fuzzydate);
+    DBUG_ASSERT(!res);
+    return res;
+  }
+  bool val_native(THD *thd, Native *to)
+  {
+    return m_value.to_native(to, decimals);
+  }
+  void set_value(const Timestamp_or_zero_datetime &value)
+  {
+    m_value= value;
+  }
+  Item *get_copy(THD *thd)
+  { return get_item_copy<Item_timestamp_literal>(thd, this); }
+};
+
+
 class Item_temporal_literal :public Item_literal
 {
 protected:
@@ -5062,11 +5191,13 @@ public:
   my_decimal *val_decimal(my_decimal *);
   bool val_bool();
   String *val_str(String* tmp);
+  bool val_native(THD *thd, Native *to);
   bool is_null();
   bool get_date(THD *thd, MYSQL_TIME *ltime, date_mode_t fuzzydate);
   double val_result();
   longlong val_int_result();
   String *str_result(String* tmp);
+  bool val_native_result(THD *thd, Native *to);
   my_decimal *val_decimal_result(my_decimal *);
   bool val_bool_result();
   bool is_null_result();
@@ -5271,6 +5402,7 @@ public:
   double val_real();
   longlong val_int();
   String *val_str(String* tmp);
+  bool val_native(THD *thd, Native *to);
   my_decimal *val_decimal(my_decimal *);
   bool val_bool();
   bool is_null();
@@ -5367,6 +5499,7 @@ public:
   double val_real();
   longlong val_int();
   String *val_str(String* tmp);
+  bool val_native(THD *thd, Native *to);
   my_decimal *val_decimal(my_decimal *);
   bool val_bool();
   bool is_null();
@@ -5563,6 +5696,12 @@ public:
     else
       return Item_direct_ref::val_str(tmp);
   }
+  bool val_native(THD *thd, Native *to)
+  {
+    if (check_null_ref())
+      return true;
+    return Item_direct_ref::val_native(thd, to);
+  }
   my_decimal *val_decimal(my_decimal *tmp)
   {
     if (check_null_ref())
@@ -5708,6 +5847,7 @@ public:
   my_decimal *val_decimal(my_decimal *);
   bool val_bool();
   bool get_date(THD *thd, MYSQL_TIME *ltime, date_mode_t fuzzydate);
+  bool val_native(THD *thd, Native *to);
   virtual void print(String *str, enum_query_type query_type);
   table_map used_tables() const;
   Item *get_copy(THD *thd)
@@ -6528,6 +6668,48 @@ public:
   {
     return has_value() ? Date(this).to_decimal(to) : NULL;
   }
+};
+
+
+class Item_cache_timestamp: public Item_cache
+{
+  Timestamp_or_zero_datetime_native m_native;
+  Datetime to_datetime(THD *thd);
+public:
+  Item_cache_timestamp(THD *thd)
+   :Item_cache(thd, &type_handler_timestamp2) { }
+  Item *get_copy(THD *thd)
+  { return get_item_copy<Item_cache_timestamp>(thd, this); }
+  bool cache_value();
+  String* val_str(String *to)
+  {
+    return to_datetime(current_thd).to_string(to, decimals);
+  }
+  my_decimal *val_decimal(my_decimal *to)
+  {
+    return to_datetime(current_thd).to_decimal(to);
+  }
+  longlong val_int()
+  {
+    return to_datetime(current_thd).to_longlong();
+  }
+  double val_real()
+  {
+    return to_datetime(current_thd).to_double();
+  }
+  longlong val_datetime_packed(THD *thd)
+  {
+    DBUG_ASSERT(0);
+    return 0;
+  }
+  longlong val_time_packed(THD *thd)
+  {
+    DBUG_ASSERT(0);
+    return 0;
+  }
+  bool get_date(THD *thd, MYSQL_TIME *ltime, date_mode_t fuzzydate);
+  int save_in_field(Field *field, bool no_conversions);
+  bool val_native(THD *thd, Native *to);
 };
 
 

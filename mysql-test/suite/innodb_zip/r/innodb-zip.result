@@ -121,9 +121,13 @@ disconnect a;
 disconnect b;
 analyze table t1;
 Table	Op	Msg_type	Msg_text
+mysqltest_innodb_zip.t1	analyze	status	Engine-independent statistics collected
+mysqltest_innodb_zip.t1	analyze	Warning	Engine-independent statistics are not collected for column 'b'
 mysqltest_innodb_zip.t1	analyze	status	OK
 analyze table t2;
 Table	Op	Msg_type	Msg_text
+mysqltest_innodb_zip.t2	analyze	status	Engine-independent statistics collected
+mysqltest_innodb_zip.t2	analyze	Warning	Engine-independent statistics are not collected for column 'b'
 mysqltest_innodb_zip.t2	analyze	status	OK
 SELECT table_schema, table_name, row_format, data_length, index_length FROM information_schema.tables WHERE engine='innodb' AND table_schema != 'mysql' order by table_name;
 table_schema	table_name	row_format	data_length	index_length

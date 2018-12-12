@@ -109,7 +109,6 @@ xb_fil_node_close_file(
 
 	ut_a(fil_system.n_open > 0);
 	fil_system.n_open--;
-	fil_n_file_opened--;
 
 	if (node->space->purpose == FIL_TYPE_TABLESPACE &&
 	    fil_is_user_tablespace_id(node->space->id)) {
@@ -159,8 +158,11 @@ xb_fil_cur_open(
 	/* In the backup mode we should already have a tablespace handle created
 	by fil_ibd_load() unless it is a system
 	tablespace. Otherwise we open the file here. */
-	if (cursor->is_system() || srv_operation == SRV_OPERATION_RESTORE_DELTA
-	    || xb_close_files) {
+	if (!node->is_open()) {
+		ut_ad(cursor->is_system()
+		      || srv_operation == SRV_OPERATION_RESTORE_DELTA
+		      || xb_close_files);
+
 		node->handle = os_file_create_simple_no_error_handling(
 			0, node->name,
 			OS_FILE_OPEN,
@@ -178,7 +180,6 @@ xb_fil_cur_open(
 		mutex_enter(&fil_system.mutex);
 
 		fil_system.n_open++;
-		fil_n_file_opened++;
 
 		if (node->space->purpose == FIL_TYPE_TABLESPACE &&
 		    fil_is_user_tablespace_id(node->space->id)) {

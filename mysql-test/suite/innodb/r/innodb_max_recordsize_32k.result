@@ -325,6 +325,8 @@ LENGTH(col)
 FLUSH TABLE t;
 ANALYZE TABLE t;
 Table	Op	Msg_type	Msg_text
+test.t	analyze	status	Engine-independent statistics collected
+test.t	analyze	Warning	Engine-independent statistics are not collected for column 'col'
 test.t	analyze	status	OK
 SELECT clust_index_size FROM INFORMATION_SCHEMA.INNODB_SYS_TABLESTATS
 WHERE name = 'test/t';
@@ -345,6 +347,8 @@ LENGTH(col)
 FLUSH TABLE t;
 ANALYZE TABLE t;
 Table	Op	Msg_type	Msg_text
+test.t	analyze	status	Engine-independent statistics collected
+test.t	analyze	Warning	Engine-independent statistics are not collected for column 'col'
 test.t	analyze	status	OK
 SELECT clust_index_size FROM INFORMATION_SCHEMA.INNODB_SYS_TABLESTATS
 WHERE name = 'test/t';
@@ -365,6 +369,8 @@ LENGTH(col)
 FLUSH TABLE t;
 ANALYZE TABLE t;
 Table	Op	Msg_type	Msg_text
+test.t	analyze	status	Engine-independent statistics collected
+test.t	analyze	Warning	Engine-independent statistics are not collected for column 'col'
 test.t	analyze	status	OK
 SELECT clust_index_size FROM INFORMATION_SCHEMA.INNODB_SYS_TABLESTATS
 WHERE name = 'test/t';

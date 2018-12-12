@@ -26,24 +26,15 @@ Created 2/2/1994 Heikki Tuuri
 #ifndef page0page_h
 #define page0page_h
 
-#include "univ.i"
-
 #include "page0types.h"
-#ifndef UNIV_INNOCHECKSUM
+#include "fsp0fsp.h"
 #include "fil0fil.h"
 #include "buf0buf.h"
-#include "data0data.h"
-#include "dict0dict.h"
 #include "rem0rec.h"
-#endif /* !UNIV_INNOCHECKSUM*/
-#include "fsp0fsp.h"
 #ifndef UNIV_INNOCHECKSUM
+#include "dict0dict.h"
+#include "data0data.h"
 #include "mtr0mtr.h"
-
-#ifdef UNIV_MATERIALIZE
-#undef UNIV_INLINE
-#define UNIV_INLINE
-#endif
 
 /*			PAGE HEADER
 			===========
@@ -51,6 +42,8 @@ Created 2/2/1994 Heikki Tuuri
 Index page header starts at the first offset left free by the FIL-module */
 
 typedef	byte		page_header_t;
+#else
+# include "mach0data.h"
 #endif /* !UNIV_INNOCHECKSUM */
 
 #define	PAGE_HEADER	FSEG_PAGE_DATA	/* index page header starts at this
@@ -1352,11 +1345,6 @@ page_warn_strict_checksum(
 	srv_checksum_algorithm_t	curr_algo,
 	srv_checksum_algorithm_t	page_checksum,
 	const page_id_t			page_id);
-
-#ifdef UNIV_MATERIALIZE
-#undef UNIV_INLINE
-#define UNIV_INLINE  UNIV_INLINE_ORIGINAL
-#endif
 
 #endif /* !UNIV_INNOCHECKSUM */
 

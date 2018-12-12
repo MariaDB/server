@@ -1518,6 +1518,7 @@ SET SESSION debug_dbug="+d,binlog_force_commit_id";
 SET @commit_id= 10000;
 ANALYZE TABLE t2;
 Table	Op	Msg_type	Msg_text
+test.t2	analyze	status	Engine-independent statistics collected
 test.t2	analyze	status	OK
 INSERT INTO t3 VALUES (120, 0);
 SET @commit_id= 10001;

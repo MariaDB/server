@@ -680,7 +680,6 @@ inline void dict_table_t::rollback_instant(
 	DBUG_ASSERT(old_n_cols >= DATA_N_SYS_COLS);
 	DBUG_ASSERT(n_cols == n_def);
 	DBUG_ASSERT(index->n_def == index->n_fields);
-	DBUG_ASSERT(index->n_core_fields <= old_n_fields);
 	DBUG_ASSERT(index->n_core_fields <= index->n_fields);
 	DBUG_ASSERT(instant || !old_instant);
 
@@ -699,6 +698,10 @@ inline void dict_table_t::rollback_instant(
 	}
 
 	index->n_def = index->n_fields = old_n_fields;
+	if (index->n_core_fields > old_n_fields) {
+		index->n_core_fields = old_n_fields;
+		index->n_core_null_bytes = UT_BITS_IN_BYTES(index->n_nullable);
+	}
 
 	const dict_col_t* const new_cols = cols;
 	const dict_col_t* const new_cols_end = cols + n_cols;
@@ -5979,8 +5982,10 @@ new_clustered_failed:
 				user_table, ctx->trx);
 
 			if (ctx->need_rebuild()) {
-				ut_ad(!ctx->new_table->cached);
-				dict_mem_table_free(ctx->new_table);
+				if (ctx->new_table) {
+					ut_ad(!ctx->new_table->cached);
+					dict_mem_table_free(ctx->new_table);
+				}
 				ctx->new_table = ctx->old_table;
 			}
 
@@ -6456,7 +6461,7 @@ new_clustered_failed:
 			break;
 		case DB_TABLESPACE_EXISTS:
 			my_error(ER_TABLESPACE_EXISTS, MYF(0),
-				 ctx->new_table->name.m_name);
+				 altered_table->s->table_name.str);
 			goto new_table_failed;
 		case DB_DUPLICATE_KEY:
 			my_error(HA_ERR_TABLE_EXIST, MYF(0),
@@ -6464,12 +6469,13 @@ new_clustered_failed:
 			goto new_table_failed;
 		case DB_UNSUPPORTED:
 			my_error(ER_UNSUPPORTED_EXTENSION, MYF(0),
-				 ctx->new_table->name.m_name);
+				 altered_table->s->table_name.str);
 			goto new_table_failed;
 		default:
 			my_error_innodb(error, table_name, flags);
 new_table_failed:
 			DBUG_ASSERT(ctx->trx != ctx->prebuilt->trx);
+			ctx->new_table = NULL;
 			goto new_clustered_failed;
 		}
 

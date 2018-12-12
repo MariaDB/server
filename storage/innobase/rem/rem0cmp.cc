@@ -25,6 +25,7 @@ Created 7/1/1994 Heikki Tuuri
 
 #include "rem0cmp.h"
 #include "rem0rec.h"
+#include "page0page.h"
 #include "dict0mem.h"
 #include "handler0alter.h"
 
@@ -787,20 +788,23 @@ cmp_dtuple_rec_with_match_bytes(
 	ulint*			matched_fields,
 	ulint*			matched_bytes)
 {
-	ulint		n_cmp	= dtuple_get_n_fields_cmp(dtuple);
-	ulint		cur_field;	/* current field number */
-	ulint		cur_bytes;
-	int		ret;		/* return value */
-
 	ut_ad(dtuple_check_typed(dtuple));
 	ut_ad(rec_offs_validate(rec, index, offsets));
 	ut_ad(!(REC_INFO_MIN_REC_FLAG
 		& dtuple_get_info_bits(dtuple)));
-	ut_ad(!(REC_INFO_MIN_REC_FLAG
-		& rec_get_info_bits(rec, rec_offs_comp(offsets))));
 
-	cur_field = *matched_fields;
-	cur_bytes = *matched_bytes;
+	if (UNIV_UNLIKELY(REC_INFO_MIN_REC_FLAG
+			  & rec_get_info_bits(rec, rec_offs_comp(offsets)))) {
+		ut_ad(page_rec_is_first(rec, page_align(rec)));
+		ut_ad(!page_has_prev(page_align(rec)));
+		ut_ad(rec_is_metadata(rec, *index));
+		return 1;
+	}
+
+	ulint cur_field = *matched_fields;
+	ulint cur_bytes = *matched_bytes;
+	ulint n_cmp = dtuple_get_n_fields_cmp(dtuple);
+	int ret;
 
 	ut_ad(n_cmp <= dtuple_get_n_fields(dtuple));
 	ut_ad(cur_field <= n_cmp);

@@ -22,7 +22,7 @@ call dump_one_thread('user2');
 username	event_name	sql_text
 user2	statement/sql/insert	insert into test.t1 values (1), (2), (3)
 username	event_name	nesting_event_type
-user2	stage/sql/Waiting for global read lock	STATEMENT
+user2	stage/sql/Waiting for backup lock	STATEMENT
 username	event_name	nesting_event_type
 user2	stage/sql/Init	STATEMENT
 user2	stage/sql/Checking permissions	STATEMENT

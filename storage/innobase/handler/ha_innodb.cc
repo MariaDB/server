@@ -86,10 +86,8 @@ this program; if not, write to the Free Software Foundation, Inc.,
 #include "ibuf0ibuf.h"
 #include "lock0lock.h"
 #include "log0crypt.h"
-#include "mem0mem.h"
 #include "mtr0mtr.h"
 #include "os0file.h"
-#include "os0thread.h"
 #include "page0zip.h"
 #include "pars0pars.h"
 #include "rem0types.h"
@@ -2913,6 +2911,7 @@ ha_innobase::ha_innobase(
 			  | HA_CAN_EXPORT
 			  | HA_CAN_RTREEKEYS
                           | HA_CAN_TABLES_WITHOUT_ROLLBACK
+                          | HA_CAN_ONLINE_BACKUPS
 			  | HA_CONCURRENT_OPTIMIZE
 			  |  (srv_force_primary_key ? HA_REQUIRE_PRIMARY_KEY : 0)
 		  ),
@@ -10821,6 +10820,7 @@ create_table_info_t::create_table_def()
 	DBUG_PRINT("enter", ("table_name: %s", m_table_name));
 
 	DBUG_ASSERT(m_trx->mysql_thd == m_thd);
+	DBUG_ASSERT(!m_drop_before_rollback);
 
 	/* MySQL does the name length check. But we do additional check
 	on the name length here */
@@ -11082,6 +11082,7 @@ err_col:
 				table, m_trx,
 				(fil_encryption_t)options->encryption,
 				(uint32_t)options->encryption_key_id);
+			m_drop_before_rollback = (err == DB_SUCCESS);
 		}
 
 		DBUG_EXECUTE_IF("ib_crash_during_create_for_encryption",
@@ -11097,9 +11098,6 @@ err_col:
 	case DB_SUCCESS:
 		ut_ad(table);
 		m_table = table;
-		if (m_flags2 & DICT_TF2_FTS) {
-			fts_optimize_add_table(table);
-		}
 		DBUG_RETURN(0);
 	default:
 		break;
@@ -11118,7 +11116,8 @@ err_col:
 			 : ER_TABLESPACE_EXISTS, MYF(0), display_name);
 	}
 
-	DBUG_RETURN(convert_error_code_to_mysql(err, m_flags, m_thd));}
+	DBUG_RETURN(convert_error_code_to_mysql(err, m_flags, m_thd));
+}
 
 /*****************************************************************//**
 Creates an index in an InnoDB database. */
@@ -12289,8 +12288,6 @@ int create_table_info_t::create_table(bool create_fk)
 	int		error;
 	int		primary_key_no;
 	uint		i;
-	const char*	stmt;
-	size_t		stmt_len;
 
 	DBUG_ENTER("create_table");
 
@@ -12307,6 +12304,9 @@ int create_table_info_t::create_table(bool create_fk)
 	if (error) {
 		DBUG_RETURN(error);
 	}
+
+	DBUG_ASSERT(m_drop_before_rollback
+		    == !(m_flags2 & DICT_TF2_TEMPORARY));
 
 	/* Create the keys */
 
@@ -12366,8 +12366,7 @@ int create_table_info_t::create_table(bool create_fk)
 
 			my_error(ER_WRONG_NAME_FOR_INDEX, MYF(0),
 				 FTS_DOC_ID_INDEX_NAME);
-			error = -1;
-			DBUG_RETURN(error);
+			DBUG_RETURN(-1);
 		case FTS_EXIST_DOC_ID_INDEX:
 		case FTS_NOT_EXIST_DOC_ID_INDEX:
 			break;
@@ -12380,16 +12379,6 @@ int create_table_info_t::create_table(bool create_fk)
 		error = convert_error_code_to_mysql(err, 0, NULL);
 
 		if (error) {
-			/* Drop the being-created table before rollback,
-			so that rollback can possibly rename back a table
-			that could have been renamed before
-			the failed creation. */
-			m_trx->error_state = DB_SUCCESS;
-			row_drop_table_for_mysql(m_table_name, m_trx,
-						 SQLCOM_TRUNCATE);
-			trx_rollback_to_savepoint(m_trx, NULL);
-
-			m_trx->error_state = DB_SUCCESS;
 			DBUG_RETURN(error);
 		}
 	}
@@ -12411,15 +12400,28 @@ int create_table_info_t::create_table(bool create_fk)
 		dict_table_get_all_fts_indexes(m_table, fts->indexes);
 	}
 
-	stmt = innobase_get_stmt_unsafe(m_thd, &stmt_len);
-
-	if (stmt) {
-		dberr_t	err = row_table_add_foreign_constraints(
-			create_fk ? m_trx : NULL, stmt, stmt_len, m_table_name,
-			m_create_info->options & HA_LEX_CREATE_TMP_TABLE);
+	size_t stmt_len;
+	if (const char* stmt = innobase_get_stmt_unsafe(m_thd, &stmt_len)) {
+		dberr_t err = create_fk
+			? dict_create_foreign_constraints(
+				m_trx, stmt, stmt_len, m_table_name,
+				m_flags2 & DICT_TF2_TEMPORARY)
+			: DB_SUCCESS;
+		if (err == DB_SUCCESS) {
+			/* Check that also referencing constraints are ok */
+			dict_names_t	fk_tables;
+			err = dict_load_foreigns(m_table_name, NULL,
+						 false, true,
+						 DICT_ERR_IGNORE_NONE,
+						 fk_tables);
+			while (err == DB_SUCCESS && !fk_tables.empty()) {
+				dict_load_table(fk_tables.front(), true,
+						DICT_ERR_IGNORE_NONE);
+				fk_tables.pop_front();
+			}
+		}
 
 		switch (err) {
-
 		case DB_PARENT_NO_INDEX:
 			push_warning_printf(
 				m_thd, Sql_condition::WARN_LEVEL_WARN,
@@ -12452,10 +12454,9 @@ int create_table_info_t::create_table(bool create_fk)
 			break;
 		}
 
-		error = convert_error_code_to_mysql(err, m_flags, NULL);
-
-		if (error) {
-			DBUG_RETURN(error);
+		if (err != DB_SUCCESS) {
+			DBUG_RETURN(convert_error_code_to_mysql(
+					    err, m_flags, NULL));
 		}
 	}
 
@@ -12504,6 +12505,10 @@ create_table_info_t::create_table_update_dict()
 			trx_free(m_trx);
 			DBUG_RETURN(-1);
 		}
+
+		mutex_enter(&dict_sys->mutex);
+		fts_optimize_add_table(innobase_table);
+		mutex_exit(&dict_sys->mutex);
 	}
 
 	if (const Field* ai = m_form->found_next_number_field) {
@@ -12616,9 +12621,12 @@ ha_innobase::create(
 		/* Drop the being-created table before rollback,
 		so that rollback can possibly rename back a table
 		that could have been renamed before the failed creation. */
-		trx->error_state = DB_SUCCESS;
-		row_drop_table_for_mysql(info.table_name(), trx,
-					 SQLCOM_TRUNCATE, true);
+		if (info.drop_before_rollback()) {
+			trx->error_state = DB_SUCCESS;
+			row_drop_table_for_mysql(info.table_name(),
+						 trx, SQLCOM_TRUNCATE, true,
+						 false);
+		}
 		trx_rollback_for_mysql(trx);
 		row_mysql_unlock_data_dictionary(trx);
 		if (own_trx) {
@@ -13066,6 +13074,7 @@ innobase_drop_database(
 @param[in]	from	old table name
 @param[in]	to	new table name
 @param[in]	commit	whether to commit trx
+@param[in]	use_fk	whether to parse and enforce FOREIGN KEY constraints
 @return DB_SUCCESS or error code */
 inline
 dberr_t
@@ -13073,7 +13082,8 @@ innobase_rename_table(
 	trx_t*		trx,
 	const char*	from,
 	const char*	to,
-	bool		commit = true)
+	bool		commit,
+	bool		use_fk)
 {
 	dberr_t	error;
 	char	norm_to[FN_REFLEN];
@@ -13128,7 +13138,8 @@ innobase_rename_table(
 		goto func_exit;
 	}
 
-	error = row_rename_table_for_mysql(norm_from, norm_to, trx, commit);
+	error = row_rename_table_for_mysql(norm_from, norm_to, trx, commit,
+					   use_fk);
 
 	if (error != DB_SUCCESS) {
 		if (error == DB_TABLE_NOT_FOUND
@@ -13153,7 +13164,8 @@ innobase_rename_table(
 #endif /* _WIN32 */
 				trx_start_if_not_started(trx, true);
 				error = row_rename_table_for_mysql(
-					par_case_name, norm_to, trx, TRUE);
+					par_case_name, norm_to, trx,
+					true, false);
 			}
 		}
 
@@ -13234,7 +13246,8 @@ int ha_innobase::truncate()
 	trx_set_dict_operation(trx, TRX_DICT_OP_TABLE);
 	row_mysql_lock_data_dictionary(trx);
 	int err = convert_error_code_to_mysql(
-		innobase_rename_table(trx, ib_table->name.m_name, temp_name, false),
+		innobase_rename_table(trx, ib_table->name.m_name, temp_name,
+				      false, false),
 		ib_table->flags, m_user_thd);
 	if (err) {
 		trx_rollback_for_mysql(trx);
@@ -13287,7 +13300,7 @@ ha_innobase::rename_table(
 	++trx->will_lock;
 	trx_set_dict_operation(trx, TRX_DICT_OP_INDEX);
 
-	dberr_t	error = innobase_rename_table(trx, from, to);
+	dberr_t	error = innobase_rename_table(trx, from, to, true, true);
 
 	DEBUG_SYNC(thd, "after_innobase_rename_table");
 

@@ -1068,6 +1068,28 @@ Type_handler_temporal_result::make_sort_key(uchar *to, Item *item,
 
 
 void
+Type_handler_timestamp_common::make_sort_key(uchar *to, Item *item,
+                                             const SORT_FIELD_ATTR *sort_field,
+                                             Sort_param *param) const
+{
+  uint binlen= my_timestamp_binary_length(item->decimals);
+  Timestamp_or_zero_datetime_native_null native(current_thd, item);
+  if (native.is_null() || native.is_zero_datetime())
+  {
+    // NULL or '0000-00-00 00:00:00'
+    bzero(to, item->maybe_null ? binlen + 1 : binlen);
+  }
+  else
+  {
+    DBUG_ASSERT(native.length() == binlen);
+    if (item->maybe_null)
+      *to++= 1;
+    memcpy((char *) to, native.ptr(), binlen);
+  }
+}
+
+
+void
 Type_handler::make_sort_key_longlong(uchar *to,
                                      bool maybe_null,
                                      bool null_value,
@@ -1870,6 +1892,15 @@ Type_handler_temporal_result::sortlength(THD *thd,
                                          SORT_FIELD_ATTR *sortorder) const
 {
   sortorder->length= 8; // Sizof intern longlong
+}
+
+
+void
+Type_handler_timestamp_common::sortlength(THD *thd,
+                                          const Type_std_attributes *item,
+                                          SORT_FIELD_ATTR *sortorder) const
+{
+  sortorder->length= my_timestamp_binary_length(item->decimals);
 }
 
 

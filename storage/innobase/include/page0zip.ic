@@ -25,11 +25,6 @@ Compressed page interface
 Created June 2005 by Marko Makela
 *******************************************************/
 
-#ifdef UNIV_MATERIALIZE
-# undef UNIV_INLINE
-# define UNIV_INLINE
-#endif
-
 #include "page0zip.h"
 #include "mtr0log.h"
 #include "page0page.h"
@@ -437,8 +432,3 @@ page_zip_reset_stat_per_index()
 
 	mutex_exit(&page_zip_stat_per_index_mutex);
 }
-
-#ifdef UNIV_MATERIALIZE
-# undef UNIV_INLINE
-# define UNIV_INLINE	UNIV_INLINE_ORIGINAL
-#endif

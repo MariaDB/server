@@ -250,11 +250,17 @@ TIME,HOSTNAME,root,localhost,ID,ID,QUERY,test,'create table t2 (id int)',0
 TIME,HOSTNAME,root,localhost,ID,ID,QUERY,test,'set global server_audit_excl_users=\'odin, dva, tri\'',0
 TIME,HOSTNAME,root,localhost,ID,ID,QUERY,test,'SHOW WARNINGS',0
 TIME,HOSTNAME,root,localhost,ID,ID,WRITE,test,t1,
+TIME,HOSTNAME,root,localhost,ID,ID,READ,mysql,table_stats,
+TIME,HOSTNAME,root,localhost,ID,ID,READ,mysql,column_stats,
+TIME,HOSTNAME,root,localhost,ID,ID,READ,mysql,index_stats,
 TIME,HOSTNAME,root,localhost,ID,ID,QUERY,test,'insert into t1 values (1), (2)',0
 TIME,HOSTNAME,root,localhost,ID,ID,READ,test,t1,
 TIME,HOSTNAME,root,localhost,ID,ID,QUERY,test,'select * from t1',0
 TIME,HOSTNAME,root,localhost,ID,ID,QUERY,test,'set global server_audit_incl_users=\'odin, root, dva, tri\'',0
 TIME,HOSTNAME,root,localhost,ID,ID,WRITE,test,t2,
+TIME,HOSTNAME,root,localhost,ID,ID,READ,mysql,table_stats,
+TIME,HOSTNAME,root,localhost,ID,ID,READ,mysql,column_stats,
+TIME,HOSTNAME,root,localhost,ID,ID,READ,mysql,index_stats,
 TIME,HOSTNAME,root,localhost,ID,ID,QUERY,test,'insert into t2 values (1), (2)',0
 TIME,HOSTNAME,root,localhost,ID,ID,READ,test,t2,
 TIME,HOSTNAME,root,localhost,ID,ID,QUERY,test,'select * from t2',0
@@ -279,6 +285,9 @@ TIME,HOSTNAME,root,localhost,ID,0,CONNECT,test,,0
 TIME,HOSTNAME,root,localhost,ID,ID,CREATE,test,t1,
 TIME,HOSTNAME,root,localhost,ID,ID,QUERY,test,'create table t1 (id2 int)',0
 TIME,HOSTNAME,root,localhost,ID,ID,WRITE,test,t1,
+TIME,HOSTNAME,root,localhost,ID,ID,READ,mysql,table_stats,
+TIME,HOSTNAME,root,localhost,ID,ID,READ,mysql,column_stats,
+TIME,HOSTNAME,root,localhost,ID,ID,READ,mysql,index_stats,
 TIME,HOSTNAME,root,localhost,ID,ID,QUERY,test,'insert into t1 values (1), (2)',0
 TIME,HOSTNAME,root,localhost,ID,ID,READ,test,t1,
 TIME,HOSTNAME,root,localhost,ID,ID,QUERY,test,'select * from t1',0
@@ -291,6 +300,9 @@ TIME,HOSTNAME,root,localhost,ID,ID,QUERY,sa_db,'use sa_db',0
 TIME,HOSTNAME,root,localhost,ID,ID,CREATE,sa_db,sa_t1,
 TIME,HOSTNAME,root,localhost,ID,ID,QUERY,sa_db,'create table sa_t1(id int)',0
 TIME,HOSTNAME,root,localhost,ID,ID,WRITE,sa_db,sa_t1,
+TIME,HOSTNAME,root,localhost,ID,ID,READ,mysql,table_stats,
+TIME,HOSTNAME,root,localhost,ID,ID,READ,mysql,column_stats,
+TIME,HOSTNAME,root,localhost,ID,ID,READ,mysql,index_stats,
 TIME,HOSTNAME,root,localhost,ID,ID,QUERY,sa_db,'insert into sa_t1 values (1), (2)',0
 TIME,HOSTNAME,root,localhost,ID,ID,WRITE,mysql,table_stats,
 TIME,HOSTNAME,root,localhost,ID,ID,WRITE,mysql,column_stats,

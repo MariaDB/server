@@ -2595,88 +2595,6 @@ row_create_index_for_mysql(
 }
 
 /*********************************************************************//**
-Scans a table create SQL string and adds to the data dictionary
-the foreign key constraints declared in the string. This function
-should be called after the indexes for a table have been created.
-Each foreign key constraint must be accompanied with indexes in
-bot participating tables. The indexes are allowed to contain more
-fields than mentioned in the constraint.
-
-@param[in]	trx		transaction (NULL if not adding to dictionary)
-@param[in]	sql_string	table create statement where
-				foreign keys are declared like:
-				FOREIGN KEY (a, b) REFERENCES table2(c, d),
-				table2 can be written also with the database
-				name before it: test.table2; the default
-				database id the database of parameter name
-@param[in]	sql_length	length of sql_string
-@param[in]	name		table full name in normalized form
-@param[in]	reject_fks	whether to fail with DB_CANNOT_ADD_CONSTRAINT
-				if any foreign keys are found
-@return error code or DB_SUCCESS */
-dberr_t
-row_table_add_foreign_constraints(
-	trx_t*			trx,
-	const char*		sql_string,
-	size_t			sql_length,
-	const char*		name,
-	bool			reject_fks)
-{
-	dberr_t	err;
-
-	DBUG_ENTER("row_table_add_foreign_constraints");
-
-	ut_ad(mutex_own(&dict_sys->mutex));
-	ut_ad(rw_lock_own(dict_operation_lock, RW_LOCK_X));
-	ut_a(sql_string);
-
-	if (trx) {
-		err = dict_create_foreign_constraints(
-			trx, sql_string, sql_length, name, reject_fks);
-
-		DBUG_EXECUTE_IF("ib_table_add_foreign_fail",
-				err = DB_DUPLICATE_KEY;);
-
-		DEBUG_SYNC_C("table_add_foreign_constraints");
-	} else {
-		err = DB_SUCCESS;
-	}
-
-	if (err == DB_SUCCESS) {
-		/* Check that also referencing constraints are ok */
-		dict_names_t	fk_tables;
-		err = dict_load_foreigns(name, NULL, false, true,
-					 DICT_ERR_IGNORE_NONE, fk_tables);
-
-		while (err == DB_SUCCESS && !fk_tables.empty()) {
-			dict_load_table(fk_tables.front(), true,
-					DICT_ERR_IGNORE_NONE);
-			fk_tables.pop_front();
-		}
-	}
-
-	if (err != DB_SUCCESS && trx) {
-		/* We have special error handling here */
-
-		trx->error_state = DB_SUCCESS;
-
-		if (trx_is_started(trx)) {
-			/* FIXME: Introduce an undo log record for
-			creating tablespaces and data files, so that
-			they would be deleted on rollback. */
-			row_drop_table_for_mysql(name, trx, SQLCOM_DROP_TABLE,
-						 true);
-			trx_rollback_to_savepoint(trx, NULL);
-			ut_ad(!trx_is_started(trx));
-		}
-
-		trx->error_state = DB_SUCCESS;
-	}
-
-	DBUG_RETURN(err);
-}
-
-/*********************************************************************//**
 Drops a table for MySQL as a background operation. MySQL relies on Unix
 in ALTER TABLE to the fact that the table handler does not remove the
 table before all handles to it has been removed. Furhermore, the MySQL's
@@ -3602,7 +3520,8 @@ defer:
 			ib::info() << "Deferring DROP TABLE " << table->name
 				   << "; renaming to " << tmp_name;
 			err = row_rename_table_for_mysql(
-				table->name.m_name, tmp_name, trx, false);
+				table->name.m_name, tmp_name, trx,
+				false, false);
 		} else {
 			err = DB_SUCCESS;
 		}
@@ -4227,7 +4146,9 @@ row_rename_table_for_mysql(
 	const char*	old_name,	/*!< in: old table name */
 	const char*	new_name,	/*!< in: new table name */
 	trx_t*		trx,		/*!< in/out: transaction */
-	bool		commit)		/*!< in: whether to commit trx */
+	bool		commit,		/*!< in: whether to commit trx */
+	bool		use_fk)		/*!< in: whether to parse and enforce
+					FOREIGN KEY constraints */
 {
 	dict_table_t*	table			= NULL;
 	ibool		dict_locked		= FALSE;
@@ -4331,7 +4252,7 @@ row_rename_table_for_mysql(
 
 		goto funct_exit;
 
-	} else if (!old_is_tmp && new_is_tmp) {
+	} else if (use_fk && !old_is_tmp && new_is_tmp) {
 		/* MySQL is doing an ALTER TABLE command and it renames the
 		original table to a temporary table name. We want to preserve
 		the original foreign key constraint definitions despite the

@@ -11,3 +11,4 @@
 ##############################################################################
 
 create-index-debug : MDEV-13680 InnoDB may crash when btr_page_alloc() fails
+innodb-alter-table : MDEV-17784 enable after this is fixed

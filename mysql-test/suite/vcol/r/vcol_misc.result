@@ -182,16 +182,36 @@ a	b	c
 2	3	y
 0	1	y,n
 drop table t1,t2;
-CREATE TABLE t1 (
+SET @old_debug= @@global.debug;
+SET @old_debug= @@global.debug;
+SET GLOBAL debug_dbug= "+d,write_delay_wakeup";
+CREATE TABLE t1 (a int,
 ts TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
 tsv TIMESTAMP AS (ADDDATE(ts, INTERVAL 1 DAY)) VIRTUAL
 ) ENGINE=MyISAM;
-INSERT INTO t1 (tsv) VALUES (DEFAULT);
-INSERT DELAYED INTO t1 (tsv) VALUES (DEFAULT);
+# First test FLUSH TABLES
+INSERT INTO t1 (a,tsv) VALUES (1,DEFAULT);
+INSERT DELAYED INTO t1 (a,tsv) VALUES (2,DEFAULT);
 FLUSH TABLES;
+SELECT COUNT(*) > 0 FROM t1;
+COUNT(*) > 0
+1
+# Then test FLUSH TABLES t1;
+INSERT INTO t1 (a,tsv) VALUES (3,DEFAULT);
+INSERT DELAYED INTO t1 (a,tsv) VALUES (4,DEFAULT);
+FLUSH TABLES t1;
 SELECT COUNT(*) FROM t1;
 COUNT(*)
-2
+4
+# Then test FLUSH TABLES WITH READ LOCK;
+INSERT INTO t1 (a,tsv) VALUES (5,DEFAULT);
+INSERT DELAYED INTO t1 (a,tsv) VALUES (6,DEFAULT);
+FLUSH TABLES WITH READ LOCK;
+SELECT COUNT(*) FROM t1;
+COUNT(*)
+6
+set GLOBAL debug_dbug= @old_debug;
+unlock tables;
 DROP TABLE t1;
 #
 # MDEV-4823 Server crashes in Item_func_not::fix_fields on

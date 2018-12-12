@@ -65,7 +65,6 @@ row_undo_ins_remove_clust_rec(
 /*==========================*/
 	undo_node_t*	node)	/*!< in: undo node */
 {
-	btr_cur_t*	btr_cur;
 	ibool		success;
 	dberr_t		err;
 	ulint		n_tries	= 0;
@@ -73,7 +72,7 @@ row_undo_ins_remove_clust_rec(
 	dict_index_t*	index	= node->pcur.btr_cur.index;
 	bool		online;
 
-	ut_ad(dict_index_is_clust(index));
+	ut_ad(index->is_primary());
 	ut_ad(node->trx->in_rollback);
 
 	mtr.start();
@@ -87,6 +86,7 @@ row_undo_ins_remove_clust_rec(
 		index->set_modified(mtr);
 		online = dict_index_is_online_ddl(index);
 		if (online) {
+			ut_ad(node->rec_type == TRX_UNDO_INSERT_REC);
 			ut_ad(node->trx->dict_operation_lock_mode
 			      != RW_X_LATCH);
 			ut_ad(node->table->id != DICT_INDEXES_ID);
@@ -104,19 +104,19 @@ row_undo_ins_remove_clust_rec(
 	success = btr_pcur_restore_position(
 		online
 		? BTR_MODIFY_LEAF | BTR_ALREADY_S_LATCHED
-		: BTR_MODIFY_LEAF, &node->pcur, &mtr);
+		: (node->rec_type == TRX_UNDO_INSERT_METADATA)
+		? BTR_MODIFY_TREE : BTR_MODIFY_LEAF, &node->pcur, &mtr);
 	ut_a(success);
 
-	btr_cur = btr_pcur_get_btr_cur(&node->pcur);
+	rec_t* rec = btr_pcur_get_rec(&node->pcur);
 
-	ut_ad(rec_get_trx_id(btr_cur_get_rec(btr_cur), btr_cur->index)
-	      == node->trx->id);
-	ut_ad(!rec_get_deleted_flag(
-		      btr_cur_get_rec(btr_cur),
-		      dict_table_is_comp(btr_cur->index->table)));
+	ut_ad(rec_get_trx_id(rec, index) == node->trx->id);
+	ut_ad(!rec_get_deleted_flag(rec, index->table->not_redundant())
+	      || rec_is_alter_metadata(rec, index->table->not_redundant()));
+	ut_ad(rec_is_metadata(rec, index->table->not_redundant())
+	      == (node->rec_type == TRX_UNDO_INSERT_METADATA));
 
 	if (online && dict_index_is_online_ddl(index)) {
-		const rec_t*	rec	= btr_cur_get_rec(btr_cur);
 		mem_heap_t*	heap	= NULL;
 		const ulint*	offsets	= rec_get_offsets(
 			rec, index, NULL, true, ULINT_UNDEFINED, &heap);
@@ -130,8 +130,7 @@ row_undo_ins_remove_clust_rec(
 			      == RW_X_LATCH);
 			ut_ad(node->rec_type == TRX_UNDO_INSERT_REC);
 
-			dict_drop_index_tree(btr_pcur_get_rec(&node->pcur),
-					     &node->pcur, &mtr);
+			dict_drop_index_tree(rec, &node->pcur, &mtr);
 			mtr.commit();
 
 			mtr.start();
@@ -150,7 +149,6 @@ row_undo_ins_remove_clust_rec(
 			ut_ad(node->trx->dict_operation_lock_mode
 			      == RW_X_LATCH);
 			ut_ad(node->rec_type == TRX_UNDO_INSERT_REC);
-			const rec_t* rec = btr_pcur_get_rec(&node->pcur);
 			if (rec_get_n_fields_old(rec)
 			    != DICT_NUM_FIELDS__SYS_COLUMNS) {
 				break;
@@ -165,7 +163,7 @@ row_undo_ins_remove_clust_rec(
 		}
 	}
 
-	if (btr_cur_optimistic_delete(btr_cur, 0, &mtr)) {
+	if (btr_cur_optimistic_delete(&node->pcur.btr_cur, 0, &mtr)) {
 		err = DB_SUCCESS;
 		goto func_exit;
 	}
@@ -185,7 +183,8 @@ retry:
 			&node->pcur, &mtr);
 	ut_a(success);
 
-	btr_cur_pessimistic_delete(&err, FALSE, btr_cur, 0, true, &mtr);
+	btr_cur_pessimistic_delete(&err, FALSE, &node->pcur.btr_cur, 0, true,
+				   &mtr);
 
 	/* The delete operation may fail if we have little
 	file space left: TODO: easiest to crash the database
@@ -204,29 +203,34 @@ retry:
 	}
 
 func_exit:
-	btr_pcur_commit_specify_mtr(&node->pcur, &mtr);
 	if (err == DB_SUCCESS && node->rec_type == TRX_UNDO_INSERT_METADATA) {
 		/* When rolling back the very first instant ADD COLUMN
 		operation, reset the root page to the basic state. */
 		ut_ad(!index->table->is_temporary());
-		mtr.start();
 		if (page_t* root = btr_root_get(index, &mtr)) {
 			byte* page_type = root + FIL_PAGE_TYPE;
 			ut_ad(mach_read_from_2(page_type)
 			      == FIL_PAGE_TYPE_INSTANT
 			      || mach_read_from_2(page_type)
 			      == FIL_PAGE_INDEX);
-			index->set_modified(mtr);
 			mlog_write_ulint(page_type, FIL_PAGE_INDEX,
 					 MLOG_2BYTES, &mtr);
 			byte* instant = PAGE_INSTANT + PAGE_HEADER + root;
 			mlog_write_ulint(instant,
 					 page_ptr_get_direction(instant + 1),
 					 MLOG_2BYTES, &mtr);
+			rec_t* infimum = page_get_infimum_rec(root);
+			rec_t* supremum = page_get_supremum_rec(root);
+			static const byte str[8 + 8] = "supremuminfimum";
+			if (memcmp(infimum, str + 8, 8)
+			    || memcmp(supremum, str, 8)) {
+				mlog_write_string(infimum, str + 8, 8, &mtr);
+				mlog_write_string(supremum, str, 8, &mtr);
+			}
 		}
-		mtr.commit();
 	}
 
+	btr_pcur_commit_specify_mtr(&node->pcur, &mtr);
 	return(err);
 }
 

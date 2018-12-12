@@ -1,2 +1,2 @@
 wsrep.foreign_key : Sporadic failure "WSREP has not yet prepared node for application use"
-
+wsrep.pool_of_threads : Sporadic failure "WSREP has not yet prepared node for application use"

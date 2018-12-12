@@ -847,12 +847,17 @@ public:
 
 class Timeval: public timeval
 {
+protected:
+  Timeval() { }
 public:
   Timeval(my_time_t sec, ulong usec)
   {
     tv_sec= sec;
     tv_usec= usec;
   }
+  explicit Timeval(const timeval &tv)
+   :timeval(tv)
+  { }
 };
 
 

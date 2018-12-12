@@ -122,7 +122,8 @@ get_make_parallel_flag
 # SSL library to use.--with-ssl will select our bundled yaSSL
 # implementation of SSL. --with-ssl=yes will first try system library
 # then the boundled one  --with-ssl=system will use the system library.
-SSL_LIBRARY=--with-ssl=system
+# We use bundled by default as this is guaranteed to work with Galera
+SSL_LIBRARY=--with-ssl
 
 if [ "x$warning_mode" = "xpedantic" ]; then
   warnings="-W -Wall -ansi -pedantic -Wno-long-long -Wno-unused -D_POSIX_SOURCE"
@@ -194,6 +195,8 @@ base_configs="$base_configs --with-extra-charsets=complex "
 base_configs="$base_configs --enable-thread-safe-client "
 base_configs="$base_configs --with-big-tables $maintainer_mode"
 base_configs="$base_configs --with-plugin-aria --with-aria-tmp-tables"
+# Following is to get tokudb to work
+base_configs="$base_configs --with-jemalloc=NO"
 
 if test -d "$path/../cmd-line-utils/readline"
 then

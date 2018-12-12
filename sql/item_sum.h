@@ -1072,6 +1072,7 @@ protected:
   bool get_date(THD *thd, MYSQL_TIME *ltime, date_mode_t fuzzydate);
   void reset_field();
   String *val_str(String *);
+  bool val_native(THD *thd, Native *);
   const Type_handler *real_type_handler() const
   {
     return get_arg(0)->real_type_handler();

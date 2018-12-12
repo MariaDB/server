@@ -1801,8 +1801,11 @@ insert into t3 values (11, 100), (33, 301), (44, 402), (11, 102), (11, 101);
 insert into t3 values (22, 100), (53, 301), (64, 402), (22, 102), (22, 101);
 analyze table t1,t2,t3;
 Table	Op	Msg_type	Msg_text
+test.t1	analyze	status	Engine-independent statistics collected
 test.t1	analyze	status	OK
+test.t2	analyze	status	Engine-independent statistics collected
 test.t2	analyze	status	OK
+test.t3	analyze	status	Engine-independent statistics collected
 test.t3	analyze	status	OK
 flush status;
 select sum(t3.b) from t1 left join t3 on t3.a=t1.a and t1.a is not null;
@@ -1811,7 +1814,7 @@ sum(t3.b)
 show status like "handler_read%";
 Variable_name	Value
 Handler_read_first	0
-Handler_read_key	4
+Handler_read_key	10
 Handler_read_last	0
 Handler_read_next	5
 Handler_read_prev	0
@@ -1826,7 +1829,7 @@ sum(t3.b)
 show status like "handler_read%";
 Variable_name	Value
 Handler_read_first	0
-Handler_read_key	4
+Handler_read_key	6
 Handler_read_last	0
 Handler_read_next	5
 Handler_read_prev	0

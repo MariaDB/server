@@ -68,8 +68,7 @@ connection $con_aux1;
 --enable_query_log
 let $wait_condition=
   select count(*) = 1 from information_schema.processlist
-  where (state = "Waiting for global read lock" or
-         state = "Waiting for commit lock") and
+  where state = "Waiting for backup lock" and
         info = "$statement";
 --source include/wait_condition.inc
 --disable_result_log
@@ -116,8 +115,7 @@ connection $con_aux2;
 --enable_query_log
 let $wait_condition=
   select count(*) = 1 from information_schema.processlist
-  where (state = "Waiting for global read lock" or
-         state = "Waiting for commit lock") and
+  where state = "Waiting for backup lock" and
         info = "flush tables with read lock";
 --source include/wait_condition.inc
 --disable_result_log

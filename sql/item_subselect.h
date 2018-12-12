@@ -306,6 +306,7 @@ public:
   double val_real();
   longlong val_int ();
   String *val_str (String *);
+  bool val_native(THD *thd, Native *);
   my_decimal *val_decimal(my_decimal *);
   bool val_bool();
   bool get_date(THD *thd, MYSQL_TIME *ltime, date_mode_t fuzzydate);

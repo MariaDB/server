@@ -784,7 +784,21 @@ public:
   virtual int  store(longlong nr, bool unsigned_val)=0;
   virtual int  store_decimal(const my_decimal *d)=0;
   virtual int  store_time_dec(const MYSQL_TIME *ltime, uint dec);
-  virtual int  store_timestamp(my_time_t timestamp, ulong sec_part);
+  virtual int  store_timestamp_dec(const timeval &ts, uint dec);
+  int store_timestamp(my_time_t timestamp, ulong sec_part)
+  {
+    return store_timestamp_dec(Timeval(timestamp, sec_part),
+                               TIME_SECOND_PART_DIGITS);
+  }
+  /**
+    Store a value represented in native format
+  */
+  virtual int store_native(const Native &value)
+  {
+    DBUG_ASSERT(0);
+    reset();
+    return 0;
+  }
   int store_time(const MYSQL_TIME *ltime)
   { return store_time_dec(ltime, TIME_SECOND_PART_DIGITS); }
   int store(const char *to, size_t length, CHARSET_INFO *cs,
@@ -831,6 +845,11 @@ public:
      This trickery is used to decrease a number of malloc calls.
   */
   virtual String *val_str(String*,String *)=0;
+  virtual bool val_native(Native *to)
+  {
+    DBUG_ASSERT(!is_null());
+    return to->copy((const char *) ptr, pack_length());
+  }
   String *val_int_as_str(String *val_buffer, bool unsigned_flag);
   /*
     Return the field value as a LEX_CSTRING, without padding to full length
@@ -1368,13 +1387,13 @@ protected:
     return set_warning(Sql_condition::WARN_LEVEL_NOTE, code, cuted_increment);
   }
   void set_datetime_warning(Sql_condition::enum_warning_level, uint code,
-                            const ErrConv *str, timestamp_type ts_type,
+                            const ErrConv *str, const char *typestr,
                             int cuted_increment) const;
   void set_datetime_warning(uint code,
-                            const ErrConv *str, timestamp_type ts_type,
+                            const ErrConv *str, const char *typestr,
                             int cuted_increment) const
   {
-    set_datetime_warning(Sql_condition::WARN_LEVEL_WARN, code, str, ts_type,
+    set_datetime_warning(Sql_condition::WARN_LEVEL_WARN, code, str, typestr,
                          cuted_increment);
   }
   void set_warning_truncated_wrong_value(const char *type, const char *value);
@@ -2598,33 +2617,32 @@ protected:
   Item *get_equal_const_item_datetime(THD *thd, const Context &ctx,
                                       Item *const_item);
   void set_warnings(Sql_condition::enum_warning_level trunc_level,
-                    const ErrConv *str, int was_cut, timestamp_type ts_type);
+                    const ErrConv *str, int was_cut, const char *typestr);
   int store_TIME_return_code_with_warnings(int warn, const ErrConv *str,
-                                           timestamp_type ts_type)
+                                           const char *typestr)
   {
     if (!MYSQL_TIME_WARN_HAVE_WARNINGS(warn) &&
         MYSQL_TIME_WARN_HAVE_NOTES(warn))
     {
       set_warnings(Sql_condition::WARN_LEVEL_NOTE, str,
-                   warn | MYSQL_TIME_WARN_TRUNCATED, ts_type);
+                   warn | MYSQL_TIME_WARN_TRUNCATED, typestr);
       return 3;
     }
-    set_warnings(Sql_condition::WARN_LEVEL_WARN, str, warn, ts_type);
+    set_warnings(Sql_condition::WARN_LEVEL_WARN, str, warn, typestr);
     return warn ? 2 : 0;
   }
   int store_invalid_with_warning(const ErrConv *str, int was_cut,
-                                 timestamp_type ts_type)
+                                 const char *typestr)
   {
     DBUG_ASSERT(was_cut);
     reset();
     Sql_condition::enum_warning_level level= Sql_condition::WARN_LEVEL_WARN;
     if (was_cut & MYSQL_TIME_WARN_ZERO_DATE)
     {
-      DBUG_ASSERT(ts_type != MYSQL_TIMESTAMP_TIME);
-      set_warnings(level, str, MYSQL_TIME_WARN_OUT_OF_RANGE, ts_type);
+      set_warnings(level, str, MYSQL_TIME_WARN_OUT_OF_RANGE, typestr);
       return 2;
     }
-    set_warnings(level, str, MYSQL_TIME_WARN_TRUNCATED, ts_type);
+    set_warnings(level, str, MYSQL_TIME_WARN_TRUNCATED, typestr);
     return 1;
   }
 public:
@@ -2731,6 +2749,7 @@ protected:
   {
     store_TIMEVAL(ts.tv());
   }
+  int zero_time_stored_return_code_with_warning();
 public:
   Field_timestamp(uchar *ptr_arg, uint32 len_arg,
                   uchar *null_ptr_arg, uchar null_bit_arg,
@@ -2745,7 +2764,7 @@ public:
   int  store(longlong nr, bool unsigned_val);
   int  store_time_dec(const MYSQL_TIME *ltime, uint dec);
   int  store_decimal(const my_decimal *);
-  int  store_timestamp(my_time_t timestamp, ulong sec_part);
+  int  store_timestamp_dec(const timeval &ts, uint dec);
   int  save_in_field(Field *to);
   double val_real(void);
   longlong val_int(void);
@@ -2781,6 +2800,8 @@ public:
     store_TIMESTAMP(Timestamp(ts, sec_part).round(decimals(), mode, &warn));
   }
   bool get_date(MYSQL_TIME *ltime, date_mode_t fuzzydate);
+  int store_native(const Native &value);
+  bool val_native(Native *to);
   uchar *pack(uchar *to, const uchar *from,
               uint max_length __attribute__((unused)))
   {
@@ -2860,6 +2881,7 @@ public:
   {
     DBUG_ASSERT(dec);
   }
+  bool val_native(Native *to);
   my_time_t get_timestamp(const uchar *pos, ulong *sec_part) const;
   int cmp(const uchar *,const uchar *);
   uint32 pack_length() const { return 4 + sec_part_bytes(dec); }
@@ -2910,6 +2932,7 @@ public:
   {
     return get_timestamp(ptr, sec_part);
   }
+  bool val_native(Native *to);
   uint size_of() const { return sizeof(*this); }
 };
 

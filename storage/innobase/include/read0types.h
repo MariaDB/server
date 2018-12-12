@@ -27,10 +27,9 @@ Created 2/16/1997 Heikki Tuuri
 #ifndef read0types_h
 #define read0types_h
 
-#include <algorithm>
 #include "dict0mem.h"
-
 #include "trx0types.h"
+#include <algorithm>
 
 
 /** View is not visible to purge thread. */

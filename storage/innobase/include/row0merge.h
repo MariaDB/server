@@ -27,11 +27,8 @@ Created 13/06/2005 Jan Lindstrom
 #ifndef row0merge_h
 #define row0merge_h
 
-#include "univ.i"
-#include "data0data.h"
-#include "dict0types.h"
-#include "trx0types.h"
 #include "que0types.h"
+#include "trx0types.h"
 #include "mtr0mtr.h"
 #include "rem0types.h"
 #include "rem0rec.h"

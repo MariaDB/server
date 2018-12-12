@@ -2117,6 +2117,7 @@ CREATE TABLE t1(a INT, KEY(a));
 INSERT INTO t1 VALUES(0),(1),(2),(3),(4);
 ANALYZE TABLE t1;
 Table	Op	Msg_type	Msg_text
+test.t1	analyze	status	Engine-independent statistics collected
 test.t1	analyze	status	OK
 CREATE TABLE m1(a INT, KEY(a)) ENGINE=MERGE UNION=(t1);
 SELECT CARDINALITY FROM INFORMATION_SCHEMA.STATISTICS WHERE TABLE_SCHEMA='test' AND TABLE_NAME='m1';
@@ -3818,11 +3819,15 @@ CREATE TABLE tmerge (f1 INT) ENGINE=MERGE UNION=(t1);
 PREPARE stmt FROM "ANALYZE TABLE tmerge, t1";
 EXECUTE stmt;
 Table	Op	Msg_type	Msg_text
+test.tmerge	analyze	status	Engine-independent statistics collected
 test.tmerge	analyze	note	The storage engine for the table doesn't support analyze
+test.t1	analyze	status	Engine-independent statistics collected
 test.t1	analyze	status	Table is already up to date
 EXECUTE stmt;
 Table	Op	Msg_type	Msg_text
+test.tmerge	analyze	status	Engine-independent statistics collected
 test.tmerge	analyze	note	The storage engine for the table doesn't support analyze
+test.t1	analyze	status	Engine-independent statistics collected
 test.t1	analyze	status	Table is already up to date
 DEALLOCATE PREPARE stmt;
 DROP TABLE t1, tmerge;

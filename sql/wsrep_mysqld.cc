@@ -1946,9 +1946,7 @@ static int wsrep_TOI_begin(THD *thd, const char *db, const char *table,
   wsrep::key_array key_array=
     wsrep_prepare_keys_for_toi(db, table, table_list, alter_info);
 
-  /* wsrep_can_run_in_toi() should take care of checking that
-     DDLs with only temp tables should not be TOId at all */
-  if (key_array.size() == 0)
+  if (thd->has_read_only_protection())
   {
     /* non replicated DDL, affecting temporary tables only */
     WSREP_DEBUG("TO isolation skipped, sql: %s."

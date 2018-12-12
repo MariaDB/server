@@ -38,15 +38,14 @@
 #include "thr_timer.h"
 #include "thr_malloc.h"
 #include "log_slow.h"      /* LOG_SLOW_DISABLE_... */
-
 #include "sql_digest_stream.h"            // sql_digest_state
-
 #include <mysql/psi/mysql_stage.h>
 #include <mysql/psi/mysql_statement.h>
 #include <mysql/psi/mysql_idle.h>
 #include <mysql/psi/mysql_table.h>
 #include <mysql_com_server.h>
 #include "session_tracker.h"
+#include "backup.h"
 
 extern "C"
 void set_thd_stage_info(void *thd,
@@ -166,9 +165,15 @@ enum enum_binlog_row_image {
 #define MODE_HIGH_NOT_PRECEDENCE        (1ULL << 29)
 #define MODE_NO_ENGINE_SUBSTITUTION     (1ULL << 30)
 #define MODE_PAD_CHAR_TO_FULL_LENGTH    (1ULL << 31)
+/* SQL mode bits defined above are common for MariaDB and MySQL */
+#define MODE_MASK_MYSQL_COMPATIBLE      0xFFFFFFFFULL
+/* The following modes are specific to MariaDB */
 #define MODE_EMPTY_STRING_IS_NULL       (1ULL << 32)
 #define MODE_SIMULTANEOUS_ASSIGNMENT    (1ULL << 33)
 #define MODE_TIME_ROUND_FRACTIONAL      (1ULL << 34)
+/* The following modes are specific to MySQL */
+#define MODE_MYSQL80_TIME_TRUNCATE_FRACTIONAL (1ULL << 32)
+
 
 /* Bits for different old style modes */
 #define OLD_MODE_NO_DUP_KEY_WARNINGS_WITH_IGNORE	(1 << 0)
@@ -1959,42 +1964,22 @@ public:
 
   Global_read_lock()
     : m_state(GRL_NONE),
-      m_mdl_global_shared_lock(NULL),
-      m_mdl_blocks_commits_lock(NULL)
+      m_mdl_global_read_lock(NULL)
   {}
 
   bool lock_global_read_lock(THD *thd);
   void unlock_global_read_lock(THD *thd);
-  /**
-    Check if this connection can acquire protection against GRL and
-    emit error if otherwise.
-  */
-  bool can_acquire_protection() const
-  {
-    if (m_state)
-    {
-      my_error(ER_CANT_UPDATE_WITH_READLOCK, MYF(0));
-      return TRUE;
-    }
-    return FALSE;
-  }
   bool make_global_read_lock_block_commit(THD *thd);
   bool is_acquired() const { return m_state != GRL_NONE; }
   void set_explicit_lock_duration(THD *thd);
 private:
   enum_grl_state m_state;
   /**
-    In order to acquire the global read lock, the connection must
-    acquire shared metadata lock in GLOBAL namespace, to prohibit
-    all DDL.
+    Global read lock is acquired in two steps:
+    1. acquire MDL_BACKUP_FTWRL1 in BACKUP namespace to prohibit DDL and DML
+    2. upgrade to MDL_BACKUP_FTWRL2 to prohibit commits
   */
-  MDL_ticket *m_mdl_global_shared_lock;
-  /**
-    Also in order to acquire the global read lock, the connection
-    must acquire a shared metadata lock in COMMIT namespace, to
-    prohibit commits.
-  */
-  MDL_ticket *m_mdl_blocks_commits_lock;
+  MDL_ticket *m_mdl_global_read_lock;
 };
 
 
@@ -2206,6 +2191,7 @@ public:
     rpl_io_thread_info *rpl_io_info;
     rpl_sql_thread_info *rpl_sql_info;
   } system_thread_info;
+  MDL_ticket *mdl_backup_ticket;
 
   void reset_for_next_command(bool do_clear_errors= 1);
   /*
@@ -2991,6 +2977,7 @@ public:
   uint	     tmp_table, global_disable_checkpoint;
   uint	     server_status,open_options;
   enum enum_thread_type system_thread;
+  enum backup_stages current_backup_stage;
   /*
     Current or next transaction isolation level.
     When a connection is established, the value is taken from
@@ -3631,6 +3618,15 @@ public:
   inline bool in_active_multi_stmt_transaction()
   {
     return server_status & SERVER_STATUS_IN_TRANS;
+  }
+  void give_protection_error();
+  inline bool has_read_only_protection()
+  {
+    if (current_backup_stage == BACKUP_FINISHED &&
+        !global_read_lock.is_acquired())
+      return FALSE;
+    give_protection_error();
+    return TRUE;
   }
   inline bool fill_derived_tables()
   {

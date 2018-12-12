@@ -1261,6 +1261,14 @@ int ha_maria::open(const char *name, int mode, uint test_if_locked)
     int_table_flags |= HA_HAS_NEW_CHECKSUM;
 
   /*
+    We can only do online backup on transactional tables with checksum.
+    Checksums are needed to avoid half writes.
+  */
+  if (file->s->options & HA_OPTION_PAGE_CHECKSUM &&
+      file->s->base.born_transactional)
+    int_table_flags |= HA_CAN_ONLINE_BACKUPS;
+
+  /*
     For static size rows, tell MariaDB that we will access all bytes
     in the record when writing it.  This signals MariaDB to initalize
     the full row to ensure we don't get any errors from valgrind and
@@ -3443,6 +3451,21 @@ int maria_checkpoint_state(handlerton *hton, bool disabled)
 }
 
 
+/*
+  Handle backup calls
+*/
+
+void maria_prepare_for_backup()
+{
+  translog_disable_purge();
+}
+
+void maria_end_backup()
+{
+  translog_enable_purge();
+}
+
+
 
 #define SHOW_MSG_LEN (FN_REFLEN + 20)
 /**
@@ -3643,6 +3666,9 @@ static int ha_maria_init(void *p)
 #endif
   maria_hton->flush_logs= maria_flush_logs;
   maria_hton->show_status= maria_show_status;
+  maria_hton->prepare_for_backup= maria_prepare_for_backup;
+  maria_hton->end_backup= maria_end_backup;
+
   /* TODO: decide if we support Maria being used for log tables */
   maria_hton->flags= HTON_CAN_RECREATE | HTON_SUPPORT_LOG_TABLES;
   bzero(maria_log_pagecache, sizeof(*maria_log_pagecache));

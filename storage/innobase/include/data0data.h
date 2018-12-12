@@ -27,8 +27,6 @@ Created 5/30/1994 Heikki Tuuri
 #ifndef data0data_h
 #define data0data_h
 
-#include "univ.i"
-
 #include "data0types.h"
 #include "data0type.h"
 #include "mem0mem.h"

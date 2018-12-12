@@ -571,6 +571,7 @@ ulong opt_binlog_commit_wait_count= 0;
 ulong opt_binlog_commit_wait_usec= 0;
 ulong opt_slave_parallel_max_queued= 131072;
 my_bool opt_gtid_ignore_duplicates= FALSE;
+uint opt_gtid_cleanup_batch_size= 64;
 
 const double log_10[] = {
   1e000, 1e001, 1e002, 1e003, 1e004, 1e005, 1e006, 1e007, 1e008, 1e009,
@@ -3688,6 +3689,7 @@ SHOW_VAR com_status_vars[]= {
   {"alter_user",           STMT_STATUS(SQLCOM_ALTER_USER)},
   {"analyze",              STMT_STATUS(SQLCOM_ANALYZE)},
   {"assign_to_keycache",   STMT_STATUS(SQLCOM_ASSIGN_TO_KEYCACHE)},
+  {"backup",               STMT_STATUS(SQLCOM_BACKUP)},
   {"begin",                STMT_STATUS(SQLCOM_BEGIN)},
   {"binlog",               STMT_STATUS(SQLCOM_BINLOG_BASE64_EVENT)},
   {"call_procedure",       STMT_STATUS(SQLCOM_CALL)},
@@ -4956,6 +4958,7 @@ static int init_server_components()
   my_rnd_init(&sql_rand,(ulong) server_start_time,(ulong) server_start_time/2);
   setup_fpu();
   init_thr_lock();
+  backup_init();
 
 #ifndef EMBEDDED_LIBRARY
   if (init_thr_timer(thread_scheduler->max_threads + extra_max_connections))

@@ -268,7 +268,7 @@ static void usage(void)
 {
   print_version();
   puts(ORACLE_WELCOME_COPYRIGHT_NOTICE("2000"));
-  puts("Shows the structure of a MySQL database (databases, tables, and columns).\n");
+  puts("Shows the structure of a MariaDB database (databases, tables, and columns).\n");
   printf("Usage: %s [OPTIONS] [database [table [column]]]\n",my_progname);
   puts("\n\
 If last argument contains a shell or SQL wildcard (*,?,% or _) then only\n\
@@ -658,7 +658,7 @@ list_table_status(MYSQL *mysql,const char *db,const char *wild)
     fprintf(stderr,"%s: Cannot get status for db: %s, table: %s: %s\n",
 	    my_progname,db,wild ? wild : "",mysql_error(mysql));
     if (mysql_errno(mysql) == ER_PARSE_ERROR)
-      fprintf(stderr,"This error probably means that your MySQL server doesn't support the\n\'show table status' command.\n");
+      fprintf(stderr,"This error probably means that your MariaDB server doesn't support the\n\'show table status' command.\n");
     return 1;
   }
 

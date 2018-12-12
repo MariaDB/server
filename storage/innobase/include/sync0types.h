@@ -28,11 +28,9 @@ Created 9/5/1995 Heikki Tuuri
 #define sync0types_h
 
 #include <vector>
-#include <iostream>
 #include <my_atomic.h>
 
 #include "ut0new.h"
-#include "ut0counter.h"
 
 #ifdef _WIN32
 /** Native mutex */

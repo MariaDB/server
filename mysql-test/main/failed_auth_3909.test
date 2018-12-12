@@ -11,24 +11,24 @@ insert ignore mysql.user (user,plugin) values ('foo','mysql_old_password'),('bar
 flush privileges;
 
 --replace_result $MASTER_MYSOCK MASTER_SOCKET $MASTER_MYPORT MASTER_PORT
---error ER_SERVER_IS_IN_SECURE_AUTH_MODE
+--error ER_ACCESS_DENIED_ERROR
 connect (fail,localhost,u1);
 
 --replace_result $MASTER_MYSOCK MASTER_SOCKET $MASTER_MYPORT MASTER_PORT
---error ER_ACCESS_DENIED_ERROR
+--error ER_SERVER_IS_IN_SECURE_AUTH_MODE
 connect (fail,localhost,u2);
 
 --replace_result $MASTER_MYSOCK MASTER_SOCKET $MASTER_MYPORT MASTER_PORT
---error ER_ACCESS_DENIED_ERROR
+--error ER_SERVER_IS_IN_SECURE_AUTH_MODE
 connect (fail,localhost,u2,password);
 
---error ER_SERVER_IS_IN_SECURE_AUTH_MODE
+--error ER_ACCESS_DENIED_ERROR
 change_user u1;
 
---error ER_ACCESS_DENIED_ERROR
+--error ER_SERVER_IS_IN_SECURE_AUTH_MODE
 change_user u2;
 
---error ER_ACCESS_DENIED_ERROR
+--error ER_SERVER_IS_IN_SECURE_AUTH_MODE
 change_user u2,password;
 
 delete from mysql.user where plugin = 'mysql_old_password';

@@ -4,6 +4,7 @@ INSERT INTO t1 VALUES(1,2);
 INSERT INTO t1 VALUES(3,4);
 ANALYZE TABLE t1;
 Table	Op	Msg_type	Msg_text
+test.t1	analyze	status	Engine-independent statistics collected
 test.t1	analyze	status	OK
 DROP TABLE t1;
 CREATE TABLE t1(c1 SMALLINT NULL, c2 SMALLINT NULL);
@@ -11,6 +12,7 @@ INSERT INTO t1 VALUES(1,2);
 INSERT INTO t1 VALUES(3,4);
 ANALYZE TABLE t1;
 Table	Op	Msg_type	Msg_text
+test.t1	analyze	status	Engine-independent statistics collected
 test.t1	analyze	status	OK
 DROP TABLE t1;
 CREATE TABLE t1(c1 MEDIUMINT NULL, c2 MEDIUMINT NULL);
@@ -18,6 +20,7 @@ INSERT INTO t1 VALUES(1,2);
 INSERT INTO t1 VALUES(3,4);
 ANALYZE TABLE t1;
 Table	Op	Msg_type	Msg_text
+test.t1	analyze	status	Engine-independent statistics collected
 test.t1	analyze	status	OK
 DROP TABLE t1;
 CREATE TABLE t1(c1 INT NULL, c2 INT NULL);
@@ -25,6 +28,7 @@ INSERT INTO t1 VALUES(1,2);
 INSERT INTO t1 VALUES(3,4);
 ANALYZE TABLE t1;
 Table	Op	Msg_type	Msg_text
+test.t1	analyze	status	Engine-independent statistics collected
 test.t1	analyze	status	OK
 DROP TABLE t1;
 CREATE TABLE t1(c1 INTEGER NULL, c2 INTEGER NULL);
@@ -32,6 +36,7 @@ INSERT INTO t1 VALUES(1,2);
 INSERT INTO t1 VALUES(3,4);
 ANALYZE TABLE t1;
 Table	Op	Msg_type	Msg_text
+test.t1	analyze	status	Engine-independent statistics collected
 test.t1	analyze	status	OK
 DROP TABLE t1;
 CREATE TABLE t1(c1 BIGINT NULL, c2 BIGINT NULL);
@@ -39,6 +44,7 @@ INSERT INTO t1 VALUES(1,2);
 INSERT INTO t1 VALUES(3,4);
 ANALYZE TABLE t1;
 Table	Op	Msg_type	Msg_text
+test.t1	analyze	status	Engine-independent statistics collected
 test.t1	analyze	status	OK
 DROP TABLE t1;
 CREATE TABLE t1(c1 DECIMAL NULL, c2 DECIMAL NULL);
@@ -46,6 +52,7 @@ INSERT INTO t1 VALUES(1,2);
 INSERT INTO t1 VALUES(3,4);
 ANALYZE TABLE t1;
 Table	Op	Msg_type	Msg_text
+test.t1	analyze	status	Engine-independent statistics collected
 test.t1	analyze	status	OK
 DROP TABLE t1;
 CREATE TABLE t1(c1 DEC NULL, c2 DEC NULL);
@@ -53,6 +60,7 @@ INSERT INTO t1 VALUES(1,2);
 INSERT INTO t1 VALUES(3,4);
 ANALYZE TABLE t1;
 Table	Op	Msg_type	Msg_text
+test.t1	analyze	status	Engine-independent statistics collected
 test.t1	analyze	status	OK
 DROP TABLE t1;
 CREATE TABLE t1(c1 FIXED NULL, c2 FIXED NULL);
@@ -60,6 +68,7 @@ INSERT INTO t1 VALUES(1,2);
 INSERT INTO t1 VALUES(3,4);
 ANALYZE TABLE t1;
 Table	Op	Msg_type	Msg_text
+test.t1	analyze	status	Engine-independent statistics collected
 test.t1	analyze	status	OK
 DROP TABLE t1;
 CREATE TABLE t1(c1 NUMERIC NULL, c2 NUMERIC NULL);
@@ -67,6 +76,7 @@ INSERT INTO t1 VALUES(1,2);
 INSERT INTO t1 VALUES(3,4);
 ANALYZE TABLE t1;
 Table	Op	Msg_type	Msg_text
+test.t1	analyze	status	Engine-independent statistics collected
 test.t1	analyze	status	OK
 DROP TABLE t1;
 CREATE TABLE t1(c1 DOUBLE NULL, c2 DOUBLE NULL);
@@ -74,6 +84,7 @@ INSERT INTO t1 VALUES(1,2);
 INSERT INTO t1 VALUES(3,4);
 ANALYZE TABLE t1;
 Table	Op	Msg_type	Msg_text
+test.t1	analyze	status	Engine-independent statistics collected
 test.t1	analyze	status	OK
 DROP TABLE t1;
 CREATE TABLE t1(c1 REAL NULL, c2 REAL NULL);
@@ -81,6 +92,7 @@ INSERT INTO t1 VALUES(1,2);
 INSERT INTO t1 VALUES(3,4);
 ANALYZE TABLE t1;
 Table	Op	Msg_type	Msg_text
+test.t1	analyze	status	Engine-independent statistics collected
 test.t1	analyze	status	OK
 DROP TABLE t1;
 CREATE TABLE t1(c1 DOUBLE PRECISION NULL, c2 DOUBLE PRECISION NULL);
@@ -88,6 +100,7 @@ INSERT INTO t1 VALUES(1,2);
 INSERT INTO t1 VALUES(3,4);
 ANALYZE TABLE t1;
 Table	Op	Msg_type	Msg_text
+test.t1	analyze	status	Engine-independent statistics collected
 test.t1	analyze	status	OK
 DROP TABLE t1;
 CREATE TABLE t1(c1 FLOAT NULL, c2 FLOAT NULL);
@@ -95,5 +108,6 @@ INSERT INTO t1 VALUES(1,2);
 INSERT INTO t1 VALUES(3,4);
 ANALYZE TABLE t1;
 Table	Op	Msg_type	Msg_text
+test.t1	analyze	status	Engine-independent statistics collected
 test.t1	analyze	status	OK
 DROP TABLE t1;

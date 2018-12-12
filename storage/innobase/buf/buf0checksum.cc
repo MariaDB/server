@@ -24,17 +24,14 @@ Buffer pool checksum functions, also linked from /extra/innochecksum.cc
 Created Aug 11, 2011 Vasil Dimov
 *******************************************************/
 
-#include "univ.i"
+#include "buf0checksum.h"
 #include "fil0fil.h"
 #include "ut0crc32.h"
 #include "ut0rnd.h"
-#include "buf0checksum.h"
 
 #ifndef UNIV_INNOCHECKSUM
 #include "srv0srv.h"
 #endif /* !UNIV_INNOCHECKSUM */
-
-#include "buf0types.h"
 
 /** the macro MYSQL_SYSVAR_ENUM() requires "long unsigned int" and if we
 use srv_checksum_algorithm_t here then we get a compiler error:

@@ -34,7 +34,6 @@ Created 12/9/1995 Heikki Tuuri
 #ifndef log0log_h
 #define log0log_h
 
-#include "univ.i"
 #include "dyn0buf.h"
 #include "sync0rw.h"
 #include "log0types.h"

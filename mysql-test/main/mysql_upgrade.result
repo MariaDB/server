@@ -46,7 +46,7 @@ test
 Phase 7/7: Running 'FLUSH PRIVILEGES'
 OK
 Run it again - should say already completed
-This installation of MySQL is already upgraded to VERSION, use --force if you still need to run mysql_upgrade
+This installation of MariaDB is already upgraded to VERSION, use --force if you still need to run mysql_upgrade
 Force should run it regardless of whether it has been run before
 Phase 1/7: Checking and upgrading mysql database
 Processing databases

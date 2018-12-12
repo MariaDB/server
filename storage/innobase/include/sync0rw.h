@@ -34,8 +34,6 @@ Created 9/11/1995 Heikki Tuuri
 #ifndef sync0rw_h
 #define sync0rw_h
 
-#include "univ.i"
-#include "ut0counter.h"
 #include "os0event.h"
 #include "ut0mutex.h"
 

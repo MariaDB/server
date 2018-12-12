@@ -25,33 +25,31 @@ Compressed page interface
 Created June 2005 by Marko Makela
 *******************************************************/
 
-#include "page0size.h"
 #include "page0zip.h"
+#include "page0size.h"
+#include "page0page.h"
+#include "buf0checksum.h"
 
 /** A BLOB field reference full of zero, for use in assertions and tests.
 Initially, BLOB field references are set to zero, in
 dtuple_convert_big_rec(). */
 const byte field_ref_zero[UNIV_PAGE_SIZE_MAX] = { 0, };
 
+#include "ut0crc32.h"
+#include "zlib.h"
+
 #ifndef UNIV_INNOCHECKSUM
-#include "page0page.h"
 #include "mtr0log.h"
 #include "dict0dict.h"
 #include "btr0cur.h"
-#include "page0types.h"
 #include "log0recv.h"
 #include "row0row.h"
-#include "zlib.h"
-#include "buf0buf.h"
-#include "buf0types.h"
-#include "buf0checksum.h"
 #include "btr0sea.h"
 #include "dict0boot.h"
 #include "lock0lock.h"
 #include "srv0srv.h"
 #include "buf0lru.h"
 #include "srv0mon.h"
-#include "ut0crc32.h"
 
 #include <map>
 #include <algorithm>

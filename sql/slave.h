@@ -276,6 +276,7 @@ bool net_request_file(NET* net, const char* fname);
 void slave_background_kill_request(THD *to_kill);
 void slave_background_gtid_pos_create_request
         (rpl_slave_state::gtid_pos_table *table_entry);
+void slave_background_gtid_pending_delete_request(void);
 
 extern bool volatile abort_loop;
 extern Master_info *active_mi; /* active_mi for multi-master */

@@ -162,8 +162,9 @@ Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is
 def					Table	253	128	7	Y	0	39	8
 def					Op	253	10	7	Y	0	39	8
 def					Msg_type	253	10	6	Y	0	39	8
-def					Msg_text	250	393216	2	Y	0	39	8
+def					Msg_text	250	393216	39	Y	0	39	8
 Table	Op	Msg_type	Msg_text
+test.t1	analyze	status	Engine-independent statistics collected
 test.t1	analyze	status	OK
 show index from t1;
 Table	Non_unique	Key_name	Seq_in_index	Column_name	Collation	Cardinality	Sub_part	Packed	Null	Index_type	Comment	Index_comment
@@ -261,7 +262,10 @@ create table t1(n int);
 insert into t1 values (1);
 show open tables;
 Database	Table	In_use	Name_locked
+mysql	column_stats	0	0
 mysql	general_log	0	0
+mysql	index_stats	0	0
+mysql	table_stats	0	0
 test	t1	0	0
 drop table t1;
 create table t1 (a int not null, b VARCHAR(10), INDEX (b) ) AVG_ROW_LENGTH=10 CHECKSUM=1 COMMENT="test" ENGINE=MYISAM MIN_ROWS=10 MAX_ROWS=100 PACK_KEYS=1 DELAY_KEY_WRITE=1 ROW_FORMAT=fixed;

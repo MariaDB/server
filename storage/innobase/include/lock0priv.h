@@ -34,7 +34,6 @@ those functions in lock/ */
 #error Do not include lock0priv.h outside of the lock/ module
 #endif
 
-#include "univ.i"
 #include "hash0hash.h"
 #include "trx0trx.h"
 

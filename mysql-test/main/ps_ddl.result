@@ -1405,6 +1405,7 @@ SUCCESS
 prepare stmt from "analyze table t1";
 execute stmt;
 Table	Op	Msg_type	Msg_text
+test.t1	analyze	status	Engine-independent statistics collected
 test.t1	analyze	status	OK
 drop table t1;
 create table t1 (a1 int, a2 int);
@@ -1412,14 +1413,17 @@ insert into t1 values (1, 10), (2, 20), (3, 30);
 # t1 has changed, and it's not a problem
 execute stmt;
 Table	Op	Msg_type	Msg_text
+test.t1	analyze	status	Engine-independent statistics collected
 test.t1	analyze	status	OK
 alter table t1 add column b varchar(50) default NULL;
 execute stmt;
 Table	Op	Msg_type	Msg_text
+test.t1	analyze	status	Engine-independent statistics collected
 test.t1	analyze	status	OK
 alter table t1 drop column b;
 execute stmt;
 Table	Op	Msg_type	Msg_text
+test.t1	analyze	status	Engine-independent statistics collected
 test.t1	analyze	status	OK
 call p_verify_reprepare_count(0);
 SUCCESS

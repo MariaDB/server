@@ -19,6 +19,15 @@
 
 
 /** MySQL56 routines and macros **/
+
+/*
+  Buffer size for a native TIMESTAMP representation, for use with NativBuffer.
+  4 bytes for seconds
+  3 bytes for microseconds
+  1 byte for the trailing '\0' (class Native reserves extra 1 byte for '\0')
+*/
+#define STRING_BUFFER_TIMESTAMP_BINARY_SIZE    8 /* 4 + 3 + 1 */
+
 #define MY_PACKED_TIME_GET_INT_PART(x)     ((x) >> 24)
 #define MY_PACKED_TIME_GET_FRAC_PART(x)    ((x) % (1LL << 24))
 #define MY_PACKED_TIME_MAKE(i, f)          ((((longlong) (i)) << 24) + (f))

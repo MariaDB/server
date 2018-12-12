@@ -29,6 +29,7 @@ Created 2/2/1994 Heikki Tuuri
 #include "page0cur.h"
 #include "page0zip.h"
 #include "buf0buf.h"
+#include "buf0checksum.h"
 #include "btr0btr.h"
 #include "srv0srv.h"
 #include "lock0lock.h"

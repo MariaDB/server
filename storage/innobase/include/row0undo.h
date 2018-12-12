@@ -27,13 +27,9 @@ Created 1/8/1997 Heikki Tuuri
 #ifndef row0undo_h
 #define row0undo_h
 
-#include "univ.i"
-#include "mtr0mtr.h"
 #include "trx0sys.h"
 #include "btr0types.h"
 #include "btr0pcur.h"
-#include "dict0types.h"
-#include "trx0types.h"
 #include "que0types.h"
 #include "row0types.h"
 

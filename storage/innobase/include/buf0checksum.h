@@ -27,8 +27,6 @@ Created Aug 11, 2011 Vasil Dimov
 #ifndef buf0checksum_h
 #define buf0checksum_h
 
-#include "univ.i"
-
 #include "buf0types.h"
 
 /** Calculate the CRC32 checksum of a page. The value is stored to the page

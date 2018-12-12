@@ -1942,6 +1942,19 @@ Sys_var_last_gtid::session_value_ptr(THD *thd, const LEX_CSTRING *base)
 }
 
 
+static Sys_var_uint Sys_gtid_cleanup_batch_size(
+       "gtid_cleanup_batch_size",
+       "Normally does not need tuning. How many old rows must accumulate in "
+       "the mysql.gtid_slave_pos table before a background job will be run to "
+       "delete them. Can be increased to reduce number of commits if "
+       "using many different engines with --gtid_pos_auto_engines, or to "
+       "reduce CPU overhead if using a huge number of different "
+       "gtid_domain_ids. Can be decreased to reduce number of old rows in the "
+       "table.",
+       GLOBAL_VAR(opt_gtid_cleanup_batch_size), CMD_LINE(REQUIRED_ARG),
+       VALID_RANGE(0,2147483647), DEFAULT(64), BLOCK_SIZE(1));
+
+
 static bool
 check_slave_parallel_threads(sys_var *self, THD *thd, set_var *var)
 {
@@ -2456,7 +2469,7 @@ static Sys_var_ulong Sys_optimizer_use_condition_selectivity(
        "5 - additionally use selectivity of certain non-range predicates "
        "calculated on record samples",
        SESSION_VAR(optimizer_use_condition_selectivity), CMD_LINE(REQUIRED_ARG),
-       VALID_RANGE(1, 5), DEFAULT(1), BLOCK_SIZE(1));
+       VALID_RANGE(1, 5), DEFAULT(4), BLOCK_SIZE(1));
 
 static Sys_var_ulong Sys_optimizer_search_depth(
        "optimizer_search_depth",
@@ -2572,13 +2585,15 @@ static Sys_var_ulong Sys_read_buff_size(
 static bool check_read_only(sys_var *self, THD *thd, set_var *var)
 {
   /* Prevent self dead-lock */
-  if (thd->locked_tables_mode || thd->in_active_multi_stmt_transaction())
+  if (thd->locked_tables_mode || thd->in_active_multi_stmt_transaction() ||
+      thd->current_backup_stage != BACKUP_FINISHED)
   {
     my_error(ER_LOCK_OR_ACTIVE_TRANSACTION, MYF(0));
     return true;
   }
   return false;
 }
+
 static bool fix_read_only(sys_var *self, THD *thd, enum_var_type type)
 {
   bool result= true;
@@ -5876,12 +5891,13 @@ static Sys_var_ulong Sys_progress_report_time(
        VALID_RANGE(0, UINT_MAX), DEFAULT(5), BLOCK_SIZE(1));
 
 const char *use_stat_tables_modes[] =
-           {"NEVER", "COMPLEMENTARY", "PREFERABLY", 0};
+           {"NEVER", "COMPLEMENTARY", "PREFERABLY",
+           "COMPLEMENTARY_FOR_QUERIES", "PREFERABLY_FOR_QUERIES", 0};
 static Sys_var_enum Sys_optimizer_use_stat_tables(
        "use_stat_tables",
        "Specifies how to use system statistics tables",
        SESSION_VAR(use_stat_tables), CMD_LINE(REQUIRED_ARG),
-       use_stat_tables_modes, DEFAULT(0));
+       use_stat_tables_modes, DEFAULT(4));
 
 static Sys_var_ulong Sys_histogram_size(
        "histogram_size",

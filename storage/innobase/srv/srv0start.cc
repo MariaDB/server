@@ -462,23 +462,16 @@ create_log_files(
 
 	const ulint size = ulint(srv_log_file_size >> srv_page_size_shift);
 
-	logfile0 = fil_node_create(
-		logfilename, size, log_space, false, false);
+	logfile0 = log_space->add(logfilename, OS_FILE_CLOSED, size,
+				  false, false)->name;
 	ut_a(logfile0);
 
 	for (unsigned i = 1; i < srv_n_log_files; i++) {
 
 		sprintf(logfilename + dirnamelen, "ib_logfile%u", i);
 
-		if (!fil_node_create(logfilename, size,
-				     log_space, false, false)) {
-
-			ib::error()
-				<< "Cannot create file node for log file "
-				<< logfilename;
-
-			return(DB_ERROR);
-		}
+		log_space->add(logfilename, OS_FILE_CLOSED, size,
+			       false, false);
 	}
 
 	log_sys.log.create(srv_n_log_files);
@@ -626,83 +619,68 @@ srv_undo_tablespace_create(
 
 	return(err);
 }
-/*********************************************************************//**
-Open an undo tablespace.
-@return DB_SUCCESS or error code */
-static
-dberr_t
-srv_undo_tablespace_open(
-/*=====================*/
-	const char*	name,		/*!< in: tablespace file name */
-	ulint		space_id)	/*!< in: tablespace id */
+
+/** Open an undo tablespace.
+@param[in]	name		tablespace file name
+@param[in]	space_id	tablespace ID
+@param[in]	create_new_db	whether undo tablespaces are being created
+@return whether the tablespace was opened */
+static bool srv_undo_tablespace_open(const char* name, ulint space_id,
+				     bool create_new_db)
 {
 	pfs_os_file_t	fh;
-	bool		ret;
-	dberr_t		err	= DB_ERROR;
+	bool		success;
 	char		undo_name[sizeof "innodb_undo000"];
 
 	snprintf(undo_name, sizeof(undo_name),
 		 "innodb_undo%03u", static_cast<unsigned>(space_id));
 
-	if (!srv_file_check_mode(name)) {
-		ib::error() << "UNDO tablespaces must be " <<
-			(srv_read_only_mode ? "writable" : "readable") << "!";
-
-		return(DB_ERROR);
+	fh = os_file_create(
+		innodb_data_file_key, name, OS_FILE_OPEN
+		| OS_FILE_ON_ERROR_NO_EXIT | OS_FILE_ON_ERROR_SILENT,
+		OS_FILE_AIO, OS_DATA_FILE, srv_read_only_mode, &success);
+	if (!success) {
+		return false;
 	}
 
-	fh = os_file_create(
-		innodb_data_file_key, name,
-		OS_FILE_OPEN_RETRY
-		| OS_FILE_ON_ERROR_NO_EXIT
-		| OS_FILE_ON_ERROR_SILENT,
-		OS_FILE_NORMAL,
-		OS_DATA_FILE,
-		srv_read_only_mode,
-		&ret);
+	os_offset_t size = os_file_get_size(fh);
+	ut_a(size != os_offset_t(-1));
 
-	/* If the file open was successful then load the tablespace. */
+	/* Load the tablespace into InnoDB's internal data structures. */
 
-	if (ret) {
-		os_offset_t	size;
-		fil_space_t*	space;
+	/* We set the biggest space id to the undo tablespace
+	because InnoDB hasn't opened any other tablespace apart
+	from the system tablespace. */
 
-		size = os_file_get_size(fh);
-		ut_a(size != (os_offset_t) -1);
+	fil_set_max_space_id_if_bigger(space_id);
 
-		ret = os_file_close(fh);
-		ut_a(ret);
+	fil_space_t* space = fil_space_create(
+		undo_name, space_id, FSP_FLAGS_PAGE_SSIZE(),
+		FIL_TYPE_TABLESPACE, NULL);
 
-		/* Load the tablespace into InnoDB's internal
-		data structures. */
+	ut_a(fil_validate());
+	ut_a(space);
 
-		/* We set the biggest space id to the undo tablespace
-		because InnoDB hasn't opened any other tablespace apart
-		from the system tablespace. */
+	fil_node_t* file = space->add(name, fh, 0, false, true);
 
-		fil_set_max_space_id_if_bigger(space_id);
+	mutex_enter(&fil_system.mutex);
 
-		space = fil_space_create(
-			undo_name, space_id, FSP_FLAGS_PAGE_SSIZE(),
-			FIL_TYPE_TABLESPACE, NULL);
-
-		ut_a(fil_validate());
-		ut_a(space);
-
-		os_offset_t	n_pages = size >> srv_page_size_shift;
-
-		/* On 32-bit platforms, ulint is 32 bits and os_offset_t
-		is 64 bits. It is OK to cast the n_pages to ulint because
-		the unit has been scaled to pages and page number is always
-		32 bits. */
-		if (fil_node_create(
-			name, (ulint) n_pages, space, false, TRUE)) {
-
-			err = DB_SUCCESS;
+	if (create_new_db) {
+		space->size = file->size = ulint(size >> srv_page_size_shift);
+		space->size_in_header = SRV_UNDO_TABLESPACE_SIZE_IN_PAGES;
+	} else {
+		success = file->read_page0(true);
+		if (!success) {
+			os_file_close(file->handle);
+			file->handle = OS_FILE_CLOSED;
+			ut_a(fil_system.n_open > 0);
+			fil_system.n_open--;
 		}
 	}
 
-	return(err);
+	mutex_exit(&fil_system.mutex);
+
+	return success;
 }
 
 /** Check if undo tablespaces and redo log files exist before creating a
@@ -888,12 +866,11 @@ srv_undo_tablespaces_init(bool create_new_db)
 		ut_a(undo_tablespace_ids[i] != 0);
 		ut_a(undo_tablespace_ids[i] != ULINT_UNDEFINED);
 
-		err = srv_undo_tablespace_open(name, undo_tablespace_ids[i]);
-
-		if (err != DB_SUCCESS) {
+		if (!srv_undo_tablespace_open(name, undo_tablespace_ids[i],
+					      create_new_db)) {
 			ib::error() << "Unable to open undo tablespace '"
 				<< name << "'.";
-			return(err);
+			return DB_ERROR;
 		}
 
 		prev_space_id = undo_tablespace_ids[i];
@@ -918,9 +895,8 @@ srv_undo_tablespaces_init(bool create_new_db)
 			name, sizeof(name),
 			"%s%cundo%03zu", srv_undo_dir, OS_PATH_SEPARATOR, i);
 
-		err = srv_undo_tablespace_open(name, i);
-
-		if (err != DB_SUCCESS) {
+		if (!srv_undo_tablespace_open(name, i, create_new_db)) {
+			err = DB_ERROR;
 			break;
 		}
 
@@ -1759,10 +1735,8 @@ dberr_t srv_start(bool create_new_db)
 		for (unsigned j = 0; j < srv_n_log_files_found; j++) {
 			sprintf(logfilename + dirnamelen, "ib_logfile%u", j);
 
-			if (!fil_node_create(logfilename, size,
-					     log_space, false, false)) {
-				return(srv_init_abort(DB_ERROR));
-			}
+			log_space->add(logfilename, OS_FILE_CLOSED, size,
+				       false, false);
 		}
 
 		log_sys.log.create(srv_n_log_files_found);

@@ -364,16 +364,19 @@ flush table t1;
 connection default;
 # Let flush table sync in.
 select * from t1;
+a
 connection con1;
 select * from t1;
 a
 unlock tables;
+connection default;
+select count(*) from information_schema.processlist where state = "Waiting for table metadata lock";
+count(*)
+1
+commit;
 connection con2;
 # Reaping 'flush table t1'...
 connection default;
-# Reaping 'select * from t1'...
-a
-commit;
 #
 # Repeat the same test but with FLUSH TABLES
 #
@@ -386,13 +389,10 @@ connection con1;
 #
 lock table t1 read;
 connection con2;
-#
-# FLUSH TABLES expels the table definition from the cache.
-# Sending 'flush tables'...
 flush tables;
 connection default;
-# Let flush table sync in.
 select * from t1;
+a
 connection con1;
 select * from t1;
 a
@@ -400,8 +400,6 @@ unlock tables;
 connection con2;
 # Reaping 'flush tables'...
 connection default;
-# Reaping 'select * from t1'...
-a
 commit;
 # Cleanup
 connection con1;
@@ -472,10 +470,7 @@ create table t1 (i int);
 create table t2 (i int);
 handler t1 open;
 connection con1;
-# Sending:
 flush tables with read lock;
-connection con2;
-# Wait until FTWRL starts waiting for 't1' to be closed.
 connection default;
 # The below statement should not cause deadlock.
 # Sending:
@@ -483,8 +478,6 @@ insert into t2 values (1);
 connection con2;
 # Wait until INSERT starts to wait for FTWRL to go away.
 connection con1;
-# FTWRL should be able to continue now.
-# Reap FTWRL.
 unlock tables;
 connection default;
 # Reap INSERT.
