@@ -451,6 +451,9 @@ row_undo_mod_clust(
 
 		ulint trx_id_offset = index->trx_id_offset;
 		ulint trx_id_pos = index->n_uniq ? index->n_uniq : 1;
+		/* Reserve enough offsets for the PRIMARY KEY and
+		2 columns so that we can access DB_TRX_ID, DB_ROLL_PTR. */
+		ulint	offsets_[REC_OFFS_HEADER_SIZE + MAX_REF_PARTS + 2];
 		if (trx_id_offset) {
 		} else if (rec_is_metadata(rec, *index)) {
 			ut_ad(!buf_block_get_page_zip(btr_pcur_get_block(
@@ -460,11 +463,6 @@ row_undo_mod_clust(
 			}
 		} else {
 			ut_ad(index->n_uniq <= MAX_REF_PARTS);
-			/* Reserve enough offsets for the PRIMARY KEY and
-			2 columns so that we can access
-			DB_TRX_ID, DB_ROLL_PTR. */
-			ulint	offsets_[REC_OFFS_HEADER_SIZE + MAX_REF_PARTS
-					 + 2];
 			rec_offs_init(offsets_);
 			offsets = rec_get_offsets(
 				rec, index, offsets_, true, trx_id_pos + 2,
