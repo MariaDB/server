@@ -2615,7 +2615,7 @@ fil_space_verify_crypt_checksum(
 	uint32_t checksum1 = mach_read_from_4(page + FIL_PAGE_SPACE_OR_CHKSUM);
 	uint32_t checksum2;
 
-	bool valid;
+	bool valid = false;
 
 	if (page_size.is_compressed()) {
 		valid = checksum1 == cchecksum1;
@@ -2623,12 +2623,32 @@ fil_space_verify_crypt_checksum(
 	} else {
 		checksum2 = mach_read_from_4(
 			page + srv_page_size - FIL_PAGE_END_LSN_OLD_CHKSUM);
-		valid = buf_page_is_checksum_valid_crc32(
-			page, checksum1, checksum2, false
-			/* FIXME: also try the original crc32 that was
-			buggy on big-endian architectures? */)
-			|| buf_page_is_checksum_valid_innodb(
+
+		srv_checksum_algorithm_t algorithm =
+			static_cast<srv_checksum_algorithm_t>(
+					srv_checksum_algorithm);
+		switch (algorithm) {
+		case SRV_CHECKSUM_ALGORITHM_STRICT_CRC32:
+			valid = buf_page_is_checksum_valid_crc32(
 				page, checksum1, checksum2);
+			break;
+		case SRV_CHECKSUM_ALGORITHM_STRICT_INNODB:
+			valid = buf_page_is_checksum_valid_innodb(
+				page, checksum1, checksum2);
+			break;
+		case SRV_CHECKSUM_ALGORITHM_STRICT_NONE:
+		case SRV_CHECKSUM_ALGORITHM_CRC32:
+		case SRV_CHECKSUM_ALGORITHM_INNODB:
+		case SRV_CHECKSUM_ALGORITHM_NONE:
+			/* never supported
+			innodb_checksum_algorithm=none or strict_none
+			for encrypted pages. */
+			valid = buf_page_is_checksum_valid_crc32(
+				page, checksum1, checksum2)
+				|| buf_page_is_checksum_valid_innodb(
+					page, checksum1, checksum2);
+			break;
+		}
 	}
 
 	if (encrypted && valid) {
@@ -2653,8 +2673,11 @@ fil_space_verify_crypt_checksum(
 		ib::info()
 			<< "If unencrypted: stored checksum [" << checksum1
 			<< ":" << checksum2 << "] calculated crc32 ["
-			<< buf_calc_page_crc32(page, false) << ":"
-			<< buf_calc_page_crc32(page, true) << "] innodb ["
+			<< buf_calc_page_crc32(page)
+# ifdef INNODB_BUG_ENDIAN_CRC32
+			<< ":" << buf_calc_page_crc32(page, true)
+# endif /* INNODB_BUG_ENDIAN_CRC32 */
+			<< "] innodb ["
 			<< buf_calc_page_old_checksum(page) << ":"
 			<< buf_calc_page_new_checksum(page) << "] LSN "
 			<< mach_read_from_4(page + FIL_PAGE_LSN);
