@@ -106,7 +106,8 @@ SET GLOBAL wsrep_provider_options='gmcast.isolate=0';
 --source include/wait_condition.inc
 
 --connection node_2
---let $wait_condition = SELECT VARIABLE_VALUE = 'Primary' FROM INFORMATION_SCHEMA.GLOBAL_STATUS WHERE VARIABLE_NAME = 'wsrep_cluster_status';
+--let $wait_condition = SELECT VARIABLE_VALUE = 3 FROM INFORMATION_SCHEMA.GLOBAL_STATUS WHERE VARIABLE_NAME = 'wsrep_cluster_size';
 --source include/wait_condition.inc
+--source include/galera_wait_ready.inc
 
 DROP TABLE t1;
