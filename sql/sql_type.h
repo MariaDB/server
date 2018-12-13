@@ -110,6 +110,58 @@ public:
 };
 
 
+class String_ptr
+{
+protected:
+  String *m_string_ptr;
+public:
+  String_ptr(String *str)
+   :m_string_ptr(str)
+  { }
+  String_ptr(Item *item, String *buffer);
+  const String *string() const { return m_string_ptr; }
+  const char *ptr() const
+  {
+    DBUG_ASSERT(m_string_ptr);
+    return m_string_ptr->ptr();
+  }
+  uint32 length() const
+  {
+    DBUG_ASSERT(m_string_ptr);
+    return m_string_ptr->length();
+  }
+  bool is_null() const { return m_string_ptr == NULL; }
+};
+
+
+class Ascii_ptr: public String_ptr
+{
+public:
+  Ascii_ptr(Item *item, String *buffer);
+};
+
+
+template<size_t buff_sz>
+class String_ptr_and_buffer: public StringBuffer<buff_sz>,
+                             public String_ptr
+{
+public:
+  String_ptr_and_buffer(Item *item)
+   :String_ptr(item, this)
+  { }
+};
+
+
+template<size_t buff_sz>
+class Ascii_ptr_and_buffer: public StringBuffer<buff_sz>,
+                            public Ascii_ptr
+{
+public:
+  Ascii_ptr_and_buffer(Item *item)
+   :Ascii_ptr(item, this)
+  { }
+};
+
 
 class Dec_ptr
 {

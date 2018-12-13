@@ -134,6 +134,15 @@ bool Type_handler_data::init()
 Type_handler_data *type_handler_data= NULL;
 
 
+String_ptr::String_ptr(Item *item, String *buffer)
+ :m_string_ptr(item->val_str(buffer))
+{ }
+
+
+Ascii_ptr::Ascii_ptr(Item *item, String *buffer)
+ :String_ptr(item->val_str_ascii(buffer))
+{ }
+
 
 void VDec::set(Item *item)
 {

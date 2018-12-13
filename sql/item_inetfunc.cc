@@ -162,41 +162,6 @@ longlong Item_func_inet_bool_base::val_int()
   return calc_value(arg_str) ? 1 : 0;
 }
 
-///////////////////////////////////////////////////////////////////////////
-
-/**
-  Check the function argument, handle errors properly.
-
-  @param [out] buffer Buffer for string operations.
-
-  @return The function value.
-*/
-
-String *Item_func_inet_str_base::val_str_ascii(String *buffer)
-{
-  DBUG_ASSERT(fixed);
-
- // String argument expected
-  if (unlikely(args[0]->result_type() != STRING_RESULT))
-  {
-    null_value= true;
-    return NULL;
-  }
-
-  StringBuffer<STRING_BUFFER_USUAL_SIZE> tmp;
-  String *arg_str= args[0]->val_str(&tmp);
-  if (unlikely(!arg_str))
-  {
-    // Out-of memory happened. error has been reported.
-    // Or: the underlying field is NULL
-    null_value= true;
-    return NULL;
-  }
-
-  null_value= !calc_value(arg_str, buffer);
-
-  return unlikely(null_value) ? NULL : buffer;
-}
 
 ///////////////////////////////////////////////////////////////////////////
 
@@ -673,6 +638,23 @@ static void ipv6_to_str(const in6_addr *ipv6, char *str)
 
 ///////////////////////////////////////////////////////////////////////////
 
+String *Item_func_inet6_aton::val_str(String *buffer)
+{
+  DBUG_ASSERT(fixed);
+
+  // String argument expected
+  if (unlikely(args[0]->result_type() != STRING_RESULT))
+  {
+    null_value= true;
+    return NULL;
+  }
+
+  Ascii_ptr_and_buffer<STRING_BUFFER_USUAL_SIZE> tmp(args[0]);
+  null_value= tmp.is_null() || !calc_value(tmp.string(), buffer);
+  return unlikely(null_value) ? NULL : buffer;
+}
+
+
 /**
   Converts IP-address-string to IP-address-data.
 
@@ -714,6 +696,32 @@ bool Item_func_inet6_aton::calc_value(const String *arg, String *buffer)
 ///////////////////////////////////////////////////////////////////////////
 
 /**
+  Check the function argument, handle errors properly.
+
+  @param [out] buffer Buffer for string operations.
+
+  @return The function value.
+*/
+
+String *Item_func_inet6_ntoa::val_str_ascii(String *buffer)
+{
+  DBUG_ASSERT(fixed);
+
+  // Binary string argument expected
+  if (unlikely(args[0]->result_type() != STRING_RESULT ||
+               args[0]->collation.collation != &my_charset_bin))
+  {
+    null_value= true;
+    return NULL;
+  }
+
+  String_ptr_and_buffer<STRING_BUFFER_USUAL_SIZE> tmp(args[0]);
+  null_value= tmp.is_null() || !calc_value(tmp.string(), buffer);
+  return unlikely(null_value) ? NULL : buffer;
+}
+
+
+/**
   Converts IP-address-data to IP-address-string.
 
   @param       arg    IP-address-data.
@@ -724,11 +732,8 @@ bool Item_func_inet6_aton::calc_value(const String *arg, String *buffer)
   @retval true  The string has been converted sucessfully.
 */
 
-bool Item_func_inet6_ntoa::calc_value(const String *arg, String *buffer)
+bool Item_func_inet6_ntoa::calc_value(const Binary_string *arg, String *buffer)
 {
-  if (arg->charset() != &my_charset_bin)
-    return false;
-
   if ((int) arg->length() == IN_ADDR_SIZE)
   {
     char str[INET_ADDRSTRLEN];
