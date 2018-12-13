@@ -641,15 +641,7 @@ public:
 		char*		table_name,
 		char*		remote_path,
 		bool		file_per_table,
-		trx_t*		trx = NULL)
-	:m_thd(thd),
-	m_trx(trx),
-	m_form(form),
-	m_create_info(create_info),
-	m_table_name(table_name), m_drop_before_rollback(false),
-	m_remote_path(remote_path),
-	m_innodb_file_per_table(file_per_table)
-	{}
+		trx_t*		trx = NULL);
 
 	/** Initialize the object. */
 	int initialize();
@@ -757,6 +749,9 @@ private:
 
 	/** Information on table columns and indexes. */
 	const TABLE*	m_form;
+
+	/** Value of innodb_default_row_format */
+	const ulong	m_default_row_format;
 
 	/** Create options. */
 	HA_CREATE_INFO*	m_create_info;
