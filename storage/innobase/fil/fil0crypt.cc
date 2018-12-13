@@ -2674,9 +2674,6 @@ fil_space_verify_crypt_checksum(
 			<< "If unencrypted: stored checksum [" << checksum1
 			<< ":" << checksum2 << "] calculated crc32 ["
 			<< buf_calc_page_crc32(page)
-# ifdef INNODB_BUG_ENDIAN_CRC32
-			<< ":" << buf_calc_page_crc32(page, true)
-# endif /* INNODB_BUG_ENDIAN_CRC32 */
 			<< "] innodb ["
 			<< buf_calc_page_old_checksum(page) << ":"
 			<< buf_calc_page_new_checksum(page) << "] LSN "

@@ -29,18 +29,6 @@ Created Aug 11, 2011 Vasil Dimov
 
 #include "buf0types.h"
 
-#ifdef INNODB_BUG_ENDIAN_CRC32
-/** Calculate the CRC32 checksum of a page. The value is stored to the page
-when it is written to a file and also checked for a match when reading from
-the file. Note that we must be careful to calculate the same value on all
-architectures.
-@param[in]	page		buffer page (srv_page_size bytes)
-@param[in]	bug_endian	whether to use big endian byteorder
-when converting byte strings to integers, for bug-compatibility with
-big-endian architecture running MySQL 5.6, MariaDB 10.0 or MariaDB 10.1
-@return	CRC-32C */
-uint32_t buf_calc_page_crc32(const byte* page, bool bug_endian = false);
-#else
 /** Calculate the CRC32 checksum of a page. The value is stored to the page
 when it is written to a file and also checked for a match when reading from
 the file. Note that we must be careful to calculate the same value on all
@@ -48,7 +36,6 @@ architectures.
 @param[in]	page			buffer page (srv_page_size bytes)
 @return	CRC-32C */
 uint32_t buf_calc_page_crc32(const byte* page);
-#endif
 
 /** Calculate a checksum which is stored to the page when it is written
 to a file. Note that we must be careful to calculate the same value on

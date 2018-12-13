@@ -770,11 +770,7 @@ buf_page_is_checksum_valid_crc32(
 		return false;
 	}
 
-	return checksum_field1 == crc32
-#ifdef INNODB_BUG_ENDIAN_CRC32
-		|| checksum_field1 == buf_calc_page_crc32(read_buf, true)
-#endif
-		;
+	return checksum_field1 == crc32;
 }
 
 /** Checks if the page is in innodb checksum format.
@@ -902,29 +898,6 @@ buf_page_is_checksum_valid_none(
 	return(checksum_field1 == checksum_field2
 	       && checksum_field1 == BUF_NO_CHECKSUM_MAGIC);
 }
-
-#ifdef INNODB_BUG_ENDIAN_CRC32
-/** Validate the CRC-32C checksum of a page.
-@param[in]	page		buffer page (srv_page_size bytes)
-@param[in]	checksum	CRC-32C checksum stored on page
-@return	computed checksum */
-static uint32_t buf_page_check_crc32(const byte* page, uint32_t checksum)
-{
-	uint32_t crc32 = buf_calc_page_crc32(page);
-
-	if (checksum != crc32) {
-		crc32 = buf_calc_page_crc32(page, true);
-	}
-
-	return crc32;
-}
-#else /* INNODB_BUG_ENDIAN_CRC32 */
-/** Validate the CRC-32C checksum of a page.
-@param[in]	page		buffer page (srv_page_size bytes)
-@param[in]	checksum	CRC-32C checksum stored on page
-@return	computed checksum */
-# define buf_page_check_crc32(page, checksum) buf_calc_page_crc32(page)
-#endif /* INNODB_BUG_ENDIAN_CRC32 */
 
 /** Check if a page is corrupt.
 @param[in]	check_lsn	whether the LSN should be checked
@@ -1104,8 +1077,7 @@ buf_page_is_corrupted(
 
 			if (srv_checksum_algorithm
 			    == SRV_CHECKSUM_ALGORITHM_CRC32) {
-				crc32 = buf_page_check_crc32(read_buf,
-							     checksum_field2);
+				crc32 = buf_calc_page_crc32(read_buf);
 				crc32_inited = true;
 
 				if (checksum_field2 != crc32
@@ -1119,8 +1091,7 @@ buf_page_is_corrupted(
 
 				if (checksum_field2
 				    != buf_calc_page_old_checksum(read_buf)) {
-					crc32 = buf_page_check_crc32(
-						read_buf, checksum_field2);
+					crc32 = buf_calc_page_crc32(read_buf);
 					crc32_inited = true;
 
 					if (checksum_field2 != crc32) {
@@ -1136,8 +1107,7 @@ buf_page_is_corrupted(
 			   == SRV_CHECKSUM_ALGORITHM_CRC32) {
 
 			if (!crc32_inited) {
-				crc32 = buf_page_check_crc32(
-					read_buf, checksum_field2);
+				crc32 = buf_calc_page_crc32(read_buf);
 				crc32_inited = true;
 			}
 
@@ -1154,8 +1124,7 @@ buf_page_is_corrupted(
 			    != buf_calc_page_new_checksum(read_buf)) {
 
 				if (!crc32_inited) {
-					crc32 = buf_page_check_crc32(
-						read_buf, checksum_field2);
+					crc32 = buf_calc_page_crc32(read_buf);
 					crc32_inited = true;
 				}
 
@@ -1262,12 +1231,6 @@ buf_page_print(const byte* read_buf, const page_size_t& page_size)
 			<< page_zip_calc_checksum(
 				read_buf, page_size.physical(),
 				SRV_CHECKSUM_ALGORITHM_CRC32)
-#ifdef INNODB_BUG_ENDIAN_CRC32
-			<< "/"
-			<< page_zip_calc_checksum(
-				read_buf, page_size.physical(),
-				SRV_CHECKSUM_ALGORITHM_CRC32, true)
-#endif
 			<< ", "
 			<< buf_checksum_algorithm_name(
 				SRV_CHECKSUM_ALGORITHM_INNODB)
@@ -1293,10 +1256,6 @@ buf_page_print(const byte* read_buf, const page_size_t& page_size)
 
 	} else {
 		const uint32_t	crc32 = buf_calc_page_crc32(read_buf);
-#ifdef INNODB_BUG_ENDIAN_CRC32
-		const uint32_t	crc32_legacy = buf_calc_page_crc32(read_buf,
-								   true);
-#endif /* INNODB_BUG_ENDIAN_CRC32 */
 		ulint page_type = fil_page_get_type(read_buf);
 
 		ib::info() << "Uncompressed page, stored checksum in field1 "
@@ -1306,9 +1265,6 @@ buf_page_print(const byte* read_buf, const page_size_t& page_size)
 			<< buf_checksum_algorithm_name(
 				SRV_CHECKSUM_ALGORITHM_CRC32) << " "
 			<< crc32
-#ifdef INNODB_BUG_ENDIAN_CRC32
-			<< "/" << crc32_legacy
-#endif
 			<< ", "
 			<< buf_checksum_algorithm_name(
 				SRV_CHECKSUM_ALGORITHM_INNODB) << " "
@@ -1326,9 +1282,6 @@ buf_page_print(const byte* read_buf, const page_size_t& page_size)
 			<< buf_checksum_algorithm_name(
 				SRV_CHECKSUM_ALGORITHM_CRC32) << " "
 			<< crc32
-#ifdef INNODB_BUG_ENDIAN_CRC32
-			<< "/" << crc32_legacy
-#endif
 			<< ", "
 			<< buf_checksum_algorithm_name(
 				SRV_CHECKSUM_ALGORITHM_INNODB) << " "
@@ -3965,12 +3918,6 @@ buf_zip_decompress(
 			<< ", crc32: "
 			<< page_zip_calc_checksum(
 				frame, size, SRV_CHECKSUM_ALGORITHM_CRC32)
-#ifdef INNODB_BUG_ENDIAN_CRC32
-			<< "/"
-			<< page_zip_calc_checksum(
-				frame, size, SRV_CHECKSUM_ALGORITHM_CRC32,
-				true)
-#endif
 			<< " innodb: "
 			<< page_zip_calc_checksum(
 				frame, size, SRV_CHECKSUM_ALGORITHM_INNODB)

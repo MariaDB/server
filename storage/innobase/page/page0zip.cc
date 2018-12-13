@@ -4930,12 +4930,7 @@ uint32_t
 page_zip_calc_checksum(
 	const void*			data,
 	ulint				size,
-	srv_checksum_algorithm_t	algo
-#ifdef INNODB_BUG_ENDIAN_CRC32
-	/** for crc32, use the big-endian bug-compatible crc32 variant */
-	, bool				use_legacy_big_endian
-#endif
-)
+	srv_checksum_algorithm_t	algo)
 {
 	uLong		adler;
 	const Bytef*	s = static_cast<const byte*>(data);
@@ -4947,19 +4942,6 @@ page_zip_calc_checksum(
 	case SRV_CHECKSUM_ALGORITHM_CRC32:
 	case SRV_CHECKSUM_ALGORITHM_STRICT_CRC32:
 		ut_ad(size > FIL_PAGE_ARCH_LOG_NO_OR_SPACE_ID);
-#ifdef INNODB_BUG_ENDIAN_CRC32
-		if (use_legacy_big_endian) {
-			return ut_crc32_legacy_big_endian(s + FIL_PAGE_OFFSET,
-							  FIL_PAGE_LSN
-							  - FIL_PAGE_OFFSET)
-				^ ut_crc32_legacy_big_endian(
-					s + FIL_PAGE_TYPE, 2)
-				^ ut_crc32_legacy_big_endian(
-					s + FIL_PAGE_ARCH_LOG_NO_OR_SPACE_ID,
-					size
-					- FIL_PAGE_ARCH_LOG_NO_OR_SPACE_ID);
-		}
-#endif
 		return ut_crc32(s + FIL_PAGE_OFFSET,
 				FIL_PAGE_LSN - FIL_PAGE_OFFSET)
 			^ ut_crc32(s + FIL_PAGE_TYPE, 2)
@@ -5077,11 +5059,6 @@ page_zip_verify_checksum(
 
 	switch (curr_algo) {
 	case SRV_CHECKSUM_ALGORITHM_STRICT_CRC32:
-#ifdef INNODB_BUG_ENDIAN_CRC32
-		return stored == page_zip_calc_checksum(data, size, curr_algo,
-							true);
-#endif
-		/* fall through */
 	case SRV_CHECKSUM_ALGORITHM_STRICT_INNODB:
 	case SRV_CHECKSUM_ALGORITHM_STRICT_NONE:
 		return FALSE;
@@ -5090,26 +5067,15 @@ page_zip_verify_checksum(
 			return(TRUE);
 		}
 
-		return
-#ifdef INNODB_BUG_ENDIAN_CRC32
-			stored == page_zip_calc_checksum(data, size, curr_algo,
-							 true) ||
-#endif
-			stored == page_zip_calc_checksum(
-				data, size, SRV_CHECKSUM_ALGORITHM_INNODB);
+		return stored == page_zip_calc_checksum(
+			data, size, SRV_CHECKSUM_ALGORITHM_INNODB);
 	case SRV_CHECKSUM_ALGORITHM_INNODB:
 		if (stored == BUF_NO_CHECKSUM_MAGIC) {
 			return TRUE;
 		}
 
 		return stored == page_zip_calc_checksum(
-			data, size, SRV_CHECKSUM_ALGORITHM_CRC32)
-#ifdef INNODB_BUG_ENDIAN_CRC32
-			|| stored == page_zip_calc_checksum(
-				data, size,
-				SRV_CHECKSUM_ALGORITHM_CRC32, true)
-#endif
-			;
+			data, size, SRV_CHECKSUM_ALGORITHM_CRC32);
 	case SRV_CHECKSUM_ALGORITHM_NONE:
 		return TRUE;
 	}

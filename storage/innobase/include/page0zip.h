@@ -498,12 +498,7 @@ uint32_t
 page_zip_calc_checksum(
 	const void*			data,
 	ulint				size,
-	srv_checksum_algorithm_t	algo
-#ifdef INNODB_BUG_ENDIAN_CRC32
-	/** for crc32, use the big-endian bug-compatible crc32 variant */
-	, bool				use_legacy_big_endian = false
-#endif
-);
+	srv_checksum_algorithm_t	algo);
 
 /**********************************************************************//**
 Verify a compressed page's checksum.
