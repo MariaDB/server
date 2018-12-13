@@ -4224,9 +4224,10 @@ row_drop_table_for_mysql(
 		calling btr_search_drop_page_hash_index() while we
 		hold the InnoDB dictionary lock, we will drop any
 		adaptive hash index entries upfront. */
+		const bool is_temp = dict_table_is_temporary(table)
+			|| strstr(tablename_minus_db, tmp_file_prefix);
 		while (buf_LRU_drop_page_hash_for_tablespace(table)) {
-			if ((!dict_table_is_temporary(table)
-			     && trx_is_interrupted(trx))
+			if ((!is_temp && trx_is_interrupted(trx))
 			    || srv_shutdown_state != SRV_SHUTDOWN_NONE) {
 				err = DB_INTERRUPTED;
 				goto funct_exit;
