@@ -1027,7 +1027,7 @@ bool parse_vcol_defs(THD *thd, MEM_ROOT *mem_root, TABLE *table,
   while (pos < end)
   {
     uint type, expr_length;
-    if (table->s->mysql_version >= 100202)
+    if (table->s->frm_version >= FRM_VER_EXPRESSSIONS)
     {
       uint field_nr, name_length;
       /* see pack_expression() for how data is stored */
