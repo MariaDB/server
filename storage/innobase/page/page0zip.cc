@@ -4909,18 +4909,17 @@ corrupt:
 @param[in]	data			compressed page
 @param[in]	size			size of compressed page
 @param[in]	algo			algorithm to use
-@param[in]	use_legacy_big_endian	only used if algo is
-SRV_CHECKSUM_ALGORITHM_CRC32 or SRV_CHECKSUM_ALGORITHM_STRICT_CRC32 - if true
-then use big endian byteorder when converting byte strings to integers.
-SRV_CHECKSUM_ALGORITHM_CRC32 or SRV_CHECKSUM_ALGORITHM_STRICT_CRC32 - if true
-then use big endian byteorder when converting byte strings to integers.
 @return page checksum */
 uint32_t
 page_zip_calc_checksum(
 	const void*			data,
 	ulint				size,
-	srv_checksum_algorithm_t	algo,
-	bool				use_legacy_big_endian /* = false */)
+	srv_checksum_algorithm_t	algo
+#ifdef INNODB_BUG_ENDIAN_CRC32
+	/** for crc32, use the big-endian bug-compatible crc32 variant */
+	, bool				use_legacy_big_endian
+#endif
+)
 {
 	uLong		adler;
 	const Bytef*	s = static_cast<const byte*>(data);
@@ -4931,25 +4930,25 @@ page_zip_calc_checksum(
 	switch (algo) {
 	case SRV_CHECKSUM_ALGORITHM_CRC32:
 	case SRV_CHECKSUM_ALGORITHM_STRICT_CRC32:
-		{
-			ut_ad(size > FIL_PAGE_ARCH_LOG_NO_OR_SPACE_ID);
-
-			ut_crc32_func_t	crc32_func = use_legacy_big_endian
-				? ut_crc32_legacy_big_endian
-				: ut_crc32;
-
-			const uint32_t	crc32
-				= crc32_func(
-					s + FIL_PAGE_OFFSET,
-					FIL_PAGE_LSN - FIL_PAGE_OFFSET)
-				^ crc32_func(
+		ut_ad(size > FIL_PAGE_ARCH_LOG_NO_OR_SPACE_ID);
+#ifdef INNODB_BUG_ENDIAN_CRC32
+		if (use_legacy_big_endian) {
+			return ut_crc32_legacy_big_endian(s + FIL_PAGE_OFFSET,
+							  FIL_PAGE_LSN
+							  - FIL_PAGE_OFFSET)
+				^ ut_crc32_legacy_big_endian(
 					s + FIL_PAGE_TYPE, 2)
-				^ crc32_func(
+				^ ut_crc32_legacy_big_endian(
 					s + FIL_PAGE_ARCH_LOG_NO_OR_SPACE_ID,
-					size - FIL_PAGE_ARCH_LOG_NO_OR_SPACE_ID);
-
-			return(crc32);
+					size
+					- FIL_PAGE_ARCH_LOG_NO_OR_SPACE_ID);
 		}
+#endif
+		return ut_crc32(s + FIL_PAGE_OFFSET,
+				FIL_PAGE_LSN - FIL_PAGE_OFFSET)
+			^ ut_crc32(s + FIL_PAGE_TYPE, 2)
+			^ ut_crc32(s + FIL_PAGE_ARCH_LOG_NO_OR_SPACE_ID,
+				   size - FIL_PAGE_ARCH_LOG_NO_OR_SPACE_ID);
 	case SRV_CHECKSUM_ALGORITHM_INNODB:
 	case SRV_CHECKSUM_ALGORITHM_STRICT_INNODB:
 		ut_ad(size > FIL_PAGE_ARCH_LOG_NO_OR_SPACE_ID);
@@ -4984,13 +4983,8 @@ page_zip_verify_checksum(
 	const void*	data,		/*!< in: compressed page */
 	ulint		size)		/*!< in: size of compressed page */
 {
-	ib_uint32_t	stored;
-	ib_uint32_t	calc;
-	ib_uint32_t	crc32 = 0;
-	ib_uint32_t	innodb = 0;
-
-	stored = static_cast<ib_uint32_t>(mach_read_from_4(
-		static_cast<const unsigned char*>(data) + FIL_PAGE_SPACE_OR_CHKSUM));
+	const uint32_t stored = mach_read_from_4(
+		static_cast<const byte*>(data) + FIL_PAGE_SPACE_OR_CHKSUM);
 
 #if FIL_PAGE_LSN % 8
 #error "FIL_PAGE_LSN must be 64 bit aligned"
@@ -5034,8 +5028,7 @@ page_zip_verify_checksum(
 		return(TRUE);
 	}
 
-	calc = static_cast<ib_uint32_t>(page_zip_calc_checksum(
-		data, size, curr_algo));
+	uint32_t calc = page_zip_calc_checksum(data, size, curr_algo);
 
 #ifdef UNIV_INNOCHECKSUM
 	if (log_file) {
@@ -5070,13 +5063,11 @@ page_zip_verify_checksum(
 
 	switch (curr_algo) {
 	case SRV_CHECKSUM_ALGORITHM_STRICT_CRC32:
-		calc = page_zip_calc_checksum(data, size, curr_algo, true);
-		if (calc == stored) {
-			legacy_big_endian_checksum = true;
-			return TRUE;
-		}
-
-		return FALSE;
+#ifdef INNODB_BUG_ENDIAN_CRC32
+		return stored == page_zip_calc_checksum(data, size, curr_algo,
+							true);
+#endif
+		/* fall through */
 	case SRV_CHECKSUM_ALGORITHM_STRICT_INNODB:
 	case SRV_CHECKSUM_ALGORITHM_STRICT_NONE:
 		return FALSE;
@@ -5085,29 +5076,29 @@ page_zip_verify_checksum(
 			return(TRUE);
 		}
 
-		calc = page_zip_calc_checksum(data, size, curr_algo, true);
-		crc32 = calc;
-
-		if (crc32 == stored) {
-			legacy_big_endian_checksum = true;
-			return TRUE;
-		}
-
-		innodb = static_cast<ib_uint32_t>(page_zip_calc_checksum(
-			data, size, SRV_CHECKSUM_ALGORITHM_INNODB));
-		break;
+		return
+#ifdef INNODB_BUG_ENDIAN_CRC32
+			stored == page_zip_calc_checksum(data, size, curr_algo,
+							 true) ||
+#endif
+			stored == page_zip_calc_checksum(
+				data, size, SRV_CHECKSUM_ALGORITHM_INNODB);
 	case SRV_CHECKSUM_ALGORITHM_INNODB:
 		if (stored == BUF_NO_CHECKSUM_MAGIC) {
 			return TRUE;
 		}
 
-		crc32 = static_cast<ib_uint32_t>(page_zip_calc_checksum(
-			data, size, SRV_CHECKSUM_ALGORITHM_CRC32));
-		innodb = calc;
-		break;
+		return stored == page_zip_calc_checksum(
+			data, size, SRV_CHECKSUM_ALGORITHM_CRC32)
+#ifdef INNODB_BUG_ENDIAN_CRC32
+			|| stored == page_zip_calc_checksum(
+				data, size,
+				SRV_CHECKSUM_ALGORITHM_CRC32, true)
+#endif
+			;
 	case SRV_CHECKSUM_ALGORITHM_NONE:
 		return TRUE;
 	}
 
-	return (stored == crc32 || stored == innodb);
+	return FALSE;
 }

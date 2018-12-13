@@ -2,7 +2,7 @@
 
 Copyright (c) 2009, 2010 Facebook, Inc. All Rights Reserved.
 Copyright (c) 2011, 2015, Oracle and/or its affiliates. All Rights Reserved.
-Copyright (c) 2016, MariaDB Corporation.
+Copyright (c) 2016, 2018, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -92,13 +92,11 @@ mysys/my_perf.c, contributed by Facebook under the following license.
 /** Pointer to CRC32 calculation function. */
 ut_crc32_func_t	ut_crc32;
 
+#ifdef INNODB_BUG_ENDIAN_CRC32
 /** Pointer to CRC32 calculation function, which uses big-endian byte order
 when converting byte strings to integers internally. */
 ut_crc32_func_t	ut_crc32_legacy_big_endian;
-
-/** Pointer to CRC32-byte-by-byte calculation function (byte order agnostic,
-but very slow). */
-ut_crc32_func_t	ut_crc32_byte_by_byte;
+#endif /* INNODB_BUG_ENDIAN_CRC32 */
 
 /** Text description of CRC32 implementation */
 const char*	ut_crc32_implementation;
@@ -278,6 +276,7 @@ ut_crc32_64_hw(
 	*len -= 8;
 }
 
+#ifdef INNODB_BUG_ENDIAN_CRC32
 /** Calculate CRC32 over 64-bit byte string using a hardware/CPU instruction.
 The byte string is converted to a 64-bit integer using big endian byte order.
 @param[in,out]	crc	crc32 checksum so far when this function is called,
@@ -308,6 +307,7 @@ ut_crc32_64_legacy_big_endian_hw(
 	*data += 8;
 	*len -= 8;
 }
+#endif /* INNODB_BUG_ENDIAN_CRC32 */
 
 /** Calculates CRC32 using hardware/CPU instructions.
 @param[in]	buf	data over which to calculate CRC32
@@ -396,6 +396,7 @@ ut_crc32_hw(
 	return(~crc);
 }
 
+# ifdef INNODB_BUG_ENDIAN_CRC32
 /** Calculates CRC32 using hardware/CPU instructions.
 This function uses big endian byte ordering when converting byte sequence to
 integers.
@@ -445,26 +446,7 @@ ut_crc32_legacy_big_endian_hw(
 
 	return(~crc);
 }
-
-/** Calculates CRC32 using hardware/CPU instructions.
-This function processes one byte at a time (very slow) and thus it does
-not depend on the byte order of the machine.
-@param[in]	buf	data over which to calculate CRC32
-@param[in]	len	data length
-@return CRC-32C (polynomial 0x11EDC6F41) */
-uint32_t
-ut_crc32_byte_by_byte_hw(
-	const byte*	buf,
-	ulint		len)
-{
-	uint32_t	crc = 0xFFFFFFFFU;
-
-	while (len > 0) {
-		ut_crc32_8_hw(&crc, &buf, &len);
-	}
-
-	return(~crc);
-}
+# endif /* INNODB_BUG_ENDIAN_CRC32 */
 #endif /* defined(__GNUC__) && defined(__x86_64__) || (_WIN64) */
 
 /* CRC32 software implementation. */
@@ -577,6 +559,7 @@ ut_crc32_64_sw(
 	*len -= 8;
 }
 
+#ifdef INNODB_BUG_ENDIAN_CRC32
 /** Calculate CRC32 over 64-bit byte string using a software implementation.
 The byte string is converted to a 64-bit integer using big endian byte order.
 @param[in,out]	crc	crc32 checksum so far when this function is called,
@@ -602,6 +585,7 @@ ut_crc32_64_legacy_big_endian_sw(
 	*data += 8;
 	*len -= 8;
 }
+#endif /* INNODB_BUG_ENDIAN_CRC32 */
 
 /** Calculates CRC32 in software, without using CPU instructions.
 @param[in]	buf	data over which to calculate CRC32
@@ -653,6 +637,7 @@ ut_crc32_sw(
 	return(~crc);
 }
 
+#ifdef INNODB_BUG_ENDIAN_CRC32
 /** Calculates CRC32 in software, without using CPU instructions.
 This function uses big endian byte ordering when converting byte sequence to
 integers.
@@ -704,28 +689,7 @@ ut_crc32_legacy_big_endian_sw(
 
 	return(~crc);
 }
-
-/** Calculates CRC32 in software, without using CPU instructions.
-This function processes one byte at a time (very slow) and thus it does
-not depend on the byte order of the machine.
-@param[in]	buf	data over which to calculate CRC32
-@param[in]	len	data length
-@return CRC-32C (polynomial 0x11EDC6F41) */
-uint32_t
-ut_crc32_byte_by_byte_sw(
-	const byte*	buf,
-	ulint		len)
-{
-	uint32_t	crc = 0xFFFFFFFFU;
-
-	ut_a(ut_crc32_slice8_table_initialized);
-
-	while (len > 0) {
-		ut_crc32_8_sw(&crc, &buf, &len);
-	}
-
-	return(~crc);
-}
+#endif /* INNODB_BUG_ENDIAN_CRC32 */
 
 /********************************************************************//**
 Initializes the data structures used by ut_crc32*(). Does not do any
@@ -736,8 +700,9 @@ ut_crc32_init()
 {
 	ut_crc32_slice8_table_init();
 	ut_crc32 = ut_crc32_sw;
+#ifdef INNODB_BUG_ENDIAN_CRC32
 	ut_crc32_legacy_big_endian = ut_crc32_legacy_big_endian_sw;
-	ut_crc32_byte_by_byte = ut_crc32_byte_by_byte_sw;
+#endif /* INNODB_BUG_ENDIAN_CRC32 */
 	ut_crc32_implementation = "Using generic crc32 instructions";
 
 #if (defined(__GNUC__) && defined(__x86_64__)) || defined(_MSC_VER)
@@ -770,8 +735,9 @@ ut_crc32_init()
 
 	if (features_ecx & 1 << 20) {
 		ut_crc32 = ut_crc32_hw;
+#ifdef INNODB_BUG_ENDIAN_CRC32
 		ut_crc32_legacy_big_endian = ut_crc32_legacy_big_endian_hw;
-		ut_crc32_byte_by_byte = ut_crc32_byte_by_byte_hw;
+#endif /* INNODB_BUG_ENDIAN_CRC32 */
 		ut_crc32_implementation = "Using SSE2 crc32 instructions";
 	}
 

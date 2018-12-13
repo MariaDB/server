@@ -2636,10 +2636,8 @@ fil_space_verify_crypt_checksum(
 					srv_checksum_algorithm);
 		switch (algorithm) {
 		case SRV_CHECKSUM_ALGORITHM_STRICT_CRC32:
-			/* We never supported upgrade from the "legacy crc32"
-			on big endian systems from MariaDB 10.1 to later. */
 			valid = buf_page_is_checksum_valid_crc32(
-				page, checksum1, checksum2, false);
+				page, checksum1, checksum2);
 			break;
 		case SRV_CHECKSUM_ALGORITHM_STRICT_INNODB:
 			valid = buf_page_is_checksum_valid_innodb(
@@ -2649,13 +2647,11 @@ fil_space_verify_crypt_checksum(
 		case SRV_CHECKSUM_ALGORITHM_CRC32:
 		case SRV_CHECKSUM_ALGORITHM_INNODB:
 		case SRV_CHECKSUM_ALGORITHM_NONE:
-			/* We never supported upgrade from the "legacy crc32"
-			on big endian systems from MariaDB 10.1 to later.
-			We also never supported
+			/* never supported
 			innodb_checksum_algorithm=none or strict_none
 			for encrypted pages. */
 			valid = buf_page_is_checksum_valid_crc32(
-				page, checksum1, checksum2, false)
+				page, checksum1, checksum2)
 				|| buf_page_is_checksum_valid_innodb(
 					page, checksum1, checksum2);
 			break;
@@ -2684,8 +2680,11 @@ fil_space_verify_crypt_checksum(
 		ib::info()
 			<< "If unencrypted: stored checksum [" << checksum1
 			<< ":" << checksum2 << "] calculated crc32 ["
-			<< buf_calc_page_crc32(page, false) << ":"
-			<< buf_calc_page_crc32(page, true) << "] innodb ["
+			<< buf_calc_page_crc32(page)
+# ifdef INNODB_BUG_ENDIAN_CRC32
+			<< ":" << buf_calc_page_crc32(page, true)
+# endif /* INNODB_BUG_ENDIAN_CRC32 */
+			<< "] innodb ["
 			<< buf_calc_page_old_checksum(page) << ":"
 			<< buf_calc_page_new_checksum(page) << "] LSN "
 			<< mach_read_from_4(page + FIL_PAGE_LSN);
