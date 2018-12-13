@@ -7950,7 +7950,7 @@ static void wsrep_prepare_for_autocommit_retry(THD* thd,
 
   /* DTRACE begin */
   MYSQL_QUERY_START(rawbuf, thd->thread_id,
-	            (char *)(thd->db.str ? thd->db.str : "unknown"),
+                    thd->get_db(),
                     &thd->security_ctx->priv_user[0],
                     (char *) thd->security_ctx->host_or_ip);
 
