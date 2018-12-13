@@ -4986,17 +4986,11 @@ page_zip_verify_checksum(
 {
 	ib_uint32_t	stored;
 	ib_uint32_t	calc;
+	ib_uint32_t	crc32 = 0;
+	ib_uint32_t	innodb = 0;
 
 	stored = static_cast<ib_uint32_t>(mach_read_from_4(
 		static_cast<const unsigned char*>(data) + FIL_PAGE_SPACE_OR_CHKSUM));
-
-	ulint	page_no MY_ATTRIBUTE((unused)) =
-                mach_read_from_4(static_cast<const unsigned char*>
-                                 (data) + FIL_PAGE_OFFSET);
-	ulint	space_id MY_ATTRIBUTE((unused)) =
-                mach_read_from_4(static_cast<const unsigned char*>
-                                 (data) + FIL_PAGE_SPACE_ID);
-	const page_id_t	page_id(space_id, page_no);
 
 #if FIL_PAGE_LSN % 8
 #error "FIL_PAGE_LSN must be 64 bit aligned"
@@ -5074,149 +5068,46 @@ page_zip_verify_checksum(
 		return(TRUE);
 	}
 
-	bool	legacy_checksum_checked = false;
-
 	switch (curr_algo) {
 	case SRV_CHECKSUM_ALGORITHM_STRICT_CRC32:
-	case SRV_CHECKSUM_ALGORITHM_CRC32: {
-
-		if (stored == BUF_NO_CHECKSUM_MAGIC) {
-#ifndef	UNIV_INNOCHECKSUM
-			if (curr_algo
-			    == SRV_CHECKSUM_ALGORITHM_STRICT_CRC32) {
-				page_warn_strict_checksum(
-					curr_algo,
-					SRV_CHECKSUM_ALGORITHM_NONE,
-					page_id);
-			}
-#endif	/* UNIV_INNOCHECKSUM */
-
-			return(TRUE);
-		}
-
-		/* We need to check whether the stored checksum matches legacy
-		big endian checksum or Innodb checksum. We optimize the order
-		based on earlier results. if earlier we have found pages
-		matching legacy big endian checksum, we try to match it first.
-		Otherwise we check innodb checksum first. */
-		if (legacy_big_endian_checksum) {
-			const uint32_t calculated =
-				page_zip_calc_checksum(data, size, curr_algo, true);
-			if (stored == calculated) {
-
-				return(TRUE);
-			}
-			legacy_checksum_checked = true;
-		}
-
-		uint32_t calculated =
-				page_zip_calc_checksum(data, size, SRV_CHECKSUM_ALGORITHM_INNODB);
-
-		if (stored == calculated) {
-
-#ifndef	UNIV_INNOCHECKSUM
-			if (curr_algo
-			    == SRV_CHECKSUM_ALGORITHM_STRICT_CRC32) {
-				page_warn_strict_checksum(
-					curr_algo,
-					SRV_CHECKSUM_ALGORITHM_INNODB,
-					page_id);
-			}
-#endif	/* UNIV_INNOCHECKSUM */
-
-			return(TRUE);
-		}
-
-		calculated = page_zip_calc_checksum(
-			data, size, curr_algo, true);
-
-		/* If legacy checksum is not checked, do it now. */
-		if ((legacy_checksum_checked
-		     && stored == calculated)) {
+		calc = page_zip_calc_checksum(data, size, curr_algo, true);
+		if (calc == stored) {
 			legacy_big_endian_checksum = true;
-			return(TRUE);
+			return TRUE;
 		}
 
-		break;
-	}
+		return FALSE;
 	case SRV_CHECKSUM_ALGORITHM_STRICT_INNODB:
-	case SRV_CHECKSUM_ALGORITHM_INNODB: {
-
+	case SRV_CHECKSUM_ALGORITHM_STRICT_NONE:
+		return FALSE;
+	case SRV_CHECKSUM_ALGORITHM_CRC32:
 		if (stored == BUF_NO_CHECKSUM_MAGIC) {
-#ifndef	UNIV_INNOCHECKSUM
-			if (curr_algo
-			    == SRV_CHECKSUM_ALGORITHM_STRICT_INNODB) {
-				page_warn_strict_checksum(
-					curr_algo,
-					SRV_CHECKSUM_ALGORITHM_NONE,
-					page_id);
-			}
-#endif	/* UNIV_INNOCHECKSUM */
-
 			return(TRUE);
 		}
 
-		const uint32_t calculated = page_zip_calc_checksum(
-			data, size, SRV_CHECKSUM_ALGORITHM_CRC32);
-		uint32_t calculated1;
+		calc = page_zip_calc_checksum(data, size, curr_algo, true);
+		crc32 = calc;
 
-		if (stored == calculated
-		    || stored == (calculated1 =
-					page_zip_calc_checksum(data, size, SRV_CHECKSUM_ALGORITHM_CRC32, true))
-		) {
-#ifndef	UNIV_INNOCHECKSUM
-			if (curr_algo
-			    == SRV_CHECKSUM_ALGORITHM_STRICT_INNODB) {
-				page_warn_strict_checksum(
-					curr_algo,
-					SRV_CHECKSUM_ALGORITHM_CRC32,
-					page_id);
-			}
-#endif	/* UNIV_INNOCHECKSUM */
-			return(TRUE);
+		if (crc32 == stored) {
+			legacy_big_endian_checksum = true;
+			return TRUE;
 		}
 
+		innodb = static_cast<ib_uint32_t>(page_zip_calc_checksum(
+			data, size, SRV_CHECKSUM_ALGORITHM_INNODB));
 		break;
-	}
-	case SRV_CHECKSUM_ALGORITHM_STRICT_NONE: {
-
-		uint32_t calculated = page_zip_calc_checksum(
-			data, size, SRV_CHECKSUM_ALGORITHM_CRC32);
-		const uint32_t calculated1 = page_zip_calc_checksum(
-			data, size, SRV_CHECKSUM_ALGORITHM_CRC32, true);
-
-		if (stored == calculated
-		    || stored == calculated1) {
-#ifndef	UNIV_INNOCHECKSUM
-			page_warn_strict_checksum(
-				curr_algo,
-				SRV_CHECKSUM_ALGORITHM_CRC32,
-				page_id);
-#endif	/* UNIV_INNOCHECKSUM */
-			return(TRUE);
+	case SRV_CHECKSUM_ALGORITHM_INNODB:
+		if (stored == BUF_NO_CHECKSUM_MAGIC) {
+			return TRUE;
 		}
 
-		calculated = page_zip_calc_checksum(
-			data, size, SRV_CHECKSUM_ALGORITHM_INNODB);
-
-		if (stored == calculated) {
-
-#ifndef	UNIV_INNOCHECKSUM
-			page_warn_strict_checksum(
-				curr_algo,
-				SRV_CHECKSUM_ALGORITHM_INNODB,
-				page_id);
-#endif	/* UNIV_INNOCHECKSUM */
-			return(TRUE);
-		}
-
+		crc32 = static_cast<ib_uint32_t>(page_zip_calc_checksum(
+			data, size, SRV_CHECKSUM_ALGORITHM_CRC32));
+		innodb = calc;
 		break;
-	}
 	case SRV_CHECKSUM_ALGORITHM_NONE:
-		ut_error;
-	/* no default so the compiler will emit a warning if new enum
-	is added and not handled here */
+		return TRUE;
 	}
 
-	return(FALSE);
+	return (stored == crc32 || stored == innodb);
 }

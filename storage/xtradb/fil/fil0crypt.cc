@@ -2669,7 +2669,7 @@ fil_space_verify_crypt_checksum(
 	uint32_t checksum1 = mach_read_from_4(page + FIL_PAGE_SPACE_OR_CHKSUM);
 	uint32_t checksum2;
 
-	bool valid;
+	bool valid = false;
 
 	if (zip_size) {
 		valid = (checksum1 == cchecksum1);
@@ -2677,8 +2677,29 @@ fil_space_verify_crypt_checksum(
 	} else {
 		checksum2 = mach_read_from_4(
 			page + UNIV_PAGE_SIZE - FIL_PAGE_END_LSN_OLD_CHKSUM);
-		valid = (buf_page_is_checksum_valid_crc32(page,checksum1,checksum2)
-		|| buf_page_is_checksum_valid_innodb(page,checksum1, checksum2));
+		switch (algorithm) {
+		case SRV_CHECKSUM_ALGORITHM_STRICT_CRC32:
+			valid = buf_page_is_checksum_valid_crc32(page, checksum1,
+								 checksum2);
+			break;
+		case SRV_CHECKSUM_ALGORITHM_STRICT_INNODB:
+			valid = buf_page_is_checksum_valid_innodb(page, checksum1,
+								  checksum2);
+			break;
+		case SRV_CHECKSUM_ALGORITHM_STRICT_NONE:
+			valid = buf_page_is_checksum_valid_none(page, checksum1,
+								checksum2);
+			break;
+		case SRV_CHECKSUM_ALGORITHM_CRC32:
+		case SRV_CHECKSUM_ALGORITHM_INNODB:
+			valid = buf_page_is_checksum_valid_crc32(
+					page, checksum1, checksum2)
+				|| buf_page_is_checksum_valid_innodb(
+					page, checksum1, checksum2);
+			break;
+		case SRV_CHECKSUM_ALGORITHM_NONE:
+			ut_error;
+		}
 	}
 
 	if (encrypted && valid) {

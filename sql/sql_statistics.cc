@@ -3744,10 +3744,10 @@ void set_statistics_for_table(THD *thd, TABLE *table)
     Ideally, EITS should provide per-partition statistics but this is not
     implemented currently.
   */
-  #ifdef WITH_PARTITION_STORAGE_ENGINE
+#ifdef WITH_PARTITION_STORAGE_ENGINE
     if (table->part_info)
       table->used_stat_records= table->file->stats.records;
-  #endif
+#endif
 
   KEY *key_info, *key_info_end;
   for (key_info= table->key_info, key_info_end= key_info+table->s->keys;
@@ -4077,10 +4077,6 @@ bool is_stat_table(const char *db, const char *table)
 
 bool is_eits_usable(Field *field)
 {
-  partition_info *part_info= NULL;
-  #ifdef WITH_PARTITION_STORAGE_ENGINE
-    part_info= field->table->part_info;
-  #endif
   /*
     (1): checks if we have EITS statistics for a particular column
     (2): Don't use EITS for GEOMETRY columns
@@ -4089,9 +4085,11 @@ bool is_eits_usable(Field *field)
          such columns would be handled during partition pruning.
   */
   Column_statistics* col_stats= field->read_stats;
-  if (col_stats && !col_stats->no_stat_values_provided() &&        //(1)
-      field->type() != MYSQL_TYPE_GEOMETRY &&                      //(2)
-      (!part_info || !part_info->field_in_partition_expr(field)))  //(3)
-    return TRUE;
-  return FALSE;
+  return col_stats && !col_stats->no_stat_values_provided() &&        //(1)
+    field->type() != MYSQL_TYPE_GEOMETRY &&                           //(2)
+#ifdef WITH_PARTITION_STORAGE_ENGINE
+    (!field->table->part_info ||
+     !field->table->part_info->field_in_partition_expr(field)) &&     //(3)
+#endif
+    true;
 }

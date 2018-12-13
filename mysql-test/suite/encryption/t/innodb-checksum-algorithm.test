@@ -65,17 +65,14 @@ EOF
 --list_files $MYSQLD_DATADIR/test
 UNLOCK TABLES;
 
-let $to = 6;
+let $to = 3;
 while ($to)
 {
 dec $to;
 let $tocksum = `select case $to
                when 0 then 'none'
-               when 1 then 'strict_none'
-               when 2 then 'innodb'
-               when 3 then 'strict_innodb'
-               when 4 then 'crc32'
-               when 5 then 'strict_crc32'
+               when 1 then 'innodb'
+               when 2 then 'crc32'
                end`;
 
 eval SET GLOBAL innodb_checksum_algorithm=$tocksum;
