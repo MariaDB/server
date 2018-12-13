@@ -5447,6 +5447,26 @@ normalize_table_name_c_low(
 	}
 }
 
+create_table_info_t::create_table_info_t(
+	THD*		thd,
+	TABLE*		form,
+	HA_CREATE_INFO*	create_info,
+	char*		table_name,
+	char*		remote_path,
+	bool		file_per_table,
+	trx_t*		trx)
+	: m_thd(thd),
+	  m_trx(trx),
+	  m_form(form),
+	  m_default_row_format(innodb_default_row_format),
+	  m_create_info(create_info),
+	  m_table_name(table_name), m_table(NULL),
+	  m_drop_before_rollback(false),
+	  m_remote_path(remote_path),
+	  m_innodb_file_per_table(file_per_table)
+{
+}
+
 /** Normalizes a table name string.
 A normalized name consists of the database name catenated to '/'
 and table name. For example: test/mytable.
@@ -11474,7 +11494,7 @@ Check engine specific table options not handled by SQL-parser.
 const char*
 create_table_info_t::check_table_options()
 {
-	enum row_type	row_format = m_form->s->row_type;
+	enum row_type row_format = m_create_info->row_type;
 	ha_table_option_struct *options= m_form->s->option_struct;
 	fil_encryption_t encrypt = (fil_encryption_t)options->encryption;
 	bool should_encrypt = (encrypt == FIL_ENCRYPTION_ON);
@@ -11521,7 +11541,16 @@ create_table_info_t::check_table_options()
 			return "PAGE_COMPRESSED";
 		}
 
-		if (row_format == ROW_TYPE_REDUNDANT) {
+		switch (row_format) {
+		default:
+			break;
+		case ROW_TYPE_DEFAULT:
+			if (m_default_row_format
+			    != DEFAULT_ROW_FORMAT_REDUNDANT) {
+				break;
+			}
+			/* fall through */
+		case ROW_TYPE_REDUNDANT:
 			push_warning(
 				m_thd, Sql_condition::WARN_LEVEL_WARN,
 				HA_WRONG_CREATE_OPTION,
@@ -11727,9 +11756,9 @@ create_table_info_t::parse_table_name(
 
 /** Determine InnoDB table flags.
 If strict_mode=OFF, this will adjust the flags to what should be assumed.
-@retval true if successful, false if error */
-bool
-create_table_info_t::innobase_table_flags()
+@retval true on success
+@retval false on error */
+bool create_table_info_t::innobase_table_flags()
 {
 	DBUG_ENTER("innobase_table_flags");
 
@@ -11737,7 +11766,7 @@ create_table_info_t::innobase_table_flags()
 	ulint		zip_ssize = 0;
 	enum row_type	row_type;
 	rec_format_t	innodb_row_format =
-		get_row_format(innodb_default_row_format);
+		get_row_format(m_default_row_format);
 	const bool	is_temp
 		= m_create_info->options & HA_LEX_CREATE_TMP_TABLE;
 	bool		zip_allowed
@@ -11838,7 +11867,7 @@ index_bad:
 		}
 	}
 
-	row_type = m_form->s->row_type;
+	row_type = m_create_info->row_type;
 
 	if (zip_ssize && zip_allowed) {
 		/* if ROW_FORMAT is set to default,
@@ -12174,8 +12203,6 @@ create_table_info_t::initialize()
 		DBUG_RETURN(HA_ERR_WRONG_INDEX);
 	}
 
-	ut_ad(m_form->s->row_type == m_create_info->row_type);
-
 	/* Get the transaction associated with the current thd, or create one
 	if not yet created */
 
@@ -12218,8 +12245,6 @@ int create_table_info_t::prepare_create_table(const char* name, bool strict)
 
 	ut_ad(m_thd != NULL);
 	ut_ad(m_create_info != NULL);
-
-	ut_ad(m_form->s->row_type == m_create_info->row_type);
 
 	set_tablespace_type(false);
 
@@ -13227,8 +13252,24 @@ int ha_innobase::truncate()
 		trx_rollback_for_mysql(trx);
 		row_mysql_unlock_data_dictionary(trx);
 	} else {
+		switch (dict_tf_get_rec_format(ib_table->flags)) {
+		case REC_FORMAT_REDUNDANT:
+			info.row_type = ROW_TYPE_REDUNDANT;
+			break;
+		case REC_FORMAT_COMPACT:
+			info.row_type = ROW_TYPE_COMPACT;
+			break;
+		case REC_FORMAT_COMPRESSED:
+			info.row_type = ROW_TYPE_COMPRESSED;
+			break;
+		case REC_FORMAT_DYNAMIC:
+			info.row_type = ROW_TYPE_DYNAMIC;
+			break;
+		}
+
 		err = create(name, table, &info,
-			     dict_table_is_file_per_table(ib_table), trx);
+			     ib_table->is_temporary()
+			     || dict_table_is_file_per_table(ib_table), trx);
 	}
 
 	trx_free(trx);
