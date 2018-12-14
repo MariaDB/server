@@ -1140,8 +1140,7 @@ TABLE *THD::open_temporary_table(TMP_TABLE_SHARE *share,
   @return Success                     false
           Failure                     true
 */
-bool THD::find_and_use_tmp_table(const TABLE_LIST *tl,
-                                 TABLE **out_table)
+bool THD::find_and_use_tmp_table(const TABLE_LIST *tl, TABLE **out_table)
 {
   DBUG_ENTER("THD::find_and_use_tmp_table");
 
@@ -1151,11 +1150,9 @@ bool THD::find_and_use_tmp_table(const TABLE_LIST *tl,
 
   key_length= create_tmp_table_def_key(key, tl->get_db_name(),
                                         tl->get_table_name());
-  result=
-    use_temporary_table(find_temporary_table(key, key_length,
-                                             TMP_TABLE_NOT_IN_USE),
-                        out_table);
-
+  result= use_temporary_table(find_temporary_table(key, key_length,
+                                                   TMP_TABLE_NOT_IN_USE),
+                              out_table);
   DBUG_RETURN(result);
 }
 
