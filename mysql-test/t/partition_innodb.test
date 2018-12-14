@@ -1051,3 +1051,20 @@ SELECT database_name, table_name FROM mysql.innodb_table_stats WHERE
 database_name = 'test_jfg';
 
 DROP DATABASE test_jfg;
+
+#
+# MDEV-17755 Assertion `!table || (!table->read_set || bitmap_is_set(table->read_set, field_index) || (!(ptr >= table->record[0] && ptr < table->record[0] + table->s->reclength)))' failed in Field_bit::val_int upon SELECT with JOIN, partitions, indexed virtual column
+#
+create table t1 (a int) engine=innodb;
+create table t2 (
+  b int,
+  c int,
+  d bit not null default 0,
+  v bit as (d) virtual,
+  key (b,v)
+) engine=innodb partition by hash (b);
+insert into t1 values (1),(2);
+insert into t2 (b,c,d) values (1,1,0),(2,2,0);
+explain select t1.* from t1 join t2 on (v = a);
+select t1.* from t1 join t2 on (v = a);
+drop table t1, t2;
