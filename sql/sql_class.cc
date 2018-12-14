@@ -1,6 +1,6 @@
 /*
    Copyright (c) 2000, 2015, Oracle and/or its affiliates.
-   Copyright (c) 2008, 2017, MariaDB Corporation.
+   Copyright (c) 2008, 2018, MariaDB Corporation.
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -4801,7 +4801,8 @@ extern "C" int thd_slave_thread(const MYSQL_THD thd)
 
 extern "C" int thd_rpl_stmt_based(const MYSQL_THD thd)
 {
-  return !thd->is_current_stmt_binlog_format_row() &&
+  return thd &&
+    !thd->is_current_stmt_binlog_format_row() &&
     !thd->is_current_stmt_binlog_disabled();
 }
 
