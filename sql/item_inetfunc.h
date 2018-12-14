@@ -81,13 +81,7 @@ public:
   {
     null_value= false;
   }
-
-public:
-  virtual longlong val_int();
   bool need_parentheses_in_default() { return false; }
-
-protected:
-  virtual bool calc_value(const String *arg) = 0;
 };
 
 
@@ -117,9 +111,6 @@ public:
   { return get_item_copy<Item_func_inet6_aton>(thd, this); }
 
   String *val_str(String *to);
-
-protected:
-  bool calc_value(const String *arg, String *buffer);
 };
 
 
@@ -153,9 +144,6 @@ public:
   String *val_str_ascii(String *to);
   Item *get_copy(THD *thd)
   { return get_item_copy<Item_func_inet6_ntoa>(thd, this); }
-
-protected:
-  bool calc_value(const Binary_string *arg, String *buffer);
 };
 
 
@@ -176,8 +164,7 @@ public:
   Item *get_copy(THD *thd)
   { return get_item_copy<Item_func_is_ipv4>(thd, this); }
 
-protected:
-  virtual bool calc_value(const String *arg);
+  longlong val_int();
 };
 
 
@@ -192,14 +179,12 @@ public:
     Item_func_inet_bool_base(thd, ip_addr)
   { }
 
-public:
   virtual const char *func_name() const
   { return "is_ipv6"; }
   Item *get_copy(THD *thd)
   { return get_item_copy<Item_func_is_ipv6>(thd, this); }
 
-protected:
-  virtual bool calc_value(const String *arg);
+  longlong val_int();
 };
 
 
@@ -213,15 +198,11 @@ public:
   inline Item_func_is_ipv4_compat(THD *thd, Item *ip_addr):
     Item_func_inet_bool_base(thd, ip_addr)
   { }
-
-public:
   virtual const char *func_name() const
   { return "is_ipv4_compat"; }
   Item *get_copy(THD *thd)
   { return get_item_copy<Item_func_is_ipv4_compat>(thd, this); }
-
-protected:
-  virtual bool calc_value(const String *arg);
+  longlong val_int();
 };
 
 
@@ -235,15 +216,11 @@ public:
   inline Item_func_is_ipv4_mapped(THD *thd, Item *ip_addr):
     Item_func_inet_bool_base(thd, ip_addr)
   { }
-
-public:
   virtual const char *func_name() const
   { return "is_ipv4_mapped"; }
   Item *get_copy(THD *thd)
   { return get_item_copy<Item_func_is_ipv4_mapped>(thd, this); }
-
-protected:
-  virtual bool calc_value(const String *arg);
+  longlong val_int();
 };
 
 #endif // ITEM_INETFUNC_INCLUDED

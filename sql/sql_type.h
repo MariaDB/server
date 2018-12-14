@@ -119,16 +119,10 @@ public:
    :m_string_ptr(str)
   { }
   String_ptr(Item *item, String *buffer);
-  const String *string() const { return m_string_ptr; }
-  const char *ptr() const
+  const String *string() const
   {
     DBUG_ASSERT(m_string_ptr);
-    return m_string_ptr->ptr();
-  }
-  uint32 length() const
-  {
-    DBUG_ASSERT(m_string_ptr);
-    return m_string_ptr->length();
+    return m_string_ptr;
   }
   bool is_null() const { return m_string_ptr == NULL; }
 };
