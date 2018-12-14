@@ -30,6 +30,7 @@ Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA
 #include <trx0sys.h>
 
 #include "fil_cur.h"
+#include "fil0crypt.h"
 #include "common.h"
 #include "read_filt.h"
 #include "xtrabackup.h"
@@ -231,7 +232,7 @@ xb_fil_cur_open(
 
 	posix_fadvise(cursor->file, 0, 0, POSIX_FADV_SEQUENTIAL);
 
-	const page_size_t page_size(cursor->node->space->flags);
+	const page_size_t page_size(node->space->flags);
 	cursor->page_size = page_size;
 
 	/* Allocate read buffer */
@@ -246,6 +247,19 @@ xb_fil_cur_open(
 	cursor->buf_offset = 0;
 	cursor->buf_page_no = 0;
 	cursor->thread_n = thread_n;
+
+	if (!node->space->crypt_data
+	    && os_file_read(IORequestRead,
+			    node->handle, cursor->buf, 0,
+			    page_size.physical())) {
+		mutex_enter(&fil_system->mutex);
+		if (!node->space->crypt_data) {
+			node->space->crypt_data
+				= fil_space_read_crypt_data(page_size,
+							    cursor->buf);
+		}
+		mutex_exit(&fil_system->mutex);
+	}
 
 	cursor->space_size = (ulint)(cursor->statinfo.st_size
 				     / page_size.physical());
@@ -268,7 +282,6 @@ xb_fil_cur_read(
 /*============*/
 	xb_fil_cur_t*	cursor)	/*!< in/out: source file cursor */
 {
-	ibool			success;
 	byte*			page;
 	ulint			i;
 	ulint			npages;
@@ -276,6 +289,8 @@ xb_fil_cur_read(
 	xb_fil_cur_result_t	ret;
 	ib_int64_t		offset;
 	ib_int64_t		to_read;
+	byte			tmp_frame[UNIV_PAGE_SIZE_MAX];
+	byte			tmp_page[UNIV_PAGE_SIZE_MAX];
 	const ulint		page_size = cursor->page_size.physical();
 	xb_ad(!cursor->is_system() || page_size == UNIV_PAGE_SIZE);
 
@@ -318,6 +333,12 @@ xb_fil_cur_read(
 	retry_count = 10;
 	ret = XB_FIL_CUR_SUCCESS;
 
+	fil_space_t *space = fil_space_acquire_for_io(cursor->space_id);
+
+	if (!space) {
+		return XB_FIL_CUR_ERROR;
+	}
+
 read_retry:
 	xtrabackup_io_throttling();
 
@@ -326,19 +347,11 @@ read_retry:
 	cursor->buf_offset = offset;
 	cursor->buf_page_no = (ulint)(offset / cursor->page_size.physical());
 
-	FilSpace space(cursor->space_id);
-
-	if (!space()) {
-		return(XB_FIL_CUR_ERROR);
+	if (!os_file_read(IORequestRead, cursor->file, cursor->buf, offset,
+			  (ulint) to_read)) {
+		ret = XB_FIL_CUR_ERROR;
+		goto func_exit;
 	}
-
-	success = os_file_read(IORequestRead,
-			       cursor->file, cursor->buf, offset,
-			       (ulint) to_read);
-	if (!success) {
-		return(XB_FIL_CUR_ERROR);
-	}
-
 	/* check pages for corruption and re-read if necessary. i.e. in case of
 	partially written pages */
 	for (page = cursor->buf, i = 0; i < npages;
@@ -349,11 +362,26 @@ read_retry:
                     page_no >= FSP_EXTENT_SIZE &&
                     page_no < FSP_EXTENT_SIZE * 3) {
                         /* We ignore the doublewrite buffer pages */
-                } else if (!fil_space_verify_crypt_checksum(
-                                   page, cursor->page_size, space->id, page_no)
-                           && buf_page_is_corrupted(true, page,
-                                                    cursor->page_size,
-                                                    space)) {
+                } else if (fil_space_verify_crypt_checksum(
+                                   page, cursor->page_size,
+				   space->id, page_no)) {
+			ut_ad(mach_read_from_4(page + FIL_PAGE_SPACE_ID)
+			      == space->id);
+
+			bool decrypted = false;
+
+			memcpy(tmp_page, page, page_size);
+
+			if (!fil_space_decrypt(space, tmp_frame,
+					       tmp_page, &decrypted)
+			    || buf_page_is_corrupted(true, tmp_page,
+						     cursor->page_size,
+						     space)) {
+				goto corrupted;
+			}
+		} else if (buf_page_is_corrupted(true, page, cursor->page_size,
+						 space)) {
+corrupted:
                         retry_count--;
                         if (retry_count == 0) {
                                 msg("[%02u] mariabackup: "
@@ -373,7 +401,6 @@ read_retry:
                         }
 
                         os_thread_sleep(100000);
-
                         goto read_retry;
                 }
                 cursor->buf_read += page_size;
@@ -381,7 +408,8 @@ read_retry:
 	}
 
 	posix_fadvise(cursor->file, offset, to_read, POSIX_FADV_DONTNEED);
-
+func_exit:
+	fil_space_release_for_io(space);
 	return(ret);
 }
 
