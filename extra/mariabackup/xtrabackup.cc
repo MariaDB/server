@@ -2300,7 +2300,7 @@ check_if_skip_table(
 Reads the space flags from a given data file and returns the compressed
 page size, or 0 if the space is not compressed. */
 ulint
-xb_get_zip_size(pfs_os_file_t file)
+xb_get_zip_size(fil_node_t* file)
 {
 	byte	*buf;
 	byte	*page;
@@ -2311,7 +2311,7 @@ xb_get_zip_size(pfs_os_file_t file)
 	buf = static_cast<byte *>(ut_malloc(2 * UNIV_PAGE_SIZE));
 	page = static_cast<byte *>(ut_align(buf, UNIV_PAGE_SIZE));
 
-	success = os_file_read(file, page, 0, UNIV_PAGE_SIZE);
+	success = os_file_read(file->handle, page, 0, UNIV_PAGE_SIZE);
 	if (!success) {
 		goto end;
 	}
@@ -2319,6 +2319,17 @@ xb_get_zip_size(pfs_os_file_t file)
 	space = mach_read_from_4(page + FIL_PAGE_ARCH_LOG_NO_OR_SPACE_ID);
 	zip_size = (space == 0 ) ? 0 :
 		dict_tf_get_zip_size(fsp_header_get_flags(page));
+
+	if (!file->space->crypt_data) {
+		fil_system_enter();
+		if (!file->space->crypt_data) {
+			file->space->crypt_data = fil_space_read_crypt_data(
+				space, page,
+				fsp_header_get_crypt_offset(zip_size));
+		}
+		fil_system_exit();
+	}
+
 end:
 	ut_free(buf);
 

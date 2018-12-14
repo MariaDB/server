@@ -30,6 +30,7 @@ Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA
 #include <trx0sys.h>
 
 #include "fil_cur.h"
+#include "fil0crypt.h"
 #include "common.h"
 #include "read_filt.h"
 #include "xtrabackup.h"
@@ -219,7 +220,7 @@ xb_fil_cur_open(
 	posix_fadvise(cursor->file, 0, 0, POSIX_FADV_SEQUENTIAL);
 
 	/* Determine the page size */
-	zip_size = xb_get_zip_size(cursor->file);
+	zip_size = xb_get_zip_size(node);
 	if (zip_size == ULINT_UNDEFINED) {
 		xb_fil_cur_close(cursor);
 		return(XB_FIL_CUR_SKIP);
@@ -282,6 +283,8 @@ xb_fil_cur_read(
 	xb_fil_cur_result_t	ret;
 	ib_int64_t		offset;
 	ib_int64_t		to_read;
+	byte			tmp_frame[UNIV_PAGE_SIZE_MAX];
+	byte			tmp_page[UNIV_PAGE_SIZE_MAX];
 
 	cursor->read_filter->get_next_batch(&cursor->read_filter_ctxt,
 					    &offset, &to_read);
@@ -336,55 +339,63 @@ read_retry:
 		return(XB_FIL_CUR_ERROR);
 	}
 
-	fil_system_enter();
-	fil_space_t *space = fil_space_get_by_id(cursor->space_id);
-	fil_system_exit();
+	fil_space_t *space = fil_space_acquire_for_io(cursor->space_id);
 
 	/* check pages for corruption and re-read if necessary. i.e. in case of
 	partially written pages */
 	for (page = cursor->buf, i = 0; i < npages;
 	     page += cursor->page_size, i++) {
-	ib_int64_t page_no = cursor->buf_page_no + i;
+		ulint page_no = cursor->buf_page_no + i;
 
-		bool checksum_ok = fil_space_verify_crypt_checksum(page, cursor->zip_size,space, (ulint)page_no);
+		if (cursor->space_id == TRX_SYS_SPACE
+		    && page_no >= FSP_EXTENT_SIZE
+		    && page_no < FSP_EXTENT_SIZE * 3) {
+			/* We ignore the doublewrite buffer pages */
+		} else if (fil_space_verify_crypt_checksum(
+				   page, cursor->zip_size,
+				   space, page_no)) {
+			ut_ad(mach_read_from_4(page + FIL_PAGE_SPACE_ID)
+			      == space->id);
 
-		if (!checksum_ok &&
-		    buf_page_is_corrupted(true, page, cursor->zip_size,space)) {
+			bool decrypted = false;
 
-			if (cursor->is_system &&
-			    page_no >= (ib_int64_t)FSP_EXTENT_SIZE &&
-			    page_no < (ib_int64_t) FSP_EXTENT_SIZE * 3) {
-				/* skip doublewrite buffer pages */
-				xb_a(cursor->page_size == UNIV_PAGE_SIZE);
-				msg("[%02u] mariabackup: "
-				    "Page " UINT64PF " is a doublewrite buffer page, "
-				    "skipping.\n", cursor->thread_n, page_no);
-			} else {
-				retry_count--;
-				if (retry_count == 0) {
-					msg("[%02u] mariabackup: "
-					    "Error: failed to read page after "
-					    "10 retries. File %s seems to be "
-					    "corrupted.\n", cursor->thread_n,
-					    cursor->abs_path);
-					ret = XB_FIL_CUR_ERROR;
-					break;
-				}
-				msg("[%02u] mariabackup: "
-				    "Database page corruption detected at page "
-				    UINT64PF ", retrying...\n", cursor->thread_n,
-				    page_no);
+			memcpy(tmp_page, page, cursor->page_size);
 
-				os_thread_sleep(100000);
-
-				goto read_retry;
+			if (!fil_space_decrypt(space, tmp_frame,
+					       tmp_page, &decrypted)
+			    || buf_page_is_corrupted(true, tmp_page,
+						     cursor->zip_size,
+						     space)) {
+				goto corrupted;
 			}
+		} else if (buf_page_is_corrupted(true, page, cursor->zip_size,
+						 space)) {
+corrupted:
+			retry_count--;
+
+			if (retry_count == 0) {
+				msg("[%02u] mariabackup: "
+				    "Error: failed to read page after "
+				    "10 retries. File %s seems to be "
+				    "corrupted.\n", cursor->thread_n,
+				    cursor->abs_path);
+				ret = XB_FIL_CUR_ERROR;
+				break;
+			}
+			msg("[%02u] mariabackup: "
+			    "Database page corruption detected at page "
+			    ULINTPF ", retrying...\n", cursor->thread_n,
+			    page_no);
+
+			os_thread_sleep(100000);
+			goto read_retry;
 		}
 		cursor->buf_read += cursor->page_size;
 		cursor->buf_npages++;
 	}
 
 	posix_fadvise(cursor->file, offset, to_read, POSIX_FADV_DONTNEED);
+	fil_space_release_for_io(space);
 
 	return(ret);
 }
