@@ -72,6 +72,9 @@ IF(WITH_INNOBASE_STORAGE_ENGINE)
 
   # We use the InnoDB code directly in case the code changes.
   ADD_DEFINITIONS("-DUNIV_INNOCHECKSUM")
+  IF(WITH_INNODB_BUG_ENDIAN_CRC32)
+    ADD_DEFINITIONS(-DINNODB_BUG_ENDIAN_CRC32)
+  ENDIF()
 
   # Avoid generating Hardware Capabilities due to crc32 instructions
   IF(CMAKE_SYSTEM_NAME MATCHES "SunOS" AND CMAKE_SYSTEM_PROCESSOR MATCHES "i386")
