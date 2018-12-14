@@ -49,33 +49,41 @@ CHECK_JEMALLOC()
 
 IF(NOT LIBJEMALLOC)
   MESSAGE(WARNING "TokuDB is enabled, but jemalloc is not. This configuration is not supported")
+ELSEIF(LIBJEMALLOC STREQUAL jemalloc_pic)
+  CHECK_CXX_SOURCE_COMPILES(
+"
+#include <jemalloc/jemalloc.h>
+#if JEMALLOC_VERSION_MAJOR < 5
+int main() { return 0; }
+#else
+#error
+#endif
+" JEMALLOC_OK)
+  IF (NOT JEMALLOC_OK)
+    MESSAGE(FATAL_ERROR "static jemalloc_pic.a can only be used up to jemalloc 4")
+  ENDIF()
 ELSEIF(LIBJEMALLOC STREQUAL jemalloc)
   FIND_LIBRARY(LIBJEMALLOC_SO jemalloc)
   IF(NOT LIBJEMALLOC_SO)
     MESSAGE(FATAL_ERROR "jemalloc is present, but cannot be found?")
   ENDIF()
   GET_FILENAME_COMPONENT(LIBJEMALLOC_PATH ${LIBJEMALLOC_SO} REALPATH CACHE)
-ENDIF()
 
-IF(LIBJEMALLOC_PATH AND (RPM OR DEB))
-  UNSET(LIBJEMALLOC)
-  GET_DIRECTORY_PROPERTY(V DIRECTORY ${CMAKE_SOURCE_DIR} DEFINITION CPACK_RPM_tokudb-engine_PACKAGE_REQUIRES)
-  SET(CPACK_RPM_tokudb-engine_PACKAGE_REQUIRES "${V} jemalloc" PARENT_SCOPE)
-  SET(systemd_env "Environment=\"LD_PRELOAD=${LIBJEMALLOC_PATH}\"") #"
-  SET(cnf_malloc_lib "malloc-lib=${LIBJEMALLOC_PATH}")
-ELSEIF(LIBJEMALLOC_PATH)
-  SET(systemd_env "#Environment=\"LD_PRELOAD=${LIBJEMALLOC_PATH}\"") #"
-  SET(cnf_malloc_lib "#malloc-lib=${LIBJEMALLOC_PATH}")
-ELSE()
-  SET(systemd_env "#Environment=\"LD_PRELOAD=/path/to/libjemalloc.so\"") #"
-  SET(cnf_malloc_lib "#malloc-lib=/path/to/libjemalloc.so")
-ENDIF()
-CONFIGURE_FILE(tokudb.cnf.in tokudb.cnf @ONLY)
-CONFIGURE_FILE(tokudb.conf.in tokudb.conf @ONLY)
-IF(INSTALL_SYSCONFDIR)
-  INSTALL(FILES ${CMAKE_CURRENT_BINARY_DIR}/tokudb.conf
-          DESTINATION ${INSTALL_SYSCONFDIR}/systemd/system/mariadb.service.d/
-          COMPONENT tokudb-engine)
+  IF(RPM OR DEB)
+    UNSET(LIBJEMALLOC)
+    GET_DIRECTORY_PROPERTY(V DIRECTORY ${CMAKE_SOURCE_DIR} DEFINITION CPACK_RPM_tokudb-engine_PACKAGE_REQUIRES)
+    SET(CPACK_RPM_tokudb-engine_PACKAGE_REQUIRES "${V} jemalloc" PARENT_SCOPE)
+  ENDIF()
+
+  IF(INSTALL_SYSCONFDIR)
+    SET(systemd_env "Environment=\"LD_PRELOAD=${LIBJEMALLOC_PATH}\"")
+    SET(cnf_malloc_lib "malloc-lib=${LIBJEMALLOC_PATH}")
+    CONFIGURE_FILE(tokudb.cnf.in tokudb.cnf @ONLY)
+    CONFIGURE_FILE(tokudb.conf.in tokudb.conf @ONLY)
+    INSTALL(FILES ${CMAKE_CURRENT_BINARY_DIR}/tokudb.conf
+            DESTINATION ${INSTALL_SYSCONFDIR}/systemd/system/mariadb.service.d/
+            COMPONENT tokudb-engine)
+  ENDIF()
 ENDIF()
 
 MY_CHECK_AND_SET_COMPILER_FLAG("-Wno-shadow")
