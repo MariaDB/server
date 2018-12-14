@@ -1335,6 +1335,8 @@ store_len:
 							table, col);
 
 					ut_a(prefix_len < sizeof ext_buf);
+					const page_size_t& page_size
+						= dict_table_page_size(table);
 
 					/* If there is a spatial index on it,
 					log its MBR */
@@ -1343,9 +1345,7 @@ store_len:
 								col->mtype));
 
 						trx_undo_get_mbr_from_ext(
-							mbr,
-							dict_table_page_size(
-								table),
+							mbr, page_size,
 							field, &flen);
 					}
 
@@ -1354,7 +1354,7 @@ store_len:
 						flen < REC_ANTELOPE_MAX_INDEX_COL_LEN
 						&& !ignore_prefix
 						? ext_buf : NULL, prefix_len,
-						dict_table_page_size(table),
+						page_size,
 						&field, &flen,
 						spatial_status);
 				} else {

@@ -3326,7 +3326,7 @@ row_sel_get_clust_rec_for_mysql(
 			and is it not unsafe to use RW_NO_LATCH here? */
 			buf_block_t*	block = buf_page_get_gen(
 				btr_pcur_get_block(prebuilt->pcur)->page.id,
-				dict_table_page_size(sec_index->table),
+				btr_pcur_get_block(prebuilt->pcur)->page.size,
 				RW_NO_LATCH, NULL, BUF_GET,
 				__FILE__, __LINE__, mtr, &err);
 			mem_heap_t*	heap = mem_heap_create(256);

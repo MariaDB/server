@@ -591,7 +591,7 @@ inconsistent:
 		} else {
 			col->def_val.data = btr_copy_externally_stored_field(
 				&col->def_val.len, data,
-				dict_table_page_size(index->table),
+				cur.page_cur.block->page.size,
 				len, index->table->heap);
 		}
 	}
@@ -3686,9 +3686,9 @@ btr_cur_pessimistic_insert(
 						 index->first_user_field())));
 
 	if (page_zip_rec_needs_ext(rec_get_converted_size(index, entry, n_ext),
-				   dict_table_is_comp(index->table),
+				   index->table->not_redundant(),
 				   dtuple_get_n_fields(entry),
-				   dict_table_page_size(index->table))
+				   btr_cur_get_block(cursor)->page.size)
 	    || UNIV_UNLIKELY(entry->is_alter_metadata())) {
 		/* The record is so big that we have to store some fields
 		externally on separate database pages */
@@ -4558,7 +4558,7 @@ any_extern:
 
 		if (page_zip_rec_needs_ext(new_rec_size, page_is_comp(page),
 					   dict_index_get_n_fields(index),
-					   dict_table_page_size(index->table))) {
+					   block->page.size)) {
 			goto any_extern;
 		}
 
@@ -7526,8 +7526,8 @@ btr_store_big_rec_extern_fields(
 	ut_ad(buf_block_get_frame(rec_block) == page_align(rec));
 	ut_a(dict_index_is_clust(index));
 
-	ut_a(dict_table_page_size(index->table)
-		.equals_to(rec_block->page.size));
+	ut_ad(dict_table_page_size(index->table)
+	      .equals_to(rec_block->page.size));
 
 	btr_blob_log_check_t redo_log(pcur, btr_mtr, offsets, &rec_block,
 				      &rec, op);
@@ -7572,15 +7572,13 @@ btr_store_big_rec_extern_fields(
 	}
 #endif /* UNIV_DEBUG || UNIV_BLOB_LIGHT_DEBUG */
 
-	const page_size_t	page_size(dict_table_page_size(index->table));
-
 	/* Space available in compressed page to carry blob data */
-	const ulint	payload_size_zip = page_size.physical()
+	const ulint	payload_size_zip = rec_block->page.size.physical()
 		- FIL_PAGE_DATA;
 
 	/* Space available in uncompressed page to carry blob data */
-	const ulint	payload_size = page_size.physical()
-		- FIL_PAGE_DATA - BTR_BLOB_HDR_SIZE - FIL_PAGE_DATA_END;
+	const ulint	payload_size = payload_size_zip
+		- (BTR_BLOB_HDR_SIZE + FIL_PAGE_DATA_END);
 
 	/* We have to create a file segment to the tablespace
 	for each field and put the pointer to the field in rec */
