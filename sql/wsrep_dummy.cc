@@ -23,10 +23,6 @@ my_bool wsrep_thd_is_BF(void *, my_bool)
 my_bool wsrep_trx_order_before(const void *, const void *)
 { return 0; }
 
-enum wsrep_conflict_state wsrep_thd_conflict_state(THD *, my_bool)
-{ return NO_CONFLICT; }
-
-//int wsrep_is_wsrep_xid(const XID*)
 int wsrep_is_wsrep_xid(const void* xid)
 { return 0; }
 
@@ -87,9 +83,6 @@ my_bool wsrep_on(const void* thd)
 void wsrep_post_commit(THD*, bool)
 { }
 
-enum wsrep_trx_status wsrep_run_wsrep_commit(THD *, bool)
-{ return WSREP_TRX_ERROR; }
-
 void wsrep_thd_LOCK(const void *)
 { }
 
@@ -102,14 +95,8 @@ void wsrep_thd_awake(const void *, my_bool)
 const char *wsrep_thd_conflict_state_str(THD *)
 { return 0; }
 
-enum wsrep_exec_mode wsrep_thd_exec_mode(THD *)
-{ return LOCAL_STATE; }
-
 const char *wsrep_thd_exec_mode_str(THD *)
 { return NULL; }
-
-enum wsrep_conflict_state wsrep_thd_get_conflict_state(THD *)
-{ return NO_CONFLICT; }
 
 my_bool wsrep_thd_is_wsrep_on(const void *)
 { return 0; }
@@ -120,9 +107,6 @@ my_thread_id wsrep_thd_thread_id(const void* thd)
 const char *wsrep_thd_query(const void *)
 { return 0; }
 
-enum wsrep_query_state wsrep_thd_query_state(THD *)
-{ return QUERY_IDLE; }
-
 const char *wsrep_thd_query_state_str(THD *)
 { return 0; }
 
@@ -131,9 +115,6 @@ void wsrep_thd_xid(const void* thd, void* xid, size_t size)
 
 int wsrep_thd_retry_counter(THD *)
 { return 0; }
-
-void wsrep_thd_set_conflict_state(THD *, enum wsrep_conflict_state)
-{ }
 
 bool wsrep_thd_ignore_table(THD *)
 { return 0; }
