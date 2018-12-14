@@ -36,7 +36,7 @@ const unsigned char* wsrep_xid_uuid(const XID*)
 }
 
 bool wsrep_prepare_key_for_innodb(THD* thd, const uchar*, size_t, const uchar*, size_t, struct wsrep_buf*, size_t*)
-{ return -1; }
+{ return 1; }
 
 bool wsrep_prepare_key(const uchar*, size_t, const uchar*, size_t, struct wsrep_buf*, size_t*)
 { return 0; }
