@@ -1440,6 +1440,7 @@ sync_latch_meta_init()
 	LATCH_ADD_MUTEX(ROW_DROP_LIST, SYNC_NO_ORDER_CHECK,
 			row_drop_list_mutex_key);
 
+
 	LATCH_ADD_MUTEX(INDEX_ONLINE_LOG, SYNC_INDEX_ONLINE_LOG,
 			index_online_log_key);
 
@@ -1504,6 +1505,9 @@ sync_latch_meta_init()
 			PFS_NOT_INSTRUMENTED);
 	LATCH_ADD_MUTEX(RW_TRX_HASH_ELEMENT, SYNC_RW_TRX_HASH_ELEMENT,
 			rw_trx_hash_element_mutex_key);
+
+	LATCH_ADD_MUTEX(ROW_TRUNCATE_LIST, SYNC_NO_ORDER_CHECK,
+			row_truncate_list_mutex_key);
 
 	latch_id_t	id = LATCH_ID_NONE;
 

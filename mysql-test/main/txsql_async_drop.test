@@ -1,0 +1,47 @@
+--source include/have_innodb.inc
+--source include/not_parallel.inc
+--source include/have_debug.inc
+
+use test;
+
+create table tbl_async_drop(id int) engine=innodb;
+let $MYSQLD_DATADIR= `SELECT @@datadir`;
+
+--let $restart_parameters=--innodb-async-drop-tmp-dir=$MYSQLD_DATADIR/test
+--replace_result $restart_parameters restart_parameters
+--source include/restart_mysqld.inc
+
+use test;
+
+--replace_result $MYSQLD_DATADIR MYSQLD_DATADIR
+select @@innodb_async_drop_tmp_dir;
+
+let $TMP_DIR= `SELECT @@innodb_async_drop_tmp_dir`;
+
+set @old_truncate_size=@@innodb_async_truncate_size;
+
+--error ER_INCORRECT_GLOBAL_LOCAL_VAR
+set session innodb_async_drop_tmp_dir='';
+--error ER_INCORRECT_GLOBAL_LOCAL_VAR
+set global innodb_async_drop_tmp_dir='';
+
+set @old_debug=@@global.debug;
+set global debug='d,ib_before_row_truncate_file';
+
+drop table tbl_async_drop;
+--exec if [ -f $MYSQLD_DATADIR/test/tbl_async_drop.ibd ]; then echo "Found .ibd"; else echo "no .ibd"; fi;
+--exec if [ -f $TMP_DIR/._test_tbl_async_drop.ibd.trash* ]; then echo "Found ibd.trash"; else echo "no ibd.trash"; fi;
+
+--exec sleep 5;
+--exec if [ -f $MYSQLD_DATADIR/test/tbl_async_drop.ibd ]; then echo "Found .ibd"; else echo "no .ibd"; fi;
+--exec if [ -f $TMP_DIR/.test_tbl_async_drop.ibd.trash* ]; then echo "Found ibd.trash"; else echo "no ibd.trash"; fi;
+
+--error ER_GLOBAL_VARIABLE
+set session innodb_async_truncate_size=256;
+set global innodb_async_truncate_size=256;
+select @@innodb_async_truncate_size;
+
+set global innodb_async_truncate_size=@old_truncate_size;
+set global debug=@old_debug;
+
+--sleep 600

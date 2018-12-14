@@ -3222,6 +3222,38 @@ os_file_rename_func(
 	return(true);
 }
 
+/** NOTE! Use the corresponding macro os_file_rename_if_exists(), not directly this
+function!
+Renames a file (can also move it to another directory). It is safest that the
+file is closed before calling this function.
+@param[in]	oldpath		old file path as a null-terminated string
+@param[in]	newpath		new file path
+@return true if success */
+bool
+os_file_rename_if_exists_func(
+	const char*	oldpath,
+	const char*	newpath,
+    	bool* exist)
+{
+	if (exist != NULL) {
+		*exist = true;
+	}
+
+	int	ret = rename(oldpath, newpath);
+
+	if (ret != 0 && errno == ENOENT) {
+		if (exist != NULL) {
+			*exist = false;
+		}
+	} else if (ret != 0 && errno != ENOENT) {
+		os_file_handle_error_no_exit(oldpath, "rename", false);
+		return(false);
+	}
+
+	return(true);
+}
+
+
 /** NOTE! Use the corresponding macro os_file_close(), not directly this
 function!
 Closes a file handle. In case of error, error number can be retrieved with

@@ -637,7 +637,8 @@ static PSI_mutex_info all_innodb_mutexes[] = {
 	PSI_KEY(rtr_path_mutex),
 	PSI_KEY(rtr_ssn_mutex),
 	PSI_KEY(trx_sys_mutex),
-	PSI_KEY(zip_pad_mutex)
+	PSI_KEY(zip_pad_mutex),
+	PSI_KEY(row_truncate_list_mutex),
 };
 # endif /* UNIV_PFS_MUTEX */
 
@@ -3519,6 +3520,70 @@ ha_innobase::init_table_handle_for_HANDLER(void)
 	reset_template();
 }
 
+/** Check if dir_input is valid for async_drop_tmp_dir, return
+0 if OK to reset to empty, return 1 if valid, otherwise, return -1 */
+int
+check_async_drop_tmp_dir(THD *thd, const char *dir_input)
+{
+	if (!dir_input || strcmp(dir_input, "") == 0) {
+		return(0);
+	}
+
+	if (strlen(dir_input) > FN_REFLEN) {
+		if (thd) {
+			push_warning_printf(
+				thd, Sql_condition::WARN_LEVEL_WARN,
+				ER_WRONG_ARGUMENTS,
+				"Path length should not exceed %d bytes", FN_REFLEN);
+		}
+		return(-1);
+	}
+
+	if (my_access(dir_input, F_OK)) {
+		if (thd) {
+			push_warning_printf(
+				thd, Sql_condition::WARN_LEVEL_WARN,
+				ER_WRONG_ARGUMENTS,
+				"InnoDB: Path doesn't exist.");
+		}
+		return(-1);
+	} else if (my_access(dir_input, R_OK | W_OK)) {
+		if (thd) {
+			push_warning_printf(
+				thd, Sql_condition::WARN_LEVEL_WARN,
+				ER_WRONG_ARGUMENTS,
+				"InnoDB: Server doesn't have permission in "
+				"the given location.");
+		}
+		return(-1);
+	}
+
+	MY_STAT tmp_stat, cur_stat;
+	if (my_stat(dir_input, &tmp_stat, MYF(0)) == NULL ||
+		(tmp_stat.st_mode & S_IFDIR) != S_IFDIR) {
+		if (thd) {
+			push_warning_printf(
+				thd, Sql_condition::WARN_LEVEL_WARN,
+				ER_WRONG_ARGUMENTS,
+				"Given path is not a directory.");
+		}
+		return(-1);
+	}
+
+	if (my_stat(fil_path_to_mysql_datadir, &cur_stat, MYF(0)) == NULL ||
+		cur_stat.st_dev != tmp_stat.st_dev) {
+		if (thd) {
+			push_warning_printf(
+				thd, Sql_condition::WARN_LEVEL_WARN,
+				ER_WRONG_ARGUMENTS,
+				"Given path has different mount point with datadir.");
+		}
+		return(-1);
+	}
+
+	return(1);
+}
+
 /*********************************************************************//**
 Free tablespace resources allocated. */
 static
@@ -3823,6 +3888,14 @@ static int innodb_init_params()
 	ut_a(default_path);
 
 	fil_path_to_mysql_datadir = default_path;
+
+	if (srv_async_drop_tmp_dir != NULL &&
+		check_async_drop_tmp_dir(NULL, srv_async_drop_tmp_dir) == -1) {
+		sql_print_error("InnoDB: invalid"
+				" innodb_async_drop_tmp_dir value");
+		innobase_space_shutdown();
+		DBUG_RETURN(1);
+	}
 
 	/* Set InnoDB initialization parameters according to the values
 	read from MySQL .cnf file */
@@ -18978,6 +19051,21 @@ static MYSQL_SYSVAR_UINT(fast_shutdown, srv_fast_shutdown,
   " values are 0, 1 (faster), 2 (crash-like), 3 (fastest clean).",
   fast_shutdown_validate, NULL, 1, 0, 3, 0);
 
+static MYSQL_SYSVAR_ULONG(async_truncate_size, srv_async_truncate_size,
+  PLUGIN_VAR_OPCMDARG,
+  "MBs of file to be truncated each time by master thread in background.",
+  NULL, NULL,
+  128,			/* Default setting */
+  128,			/* Minimum value */
+  2048, 0);		/* Maximum value */
+
+static MYSQL_SYSVAR_STR(async_drop_tmp_dir, srv_async_drop_tmp_dir,
+  PLUGIN_VAR_OPCMDARG | PLUGIN_VAR_READONLY,
+  "Directory to store temp files of async drop table; if set, DROP TABLE "
+  "will only rename ibd file when this values is true, "
+  "the file is dropped in background asynchronously",
+  NULL, NULL, "");
+
 static MYSQL_SYSVAR_BOOL(file_per_table, srv_file_per_table,
   PLUGIN_VAR_NOCMDARG,
   "Stores each InnoDB table to an .ibd file in the database dir.",
@@ -20058,6 +20146,8 @@ static struct st_mysql_sys_var* innobase_system_variables[]= {
   MYSQL_SYSVAR(fast_shutdown),
   MYSQL_SYSVAR(read_io_threads),
   MYSQL_SYSVAR(write_io_threads),
+  MYSQL_SYSVAR(async_truncate_size),
+  MYSQL_SYSVAR(async_drop_tmp_dir),
   MYSQL_SYSVAR(file_per_table),
   MYSQL_SYSVAR(flush_log_at_timeout),
   MYSQL_SYSVAR(flush_log_at_trx_commit),

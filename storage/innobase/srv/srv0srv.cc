@@ -149,6 +149,14 @@ my_bool	srv_read_only_mode;
 /** store to its own file each table created by an user; data
 dictionary tables are in the system tablespace 0 */
 my_bool	srv_file_per_table;
+
+/** MBs of file to be truncated each time by master thread in background */
+ulong srv_async_truncate_size;
+/** Directory to store tmp files of async DROP TABLE; if set, DROP TABLE will
+only rename ibd file, the file is deleted in background asynchronously */
+char *srv_async_drop_tmp_dir;
+
+
 /** Set if InnoDB operates in read-only mode or innodb-force-recovery
 is greater than SRV_FORCE_NO_TRX_UNDO. */
 my_bool	high_level_read_only;
@@ -2145,6 +2153,9 @@ srv_master_do_active_tasks(void)
 		return;
 	}
 
+	srv_main_thread_op_info = "doing background file truncate";
+	row_truncate_file_for_mysql_in_background();
+
 	/* make sure that there is enough reusable space in the redo
 	log files */
 	srv_main_thread_op_info = "checking free log space";
@@ -2229,6 +2240,9 @@ srv_master_do_idle_tasks(void)
 	if (srv_shutdown_state != SRV_SHUTDOWN_NONE) {
 		return;
 	}
+
+	srv_main_thread_op_info = "doing background file truncate";
+	row_truncate_file_for_mysql_in_background();
 
 	/* make sure that there is enough reusable space in the redo
 	log files */

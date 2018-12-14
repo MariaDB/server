@@ -393,6 +393,17 @@ dropping of tables is needed in ALTER TABLE on Unix.
 @return how many tables dropped + remaining tables in list */
 ulint
 row_drop_tables_for_mysql_in_background(void);
+
+bool
+row_truncate_file_for_mysql_in_background(void);
+
+bool
+row_truncate_file_for_mysql_in_background_shutdown(void);
+
+bool
+row_add_file_to_background_truncate_list(const char* name);
+
+
 /*=========================================*/
 /*********************************************************************//**
 Get the background drop list length. NOTE: the caller must own the kernel

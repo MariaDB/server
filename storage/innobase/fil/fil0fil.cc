@@ -156,7 +156,7 @@ it is an absolute path. */
 const char*	fil_path_to_mysql_datadir;
 
 /** Common InnoDB file extentions */
-const char* dot_ext[] = { "", ".ibd", ".isl", ".cfg" };
+const char* dot_ext[] = { "", ".ibd", ".isl", ".cfg", ".trash" };
 
 /** The number of fsyncs done to the log */
 ulint	fil_n_log_flushes			= 0;
@@ -182,6 +182,11 @@ UNIV_INTERN extern ib_mutex_t fil_crypt_threads_mutex;
 	((s)->purpose == FIL_TYPE_TABLESPACE	\
 	 && srv_file_flush_method	\
 	 == SRV_O_DIRECT_NO_FSYNC)
+
+/** Check if dir_input is valid for async_drop_tmp_dir, return
+0 if OK to reset to empty, return 1 if valid, otherwise, return -1 */
+extern int
+check_async_drop_tmp_dir(THD *thd, const char *dir_input);
 
 /** Determine if the space id is a user tablespace id or not.
 @param[in]	space_id	Space ID to check
@@ -2545,6 +2550,53 @@ fil_table_accessible(const dict_table_t* table)
 	return accessible;
 }
 
+/********************************************************************//**
+build a name for temp file to be renamed to in async DROP TABLE
+@return file name or NULL on error */
+static
+char *
+build_tmp_name(char *name)
+{
+	DBUG_ASSERT(srv_async_drop_tmp_dir != NULL && strlen(srv_async_drop_tmp_dir) > 0);
+
+	char time_str[24] = "";
+	int full_len, time_len, dir_len;
+	uint i;
+	uintmax_t time = ut_time_us(NULL);
+
+	sprintf(time_str, "%ju", time);
+	time_len = strlen(time_str);
+
+	if (check_async_drop_tmp_dir(NULL, srv_async_drop_tmp_dir) != 1)
+		return NULL;
+
+	if (srv_async_drop_tmp_dir[strlen(srv_async_drop_tmp_dir) - 1] == OS_PATH_SEPARATOR)
+		dir_len = strlen(srv_async_drop_tmp_dir);
+	else
+		dir_len = strlen(srv_async_drop_tmp_dir) + 1;
+
+	full_len = dir_len + strlen(name) + time_len + 1;
+
+	char *tmp_name = static_cast<char *>(ut_malloc_nokey(full_len + 1));
+	if (tmp_name == NULL)
+		return NULL;
+
+	memcpy(tmp_name, srv_async_drop_tmp_dir, dir_len);
+	tmp_name[dir_len - 1] = OS_PATH_SEPARATOR;
+
+	for (i = 0; i < strlen(name); i++) {
+		if (*(name + i) == OS_PATH_SEPARATOR)
+			*(tmp_name + dir_len + i) = '_';
+		else
+			*(tmp_name + dir_len + i) = *(name + i);
+	}
+	tmp_name[dir_len + strlen(name)] = '.';
+	memcpy(tmp_name + dir_len + strlen(name) + 1, time_str, strlen(time_str));
+	tmp_name[full_len] = '\0';
+	return tmp_name;
+}
+
+
 /** Delete a tablespace and associated .ibd file.
 @param[in]	id		tablespace identifier
 @return	DB_SUCCESS or error */
@@ -2651,14 +2703,35 @@ fil_delete_tablespace(
 		log_mutex_exit();
 		fil_space_free_low(space);
 
-		if (!os_file_delete(innodb_data_file_key, path)
-		    && !os_file_delete_if_exists(
-			    innodb_data_file_key, path, NULL)) {
-
-			/* Note: This is because we have removed the
-			tablespace instance from the cache. */
-
-			err = DB_IO_ERROR;
+		if (srv_async_drop_tmp_dir != NULL && strcmp(srv_async_drop_tmp_dir, "") != 0) {
+			char *trash_name = fil_make_filepath(path, NULL, TRH, false);
+			if (trash_name != NULL) {
+				char *tmp_name = build_tmp_name(trash_name);
+				ut_free(trash_name);
+				if (tmp_name != NULL) {
+					bool exist = true;
+					if (!os_file_rename_if_exists(innodb_data_file_key, path, tmp_name, &exist)) {
+						/* Note: This is because we have removed the
+						tablespace instance from the cache. */
+						err = DB_IO_ERROR;
+					} else if (exist) {
+						row_add_file_to_background_truncate_list(tmp_name);
+					}
+					ut_free(tmp_name);
+				} else {
+					err = DB_IO_ERROR;
+				}
+			} else {
+				err = DB_OUT_OF_MEMORY;
+			}
+		} else {
+			if (!os_file_delete(innodb_data_file_key, path)
+				&& !os_file_delete_if_exists(
+					innodb_data_file_key, path, NULL)) {
+				/* Note: This is because we have removed the
+				tablespace instance from the cache. */
+				err = DB_IO_ERROR;
+			}
 		}
 	} else {
 		mutex_exit(&fil_system.mutex);
@@ -4782,6 +4855,7 @@ fil_page_set_type(
 	mach_write_to_2(page + FIL_PAGE_TYPE, type);
 }
 
+
 /********************************************************************//**
 Delete the tablespace file and any related files like .cfg.
 This should not be called for temporary tables.
@@ -4794,7 +4868,26 @@ fil_delete_file(
 	/* Force a delete of any stale .ibd files that are lying around. */
 
 	ib::info() << "Deleting " << ibd_filepath;
-	os_file_delete_if_exists(innodb_data_file_key, ibd_filepath, NULL);
+	if (srv_async_drop_tmp_dir != NULL && strcmp(srv_async_drop_tmp_dir, "") != 0) {
+		char *trash_name = fil_make_filepath(ibd_filepath, NULL, TRH, false);
+		if (trash_name != NULL) {
+			char *tmp_name = build_tmp_name(trash_name);
+			ut_free(trash_name);
+			if (tmp_name != NULL) {
+				bool exist = true;
+				os_file_rename_if_exists(innodb_data_file_key, ibd_filepath, tmp_name, &exist);
+				if (exist)
+					row_add_file_to_background_truncate_list(tmp_name);
+				ut_free(tmp_name);
+			} else {
+				ib::info() << "build_tmp_name failed for " << ibd_filepath;
+			}
+		} else {
+			ib::info() << "fil_make_filpath failed for " << ibd_filepath;
+		}
+	} else {
+		os_file_delete_if_exists(innodb_data_file_key, ibd_filepath, NULL);
+	}
 
 	char*	cfg_filepath = fil_make_filepath(
 		ibd_filepath, NULL, CFG, false);

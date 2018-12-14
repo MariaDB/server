@@ -1,0 +1,30 @@
+use test;
+create table tbl_async_drop(id int) engine=innodb;
+use test;
+select @@innodb_async_drop_tmp_dir;
+@@innodb_async_drop_tmp_dir
+MYSQLD_DATADIR/test
+set @old_truncate_size=@@innodb_async_truncate_size;
+set session innodb_async_drop_tmp_dir='';
+ERROR HY000: Variable 'innodb_async_drop_tmp_dir' is a read only variable
+set global innodb_async_drop_tmp_dir='';
+ERROR HY000: Variable 'innodb_async_drop_tmp_dir' is a read only variable
+set @old_debug=@@global.debug;
+set global debug='d,ib_before_row_truncate_file';
+Warnings:
+Warning	1287	'@@debug' is deprecated and will be removed in a future release. Please use '@@debug_dbug' instead
+drop table tbl_async_drop;
+no .ibd
+Found ibd.trash
+no .ibd
+no ibd.trash
+set session innodb_async_truncate_size=256;
+ERROR HY000: Variable 'innodb_async_truncate_size' is a GLOBAL variable and should be set with SET GLOBAL
+set global innodb_async_truncate_size=256;
+select @@innodb_async_truncate_size;
+@@innodb_async_truncate_size
+256
+set global innodb_async_truncate_size=@old_truncate_size;
+set global debug=@old_debug;
+Warnings:
+Warning	1287	'@@debug' is deprecated and will be removed in a future release. Please use '@@debug_dbug' instead
