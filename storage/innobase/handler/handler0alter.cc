@@ -171,7 +171,6 @@ inline void dict_table_t::init_instant(const dict_table_t& table)
 	dict_index_t& index = *indexes.start;
 	const unsigned u = index.first_user_field();
 	DBUG_ASSERT(u == oindex.first_user_field());
-	DBUG_ASSERT(not_redundant() == table.not_redundant());
 	DBUG_ASSERT(index.n_fields >= oindex.n_fields);
 
 	field_map_element_t* field_map_it = static_cast<field_map_element_t*>(
