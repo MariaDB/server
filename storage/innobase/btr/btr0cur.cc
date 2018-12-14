@@ -4283,6 +4283,72 @@ func_exit:
 	return(err);
 }
 
+/** Trim a metadata record during the rollback of instant ALTER TABLE.
+@param[in]	entry	metadata tuple
+@param[in]	index	primary key
+@param[in]	update	update vector for the rollback */
+ATTRIBUTE_COLD
+static void btr_cur_trim_alter_metadata(dtuple_t* entry,
+					const dict_index_t* index,
+					const upd_t* update)
+{
+	ut_ad(index->is_instant());
+	ut_ad(update->is_alter_metadata());
+	ut_ad(entry->is_alter_metadata());
+
+	ut_ad(update->fields[0].field_no == index->first_user_field());
+	ut_ad(update->fields[0].new_val.ext);
+	ut_ad(update->fields[0].new_val.len == FIELD_REF_SIZE);
+	ut_ad(entry->n_fields - 1 == index->n_fields);
+
+	const byte* ptr = static_cast<const byte*>(
+		update->fields[0].new_val.data);
+	ut_ad(!mach_read_from_4(ptr + BTR_EXTERN_LEN));
+	ut_ad(mach_read_from_4(ptr + BTR_EXTERN_LEN + 4) > 4);
+	ut_ad(mach_read_from_4(ptr + BTR_EXTERN_OFFSET) == FIL_PAGE_DATA);
+	ut_ad(mach_read_from_4(ptr + BTR_EXTERN_SPACE_ID)
+	      == index->table->space->id);
+
+	ulint n_fields = update->fields[1].field_no;
+	ut_ad(n_fields <= index->n_fields);
+	if (n_fields != index->n_uniq) {
+		ut_ad(n_fields
+		      >= index->n_core_fields);
+		entry->n_fields = n_fields;
+		return;
+	}
+
+	/* This is based on dict_table_t::deserialise_columns()
+	and btr_cur_instant_init_low(). */
+	mtr_t mtr;
+	mtr.start();
+	buf_block_t* block = buf_page_get(
+		page_id_t(index->table->space->id,
+			  mach_read_from_4(ptr + BTR_EXTERN_PAGE_NO)),
+		univ_page_size, RW_S_LATCH, &mtr);
+	buf_block_dbg_add_level(block, SYNC_EXTERN_STORAGE);
+	ut_ad(fil_page_get_type(block->frame) == FIL_PAGE_TYPE_BLOB);
+	ut_ad(mach_read_from_4(&block->frame[FIL_PAGE_DATA
+					     + BTR_BLOB_HDR_NEXT_PAGE_NO])
+	      == FIL_NULL);
+	ut_ad(mach_read_from_4(&block->frame[FIL_PAGE_DATA
+					     + BTR_BLOB_HDR_PART_LEN])
+	      == mach_read_from_4(ptr + BTR_EXTERN_LEN + 4));
+	n_fields = mach_read_from_4(
+		&block->frame[FIL_PAGE_DATA + BTR_BLOB_HDR_SIZE])
+		+ index->first_user_field();
+	/* Rollback should not increase the number of fields. */
+	ut_ad(n_fields <= index->n_fields);
+	ut_ad(n_fields + 1 <= entry->n_fields);
+	/* dict_index_t::clear_instant_alter() cannot be invoked while
+	rollback of an instant ALTER TABLE transaction is in progress
+	for an is_alter_metadata() record. */
+	ut_ad(n_fields >= index->n_core_fields);
+
+	mtr.commit();
+	entry->n_fields = n_fields + 1;
+}
+
 /** Trim an update tuple due to instant ADD COLUMN, if needed.
 For normal records, the trailing instantly added fields that match
 the initial default values are omitted.
@@ -4309,6 +4375,7 @@ btr_cur_trim(
 		(instant ALTER TABLE on a table where instant ALTER was
 		already executed) or rolling back such an operation. */
 		ut_ad(!upd_get_nth_field(update, 0)->orig_len);
+		ut_ad(entry->is_metadata());
 
 		if (thr->graph->trx->in_rollback) {
 			/* This rollback can occur either as part of
@@ -4326,17 +4393,11 @@ btr_cur_trim(
 			innobase_add_instant_try(). */
 			ut_ad(update->n_fields > 2);
 			if (update->is_alter_metadata()) {
-				ut_ad(update->fields[0].field_no
-				      == index->first_user_field());
-				ut_ad(update->fields[0].new_val.ext);
-				ut_ad(update->fields[0].new_val.len
-				      == FIELD_REF_SIZE);
-				ut_ad(entry->n_fields - 1 == index->n_fields);
-				ulint n_fields = update->fields[1].field_no;
-				ut_ad(n_fields <= index->n_fields);
-				entry->n_fields = n_fields;
+				btr_cur_trim_alter_metadata(
+					entry, index, update);
 				return;
 			}
+			ut_ad(!entry->is_alter_metadata());
 
 			ulint n_fields = upd_get_nth_field(update, 0)
 				->field_no;
