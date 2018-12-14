@@ -1397,7 +1397,7 @@ static lsn_t get_current_lsn(MYSQL *connection)
 	lsn_t lsn = 0;
 	if (MYSQL_RES *res = xb_mysql_query(connection,
 					    "SHOW ENGINE INNODB STATUS",
-					    false, true)) {
+					    true, false)) {
 		if (MYSQL_ROW row = mysql_fetch_row(res)) {
 			const char *p= strstr(row[2], lsn_prefix);
 			DBUG_ASSERT(p);
