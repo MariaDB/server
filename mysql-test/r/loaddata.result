@@ -45,10 +45,10 @@ load data infile '../../std_data/loaddata3.dat' into table t1 fields terminated 
 Warnings:
 Note	1265	Data truncated for column 'a' at row 1
 Note	1265	Data truncated for column 'a' at row 2
-Warning	1366	Incorrect integer value: 'error      ' for column 'a' at row 3
+Warning	1366	Incorrect integer value: 'error      ' for column `test`.`t1`.`a` at row 3
 Warning	1262	Row 3 was truncated; it contained more data than there were input columns
 Note	1265	Data truncated for column 'a' at row 4
-Warning	1366	Incorrect integer value: 'wrong end  ' for column 'a' at row 5
+Warning	1366	Incorrect integer value: 'wrong end  ' for column `test`.`t1`.`a` at row 5
 Warning	1262	Row 5 was truncated; it contained more data than there were input columns
 select * from t1;
 a	b
@@ -64,7 +64,7 @@ Note	1265	Data truncated for column 'a' at row 1
 Note	1265	Data truncated for column 'a' at row 2
 Note	1265	Data truncated for column 'a' at row 3
 Warning	1366	Incorrect integer value: '
-' for column 'a' at row 4
+' for column `test`.`t1`.`a` at row 4
 Warning	1261	Row 4 doesn't contain data for all columns
 select * from t1;
 a	b

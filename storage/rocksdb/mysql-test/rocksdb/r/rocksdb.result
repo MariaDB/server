@@ -2451,9 +2451,9 @@ DROP TABLE t1;
 CREATE TABLE t2(id INT NOT NULL PRIMARY KEY, data INT) Engine=MEMORY;
 INSERT INTO t2 VALUES (100,NULL),(150,"long varchar"),(200,"varchar"),(250,"long long long varchar");
 Warnings:
-Warning	1366	Incorrect integer value: 'long varchar' for column 'data' at row 2
-Warning	1366	Incorrect integer value: 'varchar' for column 'data' at row 3
-Warning	1366	Incorrect integer value: 'long long long varchar' for column 'data' at row 4
+Warning	1366	Incorrect integer value: 'long varchar' for column `test`.`t2`.`data` at row 2
+Warning	1366	Incorrect integer value: 'varchar' for column `test`.`t2`.`data` at row 3
+Warning	1366	Incorrect integer value: 'long long long varchar' for column `test`.`t2`.`data` at row 4
 create TABLE t1 (a int not null, b int not null, primary key(a,b));
 INSERT INTO t1  VALUES (1,1);
 SELECT a FROM t1, t2 WHERE a=b AND (b NOT IN (SELECT a FROM t1 WHERE a > 4));
@@ -2542,10 +2542,10 @@ a
 truncate t1;
 INSERT INTO t1 VALUES(X'042000200020',X'042000200020'),(X'200400200020',X'200400200020');
 Warnings:
-Warning	1366	Incorrect integer value: '\x04 \x00 \x00 ' for column 'a' at row 1
-Warning	1366	Incorrect integer value: '\x04 \x00 \x00 ' for column 'b' at row 1
-Warning	1366	Incorrect integer value: ' \x04\x00 \x00 ' for column 'a' at row 2
-Warning	1366	Incorrect integer value: ' \x04\x00 \x00 ' for column 'b' at row 2
+Warning	1366	Incorrect integer value: '\x04 \x00 \x00 ' for column `test`.`t1`.`a` at row 1
+Warning	1366	Incorrect integer value: '\x04 \x00 \x00 ' for column `test`.`t1`.`b` at row 1
+Warning	1366	Incorrect integer value: ' \x04\x00 \x00 ' for column `test`.`t1`.`a` at row 2
+Warning	1366	Incorrect integer value: ' \x04\x00 \x00 ' for column `test`.`t1`.`b` at row 2
 UNLOCK TABLES;
 DROP TABLE t1;
 #

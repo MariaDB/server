@@ -140,7 +140,7 @@ SELECT sp_vars_check_ret3();
 sp_vars_check_ret3()
 0
 Warnings:
-Warning	1366	Incorrect integer value: 'Hello, world' for column 'sp_vars_check_ret3()' at row 1
+Warning	1366	Incorrect integer value: 'Hello, world' for column ``.``.`sp_vars_check_ret3()` at row 1
 SELECT sp_vars_check_ret4();
 sp_vars_check_ret4()
 154.12
@@ -195,7 +195,7 @@ SELECT sp_vars_check_ret3();
 sp_vars_check_ret3()
 0
 Warnings:
-Warning	1366	Incorrect integer value: 'Hello, world' for column 'sp_vars_check_ret3()' at row 1
+Warning	1366	Incorrect integer value: 'Hello, world' for column ``.``.`sp_vars_check_ret3()` at row 1
 SELECT sp_vars_check_ret4();
 sp_vars_check_ret4()
 154.12
@@ -314,7 +314,7 @@ ERROR 22003: Out of range value for column 'sp_vars_check_ret1()' at row 1
 SELECT sp_vars_check_ret2();
 ERROR 22003: Out of range value for column 'sp_vars_check_ret2()' at row 1
 SELECT sp_vars_check_ret3();
-ERROR 22007: Incorrect integer value: 'Hello, world' for column 'sp_vars_check_ret3()' at row 1
+ERROR 22007: Incorrect integer value: 'Hello, world' for column ``.``.`sp_vars_check_ret3()` at row 1
 SELECT sp_vars_check_ret4();
 sp_vars_check_ret4()
 154.12
@@ -897,7 +897,7 @@ sp_var
 @user_var
 0
 Warnings:
-Warning	1366	Incorrect integer value: 'Hello, world!' for column 'sp_var' at row 1
+Warning	1366	Incorrect integer value: 'Hello, world!' for column ``.``.`sp_var` at row 1
 DROP PROCEDURE p1;
 DROP TABLE t1;
 

@@ -13826,7 +13826,7 @@ CALL sp1();
 @xx
 0
 Warnings:
-Warning	1366	Incorrect integer value: 'asd' for column 'xx' at row 1
+Warning	1366	Incorrect integer value: 'asd' for column ``.``.`xx` at row 1
 DROP PROCEDURE IF EXISTS sp1;
 CREATE PROCEDURE sp1()
 BEGIN
@@ -13875,7 +13875,7 @@ CALL sp1();
 xx
 0
 Warnings:
-Warning	1366	Incorrect double value: 'asd' for column 'xx' at row 1
+Warning	1366	Incorrect double value: 'asd' for column ``.``.`xx` at row 1
 DROP PROCEDURE IF EXISTS sp1;
 CREATE PROCEDURE sp1()
 BEGIN
@@ -13947,7 +13947,7 @@ CALL sp1();
 xx
 0
 Warnings:
-Warning	1366	Incorrect integer value: 'asd' for column 'xx' at row 1
+Warning	1366	Incorrect integer value: 'asd' for column ``.``.`xx` at row 1
 DROP PROCEDURE IF EXISTS sp1;
 CREATE PROCEDURE sp1()
 BEGIN

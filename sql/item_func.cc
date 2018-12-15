@@ -1023,6 +1023,7 @@ bool Item_func_hybrid_field_type::get_date(MYSQL_TIME *ltime,
     my_decimal value, *res;
     if (!(res= decimal_op_with_null_check(&value)) ||
         decimal_to_datetime_with_warn(res, ltime, fuzzydate,
+                                      field_table_or_null(),
                                       field_name_or_null()))
       goto err;
     break;
@@ -1033,6 +1034,7 @@ bool Item_func_hybrid_field_type::get_date(MYSQL_TIME *ltime,
     bool neg= !unsigned_flag && value < 0;
     if (null_value || int_to_datetime_with_warn(neg, neg ? -value : value,
                                                 ltime, fuzzydate,
+                                                field_table_or_null(),
                                                 field_name_or_null()))
       goto err;
     break;
@@ -1041,6 +1043,7 @@ bool Item_func_hybrid_field_type::get_date(MYSQL_TIME *ltime,
   {
     double value= real_op();
     if (null_value || double_to_datetime_with_warn(value, ltime, fuzzydate,
+                                                   field_table_or_null(),
                                                    field_name_or_null()))
       goto err;
     break;

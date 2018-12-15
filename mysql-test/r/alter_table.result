@@ -751,12 +751,12 @@ create table t1(f1 int);
 alter table t1 add column f2 datetime not null, add column f21 date not null;
 insert into t1 values(1,'2000-01-01','2000-01-01');
 alter table t1 add column f3 datetime not null;
-ERROR 22007: Incorrect datetime value: '0000-00-00 00:00:00' for column 'f3' at row 1
+ERROR 22007: Incorrect datetime value: '0000-00-00 00:00:00' for column `test`.`t1`.`f3` at row 1
 alter table t1 add column f3 date not null;
-ERROR 22007: Incorrect date value: '0000-00-00' for column 'f3' at row 1
+ERROR 22007: Incorrect date value: '0000-00-00' for column `test`.`t1`.`f3` at row 1
 alter table t1 add column f4 datetime not null default '2002-02-02',
 add column f41 date not null;
-ERROR 22007: Incorrect date value: '0000-00-00' for column 'f41' at row 1
+ERROR 22007: Incorrect date value: '0000-00-00' for column `test`.`t1`.`f41` at row 1
 alter table t1 add column f4 datetime not null default '2002-02-02',
 add column f41 date not null default '2002-02-02';
 select * from t1;

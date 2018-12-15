@@ -320,7 +320,7 @@ DROP TABLE t2,t1;
 SET sql_mode=traditional;
 CREATE TABLE t1 (a TIME(6));
 INSERT INTO t1 VALUES (CAST(0xFFFFFFFF00000000 AS UNSIGNED));
-ERROR 22007: Incorrect time value: '18446744069414584320' for column 'a' at row 1
+ERROR 22007: Incorrect time value: '18446744069414584320' for column `test`.`t1`.`a` at row 1
 SET sql_mode=DEFAULT;
 INSERT IGNORE INTO t1 VALUES (CAST(0xFFFFFFFF00000000 AS UNSIGNED));
 Warnings:
@@ -1167,7 +1167,7 @@ SELECT CAST(a AS TIME), CAST(-9223372036854775808 AS TIME) FROM t1;
 CAST(a AS TIME)	CAST(-9223372036854775808 AS TIME)
 -838:59:59	-838:59:59
 Warnings:
-Warning	1292	Incorrect time value: '-9223372036854775808' for column 'a' at row 1
+Warning	1292	Incorrect time value: '-9223372036854775808' for column `test`.`t1`.`a` at row 1
 Warning	1292	Truncated incorrect time value: '-9223372036854775808'
 DROP TABLE t1;
 CREATE TABLE t1 (a INT, b DECIMAL, c DOUBLE);
@@ -1184,12 +1184,12 @@ a	TIME(a)	TIME(b)	TIME(c)
 9	00:00:09	00:00:09	00:00:09.000000
 9000000	838:59:59	838:59:59	838:59:59.999999
 Warnings:
-Warning	1292	Incorrect time value: '-9000000' for column 'a' at row 1
-Warning	1292	Incorrect time value: '-9000000' for column 'b' at row 1
-Warning	1292	Incorrect time value: '-9000000' for column 'c' at row 1
-Warning	1292	Incorrect time value: '9000000' for column 'a' at row 6
-Warning	1292	Incorrect time value: '9000000' for column 'b' at row 6
-Warning	1292	Incorrect time value: '9000000' for column 'c' at row 6
+Warning	1292	Incorrect time value: '-9000000' for column `test`.`t1`.`a` at row 1
+Warning	1292	Incorrect time value: '-9000000' for column `test`.`t1`.`b` at row 1
+Warning	1292	Incorrect time value: '-9000000' for column `test`.`t1`.`c` at row 1
+Warning	1292	Incorrect time value: '9000000' for column `test`.`t1`.`a` at row 6
+Warning	1292	Incorrect time value: '9000000' for column `test`.`t1`.`b` at row 6
+Warning	1292	Incorrect time value: '9000000' for column `test`.`t1`.`c` at row 6
 DROP TABLE t1;
 CREATE TABLE t1 (a INT, b DECIMAL, c DOUBLE);
 INSERT INTO t1 VALUES (0,0,0),(1,1,1),(9,9,9);
@@ -1201,9 +1201,9 @@ a	TIME(a)	TIME(b)	TIME(c)
 9	00:00:09	00:00:09	00:00:09.000000
 9000000	838:59:59	838:59:59	838:59:59.999999
 Warnings:
-Warning	1292	Incorrect time value: '9000000' for column 'a' at row 4
-Warning	1292	Incorrect time value: '9000000' for column 'b' at row 4
-Warning	1292	Incorrect time value: '9000000' for column 'c' at row 4
+Warning	1292	Incorrect time value: '9000000' for column `test`.`t1`.`a` at row 4
+Warning	1292	Incorrect time value: '9000000' for column `test`.`t1`.`b` at row 4
+Warning	1292	Incorrect time value: '9000000' for column `test`.`t1`.`c` at row 4
 DROP TABLE t1;
 #
 # MDEV-8862 Wrong field type for MAX(COALESCE(datetime_column))

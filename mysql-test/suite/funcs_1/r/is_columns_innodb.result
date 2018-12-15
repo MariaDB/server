@@ -359,9 +359,9 @@ drop TABLE if exists t7, t8;
 CREATE TABLE t7 (f1 char(20),f2 char(25),f3 date,f4 int) ENGINE = InnoDB;
 CREATE TABLE t8 (f1 char(20),f2 char(25),f3 date,f4 int) ENGINE = InnoDB;
 LOAD DATA INFILE '<MYSQLTEST_VARDIR>/std_data/funcs_1/t7.txt' INTO TABLE t7;
-ERROR 22007: Incorrect date value: '' for column 'f3' at row 1
+ERROR 22007: Incorrect date value: '' for column `test`.`t7`.`f3` at row 1
 LOAD DATA INFILE '<MYSQLTEST_VARDIR>/std_data/funcs_1/t7.txt' INTO TABLE t8;
-ERROR 22007: Incorrect date value: '' for column 'f3' at row 1
+ERROR 22007: Incorrect date value: '' for column `test`.`t8`.`f3` at row 1
 drop TABLE if exists t9;
 CREATE TABLE t9 (f1 int, f2 char(25), f3 int) ENGINE = InnoDB;
 LOAD DATA INFILE '<MYSQLTEST_VARDIR>/std_data/funcs_1/t9.txt' INTO TABLE t9;

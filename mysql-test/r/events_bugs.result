@@ -96,7 +96,7 @@ select release_lock('ee_16407_2');
 insert into events_test.events_smode_test values('ee_16407_2','1980-19-02');
 end|
 insert into events_test.events_smode_test values ('test','1980-19-02')|
-ERROR 22007: Incorrect date value: '1980-19-02' for column 'a' at row 1
+ERROR 22007: Incorrect date value: '1980-19-02' for column `events_test`.`events_smode_test`.`a` at row 1
 "This is ok"
 create event ee_16407_3 on schedule every 60 second do
 begin

@@ -762,7 +762,7 @@ SET sql_mode=DEFAULT;
 CREATE TABLE t1 (a TIMESTAMP DEFAULT '0000-00-00 00:00:00');
 SET sql_mode=TRADITIONAL;
 INSERT INTO t1 VALUES ('0000-00-00 00:00:00');
-ERROR 22007: Incorrect datetime value: '0000-00-00 00:00:00' for column 'a' at row 1
+ERROR 22007: Incorrect datetime value: '0000-00-00 00:00:00' for column `test`.`t1`.`a` at row 1
 INSERT INTO t1 VALUES ();
 ERROR 22007: Incorrect default value '0000-00-00 00:00:00' for column 'a'
 INSERT INTO t1 VALUES (DEFAULT);
@@ -803,7 +803,7 @@ CREATE TABLE t1 (a TIMESTAMP);;
 INSERT INTO t1 VALUES (0);
 SET sql_mode='TRADITIONAL';
 CREATE TABLE t2 AS SELECT * FROM t1;
-ERROR 22007: Incorrect datetime value: '0000-00-00 00:00:00' for column 'a' at row 1
+ERROR 22007: Incorrect datetime value: '0000-00-00 00:00:00' for column `test`.`t2`.`a` at row 1
 DROP TABLE t1;
 #
 # End of MDEV-8373 Zero date can be inserted in strict no-zero mode through CREATE TABLE AS SELECT timestamp_field
