@@ -5,7 +5,7 @@
 # ist.recv_addr=[::1]
 
 --source include/galera_cluster.inc
---source include/have_ipv6.inc
+--source include/check_ipv6.inc
 
 --let $galera_connection_name = node_3
 --let $galera_server_number = 3
