@@ -2216,3 +2216,14 @@ execute stmt;
 deallocate prepare stmt;
 drop table t1;
 drop view v1;
+
+--echo #
+--echo # MDEV-17676: Assertion `inited==NONE || (inited==RND && scan)' failed in handler::ha_rnd_init
+--echo #
+
+CREATE TABLE t1 (b1 text NOT NULL);
+INSERT INTO t1 VALUES  ('2'),('1');
+EXPLAIN
+SELECT DISTINCT MIN(b1) OVER () FROM t1;
+SELECT DISTINCT MIN(b1) OVER () FROM t1;
+drop table t1;
