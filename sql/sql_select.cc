@@ -17109,7 +17109,8 @@ Item_bool_func2::remove_eq_conds(THD *thd, Item::cond_result *cond_value,
   {
     if (args[0]->eq(args[1], true))
     {
-      if (!args[0]->maybe_null || functype() == Item_func::EQUAL_FUNC)
+      if (*cond_value == Item::COND_FALSE ||
+          !args[0]->maybe_null || functype() == Item_func::EQUAL_FUNC)
         return (COND*) 0;                       // Compare of identical items
     }
   }

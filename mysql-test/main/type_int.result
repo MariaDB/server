@@ -280,5 +280,87 @@ id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 1	SIMPLE	NULL	NULL	NULL	NULL	NULL	NULL	NULL	Impossible WHERE noticed after reading const tables
 DROP TABLE t1;
 #
+# MDEV-8554 Expect "Impossible WHERE" for never true values like a!=a, a<a, a>a
+#
+CREATE TABLE t1 (a INT);
+INSERT INTO t1 VALUES (1),(2),(3);
+EXPLAIN SELECT * FROM t1 WHERE a!=a;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	NULL	NULL	NULL	NULL	NULL	NULL	NULL	Impossible WHERE
+SELECT COUNT(*) FROM t1 WHERE a!=a;
+COUNT(*)
+0
+EXPLAIN SELECT * FROM t1 WHERE a>a;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	NULL	NULL	NULL	NULL	NULL	NULL	NULL	Impossible WHERE
+SELECT COUNT(*) FROM t1 WHERE a>a;
+COUNT(*)
+0
+EXPLAIN SELECT COUNT(*) FROM t1 WHERE a<a;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	NULL	NULL	NULL	NULL	NULL	NULL	NULL	Impossible WHERE
+SELECT COUNT(*) FROM t1 WHERE a<a;
+COUNT(*)
+0
+ALTER TABLE t1 MODIFY a TINYINT NOT NULL;
+EXPLAIN SELECT COUNT(*) FROM t1 WHERE a!=a;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	NULL	NULL	NULL	NULL	NULL	NULL	NULL	Impossible WHERE
+SELECT COUNT(*) FROM t1 WHERE a!=a;
+COUNT(*)
+0
+EXPLAIN SELECT COUNT(*) FROM t1 WHERE a>a;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	NULL	NULL	NULL	NULL	NULL	NULL	NULL	Impossible WHERE
+SELECT COUNT(*) FROM t1 WHERE a>a;
+COUNT(*)
+0
+EXPLAIN SELECT COUNT(*) FROM t1 WHERE a<a;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	NULL	NULL	NULL	NULL	NULL	NULL	NULL	Impossible WHERE
+SELECT COUNT(*) FROM t1 WHERE a<a;
+COUNT(*)
+0
+#
+# MDEV-8554 Modifing expression doesn't hit "Impossible WHERE" clause
+#
+EXPLAIN SELECT COUNT(*) FROM t1 WHERE not (a!=a);
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	NULL	NULL	NULL	NULL	NULL	NULL	NULL	Select tables optimized away
+SELECT COUNT(*) FROM t1 WHERE not (a!=a);
+COUNT(*)
+3
+EXPLAIN SELECT COUNT(*) FROM t1 WHERE a>a-1;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	3	Using where
+SELECT COUNT(*) FROM t1 WHERE a>a-1;
+COUNT(*)
+3
+EXPLAIN SELECT COUNT(*) FROM t1 WHERE a<a+1;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	3	Using where
+SELECT COUNT(*) FROM t1 WHERE a<a+1;
+COUNT(*)
+3
+EXPLAIN SELECT COUNT(*) FROM t1 WHERE a-1<a;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	3	Using where
+SELECT COUNT(*) FROM t1 WHERE a-1<a;
+COUNT(*)
+3
+EXPLAIN SELECT COUNT(*) FROM t1 WHERE a NOT LIKE a;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	3	Using where
+SELECT COUNT(*) FROM t1 WHERE a NOT LIKE a;
+COUNT(*)
+0
+EXPLAIN SELECT COUNT(*) FROM t1 WHERE a XOR a;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	3	Using where
+SELECT COUNT(*) FROM t1 WHERE a XOR a;
+COUNT(*)
+0
+DROP TABLE t1;
+#
 # End of 10.4 tests
 #
