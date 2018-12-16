@@ -1032,39 +1032,21 @@ TABLE *THD::find_temporary_table(const char *key, uint key_length,
       /* A matching TMP_TABLE_SHARE is found. */
       All_share_tables_list::Iterator tables_it(share->all_tmp_tables);
 
-      while ((table= tables_it++))
+      bool found= false;
+      while (!found && (table= tables_it++))
       {
         switch (state)
         {
-        case TMP_TABLE_IN_USE:
-          if (table->query_id > 0)
-          {
-            result= table;
-            goto done;
-          }
-          break;
-        case TMP_TABLE_NOT_IN_USE:
-          if (table->query_id == 0)
-          {
-            result= table;
-            goto done;
-          }
-          break;
-        case TMP_TABLE_ANY:
-          {
-            result= table;
-            goto done;
-          }
-          break;
-        default:                                /* Invalid */
-          DBUG_ASSERT(0);
-          goto done;
+        case TMP_TABLE_IN_USE:     found= table->query_id > 0;  break;
+        case TMP_TABLE_NOT_IN_USE: found= table->query_id == 0; break;
+        case TMP_TABLE_ANY:        found= true;                 break;
         }
       }
+      result= table;
+      break;
     }
   }
 
-done:
   if (locked)
   {
     DBUG_ASSERT(m_tmp_tables_locked);
