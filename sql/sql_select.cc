@@ -16464,6 +16464,10 @@ Item_bool_func2::remove_eq_conds(THD *thd, Item::cond_result *cond_value,
     {
       if (!args[0]->maybe_null || functype() == Item_func::EQUAL_FUNC)
         return (COND*) 0;                       // Compare of identical items
+      if (*cond_value == Item::COND_FALSE)
+      {
+        return new (thd->mem_root) Item_bool(thd, false); // a!=a, a>a, a<a
+      }
     }
   }
   *cond_value= Item::COND_OK;
