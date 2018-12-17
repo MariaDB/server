@@ -35,7 +35,7 @@ Wsrep_server_state::Wsrep_server_state(const std::string& name,
   : wsrep::server_state(m_mutex,
                         m_cond,
                         m_service,
-                        NULL,
+                        &m_encryption_service,
                         name,
                         incoming_address,
                         address,
@@ -46,6 +46,7 @@ Wsrep_server_state::Wsrep_server_state(const std::string& name,
   , m_mutex(LOCK_wsrep_server_state)
   , m_cond(COND_wsrep_server_state)
   , m_service(*this)
+  , m_encryption_service(Wsrep_encryption_service())
 { }
 
 Wsrep_server_state::~Wsrep_server_state()

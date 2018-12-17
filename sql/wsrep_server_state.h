@@ -16,6 +16,9 @@
 #ifndef WSREP_SERVER_STATE_H
 #define WSREP_SERVER_STATE_H
 
+/* wsrep feature services */
+#include "wsrep_encryption.h"
+
 /* wsrep-lib */
 #include "wsrep/server_state.hpp"
 #include "wsrep/provider.hpp"
@@ -61,8 +64,8 @@ private:
   Wsrep_mutex m_mutex;
   Wsrep_condition_variable m_cond;
   Wsrep_server_service m_service;
+  Wsrep_encryption_service m_encryption_service;
   static Wsrep_server_state* m_instance;
-
 };
 
 #endif // WSREP_SERVER_STATE_H
