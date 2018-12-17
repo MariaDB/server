@@ -3586,6 +3586,12 @@ bool MYSQL_BIN_LOG::open(const char *log_name,
           // Start_encryption_log_event is written, enable the encryption
           if (crypto.init(sele.crypto_scheme, key_version))
             goto err;
+
+#ifdef WITH_WSREP
+          if (wsrep_set_encryption_key(crypto.key, crypto.key_length,
+                                       key_version))
+            goto err;
+#endif
         }
       }
 

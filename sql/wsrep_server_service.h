@@ -73,9 +73,17 @@ public:
   int wait_committing_transactions(int);
 
   void debug_sync(const char*);
+
+  int do_crypt(void**                ctx,
+               wsrep::const_buffer&  key,
+               const char            (*iv)[32],
+               wsrep::const_buffer&  input,
+               void*                 output,
+               bool                  encrypt,
+               bool                  last);
+
 private:
   Wsrep_server_state& m_server_state;
 };
-
 
 #endif /* WSREP_SERVER_SERVICE */

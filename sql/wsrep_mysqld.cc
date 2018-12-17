@@ -692,7 +692,11 @@ int wsrep_init()
   {
     // enable normal operation in case no provider is specified
     global_system_variables.wsrep_on= 0;
-    int err= Wsrep_server_state::instance().load_provider(wsrep_provider, wsrep_provider_options ? wsrep_provider_options : "");
+    int err= Wsrep_server_state::instance().load_provider(
+      wsrep_provider,
+      wsrep_provider_options ? wsrep_provider_options : "",
+      encrypt_binlog
+    );
     if (err)
     {
       DBUG_PRINT("wsrep",("wsrep::init() failed: %d", err));
@@ -719,7 +723,8 @@ int wsrep_init()
     wsrep_data_home_dir= mysql_real_data_home;
 
   if (Wsrep_server_state::instance().load_provider(wsrep_provider,
-                                                   wsrep_provider_options))
+                                                   wsrep_provider_options,
+                                                   encrypt_binlog))
   {
     WSREP_ERROR("Failed to load provider");
     return 1;
@@ -2550,7 +2555,6 @@ bool wsrep_provider_is_SR_capable()
   return Wsrep_server_state::has_capability(wsrep::provider::capability::streaming);
 }
 
-
 int wsrep_ordered_commit_if_no_binlog(THD* thd, bool all)
 {
   if (((wsrep_thd_is_local(thd) &&
@@ -2884,6 +2888,38 @@ enum wsrep::streaming_context::fragment_unit wsrep_fragment_unit(ulong unit)
     DBUG_ASSERT(0);
     return wsrep::streaming_context::bytes;
   }
+}
+
+bool wsrep_set_encryption_key(const void* key, size_t size, unsigned int version)
+{
+    std::vector<unsigned char> input;
+    wsrep_key_serialize(input, key, size, version);
+    return Wsrep_server_state::instance().set_encryption_key(input);
+}
+
+static const unsigned int key_version_preamble_size = 8;
+
+void wsrep_key_serialize(std::vector<unsigned char>& input, const void* key,
+                         size_t size, unsigned int version)
+{
+  input.resize(key_version_preamble_size + size);
+  memcpy(input.data(), (void *)&version, sizeof(version));
+  memcpy(input.data() + key_version_preamble_size, key, size);
+}
+
+bool wsrep_key_deserialize(const void* input, const size_t& input_size,
+                           const void*& key_ptr, size_t& size,
+                           unsigned int& version)
+{
+  bool ret= true;
+  if(input_size >= key_version_preamble_size)
+  {
+    memcpy(&version, input, sizeof(version));
+    key_ptr= static_cast<const char*>(input) + key_version_preamble_size;
+    size= input_size - key_version_preamble_size;
+    ret= false;
+  }
+  return ret;
 }
 
 /***** callbacks for wsrep service ************/

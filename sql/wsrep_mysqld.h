@@ -478,6 +478,26 @@ void wsrep_deinit_server();
  */
 enum wsrep::streaming_context::fragment_unit wsrep_fragment_unit(ulong unit);
 
+/*
+ * Set encryption key. Serialize it and send to provider.
+ */
+bool wsrep_set_encryption_key(const void* key, size_t size,
+                              unsigned int version);
+
+/*
+ * Serialize key_version and key into buffer
+ */
+void wsrep_key_serialize(std::vector<unsigned char>& input,
+                         const void* key, size_t size,
+                         unsigned int version);
+
+/*
+ * De-serialize buffer into key_version, key_size & key_ptr
+ */
+bool wsrep_key_deserialize(const void* input, const size_t& input_size,
+                           const void*& key_ptr, size_t& size,
+                           unsigned int& version);
+
 #else /* !WITH_WSREP */
 
 /* These macros are needed to compile MariaDB without WSREP support

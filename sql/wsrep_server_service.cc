@@ -316,3 +316,62 @@ int Wsrep_server_service::wait_committing_transactions(int timeout)
 void Wsrep_server_service::debug_sync(const char*)
 {
 }
+
+int Wsrep_server_service::do_crypt(void**                ctx,
+                                   wsrep::const_buffer&  key,
+                                   const char            (*iv)[32],
+                                   wsrep::const_buffer&  input,
+                                   void*                 output,
+                                   bool                  encrypt,
+                                   bool                  last)
+{
+
+  const void* deserialized_key_ptr;
+  size_t deserialized_key_size;
+  unsigned int key_version;
+  if(wsrep_key_deserialize(key.data(), key.size(), deserialized_key_ptr,
+                           deserialized_key_size, key_version))
+  {
+     throw wsrep::runtime_error("Failed wsrep_key_deserialize()");
+  }
+  if (*ctx == NULL)
+  {
+    int mode= encrypt ? ENCRYPTION_FLAG_ENCRYPT : ENCRYPTION_FLAG_DECRYPT;
+    *ctx = ::malloc(encryption_ctx_size(ENCRYPTION_KEY_SYSTEM_DATA,
+                                        key_version));
+    if (*ctx == NULL)
+    {
+      throw wsrep::runtime_error("Memory not allocated in do_crypt()");
+    }
+    if(encryption_ctx_init(*ctx,
+                           (const unsigned char*)deserialized_key_ptr,
+                           deserialized_key_size,
+                           (unsigned char*)iv, MY_AES_BLOCK_SIZE,
+                           mode | ENCRYPTION_FLAG_NOPAD,
+                           ENCRYPTION_KEY_SYSTEM_DATA,
+                           key_version))
+    {
+      throw wsrep::runtime_error("Failed encryption_ctx_init()");
+    }
+  }
+  unsigned int ctx_update_size= 0;
+  if(encryption_ctx_update(*ctx, (const unsigned char*)input.data(),
+                           input.size(),
+                           (unsigned char *)output, &ctx_update_size))
+  {
+    throw wsrep::runtime_error("Failed encryption_ctx_update()");
+  }
+  unsigned int ctx_finish_size= 0;
+  if (last)
+  {
+    if(encryption_ctx_finish(*ctx, (unsigned char *)output + ctx_update_size,
+                              &ctx_finish_size))
+    {
+      throw wsrep::runtime_error("Failed encryption_ctx_finish()");
+    }
+    assert(ctx_update_size + ctx_finish_size == input.size());
+    free(*ctx);
+  }
+
+  return ctx_update_size + ctx_finish_size;
+}
