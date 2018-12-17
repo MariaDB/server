@@ -2596,4 +2596,7 @@ fil_space_verify_crypt_checksum(const byte* page, const page_size_t& page_size)
 		return checksum == buf_calc_page_crc32(page)
 			|| checksum == buf_calc_page_new_checksum(page);
 	}
+
+	ut_ad(!"unhandled innodb_checksum_algorithm");
+	return false;
 }
