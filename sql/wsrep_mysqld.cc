@@ -606,15 +606,13 @@ int wsrep_init_server()
     std::string working_dir;
     wsrep::gtid initial_position;
 
-    if (WSREP_ON)
-    {
-      server_name= wsrep_server_name();
-      server_id= wsrep_server_id();
-      node_address= wsrep_server_node_address();
-      incoming_address= wsrep_server_incoming_address();
-      working_dir= wsrep_server_working_dir();
-      initial_position= wsrep_server_initial_position();
-    }
+    server_name= wsrep_server_name();
+    server_id= wsrep_server_id();
+    node_address= wsrep_server_node_address();
+    incoming_address= wsrep_server_incoming_address();
+    working_dir= wsrep_server_working_dir();
+    initial_position= wsrep_server_initial_position();
+
 
     Wsrep_server_state::init_once(server_name,
                                   incoming_address,
@@ -653,12 +651,6 @@ void wsrep_deinit_server()
 
 int wsrep_init()
 {
-  const std::string server_name= wsrep_server_name();
-  const std::string server_id= wsrep_server_id();
-  const std::string node_address= wsrep_server_node_address();
-  const std::string incoming_address= wsrep_server_incoming_address();
-  const std::string working_dir= wsrep_server_working_dir();
-
   assert(wsrep_provider);
 
   wsrep_init_position();
