@@ -196,8 +196,6 @@ struct ha_innobase_inplace_ctx : public inplace_alter_handler_ctx
 	const char**	drop_vcol_name;
 	/** ALTER TABLE stage progress recorder */
 	ut_stage_alter_t* m_stage;
-	/** List of keys to rename */
-	Alter_inplace_info::Rename_keys_vector	rename_keys;
 	/** original number of user columns in the table */
 	const unsigned	old_n_cols;
 	/** original columns of the table */
@@ -231,9 +229,7 @@ struct ha_innobase_inplace_ctx : public inplace_alter_handler_ctx
 				ulonglong autoinc_col_max_value_arg,
 				bool allow_not_null_flag,
 				bool page_compressed,
-				ulonglong page_compression_level_arg,
-				const Alter_inplace_info::Rename_keys_vector&
-					rename_keys_arg) :
+				ulonglong page_compression_level_arg) :
 		inplace_alter_handler_ctx(),
 		prebuilt (prebuilt_arg),
 		add_index (0), add_key_numbers (0), num_to_add_index (0),
@@ -257,7 +253,6 @@ struct ha_innobase_inplace_ctx : public inplace_alter_handler_ctx
 		drop_vcol(0),
 		drop_vcol_name(0),
 		m_stage(NULL),
-		rename_keys(rename_keys_arg),
 		old_n_cols(prebuilt_arg->table->n_cols),
 		old_cols(prebuilt_arg->table->cols),
 		old_col_names(prebuilt_arg->table->col_names),
@@ -6073,8 +6068,8 @@ static void innobase_rename_indexes_cache(
 	DBUG_ASSERT(ha_alter_info->handler_flags & ALTER_RENAME_INDEX);
 
 	for (Alter_inplace_info::Rename_keys_vector::const_iterator it
-	     = ctx->rename_keys.begin(),
-	     end = ctx->rename_keys.end();
+	     = ha_alter_info->rename_keys.begin(),
+	     end = ha_alter_info->rename_keys.end();
 	     it != end; ++it) {
 		dict_index_t* index = dict_table_get_index_on_name(
 		    ctx->old_table, it->old_key->name.str);
@@ -6762,8 +6757,7 @@ err_exit:
 					(ha_alter_info->ignore
 					 || !thd_is_strict_mode(m_user_thd)),
 					alt_opt.page_compressed,
-					alt_opt.page_compression_level,
-					ha_alter_info->rename_keys);
+					alt_opt.page_compression_level);
 		}
 
 		DBUG_ASSERT(m_prebuilt->trx->dict_operation_lock_mode == 0);
@@ -6892,8 +6886,7 @@ found_col:
 		ha_alter_info->create_info->auto_increment_value,
 		autoinc_col_max_value,
 		ha_alter_info->ignore || !thd_is_strict_mode(m_user_thd),
-		alt_opt.page_compressed, alt_opt.page_compression_level,
-		ha_alter_info->rename_keys);
+		alt_opt.page_compressed, alt_opt.page_compression_level);
 
 	DBUG_RETURN(prepare_inplace_alter_table_dict(
 			    ha_alter_info, altered_table, table,
@@ -8693,8 +8686,8 @@ static bool innobase_rename_index_try(
 	DBUG_ASSERT(ha_alter_info->handler_flags & ALTER_RENAME_INDEX);
 
 	for (Alter_inplace_info::Rename_keys_vector::const_iterator it
-	     = ctx->rename_keys.begin(),
-	     end = ctx->rename_keys.end();
+	     = ha_alter_info->rename_keys.begin(),
+	     end = ha_alter_info->rename_keys.end();
 	     it != end; ++it) {
 		dict_index_t* index = dict_table_get_index_on_name(
 		    ctx->old_table, it->old_key->name.str);
