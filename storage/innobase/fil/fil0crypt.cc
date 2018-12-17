@@ -2563,7 +2563,11 @@ fil_space_verify_crypt_checksum(const byte* page, const page_size_t& page_size)
 				SRV_CHECKSUM_ALGORITHM_CRC32);
 		}
 
-		return checksum == buf_calc_page_crc32(page);
+		return checksum == buf_calc_page_crc32(page)
+#ifdef INNODB_BUG_ENDIAN_CRC32
+			|| checksum == buf_calc_page_crc32(page, true)
+#endif
+			;
 	case SRV_CHECKSUM_ALGORITHM_STRICT_INNODB:
 		if (page_size.is_compressed()) {
 			return checksum == page_zip_calc_checksum(
@@ -2594,6 +2598,9 @@ fil_space_verify_crypt_checksum(const byte* page, const page_size_t& page_size)
 		}
 
 		return checksum == buf_calc_page_crc32(page)
+#ifdef INNODB_BUG_ENDIAN_CRC32
+			|| checksum == buf_calc_page_crc32(page, true)
+#endif
 			|| checksum == buf_calc_page_new_checksum(page);
 	}
 
