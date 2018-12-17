@@ -481,8 +481,15 @@ decompress_with_slot:
 		/* Verify encryption checksum before we even try to
 		decrypt. */
 		if (!fil_space_verify_crypt_checksum(
-			    dst_frame, buf_page_get_zip_size(bpage), NULL,
-			    bpage->offset)) {
+			    dst_frame, buf_page_get_zip_size(bpage))) {
+			ib_logf(IB_LOG_LEVEL_ERROR,
+				"Encrypted page %u:%u in file %s"
+				" looks corrupted; key_version=" ULINTPF,
+				bpage->space, bpage->offset,
+				space->chain.start->name,
+				mach_read_from_4(
+					FIL_PAGE_FILE_FLUSH_LSN_OR_KEY_VERSION
+					+ dst_frame));
 decrypt_failed:
 			/* Mark page encrypted in case it should be. */
 			if (space->crypt_data->type
@@ -727,24 +734,6 @@ buf_block_alloc(
 	return(block);
 }
 #endif /* !UNIV_HOTBACKUP */
-
-/** Check if a page is all zeroes.
-@param[in]	read_buf	database page
-@param[in]	zip_size	ROW_FORMAT=COMPRESSED page size, or 0
-@return	whether the page is all zeroes */
-UNIV_INTERN
-bool
-buf_page_is_zeroes(const byte* read_buf, ulint zip_size)
-{
-	const ulint page_size = zip_size ? zip_size : UNIV_PAGE_SIZE;
-
-	for (ulint i = 0; i < page_size; i++) {
-		if (read_buf[i] != 0) {
-			return(false);
-		}
-	}
-	return(true);
-}
 
 /** Checks if the page is in crc32 checksum format.
 @param[in]	read_buf	database page
@@ -4780,19 +4769,15 @@ or decrypt/decompress just failed.
 @retval	DB_DECRYPTION_FAILED	if page post encryption checksum matches but
 after decryption normal page checksum does not match.
 @retval	DB_TABLESPACE_DELETED	if accessed tablespace is not found */
-static
-dberr_t
-buf_page_check_corrupt(buf_page_t* bpage, fil_space_t* space)
+static dberr_t buf_page_check_corrupt(buf_page_t* bpage, fil_space_t* space)
 {
 	ut_ad(space->n_pending_ios > 0);
 
 	ulint zip_size = buf_page_get_zip_size(bpage);
 	byte* dst_frame = (zip_size) ? bpage->zip.data :
 		((buf_block_t*) bpage)->frame;
-	bool still_encrypted = false;
 	dberr_t err = DB_SUCCESS;
 	bool corrupted = false;
-	fil_space_crypt_t* crypt_data = space->crypt_data;
 
 	/* In buf_decrypt_after_read we have either decrypted the page if
 	page post encryption checksum matches and used key_id is found
@@ -4800,11 +4785,12 @@ buf_page_check_corrupt(buf_page_t* bpage, fil_space_t* space)
 	not decrypted and it could be either encrypted and corrupted
 	or corrupted or good page. If we decrypted, there page could
 	still be corrupted if used key does not match. */
-	still_encrypted = (crypt_data &&
-		crypt_data->type != CRYPT_SCHEME_UNENCRYPTED &&
-		!bpage->encrypted &&
-		fil_space_verify_crypt_checksum(dst_frame, zip_size,
-			space, bpage->offset));
+	const bool still_encrypted = mach_read_from_4(
+		dst_frame + FIL_PAGE_FILE_FLUSH_LSN_OR_KEY_VERSION)
+		&& space->crypt_data
+		&& space->crypt_data->type != CRYPT_SCHEME_UNENCRYPTED
+		&& !bpage->encrypted
+		&& fil_space_verify_crypt_checksum(dst_frame, zip_size);
 
 	if (!still_encrypted) {
 		/* If traditional checksums match, we assume that page is

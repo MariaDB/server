@@ -409,16 +409,9 @@ encrypted, or corrupted.
 
 @param[in]	page		Page to verify
 @param[in]	zip_size	zip size
-@param[in]	space		Tablespace
-@param[in]	pageno		Page no
-@return true if page is encrypted AND OK, false otherwise */
+@return whether the encrypted page is OK */
 UNIV_INTERN
-bool
-fil_space_verify_crypt_checksum(
-	byte* 			page,
-	ulint			zip_size,
-	const fil_space_t*	space,
-	ulint			pageno)
+bool fil_space_verify_crypt_checksum(const byte* page, ulint zip_size)
 	MY_ATTRIBUTE((warn_unused_result));
 
 /*********************************************************************
