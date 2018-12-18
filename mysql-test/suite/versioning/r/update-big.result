@@ -1,0 +1,25 @@
+#
+# MDEV-15458 Segfault in heap_scan() upon UPDATE after ADD SYSTEM VERSIONING
+#
+create or replace table t1 (a int);
+insert into t1 values (1),(2),(3),(4),(5),(6),(7),(8);
+insert into t1 select * from t1;
+insert into t1 select * from t1;
+insert into t1 select * from t1;
+insert into t1 select * from t1;
+insert into t1 select * from t1;
+insert into t1 select * from t1;
+insert into t1 select * from t1;
+insert into t1 select * from t1;
+insert into t1 select * from t1;
+connect  con1,localhost,root,,test;
+alter table t1 add system versioning;
+connection default;
+update t1 set a= 7 where a = 3;
+update t1 set a= 2 where a = 7;
+update t1 set a= 5 where a = 2;
+update t1 set a= 1 where a = 5;
+update t1 set a= 8 where a = 1;
+update t1 set a= 4 where a = 8;
+update t1 set a= 6;
+drop table t1;

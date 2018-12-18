@@ -31,7 +31,7 @@ HP_INFO *heap_open_from_share(HP_SHARE *share, int mode)
   DBUG_ENTER("heap_open_from_share");
 
   if (!(info= (HP_INFO*) my_malloc(sizeof(HP_INFO) +
-				  2 * share->max_key_length,
+				  3 * share->max_key_length,
                                    MYF(MY_ZEROFILL +
                                        (share->internal ?
                                         MY_THREAD_SPECIFIC : 0)))))
@@ -42,7 +42,7 @@ HP_INFO *heap_open_from_share(HP_SHARE *share, int mode)
   thr_lock_data_init(&share->lock,&info->lock,NULL);
   info->s= share;
   info->lastkey= (uchar*) (info + 1);
-  info->recbuf= (uchar*) (info->lastkey + share->max_key_length);
+  info->recbuf= (uchar*) (info->lastkey + 2 * share->max_key_length);
   info->mode= mode;
   info->current_record= (ulong) ~0L;		/* No current record */
   info->lastinx= info->errkey= -1;

@@ -24,12 +24,15 @@
 static void heap_extra_keyflag(register HP_INFO *info,
                                enum ha_extra_function function);
 
+#define REMEMBER_OLD_POS 64U
 
 	/* set extra flags for database */
 
 int heap_extra(register HP_INFO *info, enum ha_extra_function function)
 {
   DBUG_ENTER("heap_extra");
+
+  const HP_SHARE *share= info->s;
 
   switch (function) {
   case HA_EXTRA_RESET_STATE:
@@ -44,6 +47,33 @@ int heap_extra(register HP_INFO *info, enum ha_extra_function function)
   case HA_EXTRA_CHANGE_KEY_TO_UNIQUE:
   case HA_EXTRA_CHANGE_KEY_TO_DUP:
     heap_extra_keyflag(info, function);
+    break;
+  case HA_EXTRA_REMEMBER_POS:
+    info->opt_flag|= REMEMBER_OLD_POS;
+    bmove((uchar*) info->lastkey + share->max_key_length * 2,
+	  (uchar*) info->lastkey, info->lastkey_len);
+    info->save_update=	info->update;
+    info->save_lastinx= info->lastinx;
+    info->save_current_ptr= info->current_ptr;
+    info->save_current_hash_ptr= info->current_hash_ptr;
+    info->save_lastkey_len= info->lastkey_len;
+    info->save_current_record= info->current_record;
+    break;
+  case HA_EXTRA_RESTORE_POS:
+    if (info->opt_flag & REMEMBER_OLD_POS)
+    {
+      bmove((uchar*) info->lastkey,
+	    (uchar*) info->lastkey + share->max_key_length * 2,
+	    info->save_lastkey_len);
+      info->update= info->save_update | HA_STATE_WRITTEN;
+      info->lastinx= info->save_lastinx;
+      info->current_ptr= info->save_current_ptr;
+      info->current_hash_ptr= info->save_current_hash_ptr;
+      info->lastkey_len= info->save_lastkey_len;
+      info->current_record= info->save_current_record;
+      info->next_block= 0;
+    }
+    info->opt_flag&= ~REMEMBER_OLD_POS;
     break;
   default:
     break;

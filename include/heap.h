@@ -183,6 +183,12 @@ typedef struct st_heap_info
   my_bool implicit_emptied;
   THR_LOCK_DATA lock;
   LIST open_list;
+  uchar *save_current_ptr;
+  struct st_hp_hash_info *save_current_hash_ptr;
+  ulong save_current_record;
+  int save_lastinx;
+  uint save_update;
+  uint save_lastkey_len;
 } HP_INFO;
 
 

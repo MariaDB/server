@@ -1644,7 +1644,12 @@ int vers_insert_history_row(TABLE *table)
   if (row_start->cmp(row_start->ptr, row_end->ptr) >= 0)
     return 0;
 
-  return table->file->ha_write_row(table->record[0]);
+  int res;
+  if ((res= table->file->extra(HA_EXTRA_REMEMBER_POS)))
+    return res;
+  if ((res= table->file->ha_write_row(table->record[0])))
+    return res;
+  return table->file->extra(HA_EXTRA_RESTORE_POS);
 }
 
 /*
