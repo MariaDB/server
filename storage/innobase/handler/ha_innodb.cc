@@ -10179,9 +10179,9 @@ extern dberr_t
 wsrep_append_foreign_key(
 	trx_t*		trx,		/*!< in: trx */
 	dict_foreign_t*	foreign,	/*!< in: foreign key constraint */
-	const rec_t*	rec,		/*!< in: clustered index record */
-	dict_index_t*	index,		/*!< in: clustered index */
-	ibool		referenced,	/*!< in: is check for referenced table */
+	const rec_t*	rec,		/*!<in: clustered index record */
+	dict_index_t*	index,		/*!<in: clustered index */
+	ibool		referenced,	/*!<in: is check for referenced table */
 	Wsrep_service_key_type	key_type)	/*!< in: access type of this key
 					(shared, exclusive, reference...) */
 {
@@ -10319,7 +10319,7 @@ wsrep_append_foreign_key(
 	}
 
 	wsrep_buf_t wkey_part[3];
-	wsrep_key_t wkey = {wkey_part, 3};
+        wsrep_key_t wkey = {wkey_part, 3};
 
 	if (!wsrep_prepare_key_for_innodb(
 		thd,
@@ -10411,17 +10411,17 @@ referenced_by_foreign_key2(
 	const dict_foreign_set* fks = &table->referenced_set;
 
 	for (dict_foreign_set::const_iterator it = fks->begin();
-	     it != fks->end();
-	     ++it) {
-		dict_foreign_t* foreign = *it;
+             it != fks->end();
+             ++it) {
+                dict_foreign_t* foreign = *it;
 
-		if (foreign->referenced_index != index) {
-			continue;
-		}
-		ut_ad(table == foreign->referenced_table);
-		return true;
-	}
-	return false;
+                if (foreign->referenced_index != index) {
+                        continue;
+                }
+                ut_ad(table == foreign->referenced_table);
+                return true;
+        }
+        return false;
 }
 
 int
@@ -10462,9 +10462,9 @@ ha_innobase::wsrep_append_keys(
 
 	if (wsrep_protocol_version == 0) {
 		uint	len;
-		char	keyval[WSREP_MAX_SUPPORTED_KEY_LENGTH+1] = {'\0'};
-		char	*key = &keyval[0];
-		ibool	is_null;
+		char 	keyval[WSREP_MAX_SUPPORTED_KEY_LENGTH+1] = {'\0'};
+		char 	*key 		= &keyval[0];
+		ibool    is_null;
 
 		len = wsrep_store_key_val_for_row(
 			thd, table, 0, key, WSREP_MAX_SUPPORTED_KEY_LENGTH,
@@ -10498,8 +10498,8 @@ ha_innobase::wsrep_append_keys(
 		for (i=0; i<table->s->keys; ++i) {
 			KEY*  key_info	= table->key_info + i;
 
-			dict_index_t* idx = innobase_get_index(i);
-			dict_table_t* tab = (idx) ? idx->table : NULL;
+			dict_index_t* idx  = innobase_get_index(i);
+			dict_table_t* tab  = (idx) ? idx->table : NULL;
 
 			/* keyval[] shall contain an ordinal number at byte 0
 			   and the actual key data shall be written at byte 1.
@@ -10597,8 +10597,8 @@ ha_innobase::wsrep_append_keys(
 			wsrep_calc_row_hash(
 				digest, record1, table, m_prebuilt);
 			if ((rcode = wsrep_append_key(thd, trx, table_share,
-						      (const char*) digest, 16,
-						      key_type))) {
+						      (const char*) digest,
+						      16, key_type))) {
 				DBUG_RETURN(rcode);
 			}
 		}
