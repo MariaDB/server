@@ -43,7 +43,7 @@
 #include <keycache.h>
 #include <mysql/psi/mysql_table.h>
 #include "sql_sequence.h"
-#include <vector>
+#include "mem_root_array.h"
 
 class Alter_info;
 class Virtual_column_info;
@@ -2308,7 +2308,7 @@ public:
   /**
      Vector of key pairs from DROP/ADD index which can be renamed.
   */
-  typedef std::vector<Rename_key_pair> Rename_keys_vector;
+  typedef Mem_root_array<Rename_key_pair, true> Rename_keys_vector;
 
   /**
      A list of indexes which should be renamed.
@@ -2377,23 +2377,7 @@ public:
                      Alter_info *alter_info_arg,
                      KEY *key_info_arg, uint key_count_arg,
                      partition_info *modified_part_info_arg,
-                     bool ignore_arg)
-    : create_info(create_info_arg),
-    alter_info(alter_info_arg),
-    key_info_buffer(key_info_arg),
-    key_count(key_count_arg),
-    index_drop_count(0),
-    index_drop_buffer(NULL),
-    index_add_count(0),
-    index_add_buffer(NULL),
-    handler_ctx(NULL),
-    group_commit_ctx(NULL),
-    handler_flags(0),
-    modified_part_info(modified_part_info_arg),
-    ignore(ignore_arg),
-    online(false),
-    unsupported_reason(NULL)
-  {}
+                     bool ignore_arg);
 
   ~Alter_inplace_info()
   {

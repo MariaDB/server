@@ -6067,9 +6067,9 @@ static void innobase_rename_indexes_cache(
 {
 	DBUG_ASSERT(ha_alter_info->handler_flags & ALTER_RENAME_INDEX);
 
-	for (Alter_inplace_info::Rename_keys_vector::const_iterator it
+	for (const Alter_inplace_info::Rename_key_pair *it
 	     = ha_alter_info->rename_keys.begin(),
-	     end = ha_alter_info->rename_keys.end();
+	     *end = ha_alter_info->rename_keys.end();
 	     it != end; ++it) {
 		dict_index_t* index = dict_table_get_index_on_name(
 		    ctx->old_table, it->old_key->name.str);
@@ -6718,9 +6718,9 @@ err_exit:
 	}
 
 	if (ha_alter_info->handler_flags & ALTER_RENAME_INDEX) {
-		for (Alter_inplace_info::Rename_keys_vector::const_iterator it
+		for (const Alter_inplace_info::Rename_key_pair *it
 		     = ha_alter_info->rename_keys.begin(),
-		     end = ha_alter_info->rename_keys.end();
+		     *end = ha_alter_info->rename_keys.end();
 		     it != end; ++it) {
 			dict_index_t* index = dict_table_get_index_on_name(
 			    indexed_table, it->old_key->name.str);
@@ -8685,9 +8685,9 @@ static bool innobase_rename_index_try(
 {
 	DBUG_ASSERT(ha_alter_info->handler_flags & ALTER_RENAME_INDEX);
 
-	for (Alter_inplace_info::Rename_keys_vector::const_iterator it
+	for (const Alter_inplace_info::Rename_key_pair *it
 	     = ha_alter_info->rename_keys.begin(),
-	     end = ha_alter_info->rename_keys.end();
+	     *end = ha_alter_info->rename_keys.end();
 	     it != end; ++it) {
 		dict_index_t* index = dict_table_get_index_on_name(
 		    ctx->old_table, it->old_key->name.str);

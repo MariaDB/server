@@ -6535,11 +6535,13 @@ static bool fill_alter_inplace_info(THD *thd,
   DBUG_PRINT("info", ("alter_info->flags: %llu", alter_info->flags));
 
   /* Allocate result buffers. */
+  DBUG_ASSERT(ha_alter_info->rename_keys.mem_root() == thd->mem_root);
   if (! (ha_alter_info->index_drop_buffer=
           (KEY**) thd->alloc(sizeof(KEY*) * table->s->keys)) ||
       ! (ha_alter_info->index_add_buffer=
           (uint*) thd->alloc(sizeof(uint) *
-                            alter_info->key_list.elements)))
+                            alter_info->key_list.elements)) ||
+      ha_alter_info->rename_keys.reserve(ha_alter_info->index_add_count))
     DBUG_RETURN(true);
 
   /*
