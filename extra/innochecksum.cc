@@ -524,7 +524,16 @@ is_page_corrupted(
 	normal method. */
 	if (is_encrypted && key_version != 0) {
 		is_corrupted = !fil_space_verify_crypt_checksum(buf,
-			page_size, space_id, (ulint)cur_page_num);
+								page_size);
+		if (is_corrupted && log_file) {
+			fprintf(log_file,
+				"Page " ULINTPF ":%llu may be corrupted;"
+				" key_version=%u\n",
+				space_id, cur_page_num,
+				mach_read_from_4(
+					FIL_PAGE_FILE_FLUSH_LSN_OR_KEY_VERSION
+					+ buf));
+		}
 	} else {
 		is_corrupted = true;
 	}

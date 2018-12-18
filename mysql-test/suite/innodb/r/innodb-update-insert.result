@@ -28,7 +28,7 @@ charset=utf8 engine=innodb;
 set statement sql_mode = '' for
 replace into t1 set f1=0xa3;
 Warnings:
-Warning	1366	Incorrect string value: '\xA3' for column 'f1' at row 1
+Warning	1366	Incorrect string value: '\xA3' for column `test`.`t1`.`f1` at row 1
 select f1 from t1;
 f1
 ?
@@ -37,7 +37,7 @@ update t1 set f3=repeat(0xb1,8103);
 update t1 set f1=0x4a;
 update ignore t1 set f1=0x82;
 Warnings:
-Warning	1366	Incorrect string value: '\x82' for column 'f1' at row 1
+Warning	1366	Incorrect string value: '\x82' for column `test`.`t1`.`f1` at row 1
 select f1 from t1;
 f1
 ?

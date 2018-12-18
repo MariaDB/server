@@ -222,7 +222,7 @@ drop table t1;
 create table t1 (s1 char(10) character set utf8mb4);
 insert ignore into t1 values (0x41FF);
 Warnings:
-Warning	1366	Incorrect string value: '\xFF' for column 's1' at row 1
+Warning	1366	Incorrect string value: '\xFF' for column `test`.`t1`.`s1` at row 1
 select hex(s1) from t1;
 hex(s1)
 413F
@@ -230,7 +230,7 @@ drop table t1;
 create table t1 (s1 varchar(10) character set utf8mb4);
 insert ignore into t1 values (0x41FF);
 Warnings:
-Warning	1366	Incorrect string value: '\xFF' for column 's1' at row 1
+Warning	1366	Incorrect string value: '\xFF' for column `test`.`t1`.`s1` at row 1
 select hex(s1) from t1;
 hex(s1)
 413F
@@ -238,7 +238,7 @@ drop table t1;
 create table t1 (s1 text character set utf8mb4);
 insert ignore into t1 values (0x41FF);
 Warnings:
-Warning	1366	Incorrect string value: '\xFF' for column 's1' at row 1
+Warning	1366	Incorrect string value: '\xFF' for column `test`.`t1`.`s1` at row 1
 select hex(s1) from t1;
 hex(s1)
 413F
@@ -2328,7 +2328,7 @@ insert into t1 values (0xF0908080);
 insert into t1 values (0xF0BFBFBF);
 insert ignore into t1 values (0xF08F8080);
 Warnings:
-Warning	1366	Incorrect string value: '\xF0\x8F\x80\x80' for column 'utf8mb4' at row 1
+Warning	1366	Incorrect string value: '\xF0\x8F\x80\x80' for column `test`.`t1`.`utf8mb4` at row 1
 select hex(utf8mb4) from t1 order by binary utf8mb4;
 hex(utf8mb4)
 3F
@@ -2348,7 +2348,7 @@ insert into t1 values (0xF4808080);
 insert into t1 values (0xF48F8080);
 insert ignore into t1 values (0xF4908080);
 Warnings:
-Warning	1366	Incorrect string value: '\xF4\x90\x80\x80' for column 'utf8mb4' at row 1
+Warning	1366	Incorrect string value: '\xF4\x90\x80\x80' for column `test`.`t1`.`utf8mb4` at row 1
 select hex(utf8mb4) from t1 order by binary utf8mb4;
 hex(utf8mb4)
 3F
@@ -2442,7 +2442,7 @@ u_decimal	hex(utf8mb4_encoding)
 119070	F09D849EF09D859EF09D859EF09D8480F09D859FF09D859FF09D859FF09D85A0F09D85A0F09D8480
 INSERT IGNORE INTO t1 VALUES (1114111, x'f5808080');
 Warnings:
-Warning	1366	Incorrect string value: '\xF5\x80\x80\x80' for column 'utf8mb4_encoding' at row 1
+Warning	1366	Incorrect string value: '\xF5\x80\x80\x80' for column `test`.`t1`.`utf8mb4_encoding` at row 1
 SELECT character_maximum_length, character_octet_length FROM information_schema.columns WHERE
 table_name= 't1' AND column_name= 'utf8mb4_encoding';
 character_maximum_length	character_octet_length
@@ -2456,14 +2456,14 @@ INSERT INTO t2 VALUES (42856, x'ea9da8');
 INSERT INTO t2 VALUES (65131, x'efb9ab');
 INSERT IGNORE INTO t2 VALUES (1114111, x'f48fbfbf');
 Warnings:
-Warning	1366	Incorrect string value: '\xF4\x8F\xBF\xBF' for column 'utf8mb3_encoding' at row 1
+Warning	1366	Incorrect string value: '\xF4\x8F\xBF\xBF' for column `test`.`t2`.`utf8mb3_encoding` at row 1
 SELECT character_maximum_length, character_octet_length FROM information_schema.columns WHERE
 table_name= 't2' AND column_name= 'utf8mb3_encoding';
 character_maximum_length	character_octet_length
 10	30
 UPDATE IGNORE t2 SET utf8mb3_encoding= x'f48fbfbd' where u_decimal= 42856;
 Warnings:
-Warning	1366	Incorrect string value: '\xF4\x8F\xBF\xBD' for column 'utf8mb3_encoding' at row 1
+Warning	1366	Incorrect string value: '\xF4\x8F\xBF\xBD' for column `test`.`t2`.`utf8mb3_encoding` at row 1
 UPDATE t2 SET utf8mb3_encoding= _utf8mb4 x'ea9da8' where u_decimal= 42856;
 SELECT HEX(CONCAT(utf8mb4_encoding, _utf8 x'ea9da8')) FROM t1;
 HEX(CONCAT(utf8mb4_encoding, _utf8 x'ea9da8'))
@@ -2524,17 +2524,17 @@ count(*)
 SET STATEMENT sql_mode = 'NO_ENGINE_SUBSTITUTION' FOR
 ALTER TABLE t1 CONVERT TO CHARACTER SET utf8;
 Warnings:
-Warning	1366	Incorrect string value: '\xF0\x9D\x84\x80' for column 'utf8mb4_encoding' at row 1
-Warning	1366	Incorrect string value: '\xF0\x9D\x84\x9E' for column 'utf8mb4_encoding' at row 2
-Warning	1366	Incorrect string value: '\xF0\x9D\x85\x9E' for column 'utf8mb4_encoding' at row 3
-Warning	1366	Incorrect string value: '\xF0\x9D\x87\x8F' for column 'utf8mb4_encoding' at row 4
-Warning	1366	Incorrect string value: '\xF0\x9D\x9C\x9F' for column 'utf8mb4_encoding' at row 5
-Warning	1366	Incorrect string value: '\xF0\x9D\x9E\x9F' for column 'utf8mb4_encoding' at row 6
-Warning	1366	Incorrect string value: '\xF4\x8F\xBF\xBF' for column 'utf8mb4_encoding' at row 7
-Warning	1366	Incorrect string value: '\xF3\xA0\x87\xAF' for column 'utf8mb4_encoding' at row 8
-Warning	1366	Incorrect string value: '\xF0\x9D\x84\x9E\xF0\x9D...' for column 'utf8mb4_encoding' at row 9
-Warning	1366	Incorrect string value: '\xF0\x9D\x84\x9E\xF0\x9D...' for column 'utf8mb4_encoding' at row 10
-Warning	1366	Incorrect string value: '\xF0\x9D\x84\x9E\xF0\x9D...' for column 'utf8mb4_encoding' at row 11
+Warning	1366	Incorrect string value: '\xF0\x9D\x84\x80' for column `test`.`t1`.`utf8mb4_encoding` at row 1
+Warning	1366	Incorrect string value: '\xF0\x9D\x84\x9E' for column `test`.`t1`.`utf8mb4_encoding` at row 2
+Warning	1366	Incorrect string value: '\xF0\x9D\x85\x9E' for column `test`.`t1`.`utf8mb4_encoding` at row 3
+Warning	1366	Incorrect string value: '\xF0\x9D\x87\x8F' for column `test`.`t1`.`utf8mb4_encoding` at row 4
+Warning	1366	Incorrect string value: '\xF0\x9D\x9C\x9F' for column `test`.`t1`.`utf8mb4_encoding` at row 5
+Warning	1366	Incorrect string value: '\xF0\x9D\x9E\x9F' for column `test`.`t1`.`utf8mb4_encoding` at row 6
+Warning	1366	Incorrect string value: '\xF4\x8F\xBF\xBF' for column `test`.`t1`.`utf8mb4_encoding` at row 7
+Warning	1366	Incorrect string value: '\xF3\xA0\x87\xAF' for column `test`.`t1`.`utf8mb4_encoding` at row 8
+Warning	1366	Incorrect string value: '\xF0\x9D\x84\x9E\xF0\x9D...' for column `test`.`t1`.`utf8mb4_encoding` at row 9
+Warning	1366	Incorrect string value: '\xF0\x9D\x84\x9E\xF0\x9D...' for column `test`.`t1`.`utf8mb4_encoding` at row 10
+Warning	1366	Incorrect string value: '\xF0\x9D\x84\x9E\xF0\x9D...' for column `test`.`t1`.`utf8mb4_encoding` at row 11
 SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
@@ -3427,8 +3427,8 @@ b VARCHAR(32) CHARACTER SET utf8
 );
 INSERT IGNORE INTO t1 SELECT 'a 😁 b', 'a 😁 b';
 Warnings:
-Warning	1366	Incorrect string value: '\xF0\x9F\x98\x81 b' for column 'a' at row 1
-Warning	1366	Incorrect string value: '\xF0\x9F\x98\x81 b' for column 'b' at row 1
+Warning	1366	Incorrect string value: '\xF0\x9F\x98\x81 b' for column `test`.`t1`.`a` at row 1
+Warning	1366	Incorrect string value: '\xF0\x9F\x98\x81 b' for column `test`.`t1`.`b` at row 1
 SELECT * FROM t1;
 a	b
 a ???? b	a ???? b
@@ -3447,7 +3447,7 @@ b VARCHAR(32) CHARACTER SET utf8
 );
 INSERT IGNORE INTO t1 SELECT 'a 😁 b', 'a 😁 b';
 Warnings:
-Warning	1366	Incorrect string value: '\xF0\x9F\x98\x81 b' for column 'b' at row 1
+Warning	1366	Incorrect string value: '\xF0\x9F\x98\x81 b' for column `test`.`t1`.`b` at row 1
 SELECT * FROM t1;
 a	b
 a 😁 b	a ? b
@@ -3539,10 +3539,10 @@ DROP FUNCTION f1;
 CREATE TABLE t1 (a TEXT CHARACTER SET utf8mb4);
 LOAD DATA INFILE '../../std_data/loaddata/mdev9823.utf8mb4.txt' IGNORE INTO TABLE t1 CHARACTER SET utf8mb4 IGNORE 4 LINES;
 Warnings:
-Warning	1366	Incorrect string value: '\xD0' for column 'a' at row 1
-Warning	1366	Incorrect string value: '\xE1\x80' for column 'a' at row 3
-Warning	1366	Incorrect string value: '\xF0\x9F\x98' for column 'a' at row 5
-Warning	1366	Incorrect string value: '\xF0\x9F\x98' for column 'a' at row 8
+Warning	1366	Incorrect string value: '\xD0' for column `test`.`t1`.`a` at row 1
+Warning	1366	Incorrect string value: '\xE1\x80' for column `test`.`t1`.`a` at row 3
+Warning	1366	Incorrect string value: '\xF0\x9F\x98' for column `test`.`t1`.`a` at row 5
+Warning	1366	Incorrect string value: '\xF0\x9F\x98' for column `test`.`t1`.`a` at row 8
 SELECT HEX(a) FROM t1;
 HEX(a)
 3F

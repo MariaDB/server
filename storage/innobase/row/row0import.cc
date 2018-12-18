@@ -3433,9 +3433,7 @@ not_encrypted:
 				}
 			} else {
 				if (!fil_space_verify_crypt_checksum(
-					    src, callback.get_page_size(),
-					    block->page.id.space(),
-					    block->page.id.page_no())) {
+					    src, callback.get_page_size())) {
 					goto page_corrupted;
 				}
 

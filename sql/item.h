@@ -1273,6 +1273,7 @@ public:
   virtual const char *full_name() const { return name.str ? name.str : "???"; }
   const char *field_name_or_null()
   { return real_item()->type() == Item::FIELD_ITEM ? name.str : NULL; }
+  const TABLE_SHARE *field_table_or_null();
 
   /*
     *result* family of methods is analog of *val* family (see above) but

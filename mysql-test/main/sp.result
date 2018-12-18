@@ -4613,7 +4613,7 @@ call bug15231_3()|
 Result
 Missed it (correct)
 Level	Code	Message
-Warning	1366	Incorrect decimal value: 'zap' for column 'x' at row 1
+Warning	1366	Incorrect decimal value: 'zap' for column ``.``.`x` at row 1
 Result
 Caught it (correct)
 call bug15231_5()|
@@ -6476,7 +6476,7 @@ DROP TABLE t1;
 
 CALL p2('text');
 Warnings:
-Warning	1366	Incorrect integer value: 'text' for column 'v' at row 1
+Warning	1366	Incorrect integer value: 'text' for column ``.``.`v` at row 1
 SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
@@ -8397,7 +8397,7 @@ FETCH c INTO a;
 CLOSE c;
 END;
 $$
-ERROR 22007: Incorrect integer value: 'y' for column 'a' at row 1
+ERROR 22007: Incorrect integer value: 'y' for column ``.``.`a` at row 1
 DROP TABLE t1;
 SET sql_mode=DEFAULT;
 #

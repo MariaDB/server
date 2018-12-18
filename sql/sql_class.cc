@@ -3238,6 +3238,10 @@ int select_export::send_data(List<Item> &items)
       error_pos= copier.most_important_error_pos();
       if (unlikely(error_pos))
       {
+        /*
+          TODO: 
+             add new error message that will show user this printable_buff
+
         char printable_buff[32];
         convert_to_printable(printable_buff, sizeof(printable_buff),
                              error_pos, res->ptr() + res->length() - error_pos,
@@ -3246,6 +3250,11 @@ int select_export::send_data(List<Item> &items)
                             ER_TRUNCATED_WRONG_VALUE_FOR_FIELD,
                             ER_THD(thd, ER_TRUNCATED_WRONG_VALUE_FOR_FIELD),
                             "string", printable_buff,
+                            item->name.str, static_cast<long>(row_count));
+        */
+        push_warning_printf(thd, Sql_condition::WARN_LEVEL_WARN,
+                            ER_TRUNCATED_WRONG_VALUE_FOR_FIELD,
+                            ER_THD(thd, WARN_DATA_TRUNCATED),
                             item->name.str, static_cast<long>(row_count));
       }
       else if (copier.source_end_pos() < res->ptr() + res->length())

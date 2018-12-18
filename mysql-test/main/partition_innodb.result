@@ -910,7 +910,7 @@ CREATE ALGORITHM = MERGE VIEW v AS SELECT a, b FROM t1 STRAIGHT_JOIN t2 WHERE b 
 INSERT INTO t1 VALUES (1),(2);
 INSERT IGNORE INTO t2 VALUES (2,2),('three',3),(4,4);
 Warnings:
-Warning	1366	Incorrect integer value: 'three' for column 'b' at row 2
+Warning	1366	Incorrect integer value: 'three' for column `test`.`t2`.`b` at row 2
 UPDATE v SET a = NULL;
 Warnings:
 Warning	1292	Truncated incorrect DOUBLE value: 'foo'

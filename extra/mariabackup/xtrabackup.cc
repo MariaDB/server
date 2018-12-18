@@ -301,6 +301,7 @@ my_bool opt_decompress = FALSE;
 my_bool opt_remove_original;
 
 my_bool opt_lock_ddl_per_table = FALSE;
+static my_bool opt_check_privileges;
 
 extern const char *innodb_checksum_algorithm_names[];
 extern TYPELIB innodb_checksum_algorithm_typelib;
@@ -832,7 +833,8 @@ enum options_xtrabackup
   OPT_PROTOCOL,
   OPT_LOCK_DDL_PER_TABLE,
   OPT_ROCKSDB_DATADIR,
-  OPT_BACKUP_ROCKSDB
+  OPT_BACKUP_ROCKSDB,
+  OPT_XTRA_CHECK_PRIVILEGES
 };
 
 struct my_option xb_client_options[] =
@@ -1385,6 +1387,10 @@ struct my_option xb_server_options[] =
    &xb_backup_rocksdb, &xb_backup_rocksdb,
    0, GET_BOOL, NO_ARG, 1, 0, 0, 0, 0, 0 },
 
+   {"check-privileges", OPT_XTRA_CHECK_PRIVILEGES, "Check database user "
+   "privileges fro the backup user",
+   &opt_check_privileges, &opt_check_privileges,
+   0, GET_BOOL, NO_ARG, 1, 0, 0, 0, 0, 0 },
 
   { 0, 0, 0, 0, 0, 0, GET_NO_ARG, NO_ARG, 0, 0, 0, 0, 0, 0}
 };
@@ -5649,6 +5655,164 @@ append_defaults_group(const char *group, const char *default_groups[],
 	ut_a(appended);
 }
 
+static const char*
+normalize_privilege_target_name(const char* name)
+{
+	if (strcmp(name, "*") == 0) {
+		return "\\*";
+	}
+	else {
+		/* should have no regex special characters. */
+		ut_ad(strpbrk(name, ".()[]*+?") == 0);
+	}
+	return name;
+}
+
+/******************************************************************//**
+Check if specific privilege is granted.
+Uses regexp magic to check if requested privilege is granted for given
+database.table or database.* or *.*
+or if user has 'ALL PRIVILEGES' granted.
+@return true if requested privilege is granted, false otherwise. */
+static bool
+has_privilege(const std::list<std::string> &granted,
+	const char* required,
+	const char* db_name,
+	const char* table_name)
+{
+	char buffer[1000];
+	regex_t priv_re;
+	regmatch_t tables_regmatch[1];
+	bool result = false;
+
+	db_name = normalize_privilege_target_name(db_name);
+	table_name = normalize_privilege_target_name(table_name);
+
+	int written = snprintf(buffer, sizeof(buffer),
+		"GRANT .*(%s)|(ALL PRIVILEGES).* ON (\\*|`%s`)\\.(\\*|`%s`)",
+		required, db_name, table_name);
+	if (written < 0 || written == sizeof(buffer)
+		|| regcomp(&priv_re, buffer, REG_EXTENDED)) {
+		exit(EXIT_FAILURE);
+	}
+
+	typedef std::list<std::string>::const_iterator string_iter;
+	for (string_iter i = granted.begin(), e = granted.end(); i != e; ++i) {
+		int res = regexec(&priv_re, i->c_str(),
+			1, tables_regmatch, 0);
+
+		if (res != REG_NOMATCH) {
+			result = true;
+			break;
+		}
+	}
+
+	xb_regfree(&priv_re);
+	return result;
+}
+
+enum {
+	PRIVILEGE_OK = 0,
+	PRIVILEGE_WARNING = 1,
+	PRIVILEGE_ERROR = 2,
+};
+
+/******************************************************************//**
+Check if specific privilege is granted.
+Prints error message if required privilege is missing.
+@return PRIVILEGE_OK if requested privilege is granted, error otherwise. */
+static
+int check_privilege(
+	const std::list<std::string> &granted_priv, /* in: list of
+							granted privileges*/
+	const char* required,		/* in: required privilege name */
+	const char* target_database,	/* in: required privilege target
+						database name */
+	const char* target_table,	/* in: required privilege target
+						table name */
+	int error = PRIVILEGE_ERROR)	/* in: return value if privilege
+						is not granted */
+{
+	if (!has_privilege(granted_priv,
+		required, target_database, target_table)) {
+		msg("%s: missing required privilege %s on %s.%s\n",
+			(error == PRIVILEGE_ERROR ? "Error" : "Warning"),
+			required, target_database, target_table);
+		return error;
+	}
+	return PRIVILEGE_OK;
+}
+
+
+/******************************************************************//**
+Check DB user privileges according to the intended actions.
+
+Fetches DB user privileges, determines intended actions based on
+command-line arguments and prints missing privileges.
+May terminate application with EXIT_FAILURE exit code.*/
+static void
+check_all_privileges()
+{
+	if (!mysql_connection) {
+		/* Not connected, no queries is going to be executed. */
+		return;
+	}
+
+	/* Fetch effective privileges. */
+	std::list<std::string> granted_privileges;
+	MYSQL_ROW row = 0;
+	MYSQL_RES* result = xb_mysql_query(mysql_connection, "SHOW GRANTS",
+		true);
+	while ((row = mysql_fetch_row(result))) {
+		granted_privileges.push_back(*row);
+	}
+	mysql_free_result(result);
+
+	int check_result = PRIVILEGE_OK;
+	bool reload_checked = false;
+
+	/* FLUSH TABLES WITH READ LOCK */
+	if (!opt_no_lock)
+	{
+		check_result |= check_privilege(
+			granted_privileges,
+			"RELOAD", "*", "*");
+		reload_checked = true;
+	}
+
+	if (!opt_no_lock)
+	{
+		check_result |= check_privilege(
+			granted_privileges,
+		"PROCESS", "*", "*");
+	}
+
+	/* KILL ... */
+	if ((!opt_no_lock && (opt_kill_long_queries_timeout || opt_lock_ddl_per_table))
+		/* START SLAVE SQL_THREAD */
+		/* STOP SLAVE SQL_THREAD */
+		|| opt_safe_slave_backup) {
+		check_result |= check_privilege(
+			granted_privileges,
+			"SUPER", "*", "*",
+			PRIVILEGE_WARNING);
+	}
+
+	/* SHOW MASTER STATUS */
+	/* SHOW SLAVE STATUS */
+	if (opt_galera_info || opt_slave_info
+		|| (opt_no_lock && opt_safe_slave_backup)) {
+		check_result |= check_privilege(granted_privileges,
+			"REPLICATION CLIENT", "*", "*",
+			PRIVILEGE_WARNING);
+	}
+
+	if (check_result & PRIVILEGE_ERROR) {
+		mysql_close(mysql_connection);
+		exit(EXIT_FAILURE);
+	}
+}
+
 bool
 xb_init()
 {
@@ -5713,7 +5877,9 @@ xb_init()
 		if (!get_mysql_vars(mysql_connection)) {
 			return(false);
 		}
-
+		if (opt_check_privileges) {
+			check_all_privileges();
+		}
 		history_start_time = time(NULL);
 
 	}

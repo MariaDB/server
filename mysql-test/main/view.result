@@ -1279,10 +1279,10 @@ load data infile '../../std_data/loaddata3.dat' ignore into table v1 fields term
 Warnings:
 Note	1265	Data truncated for column 'a' at row 1
 Note	1265	Data truncated for column 'a' at row 2
-Warning	1366	Incorrect integer value: 'error      ' for column 'a' at row 3
+Warning	1366	Incorrect integer value: 'error      ' for column `test`.`t1`.`a` at row 3
 Warning	1369	CHECK OPTION failed `test`.`v1`
 Note	1265	Data truncated for column 'a' at row 3
-Warning	1366	Incorrect integer value: 'wrong end  ' for column 'a' at row 4
+Warning	1366	Incorrect integer value: 'wrong end  ' for column `test`.`t1`.`a` at row 4
 Warning	1369	CHECK OPTION failed `test`.`v1`
 select * from t1 order by a,b;
 a	b
