@@ -31,6 +31,7 @@ Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA
 
 #include "fil_cur.h"
 #include "fil0crypt.h"
+#include "fil0pagecompress.h"
 #include "common.h"
 #include "read_filt.h"
 #include "xtrabackup.h"
@@ -346,6 +347,7 @@ read_retry:
 	for (page = cursor->buf, i = 0; i < npages;
 	     page += cursor->page_size, i++) {
 		ulint page_no = cursor->buf_page_no + i;
+		ulint page_type = mach_read_from_2(page + FIL_PAGE_TYPE);
 
 		if (cursor->space_id == TRX_SYS_SPACE
 		    && page_no >= FSP_EXTENT_SIZE
@@ -367,12 +369,31 @@ read_retry:
 			memcpy(tmp_page, page, cursor->page_size);
 
 			if (!fil_space_decrypt(space, tmp_frame,
-					       tmp_page, &decrypted)
-			    || buf_page_is_corrupted(true, tmp_page,
-						     cursor->zip_size,
-						     space)) {
+					       tmp_page, &decrypted)) {
 				goto corrupted;
 			}
+
+			if (page_type == FIL_PAGE_PAGE_COMPRESSED_ENCRYPTED) {
+				goto page_decomp;
+			}
+
+			if (buf_page_is_corrupted(
+				true, tmp_page, cursor->zip_size, space)) {
+				goto corrupted;
+			}
+
+		} else if (page_type == FIL_PAGE_PAGE_COMPRESSED) {
+			memcpy(tmp_page, page, cursor->page_size);
+page_decomp:
+			ulint decomp = fil_page_decompress(tmp_frame, tmp_page);
+
+			if (!decomp
+			    || (decomp != srv_page_size && cursor->zip_size)
+			    || buf_page_is_corrupted(
+					true, tmp_page, cursor->zip_size, space)) {
+				goto corrupted;
+			}
+
 		} else if (buf_page_is_corrupted(true, page, cursor->zip_size,
 						 space)) {
 corrupted:

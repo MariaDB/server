@@ -452,6 +452,8 @@ decompress_with_slot:
 		decrypt. */
 		if (!fil_space_verify_crypt_checksum(
 			    dst_frame, buf_page_get_zip_size(bpage))) {
+
+decrypt_failed:
 			ib_logf(IB_LOG_LEVEL_ERROR,
 				"Encrypted page %u:%u in file %s"
 				" looks corrupted; key_version=" ULINTPF,
@@ -460,7 +462,7 @@ decompress_with_slot:
 				mach_read_from_4(
 					FIL_PAGE_FILE_FLUSH_LSN_OR_KEY_VERSION
 					+ dst_frame));
-decrypt_failed:
+
 			/* Mark page encrypted in case it should be. */
 			if (space->crypt_data->type
 			    != CRYPT_SCHEME_UNENCRYPTED) {
@@ -4769,7 +4771,6 @@ static dberr_t buf_page_check_corrupt(buf_page_t* bpage, fil_space_t* space)
 		not anymore encrypted. */
 		corrupted = buf_page_is_corrupted(true, dst_frame, zip_size,
 						  space);
-
 		if (!corrupted) {
 			bpage->encrypted = false;
 		} else {
