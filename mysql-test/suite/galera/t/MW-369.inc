@@ -24,7 +24,6 @@
 --connection node_1
 SET AUTOCOMMIT=ON;
 START TRANSACTION;
-
 --eval $mw_369_parent_query
 
 #

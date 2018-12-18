@@ -7,8 +7,8 @@
 # another node while the transaction which tries to delete a
 # referred row from the parent table is committing.
 #
-# The pa table will originally have rows (1, 0), (2, 0).
-# The ca table will be empty.
+# The p table will originally have rows (1, 0), (2, 0).
+# The c table will be empty.
 #
 # A new row (1, 1) pointing to parent row (1, 0) is inserted from
 # connection node_2, the transaction which tries to remove the
@@ -25,15 +25,15 @@
 --source include/have_innodb.inc
 --source include/have_debug_sync.inc
 
-CREATE TABLE pa (f1 INTEGER PRIMARY KEY, f2 INTEGER) ENGINE=INNODB;
-CREATE TABLE ca (f1 INTEGER PRIMARY KEY, p_id INTEGER,
-                 CONSTRAINT fk_1 FOREIGN KEY (p_id) REFERENCES pa (f1))  ;
+CREATE TABLE p (f1 INTEGER PRIMARY KEY, f2 INTEGER) ENGINE=INNODB;
+CREATE TABLE c (f1 INTEGER PRIMARY KEY, p_id INTEGER,
+                CONSTRAINT fk_1 FOREIGN KEY (p_id) REFERENCES p (f1))  ;
 
-INSERT INTO pa VALUES (1, 0);
-INSERT INTO pa VALUES (2, 0);
+INSERT INTO p VALUES (1, 0);
+INSERT INTO p VALUES (2, 0);
 
---let $mw_369_parent_query = DELETE FROM pa WHERE f1 = 1
---let $mw_369_child_query = INSERT INTO ca VALUES (1, 1)
+--let $mw_369_parent_query = DELETE FROM p WHERE f1 = 1
+--let $mw_369_child_query = INSERT INTO c VALUES (1, 1)
 
 #
 # we must open connection node_1a here, MW-369.inc will use it later
@@ -47,11 +47,11 @@ INSERT INTO pa VALUES (2, 0);
 --reap
 
 --connection node_2
-SELECT * FROM pa;
-SELECT * FROM ca;
+SELECT * FROM p;
+SELECT * FROM c;
 
-DROP TABLE ca;
-DROP TABLE pa;
+DROP TABLE c;
+DROP TABLE p;
 
 #
 # Test B Outline:
@@ -61,8 +61,8 @@ DROP TABLE pa;
 # child table row is updated concurrently from another node
 # with a transaction which updates the parent table.
 #
-# The pb table will originally have rows (1, 0), (2, 0).
-# The cb table will originally have rows (1, 1, 0) which points
+# The p table will originally have rows (1, 0), (2, 0).
+# The c table will originally have rows (1, 1, 0) which points
 # to parent table row (1, 0).
 #
 # Expected outcome:
@@ -74,17 +74,17 @@ DROP TABLE pa;
 #
 
 --connection node_1
-CREATE TABLE pb (f1 INTEGER PRIMARY KEY, f2 INTEGER) ENGINE=INNODB;
-CREATE TABLE cb (f1 INTEGER PRIMARY KEY, p_id INTEGER,
-                 f2 INTEGER,
-                 CONSTRAINT fk_1 FOREIGN KEY (p_id) REFERENCES pb (f1));
+CREATE TABLE p (f1 INTEGER PRIMARY KEY, f2 INTEGER) ENGINE=INNODB;
+CREATE TABLE c (f1 INTEGER PRIMARY KEY, p_id INTEGER,
+                f2 INTEGER,
+                CONSTRAINT fk_1 FOREIGN KEY (p_id) REFERENCES p (f1))  ;
 
-INSERT INTO pb VALUES (1, 0);
-INSERT INTO pb VALUES (2, 0);
-INSERT INTO cb VALUES (1, 1, 0);
+INSERT INTO p VALUES (1, 0);
+INSERT INTO p VALUES (2, 0);
+INSERT INTO c VALUES (1, 1, 0);
 
---let mw_369_parent_query = UPDATE pb SET f2 = 1 WHERE f1 = 1
---let $mw_369_child_query = UPDATE cb SET f2 = 1 WHERE f1 = 1
+--let mw_369_parent_query = UPDATE p SET f2 = 1 WHERE f1 = 1
+--let $mw_369_child_query = UPDATE c SET f2 = 1 WHERE f1 = 1
 --source MW-369.inc
 
 # Commit succeeds
@@ -92,11 +92,11 @@ INSERT INTO cb VALUES (1, 1, 0);
 --reap
 
 --connection node_2
-SELECT * FROM pb;
-SELECT * FROM cb;
+SELECT * FROM p;
+SELECT * FROM c;
 
-DROP TABLE cb;
-DROP TABLE pb;
+DROP TABLE c;
+DROP TABLE p;
 
 #
 # Test C Outline:
@@ -106,8 +106,8 @@ DROP TABLE pb;
 # deleted concurrently from the other node while a transaction updates
 # the parent table referred by the child table row.
 #
-# The pc table will originally have rows (1, 0), (2, 0)
-# The cc table will originally have row (1, 1) which points to parent
+# The p table will originally have rows (1, 0), (2, 0)
+# The c table will originally have row (1, 1) which points to parent
 # table row (1, 0).
 #
 # A row (1, 1) pointing to parent row (1, 0) is deleted from
@@ -121,16 +121,16 @@ DROP TABLE pb;
 # table should be empty.
 
 --connection node_1
-CREATE TABLE pc (f1 INTEGER PRIMARY KEY, f2 INTEGER) ENGINE=INNODB;
-CREATE TABLE cc (f1 INTEGER PRIMARY KEY, p_id INTEGER,
-                 CONSTRAINT fk_1 FOREIGN KEY (p_id) REFERENCES pc (f1))  ;
+CREATE TABLE p (f1 INTEGER PRIMARY KEY, f2 INTEGER) ENGINE=INNODB;
+CREATE TABLE c (f1 INTEGER PRIMARY KEY, p_id INTEGER,
+                CONSTRAINT fk_1 FOREIGN KEY (p_id) REFERENCES p (f1))  ;
 
-INSERT INTO pc VALUES (1, 0);
-INSERT INTO pc VALUES (2, 0);
-INSERT INTO cc VALUES (1, 1);
+INSERT INTO p VALUES (1, 0);
+INSERT INTO p VALUES (2, 0);
+INSERT INTO c VALUES (1, 1);
 
---let $mw_369_parent_query = UPDATE pc SET f2 = 1 WHERE f1 = 1
---let $mw_369_child_query = DELETE FROM cc WHERE f1 = 1
+--let $mw_369_parent_query = UPDATE p SET f2 = 1 WHERE f1 = 1
+--let $mw_369_child_query = DELETE FROM c WHERE f1 = 1
 --source MW-369.inc
 
 # Commit succeeds
@@ -138,11 +138,11 @@ INSERT INTO cc VALUES (1, 1);
 --reap
 
 --connection node_2
-SELECT * FROM pc;
-SELECT * FROM cc;
+SELECT * FROM p;
+SELECT * FROM c;
 
-DROP TABLE cc;
-DROP TABLE pc;
+DROP TABLE c;
+DROP TABLE p;
 
 
 #
@@ -155,8 +155,8 @@ DROP TABLE pc;
 # but this key value is changed so that insert on node 2 will cause FK
 # violation
 #
-# The pd table will originally have rows (1, 0)
-# The cd table will originally be empty
+# The p table will originally have rows (1, 0)
+# The c table will originally be empty 
 #
 # in node_1, parent row is updated to value (1,1)
 # A row (1, 0) pointing to the old version of parent row (1, 0) is inserted
@@ -164,20 +164,20 @@ DROP TABLE pc;
 #
 # Expected Outcome:
 # ================
-# This is a true conflict and one transaciton must abort. In this case it is
-# node_1 transaction, which was scheduled later.
+# This is a true conflict and one transaciton must abort. In this case it is node_1
+# transaction, which was scheduled later.
 #    Parent table should have row (1,0)
 #    child table should have row (1,0)
 #
 
-CREATE TABLE pd (f1 INTEGER PRIMARY KEY, f2 INTEGER UNIQUE KEY) ENGINE=INNODB;
-CREATE TABLE cd (f1 INTEGER PRIMARY KEY, p_id INTEGER,
-                 CONSTRAINT fk_1 FOREIGN KEY (p_id) REFERENCES pd (f2))  ;
+CREATE TABLE p (f1 INTEGER PRIMARY KEY, f2 INTEGER UNIQUE KEY) ENGINE=INNODB;
+CREATE TABLE c (f1 INTEGER PRIMARY KEY, p_id INTEGER,
+                CONSTRAINT fk_1 FOREIGN KEY (p_id) REFERENCES p (f2))  ;
 
-INSERT INTO pd VALUES (1, 0);
+INSERT INTO p VALUES (1, 0);
 
---let $mw_369_parent_query = UPDATE pd SET f2 = 1 WHERE f1 = 1
---let $mw_369_child_query = INSERT INTO cd VALUES (1, 0);
+--let $mw_369_parent_query = UPDATE p SET f2 = 1 WHERE f1 = 1
+--let $mw_369_child_query = INSERT INTO c VALUES (1, 0);
 --source MW-369.inc
 
 # Commit fails
@@ -186,11 +186,11 @@ INSERT INTO pd VALUES (1, 0);
 --reap
 
 --connection node_2
-SELECT * FROM pd;
-SELECT * FROM cd;
+SELECT * FROM p;
+SELECT * FROM c;
 
-DROP TABLE cd;
-DROP TABLE pd;
+DROP TABLE c;
+DROP TABLE p;
 
 #
 # Test E Outline:
@@ -202,8 +202,8 @@ DROP TABLE pd;
 # cascade a delete on child row as well. This will cause true conflict with 
 # connection node_2, which tries to update unrelated column on child table.
 #
-# The pe table will originally have rows (1, 0), (2,0)
-# The ce table will originally have row (1,1,0)
+# The p table will originally have rows (1, 0), (2,0)
+# The c table will originally have row (1,1,0)
 #
 # in node_1, parent row (1,0) is deleted and cascaded delete will happen on
 # child table row (1,1,0).
@@ -218,17 +218,17 @@ DROP TABLE pd;
 #
 
 
-CREATE TABLE pe (f1 INTEGER PRIMARY KEY, f2 INTEGER) ENGINE=INNODB;
-CREATE TABLE ce (f1 INTEGER PRIMARY KEY, p_id INTEGER, f2 INTEGER,
-                 CONSTRAINT fk_1 FOREIGN KEY (p_id) REFERENCES pe (f1)
-                 ON DELETE CASCADE)  ;
+CREATE TABLE p (f1 INTEGER PRIMARY KEY, f2 INTEGER) ENGINE=INNODB;
+CREATE TABLE c (f1 INTEGER PRIMARY KEY, p_id INTEGER, f2 INTEGER,
+                CONSTRAINT fk_1 FOREIGN KEY (p_id) REFERENCES p (f1)
+                ON DELETE CASCADE)  ;
 
-INSERT INTO pe VALUES (1, 0);
-INSERT INTO pe VALUES (2, 0);
-INSERT INTO ce VALUES (1, 1, 0);
+INSERT INTO p VALUES (1, 0);
+INSERT INTO p VALUES (2, 0);
+INSERT INTO c VALUES (1, 1, 0);
 
---let $mw_369_parent_query = DELETE FROM pe WHERE f1 = 1
---let $mw_369_child_query = UPDATE ce SET f2 = 1 WHERE f1 = 1
+--let $mw_369_parent_query = DELETE FROM p WHERE f1 = 1
+--let $mw_369_child_query = UPDATE c SET f2 = 1 WHERE f1 = 1
 --source MW-369.inc
 
 # Commit fails
@@ -237,12 +237,15 @@ INSERT INTO ce VALUES (1, 1, 0);
 --reap
 
 --connection node_2
-SELECT * FROM pe;
-SELECT * FROM ce;
+SELECT * FROM p;
+SELECT * FROM c;
 
-DROP TABLE ce;
-DROP TABLE pe;
+DROP TABLE c;
+DROP TABLE p;
 
+--echo #
+--echo # Start of 10.4 tests
+--echo #
 #
 # Test F Outline:
 # ===============
