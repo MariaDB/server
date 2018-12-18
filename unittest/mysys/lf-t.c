@@ -48,9 +48,6 @@ pthread_handler_t test_lf_pinbox(void *arg)
     pins= lf_pinbox_get_pins(&lf_allocator.pinbox);
   }
   lf_pinbox_put_pins(pins);
-  pthread_mutex_lock(&mutex);
-  if (!--running_threads) pthread_cond_signal(&cond);
-  pthread_mutex_unlock(&mutex);
 
   if (with_my_thread_init)
     my_thread_end();
@@ -105,7 +102,6 @@ pthread_handler_t test_lf_alloc(void *arg)
     bad|= lf_allocator.mallocs - lf_alloc_pool_count(&lf_allocator);
 #endif
   }
-  if (!--running_threads) pthread_cond_signal(&cond);
   pthread_mutex_unlock(&mutex);
 
   if (with_my_thread_init)
@@ -159,7 +155,6 @@ pthread_handler_t test_lf_hash(void *arg)
          lf_hash.size, inserts);
     bad|= lf_hash.count;
   }
-  if (!--running_threads) pthread_cond_signal(&cond);
   pthread_mutex_unlock(&mutex);
   if (with_my_thread_init)
     my_thread_end();
