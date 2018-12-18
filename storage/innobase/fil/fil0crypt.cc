@@ -2552,15 +2552,19 @@ fil_space_verify_crypt_checksum(const byte* page, const page_size_t& page_size)
 
 	/* If stored checksum matches one of the calculated checksums
 	page is not corrupted. */
-	srv_checksum_algorithm_t algorithm = srv_checksum_algorithm_t(
-		srv_checksum_algorithm);
 
-	switch (algorithm) {
+	switch (srv_checksum_algorithm_t(srv_checksum_algorithm)) {
 	case SRV_CHECKSUM_ALGORITHM_STRICT_CRC32:
 		if (page_size.is_compressed()) {
 			return checksum == page_zip_calc_checksum(
 				page, page_size.physical(),
-				SRV_CHECKSUM_ALGORITHM_CRC32);
+				SRV_CHECKSUM_ALGORITHM_CRC32)
+#ifdef INNODB_BUG_ENDIAN_CRC32
+				|| checksum == page_zip_calc_checksum(
+					page, page_size.physical(),
+					SRV_CHECKSUM_ALGORITHM_CRC32, true)
+#endif
+				;
 		}
 
 		return checksum == buf_calc_page_crc32(page)
@@ -2568,33 +2572,35 @@ fil_space_verify_crypt_checksum(const byte* page, const page_size_t& page_size)
 			|| checksum == buf_calc_page_crc32(page, true)
 #endif
 			;
-	case SRV_CHECKSUM_ALGORITHM_STRICT_INNODB:
-		if (page_size.is_compressed()) {
-			return checksum == page_zip_calc_checksum(
-				page, page_size.physical(),
-				SRV_CHECKSUM_ALGORITHM_INNODB);
-		}
-		return checksum == buf_calc_page_new_checksum(page);
 	case SRV_CHECKSUM_ALGORITHM_STRICT_NONE:
-		return checksum == BUF_NO_CHECKSUM_MAGIC;
+		/* Starting with MariaDB 10.1.25, 10.2.7, 10.3.1,
+		due to MDEV-12114, fil_crypt_calculate_checksum()
+		is only using CRC32 for the encrypted pages.
+		Due to this, we must treat "strict_none" as "none". */
 	case SRV_CHECKSUM_ALGORITHM_NONE:
 		return true;
+	case SRV_CHECKSUM_ALGORITHM_STRICT_INNODB:
+		/* Starting with MariaDB 10.1.25, 10.2.7, 10.3.1,
+		due to MDEV-12114, fil_crypt_calculate_checksum()
+		is only using CRC32 for the encrypted pages.
+		Due to this, we must treat "strict_innodb" as "innodb". */
 	case SRV_CHECKSUM_ALGORITHM_INNODB:
 	case SRV_CHECKSUM_ALGORITHM_CRC32:
 		if (checksum == BUF_NO_CHECKSUM_MAGIC) {
 			return true;
 		}
-		if (page_size.is_compressed()) {
-			if (checksum == page_zip_calc_checksum(
-				    page, page_size.physical(), algorithm)) {
-				return true;
-			}
-
-			algorithm = algorithm == SRV_CHECKSUM_ALGORITHM_INNODB
-				? SRV_CHECKSUM_ALGORITHM_CRC32
-				: SRV_CHECKSUM_ALGORITHM_INNODB;
+		if (zip_size) {
 			return checksum == page_zip_calc_checksum(
-				page, page_size.physical(), algorithm);
+				page, page_size.physical(),
+				SRV_CHECKSUM_ALGORITHM_CRC32)
+#ifdef INNODB_BUG_ENDIAN_CRC32
+				|| checksum == page_zip_calc_checksum(
+					page, page_size.physical(),
+					SRV_CHECKSUM_ALGORITHM_CRC32, true)
+#endif
+				|| checksum == page_zip_calc_checksum(
+					page, page_size.physical(),
+					SRV_CHECKSUM_ALGORITHM_INNODB);
 		}
 
 		return checksum == buf_calc_page_crc32(page)
