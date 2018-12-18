@@ -8200,7 +8200,8 @@ report_error:
 	    && (thd_sql_command(m_user_thd) != SQLCOM_CREATE_TABLE)
 	    && (thd_sql_command(m_user_thd) != SQLCOM_LOAD ||
 	        thd_binlog_format(m_user_thd) == BINLOG_FORMAT_ROW)) {
-		if (wsrep_append_keys(m_user_thd, wsrep_key_exclusive, record,
+		if (wsrep_append_keys(m_user_thd, WSREP_SERVICE_KEY_EXCLUSIVE,
+				      record,
 				      NULL)) {
  			DBUG_PRINT("wsrep", ("row key failed"));
  			error_result = HA_ERR_INTERNAL_ERROR;
@@ -8902,8 +8903,9 @@ func_exit:
 
 		DBUG_PRINT("wsrep", ("update row key"));
 
-		Wsrep_key_type key_type = wsrep_protocol_version >= 4 ?
-			wsrep_key_update : wsrep_key_exclusive;
+		Wsrep_service_key_type key_type = wsrep_protocol_version >= 4
+			? WSREP_SERVICE_KEY_UPDATE
+			: WSREP_SERVICE_KEY_EXCLUSIVE;
 		if (wsrep_append_keys(m_user_thd, key_type, old_row, new_row)){
 			WSREP_DEBUG("WSREP: UPDATE_ROW_KEY FAILED");
 			DBUG_PRINT("wsrep", ("row key failed"));
@@ -8969,7 +8971,8 @@ ha_innobase::delete_row(
 	    && wsrep_thd_is_local(m_user_thd)
 	    && !wsrep_thd_ignore_table(m_user_thd)) {
 
-		if (wsrep_append_keys(m_user_thd, wsrep_key_exclusive, record,
+		if (wsrep_append_keys(m_user_thd, WSREP_SERVICE_KEY_EXCLUSIVE,
+				      record,
 				      NULL)) {
 			DBUG_PRINT("wsrep", ("delete fail"));
 			error = (dberr_t) HA_ERR_INTERNAL_ERROR;
@@ -10156,16 +10159,16 @@ wsrep_dict_foreign_find_index(
 
 inline
 const char*
-wsrep_key_type_to_str(Wsrep_key_type type)
+wsrep_key_type_to_str(Wsrep_service_key_type type)
 {
 	switch (type) {
-	case wsrep_key_shared:
+	case WSREP_SERVICE_KEY_SHARED:
 		return "shared";
-	case wsrep_key_reference:
+	case WSREP_SERVICE_KEY_REFERENCE:
 		return "reference";
-	case wsrep_key_update:
+	case WSREP_SERVICE_KEY_UPDATE:
 		return "update";
-	case wsrep_key_exclusive:
+	case WSREP_SERVICE_KEY_EXCLUSIVE:
 		return "exclusive";
 	};
 	return "unknown";
@@ -10178,7 +10181,7 @@ wsrep_append_foreign_key(
 	const rec_t*	rec,		/*!< in: clustered index record */
 	dict_index_t*	index,		/*!< in: clustered index */
 	ibool		referenced,	/*!< in: is check for referenced table */
-	Wsrep_key_type	key_type)	/*!< in: access type of this key
+	Wsrep_service_key_type	key_type)	/*!< in: access type of this key
 					(shared, exclusive, reference...) */
 {
 	ut_a(trx);
@@ -10349,7 +10352,7 @@ wsrep_append_key(
 	TABLE_SHARE 	*table_share,
 	const char*	key,
 	uint16_t        key_len,
-	Wsrep_key_type	key_type	/*!< in: access type of this key
+	Wsrep_service_key_type	key_type	/*!< in: access type of this key
 					(shared, exclusive, semi...) */
 )
 {
@@ -10423,7 +10426,7 @@ referenced_by_foreign_key2(
 int
 ha_innobase::wsrep_append_keys(
 	THD 		*thd,
-	Wsrep_key_type	key_type,	/*!< in: access type of this row
+	Wsrep_service_key_type	key_type,	/*!< in: access type of this row
 					operation:
 					(shared, exclusive, reference...) */
 	const uchar*	record0,	/* in: row in MySQL format */
@@ -10432,7 +10435,7 @@ ha_innobase::wsrep_append_keys(
 	/* Sanity check: newly inserted records should always be passed with
 	   EXCLUSIVE key type, all the rest are expected to carry a pre-image
 	 */
-	ut_a(record1 != NULL || key_type == wsrep_key_exclusive);
+	ut_a(record1 != NULL || key_type == WSREP_SERVICE_KEY_EXCLUSIVE);
 
 	int rcode;
 	DBUG_ENTER("wsrep_append_keys");
@@ -10539,7 +10542,7 @@ ha_innobase::wsrep_append_keys(
 						  is unique, this is an exclusive
 						  operation -> upgrade key type */
 						if (key_info->flags & HA_NOSAME) {
-						    key_type = wsrep_key_exclusive;
+						    key_type = WSREP_SERVICE_KEY_EXCLUSIVE;
 						}
 
 						if (!is_null1) {
@@ -10565,8 +10568,8 @@ ha_innobase::wsrep_append_keys(
 						DBUG_RETURN(rcode);
 
 					if (key_info->flags & HA_NOSAME  ||
-					    key_type == wsrep_key_shared ||
-					    key_type == wsrep_key_reference)
+					    key_type == WSREP_SERVICE_KEY_SHARED||
+					    key_type == WSREP_SERVICE_KEY_REFERENCE)
 						key_appended = true;
 				} else {
 					WSREP_DEBUG("NULL key skipped: %s",
