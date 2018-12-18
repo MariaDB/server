@@ -2589,7 +2589,7 @@ fil_space_verify_crypt_checksum(const byte* page, const page_size_t& page_size)
 		if (checksum == BUF_NO_CHECKSUM_MAGIC) {
 			return true;
 		}
-		if (zip_size) {
+		if (page_size.is_compressed()) {
 			return checksum == page_zip_calc_checksum(
 				page, page_size.physical(),
 				SRV_CHECKSUM_ALGORITHM_CRC32)
