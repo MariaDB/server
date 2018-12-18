@@ -3362,8 +3362,15 @@ xb_load_tablespaces()
 		return(DB_ERROR);
 	}
 
-	err = srv_sys_space.open_or_create(false, false, &sum_of_new_sizes,
-					   &flush_lsn);
+	for (int i= 0; i < 10; i++) {
+		err = srv_sys_space.open_or_create(false, false, &sum_of_new_sizes,
+						 &flush_lsn);
+		if (err == DB_PAGE_CORRUPTED || err == DB_CORRUPTION) {
+			my_sleep(1000);
+		}
+		else
+		 break;
+	}
 
 	if (err != DB_SUCCESS) {
 		msg("mariabackup: Could not open data files.\n");
