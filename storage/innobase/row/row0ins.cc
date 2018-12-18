@@ -1806,20 +1806,16 @@ row_ins_check_foreign_constraint(
 				if (check_ref) {
 					err = DB_SUCCESS;
 #ifdef WITH_WSREP
-					Wsrep_service_key_type key_type;
-					if (upd_node != NULL &&
-					    wsrep_protocol_version < 4) {
-						key_type = WSREP_SERVICE_KEY_SHARED;
-					} else {
-						key_type = WSREP_SERVICE_KEY_REFERENCE;
-					}
 					err = wsrep_append_foreign_key(
 						thr_get_trx(thr),
 						foreign,
 						rec,
 						check_index,
 						check_ref,
-						key_type);
+						upd_node != NULL &&
+						wsrep_protocol_version < 4
+						? WSREP_SERVICE_KEY_SHARED
+						: WSREP_SERVICE_KEY_REFERENCE);
 #endif /* WITH_WSREP */
 					goto end_scan;
 				} else if (foreign->type != 0) {

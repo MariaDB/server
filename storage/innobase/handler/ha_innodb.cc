@@ -8903,10 +8903,11 @@ func_exit:
 
 		DBUG_PRINT("wsrep", ("update row key"));
 
-		Wsrep_service_key_type key_type = wsrep_protocol_version >= 4
-			? WSREP_SERVICE_KEY_UPDATE
-			: WSREP_SERVICE_KEY_EXCLUSIVE;
-		if (wsrep_append_keys(m_user_thd, key_type, old_row, new_row)){
+		if (wsrep_append_keys(m_user_thd,
+				      wsrep_protocol_version >= 4
+				      ? WSREP_SERVICE_KEY_UPDATE
+				      : WSREP_SERVICE_KEY_EXCLUSIVE,
+				      old_row, new_row)){
 			WSREP_DEBUG("WSREP: UPDATE_ROW_KEY FAILED");
 			DBUG_PRINT("wsrep", ("row key failed"));
 			err = HA_ERR_INTERNAL_ERROR;
