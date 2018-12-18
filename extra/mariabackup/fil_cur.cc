@@ -361,9 +361,14 @@ read_retry:
                     page_no >= FSP_EXTENT_SIZE &&
                     page_no < FSP_EXTENT_SIZE * 3) {
                         /* We ignore the doublewrite buffer pages */
-                } else if (fil_space_verify_crypt_checksum(
-                                   page, cursor->page_size,
-				   space->id, page_no)) {
+                } else if (mach_read_from_4(
+				   page
+				   + FIL_PAGE_FILE_FLUSH_LSN_OR_KEY_VERSION)
+			   && space->crypt_data
+			   && space->crypt_data->type
+			   != CRYPT_SCHEME_UNENCRYPTED
+			   && fil_space_verify_crypt_checksum(
+                                   page, cursor->page_size)) {
 			ut_ad(mach_read_from_4(page + FIL_PAGE_SPACE_ID)
 			      == space->id);
 

@@ -837,6 +837,7 @@ UPDATE Sow6_2f SET col1 = col1 / 0 WHERE col1 > 0;
 #-- should return SQLSTATE 22012 division by zero
 SELECT MOD(col1,0) FROM Sow6_2f;
 #-- should return SQLSTATE 22012 division by zero
+--replace_result sow Sow
 -- error 1366
 INSERT INTO Sow6_2f VALUES ('a59b');
 #-- should return SQLSTATE 22018 invalid character value for cast

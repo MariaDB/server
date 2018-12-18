@@ -2100,7 +2100,7 @@ public:
   {
     my_decimal nr(ptr, precision, dec);
     return decimal_to_datetime_with_warn(get_thd(), &nr, ltime,
-                                         fuzzydate, field_name.str);
+                                         fuzzydate, table->s, field_name.str);
   }
   bool val_bool()
   {

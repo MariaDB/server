@@ -222,7 +222,7 @@ drop table t1;
 create table t1 (s1 char(10) character set utf8);
 insert ignore into t1 values (0x41FF);
 Warnings:
-Warning	1366	Incorrect string value: '\xFF' for column 's1' at row 1
+Warning	1366	Incorrect string value: '\xFF' for column `test`.`t1`.`s1` at row 1
 select hex(s1) from t1;
 hex(s1)
 413F
@@ -230,7 +230,7 @@ drop table t1;
 create table t1 (s1 varchar(10) character set utf8);
 insert ignore into t1 values (0x41FF);
 Warnings:
-Warning	1366	Incorrect string value: '\xFF' for column 's1' at row 1
+Warning	1366	Incorrect string value: '\xFF' for column `test`.`t1`.`s1` at row 1
 select hex(s1) from t1;
 hex(s1)
 413F
@@ -238,7 +238,7 @@ drop table t1;
 create table t1 (s1 text character set utf8);
 insert ignore into t1 values (0x41FF);
 Warnings:
-Warning	1366	Incorrect string value: '\xFF' for column 's1' at row 1
+Warning	1366	Incorrect string value: '\xFF' for column `test`.`t1`.`s1` at row 1
 select hex(s1) from t1;
 hex(s1)
 413F
@@ -5456,13 +5456,13 @@ INSERT INTO t1 (ch) VALUES ('admin'),('admin1');
 SELECT ch FROM t1 WHERE ch='admin𝌆';
 ch
 Warnings:
-Warning	1366	Incorrect string value: '\xF0\x9D\x8C\x86' for column 'ch' at row 1
+Warning	1366	Incorrect string value: '\xF0\x9D\x8C\x86' for column `test`.`t1`.`ch` at row 1
 SELECT ch FROM t1 IGNORE KEY (ch) WHERE ch='admin𝌆';
 ch
 SELECT ch FROM t1 FORCE KEY (ch) WHERE ch='admin𝌆';
 ch
 Warnings:
-Warning	1366	Incorrect string value: '\xF0\x9D\x8C\x86' for column 'ch' at row 1
+Warning	1366	Incorrect string value: '\xF0\x9D\x8C\x86' for column `test`.`t1`.`ch` at row 1
 DELETE FROM t1;
 INSERT INTO t1 (ch) VALUES ('a'), ('a?'), ('a??'), ('a???'), ('a????');
 INSERT INTO t1 (ch) VALUES ('ab'),('a?b'),('a??b'),('a???b'),('a????b');
@@ -5479,21 +5479,21 @@ SELECT ch FROM t1 FORCE KEY (ch) WHERE ch='a𝌆' ORDER BY ch;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 1	SIMPLE	NULL	NULL	NULL	NULL	NULL	NULL	#	Impossible WHERE noticed after reading const tables
 Warnings:
-Warning	1366	Incorrect string value: '\xF0\x9D\x8C\x86' for column 'ch' at row 1
+Warning	1366	Incorrect string value: '\xF0\x9D\x8C\x86' for column `test`.`t1`.`ch` at row 1
 SELECT ch FROM t1 FORCE KEY (ch) WHERE ch='a𝌆' ORDER BY ch;
 ch
 Warnings:
-Warning	1366	Incorrect string value: '\xF0\x9D\x8C\x86' for column 'ch' at row 1
+Warning	1366	Incorrect string value: '\xF0\x9D\x8C\x86' for column `test`.`t1`.`ch` at row 1
 EXPLAIN
 SELECT ch FROM t1 FORCE KEY (ch) WHERE ch='a𝌆b' ORDER BY ch;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 1	SIMPLE	NULL	NULL	NULL	NULL	NULL	NULL	#	Impossible WHERE noticed after reading const tables
 Warnings:
-Warning	1366	Incorrect string value: '\xF0\x9D\x8C\x86b' for column 'ch' at row 1
+Warning	1366	Incorrect string value: '\xF0\x9D\x8C\x86b' for column `test`.`t1`.`ch` at row 1
 SELECT ch FROM t1 FORCE KEY (ch) WHERE ch='a𝌆b' ORDER BY ch;
 ch
 Warnings:
-Warning	1366	Incorrect string value: '\xF0\x9D\x8C\x86b' for column 'ch' at row 1
+Warning	1366	Incorrect string value: '\xF0\x9D\x8C\x86b' for column `test`.`t1`.`ch` at row 1
 SELECT ch FROM t1 IGNORE KEY (ch) WHERE ch<'a𝌆' ORDER BY ch;
 ch
 a
@@ -5537,7 +5537,7 @@ SELECT ch FROM t1 FORCE KEY (ch) WHERE ch<'a𝌆' ORDER BY ch;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 1	SIMPLE	t1	index	ch	ch	183	NULL	#	Using where; Using index
 Warnings:
-Warning	1366	Incorrect string value: '\xF0\x9D\x8C\x86' for column 'ch' at row 1
+Warning	1366	Incorrect string value: '\xF0\x9D\x8C\x86' for column `test`.`t1`.`ch` at row 1
 SELECT ch FROM t1 FORCE KEY (ch) WHERE ch<'a𝌆' ORDER BY ch;
 ch
 a
@@ -5558,13 +5558,13 @@ az
 aЀ
 aր
 Warnings:
-Warning	1366	Incorrect string value: '\xF0\x9D\x8C\x86' for column 'ch' at row 1
+Warning	1366	Incorrect string value: '\xF0\x9D\x8C\x86' for column `test`.`t1`.`ch` at row 1
 EXPLAIN
 SELECT ch FROM t1 FORCE KEY (ch) WHERE ch<'a𝌆b' ORDER BY ch;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 1	SIMPLE	t1	index	ch	ch	183	NULL	#	Using where; Using index
 Warnings:
-Warning	1366	Incorrect string value: '\xF0\x9D\x8C\x86b' for column 'ch' at row 1
+Warning	1366	Incorrect string value: '\xF0\x9D\x8C\x86b' for column `test`.`t1`.`ch` at row 1
 SELECT ch FROM t1 FORCE KEY (ch) WHERE ch<'a𝌆b' ORDER BY ch;
 ch
 a
@@ -5585,7 +5585,7 @@ az
 aЀ
 aր
 Warnings:
-Warning	1366	Incorrect string value: '\xF0\x9D\x8C\x86b' for column 'ch' at row 1
+Warning	1366	Incorrect string value: '\xF0\x9D\x8C\x86b' for column `test`.`t1`.`ch` at row 1
 SELECT ch FROM t1 IGNORE KEY (ch) WHERE ch>'a𝌆' ORDER BY ch;
 ch
 z
@@ -5597,23 +5597,23 @@ SELECT ch FROM t1 FORCE KEY (ch) WHERE ch>'a𝌆' ORDER BY ch;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 1	SIMPLE	t1	index	ch	ch	183	NULL	#	Using where; Using index
 Warnings:
-Warning	1366	Incorrect string value: '\xF0\x9D\x8C\x86' for column 'ch' at row 1
+Warning	1366	Incorrect string value: '\xF0\x9D\x8C\x86' for column `test`.`t1`.`ch` at row 1
 SELECT ch FROM t1 FORCE KEY (ch) WHERE ch>'a𝌆' ORDER BY ch;
 ch
 z
 Warnings:
-Warning	1366	Incorrect string value: '\xF0\x9D\x8C\x86' for column 'ch' at row 1
+Warning	1366	Incorrect string value: '\xF0\x9D\x8C\x86' for column `test`.`t1`.`ch` at row 1
 EXPLAIN
 SELECT ch FROM t1 FORCE KEY (ch) WHERE ch>'a𝌆b' ORDER BY ch;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 1	SIMPLE	t1	index	ch	ch	183	NULL	#	Using where; Using index
 Warnings:
-Warning	1366	Incorrect string value: '\xF0\x9D\x8C\x86b' for column 'ch' at row 1
+Warning	1366	Incorrect string value: '\xF0\x9D\x8C\x86b' for column `test`.`t1`.`ch` at row 1
 SELECT ch FROM t1 FORCE KEY (ch) WHERE ch>'a𝌆b' ORDER BY ch;
 ch
 z
 Warnings:
-Warning	1366	Incorrect string value: '\xF0\x9D\x8C\x86b' for column 'ch' at row 1
+Warning	1366	Incorrect string value: '\xF0\x9D\x8C\x86b' for column `test`.`t1`.`ch` at row 1
 ALTER TABLE t1 DROP KEY ch;
 # 0xD18F would be a good 2-byte character, 0xD1 is an incomplete sequence
 SET @query=CONCAT('SELECT ch FROM t1 WHERE ch=''a', 0xD1,'''');
@@ -5700,13 +5700,13 @@ INSERT INTO t1 (ch) VALUES ('admin'),('admin1');
 SELECT ch FROM t1 WHERE ch='admin𝌆';
 ch
 Warnings:
-Warning	1366	Incorrect string value: '\xF0\x9D\x8C\x86' for column 'ch' at row 1
+Warning	1366	Incorrect string value: '\xF0\x9D\x8C\x86' for column `test`.`t1`.`ch` at row 1
 SELECT ch FROM t1 IGNORE KEY (ch) WHERE ch='admin𝌆';
 ch
 SELECT ch FROM t1 FORCE KEY (ch) WHERE ch='admin𝌆';
 ch
 Warnings:
-Warning	1366	Incorrect string value: '\xF0\x9D\x8C\x86' for column 'ch' at row 1
+Warning	1366	Incorrect string value: '\xF0\x9D\x8C\x86' for column `test`.`t1`.`ch` at row 1
 DELETE FROM t1;
 INSERT INTO t1 (ch) VALUES ('a'), ('a?'), ('a??'), ('a???'), ('a????');
 INSERT INTO t1 (ch) VALUES ('ab'),('a?b'),('a??b'),('a???b'),('a????b');
@@ -5723,21 +5723,21 @@ SELECT ch FROM t1 FORCE KEY (ch) WHERE ch='a𝌆' ORDER BY ch;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 1	SIMPLE	NULL	NULL	NULL	NULL	NULL	NULL	#	Impossible WHERE noticed after reading const tables
 Warnings:
-Warning	1366	Incorrect string value: '\xF0\x9D\x8C\x86' for column 'ch' at row 1
+Warning	1366	Incorrect string value: '\xF0\x9D\x8C\x86' for column `test`.`t1`.`ch` at row 1
 SELECT ch FROM t1 FORCE KEY (ch) WHERE ch='a𝌆' ORDER BY ch;
 ch
 Warnings:
-Warning	1366	Incorrect string value: '\xF0\x9D\x8C\x86' for column 'ch' at row 1
+Warning	1366	Incorrect string value: '\xF0\x9D\x8C\x86' for column `test`.`t1`.`ch` at row 1
 EXPLAIN
 SELECT ch FROM t1 FORCE KEY (ch) WHERE ch='a𝌆b' ORDER BY ch;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 1	SIMPLE	NULL	NULL	NULL	NULL	NULL	NULL	#	Impossible WHERE noticed after reading const tables
 Warnings:
-Warning	1366	Incorrect string value: '\xF0\x9D\x8C\x86b' for column 'ch' at row 1
+Warning	1366	Incorrect string value: '\xF0\x9D\x8C\x86b' for column `test`.`t1`.`ch` at row 1
 SELECT ch FROM t1 FORCE KEY (ch) WHERE ch='a𝌆b' ORDER BY ch;
 ch
 Warnings:
-Warning	1366	Incorrect string value: '\xF0\x9D\x8C\x86b' for column 'ch' at row 1
+Warning	1366	Incorrect string value: '\xF0\x9D\x8C\x86b' for column `test`.`t1`.`ch` at row 1
 SELECT ch FROM t1 IGNORE KEY (ch) WHERE ch<'a𝌆' ORDER BY ch;
 ch
 a
@@ -5781,7 +5781,7 @@ SELECT ch FROM t1 FORCE KEY (ch) WHERE ch<'a𝌆' ORDER BY ch;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 1	SIMPLE	t1	index	ch	ch	183	NULL	#	Using where; Using index
 Warnings:
-Warning	1366	Incorrect string value: '\xF0\x9D\x8C\x86' for column 'ch' at row 1
+Warning	1366	Incorrect string value: '\xF0\x9D\x8C\x86' for column `test`.`t1`.`ch` at row 1
 SELECT ch FROM t1 FORCE KEY (ch) WHERE ch<'a𝌆' ORDER BY ch;
 ch
 a
@@ -5802,13 +5802,13 @@ az
 aЀ
 aր
 Warnings:
-Warning	1366	Incorrect string value: '\xF0\x9D\x8C\x86' for column 'ch' at row 1
+Warning	1366	Incorrect string value: '\xF0\x9D\x8C\x86' for column `test`.`t1`.`ch` at row 1
 EXPLAIN
 SELECT ch FROM t1 FORCE KEY (ch) WHERE ch<'a𝌆b' ORDER BY ch;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 1	SIMPLE	t1	index	ch	ch	183	NULL	#	Using where; Using index
 Warnings:
-Warning	1366	Incorrect string value: '\xF0\x9D\x8C\x86b' for column 'ch' at row 1
+Warning	1366	Incorrect string value: '\xF0\x9D\x8C\x86b' for column `test`.`t1`.`ch` at row 1
 SELECT ch FROM t1 FORCE KEY (ch) WHERE ch<'a𝌆b' ORDER BY ch;
 ch
 a
@@ -5829,7 +5829,7 @@ az
 aЀ
 aր
 Warnings:
-Warning	1366	Incorrect string value: '\xF0\x9D\x8C\x86b' for column 'ch' at row 1
+Warning	1366	Incorrect string value: '\xF0\x9D\x8C\x86b' for column `test`.`t1`.`ch` at row 1
 SELECT ch FROM t1 IGNORE KEY (ch) WHERE ch>'a𝌆' ORDER BY ch;
 ch
 z
@@ -5841,23 +5841,23 @@ SELECT ch FROM t1 FORCE KEY (ch) WHERE ch>'a𝌆' ORDER BY ch;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 1	SIMPLE	t1	index	ch	ch	183	NULL	#	Using where; Using index
 Warnings:
-Warning	1366	Incorrect string value: '\xF0\x9D\x8C\x86' for column 'ch' at row 1
+Warning	1366	Incorrect string value: '\xF0\x9D\x8C\x86' for column `test`.`t1`.`ch` at row 1
 SELECT ch FROM t1 FORCE KEY (ch) WHERE ch>'a𝌆' ORDER BY ch;
 ch
 z
 Warnings:
-Warning	1366	Incorrect string value: '\xF0\x9D\x8C\x86' for column 'ch' at row 1
+Warning	1366	Incorrect string value: '\xF0\x9D\x8C\x86' for column `test`.`t1`.`ch` at row 1
 EXPLAIN
 SELECT ch FROM t1 FORCE KEY (ch) WHERE ch>'a𝌆b' ORDER BY ch;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 1	SIMPLE	t1	index	ch	ch	183	NULL	#	Using where; Using index
 Warnings:
-Warning	1366	Incorrect string value: '\xF0\x9D\x8C\x86b' for column 'ch' at row 1
+Warning	1366	Incorrect string value: '\xF0\x9D\x8C\x86b' for column `test`.`t1`.`ch` at row 1
 SELECT ch FROM t1 FORCE KEY (ch) WHERE ch>'a𝌆b' ORDER BY ch;
 ch
 z
 Warnings:
-Warning	1366	Incorrect string value: '\xF0\x9D\x8C\x86b' for column 'ch' at row 1
+Warning	1366	Incorrect string value: '\xF0\x9D\x8C\x86b' for column `test`.`t1`.`ch` at row 1
 ALTER TABLE t1 DROP KEY ch;
 # 0xD18F would be a good 2-byte character, 0xD1 is an incomplete sequence
 SET @query=CONCAT('SELECT ch FROM t1 WHERE ch=''a', 0xD1,'''');
@@ -5944,13 +5944,13 @@ INSERT INTO t1 (ch) VALUES ('admin'),('admin1');
 SELECT ch FROM t1 WHERE ch='admin𝌆';
 ch
 Warnings:
-Warning	1366	Incorrect string value: '\xF0\x9D\x8C\x86' for column 'ch' at row 1
+Warning	1366	Incorrect string value: '\xF0\x9D\x8C\x86' for column `test`.`t1`.`ch` at row 1
 SELECT ch FROM t1 IGNORE KEY (ch) WHERE ch='admin𝌆';
 ch
 SELECT ch FROM t1 FORCE KEY (ch) WHERE ch='admin𝌆';
 ch
 Warnings:
-Warning	1366	Incorrect string value: '\xF0\x9D\x8C\x86' for column 'ch' at row 1
+Warning	1366	Incorrect string value: '\xF0\x9D\x8C\x86' for column `test`.`t1`.`ch` at row 1
 DELETE FROM t1;
 INSERT INTO t1 (ch) VALUES ('a'), ('a?'), ('a??'), ('a???'), ('a????');
 INSERT INTO t1 (ch) VALUES ('ab'),('a?b'),('a??b'),('a???b'),('a????b');
@@ -5967,21 +5967,21 @@ SELECT ch FROM t1 FORCE KEY (ch) WHERE ch='a𝌆' ORDER BY ch;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 1	SIMPLE	NULL	NULL	NULL	NULL	NULL	NULL	#	Impossible WHERE noticed after reading const tables
 Warnings:
-Warning	1366	Incorrect string value: '\xF0\x9D\x8C\x86' for column 'ch' at row 1
+Warning	1366	Incorrect string value: '\xF0\x9D\x8C\x86' for column `test`.`t1`.`ch` at row 1
 SELECT ch FROM t1 FORCE KEY (ch) WHERE ch='a𝌆' ORDER BY ch;
 ch
 Warnings:
-Warning	1366	Incorrect string value: '\xF0\x9D\x8C\x86' for column 'ch' at row 1
+Warning	1366	Incorrect string value: '\xF0\x9D\x8C\x86' for column `test`.`t1`.`ch` at row 1
 EXPLAIN
 SELECT ch FROM t1 FORCE KEY (ch) WHERE ch='a𝌆b' ORDER BY ch;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 1	SIMPLE	NULL	NULL	NULL	NULL	NULL	NULL	#	Impossible WHERE noticed after reading const tables
 Warnings:
-Warning	1366	Incorrect string value: '\xF0\x9D\x8C\x86b' for column 'ch' at row 1
+Warning	1366	Incorrect string value: '\xF0\x9D\x8C\x86b' for column `test`.`t1`.`ch` at row 1
 SELECT ch FROM t1 FORCE KEY (ch) WHERE ch='a𝌆b' ORDER BY ch;
 ch
 Warnings:
-Warning	1366	Incorrect string value: '\xF0\x9D\x8C\x86b' for column 'ch' at row 1
+Warning	1366	Incorrect string value: '\xF0\x9D\x8C\x86b' for column `test`.`t1`.`ch` at row 1
 SELECT ch FROM t1 IGNORE KEY (ch) WHERE ch<'a𝌆' ORDER BY ch;
 ch
 a
@@ -10611,11 +10611,11 @@ DROP TABLE t1;
 CREATE TABLE t1 (a TEXT CHARACTER SET utf8);
 LOAD DATA INFILE '../../std_data/loaddata/mdev9823.utf8mb4.txt' IGNORE INTO TABLE t1 CHARACTER SET utf8 IGNORE 4 LINES;
 Warnings:
-Warning	1366	Incorrect string value: '\xD0' for column 'a' at row 1
-Warning	1366	Incorrect string value: '\xE1\x80' for column 'a' at row 3
-Warning	1366	Incorrect string value: '\xF0\x9F\x98' for column 'a' at row 5
-Warning	1366	Incorrect string value: '\xF0\x9F\x98\x8E' for column 'a' at row 7
-Warning	1366	Incorrect string value: '\xF0\x9F\x98' for column 'a' at row 8
+Warning	1366	Incorrect string value: '\xD0' for column `test`.`t1`.`a` at row 1
+Warning	1366	Incorrect string value: '\xE1\x80' for column `test`.`t1`.`a` at row 3
+Warning	1366	Incorrect string value: '\xF0\x9F\x98' for column `test`.`t1`.`a` at row 5
+Warning	1366	Incorrect string value: '\xF0\x9F\x98\x8E' for column `test`.`t1`.`a` at row 7
+Warning	1366	Incorrect string value: '\xF0\x9F\x98' for column `test`.`t1`.`a` at row 8
 SELECT HEX(a) FROM t1;
 HEX(a)
 3F
@@ -10633,7 +10633,7 @@ DROP TABLE t1;
 CREATE TABLE t1 (a TEXT CHARACTER SET utf8);
 LOAD XML INFILE '../../std_data/loaddata/mdev9874.xml' IGNORE INTO TABLE t1 CHARACTER SET utf8 ROWS IDENTIFIED BY '<row>';
 Warnings:
-Warning	1366	Incorrect string value: '\xD0' for column 'a' at row 1
+Warning	1366	Incorrect string value: '\xD0' for column `test`.`t1`.`a` at row 1
 SELECT HEX(a) FROM t1;
 HEX(a)
 613F

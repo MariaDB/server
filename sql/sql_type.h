@@ -613,34 +613,36 @@ public:
               public Status
   {
   public:
-    void push_conversion_warnings(THD *thd, bool totally_useless_value, date_mode_t mode,
-                                 timestamp_type tstype, const char *name)
+    void push_conversion_warnings(THD *thd, bool totally_useless_value,
+                                  date_mode_t mode, timestamp_type tstype,
+                                  const TABLE_SHARE* s, const char *name)
     {
       const char *typestr= tstype >= 0 ? type_name_by_timestamp_type(tstype) :
                            mode & (TIME_INTERVAL_hhmmssff | TIME_INTERVAL_DAY) ?
                            "interval" :
                            mode & TIME_TIME_ONLY ? "time" : "datetime";
-      Temporal::push_conversion_warnings(thd, totally_useless_value, warnings, typestr,
-                                         name, ptr());
+      Temporal::push_conversion_warnings(thd, totally_useless_value, warnings,
+                                         typestr, s, name, ptr());
     }
   };
 
   class Warn_push: public Warn
   {
     THD *m_thd;
+    const TABLE_SHARE *m_s;
     const char *m_name;
     const MYSQL_TIME *m_ltime;
     date_mode_t m_mode;
   public:
-    Warn_push(THD *thd, const char *name,
+    Warn_push(THD *thd, const TABLE_SHARE *s, const char *name,
               const MYSQL_TIME *ltime, date_mode_t mode)
-     :m_thd(thd), m_name(name), m_ltime(ltime), m_mode(mode)
+    :m_thd(thd), m_s(s), m_name(name), m_ltime(ltime), m_mode(mode)
     { }
     ~Warn_push()
     {
       if (warnings)
         push_conversion_warnings(m_thd, m_ltime->time_type < 0,
-                                 m_mode, m_ltime->time_type, m_name);
+                                 m_mode, m_ltime->time_type, m_s, m_name);
     }
   };
 
@@ -681,6 +683,7 @@ public:
   }
   static void push_conversion_warnings(THD *thd, bool totally_useless_value, int warn,
                                        const char *type_name,
+                                       const TABLE_SHARE *s,
                                        const char *field_name,
                                        const char *value);
   /*

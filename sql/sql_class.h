@@ -4419,14 +4419,23 @@ public:
   }
   void push_warning_truncated_value_for_field(Sql_condition::enum_warning_level
                                               level, const char *type_str,
-                                              const char *val, const char *name)
+                                              const char *val,
+                                              const TABLE_SHARE *s,
+                                              const char *name)
   {
     DBUG_ASSERT(name);
     char buff[MYSQL_ERRMSG_SIZE];
     CHARSET_INFO *cs= &my_charset_latin1;
+    const char *db_name= s ? s->db.str : NULL;
+    const char *table_name= s ? s->error_table_name() : NULL;
+
+    if (!db_name)
+      db_name= "";
+    if (!table_name)
+      table_name= "";
     cs->cset->snprintf(cs, buff, sizeof(buff),
                        ER_THD(this, ER_TRUNCATED_WRONG_VALUE_FOR_FIELD),
-                       type_str, val, name,
+                       type_str, val, db_name, table_name, name,
                        (ulong) get_stmt_da()->current_row_for_warning());
     push_warning(this, level, ER_TRUNCATED_WRONG_VALUE, buff);
 
@@ -4435,10 +4444,12 @@ public:
                                              bool totally_useless_value,
                                              const char *type_str,
                                              const char *val,
+                                             const TABLE_SHARE *s,
                                              const char *field_name)
   {
     if (field_name)
-      push_warning_truncated_value_for_field(level, type_str, val, field_name);
+      push_warning_truncated_value_for_field(level, type_str, val,
+                                             s, field_name);
     else if (totally_useless_value)
       push_warning_wrong_value(level, type_str, val);
     else
