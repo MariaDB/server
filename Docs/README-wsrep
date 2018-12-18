@@ -137,7 +137,7 @@ Additional packages to consider (if not yet installed):
    * galera (multi-master replication provider, https://launchpad.net/galera)
    * MySQL-client-community (for connecting to server and mysqldump-based SST)
    * rsync (for rsync-based SST)
-   * xtrabackup and nc (for xtrabackup-based SST)
+   * mariabackup and nc (for mariabackup-based SST)
 
 2.2 Upgrade system tables.
 
@@ -380,14 +380,14 @@ to join or start a cluster.
 wsrep_sst_method=rsync
    What method to use to copy database state to a newly joined node. Supported
    methods:
-   - mysqldump:  slow (except for small datasets) but allows for upgrade
-                 between major MySQL versions or InnoDB features.
-   - rsync:      much faster on large datasets (default).
-   - rsync_wan:  same as rsync but with deltaxfer to minimize network traffic.
-   - xtrabackup: very fast and practically non-blocking SST method based on
-                 Percona's xtrabackup tool.
+   - mysqldump:   slow (except for small datasets) but allows for upgrade
+                  between major MySQL versions or InnoDB features.
+   - rsync:       much faster on large datasets (default).
+   - rsync_wan:   same as rsync but with deltaxfer to minimize network traffic.
+   - mariabackup: very fast and practically non-blocking SST method based on
+                  mariabackup tool (enhanced version of Percona's xtrabackup).
 
-   (for xtrabackup to work the following settings must be present in my.cnf
+   (for mariabackup to work the following settings must be present in my.cnf
     on all nodes:
       [mysqld]
       wsrep_sst_auth=root:<root password>
