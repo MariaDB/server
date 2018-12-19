@@ -1097,6 +1097,7 @@ void Global_read_lock::unlock_global_read_lock(THD *thd)
 
   thd->mdl_context.release_lock(m_mdl_global_read_lock);
 
+#ifdef WITH_WSREP
   if (m_state == GRL_ACQUIRED_AND_BLOCKS_COMMIT)
   {
     Wsrep_server_state& server_state= Wsrep_server_state::instance();
@@ -1111,6 +1112,7 @@ void Global_read_lock::unlock_global_read_lock(THD *thd)
       server_state.resume_and_resync();
     }
   }
+#endif /* WITH_WSREP */
 
   m_mdl_global_read_lock= NULL;
   m_state= GRL_NONE;
