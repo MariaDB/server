@@ -329,7 +329,7 @@ xb_fil_cur_read(
 
 	xb_a((to_read & (page_size - 1)) == 0);
 
-	npages = (ulint) (to_read / cursor->page_size.physical());
+	npages = (ulint) (to_read / page_size);
 
 	retry_count = 10;
 	ret = XB_FIL_CUR_SUCCESS;
@@ -346,7 +346,7 @@ read_retry:
 	cursor->buf_read = 0;
 	cursor->buf_npages = 0;
 	cursor->buf_offset = offset;
-	cursor->buf_page_no = (ulint)(offset / cursor->page_size.physical());
+	cursor->buf_page_no = (ulint)(offset / page_size);
 
 	if (!os_file_read(IORequestRead, cursor->file, cursor->buf, offset,
 			  (ulint) to_read)) {
@@ -360,11 +360,32 @@ read_retry:
 		ulint page_no = cursor->buf_page_no + i;
 		ulint page_type = mach_read_from_2(page + FIL_PAGE_TYPE);
 
-                if (cursor->space_id == TRX_SYS_SPACE &&
-                    page_no >= FSP_EXTENT_SIZE &&
-                    page_no < FSP_EXTENT_SIZE * 3) {
-                        /* We ignore the doublewrite buffer pages */
-                } else if (mach_read_from_4(
+		if (cursor->space_id == TRX_SYS_SPACE
+		    && page_no >= FSP_EXTENT_SIZE
+		    && page_no < FSP_EXTENT_SIZE * 3) {
+			/* We ignore the doublewrite buffer pages */
+                } else if (mach_read_from_4(page + FIL_PAGE_OFFSET) != page_no
+			   && space->id != TRX_SYS_SPACE) {
+			/* On pages that are not all zero, the
+			page number must match.
+
+			There may be a mismatch on tablespace ID,
+			because files may be renamed during backup.
+			We disable the page number check
+			on the system tablespace, because it may consist
+			of multiple files, and here we count the pages
+			from the start of each file.)
+
+			The first 38 and last 8 bytes are never encrypted. */
+			const ulint* p = reinterpret_cast<ulint*>(page);
+			const ulint* const end = reinterpret_cast<ulint*>(
+				page + page_size);
+			do {
+				if (*p++) {
+					goto corrupted;
+				}
+			} while (p != end);
+		} else if (mach_read_from_4(
 				   page
 				   + FIL_PAGE_FILE_FLUSH_LSN_OR_KEY_VERSION)
 			   && space->crypt_data
@@ -372,9 +393,6 @@ read_retry:
 			   != CRYPT_SCHEME_UNENCRYPTED
 			   && fil_space_verify_crypt_checksum(
                                    page, cursor->page_size)) {
-			ut_ad(mach_read_from_4(page + FIL_PAGE_SPACE_ID)
-			      == space->id);
-
 			bool decrypted = false;
 
 			memcpy(tmp_page, page, page_size);
@@ -392,23 +410,27 @@ read_retry:
 						  cursor->page_size, space)) {
 				goto corrupted;
 			}
-
 		} else if (page_type == FIL_PAGE_PAGE_COMPRESSED) {
-			memcpy(tmp_page, page, cursor->page_size.physical());
+			memcpy(tmp_page, page, page_size);
 page_decomp:
 			ulint decomp = fil_page_decompress(tmp_frame, tmp_page);
+			page_type = mach_read_from_2(tmp_page + FIL_PAGE_TYPE);
 
 			if (!decomp
 			    || (decomp != srv_page_size
 				&& cursor->page_size.is_compressed())
+			    || page_type == FIL_PAGE_PAGE_COMPRESSED
+			    || page_type == FIL_PAGE_PAGE_COMPRESSED_ENCRYPTED
 			    || buf_page_is_corrupted(true, tmp_page,
 						     cursor->page_size,
 						     space)) {
 				goto corrupted;
 			}
 
-		} else if (buf_page_is_corrupted(true, page, cursor->page_size,
-						 space)) {
+		} else if (page_type == FIL_PAGE_PAGE_COMPRESSED_ENCRYPTED
+			   || buf_page_is_corrupted(true, page,
+						    cursor->page_size,
+						    space)) {
 corrupted:
                         retry_count--;
                         if (retry_count == 0) {
