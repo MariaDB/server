@@ -1816,7 +1816,7 @@ int TABLE_SHARE::init_from_binary_frm_image(THD *thd, bool write,
             uint pk_part_length= key_first_info->key_part[i].store_length;
             if (keyinfo->ext_key_part_map & 1<<i)
             {
-              if (ext_key_length + pk_part_length > MAX_KEY_LENGTH)
+              if (ext_key_length + pk_part_length > MAX_DATA_LENGTH_FOR_KEY)
               {
                 add_keyparts_for_this_key= i;
                 break;
