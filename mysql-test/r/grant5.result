@@ -16,3 +16,10 @@ show grants for foo@'%';
 ERROR 42000: Access denied for user 'test'@'%' to database 'mysql'
 drop user test, foo;
 drop role foo;
+CREATE TABLE t1 (a INT);
+LOCK TABLE t1 WRITE;
+REVOKE EXECUTE ON PROCEDURE sp FROM u;
+ERROR HY000: Table 'user' was not locked with LOCK TABLES
+REVOKE PROCESS ON *.* FROM u;
+ERROR HY000: Table 'user' was not locked with LOCK TABLES
+DROP TABLE t1;

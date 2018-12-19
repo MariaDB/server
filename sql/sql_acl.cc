@@ -786,8 +786,7 @@ static const int Table_procs_priv= 1 << PROCS_PRIV_TABLE;
 static const int Table_proxies_priv= 1 << PROXIES_PRIV_TABLE;
 static const int Table_roles_mapping= 1 << ROLES_MAPPING_TABLE;
 
-static int open_grant_tables(THD *thd, TABLE_LIST *tables,
-                             enum thr_lock_type lock_type, int tables_to_open);
+static int open_grant_tables(THD *, TABLE_LIST *, enum thr_lock_type, int);
 
 const LEX_STRING acl_table_names[]=     //  matches enum_acl_tables
 {
@@ -6030,7 +6029,8 @@ bool mysql_routine_grant(THD *thd, TABLE_LIST *table_list, bool is_proc,
   List_iterator <LEX_USER> str_list (user_list);
   LEX_USER *Str, *tmp_Str;
   TABLE_LIST tables[TABLES_MAX];
-  bool create_new_users= 0, result;
+  bool create_new_users= 0;
+  int result;
   char *db_name, *table_name;
   DBUG_ENTER("mysql_routine_grant");
 
@@ -6465,7 +6465,8 @@ bool mysql_grant(THD *thd, const char *db, List <LEX_USER> &list,
   List_iterator <LEX_USER> str_list (list);
   LEX_USER *Str, *tmp_Str, *proxied_user= NULL;
   char tmp_db[SAFE_NAME_LEN+1];
-  bool create_new_users=0, result;
+  bool create_new_users=0;
+  int result;
   TABLE_LIST tables[TABLES_MAX];
   DBUG_ENTER("mysql_grant");
 
