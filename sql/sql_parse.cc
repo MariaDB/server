@@ -1840,13 +1840,6 @@ bool dispatch_command(enum enum_server_command command, THD *thd,
         thd->mysys_var->abort     = 0;
         thd->wsrep_retry_counter  = 0;
         mysql_mutex_unlock(&thd->LOCK_thd_data);
-#ifdef WSREP_TODO
-        /*
-          Increment threads running to compensate dec_thread_running() called
-          after dispatch_end label.
-        */
-        inc_thread_running();
-#endif /* WSREP_TODO */
         goto dispatch_end;
       }
     }
@@ -1951,13 +1944,6 @@ bool dispatch_command(enum enum_server_command command, THD *thd,
           thd->mysys_var->abort     = 0;
           thd->wsrep_retry_counter  = 0;
           mysql_mutex_unlock(&thd->LOCK_thd_data);
-#ifdef WSREP_TODO
-          /*
-            Increment threads running to compensate dec_thread_running() called
-            after dispatch_end label.
-          */
-          inc_thread_running();
-#endif /* WSREP_TODO */
 
           goto dispatch_end;
         }
@@ -7975,7 +7961,7 @@ static void wsrep_prepare_for_autocommit_retry(THD* thd,
 
   /* DTRACE begin */
   MYSQL_QUERY_START(rawbuf, thd->thread_id,
-	            (char *)(thd->db.str ? : thd->db.str : "unknown"),
+                    thd->get_db(),
                     &thd->security_ctx->priv_user[0],
                     (char *) thd->security_ctx->host_or_ip);
 

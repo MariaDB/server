@@ -43,7 +43,7 @@ void wsrep_xid_init(XID* xid, const wsrep::gtid& wsgtid)
   xid->bqual_length= 0;
   memset(xid->data, 0, sizeof(xid->data));
   memcpy(xid->data, WSREP_XID_PREFIX, WSREP_XID_PREFIX_LEN);
-  xid->data[WSREP_XID_VERSION_OFFSET] = WSREP_XID_VERSION_2;
+  xid->data[WSREP_XID_VERSION_OFFSET]= WSREP_XID_VERSION_2;
   memcpy(xid->data + WSREP_XID_UUID_OFFSET,  wsgtid.id().data(),sizeof(wsrep::id));
   int8store(xid->data + WSREP_XID_SEQNO_OFFSET, wsgtid.seqno().get());
 }
@@ -111,7 +111,7 @@ static my_bool set_SE_checkpoint(THD* unused, plugin_ref plugin, void* arg)
   if (hton->set_checkpoint)
   {
     const unsigned char* uuid= wsrep_xid_uuid(xid);
-    char uuid_str[40] = {0, };
+    char uuid_str[40]= {0, };
     wsrep_uuid_print((const wsrep_uuid_t*)uuid, uuid_str, sizeof(uuid_str));
     WSREP_DEBUG("Set WSREPXid for InnoDB:  %s:%lld",
                 uuid_str, (long long)wsrep_xid_seqno(xid));
@@ -143,7 +143,7 @@ static my_bool get_SE_checkpoint(THD* unused, plugin_ref plugin, void* arg)
     hton->get_checkpoint(hton, xid);
     wsrep_uuid_t uuid;
     memcpy(&uuid, wsrep_xid_uuid(xid), sizeof(uuid));
-    char uuid_str[40] = {0, };
+    char uuid_str[40]= {0, };
     wsrep_uuid_print(&uuid, uuid_str, sizeof(uuid_str));
     WSREP_DEBUG("Read WSREPXid from InnoDB:  %s:%lld",
                 uuid_str, (long long)wsrep_xid_seqno(xid));

@@ -30,22 +30,21 @@
 #include <cstdio>
 #include <cstdlib>
 
-const char wsrep_defaults_group_suffix[256] = {0};
 #include <my_service_manager.h>
 
 static char wsrep_defaults_file[FN_REFLEN * 2 + 10 + 30 +
                                 sizeof(WSREP_SST_OPT_CONF) +
                                 sizeof(WSREP_SST_OPT_CONF_SUFFIX) +
-                                sizeof(WSREP_SST_OPT_CONF_EXTRA)] = {0};
+                                sizeof(WSREP_SST_OPT_CONF_EXTRA)]= {0};
 
-const char* wsrep_sst_method          = WSREP_SST_DEFAULT;
-const char* wsrep_sst_receive_address = WSREP_SST_ADDRESS_AUTO;
-const char* wsrep_sst_donor           = "";
-const char* wsrep_sst_auth            = NULL;
+const char* wsrep_sst_method         = WSREP_SST_DEFAULT;
+const char* wsrep_sst_receive_address= WSREP_SST_ADDRESS_AUTO;
+const char* wsrep_sst_donor          = "";
+const char* wsrep_sst_auth           = NULL;
 
 // container for real auth string
-static const char* sst_auth_real      = NULL;
-my_bool wsrep_sst_donor_rejects_queries = FALSE;
+static const char* sst_auth_real     = NULL;
+my_bool wsrep_sst_donor_rejects_queries= FALSE;
 
 bool wsrep_sst_method_check (sys_var *self, THD* thd, set_var* var)
 {
@@ -66,7 +65,7 @@ bool wsrep_sst_method_update (sys_var *self, THD* thd, enum_var_type type)
     return 0;
 }
 
-static const char* data_home_dir = NULL;
+static const char* data_home_dir= NULL;
 
 void wsrep_set_data_home_dir(const char *data_dir)
 {
@@ -140,7 +139,7 @@ static bool sst_auth_real_set (const char* value)
   {
     // set sst_auth_real
     if (sst_auth_real) { my_free((void *) sst_auth_real); }
-    sst_auth_real = v;
+    sst_auth_real= v;
 
     // mask wsrep_sst_auth
     if (strlen(sst_auth_real))
@@ -284,11 +283,11 @@ struct sst_thread_arg
 static int sst_scan_uuid_seqno (const char* str,
                                 wsrep_uuid_t* uuid, wsrep_seqno_t* seqno)
 {
-  int offt = wsrep_uuid_scan (str, strlen(str), uuid);
+  int offt= wsrep_uuid_scan (str, strlen(str), uuid);
   errno= 0;                                     /* Reset the errno */
   if (offt > 0 && strlen(str) > (unsigned int)offt && ':' == str[offt])
   {
-    *seqno = strtoll (str + offt + 1, NULL, 10);
+    *seqno= strtoll (str + offt + 1, NULL, 10);
     if (*seqno != LLONG_MAX || errno != ERANGE)
     {
       return 0;
@@ -306,8 +305,8 @@ static char* my_fgets (char* buf, size_t buf_len, FILE* stream)
 
    if (ret)
    {
-       size_t len = strlen(ret);
-       if (len > 0 && ret[len - 1] == '\n') ret[len - 1] = '\0';
+       size_t len= strlen(ret);
+       if (len > 0 && ret[len - 1] == '\n') ret[len - 1]= '\0';
    }
 
    return ret;
@@ -363,9 +362,9 @@ static void* sst_joiner_thread (void* a)
 
   {
     THD* thd;
-    const char magic[] = "ready";
-    const size_t magic_len = sizeof(magic) - 1;
-    const size_t out_len = 512;
+    const char magic[]= "ready";
+    const size_t magic_len= sizeof(magic) - 1;
+    const size_t out_len= 512;
     char out[out_len];
 
     WSREP_INFO("Running: '%s'", arg->cmd);
@@ -382,29 +381,31 @@ static void* sst_joiner_thread (void* a)
         WSREP_ERROR("Failed to read '%s <addr>' from: %s\n\tRead: '%s'",
                     magic, arg->cmd, tmp);
         proc.wait();
-        if (proc.error()) err = proc.error();
+        if (proc.error()) err= proc.error();
       }
       else
       {
-        err = 0;
+        err= 0;
       }
     }
     else
     {
-      err = proc.error();
+      err= proc.error();
       WSREP_ERROR("Failed to execute: %s : %d (%s)",
                   arg->cmd, err, strerror(err));
     }
 
-    // signal sst_prepare thread with ret code,
-    // it will go on sending SST request
+    /*
+      signal sst_prepare thread with ret code,
+      it will go on sending SST request
+    */
     mysql_mutex_lock   (&arg->lock);
     if (!err)
     {
-      arg->ret_str = strdup (out + magic_len + 1);
-      if (!arg->ret_str) err = ENOMEM;
+      arg->ret_str= strdup (out + magic_len + 1);
+      if (!arg->ret_str) err= ENOMEM;
     }
-    arg->err = -err;
+    arg->err= -err;
     mysql_cond_signal  (&arg->cond);
     mysql_mutex_unlock (&arg->lock); //! @note arg is unusable after that.
 
@@ -412,11 +413,11 @@ static void* sst_joiner_thread (void* a)
                            * initializer thread to ensure single thread of
                            * shutdown. */
 
-    wsrep_uuid_t  ret_uuid  = WSREP_UUID_UNDEFINED;
-    wsrep_seqno_t ret_seqno = WSREP_SEQNO_UNDEFINED;
+    wsrep_uuid_t  ret_uuid = WSREP_UUID_UNDEFINED;
+    wsrep_seqno_t ret_seqno= WSREP_SEQNO_UNDEFINED;
 
     // in case of successfull receiver start, wait for SST completion/end
-    char* tmp = my_fgets (out, out_len, proc.pipe());
+    char* tmp= my_fgets (out, out_len, proc.pipe());
 
     proc.wait();
     err= EINVAL;
@@ -425,7 +426,7 @@ static void* sst_joiner_thread (void* a)
     {
       WSREP_ERROR("Failed to read uuid:seqno and wsrep_gtid_domain_id from "
                   "joiner script.");
-      if (proc.error()) err = proc.error();
+      if (proc.error()) err= proc.error();
     }
     else
     {
@@ -488,8 +489,10 @@ err:
                             wsrep::seqno(ret_seqno));
     }
 
-    // Tell initializer thread that SST is complete
-    // For that initialize a THD
+    /*
+      Tell initializer thread that SST is complete
+      For that initialize a THD
+    */
     if (my_thread_init())
     {
       WSREP_ERROR("my_thread_init() failed, can't signal end of SST. "
@@ -514,14 +517,14 @@ err:
     thd->store_globals();
 
     /* */
-    thd->variables.wsrep_on     = 0;
+    thd->variables.wsrep_on    = 0;
     /* No binlogging */
-    thd->variables.sql_log_bin  = 0;
+    thd->variables.sql_log_bin = 0;
     thd->variables.option_bits &= ~OPTION_BIN_LOG;
     /* No general log */
     thd->variables.option_bits |= OPTION_LOG_OFF;
     /* Read committed isolation to avoid gap locking */
-    thd->variables.tx_isolation = ISO_READ_COMMITTED;
+    thd->variables.tx_isolation= ISO_READ_COMMITTED;
 
     wsrep_sst_complete (thd, ret_gtid, -err);
 
@@ -665,7 +668,7 @@ static ssize_t sst_prepare_other (const char*  method,
   pthread_t tmp;
   sst_thread_arg arg(cmd_str(), env());
   mysql_mutex_lock (&arg.lock);
-  ret = pthread_create (&tmp, NULL, sst_joiner_thread, &arg);
+  ret= pthread_create (&tmp, NULL, sst_joiner_thread, &arg);
   if (ret)
   {
     WSREP_ERROR("sst_prepare_other(): pthread_create() failed: %d (%s)",
@@ -677,11 +680,11 @@ static ssize_t sst_prepare_other (const char*  method,
   *addr_out= arg.ret_str;
 
   if (!arg.err)
-    ret = strlen(*addr_out);
+    ret= strlen(*addr_out);
   else
   {
     assert (arg.err < 0);
-    ret = arg.err;
+    ret= arg.err;
   }
 
   pthread_detach (tmp);
@@ -695,12 +698,12 @@ extern uint  mysqld_port;
 static ssize_t sst_prepare_mysqldump (const char*  addr_in,
                                       const char** addr_out)
 {
-  ssize_t ret = strlen (addr_in);
+  ssize_t ret= strlen (addr_in);
 
   if (!strrchr(addr_in, ':'))
   {
-    ssize_t s = ret + 7;
-    char* tmp = (char*) malloc (s);
+    ssize_t s= ret + 7;
+    char* tmp= (char*) malloc (s);
 
     if (tmp)
     {
@@ -711,7 +714,7 @@ static ssize_t sst_prepare_mysqldump (const char*  addr_in,
         *addr_out= tmp;
         return ret;
       }
-      if (ret > 0) /* buffer too short */ ret = -EMSGSIZE;
+      if (ret > 0) /* buffer too short */ ret= -EMSGSIZE;
       free (tmp);
     }
     else {
@@ -796,9 +799,11 @@ std::string wsrep_sst_prepare()
     if (Wsrep_server_state::instance().is_initialized() &&
         Wsrep_server_state::instance().state() == Wsrep_server_state::s_joiner)
     {
-      // we already did SST at initializaiton, now engines are running
-      // sql_print_information() is here because the message is too long
-      // for WSREP_INFO.
+      /*
+	we already did SST at initializaiton, now engines are running
+	sql_print_information() is here because the message is too long
+	for WSREP_INFO.
+      */
       sql_print_information ("WSREP: "
                  "You have configured '%s' state snapshot transfer method "
                  "which cannot be performed on a running server. "
@@ -809,7 +814,7 @@ std::string wsrep_sst_prepare()
       return "";
     }
 
-    addr_len = sst_prepare_other (wsrep_sst_method, sst_auth_real,
+    addr_len= sst_prepare_other (wsrep_sst_method, sst_auth_real,
                                   addr_in, &addr_out);
     if (addr_len < 0)
     {
@@ -836,7 +841,7 @@ std::string wsrep_sst_prepare()
 // helper method for donors
 static int sst_run_shell (const char* cmd_str, char** env, int max_tries)
 {
-  int ret = 0;
+  int ret= 0;
 
   for (int tries=1; tries <= max_tries; tries++)
   {
@@ -847,7 +852,7 @@ static int sst_run_shell (const char* cmd_str, char** env, int max_tries)
       proc.wait();
     }
 
-    if ((ret = proc.error()))
+    if ((ret= proc.error()))
     {
       WSREP_ERROR("Try %d/%d: '%s' failed: %d (%s)",
                   tries, max_tries, proc.cmd(), ret, strerror(ret));
@@ -865,7 +870,6 @@ static int sst_run_shell (const char* cmd_str, char** env, int max_tries)
 
 static void sst_reject_queries(my_bool close_conn)
 {
-  // wsrep_ready_set (FALSE); // this will be resotred when donor becomes synced
   WSREP_INFO("Rejecting client queries for the duration of SST.");
   if (TRUE == close_conn) wsrep_close_client_connections(FALSE);
 }
@@ -1033,7 +1037,7 @@ static int sst_flush_tables(THD* thd)
   {
       /* Do not use non-supported parser character sets */
       WSREP_WARN("Current client character set is non-supported parser character set: %s", current_charset->csname);
-      thd->variables.character_set_client = &my_charset_latin1;
+      thd->variables.character_set_client= &my_charset_latin1;
       WSREP_WARN("For SST temporally setting character set to : %s",
                  my_charset_latin1.csname);
   }
@@ -1056,7 +1060,7 @@ static int sst_flush_tables(THD* thd)
     }
   }
 
-  thd->variables.character_set_client = current_charset;
+  thd->variables.character_set_client= current_charset;
 
   if (err)
   {
@@ -1085,9 +1089,9 @@ static int sst_flush_tables(THD* thd)
 
     const char base_name[]= "tables_flushed";
     ssize_t const full_len= strlen(mysql_real_data_home) + strlen(base_name)+2;
-    char *real_name = (char*) malloc(full_len);
+    char *real_name= (char*) malloc(full_len);
     sprintf(real_name, "%s/%s", mysql_real_data_home, base_name);
-    char *tmp_name = (char*) malloc(full_len + 4);
+    char *tmp_name= (char*) malloc(full_len + 4);
     sprintf(tmp_name, "%s.tmp", real_name);
 
     FILE* file= fopen(tmp_name, "w+");
@@ -1125,17 +1129,17 @@ static int sst_flush_tables(THD* thd)
 
 static void sst_disallow_writes (THD* thd, bool yes)
 {
-  char query_str[64] = { 0, };
-  ssize_t const query_max = sizeof(query_str) - 1;
+  char query_str[64]= { 0, };
+  ssize_t const query_max= sizeof(query_str) - 1;
   CHARSET_INFO *current_charset;
 
-  current_charset = thd->variables.character_set_client;
+  current_charset= thd->variables.character_set_client;
 
   if (!is_supported_parser_charset(current_charset))
   {
       /* Do not use non-supported parser character sets */
       WSREP_WARN("Current client character set is non-supported parser character set: %s", current_charset->csname);
-      thd->variables.character_set_client = &my_charset_latin1;
+      thd->variables.character_set_client= &my_charset_latin1;
       WSREP_WARN("For SST temporally setting character set to : %s",
                  my_charset_latin1.csname);
   }
@@ -1147,7 +1151,7 @@ static void sst_disallow_writes (THD* thd, bool yes)
   {
     WSREP_ERROR("Failed to disallow InnoDB writes");
   }
-  thd->variables.character_set_client = current_charset;
+  thd->variables.character_set_client= current_charset;
 }
 
 static void* sst_donor_thread (void* a)
@@ -1174,7 +1178,7 @@ static void* sst_donor_thread (void* a)
 
 /* Inform server about SST script startup and release TO isolation */
   mysql_mutex_lock   (&arg->lock);
-  arg->err = -err;
+  arg->err= -err;
   mysql_cond_signal  (&arg->cond);
   mysql_mutex_unlock (&arg->lock); //! @note arg is unusable after that.
 
@@ -1327,7 +1331,7 @@ static int sst_donate_other (const char*        method,
   pthread_t tmp;
   sst_thread_arg arg(cmd_str(), env);
   mysql_mutex_lock (&arg.lock);
-  ret = pthread_create (&tmp, NULL, sst_donor_thread, &arg);
+  ret= pthread_create (&tmp, NULL, sst_donor_thread, &arg);
   if (ret)
   {
     WSREP_ERROR("sst_donate_other(): pthread_create() failed: %d (%s)",
@@ -1350,9 +1354,9 @@ int wsrep_sst_donate(const std::string& msg,
   wsrep_config_state->set(WSREP_MEMBER_DONOR);
   local_status.set(WSREP_MEMBER_DONOR);
 
-  const char* method = msg.data();
-  size_t method_len  = strlen (method);
-  const char* data   = method + method_len + 1;
+  const char* method= msg.data();
+  size_t method_len= strlen (method);
+  const char* data= method + method_len + 1;
 
   wsp::env env(NULL);
   if (env.error())
@@ -1380,11 +1384,11 @@ int wsrep_sst_donate(const std::string& msg,
 
   if (!strcmp (WSREP_SST_MYSQLDUMP, method))
   {
-    ret = sst_donate_mysqldump(data, current_gtid, bypass, env());
+    ret= sst_donate_mysqldump(data, current_gtid, bypass, env());
   }
   else
   {
-    ret = sst_donate_other(method, data, current_gtid, bypass, env());
+    ret= sst_donate_other(method, data, current_gtid, bypass, env());
   }
 
   return (ret >= 0 ? 0 : 1);

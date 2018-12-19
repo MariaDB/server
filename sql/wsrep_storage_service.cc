@@ -20,7 +20,6 @@
 #include "wsrep_binlog.h"
 
 #include "sql_class.h"
-//#include "global_threads.h" /* LOCK_thread_count */
 #include "mysqld.h" /* next_query_id() */
 #include "slave.h" /* opt_log_slave_updates() */
 #include "transaction.h" /* trans_commit(), trans_rollback() */
@@ -55,8 +54,6 @@ Wsrep_storage_service::Wsrep_storage_service(THD* thd)
   thd->system_thread= SYSTEM_THREAD_SLAVE_SQL;
 
   /* No binlogging */
-  // thd->variables.sql_log_bin  = 0;
-  // thd->variables.option_bits &= ~OPTION_BIN_LOG;
 
   /* No general log */
   thd->variables.option_bits |= OPTION_LOG_OFF;
@@ -64,8 +61,6 @@ Wsrep_storage_service::Wsrep_storage_service(THD* thd)
   /* Read committed isolation to avoid gap locking */
   thd->variables.tx_isolation = ISO_READ_COMMITTED;
 
-  /* */
-  // thd->variables.wsrep_on= 0;
   /* Keep wsrep on to enter commit ordering hooks */
   thd->variables.wsrep_on= 1;
   thd->wsrep_skip_locking= true;
@@ -88,7 +83,6 @@ int Wsrep_storage_service::start_transaction(const wsrep::ws_handle& ws_handle)
   DBUG_PRINT("info", ("Wsrep_storage_service::start_transcation(%llu, %p)",
                       m_thd->thread_id, m_thd));
   m_thd->set_wsrep_next_trx_id(ws_handle.transaction_id().get());
-  // DBUG_RETURN(wsrep_start_transaction(m_thd, m_thd->wsrep_next_trx_id()));
   DBUG_RETURN(m_thd->wsrep_cs().start_transaction(
                 wsrep::transaction_id(m_thd->wsrep_next_trx_id())) ||
               trans_begin(m_thd, MYSQL_START_TRANS_OPT_READ_WRITE));

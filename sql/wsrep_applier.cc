@@ -39,7 +39,7 @@ static Log_event* wsrep_read_log_event(
   DBUG_ENTER("wsrep_read_log_event");
   char *head= (*arg_buf);
 
-  uint data_len = uint4korr(head + EVENT_LEN_OFFSET);
+  uint data_len= uint4korr(head + EVENT_LEN_OFFSET);
   char *buf= (*arg_buf);
   const char *error= 0;
   Log_event *res=  0;
@@ -99,7 +99,7 @@ void wsrep_apply_error::store(const THD* const thd)
     if (NULL == str_)
     {
       WSREP_ERROR("Failed to allocate %zu bytes for error buffer.", max_len);
-      len_ = 0;
+      len_= 0;
       return;
     }
   }
@@ -202,8 +202,8 @@ int wsrep_apply_events(THD*        thd,
       (thd->variables.option_bits & ~OPTION_SKIP_REPLICATION) |
       (ev->flags & LOG_EVENT_SKIP_REPLICATION_F ?  OPTION_SKIP_REPLICATION : 0);
 
-    ev->thd = thd;
-    exec_res = ev->apply_event(thd->wsrep_rgi);
+    ev->thd= thd;
+    exec_res= ev->apply_event(thd->wsrep_rgi);
     DBUG_PRINT("info", ("exec_event result: %d", exec_res));
 
     if (exec_res)

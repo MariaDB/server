@@ -27,12 +27,12 @@ class node_status
 public:
   node_status() : status(WSREP_MEMBER_UNDEFINED) {}
   void set(wsrep_member_status_t new_status,
-           const wsrep_view_info_t* view = 0)
+           const wsrep_view_info_t* view= 0)
   {
     if (status != new_status || 0 != view)
     {
       wsrep_notify_status(new_status, view);
-      status = new_status;
+      status= new_status;
     }
   }
   wsrep_member_status_t get() const { return status; }
@@ -329,7 +329,7 @@ public:
     string() : string_(0) {}
     explicit string(size_t s) : string_(static_cast<char*>(malloc(s))) {}
     char* operator()() { return string_; }
-    void set(char* str) { if (string_) free (string_); string_ = str; }
+    void set(char* str) { if (string_) free (string_); string_= str; }
     ~string() { set (0); }
 private:
     char* string_;
@@ -355,7 +355,7 @@ public:
 
   lock (pthread_mutex_t* mtx) : mtx_(mtx)
   {
-    int err = pthread_mutex_lock (mtx_);
+    int err= pthread_mutex_lock (mtx_);
 
     if (err)
     {
@@ -366,7 +366,7 @@ public:
 
   virtual ~lock ()
   {
-    int err = pthread_mutex_unlock (mtx_);
+    int err= pthread_mutex_unlock (mtx_);
 
     if (err)
     {
