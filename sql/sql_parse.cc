@@ -3884,6 +3884,9 @@ end_with_restore_list:
         my_message(ER_SLAVE_IGNORED_TABLE, ER(ER_SLAVE_IGNORED_TABLE), MYF(0));
         break;
       }
+    if (slave_ddl_exec_mode_options == SLAVE_EXEC_MODE_IDEMPOTENT &&
+        !(lex->create_info.options & HA_LEX_CREATE_IF_NOT_EXISTS))
+      create_info.options|= HA_LEX_CREATE_IF_NOT_EXISTS;
     }
 #endif
     if (check_access(thd, CREATE_ACL, lex->name.str, NULL, NULL, 1, 0))
@@ -3915,6 +3918,9 @@ end_with_restore_list:
         my_message(ER_SLAVE_IGNORED_TABLE, ER(ER_SLAVE_IGNORED_TABLE), MYF(0));
         break;
       }
+    if (!thd->slave_expected_error &&
+        slave_ddl_exec_mode_options == SLAVE_EXEC_MODE_IDEMPOTENT)
+      lex->check_exists= 1;
     }
 #endif
     if (check_access(thd, DROP_ACL, lex->name.str, NULL, NULL, 1, 0))
