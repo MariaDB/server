@@ -32,3 +32,36 @@ explain select distinct A.a from t0 A, t1 B where A.a+B.a> 0;
 
 drop table t0, t1;
 
+--echo #
+--echo # Truncate ORDER BY list to the first unique index
+--echo # https://bugs.mysql.com/bug.php?id=93049
+--echo #
+CREATE TABLE t1 (
+  a int NOT NULL AUTO_INCREMENT,
+  b int DEFAULT NULL,
+  c int DEFAULT NULL,
+  d varchar(255) NOT NULL,
+  PRIMARY KEY (a),
+  KEY b_c (b,c),
+  UNIQUE KEY (d),
+  UNIQUE KEY (c,b)
+);
+
+INSERT INTO t1(b,c,d) VALUES (1,2,'blue'),(2,4,'green'),(7,8,'Cerulean');
+EXPLAIN SELECT a FROM t1 ORDER BY a;
+EXPLAIN SELECT a FROM t1 ORDER BY a, b;
+EXPLAIN SELECT d FROM t1 ORDER BY d;
+EXPLAIN SELECT d FROM t1 ORDER BY d, c;
+
+# TODO: should to select c,b index
+EXPLAIN SELECT b FROM t1 ORDER BY c, b, d;
+
+# c is part of a unique index but isn't unique
+EXPLAIN SELECT c FROM t1 ORDER BY c, d;
+
+# Test showing code still broken in outer join
+EXPLAIN SELECT y.a AS y,x.a AS x FROM t1 x, t1 y ORDER BY y.a, x.a;
+SELECT y.a AS y,x.a AS x FROM t1 x, t1 y ORDER BY y.a, x.a;
+
+DROP TABLE t1;
+
