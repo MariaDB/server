@@ -96,7 +96,7 @@ GRANTEE	TABLE_CATALOG	TABLE_SCHEMA	TABLE_NAME	PRIVILEGE_TYPE	IS_GRANTABLE
 'testuser2'@'localhost'	def	db_datadict	tb1	CREATE	YES
 'testuser2'@'localhost'	def	db_datadict	tb1	CREATE VIEW	YES
 'testuser2'@'localhost'	def	db_datadict	tb1	DELETE	YES
-'testuser2'@'localhost'	def	db_datadict	tb1	DELETE VERSIONING ROWS	YES
+'testuser2'@'localhost'	def	db_datadict	tb1	DELETE HISTORY	YES
 'testuser2'@'localhost'	def	db_datadict	tb1	DROP	YES
 'testuser2'@'localhost'	def	db_datadict	tb1	INDEX	YES
 'testuser2'@'localhost'	def	db_datadict	tb1	INSERT	YES
@@ -132,7 +132,7 @@ GRANTEE	TABLE_CATALOG	TABLE_SCHEMA	TABLE_NAME	PRIVILEGE_TYPE	IS_GRANTABLE
 'testuser2'@'localhost'	def	db_datadict	tb1	CREATE	YES
 'testuser2'@'localhost'	def	db_datadict	tb1	CREATE VIEW	YES
 'testuser2'@'localhost'	def	db_datadict	tb1	DELETE	YES
-'testuser2'@'localhost'	def	db_datadict	tb1	DELETE VERSIONING ROWS	YES
+'testuser2'@'localhost'	def	db_datadict	tb1	DELETE HISTORY	YES
 'testuser2'@'localhost'	def	db_datadict	tb1	DROP	YES
 'testuser2'@'localhost'	def	db_datadict	tb1	INDEX	YES
 'testuser2'@'localhost'	def	db_datadict	tb1	INSERT	YES
@@ -186,7 +186,7 @@ GRANTEE	TABLE_CATALOG	TABLE_SCHEMA	TABLE_NAME	PRIVILEGE_TYPE	IS_GRANTABLE
 'testuser1'@'localhost'	def	test	t1_table	CREATE	NO
 'testuser1'@'localhost'	def	test	t1_table	CREATE VIEW	NO
 'testuser1'@'localhost'	def	test	t1_table	DELETE	NO
-'testuser1'@'localhost'	def	test	t1_table	DELETE VERSIONING ROWS	NO
+'testuser1'@'localhost'	def	test	t1_table	DELETE HISTORY	NO
 'testuser1'@'localhost'	def	test	t1_table	DROP	NO
 'testuser1'@'localhost'	def	test	t1_table	INDEX	NO
 'testuser1'@'localhost'	def	test	t1_table	INSERT	NO
@@ -199,7 +199,7 @@ GRANTEE	TABLE_CATALOG	TABLE_SCHEMA	TABLE_NAME	PRIVILEGE_TYPE	IS_GRANTABLE
 'testuser1'@'localhost'	def	test	t1_view	CREATE	NO
 'testuser1'@'localhost'	def	test	t1_view	CREATE VIEW	NO
 'testuser1'@'localhost'	def	test	t1_view	DELETE	NO
-'testuser1'@'localhost'	def	test	t1_view	DELETE VERSIONING ROWS	NO
+'testuser1'@'localhost'	def	test	t1_view	DELETE HISTORY	NO
 'testuser1'@'localhost'	def	test	t1_view	DROP	NO
 'testuser1'@'localhost'	def	test	t1_view	INDEX	NO
 'testuser1'@'localhost'	def	test	t1_view	INSERT	NO
