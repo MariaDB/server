@@ -25,9 +25,9 @@ namespace wsp {
 class node_status
 {
 public:
-  node_status() : status(WSREP_MEMBER_UNDEFINED) {}
-  void set(wsrep_member_status_t new_status,
-           const wsrep_view_info_t* view= 0)
+  node_status() : status(wsrep::server_state::s_disconnected) {}
+  void set(enum wsrep::server_state::state new_status,
+           const wsrep::view* view= 0)
   {
     if (status != new_status || 0 != view)
     {
@@ -35,9 +35,9 @@ public:
       status= new_status;
     }
   }
-  wsrep_member_status_t get() const { return status; }
+  enum wsrep::server_state::state get() const { return status; }
 private:
-  wsrep_member_status_t status;
+  enum wsrep::server_state::state status;
 };
 } /* namespace wsp */
 
@@ -194,50 +194,35 @@ private:
 class Config_state
 {
 public:
-  Config_state() : view_(), status_(WSREP_MEMBER_UNDEFINED)
+  Config_state() : view_(), status_(wsrep::server_state::s_disconnected)
   {}
 
-  void set(wsrep_member_status_t status, const wsrep_view_info_t* view)
+  void set(const wsrep::view& view)
   {
-    wsrep_notify_status(status, view);
+    wsrep_notify_status(status_, &view);
 
     lock();
-
-    status_= status;
-    view_= *view;
-    member_info_.clear();
-
-    wsrep_member_info_t memb;
-    for(int i= 0; i < view->memb_num; i ++)
-    {
-      memb= view->members[i];
-      member_info_.append_val(memb);
-    }
-
+    view_= view;
     unlock();
   }
 
-  void set(wsrep_member_status_t status)
+  void set(enum wsrep::server_state::state status)
   {
-    wsrep_notify_status(status, 0);
+    wsrep_notify_status(status);
+
     lock();
     status_= status;
     unlock();
   }
 
-  wsrep_view_info_t get_view_info() const
+  const wsrep::view& get_view_info() const
   {
     return view_;
   }
 
-  wsrep_member_status_t get_status() const
+  enum wsrep::server_state::state get_status() const
   {
     return status_;
-  }
-
-  Dynamic_array<wsrep_member_info_t> * get_member_info()
-  {
-    return &member_info_;
   }
 
   int lock()
@@ -251,9 +236,8 @@ public:
   }
 
 private:
-  wsrep_view_info_t                  view_;
-  wsrep_member_status_t              status_;
-  Dynamic_array<wsrep_member_info_t> member_info_;
+  wsrep::view view_;
+  enum wsrep::server_state::state status_;
 };
 
 } /* namespace wsp */
