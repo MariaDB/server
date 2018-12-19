@@ -693,5 +693,111 @@ drop table t1, t2;
 
 set optimizer_switch=@save_optimizer_switch;
 
+--echo # 
+--echo # MDEV-10360: Extended keys: index properties depend on index order
+--echo # 
+create table t0 (a int);
+insert into t0 values (0),(1),(2),(3),(4),(5),(6),(7),(8),(9);
+
+create table t1 (
+  index_id bigint(20) unsigned NOT NULL,
+  index_class varchar(265) COLLATE latin1_general_ci DEFAULT NULL ,
+  index_object_id int(10) unsigned NOT NULL DEFAULT '0' ,
+  index_date_updated int(10) unsigned DEFAULT NULL ,
+ 
+  PRIMARY KEY (index_id),
+  KEY object (index_class(181),index_object_id),
+  KEY index_date_updated (index_date_updated)
+) engine=innodb;
+
+create table t2 (
+  index_id bigint(20) unsigned NOT NULL,
+  index_class varchar(265) COLLATE latin1_general_ci DEFAULT NULL ,
+  index_object_id int(10) unsigned NOT NULL DEFAULT '0' ,
+  index_date_updated int(10) unsigned DEFAULT NULL ,
+ 
+  PRIMARY KEY (index_id),
+  KEY index_date_updated (index_date_updated),
+  KEY object (index_class(181),index_object_id)
+) engine=innodb;
+
+insert into t1 select 
+  @a:=A.a + 10*B.a + 100*C.a,
+  concat('val-', @a),
+  123456,
+  A.a + 10*B.a
+from 
+  t0 A, t0 B, t0 C;
+
+insert into t2 select * from t1;
+
+--echo # This must have the same query plan as the query below it:
+--echo # type=range, key=index_date_updated, key_len=13
+--replace_column 9 #
+explain 
+select * from t1 force index(index_date_updated) 
+where index_date_updated= 10 and index_id < 800;
+
+--echo # This used to work from the start:
+--replace_column 9 #
+explain 
+select * from t2 force index(index_date_updated) 
+where index_date_updated= 10 and index_id < 800;
+
+drop table t0,t1,t2;
+
+
+--echo #
+--echo # MDEV-11196: Error:Run-Time Check Failure #2 - Stack around the variable 'key_buff'
+--echo # was corrupted, server crashes in opt_sum_query
+
+set @save_innodb_file_format= @@innodb_file_format;
+set @save_innodb_large_prefix= @@innodb_large_prefix;
+set global innodb_file_format = BARRACUDA;
+set global innodb_large_prefix = ON;
+
+CREATE TABLE t1 (
+  pk INT,
+  f1 VARCHAR(3),
+  f2 VARCHAR(1024),
+  PRIMARY KEY (pk),
+  KEY(f2)
+) ENGINE=InnoDB CHARSET utf8 ROW_FORMAT= DYNAMIC;
+
+INSERT INTO t1 VALUES (1,'foo','abc'),(2,'bar','def');
+SELECT MAX(t2.pk) FROM t1 t2 INNER JOIN t1 t3 ON t2.f1 = t3.f1 WHERE t2.pk <= 4;
+drop table t1;
+
+CREATE TABLE t1 (
+  pk1 INT,
+  pk2 INT,
+  f1 VARCHAR(3),
+  f2 VARCHAR(1021),
+  PRIMARY KEY (pk1,pk2),
+  KEY(f2)
+) ENGINE=InnoDB CHARSET utf8 ROW_FORMAT= DYNAMIC;
+
+INSERT INTO t1 VALUES (1,2,'2','abc'),(2,3,'3','def');
+explain
+select * from t1 force index(f2)  where pk1 <= 5 and pk2 <=5 and f2 = 'abc' and f1 <= '3';
+drop table t1;
+
+CREATE TABLE t1 (
+f2 INT,
+pk2 INT,
+f1 VARCHAR(3),
+pk1 VARCHAR(1000),
+PRIMARY KEY (pk1,pk2),
+KEY k1(pk1,f2)
+) ENGINE=InnoDB CHARSET utf8 ROW_FORMAT= DYNAMIC;
+INSERT INTO t1 VALUES (1,2,'2','abc'),(2,3,'3','def');
+explain
+select * from t1 force index(k1)  where f2 <= 5 and pk2 <=5 and pk1 = 'abc' and f1 <= '3';
+drop table t1;
+
+set optimizer_switch=@save_ext_key_optimizer_switch;
+set global innodb_file_format = @save_innodb_file_format;
+set global innodb_large_prefix = @save_innodb_large_prefix;
+
 set optimizer_switch=@save_ext_key_optimizer_switch;
 SET SESSION STORAGE_ENGINE=DEFAULT;
