@@ -49,9 +49,6 @@ Created 12/27/1996 Heikki Tuuri
 #include "trx0rec.h"
 #include "fts0fts.h"
 #include "fts0types.h"
-#ifdef WITH_WSREP
-#include "mysql/service_wsrep.h"
-#endif
 #include <algorithm>
 #include <mysql/plugin.h>
 #include <mysql/service_wsrep.h>
@@ -2437,10 +2434,6 @@ row_upd_sec_index_entry(
 		row_ins_sec_index_entry() below */
 		if (!rec_get_deleted_flag(
 			    rec, dict_table_is_comp(index->table))) {
-#ifdef WITH_WSREP
-			const upd_node_t* parent =
-				static_cast<const upd_node_t*>(node->common.parent);
-#endif /* WITH_WSREP */
 			err = btr_cur_del_mark_set_sec_rec(
 				flags, btr_cur, TRUE, thr, &mtr);
 			if (err != DB_SUCCESS) {
@@ -2450,7 +2443,6 @@ row_upd_sec_index_entry(
 			if (!referenced && foreign
 			    && wsrep_must_process_fk(node, trx)
 			    && !wsrep_thd_is_BF(trx->mysql_thd, FALSE)) {
-
 
 				ulint*	offsets = rec_get_offsets(
 					rec, index, NULL, true,

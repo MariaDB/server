@@ -57,7 +57,7 @@ trx_rseg_update_wsrep_checkpoint(
 
 #ifdef UNIV_DEBUG
 	/* Check that seqno is monotonically increasing */
-	long long xid_seqno  = wsrep_xid_seqno(xid);
+	long long xid_seqno = wsrep_xid_seqno(xid);
 	const byte* xid_uuid = wsrep_xid_uuid(xid);
 
 	if (!memcmp(xid_uuid, wsrep_uuid, sizeof wsrep_uuid) &&
