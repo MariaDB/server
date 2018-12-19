@@ -4594,7 +4594,7 @@ bool select_create::send_eof()
                                        table_list,
                                        &key_arr);
       int rcode= wsrep_thd_append_key(thd, key_arr.keys, key_arr.keys_len,
-                                      wsrep_key_exclusive);
+                                      WSREP_SERVICE_KEY_EXCLUSIVE);
       wsrep_keys_free(&key_arr);
       if (rcode)
       {

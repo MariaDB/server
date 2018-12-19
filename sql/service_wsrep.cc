@@ -291,14 +291,14 @@ extern "C" my_bool wsrep_thd_is_aborting(const void* thd_ptr)
 }
 
 static inline enum wsrep::key::type
-map_key_type(enum Wsrep_key_type type)
+map_key_type(enum Wsrep_service_key_type type)
 {
   switch (type)
   {
-  case wsrep_key_shared: return wsrep::key::shared;
-  case wsrep_key_semi_shared: return wsrep::key::semi_shared;
-  case wsrep_key_semi_exclusive: return wsrep::key::semi_exclusive;
-  case wsrep_key_exclusive: return wsrep::key::exclusive;
+  case WSREP_SERVICE_KEY_SHARED:    return wsrep::key::shared;
+  case WSREP_SERVICE_KEY_REFERENCE: return wsrep::key::reference;
+  case WSREP_SERVICE_KEY_UPDATE:    return wsrep::key::update;
+  case WSREP_SERVICE_KEY_EXCLUSIVE: return wsrep::key::exclusive;
   }
   return wsrep::key::exclusive;
 }
@@ -306,7 +306,7 @@ map_key_type(enum Wsrep_key_type type)
 extern "C" int wsrep_thd_append_key(void* thd_ptr,
                                     const struct wsrep_key* key,
                                     int n_keys,
-                                    enum Wsrep_key_type key_type)
+                                    enum Wsrep_service_key_type key_type)
 {
   THD* thd= (THD*)thd_ptr;
   Wsrep_client_state& client_state(thd->wsrep_cs());

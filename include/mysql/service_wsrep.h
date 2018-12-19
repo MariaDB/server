@@ -191,19 +191,19 @@ extern "C" my_bool wsrep_thd_skip_locking(const void*);
 extern "C" my_bool wsrep_thd_is_aborting(const void*);
 
 
-enum Wsrep_key_type
+enum Wsrep_service_key_type
 {
-    wsrep_key_shared,
-    wsrep_key_semi_shared,
-    wsrep_key_semi_exclusive,
-    wsrep_key_exclusive
+    WSREP_SERVICE_KEY_SHARED,
+    WSREP_SERVICE_KEY_REFERENCE,
+    WSREP_SERVICE_KEY_UPDATE,
+    WSREP_SERVICE_KEY_EXCLUSIVE
 };
 struct wsrep_key;
 struct wsrep_key_array;
 extern "C" int wsrep_thd_append_key(void*,
                                     const struct wsrep_key* key,
                                     int n_keys,
-                                    enum Wsrep_key_type);
+                                    enum Wsrep_service_key_type);
 #ifdef __cplusplus
 #include <string>
 extern const std::string sr_table_name_full_str;
