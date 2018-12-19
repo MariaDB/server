@@ -465,3 +465,17 @@ a	b
 Hello	HL
 DROP FUNCTION METAPHON;
 DROP TABLE t1;
+#
+# MDEV-15424: Unreasonal SQL Error (1356) on select from view
+#
+CREATE FUNCTION myfunc_int RETURNS INTEGER SONAME "UDF_EXAMPLE_LIB";
+create table t1(a int , b int);
+insert into t1 values(100, 54), (200, 199);
+create view v1 as select myfunc_int(max(a) over (order by b) , b) from t1;
+select * from v1;
+myfunc_int(max(a) over (order by b) , b)
+154
+399
+drop view v1;
+drop function myfunc_int;
+drop table t1;
