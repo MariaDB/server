@@ -5130,7 +5130,7 @@ static void innobase_kill_query(handlerton*, THD* thd, enum thd_kill_levels)
 
 	if (trx_t* trx = thd_to_trx(thd)) {
 #ifdef WITH_WSREP
-		bool locked= trx->lock.was_chosen_as_deadlock_victim && (wsrep_on(thd));
+		bool locked= trx->lock.was_chosen_as_wsrep_victim;
 		if (locked) {
 			lock_mutex_exit();
 			trx_mutex_exit(trx);
@@ -18593,8 +18593,7 @@ wsrep_innobase_kill_one_trx(
 	 * which is already marked as BF victim
 	 * lock_sys is held until this vicitm has aborted
 	 */
-	bool was_chosen_as_deadlock_victim= victim_trx->lock.was_chosen_as_deadlock_victim;
-	victim_trx->lock.was_chosen_as_deadlock_victim= TRUE;
+	victim_trx->lock.was_chosen_as_wsrep_victim= TRUE;
 
 	wsrep_thd_UNLOCK(thd);
 	if (wsrep_thd_bf_abort(bf_thd, thd, signal))
@@ -18613,7 +18612,7 @@ wsrep_innobase_kill_one_trx(
 	}
 	else {
 		/* victim was not BF aborted, after all */
-		victim_trx->lock.was_chosen_as_deadlock_victim= was_chosen_as_deadlock_victim;
+		victim_trx->lock.was_chosen_as_wsrep_victim= TRUE;
 	}
 
 	DBUG_RETURN(0);
