@@ -140,7 +140,7 @@ GRANTEE	TABLE_CATALOG	TABLE_SCHEMA	PRIVILEGE_TYPE	IS_GRANTABLE
 'testuser3'@'localhost'	def	db_datadict	CREATE TEMPORARY TABLES	NO
 'testuser3'@'localhost'	def	db_datadict	CREATE VIEW	NO
 'testuser3'@'localhost'	def	db_datadict	DELETE	NO
-'testuser3'@'localhost'	def	db_datadict	DELETE VERSIONING ROWS	NO
+'testuser3'@'localhost'	def	db_datadict	DELETE HISTORY	NO
 'testuser3'@'localhost'	def	db_datadict	DROP	NO
 'testuser3'@'localhost'	def	db_datadict	EVENT	NO
 'testuser3'@'localhost'	def	db_datadict	EXECUTE	NO

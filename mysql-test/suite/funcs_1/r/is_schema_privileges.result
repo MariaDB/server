@@ -68,7 +68,7 @@ GRANTEE	TABLE_CATALOG	TABLE_SCHEMA	PRIVILEGE_TYPE
 ''@'%'	def	test	CREATE ROUTINE
 ''@'%'	def	test	EVENT
 ''@'%'	def	test	TRIGGER
-''@'%'	def	test	DELETE VERSIONING ROWS
+''@'%'	def	test	DELETE HISTORY
 ''@'%'	def	test\_%	SELECT
 ''@'%'	def	test\_%	INSERT
 ''@'%'	def	test\_%	UPDATE
@@ -85,7 +85,7 @@ GRANTEE	TABLE_CATALOG	TABLE_SCHEMA	PRIVILEGE_TYPE
 ''@'%'	def	test\_%	CREATE ROUTINE
 ''@'%'	def	test\_%	EVENT
 ''@'%'	def	test\_%	TRIGGER
-''@'%'	def	test\_%	DELETE VERSIONING ROWS
+''@'%'	def	test\_%	DELETE HISTORY
 ###############################################################################
 # Testcase 3.2.15.2-3.2.15.4 INFORMATION_SCHEMA.SCHEMA_PRIVILEGES accessibility
 ###############################################################################
