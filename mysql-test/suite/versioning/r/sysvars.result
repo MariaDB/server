@@ -31,6 +31,14 @@ set global system_versioning_asof= 1;
 ERROR 42000: Incorrect argument type to variable 'system_versioning_asof'
 set global system_versioning_asof= 1.1;
 ERROR 42000: Incorrect argument type to variable 'system_versioning_asof'
+set global system_versioning_asof= '2011-02-29 00:00';
+ERROR 42000: Variable 'system_versioning_asof' can't be set to the value of '2011-02-29 00:00'
+set global system_versioning_asof= '2011-02-28 24:00';
+ERROR 42000: Variable 'system_versioning_asof' can't be set to the value of '2011-02-28 24:00'
+set global system_versioning_asof= '2011-00-28 00:00';
+ERROR 42000: Variable 'system_versioning_asof' can't be set to the value of '2011-00-28 00:00'
+set global system_versioning_asof= '0000-00-00 00:00';
+ERROR 42000: Variable 'system_versioning_asof' can't be set to the value of '0000-00-00 00:00'
 set system_versioning_asof= 'alley';
 ERROR 42000: Variable 'system_versioning_asof' can't be set to the value of 'alley'
 set system_versioning_asof= null;
@@ -39,6 +47,14 @@ set system_versioning_asof= 1;
 ERROR 42000: Incorrect argument type to variable 'system_versioning_asof'
 set system_versioning_asof= 1.1;
 ERROR 42000: Incorrect argument type to variable 'system_versioning_asof'
+set system_versioning_asof= '2011-02-29 00:00';
+ERROR 42000: Variable 'system_versioning_asof' can't be set to the value of '2011-02-29 00:00'
+set system_versioning_asof= '2011-02-28 24:00';
+ERROR 42000: Variable 'system_versioning_asof' can't be set to the value of '2011-02-28 24:00'
+set system_versioning_asof= '2011-00-28 00:00';
+ERROR 42000: Variable 'system_versioning_asof' can't be set to the value of '2011-00-28 00:00'
+set system_versioning_asof= '0000-00-00 00:00';
+ERROR 42000: Variable 'system_versioning_asof' can't be set to the value of '0000-00-00 00:00'
 # GLOBAL @@system_versioning_asof
 set global system_versioning_asof= '1911-11-11 11:11:11.1111119';
 Warnings:
