@@ -54,13 +54,7 @@ Created 12/19/1997 Heikki Tuuri
 #include "buf0lru.h"
 #include "srv0srv.h"
 #include "srv0mon.h"
-#include "m_string.h" /* for my_sys.h */
-#include "my_sys.h" /* DEBUG_SYNC_C */
-
-#include "my_compare.h" /* enum icp_result */
-#include "thr_lock.h"
-#include "handler.h"
-#include "ha_innodb.h"
+#include "ha_innodb.h" /* For wsrep_thd_skip_locking */
 
 /* Maximum number of rows to prefetch; MySQL interface has another parameter */
 #define SEL_MAX_N_PREFETCH	16

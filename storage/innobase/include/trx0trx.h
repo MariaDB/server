@@ -266,23 +266,6 @@ trx_commit_step(
 /*============*/
 	que_thr_t*	thr);	/*!< in: query thread */
 
-#ifdef WITH_WSREP
-/**********************************************************************//**
-Prints info about a transaction.
-Transaction information may be retrieved without having trx_sys->mutex acquired
-so it may not be completely accurate. The caller must own lock_sys->mutex
-and the trx must have some locks to make sure that it does not escape
-without locking lock_sys->mutex. */
-UNIV_INTERN
-void
-wsrep_trx_print_locking(
-/*==============*/
-	FILE*		f,		/*!< in: output stream */
-	const trx_t*	trx,		/*!< in: transaction */
-	ulint		max_query_len)	/*!< in: max query length to print,
-					or 0 to use the default max length */
-	MY_ATTRIBUTE((nonnull));
-#endif /* WITH_WSREP */
 /**********************************************************************//**
 Prints info about a transaction.
 Caller must hold trx_sys.mutex. */
@@ -594,6 +577,9 @@ struct trx_lock_t {
 					lock_sys.mutex. Otherwise, this may
 					only be modified by the thread that is
 					serving the running transaction. */
+	bool		was_chosen_as_wsrep_victim;
+					/*!< high priority wsrep thread has
+					marked this trx to abort */
 
 	/** Pre-allocated record locks */
 	struct {

@@ -5,9 +5,7 @@
 
 [mysqld.1]
 wsrep_provider_options='base_port=@mysqld.1.#galera_port;gcache.size=1;pc.ignore_sb=true'
-wsrep_causal_reads=0
 wsrep_sync_wait=0
 [mysqld.2]
 wsrep_provider_options='base_port=@mysqld.2.#galera_port;gcache.size=1;pc.ignore_sb=true'
-wsrep_causal_reads=0
 wsrep_sync_wait=0

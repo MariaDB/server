@@ -122,9 +122,10 @@ srv_conc_enter_innodb_with_atomics(
 #ifdef WITH_WSREP
 		if (wsrep_on(trx->mysql_thd) &&
 		    wsrep_thd_is_aborting(trx->mysql_thd)) {
-			if (wsrep_debug)
+			if (wsrep_debug) {
 				ib::info() <<
 					"srv_conc_enter due to MUST_ABORT";
+			}
 			srv_conc_force_enter_innodb(trx);
 			return;
 		}
