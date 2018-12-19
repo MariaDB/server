@@ -353,6 +353,27 @@ read_retry:
 		    && page_no >= FSP_EXTENT_SIZE
 		    && page_no < FSP_EXTENT_SIZE * 3) {
 			/* We ignore the doublewrite buffer pages */
+                } else if (mach_read_from_4(page + FIL_PAGE_OFFSET) != page_no
+			   && space->id != TRX_SYS_SPACE) {
+			/* On pages that are not all zero, the
+			page number must match.
+
+			There may be a mismatch on tablespace ID,
+			because files may be renamed during backup.
+			We disable the page number check
+			on the system tablespace, because it may consist
+			of multiple files, and here we count the pages
+			from the start of each file.)
+
+			The first 38 and last 8 bytes are never encrypted. */
+			const ulint* p = reinterpret_cast<ulint*>(page);
+			const ulint* const end = reinterpret_cast<ulint*>(
+				page + cursor->page_size);
+			do {
+				if (*p++) {
+					goto corrupted;
+				}
+			} while (p != end);
 		} else if (mach_read_from_4(
 				   page
 				   + FIL_PAGE_FILE_FLUSH_LSN_OR_KEY_VERSION)
@@ -361,9 +382,6 @@ read_retry:
 			   != CRYPT_SCHEME_UNENCRYPTED
 			   && fil_space_verify_crypt_checksum(
 				   page, cursor->zip_size)) {
-			ut_ad(mach_read_from_4(page + FIL_PAGE_SPACE_ID)
-			      == space->id);
-
 			bool decrypted = false;
 
 			memcpy(tmp_page, page, cursor->page_size);
@@ -381,21 +399,25 @@ read_retry:
 				true, tmp_page, cursor->zip_size, space)) {
 				goto corrupted;
 			}
-
 		} else if (page_type == FIL_PAGE_PAGE_COMPRESSED) {
 			memcpy(tmp_page, page, cursor->page_size);
 page_decomp:
 			ulint decomp = fil_page_decompress(tmp_frame, tmp_page);
+			page_type = mach_read_from_2(tmp_page + FIL_PAGE_TYPE);
 
 			if (!decomp
 			    || (decomp != srv_page_size && cursor->zip_size)
-			    || buf_page_is_corrupted(
-					true, tmp_page, cursor->zip_size, space)) {
+			    || page_type == FIL_PAGE_PAGE_COMPRESSED
+			    || page_type == FIL_PAGE_PAGE_COMPRESSED_ENCRYPTED
+			    || buf_page_is_corrupted(true, tmp_page,
+						     cursor->zip_size,
+						     space)) {
 				goto corrupted;
 			}
 
-		} else if (buf_page_is_corrupted(true, page, cursor->zip_size,
-						 space)) {
+		} else if (page_type == FIL_PAGE_PAGE_COMPRESSED_ENCRYPTED
+			   || buf_page_is_corrupted(true, page,
+						    cursor->zip_size, space)) {
 corrupted:
 			retry_count--;
 
