@@ -1501,6 +1501,7 @@ public:
   virtual const char *full_name() const { return name.str ? name.str : "???"; }
   const char *field_name_or_null()
   { return real_item()->type() == Item::FIELD_ITEM ? name.str : NULL; }
+  const TABLE_SHARE *field_table_or_null();
 
   /*
     *result* family of methods is analog of *val* family (see above) but
@@ -6021,6 +6022,62 @@ public:
 };
 
 
+/**
+  We need a separate class Item_copy_timestamp because
+  TIMESTAMP->string->TIMESTAMP conversion is not round trip safe
+  near the DST change, e.g. '2010-10-31 02:25:26' can mean:
+   - my_time_t(1288477526) - summer time in Moscow
+   - my_time_t(1288481126) - winter time in Moscow, one hour later
+*/
+class Item_copy_timestamp: public Item_copy
+{
+  Timestamp_or_zero_datetime m_value;
+public:
+  Item_copy_timestamp(THD *thd, Item *arg): Item_copy(thd, arg) { }
+  const Type_handler *type_handler() const { return &type_handler_timestamp2; }
+  void copy()
+  {
+    Timestamp_or_zero_datetime_native_null tmp(current_thd, item, false);
+    null_value= tmp.is_null();
+    m_value= tmp.is_null() ? Timestamp_or_zero_datetime() :
+                             Timestamp_or_zero_datetime(tmp);
+  }
+  int save_in_field(Field *field, bool no_conversions)
+  {
+    Timestamp_or_zero_datetime_native native(m_value, decimals);
+    return native.save_in_field(field, decimals);
+  }
+  longlong val_int()
+  {
+    return m_value.to_datetime(current_thd).to_longlong();
+  }
+  double val_real()
+  {
+    return m_value.to_datetime(current_thd).to_double();
+  }
+  String *val_str(String *to)
+  {
+    return m_value.to_datetime(current_thd).to_string(to, decimals);
+  }
+  my_decimal *val_decimal(my_decimal *to)
+  {
+    return m_value.to_datetime(current_thd).to_decimal(to);
+  }
+  bool get_date(THD *thd, MYSQL_TIME *ltime, date_mode_t fuzzydate)
+  {
+    bool res= m_value.to_TIME(thd, ltime, fuzzydate);
+    DBUG_ASSERT(!res);
+    return res;
+  }
+  bool val_native(THD *thd, Native *to)
+  {
+    return m_value.to_native(to, decimals);
+  }
+  Item *get_copy(THD *thd)
+  { return get_item_copy<Item_copy_timestamp>(thd, this); }
+};
+
+
 /*
   Cached_item_XXX objects are not exactly caches. They do the following:
 
@@ -6746,7 +6803,8 @@ public:
   my_decimal *val_decimal(my_decimal *);
   bool get_date(THD *thd, MYSQL_TIME *to, date_mode_t mode)
   {
-    return decimal_to_datetime_with_warn(thd, VDec(this).ptr(), to, mode, NULL);
+    return decimal_to_datetime_with_warn(thd, VDec(this).ptr(), to, mode,
+                                         NULL, NULL);
   }
   bool cache_value();
   Item *convert_to_basic_const_item(THD *thd);

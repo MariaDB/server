@@ -1608,6 +1608,44 @@ id	name	dob	father	mother
 8	Grandpa Ben	1940-10-21	NULL	NULL
 6	Grandgrandma Martha	1923-05-17	NULL	NULL
 drop table my_ancestors;
+WITH RECURSIVE
+positions(i) AS (
+VALUES(0)
+UNION SELECT ALL
+i+1 FROM positions WHERE i < 4*4-1
+),
+solutions(board, n_queens) AS (
+SELECT REPEAT('-', 4*4), 0
+FROM positions
+UNION
+SELECT
+concat(substr(board, 1, i),'*',substr(board, i+2)),n_queens + 1 AS n_queens
+FROM positions AS ps, solutions
+WHERE n_queens < 4
+AND substr(board,1,i) != '*'
+      AND NOT EXISTS (
+SELECT 1 FROM positions WHERE
+substr(board,i+1,1) = '*' AND
+(
+i % 4 = ps.i % 4 OR
+i div 4 = ps.i div 4 OR
+i div 4 + (i % 4) = ps.i div 4 + (ps.i % 4) OR
+i div 4 - (i % 4) = ps.i div 4 - (ps.i % 4)
+)
+)
+)
+SELECT regexp_replace(board,concat('(',REPEAT('.', 4),')'),'\\1\n') n_queens FROM solutions WHERE n_queens = 4;
+n_queens
+-*--
+---*
+*---
+--*-
+
+--*-
+*---
+---*
+-*--
+
 #
 # MDEV-10883: execution of prepared statement from SELECT
 #             with recursive CTE that renames columns

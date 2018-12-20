@@ -507,7 +507,7 @@ GRANT USAGE ON *.* TO user19857@localhost IDENTIFIED BY 'meow';
 GRANT SELECT, INSERT, UPDATE, DELETE, CREATE ROUTINE, ALTER ROUTINE ON test.* TO
 user19857@localhost;
 SELECT Host,User,Plugin,Authentication_string FROM mysql.user WHERE User='user19857';
-Host	User	Plugin	Authentication_string
+Host	User	plugin	authentication_string
 localhost	user19857	mysql_native_password	*82DC221D557298F6CE9961037DB1C90604792F5C
 connect  mysqltest_2_con,localhost,user19857,meow,test;
 connection mysqltest_2_con;
@@ -534,7 +534,7 @@ DROP PROCEDURE IF EXISTS test.sp19857;
 connection con1root;
 disconnect mysqltest_2_con;
 SELECT Host,User,Plugin,Authentication_string FROM mysql.user WHERE User='user19857';
-Host	User	Plugin	Authentication_string
+Host	User	plugin	authentication_string
 localhost	user19857	mysql_native_password	*82DC221D557298F6CE9961037DB1C90604792F5C
 DROP USER user19857@localhost;
 disconnect con1root;
@@ -765,21 +765,23 @@ connection default;
 disconnect conn1;
 drop user bug12602983_user@localhost;
 drop database mysqltest_db;
+create user u1@localhost;
+grant all privileges on *.* to u1@localhost with grant option;
+connect u1, localhost, u1;
 set password=password('foobar');
 create procedure sp1() select 1;
 show grants;
-Grants for root@localhost
-GRANT ALL PRIVILEGES ON *.* TO 'root'@'localhost' IDENTIFIED BY PASSWORD '*9B500343BC52E2911172EB52AE5CF4847604C6E5' WITH GRANT OPTION
-GRANT PROXY ON ''@'%' TO 'root'@'localhost' WITH GRANT OPTION
+Grants for u1@localhost
+GRANT ALL PRIVILEGES ON *.* TO 'u1'@'localhost' IDENTIFIED BY PASSWORD '*9B500343BC52E2911172EB52AE5CF4847604C6E5' WITH GRANT OPTION
 grant execute on procedure sp1 to current_user() identified by 'barfoo';
 show grants;
-Grants for root@localhost
-GRANT ALL PRIVILEGES ON *.* TO 'root'@'localhost' IDENTIFIED BY PASSWORD '*343915A8181B5728EADBDC73E1F7E6B0C3998483' WITH GRANT OPTION
-GRANT EXECUTE ON PROCEDURE `test`.`sp1` TO 'root'@'localhost'
-GRANT PROXY ON ''@'%' TO 'root'@'localhost' WITH GRANT OPTION
+Grants for u1@localhost
+GRANT ALL PRIVILEGES ON *.* TO 'u1'@'localhost' IDENTIFIED BY PASSWORD '*343915A8181B5728EADBDC73E1F7E6B0C3998483' WITH GRANT OPTION
+GRANT EXECUTE ON PROCEDURE `test`.`sp1` TO 'u1'@'localhost'
 drop procedure sp1;
-set password='';
-update mysql.user set plugin='';
+disconnect u1;
+connection default;
+drop user u1@localhost;
 #
 # MDEV-13396 Unexpected "alter routine comand defined" during CREATE OR REPLACE PROCEDURE
 #

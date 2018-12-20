@@ -2,7 +2,7 @@
 
 Copyright (c) 2009, 2010 Facebook, Inc. All Rights Reserved.
 Copyright (c) 2011, 2015, Oracle and/or its affiliates. All Rights Reserved.
-Copyright (c) 2016, MariaDB Corporation.
+Copyright (c) 2016, 2018, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -469,32 +469,6 @@ ut_crc32_64_sw(
 	*len -= 8;
 }
 
-/** Calculate CRC32 over 64-bit byte string using a software implementation.
-The byte string is converted to a 64-bit integer using big endian byte order.
-@param[in,out]	crc	crc32 checksum so far when this function is called,
-when the function ends it will contain the new checksum
-@param[in,out]	data	data to be checksummed, the pointer will be advanced
-with 8 bytes
-@param[in,out]	len	remaining bytes, it will be decremented with 8 */
-inline
-void
-ut_crc32_64_legacy_big_endian_sw(
-	uint32_t*	crc,
-	const byte**	data,
-	ulint*		len)
-{
-	uint64_t	data_int = *reinterpret_cast<const uint64_t*>(*data);
-
-#ifndef WORDS_BIGENDIAN
-	data_int = ut_crc32_swap_byteorder(data_int);
-#endif /* WORDS_BIGENDIAN */
-
-	*crc = ut_crc32_64_low_sw(*crc, data_int);
-
-	*data += 8;
-	*len -= 8;
-}
-
 /** Calculates CRC32 in software, without using CPU instructions.
 @param[in]	buf	data over which to calculate CRC32
 @param[in]	len	data length
@@ -536,58 +510,6 @@ ut_crc32_sw(
 
 	while (len >= 8) {
 		ut_crc32_64_sw(&crc, &buf, &len);
-	}
-
-	while (len > 0) {
-		ut_crc32_8_sw(&crc, &buf, &len);
-	}
-
-	return(~crc);
-}
-
-/** Calculates CRC32 in software, without using CPU instructions.
-This function uses big endian byte ordering when converting byte sequence to
-integers.
-@param[in]	buf	data over which to calculate CRC32
-@param[in]	len	data length
-@return CRC-32C (polynomial 0x11EDC6F41) */
-uint32_t
-ut_crc32_legacy_big_endian(
-	const byte*	buf,
-	ulint		len)
-{
-	uint32_t	crc = 0xFFFFFFFFU;
-
-	ut_a(ut_crc32_slice8_table_initialized);
-
-	/* Calculate byte-by-byte up to an 8-byte aligned address. After
-	this consume the input 8-bytes at a time. */
-	while (len > 0 && (reinterpret_cast<uintptr_t>(buf) & 7) != 0) {
-		ut_crc32_8_sw(&crc, &buf, &len);
-	}
-
-	while (len >= 128) {
-		/* This call is repeated 16 times. 16 * 8 = 128. */
-		ut_crc32_64_legacy_big_endian_sw(&crc, &buf, &len);
-		ut_crc32_64_legacy_big_endian_sw(&crc, &buf, &len);
-		ut_crc32_64_legacy_big_endian_sw(&crc, &buf, &len);
-		ut_crc32_64_legacy_big_endian_sw(&crc, &buf, &len);
-		ut_crc32_64_legacy_big_endian_sw(&crc, &buf, &len);
-		ut_crc32_64_legacy_big_endian_sw(&crc, &buf, &len);
-		ut_crc32_64_legacy_big_endian_sw(&crc, &buf, &len);
-		ut_crc32_64_legacy_big_endian_sw(&crc, &buf, &len);
-		ut_crc32_64_legacy_big_endian_sw(&crc, &buf, &len);
-		ut_crc32_64_legacy_big_endian_sw(&crc, &buf, &len);
-		ut_crc32_64_legacy_big_endian_sw(&crc, &buf, &len);
-		ut_crc32_64_legacy_big_endian_sw(&crc, &buf, &len);
-		ut_crc32_64_legacy_big_endian_sw(&crc, &buf, &len);
-		ut_crc32_64_legacy_big_endian_sw(&crc, &buf, &len);
-		ut_crc32_64_legacy_big_endian_sw(&crc, &buf, &len);
-		ut_crc32_64_legacy_big_endian_sw(&crc, &buf, &len);
-	}
-
-	while (len >= 8) {
-		ut_crc32_64_legacy_big_endian_sw(&crc, &buf, &len);
 	}
 
 	while (len > 0) {

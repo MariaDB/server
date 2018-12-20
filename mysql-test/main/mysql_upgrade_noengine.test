@@ -3,6 +3,8 @@
 #
 source include/have_innodb.inc;
 source include/not_embedded.inc;
+source include/switch_to_mysql_user.inc;
+drop view mysql.user_bak;
 
 if (!$HA_BLACKHOLE_SO) {
   skip Need blackhole plugin;
@@ -33,6 +35,11 @@ exec $MYSQL_UPGRADE 2>&1;
 select table_catalog, table_schema, table_name, table_type, engine, row_format, table_rows, data_length, table_comment from information_schema.tables where table_schema='test' and table_name='t1';
 select table_catalog, table_schema, table_name, table_type, engine, row_format, table_rows, data_length, table_comment from information_schema.tables where table_schema='test' and table_name='t2';
 
+drop table mysql.global_priv;
+rename table mysql.global_priv_bak to mysql.global_priv;
+source include/switch_to_mysql_user.inc;
+drop view mysql.user_bak;
+
 # pretend it's an upgrade from 10.0
 alter table mysql.user drop column default_role, drop column max_statement_time;
 
@@ -47,6 +54,11 @@ exec $MYSQL_UPGRADE 2>&1;
 select table_catalog, table_schema, table_name, table_type, engine, row_format, table_rows, data_length, table_comment from information_schema.tables where table_schema='test' and table_name='t1';
 select table_catalog, table_schema, table_name, table_type, engine, row_format, table_rows, data_length, table_comment from information_schema.tables where table_schema='test' and table_name='t2';
 
+drop table mysql.global_priv;
+rename table mysql.global_priv_bak to mysql.global_priv;
+source include/switch_to_mysql_user.inc;
+drop view mysql.user_bak;
+
 alter table mysql.user drop column default_role, drop column max_statement_time;
 remove_file $datadir/mysql_upgrade_info;
 
@@ -60,3 +72,6 @@ drop table t1, t2;
 remove_file $datadir/mysql_upgrade_info;
 uninstall plugin blackhole;
 uninstall plugin archive;
+
+drop table mysql.global_priv;
+rename table mysql.global_priv_bak to mysql.global_priv;

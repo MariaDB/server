@@ -71,6 +71,7 @@ mysql.columns_priv                                 OK
 mysql.db                                           OK
 mysql.event                                        OK
 mysql.func                                         OK
+mysql.global_priv                                  OK
 mysql.gtid_slave_pos                               OK
 mysql.help_category                                OK
 mysql.help_keyword                                 OK
@@ -99,7 +100,6 @@ mysql.time_zone_transition_type                    OK
 mysql.transaction_registry
 Error    : Unknown storage engine 'InnoDB'
 error    : Corrupt
-mysql.user                                         OK
 
 Repairing tables
 mysql.innodb_index_stats
@@ -113,6 +113,7 @@ Error    : Unknown storage engine 'InnoDB'
 error    : Corrupt
 Phase 2/7: Installing used storage engines... Skipped
 Phase 3/7: Fixing views
+mysql.user                                         OK
 test.v1                                            OK
 test.v1badcheck                                    OK
 test.v2                                            OK
@@ -220,6 +221,7 @@ mysql.db                                           OK
 mysql.ev_bk                                        OK
 mysql.event                                        OK
 mysql.func                                         OK
+mysql.global_priv                                  OK
 mysql.gtid_slave_pos                               OK
 mysql.help_category                                OK
 mysql.help_keyword                                 OK
@@ -248,7 +250,6 @@ mysql.time_zone_transition_type                    OK
 mysql.transaction_registry
 Error    : Unknown storage engine 'InnoDB'
 error    : Corrupt
-mysql.user                                         OK
 
 Repairing tables
 mysql.innodb_index_stats
@@ -262,6 +263,7 @@ Error    : Unknown storage engine 'InnoDB'
 error    : Corrupt
 Phase 2/7: Installing used storage engines... Skipped
 Phase 3/7: Fixing views from mysql
+mysql.user                                         OK
 test.v1                                            OK
 test.v2                                            OK
 test.v3                                            OK
@@ -344,6 +346,7 @@ mysql.db                                           OK
 mysql.ev_bk                                        OK
 mysql.event                                        OK
 mysql.func                                         OK
+mysql.global_priv                                  OK
 mysql.gtid_slave_pos                               OK
 mysql.help_category                                OK
 mysql.help_keyword                                 OK
@@ -372,7 +375,6 @@ mysql.time_zone_transition_type                    OK
 mysql.transaction_registry
 Error    : Unknown storage engine 'InnoDB'
 error    : Corrupt
-mysql.user                                         OK
 
 Repairing tables
 mysql.innodb_index_stats
@@ -386,6 +388,7 @@ Error    : Unknown storage engine 'InnoDB'
 error    : Corrupt
 Phase 2/7: Installing used storage engines... Skipped
 Phase 3/7: Fixing views from mysql
+mysql.user                                         OK
 test.v1                                            OK
 test.v2                                            OK
 test.v3                                            OK

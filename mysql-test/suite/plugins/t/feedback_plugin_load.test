@@ -28,11 +28,11 @@ select * from information_schema.feedback where variable_name like 'feed%'
        and variable_name not like '%debug%';
 
 # Embedded server does not use the table mysqld.user and thus
-# does not automatically use latin1_bin on startup. Use it manually.
+# does not automatically use utf8mb4 on startup. Use it manually.
 --disable_query_log
 if (`SELECT VERSION() LIKE '%embedded%'`)
 {
-  DO _latin1'test' COLLATE latin1_bin;
+  create temporary table t1 (a json);
 }
 --enable_query_log
 SELECT VARIABLE_VALUE>0, VARIABLE_NAME FROM INFORMATION_SCHEMA.FEEDBACK

@@ -343,17 +343,19 @@ static int create_myini()
 
 
 static const char update_root_passwd_part1[]=
-  "UPDATE mysql.user SET Password = PASSWORD(";
+  "UPDATE mysql.global_priv SET priv=json_set(priv,"
+  "'$.plugin','mysql_native_password',"
+  "'$.authentication_string',PASSWORD(";
 static const char update_root_passwd_part2[]=
-  ") where User='root';\n";
+  ")) where User='root';\n";
 static const char remove_default_user_cmd[]= 
   "DELETE FROM mysql.user where User='';\n";
 static const char allow_remote_root_access_cmd[]=
-  "CREATE TEMPORARY TABLE tmp_user LIKE user;\n"
-  "INSERT INTO tmp_user SELECT * from user where user='root' "
+  "CREATE TEMPORARY TABLE tmp_user LIKE global_priv;\n"
+  "INSERT INTO tmp_user SELECT * from global_priv where user='root' "
     " AND host='localhost';\n"
   "UPDATE tmp_user SET host='%';\n"
-  "INSERT INTO user SELECT * FROM tmp_user;\n"
+  "INSERT INTO global_priv SELECT * FROM tmp_user;\n"
   "DROP TABLE tmp_user;\n";
 static const char end_of_script[]="-- end.";
 

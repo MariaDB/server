@@ -14486,6 +14486,8 @@ flush_option:
           { Lex->type|= REFRESH_DES_KEY_FILE; }
         | RESOURCES
           { Lex->type|= REFRESH_USER_RESOURCES; }
+        | SSL_SYM
+          { Lex->type|= REFRESH_SSL;}
         | IDENT_sys remember_tok_start
            {
              Lex->type|= REFRESH_GENERIC;

@@ -450,7 +450,7 @@ use mysql;
 --error ER_VERS_DB_NOT_SUPPORTED
 create or replace table t (x int) with system versioning;
 --error ER_VERS_DB_NOT_SUPPORTED
-alter table user add system versioning;
+alter table db add system versioning;
 use test;
 
 --echo # MDEV-15956 Strange ER_UNSUPPORTED_ACTION_ON_GENERATED_COLUMN upon ALTER on versioning column

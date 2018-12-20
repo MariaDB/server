@@ -131,12 +131,12 @@ NULL
 NULL
 NULL
 Warnings:
-Warning	1292	Incorrect time value: '8385959.9999999000' for column 'a' at row 17
-Warning	1292	Incorrect time value: '8395959.9999999000' for column 'a' at row 18
-Warning	1292	Incorrect time value: '876494145959.9999990000' for column 'a' at row 19
-Warning	1292	Incorrect time value: '876494145959.9999999000' for column 'a' at row 20
-Warning	1292	Incorrect time value: '876494155959.9999990000' for column 'a' at row 21
-Warning	1292	Incorrect time value: '876494155959.9999999000' for column 'a' at row 22
+Warning	1292	Incorrect time value: '8385959.9999999000' for column `test`.`t1_time_in_decimal`.`a` at row 17
+Warning	1292	Incorrect time value: '8395959.9999999000' for column `test`.`t1_time_in_decimal`.`a` at row 18
+Warning	1292	Incorrect time value: '876494145959.9999990000' for column `test`.`t1_time_in_decimal`.`a` at row 19
+Warning	1292	Incorrect time value: '876494145959.9999999000' for column `test`.`t1_time_in_decimal`.`a` at row 20
+Warning	1292	Incorrect time value: '876494155959.9999990000' for column `test`.`t1_time_in_decimal`.`a` at row 21
+Warning	1292	Incorrect time value: '876494155959.9999999000' for column `test`.`t1_time_in_decimal`.`a` at row 22
 SELECT GREATEST(TIME'00:00:00', '00:00:00.0000004');
 GREATEST(TIME'00:00:00', '00:00:00.0000004')
 00:00:00.000000
@@ -494,11 +494,11 @@ Note	1292	Truncated incorrect INTERVAL DAY TO SECOND value: '8395959.9999999000'
 Note	1292	Truncated incorrect INTERVAL DAY TO SECOND value: '876494145959.9999990000'
 Note	1292	Truncated incorrect INTERVAL DAY TO SECOND value: '876494145959.9999999000'
 Note	1292	Truncated incorrect INTERVAL DAY TO SECOND value: '876494155959.9999990000'
-Warning	1292	Incorrect time value: '876494155959.9999999000' for column 'a' at row 22
-Warning	1292	Incorrect time value: '876494155959.9999999000' for column 'a' at row 22
-Warning	1292	Incorrect time value: '876494155959.9999999000' for column 'a' at row 22
-Warning	1292	Incorrect time value: '876494155959.9999999000' for column 'a' at row 22
-Warning	1292	Incorrect time value: '876494155959.9999999000' for column 'a' at row 22
+Warning	1292	Incorrect time value: '876494155959.9999999000' for column `test`.`t1_time_in_decimal`.`a` at row 22
+Warning	1292	Incorrect time value: '876494155959.9999999000' for column `test`.`t1_time_in_decimal`.`a` at row 22
+Warning	1292	Incorrect time value: '876494155959.9999999000' for column `test`.`t1_time_in_decimal`.`a` at row 22
+Warning	1292	Incorrect time value: '876494155959.9999999000' for column `test`.`t1_time_in_decimal`.`a` at row 22
+Warning	1292	Incorrect time value: '876494155959.9999999000' for column `test`.`t1_time_in_decimal`.`a` at row 22
 Warning	1292	Incorrect INTERVAL DAY TO SECOND value: '876494155959.9999999000'
 SELECT
 TIME_TO_SEC(a),
@@ -529,18 +529,18 @@ NULL	NULL	876494145959.9999999000
 NULL	NULL	876494155959.9999990000
 NULL	NULL	876494155959.9999999000
 Warnings:
-Warning	1292	Incorrect time value: '8385959.9999999000' for column 'a' at row 17
-Warning	1292	Incorrect time value: '8385959.9999999000' for column 'a' at row 17
-Warning	1292	Incorrect time value: '8395959.9999999000' for column 'a' at row 18
-Warning	1292	Incorrect time value: '8395959.9999999000' for column 'a' at row 18
-Warning	1292	Incorrect time value: '876494145959.9999990000' for column 'a' at row 19
-Warning	1292	Incorrect time value: '876494145959.9999990000' for column 'a' at row 19
-Warning	1292	Incorrect time value: '876494145959.9999999000' for column 'a' at row 20
-Warning	1292	Incorrect time value: '876494145959.9999999000' for column 'a' at row 20
-Warning	1292	Incorrect time value: '876494155959.9999990000' for column 'a' at row 21
-Warning	1292	Incorrect time value: '876494155959.9999990000' for column 'a' at row 21
-Warning	1292	Incorrect time value: '876494155959.9999999000' for column 'a' at row 22
-Warning	1292	Incorrect time value: '876494155959.9999999000' for column 'a' at row 22
+Warning	1292	Incorrect time value: '8385959.9999999000' for column `test`.`t1_time_in_decimal`.`a` at row 17
+Warning	1292	Incorrect time value: '8385959.9999999000' for column `test`.`t1_time_in_decimal`.`a` at row 17
+Warning	1292	Incorrect time value: '8395959.9999999000' for column `test`.`t1_time_in_decimal`.`a` at row 18
+Warning	1292	Incorrect time value: '8395959.9999999000' for column `test`.`t1_time_in_decimal`.`a` at row 18
+Warning	1292	Incorrect time value: '876494145959.9999990000' for column `test`.`t1_time_in_decimal`.`a` at row 19
+Warning	1292	Incorrect time value: '876494145959.9999990000' for column `test`.`t1_time_in_decimal`.`a` at row 19
+Warning	1292	Incorrect time value: '876494145959.9999999000' for column `test`.`t1_time_in_decimal`.`a` at row 20
+Warning	1292	Incorrect time value: '876494145959.9999999000' for column `test`.`t1_time_in_decimal`.`a` at row 20
+Warning	1292	Incorrect time value: '876494155959.9999990000' for column `test`.`t1_time_in_decimal`.`a` at row 21
+Warning	1292	Incorrect time value: '876494155959.9999990000' for column `test`.`t1_time_in_decimal`.`a` at row 21
+Warning	1292	Incorrect time value: '876494155959.9999999000' for column `test`.`t1_time_in_decimal`.`a` at row 22
+Warning	1292	Incorrect time value: '876494155959.9999999000' for column `test`.`t1_time_in_decimal`.`a` at row 22
 #
 # Functions with a single DATE input, conversion from DATETIME-in-VARCHAR
 #

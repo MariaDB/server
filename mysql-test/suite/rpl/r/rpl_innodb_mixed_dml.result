@@ -481,71 +481,71 @@ SET TRANSACTION ISOLATION LEVEL SERIALIZABLE;
 ******************** CREATE USER ********************
 CREATE USER 'user_test_rpl'@'localhost' IDENTIFIED BY PASSWORD '*1111111111111111111111111111111111111111';
 SELECT host, user, password, plugin, authentication_string, select_priv FROM mysql.user WHERE user LIKE 'user_test_rpl%';
-host	user	password	plugin	authentication_string	select_priv
-localhost	user_test_rpl		mysql_native_password	*1111111111111111111111111111111111111111	N
+Host	User	Password	plugin	authentication_string	Select_priv
+localhost	user_test_rpl	*1111111111111111111111111111111111111111	mysql_native_password	*1111111111111111111111111111111111111111	N
 connection slave;
 USE test_rpl;
 SELECT host, user, password, plugin, authentication_string, select_priv FROM mysql.user WHERE user LIKE 'user_test_rpl%';
-host	user	password	plugin	authentication_string	select_priv
-localhost	user_test_rpl		mysql_native_password	*1111111111111111111111111111111111111111	N
+Host	User	Password	plugin	authentication_string	Select_priv
+localhost	user_test_rpl	*1111111111111111111111111111111111111111	mysql_native_password	*1111111111111111111111111111111111111111	N
 connection master;
 
 ******************** GRANT ********************
 GRANT SELECT ON *.* TO 'user_test_rpl'@'localhost';
 SELECT host, user, password, plugin, authentication_string, select_priv FROM mysql.user WHERE user LIKE 'user_test_rpl%';
-host	user	password	plugin	authentication_string	select_priv
-localhost	user_test_rpl		mysql_native_password	*1111111111111111111111111111111111111111	Y
+Host	User	Password	plugin	authentication_string	Select_priv
+localhost	user_test_rpl	*1111111111111111111111111111111111111111	mysql_native_password	*1111111111111111111111111111111111111111	Y
 connection slave;
 USE test_rpl;
 SELECT host, user, password, plugin, authentication_string, select_priv FROM mysql.user WHERE user LIKE 'user_test_rpl%';
-host	user	password	plugin	authentication_string	select_priv
-localhost	user_test_rpl		mysql_native_password	*1111111111111111111111111111111111111111	Y
+Host	User	Password	plugin	authentication_string	Select_priv
+localhost	user_test_rpl	*1111111111111111111111111111111111111111	mysql_native_password	*1111111111111111111111111111111111111111	Y
 connection master;
 
 ******************** REVOKE ********************
 REVOKE SELECT ON *.* FROM 'user_test_rpl'@'localhost';
 SELECT host, user, password, plugin, authentication_string, select_priv FROM mysql.user WHERE user LIKE 'user_test_rpl%';
-host	user	password	plugin	authentication_string	select_priv
-localhost	user_test_rpl		mysql_native_password	*1111111111111111111111111111111111111111	N
+Host	User	Password	plugin	authentication_string	Select_priv
+localhost	user_test_rpl	*1111111111111111111111111111111111111111	mysql_native_password	*1111111111111111111111111111111111111111	N
 connection slave;
 USE test_rpl;
 SELECT host, user, password, plugin, authentication_string, select_priv FROM mysql.user WHERE user LIKE 'user_test_rpl%';
-host	user	password	plugin	authentication_string	select_priv
-localhost	user_test_rpl		mysql_native_password	*1111111111111111111111111111111111111111	N
+Host	User	Password	plugin	authentication_string	Select_priv
+localhost	user_test_rpl	*1111111111111111111111111111111111111111	mysql_native_password	*1111111111111111111111111111111111111111	N
 connection master;
 
 ******************** SET PASSWORD ********************
 SET PASSWORD FOR 'user_test_rpl'@'localhost' = '*0000000000000000000000000000000000000000';
 SELECT host, user, password, plugin, authentication_string, select_priv FROM mysql.user WHERE user LIKE 'user_test_rpl%';
-host	user	password	plugin	authentication_string	select_priv
-localhost	user_test_rpl		mysql_native_password	*0000000000000000000000000000000000000000	N
+Host	User	Password	plugin	authentication_string	Select_priv
+localhost	user_test_rpl	*0000000000000000000000000000000000000000	mysql_native_password	*0000000000000000000000000000000000000000	N
 connection slave;
 USE test_rpl;
 SELECT host, user, password, plugin, authentication_string, select_priv FROM mysql.user WHERE user LIKE 'user_test_rpl%';
-host	user	password	plugin	authentication_string	select_priv
-localhost	user_test_rpl		mysql_native_password	*0000000000000000000000000000000000000000	N
+Host	User	Password	plugin	authentication_string	Select_priv
+localhost	user_test_rpl	*0000000000000000000000000000000000000000	mysql_native_password	*0000000000000000000000000000000000000000	N
 connection master;
 
 ******************** RENAME USER ********************
 RENAME USER 'user_test_rpl'@'localhost' TO 'user_test_rpl_2'@'localhost';
 SELECT host, user, password, plugin, authentication_string, select_priv FROM mysql.user WHERE user LIKE 'user_test_rpl%';
-host	user	password	plugin	authentication_string	select_priv
-localhost	user_test_rpl_2		mysql_native_password	*0000000000000000000000000000000000000000	N
+Host	User	Password	plugin	authentication_string	Select_priv
+localhost	user_test_rpl_2	*0000000000000000000000000000000000000000	mysql_native_password	*0000000000000000000000000000000000000000	N
 connection slave;
 USE test_rpl;
 SELECT host, user, password, plugin, authentication_string, select_priv FROM mysql.user WHERE user LIKE 'user_test_rpl%';
-host	user	password	plugin	authentication_string	select_priv
-localhost	user_test_rpl_2		mysql_native_password	*0000000000000000000000000000000000000000	N
+Host	User	Password	plugin	authentication_string	Select_priv
+localhost	user_test_rpl_2	*0000000000000000000000000000000000000000	mysql_native_password	*0000000000000000000000000000000000000000	N
 connection master;
 
 ******************** DROP USER ********************
 DROP USER 'user_test_rpl_2'@'localhost';
 SELECT host, user, password, plugin, authentication_string, select_priv FROM mysql.user WHERE user LIKE 'user_test_rpl%';
-host	user	password	plugin	authentication_string	select_priv
+Host	User	Password	plugin	authentication_string	Select_priv
 connection slave;
 USE test_rpl;
 SELECT host, user, password, plugin, authentication_string, select_priv FROM mysql.user WHERE user LIKE 'user_test_rpl%';
-host	user	password	plugin	authentication_string	select_priv
+Host	User	Password	plugin	authentication_string	Select_priv
 connection master;
 INSERT INTO t1 VALUES(100, 'test');
 

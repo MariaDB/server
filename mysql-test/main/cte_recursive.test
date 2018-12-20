@@ -1200,6 +1200,40 @@ select * from my_ancestors;
 
 drop table my_ancestors;
 
+#
+# MDEV-17967 Add a solution of the 8 queens problem to the regression test for CTE
+#
+# adapted to MariaDB from https://rosettacode.org/wiki/N-queens_problem#SQL
+#
+let $N=4; # 8 takes too long for a test
+eval WITH RECURSIVE
+  positions(i) AS (
+    VALUES(0)
+    UNION SELECT ALL
+    i+1 FROM positions WHERE i < $N*$N-1
+    ),
+  solutions(board, n_queens) AS (
+    SELECT REPEAT('-', $N*$N), 0
+      FROM positions
+    UNION
+    SELECT
+      concat(substr(board, 1, i),'*',substr(board, i+2)),n_queens + 1 AS n_queens
+      FROM positions AS ps, solutions
+    WHERE n_queens < $N
+      AND substr(board,1,i) != '*'
+      AND NOT EXISTS (
+        SELECT 1 FROM positions WHERE
+          substr(board,i+1,1) = '*' AND
+            (
+                i % $N = ps.i % $N OR
+                i div $N = ps.i div $N OR
+                i div $N + (i % $N) = ps.i div $N + (ps.i % $N) OR
+                i div $N - (i % $N) = ps.i div $N - (ps.i % $N)
+            )
+        )
+  )
+SELECT regexp_replace(board,concat('(',REPEAT('.', $N),')'),'\\\\1\\n') n_queens FROM solutions WHERE n_queens = $N;
+
 --echo #
 --echo # MDEV-10883: execution of prepared statement from SELECT
 --echo #             with recursive CTE that renames columns

@@ -1,9 +1,13 @@
 Running bootstrap
 Removing default user
+Allowing remote access for user root
+Setting root password
 Creating my.ini file
 Creation of the database was successful
 # Kill the server
+connect root,localhost,root,foo;
 SELECT @@datadir;
 @@datadir
 DATADIR/
 # Kill the server
+connection default;

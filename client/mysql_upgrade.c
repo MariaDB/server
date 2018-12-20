@@ -878,10 +878,14 @@ static int run_mysqlcheck_fixnames(void)
 
 static const char *expected_errors[]=
 {
+  "ERROR 1051", /* Unknown table */
   "ERROR 1060", /* Duplicate column name */
   "ERROR 1061", /* Duplicate key name */
   "ERROR 1054", /* Unknown column */
+  "ERROR 1146", /* Table does not exist */
   "ERROR 1290", /* RR_OPTION_PREVENTS_STATEMENT */
+  "ERROR 1347", /* 'mysql.user' is not of type 'BASE TABLE' */
+  "ERROR 1348", /* Column 'Show_db_priv' is not updatable */
   0
 };
 

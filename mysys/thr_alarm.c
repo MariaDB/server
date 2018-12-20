@@ -731,7 +731,8 @@ static void *signal_hand(void *arg __attribute__((unused)))
   DBUG_PRINT("info",("Starting signal and alarm handling thread"));
   for(;;)
   {
-    while ((error=my_sigwait(&set,&sig)) == EINTR)
+    int code;
+    while ((error=my_sigwait(&set,&sig,&code)) == EINTR)
       printf("sigwait restarted\n");
     if (error)
     {
@@ -805,8 +806,7 @@ int main(int argc __attribute__((unused)),char **argv __attribute__((unused)))
 
   /* Start signal thread and wait for it to start */
   mysql_mutex_lock(&LOCK_thread_count);
-  mysql_thread_create(0,
-                      &tid, &thr_attr, signal_hand, NULL);
+  mysql_thread_create(0, &tid, &thr_attr, signal_hand, NULL);
   mysql_cond_wait(&COND_thread_count, &LOCK_thread_count);
   mysql_mutex_unlock(&LOCK_thread_count);
   DBUG_PRINT("info",("signal thread created"));

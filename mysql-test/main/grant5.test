@@ -49,11 +49,11 @@ set password for u7@h = old_password('pwd');
 create user u8@h identified with 'mysql_old_password';
 eval set password for u8@h = '$p';
 sorted_result;
-select user,host,password,plugin,authentication_string from mysql.user where host='h';
+select user,host,plugin,authentication_string from mysql.user where host='h';
 # test with invalid entries
-update mysql.user set authentication_string='bad' where user='u1';
-update mysql.user set authentication_string='bad' where user='u5';
-update mysql.user set plugin='nonexistent' where user='u8';
+update mysql.global_priv set priv=json_set(priv, '$.authentication_string', 'bad') where user='u1';
+update mysql.global_priv set priv=json_set(priv, '$.authentication_string', 'bad') where user='u5';
+update mysql.global_priv set priv=json_set(priv, '$.plugin', 'nonexistent') where user='u8';
 flush privileges;
 # invalid entries are skipped, users don't exist
 error ER_PASSWORD_NO_MATCH;

@@ -709,6 +709,36 @@ UPDATE t1 SET a=COALESCE(b);
 DROP TABLE t1;
 SET sql_mode=DEFAULT;
 
+--echo #
+--echo # MDEV-17979 Assertion `0' failed in Item::val_native upon SELECT with timestamp, NULLIF, GROUP BY
+--echo #
+
+CREATE TABLE t1 (a INT, b TIMESTAMP) ENGINE=MyISAM;
+INSERT INTO t1 VALUES (1,'2018-06-19 00:00:00');
+SELECT NULLIF(b, 'N/A') AS f, MAX(a) FROM t1 GROUP BY f;
+DROP TABLE t1;
+
+--echo #
+--echo # MDEV-17972 Assertion `is_valid_value_slow()' failed in Datetime::Datetime
+--echo #
+
+let $MYSQLD_DATADIR= `select @@datadir`;
+SET time_zone='+00:00';
+CREATE TABLE t1 (a TIMESTAMP(6)) ENGINE=MyISAM;
+INSERT INTO t1 VALUES ('2001-01-01 10:20:30');
+FLUSH TABLES;
+--remove_file $MYSQLD_DATADIR/test/t1.MYD
+--disable_query_log
+# Write a data file with one record:
+# 0xFF       - record flags
+# 0x77777777 - TIMESTAMP integer part
+# 0xFFFFFF   - TIMESTAMP bad fractional part
+--eval SELECT CONCAT(0xFF,0x77777777,0xFFFFFF) INTO OUTFILE '$MYSQLD_DATADIR/test/t1.MYD' FIELDS TERMINATED BY '' ESCAPED BY '' LINES TERMINATED BY ''
+--eval SELECT HEX(LOAD_FILE('$MYSQLD_DATADIR/test/t1.MYD')) AS MYD
+--enable_query_log
+SELECT a, CAST(a AS DATETIME) AS dt0, CAST(a AS DATETIME(6)) AS dt6 FROM t1;
+DROP TABLE t1;
+SET time_zone=DEFAULT;
 
 --echo #
 --echo # End of 10.4 tests

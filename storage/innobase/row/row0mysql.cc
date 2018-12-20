@@ -2847,6 +2847,10 @@ row_mysql_table_id_reassign(
 	pars_info_add_ull_literal(info, "old_id", table->id);
 	pars_info_add_ull_literal(info, "new_id", *new_id);
 
+	/* Note: This cannot be rolled back. Rollback would see the
+	UPDATE SYS_INDEXES as two operations: DELETE and INSERT.
+	It would invoke btr_free_if_exists() when rolling back the
+	INSERT, effectively dropping all indexes of the table. */
 	err = que_eval_sql(
 		info,
 		"PROCEDURE RENUMBER_TABLE_PROC () IS\n"
@@ -3135,6 +3139,12 @@ row_discard_tablespace_for_mysql(
 		err = row_discard_tablespace_foreign_key_checks(trx, table);
 
 		if (err == DB_SUCCESS) {
+			/* Note: This cannot be rolled back.
+			Rollback would see the UPDATE SYS_INDEXES
+			as two operations: DELETE and INSERT.
+			It would invoke btr_free_if_exists()
+			when rolling back the INSERT, effectively
+			dropping all indexes of the table. */
 			err = row_discard_tablespace(trx, table);
 		}
 	}

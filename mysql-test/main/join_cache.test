@@ -3970,9 +3970,9 @@ drop table t1;
 SET join_cache_level = 3;
 --echo # The following should have 
 --echo #  - table order PROFILING,user,  
---echo #  - table user accessed with hash_ALL:
+--echo #  - table db accessed with hash_ALL:
 explain
-SELECT * FROM INFORMATION_SCHEMA.PROFILING, mysql.user WHERE password_expired = PAGE_FAULTS_MINOR;
+SELECT * FROM INFORMATION_SCHEMA.PROFILING, mysql.db WHERE Select_priv = PAGE_FAULTS_MINOR;
 
 set join_cache_level=default;
 

@@ -1,7 +1,7 @@
 /*****************************************************************************
 
 Copyright (c) 2011, 2015, Oracle and/or its affiliates. All Rights Reserved.
-Copyright (c) 2016, MariaDB Corporation.
+Copyright (c) 2016, 2018, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -46,10 +46,6 @@ typedef uint32_t	(*ut_crc32_func_t)(const byte* ptr, ulint len);
 
 /** Pointer to CRC32 calculation function. */
 extern ut_crc32_func_t	ut_crc32;
-
-/** CRC32 calculation function, which uses big-endian byte order
-when converting byte strings to integers internally. */
-extern uint32_t ut_crc32_legacy_big_endian(const byte* buf, ulint len);
 
 /** Text description of CRC32 implementation */
 extern const char*	ut_crc32_implementation;

@@ -28,6 +28,8 @@ set sql_mode='';
 set storage_engine=Aria;
 set enforce_storage_engine=NULL;
 
+set @have_innodb= (select count(engine) from information_schema.engines where engine='INNODB' and support != 'NO');
+
 ALTER TABLE user add File_priv enum('N','Y') COLLATE utf8_general_ci DEFAULT 'N' NOT NULL;
 
 # Detect whether or not we had the Grant_priv column
@@ -649,30 +651,18 @@ ALTER TABLE user ADD max_statement_time decimal(12,6) DEFAULT 0 NOT NULL;
 ALTER TABLE user MODIFY password_expired ENUM('N', 'Y') COLLATE utf8_general_ci DEFAULT 'N' NOT NULL;
 ALTER TABLE user MODIFY is_role enum('N', 'Y') COLLATE utf8_general_ci DEFAULT 'N' NOT NULL;
 
--- Need to pre-fill mysql.proxies_priv with access for root even when upgrading from
--- older versions
-
-CREATE TEMPORARY TABLE tmp_proxies_priv LIKE proxies_priv;
-INSERT INTO tmp_proxies_priv VALUES ('localhost', 'root', '', '', TRUE, '', now());
-INSERT INTO proxies_priv SELECT * FROM tmp_proxies_priv WHERE @had_proxies_priv_table=0;
-DROP TABLE tmp_proxies_priv;
-
 -- Checking for any duplicate hostname and username combination are exists.
 -- If exits we will throw error.
-DROP PROCEDURE IF EXISTS mysql.count_duplicate_host_names;
 DELIMITER //
-CREATE PROCEDURE mysql.count_duplicate_host_names()
-BEGIN
+BEGIN NOT ATOMIC
   SET @duplicate_hosts=(SELECT count(*) FROM mysql.user GROUP BY user, lower(host) HAVING count(*) > 1 LIMIT 1);
   IF @duplicate_hosts > 1 THEN
     SIGNAL SQLSTATE '45000'  SET MESSAGE_TEXT = 'Multiple accounts exist for @user_name, @host_name that differ only in Host lettercase; remove all except one of them';
   END IF;
 END //
 DELIMITER ;
-CALL mysql.count_duplicate_host_names();
 -- Get warnings (if any)
 SHOW WARNINGS;
-DROP PROCEDURE mysql.count_duplicate_host_names;
 
 # Convering the host name to lower case for existing users
 UPDATE user SET host=LOWER( host ) WHERE LOWER( host ) <> host;
@@ -760,7 +750,7 @@ ALTER TABLE proc ENGINE=Aria transactional=1;
 ALTER TABLE event ENGINE=Aria transactional=1;
 ALTER TABLE proxies_priv ENGINE=Aria transactional=1;
 
--- The folloing tables doesn't have to be transactional
+-- The following tables doesn't have to be transactional
 ALTER TABLE help_topic ENGINE=Aria transactional=0;
 ALTER TABLE help_category ENGINE=Aria transactional=0;
 ALTER TABLE help_relation ENGINE=Aria transactional=0;
@@ -768,3 +758,55 @@ ALTER TABLE help_keyword ENGINE=Aria transactional=0;
 ALTER TABLE table_stats ENGINE=Aria transactional=0;
 ALTER TABLE column_stats ENGINE=Aria transactional=0;
 ALTER TABLE index_stats ENGINE=Aria transactional=0;
+
+DELIMITER //
+IF 'BASE TABLE' = (select table_type from information_schema.tables where table_name='user') THEN
+  CREATE TABLE IF NOT EXISTS global_priv (Host char(60) binary DEFAULT '', User char(80) binary DEFAULT '', Priv JSON NOT NULL DEFAULT '{}' CHECK(JSON_VALID(Priv)), PRIMARY KEY Host (Host,User)) engine=Aria transactional=1 CHARACTER SET utf8 COLLATE utf8_bin comment='Users and global privileges'
+  SELECT Host, User, JSON_COMPACT(JSON_OBJECT('access',
+                             1*('Y'=Select_priv)+
+                             2*('Y'=Insert_priv)+
+                             4*('Y'=Update_priv)+
+                             8*('Y'=Delete_priv)+
+                            16*('Y'=Create_priv)+
+                            32*('Y'=Drop_priv)+
+                            64*('Y'=Reload_priv)+
+                           128*('Y'=Shutdown_priv)+
+                           256*('Y'=Process_priv)+
+                           512*('Y'=File_priv)+
+                          1024*('Y'=Grant_priv)+
+                          2048*('Y'=References_priv)+
+                          4096*('Y'=Index_priv)+
+                          8192*('Y'=Alter_priv)+
+                         16384*('Y'=Show_db_priv)+
+                         32768*('Y'=Super_priv)+
+                         65536*('Y'=Create_tmp_table_priv)+
+                        131072*('Y'=Lock_tables_priv)+
+                        262144*('Y'=Execute_priv)+
+                        524288*('Y'=Repl_slave_priv)+
+                       1048576*('Y'=Repl_client_priv)+
+                       2097152*('Y'=Create_view_priv)+
+                       4194304*('Y'=Show_view_priv)+
+                       8388608*('Y'=Create_routine_priv)+
+                      16777216*('Y'=Alter_routine_priv)+
+                      33554432*('Y'=Create_user_priv)+
+                      67108864*('Y'=Event_priv)+
+                     134217728*('Y'=Trigger_priv)+
+                     268435456*('Y'=Create_tablespace_priv)+
+                     536870912*('Y'=Delete_history_priv),
+                    'ssl_type', ssl_type-1,
+                    'ssl_cipher', ssl_cipher,
+                    'x509_issuer', x509_issuer,
+                    'x509_subject', x509_subject,
+                    'max_questions', max_questions,
+                    'max_updates', max_updates,
+                    'max_connections', max_connections,
+                    'max_user_connections', max_user_connections,
+                    'max_statement_time', max_statement_time,
+                    'plugin', if(plugin>'',plugin,if(length(password)=16,'mysql_old_password','mysql_native_password')),
+                    'authentication_string', if(plugin>'',authentication_string,password),
+                    'default_role', default_role,
+                    'is_role', 'Y'=is_role)) as Priv
+  FROM user;
+  DROP TABLE user;
+END IF//
+DELIMITER ;

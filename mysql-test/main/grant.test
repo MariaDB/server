@@ -10,6 +10,7 @@ set GLOBAL sql_mode="";
 set LOCAL sql_mode="";
 SET @old_log_bin_trust_function_creators= @@global.log_bin_trust_function_creators;
 SET GLOBAL log_bin_trust_function_creators = 1;
+select priv into @root_priv from mysql.global_priv where user='root' and host='localhost';
 
 # Cleanup
 --disable_warnings
@@ -131,7 +132,7 @@ select 1;     # To test that the previous command didn't cause problems
 #
 # Bug#4898 User privileges depending on ORDER BY Settings of table db
 #
-insert into mysql.user (host, user) values ('localhost', 'test11');
+insert into mysql.global_priv (host, user) values ('localhost', 'test11');
 insert into mysql.db (host, db, user, select_priv) values
 ('localhost', 'a%', 'test11', 'Y'), ('localhost', 'ab%', 'test11', 'Y');
 alter table mysql.db order by db asc;
@@ -581,12 +582,6 @@ drop database db27515;
 use test;
 create table t1 (a int);
 
-# Backup anonymous users and remove them. (They get in the way of
-# the one we test with here otherwise.)
-create table t2 as select * from mysql.user where user='';
-delete from mysql.user where user='';
-flush privileges;
-
 # Create some users with different hostnames
 create user mysqltest_8@'';
 create user mysqltest_8@host8;
@@ -700,10 +695,6 @@ drop user mysqltest_8@host8;
 --error ER_NONEXISTING_GRANT
 show grants for mysqltest_8@host8;
 
-# Restore the anonymous users.
-insert into mysql.user select * from t2;
-flush privileges;
-drop table t2;
 drop table t1;
 
 #
@@ -1264,9 +1255,6 @@ drop function test_function;
 SELECT CURRENT_USER();
 SET PASSWORD FOR CURRENT_USER() = PASSWORD("admin");
 SET PASSWORD FOR CURRENT_USER() = PASSWORD("");
-
-#cleanup after MDEV-16238
-update mysql.user set plugin='';
 
 #
 # Bug#57952: privilege change is not taken into account by EXECUTE.
@@ -2233,7 +2221,7 @@ set GLOBAL sql_mode=default;
 --source include/wait_until_count_sessions.inc
 
 --echo #
---echo # Start of 10.2 tests
+--echo # End of 10.1 tests
 --echo #
 
 --echo #
@@ -2278,3 +2266,8 @@ GRANT UPDATE ON test.* TO foo;
 RENAME USER 'name' to '';
 DROP USER foo;
 
+--echo #
+--echo # End of 10.4 tests
+--echo #
+
+update mysql.global_priv set priv=@root_priv where user='root' and host='localhost';

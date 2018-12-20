@@ -23,7 +23,7 @@ grant auto_create to foo@localhost;
 ERROR 28000: Can't find any matching row in the user table
 grant auto_create to bar@localhost identified by 'baz';
 select user, host from mysql.user where user = 'bar';
-user	host
+User	Host
 bar	localhost
 set sql_mode = '';
 connect  con1,localhost,bar,baz,;

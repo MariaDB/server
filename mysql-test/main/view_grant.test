@@ -669,16 +669,6 @@ drop database mysqltest;
 #
 # Bug#14256 definer in view definition is not fully qualified
 #
---disable_warnings
-drop view if exists v1;
-drop table if exists t1;
---enable_warnings
-
-# Backup anonymous users and remove them. (They get in the way of
-# the one we test with here otherwise.)
-create table t1 as select * from mysql.user where user='';
-delete from mysql.user where user='';
-flush privileges;
 
 # Create the test user
 create user 'test14256'@'%';
@@ -707,12 +697,6 @@ select @v1def1, @v1def2, @v1def1=@v1def2;
 connection root;
 disconnect test14256;
 drop user test14256;
-
-# Restore the anonymous users.
-insert into mysql.user select * from t1;
-flush privileges;
-
-drop table t1;
 
 #
 # Bug#14726 freeing stack variable in case of an error of opening a view when

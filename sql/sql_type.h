@@ -35,6 +35,7 @@ class Item_const;
 class Item_literal;
 class Item_param;
 class Item_cache;
+class Item_copy;
 class Item_func_or_sum;
 class Item_sum_hybrid;
 class Item_sum_sum;
@@ -108,6 +109,52 @@ public:
   NativeBuffer() : Native(buff, buff_sz) { length(0); }
 };
 
+
+class String_ptr
+{
+protected:
+  String *m_string_ptr;
+public:
+  String_ptr(String *str)
+   :m_string_ptr(str)
+  { }
+  String_ptr(Item *item, String *buffer);
+  const String *string() const
+  {
+    DBUG_ASSERT(m_string_ptr);
+    return m_string_ptr;
+  }
+  bool is_null() const { return m_string_ptr == NULL; }
+};
+
+
+class Ascii_ptr: public String_ptr
+{
+public:
+  Ascii_ptr(Item *item, String *buffer);
+};
+
+
+template<size_t buff_sz>
+class String_ptr_and_buffer: public StringBuffer<buff_sz>,
+                             public String_ptr
+{
+public:
+  String_ptr_and_buffer(Item *item)
+   :String_ptr(item, this)
+  { }
+};
+
+
+template<size_t buff_sz>
+class Ascii_ptr_and_buffer: public StringBuffer<buff_sz>,
+                            public Ascii_ptr
+{
+public:
+  Ascii_ptr_and_buffer(Item *item)
+   :Ascii_ptr(item, this)
+  { }
+};
 
 
 class Dec_ptr
@@ -566,34 +613,36 @@ public:
               public Status
   {
   public:
-    void push_conversion_warnings(THD *thd, bool totally_useless_value, date_mode_t mode,
-                                 timestamp_type tstype, const char *name)
+    void push_conversion_warnings(THD *thd, bool totally_useless_value,
+                                  date_mode_t mode, timestamp_type tstype,
+                                  const TABLE_SHARE* s, const char *name)
     {
       const char *typestr= tstype >= 0 ? type_name_by_timestamp_type(tstype) :
                            mode & (TIME_INTERVAL_hhmmssff | TIME_INTERVAL_DAY) ?
                            "interval" :
                            mode & TIME_TIME_ONLY ? "time" : "datetime";
-      Temporal::push_conversion_warnings(thd, totally_useless_value, warnings, typestr,
-                                         name, ptr());
+      Temporal::push_conversion_warnings(thd, totally_useless_value, warnings,
+                                         typestr, s, name, ptr());
     }
   };
 
   class Warn_push: public Warn
   {
     THD *m_thd;
+    const TABLE_SHARE *m_s;
     const char *m_name;
     const MYSQL_TIME *m_ltime;
     date_mode_t m_mode;
   public:
-    Warn_push(THD *thd, const char *name,
+    Warn_push(THD *thd, const TABLE_SHARE *s, const char *name,
               const MYSQL_TIME *ltime, date_mode_t mode)
-     :m_thd(thd), m_name(name), m_ltime(ltime), m_mode(mode)
+    :m_thd(thd), m_s(s), m_name(name), m_ltime(ltime), m_mode(mode)
     { }
     ~Warn_push()
     {
       if (warnings)
         push_conversion_warnings(m_thd, m_ltime->time_type < 0,
-                                 m_mode, m_ltime->time_type, m_name);
+                                 m_mode, m_ltime->time_type, m_s, m_name);
     }
   };
 
@@ -634,6 +683,7 @@ public:
   }
   static void push_conversion_warnings(THD *thd, bool totally_useless_value, int warn,
                                        const char *type_name,
+                                       const TABLE_SHARE *s,
                                        const char *field_name,
                                        const char *value);
   /*
@@ -3470,6 +3520,7 @@ public:
     DBUG_ASSERT(0);
     return NULL;
   }
+  virtual Item_copy *create_item_copy(THD *thd, Item *item) const;
   virtual int cmp_native(const Native &a, const Native &b) const
   {
     DBUG_ASSERT(0);
@@ -3771,6 +3822,11 @@ public:
   }
   Item *make_const_item_for_comparison(THD *, Item *src, const Item *cmp) const;
   Item_cache *Item_get_cache(THD *thd, const Item *item) const;
+  Item_copy *create_item_copy(THD *thd, Item *item) const
+  {
+    DBUG_ASSERT(0);
+    return NULL;
+  }
   bool set_comparator_func(Arg_comparator *cmp) const;
   bool Item_hybrid_func_fix_attributes(THD *thd,
                                        const char *name,
@@ -5411,6 +5467,7 @@ public:
   int Item_save_in_field(Item *item, Field *field, bool no_conversions) const;
   String *print_item_value(THD *thd, Item *item, String *str) const;
   Item_cache *Item_get_cache(THD *thd, const Item *item) const;
+  Item_copy *create_item_copy(THD *thd, Item *item) const;
   String *Item_func_min_max_val_str(Item_func_min_max *, String *) const;
   double Item_func_min_max_val_real(Item_func_min_max *) const;
   longlong Item_func_min_max_val_int(Item_func_min_max *) const;

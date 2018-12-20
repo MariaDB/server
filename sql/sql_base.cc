@@ -5373,8 +5373,7 @@ err:
   @retval TRUE          A lock wait timeout, deadlock or out of memory.
 */
 
-bool lock_tables(THD *thd, TABLE_LIST *tables, uint count,
-                 uint flags)
+bool lock_tables(THD *thd, TABLE_LIST *tables, uint count, uint flags)
 {
   TABLE_LIST *table;
   DBUG_ENTER("lock_tables");

@@ -5135,7 +5135,7 @@ bool Item_dyncol_get::get_date(THD *thd, MYSQL_TIME *ltime, date_mode_t fuzzydat
     {
       longlong llval = (longlong)val.x.ulong_value;
       if (int_to_datetime_with_warn(thd, Longlong_hybrid(llval, !signed_value),
-                                    ltime, fuzzydate, 0 /* TODO */))
+                                    ltime, fuzzydate, 0, 0 /* TODO */))
         goto null;
       return 0;
     }
@@ -5144,12 +5144,12 @@ bool Item_dyncol_get::get_date(THD *thd, MYSQL_TIME *ltime, date_mode_t fuzzydat
     /* fall through */
   case DYN_COL_DOUBLE:
     if (double_to_datetime_with_warn(thd, val.x.double_value, ltime, fuzzydate,
-                                     0 /* TODO */))
+                                     0, 0 /* TODO */))
       goto null;
     return 0;
   case DYN_COL_DECIMAL:
     if (decimal_to_datetime_with_warn(thd, (my_decimal*)&val.x.decimal.value,
-                                      ltime, fuzzydate, 0 /* TODO */))
+                                      ltime, fuzzydate, 0, 0 /* TODO */))
       goto null;
     return 0;
   case DYN_COL_STRING:

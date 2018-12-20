@@ -57,15 +57,12 @@ btr_can_merge_with_page(
 	buf_block_t**	merge_block,	/*!< out: the merge block */
 	mtr_t*		mtr);		/*!< in: mini-transaction */
 
-/**************************************************************//**
-Report that an index page is corrupted. */
-void
-btr_corruption_report(
-/*==================*/
-	const buf_block_t*	block,	/*!< in: corrupted block */
-	const dict_index_t*	index)	/*!< in: index tree */
+/** Report that an index page is corrupted.
+@param[in]	buffer block
+@param[in]	index tree */
+void btr_corruption_report(const buf_block_t* block, const dict_index_t* index)
 {
-	ib::error()
+	ib::fatal()
 		<< "Flag mismatch in page " << block->page.id
 		<< " index " << index->name
 		<< " of table " << index->table->name;

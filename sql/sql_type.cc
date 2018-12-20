@@ -134,6 +134,15 @@ bool Type_handler_data::init()
 Type_handler_data *type_handler_data= NULL;
 
 
+String_ptr::String_ptr(Item *item, String *buffer)
+ :m_string_ptr(item->val_str(buffer))
+{ }
+
+
+Ascii_ptr::Ascii_ptr(Item *item, String *buffer)
+ :String_ptr(item->val_str_ascii(buffer))
+{ }
+
 
 void VDec::set(Item *item)
 {
@@ -356,18 +365,21 @@ bool Sec6::convert_to_mysql_time(THD *thd, int *warn, MYSQL_TIME *ltime,
 }
 
 
-void Temporal::push_conversion_warnings(THD *thd, bool totally_useless_value, int warn,
+void Temporal::push_conversion_warnings(THD *thd, bool totally_useless_value,
+                                        int warn,
                                         const char *typestr,
+                                        const TABLE_SHARE *s,
                                         const char *field_name,
                                         const char *value)
 {
   if (MYSQL_TIME_WARN_HAVE_WARNINGS(warn))
     thd->push_warning_wrong_or_truncated_value(Sql_condition::WARN_LEVEL_WARN,
                                                totally_useless_value,
-                                               typestr, value, field_name);
+                                               typestr, value, s, field_name);
   else if (MYSQL_TIME_WARN_HAVE_NOTES(warn))
     thd->push_warning_wrong_or_truncated_value(Sql_condition::WARN_LEVEL_NOTE,
-                                               false, typestr, value, field_name);
+                                               false, typestr, value, s,
+                                               field_name);
 }
 
 
@@ -3764,6 +3776,22 @@ Type_handler_date_common::Item_get_cache(THD *thd, const Item *item) const
   return new (thd->mem_root) Item_cache_date(thd);
 }
 
+
+/*************************************************************************/
+
+Item_copy *
+Type_handler::create_item_copy(THD *thd, Item *item) const
+{
+  return new (thd->mem_root) Item_copy_string(thd, item);
+}
+
+
+Item_copy *
+Type_handler_timestamp_common::create_item_copy(THD *thd, Item *item) const
+{
+  return new (thd->mem_root) Item_copy_timestamp(thd, item);
+}
+
 /*************************************************************************/
 
 bool Type_handler_int_result::
@@ -4364,7 +4392,8 @@ bool Type_handler::Item_get_date_with_warn(THD *thd, Item *item,
                                            MYSQL_TIME *ltime,
                                            date_mode_t fuzzydate) const
 {
-  Temporal::Warn_push warn(thd, item->field_name_or_null(), ltime, fuzzydate);
+  Temporal::Warn_push warn(thd, item->field_table_or_null(),
+                           item->field_name_or_null(), ltime, fuzzydate);
   Item_get_date(thd, item, &warn, ltime, fuzzydate);
   return ltime->time_type < 0;
 }
@@ -4375,7 +4404,8 @@ bool Type_handler::Item_func_hybrid_field_type_get_date_with_warn(THD *thd,
                                               MYSQL_TIME *ltime,
                                               date_mode_t mode) const
 {
-  Temporal::Warn_push warn(thd, item->field_name_or_null(), ltime, mode);
+  Temporal::Warn_push warn(thd, item->field_table_or_null(),
+                           item->field_name_or_null(), ltime, mode);
   Item_func_hybrid_field_type_get_date(thd, item, &warn, ltime, mode);
   return ltime->time_type < 0;
 }
@@ -7985,7 +8015,7 @@ static void literal_warn(THD *thd, const Item *item,
       ErrConvString err(str, length, cs);
       thd->push_warning_wrong_or_truncated_value(
                                    Sql_condition::time_warn_level(st->warnings),
-                                   false, typestr, err.ptr(), NullS);
+                                   false, typestr, err.ptr(), NULL, NullS);
     }
   }
   else if (send_error)

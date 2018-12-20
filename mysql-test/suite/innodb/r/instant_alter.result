@@ -565,6 +565,56 @@ ALTER TABLE t1 DROP f2, ADD COLUMN f4 INT;
 ALTER TABLE t1 DROP f4;
 ALTER TABLE t1 DROP f1;
 DROP TABLE t1;
+CREATE TABLE t1 (id INT NOT NULL AUTO_INCREMENT, f INT, KEY(id)) ENGINE=InnoDB ROW_FORMAT=REDUNDANT;
+ALTER TABLE t1 DROP COLUMN id;
+INSERT INTO t1 () VALUES (),();
+SELECT * FROM t1;
+f
+NULL
+NULL
+ALTER TABLE t1 ADD COLUMN id INT NOT NULL AUTO_INCREMENT FIRST, ADD KEY(id);
+SELECT * FROM t1;
+id	f
+1	NULL
+2	NULL
+DROP TABLE t1;
+CREATE TABLE t1 (
+pk INT PRIMARY KEY,
+f1 INT,
+f2 CHAR(255),
+f3 BIGINT,
+f4 INT,
+f5 CHAR(255),
+f6 CHAR(255),
+f7 CHAR(255) NOT NULL,
+f8 INT,
+f9 CHAR(10)
+) ENGINE=InnoDB ROW_FORMAT=REDUNDANT;
+INSERT INTO t1 VALUES
+(1, 1, 'a', 1, 1, 'a', 'a', 'a', 1, 'a'),
+(2, 2, 'b', 2, 2, 'b', 'b', 'b', 2, 'b'),
+(3, 3, 'c', 3, 3, 'c', 'c', 'c', 3, 'c'),
+(4, 4, 'd', 4, 4, 'd', 'd', 'd', 4, 'd'),
+(5, 5, 'e', 5, 5, 'e', 'e', 'e', 5, 'e'),
+(6, 6, 'f', 6, 6, 'f', 'f', 'f', 6, 'f'),
+(7, 7, 'g', 7, 7, 'g', 'g', 'g', 7, 'g'),
+(8, 8, 'h', 8, 8, 'h', 'h', 'h', 8, 'h'),
+(9, 9, 'i', 9, 9, 'i', 'i', 'i', 9, 'i'),
+(10, 0, 'j', 0, 0, 'j', 'j', 'j', 0, 'j'),
+(11, 1, 'k', 1, 1, 'k', 'k', 'k', 1, 'k'),
+(12, 2, 'l', 2, 2, 'l', 'l', 'l', 2, 'l'),
+(13, 3, 'm', 3, 3, 'm', 'm', 'm', 3, 'm'),
+(14, 4, 'n', 4, 4, 'n', 'n', 'n', 4, 'n'),
+(15, 5, 'o', 5, 5, 'o', 'o', 'o', 5, 'o');
+DELETE FROM t1 WHERE pk=1;
+InnoDB		0 transactions not purged
+INSERT INTO t1 VALUES
+(1, 1, 'a', 1, 1, 'a', 'a', 'a', 1, 'a');
+ALTER TABLE t1 DROP COLUMN f1;
+DROP TABLE t1;
+CREATE TABLE t1 (f1 VARCHAR(1), f2 VARCHAR(2)) ENGINE=InnoDB ROW_FORMAT=REDUNDANT;
+ALTER TABLE t1 MODIFY f2 VARCHAR (8) FIRST;
+DROP TABLE t1;
 CREATE TABLE t1
 (id INT PRIMARY KEY, c2 INT UNIQUE,
 c3 POINT NOT NULL DEFAULT ST_GeomFromText('POINT(3 4)'),
@@ -1075,6 +1125,56 @@ CREATE TABLE t1 (f1 INT, f2 INT, f3 INT) ENGINE=InnoDB ROW_FORMAT=COMPACT;
 ALTER TABLE t1 DROP f2, ADD COLUMN f4 INT;
 ALTER TABLE t1 DROP f4;
 ALTER TABLE t1 DROP f1;
+DROP TABLE t1;
+CREATE TABLE t1 (id INT NOT NULL AUTO_INCREMENT, f INT, KEY(id)) ENGINE=InnoDB ROW_FORMAT=COMPACT;
+ALTER TABLE t1 DROP COLUMN id;
+INSERT INTO t1 () VALUES (),();
+SELECT * FROM t1;
+f
+NULL
+NULL
+ALTER TABLE t1 ADD COLUMN id INT NOT NULL AUTO_INCREMENT FIRST, ADD KEY(id);
+SELECT * FROM t1;
+id	f
+1	NULL
+2	NULL
+DROP TABLE t1;
+CREATE TABLE t1 (
+pk INT PRIMARY KEY,
+f1 INT,
+f2 CHAR(255),
+f3 BIGINT,
+f4 INT,
+f5 CHAR(255),
+f6 CHAR(255),
+f7 CHAR(255) NOT NULL,
+f8 INT,
+f9 CHAR(10)
+) ENGINE=InnoDB ROW_FORMAT=COMPACT;
+INSERT INTO t1 VALUES
+(1, 1, 'a', 1, 1, 'a', 'a', 'a', 1, 'a'),
+(2, 2, 'b', 2, 2, 'b', 'b', 'b', 2, 'b'),
+(3, 3, 'c', 3, 3, 'c', 'c', 'c', 3, 'c'),
+(4, 4, 'd', 4, 4, 'd', 'd', 'd', 4, 'd'),
+(5, 5, 'e', 5, 5, 'e', 'e', 'e', 5, 'e'),
+(6, 6, 'f', 6, 6, 'f', 'f', 'f', 6, 'f'),
+(7, 7, 'g', 7, 7, 'g', 'g', 'g', 7, 'g'),
+(8, 8, 'h', 8, 8, 'h', 'h', 'h', 8, 'h'),
+(9, 9, 'i', 9, 9, 'i', 'i', 'i', 9, 'i'),
+(10, 0, 'j', 0, 0, 'j', 'j', 'j', 0, 'j'),
+(11, 1, 'k', 1, 1, 'k', 'k', 'k', 1, 'k'),
+(12, 2, 'l', 2, 2, 'l', 'l', 'l', 2, 'l'),
+(13, 3, 'm', 3, 3, 'm', 'm', 'm', 3, 'm'),
+(14, 4, 'n', 4, 4, 'n', 'n', 'n', 4, 'n'),
+(15, 5, 'o', 5, 5, 'o', 'o', 'o', 5, 'o');
+DELETE FROM t1 WHERE pk=1;
+InnoDB		0 transactions not purged
+INSERT INTO t1 VALUES
+(1, 1, 'a', 1, 1, 'a', 'a', 'a', 1, 'a');
+ALTER TABLE t1 DROP COLUMN f1;
+DROP TABLE t1;
+CREATE TABLE t1 (f1 VARCHAR(1), f2 VARCHAR(2)) ENGINE=InnoDB ROW_FORMAT=COMPACT;
+ALTER TABLE t1 MODIFY f2 VARCHAR (8) FIRST;
 DROP TABLE t1;
 CREATE TABLE t1
 (id INT PRIMARY KEY, c2 INT UNIQUE,
@@ -1587,10 +1687,60 @@ ALTER TABLE t1 DROP f2, ADD COLUMN f4 INT;
 ALTER TABLE t1 DROP f4;
 ALTER TABLE t1 DROP f1;
 DROP TABLE t1;
+CREATE TABLE t1 (id INT NOT NULL AUTO_INCREMENT, f INT, KEY(id)) ENGINE=InnoDB ROW_FORMAT=DYNAMIC;
+ALTER TABLE t1 DROP COLUMN id;
+INSERT INTO t1 () VALUES (),();
+SELECT * FROM t1;
+f
+NULL
+NULL
+ALTER TABLE t1 ADD COLUMN id INT NOT NULL AUTO_INCREMENT FIRST, ADD KEY(id);
+SELECT * FROM t1;
+id	f
+1	NULL
+2	NULL
+DROP TABLE t1;
+CREATE TABLE t1 (
+pk INT PRIMARY KEY,
+f1 INT,
+f2 CHAR(255),
+f3 BIGINT,
+f4 INT,
+f5 CHAR(255),
+f6 CHAR(255),
+f7 CHAR(255) NOT NULL,
+f8 INT,
+f9 CHAR(10)
+) ENGINE=InnoDB ROW_FORMAT=DYNAMIC;
+INSERT INTO t1 VALUES
+(1, 1, 'a', 1, 1, 'a', 'a', 'a', 1, 'a'),
+(2, 2, 'b', 2, 2, 'b', 'b', 'b', 2, 'b'),
+(3, 3, 'c', 3, 3, 'c', 'c', 'c', 3, 'c'),
+(4, 4, 'd', 4, 4, 'd', 'd', 'd', 4, 'd'),
+(5, 5, 'e', 5, 5, 'e', 'e', 'e', 5, 'e'),
+(6, 6, 'f', 6, 6, 'f', 'f', 'f', 6, 'f'),
+(7, 7, 'g', 7, 7, 'g', 'g', 'g', 7, 'g'),
+(8, 8, 'h', 8, 8, 'h', 'h', 'h', 8, 'h'),
+(9, 9, 'i', 9, 9, 'i', 'i', 'i', 9, 'i'),
+(10, 0, 'j', 0, 0, 'j', 'j', 'j', 0, 'j'),
+(11, 1, 'k', 1, 1, 'k', 'k', 'k', 1, 'k'),
+(12, 2, 'l', 2, 2, 'l', 'l', 'l', 2, 'l'),
+(13, 3, 'm', 3, 3, 'm', 'm', 'm', 3, 'm'),
+(14, 4, 'n', 4, 4, 'n', 'n', 'n', 4, 'n'),
+(15, 5, 'o', 5, 5, 'o', 'o', 'o', 5, 'o');
+DELETE FROM t1 WHERE pk=1;
+InnoDB		0 transactions not purged
+INSERT INTO t1 VALUES
+(1, 1, 'a', 1, 1, 'a', 'a', 'a', 1, 'a');
+ALTER TABLE t1 DROP COLUMN f1;
+DROP TABLE t1;
+CREATE TABLE t1 (f1 VARCHAR(1), f2 VARCHAR(2)) ENGINE=InnoDB ROW_FORMAT=DYNAMIC;
+ALTER TABLE t1 MODIFY f2 VARCHAR (8) FIRST;
+DROP TABLE t1;
 disconnect analyze;
 SELECT variable_value-@old_instant instants
 FROM information_schema.global_status
 WHERE variable_name = 'innodb_instant_alter_column';
 instants
-111
+120
 SET GLOBAL innodb_purge_rseg_truncate_frequency= @saved_frequency;

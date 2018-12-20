@@ -1,3 +1,4 @@
+select priv into @root_priv from mysql.global_priv where user='root' and host='localhost';
 set GLOBAL sql_mode="";
 set LOCAL sql_mode="";
 SET NAMES binary;
@@ -182,10 +183,10 @@ grant insert on test.* to 'mysqltest_2';
 grant update on test.t1 to 'mysqltest_2';
 grant update (c2) on test.t2 to 'mysqltest_2';
 select host,user,password,plugin,authentication_string from mysql.user where user like 'mysqltest_%';
-host	user	password	plugin	authentication_string
+Host	User	Password	plugin	authentication_string
 %	mysqltest_1		mysql_native_password	
-%	mysqltest_2		mysql_native_password	*BD447CBA355AF58578D3AE33BA2E2CD388BA08D1
-%	mysqltest_3		mysql_native_password	fffffffffffffffffffffffffffffffffffffffff
+%	mysqltest_2	*BD447CBA355AF58578D3AE33BA2E2CD388BA08D1	mysql_native_password	*BD447CBA355AF58578D3AE33BA2E2CD388BA08D1
+%	mysqltest_3	fffffffffffffffffffffffffffffffffffffffff	mysql_native_password	fffffffffffffffffffffffffffffffffffffffff
 select host,db,user from mysql.db where user like 'mysqltest_%';
 host	db	user
 %	test	mysqltest_2
@@ -207,9 +208,9 @@ GRANT UPDATE (c2) ON "test"."t2" TO 'mysqltest_2'@'%'
 GRANT UPDATE ON "test"."t1" TO 'mysqltest_2'@'%'
 drop user 'mysqltest_1';
 select host,user,password,plugin,authentication_string from mysql.user where user like 'mysqltest_%';
-host	user	password	plugin	authentication_string
-%	mysqltest_2		mysql_native_password	*BD447CBA355AF58578D3AE33BA2E2CD388BA08D1
-%	mysqltest_3		mysql_native_password	fffffffffffffffffffffffffffffffffffffffff
+Host	User	Password	plugin	authentication_string
+%	mysqltest_2	*BD447CBA355AF58578D3AE33BA2E2CD388BA08D1	mysql_native_password	*BD447CBA355AF58578D3AE33BA2E2CD388BA08D1
+%	mysqltest_3	fffffffffffffffffffffffffffffffffffffffff	mysql_native_password	fffffffffffffffffffffffffffffffffffffffff
 select host,db,user from mysql.db where user like 'mysqltest_%';
 host	db	user
 %	test	mysqltest_2
@@ -224,9 +225,9 @@ show grants for 'mysqltest_1';
 ERROR 42000: There is no such grant defined for user 'mysqltest_1' on host '%'
 rename user 'mysqltest_2' to 'mysqltest_1';
 select host,user,password,plugin,authentication_string from mysql.user where user like 'mysqltest_%' ;
-host	user	password	plugin	authentication_string
-%	mysqltest_1		mysql_native_password	*BD447CBA355AF58578D3AE33BA2E2CD388BA08D1
-%	mysqltest_3		mysql_native_password	fffffffffffffffffffffffffffffffffffffffff
+Host	User	Password	plugin	authentication_string
+%	mysqltest_1	*BD447CBA355AF58578D3AE33BA2E2CD388BA08D1	mysql_native_password	*BD447CBA355AF58578D3AE33BA2E2CD388BA08D1
+%	mysqltest_3	fffffffffffffffffffffffffffffffffffffffff	mysql_native_password	fffffffffffffffffffffffffffffffffffffffff
 select host,db,user from mysql.db where user like 'mysqltest_%' ;
 host	db	user
 %	test	mysqltest_1
@@ -328,12 +329,7 @@ GRANT USAGE ON *.* TO 'mysqltest_3'@'localhost'
 GRANT INSERT, UPDATE, DELETE ON `mysql`.* TO 'mysqltest_3'@'localhost'
 select host,user,password,plugin,authentication_string from mysql.user where user like 'mysqltest_%' ;
 ERROR 42000: SELECT command denied to user 'mysqltest_3'@'localhost' for table 'user'
-insert into mysql.user set host='%', user='mysqltest_B';
-Warnings:
-Warning	1364	Field 'ssl_cipher' doesn't have a default value
-Warning	1364	Field 'x509_issuer' doesn't have a default value
-Warning	1364	Field 'x509_subject' doesn't have a default value
-Warning	1364	Field 'authentication_string' doesn't have a default value
+insert into mysql.global_priv set host='%', user='mysqltest_B';
 create user mysqltest_A@'%';
 rename user mysqltest_B@'%' to mysqltest_C@'%';
 drop user mysqltest_C@'%';
@@ -373,7 +369,7 @@ set password = password('changed');
 disconnect b12302;
 connection default;
 select host, length(authentication_string) from mysql.user where user like 'mysqltest\_1';
-host	length(authentication_string)
+Host	length(authentication_string)
 127.0.0.1	41
 revoke all on mysqltest_1.* from mysqltest_1@'127.0.0.1';
 delete from mysql.user where user like 'mysqltest\_1';
@@ -388,7 +384,7 @@ set password = password('changed');
 disconnect b12302_2;
 connection default;
 select host, length(authentication_string) from mysql.user where user like 'mysqltest\_1';
-host	length(authentication_string)
+Host	length(authentication_string)
 127.0.0.0/255.0.0.0	41
 revoke all on mysqltest_1.* from mysqltest_1@'127.0.0.0/255.0.0.0';
 delete from mysql.user where user like 'mysqltest\_1';
@@ -428,15 +424,10 @@ disconnect con2root;
 disconnect con3root;
 create database TESTDB;
 create table t2(a int);
-create temporary table t1 as select * from mysql.user;
-delete from mysql.user where host='localhost';
-INSERT INTO mysql.user (host, user, password) VALUES
-('%','mysqltest_1',password('password'));
-Warnings:
-Warning	1364	Field 'ssl_cipher' doesn't have a default value
-Warning	1364	Field 'x509_issuer' doesn't have a default value
-Warning	1364	Field 'x509_subject' doesn't have a default value
-Warning	1364	Field 'authentication_string' doesn't have a default value
+create temporary table t1 as select * from mysql.global_priv;
+delete from mysql.global_priv where host='localhost';
+INSERT INTO mysql.global_priv (host, user, priv) VALUES
+('%','mysqltest_1',json_object('authentication_string', password('password')));
 INSERT INTO mysql.db (host, db, user, select_priv) VALUES
 ('%','TESTDB','mysqltest_1','Y');
 FLUSH PRIVILEGES;
@@ -445,9 +436,9 @@ create database TEStdb;
 Got one of the listed errors
 connection default;
 disconnect con1;
-delete from mysql.user;
+delete from mysql.global_priv;
 delete from mysql.db where host='%' and user='mysqltest_1' and db='TESTDB';
-insert into mysql.user select * from t1;
+insert into mysql.global_priv select * from t1;
 drop table t1, t2;
 drop database TESTDB;
 flush privileges;
@@ -556,25 +547,17 @@ USE mysql;
 SELECT LEFT(CURRENT_USER(),INSTR(CURRENT_USER(),'@')-1) INTO @u;
 SELECT MID(CURRENT_USER(),INSTR(CURRENT_USER(),'@')+1)  INTO @h;
 SELECT user,host,password,plugin,authentication_string,insert_priv FROM user WHERE user=@u AND host=@h;
-user	host	password	plugin	authentication_string	insert_priv
+User	Host	Password	plugin	authentication_string	Insert_priv
 root	localhost				Y
-UPDATE user SET insert_priv='N' WHERE user=@u AND host=@h;
-SELECT user,host,password,plugin,authentication_string,insert_priv FROM user WHERE user=@u AND host=@h;
-user	host	password	plugin	authentication_string	insert_priv
-root	localhost				N
 GRANT INSERT ON *.* TO CURRENT_USER();
 SELECT user,host,password,plugin,authentication_string,insert_priv FROM user WHERE user=@u AND host=@h;
-user	host	password	plugin	authentication_string	insert_priv
+User	Host	Password	plugin	authentication_string	Insert_priv
 root	localhost		mysql_native_password		Y
-UPDATE user SET insert_priv='N' WHERE user=@u AND host=@h;
 GRANT INSERT ON *.* TO CURRENT_USER() IDENTIFIED BY 'keksdose';
 SELECT user,host,password,plugin,authentication_string,insert_priv FROM user WHERE user=@u AND host=@h;
-user	host	password	plugin	authentication_string	insert_priv
-root	localhost		mysql_native_password	*0BB7188CF0DE9B403BA66E9DD810D82652D002EB	Y
-UPDATE user SET plugin='', authentication_string='' WHERE user=@u AND host=@h;
-SELECT user,host,password,plugin,authentication_string,insert_priv FROM user WHERE user=@u AND host=@h;
-user	host	password	plugin	authentication_string	insert_priv
-root	localhost				Y
+User	Host	Password	plugin	authentication_string	Insert_priv
+root	localhost	*0BB7188CF0DE9B403BA66E9DD810D82652D002EB	mysql_native_password	*0BB7188CF0DE9B403BA66E9DD810D82652D002EB	Y
+UPDATE global_priv SET priv=@root_priv;
 FLUSH PRIVILEGES;
 USE test;
 End of 5.1 tests
