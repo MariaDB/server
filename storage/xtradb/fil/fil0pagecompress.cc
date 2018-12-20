@@ -341,14 +341,14 @@ UNIV_INTERN ulint fil_page_decompress(byte* tmp_buf, byte* buf)
 	case PAGE_ZLIB_ALGORITHM:
 		{
 			uLong len = srv_page_size;
-			if (Z_OK != uncompress(tmp_buf, &len,
+			if (Z_OK == uncompress(tmp_buf, &len,
 					       buf + header_len,
 					       uLong(actual_size))
-			    && len != srv_page_size) {
-				return 0;
+			    && len == srv_page_size) {
+				break;
 			}
 		}
-		break;
+		return 0;
 #ifdef HAVE_LZ4
 	case PAGE_LZ4_ALGORITHM:
 		if (LZ4_decompress_safe(reinterpret_cast<const char*>(buf)
