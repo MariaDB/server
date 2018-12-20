@@ -1362,6 +1362,73 @@ warn:
 
 
 /**
+  If a field does not have a corresponding data, it's behavior can vary:
+  - In case of the fixed file format
+    it's set to the default value for the data type,
+    such as 0 for numbers or '' for strings.
+  - In case of a non-fixed format
+    it's set to NULL for nullable fields, and
+    it's set to the default value for the data type for NOT NULL fields.
+  This seems to be by design.
+*/
+bool Field::load_data_set_no_data(THD *thd, bool fixed_format)
+{
+  reset();                  // Do not use the DEFAULT value
+  if (fixed_format)
+  {
+    set_notnull();
+    /*
+      We're loading a fixed format file, e.g.:
+        LOAD DATA INFILE 't1.txt' INTO TABLE t1 FIELDS TERMINATED BY '';
+      Suppose the file ended unexpectedly and no data was provided for an
+      auto-increment column in the current row.
+      Historically, if sql_mode=NO_AUTO_VALUE_ON_ZERO, then the column value
+      is set to 0 in such case (the next auto_increment value is not used).
+      This behaviour was introduced by the fix for "bug#12053" in mysql-4.1.
+      Note, loading a delimited file works differently:
+      "no data" is not converted to 0 on NO_AUTO_VALUE_ON_ZERO:
+      it's considered as equal to setting the column to NULL,
+      which is then replaced to the next auto_increment value.
+      This difference seems to be intentional.
+    */
+    if (this == table->next_number_field)
+      table->auto_increment_field_not_null= true;
+  }
+  set_has_explicit_value(); // Do not auto-update this field
+  return false;
+}
+
+
+bool Field::load_data_set_null(THD *thd)
+{
+  reset();
+  set_null();
+  if (!maybe_null())
+  {
+    if (this != table->next_number_field)
+      set_warning(Sql_condition::WARN_LEVEL_WARN, ER_WARN_NULL_TO_NOTNULL, 1);
+  }
+  set_has_explicit_value(); // Do not auto-update this field
+  return false;
+}
+
+
+void Field::load_data_set_value(const char *pos, uint length,
+                                CHARSET_INFO *cs)
+{
+  /*
+    Mark field as not null, we should do this for each row because of
+    restore_record...
+  */
+  set_notnull();
+  if (this == table->next_number_field)
+    table->auto_increment_field_not_null= true;
+  store(pos, length, cs);
+  set_has_explicit_value(); // Do not auto-update this field
+}
+
+
+/**
   Numeric fields base class constructor.
 */
 Field_num::Field_num(uchar *ptr_arg,uint32 len_arg, uchar *null_ptr_arg,
@@ -5348,6 +5415,43 @@ int Field_timestamp::set_time()
   return 0;
 }
 
+
+bool Field_timestamp::load_data_set_no_data(THD *thd, bool fixed_format)
+{
+  if (!maybe_null())
+  {
+    /*
+      Timestamp fields that are NOT NULL are autoupdated if there is no
+      corresponding value in the data file.
+    */
+    set_time();
+    set_has_explicit_value();
+    return false;
+  }
+  return Field::load_data_set_no_data(thd, fixed_format);
+}
+
+
+bool Field_timestamp::load_data_set_null(THD *thd)
+{
+  if (!maybe_null())
+  {
+    /*
+      Timestamp fields that are NOT NULL are autoupdated if there is no
+      corresponding value in the data file.
+    */
+    set_time();
+  }
+  else
+  {
+    reset();
+    set_null();
+  }
+  set_has_explicit_value(); // Do not auto-update this field
+  return false;
+}
+
+
 #ifdef NOT_USED
 static void store_native(ulonglong num, uchar *to, uint bytes)
 {
@@ -8697,6 +8801,27 @@ bool Field_geom::can_optimize_range(const Item_bool_func *cond,
                                     bool is_eq_func) const
 {
   return item->cmp_type() == STRING_RESULT;
+}
+
+
+bool Field_geom::load_data_set_no_data(THD *thd, bool fixed_format)
+{
+  return Field_geom::load_data_set_null(thd);
+}
+
+
+bool Field_geom::load_data_set_null(THD *thd)
+{
+  Field_blob::reset();
+  if (!maybe_null())
+  {
+    my_error(ER_WARN_NULL_TO_NOTNULL, MYF(0), field_name,
+             thd->get_stmt_da()->current_row_for_warning());
+    return true;
+  }
+  set_null();
+  set_has_explicit_value(); // Do not auto-update this field
+  return false;
 }
 
 #endif /*HAVE_SPATIAL*/
