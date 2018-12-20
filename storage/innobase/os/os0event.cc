@@ -126,7 +126,10 @@ struct os_event {
 	/** @return true if the event is in the signalled state. */
 	bool is_set() const UNIV_NOTHROW
 	{
-		return(m_set);
+		mutex.enter();
+		bool is_set = m_set;
+		mutex.exit();
+		return is_set;
 	}
 
 private:
@@ -224,7 +227,7 @@ private:
 	int64_t			signal_count;	/*!< this is incremented
 						each time the event becomes
 						signaled */
-	EventMutex		mutex;		/*!< this mutex protects
+	mutable EventMutex	mutex;		/*!< this mutex protects
 						the next fields */
 
 
