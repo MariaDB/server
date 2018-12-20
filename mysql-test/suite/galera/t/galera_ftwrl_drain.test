@@ -55,7 +55,7 @@ SET SESSION innodb_lock_wait_timeout=1;
 SET SESSION wait_timeout=1;
 
 --error ER_LOCK_WAIT_TIMEOUT
-INSERT INTO t2 VALUES (2);
+INSERT INTO t1 VALUES (2);
 
 --connection node_2a
 UNLOCK TABLES;
