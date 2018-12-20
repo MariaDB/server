@@ -266,8 +266,8 @@ binlog_format=ROW
 innodb_autoinc_lock_mode=2
    This is a required parameter. Without it INSERTs into tables with
    AUTO_INCREMENT column may fail.
-   autoinc lock modes 0 and 1 can cause unresolved deadlock, and make the
-   system unresponsive.
+   autoinc lock modes 0 and 1 can cause unresolved deadlock, and make
+   the system unresponsive.
 
 innodb_locks_unsafe_for_binlog=1
    This option is required for parallel applying.
