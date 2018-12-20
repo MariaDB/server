@@ -211,6 +211,14 @@ static void prepare_record_for_error_message(int error, TABLE *table)
   bitmap_union(table->read_set, &unique_map);
   /* Tell the engine about the new set. */
   table->file->column_bitmaps_signal();
+
+  if ((error= table->file->ha_index_or_rnd_end()) ||
+      (error= table->file->ha_rnd_init(0)))
+  {
+    table->file->print_error(error, MYF(0));
+    DBUG_VOID_RETURN;
+  }
+
   /* Read record that is identified by table->file->ref. */
   (void) table->file->ha_rnd_pos(table->record[1], table->file->ref);
   /* Copy the newly read columns into the new record. */

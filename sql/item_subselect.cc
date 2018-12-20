@@ -5855,12 +5855,16 @@ Ordered_key::cmp_keys_by_row_data_and_rownum(Ordered_key *key,
 }
 
 
-void Ordered_key::sort_keys()
+bool Ordered_key::sort_keys()
 {
+  if (tbl->file->ha_rnd_init_with_error(0))
+    return TRUE;
   my_qsort2(key_buff, (size_t) key_buff_elements, sizeof(rownum_t),
             (qsort2_cmp) &cmp_keys_by_row_data_and_rownum, (void*) this);
   /* Invalidate the current row position. */
   cur_key_idx= HA_POS_ERROR;
+  tbl->file->ha_rnd_end();
+  return FALSE;
 }
 
 
@@ -6313,7 +6317,8 @@ subselect_rowid_merge_engine::init(MY_BITMAP *non_null_key_parts,
 
   /* Sort the keys in each of the indexes. */
   for (uint i= 0; i < merge_keys_count; i++)
-    merge_keys[i]->sort_keys();
+    if (merge_keys[i]->sort_keys())
+      return TRUE;
 
   if (init_queue(&pq, merge_keys_count, 0, FALSE,
                  subselect_rowid_merge_engine::cmp_keys_by_cur_rownum, NULL,
