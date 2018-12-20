@@ -501,7 +501,8 @@ static std::string wsrep_server_incoming_address()
     bool is_ipv6= false;
     unsigned int my_bind_ip= INADDR_ANY; // default if not set
 
-    if (my_bind_addr_str && strlen(my_bind_addr_str))
+    if (my_bind_addr_str && strlen(my_bind_addr_str) && 
+        strcmp(my_bind_addr_str, "*") != 0)
     {
       my_bind_ip= wsrep_check_ip(my_bind_addr_str, &is_ipv6);
     }
@@ -612,7 +613,6 @@ int wsrep_init_server()
     incoming_address= wsrep_server_incoming_address();
     working_dir= wsrep_server_working_dir();
     initial_position= wsrep_server_initial_position();
-
 
     Wsrep_server_state::init_once(server_name,
                                   incoming_address,

@@ -56,7 +56,7 @@ SELECT COUNT(*) = 0 FROM wsrep_schema.SR;
 
 --connection node_2a
 --disable_query_log
---eval SET GLOBAL wsrep_cluster_address='gcomm://127.0.0.1:$NODE_GALERAPORT_1';
+--eval SET GLOBAL wsrep_cluster_address='$wsrep_cluster_address_orig'
 --enable_query_log
 
 --connection node_1

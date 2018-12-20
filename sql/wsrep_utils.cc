@@ -490,7 +490,9 @@ size_t wsrep_guess_ip (char* buf, size_t buf_len)
   size_t ret= 0;
 
   // Attempt 1: Try to get the IP from bind-address.
-  if (my_bind_addr_str && my_bind_addr_str[0] != '\0')
+  // Skip if empty or bind-address=*
+  if (my_bind_addr_str && my_bind_addr_str[0] != '\0' &&
+      strcmp(my_bind_addr_str, "*") != 0)
   {
     bool unused;
     unsigned int const ip_type= wsrep_check_ip(my_bind_addr_str, &unused);
