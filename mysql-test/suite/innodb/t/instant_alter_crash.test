@@ -16,7 +16,7 @@ let MYSQLD_DATADIR=`select @@datadir`;
 CREATE TABLE t1(id INT PRIMARY KEY, c2 INT UNIQUE)
 ENGINE=InnoDB ROW_FORMAT=REDUNDANT;
 CREATE TABLE t2 LIKE t1;
-INSERT INTO t1 VALUES(1,2);
+INSERT INTO t1 VALUES(0,2);
 BEGIN;
 INSERT INTO t2 VALUES(2,1);
 ALTER TABLE t2 ADD COLUMN (c3 TEXT NOT NULL DEFAULT 'De finibus bonorum');
@@ -29,7 +29,7 @@ ALTER TABLE t1 ADD COLUMN (c3 TEXT NOT NULL DEFAULT ' et malorum');
 connection default;
 SET DEBUG_SYNC='now WAIT_FOR ddl';
 SET GLOBAL innodb_flush_log_at_trx_commit=1;
-COMMIT;
+INSERT INTO t2 VALUES(3,4,'accusantium doloremque laudantium');
 
 --source include/kill_mysqld.inc
 disconnect ddl;
@@ -61,6 +61,10 @@ disconnect ddl;
 
 SET @saved_frequency= @@GLOBAL.innodb_purge_rseg_truncate_frequency;
 SET GLOBAL innodb_purge_rseg_truncate_frequency=1;
+
+let SEARCH_FILE= $MYSQLTEST_VARDIR/log/mysqld.1.err;
+let SEARCH_PATTERN= \[Note\] InnoDB: Rolled back recovered transaction ;
+-- source include/search_pattern_in_file.inc
 
 SELECT * FROM t1;
 SELECT * FROM t2;
