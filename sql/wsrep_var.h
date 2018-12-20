@@ -93,6 +93,8 @@ extern bool wsrep_desync_update              UPDATE_ARGS;
 extern bool wsrep_trx_fragment_size_check    CHECK_ARGS;
 extern bool wsrep_trx_fragment_size_update   UPDATE_ARGS;
 
+extern bool wsrep_trx_fragment_unit_update   UPDATE_ARGS;
+
 extern bool wsrep_max_ws_size_check          CHECK_ARGS;
 extern bool wsrep_max_ws_size_update         UPDATE_ARGS;
 

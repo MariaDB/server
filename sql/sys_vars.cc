@@ -5516,9 +5516,9 @@ static Sys_var_ulong Sys_wsrep_trx_fragment_size(
       "wsrep_trx_fragment_size",
       "Size of transaction fragments for streaming replication (measured in "
       "units of 'wsrep_trx_fragment_unit')",
-       SESSION_VAR(wsrep_trx_fragment_size), CMD_LINE(REQUIRED_ARG),
-       VALID_RANGE(0, WSREP_MAX_WS_SIZE), DEFAULT(0), BLOCK_SIZE(1),
-       NO_MUTEX_GUARD, NOT_IN_BINLOG,
+      SESSION_VAR(wsrep_trx_fragment_size), CMD_LINE(REQUIRED_ARG),
+      VALID_RANGE(0, WSREP_MAX_WS_SIZE), DEFAULT(0), BLOCK_SIZE(1),
+      NO_MUTEX_GUARD, NOT_IN_BINLOG,
       ON_CHECK(wsrep_trx_fragment_size_check),
       ON_UPDATE(wsrep_trx_fragment_size_update));
 
@@ -5531,7 +5531,9 @@ static Sys_var_enum Sys_wsrep_trx_fragment_unit(
       SESSION_VAR(wsrep_trx_fragment_unit), CMD_LINE(REQUIRED_ARG),
       wsrep_fragment_units,
       DEFAULT(WSREP_FRAG_BYTES),
-      NO_MUTEX_GUARD, NOT_IN_BINLOG, ON_CHECK(0), ON_UPDATE(0));
+      NO_MUTEX_GUARD, NOT_IN_BINLOG,
+      ON_CHECK(0),
+      ON_UPDATE(wsrep_trx_fragment_unit_update));
 
 extern const char *wsrep_SR_store_types[];
 static Sys_var_enum Sys_wsrep_SR_store(
