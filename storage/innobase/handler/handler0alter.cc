@@ -1372,13 +1372,15 @@ check_v_col_in_order(
 /** Determine if an instant operation is possible for altering columns.
 @param[in]	ib_table	InnoDB table definition
 @param[in]	ha_alter_info	the ALTER TABLE operation
-@param[in]	table		table definition before ALTER TABLE */
+@param[in]	table		table definition before ALTER TABLE
+@param[in]	table		table definition after ALTER TABLE */
 static
 bool
 instant_alter_column_possible(
 	const dict_table_t&		ib_table,
 	const Alter_inplace_info*	ha_alter_info,
-	const TABLE*			table)
+	const TABLE*			table,
+	const TABLE*			altered_table)
 {
 	if (!ib_table.supports_instant()) {
 		return false;
@@ -1470,10 +1472,36 @@ instant_alter_column_possible(
 		return false;
 	}
 
-	if ((ha_alter_info->handler_flags
-	     & ALTER_COLUMN_NULLABLE)
-	    && ib_table.not_redundant()) {
-		return false;
+	if (ha_alter_info->handler_flags & ALTER_COLUMN_NULLABLE) {
+		if (ib_table.not_redundant()) {
+			return false;
+		}
+
+		const dict_index_t* pk = ib_table.indexes.start;
+		Field** af = altered_table->field;
+		Field** const end = altered_table->field
+			+ altered_table->s->fields;
+		for (unsigned c = 0; af < end; af++) {
+			if (!(*af)->stored_in_db()) {
+				continue;
+			}
+
+			const dict_col_t* col = dict_table_get_nth_col(
+				&ib_table, c++);
+
+			if (!col->ord_part || col->is_nullable()
+			    || !(*af)->real_maybe_null()) {
+				continue;
+			}
+
+			/* The column would be changed from NOT NULL.
+			Ensure that it is not a clustered index key. */
+			for (auto i = pk->n_uniq; i--; ) {
+				if (pk->fields[i].col == col) {
+					return false;
+				}
+			}
+		}
 	}
 
 	return true;
@@ -1784,7 +1812,7 @@ ha_innobase::check_if_supported_inplace_alter(
 	}
 
 	const bool supports_instant = instant_alter_column_possible(
-		*m_prebuilt->table, ha_alter_info, table);
+		*m_prebuilt->table, ha_alter_info, table, altered_table);
 	bool	add_drop_v_cols = false;
 
 	/* If there is add or drop virtual columns, we will support operations
@@ -6285,7 +6313,7 @@ new_clustered_failed:
 		    || !ctx->new_table->persistent_autoinc);
 
 	if (ctx->need_rebuild() && instant_alter_column_possible(
-		    *user_table, ha_alter_info, old_table)
+		    *user_table, ha_alter_info, old_table, altered_table)
 #if 1 // MDEV-17459: adjust fts_fetch_doc_from_rec() and friends; remove this
 		&& !innobase_fulltext_exist(altered_table)
 #endif
