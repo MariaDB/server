@@ -2,5 +2,5 @@ CREATE TABLE t1 (a INT AUTO_INCREMENT PRIMARY KEY, b TEXT, c char(200)) ENGINE=I
 insert into t1(b, c) values("mariadb", "mariabackup");
 # Corrupt the table
 # xtrabackup backup
-FOUND 1 /Database page corruption detected/ in backup.log
+FOUND 1 /Database page corruption detected.*/ in backup.log
 drop table t1;

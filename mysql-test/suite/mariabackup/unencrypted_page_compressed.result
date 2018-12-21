@@ -4,5 +4,5 @@ insert into t1(b, c) values("mariadb", "mariabackup");
 InnoDB		0 transactions not purged
 # Corrupt the table
 # xtrabackup backup
-FOUND 1 /Database page corruption detected/ in backup.log
+FOUND 1 /Database page corruption detected.*/ in backup.log
 drop table t1;

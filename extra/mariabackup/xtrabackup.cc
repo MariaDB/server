@@ -200,6 +200,7 @@ static char*	log_ignored_opt;
 
 extern my_bool opt_use_ssl;
 my_bool opt_ssl_verify_server_cert;
+my_bool opt_extended_validation;
 
 /* === metadata of backup === */
 #define XTRABACKUP_METADATA_FILENAME "xtrabackup_checkpoints"
@@ -760,6 +761,7 @@ enum options_xtrabackup
   OPT_XTRA_DATABASES,
   OPT_XTRA_DATABASES_FILE,
   OPT_XTRA_PARALLEL,
+  OPT_XTRA_EXTENDED_VALIDATION,
   OPT_XTRA_STREAM,
   OPT_XTRA_COMPRESS,
   OPT_XTRA_COMPRESS_THREADS,
@@ -1219,6 +1221,14 @@ struct my_option xb_server_options[] =
    "The default value is 1.",
    (G_PTR*) &xtrabackup_parallel, (G_PTR*) &xtrabackup_parallel, 0, GET_INT,
    REQUIRED_ARG, 1, 1, INT_MAX, 0, 0, 0},
+
+  {"extended_validation", OPT_XTRA_EXTENDED_VALIDATION,
+   "Enable extended validation for Innodb data pages during backup phase."
+   "Will slow down backup considerably, in case encryption is used.",
+   (G_PTR*)&opt_extended_validation,
+   (G_PTR*)&opt_extended_validation,
+   0, GET_BOOL, NO_ARG, FALSE, 0, 0, 0, 0, 0},
+
 
    {"log", OPT_LOG, "Ignored option for MySQL option compatibility",
    (G_PTR*) &log_ignored_opt, (G_PTR*) &log_ignored_opt, 0,

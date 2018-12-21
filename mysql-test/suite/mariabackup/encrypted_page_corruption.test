@@ -50,14 +50,20 @@ let $backuplog=$MYSQLTEST_VARDIR/tmp/backup.log;
 
 --disable_result_log
 --error 1
-exec $XTRABACKUP --defaults-file=$MYSQLTEST_VARDIR/my.cnf --backup --target-dir=$targetdir > $backuplog;
+exec $XTRABACKUP --defaults-file=$MYSQLTEST_VARDIR/my.cnf --backup --extended-validation --target-dir=$targetdir > $backuplog;
 --enable_result_log
 
 
---let SEARCH_PATTERN=Database page corruption detected
+--let SEARCH_PATTERN=Database page corruption detected.*
 --let SEARCH_FILE=$backuplog
 --source include/search_pattern_in_file.inc
 remove_file $backuplog;
+rmdir $targetdir;
+
+# Due to very constructed nature of the "corruption" (faking checksums), the "corruption" won't be found without --extended-validation
+--disable_result_log
+exec $XTRABACKUP --defaults-file=$MYSQLTEST_VARDIR/my.cnf --backup --target-dir=$targetdir;
+--enable_result_log
 
 drop table t1;
 rmdir $targetdir;
