@@ -412,7 +412,7 @@ wsrep_sst_auth=
 
 wsrep_sst_donor=
    A name of the node which should serve as state snapshot donor. This allows
-controlling which node will serve the state snapshot request. By default the
+   controlling which node will serve the state snapshot request. By default the
    most suitable node is chosen by the wsrep provider. This is the same as given in
    wsrep_node_name.
 
