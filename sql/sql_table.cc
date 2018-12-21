@@ -9586,7 +9586,7 @@ bool mysql_alter_table(THD *thd, const LEX_CSTRING *new_db,
                                      key_info, key_count,
                                      IF_PARTITIONING(thd->work_part_info, NULL),
                                      ignore);
-    TABLE *altered_table= NULL;
+    TABLE *altered_table;
     bool use_inplace= true;
 
     /* Fill the Alter_inplace_info structure. */
@@ -9754,52 +9754,22 @@ bool mysql_alter_table(THD *thd, const LEX_CSTRING *new_db,
   /* Mark that we have created table in storage engine. */
   no_ha_table= false;
 
-  if (create_info->tmp_table())
+  /* Open the table since we need to copy the data. */
+  new_table= thd->create_and_open_tmp_table(new_db_type, &frm,
+                                            alter_ctx.get_tmp_path(),
+                                            alter_ctx.new_db.str,
+                                            alter_ctx.tmp_name.str,
+                                            true, true);
+  if (!new_table)
+    goto err_new_table_cleanup;
+
+  if (table->s->tmp_table != NO_TMP_TABLE)
   {
-    TABLE *tmp_table=
-      thd->create_and_open_tmp_table(new_db_type, &frm,
-                                     alter_ctx.get_tmp_path(),
-                                     alter_ctx.new_db.str,
-                                     alter_ctx.tmp_name.str,
-                                     true, true);
-    if (!tmp_table)
-    {
-      goto err_new_table_cleanup;
-    }
     /* in case of alter temp table send the tracker in OK packet */
     SESSION_TRACKER_CHANGED(thd, SESSION_STATE_CHANGE_TRACKER, NULL);
   }
-
-
-  /* Open the table since we need to copy the data. */
-  if (table->s->tmp_table != NO_TMP_TABLE)
-  {
-    TABLE_LIST tbl;
-    tbl.init_one_table(&alter_ctx.new_db, &alter_ctx.tmp_name, 0, TL_READ_NO_INSERT);
-    /*
-      Table can be found in the list of open tables in THD::all_temp_tables
-      list.
-    */
-    if ((tbl.table= thd->find_temporary_table(&tbl)) == NULL)
-      goto err_new_table_cleanup;
-    new_table= tbl.table;
-    DBUG_ASSERT(new_table);
-  }
   else
   {
-    /*
-      table is a normal table: Create temporary table in same directory.
-      Open our intermediate table.
-    */
-    new_table=
-      thd->create_and_open_tmp_table(new_db_type, &frm,
-                                     alter_ctx.get_tmp_path(),
-                                     alter_ctx.new_db.str,
-                                     alter_ctx.tmp_name.str,
-                                     true, true);
-    if (!new_table)
-      goto err_new_table_cleanup;
-
     /*
       Normally, an attempt to modify an FK parent table will cause
       FK children to be prelocked, so the table-being-altered cannot
