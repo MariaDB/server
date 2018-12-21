@@ -1318,10 +1318,12 @@ JOIN::optimize_inner()
 
     /* Convert all outer joins to inner joins if possible */
     conds= simplify_joins(this, join_list, conds, TRUE, FALSE);
-    if (thd->is_error())
+    if (thd->is_error() || select_lex->save_leaf_tables(thd))
+    {
+      if (arena)
+        thd->restore_active_arena(arena, &backup);
       DBUG_RETURN(1);
-    if (select_lex->save_leaf_tables(thd))
-      DBUG_RETURN(1);
+    }
     build_bitmap_for_nested_joins(join_list, 0);
 
     sel->prep_where= conds ? conds->copy_andor_structure(thd) : 0;
