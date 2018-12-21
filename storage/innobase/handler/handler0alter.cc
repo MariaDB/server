@@ -390,7 +390,10 @@ found_j:
 				goto found_nullable;
 			}
 		}
-		ut_ad(UT_BITS_IN_BYTES(core_null) == oindex.n_core_null_bytes);
+		/* The n_core_null_bytes only matters for
+		ROW_FORMAT=COMPACT and ROW_FORMAT=DYNAMIC tables. */
+		ut_ad(UT_BITS_IN_BYTES(core_null) == oindex.n_core_null_bytes
+		      || !not_redundant());
 		DBUG_ASSERT(i >= oindex.n_core_fields);
 		DBUG_ASSERT(j <= i);
 		DBUG_ASSERT(n_fields - (i - j) == index.n_fields);
