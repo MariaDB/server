@@ -754,9 +754,20 @@ static ulint btr_node_ptr_max_size(const dict_index_t* index)
 		field_max_size = dict_col_get_max_size(col);
 		if (UNIV_UNLIKELY(!field_max_size)) {
 			switch (col->mtype) {
+			case DATA_VARCHAR:
+				if (!comp
+				    && (!strcmp(index->table->name.m_name,
+						"SYS_FOREIGN")
+					|| !strcmp(index->table->name.m_name,
+						   "SYS_FOREIGN_COLS"))) {
+					break;
+				}
+				/* fall through */
+			case DATA_VARMYSQL:
 			case DATA_CHAR:
 			case DATA_MYSQL:
-				/* CHAR(0) is a possible data type.
+				/* CHAR(0) and VARCHAR(0) are possible
+				data type definitions in MariaDB.
 				The InnoDB internal SQL parser maps
 				CHAR to DATA_VARCHAR, so DATA_CHAR (or
 				DATA_MYSQL) is only coming from the
@@ -772,6 +783,7 @@ static ulint btr_node_ptr_max_size(const dict_index_t* index)
 				}
 				continue;
 			}
+
 			/* SYS_FOREIGN.ID is defined as CHAR in the
 			InnoDB internal SQL parser, which translates
 			into the incorrect VARCHAR(0).  InnoDB does
@@ -788,6 +800,7 @@ static ulint btr_node_ptr_max_size(const dict_index_t* index)
 			      || !strcmp(index->table->name.m_name,
 					 "SYS_FOREIGN_COLS"));
 			ut_ad(!comp);
+			ut_ad(col->mtype == DATA_VARCHAR);
 
 			rec_max_size += (srv_page_size == UNIV_PAGE_SIZE_MAX)
 				? REDUNDANT_REC_MAX_DATA_SIZE
