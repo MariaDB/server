@@ -1469,7 +1469,7 @@ debug_sync_point(const char *name)
 }
 
 
-static std::vector<std::string> tables_for_export;
+static std::set<std::string> tables_for_export;
 
 static void append_export_table(const char *dbname, const char *tablename, bool is_remote)
 {
@@ -1481,7 +1481,15 @@ static void append_export_table(const char *dbname, const char *tablename, bool 
     char *p=strrchr(buf, '.');
     if (p) *p=0;
 
-    tables_for_export.push_back(ut_get_name(0,buf));
+    std::string name=ut_get_name(0, buf);
+    /* Strip partition name comment from table name, if any */
+    if (ends_with(name.c_str(), "*/"))
+    {
+      size_t pos= name.rfind("/*");
+      if (pos != std::string::npos)
+         name.resize(pos);
+    }
+    tables_for_export.insert(name);
   }
 }
 
@@ -1496,9 +1504,10 @@ static int create_bootstrap_file()
 
   fputs("SET NAMES UTF8;\n",f);
   enumerate_ibd_files(append_export_table);
-  for (size_t i= 0; i < tables_for_export.size(); i++)
+  for (std::set<std::string>::iterator it = tables_for_export.begin();
+       it != tables_for_export.end(); it++)
   {
-     const char *tab = tables_for_export[i].c_str();
+     const char *tab = it->c_str();
      fprintf(f,
      "BEGIN NOT ATOMIC "
        "DECLARE CONTINUE HANDLER FOR NOT FOUND,SQLEXCEPTION BEGIN END;"
@@ -1528,7 +1537,7 @@ static int prepare_export()
     snprintf(cmdline, sizeof cmdline,
      IF_WIN("\"","") "\"%s\" --mysqld \"%s\" "
       " --defaults-extra-file=./backup-my.cnf --defaults-group-suffix=%s --datadir=."
-      " --innodb --innodb-fast-shutdown=0"
+      " --innodb --innodb-fast-shutdown=0 --loose-partition"
       " --innodb_purge_rseg_truncate_frequency=1 --innodb-buffer-pool-size=%llu"
       " --console  --skip-log-error --bootstrap  < "  BOOTSTRAP_FILENAME IF_WIN("\"",""),
       mariabackup_exe, 
@@ -1540,7 +1549,7 @@ static int prepare_export()
     sprintf(cmdline,
      IF_WIN("\"","") "\"%s\" --mysqld"
       " --defaults-file=./backup-my.cnf --defaults-group-suffix=%s --datadir=."
-      " --innodb --innodb-fast-shutdown=0"
+      " --innodb --innodb-fast-shutdown=0 --loose-partition"
       " --innodb_purge_rseg_truncate_frequency=1 --innodb-buffer-pool-size=%llu"
       " --console  --log-error= --bootstrap  < "  BOOTSTRAP_FILENAME IF_WIN("\"",""),
       mariabackup_exe,
@@ -5851,7 +5860,6 @@ check_all_privileges()
 	mysql_free_result(result);
 
 	int check_result = PRIVILEGE_OK;
-	bool reload_checked = false;
 
 	/* FLUSH TABLES WITH READ LOCK */
 	if (!opt_no_lock)
@@ -5859,7 +5867,6 @@ check_all_privileges()
 		check_result |= check_privilege(
 			granted_privileges,
 			"RELOAD", "*", "*");
-		reload_checked = true;
 	}
 
 	if (!opt_no_lock)
