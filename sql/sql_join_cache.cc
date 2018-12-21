@@ -2141,7 +2141,7 @@ enum_nested_loop_state JOIN_CACHE::join_records(bool skip_last)
     DBUG_ASSERT(!is_key_access());
     /*
        Restore the last record from the join buffer to generate
-       all extentions for it.
+       all extensions for it.
     */
     get_record();		               
   }

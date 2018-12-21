@@ -566,7 +566,7 @@ All benchmarks takes the following options:
   When using --fast the suffix is automaticly set to '_fast'.
 
 --random
-  Inform test suite that we are generate random inital values for sequence of
+  Inform test suite that we are generate random initial values for sequence of
   test executions. It should be used for imitation of real conditions.
 
 --threads=#  **DEPRECATED**

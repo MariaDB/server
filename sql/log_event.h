@@ -3590,7 +3590,7 @@ public:
   bool write_data_header();
   bool write_data_body();
   /*
-    Cut out Create_file extentions and
+    Cut out Create_file extensions and
     write it as Load event - used on the slave
   */
   bool write_base();

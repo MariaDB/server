@@ -3351,7 +3351,7 @@ int ha_sphinx::delete_table ( const char * )
 // Renames a table from one name to another from alter table call.
 //
 // If you do not implement this, the default rename_table() is called from
-// handler.cc and it will delete all files with the file extentions returned
+// handler.cc and it will delete all files with the file extensions returned
 // by bas_ext().
 //
 // Called from sql_table.cc by mysql_rename_table().

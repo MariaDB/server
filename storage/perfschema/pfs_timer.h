@@ -100,7 +100,7 @@ extern enum_timer_name stage_timer;
 extern enum_timer_name statement_timer;
 /**
   Timer information data.
-  Characteristics about each suported timer.
+  Characteristics about each supported timer.
 */
 extern MYSQL_PLUGIN_IMPORT MY_TIMER_INFO sys_timer_info;
 

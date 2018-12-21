@@ -2797,7 +2797,7 @@ bool Type_std_attributes::agg_item_set_converter(const DTCollation &coll,
       
    @retval
      clone of the item
-     0 if an error occured
+     0 if an error occurred
 */ 
 
 Item* Item_func_or_sum::build_clone(THD *thd)
@@ -3097,7 +3097,7 @@ Item_sp::init_result_field(THD *thd, uint max_length, uint maybe_null,
       
    @retval
      clone of the item
-     0 if an error occured
+     0 if an error occurred
 */ 
 
 Item* Item_ref::build_clone(THD *thd)

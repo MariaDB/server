@@ -342,7 +342,7 @@ flush privileges;
 drop table t1;
 
 #
-# Bug#9503 reseting correct parameters of thread after error in SP function
+# Bug#9503 resetting correct parameters of thread after error in SP function
 #
 connect (root,localhost,root,,test);
 connection root;

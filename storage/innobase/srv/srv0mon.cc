@@ -423,7 +423,7 @@ static monitor_info_t	innodb_counter_info[] =
 	 MONITOR_DEFAULT_START, MONITOR_FLUSH_AVG_TIME},
 
 	{"buffer_flush_adaptive_avg_pass", "buffer",
-	 "Numner of adaptive flushes passed during the recent Avg period.",
+	 "Number of adaptive flushes passed during the recent Avg period.",
 	 MONITOR_NONE,
 	 MONITOR_DEFAULT_START, MONITOR_FLUSH_ADAPTIVE_AVG_PASS},
 

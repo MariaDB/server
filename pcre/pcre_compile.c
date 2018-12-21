@@ -8352,7 +8352,7 @@ save_hwm_offset = cd->hwm - cd->start_workspace;
 /* Accumulate the length for use in the pre-compile phase. Start with the
 length of the BRA and KET and any extra bytes that are required at the
 beginning. We accumulate in a local variable to save frequent testing of
-lenthptr for NULL. We cannot do this by looking at the value of code at the
+lengthptr for NULL. We cannot do this by looking at the value of code at the
 start and end of each alternative, because compiled items are discarded during
 the pre-compile phase so that the work space is not exceeded. */
 

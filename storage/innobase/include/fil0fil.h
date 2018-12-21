@@ -350,7 +350,7 @@ struct fil_node_t {
 /** Value of fil_node_t::magic_n */
 #define	FIL_NODE_MAGIC_N	89389
 
-/** Common InnoDB file extentions */
+/** Common InnoDB file extensions */
 enum ib_extention {
 	NO_EXT = 0,
 	IBD = 1,
