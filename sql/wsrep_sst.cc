@@ -1351,8 +1351,7 @@ int wsrep_sst_donate(const std::string& msg,
   /* This will be reset when sync callback is called.
    * Should we set wsrep_ready to FALSE here too? */
 
-  wsrep_config_state->set(WSREP_MEMBER_DONOR);
-  local_status.set(WSREP_MEMBER_DONOR);
+  wsrep_config_state->set(wsrep::server_state::s_donor);
 
   const char* method= msg.data();
   size_t method_len= strlen (method);
