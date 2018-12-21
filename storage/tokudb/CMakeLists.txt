@@ -78,13 +78,14 @@ ELSEIF(LIBJEMALLOC STREQUAL jemalloc)
   IF(INSTALL_SYSCONFDIR)
     SET(systemd_env "Environment=\"LD_PRELOAD=${LIBJEMALLOC_PATH}\"")
     SET(cnf_malloc_lib "malloc-lib=${LIBJEMALLOC_PATH}")
-    CONFIGURE_FILE(tokudb.cnf.in tokudb.cnf @ONLY)
     CONFIGURE_FILE(tokudb.conf.in tokudb.conf @ONLY)
     INSTALL(FILES ${CMAKE_CURRENT_BINARY_DIR}/tokudb.conf
             DESTINATION ${INSTALL_SYSCONFDIR}/systemd/system/mariadb.service.d/
             COMPONENT tokudb-engine)
   ENDIF()
 ENDIF()
+
+CONFIGURE_FILE(tokudb.cnf.in tokudb.cnf @ONLY)
 
 MY_CHECK_AND_SET_COMPILER_FLAG("-Wno-shadow")
 MY_CHECK_AND_SET_COMPILER_FLAG("-Wno-vla" DEBUG)
