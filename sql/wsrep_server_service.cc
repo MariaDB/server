@@ -26,6 +26,7 @@
 #include "wsrep_xid.h"
 #include "wsrep_mysqld.h"
 #include "wsrep_schema.h"
+#include "wsrep_utils.h"
 
 #include "log.h" /* sql_print_xxx() */
 #include "sql_class.h" /* system variables */
@@ -170,6 +171,7 @@ void Wsrep_server_service::log_view(
   os << view.state_id().id();
   wsrep_update_cluster_state_uuid(os.str().c_str());
   mysql_mutex_unlock(&LOCK_status);
+  wsrep_config_state->set(view);
 
   if (view.status() == wsrep::view::primary)
   {
@@ -266,6 +268,7 @@ void Wsrep_server_service::log_state_change(
     break;
   }
   mysql_mutex_unlock(&LOCK_status);
+  wsrep_config_state->set(current_state);
 }
 
 bool Wsrep_server_service::sst_before_init() const
