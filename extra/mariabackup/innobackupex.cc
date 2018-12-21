@@ -716,7 +716,7 @@ The --decompress command will decompress a backup made\n\
 with the --compress option. The\n\
 --parallel option will allow multiple files to be decompressed\n\
 simultaneously. In order to decompress, the qpress utility MUST be installed\n\
-and accessable within the path. This process will remove the original\n\
+and accessible within the path. This process will remove the original\n\
 compressed files and leave the results in the same location.\n\
 \n\
 On success the exit code innobackupex is 0. A non-zero exit code \n\

@@ -95,7 +95,7 @@ void wsrep_register_hton(THD* thd, bool all)
       {
         trans_register_ha(thd, all, wsrep_hton);
 
-        /* follow innodb read/write settting
+        /* follow innodb read/write setting
          * but, as an exception: CTAS with empty result set will not be
          * replicated unless we declare wsrep hton as read/write here
 	 */
@@ -275,7 +275,7 @@ static int wsrep_rollback(handlerton *hton, THD *thd, bool all)
     if (wsrep && wsrep->post_rollback(wsrep, &thd->wsrep_ws_handle))
     {
       DBUG_PRINT("wsrep", ("setting rollback fail"));
-      WSREP_ERROR("settting rollback fail: thd: %llu, schema: %s, SQL: %s",
+      WSREP_ERROR("setting rollback fail: thd: %llu, schema: %s, SQL: %s",
                   (long long)thd->real_id, thd->get_db(), thd->query());
     }
     wsrep_cleanup_transaction(thd);
@@ -316,7 +316,7 @@ int wsrep_commit(handlerton *hton, THD *thd, bool all)
         if (wsrep && wsrep->post_rollback(wsrep, &thd->wsrep_ws_handle))
         {
           DBUG_PRINT("wsrep", ("setting rollback fail"));
-          WSREP_ERROR("settting rollback fail: thd: %llu, schema: %s, SQL: %s",
+          WSREP_ERROR("setting rollback fail: thd: %llu, schema: %s, SQL: %s",
                       (long long)thd->real_id, thd->get_db(),
                       thd->query());
         }

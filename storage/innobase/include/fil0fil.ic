@@ -69,7 +69,7 @@ fil_get_page_type_name(
 	case FIL_PAGE_TYPE_ZBLOB2:
 		return "ZBLOB2";
 	case FIL_PAGE_TYPE_UNKNOWN:
-		return "OLD UNKOWN PAGE TYPE";
+		return "OLD UNKNOWN PAGE TYPE";
 	default:
 		return "PAGE TYPE CORRUPTED";
 	}

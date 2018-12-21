@@ -4976,7 +4976,7 @@ void Item_cond::neg_arguments(THD *thd)
       
    @retval
      clone of the item
-     0 if an error occured
+     0 if an error occurred
 */ 
 
 Item *Item_cond::build_clone(THD *thd)

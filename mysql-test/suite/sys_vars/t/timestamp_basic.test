@@ -47,7 +47,7 @@ SELECT floor(@@timestamp) = UNIX_TIMESTAMP(), @@timestamp = UNIX_TIMESTAMP(NOW(6
 
 --echo '#---------------------FN_DYNVARS_001_02-------------------------#'
 ##############################################################
-#     see if accessable using global scope                   #
+#     see if accessible using global scope                   #
 ##############################################################
 
 --Error ER_LOCAL_VARIABLE

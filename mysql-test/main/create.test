@@ -846,7 +846,7 @@ drop table t1;
 --echo
 --echo Bug #26104 Bug on foreign key class constructor
 --echo
---echo Check that ref_columns is initalized correctly in the constructor
+--echo Check that ref_columns is initialized correctly in the constructor
 --echo and semantic checks in mysql_prepare_table work.
 --echo
 --echo We do not need a storage engine that supports foreign keys

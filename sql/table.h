@@ -3111,7 +3111,7 @@ public:
 
      @param[in] timestamp
      @param[in] true if we search for a lesser timestamp, false if greater
-     @retval true if exists, false it not exists or an error occured
+     @retval true if exists, false it not exists or an error occurred
    */
   bool query(MYSQL_TIME &commit_time, bool backwards);
   /**
