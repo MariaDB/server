@@ -510,3 +510,6 @@ compile_commands.json
 .editorconfig
 .kateconfig
 *.kdev4
+
+# Visual Studio Code workspace
+.vscode/
