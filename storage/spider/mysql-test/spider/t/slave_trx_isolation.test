@@ -3,13 +3,11 @@
 --echo drop and create databases
 --connection master_1
 --disable_warnings
-DROP DATABASE IF EXISTS auto_test_local;
 CREATE DATABASE auto_test_local;
 USE auto_test_local;
 if ($USE_REPLICATION)
 {
   --connection slave1_1
-  DROP DATABASE IF EXISTS auto_test_local;
   CREATE DATABASE auto_test_local;
   USE auto_test_local;
 }
@@ -21,7 +19,6 @@ if ($USE_CHILD_GROUP2)
     SET @old_log_output = @@global.log_output;
     SET GLOBAL log_output = 'TABLE,FILE';
   }
-  DROP DATABASE IF EXISTS auto_test_remote;
   CREATE DATABASE auto_test_remote;
   USE auto_test_remote;
 }
@@ -40,12 +37,8 @@ if ($USE_CHILD_GROUP2)
   if ($OUTPUT_CHILD_GROUP2)
   {
     --disable_query_log
-    echo CHILD2_1_DROP_TABLES;
     echo CHILD2_1_CREATE_TABLES;
   }
-  --disable_warnings
-  eval $CHILD2_1_DROP_TABLES;
-  --enable_warnings
   eval $CHILD2_1_CREATE_TABLES;
   if ($OUTPUT_CHILD_GROUP2)
   {
@@ -68,13 +61,8 @@ if ($USE_REPLICATION)
   --connection slave1_1
   sync_with_master;
   --connection master_1
-  --disable_query_log
   SET SESSION sql_log_bin= 0;
-  --enable_query_log
 }
---disable_warnings
-DROP TABLE IF EXISTS tbl_a;
---enable_warnings
 --disable_query_log
 echo CREATE TABLE tbl_a (
     pkey int NOT NULL,
@@ -85,14 +73,10 @@ eval CREATE TABLE tbl_a (
     PRIMARY KEY (pkey)
 ) $MASTER_1_ENGINE2 $MASTER_1_CHARSET $MASTER_1_COMMENT_2_1;
 --enable_query_log
---connection master_1
 if ($USE_REPLICATION)
 {
   SET SESSION sql_log_bin= 1;
   --connection slave1_1
-  --disable_warnings
-  DROP TABLE IF EXISTS tbl_a;
-  --enable_warnings
   --disable_query_log
   echo CREATE TABLE tbl_a (
       pkey int NOT NULL,
@@ -112,9 +96,7 @@ if ($USE_REPLICATION)
   --connection slave1_1
   sync_with_master;
   --connection master_1
-  --disable_query_log
   SET SESSION sql_log_bin= 0;
-  --enable_query_log
 }
 if ($USE_CHILD_GROUP2)
 {
