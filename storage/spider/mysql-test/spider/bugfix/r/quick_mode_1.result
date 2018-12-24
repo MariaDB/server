@@ -4,15 +4,14 @@ child2_1
 child2_2
 child2_3
 for child3
-child3_1
-child3_2
-child3_3
 connection master_1;
 set @old_spider_quick_mode= @@spider_quick_mode;
-set session spider_quick_mode= 0;
+set session spider_quick_mode= 1;
 set @old_spider_quick_page_size= @@spider_quick_page_size;
 set session spider_quick_page_size= 3;
 set @old_spider_quick_page_byte= @@spider_quick_page_byte;
+
+this test is for MDEV-16520
 
 drop and create databases
 connection master_1;
@@ -501,8 +500,5 @@ child2_1
 child2_2
 child2_3
 for child3
-child3_1
-child3_2
-child3_3
 
 end of test
