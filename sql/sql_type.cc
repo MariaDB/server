@@ -331,6 +331,7 @@ void Sec6::make_from_double(double nr, ulong *nanoseconds)
   {
     m_sec= LONGLONG_MAX;
     m_usec= 0;
+    *nanoseconds= 0;
   }
   else
   {
