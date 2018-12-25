@@ -2,7 +2,7 @@
 # travis-ci.org definition
 
 sudo: false
-dist: trusty
+dist: xenial
 
 git:
   depth: 2
@@ -38,6 +38,9 @@ matrix:
     - os: osx
       compiler: gcc
     - os: osx
+      compiler: clang
+      env: CC_VERSION=8 TYPE=RelWithDebInfo MYSQL_TEST_SUITES=main
+    - os: linux
       compiler: clang
       env: CC_VERSION=8 TYPE=RelWithDebInfo MYSQL_TEST_SUITES=main
   include:
@@ -83,13 +86,13 @@ matrix:
             - uuid-dev
             - devscripts
             - fakeroot
+            - dh-systemd
+            - libsystemd-dev
+            - libzstd-dev
+            - unixodbc-dev
       script:
         - ${CC} --version ; ${CXX} --version
-      # https://github.com/travis-ci/travis-ci/issues/7062 - /run/shm isn't writable or executable
-      # in trusty containers
-        - export MTR_MEM=/tmp
         - env DEB_BUILD_OPTIONS="parallel=4" debian/autobake-deb.sh;
-        - ccache --show-stats
   # Until OSX becomes a bit more stable: MDEV-12435 MDEV-16213
   allow_failures:
     - os: osx
@@ -110,17 +113,13 @@ matrix:
     - os: osx
       compiler: clang
       env: CC_VERSION=7 TYPE=RelWithDebInfo MYSQL_TEST_SUITES=csv,federated,funcs_1,funcs_2,gcol,handler,heap,json,maria,perfschema,plugins,multi_source,roles
-    - os: linux
-      compiler: clang
-      env: CC_VERSION=8 TYPE=RelWithDebInfo MYSQL_TEST_SUITES=main
 
 addons:
   apt:
     sources:
       - ubuntu-toolchain-r-test
-      - llvm-toolchain-trusty-6.0
-      - llvm-toolchain-trusty-7
-      - llvm-toolchain-trusty
+      - llvm-toolchain-xenial-6.0
+      - llvm-toolchain-xenial-7
     packages: # make sure these include all compilers and all build dependencies (see list above)
       - gcc-6
       - g++-6
@@ -132,8 +131,6 @@ addons:
       - llvm-6.0-dev
       - clang-7
       - llvm-7-dev
-      - clang-8
-      - llvm-8-dev
       - bison
       - chrpath
       - cmake
@@ -176,6 +173,7 @@ before_script:
   - df -h
   - ccache --version
   - ccache --show-stats
+  - ccache --max-size=5G
 
 script:
 # following modules are disabled after sourcing .travis.compiler.sh:
@@ -193,6 +191,8 @@ script:
          --suite=${MYSQL_TEST_SUITES}
          --skip-test-list=unstable-tests
          --skip-test=binlog.binlog_unsafe
+
+after_script:
   - ccache --show-stats
   - df -h
 

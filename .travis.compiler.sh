@@ -22,7 +22,6 @@ if [[ "${TRAVIS_OS_NAME}" == 'linux' ]]; then
   exclude_modules;
   if which ccache ; then
     CMAKE_OPT="${CMAKE_OPT} -DCMAKE_C_COMPILER_LAUNCHER=ccache -DCMAKE_CXX_COMPILER_LAUNCHER=ccache"
-    ccache --max-size=2200M
   fi
   if [[ "${CXX}" == 'clang++' ]]; then
     if [[ "${CC_VERSION}" == '6' ]]; then
