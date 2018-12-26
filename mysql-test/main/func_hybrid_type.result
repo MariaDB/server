@@ -3753,5 +3753,23 @@ t1	CREATE TABLE `t1` (
 ) ENGINE=MyISAM DEFAULT CHARSET=latin1
 DROP TABLE t1;
 #
+# MDEV-17759 Assertion `precision > 0' failed in decimal_bin_size upon CREATE TABLE .. SELECT
+#
+SET sql_mode='';
+CREATE TABLE t1 (d DECIMAL(43,0) UNSIGNED);
+INSERT INTO t1 VALUES (1);
+CREATE TABLE t2 AS SELECT
+IFNULL(SLEEP(0.01), NULL DIV d) AS f0,
+IFNULL(SLEEP(0.01), '' DIV d) AS f1
+FROM t1;
+SHOW CREATE TABLE t2;
+Table	Create Table
+t2	CREATE TABLE `t2` (
+  `f0` decimal(1,0) DEFAULT NULL,
+  `f1` decimal(1,0) DEFAULT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=latin1
+DROP TABLE t1, t2;
+SET sql_mode=DEFAULT;
+#
 # End of 10.3 tests
 #
