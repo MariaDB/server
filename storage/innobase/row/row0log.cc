@@ -42,7 +42,7 @@ Created 2011-05-26 Marko Makela
 #include <algorithm>
 #include <map>
 
-ulint onlineddl_rowlog_rows;
+Atomic_counter<ulint> onlineddl_rowlog_rows;
 ulint onlineddl_rowlog_pct_used;
 ulint onlineddl_pct_progress;
 
@@ -605,7 +605,7 @@ write_failed:
 err_exit:
 	mutex_exit(&log->mutex);
 
-	my_atomic_addlint(&onlineddl_rowlog_rows, 1);
+	onlineddl_rowlog_rows++;
 	/* 10000 means 100.00%, 4525 means 45.25% */
 	onlineddl_rowlog_pct_used = static_cast<ulint>((log->tail.total * 10000) / srv_online_max_size);
 }

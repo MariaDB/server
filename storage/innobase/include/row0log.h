@@ -36,7 +36,7 @@ Created 2011-05-26 Marko Makela
 
 class ut_stage_alter_t;
 
-extern ulint onlineddl_rowlog_rows;
+extern Atomic_counter<ulint> onlineddl_rowlog_rows;
 extern ulint onlineddl_rowlog_pct_used;
 extern ulint onlineddl_pct_progress;
 
