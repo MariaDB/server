@@ -1084,15 +1084,8 @@ os_aio_validate_skip()
 /** Try os_aio_validate() every this many times */
 # define OS_AIO_VALIDATE_SKIP	13
 
-	static int os_aio_validate_count;
-
-	if (my_atomic_add32_explicit(&os_aio_validate_count, -1,
-				     MY_MEMORY_ORDER_RELAXED)
-	    % OS_AIO_VALIDATE_SKIP) {
-		return true;
-	}
-
-	return(os_aio_validate());
+	static Atomic_counter<uint32_t> os_aio_validate_count;
+	return (os_aio_validate_count++ % OS_AIO_VALIDATE_SKIP) || os_aio_validate();
 }
 #endif /* UNIV_DEBUG */
 
