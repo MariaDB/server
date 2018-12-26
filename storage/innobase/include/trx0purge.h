@@ -150,7 +150,7 @@ private:
 	/** whether purge is enabled; protected by latch and my_atomic */
 	int32_t		m_enabled;
 	/** number of pending stop() calls without resume() */
-	int32_t		m_paused;
+	Atomic_counter<int32_t>		m_paused;
 public:
 	que_t*		query;		/*!< The query graph which will do the
 					parallelized purge operation */
@@ -254,13 +254,7 @@ public:
   }
   /** @return whether the purge coordinator is paused */
   bool paused()
-  { return my_atomic_load32_explicit(&m_paused, MY_MEMORY_ORDER_RELAXED); }
-  /** @return whether the purge coordinator is paused */
-  bool paused_latched()
-  {
-    ut_ad(rw_lock_own_flagged(&latch, RW_LOCK_FLAG_X | RW_LOCK_FLAG_S));
-    return m_paused != 0;
-  }
+  { return m_paused != 0; }
 
   /** Enable purge at startup. Not protected by latch; the main thread
   will wait for purge_sys.enabled() in srv_start() */

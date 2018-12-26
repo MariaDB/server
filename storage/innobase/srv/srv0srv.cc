@@ -2628,7 +2628,7 @@ srv_purge_coordinator_suspend(
 		rw_lock_x_lock(&purge_sys.latch);
 
 		stop = srv_shutdown_state == SRV_SHUTDOWN_NONE
-			&& purge_sys.paused_latched();
+			&& purge_sys.paused();
 
 		if (!stop) {
 			if (timeout

@@ -1361,7 +1361,7 @@ void purge_sys_t::stop()
 
   ut_ad(srv_n_purge_threads > 0);
 
-  if (0 == my_atomic_add32_explicit(&m_paused, 1, MY_MEMORY_ORDER_RELAXED))
+  if (m_paused++ == 0)
   {
     /* We need to wakeup the purge thread in case it is suspended, so
     that it can acknowledge the state change. */
@@ -1395,8 +1395,7 @@ void purge_sys_t::resume()
      return;
    }
 
-   int32_t paused= my_atomic_add32_explicit(&m_paused, -1,
-                                            MY_MEMORY_ORDER_RELAXED);
+   int32_t paused= m_paused--;
    ut_a(paused);
 
    if (paused == 1)
