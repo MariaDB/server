@@ -480,6 +480,27 @@ partition by system_time interval column_get(column_create(7,7), 7 as int) secon
 --replace_result $default_engine DEFAULT_ENGINE
 show create table t1;
 
+--echo #
+--echo # MDEV-17613 MIN/MAX Optimization (Select tables optimized away) does not work
+--echo #
+--disable_query_log
+set @saved_storage_engine= @@default_storage_engine;
+if ($MTR_COMBINATION_HEAP)
+{
+  # This case does not work with HEAP
+  set default_storage_engine= myisam;
+}
+--enable_query_log
+create or replace table t1 (pk int primary key) with system versioning
+partition by system_time (
+  partition p1 history,
+  partition pn current);
+insert into t1 values (1), (2);
+explain select max(pk) from t1;
+--disable_query_log
+set default_storage_engine= @saved_storage_engine;
+--enable_query_log
+
 --echo # Test cleanup
 drop database test;
 create database test;

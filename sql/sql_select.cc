@@ -759,6 +759,19 @@ void vers_select_conds_t::print(String *str, enum_query_type query_type) const
   }
 }
 
+/**
+  Setup System Versioning conditions
+
+  Add WHERE condition according to FOR SYSTEM_TIME clause.
+
+  If the table is partitioned by SYSTEM_TIME and there is no FOR SYSTEM_TIME
+  clause, then select now-partition instead of modifying WHERE condition.
+
+  @retval
+    -1    on error
+  @retval
+    0     on success
+*/
 static
 Item* period_get_condition(THD *thd, TABLE_LIST *table, SELECT_LEX *select,
                               vers_select_conds_t *conds, bool timestamp)
@@ -867,7 +880,6 @@ Item* period_get_condition(THD *thd, TABLE_LIST *table, SELECT_LEX *select,
     cond1= and_items(thd, cond3, cond1);
   }
   return cond1;
-#undef newx
 }
 
 static
@@ -973,12 +985,13 @@ int SELECT_LEX::vers_setup_conds(THD *thd, TABLE_LIST *tables)
     vers_select_conds_t &vers_conditions= table->vers_conditions;
 
 #ifdef WITH_PARTITION_STORAGE_ENGINE
-      /*
-        if the history is stored in partitions, then partitions
-        themselves are not versioned
-      */
-      if (table->partition_names && table->table->part_info->vers_info)
+    Vers_part_info *vers_info;
+    if (table->table->part_info && (vers_info= table->table->part_info->vers_info))
+    {
+      if (table->partition_names)
       {
+        /* If the history is stored in partitions, then partitions
+            themselves are not versioned. */
         if (vers_conditions.is_set())
         {
           my_error(ER_VERS_QUERY_IN_PARTITION, MYF(0), table->alias.str);
@@ -987,6 +1000,16 @@ int SELECT_LEX::vers_setup_conds(THD *thd, TABLE_LIST *tables)
         else
           vers_conditions.init(SYSTEM_TIME_ALL);
       }
+      else if (!vers_conditions.is_set())
+      {
+        table->partition_names= newx List<String>;
+        String *s= newx String(vers_info->now_part->partition_name,
+                               system_charset_info);
+        table->partition_names->push_back(s);
+        table->table->file->change_partitions_to_open(table->partition_names);
+        vers_conditions.init(SYSTEM_TIME_ALL);
+      }
+    }
 #endif
 
     if (outer_table && !vers_conditions.is_set())
@@ -1041,6 +1064,7 @@ int SELECT_LEX::vers_setup_conds(THD *thd, TABLE_LIST *tables)
 
   DBUG_RETURN(0);
 }
+#undef newx
 
 /*****************************************************************************
   Check fields, find best join, do the select and output fields.

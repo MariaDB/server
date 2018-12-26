@@ -549,6 +549,17 @@ t1	CREATE TABLE `t1` (
  PARTITION BY SYSTEM_TIME INTERVAL 7 SECOND
 (PARTITION `ver_p1` HISTORY ENGINE = DEFAULT_ENGINE,
  PARTITION `ver_pn` CURRENT ENGINE = DEFAULT_ENGINE)
+#
+# MDEV-17613 MIN/MAX Optimization (Select tables optimized away) does not work
+#
+create or replace table t1 (pk int primary key) with system versioning
+partition by system_time (
+partition p1 history,
+partition pn current);
+insert into t1 values (1), (2);
+explain select max(pk) from t1;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	NULL	NULL	NULL	NULL	NULL	NULL	NULL	Select tables optimized away
 # Test cleanup
 drop database test;
 create database test;
