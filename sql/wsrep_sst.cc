@@ -905,6 +905,8 @@ static int sst_donate_mysqldump (const char*         addr,
   */
   if (!bypass && wsrep_sst_donor_rejects_queries) sst_reject_queries(TRUE);
 
+  make_wsrep_defaults_file();
+
   std::ostringstream uuid_oss;
   uuid_oss << gtid.id();
   int ret= snprintf (cmd_str(), cmd_len,
@@ -1299,6 +1301,8 @@ static int sst_donate_other (const char*        method,
     return ret;
   }
   if (strlen(binlog_opt_val)) binlog_opt= WSREP_SST_OPT_BINLOG;
+
+  make_wsrep_defaults_file();
 
   std::ostringstream uuid_oss;
   uuid_oss << gtid.id();
