@@ -17,7 +17,7 @@ compiler:
   - clang
 
 cache:
-  timeout: 300
+  timeout: 500
   apt: true
   ccache: true
   directories:
@@ -158,6 +158,7 @@ before_install:
       brew update;
       brew install gnutls lz4 lzo xz snappy ccache jemalloc curl ossp-uuid pcre;
       brew link ccache;
+      export PATH="/usr/local/opt/ccache/libexec:$PATH";
     fi
 
 before_script:
