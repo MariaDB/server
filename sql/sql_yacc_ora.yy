@@ -13679,6 +13679,7 @@ delete_part2:
         | HISTORY_SYM delete_single_table opt_delete_system_time
           {
             Lex->last_table()->vers_conditions= Lex->vers_conditions;
+            Lex->pop_select(); //main select
           }
         ;
 

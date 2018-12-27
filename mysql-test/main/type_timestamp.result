@@ -1143,5 +1143,14 @@ a	dt0	dt6
 DROP TABLE t1;
 SET time_zone=DEFAULT;
 #
+# MDEV-18072 Assertion `is_null() == item->null_value || conv' failed in Timestamp_or_zero_datetime_native_null::Timestamp_or_zero_datetime_native_null upon query with GROUP BY
+#
+CREATE TABLE t1 (t TIMESTAMP);
+INSERT INTO t1 () VALUES (),();
+SELECT IF(0,t,NULL) AS f FROM t1 GROUP BY 'foo';
+f
+NULL
+DROP TABLE t1;
+#
 # End of 10.4 tests
 #

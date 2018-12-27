@@ -2177,5 +2177,14 @@ ERROR 22007: Incorrect time value: '0000-00-00 00:00:00' for column `test`.`t1`.
 SET sql_mode=DEFAULT;
 DROP TABLE t1;
 #
+# MDEV-18070 Assertion `nanoseconds <= 1000000000' failed in Temporal::add_nanoseconds_ssff with TIME_ROUND_FRACTIONAL
+#
+CREATE TABLE t1 (t TIME);
+SET SQL_MODE= 'TIME_ROUND_FRACTIONAL';
+INSERT INTO t1 VALUES (3e19);
+Warnings:
+Warning	1264	Out of range value for column 't' at row 1
+DROP TABLE t1;
+#
 # End of 10.4 tests
 #
