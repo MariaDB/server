@@ -782,7 +782,7 @@ void MDL_map::destroy()
 {
   delete m_backup_lock;
 
-  DBUG_ASSERT(!my_atomic_load32(&m_locks.count));
+  DBUG_ASSERT(!lf_hash_size(&m_locks));
   lf_hash_destroy(&m_locks);
 }
 

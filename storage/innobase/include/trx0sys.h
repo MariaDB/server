@@ -704,11 +704,7 @@ public:
     because it may change even before this method returns.
   */
 
-  uint32_t size()
-  {
-    return uint32_t(my_atomic_load32_explicit(&hash.count,
-					      MY_MEMORY_ORDER_RELAXED));
-  }
+  uint32_t size() { return uint32_t(lf_hash_size(&hash)); }
 
 
   /**

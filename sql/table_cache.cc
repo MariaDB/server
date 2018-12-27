@@ -689,7 +689,7 @@ void tdc_deinit(void)
 
 ulong tdc_records(void)
 {
-  return my_atomic_load32_explicit(&tdc_hash.count, MY_MEMORY_ORDER_RELAXED);
+  return lf_hash_size(&tdc_hash);
 }
 
 
