@@ -2445,7 +2445,7 @@ static bool srv_task_execute()
 		UT_LIST_REMOVE(srv_sys.tasks, thr);
 		mutex_exit(&srv_sys.tasks_mutex);
 		que_run_threads(thr);
-		my_atomic_addlint(&purge_sys.n_completed, 1);
+	        purge_sys.n_tasks.fetch_sub(1, std::memory_order_release);
 		return true;
 	}
 

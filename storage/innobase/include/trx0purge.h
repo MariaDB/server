@@ -157,12 +157,9 @@ public:
 	MY_ALIGNED(CACHE_LINE_SIZE)
 	ReadView	view;		/*!< The purge will not remove undo logs
 					which are >= this view (purge view) */
-	/** Total number of tasks submitted by srv_purge_coordinator_thread.
-	Not accessed by other threads. */
-	ulint	n_submitted;
-	/** Number of completed tasks. Accessed by srv_purge_coordinator
-	and srv_worker_thread by my_atomic. */
-	ulint	n_completed;
+	/** Number of not completed tasks. Accessed by srv_purge_coordinator
+	and srv_worker_thread by std::atomic. */
+	std::atomic<ulint>	n_tasks;
 
 	/** Iterator to the undo log records of committed transactions */
 	struct iterator
@@ -232,7 +229,7 @@ public:
     uninitialised. Real initialisation happens in create().
   */
 
-  purge_sys_t() : event(NULL), m_enabled(false) {}
+  purge_sys_t() : event(NULL), m_enabled(false), n_tasks(0) {}
 
 
   /** Create the instance */

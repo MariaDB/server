@@ -164,8 +164,6 @@ void purge_sys_t::create()
   ut_ad(event);
   m_paused= 0;
   query= purge_graph_build();
-  n_submitted= 0;
-  n_completed= 0;
   next_stored= false;
   rseg= NULL;
   page_no= 0;
@@ -185,6 +183,7 @@ void purge_sys_t::close()
   if (!event) return;
 
   ut_ad(!enabled());
+  ut_ad(n_tasks.load(std::memory_order_relaxed) == 0);
   trx_t* trx = query->trx;
   que_graph_free(query);
   ut_ad(!trx->id);
@@ -1266,8 +1265,7 @@ void
 trx_purge_wait_for_workers_to_complete()
 {
 	/* Ensure that the work queue empties out. */
-	while (my_atomic_loadlint(&purge_sys.n_completed)
-	       != purge_sys.n_submitted) {
+	while (purge_sys.n_tasks.load(std::memory_order_acquire)) {
 
 		if (srv_get_task_queue_length() > 0) {
 			srv_release_threads(SRV_WORKER, 1);
@@ -1298,9 +1296,8 @@ trx_purge(
 
 	srv_dml_needed_delay = trx_purge_dml_delay();
 
-	/* The number of tasks submitted should be completed. */
-	ut_a(purge_sys.n_submitted
-	     == my_atomic_loadlint(&purge_sys.n_completed));
+	/* All submitted tasks should be completed. */
+	ut_ad(purge_sys.n_tasks.load(std::memory_order_relaxed) == 0);
 
 	rw_lock_x_lock(&purge_sys.latch);
 	trx_sys.clone_oldest_view();
@@ -1314,7 +1311,7 @@ trx_purge(
 
 	/* Fetch the UNDO recs that need to be purged. */
 	n_pages_handled = trx_purge_attach_undo_recs(n_purge_threads);
-	purge_sys.n_submitted += n_purge_threads;
+	purge_sys.n_tasks.store(n_purge_threads - 1, std::memory_order_relaxed);
 
 	/* Submit tasks to workers queue if using multi-threaded purge. */
 	for (ulint i = n_purge_threads; --i; ) {
@@ -1327,14 +1324,9 @@ trx_purge(
 
 	que_run_threads(thr);
 
-	my_atomic_addlint(&purge_sys.n_completed, 1);
+	trx_purge_wait_for_workers_to_complete();
 
-	if (n_purge_threads > 1) {
-		trx_purge_wait_for_workers_to_complete();
-	}
-
-	ut_a(purge_sys.n_submitted
-	     == my_atomic_loadlint(&purge_sys.n_completed));
+	ut_ad(purge_sys.n_tasks.load(std::memory_order_relaxed) == 0);
 
 	if (truncate) {
 		trx_purge_truncate_history();
