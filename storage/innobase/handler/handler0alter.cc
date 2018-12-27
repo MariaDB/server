@@ -10294,14 +10294,6 @@ commit_cache_norebuild(
 						      f->fixed_len);
 				}
 			}
-
-			DBUG_ASSERT(!ctx->instant_table->persistent_autoinc
-				    || ctx->new_table->persistent_autoinc
-				    == ctx->instant_table->persistent_autoinc);
-
-			if (!ctx->instant_table->persistent_autoinc) {
-				ctx->new_table->persistent_autoinc = 0;
-			}
 		}
 	}
 

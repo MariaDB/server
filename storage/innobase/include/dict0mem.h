@@ -2218,6 +2218,9 @@ inline void dict_index_t::clear_instant_alter()
 		DBUG_ASSERT(!fields[i].col->is_nullable());
 	}
 #endif
+	const dict_col_t* ai_col = table->persistent_autoinc
+		? fields[table->persistent_autoinc - 1].col
+		: NULL;
 	dict_field_t* const begin = &fields[first_user_field()];
 	dict_field_t* end = &fields[n_fields];
 
@@ -2238,8 +2241,14 @@ inline void dict_index_t::clear_instant_alter()
 	n_core_fields = n_fields = n_def = end - fields;
 	n_core_null_bytes = UT_BITS_IN_BYTES(n_nullable);
 	std::sort(begin, end, [](const dict_field_t& a, const dict_field_t& b)
-		  { return a.col->ind < b.col->ind; });
+			      { return a.col->ind < b.col->ind; });
 	table->instant = NULL;
+	if (ai_col) {
+		auto a = std::find_if(begin, end,
+				      [ai_col](const dict_field_t& f)
+				      { return f.col == ai_col; });
+		table->persistent_autoinc = (a == end) ? 0 : 1 + (a - fields);
+	}
 }
 
 /** @return whether the column was instantly dropped
