@@ -184,7 +184,7 @@ void purge_sys_t::close()
   ut_ad(this == &purge_sys);
   if (!event) return;
 
-  m_enabled= false;
+  ut_ad(!enabled());
   trx_t* trx = query->trx;
   que_graph_free(query);
   ut_ad(!trx->id);
@@ -1351,7 +1351,7 @@ void purge_sys_t::stop()
 {
   rw_lock_x_lock(&latch);
 
-  if (!enabled_latched())
+  if (!enabled())
   {
     /* Shutdown must have been initiated during FLUSH TABLES FOR EXPORT. */
     ut_ad(!srv_undo_sources);

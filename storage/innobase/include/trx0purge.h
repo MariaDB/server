@@ -147,8 +147,8 @@ public:
 	MY_ALIGNED(CACHE_LINE_SIZE)
 	rw_lock_t	latch;
 private:
-	/** whether purge is enabled; protected by latch and my_atomic */
-	int32_t		m_enabled;
+	/** whether purge is enabled; protected by latch and std::atomic */
+	std::atomic<bool>		m_enabled;
 	/** number of pending stop() calls without resume() */
 	Atomic_counter<int32_t>		m_paused;
 public:
@@ -242,16 +242,7 @@ public:
   void close();
 
   /** @return whether purge is enabled */
-  bool enabled()
-  {
-    return my_atomic_load32_explicit(&m_enabled, MY_MEMORY_ORDER_RELAXED);
-  }
-  /** @return whether purge is enabled */
-  bool enabled_latched()
-  {
-    ut_ad(rw_lock_own_flagged(&latch, RW_LOCK_FLAG_X | RW_LOCK_FLAG_S));
-    return bool(m_enabled);
-  }
+  bool enabled() { return m_enabled.load(std::memory_order_relaxed); }
   /** @return whether the purge coordinator is paused */
   bool paused()
   { return m_paused != 0; }
@@ -261,14 +252,14 @@ public:
   void coordinator_startup()
   {
     ut_ad(!enabled());
-    my_atomic_store32_explicit(&m_enabled, true, MY_MEMORY_ORDER_RELAXED);
+    m_enabled.store(true, std::memory_order_relaxed);
   }
 
   /** Disable purge at shutdown */
   void coordinator_shutdown()
   {
     ut_ad(enabled());
-    my_atomic_store32_explicit(&m_enabled, false, MY_MEMORY_ORDER_RELAXED);
+    m_enabled.store(false, std::memory_order_relaxed);
   }
 
   /** @return whether the purge coordinator thread is active */
