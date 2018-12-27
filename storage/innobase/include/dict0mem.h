@@ -1710,8 +1710,9 @@ struct dict_table_t {
 
 	/** Adjust table metadata for instant ADD/DROP/reorder COLUMN.
 	@param[in]	table	table on which prepare_instant() was invoked
-	@param[in]	col_map	mapping from cols[] and v_cols[] to table */
-	inline void instant_column(const dict_table_t& table,
+	@param[in]	col_map	mapping from cols[] and v_cols[] to table
+	@return		whether the metadata record must be updated */
+	inline bool instant_column(const dict_table_t& table,
 				   const ulint* col_map);
 
 	/** Roll back instant_column().

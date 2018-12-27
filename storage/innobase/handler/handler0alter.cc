@@ -497,8 +497,9 @@ inline void dict_index_t::instant_add_field(const dict_index_t& instant)
 
 /** Adjust table metadata for instant ADD/DROP/reorder COLUMN.
 @param[in]	table	altered table (with dropped columns)
-@param[in]	col_map	mapping from cols[] and v_cols[] to table */
-inline void dict_table_t::instant_column(const dict_table_t& table,
+@param[in]	col_map	mapping from cols[] and v_cols[] to table
+@return		whether the metadata record must be updated */
+inline bool dict_table_t::instant_column(const dict_table_t& table,
 					 const ulint* col_map)
 {
 	DBUG_ASSERT(!table.cached);
@@ -608,10 +609,16 @@ inline void dict_table_t::instant_column(const dict_table_t& table,
 	}
 
 	dict_index_t* index = dict_table_get_first_index(this);
-
-	index->instant_add_field(*dict_table_get_first_index(&table));
+	bool metadata_changed;
+	{
+		const dict_index_t& i = *dict_table_get_first_index(&table);
+		metadata_changed = i.n_fields > index->n_fields;
+		ut_ad(i.n_fields >= index->n_fields);
+		index->instant_add_field(i);
+	}
 
 	if (instant || table.instant) {
+		const auto old_instant = instant;
 		/* FIXME: add instant->heap, and transfer ownership here */
 		if (!instant) {
 			instant = new (mem_heap_zalloc(heap, sizeof *instant))
@@ -631,6 +638,15 @@ dup_dropped:
 		}
 
 		init_instant<true>(table);
+
+		if (!metadata_changed) {
+			metadata_changed = !old_instant
+				|| memcmp(old_instant->field_map,
+					  instant->field_map,
+					  (index->n_fields
+					   - index->first_user_field())
+					  * sizeof *old_instant->field_map);
+		}
 	}
 
 	while ((index = dict_table_get_next_index(index)) != NULL) {
@@ -678,6 +694,7 @@ dup_dropped:
 
 	n_cols = table.n_cols;
 	n_v_cols = table.n_v_cols;
+	return metadata_changed;
 }
 
 /** Find the old column number for the given new column position.
@@ -1024,13 +1041,14 @@ struct ha_innobase_inplace_ctx : public inplace_alter_handler_ctx
 					       first_alter_pos);
 	}
 
-	/** Adjust table metadata for instant ADD/DROP/reorder COLUMN. */
-	void instant_column()
+	/** Adjust table metadata for instant ADD/DROP/reorder COLUMN.
+	@return whether the metadata record must be updated */
+	bool instant_column()
 	{
 		DBUG_ASSERT(is_instant());
 		DBUG_ASSERT(old_n_fields
 			    == old_table->indexes.start->n_fields);
-		old_table->instant_column(*instant_table, col_map);
+		return old_table->instant_column(*instant_table, col_map);
 	}
 
 	/** Revert prepare_instant() if the transaction is rolled back. */
@@ -5413,7 +5431,7 @@ static bool innobase_instant_try(
 	const dict_col_t* old_cols = user_table->cols;
 	DBUG_ASSERT(user_table->n_cols == ctx->old_n_cols);
 
-	ctx->instant_column();
+	const bool metadata_changed = ctx->instant_column();
 
 	DBUG_ASSERT(index->n_fields >= n_old_fields);
 	/* Release the page latch. Between this and the next
@@ -5596,6 +5614,10 @@ add_all_virtual:
 		if (!page_has_next(block->frame)
 		    && page_rec_is_last(rec, block->frame)) {
 			goto empty_table;
+		}
+
+		if (!metadata_changed) {
+			goto func_exit;
 		}
 
 		/* Ensure that the root page is in the correct format. */
