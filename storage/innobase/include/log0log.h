@@ -571,10 +571,6 @@ struct log_group_t{
 	lsn_t				lsn;
 	/** the byte offset of the above lsn */
 	lsn_t				lsn_offset;
-	/** unaligned buffers */
-	byte**				file_header_bufs_ptr;
-	/** buffers for each file header in the group */
-	byte**				file_header_bufs;
 
 	/** used only in recovery: recovery scan succeeded up to this
 	lsn in this log group */
