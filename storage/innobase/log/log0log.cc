@@ -786,7 +786,6 @@ log_sys_init()
 void
 log_init(ulint n_files)
 {
-	ulint	i;
 	log_group_t*	group = &log_sys->log;
 
 	group->n_files = n_files;
@@ -804,22 +803,6 @@ log_init(ulint n_files)
 	group->state = LOG_GROUP_OK;
 	group->lsn = LOG_START_LSN;
 	group->lsn_offset = LOG_FILE_HDR_SIZE;
-
-	group->file_header_bufs_ptr = static_cast<byte**>(
-		ut_zalloc_nokey(sizeof(byte*) * n_files));
-
-	group->file_header_bufs = static_cast<byte**>(
-		ut_zalloc_nokey(sizeof(byte**) * n_files));
-
-	for (i = 0; i < n_files; i++) {
-		group->file_header_bufs_ptr[i] = static_cast<byte*>(
-			ut_zalloc_nokey(LOG_FILE_HDR_SIZE
-					+ OS_FILE_LOG_BLOCK_SIZE));
-
-		group->file_header_bufs[i] = static_cast<byte*>(
-			ut_align(group->file_header_bufs_ptr[i],
-				 OS_FILE_LOG_BLOCK_SIZE));
-	}
 
 	group->checkpoint_buf_ptr = static_cast<byte*>(
 		ut_zalloc_nokey(2 * OS_FILE_LOG_BLOCK_SIZE));
@@ -874,7 +857,6 @@ log_group_file_header_flush(
 	lsn_t		start_lsn)	/*!< in: log file data starts at this
 					lsn */
 {
-	byte*	buf;
 	lsn_t	dest_offset;
 
 	ut_ad(log_write_mutex_own());
@@ -885,9 +867,10 @@ log_group_file_header_flush(
 		  ? LOG_HEADER_FORMAT_10_3
 		  : LOG_HEADER_FORMAT_10_2));
 
-	buf = *(group->file_header_bufs + nth_file);
+	// man 2 open suggests this buffer to be aligned by 512 for O_DIRECT
+	MY_ALIGNED(OS_FILE_LOG_BLOCK_SIZE)
+	byte buf[OS_FILE_LOG_BLOCK_SIZE] = {0};
 
-	memset(buf, 0, OS_FILE_LOG_BLOCK_SIZE);
 	mach_write_to_4(buf + LOG_HEADER_FORMAT, group->format);
 	mach_write_to_4(buf + LOG_HEADER_SUBFORMAT, srv_safe_truncate);
 	mach_write_to_8(buf + LOG_HEADER_START_LSN, start_lsn);
@@ -2247,18 +2230,8 @@ static
 void
 log_group_close(log_group_t* group)
 {
-	ulint	i;
-
-	for (i = 0; i < group->n_files; i++) {
-		ut_free(group->file_header_bufs_ptr[i]);
-	}
-
-	ut_free(group->file_header_bufs_ptr);
-	ut_free(group->file_header_bufs);
 	ut_free(group->checkpoint_buf_ptr);
 	group->n_files = 0;
-	group->file_header_bufs_ptr = NULL;
-	group->file_header_bufs = NULL;
 	group->checkpoint_buf_ptr = NULL;
 }
 
