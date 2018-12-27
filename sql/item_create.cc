@@ -6951,7 +6951,7 @@ Create_func_wsrep_last_written_gtid::s_singleton;
 Item*
 Create_func_wsrep_last_written_gtid::create_builder(THD *thd)
 {
-  current_thd->lex->safe_to_cache_query= 0;
+  thd->lex->safe_to_cache_query= 0;
   return new (thd->mem_root) Item_func_wsrep_last_written_gtid(thd);
 }
 
@@ -6962,7 +6962,7 @@ Create_func_wsrep_last_seen_gtid::s_singleton;
 Item*
 Create_func_wsrep_last_seen_gtid::create_builder(THD *thd)
 {
-  current_thd->lex->safe_to_cache_query= 0;
+  thd->lex->safe_to_cache_query= 0;
   return new (thd->mem_root) Item_func_wsrep_last_seen_gtid(thd);
 }
 
@@ -6997,7 +6997,7 @@ Create_func_wsrep_sync_wait_upto::create_native(THD *thd,
     my_error(ER_WRONG_PARAMCOUNT_TO_NATIVE_FCT, MYF(0), name->str);
     break;
   }
-  current_thd->lex->safe_to_cache_query= 0;
+  thd->lex->safe_to_cache_query= 0;
   return func;
 }
 #endif /* WITH_WSREP */

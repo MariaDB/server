@@ -6440,9 +6440,8 @@ int handler::ha_write_row(uchar *buf)
     rows_changed++;
     error= binlog_log_row(table, 0, buf, log_func);
 #ifdef WITH_WSREP
-    THD *thd= current_thd;
     if (table_share->tmp_table == NO_TMP_TABLE &&
-        WSREP(thd) && (error= wsrep_after_row(thd)))
+        WSREP(ha_thd()) && (error= wsrep_after_row(ha_thd())))
     {
       DBUG_RETURN(error);
     }
@@ -6481,9 +6480,8 @@ int handler::ha_update_row(const uchar *old_data, const uchar *new_data)
     rows_changed++;
     error= binlog_log_row(table, old_data, new_data, log_func);
 #ifdef WITH_WSREP
-    THD *thd= current_thd;
     if (table_share->tmp_table == NO_TMP_TABLE &&
-        WSREP(thd) && (error= wsrep_after_row(thd)))
+        WSREP(ha_thd()) && (error= wsrep_after_row(ha_thd())))
     {
       return error;
     }
@@ -6544,9 +6542,8 @@ int handler::ha_delete_row(const uchar *buf)
     rows_changed++;
     error= binlog_log_row(table, buf, 0, log_func);
 #ifdef WITH_WSREP
-    THD *thd= current_thd;
     if (table_share->tmp_table == NO_TMP_TABLE &&
-        WSREP(thd) && (error= wsrep_after_row(thd)))
+        WSREP(ha_thd()) && (error= wsrep_after_row(ha_thd())))
     {
       return error;
     }
