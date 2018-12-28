@@ -5599,34 +5599,34 @@ class XID_cache_element
     ACQUIRED and RECOVERED flags are cleared before element is deleted from
     hash in a spin loop, after last reference is released.
   */
-  int32 m_state;
+  std::atomic<int32_t> m_state;
 public:
   static const int32 ACQUIRED= 1 << 30;
   static const int32 RECOVERED= 1 << 29;
   XID_STATE *m_xid_state;
-  bool is_set(int32 flag)
-  { return my_atomic_load32_explicit(&m_state, MY_MEMORY_ORDER_RELAXED) & flag; }
-  void set(int32 flag)
+  bool is_set(int32_t flag)
+  { return m_state.load(std::memory_order_relaxed) & flag; }
+  void set(int32_t flag)
   {
     DBUG_ASSERT(!is_set(ACQUIRED | RECOVERED));
-    my_atomic_add32_explicit(&m_state, flag, MY_MEMORY_ORDER_RELAXED);
+    m_state.fetch_add(flag, std::memory_order_relaxed);
   }
   bool lock()
   {
-    int32 old= my_atomic_add32_explicit(&m_state, 1, MY_MEMORY_ORDER_ACQUIRE);
+    int32_t old= m_state.fetch_add(1, std::memory_order_acquire);
     if (old & (ACQUIRED | RECOVERED))
       return true;
     unlock();
     return false;
   }
   void unlock()
-  { my_atomic_add32_explicit(&m_state, -1, MY_MEMORY_ORDER_RELEASE); }
+  { m_state.fetch_sub(1, std::memory_order_release); }
   void mark_uninitialized()
   {
-    int32 old= ACQUIRED;
-    while (!my_atomic_cas32_weak_explicit(&m_state, &old, 0,
-                                          MY_MEMORY_ORDER_RELAXED,
-                                          MY_MEMORY_ORDER_RELAXED))
+    int32_t old= ACQUIRED;
+    while (!m_state.compare_exchange_weak(old, 0,
+                                          std::memory_order_relaxed,
+                                          std::memory_order_relaxed))
     {
       old&= ACQUIRED | RECOVERED;
       (void) LF_BACKOFF();
@@ -5634,10 +5634,10 @@ public:
   }
   bool acquire_recovered()
   {
-    int32 old= RECOVERED;
-    while (!my_atomic_cas32_weak_explicit(&m_state, &old, ACQUIRED | RECOVERED,
-                                          MY_MEMORY_ORDER_RELAXED,
-                                          MY_MEMORY_ORDER_RELAXED))
+    int32_t old= RECOVERED;
+    while (!m_state.compare_exchange_weak(old, ACQUIRED | RECOVERED,
+                                          std::memory_order_relaxed,
+                                          std::memory_order_relaxed))
     {
       if (!(old & RECOVERED) || (old & ACQUIRED))
         return false;
