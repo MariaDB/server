@@ -140,8 +140,8 @@ struct fil_space_t {
 	The tablespace object cannot be freed while this is nonzero,
 	but it can be detached from fil_system.
 	Note that fil_node_t::n_pending tracks actual pending I/O requests.
-	Protected by fil_system.mutex and my_atomic_loadlint() and friends. */
-	ulint		n_pending_ios;
+	Protected by fil_system.mutex and std::atomic. */
+	std::atomic<ulint>		n_pending_ios;
 	hash_node_t	hash;	/*!< hash chain node */
 	hash_node_t	name_hash;/*!< hash chain the name_hash table */
 	rw_lock_t	latch;	/*!< latch protecting the file space storage
@@ -260,20 +260,11 @@ struct fil_space_t {
 	}
 
 	/** Acquire a tablespace reference for I/O. */
-	void acquire_for_io() { my_atomic_addlint(&n_pending_ios, 1); }
+	void acquire_for_io() { n_pending_ios++; }
 	/** Release a tablespace reference for I/O. */
-	void release_for_io()
-	{
-		ut_ad(pending_io());
-		my_atomic_addlint(&n_pending_ios, ulint(-1));
-	}
+	void release_for_io() { ut_ad(pending_io()); n_pending_ios--; }
 	/** @return whether I/O is pending */
-	bool pending_io() { return my_atomic_loadlint(&n_pending_ios); }
-	/** @return whether I/O is pending */
-	bool pending_io() const
-	{
-		return const_cast<fil_space_t*>(this)->pending_io();
-	}
+	bool pending_io() const { return n_pending_ios; }
 };
 
 /** Value of fil_space_t::magic_n */
