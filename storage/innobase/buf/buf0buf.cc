@@ -1458,7 +1458,7 @@ buf_block_init(
 	page_zip_des_init(&block->page.zip);
 
 	mutex_create(LATCH_ID_BUF_BLOCK_MUTEX, &block->mutex);
-	ut_d(block->debug_latch = UT_NEW_NOKEY(rw_lock_t()));
+	ut_d(block->debug_latch = (rw_lock_t *) ut_malloc_nokey(sizeof(rw_lock_t)));
 
 #if defined PFS_SKIP_BUFFER_MUTEX_RWLOCK || defined PFS_GROUP_BUFFER_SYNC
 	/* If PFS_SKIP_BUFFER_MUTEX_RWLOCK is defined, skip registration
@@ -1744,9 +1744,7 @@ static void buf_block_free_mutexes(buf_block_t* block)
 	mutex_free(&block->mutex);
 	rw_lock_free(&block->lock);
 	ut_d(rw_lock_free(block->debug_latch));
-	ut_ad(!block->debug_latch->magic_n);
-	ut_d(block->debug_latch->magic_n = RW_LOCK_MAGIC_N);
-	ut_d(UT_DELETE(block->debug_latch));
+	ut_d(ut_free(block->debug_latch));
 }
 
 /********************************************************************//**
