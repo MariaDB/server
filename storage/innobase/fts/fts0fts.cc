@@ -3243,15 +3243,10 @@ fts_fetch_doc_from_rec(
 					documents */
 {
 	dict_index_t*		index;
-	dict_table_t*		table;
 	const rec_t*		clust_rec;
-	ulint			num_field;
 	const dict_field_t*	ifield;
-	const dict_col_t*	col;
 	ulint			clust_pos;
-	ulint			i;
 	ulint			doc_len = 0;
-	ulint			processed_doc = 0;
 	st_mysql_ftparser*	parser;
 
 	if (!get_doc) {
@@ -3259,19 +3254,15 @@ fts_fetch_doc_from_rec(
 	}
 
 	index = get_doc->index_cache->index;
-	table = get_doc->index_cache->index->table;
 	parser = get_doc->index_cache->index->parser;
 
 	clust_rec = btr_pcur_get_rec(pcur);
 	ut_ad(!page_rec_is_comp(clust_rec)
 	      || rec_get_status(clust_rec) == REC_STATUS_ORDINARY);
 
-	num_field = dict_index_get_n_fields(index);
-
-	for (i = 0; i < num_field; i++) {
+	for (ulint i = 0; i < index->n_fields; i++) {
 		ifield = dict_index_get_nth_field(index, i);
-		col = dict_field_get_col(ifield);
-		clust_pos = dict_col_get_clust_pos(col, clust_index);
+		clust_pos = dict_col_get_clust_pos(ifield->col, clust_index);
 
 		if (!get_doc->index_cache->charset) {
 			get_doc->index_cache->charset = fts_get_charset(
@@ -3300,13 +3291,12 @@ fts_fetch_doc_from_rec(
 			continue;
 		}
 
-		if (processed_doc == 0) {
+		if (!doc_len) {
 			fts_tokenize_document(doc, NULL, parser);
 		} else {
 			fts_tokenize_document_next(doc, doc_len, NULL, parser);
 		}
 
-		processed_doc++;
 		doc_len += doc->text.f_len + 1;
 	}
 }
