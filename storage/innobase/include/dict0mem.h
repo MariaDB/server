@@ -1718,6 +1718,7 @@ struct dict_table_t {
 	@param[in]	old_instant		original instant structure
 	@param[in]	old_fields		original fields
 	@param[in]	old_n_fields		original number of fields
+	@param[in]	old_n_core_fields	original number of core fields
 	@param[in]	old_n_v_cols		original n_v_cols
 	@param[in]	old_v_cols		original v_cols
 	@param[in]	old_v_col_names		original v_col_names
@@ -1729,6 +1730,7 @@ struct dict_table_t {
 		dict_instant_t*	old_instant,
 		dict_field_t*	old_fields,
 		unsigned	old_n_fields,
+		unsigned	old_n_core_fields,
 		unsigned	old_n_v_cols,
 		dict_v_col_t*	old_v_cols,
 		const char*	old_v_col_names,

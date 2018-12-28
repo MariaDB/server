@@ -717,6 +717,7 @@ static ulint find_old_col_no(const ulint* col_map, ulint pos, ulint n)
 @param[in]	old_instant		original instant structure
 @param[in]	old_fields		original fields
 @param[in]	old_n_fields		original number of fields
+@param[in]	old_n_core_fields	original number of core fields
 @param[in]	old_n_v_cols		original n_v_cols
 @param[in]	old_v_cols		original v_cols
 @param[in]	old_v_col_names		original v_col_names
@@ -728,6 +729,7 @@ inline void dict_table_t::rollback_instant(
 	dict_instant_t*	old_instant,
 	dict_field_t*	old_fields,
 	unsigned	old_n_fields,
+	unsigned	old_n_core_fields,
 	unsigned	old_n_v_cols,
 	dict_v_col_t*	old_v_cols,
 	const char*	old_v_col_names,
@@ -747,6 +749,7 @@ inline void dict_table_t::rollback_instant(
 	DBUG_ASSERT(n_cols == n_def);
 	DBUG_ASSERT(index->n_def == index->n_fields);
 	DBUG_ASSERT(index->n_core_fields <= index->n_fields);
+	DBUG_ASSERT(old_n_core_fields <= old_n_fields);
 	DBUG_ASSERT(instant || !old_instant);
 
 	instant = old_instant;
@@ -763,11 +766,12 @@ inline void dict_table_t::rollback_instant(
 		UT_DELETE(v_cols[i].v_indexes);
 	}
 
+	index->n_core_fields = (index->n_fields == index->n_core_fields)
+		? old_n_fields
+		: old_n_core_fields;
 	index->n_def = index->n_fields = old_n_fields;
-	if (index->n_core_fields > old_n_fields) {
-		index->n_core_fields = old_n_fields;
-		index->n_core_null_bytes = UT_BITS_IN_BYTES(index->n_nullable);
-	}
+	index->n_core_null_bytes = UT_BITS_IN_BYTES(
+		index->get_n_nullable(index->n_core_fields));
 
 	const dict_col_t* const new_cols = cols;
 	const dict_col_t* const new_cols_end = cols + n_cols;
@@ -901,6 +905,8 @@ struct ha_innobase_inplace_ctx : public inplace_alter_handler_ctx
 	dict_field_t* const	old_fields;
 	/** size of old_fields */
 	const unsigned		old_n_fields;
+	/** original old_table->n_core_fields */
+	const unsigned		old_n_core_fields;
 	/** original number of virtual columns in the table */
 	const unsigned		old_n_v_cols;
 	/** original virtual columns of the table */
@@ -968,6 +974,8 @@ struct ha_innobase_inplace_ctx : public inplace_alter_handler_ctx
 		old_instant(prebuilt_arg->table->instant),
 		old_fields(prebuilt_arg->table->indexes.start->fields),
 		old_n_fields(prebuilt_arg->table->indexes.start->n_fields),
+		old_n_core_fields(prebuilt_arg->table->indexes.start
+				  ->n_core_fields),
 		old_n_v_cols(prebuilt_arg->table->n_v_cols),
 		old_v_cols(prebuilt_arg->table->v_cols),
 		old_v_col_names(prebuilt_arg->table->v_col_names),
@@ -1059,6 +1067,7 @@ struct ha_innobase_inplace_ctx : public inplace_alter_handler_ctx
 					    old_cols, old_col_names,
 					    old_instant,
 					    old_fields, old_n_fields,
+					    old_n_core_fields,
 					    old_n_v_cols, old_v_cols,
 					    old_v_col_names,
 					    col_map);
