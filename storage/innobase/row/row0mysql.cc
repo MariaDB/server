@@ -3273,7 +3273,6 @@ row_drop_table_for_mysql(
 	char*		tablename		= NULL;
 	bool		locked_dictionary	= false;
 	pars_info_t*	info			= NULL;
-	mem_heap_t*	heap			= NULL;
 
 	DBUG_ENTER("row_drop_table_for_mysql");
 	DBUG_PRINT("row_drop_table_for_mysql", ("table: '%s'", name));
@@ -3305,8 +3304,11 @@ row_drop_table_for_mysql(
 			| DICT_ERR_IGNORE_CORRUPT));
 
 	if (!table) {
-		err = DB_TABLE_NOT_FOUND;
-		goto funct_exit;
+		if (locked_dictionary) {
+			row_mysql_unlock_data_dictionary(trx);
+		}
+		trx->op_info = "";
+		DBUG_RETURN(DB_TABLE_NOT_FOUND);
 	}
 
 	/* This function is called recursively via fts_drop_tables(). */
@@ -3357,6 +3359,9 @@ row_drop_table_for_mysql(
 
 	/* make sure background stats thread is not running on the table */
 	ut_ad(!(table->stats_bg_flag & BG_STAT_IN_PROGRESS));
+	const bool is_temp_name = strstr(table->name.m_name,
+					 "/" TEMP_FILE_PREFIX);
+	mem_heap_t* heap = NULL;
 
 	if (!dict_table_is_temporary(table)) {
 		if (table->space != TRX_SYS_SPACE) {
@@ -3373,7 +3378,7 @@ row_drop_table_for_mysql(
 			hold the InnoDB dictionary lock, we will drop any
 			adaptive hash index entries upfront. */
 			while (buf_LRU_drop_page_hash_for_tablespace(table)) {
-				if (trx_is_interrupted(trx)
+				if ((!is_temp_name && trx_is_interrupted(trx))
 				    || srv_shutdown_state
 				    != SRV_SHUTDOWN_NONE) {
 					err = DB_INTERRUPTED;
@@ -3464,7 +3469,6 @@ row_drop_table_for_mysql(
 		}
 	}
 
-
 	DBUG_EXECUTE_IF("row_drop_table_add_to_background", goto defer;);
 
 	/* TODO: could we replace the counter n_foreign_key_checks_running
@@ -3475,7 +3479,7 @@ row_drop_table_for_mysql(
 
 	if (table->n_foreign_key_checks_running > 0) {
 defer:
-		if (!strstr(table->name.m_name, "/" TEMP_FILE_PREFIX)) {
+		if (!is_temp_name) {
 			heap = mem_heap_create(FN_REFLEN);
 			const char* tmp_name
 				= dict_mem_create_temporary_tablename(
