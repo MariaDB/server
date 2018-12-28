@@ -1561,7 +1561,7 @@ rtr_copy_buf(
 	matches->block.n_fields = block->n_fields;
 	matches->block.left_side = block->left_side;
 #if defined UNIV_AHI_DEBUG || defined UNIV_DEBUG
-	matches->block.n_pointers = block->n_pointers;
+	matches->block.n_pointers = 0;
 #endif /* UNIV_AHI_DEBUG || UNIV_DEBUG */
 	matches->block.curr_n_fields = block->curr_n_fields;
 	matches->block.curr_left_side = block->curr_left_side;

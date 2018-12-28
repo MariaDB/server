@@ -1751,20 +1751,20 @@ struct buf_block_t{
 	/* @{ */
 
 # if defined UNIV_AHI_DEBUG || defined UNIV_DEBUG
-	ulint		n_pointers;	/*!< used in debugging: the number of
+	Atomic_counter<ulint>
+			n_pointers;	/*!< used in debugging: the number of
 					pointers in the adaptive hash index
 					pointing to this frame;
 					protected by atomic memory access
 					or btr_search_own_all(). */
 #  define assert_block_ahi_empty(block)					\
-	ut_a(my_atomic_addlint(&(block)->n_pointers, 0) == 0)
+	ut_a((block)->n_pointers == 0)
 #  define assert_block_ahi_empty_on_init(block) do {			\
 	UNIV_MEM_VALID(&(block)->n_pointers, sizeof (block)->n_pointers); \
 	assert_block_ahi_empty(block);					\
 } while (0)
 #  define assert_block_ahi_valid(block)					\
-	ut_a((block)->index						\
-	     || my_atomic_loadlint(&(block)->n_pointers) == 0)
+	ut_a((block)->index || (block)->n_pointers == 0)
 # else /* UNIV_AHI_DEBUG || UNIV_DEBUG */
 #  define assert_block_ahi_empty(block) /* nothing */
 #  define assert_block_ahi_empty_on_init(block) /* nothing */
