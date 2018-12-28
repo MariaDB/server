@@ -1567,8 +1567,7 @@ rtr_copy_buf(
 	matches->block.curr_left_side = block->curr_left_side;
 	matches->block.index = block->index;
 #endif /* BTR_CUR_HASH_ADAPT */
-	ut_d(memcpy(&matches->block.debug_latch, &block->debug_latch,
-		    sizeof(rw_lock_t)));
+	ut_d(matches->block.debug_latch = NULL);
 }
 
 /****************************************************************//**
