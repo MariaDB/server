@@ -133,8 +133,8 @@ struct fil_space_t {
 	dropped. An example is change buffer merge.
 	The tablespace cannot be dropped while this is nonzero,
 	or while fil_node_t::n_pending is nonzero.
-	Protected by fil_system.mutex and my_atomic_loadlint() and friends. */
-	ulint		n_pending_ops;
+	Protected by fil_system.mutex and std::atomic. */
+	std::atomic<ulint>		n_pending_ops;
 	/** Number of pending block read or write operations
 	(when a write is imminent or a read has recently completed).
 	The tablespace object cannot be freed while this is nonzero,
@@ -244,20 +244,11 @@ struct fil_space_t {
 	void close();
 
 	/** Acquire a tablespace reference. */
-	void acquire() { my_atomic_addlint(&n_pending_ops, 1); }
+	void acquire() { n_pending_ops++; }
 	/** Release a tablespace reference. */
-	void release()
-	{
-		ut_ad(referenced());
-		my_atomic_addlint(&n_pending_ops, ulint(-1));
-	}
+	void release() { ut_ad(referenced()); n_pending_ops--; }
 	/** @return whether references are being held */
-	bool referenced() { return my_atomic_loadlint(&n_pending_ops); }
-	/** @return whether references are being held */
-	bool referenced() const
-	{
-		return const_cast<fil_space_t*>(this)->referenced();
-	}
+	bool referenced() const { return n_pending_ops; }
 
 	/** Acquire a tablespace reference for I/O. */
 	void acquire_for_io() { n_pending_ios++; }
