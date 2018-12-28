@@ -44,7 +44,6 @@
 #include "sql_cte.h"
 #include "ha_sequence.h"
 #include "sql_show.h"
-#include <atomic>
 
 /* For MySQL 5.7 virtual fields */
 #define MYSQL57_GENERATED_FIELD 128

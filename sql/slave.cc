@@ -3407,16 +3407,9 @@ static bool send_show_master_info_data(THD *thd, Master_info *mi, bool full,
     // Slave_SQL_Running_State
     protocol->store(slave_sql_running_state, &my_charset_bin);
 
-    uint64 events;
-    events= (uint64)my_atomic_load64_explicit((volatile int64 *)
-              &mi->total_ddl_groups, MY_MEMORY_ORDER_RELAXED);
-    protocol->store(events);
-    events= (uint64)my_atomic_load64_explicit((volatile int64 *)
-              &mi->total_non_trans_groups, MY_MEMORY_ORDER_RELAXED);
-    protocol->store(events);
-    events= (uint64)my_atomic_load64_explicit((volatile int64 *)
-              &mi->total_trans_groups, MY_MEMORY_ORDER_RELAXED);
-    protocol->store(events);
+    protocol->store(mi->total_ddl_groups);
+    protocol->store(mi->total_non_trans_groups);
+    protocol->store(mi->total_trans_groups);
 
     if (full)
     {

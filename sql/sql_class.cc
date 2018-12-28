@@ -68,7 +68,6 @@
 #include "wsrep_mysqld.h"
 #include "wsrep_thd.h"
 #include "sql_connect.h"
-#include "my_atomic.h"
 
 #ifdef HAVE_SYS_SYSCALL_H
 #include <sys/syscall.h>

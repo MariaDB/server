@@ -28,6 +28,9 @@ template <typename Type> class Atomic_counter
   Type sub(Type i) { return m_counter.fetch_sub(i, std::memory_order_relaxed); }
 
 public:
+  Atomic_counter(Type val): m_counter(val) {}
+  Atomic_counter() {}
+
   Type operator++(int) { return add(1); }
   Type operator--(int) { return sub(1); }
 

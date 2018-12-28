@@ -23,6 +23,7 @@
 #include "my_decimal.h"                         /* my_decimal */
 #include "mysql_com.h"                     /* SERVER_VERSION_LENGTH */
 #include "my_atomic.h"
+#include "my_counter.h"
 #include "mysql/psi/mysql_file.h"          /* MYSQL_FILE */
 #include "mysql/psi/mysql_socket.h"        /* MYSQL_SOCKET */
 #include "sql_list.h"                      /* I_List */
