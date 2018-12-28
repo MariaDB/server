@@ -80,10 +80,10 @@ struct ibuf_t{
 
 	/** number of pages merged */
 	Atomic_counter<ulint> n_merges;
-	ulint		n_merged_ops[IBUF_OP_COUNT];
+	Atomic_counter<ulint> n_merged_ops[IBUF_OP_COUNT];
 					/*!< number of operations of each type
 					merged to index pages */
-	ulint		n_discarded_ops[IBUF_OP_COUNT];
+	Atomic_counter<ulint> n_discarded_ops[IBUF_OP_COUNT];
 					/*!< number of operations of each type
 					discarded without merging due to the
 					tablespace being deleted or the
