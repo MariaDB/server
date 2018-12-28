@@ -41,7 +41,6 @@ Created 11/5/1995 Heikki Tuuri
 #include "os0proc.h"
 #include "log0log.h"
 #include "srv0srv.h"
-#include "my_atomic.h"
 #include <ostream>
 
 // Forward declaration

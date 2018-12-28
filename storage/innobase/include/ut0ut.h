@@ -45,7 +45,6 @@ Created 1/20/1994 Heikki Tuuri
 #include <stdarg.h>
 
 #include <string>
-#include <my_atomic.h>
 
 /** Index name prefix in fast index creation, as a string constant */
 #define TEMP_INDEX_PREFIX_STR	"\377"
