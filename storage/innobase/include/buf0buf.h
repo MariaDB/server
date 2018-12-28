@@ -2082,7 +2082,8 @@ struct buf_pool_t{
 					indexed by block->frame */
 	ulint		n_pend_reads;	/*!< number of pending read
 					operations */
-	ulint		n_pend_unzip;	/*!< number of pending decompressions */
+	Atomic_counter<ulint>
+			n_pend_unzip;	/*!< number of pending decompressions */
 
 	time_t		last_printout_time;
 					/*!< when buf_print_io was last time
