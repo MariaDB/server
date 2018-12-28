@@ -6,6 +6,13 @@
 --source include/galera_cluster.inc
 --source include/have_innodb.inc
 
+--connect node_3, 127.0.0.1, root, , test, $NODE_MYPORT_3
+# Save original auto_increment_offset values.
+--let $node_1=node_1
+--let $node_2=node_2
+--let $node_3=node_3
+--source ../galera/include/auto_increment_offset_save.inc
+
 --connection node_1
 CREATE TABLE t1 (f1 INTEGER PRIMARY KEY) ENGINE=InnoDB;
 
@@ -39,7 +46,6 @@ INSERT INTO t1 VALUES (202);
 INSERT INTO t1 VALUES (203);
 INSERT INTO t1 VALUES (204);
 
---connect node_3, 127.0.0.1, root, , test, $NODE_MYPORT_3
 --connection node_3
 --let $wait_condition = SELECT COUNT(DISTINCT node_uuid) = 2 FROM wsrep_schema.SR
 --source include/wait_condition.inc
@@ -167,3 +173,5 @@ CALL mtr.add_suppression("WSREP: failed to send SR rollback for ");
 CALL mtr.add_suppression("WSREP: failed to send SR rollback for ");
 --connection node_3
 CALL mtr.add_suppression("WSREP: failed to send SR rollback for ");
+
+--source ../galera/include/auto_increment_offset_restore.inc

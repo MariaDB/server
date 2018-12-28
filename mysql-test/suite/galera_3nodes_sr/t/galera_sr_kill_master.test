@@ -5,6 +5,12 @@
 --source include/galera_cluster.inc
 --source include/have_innodb.inc
 
+--connect node_3, 127.0.0.1, root, , test, $NODE_MYPORT_3
+# Save original auto_increment_offset values.
+--let $node_1=node_1
+--let $node_2=node_2
+--let $node_3=node_3
+--source ../galera/include/auto_increment_offset_save.inc
 
 --connection node_2
 CREATE TABLE t1 (f1 INTEGER PRIMARY KEY) ENGINE=InnoDB;
@@ -19,7 +25,6 @@ INSERT INTO t1 VALUES (3);
 INSERT INTO t1 VALUES (4);
 INSERT INTO t1 VALUES (5);
 
---connect node_3, 127.0.0.1, root, , test, $NODE_MYPORT_3
 --connection node_3
 SET SESSION TRANSACTION ISOLATION LEVEL READ UNCOMMITTED;
 --let $wait_condition = SELECT COUNT(*) > 0 FROM t1;
@@ -40,17 +45,14 @@ SET SESSION TRANSACTION ISOLATION LEVEL READ UNCOMMITTED;
 SELECT COUNT(*) = 0 FROM wsrep_schema.SR;
 
 # and we can insert them again
---error 0
 INSERT INTO t1 VALUES (1);
 
 --connection node_2
 --source include/start_mysqld.inc
-# --sleep 5
---source include/wait_until_connected_again.inc
---source include/galera_wait_ready.inc
---sleep 1
 
 SELECT COUNT(*) = 0 FROM wsrep_schema.SR;
 SELECT COUNT(*) = 1 FROM t1;
 
 DROP TABLE t1;
+
+--source ../galera/include/auto_increment_offset_restore.inc

@@ -7,7 +7,14 @@
 --source include/galera_cluster.inc
 --source include/have_innodb.inc
 
+--connect node_3, 127.0.0.1, root, , test, $NODE_MYPORT_3
 --connection node_1
+# Save original auto_increment_offset values.
+--let $node_1=node_1
+--let $node_2=node_2
+--let $node_3=node_3
+--source ../galera/include/auto_increment_offset_save.inc
+
 CREATE TABLE t1 (f1 INTEGER PRIMARY KEY) ENGINE=InnoDB;
 
 --connection node_2
@@ -30,10 +37,6 @@ INSERT INTO t1 VALUES (5);
 
 --connection node_2
 --source include/start_mysqld.inc
---sleep 1
-
---source include/wait_until_connected_again.inc
---source include/galera_wait_ready.inc
 
 --connection node_1
 INSERT INTO t1 VALUES (6);
@@ -47,10 +50,10 @@ SELECT COUNT(*) = 10 FROM t1;
 --connection node_2
 SELECT COUNT(*) = 10 FROM t1;
 
---connect node_3, 127.0.0.1, root, , test, $NODE_MYPORT_3
 --connection node_3
---source include/galera_wait_ready.inc
 SELECT COUNT(*) = 10 FROM t1;
 
 --connection node_1
 DROP TABLE t1;
+
+--source ../galera/include/auto_increment_offset_restore.inc
