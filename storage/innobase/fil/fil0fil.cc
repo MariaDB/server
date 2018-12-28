@@ -489,8 +489,6 @@ fil_node_t* fil_space_t::add(const char* name, pfs_os_file_t handle,
 
 	ut_a(!is_raw || srv_start_raw_disk_in_use);
 
-	node->sync_event = os_event_create("fsync_event");
-
 	node->is_raw_disk = is_raw;
 
 	node->size = size;
@@ -880,28 +878,6 @@ fil_flush_low(fil_space_t* space)
 			goto skip_flush;
 		}
 #endif /* _WIN32 */
-retry:
-		if (node->n_pending_flushes > 0) {
-			/* We want to avoid calling os_file_flush() on
-			the file twice at the same time, because we do
-			not know what bugs OS's may contain in file
-			i/o */
-
-			int64_t	sig_count = os_event_reset(node->sync_event);
-
-			mutex_exit(&fil_system->mutex);
-
-			os_event_wait_low(node->sync_event, sig_count);
-
-			mutex_enter(&fil_system->mutex);
-
-			if (node->flush_counter >= old_mod_counter) {
-
-				goto skip_flush;
-			}
-
-			goto retry;
-		}
 
 		ut_a(node->is_open());
 		node->n_pending_flushes++;
@@ -912,10 +888,10 @@ retry:
 
 		mutex_enter(&fil_system->mutex);
 
-		os_event_set(node->sync_event);
-
 		node->n_pending_flushes--;
+#ifdef _WIN32
 skip_flush:
+#endif /* _WIN32 */
 		if (node->flush_counter < old_mod_counter) {
 			node->flush_counter = old_mod_counter;
 
@@ -1217,7 +1193,6 @@ fil_node_close_to_free(
 		there are no unflushed modifications in the file */
 
 		node->modification_counter = node->flush_counter;
-		os_event_set(node->sync_event);
 
 		if (fil_buffering_disabled(space)) {
 
@@ -1305,7 +1280,6 @@ fil_space_free_low(
 	for (fil_node_t* node = UT_LIST_GET_FIRST(space->chain);
 	     node != NULL; ) {
 		ut_d(space->size -= node->size);
-		os_event_destroy(node->sync_event);
 		ut_free(node->name);
 		fil_node_t* old_node = node;
 		node = UT_LIST_GET_NEXT(chain, node);
