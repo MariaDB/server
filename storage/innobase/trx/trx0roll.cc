@@ -451,12 +451,8 @@ trx_rollback_to_savepoint_for_mysql_low(
 	trx_mark_sql_stat_end(trx);
 
 	trx->op_info = "";
-
+	trx->lock.was_chosen_as_deadlock_victim = FALSE;
 #ifdef WITH_WSREP
-	if (wsrep_on(trx->mysql_thd) &&
-	    trx->lock.was_chosen_as_deadlock_victim) {
-		trx->lock.was_chosen_as_deadlock_victim = FALSE;
-	}
 	trx->lock.was_chosen_as_wsrep_victim = FALSE;
 #endif
 	return(err);

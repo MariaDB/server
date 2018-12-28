@@ -36,6 +36,7 @@ Created 25/5/2010 Sunny Bains
 #include "row0mysql.h"
 #include "srv0start.h"
 #include "lock0priv.h"
+
 /*********************************************************************//**
 Print the contents of the lock_sys_t::waiting_threads array. */
 static

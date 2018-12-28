@@ -1441,11 +1441,8 @@ trx_commit_in_memory(
 
 	trx_mutex_enter(trx);
 	trx->dict_operation = TRX_DICT_OP_NONE;
-
+	trx->lock.was_chosen_as_deadlock_victim = FALSE;
 #ifdef WITH_WSREP
-	if (trx->mysql_thd && wsrep_on(trx->mysql_thd)) {
-		trx->lock.was_chosen_as_deadlock_victim = FALSE;
-	}
 	trx->lock.was_chosen_as_wsrep_victim = FALSE;
 #endif
 

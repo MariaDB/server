@@ -6548,6 +6548,7 @@ ha_innobase::close()
 UNIV_INTERN
 ulint
 wsrep_innobase_mysql_sort(
+/*======================*/
 					/* out: str contains sort string */
 	int		mysql_type,	/* in: MySQL type */
 	uint		charset_number,	/* in: number of the charset */
@@ -6971,6 +6972,7 @@ Stores a key value for a row to a buffer.
 UNIV_INTERN
 uint
 wsrep_store_key_val_for_row(
+/*=========================*/
 	THD* 		thd,
 	TABLE*		table,
 	uint		keynr,	/*!< in: key number */
@@ -8694,6 +8696,7 @@ calc_row_difference(
 static
 int
 wsrep_calc_row_hash(
+/*================*/
 	byte*		digest,		/*!< in/out: md5 sum */
 	const uchar*	row,		/*!< in: row in MySQL format */
 	TABLE*		table,		/*!< in: table in MySQL data
@@ -10196,6 +10199,7 @@ wsrep_key_type_to_str(Wsrep_service_key_type type)
 
 extern dberr_t
 wsrep_append_foreign_key(
+/*===========================*/
 	trx_t*		trx,		/*!< in: trx */
 	dict_foreign_t*	foreign,	/*!< in: foreign key constraint */
 	const rec_t*	rec,		/*!<in: clustered index record */
@@ -10367,6 +10371,7 @@ wsrep_append_foreign_key(
 
 static int
 wsrep_append_key(
+/*=============*/
 	THD		*thd,
 	trx_t 		*trx,
 	TABLE_SHARE 	*table_share,
@@ -10445,6 +10450,7 @@ referenced_by_foreign_key2(
 
 int
 ha_innobase::wsrep_append_keys(
+/*===========================*/
 	THD 		*thd,
 	Wsrep_service_key_type	key_type,	/*!< in: access type of this row
 					operation:
