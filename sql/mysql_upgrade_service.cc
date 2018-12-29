@@ -495,7 +495,7 @@ int main(int argc, char **argv)
     old_mysqld_exe_exists?",this can take some time":"(skipped)");
 
   char socket_param[FN_REFLEN];
-  sprintf_s(socket_param, "--socket=mysql_upgrade_service_%d",
+  sprintf_s(socket_param, "--socket=mysql_upgrade_service_%u",
     GetCurrentProcessId());
 
   DWORD start_duration_ms = 0;

@@ -182,6 +182,7 @@ storage/maria/ma_sp_test
 storage/maria/ma_test1
 storage/maria/ma_test2
 storage/maria/ma_test3
+storage/maria/test_ma_backup
 storage/myisam/mi_test1
 storage/myisam/mi_test2
 storage/myisam/mi_test3

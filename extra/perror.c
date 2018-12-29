@@ -87,7 +87,7 @@ static void usage(void)
 {
   print_version();
   puts(ORACLE_WELCOME_COPYRIGHT_NOTICE("2000"));
-  printf("Print a description for a system error code or a MySQL error code.\n");
+  printf("Print a description for a system error code or a MariaDB error code.\n");
   printf("If you want to get the error for a negative error code, you should use\n-- before the first error code to tell perror that there was no more options.\n\n");
   printf("Usage: %s [OPTIONS] [ERRORCODE [ERRORCODE...]]\n",my_progname);
   my_print_help(my_long_options);
@@ -336,7 +336,7 @@ int main(int argc,char *argv[])
       {
         found= 1;
         if (verbose)
-          printf("MySQL error code %3d: %s\n", code, msg);
+          printf("MariaDB error code %3d: %s\n", code, msg);
         else
           puts(msg);
       }
@@ -344,7 +344,7 @@ int main(int argc,char *argv[])
       {
         found= 1;
         if (verbose)
-          printf("MySQL error code %3d (%s): %s\n", code, name, msg);
+          printf("MariaDB error code %3d (%s): %s\n", code, name, msg);
         else
           puts(msg);
       }

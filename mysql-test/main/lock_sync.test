@@ -974,12 +974,12 @@ SET DEBUG_SYNC= 'now WAIT_FOR opened';
 SET DEBUG_SYNC= 'now SIGNAL dropped';
 SET DEBUG_SYNC= 'now WAIT_FOR opened';
 --echo # Sending:
---send FLUSH TABLES
+--send FLUSH TABLES t1
 
 connection default;
 --echo # Waiting for FLUSH TABLES to be blocked.
 let $wait_condition= SELECT COUNT(*)=1 FROM information_schema.processlist
-  WHERE state= 'Waiting for table flush' AND info= 'FLUSH TABLES';
+  WHERE state= 'Waiting for table metadata lock' AND info= 'FLUSH TABLES t1';
 --source include/wait_condition.inc
 SET DEBUG_SYNC= 'now SIGNAL dropped';
 

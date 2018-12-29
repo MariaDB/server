@@ -1,4 +1,5 @@
 Table	Op	Msg_type	Msg_text
+test.innodb_stats_drop_locked	analyze	status	Engine-independent statistics collected
 test.innodb_stats_drop_locked	analyze	status	OK
 SET autocommit=0;
 SELECT table_name FROM mysql.innodb_table_stats

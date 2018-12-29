@@ -1667,8 +1667,8 @@ DROP TABLE t1,t2,t3,t4,t5;
 CREATE TABLE t2 (a int);
 INSERT IGNORE INTO t2 VALUES ('a'),('a');
 Warnings:
-Warning	1366	Incorrect integer value: 'a' for column 'a' at row 1
-Warning	1366	Incorrect integer value: 'a' for column 'a' at row 2
+Warning	1366	Incorrect integer value: 'a' for column `test`.`t2`.`a` at row 1
+Warning	1366	Incorrect integer value: 'a' for column `test`.`t2`.`a` at row 2
 CREATE TABLE t4 (a varchar(1));
 INSERT INTO t4 VALUES ('m'),('o');
 CREATE TABLE t3 (a varchar(1) , b varchar(1) ) ;
@@ -2526,7 +2526,7 @@ select * from t1 where (a,b) in (select max(a),b from t2 group by b);
 show status where Variable_name like 'Handler_read%' or  Variable_name like 'Handler_%write%';
 Variable_name	Value
 Handler_read_first	0
-Handler_read_key	5000
+Handler_read_key	5004
 Handler_read_last	0
 Handler_read_next	0
 Handler_read_prev	0

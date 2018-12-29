@@ -5449,8 +5449,8 @@ ER_DIVISION_BY_ZERO 22012
         ger "Division durch 0"
         hindi "0 से विभाजन"
 ER_TRUNCATED_WRONG_VALUE_FOR_FIELD  22007
-        eng "Incorrect %-.32s value: '%-.128s' for column '%.192s' at row %lu"
-        ger "Falscher %-.32s-Wert: '%-.128s' für Feld '%.192s' in Zeile %lu"
+        eng "Incorrect %-.32s value: '%-.128s' for column `%.192s`.`%.192s`.`%.192s` at row %lu"
+        ger "Falscher %-.32s-Wert: '%-.128s' für Feld '`%.192s`.`%.192s`.`%.192s` in Zeile %lu"
 ER_ILLEGAL_VALUE_FOR_TYPE 22007 
         eng "Illegal %s '%-.192s' value found during parsing"
         ger "Nicht zulässiger %s-Wert '%-.192s' beim Parsen gefunden"
@@ -7921,3 +7921,13 @@ ER_KEY_DOESNT_SUPPORT
         eng "%s index %`s does not support this operation"
 ER_ALTER_OPERATION_TABLE_OPTIONS_NEED_REBUILD
 	eng "Changing table options requires the table to be rebuilt"
+ER_BACKUP_LOCK_IS_ACTIVE
+        eng "Can't execute the command as you have a BACKUP STAGE active"
+ER_BACKUP_NOT_RUNNING
+        eng "You must start backup with \"BACKUP STAGE START\""
+ER_BACKUP_WRONG_STAGE
+        eng "Backup stage '%s' is same or before current backup stage '%s'"
+ER_BACKUP_STAGE_FAILED
+        eng "Backup stage '%s' failed"
+ER_BACKUP_UNKNOWN_STAGE
+        eng "Unknown backup stage: '%s'. Stage should be one of START, FLUSH, BLOCK_DDL, BLOCK_COMMIT or END"

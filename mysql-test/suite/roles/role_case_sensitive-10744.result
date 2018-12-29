@@ -11,7 +11,7 @@ create role test_role;
 # Test if mysql.user has the roles created.
 #
 select user, host from mysql.user where is_role='y' and user like 'test%';
-user	host
+User	Host
 test_ROLE	
 test_role	
 create database secret_db;

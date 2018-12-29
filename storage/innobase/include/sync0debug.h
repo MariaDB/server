@@ -34,7 +34,6 @@ Created 2012-08-21 Sunny Bains
 #define sync0debug_h
 
 #include "univ.i"
-#include "sync0types.h"
 
 /** Initializes the synchronization data structures. */
 void

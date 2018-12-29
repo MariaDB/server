@@ -24,14 +24,13 @@ Code used for calculating and manipulating table statistics.
 Created Jan 06, 2010 Vasil Dimov
 *******************************************************/
 
-#include "univ.i"
+#include "dict0stats.h"
 #include "ut0ut.h"
 #include "ut0rnd.h"
 #include "dyn0buf.h"
 #include "row0sel.h"
 #include "trx0trx.h"
 #include "pars0pars.h"
-#include "dict0stats.h"
 #include <mysql_com.h>
 #include "btr0btr.h"
 

@@ -135,7 +135,7 @@ key (d)
 insert into t(a) values ((select d from s for update));
 insert into s(c) values ('');
 Warnings:
-Warning	1366	Incorrect integer value: '' for column 'c' at row 1
+Warning	1366	Incorrect integer value: '' for column `test`.`s`.`c` at row 1
 SET sql_mode = default;
 drop table if exists t,s;
 #

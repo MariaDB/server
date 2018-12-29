@@ -27,12 +27,11 @@ Created 10/16/1994 Heikki Tuuri
 #ifndef btr0cur_h
 #define btr0cur_h
 
-#include "univ.i"
-#include "my_base.h"
 #include "dict0dict.h"
 #include "page0cur.h"
 #include "btr0types.h"
 #include "gis0type.h"
+#include "my_base.h"
 
 /** Mode flags for btr_cur operations; these can be ORed */
 enum {

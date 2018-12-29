@@ -20,6 +20,19 @@
 #include "myisampack.h"
 #include "my_time.h"
 
+
+static const int my_max_usec_value[7]
+{
+  0,
+  900000,
+  990000,
+  999000,
+  999900,
+  999990,
+  999999
+};
+
+
 /*** MySQL56 TIME low-level memory and disk representation routines ***/
 
 /*
@@ -397,19 +410,21 @@ void my_timestamp_from_binary(struct timeval *tm, const uchar *ptr, uint dec)
     case 0:
     default:
       tm->tv_usec= 0;
-      break;
+      return;
     case 1:
     case 2:
       tm->tv_usec= ((int) ptr[4]) * 10000;
       break;
     case 3:
     case 4:
-      tm->tv_usec= mi_sint2korr(ptr + 4) * 100;
+      tm->tv_usec= (uint) mi_uint2korr(ptr + 4) * 100;
       break;
     case 5:
     case 6:
-      tm->tv_usec= mi_sint3korr(ptr + 4);
+      tm->tv_usec= (uint) mi_uint3korr(ptr + 4);
   }
+  // The binary data my be corrupt. Cut fractional seconds to the valid range.
+  set_if_smaller(tm->tv_usec, my_max_usec_value[dec]);
 }
 
 

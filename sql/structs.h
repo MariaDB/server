@@ -109,8 +109,8 @@ typedef struct st_key {
       pk2 is explicitly present in idx1, it is not in the extension, so
       ext_key_part_map.is_set(1) == false
   */
-  LEX_CSTRING name;
   key_part_map ext_key_part_map;
+  LEX_CSTRING name;
   uint  block_size;
   enum  ha_key_alg algorithm;
   /* 
@@ -847,12 +847,17 @@ public:
 
 class Timeval: public timeval
 {
+protected:
+  Timeval() { }
 public:
   Timeval(my_time_t sec, ulong usec)
   {
     tv_sec= sec;
     tv_usec= usec;
   }
+  explicit Timeval(const timeval &tv)
+   :timeval(tv)
+  { }
 };
 
 

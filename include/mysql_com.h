@@ -231,6 +231,7 @@ enum enum_indicator_type
 #define REFRESH_DES_KEY_FILE    (1ULL << 18)
 #define REFRESH_USER_RESOURCES  (1ULL << 19)
 #define REFRESH_FOR_EXPORT      (1ULL << 20) /* FLUSH TABLES ... FOR EXPORT */
+#define REFRESH_SSL             (1ULL << 21)
 
 #define REFRESH_GENERIC         (1ULL << 30)
 #define REFRESH_FAST            (1ULL << 31) /* Intern flag */

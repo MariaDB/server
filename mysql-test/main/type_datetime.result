@@ -216,7 +216,7 @@ insert into t1 set dt='2007-03-23 13:49:38',da=dt;
 Warnings:
 Note	1265	Data truncated for column 'da' at row 1
 insert into t1 values ('2007-03-32','2007-03-23 13:49:38');
-ERROR 22007: Incorrect date value: '2007-03-32' for column 'da' at row 1
+ERROR 22007: Incorrect date value: '2007-03-32' for column `test`.`t1`.`da` at row 1
 select * from t1;
 da	dt
 1962-03-03	1962-03-03 00:00:00
@@ -610,7 +610,7 @@ insert into t1 set dt='2007-03-23 13:49:38',da=dt;
 Warnings:
 Note	1265	Data truncated for column 'da' at row 1
 insert into t1 values ('2007-03-32','2007-03-23 13:49:38');
-ERROR 22007: Incorrect date value: '2007-03-32' for column 'da' at row 1
+ERROR 22007: Incorrect date value: '2007-03-32' for column `test`.`t1`.`da` at row 1
 select * from t1;
 da	dt
 1962-03-03	1962-03-03 00:00:00
@@ -854,7 +854,7 @@ SET sql_mode=DEFAULT;
 CREATE TABLE t1 (a DATETIME DEFAULT '0000-00-00 00:00:00');
 SET sql_mode=TRADITIONAL;
 INSERT INTO t1 VALUES ('0000-00-00 00:00:00');
-ERROR 22007: Incorrect datetime value: '0000-00-00 00:00:00' for column 'a' at row 1
+ERROR 22007: Incorrect datetime value: '0000-00-00 00:00:00' for column `test`.`t1`.`a` at row 1
 INSERT INTO t1 VALUES ();
 ERROR 22007: Incorrect default value '0000-00-00 00:00:00' for column 'a'
 INSERT INTO t1 VALUES (DEFAULT);
@@ -895,7 +895,7 @@ CREATE TABLE t1 (a DATETIME);;
 INSERT INTO t1 VALUES (0);
 SET sql_mode='TRADITIONAL';
 CREATE TABLE t2 AS SELECT * FROM t1;
-ERROR 22007: Incorrect datetime value: '0000-00-00 00:00:00' for column 'a' at row 1
+ERROR 22007: Incorrect datetime value: '0000-00-00 00:00:00' for column `test`.`t2`.`a` at row 1
 DROP TABLE t1;
 #
 # End of MDEV-8373 Zero date can be inserted in strict no-zero mode through CREATE TABLE AS SELECT timestamp_field

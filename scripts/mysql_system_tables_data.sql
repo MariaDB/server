@@ -25,28 +25,28 @@
 -- add escape character in front of wildcard character to convert "_" or "%" to
 -- a plain character
 SELECT LOWER( REPLACE((SELECT REPLACE(@@hostname,'_','\_')),'%','\%') )INTO @current_hostname;
+SELECT json_object('access',cast(-1 as unsigned)) INTO @all_privileges;
 
--- Fill "user" table with default users allowing root access
--- from local machine if "user" table didn't exist before
-CREATE TEMPORARY TABLE tmp_user_nopasswd LIKE user;
-CREATE TEMPORARY TABLE tmp_user_socket LIKE user;
+-- Fill "global_priv" table with default users allowing root access
+-- from local machine if "global_priv" table didn't exist before
+CREATE TEMPORARY TABLE tmp_user_nopasswd LIKE global_priv;
+CREATE TEMPORARY TABLE tmp_user_socket LIKE global_priv;
 -- Classic passwordless root account.
-INSERT INTO tmp_user_nopasswd VALUES ('localhost','root','','Y','Y','Y','Y','Y','Y','Y','Y','Y','Y','Y','Y','Y','Y','Y','Y','Y','Y','Y','Y','Y','Y','Y','Y','Y','Y','Y','Y','Y','Y','','','','',0,0,0,0,'','','N', 'N','', 0);
-REPLACE INTO tmp_user_nopasswd SELECT @current_hostname,'root','','Y','Y','Y','Y','Y','Y','Y','Y','Y','Y','Y','Y','Y','Y','Y','Y','Y','Y','Y','Y','Y','Y','Y','Y','Y','Y','Y','Y','Y','Y','','','','',0,0,0,0,'','','N','N','',0 FROM dual WHERE @current_hostname != 'localhost';
-REPLACE INTO tmp_user_nopasswd VALUES ('127.0.0.1','root','','Y','Y','Y','Y','Y','Y','Y','Y','Y','Y','Y','Y','Y','Y','Y','Y','Y','Y','Y','Y','Y','Y','Y','Y','Y','Y','Y','Y','Y','Y','','','','',0,0,0,0,'','','N','N','',0);
-REPLACE INTO tmp_user_nopasswd VALUES ('::1','root','','Y','Y','Y','Y','Y','Y','Y','Y','Y','Y','Y','Y','Y','Y','Y','Y','Y','Y','Y','Y','Y','Y','Y','Y','Y','Y','Y','Y','Y','Y','','','','',0,0,0,0,'','','N','N', '', 0);
+INSERT INTO tmp_user_nopasswd VALUES ('localhost','root',@all_privileges);
+REPLACE INTO tmp_user_nopasswd SELECT @current_hostname,'root',@all_privileges FROM dual WHERE @current_hostname != 'localhost';
+REPLACE INTO tmp_user_nopasswd VALUES ('127.0.0.1','root',@all_privileges);
+REPLACE INTO tmp_user_nopasswd VALUES ('::1','root',@all_privileges);
 -- More secure root account using unix socket auth.
-INSERT INTO tmp_user_socket VALUES ('localhost',IFNULL(@auth_root_socket, 'root'),'','Y','Y','Y','Y','Y','Y','Y','Y','Y','Y','Y','Y','Y','Y','Y','Y','Y','Y','Y','Y','Y','Y','Y','Y','Y','Y','Y','Y','Y','Y','','','','',0,0,0,0,'unix_socket','','N', 'N','', 0);
+INSERT INTO tmp_user_socket VALUES ('localhost',IFNULL(@auth_root_socket, 'root'),@all_privileges);
 IF @auth_root_socket is not null THEN
   IF not exists(select 1 from information_schema.plugins where plugin_name='unix_socket') THEN
      INSTALL SONAME 'auth_socket'; END IF; END IF;
 
-INSERT INTO user SELECT * FROM tmp_user_nopasswd WHERE @had_user_table=0 AND @skip_auth_root_nopasswd IS NULL;
-INSERT INTO user SELECT * FROM tmp_user_socket WHERE @had_user_table=0 AND @auth_root_socket IS NOT NULL;
+INSERT INTO global_priv SELECT * FROM tmp_user_nopasswd WHERE @had_user_table=0 AND @skip_auth_root_nopasswd IS NULL;
+INSERT INTO global_priv SELECT * FROM tmp_user_socket WHERE @had_user_table=0 AND @auth_root_socket IS NOT NULL;
 DROP TABLE tmp_user_nopasswd, tmp_user_socket;
 
 CREATE TEMPORARY TABLE tmp_proxies_priv LIKE proxies_priv;
-INSERT INTO tmp_proxies_priv VALUES ('localhost', 'root', '', '', TRUE, '', now());
-REPLACE INTO tmp_proxies_priv SELECT @current_hostname, 'root', '', '', TRUE, '', now() FROM DUAL WHERE @current_hostname != 'localhost';
+INSERT INTO tmp_proxies_priv SELECT @current_hostname, 'root', '', '', TRUE, '', now() FROM DUAL WHERE @current_hostname != 'localhost';
 INSERT INTO  proxies_priv SELECT * FROM tmp_proxies_priv WHERE @had_proxies_priv_table=0;
 DROP TABLE tmp_proxies_priv;

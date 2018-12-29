@@ -538,18 +538,18 @@ connection blocker;
 lock tables t1 read;
 connection ddl;
 --echo # Let us mark locked table t1 as old
---send flush tables
+--send flush tables t1
 connection dml;
 let $wait_condition=
   select count(*) = 1 from information_schema.processlist
-  where state = "Waiting for table flush" and
-        info = "flush tables";
+  where state = "Waiting for table metadata lock" and
+        info = "flush tables t1";
 --source include/wait_condition.inc
 --send select * from t1
 connection default;
 let $wait_condition=
   select count(*) = 1 from information_schema.processlist
-  where state = "Waiting for table flush" and
+  where state = "Waiting for table metadata lock" and
         info = "select * from t1";
 --source include/wait_condition.inc
 --replace_result $ID2 ID2

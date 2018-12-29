@@ -27,8 +27,6 @@ Created 7/19/1997 Heikki Tuuri
 #ifndef ibuf0ibuf_h
 #define ibuf0ibuf_h
 
-#include "univ.i"
-
 #include "mtr0mtr.h"
 #include "dict0mem.h"
 #include "fsp0fsp.h"

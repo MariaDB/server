@@ -571,6 +571,7 @@ ulong opt_binlog_commit_wait_count= 0;
 ulong opt_binlog_commit_wait_usec= 0;
 ulong opt_slave_parallel_max_queued= 131072;
 my_bool opt_gtid_ignore_duplicates= FALSE;
+uint opt_gtid_cleanup_batch_size= 64;
 
 const double log_10[] = {
   1e000, 1e001, 1e002, 1e003, 1e004, 1e005, 1e006, 1e007, 1e008, 1e009,
@@ -772,6 +773,7 @@ mysql_mutex_t LOCK_prepared_stmt_count;
 mysql_mutex_t LOCK_des_key_file;
 #endif
 mysql_rwlock_t LOCK_grant, LOCK_sys_init_connect, LOCK_sys_init_slave;
+mysql_rwlock_t LOCK_ssl_refresh;
 mysql_prlock_t LOCK_system_variables_hash;
 mysql_cond_t COND_thread_count, COND_start_thread;
 pthread_t signal_thread;
@@ -1035,7 +1037,8 @@ PSI_rwlock_key key_rwlock_LOCK_grant, key_rwlock_LOCK_logger,
   key_rwlock_LOCK_sys_init_connect, key_rwlock_LOCK_sys_init_slave,
   key_rwlock_LOCK_system_variables_hash, key_rwlock_query_cache_query_lock,
   key_LOCK_SEQUENCE,
-  key_rwlock_LOCK_vers_stats, key_rwlock_LOCK_stat_serial;
+  key_rwlock_LOCK_vers_stats, key_rwlock_LOCK_stat_serial,
+  key_rwlock_LOCK_ssl_refresh;
 
 static PSI_rwlock_info all_server_rwlocks[]=
 {
@@ -1050,7 +1053,8 @@ static PSI_rwlock_info all_server_rwlocks[]=
   { &key_rwlock_LOCK_system_variables_hash, "LOCK_system_variables_hash", PSI_FLAG_GLOBAL},
   { &key_rwlock_query_cache_query_lock, "Query_cache_query::lock", 0},
   { &key_rwlock_LOCK_vers_stats, "Vers_field_stats::lock", 0},
-  { &key_rwlock_LOCK_stat_serial, "TABLE_SHARE::LOCK_stat_serial", 0}
+  { &key_rwlock_LOCK_stat_serial, "TABLE_SHARE::LOCK_stat_serial", 0},
+  { &key_rwlock_LOCK_ssl_refresh, "LOCK_ssl_refresh", PSI_FLAG_GLOBAL }
 };
 
 #ifdef HAVE_MMAP
@@ -2290,6 +2294,7 @@ static void clean_up_mutexes()
   mysql_mutex_destroy(&LOCK_rpl_status);
 #endif /* HAVE_REPLICATION */
   mysql_mutex_destroy(&LOCK_active_mi);
+  mysql_rwlock_destroy(&LOCK_ssl_refresh);
   mysql_rwlock_destroy(&LOCK_sys_init_connect);
   mysql_rwlock_destroy(&LOCK_sys_init_slave);
   mysql_mutex_destroy(&LOCK_global_system_variables);
@@ -3423,14 +3428,15 @@ pthread_handler_t signal_hand(void *arg __attribute__((unused)))
   (void) pthread_sigmask(SIG_BLOCK,&set,NULL);
   for (;;)
   {
-    int error;					// Used when debugging
+    int error;
+    int origin;
     if (shutdown_in_progress && !abort_loop)
     {
       sig= SIGTERM;
       error=0;
     }
     else
-      while ((error=my_sigwait(&set,&sig)) == EINTR) ;
+      while ((error= my_sigwait(&set, &sig, &origin)) == EINTR) /* no-op */;
     if (cleanup_done)
     {
       DBUG_PRINT("quit",("signal_handler: calling my_thread_end()"));
@@ -3470,7 +3476,7 @@ pthread_handler_t signal_hand(void *arg __attribute__((unused)))
       }
       break;
     case SIGHUP:
-      if (!abort_loop)
+      if (!abort_loop && origin != SI_KERNEL)
       {
         int not_used;
 	mysql_print_status();		// Print some debug info
@@ -3479,21 +3485,14 @@ pthread_handler_t signal_hand(void *arg __attribute__((unused)))
 			      REFRESH_GRANT |
 			      REFRESH_THREADS | REFRESH_HOSTS),
 			     (TABLE_LIST*) 0, &not_used); // Flush logs
-      }
-      /* reenable logs after the options were reloaded */
-      if (log_output_options & LOG_NONE)
-      {
-        logger.set_handlers(LOG_FILE,
-                            global_system_variables.sql_log_slow ?
-                            LOG_TABLE : LOG_NONE,
-                            opt_log ? LOG_TABLE : LOG_NONE);
-      }
-      else
-      {
-        logger.set_handlers(LOG_FILE,
-                            global_system_variables.sql_log_slow ?
-                            log_output_options : LOG_NONE,
-                            opt_log ? log_output_options : LOG_NONE);
+
+        /* reenable logs after the options were reloaded */
+        ulonglong fixed_log_output_options=
+          log_output_options & LOG_NONE ? LOG_TABLE : log_output_options;
+
+        logger.set_handlers(LOG_FILE, global_system_variables.sql_log_slow
+                                      ? fixed_log_output_options : LOG_NONE,
+                            opt_log ? fixed_log_output_options : LOG_NONE);
       }
       break;
 #ifdef USE_ONE_SIGNAL_HAND
@@ -3688,6 +3687,7 @@ SHOW_VAR com_status_vars[]= {
   {"alter_user",           STMT_STATUS(SQLCOM_ALTER_USER)},
   {"analyze",              STMT_STATUS(SQLCOM_ANALYZE)},
   {"assign_to_keycache",   STMT_STATUS(SQLCOM_ASSIGN_TO_KEYCACHE)},
+  {"backup",               STMT_STATUS(SQLCOM_BACKUP)},
   {"begin",                STMT_STATUS(SQLCOM_BEGIN)},
   {"binlog",               STMT_STATUS(SQLCOM_BINLOG_BASE64_EVENT)},
   {"call_procedure",       STMT_STATUS(SQLCOM_CALL)},
@@ -3983,7 +3983,26 @@ static void my_malloc_size_cb_func(long long size, my_bool is_thread_specific)
   else
     update_global_memory_status(size);
 }
+
+int json_escape_string(const char *str,const char *str_end,
+                       char *json, char *json_end)
+{
+  return json_escape(system_charset_info,
+                     (const uchar *) str, (const uchar *) str_end,
+                     &my_charset_utf8mb4_bin,
+                     (uchar *) json, (uchar *) json_end);
 }
+
+
+int json_unescape_json(const char *json_str, const char *json_end,
+                       char *res, char *res_end)
+{
+  return json_unescape(&my_charset_utf8mb4_bin,
+                       (const uchar *) json_str, (const uchar *) json_end,
+                       system_charset_info, (uchar *) res, (uchar *) res_end);
+}
+
+} /*extern "C"*/
 
 
 /**
@@ -4695,6 +4714,7 @@ static int init_thread_environment()
 #endif /* HAVE_OPENSSL */
   mysql_rwlock_init(key_rwlock_LOCK_sys_init_connect, &LOCK_sys_init_connect);
   mysql_rwlock_init(key_rwlock_LOCK_sys_init_slave, &LOCK_sys_init_slave);
+  mysql_rwlock_init(key_rwlock_LOCK_ssl_refresh, &LOCK_ssl_refresh);
   mysql_rwlock_init(key_rwlock_LOCK_grant, &LOCK_grant);
   mysql_cond_init(key_COND_thread_count, &COND_thread_count, NULL);
   mysql_cond_init(key_COND_thread_cache, &COND_thread_cache, NULL);
@@ -4788,6 +4808,60 @@ static void openssl_lock(int mode, openssl_lock_t *lock, const char *file,
 }
 #endif /* HAVE_OPENSSL10 */
 
+
+struct SSL_ACCEPTOR_STATS
+{
+  long accept;
+  long accept_good;
+  long cache_size;
+  long verify_mode;
+  long verify_depth;
+  long zero;
+  const char *session_cache_mode;
+
+  SSL_ACCEPTOR_STATS():
+    accept(),accept_good(),cache_size(),verify_mode(),verify_depth(),zero(),
+    session_cache_mode("NONE")
+  {
+  }
+
+  void init()
+  {
+    DBUG_ASSERT(ssl_acceptor_fd !=0 && ssl_acceptor_fd->ssl_context != 0);
+    SSL_CTX *ctx= ssl_acceptor_fd->ssl_context;
+    accept= 0;
+    accept_good= 0;
+    verify_mode= SSL_CTX_get_verify_mode(ctx);
+    verify_depth= SSL_CTX_get_verify_depth(ctx);
+    cache_size= SSL_CTX_sess_get_cache_size(ctx);
+    switch (SSL_CTX_get_session_cache_mode(ctx))
+    {
+    case SSL_SESS_CACHE_OFF:
+      session_cache_mode= "OFF"; break;
+    case SSL_SESS_CACHE_CLIENT:
+      session_cache_mode= "CLIENT"; break;
+    case SSL_SESS_CACHE_SERVER:
+      session_cache_mode= "SERVER"; break;
+    case SSL_SESS_CACHE_BOTH:
+      session_cache_mode= "BOTH"; break;
+    case SSL_SESS_CACHE_NO_AUTO_CLEAR:
+      session_cache_mode= "NO_AUTO_CLEAR"; break;
+    case SSL_SESS_CACHE_NO_INTERNAL_LOOKUP:
+      session_cache_mode= "NO_INTERNAL_LOOKUP"; break;
+    default:
+      session_cache_mode= "Unknown"; break;
+    }
+  }
+};
+
+static SSL_ACCEPTOR_STATS ssl_acceptor_stats;
+void ssl_acceptor_stats_update(int sslaccept_ret)
+{
+  statistic_increment(ssl_acceptor_stats.accept, &LOCK_status);
+  if (!sslaccept_ret)
+    statistic_increment(ssl_acceptor_stats.accept_good,&LOCK_status);
+}
+
 static void init_ssl()
 {
 #if defined(HAVE_OPENSSL) && !defined(EMBEDDED_LIBRARY)
@@ -4808,6 +4882,9 @@ static void init_ssl()
       opt_use_ssl = 0;
       have_ssl= SHOW_OPTION_DISABLED;
     }
+    else
+      ssl_acceptor_stats.init();
+
     if (global_system_variables.log_warnings > 0)
     {
       ulong err;
@@ -4826,6 +4903,34 @@ static void init_ssl()
 #endif /* HAVE_OPENSSL && ! EMBEDDED_LIBRARY */
 }
 
+/* Reinitialize SSL (FLUSH SSL) */
+int reinit_ssl()
+{
+#if defined(HAVE_OPENSSL) && !defined(EMBEDDED_LIBRARY)
+  if (!opt_use_ssl)
+    return 0;
+
+  enum enum_ssl_init_error error = SSL_INITERR_NOERROR;
+  st_VioSSLFd *new_fd = new_VioSSLAcceptorFd(opt_ssl_key, opt_ssl_cert,
+    opt_ssl_ca, opt_ssl_capath, opt_ssl_cipher, &error, opt_ssl_crl, opt_ssl_crlpath);
+
+  if (!new_fd)
+  {
+    my_printf_error(ER_UNKNOWN_ERROR, "Failed to refresh SSL, error: %s", MYF(0),
+      sslGetErrString(error));
+#ifndef HAVE_YASSL
+    ERR_clear_error();
+#endif
+    return 1;
+  }
+  mysql_rwlock_wrlock(&LOCK_ssl_refresh);
+  free_vio_ssl_acceptor_fd(ssl_acceptor_fd);
+  ssl_acceptor_fd= new_fd;
+  ssl_acceptor_stats.init();
+  mysql_rwlock_unlock(&LOCK_ssl_refresh);
+  return 0;
+#endif
+}
 
 static void end_ssl()
 {
@@ -4956,6 +5061,7 @@ static int init_server_components()
   my_rnd_init(&sql_rand,(ulong) server_start_time,(ulong) server_start_time/2);
   setup_fpu();
   init_thr_lock();
+  backup_init();
 
 #ifndef EMBEDDED_LIBRARY
   if (init_thr_timer(thread_scheduler->max_threads + extra_max_connections))
@@ -7437,187 +7543,6 @@ static int show_flush_commands(THD *thd, SHOW_VAR *var, char *buff,
 
 
 #if defined(HAVE_OPENSSL) && !defined(EMBEDDED_LIBRARY)
-/* Functions relying on CTX */
-static int show_ssl_ctx_sess_accept(THD *thd, SHOW_VAR *var, char *buff,
-                                    enum enum_var_type scope)
-{
-  var->type= SHOW_LONG;
-  var->value= buff;
-  *((long *)buff)= (!ssl_acceptor_fd ? 0 :
-                     SSL_CTX_sess_accept(ssl_acceptor_fd->ssl_context));
-  return 0;
-}
-
-static int show_ssl_ctx_sess_accept_good(THD *thd, SHOW_VAR *var, char *buff,
-                                         enum enum_var_type scope)
-{
-  var->type= SHOW_LONG;
-  var->value= buff;
-  *((long *)buff)= (!ssl_acceptor_fd ? 0 :
-                     SSL_CTX_sess_accept_good(ssl_acceptor_fd->ssl_context));
-  return 0;
-}
-
-static int show_ssl_ctx_sess_connect_good(THD *thd, SHOW_VAR *var, char *buff,
-                                          enum enum_var_type scope)
-{
-  var->type= SHOW_LONG;
-  var->value= buff;
-  *((long *)buff)= (!ssl_acceptor_fd ? 0 :
-                     SSL_CTX_sess_connect_good(ssl_acceptor_fd->ssl_context));
-  return 0;
-}
-
-static int show_ssl_ctx_sess_accept_renegotiate(THD *thd, SHOW_VAR *var,
-                                                char *buff,
-                                                enum enum_var_type scope)
-{
-  var->type= SHOW_LONG;
-  var->value= buff;
-  *((long *)buff)= (!ssl_acceptor_fd ? 0 :
-                     SSL_CTX_sess_accept_renegotiate(ssl_acceptor_fd->ssl_context));
-  return 0;
-}
-
-static int show_ssl_ctx_sess_connect_renegotiate(THD *thd, SHOW_VAR *var,
-                                                 char *buff,
-                                                 enum enum_var_type scope)
-{
-  var->type= SHOW_LONG;
-  var->value= buff;
-  *((long *)buff)= (!ssl_acceptor_fd ? 0 :
-                     SSL_CTX_sess_connect_renegotiate(ssl_acceptor_fd->ssl_context));
-  return 0;
-}
-
-static int show_ssl_ctx_sess_cb_hits(THD *thd, SHOW_VAR *var, char *buff,
-                                     enum enum_var_type scope)
-{
-  var->type= SHOW_LONG;
-  var->value= buff;
-  *((long *)buff)= (!ssl_acceptor_fd ? 0 :
-                     SSL_CTX_sess_cb_hits(ssl_acceptor_fd->ssl_context));
-  return 0;
-}
-
-static int show_ssl_ctx_sess_hits(THD *thd, SHOW_VAR *var, char *buff,
-                                  enum enum_var_type scope)
-{
-  var->type= SHOW_LONG;
-  var->value= buff;
-  *((long *)buff)= (!ssl_acceptor_fd ? 0 :
-                     SSL_CTX_sess_hits(ssl_acceptor_fd->ssl_context));
-  return 0;
-}
-
-static int show_ssl_ctx_sess_cache_full(THD *thd, SHOW_VAR *var, char *buff,
-                                        enum enum_var_type scope)
-{
-  var->type= SHOW_LONG;
-  var->value= buff;
-  *((long *)buff)= (!ssl_acceptor_fd ? 0 :
-                     SSL_CTX_sess_cache_full(ssl_acceptor_fd->ssl_context));
-  return 0;
-}
-
-static int show_ssl_ctx_sess_misses(THD *thd, SHOW_VAR *var, char *buff,
-                                    enum enum_var_type scope)
-{
-  var->type= SHOW_LONG;
-  var->value= buff;
-  *((long *)buff)= (!ssl_acceptor_fd ? 0 :
-                     SSL_CTX_sess_misses(ssl_acceptor_fd->ssl_context));
-  return 0;
-}
-
-static int show_ssl_ctx_sess_timeouts(THD *thd, SHOW_VAR *var, char *buff,
-                                      enum enum_var_type scope)
-{
-  var->type= SHOW_LONG;
-  var->value= buff;
-  *((long *)buff)= (!ssl_acceptor_fd ? 0 :
-                     SSL_CTX_sess_timeouts(ssl_acceptor_fd->ssl_context));
-  return 0;
-}
-
-static int show_ssl_ctx_sess_number(THD *thd, SHOW_VAR *var, char *buff,
-                                    enum enum_var_type scope)
-{
-  var->type= SHOW_LONG;
-  var->value= buff;
-  *((long *)buff)= (!ssl_acceptor_fd ? 0 :
-                     SSL_CTX_sess_number(ssl_acceptor_fd->ssl_context));
-  return 0;
-}
-
-static int show_ssl_ctx_sess_connect(THD *thd, SHOW_VAR *var, char *buff,
-                                     enum enum_var_type scope)
-{
-  var->type= SHOW_LONG;
-  var->value= buff;
-  *((long *)buff)= (!ssl_acceptor_fd ? 0 :
-                     SSL_CTX_sess_connect(ssl_acceptor_fd->ssl_context));
-  return 0;
-}
-
-static int show_ssl_ctx_sess_get_cache_size(THD *thd, SHOW_VAR *var,
-                                            char *buff,
-                                            enum enum_var_type scope)
-{
-  var->type= SHOW_LONG;
-  var->value= buff;
-  *((long *)buff)= (!ssl_acceptor_fd ? 0 :
-                     SSL_CTX_sess_get_cache_size(ssl_acceptor_fd->ssl_context));
-  return 0;
-}
-
-static int show_ssl_ctx_get_verify_mode(THD *thd, SHOW_VAR *var, char *buff,
-                                        enum enum_var_type scope)
-{
-  var->type= SHOW_LONG;
-  var->value= buff;
-  *((long *)buff)= (!ssl_acceptor_fd ? 0 :
-                     SSL_CTX_get_verify_mode(ssl_acceptor_fd->ssl_context));
-  return 0;
-}
-
-static int show_ssl_ctx_get_verify_depth(THD *thd, SHOW_VAR *var, char *buff,
-                                         enum enum_var_type scope)
-{
-  var->type= SHOW_LONG;
-  var->value= buff;
-  *((long *)buff)= (!ssl_acceptor_fd ? 0 :
-                     SSL_CTX_get_verify_depth(ssl_acceptor_fd->ssl_context));
-  return 0;
-}
-
-static int show_ssl_ctx_get_session_cache_mode(THD *thd, SHOW_VAR *var,
-                                               char *buff,
-                                               enum enum_var_type scope)
-{
-  var->type= SHOW_CHAR;
-  if (!ssl_acceptor_fd)
-    var->value= const_cast<char*>("NONE");
-  else
-    switch (SSL_CTX_get_session_cache_mode(ssl_acceptor_fd->ssl_context))
-    {
-    case SSL_SESS_CACHE_OFF:
-      var->value= const_cast<char*>("OFF"); break;
-    case SSL_SESS_CACHE_CLIENT:
-      var->value= const_cast<char*>("CLIENT"); break;
-    case SSL_SESS_CACHE_SERVER:
-      var->value= const_cast<char*>("SERVER"); break;
-    case SSL_SESS_CACHE_BOTH:
-      var->value= const_cast<char*>("BOTH"); break;
-    case SSL_SESS_CACHE_NO_AUTO_CLEAR:
-      var->value= const_cast<char*>("NO_AUTO_CLEAR"); break;
-    case SSL_SESS_CACHE_NO_INTERNAL_LOOKUP:
-      var->value= const_cast<char*>("NO_INTERNAL_LOOKUP"); break;
-    default:
-      var->value= const_cast<char*>("Unknown"); break;
-    }
-  return 0;
-}
 
 /*
    Functions relying on SSL
@@ -8122,28 +8047,28 @@ SHOW_VAR status_vars[]= {
   {"Sort_scan",		       (char*) offsetof(STATUS_VAR, filesort_scan_count_), SHOW_LONG_STATUS},
 #ifdef HAVE_OPENSSL
 #ifndef EMBEDDED_LIBRARY
-  {"Ssl_accept_renegotiates",  (char*) &show_ssl_ctx_sess_accept_renegotiate, SHOW_SIMPLE_FUNC},
-  {"Ssl_accepts",              (char*) &show_ssl_ctx_sess_accept, SHOW_SIMPLE_FUNC},
-  {"Ssl_callback_cache_hits",  (char*) &show_ssl_ctx_sess_cb_hits, SHOW_SIMPLE_FUNC},
+  {"Ssl_accept_renegotiates",  (char*) &ssl_acceptor_stats.zero, SHOW_LONG},
+  {"Ssl_accepts",              (char*) &ssl_acceptor_stats.accept, SHOW_LONG},
+  {"Ssl_callback_cache_hits",  (char*) &ssl_acceptor_stats.zero, SHOW_LONG},
   {"Ssl_cipher",               (char*) &show_ssl_get_cipher, SHOW_SIMPLE_FUNC},
   {"Ssl_cipher_list",          (char*) &show_ssl_get_cipher_list, SHOW_SIMPLE_FUNC},
-  {"Ssl_client_connects",      (char*) &show_ssl_ctx_sess_connect, SHOW_SIMPLE_FUNC},
-  {"Ssl_connect_renegotiates", (char*) &show_ssl_ctx_sess_connect_renegotiate, SHOW_SIMPLE_FUNC},
-  {"Ssl_ctx_verify_depth",     (char*) &show_ssl_ctx_get_verify_depth, SHOW_SIMPLE_FUNC},
-  {"Ssl_ctx_verify_mode",      (char*) &show_ssl_ctx_get_verify_mode, SHOW_SIMPLE_FUNC},
+  {"Ssl_client_connects",      (char*) &ssl_acceptor_stats.zero, SHOW_LONG},
+  {"Ssl_connect_renegotiates", (char*) &ssl_acceptor_stats.zero, SHOW_LONG},
+  {"Ssl_ctx_verify_depth",     (char*) &ssl_acceptor_stats.verify_depth, SHOW_LONG},
+  {"Ssl_ctx_verify_mode",      (char*) &ssl_acceptor_stats.verify_mode, SHOW_LONG},
   {"Ssl_default_timeout",      (char*) &show_ssl_get_default_timeout, SHOW_SIMPLE_FUNC},
-  {"Ssl_finished_accepts",     (char*) &show_ssl_ctx_sess_accept_good, SHOW_SIMPLE_FUNC},
-  {"Ssl_finished_connects",    (char*) &show_ssl_ctx_sess_connect_good, SHOW_SIMPLE_FUNC},
+  {"Ssl_finished_accepts",     (char*) &ssl_acceptor_stats.accept_good, SHOW_LONG},
+  {"Ssl_finished_connects",    (char*) &ssl_acceptor_stats.zero, SHOW_LONG},
   {"Ssl_server_not_after",     (char*) &show_ssl_get_server_not_after, SHOW_SIMPLE_FUNC},
   {"Ssl_server_not_before",    (char*) &show_ssl_get_server_not_before, SHOW_SIMPLE_FUNC},
-  {"Ssl_session_cache_hits",   (char*) &show_ssl_ctx_sess_hits, SHOW_SIMPLE_FUNC},
-  {"Ssl_session_cache_misses", (char*) &show_ssl_ctx_sess_misses, SHOW_SIMPLE_FUNC},
-  {"Ssl_session_cache_mode",   (char*) &show_ssl_ctx_get_session_cache_mode, SHOW_SIMPLE_FUNC},
-  {"Ssl_session_cache_overflows", (char*) &show_ssl_ctx_sess_cache_full, SHOW_SIMPLE_FUNC},
-  {"Ssl_session_cache_size",   (char*) &show_ssl_ctx_sess_get_cache_size, SHOW_SIMPLE_FUNC},
-  {"Ssl_session_cache_timeouts", (char*) &show_ssl_ctx_sess_timeouts, SHOW_SIMPLE_FUNC},
-  {"Ssl_sessions_reused",      (char*) &show_ssl_session_reused, SHOW_SIMPLE_FUNC},
-  {"Ssl_used_session_cache_entries",(char*) &show_ssl_ctx_sess_number, SHOW_SIMPLE_FUNC},
+  {"Ssl_session_cache_hits",   (char*) &ssl_acceptor_stats.zero, SHOW_LONG},
+  {"Ssl_session_cache_misses", (char*) &ssl_acceptor_stats.zero, SHOW_LONG},
+  {"Ssl_session_cache_mode",   (char*) &ssl_acceptor_stats.session_cache_mode, SHOW_CHAR_PTR},
+  {"Ssl_session_cache_overflows", (char*) &ssl_acceptor_stats.zero, SHOW_LONG},
+  {"Ssl_session_cache_size",   (char*) &ssl_acceptor_stats.cache_size, SHOW_LONG},
+  {"Ssl_session_cache_timeouts", (char*) &ssl_acceptor_stats.zero, SHOW_LONG},
+  {"Ssl_sessions_reused",      (char*) &ssl_acceptor_stats.zero, SHOW_LONG},
+  {"Ssl_used_session_cache_entries",(char*) &ssl_acceptor_stats.zero, SHOW_LONG},
   {"Ssl_verify_depth",         (char*) &show_ssl_get_verify_depth, SHOW_SIMPLE_FUNC},
   {"Ssl_verify_mode",          (char*) &show_ssl_get_verify_mode, SHOW_SIMPLE_FUNC},
   {"Ssl_version",              (char*) &show_ssl_get_version, SHOW_SIMPLE_FUNC},

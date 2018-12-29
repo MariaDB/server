@@ -1,6 +1,6 @@
 /*
    Copyright (c) 2000, 2015, Oracle and/or its affiliates.
-   Copyright (c) 2008, 2017, MariaDB Corporation.
+   Copyright (c) 2008, 2018, MariaDB Corporation.
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -1254,6 +1254,7 @@ void THD::init(bool skip_lock)
   first_successful_insert_id_in_prev_stmt= 0;
   first_successful_insert_id_in_prev_stmt_for_binlog= 0;
   first_successful_insert_id_in_cur_stmt= 0;
+  current_backup_stage= BACKUP_FINISHED;
 #ifdef WITH_WSREP
   wsrep_last_query_id= 0;
   wsrep_xid.null();
@@ -1534,6 +1535,7 @@ void THD::cleanup(void)
   */
   mdl_context.release_transactional_locks();
 
+  backup_end(this);
   /* Release the global read lock, if acquired. */
   if (global_read_lock.is_acquired())
     global_read_lock.unlock_global_read_lock(this);
@@ -2539,6 +2541,16 @@ void THD::update_charset()
                               &not_used);
 }
 
+void THD::give_protection_error()
+{
+  if (current_backup_stage != BACKUP_FINISHED)
+    my_error(ER_BACKUP_LOCK_IS_ACTIVE, MYF(0));
+  else
+  {
+    DBUG_ASSERT(global_read_lock.is_acquired());
+    my_error(ER_CANT_UPDATE_WITH_READLOCK, MYF(0));
+  }
+}
 
 /* routings to adding tables to list of changed in transaction tables */
 
@@ -3283,6 +3295,10 @@ int select_export::send_data(List<Item> &items)
       error_pos= copier.most_important_error_pos();
       if (unlikely(error_pos))
       {
+        /*
+          TODO: 
+             add new error message that will show user this printable_buff
+
         char printable_buff[32];
         convert_to_printable(printable_buff, sizeof(printable_buff),
                              error_pos, res->ptr() + res->length() - error_pos,
@@ -3291,6 +3307,11 @@ int select_export::send_data(List<Item> &items)
                             ER_TRUNCATED_WRONG_VALUE_FOR_FIELD,
                             ER_THD(thd, ER_TRUNCATED_WRONG_VALUE_FOR_FIELD),
                             "string", printable_buff,
+                            item->name.str, static_cast<long>(row_count));
+        */
+        push_warning_printf(thd, Sql_condition::WARN_LEVEL_WARN,
+                            ER_TRUNCATED_WRONG_VALUE_FOR_FIELD,
+                            ER_THD(thd, WARN_DATA_TRUNCATED),
                             item->name.str, static_cast<long>(row_count));
       }
       else if (copier.source_end_pos() < res->ptr() + res->length())
@@ -4834,7 +4855,8 @@ extern "C" int thd_slave_thread(const MYSQL_THD thd)
 
 extern "C" int thd_rpl_stmt_based(const MYSQL_THD thd)
 {
-  return !thd->is_current_stmt_binlog_format_row() &&
+  return thd &&
+    !thd->is_current_stmt_binlog_format_row() &&
     !thd->is_current_stmt_binlog_disabled();
 }
 

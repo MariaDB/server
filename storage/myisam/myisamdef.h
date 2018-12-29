@@ -296,6 +296,7 @@ struct st_myisam_info
   uint preload_buff_size;               /* When preloading indexes */
   myf lock_wait;                        /* is 0 or MY_SHORT_WAIT */
   my_bool was_locked;                   /* Was locked in panic */
+  my_bool intern_lock_locked;           /* locked in mi_extra() */
   my_bool append_insert_at_end;         /* Set if concurrent insert */
   my_bool quick_mode;
   /* If info->buff can't be used for rnext */

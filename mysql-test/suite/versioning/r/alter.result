@@ -527,7 +527,7 @@ ERROR HY000: Table `t` is already system-versioned
 use mysql;
 create or replace table t (x int) with system versioning;
 ERROR HY000: System versioning tables in the `mysql` database are not suported
-alter table user add system versioning;
+alter table db add system versioning;
 ERROR HY000: System versioning tables in the `mysql` database are not suported
 use test;
 # MDEV-15956 Strange ER_UNSUPPORTED_ACTION_ON_GENERATED_COLUMN upon ALTER on versioning column

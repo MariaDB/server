@@ -27,8 +27,6 @@ Created 1/8/1996 Heikki Tuuri
 #ifndef dict0crea_h
 #define dict0crea_h
 
-#include "univ.i"
-#include "dict0types.h"
 #include "dict0dict.h"
 #include "que0types.h"
 #include "row0types.h"

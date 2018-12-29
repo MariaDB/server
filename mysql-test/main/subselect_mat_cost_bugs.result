@@ -310,6 +310,7 @@ create index key3 on t2 (kp2);
 SET @@optimizer_switch='materialization=off,semijoin=off,in_to_exists=on';
 analyze table t2;
 Table	Op	Msg_type	Msg_text
+test.t2	analyze	status	Engine-independent statistics collected
 test.t2	analyze	status	OK
 explain
 select c1 from t1 where c1 in (select kp1 from t2 where kp2 = 10 and c2 = 4) or c1 > 7;

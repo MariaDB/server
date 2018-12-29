@@ -607,7 +607,8 @@ void init_update_queries(void)
   sql_command_flags[SQLCOM_DELETE]=         CF_CHANGES_DATA | CF_REEXECUTION_FRAGILE |
                                             CF_CAN_GENERATE_ROW_EVENTS |
                                             CF_OPTIMIZER_TRACE |
-                                            CF_CAN_BE_EXPLAINED;
+                                            CF_CAN_BE_EXPLAINED |
+                                            CF_SP_BULK_SAFE;
   sql_command_flags[SQLCOM_DELETE_MULTI]=   CF_CHANGES_DATA | CF_REEXECUTION_FRAGILE |
                                             CF_CAN_GENERATE_ROW_EVENTS |
                                             CF_OPTIMIZER_TRACE |
@@ -774,6 +775,7 @@ void init_update_queries(void)
   sql_command_flags[SQLCOM_CREATE_SERVER]=      CF_AUTO_COMMIT_TRANS;
   sql_command_flags[SQLCOM_ALTER_SERVER]=       CF_AUTO_COMMIT_TRANS;
   sql_command_flags[SQLCOM_DROP_SERVER]=        CF_AUTO_COMMIT_TRANS;
+  sql_command_flags[SQLCOM_BACKUP]=             CF_AUTO_COMMIT_TRANS;
 
   /*
     The following statements can deal with temporary tables,
@@ -1195,10 +1197,8 @@ static bool wsrep_tables_accessible_when_detached(const TABLE_LIST *tables)
   bool accessible_tables = true;
   for (const TABLE_LIST *table= tables; table; table= table->next_global)
   {
-    TABLE_CATEGORY c;
     LEX_CSTRING db= table->db, tn= table->table_name;
-    c= get_table_category(&db, &tn);
-    if (c != TABLE_CATEGORY_INFORMATION && c != TABLE_CATEGORY_PERFORMANCE)
+    if (get_table_category(&db, &tn)  < TABLE_CATEGORY_INFORMATION)
       return false;
   }
   return accessible_tables;
@@ -2145,6 +2145,8 @@ bool dispatch_command(enum enum_server_command command, THD *thd,
     DBUG_EXECUTE_IF("simulate_detached_thread_refresh", debug_simulate= TRUE;);
     if (debug_simulate)
     {
+      /* This code doesn't work under FTWRL */
+      DBUG_ASSERT(! (options & REFRESH_READ_LOCK));
       /*
         Simulate a reload without a attached thread session.
         Provides a environment similar to that of when the
@@ -4267,11 +4269,7 @@ mysql_execute_command(THD *thd)
         goto end_with_restore_list;
       }
 
-      /* Copy temporarily the statement flags to thd for lock_table_names() */
-      uint save_thd_create_info_options= thd->lex->create_info.options;
-      thd->lex->create_info.options|= create_info.options;
       res= open_and_lock_tables(thd, create_info, lex->query_tables, TRUE, 0);
-      thd->lex->create_info.options= save_thd_create_info_options;
       if (unlikely(res))
       {
         /* Got error or warning. Set res to 1 if error */
@@ -5245,7 +5243,8 @@ end_with_restore_list:
       thd->mdl_context.release_transactional_locks();
       thd->variables.option_bits&= ~(OPTION_TABLE_LOCK);
     }
-    if (thd->global_read_lock.is_acquired())
+    if (thd->global_read_lock.is_acquired() &&
+        thd->current_backup_stage == BACKUP_FINISHED)
       thd->global_read_lock.unlock_global_read_lock(thd);
     if (res)
       goto error;
@@ -5259,6 +5258,13 @@ end_with_restore_list:
     thd->mdl_context.release_transactional_locks();
     if (res)
       goto error;
+
+    /* We can't have any kind of table locks while backup is active */
+    if (thd->current_backup_stage != BACKUP_FINISHED)
+    {
+      my_error(ER_BACKUP_LOCK_IS_ACTIVE, MYF(0));
+      goto error;
+    }
 
     /*
       Here we have to pre-open temporary tables for LOCK TABLES.
@@ -5291,6 +5297,12 @@ end_with_restore_list:
 #endif /*HAVE_QUERY_CACHE*/
       my_ok(thd);
     }
+    break;
+  case SQLCOM_BACKUP:
+    if (check_global_access(thd, RELOAD_ACL))
+      goto error;
+    if (!(res= run_backup_stage(thd, lex->backup_stage)))
+      my_ok(thd);
     break;
   case SQLCOM_CREATE_DB:
   {

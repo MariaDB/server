@@ -24,7 +24,6 @@ Data dictionary system
 Created 1/8/1996 Heikki Tuuri
 ***********************************************************************/
 
-#include "srv0srv.h"
 #include "fsp0sysspace.h"
 #include "dict0pagecompress.h"
 
@@ -592,29 +591,28 @@ dict_tf_set(
 	bool		page_compressed,
 	ulint		page_compression_level)
 {
+	*flags = use_data_dir ? 1 << DICT_TF_POS_DATA_DIR : 0;
+
 	switch (format) {
 	case REC_FORMAT_REDUNDANT:
-		*flags = 0;
 		ut_ad(zip_ssize == 0);
-		break;
+		/* no other options are allowed */
+		ut_ad(!page_compressed);
+		return;
 	case REC_FORMAT_COMPACT:
-		*flags = DICT_TF_COMPACT;
+		*flags |= DICT_TF_COMPACT;
 		ut_ad(zip_ssize == 0);
 		break;
 	case REC_FORMAT_COMPRESSED:
-		*flags = DICT_TF_COMPACT
+		*flags |= DICT_TF_COMPACT
 			| (1 << DICT_TF_POS_ATOMIC_BLOBS)
 			| (zip_ssize << DICT_TF_POS_ZIP_SSIZE);
 		break;
 	case REC_FORMAT_DYNAMIC:
-		*flags = DICT_TF_COMPACT
+		*flags |= DICT_TF_COMPACT
 			| (1 << DICT_TF_POS_ATOMIC_BLOBS);
 		ut_ad(zip_ssize == 0);
 		break;
-	}
-
-	if (use_data_dir) {
-		*flags |= (1 << DICT_TF_POS_DATA_DIR);
 	}
 
 	if (page_compressed) {

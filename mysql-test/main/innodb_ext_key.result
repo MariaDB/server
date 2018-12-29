@@ -872,7 +872,9 @@ alter table t3 add primary key (pk1, pk2);
 alter table t3 add  key (col1, col2);
 analyze table t1,t3;
 Table	Op	Msg_type	Msg_text
+test.t1	analyze	status	Engine-independent statistics collected
 test.t1	analyze	status	OK
+test.t3	analyze	status	Engine-independent statistics collected
 test.t3	analyze	status	OK
 set optimizer_switch='extended_keys=off';
 explain 
@@ -1171,7 +1173,7 @@ EXPLAIN
       "key_length": "3070",
       "used_key_parts": ["f2", "pk1"],
       "rows": 1,
-      "filtered": 100,
+      "filtered": 50,
       "index_condition": "t1.pk1 <= 5 and t1.pk2 <= 5 and t1.f2 = 'abc'",
       "attached_condition": "t1.f1 <= '3'"
     }
@@ -1201,7 +1203,7 @@ EXPLAIN
       "key_length": "3011",
       "used_key_parts": ["pk1", "f2", "pk2"],
       "rows": 1,
-      "filtered": 100,
+      "filtered": 50,
       "index_condition": "t1.f2 <= 5 and t1.pk2 <= 5 and t1.pk1 = 'abc'",
       "attached_condition": "t1.f1 <= '3'"
     }

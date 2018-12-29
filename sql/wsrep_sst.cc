@@ -915,7 +915,7 @@ static int sst_donate_mysqldump (const char*         addr,
                      WSREP_SST_OPT_PORT " '%u' "
                      WSREP_SST_OPT_LPORT " '%u' "
                      WSREP_SST_OPT_SOCKET " '%s' "
-                     WSREP_SST_OPT_CONF " '%s' "
+                     " %s "
                      WSREP_SST_OPT_GTID " '%s:%lld' "
                      WSREP_SST_OPT_GTID_DOMAIN_ID " '%d'"
                      "%s",
@@ -1225,7 +1225,7 @@ wait_signal:
             mysql_mutex_unlock(mysql_bin_log.get_log_lock());
           }
           sst_disallow_writes (thd.ptr, false);
-          thd.ptr->global_read_lock.unlock_global_read_lock (thd.ptr);
+          thd.ptr->global_read_lock.unlock_global_read_lock(thd.ptr);
           locked= false;
         }
         err=  0;
@@ -1263,7 +1263,7 @@ wait_signal:
       mysql_mutex_unlock(mysql_bin_log.get_log_lock());
     }
     sst_disallow_writes (thd.ptr, false);
-    thd.ptr->global_read_lock.unlock_global_read_lock (thd.ptr);
+    thd.ptr->global_read_lock.unlock_global_read_lock(thd.ptr);
   }
 
   wsrep::gtid gtid(wsrep::id(ret_uuid.data, sizeof(ret_uuid.data)),

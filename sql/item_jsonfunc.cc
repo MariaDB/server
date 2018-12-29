@@ -374,17 +374,11 @@ static int path_setup_nwc(json_path_t *p, CHARSET_INFO *i_cs,
 longlong Item_func_json_valid::val_int()
 {
   String *js= args[0]->val_json(&tmp_value);
-  json_engine_t je;
 
   if ((null_value= args[0]->null_value))
     return 0;
 
-  json_scan_start(&je, js->charset(), (const uchar *) js->ptr(),
-                  (const uchar *) js->ptr()+js->length());
-
-  while (json_scan_next(&je) == 0) {}
-
-  return je.s.error == 0;
+  return json_valid(js->ptr(), js->length(), js->charset());
 }
 
 

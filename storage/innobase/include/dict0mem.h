@@ -28,7 +28,6 @@ Created 1/8/1996 Heikki Tuuri
 #ifndef dict0mem_h
 #define dict0mem_h
 
-#include "dict0types.h"
 #include "data0type.h"
 #include "mem0mem.h"
 #include "row0types.h"
@@ -684,6 +683,20 @@ public:
 	{
 		def_val.len = UNIV_SQL_DEFAULT;
 		def_val.data = NULL;
+	}
+
+	/** Determine if the columns have the same format
+	except for is_nullable() and is_versioned().
+	@param[in]	other	column to compare to
+	@return	whether the columns have the same format */
+	bool same_format(const dict_col_t& other) const
+	{
+		return mtype == other.mtype
+			&& len >= other.len
+			&& mbminlen == other.mbminlen
+			&& mbmaxlen == other.mbmaxlen
+			&& !((prtype ^ other.prtype)
+			     & ~(DATA_NOT_NULL | DATA_VERSIONED));
 	}
 };
 
@@ -1526,6 +1539,52 @@ struct dict_vcol_templ_t {
 	dict_vcol_templ_t() : vtempl(0), mysql_table_query_id(~0ULL) {}
 };
 
+/** Metadata on clustered index fields starting from first_user_field() */
+class field_map_element_t
+{
+	/** Number of bits for representing a column number */
+	static constexpr uint16_t IND_BITS = 10;
+
+	/** Set if the column of the field has been instantly dropped */
+	static constexpr uint16_t DROPPED = 1U << (IND_BITS + 5);
+
+	/** Set if the column was dropped and originally declared NOT NULL */
+	static constexpr uint16_t NOT_NULL = 1U << (IND_BITS + 4);
+
+	/** Column index (if !(data & DROPPED)): table->cols[data & IND],
+	or field length (if (data & DROPPED)):
+	(data & IND) = 0 if variable-length with max_len < 256 bytes;
+	(data & IND) = 1 if variable-length with max_len > 255 bytes;
+	(data & IND) = 1 + L otherwise, with L=fixed length of the column */
+	static constexpr uint16_t IND = (1U << IND_BITS) - 1;
+
+	/** Field metadata */
+	uint16_t data;
+
+	void clear_not_null() { data &= ~NOT_NULL; }
+public:
+	bool is_dropped() const { return data & DROPPED; }
+	void set_dropped() { data |= DROPPED; }
+	bool is_not_null() const { return data & NOT_NULL; }
+	void set_not_null() { ut_ad(is_dropped()); data |= NOT_NULL; }
+	uint16_t ind() const { return data & IND; }
+	void set_ind(uint16_t i)
+	{
+		DBUG_ASSERT(i <= IND);
+		DBUG_ASSERT(!ind());
+		data |= i;
+	}
+	field_map_element_t& operator= (uint16_t value)
+	{
+		data = value;
+		return *this;
+	}
+	operator uint16_t() { return data; }
+};
+
+static_assert(sizeof(field_map_element_t) == 2,
+	      "Size mismatch for a persistent data item!");
+
 /** Instantly dropped or reordered columns */
 struct dict_instant_t
 {
@@ -1533,8 +1592,9 @@ struct dict_instant_t
 	unsigned n_dropped;
 	/** Dropped columns */
 	dict_col_t* dropped;
-	/** Mapping the non-pk field to column of the table. */
-	uint16_t* non_pk_col_map;
+	/** Map of clustered index non-PK fields[i - first_user_field()]
+	to table columns */
+	field_map_element_t* field_map;
 };
 
 /** These are used when MySQL FRM and InnoDB data dictionary are
@@ -1677,15 +1737,6 @@ struct dict_table_t {
 		const char*	old_v_col_names,
 		const ulint*	col_map);
 
-	/** Assign a new id to invalidate old undo log records, so
-	that purge will be unable to refer to fields that used to be
-	instantly added to the end of the index. This is only to be
-	used during ALTER TABLE when the table is empty, before
-	invoking dict_index_t::clear_instant_alter().
-	@param[in,out] trx	dictionary transaction
-	@return	error code */
-	inline dberr_t reassign_id(trx_t* trx);
-
 	/** Add the table definition to the data dictionary cache */
 	void add_to_cache();
 
@@ -1712,6 +1763,14 @@ struct dict_table_t {
 		ut_ad(fk_checks > 0);
 	}
 
+private:
+	/** Initialize instant->field_map.
+	@tparam	replace_dropped	whether to point clustered index fields
+				to instant->dropped[]
+	@param[in]	table	table definition to copy from */
+	template<bool replace_dropped = false>
+	inline void init_instant(const dict_table_t& table);
+public:
 	/** Id of the table. */
 	table_id_t				id;
 

@@ -608,4 +608,124 @@ my_bool ma_control_file_inited(void)
   return (control_file_fd >= 0);
 }
 
+/**
+   Print content of aria_log_control file
+*/
+
+my_bool print_aria_log_control()
+{
+  uchar buffer[CF_MAX_SIZE];
+  char name[FN_REFLEN], uuid_str[MY_UUID_STRING_LENGTH+1];
+  const char *errmsg;
+  uint new_cf_create_time_size, new_cf_changeable_size;
+  my_off_t file_size;
+  ulong logno;
+  ulonglong trid,checkpoint_lsn;
+  int open_flags= O_BINARY | /*O_DIRECT |*/ O_RDWR | O_CLOEXEC;
+  int error= CONTROL_FILE_UNKNOWN_ERROR;
+  uint recovery_fails;
+  File file;
+  DBUG_ENTER("ma_control_file_open");
+
+  if (fn_format(name, CONTROL_FILE_BASE_NAME,
+                maria_data_root, "", MYF(MY_WME)) == NullS)
+    DBUG_RETURN(CONTROL_FILE_UNKNOWN_ERROR);
+
+  if ((file= mysql_file_open(key_file_control, name,
+                             open_flags, MYF(MY_WME))) < 0)
+  {
+    errmsg= "Can't open file";
+    goto err;
+  }
+
+  file_size= mysql_file_seek(file, 0, SEEK_END, MYF(MY_WME));
+  if (file_size == MY_FILEPOS_ERROR)
+  {
+    errmsg= "Can't read size";
+    goto err;
+  }
+  if (file_size < CF_MIN_SIZE)
+  {
+    /*
+      Given that normally we write only a sector and it's atomic, the only
+      possibility for a file to be of too short size is if we crashed at the
+      very first startup, between file creation and file write. Quite unlikely
+      (and can be made even more unlikely by doing this: create a temp file,
+      write it, and then rename it to be the control file).
+      What's more likely is if someone forgot to restore the control file,
+      just did a "touch control" to try to get Maria to start, or if the
+      disk/filesystem has a problem.
+      So let's be rigid.
+    */
+    error= CONTROL_FILE_TOO_SMALL;
+    errmsg= "Size of control file is smaller than expected";
+    goto err;
+  }
+
+  /* Check if control file is unexpectedly big */
+  if (file_size > CF_MAX_SIZE)
+  {
+    error= CONTROL_FILE_TOO_BIG;
+    errmsg= "File size bigger than expected";
+    goto err;
+  }
+
+  if (mysql_file_pread(file, buffer, (size_t)file_size, 0, MYF(MY_FNABP)))
+  {
+    errmsg= "Can't read file";
+    goto err;
+  }
+
+  if (memcmp(buffer + CF_MAGIC_STRING_OFFSET,
+             CF_MAGIC_STRING, CF_MAGIC_STRING_SIZE))
+  {
+    error= CONTROL_FILE_BAD_MAGIC_STRING;
+    errmsg= "Missing valid id at start of file. File is not a valid aria control file";
+    goto err;
+  }
+
+  printf("Aria file version:   %u\n", buffer[CF_VERSION_OFFSET]);
+
+  new_cf_create_time_size= uint2korr(buffer + CF_CREATE_TIME_SIZE_OFFSET);
+  new_cf_changeable_size=  uint2korr(buffer + CF_CHANGEABLE_SIZE_OFFSET);
+
+  if (new_cf_create_time_size < CF_MIN_CREATE_TIME_TOTAL_SIZE ||
+      new_cf_changeable_size <  CF_MIN_CHANGEABLE_TOTAL_SIZE ||
+      new_cf_create_time_size + new_cf_changeable_size != file_size)
+  {
+    error= CONTROL_FILE_INCONSISTENT_INFORMATION;
+    errmsg= "Sizes stored in control file are inconsistent";
+    goto err;
+  }
+  checkpoint_lsn= lsn_korr(buffer + new_cf_create_time_size +
+                           CF_LSN_OFFSET);
+  logno= uint4korr(buffer + new_cf_create_time_size + CF_FILENO_OFFSET);
+  my_uuid2str(buffer + CF_UUID_OFFSET, uuid_str);
+  uuid_str[MY_UUID_STRING_LENGTH]= 0;
+
+  printf("Block size:          %u\n", uint2korr(buffer + CF_BLOCKSIZE_OFFSET));
+  printf("maria_uuid:          %s\n", uuid_str);
+  printf("last_checkpoint_lsn: " LSN_FMT "\n", LSN_IN_PARTS(checkpoint_lsn));
+  printf("last_log_number:     %lu\n", (ulong) logno);
+  if (new_cf_changeable_size >= (CF_MAX_TRID_OFFSET + CF_MAX_TRID_SIZE))
+  {
+    trid= transid_korr(buffer + new_cf_create_time_size + CF_MAX_TRID_OFFSET);
+    printf("trid:                %llu\n", (ulonglong) trid);
+  }
+  if (new_cf_changeable_size >= (CF_RECOV_FAIL_OFFSET + CF_RECOV_FAIL_SIZE))
+  {
+    recovery_fails=
+      (buffer + new_cf_create_time_size + CF_RECOV_FAIL_OFFSET)[0];
+    printf("recovery_failuers:   %u\n", recovery_fails);
+  }
+
+  DBUG_RETURN(0);
+
+err:
+  my_printf_error(HA_ERR_INITIALIZATION,
+                  "Got error '%s' when trying to use aria control file "
+                  "'%s'", 0, errmsg, name);
+  DBUG_RETURN(error);
+}
+
 #endif /* EXTRACT_DEFINITIONS */

@@ -21,7 +21,7 @@
 #include "sql_show.h"
 
 static const LEX_STRING metadata_lock_info_lock_name[] = {
-  { C_STRING_WITH_LEN("Global read lock") },
+  { C_STRING_WITH_LEN("Backup lock") },
   { C_STRING_WITH_LEN("Schema metadata lock") },
   { C_STRING_WITH_LEN("Table metadata lock") },
   { C_STRING_WITH_LEN("Stored function metadata lock") },
@@ -29,21 +29,7 @@ static const LEX_STRING metadata_lock_info_lock_name[] = {
   { C_STRING_WITH_LEN("Stored package body metadata lock") },
   { C_STRING_WITH_LEN("Trigger metadata lock") },
   { C_STRING_WITH_LEN("Event metadata lock") },
-  { C_STRING_WITH_LEN("Commit lock") },
   { C_STRING_WITH_LEN("User lock") },
-};
-
-static const LEX_STRING metadata_lock_info_lock_mode[] = {
-  { C_STRING_WITH_LEN("MDL_INTENTION_EXCLUSIVE") },
-  { C_STRING_WITH_LEN("MDL_SHARED") },
-  { C_STRING_WITH_LEN("MDL_SHARED_HIGH_PRIO") },
-  { C_STRING_WITH_LEN("MDL_SHARED_READ") },
-  { C_STRING_WITH_LEN("MDL_SHARED_WRITE") },
-  { C_STRING_WITH_LEN("MDL_SHARED_UPGRADABLE") },
-  { C_STRING_WITH_LEN("MDL_SHARED_READ_ONLY") },
-  { C_STRING_WITH_LEN("MDL_SHARED_NO_WRITE") },
-  { C_STRING_WITH_LEN("MDL_SHARED_NO_READ_WRITE") },
-  { C_STRING_WITH_LEN("MDL_EXCLUSIVE") },
 };
 
 static ST_FIELD_INFO i_s_metadata_lock_info_fields_info[] =
@@ -71,22 +57,21 @@ struct st_i_s_metadata_param
 
 int i_s_metadata_lock_info_fill_row(
   MDL_ticket *mdl_ticket,
-  void *arg
+  void *arg,
+  bool granted
 ) {
   st_i_s_metadata_param *param = (st_i_s_metadata_param *) arg;
   THD *thd = param->thd;
   TABLE *table = param->table;
   DBUG_ENTER("i_s_metadata_lock_info_fill_row");
   MDL_context *mdl_ctx = mdl_ticket->get_ctx();
-  enum_mdl_type mdl_ticket_type = mdl_ticket->get_type();
   MDL_key *mdl_key = mdl_ticket->get_key();
   MDL_key::enum_mdl_namespace mdl_namespace = mdl_key->mdl_namespace();
+  if (!granted)
+    DBUG_RETURN(0);
   table->field[0]->store((longlong) mdl_ctx->get_thread_id(), TRUE);
   table->field[1]->set_notnull();
-  table->field[1]->store(
-    metadata_lock_info_lock_mode[(int) mdl_ticket_type].str,
-    metadata_lock_info_lock_mode[(int) mdl_ticket_type].length,
-    system_charset_info);
+  table->field[1]->store(mdl_ticket->get_type_name(), system_charset_info);
   table->field[2]->set_null();
   table->field[3]->set_notnull();
   table->field[3]->store(
@@ -122,8 +107,6 @@ static int i_s_metadata_lock_info_init(
 
   compile_time_assert(sizeof(metadata_lock_info_lock_name)/sizeof(LEX_STRING)
                       == MDL_key::NAMESPACE_END);
-  compile_time_assert(sizeof(metadata_lock_info_lock_mode)/sizeof(LEX_STRING)
-                      == MDL_TYPE_END);
 
   ST_SCHEMA_TABLE *schema = (ST_SCHEMA_TABLE *) p;
   DBUG_ENTER("i_s_metadata_lock_info_init");

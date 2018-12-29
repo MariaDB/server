@@ -1,4 +1,4 @@
-update mysql.user set plugin='unix_socket';
+update mysql.global_priv set priv=json_insert(priv, '$.plugin', 'unix_socket');
 flush privileges;
 Warnings:
 Warning	1524	Plugin 'unix_socket' is not loaded
@@ -13,6 +13,6 @@ flush privileges;
 connect(localhost,USER,,test,MASTER_PORT,MASTER_SOCKET);
 ERROR 28000: Access denied for user 'USER'@'localhost'
 ERROR 28000: Access denied for user 'USER'@'localhost'
-update mysql.user set plugin='';
+update mysql.global_priv set priv=json_remove(priv, '$.plugin');
 flush privileges;
 uninstall plugin unix_socket;

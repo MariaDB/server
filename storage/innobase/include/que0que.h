@@ -27,9 +27,7 @@ Created 5/27/1996 Heikki Tuuri
 #ifndef que0que_h
 #define que0que_h
 
-#include "univ.i"
 #include "data0data.h"
-#include "dict0types.h"
 #include "trx0trx.h"
 #include "trx0roll.h"
 #include "srv0srv.h"

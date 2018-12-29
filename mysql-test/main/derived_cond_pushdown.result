@@ -13963,16 +13963,16 @@ a	b	max_c	a	b	c
 1	21	345	3	21	231
 select * from v1,t2 where (v1.b=t2.b) and (v1.a<5);
 a	b	max_c	a	b	c
-1	21	345	3	21	231
 2	33	7	5	33	207
-2	33	7	8	33	117
-3	21	500	3	21	231
 4	33	123	5	33	207
+2	33	7	8	33	117
 4	33	123	8	33	117
+1	21	345	3	21	231
+3	21	500	3	21	231
 explain select * from v1,t2 where (v1.b=t2.b) and (v1.a<5);
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	PRIMARY	t2	ALL	NULL	NULL	NULL	NULL	9	
-1	PRIMARY	<derived2>	ALL	NULL	NULL	NULL	NULL	5	Using where; Using join buffer (flat, BNL join)
+1	PRIMARY	<derived2>	ALL	NULL	NULL	NULL	NULL	5	Using where
+1	PRIMARY	t2	ALL	NULL	NULL	NULL	NULL	9	Using where; Using join buffer (flat, BNL join)
 2	DERIVED	t3	range	i1	i1	5	NULL	5	Using index condition
 explain format=json select * from v1,t2 where (v1.b=t2.b) and (v1.a<5);
 EXPLAIN
@@ -13980,23 +13980,11 @@ EXPLAIN
   "query_block": {
     "select_id": 1,
     "table": {
-      "table_name": "t2",
+      "table_name": "<derived2>",
       "access_type": "ALL",
-      "rows": 9,
-      "filtered": 100
-    },
-    "block-nl-join": {
-      "table": {
-        "table_name": "<derived2>",
-        "access_type": "ALL",
-        "rows": 5,
-        "filtered": 80,
-        "attached_condition": "v1.a < 5"
-      },
-      "buffer_type": "flat",
-      "buffer_size": "256Kb",
-      "join_type": "BNL",
-      "attached_condition": "v1.b = t2.b",
+      "rows": 5,
+      "filtered": 100,
+      "attached_condition": "v1.a < 5",
       "materialized": {
         "query_block": {
           "select_id": 2,
@@ -14013,6 +14001,18 @@ EXPLAIN
           }
         }
       }
+    },
+    "block-nl-join": {
+      "table": {
+        "table_name": "t2",
+        "access_type": "ALL",
+        "rows": 9,
+        "filtered": 100
+      },
+      "buffer_type": "flat",
+      "buffer_size": "256Kb",
+      "join_type": "BNL",
+      "attached_condition": "t2.b = v1.b"
     }
   }
 }
@@ -14936,7 +14936,9 @@ insert into t2 values
 insert into t2 select a+10, b+10, concat(c,'f') from t2;
 analyze table t1,t2;
 Table	Op	Msg_type	Msg_text
+test.t1	analyze	status	Engine-independent statistics collected
 test.t1	analyze	status	OK
+test.t2	analyze	status	Engine-independent statistics collected
 test.t2	analyze	status	OK
 set statement optimizer_switch='split_materialized=off' for select t1.a,t.s,t.m
 from t1 join
@@ -14966,7 +14968,7 @@ where t1.b < 3;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
 1	PRIMARY	t1	range	idx_b	idx_b	5	NULL	4	100.00	Using index condition; Using where
 1	PRIMARY	<derived2>	ref	key0	key0	5	test.t1.a	2	100.00	
-2	LATERAL DERIVED	t2	ref	idx_a	idx_a	5	test.t1.a	2	100.00	
+2	LATERAL DERIVED	t2	ref	idx_a	idx_a	5	test.t1.a	1	100.00	
 Warnings:
 Note	1003	/* select#1 */ select `test`.`t1`.`a` AS `a`,`t`.`s` AS `s`,`t`.`m` AS `m` from `test`.`t1` join (/* select#2 */ select `test`.`t2`.`a` AS `a`,sum(`test`.`t2`.`b`) AS `s`,min(`test`.`t2`.`c`) AS `m` from `test`.`t2` where `test`.`t2`.`a` = `test`.`t1`.`a` group by `test`.`t2`.`a`) `t` where `t`.`a` = `test`.`t1`.`a` and `test`.`t1`.`b` < 3
 explain format=json select t1.a,t.s,t.m
@@ -15012,7 +15014,7 @@ EXPLAIN
             "key_length": "5",
             "used_key_parts": ["a"],
             "ref": ["test.t1.a"],
-            "rows": 2,
+            "rows": 1,
             "filtered": 100
           }
         }
@@ -15075,10 +15077,10 @@ on t1.a=t.a
 where t1.b <= 5;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
 1	PRIMARY	t1	ALL	idx_b	NULL	NULL	NULL	12	75.00	Using where
-1	PRIMARY	<derived2>	ref	key0	key0	5	test.t1.a	9	100.00	
-2	DERIVED	t2	ALL	idx_a	NULL	NULL	NULL	90	100.00	Using temporary; Using filesort
+1	PRIMARY	<derived2>	ref	key0	key0	5	test.t1.a	2	100.00	
+2	LATERAL DERIVED	t2	ref	idx_a	idx_a	5	test.t1.a	1	100.00	
 Warnings:
-Note	1003	/* select#1 */ select `test`.`t1`.`a` AS `a`,`t`.`s` AS `s`,`t`.`m` AS `m` from `test`.`t1` join (/* select#2 */ select `test`.`t2`.`a` AS `a`,sum(`test`.`t2`.`b`) AS `s`,min(`test`.`t2`.`b`) AS `m` from `test`.`t2` group by `test`.`t2`.`a`) `t` where `t`.`a` = `test`.`t1`.`a` and `test`.`t1`.`b` <= 5
+Note	1003	/* select#1 */ select `test`.`t1`.`a` AS `a`,`t`.`s` AS `s`,`t`.`m` AS `m` from `test`.`t1` join (/* select#2 */ select `test`.`t2`.`a` AS `a`,sum(`test`.`t2`.`b`) AS `s`,min(`test`.`t2`.`b`) AS `m` from `test`.`t2` where `test`.`t2`.`a` = `test`.`t1`.`a` group by `test`.`t2`.`a`) `t` where `t`.`a` = `test`.`t1`.`a` and `test`.`t1`.`b` <= 5
 explain format=json select t1.a,t.s,t.m
 from t1 join
 (select a, sum(t2.b) as s, min(t2.b) as m from t2 group by t2.a) t
@@ -15104,22 +15106,22 @@ EXPLAIN
       "key_length": "5",
       "used_key_parts": ["a"],
       "ref": ["test.t1.a"],
-      "rows": 9,
+      "rows": 2,
       "filtered": 100,
       "materialized": {
         "query_block": {
           "select_id": 2,
-          "filesort": {
-            "sort_key": "t2.a",
-            "temporary_table": {
-              "table": {
-                "table_name": "t2",
-                "access_type": "ALL",
-                "possible_keys": ["idx_a"],
-                "rows": 90,
-                "filtered": 100
-              }
-            }
+          "outer_ref_condition": "t1.a is not null",
+          "table": {
+            "table_name": "t2",
+            "access_type": "ref",
+            "possible_keys": ["idx_a"],
+            "key": "idx_a",
+            "key_length": "5",
+            "used_key_parts": ["a"],
+            "ref": ["test.t1.a"],
+            "rows": 1,
+            "filtered": 100
           }
         }
       }
@@ -15178,11 +15180,11 @@ from t1 left join
 (select a, max(t2.b) max, min(t2.b) min from t2 group by t2.a) t
 on t1.a=t.a;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
-1	PRIMARY	t1	ALL	NULL	NULL	NULL	NULL	4	100.00	
-1	PRIMARY	<derived2>	ref	key0	key0	5	test.t1.a	2	100.00	Using where
-2	LATERAL DERIVED	t2	ref	idx_a	idx_a	5	test.t1.a	2	100.00	
+1	PRIMARY	t1	ALL	NULL	NULL	NULL	NULL	12	100.00	
+1	PRIMARY	<derived2>	ref	key0	key0	5	test.t1.a	9	100.00	Using where
+2	DERIVED	t2	ALL	idx_a	NULL	NULL	NULL	90	100.00	Using temporary; Using filesort
 Warnings:
-Note	1003	/* select#1 */ select `test`.`t1`.`a` AS `a`,`t`.`max` AS `max`,`t`.`min` AS `min` from `test`.`t1` left join (/* select#2 */ select `test`.`t2`.`a` AS `a`,max(`test`.`t2`.`b`) AS `max`,min(`test`.`t2`.`b`) AS `min` from `test`.`t2` where `test`.`t2`.`a` = `test`.`t1`.`a` group by `test`.`t2`.`a`) `t` on(`t`.`a` = `test`.`t1`.`a` and `test`.`t1`.`a` is not null) where 1
+Note	1003	/* select#1 */ select `test`.`t1`.`a` AS `a`,`t`.`max` AS `max`,`t`.`min` AS `min` from `test`.`t1` left join (/* select#2 */ select `test`.`t2`.`a` AS `a`,max(`test`.`t2`.`b`) AS `max`,min(`test`.`t2`.`b`) AS `min` from `test`.`t2` group by `test`.`t2`.`a`) `t` on(`t`.`a` = `test`.`t1`.`a` and `test`.`t1`.`a` is not null) where 1
 explain format=json select t1.a,t.max,t.min
 from t1 left join
 (select a, max(t2.b) max, min(t2.b) min from t2 group by t2.a) t
@@ -15195,7 +15197,7 @@ EXPLAIN
     "table": {
       "table_name": "t1",
       "access_type": "ALL",
-      "rows": 4,
+      "rows": 12,
       "filtered": 100
     },
     "table": {
@@ -15206,23 +15208,23 @@ EXPLAIN
       "key_length": "5",
       "used_key_parts": ["a"],
       "ref": ["test.t1.a"],
-      "rows": 2,
+      "rows": 9,
       "filtered": 100,
       "attached_condition": "trigcond(trigcond(t1.a is not null))",
       "materialized": {
         "query_block": {
           "select_id": 2,
-          "outer_ref_condition": "t1.a is not null",
-          "table": {
-            "table_name": "t2",
-            "access_type": "ref",
-            "possible_keys": ["idx_a"],
-            "key": "idx_a",
-            "key_length": "5",
-            "used_key_parts": ["a"],
-            "ref": ["test.t1.a"],
-            "rows": 2,
-            "filtered": 100
+          "filesort": {
+            "sort_key": "t2.a",
+            "temporary_table": {
+              "table": {
+                "table_name": "t2",
+                "access_type": "ALL",
+                "possible_keys": ["idx_a"],
+                "rows": 90,
+                "filtered": 100
+              }
+            }
           }
         }
       }
@@ -15243,7 +15245,9 @@ insert into t4 values
 insert into t4 select a+10, b+10, concat(c,'f') from t4;
 analyze table t3,t4;
 Table	Op	Msg_type	Msg_text
+test.t3	analyze	status	Engine-independent statistics collected
 test.t3	analyze	status	OK
+test.t4	analyze	status	Engine-independent statistics collected
 test.t4	analyze	status	OK
 set statement optimizer_switch='split_materialized=off' for select t3.a,t3.c,t.max,t.min
 from t3 join
@@ -15559,8 +15563,11 @@ insert into t4 select a+100, b+100, concat(c,'g') from t4;
 insert into t4 select a+1000, b+1000, concat(c,'h') from t4;
 analyze table t2,t3,t4;
 Table	Op	Msg_type	Msg_text
+test.t2	analyze	status	Engine-independent statistics collected
 test.t2	analyze	status	OK
+test.t3	analyze	status	Engine-independent statistics collected
 test.t3	analyze	status	OK
+test.t4	analyze	status	Engine-independent statistics collected
 test.t4	analyze	status	OK
 set statement optimizer_switch='split_materialized=off' for select t2.a,t2.b,t2.c,t.c as t_c,t.max,t.min
 from t2, t3, (select c, max(b) max, min(b) min from t4 group by c) t
@@ -15581,9 +15588,9 @@ from t2, t3, (select c, max(b) max, min(b) min from t4 group by c) t
 where t2.b between 80 and 85 and t2.c in ('y','z') and t2.a=t3.a and t3.c=t.c;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
 1	PRIMARY	t2	range	idx	idx	133	NULL	2	100.00	Using index condition; Using where
-1	PRIMARY	t3	ref	idx_a	idx_a	5	test.t2.a	2	100.00	Using where
+1	PRIMARY	t3	ref	idx_a	idx_a	5	test.t2.a	1	100.00	Using where
 1	PRIMARY	<derived2>	ref	key0	key0	128	test.t3.c	2	100.00	
-2	LATERAL DERIVED	t4	ref	idx_c	idx_c	128	test.t3.c	3	100.00	
+2	LATERAL DERIVED	t4	ref	idx_c	idx_c	128	test.t3.c	2	100.00	
 Warnings:
 Note	1003	/* select#1 */ select `test`.`t2`.`a` AS `a`,`test`.`t2`.`b` AS `b`,`test`.`t2`.`c` AS `c`,`t`.`c` AS `t_c`,`t`.`max` AS `max`,`t`.`min` AS `min` from `test`.`t2` join `test`.`t3` join (/* select#2 */ select `test`.`t4`.`c` AS `c`,max(`test`.`t4`.`b`) AS `max`,min(`test`.`t4`.`b`) AS `min` from `test`.`t4` where `test`.`t4`.`c` = `test`.`t3`.`c` group by `test`.`t4`.`c`) `t` where `test`.`t3`.`a` = `test`.`t2`.`a` and `t`.`c` = `test`.`t3`.`c` and `test`.`t2`.`b` between 80 and 85 and `test`.`t2`.`c` in ('y','z')
 explain format=json select t2.a,t2.b,t2.c,t.c as t_c,t.max,t.min
@@ -15613,7 +15620,7 @@ EXPLAIN
       "key_length": "5",
       "used_key_parts": ["a"],
       "ref": ["test.t2.a"],
-      "rows": 2,
+      "rows": 1,
       "filtered": 100,
       "attached_condition": "t3.c is not null"
     },
@@ -15639,7 +15646,7 @@ EXPLAIN
             "key_length": "128",
             "used_key_parts": ["c"],
             "ref": ["test.t3.c"],
-            "rows": 3,
+            "rows": 2,
             "filtered": 100
           }
         }
@@ -15727,8 +15734,8 @@ explain extended select t2.a,t2.b,t2.c,t.c as t_c,t.max,t.min
 from t2, t3, (select c, max(b) max, min(b) min from t4 group by c) t
 where t2.b < 40 and t2.a=t3.a and t3.c=t.c;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
-1	PRIMARY	t2	ALL	NULL	NULL	NULL	NULL	90	100.00	Using where
-1	PRIMARY	t3	ref	idx_a	idx_a	5	test.t2.a	2	100.00	Using where
+1	PRIMARY	t2	ALL	NULL	NULL	NULL	NULL	90	33.33	Using where
+1	PRIMARY	t3	ref	idx_a	idx_a	5	test.t2.a	1	100.00	Using where
 1	PRIMARY	<derived2>	ref	key0	key0	128	test.t3.c	10	100.00	
 2	DERIVED	t4	ALL	idx_c	NULL	NULL	NULL	160	100.00	Using temporary; Using filesort
 Warnings:
@@ -15744,7 +15751,7 @@ EXPLAIN
       "table_name": "t2",
       "access_type": "ALL",
       "rows": 90,
-      "filtered": 100,
+      "filtered": 33.333,
       "attached_condition": "t2.b < 40 and t2.a is not null"
     },
     "table": {
@@ -15755,7 +15762,7 @@ EXPLAIN
       "key_length": "5",
       "used_key_parts": ["a"],
       "ref": ["test.t2.a"],
-      "rows": 2,
+      "rows": 1,
       "filtered": 100,
       "attached_condition": "t3.c is not null"
     },
@@ -15828,9 +15835,9 @@ from t2, t3, (select c, b, sum(b) over (partition by c) from t4 ) t
 where t2.b between 80 and 85 and t2.c in ('y','z') and t2.a=t3.a and t3.c=t.c;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
 1	PRIMARY	t2	range	idx	idx	133	NULL	2	100.00	Using index condition; Using where
-1	PRIMARY	t3	ref	idx_a	idx_a	5	test.t2.a	2	100.00	Using where
+1	PRIMARY	t3	ref	idx_a	idx_a	5	test.t2.a	1	100.00	Using where
 1	PRIMARY	<derived2>	ref	key0	key0	128	test.t3.c	2	100.00	
-2	LATERAL DERIVED	t4	ref	idx_c	idx_c	128	test.t3.c	3	100.00	Using temporary
+2	LATERAL DERIVED	t4	ref	idx_c	idx_c	128	test.t3.c	2	100.00	Using temporary
 Warnings:
 Note	1003	/* select#1 */ select `test`.`t2`.`a` AS `a`,`test`.`t2`.`b` AS `b`,`test`.`t2`.`c` AS `c`,`test`.`t3`.`a` AS `a`,`test`.`t3`.`b` AS `b`,`test`.`t3`.`c` AS `c`,`t`.`c` AS `c`,`t`.`b` AS `b`,`t`.`sum(b) over (partition by c)` AS `sum(b) over (partition by c)` from `test`.`t2` join `test`.`t3` join (/* select#2 */ select `test`.`t4`.`c` AS `c`,`test`.`t4`.`b` AS `b`,sum(`test`.`t4`.`b`) over ( partition by `test`.`t4`.`c`) AS `sum(b) over (partition by c)` from `test`.`t4` where `test`.`t4`.`c` = `test`.`t3`.`c`) `t` where `test`.`t3`.`a` = `test`.`t2`.`a` and `t`.`c` = `test`.`t3`.`c` and `test`.`t2`.`b` between 80 and 85 and `test`.`t2`.`c` in ('y','z')
 explain format=json select *
@@ -15860,7 +15867,7 @@ EXPLAIN
       "key_length": "5",
       "used_key_parts": ["a"],
       "ref": ["test.t2.a"],
-      "rows": 2,
+      "rows": 1,
       "filtered": 100,
       "attached_condition": "t3.c is not null"
     },
@@ -15893,7 +15900,7 @@ EXPLAIN
                 "key_length": "128",
                 "used_key_parts": ["c"],
                 "ref": ["test.t3.c"],
-                "rows": 3,
+                "rows": 2,
                 "filtered": 100
               }
             }
@@ -16223,8 +16230,8 @@ explain extended select *
 from t2, t3, (select c, b, sum(b) over (partition by c) from t4 ) t
 where t2.b < 40 and t2.a=t3.a and t3.c=t.c;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
-1	PRIMARY	t2	ALL	NULL	NULL	NULL	NULL	90	100.00	Using where
-1	PRIMARY	t3	ref	idx_a	idx_a	5	test.t2.a	2	100.00	Using where
+1	PRIMARY	t2	ALL	NULL	NULL	NULL	NULL	90	33.33	Using where
+1	PRIMARY	t3	ref	idx_a	idx_a	5	test.t2.a	1	100.00	Using where
 1	PRIMARY	<derived2>	ref	key0	key0	128	test.t3.c	10	100.00	
 2	DERIVED	t4	ALL	idx_c	NULL	NULL	NULL	160	100.00	Using temporary
 Warnings:
@@ -16240,7 +16247,7 @@ EXPLAIN
       "table_name": "t2",
       "access_type": "ALL",
       "rows": 90,
-      "filtered": 100,
+      "filtered": 33.333,
       "attached_condition": "t2.b < 40 and t2.a is not null"
     },
     "table": {
@@ -16251,7 +16258,7 @@ EXPLAIN
       "key_length": "5",
       "used_key_parts": ["a"],
       "ref": ["test.t2.a"],
-      "rows": 2,
+      "rows": 1,
       "filtered": 100,
       "attached_condition": "t3.c is not null"
     },
@@ -16307,9 +16314,13 @@ INSERT INTO t4 VALUES
 (5,'zzz'),(9,'xyz'),(2,'yxz'),(5,'zxy'),(7,'zyx') ;
 ANALYZE TABLE t1,t2,t3,t4;
 Table	Op	Msg_type	Msg_text
+test.t1	analyze	status	Engine-independent statistics collected
 test.t1	analyze	status	OK
+test.t2	analyze	status	Engine-independent statistics collected
 test.t2	analyze	status	OK
+test.t3	analyze	status	Engine-independent statistics collected
 test.t3	analyze	status	OK
+test.t4	analyze	status	Engine-independent statistics collected
 test.t4	analyze	status	OK
 CREATE VIEW v1 AS
 SELECT c FROM t3
@@ -16651,8 +16662,11 @@ INSERT INTO t3 VALUES
 (3), (4), (1), (8), (3);
 ANALYZE tables t1,t2,t3;
 Table	Op	Msg_type	Msg_text
+test.t1	analyze	status	Engine-independent statistics collected
 test.t1	analyze	status	OK
+test.t2	analyze	status	Engine-independent statistics collected
 test.t2	analyze	status	OK
+test.t3	analyze	status	Engine-independent statistics collected
 test.t3	analyze	status	OK
 SELECT *
 FROM t3,
@@ -16682,7 +16696,7 @@ WHERE t3.d = dt.b;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
 1	PRIMARY	t3	ALL	NULL	NULL	NULL	NULL	5	100.00	Using where
 1	PRIMARY	<derived2>	ref	key0	key0	5	test.t3.d	2	100.00	
-2	LATERAL DERIVED	t1	ref	idx_b	idx_b	5	test.t3.d	2	100.00	Using index; Using temporary; Using filesort
+2	LATERAL DERIVED	t1	ref	idx_b	idx_b	5	test.t3.d	1	100.00	Using index; Using temporary; Using filesort
 2	LATERAL DERIVED	t2	ALL	NULL	NULL	NULL	NULL	5	100.00	Using join buffer (flat, BNL join)
 Warnings:
 Note	1003	/* select#1 */ select `test`.`t3`.`d` AS `d`,`dt`.`b` AS `b`,`dt`.`c` AS `c` from `test`.`t3` join (/* select#2 */ select `test`.`t1`.`b` AS `b`,`test`.`t2`.`c` AS `c` from `test`.`t1` join `test`.`t2` where `test`.`t1`.`b` = `test`.`t3`.`d` group by `test`.`t1`.`b`,`test`.`t2`.`c`) `dt` where `dt`.`b` = `test`.`t3`.`d`

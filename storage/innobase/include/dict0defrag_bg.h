@@ -27,12 +27,9 @@ Created 25/08/2016 Jan Lindström
 #ifndef dict0defrag_bg_h
 #define dict0defrag_bg_h
 
-#include "univ.i"
-
-#include "dict0types.h"
 #include "os0event.h"
 #include "os0thread.h"
-
+#include "dict0types.h"
 
 /** Indices whose defrag stats need to be saved to persistent storage.*/
 struct defrag_pool_item_t {

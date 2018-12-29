@@ -1846,3 +1846,116 @@ int json_path_compare(const json_path_t *a, const json_path_t *b,
                                  b->steps+1, b->last_step, vt);
 }
 
+
+enum json_types json_type(const char *js, const char *js_end,
+                          const char **v, int *vlen)
+{
+  return JSV_NOTHING;
+}
+
+
+enum json_types json_get_array_item(const char *js, const char *js_end,
+                                    int n_item,
+                                    const char **v, int *vlen)
+{
+  return JSV_NOTHING;
+}
+
+
+enum json_types json_get_object_key(const char *js, const char *js_end,
+                                    const char *key,
+                                    const char **v, int *vlen)
+{
+  return JSV_NOTHING;
+}
+
+
+enum json_types json_get_object_nkey(const char *js,const char *js_end, int nkey,
+                       const char **keyname, const char **keyname_end,
+                       const char **v, int *vlen)
+{
+  return JSV_NOTHING;
+}
+
+/** Simple json lookup for a value by the key.
+
+  Only supports flat json objects.
+  Does not look inside nested objects.
+  Does not process complex path expressions.
+
+  @param js          [in]       json to search in
+  @param js_len      [in]         - " -
+  @param key         [in]       key to search for
+  @param key_len     [in]         - " -
+  @param value_type  [out]      type of the value found or 0 if not found
+  @param value_start [out]      pointer into js (value or closing })
+  @param value_len   [out]      length of the value found or number of keys
+
+  @retval 0 - success
+  @retval 1 - error (invalid json)
+*/
+int json_get_object_by_key(const char *js, size_t js_len,
+                           const char *key, size_t key_len,
+                           enum json_value_types *value_type,
+                           const char **value_start, size_t *value_len)
+{
+  json_engine_t je;
+  json_string_t key_name;
+  int n_keys= 0;
+
+  json_string_set_cs(&key_name, &my_charset_utf8mb4_bin);
+
+  json_scan_start(&je, &my_charset_utf8mb4_bin,(const uchar *) js,
+                  (const uchar *) js + js_len);
+
+  if (json_read_value(&je) ||
+      je.value_type != JSON_VALUE_OBJECT)
+    goto err_return;
+
+  while (!json_scan_next(&je))
+  {
+    switch (je.state)
+    {
+    case JST_KEY:
+      n_keys++;
+      json_string_set_str(&key_name, (const uchar *) key,
+                          (const uchar *) key + key_len);
+      if (!json_key_matches(&je, &key_name))
+      {
+        if (json_skip_key(&je))
+          goto err_return;
+      }
+      else
+      {
+        if (json_read_value(&je))
+          goto err_return;
+        *value_type= je.value_type;
+        *value_start= (const char *) je.value;
+        *value_len= je.value_len;
+        return 0;
+      }
+      break;
+
+    case JST_OBJ_END:
+      *value_type= (enum json_value_types) 0;
+      *value_start= (const char *) (je.s.c_str - je.sav_c_len);
+      *value_len= n_keys;
+      return 0;
+    }
+  }
+
+err_return:
+  return 1;
+}
+
+/** Check if json is valid (well-formed)
+
+  @retval 0 - success, json is well-formed
+  @retval 1 - error, json is invalid
+*/int json_valid(const char *js, size_t js_len, CHARSET_INFO *cs)
+{
+  json_engine_t je;
+  json_scan_start(&je, cs, (const uchar *) js, (const uchar *) js + js_len);
+  while (json_scan_next(&je) == 0) /* no-op */ ;
+  return je.s.error == 0;
+}

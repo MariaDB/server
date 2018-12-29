@@ -322,7 +322,8 @@ FLUSH TABLES;
 # replacing p6 with a crashed MYD file (1) (splitted dynamic record)
 ANALYZE TABLE t1_will_crash;
 Table	Op	Msg_type	Msg_text
-test.t1_will_crash	analyze	status	OK
+test.t1_will_crash	analyze	Warning	Engine-independent statistics are not collected for column 'c'
+test.t1_will_crash	analyze	status	Operation failed
 OPTIMIZE TABLE t1_will_crash;
 Table	Op	Msg_type	Msg_text
 test.t1_will_crash	optimize	info	Found row block followed by deleted block

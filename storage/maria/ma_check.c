@@ -167,6 +167,9 @@ int maria_chk_status(HA_CHECK *param, MARIA_HA *info)
 {
   MARIA_SHARE *share= info->s;
 
+  /* Protection for HA_EXTRA_FLUSH */
+  mysql_mutex_lock(&share->intern_lock);
+
   if (maria_is_crashed_on_repair(info))
     _ma_check_print_warning(param,
 			   "Table is marked as crashed and last repair failed");
@@ -189,6 +192,9 @@ int maria_chk_status(HA_CHECK *param, MARIA_HA *info)
     if (param->testflag & T_UPDATE_STATE)
       param->warning_printed=save;
   }
+
+  mysql_mutex_unlock(&share->intern_lock);
+
   if (share->state.create_trid > param->max_trid)
   {
     param->wrong_trd_printed= 1;       /* Force should run zerofill */

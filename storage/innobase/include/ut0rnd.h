@@ -26,12 +26,9 @@ Created 1/20/1994 Heikki Tuuri
 #ifndef ut0rnd_h
 #define ut0rnd_h
 
-#include "univ.i"
-
-#ifndef UNIV_INNOCHECKSUM
-
 #include "ut0byte.h"
 
+#ifndef UNIV_INNOCHECKSUM
 /** The 'character code' for end of field or string (used
 in folding records */
 #define UT_END_OF_FIELD		257

@@ -221,7 +221,9 @@ bool reload_acl_and_cache(THD *thd, unsigned long long options,
               !thd->mdl_context.has_locks() ||
               thd->handler_tables_hash.records ||
               thd->ull_hash.records ||
-              thd->global_read_lock.is_acquired());
+              thd->global_read_lock.is_acquired() ||
+              thd->current_backup_stage != BACKUP_FINISHED
+              );
 
   /*
     Note that if REFRESH_READ_LOCK bit is set then REFRESH_TABLES is set too
@@ -231,6 +233,7 @@ bool reload_acl_and_cache(THD *thd, unsigned long long options,
   {
     if ((options & REFRESH_READ_LOCK) && thd)
     {
+      DBUG_ASSERT(!(options & REFRESH_FAST) && !tables);
       /*
         On the first hand we need write lock on the tables to be flushed,
         on the other hand we must not try to aspire a global read lock
@@ -242,6 +245,7 @@ bool reload_acl_and_cache(THD *thd, unsigned long long options,
         my_error(ER_LOCK_OR_ACTIVE_TRANSACTION, MYF(0));
         return 1;
       }
+
       /*
 	Writing to the binlog could cause deadlocks, as we don't log
 	UNLOCK TABLES
@@ -249,9 +253,7 @@ bool reload_acl_and_cache(THD *thd, unsigned long long options,
       tmp_write_to_binlog= 0;
       if (thd->global_read_lock.lock_global_read_lock(thd))
 	return 1;                               // Killed
-      if (close_cached_tables(thd, tables,
-                              ((options & REFRESH_FAST) ?  FALSE : TRUE),
-                              thd->variables.lock_wait_timeout))
+      if (flush_tables(thd, FLUSH_ALL))
       {
         /*
           NOTE: my_error() has been already called by reopen_tables() within
@@ -274,11 +276,9 @@ bool reload_acl_and_cache(THD *thd, unsigned long long options,
         make_global_read_lock_block_commit(thd) above since they could have
         modified the tables too.
       */
-      if (WSREP(thd) &&
-          close_cached_tables(thd, tables, (options & REFRESH_FAST) ?
-                              FALSE : TRUE, TRUE))
-          result= 1;
-     }
+      if (WSREP(thd) && flush_tables(thd, FLUSH_ALL))
+        result= 1;
+    }
     else
     {
       if (thd && thd->locked_tables_mode)
@@ -311,8 +311,8 @@ bool reload_acl_and_cache(THD *thd, unsigned long long options,
             with global read lock.
           */
           if (thd->open_tables &&
-              !thd->mdl_context.is_lock_owner(MDL_key::GLOBAL, "", "",
-                                              MDL_INTENTION_EXCLUSIVE))
+              !thd->mdl_context.is_lock_owner(MDL_key::BACKUP, "", "",
+                                              MDL_BACKUP_DDL))
           {
             my_error(ER_TABLE_NOT_LOCKED_FOR_WRITE, MYF(0),
                      thd->open_tables->s->table_name.str);
@@ -332,25 +332,21 @@ bool reload_acl_and_cache(THD *thd, unsigned long long options,
       }
 
 #ifdef WITH_WSREP
-      if (thd && thd->wsrep_applier)
+      /* In case of applier thread, do not call flush tables */
+      if (!thd || !thd->wsrep_applier)
+#endif /* WITH_WSREP */
       {
-        /*
-          In case of applier thread, do not wait for table share(s) to be
-          removed from table definition cache.
-        */
-        options|= REFRESH_FAST;
-      }
-#endif
-      if (close_cached_tables(thd, tables,
-                              ((options & REFRESH_FAST) ?  FALSE : TRUE),
-                              (thd ? thd->variables.lock_wait_timeout :
-                               LONG_TIMEOUT)))
-      {
-        /*
-          NOTE: my_error() has been already called by reopen_tables() within
-          close_cached_tables().
-        */
-        result= 1;
+        if (close_cached_tables(thd, tables,
+                                ((options & REFRESH_FAST) ?  FALSE : TRUE),
+                                (thd ? thd->variables.lock_wait_timeout :
+                                 LONG_TIMEOUT)))
+        {
+          /*
+            NOTE: my_error() has been already called by reopen_tables() within
+            close_cached_tables().
+          */
+          result= 1;
+        }
       }
     }
     my_dbopt_cleanup();
@@ -420,6 +416,11 @@ bool reload_acl_and_cache(THD *thd, unsigned long long options,
 #endif
  if (options & REFRESH_USER_RESOURCES)
    reset_mqh((LEX_USER *) NULL, 0);             /* purecov: inspected */
+ if (options & REFRESH_SSL)
+ {
+   if (reinit_ssl())
+     result= 1;
+ }
  if (options & REFRESH_GENERIC)
  {
    List_iterator_fast<LEX_CSTRING> li(thd->lex->view_list);

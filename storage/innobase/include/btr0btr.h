@@ -28,12 +28,9 @@ Created 6/2/1994 Heikki Tuuri
 #ifndef btr0btr_h
 #define btr0btr_h
 
-#include "univ.i"
-
 #include "dict0dict.h"
 #include "data0data.h"
 #include "page0cur.h"
-#include "mtr0mtr.h"
 #include "btr0types.h"
 #include "gis0type.h"
 
@@ -175,24 +172,19 @@ record is in spatial index */
 				| BTR_LATCH_FOR_DELETE		\
 				| BTR_MODIFY_EXTERNAL)))
 
-/**************************************************************//**
-Report that an index page is corrupted. */
-void
-btr_corruption_report(
-/*==================*/
-	const buf_block_t*	block,	/*!< in: corrupted block */
-	const dict_index_t*	index)	/*!< in: index tree */
-	ATTRIBUTE_COLD __attribute__((nonnull));
+/** Report that an index page is corrupted.
+@param[in]	buffer block
+@param[in]	index tree */
+ATTRIBUTE_COLD ATTRIBUTE_NORETURN __attribute__((nonnull))
+void btr_corruption_report(const buf_block_t* block,const dict_index_t* index);
 
 /** Assert that a B-tree page is not corrupted.
 @param block buffer block containing a B-tree page
 @param index the B-tree index */
-#define btr_assert_not_corrupted(block, index)			\
-	if ((ibool) !!page_is_comp(buf_block_get_frame(block))	\
-	    != dict_table_is_comp((index)->table)) {		\
-		btr_corruption_report(block, index);		\
-		ut_error;					\
-	}
+#define btr_assert_not_corrupted(block, index)		\
+	if (!!page_is_comp(buf_block_get_frame(block))	\
+	    != index->table->not_redundant())		\
+		btr_corruption_report(block, index)
 
 /**************************************************************//**
 Gets the root node of a tree and sx-latches it for segment access.

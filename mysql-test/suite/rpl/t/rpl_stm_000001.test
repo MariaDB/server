@@ -4,7 +4,6 @@
 -- source include/master-slave.inc
 
 CALL mtr.add_suppression("Unsafe statement written to the binary log using statement format since BINLOG_FORMAT = STATEMENT");
---let $engine_type= myisam
 
 # Load some data into t1
 create table t1 (word char(20) not null);
@@ -19,7 +18,7 @@ select * from t1 limit 10;
 sync_slave_with_master;
 stop slave;
 connection master;
-create temporary table tmp select * from mysql.user where host="localhost" and user="root";
+create temporary table tmp select * from mysql.global_priv where host="localhost" and user="root";
 set password for root@"localhost" = password('foo');
 connection slave;
 start slave;
@@ -28,7 +27,7 @@ connection master;
 # Give slave time to do at last one failed connect retry
 # This one must be short so that the slave will not stop retrying
 real_sleep 2;
-replace into mysql.user select * from tmp;
+replace into mysql.global_priv select * from tmp;
 drop temporary table tmp;
 flush privileges;
 # Give slave time to connect (will retry every second)
@@ -48,7 +47,7 @@ sync_slave_with_master;
 
 connection master;
 # we'll use table-level locking to delay slave SQL thread
-eval create table t1 (n int) engine=$engine_type;
+eval create table t1 (n int);
 sync_slave_with_master;
 connection master;
 reset master;
@@ -114,20 +113,6 @@ connection slave;
 select count(*) from t1;
 connection master1;
 drop table t1;
-create table t1 (n int);
-insert into t1 values(3456);
-insert ignore into mysql.user (Host, User, Password)
- VALUES ("10.10.10.%", "blafasel2", password("blafasel2"));
-select select_priv,user from mysql.user where user = _binary'blafasel2';
-update mysql.user set Select_priv = "Y" where User= _binary"blafasel2";
-select select_priv,user from mysql.user where user = _binary'blafasel2';
-sync_slave_with_master;
-select n from t1;
-select select_priv,user from mysql.user where user = _binary'blafasel2';
-connection master1;
-drop table t1;
-delete from mysql.user where user="blafasel2";
-sync_slave_with_master;
 
 # End of 4.1 tests
 --source include/rpl_end.inc

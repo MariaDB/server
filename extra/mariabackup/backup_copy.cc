@@ -1395,7 +1395,9 @@ static lsn_t get_current_lsn(MYSQL *connection)
 					    "SHOW ENGINE INNODB STATUS",
 					    true, false)) {
 		if (MYSQL_ROW row = mysql_fetch_row(res)) {
-			if (const char *p = strstr(row[2], lsn_prefix)) {
+			const char *p= strstr(row[2], lsn_prefix);
+			DBUG_ASSERT(p);
+			if (p) {
 				p += sizeof lsn_prefix - 1;
 				lsn = lsn_t(strtoll(p, NULL, 10));
 			}
@@ -1483,7 +1485,7 @@ bool backup_start()
 		write_binlog_info(mysql_connection);
 	}
 
-	if (have_flush_engine_logs) {
+	if (have_flush_engine_logs && !opt_no_lock) {
 		msg_ts("Executing FLUSH NO_WRITE_TO_BINLOG ENGINE LOGS...\n");
 		xb_mysql_query(mysql_connection,
 			"FLUSH NO_WRITE_TO_BINLOG ENGINE LOGS", false);

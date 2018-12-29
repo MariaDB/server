@@ -3,7 +3,7 @@ source include/have_collation.inc;
 source include/master-slave.inc;
 
 call mtr.add_suppression("Can't find record in 't.'");
-call mtr.add_suppression("Can't find record in 'user'");
+call mtr.add_suppression("Can't find record in 'global_priv'");
 call mtr.add_suppression("Can't find record in 'tables_priv'");
 
 #
@@ -69,7 +69,7 @@ create table mysqltest2.t2 (id int);
 GRANT SELECT ON mysqltest2.t2 TO mysqltest4@localhost IDENTIFIED BY 'pass';
 
 # Create a grant manually
-insert into mysql.user (user, host) values ("mysqltest5", "somehost");
+insert into mysql.global_priv (user, host) values ("mysqltest5", "somehost");
 
 # Partial replicate 3 with *.*
 GRANT SELECT ON *.* TO mysqltest6@localhost;

@@ -9,6 +9,7 @@ tt	1	b	1	b	A	4	NULL	NULL	YES	BTREE
 tt	1	c	1	c	A	4	NULL	NULL	YES	BTREE		
 analyze table tt;
 Table	Op	Msg_type	Msg_text
+test.tt	analyze	status	Engine-independent statistics collected
 test.tt	analyze	status	OK
 show indexes from tt;
 Table	Non_unique	Key_name	Seq_in_index	Column_name	Collation	Cardinality	Sub_part	Packed	Null	Index_type	Comment	Index_comment
@@ -23,6 +24,7 @@ tt	1	c	1	c	A	4	NULL	NULL	YES	BTREE
 tt	1	d	1	d	A	4	NULL	NULL	YES	BTREE		
 analyze table tt;
 Table	Op	Msg_type	Msg_text
+test.tt	analyze	status	Engine-independent statistics collected
 test.tt	analyze	status	OK
 show indexes from tt;
 Table	Non_unique	Key_name	Seq_in_index	Column_name	Collation	Cardinality	Sub_part	Packed	Null	Index_type	Comment	Index_comment

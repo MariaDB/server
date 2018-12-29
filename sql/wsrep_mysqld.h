@@ -36,6 +36,7 @@ typedef struct st_mysql_show_var SHOW_VAR;
 #include "wsrep/provider.hpp"
 #include "wsrep_api.h"
 #include <vector>
+#include "wsrep_server_state.h"
 
 #define WSREP_UNDEFINED_TRX_ID ULONGLONG_MAX
 
@@ -536,8 +537,6 @@ int wsrep_ordered_commit_if_no_binlog(THD*, bool);
  * @return WSREP_OK on success or other WSREP_* error code on failure
  */
 wsrep_status_t wsrep_tc_log_commit(THD* thd);
-
-#include "wsrep_server_state.h"
 
 /**
  * Initialize WSREP server instance.

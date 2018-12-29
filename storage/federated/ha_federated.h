@@ -146,6 +146,7 @@ public:
             HA_NO_PREFIX_CHAR_KEYS | HA_PRIMARY_KEY_REQUIRED_FOR_DELETE |
             HA_NO_TRANSACTIONS /* until fixed by WL#2952 */ |
             HA_PARTIAL_COLUMN_READ | HA_NULL_IN_KEY |
+            HA_CAN_ONLINE_BACKUPS |
             HA_CAN_REPAIR);
   }
   /*

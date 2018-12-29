@@ -657,7 +657,7 @@ dtuple_convert_big_rec(
 
 	while (page_zip_rec_needs_ext(rec_get_converted_size(index, entry,
 							     *n_ext),
-				      dict_table_is_comp(index->table),
+				      index->table->not_redundant(),
 				      dict_index_get_n_fields(index),
 				      dict_table_page_size(index->table))) {
 		longest_i = 0;

@@ -625,6 +625,131 @@ CREATE TABLE t1 (a TIMESTAMP);
 INSERT INTO t1 SELECT CAST(20010101 AS UNSIGNED);
 DROP TABLE t1;
 
+
+--echo #
+--echo # MDEV-17928 Conversion from TIMESTAMP to VARCHAR SP variables does not work well on fractional digits
+--echo #
+
+SET time_zone='+00:00';
+SET timestamp=UNIX_TIMESTAMP('2001-01-01 10:20:30.123456');
+DELIMITER $$;
+CREATE PROCEDURE p1()
+BEGIN
+  DECLARE ts10 TIMESTAMP(1) DEFAULT NOW();
+  DECLARE ts16 TIMESTAMP(1) DEFAULT NOW(6);
+  DECLARE dt10 DATETIME(1) DEFAULT NOW();
+  DECLARE dt16 DATETIME(1) DEFAULT NOW(6);
+  DECLARE vts10 VARCHAR(32) DEFAULT ts10;
+  DECLARE vts16 VARCHAR(32) DEFAULT ts16;
+  DECLARE vdt10 VARCHAR(32) DEFAULT dt10;
+  DECLARE vdt16 VARCHAR(32) DEFAULT dt16;
+  DECLARE tts10 TEXT(32) DEFAULT ts10;
+  DECLARE tts16 TEXT(32) DEFAULT ts16;
+  DECLARE tdt10 TEXT(32) DEFAULT dt10;
+  DECLARE tdt16 TEXT(32) DEFAULT dt16;
+
+  SELECT vts10, vts16, vdt10, vdt16;
+  SELECT tts10, tts16, tdt10, tdt16;
+END;
+$$
+DELIMITER ;$$
+--vertical_results
+CALL p1;
+--horizontal_results
+DROP PROCEDURE p1;
+SET timestamp=DEFAULT;
+SET time_zone=DEFAULT;
+
+--echo #
+--echo # MDEV-13995 MAX(timestamp) returns a wrong result near DST change
+--echo #
+
+--echo # Testing Item_func_rollup_const::val_native()
+
+--echo # There is a bug in the below output (MDEV-16612)
+--echo # Please remove this comment when MDEV-16612 is fixed and results are re-recorded
+
+CREATE TABLE t1 (id INT);
+INSERT INTO t1 VALUES (1),(2);
+DELIMITER $$;
+BEGIN NOT ATOMIC
+  DECLARE v TIMESTAMP DEFAULT '2001-01-01 10:20:30'; -- "v" will be wrapped into Item_func_rollup_const
+  SELECT id, v AS v, COUNT(*) FROM t1 GROUP BY id,v WITH ROLLUP;
+END;
+$$
+DELIMITER ;$$
+DROP TABLE t1;
+
+--echo #
+--echo # Testing Type_handler_timestamp_common::Item_save_in_field()
+--echo # "txt" is expected to have three fractional digits
+SET time_zone='+00:00';
+SET timestamp=UNIX_TIMESTAMP('2001-01-01 10:20:30.123456');
+CREATE TABLE t1 (ts1 TIMESTAMP(1) NOT NULL, ts2 TIMESTAMP(3) NOT NULL, txt TEXT);
+INSERT INTO t1 VALUES ('0000-00-00 00:00:00', '0000-00-00 00:00:00',COALESCE(ts1,ts2));
+INSERT INTO t1 VALUES (NOW(),NOW(),COALESCE(ts1,ts2));
+INSERT INTO t1 VALUES (NOW(1),NOW(3),COALESCE(ts1,ts2));
+SELECT * FROM t1;
+DROP TABLE t1;
+SET timestamp=DEFAULT;
+SET time_zone=DEFAULT;
+
+--echo #
+--echo # Testing Field_timestamp::store_native
+--echo #
+
+SET sql_mode='';
+CREATE TABLE t1 (a TIMESTAMP, b TIMESTAMP);
+INSERT INTO t1 VALUES ('0000-00-00 00:00:00','0000-00-00 00:00:00');
+SET sql_mode='STRICT_ALL_TABLES,NO_ZERO_DATE';
+--error ER_TRUNCATED_WRONG_VALUE
+UPDATE t1 SET a=b;
+--error ER_TRUNCATED_WRONG_VALUE
+UPDATE t1 SET a=COALESCE(b);
+DROP TABLE t1;
+SET sql_mode=DEFAULT;
+
+--echo #
+--echo # MDEV-17979 Assertion `0' failed in Item::val_native upon SELECT with timestamp, NULLIF, GROUP BY
+--echo #
+
+CREATE TABLE t1 (a INT, b TIMESTAMP) ENGINE=MyISAM;
+INSERT INTO t1 VALUES (1,'2018-06-19 00:00:00');
+SELECT NULLIF(b, 'N/A') AS f, MAX(a) FROM t1 GROUP BY f;
+DROP TABLE t1;
+
+--echo #
+--echo # MDEV-17972 Assertion `is_valid_value_slow()' failed in Datetime::Datetime
+--echo #
+
+let $MYSQLD_DATADIR= `select @@datadir`;
+SET time_zone='+00:00';
+CREATE TABLE t1 (a TIMESTAMP(6)) ENGINE=MyISAM;
+INSERT INTO t1 VALUES ('2001-01-01 10:20:30');
+FLUSH TABLES;
+--remove_file $MYSQLD_DATADIR/test/t1.MYD
+--disable_query_log
+# Write a data file with one record:
+# 0xFF       - record flags
+# 0x77777777 - TIMESTAMP integer part
+# 0xFFFFFF   - TIMESTAMP bad fractional part
+--eval SELECT CONCAT(0xFF,0x77777777,0xFFFFFF) INTO OUTFILE '$MYSQLD_DATADIR/test/t1.MYD' FIELDS TERMINATED BY '' ESCAPED BY '' LINES TERMINATED BY ''
+--eval SELECT HEX(LOAD_FILE('$MYSQLD_DATADIR/test/t1.MYD')) AS MYD
+--enable_query_log
+SELECT a, CAST(a AS DATETIME) AS dt0, CAST(a AS DATETIME(6)) AS dt6 FROM t1;
+DROP TABLE t1;
+SET time_zone=DEFAULT;
+
+--echo #
+--echo # MDEV-18072 Assertion `is_null() == item->null_value || conv' failed in Timestamp_or_zero_datetime_native_null::Timestamp_or_zero_datetime_native_null upon query with GROUP BY
+--echo #
+
+CREATE TABLE t1 (t TIMESTAMP);
+INSERT INTO t1 () VALUES (),();
+SELECT IF(0,t,NULL) AS f FROM t1 GROUP BY 'foo';
+DROP TABLE t1;
+
+
 --echo #
 --echo # End of 10.4 tests
 --echo #

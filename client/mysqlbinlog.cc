@@ -1598,7 +1598,7 @@ static struct my_option my_options[] =
    &opt_default_auth, &opt_default_auth, 0,
    GET_STR, REQUIRED_ARG, 0, 0, 0, 0, 0, 0},
   {"disable-log-bin", 'D', "Disable binary log. This is useful, if you "
-    "enabled --to-last-log and are sending the output to the same MySQL server. "
+    "enabled --to-last-log and are sending the output to the same MariaDB server. "
     "This way you could avoid an endless loop. You would also like to use it "
     "when restoring after a crash to avoid duplication of the statements you "
     "already have. NOTE: you will need a SUPER privilege to use this option.",
@@ -1643,7 +1643,7 @@ static struct my_option my_options[] =
   {"protocol", OPT_MYSQL_PROTOCOL,
    "The protocol to use for connection (tcp, socket, pipe).",
    0, 0, 0, GET_STR,  REQUIRED_ARG, 0, 0, 0, 0, 0, 0},
-  {"read-from-remote-server", 'R', "Read binary logs from a MySQL server.",
+  {"read-from-remote-server", 'R', "Read binary logs from a MariaDB server.",
    &remote_opt, &remote_opt, 0, GET_BOOL, NO_ARG, 0, 0, 0, 0,
    0, 0},
   {"raw", 0, "Requires -R. Output raw binlog data instead of SQL "
@@ -1696,7 +1696,7 @@ static struct my_option my_options[] =
   {"start-datetime", OPT_START_DATETIME,
    "Start reading the binlog at first event having a datetime equal or "
    "posterior to the argument; the argument must be a date and time "
-   "in the local time zone, in any format accepted by the MySQL server "
+   "in the local time zone, in any format accepted by the MariaDB server "
    "for DATETIME and TIMESTAMP types, for example: 2004-12-25 11:25:56 "
    "(you should probably use quotes for your shell to set it properly).",
    &start_datetime_str, &start_datetime_str,
@@ -1714,7 +1714,7 @@ static struct my_option my_options[] =
   {"stop-datetime", OPT_STOP_DATETIME,
    "Stop reading the binlog at first event having a datetime equal or "
    "posterior to the argument; the argument must be a date and time "
-   "in the local time zone, in any format accepted by the MySQL server "
+   "in the local time zone, in any format accepted by the MariaDB server "
    "for DATETIME and TIMESTAMP types, for example: 2004-12-25 11:25:56 "
    "(you should probably use quotes for your shell to set it properly).",
    &stop_datetime_str, &stop_datetime_str,
@@ -1738,7 +1738,7 @@ static struct my_option my_options[] =
    0, 0, 0, 0, 0, 0},
   {"to-last-log", 't', "Requires -R. Will not stop at the end of the \
 requested binlog but rather continue printing until the end of the last \
-binlog of the MySQL server. If you send the output to the same MySQL server, \
+binlog of the MariaDB server. If you send the output to the same MariaDB server, \
 that may lead to an endless loop.",
    &to_last_remote_log, &to_last_remote_log, 0, GET_BOOL,
    NO_ARG, 0, 0, 0, 0, 0, 0},
@@ -1875,7 +1875,7 @@ static void usage()
   print_version();
   puts(ORACLE_WELCOME_COPYRIGHT_NOTICE("2000"));
   printf("\
-Dumps a MySQL binary log in a format usable for viewing or for piping to\n\
+Dumps a MariaDB binary log in a format usable for viewing or for piping to\n\
 the mysql command line client.\n\n");
   printf("Usage: %s [options] log-files\n", my_progname);
   print_defaults("my",load_groups);
@@ -2281,7 +2281,7 @@ static Exit_status check_master_version()
     break;
   default:
     error("Could not find server version: "
-          "Master reported unrecognized MySQL version '%s'.", row[0]);
+          "Master reported unrecognized MariaDB version '%s'.", row[0]);
     goto err;
   }
   if (!glob_description_event || !glob_description_event->is_valid())

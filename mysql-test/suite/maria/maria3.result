@@ -209,11 +209,13 @@ create table t2 like t1;
 insert into t2 select * from t1;
 analyze table t2;
 Table	Op	Msg_type	Msg_text
+test.t2	analyze	status	Engine-independent statistics collected
 test.t2	analyze	status	Table is already up to date
 delete from t2;
 insert into t2 select * from t1;
 analyze table t2;
 Table	Op	Msg_type	Msg_text
+test.t2	analyze	status	Engine-independent statistics collected
 test.t2	analyze	status	Table is already up to date
 drop table t1,t2;
 create table t1 (a bigint auto_increment, primary key(a), b char(255), c varchar(20000));

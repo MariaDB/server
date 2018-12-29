@@ -591,7 +591,7 @@ inconsistent:
 		} else {
 			col->def_val.data = btr_copy_externally_stored_field(
 				&col->def_val.len, data,
-				dict_table_page_size(index->table),
+				cur.page_cur.block->page.size,
 				len, index->table->heap);
 		}
 	}
@@ -1054,6 +1054,25 @@ static ulint btr_node_ptr_max_size(const dict_index_t* index)
 
 		field_max_size = dict_col_get_max_size(col);
 		if (UNIV_UNLIKELY(!field_max_size)) {
+			switch (col->mtype) {
+			case DATA_CHAR:
+			case DATA_MYSQL:
+				/* CHAR(0) is a possible data type.
+				The InnoDB internal SQL parser maps
+				CHAR to DATA_VARCHAR, so DATA_CHAR (or
+				DATA_MYSQL) is only coming from the
+				MariaDB SQL layer. */
+				if (comp) {
+					/* Add a length byte, because
+					fixed-length empty field are
+					encoded as variable-length.
+					For ROW_FORMAT=REDUNDANT,
+					these bytes were added to
+					rec_max_size before this loop. */
+					rec_max_size++;
+				}
+				continue;
+			}
 			/* SYS_FOREIGN.ID is defined as CHAR in the
 			InnoDB internal SQL parser, which translates
 			into the incorrect VARCHAR(0).  InnoDB does
@@ -3661,10 +3680,16 @@ btr_cur_pessimistic_insert(
 		}
 	}
 
+	DBUG_ASSERT(!entry->is_alter_metadata()
+		    || !dfield_is_ext(
+			    dtuple_get_nth_field(entry,
+						 index->first_user_field())));
+
 	if (page_zip_rec_needs_ext(rec_get_converted_size(index, entry, n_ext),
-				   dict_table_is_comp(index->table),
+				   index->table->not_redundant(),
 				   dtuple_get_n_fields(entry),
-				   dict_table_page_size(index->table))) {
+				   btr_cur_get_block(cursor)->page.size)
+	    || UNIV_UNLIKELY(entry->is_alter_metadata())) {
 		/* The record is so big that we have to store some fields
 		externally on separate database pages */
 
@@ -4258,6 +4283,72 @@ func_exit:
 	return(err);
 }
 
+/** Trim a metadata record during the rollback of instant ALTER TABLE.
+@param[in]	entry	metadata tuple
+@param[in]	index	primary key
+@param[in]	update	update vector for the rollback */
+ATTRIBUTE_COLD
+static void btr_cur_trim_alter_metadata(dtuple_t* entry,
+					const dict_index_t* index,
+					const upd_t* update)
+{
+	ut_ad(index->is_instant());
+	ut_ad(update->is_alter_metadata());
+	ut_ad(entry->is_alter_metadata());
+
+	ut_ad(update->fields[0].field_no == index->first_user_field());
+	ut_ad(update->fields[0].new_val.ext);
+	ut_ad(update->fields[0].new_val.len == FIELD_REF_SIZE);
+	ut_ad(entry->n_fields - 1 == index->n_fields);
+
+	const byte* ptr = static_cast<const byte*>(
+		update->fields[0].new_val.data);
+	ut_ad(!mach_read_from_4(ptr + BTR_EXTERN_LEN));
+	ut_ad(mach_read_from_4(ptr + BTR_EXTERN_LEN + 4) > 4);
+	ut_ad(mach_read_from_4(ptr + BTR_EXTERN_OFFSET) == FIL_PAGE_DATA);
+	ut_ad(mach_read_from_4(ptr + BTR_EXTERN_SPACE_ID)
+	      == index->table->space->id);
+
+	ulint n_fields = update->fields[1].field_no;
+	ut_ad(n_fields <= index->n_fields);
+	if (n_fields != index->n_uniq) {
+		ut_ad(n_fields
+		      >= index->n_core_fields);
+		entry->n_fields = n_fields;
+		return;
+	}
+
+	/* This is based on dict_table_t::deserialise_columns()
+	and btr_cur_instant_init_low(). */
+	mtr_t mtr;
+	mtr.start();
+	buf_block_t* block = buf_page_get(
+		page_id_t(index->table->space->id,
+			  mach_read_from_4(ptr + BTR_EXTERN_PAGE_NO)),
+		univ_page_size, RW_S_LATCH, &mtr);
+	buf_block_dbg_add_level(block, SYNC_EXTERN_STORAGE);
+	ut_ad(fil_page_get_type(block->frame) == FIL_PAGE_TYPE_BLOB);
+	ut_ad(mach_read_from_4(&block->frame[FIL_PAGE_DATA
+					     + BTR_BLOB_HDR_NEXT_PAGE_NO])
+	      == FIL_NULL);
+	ut_ad(mach_read_from_4(&block->frame[FIL_PAGE_DATA
+					     + BTR_BLOB_HDR_PART_LEN])
+	      == mach_read_from_4(ptr + BTR_EXTERN_LEN + 4));
+	n_fields = mach_read_from_4(
+		&block->frame[FIL_PAGE_DATA + BTR_BLOB_HDR_SIZE])
+		+ index->first_user_field();
+	/* Rollback should not increase the number of fields. */
+	ut_ad(n_fields <= index->n_fields);
+	ut_ad(n_fields + 1 <= entry->n_fields);
+	/* dict_index_t::clear_instant_alter() cannot be invoked while
+	rollback of an instant ALTER TABLE transaction is in progress
+	for an is_alter_metadata() record. */
+	ut_ad(n_fields >= index->n_core_fields);
+
+	mtr.commit();
+	entry->n_fields = n_fields + 1;
+}
+
 /** Trim an update tuple due to instant ADD COLUMN, if needed.
 For normal records, the trailing instantly added fields that match
 the initial default values are omitted.
@@ -4284,6 +4375,7 @@ btr_cur_trim(
 		(instant ALTER TABLE on a table where instant ALTER was
 		already executed) or rolling back such an operation. */
 		ut_ad(!upd_get_nth_field(update, 0)->orig_len);
+		ut_ad(entry->is_metadata());
 
 		if (thr->graph->trx->in_rollback) {
 			/* This rollback can occur either as part of
@@ -4301,17 +4393,11 @@ btr_cur_trim(
 			innobase_add_instant_try(). */
 			ut_ad(update->n_fields > 2);
 			if (update->is_alter_metadata()) {
-				ut_ad(update->fields[0].field_no
-				      == index->first_user_field());
-				ut_ad(update->fields[0].new_val.ext);
-				ut_ad(update->fields[0].new_val.len
-				      == FIELD_REF_SIZE);
-				ut_ad(entry->n_fields - 1 == index->n_fields);
-				ulint n_fields = update->fields[1].field_no;
-				ut_ad(n_fields <= index->n_fields);
-				entry->n_fields = n_fields;
+				btr_cur_trim_alter_metadata(
+					entry, index, update);
 				return;
 			}
+			ut_ad(!entry->is_alter_metadata());
 
 			ulint n_fields = upd_get_nth_field(update, 0)
 				->field_no;
@@ -4472,7 +4558,7 @@ any_extern:
 
 		if (page_zip_rec_needs_ext(new_rec_size, page_is_comp(page),
 					   dict_index_get_n_fields(index),
-					   dict_table_page_size(index->table))) {
+					   block->page.size)) {
 			goto any_extern;
 		}
 
@@ -5836,7 +5922,8 @@ btr_cur_pessimistic_delete(
 			only user record, also delete the metadata record
 			if one exists for instant ADD COLUMN
 			(not generic ALTER TABLE).
-			If we are deleting the metadata record and the
+			If we are deleting the metadata record
+			(in the rollback of instant ALTER TABLE) and the
 			table becomes empty, clean up the whole page. */
 
 			const rec_t* first_rec = page_rec_get_next_const(
@@ -7439,8 +7526,8 @@ btr_store_big_rec_extern_fields(
 	ut_ad(buf_block_get_frame(rec_block) == page_align(rec));
 	ut_a(dict_index_is_clust(index));
 
-	ut_a(dict_table_page_size(index->table)
-		.equals_to(rec_block->page.size));
+	ut_ad(dict_table_page_size(index->table)
+	      .equals_to(rec_block->page.size));
 
 	btr_blob_log_check_t redo_log(pcur, btr_mtr, offsets, &rec_block,
 				      &rec, op);
@@ -7485,15 +7572,13 @@ btr_store_big_rec_extern_fields(
 	}
 #endif /* UNIV_DEBUG || UNIV_BLOB_LIGHT_DEBUG */
 
-	const page_size_t	page_size(dict_table_page_size(index->table));
-
 	/* Space available in compressed page to carry blob data */
-	const ulint	payload_size_zip = page_size.physical()
+	const ulint	payload_size_zip = rec_block->page.size.physical()
 		- FIL_PAGE_DATA;
 
 	/* Space available in uncompressed page to carry blob data */
-	const ulint	payload_size = page_size.physical()
-		- FIL_PAGE_DATA - BTR_BLOB_HDR_SIZE - FIL_PAGE_DATA_END;
+	const ulint	payload_size = payload_size_zip
+		- (BTR_BLOB_HDR_SIZE + FIL_PAGE_DATA_END);
 
 	/* We have to create a file segment to the tablespace
 	for each field and put the pointer to the field in rec */

@@ -16,12 +16,26 @@
 #ifndef SQL_STATISTICS_H
 #define SQL_STATISTICS_H
 
+/*
+  For COMPLEMENTARY_FOR_QUERIES and PREFERABLY_FOR_QUERIES they are
+  similar to the COMPLEMENTARY and PREFERABLY respectively except that
+  with these values we would not be collecting EITS for queries like
+    ANALYZE TABLE t1;
+  To collect EITS with these values, we have to use PERSISITENT FOR
+  analyze table t1 persistent for
+     columns (col1,col2...) index (idx1, idx2...)
+     or
+  analyze table t1 persistent for all
+*/
+
 typedef
 enum enum_use_stat_tables_mode
 {
   NEVER,
   COMPLEMENTARY,
   PREFERABLY,
+  COMPLEMENTARY_FOR_QUERIES,
+  PREFERABLY_FOR_QUERIES
 } Use_stat_tables_mode;
 
 typedef
@@ -87,6 +101,19 @@ Use_stat_tables_mode get_use_stat_tables_mode(THD *thd)
 { 
   return (Use_stat_tables_mode) (thd->variables.use_stat_tables);
 }
+inline
+bool check_eits_collection_allowed(THD *thd)
+{
+  return (get_use_stat_tables_mode(thd) == COMPLEMENTARY ||
+          get_use_stat_tables_mode(thd) == PREFERABLY);
+}
+
+inline
+bool check_eits_preferred(THD *thd)
+{
+  return (get_use_stat_tables_mode(thd) == PREFERABLY ||
+          get_use_stat_tables_mode(thd) == PREFERABLY_FOR_QUERIES);
+}
 
 int read_statistics_for_tables_if_needed(THD *thd, TABLE_LIST *tables);
 int collect_statistics_for_table(THD *thd, TABLE *table);
@@ -112,6 +139,7 @@ double get_column_range_cardinality(Field *field,
                                     key_range *max_endp,
                                     uint range_flag);
 bool is_stat_table(const LEX_CSTRING *db, LEX_CSTRING *table);
+bool is_eits_usable(Field* field);
 
 class Histogram
 {

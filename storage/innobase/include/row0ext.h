@@ -26,12 +26,11 @@ Created September 2006 Marko Makela
 #ifndef row0ext_h
 #define row0ext_h
 
-#include "univ.i"
-#include "row0types.h"
 #include "data0types.h"
 #include "mem0mem.h"
 #include "dict0types.h"
 #include "page0size.h"
+#include "row0types.h"
 
 /********************************************************************//**
 Creates a cache of column prefixes of externally stored columns.

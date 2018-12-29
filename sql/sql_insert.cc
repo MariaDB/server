@@ -552,10 +552,10 @@ bool open_and_lock_for_insert_delayed(THD *thd, TABLE_LIST *table_list)
     If this goes ok, the tickets are cloned and added to the list of granted
     locks held by the handler thread.
   */
-  if (thd->global_read_lock.can_acquire_protection())
+  if (thd->has_read_only_protection())
     DBUG_RETURN(TRUE);
 
-  protection_request.init(MDL_key::GLOBAL, "", "", MDL_INTENTION_EXCLUSIVE,
+  protection_request.init(MDL_key::BACKUP, "", "", MDL_BACKUP_DML,
                           MDL_STATEMENT);
 
   if (thd->mdl_context.acquire_lock(&protection_request,
@@ -645,7 +645,7 @@ create_insert_stmt_from_insert_delayed(THD *thd, String *buf)
   if (buf->append(thd->query()) ||
       buf->replace(thd->lex->keyword_delayed_begin_offset,
                    thd->lex->keyword_delayed_end_offset -
-                   thd->lex->keyword_delayed_begin_offset, 0))
+                   thd->lex->keyword_delayed_begin_offset, NULL, 0))
     return 1;
   return 0;
 }
@@ -2379,9 +2379,12 @@ bool delayed_get_table(THD *thd, MDL_request *grl_protection_request,
       di->table_list.alias.str=    di->table_list.table_name.str=    di->thd.query();
       di->table_list.alias.length= di->table_list.table_name.length= di->thd.query_length();
       di->table_list.db= di->thd.db;
-      /* We need the tickets so that they can be cloned in handle_delayed_insert */
-      di->grl_protection.init(MDL_key::GLOBAL, "", "",
-                              MDL_INTENTION_EXCLUSIVE, MDL_STATEMENT);
+      /*
+        We need the tickets so that they can be cloned in
+        handle_delayed_insert
+      */
+      di->grl_protection.init(MDL_key::BACKUP, "", "",
+                              MDL_BACKUP_DML, MDL_STATEMENT);
       di->grl_protection.ticket= grl_protection_request->ticket;
       init_mdl_requests(&di->table_list);
       di->table_list.mdl_request.ticket= table_list->mdl_request.ticket;
@@ -2456,10 +2459,12 @@ bool delayed_get_table(THD *thd, MDL_request *grl_protection_request,
   }
   /* Unlock the delayed insert object after its last access. */
   di->unlock();
-  DBUG_RETURN((table_list->table == NULL));
+  DBUG_PRINT("exit", ("table_list->table: %p", table_list->table));
+  DBUG_RETURN(thd->is_error());
 
 end_create:
   mysql_mutex_unlock(&LOCK_delayed_create);
+  DBUG_PRINT("exit", ("is_error: %d", thd->is_error()));
   DBUG_RETURN(thd->is_error());
 }
 
@@ -2514,24 +2519,27 @@ TABLE *Delayed_insert::get_local_table(THD* client_thd)
     if (thd.killed)
     {
       /*
-        Copy the error message. Note that we don't treat fatal
-        errors in the delayed thread as fatal errors in the
-        main thread. If delayed thread was killed, we don't
-        want to send "Server shutdown in progress" in the
-        INSERT THREAD.
-
-        The thread could be killed with an error message if
-        di->handle_inserts() or di->open_and_lock_table() fails.
-        The thread could be killed without an error message if
-        killed using THD::notify_shared_lock() or
-        kill_delayed_threads_for_table().
+        Check how the insert thread was killed. If it was killed
+        by FLUSH TABLES which calls kill_delayed_threads_for_table(),
+        then is_error is not set.
+        In this case, return without setting an error,
+        which means that the insert will be converted to a normal insert.
       */
-      if (!thd.is_error())
-        my_message(ER_QUERY_INTERRUPTED, ER_THD(&thd, ER_QUERY_INTERRUPTED),
-                   MYF(0));
-      else
+      if (thd.is_error())
+      {
+        /*
+          Copy the error message. Note that we don't treat fatal
+          errors in the delayed thread as fatal errors in the
+          main thread. If delayed thread was killed, we don't
+          want to send "Server shutdown in progress" in the
+          INSERT THREAD.
+
+          The thread could be killed with an error message if
+          di->handle_inserts() or di->open_and_lock_table() fails.
+        */
         my_message(thd.get_stmt_da()->sql_errno(),
                    thd.get_stmt_da()->message(), MYF(0));
+      }
       goto error;
     }
   }
@@ -3091,11 +3099,30 @@ pthread_handler_t handle_delayed_insert(void *arg)
         mysql_mutex_unlock(&di->thd.mysys_var->mutex);
         mysql_mutex_lock(&di->mutex);
       }
-      DBUG_PRINT("delayed",
-                 ("thd->killed: %d  di->tables_in_use: %d  thd->lock: %d",
-                  thd->killed, di->tables_in_use, thd->lock != 0));
 
-      if (di->tables_in_use && ! thd->lock && !thd->killed)
+      /*
+        The code depends on that the following ASSERT always hold.
+        I don't want to accidently introduce and bugs in the following code
+        in this commit, so I leave the small cleaning up of the code to
+        a future commit
+      */
+      DBUG_ASSERT(thd->lock || di->stacked_inserts == 0);
+
+      DBUG_PRINT("delayed",
+                 ("thd->killed: %d  di->status: %d  di->stacked_insert: %d  di->tables_in_use: %d  thd->lock: %d",
+                  thd->killed, di->status, di->stacked_inserts, di->tables_in_use, thd->lock != 0));
+
+      /*
+        This is used to test see what happens if killed is sent before
+        we have time to handle the insert requests.
+      */
+      DBUG_EXECUTE_IF("write_delay_wakeup",
+                      if (!thd->killed && di->stacked_inserts)
+                        my_sleep(500000);
+                      );
+
+      if (di->tables_in_use && ! thd->lock &&
+          (!thd->killed || di->stacked_inserts))
       {
         /*
           Request for new delayed insert.
@@ -3653,20 +3680,24 @@ select_insert::prepare(List<Item> &values, SELECT_LEX_UNIT *u)
                           &map);
     lex->first_select_lex()->no_wrap_view_item= FALSE;
     /*
-      When we are not using GROUP BY and there are no ungrouped aggregate functions 
-      we can refer to other tables in the ON DUPLICATE KEY part.
-      We use next_name_resolution_table descructively, so check it first (views?)
+      When we are not using GROUP BY and there are no ungrouped
+      aggregate functions we can refer to other tables in the ON
+      DUPLICATE KEY part.  We use next_name_resolution_table
+      descructively, so check it first (views?)
     */
     DBUG_ASSERT (!table_list->next_name_resolution_table);
     if (lex->first_select_lex()->group_list.elements == 0 &&
         !lex->first_select_lex()->with_sum_func)
+    {
       /*
-        We must make a single context out of the two separate name resolution contexts :
-        the INSERT table and the tables in the SELECT part of INSERT ... SELECT.
-        To do that we must concatenate the two lists
+        We must make a single context out of the two separate name
+        resolution contexts : the INSERT table and the tables in the
+        SELECT part of INSERT ... SELECT.  To do that we must
+        concatenate the two lists
       */  
       table_list->next_name_resolution_table= 
         ctx_state.get_first_name_resolution_table();
+    }
 
     res= res || setup_fields(thd, Ref_ptr_array(), *info.update_values,
                              MARK_COLUMNS_READ, 0, NULL, 0);
@@ -3767,9 +3798,9 @@ select_insert::prepare(List<Item> &values, SELECT_LEX_UNIT *u)
     void
 
   DESCRIPTION
-    If the result table is the same as one of the source tables (INSERT SELECT),
-    the result table is not finally prepared at the join prepair phase.
-    Do the final preparation now.
+    If the result table is the same as one of the source tables
+    (INSERT SELECT), the result table is not finally prepared at the
+    join prepair phase.  Do the final preparation now.
 		       
   RETURN
     0   OK
@@ -4396,8 +4427,6 @@ select_create::prepare(List<Item> &_values, SELECT_LEX_UNIT *u)
   {
     thd->binlog_start_trans_and_stmt();
   }
-
-  DEBUG_SYNC(thd,"create_table_select_before_check_if_exists");
 
   if (!(table= create_table_from_items(thd, &values, &extra_lock, hook_ptr)))
     /* abort() deletes table */

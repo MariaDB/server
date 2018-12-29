@@ -24,8 +24,8 @@ INSERT INTO db SELECT * FROM tmp_db WHERE @had_db_table=0;
 DROP TABLE tmp_db;
 
 -- Anonymous user with no privileges.
-CREATE TEMPORARY TABLE tmp_user_anonymous LIKE user;
+CREATE TEMPORARY TABLE tmp_user_anonymous LIKE global_priv;
 INSERT INTO tmp_user_anonymous (host,user) VALUES ('localhost','');
 INSERT INTO tmp_user_anonymous (host,user) SELECT @current_hostname,'' FROM dual WHERE @current_hostname != 'localhost';
-INSERT INTO user SELECT * FROM tmp_user_anonymous WHERE @had_user_table=0;
+INSERT INTO global_priv SELECT * FROM tmp_user_anonymous WHERE @had_user_table=0;
 DROP TABLE tmp_user_anonymous;

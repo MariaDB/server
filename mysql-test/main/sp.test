@@ -2918,7 +2918,7 @@ create procedure bug4904()
 begin
   declare continue handler for sqlstate 'HY000' begin end;
 
-  create table t2 as select * from t3;
+  create table not_existing_table as select * from t3;
 end|
 
 -- error 1146
