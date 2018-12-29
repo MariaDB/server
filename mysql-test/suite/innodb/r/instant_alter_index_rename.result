@@ -13,15 +13,25 @@ b int,
 c int,
 unique index a_key (a),
 key c_key (c)
-) engine=innodb;
+) engine=innodb stats_persistent=1;
 insert into t values (1, 1, 1, 1);
 set @table_id = (select table_id from information_schema.innodb_sys_tables where name='test/t');
 set @a_key_id = get_index_id(@table_id, 'a_key');
 set @c_key_id = get_index_id(@table_id, 'c_key');
 set @primary_id = get_index_id(@table_id, 'primary');
+select distinct(index_name) from mysql.innodb_index_stats where table_name = 't';
+index_name
+PRIMARY
+a_key
+c_key
 alter table t
 drop index a_key,
 add unique index a_key_strikes_back (a);
+select distinct(index_name) from mysql.innodb_index_stats where table_name = 't';
+index_name
+PRIMARY
+a_key_strikes_back
+c_key
 check table t;
 Table	Op	Msg_type	Msg_text
 test.t	check	status	OK
@@ -67,7 +77,8 @@ drop table t;
 drop function get_index_id;
 create table errors (
 a int,
-unique key a_key (a)
+unique key a_key (a),
+b int
 ) engine=innodb;
 alter table errors
 drop key a_key,
@@ -79,6 +90,11 @@ drop key a_key,
 drop key a_key2,
 add unique key a_key2 (a);
 ERROR 42000: Can't DROP INDEX `a_key2`; check that it exists
+alter table errors
+add key b_key (b),
+drop key b_key,
+add key bb_key (b);
+ERROR 42000: Can't DROP INDEX `b_key`; check that it exists
 drop table errors;
 create table corrupted (
 a int,

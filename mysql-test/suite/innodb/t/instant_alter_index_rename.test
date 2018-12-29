@@ -20,7 +20,7 @@ create table t (
   c int,
   unique index a_key (a),
   key c_key (c)
-) engine=innodb;
+) engine=innodb stats_persistent=1;
 
 insert into t values (1, 1, 1, 1);
 
@@ -30,9 +30,11 @@ set @a_key_id = get_index_id(@table_id, 'a_key');
 set @c_key_id = get_index_id(@table_id, 'c_key');
 set @primary_id = get_index_id(@table_id, 'primary');
 
+select distinct(index_name) from mysql.innodb_index_stats where table_name = 't';
 alter table t
   drop index a_key,
   add unique index a_key_strikes_back (a);
+select distinct(index_name) from mysql.innodb_index_stats where table_name = 't';
 
 check table t;
 select @a_key_id = get_index_id(@table_id, 'a_key_strikes_back'),
@@ -75,7 +77,8 @@ drop function get_index_id;
 
 create table errors (
   a int,
-  unique key a_key (a)
+  unique key a_key (a),
+  b int
 ) engine=innodb;
 
 --error ER_CANT_DROP_FIELD_OR_KEY
@@ -89,6 +92,12 @@ alter table errors
   drop key a_key,
   drop key a_key2,
   add unique key a_key2 (a);
+
+--error ER_CANT_DROP_FIELD_OR_KEY
+alter table errors
+  add key b_key (b),
+  drop key b_key,
+  add key bb_key (b);
 
 drop table errors;
 

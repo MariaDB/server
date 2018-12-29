@@ -3840,7 +3840,6 @@ dict_stats_rename_table(
 	return(ret);
 }
 
-#ifdef MYSQL_RENAME_INDEX
 /*********************************************************************//**
 Renames an index in InnoDB persistent stats storage.
 This function creates its own transaction and commits it.
@@ -3897,7 +3896,6 @@ dict_stats_rename_index(
 
 	return(ret);
 }
-#endif /* MYSQL_RENAME_INDEX */
 
 /* tests @{ */
 #ifdef UNIV_ENABLE_UNIT_TEST_DICT_STATS

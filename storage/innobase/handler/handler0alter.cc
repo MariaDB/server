@@ -2362,7 +2362,6 @@ innobase_check_index_keys(
 				}
 			}
 
-
 			my_error(ER_WRONG_NAME_FOR_INDEX, MYF(0),
                                  key.name.str);
 			return(ER_WRONG_NAME_FOR_INDEX);
@@ -9225,6 +9224,29 @@ alter_stats_norebuild(
 			push_warning(thd,
 				     Sql_condition::WARN_LEVEL_WARN,
 				     ER_LOCK_WAIT_TIMEOUT, errstr);
+		}
+	}
+
+	for (const Alter_inplace_info::Rename_key_pair *it
+	     = ha_alter_info->rename_keys.begin(),
+	     *end = ha_alter_info->rename_keys.end();
+	     it != end; ++it) {
+		dberr_t err = dict_stats_rename_index(ctx->new_table,
+						      it->old_key->name.str,
+						      it->new_key->name.str);
+
+		if (err != DB_SUCCESS) {
+			push_warning_printf(
+				thd,
+				Sql_condition::WARN_LEVEL_WARN,
+				ER_ERROR_ON_RENAME,
+				"Error renaming an index of table '%s'"
+				" from '%s' to '%s' in InnoDB persistent"
+				" statistics storage: %s",
+				ctx->new_table->name.m_name,
+				it->old_key->name.str,
+				it->new_key->name.str,
+				ut_strerr(err));
 		}
 	}
 
