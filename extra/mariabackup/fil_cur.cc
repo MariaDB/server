@@ -314,10 +314,16 @@ static bool page_is_corrupted(byte *page, ulint page_no, xb_fil_cur_t *cursor,
 		return false;
 	}
 
-	/* Validate encrypted pages. */
-	if (mach_read_from_4(page + FIL_PAGE_FILE_FLUSH_LSN_OR_KEY_VERSION)
-	    && (space->crypt_data
-		&& space->crypt_data->type != CRYPT_SCHEME_UNENCRYPTED)) {
+	/* Validate encrypted pages. The first page is never encrypted.
+	In the system tablespace, the first page would be written with
+	FIL_PAGE_FILE_FLUSH_LSN at shutdown, and if the LSN exceeds
+	4,294,967,295, the mach_read_from_4() below would wrongly
+	interpret the page as encrypted. We prevent that by checking
+	page_no first. */
+	if (page_no
+	    && mach_read_from_4(page + FIL_PAGE_FILE_FLUSH_LSN_OR_KEY_VERSION)
+	    && space->crypt_data
+	    && space->crypt_data->type != CRYPT_SCHEME_UNENCRYPTED) {
 
 		if (!fil_space_verify_crypt_checksum(page, cursor->page_size))
 			return true;
