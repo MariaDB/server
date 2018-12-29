@@ -98,9 +98,6 @@ SET DEBUG_SYNC='RESET';
 
 DROP TABLE t1;
 
-# Wait till all disconnects are completed
---source include/wait_until_count_sessions.inc
-
 --echo #
 --echo # MDEV-17470 Orphan temporary files after interrupted ALTER
 --echo # cause InnoDB: Operating system error number 17 and eventual
@@ -117,14 +114,21 @@ INSERT INTO t1 SELECT NULL, i FROM t1;
 LOCK TABLE t1 READ;
 
 --connect (con1,localhost,root,,test)
-SET max_statement_time= 1;
---error ER_STATEMENT_TIMEOUT
-ALTER TABLE t1 FORCE, ALGORITHM=COPY;
-SET DEBUG_SYNC = 'now SIGNAL stop_waining';
---disconnect con1
+let $ID= `SELECT @id := CONNECTION_ID()`;
+send ALTER TABLE t1 FORCE, ALGORITHM=COPY;
 
 --connection default
-SET DEBUG_SYNC = 'now WAIT_FOR stop_waining';
+let $wait_condition= select 1 from information_schema.processlist where state='Waiting for table metadata lock';
+source include/wait_condition.inc;
+let $ignore= `SELECT @id := $ID`;
+kill query @id;
+--connection con1
+--error ER_QUERY_INTERRUPTED
+reap;
+--disconnect con1
+--connection default
 UNLOCK TABLES;
 DROP TABLE t1;
-SET DEBUG_SYNC = 'RESET';
+
+# Wait till all disconnects are completed
+--source include/wait_until_count_sessions.inc
