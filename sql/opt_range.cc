@@ -2734,10 +2734,6 @@ bool create_key_parts_for_pseudo_indexes(RANGE_OPT_PARAM *param,
 {
   Field **field_ptr;
   TABLE *table= param->table;
-  partition_info *part_info= NULL;
-  #ifdef WITH_PARTITION_STORAGE_ENGINE
-    part_info= table->part_info;
-  #endif
   uint parts= 0;
 
   for (field_ptr= table->field; *field_ptr; field_ptr++)

@@ -37,3 +37,21 @@ id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 1	SIMPLE	t0	ALL	NULL	NULL	NULL	NULL	10	
 1	SIMPLE	t2	range	a,b	b	5	NULL	201	Using where; Using join buffer (flat, BNL join)
 drop table t0,t1,t2;
+CREATE TABLE t1 (
+pk INT PRIMARY KEY, f1 INT, f2 CHAR(1), f3 CHAR(1),
+KEY(f1), KEY(f2)
+) ENGINE=InnoDB;
+INSERT INTO t1 VALUES
+(1,4,'v',NULL),(2,6,'v',NULL),(3,7,'c',NULL),(4,1,'e',NULL),(5,0,'x',NULL),
+(6,7,'i',NULL),(7,7,'e',NULL),(8,1,'p',NULL),(9,7,'s',NULL),(10,1,'j',NULL),
+(11,5,'z',NULL),(12,2,'c',NULL),(13,0,'a',NULL),(14,1,'q',NULL),(15,8,'y',NULL),
+(16,1,'m',NULL),(17,1,'r',NULL),(18,9,'v',NULL),(19,1,'n',NULL);
+CREATE TABLE t2 (f4 INT, f5 CHAR(1)) ENGINE=InnoDB;
+INSERT INTO t2 VALUES (4,'q'),(NULL,'j');
+SELECT * FROM t1 AS t1_1, t1 AS t1_2, t2
+WHERE f5 = t1_2.f2 AND ( t1_1.f1 = 103 AND t1_1.f2 = 'o' OR t1_1.pk < f4 );
+pk	f1	f2	f3	pk	f1	f2	f3	f4	f5
+1	4	v	NULL	14	1	q	NULL	4	q
+2	6	v	NULL	14	1	q	NULL	4	q
+3	7	c	NULL	14	1	q	NULL	4	q
+drop table t1,t2;

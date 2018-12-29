@@ -1198,6 +1198,7 @@ static bool deny_updates_if_read_only_option(THD *thd, TABLE_LIST *all_tables)
     DBUG_RETURN(FALSE);
 
   if (lex->sql_command == SQLCOM_CREATE_DB ||
+      lex->sql_command == SQLCOM_ALTER_DB ||
       lex->sql_command == SQLCOM_DROP_DB)
     DBUG_RETURN(TRUE);
 

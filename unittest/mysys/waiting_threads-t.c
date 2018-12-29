@@ -136,10 +136,8 @@ retry:
   pthread_mutex_unlock(&lock);
   pthread_mutex_unlock(& thds[id].lock);
   wt_thd_destroy(& thds[id].thd);
-
-  if (!--running_threads) /* now, signal when everybody is done with deinit */
-    pthread_cond_signal(&cond);
   pthread_mutex_unlock(&mutex);
+
   DBUG_PRINT("wt", ("exiting"));
   my_thread_end();
   return 0;

@@ -4470,7 +4470,8 @@ do_drop:
 					char msg_tablename[MAX_FULL_NAME_LEN + 1];
 
 					innobase_format_name(
-						msg_tablename, sizeof(tablename),
+						msg_tablename,
+						sizeof msg_tablename,
 						tablename, FALSE);
 
 					ib_logf(IB_LOG_LEVEL_INFO,
