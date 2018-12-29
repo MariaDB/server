@@ -677,7 +677,7 @@ mtr_t::x_lock_space(ulint space_id, const char* file, unsigned line)
 		ut_ad(get_log_mode() != MTR_LOG_NO_REDO
 		      || space->purpose == FIL_TYPE_TEMPORARY
 		      || space->purpose == FIL_TYPE_IMPORT
-		      || my_atomic_loadlint(&space->redo_skipped_count) > 0);
+		      || space->redo_skipped_count > 0);
 	}
 
 	ut_ad(space);

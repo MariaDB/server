@@ -621,7 +621,7 @@ fsp_space_modify_check(
 	case MTR_LOG_NO_REDO:
 		ut_ad(space->purpose == FIL_TYPE_TEMPORARY
 		      || space->purpose == FIL_TYPE_IMPORT
-		      || my_atomic_loadlint(&space->redo_skipped_count));
+		      || space->redo_skipped_count);
 		return;
 	case MTR_LOG_ALL:
 		/* We may only write redo log for a persistent tablespace. */

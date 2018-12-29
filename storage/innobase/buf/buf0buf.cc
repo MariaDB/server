@@ -1396,7 +1396,7 @@ pfs_register_buffer_block(
 			: NULL;
 
 #   ifdef UNIV_DEBUG
-		rwlock = &block->debug_latch;
+		rwlock = block->debug_latch;
 		ut_a(!rwlock->pfs_psi);
 		rwlock->pfs_psi = (PSI_server)
 			? PSI_server->init_rwlock(buf_block_debug_latch_key,
@@ -1458,6 +1458,7 @@ buf_block_init(
 	page_zip_des_init(&block->page.zip);
 
 	mutex_create(LATCH_ID_BUF_BLOCK_MUTEX, &block->mutex);
+	ut_d(block->debug_latch = (rw_lock_t *) ut_malloc_nokey(sizeof(rw_lock_t)));
 
 #if defined PFS_SKIP_BUFFER_MUTEX_RWLOCK || defined PFS_GROUP_BUFFER_SYNC
 	/* If PFS_SKIP_BUFFER_MUTEX_RWLOCK is defined, skip registration
@@ -1469,7 +1470,7 @@ buf_block_init(
 
 	rw_lock_create(PFS_NOT_INSTRUMENTED, &block->lock, SYNC_LEVEL_VARYING);
 
-	ut_d(rw_lock_create(PFS_NOT_INSTRUMENTED, &block->debug_latch,
+	ut_d(rw_lock_create(PFS_NOT_INSTRUMENTED, block->debug_latch,
 			    SYNC_LEVEL_VARYING));
 
 #else /* PFS_SKIP_BUFFER_MUTEX_RWLOCK || PFS_GROUP_BUFFER_SYNC */
@@ -1477,7 +1478,7 @@ buf_block_init(
 	rw_lock_create(buf_block_lock_key, &block->lock, SYNC_LEVEL_VARYING);
 
 	ut_d(rw_lock_create(buf_block_debug_latch_key,
-			    &block->debug_latch, SYNC_LEVEL_VARYING));
+			    block->debug_latch, SYNC_LEVEL_VARYING));
 
 #endif /* PFS_SKIP_BUFFER_MUTEX_RWLOCK || PFS_GROUP_BUFFER_SYNC */
 
@@ -1736,6 +1737,16 @@ buf_pool_set_sizes(void)
 	buf_pool_mutex_exit_all();
 }
 
+/** Free the synchronization objects of a buffer pool block descriptor
+@param[in,out]	block	buffer pool block descriptor */
+static void buf_block_free_mutexes(buf_block_t* block)
+{
+	mutex_free(&block->mutex);
+	rw_lock_free(&block->lock);
+	ut_d(rw_lock_free(block->debug_latch));
+	ut_d(ut_free(block->debug_latch));
+}
+
 /********************************************************************//**
 Initialize a buffer pool instance.
 @return DB_SUCCESS if all goes well. */
@@ -1799,11 +1810,7 @@ buf_pool_init_instance(
 					buf_block_t*	block = chunk->blocks;
 
 					for (i = chunk->size; i--; block++) {
-						mutex_free(&block->mutex);
-						rw_lock_free(&block->lock);
-
-						ut_d(rw_lock_free(
-							&block->debug_latch));
+						buf_block_free_mutexes(block);
 					}
 
 					buf_pool->allocator.deallocate_large(
@@ -1949,10 +1956,7 @@ buf_pool_free_instance(
 		buf_block_t*	block = chunk->blocks;
 
 		for (ulint i = chunk->size; i--; block++) {
-			mutex_free(&block->mutex);
-			rw_lock_free(&block->lock);
-
-			ut_d(rw_lock_free(&block->debug_latch));
+			buf_block_free_mutexes(block);
 		}
 
 		buf_pool->allocator.deallocate_large(
@@ -2826,11 +2830,7 @@ withdraw_retry:
 
 				for (ulint j = chunk->size;
 				     j--; block++) {
-					mutex_free(&block->mutex);
-					rw_lock_free(&block->lock);
-
-					ut_d(rw_lock_free(
-						&block->debug_latch));
+					buf_block_free_mutexes(block);
 				}
 
 				buf_pool->allocator.deallocate_large(
@@ -4750,7 +4750,7 @@ evict_from_pool:
 	if (!fsp_is_system_temporary(page_id.space())) {
 		ibool   ret;
 		ret = rw_lock_s_lock_nowait(
-			&fix_block->debug_latch, file, line);
+			fix_block->debug_latch, file, line);
 		ut_a(ret);
 	}
 #endif /* UNIV_DEBUG */

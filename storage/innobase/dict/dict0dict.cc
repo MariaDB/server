@@ -437,7 +437,7 @@ dict_table_try_drop_aborted(
 	dict_table_t*	table,		/*!< in: table, or NULL if it
 					needs to be looked up again */
 	table_id_t	table_id,	/*!< in: table identifier */
-	int32		ref_count)	/*!< in: expected table->n_ref_count */
+	uint32_t	ref_count)	/*!< in: expected table->n_ref_count */
 {
 	trx_t*		trx;
 

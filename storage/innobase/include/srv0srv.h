@@ -143,7 +143,8 @@ struct srv_stats_t
 	ulint_ctr_1_t		n_lock_wait_count;
 
 	/** Number of threads currently waiting on database locks */
-	simple_atomic_counter<>	n_lock_wait_current_count;
+	MY_ALIGNED(CACHE_LINE_SIZE) Atomic_counter<ulint>
+				n_lock_wait_current_count;
 
 	/** Number of rows read. */
 	ulint_ctr_64_t		n_rows_read;
@@ -447,7 +448,7 @@ extern uint	srv_fast_shutdown;	/*!< If this is 1, do not do a
 
 /** Signal to shut down InnoDB (NULL if shutdown was signaled, or if
 running in innodb_read_only mode, srv_read_only_mode) */
-extern st_my_thread_var *srv_running;
+extern std::atomic<st_my_thread_var *> srv_running;
 
 extern ibool	srv_innodb_status;
 

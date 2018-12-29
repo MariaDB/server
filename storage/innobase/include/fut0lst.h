@@ -125,7 +125,7 @@ flst_remove(
 @param[in]	base	base node
 @return length */
 UNIV_INLINE
-ulint
+uint32_t
 flst_get_len(
 	const flst_base_node_t*	base);
 /********************************************************************//**

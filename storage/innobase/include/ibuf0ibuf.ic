@@ -78,7 +78,8 @@ struct ibuf_t{
 	ulint		height;		/*!< tree height */
 	dict_index_t*	index;		/*!< insert buffer index */
 
-	ulint		n_merges;	/*!< number of pages merged */
+	/** number of pages merged */
+	Atomic_counter<ulint> n_merges;
 	ulint		n_merged_ops[IBUF_OP_COUNT];
 					/*!< number of operations of each type
 					merged to index pages */

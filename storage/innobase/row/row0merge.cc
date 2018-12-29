@@ -1977,8 +1977,8 @@ row_merge_read_clustered_index(
 				goto scan_next;
 			}
 
-			if (my_atomic_load32_explicit(&clust_index->lock.waiters,
-						      MY_MEMORY_ORDER_RELAXED)) {
+			if (clust_index->lock.waiters.load(
+						std::memory_order_relaxed)) {
 				/* There are waiters on the clustered
 				index tree lock, likely the purge
 				thread. Store and restore the cursor

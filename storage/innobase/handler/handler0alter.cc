@@ -497,8 +497,9 @@ inline void dict_index_t::instant_add_field(const dict_index_t& instant)
 
 /** Adjust table metadata for instant ADD/DROP/reorder COLUMN.
 @param[in]	table	altered table (with dropped columns)
-@param[in]	col_map	mapping from cols[] and v_cols[] to table */
-inline void dict_table_t::instant_column(const dict_table_t& table,
+@param[in]	col_map	mapping from cols[] and v_cols[] to table
+@return		whether the metadata record must be updated */
+inline bool dict_table_t::instant_column(const dict_table_t& table,
 					 const ulint* col_map)
 {
 	DBUG_ASSERT(!table.cached);
@@ -537,6 +538,14 @@ inline void dict_table_t::instant_column(const dict_table_t& table,
 				      & ~(DATA_NOT_NULL | DATA_VERSIONED)));
 			DBUG_ASSERT(c.mtype == o->mtype);
 			DBUG_ASSERT(c.len >= o->len);
+
+			if (o->vers_sys_start()) {
+				ut_ad(o->ind == vers_start);
+				vers_start = i;
+			} else if (o->vers_sys_end()) {
+				ut_ad(o->ind == vers_end);
+				vers_end = i;
+			}
 			continue;
 		}
 
@@ -608,10 +617,16 @@ inline void dict_table_t::instant_column(const dict_table_t& table,
 	}
 
 	dict_index_t* index = dict_table_get_first_index(this);
-
-	index->instant_add_field(*dict_table_get_first_index(&table));
+	bool metadata_changed;
+	{
+		const dict_index_t& i = *dict_table_get_first_index(&table);
+		metadata_changed = i.n_fields > index->n_fields;
+		ut_ad(i.n_fields >= index->n_fields);
+		index->instant_add_field(i);
+	}
 
 	if (instant || table.instant) {
+		const auto old_instant = instant;
 		/* FIXME: add instant->heap, and transfer ownership here */
 		if (!instant) {
 			instant = new (mem_heap_zalloc(heap, sizeof *instant))
@@ -631,6 +646,15 @@ dup_dropped:
 		}
 
 		init_instant<true>(table);
+
+		if (!metadata_changed) {
+			metadata_changed = !old_instant
+				|| memcmp(old_instant->field_map,
+					  instant->field_map,
+					  (index->n_fields
+					   - index->first_user_field())
+					  * sizeof *old_instant->field_map);
+		}
 	}
 
 	while ((index = dict_table_get_next_index(index)) != NULL) {
@@ -678,6 +702,7 @@ dup_dropped:
 
 	n_cols = table.n_cols;
 	n_v_cols = table.n_v_cols;
+	return metadata_changed;
 }
 
 /** Find the old column number for the given new column position.
@@ -700,6 +725,7 @@ static ulint find_old_col_no(const ulint* col_map, ulint pos, ulint n)
 @param[in]	old_instant		original instant structure
 @param[in]	old_fields		original fields
 @param[in]	old_n_fields		original number of fields
+@param[in]	old_n_core_fields	original number of core fields
 @param[in]	old_n_v_cols		original n_v_cols
 @param[in]	old_v_cols		original v_cols
 @param[in]	old_v_col_names		original v_col_names
@@ -711,6 +737,7 @@ inline void dict_table_t::rollback_instant(
 	dict_instant_t*	old_instant,
 	dict_field_t*	old_fields,
 	unsigned	old_n_fields,
+	unsigned	old_n_core_fields,
 	unsigned	old_n_v_cols,
 	dict_v_col_t*	old_v_cols,
 	const char*	old_v_col_names,
@@ -730,6 +757,7 @@ inline void dict_table_t::rollback_instant(
 	DBUG_ASSERT(n_cols == n_def);
 	DBUG_ASSERT(index->n_def == index->n_fields);
 	DBUG_ASSERT(index->n_core_fields <= index->n_fields);
+	DBUG_ASSERT(old_n_core_fields <= old_n_fields);
 	DBUG_ASSERT(instant || !old_instant);
 
 	instant = old_instant;
@@ -746,11 +774,12 @@ inline void dict_table_t::rollback_instant(
 		UT_DELETE(v_cols[i].v_indexes);
 	}
 
+	index->n_core_fields = (index->n_fields == index->n_core_fields)
+		? old_n_fields
+		: old_n_core_fields;
 	index->n_def = index->n_fields = old_n_fields;
-	if (index->n_core_fields > old_n_fields) {
-		index->n_core_fields = old_n_fields;
-		index->n_core_null_bytes = UT_BITS_IN_BYTES(index->n_nullable);
-	}
+	index->n_core_null_bytes = UT_BITS_IN_BYTES(
+		index->get_n_nullable(index->n_core_fields));
 
 	const dict_col_t* const new_cols = cols;
 	const dict_col_t* const new_cols_end = cols + n_cols;
@@ -764,6 +793,16 @@ inline void dict_table_t::rollback_instant(
 	n_def = n_cols = old_n_cols;
 	n_v_def = n_v_cols = old_n_v_cols;
 	n_t_def = n_t_cols = n_cols + n_v_cols;
+
+	if (versioned()) {
+		for (unsigned i = 0; i < n_cols; ++i) {
+			if (cols[i].vers_sys_start()) {
+				vers_start = i;
+			} else if (cols[i].vers_sys_end()) {
+				vers_end = i;
+			}
+		}
+	}
 
 	index->fields = old_fields;
 	mtr.commit();
@@ -884,6 +923,8 @@ struct ha_innobase_inplace_ctx : public inplace_alter_handler_ctx
 	dict_field_t* const	old_fields;
 	/** size of old_fields */
 	const unsigned		old_n_fields;
+	/** original old_table->n_core_fields */
+	const unsigned		old_n_core_fields;
 	/** original number of virtual columns in the table */
 	const unsigned		old_n_v_cols;
 	/** original virtual columns of the table */
@@ -951,6 +992,8 @@ struct ha_innobase_inplace_ctx : public inplace_alter_handler_ctx
 		old_instant(prebuilt_arg->table->instant),
 		old_fields(prebuilt_arg->table->indexes.start->fields),
 		old_n_fields(prebuilt_arg->table->indexes.start->n_fields),
+		old_n_core_fields(prebuilt_arg->table->indexes.start
+				  ->n_core_fields),
 		old_n_v_cols(prebuilt_arg->table->n_v_cols),
 		old_v_cols(prebuilt_arg->table->v_cols),
 		old_v_col_names(prebuilt_arg->table->v_col_names),
@@ -1024,13 +1067,14 @@ struct ha_innobase_inplace_ctx : public inplace_alter_handler_ctx
 					       first_alter_pos);
 	}
 
-	/** Adjust table metadata for instant ADD/DROP/reorder COLUMN. */
-	void instant_column()
+	/** Adjust table metadata for instant ADD/DROP/reorder COLUMN.
+	@return whether the metadata record must be updated */
+	bool instant_column()
 	{
 		DBUG_ASSERT(is_instant());
 		DBUG_ASSERT(old_n_fields
 			    == old_table->indexes.start->n_fields);
-		old_table->instant_column(*instant_table, col_map);
+		return old_table->instant_column(*instant_table, col_map);
 	}
 
 	/** Revert prepare_instant() if the transaction is rolled back. */
@@ -1041,6 +1085,7 @@ struct ha_innobase_inplace_ctx : public inplace_alter_handler_ctx
 					    old_cols, old_col_names,
 					    old_instant,
 					    old_fields, old_n_fields,
+					    old_n_core_fields,
 					    old_n_v_cols, old_v_cols,
 					    old_v_col_names,
 					    col_map);
@@ -4089,7 +4134,7 @@ innobase_build_col_map(
 	Alter_inplace_info*	ha_alter_info,
 	const TABLE*		altered_table,
 	const TABLE*		table,
-	const dict_table_t*	new_table,
+	dict_table_t*		new_table,
 	const dict_table_t*	old_table,
 	dtuple_t*		defaults,
 	mem_heap_t*		heap)
@@ -4163,6 +4208,13 @@ innobase_build_col_map(
 				}
 
 				col_map[old_i - num_old_v] = i;
+				if (old_table->versioned()) {
+					if (old_i == old_table->vers_start) {
+						new_table->vers_start = i;
+					} else if (old_i == old_table->vers_end) {
+						new_table->vers_end = i;
+					}
+				}
 				goto found_col;
 			}
 		}
@@ -5413,7 +5465,7 @@ static bool innobase_instant_try(
 	const dict_col_t* old_cols = user_table->cols;
 	DBUG_ASSERT(user_table->n_cols == ctx->old_n_cols);
 
-	ctx->instant_column();
+	const bool metadata_changed = ctx->instant_column();
 
 	DBUG_ASSERT(index->n_fields >= n_old_fields);
 	/* Release the page latch. Between this and the next
@@ -5596,6 +5648,10 @@ add_all_virtual:
 		if (!page_has_next(block->frame)
 		    && page_rec_is_last(rec, block->frame)) {
 			goto empty_table;
+		}
+
+		if (!metadata_changed) {
+			goto func_exit;
 		}
 
 		/* Ensure that the root page is in the correct format. */
@@ -10271,14 +10327,6 @@ commit_cache_norebuild(
 							  && c.len > 255),
 						      f->fixed_len);
 				}
-			}
-
-			DBUG_ASSERT(!ctx->instant_table->persistent_autoinc
-				    || ctx->new_table->persistent_autoinc
-				    == ctx->instant_table->persistent_autoinc);
-
-			if (!ctx->instant_table->persistent_autoinc) {
-				ctx->new_table->persistent_autoinc = 0;
 			}
 		}
 	}

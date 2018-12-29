@@ -2416,9 +2416,7 @@ void srv_shutdown_bg_undo_sources()
 /** Shut down InnoDB. */
 void innodb_shutdown()
 {
-	ut_ad(!my_atomic_loadptr_explicit(reinterpret_cast<void**>
-					  (&srv_running),
-					  MY_MEMORY_ORDER_RELAXED));
+	ut_ad(!srv_running.load(std::memory_order_relaxed));
 	ut_ad(!srv_undo_sources);
 
 	switch (srv_operation) {

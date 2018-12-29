@@ -83,6 +83,7 @@ used throughout InnoDB but do not include too much themselves.  They
 support cross-platform development and expose comonly used SQL names. */
 
 #include <my_global.h>
+#include "my_counter.h"
 
 /* JAN: TODO: missing 5.7 header */
 #ifdef HAVE_MY_THREAD_H

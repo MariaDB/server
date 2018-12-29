@@ -618,7 +618,8 @@ public:
 		ut_ad(mtype == DATA_INT || mtype == DATA_FIXBINARY);
 		return mtype == DATA_INT;
 	}
-	/** @return whether this is system versioned */
+	/** @return whether this user column (not row_start, row_end)
+		    has System Versioning property */
 	bool is_versioned() const { return !(~prtype & DATA_VERSIONED); }
 	/** @return whether this is the system version start */
 	bool vers_sys_start() const
@@ -1615,11 +1616,7 @@ struct dict_table_t {
 
 	/** Get reference count.
 	@return current value of n_ref_count */
-	inline int32 get_ref_count()
-	{
-		return my_atomic_load32_explicit(&n_ref_count,
-						 MY_MEMORY_ORDER_RELAXED);
-	}
+	inline uint32_t get_ref_count() const { return n_ref_count; }
 
 	/** Acquire the table handle. */
 	inline void acquire();
@@ -1710,8 +1707,9 @@ struct dict_table_t {
 
 	/** Adjust table metadata for instant ADD/DROP/reorder COLUMN.
 	@param[in]	table	table on which prepare_instant() was invoked
-	@param[in]	col_map	mapping from cols[] and v_cols[] to table */
-	inline void instant_column(const dict_table_t& table,
+	@param[in]	col_map	mapping from cols[] and v_cols[] to table
+	@return		whether the metadata record must be updated */
+	inline bool instant_column(const dict_table_t& table,
 				   const ulint* col_map);
 
 	/** Roll back instant_column().
@@ -1721,6 +1719,7 @@ struct dict_table_t {
 	@param[in]	old_instant		original instant structure
 	@param[in]	old_fields		original fields
 	@param[in]	old_n_fields		original number of fields
+	@param[in]	old_n_core_fields	original number of core fields
 	@param[in]	old_n_v_cols		original n_v_cols
 	@param[in]	old_v_cols		original v_cols
 	@param[in]	old_v_col_names		original v_col_names
@@ -1732,6 +1731,7 @@ struct dict_table_t {
 		dict_instant_t*	old_instant,
 		dict_field_t*	old_fields,
 		unsigned	old_n_fields,
+		unsigned	old_n_core_fields,
 		unsigned	old_n_v_cols,
 		dict_v_col_t*	old_v_cols,
 		const char*	old_v_col_names,
@@ -1749,17 +1749,17 @@ struct dict_table_t {
 	void inc_fk_checks()
 	{
 #ifdef UNIV_DEBUG
-		lint fk_checks= (lint)
+		int32_t fk_checks=
 #endif
-		my_atomic_addlint(&n_foreign_key_checks_running, 1);
+		n_foreign_key_checks_running++;
 		ut_ad(fk_checks >= 0);
 	}
 	void dec_fk_checks()
 	{
 #ifdef UNIV_DEBUG
-		lint fk_checks= (lint)
+		int32_t fk_checks=
 #endif
-		my_atomic_addlint(&n_foreign_key_checks_running, ulint(-1));
+		n_foreign_key_checks_running--;
 		ut_ad(fk_checks > 0);
 	}
 
@@ -1938,7 +1938,7 @@ public:
 	/** Count of how many foreign key check operations are currently being
 	performed on the table. We cannot drop the table while there are
 	foreign key checks running on it. */
-	ulint					n_foreign_key_checks_running;
+	Atomic_counter<int32_t>			n_foreign_key_checks_running;
 
 	/** Transactions whose view low limit is greater than this number are
 	not allowed to store to the MySQL query cache or retrieve from it.
@@ -2138,7 +2138,7 @@ private:
 	/** Count of how many handles are opened to this table. Dropping of the
 	table is NOT allowed until this count gets to zero. MySQL does NOT
 	itself check the number of open handles at DROP. */
-	int32					n_ref_count;
+	Atomic_counter<uint32_t>		n_ref_count;
 
 public:
 	/** List of locks on the table. Protected by lock_sys.mutex. */
@@ -2217,6 +2217,9 @@ inline void dict_index_t::clear_instant_alter()
 		DBUG_ASSERT(!fields[i].col->is_nullable());
 	}
 #endif
+	const dict_col_t* ai_col = table->persistent_autoinc
+		? fields[table->persistent_autoinc - 1].col
+		: NULL;
 	dict_field_t* const begin = &fields[first_user_field()];
 	dict_field_t* end = &fields[n_fields];
 
@@ -2237,8 +2240,14 @@ inline void dict_index_t::clear_instant_alter()
 	n_core_fields = n_fields = n_def = end - fields;
 	n_core_null_bytes = UT_BITS_IN_BYTES(n_nullable);
 	std::sort(begin, end, [](const dict_field_t& a, const dict_field_t& b)
-		  { return a.col->ind < b.col->ind; });
+			      { return a.col->ind < b.col->ind; });
 	table->instant = NULL;
+	if (ai_col) {
+		auto a = std::find_if(begin, end,
+				      [ai_col](const dict_field_t& f)
+				      { return f.col == ai_col; });
+		table->persistent_autoinc = (a == end) ? 0 : 1 + (a - fields);
+	}
 }
 
 /** @return whether the column was instantly dropped

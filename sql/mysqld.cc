@@ -7563,18 +7563,6 @@ static int show_ssl_get_version(THD *thd, SHOW_VAR *var, char *buff,
   return 0;
 }
 
-static int show_ssl_session_reused(THD *thd, SHOW_VAR *var, char *buff,
-                                   enum enum_var_type scope)
-{
-  var->type= SHOW_LONG;
-  var->value= buff;
-  if( thd->vio_ok() && thd->net.vio->ssl_arg )
-    *((long *)buff)= (long)SSL_session_reused((SSL*) thd->net.vio->ssl_arg);
-  else
-    *((long *)buff)= 0;
-  return 0;
-}
-
 static int show_ssl_get_default_timeout(THD *thd, SHOW_VAR *var, char *buff,
                                         enum enum_var_type scope)
 {
@@ -7592,10 +7580,14 @@ static int show_ssl_get_verify_mode(THD *thd, SHOW_VAR *var, char *buff,
 {
   var->type= SHOW_LONG;
   var->value= buff;
+#ifndef HAVE_YASSL
   if( thd->net.vio && thd->net.vio->ssl_arg )
     *((long *)buff)= (long)SSL_get_verify_mode((SSL*)thd->net.vio->ssl_arg);
   else
     *((long *)buff)= 0;
+#else
+  *((long *)buff) = 0;
+#endif
   return 0;
 }
 
@@ -7604,10 +7596,15 @@ static int show_ssl_get_verify_depth(THD *thd, SHOW_VAR *var, char *buff,
 {
   var->type= SHOW_LONG;
   var->value= buff;
+#ifndef HAVE_YASSL
   if( thd->vio_ok() && thd->net.vio->ssl_arg )
     *((long *)buff)= (long)SSL_get_verify_depth((SSL*)thd->net.vio->ssl_arg);
   else
     *((long *)buff)= 0;
+#else
+  *((long *)buff)= 0;
+#endif
+
   return 0;
 }
 

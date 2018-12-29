@@ -5742,32 +5742,29 @@ int check_privilege(
 }
 
 
-/******************************************************************//**
+/**
 Check DB user privileges according to the intended actions.
 
 Fetches DB user privileges, determines intended actions based on
 command-line arguments and prints missing privileges.
-May terminate application with EXIT_FAILURE exit code.*/
-static void
-check_all_privileges()
+@return whether all the necessary privileges are granted */
+static bool check_all_privileges()
 {
 	if (!mysql_connection) {
 		/* Not connected, no queries is going to be executed. */
-		return;
+		return true;
 	}
 
 	/* Fetch effective privileges. */
 	std::list<std::string> granted_privileges;
-	MYSQL_ROW row = 0;
 	MYSQL_RES* result = xb_mysql_query(mysql_connection, "SHOW GRANTS",
-		true);
-	while ((row = mysql_fetch_row(result))) {
+					   true);
+	while (MYSQL_ROW row = mysql_fetch_row(result)) {
 		granted_privileges.push_back(*row);
 	}
 	mysql_free_result(result);
 
 	int check_result = PRIVILEGE_OK;
-	bool reload_checked = false;
 
 	/* FLUSH TABLES WITH READ LOCK */
 	if (!opt_no_lock)
@@ -5775,14 +5772,9 @@ check_all_privileges()
 		check_result |= check_privilege(
 			granted_privileges,
 			"RELOAD", "*", "*");
-		reload_checked = true;
-	}
-
-	if (!opt_no_lock)
-	{
 		check_result |= check_privilege(
 			granted_privileges,
-		"PROCESS", "*", "*");
+			"PROCESS", "*", "*");
 	}
 
 	/* KILL ... */
@@ -5805,10 +5797,7 @@ check_all_privileges()
 			PRIVILEGE_WARNING);
 	}
 
-	if (check_result & PRIVILEGE_ERROR) {
-		mysql_close(mysql_connection);
-		exit(EXIT_FAILURE);
-	}
+	return !(check_result & PRIVILEGE_ERROR);
 }
 
 bool
@@ -5875,8 +5864,8 @@ xb_init()
 		if (!get_mysql_vars(mysql_connection)) {
 			return(false);
 		}
-		if (opt_check_privileges) {
-			check_all_privileges();
+		if (opt_check_privileges && !check_all_privileges()) {
+			return(false);
 		}
 		history_start_time = time(NULL);
 

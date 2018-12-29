@@ -591,8 +591,8 @@ sync_array_cell_print(
 #endif
 				"\n",
 				rw_lock_get_reader_count(rwlock),
-				my_atomic_load32_explicit(&rwlock->waiters, MY_MEMORY_ORDER_RELAXED),
-				my_atomic_load32_explicit(&rwlock->lock_word, MY_MEMORY_ORDER_RELAXED),
+				rwlock->waiters.load(std::memory_order_relaxed),
+				rwlock->lock_word.load(std::memory_order_relaxed),
 				innobase_basename(rwlock->last_x_file_name),
 				rwlock->last_x_line
 #if 0 /* JAN: TODO: FIX LATER */
@@ -1379,9 +1379,9 @@ sync_arr_fill_sys_semphore_waits_table(
 						//fields[SYS_SEMAPHORE_WAITS_HOLDER_LINE]->set_notnull();
 						OK(field_store_ulint(fields[SYS_SEMAPHORE_WAITS_READERS], rw_lock_get_reader_count(rwlock)));
 						OK(field_store_ulint(fields[SYS_SEMAPHORE_WAITS_WAITERS_FLAG],
-						   my_atomic_load32_explicit(&rwlock->waiters, MY_MEMORY_ORDER_RELAXED)));
+						   rwlock->waiters.load(std::memory_order_relaxed)));
 						OK(field_store_ulint(fields[SYS_SEMAPHORE_WAITS_LOCK_WORD],
-						   my_atomic_load32_explicit(&rwlock->lock_word, MY_MEMORY_ORDER_RELAXED)));
+						   rwlock->lock_word.load(std::memory_order_relaxed)));
 						OK(field_store_string(fields[SYS_SEMAPHORE_WAITS_LAST_WRITER_FILE], innobase_basename(rwlock->last_x_file_name)));
 						OK(fields[SYS_SEMAPHORE_WAITS_LAST_WRITER_LINE]->store(rwlock->last_x_line, true));
 						fields[SYS_SEMAPHORE_WAITS_LAST_WRITER_LINE]->set_notnull();

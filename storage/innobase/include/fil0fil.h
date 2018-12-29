@@ -97,11 +97,9 @@ struct fil_space_t {
 	/** whether undo tablespace truncation is in progress */
 	bool		is_being_truncated;
 #ifdef UNIV_DEBUG
-	ulint		redo_skipped_count;
-				/*!< reference count for operations who want
-				to skip redo log in the file space in order
-				to make fsp_space_modify_check pass.
-				Uses my_atomic_loadlint() and friends. */
+	/** reference count for operations who want to skip redo log in the
+	file space in order to make fsp_space_modify_check pass. */
+	Atomic_counter<ulint> redo_skipped_count;
 #endif
 	fil_type_t	purpose;/*!< purpose */
 	UT_LIST_BASE_NODE_T(fil_node_t) chain;
