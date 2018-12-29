@@ -89,13 +89,12 @@ INSERT INTO t1 SELECT NULL, i FROM t1;
 INSERT INTO t1 SELECT NULL, i FROM t1;
 LOCK TABLE t1 READ;
 connect  con1,localhost,root,,test;
-SET max_statement_time= 1;
 ALTER TABLE t1 FORCE, ALGORITHM=COPY;
-ERROR 70100: Query execution was interrupted (max_statement_time exceeded)
-SET DEBUG_SYNC = 'now SIGNAL stop_waining';
+connection default;
+kill query @id;
+connection con1;
+ERROR 70100: Query execution was interrupted
 disconnect con1;
 connection default;
-SET DEBUG_SYNC = 'now WAIT_FOR stop_waining';
 UNLOCK TABLES;
 DROP TABLE t1;
-SET DEBUG_SYNC = 'RESET';

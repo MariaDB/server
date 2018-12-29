@@ -6515,3 +6515,12 @@ static int get_exepath(char *buf, size_t size, const char *argv0)
 
   return my_realpath(buf, argv0, 0);
 }
+
+
+#if defined (__SANITIZE_ADDRESS__) && defined (__linux__)
+/* Avoid LeakSanitizer's false positives. */
+const char* __asan_default_options()
+{
+  return "detect_leaks=0";
+}
+#endif
