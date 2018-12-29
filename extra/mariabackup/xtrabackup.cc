@@ -6844,3 +6844,12 @@ int main(int argc, char **argv)
 
 	exit(EXIT_SUCCESS);
 }
+
+
+#if defined (__SANITIZE_ADDRESS__) && defined (__linux__)
+/* Avoid LeakSanitizer's false positives. */
+const char* __asan_default_options()
+{
+  return "detect_leaks=0";
+}
+#endif
