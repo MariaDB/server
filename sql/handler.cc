@@ -1655,7 +1655,7 @@ wsrep_err:
     mysql_mutex_unlock(&thd->LOCK_thd_data);
 
 #endif /* WITH_WSREP */
- err:
+err:
   error= 1;                                  /* Transaction was rolled back */
   /*
     In parallel replication, rollback is delayed, as there is extra replication
@@ -1669,7 +1669,7 @@ wsrep_err:
     WSREP_DEBUG("rollback skipped %p %d",thd->rgi_slave,
                 thd->rgi_slave->is_parallel_exec);
   }
- end:
+end:
   if (rw_trans && mdl_request.ticket)
   {
     /*
@@ -6279,10 +6279,9 @@ int binlog_log_row(TABLE* table, const uchar *before_record,
   THD *const thd= table->in_use;
 
   /* only InnoDB tables will be replicated through binlog emulation */
-  if (WSREP_EMULATE_BINLOG(thd) &&
-      table->file->ht->db_type != DB_TYPE_INNODB &&
-      !(table->file->ht->db_type == DB_TYPE_PARTITION_DB &&
-        (((ha_partition*)(table->file))->wsrep_db_type() == DB_TYPE_INNODB)) ||
+  if ((WSREP_EMULATE_BINLOG(thd) &&
+       table->file->ht->db_type != DB_TYPE_INNODB &&
+       table->file->partition_ht()->db_type != DB_TYPE_INNODB) ||
       (thd->wsrep_ignore_table == true))
     return 0;
 #endif
