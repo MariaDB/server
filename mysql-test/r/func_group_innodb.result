@@ -246,4 +246,28 @@ EXPLAIN SELECT MIN(c) FROM t1 GROUP BY b;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 1	SIMPLE	t1	range	NULL	b	263	NULL	3	Using index for group-by
 DROP TABLE t1;
+#
+# MDEV-17589: Stack-buffer-overflow with indexed varchar (utf8) field
+#
+CREATE TABLE t1 (v1 varchar(1020), v2 varchar(2), v3 varchar(2),
+KEY k1 (v3,v2,v1)) ENGINE=InnoDB CHARACTER SET=utf8 ROW_FORMAT=DYNAMIC;
+INSERT INTO t1 VALUES ('king', 'qu','qu'), ('bad','go','go');
+explain
+SELECT MIN(t1.v1) FROM t1 where t1.v2='qu' and t1.v3='qu';
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	NULL	NULL	NULL	NULL	NULL	NULL	NULL	Select tables optimized away
+SELECT MIN(t1.v1) FROM t1 where t1.v2='qu' and t1.v3='qu';
+MIN(t1.v1)
+king
+drop table t1;
+CREATE TABLE t1 (v1 varchar(1024) CHARACTER SET utf8, KEY v1 (v1)) ENGINE=InnoDB ROW_FORMAT=DYNAMIC;
+INSERT INTO t1 VALUES ('king'), ('bad');
+explain
+SELECT MIN(x.v1) FROM (SELECT t1.* FROM t1 WHERE t1.v1 >= 'p') x;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	NULL	NULL	NULL	NULL	NULL	NULL	NULL	No matching min/max row
+SELECT MIN(x.v1) FROM (SELECT t1.* FROM t1 WHERE t1.v1 >= 'p') x;
+MIN(x.v1)
+NULL
+drop table t1;
 End of 5.5 tests

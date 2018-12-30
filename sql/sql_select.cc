@@ -19639,6 +19639,10 @@ test_if_quick_select(JOIN_TAB *tab)
 
   delete tab->select->quick;
   tab->select->quick=0;
+
+  if (tab->table->file->inited != handler::NONE)
+    tab->table->file->ha_index_or_rnd_end();
+
   int res= tab->select->test_quick_select(tab->join->thd, tab->keys,
                                           (table_map) 0, HA_POS_ERROR, 0,
                                           FALSE, /*remove where parts*/FALSE);

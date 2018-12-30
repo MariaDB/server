@@ -1713,12 +1713,12 @@ bool partition_info::check_partition_field_length()
 
   for (i= 0; i < num_part_fields; i++)
     store_length+= get_partition_field_store_length(part_field_array[i]);
-  if (store_length > MAX_KEY_LENGTH)
+  if (store_length > MAX_DATA_LENGTH_FOR_KEY)
     DBUG_RETURN(TRUE);
   store_length= 0;
   for (i= 0; i < num_subpart_fields; i++)
     store_length+= get_partition_field_store_length(subpart_field_array[i]);
-  if (store_length > MAX_KEY_LENGTH)
+  if (store_length > MAX_DATA_LENGTH_FOR_KEY)
     DBUG_RETURN(TRUE);
   DBUG_RETURN(FALSE);
 }

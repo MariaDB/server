@@ -20,8 +20,7 @@
 
 class THD;
 
-int mysql_create_db(THD *thd, char *db,
-                    const DDL_options_st &options,
+int mysql_create_db(THD *thd, char *db, DDL_options_st options,
                     const Schema_specification_st *create);
 bool mysql_alter_db(THD *thd, const char *db,
                     const Schema_specification_st *create);
