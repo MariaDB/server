@@ -6919,7 +6919,7 @@ static bool fill_alter_inplace_info(THD *thd,
       {
         ha_alter_info->handler_flags|= ALTER_RENAME_INDEX;
         ha_alter_info->rename_keys.push_back(
-            Alter_inplace_info::Rename_key_pair{old_key, new_key});
+            Alter_inplace_info::Rename_key_pair(old_key, new_key));
 
         memcpy(add_buffer + i, add_buffer + i + 1,
                sizeof(add_buffer[0]) * (add_count - i + 1));

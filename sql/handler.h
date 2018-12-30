@@ -2302,6 +2302,10 @@ public:
   */
   struct Rename_key_pair
   {
+    Rename_key_pair(const KEY *old_key, const KEY *new_key)
+        : old_key(old_key), new_key(new_key)
+    {
+    }
     const KEY *old_key;
     const KEY *new_key;
   };
