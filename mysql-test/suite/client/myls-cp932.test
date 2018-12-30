@@ -1,0 +1,15 @@
+--character_set cp932
+
+# simple I/O
+--exec $MYLS -c cp932 "‘ªŽŽŽ‘—¿"
+--exec $MYLS -c cp932 -r "@6e2c@8a66@8cc7@6599@5eab"
+
+# undo query result
+SET NAMES cp932;
+let $query_result=`SELECT CONVERT(CONVERT('‘ªŽŽŽ‘—¿' USING filename) USING binary);`;
+--echo $query_result
+--exec $MYLS -c cp932 -r $query_result
+
+let $reverse_query_result=`SELECT CONVERT(_filename '@6e2c@8a66@8cc7@6599' USING cp932);`;
+--echo $reverse_query_result
+--exec $MYLS -c cp932 $reverse_query_result

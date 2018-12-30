@@ -1,27 +1,9 @@
---character_set utf8
-
-
-# simple I/O
---exec $MYLS "測試資料"
---exec $MYLS -r "@6e2c@8a66@8cc7@6599@5eab"
-
-
-# undo query result
-SET NAMES utf8;
-let $query_result=`SELECT CONVERT(CONVERT('測試資料' USING filename) USING binary);`;
---echo $query_result
---exec $MYLS -r $query_result
-
-let $reverse_query_result=`SELECT CONVERT(_filename '@6e2c@8a66@8cc7@6599@5eab' USING utf8);`;
---echo $reverse_query_result
---exec $MYLS $reverse_query_result
-
+--character_set latin1
 
 # invalid option
 --replace_regex /.*myls.*: unknown/myls: unknown/
 --error 1
---exec $MYLS -t "@6e2c@8a66@8cc7@6599@5eab" 2>&1 > /dev/null
-
+--exec $MYLS -c utf8 -t "@6e2c@8a66@8cc7@6599@5eab" 2>&1 > /dev/null
 
 # no arguments
 --replace_regex /.*myls.*: unknown/myls: unknown/

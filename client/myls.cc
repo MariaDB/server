@@ -28,14 +28,21 @@ static my_bool debug_check_flag = 0;
 static uint my_end_arg;
 
 static my_bool opt_reverse = 0;
+static char *opt_charset = 0;
 
-static void usage();
+static CHARSET_INFO *charset_info= &my_charset_latin1;
+
 static struct my_option long_options[] =
 {
   {"reverse", 'r', "Convert filename to identifier.",
    &opt_reverse, &opt_reverse, 0, GET_BOOL, NO_ARG, 0, 0, 0, 0, 0, 0},
+  {"character-set", 'c',
+   "Set the character set.", &opt_charset,
+   &opt_charset, 0, GET_STR, REQUIRED_ARG, 0, 0, 0, 0, 0, 0},
   {0, 0, 0, 0, 0, 0, GET_NO_ARG, NO_ARG, 0, 0, 0, 0, 0, 0}
 };
+
+static void usage();
 
 int main(int argc, char *argv[]) {
   MY_INIT(argv[0]);
@@ -58,14 +65,29 @@ int main(int argc, char *argv[]) {
     exit(1);
   }
 
+  if (opt_charset)
+  {
+    CHARSET_INFO *new_cs = get_charset_by_csname(opt_charset, MY_CS_PRIMARY, MYF(MY_WME));
+    if (new_cs)
+    {
+      charset_info = new_cs;
+    }
+    else
+    {
+      puts("Charset is not found");
+      my_end(my_end_arg);
+      exit(1);
+    }
+  }
+
   if (opt_reverse)
   {
     length= strconvert(&my_charset_filename, from, FN_REFLEN,
-                system_charset_info,  to, to_length, &errors);
+                charset_info,  to, to_length, &errors);
   }
   else
   {
-    length= strconvert(system_charset_info, from, FN_REFLEN,
+    length= strconvert(charset_info, from, FN_REFLEN,
                       &my_charset_filename, to, to_length, &errors);
   }
 
@@ -92,4 +114,5 @@ static void usage(void)
   puts("");
   printf("%s -r filename", my_progname);
   puts("");
+  my_print_help(long_options);
 } /* usage */
