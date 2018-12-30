@@ -1,7 +1,15 @@
 --source include/galera_cluster.inc
 --source include/check_ipv6.inc
 
+--connect node_3, 127.0.0.1, root, , test, $NODE_MYPORT_3
+ # Save original auto_increment_offset values.
+ --let $node_1=node_1
+ --let $node_2=node_2
+ --let $node_3=node_3
+ --source ../galera/include/auto_increment_offset_save.inc
+
 --connection node_1
+CREATE USER 'sst';
 GRANT ALL PRIVILEGES ON *.* TO 'sst';
 
 --let $wsrep_sst_auth_orig = `SELECT @@wsrep_sst_auth`
@@ -51,6 +59,11 @@ DROP TABLE t1;
 
 SELECT VARIABLE_VALUE LIKE '%[::1]%' FROM INFORMATION_SCHEMA.GLOBAL_STATUS WHERE VARIABLE_NAME = 'wsrep_incoming_addresses';
 
+# restart node so we don't fail on WSREP_START_POSITION internal check
+--source include/restart_mysqld.inc
+--source include/wait_until_connected_again.inc
+
+--source ../galera/include/auto_increment_offset_restore.inc
 --source suite/galera/include/galera_sst_restore.inc
 --connection node_2
 CALL mtr.add_suppression("Unsupported protocol downgrade: incremental data collection disabled. Expect abort");
