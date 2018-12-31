@@ -17,33 +17,6 @@
 #define WSREP_BINLOG_H
 
 #include "my_global.h"
-
-#define WSREP_FRAG_BYTES      0
-#define WSREP_FRAG_ROWS       1
-#define WSREP_FRAG_STATEMENTS 2
-#include "wsrep/streaming_context.hpp"
-static inline enum wsrep::streaming_context::fragment_unit
-wsrep_fragment_unit(ulong unit)
-{
-  switch (unit)
-  {
-  case WSREP_FRAG_BYTES: return wsrep::streaming_context::bytes;
-  case WSREP_FRAG_ROWS: return wsrep::streaming_context::row;
-  case WSREP_FRAG_STATEMENTS: return wsrep::streaming_context::statement;
-  default:
-    DBUG_ASSERT(0);
-    return wsrep::streaming_context::bytes;
-  }
-}
-
-#define WSREP_SR_STORE_NONE      0
-#define WSREP_SR_STORE_TABLE     1
-
-extern ulong wsrep_SR_store_type;
-extern const char *wsrep_fragment_units[];
-extern const char *wsrep_SR_store_types[];
-
-class wsrep_SR_trx;
 #include "sql_class.h" // THD, IO_CACHE
 
 #define HEAP_PAGE_SIZE 65536 /* 64K */

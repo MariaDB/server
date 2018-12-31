@@ -310,6 +310,12 @@ static inline void wsrep_open(THD* thd)
   {
     thd->wsrep_cs().open(wsrep::client_id(thd->thread_id));
     thd->wsrep_cs().debug_log_level(wsrep_debug);
+    if (!thd->wsrep_applier && thd->variables.wsrep_trx_fragment_size)
+    {
+      thd->wsrep_cs().enable_streaming(
+        wsrep_fragment_unit(thd->variables.wsrep_trx_fragment_unit),
+        thd->variables.wsrep_trx_fragment_size);
+    }
   }
   DBUG_VOID_RETURN;
 }

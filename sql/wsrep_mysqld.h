@@ -34,6 +34,7 @@ typedef struct st_mysql_show_var SHOW_VAR;
 #include "sql_table.h"
 
 #include "wsrep/provider.hpp"
+#include "wsrep/streaming_context.hpp"
 #include "wsrep_api.h"
 #include <vector>
 #include "wsrep_server_state.h"
@@ -126,6 +127,17 @@ enum enum_wsrep_ignore_apply_error {
     WSREP_IGNORE_ERRORS_ON_DDL= 0x4,
     WSREP_IGNORE_ERRORS_MAX= 0x7
 };
+
+// Streaming Replication
+#define WSREP_FRAG_BYTES      0
+#define WSREP_FRAG_ROWS       1
+#define WSREP_FRAG_STATEMENTS 2
+
+#define WSREP_SR_STORE_NONE   0
+#define WSREP_SR_STORE_TABLE  1
+
+extern const char *wsrep_fragment_units[];
+extern const char *wsrep_SR_store_types[];
 
 // MySQL status variables
 extern my_bool     wsrep_connected;
@@ -556,6 +568,12 @@ void wsrep_init_globals();
  * Deinit and release WSREP resources.
  */
 void wsrep_deinit_server();
+
+/**
+ * Convert streaming fragment unit (WSREP_FRAG_BYTES, WSREP_FRAG_ROWS...)
+ * to corresponding wsrep-lib fragment_unit
+ */
+enum wsrep::streaming_context::fragment_unit wsrep_fragment_unit(ulong unit);
 
 #else /* !WITH_WSREP */
 
