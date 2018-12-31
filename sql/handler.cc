@@ -1209,7 +1209,7 @@ void trans_register_ha(THD *thd, bool all, handlerton *ht_arg)
 static int prepare_or_error(handlerton *ht, THD *thd, bool all)
 {
   #ifdef WITH_WSREP
-  if (WSREP(thd) && ht->db_type == DB_TYPE_INNODB &&
+  if (WSREP(thd) && ht->flags & HTON_WSREP_REPLICATION &&
       wsrep_before_prepare(thd, all))
   {
     return(1);
@@ -1223,7 +1223,7 @@ static int prepare_or_error(handlerton *ht, THD *thd, bool all)
       my_error(ER_ERROR_DURING_COMMIT, MYF(0), err);
   }
 #ifdef WITH_WSREP
-  if (WSREP(thd) && ht->db_type == DB_TYPE_INNODB &&
+  if (WSREP(thd) && ht->flags & HTON_WSREP_REPLICATION &&
       wsrep_after_prepare(thd, all))
   {
     err= 1;
@@ -2453,7 +2453,7 @@ int ha_rollback_to_savepoint(THD *thd, SAVEPOINT *sv)
     int err;
     handlerton *ht= ha_info->ht();
 #ifdef WITH_WSREP
-    if (ht->db_type == DB_TYPE_INNODB)
+    if (ht->flags & HTON_WSREP_REPLICATION)
     {
       WSREP_DEBUG("ha_rollback_to_savepoint: run before_rollbackha_rollback_trans hook");
       (void) wsrep_before_rollback(thd, !thd->in_sub_stmt);
@@ -2466,7 +2466,7 @@ int ha_rollback_to_savepoint(THD *thd, SAVEPOINT *sv)
       error=1;
     }
 #ifdef WITH_WSREP
-    if (ht->db_type == DB_TYPE_INNODB)
+    if (ht->flags & HTON_WSREP_REPLICATION)
     {
       WSREP_DEBUG("ha_rollback_to_savepoint: run after_rollback hook");
       (void) wsrep_after_rollback(thd, !thd->in_sub_stmt);
@@ -6280,9 +6280,8 @@ int binlog_log_row(TABLE* table, const uchar *before_record,
 
   /* only InnoDB tables will be replicated through binlog emulation */
   if ((WSREP_EMULATE_BINLOG(thd) &&
-       table->file->ht->db_type != DB_TYPE_INNODB &&
-       table->file->partition_ht()->db_type != DB_TYPE_INNODB) ||
-      (thd->wsrep_ignore_table == true))
+       table->file->partition_ht()->flags & HTON_WSREP_REPLICATION) ||
+       (thd->wsrep_ignore_table == true))
     return 0;
 #endif
 
@@ -6751,15 +6750,6 @@ int ha_abort_transaction(THD *bf_thd, THD *victim_thd, my_bool signal)
   }
 
   DBUG_RETURN(0);
-}
-void ha_fake_trx_id(THD *thd)
-{
-  DBUG_ENTER("ha_wsrep_fake_trx_id");
-  if (!WSREP(thd)) 
-  {
-    DBUG_VOID_RETURN;
-  }
-  DBUG_VOID_RETURN;
 }
 #endif /* WITH_WSREP */
 

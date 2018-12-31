@@ -4160,13 +4160,12 @@ static int innodb_init(void* p)
 	innobase_hton->show_status = innobase_show_status;
 	innobase_hton->flags =
 		HTON_SUPPORTS_EXTENDED_KEYS | HTON_SUPPORTS_FOREIGN_KEYS
-		| HTON_NATIVE_SYS_VERSIONING;
+		| HTON_NATIVE_SYS_VERSIONING | HTON_WSREP_REPLICATION;
 
 #ifdef WITH_WSREP
 	innobase_hton->abort_transaction=wsrep_abort_transaction;
 	innobase_hton->set_checkpoint=innobase_wsrep_set_checkpoint;
 	innobase_hton->get_checkpoint=innobase_wsrep_get_checkpoint;
-	innobase_hton->fake_trx_id=NULL;
 #endif /* WITH_WSREP */
 
 	innobase_hton->tablefile_extensions = ha_innobase_exts;

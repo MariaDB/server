@@ -118,7 +118,7 @@ static bool wsrep_load_data_split(THD *thd, const TABLE *table,
 
   if (handlerton* hton= thd->transaction.stmt.ha_list->next()->ht())
   {
-    if (hton->db_type != DB_TYPE_INNODB)
+    if (!(hton->flags & HTON_WSREP_REPLICATION))
       DBUG_RETURN(false);
     WSREP_DEBUG("intermediate transaction commit in LOAD DATA");
     wsrep_tc_log_commit(thd);
