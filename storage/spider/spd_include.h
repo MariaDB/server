@@ -160,9 +160,7 @@
 
 #if defined(MARIADB_BASE_VERSION) && MYSQL_VERSION_ID >= 100201
 #define SPIDER_HAS_MY_CHARLEN
-#define SPIDER_find_temporary_table(A,B) A->find_temporary_table(B)
-#else
-#define SPIDER_find_temporary_table(A,B) find_temporary_table(A,B)
+#define SPIDER_open_temporary_table
 #endif
 
 #if defined(MARIADB_BASE_VERSION)
