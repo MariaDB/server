@@ -1721,7 +1721,7 @@ long long spider_direct_sql_body(
       direct_sql->table_names[roop_count];
 #endif
     if (!(direct_sql->tables[roop_count] =
-      SPIDER_find_temporary_table(thd, &table_list)))
+      spider_find_temporary_table(thd, &table_list)))
     {
 #if MYSQL_VERSION_ID < 50500
 #else
