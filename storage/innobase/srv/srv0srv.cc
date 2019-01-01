@@ -2402,7 +2402,6 @@ loop:
 /** @return whether purge should exit due to shutdown */
 static bool srv_purge_should_exit()
 {
-        uint32_t history_size __attribute__((unused));
 	ut_ad(srv_shutdown_state == SRV_SHUTDOWN_NONE
 	      || srv_shutdown_state == SRV_SHUTDOWN_CLEANUP);
 
@@ -2413,7 +2412,8 @@ static bool srv_purge_should_exit()
 		return(true);
 	}
 	/* Slow shutdown was requested. */
-	if ((history_size = trx_sys.rseg_history_len)) {
+	uint32_t history_size = trx_sys.rseg_history_len;
+	if (history_size) {
 #if defined HAVE_SYSTEMD && !defined EMBEDDED_LIBRARY
 		static ib_time_t progress_time;
 		ib_time_t time = ut_time();
