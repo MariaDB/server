@@ -52,6 +52,7 @@ class DllExport XMLDEF : public TABDEF {  /* Logical table description */
   bool    Usedom;                 /* True: DOM, False: libxml2         */
 	bool    Zipped;                 /* True: Zipped XML file(s)          */
 	bool    Mulentries;             /* True: multiple entries in zip file*/
+	bool    Skip;                   /* Skip null columns                 */
 }; // end of XMLDEF
 
 #if defined(INCLUDE_TDBXML)
