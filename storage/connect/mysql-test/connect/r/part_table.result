@@ -23,7 +23,7 @@ id	msg
 CREATE TABLE xt3 (
 id INT KEY NOT NULL,
 msg VARCHAR(32))
-ENGINE=CONNECT TABLE_TYPE=CSV AVG_ROW_LENGTH=5;
+ENGINE=CONNECT TABLE_TYPE=CSV AVG_ROW_LENGTH=6;
 Warnings:
 Warning	1105	No file name. Table will use xt3.csv
 INSERT INTO xt3 VALUES(60,'sixty'),(81,'eighty one'),(72,'seventy two');
