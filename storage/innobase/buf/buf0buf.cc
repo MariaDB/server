@@ -5939,10 +5939,10 @@ buf_page_io_complete(buf_page_t* bpage, bool dblwr, bool evict)
 		}
 
 		if (bpage->zip.data && uncompressed) {
-			my_atomic_addlint(&buf_pool->n_pend_unzip, 1);
+			buf_pool->n_pend_unzip++;
 			ibool ok = buf_zip_decompress((buf_block_t*) bpage,
 						      FALSE);
-			my_atomic_addlint(&buf_pool->n_pend_unzip, ulint(-1));
+			buf_pool->n_pend_unzip--;
 
 			if (!ok) {
 				ib::info() << "Page "

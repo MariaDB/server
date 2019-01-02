@@ -167,21 +167,24 @@ struct TTASFutexMutex {
 
 	~TTASFutexMutex()
 	{
-		ut_a(m_lock_word == MUTEX_STATE_UNLOCKED);
+		ut_ad(m_lock_word.load(std::memory_order_relaxed)
+		      == MUTEX_STATE_UNLOCKED);
 	}
 
 	/** Called when the mutex is "created". Note: Not from the constructor
 	but when the mutex is initialised. */
 	void init(latch_id_t, const char*, uint32_t) UNIV_NOTHROW
 	{
-		ut_a(m_lock_word == MUTEX_STATE_UNLOCKED);
+		ut_ad(m_lock_word.load(std::memory_order_relaxed)
+		      == MUTEX_STATE_UNLOCKED);
 	}
 
 	/** Destroy the mutex. */
 	void destroy() UNIV_NOTHROW
 	{
 		/* The destructor can be called at shutdown. */
-		ut_a(m_lock_word == MUTEX_STATE_UNLOCKED);
+		ut_ad(m_lock_word.load(std::memory_order_relaxed)
+		      == MUTEX_STATE_UNLOCKED);
 	}
 
 	/** Acquire the mutex.
@@ -202,9 +205,8 @@ struct TTASFutexMutex {
 		}
 
 		for (n_waits= 0;; n_waits++) {
-			if (my_atomic_fas32_explicit(&m_lock_word,
-						     MUTEX_STATE_WAITERS,
-						     MY_MEMORY_ORDER_ACQUIRE)
+			if (m_lock_word.exchange(MUTEX_STATE_WAITERS,
+						 std::memory_order_acquire)
 			    == MUTEX_STATE_UNLOCKED) {
 				break;
 			}
@@ -220,9 +222,8 @@ struct TTASFutexMutex {
 	/** Release the mutex. */
 	void exit() UNIV_NOTHROW
 	{
-		if (my_atomic_fas32_explicit(&m_lock_word,
-					     MUTEX_STATE_UNLOCKED,
-					     MY_MEMORY_ORDER_RELEASE)
+		if (m_lock_word.exchange(MUTEX_STATE_UNLOCKED,
+					 std::memory_order_release)
 		    == MUTEX_STATE_WAITERS) {
 			syscall(SYS_futex, &m_lock_word, FUTEX_WAKE_PRIVATE,
 				1, 0, 0, 0);
@@ -234,10 +235,11 @@ struct TTASFutexMutex {
 	bool try_lock() UNIV_NOTHROW
 	{
 		int32 oldval = MUTEX_STATE_UNLOCKED;
-		return(my_atomic_cas32_strong_explicit(&m_lock_word, &oldval,
-						       MUTEX_STATE_LOCKED,
-						       MY_MEMORY_ORDER_ACQUIRE,
-						       MY_MEMORY_ORDER_RELAXED));
+		return m_lock_word.compare_exchange_strong(
+			oldval,
+			MUTEX_STATE_LOCKED,
+			std::memory_order_acquire,
+			std::memory_order_relaxed);
 	}
 
 	/** @return non-const version of the policy */
@@ -257,7 +259,7 @@ private:
 
 	/** lock_word is the target of the atomic test-and-set instruction
 	when atomic operations are enabled. */
-	int32			m_lock_word;
+	std::atomic<int32>	m_lock_word;
 };
 
 #endif /* HAVE_IB_LINUX_FUTEX */

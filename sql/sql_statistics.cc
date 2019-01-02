@@ -29,7 +29,6 @@
 #include "sql_statistics.h"
 #include "opt_range.h"
 #include "uniques.h"
-#include "my_atomic.h"
 #include "sql_show.h"
 #include "sql_partition.h"
 

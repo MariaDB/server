@@ -873,7 +873,8 @@ an uncompressed page should be left as padding to avoid compression
 failures. This estimate is based on a self-adapting heuristic. */
 struct zip_pad_info_t {
 	SysMutex*	mutex;	/*!< mutex protecting the info */
-	ulint		pad;	/*!< number of bytes used as pad */
+	Atomic_counter<ulint>
+			pad;	/*!< number of bytes used as pad */
 	ulint		success;/*!< successful compression ops during
 				current round */
 	ulint		failure;/*!< failed compression ops during

@@ -6821,6 +6821,7 @@ dict_index_zip_pad_update(
 	ulint	fail_pct;
 
 	ut_ad(info);
+	ut_ad(info->pad % ZIP_PAD_INCR == 0);
 
 	total = info->success + info->failure;
 
@@ -6845,17 +6846,16 @@ dict_index_zip_pad_update(
 	if (fail_pct > zip_threshold) {
 		/* Compression failures are more then user defined
 		threshold. Increase the pad size to reduce chances of
-		compression failures. */
-		ut_ad(info->pad % ZIP_PAD_INCR == 0);
+		compression failures.
 
-		/* Only do increment if it won't increase padding
+		Only do increment if it won't increase padding
 		beyond max pad size. */
 		if (info->pad + ZIP_PAD_INCR
 		    < (srv_page_size * zip_pad_max) / 100) {
 			/* Use atomics even though we have the mutex.
 			This is to ensure that we are able to read
 			info->pad atomically. */
-			my_atomic_addlint(&info->pad, ZIP_PAD_INCR);
+			info->pad += ZIP_PAD_INCR;
 
 			MONITOR_INC(MONITOR_PAD_INCREMENTS);
 		}
@@ -6873,11 +6873,10 @@ dict_index_zip_pad_update(
 		if (info->n_rounds >= ZIP_PAD_SUCCESSFUL_ROUND_LIMIT
 		    && info->pad > 0) {
 
-			ut_ad(info->pad % ZIP_PAD_INCR == 0);
 			/* Use atomics even though we have the mutex.
 			This is to ensure that we are able to read
 			info->pad atomically. */
-			my_atomic_addlint(&info->pad, ulint(-ZIP_PAD_INCR));
+			info->pad -= ZIP_PAD_INCR;
 
 			info->n_rounds = 0;
 
@@ -6950,7 +6949,7 @@ dict_index_zip_pad_optimal_page_size(
 		return(srv_page_size);
 	}
 
-	pad = my_atomic_loadlint(&index->zip_pad.pad);
+	pad = index->zip_pad.pad;
 
 	ut_ad(pad < srv_page_size);
 	sz = srv_page_size - pad;

@@ -1427,23 +1427,17 @@ ibuf_rec_get_counter(
 	}
 }
 
-/****************************************************************//**
-Add accumulated operation counts to a permanent array. Both arrays must be
-of size IBUF_OP_COUNT. */
-static
-void
-ibuf_add_ops(
-/*=========*/
-	ulint*		arr,	/*!< in/out: array to modify */
-	const ulint*	ops)	/*!< in: operation counts */
 
+/**
+  Add accumulated operation counts to a permanent array.
+  Both arrays must be of size IBUF_OP_COUNT.
+*/
+static void ibuf_add_ops(Atomic_counter<ulint> *out, const ulint *in)
 {
-	ulint	i;
-
-	for (i = 0; i < IBUF_OP_COUNT; i++) {
-		my_atomic_addlint(&arr[i], ops[i]);
-	}
+  for (auto i = 0; i < IBUF_OP_COUNT; i++)
+    out[i]+= in[i];
 }
+
 
 /****************************************************************//**
 Print operation counts. The array must be of size IBUF_OP_COUNT. */
@@ -1451,8 +1445,8 @@ static
 void
 ibuf_print_ops(
 /*===========*/
-	const ulint*	ops,	/*!< in: operation counts */
-	FILE*		file)	/*!< in: file where to print */
+	const Atomic_counter<ulint>*	ops,	/*!< in: operation counts */
+	FILE*				file)	/*!< in: file where to print */
 {
 	static const char* op_names[] = {
 		"insert",
@@ -1465,7 +1459,7 @@ ibuf_print_ops(
 
 	for (i = 0; i < IBUF_OP_COUNT; i++) {
 		fprintf(file, "%s " ULINTPF "%s", op_names[i],
-			ops[i], (i < (IBUF_OP_COUNT - 1)) ? ", " : "");
+			ulint{ops[i]}, (i < (IBUF_OP_COUNT - 1)) ? ", " : "");
 	}
 
 	putc('\n', file);

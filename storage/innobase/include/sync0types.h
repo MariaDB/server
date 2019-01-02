@@ -1117,30 +1117,12 @@ enum rw_lock_flag_t {
 
 #endif /* UNIV_INNOCHECKSUM */
 
-static inline ulint my_atomic_addlint(ulint *A, ulint B)
-{
-#ifdef _WIN64
-  return ulint(my_atomic_add64((volatile int64*)A, B));
-#else
-  return ulint(my_atomic_addlong(A, B));
-#endif
-}
-
 static inline ulint my_atomic_loadlint(const ulint *A)
 {
 #ifdef _WIN64
   return ulint(my_atomic_load64((volatile int64*)A));
 #else
   return ulint(my_atomic_loadlong(A));
-#endif
-}
-
-static inline lint my_atomic_addlint(volatile lint *A, lint B)
-{
-#ifdef _WIN64
-  return my_atomic_add64((volatile int64*)A, B);
-#else
-  return my_atomic_addlong(A, B);
 #endif
 }
 

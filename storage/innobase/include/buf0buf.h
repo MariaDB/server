@@ -41,7 +41,6 @@ Created 11/5/1995 Heikki Tuuri
 #include "os0proc.h"
 #include "log0log.h"
 #include "srv0srv.h"
-#include "my_atomic.h"
 #include <ostream>
 
 // Forward declaration
@@ -1752,20 +1751,20 @@ struct buf_block_t{
 	/* @{ */
 
 # if defined UNIV_AHI_DEBUG || defined UNIV_DEBUG
-	ulint		n_pointers;	/*!< used in debugging: the number of
+	Atomic_counter<ulint>
+			n_pointers;	/*!< used in debugging: the number of
 					pointers in the adaptive hash index
 					pointing to this frame;
 					protected by atomic memory access
 					or btr_search_own_all(). */
 #  define assert_block_ahi_empty(block)					\
-	ut_a(my_atomic_addlint(&(block)->n_pointers, 0) == 0)
+	ut_a((block)->n_pointers == 0)
 #  define assert_block_ahi_empty_on_init(block) do {			\
 	UNIV_MEM_VALID(&(block)->n_pointers, sizeof (block)->n_pointers); \
 	assert_block_ahi_empty(block);					\
 } while (0)
 #  define assert_block_ahi_valid(block)					\
-	ut_a((block)->index						\
-	     || my_atomic_loadlint(&(block)->n_pointers) == 0)
+	ut_a((block)->index || (block)->n_pointers == 0)
 # else /* UNIV_AHI_DEBUG || UNIV_DEBUG */
 #  define assert_block_ahi_empty(block) /* nothing */
 #  define assert_block_ahi_empty_on_init(block) /* nothing */
@@ -2083,7 +2082,8 @@ struct buf_pool_t{
 					indexed by block->frame */
 	ulint		n_pend_reads;	/*!< number of pending read
 					operations */
-	ulint		n_pend_unzip;	/*!< number of pending decompressions */
+	Atomic_counter<ulint>
+			n_pend_unzip;	/*!< number of pending decompressions */
 
 	time_t		last_printout_time;
 					/*!< when buf_print_io was last time

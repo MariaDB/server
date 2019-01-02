@@ -592,11 +592,12 @@ struct srv_sys_t{
 						sys_threads[]->event are
 						covered by srv_sys_t::mutex */
 
-	ulint		n_threads_active[SRV_MASTER + 1];
+	Atomic_counter<ulint>
+			n_threads_active[SRV_MASTER + 1];
 						/*!< number of threads active
 						in a thread class; protected
-						by both my_atomic_addlint()
-						and mutex */
+						by both std::atomic and
+						mutex */
 
 	srv_stats_t::ulint_ctr_1_t
 			activity_count;		/*!< For tracking server
@@ -608,7 +609,7 @@ static srv_sys_t	srv_sys;
 /** @return whether the purge coordinator thread is active */
 bool purge_sys_t::running()
 {
-  return my_atomic_loadlint(&srv_sys.n_threads_active[SRV_PURGE]);
+  return srv_sys.n_threads_active[SRV_PURGE];
 }
 
 /** Event to signal srv_monitor_thread. Not protected by a mutex.
@@ -807,7 +808,7 @@ srv_reserve_slot(
 
 	ut_ad(srv_slot_get_type(slot) == type);
 
-	my_atomic_addlint(&srv_sys.n_threads_active[type], 1);
+	srv_sys.n_threads_active[type]++;
 
 	srv_sys_mutex_exit();
 
@@ -854,8 +855,7 @@ srv_suspend_thread_low(
 	ut_a(!slot->suspended);
 	slot->suspended = TRUE;
 
-	if (lint(my_atomic_addlint(&srv_sys.n_threads_active[type], ulint(-1)))
-	    < 0) {
+	if (srv_sys.n_threads_active[type]-- == 0) {
 		ut_error;
 	}
 
@@ -912,7 +912,7 @@ srv_resume_thread(srv_slot_t* slot, int64_t sig_count = 0, bool wait = true,
 	ut_ad(slot->suspended);
 
 	slot->suspended = FALSE;
-	my_atomic_addlint(&srv_sys.n_threads_active[slot->type], 1);
+	srv_sys.n_threads_active[slot->type]++;
 	srv_sys_mutex_exit();
 	return(timeout);
 }
@@ -1909,7 +1909,7 @@ srv_active_wake_master_thread_low()
 
 	srv_inc_activity_count();
 
-	if (my_atomic_loadlint(&srv_sys.n_threads_active[SRV_MASTER]) == 0) {
+	if (srv_sys.n_threads_active[SRV_MASTER] == 0) {
 		srv_slot_t*	slot;
 
 		srv_sys_mutex_enter();
@@ -1934,7 +1934,7 @@ srv_wake_purge_thread_if_not_active()
 	ut_ad(!srv_sys_mutex_own());
 
 	if (purge_sys.enabled() && !purge_sys.paused()
-	    && !my_atomic_loadlint(&srv_sys.n_threads_active[SRV_PURGE])
+	    && !srv_sys.n_threads_active[SRV_PURGE]
 	    && trx_sys.rseg_history_len) {
 
 		srv_release_threads(SRV_PURGE, 1);
@@ -2408,7 +2408,8 @@ static bool srv_purge_should_exit()
 		return(true);
 	}
 	/* Slow shutdown was requested. */
-	if (uint32_t history_size = trx_sys.rseg_history_len) {
+	uint32_t history_size = trx_sys.rseg_history_len;
+	if (history_size) {
 #if defined HAVE_SYSTEMD && !defined EMBEDDED_LIBRARY
 		static ib_time_t progress_time;
 		ib_time_t time = ut_time();
@@ -2477,7 +2478,7 @@ DECLARE_THREAD(srv_worker_thread)(
 	slot = srv_reserve_slot(SRV_WORKER);
 
 	ut_a(srv_n_purge_threads > 1);
-	ut_a(ulong(my_atomic_loadlint(&srv_sys.n_threads_active[SRV_WORKER]))
+	ut_a(ulong(srv_sys.n_threads_active[SRV_WORKER])
 	     < srv_n_purge_threads);
 
 	/* We need to ensure that the worker threads exit after the
