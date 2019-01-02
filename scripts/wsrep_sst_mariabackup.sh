@@ -83,7 +83,7 @@ fi
 pcmd="pv $pvopts"
 declare -a RC
 
-INNOBACKUPEX_BIN=mariabackup
+INNOBACKUPEX_BIN=$(which mariabackup)
 XBSTREAM_BIN=mbstream
 XBCRYPT_BIN=xbcrypt # Not available in MariaBackup
 
