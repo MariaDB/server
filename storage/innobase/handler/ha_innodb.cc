@@ -7956,7 +7956,7 @@ ha_innobase::build_template(
 				templ = build_template_field(
 					m_prebuilt, clust_index, index,
 					table, field, i - num_v, num_v);
-				ut_ad(templ->is_virtual == is_v);
+				ut_ad(templ->is_virtual == (ulint)is_v);
 
 				if (is_v) {
 					num_v++;
@@ -8030,7 +8030,7 @@ no_icp:
 			templ = build_template_field(
 				m_prebuilt, clust_index, index,
 				table, field, i - num_v, num_v);
-			ut_ad(templ->is_virtual == is_v);
+			ut_ad(templ->is_virtual == (ulint)is_v);
 			if (is_v) {
 				num_v++;
 			}
