@@ -22,7 +22,7 @@ SELECT * FROM xt2;
 CREATE TABLE xt3 (
 id INT KEY NOT NULL,
 msg VARCHAR(32))
-ENGINE=CONNECT TABLE_TYPE=CSV AVG_ROW_LENGTH=5;
+ENGINE=CONNECT TABLE_TYPE=CSV AVG_ROW_LENGTH=6;
 INSERT INTO xt3 VALUES(60,'sixty'),(81,'eighty one'),(72,'seventy two');
 SELECT * FROM xt3;
 
@@ -47,7 +47,7 @@ INSERT INTO t1 VALUES(7,'seven'),(10,'ten'),(40,'forty'),(60,'sixty'),(81,'eight
 INSERT INTO t1 VALUES(72,'seventy two'),(11,'eleven'),(1,'one'),(35,'thirty five'),(8,'eight');
 SELECT partition_name, table_rows FROM information_schema.partitions WHERE table_name = 't1';
 SELECT * FROM t1;
-#EXPLAIN PARTITIONS deleted because it returns differeent key on Windows and Linux
+EXPLAIN PARTITIONS
 SELECT * FROM t1 WHERE id = 81;
 DELETE FROM t1;
 DROP TABLE t1;
