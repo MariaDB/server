@@ -6282,7 +6282,7 @@ int binlog_log_row(TABLE* table, const uchar *before_record,
   if (WSREP_EMULATE_BINLOG(thd) &&
       !(table->file->ht->flags & HTON_WSREP_REPLICATION) &&
       !(table->file->ht->db_type == DB_TYPE_PARTITION_DB &&
-        (((ha_partition*)(table->file))->ht->flags & HTON_WSREP_REPLICATION)))
+        (((ha_partition*)(table->file))->wsrep_db_type() == DB_TYPE_INNODB)))
   {
       return 0;
   }
