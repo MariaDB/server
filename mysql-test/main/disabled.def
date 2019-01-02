@@ -24,3 +24,4 @@ max_statement_time       : cannot possibly work, depends on timing
 mysqlcheck               : special tables like proxy , host specific to a system are shown
 flush_read_lock          : special tables like proxy , host specific to a system are shown
 join_cache               : enable after MDEV-17752 is fixed
+mysqldump : wait for merge of commit 2450fd67ed403bb8a154925dd1ca500b23f5b3cc
