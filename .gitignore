@@ -39,7 +39,7 @@ client/mysqlimport
 client/mysqlshow
 client/mysqlslap
 client/mysqltest
-client/myls
+client/mysqlttof
 cmake_install.cmake
 dbug/*.r
 dbug/factorial

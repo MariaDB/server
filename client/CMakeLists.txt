@@ -81,8 +81,8 @@ MYSQL_ADD_EXECUTABLE(mysqlslap mysqlslap.c)
 SET_SOURCE_FILES_PROPERTIES(mysqlslap.c PROPERTIES COMPILE_FLAGS "-DTHREADS")
 TARGET_LINK_LIBRARIES(mysqlslap ${CLIENT_LIB})
 
-MYSQL_ADD_EXECUTABLE(myls myls.cc)
-TARGET_LINK_LIBRARIES(myls ${CLIENT_LIB} strings)
+MYSQL_ADD_EXECUTABLE(mysqlttof mysqlttof.cc)
+TARGET_LINK_LIBRARIES(mysqlttof ${CLIENT_LIB} strings)
 
 # "WIN32" also covers 64 bit. "echo" is used in some files below "mysql-test/".
 IF(WIN32)

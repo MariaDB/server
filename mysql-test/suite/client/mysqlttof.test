@@ -1,0 +1,11 @@
+--character_set latin1
+
+# invalid option
+--replace_regex /.*mysqlttof.*: unknown/mysqlttof: unknown/
+--error 1
+--exec $MYSQL_TTOF -c utf8 -t "@6e2c@8a66@8cc7@6599@5eab" 2>&1 > /dev/null
+
+# no arguments
+--replace_regex /.*mysqlttof.*: unknown/mysqlttof: unknown/
+--error 1
+--exec $MYSQL_TTOF 2>&1 > /dev/null

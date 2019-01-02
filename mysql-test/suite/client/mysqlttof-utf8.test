@@ -1,15 +1,15 @@
 --character_set utf8
 
 # simple I/O
---exec $MYLS -c utf8 "測試資料"
---exec $MYLS -c utf8 -r "@6e2c@8a66@8cc7@6599@5eab"
+--exec $MYSQL_TTOF -c utf8 "測試資料"
+--exec $MYSQL_TTOF -c utf8 -r "@6e2c@8a66@8cc7@6599@5eab"
 
 # undo query result
 SET NAMES utf8;
 let $query_result=`SELECT CONVERT(CONVERT('測試資料' USING filename) USING binary);`;
 --echo $query_result
---exec $MYLS -c utf8 -r $query_result
+--exec $MYSQL_TTOF -c utf8 -r $query_result
 
 let $reverse_query_result=`SELECT CONVERT(_filename '@6e2c@8a66@8cc7@6599@5eab' USING utf8);`;
 --echo $reverse_query_result
---exec $MYLS -c utf8 $reverse_query_result
+--exec $MYSQL_TTOF -c utf8 $reverse_query_result

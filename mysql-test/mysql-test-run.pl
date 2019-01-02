@@ -212,7 +212,7 @@ our $exe_mysqladmin;
 our $exe_mysqltest;
 our $exe_libtool;
 our $exe_mysql_embedded;
-our $exe_myls;
+our $exe_mysql_ttof;
 
 our $opt_big_test= 0;
 our $opt_staging_run= 0;
@@ -1992,7 +1992,7 @@ sub executable_setup () {
   $exe_mysqladmin=     mtr_exe_exists("$path_client_bindir/mysqladmin");
   $exe_mysql=          mtr_exe_exists("$path_client_bindir/mysql");
   $exe_mysql_plugin=   mtr_exe_exists("$path_client_bindir/mysql_plugin");
-  $exe_myls=           mtr_exe_exists("$path_client_bindir/myls");
+  $exe_mysql_ttof=           mtr_exe_exists("$path_client_bindir/mysqlttof");
 
   $exe_mysql_embedded= mtr_exe_maybe_exists("$basedir/libmysqld/examples/mysql_embedded");
 
@@ -2294,7 +2294,7 @@ sub environment_setup {
   $ENV{'EXE_MYSQL'}=                $exe_mysql;
   $ENV{'MYSQL_PLUGIN'}=             $exe_mysql_plugin;
   $ENV{'MYSQL_EMBEDDED'}=           $exe_mysql_embedded;
-  $ENV{'MYLS'}=                     $exe_myls;
+  $ENV{'MYSQL_TTOF'}=               $exe_mysql_ttof;
   if(IS_WINDOWS)
   {
      $ENV{'MYSQL_INSTALL_DB_EXE'}=  mtr_exe_exists("$bindir/sql$opt_vs_config/mysql_install_db");
