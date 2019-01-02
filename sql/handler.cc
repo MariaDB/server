@@ -6279,10 +6279,13 @@ int binlog_log_row(TABLE* table, const uchar *before_record,
   THD *const thd= table->in_use;
 
   /* only InnoDB tables will be replicated through binlog emulation */
-  if ((WSREP_EMULATE_BINLOG(thd) &&
-       table->file->partition_ht()->flags & HTON_WSREP_REPLICATION) ||
-       (thd->wsrep_ignore_table == true))
-    return 0;
+  if (WSREP_EMULATE_BINLOG(thd) &&
+      !(table->file->ht->flags & HTON_WSREP_REPLICATION) &&
+      !(table->file->ht->db_type == DB_TYPE_PARTITION_DB &&
+        (((ha_partition*)(table->file))->ht->flags & HTON_WSREP_REPLICATION)))
+  {
+      return 0;
+  }
 #endif
 
   if (!table->file->check_table_binlog_row_based(1))
