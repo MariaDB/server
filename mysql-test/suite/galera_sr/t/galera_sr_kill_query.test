@@ -1,6 +1,4 @@
 --source include/galera_cluster.inc
---source include/have_innodb.inc
---source include/big_test.inc
 
 #
 # Test KILL QUERY on a statement that has already replicated some data via SR
@@ -35,11 +33,8 @@ SET TRANSACTION ISOLATION LEVEL READ UNCOMMITTED;
 
 # Confirm that the kill caused the updates made so far to be removed
 --connection node_2
---let $wait_condition = SELECT COUNT(*) = 0 FROM t1;
---source include/wait_condition.inc
-
---let $wait_condition = SELECT COUNT(*) = 0 FROM wsrep_schema.SR;
---source include/wait_condition.inc
+SELECT COUNT(*) = 0 FROM t1;
+SELECT COUNT(*) = 0 FROM wsrep_schema.SR;
 
 # Confirm that the transaction can be reissued in its entirety on the slave without a conflict
 
