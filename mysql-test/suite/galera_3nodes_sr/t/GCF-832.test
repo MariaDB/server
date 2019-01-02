@@ -6,6 +6,11 @@
 --source include/have_debug_sync.inc
 
 --connect node_3, 127.0.0.1, root, , test, $NODE_MYPORT_3
+# Save original auto_increment_offset values.
+--let $node_1=node_1
+--let $node_2=node_2
+--let $node_3=node_3
+--source ../galera/include/auto_increment_offset_save.inc
 
 --connection node_2
 SET GLOBAL debug="d,crash_last_fragment_commit_after_fragment_removal";
@@ -34,3 +39,5 @@ SELECT COUNT(*) = 0 FROM wsrep_schema.SR;
 SELECT COUNT(*) = 0 FROM wsrep_schema.SR;
 
 DROP TABLE t1;
+
+--source ../galera/include/auto_increment_offset_restore.inc
