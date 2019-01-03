@@ -52,7 +52,7 @@ public:
 
 	// Functions
 	int  GetColumns(PGLOBAL g, PCSZ db, PCSZ dsn, PTOS topt);
-	bool Find(PGLOBAL g, PJVAL jvp, int j);
+	bool Find(PGLOBAL g, PJVAL jvp, PCSZ key, int j);
 	void AddColumn(PGLOBAL g);
 
 	// Members
