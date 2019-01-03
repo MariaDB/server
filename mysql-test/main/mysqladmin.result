@@ -17,3 +17,9 @@ mysqld is alive
 # Creating an empty file 'cnf_file'
 # Using --defaults-extra-file option with 'cnf_file'.
 mysqld is alive
+#
+# MDEV-14978 Client programs should use MYSQL_HOST as default host
+#
+error: 'Unknown MySQL server host 'unexisting_host_name' (-2)'
+Check that mysqld is running on unexisting_host_name and that the port is 3307.
+You can check this by doing 'telnet unexisting_host_name 3307'

@@ -595,3 +595,15 @@ eval SET GLOBAL SERVER_ID = $old_server_id;
 #
 replace_regex /.*mysqlbinlog(\.exe)? Ver .* for .* at [-_a-zA-Z0-9]+/mysqlbinlog Ver VER for OS at ARCH/;
 exec $MYSQL_BINLOG --version;
+
+--echo #
+--echo # MDEV-14978 Client programs should use MYSQL_HOST as default host
+--echo #
+
+### Starting master-bin.000022
+#flush logs;
+
+--error 1
+--exec $MYSQL_BINLOG_NOARGS -R some_dummy_unexisting_binfile 2>&1 > /dev/null
+
+

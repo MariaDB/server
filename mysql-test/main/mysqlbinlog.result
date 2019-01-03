@@ -1257,3 +1257,7 @@ ROLLBACK /* added by mysqlbinlog */;
 /*!50003 SET COMPLETION_TYPE=@OLD_COMPLETION_TYPE*/;
 /*!50530 SET @@SESSION.PSEUDO_SLAVE_MODE=0*/;
 mysqlbinlog Ver VER for OS at ARCH
+#
+# MDEV-14978 Client programs should use MYSQL_HOST as default host
+#
+ERROR: Failed on connect: Unknown MySQL server host 'unexisting_host_name' (-2)

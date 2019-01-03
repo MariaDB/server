@@ -51,3 +51,11 @@ EOF
 #
 --error 1
 --exec $MYSQLADMIN -u root -p 2>&1 > /dev/null
+
+--echo #
+--echo # MDEV-14978 Client programs should use MYSQL_HOST as default host
+--echo #
+
+--replace_regex /.*connect to server at.*//
+--error 1
+--exec $MYSQLADMIN_NOARGS ping 2>&1

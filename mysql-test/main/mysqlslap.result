@@ -258,3 +258,7 @@ DROP TABLE t1;
 #
 # Bug MDEV-15789 (Upstream: #80329): MYSQLSLAP OPTIONS --AUTO-GENERATE-SQL-GUID-PRIMARY and --AUTO-GENERATE-SQL-SECONDARY-INDEXES DONT WORK
 #
+#
+# MDEV-14978 Client programs should use MYSQL_HOST as default host
+#
+mysqlslap: Error when connecting to server: Unknown MySQL server host 'unexisting_host_name' (-2)

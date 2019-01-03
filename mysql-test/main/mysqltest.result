@@ -989,4 +989,9 @@ select "foo\""bar";
 foo\"bar
 foo\"bar
 set sql_mode=default;
+#
+# MDEV-14978 Client programs should use MYSQL_HOST as default host
+#
+mysqltest: Could not open connection 'default': 2005 Unknown MySQL server host 'unexisting_host_name' (-2)
+not ok
 End of tests
