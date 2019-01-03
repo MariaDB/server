@@ -526,13 +526,13 @@ decompress_with_slot:
 		/* Verify encryption checksum before we even try to
 		decrypt. */
 		if (!fil_space_verify_crypt_checksum(dst_frame, bpage->size)) {
+decrypt_failed:
 			ib::error() << "Encrypted page " << bpage->id
 				    << " in file " << space->chain.start->name
 				    << " looks corrupted; key_version="
 				    << mach_read_from_4(
 					    FIL_PAGE_FILE_FLUSH_LSN_OR_KEY_VERSION
 					    + dst_frame);
-decrypt_failed:
 			/* Mark page encrypted in case it should be. */
 			if (space->crypt_data->type
 			    != CRYPT_SCHEME_UNENCRYPTED) {
@@ -4448,7 +4448,7 @@ loop:
 				<< ". The most probable cause"
 				" of this error may be that the"
 				" table has been corrupted."
-				" See https://mariadb.com/kb/en/library/xtradbinnodb-recovery-modes/";
+				" See https://mariadb.com/kb/en/library/innodb-recovery-modes/";
 		}
 
 #if defined UNIV_DEBUG || defined UNIV_BUF_DEBUG

@@ -7712,36 +7712,40 @@ err_exit:
 	     index != NULL;
 	     index = dict_table_get_next_index(index)) {
 
+		bool has_prefixes = false;
+		for (size_t i = 0; i < dict_index_get_n_fields(index); i++) {
+			if (dict_index_get_nth_field(index, i)->prefix_len) {
+				has_prefixes = true;
+				break;
+			}
+		}
+
 		for (ulint i = 0; i < dict_index_get_n_fields(index); i++) {
-			if (my_strcasecmp(
-				system_charset_info,
-				dict_index_get_nth_field(index, i)->name,
-				from)) {
+			const dict_field_t* field
+			    = dict_index_get_nth_field(index, i);
+			if (my_strcasecmp(system_charset_info, field->name,
+					  from)) {
 				continue;
 			}
 
 			info = pars_info_create();
 
+			ulint pos = i;
+			if (has_prefixes) {
+				pos = (pos << 16) + field->prefix_len;
+			}
+
 			pars_info_add_ull_literal(info, "indexid", index->id);
-			pars_info_add_int4_literal(info, "nth", i);
+			pars_info_add_int4_literal(info, "nth", pos);
 			pars_info_add_str_literal(info, "new", to);
 
 			error = que_eval_sql(
 				info,
 				"PROCEDURE RENAME_SYS_FIELDS_PROC () IS\n"
 				"BEGIN\n"
-
 				"UPDATE SYS_FIELDS SET COL_NAME=:new\n"
 				"WHERE INDEX_ID=:indexid\n"
 				"AND POS=:nth;\n"
-
-				/* Try again, in case there is a prefix_len
-				encoded in SYS_FIELDS.POS */
-
-				"UPDATE SYS_FIELDS SET COL_NAME=:new\n"
-				"WHERE INDEX_ID=:indexid\n"
-				"AND POS>=65536*:nth AND POS<65536*(:nth+1);\n"
-
 				"END;\n",
 				FALSE, trx);
 

@@ -1,4 +1,4 @@
-#!/usr/bin/env python
+#!@PYTHON_SHEBANG@
 
 from __future__ import division
 from optparse import OptionParser

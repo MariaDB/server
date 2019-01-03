@@ -3301,6 +3301,8 @@ udf_handler::fix_fields(THD *thd, Item_func_or_sum *func,
       if (item->maybe_null)
 	func->maybe_null=1;
       func->with_sum_func= func->with_sum_func || item->with_sum_func;
+      func->with_window_func= func->with_window_func ||
+                              item->with_window_func;
       func->with_field= func->with_field || item->with_field;
       func->with_param= func->with_param || item->with_param;
       func->With_subquery_cache::join(item);
