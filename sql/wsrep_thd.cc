@@ -422,7 +422,7 @@ bool wsrep_bf_abort(const THD* bf_thd, THD* victim_thd)
   WSREP_LOG_THD(victim_thd, "victim before");
   wsrep::seqno bf_seqno(bf_thd->wsrep_trx().ws_meta().seqno());
 
-  if (!victim_thd->wsrep_trx().active())
+  if (WSREP(victim_thd) && !victim_thd->wsrep_trx().active())
   {
     WSREP_DEBUG("wsrep_bf_abort, BF abort for non active transaction");
     wsrep_start_transaction(victim_thd, victim_thd->wsrep_next_trx_id());
