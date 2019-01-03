@@ -201,6 +201,7 @@ static char*	log_ignored_opt;
 extern my_bool opt_use_ssl;
 my_bool opt_ssl_verify_server_cert;
 my_bool opt_extended_validation;
+my_bool opt_backup_encrypted;
 
 /* === metadata of backup === */
 #define XTRABACKUP_METADATA_FILENAME "xtrabackup_checkpoints"
@@ -762,6 +763,7 @@ enum options_xtrabackup
   OPT_XTRA_DATABASES_FILE,
   OPT_XTRA_PARALLEL,
   OPT_XTRA_EXTENDED_VALIDATION,
+  OPT_XTRA_BACKUP_ENCRYPTED,
   OPT_XTRA_STREAM,
   OPT_XTRA_COMPRESS,
   OPT_XTRA_COMPRESS_THREADS,
@@ -1220,12 +1222,20 @@ struct my_option xb_server_options[] =
    REQUIRED_ARG, 1, 1, INT_MAX, 0, 0, 0},
 
   {"extended_validation", OPT_XTRA_EXTENDED_VALIDATION,
-   "Enable extended validation for Innodb data pages during backup phase."
-   "Will slow down backup considerably, in case encryption is used.",
+   "Enable extended validation for Innodb data pages during backup phase. "
+   "Will slow down backup considerably, in case encryption is used. "
+   "May fail if tables are created during the backup.",
    (G_PTR*)&opt_extended_validation,
    (G_PTR*)&opt_extended_validation,
    0, GET_BOOL, NO_ARG, FALSE, 0, 0, 0, 0, 0},
 
+  {"backup_encrypted", OPT_XTRA_BACKUP_ENCRYPTED,
+   "In --backup, assume that nonzero key_version implies that the page"
+   " is encrypted. Use --backup --skip-backup-encrypted to allow"
+   " copying unencrypted that were originally created before MySQL 5.1.48.",
+   (G_PTR*)&opt_backup_encrypted,
+   (G_PTR*)&opt_backup_encrypted,
+   0, GET_BOOL, NO_ARG, TRUE, 0, 0, 0, 0, 0},
 
    {"log", OPT_LOG, "Ignored option for MySQL option compatibility",
    (G_PTR*) &log_ignored_opt, (G_PTR*) &log_ignored_opt, 0,
