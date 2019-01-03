@@ -56,6 +56,6 @@ EOF
 --echo # MDEV-14978 Client programs should use MYSQL_HOST as default host
 --echo #
 
---replace_regex /.*connect to server at.*//
+--replace_regex /.*connect to server at.*// /^Check that mysqld.*// /^You can check this.*//
 --error 1
 --exec $MYSQLADMIN_NOARGS ping 2>&1
