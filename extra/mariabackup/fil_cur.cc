@@ -262,6 +262,8 @@ xb_fil_cur_open(
 		mutex_exit(&fil_system->mutex);
 	}
 
+	/*msg("crypt: %s,%u\n", node->name, node->space->crypt_data->type);*/
+
 	cursor->space_size = (ulint)(cursor->statinfo.st_size
 				     / page_size.physical());
 
@@ -272,8 +274,9 @@ xb_fil_cur_open(
 	return(XB_FIL_CUR_SUCCESS);
 }
 
-static bool page_is_corrupted(byte *page, ulint page_no, xb_fil_cur_t *cursor,
-			      fil_space_t *space)
+static bool page_is_corrupted(const byte *page, ulint page_no,
+			      const xb_fil_cur_t *cursor,
+			      const fil_space_t *space)
 {
 	byte tmp_frame[UNIV_PAGE_SIZE_MAX];
 	byte tmp_page[UNIV_PAGE_SIZE_MAX];
@@ -301,8 +304,8 @@ static bool page_is_corrupted(byte *page, ulint page_no, xb_fil_cur_t *cursor,
 		from the start of each file.)
 
 		The first 38 and last 8 bytes are never encrypted. */
-		const ulint* p = reinterpret_cast<ulint*>(page);
-		const ulint* const end = reinterpret_cast<ulint*>(
+		const ulint* p = reinterpret_cast<const ulint*>(page);
+		const ulint* const end = reinterpret_cast<const ulint*>(
 			page + page_size);
 		do {
 			if (*p++) {
@@ -322,8 +325,9 @@ static bool page_is_corrupted(byte *page, ulint page_no, xb_fil_cur_t *cursor,
 	page_no first. */
 	if (page_no
 	    && mach_read_from_4(page + FIL_PAGE_FILE_FLUSH_LSN_OR_KEY_VERSION)
-	    && space->crypt_data
-	    && space->crypt_data->type != CRYPT_SCHEME_UNENCRYPTED) {
+	    && (opt_backup_encrypted
+		|| (space->crypt_data
+		    && space->crypt_data->type != CRYPT_SCHEME_UNENCRYPTED))) {
 
 		if (!fil_space_verify_crypt_checksum(page, cursor->page_size))
 			return true;
@@ -337,7 +341,10 @@ static bool page_is_corrupted(byte *page, ulint page_no, xb_fil_cur_t *cursor,
 		memcpy(tmp_page, page, page_size);
 
 		bool decrypted = false;
-		if (!fil_space_decrypt(space, tmp_frame, tmp_page, &decrypted)) {
+		if (!space->crypt_data
+		    || space->crypt_data->type == CRYPT_SCHEME_UNENCRYPTED
+		    || fil_space_decrypt(space, tmp_frame, tmp_page,
+					 &decrypted)) {
 			return true;
 		}
 
@@ -463,6 +470,7 @@ read_retry:
 				    "corrupted.\n", cursor->thread_n,
 				    cursor->abs_path);
 				ret = XB_FIL_CUR_ERROR;
+				buf_page_print(page, cursor->page_size);
 				break;
 			}
 			msg("[%02u] mariabackup: "
