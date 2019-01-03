@@ -1737,7 +1737,6 @@ MDL_lock::can_grant_lock(enum_mdl_type type_arg,
     {
       Ticket_iterator it(m_granted);
       MDL_ticket *ticket;
-      bool  wsrep_can_grant= TRUE;
 
       /* Check that the incompatible lock belongs to some other context. */
       while ((ticket= it++))
@@ -1745,18 +1744,18 @@ MDL_lock::can_grant_lock(enum_mdl_type type_arg,
         if (ticket->get_ctx() != requestor_ctx &&
             ticket->is_incompatible_when_granted(type_arg))
         {
-	    if ((wsrep_thd_is_toi(requestor_ctx->get_thd()) ||
-		 wsrep_thd_is_applying(requestor_ctx->get_thd())) &&
-		key.mdl_namespace() == MDL_key::BACKUP)
-            {
+	  if ((wsrep_thd_is_toi(requestor_ctx->get_thd()) ||
+	       wsrep_thd_is_applying(requestor_ctx->get_thd())) &&
+	      key.mdl_namespace() == MDL_key::BACKUP)
+          {
             WSREP_DEBUG("global lock granted for BF: %lu %s",
                         thd_get_thread_id(requestor_ctx->get_thd()),
                         wsrep_thd_query(requestor_ctx->get_thd()));
             can_grant = true;
           }
-          else if (!wsrep_grant_mdl_exception(requestor_ctx, ticket, &key))
+          else
           {
-            wsrep_can_grant= FALSE;
+	    wsrep_handle_mdl_conflict(requestor_ctx, ticket, &key);
             if (wsrep_log_conflicts)
             {
               MDL_lock * lock = ticket->get_lock();
@@ -1768,7 +1767,7 @@ MDL_lock::can_grant_lock(enum_mdl_type type_arg,
           }
         }
       }
-      if (wsrep_can_grant)
+      if (ticket == NULL)             /* Incompatible locks are our own. */
         can_grant= TRUE;
     }
 #else
