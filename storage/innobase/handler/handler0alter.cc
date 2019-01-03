@@ -7002,7 +7002,7 @@ err_exit:
 
 			info = pars_info_create();
 
-			int pos = i;
+			ulint pos = i;
 			if (has_prefixes) {
 				pos = (pos << 16) + field->prefix_len;
 			}
