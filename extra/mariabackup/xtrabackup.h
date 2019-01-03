@@ -129,6 +129,7 @@ extern my_bool		opt_no_backup_locks;
 extern my_bool		opt_decompress;
 extern my_bool		opt_remove_original;
 extern my_bool		opt_extended_validation;
+extern my_bool		opt_backup_encrypted;
 
 extern char		*opt_incremental_history_name;
 extern char		*opt_incremental_history_uuid;
