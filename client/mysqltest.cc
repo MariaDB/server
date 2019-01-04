@@ -7341,6 +7341,8 @@ int parse_args(int argc, char **argv)
   load_defaults_or_exit("my", load_default_groups, &argc, &argv);
   default_argv= argv;
 
+  opt_host= (char *) getenv("MYSQL_HOST");
+
   if ((handle_options(&argc, &argv, my_long_options, get_one_option)))
     exit(1);
 

@@ -977,8 +977,12 @@ get_one_option(int optid, const struct my_option *opt __attribute__((unused)),
 
 static int get_options(int *argc, char ***argv)
 {
+  char *tmp;
   int ho_error;
   MYSQL_PARAMETERS *mysql_params= mysql_get_parameters();
+
+  if ((tmp= (char *) getenv("MYSQL_HOST")))
+    current_host= my_strdup(tmp, MYF(MY_WME));
 
   opt_max_allowed_packet= *mysql_params->p_max_allowed_packet;
   opt_net_buffer_length= *mysql_params->p_net_buffer_length;

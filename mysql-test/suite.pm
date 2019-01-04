@@ -3,6 +3,15 @@ use My::Platform;
 
 @ISA = qw(My::Suite);
 
+$ENV{'MYSQL_HOST'}= 'unexisting_host_name';
+$ENV{'MYSQL_UPGRADE_NOARGS'}= ::mtr_exe_exists("$::path_client_bindir/mysql_upgrade");
+$ENV{'MYSQLADMIN_NOARGS'}= ::mtr_exe_exists("$::path_client_bindir/mysqladmin");
+$ENV{'MYSQL_DUMP_NOARGS'}= ::mtr_exe_exists("$::path_client_bindir/mysqldump");
+$ENV{'MYSQLTEST_NOARGS'}= ::mtr_exe_exists("$::path_client_bindir/mysqltest");
+$ENV{'MYSQL_SHOW_NOARGS'}= ::mtr_exe_exists("$::path_client_bindir/mysqlshow");
+$ENV{'MYSQL_SLAP_NOARGS'}= ::mtr_exe_exists("$::path_client_bindir/mysqlslap");
+$ENV{'MYSQL_BINLOG_NOARGS'}= ::mtr_exe_exists("$::path_client_bindir/mysqlbinlog");
+
 sub skip_combinations {
   my @combinations;
 

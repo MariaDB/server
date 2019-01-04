@@ -315,6 +315,8 @@ int main(int argc,char *argv[])
   load_defaults_or_exit("my", load_default_groups, &argc, &argv);
   save_argv = argv;				/* Save for free_defaults */
 
+  host= (char *) getenv("MYSQL_HOST");
+
   if ((error=handle_options(&argc, &argv, my_long_options, get_one_option)))
     goto err2;
   temp_argv= mask_password(argc, &argv);

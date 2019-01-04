@@ -1810,7 +1810,7 @@ show create event ee1;
 
 ## prove three works (with spaces and tabs on the end)
 # start with one from the previous restore
-create event ee2 on schedule at '2018-12-31 21:01:23' do set @a=5;	      
+create event ee2 on schedule at '2030-12-31 21:01:23' do set @a=5;	      
 create event ee3 on schedule at '2030-12-31 22:01:23' do set @a=5;    		
 show events;
 --exec $MYSQL_DUMP --events second > $MYSQLTEST_VARDIR/tmp/bug16853-2.sql
@@ -2722,3 +2722,13 @@ select * from t2;
 select * from t3;
 desc t3;
 drop database d;
+
+--echo #
+--echo # MDEV-14978 Client programs should use MYSQL_HOST as default host
+--echo #
+
+create database mysqldump_test_dummydb character set latin2 collate latin2_bin;
+--error 2
+--exec $MYSQL_DUMP_NOARGS mysqldump_test_dummydb
+drop database mysqldump_test_dummydb;
+

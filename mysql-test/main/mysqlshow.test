@@ -40,3 +40,11 @@ DROP TABLE t1, t2;
 #--exec $MYSQL_SHOW INFORMATION_SCHEMA
 #--exec $MYSQL_SHOW inf_rmation_schema
 
+--echo #
+--echo # MDEV-14978 Client programs should use MYSQL_HOST as default host
+--echo #
+
+--replace_regex /^.*mysqlshow/mysqlshow/
+--error 1
+--exec $MYSQL_SHOW_NOARGS 2>&1
+

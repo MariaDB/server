@@ -76,3 +76,7 @@ Database: test
 
 DROP TABLE t1, t2;
 End of 5.0 tests
+#
+# MDEV-14978 Client programs should use MYSQL_HOST as default host
+#
+mysqlshow: Unknown MySQL server host 'unexisting_host_name' (-2)

@@ -244,3 +244,11 @@ DROP USER 'user3'@'%';
 update mysql.db set Delete_history_priv='Y' where db like 'test%';
 drop table mysql.global_priv;
 rename table mysql.global_priv_bak to mysql.global_priv;
+
+--echo #
+--echo # MDEV-14978 Client programs should use MYSQL_HOST as default host
+--echo #
+
+--error 1
+--exec $MYSQL_UPGRADE_NOARGS 2>&1
+

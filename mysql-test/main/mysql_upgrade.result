@@ -591,3 +591,9 @@ DROP USER 'user3'@'%';
 update mysql.db set Delete_history_priv='Y' where db like 'test%';
 drop table mysql.global_priv;
 rename table mysql.global_priv_bak to mysql.global_priv;
+#
+# MDEV-14978 Client programs should use MYSQL_HOST as default host
+#
+Version check failed. Got the following error when calling the 'mysql' command line client
+ERROR 2005 (HY000): Unknown MySQL server host 'unexisting_host_name' (-2)
+FATAL ERROR: Upgrade failed
