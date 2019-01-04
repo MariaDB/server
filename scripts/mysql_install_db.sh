@@ -208,9 +208,6 @@ cannot_find_file()
   fi
 
   echo
-  echo "If you compiled from source, you need to run 'make install' to"
-  echo "copy the software into the correct location ready for operation."
-  echo
   echo "If you compiled from source, you need to either run 'make install' to"
   echo "copy the software into the correct location ready for operation."
   echo "If you don't want to do a full install, you can use the --srcdir"
