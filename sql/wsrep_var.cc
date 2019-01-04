@@ -22,7 +22,6 @@
 #include "wsrep_priv.h"
 #include "wsrep_thd.h"
 #include "wsrep_xid.h"
-#include "wsrep_binlog.h" /* wsrep_fragment_unit() */
 #include <my_dir.h>
 #include <cstdio>
 #include <cstdlib>

@@ -61,6 +61,10 @@ rpl_sidno wsrep_sidno= -1;
 #endif /* GTID_SUPPORT */
 my_bool wsrep_preordered_opt= FALSE;
 
+/* Streaming Replication */
+const char *wsrep_fragment_units[]= { "bytes", "rows", "statements", NullS };
+const char *wsrep_SR_store_types[]= { "none", "table", NullS };
+
 /*
  * Begin configuration options
  */
@@ -3019,6 +3023,18 @@ error:
     return NULL;
 }
 
+enum wsrep::streaming_context::fragment_unit wsrep_fragment_unit(ulong unit)
+{
+  switch (unit)
+  {
+  case WSREP_FRAG_BYTES: return wsrep::streaming_context::bytes;
+  case WSREP_FRAG_ROWS: return wsrep::streaming_context::row;
+  case WSREP_FRAG_STATEMENTS: return wsrep::streaming_context::statement;
+  default:
+    DBUG_ASSERT(0);
+    return wsrep::streaming_context::bytes;
+  }
+}
 
 /***** callbacks for wsrep service ************/
 

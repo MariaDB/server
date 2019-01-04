@@ -23,9 +23,6 @@
 
 #include "transaction.h"
 
-const char *wsrep_fragment_units[]= { "bytes", "rows", "statements", NullS };
-const char *wsrep_SR_store_types[]= { "none", "table", NullS };
-
 extern handlerton *binlog_hton;
 /*
   Write the contents of a cache to a memory buffer.

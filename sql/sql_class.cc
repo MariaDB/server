@@ -69,7 +69,6 @@
 #include "sql_connect.h"
 #ifdef WITH_WSREP
 #include "mysql/service_wsrep.h"
-#include "wsrep_binlog.h" /* wsrep_fragment_unit() */
 #include "wsrep_thd.h"
 #include "wsrep_trans_observer.h"
 #endif /* WITH_WSREP */
@@ -1272,11 +1271,6 @@ void THD::init(bool skip_lock)
   m_wsrep_next_trx_id     = WSREP_UNDEFINED_TRX_ID;
   wsrep_replicate_GTID    = false;
   wsrep_skip_wsrep_GTID   = false;
-  if (!wsrep_applier && variables.wsrep_trx_fragment_size)
-  {
-    wsrep_cs().enable_streaming(wsrep_fragment_unit(variables.wsrep_trx_fragment_unit),
-                                variables.wsrep_trx_fragment_size);
-  }
 #endif /* WITH_WSREP */
 
   if (variables.sql_log_bin)
