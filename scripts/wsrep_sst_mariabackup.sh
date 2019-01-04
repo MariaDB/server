@@ -22,6 +22,7 @@
 
 . $(dirname $0)/wsrep_sst_common
 
+OS=$(uname)
 ealgo=""
 ekey=""
 ekeyfile=""
@@ -82,7 +83,7 @@ fi
 pcmd="pv $pvopts"
 declare -a RC
 
-INNOBACKUPEX_BIN=mariabackup
+INNOBACKUPEX_BIN=$(which mariabackup)
 XBSTREAM_BIN=mbstream
 XBCRYPT_BIN=xbcrypt # Not available in MariaBackup
 
@@ -333,6 +334,7 @@ read_cnf()
     rebuild=$(parse_cnf sst rebuild 0)
     ttime=$(parse_cnf sst time 0)
     cpat=$(parse_cnf sst cpat '.*galera\.cache$\|.*sst_in_progress$\|.*\.sst$\|.*gvwstate\.dat$\|.*grastate\.dat$\|.*\.err$\|.*\.log$\|.*RPM_UPGRADE_MARKER$\|.*RPM_UPGRADE_HISTORY$')
+    [[ $OS == "FreeBSD" ]] && cpat=$(parse_cnf sst cpat '.*galera\.cache$|.*sst_in_progress$|.*\.sst$|.*gvwstate\.dat$|.*grastate\.dat$|.*\.err$|.*\.log$|.*RPM_UPGRADE_MARKER$|.*RPM_UPGRADE_HISTORY$')
     ealgo=$(parse_cnf xtrabackup encrypt "")
     ekey=$(parse_cnf xtrabackup encrypt-key "")
     ekeyfile=$(parse_cnf xtrabackup encrypt-key-file "")
@@ -533,7 +535,11 @@ wait_for_listen()
     local MODULE=$3
     for i in {1..50}
     do
-        ss -p state listening "( sport = :$PORT )" | grep -qE 'socat|nc' && break
+	if [ "$OS" = "FreeBSD" ];then
+            sockstat -46lp $PORT | grep -qE "^[^ ]* *(socat|nc) *[^ ]* *[^ ]* *[^ ]* *[^ ]*:$PORT" && break
+        else
+            ss -p state listening "( sport = :$PORT )" | grep -qE 'socat|nc' && break
+        fi
         sleep 0.2
     done
     echo "ready ${ADDR}/${MODULE}//$sst_ver"
@@ -645,13 +651,12 @@ monitor_process()
 
     while true ; do
 
-        if ! ps --pid "${WSREP_SST_OPT_PARENT}" &>/dev/null; then
+        if ! ps -p "${WSREP_SST_OPT_PARENT}" &>/dev/null; then
             wsrep_log_error "Parent mysqld process (PID:${WSREP_SST_OPT_PARENT}) terminated unexpectedly." 
-            kill -- -"${WSREP_SST_OPT_PARENT}"
             exit 32
         fi
 
-        if ! ps --pid "${sst_stream_pid}" &>/dev/null; then 
+        if ! ps -p "${sst_stream_pid}" &>/dev/null; then 
             break
         fi
 
@@ -926,7 +931,11 @@ then
 
 
         wsrep_log_info "Cleaning the existing datadir and innodb-data/log directories"
-        find $ib_home_dir $ib_log_dir $ib_undo_dir $DATA -mindepth 1  -regex $cpat  -prune  -o -exec rm -rfv {} 1>&2 \+
+	if [ "${OS}" = "FreeBSD" ]; then
+            find -E $ib_home_dir $ib_log_dir $ib_undo_dir $DATA -mindepth 1 -prune -regex $cpat -o -exec rm -rfv {} 1>&2 \+
+        else
+            find $ib_home_dir $ib_log_dir $ib_undo_dir $DATA -mindepth 1 -prune -regex $cpat -o -exec rm -rfv {} 1>&2 \+
+        fi
 
         tempdir=$(parse_cnf mysqld log-bin "")
         if [[ -n ${tempdir:-} ]];then
