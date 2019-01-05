@@ -804,7 +804,6 @@ THD::THD(my_thread_id id, bool is_wsrep_applier, bool skip_global_sys_var_lock)
   wsrep_has_ignored_error = false;
   m_wsrep_next_trx_id       = WSREP_UNDEFINED_TRX_ID;
   wsrep_replicate_GTID    = false;
-  wsrep_skip_wsrep_GTID   = false;
 #endif
   /* Call to init() below requires fully initialized Open_tables_state. */
   reset_open_tables_state(this);
@@ -1270,7 +1269,6 @@ void THD::init(bool skip_lock)
   wsrep_affected_rows     = 0;
   m_wsrep_next_trx_id     = WSREP_UNDEFINED_TRX_ID;
   wsrep_replicate_GTID    = false;
-  wsrep_skip_wsrep_GTID   = false;
 #endif /* WITH_WSREP */
 
   if (variables.sql_log_bin)
@@ -1493,7 +1491,6 @@ void THD::cleanup(void)
   DBUG_ASSERT(cleanup_done == 0);
 
   set_killed(KILL_CONNECTION);
-  DEBUG_SYNC(this, "thd_cleanup_start");
 #ifdef ENABLE_WHEN_BINLOG_WILL_BE_ABLE_TO_PREPARE
   if (transaction.xid_state.xa_state == XA_PREPARED)
   {

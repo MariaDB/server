@@ -419,7 +419,6 @@ bool trans_rollback(THD *thd)
 #ifdef HAVE_REPLICATION
   repl_semisync_master.wait_after_rollback(thd, FALSE);
 #endif
-  //(void) RUN_HOOK(transaction, after_rollback, (thd, FALSE));
   thd->variables.option_bits&= ~(OPTION_BEGIN | OPTION_KEEP_LOG);
   /* Reset the binlog transaction marker */
   thd->variables.option_bits&= ~OPTION_GTID_BEGIN;

@@ -1835,15 +1835,13 @@ thd_to_trx_id(
 {
 	return(thd_to_trx(thd)->id);
 }
-#endif /* WITH_WSREP */
 
-#ifdef WITH_WSREP
 static int
 wsrep_abort_transaction(handlerton* hton, THD *bf_thd, THD *victim_thd,
 			my_bool signal);
 static int innobase_wsrep_set_checkpoint(handlerton* hton, const XID* xid);
 static int innobase_wsrep_get_checkpoint(handlerton* hton, XID* xid);
-#endif
+#endif /* WITH_WSREP */
 /********************************************************************//**
 Increments innobase_active_counter and every INNOBASE_WAKE_INTERVALth
 time calls srv_active_wake_master_thread. This function should be used

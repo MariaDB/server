@@ -2797,14 +2797,6 @@ void signal_thd_deleted()
     mysql_cond_broadcast(&COND_thread_count);
     mysql_mutex_unlock(&LOCK_thread_count);
   }
-  else
-  {
-    /* Naah, I signal anyways */
-    WSREP_DEBUG("forced signal for COND_thread_count");
-    mysql_mutex_lock(&LOCK_thread_count);
-    mysql_cond_broadcast(&COND_thread_count);
-    mysql_mutex_unlock(&LOCK_thread_count);
-  }
 }
 
 

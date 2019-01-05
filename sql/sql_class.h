@@ -4824,7 +4824,6 @@ public:
   ulong                     wsrep_affected_rows;
   bool                      wsrep_has_ignored_error;
   bool                      wsrep_replicate_GTID;
-  bool                      wsrep_skip_wsrep_GTID;
 
   /*
     When enabled, do not replicate/binlog updates from the current table that's

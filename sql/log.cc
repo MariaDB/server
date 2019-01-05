@@ -10712,16 +10712,6 @@ void thd_binlog_rollback_stmt(THD * thd)
     cache_mngr->trx_cache.set_prev_position(MY_OFF_T_UNDEF);
 }
 
-int wsrep_thd_binlog_prepare(THD* thd, bool all)
-{
-  /* applier and replayer can skip binlog prepare */
-  if (WSREP_EMULATE_BINLOG(thd) &&
-      thd->wsrep_cs().mode() == wsrep::client_state::m_local)
-    return binlog_hton->prepare(binlog_hton, thd, all);
-  else
-    return ha_prepare(thd);
-}
-
 bool wsrep_stmt_rollback_is_safe(THD* thd)
 {
   bool ret(true);
