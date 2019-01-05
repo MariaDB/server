@@ -38,6 +38,9 @@ enum trg_event_type
   TRG_EVENT_MAX
 };
 
+static inline uint8 trg2bit(enum trg_event_type trg)
+{ return static_cast<uint8>(1 << static_cast<int>(trg)); }
+
 #include "table.h"                              /* GRANT_INFO */
 
 /*
