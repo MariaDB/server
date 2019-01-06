@@ -1413,9 +1413,6 @@ int ha_commit_trans(THD *thd, bool all)
     DBUG_RETURN(2);
   }
 
-#ifdef WITH_WSREP
-  bool trans_was_empty= true;
-#endif /* WITH_WSREP */
 #ifdef WITH_ARIA_STORAGE_ENGINE
   ha_maria::implicit_commit(thd, TRUE);
 #endif
@@ -1428,7 +1425,7 @@ int ha_commit_trans(THD *thd, bool all)
     if (is_real_trans)
       thd->transaction.cleanup();
 #ifdef WITH_WSREP
-    if (WSREP(thd) && all && !error && trans_was_empty)
+    if (WSREP(thd) && all && !error)
     {
       wsrep_commit_empty(thd, all);
     }
@@ -1518,12 +1515,6 @@ int ha_commit_trans(THD *thd, bool all)
     }
   }
 #endif
-#ifdef WITH_WSREP
-  if (rw_ha_count)
-  {
-    trans_was_empty= false;
-  }
-#endif /* WITH_WSREP */
 
   if (trans->no_2pc || (rw_ha_count <= 1))
   {
@@ -1681,7 +1672,7 @@ end:
     thd->mdl_context.release_lock(mdl_request.ticket);
   }
 #ifdef WITH_WSREP
-  if (WSREP(thd) && all && !error && trans_was_empty)
+  if (WSREP(thd) && all && !error && (rw_ha_count > 0))
   {
     wsrep_commit_empty(thd, all);
   }

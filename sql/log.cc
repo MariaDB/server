@@ -1707,7 +1707,6 @@ static int binlog_close_connection(handlerton *hton, THD *thd)
     (binlog_cache_mngr*) thd_get_ha_data(thd, binlog_hton);
 #ifdef WITH_WSREP
   if (cache_mngr && !cache_mngr->trx_cache.empty()) {
-    //IO_CACHE* cache= wsrep_get_trans_cache(thd);
     IO_CACHE* cache= cache_mngr->get_binlog_cache_log(true);
     uchar *buf;
     size_t len=0;
@@ -10615,40 +10614,6 @@ maria_declare_plugin_end;
 #include "wsrep_trans_observer.h"
 #include "wsrep_mysqld.h"
 
-static int wsrep_plugin_init(void *p)
-{
-  WSREP_INFO("wsrep_plugin_init()");
-  return (0);
-}
-
-static int wsrep_plugin_deinit(void *p)
-{
-  WSREP_INFO("wsrep_plugin_deinit()");
-  return (0);
-}
-
-struct Mysql_replication wsrep_plugin= {
-  MYSQL_REPLICATION_INTERFACE_VERSION
-};
-
-maria_declare_plugin(wsrep)
-{
-  MYSQL_REPLICATION_PLUGIN,
-  &wsrep_plugin,
-  "wsrep",
-  "Codership Oy",
-  "Wsrep replication plugin",
-  PLUGIN_LICENSE_GPL,
-  wsrep_plugin_init,
-  wsrep_plugin_deinit,
-  0x0100,
-  NULL, /* Status variables */
-  NULL, /* System variables */
-  "1.0", /* Version (string) */
-  MariaDB_PLUGIN_MATURITY_STABLE     /* Maturity */
-}
-maria_declare_plugin_end;
-
 IO_CACHE *wsrep_get_trans_cache(THD * thd)
 {
   DBUG_ASSERT(binlog_hton->slot != HA_SLOT_UNDEF);
@@ -10660,20 +10625,6 @@ IO_CACHE *wsrep_get_trans_cache(THD * thd)
   WSREP_DEBUG("binlog cache not initialized, conn: %llu",
 	      thd->thread_id);
   return NULL;
-}
-
-
-uint wsrep_get_trans_cache_position(THD *thd)
-{
-  if (binlog_hton)
-  {
-    my_off_t pos = 0;
-    binlog_cache_mngr *const cache_mngr= (binlog_cache_mngr*)
-      thd_get_ha_data(thd, binlog_hton);
-    if (cache_mngr) binlog_trans_log_savepos(thd, &pos);
-    return (pos);
-  }
-  return 0;
 }
 
 void wsrep_thd_binlog_trx_reset(THD * thd)
