@@ -6614,7 +6614,8 @@ bool mysql_routine_grant(THD *thd, TABLE_LIST *table_list,
 {
   List_iterator <LEX_USER> str_list (user_list);
   LEX_USER *Str, *tmp_Str;
-  bool create_new_users= 0, result;
+  bool create_new_users= 0;
+  int result;
   const char *db_name, *table_name;
   DBUG_ENTER("mysql_routine_grant");
 
@@ -7047,7 +7048,8 @@ bool mysql_grant(THD *thd, const char *db, List <LEX_USER> &list,
   List_iterator <LEX_USER> str_list (list);
   LEX_USER *Str, *tmp_Str, *proxied_user= NULL;
   char tmp_db[SAFE_NAME_LEN+1];
-  bool create_new_users=0, result;
+  bool create_new_users=0;
+  int result;
   DBUG_ENTER("mysql_grant");
 
   if (lower_case_table_names && db)

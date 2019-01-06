@@ -545,6 +545,19 @@ SELECT C.NAME FROM INFORMATION_SCHEMA.INNODB_SYS_COLUMNS C INNER JOIN
   WHERE T.NAME='test/t1';
 DROP TABLE t1;
 
+--echo # and an MDEV-18041 regression related to indexes prefixes
+create table `test` (
+  `test_old` varchar(255) NOT NULL,
+  `other` varchar(255) NOT NULL,
+  PRIMARY KEY (`test_old`,`other`),
+  UNIQUE KEY uk (`test_old`(100), `other`)
+) ENGINE=InnoDB;
+
+select name, pos from information_schema.innodb_SYS_FIELDS where name in ('test_old', 'other', 'test_new');
+alter table `test` CHANGE COLUMN `test_old` `test_new` varchar(255) NOT NULL;
+select name, pos from information_schema.innodb_SYS_FIELDS where name in ('test_old', 'other', 'test_new');
+drop table `test`;
+
 
 --echo #
 --echo # BUG 20029625 - HANDLE_FATAL_SIGNAL (SIG=11) IN

@@ -495,10 +495,6 @@ dict_mem_create_temporary_tablename(
 	const char*	dbtab,
 	table_id_t	id);
 
-/** Initialize dict memory variables */
-void
-dict_mem_init(void);
-
 /** SQL identifier name wrapper for pretty-printing */
 class id_name_t
 {
