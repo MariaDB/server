@@ -945,28 +945,6 @@ buf_block_get_modify_clock(
 	return(block->modify_clock);
 }
 
-/** Increments the bufferfix count.
-@param[in,out]	bpage	block to bufferfix
-@return the count */
-UNIV_INLINE
-ulint
-buf_block_fix(
-	buf_page_t*	bpage)
-{
-	return uint32(my_atomic_add32((int32*) &bpage->buf_fix_count, 1) + 1);
-}
-
-/** Increments the bufferfix count.
-@param[in,out]	block	block to bufferfix
-@return the count */
-UNIV_INLINE
-ulint
-buf_block_fix(
-	buf_block_t*	block)
-{
-	return(buf_block_fix(&block->page));
-}
-
 /*******************************************************************//**
 Increments the bufferfix count. */
 UNIV_INLINE
@@ -990,32 +968,7 @@ buf_block_buf_fix_inc_func(
 	}
 #endif /* UNIV_DEBUG */
 
-	buf_block_fix(block);
-}
-
-/** Decrements the bufferfix count.
-@param[in,out]	bpage	block to bufferunfix
-@return	the remaining buffer-fix count */
-UNIV_INLINE
-ulint
-buf_block_unfix(
-	buf_page_t*	bpage)
-{
-	uint32	count = uint32(my_atomic_add32((int32*) &bpage->buf_fix_count,
-					       -1));
-	ut_ad(count != 0);
-	return count - 1;
-}
-
-/** Decrements the bufferfix count.
-@param[in,out]	block	block to bufferunfix
-@return the remaining buffer-fix count */
-UNIV_INLINE
-ulint
-buf_block_unfix(
-	buf_block_t*	block)
-{
-	return(buf_block_unfix(&block->page));
+	block->fix();
 }
 
 /*******************************************************************//**
@@ -1026,7 +979,7 @@ buf_block_buf_fix_dec(
 /*==================*/
 	buf_block_t*	block)	/*!< in/out: block to bufferunfix */
 {
-	buf_block_unfix(block);
+	block->unfix();
 
 #ifdef UNIV_DEBUG
 	/* No debug latch is acquired if block belongs to system temporary.
@@ -1283,7 +1236,7 @@ buf_page_release_zip(
 		/* Fall through */
 	case BUF_BLOCK_ZIP_PAGE:
 	case BUF_BLOCK_ZIP_DIRTY:
-		buf_block_unfix(reinterpret_cast<buf_block_t*>(bpage));
+		reinterpret_cast<buf_block_t*>(bpage)->unfix();
 		return;
 
 	case BUF_BLOCK_POOL_WATCH:
