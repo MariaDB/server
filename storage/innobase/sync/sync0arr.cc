@@ -970,7 +970,7 @@ sync_array_print_long_waits_low(
 	ulint		i;
 
 	/* For huge tables, skip the check during CHECK TABLE etc... */
-	if (fatal_timeout > SRV_SEMAPHORE_WAIT_EXTENSION) {
+	if (btr_validate_index_running) {
 		return(false);
 	}
 
