@@ -612,11 +612,12 @@ rec_init_offsets(
 	ulint	i	= 0;
 	ulint	offs;
 
-	ut_ad(index->n_core_null_bytes <= UT_BITS_IN_BYTES(index->n_nullable));
 	ut_d(offsets[2] = ulint(rec));
 	ut_d(offsets[3] = ulint(index));
 
 	if (dict_table_is_comp(index->table)) {
+		ut_ad(index->n_core_null_bytes
+		      <= UT_BITS_IN_BYTES(index->n_nullable));
 		const byte*	nulls;
 		const byte*	lens;
 		dict_field_t*	field;

@@ -9956,7 +9956,7 @@ innobase_fts_create_doc_id_key(
 	/* The unique Doc ID field should be an eight-bytes integer */
 	dict_field_t*	field = dict_index_get_nth_field(index, 0);
         ut_a(field->col->mtype == DATA_INT);
-	ut_ad(sizeof(*doc_id) == field->fixed_len);
+	ut_ad(sizeof(*doc_id) == field->col->len);
 	ut_ad(!strcmp(index->name, FTS_DOC_ID_INDEX_NAME));
 #endif /* UNIV_DEBUG */
 
