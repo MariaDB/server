@@ -159,6 +159,11 @@ int Wsrep_client_service::prepare_fragment_for_replication(wsrep::mutable_buffer
   IO_CACHE* cache= wsrep_get_trans_cache(thd);
   thd->binlog_flush_pending_rows_event(true);
 
+  if (!cache)
+  {
+    DBUG_RETURN(0);
+  }
+
   const my_off_t saved_pos(my_b_tell(cache));
   if (reinit_io_cache(cache, READ_CACHE, thd->wsrep_sr().bytes_certified(), 0, 0))
   {

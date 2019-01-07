@@ -17,43 +17,50 @@ CREATE TABLE t1 (f1 INTEGER PRIMARY KEY AUTO_INCREMENT) ENGINE=InnoDB;
 SET SESSION wsrep_trx_fragment_size = 2;
 SET SESSION wsrep_trx_fragment_unit = 'statements';
 SELECT COUNT(*) = 0 FROM wsrep_schema.SR;
+--let $expected_cert_failures = `SELECT VARIABLE_VALUE + 1 FROM INFORMATION_SCHEMA.GLOBAL_STATUS WHERE VARIABLE_NAME = 'wsrep_local_cert_failures'`
 
 SET AUTOCOMMIT=OFF;
 START TRANSACTION;
 
-# 
-# processlist is good to see manually that applier reached sync point
-# but is not deterministic in testing, commenting out
-# SHOW PROCESSLIST;
 --connection node_1a
-SET GLOBAL debug = 'd,sync.wsrep_apply_cb';
+SET GLOBAL DEBUG_DBUG = 'd,sync.wsrep_apply_cb';
 SET SESSION wsrep_sync_wait = 0;
 
 --connection node_2
 INSERT INTO t1 VALUES (1);
 
---connection node_1
-#
-# TODO: check here that applier is parked in the sync point
-#
+--connection node_1a
+SET SESSION debug_sync = "now WAIT_FOR sync.wsrep_apply_cb_reached";
 SELECT COUNT(*) = 0 FROM t1;
-INSERT INTO t1 VALUES (1);
+
+--connection node_1
+SELECT COUNT(*) = 0 FROM t1;
+--send INSERT INTO t1 VALUES (1);
 
 --connection node_1a
+# Wait for the above INSERT to fail certification
+--connection node_1a
+--let $wait_condition = SELECT VARIABLE_VALUE = $expected_cert_failures FROM INFORMATION_SCHEMA.GLOBAL_STATUS WHERE VARIABLE_NAME = 'wsrep_local_cert_failures'
+--source include/wait_condition.inc
+
+SET GLOBAL DEBUG_DBUG = '';
 SET DEBUG_SYNC='now SIGNAL signal.wsrep_apply_cb';
-SET GLOBAL debug = '';
 
 --connection node_1
---error ER_LOCK_DEADLOCK,ER_QUERY_INTERRUPTED
-INSERT INTO t1 VALUES (2);
+--error ER_LOCK_DEADLOCK
+--reap
 
 COMMIT;
 
+SELECT COUNT(*) = 1 FROM t1;
 SELECT COUNT(*) = 0 FROM wsrep_schema.SR;
 
 --connection node_2
 SELECT COUNT(*) = 1 FROM t1;
 SELECT COUNT(*) = 0 FROM wsrep_schema.SR;
+
+--connection node_1a
+SET DEBUG_SYNC = 'RESET';
 
 #
 # Similar test with BYTES unit
@@ -64,47 +71,48 @@ TRUNCATE TABLE t1;
 SET SESSION wsrep_trx_fragment_size = 10;
 SET SESSION wsrep_trx_fragment_unit = 'bytes';
 SELECT COUNT(*) = 0 FROM wsrep_schema.SR;
+--let $expected_cert_failures = `SELECT VARIABLE_VALUE + 1 FROM INFORMATION_SCHEMA.GLOBAL_STATUS WHERE VARIABLE_NAME = 'wsrep_local_cert_failures'`
 
 SET AUTOCOMMIT=OFF;
 START TRANSACTION;
 
 --connection node_1a
-SET GLOBAL debug = 'd,sync.wsrep_apply_cb';
+SET GLOBAL DEBUG_DBUG = 'd,sync.wsrep_apply_cb';
 SET SESSION wsrep_sync_wait = 0;
 
 --connection node_2
 INSERT INTO t1 VALUES (1);
 
+--connection node_1a
+SET SESSION debug_sync = "now WAIT_FOR sync.wsrep_apply_cb_reached";
+SELECT COUNT(*) = 0 FROM t1;
+
 --connection node_1
 SELECT COUNT(*) = 0 FROM t1;
 --send INSERT INTO t1 VALUES (1)
-#
-# WHY sleep here?
-#   without this sleep, applier would be released with following signal
-#   and applier would have chance to BF abort the SR trx.
-#   We don't want this to happen, but instead let the SR trx to replicate
-#   and notice the certification failure.
-# TODO: sleep is not good, this should be refactored somehow to guarantee
-#       correct order for cert failure vs BF abort
-#
---sleep 2
 
+# Wait for the above INSERT to fail certification
 --connection node_1a
+--let $wait_condition = SELECT VARIABLE_VALUE = $expected_cert_failures FROM INFORMATION_SCHEMA.GLOBAL_STATUS WHERE VARIABLE_NAME = 'wsrep_local_cert_failures'
+--source include/wait_condition.inc
+
+SET GLOBAL DEBUG_DBUG = '';
 SET DEBUG_SYNC='now SIGNAL signal.wsrep_apply_cb';
-SET GLOBAL debug = '';
 
 --connection node_1
 --error ER_LOCK_DEADLOCK
 --reap
-INSERT INTO t1 VALUES (2);
-COMMIT;
+ROLLBACK;
 
+SELECT * FROM t1;
 SELECT COUNT(*) = 0 FROM wsrep_schema.SR;
 
 --connection node_2
-SELECT COUNT(*) = 2 FROM t1;
+SELECT * FROM t1;
 SELECT COUNT(*) = 0 FROM wsrep_schema.SR;
 
+--connection node_1a
+SET DEBUG_SYNC = 'RESET';
 
 #
 # One more test with BYTES unit, but now fragment size is adjusted so
@@ -120,31 +128,33 @@ TRUNCATE TABLE t1;
 SET SESSION wsrep_trx_fragment_size = 200;
 SET SESSION wsrep_trx_fragment_unit = 'bytes';
 SELECT COUNT(*) = 0 FROM wsrep_schema.SR;
+--let $expected_cert_failures = `SELECT VARIABLE_VALUE + 1 FROM INFORMATION_SCHEMA.GLOBAL_STATUS WHERE VARIABLE_NAME = 'wsrep_local_cert_failures'`
 
 SET AUTOCOMMIT=OFF;
 START TRANSACTION;
 
-SET GLOBAL debug = 'd,sync.wsrep_apply_cb';
+--connection node_1a
+SET GLOBAL DEBUG_DBUG = 'd,sync.wsrep_apply_cb';
 SET SESSION wsrep_sync_wait = 0;
 
 --connection node_2
 INSERT INTO t1 VALUES (1);
 
---connection node_1
+--connection node_1a
+SET SESSION debug_sync = "now WAIT_FOR sync.wsrep_apply_cb_reached";
 SELECT COUNT(*) = 0 FROM t1;
 
+--connection node_1
 INSERT INTO t1 VALUES (1);
-
 --send INSERT INTO t1 VALUES (2)
-#
-# WHY sleep here?
-#     See above comment, same reason here
-#
---sleep 2
 
+# Wait for the above INSERT to fail certification
 --connection node_1a
+--let $wait_condition = SELECT VARIABLE_VALUE = $expected_cert_failures FROM INFORMATION_SCHEMA.GLOBAL_STATUS WHERE VARIABLE_NAME = 'wsrep_local_cert_failures'
+--source include/wait_condition.inc
+
+SET GLOBAL DEBUG_DBUG = '';
 SET DEBUG_SYNC='now SIGNAL signal.wsrep_apply_cb';
-SET GLOBAL debug = '';
 
 --connection node_1
 --error ER_LOCK_DEADLOCK
@@ -157,5 +167,9 @@ SELECT COUNT(*) = 0 FROM wsrep_schema.SR;
 SELECT COUNT(*) = 1 FROM t1;
 SELECT COUNT(*) = 0 FROM wsrep_schema.SR;
 
---connection node_1
+--connection node_1a
 DROP TABLE t1;
+SET DEBUG_SYNC = 'RESET';
+
+--connection node_2
+CALL mtr.add_suppression("WSREP: Could not find applier context for");
