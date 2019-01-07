@@ -44,7 +44,7 @@ COUNT(*) = 1
 SELECT COUNT(*) = 1 FROM t1 WHERE f2 = 'c';
 COUNT(*) = 1
 1
-SELECT COUNT(*) = 0 FROM wsrep_schema.SR;
+SELECT COUNT(*) = 0 FROM mysql.wsrep_streaming_log;
 COUNT(*) = 0
 1
 wsrep_local_replays
@@ -56,7 +56,7 @@ COUNT(*) = 1
 SELECT COUNT(*) = 1 FROM t1 WHERE f2 = 'c';
 COUNT(*) = 1
 1
-SELECT COUNT(*) = 0 FROM wsrep_schema.SR;
+SELECT COUNT(*) = 0 FROM mysql.wsrep_streaming_log;
 COUNT(*) = 0
 1
 DELETE FROM t1;
@@ -102,7 +102,7 @@ COUNT(*) = 1
 SELECT COUNT(*) = 1 FROM t1 WHERE f2 = 'c';
 COUNT(*) = 1
 1
-SELECT COUNT(*) = 0 FROM wsrep_schema.SR;
+SELECT COUNT(*) = 0 FROM mysql.wsrep_streaming_log;
 COUNT(*) = 0
 1
 wsrep_local_replays
@@ -114,7 +114,7 @@ COUNT(*) = 1
 SELECT COUNT(*) = 1 FROM t1 WHERE f2 = 'c';
 COUNT(*) = 1
 1
-SELECT COUNT(*) = 0 FROM wsrep_schema.SR;
+SELECT COUNT(*) = 0 FROM mysql.wsrep_streaming_log;
 COUNT(*) = 0
 1
 DELETE FROM t1;

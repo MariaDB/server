@@ -18,10 +18,10 @@ INSERT INTO t1 VALUES (3);
 INSERT INTO t1 VALUES (4);
 INSERT INTO t1 VALUES (5);
 
-SELECT COUNT(*) > 0 FROM wsrep_schema.SR;
+SELECT COUNT(*) > 0 FROM mysql.wsrep_streaming_log;
 
 --connection node_2
---let $wait_condition = SELECT COUNT(*) > 0 FROM wsrep_schema.SR
+--let $wait_condition = SELECT COUNT(*) > 0 FROM mysql.wsrep_streaming_log
 --source include/wait_condition.inc
 
 SET TRANSACTION ISOLATION LEVEL READ UNCOMMITTED;
@@ -47,21 +47,21 @@ SET GLOBAL wsrep_provider_options='gmcast.isolate=1';
 --source include/galera_wait_ready.inc
 
 #
-# Expect that the transaction is cleaned up entirely across the cluster and in all wsrep_schema.SR tables
+# Expect that the transaction is cleaned up entirely across the cluster and in all mysql.wsrep_streaming_log tables
 #
 
 --connection node_2
 SET TRANSACTION ISOLATION LEVEL READ UNCOMMITTED;
---let $wait_condition = SELECT COUNT(*) = 0 FROM wsrep_schema.SR;
+--let $wait_condition = SELECT COUNT(*) = 0 FROM mysql.wsrep_streaming_log;
 --source include/wait_condition.inc
-SELECT COUNT(*) = 0 FROM wsrep_schema.SR;
+SELECT COUNT(*) = 0 FROM mysql.wsrep_streaming_log;
 SELECT COUNT(*) = 0 FROM t1;
 
 --connection node_3
 SET TRANSACTION ISOLATION LEVEL READ UNCOMMITTED;
---let $wait_condition = SELECT COUNT(*) = 0 FROM wsrep_schema.SR;
+--let $wait_condition = SELECT COUNT(*) = 0 FROM mysql.wsrep_streaming_log;
 --source include/wait_condition.inc
-SELECT COUNT(*) = 0 FROM wsrep_schema.SR;
+SELECT COUNT(*) = 0 FROM mysql.wsrep_streaming_log;
 SELECT COUNT(*) = 0 FROM t1;
 
 #
@@ -93,10 +93,10 @@ COMMIT;
 SET TRANSACTION ISOLATION LEVEL READ UNCOMMITTED;
 SELECT COUNT(*) = 0 FROM t1;
 
---let $wait_condition = SELECT COUNT(*) = 0 FROM wsrep_schema.SR;
+--let $wait_condition = SELECT COUNT(*) = 0 FROM mysql.wsrep_streaming_log;
 --source include/wait_condition.inc
 
-SELECT COUNT(*) = 0 FROM wsrep_schema.SR;
+SELECT COUNT(*) = 0 FROM mysql.wsrep_streaming_log;
 
 #
 # Confirm that the transaction can be retried
@@ -111,16 +111,16 @@ INSERT INTO t1 VALUES (5);
 COMMIT;
 
 --connection node_2
---let $wait_condition = SELECT COUNT(*) = 0 FROM wsrep_schema.SR;
+--let $wait_condition = SELECT COUNT(*) = 0 FROM mysql.wsrep_streaming_log;
 --source include/wait_condition.inc
 SELECT COUNT(*) = 5 FROM t1;
-SELECT COUNT(*) = 0 FROM wsrep_schema.SR;
+SELECT COUNT(*) = 0 FROM mysql.wsrep_streaming_log;
 
 --connection node_3
---let $wait_condition = SELECT COUNT(*) = 0 FROM wsrep_schema.SR;
+--let $wait_condition = SELECT COUNT(*) = 0 FROM mysql.wsrep_streaming_log;
 --source include/wait_condition.inc
 SELECT COUNT(*) = 5 FROM t1;
-SELECT COUNT(*) = 0 FROM wsrep_schema.SR;
+SELECT COUNT(*) = 0 FROM mysql.wsrep_streaming_log;
 
 --connection node_1
 CALL mtr.add_suppression("failed to send SR rollback for");

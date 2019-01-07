@@ -67,12 +67,12 @@ INSERT INTO t1 VALUES (14);
 INSERT INTO t1 VALUES (15);
 COMMIT;
 
-SELECT COUNT(*) = 0 FROM wsrep_schema.SR;
+SELECT COUNT(*) = 0 FROM mysql.wsrep_streaming_log;
 
 --connection node_2
 --sleep 5
 SELECT COUNT(*) = 15 FROM t1;
-SELECT COUNT(*) = 0 FROM wsrep_schema.SR;
+SELECT COUNT(*) = 0 FROM mysql.wsrep_streaming_log;
 
 --connection node_1
 

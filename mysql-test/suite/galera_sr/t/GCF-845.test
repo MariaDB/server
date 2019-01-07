@@ -14,10 +14,10 @@ DELETE FROM t1 WHERE f1 > 13;
 --sleep 2
 
 --connection node_2
-SELECT COUNT(*) = 0 FROM wsrep_schema.SR;
+SELECT COUNT(*) = 0 FROM mysql.wsrep_streaming_log;
 
 --connection node_1
-SELECT COUNT(*) = 0 FROM wsrep_schema.SR;
+SELECT COUNT(*) = 0 FROM mysql.wsrep_streaming_log;
 
 DROP TABLE t1;
 

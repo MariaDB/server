@@ -1,7 +1,7 @@
-#
+!#
 # This test performs basic checks on the contents of the wsrep_schema
 #
-# wsrep_schema.members_history checks are temporarily disabled until it
+# wsrep_members_history checks are temporarily disabled until it
 # can be made configurable.
 #
 
@@ -10,34 +10,34 @@
 
 # Make the test fail if table structure has changed
 
-SHOW CREATE TABLE wsrep_schema.cluster;
-SHOW CREATE TABLE wsrep_schema.members;
-#disabled SHOW CREATE TABLE wsrep_schema.members_history;
+SHOW CREATE TABLE mysql.wsrep_cluster;
+SHOW CREATE TABLE mysql.wsrep_cluster_members;
+#disabled SHOW CREATE TABLE mysql.wsrep_member_history;
 
-# Checks for the wsrep_schema.cluster table
+# Checks for the wsrep_cluster table
 
-SELECT COUNT(*) = 1 FROM wsrep_schema.cluster;
-SELECT cluster_uuid = (SELECT VARIABLE_VALUE FROM INFORMATION_SCHEMA.GLOBAL_STATUS WHERE VARIABLE_NAME = 'wsrep_cluster_state_uuid') FROM wsrep_schema.cluster;
+SELECT COUNT(*) = 1 FROM mysql.wsrep_cluster;
+SELECT cluster_uuid = (SELECT VARIABLE_VALUE FROM INFORMATION_SCHEMA.GLOBAL_STATUS WHERE VARIABLE_NAME = 'wsrep_cluster_state_uuid') FROM mysql.wsrep_cluster;
 
-# Checks for the wsrep_schema.members table
+# Checks for the wsrep_cluster_members table
 
-SELECT COUNT(*) = 3 FROM wsrep_schema.members;
-SELECT COUNT(*) = (SELECT VARIABLE_VALUE FROM INFORMATION_SCHEMA.GLOBAL_STATUS WHERE VARIABLE_NAME = 'wsrep_cluster_size') FROM wsrep_schema.members;
-SELECT COUNT(*) = 1 FROM wsrep_schema.members WHERE node_uuid = (SELECT VARIABLE_VALUE FROM INFORMATION_SCHEMA.GLOBAL_STATUS WHERE VARIABLE_NAME = 'wsrep_gcomm_uuid');
+SELECT COUNT(*) = 3 FROM mysql.wsrep_cluster_members;
+SELECT COUNT(*) = (SELECT VARIABLE_VALUE FROM INFORMATION_SCHEMA.GLOBAL_STATUS WHERE VARIABLE_NAME = 'wsrep_cluster_size') FROM mysql.wsrep_cluster_members;
+SELECT COUNT(*) = 1 FROM mysql.wsrep_cluster-members WHERE node_uuid = (SELECT VARIABLE_VALUE FROM INFORMATION_SCHEMA.GLOBAL_STATUS WHERE VARIABLE_NAME = 'wsrep_gcomm_uuid');
 
-SELECT node_incoming_address LIKE '127.0.0.1:%' from wsrep_schema.members;
-SELECT cluster_uuid = (SELECT VARIABLE_VALUE FROM INFORMATION_SCHEMA.GLOBAL_STATUS WHERE VARIABLE_NAME = 'wsrep_cluster_state_uuid') FROM wsrep_schema.members;
+SELECT node_incoming_address LIKE '127.0.0.1:%' from mysql.wsrep_cluster_members;
+SELECT cluster_uuid = (SELECT VARIABLE_VALUE FROM INFORMATION_SCHEMA.GLOBAL_STATUS WHERE VARIABLE_NAME = 'wsrep_cluster_state_uuid') FROM mysql.wsrep_cluster_members;
 
-# Checks for the wsrep_schema.members_history table
+# Checks for the wsrep_cluster_member_history table
 
-#disabled SELECT COUNT(*) = 3 FROM wsrep_schema.members_history;
-#disabled SELECT COUNT(*) = (SELECT VARIABLE_VALUE FROM INFORMATION_SCHEMA.GLOBAL_STATUS WHERE VARIABLE_NAME = 'wsrep_cluster_size') FROM wsrep_schema.members_history;
-SELECT COUNT(*) = 1 FROM wsrep_schema.members WHERE node_uuid = (SELECT VARIABLE_VALUE FROM INFORMATION_SCHEMA.GLOBAL_STATUS WHERE VARIABLE_NAME = 'wsrep_gcomm_uuid');
+#disabled SELECT COUNT(*) = 3 FROM mysql.wsrep_cluster_member_history;
+#disabled SELECT COUNT(*) = (SELECT VARIABLE_VALUE FROM INFORMATION_SCHEMA.GLOBAL_STATUS WHERE VARIABLE_NAME = 'wsrep_cluster_size') FROM mysql.wsrep_cluster_member_history;
+SELECT COUNT(*) = 1 FROM mysql.wsrep_members WHERE node_uuid = (SELECT VARIABLE_VALUE FROM INFORMATION_SCHEMA.GLOBAL_STATUS WHERE VARIABLE_NAME = 'wsrep_gcomm_uuid');
 
-#disabled SELECT last_view_id = (SELECT view_id FROM wsrep_schema.cluster) FROM wsrep_schema.members_history;
-#disabled SELECT last_view_seqno = (SELECT view_seqno FROM wsrep_schema.cluster) FROM wsrep_schema.members_history;
-#disabled SELECT node_incoming_address LIKE '127.0.0.1:%' from wsrep_schema.members_history;
-#disabled SELECT cluster_uuid = (SELECT VARIABLE_VALUE FROM INFORMATION_SCHEMA.GLOBAL_STATUS WHERE VARIABLE_NAME = 'wsrep_cluster_state_uuid') FROM wsrep_schema.members_history;
+#disabled SELECT last_view_id = (SELECT view_id FROM mysql.wsrep_cluster) FROM mysql.wsrep_cluster_member_history;
+#disabled SELECT last_view_seqno = (SELECT view_seqno FROM mysql.wsrep_cluster) FROM mysql.wsrep_cluster_member_history;
+#disabled SELECT node_incoming_address LIKE '127.0.0.1:%' from mysql.wsrep_cluster_member_history;
+#disabled SELECT cluster_uuid = (SELECT VARIABLE_VALUE FROM INFORMATION_SCHEMA.GLOBAL_STATUS WHERE VARIABLE_NAME = 'wsrep_cluster_state_uuid') FROM mysql.wsrep_cluster_member_history;
 
 --connection node_2
 --source include/shutdown_mysqld.inc
@@ -45,23 +45,23 @@ SELECT COUNT(*) = 1 FROM wsrep_schema.members WHERE node_uuid = (SELECT VARIABLE
 --connection node_1
 --source include/wait_until_connected_again.inc
 
-SELECT cluster_uuid = (SELECT VARIABLE_VALUE FROM INFORMATION_SCHEMA.GLOBAL_STATUS WHERE VARIABLE_NAME = 'wsrep_cluster_state_uuid') FROM wsrep_schema.cluster;
-SELECT COUNT(*) = 2 FROM wsrep_schema.members;
-#disabled SELECT COUNT(*) = 3 FROM wsrep_schema.members_history;
-#disabled SELECT COUNT(*) = 2 FROM wsrep_schema.members_history WHERE last_view_id = (SELECT MAX(last_view_id) FROM wsrep_schema.members_history);
+SELECT cluster_uuid = (SELECT VARIABLE_VALUE FROM INFORMATION_SCHEMA.GLOBAL_STATUS WHERE VARIABLE_NAME = 'wsrep_cluster_state_uuid') FROM mysql.wsrep_cluster;
+SELECT COUNT(*) = 2 FROM mysql.wsrep_cluster_members;
+#disabled SELECT COUNT(*) = 3 FROM mysql.wsrep_cluster_member_history;
+#disabled SELECT COUNT(*) = 2 FROM mysql.wsrep_cluster_member_history WHERE last_view_id = (SELECT MAX(last_view_id) FROM mysql.wsrep_cluster_member_history);
 
 --connection node_2
 --source include/start_mysqld.inc
 --source include/wait_until_connected_again.inc
 
-SELECT cluster_uuid = (SELECT VARIABLE_VALUE FROM INFORMATION_SCHEMA.GLOBAL_STATUS WHERE VARIABLE_NAME = 'wsrep_cluster_state_uuid') FROM wsrep_schema.cluster;
-SELECT COUNT(*) = 3 FROM wsrep_schema.members;
-#disabled SELECT COUNT(*) = 3 FROM wsrep_schema.members_history WHERE last_view_id = (SELECT MAX(last_view_id) FROM wsrep_schema.members_history);
+SELECT cluster_uuid = (SELECT VARIABLE_VALUE FROM INFORMATION_SCHEMA.GLOBAL_STATUS WHERE VARIABLE_NAME = 'wsrep_cluster_state_uuid') FROM mysql.wsrep_cluster;
+SELECT COUNT(*) = 3 FROM mysql.wsrep_cluster_members;
+#disabled SELECT COUNT(*) = 3 FROM mysql.wsrep_cluster_member_history WHERE last_view_id = (SELECT MAX(last_view_id) FROM mysql.wsrep_cluster_member_history);
 
 --connection node_1
-SELECT cluster_uuid = (SELECT VARIABLE_VALUE FROM INFORMATION_SCHEMA.GLOBAL_STATUS WHERE VARIABLE_NAME = 'wsrep_cluster_state_uuid') FROM wsrep_schema.cluster;
-SELECT COUNT(*) = 3 FROM wsrep_schema.members;
-#disabled SELECT COUNT(*) = 3 FROM wsrep_schema.members_history WHERE last_view_id = (SELECT MAX(last_view_id) FROM wsrep_schema.members_history);
+SELECT cluster_uuid = (SELECT VARIABLE_VALUE FROM INFORMATION_SCHEMA.GLOBAL_STATUS WHERE VARIABLE_NAME = 'wsrep_cluster_state_uuid') FROM mysql.wsrep_cluster;
+SELECT COUNT(*) = 3 FROM mysql.wsrep_cluster_members;
+#disabled SELECT COUNT(*) = 3 FROM mysql.wsrep_cluster_member_history WHERE last_view_id = (SELECT MAX(last_view_id) FROM mysql.wsrep_cluster_member_history);
 
 --connection node_1
 CALL mtr.add_suppression("SYNC message from member");

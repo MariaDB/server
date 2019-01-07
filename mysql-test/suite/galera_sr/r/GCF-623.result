@@ -19,11 +19,11 @@ COUNT(*) = 0
 connection node_1;
 COMMIT;
 ERROR 40001: Deadlock found when trying to get lock; try restarting transaction
-SELECT COUNT(*) = 0 FROM wsrep_schema.SR;
+SELECT COUNT(*) = 0 FROM mysql.wsrep_streaming_log;
 COUNT(*) = 0
 1
 connection node_2;
-SELECT COUNT(*) = 0 FROM wsrep_schema.SR;
+SELECT COUNT(*) = 0 FROM mysql.wsrep_streaming_log;
 COUNT(*) = 0
 1
 DROP TABLE t1;

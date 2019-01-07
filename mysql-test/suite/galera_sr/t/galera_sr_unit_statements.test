@@ -20,7 +20,7 @@ INSERT INTO t1 VALUES (1);
 --connection node_2
 SET SESSION TRANSACTION ISOLATION LEVEL READ UNCOMMITTED;
 SELECT COUNT(*) FROM t1;
-SELECT COUNT(*) FROM wsrep_schema.SR;
+SELECT COUNT(*) FROM mysql.wsrep_streaming_log;
 
 --connection node_1
 INSERT INTO t1 VALUES (2);
@@ -28,7 +28,7 @@ INSERT INTO t1 VALUES (2);
 # Expect 2 rows in t1 and 1 fragment in SR table
 --connection node_2
 SELECT COUNT(*) FROM t1;
-SELECT COUNT(*) FROM wsrep_schema.SR;
+SELECT COUNT(*) FROM mysql.wsrep_streaming_log;
 
  --connection node_1
 INSERT INTO t1 VALUES (3);
@@ -38,17 +38,17 @@ INSERT INTO t1 VALUES (5);
 # Expect 5 rows in t1 and 2 fragments in SR table
 --connection node_2
 SELECT COUNT(*) FROM t1;
-SELECT COUNT(*) FROM wsrep_schema.SR;
+SELECT COUNT(*) FROM mysql.wsrep_streaming_log;
 
 --connection node_1
 COMMIT;
 
 # Expect 5 rows in t1 and empty SR table
 SELECT COUNT(*) FROM t1;
-SELECT COUNT(*) FROM wsrep_schema.SR;
+SELECT COUNT(*) FROM mysql.wsrep_streaming_log;
 
 --connection node_2
 SELECT COUNT(*) FROM t1;
-SELECT COUNT(*) FROM wsrep_schema.SR;
+SELECT COUNT(*) FROM mysql.wsrep_streaming_log;
 
 DROP TABLE t1;

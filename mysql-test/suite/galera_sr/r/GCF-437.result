@@ -5,7 +5,7 @@ SET SESSION wsrep_trx_fragment_size = 2 * 1024 * 1024;
 INSERT INTO t1 (f2) SELECT REPEAT('x', 512) FROM ten AS a1, ten AS a2, ten AS a3, ten AS a4, ten AS a5;
 ERROR HY000: Writing one row to the row-based binary log failed
 CALL mtr.add_suppression("InnoDB: The total blob data length*");
-CALL mtr.add_suppression("WSREP: Error writing into wsrep_schema.SR: 139");
+CALL mtr.add_suppression("WSREP: Error writing into mysql.wsrep_streaming_log: 139");
 CALL mtr.add_suppression("WSREP: Failed to write to frag table: 1");
 CALL mtr.add_suppression("WSREP: Failed to append frag to persistent storage");
 DROP TABLE t1;

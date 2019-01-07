@@ -33,7 +33,7 @@ SET SESSION TRANSACTION ISOLATION LEVEL READ UNCOMMITTED;
 INSERT INTO t1 VALUES (6);
 ROLLBACK;
 
-SELECT COUNT(*) = 0 FROM wsrep_schema.SR;
+SELECT COUNT(*) = 0 FROM mysql.wsrep_streaming_log;
 
 --connection node_2
 --source include/start_mysqld.inc
@@ -47,10 +47,10 @@ SELECT COUNT(*) = 0 FROM wsrep_schema.SR;
 --connection node_2
 SET SESSION TRANSACTION ISOLATION LEVEL READ UNCOMMITTED;
 SELECT COUNT(*) = 0 FROM t1;
-SELECT COUNT(*) = 0 FROM wsrep_schema.SR;
+SELECT COUNT(*) = 0 FROM mysql.wsrep_streaming_log;
 
 SET SESSION TRANSACTION ISOLATION LEVEL READ COMMITTED;
 SELECT COUNT(*) = 0 FROM t1;
-SELECT COUNT(*) = 0 FROM wsrep_schema.SR;
+SELECT COUNT(*) = 0 FROM mysql.wsrep_streaming_log;
 
 DROP TABLE t1;

@@ -34,7 +34,7 @@ SET TRANSACTION ISOLATION LEVEL READ UNCOMMITTED;
 # Confirm that the kill caused the updates made so far to be removed
 --connection node_2
 SELECT COUNT(*) = 0 FROM t1;
-SELECT COUNT(*) = 0 FROM wsrep_schema.SR;
+SELECT COUNT(*) = 0 FROM mysql.wsrep_streaming_log;
 
 # Confirm that the transaction can be reissued in its entirety on the slave without a conflict
 

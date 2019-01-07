@@ -61,17 +61,17 @@ SET SESSION TRANSACTION ISOLATION LEVEL READ UNCOMMITTED;
 --let $wait_condition = SELECT COUNT(*) = 15 FROM t1;
 --source include/wait_condition.inc
 
-SELECT COUNT(*) = 15 FROM wsrep_schema.SR;
+SELECT COUNT(*) = 15 FROM mysql.wsrep_streaming_log;
 
 --connection node_1
 COMMIT;
 
-SELECT COUNT(*) = 0 FROM wsrep_schema.SR;
+SELECT COUNT(*) = 0 FROM mysql.wsrep_streaming_log;
 
 --connection node_2
 SET SESSION TRANSACTION ISOLATION LEVEL READ COMMITTED;
 SELECT COUNT(*) = 15 FROM t1;
-SELECT COUNT(*) = 0 FROM wsrep_schema.SR;
+SELECT COUNT(*) = 0 FROM mysql.wsrep_streaming_log;
 
 DROP TABLE t1;
 

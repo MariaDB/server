@@ -29,7 +29,7 @@ SET GLOBAL wsrep_provider_options = 'gmcast.isolate=1';
 --connection node_1a
 --source include/wait_until_connected_again.inc
 SET SESSION wsrep_sync_wait = 0;
---let $wait_condition = SELECT COUNT(*) = 2 FROM wsrep_schema.members;
+--let $wait_condition = SELECT COUNT(*) = 2 FROM mysql.wsrep_cluster_members;
 --source include/wait_condition.inc
 
 --connection node_1
@@ -44,7 +44,7 @@ SET GLOBAL wsrep_provider_options = 'gmcast.isolate=0';
 --connection node_1
 --source include/wait_until_connected_again.inc
 --source include/galera_wait_ready.inc
---let $wait_condition = SELECT COUNT(*) = 3 FROM wsrep_schema.members;
+--let $wait_condition = SELECT COUNT(*) = 3 FROM mysql.wsrep_cluster_members;
 --source include/wait_condition.inc
 
 SHOW CREATE TABLE t1;
@@ -53,7 +53,7 @@ SELECT COUNT(*) = 1 FROM t1;
 --connection node_2
 --source include/wait_until_connected_again.inc
 --source include/galera_wait_ready.inc
-SELECT COUNT(*) = 3 FROM wsrep_schema.members;
+SELECT COUNT(*) = 3 FROM mysql.wsrep_cluster_members;
 SHOW CREATE TABLE t1;
 SELECT COUNT(*) = 1 FROM t1;
 

@@ -24,7 +24,7 @@ UPDATE t1 SET f2 = REPEAT('y', 255);
 
 # Wait for SR replication to kick in
 --connection node_2
---let $wait_condition = SELECT COUNT(*) > 0 FROM wsrep_schema.SR;
+--let $wait_condition = SELECT COUNT(*) > 0 FROM mysql.wsrep_streaming_log;
 --source include/wait_condition.inc
 
 # Restart node #2
@@ -53,7 +53,7 @@ UPDATE t1 SET f2 = REPEAT('y', 255);
 
 # Check that node #2 is caught up with the SR transaction that is still in progress
 --connection node_2
-SELECT COUNT(*) > 0 FROM wsrep_schema.SR;
+SELECT COUNT(*) > 0 FROM mysql.wsrep_streaming_log;
 SET SESSION TRANSACTION ISOLATION LEVEL READ UNCOMMITTED;
 --let $wait_condition = SELECT COUNT(*) > 0 FROM t1;
 --source include/wait_condition.inc

@@ -42,10 +42,10 @@ f1
 SELECT COUNT(*) = 1 FROM t1 WHERE f1 = 2;
 COUNT(*) = 1
 1
-SELECT COUNT(*) = 0 FROM wsrep_schema.SR;
+SELECT COUNT(*) = 0 FROM mysql.wsrep_streaming_log;
 COUNT(*) = 0
 1
-SELECT COUNT(*) = 0 FROM wsrep_schema.SR;
+SELECT COUNT(*) = 0 FROM mysql.wsrep_streaming_log;
 COUNT(*) = 0
 1
 SET AUTOCOMMIT=ON;
@@ -94,10 +94,10 @@ f1
 SELECT COUNT(*) = 1 FROM t1 WHERE f1 = 2;
 COUNT(*) = 1
 1
-SELECT COUNT(*) = 0 FROM wsrep_schema.SR;
+SELECT COUNT(*) = 0 FROM mysql.wsrep_streaming_log;
 COUNT(*) = 0
 1
-SELECT COUNT(*) = 0 FROM wsrep_schema.SR;
+SELECT COUNT(*) = 0 FROM mysql.wsrep_streaming_log;
 COUNT(*) = 0
 1
 SET AUTOCOMMIT=ON;
@@ -146,10 +146,10 @@ f1
 SELECT COUNT(*) = 1 FROM t1 WHERE f1 = 2;
 COUNT(*) = 1
 1
-SELECT COUNT(*) = 0 FROM wsrep_schema.SR;
+SELECT COUNT(*) = 0 FROM mysql.wsrep_streaming_log;
 COUNT(*) = 0
 1
-SELECT COUNT(*) = 0 FROM wsrep_schema.SR;
+SELECT COUNT(*) = 0 FROM mysql.wsrep_streaming_log;
 COUNT(*) = 0
 1
 SET AUTOCOMMIT=ON;
@@ -198,10 +198,10 @@ f1
 SELECT COUNT(*) = 1 FROM t1 WHERE f1 = 2;
 COUNT(*) = 1
 1
-SELECT COUNT(*) = 0 FROM wsrep_schema.SR;
+SELECT COUNT(*) = 0 FROM mysql.wsrep_streaming_log;
 COUNT(*) = 0
 1
-SELECT COUNT(*) = 0 FROM wsrep_schema.SR;
+SELECT COUNT(*) = 0 FROM mysql.wsrep_streaming_log;
 COUNT(*) = 0
 1
 SET AUTOCOMMIT=ON;
@@ -258,10 +258,10 @@ COUNT(*) = 1
 SELECT COUNT(*) = 1 FROM t1 WHERE f1 = 2;
 COUNT(*) = 1
 1
-SELECT COUNT(*) = 0 FROM wsrep_schema.SR;
+SELECT COUNT(*) = 0 FROM mysql.wsrep_streaming_log;
 COUNT(*) = 0
 1
-SELECT COUNT(*) = 0 FROM wsrep_schema.SR;
+SELECT COUNT(*) = 0 FROM mysql.wsrep_streaming_log;
 COUNT(*) = 0
 1
 SET AUTOCOMMIT=ON;
@@ -317,10 +317,10 @@ COUNT(*) = 1
 SELECT COUNT(*) = 1 FROM t1 WHERE f1 = 2;
 COUNT(*) = 1
 1
-SELECT COUNT(*) = 0 FROM wsrep_schema.SR;
+SELECT COUNT(*) = 0 FROM mysql.wsrep_streaming_log;
 COUNT(*) = 0
 1
-SELECT COUNT(*) = 0 FROM wsrep_schema.SR;
+SELECT COUNT(*) = 0 FROM mysql.wsrep_streaming_log;
 COUNT(*) = 0
 1
 SET AUTOCOMMIT=ON;
@@ -376,10 +376,10 @@ COUNT(*) = 1
 SELECT COUNT(*) = 1 FROM t1 WHERE f1 = 2;
 COUNT(*) = 1
 1
-SELECT COUNT(*) = 0 FROM wsrep_schema.SR;
+SELECT COUNT(*) = 0 FROM mysql.wsrep_streaming_log;
 COUNT(*) = 0
 1
-SELECT COUNT(*) = 0 FROM wsrep_schema.SR;
+SELECT COUNT(*) = 0 FROM mysql.wsrep_streaming_log;
 COUNT(*) = 0
 1
 SET AUTOCOMMIT=ON;
@@ -435,10 +435,10 @@ COUNT(*) = 1
 SELECT COUNT(*) = 1 FROM t1 WHERE f1 = 2;
 COUNT(*) = 1
 1
-SELECT COUNT(*) = 0 FROM wsrep_schema.SR;
+SELECT COUNT(*) = 0 FROM mysql.wsrep_streaming_log;
 COUNT(*) = 0
 1
-SELECT COUNT(*) = 0 FROM wsrep_schema.SR;
+SELECT COUNT(*) = 0 FROM mysql.wsrep_streaming_log;
 COUNT(*) = 0
 1
 SET AUTOCOMMIT=ON;
@@ -495,10 +495,10 @@ COUNT(*) = 1
 SELECT COUNT(*) = 1 FROM t1 WHERE f1 = 2;
 COUNT(*) = 1
 1
-SELECT COUNT(*) = 0 FROM wsrep_schema.SR;
+SELECT COUNT(*) = 0 FROM mysql.wsrep_streaming_log;
 COUNT(*) = 0
 1
-SELECT COUNT(*) = 0 FROM wsrep_schema.SR;
+SELECT COUNT(*) = 0 FROM mysql.wsrep_streaming_log;
 COUNT(*) = 0
 1
 SET AUTOCOMMIT=ON;
@@ -554,10 +554,10 @@ COUNT(*) = 1
 SELECT COUNT(*) = 1 FROM t1 WHERE f1 = 2;
 COUNT(*) = 1
 1
-SELECT COUNT(*) = 0 FROM wsrep_schema.SR;
+SELECT COUNT(*) = 0 FROM mysql.wsrep_streaming_log;
 COUNT(*) = 0
 1
-SELECT COUNT(*) = 0 FROM wsrep_schema.SR;
+SELECT COUNT(*) = 0 FROM mysql.wsrep_streaming_log;
 COUNT(*) = 0
 1
 SET AUTOCOMMIT=ON;
@@ -613,10 +613,10 @@ COUNT(*) = 1
 SELECT COUNT(*) = 1 FROM t1 WHERE f1 = 2;
 COUNT(*) = 1
 1
-SELECT COUNT(*) = 0 FROM wsrep_schema.SR;
+SELECT COUNT(*) = 0 FROM mysql.wsrep_streaming_log;
 COUNT(*) = 0
 1
-SELECT COUNT(*) = 0 FROM wsrep_schema.SR;
+SELECT COUNT(*) = 0 FROM mysql.wsrep_streaming_log;
 COUNT(*) = 0
 1
 SET AUTOCOMMIT=ON;
@@ -672,10 +672,10 @@ COUNT(*) = 1
 SELECT COUNT(*) = 1 FROM t1 WHERE f1 = 2;
 COUNT(*) = 1
 1
-SELECT COUNT(*) = 0 FROM wsrep_schema.SR;
+SELECT COUNT(*) = 0 FROM mysql.wsrep_streaming_log;
 COUNT(*) = 0
 1
-SELECT COUNT(*) = 0 FROM wsrep_schema.SR;
+SELECT COUNT(*) = 0 FROM mysql.wsrep_streaming_log;
 COUNT(*) = 0
 1
 SET AUTOCOMMIT=ON;

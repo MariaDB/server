@@ -132,9 +132,9 @@ if (!$galera_sr_bf_abort_at_commit)
 }
 
 --connection node_1
-SELECT COUNT(*) = 0 FROM wsrep_schema.SR;
+SELECT COUNT(*) = 0 FROM mysql.wsrep_streaming_log;
 --connection node_2
-SELECT COUNT(*) = 0 FROM wsrep_schema.SR;
+SELECT COUNT(*) = 0 FROM mysql.wsrep_streaming_log;
 
 # Delete entery to verify that node is unblocked
 --connection node_1

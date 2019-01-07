@@ -16,7 +16,7 @@
 CREATE TABLE t1 (f1 INTEGER PRIMARY KEY AUTO_INCREMENT) ENGINE=InnoDB;
 SET SESSION wsrep_trx_fragment_size = 2;
 SET SESSION wsrep_trx_fragment_unit = 'statements';
-SELECT COUNT(*) = 0 FROM wsrep_schema.SR;
+SELECT COUNT(*) = 0 FROM mysql.wsrep_streaming_log;
 --let $expected_cert_failures = `SELECT VARIABLE_VALUE + 1 FROM INFORMATION_SCHEMA.GLOBAL_STATUS WHERE VARIABLE_NAME = 'wsrep_local_cert_failures'`
 
 SET AUTOCOMMIT=OFF;
@@ -53,11 +53,11 @@ SET DEBUG_SYNC='now SIGNAL signal.wsrep_apply_cb';
 COMMIT;
 
 SELECT COUNT(*) = 1 FROM t1;
-SELECT COUNT(*) = 0 FROM wsrep_schema.SR;
+SELECT COUNT(*) = 0 FROM mysql.wsrep_streaming_log;
 
 --connection node_2
 SELECT COUNT(*) = 1 FROM t1;
-SELECT COUNT(*) = 0 FROM wsrep_schema.SR;
+SELECT COUNT(*) = 0 FROM mysql.wsrep_streaming_log;
 
 --connection node_1a
 SET DEBUG_SYNC = 'RESET';
@@ -70,7 +70,7 @@ TRUNCATE TABLE t1;
 
 SET SESSION wsrep_trx_fragment_size = 10;
 SET SESSION wsrep_trx_fragment_unit = 'bytes';
-SELECT COUNT(*) = 0 FROM wsrep_schema.SR;
+SELECT COUNT(*) = 0 FROM mysql.wsrep_streaming_log;
 --let $expected_cert_failures = `SELECT VARIABLE_VALUE + 1 FROM INFORMATION_SCHEMA.GLOBAL_STATUS WHERE VARIABLE_NAME = 'wsrep_local_cert_failures'`
 
 SET AUTOCOMMIT=OFF;
@@ -105,11 +105,11 @@ SET DEBUG_SYNC='now SIGNAL signal.wsrep_apply_cb';
 ROLLBACK;
 
 SELECT * FROM t1;
-SELECT COUNT(*) = 0 FROM wsrep_schema.SR;
+SELECT COUNT(*) = 0 FROM mysql.wsrep_streaming_log;
 
 --connection node_2
 SELECT * FROM t1;
-SELECT COUNT(*) = 0 FROM wsrep_schema.SR;
+SELECT COUNT(*) = 0 FROM mysql.wsrep_streaming_log;
 
 --connection node_1a
 SET DEBUG_SYNC = 'RESET';
@@ -127,7 +127,7 @@ TRUNCATE TABLE t1;
 
 SET SESSION wsrep_trx_fragment_size = 200;
 SET SESSION wsrep_trx_fragment_unit = 'bytes';
-SELECT COUNT(*) = 0 FROM wsrep_schema.SR;
+SELECT COUNT(*) = 0 FROM mysql.wsrep_streaming_log;
 --let $expected_cert_failures = `SELECT VARIABLE_VALUE + 1 FROM INFORMATION_SCHEMA.GLOBAL_STATUS WHERE VARIABLE_NAME = 'wsrep_local_cert_failures'`
 
 SET AUTOCOMMIT=OFF;
@@ -161,11 +161,11 @@ SET DEBUG_SYNC='now SIGNAL signal.wsrep_apply_cb';
 --reap
 COMMIT;
 
-SELECT COUNT(*) = 0 FROM wsrep_schema.SR;
+SELECT COUNT(*) = 0 FROM mysql.wsrep_streaming_log;
 
 --connection node_2
 SELECT COUNT(*) = 1 FROM t1;
-SELECT COUNT(*) = 0 FROM wsrep_schema.SR;
+SELECT COUNT(*) = 0 FROM mysql.wsrep_streaming_log;
 
 --connection node_1a
 DROP TABLE t1;

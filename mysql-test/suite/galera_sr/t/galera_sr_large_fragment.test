@@ -18,7 +18,7 @@ START TRANSACTION;
 INSERT INTO t1 (f2) SELECT REPEAT('x', 512) FROM ten AS a1, ten AS a2, ten AS a3, ten AS a4, ten AS a5;
 
 --connection node_2
-SELECT COUNT(*) > 0 FROM wsrep_schema.SR;
+SELECT COUNT(*) > 0 FROM mysql.wsrep_streaming_log;
 SET TRANSACTION ISOLATION LEVEL READ UNCOMMITTED;
 SELECT COUNT(*) > 50000 FROM t1;
 
@@ -31,7 +31,7 @@ SET SESSION wsrep_sync_wait = 0;
 SET GLOBAL wsrep_provider_options = 'repl.causal_read_timeout=PT10M';
 SET SESSION wsrep_sync_wait = 7;
 
-SELECT COUNT(*) = 0 FROM wsrep_schema.SR;
+SELECT COUNT(*) = 0 FROM mysql.wsrep_streaming_log;
 SELECT COUNT(*) = 0 FROM t1;
 
 --disable_query_log
@@ -43,7 +43,7 @@ SET SESSION wsrep_sync_wait = 0;
 SET GLOBAL wsrep_provider_options = 'repl.causal_read_timeout=PT10M';
 SET SESSION wsrep_sync_wait = 7;
 
-SELECT COUNT(*) = 0 FROM wsrep_schema.SR;
+SELECT COUNT(*) = 0 FROM mysql.wsrep_streaming_log;
 SELECT COUNT(*) = 0 FROM t1;
 
 --disable_query_log

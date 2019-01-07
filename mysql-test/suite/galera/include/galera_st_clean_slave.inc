@@ -34,7 +34,6 @@ COMMIT;
 --remove_files_wildcard $MYSQLTEST_VARDIR/mysqld.2/data/performance_schema
 --remove_files_wildcard $MYSQLTEST_VARDIR/mysqld.2/data/test
 --remove_files_wildcard $MYSQLTEST_VARDIR/mysqld.2/data/mysql
---remove_files_wildcard $MYSQLTEST_VARDIR/mysqld.2/data/wsrep_schema
 --remove_files_wildcard $MYSQLTEST_VARDIR/mysqld.2/data
 
 SET AUTOCOMMIT=OFF;

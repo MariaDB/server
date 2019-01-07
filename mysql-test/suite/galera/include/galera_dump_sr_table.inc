@@ -2,8 +2,8 @@
 # Dump the contents of the SR table using mysqldump
 #
 
---let $sr_min = `SELECT MIN(seqno) FROM wsrep_schema.SR`
---let $sr_max = `SELECT MAX(seqno) FROM wsrep_schema.SR`
+--let $sr_min = `SELECT MIN(seqno) FROM mysql.wsrep_streaming_log`
+--let $sr_max = `SELECT MAX(seqno) FROM mysql.wsrep_streaming_log`
 
 --let $seqno = $sr_min
 while ($seqno <= $sr_max)
@@ -11,7 +11,7 @@ while ($seqno <= $sr_max)
   --let $sr_fragment_file = $MYSQLTEST_VARDIR/tmp/sr_fragment.log
   --exec rm -rf $sr_fragment_file
   --disable_query_log
-  --eval SELECT frag FROM wsrep_schema.SR WHERE seqno = $seqno INTO DUMPFILE '$sr_fragment_file'
+  --eval SELECT frag FROM mysql.wsrep_streaming_log WHERE seqno = $seqno INTO DUMPFILE '$sr_fragment_file'
   --enable_query_log
 
   --let $sr_binlog_file = $MYSQLTEST_VARDIR/tmp/sr_binlog.log

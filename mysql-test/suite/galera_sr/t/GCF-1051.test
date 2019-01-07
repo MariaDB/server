@@ -23,11 +23,11 @@ COMMIT;
 
 --connection node_1
 SELECT COUNT(*) = 0 FROM t1;
-SELECT COUNT(*) = 0 FROM wsrep_schema.SR;
+SELECT COUNT(*) = 0 FROM .SR;
 
 --connection node_2
 SELECT COUNT(*) = 0 FROM t1;
-SELECT COUNT(*) = 0 FROM wsrep_schema.SR;
+SELECT COUNT(*) = 0 FROM .SR;
 
 #
 # Test 2: AUTOCOMMIT OFF
@@ -41,11 +41,11 @@ COMMIT;
 
 --connection node_1
 SELECT COUNT(*) = 0 FROM t1;
-SELECT COUNT(*) = 0 FROM wsrep_schema.SR;
+SELECT COUNT(*) = 0 FROM .SR;
 
 --connection node_2
 SELECT COUNT(*) = 0 FROM t1;
-SELECT COUNT(*) = 0 FROM wsrep_schema.SR;
+SELECT COUNT(*) = 0 FROM .SR;
 
 
 DROP TABLE t1;

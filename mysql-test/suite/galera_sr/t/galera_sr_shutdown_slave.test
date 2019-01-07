@@ -25,7 +25,7 @@ START TRANSACTION;
 INSERT INTO t1 VALUES (21),(22),(23);
 
 --connection node_2
---let $wait_condition = SELECT COUNT(*) > 0 FROM wsrep_schema.SR;
+--let $wait_condition = SELECT COUNT(*) > 0 FROM mysql.wsrep_streaming_log;
 --source include/wait_condition.inc
 
 --source include/shutdown_mysqld.inc
@@ -43,7 +43,7 @@ COMMIT;
 --source include/start_mysqld.inc
 
 # Confirm SR table on slave has entries
-SELECT COUNT(*) > 0 FROM wsrep_schema.SR;
+SELECT COUNT(*) > 0 FROM mysql.wsrep_streaming_log;
 SELECT COUNT(*) = 6 FROM t1 WHERE f1 IN (11,12,13,14,15,16);
 
 # Commit the second transaction on master after the slave has rejoined
@@ -53,11 +53,11 @@ COMMIT;
 
 # Confirm that SR table on slave is empty
 --connection node_2
-SELECT COUNT(*) = 0 FROM wsrep_schema.SR;
+SELECT COUNT(*) = 0 FROM mysql.wsrep_streaming_log;
 SELECT COUNT(*) = 12 FROM t1;
 
 # SR table on master should be empty too
 --connection node_1
-SELECT COUNT(*) = 0 FROM wsrep_schema.SR;
+SELECT COUNT(*) = 0 FROM mysql.wsrep_streaming_log;
 
 DROP TABLE t1;

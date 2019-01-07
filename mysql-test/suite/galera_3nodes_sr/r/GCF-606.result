@@ -21,7 +21,7 @@ connection node_2a;
 SET GLOBAL wsrep_provider_options='gmcast.isolate=0';
 connection node_1;
 connection node_1;
-SELECT COUNT(DISTINCT node_uuid) = 1 FROM wsrep_schema.SR;
+SELECT COUNT(DISTINCT node_uuid) = 1 FROM mysql.wsrep_streaming_log;
 COUNT(DISTINCT node_uuid) = 1
 0
 connection node_2;

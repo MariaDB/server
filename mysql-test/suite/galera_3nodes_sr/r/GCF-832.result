@@ -16,11 +16,11 @@ INSERT INTO t1 VALUES ('primary'),('primary'),('primary'),('primary'),('primary'
 COMMIT;
 ERROR HY000: Lost connection to MySQL server during query
 connection node_1;
-SELECT COUNT(*) = 0 FROM wsrep_schema.SR;
+SELECT COUNT(*) = 0 FROM mysql.wsrep_streaming_log;
 COUNT(*) = 0
 1
 connection node_2;
-SELECT COUNT(*) = 0 FROM wsrep_schema.SR;
+SELECT COUNT(*) = 0 FROM mysql.wsrep_streaming_log;
 COUNT(*) = 0
 1
 DROP TABLE t1;

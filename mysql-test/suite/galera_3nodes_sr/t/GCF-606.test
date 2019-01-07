@@ -23,7 +23,7 @@ INSERT INTO t1 VALUES (23);
 INSERT INTO t1 VALUES (24);
 
 --connection node_1
---let $wait_condition = SELECT COUNT(DISTINCT node_uuid) = 1 FROM wsrep_schema.SR
+--let $wait_condition = SELECT COUNT(DISTINCT node_uuid) = 1 FROM mysql.wsrep_streaming_log
 --source include/wait_condition.inc
 
 #
@@ -47,7 +47,7 @@ SET WSREP_ON=ON;
 # Confirm that node_1 has no transactions in SR table
 #
 
---let $wait_condition = SELECT COUNT(DISTINCT node_uuid) = 0 FROM wsrep_schema.SR;
+--let $wait_condition = SELECT COUNT(DISTINCT node_uuid) = 0 FROM mysql.wsrep_streaming_log;
 --source include/wait_condition.inc
 
 #
@@ -63,7 +63,7 @@ SET GLOBAL wsrep_provider_options='gmcast.isolate=0';
 --source include/wait_condition.inc
 
 --connection node_1
-SELECT COUNT(DISTINCT node_uuid) = 1 FROM wsrep_schema.SR;
+SELECT COUNT(DISTINCT node_uuid) = 1 FROM mysql.wsrep_streaming_log;
 
 --connection node_2
 --error ER_LOCK_DEADLOCK

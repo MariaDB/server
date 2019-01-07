@@ -10,10 +10,10 @@ INSERT INTO t1 VALUES (11),(12),(13),(14),(15),(16),(17),(18),(19),(20);
 INSERT INTO t1 VALUES (11),(12),(13),(14),(15),(16),(17),(18),(19),(20);
 ERROR 40001: Deadlock found when trying to get lock; try restarting transaction
 INSERT INTO t1 VALUES (31),(32),(33);
-SELECT COUNT(*) = 0 FROM wsrep_schema.SR;
+SELECT COUNT(*) = 0 FROM mysql.wsrep_streaming_log;
 COUNT(*) = 0
 0
-SELECT COUNT(*) = 0 FROM wsrep_schema.SR;
+SELECT COUNT(*) = 0 FROM mysql.wsrep_streaming_log;
 COUNT(*) = 0
 0
 COMMIT;

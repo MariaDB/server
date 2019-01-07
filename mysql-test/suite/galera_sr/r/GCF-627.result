@@ -16,11 +16,11 @@ connect node_1a, 127.0.0.1, root, , test, $NODE_MYPORT_1;
 INSERT INTO t1 VALUES (2);
 ERROR 42S02: Table 'test.t1' doesn't exist
 connection node_1;
-SELECT COUNT(*) = 0 FROM wsrep_schema.SR;
+SELECT COUNT(*) = 0 FROM mysql.wsrep_streaming_log;
 COUNT(*) = 0
 1
 connection node_2;
-SELECT COUNT(*) = 0 FROM wsrep_schema.SR;
+SELECT COUNT(*) = 0 FROM mysql.wsrep_streaming_log;
 COUNT(*) = 0
 1
 DROP TABLE t2;

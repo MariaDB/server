@@ -16,14 +16,14 @@ Killing server ...
 connection node_1;
 connection node_2;
 connection node_1;
-SELECT COUNT(*) = 0 FROM wsrep_schema.SR;
+SELECT COUNT(*) = 0 FROM mysql.wsrep_streaming_log;
 COUNT(*) = 0
 1
 connection node_2;
 SELECT COUNT(*) = 0 FROM t1;
 COUNT(*) = 0
 1
-SELECT COUNT(*) = 0 FROM wsrep_schema.SR;
+SELECT COUNT(*) = 0 FROM mysql.wsrep_streaming_log;
 COUNT(*) = 0
 1
 DROP TABLE t1;
