@@ -8708,3 +8708,38 @@ t1	CREATE TABLE `t1` (
 ) ENGINE=MyISAM DEFAULT CHARSET=latin1
 DROP TABLE t1;
 DROP FUNCTION f1;
+#
+# MDEV-16036: Debug assertion failed in resignal on create
+# temporary table 
+#
+set @save_sql_mode= @@sql_mode;
+set sql_mode='ORACLE';
+CREATE or replace procedure p4()
+AS
+CONTINUE HANDLER FOR SQLWARNING
+BEGIN
+NULL;
+END;
+EXIT HANDLER FOR OTHERS -- SQLEXCEPTION
+BEGIN
+GET DIAGNOSTICS CONDITION 1 @sqlstate = RETURNED_SQLSTATE, @errno = MYSQL_ERRNO, @text = MESSAGE_TEXT;
+SELECT @sqlstate, @errno, @text;
+SHOW WARNINGS;
+RESIGNAL;  -- cause DBG_ASSERT failed
+END;
+BEGIN
+CREATE TEMPORARY TABLE IF NOT EXISTS t1(origine VARCHAR2(10) NOT NULL);
+END
+/
+call p4();
+call p4();
+@sqlstate	@errno	@text
+42S01	1050	Table 't1' already exists
+Level	Code	Message
+Note	1050	Table 't1' already exists
+Warnings:
+Note	1050	Table 't1' already exists
+drop procedure p4;
+drop table t1;
+set @@sql_mode=@save_sql_mode;
+# End of 10.3 tests

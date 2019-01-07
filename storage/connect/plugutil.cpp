@@ -514,27 +514,31 @@ void FreeSarea(PGLOBAL g)
 /*  Here there should be some verification done such as validity of    */
 /*  the address and size not larger than memory size.                  */
 /***********************************************************************/
-BOOL PlugSubSet(PGLOBAL g __attribute__((unused)), void *memp, uint size)
+BOOL PlugSubSet(void *memp, uint size)
   {
   PPOOLHEADER pph = (PPOOLHEADER)memp;
 
   pph->To_Free = (OFFSET)sizeof(POOLHEADER);
   pph->FreeBlk = size - pph->To_Free;
-
   return FALSE;
   } /* end of PlugSubSet */
 
 /***********************************************************************/
+/*  Use it to export a function that do throwing.                      */
+/***********************************************************************/
+void *DoThrow(int n)
+{
+	throw n;
+} /* end of DoThrow */
+
+/***********************************************************************/
 /*  Program for sub-allocating one item in a storage area.             */
-/*  Note: SubAlloc routines of OS/2 are no more used to increase the   */
-/*  code portability and avoid problems when a grammar compiled under  */
-/*  one version of OS/2 is used under another version.                 */
-/*  The simple way things are done here is also based on the fact      */
-/*  that no freeing of suballocated blocks is permitted in Plug.       */
+/*  The simple way things are done here is based on the fact           */
+/*  that no freeing of suballocated blocks is permitted in CONNECT.    */
 /***********************************************************************/
 void *PlugSubAlloc(PGLOBAL g, void *memp, size_t size)
-  {
-  PPOOLHEADER pph;                           /* Points on area header. */
+{
+	PPOOLHEADER pph;                           /* Points on area header. */
 
   if (!memp)
     /*******************************************************************/
@@ -559,8 +563,8 @@ void *PlugSubAlloc(PGLOBAL g, void *memp, size_t size)
     if (trace(1))
       htrc("PlugSubAlloc: %s\n", g->Message);
 
-    throw 1234;
-    } /* endif size OS32 code */
+    DoThrow(1234);
+  } /* endif size OS32 code */
 
   /*********************************************************************/
   /*  Do the suballocation the simplest way.                           */
@@ -574,7 +578,7 @@ void *PlugSubAlloc(PGLOBAL g, void *memp, size_t size)
           memp, pph->To_Free, pph->FreeBlk);
 
   return (memp);
-  } /* end of PlugSubAlloc */
+} /* end of PlugSubAlloc */
 
 /***********************************************************************/
 /*  Program for sub-allocating and copying a string in a storage area. */

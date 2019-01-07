@@ -594,7 +594,7 @@ Description: OQGraph storage engine for MariaDB
 
 Package: mariadb-plugin-tokudb
 Architecture: amd64
-Depends: libjemalloc1 (>= 3.0.0~),
+Depends: libjemalloc1 (>= 3.0.0~) | libjemalloc2,
          mariadb-server-10.4 (= ${binary:Version}),
          ${misc:Depends},
          ${shlibs:Depends}

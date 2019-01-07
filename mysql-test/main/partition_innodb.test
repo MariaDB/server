@@ -1048,6 +1048,27 @@ database_name = 'test_jfg';
 
 DROP DATABASE test_jfg;
 
+#
+# MDEV-17755 Assertion `!table || (!table->read_set || bitmap_is_set(table->read_set, field_index) || (!(ptr >= table->record[0] && ptr < table->record[0] + table->s->reclength)))' failed in Field_bit::val_int upon SELECT with JOIN, partitions, indexed virtual column
+#
+create table t1 (a int) engine=innodb;
+create table t2 (
+  b int,
+  c int,
+  d bit not null default 0,
+  v bit as (d) virtual,
+  key (b,v)
+) engine=innodb partition by hash (b);
+insert into t1 values (1),(2);
+insert into t2 (b,c,d) values (1,1,0),(2,2,0);
+explain select t1.* from t1 join t2 on (v = a);
+select t1.* from t1 join t2 on (v = a);
+drop table t1, t2;
+
+--echo #
+--echo # End of 10.2 tests
+--echo #
+
 --echo #
 --echo # MDEV-16241 Assertion `inited==RND' failed in handler::ha_rnd_end()
 --echo #
@@ -1057,3 +1078,7 @@ PARTITION BY SYSTEM_TIME (PARTITION p1 HISTORY, PARTITION pn CURRENT);
 INSERT INTO t1 VALUES (1, 7, 8, 9), (2, NULL, NULL, NULL), (3, NULL, NULL, NULL);
 SELECT COUNT(*) FROM t1 WHERE x IS NULL AND y IS NULL AND z IS NULL;
 DROP TABLE t1;
+
+--echo #
+--echo # End of 10.3 tests
+--echo #

@@ -737,6 +737,7 @@ std::string wsrep_sst_prepare()
   char ip_buf[ip_max];
   const char* addr_in=  NULL;
   const char* addr_out= NULL;
+  const char* method;
 
   if (!strcmp(wsrep_sst_method, WSREP_SST_SKIP))
   {
@@ -785,7 +786,8 @@ std::string wsrep_sst_prepare()
   }
 
   ssize_t addr_len= -ENOSYS;
-  if (!strcmp(wsrep_sst_method, WSREP_SST_MYSQLDUMP))
+  method = wsrep_sst_method;
+  if (!strcmp(method, WSREP_SST_MYSQLDUMP))
   {
     addr_len= sst_prepare_mysqldump (addr_in, &addr_out);
     if (addr_len < 0)
@@ -799,33 +801,39 @@ std::string wsrep_sst_prepare()
     if (Wsrep_server_state::instance().is_initialized() &&
         Wsrep_server_state::instance().state() == Wsrep_server_state::s_joiner)
     {
-      /*
-	we already did SST at initializaiton, now engines are running
-	sql_print_information() is here because the message is too long
-	for WSREP_INFO.
-      */
+      if (!strcmp(method, WSREP_SST_XTRABACKUP) ||
+          !strcmp(method, WSREP_SST_XTRABACKUPV2))
+      {
+         WSREP_WARN("The %s SST method is deprecated, so it is automatically "
+                    "replaced by %s", method, WSREP_SST_MARIABACKUP);
+         method = WSREP_SST_MARIABACKUP;
+      }
+      // we already did SST at initializaiton, now engines are running
+      // sql_print_information() is here because the message is too long
+      // for WSREP_INFO.
       sql_print_information ("WSREP: "
                  "You have configured '%s' state snapshot transfer method "
                  "which cannot be performed on a running server. "
                  "Wsrep provider won't be able to fall back to it "
                  "if other means of state transfer are unavailable. "
                  "In that case you will need to restart the server.",
-                 wsrep_sst_method);
+                 method);
       return "";
     }
 
-    addr_len= sst_prepare_other (wsrep_sst_method, sst_auth_real,
+    addr_len = sst_prepare_other (method, sst_auth_real,
                                   addr_in, &addr_out);
     if (addr_len < 0)
     {
       WSREP_ERROR("Failed to prepare for '%s' SST. Unrecoverable.",
-                   wsrep_sst_method);
+                   method);
       throw wsrep::runtime_error("Failed to prepare for SST. Unrecoverable");
     }
   }
 
+  size_t const method_len(strlen(method));
   std::string ret;
-  ret += wsrep_sst_method;
+  ret += method;
   ret.push_back('\0');
   ret += addr_out;
 

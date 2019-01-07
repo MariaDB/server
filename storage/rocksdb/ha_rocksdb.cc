@@ -3770,7 +3770,6 @@ static int rocksdb_commit(handlerton* hton, THD* thd, bool commit_tx)
         We get here when committing a statement within a transaction.
       */
       tx->make_stmt_savepoint_permanent();
-      tx->make_stmt_savepoint_permanent();
     }
 
     if (my_core::thd_tx_isolation(thd) <= ISO_READ_COMMITTED) {

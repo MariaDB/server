@@ -570,7 +570,7 @@ void init_update_queries(void)
   sql_command_flags[SQLCOM_CREATE_PACKAGE_BODY]= CF_CHANGES_DATA | CF_AUTO_COMMIT_TRANS;
   sql_command_flags[SQLCOM_DROP_PACKAGE_BODY]= CF_CHANGES_DATA | CF_AUTO_COMMIT_TRANS;
   sql_command_flags[SQLCOM_ALTER_DB_UPGRADE]= CF_AUTO_COMMIT_TRANS;
-  sql_command_flags[SQLCOM_ALTER_DB]=       CF_CHANGES_DATA | CF_AUTO_COMMIT_TRANS;
+  sql_command_flags[SQLCOM_ALTER_DB]=       CF_CHANGES_DATA | CF_AUTO_COMMIT_TRANS | CF_DB_CHANGE;
   sql_command_flags[SQLCOM_RENAME_TABLE]=   CF_CHANGES_DATA | CF_AUTO_COMMIT_TRANS;
   sql_command_flags[SQLCOM_DROP_INDEX]=     CF_CHANGES_DATA | CF_AUTO_COMMIT_TRANS | CF_REPORT_PROGRESS;
   sql_command_flags[SQLCOM_CREATE_VIEW]=    CF_CHANGES_DATA | CF_REEXECUTION_FRAGILE |
@@ -1469,7 +1469,7 @@ static bool deny_updates_if_read_only_option(THD *thd, TABLE_LIST *all_tables)
   if (lex->sql_command == SQLCOM_DROP_TABLE && lex->tmp_table())
     DBUG_RETURN(FALSE);
 
-  /* Check if we created or dropped databases */
+  /* Check if we created, dropped, or renamed a database */
   if ((sql_command_flags[lex->sql_command] & CF_DB_CHANGE))
     DBUG_RETURN(TRUE);
 

@@ -200,6 +200,8 @@ static char*	log_ignored_opt;
 
 extern my_bool opt_use_ssl;
 my_bool opt_ssl_verify_server_cert;
+my_bool opt_extended_validation;
+my_bool opt_backup_encrypted;
 
 /* === metadata of backup === */
 #define XTRABACKUP_METADATA_FILENAME "xtrabackup_checkpoints"
@@ -759,6 +761,8 @@ enum options_xtrabackup
   OPT_XTRA_DATABASES,
   OPT_XTRA_DATABASES_FILE,
   OPT_XTRA_PARALLEL,
+  OPT_XTRA_EXTENDED_VALIDATION,
+  OPT_XTRA_BACKUP_ENCRYPTED,
   OPT_XTRA_STREAM,
   OPT_XTRA_COMPRESS,
   OPT_XTRA_COMPRESS_THREADS,
@@ -1216,6 +1220,22 @@ struct my_option xb_server_options[] =
    (G_PTR*) &xtrabackup_parallel, (G_PTR*) &xtrabackup_parallel, 0, GET_INT,
    REQUIRED_ARG, 1, 1, INT_MAX, 0, 0, 0},
 
+  {"extended_validation", OPT_XTRA_EXTENDED_VALIDATION,
+   "Enable extended validation for Innodb data pages during backup phase. "
+   "Will slow down backup considerably, in case encryption is used. "
+   "May fail if tables are created during the backup.",
+   (G_PTR*)&opt_extended_validation,
+   (G_PTR*)&opt_extended_validation,
+   0, GET_BOOL, NO_ARG, FALSE, 0, 0, 0, 0, 0},
+
+  {"backup_encrypted", OPT_XTRA_BACKUP_ENCRYPTED,
+   "In --backup, assume that nonzero key_version implies that the page"
+   " is encrypted. Use --backup --skip-backup-encrypted to allow"
+   " copying unencrypted that were originally created before MySQL 5.1.48.",
+   (G_PTR*)&opt_backup_encrypted,
+   (G_PTR*)&opt_backup_encrypted,
+   0, GET_BOOL, NO_ARG, TRUE, 0, 0, 0, 0, 0},
+
    {"log", OPT_LOG, "Ignored option for MySQL option compatibility",
    (G_PTR*) &log_ignored_opt, (G_PTR*) &log_ignored_opt, 0,
    GET_STR, OPT_ARG, 0, 0, 0, 0, 0, 0},
@@ -1452,7 +1472,7 @@ debug_sync_point(const char *name)
 }
 
 
-static std::vector<std::string> tables_for_export;
+static std::set<std::string> tables_for_export;
 
 static void append_export_table(const char *dbname, const char *tablename, bool is_remote)
 {
@@ -1464,7 +1484,15 @@ static void append_export_table(const char *dbname, const char *tablename, bool 
     char *p=strrchr(buf, '.');
     if (p) *p=0;
 
-    tables_for_export.push_back(ut_get_name(0,buf));
+    std::string name=ut_get_name(0, buf);
+    /* Strip partition name comment from table name, if any */
+    if (ends_with(name.c_str(), "*/"))
+    {
+      size_t pos= name.rfind("/*");
+      if (pos != std::string::npos)
+         name.resize(pos);
+    }
+    tables_for_export.insert(name);
   }
 }
 
@@ -1479,9 +1507,10 @@ static int create_bootstrap_file()
 
   fputs("SET NAMES UTF8;\n",f);
   enumerate_ibd_files(append_export_table);
-  for (size_t i= 0; i < tables_for_export.size(); i++)
+  for (std::set<std::string>::iterator it = tables_for_export.begin();
+       it != tables_for_export.end(); it++)
   {
-     const char *tab = tables_for_export[i].c_str();
+     const char *tab = it->c_str();
      fprintf(f,
      "BEGIN NOT ATOMIC "
        "DECLARE CONTINUE HANDLER FOR NOT FOUND,SQLEXCEPTION BEGIN END;"
@@ -1511,7 +1540,7 @@ static int prepare_export()
     snprintf(cmdline, sizeof cmdline,
      IF_WIN("\"","") "\"%s\" --mysqld \"%s\" "
       " --defaults-extra-file=./backup-my.cnf --defaults-group-suffix=%s --datadir=."
-      " --innodb --innodb-fast-shutdown=0"
+      " --innodb --innodb-fast-shutdown=0 --loose-partition"
       " --innodb_purge_rseg_truncate_frequency=1 --innodb-buffer-pool-size=%llu"
       " --console  --skip-log-error --bootstrap  < "  BOOTSTRAP_FILENAME IF_WIN("\"",""),
       mariabackup_exe, 
@@ -1523,7 +1552,7 @@ static int prepare_export()
     sprintf(cmdline,
      IF_WIN("\"","") "\"%s\" --mysqld"
       " --defaults-file=./backup-my.cnf --defaults-group-suffix=%s --datadir=."
-      " --innodb --innodb-fast-shutdown=0"
+      " --innodb --innodb-fast-shutdown=0 --loose-partition"
       " --innodb_purge_rseg_truncate_frequency=1 --innodb-buffer-pool-size=%llu"
       " --console  --log-error= --bootstrap  < "  BOOTSTRAP_FILENAME IF_WIN("\"",""),
       mariabackup_exe,
@@ -3354,8 +3383,15 @@ xb_load_tablespaces()
 		return(DB_ERROR);
 	}
 
-	err = srv_sys_space.open_or_create(false, false, &sum_of_new_sizes,
-					   &flush_lsn);
+	for (int i= 0; i < 10; i++) {
+		err = srv_sys_space.open_or_create(false, false, &sum_of_new_sizes,
+						 &flush_lsn);
+		if (err == DB_PAGE_CORRUPTED || err == DB_CORRUPTION) {
+			my_sleep(1000);
+		}
+		else
+		 break;
+	}
 
 	if (err != DB_SUCCESS) {
 		msg("mariabackup: Could not open data files.\n");
@@ -6413,3 +6449,12 @@ static int get_exepath(char *buf, size_t size, const char *argv0)
 
   return my_realpath(buf, argv0, 0);
 }
+
+
+#if defined (__SANITIZE_ADDRESS__) && defined (__linux__)
+/* Avoid LeakSanitizer's false positives. */
+const char* __asan_default_options()
+{
+  return "detect_leaks=0";
+}
+#endif
