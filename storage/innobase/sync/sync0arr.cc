@@ -76,8 +76,8 @@ keep the global wait array for the sake of diagnostics and also to avoid
 infinite wait The error_monitor thread scans the global wait array to signal
 any waiting threads who have missed the signal. */
 
-typedef SyncArrayMutex::MutexType WaitMutex;
-typedef BlockSyncArrayMutex::MutexType BlockWaitMutex;
+typedef TTASEventMutex<GenericPolicy> WaitMutex;
+typedef TTASEventMutex<BlockMutexPolicy> BlockWaitMutex;
 
 /** The latch types that use the sync array. */
 union sync_object_t {
@@ -499,7 +499,7 @@ sync_array_cell_print(
 		WaitMutex*	mutex = cell->latch.mutex;
 		const WaitMutex::MutexPolicy&	policy = mutex->policy();
 #ifdef UNIV_DEBUG
-		const char*	name = policy.get_enter_filename();
+		const char*	name = policy.context.get_enter_filename();
 		if (name == NULL) {
 			/* The mutex might have been released. */
 			name = "NULL";
@@ -518,7 +518,7 @@ sync_array_cell_print(
 			mutex->state()
 #ifdef UNIV_DEBUG
 			,name,
-			policy.get_enter_line()
+			policy.context.get_enter_line()
 #endif /* UNIV_DEBUG */
 			);
 		}
@@ -528,7 +528,7 @@ sync_array_cell_print(
 		const BlockWaitMutex::MutexPolicy&	policy =
 			mutex->policy();
 #ifdef UNIV_DEBUG
-		const char*	name = policy.get_enter_filename();
+		const char*	name = policy.context.get_enter_filename();
 		if (name == NULL) {
 			/* The mutex might have been released. */
 			name = "NULL";
@@ -546,7 +546,7 @@ sync_array_cell_print(
 			(ulong) mutex->state()
 #ifdef UNIV_DEBUG
 			,name,
-			(ulong) policy.get_enter_line()
+			(ulong) policy.context.get_enter_line()
 #endif /* UNIV_DEBUG */
 		       );
 	} else if (type == RW_LOCK_X
@@ -738,7 +738,7 @@ sync_array_detect_deadlock(
 		const WaitMutex::MutexPolicy&	policy = mutex->policy();
 
 		if (mutex->state() != MUTEX_STATE_UNLOCKED) {
-			thread = policy.get_thread_id();
+			thread = policy.context.get_thread_id();
 
 			/* Note that mutex->thread_id above may be
 			also OS_THREAD_ID_UNDEFINED, because the
@@ -753,7 +753,7 @@ sync_array_detect_deadlock(
 			if (ret) {
 				const char*	name;
 
-				name = policy.get_enter_filename();
+				name = policy.context.get_enter_filename();
 
 				if (name == NULL) {
 					/* The mutex might have been
@@ -765,7 +765,7 @@ sync_array_detect_deadlock(
 					<< "Mutex " << mutex << " owned by"
 					" thread " << os_thread_pf(thread)
 					<< " file " << name << " line "
-					<< policy.get_enter_line();
+					<< policy.context.get_enter_line();
 
 				sync_array_cell_print(stderr, cell);
 
@@ -785,7 +785,7 @@ sync_array_detect_deadlock(
 			mutex->policy();
 
 		if (mutex->state() != MUTEX_STATE_UNLOCKED) {
-			thread = policy.get_thread_id();
+			thread = policy.context.get_thread_id();
 
 			/* Note that mutex->thread_id above may be
 			also OS_THREAD_ID_UNDEFINED, because the
@@ -800,7 +800,7 @@ sync_array_detect_deadlock(
 			if (ret) {
 				const char*	name;
 
-				name = policy.get_enter_filename();
+				name = policy.context.get_enter_filename();
 
 				if (name == NULL) {
 					/* The mutex might have been
@@ -812,7 +812,7 @@ sync_array_detect_deadlock(
 					<< "Mutex " << mutex << " owned by"
 					" thread " << os_thread_pf(thread)
 					<< " file " << name << " line "
-					<< policy.get_enter_line();
+					<< policy.context.get_enter_line();
 
 
 				return(true);

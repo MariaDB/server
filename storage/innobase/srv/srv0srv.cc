@@ -497,10 +497,6 @@ UNIV_INTERN ulong srv_buf_dump_status_frequency;
 	mutex_enter(&srv_sys.mutex);			\
 } while (0)
 
-/** Test if the system mutex is owned. */
-#define srv_sys_mutex_own() (mutex_own(&srv_sys.mutex)	\
-			     && !srv_read_only_mode)
-
 /** Release the system mutex. */
 #define srv_sys_mutex_exit() do {			\
 	mutex_exit(&srv_sys.mutex);			\
@@ -829,7 +825,7 @@ srv_suspend_thread_low(
 	srv_slot_t*	slot)	/*!< in/out: thread slot */
 {
 	ut_ad(!srv_read_only_mode);
-	ut_ad(srv_sys_mutex_own());
+	ut_ad(mutex_own(&srv_sys.mutex));
 
 	ut_ad(slot->in_use);
 
@@ -1907,7 +1903,7 @@ void
 srv_active_wake_master_thread_low()
 {
 	ut_ad(!srv_read_only_mode);
-	ut_ad(!srv_sys_mutex_own());
+	ut_ad(!mutex_own(&srv_sys.mutex));
 
 	srv_inc_activity_count();
 
@@ -1933,7 +1929,8 @@ srv_active_wake_master_thread_low()
 void
 srv_wake_purge_thread_if_not_active()
 {
-	ut_ad(!srv_sys_mutex_own());
+	ut_ad(!srv_read_only_mode);
+	ut_ad(!mutex_own(&srv_sys.mutex));
 
 	if (purge_sys.enabled() && !purge_sys.paused()
 	    && !srv_sys.n_threads_active[SRV_PURGE]

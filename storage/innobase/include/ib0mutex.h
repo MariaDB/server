@@ -35,7 +35,7 @@ Created 2013-03-26 Sunny Bains.
 #include "sync0arr.h"
 
 /** OS mutex for tracking lock/unlock for debugging */
-template <template <typename> class Policy = NoPolicy>
+template <template <typename> class Policy>
 struct OSTrackMutex {
 
 	typedef Policy<OSTrackMutex> MutexPolicy;
@@ -152,7 +152,7 @@ private:
 #include <sys/syscall.h>
 
 /** Mutex implementation that used the Linux futex. */
-template <template <typename> class Policy = NoPolicy>
+template <template <typename> class Policy>
 struct TTASFutexMutex {
 
 	typedef Policy<TTASFutexMutex> MutexPolicy;
@@ -264,7 +264,7 @@ private:
 
 #endif /* HAVE_IB_LINUX_FUTEX */
 
-template <template <typename> class Policy = NoPolicy>
+template <template <typename> class Policy>
 struct TTASMutex {
 
 	typedef Policy<TTASMutex> MutexPolicy;
@@ -364,7 +364,7 @@ private:
 	std::atomic<uint32_t>	m_lock_word;
 };
 
-template <template <typename> class Policy = NoPolicy>
+template <template <typename> class Policy>
 struct TTASEventMutex {
 
 	typedef Policy<TTASEventMutex> MutexPolicy;
@@ -534,7 +534,6 @@ with the Performance Schema instrumentation. */
 template <typename MutexImpl>
 struct PolicyMutex
 {
-	typedef MutexImpl MutexType;
 	typedef typename MutexImpl::MutexPolicy Policy;
 
 	PolicyMutex() UNIV_NOTHROW : m_impl()
@@ -565,7 +564,7 @@ struct PolicyMutex
 		pfs_exit();
 #endif /* UNIV_PFS_MUTEX */
 
-		policy().release(m_impl);
+		ut_d(policy().context.release(m_impl));
 
 		m_impl.exit();
 	}
@@ -591,11 +590,11 @@ struct PolicyMutex
 		locker = pfs_begin_lock(&state, name, line);
 #endif /* UNIV_PFS_MUTEX */
 
-		policy().enter(m_impl, name, line);
+		ut_d(policy().context.enter(m_impl, name, line));
 
 		m_impl.enter(n_spins, n_delay, name, line);
 
-		policy().locked(m_impl, name, line);
+		ut_d(policy().context.locked(m_impl, name, line));
 #ifdef UNIV_PFS_MUTEX
 		pfs_end(locker, 0);
 #endif /* UNIV_PFS_MUTEX */
@@ -624,9 +623,9 @@ struct PolicyMutex
 
 		if (ret == 0) {
 
-			policy().enter(m_impl, name, line);
+			ut_d(policy().context.enter(m_impl, name, line));
 
-			policy().locked(m_impl, name, line);
+			ut_d(policy().context.locked(m_impl, name, line));
 		}
 
 #ifdef UNIV_PFS_MUTEX
@@ -640,7 +639,7 @@ struct PolicyMutex
 	/** @return true if the thread owns the mutex. */
 	bool is_owned() const UNIV_NOTHROW
 	{
-		return(policy().is_owned());
+		return(policy().context.is_owned());
 	}
 #endif /* UNIV_DEBUG */
 
@@ -662,6 +661,7 @@ struct PolicyMutex
 
 		m_impl.init(id, filename, line);
 		policy().init(m_impl, id, filename, line);
+		ut_d(policy().context.init(id));
 	}
 
 	/** Free resources (if any) */
@@ -672,6 +672,7 @@ struct PolicyMutex
 #endif /* UNIV_PFS_MUTEX */
 		m_impl.destroy();
 		policy().destroy();
+		ut_d(policy().context.destroy());
 	}
 
 	/** Required for os_event_t */

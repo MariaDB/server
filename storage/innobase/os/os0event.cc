@@ -219,7 +219,7 @@ private:
 	int64_t			signal_count;	/*!< this is incremented
 						each time the event becomes
 						signaled */
-	mutable EventMutex	mutex;		/*!< this mutex protects
+	mutable OSMutex		mutex;		/*!< this mutex protects
 						the next fields */
 
 

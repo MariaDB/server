@@ -999,9 +999,6 @@ struct latch_t {
 	@return the string representation */
 	virtual std::string to_string() const = 0;
 
-	/** @return "filename:line" from where the latch was last locked */
-	virtual std::string locked_from() const = 0;
-
 	/** @return the latch level */
 	latch_level_t get_level() const
 		UNIV_NOTHROW
@@ -1116,33 +1113,6 @@ enum rw_lock_flag_t {
 #endif /* UNIV_DBEUG */
 
 #endif /* UNIV_INNOCHECKSUM */
-
-static inline ulint my_atomic_loadlint(const ulint *A)
-{
-#ifdef _WIN64
-  return ulint(my_atomic_load64((volatile int64*)A));
-#else
-  return ulint(my_atomic_loadlong(A));
-#endif
-}
-
-static inline lint my_atomic_loadlint(const lint *A)
-{
-#ifdef _WIN64
-  return lint(my_atomic_load64((volatile int64*)A));
-#else
-  return my_atomic_loadlong(A);
-#endif
-}
-
-static inline void my_atomic_storelint(ulint *A, ulint B)
-{
-#ifdef _WIN64
-  my_atomic_store64((volatile int64*)A, B);
-#else
-  my_atomic_storelong(A, B);
-#endif
-}
 
 /** Simple non-atomic counter aligned to CACHE_LINE_SIZE
 @tparam	Type	the integer type of the counter */
