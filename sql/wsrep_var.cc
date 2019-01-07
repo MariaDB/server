@@ -460,6 +460,12 @@ bool wsrep_cluster_address_check (sys_var *self, THD* thd, set_var* var)
 
 bool wsrep_cluster_address_update (sys_var *self, THD* thd, enum_var_type type)
 {
+  if (!Wsrep_server_state::instance().is_provider_loaded())
+  {
+    WSREP_INFO("WSREP (galera) provider is not loaded, can't re(start) replication.");
+    return false;
+  }
+
   /* stop replication is heavy operation, and includes closing all client 
      connections. Closing clients may need to get LOCK_global_system_variables
      at least in MariaDB.

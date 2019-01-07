@@ -5261,7 +5261,7 @@ static int init_server_components()
 
 #ifdef WITH_WSREP
   if (wsrep_init_server()) unireg_abort(1);
-  if (!wsrep_recovery)
+  if (WSREP_ON && !wsrep_recovery && !opt_abort)
   {
     if (opt_bootstrap) // bootsrap option given - disable wsrep functionality
     {
