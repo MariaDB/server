@@ -178,9 +178,6 @@ dict_mem_table_create(
 	table->autoinc_lock = static_cast<ib_lock_t*>(
 		mem_heap_alloc(heap, lock_get_size()));
 
-	/* lazy creation of table autoinc latch */
-	dict_table_autoinc_create_lazy(table);
-
 	/* If the table has an FTS index or we are in the process
 	of building one, create the table->fts */
 	if (dict_table_has_fts_index(table)
@@ -217,7 +214,6 @@ dict_mem_table_free(
 		}
 	}
 
-	dict_table_autoinc_destroy(table);
 	dict_mem_table_free_foreign_vcol_set(table);
 	dict_table_stats_latch_destroy(table);
 

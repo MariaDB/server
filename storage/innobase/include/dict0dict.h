@@ -288,13 +288,6 @@ dict_col_name_is_reserved(
 /*======================*/
 	const char*	name)	/*!< in: column name */
 	MY_ATTRIBUTE((nonnull, warn_unused_result));
-/********************************************************************//**
-Acquire the autoinc lock. */
-void
-dict_table_autoinc_lock(
-/*====================*/
-	dict_table_t*	table)	/*!< in/out: table */
-	MY_ATTRIBUTE((nonnull));
 /** Unconditionally set the AUTO_INCREMENT counter.
 @param[in,out]	table	table or partition
 @param[in]	value	next available AUTO_INCREMENT value */
@@ -303,7 +296,7 @@ UNIV_INLINE
 void
 dict_table_autoinc_initialize(dict_table_t* table, ib_uint64_t value)
 {
-	ut_ad(dict_table_autoinc_own(table));
+	ut_ad(mutex_own(&table->autoinc_mutex));
 	table->autoinc = value;
 }
 
@@ -316,7 +309,7 @@ UNIV_INLINE
 ib_uint64_t
 dict_table_autoinc_read(const dict_table_t* table)
 {
-	ut_ad(dict_table_autoinc_own(table));
+	ut_ad(mutex_own(&table->autoinc_mutex));
 	return(table->autoinc);
 }
 
@@ -330,7 +323,7 @@ UNIV_INLINE
 bool
 dict_table_autoinc_update_if_greater(dict_table_t* table, ib_uint64_t value)
 {
-	ut_ad(dict_table_autoinc_own(table));
+	ut_ad(mutex_own(&table->autoinc_mutex));
 
 	if (value > table->autoinc) {
 
@@ -341,13 +334,6 @@ dict_table_autoinc_update_if_greater(dict_table_t* table, ib_uint64_t value)
 	return(false);
 }
 
-/********************************************************************//**
-Release the autoinc lock. */
-void
-dict_table_autoinc_unlock(
-/*======================*/
-	dict_table_t*	table)	/*!< in/out: table */
-	MY_ATTRIBUTE((nonnull));
 /**********************************************************************//**
 Adds system columns to a table object. */
 void

@@ -2626,8 +2626,7 @@ ha_innobase::innobase_reset_autoinc(
 	if (error == DB_SUCCESS) {
 
 		dict_table_autoinc_initialize(m_prebuilt->table, autoinc);
-
-		dict_table_autoinc_unlock(m_prebuilt->table);
+		mutex_exit(&m_prebuilt->table->autoinc_mutex);
 	}
 
 	return(error);
@@ -6056,7 +6055,7 @@ initialize_auto_increment(dict_table_t* table, const Field* field)
 
 	const unsigned	col_no = innodb_col_no(field);
 
-	dict_table_autoinc_lock(table);
+	mutex_enter(&table->autoinc_mutex);
 
 	table->persistent_autoinc = 1
 		+ dict_table_get_nth_col_pos(table, col_no, NULL);
@@ -6064,7 +6063,7 @@ initialize_auto_increment(dict_table_t* table, const Field* field)
 	if (table->autoinc) {
 		/* Already initialized. Our caller checked
 		table->persistent_autoinc without
-		dict_table_autoinc_lock(), and there might be multiple
+		autoinc_mutex protection, and there might be multiple
 		ha_innobase::open() executing concurrently. */
 	} else if (srv_force_recovery >= SRV_FORCE_NO_IBUF_MERGE) {
 		/* If the recovery level is set so high that writes
@@ -6086,7 +6085,7 @@ initialize_auto_increment(dict_table_t* table, const Field* field)
 			innobase_get_int_col_max_value(field));
 	}
 
-	dict_table_autoinc_unlock(table);
+	mutex_exit(&table->autoinc_mutex);
 }
 
 /** Open an InnoDB table
@@ -7922,7 +7921,7 @@ ha_innobase::innobase_lock_autoinc(void)
 	switch (innobase_autoinc_lock_mode) {
 	case AUTOINC_NO_LOCKING:
 		/* Acquire only the AUTOINC mutex. */
-		dict_table_autoinc_lock(m_prebuilt->table);
+		mutex_enter(&m_prebuilt->table->autoinc_mutex);
 		break;
 
 	case AUTOINC_NEW_STYLE_LOCKING:
@@ -7937,14 +7936,14 @@ ha_innobase::innobase_lock_autoinc(void)
 		) {
 
 			/* Acquire the AUTOINC mutex. */
-			dict_table_autoinc_lock(m_prebuilt->table);
+			mutex_enter(&m_prebuilt->table->autoinc_mutex);
 
 			/* We need to check that another transaction isn't
 			already holding the AUTOINC lock on the table. */
 			if (m_prebuilt->table->n_waiting_or_granted_auto_inc_locks) {
 				/* Release the mutex to avoid deadlocks and
 				fall back to old style locking. */
-				dict_table_autoinc_unlock(m_prebuilt->table);
+				mutex_exit(&m_prebuilt->table->autoinc_mutex);
 			} else {
 				/* Do not fall back to old style locking. */
 				break;
@@ -7960,7 +7959,7 @@ ha_innobase::innobase_lock_autoinc(void)
 		if (error == DB_SUCCESS) {
 
 			/* Acquire the AUTOINC mutex. */
-			dict_table_autoinc_lock(m_prebuilt->table);
+			mutex_enter(&m_prebuilt->table->autoinc_mutex);
 		}
 		break;
 
@@ -7988,8 +7987,7 @@ ha_innobase::innobase_set_max_autoinc(
 	if (error == DB_SUCCESS) {
 
 		dict_table_autoinc_update_if_greater(m_prebuilt->table, auto_inc);
-
-		dict_table_autoinc_unlock(m_prebuilt->table);
+		mutex_exit(&m_prebuilt->table->autoinc_mutex);
 	}
 
 	return(error);
@@ -12588,7 +12586,7 @@ create_table_info_t::create_table_update_dict()
 			autoinc = 1;
 		}
 
-		dict_table_autoinc_lock(innobase_table);
+		mutex_enter(&innobase_table->autoinc_mutex);
 		dict_table_autoinc_initialize(innobase_table, autoinc);
 
 		if (innobase_table->is_temporary()) {
@@ -12613,7 +12611,7 @@ create_table_info_t::create_table_update_dict()
 			}
 		}
 
-		dict_table_autoinc_unlock(innobase_table);
+		mutex_exit(&innobase_table->autoinc_mutex);
 	}
 
 	innobase_parse_hint_from_comment(m_thd, innobase_table, m_form->s);
@@ -16460,7 +16458,7 @@ ha_innobase::innobase_get_autoinc(
 		/* It should have been initialized during open. */
 		if (*value == 0) {
 			m_prebuilt->autoinc_error = DB_UNSUPPORTED;
-			dict_table_autoinc_unlock(m_prebuilt->table);
+			mutex_exit(&m_prebuilt->table->autoinc_mutex);
 		}
 	}
 
@@ -16484,7 +16482,7 @@ ha_innobase::innobase_peek_autoinc(void)
 
 	innodb_table = m_prebuilt->table;
 
-	dict_table_autoinc_lock(innodb_table);
+	mutex_enter(&innodb_table->autoinc_mutex);
 
 	auto_inc = dict_table_autoinc_read(innodb_table);
 
@@ -16493,7 +16491,7 @@ ha_innobase::innobase_peek_autoinc(void)
 			" '" << innodb_table->name << "'";
 	}
 
-	dict_table_autoinc_unlock(innodb_table);
+	mutex_exit(&innodb_table->autoinc_mutex);
 
 	return(auto_inc);
 }
@@ -16600,7 +16598,7 @@ ha_innobase::get_auto_increment(
 		/* Out of range number. Let handler::update_auto_increment()
 		take care of this */
 		m_prebuilt->autoinc_last_value = 0;
-		dict_table_autoinc_unlock(m_prebuilt->table);
+		mutex_exit(&m_prebuilt->table->autoinc_mutex);
 		*nb_reserved_values= 0;
 		return;
 	}
@@ -16664,7 +16662,7 @@ ha_innobase::get_auto_increment(
 	m_prebuilt->autoinc_offset = offset;
 	m_prebuilt->autoinc_increment = increment;
 
-	dict_table_autoinc_unlock(m_prebuilt->table);
+	mutex_exit(&m_prebuilt->table->autoinc_mutex);
 }
 
 /*******************************************************************//**

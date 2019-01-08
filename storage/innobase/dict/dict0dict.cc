@@ -707,20 +707,6 @@ dict_table_get_nth_v_col_mysql(
 	return(dict_table_get_nth_v_col(table, i));
 }
 
-/** Allocate and init the autoinc latch of a given table.
-This function must not be called concurrently on the same table object.
-@param[in,out]	table_void	table whose autoinc latch to create */
-static
-void
-dict_table_autoinc_alloc(
-	void*	table_void)
-{
-	dict_table_t*	table = static_cast<dict_table_t*>(table_void);
-	table->autoinc_mutex = UT_NEW_NOKEY(ib_mutex_t());
-	ut_a(table->autoinc_mutex != NULL);
-	mutex_create(LATCH_ID_AUTOINC, table->autoinc_mutex);
-}
-
 /** Allocate and init the zip_pad_mutex of a given index.
 This function must not be called concurrently on the same index object.
 @param[in,out]	index_void	index whose zip_pad_mutex to create */
@@ -733,20 +719,6 @@ dict_index_zip_pad_alloc(
 	index->zip_pad.mutex = UT_NEW_NOKEY(SysMutex());
 	ut_a(index->zip_pad.mutex != NULL);
 	mutex_create(LATCH_ID_ZIP_PAD_MUTEX, index->zip_pad.mutex);
-}
-
-/********************************************************************//**
-Acquire the autoinc lock. */
-void
-dict_table_autoinc_lock(
-/*====================*/
-	dict_table_t*	table)	/*!< in/out: table */
-{
-	os_once::do_or_wait_for_done(
-		&table->autoinc_mutex_created,
-		dict_table_autoinc_alloc, table);
-
-	mutex_enter(table->autoinc_mutex);
 }
 
 /** Acquire the zip_pad_mutex latch.
@@ -786,16 +758,6 @@ dict_table_get_all_fts_indexes(
 	}
 
 	return(ib_vector_size(indexes));
-}
-
-/********************************************************************//**
-Release the autoinc lock. */
-void
-dict_table_autoinc_unlock(
-/*======================*/
-	dict_table_t*	table)	/*!< in/out: table */
-{
-	mutex_exit(table->autoinc_mutex);
 }
 
 /** Looks for column n in an index.
@@ -1191,6 +1153,8 @@ inline void dict_sys_t::add(dict_table_t* table)
 	ut_ad(!find(table));
 
 	ulint fold = ut_fold_string(table->name.m_name);
+
+	mutex_create(LATCH_ID_AUTOINC, &table->autoinc_mutex);
 
 	/* Look for a table with the same name: error if such exists */
 	{
@@ -1938,6 +1902,8 @@ void dict_sys_t::remove(dict_table_t* table, bool lru, bool keep)
 		dict_free_vc_templ(table->vc_templ);
 		UT_DELETE(table->vc_templ);
 	}
+
+	mutex_free(&table->autoinc_mutex);
 
 	if (!keep) {
 		dict_mem_table_free(table);

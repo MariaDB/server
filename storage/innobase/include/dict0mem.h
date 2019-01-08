@@ -2103,11 +2103,8 @@ public:
 	from a select. */
 	lock_t*					autoinc_lock;
 
-	/** Creation state of autoinc_mutex member */
-	volatile os_once::state_t		autoinc_mutex_created;
-
 	/** Mutex protecting the autoincrement counter. */
-	ib_mutex_t*				autoinc_mutex;
+	ib_mutex_t				autoinc_mutex;
 
 	/** Autoinc counter value to give to the next inserted row. */
 	ib_uint64_t				autoinc;
@@ -2292,35 +2289,6 @@ struct dict_foreign_add_to_referenced_table {
 	}
 };
 
-/** Destroy the autoinc latch of the given table.
-This function is only called from either single threaded environment
-or from a thread that has not shared the table object with other threads.
-@param[in,out]	table	table whose stats latch to destroy */
-inline
-void
-dict_table_autoinc_destroy(
-	dict_table_t*	table)
-{
-	if (table->autoinc_mutex_created == os_once::DONE
-	    && table->autoinc_mutex != NULL) {
-		mutex_free(table->autoinc_mutex);
-		UT_DELETE(table->autoinc_mutex);
-	}
-}
-
-/** Request for lazy creation of the autoinc latch of a given table.
-This function is only called from either single threaded environment
-or from a thread that has not shared the table object with other threads.
-@param[in,out]	table	table whose autoinc latch is to be created. */
-inline
-void
-dict_table_autoinc_create_lazy(
-	dict_table_t*	table)
-{
-	table->autoinc_mutex = NULL;
-	table->autoinc_mutex_created = os_once::NEVER_DONE;
-}
-
 /** Request a lazy creation of dict_index_t::zip_pad::mutex.
 This function is only called from either single threaded environment
 or from a thread that has not shared the table object with other threads.
@@ -2359,19 +2327,6 @@ dict_index_zip_pad_unlock(
 {
 	mutex_exit(index->zip_pad.mutex);
 }
-
-#ifdef UNIV_DEBUG
-/** Check if the current thread owns the autoinc_mutex of a given table.
-@param[in]	table	the autoinc_mutex belongs to this table
-@return true, if the current thread owns the autoinc_mutex, false otherwise.*/
-inline
-bool
-dict_table_autoinc_own(
-	const dict_table_t*	table)
-{
-	return(mutex_own(table->autoinc_mutex));
-}
-#endif /* UNIV_DEBUG */
 
 /** Check whether the col is used in spatial index or regular index.
 @param[in]	col	column to check
