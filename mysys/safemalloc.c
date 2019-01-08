@@ -319,7 +319,7 @@ static int bad_ptr(const char *where, void *ptr)
   if (irem->marker != MAGICSTART)
   {
     DBUG_PRINT("error",("Unallocated data or underrun buffer %p", ptr));
-    warn("Error: %s unallocated data or underrun buffer %p", ptr, where);
+    warn("Error: %s unallocated data or underrun buffer %p", where, ptr);
     return 1;
   }
 
