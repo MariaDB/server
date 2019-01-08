@@ -11,4 +11,3 @@
 ##############################################################################
 
 create-index-debug : MDEV-13680 InnoDB may crash when btr_page_alloc() fails
-alter_inplace_perfschema : MDEV-17748 nnodb.alter_inplace_perfschema fails in buildbot with wrong result
