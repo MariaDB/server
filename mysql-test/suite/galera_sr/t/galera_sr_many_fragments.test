@@ -15,12 +15,12 @@ SET SESSION wsrep_trx_fragment_size = 1;
 SET AUTOCOMMIT=OFF;
 START TRANSACTION;
 
-INSERT INTO t1 (f2) SELECT REPEAT('x', 512) FROM ten AS a1, ten AS a2, ten AS a3, ten AS a4, ten AS a5;
+INSERT INTO t1 (f2) SELECT REPEAT('x', 512) FROM ten AS a1, ten AS a2, ten AS a3, ten AS a4;
 
 --connection node_2
 SELECT COUNT(*) > 0 FROM wsrep_schema.SR;
 SET TRANSACTION ISOLATION LEVEL READ UNCOMMITTED;
-SELECT COUNT(*) = 100000 FROM t1;
+SELECT COUNT(*) = 10000 FROM t1;
 
 --connection node_1
 ROLLBACK;
