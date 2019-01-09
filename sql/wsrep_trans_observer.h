@@ -145,9 +145,16 @@ static inline int wsrep_before_prepare(THD* thd, bool all)
 {
   DBUG_ENTER("wsrep_before_prepare");
   WSREP_DEBUG("wsrep_before_prepare: %d", wsrep_is_real(thd, all));
-  int ret= (wsrep_run_commit_hook(thd, all) ?
-            thd->wsrep_cs().before_prepare() : 0);
-  DBUG_ASSERT(ret == 0 || thd->wsrep_cs().current_error());
+  int ret= 0;
+  if (wsrep_run_commit_hook(thd, all))
+  {
+    if ((ret= thd->wsrep_cs().before_prepare()) == 0)
+    {
+      DBUG_ASSERT(!thd->wsrep_trx().ws_meta().gtid().is_undefined());
+      wsrep_xid_init(&thd->wsrep_xid,
+                     thd->wsrep_trx().ws_meta().gtid());
+    }
+  }
   DBUG_RETURN(ret);
 }
 
@@ -182,10 +189,17 @@ static inline int wsrep_before_commit(THD* thd, bool all)
   WSREP_DEBUG("wsrep_before_commit: %d, %lld",
               wsrep_is_real(thd, all),
               (long long)wsrep_thd_trx_seqno(thd));
-  DBUG_RETURN(wsrep_run_commit_hook(thd, all) ?
-              (wsrep_xid_init(&thd->wsrep_xid,
-                              thd->wsrep_cs().transaction().ws_meta().gtid()),
-               thd->wsrep_cs().before_commit()) : 0);
+  int ret= 0;
+  if (wsrep_run_commit_hook(thd, all))
+  {
+    if ((ret= thd->wsrep_cs().before_commit()) == 0)
+    {
+      DBUG_ASSERT(!thd->wsrep_trx().ws_meta().gtid().is_undefined());
+      wsrep_xid_init(&thd->wsrep_xid,
+                     thd->wsrep_trx().ws_meta().gtid());
+    }
+  }
+  DBUG_RETURN(ret);
 }
 
 /*
@@ -226,7 +240,7 @@ static inline int wsrep_after_commit(THD* thd, bool all)
   if (wsrep_run_commit_hook(thd, all))
   {
     DBUG_RETURN((wsrep_ordered_commit_if_no_binlog(thd, all) ||
-                 (wsrep_xid_init(&thd->wsrep_xid, wsrep::gtid::undefined()),
+                 (thd->wsrep_xid.null(),
                   thd->wsrep_cs().after_commit())));
   }
   DBUG_RETURN(0);
@@ -261,7 +275,7 @@ static inline int wsrep_before_rollback(THD* thd, bool all)
       /* Reset XID so that it does not trigger writing serialization
          history in InnoDB. This needs to be avoided because rollback
          may happen out of order and replay may follow. */
-      wsrep_xid_init(&thd->wsrep_xid, wsrep::gtid::undefined());
+      thd->wsrep_xid.null();
       ret= thd->wsrep_cs().before_rollback();
     }
   }

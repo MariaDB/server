@@ -1538,7 +1538,11 @@ int ha_commit_trans(THD *thd, bool all)
                             wsrep_has_changes(thd, all));
     if (run_wsrep_commit)
       error= wsrep_before_commit(thd, all);
-    if (error) goto done;
+    if (error)
+    {
+      ha_rollback_trans(thd, FALSE);
+      goto wsrep_err;
+    }
 #endif /* WITH_WSREP */
     error= ha_commit_one_phase(thd, all);
 #ifdef WITH_WSREP
@@ -1578,7 +1582,7 @@ int ha_commit_trans(THD *thd, bool all)
 #ifdef WITH_WSREP
   if (!error && WSREP_ON)
   {
-    wsrep::seqno const s= wsrep_xid_seqno(thd->transaction.xid_state.xid);
+    wsrep::seqno const s= wsrep_xid_seqno(thd->wsrep_xid);
     if (!s.is_undefined())
     {
       // xid was rewritten by wsrep
@@ -2030,6 +2034,28 @@ static char* xid_to_str(char *buf, XID *xid)
 }
 #endif
 
+#ifdef WITH_WSREP
+static my_xid wsrep_order_and_check_continuity(XID *list, int len)
+{
+  wsrep_sort_xid_array(list, len);
+  wsrep::gtid cur_position= wsrep_get_SE_checkpoint();
+  long long cur_seqno= cur_position.seqno().get();
+  for (int i= 0; i < len; ++i)
+  {
+    if (!wsrep_is_wsrep_xid(list + i) ||
+        wsrep_xid_seqno(list + i) != cur_seqno + 1)
+    {
+      WSREP_WARN("Discovered discontinuity in recovered wsrep "
+                 "transaction XIDs. Truncating the recovery list to "
+                 "%d entries", i);
+      break;
+    }
+    ++cur_seqno;
+  }
+  WSREP_INFO("Last wsrep seqno to be recovered %lld", cur_seqno);
+  return (cur_seqno < 0 ? 0 : cur_seqno);
+}
+#endif /* WITH_WSREP */
 /**
   recover() step of xa.
 
@@ -2067,6 +2093,18 @@ static my_bool xarecover_handlerton(THD *unused, plugin_ref plugin,
     {
       sql_print_information("Found %d prepared transaction(s) in %s",
                             got, hton_name(hton)->str);
+#ifdef WITH_WSREP
+      /* If wsrep_on=ON, XIDs are first ordered and then the range of
+         recovered XIDs is checked for continuity. All the XIDs which
+         are in continuous range can be safely committed if binlog
+         is off since they have already ordered and certified in the
+         cluster. */
+      my_xid wsrep_limit= 0;
+      if (WSREP_ON)
+      {
+        wsrep_limit= wsrep_order_and_check_continuity(info->list, got);
+      }
+#endif /* WITH_WSREP */
       for (int i=0; i < got; i ++)
       {
         my_xid x= IF_WSREP(WSREP_ON && wsrep_is_wsrep_xid(&info->list[i]) ?
@@ -2089,9 +2127,12 @@ static my_bool xarecover_handlerton(THD *unused, plugin_ref plugin,
           continue;
         }
         // recovery mode
-        if (info->commit_list ?
-            my_hash_search(info->commit_list, (uchar *)&x, sizeof(x)) != 0 :
-            tc_heuristic_recover == TC_HEURISTIC_RECOVER_COMMIT)
+        if (IF_WSREP((wsrep_emulate_bin_log &&
+                      wsrep_is_wsrep_xid(info->list + i) &&
+                      x <= wsrep_limit), false) ||
+            (info->commit_list ?
+             my_hash_search(info->commit_list, (uchar *)&x, sizeof(x)) != 0 :
+             tc_heuristic_recover == TC_HEURISTIC_RECOVER_COMMIT))
         {
 #ifndef DBUG_OFF
           int rc=

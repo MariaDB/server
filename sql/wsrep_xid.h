@@ -32,5 +32,7 @@ bool wsrep_set_SE_checkpoint(const wsrep::gtid& gtid);
 //void wsrep_get_SE_checkpoint(XID&);             /* uncomment if needed */
 //void wsrep_set_SE_checkpoint(XID&);             /* uncomment if needed */
 
+void wsrep_sort_xid_array(XID *array, int len);
+
 #endif /* WITH_WSREP */
 #endif /* WSREP_UTILS_H */

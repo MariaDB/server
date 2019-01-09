@@ -1146,6 +1146,13 @@ void *thd_memdup(MYSQL_THD thd, const void* str, size_t size)
 extern "C"
 void thd_get_xid(const MYSQL_THD thd, MYSQL_XID *xid)
 {
+#ifdef WITH_WSREP
+  if (!thd->wsrep_xid.is_null())
+  {
+    *xid = *(MYSQL_XID *) &thd->wsrep_xid;
+  }
+  else
+#endif /* WITH_WSREP */
   *xid = *(MYSQL_XID *) &thd->transaction.xid_state.xid;
 }
 
