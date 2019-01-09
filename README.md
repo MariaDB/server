@@ -1,3 +1,9 @@
+Code status:
+------------
+
+* [![Travis CI status](https://secure.travis-ci.org/MariaDB/server.png?branch=10.2)](https://travis-ci.org/MariaDB/server) travis-ci.org (10.2 branch)
+* [![Appveyor CI status](https://ci.appveyor.com/api/projects/status/4u6pexmtpuf8jq66?svg=true)](https://ci.appveyor.com/project/rasmushoj/server) ci.appveyor.com
+
 ## MariaDB: drop-in replacement for MySQL
 
 MariaDB is designed as a drop-in replacement of MySQL(R) with more
