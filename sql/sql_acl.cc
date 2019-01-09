@@ -986,8 +986,7 @@ static bool fix_user_plugin_ptr(ACL_USER *user)
   else
     return true;
 
-  if (user->auth_string.length)
-    set_user_salt(user, user->auth_string.str, user->auth_string.length);
+  set_user_salt(user, user->auth_string.str, user->auth_string.length);
   return false;
 }
 
@@ -1456,6 +1455,11 @@ static bool acl_load(THD *thd, TABLE_LIST *tables)
                                 "password will be ignored.",
                                 safe_str(user.user.str),
                                 safe_str(user.host.hostname));
+            }
+            else if (password_len)
+            {
+              user.auth_string.str= password;
+              user.auth_string.length= password_len;
             }
 
             fix_user_plugin_ptr(&user);

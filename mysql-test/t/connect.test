@@ -66,8 +66,13 @@ connect (fail_con,localhost,test,zorro,test2);
 connect (fail_con,localhost,test,zorro,);
 
 # check if old password version also works
+select user,host,password,plugin,authentication_string from mysql.user where user='test';
 update mysql.user set password=old_password("gambling2") where user=_binary"test";
 flush privileges;
+show grants for test@localhost;
+update mysql.user set plugin='mysql_old_password' where user='test';
+flush privileges;
+show grants for test@localhost;
 
 connect (con10,localhost,test,gambling2,);
 connect (con5,localhost,test,gambling2,mysql);
