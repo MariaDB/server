@@ -4543,8 +4543,14 @@ select_create::binlog_show_create_table(TABLE **tables, uint count)
                               errcode);
   }
 #ifdef WITH_WSREP
-  // ha_wsrep_fake_trx_id(thd);
-  wsrep_start_transaction(thd, thd->wsrep_next_trx_id());
+  if (thd->wsrep_trx().active())
+  {
+    WSREP_DEBUG("transaction already started for CTAS");
+  }
+  else
+  {
+    wsrep_start_transaction(thd, thd->wsrep_next_trx_id());
+  }
 #endif
   return result;
 }
