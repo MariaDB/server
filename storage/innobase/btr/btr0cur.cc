@@ -486,7 +486,7 @@ incompatible:
 			always written with zero length. The DB_TRX_ID will
 			start right after any fixed-length columns. */
 			for (uint i = index->n_uniq; i--; ) {
-				trx_id_offset += index->fields[0].fixed_len;
+				trx_id_offset += index->fields[i].fixed_len;
 			}
 		}
 
