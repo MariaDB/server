@@ -126,3 +126,16 @@ check table corrupted;
 Table	Op	Msg_type	Msg_text
 test.corrupted	check	status	OK
 drop table corrupted;
+create table t (
+a int,
+unique key a_key (a)
+) engine=innodb stats_persistent=1;
+SET @save_dbug = @@SESSION.debug_dbug;
+SET debug_dbug = '+d,ib_rename_index_fail1';
+alter table t
+drop key a_key,
+add unique key a_key2 (a),
+algorithm=instant;
+ERROR 40001: Deadlock found when trying to get lock; try restarting transaction
+SET debug_dbug = @save_dbug;
+drop table t;
