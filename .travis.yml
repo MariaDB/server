@@ -29,7 +29,7 @@ env:
     - CC_VERSION=5 TYPE=RelWithDebInfo MYSQL_TEST_SUITES=archive,optimizer_unfixed_bugs,parts,sys_vars,unit,vcol,innodb,innodb_gis,innodb_zip,innodb_fts
     - CC_VERSION=5 TYPE=RelWithDebInfo MYSQL_TEST_SUITES=rpl
     - CC_VERSION=6 TYPE=RelWithDebInfo MYSQL_TEST_SUITES=binlog,binlog_encryption,encryption
-    - CC_VERSION=6 TYPE=RelWithDebInfo MYSQL_TEST_SUITES=rocksdb
+    - CC_VERSION=6 TYPE=RelWithDebInfo MYSQL_TEST_SUITES=rocksdb,versioning
     - CC_VERSION=6 TYPE=RelWithDebInfo MYSQL_TEST_SUITES=csv,federated,funcs_1,funcs_2,gcol,handler,heap,json,maria,perfschema,plugins,multi_source,roles
 
 matrix:
@@ -102,7 +102,7 @@ matrix:
       env: CC_VERSION=6 TYPE=RelWithDebInfo MYSQL_TEST_SUITES=binlog,binlog_encryption,encryption
     - os: osx
       compiler: clang
-      env: CC_VERSION=6 TYPE=RelWithDebInfo MYSQL_TEST_SUITES=rocksdb
+      env: CC_VERSION=6 TYPE=RelWithDebInfo MYSQL_TEST_SUITES=rocksdb,versioning
     - os: osx
       compiler: clang
       env: CC_VERSION=6 TYPE=RelWithDebInfo MYSQL_TEST_SUITES=csv,federated,funcs_1,funcs_2,gcol,handler,heap,json,maria,perfschema,plugins,multi_source,roles
