@@ -1,0 +1,12 @@
+CREATE TABLE t1 (f1 INT PRIMARY KEY) ENGINE=InnoDB;
+INSERT INTO t1 VALUES (1);
+# Kill the server
+Expect seqno 3
+3
+SELECT COUNT(*) `expect 1` FROM t1;
+expect 1
+1
+SELECT VARIABLE_VALUE `expect 4` FROM INFORMATION_SCHEMA.GLOBAL_STATUS WHERE VARIABLE_NAME = 'wsrep_last_committed';
+expect 4
+4
+DROP TABLE t1;

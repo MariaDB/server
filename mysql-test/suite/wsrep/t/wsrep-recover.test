@@ -1,0 +1,75 @@
+#
+# Verify that the wsrep XID gets updated in InnoDB rollback segment
+# properly and can be recovered with --wsrep-recover
+#
+
+--source include/have_wsrep.inc
+--source include/have_innodb.inc
+--source include/have_wsrep_provider.inc
+
+CREATE TABLE t1 (f1 INT PRIMARY KEY) ENGINE=InnoDB;
+INSERT INTO t1 VALUES (1);
+
+#
+# Binlog option for recovery run. This must be set in the test because
+# combinations file causes log-bin option to be set from command line,
+# not via my.cnf.
+#
+--let $log_bin = `SELECT @@log_bin`
+if ($log_bin) {
+--let $binlog_opt = --log-bin
+}
+
+#
+# Kill server and run recovery step
+#
+--source include/kill_mysqld.inc
+
+--exec $MYSQLD --defaults-group-suffix=.1 --defaults-file=$MYSQLTEST_VARDIR/my.cnf --log-error=$MYSQL_TMP_DIR/galera_wsrep_recover.log --innodb --wsrep-recover $binlog_opt --core-file > $MYSQL_TMP_DIR/galera_wsrep_recover.log 2>&1
+
+--perl
+	use strict;
+	my $wsrep_start_position = `grep 'WSREP: Recovered position:' $ENV{MYSQL_TMP_DIR}/galera_wsrep_recover.log | sed 's/.*WSREP\:\ Recovered\ position://' | sed 's/^[ \t]*//'`;
+	chomp($wsrep_start_position);
+        die if $wsrep_start_position eq '';
+	open(FILE, ">", "$ENV{MYSQL_TMP_DIR}/galera_wsrep_start_position.inc") or die;
+	my ($uuid, $seqno) = split /:/, $wsrep_start_position;
+	print FILE "--let \$start_position_uuid = $uuid\n";
+	print FILE "--let \$start_position_seqno = $seqno\n";
+	close FILE;
+EOF
+
+--source $MYSQL_TMP_DIR/galera_wsrep_start_position.inc
+
+if ($start_position_uuid == '') {
+   --die "Could not obtain start_position_uuid."
+}
+
+if ($start_position_seqno == '') {
+   --die "Could not obtain start_position_seqno."
+}
+
+--remove_file $MYSQL_TMP_DIR/galera_wsrep_start_position.inc
+
+#
+# The sequence number at this point should be 3: Initial cluster config change,
+# CREATE TABLE and INSERT
+#
+--echo Expect seqno 3
+--echo $start_position_seqno
+
+#
+# Restart the server
+#
+--let $restart_parameters = --wsrep-start-position=$start_position_uuid:$start_position_seqno
+--source include/start_mysqld.inc
+--source include/wait_wsrep_ready.inc
+
+#
+# One row should be found from t1 and the wsrep_last_committed should have
+# value 4 (recovered position + cluster configuration change).
+#
+SELECT COUNT(*) `expect 1` FROM t1;
+SELECT VARIABLE_VALUE `expect 4` FROM INFORMATION_SCHEMA.GLOBAL_STATUS WHERE VARIABLE_NAME = 'wsrep_last_committed';
+
+DROP TABLE t1;
