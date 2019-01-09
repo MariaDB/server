@@ -5510,10 +5510,10 @@ xtrabackup_prepare_func(char** argv)
 	else {
 		xb_process_datadir(".", ".new", prepare_handle_new_files);
 	}
-	xb_process_datadir(xtrabackup_incremental_dir? xtrabackup_incremental_dir:".",
-		".ren", prepare_handle_ren_files);
 	xb_process_datadir(xtrabackup_incremental_dir ? xtrabackup_incremental_dir : ".",
 		".del", prepare_handle_del_files);
+	xb_process_datadir(xtrabackup_incremental_dir? xtrabackup_incremental_dir:".",
+		".ren", prepare_handle_ren_files);
 
 
 	int argc; for (argc = 0; argv[argc]; argc++) {}
