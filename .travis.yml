@@ -156,7 +156,7 @@ addons:
 before_install:
   - if [[ "${TRAVIS_OS_NAME}" == 'osx' ]]; then
       brew update;
-      brew install gnutls lz4 lzo xz snappy ccache jemalloc curl ossp-uuid pcre;
+      brew install gnutls lz4 lzo xz snappy ccache jemalloc curl ossp-uuid pcre zstd;
       brew link ccache;
       export PATH="/usr/local/opt/ccache/libexec:$PATH";
     fi
