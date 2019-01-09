@@ -803,7 +803,7 @@ IF 'BASE TABLE' = (select table_type from information_schema.tables where table_
                     'max_user_connections', max_user_connections,
                     'max_statement_time', max_statement_time,
                     'plugin', if(plugin>'',plugin,if(length(password)=16,'mysql_old_password','mysql_native_password')),
-                    'authentication_string', if(plugin>'',authentication_string,password),
+                    'authentication_string', if(plugin>'' and authentication_string>'',authentication_string,password),
                     'default_role', default_role,
                     'is_role', 'Y'=is_role)) as Priv
   FROM user;
