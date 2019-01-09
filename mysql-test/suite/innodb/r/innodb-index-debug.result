@@ -324,3 +324,19 @@ insert into t1 values(1,1,2),(2,2,1);
 alter table t1 drop primary key, add primary key(o1), lock=none;
 drop table t1;
 SET DEBUG_DBUG = @saved_debug_dbug;
+#
+#  MDEV-18186 assertion failure on missing InnoDB index
+#
+CREATE TABLE t (a INT, INDEX i1 (a)) ENGINE=INNODB;
+DROP TABLE t;
+CREATE TABLE t (a INT) ENGINE=INNODB;
+SHOW CREATE TABLE t;
+Table	Create Table
+t	CREATE TABLE `t` (
+  `a` int(11) DEFAULT NULL,
+  KEY `i1` (`a`)
+) ENGINE=InnoDB DEFAULT CHARSET=latin1
+Warnings:
+Warning	1082	InnoDB: Table test/t contains 0 indexes inside InnoDB, which is different from the number of indexes 1 defined in the MariaDB 
+Warning	1082	InnoDB: Table test/t contains 0 indexes inside InnoDB, which is different from the number of indexes 1 defined in the MariaDB 
+DROP TABLE t;
