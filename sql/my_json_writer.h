@@ -13,7 +13,15 @@
    along with this program; if not, write to the Free Software
    Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02111-1301 USA */
 
+#ifndef JSON_WRITER_INCLUDED
+#define JSON_WRITER_INCLUDED
+#include "my_base.h"
+#include "sql_select.h"
+class Opt_trace_stmt;
+class Opt_trace_context;
 class Json_writer;
+struct TABLE_LIST;
+
 
 /*
   Single_line_formatting_helper is used by Json_writer to do better formatting
@@ -85,7 +93,7 @@ public:
   void on_start_object();
   // on_end_object() is not needed.
    
-  bool on_add_str(const char *str);
+  bool on_add_str(const char *str, size_t num_bytes);
 
   void flush_on_one_line();
   void disable_and_flush();
@@ -105,7 +113,10 @@ public:
   
   /* Add atomic values */
   void add_str(const char* val);
+  void add_str(const char* val, size_t num_bytes);
   void add_str(const String &str);
+  void add_str(Item *item);
+  void add_table_name(JOIN_TAB *tab);
 
   void add_ll(longlong val);
   void add_size(longlong val);
@@ -151,6 +162,276 @@ public:
   String output;
 };
 
+/* A class to add values to Json_writer_object and Json_writer_array */
+class Json_value_context
+{
+  Json_writer* writer;
+  public:
+  void init(Json_writer *my_writer) { writer= my_writer; }
+  void add_str(const char* val)
+  {
+    if (writer)
+      writer->add_str(val);
+  }
+  void add_str(const char* val, size_t length)
+  {
+    if (writer)
+      writer->add_str(val);
+  }
+  void add_str(const String &str)
+  {
+    if (writer)
+      writer->add_str(str);
+  }
+  void add_str(LEX_CSTRING str)
+  {
+    if (writer)
+      writer->add_str(str.str);
+  }
+  void add_str(Item *item)
+  {
+    if (writer)
+      writer->add_str(item);
+  }
+
+  void add_ll(longlong val)
+  {
+    if (writer)
+      writer->add_ll(val);
+  }
+  void add_size(longlong val)
+  {
+    if (writer)
+      writer->add_size(val);
+  }
+  void add_double(double val)
+  {
+    if (writer)
+      writer->add_double(val);
+  }
+  void add_bool(bool val)
+  {
+    if (writer)
+      writer->add_bool(val);
+  }
+  void add_null()
+  {
+    if (writer)
+      writer->add_null();
+  }
+  void add_table_name(JOIN_TAB *tab)
+  {
+    if (writer)
+      writer->add_table_name(tab);
+  }
+};
+
+/* A common base for Json_writer_object and Json_writer_array */
+class Json_writer_struct
+{
+protected:
+  Json_writer* my_writer;
+  Json_value_context context;
+  /*
+    Tells when a json_writer_struct has been closed or not
+  */
+  bool closed;
+
+public:
+  Json_writer_struct(Json_writer* writer)
+  {
+    my_writer= writer;
+    context.init(writer);
+    closed= false;
+  }
+};
+
+
+/*
+  RAII-based class to start/end writing a JSON object into the JSON document
+*/
+
+class Json_writer_object:public Json_writer_struct
+{
+private:
+  void add_member(const char *name)
+  {
+    if (my_writer)
+      my_writer->add_member(name);
+  }
+public:
+  Json_writer_object(Json_writer *w);
+  Json_writer_object(Json_writer *w, const char *str);
+  Json_writer_object& add(const char *name, bool value)
+  {
+    add_member(name);
+    context.add_bool(value);
+    return *this;
+  }
+  Json_writer_object& add(const char* name, uint value)
+  {
+    add_member(name);
+    context.add_ll(value);
+    return *this;
+  }
+  Json_writer_object& add(const char* name, ha_rows value)
+  {
+    add_member(name);
+    context.add_ll(value);
+    return *this;
+  }
+  Json_writer_object& add(const char *name, longlong value)
+  {
+    add_member(name);
+    context.add_ll(value);
+    return *this;
+  }
+  Json_writer_object& add(const char *name, double value)
+  {
+    add_member(name);
+    context.add_double(value);
+    return *this;
+  }
+  Json_writer_object& add(const char *name, size_t value)
+  {
+    add_member(name);
+    context.add_ll(value);
+    return *this;
+  }
+  Json_writer_object& add(const char *name, const char *value)
+  {
+    add_member(name);
+    context.add_str(value);
+    return *this;
+  }
+  Json_writer_object& add(const char *name, const char *value, size_t num_bytes)
+  {
+    add_member(name);
+    context.add_str(value, num_bytes);
+    return *this;
+  }
+  Json_writer_object& add(const char *name, const String &value)
+  {
+    add_member(name);
+    context.add_str(value);
+    return *this;
+  }
+  Json_writer_object& add(const char *name, LEX_CSTRING value)
+  {
+    add_member(name);
+    context.add_str(value.str);
+    return *this;
+  }
+  Json_writer_object& add(const char *name, Item *value)
+  {
+    add_member(name);
+    context.add_str(value);
+    return *this;
+  }
+  Json_writer_object& add_null(const char*name)
+  {
+    add_member(name);
+    context.add_null();
+    return *this;
+  }
+  Json_writer_object& add_table_name(JOIN_TAB *tab)
+  {
+    add_member("table");
+    context.add_table_name(tab);
+    return *this;
+  }
+  void end()
+  {
+    if (my_writer)
+      my_writer->end_object();
+    closed= TRUE;
+  }
+  ~Json_writer_object();
+};
+
+
+/*
+  RAII-based class to start/end writing a JSON array into the JSON document
+*/
+class Json_writer_array:public Json_writer_struct
+{
+public:
+  Json_writer_array(Json_writer *w);
+  Json_writer_array(Json_writer *w, const char *str);
+  void end()
+  {
+    if (my_writer)
+      my_writer->end_array();
+    closed= TRUE;
+  }
+  Json_writer_array& add(bool value)
+  {
+    context.add_bool(value);
+    return *this;
+  }
+  Json_writer_array& add(uint value)
+  {
+    context.add_ll(value);
+    return *this;
+  }
+  Json_writer_array& add(ha_rows value)
+  {
+    context.add_ll(value);
+    return *this;
+  }
+  Json_writer_array& add(longlong value)
+  {
+    context.add_ll(value);
+    return *this;
+  }
+  Json_writer_array& add(double value)
+  {
+    context.add_double(value);
+    return *this;
+  }
+  Json_writer_array& add(size_t value)
+  {
+    context.add_ll(value);
+    return *this;
+  }
+  Json_writer_array& add(const char *value)
+  {
+    context.add_str(value);
+    return *this;
+  }
+  Json_writer_array& add(const char *value, size_t num_bytes)
+  {
+    context.add_str(value, num_bytes);
+    return *this;
+  }
+  Json_writer_array& add(const String &value)
+  {
+    context.add_str(value);
+    return *this;
+  }
+  Json_writer_array& add(LEX_CSTRING value)
+  {
+    context.add_str(value.str);
+    return *this;
+  }
+  Json_writer_array& add(Item *value)
+  {
+    context.add_str(value);
+    return *this;
+  }
+  Json_writer_array& add_null()
+  {
+    context.add_null();
+    return *this;
+  }
+  Json_writer_array& add_table_name(JOIN_TAB *tab)
+  {
+    context.add_table_name(tab);
+    return *this;
+  }
+  ~Json_writer_array();
+};
+
 
 /*
   RAII-based helper class to detect incorrect use of Json_writer.
@@ -192,4 +473,4 @@ public:
 #endif
 };
 
-
+#endif
