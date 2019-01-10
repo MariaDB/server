@@ -1458,7 +1458,9 @@ trx_commit_in_memory(
 	trx_mutex_exit(trx);
 
 	ut_a(trx->error_state == DB_SUCCESS);
-	srv_wake_purge_thread_if_not_active();
+	if (!srv_read_only_mode) {
+		srv_wake_purge_thread_if_not_active();
+	}
 }
 
 /** Commit a transaction and a mini-transaction.

@@ -299,7 +299,7 @@ int JSONDISC::GetColumns(PGLOBAL g, PCSZ db, PCSZ dsn, PTOS topt)
 		memset(G, 0, sizeof(GLOBAL));
 		G->Sarea_Size = tdp->Lrecl * 10;
 		G->Sarea = PlugSubAlloc(g, NULL, G->Sarea_Size);
-		PlugSubSet(G, G->Sarea, G->Sarea_Size);
+		PlugSubSet(G->Sarea, G->Sarea_Size);
 		G->jump_level = 0;
 		tjnp->SetG(G);
 
@@ -670,7 +670,7 @@ PTDB JSONDEF::GetTable(PGLOBAL g, MODE m)
 			memset(G, 0, sizeof(GLOBAL));
 			G->Sarea_Size = Lrecl * 10;
 			G->Sarea = PlugSubAlloc(g, NULL, G->Sarea_Size);
-			PlugSubSet(G, G->Sarea, G->Sarea_Size);
+			PlugSubSet(G->Sarea, G->Sarea_Size);
 			G->jump_level = 0;
 			((TDBJSN*)tdbp)->G = G;
 		} else {
@@ -963,7 +963,7 @@ int TDBJSN::ReadDB(PGLOBAL g)
 			return rc;
 
 		// Recover the memory used for parsing
-		PlugSubSet(G, G->Sarea, G->Sarea_Size);
+		PlugSubSet(G->Sarea, G->Sarea_Size);
 
 		if ((Row = ParseJson(G, To_Line, strlen(To_Line), &Pretty, &Comma))) {
 			Row = FindRow(g);
@@ -1079,13 +1079,13 @@ int TDBJSN::MakeTopTree(PGLOBAL g, PJSON jsp)
   } // end of PrepareWriting
 
 /***********************************************************************/
-/*  WriteDB: Data Base write routine for DOS access method.            */
+/*  WriteDB: Data Base write routine for JSON access method.           */
 /***********************************************************************/
 int TDBJSN::WriteDB(PGLOBAL g)
 {
 	int rc = TDBDOS::WriteDB(g);
 
-	PlugSubSet(G, G->Sarea, G->Sarea_Size);
+	PlugSubSet(G->Sarea, G->Sarea_Size);
 	Row->Clear();
 	return rc;
 } // end of WriteDB

@@ -546,6 +546,10 @@ The following specify which files/extra groups are read (specified before remain
  The maximum BLOB length to send to server from
  mysql_send_long_data API. Deprecated option; use
  max_allowed_packet instead.
+ --max-password-errors=# 
+ If there is more than this number of failed connect
+ attempts due to invalid password, user will be blocked
+ from further connections until FLUSH_PRIVILEGES.
  --max-prepared-stmt-count=# 
  Maximum number of prepared statements in the server
  --max-recursive-iterations[=#] 
@@ -1518,6 +1522,7 @@ max-heap-table-size 16777216
 max-join-size 18446744073709551615
 max-length-for-sort-data 1024
 max-long-data-size 16777216
+max-password-errors 18446744073709551615
 max-prepared-stmt-count 16382
 max-recursive-iterations 18446744073709551615
 max-relay-log-size 1073741824

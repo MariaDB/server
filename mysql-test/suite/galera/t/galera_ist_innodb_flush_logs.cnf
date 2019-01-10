@@ -1,0 +1,13 @@
+!include ../galera_2nodes.cnf
+
+[mysqld]
+wsrep_sst_method=mariabackup
+wsrep_sst_auth=root:
+
+innodb_flush_log_at_trx_commit=0
+
+[mysqld.1]
+wsrep_provider_options='base_port=@mysqld.1.#galera_port;pc.ignore_sb=true'
+
+[mysqld.2]
+wsrep_provider_options='base_port=@mysqld.2.#galera_port;pc.ignore_sb=true'

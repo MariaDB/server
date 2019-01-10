@@ -881,6 +881,27 @@ NAME
 a
 b
 DROP TABLE t1;
+# and an MDEV-18041 regression related to indexes prefixes
+create table `test` (
+`test_old` varchar(255) NOT NULL,
+`other` varchar(255) NOT NULL,
+PRIMARY KEY (`test_old`,`other`),
+UNIQUE KEY uk (`test_old`(100), `other`)
+) ENGINE=InnoDB;
+select name, pos from information_schema.innodb_SYS_FIELDS where name in ('test_old', 'other', 'test_new');
+name	pos
+test_old	0
+other	1
+test_old	0
+other	1
+alter table `test` CHANGE COLUMN `test_old` `test_new` varchar(255) NOT NULL;
+select name, pos from information_schema.innodb_SYS_FIELDS where name in ('test_old', 'other', 'test_new');
+name	pos
+test_new	0
+other	1
+test_new	0
+other	1
+drop table `test`;
 #
 # BUG 20029625 - HANDLE_FATAL_SIGNAL (SIG=11) IN
 #                DICT_MEM_TABLE_COL_RENAME_LOW

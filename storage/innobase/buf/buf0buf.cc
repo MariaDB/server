@@ -518,13 +518,13 @@ decompress_with_slot:
 		/* Verify encryption checksum before we even try to
 		decrypt. */
 		if (!fil_space_verify_crypt_checksum(dst_frame, bpage->size)) {
+decrypt_failed:
 			ib::error() << "Encrypted page " << bpage->id
 				    << " in file " << space->chain.start->name
 				    << " looks corrupted; key_version="
 				    << mach_read_from_4(
 					    FIL_PAGE_FILE_FLUSH_LSN_OR_KEY_VERSION
 					    + dst_frame);
-decrypt_failed:
 			/* Mark page encrypted in case it should be. */
 			if (space->crypt_data->type
 			    != CRYPT_SCHEME_UNENCRYPTED) {
@@ -3404,7 +3404,7 @@ page_found:
 		}
 
 		/* Add to an existing watch. */
-		buf_block_fix(bpage);
+		bpage->fix();
 		return(NULL);
 	}
 
@@ -3544,7 +3544,7 @@ void buf_pool_watch_unset(const page_id_t page_id)
 	increments buf_fix_count. */
 	bpage = buf_page_hash_get_low(buf_pool, page_id);
 
-	if (buf_block_unfix(bpage) == 0
+	if (bpage->unfix() == 0
 	    && buf_pool_watch_is_sentinel(buf_pool, bpage)) {
 		buf_pool_watch_remove(buf_pool, bpage);
 	}
@@ -3777,7 +3777,7 @@ err_exit:
 
 	case BUF_BLOCK_ZIP_PAGE:
 	case BUF_BLOCK_ZIP_DIRTY:
-		buf_block_fix(bpage);
+		bpage->fix();
 		block_mutex = &buf_pool->zip_mutex;
 		mutex_enter(block_mutex);
 		goto got_block;
@@ -4296,10 +4296,10 @@ loop:
 						= buf_page_get_mutex(
 							&fix_block->page);
 					mutex_enter(fix_mutex);
-					buf_block_fix(fix_block);
+					fix_block->fix();
 					mutex_exit(fix_mutex);
 				} else {
-					buf_block_fix(fix_block);
+					fix_block->fix();
 				}
 
 				/* Now safe to release page_hash mutex */
@@ -4387,7 +4387,7 @@ loop:
 				<< ". The most probable cause"
 				" of this error may be that the"
 				" table has been corrupted."
-				" See https://mariadb.com/kb/en/library/xtradbinnodb-recovery-modes/";
+				" See https://mariadb.com/kb/en/library/innodb-recovery-modes/";
 		}
 
 #if defined UNIV_DEBUG || defined UNIV_BUF_DEBUG
@@ -4406,10 +4406,10 @@ loop:
 		BPageMutex*	fix_mutex = buf_page_get_mutex(
 			&fix_block->page);
 		mutex_enter(fix_mutex);
-		buf_block_fix(fix_block);
+		fix_block->fix();
 		mutex_exit(fix_mutex);
 	} else {
-		buf_block_fix(fix_block);
+		fix_block->fix();
 	}
 
 	/* Now safe to release page_hash mutex */
@@ -4432,7 +4432,7 @@ got_block:
 			/* The page is being read to buffer pool,
 			but we cannot wait around for the read to
 			complete. */
-			buf_block_unfix(fix_block);
+			fix_block->unfix();
 
 			return(NULL);
 		}
@@ -4448,7 +4448,7 @@ got_block:
 			/* This suggests that the page is being flushed.
 			Avoid returning reference to this page.
 			Instead wait for the flush action to complete. */
-			buf_block_unfix(fix_block);
+			fix_block->unfix();
 			os_thread_sleep(WAIT_FOR_WRITE);
 			goto loop;
 		}
@@ -4457,7 +4457,7 @@ got_block:
 evict_from_pool:
 			ut_ad(!fix_block->page.oldest_modification);
 			buf_pool_mutex_enter(buf_pool);
-			buf_block_unfix(fix_block);
+			fix_block->unfix();
 
 			if (!buf_LRU_free_page(&fix_block->page, true)) {
 				ut_ad(0);
@@ -4475,7 +4475,7 @@ evict_from_pool:
 			adaptive hash index.  There cannot be an
 			adaptive hash index for a compressed-only
 			page, so do not bother decompressing the page. */
-			buf_block_unfix(fix_block);
+			fix_block->unfix();
 
 			return(NULL);
 		}
@@ -4489,7 +4489,7 @@ evict_from_pool:
 			/* This condition often occurs when the buffer
 			is not buffer-fixed, but I/O-fixed by
 			buf_page_init_for_read(). */
-			buf_block_unfix(fix_block);
+			fix_block->unfix();
 
 			/* The block is buffer-fixed or I/O-fixed.
 			Try again later. */
@@ -4518,7 +4518,7 @@ evict_from_pool:
 		/* Buffer-fixing prevents the page_hash from changing. */
 		ut_ad(bpage == buf_page_hash_get_low(buf_pool, page_id));
 
-		buf_block_unfix(fix_block);
+		fix_block->unfix();
 
 		buf_page_mutex_enter(block);
 		mutex_enter(&buf_pool->zip_mutex);
@@ -4610,7 +4610,7 @@ evict_from_pool:
 				buf_page_mutex_exit(fix_block);
 
 				--buf_pool->n_pend_unzip;
-				buf_block_unfix(fix_block);
+				fix_block->unfix();
 				buf_pool_mutex_exit(buf_pool);
 				rw_lock_x_unlock(&fix_block->lock);
 
@@ -4673,7 +4673,7 @@ evict_from_pool:
 
 		buf_pool_mutex_enter(buf_pool);
 
-		buf_block_unfix(fix_block);
+		fix_block->unfix();
 
 		/* Now we are only holding the buf_pool->mutex,
 		not block->mutex or hash_lock. Blocks cannot be
@@ -4732,7 +4732,7 @@ evict_from_pool:
 
 		buf_page_mutex_exit(fix_block);
 
-		buf_block_fix(fix_block);
+		fix_block->fix();
 
 		/* Failed to evict the page; change it directly */
 
@@ -5233,7 +5233,7 @@ buf_page_init(
 
 		ut_a(buf_fix_count > 0);
 
-		my_atomic_add32((int32*) &block->page.buf_fix_count, buf_fix_count);
+		block->page.buf_fix_count += buf_fix_count;
 
 		buf_pool_watch_remove(buf_pool, hash_page);
 	} else {
@@ -5474,7 +5474,7 @@ buf_page_init_for_read(
 
 			ut_a(buf_fix_count > 0);
 
-			my_atomic_add32((int32*) &bpage->buf_fix_count, buf_fix_count);
+			bpage->buf_fix_count += buf_fix_count;
 
 			ut_ad(buf_pool_watch_is_sentinel(buf_pool, watch_page));
 			buf_pool_watch_remove(buf_pool, watch_page);

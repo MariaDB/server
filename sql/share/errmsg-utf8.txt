@@ -7931,3 +7931,5 @@ ER_BACKUP_STAGE_FAILED
         eng "Backup stage '%s' failed"
 ER_BACKUP_UNKNOWN_STAGE
         eng "Unknown backup stage: '%s'. Stage should be one of START, FLUSH, BLOCK_DDL, BLOCK_COMMIT or END"
+ER_USER_IS_BLOCKED
+        eng "User is blocked because of too many credential errors; unblock with 'FLUSH PRIVILEGES'"

@@ -114,7 +114,7 @@ int ha_sequence::open(const char *name, int mode, uint flags)
       if (unlikely((error= table->s->sequence->read_initial_values(table))))
         file->ha_close();
     }
-    else
+    else if (!table->s->tmp_table)
       table->m_needs_reopen= true;
 
     /*

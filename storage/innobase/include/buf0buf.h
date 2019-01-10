@@ -665,37 +665,6 @@ buf_block_buf_fix_inc_func(
 	buf_block_t*	block)	/*!< in/out: block to bufferfix */
 	MY_ATTRIBUTE((nonnull));
 
-/** Increments the bufferfix count.
-@param[in,out]	bpage	block to bufferfix
-@return the count */
-UNIV_INLINE
-ulint
-buf_block_fix(
-	buf_page_t*	bpage);
-
-/** Increments the bufferfix count.
-@param[in,out]	block	block to bufferfix
-@return the count */
-UNIV_INLINE
-ulint
-buf_block_fix(
-	buf_block_t*	block);
-
-/** Decrements the bufferfix count.
-@param[in,out]	bpage	block to bufferunfix
-@return	the remaining buffer-fix count */
-UNIV_INLINE
-ulint
-buf_block_unfix(
-	buf_page_t*	bpage);
-/** Decrements the bufferfix count.
-@param[in,out]	block	block to bufferunfix
-@return	the remaining buffer-fix count */
-UNIV_INLINE
-ulint
-buf_block_unfix(
-	buf_block_t*	block);
-
 # ifdef UNIV_DEBUG
 /** Increments the bufferfix count.
 @param[in,out]	b	block to bufferfix
@@ -1490,7 +1459,7 @@ public:
 	page_size_t	size;
 
 	/** Count of how manyfold this block is currently bufferfixed. */
-	ib_uint32_t	buf_fix_count;
+	Atomic_counter<uint32_t>	buf_fix_count;
 
 	/** type of pending I/O operation; also protected by
 	buf_pool->mutex for writes only */
@@ -1645,6 +1614,14 @@ public:
 					protected by buf_pool->zip_mutex
 					or buf_block_t::mutex. */
 # endif /* UNIV_DEBUG */
+
+  void fix() { buf_fix_count++; }
+  uint32_t unfix()
+  {
+    uint32_t count= buf_fix_count--;
+    ut_ad(count != 0);
+    return count - 1;
+  }
 };
 
 /** The buffer control block structure */
@@ -1808,6 +1785,9 @@ struct buf_block_t{
 					and accessed; we introduce this new
 					mutex in InnoDB-5.1 to relieve
 					contention on the buffer pool mutex */
+
+  void fix() { page.fix(); }
+  uint32_t unfix() { return page.unfix(); }
 };
 
 /** Check if a buf_block_t object is in a valid state
