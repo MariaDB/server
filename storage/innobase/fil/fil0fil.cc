@@ -4821,9 +4821,7 @@ fil_node_complete_io(fil_node_t* node, const IORequest& type)
 		ut_ad(!srv_read_only_mode
 		      || fsp_is_system_temporary(node->space->id));
 
-		++fil_system->modification_counter;
-
-		node->modification_counter = fil_system->modification_counter;
+		++node->modification_counter;
 
 		if (fil_buffering_disabled(node->space)) {
 

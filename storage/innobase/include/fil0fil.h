@@ -237,7 +237,7 @@ struct fil_node_t {
 	ulint		n_pending_flushes;
 	/** whether the file is currently being extended */
 	bool		being_extended;
-	/** number of writes to the file since the system was started */
+	/** number of writes to the file since the node was created */
 	int64_t		modification_counter;
 	/** the modification_counter of the latest flush to disk */
 	int64_t		flush_counter;
@@ -502,8 +502,6 @@ struct fil_system_t {
 	ulint		n_open;		/*!< number of files currently open */
 	ulint		max_n_open;	/*!< n_open is not allowed to exceed
 					this */
-	int64_t		modification_counter;/*!< when we write to a file we
-					increment this by one */
 	ulint		max_assigned_id;/*!< maximum space id in the existing
 					tables, or assigned during the time
 					mysqld has been up; at an InnoDB
