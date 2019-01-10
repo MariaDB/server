@@ -138,4 +138,15 @@ add unique key a_key2 (a),
 algorithm=instant;
 ERROR 40001: Deadlock found when trying to get lock; try restarting transaction
 SET debug_dbug = @save_dbug;
+alter table t
+drop key a_key,
+add unique key `GEN_CLUST_INDEX` (a),
+algorithm=instant;
+ERROR 42000: Incorrect index name 'GEN_CLUST_INDEX'
+show create table t;
+Table	Create Table
+t	CREATE TABLE `t` (
+  `a` int(11) DEFAULT NULL,
+  UNIQUE KEY `a_key` (`a`)
+) ENGINE=InnoDB DEFAULT CHARSET=latin1 STATS_PERSISTENT=1
 drop table t;

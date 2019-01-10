@@ -150,4 +150,12 @@ alter table t
   algorithm=instant;
 SET debug_dbug = @save_dbug;
 
+--error ER_WRONG_NAME_FOR_INDEX
+alter table t
+  drop key a_key,
+  add unique key `GEN_CLUST_INDEX` (a),
+  algorithm=instant;
+
+show create table t;
+
 drop table t;
