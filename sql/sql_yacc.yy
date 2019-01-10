@@ -1,6 +1,6 @@
 /*
    Copyright (c) 2000, 2015, Oracle and/or its affiliates.
-   Copyright (c) 2010, 2016, MariaDB
+   Copyright (c) 2010, 2019, MariaDB Corporation.
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -722,6 +722,7 @@ Virtual_column_info *add_virtual_expression(THD *thd, Item *expr)
   class sp_lex_cursor *sp_cursor_stmt;
   LEX_CSTRING *lex_str_ptr;
   LEX_USER *lex_user;
+  USER_AUTH *user_auth;
   List<Condition_information_item> *cond_info_list;
   List<DYNCALL_CREATE_DEF> *dyncol_def_list;
   List<Item> *item_list;
@@ -1944,6 +1945,8 @@ bool my_yyoverflow(short **a, YYSTYPE **b, size_t *yystacksize);
 
 %type <lex_user> user grant_user grant_role user_or_role current_role
                  admin_option_for_role user_maybe_role
+
+%type <user_auth> opt_auth_str auth_expression auth_token
 
 %type <charset>
         opt_collate
@@ -15520,11 +15523,9 @@ ident_or_text:
 user_maybe_role:
           ident_or_text
           {
-            if (unlikely(!($$=(LEX_USER*) thd->alloc(sizeof(LEX_USER)))))
+            if (unlikely(!($$=(LEX_USER*) thd->calloc(sizeof(LEX_USER)))))
               MYSQL_YYABORT;
             $$->user = $1;
-            $$->host= null_clex_str; // User or Role, see get_current_user()
-            $$->reset_auth();
 
             if (unlikely(check_string_char_length(&$$->user, ER_USERNAME,
                                                   username_char_length,
@@ -15533,10 +15534,9 @@ user_maybe_role:
           }
         | ident_or_text '@' ident_or_text
           {
-            if (unlikely(!($$=(LEX_USER*) thd->alloc(sizeof(LEX_USER)))))
+            if (unlikely(!($$=(LEX_USER*) thd->calloc(sizeof(LEX_USER)))))
               MYSQL_YYABORT;
             $$->user = $1; $$->host=$3;
-            $$->reset_auth();
 
             if (unlikely(check_string_char_length(&$$->user, ER_USERNAME,
                                                   username_char_length,
@@ -15566,8 +15566,7 @@ user_maybe_role:
             if (unlikely(!($$=(LEX_USER*)thd->calloc(sizeof(LEX_USER)))))
               MYSQL_YYABORT;
             $$->user= current_user;
-            $$->plugin= empty_clex_str;
-            $$->auth= empty_clex_str;
+            $$->auth= new (thd->mem_root) USER_AUTH();
           }
         ;
 
@@ -16550,21 +16549,29 @@ opt_for_user:
                            thd->calloc(sizeof(LEX_USER)))))
               MYSQL_YYABORT;
             lex->definer->user= current_user;
-            lex->definer->plugin= empty_clex_str;
-            lex->definer->auth=   empty_clex_str;
+            lex->definer->auth= new (thd->mem_root) USER_AUTH();
           }
         | FOR_SYM user equal { Lex->definer= $2; }
         ;
 
 text_or_password:
-          TEXT_STRING { Lex->definer->auth= $1;}
-        | PASSWORD_SYM '(' TEXT_STRING ')' { Lex->definer->pwtext= $3; }
+          TEXT_STRING
+          {
+            Lex->definer->auth= new (thd->mem_root) USER_AUTH();
+            Lex->definer->auth->auth_str= $1;
+          }
+        | PASSWORD_SYM '(' TEXT_STRING ')'
+          {
+            Lex->definer->auth= new (thd->mem_root) USER_AUTH();
+            Lex->definer->auth->pwtext= $3;
+          }
         | OLD_PASSWORD_SYM '(' TEXT_STRING ')'
           {
-            Lex->definer->pwtext= $3;
-            Lex->definer->auth.str= Item_func_password::alloc(thd,
+            Lex->definer->auth= new (thd->mem_root) USER_AUTH();
+            Lex->definer->auth->pwtext= $3;
+            Lex->definer->auth->auth_str.str= Item_func_password::alloc(thd,
                                    $3.str, $3.length, Item_func_password::OLD);
-            Lex->definer->auth.length=  SCRAMBLED_PASSWORD_CHAR_LENGTH_323;
+            Lex->definer->auth->auth_str.length=  SCRAMBLED_PASSWORD_CHAR_LENGTH_323;
           }
         ;
 
@@ -16938,7 +16945,7 @@ current_role:
             if (unlikely(!($$=(LEX_USER*) thd->calloc(sizeof(LEX_USER)))))
               MYSQL_YYABORT;
             $$->user= current_role;
-            $$->reset_auth();
+            $$->auth= NULL;
           }
           ;
 
@@ -16955,7 +16962,7 @@ grant_role:
               MYSQL_YYABORT;
             $$->user= $1;
             $$->host= empty_clex_str;
-            $$->reset_auth();
+            $$->auth= NULL;
 
             if (unlikely(check_string_char_length(&$$->user, ER_USERNAME,
                                                   username_char_length,
@@ -17152,36 +17159,64 @@ grant_user:
           user IDENTIFIED_SYM BY TEXT_STRING
           {
             $$= $1;
-            $1->pwtext= $4;
+            $1->auth= new (thd->mem_root) USER_AUTH();
+            $1->auth->pwtext= $4;
           }
         | user IDENTIFIED_SYM BY PASSWORD_SYM TEXT_STRING
           { 
             $$= $1; 
-            $1->auth= $5;
+            $1->auth= new (thd->mem_root) USER_AUTH();
+            $1->auth->auth_str= $5;
           }
-        | user IDENTIFIED_SYM via_or_with ident_or_text
+        | user IDENTIFIED_SYM via_or_with auth_expression
           {
             $$= $1;
-            $1->plugin= $4;
-            $1->auth= empty_clex_str;
-          }
-        | user IDENTIFIED_SYM via_or_with ident_or_text using_or_as
-          TEXT_STRING_sys
-          {
-            $$= $1;
-            $1->plugin= $4;
-            $1->auth= $6;
-          }
-        | user IDENTIFIED_SYM via_or_with ident_or_text using_or_as
-          PASSWORD_SYM '(' TEXT_STRING ')'
-          {
-            $$= $1;
-            $1->plugin= $4;
-            $1->pwtext= $8;
+            $1->auth= $4;
           }
         | user_or_role
           { $$= $1; }
         ;
+
+auth_expression:
+          auth_token OR_SYM auth_expression
+          {
+            $$= $1;
+            DBUG_ASSERT($$->next == NULL);
+            $$->next= $3;
+          }
+        | auth_token
+          {
+            $$= $1;
+          }
+        ;
+
+auth_token:
+          ident_or_text opt_auth_str
+        {
+          $$= $2;
+          $$->plugin= $1;
+        }
+        ;
+
+opt_auth_str:
+        /* empty */
+        {
+          if (!($$=(USER_AUTH*) thd->calloc(sizeof(USER_AUTH))))
+            MYSQL_YYABORT;
+        }
+      | using_or_as TEXT_STRING_sys
+        {
+          if (!($$=(USER_AUTH*) thd->calloc(sizeof(USER_AUTH))))
+            MYSQL_YYABORT;
+          $$->auth_str= $2;
+        }
+      | using_or_as PASSWORD_SYM '(' TEXT_STRING ')'
+        {
+          if (!($$=(USER_AUTH*) thd->calloc(sizeof(USER_AUTH))))
+            MYSQL_YYABORT;
+          $$->pwtext= $4;
+        }
+      ;
 
 opt_column_list:
           /* empty */

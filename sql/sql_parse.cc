@@ -1,5 +1,5 @@
 /* Copyright (c) 2000, 2017, Oracle and/or its affiliates.
-   Copyright (c) 2008, 2018, MariaDB
+   Copyright (c) 2008, 2019, MariaDB Corporation.
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -9829,8 +9829,7 @@ void get_default_definer(THD *thd, LEX_USER *definer, bool role)
     definer->host.length= strlen(definer->host.str);
   }
   definer->user.length= strlen(definer->user.str);
-
-  definer->reset_auth();
+  definer->auth= NULL;
 }
 
 
@@ -9889,7 +9888,7 @@ LEX_USER *create_definer(THD *thd, LEX_CSTRING *user_name,
 
   definer->user= *user_name;
   definer->host= *host_name;
-  definer->reset_auth();
+  definer->auth= NULL;
 
   return definer;
 }

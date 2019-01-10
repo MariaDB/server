@@ -65,7 +65,7 @@ alter user foo identified with 'somecoolplugin';
 ERROR HY000: Operation ALTER USER failed for 'foo'@'%'
 show warnings;
 Level	Code	Message
-Warning	1524	Plugin 'somecoolplugin' is not loaded
+Error	1524	Plugin 'somecoolplugin' is not loaded
 Error	1396	Operation ALTER USER failed for 'foo'@'%'
 alter user foo identified with 'mysql_old_password';
 select * from mysql.user where user = 'foo';

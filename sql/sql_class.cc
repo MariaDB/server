@@ -1,6 +1,6 @@
 /*
    Copyright (c) 2000, 2015, Oracle and/or its affiliates.
-   Copyright (c) 2008, 2018, MariaDB Corporation.
+   Copyright (c) 2008, 2019, MariaDB Corporation.
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -5577,7 +5577,7 @@ void THD::get_definer(LEX_USER *definer, bool role)
   {
     definer->user= invoker.user;
     definer->host= invoker.host;
-    definer->reset_auth();
+    definer->auth= NULL;
   }
   else
 #endif
