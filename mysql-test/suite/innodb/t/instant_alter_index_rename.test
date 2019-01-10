@@ -99,6 +99,13 @@ alter table errors
   drop key b_key,
   add key bb_key (b);
 
+--error ER_CANT_DROP_FIELD_OR_KEY
+alter table errors
+  drop key a_key,
+  add key a_key2 (a),
+  drop key a_key,
+  add key a_key2 (a);
+
 drop table errors;
 
 --disable_query_log

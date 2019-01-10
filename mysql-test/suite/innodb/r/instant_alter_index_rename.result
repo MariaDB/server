@@ -95,6 +95,12 @@ add key b_key (b),
 drop key b_key,
 add key bb_key (b);
 ERROR 42000: Can't DROP INDEX `b_key`; check that it exists
+alter table errors
+drop key a_key,
+add key a_key2 (a),
+drop key a_key,
+add key a_key2 (a);
+ERROR 42000: Can't DROP INDEX `a_key`; check that it exists
 drop table errors;
 create table corrupted (
 a int,
