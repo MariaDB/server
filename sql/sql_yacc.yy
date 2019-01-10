@@ -788,6 +788,8 @@ Virtual_column_info *add_virtual_expression(THD *thd, Item *expr)
 }
 
 %{
+/* avoid unintentional %union size increases, it's what a parser stack made of */
+static_assert(sizeof(YYSTYPE) == sizeof(void*)*2+8, "%union size check");
 bool my_yyoverflow(short **a, YYSTYPE **b, size_t *yystacksize);
 %}
 
