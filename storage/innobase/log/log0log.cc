@@ -867,6 +867,8 @@ log_group_file_header_flush(
 		  ? LOG_HEADER_FORMAT_10_3
 		  : LOG_HEADER_FORMAT_10_2));
 
+	// man 2 open suggests this buffer to be aligned by 512 for O_DIRECT
+	MY_ALIGNED(OS_FILE_LOG_BLOCK_SIZE)
 	byte buf[OS_FILE_LOG_BLOCK_SIZE] = {0};
 
 	mach_write_to_4(buf + LOG_HEADER_FORMAT, group->format);
