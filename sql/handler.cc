@@ -1628,7 +1628,7 @@ int ha_commit_trans(THD *thd, bool all)
     goto end;
   }
 
- done:
+done:
   DBUG_EXECUTE_IF("crash_commit_after", DBUG_SUICIDE(););
 
   mysql_mutex_assert_not_owner(&LOCK_prepare_ordered);
@@ -1643,7 +1643,7 @@ int ha_commit_trans(THD *thd, bool all)
 
   /* Come here if error and we need to rollback. */
 #ifdef WITH_WSREP
- wsrep_err:
+wsrep_err:
   mysql_mutex_lock(&thd->LOCK_thd_data);
   if (thd->wsrep_trx().state() == wsrep::transaction::s_must_abort)
   {
@@ -1655,7 +1655,7 @@ int ha_commit_trans(THD *thd, bool all)
     mysql_mutex_unlock(&thd->LOCK_thd_data);
 
 #endif /* WITH_WSREP */
- err:
+err:
   error= 1;                                  /* Transaction was rolled back */
   /*
     In parallel replication, rollback is delayed, as there is extra replication
@@ -6249,16 +6249,6 @@ static int binlog_log_row_internal(TABLE* table,
   bool error= 0;
   THD *const thd= table->in_use;
 
-#ifdef WITH_WSREP
-  /* only InnoDB tables will be replicated through binlog emulation */
-  if (WSREP_EMULATE_BINLOG(thd) &&
-      table->file->ht->db_type != DB_TYPE_INNODB &&
-      !(table->file->ht->db_type == DB_TYPE_PARTITION_DB &&
-        (((ha_partition*)(table->file))->wsrep_db_type() == DB_TYPE_INNODB)))
-  {
-      return 0;
-  }
-#endif /* WITH_WSREP */
   /*
     If there are no table maps written to the binary log, this is
     the first row handled in this statement. In that case, we need
@@ -6290,8 +6280,9 @@ int binlog_log_row(TABLE* table, const uchar *before_record,
 
   /* only InnoDB tables will be replicated through binlog emulation */
   if ((WSREP_EMULATE_BINLOG(thd) &&
+       table->file->ht->db_type != DB_TYPE_INNODB &&
        table->file->partition_ht()->db_type != DB_TYPE_INNODB) ||
-       (thd->wsrep_ignore_table == true))
+      (thd->wsrep_ignore_table == true))
     return 0;
 #endif
 
@@ -6448,9 +6439,8 @@ int handler::ha_write_row(uchar *buf)
     rows_changed++;
     error= binlog_log_row(table, 0, buf, log_func);
 #ifdef WITH_WSREP
-    THD *thd= current_thd;
     if (table_share->tmp_table == NO_TMP_TABLE &&
-        WSREP(thd) && (error= wsrep_after_row(thd)))
+        WSREP(ha_thd()) && (error= wsrep_after_row(ha_thd())))
     {
       DBUG_RETURN(error);
     }
@@ -6489,9 +6479,8 @@ int handler::ha_update_row(const uchar *old_data, const uchar *new_data)
     rows_changed++;
     error= binlog_log_row(table, old_data, new_data, log_func);
 #ifdef WITH_WSREP
-    THD *thd= current_thd;
     if (table_share->tmp_table == NO_TMP_TABLE &&
-        WSREP(thd) && (error= wsrep_after_row(thd)))
+        WSREP(ha_thd()) && (error= wsrep_after_row(ha_thd())))
     {
       return error;
     }
@@ -6552,9 +6541,8 @@ int handler::ha_delete_row(const uchar *buf)
     rows_changed++;
     error= binlog_log_row(table, buf, 0, log_func);
 #ifdef WITH_WSREP
-    THD *thd= current_thd;
     if (table_share->tmp_table == NO_TMP_TABLE &&
-        WSREP(thd) && (error= wsrep_after_row(thd)))
+        WSREP(ha_thd()) && (error= wsrep_after_row(ha_thd())))
     {
       return error;
     }

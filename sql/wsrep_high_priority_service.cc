@@ -62,7 +62,7 @@ private:
 };
 }
 
-static rpl_group_info* wsrep_relay_group_init(const char* log_fname)
+static rpl_group_info* wsrep_relay_group_init(THD* thd, const char* log_fname)
 {
   Relay_log_info* rli= new Relay_log_info(false);
 
@@ -94,7 +94,7 @@ static rpl_group_info* wsrep_relay_group_init(const char* log_fname)
   rli->mi= new Master_info(&connection_name, false);
 
   struct rpl_group_info *rgi= new rpl_group_info(rli);
-  rgi->thd= rli->sql_driver_thd= current_thd;
+  rgi->thd= rli->sql_driver_thd= thd;
 
   if ((rgi->deferred_events_collecting= rli->mi->rpl_filter->is_on()))
   {
@@ -161,7 +161,7 @@ Wsrep_high_priority_service::Wsrep_high_priority_service(THD* thd)
   /* Make THD wsrep_applier so that it cannot be killed */
   thd->wsrep_applier= true;
 
-  if (!thd->wsrep_rgi) thd->wsrep_rgi= wsrep_relay_group_init("wsrep_relay");
+  if (!thd->wsrep_rgi) thd->wsrep_rgi= wsrep_relay_group_init(thd, "wsrep_relay");
 
   m_rgi= thd->wsrep_rgi;
   m_rgi->thd= thd;

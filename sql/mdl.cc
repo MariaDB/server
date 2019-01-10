@@ -1133,7 +1133,7 @@ MDL_wait::timed_wait(MDL_context_owner *owner, struct timespec *abs_timeout,
   thd_wait_begin(NULL, THD_WAIT_META_DATA_LOCK);
   while (!m_wait_status && !owner->is_killed() &&
          wait_result != ETIMEDOUT && wait_result != ETIME)
-    {
+  {
 #ifdef WITH_WSREP
     // Allow tests to block the applier thread using the DBUG facilities
     DBUG_EXECUTE_IF("sync.wsrep_before_mdl_wait",

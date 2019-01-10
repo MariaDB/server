@@ -23,7 +23,6 @@
 
 #include "mysqld.h"
 #include "thr_lock.h" /* enum thr_lock_type */
-#include "../wsrep/wsrep_api.h"
 #include "wsrep_mysqld.h"
 
 #include <string>

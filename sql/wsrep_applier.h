@@ -17,7 +17,6 @@
 #define WSREP_APPLIER_H
 
 #include <my_config.h>
-#include "../wsrep/wsrep_api.h"
 
 #include "sql_class.h" // THD class
 

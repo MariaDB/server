@@ -383,10 +383,6 @@ INCLUDE(mariadb_connector_c) # this does ADD_SUBDIRECTORY(libmariadb)
 # Add storage engines and plugins.
 CONFIGURE_PLUGINS()
 
-IF(WITH_WSREP)
-  ADD_SUBDIRECTORY(wsrep-lib)
-ENDIF()
-
 ADD_SUBDIRECTORY(include)
 ADD_SUBDIRECTORY(dbug)
 ADD_SUBDIRECTORY(strings)
@@ -408,6 +404,10 @@ IF(NOT WITHOUT_SERVER)
    ADD_SUBDIRECTORY(unittest/embedded)
   ENDIF(WITH_EMBEDDED_SERVER)
 
+  IF(WITH_WSREP)
+    ADD_SUBDIRECTORY(wsrep-lib)
+  ENDIF()
+
   ADD_SUBDIRECTORY(mysql-test)
   ADD_SUBDIRECTORY(mysql-test/lib/My/SafeProcess)
   ADD_SUBDIRECTORY(sql-bench)
@@ -427,7 +427,7 @@ INCLUDE(cmake/tags.cmake)
 
 
 
-#INCLUDE(for_clients)
+INCLUDE(for_clients)
 ADD_SUBDIRECTORY(scripts)
 ADD_SUBDIRECTORY(support-files)
 

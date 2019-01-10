@@ -8127,7 +8127,7 @@ ha_innobase::write_row(
 						wsrep_thd_query(m_user_thd) :
 						(char *)"void");
 					error= DB_SUCCESS;
-					wsrep_thd_self_abort(current_thd);
+					wsrep_thd_self_abort(m_user_thd);
                                         innobase_srv_conc_exit_innodb(
 						m_prebuilt);
                                         /* jump straight to func exit over
