@@ -64,9 +64,9 @@ SET @@global.table_definition_cache = 1;
 SELECT @@global.table_definition_cache;
 SET @@global.table_definition_cache = 2;
 SELECT @@global.table_definition_cache;
-SET @@global.table_definition_cache = 524287;
+SET @@global.table_definition_cache = 2097151;
 SELECT @@global.table_definition_cache;
-SET @@global.table_definition_cache = 524288;
+SET @@global.table_definition_cache = 2097152;
 SELECT @@global.table_definition_cache;
 
 
@@ -79,7 +79,7 @@ SET @@global.table_definition_cache = 0;
 SELECT @@global.table_definition_cache;
 SET @@global.table_definition_cache = -1024;
 SELECT @@global.table_definition_cache;
-SET @@global.table_definition_cache = 524289;
+SET @@global.table_definition_cache = 2097153;
 SELECT @@global.table_definition_cache;
 SET @@global.table_definition_cache = 42949672950;
 SELECT @@global.table_definition_cache;
