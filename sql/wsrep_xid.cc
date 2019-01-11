@@ -185,7 +185,7 @@ wsrep::gtid wsrep_get_SE_checkpoint()
 /*
   Sort order for XIDs. Wsrep XIDs are sorted according to
   seqno in ascending order. Non-wsrep XIDs are considered
-  equal among themselves and and greater than with respect
+  equal among themselves and greater than with respect
   to wsrep XIDs.
  */
 struct Wsrep_xid_cmp

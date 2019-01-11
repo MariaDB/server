@@ -2098,7 +2098,17 @@ static my_bool xarecover_handlerton(THD *unused, plugin_ref plugin,
          recovered XIDs is checked for continuity. All the XIDs which
          are in continuous range can be safely committed if binlog
          is off since they have already ordered and certified in the
-         cluster. */
+         cluster.
+
+         The discontinuity of wsrep XIDs may happen because the GTID
+         is assigned for transaction in wsrep_before_prepare(), but the
+         commit order is entered in wsrep_before_commit(). This means that
+         transactions may run prepare step out of order and may
+         result in gap in wsrep XIDs. This can be the case for example
+         if we have T1 with seqno 1 and T2 with seqno 2 and the server
+         crashes after T2 finishes prepare step but before T1 starts
+         the prepare.
+      */
       my_xid wsrep_limit= 0;
       if (WSREP_ON)
       {
