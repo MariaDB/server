@@ -6922,9 +6922,9 @@ static bool fill_alter_inplace_info(THD *thd,
             Alter_inplace_info::Rename_key_pair(old_key, new_key));
 
         memcpy(add_buffer + i, add_buffer + i + 1,
-               sizeof(add_buffer[0]) * (add_count - i + 1));
+               sizeof(add_buffer[0]) * (add_count - i - 1));
         memcpy(drop_buffer + j, drop_buffer + j + 1,
-               sizeof(drop_buffer[0]) * (drop_count - j + 1));
+               sizeof(drop_buffer[0]) * (drop_count - j - 1));
         --add_count;
         --drop_count;
         --i; // this index once again
