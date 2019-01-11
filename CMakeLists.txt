@@ -143,6 +143,7 @@ INCLUDE(misc)
 INCLUDE(mysql_version)
 INCLUDE(cpack_source_ignore_files)
 INCLUDE(install_layout)
+INCLUDE(submodules)
 INCLUDE(wsrep)
 INCLUDE(cpack_rpm)
 INCLUDE(cpack_deb)
@@ -377,7 +378,6 @@ ENDIF()
 
 SET (MYSQLD_STATIC_PLUGIN_LIBS "" CACHE INTERNAL "")
 
-INCLUDE(submodules)
 INCLUDE(mariadb_connector_c) # this does ADD_SUBDIRECTORY(libmariadb)
 
 # Add storage engines and plugins.
