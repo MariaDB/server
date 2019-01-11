@@ -191,18 +191,6 @@ buf_flush_note_modification(
 	lsn_t		end_lsn,	/*!< in: end lsn of the last mtr in the
 					set of mtr's */
 	FlushObserver*	observer);	/*!< in: flush observer */
-
-/********************************************************************//**
-This function should be called when recovery has modified a buffer page. */
-UNIV_INLINE
-void
-buf_flush_recv_note_modification(
-/*=============================*/
-	buf_block_t*	block,		/*!< in: block which is modified */
-	lsn_t		start_lsn,	/*!< in: start lsn of the first mtr in a
-					set of mtr's */
-	lsn_t		end_lsn);	/*!< in: end lsn of the last mtr in the
-					set of mtr's */
 /********************************************************************//**
 Returns TRUE if the file page block is immediately suitable for replacement,
 i.e., transition FILE_PAGE => NOT_USED allowed.

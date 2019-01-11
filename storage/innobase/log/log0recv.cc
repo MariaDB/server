@@ -1925,7 +1925,7 @@ recv_recover_page(bool just_read_in, buf_block_t* block)
 
 	if (start_lsn) {
 		log_flush_order_mutex_enter();
-		buf_flush_recv_note_modification(block, start_lsn, end_lsn);
+		buf_flush_note_modification(block, start_lsn, end_lsn, NULL);
 		log_flush_order_mutex_exit();
 	}
 
