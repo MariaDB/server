@@ -304,6 +304,12 @@ enum enum_alter_inplace_result {
 /* Engine wants primary keys for everything except sequences */
 #define HA_WANTS_PRIMARY_KEY (1ULL << 55)
 
+/*
+  There is no need to evict the table from the table definition cache having
+  run ANALYZE TABLE on it
+ */
+#define HA_ONLINE_ANALYZE             (1ULL << 56)
+
 /* bits in index_flags(index_number) for what you can do with index */
 #define HA_READ_NEXT            1       /* TODO really use this flag */
 #define HA_READ_PREV            2       /* supports ::index_prev */

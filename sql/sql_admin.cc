@@ -1143,6 +1143,9 @@ send_result_message:
     }
     if (table->table && !table->view)
     {
+      const bool skip_flush=
+        (operator_func == &handler::ha_analyze)
+        && (table->table->file->ha_table_flags() & HA_ONLINE_ANALYZE);
       if (table->table->s->tmp_table)
       {
         /*
@@ -1152,7 +1155,7 @@ send_result_message:
         if (open_for_modify && !open_error)
           table->table->file->info(HA_STATUS_CONST);
       }
-      else if (open_for_modify || fatal_error)
+      else if ((!skip_flush && open_for_modify) || fatal_error)
       {
         tdc_remove_table(thd, TDC_RT_REMOVE_UNUSED,
                          table->db.str, table->table_name.str, FALSE);
