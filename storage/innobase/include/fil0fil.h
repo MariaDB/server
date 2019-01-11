@@ -237,10 +237,8 @@ struct fil_node_t {
 	ulint		n_pending_flushes;
 	/** whether the file is currently being extended */
 	bool		being_extended;
-	/** number of writes to the file since the node was created */
-	int64_t		modification_counter;
-	/** the modification_counter of the latest flush to disk */
-	int64_t		flush_counter;
+	/** whether this file had writes after lasy fsync() */
+	bool		needs_flush;
 	/** link to other files in this tablespace */
 	UT_LIST_NODE_T(fil_node_t) chain;
 	/** link to the fil_system->LRU list (keeping track of open files) */
@@ -498,7 +496,7 @@ struct fil_system_t {
 					tablespaces whose files contain
 					unflushed writes; those spaces have
 					at least one file node where
-					modification_counter > flush_counter */
+					needs_flush == true */
 	ulint		n_open;		/*!< number of files currently open */
 	ulint		max_n_open;	/*!< n_open is not allowed to exceed
 					this */

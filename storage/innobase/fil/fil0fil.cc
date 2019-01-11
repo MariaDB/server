@@ -452,7 +452,7 @@ fil_space_is_flushed(
 	     node != NULL;
 	     node = UT_LIST_GET_NEXT(chain, node)) {
 
-		if (node->modification_counter > node->flush_counter) {
+		if (node->needs_flush) {
 
 			ut_ad(!fil_buffering_disabled(space));
 			return(false);
@@ -726,7 +726,7 @@ fil_node_close_file(
 	ut_a(node->n_pending == 0);
 	ut_a(node->n_pending_flushes == 0);
 	ut_a(!node->being_extended);
-	ut_a(node->modification_counter == node->flush_counter
+	ut_a(!node->needs_flush
 	     || node->space->purpose == FIL_TYPE_TEMPORARY
 	     || srv_fast_shutdown == 2
 	     || !srv_was_started);
@@ -778,7 +778,7 @@ fil_try_to_close_file_in_LRU(
 	     node != NULL;
 	     node = UT_LIST_GET_PREV(LRU, node)) {
 
-		if (node->modification_counter == node->flush_counter
+		if (!node->needs_flush
 		    && node->n_pending_flushes == 0
 		    && !node->being_extended) {
 
@@ -798,11 +798,9 @@ fil_try_to_close_file_in_LRU(
 				<< node->n_pending_flushes;
 		}
 
-		if (node->modification_counter != node->flush_counter) {
+		if (node->needs_flush) {
 			ib::warn() << "Cannot close file " << node->name
-				<< ", because modification count "
-				<< node->modification_counter <<
-				" != flush count " << node->flush_counter;
+				<< ", because is should be flushed first";
 		}
 
 		if (node->being_extended) {
@@ -836,8 +834,7 @@ fil_flush_low(fil_space_t* space)
 		for (fil_node_t* node = UT_LIST_GET_FIRST(space->chain);
 		     node != NULL;
 		     node = UT_LIST_GET_NEXT(chain, node)) {
-			ut_ad(node->modification_counter
-			      == node->flush_counter);
+			ut_ad(!node->needs_flush);
 			ut_ad(node->n_pending_flushes == 0);
 		}
 #endif /* UNIV_DEBUG */
@@ -852,9 +849,7 @@ fil_flush_low(fil_space_t* space)
 	     node != NULL;
 	     node = UT_LIST_GET_NEXT(chain, node)) {
 
-		int64_t	old_mod_counter = node->modification_counter;
-
-		if (old_mod_counter <= node->flush_counter) {
+		if (!node->needs_flush) {
 			continue;
 		}
 
@@ -881,6 +876,7 @@ fil_flush_low(fil_space_t* space)
 
 		ut_a(node->is_open());
 		node->n_pending_flushes++;
+		node->needs_flush = false;
 
 		mutex_exit(&fil_system->mutex);
 
@@ -892,9 +888,7 @@ fil_flush_low(fil_space_t* space)
 #ifdef _WIN32
 skip_flush:
 #endif /* _WIN32 */
-		if (node->flush_counter < old_mod_counter) {
-			node->flush_counter = old_mod_counter;
-
+		if (!node->needs_flush) {
 			if (space->is_in_unflushed_spaces
 			    && fil_space_is_flushed(space)) {
 
@@ -1192,7 +1186,7 @@ fil_node_close_to_free(
 		/* We fool the assertion in fil_node_close_file() to think
 		there are no unflushed modifications in the file */
 
-		node->modification_counter = node->flush_counter;
+		node->needs_flush = false;
 
 		if (fil_buffering_disabled(space)) {
 
@@ -4821,7 +4815,7 @@ fil_node_complete_io(fil_node_t* node, const IORequest& type)
 		ut_ad(!srv_read_only_mode
 		      || fsp_is_system_temporary(node->space->id));
 
-		++node->modification_counter;
+		node->needs_flush = true;
 
 		if (fil_buffering_disabled(node->space)) {
 
@@ -4829,7 +4823,7 @@ fil_node_complete_io(fil_node_t* node, const IORequest& type)
 			changes as user has explicitly disabled
 			buffering. */
 			ut_ad(!node->space->is_in_unflushed_spaces);
-			node->flush_counter = node->modification_counter;
+			node->needs_flush = false;
 
 		} else if (!node->space->is_in_unflushed_spaces) {
 
