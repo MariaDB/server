@@ -26,8 +26,6 @@ After=network.target
 
 [Install]
 WantedBy=multi-user.target
-Alias=mysql.service
-Alias=mysqld.service
 
 
 [Service]

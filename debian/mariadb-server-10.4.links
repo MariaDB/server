@@ -7,3 +7,5 @@ usr/bin/mysqld_safe usr/bin/mariadbd-safe
 usr/bin/mysqld_safe_helper usr/bin/mariadbd-safe-helper
 usr/bin/mysqlhotcopy usr/bin/mariadb-hotcopy
 usr/bin/mysqlshow usr/bin/mariadb-show
+lib/systemd/system/mariadb.service lib/systemd/system/mysql.service
+lib/systemd/system/mariadb.service lib/systemd/system/mysqld.service
