@@ -253,6 +253,9 @@ then
     cannot_find_file my_print_defaults $basedir/bin $basedir/extra
     exit 1
   fi
+elif test -x "$(dirname $0)/../@bindir@/my_print_defaults"
+then
+  print_defaults="$(dirname $0)/../@bindir@/my_print_defaults"
 else
   print_defaults="@bindir@/my_print_defaults"
 fi
@@ -304,6 +307,14 @@ then
     cannot_find_file fill_help_tables.sql @pkgdata_locations@
     exit 1
   fi
+# relative from where the script was run for a relocatable install
+elif test -x "$(dirname $0)/../@INSTALL_SBINDIR@/mysqld"
+then
+  basedir="$(dirname $0)/../"
+  bindir="$basedir/@INSTALL_SBINDIR@"
+  resolveip="$bindir/resolveip"
+  mysqld="$basedir/@INSTALL_SBINDIR@/mysqld"
+  pkgdatadir="$basedir/@INSTALL_MYSQLSHAREDIR@"
 else
   basedir="@prefix@"
   bindir="@bindir@"
