@@ -20,6 +20,7 @@
 --source include/have_wsrep.inc
 --source include/have_innodb.inc
 --source include/have_wsrep_provider.inc
+--source include/have_debug_sync.inc
 
 #
 # Binlog option for recovery run. This must be set in the test because
