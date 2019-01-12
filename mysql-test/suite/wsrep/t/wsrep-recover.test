@@ -67,6 +67,8 @@ CREATE TABLE t1 (f1 INT PRIMARY KEY) ENGINE=InnoDB;
 # The expected recovered seqno is 5 corresponding to three configuration
 # change events, CREATE TABLE and INSERT.
 #
+# The expected wsrep_last_committed after the server is restarted is 6.
+#
 
 INSERT INTO t1 VALUES (5);
 --source include/kill_mysqld.inc
@@ -92,6 +94,8 @@ SELECT VARIABLE_VALUE `expect 6` FROM INFORMATION_SCHEMA.GLOBAL_STATUS WHERE VAR
 # As an outcome, the recovery process should return seqno 6 because
 # the range of prepared transactions found after the crash recovery
 # is not continuous up to 8.
+#
+# The expected wsrep_last_committed after server is restarted is 7.
 #
 
 # Send INSERT which will block after certification
@@ -135,10 +139,13 @@ SELECT VARIABLE_VALUE `expect 7` FROM INFORMATION_SCHEMA.GLOBAL_STATUS WHERE VAR
 # on binlog settings:
 #
 # If binlog is off, the transactions will be recovered from InnoDB and
-# committed during recovery.
+# committed during recovery. The expected recovered seqno is 9, the
+# expected wsrep_last_committed after server is restarted is 10.
 #
 # If binlog is on, the transactions will be recovered from InnoDB but
-# will be rolled back since they are not logged yet in binlog.
+# will be rolled back since they are not logged yet in binlog. The
+# expected recovered seqno is 7, the expected wsrep_last_committed
+# after server is restarted is 8.
 #
 
 --connect con1, localhost, root
