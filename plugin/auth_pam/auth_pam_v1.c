@@ -21,14 +21,11 @@ struct param {
   MYSQL_PLUGIN_VIO *vio;
 };
 
-static int write_packet(struct param *param, const unsigned char *buf,
-                        int buf_len)
+static int roundtrip(struct param *param, const unsigned char *buf,
+                     int buf_len, unsigned char **pkt)
 {
-  return param->vio->write_packet(param->vio, buf, buf_len);
-}
-
-static int read_packet(struct param *param, unsigned char **pkt)
-{
+  if (param->vio->write_packet(param->vio, buf, buf_len))
+    return -1;
   return param->vio->read_packet(param->vio, pkt);
 }
 

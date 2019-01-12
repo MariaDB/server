@@ -109,15 +109,10 @@ static int conv(int n, const struct pam_message **msg,
       param->buf[0] = msg[i]->msg_style == PAM_PROMPT_ECHO_ON ? 2 : 4;
       PAM_DEBUG((stderr, "PAM: conv: send(%.*s)\n",
                 (int)(param->ptr - param->buf - 1), param->buf));
-      if (write_packet(param, param->buf, param->ptr - param->buf - 1))
+      pkt_len= roundtrip(param, param->buf, param->ptr - param->buf - 1, &pkt);
+      if (pkt_len < 0)
         return PAM_CONV_ERR;
 
-      pkt_len = read_packet(param, &pkt);
-      if (pkt_len < 0)
-      {
-        PAM_DEBUG((stderr, "PAM: conv: recv() ERROR\n"));
-        return PAM_CONV_ERR;
-      }
       PAM_DEBUG((stderr, "PAM: conv: recv(%.*s)\n", pkt_len, pkt));
       /* allocate and copy the reply to the response array */
       if (!((*resp)[i].resp= strndup((char*) pkt, pkt_len)))
