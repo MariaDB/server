@@ -170,7 +170,8 @@ public:
     else
       dst->plugin= safe_lexcstrdup_root(root, plugin);
     dst->auth_string= safe_lexcstrdup_root(root, auth_string);
-    dst->salt= safe_lexcstrdup_root(root, salt);
+    if (salt.str)
+      dst->salt= safe_lexcstrdup_root(root, salt);
     dst->host.hostname= safe_strdup_root(root, host.hostname);
     dst->default_rolename= safe_lexcstrdup_root(root, default_rolename);
     bzero(&dst->role_grants, sizeof(role_grants));
@@ -1781,6 +1782,26 @@ static bool validate_password(THD *thd, const LEX_CSTRING &user,
   return false;
 }
 
+static int set_user_salt(ACL_USER *acl_user, plugin_ref plugin)
+{
+  st_mysql_auth *auth= (st_mysql_auth *) plugin_decl(plugin)->info;
+  if (auth->interface_version >= 0x0202 && acl_user->auth_string.length &&
+      auth->preprocess_hash)
+  {
+    uchar buf[MAX_SCRAMBLE_LENGTH];
+    size_t len= sizeof(buf);
+    if (auth->preprocess_hash(acl_user->auth_string.str,
+                              acl_user->auth_string.length, buf, &len))
+      return 1; // ER_PASSWD_LENGTH?
+    acl_user->salt.str= (char*)memdup_root(&acl_memroot, buf, len);
+    acl_user->salt.length= len;
+  }
+  else
+    acl_user->salt= acl_user->auth_string;
+
+  return 0;
+}
+
 /**
   Fills in ACL_USER::auth_string and ACL_USER::salt fields, as needed
 
@@ -1789,11 +1810,8 @@ static bool validate_password(THD *thd, const LEX_CSTRING &user,
 
   Fails if the plain-text password fails validation, if the plugin is
   not loaded, if the auth_string is invalid.
-
-  Using NULL for a password disables validation
-  (needed for loading from mysql.user table).
 */
-static int set_user_auth(THD *thd, ACL_USER *acl_user, const LEX_CSTRING *pwtext)
+static int set_user_auth(THD *thd, ACL_USER *acl_user, const LEX_CSTRING &pwtext)
 {
   const char *plugin_name= acl_user->plugin.str;
   bool unlock_plugin= false;
@@ -1813,49 +1831,32 @@ static int set_user_auth(THD *thd, ACL_USER *acl_user, const LEX_CSTRING *pwtext
   st_mysql_auth *auth= (st_mysql_auth *) plugin_decl(plugin)->info;
   if (auth->interface_version >= 0x0202)
   {
-    if (pwtext)
+    if (auth->hash_password &&
+        validate_password(thd, acl_user->user, pwtext,
+                          acl_user->auth_string.length))
+      goto end;
+    if (pwtext.length)
     {
-      if (auth->hash_password &&
-          validate_password(thd, acl_user->user, *pwtext,
-                            acl_user->auth_string.length))
-        goto end;
-      if (pwtext->length)
+      if (auth->hash_password)
       {
-        if (auth->hash_password)
-        {
-          char buf[MAX_SCRAMBLE_LENGTH];
-          size_t len= sizeof(buf) - 1;
-          if (auth->hash_password(pwtext->str, pwtext->length, buf, &len))
-            goto end; // OOM?
-          buf[len] = 0;
-          acl_user->auth_string.str= (char*)memdup_root(&acl_memroot, buf, len+1);
-          acl_user->auth_string.length= len;
-        }
-        else
-        {
-          push_warning_printf(thd, Sql_condition::WARN_LEVEL_WARN,
-                              ER_SET_PASSWORD_AUTH_PLUGIN,
-                              ER_THD(thd, ER_SET_PASSWORD_AUTH_PLUGIN),
-                              acl_user->plugin.str);
-        }
-      }
-    }
-
-    if (acl_user->auth_string.length)
-    {
-      if (auth->preprocess_hash)
-      {
-        uchar buf[MAX_SCRAMBLE_LENGTH];
-        size_t len= sizeof(buf);
-        if (auth->preprocess_hash(acl_user->auth_string.str,
-                                  acl_user->auth_string.length, buf, &len))
-          goto end; // ER_PASSWD_LENGTH?
-        acl_user->salt.str= (char*)memdup_root(&acl_memroot, buf, len);
-        acl_user->salt.length= len;
+        char buf[MAX_SCRAMBLE_LENGTH];
+        size_t len= sizeof(buf) - 1;
+        if (auth->hash_password(pwtext.str, pwtext.length, buf, &len))
+          goto end; // OOM?
+        buf[len] = 0;
+        acl_user->auth_string.str= (char*)memdup_root(&acl_memroot, buf, len+1);
+        acl_user->auth_string.length= len;
       }
       else
-        acl_user->salt= acl_user->auth_string;
+      {
+        push_warning_printf(thd, Sql_condition::WARN_LEVEL_WARN,
+                            ER_SET_PASSWORD_AUTH_PLUGIN,
+                            ER_THD(thd, ER_SET_PASSWORD_AUTH_PLUGIN),
+                            acl_user->plugin.str);
+      }
     }
+    if (set_user_salt(acl_user, plugin))
+      goto end;
   }
 
   res= 0;
@@ -1864,6 +1865,34 @@ end:
     plugin_unlock(thd, plugin);
   return res;
 }
+
+
+/**
+  Lazily computes user's salt from the password hash
+*/
+static bool set_user_salt_if_needed(ACL_USER *user_copy, plugin_ref plugin)
+{
+  DBUG_ASSERT(!strcasecmp(user_copy->plugin.str, plugin_name(plugin)->str));
+
+  if (user_copy->salt.str)
+    return 0; // already done
+
+  if (set_user_salt(user_copy, plugin))
+    return 1;
+
+  mysql_mutex_lock(&acl_cache->lock);
+  ACL_USER *user= find_user_exact(user_copy->host.hostname, user_copy->user.str);
+  // make sure the user wasn't altered or dropped meanwhile
+  if (user && !user->salt.str &&
+      user->plugin.length == user_copy->plugin.length &&
+      user->auth_string.length == user_copy->auth_string.length &&
+      !memcmp(user->plugin.str, user_copy->plugin.str, user->plugin.length) &&
+      !memcmp(user->auth_string.str, user_copy->auth_string.str, user->auth_string.length))
+    user->salt= user_copy->salt;
+  mysql_mutex_unlock(&acl_cache->lock);
+  return 0;
+}
+
 
 /**
   Fix ACL::plugin pointer to point to a hard-coded string, if appropriate
@@ -2128,12 +2157,6 @@ static bool acl_load(THD *thd, const Grant_tables& tables)
 
       user.default_rolename.str= user_table.get_default_role(&acl_memroot);
       user.default_rolename.length= safe_strlen(user.default_rolename.str);
-
-      if (set_user_auth(thd, &user, NULL))
-      {
-        thd->clear_error(); // the warning is still issued
-        continue;
-      }
     }
     push_new_user(user);
   }
@@ -2852,7 +2875,7 @@ static int acl_user_update(THD *thd, ACL_USER *acl_user, const ACL_USER *from,
     acl_user->hostname_length= combo.host.length;
     acl_user->sort= get_sort(2, acl_user->host.hostname, acl_user->user.str);
     acl_user->plugin= native_password_plugin_name;
-    acl_user->salt= acl_user->auth_string= empty_clex_str;
+    acl_user->auth_string= empty_clex_str;
     my_init_dynamic_array(&acl_user->role_grants, sizeof(ACL_USER *),
                           0, 8, MYF(0));
   }
@@ -2863,7 +2886,7 @@ static int acl_user_update(THD *thd, ACL_USER *acl_user, const ACL_USER *from,
     acl_user->auth_string= safe_lexcstrdup_root(&acl_memroot, combo.auth);
     if (fix_user_plugin_ptr(acl_user))
       acl_user->plugin= safe_lexcstrdup_root(&acl_memroot, combo.plugin);
-    if (set_user_auth(thd, acl_user, &combo.pwtext))
+    if (set_user_auth(thd, acl_user, combo.pwtext))
       return 1;
   }
   acl_user->access= privileges;
@@ -3429,7 +3452,7 @@ bool change_password(THD *thd, LEX_USER *user)
   }
 
   acl_user->auth_string= safe_lexcstrdup_root(&acl_memroot, user->auth);
-  if (set_user_auth(thd, acl_user, &user->pwtext))
+  if (set_user_auth(thd, acl_user, user->pwtext))
   {
     mysql_mutex_unlock(&acl_cache->lock);
     goto end;
@@ -11275,10 +11298,10 @@ static int show_database_grants(THD *thd, SHOW_VAR *var, char *buff,
 }
 
 #else
+static bool set_user_salt_if_needed(ACL_USER *, plugin_ref)
+{ return 0; }
 bool check_grant(THD *, ulong, TABLE_LIST *, bool, uint, bool)
-{
-  return 0;
-}
+{ return 0; }
 #endif /*NO_EMBEDDED_ACCESS_CHECKS */
 
 SHOW_VAR acl_statistics[] = {
@@ -12432,12 +12455,6 @@ static bool find_mpvio_user(MPVIO_EXT *mpvio)
     DBUG_RETURN (1);
   }
 
-  mpvio->auth_info.user_name= sctx->user;
-  mpvio->auth_info.user_name_length= (uint)strlen(sctx->user);
-  mpvio->auth_info.auth_string= mpvio->acl_user->salt.str;
-  mpvio->auth_info.auth_string_length= (unsigned long) mpvio->acl_user->salt.length;
-  strmake_buf(mpvio->auth_info.authenticated_as, mpvio->acl_user->user.str);
-
   DBUG_PRINT("info", ("exit: user=%s, auth_string=%s, authenticated as=%s"
                       "plugin=%s",
                       mpvio->auth_info.user_name,
@@ -12609,8 +12626,7 @@ static bool parse_com_change_user_packet(MPVIO_EXT *mpvio, uint packet_length)
   }
 
   if ((thd->client_capabilities & CLIENT_CONNECT_ATTRS) &&
-      read_client_connect_attrs(&next_field, end,
-                                thd->charset()))
+      read_client_connect_attrs(&next_field, end, thd->charset()))
   {
     my_message(ER_UNKNOWN_COM_ERROR, ER_THD(thd, ER_UNKNOWN_COM_ERROR),
                MYF(0));
@@ -12970,7 +12986,7 @@ static int server_mpvio_write_packet(MYSQL_PLUGIN_VIO *param,
 */
 static int server_mpvio_read_packet(MYSQL_PLUGIN_VIO *param, uchar **buf)
 {
-  MPVIO_EXT *mpvio= (MPVIO_EXT *) param;
+  MPVIO_EXT * const mpvio= (MPVIO_EXT *) param;
   ulong pkt_len;
   DBUG_ENTER("server_mpvio_read_packet");
   if (mpvio->packets_written == 0)
@@ -13001,11 +13017,11 @@ static int server_mpvio_read_packet(MYSQL_PLUGIN_VIO *param, uchar **buf)
                       client_auth_plugin) == 0)
     {
       mpvio->status= MPVIO_EXT::FAILURE;
+      pkt_len= mpvio->cached_client_reply.pkt_len;
       *buf= (uchar*) mpvio->cached_client_reply.pkt;
       mpvio->cached_client_reply.pkt= 0;
       mpvio->packets_read++;
-
-      DBUG_RETURN ((int) mpvio->cached_client_reply.pkt_len);
+      goto done;
     }
 
     /*
@@ -13038,6 +13054,16 @@ static int server_mpvio_read_packet(MYSQL_PLUGIN_VIO *param, uchar **buf)
   }
   else
     *buf= mpvio->auth_info.thd->net.read_pos;
+
+done:
+  if (set_user_salt_if_needed(mpvio->acl_user, mpvio->plugin))
+    goto err;
+
+  mpvio->auth_info.user_name= mpvio->auth_info.thd->security_ctx->user;
+  mpvio->auth_info.user_name_length= (uint)strlen(mpvio->auth_info.user_name);
+  mpvio->auth_info.auth_string= mpvio->acl_user->salt.str;
+  mpvio->auth_info.auth_string_length= (ulong) mpvio->acl_user->salt.length;
+  strmake_buf(mpvio->auth_info.authenticated_as, mpvio->acl_user->user.str);
 
   DBUG_RETURN((int)pkt_len);
 
@@ -13179,6 +13205,7 @@ static int do_auth_once(THD *thd, const LEX_CSTRING *auth_plugin_name,
   plugin_ref plugin= get_auth_plugin(thd, *auth_plugin_name, &unlock_plugin);
 
   mpvio->plugin= plugin;
+  mpvio->auth_info.user_name= NULL;
   old_status= mpvio->status;
 
   if (plugin)
