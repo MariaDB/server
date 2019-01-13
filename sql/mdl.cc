@@ -1747,7 +1747,13 @@ MDL_lock::can_grant_lock(enum_mdl_type type_arg,
             ticket->is_incompatible_when_granted(type_arg))
 #ifdef WITH_WSREP
         {
-          if (!WSREP(requestor_ctx->get_thd())) break;
+          /* non WSREP threads must will report conflict immediately
+             note: RSU processing wsrep threads, have wsrep_on==OFF
+          */
+          if (!WSREP(requestor_ctx->get_thd()) &&
+              requestor_ctx->get_thd()->wsrep_cs().mode() !=
+              wsrep::client_state::m_rsu)
+            break;
           if ((wsrep_thd_is_toi(requestor_ctx->get_thd()) ||
                wsrep_thd_is_applying(requestor_ctx->get_thd())) &&
               key.mdl_namespace() == MDL_key::BACKUP)
@@ -1775,7 +1781,8 @@ MDL_lock::can_grant_lock(enum_mdl_type type_arg,
 #endif /* WITH_WSREP */
       }
 #ifdef WITH_WSREP
-      if (!WSREP(requestor_ctx->get_thd()) &&
+      if (false && !WSREP(requestor_ctx->get_thd()) &&
+          requestor_ctx->get_thd()->wsrep_cs().mode() != wsrep::client_state::m_rsu &&
           (ticket == NULL))             /* Incompatible locks are our own. */
 #else
       if (ticket == NULL)             /* Incompatible locks are our own. */
