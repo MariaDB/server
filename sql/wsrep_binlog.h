@@ -51,6 +51,7 @@ void wsrep_dump_rbr_buf_with_header(THD *thd, const void *rbr_buf,
                                     size_t buf_len);
 
 int wsrep_binlog_close_connection(THD* thd);
+uint wsrep_get_trans_cache_position(THD *thd);
 
 /**
    Write a skip event into binlog.

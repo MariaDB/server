@@ -34,6 +34,7 @@ IF(WITH_WSREP AND NOT EMBEDDED_LIBRARY)
     wsrep_thd.cc
     wsrep_thd_pool.cc
     wsrep_schema.cc
+    wsrep_plugin.cc
     service_wsrep.cc
   )
  SET(WSREP_LIB wsrep-lib wsrep_api_v26)
