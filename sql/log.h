@@ -95,9 +95,6 @@ extern PSI_mutex_key key_LOCK_prepare_ordered, key_LOCK_commit_ordered;
 extern PSI_mutex_key key_LOCK_after_binlog_sync;
 extern PSI_cond_key key_COND_prepare_ordered;
 #endif
-#ifdef WITH_WSREP
-int wsrep_thd_binlog_commit(THD *thd, bool all);
-#endif /* WITH_WSREP */
 
 class TC_LOG_DUMMY: public TC_LOG // use it to disable the logging
 {
@@ -105,11 +102,6 @@ public:
   TC_LOG_DUMMY() {}
   int open(const char *opt_name)        { return 0; }
   void close()                          { }
-#ifdef WITH_WSREP
-  int commit(THD *thd, bool all) {
-    return wsrep_thd_binlog_commit(thd, all);
-  }
-#endif /* WITH_WSREP */
   /*
     TC_LOG_DUMMY is only used when there are <= 1 XA-capable engines, and we
     only use internal XA during commit when >= 2 XA-capable engines

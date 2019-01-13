@@ -646,7 +646,7 @@ int Wsrep_schema::store_view(THD* thd, const Wsrep_view& view)
   */
   Wsrep_schema_impl::init_stmt(thd);
   if (Wsrep_schema_impl::open_for_write(thd, cluster_members_str.c_str(),
-					&members_table))
+                                        &members_table))
   {
     WSREP_ERROR("failed to open wsrep.members table");
     goto out;

@@ -2246,7 +2246,7 @@ void wsrep_handle_mdl_conflict(MDL_context *requestor_ctx,
                       request_thd, granted_thd);
         ticket->wsrep_report(true);
         mysql_mutex_unlock(&granted_thd->LOCK_thd_data);
-	unireg_abort(1);
+        unireg_abort(1);
       }
     }
     else if (granted_thd->lex->sql_command == SQLCOM_FLUSH ||

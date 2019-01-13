@@ -1,4 +1,4 @@
-!#
+#
 # This test performs basic checks on the contents of the wsrep_schema
 #
 # wsrep_members_history checks are temporarily disabled until it
