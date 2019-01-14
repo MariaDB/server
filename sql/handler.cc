@@ -1672,7 +1672,7 @@ end:
     thd->mdl_context.release_lock(mdl_request.ticket);
   }
 #ifdef WITH_WSREP
-  if (WSREP(thd) && all && !error && (rw_ha_count > 0))
+  if (WSREP(thd) && all && !error && (rw_ha_count == 0))
   {
     wsrep_commit_empty(thd, all);
   }
