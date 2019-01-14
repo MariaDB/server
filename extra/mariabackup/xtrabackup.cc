@@ -2400,7 +2400,7 @@ check_if_skip_table(
 		tbname = ptr + 1;
 	}
 
-	if (strncmp(tbname, "#sql",4) == 0) {
+	if (strncmp(tbname, tmp_file_prefix, tmp_file_prefix_length) == 0) {
 		return TRUE;
 	}
 
