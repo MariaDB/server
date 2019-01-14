@@ -941,7 +941,7 @@ String *copy_if_not_alloced(String *to,String *from,uint32 from_length)
     (void) from->realloc(from_length);
     return from;
   }
-  if (to->realloc(from_length))
+  if (to->alloc(from_length))
     return from;				// Actually an error
   if ((to->str_length=MY_MIN(from->str_length,from_length)))
     memcpy(to->Ptr,from->Ptr,to->str_length);
