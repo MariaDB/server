@@ -920,5 +920,13 @@ SET sql_mode=DEFAULT;
 
 
 --echo #
+--echo # MDEV-18150 Assertion `decimals_to_set <= 38' failed in Item_func_round::fix_length_and_dec_decimal
+--echo #
+
+CREATE TABLE t1 (i INT(23));
+SELECT ROUND( i, 18446744073709551594 ) AS f FROM t1;
+DROP TABLE t1;
+
+--echo #
 --echo # End of 10.3 tests
 --echo #

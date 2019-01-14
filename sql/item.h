@@ -1249,20 +1249,6 @@ public:
     unsigned_flag to check the sign of the item.
   */
   inline ulonglong val_uint() { return (ulonglong) val_int(); }
-  /*
-    Adjust the result of val_int() to an unsigned number:
-    - NULL value is converted to 0. The caller can check "null_value"
-      to distinguish between 0 and NULL when necessary.
-    - Negative numbers are converted to 0.
-    - Positive numbers bigger than upper_bound are converted to upper_bound.
-    - Other numbers are returned as is.
-  */
-  ulonglong val_uint_from_val_int(ulonglong upper_bound)
-  {
-    longlong nr= val_int();
-    return (null_value || (nr < 0 && !unsigned_flag)) ? 0 :
-           (ulonglong) nr > upper_bound ? upper_bound : (ulonglong) nr;
-  }
 
   /*
     Return string representation of this item object.
