@@ -60,8 +60,8 @@ trx_rseg_update_wsrep_checkpoint(
 	long long xid_seqno = wsrep_xid_seqno(xid);
 	const byte* xid_uuid = wsrep_xid_uuid(xid);
 
-	if (!memcmp(xid_uuid, wsrep_uuid, sizeof wsrep_uuid) &&
-	    xid_seqno != -1) {
+	if (xid_seqno != -1
+	    && !memcmp(xid_uuid, wsrep_uuid, sizeof wsrep_uuid)) {
 		ut_ad(xid_seqno > wsrep_seqno);
 	} else {
 		memcpy(wsrep_uuid, xid_uuid, sizeof wsrep_uuid);

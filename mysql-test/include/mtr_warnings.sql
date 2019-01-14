@@ -229,6 +229,7 @@ INSERT INTO global_suppressions VALUES
    MDEV-12501 -- set --maturity-level by default
  */
  ("Plugin .* is of maturity level .* while the server is .*"),
+
  ("THE_LAST_SUPPRESSION")||
 
 

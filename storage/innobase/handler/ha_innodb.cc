@@ -8207,8 +8207,8 @@ report_error:
 		if (wsrep_append_keys(m_user_thd, WSREP_SERVICE_KEY_EXCLUSIVE,
 				      record,
 				      NULL)) {
- 			DBUG_PRINT("wsrep", ("row key failed"));
- 			error_result = HA_ERR_INTERNAL_ERROR;
+			DBUG_PRINT("wsrep", ("row key failed"));
+			error_result = HA_ERR_INTERNAL_ERROR;
 			goto wsrep_error;
 		}
 	}
@@ -18609,7 +18609,7 @@ wsrep_innobase_kill_one_trx(
 	 * which is already marked as BF victim
 	 * lock_sys is held until this vicitm has aborted
 	 */
-	victim_trx->lock.was_chosen_as_wsrep_victim= TRUE;
+	victim_trx->lock.was_chosen_as_wsrep_victim = TRUE;
 
 	wsrep_thd_UNLOCK(thd);
 	if (wsrep_thd_bf_abort(bf_thd, thd, signal))
@@ -18625,10 +18625,9 @@ wsrep_innobase_kill_one_trx(
 				lock_cancel_waiting_and_release(wait_lock);
 			}
 		}
-	}
-	else {
+	} else {
 		/* victim was not BF aborted, after all */
-		victim_trx->lock.was_chosen_as_wsrep_victim= TRUE;
+		victim_trx->lock.was_chosen_as_wsrep_victim = TRUE;
 	}
 
 	DBUG_RETURN(0);
@@ -18662,9 +18661,7 @@ wsrep_abort_transaction(
 		lock_mutex_exit();
 		wsrep_srv_conc_cancel_wait(victim_trx);
 		DBUG_RETURN(rcode);
-	}
-	else
-	{
+	} else {
 		wsrep_thd_bf_abort(bf_thd, victim_thd, signal);
 	}
 
