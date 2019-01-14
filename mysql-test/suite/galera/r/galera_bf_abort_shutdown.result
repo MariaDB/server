@@ -1,5 +1,8 @@
 connection node_2;
 connection node_1;
+connection node_1;
+connection node_2;
+connection node_1;
 CREATE TABLE t1 (f1 INT PRIMARY KEY);
 connection node_2;
 SET DEBUG_SYNC = 'wsrep_before_certification WAIT_FOR continue';

@@ -1,3 +1,5 @@
+connection node_2;
+connection node_1;
 Performing State Transfer on a server that has been killed and restarted
 connection node_1;
 CREATE TABLE t1 (f1 CHAR(255)) ENGINE=InnoDB;
