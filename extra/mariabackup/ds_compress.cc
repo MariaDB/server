@@ -95,7 +95,7 @@ compress_init(const char *root)
 	/* Create and initialize the worker threads */
 	threads = create_worker_threads(xtrabackup_compress_threads);
 	if (threads == NULL) {
-		msg("compress: failed to create worker threads.\n");
+		msg("compress: failed to create worker threads.");
 		return NULL;
 	}
 
@@ -243,7 +243,7 @@ compress_write(ds_file_t *file, const uchar *buf, size_t len)
 			    write_uint64_le(dest_file,
 					    comp_file->bytes_processed)) {
 				msg("compress: write to the destination stream "
-				    "failed.\n");
+				    "failed.");
 				return 1;
 			}
 
@@ -253,7 +253,7 @@ compress_write(ds_file_t *file, const uchar *buf, size_t len)
 			    ds_write(dest_file, threads[i].to,
 					   threads[i].to_len)) {
 				msg("compress: write to the destination stream "
-				    "failed.\n");
+				    "failed.");
 				return 1;
 			}
 
@@ -367,7 +367,7 @@ create_worker_threads(uint n)
 		if (pthread_create(&thd->id, NULL, compress_worker_thread_func,
 				   thd)) {
 			msg("compress: pthread_create() failed: "
-			    "errno = %d\n", errno);
+			    "errno = %d", errno);
 			goto err;
 		}
 	}

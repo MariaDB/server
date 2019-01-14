@@ -48,7 +48,7 @@ stdout_init(const char *root)
 {
 	ds_ctxt_t *ctxt;
 
-	ctxt = my_malloc(sizeof(ds_ctxt_t), MYF(MY_FAE));
+	ctxt = (ds_ctxt_t *)my_malloc(sizeof(ds_ctxt_t), MYF(MY_FAE));
 
 	ctxt->root = my_strdup(root, MYF(MY_FAE));
 

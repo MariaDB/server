@@ -71,7 +71,7 @@ ds_create(const char *root, ds_type_t type)
 		ds = &datasink_buffer;
 		break;
 	default:
-		msg("Unknown datasink type: %d\n", type);
+		msg("Unknown datasink type: %d", type);
 		xb_ad(0);
 		return NULL;
 	}
@@ -80,7 +80,7 @@ ds_create(const char *root, ds_type_t type)
 	if (ctxt != NULL) {
 		ctxt->datasink = ds;
 	} else {
-		msg("Error: failed to initialize datasink.\n");
+		msg("Error: failed to initialize datasink.");
 		exit(EXIT_FAILURE);
 	}
 

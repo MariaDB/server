@@ -174,9 +174,8 @@ xb_fil_cur_open(
 			/* The following call prints an error message */
 			os_file_get_last_error(TRUE);
 
-			msg("[%02u] mariabackup: error: cannot open "
-			    "tablespace %s\n",
-			    thread_n, cursor->abs_path);
+			msg(thread_n, "mariabackup: error: cannot open "
+			    "tablespace %s", cursor->abs_path);
 
 			return(XB_FIL_CUR_SKIP);
 		}
@@ -217,8 +216,8 @@ xb_fil_cur_open(
 		cursor->statinfo.st_size = (ulonglong)max_file_size;
 	}
 	if (err) {
-		msg("[%02u] mariabackup: error: cannot fstat %s\n",
-		    thread_n, cursor->abs_path);
+		msg(thread_n, "mariabackup: error: cannot fstat %s",
+		    cursor->abs_path);
 
 		xb_fil_cur_close(cursor);
 
@@ -261,8 +260,6 @@ xb_fil_cur_open(
 		}
 		mutex_exit(&fil_system->mutex);
 	}
-
-	/*msg("crypt: %s,%u\n", node->name, node->space->crypt_data->type);*/
 
 	cursor->space_size = (ulint)(cursor->statinfo.st_size
 				     / page_size.physical());
@@ -413,14 +410,8 @@ xb_fil_cur_read(
 	    && offset + to_read == cursor->statinfo.st_size) {
 
 		if (to_read < (ib_int64_t) page_size) {
-			msg("[%02u] mariabackup: Warning: junk at the end of "
-			    "%s:\n", cursor->thread_n, cursor->abs_path);
-			msg("[%02u] mariabackup: Warning: offset = %llu, "
-			    "to_read = %llu\n",
-			    cursor->thread_n,
-			    (unsigned long long) offset,
-			    (unsigned long long) to_read);
-
+			msg(cursor->thread_n, "Warning: junk at the end of "
+			    "%s, offset = %llu, to_read = %llu",cursor->abs_path, (ulonglong) offset, (ulonglong) to_read);
 			return(XB_FIL_CUR_EOF);
 		}
 
@@ -464,20 +455,17 @@ read_retry:
 			retry_count--;
 
 			if (retry_count == 0) {
-				msg("[%02u] mariabackup: "
+				msg(cursor->thread_n,
 				    "Error: failed to read page after "
 				    "10 retries. File %s seems to be "
-				    "corrupted.\n", cursor->thread_n,
-				    cursor->abs_path);
+				    "corrupted.", cursor->abs_path);
 				ret = XB_FIL_CUR_ERROR;
 				buf_page_print(page, cursor->page_size);
 				break;
 			}
-			msg("[%02u] mariabackup: "
-			    "Database page corruption detected at page "
-			    ULINTPF ", retrying...\n", cursor->thread_n,
+			msg(cursor->thread_n, "Database page corruption detected at page "
+			    ULINTPF ", retrying...", 
 			    page_no);
-
 			os_thread_sleep(100000);
 			goto read_retry;
 		}

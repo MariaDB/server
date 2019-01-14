@@ -57,19 +57,19 @@ MYSQL_ADD_EXECUTABLE(mariabackup
   xtrabackup.cc
   innobackupex.cc
   changed_page_bitmap.cc
-  datasink.c
-  ds_buffer.c
-  ds_compress.c
+  datasink.cc
+  ds_buffer.cc
+  ds_compress.cc
   ds_local.cc
-  ds_stdout.c
-  ds_tmpfile.c
-  ds_xbstream.c
+  ds_stdout.cc
+  ds_tmpfile.cc
+  ds_xbstream.cc
   fil_cur.cc
   quicklz/quicklz.c
   read_filt.cc
   write_filt.cc
   wsrep.cc
-  xbstream_write.c
+  xbstream_write.cc
   backup_mysql.cc
   backup_copy.cc
   encryption_plugin.cc
@@ -96,13 +96,13 @@ ENDIF()
 # xbstream binary
 ########################################################################
 MYSQL_ADD_EXECUTABLE(mbstream
-  ds_buffer.c
+  ds_buffer.cc
   ds_local.cc
-  ds_stdout.c
-  datasink.c
-  xbstream.c
-  xbstream_read.c
-  xbstream_write.c
+  ds_stdout.cc
+  datasink.cc
+  xbstream.cc
+  xbstream_read.cc
+  xbstream_write.cc
   COMPONENT backup
   )
 

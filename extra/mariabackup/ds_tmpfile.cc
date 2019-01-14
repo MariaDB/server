@@ -60,7 +60,7 @@ tmpfile_init(const char *root)
 	ds_ctxt_t		*ctxt;
 	ds_tmpfile_ctxt_t	*tmpfile_ctxt;
 
-	ctxt = my_malloc(sizeof(ds_ctxt_t) + sizeof(ds_tmpfile_ctxt_t),
+	ctxt = (ds_ctxt_t *)my_malloc(sizeof(ds_ctxt_t) + sizeof(ds_tmpfile_ctxt_t),
 			 MYF(MY_FAE));
 	tmpfile_ctxt = (ds_tmpfile_ctxt_t *) (ctxt + 1);
 	tmpfile_ctxt->file_list = NULL;
@@ -191,11 +191,11 @@ tmpfile_deinit(ds_ctxt_t *ctxt)
 	/* Walk the files in the order they have been added */
 	list = list_reverse(list);
 	while (list != NULL) {
-		tmp_file = list->data;
+		tmp_file = (ds_tmp_file_t *)list->data;
 		/* Stat the file to replace size and mtime on the original
 		* mystat struct */
 		if (my_fstat(tmp_file->fd, &mystat, MYF(0))) {
-			msg("error: my_fstat() failed.\n");
+			msg("error: my_fstat() failed.");
 			exit(EXIT_FAILURE);
 		}
 		tmp_file->mystat.st_size = mystat.st_size;
@@ -205,7 +205,7 @@ tmpfile_deinit(ds_ctxt_t *ctxt)
 				   &tmp_file->mystat);
 		if (dst_file == NULL) {
 			msg("error: could not stream a temporary file to "
-			    "'%s'\n", tmp_file->orig_path);
+			    "'%s'", tmp_file->orig_path);
 			exit(EXIT_FAILURE);
 		}
 
@@ -213,17 +213,17 @@ tmpfile_deinit(ds_ctxt_t *ctxt)
 		posix_fadvise(tmp_file->fd, 0, 0, POSIX_FADV_SEQUENTIAL);
 		if (my_seek(tmp_file->fd, 0, SEEK_SET, MYF(0)) ==
 		    MY_FILEPOS_ERROR) {
-			msg("error: my_seek() failed for '%s', errno = %d.\n",
+			msg("error: my_seek() failed for '%s', errno = %d.",
 			    tmp_file->file->path, my_errno);
 			exit(EXIT_FAILURE);
 		}
 		offset = 0;
-		while ((bytes = my_read(tmp_file->fd, buf, buf_size,
+		while ((bytes = my_read(tmp_file->fd, (unsigned char *)buf, buf_size,
 					MYF(MY_WME))) > 0) {
 			posix_fadvise(tmp_file->fd, offset, buf_size, POSIX_FADV_DONTNEED);
 			offset += buf_size;
 			if (ds_write(dst_file, buf, bytes)) {
-				msg("error: cannot write to stream for '%s'.\n",
+				msg("error: cannot write to stream for '%s'.",
 				    tmp_file->orig_path);
 				exit(EXIT_FAILURE);
 			}
