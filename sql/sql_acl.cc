@@ -624,7 +624,6 @@ static int acl_user_compare(const ACL_USER *a, const ACL_USER *b);
 static void rebuild_acl_users();
 static int acl_db_compare(const ACL_DB *a, const ACL_DB *b);
 static void rebuild_acl_dbs();
-static ulong get_sort(uint count,...);
 static void init_check_host(void);
 static void rebuild_check_host(void);
 static void rebuild_role_grants(void);
@@ -3980,13 +3979,12 @@ static bool test_if_create_new_users(THD *thd)
 ****************************************************************************/
 
 static int replace_user_table(THD *thd, const User_table &user_table,
-                              LEX_USER *combo,
-                              ulong rights, bool revoke_grant,
-                              bool can_create_user, bool no_auto_create)
+                              LEX_USER * const combo, ulong rights,
+                              const bool revoke_grant, const bool can_create_user,
+                              const bool no_auto_create)
 {
   int error = -1;
   bool old_row_exists=0;
-  char what= (revoke_grant) ? 'N' : 'Y';
   uchar user_key[MAX_KEY_LENGTH];
   bool handle_as_role= combo->is_role();
   LEX *lex= thd->lex;
@@ -4003,11 +4001,9 @@ static int replace_user_table(THD *thd, const User_table &user_table,
            table->key_info->key_length);
 
   if (table->file->ha_index_read_idx_map(table->record[0], 0, user_key,
-                                         HA_WHOLE_KEY,
-                                         HA_READ_KEY_EXACT))
+                                         HA_WHOLE_KEY, HA_READ_KEY_EXACT))
   {
-    /* what == 'N' means revoke */
-    if (what == 'N')
+    if (revoke_grant)
     {
       my_error(ER_NONEXISTING_GRANT, MYF(0), combo->user.str, combo->host.str);
       goto end;
@@ -4220,13 +4216,13 @@ end:
 
 static int replace_db_table(TABLE *table, const char *db,
 			    const LEX_USER &combo,
-			    ulong rights, bool revoke_grant)
+			    ulong rights, const bool revoke_grant)
 {
   uint i;
   ulong priv,store_rights;
   bool old_row_exists=0;
   int error;
-  char what= (revoke_grant) ? 'N' : 'Y';
+  char what= revoke_grant ? 'N' : 'Y';
   uchar user_key[MAX_KEY_LENGTH];
   DBUG_ENTER("replace_db_table");
 
@@ -4255,7 +4251,7 @@ static int replace_db_table(TABLE *table, const char *db,
                                          HA_WHOLE_KEY,
                                          HA_READ_KEY_EXACT))
   {
-    if (what == 'N')
+    if (revoke_grant)
     { // no row, no revoke
       my_error(ER_NONEXISTING_GRANT, MYF(0), combo.user.str, combo.host.str);
       goto abort;
