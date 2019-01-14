@@ -674,16 +674,6 @@ void log_t::files::create(ulint n_files)
   file_size= srv_log_file_size;
   lsn= LOG_START_LSN;
   lsn_offset= LOG_FILE_HDR_SIZE;
-
-  byte* ptr= static_cast<byte*>(ut_zalloc_nokey(LOG_FILE_HDR_SIZE * n_files
-						+ OS_FILE_LOG_BLOCK_SIZE));
-  file_header_bufs_ptr= ptr;
-  ptr= static_cast<byte*>(ut_align(ptr, OS_FILE_LOG_BLOCK_SIZE));
-
-  memset(file_header_bufs, 0, sizeof file_header_bufs);
-
-  for (ulint i = 0; i < n_files; i++, ptr += LOG_FILE_HDR_SIZE)
-    file_header_bufs[i] = ptr;
 }
 
 /******************************************************//**
@@ -696,7 +686,6 @@ log_file_header_flush(
 	lsn_t		start_lsn)	/*!< in: log file data starts at this
 					lsn */
 {
-	byte*	buf;
 	lsn_t	dest_offset;
 
 	ut_ad(log_write_mutex_own());
@@ -705,9 +694,10 @@ log_file_header_flush(
 	ut_ad((log_sys.log.format & ~LOG_HEADER_FORMAT_ENCRYPTED)
 	      == LOG_HEADER_FORMAT_CURRENT);
 
-	buf = log_sys.log.file_header_bufs[nth_file];
+	// man 2 open suggests this buffer to be aligned by 512 for O_DIRECT
+	MY_ALIGNED(OS_FILE_LOG_BLOCK_SIZE)
+	byte buf[OS_FILE_LOG_BLOCK_SIZE] = {0};
 
-	memset(buf, 0, OS_FILE_LOG_BLOCK_SIZE);
 	mach_write_to_4(buf + LOG_HEADER_FORMAT, log_sys.log.format);
 	mach_write_to_4(buf + LOG_HEADER_SUBFORMAT, log_sys.log.subformat);
 	mach_write_to_8(buf + LOG_HEADER_START_LSN, start_lsn);
