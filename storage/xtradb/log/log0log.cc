@@ -946,9 +946,7 @@ log_init(void)
 	log_sys->check_flush_or_checkpoint = TRUE;
 	UT_LIST_INIT(log_sys->log_groups);
 
-	log_sys->n_log_ios = 0;
-
-	log_sys->n_log_ios_old = log_sys->n_log_ios;
+	log_sys->n_log_ios_old = MONITOR_VALUE(MONITOR_LOG_IO);
 	log_sys->last_printout_time = time(NULL);
 	/*----------------------------*/
 
@@ -1342,8 +1340,6 @@ log_group_file_header_flush(
 	}
 #endif /* UNIV_DEBUG */
 	if (log_do_write) {
-		log_sys->n_log_ios++;
-
 		MONITOR_INC(MONITOR_LOG_IO);
 
 		srv_stats.os_log_pending_writes.inc();
@@ -1469,8 +1465,6 @@ loop:
 	}
 
 	if (log_do_write) {
-		log_sys->n_log_ios++;
-
 		MONITOR_INC(MONITOR_LOG_IO);
 
 		srv_stats.os_log_pending_writes.inc();
@@ -2056,8 +2050,6 @@ log_group_checkpoint(
 		log_sys->n_pending_checkpoint_writes++;
 		MONITOR_INC(MONITOR_PENDING_CHECKPOINT_WRITE);
 
-		log_sys->n_log_ios++;
-
 		MONITOR_INC(MONITOR_LOG_IO);
 
 		/* We send as the last parameter the group machine address
@@ -2141,8 +2133,6 @@ log_group_read_checkpoint_info(
 	ulint		field)	/*!< in: LOG_CHECKPOINT_1 or LOG_CHECKPOINT_2 */
 {
 	ut_ad(mutex_own(&(log_sys->mutex)));
-
-	log_sys->n_log_ios++;
 
 	MONITOR_INC(MONITOR_LOG_IO);
 
@@ -2519,8 +2509,6 @@ loop:
 	}
 #endif /* UNIV_LOG_ARCHIVE */
 
-	log_sys->n_log_ios++;
-
 	MONITOR_INC(MONITOR_LOG_IO);
 
 	ut_a(source_offset / UNIV_PAGE_SIZE <= ULINT_MAX);
@@ -2653,8 +2641,6 @@ log_group_archive_file_header_write(
 
 	dest_offset = nth_file * group->file_size;
 
-	log_sys->n_log_ios++;
-
 	MONITOR_INC(MONITOR_LOG_IO);
 
 	fil_io(OS_FILE_WRITE | OS_FILE_LOG, true, group->archive_space_id,
@@ -2688,8 +2674,6 @@ log_group_archive_completed_header_write(
 	mach_write_to_8(buf + LOG_FILE_END_LSN, end_lsn);
 
 	dest_offset = nth_file * group->file_size + LOG_FILE_ARCH_COMPLETED;
-
-	log_sys->n_log_ios++;
 
 	MONITOR_INC(MONITOR_LOG_IO);
 
@@ -2826,8 +2810,6 @@ loop:
 #endif /* UNIV_DEBUG */
 
 	log_sys->n_pending_archive_ios++;
-
-	log_sys->n_log_ios++;
 
 	MONITOR_INC(MONITOR_LOG_IO);
 
@@ -3905,13 +3887,15 @@ log_print(
 		time_elapsed = 1;
 	}
 
+	size_t n_log_ios = MONITOR_VALUE(MONITOR_LOG_IO);
+
 	fprintf(file,
 		"%lu pending log writes, %lu pending chkp writes\n"
 		"%lu log i/o's done, %.2f log i/o's/second\n",
 		(ulong) log_sys->n_pending_writes,
 		(ulong) log_sys->n_pending_checkpoint_writes,
-		(ulong) log_sys->n_log_ios,
-		((double)(log_sys->n_log_ios - log_sys->n_log_ios_old)
+		(ulong) n_log_ios,
+		((double)(n_log_ios - log_sys->n_log_ios_old)
 		 / time_elapsed));
 
 	if (srv_track_changed_pages) {
@@ -3926,7 +3910,7 @@ log_print(
 			log_sys->max_checkpoint_age);
 	}
 
-	log_sys->n_log_ios_old = log_sys->n_log_ios;
+	log_sys->n_log_ios_old = n_log_ios;
 	log_sys->last_printout_time = current_time;
 
 	//mutex_exit(&(log_sys->mutex));
@@ -3939,7 +3923,7 @@ void
 log_refresh_stats(void)
 /*===================*/
 {
-	log_sys->n_log_ios_old = log_sys->n_log_ios;
+	log_sys->n_log_ios_old = MONITOR_VALUE(MONITOR_LOG_IO);
 	log_sys->last_printout_time = time(NULL);
 }
 

@@ -938,8 +938,6 @@ struct log_t{
 					when this is set;
 					os_event_set() and os_event_reset()
 					are protected by log_sys_t::mutex */
-	ulint		n_log_ios;	/*!< number of log i/os initiated thus
-					far */
 	ulint		n_log_ios_old;	/*!< number of log i/o's at the
 					previous printout */
 	time_t		last_printout_time;/*!< when log_print was last time
