@@ -1477,6 +1477,9 @@ struct buf_page_t{
 
 	ib_uint32_t	space;		/*!< tablespace id. */
 	ib_uint32_t	offset;		/*!< page number. */
+	buf_page_t*	hash;		/*!< node used in chaining to
+					buf_pool->page_hash or
+					buf_pool->zip_hash */
 	/** count of how manyfold this block is currently bufferfixed */
 #ifdef PAGE_ATOMIC_REF_COUNT
 	ib_uint32_t	buf_fix_count;
@@ -1530,9 +1533,6 @@ struct buf_page_t{
 					zip.data == NULL means an active
 					buf_pool->watch */
 #ifndef UNIV_HOTBACKUP
-	buf_page_t*	hash;		/*!< node used in chaining to
-					buf_pool->page_hash or
-					buf_pool->zip_hash */
 #ifdef UNIV_DEBUG
 	ibool		in_page_hash;	/*!< TRUE if in buf_pool->page_hash */
 	ibool		in_zip_hash;	/*!< TRUE if in buf_pool->zip_hash */

@@ -238,7 +238,9 @@ struct fil_node_t {
 struct fil_space_t {
 	char*		name;	/*!< space name = the path to the first file in
 				it */
+	hash_node_t	name_hash;/*!< hash chain the name_hash table */
 	ulint		id;	/*!< space id */
+	hash_node_t	hash;	/*!< hash chain node */
 	ib_int64_t	tablespace_version;
 				/*!< in DISCARD/IMPORT this timestamp
 				is used to check if we should ignore
@@ -285,8 +287,6 @@ struct fil_space_t {
 				trying to read a block.
 				Dropping of the tablespace is forbidden
 				if this is positive */
-	hash_node_t	hash;	/*!< hash chain node */
-	hash_node_t	name_hash;/*!< hash chain the name_hash table */
 #ifndef UNIV_HOTBACKUP
 	prio_rw_lock_t	latch;	/*!< latch protecting the file space storage
 				allocation */
