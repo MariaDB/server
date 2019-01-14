@@ -535,7 +535,6 @@ extern uint	srv_sys_space_size_debug;
 extern bool	srv_log_files_created;
 #endif /* UNIV_DEBUG */
 
-#define SRV_SEMAPHORE_WAIT_EXTENSION	7200
 extern ulint	srv_dml_needed_delay;
 
 #define SRV_MAX_N_IO_THREADS	130

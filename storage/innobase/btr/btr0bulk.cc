@@ -1044,6 +1044,6 @@ BtrBulk::finish(dberr_t	err)
 
 	ut_ad(!sync_check_iterate(dict_sync_check()));
 
-	ut_ad(err != DB_SUCCESS || btr_validate_index(m_index, NULL, false));
+	ut_ad(err != DB_SUCCESS || btr_validate_index(m_index, NULL));
 	return(err);
 }

@@ -642,7 +642,6 @@ struct rw_lock_t
 	}
 
 	virtual std::string to_string() const;
-	virtual std::string locked_from() const;
 
 	/** For checking memory corruption. */
 	ulint		magic_n;

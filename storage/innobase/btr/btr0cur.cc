@@ -3,7 +3,7 @@
 Copyright (c) 1994, 2018, Oracle and/or its affiliates. All Rights Reserved.
 Copyright (c) 2008, Google Inc.
 Copyright (c) 2012, Facebook Inc.
-Copyright (c) 2015, 2018, MariaDB Corporation.
+Copyright (c) 2015, 2019, MariaDB Corporation.
 
 Portions of this file contain modifications contributed and copyrighted by
 Google, Inc. Those modifications are gratefully acknowledged and are described
@@ -486,7 +486,7 @@ incompatible:
 			always written with zero length. The DB_TRX_ID will
 			start right after any fixed-length columns. */
 			for (uint i = index->n_uniq; i--; ) {
-				trx_id_offset += index->fields[0].fixed_len;
+				trx_id_offset += index->fields[i].fixed_len;
 			}
 		}
 
@@ -3693,16 +3693,15 @@ btr_cur_pessimistic_insert(
 		}
 	}
 
-	DBUG_ASSERT(!entry->is_alter_metadata()
-		    || !dfield_is_ext(
-			    dtuple_get_nth_field(entry,
-						 index->first_user_field())));
-
 	if (page_zip_rec_needs_ext(rec_get_converted_size(index, entry, n_ext),
 				   index->table->not_redundant(),
 				   dtuple_get_n_fields(entry),
 				   btr_cur_get_block(cursor)->page.size)
-	    || UNIV_UNLIKELY(entry->is_alter_metadata())) {
+	    || UNIV_UNLIKELY(entry->is_alter_metadata()
+			     && !dfield_is_ext(
+				     dtuple_get_nth_field(
+					     entry,
+					     index->first_user_field())))) {
 		/* The record is so big that we have to store some fields
 		externally on separate database pages */
 
@@ -3777,8 +3776,8 @@ btr_cur_pessimistic_insert(
 		if (entry->info_bits & REC_INFO_MIN_REC_FLAG) {
 			ut_ad(entry->is_metadata());
 			ut_ad(index->is_instant());
-			ut_ad((flags & ulint(~BTR_KEEP_IBUF_BITMAP))
-			      == BTR_NO_LOCKING_FLAG);
+			ut_ad(flags & BTR_NO_LOCKING_FLAG);
+			ut_ad(!(flags & BTR_CREATE_FLAG));
 		} else {
 			btr_search_update_hash_on_insert(
 				cursor, btr_get_search_latch(index));

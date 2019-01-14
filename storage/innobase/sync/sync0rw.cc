@@ -1156,10 +1156,10 @@ rw_lock_debug_print(
 	fprintf(f, "\n");
 }
 
-/** Print where it was locked from
+/** Print the rw-lock information.
 @return the string representation */
 std::string
-rw_lock_t::locked_from() const
+rw_lock_t::to_string() const
 {
 	/* Note: For X locks it can be locked form multiple places because
 	the same thread can call X lock recursively. */
@@ -1168,6 +1168,11 @@ rw_lock_t::locked_from() const
 	bool			written = false;
 
 	ut_ad(rw_lock_validate(this));
+
+	msg << "RW-LATCH: "
+	    << "thread id " << os_thread_pf(os_thread_get_curr_id())
+	    << " addr: " << this
+	    << " Locked from: ";
 
 	rw_lock_debug_mutex_enter();
 
@@ -1188,21 +1193,6 @@ rw_lock_t::locked_from() const
 	}
 
 	rw_lock_debug_mutex_exit();
-
-	return(msg.str());
-}
-
-/** Print the rw-lock information.
-@return the string representation */
-std::string
-rw_lock_t::to_string() const
-{
-	std::ostringstream	msg;
-
-	msg << "RW-LATCH: "
-	    << "thread id " << os_thread_pf(os_thread_get_curr_id())
-	    << " addr: " << this
-	    << " Locked from: " << locked_from().c_str();
 
 	return(msg.str());
 }

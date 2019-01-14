@@ -645,15 +645,18 @@ dup_dropped:
 			       * sizeof *instant->dropped);
 		}
 
+		const field_map_element_t* field_map = old_instant
+			? old_instant->field_map : NULL;
+
 		init_instant<true>(table);
 
 		if (!metadata_changed) {
-			metadata_changed = !old_instant
-				|| memcmp(old_instant->field_map,
+			metadata_changed = !field_map
+				|| memcmp(field_map,
 					  instant->field_map,
 					  (index->n_fields
 					   - index->first_user_field())
-					  * sizeof *old_instant->field_map);
+					  * sizeof *field_map);
 		}
 	}
 

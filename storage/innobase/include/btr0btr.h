@@ -804,8 +804,7 @@ dberr_t
 btr_validate_index(
 /*===============*/
 	dict_index_t*	index,	/*!< in: index */
-	const trx_t*	trx,	/*!< in: transaction or 0 */
-	bool		lockout)/*!< in: true if X-latch index is intended */
+	const trx_t*	trx)	/*!< in: transaction or 0 */
 	MY_ATTRIBUTE((warn_unused_result));
 
 /*************************************************************//**
@@ -853,5 +852,6 @@ btr_lift_page_up(
 /****************************************************************
 Global variable controlling if scrubbing should be performed */
 extern my_bool srv_immediate_scrub_data_uncompressed;
+extern Atomic_counter<uint32_t> btr_validate_index_running;
 
 #endif

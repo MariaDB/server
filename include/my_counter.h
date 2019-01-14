@@ -28,6 +28,8 @@ template <typename Type> class Atomic_counter
   Type sub(Type i) { return m_counter.fetch_sub(i, std::memory_order_relaxed); }
 
 public:
+  Atomic_counter(const Atomic_counter<Type> &rhs)
+  { m_counter.store(rhs, std::memory_order_relaxed); }
   Atomic_counter(Type val): m_counter(val) {}
   Atomic_counter() {}
 

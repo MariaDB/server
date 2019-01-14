@@ -14493,20 +14493,9 @@ ha_innobase::check(
 
 		if (!(check_opt->flags & T_QUICK)
 		    && !index->is_corrupted()) {
-			/* Enlarge the fatal lock wait timeout during
-			CHECK TABLE. */
-			my_atomic_addlong(
-				&srv_fatal_semaphore_wait_threshold,
-				SRV_SEMAPHORE_WAIT_EXTENSION);
 
 			dberr_t err = btr_validate_index(
-					index, m_prebuilt->trx, false);
-
-			/* Restore the fatal lock wait timeout after
-			CHECK TABLE. */
-			my_atomic_addlong(
-				&srv_fatal_semaphore_wait_threshold,
-				-SRV_SEMAPHORE_WAIT_EXTENSION);
+					index, m_prebuilt->trx);
 
 			if (err != DB_SUCCESS) {
 				is_ok = false;

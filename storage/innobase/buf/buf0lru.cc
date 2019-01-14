@@ -2459,7 +2459,7 @@ buf_LRU_print_instance(
 
 		if (bpage->buf_fix_count) {
 			fprintf(stderr, "buffix count %u ",
-				bpage->buf_fix_count);
+				uint32_t(bpage->buf_fix_count));
 		}
 
 		if (buf_page_get_io_fix(bpage)) {

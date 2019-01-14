@@ -44,6 +44,8 @@ Created 6/2/1994 Heikki Tuuri
 #include "dict0boot.h"
 #include "row0sel.h" /* row_search_max_autoinc() */
 
+Atomic_counter<uint32_t> btr_validate_index_running;
+
 /**************************************************************//**
 Checks if the page in the cursor can be merged with given page.
 If necessary, re-organize the merge_page.
@@ -4641,7 +4643,7 @@ btr_print_index(
 
 	mtr_commit(&mtr);
 
-	ut_ad(btr_validate_index(index, 0, false));
+	ut_ad(btr_validate_index(index, 0));
 }
 #endif /* UNIV_BTR_PRINT */
 
@@ -5462,68 +5464,20 @@ node_ptr_fails:
 }
 
 /**************************************************************//**
-Do an index level validation of spaital index tree.
-@return	true if no error found */
-static
-bool
-btr_validate_spatial_index(
-/*=======================*/
-	dict_index_t*	index,	/*!< in: index */
-	const trx_t*	trx)	/*!< in: transaction or NULL */
-{
-
-	mtr_t	mtr;
-	bool	ok = true;
-
-	mtr_start(&mtr);
-
-	mtr_x_lock(dict_index_get_lock(index), &mtr);
-
-	page_t*	root = btr_root_get(index, &mtr);
-	ulint	n = btr_page_get_level(root);
-
-#ifdef UNIV_RTR_DEBUG
-	fprintf(stderr, "R-tree level is %lu\n", n);
-#endif /* UNIV_RTR_DEBUG */
-
-	for (ulint i = 0; i <= n; ++i) {
-#ifdef UNIV_RTR_DEBUG
-		fprintf(stderr, "Level %lu:\n", n - i);
-#endif /* UNIV_RTR_DEBUG */
-
-		if (!btr_validate_level(index, trx, n - i, true)) {
-			ok = false;
-			break;
-		}
-	}
-
-	mtr_commit(&mtr);
-
-	return(ok);
-}
-
-/**************************************************************//**
 Checks the consistency of an index tree.
 @return	DB_SUCCESS if ok, error code if not */
 dberr_t
 btr_validate_index(
 /*===============*/
 	dict_index_t*	index,	/*!< in: index */
-	const trx_t*	trx,	/*!< in: transaction or NULL */
-	bool		lockout)/*!< in: true if X-latch index is intended */
+	const trx_t*	trx)	/*!< in: transaction or NULL */
 {
 	dberr_t err = DB_SUCCESS;
+	bool lockout = dict_index_is_spatial(index);
 
 	/* Full Text index are implemented by auxiliary tables,
 	not the B-tree */
 	if (dict_index_is_online_ddl(index) || (index->type & DICT_FTS)) {
-		return(err);
-	}
-
-	if (dict_index_is_spatial(index)) {
-		if(!btr_validate_spatial_index(index, trx)) {
-			err = DB_ERROR;
-		}
 		return(err);
 	}
 
@@ -5541,14 +5495,14 @@ btr_validate_index(
 
 	page_t*	root = btr_root_get(index, &mtr);
 
-	if (root == NULL && !index->is_readable()) {
-		err = DB_DECRYPTION_FAILED;
+	if (!root) {
 		mtr_commit(&mtr);
-		return err;
+		return DB_CORRUPTION;
 	}
 
 	ulint	n = btr_page_get_level(root);
 
+	btr_validate_index_running++;
 	for (ulint i = 0; i <= n; ++i) {
 
 		if (!btr_validate_level(index, trx, n - i, lockout)) {
@@ -5558,6 +5512,14 @@ btr_validate_index(
 	}
 
 	mtr_commit(&mtr);
+	/* In theory we need release barrier here, so that
+	btr_validate_index_running decrement is guaranteed to
+	happen after latches are released.
+
+	Original code issued SEQ_CST on update and non-atomic
+	access on load. Which means it had broken synchronisation
+	as well. */
+	btr_validate_index_running--;
 
 	return(err);
 }
