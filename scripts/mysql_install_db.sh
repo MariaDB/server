@@ -36,6 +36,9 @@ in_rpm=0
 ip_only=0
 cross_bootstrap=0
 
+dirname0=`dirname $0 2>/dev/null`
+dirname0=`dirname $dirname0 2>/dev/null`
+
 usage()
 {
   cat <<EOF
@@ -253,9 +256,9 @@ then
     cannot_find_file my_print_defaults $basedir/bin $basedir/extra
     exit 1
   fi
-elif test -x "$(dirname $0)/../@bindir@/my_print_defaults"
+elif test -n "$dirname0" -a -x "$dirname0/@bindir@/my_print_defaults"
 then
-  print_defaults="$(dirname $0)/../@bindir@/my_print_defaults"
+  print_defaults="$dirname0/@bindir@/my_print_defaults"
 else
   print_defaults="@bindir@/my_print_defaults"
 fi
@@ -308,9 +311,9 @@ then
     exit 1
   fi
 # relative from where the script was run for a relocatable install
-elif test -x "$(dirname $0)/../@INSTALL_SBINDIR@/mysqld"
+elif test -n "$dirname0" -a -x "$dirname0/@INSTALL_SBINDIR@/mysqld"
 then
-  basedir="$(dirname $0)/../"
+  basedir="$dirname0"
   bindir="$basedir/@INSTALL_SBINDIR@"
   resolveip="$bindir/resolveip"
   mysqld="$basedir/@INSTALL_SBINDIR@/mysqld"
