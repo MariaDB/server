@@ -772,6 +772,7 @@ void init_update_queries(void)
   sql_command_flags[SQLCOM_ALTER_SERVER]=       CF_AUTO_COMMIT_TRANS;
   sql_command_flags[SQLCOM_DROP_SERVER]=        CF_AUTO_COMMIT_TRANS;
   sql_command_flags[SQLCOM_BACKUP]=             CF_AUTO_COMMIT_TRANS;
+  sql_command_flags[SQLCOM_BACKUP_LOCK]=        0;
 
   /*
     The following statements can deal with temporary tables,
@@ -5231,6 +5232,17 @@ end_with_restore_list:
     if (check_global_access(thd, RELOAD_ACL))
       goto error;
     if (!(res= run_backup_stage(thd, lex->backup_stage)))
+      my_ok(thd);
+    break;
+  case SQLCOM_BACKUP_LOCK:
+    if (check_global_access(thd, RELOAD_ACL))
+      goto error;
+    /* first table is set for lock. For unlock the list is empty */
+    if (first_table)
+      res= backup_lock(thd, first_table);
+    else
+      backup_unlock(thd);
+    if (!res)
       my_ok(thd);
     break;
   case SQLCOM_CREATE_DB:

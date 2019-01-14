@@ -667,6 +667,7 @@ THD::THD(my_thread_id id, bool is_wsrep_applier, bool skip_global_sys_var_lock)
   main_da.init();
 
   mdl_context.init(this);
+  mdl_backup_lock= 0;
 
   /*
     Pass nominal parameters to init_alloc_root only to ensure that
@@ -1488,6 +1489,8 @@ void THD::cleanup(void)
   mdl_context.release_transactional_locks();
 
   backup_end(this);
+  backup_unlock(this);
+
   /* Release the global read lock, if acquired. */
   if (global_read_lock.is_acquired())
     global_read_lock.unlock_global_read_lock(this);
