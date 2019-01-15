@@ -831,7 +831,6 @@ std::string wsrep_sst_prepare()
     }
   }
 
-  size_t const method_len(strlen(method));
   std::string ret;
   ret += method;
   ret.push_back('\0');
