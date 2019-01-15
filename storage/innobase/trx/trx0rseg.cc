@@ -43,6 +43,33 @@ static long long wsrep_seqno = -1;
 /** The latest known WSREP XID UUID */
 static unsigned char wsrep_uuid[16];
 
+/** Write the WSREP XID information into rollback segment header.
+@param[in,out]	rseg_header	rollback segment header
+@param[in]	xid		WSREP XID
+@param[in,out]	mtr		mini transaction */
+static void
+trx_rseg_write_wsrep_checkpoint(
+	trx_rsegf_t*	rseg_header,
+	const XID*	xid,
+	mtr_t*		mtr)
+{
+	mlog_write_ulint(TRX_RSEG_WSREP_XID_FORMAT + rseg_header,
+			 uint32_t(xid->formatID),
+			 MLOG_4BYTES, mtr);
+
+	mlog_write_ulint(TRX_RSEG_WSREP_XID_GTRID_LEN + rseg_header,
+			 uint32_t(xid->gtrid_length),
+			 MLOG_4BYTES, mtr);
+
+	mlog_write_ulint(TRX_RSEG_WSREP_XID_BQUAL_LEN + rseg_header,
+			 uint32_t(xid->bqual_length),
+			 MLOG_4BYTES, mtr);
+
+	mlog_write_string(TRX_RSEG_WSREP_XID_DATA + rseg_header,
+			  reinterpret_cast<const byte*>(xid->data),
+			  XIDDATASIZE, mtr);
+}
+
 /** Update the WSREP XID information in rollback segment header.
 @param[in,out]	rseg_header	rollback segment header
 @param[in]	xid		WSREP XID
@@ -68,22 +95,7 @@ trx_rseg_update_wsrep_checkpoint(
 	}
 	wsrep_seqno = xid_seqno;
 #endif /* UNIV_DEBUG */
-
-	mlog_write_ulint(TRX_RSEG_WSREP_XID_FORMAT + rseg_header,
-			 uint32_t(xid->formatID),
-			 MLOG_4BYTES, mtr);
-
-	mlog_write_ulint(TRX_RSEG_WSREP_XID_GTRID_LEN + rseg_header,
-			 uint32_t(xid->gtrid_length),
-			 MLOG_4BYTES, mtr);
-
-	mlog_write_ulint(TRX_RSEG_WSREP_XID_BQUAL_LEN + rseg_header,
-			 uint32_t(xid->bqual_length),
-			 MLOG_4BYTES, mtr);
-
-	mlog_write_string(TRX_RSEG_WSREP_XID_DATA + rseg_header,
-			  reinterpret_cast<const byte*>(xid->data),
-			  XIDDATASIZE, mtr);
+	trx_rseg_write_wsrep_checkpoint(rseg_header, xid, mtr);
 }
 
 /** Update WSREP checkpoint XID in first rollback segment header
@@ -98,6 +110,13 @@ void trx_rseg_update_wsrep_checkpoint(const XID* xid)
 	mtr_t	mtr;
 	mtr.start();
 
+	const byte* xid_uuid = wsrep_xid_uuid(xid);
+	/* We must make check against wsrep_uuid here, the
+	trx_rseg_update_wsrep_checkpoint() writes over wsrep_uuid with
+	xid contents in debug mode and the memcmp() will never give nonzero
+	result. */
+	const bool must_clear_rsegs = memcmp(wsrep_uuid, xid_uuid,
+					     sizeof wsrep_uuid);
 	const trx_rseg_t* rseg = trx_sys.rseg_array[0];
 
 	trx_rsegf_t* rseg_header = trx_rsegf_get(rseg->space, rseg->page_no,
@@ -108,10 +127,11 @@ void trx_rseg_update_wsrep_checkpoint(const XID* xid)
 
 	trx_rseg_update_wsrep_checkpoint(rseg_header, xid, &mtr);
 
-	const byte* xid_uuid = wsrep_xid_uuid(xid);
-	if (memcmp(wsrep_uuid, xid_uuid, sizeof wsrep_uuid)) {
+	if (must_clear_rsegs) {
+		XID null_xid;
+		memset(&null_xid, 0, sizeof null_xid);
+		null_xid.null();
 		memcpy(wsrep_uuid, xid_uuid, sizeof wsrep_uuid);
-
 		/* Because the UUID part of the WSREP XID differed
 		from current_xid_uuid, the WSREP group UUID was
 		changed, and we must reset the XID in all rollback
@@ -119,10 +139,12 @@ void trx_rseg_update_wsrep_checkpoint(const XID* xid)
 		for (ulint rseg_id = 1; rseg_id < TRX_SYS_N_RSEGS; ++rseg_id) {
 			if (const trx_rseg_t* rseg =
 			    trx_sys.rseg_array[rseg_id]) {
-				trx_rseg_update_wsrep_checkpoint(
+				trx_rseg_write_wsrep_checkpoint(
 					trx_rsegf_get(rseg->space,
-						      rseg->page_no, &mtr),
-					xid, &mtr);
+						      rseg->page_no,
+						      &mtr),
+					&null_xid,
+				        &mtr);
 			}
 		}
 	}

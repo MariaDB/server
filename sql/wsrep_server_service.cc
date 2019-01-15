@@ -174,14 +174,21 @@ void Wsrep_server_service::log_view(
   {
     if (applier)
     {
+      Wsrep_id id;
+      Wsrep_view prev_view= wsrep_schema->restore_view(applier->m_thd, id);
+      if (prev_view.state_id().id() != view.state_id().id())
+      {
+        WSREP_DEBUG("New cluster UUID was generated, resetting position info");
+        wsrep_set_SE_checkpoint(wsrep::gtid::undefined());
+      }
+
       if (wsrep_debug)
       {
         std::ostringstream os;
         os << "Storing cluster view:\n" << view;
         WSREP_INFO("%s", os.str().c_str());
-        Wsrep_id id;
-        Wsrep_view prev_view(wsrep_schema->restore_view(applier->m_thd, id));
-        assert(view.state_id().seqno() > prev_view.state_id().seqno());
+        DBUG_ASSERT(prev_view.state_id().id() != view.state_id().id() ||
+                    view.state_id().seqno() > prev_view.state_id().seqno());
       }
 
       if (trans_begin(applier->m_thd, MYSQL_START_TRANS_OPT_READ_WRITE))
@@ -209,11 +216,8 @@ void Wsrep_server_service::log_view(
         applier->m_thd->mdl_context.release_transactional_locks();
       }
 
-      if (m_server_state.provider().last_committed_gtid().seqno() !=
-          view.state_id().seqno())
-      {
-        wsrep_set_SE_checkpoint(view.state_id());
-      }
+      wsrep_set_SE_checkpoint(view.state_id());
+      DBUG_ASSERT(wsrep_get_SE_checkpoint().id() == view.state_id().id());
     }
     else
     {
@@ -229,6 +233,11 @@ wsrep::view Wsrep_server_service::get_view(wsrep::client_service& c,
   Wsrep_client_service& cs(static_cast<Wsrep_client_service&>(c));
   wsrep::view v(wsrep_schema->restore_view(cs.m_thd, own_id));
   return v;
+}
+
+wsrep::gtid Wsrep_server_service::get_position(wsrep::client_service&)
+{
+  return wsrep_get_SE_checkpoint();
 }
 
 void Wsrep_server_service::log_state_change(
