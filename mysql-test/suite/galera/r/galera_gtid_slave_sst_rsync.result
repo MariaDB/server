@@ -123,6 +123,7 @@ DROP TABLE t2,t1;
 #Connection 2
 STOP SLAVE;
 RESET SLAVE ALL;
+set global gtid_slave_pos="";
 reset master;
 #Connection 3
 reset master;
