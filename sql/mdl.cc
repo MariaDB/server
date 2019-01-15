@@ -1781,7 +1781,7 @@ MDL_lock::can_grant_lock(enum_mdl_type type_arg,
 #endif /* WITH_WSREP */
       }
 #ifdef WITH_WSREP
-      if (false && !WSREP(requestor_ctx->get_thd()) &&
+      if (!WSREP(requestor_ctx->get_thd()) &&
           requestor_ctx->get_thd()->wsrep_cs().mode() != wsrep::client_state::m_rsu &&
           (ticket == NULL))             /* Incompatible locks are our own. */
 #else
