@@ -192,7 +192,6 @@ os_mem_free_large(
 		ut_a(ut_total_allocated_memory >= size);
 		ut_total_allocated_memory -= size;
 		os_fast_mutex_unlock(&ut_list_mutex);
-		UNIV_MEM_FREE(ptr, size);
 		return;
 	}
 #endif /* HAVE_LARGE_PAGES && UNIV_LINUX */
@@ -208,7 +207,6 @@ os_mem_free_large(
 		ut_a(ut_total_allocated_memory >= size);
 		ut_total_allocated_memory -= size;
 		os_fast_mutex_unlock(&ut_list_mutex);
-		UNIV_MEM_FREE(ptr, size);
 	}
 #elif !defined OS_MAP_ANON
 	ut_free(ptr);
@@ -226,7 +224,6 @@ os_mem_free_large(
 		ut_a(ut_total_allocated_memory >= size);
 		ut_total_allocated_memory -= size;
 		os_fast_mutex_unlock(&ut_list_mutex);
-		UNIV_MEM_FREE(ptr, size);
 	}
 #endif
 }
