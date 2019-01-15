@@ -53,7 +53,6 @@ query_cache : MDEV-18137: Galera test failure on query_cache
 galera.galera_autoinc_sst_mariabackup : MDEV-18177 Galera test failure on galera_autoinc_sst_mariabackup
 galera_gcache_recover_manytrx : MDEV-15740
 galera.galera_ist_mariabackup : Leaves port open
-galera.galera_autoinc_sst_mariabackup : MDEV-18177 Galera test failure on galera_autoinc_sst_mariabackup
 galera.galera_sst_rsync2 : MDEV-18178 Galera test failure on galera_sst_rsync2
 galera.galera_kill_largechanges : MDEV-18179 Galera test failure on galera.galera_kill_largechanges
 galera.galera_concurrent_ctas : MDEV-18180 Galera test failure on galera.galera_concurrent_ctas
