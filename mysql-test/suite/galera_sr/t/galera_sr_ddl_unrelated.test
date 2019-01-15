@@ -23,13 +23,13 @@ INSERT INTO t1 VALUES (5, 5);
 SET SESSION TRANSACTION ISOLATION LEVEL READ UNCOMMITTED;
 --let $wait_condition = SELECT COUNT(*) > 0 FROM t1;
 --source include/wait_condition.inc
-SELECT COUNT(*) > 0 FROM wsrep_schema.SR;
+SELECT COUNT(*) > 0 FROM mysql.wsrep_streaming_log;
 
 ALTER TABLE t2 DROP COLUMN f2;
 
 # SR applied before the DDL is still visible
 SELECT COUNT(*) = 5 FROM t1;
-SELECT COUNT(*) > 0 FROM wsrep_schema.SR;
+SELECT COUNT(*) > 0 FROM mysql.wsrep_streaming_log;
 
 --connection node_1
 
@@ -43,11 +43,11 @@ INSERT INTO t1 VALUES (6, 6);
 
 --connection node_1
 COMMIT;
-SELECT COUNT(*) = 0 FROM wsrep_schema.SR;
+SELECT COUNT(*) = 0 FROM mysql.wsrep_streaming_log;
 
 --connection node_2
 SELECT COUNT(*) = 6 FROM t1;
-SELECT COUNT(*) = 0 FROM wsrep_schema.SR;
+SELECT COUNT(*) = 0 FROM mysql.wsrep_streaming_log;
 
 DROP TABLE t1;
 DROP TABLE t2;

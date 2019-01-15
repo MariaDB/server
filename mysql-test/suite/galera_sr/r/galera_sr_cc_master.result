@@ -12,11 +12,11 @@ INSERT INTO t1 VALUES (2);
 INSERT INTO t1 VALUES (3);
 INSERT INTO t1 VALUES (4);
 INSERT INTO t1 VALUES (5);
-SELECT COUNT(*) > 0 FROM wsrep_schema.SR;
+SELECT COUNT(*) > 0 FROM mysql.wsrep_streaming_log;
 COUNT(*) > 0
 1
 connection node_1;
-SELECT COUNT(*) > 0 FROM wsrep_schema.SR;
+SELECT COUNT(*) > 0 FROM mysql.wsrep_streaming_log;
 COUNT(*) > 0
 1
 connect node_2a, 127.0.0.1, root, , test, $NODE_MYPORT_2;
@@ -28,16 +28,16 @@ connection node_2;
 INSERT INTO t1 VALUES (6);
 ERROR HY000: Lost connection to MySQL server during query
 connection node_1;
-SELECT COUNT(*) = 0 FROM wsrep_schema.SR;
+SELECT COUNT(*) = 0 FROM mysql.wsrep_streaming_log;
 COUNT(*) = 0
 1
 connection node_2a;
 connection node_1;
 connect node_2b, 127.0.0.1, root, , test, $NODE_MYPORT_2;
 connection node_2b;
-SELECT * FROM wsrep_schema.SR;
+SELECT * FROM mysql.wsrep_streaming_log;
 node_uuid	trx_id	seqno	flags	frag
-SELECT COUNT(*) = 0 FROM wsrep_schema.SR;
+SELECT COUNT(*) = 0 FROM mysql.wsrep_streaming_log;
 COUNT(*) = 0
 1
 SET AUTOCOMMIT=OFF;
@@ -48,14 +48,14 @@ INSERT INTO t1 VALUES (3);
 INSERT INTO t1 VALUES (4);
 INSERT INTO t1 VALUES (5);
 COMMIT;
-SELECT COUNT(*) = 0 FROM wsrep_schema.SR;
+SELECT COUNT(*) = 0 FROM mysql.wsrep_streaming_log;
 COUNT(*) = 0
 1
 connection node_1;
 SELECT COUNT(*) = 5 FROM t1;
 COUNT(*) = 5
 1
-SELECT COUNT(*) = 0 FROM wsrep_schema.SR;
+SELECT COUNT(*) = 0 FROM mysql.wsrep_streaming_log;
 COUNT(*) = 0
 1
 DROP TABLE t1;

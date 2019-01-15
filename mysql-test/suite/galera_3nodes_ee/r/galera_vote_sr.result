@@ -12,7 +12,7 @@ INSERT INTO t1 VALUES (3, REPEAT('A', 65535));
 INSERT INTO t1 VALUES (4, REPEAT('A', 65535));
 INSERT INTO t1 VALUES (5, REPEAT('A', 65535));
 COMMIT;
-SELECT COUNT(*) = 0 FROM wsrep_schema.SR;
+SELECT COUNT(*) = 0 FROM mysql.wsrep_streaming_log;
 COUNT(*) = 0
 1
 START TRANSACTION;
@@ -23,17 +23,17 @@ INSERT INTO t1 VALUES (14, REPEAT('A', 65535));
 INSERT INTO t1 VALUES (15, REPEAT('A', 65535));
 SET SESSION wsrep_on=OFF;
 Starting mysqld
-SELECT COUNT(*) > 0 FROM wsrep_schema.SR;
+SELECT COUNT(*) > 0 FROM mysql.wsrep_streaming_log;
 COUNT(*) > 0
 1
 COMMIT;
-SELECT COUNT(*) = 0 FROM wsrep_schema.SR;
+SELECT COUNT(*) = 0 FROM mysql.wsrep_streaming_log;
 COUNT(*) = 0
 1
 SELECT COUNT(*) = 10 FROM t1;
 COUNT(*) = 10
 1
-SELECT COUNT(*) = 0 FROM wsrep_schema.SR;
+SELECT COUNT(*) = 0 FROM mysql.wsrep_streaming_log;
 COUNT(*) = 0
 1
 SELECT COUNT(*) = 10 FROM t1;
@@ -43,7 +43,7 @@ CALL mtr.add_suppression("Slave SQL: Could not execute Write_rows event on table
 CALL mtr.add_suppression("Write_rows apply failed");
 CALL mtr.add_suppression("Inconsistent by consensus");
 CALL mtr.add_suppression("no THD for trx");
-SELECT COUNT(*) = 0 FROM wsrep_schema.SR;
+SELECT COUNT(*) = 0 FROM mysql.wsrep_streaming_log;
 COUNT(*) = 0
 1
 SELECT COUNT(*) = 10 FROM t1;

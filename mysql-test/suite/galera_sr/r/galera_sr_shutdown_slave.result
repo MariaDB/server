@@ -20,7 +20,7 @@ connection node_1a;
 INSERT INTO t1 VALUES (14),(15),(16);
 COMMIT;
 connection node_2;
-SELECT COUNT(*) > 0 FROM wsrep_schema.SR;
+SELECT COUNT(*) > 0 FROM mysql.wsrep_streaming_log;
 COUNT(*) > 0
 1
 SELECT COUNT(*) = 6 FROM t1 WHERE f1 IN (11,12,13,14,15,16);
@@ -30,14 +30,14 @@ connection node_1b;
 INSERT INTO t1 VALUES (24),(25),(26);
 COMMIT;
 connection node_2;
-SELECT COUNT(*) = 0 FROM wsrep_schema.SR;
+SELECT COUNT(*) = 0 FROM mysql.wsrep_streaming_log;
 COUNT(*) = 0
 1
 SELECT COUNT(*) = 12 FROM t1;
 COUNT(*) = 12
 1
 connection node_1;
-SELECT COUNT(*) = 0 FROM wsrep_schema.SR;
+SELECT COUNT(*) = 0 FROM mysql.wsrep_streaming_log;
 COUNT(*) = 0
 1
 DROP TABLE t1;

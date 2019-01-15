@@ -41,8 +41,6 @@ int test_if_data_home_dir(const char *dir);
 int error_if_data_home_dir(const char *path, const char *what);
 my_bool net_allocate_new_packet(NET *net, void *thd, uint my_flags);
 
-bool stmt_causes_implicit_commit(const THD *thd, uint mask);
-
 bool multi_update_precheck(THD *thd, TABLE_LIST *tables);
 bool multi_delete_precheck(THD *thd, TABLE_LIST *tables);
 int mysql_multi_update_prepare(THD *thd);

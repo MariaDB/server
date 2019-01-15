@@ -17,13 +17,13 @@ Got one of the listed errors
 SELECT COUNT(*) = 0 FROM t1 WHERE f1 = 'primary';
 COUNT(*) = 0
 1
-SELECT COUNT(DISTINCT node_uuid) = 1 FROM wsrep_schema.SR;
+SELECT COUNT(DISTINCT node_uuid) = 1 FROM mysql.wsrep_streaming_log;
 COUNT(DISTINCT node_uuid) = 1
 1
 SELECT COUNT(*) = 0 FROM t1 WHERE f1 = 'primary';
 COUNT(*) = 0
 1
-SELECT COUNT(DISTINCT node_uuid) = 1 FROM wsrep_schema.SR;
+SELECT COUNT(DISTINCT node_uuid) = 1 FROM mysql.wsrep_streaming_log;
 COUNT(DISTINCT node_uuid) = 1
 1
 COMMIT;
@@ -39,13 +39,13 @@ COUNT(*) = 0
 SELECT COUNT(*) > 0 FROM t1 WHERE f1 = 'secondary';
 COUNT(*) > 0
 1
-SELECT COUNT(*) = 0 FROM wsrep_schema.SR;
+SELECT COUNT(*) = 0 FROM mysql.wsrep_streaming_log;
 COUNT(*) = 0
 1
-SELECT COUNT(*) = 0 FROM wsrep_schema.SR;
+SELECT COUNT(*) = 0 FROM mysql.wsrep_streaming_log;
 COUNT(*) = 0
 1
-SELECT COUNT(*) = 0 FROM wsrep_schema.SR;
+SELECT COUNT(*) = 0 FROM mysql.wsrep_streaming_log;
 COUNT(*) = 0
 1
 SET GLOBAL debug = '';
@@ -68,13 +68,13 @@ Got one of the listed errors
 SELECT COUNT(*) = 0 FROM t1 WHERE f1 = 'primary';
 COUNT(*) = 0
 1
-SELECT COUNT(DISTINCT node_uuid) = 1 FROM wsrep_schema.SR;
+SELECT COUNT(DISTINCT node_uuid) = 1 FROM mysql.wsrep_streaming_log;
 COUNT(DISTINCT node_uuid) = 1
 1
 SELECT COUNT(*) = 0 FROM t1 WHERE f1 = 'primary';
 COUNT(*) = 0
 1
-SELECT COUNT(DISTINCT node_uuid) = 1 FROM wsrep_schema.SR;
+SELECT COUNT(DISTINCT node_uuid) = 1 FROM mysql.wsrep_streaming_log;
 COUNT(DISTINCT node_uuid) = 1
 1
 COMMIT;
@@ -90,13 +90,13 @@ COUNT(*) = 0
 SELECT COUNT(*) > 0 FROM t1 WHERE f1 = 'secondary';
 COUNT(*) > 0
 1
-SELECT COUNT(*) = 0 FROM wsrep_schema.SR;
+SELECT COUNT(*) = 0 FROM mysql.wsrep_streaming_log;
 COUNT(*) = 0
 1
-SELECT COUNT(*) = 0 FROM wsrep_schema.SR;
+SELECT COUNT(*) = 0 FROM mysql.wsrep_streaming_log;
 COUNT(*) = 0
 1
-SELECT COUNT(*) = 0 FROM wsrep_schema.SR;
+SELECT COUNT(*) = 0 FROM mysql.wsrep_streaming_log;
 COUNT(*) = 0
 1
 SET GLOBAL debug = '';
@@ -119,13 +119,13 @@ Got one of the listed errors
 SELECT COUNT(*) = 0 FROM t1 WHERE f1 = 'primary';
 COUNT(*) = 0
 1
-SELECT COUNT(DISTINCT node_uuid) = 1 FROM wsrep_schema.SR;
+SELECT COUNT(DISTINCT node_uuid) = 1 FROM mysql.wsrep_streaming_log;
 COUNT(DISTINCT node_uuid) = 1
 1
 SELECT COUNT(*) = 0 FROM t1 WHERE f1 = 'primary';
 COUNT(*) = 0
 1
-SELECT COUNT(DISTINCT node_uuid) = 1 FROM wsrep_schema.SR;
+SELECT COUNT(DISTINCT node_uuid) = 1 FROM mysql.wsrep_streaming_log;
 COUNT(DISTINCT node_uuid) = 1
 1
 COMMIT;
@@ -141,13 +141,13 @@ COUNT(*) = 0
 SELECT COUNT(*) > 0 FROM t1 WHERE f1 = 'secondary';
 COUNT(*) > 0
 1
-SELECT COUNT(*) = 0 FROM wsrep_schema.SR;
+SELECT COUNT(*) = 0 FROM mysql.wsrep_streaming_log;
 COUNT(*) = 0
 1
-SELECT COUNT(*) = 0 FROM wsrep_schema.SR;
+SELECT COUNT(*) = 0 FROM mysql.wsrep_streaming_log;
 COUNT(*) = 0
 1
-SELECT COUNT(*) = 0 FROM wsrep_schema.SR;
+SELECT COUNT(*) = 0 FROM mysql.wsrep_streaming_log;
 COUNT(*) = 0
 1
 SET GLOBAL debug = '';
@@ -170,13 +170,13 @@ Got one of the listed errors
 SELECT COUNT(*) = 0 FROM t1 WHERE f1 = 'primary';
 COUNT(*) = 0
 1
-SELECT COUNT(DISTINCT node_uuid) = 1 FROM wsrep_schema.SR;
+SELECT COUNT(DISTINCT node_uuid) = 1 FROM mysql.wsrep_streaming_log;
 COUNT(DISTINCT node_uuid) = 1
 1
 SELECT COUNT(*) = 0 FROM t1 WHERE f1 = 'primary';
 COUNT(*) = 0
 1
-SELECT COUNT(DISTINCT node_uuid) = 1 FROM wsrep_schema.SR;
+SELECT COUNT(DISTINCT node_uuid) = 1 FROM mysql.wsrep_streaming_log;
 COUNT(DISTINCT node_uuid) = 1
 1
 COMMIT;
@@ -192,13 +192,13 @@ COUNT(*) = 0
 SELECT COUNT(*) > 0 FROM t1 WHERE f1 = 'secondary';
 COUNT(*) > 0
 1
-SELECT COUNT(*) = 0 FROM wsrep_schema.SR;
+SELECT COUNT(*) = 0 FROM mysql.wsrep_streaming_log;
 COUNT(*) = 0
 1
-SELECT COUNT(*) = 0 FROM wsrep_schema.SR;
+SELECT COUNT(*) = 0 FROM mysql.wsrep_streaming_log;
 COUNT(*) = 0
 1
-SELECT COUNT(*) = 0 FROM wsrep_schema.SR;
+SELECT COUNT(*) = 0 FROM mysql.wsrep_streaming_log;
 COUNT(*) = 0
 1
 SET GLOBAL debug = '';
@@ -221,13 +221,13 @@ Got one of the listed errors
 SELECT COUNT(*) = 0 FROM t1 WHERE f1 = 'primary';
 COUNT(*) = 0
 1
-SELECT COUNT(DISTINCT node_uuid) = 1 FROM wsrep_schema.SR;
+SELECT COUNT(DISTINCT node_uuid) = 1 FROM mysql.wsrep_streaming_log;
 COUNT(DISTINCT node_uuid) = 1
 1
 SELECT COUNT(*) = 0 FROM t1 WHERE f1 = 'primary';
 COUNT(*) = 0
 1
-SELECT COUNT(DISTINCT node_uuid) = 1 FROM wsrep_schema.SR;
+SELECT COUNT(DISTINCT node_uuid) = 1 FROM mysql.wsrep_streaming_log;
 COUNT(DISTINCT node_uuid) = 1
 1
 COMMIT;
@@ -243,13 +243,13 @@ COUNT(*) = 0
 SELECT COUNT(*) > 0 FROM t1 WHERE f1 = 'secondary';
 COUNT(*) > 0
 1
-SELECT COUNT(*) = 0 FROM wsrep_schema.SR;
+SELECT COUNT(*) = 0 FROM mysql.wsrep_streaming_log;
 COUNT(*) = 0
 1
-SELECT COUNT(*) = 0 FROM wsrep_schema.SR;
+SELECT COUNT(*) = 0 FROM mysql.wsrep_streaming_log;
 COUNT(*) = 0
 1
-SELECT COUNT(*) = 0 FROM wsrep_schema.SR;
+SELECT COUNT(*) = 0 FROM mysql.wsrep_streaming_log;
 COUNT(*) = 0
 1
 SET GLOBAL debug = '';

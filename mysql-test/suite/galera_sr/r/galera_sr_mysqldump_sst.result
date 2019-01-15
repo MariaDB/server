@@ -26,7 +26,7 @@ connection node_2;
 Starting server ...
 connection node_1;
 connection node_2;
-SELECT COUNT(*) > 0 FROM wsrep_schema.SR;
+SELECT COUNT(*) > 0 FROM mysql.wsrep_streaming_log;
 COUNT(*) > 0
 1
 SET SESSION TRANSACTION ISOLATION LEVEL READ UNCOMMITTED;

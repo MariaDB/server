@@ -118,7 +118,7 @@ SET SESSION wsrep_sync_wait = 0;
 SELECT COUNT(*) = 1 FROM t1 WHERE f2 = 'b';
 SELECT COUNT(*) = 1 FROM t1 WHERE f2 = 'c';
 
-SELECT COUNT(*) = 0 FROM wsrep_schema.SR;
+SELECT COUNT(*) = 0 FROM mysql.wsrep_streaming_log;
 
 #
 # wsrep_local_replays has increased by 1
@@ -132,7 +132,7 @@ SELECT COUNT(*) = 0 FROM wsrep_schema.SR;
 SELECT COUNT(*) = 1 FROM t1 WHERE f2 = 'b';
 SELECT COUNT(*) = 1 FROM t1 WHERE f2 = 'c';
 
-SELECT COUNT(*) = 0 FROM wsrep_schema.SR;
+SELECT COUNT(*) = 0 FROM mysql.wsrep_streaming_log;
 
 DELETE FROM t1;
 
@@ -239,7 +239,7 @@ SET SESSION wsrep_sync_wait = 0;
 SELECT COUNT(*) = 1 FROM t1 WHERE f2 = 'b';
 SELECT COUNT(*) = 1 FROM t1 WHERE f2 = 'c';
 
-SELECT COUNT(*) = 0 FROM wsrep_schema.SR;
+SELECT COUNT(*) = 0 FROM mysql.wsrep_streaming_log;
 
 #
 # wsrep_local_replays has increased by 1
@@ -253,7 +253,7 @@ SELECT COUNT(*) = 0 FROM wsrep_schema.SR;
 SELECT COUNT(*) = 1 FROM t1 WHERE f2 = 'b';
 SELECT COUNT(*) = 1 FROM t1 WHERE f2 = 'c';
 
-SELECT COUNT(*) = 0 FROM wsrep_schema.SR;
+SELECT COUNT(*) = 0 FROM mysql.wsrep_streaming_log;
 
 DELETE FROM t1;
 

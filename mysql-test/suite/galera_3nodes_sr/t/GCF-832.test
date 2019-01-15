@@ -1,5 +1,5 @@
 #
-# GCF-832 SR: wsrep_schema.SR table remains populated on all nodes after crash
+# GCF-832 SR: mysql.wsrep_streaming_log table remains populated on all nodes after crash
 # followed by immediate recovery
 #
 --source include/galera_cluster.inc
@@ -32,11 +32,11 @@ COMMIT;
 --source include/start_mysqld.inc
 
 --connection node_1
-SELECT COUNT(*) = 0 FROM wsrep_schema.SR;
+SELECT COUNT(*) = 0 FROM mysql.wsrep_streaming_log;
 
 --connection node_2
 --enable_reconnect
-SELECT COUNT(*) = 0 FROM wsrep_schema.SR;
+SELECT COUNT(*) = 0 FROM mysql.wsrep_streaming_log;
 
 DROP TABLE t1;
 

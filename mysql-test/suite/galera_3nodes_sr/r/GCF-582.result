@@ -7,10 +7,10 @@ INSERT INTO t1 VALUES (2);
 INSERT INTO t1 VALUES (3);
 INSERT INTO t1 VALUES (4);
 INSERT INTO t1 VALUES (5);
-SELECT COUNT(*) FROM wsrep_schema.SR;
+SELECT COUNT(*) FROM mysql.wsrep_streaming_log;
 COUNT(*)
 5
-SELECT COUNT(*) FROM wsrep_schema.SR;
+SELECT COUNT(*) FROM mysql.wsrep_streaming_log;
 COUNT(*)
 5
 COMMIT;

@@ -18,14 +18,14 @@ INSERT INTO t1 VALUES (6);
 INSERT INTO t1 VALUES (7);
 connect node_1a, 127.0.0.1, root, , test, $NODE_MYPORT_1;
 SET SESSION wsrep_sync_wait = 0;
-SELECT COUNT(*) > 0 FROM wsrep_schema.SR;
+SELECT COUNT(*) > 0 FROM mysql.wsrep_streaming_log;
 COUNT(*) > 0
 1
 connection node_2;
 connection node_1a;
 SET GLOBAL wsrep_provider_options = 'gmcast.isolate=1';
 SET SESSION wsrep_on = OFF;
-SELECT COUNT(*) > 0 FROM wsrep_schema.SR;
+SELECT COUNT(*) > 0 FROM mysql.wsrep_streaming_log;
 COUNT(*) > 0
 1
 connection node_2;
@@ -36,18 +36,18 @@ SET GLOBAL wsrep_provider_options = 'gmcast.isolate=0';
 connection node_3;
 connection node_1a;
 connection node_2;
-SELECT COUNT(*) = 0 FROM wsrep_schema.SR;
+SELECT COUNT(*) = 0 FROM mysql.wsrep_streaming_log;
 COUNT(*) = 0
 1
 connection node_1;
 COMMIT;
 ERROR 40001: Deadlock found when trying to get lock; try restarting transaction
 connection node_1a;
-SELECT COUNT(*) = 0 FROM wsrep_schema.SR;
+SELECT COUNT(*) = 0 FROM mysql.wsrep_streaming_log;
 COUNT(*) = 0
 1
 connection node_2;
-SELECT COUNT(*) = 0 FROM wsrep_schema.SR;
+SELECT COUNT(*) = 0 FROM mysql.wsrep_streaming_log;
 COUNT(*) = 0
 1
 connection node_2;

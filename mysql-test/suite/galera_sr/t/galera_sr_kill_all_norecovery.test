@@ -1,6 +1,6 @@
 #
 # Kill entire cluster during SR while pc.recovery is NOT in effect
-# after restart, confirm that the wsrep_schema.SR table is empty
+# after restart, confirm that the mysql.wsrep_streaming_log table is empty
 #
 
 --source include/galera_cluster.inc
@@ -18,7 +18,7 @@ INSERT INTO t1 VALUES (4);
 INSERT INTO t1 VALUES (5);
 
 --connection node_2
---let $wait_condition = SELECT COUNT(*) > 0 FROM wsrep_schema.SR;
+--let $wait_condition = SELECT COUNT(*) > 0 FROM mysql.wsrep_streaming_log;
 --source include/wait_condition.inc
 
 --source include/kill_galera.inc
@@ -43,11 +43,11 @@ INSERT INTO t1 VALUES (5);
 --source include/galera_wait_ready.inc
 --let $wait_condition = SELECT VARIABLE_VALUE = 2 FROM INFORMATION_SCHEMA.GLOBAL_STATUS WHERE VARIABLE_NAME = 'wsrep_cluster_size';
 
-SELECT COUNT(*) = 0 FROM wsrep_schema.SR;
+SELECT COUNT(*) = 0 FROM mysql.wsrep_streaming_log;
 
 --connection node_2
 SET SESSION TRANSACTION ISOLATION LEVEL READ UNCOMMITTED;
 SELECT COUNT(*) = 0 FROM t1;
-SELECT COUNT(*) = 0 FROM wsrep_schema.SR;
+SELECT COUNT(*) = 0 FROM mysql.wsrep_streaming_log;
 
 DROP TABLE t1;

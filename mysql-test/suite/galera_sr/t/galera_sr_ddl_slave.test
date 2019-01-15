@@ -22,20 +22,20 @@ INSERT INTO t1 VALUES (5, 5);
 SET SESSION TRANSACTION ISOLATION LEVEL READ UNCOMMITTED;
 --let $wait_condition = SELECT COUNT(*) > 0 FROM t1;
 --source include/wait_condition.inc
-SELECT COUNT(*) > 0 FROM wsrep_schema.SR;
+SELECT COUNT(*) > 0 FROM mysql.wsrep_streaming_log;
 
 ALTER TABLE t1 DROP COLUMN f2;
 
 # SR applied before the DDL is no longer visible
 SELECT COUNT(*) = 0 FROM t1;
-SELECT COUNT(*) = 0 FROM wsrep_schema.SR;
+SELECT COUNT(*) = 0 FROM mysql.wsrep_streaming_log;
 
 --connection node_1
 # Transaction can not continue due to DDL, implicit ROLLBACK
 --error ER_LOCK_DEADLOCK
 INSERT INTO t1 VALUES (6, 6);
 
-SELECT COUNT(*) = 0 FROM wsrep_schema.SR;
+SELECT COUNT(*) = 0 FROM mysql.wsrep_streaming_log;
 
 # DDL is now in effect
 --error ER_WRONG_VALUE_COUNT_ON_ROW
@@ -60,6 +60,6 @@ COMMIT;
 
 --connection node_2
 SELECT COUNT(*) = 5 FROM t1;
-SELECT COUNT(*) = 0 FROM wsrep_schema.SR;
+SELECT COUNT(*) = 0 FROM mysql.wsrep_streaming_log;
 
 DROP TABLE t1;

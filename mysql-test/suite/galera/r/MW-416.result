@@ -109,6 +109,5 @@ mtr
 mysql
 performance_schema
 test
-wsrep_schema
 wsrep_replicated_after_diff
 1

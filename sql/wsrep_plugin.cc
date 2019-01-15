@@ -34,7 +34,7 @@ struct Mysql_replication wsrep_plugin= {
   MYSQL_REPLICATION_INTERFACE_VERSION
 };
 
-mysql_declare_plugin(wsrep)
+maria_declare_plugin(wsrep)
 {
   MYSQL_REPLICATION_PLUGIN,
   &wsrep_plugin,
@@ -47,7 +47,7 @@ mysql_declare_plugin(wsrep)
   0x0100,
   NULL, /* Status variables */
   NULL, /* System variables */
-  NULL, /* Config options */
-  0     /* Flags */
+  "1.0", /* Version (string) */
+  MariaDB_PLUGIN_MATURITY_STABLE     /* Maturity */
 }
-mysql_declare_plugin_end;
+maria_declare_plugin_end;

@@ -10,7 +10,7 @@ INSERT INTO t1 VALUES (2);
 INSERT INTO t1 VALUES (3);
 INSERT INTO t1 VALUES (4);
 INSERT INTO t1 VALUES (5);
-SELECT COUNT(*) > 0 FROM wsrep_schema.SR;
+SELECT COUNT(*) > 0 FROM mysql.wsrep_streaming_log;
 COUNT(*) > 0
 1
 connection node_2;
@@ -25,7 +25,7 @@ connection node_2;
 connect node_3, 127.0.0.1, root, , test, $NODE_MYPORT_3;
 connection node_2;
 SET TRANSACTION ISOLATION LEVEL READ UNCOMMITTED;
-SELECT COUNT(*) = 0 FROM wsrep_schema.SR;
+SELECT COUNT(*) = 0 FROM mysql.wsrep_streaming_log;
 COUNT(*) = 0
 1
 SELECT COUNT(*) = 0 FROM t1;
@@ -33,7 +33,7 @@ COUNT(*) = 0
 1
 connection node_3;
 SET TRANSACTION ISOLATION LEVEL READ UNCOMMITTED;
-SELECT COUNT(*) = 0 FROM wsrep_schema.SR;
+SELECT COUNT(*) = 0 FROM mysql.wsrep_streaming_log;
 COUNT(*) = 0
 1
 SELECT COUNT(*) = 0 FROM t1;
@@ -51,7 +51,7 @@ SET TRANSACTION ISOLATION LEVEL READ UNCOMMITTED;
 SELECT COUNT(*) = 0 FROM t1;
 COUNT(*) = 0
 1
-SELECT COUNT(*) = 0 FROM wsrep_schema.SR;
+SELECT COUNT(*) = 0 FROM mysql.wsrep_streaming_log;
 COUNT(*) = 0
 1
 START TRANSACTION;
@@ -65,14 +65,14 @@ connection node_2;
 SELECT COUNT(*) = 5 FROM t1;
 COUNT(*) = 5
 1
-SELECT COUNT(*) = 0 FROM wsrep_schema.SR;
+SELECT COUNT(*) = 0 FROM mysql.wsrep_streaming_log;
 COUNT(*) = 0
 1
 connection node_3;
 SELECT COUNT(*) = 5 FROM t1;
 COUNT(*) = 5
 1
-SELECT COUNT(*) = 0 FROM wsrep_schema.SR;
+SELECT COUNT(*) = 0 FROM mysql.wsrep_streaming_log;
 COUNT(*) = 0
 1
 connection node_1;

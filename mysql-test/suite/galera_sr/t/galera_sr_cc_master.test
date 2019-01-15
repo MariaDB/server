@@ -26,10 +26,10 @@ INSERT INTO t1 VALUES (3);
 INSERT INTO t1 VALUES (4);
 INSERT INTO t1 VALUES (5);
 
-SELECT COUNT(*) > 0 FROM wsrep_schema.SR;
+SELECT COUNT(*) > 0 FROM mysql.wsrep_streaming_log;
 
 --connection node_1
-SELECT COUNT(*) > 0 FROM wsrep_schema.SR;
+SELECT COUNT(*) > 0 FROM mysql.wsrep_streaming_log;
 
 #
 # Trigger CC . The transaction is aborted and we expect the SR tables to be cleaned up
@@ -50,7 +50,7 @@ SET SESSION wsrep_sync_wait = DEFAULT;
 INSERT INTO t1 VALUES (6);
 
 --connection node_1
-SELECT COUNT(*) = 0 FROM wsrep_schema.SR;
+SELECT COUNT(*) = 0 FROM mysql.wsrep_streaming_log;
 
 # Restore cluster
 
@@ -67,8 +67,8 @@ SELECT COUNT(*) = 0 FROM wsrep_schema.SR;
 --connect node_2b, 127.0.0.1, root, , test, $NODE_MYPORT_2
 --connection node_2b
 --source include/galera_wait_ready.inc
-SELECT * FROM wsrep_schema.SR;
-SELECT COUNT(*) = 0 FROM wsrep_schema.SR;
+SELECT * FROM mysql.wsrep_streaming_log;
+SELECT COUNT(*) = 0 FROM mysql.wsrep_streaming_log;
 
 # Repeat transaction to confirm no locks are left from previous transaction
 
@@ -81,11 +81,11 @@ INSERT INTO t1 VALUES (4);
 INSERT INTO t1 VALUES (5);
 COMMIT;
 
-SELECT COUNT(*) = 0 FROM wsrep_schema.SR;
+SELECT COUNT(*) = 0 FROM mysql.wsrep_streaming_log;
 
 --connection node_1
 SELECT COUNT(*) = 5 FROM t1;
-SELECT COUNT(*) = 0 FROM wsrep_schema.SR;
+SELECT COUNT(*) = 0 FROM mysql.wsrep_streaming_log;
 
 DROP TABLE t1;
 

@@ -22,33 +22,33 @@ INSERT INTO t1 VALUES ('xyzxyz');
 
 --connect node_1a, 127.0.0.1, root, , test, $NODE_MYPORT_1
 --connection node_1a
-SELECT COUNT(*) > 0 FROM wsrep_schema.SR WHERE frag LIKE '%abcdef%';
-SELECT COUNT(*) > 0 FROM wsrep_schema.SR WHERE frag LIKE '%xyz%';
-SELECT COUNT(*) = 1 FROM wsrep_schema.SR WHERE frag LIKE '%SAVEPOINT `A`%';
+SELECT COUNT(*) > 0 FROM mysql.wsrep_streaming_log WHERE frag LIKE '%abcdef%';
+SELECT COUNT(*) > 0 FROM mysql.wsrep_streaming_log WHERE frag LIKE '%xyz%';
+SELECT COUNT(*) = 1 FROM mysql.wsrep_streaming_log WHERE frag LIKE '%SAVEPOINT `A`%';
 
 --connection node_1
 ROLLBACK TO SAVEPOINT A;
 
 --connection node_1a
-SELECT COUNT(*) > 0 FROM wsrep_schema.SR WHERE frag LIKE '%abcdef%';
-SELECT COUNT(*) > 0 FROM wsrep_schema.SR WHERE frag LIKE '%xyz%';
-SELECT COUNT(*) = 1 FROM wsrep_schema.SR WHERE frag LIKE '%SAVEPOINT `A`%';
-SELECT COUNT(*) = 1 FROM wsrep_schema.SR WHERE frag LIKE '%ROLLBACK TO `A`%';
+SELECT COUNT(*) > 0 FROM mysql.wsrep_streaming_log WHERE frag LIKE '%abcdef%';
+SELECT COUNT(*) > 0 FROM mysql.wsrep_streaming_log WHERE frag LIKE '%xyz%';
+SELECT COUNT(*) = 1 FROM mysql.wsrep_streaming_log WHERE frag LIKE '%SAVEPOINT `A`%';
+SELECT COUNT(*) = 1 FROM mysql.wsrep_streaming_log WHERE frag LIKE '%ROLLBACK TO `A`%';
 
 --connection node_2
-SELECT COUNT(*) > 0 FROM wsrep_schema.SR WHERE frag LIKE '%abcdef%';
-SELECT COUNT(*) > 0 FROM wsrep_schema.SR WHERE frag LIKE '%xyz%';
-SELECT COUNT(*) = 1 FROM wsrep_schema.SR WHERE frag LIKE '%SAVEPOINT `A`%';
-SELECT COUNT(*) = 1 FROM wsrep_schema.SR WHERE frag LIKE '%ROLLBACK TO `A`%';
+SELECT COUNT(*) > 0 FROM mysql.wsrep_streaming_log WHERE frag LIKE '%abcdef%';
+SELECT COUNT(*) > 0 FROM mysql.wsrep_streaming_log WHERE frag LIKE '%xyz%';
+SELECT COUNT(*) = 1 FROM mysql.wsrep_streaming_log WHERE frag LIKE '%SAVEPOINT `A`%';
+SELECT COUNT(*) = 1 FROM mysql.wsrep_streaming_log WHERE frag LIKE '%ROLLBACK TO `A`%';
 
 --connection node_1
 ROLLBACK;
 
 --connection node_1a
-SELECT COUNT(*) = 0 FROM wsrep_schema.SR;
+SELECT COUNT(*) = 0 FROM mysql.wsrep_streaming_log;
 
 --connection node_2
-SELECT COUNT(*) = 0 FROM wsrep_schema.SR;
+SELECT COUNT(*) = 0 FROM mysql.wsrep_streaming_log;
 
 --connection node_1
 DROP TABLE t1;

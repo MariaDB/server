@@ -26,9 +26,9 @@ INSERT INTO t1 VALUES (3, REPEAT('A', 65535));
 INSERT INTO t1 VALUES (4, REPEAT('A', 65535));
 INSERT INTO t1 VALUES (5, REPEAT('A', 65535));
 COMMIT;
-SELECT COUNT(*) = 0 FROM wsrep_schema.SR;
+SELECT COUNT(*) = 0 FROM mysql.wsrep_streaming_log;
 
-# Perform another SR transaction in order to have stuff in the wsrep_schema.SR table
+# Perform another SR transaction in order to have stuff in the mysql.wsrep_streaming_log table
 START TRANSACTION;
 INSERT INTO t1 VALUES (11, REPEAT('A', 65535));
 INSERT INTO t1 VALUES (12, REPEAT('A', 65535));
@@ -59,7 +59,7 @@ SET SESSION wsrep_on=OFF;
 --source include/wait_condition.inc
 
 # Node #2 should have some entries in its SR table post-restart
-SELECT COUNT(*) > 0 FROM wsrep_schema.SR;
+SELECT COUNT(*) > 0 FROM mysql.wsrep_streaming_log;
 
 # Commit second SR transaction
 --connection node_1
@@ -67,11 +67,11 @@ COMMIT;
 
 # Confirm that all nodes are identical
 --connection node_1
-SELECT COUNT(*) = 0 FROM wsrep_schema.SR;
+SELECT COUNT(*) = 0 FROM mysql.wsrep_streaming_log;
 SELECT COUNT(*) = 10 FROM t1;
 
 --connection node_2
-SELECT COUNT(*) = 0 FROM wsrep_schema.SR;
+SELECT COUNT(*) = 0 FROM mysql.wsrep_streaming_log;
 SELECT COUNT(*) = 10 FROM t1;
 CALL mtr.add_suppression("Slave SQL: Could not execute Write_rows event on table test.t1; Duplicate entry '5' for key 'PRIMARY'");
 CALL mtr.add_suppression("Write_rows apply failed");
@@ -80,7 +80,7 @@ CALL mtr.add_suppression("no THD for trx");
 
 --connect node_3, 127.0.0.1, root, , test, $NODE_MYPORT_3
 --connection node_3
-SELECT COUNT(*) = 0 FROM wsrep_schema.SR;
+SELECT COUNT(*) = 0 FROM mysql.wsrep_streaming_log;
 SELECT COUNT(*) = 10 FROM t1;
 
 --connection node_1

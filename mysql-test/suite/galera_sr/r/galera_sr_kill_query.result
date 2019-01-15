@@ -16,7 +16,7 @@ connection node_2;
 SELECT COUNT(*) = 0 FROM t1;
 COUNT(*) = 0
 1
-SELECT COUNT(*) = 0 FROM wsrep_schema.SR;
+SELECT COUNT(*) = 0 FROM mysql.wsrep_streaming_log;
 COUNT(*) = 0
 1
 INSERT INTO t1 SELECT 1 FROM ten AS t1, ten AS t2, ten AS t3;

@@ -27,10 +27,10 @@ INSERT INTO t1 VALUES (7);
 
 --connect node_1a, 127.0.0.1, root, , test, $NODE_MYPORT_1
 SET SESSION wsrep_sync_wait = 0;
-SELECT COUNT(*) > 0 FROM wsrep_schema.SR;
+SELECT COUNT(*) > 0 FROM mysql.wsrep_streaming_log;
 
 --connection node_2
---let $wait_condition = SELECT COUNT(*) > 0 FROM wsrep_schema.SR;
+--let $wait_condition = SELECT COUNT(*) > 0 FROM mysql.wsrep_streaming_log;
 --source include/wait_condition.inc
 
 --connection node_1a
@@ -42,14 +42,14 @@ SET SESSION wsrep_on = OFF;
 --source include/wait_condition.inc
 
 # SR table on master should still contain entries after going non-Prim
-SELECT COUNT(*) > 0 FROM wsrep_schema.SR;
+SELECT COUNT(*) > 0 FROM mysql.wsrep_streaming_log;
 
 --connection node_2
 --let $wait_condition = SELECT VARIABLE_VALUE = 2 FROM INFORMATION_SCHEMA.GLOBAL_STATUS WHERE VARIABLE_NAME = 'wsrep_cluster_size'
 --source include/wait_condition.inc
 
 # SR table on slave should eventually clean up entries when master goes non-Prim
---let $wait_condition = SELECT COUNT(*) = 0 FROM wsrep_schema.SR
+--let $wait_condition = SELECT COUNT(*) = 0 FROM mysql.wsrep_streaming_log
 --source include/wait_condition.inc
 
 --connection node_3
@@ -85,12 +85,12 @@ SET GLOBAL wsrep_provider_options = 'gmcast.isolate=0';
 --source include/galera_wait_ready.inc
 
 # SR table on master should contain no entries after going back to Prim state
---let $wait_condition = SELECT COUNT(*) = 0 FROM wsrep_schema.SR
+--let $wait_condition = SELECT COUNT(*) = 0 FROM mysql.wsrep_streaming_log
 --source include/wait_condition.inc
 
 --connection node_2
 # And none on slave
-SELECT COUNT(*) = 0 FROM wsrep_schema.SR;
+SELECT COUNT(*) = 0 FROM mysql.wsrep_streaming_log;
 
 --connection node_1
 --error ER_LOCK_DEADLOCK
@@ -98,10 +98,10 @@ COMMIT;
 
 # SR table is now empty everywhere
 --connection node_1a
-SELECT COUNT(*) = 0 FROM wsrep_schema.SR;
+SELECT COUNT(*) = 0 FROM mysql.wsrep_streaming_log;
 
 --connection node_2
-SELECT COUNT(*) = 0 FROM wsrep_schema.SR;
+SELECT COUNT(*) = 0 FROM mysql.wsrep_streaming_log;
 
 --connection node_2
 DROP TABLE t1;

@@ -1222,12 +1222,7 @@ bool do_command(THD *thd)
 {
   bool return_value;
   char *packet= 0;
-#ifdef WITH_WSREP
-  ulong packet_length= 0; // just to avoid (false positive) compiler warning
-  int err;
-#else
   ulong packet_length;
-#endif /* WITH_WSREP */
   NET *net= &thd->net;
   enum enum_server_command command;
   DBUG_ENTER("do_command");
@@ -1329,13 +1324,11 @@ bool do_command(THD *thd)
   command= fetch_command(thd, packet);
 
 #ifdef WITH_WSREP
-  err= wsrep_before_command(thd);
-  WSREP_DEBUG("wsrep_before_command %d", err);
   /*
     Aborted by background rollbacker thread.
     Handle error here and jump straight to out
   */
-  if (err)
+  if (wsrep_before_command(thd))
   {
     thd->store_globals();
     WSREP_LOG_THD(thd, "enter found BF aborted");

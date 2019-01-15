@@ -32,7 +32,7 @@ SET GLOBAL wsrep_provider_options = 'gmcast.isolate=1';
 --connection node_1
 --source include/wait_until_connected_again.inc
 SET SESSION wsrep_sync_wait = 0;
---let $wait_condition = SELECT COUNT(*) = 2 FROM wsrep_schema.members;
+--let $wait_condition = SELECT COUNT(*) = 2 FROM mysql.wsrep_cluster_members;
 --source include/wait_condition.inc
 
 # Confirm that the DDL remains blocked in NBO

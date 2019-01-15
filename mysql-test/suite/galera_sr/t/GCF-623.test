@@ -23,9 +23,9 @@ SELECT COUNT(*) = 0 FROM t1;
 --connection node_1
 --error ER_LOCK_DEADLOCK
 COMMIT;
-SELECT COUNT(*) = 0 FROM wsrep_schema.SR;
+SELECT COUNT(*) = 0 FROM mysql.wsrep_streaming_log;
 
 --connection node_2
-SELECT COUNT(*) = 0 FROM wsrep_schema.SR;
+SELECT COUNT(*) = 0 FROM mysql.wsrep_streaming_log;
 
 DROP TABLE t1;

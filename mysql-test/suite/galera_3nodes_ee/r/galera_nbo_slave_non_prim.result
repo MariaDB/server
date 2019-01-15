@@ -18,7 +18,7 @@ t1	CREATE TABLE `t1` (
 SELECT COUNT(*) = 1 FROM t1;
 COUNT(*) = 1
 1
-SELECT COUNT(*) = 3 FROM wsrep_schema.members;
+SELECT COUNT(*) = 3 FROM mysql.wsrep_cluster_members;
 COUNT(*) = 3
 1
 SHOW CREATE TABLE t1;

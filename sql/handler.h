@@ -1485,7 +1485,6 @@ struct handlerton
 			    THD *victim_thd, my_bool signal);
    int (*set_checkpoint)(handlerton *hton, const XID* xid);
    int (*get_checkpoint)(handlerton *hton, XID* xid);
-   void (*fake_trx_id)(handlerton *hton, THD *thd);
    /*
      Optional clauses in the CREATE/ALTER TABLE
    */
@@ -1681,6 +1680,9 @@ handlerton *ha_default_tmp_handlerton(THD *thd);
 #define HTON_CAN_MERGE               (1 <<11) //Merge type table
 // Engine needs to access the main connect string in partitions
 #define HTON_CAN_READ_CONNECT_STRING_IN_PARTITION (1 <<12)
+
+/* can be replicated by wsrep replication provider plugin */
+#define HTON_WSREP_REPLICATION (1 << 13)
 
 class Ha_trx_info;
 
@@ -4843,9 +4845,6 @@ int ha_savepoint(THD *thd, SAVEPOINT *sv);
 int ha_release_savepoint(THD *thd, SAVEPOINT *sv);
 #ifdef WITH_WSREP
 int ha_abort_transaction(THD *bf_thd, THD *victim_thd, my_bool signal);
-void ha_fake_trx_id(THD *thd);
-#else
-inline void ha_fake_trx_id(THD *thd) { }
 #endif
 
 /* these are called by storage engines */
