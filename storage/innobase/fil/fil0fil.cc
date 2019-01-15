@@ -826,7 +826,7 @@ fil_flush_low(fil_space_t* space)
 
 		/* No need to flush. User has explicitly disabled
 		buffering. */
-		ut_ad(!space->is_in_unflushed_spaces);
+		ut_ad(!space->is_in_unflushed_spaces());
 		ut_ad(fil_space_is_flushed(space));
 		ut_ad(space->n_pending_flushes == 0);
 
@@ -889,10 +889,8 @@ fil_flush_low(fil_space_t* space)
 skip_flush:
 #endif /* _WIN32 */
 		if (!node->needs_flush) {
-			if (space->is_in_unflushed_spaces
+			if (space->is_in_unflushed_spaces()
 			    && fil_space_is_flushed(space)) {
-
-				space->is_in_unflushed_spaces = false;
 
 				UT_LIST_REMOVE(
 					fil_system->unflushed_spaces,
@@ -1190,13 +1188,11 @@ fil_node_close_to_free(
 
 		if (fil_buffering_disabled(space)) {
 
-			ut_ad(!space->is_in_unflushed_spaces);
+			ut_ad(!space->is_in_unflushed_spaces());
 			ut_ad(fil_space_is_flushed(space));
 
-		} else if (space->is_in_unflushed_spaces
+		} else if (space->is_in_unflushed_spaces()
 			   && fil_space_is_flushed(space)) {
-
-			space->is_in_unflushed_spaces = false;
 
 			UT_LIST_REMOVE(fil_system->unflushed_spaces, space);
 		}
@@ -1225,16 +1221,14 @@ fil_space_detach(
 	HASH_DELETE(fil_space_t, name_hash, fil_system->name_hash,
 		    ut_fold_string(space->name), space);
 
-	if (space->is_in_unflushed_spaces) {
+	if (space->is_in_unflushed_spaces()) {
 
 		ut_ad(!fil_buffering_disabled(space));
-		space->is_in_unflushed_spaces = false;
 
 		UT_LIST_REMOVE(fil_system->unflushed_spaces, space);
 	}
 
-	if (space->is_in_rotation_list) {
-		space->is_in_rotation_list = false;
+	if (space->is_in_rotation_list()) {
 
 		UT_LIST_REMOVE(fil_system->rotation_list, space);
 	}
@@ -1465,7 +1459,6 @@ fil_space_create(
 		/* Key rotation is not enabled, need to inform background
 		encryption threads. */
 		UT_LIST_ADD_LAST(fil_system->rotation_list, space);
-		space->is_in_rotation_list = true;
 		mutex_exit(&fil_system->mutex);
 		mutex_enter(&fil_crypt_threads_mutex);
 		os_event_set(fil_crypt_threads_event);
@@ -4820,15 +4813,13 @@ fil_node_complete_io(fil_node_t* node, const IORequest& type)
 			/* We don't need to keep track of unflushed
 			changes as user has explicitly disabled
 			buffering. */
-			ut_ad(!node->space->is_in_unflushed_spaces);
+			ut_ad(!node->space->is_in_unflushed_spaces());
 			ut_ad(node->needs_flush == false);
 
 		} else {
 			node->needs_flush = true;
 
-			if (!node->space->is_in_unflushed_spaces) {
-
-				node->space->is_in_unflushed_spaces = true;
+			if (!node->space->is_in_unflushed_spaces()) {
 
 				UT_LIST_ADD_FIRST(fil_system->unflushed_spaces,
 						  node->space);
@@ -6046,8 +6037,7 @@ fil_space_remove_from_keyrotation(fil_space_t* space)
 	ut_ad(mutex_own(&fil_system->mutex));
 	ut_ad(space);
 
-	if (space->n_pending_ops == 0 && space->is_in_rotation_list) {
-		space->is_in_rotation_list = false;
+	if (space->n_pending_ops == 0 && space->is_in_rotation_list()) {
 		ut_a(UT_LIST_GET_LEN(fil_system->rotation_list) > 0);
 		UT_LIST_REMOVE(fil_system->rotation_list, space);
 	}
@@ -6190,4 +6180,22 @@ fil_space_set_punch_hole(
 	bool			val)
 {
 	node->space->punch_hole = val;
+}
+
+/** Checks that this tablespace in a list of unflushed tablespaces.
+@return true if in a list */
+bool fil_space_t::is_in_unflushed_spaces() const {
+	ut_ad(mutex_own(&fil_system->mutex));
+
+	return fil_system->unflushed_spaces.start == this
+	       || unflushed_spaces.next || unflushed_spaces.prev;
+}
+
+/** Checks that this tablespace needs key rotation.
+@return true if in a rotation list */
+bool fil_space_t::is_in_rotation_list() const {
+	ut_ad(mutex_own(&fil_system->mutex));
+
+	return fil_system->rotation_list.start == this || rotation_list.next
+	       || rotation_list.prev;
 }

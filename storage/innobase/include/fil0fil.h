@@ -159,15 +159,18 @@ struct fil_space_t {
 	UT_LIST_NODE_T(fil_space_t) named_spaces;
 				/*!< list of spaces for which MLOG_FILE_NAME
 				records have been issued */
-	bool		is_in_unflushed_spaces;
+	/** Checks that this tablespace in a list of unflushed tablespaces.
+	@return true if in a list */
+	bool is_in_unflushed_spaces() const;
 				/*!< true if this space is currently in
 				unflushed_spaces */
 	UT_LIST_NODE_T(fil_space_t) space_list;
 				/*!< list of all spaces */
 	/** other tablespaces needing key rotation */
 	UT_LIST_NODE_T(fil_space_t) rotation_list;
-	/** whether this tablespace needs key rotation */
-	bool		is_in_rotation_list;
+	/** Checks that this tablespace needs key rotation.
+	@return true if in a rotation list */
+	bool is_in_rotation_list() const;
 
 	/** MariaDB encryption data */
 	fil_space_crypt_t* crypt_data;
