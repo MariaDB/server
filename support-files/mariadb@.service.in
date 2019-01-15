@@ -1,7 +1,7 @@
 # Multi instance version of mariadb. For if you run multiple versions at once.
 # Also used for mariadb@bootstrap to bootstrap Galera.
 #
-# create config file @sysconf2dir@/my{instancename}.cnf
+# create config file @sysconfdir@/my{instancename}.cnf
 #
 # start as systemctl start mariadb@{instancename}.server
 
@@ -23,7 +23,7 @@ Documentation=man:mysqld(8)
 Documentation=https://mariadb.com/kb/en/library/systemd/
 After=network.target
 
-ConditionPathExists=@sysconf2dir@/my%I.cnf
+ConditionPathExists=@sysconfdir@/my%I.cnf
 
 [Install]
 WantedBy=multi-user.target
@@ -75,7 +75,7 @@ PermissionsStartOnly=true
 ExecStartPre=/bin/sh -c "systemctl unset-environment _WSREP_START_POSITION%I"
 
 ExecStartPre=/bin/sh -c "[ ! -e @bindir@/galera_recovery ] && VAR= || \
- VAR=`@bindir@/galera_recovery --defaults-file=@sysconf2dir@/my%I.cnf`; [ $? -eq 0 ] \
+ VAR=`@bindir@/galera_recovery --defaults-file=@sysconfdir@/my%I.cnf`; [ $? -eq 0 ] \
  && systemctl set-environment _WSREP_START_POSITION%I=$VAR || exit 1"
 
 # Alternate: (remove ConditionPathExists above)
@@ -96,7 +96,7 @@ ExecStartPre=/bin/sh -c "[ ! -e @bindir@/galera_recovery ] && VAR= || \
 
 # Note: Place $MYSQLD_OPTS at the very end for its options to take precedence.
 
-ExecStart=@sbindir@/mysqld --defaults-file=@sysconf2dir@/my%I.cnf \
+ExecStart=@sbindir@/mysqld --defaults-file=@sysconfdir@/my%I.cnf \
   $_WSREP_NEW_CLUSTER $_WSREP_START_POSITION%I $MYSQLD_OPTS
 # Alternate: (remove ConditionPathExists above)
 # use [mysqld.INSTANCENAME] as sections in my.cnf
