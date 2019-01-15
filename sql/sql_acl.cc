@@ -10495,6 +10495,7 @@ int mysql_alter_user(THD* thd, List<LEX_USER> &users_list)
   DBUG_ENTER("mysql_alter_user");
   int result= 0;
   String wrong_users;
+  bool some_users_altered= false;
 
   /* The only table we're altering is the user table. */
   Grant_tables tables;
@@ -10518,6 +10519,7 @@ int mysql_alter_user(THD* thd, List<LEX_USER> &users_list)
       result= TRUE;
       continue;
     }
+    some_users_altered= true;
   }
 
   /* Unlock ACL data structures. */
@@ -10542,6 +10544,10 @@ int mysql_alter_user(THD* thd, List<LEX_USER> &users_list)
                wrong_users.c_ptr_safe());
     }
   }
+
+  if (some_users_altered)
+    result|= write_bin_log(thd, FALSE, thd->query(),
+                                     thd->query_length());
   DBUG_RETURN(result);
 }
 

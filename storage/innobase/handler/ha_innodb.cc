@@ -9360,7 +9360,6 @@ ha_innobase::innobase_get_index(
 	if (keynr != MAX_KEY && table->s->keys > 0) {
 		key = &table->key_info[keynr];
 		index = dict_table_get_index_on_name(ib_table, key->name.str);
-		ut_ad(index);
 	} else {
 		index = dict_table_get_first_index(ib_table);
 	}

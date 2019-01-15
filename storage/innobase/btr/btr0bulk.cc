@@ -833,6 +833,7 @@ BtrBulk::insert(
 						level, m_flush_observer));
 		err = new_page_bulk->init();
 		if (err != DB_SUCCESS) {
+			UT_DELETE(new_page_bulk);
 			return(err);
 		}
 

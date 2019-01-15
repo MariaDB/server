@@ -143,7 +143,6 @@ struct fil_space_t {
 	Protected by fil_system.mutex and std::atomic. */
 	std::atomic<ulint>		n_pending_ios;
 	hash_node_t	hash;	/*!< hash chain node */
-	hash_node_t	name_hash;/*!< hash chain the name_hash table */
 	rw_lock_t	latch;	/*!< latch protecting the file space storage
 				allocation */
 	UT_LIST_NODE_T(fil_space_t) unflushed_spaces;
