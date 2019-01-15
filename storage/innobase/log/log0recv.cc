@@ -1037,9 +1037,7 @@ static dberr_t recv_log_recover_10_4()
 {
 	ut_ad(!log_sys.is_encrypted());
 	const lsn_t	lsn = log_sys.log.lsn;
-	log_mutex_enter();
 	const lsn_t	source_offset = log_sys.log.calc_lsn_offset(lsn);
-	log_mutex_exit();
 	const ulint	page_no
 		= (ulint) (source_offset / univ_page_size.physical());
 	byte*		buf = log_sys.buf;
