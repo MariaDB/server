@@ -167,9 +167,10 @@ xb_mysql_query(MYSQL *connection, const char *query, bool use_result,
 	MYSQL_RES *mysql_result = NULL;
 
 	if (mysql_query(connection, query)) {
-		msg("Error: failed to execute query %s: %s", query, mysql_error(connection));
 		if (die_on_error) {
-			exit(EXIT_FAILURE);
+			die("failed to execute query %s: %s", query, mysql_error(connection));
+		} else {
+			msg("Error: failed to execute query %s: %s", query, mysql_error(connection));
 		}
 		return(NULL);
 	}
@@ -177,9 +178,8 @@ xb_mysql_query(MYSQL *connection, const char *query, bool use_result,
 	/* store result set on client if there is a result */
 	if (mysql_field_count(connection) > 0) {
 		if ((mysql_result = mysql_store_result(connection)) == NULL) {
-			msg("Error: failed to fetch query result %s: %s",
+			die("failed to fetch query result %s: %s",
 				query, mysql_error(connection));
-			exit(EXIT_FAILURE);
 		}
 
 		if (!use_result) {
@@ -910,8 +910,7 @@ DECLARE_THREAD(kill_mdl_waiters_thread(void *))
 				row[1], row[2], row[0]);
 			snprintf(query, sizeof(query), "KILL QUERY %s", row[0]);
 			if (mysql_query(mysql, query) && (mysql_errno(mysql) != ER_NO_SUCH_THREAD)) {
-				msg("Error: failed to execute query %s: %s", query,mysql_error(mysql));
-				exit(EXIT_FAILURE);
+				die("failed to execute query %s: %s", query,mysql_error(mysql));
 			}
 		}
 		mysql_free_result(result);

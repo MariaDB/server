@@ -45,8 +45,7 @@ static std::string get_encryption_plugin_from_cnf()
   FILE *f = fopen("backup-my.cnf", "r");
   if (!f)
   {
-    msg("Can't open backup-my.cnf for reading");
-    exit(EXIT_FAILURE);
+    die("Can't open backup-my.cnf for reading");
   }
   char line[512];
   std::string plugin_load;

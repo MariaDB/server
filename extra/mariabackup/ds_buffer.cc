@@ -96,7 +96,7 @@ buffer_open(ds_ctxt_t *ctxt, const char *path, MY_STAT *mystat)
 
 	dst_file = ds_open(pipe_ctxt, path, mystat);
 	if (dst_file == NULL) {
-		exit(EXIT_FAILURE);
+		die("ds_open(%s) failed", path);
 	}
 
 	buffer_ctxt = (ds_buffer_ctxt_t *) ctxt->ptr;

@@ -2221,7 +2221,7 @@ static void copy_or_move_dir(const char *from, const char *to, bool do_copy, boo
 					to, 1));
 		}
 		if (!rc)
-			exit(EXIT_FAILURE);
+			die("copy or move file failed");
 	}
 	datadir_iter_free(it);
 	datadir_node_free(&node);
@@ -2323,8 +2323,7 @@ static void rocksdb_backup_checkpoint()
 	if (backup_to_directory) 
 	{
 		if (my_mkdir(rocksdb_backup_dir, 0777, MYF(0))){
-			msg("Can't create rocksdb backup directory %s", rocksdb_backup_dir);
-			exit(EXIT_FAILURE);
+			die("Can't create rocksdb backup directory %s", rocksdb_backup_dir);
 		}
 	}
 	copy_or_move_dir(rocksdb_checkpoint_dir, ROCKSDB_BACKUP_DIR, true, backup_to_directory);

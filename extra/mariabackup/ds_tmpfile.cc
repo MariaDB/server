@@ -195,8 +195,7 @@ tmpfile_deinit(ds_ctxt_t *ctxt)
 		/* Stat the file to replace size and mtime on the original
 		* mystat struct */
 		if (my_fstat(tmp_file->fd, &mystat, MYF(0))) {
-			msg("error: my_fstat() failed.");
-			exit(EXIT_FAILURE);
+			die("my_fstat() failed.");
 		}
 		tmp_file->mystat.st_size = mystat.st_size;
 		tmp_file->mystat.st_mtime = mystat.st_mtime;
@@ -204,18 +203,16 @@ tmpfile_deinit(ds_ctxt_t *ctxt)
 		dst_file = ds_open(pipe_ctxt, tmp_file->orig_path,
 				   &tmp_file->mystat);
 		if (dst_file == NULL) {
-			msg("error: could not stream a temporary file to "
+			die("could not stream a temporary file to "
 			    "'%s'", tmp_file->orig_path);
-			exit(EXIT_FAILURE);
 		}
 
 		/* copy to the destination datasink */
 		posix_fadvise(tmp_file->fd, 0, 0, POSIX_FADV_SEQUENTIAL);
 		if (my_seek(tmp_file->fd, 0, SEEK_SET, MYF(0)) ==
 		    MY_FILEPOS_ERROR) {
-			msg("error: my_seek() failed for '%s', errno = %d.",
+			die("my_seek() failed for '%s', errno = %d.",
 			    tmp_file->file->path, my_errno);
-			exit(EXIT_FAILURE);
 		}
 		offset = 0;
 		while ((bytes = my_read(tmp_file->fd, (unsigned char *)buf, buf_size,
@@ -223,13 +220,12 @@ tmpfile_deinit(ds_ctxt_t *ctxt)
 			posix_fadvise(tmp_file->fd, offset, buf_size, POSIX_FADV_DONTNEED);
 			offset += buf_size;
 			if (ds_write(dst_file, buf, bytes)) {
-				msg("error: cannot write to stream for '%s'.",
+				die("cannot write to stream for '%s'.",
 				    tmp_file->orig_path);
-				exit(EXIT_FAILURE);
 			}
 		}
 		if (bytes == (size_t) -1) {
-			exit(EXIT_FAILURE);
+			die("my_read failed for %s", tmp_file->orig_path);
 		}
 
 		my_close(tmp_file->fd, MYF(MY_WME));

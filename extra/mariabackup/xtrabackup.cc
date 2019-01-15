@@ -657,9 +657,8 @@ static void backup_file_op_fail(ulint space_id, const byte* flags,
 		msg("DDL tracking : delete %zu \"%.*s\"", space_id, int(len), name);
 	}
 	if (fail) {
-		msg("ERROR : DDL operation detected in the late phase of backup."
+		die("DDL operation detected in the late phase of backup."
 			"Backup is inconsistent. Remove --no-lock option to fix.");
-		exit(EXIT_FAILURE);
 	}
 }
 
@@ -1457,8 +1456,7 @@ debug_sync_point(const char *name)
 		 xtrabackup_target_dir);
 	fp = fopen(pid_path, "w");
 	if (fp == NULL) {
-		msg("mariabackup: Error: cannot open %s", pid_path);
-		exit(EXIT_FAILURE);
+		die("Can't open open %s", pid_path);
 	}
 	fprintf(fp, "%u\n", (uint) pid);
 	fclose(fp);
@@ -1794,7 +1792,7 @@ innodb_init_param(void)
 	memset((G_PTR) &mysql_tmpdir_list, 0, sizeof(mysql_tmpdir_list));
 
 	if (init_tmpdir(&mysql_tmpdir_list, opt_mysql_tmpdir))
-		exit(EXIT_FAILURE);
+		die("init_tmpdir() failed");
 	xtrabackup_tmpdir = my_tmpdir(&mysql_tmpdir_list);
 	/* dummy for initialize all_charsets[] */
 	get_charset_name(0);
@@ -1811,9 +1809,8 @@ innodb_init_param(void)
 			msg("InnoDB: The page size of the "
 			    "database is set to %lu.", srv_page_size);
 		} else {
-			msg("InnoDB: Error: invalid value of "
+			die("invalid value of "
 			    "innobase_page_size: %lld", innobase_page_size);
-			exit(EXIT_FAILURE);
 		}
 	} else {
 		srv_page_size_shift = 14;
@@ -2766,8 +2763,7 @@ static bool xtrabackup_copy_logfile(bool last = false)
 		log_mutex_exit();
 
 		if (!start_lsn) {
-			msg("Error: xtrabackup_copy_logfile() failed.");
-			exit(EXIT_FAILURE);
+			die("xtrabackup_copy_logfile() failed.");
 		}
 	} while (start_lsn == end_lsn);
 
@@ -2916,8 +2912,7 @@ data_copy_thread_func(
 		DBUG_MARIABACKUP_EVENT("before_copy", node->space->name);
 		/* copy the datafile */
 		if(xtrabackup_copy_datafile(node, num)) {
-			msg(num,"mariabackup: Error: failed to copy datafile.");
-			exit(EXIT_FAILURE);
+			die("failed to copy datafile.");
 		}
 
 		DBUG_MARIABACKUP_EVENT("after_copy", node->space->name);
@@ -3094,9 +3089,7 @@ xb_load_single_table_tablespace(
 	Datafile *file = xb_new_datafile(name, is_remote);
 
 	if (file->open_read_only(true) != DB_SUCCESS) {
-		msg("Can't open datafile %s", name);
-		ut_free(name);
-		exit(EXIT_FAILURE);
+		die("Can't open datafile %s", name);
 	}
 
 	err = file->validate_first_page(&flush_lsn);
@@ -3134,7 +3127,7 @@ xb_load_single_table_tablespace(
 	if (err != DB_SUCCESS && err != DB_CORRUPTION && xtrabackup_backup) {
 		/* allow corrupted first page for xtrabackup, it could be just
 		zero-filled page, which we restore from redo log later */
-		exit(EXIT_FAILURE);
+		die("Failed to not validate first page of the file %s, error %d",name, (int)err);
 	}
 }
 
@@ -3505,13 +3498,11 @@ xb_validate_name(
 	/* perform only basic validation. validate length and
 	path symbols */
 	if (len > NAME_LEN) {
-		msg("mariabackup: name `%s` is too long.", name);
-		exit(EXIT_FAILURE);
+		die("name `%s` is too long.", name);
 	}
 	p = strpbrk(name, "/\\~");
 	if (p && (uint) (p - name) < NAME_LEN) {
-		msg("mariabackup: name `%s` is not valid.", name);
-		exit(EXIT_FAILURE);
+		die("name `%s` is not valid.", name);
 	}
 }
 
@@ -3589,8 +3580,7 @@ xb_register_table(
 	const char* name)	/*!< in: name of table */
 {
 	if (strchr(name, '.') == NULL) {
-		msg("mariabackup: `%s` is not fully qualified name.", name);
-		exit(EXIT_FAILURE);
+		die("`%s` is not fully qualified name.", name);
 	}
 
 	xb_register_include_filter_entry(name);
@@ -3680,17 +3670,15 @@ xb_load_list_file(
 	/* read and store the filenames */
 	fp = fopen(filename, "r");
 	if (!fp) {
-		msg("mariabackup: cannot open %s",
+		die("Can't open %s",
 		    filename);
-		exit(EXIT_FAILURE);
 	}
 	while (fgets(name_buf, sizeof(name_buf), fp) != NULL) {
 		char*	p = strchr(name_buf, '\n');
 		if (p) {
 			*p = '\0';
 		} else {
-			msg("mariabackup: `%s...` name is too long", name_buf);
-			exit(EXIT_FAILURE);
+			die("`%s...` name is too long", name_buf);
 		}
 
 		ins(name_buf);
@@ -4797,9 +4785,8 @@ exit:
 
 	if (info.space_id == ULINT_UNDEFINED)
 	{
-		msg("mariabackup: Error: Cannot handle DDL operation on tablespace "
+		die("Can't handle DDL operation on tablespace "
 		    "%s\n", dest_space_name);
-		exit(EXIT_FAILURE);
 	}
 	mutex_enter(&fil_system->mutex);
 	fil_space = fil_space_get_by_id(info.space_id);
@@ -5093,8 +5080,7 @@ std::string change_extension(std::string filename, std::string new_ext) {
 static void rename_file(const char *from,const char *to) {
 	msg("Renaming %s to %s\n", from, to);
 	if (my_rename(from, to, MY_WME)) {
-		msg("Can't rename %s to %s errno %d", from, to, errno);
-		exit(EXIT_FAILURE);
+		die("Can't rename %s to %s errno %d", from, to, errno);
 	}
 }
 
@@ -5371,8 +5357,7 @@ static void delete_file(const std::string& file, bool if_exists = false) {
 	if (if_exists && !file_exists(file))
 		return;
 	if (my_delete(file.c_str(), MYF(MY_WME))) {
-		msg("Can't remove %s, errno %d", file.c_str(), errno);
-		exit(EXIT_FAILURE);
+		die("Can't remove %s, errno %d", file.c_str(), errno);
 	}
 }
 
@@ -5757,7 +5742,7 @@ has_privilege(const std::list<std::string> &granted,
 		required, db_name, table_name);
 	if (written < 0 || written == sizeof(buffer)
 		|| regcomp(&priv_re, buffer, REG_EXTENDED)) {
-		exit(EXIT_FAILURE);
+		die("regcomp() failed for '%s'", buffer);
 	}
 
 	typedef std::list<std::string>::const_iterator string_iter;
@@ -5871,7 +5856,7 @@ check_all_privileges()
 
 	if (check_result & PRIVILEGE_ERROR) {
 		mysql_close(mysql_connection);
-		exit(EXIT_FAILURE);
+		die("Insufficient privileges");
 	}
 }
 
@@ -6110,21 +6095,13 @@ handle_options(int argc, char **argv, char ***argv_client, char ***argv_server)
 		char *optend = strcend((argv)[i], '=');
 
 		if (optend - argv[i] == 15 &&
-                    !strncmp(argv[i], "--defaults-file", optend - argv[i])) {
-
-			msg("mariabackup: Error: --defaults-file "
-			    "must be specified first on the command "
-			    "line");
-			exit(EXIT_FAILURE);
+			!strncmp(argv[i], "--defaults-file", optend - argv[i])) {
+			die("--defaults-file must be specified first on the command line");
 		}
-                if (optend - argv[i] == 21 &&
-		    !strncmp(argv[i], "--defaults-extra-file",
-			     optend - argv[i])) {
-
-			msg("mariabackup: Error: --defaults-extra-file "
-			    "must be specified first on the command "
-			    "line\n");
-			exit(EXIT_FAILURE);
+		if (optend - argv[i] == 21 &&
+			!strncmp(argv[i], "--defaults-extra-file",
+				optend - argv[i])) {
+			die("--defaults-extra-file must be specified first on the command line");
 		}
 	}
 
@@ -6227,7 +6204,7 @@ int main(int argc, char **argv)
 
 	if (mysql_server_init(-1, NULL, NULL))
 	{
-		exit(EXIT_FAILURE);
+		die("mysql_server_init() failed");
 	}
 
 	system_charset_info = &my_charset_utf8_general_ci;

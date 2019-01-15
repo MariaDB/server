@@ -48,8 +48,7 @@ ds_create(const char *root, ds_type_t type)
 #ifdef HAVE_LIBARCHIVE
 		ds = &datasink_archive;
 #else
-		msg("Error : mariabackup was built without libarchive support");
-		exit(EXIT_FAILURE);
+		die("mariabackup was built without libarchive support");
 #endif
 		break;
 	case DS_TYPE_XBSTREAM:
@@ -60,8 +59,7 @@ ds_create(const char *root, ds_type_t type)
 		break;
 	case DS_TYPE_ENCRYPT:
   case DS_TYPE_DECRYPT:
-		msg("Error : mariabackup does not support encrypted backups.");
-		exit(EXIT_FAILURE);
+		die("mariabackup does not support encrypted backups.");
 		break;
 
 	case DS_TYPE_TMPFILE:
@@ -80,8 +78,7 @@ ds_create(const char *root, ds_type_t type)
 	if (ctxt != NULL) {
 		ctxt->datasink = ds;
 	} else {
-		msg("Error: failed to initialize datasink.");
-		exit(EXIT_FAILURE);
+		die("failed to initialize datasink.");
 	}
 
 	return ctxt;

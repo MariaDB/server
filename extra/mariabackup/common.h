@@ -86,9 +86,7 @@ static inline int asprintf(char **strp, const char *fmt,...)
 
 #define XB_DELTA_INFO_SUFFIX ".meta"
 
-
-static inline int msg1(unsigned int thread_num, const char *fmt, ...) ATTRIBUTE_FORMAT(printf, 2, 3);
-static inline int msg1(uint thread_num, const char *fmt, va_list args)
+static inline int msg1(uint thread_num, const char *prefix, const char *fmt, va_list args)
 {
   int result;
   time_t t = time(NULL);
@@ -98,33 +96,42 @@ static inline int msg1(uint thread_num, const char *fmt, va_list args)
   result = vasprintf(&line, fmt, args);
   if (result != -1) {
     if (fmt && fmt[strlen(fmt)] != '\n')
-      result = fprintf(stderr, "[%02u] %s %s\n", thread_num, date, line);
+      result = fprintf(stderr, "[%02u] %s%s %s\n", thread_num, prefix, date, line);
     else
-      result = fprintf(stderr, "[%02u] %s %s", thread_num, date, line);
+      result = fprintf(stderr, "[%02u] %s%s %s", thread_num, prefix, date, line);
     free(line);
   }
   return result;
 }
-static inline int msg(unsigned int, const char *fmt, ...) ATTRIBUTE_FORMAT(printf, 2, 3);
-static inline int msg(unsigned int thread_num, const char *fmt, ...)
+
+static inline  ATTRIBUTE_FORMAT(printf, 2, 3) int msg(unsigned int thread_num, const char *fmt, ...)
 {
   int result;
   va_list args;
   va_start(args, fmt);
-  result = msg1(thread_num, fmt, args);
+  result = msg1(thread_num,"", fmt, args);
   va_end(args);
   return result;
 }
 
-static inline int msg(const char *fmt, ...) ATTRIBUTE_FORMAT(printf, 1, 2);
-static inline int msg(const char *fmt, ...) 
+static inline ATTRIBUTE_FORMAT(printf, 1, 2) int msg(const char *fmt, ...)
 {
   int result;
   va_list args;
   va_start(args, fmt);
-  result = msg1(0, fmt, args);
+  result = msg1(0, "", fmt, args);
   va_end(args);
   return result;
+}
+
+static inline ATTRIBUTE_FORMAT(printf, 1,2) ATTRIBUTE_NORETURN void die(const char *fmt, ...)
+{
+  va_list args;
+  va_start(args, fmt);
+  msg1(0, "FATAL ERROR: ", fmt, args);
+  va_end(args);
+  fflush(stderr);
+  _exit(EXIT_FAILURE);
 }
 
 
