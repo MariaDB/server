@@ -172,5 +172,16 @@ set debug_dbug= default;
 }
 alter table t1 drop system versioning;
 
+--echo #
+--echo # MDEV-18173 Assertion `o->ind == vers_end' or `o->ind == vers_start' failed in dict_table_t::instant_column
+--echo #
+set @@system_versioning_alter_history= keep;
+create or replace table t1 (pk integer primary key, a int, b int, v int as (a))
+with system versioning;
+
+alter table t1 force;
+alter table t1 drop column b;
+
+
 drop database test;
 create database test;
