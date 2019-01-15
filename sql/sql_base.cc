@@ -987,19 +987,10 @@ void close_thread_table(THD *thd, TABLE **table_ptr)
     The metadata lock must be released after giving back
     the table to the table cache.
   */
-#ifdef WITH_WSREP
-  /* if SR thread was aborted, MDL locks were released early */
-  DBUG_ASSERT(thd->variables.wsrep_trx_fragment_size > 0 ||
-              thd->mdl_context.is_lock_owner(MDL_key::TABLE,
+  DBUG_ASSERT(thd->mdl_context.is_lock_owner(MDL_key::TABLE,
                                              table->s->db.str,
                                              table->s->table_name.str,
                                              MDL_SHARED));
-#else
- DBUG_ASSERT(thd->mdl_context.is_lock_owner(MDL_key::TABLE,
-                                             table->s->db.str,
-                                             table->s->table_name.str,
-                                             MDL_SHARED));
-#endif /* WITH_WSSREP */
   table->mdl_ticket= NULL;
 
   if (table->file)

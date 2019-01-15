@@ -4299,9 +4299,9 @@ static int exec_relay_log_event(THD* thd, Relay_log_info* rli,
          rli->until_condition == Relay_log_info::UNTIL_RELAY_POS) &&
         (ev->server_id != global_system_variables.server_id ||
          rli->replicate_same_server_id) &&
-	rli->is_until_satisfied((rli->get_flag(Relay_log_info::IN_TRANSACTION) || !ev->log_pos)
-				? rli->group_master_log_pos
-				: ev->log_pos - ev->data_written))
+        rli->is_until_satisfied((rli->get_flag(Relay_log_info::IN_TRANSACTION) || !ev->log_pos)
+                                ? rli->group_master_log_pos
+                                : ev->log_pos - ev->data_written))
     {
       sql_print_information("Slave SQL thread stopped because it reached its"
                             " UNTIL position %llu", rli->until_pos());
@@ -4464,8 +4464,8 @@ static int exec_relay_log_event(THD* thd, Relay_log_info* rli,
           We were in a transaction which has been rolled back because of a
           temporary error;
           let's seek back to BEGIN log event and retry it all again.
-	        Note, if lock wait timeout (innodb_lock_wait_timeout exceeded)
-	        there is no rollback since 5.0.13 (ref: manual).
+          Note, if lock wait timeout (innodb_lock_wait_timeout exceeded)
+          there is no rollback since 5.0.13 (ref: manual).
           We have to not only seek but also
 
           a) init_master_info(), to seek back to hot relay log's start
@@ -4536,7 +4536,7 @@ static int exec_relay_log_event(THD* thd, Relay_log_info* rli,
 #ifdef WITH_WSREP
     wsrep_after_statement(thd);
 #endif /* WITH_WSREP */
-     DBUG_RETURN(exec_res);
+    DBUG_RETURN(exec_res);
   }
   mysql_mutex_unlock(&rli->data_lock);
   rli->report(ERROR_LEVEL, ER_SLAVE_RELAY_LOG_READ_FAILURE, NULL,

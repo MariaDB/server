@@ -1195,14 +1195,13 @@ static enum enum_server_command fetch_command(THD *thd, char *packet)
 #ifdef WITH_WSREP
 static bool wsrep_tables_accessible_when_detached(const TABLE_LIST *tables)
 {
-  bool accessible_tables = true;
   for (const TABLE_LIST *table= tables; table; table= table->next_global)
   {
     LEX_CSTRING db= table->db, tn= table->table_name;
     if (get_table_category(&db, &tn)  < TABLE_CATEGORY_INFORMATION)
       return false;
   }
-  return accessible_tables;
+  return true;
 }
 #endif /* WITH_WSREP */
 #ifndef EMBEDDED_LIBRARY
@@ -7703,7 +7702,6 @@ void THD::reset_for_next_command(bool do_clear_error)
   stmt_depends_on_first_successful_insert_id_in_prev_stmt= 0;
 
 #ifdef WITH_WSREP
-  THD *thd= this;
   /*
     Autoinc variables should be adjusted only for locally executed
     transactions. Appliers and replayers are either processing ROW
@@ -7712,8 +7710,8 @@ void THD::reset_for_next_command(bool do_clear_error)
     use autoinc values passed in binlog events, not the values forced by
     the cluster.
   */
-  if (WSREP(thd) && wsrep_thd_is_local(thd) &&
-      !thd->slave_thread && wsrep_auto_increment_control)
+  if (WSREP(this) && wsrep_thd_is_local(this) &&
+      !slave_thread && wsrep_auto_increment_control)
   {
     variables.auto_increment_offset=
       global_system_variables.auto_increment_offset;

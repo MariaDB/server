@@ -267,12 +267,6 @@ extern "C" my_bool wsrep_thd_order_before(const void *left_ptr,
   return FALSE;
 }
 
-extern "C" my_bool wsrep_thd_is_high_priority(const void* thd_ptr)
-{
-  const THD* thd= (const THD*)thd_ptr;
-  return (thd != 0 && thd->wsrep_cs().mode() == wsrep::client_state::m_high_priority);
-}
-
 extern "C" my_bool wsrep_thd_is_aborting(const void* thd_ptr)
 {
   const THD* thd= (const THD*)thd_ptr;

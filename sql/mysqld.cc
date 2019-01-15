@@ -1562,6 +1562,7 @@ ATTRIBUTE_NORETURN static void mysqld_exit(int exit_code);
 static void delete_pid_file(myf flags);
 static void end_ssl();
 
+
 #ifndef EMBEDDED_LIBRARY
 /****************************************************************************
 ** Code to end mysqld

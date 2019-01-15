@@ -33,21 +33,13 @@
 
 static Wsrep_thd_queue* wsrep_rollback_queue= 0;
 static Wsrep_thd_queue* wsrep_post_rollback_queue= 0;
+static Atomic_counter<uint64_t> wsrep_bf_aborts_counter;
 
-#if (__LP64__)
-static volatile int64 wsrep_bf_aborts_counter(0);
-#define WSREP_ATOMIC_LOAD_LONG my_atomic_load64
-#define WSREP_ATOMIC_ADD_LONG  my_atomic_add64
-#else
-static volatile int32 wsrep_bf_aborts_counter(0);
-#define WSREP_ATOMIC_LOAD_LONG my_atomic_load32
-#define WSREP_ATOMIC_ADD_LONG  my_atomic_add32
-#endif
 
 int wsrep_show_bf_aborts (THD *thd, SHOW_VAR *var, char *buff,
                           enum enum_var_type scope)
 {
-  wsrep_local_bf_aborts= WSREP_ATOMIC_LOAD_LONG(&wsrep_bf_aborts_counter);
+  wsrep_local_bf_aborts= wsrep_bf_aborts_counter;
   var->type= SHOW_LONGLONG;
   var->value= (char*)&wsrep_local_bf_aborts;
   return 0;
@@ -396,7 +388,7 @@ bool wsrep_bf_abort(const THD* bf_thd, THD* victim_thd)
   }
   if (ret)
   {
-    my_atomic_add64(&wsrep_bf_aborts_counter, 1);
+    wsrep_bf_aborts_counter++;
   }
   return ret;
 }

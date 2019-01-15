@@ -24,12 +24,6 @@
 #include <mysql/plugin.h>
 #include <mysql/service_thd_wait.h>
 #include <mysql/psi/mysql_stage.h>
-#ifdef WITH_WSREP
-#include "mysql/service_wsrep.h"
-#include "debug_sync.h"
-#include "wsrep_mysqld.h"
-#include "wsrep_thd.h"
-#endif /* WITH_WSREP */
 #ifdef HAVE_PSI_INTERFACE
 static PSI_mutex_key key_MDL_wait_LOCK_wait_status;
 
@@ -1221,7 +1215,6 @@ void MDL_lock::Ticket_list::add_ticket(MDL_ticket *ticket)
       wsrep_thd_is_BF((void*)ticket->get_ctx()->get_thd(), false))
   {
     Ticket_iterator itw(ticket->get_lock()->m_waiting);
-    Ticket_iterator itg(ticket->get_lock()->m_granted);
 
     DBUG_ASSERT(WSREP_ON);
     MDL_ticket *waiting;
@@ -1243,8 +1236,8 @@ void MDL_lock::Ticket_list::add_ticket(MDL_ticket *ticket)
     }
 
     /* Otherwise, insert the ticket at the back of the waiting list. */
-    if (!added) m_list.push_back(ticket);
-
+    if (!added)
+      m_list.push_back(ticket);
   }
   else
 #endif /* WITH_WSREP */

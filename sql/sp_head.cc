@@ -54,6 +54,7 @@
 #define SP_INSTR_UINT_MAXLEN  8
 #define SP_STMT_PRINT_MAXLEN 40
 
+
 #include <my_user.h>
 
 extern "C" uchar *sp_table_key(const uchar *ptr, size_t *plen, my_bool first);
@@ -3188,7 +3189,7 @@ sp_head::show_routine_code(THD *thd)
     */
     if (ip != i->m_ip)
     {
-      const char format[]= "Instruction at position %u has m_ip=%u";
+      const char *format= "Instruction at position %u has m_ip=%u";
       char tmp[sizeof(format) + 2*SP_INSTR_UINT_MAXLEN + 1];
 
       sprintf(tmp, format, ip, i->m_ip);

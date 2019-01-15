@@ -647,13 +647,29 @@ THD::THD(my_thread_id id, bool is_wsrep_applier, bool skip_global_sys_var_lock)
    wsrep_applier(is_wsrep_applier),
    wsrep_applier_closing(false),
    wsrep_client_thread(false),
+   wsrep_retry_counter(0),
+   wsrep_PA_safe(true),
+   wsrep_retry_query(NULL),
+   wsrep_retry_query_len(0),
+   wsrep_retry_command(COM_CONNECT),
+   wsrep_consistency_check(NO_CONSISTENCY_CHECK),
+   wsrep_mysql_replicated(0),
+   wsrep_TOI_pre_query(NULL),
+   wsrep_TOI_pre_query_len(0),
    wsrep_po_handle(WSREP_PO_INITIALIZER),
    wsrep_po_cnt(0),
    wsrep_apply_format(0),
    wsrep_apply_toi(false),
+   wsrep_rbr_buf(NULL),
+   wsrep_nbo_ctx(NULL),
+   wsrep_sync_wait_gtid(WSREP_GTID_UNDEFINED),
+   wsrep_affected_rows(0),
+   wsrep_has_ignored_error(false),
+   wsrep_replicate_GTID(false),
    wsrep_ignore_table(false),
 
 /* wsrep-lib */
+   m_wsrep_next_trx_id(WSREP_UNDEFINED_TRX_ID),
    m_wsrep_mutex(LOCK_thd_data),
    m_wsrep_cond(COND_wsrep_thd),
    m_wsrep_client_service(this, m_wsrep_client_state),
@@ -787,24 +803,7 @@ THD::THD(my_thread_id id, bool is_wsrep_applier, bool skip_global_sys_var_lock)
 
 #ifdef WITH_WSREP
   mysql_cond_init(key_COND_wsrep_thd, &COND_wsrep_thd, NULL);
-  wsrep_retry_counter     = 0;
-  wsrep_PA_safe           = true;
-  wsrep_retry_query       = NULL;
-  wsrep_retry_query_len   = 0;
-  wsrep_retry_command     = COM_CONNECT;
-  wsrep_consistency_check = NO_CONSISTENCY_CHECK;
-  wsrep_mysql_replicated  = 0;
-  wsrep_TOI_pre_query     = NULL;
-  wsrep_TOI_pre_query_len = 0;
-  wsrep_rbr_buf           = NULL;
-  wsrep_nbo_ctx           = NULL;
-
   wsrep_info[sizeof(wsrep_info) - 1] = '\0'; /* make sure it is 0-terminated */
-  wsrep_sync_wait_gtid    = WSREP_GTID_UNDEFINED;
-  wsrep_affected_rows     = 0;
-  wsrep_has_ignored_error = false;
-  m_wsrep_next_trx_id       = WSREP_UNDEFINED_TRX_ID;
-  wsrep_replicate_GTID    = false;
 #endif
   /* Call to init() below requires fully initialized Open_tables_state. */
   reset_open_tables_state(this);
