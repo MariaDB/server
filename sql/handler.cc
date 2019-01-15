@@ -2495,7 +2495,7 @@ int ha_rollback_to_savepoint(THD *thd, SAVEPOINT *sv)
     int err;
     handlerton *ht= ha_info->ht();
 #ifdef WITH_WSREP
-    if (ht->flags & HTON_WSREP_REPLICATION)
+    if (WSREP(thd) && ht->flags & HTON_WSREP_REPLICATION)
     {
       WSREP_DEBUG("ha_rollback_to_savepoint: run before_rollbackha_rollback_trans hook");
       (void) wsrep_before_rollback(thd, !thd->in_sub_stmt);
@@ -2508,7 +2508,7 @@ int ha_rollback_to_savepoint(THD *thd, SAVEPOINT *sv)
       error=1;
     }
 #ifdef WITH_WSREP
-    if (ht->flags & HTON_WSREP_REPLICATION)
+    if (WSREP(thd) && ht->flags & HTON_WSREP_REPLICATION)
     {
       WSREP_DEBUG("ha_rollback_to_savepoint: run after_rollback hook");
       (void) wsrep_after_rollback(thd, !thd->in_sub_stmt);
