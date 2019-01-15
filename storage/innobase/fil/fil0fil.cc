@@ -4815,22 +4815,24 @@ fil_node_complete_io(fil_node_t* node, const IORequest& type)
 		ut_ad(!srv_read_only_mode
 		      || fsp_is_system_temporary(node->space->id));
 
-		node->needs_flush = true;
-
 		if (fil_buffering_disabled(node->space)) {
 
 			/* We don't need to keep track of unflushed
 			changes as user has explicitly disabled
 			buffering. */
 			ut_ad(!node->space->is_in_unflushed_spaces);
-			node->needs_flush = false;
+			ut_ad(node->needs_flush == false);
 
-		} else if (!node->space->is_in_unflushed_spaces) {
+		} else {
+			node->needs_flush = true;
 
-			node->space->is_in_unflushed_spaces = true;
+			if (!node->space->is_in_unflushed_spaces) {
 
-			UT_LIST_ADD_FIRST(
-				fil_system->unflushed_spaces, node->space);
+				node->space->is_in_unflushed_spaces = true;
+
+				UT_LIST_ADD_FIRST(fil_system->unflushed_spaces,
+						  node->space);
+			}
 		}
 	}
 
