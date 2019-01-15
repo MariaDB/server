@@ -3438,12 +3438,14 @@ public:
   void pop_context()
   {
     DBUG_ENTER("LEX::pop_context");
+#ifndef DBUG_OFF
     Name_resolution_context *context= context_stack.pop();
     DBUG_PRINT("info", ("Pop context %p Select: %p (%d)",
                          context, context->select_lex,
                          (context->select_lex ?
                           context->select_lex->select_number:
                           0)));
+#endif
     DBUG_VOID_RETURN;
   }
 

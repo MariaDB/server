@@ -167,7 +167,7 @@ to instant->dropped[]
 template<bool replace_dropped>
 inline void dict_table_t::init_instant(const dict_table_t& table)
 {
-	const dict_index_t& oindex = *table.indexes.start;
+	const dict_index_t& oindex __attribute__((unused))= *table.indexes.start;
 	dict_index_t& index = *indexes.start;
 	const unsigned u = index.first_user_field();
 	DBUG_ASSERT(u == oindex.first_user_field());
@@ -785,9 +785,9 @@ inline void dict_table_t::rollback_instant(
 		index->get_n_nullable(index->n_core_fields));
 
 	const dict_col_t* const new_cols = cols;
-	const dict_col_t* const new_cols_end = cols + n_cols;
+	const dict_col_t* const new_cols_end __attribute__((unused)) = cols + n_cols;
 	const dict_v_col_t* const new_v_cols = v_cols;
-	const dict_v_col_t* const new_v_cols_end = v_cols + n_v_cols;
+	const dict_v_col_t* const new_v_cols_end __attribute__((unused))= v_cols + n_v_cols;
 
 	cols = old_cols;
 	col_names = old_col_names;

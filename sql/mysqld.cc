@@ -4908,8 +4908,8 @@ int reinit_ssl()
   ssl_acceptor_fd= new_fd;
   ssl_acceptor_stats.init();
   mysql_rwlock_unlock(&LOCK_ssl_refresh);
-  return 0;
 #endif
+  return 0;
 }
 
 static void end_ssl()
