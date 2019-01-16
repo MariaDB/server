@@ -71,7 +71,12 @@ void Wsrep_server_state::init_once(const std::string& name,
 
 void Wsrep_server_state::destroy()
 {
-  delete m_instance;
-  mysql_mutex_destroy(&LOCK_wsrep_server_state);
-  mysql_cond_destroy(&COND_wsrep_server_state);
+
+  if (m_instance)
+  {
+    delete m_instance;
+    m_instance= 0;
+    mysql_mutex_destroy(&LOCK_wsrep_server_state);
+    mysql_cond_destroy(&COND_wsrep_server_state);
+  }
 }

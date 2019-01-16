@@ -2060,9 +2060,9 @@ extern "C" void unireg_abort(int exit_code)
     if (opt_bootstrap || wsrep_recovery)
     {
       if (wsrep_inited) wsrep_deinit(true);
-      wsrep_deinit_server();
     }
   }
+  wsrep_deinit_server();
 #endif // WITH_WSREP
 
   clean_up(!opt_abort && (exit_code || !opt_bootstrap)); /* purecov: inspected */
