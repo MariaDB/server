@@ -20796,8 +20796,7 @@ innobase_get_computed_value(
 			row_sel_field_store_in_mysql_format(
 				mysql_rec + templ->mysql_col_offset,
 				templ, index, templ->clust_rec_field_no,
-				(const byte*)data, len,
-				dict_table_is_comp(index->table));
+				(const byte*)data, len);
 
 			if (templ->mysql_null_bit_mask) {
 				/* It is a nullable column with a

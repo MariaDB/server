@@ -460,8 +460,7 @@ void row_sel_field_store_in_mysql_format(
                                 templ->clust_rec_field_no or
                                 templ->icp_rec_field_no */
         const byte*     data,   /*!< in: data to store */
-	ulint		len,	/*!< in: length of the data */
-	bool		comp);  /*!< in: table row format is compact */
+        ulint           len);   /*!< in: length of the data */
 
 #include "row0sel.ic"
 

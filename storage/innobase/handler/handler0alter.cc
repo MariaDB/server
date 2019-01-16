@@ -267,17 +267,13 @@ inline void dict_table_t::prepare_instant(const dict_table_t& old,
 		DBUG_ASSERT(index.n_fields >= oindex.n_fields);
 		DBUG_ASSERT(index.n_fields > oindex.n_fields
 			    || !not_redundant());
-#if 0
-		/* FIXME: write a variant of same_format() that accepts
-		mismatch in the following attributes:
-		(1) VARCHAR/CHAR type for ROW_FORMAT=REDUNDANT tables
-		(2) charset-collation code (if the encoding remains the same
-		or is being modified to a superset) */
+#ifndef DBUG_OFF
 		if (index.n_fields == oindex.n_fields) {
 			ut_ad(!not_redundant());
 			for (unsigned i = index.n_fields; i--; ) {
 				ut_ad(index.fields[i].col->same_format(
-					      *oindex.fields[i].col));
+						*oindex.fields[i].col,
+						!not_redundant()));
 			}
 		}
 #endif
@@ -471,14 +467,8 @@ inline void dict_index_t::instant_add_field(const dict_index_t& instant)
 		DBUG_ASSERT(fields[i].fixed_len
 			    == instant.fields[i].fixed_len
 			    || !table->not_redundant());
-		/* FIXME: write a variant of same_format() that accepts
-		mismatch in the following attributes:
-		(1) VARCHAR/CHAR type for ROW_FORMAT=REDUNDANT tables
-		(2) charset-collation code (if the encoding remains the same
-		or is being modified to a superset) */
-		DBUG_ASSERT(instant.fields[i].col->same_format(*fields[i]
-							       .col)
-			    || !table->not_redundant());
+		DBUG_ASSERT(instant.fields[i].col->same_format(
+				*fields[i].col, !table->not_redundant()));
 		/* Instant conversion from NULL to NOT NULL is not allowed. */
 		DBUG_ASSERT(!fields[i].col->is_nullable()
 			    || instant.fields[i].col->is_nullable());
@@ -554,18 +544,7 @@ inline bool dict_table_t::instant_column(const dict_table_t& table,
 
 		if (const dict_col_t* o = find(old_cols, col_map, n_cols, i)) {
 			c.def_val = o->def_val;
-			/* FIXME: write a variant of same_format() that accepts
-			mismatch in the following attributes:
-			(1) VARCHAR/CHAR type for ROW_FORMAT=REDUNDANT tables
-			(this is reflected by both mtype and prtype)
-			(2) charset-collation code (if the encoding
-			remains the same or is being modified to a
-			superset) */
-			DBUG_ASSERT(!((c.prtype ^ o->prtype)
-				      & ~(DATA_NOT_NULL | DATA_VERSIONED))
-				    || !not_redundant());
-			DBUG_ASSERT(c.mtype == o->mtype || !not_redundant());
-			DBUG_ASSERT(c.len >= o->len);
+			ut_ad(c.same_format(*o, !not_redundant()));
 
 			if (o->mtype == DATA_INT && !(c.prtype & DATA_UNSIGNED)) {
 				DBUG_ASSERT(c.mtype == o->mtype);
@@ -5627,8 +5606,8 @@ static bool innobase_instant_try(
 
 		bool update = old && (!ctx->first_alter_pos
 				      || i < ctx->first_alter_pos - 1);
-		DBUG_ASSERT(!old || col->same_format(*old)
-			    || !dict_table_is_comp(user_table));
+		ut_ad(!old || col->same_format(
+			*old, !user_table->not_redundant()));
 		if (update
 		    && old->prtype == d->type.prtype) {
 			/* The record is already present in SYS_COLUMNS. */
@@ -9097,15 +9076,17 @@ innobase_enlarge_column_try(
 #ifdef UNIV_DEBUG
 	ut_ad(col->len < new_len);
 	switch (col->mtype) {
+	case DATA_CHAR:
 	case DATA_MYSQL:
 		/* NOTE: we could allow this when !(prtype & DATA_BINARY_TYPE)
 		and ROW_FORMAT is not REDUNDANT and mbminlen<mbmaxlen.
 		That is, we treat a UTF-8 CHAR(n) column somewhat like
 		a VARCHAR. */
-		ut_error;
+		if (user_table->not_redundant()) {
+			ut_error;
+		}
 	case DATA_BINARY:
 	case DATA_VARCHAR:
-	case DATA_CHAR:
 	case DATA_VARMYSQL:
 	case DATA_DECIMAL:
 	case DATA_BLOB:

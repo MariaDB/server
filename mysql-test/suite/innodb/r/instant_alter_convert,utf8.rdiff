@@ -1,0 +1,38 @@
+--- ./mysql-test/suite/innodb/r/instant_alter_convert.result	2019-01-16 20:35:09.101638291 +0300
++++ ./mysql-test/suite/innodb/r/instant_alter_convert,utf8.reject	2019-01-16 20:36:58.385634925 +0300
+@@ -25,7 +25,7 @@
+ test.t	check	status	OK
+ call check_table('t');
+ name	mtype	prtype	len
+-a	1	8000F	300
++a	12	21000F	900
+ # Case 2: VARCHAR -> CHAR conversion
+ set @bigval= repeat('0123456789', 20);
+ create or replace table t (a varchar(300)) row_format=redundant;
+@@ -47,7 +47,7 @@
+ test.t	check	status	OK
+ call check_table('t');
+ name	mtype	prtype	len
+-a	2	800FE	200
++a	13	2100FE	600
+ # CHAR enlargement
+ alter table t modify a char(220), algorithm=instant;
+ select count(a) from t where a = @bigval;
+@@ -65,7 +65,7 @@
+ test.t	check	status	OK
+ call check_table('t');
+ name	mtype	prtype	len
+-a	2	800FE	220
++a	13	2100FE	660
+ alter table t modify a varchar(200), algorithm=instant;
+ ERROR 0A000: ALGORITHM=INSTANT is not supported. Reason: Cannot change column type INPLACE. Try ALGORITHM=COPY
+ alter table t modify a varchar(200), algorithm=copy;
+@@ -86,7 +86,7 @@
+ test.t	check	status	OK
+ call check_table('t');
+ name	mtype	prtype	len
+-a	2	800FE	255
++a	13	2100FE	765
+ # Case 3: integer conversions
+ create or replace table t (x tinyint) row_format=redundant;
+ insert into t values (127);

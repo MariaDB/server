@@ -1,3 +1,5 @@
+create or replace database test;
+use test;
 set default_storage_engine=innodb;
 set @bigval= repeat('0123456789', 30);
 create or replace procedure check_table(table_name varchar(255))
@@ -40,6 +42,20 @@ count(a)
 select a, length(a) from t where a = 'z';
 a	length(a)
 z	1
+check table t extended;
+Table	Op	Msg_type	Msg_text
+test.t	check	status	OK
+call check_table('t');
+name	mtype	prtype	len
+a	2	800FE	200
+# CHAR enlargement
+alter table t modify a char(220), algorithm=instant;
+select count(a) from t where a = @bigval;
+count(a)
+1
+select a, length(a) from t where a = 'z';
+a	length(a)
+z	1
 select * from t;
 a
 01234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789
@@ -49,7 +65,7 @@ Table	Op	Msg_type	Msg_text
 test.t	check	status	OK
 call check_table('t');
 name	mtype	prtype	len
-a	2	800FE	200
+a	2	800FE	220
 alter table t modify a varchar(200), algorithm=instant;
 ERROR 0A000: ALGORITHM=INSTANT is not supported. Reason: Cannot change column type INPLACE. Try ALGORITHM=COPY
 alter table t modify a varchar(200), algorithm=copy;
@@ -242,5 +258,4 @@ create or replace table t1 (x integer, a varchar(20)) row_format redundant;
 alter table t1 add index idx3 (a);
 insert into t1 (x, a) values (73, 'a');
 alter table t1 modify a char(20);
-drop database test;
-create database test;
+create or replace database test charset latin1;

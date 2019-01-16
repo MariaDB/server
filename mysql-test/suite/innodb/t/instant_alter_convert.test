@@ -1,6 +1,10 @@
 --source include/have_innodb.inc
 --source include/maybe_debug.inc
 
+# Use character-set-server in test db
+create or replace database test;
+use test;
+
 set default_storage_engine=innodb;
 set @bigval= repeat('0123456789', 30);
 
@@ -63,8 +67,16 @@ insert into t values ('z');
 alter table t modify a char(200), algorithm=instant;
 select count(a) from t where a = @bigval;
 select a, length(a) from t where a = 'z';
-select * from t;
 
+check table t extended;
+call check_table('t');
+
+--echo # CHAR enlargement
+alter table t modify a char(220), algorithm=instant;
+select count(a) from t where a = @bigval;
+select a, length(a) from t where a = 'z';
+
+select * from t;
 check table t extended;
 call check_table('t');
 
@@ -218,5 +230,4 @@ alter table t1 add index idx3 (a);
 insert into t1 (x, a) values (73, 'a');
 alter table t1 modify a char(20);
 
-drop database test;
-create database test;
+create or replace database test charset latin1;

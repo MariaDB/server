@@ -688,15 +688,54 @@ public:
 	/** Determine if the columns have the same format
 	except for is_nullable() and is_versioned().
 	@param[in]	other	column to compare to
+	@param[in]	redundant table is redundant row format
 	@return	whether the columns have the same format */
-	bool same_format(const dict_col_t& other) const
+	bool same_format(const dict_col_t& other, bool redundant = false) const
 	{
-		return mtype == other.mtype
+		bool charset_equal = true;
+		if (dtype_is_non_binary_string_type(mtype, prtype)
+			&& dtype_is_non_binary_string_type(other.mtype,
+							   other.prtype)) {
+			uint csn1 = (uint) dtype_get_charset_coll(prtype);
+			uint csn2 = (uint) dtype_get_charset_coll(other.prtype);
+			CHARSET_INFO* cs1 = get_charset(csn1, MYF(MY_WME));
+			CHARSET_INFO* cs2 = get_charset(csn2, MYF(MY_WME));
+			charset_equal = my_charset_same(cs1, cs2);
+		}
+		bool mtype_equal = (mtype == other.mtype);
+		bool prtype_equal = !((prtype ^ other.prtype)
+				      & ~(DATA_NOT_NULL | DATA_VERSIONED));
+		if (redundant && !prtype_equal) {
+			std::set<int> s;
+			switch (other.mtype) {
+			case DATA_CHAR:
+			case DATA_MYSQL:
+			case DATA_VARCHAR:
+			case DATA_VARMYSQL:
+				s = {DATA_CHAR, DATA_MYSQL, DATA_VARCHAR,
+				     DATA_VARMYSQL};
+				mtype_equal = (s.find(mtype) != s.end());
+				prtype_equal = mtype_equal;
+				break;
+			case DATA_FIXBINARY:
+			case DATA_BINARY:
+				s = {DATA_FIXBINARY, DATA_BINARY};
+				mtype_equal = (s.find(mtype) != s.end());
+				prtype_equal = mtype_equal;
+				break;
+			case DATA_INT:
+				prtype_equal = true;
+				break;
+			default:
+				break;
+			}
+		}
+		return charset_equal
+			&& mtype_equal
+			&& prtype_equal
 			&& len >= other.len
 			&& mbminlen == other.mbminlen
-			&& mbmaxlen == other.mbmaxlen
-			&& !((prtype ^ other.prtype)
-			     & ~(DATA_NOT_NULL | DATA_VERSIONED));
+			&& mbmaxlen == other.mbmaxlen;
 	}
 };
 
