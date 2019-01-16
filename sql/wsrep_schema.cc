@@ -1136,15 +1136,15 @@ int Wsrep_schema::replay_transaction(THD* thd,
     }
     Wsrep_schema_impl::init_stmt(thd);
 
-    if ((error= Wsrep_schema_impl::open_for_write(thd, "SR", &frag_table)))
+    if ((error= Wsrep_schema_impl::open_for_write(thd, sr_table_str.c_str(), &frag_table)))
     {
-      WSREP_WARN("Could not open SR table for read: %d", error);
+      WSREP_WARN("Could not open SR table for write: %d", error);
       Wsrep_schema_impl::finish_stmt(thd);
       DBUG_RETURN(1);
     }
     error= Wsrep_schema_impl::init_for_index_scan(frag_table,
-                                                      key,
-                                                      key_map);
+                                                  key,
+                                                  key_map);
     if (error)
     {
       frag_table->file->print_error(error, MYF(0));
