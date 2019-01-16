@@ -10282,11 +10282,11 @@ wsrep_append_foreign_key(
 
 	if (rcode != DB_SUCCESS) {
 		WSREP_ERROR(
-			"FK key set failed: %lu (%lu %s), index: %s %s, %s",
+			"FK key set failed: " ULINTPF
+			" (" ULINTPF " " ULINTPF "%s), index: %s %s, %s",
 			rcode, referenced, wsrep_key_type_to_str(key_type),
-			(index && index->name)       ? index->name :
-				"void index",
-			(index) ? index->table->name.m_name :
+			(index)       ? index->name() : "void index",
+			(index && index->table) ? index->table->name.m_name :
 				"void table",
 			wsrep_thd_query(thd));
 		return DB_ERROR;

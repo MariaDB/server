@@ -2154,14 +2154,7 @@ static my_bool trx_get_trx_by_xid_callback(rw_trx_hash_element_t *element,
       if (!wsrep_is_wsrep_xid(trx->xid))
 #endif
       /* Invalidate the XID, so that subsequent calls will not find it. */
-#ifdef WITH_WSREP
-      if (!wsrep_is_wsrep_xid(trx->xid))
-      {
-#endif /* WITH_WSREP */
       trx->xid->null();
-#ifdef WITH_WSREP
-      }
-#endif /* WITH_WSREP */
       arg->trx= trx;
       found= 1;
     }

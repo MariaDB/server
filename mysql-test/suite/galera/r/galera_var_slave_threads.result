@@ -17,11 +17,11 @@ SELECT @@wsrep_slave_threads = 1;
 @@wsrep_slave_threads = 1
 1
 SET GLOBAL wsrep_slave_threads = 1;
-SELECT COUNT(*) = 3 FROM INFORMATION_SCHEMA.PROCESSLIST WHERE USER = 'system user' AND COMMAND != 'Daemon';
-COUNT(*) = 3
-1
-SELECT COUNT(*) = 1 FROM INFORMATION_SCHEMA.PROCESSLIST WHERE USER = 'system user' AND STATE LIKE '%wsrep aborter%';
-COUNT(*) = 1
+SELECT COUNT(*) FROM INFORMATION_SCHEMA.PROCESSLIST WHERE USER = 'system user' AND COMMAND != 'Daemon';
+COUNT(*)
+3
+SELECT COUNT(*) FROM INFORMATION_SCHEMA.PROCESSLIST WHERE USER = 'system user' AND STATE LIKE '%wsrep aborter%';
+COUNT(*)
 1
 SET GLOBAL wsrep_slave_threads = 64;
 connection node_1;
@@ -30,17 +30,17 @@ connection node_2;
 SELECT COUNT(*) = 1 FROM t1;
 COUNT(*) = 1
 1
-SELECT COUNT(*) = 1 FROM INFORMATION_SCHEMA.PROCESSLIST WHERE USER = 'system user' AND STATE LIKE '%wsrep aborter%';
-COUNT(*) = 1
+SELECT COUNT(*) FROM INFORMATION_SCHEMA.PROCESSLIST WHERE USER = 'system user' AND STATE LIKE '%wsrep aborter%';
+COUNT(*)
 1
 SET GLOBAL wsrep_slave_threads = 1;
 connection node_1;
 connection node_2;
-SELECT COUNT(*) = 64 FROM t2;
-COUNT(*) = 64
-1
-SELECT COUNT(*) = 1 FROM INFORMATION_SCHEMA.PROCESSLIST WHERE USER = 'system user' AND STATE LIKE '%wsrep aborter%';
-COUNT(*) = 1
+SELECT COUNT(*) FROM t2;
+COUNT(*)
+64
+SELECT COUNT(*) FROM INFORMATION_SCHEMA.PROCESSLIST WHERE USER = 'system user' AND STATE LIKE '%wsrep aborter%';
+COUNT(*)
 1
 SET GLOBAL wsrep_slave_threads = 5;
 SET GLOBAL wsrep_slave_threads = 1;
@@ -56,15 +56,410 @@ SET GLOBAL wsrep_cluster_address='';
 SET GLOBAL wsrep_cluster_address='gcomm://';
 SET GLOBAL wsrep_slave_threads = 10;
 connection node_2;
-SELECT COUNT(*) = @@wsrep_slave_threads + 2 FROM INFORMATION_SCHEMA.PROCESSLIST WHERE USER = 'system user' AND COMMAND != 'Daemon';
-COUNT(*) = @@wsrep_slave_threads + 2
+SELECT COUNT(*) FROM INFORMATION_SCHEMA.PROCESSLIST WHERE USER = 'system user' AND COMMAND != 'Daemon';
+COUNT(*)
+3
+connection node_1;
+SET GLOBAL wsrep_slave_threads = 1;
+connection node_2;
+SET GLOBAL wsrep_slave_threads = 1;
+connection node_1;
+connection node_2;
+SELECT * FROM t1;
+f1
 1
+SELECT * FROM t2;
+f1
+3
+5
+7
+9
+11
+13
+15
+17
+19
+21
+23
+25
+27
+29
+31
+33
+35
+37
+39
+41
+43
+45
+47
+49
+51
+53
+55
+57
+59
+61
+63
+65
+67
+69
+71
+73
+75
+77
+79
+81
+83
+85
+87
+89
+91
+93
+95
+97
+99
+101
+103
+105
+107
+109
+111
+113
+115
+117
+119
+121
+123
+125
+127
+129
+132
+134
+136
+138
+140
+142
+144
+146
+148
+150
+152
+154
+156
+158
+160
+162
+164
+166
+168
+170
+172
+174
+176
+178
+180
+182
+184
+186
+188
+190
+192
+194
+196
+198
+200
+202
+204
+206
+208
+210
+212
+214
+216
+218
+220
+222
+224
+226
+228
+230
+232
+234
+236
+238
+240
+242
+244
+246
+248
+250
+252
+254
+256
+258
+259
+261
+263
+265
+267
+269
+271
+273
+275
+277
+279
+281
+283
+285
+287
+289
+291
+293
+295
+297
+299
+301
+303
+305
+307
+309
+311
+313
+315
+317
+319
+321
+323
+325
+327
+329
+331
+333
+335
+337
+339
+341
+343
+345
+347
+349
+351
+353
+355
+357
+359
+361
+363
+365
+367
+369
+371
+373
+375
+377
+379
+381
+383
+385
 connection node_1;
-SET GLOBAL wsrep_slave_threads = 1;
-connection node_2;
-SET GLOBAL wsrep_slave_threads = 1;
-connection node_1;
-connection node_2;
+SELECT * FROM t1;
+f1
+1
+SELECT * FROM t2;
+f1
+3
+5
+7
+9
+11
+13
+15
+17
+19
+21
+23
+25
+27
+29
+31
+33
+35
+37
+39
+41
+43
+45
+47
+49
+51
+53
+55
+57
+59
+61
+63
+65
+67
+69
+71
+73
+75
+77
+79
+81
+83
+85
+87
+89
+91
+93
+95
+97
+99
+101
+103
+105
+107
+109
+111
+113
+115
+117
+119
+121
+123
+125
+127
+129
+132
+134
+136
+138
+140
+142
+144
+146
+148
+150
+152
+154
+156
+158
+160
+162
+164
+166
+168
+170
+172
+174
+176
+178
+180
+182
+184
+186
+188
+190
+192
+194
+196
+198
+200
+202
+204
+206
+208
+210
+212
+214
+216
+218
+220
+222
+224
+226
+228
+230
+232
+234
+236
+238
+240
+242
+244
+246
+248
+250
+252
+254
+256
+258
+259
+261
+263
+265
+267
+269
+271
+273
+275
+277
+279
+281
+283
+285
+287
+289
+291
+293
+295
+297
+299
+301
+303
+305
+307
+309
+311
+313
+315
+317
+319
+321
+323
+325
+327
+329
+331
+333
+335
+337
+339
+341
+343
+345
+347
+349
+351
+353
+355
+357
+359
+361
+363
+365
+367
+369
+371
+373
+375
+377
+379
+381
+383
+385
 DROP TABLE t1;
 DROP TABLE t2;
 # End of tests

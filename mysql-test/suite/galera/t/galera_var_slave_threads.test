@@ -26,8 +26,8 @@ SELECT @@wsrep_slave_threads = 1;
 
 SET GLOBAL wsrep_slave_threads = 1;
 # There is a separate wsrep_aborter thread at all times
-SELECT COUNT(*) = 3 FROM INFORMATION_SCHEMA.PROCESSLIST WHERE USER = 'system user' AND COMMAND != 'Daemon';
-SELECT COUNT(*) = 1 FROM INFORMATION_SCHEMA.PROCESSLIST WHERE USER = 'system user' AND STATE LIKE '%wsrep aborter%';
+SELECT COUNT(*) FROM INFORMATION_SCHEMA.PROCESSLIST WHERE USER = 'system user' AND COMMAND != 'Daemon';
+SELECT COUNT(*) FROM INFORMATION_SCHEMA.PROCESSLIST WHERE USER = 'system user' AND STATE LIKE '%wsrep aborter%';
 
 #
 # Increase the number of slave threads. The change takes effect immediately
@@ -45,7 +45,7 @@ SELECT COUNT(*) = 1 FROM t1;
 # note, in wsrep API #26, we have 2 rollbacker threads, counted as system user's
 #
 
-SELECT COUNT(*) = 1 FROM INFORMATION_SCHEMA.PROCESSLIST WHERE USER = 'system user' AND STATE LIKE '%wsrep aborter%';
+SELECT COUNT(*) FROM INFORMATION_SCHEMA.PROCESSLIST WHERE USER = 'system user' AND STATE LIKE '%wsrep aborter%';
 
 --let $wait_condition = SELECT VARIABLE_VALUE = @@wsrep_slave_threads + 2 FROM INFORMATION_SCHEMA.GLOBAL_STATUS WHERE VARIABLE_NAME = 'wsrep_thread_count';
 --source include/wait_condition.inc
@@ -71,9 +71,9 @@ while ($count)
 --enable_result_log
 
 --connection node_2
-SELECT COUNT(*) = 64 FROM t2;
+SELECT COUNT(*) FROM t2;
 
-SELECT COUNT(*) = 1 FROM INFORMATION_SCHEMA.PROCESSLIST WHERE USER = 'system user' AND STATE LIKE '%wsrep aborter%';
+SELECT COUNT(*) FROM INFORMATION_SCHEMA.PROCESSLIST WHERE USER = 'system user' AND STATE LIKE '%wsrep aborter%';
 
 --let $wait_condition = SELECT VARIABLE_VALUE = @@wsrep_slave_threads + 2 FROM INFORMATION_SCHEMA.GLOBAL_STATUS WHERE VARIABLE_NAME = 'wsrep_thread_count';
 --source include/wait_condition.inc
@@ -131,7 +131,7 @@ SET GLOBAL wsrep_slave_threads = 10;
 --source include/start_mysqld.inc
 --source include/wait_until_connected_again.inc
 
-SELECT COUNT(*) = @@wsrep_slave_threads + 2 FROM INFORMATION_SCHEMA.PROCESSLIST WHERE USER = 'system user' AND COMMAND != 'Daemon';
+SELECT COUNT(*) FROM INFORMATION_SCHEMA.PROCESSLIST WHERE USER = 'system user' AND COMMAND != 'Daemon';
 
 # 
 #
@@ -176,6 +176,14 @@ while ($count)
 --connection node_2
 --let $wait_condition = SELECT VARIABLE_VALUE = @@wsrep_slave_threads + 2 FROM INFORMATION_SCHEMA.GLOBAL_STATUS WHERE VARIABLE_NAME = 'wsrep_thread_count';
 --source include/wait_condition.inc
+
+SELECT * FROM t1;
+SELECT * FROM t2;
+
+--connection node_1
+
+SELECT * FROM t1;
+SELECT * FROM t2;
 
 DROP TABLE t1;
 DROP TABLE t2;

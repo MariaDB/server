@@ -4467,7 +4467,7 @@ row_search_mvcc(
 		set_also_gap_locks = FALSE;
 	}
 #ifdef WITH_WSREP
-	if (wsrep_thd_skip_locking(trx->mysql_thd)) {
+	else if (wsrep_thd_skip_locking(trx->mysql_thd)) {
 
 		ut_ad(sr_table_name_full_str == prebuilt->table->name.m_name);
 		set_also_gap_locks = FALSE;

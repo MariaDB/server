@@ -42,5 +42,4 @@ let $start_pos= `select @binlog_start_pos`;
 # Cleanup
 DROP TABLE t1;
 
-#--source include/galera_end.inc
 --echo # End of test
