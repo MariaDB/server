@@ -54,16 +54,6 @@ Wsrep_client_service::Wsrep_client_service(THD* thd,
   , m_client_state(client_state)
 { }
 
-bool Wsrep_client_service::do_2pc() const
-{
-  DBUG_ASSERT(m_thd == current_thd);
-  THD_TRANS* trans= &m_thd->transaction.all.ha_list ?
-    &m_thd->transaction.all :
-    &m_thd->transaction.stmt;
-  return (!trans->no_2pc && trans->rw_ha_count > 1);
-
-}
-
 void Wsrep_client_service::store_globals()
 {
   DBUG_ENTER("Wsrep_client_service::store_globals");

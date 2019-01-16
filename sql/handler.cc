@@ -1440,9 +1440,6 @@ int ha_commit_trans(THD *thd, bool all)
     thd->stmt_map.close_transient_cursors();
 
   uint rw_ha_count= ha_check_and_coalesce_trx_read_only(thd, ha_info, all);
-#ifdef WITH_WSREP
-  trans->rw_ha_count= rw_ha_count;
-#endif /* WITH_WSREP */
   /* rw_trans is TRUE when we in a transaction changing data */
   bool rw_trans= is_real_trans &&
                  (rw_ha_count > (thd->is_current_stmt_binlog_disabled()?0U:1U));
@@ -1756,9 +1753,6 @@ commit_one_phase_2(THD *thd, bool all, THD_TRANS *trans, bool is_real_trans)
     }
     trans->ha_list= 0;
     trans->no_2pc=0;
-#ifdef WITH_WSREP
-    trans->rw_ha_count= 0;
-#endif /* WITH_WSREP */
     if (all)
     {
 #ifdef HAVE_QUERY_CACHE
@@ -1870,9 +1864,6 @@ int ha_rollback_trans(THD *thd, bool all)
     }
     trans->ha_list= 0;
     trans->no_2pc=0;
-#ifdef WITH_WSREP
-    trans->rw_ha_count= 0;
-#endif /* WITH_WSREP */
   }
 
   /*
@@ -2463,9 +2454,6 @@ int ha_rollback_to_savepoint(THD *thd, SAVEPOINT *sv)
   DBUG_ENTER("ha_rollback_to_savepoint");
 
   trans->no_2pc=0;
-#ifdef WITH_WSREP
-  trans->rw_ha_count= 0;
-#endif /* WITH_WSREP */
   /*
     rolling back to savepoint in all storage engines that were part of the
     transaction when the savepoint was set
