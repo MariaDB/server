@@ -26,7 +26,7 @@ test.t	check	status	OK
 call check_table('t');
 name	mtype	prtype	len
 a	1	8000F	300
-# Case 2: VARCHAR -> CHAR conversion
+# Case 2: VARCHAR -> CHAR, VARBINARY -> BINARY conversion
 set @bigval= repeat('0123456789', 20);
 create or replace table t (a varchar(300)) row_format=redundant;
 alter table t modify a char(255), algorithm=instant;
@@ -56,20 +56,16 @@ count(a)
 select a, length(a) from t where a = 'z';
 a	length(a)
 z	1
-select * from t;
-a
-01234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789
-z
 check table t extended;
 Table	Op	Msg_type	Msg_text
 test.t	check	status	OK
 call check_table('t');
 name	mtype	prtype	len
 a	2	800FE	220
+# Convert from VARCHAR to a bigger CHAR
 alter table t modify a varchar(200), algorithm=instant;
 ERROR 0A000: ALGORITHM=INSTANT is not supported. Reason: Cannot change column type INPLACE. Try ALGORITHM=COPY
 alter table t modify a varchar(200), algorithm=copy;
-# Convert to bigger size
 alter table t modify a char(255), algorithm=instant;
 select count(a) from t where a = @bigval;
 count(a)
@@ -87,6 +83,55 @@ test.t	check	status	OK
 call check_table('t');
 name	mtype	prtype	len
 a	2	800FE	255
+# BINARY/VARBINARY test
+create or replace table t (a varbinary(300)) row_format=redundant;
+alter table t modify a binary(255), algorithm=instant;
+ERROR 0A000: ALGORITHM=INSTANT is not supported. Reason: Cannot change column type INPLACE. Try ALGORITHM=COPY
+alter table t modify a binary(255), algorithm=copy;
+create or replace table t (a varbinary(200)) row_format=redundant;
+insert into t values (@bigval);
+insert into t values ('z');
+alter table t modify a binary(200), algorithm=instant;
+select count(a) from t where a = @bigval;
+count(a)
+1
+select length(a) from t where left(a, 1) = 'z';
+length(a)
+200
+check table t extended;
+Table	Op	Msg_type	Msg_text
+test.t	check	status	OK
+call check_table('t');
+name	mtype	prtype	len
+a	3	3F04FE	200
+# BINARY enlargement
+alter table t modify a binary(220), algorithm=instant;
+check table t extended;
+Table	Op	Msg_type	Msg_text
+test.t	check	status	OK
+call check_table('t');
+name	mtype	prtype	len
+a	3	3F04FE	220
+# Convert from VARBINARY to a bigger BINARY
+alter table t modify a varbinary(220), algorithm=instant;
+ERROR 0A000: ALGORITHM=INSTANT is not supported. Reason: Cannot change column type INPLACE. Try ALGORITHM=COPY
+alter table t modify a varbinary(220), algorithm=copy;
+alter table t modify a binary(255), algorithm=instant;
+select count(a) from t where a = @bigval;
+count(a)
+0
+select a, length(a) from t where a = 'z';
+a	length(a)
+select * from t;
+a
+01234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789                                                       
+z                                                                                                                                                                                                                                                              
+check table t extended;
+Table	Op	Msg_type	Msg_text
+test.t	check	status	OK
+call check_table('t');
+name	mtype	prtype	len
+a	3	3F04FE	255
 # Case 3: integer conversions
 create or replace table t (x tinyint) row_format=redundant;
 insert into t values (127);

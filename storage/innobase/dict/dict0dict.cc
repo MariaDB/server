@@ -2205,9 +2205,10 @@ dict_index_too_big_for_tree(
 
 		field_max_size = dict_col_get_max_size(col);
 		if (!comp && (col->mtype == DATA_INT
-			      || col->mtype == DATA_CHAR)) {
-			/* DATA_INT and DATA_CHAR are of variable-length
-			(enlarged instantly), but are stored locally. */
+			      || col->mtype == DATA_CHAR
+			      || col->mtype == DATA_FIXBINARY)) {
+			/* DATA_INT, DATA_FIXBINARY and DATA_CHAR are variable-
+			length (enlarged instantly), but are stored locally. */
 			field_ext_max_size = 0;
 			goto add_field_size;
 		}

@@ -9076,6 +9076,7 @@ innobase_enlarge_column_try(
 #ifdef UNIV_DEBUG
 	ut_ad(col->len < new_len);
 	switch (col->mtype) {
+	case DATA_FIXBINARY:
 	case DATA_CHAR:
 	case DATA_MYSQL:
 		/* NOTE: we could allow this when !(prtype & DATA_BINARY_TYPE)

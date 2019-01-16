@@ -472,13 +472,13 @@ dtype_get_fixed_size_low(
 		}
 #endif /* UNIV_DEBUG */
 		/* fall through */
-	case DATA_FIXBINARY:
 	case DATA_FLOAT:
 	case DATA_DOUBLE:
 		return(len);
+	case DATA_FIXBINARY:
 	case DATA_CHAR:
 	case DATA_INT:
-		/* Treat DATA_INT and DATA_CHAR as variable length for redundant
+		/* Treat these types as variable length for redundant
 		row format. We can't rely on fixed_len anymore because record
 		can have shorter length from before instant enlargement
 		[MDEV-15563]. Note, that importing such tablespace to 10.3
@@ -631,8 +631,13 @@ dtype_get_sql_null_size(
 	const dtype_t*	type,	/*!< in: type */
 	ulint		comp)	/*!< in: nonzero=ROW_FORMAT=COMPACT  */
 {
-	if (type->mtype == DATA_CHAR || type->mtype == DATA_INT) {
+	switch (type->mtype) {
+	case DATA_INT:
+	case DATA_CHAR:
+	case DATA_FIXBINARY:
 		return(type->len);
+	default:
+		break;
 	}
 	return(dtype_get_fixed_size_low(type->mtype, type->prtype, type->len,
 					type->mbminlen, type->mbmaxlen, comp));

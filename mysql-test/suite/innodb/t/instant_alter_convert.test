@@ -43,7 +43,7 @@ check table t extended;
 call check_table('t');
 
 
---echo # Case 2: VARCHAR -> CHAR conversion
+--echo # Case 2: VARCHAR -> CHAR, VARBINARY -> BINARY conversion
 set @bigval= repeat('0123456789', 20);
 
 create or replace table t (a varchar(300)) row_format=redundant;
@@ -76,20 +76,62 @@ alter table t modify a char(220), algorithm=instant;
 select count(a) from t where a = @bigval;
 select a, length(a) from t where a = 'z';
 
+check table t extended;
+call check_table('t');
+
+--echo # Convert from VARCHAR to a bigger CHAR
+--error ER_ALTER_OPERATION_NOT_SUPPORTED_REASON
+alter table t modify a varchar(200), algorithm=instant;
+alter table t modify a varchar(200), algorithm=copy;
+alter table t modify a char(255), algorithm=instant;
+select count(a) from t where a = @bigval;
+select a, length(a) from t where a = 'z';
+
 select * from t;
 check table t extended;
 call check_table('t');
 
+--echo # BINARY/VARBINARY test
+create or replace table t (a varbinary(300)) row_format=redundant;
 --error ER_ALTER_OPERATION_NOT_SUPPORTED_REASON
-alter table t modify a varchar(200), algorithm=instant;
-alter table t modify a varchar(200), algorithm=copy;
+alter table t modify a binary(255), algorithm=instant;
+alter table t modify a binary(255), algorithm=copy;
 
---echo # Convert to bigger size
-alter table t modify a char(255), algorithm=instant;
+create or replace table t (a varbinary(200)) row_format=redundant;
+if ($have_debug) {
+--disable_query_log
+--disable_result_log
+set debug_dbug= '+d,ib_instant_error';
+--error ER_RECORD_FILE_FULL
+alter table t modify a binary(200);
+set debug_dbug= default;
+--enable_query_log
+--enable_result_log
+}
+insert into t values (@bigval);
+insert into t values ('z');
+alter table t modify a binary(200), algorithm=instant;
+select count(a) from t where a = @bigval;
+select length(a) from t where left(a, 1) = 'z';
+
+check table t extended;
+call check_table('t');
+
+--echo # BINARY enlargement
+alter table t modify a binary(220), algorithm=instant;
+
+check table t extended;
+call check_table('t');
+
+--echo # Convert from VARBINARY to a bigger BINARY
+--error ER_ALTER_OPERATION_NOT_SUPPORTED_REASON
+alter table t modify a varbinary(220), algorithm=instant;
+alter table t modify a varbinary(220), algorithm=copy;
+alter table t modify a binary(255), algorithm=instant;
 select count(a) from t where a = @bigval;
 select a, length(a) from t where a = 'z';
-select * from t;
 
+select * from t;
 check table t extended;
 call check_table('t');
 

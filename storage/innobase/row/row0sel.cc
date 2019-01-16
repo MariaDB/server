@@ -2746,6 +2746,7 @@ void row_sel_field_store_in_mysql_format(
 	case DATA_VARMYSQL:
 	case DATA_BINARY:
 	case DATA_CHAR:
+	case DATA_FIXBINARY:
 		field_end = dest + templ->mysql_col_len;
 
 		if (templ->mysql_type == DATA_MYSQL_TRUE_VARCHAR) {
@@ -2856,7 +2857,6 @@ void row_sel_field_store_in_mysql_format(
 		ut_ad(0);
 		/* fall through */
 
-	case DATA_FIXBINARY:
 	case DATA_FLOAT:
 	case DATA_DOUBLE:
 	case DATA_DECIMAL:
