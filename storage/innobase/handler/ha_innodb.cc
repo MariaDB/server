@@ -18604,7 +18604,7 @@ wsrep_innobase_kill_one_trx(
 			   bf_trx ? bf_trx->id : 0);
 		DBUG_RETURN(1);
 	}
-	WSREP_LOG_CONFLICT((const void*)bf_thd, (const void*)thd, TRUE);
+	WSREP_LOG_CONFLICT(bf_thd, thd, TRUE);
 	wsrep_thd_LOCK(thd);
 	WSREP_DEBUG("BF kill (" ULINTPF ", seqno: " INT64PF
 		    "), victim: (%lu) trx: " TRX_ID_FMT,

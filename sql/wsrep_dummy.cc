@@ -17,10 +17,7 @@
 #include <sql_class.h>
 #include <mysql/service_wsrep.h>
 
-my_bool wsrep_thd_is_BF(void *, my_bool)
-{ return 0; }
-
-my_bool wsrep_trx_order_before(const void *, const void *)
+my_bool wsrep_thd_is_BF(const THD *, my_bool)
 { return 0; }
 
 int wsrep_is_wsrep_xid(const void* xid)
@@ -44,32 +41,8 @@ bool wsrep_prepare_key(const uchar*, size_t, const uchar*, size_t, struct wsrep_
 struct wsrep *get_wsrep()
 { return 0; }
 
-my_bool get_wsrep_certify_nonPK()
-{ return 0; }
-
-my_bool get_wsrep_debug()
-{ return 0; }
-
-my_bool get_wsrep_drupal_282555_workaround()
-{ return 0; }
-
-my_bool get_wsrep_load_data_splitting()
-{ return 0; }
-
 my_bool get_wsrep_recovery()
 { return 0; }
-
-my_bool get_wsrep_log_conflicts()
-{ return 0; }
-
-long get_wsrep_protocol_version()
-{ return 0; }
-
-my_bool wsrep_aborting_thd_contains(THD *)
-{ return 0; }
-
-void wsrep_aborting_thd_enqueue(THD *)
-{ }
 
 bool wsrep_consistency_check(THD *)
 { return 0; }
@@ -77,19 +50,13 @@ bool wsrep_consistency_check(THD *)
 void wsrep_lock_rollback()
 { }
 
-my_bool wsrep_on(const void* thd)
+my_bool wsrep_on(const THD *)
 { return 0; }
 
-void wsrep_post_commit(THD*, bool)
+void wsrep_thd_LOCK(const THD *)
 { }
 
-void wsrep_thd_LOCK(const void *)
-{ }
-
-void wsrep_thd_UNLOCK(const void *)
-{ }
-
-void wsrep_thd_awake(const void *, my_bool)
+void wsrep_thd_UNLOCK(const THD *)
 { }
 
 const char *wsrep_thd_conflict_state_str(THD *)
@@ -98,38 +65,23 @@ const char *wsrep_thd_conflict_state_str(THD *)
 const char *wsrep_thd_exec_mode_str(THD *)
 { return NULL; }
 
-my_bool wsrep_thd_is_wsrep_on(const void *)
-{ return 0; }
-
-my_thread_id wsrep_thd_thread_id(const void* thd)
-{ return -1; }
-
-const char *wsrep_thd_query(const void *)
+const char *wsrep_thd_query(const THD *)
 { return 0; }
 
 const char *wsrep_thd_query_state_str(THD *)
 { return 0; }
 
-void wsrep_thd_xid(const void* thd, void* xid, size_t size)
-{ }
-
-int wsrep_thd_retry_counter(THD *)
+int wsrep_thd_retry_counter(const THD *)
 { return 0; }
 
 bool wsrep_thd_ignore_table(THD *)
 { return 0; }
 
-long long wsrep_thd_trx_seqno(const void *)
+long long wsrep_thd_trx_seqno(const THD *)
 { return -1; }
-
-struct wsrep_ws_handle* wsrep_thd_ws_handle(THD *)
-{ return 0; }
 
 my_bool wsrep_thd_is_aborting(const void *)
 { return 0; }
-
-void wsrep_unlock_rollback()
-{ }
 
 void wsrep_set_data_home_dir(const char *)
 { }

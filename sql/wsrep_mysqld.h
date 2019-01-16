@@ -186,7 +186,6 @@ extern "C" uint32 wsrep_thd_wsrep_rand(THD *thd);
 extern "C" time_t wsrep_thd_query_start(THD *thd);
 extern void wsrep_close_client_connections(my_bool wait_to_end,
                                            THD *except_caller_thd= NULL);
-//extern "C" query_id_t wsrep_thd_query_id(THD *thd);
 extern "C" query_id_t wsrep_thd_wsrep_last_query_id(THD *thd);
 extern "C" void wsrep_thd_set_wsrep_last_query_id(THD *thd, query_id_t id);
 
@@ -257,10 +256,10 @@ extern wsrep_seqno_t wsrep_locked_seqno;
 #define WSREP_LOG_CONFLICT_THD(thd, role)                               \
   WSREP_LOG(sql_print_information,                                      \
             "%s: \n "                                                   \
-            "  THD: %llu, mode: %s, state: %s, conflict: %s, seqno: %lld\n " \
+            "  THD: %lu, mode: %s, state: %s, conflict: %s, seqno: %lld\n " \
             "  SQL: %s",                                                \
             role,                                                       \
-            wsrep_thd_thread_id(thd),                                   \
+            thd_get_thread_id(thd),                                     \
             wsrep_thd_client_mode_str(thd),                             \
             wsrep_thd_client_state_str(thd),                            \
             wsrep_thd_transaction_state_str(thd),                       \

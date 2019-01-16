@@ -9084,7 +9084,7 @@ kill_one_thread(THD *thd, longlong id, killed_state kill_signal, killed_type typ
 #ifdef WITH_WSREP
     if (((thd->security_ctx->master_access & SUPER_ACL) ||
         thd->security_ctx->user_matches(tmp->security_ctx)) &&
-        !wsrep_thd_is_BF((void *)tmp, false) && !tmp->wsrep_applier)
+        !wsrep_thd_is_BF(tmp, false) && !tmp->wsrep_applier)
 #else
     if ((thd->security_ctx->master_access & SUPER_ACL) ||
         thd->security_ctx->user_matches(tmp->security_ctx))

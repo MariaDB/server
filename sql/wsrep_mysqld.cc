@@ -768,8 +768,6 @@ void wsrep_thr_init()
   DBUG_VOID_RETURN;
 }
 
-extern int wsrep_on(void *);
-
 void wsrep_init_startup (bool sst_first)
 {
   if (wsrep_init()) unireg_abort(1);
@@ -2232,8 +2230,7 @@ void wsrep_handle_mdl_conflict(MDL_context *requestor_ctx,
     if (wsrep_thd_is_toi(granted_thd) ||
         wsrep_thd_is_applying(granted_thd))
     {
-      if (wsrep_thd_is_SR((void*)granted_thd) &&
-          !wsrep_thd_is_SR((void*)request_thd))
+      if (wsrep_thd_is_SR(granted_thd) && !wsrep_thd_is_SR(request_thd))
       {
         WSREP_MDL_LOG(INFO, "MDL conflict, DDL vs SR", 
                       schema, schema_len, request_thd, granted_thd);
@@ -2738,32 +2735,14 @@ wsrep_status_t wsrep_tc_log_commit(THD* thd)
   return WSREP_OK;
 }
 
-int wsrep_thd_retry_counter(THD *thd)
+int wsrep_thd_retry_counter(const THD *thd)
 {
-  return(thd->wsrep_retry_counter);
+  return thd->wsrep_retry_counter;
 }
 
 extern  bool wsrep_thd_ignore_table(THD *thd)
 {
   return thd->wsrep_ignore_table;
-}
-
-extern my_bool
-wsrep_trx_order_before(const void* thd1_ptr, const void* thd2_ptr)
-{
-  THD *thd1= (THD*) thd1_ptr;
-  THD *thd2= (THD*) thd2_ptr;
-  
-    if (wsrep_thd_trx_seqno(thd1) < wsrep_thd_trx_seqno(thd2)) {
-        WSREP_DEBUG("BF conflict, order: %lld %lld\n",
-                    (long long)wsrep_thd_trx_seqno(thd1),
-                    (long long)wsrep_thd_trx_seqno(thd2));
-        return 1;
-    }
-    WSREP_DEBUG("waiting for BF, trx order: %lld %lld\n",
-                (long long)wsrep_thd_trx_seqno(thd1),
-                (long long)wsrep_thd_trx_seqno(thd2));
-    return 0;
 }
 
 bool wsrep_is_show_query(enum enum_sql_command command)
@@ -3029,42 +3008,12 @@ enum wsrep::streaming_context::fragment_unit wsrep_fragment_unit(ulong unit)
 
 /***** callbacks for wsrep service ************/
 
-my_bool get_wsrep_debug()
-{
-  return wsrep_debug;
-}
-
-my_bool get_wsrep_load_data_splitting()
-{
-  return wsrep_load_data_splitting;
-}
-
-long get_wsrep_protocol_version()
-{
-  return wsrep_protocol_version;
-}
-
-my_bool get_wsrep_drupal_282555_workaround()
-{
-  return wsrep_drupal_282555_workaround;
-}
-
 my_bool get_wsrep_recovery()
 {
   return wsrep_recovery;
 }
 
-my_bool get_wsrep_log_conflicts()
-{
-  return wsrep_log_conflicts;
-}
-
 bool wsrep_consistency_check(THD *thd)
 {
   return thd->wsrep_consistency_check == CONSISTENCY_CHECK_RUNNING;
-}
-
-my_bool get_wsrep_certify_nonPK()
-{
-  return wsrep_certify_nonPK;
 }

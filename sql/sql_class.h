@@ -2247,7 +2247,7 @@ public:
     - thd->db (used in SHOW PROCESSLIST)
     Is locked when THD is deleted.
   */
-  mysql_mutex_t LOCK_thd_data;
+  mutable mysql_mutex_t LOCK_thd_data;
   /*
     Protects:
     - kill information
