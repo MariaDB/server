@@ -1291,20 +1291,23 @@ class User_table_json: public User_table
     return 0;
   }
   bool get_value(const char *key, size_t klen,
-                 enum json_value_types vt, const char **v, size_t *vl) const
+                 enum json_types vt, const char **v, size_t *vl) const
   {
-    enum json_value_types value_type;
+    enum json_types value_type;
+    int int_vl;
     String str, *res= m_table->field[2]->val_str(&str);
-    if (!res || json_get_object_by_key(res->ptr(), res->length(), key, klen,
-                                       &value_type, v, vl))
+    if (!res ||
+        (value_type= json_get_object_key(res->ptr(), res->end(),
+                             key, key+klen, v, &int_vl)) == JSV_BAD_JSON)
       return 1; // invalid
+    *vl= int_vl;
     return value_type != vt;
   }
   const char *get_str_value(MEM_ROOT *root, const char *key, size_t klen) const
   {
     size_t value_len;
     const char *value_start;
-    if (get_value(key, klen, JSON_VALUE_STRING, &value_start, &value_len))
+    if (get_value(key, klen, JSV_STRING, &value_start, &value_len))
       return "";
     char *ptr= (char*)alloca(value_len);
     int len= json_unescape(m_table->field[2]->charset(),
@@ -1321,7 +1324,7 @@ class User_table_json: public User_table
     int err;
     size_t value_len;
     const char *value_start;
-    if (get_value(key, klen, JSON_VALUE_NUMBER, &value_start, &value_len))
+    if (get_value(key, klen, JSV_NUMBER, &value_start, &value_len))
       return 0;
     const char *value_end= value_start + value_len;
     return my_strtoll10(value_start, (char**)&value_end, &err);
@@ -1331,7 +1334,7 @@ class User_table_json: public User_table
     int err;
     size_t value_len;
     const char *value_start;
-    if (get_value(key, klen, JSON_VALUE_NUMBER, &value_start, &value_len))
+    if (get_value(key, klen, JSV_NUMBER, &value_start, &value_len))
       return 0;
     const char *value_end= value_start + value_len;
     return my_strtod(value_start, (char**)&value_end, &err);
@@ -1340,25 +1343,26 @@ class User_table_json: public User_table
   {
     size_t value_len;
     const char *value_start;
-    if (get_value(key, klen, JSON_VALUE_TRUE, &value_start, &value_len))
+    if (get_value(key, klen, JSV_TRUE, &value_start, &value_len))
       return false;
     return true;
   }
   bool set_value(const char *key, size_t klen,
                  const char *val, size_t vlen, bool string) const
   {
-    size_t value_len;
+    int value_len;
     const char *value_start;
-    enum json_value_types value_type;
+    enum json_types value_type;
     String str, *res= m_table->field[2]->val_str(&str);
     if (!res || !res->length())
       (res= &str)->set(STRING_WITH_LEN("{}"), m_table->field[2]->charset());
-    if (json_get_object_by_key(res->ptr(), res->length(), key, klen,
-                               &value_type, &value_start, &value_len))
+    value_type= json_get_object_key(res->ptr(), res->end(), key, key+klen,
+                                    &value_start, &value_len);
+    if (value_type == JSV_BAD_JSON)
       return 1; // invalid
     StringBuffer<JSON_SIZE> json(res->charset());
     json.copy(res->ptr(), value_start - res->ptr(), res->charset());
-    if (!value_type)
+    if (value_type == JSV_NOTHING)
     {
       if (value_len)
         json.append(',');
