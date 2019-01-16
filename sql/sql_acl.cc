@@ -152,6 +152,7 @@ public:
   LEX_CSTRING default_rolename;
   struct AUTH { LEX_CSTRING plugin, auth_string, salt; } *auth;
   uint nauth;
+  bool account_locked;
 
   bool alloc_auth(MEM_ROOT *root, uint n)
   {
@@ -864,6 +865,8 @@ class User_table: public Grant_table_base
   virtual int set_is_role (bool x) const = 0;
   virtual const char* get_default_role (MEM_ROOT *root) const = 0;
   virtual int set_default_role (const char *s, size_t l) const = 0;
+  virtual bool get_account_locked () const = 0;
+  virtual int set_account_locked (bool x) const = 0;
 
   virtual ~User_table() {}
  private:
@@ -1123,7 +1126,22 @@ class User_table_tabular: public User_table
       return f->store(s, l, system_charset_info);
     else
       return 1;
-  };
+  }
+  /* On a MariaDB 10.3 user table, the account locking accessors will try to
+     get the content of the max_statement_time column, but they will fail due
+     to the typecheck in get_field. */
+  bool get_account_locked () const
+  {
+    Field *f= get_field(end_priv_columns + 13, MYSQL_TYPE_ENUM);
+    return f ? f->val_int()-1 : 0;
+  }
+  int set_account_locked (bool x) const
+  {
+    if (Field *f= get_field(end_priv_columns + 13, MYSQL_TYPE_ENUM))
+      return f->store(x+1, 0);
+    else
+      return 1;
+  }
 
   virtual ~User_table_tabular() {}
  private:
@@ -1416,6 +1434,10 @@ class User_table_json: public User_table
   { return get_str_value(root, "default_role"); }
   int set_default_role (const char *s, size_t l) const
   { return set_str_value("default_role", s, l); }
+  bool get_account_locked () const
+  { return get_bool_value("account_locked"); }
+  int set_account_locked (bool x) const
+  { return set_bool_value("account_locked", x); }
 
   ~User_table_json() {}
  private:
@@ -2259,6 +2281,8 @@ static bool acl_load(THD *thd, const Grant_tables& tables)
     user.hostname_length= safe_strlen(user.host.hostname);
 
     my_init_dynamic_array(&user.role_grants, sizeof(ACL_ROLE *), 0, 8, MYF(0));
+
+    user.account_locked= user_table.get_account_locked();
 
     if (is_role)
     {
@@ -4327,6 +4351,13 @@ static int replace_user_table(THD *thd, const User_table &user_table,
     mqh_used= (mqh_used || lex->mqh.questions || lex->mqh.updates ||
                lex->mqh.conn_per_hour || lex->mqh.user_conn ||
                lex->mqh.max_statement_time != 0.0);
+
+    if (lex->account_options.account_locked != ACCOUNTLOCK_UNSPECIFIED)
+    {
+      bool lock_value= lex->account_options.account_locked == ACCOUNTLOCK_LOCKED;
+      user_table.set_account_locked(lock_value);
+      new_acl_user.account_locked= lock_value;
+    }
   }
 
   if (old_row_exists)
@@ -8779,6 +8810,9 @@ bool mysql_show_create_user(THD *thd, LEX_USER *lex_user)
   result.append('\'');
 
   add_user_parameters(&result, acl_user, false);
+
+  if (acl_user->account_locked)
+    result.append(STRING_WITH_LEN(" ACCOUNT LOCK"));
 
   protocol->prepare_for_resend();
   protocol->store(result.ptr(), result.length(), result.charset());
@@ -13638,6 +13672,12 @@ bool acl_authenticate(THD *thd, uint com_change_user_pkt_len)
       errors.m_ssl= 1;
       inc_host_errors(mpvio.auth_info.thd->security_ctx->ip, &errors);
       login_failed_error(thd);
+      DBUG_RETURN(1);
+    }
+
+    if (acl_user->account_locked) {
+      status_var_increment(denied_connections);
+      my_error(ER_ACCOUNT_HAS_BEEN_LOCKED, MYF(0));
       DBUG_RETURN(1);
     }
 
