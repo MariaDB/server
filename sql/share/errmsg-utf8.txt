@@ -6942,6 +6942,7 @@ ER_NOT_VALID_PASSWORD
 ER_MUST_CHANGE_PASSWORD
   eng "You must SET PASSWORD before executing this statement"
   bgn "Трябва първо да си смените паролата със SET PASSWORD за да можете да изпълните тази команда"
+  rum "Trebuie sa iti schimbi parola folosind SET PASSWORD inainte de a executa aceasta comanda"
 
 ER_FK_NO_INDEX_CHILD
         eng "Failed to add the foreign key constaint. Missing index for constraint '%s' in the foreign table '%s'"
@@ -7094,6 +7095,7 @@ ER_ALTER_OPERATION_NOT_SUPPORTED_REASON_NOT_NULL
 ER_MUST_CHANGE_PASSWORD_LOGIN
   eng "Your password has expired. To log in you must change it using a client that supports expired passwords"
   bgn "Паролата ви е изтекла. За да влезете трябва да я смените използвайки клиент който поддрържа такива пароли"
+  rum "Parola ta a expirat. Pentru a te loga, trebuie sa o schimbi folosind un client ce suporta parole expirate"
 
 ER_ROW_IN_WRONG_PARTITION
   eng "Found a row in wrong partition %s"

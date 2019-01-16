@@ -1334,6 +1334,8 @@ public:
   ulong master_access;                 /* Global privileges from mysql.user */
   ulong db_access;                     /* Privileges for current db */
 
+  bool password_expired;
+
   void init();
   void destroy();
   void skip_grants();
@@ -1364,6 +1366,7 @@ public:
     @return True if the security context fulfills the access requirements.
   */
   bool check_access(ulong want_access, bool match_any = false);
+  bool is_priv_user(const char *user, const char *host);
 };
 
 

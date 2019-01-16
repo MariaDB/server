@@ -538,6 +538,7 @@ sp_head::sp_head(sp_package *parent, const Sp_handler *sph)
   my_hash_init(&m_sptabs, system_charset_info, 0, 0, 0, sp_table_key, 0, 0);
   my_hash_init(&m_sroutines, system_charset_info, 0, 0, 0, sp_sroutine_key,
                0, 0);
+  m_security_ctx.init();
 
   DBUG_VOID_RETURN;
 }

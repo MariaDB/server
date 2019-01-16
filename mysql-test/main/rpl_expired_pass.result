@@ -1,0 +1,28 @@
+include/master-slave.inc
+[connection master]
+connection slave;
+include/stop_slave.inc
+connection master;
+create user 'repl_user' password expire;
+grant replication slave on *.* to repl_user;
+flush privileges;
+set global disconnect_on_expired_password=ON;
+connection slave;
+CHANGE MASTER TO MASTER_USER= 'repl_user';
+START SLAVE;
+include/wait_for_slave_io_error.inc [errno=1862]
+include/stop_slave_sql.inc
+RESET SLAVE;
+connection master;
+set global disconnect_on_expired_password=OFF;
+connection slave;
+START SLAVE;
+include/wait_for_slave_io_error.inc [errno=1820]
+connection master;
+DROP USER 'repl_user';
+set global disconnect_on_expired_password=default;
+connection slave;
+include/stop_slave_sql.inc
+CHANGE MASTER TO MASTER_USER='root';
+RESET SLAVE;
+include/rpl_end.inc
