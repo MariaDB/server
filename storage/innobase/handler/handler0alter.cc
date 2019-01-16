@@ -199,7 +199,7 @@ inline void dict_table_t::init_instant(const dict_table_t& table)
 		}
 		field_map_it->set_ind(fixed_len
 				      ? uint16_t(fixed_len + 1)
-				      : f.col->len > 255);
+				      : DATA_BIG_COL(f.col));
 		field_map_it++;
 		ut_ad(f.col >= table.instant->dropped);
 		ut_ad(f.col < table.instant->dropped
