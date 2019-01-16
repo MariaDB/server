@@ -3241,10 +3241,11 @@ row_ins_clust_index_entry(
 		: (index->table->is_temporary() || skip_locking)
 		? BTR_NO_LOCKING_FLAG : 0;
 #ifdef UNIV_DEBUG
-	if (skip_locking && sr_table_name_full_str != index->table->name.m_name) {
+	if (skip_locking && strcmp(wsrep_sr_table_name_full,
+                                   index->table->name.m_name)) {
 		WSREP_ERROR("Record locking is disabled in this thread, "
 			    "but the table being modified is not "
-			    "`%s`: `%s`.", sr_table_name_full_str.c_str(),
+			    "`%s`: `%s`.", wsrep_sr_table_name_full,
 			    index->table->name.m_name);
 		ut_error;
 	}
