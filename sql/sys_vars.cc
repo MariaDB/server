@@ -5535,7 +5535,7 @@ static Sys_var_mybool Sys_wsrep_restart_slave(
        "wsrep_restart_slave", "Should MariaDB slave be restarted automatically, when node joins back to cluster",
        GLOBAL_VAR(wsrep_restart_slave), CMD_LINE(OPT_ARG), DEFAULT(FALSE));
 
-static Sys_var_ulong Sys_wsrep_trx_fragment_size(
+static Sys_var_ulonglong Sys_wsrep_trx_fragment_size(
       "wsrep_trx_fragment_size",
       "Size of transaction fragments for streaming replication (measured in "
       "units of 'wsrep_trx_fragment_unit')",

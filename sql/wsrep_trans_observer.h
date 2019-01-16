@@ -328,7 +328,7 @@ static inline void wsrep_open(THD* thd)
     {
       thd->wsrep_cs().enable_streaming(
         wsrep_fragment_unit(thd->variables.wsrep_trx_fragment_unit),
-        thd->variables.wsrep_trx_fragment_size);
+        size_t(thd->variables.wsrep_trx_fragment_size));
     }
   }
   DBUG_VOID_RETURN;

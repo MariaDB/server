@@ -724,7 +724,7 @@ typedef struct system_variables
   my_bool wsrep_causal_reads;
   uint    wsrep_sync_wait;
   ulong   wsrep_retry_autocommit;
-  ulong   wsrep_trx_fragment_size;
+  ulonglong wsrep_trx_fragment_size;
   ulong   wsrep_trx_fragment_unit;
   ulong   wsrep_OSU_method;
   my_bool wsrep_dirty_reads;

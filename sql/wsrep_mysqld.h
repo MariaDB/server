@@ -88,7 +88,6 @@ extern my_bool     wsrep_restart_slave;
 extern my_bool     wsrep_restart_slave_activated;
 extern my_bool     wsrep_slave_FK_checks;
 extern my_bool     wsrep_slave_UK_checks;
-extern ulong       wsrep_trx_fragment_size;
 extern ulong       wsrep_trx_fragment_unit;
 extern ulong       wsrep_SR_store_type;
 extern uint        wsrep_ignore_apply_errors;

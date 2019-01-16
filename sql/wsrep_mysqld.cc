@@ -121,8 +121,6 @@ int wsrep_slave_count_change= 0;                // No. of appliers to stop/start
 int wsrep_to_isolation= 0;                      // No. of active TO isolation threads
 long wsrep_max_protocol_version= 4;             // Maximum protocol version to use
 long int  wsrep_protocol_version= wsrep_max_protocol_version;
-ulong wsrep_trx_fragment_size= 0;               // size limit for fragmenting
-                                                // 0 = no fragmenting
 ulong wsrep_trx_fragment_unit= WSREP_FRAG_BYTES;
                                                 // unit for fragment size
 ulong wsrep_SR_store_type= WSREP_SR_STORE_TABLE;
@@ -718,7 +716,7 @@ int wsrep_init()
   {
     WSREP_ERROR("The WSREP provider (%s) does not support streaming "
                 "replication but wsrep_trx_fragment_size is set to a "
-                "value other than 0 (%lu). Cannot continue. Either set "
+                "value other than 0 (%llu). Cannot continue. Either set "
                 "wsrep_trx_fragment_size to 0 or use wsrep_provider that "
                 "supports streaming replication.",
                 wsrep_provider, global_system_variables.wsrep_trx_fragment_size);

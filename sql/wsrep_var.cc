@@ -679,13 +679,13 @@ bool wsrep_trx_fragment_size_check (sys_var *self, THD* thd, set_var* var)
 
 bool wsrep_trx_fragment_size_update(sys_var* self, THD *thd, enum_var_type)
 {
-  WSREP_DEBUG("wsrep_trx_fragment_size_update: %lu",
+  WSREP_DEBUG("wsrep_trx_fragment_size_update: %llu",
               thd->variables.wsrep_trx_fragment_size);
   if (thd->variables.wsrep_trx_fragment_size)
   {
     return thd->wsrep_cs().enable_streaming(
       wsrep_fragment_unit(thd->variables.wsrep_trx_fragment_unit),
-      thd->variables.wsrep_trx_fragment_size);
+      size_t(thd->variables.wsrep_trx_fragment_size));
   }
   else
   {
@@ -702,7 +702,7 @@ bool wsrep_trx_fragment_unit_update(sys_var* self, THD *thd, enum_var_type)
   {
     return thd->wsrep_cs().enable_streaming(
       wsrep_fragment_unit(thd->variables.wsrep_trx_fragment_unit),
-      thd->variables.wsrep_trx_fragment_size);
+      size_t(thd->variables.wsrep_trx_fragment_size));
   }
   return false;
 }
