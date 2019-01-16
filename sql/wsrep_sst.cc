@@ -191,11 +191,10 @@ bool wsrep_before_SE()
 
 // Signal end of SST
 static void wsrep_sst_complete (THD*                thd,
-                                const wsrep::gtid&  sst_gtid,
                                 int const           rcode)
 {
   Wsrep_client_service client_service(thd, thd->wsrep_cs());
-  Wsrep_server_state::instance().sst_received(client_service, sst_gtid, rcode);
+  Wsrep_server_state::instance().sst_received(client_service, rcode);
 }
 
   /*
@@ -252,7 +251,7 @@ void wsrep_sst_received (THD*                thd,
     if (WSREP_ON)
     {
       int const rcode(seqno < 0 ? seqno : 0);
-      wsrep_sst_complete(thd, sst_gtid, rcode);
+      wsrep_sst_complete(thd,rcode);
     }
 }
 
@@ -526,7 +525,7 @@ err:
     /* Read committed isolation to avoid gap locking */
     thd->variables.tx_isolation= ISO_READ_COMMITTED;
 
-    wsrep_sst_complete (thd, ret_gtid, -err);
+    wsrep_sst_complete (thd, -err);
 
     delete thd;
     my_thread_end();

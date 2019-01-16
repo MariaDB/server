@@ -58,6 +58,8 @@ public:
 
   wsrep::view get_view(wsrep::client_service&, const wsrep::id& own_id);
 
+  wsrep::gtid get_position(wsrep::client_service&);
+
   void log_state_change(enum wsrep::server_state::state,
                         enum wsrep::server_state::state);
 
