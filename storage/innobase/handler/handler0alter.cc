@@ -167,7 +167,7 @@ to instant->dropped[]
 template<bool replace_dropped>
 inline void dict_table_t::init_instant(const dict_table_t& table)
 {
-	const dict_index_t& oindex = *table.indexes.start;
+	const dict_index_t& oindex __attribute__((unused))= *table.indexes.start;
 	dict_index_t& index = *indexes.start;
 	const unsigned u = index.first_user_field();
 	DBUG_ASSERT(u == oindex.first_user_field());
@@ -785,9 +785,9 @@ inline void dict_table_t::rollback_instant(
 		index->get_n_nullable(index->n_core_fields));
 
 	const dict_col_t* const new_cols = cols;
-	const dict_col_t* const new_cols_end = cols + n_cols;
+	const dict_col_t* const new_cols_end __attribute__((unused)) = cols + n_cols;
 	const dict_v_col_t* const new_v_cols = v_cols;
-	const dict_v_col_t* const new_v_cols_end = v_cols + n_v_cols;
+	const dict_v_col_t* const new_v_cols_end __attribute__((unused))= v_cols + n_v_cols;
 
 	cols = old_cols;
 	col_names = old_col_names;
@@ -1100,6 +1100,40 @@ struct ha_innobase_inplace_ctx : public inplace_alter_handler_ctx
 		DBUG_ASSERT(!instant_table || !instant_table->can_be_evicted);
 		return instant_table;
 	}
+
+	/** Create an index table where indexes are ordered as follows:
+
+	IF a new primary key is defined for the table THEN
+
+		1) New primary key
+		2) The remaining keys in key_info
+
+	ELSE
+
+		1) All new indexes in the order they arrive from MySQL
+
+	ENDIF
+
+	@return key definitions */
+	MY_ATTRIBUTE((nonnull, warn_unused_result, malloc))
+	inline index_def_t*
+	create_key_defs(
+		const Alter_inplace_info*	ha_alter_info,
+				/*!< in: alter operation */
+		const TABLE*			altered_table,
+				/*!< in: MySQL table that is being altered */
+		ulint&				n_fts_add,
+				/*!< out: number of FTS indexes to be created */
+		ulint&				fts_doc_id_col,
+				/*!< in: The column number for Doc ID */
+		bool&				add_fts_doc_id,
+				/*!< in: whether we need to add new DOC ID
+				column for FTS index */
+		bool&				add_fts_doc_idx,
+				/*!< in: whether we need to add new DOC ID
+				index for FTS index */
+		const TABLE*			table);
+				/*!< in: MySQL table that is being altered */
 
 private:
 	// Disable copying
@@ -3603,8 +3637,7 @@ innobase_fts_check_doc_id_index_in_def(
 	return(FTS_NOT_EXIST_DOC_ID_INDEX);
 }
 
-/*******************************************************************//**
-Create an index table where indexes are ordered as follows:
+/** Create an index table where indexes are ordered as follows:
 
 IF a new primary key is defined for the table THEN
 
@@ -3618,23 +3651,15 @@ ELSE
 ENDIF
 
 @return key definitions */
-static MY_ATTRIBUTE((nonnull, warn_unused_result, malloc))
-index_def_t*
-innobase_create_key_defs(
-/*=====================*/
-	mem_heap_t*			heap,
-			/*!< in/out: memory heap where space for key
-			definitions are allocated */
+MY_ATTRIBUTE((nonnull, warn_unused_result, malloc))
+inline index_def_t*
+ha_innobase_inplace_ctx::create_key_defs(
 	const Alter_inplace_info*	ha_alter_info,
 			/*!< in: alter operation */
 	const TABLE*			altered_table,
 			/*!< in: MySQL table that is being altered */
-	ulint&				n_add,
-			/*!< in/out: number of indexes to be created */
 	ulint&				n_fts_add,
 			/*!< out: number of FTS indexes to be created */
-	bool				got_default_clust,
-			/*!< in: whether the table lacks a primary key */
 	ulint&				fts_doc_id_col,
 			/*!< in: The column number for Doc ID */
 	bool&				add_fts_doc_id,
@@ -3646,6 +3671,9 @@ innobase_create_key_defs(
 	const TABLE*			table)
 			/*!< in: MySQL table that is being altered */
 {
+	ulint&			n_add = num_to_add_index;
+	const bool got_default_clust = new_table->indexes.start->is_gen_clust();
+
 	index_def_t*		indexdef;
 	index_def_t*		indexdefs;
 	bool			new_primary;
@@ -3654,7 +3682,7 @@ innobase_create_key_defs(
 	const KEY*const		key_info
 		= ha_alter_info->key_info_buffer;
 
-	DBUG_ENTER("innobase_create_key_defs");
+	DBUG_ENTER("ha_innobase_inplace_ctx::create_key_defs");
 	DBUG_ASSERT(!add_fts_doc_id || add_fts_doc_idx);
 	DBUG_ASSERT(ha_alter_info->index_add_count == n_add);
 
@@ -4213,9 +4241,9 @@ innobase_build_col_map(
 				col_map[old_i - num_old_v] = i;
 				if (old_table->versioned()) {
 					if (old_i == old_table->vers_start) {
-						new_table->vers_start = i;
+						new_table->vers_start = i + num_v;
 					} else if (old_i == old_table->vers_end) {
-						new_table->vers_end = i;
+						new_table->vers_end = i + num_v;
 					}
 				}
 				goto found_col;
@@ -6004,11 +6032,9 @@ prepare_inplace_alter_table_dict(
 	const char*	path = thd_innodb_tmpdir(
 		ctx->prebuilt->trx->mysql_thd);
 
-	index_defs = innobase_create_key_defs(
-		ctx->heap, ha_alter_info, altered_table, ctx->num_to_add_index,
+	index_defs = ctx->create_key_defs(
+		ha_alter_info, altered_table,
 		num_fts_index,
-		dict_index_is_auto_gen_clust(dict_table_get_first_index(
-						     ctx->new_table)),
 		fts_doc_id_col, add_fts_doc_id, add_fts_doc_id_idx,
 		old_table);
 

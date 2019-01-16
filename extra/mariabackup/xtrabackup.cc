@@ -2392,6 +2392,18 @@ check_if_skip_table(
 	const char *ptr;
 	char *eptr;
 
+
+	dbname = NULL;
+	tbname = name;
+	while ((ptr = strchr(tbname, '/')) != NULL) {
+		dbname = tbname;
+		tbname = ptr + 1;
+	}
+
+	if (strncmp(tbname, tmp_file_prefix, tmp_file_prefix_length) == 0) {
+		return TRUE;
+	}
+
 	if (regex_exclude_list.empty() &&
 		regex_include_list.empty() &&
 		tables_include_hash == NULL &&
@@ -2399,13 +2411,6 @@ check_if_skip_table(
 		databases_include_hash == NULL &&
 		databases_exclude_hash == NULL) {
 		return(FALSE);
-	}
-
-	dbname = NULL;
-	tbname = name;
-	while ((ptr = strchr(tbname, '/')) != NULL) {
-		dbname = tbname;
-		tbname = ptr + 1;
 	}
 
 	if (dbname == NULL) {
@@ -5210,6 +5215,7 @@ xb_process_datadir(
 					    path, NULL,
 					    fileinfo.name, NULL))
 				{
+					os_file_closedir(dbdir);
 					return(FALSE);
 				}
 			}
@@ -5271,6 +5277,7 @@ next_file_item_1:
 						    dbinfo.name,
 						    fileinfo.name, NULL))
 					{
+						os_file_closedir(dbdir);
 						return(FALSE);
 					}
 				}
@@ -5451,6 +5458,14 @@ xtrabackup_prepare_func(char** argv)
 
 	fil_path_to_mysql_datadir = ".";
 
+	/* Fix DDL for prepare. Process .del,.ren, and .new files.
+	The order in which files are processed, is important
+	(see MDEV-18185, MDEV-18201)
+	*/
+	xb_process_datadir(xtrabackup_incremental_dir ? xtrabackup_incremental_dir : ".",
+		".del", prepare_handle_del_files);
+	xb_process_datadir(xtrabackup_incremental_dir? xtrabackup_incremental_dir:".",
+		".ren", prepare_handle_ren_files);
 	if (xtrabackup_incremental_dir) {
 		xb_process_datadir(xtrabackup_incremental_dir, ".new.meta", prepare_handle_new_files);
 		xb_process_datadir(xtrabackup_incremental_dir, ".new.delta", prepare_handle_new_files);
@@ -5458,11 +5473,6 @@ xtrabackup_prepare_func(char** argv)
 	else {
 		xb_process_datadir(".", ".new", prepare_handle_new_files);
 	}
-	xb_process_datadir(xtrabackup_incremental_dir? xtrabackup_incremental_dir:".",
-		".ren", prepare_handle_ren_files);
-	xb_process_datadir(xtrabackup_incremental_dir ? xtrabackup_incremental_dir : ".",
-		".del", prepare_handle_del_files);
-
 
 	int argc; for (argc = 0; argv[argc]; argc++) {}
 	encryption_plugin_prepare_init(argc, argv);

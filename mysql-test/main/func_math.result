@@ -1316,5 +1316,12 @@ t2	CREATE TABLE `t2` (
 DROP TABLE t1, t2;
 SET sql_mode=DEFAULT;
 #
+# MDEV-18150 Assertion `decimals_to_set <= 38' failed in Item_func_round::fix_length_and_dec_decimal
+#
+CREATE TABLE t1 (i INT(23));
+SELECT ROUND( i, 18446744073709551594 ) AS f FROM t1;
+f
+DROP TABLE t1;
+#
 # End of 10.3 tests
 #

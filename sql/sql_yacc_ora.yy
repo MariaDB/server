@@ -1505,7 +1505,7 @@ bool my_yyoverflow(short **a, YYSTYPE **b, size_t *yystacksize);
 %type <select_order> opt_order_clause order_clause order_list
 
 %type <NONE>
-        analyze_stmt_command backup
+        analyze_stmt_command backup backup_statements
         query verb_clause create change select select_into
         do drop insert replace insert2
         insert_values update delete truncate rename compound_statement
@@ -14566,18 +14566,34 @@ opt_table_list:
         ;
 
 backup:
-        BACKUP_SYM STAGE_SYM ident
+        BACKUP_SYM backup_statements {}
+	;
+
+backup_statements:
+	STAGE_SYM ident
         {
           int type;
           if (unlikely(Lex->sphead))
             my_yyabort_error((ER_SP_BADSTATEMENT, MYF(0), "BACKUP STAGE"));
-          if ((type= find_type($3.str, &backup_stage_names,
+          if ((type= find_type($2.str, &backup_stage_names,
                                FIND_TYPE_NO_PREFIX)) <= 0)
-            my_yyabort_error((ER_BACKUP_UNKNOWN_STAGE, MYF(0), $3.str));
+            my_yyabort_error((ER_BACKUP_UNKNOWN_STAGE, MYF(0), $2.str));
           Lex->sql_command= SQLCOM_BACKUP;
           Lex->backup_stage= (backup_stages) (type-1);
           break;
         }
+	| LOCK_SYM table_ident
+          {
+	    if (unlikely(!Select->add_table_to_list(thd, $2, NULL, 0,
+                                                    TL_READ, MDL_SHARED_HIGH_PRIO)))
+             MYSQL_YYABORT;
+            Lex->sql_command= SQLCOM_BACKUP_LOCK;
+          }
+        | UNLOCK_SYM
+          {
+	    /* Table list is empty for unlock */
+            Lex->sql_command= SQLCOM_BACKUP_LOCK;
+          }
         ;
 
 opt_delete_gtid_domain:

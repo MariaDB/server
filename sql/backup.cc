@@ -354,3 +354,32 @@ bool backup_reset_alter_copy_lock(THD *thd)
                                               thd->variables.lock_wait_timeout);
   return res;
 }
+
+
+/*****************************************************************************
+ Backup locks
+ These functions are used by maria_backup to ensure that there are no active
+ ddl's on the object the backup is going to copy
+*****************************************************************************/
+
+
+bool backup_lock(THD *thd, TABLE_LIST *table)
+{
+  backup_unlock(thd);
+  table->mdl_request.duration= MDL_EXPLICIT;
+  if (thd->mdl_context.acquire_lock(&table->mdl_request,
+                                    thd->variables.lock_wait_timeout))
+    return 1;
+  thd->mdl_backup_lock= table->mdl_request.ticket;
+  return 0;
+}
+
+
+/* Release old backup lock if it exists */
+
+void backup_unlock(THD *thd)
+{
+  if (thd->mdl_backup_lock)
+    thd->mdl_context.release_lock(thd->mdl_backup_lock);
+  thd->mdl_backup_lock= 0;
+}

@@ -1951,3 +1951,19 @@ DROP TABLE t1;
 --echo #
 --echo # End of 10.3 tests
 --echo #
+
+
+--echo #
+--echo # Start of 10.4 tests
+--echo #
+
+--echo #
+--echo # MDEV-18205 Assertion `str_length < len' failed in Binary_string::realloc_raw
+--echo #
+
+SELECT GROUP_CONCAT( UpdateXML( '<a>new year</a>', '/a', '2019-01-01 00:00:00' ), ENCODE('text','pass') ) AS f;
+
+
+--echo #
+--echo # End of 10.4 tests
+--echo #

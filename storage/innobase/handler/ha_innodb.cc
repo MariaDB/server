@@ -7283,19 +7283,19 @@ static
 const Field*
 build_template_needs_field(
 /*=======================*/
-	ibool		index_contains,	/*!< in:
-					dict_index_contains_col_or_prefix(
-					index, i) */
-	ibool		read_just_key,	/*!< in: TRUE when MySQL calls
+	bool		index_contains,	/*!< in:
+					dict_index_t::contains_col_or_prefix(
+					i) */
+	bool		read_just_key,	/*!< in: TRUE when MySQL calls
 					ha_innobase::extra with the
 					argument HA_EXTRA_KEYREAD; it is enough
 					to read just columns defined in
 					the index (i.e., no read of the
 					clustered index record necessary) */
-	ibool		fetch_all_in_key,
+	bool		fetch_all_in_key,
 					/*!< in: true=fetch all fields in
 					the index */
-	ibool		fetch_primary_key_cols,
+	bool		fetch_primary_key_cols,
 					/*!< in: true=fetch the
 					primary key columns */
 	dict_index_t*	index,		/*!< in: InnoDB index to use */
@@ -7356,11 +7356,11 @@ build_template_needs_field_in_icp(
 	bool			is_virtual)
 					/*!< in: a virtual column or not */
 {
-	ut_ad(contains == dict_index_contains_col_or_prefix(index, i, is_virtual));
+	ut_ad(contains == index->contains_col_or_prefix(i, is_virtual));
 
 	return(index == prebuilt->index
 	       ? contains
-	       : dict_index_contains_col_or_prefix(prebuilt->index, i, is_virtual));
+	       : prebuilt->index->contains_col_or_prefix(i, is_virtual));
 }
 
 /**************************************************************//**
@@ -7636,9 +7636,8 @@ ha_innobase::build_template(
 				num_v++;
 				continue;
 			}
-			ibool index_contains
-				= dict_index_contains_col_or_prefix(
-					index, is_v ? num_v : i - num_v, is_v);
+			bool index_contains = index->contains_col_or_prefix(
+				is_v ? num_v : i - num_v, is_v);
 			if (is_v && index_contains) {
 				m_prebuilt->n_template = 0;
 				num_v = 0;
@@ -7777,9 +7776,8 @@ ha_innobase::build_template(
 				continue;
 			}
 
-			ibool index_contains
-				= dict_index_contains_col_or_prefix(
-					index, is_v ? num_v : i - num_v, is_v);
+			bool index_contains = index->contains_col_or_prefix(
+				is_v ? num_v : i - num_v, is_v);
 
 			if (!build_template_needs_field_in_icp(
 				    index, m_prebuilt, index_contains,
@@ -7836,8 +7834,8 @@ no_icp:
 				cluster index. */
 				if (is_v
 				    && m_prebuilt->read_just_key
-				    && !dict_index_contains_col_or_prefix(
-					m_prebuilt->index, num_v, true))
+				    && !m_prebuilt->index->contains_col_or_prefix(
+					num_v, true))
 				{
 					/* Turn off ROW_MYSQL_WHOLE_ROW */
 					m_prebuilt->template_type =
@@ -7846,19 +7844,13 @@ no_icp:
 					continue;
 				}
 			} else {
-				ibool	contain;
-
-				if (!is_v) {
-					contain = dict_index_contains_col_or_prefix(
-						index, i - num_v,
-						false);
-				} else if (dict_index_is_clust(index)) {
+				if (is_v && index->is_primary()) {
 					num_v++;
 					continue;
-				} else {
-					contain = dict_index_contains_col_or_prefix(
-						index, num_v, true);
 				}
+
+				bool contain = index->contains_col_or_prefix(
+					is_v ? num_v: i - num_v, is_v);
 
 				field = build_template_needs_field(
 					contain,
@@ -9406,7 +9398,6 @@ ha_innobase::innobase_get_index(
 	if (keynr != MAX_KEY && table->s->keys > 0) {
 		key = &table->key_info[keynr];
 		index = dict_table_get_index_on_name(ib_table, key->name.str);
-		ut_ad(index);
 	} else {
 		index = dict_table_get_first_index(ib_table);
 	}

@@ -1153,9 +1153,7 @@ dict_table_is_fts_column(
 
 		index = (dict_index_t*) ib_vector_getp(indexes, i);
 
-		if (dict_index_contains_col_or_prefix(
-			index, col_no, is_virtual)) {
-
+		if (index->contains_col_or_prefix(col_no, is_virtual)) {
 			return(i);
 		}
 	}
