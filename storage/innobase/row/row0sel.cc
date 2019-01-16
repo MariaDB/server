@@ -2695,14 +2695,11 @@ row_sel_convert_mysql_key_to_innobase(
 /**************************************************************//**
 Stores a non-SQL-NULL field in the MySQL format. The counterpart of this
 function is row_mysql_store_col_in_innobase_format() in row0mysql.cc. */
-void
-row_sel_field_store_in_mysql_format_func(
+void row_sel_field_store_in_mysql_format(
 	byte*		dest,
 	const mysql_row_templ_t* templ,
-#ifdef UNIV_DEBUG
 	const dict_index_t* index,
 	ulint		field_no,
-#endif /* UNIV_DEBUG */
 	const byte*	data,
 	ulint		len,
 	bool		comp)
@@ -2872,15 +2869,6 @@ row_sel_field_store_in_mysql_format_func(
 	}
 }
 
-#ifdef UNIV_DEBUG
-/** Convert a field from Innobase format to MySQL format. */
-# define row_sel_store_mysql_field(m,p,r,i,o,f,t) \
-	row_sel_store_mysql_field_func(m,p,r,i,o,f,t)
-#else /* UNIV_DEBUG */
-/** Convert a field from Innobase format to MySQL format. */
-# define row_sel_store_mysql_field(m,p,r,i,o,f,t) \
-	row_sel_store_mysql_field_func(m,p,r,o,f,t)
-#endif /* UNIV_DEBUG */
 /** Convert a field in the Innobase format to a field in the MySQL format.
 @param[out]	mysql_rec		record in the MySQL format
 @param[in,out]	prebuilt		prebuilt struct
@@ -2894,14 +2882,11 @@ row_sel_field_store_in_mysql_format_func(
 @param[in]	templ			row template
 */
 static MY_ATTRIBUTE((warn_unused_result))
-ibool
-row_sel_store_mysql_field_func(
+bool row_sel_store_mysql_field(
 	byte*			mysql_rec,
 	row_prebuilt_t*		prebuilt,
 	const rec_t*		rec,
-#ifdef UNIV_DEBUG
 	const dict_index_t*	index,
-#endif
 	const ulint*		offsets,
 	ulint			field_no,
 	const mysql_row_templ_t*templ)
@@ -2959,7 +2944,7 @@ row_sel_store_mysql_field_func(
 
 			ut_a(prebuilt->trx->isolation_level
 			     == TRX_ISO_READ_UNCOMMITTED);
-			DBUG_RETURN(FALSE);
+			DBUG_RETURN(false);
 		}
 
 		ut_a(len != UNIV_SQL_NULL);
@@ -3001,7 +2986,7 @@ row_sel_store_mysql_field_func(
 			       (const byte*) prebuilt->default_rec
 			       + templ->mysql_col_offset,
 			       templ->mysql_col_len);
-			DBUG_RETURN(TRUE);
+			DBUG_RETURN(true);
 		}
 
 		if (DATA_LARGE_MTYPE(templ->type)
@@ -3043,7 +3028,7 @@ row_sel_store_mysql_field_func(
 			&= ~(byte) templ->mysql_null_bit_mask;
 	}
 
-	DBUG_RETURN(TRUE);
+	DBUG_RETURN(true);
 }
 
 /** Convert a row in the Innobase format to a row in the MySQL format.
