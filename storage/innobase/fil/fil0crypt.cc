@@ -2413,7 +2413,8 @@ void
 fil_space_crypt_close_tablespace(
 	const fil_space_t*	space)
 {
-	if (!srv_encrypt_tables || !space->crypt_data) {
+	if (!srv_encrypt_tables || !space->crypt_data
+	    || srv_n_fil_crypt_threads == 0) {
 		return;
 	}
 
