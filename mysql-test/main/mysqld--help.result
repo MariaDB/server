@@ -184,6 +184,12 @@ The following specify which files/extra groups are read (specified before remain
  --deadlock-timeout-short=# 
  Short timeout for the two-step deadlock detection (in
  microseconds)
+ --default-password-lifetime=# 
+ This defines the global password expiration policy. 0
+ means automatic password expiration is disabled. If the
+ value is a positive integer N, the passwords must be
+ changed every N days. This behavior can be overriden
+ using the password expiration options in ALTER USER.
  --default-regex-flags=name 
  Default flags for the regex library. Any combination of: 
  DOTALL, DUPNAMES, EXTENDED, EXTRA, MULTILINE, UNGREEDY
@@ -220,6 +226,11 @@ The following specify which files/extra groups are read (specified before remain
  handling INSERT DELAYED. If the queue becomes full, any
  client that does INSERT DELAYED will wait until there is
  room in the queue again
+ --disconnect-on-expired-password 
+ This variable controls how the server handles clients
+ that are not aware of the sandbox mode. If enabled, the
+ server disconnects the client, otherwise the server puts
+ the client in a sandbox mode.
  --div-precision-increment=# 
  Precision of the result of '/' operator will be increased
  on that value
@@ -1420,6 +1431,7 @@ deadlock-search-depth-long 15
 deadlock-search-depth-short 4
 deadlock-timeout-long 50000000
 deadlock-timeout-short 10000
+default-password-lifetime 0
 default-regex-flags 
 default-storage-engine myisam
 default-time-zone (No default value)
@@ -1429,6 +1441,7 @@ delay-key-write ON
 delayed-insert-limit 100
 delayed-insert-timeout 300
 delayed-queue-size 1000
+disconnect-on-expired-password FALSE
 div-precision-increment 4
 encrypt-binlog FALSE
 encrypt-tmp-disk-tables FALSE

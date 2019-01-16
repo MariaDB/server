@@ -1626,6 +1626,15 @@ bool dispatch_command(enum enum_server_command command, THD *thd,
       thd->get_stmt_da()->set_skip_flush();
   }
 
+  if (unlikely(thd->security_ctx->password_expired &&
+               command != COM_QUERY &&
+               command != COM_PING &&
+               command != COM_QUIT))
+  {
+    my_error(ER_MUST_CHANGE_PASSWORD, MYF(0));
+    goto dispatch_end;
+  }
+
   switch (command) {
   case COM_INIT_DB:
   {
@@ -2345,8 +2354,8 @@ com_multi_end:
     break;
   }
 
+dispatch_end:
 #ifdef WITH_WSREP
- dispatch_end:
   /*
     BF aborted before sending response back to client
   */
@@ -3239,6 +3248,13 @@ mysql_execute_command(THD *thd)
   Rpl_filter *rpl_filter;
 #endif
   DBUG_ENTER("mysql_execute_command");
+
+  if (thd->security_ctx->password_expired &&
+      lex->sql_command != SQLCOM_SET_OPTION)
+  {
+    my_error(ER_MUST_CHANGE_PASSWORD, MYF(0));
+    DBUG_RETURN(1);
+  }
 
   DBUG_ASSERT(thd->transaction.stmt.is_empty() || thd->in_sub_stmt);
   /*

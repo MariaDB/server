@@ -4296,6 +4296,7 @@ void Security_context::init()
   host_or_ip= "connecting host";
   priv_user[0]= priv_host[0]= proxy_user[0]= priv_role[0]= '\0';
   master_access= 0;
+  password_expired= false;
 #ifndef NO_EMBEDDED_ACCESS_CHECKS
   db_access= NO_ACCESS;
 #endif
@@ -4334,6 +4335,7 @@ void Security_context::skip_grants()
   host_or_ip= (char *)"";
   master_access= ~NO_ACCESS;
   *priv_user= *priv_host= '\0';
+  password_expired= false;
 }
 
 
@@ -4450,6 +4452,13 @@ bool Security_context::user_matches(Security_context *them)
 {
   return ((user != NULL) && (them->user != NULL) &&
           !strcmp(user, them->user));
+}
+
+bool Security_context::is_priv_user(const char *user, const char *host)
+{
+  return ((user != NULL) && (host != NULL) &&
+          !strcmp(user, priv_user) &&
+          !my_strcasecmp(system_charset_info, host,priv_host));
 }
 
 

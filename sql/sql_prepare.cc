@@ -4200,15 +4200,6 @@ Prepared_statement::execute_loop(String *expanded_query,
   if (set_parameters(expanded_query, packet, packet_end))
     return TRUE;
 
-#ifdef NOT_YET_FROM_MYSQL_5_6
-  if (unlikely(thd->security_ctx->password_expired && 
-               !lex->is_change_password))
-  {
-    my_error(ER_MUST_CHANGE_PASSWORD, MYF(0));
-    return true;
-  }
-#endif
-
 reexecute:
   // Make sure that reprepare() did not create any new Items.
   DBUG_ASSERT(thd->free_list == NULL);
@@ -4348,16 +4339,6 @@ Prepared_statement::execute_bulk_loop(String *expanded_query,
     return true;
   }
   read_types= FALSE;
-
-#ifdef NOT_YET_FROM_MYSQL_5_6
-  if (unlikely(thd->security_ctx->password_expired &&
-               !lex->is_change_password))
-  {
-    my_error(ER_MUST_CHANGE_PASSWORD, MYF(0));
-    thd->set_bulk_execution(0);
-    return true;
-  }
-#endif
 
   // iterations changed by set_bulk_parameters
   while ((iterations || start_param) && !error && !thd->is_error())

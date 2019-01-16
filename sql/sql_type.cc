@@ -619,7 +619,6 @@ Sec9 & Sec9::round(uint dec)
   return *this;
 }
 
-
 void Timestamp::round_or_set_max(uint dec, int *warn)
 {
   DBUG_ASSERT(dec <= TIME_SECOND_PART_DIGITS);
@@ -630,9 +629,9 @@ void Timestamp::round_or_set_max(uint dec, int *warn)
     tv_usec= TIME_MAX_SECOND_PART;
     *warn|= MYSQL_TIME_WARN_OUT_OF_RANGE;
   }
+
   my_timeval_trunc(this, dec);
 }
-
 
 bool Temporal::add_nanoseconds_with_round(THD *thd, int *warn,
                                           date_conv_mode_t mode,

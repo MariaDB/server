@@ -333,12 +333,8 @@ enum enum_indicator_type
                            CLIENT_DEPRECATE_EOF |\
                            CLIENT_CONNECT_ATTRS |\
                            MARIADB_CLIENT_COM_MULTI |\
-                           MARIADB_CLIENT_STMT_BULK_OPERATIONS)
-
-/*
-  To be added later:
-  CLIENT_CAN_HANDLE_EXPIRED_PASSWORDS
-*/
+                           MARIADB_CLIENT_STMT_BULK_OPERATIONS |\
+                           CLIENT_CAN_HANDLE_EXPIRED_PASSWORDS)
 
 /*
   Switch off the flags that are optional and depending on build flags

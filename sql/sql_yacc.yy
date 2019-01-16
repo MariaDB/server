@@ -1269,6 +1269,7 @@ bool my_yyoverflow(short **a, YYSTYPE **b, size_t *yystacksize);
 %token  <kwd>  EXIT_MARIADB_SYM              /* PLSQL-R */
 %token  <kwd>  EXIT_ORACLE_SYM               /* PLSQL-R */
 %token  <kwd>  EXPANSION_SYM
+%token  <kwd>  EXPIRE_SYM                    /* MySQL */
 %token  <kwd>  EXPORT_SYM
 %token  <kwd>  EXTENDED_SYM
 %token  <kwd>  EXTENT_SIZE_SYM
@@ -1384,6 +1385,7 @@ bool my_yyoverflow(short **a, YYSTYPE **b, size_t *yystacksize);
 %token  <kwd>  NAME_SYM                      /* SQL-2003-N */
 %token  <kwd>  NATIONAL_SYM                  /* SQL-2003-R */
 %token  <kwd>  NCHAR_SYM                     /* SQL-2003-R */
+%token  <kwd>  NEVER_SYM                     /* MySQL */
 %token  <kwd>  NEW_SYM                       /* SQL-2003-R */
 %token  <kwd>  NEXT_SYM                      /* SQL-2003-N */
 %token  <kwd>  NEXTVAL_SYM                   /* PostgreSQL sequence function */
@@ -2912,7 +2914,7 @@ create:
             Lex->pop_select(); //main select
           }
         | create_or_replace USER_SYM opt_if_not_exists clear_privileges
-          grant_list opt_require_clause opt_resource_options opt_account_locking
+          grant_list opt_require_clause opt_resource_options opt_account_locking opt_password_expiration
           {
             if (unlikely(Lex->set_command_with_check(SQLCOM_CREATE_USER,
                                                      $1 | $3)))
@@ -7978,7 +7980,7 @@ alter:
           } OPTIONS_SYM '(' server_options_list ')' { }
           /* ALTER USER foo is allowed for MySQL compatibility. */
         | ALTER opt_if_exists USER_SYM clear_privileges grant_list
-          opt_require_clause opt_resource_options opt_account_locking
+          opt_require_clause opt_resource_options opt_account_locking opt_password_expiration
           {
             Lex->create_info.set($2);
             Lex->sql_command= SQLCOM_ALTER_USER;
@@ -8026,6 +8028,35 @@ opt_account_locking:
         | ACCOUNT_SYM UNLOCK_SYM
           {
             Lex->account_options.account_locked= ACCOUNTLOCK_UNLOCKED;
+          }
+        ;
+opt_password_expiration:
+        /* Nothing */ {}
+        | PASSWORD_SYM EXPIRE_SYM
+          {
+            Lex->account_options.password_expire= PASSWORD_EXPIRE_NOW;
+          }
+        | PASSWORD_SYM EXPIRE_SYM NEVER_SYM
+          {
+            Lex->account_options.password_expire= PASSWORD_EXPIRE_NEVER;
+          }
+        | PASSWORD_SYM EXPIRE_SYM DEFAULT
+          {
+            Lex->account_options.password_expire= PASSWORD_EXPIRE_DEFAULT;
+          }
+        | PASSWORD_SYM EXPIRE_SYM INTERVAL_SYM NUM DAY_SYM
+          {
+            int error;
+            longlong interval= my_strtoll10($4.str, (char**) 0, &error);
+            if (!interval)
+            {
+              char num[MAX_BIGINT_WIDTH + 1];
+              my_snprintf(num, sizeof(num), "%lu", interval);
+              my_yyabort_error((ER_WRONG_VALUE, MYF(0), "DAY", num));
+            }
+
+            Lex->account_options.password_expire= PASSWORD_EXPIRE_INTERVAL;
+            Lex->account_options.num_expiration_days= interval;
           }
         ;
 
@@ -15951,6 +15982,7 @@ keyword_sp_var_and_label:
         | EXCEPTION_MARIADB_SYM
         | EXCHANGE_SYM
         | EXPANSION_SYM
+        | EXPIRE_SYM
         | EXPORT_SYM
         | EXTENDED_SYM
         | EXTENT_SIZE_SYM
@@ -16041,6 +16073,7 @@ keyword_sp_var_and_label:
         | MYSQL_SYM
         | MYSQL_ERRNO_SYM
         | NAME_SYM
+        | NEVER_SYM
         | NEXT_SYM           %prec PREC_BELOW_CONTRACTION_TOKEN2
         | NEXTVAL_SYM
         | NEW_SYM
@@ -17177,20 +17210,26 @@ grant_user:
             $$= $1;
             $1->auth= new (thd->mem_root) USER_AUTH();
             $1->auth->pwtext= $4;
+            $1->is_changing_password= true;
           }
         | user IDENTIFIED_SYM BY PASSWORD_SYM TEXT_STRING
           { 
             $$= $1; 
             $1->auth= new (thd->mem_root) USER_AUTH();
             $1->auth->auth_str= $5;
+            $1->is_changing_password= true;
           }
         | user IDENTIFIED_SYM via_or_with auth_expression
           {
             $$= $1;
             $1->auth= $4;
+            $1->is_changing_password= false;
           }
         | user_or_role
-          { $$= $1; }
+          {
+            $$= $1;
+            $1->is_changing_password= false;
+          }
         ;
 
 auth_expression:

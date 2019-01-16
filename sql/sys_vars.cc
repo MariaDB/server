@@ -1508,6 +1508,24 @@ static Sys_var_ulong Sys_max_connections(
        DEFAULT(MAX_CONNECTIONS_DEFAULT), BLOCK_SIZE(1), NO_MUTEX_GUARD,
        NOT_IN_BINLOG, ON_CHECK(0), ON_UPDATE(fix_max_connections));
 
+static Sys_var_ulong Sys_default_password_lifetime(
+       "default_password_lifetime",
+       "This defines the global password expiration policy. 0 means "
+       "automatic password expiration is disabled. If the value is a "
+       "positive integer N, the passwords must be changed every N days. This "
+       "behavior can be overriden using the password expiration options in "
+       "ALTER USER.",
+       GLOBAL_VAR(default_password_lifetime), CMD_LINE(REQUIRED_ARG),
+       VALID_RANGE(0, UINT_MAX), DEFAULT(0), BLOCK_SIZE(1));
+
+static Sys_var_mybool Sys_disconnect_on_expired_password(
+       "disconnect_on_expired_password",
+       "This variable controls how the server handles clients that are not "
+       "aware of the sandbox mode. If enabled, the server disconnects the "
+       "client, otherwise the server puts the client in a sandbox mode.",
+       GLOBAL_VAR(disconnect_on_expired_password), CMD_LINE(OPT_ARG),
+       DEFAULT(FALSE));
+
 static Sys_var_ulong Sys_max_connect_errors(
        "max_connect_errors",
        "If there is more than this number of interrupted connections from "
