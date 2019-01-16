@@ -23,11 +23,11 @@ COMMIT;
 
 --connection node_1
 SELECT COUNT(*) = 0 FROM t1;
-SELECT COUNT(*) = 0 FROM .SR;
+SELECT COUNT(*) = 0 FROM mysql.wsrep_streaming_log;
 
 --connection node_2
 SELECT COUNT(*) = 0 FROM t1;
-SELECT COUNT(*) = 0 FROM .SR;
+SELECT COUNT(*) = 0 FROM mysql.wsrep_streaming_log;
 
 #
 # Test 2: AUTOCOMMIT OFF
@@ -41,12 +41,11 @@ COMMIT;
 
 --connection node_1
 SELECT COUNT(*) = 0 FROM t1;
-SELECT COUNT(*) = 0 FROM .SR;
+SELECT COUNT(*) = 0 FROM mysql.wsrep_streaming_log;
 
 --connection node_2
 SELECT COUNT(*) = 0 FROM t1;
-SELECT COUNT(*) = 0 FROM .SR;
+SELECT COUNT(*) = 0 FROM mysql.wsrep_streaming_log;
 
 
 DROP TABLE t1;
-
