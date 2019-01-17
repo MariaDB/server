@@ -1367,7 +1367,7 @@ class User_table_json: public User_table
       if (value_len)
         json.append(',');
       json.append('"');
-      json.append(STRING_WITH_LEN(key));
+      json.append(key);
       json.append(STRING_WITH_LEN("\":"));
       if (string)
         json.append('"');
