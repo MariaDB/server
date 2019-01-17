@@ -79,18 +79,18 @@ xbstream_init(const char *root __attribute__((unused)))
 	ds_stream_ctxt_t	*stream_ctxt;
 	xb_wstream_t *xbstream;
 
-	ctxt = my_malloc(sizeof(ds_ctxt_t) + sizeof(ds_stream_ctxt_t),
+	ctxt = (ds_ctxt_t *)my_malloc(sizeof(ds_ctxt_t) + sizeof(ds_stream_ctxt_t),
 			 MYF(MY_FAE));
 	stream_ctxt = (ds_stream_ctxt_t *)(ctxt + 1);
 
 	if (pthread_mutex_init(&stream_ctxt->mutex, NULL)) {
-		msg("xbstream_init: pthread_mutex_init() failed.\n");
+		msg("xbstream_init: pthread_mutex_init() failed.");
 		goto err;
 	}
 
 	xbstream = xb_stream_write_new();
 	if (xbstream == NULL) {
-		msg("xb_stream_write_new() failed.\n");
+		msg("xb_stream_write_new() failed.");
 		goto err;
 	}
 	stream_ctxt->xbstream = xbstream;
@@ -143,7 +143,7 @@ xbstream_open(ds_ctxt_t *ctxt, const char *path, MY_STAT *mystat)
 					     my_xbstream_write_callback);
 
 	if (xbstream_file == NULL) {
-		msg("xb_stream_write_open() failed.\n");
+		msg("xb_stream_write_open() failed.");
 		goto err;
 	}
 
@@ -177,7 +177,7 @@ xbstream_write(ds_file_t *file, const uchar *buf, size_t len)
 	xbstream_file = stream_file->xbstream_file;
 
 	if (xb_stream_write_data(xbstream_file, buf, len)) {
-		msg("xb_stream_write_data() failed.\n");
+		msg("xb_stream_write_data() failed.");
 		return 1;
 	}
 
@@ -209,7 +209,7 @@ xbstream_deinit(ds_ctxt_t *ctxt)
 	stream_ctxt = (ds_stream_ctxt_t *) ctxt->ptr;
 
 	if (xb_stream_write_done(stream_ctxt->xbstream)) {
-		msg("xb_stream_done() failed.\n");
+		msg("xb_stream_done() failed.");
 	}
 
 	if (stream_ctxt->dest_file) {

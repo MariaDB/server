@@ -45,7 +45,6 @@ datasink_t datasink_archive;
 datasink_t datasink_xbstream;
 datasink_t datasink_compress;
 datasink_t datasink_tmpfile;
-datasink_t datasink_buffer;
 
 static run_mode_t	opt_mode;
 static char *		opt_directory = NULL;
@@ -106,7 +105,7 @@ main(int argc, char **argv)
 	}
 
 	if (opt_mode == RUN_MODE_NONE) {
-		msg("%s: either -c or -x must be specified.\n", my_progname);
+		msg("%s: either -c or -x must be specified.", my_progname);
 		goto err;
 	}
 
@@ -184,7 +183,7 @@ int
 set_run_mode(run_mode_t mode)
 {
 	if (opt_mode != RUN_MODE_NONE) {
-		msg("%s: can't set specify both -c and -x.\n", my_progname);
+		msg("%s: can't set specify both -c and -x.", my_progname);
 		return 1;
 	}
 
@@ -233,7 +232,7 @@ stream_one_file(File file, xb_wstream_file_t *xbfile)
 	while ((bytes = (ssize_t)my_read(file, buf, XBSTREAM_BUFFER_SIZE,
 				MYF(MY_WME))) > 0) {
 		if (xb_stream_write_data(xbfile, buf, bytes)) {
-			msg("%s: xb_stream_write_data() failed.\n",
+			msg("%s: xb_stream_write_data() failed.",
 			    my_progname);
 			my_free(buf);
 			return 1;
@@ -262,13 +261,13 @@ mode_create(int argc, char **argv)
 	xb_wstream_t	*stream;
 
 	if (argc < 1) {
-		msg("%s: no files are specified.\n", my_progname);
+		msg("%s: no files are specified.", my_progname);
 		return 1;
 	}
 
 	stream = xb_stream_write_new();
 	if (stream == NULL) {
-		msg("%s: xb_stream_write_new() failed.\n", my_progname);
+		msg("%s: xb_stream_write_new() failed.", my_progname);
 		return 1;
 	}
 
@@ -281,13 +280,13 @@ mode_create(int argc, char **argv)
 			goto err;
 		}
 		if (!MY_S_ISREG(mystat.st_mode)) {
-			msg("%s: %s is not a regular file, exiting.\n",
+			msg("%s: %s is not a regular file, exiting.",
 			    my_progname, filepath);
 			goto err;
 		}
 
 		if ((src_file = my_open(filepath, O_RDONLY, MYF(MY_WME))) < 0) {
-			msg("%s: failed to open %s.\n", my_progname, filepath);
+			msg("%s: failed to open %s.", my_progname, filepath);
 			goto err;
 		}
 
@@ -297,7 +296,7 @@ mode_create(int argc, char **argv)
 		}
 
 		if (opt_verbose) {
-			msg("%s\n", filepath);
+			msg("%s", filepath);
 		}
 
 		if (stream_one_file(src_file, file) ||
@@ -338,12 +337,12 @@ file_entry_new(extract_ctxt_t *ctxt, const char *path, uint pathlen)
 	file = ds_open(ctxt->ds_ctxt, path, NULL);
 
 	if (file == NULL) {
-		msg("%s: failed to create file.\n", my_progname);
+		msg("%s: failed to create file.", my_progname);
 		goto err;
 	}
 
 	if (opt_verbose) {
-		msg("%s\n", entry->path);
+		msg("%s", entry->path);
 	}
 
 	entry->file = file;
@@ -425,7 +424,7 @@ extract_worker_thread_func(void *arg)
 				break;
 			}
 			if (my_hash_insert(ctxt->filehash, (uchar *) entry)) {
-				msg("%s: my_hash_insert() failed.\n",
+				msg("%s: my_hash_insert() failed.",
 				    my_progname);
 				pthread_mutex_unlock(ctxt->mutex);
 				break;
@@ -454,7 +453,7 @@ extract_worker_thread_func(void *arg)
 
 		if (entry->offset != chunk.offset) {
 			msg("%s: out-of-order chunk: real offset = 0x%llx, "
-			    "expected offset = 0x%llx\n", my_progname,
+			    "expected offset = 0x%llx", my_progname,
 			    chunk.offset, entry->offset);
 			pthread_mutex_unlock(&entry->mutex);
 			res = XB_STREAM_READ_ERROR;
@@ -462,7 +461,7 @@ extract_worker_thread_func(void *arg)
 		}
 
 		if (ds_write(entry->file, chunk.data, chunk.length)) {
-			msg("%s: my_write() failed.\n", my_progname);
+			msg("%s: my_write() failed.", my_progname);
 			pthread_mutex_unlock(&entry->mutex);
 			res = XB_STREAM_READ_ERROR;
 			break;
@@ -500,12 +499,12 @@ mode_extract(int n_threads, int argc __attribute__((unused)),
 	if (my_hash_init(&filehash, &my_charset_bin, START_FILE_HASH_SIZE,
 			  0, 0, (my_hash_get_key) get_file_entry_key,
 			  (my_hash_free_key) file_entry_free, MYF(0))) {
-		msg("%s: failed to initialize file hash.\n", my_progname);
+		msg("%s: failed to initialize file hash.", my_progname);
 		return 1;
 	}
 
 	if (pthread_mutex_init(&mutex, NULL)) {
-		msg("%s: failed to initialize mutex.\n", my_progname);
+		msg("%s: failed to initialize mutex.", my_progname);
 		my_hash_free(&filehash);
 		return 1;
 	}
@@ -520,7 +519,7 @@ mode_extract(int n_threads, int argc __attribute__((unused)),
 
 	stream = xb_stream_read_new();
 	if (stream == NULL) {
-		msg("%s: xb_stream_read_new() failed.\n", my_progname);
+		msg("%s: xb_stream_read_new() failed.", my_progname);
 		pthread_mutex_destroy(&mutex);
 		ret = 1;
 		goto exit;
@@ -531,8 +530,8 @@ mode_extract(int n_threads, int argc __attribute__((unused)),
 	ctxt.ds_ctxt = ds_ctxt;
 	ctxt.mutex = &mutex;
 
-	tids = calloc(n_threads, sizeof(pthread_t));
-	retvals = calloc(n_threads, sizeof(void*));
+	tids = (pthread_t *)calloc(n_threads, sizeof(pthread_t));
+	retvals = (void **)calloc(n_threads, sizeof(void*));
 
 	for (i = 0; i < n_threads; i++)
 		pthread_create(tids + i, NULL, extract_worker_thread_func,

@@ -150,6 +150,7 @@ connection node_3;
 connection node_2;
 STOP SLAVE;
 RESET SLAVE ALL;
+set global gtid_slave_pos="";
 reset master;
 #Connection 3
 connection node_3;

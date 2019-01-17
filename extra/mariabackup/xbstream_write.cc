@@ -55,7 +55,7 @@ xb_stream_default_write_callback(xb_wstream_file_t *file __attribute__((unused))
 				 void *userdata __attribute__((unused)),
 				 const void *buf, size_t len)
 {
-	if (my_write(my_fileno(stdout), buf, len, MYF(MY_WME | MY_NABP)))
+	if (my_write(my_fileno(stdout), (const uchar *)buf, len, MYF(MY_WME | MY_NABP)))
 		return -1;
 	return len;
 }
@@ -83,7 +83,7 @@ xb_stream_write_open(xb_wstream_t *stream, const char *path,
 	path_len = strlen(path);
 
 	if (path_len > FN_REFLEN) {
-		msg("xb_stream_write_open(): file path is too long.\n");
+		msg("xb_stream_write_open(): file path is too long.");
 		return NULL;
 	}
 
@@ -216,7 +216,7 @@ xb_stream_write_chunk(xb_wstream_file_t *file, const void *buf, size_t len)
 	int8store(ptr, len);                     /* Payload length */
 	ptr += 8;
 
-	checksum = crc32_iso3309(0, buf, (uint)len);   /* checksum */
+	checksum = crc32_iso3309(0, (const uchar *)buf, (uint)len);   /* checksum */
 
 	pthread_mutex_lock(&stream->mutex);
 

@@ -3497,11 +3497,15 @@ static Sys_var_charptr Sys_system_time_zone(
        CMD_LINE_HELP_ONLY,
        IN_SYSTEM_CHARSET, DEFAULT(system_time_zone));
 
+/*
+  If One use views with prepared statements this should be bigger than
+  table_open_cache (now we allow 2 times bigger value)
+*/
 static Sys_var_ulong Sys_table_def_size(
        "table_definition_cache",
        "The number of cached table definitions",
        GLOBAL_VAR(tdc_size), CMD_LINE(REQUIRED_ARG),
-       VALID_RANGE(TABLE_DEF_CACHE_MIN, 512*1024),
+       VALID_RANGE(TABLE_DEF_CACHE_MIN, 2*1024*1024),
        DEFAULT(TABLE_DEF_CACHE_DEFAULT), BLOCK_SIZE(1));
 
 
@@ -3513,7 +3517,7 @@ static bool fix_table_open_cache(sys_var *, THD *, enum_var_type)
   return false;
 }
 
-
+/* Check the table_definition_cache comment if makes changes */
 static Sys_var_ulong Sys_table_cache_size(
        "table_open_cache", "The number of cached open tables",
        GLOBAL_VAR(tc_size), CMD_LINE(REQUIRED_ARG),

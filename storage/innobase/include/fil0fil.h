@@ -73,8 +73,9 @@ struct fil_node_t;
 
 /** Tablespace or log data space */
 struct fil_space_t {
-	char*		name;	/*!< Tablespace name */
 	ulint		id;	/*!< space id */
+	hash_node_t	hash;	/*!< hash chain node */
+	char*		name;	/*!< Tablespace name */
 	lsn_t		max_lsn;
 				/*!< LSN of the most recent
 				fil_names_write_if_was_clean().
@@ -142,7 +143,6 @@ struct fil_space_t {
 	Note that fil_node_t::n_pending tracks actual pending I/O requests.
 	Protected by fil_system.mutex and std::atomic. */
 	std::atomic<ulint>		n_pending_ios;
-	hash_node_t	hash;	/*!< hash chain node */
 	rw_lock_t	latch;	/*!< latch protecting the file space storage
 				allocation */
 	UT_LIST_NODE_T(fil_space_t) unflushed_spaces;

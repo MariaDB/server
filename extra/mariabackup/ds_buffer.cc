@@ -71,7 +71,7 @@ buffer_init(const char *root)
 	ds_ctxt_t		*ctxt;
 	ds_buffer_ctxt_t	*buffer_ctxt;
 
-	ctxt = my_malloc(sizeof(ds_ctxt_t) + sizeof(ds_buffer_ctxt_t),
+	ctxt = (ds_ctxt_t *)my_malloc(sizeof(ds_ctxt_t) + sizeof(ds_buffer_ctxt_t),
 			 MYF(MY_FAE));
 	buffer_ctxt = (ds_buffer_ctxt_t *) (ctxt + 1);
 	buffer_ctxt->buffer_size = DS_DEFAULT_BUFFER_SIZE;
@@ -96,7 +96,7 @@ buffer_open(ds_ctxt_t *ctxt, const char *path, MY_STAT *mystat)
 
 	dst_file = ds_open(pipe_ctxt, path, mystat);
 	if (dst_file == NULL) {
-		exit(EXIT_FAILURE);
+		die("ds_open(%s) failed", path);
 	}
 
 	buffer_ctxt = (ds_buffer_ctxt_t *) ctxt->ptr;

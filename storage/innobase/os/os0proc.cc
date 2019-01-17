@@ -160,7 +160,6 @@ os_mem_free_large(
 #if defined HAVE_LINUX_LARGE_PAGES && defined UNIV_LINUX
 	if (os_use_large_pages && os_large_page_size && !shmdt(ptr)) {
 		os_total_large_mem_allocated -= size;
-		UNIV_MEM_FREE(ptr, size);
 		return;
 	}
 #endif /* HAVE_LINUX_LARGE_PAGES && UNIV_LINUX */
@@ -172,7 +171,6 @@ os_mem_free_large(
 			<< ") failed; Windows error " << GetLastError();
 	} else {
 		os_total_large_mem_allocated -= size;
-		UNIV_MEM_FREE(ptr, size);
 	}
 #elif !defined OS_MAP_ANON
 	ut_free(ptr);
@@ -186,7 +184,6 @@ os_mem_free_large(
 			" errno " << errno;
 	} else {
 		os_total_large_mem_allocated -= size;
-		UNIV_MEM_FREE(ptr, size);
 	}
 #endif
 }
