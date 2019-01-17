@@ -105,7 +105,6 @@ enum enum_wsrep_reject_types {
 enum enum_wsrep_OSU_method {
     WSREP_OSU_TOI,
     WSREP_OSU_RSU,
-    WSREP_OSU_NBO,
     WSREP_OSU_NONE,
 };
 
@@ -329,8 +328,6 @@ extern PSI_mutex_key key_LOCK_wsrep_desync;
 extern PSI_mutex_key key_LOCK_wsrep_SR_pool;
 extern PSI_mutex_key key_LOCK_wsrep_SR_store;
 extern PSI_mutex_key key_LOCK_wsrep_thd_pool;
-extern PSI_mutex_key key_LOCK_wsrep_nbo;
-extern PSI_cond_key  key_COND_wsrep_nbo;
 extern PSI_mutex_key key_LOCK_wsrep_global_seqno;
 extern PSI_mutex_key key_LOCK_wsrep_thd_queue;
 extern PSI_cond_key  key_COND_wsrep_thd_queue;
@@ -342,9 +339,6 @@ class Alter_info;
 int wsrep_to_isolation_begin(THD *thd, const char *db_, const char *table_,
                              const TABLE_LIST* table_list,
                              Alter_info* alter_info= NULL);
-
-void wsrep_begin_nbo_unlock(THD*);
-void wsrep_end_nbo_lock(THD*, const TABLE_LIST *table_list);
 
 void wsrep_to_isolation_end(THD *thd);
 
@@ -370,98 +364,6 @@ int wsrep_ignored_error_code(Log_event* ev, int error);
 int wsrep_must_ignore_error(THD* thd);
 
 bool wsrep_replicate_GTID(THD* thd);
-
-/*
- * Helper class for non-blocking operations.
- */
-class Wsrep_nbo_ctx
-{
- public:
- Wsrep_nbo_ctx(const void* buf, size_t buf_len,
-               uint32_t flags, const wsrep_trx_meta_t& meta) :
-    buf_    (0),
-    buf_len_(buf_len),
-    flags_  (flags),
-    meta_   (meta),
-    mutex_  (),
-    cond_   (),
-    ready_  (false),
-    executing_(false),
-    toi_released_(false)
-    {
-      mysql_mutex_init(key_LOCK_wsrep_nbo, &mutex_, MY_MUTEX_INIT_FAST);
-      mysql_cond_init(key_COND_wsrep_nbo, &cond_, NULL);
-
-      if ((buf_= malloc(buf_len_)) == 0) {
-        throw std::exception();
-      }
-      memcpy(buf_, buf, buf_len);
-    }
-
-
-  ~Wsrep_nbo_ctx() {
-    free(buf_);
-  }
-
-  const void* buf() { return buf_; }
-  size_t buf_len() { return buf_len_; }
-  uint32_t flags() { return flags_; }
-  const wsrep_trx_meta_t& meta() { return meta_; }
-
-  void wait_sync()
-  {
-    mysql_mutex_lock(&mutex_);
-    while (ready_ == false)
-    {
-      mysql_cond_wait(&cond_, &mutex_);
-    }
-    mysql_mutex_unlock(&mutex_);
-  }
-
-  void signal()
-  {
-    mysql_mutex_lock(&mutex_);
-    ready_= true;
-    mysql_cond_signal(&cond_);
-    mysql_mutex_unlock(&mutex_);
-  }
-
-  bool ready() const { return ready_; }
-
-  void set_executing(bool val) { executing_= val; }
-
-  bool executing() const { return executing_; }
-
-  void set_toi_released(bool val) { toi_released_= true; }
-
-  bool toi_released() const { return toi_released_; }
-
- private:
-  void*            buf_;
-  size_t           buf_len_;
-  uint32_t         flags_;
-  wsrep_trx_meta_t meta_;
-  mysql_mutex_t    mutex_;
-  mysql_cond_t     cond_;
-  bool             ready_;
-  bool             executing_;
-  bool             toi_released_;
-};
-
-/*
-  Convenience macros for determining NBO start and END
-*/
-#define WSREP_NBO_START(flags_) \
-((flags_ & WSREP_FLAG_ISOLATION) && (flags_ & WSREP_FLAG_TRX_START) && \
- !(flags_ & WSREP_FLAG_TRX_END))
-
-#define WSREP_NBO_END(flags_) \
- ((flags_ & WSREP_FLAG_ISOLATION) && !(flags_ & WSREP_FLAG_TRX_START) && \
-  (flags_ & WSREP_FLAG_TRX_END))
-
-#define WSREP_TOI(flags_) \
-  ((flags_ & WSREP_FLAG_ISOLATION) && (flags_ & WSREP_FLAG_TRX_START) && \
-   (flags_ & WSREP_FLAG_TRX_END))
 
 typedef struct wsrep_key_arr
 {

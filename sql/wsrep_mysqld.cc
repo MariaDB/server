@@ -164,13 +164,13 @@ PSI_mutex_key
   key_LOCK_wsrep_slave_threads, key_LOCK_wsrep_desync,
   key_LOCK_wsrep_config_state,
   key_LOCK_wsrep_SR_pool,
-  key_LOCK_wsrep_SR_store, key_LOCK_wsrep_thd_pool, key_LOCK_wsrep_nbo,
+  key_LOCK_wsrep_SR_store, key_LOCK_wsrep_thd_pool,
   key_LOCK_wsrep_thd_queue;
 
 PSI_cond_key key_COND_wsrep_thd,
   key_COND_wsrep_replaying, key_COND_wsrep_ready, key_COND_wsrep_sst,
   key_COND_wsrep_sst_init, key_COND_wsrep_sst_thread,
-  key_COND_wsrep_nbo, key_COND_wsrep_thd_queue;
+  key_COND_wsrep_thd_queue;
   
 
 PSI_file_key key_file_wsrep_gra_log;
@@ -1697,32 +1697,6 @@ static const char* wsrep_get_query_or_msg(const THD* thd)
 }
 #endif //UNUSED
 
-static bool wsrep_can_run_in_nbo(THD *thd)
-{
-    switch (thd->lex->sql_command)
-    {
-    case SQLCOM_ALTER_TABLE:
-      /*
-        CREATE INDEX and DROP INDEX are mapped to ALTER TABLE internally
-      */
-    case SQLCOM_CREATE_INDEX:
-    case SQLCOM_DROP_INDEX:
-      switch (thd->lex->alter_info.requested_lock)
-      {
-      case Alter_info::ALTER_TABLE_LOCK_SHARED:
-      case Alter_info::ALTER_TABLE_LOCK_EXCLUSIVE:
-        return true;
-      default:
-        return false;
-      }
-    case SQLCOM_OPTIMIZE:
-        return true;
-    default:
-        break; /* Keep compiler happy */
-    }
-    return false;
-}
-
 static int wsrep_create_sp(THD *thd, uchar** buf, size_t* buf_len)
 {
   String log_query;
@@ -1825,16 +1799,12 @@ fail:
    0: statement was replicated as TOI
    1: TOI replication was skipped
   -1: TOI replication failed
-  -2: NBO begin failed
  */
 static int wsrep_TOI_begin(THD *thd, const char *db, const char *table,
                            const TABLE_LIST* table_list,
                            Alter_info* alter_info)
 {
-  /* FIXME: NBO is broken in this codepath */
   DBUG_ASSERT(thd->variables.wsrep_OSU_method == WSREP_OSU_TOI);
-  DBUG_ASSERT(thd->variables.wsrep_OSU_method == WSREP_OSU_TOI ||
-              thd->variables.wsrep_OSU_method == WSREP_OSU_NBO);
 
   WSREP_DEBUG("TOI Begin");
   if (wsrep_can_run_in_toi(thd, db, table, table_list) == false)
@@ -1843,36 +1813,10 @@ static int wsrep_TOI_begin(THD *thd, const char *db, const char *table,
     return 1;
   }
 
-  if (thd->variables.wsrep_OSU_method == WSREP_OSU_NBO &&
-      Wsrep_server_state::has_capability(wsrep::provider::capability::nbo))
-  {
-    const char* const msg=
-      "wsrep_OSU_method NBO is not supported by wsrep provider";
-    WSREP_DEBUG("%s", msg);
-    my_message(ER_NOT_SUPPORTED_YET, msg, MYF(0));
-    return -1;
-  }
-
-  bool can_run_in_nbo(wsrep_can_run_in_nbo(thd));
-  if (can_run_in_nbo                  == false &&
-      thd->variables.wsrep_OSU_method == WSREP_OSU_NBO)
-  {
-    WSREP_DEBUG("wsrep_OSU_method NBO not supported for %s",
-                WSREP_QUERY(thd));
-    my_message(ER_NOT_SUPPORTED_YET,
-               "wsrep_OSU_method NBO not supported for query",
-               MYF(0));
-    return -1;
-  }
-
-  bool run_in_nbo= (thd->variables.wsrep_OSU_method == WSREP_OSU_NBO &&
-                    can_run_in_nbo);
-
   uchar* buf= 0;
   size_t buf_len(0);
   int buf_err;
   int rc;
-  time_t wait_start;
 
   buf_err= wsrep_TOI_event_buf(thd, &buf, &buf_len);
   if (buf_err) {
@@ -1899,40 +1843,20 @@ static int wsrep_TOI_begin(THD *thd, const char *db, const char *table,
   }
 
   thd_proc_info(thd, "acquiring total order isolation");
-  wait_start= time(NULL);
+
   wsrep::client_state& cs(thd->wsrep_cs());
-  int ret;
-  do
+  int ret= cs.enter_toi(key_array,
+                        wsrep::const_buffer(buff.ptr, buff.len),
+                        wsrep::provider::flag::start_transaction |
+                        wsrep::provider::flag::commit);
+
+  if (ret)
   {
-    ret= cs.enter_toi(key_array,
-                      wsrep::const_buffer(buff.ptr, buff.len),
-                      wsrep::provider::flag::start_transaction |
-                      wsrep::provider::flag::commit);
-    if (thd->killed != NOT_KILLED) break;
+    DBUG_ASSERT(cs.current_error());
+    WSREP_DEBUG("to_execute_start() failed for %llu: %s, seqno: %lld",
+                thd->thread_id, WSREP_QUERY(thd),
+                (long long)wsrep_thd_trx_seqno(thd));
 
-    if (ret)
-    {
-      DBUG_ASSERT(cs.current_error());
-      WSREP_DEBUG("to_execute_start() failed for %llu: %s, NBO: %s, seqno: %lld",
-                  thd->thread_id, WSREP_QUERY(thd), run_in_nbo ? "yes" : "no",
-                  (long long)wsrep_thd_trx_seqno(thd));
-      if (ulong(time(NULL) - wait_start) < thd->variables.lock_wait_timeout)
-      {
-        usleep(100000);
-      }
-      else
-      {
-        my_error(ER_LOCK_WAIT_TIMEOUT, MYF(0));
-        break;
-      }
-      if (run_in_nbo) /* will loop */
-      {
-        wsrep_TOI_begin_failed(thd, NULL /* failed repl/certification doesn't mean error in execution */);
-      }
-    }
-  } while (ret && cs.current_error() == wsrep::e_error_during_commit /* ? */  && run_in_nbo);
-
-  if (ret) {
     /* jump to error handler in mysql_execute_command() */
     switch (cs.current_error())
     {
@@ -1959,43 +1883,13 @@ static int wsrep_TOI_begin(THD *thd, const char *db, const char *table,
     rc= -1;
   }
   else {
-
-    try {
-      /*
-        Allocate dummy thd->wsrep_nbo_ctx to track execution state
-        in mysql_execute_command().
-      */
-      if (run_in_nbo) {
-        thd->wsrep_nbo_ctx= new Wsrep_nbo_ctx(0, 0, 0, wsrep_trx_meta_t());
-        ::abort();
-      }
-
-      ++wsrep_to_isolation;
-
-      rc= 0;
-
-    }
-    catch (std::bad_alloc& e) {
-      rc= -2;
-    }
+    ++wsrep_to_isolation;
+    rc= 0;
   }
 
   if (buf) my_free(buf);
 
-  switch(rc)
-  {
-  case 0:
-    break;
-  case -2:
-  {
-    const char* const err_str= "Failed to allocate NBO context object.";
-    wsrep_buf_t const err= { err_str, strlen(err_str) };
-    wsrep_TOI_begin_failed(thd, &err);
-    break;
-  }
-  default:
-    wsrep_TOI_begin_failed(thd, NULL);
-  }
+  if (rc) wsrep_TOI_begin_failed(thd, NULL);
 
   return rc;
 }
@@ -2031,12 +1925,6 @@ static void wsrep_TOI_end(THD *thd) {
       WSREP_WARN("TO isolation end failed for: %d, schema: %s, sql: %s",
                  ret, (thd->db.str ? thd->db.str : "(null)"), WSREP_QUERY(thd));
     }
-  }
-
-  if (thd->wsrep_nbo_ctx)
-  {
-    delete thd->wsrep_nbo_ctx;
-    thd->wsrep_nbo_ctx= NULL;
   }
 }
 
@@ -2120,7 +2008,6 @@ int wsrep_to_isolation_begin(THD *thd, const char *db_, const char *table_,
   {
     switch (thd->variables.wsrep_OSU_method) {
     case WSREP_OSU_TOI:
-    case WSREP_OSU_NBO:
       ret= wsrep_TOI_begin(thd, db_, table_, table_list, alter_info);
       break;
     case WSREP_OSU_RSU:
@@ -2166,16 +2053,6 @@ void wsrep_to_isolation_end(THD *thd)
     DBUG_ASSERT(0);
   }
   if (wsrep_emulate_bin_log) wsrep_thd_binlog_trx_reset(thd);
-}
-
-void wsrep_begin_nbo_unlock(THD* thd)
-{
-  DBUG_ASSERT(0);
-}
-
-void wsrep_end_nbo_lock(THD* thd, const TABLE_LIST *table_list)
-{
-  DBUG_ASSERT(0);
 }
 
 #define WSREP_MDL_LOG(severity, msg, schema, schema_len, req, gra)             \

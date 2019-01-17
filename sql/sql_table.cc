@@ -7521,9 +7521,6 @@ static bool mysql_inplace_alter_table(THD *thd,
   }
 
 #ifdef WITH_WSREP
-  if (thd->wsrep_nbo_ctx) {
-    wsrep_begin_nbo_unlock(thd);
-  }
   DBUG_EXECUTE_IF("sync.alter_locked_tables_inplace",
                   {
                       const char act[]=
@@ -9768,10 +9765,6 @@ bool mysql_alter_table(THD *thd, const LEX_CSTRING *new_db,
   }
 
 #ifdef WITH_WSREP
-  if (thd->wsrep_nbo_ctx) {
-    wsrep_begin_nbo_unlock(thd);
-  }
-
   DBUG_EXECUTE_IF("sync.alter_locked_tables",
                   {
                       const char act[]=
