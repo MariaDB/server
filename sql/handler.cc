@@ -4510,7 +4510,6 @@ handler::check_if_supported_inplace_alter(TABLE *altered_table,
     DBUG_RETURN(HA_ALTER_INPLACE_NOT_SUPPORTED);
 
   alter_table_operations inplace_offline_operations=
-    ALTER_COLUMN_EQUAL_PACK_LENGTH |
     ALTER_COLUMN_NAME |
     ALTER_RENAME_COLUMN |
     ALTER_CHANGE_COLUMN_DEFAULT |

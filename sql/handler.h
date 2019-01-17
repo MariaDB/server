@@ -738,7 +738,6 @@ typedef ulonglong alter_table_operations;
   online alter of all partitions atomically (using group_commit_ctx)
 */
 #define ALTER_PARTITIONED                    (1ULL << 59)
-#define ALTER_COLUMN_EQUAL_PACK_LENGTH2      (1ULL << 60)
 
 /*
   Flags set in partition_flags when altering partitions

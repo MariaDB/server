@@ -7915,7 +7915,7 @@ uint Field_varstring::is_equal(Create_field *new_field)
     if (extended && new_field->type_handler() == &type_handler_string &&
         new_field->length >= field_length)
     {
-      return IS_EQUAL_PACK_LENGTH2;
+      return IS_EQUAL_PACK_LENGTH;
     }
     if (new_field->type_handler() == type_handler())
     {
@@ -9509,7 +9509,7 @@ uint Field_num::is_equal(Create_field *new_field)
       return IS_EQUAL_YES;
     if (extended && new_field->pack_length > pack_length() &&
         (signed_equal || !(new_field->flags & UNSIGNED_FLAG)))
-      return IS_EQUAL_PACK_LENGTH2;
+      return IS_EQUAL_PACK_LENGTH;
   }
   return IS_EQUAL_NO;
 }

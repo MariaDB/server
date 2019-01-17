@@ -25,7 +25,7 @@ Table	Op	Msg_type	Msg_text
 test.t	check	status	OK
 call check_table('t');
 name	mtype	prtype	len
-a	1	8000F	300
+a	1	8100F	300
 # Case 2: VARCHAR -> CHAR, VARBINARY -> BINARY conversion
 set @bigval= repeat('0123456789', 20);
 create or replace table t (a varchar(300)) row_format=redundant;

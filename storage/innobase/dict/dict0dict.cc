@@ -650,6 +650,9 @@ const char* dict_col_t::name(const dict_table_t& table) const
 	}
 
 	if (s) {
+		/* midenok: isn't it strange to use serialized array in memory?
+		TODO: Refactor to member dict_col_t::name, serialize only when
+		required. */
 		for (size_t i = 0; i < col_nr; i++) {
 			s += strlen(s) + 1;
 		}

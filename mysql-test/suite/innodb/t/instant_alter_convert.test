@@ -26,7 +26,7 @@ create or replace table t (a varchar(2)) row_format=redundant;
 if ($have_debug) {
 --disable_query_log
 --disable_result_log
-set debug_dbug= '+d,ib_resize_column_error';
+set debug_dbug= '+d,ib_instant_error';
 --error ER_RECORD_FILE_FULL
 alter table t modify a varchar(300);
 set debug_dbug= default;
