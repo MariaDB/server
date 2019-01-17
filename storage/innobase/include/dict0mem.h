@@ -1570,6 +1570,12 @@ struct dict_table_t {
 
 	/** Id of the table. */
 	table_id_t				id;
+	/** Hash chain node. */
+	hash_node_t				id_hash;
+	/** Table name. */
+	table_name_t				name;
+	/** Hash chain node. */
+	hash_node_t				name_hash;
 
 	/** Memory heap. If you allocate from this heap after the table has
 	been created then be sure to account the allocation into
@@ -1581,9 +1587,6 @@ struct dict_table_t {
 	new_size = mem_heap_get_size()
 	dict_sys->size += new_size - old_size. */
 	mem_heap_t*				heap;
-
-	/** Table name. */
-	table_name_t				name;
 
 	/** NULL or the directory path specified by DATA DIRECTORY. */
 	char*					data_dir_path;
@@ -1702,12 +1705,6 @@ struct dict_table_t {
 				/*!< !DICT_FRM_CONSISTENT==0 if data
 				dictionary information and
 				MySQL FRM information mismatch. */
-	/** Hash chain node. */
-	hash_node_t				name_hash;
-
-	/** Hash chain node. */
-	hash_node_t				id_hash;
-
 	/** The FTS_DOC_ID_INDEX, or NULL if no fulltext indexes exist */
 	dict_index_t*				fts_doc_id_index;
 
