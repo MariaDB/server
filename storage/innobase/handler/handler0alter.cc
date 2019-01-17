@@ -1,7 +1,7 @@
 /*****************************************************************************
 
 Copyright (c) 2005, 2018, Oracle and/or its affiliates. All Rights Reserved.
-Copyright (c) 2013, 2018, MariaDB Corporation.
+Copyright (c) 2013, 2019, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -10358,6 +10358,10 @@ commit_cache_norebuild(
 						      f->fixed_len);
 				}
 			}
+		}
+
+		if (!ctx->instant_table->persistent_autoinc) {
+			ctx->new_table->persistent_autoinc = 0;
 		}
 	}
 
