@@ -62,3 +62,4 @@ galera.galera_many_tables_nopk : MDEV-18182 Galera test failure on galera.galera
 galera.galera_kill_nochanges : MDEV-18280 Galera test failure on galera_split_brain and galera_kill_nochanges
 galera.galera_split_brain : MDEV-18280 Galera test failure on galera_split_brain and galera_kill_nochanges
 galera.galera_bf_abort_group_commit : MDEV-18282 Galera test failure on galera.galera_bf_abort_group_commit
+galera.GCF-1081 : MDEV-18283 Galera test failure on galera.GCF-1081
