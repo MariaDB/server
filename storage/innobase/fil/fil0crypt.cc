@@ -529,10 +529,12 @@ fil_parse_write_crypt_data(
 	uint len = mach_read_from_1(ptr);
 	ptr += 1;
 
-	ut_a(type == CRYPT_SCHEME_UNENCRYPTED ||
-	     type == CRYPT_SCHEME_1); // only supported
+	if ((type != CRYPT_SCHEME_1 && type != CRYPT_SCHEME_UNENCRYPTED)
+	    || len != CRYPT_SCHEME_1_IV_LEN) {
+		*err = DB_CORRUPTION;
+		return NULL;
+	}
 
-	ut_a(len == CRYPT_SCHEME_1_IV_LEN); // only supported
 	uint min_key_version = mach_read_from_4(ptr);
 	ptr += 4;
 
@@ -551,6 +553,7 @@ fil_parse_write_crypt_data(
 	crypt_data->page0_offset = offset;
 	crypt_data->min_key_version = min_key_version;
 	crypt_data->encryption = encryption;
+	crypt_data->type = type;
 	memcpy(crypt_data->iv, ptr, len);
 	ptr += len;
 
