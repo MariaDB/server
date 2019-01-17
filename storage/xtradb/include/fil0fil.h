@@ -267,7 +267,9 @@ struct fil_node_t {
 struct fil_space_t {
 	char*		name;	/*!< space name = the path to the first file in
 				it */
+	hash_node_t	name_hash;/*!< hash chain the name_hash table */
 	ulint		id;	/*!< space id */
+	hash_node_t	hash;	/*!< hash chain node */
 	ib_int64_t	tablespace_version;
 				/*!< in DISCARD/IMPORT this timestamp
 				is used to check if we should ignore
@@ -323,8 +325,6 @@ struct fil_space_t {
 	Note that fil_node_t::n_pending tracks actual pending I/O requests.
 	Protected by fil_system->mutex. */
 	ulint		n_pending_ios;
-	hash_node_t	hash;	/*!< hash chain node */
-	hash_node_t	name_hash;/*!< hash chain the name_hash table */
 #ifndef UNIV_HOTBACKUP
 	prio_rw_lock_t	latch;	/*!< latch protecting the file space storage
 				allocation */
