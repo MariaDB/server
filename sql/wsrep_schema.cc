@@ -34,14 +34,20 @@
 #include <string>
 #include <sstream>
 
+#define WSREP_SCHEMA          "mysql"
+#define WSREP_STREAMING_TABLE "wsrep_streaming_log"
+#define WSREP_CLUSTER_TABLE   "wsrep_cluster"
+#define WSREP_MEMBERS_TABLE   "wsrep_cluster_members"
 
-const std::string wsrep_schema_str= "mysql";
+const char* wsrep_sr_table_name_full= WSREP_SCHEMA "/" WSREP_STREAMING_TABLE;
 
-static const std::string cluster_str= "wsrep_cluster";
-static const std::string cluster_members_str= "wsrep_cluster_members";
+static const std::string wsrep_schema_str= WSREP_SCHEMA;
+static const std::string sr_table_str= WSREP_STREAMING_TABLE;
+static const std::string cluster_table_str= WSREP_CLUSTER_TABLE;
+static const std::string members_table_str= WSREP_MEMBERS_TABLE;
 
 static const std::string create_cluster_table_str=
-  "CREATE TABLE IF NOT EXISTS mysql.wsrep_cluster"
+  "CREATE TABLE IF NOT EXISTS " + wsrep_schema_str + "." + cluster_table_str +
   "("
   "cluster_uuid CHAR(36) PRIMARY KEY,"
   "view_id BIGINT NOT NULL,"
@@ -51,7 +57,7 @@ static const std::string create_cluster_table_str=
   ") ENGINE=InnoDB";
 
 static const std::string create_members_table_str=
-  "CREATE TABLE IF NOT EXISTS mysql.wsrep_cluster_members"
+  "CREATE TABLE IF NOT EXISTS " + wsrep_schema_str + "." + members_table_str +
   "("
   "node_uuid CHAR(36) PRIMARY KEY,"
   "cluster_uuid CHAR(36) NOT NULL,"
@@ -60,9 +66,9 @@ static const std::string create_members_table_str=
   ") ENGINE=InnoDB";
 
 #ifdef WSREP_SCHEMA_MEMBERS_HISTORY
-static const std::string cluster_member_history_str= "wsrep_cluster_member_history";
+static const std::string cluster_member_history_table_str= "wsrep_cluster_member_history";
 static const std::string create_members_history_table_str=
-  "CREATE TABLE IF NOT EXISTS mysql.wsrep_cluster_member_history"
+  "CREATE TABLE IF NOT EXISTS " + wsrep_schema_str + "." + cluster_member_history_table_str +
   "("
   "node_uuid CHAR(36) PRIMARY KEY,"
   "cluster_uuid CHAR(36) NOT NULL,"
@@ -73,8 +79,6 @@ static const std::string create_members_history_table_str=
   ") ENGINE=InnoDB";
 #endif /* WSREP_SCHEMA_MEMBERS_HISTORY */
 
-static const std::string sr_table_str= "wsrep_streaming_log";
-const std::string sr_table_name_full_str= wsrep_schema_str + "/" + sr_table_str;
 static const std::string create_frag_table_str=
   "CREATE TABLE IF NOT EXISTS " + wsrep_schema_str + "." + sr_table_str +
   "("
@@ -87,11 +91,10 @@ static const std::string create_frag_table_str=
   ") ENGINE=InnoDB";
 
 static const std::string delete_from_cluster_table=
-  "DELETE FROM mysql.wsrep_cluster";
+  "DELETE FROM " + wsrep_schema_str + "." + cluster_table_str;
 
 static const std::string delete_from_members_table=
-  "DELETE FROM mysql.wsrep_cluster_members";
-
+  "DELETE FROM " + wsrep_schema_str + "." + members_table_str;
 
 namespace Wsrep_schema_impl
 {
@@ -622,7 +625,7 @@ int Wsrep_schema::store_view(THD* thd, const Wsrep_view& view)
     Store cluster view info
   */
   Wsrep_schema_impl::init_stmt(thd);
-  if (Wsrep_schema_impl::open_for_write(thd, cluster_str.c_str(), &cluster_table))
+  if (Wsrep_schema_impl::open_for_write(thd, cluster_table_str.c_str(), &cluster_table))
   {
     goto out;
   }
@@ -645,7 +648,7 @@ int Wsrep_schema::store_view(THD* thd, const Wsrep_view& view)
     Store info about current members
   */
   Wsrep_schema_impl::init_stmt(thd);
-  if (Wsrep_schema_impl::open_for_write(thd, cluster_members_str.c_str(),
+  if (Wsrep_schema_impl::open_for_write(thd, members_table_str.c_str(),
                                         &members_table))
   {
     WSREP_ERROR("failed to open wsrep.members table");
@@ -732,7 +735,7 @@ Wsrep_view Wsrep_schema::restore_view(THD* thd, const Wsrep_id& own_id) const {
     Read cluster info from cluster table
    */
   Wsrep_schema_impl::init_stmt(thd);
-  if (Wsrep_schema_impl::open_for_read(thd, cluster_str.c_str(), &cluster_table) ||
+  if (Wsrep_schema_impl::open_for_read(thd, cluster_table_str.c_str(), &cluster_table) ||
       Wsrep_schema_impl::init_for_scan(cluster_table)) {
     goto out;
   }
@@ -757,7 +760,7 @@ Wsrep_view Wsrep_schema::restore_view(THD* thd, const Wsrep_id& own_id) const {
     Read members from members table
   */
   Wsrep_schema_impl::init_stmt(thd);
-  if (Wsrep_schema_impl::open_for_read(thd, cluster_members_str.c_str(), &members_table) ||
+  if (Wsrep_schema_impl::open_for_read(thd, members_table_str.c_str(), &members_table) ||
       Wsrep_schema_impl::init_for_scan(members_table)) {
     goto out;
   }
@@ -1189,7 +1192,7 @@ int Wsrep_schema::recover_sr_transactions()
   Wsrep_schema_impl::init_stmt(&storage_thd);
   storage_thd.wsrep_skip_locking= FALSE;
   if (Wsrep_schema_impl::open_for_read(&storage_thd,
-                                       cluster_str.c_str(), &cluster_table) ||
+                                       cluster_table_str.c_str(), &cluster_table) ||
       Wsrep_schema_impl::init_for_scan(cluster_table))
   {
     Wsrep_schema_impl::finish_stmt(&storage_thd);

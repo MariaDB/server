@@ -39,12 +39,9 @@ typedef struct st_mysql_lex_string LEX_STRING;
 
 class Wsrep_thd_pool;
 
-/** Name of the system database (schema) used for WSREP related data. */
-extern const std::string wsrep_schema_str;
-
 /** Name of the table in `wsrep_schema_str` used for storing streaming
 replication data. In an InnoDB full format, e.g. "database/tablename". */
-extern const std::string sr_table_name_full_str;
+extern const char* wsrep_sr_table_name_full;
 
 class Wsrep_schema
 {

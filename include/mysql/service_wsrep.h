@@ -169,10 +169,8 @@ extern "C" int wsrep_thd_append_key(MYSQL_THD thd,
                                     const struct wsrep_key* key,
                                     int n_keys,
                                     enum Wsrep_service_key_type);
-#ifdef __cplusplus
-#include <string>
-extern const std::string sr_table_name_full_str;
-#endif /* __cplusplus */
+
+extern const char* wsrep_sr_table_name_full;
 
 #endif
 #endif /* MYSQL_SERVICE_WSREP_INCLUDED */

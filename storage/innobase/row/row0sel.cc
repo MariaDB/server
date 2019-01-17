@@ -4468,8 +4468,8 @@ row_search_mvcc(
 	}
 #ifdef WITH_WSREP
 	else if (wsrep_thd_skip_locking(trx->mysql_thd)) {
-
-		ut_ad(sr_table_name_full_str == prebuilt->table->name.m_name);
+		ut_ad(!strcmp(wsrep_sr_table_name_full,
+			      prebuilt->table->name.m_name));
 		set_also_gap_locks = FALSE;
 	}
 #endif /* WITH_WSREP */
