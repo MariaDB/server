@@ -767,21 +767,38 @@ struct TABLE_SHARE
 
   /**
     System versioning support.
-   */
+  */
+  struct period_info_t
+  {
+    uint16 start_fieldno;
+    uint16 end_fieldno;
+    Lex_ident name;
+    Field *start_field(TABLE_SHARE *s) const
+    {
+      return s->field[start_fieldno];
+    }
+    Field *end_field(TABLE_SHARE *s) const
+    {
+      return s->field[end_fieldno];
+    }
+  };
 
   vers_sys_type_t versioned;
-  uint16 row_start_field;
-  uint16 row_end_field;
+  period_info_t vers;
+  period_info_t period;
+
+  bool init_period_from_extra2(period_info_t &period, const uchar *data);
 
   Field *vers_start_field()
   {
-    return field[row_start_field];
+    return field[vers.start_fieldno];
   }
 
   Field *vers_end_field()
   {
-    return field[row_end_field];
+    return field[vers.end_fieldno];
   }
+
 
   /**
     Cache the checked structure of this table.
@@ -1519,13 +1536,13 @@ public:
   Field *vers_start_field() const
   {
     DBUG_ASSERT(s && s->versioned);
-    return field[s->row_start_field];
+    return field[s->vers.start_fieldno];
   }
 
   Field *vers_end_field() const
   {
     DBUG_ASSERT(s && s->versioned);
-    return field[s->row_end_field];
+    return field[s->vers.end_fieldno];
   }
 
   ulonglong vers_start_id() const;
@@ -1730,6 +1747,9 @@ class IS_table_read_plan;
 /** The threshold size a blob field buffer before it is freed */
 #define MAX_TDC_BLOB_SIZE 65536
 
+/** number of bytes read by uint2korr and sint2korr */
+#define korr2size 2
+
 class select_unit;
 class TMP_TABLE_PARAM;
 
@@ -1839,6 +1859,8 @@ struct vers_select_conds_t
   bool used:1;
   Vers_history_point start;
   Vers_history_point end;
+
+  const TABLE_SHARE::period_info_t *period;
 
   void empty()
   {

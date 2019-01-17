@@ -10872,9 +10872,9 @@ create_table_info_t::create_table_def()
 		ulint vers_row = 0;
 
 		if (m_form->versioned()) {
-			if (i == m_form->s->row_start_field) {
+			if (i == m_form->s->vers.start_fieldno) {
 				vers_row = DATA_VERS_START;
-			} else if (i == m_form->s->row_end_field) {
+			} else if (i == m_form->s->vers.end_fieldno) {
 				vers_row = DATA_VERS_END;
 			} else if (!(field->flags
 				     & VERS_UPDATE_UNVERSIONED_FLAG)) {

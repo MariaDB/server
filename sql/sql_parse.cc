@@ -4262,8 +4262,8 @@ mysql_execute_command(THD *thd)
       }
       else
       {
-        if (create_info.vers_fix_system_fields(thd, &alter_info, *create_table) ||
-            create_info.vers_check_system_fields(thd, &alter_info, *create_table))
+        if (create_info.fix_create_fields(thd, &alter_info, *create_table) ||
+            create_info.check_fields(thd, &alter_info, *create_table))
           goto end_with_restore_list;
 
         /*

@@ -5117,10 +5117,10 @@ new_clustered_failed:
 			}
 
 			if (altered_table->versioned()) {
-				if (i == altered_table->s->row_start_field) {
+				if (i == altered_table->s->vers.start_fieldno) {
 					field_type |= DATA_VERS_START;
 				} else if (i ==
-					   altered_table->s->row_end_field) {
+					   altered_table->s->vers.end_fieldno) {
 					field_type |= DATA_VERS_END;
 				} else if (!(field->flags
 					     & VERS_UPDATE_UNVERSIONED_FLAG)) {

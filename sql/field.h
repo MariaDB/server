@@ -4514,6 +4514,8 @@ public:
 
   enum_column_versioning versioning;
 
+  Table_period_info *period;
+
   Column_definition()
    :Type_handler_hybrid_field_type(&type_handler_null),
     compression_method_ptr(0),
@@ -4522,7 +4524,7 @@ public:
     flags(0), pack_length(0), key_length(0),
     option_list(NULL),
     vcol_info(0), default_value(0), check_constraint(0),
-    versioning(VERSIONING_NOT_SET)
+    versioning(VERSIONING_NOT_SET), period(NULL)
   {
     interval_list.empty();
   }

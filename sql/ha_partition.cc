@@ -4510,7 +4510,7 @@ int ha_partition::delete_row(const uchar *buf)
     Notice that HA_READ_BEFORE_WRITE_REMOVAL does not require this protocol,
     so this is not supported for this engine.
 
-    For partitions by system_time, get_part_for_buf() is always either current
+    For partitions by period, get_part_for_buf() is always either current
     or last historical partition, but DELETE HISTORY can delete from any
     historical partition. So, skip the check in this case.
   */

@@ -38,6 +38,7 @@ struct extra2_fields
   LEX_CUSTRING gis;
   LEX_CUSTRING field_flags;
   const uchar *system_period;
+  LEX_CUSTRING application_period;
 };
 
 /*
