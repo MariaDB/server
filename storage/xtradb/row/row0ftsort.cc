@@ -1,7 +1,7 @@
 /*****************************************************************************
 
 Copyright (c) 2010, 2016, Oracle and/or its affiliates. All Rights Reserved.
-Copyright (c) 2015, 2018, MariaDB Corporation.
+Copyright (c) 2015, 2019, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -782,7 +782,7 @@ loop:
 			goto func_exit;
 		}
 
-		UNIV_MEM_INVALID(block[t_ctx.buf_used][0], srv_sort_buf_size);
+		UNIV_MEM_INVALID(block[t_ctx.buf_used], srv_sort_buf_size);
 		buf[t_ctx.buf_used] = row_merge_buf_empty(buf[t_ctx.buf_used]);
 		mycount[t_ctx.buf_used] += t_ctx.rows_added[t_ctx.buf_used];
 		t_ctx.rows_added[t_ctx.buf_used] = 0;
@@ -877,12 +877,11 @@ exit:
 					goto func_exit;
 				}
 
-				UNIV_MEM_INVALID(block[i][0],
-						 srv_sort_buf_size);
+				UNIV_MEM_INVALID(block[i], srv_sort_buf_size);
 
 				if (crypt_block[i]) {
-					UNIV_MEM_INVALID(crypt_block[i][0],
-						 srv_sort_buf_size);
+					UNIV_MEM_INVALID(crypt_block[i],
+							 srv_sort_buf_size);
 				}
 			}
 
