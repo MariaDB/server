@@ -16,6 +16,7 @@ galera_binlog_rows_query_log_events: MariaDB does not support binlog_rows_query_
 galera_migrate : MariaDB does not support START SLAVE USER
 galera_as_master_gtid : Requires MySQL GTID
 galera_as_master_gtid_change_master : Requires MySQL GTID
+galera_as_slave_gtid_replicate_do_db_cc : Requires MySQL GTID
 galera_as_slave_preordered : wsrep-preordered feature not merged to MariaDB
 GAL-419 : MDEV-13549 Galera test failures
 galera_var_notify_cmd : MDEV-13549 Galera test failures
@@ -58,3 +59,5 @@ galera.galera_kill_largechanges : MDEV-18179 Galera test failure on galera.galer
 galera.galera_concurrent_ctas : MDEV-18180 Galera test failure on galera.galera_concurrent_ctas
 galera.galera_var_retry_autocommit: MDEV-18181 Galera test failure on galera.galera_var_retry_autocommit
 galera.galera_many_tables_nopk : MDEV-18182 Galera test failure on galera.galera_many_tables_nopk
+galera.galera_kill_nochanges : MDEV-18280 Galera test failure on galera_split_brain and galera_kill_nochanges
+galera.galera_split_brain : MDEV-18280 Galera test failure on galera_split_brain and galera_kill_nochanges

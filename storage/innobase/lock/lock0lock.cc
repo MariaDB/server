@@ -1095,15 +1095,15 @@ wsrep_kill_victim(
 		return;
 	}
 
-	my_bool bf_this  = wsrep_thd_is_BF(trx->mysql_thd, FALSE);
-	if (!bf_this) return;
+	if (!wsrep_thd_is_BF(trx->mysql_thd, FALSE)) {
+		return;
+	}
 
 	my_bool bf_other = wsrep_thd_is_BF(lock->trx->mysql_thd, TRUE);
 
 	if ((!bf_other) ||
-		(bf_other && wsrep_thd_order_before(
+		(wsrep_thd_order_before(
 			trx->mysql_thd, lock->trx->mysql_thd))) {
-		ut_ad(bf_this);
 
 		if (lock->trx->lock.que_state == TRX_QUE_LOCK_WAIT) {
 			if (wsrep_debug) {
@@ -1113,11 +1113,7 @@ wsrep_kill_victim(
 			is in the queue*/
 		} else if (lock->trx != trx) {
 			if (wsrep_log_conflicts) {
-				if (bf_this) {
-					ib::info() << "*** Priority TRANSACTION:";
-				} else {
-					ib::info() << "*** Victim TRANSACTION:";
-				}
+				ib::info() << "*** Priority TRANSACTION:";
 
 				trx_print_latched(stderr, trx, 3000);
 

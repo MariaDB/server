@@ -10283,7 +10283,7 @@ wsrep_append_foreign_key(
 	if (rcode != DB_SUCCESS) {
 		WSREP_ERROR(
 			"FK key set failed: " ULINTPF
-			" (" ULINTPF " " ULINTPF "%s), index: %s %s, %s",
+			" (" ULINTPF "%s), index: %s %s, %s",
 			rcode, referenced, wsrep_key_type_to_str(key_type),
 			(index)       ? index->name() : "void index",
 			(index && index->table) ? index->table->name.m_name :
@@ -10364,9 +10364,9 @@ wsrep_append_key(
 		    ("thd: %lu trx: %lld", thd_get_thread_id(thd),
 		    (long long)trx->id));
 #ifdef WSREP_DEBUG_PRINT
-	fprintf(stderr, "%s conn %lu, trx %llu, keylen %d, key %s.%s\n",
+	fprintf(stderr, "%s conn %lu, trx " TRX_ID_FMT ", keylen %d, key %s.%s\n",
 		wsrep_key_type_to_str(key_type),
-		thd_get_thread_id(thd), (long long)trx->id, key_len,
+		thd_get_thread_id(thd), trx->id, key_len,
 		table_share->table_name.str, key);
 	for (int i=0; i<key_len; i++) {
 		fprintf(stderr, "%hhX, ", key[i]);
@@ -10448,9 +10448,9 @@ ha_innobase::wsrep_append_keys(
 	trx_t *trx = thd_to_trx(thd);
 
 #ifdef WSREP_DEBUG_PRINT
-	fprintf(stderr, "%s conn %lu, trx %llu, table %s\nSQL: %s\n",
+	fprintf(stderr, "%s conn %lu, trx " TRX_ID_FMT ", table %s\nSQL: %s\n",
 		wsrep_key_type_to_str(key_type),
-		thd_get_thread_id(thd), (long long)trx->id,
+		thd_get_thread_id(thd), trx->id,
 		table_share->table_name.str, wsrep_thd_query(thd));
 #endif
 

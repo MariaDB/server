@@ -2152,7 +2152,7 @@ static my_bool trx_get_trx_by_xid_callback(rw_trx_hash_element_t *element,
       transaction needs a valid trx->xid for
       invoking trx_sys_update_wsrep_checkpoint(). */
       if (!wsrep_is_wsrep_xid(trx->xid))
-#endif
+#endif /* WITH_WSREP */
       /* Invalidate the XID, so that subsequent calls will not find it. */
       trx->xid->null();
       arg->trx= trx;
