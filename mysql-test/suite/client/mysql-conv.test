@@ -1,0 +1,11 @@
+--character_set latin1
+
+# invalid option
+--replace_regex /.*mysql-conv.*: unknown/mysql-conv: unknown/
+--error 1
+--exec $MYSQL_CONV -c utf8 -t "@6e2c@8a66@8cc7@6599@5eab" 2>&1 > /dev/null
+
+# no arguments
+--replace_regex /.*mysql-conv.*: unknown/mysql-conv: unknown/
+--error 1
+--exec $MYSQL_CONV 2>&1 > /dev/null
