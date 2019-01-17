@@ -17,21 +17,29 @@
 #include <my_sys.h>
 #include <json_lib.h>
 
+int json_locate_key(const char *js, const char *js_end, const char *kname,
+                    const char **key_start, const char **key_end,
+                    int *comma_pos);
 int main()
 {
   const char *json="{\"int\":1, \"str\":\"foo bar\", "
                    "\"array\":[10,20,{\"c\":\"d\"}],\"bool\":false}";
   const char *json_ar="[1, \"foo bar\", " "[10,20,{\"c\":\"d\"}], false]";
+  const char *json_w="{\"int\" : 1 , \"str\" : \"foo bar\" , "
+                   "\"array\" : [10,20,{\"c\":\"d\"}]  , \"bool\" : false  }";
+  const char *json_1="{ \"str\" : \"foo bar\"   }";
   enum json_types value_type;
   const char *value_start;
   int value_len;
+  const char *key_start, *key_end;
+  int result, comma_pos;
 
-  plan(10);
+  plan(15);
 
 #define do_json(V)                                                      \
   do {                                                                  \
     value_type= json_get_object_key(json, json+strlen(json),            \
-                  V, V + (sizeof(V) - 1),&value_start, &value_len);     \
+                  V, &value_start, &value_len);                         \
     ok(value_type != JSV_BAD_JSON, V);                                  \
     diag("type=%d, value=\"%.*s\"", value_type, (int)value_len, value_start); \
   } while(0)
@@ -41,6 +49,16 @@ int main()
                   N, &value_start, &value_len);                       \
     ok(value_type != JSV_BAD_JSON, #N);                      \
     diag("type=%d, value=\"%.*s\"", value_type, (int)value_len, value_start); \
+  } while(0)
+#define do_json_locate(J, V)                              \
+  do {                                                    \
+    result= json_locate_key(J, J+strlen(J),               \
+                  V, &key_start, &key_end, &comma_pos);   \
+    ok(result == 0, V);                                   \
+    if (key_start)                                        \
+      diag("key_str=\"%.*s\" comma_pos= %d", (int)(key_end - key_start), key_start, comma_pos); \
+    else                                                                                    \
+      diag("no key found"); \
   } while(0)
 
   do_json("int");
@@ -54,5 +72,11 @@ int main()
   do_json_ar(2);
   do_json_ar(3);
   do_json_ar(4);
+
+  do_json_locate(json_w, "bool");
+  do_json_locate(json_w, "int");
+  do_json_locate(json_w, "array");
+  do_json_locate(json_1, "str");
+  do_json_locate(json_w, "c");
   return exit_status();
 }

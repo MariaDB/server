@@ -66,7 +66,7 @@ extern struct json_service_st {
                                          int n_item,
                                          const char **value, int *value_len);
   enum json_types (*json_get_object_key)(const char *js, const char *js_end,
-                                         const char *key, const char *key_end,
+                                         const char *key,
                                          const char **value, int *value_len);
   enum json_types (*json_get_object_nkey)(const char *js,const char *js_end,
                              int nkey,
@@ -95,7 +95,7 @@ enum json_types json_get_array_item(const char *js, const char *js_end,
                                     int n_item,
                                     const char **value, int *value_len);
 enum json_types json_get_object_key(const char *js, const char *js_end,
-                                    const char *key, const char *key_end,
+                                    const char *key,
                                     const char **value, int *value_len);
 enum json_types json_get_object_nkey(const char *js,const char *js_end, int nkey,
                        const char **keyname, const char **keyname_end,

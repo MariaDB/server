@@ -1204,16 +1204,16 @@ class User_table_json: public User_table
 
   int get_auth(THD *thd, MEM_ROOT *root, const char **plugin, const char **authstr) const
   {
-    *plugin= get_str_value(root, STRING_WITH_LEN("plugin"));
+    *plugin= get_str_value(root, "plugin");
     if (!**plugin)
       *plugin= native_password_plugin_name.str;
-    *authstr= get_str_value(root, STRING_WITH_LEN("authentication_string"));
+    *authstr= get_str_value(root, "authentication_string");
     return *plugin == NULL || *authstr == NULL;
   }
   void set_auth(const char *p, size_t pl, const char *as, size_t asl) const
   {
-    set_str_value(STRING_WITH_LEN("plugin"), p, pl);
-    set_str_value(STRING_WITH_LEN("authentication_string"), as, asl);
+    set_str_value("plugin", p, pl);
+    set_str_value("authentication_string", as, asl);
   }
   ulong get_access() const
   {
@@ -1222,7 +1222,7 @@ class User_table_json: public User_table
       (or, for example, my_count_bits(GLOBAL_ACLS))
       in the json too, and it'll allow us to do privilege upgrades
     */
-    return get_int_value(STRING_WITH_LEN("access")) & GLOBAL_ACLS;
+    return get_int_value("access") & GLOBAL_ACLS;
   }
   void set_access(ulong rights, bool revoke) const
   {
@@ -1231,53 +1231,53 @@ class User_table_json: public User_table
       access&= ~rights;
     else
       access|= rights;
-    set_int_value(STRING_WITH_LEN("access"), access & GLOBAL_ACLS);
+    set_int_value("access", access & GLOBAL_ACLS);
   }
 
   SSL_type get_ssl_type () const
-  { return (SSL_type)get_int_value(STRING_WITH_LEN("ssl_type")); }
+  { return (SSL_type)get_int_value("ssl_type"); }
   int set_ssl_type (SSL_type x) const
-  { return set_int_value(STRING_WITH_LEN("ssl_type"), x); }
+  { return set_int_value("ssl_type", x); }
   const char* get_ssl_cipher (MEM_ROOT *root) const
-  { return get_str_value(root, STRING_WITH_LEN("ssl_cipher")); }
+  { return get_str_value(root, "ssl_cipher"); }
   int set_ssl_cipher (const char *s, size_t l) const
-  { return set_str_value(STRING_WITH_LEN("ssl_cipher"), s, l); }
+  { return set_str_value("ssl_cipher", s, l); }
   const char* get_x509_issuer (MEM_ROOT *root) const
-  { return get_str_value(root, STRING_WITH_LEN("x509_issuer")); }
+  { return get_str_value(root, "x509_issuer"); }
   int set_x509_issuer (const char *s, size_t l) const
-  { return set_str_value(STRING_WITH_LEN("x509_issuer"), s, l); }
+  { return set_str_value("x509_issuer", s, l); }
   const char* get_x509_subject (MEM_ROOT *root) const
-  { return get_str_value(root, STRING_WITH_LEN("x509_subject")); }
+  { return get_str_value(root, "x509_subject"); }
   int set_x509_subject (const char *s, size_t l) const
-  { return set_str_value(STRING_WITH_LEN("x509_subject"), s, l); }
+  { return set_str_value("x509_subject", s, l); }
   longlong get_max_questions () const
-  { return get_int_value(STRING_WITH_LEN("max_questions")); }
+  { return get_int_value("max_questions"); }
   int set_max_questions (longlong x) const
-  { return set_int_value(STRING_WITH_LEN("max_questions"), x); }
+  { return set_int_value("max_questions", x); }
   longlong get_max_updates () const
-  { return get_int_value(STRING_WITH_LEN("max_updates")); }
+  { return get_int_value("max_updates"); }
   int set_max_updates (longlong x) const
-  { return set_int_value(STRING_WITH_LEN("max_updates"), x); }
+  { return set_int_value("max_updates", x); }
   longlong get_max_connections () const
-  { return get_int_value(STRING_WITH_LEN("max_connections")); }
+  { return get_int_value("max_connections"); }
   int set_max_connections (longlong x) const
-  { return set_int_value(STRING_WITH_LEN("max_connections"), x); }
+  { return set_int_value("max_connections", x); }
   longlong get_max_user_connections () const
-  { return get_int_value(STRING_WITH_LEN("max_user_connections")); }
+  { return get_int_value("max_user_connections"); }
   int set_max_user_connections (longlong x) const
-  { return set_int_value(STRING_WITH_LEN("max_user_connections"), x); }
+  { return set_int_value("max_user_connections", x); }
   double get_max_statement_time () const
-  { return get_double_value(STRING_WITH_LEN("max_statement_time")); }
+  { return get_double_value("max_statement_time"); }
   int set_max_statement_time (double x) const
-  { return set_double_value(STRING_WITH_LEN("max_statement_time"), x); }
+  { return set_double_value("max_statement_time", x); }
   bool get_is_role () const
-  { return get_bool_value(STRING_WITH_LEN("is_role")); }
+  { return get_bool_value("is_role"); }
   int set_is_role (bool x) const
-  { return set_bool_value(STRING_WITH_LEN("is_role"), x); }
+  { return set_bool_value("is_role", x); }
   const char* get_default_role (MEM_ROOT *root) const
-  { return get_str_value(root, STRING_WITH_LEN("default_role")); }
+  { return get_str_value(root, "default_role"); }
   int set_default_role (const char *s, size_t l) const
-  { return set_str_value(STRING_WITH_LEN("default_role"), s, l); }
+  { return set_str_value("default_role", s, l); }
 
   ~User_table_json() {}
  private:
@@ -1290,24 +1290,24 @@ class User_table_json: public User_table
                                  USERNAME_CHAR_LENGTH);
     return 0;
   }
-  bool get_value(const char *key, size_t klen,
+  bool get_value(const char *key, 
                  enum json_types vt, const char **v, size_t *vl) const
   {
     enum json_types value_type;
     int int_vl;
     String str, *res= m_table->field[2]->val_str(&str);
     if (!res ||
-        (value_type= json_get_object_key(res->ptr(), res->end(),
-                             key, key+klen, v, &int_vl)) == JSV_BAD_JSON)
+        (value_type= json_get_object_key(res->ptr(), res->end(), key,
+                                             v, &int_vl)) == JSV_BAD_JSON)
       return 1; // invalid
     *vl= int_vl;
     return value_type != vt;
   }
-  const char *get_str_value(MEM_ROOT *root, const char *key, size_t klen) const
+  const char *get_str_value(MEM_ROOT *root, const char *key) const
   {
     size_t value_len;
     const char *value_start;
-    if (get_value(key, klen, JSV_STRING, &value_start, &value_len))
+    if (get_value(key, JSV_STRING, &value_start, &value_len))
       return "";
     char *ptr= (char*)alloca(value_len);
     int len= json_unescape(m_table->field[2]->charset(),
@@ -1319,35 +1319,35 @@ class User_table_json: public User_table
       return NULL;
     return strmake_root(root, ptr, len);
   }
-  longlong get_int_value(const char *key, size_t klen) const
+  longlong get_int_value(const char *key) const
   {
     int err;
     size_t value_len;
     const char *value_start;
-    if (get_value(key, klen, JSV_NUMBER, &value_start, &value_len))
+    if (get_value(key, JSV_NUMBER, &value_start, &value_len))
       return 0;
     const char *value_end= value_start + value_len;
     return my_strtoll10(value_start, (char**)&value_end, &err);
   }
-  double get_double_value(const char *key, size_t klen) const
+  double get_double_value(const char *key) const
   {
     int err;
     size_t value_len;
     const char *value_start;
-    if (get_value(key, klen, JSV_NUMBER, &value_start, &value_len))
+    if (get_value(key, JSV_NUMBER, &value_start, &value_len))
       return 0;
     const char *value_end= value_start + value_len;
     return my_strtod(value_start, (char**)&value_end, &err);
   }
-  bool get_bool_value(const char *key, size_t klen) const
+  bool get_bool_value(const char *key) const
   {
     size_t value_len;
     const char *value_start;
-    if (get_value(key, klen, JSV_TRUE, &value_start, &value_len))
+    if (get_value(key, JSV_TRUE, &value_start, &value_len))
       return false;
     return true;
   }
-  bool set_value(const char *key, size_t klen,
+  bool set_value(const char *key,
                  const char *val, size_t vlen, bool string) const
   {
     int value_len;
@@ -1356,7 +1356,7 @@ class User_table_json: public User_table
     String str, *res= m_table->field[2]->val_str(&str);
     if (!res || !res->length())
       (res= &str)->set(STRING_WITH_LEN("{}"), m_table->field[2]->charset());
-    value_type= json_get_object_key(res->ptr(), res->end(), key, key+klen,
+    value_type= json_get_object_key(res->ptr(), res->end(), key,
                                     &value_start, &value_len);
     if (value_type == JSV_BAD_JSON)
       return 1; // invalid
@@ -1367,7 +1367,7 @@ class User_table_json: public User_table
       if (value_len)
         json.append(',');
       json.append('"');
-      json.append(key, klen);
+      json.append(STRING_WITH_LEN(key));
       json.append(STRING_WITH_LEN("\":"));
       if (string)
         json.append('"');
@@ -1382,7 +1382,7 @@ class User_table_json: public User_table
     m_table->field[2]->store(json.ptr(), json.length(), json.charset());
     return 0;
   }
-  bool set_str_value(const char *key, size_t klen, const char *val, size_t vlen) const
+  bool set_str_value(const char *key, const char *val, size_t vlen) const
   {
     char buf[JSON_SIZE];
     int blen= json_escape(system_charset_info,
@@ -1391,22 +1391,22 @@ class User_table_json: public User_table
                           (uchar*)buf, (uchar*)buf+sizeof(buf));
     if (blen < 0)
       return 1;
-    return set_value(key, klen, buf, blen, true);
+    return set_value(key, buf, blen, true);
   }
-  bool set_int_value(const char *key, size_t klen, longlong val) const
+  bool set_int_value(const char *key, longlong val) const
   {
     char v[MY_INT64_NUM_DECIMAL_DIGITS+1];
     size_t vlen= longlong10_to_str(val, v, -10) - v;
-    return set_value(key, klen, v, vlen, false);
+    return set_value(key, v, vlen, false);
   }
-  bool set_double_value(const char *key, size_t klen, double val) const
+  bool set_double_value(const char *key, double val) const
   {
     char v[FLOATING_POINT_BUFFER+1];
     size_t vlen= my_fcvt(val, TIME_SECOND_PART_DIGITS, v, NULL);
-    return set_value(key, klen, v, vlen, false);
+    return set_value(key, v, vlen, false);
   }
-  bool set_bool_value(const char *key, size_t klen, bool val) const
-  { return set_value(key, klen, val ? "true" : "false", val ? 4 : 5, false); }
+  bool set_bool_value(const char *key, bool val) const
+  { return set_value(key, val ? "true" : "false", val ? 4 : 5, false); }
 };
 
 class Db_table: public Grant_table_base

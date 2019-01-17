@@ -1943,9 +1943,10 @@ err_return:
   @retval JSV_NOTHING - no such key found.
 */
 enum json_types json_get_object_key(const char *js, const char *js_end,
-                                    const char *key, const char *key_end,
+                                    const char *key,
                                     const char **value, int *value_len)
 {
+  const char *key_end= key + strlen(key);
   json_engine_t je;
   json_string_t key_name;
   int n_keys= 0;
@@ -1999,10 +2000,99 @@ enum json_types json_get_object_nkey(const char *js,const char *js_end, int nkey
 
   @retval 0 - success, json is well-formed
   @retval 1 - error, json is invalid
-*/int json_valid(const char *js, size_t js_len, CHARSET_INFO *cs)
+*/
+int json_valid(const char *js, size_t js_len, CHARSET_INFO *cs)
 {
   json_engine_t je;
   json_scan_start(&je, cs, (const uchar *) js, (const uchar *) js + js_len);
   while (json_scan_next(&je) == 0) /* no-op */ ;
   return je.s.error == 0;
 }
+
+
+/*
+  Expects the JSON object as an js argument, and the key name.
+  Looks for this key in the object and returns
+  the location of all the text related to it.
+  The text includes the comma, separating this key.
+
+  comma_pos - the hint where the comma is. It is important
+       if you plan to replace the key rather than just cut.
+    1  - comma is on the left
+    2  - comma is on the right.
+    0  - no comma at all (the object has just this single key)
+ 
+  if no such key found *key_start is set to NULL.
+*/
+int json_locate_key(const char *js, const char *js_end,
+                    const char *kname,
+                    const char **key_start, const char **key_end,
+                    int *comma_pos)
+{
+  const char *kname_end= kname + strlen(kname);
+  json_engine_t je;
+  json_string_t key_name;
+  int t_next, c_len, match_result;
+
+  json_string_set_cs(&key_name, &my_charset_utf8mb4_bin);
+
+  json_scan_start(&je, &my_charset_utf8mb4_bin,(const uchar *) js,
+                  (const uchar *) js_end);
+
+  if (json_read_value(&je) ||
+      je.value_type != JSON_VALUE_OBJECT)
+    goto err_return;
+
+  *key_start= (const char *) je.s.c_str;
+  *comma_pos= 0;
+
+  while (!json_scan_next(&je))
+  {
+    switch (je.state)
+    {
+    case JST_KEY:
+      json_string_set_str(&key_name, (const uchar *) kname,
+                          (const uchar *) kname_end);
+      match_result= json_key_matches(&je, &key_name);
+      if (json_skip_key(&je))
+        goto err_return;
+      get_first_nonspace(&je.s, &t_next, &c_len);
+      je.s.c_str-= c_len;
+
+      if (match_result)
+      {
+        *key_end= (const char *) je.s.c_str;
+
+        if (*comma_pos == 1)
+          return 0;
+
+        DBUG_ASSERT(*comma_pos == 0);
+
+        if (t_next == C_COMMA)
+        {
+          *key_end+= c_len;
+          *comma_pos= 2;
+        }
+        else if (t_next == C_RCURB)
+          *comma_pos= 0;
+        else
+          goto err_return;
+        return 0;
+      }
+
+      *key_start= (const char *) je.s.c_str;
+      *comma_pos= 1;
+      break;
+
+    case JST_OBJ_END:
+      *key_start= NULL;
+      return 0;
+    }
+  }
+
+err_return:
+  return 1;
+
+}
+
+
