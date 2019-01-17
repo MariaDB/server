@@ -33,7 +33,6 @@
 #include "sp_head.h"
 #include "sql_show.h"                // append_definer, append_identifier
 #ifdef WITH_WSREP
-#include "mysql/service_wsrep.h"
 #include "wsrep_trans_observer.h"
 #endif /* WITH_WSREP */
 /**

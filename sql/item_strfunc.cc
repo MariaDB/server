@@ -5268,7 +5268,7 @@ String *Item_temptable_rowid::val_str(String *str)
 
 #include "wsrep_mysqld.h"
 
-String * Item_func_wsrep_last_written_gtid::val_str_ascii(String *str)
+String *Item_func_wsrep_last_written_gtid::val_str_ascii(String *str)
 {
   wsrep::gtid gtid= current_thd->wsrep_cs().last_written_gtid();
   if (gtid_str.alloc(wsrep::gtid_c_str_len()))
@@ -5278,7 +5278,7 @@ String * Item_func_wsrep_last_written_gtid::val_str_ascii(String *str)
     return NULL;
   }
 
-  ssize_t gtid_len= gtid_print_to_c_str(gtid, (char*)gtid_str.ptr(),
+  ssize_t gtid_len= gtid_print_to_c_str(gtid, (char*) gtid_str.ptr(),
                                         wsrep::gtid_c_str_len());
   if (gtid_len < 0)
   {
@@ -5291,7 +5291,7 @@ String * Item_func_wsrep_last_written_gtid::val_str_ascii(String *str)
   return &gtid_str;
 }
 
-String * Item_func_wsrep_last_seen_gtid::val_str_ascii(String *str)
+String *Item_func_wsrep_last_seen_gtid::val_str_ascii(String *str)
 {
   /* TODO: Should call Wsrep_server_state.instance().last_committed_gtid()
      instead. */
@@ -5302,7 +5302,7 @@ String * Item_func_wsrep_last_seen_gtid::val_str_ascii(String *str)
     null_value= true;
     return NULL;
   }
-  ssize_t gtid_len= wsrep::gtid_print_to_c_str(gtid, (char*)gtid_str.ptr(),
+  ssize_t gtid_len= wsrep::gtid_print_to_c_str(gtid, (char*) gtid_str.ptr(),
                                                wsrep::gtid_c_str_len());
   if (gtid_len < 0)
   {
@@ -5317,7 +5317,7 @@ String * Item_func_wsrep_last_seen_gtid::val_str_ascii(String *str)
 
 longlong Item_func_wsrep_sync_wait_upto::val_int()
 {
-  int timeout = -1;
+  int timeout= -1;
   String* gtid_str= args[0]->val_str(&value);
   if (gtid_str == NULL)
   {
@@ -5327,7 +5327,7 @@ longlong Item_func_wsrep_sync_wait_upto::val_int()
 
   if (arg_count == 2)
   {
-    timeout = args[1]->val_int();
+    timeout= args[1]->val_int();
   }
 
   wsrep_gtid_t gtid;

@@ -6451,13 +6451,6 @@ public:
 */
 #define CF_DISALLOW_IN_RO_TRANS   (1U << 15)
 
-#ifdef WITH_WSREP
-/**
-  DDL statement that may be subject to error filtering.
-*/
-#define CF_WSREP_MAY_IGNORE_ERRORS (1U << 24)
-#endif /* WITH_WSREP */
- 
 /**
   Statement that need the binlog format to be unchanged.
 */
@@ -6489,6 +6482,14 @@ public:
   If command creates or drops a database
 */
 #define CF_DB_CHANGE (1U << 22)
+
+#ifdef WITH_WSREP
+/**
+  DDL statement that may be subject to error filtering.
+*/
+#define CF_WSREP_MAY_IGNORE_ERRORS (1U << 23)
+#endif /* WITH_WSREP */
+
 
 /* Bits in server_command_flags */
 

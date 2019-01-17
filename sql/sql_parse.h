@@ -18,10 +18,6 @@
 
 #include "sql_acl.h"                            /* GLOBAL_ACLS */
 
-#ifdef WITH_WSREP
-#include "mysql/service_wsrep.h"
-#endif /* WITH_WSREP */
-
 class Comp_creator;
 class Item;
 class Object_creation_ctx;

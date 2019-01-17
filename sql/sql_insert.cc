@@ -83,7 +83,6 @@
 #include "debug_sync.h"
 
 #ifdef WITH_WSREP
-#include "mysql/service_wsrep.h"
 #include "wsrep_trans_observer.h" /* wsrep_start_transction() */
 #endif /* WITH_WSREP */
 

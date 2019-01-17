@@ -1377,6 +1377,7 @@ void do_handle_one_connection(CONNECT *connect)
   thd->thread_stack= (char*) &thd;
   if (setup_connection_thread_globals(thd))
     return;
+
   for (;;)
   {
     bool create_user= TRUE;

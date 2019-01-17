@@ -44,9 +44,6 @@
 #include "compat56.h"
 #include "wsrep_mysqld.h"
 #include "sql_insert.h"
-#ifdef WITH_WSREP
-#include "mysql/service_wsrep.h"
-#endif
 #else
 #include "mysqld_error.h"
 #endif /* MYSQL_CLIENT */
@@ -11298,11 +11295,11 @@ int Rows_log_event::do_apply_event(rpl_group_info *rgi)
       {
         WSREP_WARN("BF applier failed to open_and_lock_tables: %u, fatal: %d "
                    "wsrep = (exec_mode: %d conflict_state: %d seqno: %lld)",
-		                thd->get_stmt_da()->sql_errno(),
+                    thd->get_stmt_da()->sql_errno(),
                     thd->is_fatal_error,
                     thd->wsrep_cs().mode(),
                     thd->wsrep_trx().state(),
-                    (long long)wsrep_thd_trx_seqno(thd));
+                    (long long) wsrep_thd_trx_seqno(thd));
       }
 #endif /* WITH_WSREP */
       if ((thd->is_slave_error || thd->is_fatal_error) &&

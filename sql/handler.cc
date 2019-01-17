@@ -53,7 +53,6 @@
 #endif
 #include "semisync_master.h"
 
-#include "mysql/service_wsrep.h"
 #include "wsrep_mysqld.h"
 #ifdef WITH_WSREP
 #include "wsrep_binlog.h"
@@ -61,7 +60,6 @@
 #include "wsrep_thd.h"
 #include "wsrep_trans_observer.h" /* wsrep transaction hooks */
 #endif /* WITH_WSREP */
-#include "log.h"
 
 /*
   While we have legacy_db_type, we have this array to
@@ -1801,6 +1799,7 @@ int ha_rollback_trans(THD *thd, bool all)
   */
   DBUG_ASSERT(thd->transaction.stmt.ha_list == NULL ||
               trans == &thd->transaction.stmt);
+
 #ifdef HAVE_REPLICATION
   if (is_real_trans)
   {
@@ -6184,9 +6183,8 @@ bool handler::check_table_binlog_row_based_internal(bool binlog_row)
                       (thd->variables.option_bits & OPTION_BIN_LOG)) &&
                      mysql_bin_log.is_open())),
                     (thd->variables.option_bits & OPTION_BIN_LOG) &&
-		   mysql_bin_log.is_open()));
+                    mysql_bin_log.is_open()));
 }
-
 
 
 /** @brief

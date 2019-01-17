@@ -7520,16 +7520,6 @@ static bool mysql_inplace_alter_table(THD *thd,
     }
   }
 
-#ifdef WITH_WSREP
-  DBUG_EXECUTE_IF("sync.alter_locked_tables_inplace",
-                  {
-                      const char act[]=
-                          "now "
-                          "wait_for signal.alter_locked_tables_inplace";
-                      DBUG_ASSERT(!debug_sync_set_action(thd,
-                                                         STRING_WITH_LEN(act)));
-                  };);
-#endif /* WITH_WSREP */
   DEBUG_SYNC(thd, "alter_table_inplace_after_lock_downgrade");
   THD_STAGE_INFO(thd, stage_alter_inplace);
 
@@ -9764,17 +9754,6 @@ bool mysql_alter_table(THD *thd, const LEX_CSTRING *new_db,
     SESSION_TRACKER_CHANGED(thd, SESSION_STATE_CHANGE_TRACKER, NULL);
   }
 
-#ifdef WITH_WSREP
-  DBUG_EXECUTE_IF("sync.alter_locked_tables",
-                  {
-                      const char act[]=
-                          "now "
-                          "wait_for signal.alter_locked_tables";
-                      DBUG_ASSERT(!debug_sync_set_action(thd,
-                                                         STRING_WITH_LEN(act)));
-                  };);
-
-#endif /* WITH_WSREP */
 
   /* Open the table since we need to copy the data. */
   if (table->s->tmp_table != NO_TMP_TABLE)

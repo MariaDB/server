@@ -37,7 +37,7 @@ IF(WITH_WSREP AND NOT EMBEDDED_LIBRARY)
     wsrep_plugin.cc
     service_wsrep.cc
   )
- SET(WSREP_LIB wsrep-lib wsrep_api_v26)
+  SET(WSREP_LIB wsrep-lib wsrep_api_v26)
 ELSE()
   SET(WSREP_SOURCES wsrep_dummy.cc)
 ENDIF()

@@ -112,7 +112,6 @@
 #include "wsrep.h"
 #include "wsrep_mysqld.h"
 #ifdef WITH_WSREP
-#include "mysql/service_wsrep.h"
 #include "wsrep_thd.h"
 #include "wsrep_trans_observer.h" /* wsrep transaction hooks */
 
@@ -1920,7 +1919,7 @@ bool dispatch_command(enum enum_server_command command, THD *thd,
       */
       statistic_increment(thd->status_var.questions, &LOCK_status);
 
-      if(!WSREP(thd))
+      if (!WSREP(thd))
         thd->set_time(); /* Reset the query start time. */
 
       parser_state.reset(beginning_of_next_stmt, length);
@@ -2440,7 +2439,7 @@ com_multi_end:
   }
   if (drop_more_results)
     thd->server_status&= ~SERVER_MORE_RESULTS_EXISTS;
- 
+
   if (likely(!thd->is_error() && !thd->killed_errno()))
     mysql_audit_general(thd, MYSQL_AUDIT_GENERAL_RESULT, 0, 0);
 
@@ -3809,7 +3808,7 @@ mysql_execute_command(THD *thd)
   case SQLCOM_SHOW_STORAGE_ENGINES:
   case SQLCOM_SHOW_PROFILE:
   case SQLCOM_SELECT:
-   {
+  {
 #ifdef WITH_WSREP
     if (lex->sql_command == SQLCOM_SELECT)
     {
@@ -3820,7 +3819,7 @@ mysql_execute_command(THD *thd)
       WSREP_SYNC_WAIT(thd, WSREP_SYNC_WAIT_BEFORE_SHOW);
     }
 #endif /* WITH_WSREP */
-    
+
     thd->status_var.last_query_cost= 0.0;
 
     /*
@@ -6626,6 +6625,7 @@ static bool execute_sqlcom_select(THD *thd, TABLE_LIST *all_tables)
   return res;
 }
 
+
 static bool execute_show_status(THD *thd, TABLE_LIST *all_tables)
 {
   bool res;
@@ -9063,9 +9063,7 @@ kill_one_thread(THD *thd, longlong id, killed_state kill_signal, killed_type typ
         thd->security_ctx->user_matches(tmp->security_ctx))
 #endif /* WITH_WSREP */
     {
-      //if (WSREP(tmp)) mysql_mutex_lock(&tmp->LOCK_thd_data);
       tmp->awake_no_mutex(kill_signal);
-      //if (WSREP(tmp)) mysql_mutex_unlock(&tmp->LOCK_thd_data);
       error=0;
     }
     else

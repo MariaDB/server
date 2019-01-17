@@ -73,7 +73,6 @@
 #include "wsrep_mysqld.h"
 #include "wsrep_var.h"
 #ifdef WITH_WSREP
-#include "mysql/service_wsrep.h"
 #include "wsrep_thd.h"
 #include "wsrep_sst.h"
 #endif /* WITH_WSREP */

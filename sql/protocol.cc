@@ -557,7 +557,7 @@ void Protocol::end_statement()
     Thd->LOCK_thd_data() must be unlocked before sending response
     to client, so BF abort may sneak in here.
     DBUG_ASSERT(!WSREP(thd) || thd->wsrep_conflict_state() == NO_CONFLICT);
-   */
+  */
 
   /*
     sanity check, don't send end statement while replaying

@@ -68,7 +68,6 @@
 #include "wsrep_mysqld.h"
 #include "sql_connect.h"
 #ifdef WITH_WSREP
-#include "mysql/service_wsrep.h"
 #include "wsrep_thd.h"
 #include "wsrep_trans_observer.h"
 #endif /* WITH_WSREP */

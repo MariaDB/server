@@ -54,7 +54,6 @@
                                                 // Format_description_log_event
 #include "wsrep_mysqld.h"
 #ifdef WITH_WSREP
-#include "mysql/service_wsrep.h"
 #include "wsrep_trans_observer.h"
 #endif
 
@@ -4352,14 +4351,12 @@ static int exec_relay_log_event(THD* thd, Relay_log_info* rli,
       if (res == 0)
         rli->event_relay_log_pos= rli->future_event_relay_log_pos;
       if (res >= 0)
-#ifdef WITH_WSREP
       {
+#ifdef WITH_WSREP
 	wsrep_after_statement(thd);
 #endif /* WITH_WSREP */
         DBUG_RETURN(res);
-#ifdef WITH_WSREP
       }
-#endif /* WITH_WSREP */
       /*
         Else we proceed to execute the event non-parallel.
         This is the case for pre-10.0 events without GTID, and for handling
@@ -4399,6 +4396,7 @@ static int exec_relay_log_event(THD* thd, Relay_log_info* rli,
 #endif /* WITH_WSREP */
         DBUG_RETURN(1);
       }
+
       if (opt_gtid_ignore_duplicates &&
           rli->mi->using_gtid != Master_info::USE_GTID_NO)
       {
@@ -4411,9 +4409,9 @@ static int exec_relay_log_event(THD* thd, Relay_log_info* rli,
           mysql_mutex_unlock(&rli->data_lock);
           delete ev;
 #ifdef WITH_WSREP
-	    wsrep_after_statement(thd);
+          wsrep_after_statement(thd);
 #endif /* WITH_WSREP */
-	  DBUG_RETURN(1);
+          DBUG_RETURN(1);
         }
         /*
           If we need to skip this event group (because the GTID was already
@@ -4441,17 +4439,17 @@ static int exec_relay_log_event(THD* thd, Relay_log_info* rli,
       retry.
     */
     if (unlikely(exec_res == 2))
+    {
 #ifdef WITH_WSREP
-    { 
       wsrep_after_statement(thd);
 #endif /* WITH_WSREP */
       DBUG_RETURN(1);
-#ifdef WITH_WSREP
     }
+#ifdef WITH_WSREP
     mysql_mutex_lock(&thd->LOCK_thd_data);
-    if (thd->wsrep_cs().current_error() == wsrep::e_success)
-    {
-      mysql_mutex_unlock(&thd->LOCK_thd_data);
+    enum wsrep::client_error wsrep_error= thd->wsrep_cs().current_error();
+    mysql_mutex_unlock(&thd->LOCK_thd_data);
+    if (wsrep_error == wsrep::e_success)
 #endif /* WITH_WSREP */
     if (slave_trans_retries)
     {
@@ -4526,11 +4524,6 @@ static int exec_relay_log_event(THD* thd, Relay_log_info* rli,
                             serial_rgi->trans_retries));
       }
     }
-#ifdef WITH_WSREP
-    }
-    else
-      mysql_mutex_unlock(&thd->LOCK_thd_data);
-#endif /* WITH_WSREP */
 
     thread_safe_increment64(&rli->executed_entries);
 #ifdef WITH_WSREP
@@ -5759,21 +5752,23 @@ err_during_init:
     trigger automatic restart of slave when node joins back to cluster.
   */
   if (WSREP_ON && wsrep_node_dropped && wsrep_restart_slave)
-   {
-     if (wsrep_ready_get())
-     {
-       WSREP_INFO("Slave error due to node temporarily non-primary"
-		  "SQL slave will continue");
-       wsrep_node_dropped= FALSE;
-       mysql_mutex_unlock(&rli->run_lock);
-       goto wsrep_restart_point;
-     } else {
-       WSREP_INFO("Slave error due to node going non-primary");
-       WSREP_INFO("wsrep_restart_slave was set and therefore slave will be "
-		  "automatically restarted when node joins back to cluster");
-       wsrep_restart_slave_activated= TRUE;
-     }
-   }
+  {
+    if (wsrep_ready_get())
+    {
+      WSREP_INFO("Slave error due to node temporarily non-primary"
+                 "SQL slave will continue");
+      wsrep_node_dropped= FALSE;
+      mysql_mutex_unlock(&rli->run_lock);
+      goto wsrep_restart_point;
+    }
+    else
+    {
+      WSREP_INFO("Slave error due to node going non-primary");
+      WSREP_INFO("wsrep_restart_slave was set and therefore slave will be "
+                 "automatically restarted when node joins back to cluster");
+      wsrep_restart_slave_activated= TRUE;
+    }
+  }
   wsrep_close(thd);
 #endif /* WITH_WSREP */
 

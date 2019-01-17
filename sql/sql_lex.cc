@@ -32,9 +32,6 @@
 #include "sql_cte.h"
 #include "sql_signal.h"
 #include "sql_partition.h"
-#ifdef WITH_WSREP
-#include "mysql/service_wsrep.h"
-#endif /* WITH_WSREP*/
 
 
 void LEX::parse_error(uint err_number)
