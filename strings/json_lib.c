@@ -1862,7 +1862,7 @@ static enum json_types smart_read_value(json_engine_t *je,
     if (json_skip_level(je))
       goto err_return;
 
-    *value_len= (char *) je->s.c_str - *value;
+    *value_len= (int) ((char *) je->s.c_str - *value);
   }
 
   return je->value_type;
