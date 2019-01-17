@@ -61,3 +61,4 @@ galera.galera_var_retry_autocommit: MDEV-18181 Galera test failure on galera.gal
 galera.galera_many_tables_nopk : MDEV-18182 Galera test failure on galera.galera_many_tables_nopk
 galera.galera_kill_nochanges : MDEV-18280 Galera test failure on galera_split_brain and galera_kill_nochanges
 galera.galera_split_brain : MDEV-18280 Galera test failure on galera_split_brain and galera_kill_nochanges
+galera.galera_bf_abort_group_commit : MDEV-18282 Galera test failure on galera.galera_bf_abort_group_commit

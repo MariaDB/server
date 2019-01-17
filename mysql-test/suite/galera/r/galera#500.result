@@ -1,5 +1,7 @@
 connection node_2;
 connection node_1;
+connection node_1;
+connection node_2;
 connection node_2;
 SET SESSION wsrep_sync_wait = 0;
 SET GLOBAL wsrep_provider_options="gmcast.isolate=2";
