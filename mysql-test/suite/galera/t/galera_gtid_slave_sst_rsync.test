@@ -184,7 +184,11 @@ RESET SLAVE ALL;
 set global wsrep_on=OFF;
 reset master;
 set global wsrep_on=ON;
+
+--disable_warnings
 set global gtid_slave_pos="";
+--enable_warnings
+
 --echo #Connection 1
 --connection node_1
 set global wsrep_on=OFF;

@@ -3486,8 +3486,9 @@ row_ins_index_entry_set_vals(
 				field->type.prtype = DATA_BINARY_TYPE;
 			} else {
 				ut_ad(col->len <= sizeof field_ref_zero);
+				ut_ad(ind_field->fixed_len <= col->len);
 				dfield_set_data(field, field_ref_zero,
-						col->len);
+						ind_field->fixed_len);
 				field->type.prtype = DATA_NOT_NULL;
 			}
 
