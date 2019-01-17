@@ -3725,15 +3725,6 @@ mysql_execute_command(THD *thd)
 
 #ifdef WITH_WSREP
   /*
-    THD is executing non-blocking operation. Set mark that the
-    execution has made it to actual command execution.
-  */
-  if (thd->wsrep_nbo_ctx) {
-    DBUG_ASSERT(thd->wsrep_nbo_ctx->executing() == false);
-    thd->wsrep_nbo_ctx->set_executing(true);
-  }
-
-  /*
     Always start a new transaction for a wsrep THD unless the
     current command is DDL or explicit BEGIN. This will guarantee that
     the THD is BF abortable even if it does not generate any
@@ -6379,18 +6370,6 @@ finish:
   DBUG_ASSERT(!thd->in_active_multi_stmt_transaction() ||
                thd->in_multi_stmt_transaction_mode());
 
-#ifdef WITH_WSREP
-  /*
-    Thread was executing non-blocking operation. Total order isolation
-    has been released after locking table names. We need to grab
-    total order isolation section here again to commit/binlog in order.
-   */
-  if (thd->wsrep_nbo_ctx)
-  {
-    wsrep_end_nbo_lock(thd, first_table);
-  }
-#endif /* WITH_WSREP */
-
   lex->unit.cleanup();
 
   /* close/reopen tables that were marked to need reopen under LOCK TABLES */
@@ -6521,12 +6500,6 @@ finish:
   {
     wsrep_commit_empty(thd, true);
   }
-
-
-  /*
-    Non-blocking operation finished execution.
-  */
-  if (thd->wsrep_nbo_ctx) thd->wsrep_nbo_ctx->set_executing(false);
 
   /* assume PA safety for next transaction */
   thd->wsrep_PA_safe= true;

@@ -661,7 +661,6 @@ THD::THD(my_thread_id id, bool is_wsrep_applier, bool skip_global_sys_var_lock)
    wsrep_apply_format(0),
    wsrep_apply_toi(false),
    wsrep_rbr_buf(NULL),
-   wsrep_nbo_ctx(NULL),
    wsrep_sync_wait_gtid(WSREP_GTID_UNDEFINED),
    wsrep_affected_rows(0),
    wsrep_has_ignored_error(false),
@@ -1272,7 +1271,6 @@ void THD::init(bool skip_lock)
   wsrep_TOI_pre_query     = NULL;
   wsrep_TOI_pre_query_len = 0;
   wsrep_rbr_buf           = NULL;
-  wsrep_nbo_ctx           = NULL;
   wsrep_affected_rows     = 0;
   m_wsrep_next_trx_id     = WSREP_UNDEFINED_TRX_ID;
   wsrep_replicate_GTID    = false;

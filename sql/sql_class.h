@@ -4818,7 +4818,6 @@ public:
   void                      *wsrep_apply_format;
   bool                      wsrep_apply_toi; /* applier processing in TOI */
   uchar*                    wsrep_rbr_buf;
-  Wsrep_nbo_ctx*            wsrep_nbo_ctx; // Context for non-blocking operations
   wsrep_gtid_t              wsrep_sync_wait_gtid;
   //  wsrep_gtid_t              wsrep_last_written_gtid;
   ulong                     wsrep_affected_rows;
