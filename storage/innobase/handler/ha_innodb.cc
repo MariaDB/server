@@ -5134,22 +5134,9 @@ static void innobase_kill_query(handlerton*, THD* thd, enum thd_kill_levels)
 #endif /* WITH_WSREP */
 
 	if (trx_t* trx = thd_to_trx(thd)) {
-#ifdef WITH_WSREP
-		bool locked= trx->lock.was_chosen_as_wsrep_victim;
-		if (locked) {
-			lock_mutex_exit();
-			trx_mutex_exit(trx);
-		}
-#endif /* WITH_WSREP */
 		ut_ad(trx->mysql_thd == thd);
 		/* Cancel a pending lock request if there are any */
 		lock_trx_handle_wait(trx);
-#ifdef WITH_WSREP
-		if (locked) {
-			lock_mutex_enter();
-			trx_mutex_enter(trx);
-		}
-#endif /* WITH_WSREP */
 	}
 
 	DBUG_VOID_RETURN;
@@ -18638,9 +18625,6 @@ wsrep_innobase_kill_one_trx(
 				lock_cancel_waiting_and_release(wait_lock);
 			}
 		}
-	} else {
-		/* victim was not BF aborted, after all */
-		victim_trx->lock.was_chosen_as_wsrep_victim = TRUE;
 	}
 
 	DBUG_RETURN(0);
