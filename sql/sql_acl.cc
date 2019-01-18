@@ -1792,7 +1792,7 @@ static int set_user_salt(ACL_USER *acl_user, plugin_ref plugin)
     size_t len= sizeof(buf);
     if (auth->preprocess_hash(acl_user->auth_string.str,
                               acl_user->auth_string.length, buf, &len))
-      return 1; // ER_PASSWD_LENGTH?
+      return 1;
     acl_user->salt.str= (char*)memdup_root(&acl_memroot, buf, len);
     acl_user->salt.length= len;
   }

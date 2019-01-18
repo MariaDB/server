@@ -39,6 +39,10 @@ show grants for test1@localhost;
 Grants for test1@localhost
 GRANT USAGE ON *.* TO 'test1'@'localhost' IDENTIFIED VIA ed25519 USING 'ZIgUREUg5PVgQ6LskhXmO+eZLS0nC8be6HPjYWR4YJY'
 drop user test1@localhost;
+create user test1@localhost identified via ed25519 using 'foo';
+ERROR HY000: Password hash should be 43 characters long
+create user test1@localhost identified via ed25519 using '>>>1234567890123456789012345678901234567890';
+ERROR HY000: Password hash should be base64 encoded
 create user test1@localhost identified via ed25519 using password('foo');
 show grants for test1@localhost;
 Grants for test1@localhost
