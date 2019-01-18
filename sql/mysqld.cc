@@ -1601,7 +1601,7 @@ static void close_connections(void)
       error= mysql_cond_timedwait(&COND_start_thread, &LOCK_start_thread,
                                   &abstime);
       if (error != EINTR)
-	break;
+        break;
     }
 #ifdef EXTRA_DEBUG
     if (error != 0 && error != ETIMEDOUT && !count++)
