@@ -1,5 +1,5 @@
 # Multi instance version of mariadb. For if you run multiple versions at once.
-# Also used for mariadb@bootstrap to bootstrap Galera.
+# Also used for mariadb@bootstrap to tell you to use galera_new_cluster.
 #
 # create config file @sysconf2dir@/my{instancename}.cnf
 #
