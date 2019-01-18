@@ -1,7 +1,7 @@
 /*****************************************************************************
 
 Copyright (c) 2000, 2018, Oracle and/or its affiliates. All Rights Reserved.
-Copyright (c) 2015, 2018, MariaDB Corporation.
+Copyright (c) 2015, 2019, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -3414,8 +3414,11 @@ row_drop_table_for_mysql(
 			calling btr_search_drop_page_hash_index() while we
 			hold the InnoDB dictionary lock, we will drop any
 			adaptive hash index entries upfront. */
+			bool immune = is_temp_name
+				|| strstr(table->name.m_name, "/FTS");
+
 			while (buf_LRU_drop_page_hash_for_tablespace(table)) {
-				if ((!is_temp_name && trx_is_interrupted(trx))
+				if ((!immune && trx_is_interrupted(trx))
 				    || srv_shutdown_state
 				    != SRV_SHUTDOWN_NONE) {
 					err = DB_INTERRUPTED;
