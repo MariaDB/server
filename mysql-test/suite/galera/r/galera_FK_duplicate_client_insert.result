@@ -1,3 +1,5 @@
+connection node_2;
+connection node_1;
 CREATE TABLE user(id int primary key, j int) ENGINE=InnoDB;
 CREATE TABLE user_session(id int primary key, fk1 int, fk2 int) ENGINE=InnoDB;
 alter table user_session add foreign key (fk1) references user(id);
