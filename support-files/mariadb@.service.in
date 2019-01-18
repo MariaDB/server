@@ -17,9 +17,12 @@
 # variable MYSQLD_MULTI_INSTANCE controls each instance to ensure it is
 # run independently.
 #
+# This is not suitable for Galera as specialised SST recovery scripts are
+# needed.
+#
 # Suffix Mechanism (default):
 #
-# MYSQLD_MULTI_INSTANCE=--defaults-group-suffix=.%I
+# MYSQLD_MULTI_INSTANCE=--defaults-group-suffix=.%I --basedir=@prefix@
 #
 # With this option, the [mysqld.{instancename}] group is read from the default
 # configuration file.
@@ -56,6 +59,15 @@
 #
 # Then run "systemctl daemon-reload".
 #
+# Multi User Based Mechanism
+#
+# Create instances in users home directory with abstract socket:
+#
+#   [Service]
+#   User=%I
+#   ProtectHome=false
+#   Environment=MYSQLD_MULTI_INSTANCE="--defaults-file=/home/%I/my%I.cnf --datadir=/home/%I/mysqldatadir --skip-networking --socket=@mysql-%I"
+#
 # CONFLICTING VARIABLES
 #
 # A number of MariaDB system variables may conflict. The main ones that need to
@@ -63,11 +75,6 @@
 #   * socket
 #   * port
 #   * datadir
-#
-# Galera will require:
-#   * wsrep_node_address
-#   * wsrep_cluster_address
-#   * ensure SST mechanisms don't conflict on network ports or temporary locations
 #
 # PRE-10.3
 #
@@ -131,9 +138,6 @@ PrivateNetwork=false
 ## Package maintainers
 ##
 
-User=mysql
-Group=mysql
-
 # To allow memlock to be used as non-root user if set in configuration
 CapabilityBoundingSet=CAP_IPC_LOCK
 
@@ -149,37 +153,16 @@ PrivateDevices=true
 # Prevent accessing /home, /root and /run/user
 ProtectHome=true
 
-# Execute pre and post scripts as root, otherwise it does it as User=
-PermissionsStartOnly=true
-
-# Perform automatic wsrep recovery. When server is started without wsrep,
-# galera_recovery simply returns an empty string. In any case, however,
-# the script is not expected to return with a non-zero status.
-# It is always safe to unset _WSREP_START_POSITION%I environment variable.
-# Do not panic if galera_recovery script is not available. (MDEV-10538)
-ExecStartPre=/bin/sh -c "systemctl unset-environment _WSREP_START_POSITION%I"
-
-ExecStartPre=/bin/sh -c "[ ! -e @bindir@/galera_recovery ] && VAR= || \
- VAR=`@bindir@/galera_recovery $MYSQLD_MULTI_INSTANCE`; [ $? -eq 0 ] \
- && systemctl set-environment _WSREP_START_POSITION%I=$VAR || exit 1"
-
 # Needed to create system tables etc.
-ExecStartPre=@scriptdir@/mysql_install_db $MYSQLD_MULTI_INSTANCE --user=mysql
+ExecStartPre=@scriptdir@/mysql_install_db $MYSQLD_MULTI_INSTANCE
 
 # Start main service
 # A few variables are here:
 # * MYSQLD_MULTI_INSTANCE - control how multiple instances are distinguisable
-# * _WSREP_NEW_CLUSTER - for the exclusive use of the script galera_new_cluster
 # * MYSQLD_OPTS - user definable extras - not a replacement for my.cnf
 #
 # Note 1: Place $MYSQLD_OPTS at the very end for its options to take precedence.
-# Note 2: we set --basedir to prevent probes that might trigger SELinux alarms,
-# per bug https://bugzilla.redhat.com/show_bug.cgi?id=547485
-ExecStart=@sbindir@/mysqld $MYSQLD_MULTI_INSTANCE --basedir=@prefix@ \
-  $_WSREP_NEW_CLUSTER $_WSREP_START_POSITION%I $MYSQLD_OPTS
-
-# Unset _WSREP_START_POSITION environment variable.
-ExecStartPost=/bin/sh -c "systemctl unset-environment _WSREP_START_POSITION%I"
+ExecStart=@sbindir@/mysqld $MYSQLD_MULTI_INSTANCE $MYSQLD_OPTS
 
 KillSignal=SIGTERM
 
@@ -215,7 +198,17 @@ UMask=007
 PrivateTmp=false
 
 # Controlling how multiple instances are separated. See top of this file.
-Environment=MYSQLD_MULTI_INSTANCE=--defaults-group-suffix=.%I
+# Note 1: This service isn't User=mysql be default so we need to be explicit.
+# Note 2: we set --basedir to prevent probes that might trigger SELinux alarms,
+# per bug https://bugzilla.redhat.com/show_bug.cgi?id=547485. Its as an option
+# here as a user may want to use the MYSQLD_MULTI_INSTANCE to run multiple
+# versions.
+Environment=MYSQLD_MULTI_INSTANCE=--defaults-group-suffix=.%I --basedir=@prefix@
+
+# While you can override these, you shouldn't leave them empty as that
+# will default to root.
+User=mysql
+Group=mysql
 
 ##
 ## Options previously available to be set via [mysqld_safe]
