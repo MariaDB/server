@@ -139,6 +139,26 @@ private:
   my_bool m_wsrep_on;
 };
 
+class thd_context_switch
+{
+public:
+  thd_context_switch(THD *orig_thd, THD *cur_thd)
+    : m_orig_thd(orig_thd)
+    , m_cur_thd(cur_thd)
+  {
+    m_orig_thd->reset_globals();
+    m_cur_thd->store_globals();
+  }
+  ~thd_context_switch()
+  {
+    m_cur_thd->reset_globals();
+    m_orig_thd->store_globals();
+  }
+private:
+  THD *m_orig_thd;
+  THD *m_cur_thd;
+};
+
 static int execute_SQL(THD* thd, const char* sql, uint length) {
   DBUG_ENTER("Wsrep_schema::execute_SQL()");
   int err= 0;
@@ -1008,6 +1028,7 @@ int Wsrep_schema::remove_fragments(THD* thd,
   DBUG_ENTER("Wsrep_schema::remove_fragments");
   int ret= 0;
 
+  WSREP_DEBUG("Removing %zu fragments", fragments.size());
   Wsrep_schema_impl::wsrep_off  wsrep_off(thd);
   Wsrep_schema_impl::binlog_off binlog_off(thd);
 
@@ -1171,28 +1192,34 @@ int Wsrep_schema::replay_transaction(THD* thd,
   DBUG_RETURN(ret);
 }
 
-int Wsrep_schema::recover_sr_transactions()
+int Wsrep_schema::recover_sr_transactions(THD *orig_thd)
 {
   DBUG_ENTER("Wsrep_schema::recover_sr_transactions");
   THD storage_thd(true, true);
-  storage_thd.thread_stack= (char*)&storage_thd;
+  storage_thd.thread_stack= (orig_thd ? orig_thd->thread_stack :
+                             (char*) &storage_thd);
   TABLE* frag_table= 0;
   TABLE* cluster_table= 0;
   Wsrep_storage_service storage_service(&storage_thd);
   Wsrep_schema_impl::binlog_off binlog_off(&storage_thd);
   Wsrep_schema_impl::wsrep_off binglog_off(&storage_thd);
-
+  Wsrep_schema_impl::thd_context_switch thd_context_switch(orig_thd,
+                                                           &storage_thd);
   Wsrep_server_state& server_state(Wsrep_server_state::instance());
 
   int ret= 1;
   int error;
   wsrep::id cluster_id;
 
-  storage_thd.store_globals();
   Wsrep_schema_impl::init_stmt(&storage_thd);
   storage_thd.wsrep_skip_locking= FALSE;
-  if (Wsrep_schema_impl::open_for_read(&storage_thd,
-                                       cluster_table_str.c_str(), &cluster_table) ||
+  /*
+    Open the table for reading and writing so that fragments without
+    valid seqno can be deleted.
+  */
+  if (Wsrep_schema_impl::open_for_write(&storage_thd,
+                                        cluster_table_str.c_str(),
+                                        &cluster_table) ||
       Wsrep_schema_impl::init_for_scan(cluster_table))
   {
     Wsrep_schema_impl::finish_stmt(&storage_thd);
@@ -1247,6 +1274,9 @@ int Wsrep_schema::recover_sr_transactions()
       Wsrep_schema_impl::scan(frag_table, 2, seqno_ll);
       wsrep::seqno seqno(seqno_ll);
 
+      /* This is possible if the server crashes between inserting the
+         fragment into table and updating the fragment seqno after
+         certification. */
       if (seqno.is_undefined())
       {
         Wsrep_schema_impl::delete_row(frag_table);

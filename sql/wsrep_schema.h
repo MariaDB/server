@@ -141,9 +141,11 @@ class Wsrep_schema
      This method should be called after storage enignes are initialized.
      It will scan SR table and replay found streaming transactions.
 
+     @param orig_thd The THD object of the calling thread.
+
      @return Zero on success, non-zero on failure.
   */
-  int recover_sr_transactions();
+  int recover_sr_transactions(THD* orig_thd);
 
   /*
     Close wsrep schema.

@@ -322,12 +322,26 @@ void wsrep_init_schema()
   }
 }
 
-void wsrep_recover_sr_from_storage()
+void wsrep_deinit_schema()
+{
+  delete wsrep_schema;
+  wsrep_schema= 0;
+  delete wsrep_thd_pool;
+  wsrep_thd_pool= 0;
+}
+
+void wsrep_recover_sr_from_storage(THD *orig_thd)
 {
   switch (wsrep_SR_store_type)
   {
   case WSREP_SR_STORE_TABLE:
-    if (wsrep_schema->recover_sr_transactions())
+    if (!wsrep_schema)
+    {
+      WSREP_ERROR("Wsrep schema not initialized when trying to recover "
+                  "streaming transactions");
+      unireg_abort(1);
+    }
+    if (wsrep_schema->recover_sr_transactions(orig_thd))
     {
       WSREP_ERROR("Failed to recover SR transactions from schema");
       unireg_abort(1);
@@ -654,7 +668,6 @@ void wsrep_init_globals()
 {
   wsrep_init_sidno(Wsrep_server_state::instance().connected_gtid().id());
   wsrep_init_schema();
-  wsrep_recover_sr_from_storage();
   if (WSREP_ON)
   {
     Wsrep_server_state::instance().initialized();
@@ -663,6 +676,7 @@ void wsrep_init_globals()
 
 void wsrep_deinit_server()
 {
+  wsrep_deinit_schema();
   Wsrep_server_state::destroy();
 }
 
@@ -822,11 +836,7 @@ void wsrep_init_startup (bool sst_first)
 void wsrep_deinit(bool free_options)
 {
   DBUG_ASSERT(wsrep_inited == 1);
-  delete wsrep_schema;
-  wsrep_schema= 0;
   WSREP_DEBUG("wsrep_deinit");
-  delete wsrep_thd_pool;
-  wsrep_thd_pool= 0;
 
   Wsrep_server_state::instance().unload_provider();
   provider_name[0]=    '\0';
@@ -920,11 +930,6 @@ void wsrep_stop_replication(THD *thd)
   wsrep_wait_appliers_close(thd);
 
   node_uuid= WSREP_UUID_UNDEFINED;
-
-  delete wsrep_schema;
-  wsrep_schema= 0;
-
-  return;
 }
 
 void wsrep_shutdown_replication()

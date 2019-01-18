@@ -56,6 +56,8 @@ public:
 
   void log_view(wsrep::high_priority_service*, const wsrep::view&);
 
+  void recover_streaming_appliers(wsrep::client_service&);
+  void recover_streaming_appliers(wsrep::high_priority_service&);
   wsrep::view get_view(wsrep::client_service&, const wsrep::id& own_id);
 
   wsrep::gtid get_position(wsrep::client_service&);
