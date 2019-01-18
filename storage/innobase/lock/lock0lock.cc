@@ -6391,11 +6391,23 @@ lock_trx_handle_wait(
 /*=================*/
 	trx_t*	trx)	/*!< in/out: trx lock state */
 {
+#ifdef WITH_WSREP
+	if (!trx->lock.was_chosen_as_wsrep_victim) {
+#endif /* WITH_WSREP */
 	lock_mutex_enter();
 	trx_mutex_enter(trx);
+#ifdef WITH_WSREP
+	}
+#endif /* WITH_WSREP */
 	dberr_t err = lock_trx_handle_wait_low(trx);
+#ifdef WITH_WSREP
+	if (!trx->lock.was_chosen_as_wsrep_victim) {
+#endif /* WITH_WSREP */
 	lock_mutex_exit();
 	trx_mutex_exit(trx);
+#ifdef WITH_WSREP
+	}
+#endif /* WITH_WSREP */
 	return err;
 }
 
