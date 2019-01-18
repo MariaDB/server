@@ -2896,15 +2896,44 @@ sub mysql_server_start($) {
     # Save this test case information, so next can examine it
     $mysqld->{'started_tinfo'}= $tinfo;
   }
+
+  # If wsrep is on, we need to wait until the first
+  # server starts and bootstraps the cluster before
+  # starting other servers. The bootsrap server in the
+  # configuration should always be the first which has
+  # wsrep_on=ON
+  if (wsrep_on($mysqld) && wsrep_is_bootstrap_server($mysqld))
+  {
+    mtr_verbose("Waiting for wsrep bootstrap server to start");
+    if ($mysqld->{WAIT}->($mysqld))
+    {
+      return 1;
+    }
+  }
 }
 
 sub mysql_server_wait {
-  my ($mysqld) = @_;
+  my ($mysqld, $tinfo) = @_;
 
-  return not sleep_until_file_created($mysqld->value('pid-file'),
-                                      $opt_start_timeout,
-                                      $mysqld->{'proc'},
-                                      $warn_seconds);
+  if (!sleep_until_file_created($mysqld->value('pid-file'),
+                                $opt_start_timeout,
+                                $mysqld->{'proc'},
+                                $warn_seconds))
+  {
+    $tinfo->{comment}= "Failed to start ".$mysqld->name() . "\n";
+    return 1;
+  }
+
+  if (wsrep_on($mysqld))
+  {
+    mtr_verbose("Waiting for wsrep server " . $mysqld->name() . " to be ready");
+    if (!wait_wsrep_ready($tinfo, $mysqld))
+    {
+      return 1;
+    }
+  }
+
+  return 0;
 }
 
 sub create_config_file_for_extern {
@@ -5456,14 +5485,16 @@ sub wait_wsrep_ready($$) {
   my $name= $mysqld->name();
   my $outfile= "$opt_vardir/tmp/$name.wsrep_ready";
   my $query= "SET SESSION wsrep_sync_wait = 0;
-              SELECT VARIABLE_VALUE
+              SELECT VARIABLE_NAME, VARIABLE_VALUE
               FROM INFORMATION_SCHEMA.GLOBAL_STATUS
               WHERE VARIABLE_NAME = 'wsrep_ready'";
 
   for (my $loop= 1; $loop <= $loops; $loop++)
   {
+    # Careful... if MTR runs with option 'verbose' then the
+    # file contains also SafeProcess verbose output
     if (run_query_output($mysqld, $query, $outfile) == 0 &&
-        mtr_grab_file($outfile) =~ /^ON/)
+        mtr_grab_file($outfile) =~ /WSREP_READY\s+ON/)
     {
       unlink($outfile);
       return 1;
@@ -5482,14 +5513,19 @@ sub wait_wsrep_ready($$) {
 # cluster.
 #
 # RETURN
-# true The server is a bootstrap server
-# false The server is not a bootstrap server
+# 1 The server is a bootstrap server
+# 0 The server is not a bootstrap server
 #
 sub wsrep_is_bootstrap_server($) {
   my $mysqld= shift;
-  return $mysqld->if_exist('wsrep_cluster_address') &&
-    ($mysqld->value('wsrep_cluster_address') eq "gcomm://" ||
-     $mysqld->value('wsrep_cluster_address') eq "'gcomm://'");
+
+  my $cluster_address= $mysqld->if_exist('wsrep-cluster-address') ||
+                       $mysqld->if_exist('wsrep_cluster_address');
+  if (defined $cluster_address)
+  {
+    return $cluster_address eq "gcomm://" || $cluster_address eq "'gcomm://'";
+  }
+  return 0;
 }
 
 #
@@ -5526,38 +5562,16 @@ sub wsrep_on($) {
 sub start_servers($) {
   my ($tinfo)= @_;
 
-  # Note: Do not use default variable in this loop. In some cases
-  # the default variable may become undefined after the server
-  # start call.
-  foreach my $server (all_servers()) {
-    $server->{START}->($server, $tinfo) if $server->{START};
-    # If wsrep is on, we need to wait until the first
-    # server starts and bootstraps the cluster before
-    # starting other servers. The bootsrap server in the
-    # configuration should always be the first which has
-    # wsrep_on=ON and should be tagged with "#wsrep-new-cluster".
-    # option
-    if (wsrep_on($server) && wsrep_is_bootstrap_server($server))
-    {
-      if ($server->{WAIT}->($server) && !wait_wsrep_ready($tinfo, $server)) {
-        return 1;
-      }
-    }
+  for (all_servers()) {
+    $_->{START}->($_, $tinfo) if $_->{START};
   }
 
-  foreach my $server (all_servers()) {
-    next unless $server->{WAIT} and started($server);
-    if ($server->{WAIT}->($server)) {
-      $tinfo->{comment}= "Failed to start ".$server->name() . "\n";
+  for (all_servers()) {
+    next unless $_->{WAIT} and started($_);
+    if ($_->{WAIT}->($_, $tinfo)) {
       return 1;
     }
-    if (wsrep_on($server)) {
-      if (!wait_wsrep_ready($tinfo, $server)){
-        return 1;
-      }
-    }
   }
-
   return 0;
 }
 
