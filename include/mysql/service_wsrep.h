@@ -1,6 +1,14 @@
 #ifndef MYSQL_SERVICE_WSREP_INCLUDED
 #define MYSQL_SERVICE_WSREP_INCLUDED
 
+enum Wsrep_service_key_type
+{
+    WSREP_SERVICE_KEY_SHARED,
+    WSREP_SERVICE_KEY_REFERENCE,
+    WSREP_SERVICE_KEY_UPDATE,
+    WSREP_SERVICE_KEY_EXCLUSIVE
+};
+
 #if (defined (MYSQL_DYNAMIC_PLUGIN) && defined(MYSQL_SERVICE_WSREP_DYNAMIC_INCLUDED)) || (!defined(MYSQL_DYNAMIC_PLUGIN) && defined(MYSQL_SERVICE_WSREP_STATIC_INCLUDED))
 
 #else
@@ -36,6 +44,10 @@ struct xid_t;
 struct wsrep_ws_handle;
 struct wsrep_buf;
 
+/* Must match to definition in sql/mysqld.h */
+typedef int64 query_id_t;
+
+
 extern struct wsrep_service_st {
   my_bool                     (*get_wsrep_recovery_func)();
   bool                        (*wsrep_consistency_check_func)(MYSQL_THD thd);
@@ -52,6 +64,23 @@ extern struct wsrep_service_st {
   long long                   (*wsrep_thd_trx_seqno_func)(const MYSQL_THD thd);
   my_bool                     (*wsrep_thd_is_aborting_func)(const MYSQL_THD thd);
   void                        (*wsrep_set_data_home_dir_func)(const char *data_dir);
+  my_bool                     (*wsrep_thd_is_BF_func)(const MYSQL_THD thd, my_bool sync);
+  my_bool                     (*wsrep_thd_is_local_func)(const MYSQL_THD thd);
+  void                        (*wsrep_thd_self_abort_func)(MYSQL_THD thd);
+  int                         (*wsrep_thd_append_key_func)(MYSQL_THD thd, const struct wsrep_key* key,
+                                                           int n_keys, enum Wsrep_service_key_type);
+  const char*                 (*wsrep_thd_client_state_str_func)(const MYSQL_THD thd);
+  const char*                 (*wsrep_thd_client_mode_str_func)(const MYSQL_THD thd);
+  const char*                 (*wsrep_thd_transaction_state_str_func)(const MYSQL_THD thd);
+  query_id_t                  (*wsrep_thd_transaction_id_func)(const MYSQL_THD thd);
+  my_bool                     (*wsrep_thd_bf_abort_func)(const MYSQL_THD bf_thd,
+                                                         MYSQL_THD victim_thd,
+                                                         my_bool signal);
+  my_bool                     (*wsrep_thd_order_before_func)(const MYSQL_THD left, const MYSQL_THD right);
+  void                        (*wsrep_handle_SR_rollback_func)(MYSQL_THD BF_thd, MYSQL_THD victim_thd);
+  my_bool                     (*wsrep_thd_skip_locking_func)(const MYSQL_THD thd);
+  const char*                 (*wsrep_get_sr_table_name_func)();
+  my_bool                     (*wsrep_get_debug_func)();
 } *wsrep_service;
 
 #define MYSQL_SERVICE_WSREP_INCLUDED
@@ -66,7 +95,7 @@ extern struct wsrep_service_st {
 #define wsrep_xid_seqno(X) wsrep_service->wsrep_xid_seqno_func(X)
 #define wsrep_xid_uuid(X) wsrep_service->wsrep_xid_uuid_func(X)
 #define wsrep_on(X) wsrep_service->wsrep_on_func(X)
-#define wsrep_prepare_key_for_innodb(A,B,C,D,E,F,G) wsrep_service->wsrep_prepare_key_for_innodb_func(A,B,C,D,E,F.G)
+#define wsrep_prepare_key_for_innodb(A,B,C,D,E,F,G) wsrep_service->wsrep_prepare_key_for_innodb_func(A,B,C,D,E,F,G)
 #define wsrep_thd_LOCK(T) wsrep_service->wsrep_thd_LOCK_func(T)
 #define wsrep_thd_UNLOCK(T) wsrep_service->wsrep_thd_UNLOCK_func(T)
 #define wsrep_thd_query(T) wsrep_service->wsrep_thd_query_func(T)
@@ -74,8 +103,21 @@ extern struct wsrep_service_st {
 #define wsrep_thd_ignore_table(T) wsrep_service->wsrep_thd_ignore_table_func(T)
 #define wsrep_thd_trx_seqno(T) wsrep_service->wsrep_thd_trx_seqno_func(T)
 #define wsrep_set_data_home_dir(A) wsrep_service->wsrep_set_data_home_dir_func(A)
-
 #define wsrep_thd_is_BF(T,S) wsrep_service->wsrep_thd_is_BF_func(T,S)
+#define wsrep_thd_is_aborting(T) wsrep_service->wsrep_thd_is_aborting_func(T)
+#define wsrep_thd_is_local(T) wsrep_service->wsrep_thd_is_local_func(T)
+#define wsrep_thd_self_abort(T) wsrep_service->wsrep_thd_self_abort_func(T)
+#define wsrep_thd_append_key(T,W,N,K) wsrep_service->wsrep_thd_append_key_func(T,W,N,K)
+#define wsrep_thd_client_state_str(T) wsrep_service->wsrep_thd_client_state_str_func(T)
+#define wsrep_thd_client_mode_str(T) wsrep_service->wsrep_thd_client_mode_str_func(T)
+#define wsrep_thd_transaction_state_str(T) wsrep_service->wsrep_thd_transaction_state_str_func(T)
+#define wsrep_thd_transaction_id(T) wsrep_service->wsrep_thd_transaction_id_func(T)
+#define wsrep_thd_bf_abort(T,T2,S) wsrep_service->wsrep_thd_bf_abort_func(T,T2,S)
+#define wsrep_thd_order_before(L,R) wsrep_service->wsrep_thd_order_before_func(L,R)
+#define wsrep_handle_SR_rollback(B,V) wsrep_service->wsrep_handle_SR_rollback_func(B,V)
+#define wsrep_thd_skip_locking(T) wsrep_service->wsrep_thd_skip_locking_func(T)
+#define wsrep_get_sr_table_name() wsrep_service->wsrep_get_sr_table_name_func()
+#define wsrep_get_debug() wsrep_service->wsrep_get_debug_func()
 
 #else
 
@@ -99,12 +141,9 @@ my_bool get_wsrep_recovery();
 bool wsrep_thd_ignore_table(MYSQL_THD thd);
 void wsrep_set_data_home_dir(const char *data_dir);
 
-
 /* from mysql wsrep-lib */
 #include "my_global.h"
 #include "my_pthread.h"
-/* Must match to definition in sql/mysqld.h */
-typedef int64 query_id_t;
 
 /* Return true if wsrep is enabled for a thd. This means that
    wsrep is enabled globally and the thd has wsrep on */
@@ -155,14 +194,6 @@ extern "C" my_bool wsrep_thd_skip_locking(const MYSQL_THD thd);
 /* Return true if thd is aborting */
 extern "C" my_bool wsrep_thd_is_aborting(const MYSQL_THD thd);
 
-
-enum Wsrep_service_key_type
-{
-    WSREP_SERVICE_KEY_SHARED,
-    WSREP_SERVICE_KEY_REFERENCE,
-    WSREP_SERVICE_KEY_UPDATE,
-    WSREP_SERVICE_KEY_EXCLUSIVE
-};
 struct wsrep_key;
 struct wsrep_key_array;
 extern "C" int wsrep_thd_append_key(MYSQL_THD thd,
@@ -172,5 +203,8 @@ extern "C" int wsrep_thd_append_key(MYSQL_THD thd,
 
 extern const char* wsrep_sr_table_name_full;
 
+extern "C" const char* wsrep_get_sr_table_name();
+
+extern "C" my_bool wsrep_get_debug();
 #endif
 #endif /* MYSQL_SERVICE_WSREP_INCLUDED */

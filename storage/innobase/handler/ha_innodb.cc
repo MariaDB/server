@@ -131,15 +131,15 @@ void close_thread_tables(THD* thd);
 #define tdc_size 400
 #endif
 
+#include <mysql/plugin.h>
+#include <mysql/service_wsrep.h>
+
 #include "ha_innodb.h"
 #include "i_s.h"
 #include "sync0sync.h"
 
 #include <string>
 #include <sstream>
-
-#include <mysql/plugin.h>
-#include <mysql/service_wsrep.h>
 
 #ifdef WITH_WSREP
 #include "dict0priv.h"
@@ -148,14 +148,6 @@ void close_thread_tables(THD* thd);
 
 extern MYSQL_PLUGIN_IMPORT MYSQL_BIN_LOG mysql_bin_log;
 
-extern bool wsrep_prepare_key_for_innodb(
-	THD* thd,
-	const uchar *cache_key,
-	size_t cache_key_len,
-	const uchar* row_id,
-	size_t row_id_len,
-	wsrep_buf_t* key,
-	size_t* key_len);
 #endif /* WITH_WSREP */
 
 /** to force correct commit order in binlog */

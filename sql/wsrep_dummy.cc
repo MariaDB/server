@@ -85,3 +85,42 @@ my_bool wsrep_thd_is_aborting(const THD *)
 
 void wsrep_set_data_home_dir(const char *)
 { }
+
+my_bool wsrep_thd_is_local(const THD *)
+{ return 0; }
+
+void wsrep_thd_self_abort(THD *)
+{ }
+
+int wsrep_thd_append_key(THD *, const struct wsrep_key*, int, enum Wsrep_service_key_type)
+{ return 0; }
+
+const char* wsrep_thd_client_state_str(const THD*)
+{ return 0; }
+
+const char* wsrep_thd_client_mode_str(const THD*)
+{ return 0; }
+
+const char* wsrep_thd_transaction_state_str(const THD*)
+{ return 0; }
+
+query_id_t wsrep_thd_transaction_id(const THD *)
+{ return 0; }
+
+my_bool wsrep_thd_bf_abort(const THD *, THD *, my_bool)
+{ return 0; }
+
+my_bool wsrep_thd_order_before(const THD*, const THD *)
+{ return 0; }
+
+void wsrep_handle_SR_rollback(THD*, THD*)
+{ }
+
+my_bool wsrep_thd_skip_locking(const THD*)
+{ return 0;}
+
+const char* wsrep_get_sr_table_name()
+{ return 0; }
+
+my_bool wsrep_get_debug()
+{ return 0;}

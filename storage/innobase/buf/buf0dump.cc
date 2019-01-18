@@ -856,7 +856,7 @@ DECLARE_THREAD(buf_dump_thread)(void*)
 				"Dumping of buffer pool not started"
 				" as load was incomplete");
 #ifdef WITH_WSREP
-		} else if (wsrep_recovery) {
+		} else if (get_wsrep_recovery()) {
 #endif /* WITH_WSREP */
 		} else {
 			buf_dump(FALSE/* do complete dump at shutdown */);

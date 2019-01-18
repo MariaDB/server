@@ -2328,7 +2328,7 @@ files_checked:
 		  Create the dump/load thread only when not running with
 		  --wsrep-recover.
 		*/
-		if (!wsrep_recovery) {
+		if (!get_wsrep_recovery()) {
 #endif /* WITH_WSREP */
 
 		/* Create the buffer pool dump/load thread */

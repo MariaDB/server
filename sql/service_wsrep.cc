@@ -80,6 +80,16 @@ extern "C" void wsrep_thd_self_abort(THD *thd)
   thd->wsrep_cs().bf_abort(wsrep::seqno(0));
 }
 
+extern "C" const char* wsrep_get_sr_table_name()
+{
+  return wsrep_sr_table_name_full;
+}
+
+extern "C" my_bool wsrep_get_debug()
+{
+  return wsrep_debug;
+}
+
 extern "C" my_bool wsrep_thd_is_local(const THD *thd)
 {
   return thd->wsrep_cs().mode() == wsrep::client_state::m_local;

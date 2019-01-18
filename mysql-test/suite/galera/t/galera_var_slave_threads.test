@@ -39,7 +39,7 @@ SET GLOBAL wsrep_slave_threads = 64;
 INSERT INTO t1 VALUES (1);
 
 --connection node_2
-SELECT COUNT(*) = 1 FROM t1;
+SELECT COUNT(*) FROM t1;
 
 #
 # note, in wsrep API #26, we have 2 rollbacker threads, counted as system user's
@@ -177,13 +177,13 @@ while ($count)
 --let $wait_condition = SELECT VARIABLE_VALUE = @@wsrep_slave_threads + 2 FROM INFORMATION_SCHEMA.GLOBAL_STATUS WHERE VARIABLE_NAME = 'wsrep_thread_count';
 --source include/wait_condition.inc
 
-SELECT * FROM t1;
-SELECT * FROM t2;
+SELECT COUNT(*) FROM t1;
+SELECT COUNT(*) FROM t2;
 
 --connection node_1
 
-SELECT * FROM t1;
-SELECT * FROM t2;
+SELECT COUNT(*) FROM t1;
+SELECT COUNT(*) FROM t2;
 
 DROP TABLE t1;
 DROP TABLE t2;
