@@ -272,13 +272,8 @@ ALTER TABLE t1o ADD FULLTEXT INDEX(cu),
 ADD COLUMN FTS_DOC_ID BIGINT UNSIGNED NOT NULL, ALGORITHM=INPLACE;
 
 # Replace the hidden FTS_DOC_ID column with a user-visible one.
-# This used to work if there is at most one fulltext index.
-# Currently, we disallow native ALTER TABLE if the table
-# contains any FULLTEXT indexes.
---error ER_ALTER_OPERATION_NOT_SUPPORTED_REASON
 ALTER TABLE t1o ADD COLUMN FTS_DOC_ID BIGINT UNSIGNED NOT NULL,
 ALGORITHM=INPLACE;
-ALTER TABLE t1o ADD COLUMN FTS_DOC_ID BIGINT UNSIGNED NOT NULL;
 # Replace the user-visible FTS_DOC_ID column with a hidden one.
 # We do not support this in-place.
 --error ER_ALTER_OPERATION_NOT_SUPPORTED_REASON

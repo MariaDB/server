@@ -290,11 +290,12 @@ thd_destructor_proxy(void *)
 	mysql_cond_init(PSI_NOT_INSTRUMENTED, &thd_destructor_cond, 0);
 
 	st_my_thread_var *myvar= _my_thread_var();
+	myvar->current_mutex = &thd_destructor_mutex;
+	myvar->current_cond = &thd_destructor_cond;
+
 	THD *thd= create_thd();
 	thd_proc_info(thd, "InnoDB shutdown handler");
 
-	myvar->current_mutex = &thd_destructor_mutex;
-	myvar->current_cond = &thd_destructor_cond;
 
 	mysql_mutex_lock(&thd_destructor_mutex);
 	srv_running.store(myvar, std::memory_order_relaxed);
