@@ -453,20 +453,18 @@ my_error_innodb(
 
 /** Determine if fulltext indexes exist in a given table.
 @param table MySQL table
-@return whether fulltext indexes exist on the table */
-static
-bool
-innobase_fulltext_exist(
-/*====================*/
-	const TABLE*	table)
+@return number of fulltext indexes */
+static uint innobase_fulltext_exist(const TABLE* table)
 {
+	uint count = 0;
+
 	for (uint i = 0; i < table->s->keys; i++) {
 		if (table->key_info[i].flags & HA_FULLTEXT) {
-			return(true);
+			count++;
 		}
 	}
 
-	return(false);
+	return count;
 }
 
 /** Determine whether indexed virtual columns exist in a table.
@@ -925,11 +923,14 @@ ha_innobase::check_if_supported_inplace_alter(
 		DBUG_RETURN(HA_ALTER_INPLACE_NOT_SUPPORTED);
 	}
 
+	const char* reason_rebuild = NULL;
+
 	switch (ha_alter_info->handler_flags & ~INNOBASE_INPLACE_IGNORE) {
 	case ALTER_OPTIONS:
 		if (alter_options_need_rebuild(ha_alter_info, table)) {
-			ha_alter_info->unsupported_reason = my_get_err_msg(
+			reason_rebuild = my_get_err_msg(
 				ER_ALTER_OPERATION_TABLE_OPTIONS_NEED_REBUILD);
+			ha_alter_info->unsupported_reason = reason_rebuild;
 			break;
 		}
 		/* fall through */
@@ -1056,8 +1057,9 @@ ha_innobase::check_if_supported_inplace_alter(
 	}
 
 	/* We should be able to do the operation in-place.
-	See if we can do it online (LOCK=NONE). */
-	bool		online = true;
+	See if we can do it online (LOCK=NONE) or without rebuild. */
+	bool online = true, need_rebuild = false;
+	const uint fulltext_indexes = innobase_fulltext_exist(altered_table);
 
 	List_iterator_fast<Create_field> cf_it(
 		ha_alter_info->alter_info->create_list);
@@ -1118,8 +1120,7 @@ ha_innobase::check_if_supported_inplace_alter(
 
 			/* We cannot replace a hidden FTS_DOC_ID
 			with a user-visible FTS_DOC_ID. */
-			if (m_prebuilt->table->fts
-			    && innobase_fulltext_exist(altered_table)
+			if (fulltext_indexes && m_prebuilt->table->fts
 			    && !my_strcasecmp(
 				    system_charset_info,
 				    key_part->field->field_name.str,
@@ -1135,8 +1136,8 @@ ha_innobase::check_if_supported_inplace_alter(
 					  & AUTO_INCREMENT_FLAG));
 
 			if (key_part->field->flags & AUTO_INCREMENT_FLAG) {
-				/* We cannot assign an AUTO_INCREMENT
-				column values during online ALTER. */
+				/* We cannot assign AUTO_INCREMENT values
+				during online or instant ALTER. */
 				DBUG_ASSERT(key_part->field == altered_table
 					    -> found_next_number_field);
 
@@ -1146,6 +1147,7 @@ ha_innobase::check_if_supported_inplace_alter(
 				}
 
 				online = false;
+				need_rebuild = true;
 			}
 
 			if (innobase_is_v_fld(key_part->field)) {
@@ -1178,7 +1180,7 @@ ha_innobase::check_if_supported_inplace_alter(
 		    || (m_prebuilt->table->fts->doc_col
 		        < dict_table_get_n_user_cols(m_prebuilt->table)));
 
-	if (m_prebuilt->table->fts && innobase_fulltext_exist(altered_table)) {
+	if (fulltext_indexes && m_prebuilt->table->fts) {
 		/* FULLTEXT indexes are supposed to remain. */
 		/* Disallow DROP INDEX FTS_DOC_ID_INDEX */
 
@@ -1308,44 +1310,39 @@ next_column:
 	}
 
 	bool fts_need_rebuild = false;
-	const bool need_rebuild = innobase_need_rebuild(ha_alter_info, table);
+	need_rebuild = need_rebuild
+		|| innobase_need_rebuild(ha_alter_info, table);
 
-	if (!online) {
-		/* We already determined that only a non-locking
-		operation is possible. */
-	} else if ((need_rebuild || (ha_alter_info->handler_flags
-				     & ALTER_ADD_PK_INDEX))
-		   && (innobase_fulltext_exist(altered_table)
-		       || innobase_spatial_exist(altered_table)
-		       || innobase_indexed_virtual_exist(altered_table))) {
-		/* Refuse to rebuild the table online, if
-		FULLTEXT OR SPATIAL indexes are to survive the rebuild. */
-		online = false;
+	if (need_rebuild
+	    && (fulltext_indexes
+		|| innobase_spatial_exist(altered_table)
+		|| innobase_indexed_virtual_exist(altered_table))) {
 		/* If the table already contains fulltext indexes,
 		refuse to rebuild the table natively altogether. */
-		if (m_prebuilt->table->fts) {
+		if (fulltext_indexes > 1) {
 cannot_create_many_fulltext_index:
 			ha_alter_info->unsupported_reason =
 				my_get_err_msg(ER_INNODB_FT_LIMIT);
 			DBUG_RETURN(HA_ALTER_INPLACE_NOT_SUPPORTED);
 		}
 
-		if (ha_alter_info->online
-		    && !ha_alter_info->unsupported_reason) {
-
-			if (innobase_spatial_exist(altered_table)) {
-				ha_alter_info->unsupported_reason = my_get_err_msg(
-					ER_ALTER_OPERATION_NOT_SUPPORTED_REASON_GIS);
-			} else if (!innobase_fulltext_exist(altered_table)) {
-				/* MDEV-14341 FIXME: Remove this limitation. */
-				ha_alter_info->unsupported_reason =
-					"online rebuild with indexed virtual columns";
-			} else {
-				ha_alter_info->unsupported_reason = my_get_err_msg(
-					ER_ALTER_OPERATION_NOT_SUPPORTED_REASON_FTS);
-			}
+		if (!online || !ha_alter_info->online
+		    || ha_alter_info->unsupported_reason != reason_rebuild) {
+			/* Either LOCK=NONE was not requested, or we already
+			gave specific reason to refuse it. */
+		} else if (fulltext_indexes) {
+			ha_alter_info->unsupported_reason = my_get_err_msg(
+				ER_ALTER_OPERATION_NOT_SUPPORTED_REASON_FTS);
+		} else if (innobase_spatial_exist(altered_table)) {
+			ha_alter_info->unsupported_reason = my_get_err_msg(
+				ER_ALTER_OPERATION_NOT_SUPPORTED_REASON_GIS);
+		} else {
+			/* MDEV-14341 FIXME: Remove this limitation. */
+			ha_alter_info->unsupported_reason =
+				"online rebuild with indexed virtual columns";
 		}
 
+		online = false;
 	}
 
 	if (ha_alter_info->handler_flags
