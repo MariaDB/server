@@ -8955,24 +8955,35 @@ void add_join_natural(TABLE_LIST *a, TABLE_LIST *b, List<String> *using_fields,
           pointer - thread found, and its LOCK_thd_kill is locked.
 */
 
+struct find_thread_callback_arg
+{
+  find_thread_callback_arg(longlong id_arg, bool query_id_arg):
+    thd(0), id(id_arg), query_id(query_id_arg) {}
+  THD *thd;
+  longlong id;
+  bool query_id;
+};
+
+
+my_bool find_thread_callback(THD *thd, find_thread_callback_arg *arg)
+{
+  if (thd->get_command() != COM_DAEMON &&
+      arg->id == (arg->query_id ? thd->query_id : (longlong) thd->thread_id))
+  {
+    if (WSREP(thd)) mysql_mutex_lock(&thd->LOCK_thd_data);
+    mysql_mutex_lock(&thd->LOCK_thd_kill);    // Lock from delete
+    arg->thd= thd;
+    return 1;
+  }
+  return 0;
+}
+
+
 THD *find_thread_by_id(longlong id, bool query_id)
 {
-  THD *tmp;
-  mysql_mutex_lock(&LOCK_thread_count); // For unlink from list
-  I_List_iterator<THD> it(threads);
-  while ((tmp=it++))
-  {
-    if (tmp->get_command() == COM_DAEMON)
-      continue;
-    if (id == (query_id ? tmp->query_id : (longlong) tmp->thread_id))
-    {
-      if (WSREP(tmp)) mysql_mutex_lock(&tmp->LOCK_thd_data);
-      mysql_mutex_lock(&tmp->LOCK_thd_kill);    // Lock from delete
-      break;
-    }
-  }
-  mysql_mutex_unlock(&LOCK_thread_count);
-  return tmp;
+  find_thread_callback_arg arg(id, query_id);
+  server_threads.iterate(find_thread_callback, &arg);
+  return arg.thd;
 }
 
 
@@ -9056,11 +9067,47 @@ kill_one_thread(THD *thd, longlong id, killed_state kill_signal, killed_type typ
     are killed.
 */
 
+struct kill_threads_callback_arg
+{
+  kill_threads_callback_arg(THD *thd_arg, LEX_USER *user_arg):
+    thd(thd_arg), user(user_arg) {}
+  THD *thd;
+  LEX_USER *user;
+  List<THD> threads_to_kill;
+};
+
+
+static my_bool kill_threads_callback(THD *thd, kill_threads_callback_arg *arg)
+{
+  if (thd->security_ctx->user)
+  {
+    /*
+      Check that hostname (if given) and user name matches.
+
+      host.str[0] == '%' means that host name was not given. See sql_yacc.yy
+    */
+    if (((arg->user->host.str[0] == '%' && !arg->user->host.str[1]) ||
+         !strcmp(thd->security_ctx->host_or_ip, arg->user->host.str)) &&
+        !strcmp(thd->security_ctx->user, arg->user->user.str))
+    {
+      if (!(arg->thd->security_ctx->master_access & SUPER_ACL) &&
+          !arg->thd->security_ctx->user_matches(thd->security_ctx))
+        return 1;
+      if (!arg->threads_to_kill.push_back(thd, arg->thd->mem_root))
+      {
+        if (WSREP(thd)) mysql_mutex_lock(&thd->LOCK_thd_data);
+        mysql_mutex_lock(&thd->LOCK_thd_kill); // Lock from delete
+      }
+    }
+  }
+  return 0;
+}
+
+
 static uint kill_threads_for_user(THD *thd, LEX_USER *user,
                                   killed_state kill_signal, ha_rows *rows)
 {
-  THD *tmp;
-  List<THD> threads_to_kill;
+  kill_threads_callback_arg arg(thd, user);
   DBUG_ENTER("kill_threads_for_user");
 
   *rows= 0;
@@ -9071,38 +9118,12 @@ static uint kill_threads_for_user(THD *thd, LEX_USER *user,
   DBUG_PRINT("enter", ("user: %s  signal: %u", user->user.str,
                        (uint) kill_signal));
 
-  mysql_mutex_lock(&LOCK_thread_count); // For unlink from list
-  I_List_iterator<THD> it(threads);
-  while ((tmp=it++))
-  {
-    if (!tmp->security_ctx->user)
-      continue;
-    /*
-      Check that hostname (if given) and user name matches.
+  if (server_threads.iterate(kill_threads_callback, &arg))
+    DBUG_RETURN(ER_KILL_DENIED_ERROR);
 
-      host.str[0] == '%' means that host name was not given. See sql_yacc.yy
-    */
-    if (((user->host.str[0] == '%' && !user->host.str[1]) ||
-         !strcmp(tmp->security_ctx->host_or_ip, user->host.str)) &&
-        !strcmp(tmp->security_ctx->user, user->user.str))
-    {
-      if (!(thd->security_ctx->master_access & SUPER_ACL) &&
-          !thd->security_ctx->user_matches(tmp->security_ctx))
-      {
-        mysql_mutex_unlock(&LOCK_thread_count);
-        DBUG_RETURN(ER_KILL_DENIED_ERROR);
-      }
-      if (!threads_to_kill.push_back(tmp, thd->mem_root))
-      {
-        if (WSREP(tmp)) mysql_mutex_lock(&tmp->LOCK_thd_data);
-        mysql_mutex_lock(&tmp->LOCK_thd_kill); // Lock from delete
-      }
-    }
-  }
-  mysql_mutex_unlock(&LOCK_thread_count);
-  if (!threads_to_kill.is_empty())
+  if (!arg.threads_to_kill.is_empty())
   {
-    List_iterator_fast<THD> it2(threads_to_kill);
+    List_iterator_fast<THD> it2(arg.threads_to_kill);
     THD *next_ptr;
     THD *ptr= it2++;
     do

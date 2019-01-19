@@ -2188,11 +2188,11 @@ public:
     mysql_mutex_init(key_delayed_insert_mutex, &mutex, MY_MUTEX_INIT_FAST);
     mysql_cond_init(key_delayed_insert_cond, &cond, NULL);
     mysql_cond_init(key_delayed_insert_cond_client, &cond_client, NULL);
-    mysql_mutex_lock(&LOCK_thread_count);
+    mysql_mutex_lock(&LOCK_delayed_insert);
     delayed_insert_threads++;
+    mysql_mutex_unlock(&LOCK_delayed_insert);
     delayed_lock= global_system_variables.low_priority_updates ?
                                           TL_WRITE_LOW_PRIORITY : TL_WRITE;
-    mysql_mutex_unlock(&LOCK_thread_count);
     DBUG_VOID_RETURN;
   }
   ~Delayed_insert()
@@ -2210,15 +2210,9 @@ public:
     mysql_cond_destroy(&cond);
     mysql_cond_destroy(&cond_client);
 
-    /*
-      We could use unlink_not_visible_threads() here, but as
-      delayed_insert_threads also needs to be protected by
-      the LOCK_thread_count mutex, we open code this.
-    */
-    mysql_mutex_lock(&LOCK_thread_count);
-    thd.unlink();				// Must be unlinked under lock
+    server_threads.erase(&thd);
+    mysql_mutex_assert_owner(&LOCK_delayed_insert);
     delayed_insert_threads--;
-    mysql_mutex_unlock(&LOCK_thread_count);
 
     my_free(thd.query());
     thd.security_ctx->user= 0;
@@ -2940,7 +2934,7 @@ pthread_handler_t handle_delayed_insert(void *arg)
   pthread_detach_this_thread();
   /* Add thread to THD list so that's it's visible in 'show processlist' */
   thd->set_start_time();
-  add_to_active_threads(thd);
+  server_threads.insert(thd);
   if (abort_loop)
     thd->set_killed(KILL_CONNECTION);
   else

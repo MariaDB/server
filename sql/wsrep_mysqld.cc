@@ -2204,22 +2204,16 @@ static inline bool is_committing_connection(THD *thd)
   return ret;
 }
 
-static bool have_client_connections()
+static my_bool have_client_connections(THD *thd, void*)
 {
-  THD *tmp;
-
-  I_List_iterator<THD> it(threads);
-  while ((tmp=it++))
+  DBUG_PRINT("quit",("Informing thread %lld that it's time to die",
+                     (longlong) thd->thread_id));
+  if (is_client_connection(thd) && thd->killed == KILL_CONNECTION)
   {
-    DBUG_PRINT("quit",("Informing thread %lld that it's time to die",
-                       (longlong) tmp->thread_id));
-    if (is_client_connection(tmp) && tmp->killed == KILL_CONNECTION)
-    {
-      (void)abort_replicated(tmp);
-      return true;
-    }
+    (void)abort_replicated(thd);
+    return 1;
   }
-  return false;
+  return 0;
 }
 
 static void wsrep_close_thread(THD *thd)
@@ -2240,41 +2234,56 @@ static void wsrep_close_thread(THD *thd)
   }
 }
 
-static my_bool have_committing_connections()
+static my_bool have_committing_connections(THD *thd, void *)
 {
-  THD *tmp;
-  mysql_mutex_lock(&LOCK_thread_count); // For unlink from list
-
-  I_List_iterator<THD> it(threads);
-  while ((tmp=it++))
-  {
-    if (!is_client_connection(tmp))
-      continue;
-
-    if (is_committing_connection(tmp))
-    {
-      mysql_mutex_unlock(&LOCK_thread_count);
-      return TRUE;
-    }
-  }
-  mysql_mutex_unlock(&LOCK_thread_count);
-  return FALSE;
+  return is_client_connection(thd) && is_committing_connection(thd) ? 1 : 0;
 }
 
 int wsrep_wait_committing_connections_close(int wait_time)
 {
   int sleep_time= 100;
 
-  while (have_committing_connections() && wait_time > 0)
+  while (server_threads.iterate(have_committing_connections) && wait_time > 0)
   {
     WSREP_DEBUG("wait for committing transaction to close: %d", wait_time);
     my_sleep(sleep_time);
     wait_time -= sleep_time;
   }
-  if (have_committing_connections())
+  return server_threads.iterate(have_committing_connections);
+}
+
+static my_bool kill_all_threads(THD *thd, THD *caller_thd)
+{
+  DBUG_PRINT("quit", ("Informing thread %lld that it's time to die",
+                      (longlong) thd->thread_id));
+  /* We skip slave threads & scheduler on this first loop through. */
+  if (is_client_connection(thd) && thd != caller_thd)
   {
-    return 1;
+    if (is_replaying_connection(thd))
+      thd->set_killed(KILL_CONNECTION);
+    else if (!abort_replicated(thd))
+    {
+      /* replicated transactions must be skipped */
+      WSREP_DEBUG("closing connection %lld", (longlong) thd->thread_id);
+      /* instead of wsrep_close_thread() we do now  soft kill by THD::awake */
+      thd->awake(KILL_CONNECTION);
+    }
   }
+  return 0;
+}
+
+static my_bool kill_remaining_threads(THD *thd, THD *caller_thd)
+{
+#ifndef __bsdi__				// Bug in BSDI kernel
+  if (is_client_connection(thd) &&
+      !abort_replicated(thd)    &&
+      !is_replaying_connection(thd) &&
+      thd != caller_thd)
+  {
+    WSREP_INFO("killing local connection: %lld", (longlong) thd->thread_id);
+    close_connection(thd, 0);
+  }
+#endif
   return 0;
 }
 
@@ -2284,45 +2293,13 @@ void wsrep_close_client_connections(my_bool wait_to_end, THD* except_caller_thd)
     First signal all threads that it's time to die
   */
 
-  THD *tmp;
   mysql_mutex_lock(&LOCK_thread_count); // For unlink from list
 
   bool kill_cached_threads_saved= kill_cached_threads;
   kill_cached_threads= true; // prevent future threads caching
   mysql_cond_broadcast(&COND_thread_cache); // tell cached threads to die
 
-  I_List_iterator<THD> it(threads);
-  while ((tmp=it++))
-  {
-    DBUG_PRINT("quit",("Informing thread %lld that it's time to die",
-                       (longlong) tmp->thread_id));
-    /* We skip slave threads & scheduler on this first loop through. */
-    if (!is_client_connection(tmp))
-      continue;
-
-    if (tmp == except_caller_thd)
-    {
-      DBUG_ASSERT(is_client_connection(tmp));
-      continue;
-    }
-
-    if (is_replaying_connection(tmp))
-    {
-      tmp->set_killed(KILL_CONNECTION);
-      continue;
-    }
-
-    /* replicated transactions must be skipped */
-    if (abort_replicated(tmp))
-      continue;
-
-    WSREP_DEBUG("closing connection %lld", (longlong) tmp->thread_id);
-
-    /*
-      instead of wsrep_close_thread() we do now  soft kill by THD::awake
-     */
-    tmp->awake(KILL_CONNECTION);
-  }
+  server_threads.iterate(kill_all_threads, except_caller_thd);
   mysql_mutex_unlock(&LOCK_thread_count);
 
   if (thread_count)
@@ -2332,26 +2309,12 @@ void wsrep_close_client_connections(my_bool wait_to_end, THD* except_caller_thd)
   /*
     Force remaining threads to die by closing the connection to the client
   */
-
-  I_List_iterator<THD> it2(threads);
-  while ((tmp=it2++))
-  {
-#ifndef __bsdi__				// Bug in BSDI kernel
-    if (is_client_connection(tmp) &&
-        !abort_replicated(tmp)    &&
-        !is_replaying_connection(tmp) &&
-        tmp != except_caller_thd)
-    {
-      WSREP_INFO("killing local connection: %lld", (longlong) tmp->thread_id);
-      close_connection(tmp,0);
-    }
-#endif
-  }
+  server_threads.iterate(kill_remaining_threads, except_caller_thd);
 
   DBUG_PRINT("quit",("Waiting for threads to die (count=%u)",thread_count));
   WSREP_DEBUG("waiting for client connections to close: %u", thread_count);
 
-  while (wait_to_end && have_client_connections())
+  while (wait_to_end && server_threads.iterate(have_client_connections))
   {
     mysql_cond_wait(&COND_thread_count, &LOCK_thread_count);
     DBUG_PRINT("quit",("One thread died (count=%u)", thread_count));
@@ -2371,25 +2334,22 @@ void wsrep_close_applier(THD *thd)
   wsrep_close_thread(thd);
 }
 
+static my_bool wsrep_close_threads_callback(THD *thd, THD *caller_thd)
+{
+  DBUG_PRINT("quit",("Informing thread %lld that it's time to die",
+                     (longlong) thd->thread_id));
+  /* We skip slave threads & scheduler on this first loop through. */
+  if (thd->wsrep_applier && thd != caller_thd)
+  {
+    WSREP_DEBUG("closing wsrep thread %lld", (longlong) thd->thread_id);
+    wsrep_close_thread(thd);
+  }
+  return 0;
+}
+
 void wsrep_close_threads(THD *thd)
 {
-  THD *tmp;
-  mysql_mutex_lock(&LOCK_thread_count); // For unlink from list
-
-  I_List_iterator<THD> it(threads);
-  while ((tmp=it++))
-  {
-    DBUG_PRINT("quit",("Informing thread %lld that it's time to die",
-                       (longlong) tmp->thread_id));
-    /* We skip slave threads & scheduler on this first loop through. */
-    if (tmp->wsrep_applier && tmp != thd)
-    {
-      WSREP_DEBUG("closing wsrep thread %lld", (longlong) tmp->thread_id);
-      wsrep_close_thread (tmp);
-    }
-  }
-
-  mysql_mutex_unlock(&LOCK_thread_count);
+  server_threads.iterate(wsrep_close_threads_callback, thd);
 }
 
 void wsrep_wait_appliers_close(THD *thd)
@@ -2730,7 +2690,7 @@ void* start_wsrep_THD(void *arg)
     goto error;
   }
 
-  mysql_mutex_lock(&LOCK_thread_count);
+  statistic_increment(thread_created, &LOCK_status);
 
   if (wsrep_gtid_mode)
   {
@@ -2739,14 +2699,13 @@ void* start_wsrep_THD(void *arg)
   }
 
   thd->real_id=pthread_self(); // Keep purify happy
-  thread_created++;
-  threads.append(thd);
 
   my_net_init(&thd->net,(st_vio*) 0, thd, MYF(0));
 
   DBUG_PRINT("wsrep",(("creating thread %lld"), (long long)thd->thread_id));
   thd->prior_thr_create_utime= thd->start_utime= microsecond_interval_timer();
-  (void) mysql_mutex_unlock(&LOCK_thread_count);
+
+  server_threads.insert(thd);
 
   /* from bootstrap()... */
   thd->bootstrap=1;
@@ -2842,7 +2801,7 @@ void* start_wsrep_THD(void *arg)
     */
   }
 
-  unlink_not_visible_thd(thd);
+  server_threads.erase(thd);
   delete thd;
   my_thread_end();
   return(NULL);

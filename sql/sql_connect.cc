@@ -1360,7 +1360,7 @@ void do_handle_one_connection(CONNECT *connect)
   delete connect;
 
   /* Make THD visible in show processlist */
-  add_to_active_threads(thd);
+  server_threads.insert(thd);
   
   thd->thr_create_utime= thr_create_utime;
   /* We need to set this because of time_out_user_resource_limits */

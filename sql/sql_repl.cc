@@ -527,57 +527,46 @@ static enum enum_binlog_checksum_alg get_binlog_checksum_value_at_connect(THD * 
       Now they sync is done for next read.
 */
 
+static my_bool adjust_callback(THD *thd, my_off_t *purge_offset)
+{
+  mysql_mutex_lock(&thd->LOCK_thd_data);
+  if (auto linfo= thd->current_linfo)
+  {
+    /*
+      Index file offset can be less that purge offset only if
+      we just started reading the index file. In that case
+      we have nothing to adjust
+    */
+    if (linfo->index_file_offset < *purge_offset)
+      linfo->fatal= (linfo->index_file_offset != 0);
+    else
+      linfo->index_file_offset-= *purge_offset;
+  }
+  mysql_mutex_unlock(&thd->LOCK_thd_data);
+  return 0;
+}
+
+
 void adjust_linfo_offsets(my_off_t purge_offset)
 {
-  THD *tmp;
+  server_threads.iterate(adjust_callback, &purge_offset);
+}
 
-  mysql_mutex_lock(&LOCK_thread_count);
-  I_List_iterator<THD> it(threads);
 
-  while ((tmp=it++))
-  {
-    LOG_INFO* linfo;
-    mysql_mutex_lock(&tmp->LOCK_thd_data);
-    if ((linfo = tmp->current_linfo))
-    {
-      /*
-	Index file offset can be less that purge offset only if
-	we just started reading the index file. In that case
-	we have nothing to adjust
-      */
-      if (linfo->index_file_offset < purge_offset)
-	linfo->fatal = (linfo->index_file_offset != 0);
-      else
-	linfo->index_file_offset -= purge_offset;
-    }
-    mysql_mutex_unlock(&tmp->LOCK_thd_data);
-  }
-  mysql_mutex_unlock(&LOCK_thread_count);
+static my_bool log_in_use_callback(THD *thd, const char *log_name)
+{
+  my_bool result= 0;
+  mysql_mutex_lock(&thd->LOCK_thd_data);
+  if (auto linfo= thd->current_linfo)
+    result= !memcmp(log_name, linfo->log_file_name, strlen(log_name) + 1);
+  mysql_mutex_unlock(&thd->LOCK_thd_data);
+  return result;
 }
 
 
 bool log_in_use(const char* log_name)
 {
-  size_t log_name_len = strlen(log_name) + 1;
-  THD *tmp;
-  bool result = 0;
-
-  mysql_mutex_lock(&LOCK_thread_count);
-  I_List_iterator<THD> it(threads);
-
-  while ((tmp=it++))
-  {
-    LOG_INFO* linfo;
-    mysql_mutex_lock(&tmp->LOCK_thd_data);
-    if ((linfo = tmp->current_linfo))
-      result = !memcmp(log_name, linfo->log_file_name, log_name_len);
-    mysql_mutex_unlock(&tmp->LOCK_thd_data);
-    if (result)
-      break;
-  }
-
-  mysql_mutex_unlock(&LOCK_thread_count);
-  return result;
+  return server_threads.iterate(log_in_use_callback, log_name);
 }
 
 bool purge_error_message(THD* thd, int res)
@@ -3367,31 +3356,40 @@ err:
     slave_server_id     the slave's server id
 */
 
+struct kill_callback_arg
+{
+  kill_callback_arg(uint32 id): slave_server_id(id), thd(0) {}
+  uint32 slave_server_id;
+  THD *thd;
+};
+
+static my_bool kill_callback(THD *thd, kill_callback_arg *arg)
+{
+  if (thd->get_command() == COM_BINLOG_DUMP &&
+      thd->variables.server_id == arg->slave_server_id)
+  {
+    arg->thd= thd;
+    mysql_mutex_lock(&thd->LOCK_thd_kill);    // Lock from delete
+    return 1;
+  }
+  return 0;
+}
+
+
 void kill_zombie_dump_threads(uint32 slave_server_id)
 {
-  mysql_mutex_lock(&LOCK_thread_count);
-  I_List_iterator<THD> it(threads);
-  THD *tmp;
+  kill_callback_arg arg(slave_server_id);
+  server_threads.iterate(kill_callback, &arg);
 
-  while ((tmp=it++))
-  {
-    if (tmp->get_command() == COM_BINLOG_DUMP &&
-       tmp->variables.server_id == slave_server_id)
-    {
-      mysql_mutex_lock(&tmp->LOCK_thd_kill);    // Lock from delete
-      break;
-    }
-  }
-  mysql_mutex_unlock(&LOCK_thread_count);
-  if (tmp)
+  if (arg.thd)
   {
     /*
       Here we do not call kill_one_thread() as
       it will be slow because it will iterate through the list
       again. We just to do kill the thread ourselves.
     */
-    tmp->awake_no_mutex(KILL_SLAVE_SAME_ID);
-    mysql_mutex_unlock(&tmp->LOCK_thd_kill);
+    arg.thd->awake_no_mutex(KILL_SLAVE_SAME_ID);
+    mysql_mutex_unlock(&arg.thd->LOCK_thd_kill);
   }
 }
 

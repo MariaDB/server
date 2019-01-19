@@ -2734,13 +2734,111 @@ static const char *thread_state_info(THD *tmp)
 }
 
 
+struct list_callback_arg
+{
+  list_callback_arg(const char *u, THD *t, ulong m):
+    user(u), thd(t), max_query_length(m) {}
+  I_List<thread_info> thread_infos;
+  const char *user;
+  THD *thd;
+  ulong max_query_length;
+};
+
+
+static my_bool list_callback(THD *tmp, list_callback_arg *arg)
+{
+
+  Security_context *tmp_sctx= tmp->security_ctx;
+  bool got_thd_data;
+  if ((tmp->vio_ok() || tmp->system_thread) &&
+      (!arg->user || (!tmp->system_thread &&
+                      tmp_sctx->user && !strcmp(tmp_sctx->user, arg->user))))
+  {
+    thread_info *thd_info= new (arg->thd->mem_root) thread_info;
+
+    thd_info->thread_id=tmp->thread_id;
+    thd_info->os_thread_id=tmp->os_thread_id;
+    thd_info->user= arg->thd->strdup(tmp_sctx->user ? tmp_sctx->user :
+                                     (tmp->system_thread ?
+                                     "system user" : "unauthenticated user"));
+    if (tmp->peer_port && (tmp_sctx->host || tmp_sctx->ip) &&
+        arg->thd->security_ctx->host_or_ip[0])
+    {
+      if ((thd_info->host= (char*) arg->thd->alloc(LIST_PROCESS_HOST_LEN+1)))
+        my_snprintf((char *) thd_info->host, LIST_PROCESS_HOST_LEN,
+                    "%s:%u", tmp_sctx->host_or_ip, tmp->peer_port);
+    }
+    else
+      thd_info->host= arg->thd->strdup(tmp_sctx->host_or_ip[0] ?
+                                       tmp_sctx->host_or_ip :
+                                       tmp_sctx->host ? tmp_sctx->host : "");
+    thd_info->command=(int) tmp->get_command();
+
+    if ((got_thd_data= !trylock_short(&tmp->LOCK_thd_data)))
+    {
+      /* This is an approximation */
+      thd_info->proc_info= (char*) (tmp->killed >= KILL_QUERY ?
+                                    "Killed" : 0);
+
+      /* The following variables are only safe to access under a lock */
+      thd_info->db= 0;
+      if (tmp->db.str)
+        thd_info->db= arg->thd->strmake(tmp->db.str, tmp->db.length);
+
+      if (tmp->query())
+      {
+        uint length= MY_MIN(arg->max_query_length, tmp->query_length());
+        char *q= arg->thd->strmake(tmp->query(),length);
+        /* Safety: in case strmake failed, we set length to 0. */
+        thd_info->query_string=
+          CSET_STRING(q, q ? length : 0, tmp->query_charset());
+      }
+
+      /*
+        Progress report. We need to do this under a lock to ensure that all
+        is from the same stage.
+      */
+      if (tmp->progress.max_counter)
+      {
+        uint max_stage= MY_MAX(tmp->progress.max_stage, 1);
+        thd_info->progress= (((tmp->progress.stage / (double) max_stage) +
+                              ((tmp->progress.counter /
+                                (double) tmp->progress.max_counter) /
+                               (double) max_stage)) *
+                             100.0);
+        set_if_smaller(thd_info->progress, 100);
+      }
+      else
+        thd_info->progress= 0.0;
+    }
+    else
+    {
+      thd_info->proc_info= "Busy";
+      thd_info->progress= 0.0;
+      thd_info->db= "";
+    }
+
+    thd_info->state_info= thread_state_info(tmp);
+    thd_info->start_time= tmp->start_utime;
+    ulonglong utime_after_query_snapshot= tmp->utime_after_query;
+    if (thd_info->start_time < utime_after_query_snapshot)
+      thd_info->start_time= utime_after_query_snapshot; // COM_SLEEP
+
+    if (got_thd_data)
+      mysql_mutex_unlock(&tmp->LOCK_thd_data);
+    arg->thread_infos.append(thd_info);
+  }
+  return 0;
+}
+
+
 void mysqld_list_processes(THD *thd,const char *user, bool verbose)
 {
   Item *field;
   List<Item> field_list;
-  I_List<thread_info> thread_infos;
-  ulong max_query_length= (verbose ? thd->variables.max_allowed_packet :
-			   PROCESS_LIST_WIDTH);
+  list_callback_arg arg(user, thd,
+                        verbose ? thd->variables.max_allowed_packet :
+                        PROCESS_LIST_WIDTH);
   Protocol *protocol= thd->protocol;
   MEM_ROOT *mem_root= thd->mem_root;
   DBUG_ENTER("mysqld_list_processes");
@@ -2771,7 +2869,7 @@ void mysqld_list_processes(THD *thd,const char *user, bool verbose)
                        mem_root);
   field->maybe_null=1;
   field_list.push_back(field=new (mem_root)
-                       Item_empty_string(thd, "Info", max_query_length),
+                       Item_empty_string(thd, "Info", arg.max_query_length),
                        mem_root);
   field->maybe_null=1;
   if (!thd->variables.old_mode &&
@@ -2790,102 +2888,13 @@ void mysqld_list_processes(THD *thd,const char *user, bool verbose)
   if (thd->killed)
     DBUG_VOID_RETURN;
 
-  mysql_mutex_lock(&LOCK_thread_count); // For unlink from list
-  I_List_iterator<THD> it(threads);
-  THD *tmp;
-  while ((tmp=it++))
-  {
-    Security_context *tmp_sctx= tmp->security_ctx;
-    bool got_thd_data;
-    if ((tmp->vio_ok() || tmp->system_thread) &&
-        (!user || (!tmp->system_thread &&
-                   tmp_sctx->user && !strcmp(tmp_sctx->user, user))))
-    {
-      thread_info *thd_info= new (thd->mem_root) thread_info;
+  server_threads.iterate(list_callback, &arg);
 
-      thd_info->thread_id=tmp->thread_id;
-      thd_info->os_thread_id=tmp->os_thread_id;
-      thd_info->user= thd->strdup(tmp_sctx->user ? tmp_sctx->user :
-                                  (tmp->system_thread ?
-                                   "system user" : "unauthenticated user"));
-      if (tmp->peer_port && (tmp_sctx->host || tmp_sctx->ip) &&
-          thd->security_ctx->host_or_ip[0])
-      {
-        if ((thd_info->host= (char*) thd->alloc(LIST_PROCESS_HOST_LEN+1)))
-          my_snprintf((char *) thd_info->host, LIST_PROCESS_HOST_LEN,
-                      "%s:%u", tmp_sctx->host_or_ip, tmp->peer_port);
-      }
-      else
-        thd_info->host= thd->strdup(tmp_sctx->host_or_ip[0] ?
-                                    tmp_sctx->host_or_ip :
-                                    tmp_sctx->host ? tmp_sctx->host : "");
-      thd_info->command=(int) tmp->get_command();
-
-      if ((got_thd_data= !trylock_short(&tmp->LOCK_thd_data)))
-      {
-        /* This is an approximation */
-        thd_info->proc_info= (char*) (tmp->killed >= KILL_QUERY ?
-                                      "Killed" : 0);
-        /*
-          The following variables are only safe to access under a lock
-        */
-
-        thd_info->db= 0;
-        if (tmp->db.str)
-          thd_info->db= thd->strmake(tmp->db.str, tmp->db.length);
-
-        if (tmp->query())
-        {
-          uint length= MY_MIN(max_query_length, tmp->query_length());
-          char *q= thd->strmake(tmp->query(),length);
-          /* Safety: in case strmake failed, we set length to 0. */
-          thd_info->query_string=
-            CSET_STRING(q, q ? length : 0, tmp->query_charset());
-        }
-
-        /*
-          Progress report. We need to do this under a lock to ensure that all
-          is from the same stage.
-        */
-        if (tmp->progress.max_counter)
-        {
-          uint max_stage= MY_MAX(tmp->progress.max_stage, 1);
-          thd_info->progress= (((tmp->progress.stage / (double) max_stage) +
-                                ((tmp->progress.counter /
-                                  (double) tmp->progress.max_counter) /
-                                 (double) max_stage)) *
-                               100.0);
-          set_if_smaller(thd_info->progress, 100);
-        }
-        else
-          thd_info->progress= 0.0;
-      }
-      else
-      {
-        thd_info->proc_info= "Busy";
-        thd_info->progress= 0.0;
-        thd_info->db= "";
-      }
-
-      thd_info->state_info= thread_state_info(tmp);
-      thd_info->start_time= tmp->start_utime;
-      ulonglong utime_after_query_snapshot= tmp->utime_after_query;
-      if (thd_info->start_time < utime_after_query_snapshot)
-        thd_info->start_time= utime_after_query_snapshot; // COM_SLEEP
-
-      if (got_thd_data)
-        mysql_mutex_unlock(&tmp->LOCK_thd_data);
-      thread_infos.append(thd_info);
-    }
-  }
-  mysql_mutex_unlock(&LOCK_thread_count);
-
-  thread_info *thd_info;
   ulonglong now= microsecond_interval_timer();
   char buff[20];                                // For progress
   String store_buffer(buff, sizeof(buff), system_charset_info);
 
-  while ((thd_info=thread_infos.get()))
+  while (auto thd_info= arg.thread_infos.get())
   {
     protocol->prepare_for_resend();
     protocol->store(thd_info->thread_id);
@@ -3169,152 +3178,150 @@ int fill_show_explain(THD *thd, TABLE_LIST *table, COND *cond)
 }
 
 
-int fill_schema_processlist(THD* thd, TABLE_LIST* tables, COND* cond)
+struct processlist_callback_arg
 {
-  TABLE *table= tables->table;
+  processlist_callback_arg(THD *thd_arg, TABLE *table_arg):
+    thd(thd_arg), table(table_arg), unow(microsecond_interval_timer()) {}
+  THD *thd;
+  TABLE *table;
+  ulonglong unow;
+};
+
+
+static my_bool processlist_callback(THD *tmp, processlist_callback_arg *arg)
+{
+  Security_context *tmp_sctx= tmp->security_ctx;
   CHARSET_INFO *cs= system_charset_info;
-  char *user;
-  ulonglong unow= microsecond_interval_timer();
-  DBUG_ENTER("fill_schema_processlist");
+  const char *val;
+  ulonglong max_counter;
+  bool got_thd_data;
+  char *user= arg->thd->security_ctx->master_access & PROCESS_ACL ?
+              NullS : arg->thd->security_ctx->priv_user;
 
-  DEBUG_SYNC(thd,"fill_schema_processlist_after_unow");
+  if ((!tmp->vio_ok() && !tmp->system_thread) ||
+      (user && (tmp->system_thread || !tmp_sctx->user ||
+                strcmp(tmp_sctx->user, user))))
+    return 0;
 
-  user= thd->security_ctx->master_access & PROCESS_ACL ?
-        NullS : thd->security_ctx->priv_user;
-
-  mysql_mutex_lock(&LOCK_thread_count);
-
-  if (!thd->killed)
+  restore_record(arg->table, s->default_values);
+  /* ID */
+  arg->table->field[0]->store((longlong) tmp->thread_id, TRUE);
+  /* USER */
+  val= tmp_sctx->user ? tmp_sctx->user :
+        (tmp->system_thread ? "system user" : "unauthenticated user");
+  arg->table->field[1]->store(val, strlen(val), cs);
+  /* HOST */
+  if (tmp->peer_port && (tmp_sctx->host || tmp_sctx->ip) &&
+      arg->thd->security_ctx->host_or_ip[0])
   {
-    I_List_iterator<THD> it(threads);
-    THD* tmp;
+    char host[LIST_PROCESS_HOST_LEN + 1];
+    my_snprintf(host, LIST_PROCESS_HOST_LEN, "%s:%u",
+                tmp_sctx->host_or_ip, tmp->peer_port);
+    arg->table->field[2]->store(host, strlen(host), cs);
+  }
+  else
+    arg->table->field[2]->store(tmp_sctx->host_or_ip,
+                                strlen(tmp_sctx->host_or_ip), cs);
 
-    while ((tmp= it++))
+  if ((got_thd_data= !trylock_short(&tmp->LOCK_thd_data)))
+  {
+    /* DB */
+    if (tmp->db.str)
     {
-      Security_context *tmp_sctx= tmp->security_ctx;
-      const char *val;
-      ulonglong max_counter;
-      bool got_thd_data;
-
-      if ((!tmp->vio_ok() && !tmp->system_thread) ||
-          (user && (tmp->system_thread || !tmp_sctx->user ||
-                    strcmp(tmp_sctx->user, user))))
-        continue;
-
-      restore_record(table, s->default_values);
-      /* ID */
-      table->field[0]->store((longlong) tmp->thread_id, TRUE);
-      /* USER */
-      val= tmp_sctx->user ? tmp_sctx->user :
-            (tmp->system_thread ? "system user" : "unauthenticated user");
-      table->field[1]->store(val, strlen(val), cs);
-      /* HOST */
-      if (tmp->peer_port && (tmp_sctx->host || tmp_sctx->ip) &&
-          thd->security_ctx->host_or_ip[0])
-      {
-        char host[LIST_PROCESS_HOST_LEN + 1];
-        my_snprintf(host, LIST_PROCESS_HOST_LEN, "%s:%u",
-                    tmp_sctx->host_or_ip, tmp->peer_port);
-        table->field[2]->store(host, strlen(host), cs);
-      }
-      else
-        table->field[2]->store(tmp_sctx->host_or_ip,
-                               strlen(tmp_sctx->host_or_ip), cs);
-
-      if ((got_thd_data= !trylock_short(&tmp->LOCK_thd_data)))
-      {
-        /* DB */
-        if (tmp->db.str)
-        {
-          table->field[3]->store(tmp->db.str, tmp->db.length, cs);
-          table->field[3]->set_notnull();
-        }
-      }
-
-      /* COMMAND */
-      if ((val= (char *) (!got_thd_data ? "Busy" :
-                          (tmp->killed >= KILL_QUERY ?
-                           "Killed" : 0))))
-        table->field[4]->store(val, strlen(val), cs);
-      else
-        table->field[4]->store(command_name[tmp->get_command()].str,
-                               command_name[tmp->get_command()].length, cs);
-
-      /* MYSQL_TIME */
-      ulonglong utime= tmp->start_utime;
-      ulonglong utime_after_query_snapshot= tmp->utime_after_query;
-      if (utime < utime_after_query_snapshot)
-        utime= utime_after_query_snapshot; // COM_SLEEP
-      utime= utime && utime < unow ? unow - utime : 0;
-
-      table->field[5]->store(utime / HRTIME_RESOLUTION, TRUE);
-
-      if (got_thd_data)
-      {
-        if (tmp->query())
-        {
-          table->field[7]->store(tmp->query(),
-                                 MY_MIN(PROCESS_LIST_INFO_WIDTH,
-                                        tmp->query_length()), cs);
-          table->field[7]->set_notnull();
-
-          /* INFO_BINARY */
-          table->field[16]->store(tmp->query(),
-                                  MY_MIN(PROCESS_LIST_INFO_WIDTH,
-                                         tmp->query_length()),
-                                  &my_charset_bin);
-          table->field[16]->set_notnull();
-        }
-
-        /*
-          Progress report. We need to do this under a lock to ensure that all
-          is from the same stage.
-        */
-        if ((max_counter= tmp->progress.max_counter))
-        {
-          table->field[9]->store((longlong) tmp->progress.stage + 1, 1);
-          table->field[10]->store((longlong) tmp->progress.max_stage, 1);
-          table->field[11]->store((double) tmp->progress.counter /
-                                  (double) max_counter*100.0);
-        }
-        mysql_mutex_unlock(&tmp->LOCK_thd_data);
-      }
-
-      /* STATE */
-      if ((val= thread_state_info(tmp)))
-      {
-        table->field[6]->store(val, strlen(val), cs);
-        table->field[6]->set_notnull();
-      }
-
-      /* TIME_MS */
-      table->field[8]->store((double)(utime / (HRTIME_RESOLUTION / 1000.0)));
-
-      /*
-        This may become negative if we free a memory allocated by another
-        thread in this thread. However it's better that we notice it eventually
-        than hide it.
-      */
-      table->field[12]->store((longlong) tmp->status_var.local_memory_used,
-                              FALSE);
-      table->field[13]->store((longlong) tmp->status_var.max_local_memory_used,
-                              FALSE);
-      table->field[14]->store((longlong) tmp->get_examined_row_count(), TRUE);
-
-      /* QUERY_ID */
-      table->field[15]->store(tmp->query_id, TRUE);
-
-      table->field[17]->store(tmp->os_thread_id);
-
-      if (schema_table_store_record(thd, table))
-      {
-        mysql_mutex_unlock(&LOCK_thread_count);
-        DBUG_RETURN(1);
-      }
+      arg->table->field[3]->store(tmp->db.str, tmp->db.length, cs);
+      arg->table->field[3]->set_notnull();
     }
   }
 
-  mysql_mutex_unlock(&LOCK_thread_count);
+  /* COMMAND */
+  if ((val= (char *) (!got_thd_data ? "Busy" :
+                      (tmp->killed >= KILL_QUERY ?
+                       "Killed" : 0))))
+    arg->table->field[4]->store(val, strlen(val), cs);
+  else
+    arg->table->field[4]->store(command_name[tmp->get_command()].str,
+                                command_name[tmp->get_command()].length, cs);
+
+  /* MYSQL_TIME */
+  ulonglong utime= tmp->start_utime;
+  ulonglong utime_after_query_snapshot= tmp->utime_after_query;
+  if (utime < utime_after_query_snapshot)
+    utime= utime_after_query_snapshot; // COM_SLEEP
+  utime= utime && utime < arg->unow ? arg->unow - utime : 0;
+
+  arg->table->field[5]->store(utime / HRTIME_RESOLUTION, TRUE);
+
+  if (got_thd_data)
+  {
+    if (tmp->query())
+    {
+      arg->table->field[7]->store(tmp->query(),
+                                  MY_MIN(PROCESS_LIST_INFO_WIDTH,
+                                  tmp->query_length()), cs);
+      arg->table->field[7]->set_notnull();
+
+      /* INFO_BINARY */
+      arg->table->field[16]->store(tmp->query(),
+                                   MY_MIN(PROCESS_LIST_INFO_WIDTH,
+                                          tmp->query_length()),
+                                   &my_charset_bin);
+      arg->table->field[16]->set_notnull();
+    }
+
+    /*
+      Progress report. We need to do this under a lock to ensure that all
+      is from the same stage.
+    */
+    if ((max_counter= tmp->progress.max_counter))
+    {
+      arg->table->field[9]->store((longlong) tmp->progress.stage + 1, 1);
+      arg->table->field[10]->store((longlong) tmp->progress.max_stage, 1);
+      arg->table->field[11]->store((double) tmp->progress.counter /
+                                   (double) max_counter*100.0);
+    }
+    mysql_mutex_unlock(&tmp->LOCK_thd_data);
+  }
+
+  /* STATE */
+  if ((val= thread_state_info(tmp)))
+  {
+    arg->table->field[6]->store(val, strlen(val), cs);
+    arg->table->field[6]->set_notnull();
+  }
+
+  /* TIME_MS */
+  arg->table->field[8]->store((double)(utime / (HRTIME_RESOLUTION / 1000.0)));
+
+  /*
+    This may become negative if we free a memory allocated by another
+    thread in this thread. However it's better that we notice it eventually
+    than hide it.
+  */
+  arg->table->field[12]->store((longlong) tmp->status_var.local_memory_used,
+                               FALSE);
+  arg->table->field[13]->store((longlong) tmp->status_var.max_local_memory_used,
+                               FALSE);
+  arg->table->field[14]->store((longlong) tmp->get_examined_row_count(), TRUE);
+
+  /* QUERY_ID */
+  arg->table->field[15]->store(tmp->query_id, TRUE);
+
+  arg->table->field[17]->store(tmp->os_thread_id);
+
+  if (schema_table_store_record(arg->thd, arg->table))
+    return 1;
+  return 0;
+}
+
+
+int fill_schema_processlist(THD* thd, TABLE_LIST* tables, COND* cond)
+{
+  processlist_callback_arg arg(thd, tables->table);
+  DBUG_ENTER("fill_schema_processlist");
+  DEBUG_SYNC(thd,"fill_schema_processlist_after_unow");
+  if (!thd->killed &&
+      server_threads.iterate(processlist_callback, &arg))
+    DBUG_RETURN(1);
   DBUG_RETURN(0);
 }
 
@@ -3770,36 +3777,38 @@ end:
   Return number of threads used
 */
 
+struct calc_sum_callback_arg
+{
+  calc_sum_callback_arg(STATUS_VAR *to_arg): to(to_arg), count(0) {}
+  STATUS_VAR *to;
+  uint count;
+};
+
+
+static my_bool calc_sum_callback(THD *thd, calc_sum_callback_arg *arg)
+{
+  arg->count++;
+  if (!thd->status_in_global)
+  {
+    add_to_status(arg->to, &thd->status_var);
+    arg->to->local_memory_used+= thd->status_var.local_memory_used;
+  }
+  if (thd->get_command() != COM_SLEEP)
+    arg->to->threads_running++;
+  return 0;
+}
+
+
 uint calc_sum_of_all_status(STATUS_VAR *to)
 {
-  uint count= 0;
+  calc_sum_callback_arg arg(to);
   DBUG_ENTER("calc_sum_of_all_status");
 
-  /* Ensure that thread id not killed during loop */
-  mysql_mutex_lock(&LOCK_thread_count); // For unlink from list
-
-  I_List_iterator<THD> it(threads);
-  THD *tmp;
-
-  /* Get global values as base */
   *to= global_status_var;
   to->local_memory_used= 0;
-
   /* Add to this status from existing threads */
-  while ((tmp= it++))
-  {
-    count++;
-    if (!tmp->status_in_global)
-    {
-      add_to_status(to, &tmp->status_var);
-      to->local_memory_used+= tmp->status_var.local_memory_used;
-    }
-    if (tmp->get_command() != COM_SLEEP)
-      to->threads_running++;
-  }
-  
-  mysql_mutex_unlock(&LOCK_thread_count);
-  DBUG_RETURN(count);
+  server_threads.iterate(calc_sum_callback, &arg);
+  DBUG_RETURN(arg.count);
 }
 
 

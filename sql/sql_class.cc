@@ -1639,8 +1639,8 @@ THD::~THD()
   THD *orig_thd= current_thd;
   THD_CHECK_SENTRY(this);
   DBUG_ENTER("~THD()");
-  /* Check that we have already called thd->unlink() */
-  DBUG_ASSERT(prev == 0 && next == 0);
+  /* Make sure threads are not available via server_threads.  */
+  assert_not_linked();
   /* This takes a long time so we should not do this under LOCK_thread_count */
   mysql_mutex_assert_not_owner(&LOCK_thread_count);
 
@@ -4772,14 +4772,14 @@ MYSQL_THD create_thd()
   thd->set_command(COM_DAEMON);
   thd->system_thread= SYSTEM_THREAD_GENERIC;
   thd->security_ctx->host_or_ip="";
-  add_to_active_threads(thd);
+  server_threads.insert(thd);
   return thd;
 }
 
 void destroy_thd(MYSQL_THD thd)
 {
   thd->add_status_to_global();
-  unlink_not_visible_thd(thd);
+  server_threads.erase(thd);
   delete thd;
 }
 

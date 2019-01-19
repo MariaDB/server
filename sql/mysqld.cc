@@ -651,25 +651,10 @@ Le_creator le_creator;
 
 int bootstrap_error;
 
-I_List<THD> threads;
+THD_list server_threads;
 Rpl_filter* cur_rpl_filter;
 Rpl_filter* global_rpl_filter;
 Rpl_filter* binlog_filter;
-
-THD *first_global_thread()
-{
-  if (threads.is_empty())
-    return NULL;
-  return threads.head();
-}
-
-THD *next_global_thread(THD *thd)
-{
-  if (threads.is_last(thd))
-    return NULL;
-  struct ilink *next= thd->next;
-  return static_cast<THD*>(next);
-}
 
 struct system_variables global_system_variables;
 /**
@@ -707,12 +692,7 @@ pthread_key(THD*, THR_THD);
 /*
   LOCK_thread_count protects the following variables:
   thread_count		Number of threads with THD that servers queries.
-  threads		Linked list of active THD's.
-		        The effect of this is that one can't unlink and
-                        delete a THD as long as one has locked
-                        LOCK_thread_count.
-   ready_to_exit
-   delayed_insert_threads
+  ready_to_exit
 */
 mysql_mutex_t LOCK_thread_count;
 
@@ -910,7 +890,7 @@ PSI_mutex_key key_BINLOG_LOCK_index, key_BINLOG_LOCK_xid_list,
   key_structure_guard_mutex, key_TABLE_SHARE_LOCK_ha_data,
   key_LOCK_error_messages,
   key_LOCK_start_thread,
-  key_LOCK_thread_count, key_LOCK_thread_cache,
+  key_LOCK_thread_count, key_Thread_map_mutex, key_LOCK_thread_cache,
   key_PARTITION_LOCK_auto_inc;
 PSI_mutex_key key_RELAYLOG_LOCK_index;
 PSI_mutex_key key_LOCK_relaylog_end_pos;
@@ -1004,6 +984,7 @@ static PSI_mutex_info all_server_mutexes[]=
   { &key_LOCK_commit_ordered, "LOCK_commit_ordered", PSI_FLAG_GLOBAL},
   { &key_LOCK_slave_background, "LOCK_slave_background", PSI_FLAG_GLOBAL},
   { &key_LOCK_thread_count, "LOCK_thread_count", PSI_FLAG_GLOBAL},
+  { &key_Thread_map_mutex, "Thread_map::mutex", PSI_FLAG_GLOBAL },
   { &key_LOCK_thread_cache, "LOCK_thread_cache", PSI_FLAG_GLOBAL},
   { &key_PARTITION_LOCK_auto_inc, "HA_DATA_PARTITION::LOCK_auto_inc", 0},
   { &key_LOCK_slave_state, "LOCK_slave_state", 0},
@@ -1549,6 +1530,106 @@ static void end_ssl();
 ** Code to end mysqld
 ****************************************************************************/
 
+static my_bool kill_all_threads(THD *thd, void *)
+{
+  DBUG_PRINT("quit", ("Informing thread %ld that it's time to die",
+                      (ulong) thd->thread_id));
+  /* We skip slave threads on this first loop through. */
+  if (thd->slave_thread)
+    return 0;
+
+  if (DBUG_EVALUATE_IF("only_kill_system_threads", !thd->system_thread, 0))
+    return 0;
+
+#ifdef WITH_WSREP
+  /* skip wsrep system threads as well */
+  if (WSREP(thd) && (wsrep_thd_is_applying(thd) || thd->wsrep_applier))
+    return 0;
+#endif
+  thd->set_killed(KILL_SERVER_HARD);
+  MYSQL_CALLBACK(thread_scheduler, post_kill_notification, (thd));
+  if (WSREP(thd)) mysql_mutex_lock(&thd->LOCK_thd_data);
+  mysql_mutex_lock(&thd->LOCK_thd_kill);
+  if (thd->mysys_var)
+  {
+    thd->mysys_var->abort= 1;
+    mysql_mutex_lock(&thd->mysys_var->mutex);
+    if (thd->mysys_var->current_cond)
+    {
+      for (uint i= 0; i < 2; i++)
+      {
+        int ret= mysql_mutex_trylock(thd->mysys_var->current_mutex);
+        mysql_cond_broadcast(thd->mysys_var->current_cond);
+        if (!ret)
+        {
+          /* Thread has surely got the signal, unlock and abort */
+          mysql_mutex_unlock(thd->mysys_var->current_mutex);
+          break;
+        }
+        sleep(1);
+      }
+    }
+    mysql_mutex_unlock(&thd->mysys_var->mutex);
+  }
+  mysql_mutex_unlock(&thd->LOCK_thd_kill);
+  if (WSREP(thd)) mysql_mutex_unlock(&thd->LOCK_thd_data);
+  return 0;
+}
+
+
+static my_bool kill_all_threads_once_again(THD *thd, void *)
+{
+#ifndef __bsdi__				// Bug in BSDI kernel
+  if (thd->vio_ok())
+  {
+    if (global_system_variables.log_warnings)
+      sql_print_warning(ER_DEFAULT(ER_FORCING_CLOSE), my_progname,
+                        (ulong) thd->thread_id,
+                        (thd->main_security_ctx.user ?
+                         thd->main_security_ctx.user : ""));
+    /*
+      close_connection() might need a valid current_thd
+      for memory allocation tracking.
+    */
+    THD *save_thd= current_thd;
+    set_current_thd(thd);
+    close_connection(thd, ER_SERVER_SHUTDOWN);
+    set_current_thd(save_thd);
+  }
+#endif
+
+#ifdef WITH_WSREP
+  /*
+   * WSREP_TODO:
+   *       this code block may turn out redundant. wsrep->disconnect()
+   *       should terminate slave threads gracefully, and we don't need
+   *       to signal them here.
+   *       The code here makes sure mysqld will not hang during shutdown
+   *       even if wsrep provider has problems in shutting down.
+   */
+  if (WSREP(thd) && wsrep_thd_is_applying(thd))
+  {
+    sql_print_information("closing wsrep system thread");
+    thd->set_killed(KILL_CONNECTION);
+    MYSQL_CALLBACK(thread_scheduler, post_kill_notification, (thd));
+    if (thd->mysys_var)
+    {
+      thd->mysys_var->abort=1;
+      mysql_mutex_lock(&thd->mysys_var->mutex);
+      if (thd->mysys_var->current_cond)
+      {
+        mysql_mutex_lock(thd->mysys_var->current_mutex);
+        mysql_cond_broadcast(thd->mysys_var->current_cond);
+        mysql_mutex_unlock(thd->mysys_var->current_mutex);
+      }
+      mysql_mutex_unlock(&thd->mysys_var->mutex);
+    }
+  }
+#endif
+  return 0;
+}
+
+
 static void close_connections(void)
 {
 #ifdef EXTRA_DEBUG
@@ -1626,58 +1707,7 @@ static void close_connections(void)
     This will give the threads some time to gracefully abort their
     statements and inform their clients that the server is about to die.
   */
-
-  THD *tmp;
-  mysql_mutex_lock(&LOCK_thread_count); // For unlink from list
-
-  I_List_iterator<THD> it(threads);
-  while ((tmp=it++))
-  {
-    DBUG_PRINT("quit",("Informing thread %ld that it's time to die",
-		       (ulong) tmp->thread_id));
-    /* We skip slave threads on this first loop through. */
-    if (tmp->slave_thread)
-      continue;
-
-    /* cannot use 'continue' inside DBUG_EXECUTE_IF()... */
-    if (DBUG_EVALUATE_IF("only_kill_system_threads", !tmp->system_thread, 0))
-      continue;
-
-#ifdef WITH_WSREP
-    /* skip wsrep system threads as well */
-    if (WSREP(tmp) && (wsrep_thd_is_applying(tmp) || tmp->wsrep_applier))
-      continue;
-#endif
-    tmp->set_killed(KILL_SERVER_HARD);
-    MYSQL_CALLBACK(thread_scheduler, post_kill_notification, (tmp));
-    if (WSREP(tmp)) mysql_mutex_lock(&tmp->LOCK_thd_data);
-    mysql_mutex_lock(&tmp->LOCK_thd_kill);
-    if (tmp->mysys_var)
-    {
-      tmp->mysys_var->abort=1;
-      mysql_mutex_lock(&tmp->mysys_var->mutex);
-      if (tmp->mysys_var->current_cond)
-      {
-        uint i;
-        for (i=0; i < 2; i++)
-        {
-          int ret= mysql_mutex_trylock(tmp->mysys_var->current_mutex);
-          mysql_cond_broadcast(tmp->mysys_var->current_cond);
-          if (!ret)
-          {
-            /* Thread has surely got the signal, unlock and abort */
-            mysql_mutex_unlock(tmp->mysys_var->current_mutex);
-            break;
-          }
-          sleep(1);
-        }
-      }
-      mysql_mutex_unlock(&tmp->mysys_var->mutex);
-    }
-    mysql_mutex_unlock(&tmp->LOCK_thd_kill);
-    if (WSREP(tmp)) mysql_mutex_unlock(&tmp->LOCK_thd_data);
-  }
-  mysql_mutex_unlock(&LOCK_thread_count); // For unlink from list
+  server_threads.iterate(kill_all_threads);
 
   Events::deinit();
   slave_prepare_for_shutdown();
@@ -1708,65 +1738,8 @@ static void close_connections(void)
     This will ensure that threads that are waiting for a command from the
     client on a blocking read call are aborted.
   */
+  server_threads.iterate(kill_all_threads_once_again);
 
-  for (;;)
-  {
-    mysql_mutex_lock(&LOCK_thread_count); // For unlink from list
-    if (!(tmp=threads.get()))
-    {
-      mysql_mutex_unlock(&LOCK_thread_count);
-      break;
-    }
-#ifndef __bsdi__				// Bug in BSDI kernel
-    if (tmp->vio_ok())
-    {
-      if (global_system_variables.log_warnings)
-        sql_print_warning(ER_DEFAULT(ER_FORCING_CLOSE),my_progname,
-                          (ulong) tmp->thread_id,
-                          (tmp->main_security_ctx.user ?
-                           tmp->main_security_ctx.user : ""));
-      /*
-        close_connection() might need a valid current_thd
-        for memory allocation tracking.
-      */
-      THD* save_thd= current_thd;
-      set_current_thd(tmp);
-      close_connection(tmp,ER_SERVER_SHUTDOWN);
-      set_current_thd(save_thd);
-    }
-#endif
-
-#ifdef WITH_WSREP
-    /*
-     * WSREP_TODO:
-     *       this code block may turn out redundant. wsrep->disconnect()
-     *       should terminate slave threads gracefully, and we don't need
-     *       to signal them here. 
-     *       The code here makes sure mysqld will not hang during shutdown
-     *       even if wsrep provider has problems in shutting down.
-     */
-    if (WSREP(tmp) && wsrep_thd_is_applying(tmp))
-    {
-      sql_print_information("closing wsrep system thread");
-      tmp->set_killed(KILL_CONNECTION);
-      MYSQL_CALLBACK(thread_scheduler, post_kill_notification, (tmp));
-      if (tmp->mysys_var)
-      {
-        tmp->mysys_var->abort=1;
-        mysql_mutex_lock(&tmp->mysys_var->mutex);
-        if (tmp->mysys_var->current_cond)
-        {
-          mysql_mutex_lock(tmp->mysys_var->current_mutex);
-          mysql_cond_broadcast(tmp->mysys_var->current_cond);
-          mysql_mutex_unlock(tmp->mysys_var->current_mutex);
-        }
-        mysql_mutex_unlock(&tmp->mysys_var->mutex);
-      }
-    }
-#endif
-    DBUG_PRINT("quit",("Unlocking LOCK_thread_count"));
-    mysql_mutex_unlock(&LOCK_thread_count);
-  }
   end_slave();
 #ifdef WITH_WSREP
   if (wsrep_inited == 1)
@@ -2249,6 +2222,7 @@ static void wait_for_signal_thread_to_end()
 static void clean_up_mutexes()
 {
   DBUG_ENTER("clean_up_mutexes");
+  server_threads.destroy();
   mysql_rwlock_destroy(&LOCK_grant);
   mysql_mutex_destroy(&LOCK_thread_count);
   mysql_mutex_destroy(&LOCK_thread_cache);
@@ -2798,7 +2772,7 @@ void unlink_thd(THD *thd)
 
   thd->cleanup();
   thd->add_status_to_global();
-  unlink_not_visible_thd(thd);
+  server_threads.erase(thd);
 
 #ifdef WITH_WSREP
   /*
@@ -2910,7 +2884,7 @@ static bool cache_thread(THD *thd)
       thd->thr_create_utime= microsecond_interval_timer();
       thd->start_utime= thd->thr_create_utime;
 
-      add_to_active_threads(thd);
+      server_threads.insert(thd);
       DBUG_RETURN(1);
     }
   }
@@ -4627,6 +4601,7 @@ static int init_common_variables()
 static int init_thread_environment()
 {
   DBUG_ENTER("init_thread_environment");
+  server_threads.init();
   mysql_mutex_init(key_LOCK_thread_count, &LOCK_thread_count, MY_MUTEX_INIT_FAST);
   mysql_mutex_init(key_LOCK_thread_cache, &LOCK_thread_cache, MY_MUTEX_INIT_FAST);
   mysql_mutex_init(key_LOCK_start_thread, &LOCK_start_thread, MY_MUTEX_INIT_FAST);
@@ -8265,7 +8240,6 @@ static int mysql_init_variables(void)
   global_query_id= 1;
   global_thread_id= 0;
   strnmov(server_version, MYSQL_SERVER_VERSION, sizeof(server_version)-1);
-  threads.empty();
   thread_cache.empty();
   key_caches.empty();
   if (!(dflt_key_cache= get_or_create_key_cache(default_key_cache_base.str,
@@ -9973,6 +9947,14 @@ static my_thread_id thread_id_max= UINT_MAX32;
   @param[out] low  - lower bound for the range
   @param[out] high - upper bound for the range
 */
+
+static my_bool recalculate_callback(THD *thd, std::vector<my_thread_id> *ids)
+{
+  ids->push_back(thd->thread_id);
+  return 0;
+}
+
+
 static void recalculate_thread_id_range(my_thread_id *low, my_thread_id *high)
 {
   std::vector<my_thread_id> ids;
@@ -9980,15 +9962,7 @@ static void recalculate_thread_id_range(my_thread_id *low, my_thread_id *high)
   // Add sentinels
   ids.push_back(0);
   ids.push_back(UINT_MAX32);
-
-  mysql_mutex_lock(&LOCK_thread_count);
-
-  I_List_iterator<THD> it(threads);
-  THD *thd;
-  while ((thd=it++))
-    ids.push_back(thd->thread_id);
-
-  mysql_mutex_unlock(&LOCK_thread_count);
+  server_threads.iterate(recalculate_callback, &ids);
 
   std::sort(ids.begin(), ids.end());
   my_thread_id max_gap= 0;
