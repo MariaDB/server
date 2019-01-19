@@ -38,9 +38,19 @@ SELECT COUNT(*) > 0 FROM mysql.wsrep_streaming_log;
 --connection node_2
 --let $wsrep_cluster_address_orig = `SELECT @@wsrep_cluster_address`
 SET GLOBAL wsrep_cluster_address = '';
---sleep 2
+
+# Wait until the node_2 disconnects from the cluster
+SET SESSION wsrep_sync_wait = 0;
+--let $wait_condition = SELECT VARIABLE_VALUE = 'Disconnected' FROM INFORMATION_SCHEMA.GLOBAL_STATUS WHERE VARIABLE_NAME = 'wsrep_cluster_status'
+--source include/wait_condition.inc
+SET SESSION wsrep_sync_wait = default;
 
 --connection node_1
+
+# Wait until the node_1 sees the cluster configuration change
+--let $wait_condition = SELECT VARIABLE_VALUE = 1 FROM INFORMATION_SCHEMA.GLOBAL_STATUS WHERE VARIABLE_NAME = 'wsrep_cluster_size'
+--source include/wait_condition.inc
+
 # Continue generating events in the transaction 
 
 INSERT INTO t1 VALUES (6);
@@ -55,9 +65,8 @@ SELECT COUNT(*) > 0 FROM mysql.wsrep_streaming_log;
 
 --connection node_2
 --disable_query_log
---eval SET GLOBAL wsrep_cluster_address='gcomm://127.0.0.1:$NODE_GALERAPORT_1';
+--eval SET GLOBAL wsrep_cluster_address='$wsrep_cluster_address_orig';
 --enable_query_log
---sleep 2
 --source include/galera_wait_ready.inc
 
 # Confirm that the SR table still contains entries from ongoing transaction
@@ -84,3 +93,5 @@ SELECT COUNT(*) = 0 FROM mysql.wsrep_streaming_log;
 SELECT COUNT(*) = 0 FROM mysql.wsrep_streaming_log;
 
 DROP TABLE t1;
+
+CALL mtr.add_suppression("points to own listening address, blacklisting");
