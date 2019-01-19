@@ -3297,15 +3297,18 @@ public:
   void awake_no_mutex(killed_state state_to_set);
   void awake(killed_state state_to_set)
   {
+    bool wsrep_on_local= WSREP_ON;
     /*
       mutex locking order (LOCK_thd_data - LOCK_thd_kill)) requires
       to grab LOCK_thd_data here
     */
-    mysql_mutex_lock(&LOCK_thd_data);
+    if (wsrep_on_local)
+      mysql_mutex_lock(&LOCK_thd_data);
     mysql_mutex_lock(&LOCK_thd_kill);
     awake_no_mutex(state_to_set);
     mysql_mutex_unlock(&LOCK_thd_kill);
-    mysql_mutex_unlock(&LOCK_thd_data);
+    if (wsrep_on_local)
+      mysql_mutex_unlock(&LOCK_thd_data);
   }
  
   /** Disconnect the associated communication endpoint. */
