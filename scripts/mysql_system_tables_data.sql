@@ -37,7 +37,7 @@ REPLACE INTO tmp_user_nopasswd SELECT @current_hostname,'root',@all_privileges F
 REPLACE INTO tmp_user_nopasswd VALUES ('127.0.0.1','root',@all_privileges);
 REPLACE INTO tmp_user_nopasswd VALUES ('::1','root',@all_privileges);
 -- More secure root account using unix socket auth.
-INSERT INTO tmp_user_socket VALUES ('localhost',IFNULL(@auth_root_socket, 'root'),@all_privileges);
+INSERT INTO tmp_user_socket VALUES ('localhost',IFNULL(@auth_root_socket, 'root'),json_set(@all_privileges, '$.plugin', 'unix_socket'));
 IF @auth_root_socket is not null THEN
   IF not exists(select 1 from information_schema.plugins where plugin_name='unix_socket') THEN
      INSTALL SONAME 'auth_socket'; END IF; END IF;
