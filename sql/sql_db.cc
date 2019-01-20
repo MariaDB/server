@@ -882,7 +882,7 @@ mysql_rm_db_internal(THD *thd, const LEX_CSTRING *db, bool if_exists, bool silen
       lock_db_routines(thd, dbnorm))
     goto exit;
 
-  if (!in_bootstrap && !rm_mysql_schema)
+  if (!thd->bootstrap && !rm_mysql_schema)
   {
     for (table= tables; table; table= table->next_local)
     {

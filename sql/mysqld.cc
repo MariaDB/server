@@ -400,20 +400,6 @@ uint volatile global_disable_checkpoint;
 #if defined(_WIN32) && !defined(EMBEDDED_LIBRARY)
 ulong slow_start_timeout;
 #endif
-/*
-  True if the bootstrap thread is running. Protected by LOCK_start_thread.
-  Used in bootstrap() function to determine if the bootstrap thread
-  has completed. Note, that we can't use 'thread_count' instead,
-  since in 5.1, in presence of the Event Scheduler, there may be
-  event threads running in parallel, so it's impossible to know
-  what value of 'thread_count' is a sign of completion of the
-  bootstrap thread.
-
-  At the same time, we can't start the event scheduler after
-  bootstrap either, since we want to be able to process event-related
-  SQL commands in the init file and in --bootstrap mode.
-*/
-bool volatile in_bootstrap= FALSE;
 /**
    @brief 'grant_option' is used to indicate if privileges needs
    to be checked, in which case the lock, LOCK_grant, is used
@@ -663,7 +649,6 @@ Lt_creator lt_creator;
 Ge_creator ge_creator;
 Le_creator le_creator;
 
-MYSQL_FILE *bootstrap_file;
 int bootstrap_error;
 
 I_List<THD> threads;
@@ -736,7 +721,6 @@ mysql_mutex_t LOCK_thread_count;
   other threads.
 
   It also protects these variables:
-  in_bootstrap
   select_thread_in_use
   slave_init_thread_running
   check_temp_dir() call
@@ -1542,7 +1526,6 @@ void handle_connections_sockets();
 #endif
 
 pthread_handler_t kill_server_thread(void *arg);
-static void bootstrap(MYSQL_FILE *file);
 static bool read_init_file(char *file_name);
 pthread_handler_t handle_slave(void *arg);
 static void clean_up(bool print_message);
@@ -6318,54 +6301,6 @@ int mysqld_main(int argc, char **argv)
   return 0;
 }
 #endif
-
-
-/**
-  Execute all commands from a file. Used by the mysql_install_db script to
-  create MySQL privilege tables without having to start a full MySQL server
-  and by read_init_file() if mysqld was started with the option --init-file.
-*/
-
-static void bootstrap(MYSQL_FILE *file)
-{
-  DBUG_ENTER("bootstrap");
-
-  THD *thd= new THD(next_thread_id());
-#ifdef WITH_WSREP
-  thd->variables.wsrep_on= 0;
-#endif
-  thd->bootstrap=1;
-  my_net_init(&thd->net,(st_vio*) 0, thd, MYF(0));
-  thd->max_client_packet_length= thd->net.max_packet;
-  thd->security_ctx->master_access= ~(ulong)0;
-  in_bootstrap= TRUE;
-
-  bootstrap_file=file;
-#ifndef EMBEDDED_LIBRARY			// TODO:  Enable this
-  int error;
-  if ((error= mysql_thread_create(key_thread_bootstrap,
-                                  &thd->real_id, &connection_attrib,
-                                  handle_bootstrap,
-                                  (void*) thd)))
-  {
-    sql_print_warning("Can't create thread to handle bootstrap (errno= %d)",
-                      error);
-    bootstrap_error=-1;
-    delete thd;
-    DBUG_VOID_RETURN;
-  }
-  /* Wait for thread to die */
-  mysql_mutex_lock(&LOCK_thread_count);
-  while (in_bootstrap)
-    mysql_cond_wait(&COND_thread_count, &LOCK_thread_count);
-  mysql_mutex_unlock(&LOCK_thread_count);
-#else
-  thd->mysql= 0;
-  do_handle_bootstrap(thd);
-#endif
-
-  DBUG_VOID_RETURN;
-}
 
 
 static bool read_init_file(char *file_name)

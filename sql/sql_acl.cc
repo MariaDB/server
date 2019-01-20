@@ -3318,7 +3318,7 @@ static int check_alter_user(THD *thd, const char *host, const char *user)
 
   if (IF_WSREP((!WSREP(thd) || !thd->wsrep_applier), 1) &&
       !thd->slave_thread && !thd->security_ctx->priv_user[0] &&
-      !in_bootstrap)
+      !thd->bootstrap)
   {
     my_message(ER_PASSWORD_ANONYMOUS_USER,
                ER_THD(thd, ER_PASSWORD_ANONYMOUS_USER),

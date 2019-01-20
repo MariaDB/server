@@ -2104,7 +2104,7 @@ bool mysql_rm_table(THD *thd,TABLE_LIST *tables, bool if_exists,
       }
     }
     /* We remove statistics for table last, after we have the DDL lock */
-    if (!in_bootstrap)
+    if (!thd->bootstrap)
     {
       for (table= tables; table; table= table->next_local)
       {

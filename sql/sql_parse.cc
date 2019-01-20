@@ -979,15 +979,28 @@ static char *fgets_fn(char *buffer, size_t size, fgets_input_t input, int *error
 }
 
 
-static void handle_bootstrap_impl(THD *thd)
+void bootstrap(MYSQL_FILE *file)
 {
-  MYSQL_FILE *file= bootstrap_file;
-  DBUG_ENTER("handle_bootstrap_impl");
+  DBUG_ENTER("handle_bootstrap");
+
+  THD *thd= new THD(next_thread_id());
+#ifdef WITH_WSREP
+  thd->variables.wsrep_on= 0;
+#endif
+  thd->bootstrap=1;
+  my_net_init(&thd->net,(st_vio*) 0, thd, MYF(0));
+  thd->max_client_packet_length= thd->net.max_packet;
+  thd->security_ctx->master_access= ~(ulong)0;
 
 #ifndef EMBEDDED_LIBRARY
-  pthread_detach_this_thread();
+  mysql_thread_set_psi_id(thd->thread_id);
+#else
+  thd->mysql= 0;
+#endif
+
+  /* The following must be called before DBUG_ENTER */
   thd->thread_stack= (char*) &thd;
-#endif /* EMBEDDED_LIBRARY */
+  thd->store_globals();
 
   thd->security_ctx->user= (char*) my_strdup("boot", MYF(MY_WME));
   thd->security_ctx->priv_user[0]= thd->security_ctx->priv_host[0]=
@@ -1095,56 +1108,8 @@ static void handle_bootstrap_impl(THD *thd)
     free_root(&thd->transaction.mem_root,MYF(MY_KEEP_PREALLOC));
     thd->lex->restore_set_statement_var();
   }
-
-  DBUG_VOID_RETURN;
-}
-
-
-/**
-  Execute commands from bootstrap_file.
-
-  Used when creating the initial grant tables.
-*/
-
-pthread_handler_t handle_bootstrap(void *arg)
-{
-  THD *thd=(THD*) arg;
-
-  mysql_thread_set_psi_id(thd->thread_id);
-
-  do_handle_bootstrap(thd);
-  return 0;
-}
-
-void do_handle_bootstrap(THD *thd)
-{
-  /* The following must be called before DBUG_ENTER */
-  thd->thread_stack= (char*) &thd;
-  if (my_thread_init() || thd->store_globals())
-  {
-#ifndef EMBEDDED_LIBRARY
-    close_connection(thd, ER_OUT_OF_RESOURCES);
-#endif
-    thd->fatal_error();
-    goto end;
-  }
-
-  handle_bootstrap_impl(thd);
-
-end:
   delete thd;
-
-  mysql_mutex_lock(&LOCK_thread_count);
-  in_bootstrap = FALSE;
-  mysql_cond_broadcast(&COND_thread_count);
-  mysql_mutex_unlock(&LOCK_thread_count);
-
-#ifndef EMBEDDED_LIBRARY
-  my_thread_end();
-  pthread_exit(0);
-#endif
-
-  return;
+  DBUG_VOID_RETURN;
 }
 
 
