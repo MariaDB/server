@@ -1353,7 +1353,11 @@ public:
   void mark_columns_per_binlog_row_image(void);
   bool mark_virtual_col(Field *field);
   void mark_virtual_columns_for_write(bool insert_fl);
-  void mark_default_fields_for_write();
+  void mark_default_fields_for_write(MY_BITMAP* bset);
+  inline void mark_default_fields_for_write()
+  {
+    mark_default_fields_for_write(write_set);
+  }
   bool has_default_function(bool is_update);
   inline void column_bitmaps_set(MY_BITMAP *read_set_arg,
                                  MY_BITMAP *write_set_arg)

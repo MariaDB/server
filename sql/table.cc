@@ -6137,6 +6137,8 @@ void TABLE::mark_columns_per_binlog_row_image()
         mark_columns_used_by_index_no_reset(s->primary_key, read_set);
         /* Only write columns that have changed */
         rpl_write_set= write_set;
+        if (default_field)
+          mark_default_fields_for_write(rpl_write_set);
         break;
 
       default:
@@ -6283,7 +6285,7 @@ bool TABLE::has_default_function(bool is_update)
   Add all fields that have a default function to the table write set.
 */
 
-void TABLE::mark_default_fields_for_write()
+void TABLE::mark_default_fields_for_write(MY_BITMAP* bset)
 {
   Field **dfield_ptr, *dfield;
   enum_sql_command cmd= in_use->lex->sql_command;
@@ -6294,7 +6296,7 @@ void TABLE::mark_default_fields_for_write()
          dfield->has_insert_default_function()) ||
         ((sql_command_flags[cmd] & CF_UPDATES_DATA) &&
          dfield->has_update_default_function()))
-      bitmap_set_bit(write_set, dfield->field_index);
+      bitmap_set_bit(bset, dfield->field_index);
   }
 }
 
