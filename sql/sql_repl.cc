@@ -537,9 +537,9 @@ void adjust_linfo_offsets(my_off_t purge_offset)
   while ((tmp=it++))
   {
     LOG_INFO* linfo;
+    mysql_mutex_lock(&tmp->LOCK_thd_data);
     if ((linfo = tmp->current_linfo))
     {
-      mysql_mutex_lock(&linfo->lock);
       /*
 	Index file offset can be less that purge offset only if
 	we just started reading the index file. In that case
@@ -549,8 +549,8 @@ void adjust_linfo_offsets(my_off_t purge_offset)
 	linfo->fatal = (linfo->index_file_offset != 0);
       else
 	linfo->index_file_offset -= purge_offset;
-      mysql_mutex_unlock(&linfo->lock);
     }
+    mysql_mutex_unlock(&tmp->LOCK_thd_data);
   }
   mysql_mutex_unlock(&LOCK_thread_count);
 }
@@ -568,14 +568,12 @@ bool log_in_use(const char* log_name)
   while ((tmp=it++))
   {
     LOG_INFO* linfo;
+    mysql_mutex_lock(&tmp->LOCK_thd_data);
     if ((linfo = tmp->current_linfo))
-    {
-      mysql_mutex_lock(&linfo->lock);
       result = !memcmp(log_name, linfo->log_file_name, log_name_len);
-      mysql_mutex_unlock(&linfo->lock);
-      if (result)
-	break;
-    }
+    mysql_mutex_unlock(&tmp->LOCK_thd_data);
+    if (result)
+      break;
   }
 
   mysql_mutex_unlock(&LOCK_thread_count);

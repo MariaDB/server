@@ -4934,15 +4934,15 @@ public:
   }
   /*
     Reset current_linfo
-    Setting current_linfo to 0 needs to be done with LOCK_thread_count to
+    Setting current_linfo to 0 needs to be done with LOCK_thd_data to
     ensure that adjust_linfo_offsets doesn't use a structure that may
     be deleted.
   */
   inline void reset_current_linfo()
   {
-    mysql_mutex_lock(&LOCK_thread_count);
+    mysql_mutex_lock(&LOCK_thd_data);
     current_linfo= 0;
-    mysql_mutex_unlock(&LOCK_thread_count);
+    mysql_mutex_unlock(&LOCK_thd_data);
   }
 
 
