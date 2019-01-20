@@ -412,18 +412,18 @@ create table t1 (c VARCHAR(8)) DEFAULT CHARSET=latin1;
 insert into t1 values ('abc'),('def');
 select json_object('foo', json_unquote(json_object('bar', c)),'qux', c) as fld from t1;
 fld
-{"foo": "{\"bar\": \"abc\"}", "qux": "abc"}
-{"foo": "{\"bar\": \"def\"}", "qux": "def"}
+{"foo": {\"bar\": \"abc\"}, "qux": "abc"}
+{"foo": {\"bar\": \"def\"}, "qux": "def"}
 drop table t1;
 select json_object("a", json_object("b", "abcd"));
 json_object("a", json_object("b", "abcd"))
-{"a": {"b": "abcd"}}
+{"a": {\"b\": \"abcd\"}}
 select json_object("a", '{"b": "abcd"}');
 json_object("a", '{"b": "abcd"}')
 {"a": "{\"b\": \"abcd\"}"}
 select json_object("a", json_compact('{"b": "abcd"}'));
 json_object("a", json_compact('{"b": "abcd"}'))
-{"a": {"b": "abcd"}}
+{"a": {\"b\":\"abcd\"}}
 select json_compact(NULL);
 json_compact(NULL)
 NULL
@@ -859,3 +859,55 @@ json_length	json_depnth
 #
 # End of 10.3 tests
 #
+#
+# MDEV-18284 JSON casting using JSON_COMPACT doesn't always work
+#            with values from subqueries
+#
+CREATE TABLE json_test(a JSON, b JSON, c JSON, d JSON);
+INSERT INTO json_test VALUES ("[1, 2,  3]", '{"bobj":"  foo "}', "[5 ,6 ,7 ]", '"MDEV_18284-string"');
+DESC json_test;
+Field	Type	Null	Key	Default	Extra
+a	longtext	YES		NULL	
+b	longtext	YES		NULL	
+c	longtext	YES		NULL	
+d	longtext	YES		NULL	
+SELECT * FROM json_test;
+a	b	c	d
+[1, 2,  3]	{"bobj":"  foo "}	[5 ,6 ,7 ]	"MDEV_18284-string"
+
+SELECT a, JSON_COMPACT(a), JSON_COMPACT(b), JSON_COMPACT(c), JSON_COMPACT(d) FROM json_test;
+a	JSON_COMPACT(a)	JSON_COMPACT(b)	JSON_COMPACT(c)	JSON_COMPACT(d)
+[1, 2,  3]	[1,2,3]	{"bobj":"  foo "}	[5,6,7]	"MDEV_18284-string"
+
+SELECT JSON_OBJECT ("a_compact", JSON_COMPACT(a)), JSON_OBJECT("b_compact", JSON_COMPACT(b)),
+JSON_OBJECT("c_compact", JSON_COMPACT(c)), JSON_OBJECT("d_compact", JSON_COMPACT(d)) FROM
+(SELECT * FROM json_test) AS derived_table;
+JSON_OBJECT ("a_compact", JSON_COMPACT(a))	JSON_OBJECT("b_compact", JSON_COMPACT(b))	JSON_OBJECT("c_compact", JSON_COMPACT(c))	JSON_OBJECT("d_compact", JSON_COMPACT(d))
+{"a_compact": [1,2,3]}	{"b_compact": {\"bobj\":\"  foo \"}}	{"c_compact": [5,6,7]}	{"d_compact": \"MDEV_18284-string\"}
+
+SELECT JSON_OBJECT ("a_compact_derived", JSON_COMPACT(derived_table.a)) FROM
+(SELECT * FROM json_test) AS derived_table;
+JSON_OBJECT ("a_compact_derived", JSON_COMPACT(derived_table.a))
+{"a_compact_derived": [1,2,3]}
+
+SELECT JSON_OBJECT ("a_compact", JSON_COMPACT(a), "b_compact", JSON_COMPACT(b), "c_compact", JSON_COMPACT(c), "d_compact", JSON_COMPACT(d))
+FROM (SELECT * FROM json_test) AS derived_table;
+JSON_OBJECT ("a_compact", JSON_COMPACT(a), "b_compact", JSON_COMPACT(b), "c_compact", JSON_COMPACT(c), "d_compact", JSON_COMPACT(d))
+{"a_compact": [1,2,3], "b_compact": {\"bobj\":\"  foo \"}, "c_compact": [5,6,7], "d_compact": \"MDEV_18284-string\"}
+
+SELECT JSON_OBJECT ("A", a, "a_compact", JSON_COMPACT(a), "B", b, "c", c, "c_compact", JSON_COMPACT(c), "d_compact", JSON_COMPACT(d))
+FROM (SELECT * FROM json_test) AS derived_table;
+JSON_OBJECT ("A", a, "a_compact", JSON_COMPACT(a), "B", b, "c", c, "c_compact", JSON_COMPACT(c), "d_compact", JSON_COMPACT(d))
+{"A": [1, 2,  3], "a_compact": [1,2,3], "B": {\"bobj\":\"  foo \"}, "c": [5 ,6 ,7 ], "c_compact": [5,6,7], "d_compact": \"MDEV_18284-string\"}
+
+set names utf8;
+SET @j = '[ 1 , 2 ]';
+SELECT JSON_OBJECT("a",JSON_COMPACT(@j));
+JSON_OBJECT("a",JSON_COMPACT(@j))
+{"a": [1,2]}
+
+SELECT JSON_OBJECT("a",JSON_COMPACT(@j), "b", @j);
+JSON_OBJECT("a",JSON_COMPACT(@j), "b", @j)
+{"a": [1,2], "b": [ 1 , 2 ]}
+
+DROP TABLE json_test;
