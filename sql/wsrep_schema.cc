@@ -329,7 +329,6 @@ static int update_or_insert(TABLE* table) {
                   table->s->db.str,
                   table->s->table_name.str,
                   error);
-      table->file->print_error(error, MYF(0));
       ret= 1;
     }
   }
@@ -344,7 +343,6 @@ static int update_or_insert(TABLE* table) {
                   table->s->db.str,
                   table->s->table_name.str,
                   error);
-      table->file->print_error(error, MYF(0));
       ret= 1;
     }
   }
@@ -374,7 +372,6 @@ static int insert(TABLE* table) {
                 table->s->db.str,
                 table->s->table_name.str,
                 error);
-    table->file->print_error(error, MYF(0));
     ret= 1;
   }
 
@@ -395,7 +392,6 @@ static int delete_row(TABLE* table) {
                 table->s->db.str,
                 table->s->table_name.str,
                 error);
-    table->file->print_error(error, MYF(0));
     return 1;
   }
   return 0;
@@ -941,7 +937,6 @@ int Wsrep_schema::update_fragment_meta(THD* thd,
                  frag_table->s->table_name.str,
                  error);
     }
-    frag_table->file->print_error(error, MYF(0));
     Wsrep_schema_impl::finish_stmt(thd);
     DBUG_RETURN(1);
   }
@@ -957,7 +952,6 @@ int Wsrep_schema::update_fragment_meta(THD* thd,
                 frag_table->s->db.str,
                 frag_table->s->table_name.str,
                 error);
-    frag_table->file->print_error(error, MYF(0));
     Wsrep_schema_impl::finish_stmt(thd);
     DBUG_RETURN(1);
   }
@@ -1008,7 +1002,6 @@ static int remove_fragment(THD*                  thd,
                  seqno.get(),
                  error);
     }
-    frag_table->file->print_error(error, MYF(0));
     ret= error;
   }
   else if (Wsrep_schema_impl::delete_row(frag_table))
@@ -1135,7 +1128,8 @@ int Wsrep_schema::replay_transaction(THD* thd,
                                                       key_map);
     if (error)
     {
-      frag_table->file->print_error(error, MYF(0));
+      WSREP_WARN("Failed to init streaming log table for index scan: %d",
+                 error);
       Wsrep_schema_impl::end_index_scan(frag_table);
       ret= 1;
       break;
@@ -1171,7 +1165,8 @@ int Wsrep_schema::replay_transaction(THD* thd,
                                                   key_map);
     if (error)
     {
-      frag_table->file->print_error(error, MYF(0));
+      WSREP_WARN("Failed to init streaming log table for index scan: %d",
+                 error);
       Wsrep_schema_impl::end_index_scan(frag_table);
       ret= 1;
       break;
@@ -1180,7 +1175,7 @@ int Wsrep_schema::replay_transaction(THD* thd,
     error= Wsrep_schema_impl::delete_row(frag_table);
     if (error)
     {
-      frag_table->file->print_error(error, MYF(0));
+      WSREP_WARN("Could not delete row from streaming log table: %d", error);
       Wsrep_schema_impl::end_index_scan(frag_table);
       ret= 1;
       break;
