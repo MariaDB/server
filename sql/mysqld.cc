@@ -5965,12 +5965,11 @@ int mysqld_main(int argc, char **argv)
     }
     else
     {
+      wsrep_init_globals();
       if (!wsrep_before_SE())
       {
         wsrep_init_startup (false);
       }
-
-      wsrep_init_globals();
       wsrep_create_appliers(wsrep_slave_threads - 1);
     }
   }
