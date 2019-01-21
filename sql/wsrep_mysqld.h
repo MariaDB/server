@@ -176,6 +176,9 @@ bool wsrep_before_SE(); // initialize wsrep before storage
  * @param before wsrep_before_SE() value */
 void wsrep_init_startup(bool before);
 
+/* Recover streaming transactions from fragment storage */
+void wsrep_recover_sr_from_storage(THD *);
+
 // Other wsrep global variables
 extern my_bool     wsrep_inited; // whether wsrep is initialized ?
 

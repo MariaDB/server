@@ -1,6 +1,10 @@
+connection node_2;
+connection node_1;
+connection node_2;
 SELECT COUNT(*) = 0 FROM mysql.wsrep_streaming_log;
 COUNT(*) = 0
 1
+connection node_1;
 SELECT COUNT(*) = 0 FROM mysql.wsrep_streaming_log;
 COUNT(*) = 0
 1
@@ -16,10 +20,15 @@ INSERT INTO t1 VALUES (5);
 SELECT COUNT(*) > 0 FROM mysql.wsrep_streaming_log;
 COUNT(*) > 0
 1
+connection node_2;
 SELECT COUNT(*) > 0 FROM mysql.wsrep_streaming_log;
 COUNT(*) > 0
 1
+connection node_2;
 SET GLOBAL wsrep_cluster_address = '';
+SET SESSION wsrep_sync_wait = 0;
+SET SESSION wsrep_sync_wait = default;
+connection node_1;
 INSERT INTO t1 VALUES (6);
 INSERT INTO t1 VALUES (7);
 INSERT INTO t1 VALUES (8);
@@ -28,9 +37,11 @@ INSERT INTO t1 VALUES (10);
 SELECT COUNT(*) > 0 FROM mysql.wsrep_streaming_log;
 COUNT(*) > 0
 1
+connection node_2;
 SELECT COUNT(*) > 0 FROM mysql.wsrep_streaming_log;
 COUNT(*) > 0
 1
+connection node_1;
 INSERT INTO t1 VALUES (11);
 INSERT INTO t1 VALUES (12);
 INSERT INTO t1 VALUES (13);
@@ -40,7 +51,9 @@ COMMIT;
 SELECT COUNT(*) = 0 FROM mysql.wsrep_streaming_log;
 COUNT(*) = 0
 1
+connection node_2;
 SELECT COUNT(*) = 0 FROM mysql.wsrep_streaming_log;
 COUNT(*) = 0
 1
 DROP TABLE t1;
+CALL mtr.add_suppression("points to own listening address, blacklisting");

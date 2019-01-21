@@ -227,6 +227,20 @@ void Wsrep_server_service::log_view(
   }
 }
 
+void Wsrep_server_service::recover_streaming_appliers(wsrep::client_service& cs)
+{
+  Wsrep_client_service& client_service= static_cast<Wsrep_client_service&>(cs);
+  wsrep_recover_sr_from_storage(client_service.m_thd);
+}
+
+void Wsrep_server_service::recover_streaming_appliers(
+  wsrep::high_priority_service& hs)
+{
+  Wsrep_high_priority_service& high_priority_service=
+    static_cast<Wsrep_high_priority_service&>(hs);
+  wsrep_recover_sr_from_storage(high_priority_service.m_thd);
+}
+
 wsrep::view Wsrep_server_service::get_view(wsrep::client_service& c,
                                            const wsrep::id& own_id)
 {

@@ -219,6 +219,11 @@ int Wsrep_high_priority_service::append_fragment_and_commit(
 {
   DBUG_ENTER("Wsrep_high_priority_service::append_fragment_and_commit");
   int ret= start_transaction(ws_handle, ws_meta);
+  /*
+    Start transaction explicitly to avoid early commit via
+    trans_commit_stmt() in append_fragment()
+  */
+  ret= ret || trans_begin(m_thd);
   ret= ret || wsrep_schema->append_fragment(m_thd,
                                             ws_meta.server_id(),
                                             ws_meta.transaction_id(),
