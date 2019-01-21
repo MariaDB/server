@@ -92,6 +92,8 @@ static const alter_table_operations INNOBASE_ALTER_REBUILD
 	| ALTER_STORED_COLUMN_TYPE
 	*/
 	| INNOBASE_ALTER_VERSIONED_REBUILD
+	| ALTER_COLUMN_UNVERSIONED
+	| ALTER_COLUMN_EQUAL_PACK_LENGTH
 	;
 
 /** Operations that require changes to data */
@@ -133,8 +135,6 @@ static const alter_table_operations INNOBASE_ALTER_INSTANT
 #endif
 	| ALTER_ADD_VIRTUAL_COLUMN
 	| INNOBASE_FOREIGN_OPERATIONS
-	| ALTER_COLUMN_EQUAL_PACK_LENGTH
-	| ALTER_COLUMN_UNVERSIONED
 	| ALTER_DROP_VIRTUAL_COLUMN;
 
 /** Acquire a page latch on the possible metadata record,
@@ -261,11 +261,8 @@ inline void dict_table_t::prepare_instant(const dict_table_t& old,
 		Therefore columns must have been added at the end,
 		or modified instantly in place. */
 		DBUG_ASSERT(index.n_fields >= oindex.n_fields);
-		DBUG_ASSERT(index.n_fields > oindex.n_fields
-			    || !not_redundant());
 #ifdef UNIV_DEBUG
 		if (index.n_fields == oindex.n_fields) {
-			ut_ad(!not_redundant());
 			for (unsigned i = index.n_fields; i--; ) {
 				ut_ad(index.fields[i].col->same_format(
 					      *oindex.fields[i].col));
@@ -1502,7 +1499,9 @@ instant_alter_column_possible(
 		= ALTER_ADD_STORED_BASE_COLUMN
 		| ALTER_DROP_STORED_COLUMN
 		| ALTER_STORED_COLUMN_ORDER
-		| ALTER_COLUMN_NULLABLE;
+		| ALTER_COLUMN_NULLABLE
+		| ALTER_COLUMN_UNVERSIONED
+		| ALTER_COLUMN_EQUAL_PACK_LENGTH;
 
 	if (!(ha_alter_info->handler_flags & avoid_rebuild)) {
 		alter_table_operations flags = ha_alter_info->handler_flags
@@ -1545,7 +1544,9 @@ instant_alter_column_possible(
 	       & ~ALTER_STORED_COLUMN_ORDER
 	       & ~ALTER_ADD_STORED_BASE_COLUMN
 	       & ~ALTER_COLUMN_NULLABLE
-	       & ~ALTER_OPTIONS)) {
+	       & ~ALTER_OPTIONS
+	       & ~ALTER_COLUMN_UNVERSIONED
+	       & ~ALTER_COLUMN_EQUAL_PACK_LENGTH)) {
 		return false;
 	}
 
@@ -5762,7 +5763,9 @@ empty_table:
 		index->clear_instant_alter();
 		goto func_exit;
 	} else if (!user_table->is_instant()) {
-		ut_ad(!user_table->not_redundant());
+		ut_ad(!user_table->not_redundant()
+		      || ha_alter_info->handler_flags
+			     & ALTER_COLUMN_UNVERSIONED);
 		goto func_exit;
 	}
 
@@ -8997,167 +9000,14 @@ processed_field:
 	return(false);
 }
 
-/** Enlarge a column in the data dictionary tables.
-@param user_table InnoDB table that was being altered
-@param trx data dictionary transaction
-@param table_name Table name in MySQL
-@param nth_col 0-based index of the column
-@param new_len new column length, in bytes
-@param is_v if it's a virtual column
-@retval true Failure
-@retval false Success */
-static MY_ATTRIBUTE((nonnull, warn_unused_result))
-bool
-innobase_enlarge_column_try(
-/*========================*/
-	const dict_table_t*	user_table,
-	trx_t*			trx,
-	const char*		table_name,
-	ulint			nth_col,
-	ulint			new_len,
-	bool			is_v)
-{
-	pars_info_t*	info;
-	dberr_t		error;
-#ifdef UNIV_DEBUG
-	dict_col_t*	col;
-#endif /* UNIV_DEBUG */
-	dict_v_col_t*	v_col;
-	ulint		pos;
-
-	DBUG_ENTER("innobase_enlarge_column_try");
-
-	DBUG_ASSERT(trx_get_dict_operation(trx) == TRX_DICT_OP_INDEX);
-	ut_ad(trx->dict_operation_lock_mode == RW_X_LATCH);
-	ut_ad(mutex_own(&dict_sys->mutex));
-	ut_ad(rw_lock_own(dict_operation_lock, RW_LOCK_X));
-
-	if (is_v) {
-		v_col = dict_table_get_nth_v_col(user_table, nth_col);
-		pos = dict_create_v_col_pos(v_col->v_pos, v_col->m_col.ind);
-#ifdef UNIV_DEBUG
-		col = &v_col->m_col;
-#endif /* UNIV_DEBUG */
-	} else {
-#ifdef UNIV_DEBUG
-		col = dict_table_get_nth_col(user_table, nth_col);
-#endif /* UNIV_DEBUG */
-		pos = nth_col;
-	}
-
-#ifdef UNIV_DEBUG
-	ut_ad(col->len < new_len);
-	switch (col->mtype) {
-	case DATA_MYSQL:
-		/* NOTE: we could allow this when !(prtype & DATA_BINARY_TYPE)
-		and ROW_FORMAT is not REDUNDANT and mbminlen<mbmaxlen.
-		That is, we treat a UTF-8 CHAR(n) column somewhat like
-		a VARCHAR. */
-		ut_error;
-	case DATA_BINARY:
-	case DATA_VARCHAR:
-	case DATA_VARMYSQL:
-	case DATA_DECIMAL:
-	case DATA_BLOB:
-		break;
-	default:
-		ut_error;
-	}
-#endif /* UNIV_DEBUG */
-	info = pars_info_create();
-
-	pars_info_add_ull_literal(info, "tableid", user_table->id);
-	pars_info_add_int4_literal(info, "nth", pos);
-	pars_info_add_int4_literal(info, "new", new_len);
-
-	trx->op_info = "resizing column in SYS_COLUMNS";
-
-	error = que_eval_sql(
-		info,
-		"PROCEDURE RESIZE_SYS_COLUMNS_PROC () IS\n"
-		"BEGIN\n"
-		"UPDATE SYS_COLUMNS SET LEN=:new\n"
-		"WHERE TABLE_ID=:tableid AND POS=:nth;\n"
-		"END;\n",
-		FALSE, trx);
-
-	DBUG_EXECUTE_IF("ib_resize_column_error",
-			error = DB_OUT_OF_FILE_SPACE;);
-
-	trx->op_info = "";
-	trx->error_state = DB_SUCCESS;
-
-	if (error != DB_SUCCESS) {
-		my_error_innodb(error, table_name, 0);
-		DBUG_RETURN(true);
-	}
-
-	DBUG_RETURN(false);
-}
-
-/** Enlarge columns in the data dictionary tables.
-@param ha_alter_info Data used during in-place alter.
-@param table the TABLE
-@param user_table InnoDB table that was being altered
-@param trx data dictionary transaction
-@param table_name Table name in MySQL
-@retval true Failure
-@retval false Success */
-static MY_ATTRIBUTE((nonnull, warn_unused_result))
-bool
-innobase_enlarge_columns_try(
-/*=========================*/
-	Alter_inplace_info*	ha_alter_info,
-	const TABLE*		table,
-	const dict_table_t*	user_table,
-	trx_t*			trx,
-	const char*		table_name)
-{
-	List_iterator_fast<Create_field> cf_it(
-		ha_alter_info->alter_info->create_list);
-	ulint	i = 0;
-	ulint	num_v = 0;
-	bool	is_v;
-
-	for (Field** fp = table->field; *fp; fp++, i++) {
-		ulint	idx;
-
-		if (innobase_is_v_fld(*fp)) {
-			is_v = true;
-			idx = num_v;
-			num_v++;
-		} else {
-			idx = i - num_v;
-			is_v = false;
-		}
-
-		cf_it.rewind();
-		while (Create_field* cf = cf_it++) {
-			if (cf->field == *fp) {
-				if ((*fp)->is_equal(cf)
-				    == IS_EQUAL_PACK_LENGTH
-				    && innobase_enlarge_column_try(
-					    user_table, trx, table_name,
-					    idx, static_cast<ulint>(cf->length), is_v)) {
-					return(true);
-				}
-
-				break;
-			}
-		}
-	}
-
-	return(false);
-}
-
-/** Rename or enlarge columns in the data dictionary cache
+/** Rename columns in the data dictionary cache
 as part of commit_cache_norebuild().
 @param ha_alter_info Data used during in-place alter.
 @param table the TABLE
 @param user_table InnoDB table that was being altered */
 static MY_ATTRIBUTE((nonnull))
 void
-innobase_rename_or_enlarge_columns_cache(
+innobase_rename_columns_cache(
 /*=====================================*/
 	Alter_inplace_info*	ha_alter_info,
 	const TABLE*		table,
@@ -9184,18 +9034,6 @@ innobase_rename_or_enlarge_columns_cache(
 			}
 
 			ulint	col_n = is_virtual ? num_v : i - num_v;
-
-			if ((*fp)->is_equal(cf) == IS_EQUAL_PACK_LENGTH) {
-				if (is_virtual) {
-					dict_table_get_nth_v_col(
-						user_table, col_n)->m_col.len
-					= cf->length;
-				} else {
-					dict_table_get_nth_col(
-						user_table, col_n)->len
-					= cf->length;
-				}
-			}
 
 			if ((*fp)->flags & FIELD_IS_RENAMED) {
 				dict_mem_table_col_rename(
@@ -9530,152 +9368,6 @@ innobase_update_foreign_cache(
 	}
 
 	DBUG_RETURN(err);
-}
-
-/** Changes SYS_COLUMNS.PRTYPE for one column.
-@param[in,out]	trx	transaction
-@param[in]	table_name	table name
-@param[in]	tableid	table ID as in SYS_TABLES
-@param[in]	pos	column position
-@param[in]	prtype	new precise type
-@return		boolean flag
-@retval	true	on failure
-@retval false	on success */
-static
-bool
-vers_change_field_try(
-	trx_t* trx,
-	const char* table_name,
-	const table_id_t tableid,
-	const ulint pos,
-	const ulint prtype)
-{
-	DBUG_ENTER("vers_change_field_try");
-
-	pars_info_t* info = pars_info_create();
-
-	pars_info_add_int4_literal(info, "prtype", prtype);
-	pars_info_add_ull_literal(info,"tableid", tableid);
-	pars_info_add_int4_literal(info, "pos", pos);
-
-	dberr_t error = que_eval_sql(info,
-				     "PROCEDURE CHANGE_COLUMN_MTYPE () IS\n"
-				     "BEGIN\n"
-				     "UPDATE SYS_COLUMNS SET PRTYPE=:prtype\n"
-				     "WHERE TABLE_ID=:tableid AND POS=:pos;\n"
-				     "END;\n",
-				     false, trx);
-
-	if (error != DB_SUCCESS) {
-		my_error_innodb(error, table_name, 0);
-		trx->error_state = DB_SUCCESS;
-		trx->op_info = "";
-		DBUG_RETURN(true);
-	}
-
-	DBUG_RETURN(false);
-}
-
-/** Changes fields WITH/WITHOUT SYSTEM VERSIONING property in SYS_COLUMNS.
-@param[in]	ha_alter_info	alter info
-@param[in]	ctx	alter inplace context
-@param[in]	trx	transaction
-@param[in]	table	old table
-@return		boolean flag
-@retval	true	on failure
-@retval false	on success */
-static
-bool
-vers_change_fields_try(
-	const Alter_inplace_info* ha_alter_info,
-	const ha_innobase_inplace_ctx* ctx,
-	trx_t* trx,
-	const TABLE* table)
-{
-	DBUG_ENTER("vers_change_fields_try");
-
-	DBUG_ASSERT(ha_alter_info);
-	DBUG_ASSERT(ctx);
-
-	List_iterator_fast<Create_field> it(
-	    ha_alter_info->alter_info->create_list);
-
-	while (const Create_field* create_field = it++) {
-		if (!create_field->field) {
-			continue;
-		}
-		if (create_field->versioning
-		    == Column_definition::VERSIONING_NOT_SET) {
-			continue;
-		}
-
-		const dict_table_t* new_table = ctx->new_table;
-		const uint pos = innodb_col_no(create_field->field);
-		const dict_col_t* col = dict_table_get_nth_col(new_table, pos);
-
-		DBUG_ASSERT(!col->vers_sys_start());
-		DBUG_ASSERT(!col->vers_sys_end());
-
-		ulint new_prtype
-		    = create_field->versioning
-			      == Column_definition::WITHOUT_VERSIONING
-			  ? col->prtype & ~DATA_VERSIONED
-			  : col->prtype | DATA_VERSIONED;
-
-		if (vers_change_field_try(trx, table->s->table_name.str,
-					  new_table->id, pos,
-					  new_prtype)) {
-			DBUG_RETURN(true);
-		}
-	}
-
-	DBUG_RETURN(false);
-}
-
-/** Changes WITH/WITHOUT SYSTEM VERSIONING for fields
-in the data dictionary cache.
-@param ha_alter_info Data used during in-place alter
-@param ctx In-place ALTER TABLE context
-@param table MySQL table as it is before the ALTER operation */
-static
-void
-vers_change_fields_cache(
-	Alter_inplace_info*		ha_alter_info,
-	const ha_innobase_inplace_ctx*	ctx,
-	const TABLE*			table)
-{
-	DBUG_ENTER("vers_change_fields_cache");
-
-	DBUG_ASSERT(ha_alter_info);
-	DBUG_ASSERT(ctx);
-	DBUG_ASSERT(ha_alter_info->handler_flags & ALTER_COLUMN_UNVERSIONED);
-
-	List_iterator_fast<Create_field> it(
-	    ha_alter_info->alter_info->create_list);
-
-	while (const Create_field* create_field = it++) {
-		if (!create_field->field) {
-			continue;
-		}
-		dict_col_t* col = dict_table_get_nth_col(
-		    ctx->new_table, innodb_col_no(create_field->field));
-
-		if (create_field->versioning
-		    == Column_definition::WITHOUT_VERSIONING) {
-
-			DBUG_ASSERT(!col->vers_sys_start());
-			DBUG_ASSERT(!col->vers_sys_end());
-			col->prtype &= ~DATA_VERSIONED;
-		} else if (create_field->versioning
-			   == Column_definition::WITH_VERSIONING) {
-
-			DBUG_ASSERT(!col->vers_sys_start());
-			DBUG_ASSERT(!col->vers_sys_end());
-			col->prtype |= DATA_VERSIONED;
-		}
-	}
-
-	DBUG_VOID_RETURN;
 }
 
 /** Commit the changes made during prepare_inplace_alter_table()
@@ -10047,11 +9739,6 @@ commit_try_norebuild(
 		DBUG_RETURN(true);
 	}
 
-	if ((ha_alter_info->handler_flags & ALTER_COLUMN_UNVERSIONED)
-	    && vers_change_fields_try(ha_alter_info, ctx, trx, old_table)) {
-		DBUG_RETURN(true);
-	}
-
 	dberr_t	error;
 
 	/* We altered the table in place. Mark the indexes as committed. */
@@ -10111,13 +9798,6 @@ commit_try_norebuild(
 	     & ALTER_COLUMN_NAME)
 	    && innobase_rename_columns_try(ha_alter_info, ctx, old_table,
 					   trx, table_name)) {
-		DBUG_RETURN(true);
-	}
-
-	if ((ha_alter_info->handler_flags
-	     & ALTER_COLUMN_EQUAL_PACK_LENGTH)
-	    && innobase_enlarge_columns_try(ha_alter_info, old_table,
-					    ctx->old_table, trx, table_name)) {
 		DBUG_RETURN(true);
 	}
 
@@ -10317,7 +9997,7 @@ commit_cache_norebuild(
 	}
 
 	if (!ctx->is_instant()) {
-		innobase_rename_or_enlarge_columns_cache(
+		innobase_rename_columns_cache(
 			ha_alter_info, table, ctx->new_table);
 	} else {
 		ut_ad(ctx->col_map);
@@ -10359,10 +10039,6 @@ commit_cache_norebuild(
 		if (!ctx->instant_table->persistent_autoinc) {
 			ctx->new_table->persistent_autoinc = 0;
 		}
-	}
-
-	if (ha_alter_info->handler_flags & ALTER_COLUMN_UNVERSIONED) {
-		vers_change_fields_cache(ha_alter_info, ctx, table);
 	}
 
 #ifdef MYSQL_RENAME_INDEX
