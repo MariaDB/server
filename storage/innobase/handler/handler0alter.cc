@@ -302,9 +302,7 @@ add_metadata:
 			instant->dropped = NULL;
 		}
 
-		unsigned d = n_old_drop;
-
-		for (unsigned i = 0; i < old.n_cols; i++) {
+		for (unsigned i = 0, d = n_old_drop; i < old.n_cols; i++) {
 			if (col_map[i] == ULINT_UNDEFINED) {
 				(new (&instant->dropped[d++])
 				 dict_col_t(old.cols[i]))->set_dropped();
@@ -315,13 +313,11 @@ add_metadata:
 			DBUG_ASSERT(instant->dropped[i].is_dropped());
 		}
 #endif
-		DBUG_ASSERT(d == n_drop);
 		const uint n_fields = index.n_fields + n_dropped();
 
 		DBUG_ASSERT(n_fields >= oindex.n_fields);
 		dict_field_t* fields = static_cast<dict_field_t*>(
 			mem_heap_zalloc(heap, n_fields * sizeof *fields));
-		d = n_old_drop;
 		uint i = 0, j = 0, n_nullable = 0;
 		ut_d(uint core_null = 0);
 		for (; i < oindex.n_fields; i++) {
@@ -383,8 +379,12 @@ found_j:
 			}
 
 			/* This column is being dropped. */
+			unsigned d = n_old_drop;
+			for (unsigned c = 0; c < f.col->ind; c++) {
+				d += col_map[c] == ULINT_UNDEFINED;
+			}
 			DBUG_ASSERT(d < n_drop);
-			f.col = &instant->dropped[d++];
+			f.col = &instant->dropped[d];
 			f.name = NULL;
 			if (f.col->is_nullable()) {
 				goto found_nullable;
@@ -400,7 +400,6 @@ found_j:
 		std::sort(index.fields + j, index.fields + index.n_fields,
 			  [](const dict_field_t& a, const dict_field_t& b)
 			  { return a.col->ind < b.col->ind; });
-		DBUG_ASSERT(d == n_drop);
 		for (; i < n_fields; i++) {
 			fields[i] = index.fields[j++];
 			n_nullable += fields[i].col->is_nullable();
