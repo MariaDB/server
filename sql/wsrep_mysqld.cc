@@ -2311,13 +2311,15 @@ void wsrep_close_client_connections(my_bool wait_to_end, THD* except_caller_thd)
   */
   server_threads.iterate(kill_remaining_threads, except_caller_thd);
 
-  DBUG_PRINT("quit",("Waiting for threads to die (count=%u)",thread_count));
-  WSREP_DEBUG("waiting for client connections to close: %u", thread_count);
+  DBUG_PRINT("quit", ("Waiting for threads to die (count=%u)",
+             uint32_t(thread_count)));
+  WSREP_DEBUG("waiting for client connections to close: %u",
+              uint32_t(thread_count));
 
   while (wait_to_end && server_threads.iterate(have_client_connections))
   {
     mysql_cond_wait(&COND_thread_count, &LOCK_thread_count);
-    DBUG_PRINT("quit",("One thread died (count=%u)", thread_count));
+    DBUG_PRINT("quit",("One thread died (count=%u)", uint32_t(thread_count)));
   }
 
   kill_cached_threads= kill_cached_threads_saved;
@@ -2371,7 +2373,7 @@ void wsrep_wait_appliers_close(THD *thd)
     }
     else
       mysql_cond_wait(&COND_thread_count,&LOCK_thread_count);
-    DBUG_PRINT("quit",("One applier died (count=%u)",thread_count));
+    DBUG_PRINT("quit",("One applier died (count=%u)", uint32_t(thread_count)));
   }
   mysql_mutex_unlock(&LOCK_thread_count);
   /* Now kill remaining wsrep threads: rollbacker */
@@ -2388,7 +2390,7 @@ void wsrep_wait_appliers_close(THD *thd)
     }
     else
       mysql_cond_wait(&COND_thread_count,&LOCK_thread_count);
-    DBUG_PRINT("quit",("One thread died (count=%u)",thread_count));
+    DBUG_PRINT("quit",("One thread died (count=%u)", uint32_t(thread_count)));
   }
   mysql_mutex_unlock(&LOCK_thread_count);
 

@@ -482,7 +482,6 @@ handle_slave_background(void *arg __attribute__((unused)))
   thd= new THD(next_thread_id());
   thd->thread_stack= (char*) &thd;           /* Set approximate stack start */
   thd->system_thread = SYSTEM_THREAD_SLAVE_BACKGROUND;
-  thread_safe_increment32(&service_thread_count);
   thd->store_globals();
   thd->security_ctx->skip_grants();
   thd->set_command(COM_DAEMON);
@@ -568,8 +567,6 @@ handle_slave_background(void *arg __attribute__((unused)))
   mysql_mutex_unlock(&LOCK_slave_background);
 
   delete thd;
-  thread_safe_decrement32(&service_thread_count);
-  signal_thd_deleted();
 
   my_thread_end();
   return 0;
@@ -3578,7 +3575,6 @@ static int init_slave_thread(THD* thd, Master_info *mi,
 
   thd->system_thread = (thd_type == SLAVE_THD_SQL) ?
     SYSTEM_THREAD_SLAVE_SQL : SYSTEM_THREAD_SLAVE_IO;
-  thread_safe_increment32(&service_thread_count);
 
   /* We must call store_globals() before doing my_net_init() */
   if (init_thr_lock() || thd->store_globals() ||
@@ -5092,8 +5088,6 @@ err_during_init:
 
   thd->assert_not_linked();
   delete thd;
-  thread_safe_decrement32(&service_thread_count);
-  signal_thd_deleted();
 
   mi->abort_slave= 0;
   mi->slave_running= MYSQL_SLAVE_NOT_RUN;
@@ -5786,8 +5780,6 @@ err_during_init:
 
   delete serial_rgi;
   delete thd;
-  thread_safe_decrement32(&service_thread_count);
-  signal_thd_deleted();
 
   DBUG_LEAVE;                                   // Must match DBUG_ENTER()
   my_thread_end();
