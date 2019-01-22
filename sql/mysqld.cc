@@ -1791,7 +1791,6 @@ static void close_connections(void)
   {
     wsrep_deinit(true);
   }
-  wsrep_deinit_server();
 #endif
   /* All threads has now been aborted */
   DBUG_PRINT("quit",("Waiting for threads to die (count=%u)",thread_count));
@@ -2061,7 +2060,6 @@ extern "C" void unireg_abort(int exit_code)
       if (wsrep_inited) wsrep_deinit(true);
     }
   }
-  wsrep_deinit_server();
 #endif // WITH_WSREP
 
   clean_up(!opt_abort && (exit_code || !opt_bootstrap)); /* purecov: inspected */
@@ -2088,6 +2086,9 @@ static void mysqld_exit(int exit_code)
   rpl_deinit_gtid_waiting();
   rpl_deinit_gtid_slave_state();
   wait_for_signal_thread_to_end();
+#ifdef WITH_WSREP
+  wsrep_deinit_server();
+#endif /* WITH_WSREP */
   mysql_audit_finalize();
   clean_up_mutexes();
   clean_up_error_log_mutex();
