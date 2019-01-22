@@ -23,7 +23,6 @@
 #include "transaction.h"
 
 #include "mysql/service_wsrep.h"
-// #include "wsrep_thd_pool.h"
 #include "wsrep_schema.h"
 #include "wsrep_applier.h"
 #include "wsrep_xid.h"
@@ -607,11 +606,11 @@ int Wsrep_schema::init()
   DBUG_ENTER("Wsrep_schema::init()");
   int ret;
   THD* thd= new THD(next_thread_id());
-  thd->thread_stack= (char*)&thd;
   if (!thd) {
     WSREP_ERROR("Unable to get thd");
     DBUG_RETURN(1);
   }
+  thd->thread_stack= (char*)&thd;
   wsrep_init_thd_for_schema(thd);
 
   if (Wsrep_schema_impl::execute_SQL(thd, create_cluster_table_str.c_str(),
