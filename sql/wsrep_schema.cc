@@ -23,7 +23,7 @@
 #include "transaction.h"
 
 #include "mysql/service_wsrep.h"
-#include "wsrep_thd_pool.h"
+// #include "wsrep_thd_pool.h"
 #include "wsrep_schema.h"
 #include "wsrep_applier.h"
 #include "wsrep_xid.h"
@@ -569,25 +569,50 @@ static void make_key(TABLE* table, uchar* key, key_part_map* map, int parts) {
 } /* namespace Wsrep_schema_impl */
 
 
-Wsrep_schema::Wsrep_schema(Wsrep_thd_pool* thd_pool)
-  :
-  thd_pool_(thd_pool)
+Wsrep_schema::Wsrep_schema()
 {
-  assert(thd_pool_);
 }
 
 Wsrep_schema::~Wsrep_schema()
 { }
 
+static void wsrep_init_thd_for_schema(THD *thd)
+{
+  thd->security_ctx->skip_grants();
+  thd->system_thread= SYSTEM_THREAD_GENERIC;
+
+  mysql_mutex_lock(&LOCK_thread_count);
+
+  thd->real_id=pthread_self(); // Keep purify happy
+
+  WSREP_DEBUG("Wsrep_thd_pool: creating system thread: %lld",
+              (long long)thd->thread_id);
+  thd->prior_thr_create_utime= thd->start_utime= thd->thr_create_utime;
+  (void) mysql_mutex_unlock(&LOCK_thread_count);
+
+  /* */
+  thd->variables.wsrep_on    = 0;
+  /* No binlogging */
+  thd->variables.sql_log_bin = 0;
+  thd->variables.option_bits &= ~OPTION_BIN_LOG;
+  /* No general log */
+  thd->variables.option_bits |= OPTION_LOG_OFF;
+  /* Read committed isolation to avoid gap locking */
+  thd->variables.tx_isolation= ISO_READ_COMMITTED;
+  thd->store_globals();
+}
+
 int Wsrep_schema::init()
 {
   DBUG_ENTER("Wsrep_schema::init()");
   int ret;
-  THD* thd= thd_pool_->get_thd(0);
+  THD* thd= new THD(next_thread_id());
+  thd->thread_stack= (char*)&thd;
   if (!thd) {
     WSREP_ERROR("Unable to get thd");
     DBUG_RETURN(1);
   }
+  wsrep_init_thd_for_schema(thd);
 
   if (Wsrep_schema_impl::execute_SQL(thd, create_cluster_table_str.c_str(),
                                      create_cluster_table_str.size()) ||
@@ -606,7 +631,8 @@ int Wsrep_schema::init()
   else {
     ret= 0;
   }
-  thd_pool_->release_thd(thd);
+
+  delete thd;
   DBUG_RETURN(ret);
 }
 

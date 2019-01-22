@@ -39,7 +39,6 @@
 #include "wsrep_binlog.h"
 #include "wsrep_applier.h"
 #include "wsrep_schema.h"
-#include "wsrep_thd_pool.h"
 #include "wsrep_xid.h"
 #include "wsrep_trans_observer.h"
 #include "mysql/service_wsrep.h"
@@ -148,10 +147,6 @@ mysql_mutex_t LOCK_wsrep_desync;
 mysql_mutex_t LOCK_wsrep_config_state;
 mysql_mutex_t LOCK_wsrep_SR_pool;
 mysql_mutex_t LOCK_wsrep_SR_store;
-mysql_mutex_t LOCK_wsrep_thd_pool; /* locking policy:
-                                      1. LOCK_wsrep_slave_threads
-                                      2. LOCK_wsrep_thd_pool
-                                   */
 
 int wsrep_replaying= 0;
 ulong  wsrep_running_threads= 0; // # of currently running wsrep threads
@@ -164,7 +159,7 @@ PSI_mutex_key
   key_LOCK_wsrep_slave_threads, key_LOCK_wsrep_desync,
   key_LOCK_wsrep_config_state,
   key_LOCK_wsrep_SR_pool,
-  key_LOCK_wsrep_SR_store, key_LOCK_wsrep_thd_pool,
+  key_LOCK_wsrep_SR_store,
   key_LOCK_wsrep_thd_queue;
 
 PSI_cond_key key_COND_wsrep_thd,
@@ -187,8 +182,7 @@ static PSI_mutex_info wsrep_mutexes[]=
   { &key_LOCK_wsrep_desync, "LOCK_wsrep_desync", PSI_FLAG_GLOBAL},
   { &key_LOCK_wsrep_config_state, "LOCK_wsrep_config_state", PSI_FLAG_GLOBAL},
   { &key_LOCK_wsrep_SR_pool, "LOCK_wsrep_SR_pool", PSI_FLAG_GLOBAL},
-  { &key_LOCK_wsrep_SR_store, "LOCK_wsrep_SR_store", PSI_FLAG_GLOBAL},
-  { &key_LOCK_wsrep_thd_pool, "LOCK_wsrep_thd_pool", PSI_FLAG_GLOBAL}
+  { &key_LOCK_wsrep_SR_store, "LOCK_wsrep_SR_store", PSI_FLAG_GLOBAL}
 };
 
 static PSI_cond_info wsrep_conds[]=
@@ -245,8 +239,6 @@ wsp::node_status           local_status;
 
 /*
  */
-#define WSREP_THD_POOL_SIZE 16
-Wsrep_thd_pool* wsrep_thd_pool= 0;
 Wsrep_schema *wsrep_schema= 0;
 
 static void wsrep_log_cb(wsrep::log::level level, const char *msg)
@@ -311,9 +303,7 @@ void wsrep_init_schema()
   WSREP_INFO("wsrep_init_schema_and_SR %p", wsrep_schema);
   if (!wsrep_schema)
   {
-    DBUG_ASSERT(!wsrep_thd_pool);
-    wsrep_thd_pool= new Wsrep_thd_pool(WSREP_THD_POOL_SIZE);
-    wsrep_schema= new Wsrep_schema(wsrep_thd_pool);
+    wsrep_schema= new Wsrep_schema();
     if (wsrep_schema->init())
     {
       WSREP_ERROR("Failed to init wsrep schema");
@@ -326,8 +316,6 @@ void wsrep_deinit_schema()
 {
   delete wsrep_schema;
   wsrep_schema= 0;
-  delete wsrep_thd_pool;
-  wsrep_thd_pool= 0;
 }
 
 void wsrep_recover_sr_from_storage(THD *orig_thd)
@@ -775,8 +763,6 @@ void wsrep_thr_init()
                    &LOCK_wsrep_SR_pool, MY_MUTEX_INIT_FAST);
   mysql_mutex_init(key_LOCK_wsrep_SR_store,
                    &LOCK_wsrep_SR_store, MY_MUTEX_INIT_FAST);
-  mysql_mutex_init(key_LOCK_wsrep_thd_pool,
-                   &LOCK_wsrep_thd_pool, MY_MUTEX_INIT_FAST);
   DBUG_VOID_RETURN;
 }
 
@@ -877,7 +863,6 @@ void wsrep_thr_deinit()
   mysql_mutex_destroy(&LOCK_wsrep_config_state);
   mysql_mutex_destroy(&LOCK_wsrep_SR_pool);
   mysql_mutex_destroy(&LOCK_wsrep_SR_store);
-  mysql_mutex_destroy(&LOCK_wsrep_thd_pool);
 
   delete wsrep_config_state;
   wsrep_config_state= 0;                        // Safety

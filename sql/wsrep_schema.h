@@ -37,8 +37,6 @@ struct TABLE_LIST;
 struct st_mysql_lex_string;
 typedef struct st_mysql_lex_string LEX_STRING;
 
-class Wsrep_thd_pool;
-
 /** Name of the table in `wsrep_schema_str` used for storing streaming
 replication data. In an InnoDB full format, e.g. "database/tablename". */
 extern const char* wsrep_sr_table_name_full;
@@ -47,7 +45,7 @@ class Wsrep_schema
 {
  public:
 
-  Wsrep_schema(Wsrep_thd_pool*);
+  Wsrep_schema();
   ~Wsrep_schema();
 
   /*
@@ -156,8 +154,6 @@ class Wsrep_schema
   /* Non-copyable */
   Wsrep_schema(const Wsrep_schema&);
   Wsrep_schema& operator=(const Wsrep_schema&);
-
-  Wsrep_thd_pool* thd_pool_;
 };
 
 extern Wsrep_schema* wsrep_schema;

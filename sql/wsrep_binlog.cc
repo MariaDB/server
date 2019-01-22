@@ -350,10 +350,6 @@ cleanup1:
   DBUG_VOID_RETURN;
 }
 
-
-#include "wsrep_thd_pool.h"
-extern Wsrep_thd_pool *wsrep_thd_pool;
-
 #include "log_event.h"
 
 int wsrep_write_skip_event(THD* thd)
