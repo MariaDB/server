@@ -68,6 +68,7 @@ static Type_handler_blob_compressed type_handler_blob_compressed;
 Type_handler_geometry    type_handler_geometry;
 #endif
 
+Type_handler_mysql_json  type_handler_mysql_json;
 
 bool Type_handler_data::init()
 {
@@ -493,6 +494,8 @@ const Name
   Type_handler_datetime_common::m_name_datetime(STRING_WITH_LEN("datetime")),
   Type_handler_timestamp_common::m_name_timestamp(STRING_WITH_LEN("timestamp"));
 
+const Name
+  Type_handler_mysql_json::m_name_mysql_json(STRING_WITH_LEN("mysql_json"));
 
 const Type_limits_int
   Type_handler_tiny::m_limits_sint8=      Type_limits_sint8(),
@@ -2478,7 +2481,22 @@ Field *Type_handler_set::make_table_field(const LEX_CSTRING *name,
 }
 
 /*************************************************************************/
-
+Field *Type_handler_mysql_json::make_table_field(const LEX_CSTRING *name,
+                                                 const Record_addr &addr,
+                                                 const Type_all_attributes &attr,
+                                                 TABLE *table) const
+{
+  /*
+    DBUG_ASSERT will be removed when we reuse make_table_field()
+    for make_field() in field.cc
+  */
+  DBUG_ASSERT(0);
+  return new (table->in_use->mem_root)
+         Field_mysql_json(addr.ptr, addr.null_ptr, addr.null_bit,
+                          Field::NONE, name, table->s,
+                          4, attr.collation);
+}
+/*************************************************************************/
 /*
    If length is not specified for a varchar parameter, set length to the
    maximum length of the actual argument. Goals are:

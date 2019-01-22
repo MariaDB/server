@@ -28,6 +28,7 @@ longlong TIME_to_longlong_datetime_packed(const MYSQL_TIME *);
 longlong TIME_to_longlong_time_packed(const MYSQL_TIME *);
 
 void TIME_from_longlong_datetime_packed(MYSQL_TIME *ltime, longlong nr);
+void TIME_from_longlong_date_packed(MYSQL_TIME *ltime, longlong nr);
 void TIME_from_longlong_time_packed(MYSQL_TIME *ltime, longlong nr);
 
 void my_datetime_packed_to_binary(longlong nr, uchar *ptr, uint dec);

@@ -47,7 +47,7 @@ SET(SQL_EMBEDDED_SOURCES emb_qcache.cc libmysqld.c lib_sql.cc
            ../sql/field.cc ../sql/field_conv.cc ../sql/field_comp.cc
            ../sql/filesort_utils.cc ../sql/sql_digest.cc
            ../sql/filesort.cc ../sql/gstream.cc ../sql/slave.cc
-           ../sql/signal_handler.cc
+           ../sql/signal_handler.cc ../sql/mysql_json.cc
            ../sql/handler.cc ../sql/hash_filo.cc ../sql/hostname.cc 
            ../sql/init.cc ../sql/item_buff.cc ../sql/item_cmpfunc.cc 
            ../sql/item.cc ../sql/item_create.cc ../sql/item_func.cc 

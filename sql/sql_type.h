@@ -3658,6 +3658,21 @@ public:
   bool init();
 };
 
+class Type_handler_mysql_json: public Type_handler_blob
+{
+  private:
+    static const Name m_name_mysql_json;
+  public:
+    virtual ~Type_handler_mysql_json() {}
+    const Name name() const { return m_name_mysql_json; }
+    enum_field_types field_type() const { return MYSQL_TYPE_LONG_BLOB; }
+    Field *make_table_field(const LEX_CSTRING *name,
+                            const Record_addr &addr,
+                            const Type_all_attributes &attr,
+                            TABLE *table) const;
+};
+
+extern MYSQL_PLUGIN_IMPORT Type_handler_mysql_json  type_handler_mysql_json;
 
 extern Type_handler_data *type_handler_data;
 

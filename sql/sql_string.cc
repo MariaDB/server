@@ -811,7 +811,7 @@ void String::qs_append(double d)
                        NULL);
 }
 
-void String::qs_append(double *d)
+void String::qs_append(const double *d)
 {
   double ld;
   float8get(ld, (char*) d);

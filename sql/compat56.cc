@@ -280,6 +280,18 @@ void TIME_from_longlong_datetime_packed(MYSQL_TIME *ltime, longlong tmp)
 
 
 /**
+  Convert packed numeric date representation to MYSQL_TIME.
+  @param OUT  ltime The date variable to convert to.
+  @param      tmp   The packed numeric date value.
+*/
+void TIME_from_longlong_date_packed(MYSQL_TIME *ltime, longlong tmp)
+{
+  TIME_from_longlong_datetime_packed(ltime, tmp);
+  ltime->time_type= MYSQL_TIMESTAMP_DATE;
+}
+
+
+/**
   Calculate binary size of MySQL56 packed datetime representation.
   @param dec  Precision.
 */

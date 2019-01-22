@@ -1,0 +1,47 @@
+--source include/have_utf8.inc
+
+let $MYSQLD_DATADIR= `select @@datadir`;
+
+SET NAMES utf8;
+
+--echo #
+--echo # TODO see why this JSON returns true on parsing!!
+--echo #
+--copy_file std_data/t_isam.frm $MYSQLD_DATADIR/test/t_isam.frm
+--copy_file std_data/t_isam.MYI $MYSQLD_DATADIR/test/t_isam.MYI
+--copy_file std_data/t_isam.MYD $MYSQLD_DATADIR/test/t_isam.MYD
+
+use test;
+show tables;
+
+call mtr.add_suppression("Table rebuild required");
+call mtr.add_suppression("is marked as crashed");
+call mtr.add_suppression("Checking");
+
+--error ER_TABLE_NEEDS_REBUILD
+show create table t_isam;
+--error ER_TABLE_NEEDS_REBUILD
+select * from t_isam;
+
+alter table t_isam force;
+
+show create table t_isam;
+select * from t_isam;
+
+--copy_file std_data/mysql_json/mysql_json_test.frm $MYSQLD_DATADIR/test/mysql_json_test.frm
+--copy_file std_data/mysql_json/mysql_json_test.MYI $MYSQLD_DATADIR/test/mysql_json_test.MYI
+--copy_file std_data/mysql_json/mysql_json_test.MYD $MYSQLD_DATADIR/test/mysql_json_test.MYD
+
+alter table mysql_json_test force;
+
+
+select description, expected, actual, expected = actual from mysql_json_test;
+
+select count(*) as 'Total_Number_of_Tests',
+       sum(expected = actual) as 'Succesful_Tests'
+from mysql_json_test;
+
+show create table mysql_json_test;
+
+drop table mysql_json_test;
+drop table t_isam;

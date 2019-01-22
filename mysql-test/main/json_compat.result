@@ -1,0 +1,144 @@
+SET NAMES utf8;
+#
+# TODO see why this JSON returns true on parsing!!
+#
+use test;
+show tables;
+Tables_in_test
+t_isam
+call mtr.add_suppression("Table rebuild required");
+call mtr.add_suppression("is marked as crashed");
+call mtr.add_suppression("Checking");
+show create table t_isam;
+ERROR HY000: Table rebuild required. Please do "ALTER TABLE `test.t_isam` FORCE" or dump/reload to fix it!
+select * from t_isam;
+ERROR HY000: Table rebuild required. Please do "ALTER TABLE `test.t_isam` FORCE" or dump/reload to fix it!
+alter table t_isam force;
+show create table t_isam;
+Table	Create Table
+t_isam	CREATE TABLE `t_isam` (
+  `a` text CHARACTER SET utf8mb4 COLLATE utf8mb4_bin DEFAULT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=latin1
+select * from t_isam;
+a
+{"web-app": {"taglib": {"taglib-uri": "cofax.tld", "taglib-location": "/WEB-INF/tlds/cofax.tld"}, "servlet": [{"init-param": {"useJSP": false, "dataStoreUrl": "jdbc:microsoft:sqlserver://LOCALHOST:1433;DatabaseName=goon", "maxUrlLength": 500, "templatePath": "templates", "useDataStore": true, "dataStoreName": "cofax", "dataStoreUser": "sa", "dataStoreClass": "org.cofax.SqlDataStore", "cachePagesStore": 100, "cachePagesTrack": 200, "dataStoreDriver": "com.microsoft.jdbc.sqlserver.SQLServerDriver", "jspFileTemplate": "articleTemplate.jsp", "jspListTemplate": "listTemplate.jsp", "dataStoreLogFile": "/usr/local/tomcat/logs/datastore.log", "redirectionClass": "org.cofax.SqlRedirection", "cachePagesRefresh": 10, "dataStoreLogLevel": "debug", "dataStoreMaxConns": 100, "dataStorePassword": "dataStoreTestQuery", "dataStoreInitConns": 10, "dataStoreTestQuery": "SET NOCOUNT ON;select test='test';", "cachePagesDirtyRead": 10, "cacheTemplatesStore": 50, "cacheTemplatesTrack": 100, "defaultFileTemplate": "articleTemplate.htm", "defaultListTemplate": "listTemplate.htm", "templateLoaderClass": "org.cofax.FilesTemplateLoader", "searchEngineRobotsDb": "WEB-INF/robots.db", "templateOverridePath": "", "cachePackageTagsStore": 200, "cachePackageTagsTrack": 200, "cacheTemplatesRefresh": 15, "templateProcessorClass": "org.cofax.WysiwygTemplate", "cachePackageTagsRefresh": 60, "dataStoreConnUsageLimit": 100, "configGlossary:poweredBy": "Cofax", "searchEngineFileTemplate": "forSearchEngines.htm", "searchEngineListTemplate": "forSearchEnginesList.htm", "configGlossary:adminEmail": "ksm@pobox.com", "configGlossary:staticPath": "/content/static", "configGlossary:poweredByIcon": "/images/cofax.gif", "configGlossary:installationAt": "Philadelphia, PA"}, "servlet-name": "cofaxCDS", "servlet-class": "org.cofax.cds.CDSServlet"}, {"init-param": {"mailHost": "mail1", "mailHostOverride": "mail2"}, "servlet-name": "cofaxEmail", "servlet-class": "org.cofax.cds.EmailServlet"}, {"servlet-name": "cofaxAdmin", "servlet-class": "org.cofax.cds.AdminServlet"}, {"servlet-name": "fileServlet", "servlet-class": "org.cofax.cds.FileServlet"}, {"init-param": {"log": 1, "dataLog": 1, "betaServer": true, "logMaxSize": "", "logLocation": "/usr/local/tomcat/logs/CofaxTools.log", "adminGroupID": 4, "templatePath": "toolstemplates/", "lookInContext": 1, "dataLogMaxSize": "", "dataLogLocation": "/usr/local/tomcat/logs/dataLog.log", "removePageCache": "/content/admin/remove?cache=pages&id=", "fileTransferFolder": "/usr/local/tomcat/webapps/content/fileTransferFolder", "removeTemplateCache": "/content/admin/remove?cache=templates&id="}, "servlet-name": "cofaxTools", "servlet-class": "org.cofax.cms.CofaxToolsServlet"}], "servlet-mapping": {"cofaxCDS": "/", "cofaxAdmin": "/admin/*", "cofaxEmail": "/cofaxutil/aemail/*", "cofaxTools": "/tools/*", "fileServlet": "/static/*"}}}
+alter table mysql_json_test force;
+Warnings:
+Error	145	Table './test/mysql_json_test' is marked as crashed and should be repaired
+Error	1034	1 client is using or hasn't closed the table properly
+select description, expected, actual, expected = actual from mysql_json_test;
+description	expected	actual	expected = actual
+Raw integers as JSON	0	0	1
+Raw integers as JSON	-127	-127	1
+Raw integers as JSON	128	128	1
+Raw integers as JSON	32767	32767	1
+Raw integers as JSON	-32768	-32768	1
+Raw integers as JSON	65535	65535	1
+Raw integers as JSON	65536	65536	1
+Raw integers as JSON	-2147483648	-2147483648	1
+Raw integers as JSON	2147483647	2147483647	1
+Raw integers as JSON	4294967295	4294967295	1
+Raw integers as JSON	-9223372036854775807	-9223372036854775807	1
+Raw integers as JSON	9223372036854775807	9223372036854775807	1
+Raw integers as JSON	18446744073709551615	18446744073709551615	1
+Raw doubles as JSON	3.14	3.14	1
+Raw doubles as JSON	-5678.987	-5678.987	1
+Raw doubles as JSON	-2.2250738585072014e-308	-2.2250738585072014e-308	1
+Raw doubles as JSON	2.2250738585072014e-308	2.2250738585072014e-308	1
+Simple JSON test	{"key1": "val1", "key2": "val2"}	{"key1": "val1", "key2": "val2"}	1
+Raw doubles as JSON	0.0	0.0	1
+Simple Array as Value	{"a": [1, 2], "b": ["x", "y"]}	{"a": [1, 2], "b": ["x", "y"]}	1
+Simple Array as Base Key	[1, 2, 3, 4, 5, [], "a", "b", "c"]	[1, 2, 3, 4, 5, [], "a", "b", "c"]	1
+GeoJSON	{"type": "MultiPoint", "coordinates": [[1, 1], [2, 2], [3, 3]]}	{"type": "MultiPoint", "coordinates": [[1, 1], [2, 2], [3, 3]]}	1
+GeoJSON	{"type": "LineString", "coordinates": [[0, 5], [5, 10], [10, 15]]}	{"type": "LineString", "coordinates": [[0, 5], [5, 10], [10, 15]]}	1
+GeoJSON	{"type": "GeometryCollection", "geometries": []}	{"type": "GeometryCollection", "geometries": []}	1
+GeoJSON	{"type": "Point", "coordinates": [11.1111, 12.22222]}	{"type": "Point", "coordinates": [11.1111, 12.22222]}	1
+Opaque Types: opaque_mysql_type_set	"b,c"	"b,c"	1
+Opaque Types: opaque_mysql_type_enum	"b"	"b"	1
+Opaque Types: opaque_mysql_type_date	"2015-01-15"	"2015-01-15"	1
+Opaque Types: opaque_mysql_type_time	"23:24:25.000000"	"23:24:25.000000"	1
+Opaque Types: opaque_mysql_type_datetime	"2015-01-15 23:24:25.000000"	"2015-01-15 23:24:25.000000"	1
+Opaque Types: opaque_mysql_type_geom	{"type": "Point", "coordinates": [1, 1]}	{"type": "Point", "coordinates": [1, 1]}	1
+Opaque Types: opaque_mysql_type_bit	"base64:type16:yv4="	"base64:type16:yv4="	1
+Opaque Types: opaque_mysql_type_year	"base64:type13:MjAxOQ=="	"base64:type13:MjAxOQ=="	1
+Opaque Types: opaque_mysql_type_blob	"base64:type252:yv66vg=="	"base64:type252:yv66vg=="	1
+Opaque Types: opaque_mysql_type_longblob	"base64:type251:yv66vg=="	"base64:type251:yv66vg=="	1
+Opaque Types: opaque_mysql_type_mediumblob	"base64:type250:yv66vg=="	"base64:type250:yv66vg=="	1
+Opaque Types: opaque_mysql_type_tinyblob	"base64:type249:yv66vg=="	"base64:type249:yv66vg=="	1
+Opaque Types: opaque_mysql_type_varchar	"base64:type15:Zm9v"	"base64:type15:Zm9v"	1
+DateTime as Raw Value: 	"2015-01-15 23:24:25.000000"	"2015-01-15 23:24:25.000000"	1
+Opaque Types: opaque_mysql_type_varbinary	"base64:type15:YWJj"	"base64:type15:YWJj"	1
+Opaque Types: opaque_mysql_type_binary	"base64:type254:YWJjAAAAAAAAAA=="	"base64:type254:YWJjAAAAAAAAAA=="	1
+DateTime as Raw Value: 	"23:24:25.000000"	"23:24:25.000000"	1
+DateTime as Raw Value: 	"2015-01-15"	"2015-01-15"	1
+DateTime as Raw Value: 	"2015-01-15 23:24:25.000000"	"2015-01-15 23:24:25.000000"	1
+UTF8 Characters: 	{"Person": "EMP", "details": {"Name": "Anel Husaković - test: đžšćč"}}	{"Person": "EMP", "details": {"Name": "Anel Husaković - test: đžšćč"}}	1
+UTF8 Characters: 	"Anel Husaković - test: đžšćč"	"Anel Husaković - test: đžšćč"	1
+UTF8 Characters: 	{"Name": "Anel Husaković - test: đžšćč"}	{"Name": "Anel Husaković - test: đžšćč"}	1
+UTF8 Characters: 	{"details": {"Name": "Anel Husaković - test: đžšćč"}, "\"Anel Husaković - test: đžšćč\"": "EMP"}	{"details": {"Name": "Anel Husaković - test: đžšćč"}, "\"Anel Husaković - test: đžšćč\"": "EMP"}	1
+Special Characters: 	{"{": "}"}	{"{": "}"}	1
+Special Characters: 	"key1 - with \" val "	"key1 - with \" val "	1
+Special Characters: 	{"key1 and \n\"key2\"": "val1\t val2"}	{"key1 and \n\"key2\"": "val1\t val2"}	1
+Special Characters: 	"'"	"'"	1
+Special Characters: 	"q"	"q"	1
+Special Characters: 	{"[": "]"}	{"[": "]"}	1
+Special Characters: 	{"{": "}"}	{"{": "}"}	1
+Empty JSON Object/Array: 	[]	[]	1
+Special Characters: 	"some_string"	"some_string"	1
+Special Characters: 	"'"	"'"	1
+Special Characters: 	"\""	"\""	1
+Special Characters: 	""	""	1
+Special Characters: 	"'"	"'"	1
+Special Characters: 	"''"	"''"	1
+Empty JSON Object/Array: 	{}	{}	1
+Special Characters: 	"f"	"f"	1
+Special Characters: 	"\\"	"\\"	1
+Special Characters: 	"\n"	"\n"	1
+Special Characters: 	"\f"	"\f"	1
+Special Characters: 	"\t"	"\t"	1
+Special Characters: 	"\r"	"\r"	1
+Special Characters: 	"\b"	"\b"	1
+Special Characters: 	"\\b"	"\\b"	1
+Special Characters: 	{"key \n key": "val \n val"}	{"key \n key": "val \n val"}	1
+Special Characters: 	{"key \f key": "val \f val"}	{"key \f key": "val \f val"}	1
+Special Characters: 	{"key \t key": "val \t val"}	{"key \t key": "val \t val"}	1
+Special Characters: 	{"key \r key": "val \r val"}	{"key \r key": "val \r val"}	1
+Special Characters: 	{"key \b key": "val \b val"}	{"key \b key": "val \b val"}	1
+Special Characters: 	{"key \\0 key": "val \n val"}	{"key \\0 key": "val \n val"}	1
+Special Characters: 	{"key \\ key": "val \\ val"}	{"key \\ key": "val \\ val"}	1
+Special Characters: 	{"key \" key": "val \" val"}	{"key \" key": "val \" val"}	1
+Special Characters: 	{"key ' key": "val ' val"}	{"key ' key": "val ' val"}	1
+Special Characters: 	{"key \\Z key": "val ' val"}	{"key \\Z key": "val ' val"}	1
+Special Characters: 	["a \f b", "c \f d"]	["a \f b", "c \f d"]	1
+Special Characters: 	["a \t b", "c \t d"]	["a \t b", "c \t d"]	1
+Special Characters: 	["a \r b", "c \r d"]	["a \r b", "c \r d"]	1
+Special Characters: 	["a \b b", "c \b d"]	["a \b b", "c \b d"]	1
+Special Characters: 	["a \\ b", "c \\ d"]	["a \\ b", "c \\ d"]	1
+Special Characters: 	["a \" b", "c \" d"]	["a \" b", "c \" d"]	1
+Special Characters: 	["a ' b", "c ' d"]	["a ' b", "c ' d"]	1
+Special String Cases: 	{"": ""}	{"": ""}	1
+Special String Cases: 	[""]	[""]	1
+Raw LITERALS: 	true	true	1
+Raw LITERALS: 	false	false	1
+Raw LITERALS: 	null	null	1
+JSON LITERALS: 	{"val": true}	{"val": true}	1
+JSON LITERALS: 	{"val": false}	{"val": false}	1
+JSON LITERALS: 	{"val": null}	{"val": null}	1
+Timestamp as RawValue	"2019-12-26 19:56:03.000000"	"2019-12-26 19:56:03.000000"	1
+Array LITERALS: 	["prefix", null, "suffix", 1]	["prefix", null, "suffix", 1]	1
+Array LITERALS: 	["prefix", false, "suffix", 1]	["prefix", false, "suffix", 1]	1
+Array LITERALS: 	["prefix", true, "suffix", 1]	["prefix", true, "suffix", 1]	1
+select count(*) as 'Total_Number_of_Tests',
+sum(expected = actual) as 'Succesful_Tests'
+from mysql_json_test;
+Total_Number_of_Tests	Succesful_Tests
+100	100
+show create table mysql_json_test;
+Table	Create Table
+mysql_json_test	CREATE TABLE `mysql_json_test` (
+  `description` varchar(100) COLLATE utf8mb4_unicode_ci DEFAULT NULL,
+  `expected` longtext COLLATE utf8mb4_unicode_ci DEFAULT NULL,
+  `actual` text COLLATE utf8mb4_unicode_ci DEFAULT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
+drop table mysql_json_test;
+drop table t_isam;

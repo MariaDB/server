@@ -1803,6 +1803,7 @@ int TABLE_SHARE::init_from_binary_frm_image(THD *thd, bool write,
     Field::utype unireg_check;
     const Type_handler *handler;
     uint32 flags= 0;
+    bool handle_field_as_mysql_json= false;
 
     if (new_frm_ver >= 3)
     {
@@ -1857,15 +1858,37 @@ int TABLE_SHARE::init_from_binary_frm_image(THD *thd, bool write,
 
       if ((uchar)field_type == (uchar)MYSQL_TYPE_VIRTUAL)
       {
-        if (!interval_nr) // Expect non-null expression
-          goto err;
         /*
-          MariaDB version 10.0 version.
-          The interval_id byte in the .frm file stores the length of the
-          expression statement for a virtual column.
+          Special handling to be able to read MySQL JSON types when
+          converting a MySQL table to a MariaDB table. MYSQL_TYPE_VIRTUAL
+          has the same value as MySQL's JSON type number, which we should
+          interpret as a special long blob.
         */
-        vcol_info_length= interval_nr;
-        interval_nr= 0;
+        if (unlikely(share->mysql_version >= 50700 &&
+                     share->mysql_version < 100000))
+        {
+          if(thd->lex->sql_command != SQLCOM_ALTER_TABLE ||
+             thd->lex->alter_info.flags != ALTER_RECREATE)
+          {
+            // Raise an error for every operation except `alter table force`.
+            open_table_error(share, OPEN_FRM_NEEDS_REBUILD, share->open_errno);
+            goto err;
+          }
+          handle_field_as_mysql_json= true;
+          field_type= MYSQL_TYPE_LONG_BLOB;
+        }
+        else
+        {
+          if (!interval_nr) // Expect non-null expression
+            goto err;
+          /*
+            MariaDB version 10.0 version.
+            The interval_id byte in the .frm file stores the length of the
+            expression statement for a virtual column.
+          */
+          vcol_info_length= interval_nr;
+          interval_nr= 0;
+        }
       }
 
       if (!comment_length)
@@ -2047,7 +2070,9 @@ int TABLE_SHARE::init_from_binary_frm_image(THD *thd, bool write,
     unireg_check= (Field::utype) MTYP_TYPENR(unireg_type);
     name.str= fieldnames.type_names[i];
     name.length= strlen(name.str);
-    if (!(handler= Type_handler::get_handler_by_real_type(field_type)))
+    if (handle_field_as_mysql_json)
+      handler= &type_handler_mysql_json;
+    else if (!(handler= Type_handler::get_handler_by_real_type(field_type)))
       goto err; // Not supported field type
     *field_ptr= reg_field=
       make_field(share, &share->mem_root, record+recpos, (uint32) field_length,
