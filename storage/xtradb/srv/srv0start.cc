@@ -2335,6 +2335,9 @@ innobase_start_or_create_for_mysql()
 				break;
 			}
 
+			if (stat_info.type != OS_FILE_TYPE_FILE) {
+				break;
+			}
 			if (!srv_file_check_mode(logfilename)) {
 				return(DB_ERROR);
 			}
