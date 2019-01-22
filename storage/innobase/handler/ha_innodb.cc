@@ -4474,17 +4474,19 @@ innobase_end(handlerton*, ha_panic_function)
 		 	}
 		}
 
-		st_my_thread_var* running = reinterpret_cast<st_my_thread_var*>(
+		st_my_thread_var* r = reinterpret_cast<st_my_thread_var*>(
 			my_atomic_loadptr_explicit(
 			reinterpret_cast<void**>(&srv_running),
 			MY_MEMORY_ORDER_RELAXED));
-		if (!abort_loop && running) {
-			// may be UNINSTALL PLUGIN statement
-			running->abort = 1;
-			mysql_cond_broadcast(running->current_cond);
-		}
-
-		if (!srv_read_only_mode) {
+		if (r) {
+			ut_ad(!srv_read_only_mode);
+			if (!abort_loop) {
+				// may be UNINSTALL PLUGIN statement
+				mysql_mutex_lock(r->current_mutex);
+				r->abort = 1;
+				mysql_cond_broadcast(r->current_cond);
+				mysql_mutex_unlock(r->current_mutex);
+			}
 			pthread_join(thd_destructor_thread, NULL);
 		}
 
