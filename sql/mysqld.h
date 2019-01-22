@@ -29,6 +29,7 @@
 #include <my_rnd.h>
 #include "my_pthread.h"
 #include "my_rdtsc.h"
+#include "thr_malloc.h"
 
 class THD;
 class CONNECT;
@@ -400,10 +401,9 @@ extern PSI_file_key key_file_relaylog, key_file_relaylog_index;
 extern PSI_socket_key key_socket_tcpip, key_socket_unix,
   key_socket_client_connection;
 extern PSI_file_key key_file_binlog_state;
-
 void init_server_psi_keys();
 #endif /* HAVE_PSI_INTERFACE */
-
+extern PSI_memory_key key_memory_JSON;
 /*
   MAINTAINER: Please keep this list in order, to limit merge collisions.
   Hint: grep PSI_stage_info | sort -u

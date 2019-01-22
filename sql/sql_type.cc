@@ -68,7 +68,7 @@ static Type_handler_blob_compressed type_handler_blob_compressed;
 Type_handler_geometry    type_handler_geometry;
 #endif
 
-
+Type_handler_mysql_json type_handler_mysql_json;
 bool Type_handler_data::init()
 {
 #ifdef HAVE_SPATIAL
@@ -465,6 +465,8 @@ const Name
   Type_handler_datetime_common::m_name_datetime(STRING_WITH_LEN("datetime")),
   Type_handler_timestamp_common::m_name_timestamp(STRING_WITH_LEN("timestamp"));
 
+const Name
+  Type_handler_mysql_json::m_name_mysql_json(STRING_WITH_LEN("mysql_json"));
 
 const Type_limits_int
   Type_handler_tiny::m_limits_sint8=      Type_limits_sint8(),
@@ -969,6 +971,7 @@ Type_handler::get_handler_by_field_type(enum_field_types type)
   case MYSQL_TYPE_VARCHAR_COMPRESSED:
   case MYSQL_TYPE_BLOB_COMPRESSED:
     break;
+  case MYSQL_TYPE_MYSQL_JSON:   return &type_handler_mysql_json;
   };
   DBUG_ASSERT(0);
   return &type_handler_string;
@@ -1022,6 +1025,7 @@ Type_handler::get_handler_by_real_type(enum_field_types type)
   case MYSQL_TYPE_DATETIME:    return &type_handler_datetime;
   case MYSQL_TYPE_DATETIME2:   return &type_handler_datetime2;
   case MYSQL_TYPE_NEWDATE:     return &type_handler_newdate;
+  case MYSQL_TYPE_MYSQL_JSON:     return &type_handler_mysql_json;
   };
   DBUG_ASSERT(0);
   return &type_handler_string;
@@ -2447,7 +2451,17 @@ Field *Type_handler_set::make_table_field(const LEX_CSTRING *name,
 }
 
 /*************************************************************************/
-
+Field *Type_handler_mysql_json::make_table_field(const LEX_CSTRING *name, 
+                                                 const Record_addr &addr,
+                                                 const Type_all_attributes &attr,
+                                                 TABLE *table) const
+{
+  return new (table->in_use->mem_root)
+         Field_mysql_json(addr.ptr, addr.null_ptr, addr.null_bit,
+                    Field::NONE, name, table->s,
+                    2, attr.collation);
+}
+/*************************************************************************/
 /*
    If length is not specified for a varchar parameter, set length to the
    maximum length of the actual argument. Goals are:

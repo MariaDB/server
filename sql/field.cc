@@ -42,7 +42,8 @@
 #include "filesort.h"                    // change_double_for_sort
 #include "log_event.h"                   // class Table_map_log_event
 #include <m_ctype.h>
-
+#include "json_mysql_binary.h"
+#include "json_dom.h"                    // Json_dom, Json_wrapper
 // Maximum allowed exponent value for converting string to decimal
 #define MAX_EXPONENT 1024
 
@@ -10700,6 +10701,10 @@ Field *make_field(TABLE_SHARE *share,
                    pack_length, geom_type, srid);
     }
 #endif
+    if (f_is_json(pack_flag))
+      return new Field_mysql_json(ptr, null_pos, null_bit,
+                                  unireg_check, field_name, share,
+                                  pack_length, field_charset);
     if (f_is_blob(pack_flag))
     {
       if (unireg_check == Field::TMYSQL_COMPRESSED)
@@ -11167,6 +11172,63 @@ uint32 Field_blob::max_display_length() const
     DBUG_ASSERT(0); // we should never go here
     return 0;
   }
+}
+
+/*****************************************************************************
+ Mysql table 5.7 with json data handling
+*****************************************************************************/
+bool Field_mysql_json::val_json (Json_wrapper *wr)
+{
+  ASSERT_COLUMN_MARKED_FOR_READ;
+  DBUG_ASSERT(!is_null());
+
+  String tmp;
+  String *s= Field_blob::val_str(&tmp, &tmp);
+
+  /*
+    The empty string is not a valid JSON binary representation, so we
+    should have returned an error. However, sometimes an empty
+    Field_json object is created in order to retrieve meta-data.
+    Return a dummy value instead of raising an error. Bug#21104470.
+    The field could also contain an empty string after forcing NULL or
+    DEFAULT into a not nullable JSON column using lax error checking
+    (such as INSERT IGNORE or non-strict SQL mode). The JSON null
+    literal is used to represent the empty value in this case.
+    Bug#21437989.
+  */
+ 
+  if (s->length() == 0)
+  {
+    Json_wrapper w(new (std::nothrow) Json_null());
+    wr->steal(&w);
+    return false;
+  }
+
+  json_mysql_binary::Value v(json_mysql_binary::parse_binary(s->ptr(), s->length()));
+  if (v.type() == json_mysql_binary::Value::ERROR)
+  {
+    /* purecov: begin inspected */ 
+    my_error(ER_INVALID_ON_UPDATE, MYF(0)); // ER_INVALID_JSON_BINARY_DATA
+    return true;
+    /* purecov: end */
+  }
+
+  Json_wrapper w(v);
+  wr->steal(&w);
+  return false;
+}
+
+ String *Field_mysql_json::val_str(String *buf1_tmp, String *buf2 __attribute__((unused)))
+{
+  ASSERT_COLUMN_MARKED_FOR_READ;
+  String *buf1= Field_blob::val_str(buf1_tmp, buf2);
+  //buf1->set("",0,charset());	// A bit safer than buf1->length(0);
+  buf1->length(0);
+
+  Json_wrapper wr;
+  if (is_null() || val_json(&wr) || wr.to_string(buf1, true, field_name.str))
+    buf1->length(0);
+  return buf1;
 }
 
 

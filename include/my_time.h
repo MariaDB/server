@@ -56,7 +56,7 @@ extern uchar days_in_month[];
 #endif
 
 /* Flags to str_to_datetime */
-
+typedef uint my_time_flags_t;
 /*
   TIME_FUZZY_DATES is used for the result will only be used for comparison
   purposes. Conversion is as relaxed as possible.
@@ -134,6 +134,10 @@ ulonglong TIME_to_ulonglong_date(const MYSQL_TIME *);
 ulonglong TIME_to_ulonglong_time(const MYSQL_TIME *);
 ulonglong TIME_to_ulonglong(const MYSQL_TIME *);
 double TIME_to_double(const MYSQL_TIME *my_time);
+
+#define MY_PACKED_TIME_MAKE_INT(i)         ((((longlong) (i)) << 24))
+longlong TIME_to_longlong_date_packed(const MYSQL_TIME *);	longlong TIME_to_longlong_date_packed(const MYSQL_TIME *);
+longlong TIME_to_longlong_packed(const MYSQL_TIME *);	longlong TIME_to_longlong_packed(const MYSQL_TIME *);
 
 int check_time_range(struct st_mysql_time *my_time, uint dec, int *warning);
 my_bool check_datetime_range(const MYSQL_TIME *ltime);

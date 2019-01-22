@@ -1,0 +1,13 @@
+#
+# MDEV-18323: Convert MySQL JSON type to MariaDB TEXT in mysql_upgrade
+# Test 2 (field treated as a blob):
+# Can read .frm file from mysql table containg the json data,
+# but is not well structured
+#
+drop table if exists mysql_json;
+Warnings:
+Note	1051	Unknown table 'test.mysql_json'
+select * from test.mysql_json;
+t
+{"key1": "val1", "key2": "val2"}
+drop table mysql_json;

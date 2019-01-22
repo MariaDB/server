@@ -1854,7 +1854,19 @@ int TABLE_SHARE::init_from_binary_frm_image(THD *thd, bool write,
         }
       }
 
-      if ((uchar)field_type == (uchar)MYSQL_TYPE_VIRTUAL)
+/*
+      if ((uchar)field_type == (uchar)MYSQL_TYPE_VIRTUAL)	      if ((uchar)field_type == (uchar)MYSQL_TYPE_VIRTUAL)	           
+      Special handling to be able to read MySQL JSON types when
+      converting a MySQL table to MariaDB table.
+*/
+      if (share->mysql_version >= 50700 && 
+          share->mysql_version < 100000 &&
+          strpos[13] == (uchar) MYSQL_TYPE_VIRTUAL)
+      {
+        field_type= (enum_field_types) MYSQL_TYPE_MYSQL_JSON;
+        // strpos[13]= (uchar) MYSQL_TYPE_MYSQL_JSON; // read only 
+      }
+      else if ((uchar)field_type == (uchar)MYSQL_TYPE_VIRTUAL)
       {
         if (!interval_nr) // Expect non-null expression
           goto err;

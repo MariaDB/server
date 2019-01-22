@@ -317,7 +317,7 @@ static my_bool opt_verbose= 0;
 MY_TIMER_INFO sys_timer_info;
 
 /* static variables */
-
+PSI_memory_key key_memory_JSON;
 #ifdef HAVE_PSI_INTERFACE
 #if (defined(_WIN32) || defined(HAVE_SMEM)) && !defined(EMBEDDED_LIBRARY)
 static PSI_thread_key key_thread_handle_con_namedpipes;

@@ -17,6 +17,7 @@
 #define THR_MALLOC_INCLUDED
 
 typedef struct st_mem_root MEM_ROOT;
+typedef unsigned int PSI_memory_key;
 
 void init_sql_alloc(MEM_ROOT *root, const char *area_name, uint block_size,
                     uint pre_alloc_size, myf my_flags);

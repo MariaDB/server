@@ -447,4 +447,40 @@ void my_timestamp_to_binary(const struct timeval *tm, uchar *ptr, uint dec)
   }
 }
 
+/**
+ Convert a temporal value to packed numeric temporal representation,
+ depending on its time_type.
+  @ltime The value to convert.
+ @return Packed numeric time/date/datetime representation.
+*/
+longlong TIME_to_longlong_packed(const MYSQL_TIME *ltime)
+{
+ switch (ltime->time_type) {
+ case MYSQL_TIMESTAMP_DATE:
+ return TIME_to_longlong_date_packed(ltime);
+ case MYSQL_TIMESTAMP_DATETIME:
+ return TIME_to_longlong_datetime_packed(ltime);
+ case MYSQL_TIMESTAMP_TIME:
+ return TIME_to_longlong_time_packed(ltime); 
+ case MYSQL_TIMESTAMP_NONE:
+ case MYSQL_TIMESTAMP_ERROR:
+ return 0;
+ }
+ DBUG_ASSERT(0);
+ return 0;
+}
+
+ /**
+ Convert date to packed numeric date representation.
+ Numeric packed date format is similar to numeric packed datetime
+ representation, with zero hhmmss part.
+ 
+ @param ltime The value to convert.
+ @return Packed numeric representation of ltime.
+*/
+longlong TIME_to_longlong_date_packed(const MYSQL_TIME *ltime)
+{
+ longlong ymd= ((ltime->year * 13 + ltime->month) << 5) | ltime->day;
+ return MY_PACKED_TIME_MAKE_INT(ymd << 17);
+}
 /****************************************/
