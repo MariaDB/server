@@ -42,7 +42,7 @@
 #include "filesort.h"                    // change_double_for_sort
 #include "log_event.h"                   // class Table_map_log_event
 #include <m_ctype.h>
-
+#include "mysql_json.h"
 // Maximum allowed exponent value for converting string to decimal
 #define MAX_EXPONENT 1024
 
@@ -10859,6 +10859,13 @@ Field *make_field(TABLE_SHARE *share,
                                                 f_packtype(pack_flag));
     uint pack_length= tmp->calc_pack_length(field_length);
 
+    if (handler == &type_handler_mysql_json)
+    {
+        return new (mem_root) Field_mysql_json(ptr, null_pos, null_bit,
+                                               unireg_check, field_name, share,
+                                               pack_length, field_charset);
+    }
+
 #ifdef HAVE_SPATIAL
     if (f_is_geom(pack_flag))
     {
@@ -11364,6 +11371,40 @@ uint32 Field_blob::max_display_length() const
     DBUG_ASSERT(0); // we should never go here
     return 0;
   }
+}
+
+/*****************************************************************************
+ Mysql table 5.7 with json data handling
+*****************************************************************************/
+bool Field_mysql_json::parse_mysql(String *dest,
+                                   const char *data, size_t length) const
+{
+  if (!data)
+    return false;
+
+  /* Each JSON blob must start with a type specifier. */
+  if (length < 2)
+    return true;
+
+  if (parse_mysql_json_value(dest, static_cast<JSONB_TYPES>(data[0]),
+                             data + 1, length - 1, 0))
+    return true;
+
+  return false;
+}
+
+String *Field_mysql_json::val_str(String *val_buffer, String *val_ptr)
+{
+  ASSERT_COLUMN_MARKED_FOR_READ;
+  String *raw_value= Field_blob::val_str(val_buffer, val_ptr);
+
+  const char* data = raw_value->ptr();
+  size_t length = raw_value->length();
+
+  val_ptr->length(0);
+  if (this->parse_mysql(val_ptr, data, length))
+    val_ptr->length(0);
+  return val_ptr;
 }
 
 
