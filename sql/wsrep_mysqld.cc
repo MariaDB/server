@@ -825,7 +825,7 @@ void wsrep_init_startup (bool first)
     Pre-initialize global_system_variables.table_plugin with a dummy engine
     (placeholder) required during the initialization of wsrep threads (THDs).
     (see: plugin_thdvar_init())
-    Note: This only needs to be done for rsync & xtrabackup based SST methods.
+    Note: This only needs to be done for rsync & mariabackup based SST methods.
     In case of mysqldump SST method, the wsrep threads are created after the
     server plugins & global system variables are initialized.
   */
