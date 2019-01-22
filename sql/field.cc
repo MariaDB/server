@@ -42,7 +42,7 @@
 #include "filesort.h"                    // change_double_for_sort
 #include "log_event.h"                   // class Table_map_log_event
 #include <m_ctype.h>
-
+#include "mysql_json.h"
 // Maximum allowed exponent value for converting string to decimal
 #define MAX_EXPONENT 1024
 
@@ -10681,6 +10681,10 @@ Field *make_field(TABLE_SHARE *share,
                    pack_length, geom_type, srid);
     }
 #endif
+    if (f_is_json(pack_flag))
+      return new Field_mysql_json(ptr, null_pos, null_bit,
+                                  unireg_check, field_name, share,
+                                  pack_length, field_charset);
     if (f_is_blob(pack_flag))
     {
       if (unireg_check == Field::TMYSQL_COMPRESSED)
@@ -11176,6 +11180,51 @@ uint32 Field_blob::max_display_length() const
     DBUG_ASSERT(0); // we should never go here
     return 0;
   }
+}
+
+/*****************************************************************************
+ Mysql table 5.7 with json data handling
+*****************************************************************************/
+bool Field_mysql_json::parse_mysql(String *s, bool json_quoted,
+                                   const char *func_name) const
+{
+  const char *data= s->ptr();
+  size_t length= s->length();
+
+  // Empty the string
+  s->length(0);
+  if (length == 0)
+  {
+    // There are no data.
+    return false;
+  }
+
+  // Each document should start with a one-byte type specifier.
+  if (length < 1)
+    return true;
+  
+  // First byte is type, starting from second byte, raw data are considered for 
+  // obtaining the header and key/value vectors.
+  size_t type= data[0];
+  const char* data1= data + 1;
+  size_t len= length - 1;
+
+  // The fifth argument represents `large` parameter and since it is validated
+  // according to the `type` in parse_value() false value is not important here.
+  if(parse_value(s, type, data1, len, false, 0))
+    return true;
+
+  return false;
+}
+
+ String *Field_mysql_json::val_str(String *buf1_tmp, String *buf2 __attribute__((unused)))
+{
+  ASSERT_COLUMN_MARKED_FOR_READ;
+  String *buf1= Field_blob::val_str(buf1_tmp, buf2);
+
+  if (this->parse_mysql(buf1, true, field_name.str))
+    buf1->length(0);
+  return buf1;
 }
 
 

@@ -3665,7 +3665,8 @@ public:
       return do_field_int;
     */
     if (!(from->flags & BLOB_FLAG) || from->charset() != charset() ||
-        !from->compression_method() != !compression_method())
+        !from->compression_method() != !compression_method() ||
+        from->type() == MYSQL_TYPE_MYSQL_JSON)
       return do_conv_blob;
     if (from->pack_length() != Field_blob::pack_length())
       return do_copy_blob;
@@ -4819,6 +4820,43 @@ public:
   void (*do_copy2)(Copy_field *);		// Used to handle null values
 };
 
+/*
+  A class for handling the mysql json data to fields
+*/
+class Field_mysql_json :public Field_blob
+{
+  public:
+    Field_mysql_json(uchar *ptr_arg, uchar *null_ptr_arg,
+                     uchar null_bit_arg, enum utype unireg_check_arg,
+                     const LEX_CSTRING *field_name_arg, TABLE_SHARE *share,
+                     uint blob_pack_length, const DTCollation &collation)
+      : Field_blob(ptr_arg, null_ptr_arg, null_bit_arg, unireg_check_arg,
+                   field_name_arg, share, blob_pack_length, collation)
+    {}
+
+    Field_mysql_json(uint32 len_arg, bool maybe_null_arg, const LEX_CSTRING *field_name_arg)
+      : Field_blob(len_arg, maybe_null_arg, field_name_arg, &my_charset_bin)
+    {}
+   /**
+    Retrieve the JSON value stored in this field as text
+     @param[in,out] buf1 string buffer for converting JSON value to string
+    @param[in,out] buf2 unused
+  */
+  enum class enum_type
+  {
+    OBJECT, ARRAY, STRING, INT, UINT, DOUBLE,
+    LITERAL_NULL, LITERAL_TRUE, LITERAL_FALSE,
+    OPAQUE,
+    ERROR /* Not really a type. Used to signal that an
+             error was detected. */
+  };
+  String *val_str(String *, String *);
+  enum_field_types type() const
+  {
+    return MYSQL_TYPE_MYSQL_JSON;
+  }
+  bool parse_mysql(String*, bool, const char *) const;
+};
 
 uint pack_length_to_packflag(uint type);
 enum_field_types get_blob_type_from_length(ulong length);
@@ -4843,6 +4881,7 @@ bool check_expression(Virtual_column_info *vcol, LEX_CSTRING *name,
 #define FIELDFLAG_GEOM			2048U   // mangled with decimals!
 
 #define FIELDFLAG_TREAT_BIT_AS_CHAR     4096U   /* use Field_bit_as_char */
+#define FIELDFLAG_JSON  	             	4096U  // Shares same flag
 #define FIELDFLAG_LONG_DECIMAL          8192U
 #define FIELDFLAG_NO_DEFAULT		16384U  /* sql */
 #define FIELDFLAG_MAYBE_NULL		32768U	// sql
@@ -4871,6 +4910,7 @@ bool check_expression(Virtual_column_info *vcol, LEX_CSTRING *name,
 #define f_bit_as_char(x)        ((x) & FIELDFLAG_TREAT_BIT_AS_CHAR)
 #define f_is_hex_escape(x)      ((x) & FIELDFLAG_HEX_ESCAPE)
 #define f_visibility(x)         (static_cast<field_visibility_t> ((x) & INVISIBLE_MAX_BITS))
+#define f_is_json(x)		(((x) & (FIELDFLAG_JSON | FIELDFLAG_NUMBER | FIELDFLAG_BITFIELD)) == FIELDFLAG_JSON)
 
 inline
 ulonglong TABLE::vers_end_id() const

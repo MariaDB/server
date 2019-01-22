@@ -1,0 +1,314 @@
+--source include/not_embedded.inc
+
+--echo #
+--echo # MDEV-18323: Convert MySQL JSON type to MariaDB TEXT in mysql_upgrade - apply alter force
+--echo #
+
+ let $datadir=`select @@datadir`;
+
+
+call mtr.add_suppression(" Table rebuild required. Please do \"ALTER TABLE `test.mysql_json` FORCE\" or dump/reload to fix it!");
+
+call mtr.add_suppression("mysqld: Table rebuild required. Please do \"ALTER TABLE `mysql.transaction_registry` FORCE\" or dump/reload to fix it");
+
+call mtr.add_suppression("mysqld: Table rebuild required. Please do \"ALTER TABLE `mysql.innodb_table_stats` FORCE\" or dump/reload to fix it!");
+
+call mtr.add_suppression("mysqld: Table rebuild required. Please do \"ALTER TABLE `mysql.innodb_index_stats` FORCE\" or dump/reload to fix it!");
+
+# Suppressions which are occuring for literals, empty json objects and primitive types
+call mtr.add_suppression("mysqld: Table './test/mysql_json' is marked as crashed and should be repaire");
+
+call mtr.add_suppression("Checking table:   './test/mysql_json'");
+
+--echo #
+--echo # Test ALTER TABLE FORCE of mysql json table
+--echo #
+
+ # Make sure you have placed `json.[frm/myd/myi]` files in `source/mysql-test/std_data/`
+--copy_file std_data/json.frm $datadir/test/mysql_json.frm
+--copy_file std_data/json.MYI $datadir/test/mysql_json.MYI
+--copy_file std_data/json.MYD $datadir/test/mysql_json.MYD
+--error ER_NOT_FORM_FILE
+SELECT * FROM test.mysql_json;
+# Alter Algorithm=Copy
+ALTER TABLE test.mysql_json FORCE;
+# After ALTER we can read
+SELECT * FROM test.mysql_json;
+--echo # Try one more time to alter force
+ALTER TABLE test.mysql_json FORCE;
+SELECT * FROM test.mysql_json;
+DROP TABLE test.mysql_json;
+
+--echo #
+--echo # Array test with json object
+--echo #
+
+--copy_file std_data/simple_array_table_json_object.frm $datadir/test/mysql_json.frm
+--copy_file std_data/simple_array_table_json_object.MYI $datadir/test/mysql_json.MYI
+--copy_file std_data/simple_array_table_json_object.MYD $datadir/test/mysql_json.MYD
+
+--error ER_NOT_FORM_FILE
+SELECT * FROM mysql_json;
+
+ALTER TABLE mysql_json FORCE;
+SELECT * FROM test.mysql_json;
+DROP TABLE test.mysql_json;
+
+--echo #
+--echo # Empty object and array
+--echo #
+
+--copy_file std_data/tempty.frm $datadir/test/mysql_json.frm
+--copy_file std_data/tempty.MYI $datadir/test/mysql_json.MYI
+--copy_file std_data/tempty.MYD $datadir/test/mysql_json.MYD
+
+--error ER_NOT_FORM_FILE
+SELECT * FROM test.mysql_json;
+
+ALTER TABLE test.mysql_json FORCE;
+SELECT * FROM test.mysql_json;
+DROP TABLE test.mysql_json;
+
+--echo #
+--echo # Test literals
+--echo #
+
+--copy_file std_data/literals.frm $datadir/test/mysql_json.frm
+--copy_file std_data/literals.MYI $datadir/test/mysql_json.MYI
+--copy_file std_data/literals.MYD $datadir/test/mysql_json.MYD
+
+--error ER_NOT_FORM_FILE
+SELECT * FROM mysql_json;
+
+ALTER TABLE mysql_json FORCE;
+SELECT * FROM test.mysql_json;
+DROP TABLE test.mysql_json;
+
+--echo #
+--echo # Test ints - int64
+--echo #
+
+--copy_file std_data/uint64.frm $datadir/test/mysql_json.frm
+--copy_file std_data/uint64.MYI $datadir/test/mysql_json.MYI
+--copy_file std_data/uint64.MYD $datadir/test/mysql_json.MYD
+
+--error ER_NOT_FORM_FILE
+SELECT * FROM mysql_json;
+
+ALTER TABLE mysql_json FORCE;
+SELECT * FROM test.mysql_json;
+DROP TABLE test.mysql_json;
+
+--echo #
+--echo # Test ints - negative values
+--echo #
+
+--copy_file std_data/negative_value_json.frm $datadir/test/mysql_json.frm
+--copy_file std_data/negative_value_json.MYI $datadir/test/mysql_json.MYI
+--copy_file std_data/negative_value_json.MYD $datadir/test/mysql_json.MYD
+
+--error ER_NOT_FORM_FILE
+SELECT * FROM mysql_json;
+
+ALTER TABLE mysql_json FORCE;
+SELECT * FROM test.mysql_json;
+DROP TABLE test.mysql_json;
+
+--echo #
+--echo # Test ints - mixed values worked
+--echo #
+
+--copy_file std_data/ints.frm $datadir/test/mysql_json.frm
+--copy_file std_data/ints.MYI $datadir/test/mysql_json.MYI
+--copy_file std_data/ints.MYD $datadir/test/mysql_json.MYD
+
+--error ER_NOT_FORM_FILE
+SELECT * FROM mysql_json;
+
+ALTER TABLE mysql_json FORCE;
+SELECT * FROM test.mysql_json;
+DROP TABLE test.mysql_json;
+
+--echo #
+--echo # Test floats
+--echo #
+
+--copy_file std_data/tfloat.frm $datadir/test/mysql_json.frm
+--copy_file std_data/tfloat.MYI $datadir/test/mysql_json.MYI
+--copy_file std_data/tfloat.MYD $datadir/test/mysql_json.MYD
+
+--error ER_NOT_FORM_FILE
+SELECT * FROM mysql_json;
+
+ALTER TABLE mysql_json FORCE;
+SELECT * FROM test.mysql_json;
+DROP TABLE test.mysql_json;
+
+--echo #
+--echo # Strings
+--echo #
+
+--copy_file std_data/strings.frm $datadir/test/mysql_json.frm
+--copy_file std_data/strings.MYI $datadir/test/mysql_json.MYI
+--copy_file std_data/strings.MYD $datadir/test/mysql_json.MYD
+
+--error ER_NOT_FORM_FILE
+SELECT * FROM mysql_json;
+
+ALTER TABLE mysql_json FORCE;
+SELECT * FROM test.mysql_json;
+DROP TABLE test.mysql_json;
+
+--echo #
+--echo # Test array with json object
+--echo #
+
+--copy_file std_data/simple_array_table_json_object.frm $datadir/test/mysql_json.frm
+--copy_file std_data/simple_array_table_json_object.MYI $datadir/test/mysql_json.MYI
+--copy_file std_data/simple_array_table_json_object.MYD $datadir/test/mysql_json.MYD
+
+--error ER_NOT_FORM_FILE
+SELECT * FROM mysql_json;
+
+ALTER TABLE mysql_json FORCE;
+SELECT * FROM test.mysql_json;
+DROP TABLE test.mysql_json;
+
+--echo #
+--echo # Test array with JSONB_TYPE_LARGE_OBJECT
+--echo #
+
+--copy_file std_data/long_string_JSONB_TYPE_LARGE_OBJECT.frm $datadir/test/mysql_json.frm
+--copy_file std_data/long_string_JSONB_TYPE_LARGE_OBJECT.MYI $datadir/test/mysql_json.MYI
+--copy_file std_data/long_string_JSONB_TYPE_LARGE_OBJECT.MYD $datadir/test/mysql_json.MYD
+
+--error ER_NOT_FORM_FILE
+SELECT * FROM mysql_json;
+
+ALTER TABLE mysql_json FORCE;
+SELECT * FROM test.mysql_json;
+DROP TABLE test.mysql_json;
+
+--echo #
+--echo # Test array with json array
+--echo #
+
+--copy_file std_data/simple_array1.frm $datadir/test/mysql_json.frm
+--copy_file std_data/simple_array1.MYI $datadir/test/mysql_json.MYI
+--copy_file std_data/simple_array1.MYD $datadir/test/mysql_json.MYD
+
+--error ER_NOT_FORM_FILE
+SELECT * FROM mysql_json;
+
+ALTER TABLE mysql_json FORCE;
+SELECT * FROM test.mysql_json;
+DROP TABLE test.mysql_json;
+
+--echo #
+--echo # Test array with JSONB_TYPE_LARGE_ARRAY
+--echo #
+
+--copy_file std_data/bigarray.frm $datadir/test/mysql_json.frm
+--copy_file std_data/bigarray.MYI $datadir/test/mysql_json.MYI
+--copy_file std_data/bigarray.MYD $datadir/test/mysql_json.MYD
+
+--error ER_NOT_FORM_FILE
+SELECT * FROM mysql_json;
+
+ALTER TABLE mysql_json FORCE;
+SELECT * FROM test.mysql_json;
+DROP TABLE test.mysql_json;
+
+
+--echo #
+--echo # Date and time (casting in mysql)
+--echo #
+
+--echo # ---Opaque types ---
+
+--copy_file std_data/tdatetime.frm $datadir/test/mysql_json.frm
+--copy_file std_data/tdatetime.MYI $datadir/test/mysql_json.MYI
+--copy_file std_data/tdatetime.MYD $datadir/test/mysql_json.MYD
+
+--error ER_NOT_FORM_FILE
+SELECT * FROM mysql_json;
+
+ALTER TABLE mysql_json FORCE;
+SELECT * FROM test.mysql_json;
+DROP TABLE test.mysql_json;
+
+--echo #
+--echo # --- opaque_mysql_type_decimal ---
+--echo #
+
+--copy_file std_data/tdatetime2.frm $datadir/test/mysql_json.frm
+--copy_file std_data/tdatetime2.MYI $datadir/test/mysql_json.MYI
+--copy_file std_data/tdatetime2.MYD $datadir/test/mysql_json.MYD
+
+--error ER_NOT_FORM_FILE
+SELECT * FROM mysql_json;
+
+ALTER TABLE mysql_json FORCE;
+SELECT * FROM test.mysql_json;
+DROP TABLE test.mysql_json;
+
+--echo # 
+--echo # --- opaque data types ---
+--echo #
+
+--copy_file std_data/tests_json.frm $datadir/test/mysql_json.frm
+--copy_file std_data/tests_json.MYI $datadir/test/mysql_json.MYI
+--copy_file std_data/tests_json.MYD $datadir/test/mysql_json.MYD
+
+--error ER_NOT_FORM_FILE
+SELECT * FROM mysql_json;
+
+ALTER TABLE mysql_json FORCE;
+SELECT * FROM test.mysql_json;
+DROP TABLE test.mysql_json;
+
+--echo #
+--echo # --- auto convert utf8mb4 ---
+--echo #
+call mtr.add_suppression("Table './test/mysql_json' is marked as crashed and should be repaired");
+call mtr.add_suppression("Checking table:   './test/mysql_json'");
+--copy_file std_data/encode64.frm $datadir/test/mysql_json.frm
+--copy_file std_data/encode64.MYI $datadir/test/mysql_json.MYI
+--copy_file std_data/encode64.MYD $datadir/test/mysql_json.MYD
+
+--error ER_NOT_FORM_FILE
+SELECT * FROM mysql_json;
+
+ALTER TABLE mysql_json FORCE;
+SELECT * FROM test.mysql_json;
+DROP TABLE test.mysql_json;
+
+--echo # 
+--echo # --- utf8 characters ---
+--echo #
+
+--copy_file std_data/testjson.frm $datadir/test/mysql_json.frm
+--copy_file std_data/testjson.MYI $datadir/test/mysql_json.MYI
+--copy_file std_data/testjson.MYD $datadir/test/mysql_json.MYD
+
+--error ER_NOT_FORM_FILE
+SELECT * FROM mysql_json;
+
+ALTER TABLE mysql_json FORCE;
+SELECT * FROM test.mysql_json;
+DROP TABLE test.mysql_json;
+
+--echo #
+--echo # Test - mix of everything
+--echo #
+
+--copy_file std_data/tjson.frm $datadir/test/mysql_json.frm
+--copy_file std_data/tjson.MYI $datadir/test/mysql_json.MYI
+--copy_file std_data/tjson.MYD $datadir/test/mysql_json.MYD
+
+--error ER_NOT_FORM_FILE
+SELECT * FROM mysql_json;
+
+ALTER TABLE mysql_json FORCE;
+SELECT * FROM test.mysql_json;
+DROP TABLE test.mysql_json;

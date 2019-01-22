@@ -9138,7 +9138,6 @@ bool mysql_alter_table(THD *thd, const LEX_CSTRING *new_db,
   bool error= open_tables(thd, &table_list, &tables_opened, 0,
                           &alter_prelocking_strategy);
   thd->open_options&= ~HA_OPEN_FOR_ALTER;
-
   TABLE *table= table_list->table;
   bool versioned= table && table->versioned();
 
@@ -10072,7 +10071,8 @@ do_continue:;
     */
     goto err_with_mdl_after_alter;
   }
-
+  if(alter_info->flags == ALTER_RECREATE)
+    thd->lex->alter_info.flags= 0;
 end_inplace:
 
   if (thd->locked_tables_list.reopen_tables(thd, false))

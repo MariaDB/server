@@ -69,7 +69,7 @@ SET (SQL_SOURCE
                filesort_utils.cc
                filesort.cc gstream.cc
                signal_handler.cc
-               handler.cc
+               handler.cc mysql_json.cc
                hostname.cc init.cc item.cc item_buff.cc item_cmpfunc.cc 
                item_create.cc item_func.cc item_geofunc.cc item_row.cc 
                item_strfunc.cc item_subselect.cc item_sum.cc item_timefunc.cc 
