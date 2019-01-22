@@ -5584,7 +5584,8 @@ static bool innobase_instant_try(
 				      || i < ctx->first_alter_pos - 1);
 		DBUG_ASSERT(!old || col->same_format(*old));
 		if (update
-		    && old->prtype == d->type.prtype) {
+		    && old->prtype == d->type.prtype
+		    && old->len == d->type.len) {
 			/* The record is already present in SYS_COLUMNS. */
 		} else if (innodb_insert_sys_columns(user_table->id, i,
 						     (*af)->field_name.str,
