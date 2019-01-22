@@ -515,15 +515,17 @@ static int is_active= 0;
 static long log_write_failures= 0;
 static char current_log_buf[FN_REFLEN]= "";
 static char last_error_buf[512]= "";
+static long n_connects= 0;
+static long n_cur_connects= 0;
+static long max_cur_connects= 0;
 
 extern void *mysql_v4_descriptor;
 
 static struct st_mysql_show_var audit_status[]=
 {
   {"server_audit_active", (char *)&is_active, SHOW_BOOL},
-  {"server_audit_current_log", current_log_buf, SHOW_CHAR},
-  {"server_audit_writes_failed", (char *)&log_write_failures, SHOW_LONG},
-  {"server_audit_last_error", last_error_buf, SHOW_CHAR},
+  {"server_audit_connections", (char *)&n_connects, SHOW_LONG},
+  {"server_audit_max_connections", (char *)&max_cur_connects, SHOW_LONG},
   {0,0,0}
 };
 
@@ -1975,137 +1977,31 @@ struct connection_info cn_error_buffer;
 #define FILTER(MASK) (events == 0 || (events & MASK))
 void auditing(MYSQL_THD thd, unsigned int event_class, const void *ev)
 {
-  struct connection_info *cn= 0;
-  int after_action= 0;
-
-  /* That one is important as this function can be called with      */
-  /* &lock_operations locked when the server logs an error reported */
-  /* by this plugin.                                                */
-  if (!thd || internal_stop_logging)
+  if (!logging)
     return;
 
-  flogger_mutex_lock(&lock_operations);
-
-  if (maria_55_started && debug_server_started &&
-      event_class == MYSQL_AUDIT_GENERAL_CLASS)
-  {
-    /*
-      There's a bug in MariaDB 5.5 that prevents using thread local
-      variables in some cases.
-      The 'select * from notexisting_table;' query produces such case.
-      So just use the static buffer in this case.
-    */
-    const struct mysql_event_general *event =
-      (const struct mysql_event_general *) ev;
-
-    if (event->event_subclass == MYSQL_AUDIT_GENERAL_ERROR ||
-        (event->event_subclass == MYSQL_AUDIT_GENERAL_STATUS && 
-         event->general_query_length == 0 &&
-         cn_error_buffer.query_id == event->query_id))
-    {
-      cn= &cn_error_buffer;
-      cn->header= 1;
-    }
-    else
-      cn= get_loc_info(thd);
-  }
-  else
-  {
-    cn= get_loc_info(thd);
-  }
-
-  update_connection_info(cn, event_class, ev, &after_action);
-
-  if (!logging)
-    goto exit_func;
-
-  if (event_class == MYSQL_AUDIT_GENERAL_CLASS && FILTER(EVENT_QUERY) &&
-      cn && do_log_user(cn->user))
-  {
-    const struct mysql_event_general *event =
-      (const struct mysql_event_general *) ev;
-
-    /*
-      Only one subclass is logged.
-    */
-    if (event->event_subclass == MYSQL_AUDIT_GENERAL_STATUS &&
-        event_query_command(event))
-    {
-      log_statement(cn, event, "QUERY");
-      cn->query_length= 0; /* So the log_current_query() won't log this again. */
-    }
-  }
-  else if (event_class == MYSQL_AUDIT_TABLE_CLASS && FILTER(EVENT_TABLE) && cn)
-  {
-    const struct mysql_event_table *event =
-      (const struct mysql_event_table *) ev;
-    if (do_log_user(event->user))
-    {
-      switch (event->event_subclass)
-      {
-        case MYSQL_AUDIT_TABLE_LOCK:
-          log_table(cn, event, event->read_only ? "READ" : "WRITE");
-          break;
-        case MYSQL_AUDIT_TABLE_CREATE:
-          log_table(cn, event, "CREATE");
-          break;
-        case MYSQL_AUDIT_TABLE_DROP:
-          log_table(cn, event, "DROP");
-          break;
-        case MYSQL_AUDIT_TABLE_RENAME:
-          log_rename(cn, event);
-          break;
-        case MYSQL_AUDIT_TABLE_ALTER:
-          log_table(cn, event, "ALTER");
-          break;
-        default:
-          break;
-      }
-    }
-  }
-  else if (event_class == MYSQL_AUDIT_CONNECTION_CLASS &&
-           FILTER(EVENT_CONNECT) && cn)
+  if (event_class == MYSQL_AUDIT_CONNECTION_CLASS)
   {
     const struct mysql_event_connection *event =
       (const struct mysql_event_connection *) ev;
     switch (event->event_subclass)
     {
       case MYSQL_AUDIT_CONNECTION_CONNECT:
-        log_connection(cn, event, event->status ? "FAILED_CONNECT": "CONNECT");
+        n_connects++;
+        n_cur_connects++;
+        if (n_cur_connects > max_cur_connects)
+          max_cur_connects= n_cur_connects;
         break;
+
       case MYSQL_AUDIT_CONNECTION_DISCONNECT:
-        if (use_event_data_for_disconnect)
-          log_connection_event(event, "DISCONNECT");
-        else
-          log_connection(&ci_disconnect_buffer, event, "DISCONNECT");
+        n_cur_connects--;
         break;
-      case MYSQL_AUDIT_CONNECTION_CHANGE_USER:
-        log_connection(cn, event, "CHANGEUSER");
+
+      default:
         break;
-      default:;
     }
   }
-exit_func:
-  /*
-    This must work always, whether logging is ON or not.
-  */
-  if (after_action)
-  {
-    switch (after_action) {
-    case AA_CHANGE_USER:
-    {
-      const struct mysql_event_connection *event =
-        (const struct mysql_event_connection *) ev;
-      change_connection(cn, event);
-      break;
-    }
-    default:
-      break;
-    }
-  }
-  if (cn)
-    cn->log_always= 0;
-  flogger_mutex_unlock(&lock_operations);
+
 }
 
 
