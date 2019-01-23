@@ -2458,48 +2458,6 @@ static void update_file_path(MYSQL_THD thd,
               struct st_mysql_sys_var *var  __attribute__((unused)),
               void *var_ptr  __attribute__((unused)), const void *save)
 {
-  char *new_name= (*(char **) save) ? *(char **) save : empty_str;
-
-  if (!maria_55_started || !debug_server_started)
-    flogger_mutex_lock(&lock_operations);
-  internal_stop_logging= 1;
-  error_header();
-  fprintf(stderr, "Log file name was changed to '%s'.\n", new_name);
-
-  if (logging)
-    log_current_query(thd);
-
-  if (logging && output_type == OUTPUT_FILE)
-  {
-    char *sav_path= file_path;
-
-    file_path= new_name;
-    internal_stop_logging= 1;
-    stop_logging();
-    if (start_logging())
-    {
-      file_path= sav_path;
-      error_header();
-      fprintf(stderr, "Reverting log filename back to '%s'.\n", file_path);
-      logging= (start_logging() == 0);
-      if (!logging)
-      {
-        error_header();
-        fprintf(stderr, "Logging was disabled..\n");
-        CLIENT_ERROR(1, "Logging was disabled.", MYF(ME_JUST_WARNING));
-      }
-      goto exit_func;
-    }
-    internal_stop_logging= 0;
-  }
-
-  strncpy(path_buffer, new_name, sizeof(path_buffer));
-  path_buffer[sizeof(path_buffer)-1]= 0;
-  file_path= path_buffer;
-exit_func:
-  internal_stop_logging= 0;
-  if (!maria_55_started || !debug_server_started)
-    flogger_mutex_unlock(&lock_operations);
 }
 
 
@@ -2507,16 +2465,6 @@ static void update_file_rotations(MYSQL_THD thd  __attribute__((unused)),
               struct st_mysql_sys_var *var  __attribute__((unused)),
               void *var_ptr  __attribute__((unused)), const void *save)
 {
-  rotations= *(unsigned int *) save;
-  error_header();
-  fprintf(stderr, "Log file rotations was changed to '%d'.\n", rotations);
-
-  if (!logging || output_type != OUTPUT_FILE)
-    return;
-
-  flogger_mutex_lock(&lock_operations);
-  logfile->rotations= rotations;
-  flogger_mutex_unlock(&lock_operations);
 }
 
 
@@ -2524,17 +2472,6 @@ static void update_file_rotate_size(MYSQL_THD thd  __attribute__((unused)),
               struct st_mysql_sys_var *var  __attribute__((unused)),
               void *var_ptr  __attribute__((unused)), const void *save)
 {
-  file_rotate_size= *(unsigned long long *) save;
-  error_header();
-  fprintf(stderr, "Log file rotate size was changed to '%lld'.\n",
-          file_rotate_size);
-
-  if (!logging || output_type != OUTPUT_FILE)
-    return;
-
-  flogger_mutex_lock(&lock_operations);
-  logfile->size_limit= file_rotate_size;
-  flogger_mutex_unlock(&lock_operations);
 }
 
 
@@ -2542,18 +2479,6 @@ static void update_incl_users(MYSQL_THD thd,
               struct st_mysql_sys_var *var  __attribute__((unused)),
               void *var_ptr  __attribute__((unused)), const void *save)
 {
-  char *new_users= (*(char **) save) ? *(char **) save : empty_str;
-  if (!maria_55_started || !debug_server_started)
-    flogger_mutex_lock(&lock_operations);
-  mark_always_logged(thd);
-  strncpy(incl_user_buffer, new_users, sizeof(incl_user_buffer));
-  incl_user_buffer[sizeof(incl_user_buffer)-1]= 0;
-  incl_users= incl_user_buffer;
-  user_coll_fill(&incl_user_coll, incl_users, &excl_user_coll, 1);
-  error_header();
-  fprintf(stderr, "server_audit_incl_users set to '%s'.\n", incl_users);
-  if (!maria_55_started || !debug_server_started)
-    flogger_mutex_unlock(&lock_operations);
 }
 
 
@@ -2561,18 +2486,6 @@ static void update_excl_users(MYSQL_THD thd  __attribute__((unused)),
               struct st_mysql_sys_var *var  __attribute__((unused)),
               void *var_ptr  __attribute__((unused)), const void *save)
 {
-  char *new_users= (*(char **) save) ? *(char **) save : empty_str;
-  if (!maria_55_started || !debug_server_started)
-    flogger_mutex_lock(&lock_operations);
-  mark_always_logged(thd);
-  strncpy(excl_user_buffer, new_users, sizeof(excl_user_buffer));
-  excl_user_buffer[sizeof(excl_user_buffer)-1]= 0;
-  excl_users= excl_user_buffer;
-  user_coll_fill(&excl_user_coll, excl_users, &incl_user_coll, 0);
-  error_header();
-  fprintf(stderr, "server_audit_excl_users set to '%s'.\n", excl_users);
-  if (!maria_55_started || !debug_server_started)
-    flogger_mutex_unlock(&lock_operations);
 }
 
 
@@ -2580,27 +2493,6 @@ static void update_output_type(MYSQL_THD thd,
               struct st_mysql_sys_var *var  __attribute__((unused)),
               void *var_ptr  __attribute__((unused)), const void *save)
 {
-  ulong new_output_type= *((ulong *) save);
-  if (output_type == new_output_type)
-    return;
-
-  flogger_mutex_lock(&lock_operations);
-  internal_stop_logging= 1;
-  if (logging)
-  {
-    log_current_query(thd);
-    stop_logging();
-  }
-
-  output_type= new_output_type;
-  error_header();
-  fprintf(stderr, "Output was redirected to '%s'\n",
-          output_type_names[output_type]);
-
-  if (logging)
-    start_logging();
-  internal_stop_logging= 0;
-  flogger_mutex_unlock(&lock_operations);
 }
 
 
@@ -2608,16 +2500,6 @@ static void update_syslog_facility(MYSQL_THD thd  __attribute__((unused)),
               struct st_mysql_sys_var *var  __attribute__((unused)),
               void *var_ptr  __attribute__((unused)), const void *save)
 {
-  ulong new_facility= *((ulong *) save);
-  if (syslog_facility == new_facility)
-    return;
-
-  mark_always_logged(thd);
-  error_header();
-  fprintf(stderr, "SysLog facility was changed from '%s' to '%s'.\n",
-          syslog_facility_names[syslog_facility],
-          syslog_facility_names[new_facility]);
-  syslog_facility= new_facility;
 }
 
 
@@ -2625,18 +2507,6 @@ static void update_syslog_priority(MYSQL_THD thd  __attribute__((unused)),
               struct st_mysql_sys_var *var  __attribute__((unused)),
               void *var_ptr  __attribute__((unused)), const void *save)
 {
-  ulong new_priority= *((ulong *) save);
-  if (syslog_priority == new_priority)
-    return;
-
-  flogger_mutex_lock(&lock_operations);
-  mark_always_logged(thd);
-  flogger_mutex_unlock(&lock_operations);
-  error_header();
-  fprintf(stderr, "SysLog priority was changed from '%s' to '%s'.\n",
-          syslog_priority_names[syslog_priority],
-          syslog_priority_names[new_priority]);
-  syslog_priority= new_priority;
 }
 
 
@@ -2648,26 +2518,7 @@ static void update_logging(MYSQL_THD thd,
   if (new_logging == logging)
     return;
 
-  if (!maria_55_started || !debug_server_started)
-    flogger_mutex_lock(&lock_operations);
-  internal_stop_logging= 1;
-  if ((logging= new_logging))
-  {
-    start_logging();
-    if (!logging)
-    {
-      CLIENT_ERROR(1, "Logging was disabled.", MYF(ME_JUST_WARNING));
-    }
-  }
-  else
-  {
-    log_current_query(thd);
-    stop_logging();
-  }
-
-  internal_stop_logging= 0;
-  if (!maria_55_started || !debug_server_started)
-    flogger_mutex_unlock(&lock_operations);
+  logging= new_logging;
 }
 
 
@@ -2675,20 +2526,6 @@ static void update_mode(MYSQL_THD thd  __attribute__((unused)),
               struct st_mysql_sys_var *var  __attribute__((unused)),
               void *var_ptr  __attribute__((unused)), const void *save)
 {
-  unsigned int new_mode= *(unsigned int *) save;
-  if (mode_readonly || new_mode == mode)
-    return;
-
-  if (!maria_55_started || !debug_server_started)
-    flogger_mutex_lock(&lock_operations);
-  internal_stop_logging= 1;
-  mark_always_logged(thd);
-  error_header();
-  fprintf(stderr, "Logging mode was changed from %d to %d.\n", mode, new_mode);
-  mode= new_mode;
-  internal_stop_logging= 0;
-  if (!maria_55_started || !debug_server_started)
-    flogger_mutex_unlock(&lock_operations);
 }
 
 
@@ -2696,20 +2533,6 @@ static void update_syslog_ident(MYSQL_THD thd  __attribute__((unused)),
               struct st_mysql_sys_var *var  __attribute__((unused)),
               void *var_ptr  __attribute__((unused)), const void *save)
 {
-  char *new_ident= (*(char **) save) ? *(char **) save : empty_str;
-  strncpy(syslog_ident_buffer, new_ident, sizeof(syslog_ident_buffer));
-  syslog_ident_buffer[sizeof(syslog_ident_buffer)-1]= 0;
-  syslog_ident= syslog_ident_buffer;
-  error_header();
-  fprintf(stderr, "SYSYLOG ident was changed to '%s'\n", syslog_ident);
-  flogger_mutex_lock(&lock_operations);
-  mark_always_logged(thd);
-  if (logging && output_type == OUTPUT_SYSLOG)
-  {
-    stop_logging();
-    start_logging();
-  }
-  flogger_mutex_unlock(&lock_operations);
 }
 
 
