@@ -1,0 +1,31 @@
+# This test verifies that mtr will restart the mysqld process,
+# whose parameters were changed during the test. The verification
+# itself is carried out in the following mtr_restart_t2 test.
+# If mtr restart the mysqld process, then the auto_increment_offset
+# parameter value will be reset to the default ("1"), but if there
+# is no restart, then we will see the changed value ("111") during
+# the next test.
+#
+--source include/have_binlog_format_row.inc
+--source include/master-slave.inc
+
+connection master;
+
+let $auto_increment_offset = `SELECT @@global.auto_increment_offset`;
+
+--let $rpl_server_number=1
+source include/rpl_stop_server.inc;
+--let $rpl_server_parameters=--auto-increment-offset=111
+--let $keep_include_silent=1
+source include/rpl_start_server.inc;
+--let $keep_include_silent=0
+
+let $auto_increment_offset_new = `SELECT @@global.auto_increment_offset`;
+--echo new auto_increment_offset=$auto_increment_offset_new
+
+--disable_query_log
+--eval SET @@global.auto_increment_offset = $auto_increment_offset;
+--enable_query_log
+
+--connection master
+--source include/rpl_end.inc

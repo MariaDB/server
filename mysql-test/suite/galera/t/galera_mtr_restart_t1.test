@@ -1,0 +1,35 @@
+# This test verifies that mtr will restart the mysqld process,
+# whose parameters were changed during the test. The verification
+# itself is carried out in the following galera_mtr_restart_t2
+# test. If mtr restart the mysqld process, then the pc.weight
+# value will be reset to the default ("1"), but if there is no
+# restart, then we will see the changed value ("111") during
+# the next test.
+#
+--source include/galera_cluster.inc
+--source include/have_innodb.inc
+
+# Save original auto_increment_offset values.
+--let $node_1=node_1
+--let $node_2=node_2
+--source include/auto_increment_offset_save.inc
+
+--connection node_2
+--let $restart_parameters = --wsrep_provider_options=pc.weight=111;repl.causal_read_timeout=PT90S;evs.suspect_timeout=PT10S;evs.inactive_timeout=PT30S;evs.install_timeout=PT15S
+--source include/restart_mysqld.inc
+
+--connection node_1
+--let $wait_condition = SELECT VARIABLE_VALUE = 2 FROM INFORMATION_SCHEMA.GLOBAL_STATUS WHERE VARIABLE_NAME = 'wsrep_cluster_size';
+--source include/wait_condition.inc
+
+--connection node_2
+--source include/wait_until_ready.inc
+
+# Check that the parameter value really changed:
+--let $gp = `SELECT SUBSTR(@@wsrep_provider_options, LOCATE('pc.weight =', @@wsrep_provider_options) + LENGTH('pc.weight = '))`
+--let $weight = `SELECT SUBSTR('$gp', 1, LOCATE(';', '$gp') - 1)`
+--echo weight=$weight
+
+# Restore original auto_increment_offset values.
+--connection node_1
+--source include/auto_increment_offset_restore.inc

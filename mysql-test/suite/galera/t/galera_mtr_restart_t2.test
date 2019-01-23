@@ -1,0 +1,13 @@
+# This test verifies that mtr will restart the mysqld process,
+# whose parameters were changed during the previous test. If mtr
+# restart the mysqld process, then the pc.weight value will be
+# reset to the default ("1"), but if there is no restart, then
+# we will see the changed value ("111") in this test.
+#
+--source include/galera_cluster.inc
+--source include/have_innodb.inc
+
+--connection node_2
+--let $gp = `SELECT SUBSTR(@@wsrep_provider_options, LOCATE('pc.weight =', @@wsrep_provider_options) + LENGTH('pc.weight = '))`
+--let $weight = `SELECT SUBSTR('$gp', 1, LOCATE(';', '$gp') - 1)`
+--echo weight=$weight
