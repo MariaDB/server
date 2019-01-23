@@ -1,7 +1,7 @@
 /*****************************************************************************
 
 Copyright (c) 1995, 2013, Oracle and/or its affiliates. All Rights Reserved.
-Copyright (c) 2014, 2017, MariaDB Corporation. All Rights Reserved.
+Copyright (c) 2014, 2019, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -4155,6 +4155,8 @@ fil_extend_space_to_desired_size(
 				" failed with error %d\n",
 				node->name,
 				start_offset, len + start_offset, err);
+		} else {
+			os_file_flush(node->handle);
 		}
 
 		mutex_enter(&fil_system->mutex);
