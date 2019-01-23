@@ -135,6 +135,7 @@ static const alter_table_operations INNOBASE_ALTER_INSTANT
 	| INNOBASE_FOREIGN_OPERATIONS
 	| ALTER_COLUMN_EQUAL_PACK_LENGTH
 	| ALTER_COLUMN_UNVERSIONED
+	| ALTER_AUTO_INC
 	| ALTER_DROP_VIRTUAL_COLUMN;
 
 struct ha_innobase_inplace_ctx : public inplace_alter_handler_ctx
@@ -907,7 +908,7 @@ ha_innobase::check_if_supported_inplace_alter(
 		| INNOBASE_ALTER_REBUILD)) {
 
 		if (ha_alter_info->handler_flags
-		    & ALTER_STORED_COLUMN_TYPE) {
+		    & (ALTER_STORED_COLUMN_TYPE | ALTER_AUTO_INC)) {
 			ha_alter_info->unsupported_reason = my_get_err_msg(
 				ER_ALTER_OPERATION_NOT_SUPPORTED_REASON_COLUMN_TYPE);
 		}
@@ -1263,14 +1264,7 @@ ha_innobase::check_if_supported_inplace_alter(
 				break;
 			default:
 				/* For any other data type, NULL
-				values are not converted.
-				(An AUTO_INCREMENT attribute cannot
-				be introduced to a column with
-				ALGORITHM=INPLACE.) */
-				ut_ad((MTYP_TYPENR((*af)->unireg_check)
-				       == Field::NEXT_NUMBER)
-				      == (MTYP_TYPENR(f->unireg_check)
-					  == Field::NEXT_NUMBER));
+				values are not converted. */
 				goto next_column;
 			}
 

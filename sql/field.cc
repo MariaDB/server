@@ -3504,13 +3504,17 @@ bool Field_new_decimal::compatible_field_size(uint field_metadata,
 
 uint Field_new_decimal::is_equal(Create_field *new_field)
 {
-  return ((new_field->type_handler() == type_handler()) &&
-          ((new_field->flags & UNSIGNED_FLAG) == 
-           (uint) (flags & UNSIGNED_FLAG)) &&
-          ((new_field->flags & AUTO_INCREMENT_FLAG) ==
-           (uint) (flags & AUTO_INCREMENT_FLAG)) &&
-          (new_field->length == max_display_length()) &&
-          (new_field->decimals == dec));
+  if ((new_field->type_handler() != type_handler()) ||
+      ((new_field->flags & UNSIGNED_FLAG) != (uint)(flags & UNSIGNED_FLAG)) ||
+      (new_field->length != max_display_length()) ||
+      (new_field->decimals != dec))
+    return IS_EQUAL_NO;
+
+  if ((new_field->flags & AUTO_INCREMENT_FLAG) !=
+      (uint)(flags & AUTO_INCREMENT_FLAG))
+    return IS_EQUAL_BUT_AUTO_INC;
+
+  return IS_EQUAL_YES;
 }
 
 
@@ -9505,12 +9509,16 @@ bool Field_num::eq_def(const Field *field) const
 
 uint Field_num::is_equal(Create_field *new_field)
 {
-  return ((new_field->type_handler() == type_handler()) &&
-          ((new_field->flags & UNSIGNED_FLAG) == 
-           (uint) (flags & UNSIGNED_FLAG)) &&
-	  ((new_field->flags & AUTO_INCREMENT_FLAG) ==
-	   (uint) (flags & AUTO_INCREMENT_FLAG)) &&
-          (new_field->pack_length == pack_length()));
+  if ((new_field->type_handler() != type_handler()) ||
+      ((new_field->flags & UNSIGNED_FLAG) != (uint)(flags & UNSIGNED_FLAG)) ||
+      (new_field->pack_length != pack_length()))
+    return IS_EQUAL_NO;
+
+  if ((new_field->flags & AUTO_INCREMENT_FLAG) !=
+      (uint)(flags & AUTO_INCREMENT_FLAG))
+    return IS_EQUAL_BUT_AUTO_INC;
+
+  return IS_EQUAL_YES;
 }
 
 

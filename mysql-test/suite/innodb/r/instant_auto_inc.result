@@ -1,0 +1,36 @@
+create table t(id int primary key, a int) engine=InnoDB;
+insert into t (id, a) values (1, 1);
+alter table t modify column id int auto_increment, algorithm=instant;
+check table t;
+Table	Op	Msg_type	Msg_text
+test.t	check	status	OK
+insert into t (a) values (2);
+alter table t modify column id int auto_increment, algorithm=instant;
+check table t;
+Table	Op	Msg_type	Msg_text
+test.t	check	status	OK
+insert into t (id, a) values (3, 3);
+select * from t;
+id	a
+1	1
+2	2
+3	3
+check table t;
+Table	Op	Msg_type	Msg_text
+test.t	check	status	OK
+drop table t;
+create table t (id int primary key, a int) engine=innodb;
+set auto_increment_increment = 100;
+set auto_increment_offset= 20;
+alter table t modify column id int auto_increment, algorithm=instant;
+insert into t values (default, 1);
+insert into t values (default, 2);
+insert into t values (default, 3);
+select * from t;
+id	a
+20	1
+120	2
+220	3
+drop table t;
+set auto_increment_increment = 1;
+set auto_increment_offset = 1;
