@@ -3507,7 +3507,7 @@ uint Field_new_decimal::is_equal(Create_field *new_field)
   return ((new_field->type_handler() == type_handler()) &&
           ((new_field->flags & UNSIGNED_FLAG) == 
            (uint) (flags & UNSIGNED_FLAG)) &&
-          ((new_field->flags & AUTO_INCREMENT_FLAG) ==
+          ((new_field->flags & AUTO_INCREMENT_FLAG) <=
            (uint) (flags & AUTO_INCREMENT_FLAG)) &&
           (new_field->length == max_display_length()) &&
           (new_field->decimals == dec));
@@ -9508,7 +9508,7 @@ uint Field_num::is_equal(Create_field *new_field)
   return ((new_field->type_handler() == type_handler()) &&
           ((new_field->flags & UNSIGNED_FLAG) == 
            (uint) (flags & UNSIGNED_FLAG)) &&
-	  ((new_field->flags & AUTO_INCREMENT_FLAG) ==
+	  ((new_field->flags & AUTO_INCREMENT_FLAG) <=
 	   (uint) (flags & AUTO_INCREMENT_FLAG)) &&
           (new_field->pack_length == pack_length()));
 }
