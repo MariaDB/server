@@ -26884,7 +26884,11 @@ test_if_cheaper_ordering(const JOIN_TAB *tab, ORDER *order, TABLE *table,
     uint tablenr= (uint)(tab - join->join_tab);
     read_time= join->best_positions[tablenr].read_time;
     for (uint i= tablenr+1; i < join->table_count; i++)
+    {
       fanout*= join->best_positions[i].records_read; // fanout is always >= 1
+      // But selectivity is =< 1 :
+      fanout*= join->best_positions[i].cond_selectivity;
+    }
   }
   else
     read_time= table->file->scan_time();
@@ -27022,6 +27026,23 @@ test_if_cheaper_ordering(const JOIN_TAB *tab, ORDER *order, TABLE *table,
         */
         select_limit= (ha_rows) (select_limit < fanout ?
                                  1 : select_limit/fanout);
+
+        /*
+          refkey_rows_estimate is E(#rows) produced by the table access
+          strategy that was picked without regard to ORDER BY ... LIMIT.
+
+          It will be used as the source of selectivity data. 
+          Use table->cond_selectivity as a better estimate which includes
+          condition selectivity too.
+        */
+        {
+          // we use MIN(...), because "Using LooseScan" queries have
+          // cond_selectivity=1 while refkey_rows_estimate has a better
+          // estimate.
+          refkey_rows_estimate= MY_MIN(refkey_rows_estimate,
+                                       table_records * table->cond_selectivity);
+        }
+
         /*
           We assume that each of the tested indexes is not correlated
           with ref_key. Thus, to select first N records we have to scan
@@ -27032,6 +27053,7 @@ test_if_cheaper_ordering(const JOIN_TAB *tab, ORDER *order, TABLE *table,
           N/(refkey_rows_estimate/table_records) > table_records
           <=> N > refkey_rows_estimate.
          */
+
         if (select_limit > refkey_rows_estimate)
           select_limit= table_records;
         else
