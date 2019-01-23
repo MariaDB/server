@@ -1,7 +1,7 @@
 /*****************************************************************************
 
 Copyright (c) 1995, 2017, Oracle and/or its affiliates. All Rights Reserved.
-Copyright (c) 2017, 2018, MariaDB Corporation.
+Copyright (c) 2017, 2019, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -972,15 +972,11 @@ fil_aio_wait(
 /*=========*/
 	ulint	segment);	/*!< in: the number of the segment in the aio
 				array to wait for */
-/**********************************************************************//**
-Flushes to disk possible writes cached by the OS. If the space does not exist
-or is being dropped, does not do anything. */
-UNIV_INTERN
-void
-fil_flush(
-/*======*/
-	ulint	space_id);	/*!< in: file space id (this can be a group of
-				log files or a tablespace of the database) */
+/** Make persistent possible writes cached by the OS.
+If the space does not exist or is being dropped, do nothing.
+@param[in]	space_id	tablespace identifier
+@param[in]	metadata	whether to update file system metadata */
+UNIV_INTERN void fil_flush(ulint space_id, bool metadata = false);
 /**********************************************************************//**
 Flushes to disk writes in file spaces of the given type possibly cached by
 the OS. */
