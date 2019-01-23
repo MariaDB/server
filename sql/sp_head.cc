@@ -44,6 +44,9 @@
 #include "transaction.h"       // trans_commit_stmt
 #include "sql_audit.h"
 #include "debug_sync.h"
+#ifdef WITH_WSREP
+#include "wsrep_trans_observer.h"
+#endif /* WITH_WSREP */
 
 /*
   Sufficient max length of printed destinations and frame offsets (all uints).
@@ -1324,6 +1327,13 @@ sp_head::execute(THD *thd, bool merge_da_on_success)
     sql_digest_state *parent_digest= thd->m_digest;
     thd->m_digest= NULL;
 
+#ifdef WITH_WSREP
+    if (WSREP(thd) && thd->wsrep_next_trx_id() == WSREP_UNDEFINED_TRX_ID)
+    {
+      thd->set_wsrep_next_trx_id(thd->query_id);
+      WSREP_DEBUG("assigned new next trx ID for SP,  trx id: %lu", thd->wsrep_next_trx_id());
+    }
+#endif /* WITH_WSREP */
     err_status= i->execute(thd, &ip);
 
     thd->m_digest= parent_digest;
@@ -3566,6 +3576,24 @@ sp_instr_stmt::exec_core(THD *thd, uint *nextp)
                          (char *)thd->security_ctx->host_or_ip,
                          3);
   int res= mysql_execute_command(thd);
+#ifdef WITH_WSREP
+  if ((thd->is_fatal_error || thd->killed_errno()) &&
+      (thd->wsrep_trx().state() == wsrep::transaction::s_executing))
+  {
+    /*
+      SP was killed, and it is not due to a wsrep conflict.
+      We skip after_command hook at this point because
+      otherwise it clears the error, and cleans up the
+      whole transaction. For now we just return and finish
+      our handling once we are back to mysql_parse.
+     */
+    WSREP_DEBUG("Skipping after_command hook for killed SP");
+  }
+  else
+  {
+    (void) wsrep_after_statement(thd);
+  }
+#endif /* WITH_WSREP */
   MYSQL_QUERY_EXEC_DONE(res);
   *nextp= m_ip+1;
   return res;
@@ -4503,8 +4531,8 @@ int
 sp_instr_error::execute(THD *thd, uint *nextp)
 {
   DBUG_ENTER("sp_instr_error::execute");
-
   my_message(m_errcode, ER_THD(thd, m_errcode), MYF(0));
+  WSREP_DEBUG("sp_instr_error: %s %d", ER_THD(thd, m_errcode), thd->is_error());
   *nextp= m_ip+1;
   DBUG_RETURN(-1);
 }

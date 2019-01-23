@@ -54,6 +54,9 @@ Created 12/19/1997 Heikki Tuuri
 #include "buf0lru.h"
 #include "srv0srv.h"
 #include "srv0mon.h"
+#ifdef WITH_WSREP
+#include "mysql/service_wsrep.h" /* For wsrep_thd_skip_locking */
+#endif
 
 /* Maximum number of rows to prefetch; MySQL interface has another parameter */
 #define SEL_MAX_N_PREFETCH	16
@@ -4442,6 +4445,13 @@ row_search_mvcc(
 
 		set_also_gap_locks = FALSE;
 	}
+#ifdef WITH_WSREP
+	else if (wsrep_thd_skip_locking(trx->mysql_thd)) {
+		ut_ad(!strcmp(wsrep_get_sr_table_name(),
+			      prebuilt->table->name.m_name));
+		set_also_gap_locks = FALSE;
+	}
+#endif /* WITH_WSREP */
 
 	/* Note that if the search mode was GE or G, then the cursor
 	naturally moves upward (in fetch next) in alphabetical order,

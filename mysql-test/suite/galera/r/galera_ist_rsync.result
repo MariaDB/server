@@ -1,3 +1,5 @@
+connection node_2;
+connection node_1;
 connection node_1;
 connection node_2;
 Performing State Transfer on a server that has been temporarily disconnected
@@ -47,6 +49,9 @@ INSERT INTO t1 VALUES ('node1_to_be_rollbacked_after');
 INSERT INTO t1 VALUES ('node1_to_be_rollbacked_after');
 connection node_2;
 Loading wsrep provider ...
+disconnect node_2;
+connect node_2, 127.0.0.1, root, , test, $NODE_MYPORT_2;
+connection node_2;
 SET AUTOCOMMIT=OFF;
 START TRANSACTION;
 INSERT INTO t1 VALUES ('node2_committed_after');

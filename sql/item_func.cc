@@ -2451,7 +2451,7 @@ void Item_func_rand::seed_random(Item *arg)
   THD *thd= current_thd;
   if (WSREP(thd))
   {
-    if (thd->wsrep_exec_mode==REPL_RECV)
+    if (wsrep_thd_is_applying(thd))
       tmp= thd->wsrep_rand;
     else
       tmp= thd->wsrep_rand= (uint32) arg->val_int();

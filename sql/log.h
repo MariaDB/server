@@ -18,7 +18,6 @@
 #define LOG_H
 
 #include "handler.h"                            /* my_xid */
-#include "wsrep.h"
 #include "wsrep_mysqld.h"
 #include "rpl_constants.h"
 
@@ -1212,6 +1211,10 @@ static inline TC_LOG *get_tc_log_implementation()
   return &tc_log_mmap;
 }
 
+#ifdef WITH_WSREP
+IO_CACHE* wsrep_get_trans_cache(THD *);
+void wsrep_thd_binlog_trx_reset(THD * thd);
+#endif /* WITH_WSREP */
 
 class Gtid_list_log_event;
 const char *

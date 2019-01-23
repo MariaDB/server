@@ -2458,7 +2458,7 @@ row_upd_sec_index_entry(
 					err = DB_SUCCESS;
 					break;
 				case DB_DEADLOCK:
-					if (wsrep_debug) {
+					if (wsrep_get_debug()) {
 						ib::warn() << "WSREP: sec index FK check fail for deadlock"
 							   << " index " << index->name
 							   << " table " << index->table->name;
@@ -2773,7 +2773,7 @@ check_fk:
 				err = DB_SUCCESS;
 				break;
 			case DB_DEADLOCK:
-				if (wsrep_debug) {
+				if (wsrep_get_debug()) {
 					ib::warn() << "WSREP: sec index FK check fail for deadlock"
 						   << " index " << index->name
 						   << " table " << index->table->name;
@@ -3002,7 +3002,7 @@ row_upd_del_mark_clust_rec(
 			err = DB_SUCCESS;
 			break;
 		case DB_DEADLOCK:
-			if (wsrep_debug) {
+			if (wsrep_get_debug()) {
 				ib::warn() << "WSREP: sec index FK check fail for deadlock"
 					   << " index " << index->name
 					   << " table " << index->table->name;

@@ -1,0 +1,50 @@
+--source include/galera_cluster.inc
+--source include/have_innodb.inc
+--source include/have_debug_sync.inc
+--source include/galera_have_debug_sync.inc
+
+--let $wsrep_trx_fragment_size = 1
+
+# Control connection for manipulating sync points on node 1
+--connect node_1a, 127.0.0.1, root, , test, $NODE_MYPORT_1
+SET SESSION wsrep_sync_wait = 0;
+
+--echo galera_sr_bf_abort_at_commit = 0
+--let $galera_sr_bf_abort_at_commit = 0
+
+--echo after_replicate_sync
+--let $galera_sr_bf_abort_sync_point = after_replicate_sync
+--source galera_sr_bf_abort.inc
+
+--echo local_monitor_master_enter_sync
+--let $galera_sr_bf_abort_sync_point = local_monitor_master_enter_sync
+--source galera_sr_bf_abort.inc
+
+--echo apply_monitor_master_enter_sync
+--let $galera_sr_bf_abort_sync_point = apply_monitor_master_enter_sync
+--source galera_sr_bf_abort.inc
+
+--echo commit_monitor_master_enter_sync
+--let $galera_sr_bf_abort_sync_point = commit_monitor_master_enter_sync
+--source galera_sr_bf_abort.inc
+
+--echo galera_sr_bf_abort_at_commit = 1
+--let $galera_sr_bf_abort_at_commit = 1
+
+--echo after_replicate_sync
+--let $galera_sr_bf_abort_sync_point = after_replicate_sync
+--source galera_sr_bf_abort.inc
+
+--echo local_monitor_master_enter_sync
+--let $galera_sr_bf_abort_sync_point = local_monitor_master_enter_sync
+--source galera_sr_bf_abort.inc
+
+--echo apply_monitor_master_enter_sync
+--let $galera_sr_bf_abort_sync_point = apply_monitor_master_enter_sync
+--source galera_sr_bf_abort.inc
+
+--echo commit_monitor_master_enter_sync
+--let $galera_sr_bf_abort_sync_point = commit_monitor_master_enter_sync
+--source galera_sr_bf_abort.inc
+
+CALL mtr.add_suppression("WSREP: fragment replication failed: 1");

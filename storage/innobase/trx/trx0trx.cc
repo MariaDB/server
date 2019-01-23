@@ -1441,11 +1441,8 @@ trx_commit_in_memory(
 
 	trx_mutex_enter(trx);
 	trx->dict_operation = TRX_DICT_OP_NONE;
-
 #ifdef WITH_WSREP
-	if (trx->mysql_thd && wsrep_on(trx->mysql_thd)) {
-		trx->lock.was_chosen_as_deadlock_victim = FALSE;
-	}
+	trx->lock.was_chosen_as_wsrep_victim = FALSE;
 #endif
 
 	DBUG_LOG("trx", "Commit in memory: " << trx);
@@ -2155,7 +2152,7 @@ static my_bool trx_get_trx_by_xid_callback(rw_trx_hash_element_t *element,
       transaction needs a valid trx->xid for
       invoking trx_sys_update_wsrep_checkpoint(). */
       if (!wsrep_is_wsrep_xid(trx->xid))
-#endif
+#endif /* WITH_WSREP */
       /* Invalidate the XID, so that subsequent calls will not find it. */
       trx->xid->null();
       arg->trx= trx;

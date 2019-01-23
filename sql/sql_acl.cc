@@ -3461,7 +3461,6 @@ wsrep_error_label:
     WSREP_TO_ISOLATION_END;
 
     thd->set_query(query_save);
-    thd->wsrep_exec_mode  = LOCAL_STATE;
   }
 #endif /* WITH_WSREP */
   thd->restore_stmt_binlog_format(save_binlog_format);
@@ -3613,7 +3612,6 @@ wsrep_error_label:
     WSREP_TO_ISOLATION_END;
 
     thd->set_query(query_save);
-    thd->wsrep_exec_mode  = LOCAL_STATE;
   }
 #endif /* WITH_WSREP */
 

@@ -44,6 +44,9 @@ Created 4/20/1996 Heikki Tuuri
 #include "buf0lru.h"
 #include "fts0fts.h"
 #include "fts0types.h"
+#ifdef WITH_WSREP
+#include "wsrep_mysqld.h"
+#endif /* WITH_WSREP */
 
 /*************************************************************************
 IMPORTANT NOTE: Any operation that generates redo MUST check that there
@@ -1043,7 +1046,7 @@ dberr_t wsrep_append_foreign_key(trx_t *trx,
 			       const rec_t*	clust_rec,
 			       dict_index_t*	clust_index,
 			       ibool		referenced,
-			       ibool            shared);
+			       Wsrep_service_key_type	key_type);
 #endif /* WITH_WSREP */
 
 /*********************************************************************//**
@@ -1430,7 +1433,7 @@ row_ins_foreign_check_on_constraint(
 
 #ifdef WITH_WSREP
 	err = wsrep_append_foreign_key(trx, foreign, clust_rec, clust_index,
-				       FALSE, FALSE);
+				       FALSE, WSREP_SERVICE_KEY_EXCLUSIVE);
 	if (err != DB_SUCCESS) {
 		fprintf(stderr,
 			"WSREP: foreign key append failed: %d\n", err);
@@ -1811,7 +1814,10 @@ row_ins_check_foreign_constraint(
 						rec,
 						check_index,
 						check_ref,
-						(upd_node) ? TRUE : FALSE);
+						(upd_node != NULL
+						 && wsrep_protocol_version < 4)
+						? WSREP_SERVICE_KEY_SHARED
+						: WSREP_SERVICE_KEY_REFERENCE);
 #endif /* WITH_WSREP */
 					goto end_scan;
 				} else if (foreign->type != 0) {
@@ -3228,9 +3234,27 @@ row_ins_clust_index_entry(
 
 	n_uniq = dict_index_is_unique(index) ? index->n_uniq : 0;
 
+#ifdef WITH_WSREP
+	const bool skip_locking
+		= wsrep_thd_skip_locking(thr_get_trx(thr)->mysql_thd);
+	ulint	flags = index->table->no_rollback() ? BTR_NO_ROLLBACK
+		: (index->table->is_temporary() || skip_locking)
+		? BTR_NO_LOCKING_FLAG : 0;
+#ifdef UNIV_DEBUG
+	if (skip_locking && strcmp(wsrep_get_sr_table_name(),
+                                   index->table->name.m_name)) {
+		WSREP_ERROR("Record locking is disabled in this thread, "
+			    "but the table being modified is not "
+			    "`%s`: `%s`.", wsrep_get_sr_table_name(),
+			    index->table->name.m_name);
+		ut_error;
+	}
+#endif /* UNIV_DEBUG */
+#else
 	ulint	flags = index->table->no_rollback() ? BTR_NO_ROLLBACK
 		: index->table->is_temporary()
 		? BTR_NO_LOCKING_FLAG : 0;
+#endif /* WITH_WSREP */
 	const ulint	orig_n_fields = entry->n_fields;
 
 	/* Try first optimistic descent to the B-tree */

@@ -171,7 +171,7 @@ SETA(CPACK_RPM_server_PACKAGE_REQUIRES
 
 IF(WITH_WSREP)
   SETA(CPACK_RPM_server_PACKAGE_REQUIRES
-    "galera" "rsync" "lsof" "grep" "gawk" "iproute"
+    "galera-4" "rsync" "lsof" "grep" "gawk" "iproute"
     "coreutils" "findutils" "tar")
 ENDIF()
 

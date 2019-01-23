@@ -62,7 +62,11 @@
 #include <io.h>
 #endif
 #include "wsrep_mysqld.h"
+#ifdef WITH_WSREP
 #include "wsrep_thd.h"
+#include "wsrep_trans_observer.h"
+#endif /* WITH_WSREP */
+
 
 bool
 No_such_table_error_handler::handle_condition(THD *,
@@ -4410,13 +4414,14 @@ restart:
     }
   }
 
+#ifdef WITH_WSREP
   if (WSREP_ON                                         &&
       wsrep_replicate_myisam                           &&
       (*start)                                         &&
       (*start)->table                                  &&
       (*start)->table->file->ht == myisam_hton         &&
-      wsrep_thd_exec_mode(thd) == LOCAL_STATE          &&
-      !is_stat_table(&(*start)->db, &(*start)->alias)    &&
+      wsrep_thd_is_local(thd)                          &&
+      !is_stat_table(&(*start)->db, &(*start)->alias)  &&
       thd->get_command() != COM_STMT_PREPARE           &&
       ((thd->lex->sql_command == SQLCOM_INSERT         ||
         thd->lex->sql_command == SQLCOM_INSERT_SELECT  ||
@@ -4427,8 +4432,12 @@ restart:
         thd->lex->sql_command == SQLCOM_LOAD           ||
         thd->lex->sql_command == SQLCOM_DELETE)))
   {
-    WSREP_TO_ISOLATION_BEGIN(NULL, NULL, (*start));
+      wsrep_before_rollback(thd, true);
+      wsrep_after_rollback(thd, true);
+      wsrep_after_statement(thd);
+      WSREP_TO_ISOLATION_BEGIN(NULL, NULL, (*start));
   }
+#endif /* WITH_WSREP */
 
 error:
 #ifdef WITH_WSREP

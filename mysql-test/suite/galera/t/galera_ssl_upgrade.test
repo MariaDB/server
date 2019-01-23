@@ -46,4 +46,8 @@ SELECT VARIABLE_VALUE = 2 FROM INFORMATION_SCHEMA.GLOBAL_STATUS WHERE VARIABLE_N
 --source include/wait_condition.inc
 SELECT VARIABLE_VALUE = 2 FROM INFORMATION_SCHEMA.GLOBAL_STATUS WHERE VARIABLE_NAME = 'wsrep_cluster_size';
 
+# 5. Make sure node_2 is ready as well
+--connection node_2
+--source include/galera_wait_ready.inc
+
 # Upgrade complete. Both nodes now use the new key and certificate

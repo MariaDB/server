@@ -269,8 +269,9 @@ EOF
             cd $BINLOG_DIRNAME
 
             if ! [ -z $WSREP_SST_OPT_BINLOG_INDEX ]
-               binlog_files_full=$(tail -n $BINLOG_N_FILES ${BINLOG_FILENAME}.index)
             then
+               binlog_files_full=$(tail -n $BINLOG_N_FILES ${BINLOG_FILENAME}.index)
+            else
                cd $BINLOG_INDEX_DIRNAME
                binlog_files_full=$(tail -n $BINLOG_N_FILES ${BINLOG_INDEX_FILENAME}.index)
             fi
@@ -508,9 +509,10 @@ EOF
             for ii in $(ls -1 ${BINLOG_FILENAME}.*)
             do
                 if ! [ -z $WSREP_SST_OPT_BINLOG_INDEX ]
-                  echo ${BINLOG_DIRNAME}/${ii} >> ${BINLOG_FILENAME}.index
-		then
-                  echo ${BINLOG_DIRNAME}/${ii} >> ${BINLOG_INDEX_DIRNAME}/${BINLOG_INDEX_FILENAME}.index
+                then
+                    echo ${BINLOG_DIRNAME}/${ii} >> ${BINLOG_FILENAME}.index
+                else
+                    echo ${BINLOG_DIRNAME}/${ii} >> ${BINLOG_INDEX_DIRNAME}/${BINLOG_INDEX_FILENAME}.index
                 fi
             done
         fi

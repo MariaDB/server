@@ -9,13 +9,14 @@
 #  Do not use any TAB characters for whitespace.
 #
 ##############################################################################
-
+MW-360 : needs rewrite to be MariaDB gtid compatible
 galera_flush :  MariaDB does not have global.thread_statistics
 galera_account_management : MariaDB 10.0 does not support ALTER USER
 galera_binlog_rows_query_log_events: MariaDB does not support binlog_rows_query_log_events
 galera_migrate : MariaDB does not support START SLAVE USER
 galera_as_master_gtid : Requires MySQL GTID
 galera_as_master_gtid_change_master : Requires MySQL GTID
+galera_as_slave_gtid_replicate_do_db_cc : Requires MySQL GTID
 galera_as_slave_preordered : wsrep-preordered feature not merged to MariaDB
 GAL-419 : MDEV-13549 Galera test failures
 galera_var_notify_cmd : MDEV-13549 Galera test failures
@@ -52,3 +53,13 @@ galera.galera_var_reject_queries : assertion in inline_mysql_socket_send
 query_cache : MDEV-18137: Galera test failure on query_cache
 galera.galera_autoinc_sst_mariabackup : MDEV-18177 Galera test failure on galera_autoinc_sst_mariabackup
 galera_gcache_recover_manytrx : MDEV-15740
+galera.galera_ist_mariabackup : Leaves port open
+galera.galera_sst_rsync2 : MDEV-18178 Galera test failure on galera_sst_rsync2
+galera.galera_kill_largechanges : MDEV-18179 Galera test failure on galera.galera_kill_largechanges
+galera.galera_concurrent_ctas : MDEV-18180 Galera test failure on galera.galera_concurrent_ctas
+galera.galera_var_retry_autocommit: MDEV-18181 Galera test failure on galera.galera_var_retry_autocommit
+galera.galera_many_tables_nopk : MDEV-18182 Galera test failure on galera.galera_many_tables_nopk
+galera.galera_kill_nochanges : MDEV-18280 Galera test failure on galera_split_brain and galera_kill_nochanges
+galera.galera_split_brain : MDEV-18280 Galera test failure on galera_split_brain and galera_kill_nochanges
+galera.galera_bf_abort_group_commit : MDEV-18282 Galera test failure on galera.galera_bf_abort_group_commit
+galera.GCF-1081 : MDEV-18283 Galera test failure on galera.GCF-1081

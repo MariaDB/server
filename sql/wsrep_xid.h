@@ -20,17 +20,19 @@
 
 #ifdef WITH_WSREP
 
-#include "../wsrep/wsrep_api.h"
+#include "wsrep/gtid.hpp"
 #include "handler.h" // XID typedef
 
-void wsrep_xid_init(xid_t*, const wsrep_uuid_t&, wsrep_seqno_t);
-const wsrep_uuid_t* wsrep_xid_uuid(const XID&);
-wsrep_seqno_t wsrep_xid_seqno(const XID&);
+void wsrep_xid_init(xid_t*, const wsrep::gtid&);
+const wsrep::id& wsrep_xid_uuid(const XID&);
+wsrep::seqno wsrep_xid_seqno(const XID&);
 
+wsrep::gtid wsrep_get_SE_checkpoint();
+bool wsrep_set_SE_checkpoint(const wsrep::gtid& gtid);
 //void wsrep_get_SE_checkpoint(XID&);             /* uncomment if needed */
-bool wsrep_get_SE_checkpoint(wsrep_uuid_t&, wsrep_seqno_t&);
 //void wsrep_set_SE_checkpoint(XID&);             /* uncomment if needed */
-bool wsrep_set_SE_checkpoint(const wsrep_uuid_t&, wsrep_seqno_t);
+
+void wsrep_sort_xid_array(XID *array, int len);
 
 #endif /* WITH_WSREP */
 #endif /* WSREP_UTILS_H */

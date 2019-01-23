@@ -1,6 +1,8 @@
 #
-# Confirm that with two nodes, killing one causes the other to stop accepting connections
-# The pc.ignore_sb=true wsrep_provider option is tested in the galera_kill_* tests.
+# Confirm that with two nodes, killing one causes the other to stop accepting
+# connections.
+# The pc.ignore_sb=true wsrep_provider option is tested in the galera_kill_*
+# tests.
 #
 
 --source include/galera_cluster.inc
