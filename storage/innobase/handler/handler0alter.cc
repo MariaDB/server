@@ -92,8 +92,6 @@ static const alter_table_operations INNOBASE_ALTER_REBUILD
 	| ALTER_STORED_COLUMN_TYPE
 	*/
 	| INNOBASE_ALTER_VERSIONED_REBUILD
-	| ALTER_COLUMN_UNVERSIONED
-	| ALTER_COLUMN_EQUAL_PACK_LENGTH
 	;
 
 /** Operations that require changes to data */
@@ -135,6 +133,8 @@ static const alter_table_operations INNOBASE_ALTER_INSTANT
 #endif
 	| ALTER_ADD_VIRTUAL_COLUMN
 	| INNOBASE_FOREIGN_OPERATIONS
+	| ALTER_COLUMN_EQUAL_PACK_LENGTH
+	| ALTER_COLUMN_UNVERSIONED
 	| ALTER_DROP_VIRTUAL_COLUMN;
 
 /** Acquire a page latch on the possible metadata record,
@@ -1346,7 +1346,10 @@ innobase_need_rebuild(
 		return alter_options_need_rebuild(ha_alter_info, table);
 	}
 
-	return !!(ha_alter_info->handler_flags & INNOBASE_ALTER_REBUILD);
+	return !!(ha_alter_info->handler_flags & (
+			  INNOBASE_ALTER_REBUILD |
+			  ALTER_COLUMN_EQUAL_PACK_LENGTH |
+			  ALTER_COLUMN_UNVERSIONED));
 }
 
 /** Check if virtual column in old and new table are in order, excluding
@@ -1499,9 +1502,7 @@ instant_alter_column_possible(
 		= ALTER_ADD_STORED_BASE_COLUMN
 		| ALTER_DROP_STORED_COLUMN
 		| ALTER_STORED_COLUMN_ORDER
-		| ALTER_COLUMN_NULLABLE
-		| ALTER_COLUMN_UNVERSIONED
-		| ALTER_COLUMN_EQUAL_PACK_LENGTH;
+		| ALTER_COLUMN_NULLABLE;
 
 	if (!(ha_alter_info->handler_flags & avoid_rebuild)) {
 		alter_table_operations flags = ha_alter_info->handler_flags
@@ -1544,9 +1545,7 @@ instant_alter_column_possible(
 	       & ~ALTER_STORED_COLUMN_ORDER
 	       & ~ALTER_ADD_STORED_BASE_COLUMN
 	       & ~ALTER_COLUMN_NULLABLE
-	       & ~ALTER_OPTIONS
-	       & ~ALTER_COLUMN_UNVERSIONED
-	       & ~ALTER_COLUMN_EQUAL_PACK_LENGTH)) {
+	       & ~ALTER_OPTIONS)) {
 		return false;
 	}
 
@@ -5765,8 +5764,8 @@ empty_table:
 		goto func_exit;
 	} else if (!user_table->is_instant()) {
 		ut_ad(!user_table->not_redundant()
-		      || ha_alter_info->handler_flags
-			     & ALTER_COLUMN_UNVERSIONED);
+		      || (ha_alter_info->handler_flags
+			  & ALTER_COLUMN_UNVERSIONED));
 		goto func_exit;
 	}
 
@@ -7926,7 +7925,9 @@ err_exit:
 	const ha_table_option_struct& alt_opt=
 		*ha_alter_info->create_info->option_struct;
 
-	if (!(ha_alter_info->handler_flags & INNOBASE_ALTER_DATA)
+	if (!(ha_alter_info->handler_flags & (INNOBASE_ALTER_DATA
+					      | ALTER_COLUMN_EQUAL_PACK_LENGTH
+					      | ALTER_COLUMN_UNVERSIONED))
 	    || ((ha_alter_info->handler_flags & ~(INNOBASE_INPLACE_IGNORE
 						  | INNOBASE_ALTER_NOCREATE
 						  | INNOBASE_ALTER_INSTANT))
