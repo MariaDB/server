@@ -3,7 +3,7 @@
 Copyright (c) 1995, 2017, Oracle and/or its affiliates. All Rights Reserved.
 Copyright (c) 2008, 2009 Google Inc.
 Copyright (c) 2009, Percona Inc.
-Copyright (c) 2013, 2017, MariaDB Corporation.
+Copyright (c) 2013, 2019, MariaDB Corporation.
 
 Portions of this file contain modifications contributed and copyrighted by
 Google, Inc. Those modifications are gratefully acknowledged and are described
@@ -1637,9 +1637,7 @@ srv_printf_innodb_monitor(
 					? (recv_sys->addr_hash->n_cells * sizeof(hash_cell_t)) : 0),
 			recv_sys_subtotal);
 
-
-	fprintf(file, "Dictionary memory allocated " ULINTPF "\n",
-		dict_sys ? dict_sys_get_size() : 0);
+	fprintf(file, "Dictionary memory allocated " ULINTPF "\n", dict_size);
 
 	buf_print_io(file);
 
