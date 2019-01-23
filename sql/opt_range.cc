@@ -1569,6 +1569,7 @@ failure:
   head->column_bitmaps_set(save_read_set, save_write_set);
   delete file;
   file= save_file;
+  free_file= false;
   DBUG_RETURN(1);
 }
 
@@ -6557,6 +6558,8 @@ TRP_ROR_INTERSECT *get_best_ror_intersect(const PARAM *param, SEL_TREE *tree,
     if (ror_intersect_add(intersect, cpk_scan, TRUE) && 
         (intersect->total_cost < min_cost))
       intersect_best= intersect; //just set pointer here
+    else
+      cpk_scan= 0; // Don't use cpk_scan
   }
   else
     cpk_scan= 0;                                // Don't use cpk_scan
