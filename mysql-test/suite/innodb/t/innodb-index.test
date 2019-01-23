@@ -1183,12 +1183,3 @@ call mtr.add_suppression("Plugin 'InnoDB' init function returned error");
 call mtr.add_suppression("Plugin 'InnoDB' registration as a STORAGE ENGINE failed");
 
 --enable_query_log
-
-
-# test instant varchar enlarge
-# LEN must increase here
-create table t (a varchar(100)) engine=innodb;
-select name, pos, mtype, prtype, len from information_schema.innodb_sys_columns where name='a';
-alter table t modify a varchar(110), algorithm=instant;
-select name, pos, mtype, prtype, len from information_schema.innodb_sys_columns where name='a';
-drop table t;
