@@ -1320,7 +1320,7 @@ WHERE ((Name > 'Ca' AND Name < 'Cf') OR (Country > 'E' AND Country < 'H'))
 AND (Population >= 100000 AND Population < 120000)
 ORDER BY Population LIMIT 5;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	City	index_merge	Country,Name,Population	Name,Country	35,3	NULL	#	Using sort_union(Name,Country); Using where; Using filesort
+1	SIMPLE	City	range	Country,Name,Population	Population	4	NULL	#	Using where
 FLUSH STATUS;
 SELECT * FROM City
 WHERE ((Name > 'Ca' AND Name < 'Cf') OR (Country > 'E' AND Country < 'H'))
@@ -1335,12 +1335,12 @@ ID	Name	Country	Population
 SHOW STATUS LIKE 'Handler_read_%';
 Variable_name	Value
 Handler_read_first	0
-Handler_read_key	2
+Handler_read_key	1
 Handler_read_last	0
-Handler_read_next	385
+Handler_read_next	59
 Handler_read_prev	0
 Handler_read_retry	0
-Handler_read_rnd	377
+Handler_read_rnd	0
 Handler_read_rnd_deleted	0
 Handler_read_rnd_next	0
 set @tmp_mdev585=@@optimizer_use_condition_selectivity;
