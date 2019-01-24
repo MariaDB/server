@@ -334,7 +334,7 @@ extern PSI_mutex_key key_BINLOG_LOCK_index, key_BINLOG_LOCK_xid_list,
   key_LOCK_logger, key_LOCK_manager,
   key_LOCK_prepared_stmt_count,
   key_LOCK_rpl_status, key_LOCK_server_started,
-  key_LOCK_status, key_LOCK_show_status,
+  key_LOCK_status,
   key_LOCK_thd_data, key_LOCK_thd_kill,
   key_LOCK_user_conn, key_LOG_LOCK_log,
   key_master_info_data_lock, key_master_info_run_lock,
@@ -620,7 +620,7 @@ extern MYSQL_PLUGIN_IMPORT key_map key_map_full;          /* Should be threaded 
   Server mutex locks and condition variables.
  */
 extern mysql_mutex_t
-       LOCK_item_func_sleep, LOCK_status, LOCK_show_status,
+       LOCK_item_func_sleep, LOCK_status,
        LOCK_error_log, LOCK_delayed_insert, LOCK_short_uuid_generator,
        LOCK_delayed_status, LOCK_delayed_create, LOCK_crypt, LOCK_timezone,
        LOCK_slave_list, LOCK_active_mi, LOCK_manager,
@@ -628,6 +628,7 @@ extern mysql_mutex_t
        LOCK_prepared_stmt_count, LOCK_error_messages, LOCK_connection_count,
        LOCK_slave_background;
 extern MYSQL_PLUGIN_IMPORT mysql_mutex_t LOCK_thread_count;
+extern mysql_rwlock_t LOCK_all_status_vars;
 extern mysql_mutex_t LOCK_start_thread;
 #ifdef HAVE_OPENSSL
 extern char* des_key_file;
