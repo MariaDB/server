@@ -1,23 +1,103 @@
-# Turn on ssl between the client and server
-# and run a number of tests
+#
+# Various tests that require setting of a specific ssl_cipher
+# which currently doesn't work in OpenSSL 1.1.1
+#
+--source include/have_ssl_communication.inc
 
---echo #
---echo # BUG#11760210 - SSL_CIPHER_LIST NOT SET OR RETURNED FOR "SHOW STATUS LIKE 'SSL_CIPHER_LIST'"
---echo #
+if (`select @@version_ssl_library like 'OpenSSL 1.1.1%'`) {
+  skip OpenSSL 1.1.1;
+}
 
--- source include/have_ssl_communication.inc
+create user ssl_user1@localhost require SSL;
+create user ssl_user2@localhost require cipher 'AES256-SHA';
+create user ssl_user3@localhost require cipher 'AES256-SHA' AND SUBJECT '/C=FI/ST=Helsinki/L=Helsinki/O=MariaDB/CN=client';
+create user ssl_user4@localhost require cipher 'AES256-SHA' AND SUBJECT '/C=FI/ST=Helsinki/L=Helsinki/O=MariaDB/CN=client' ISSUER '/CN=cacert/C=FI/ST=Helsinki/L=Helsinki/O=MariaDB';
+create user ssl_user5@localhost require cipher 'AES256-SHA' AND SUBJECT 'xxx';
 
-# Save the initial number of concurrent sessions
---source include/count_sessions.inc
+connect (con1,localhost,ssl_user1,,,,,SSL-CIPHER=AES256-SHA);
+--replace_result $MASTER_MYSOCK MASTER_SOCKET $MASTER_MYPORT MASTER_PORT
+--error ER_ACCESS_DENIED_ERROR
+connect (con2,localhost,ssl_user2,,,,,SSL-CIPHER=AES128-SHA);
+connect (con2,localhost,ssl_user2,,,,,SSL-CIPHER=AES256-SHA);
+connect (con3,localhost,ssl_user3,,,,,SSL-CIPHER=AES256-SHA);
+connect (con4,localhost,ssl_user4,,,,,SSL-CIPHER=AES256-SHA);
+--replace_result $MASTER_MYSOCK MASTER_SOCKET $MASTER_MYPORT MASTER_PORT
+--error ER_ACCESS_DENIED_ERROR
+connect (con5,localhost,ssl_user5,,,,,SSL-CIPHER=AES256-SHA);
 
+connection con1;
+SHOW STATUS LIKE 'Ssl_cipher';
+disconnect con1;
+connection con2;
+SHOW STATUS LIKE 'Ssl_cipher';
+disconnect con2;
+connection con3;
+SHOW STATUS LIKE 'Ssl_cipher';
+disconnect con3;
+connection con4;
+SHOW STATUS LIKE 'Ssl_cipher';
+disconnect con4;
+connection default;
+drop user ssl_user1@localhost, ssl_user2@localhost, ssl_user3@localhost, ssl_user4@localhost, ssl_user5@localhost;
+
+#
+# Bug#21611 Slave can't connect when master-ssl-cipher specified
+# - Apparently selecting a cipher doesn't work at all
+# - Use a cipher that both yaSSL and OpenSSL supports
+#
+--write_file $MYSQLTEST_VARDIR/tmp/test.sql
+SHOW STATUS LIKE 'Ssl_cipher';
+EOF
+--exec $MYSQL_TEST --ssl-cipher=AES256-SHA < $MYSQLTEST_VARDIR/tmp/test.sql 2>&1
+# Test to connect using a list of ciphers
+--exec $MYSQL_TEST --ssl-cipher=UNKNOWN-CIPHER:AES128-SHA < $MYSQLTEST_VARDIR/tmp/test.sql 2>&1
+# Test to connect using a specifi cipher
+--exec $MYSQL_TEST --ssl-cipher=AES128-SHA < $MYSQLTEST_VARDIR/tmp/test.sql 2>&1
+# Test to connect using an unknown cipher
+--replace_regex /2026 SSL connection error.*/2026 SSL connection error: xxxx/
+--error 1
+--exec $MYSQL_TEST --ssl-cipher=UNKNOWN-CIPHER < $MYSQLTEST_VARDIR/tmp/test.sql 2>&1
+--remove_file $MYSQLTEST_VARDIR/tmp/test.sql
+
+#
+# Bug#39172 Asking for DH+non-RSA key with server set to use other key caused
+#           YaSSL to crash the server.
+#
+
+# Common ciphers to openssl and yassl
+--exec $MYSQL --host=localhost -e "SHOW STATUS LIKE 'Ssl_cipher';" --ssl-cipher=AES256-SHA
+--exec $MYSQL --host=localhost -e "SHOW STATUS LIKE 'Ssl_cipher';" --ssl-cipher=AES128-SHA
+--disable_query_log
+--disable_result_log
+
+# Below here caused crashes.  ################
+--error 0,1
+--exec $MYSQL --host=localhost -e "SHOW STATUS LIKE 'Ssl-cipher';" --ssl-cipher=NOT----EXIST
+# These probably exist but the server's keys can't be used to accept these kinds of connections.
+--error 0,1
+--exec $MYSQL --host=localhost -e "SHOW STATUS LIKE 'Ssl-cipher';" --ssl-cipher=AES128-RMD
+
+# If this gives a result, then the bug is fixed.
+--enable_result_log
+--enable_query_log
+select 'is still running; no cipher request crashed the server' as result from dual;
+
+#
+# MDEV-10054 Secure login fails when CIPHER is required
+#
+create user mysqltest_1@localhost;
+grant usage on mysqltest.* to mysqltest_1@localhost require cipher "AES256-SHA";
+--exec $MYSQL -umysqltest_1 --ssl-cipher=AES256-SHA -e "show status like 'ssl_cipher'" 2>&1
+drop user mysqltest_1@localhost;
+
+#
+# BUG#11760210 - SSL_CIPHER_LIST NOT SET OR RETURNED FOR "SHOW STATUS LIKE 'SSL_CIPHER_LIST'"
+# it was a bug in yaSSL, fixed in d2e36e4258bb
+#
+let $restart_parameters=--ssl-cipher=AES128-SHA;
+source include/restart_mysqld.inc;
 connect (ssl_con,localhost,root,,,,,SSL);
-
-# Check Cipher Name and Cipher List
 SHOW STATUS LIKE 'Ssl_cipher';
 SHOW STATUS LIKE 'Ssl_cipher_list';
-
-connection default;
 disconnect ssl_con;
-
-# Wait till all disconnects are completed
---source include/wait_until_count_sessions.inc
+connection default;

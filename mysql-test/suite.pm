@@ -70,9 +70,9 @@ sub skip_combinations {
   }
   $skip{'include/check_ipv6.inc'} = 'No IPv6' unless ipv6_ok();
 
-  $skip{'t/openssl_6975.test'} = 'no or too old openssl'
+  $skip{'t/openssl_6975.test'} = 'no or wrong openssl version'
     unless $::mysqld_variables{'version-ssl-library'} =~ /OpenSSL (\S+)/
-       and $1 ge "1.0.1d";
+       and $1 ge "1.0.1d" and $1 lt "1.1.1";
 
   $skip{'t/ssl_7937.combinations'} = [ 'x509v3' ]
     unless $::mysqld_variables{'version-ssl-library'} =~ /OpenSSL (\S+)/
