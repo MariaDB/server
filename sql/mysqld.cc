@@ -890,7 +890,7 @@ PSI_mutex_key key_BINLOG_LOCK_index, key_BINLOG_LOCK_xid_list,
   key_structure_guard_mutex, key_TABLE_SHARE_LOCK_ha_data,
   key_LOCK_error_messages,
   key_LOCK_start_thread,
-  key_LOCK_thread_count, key_Thread_map_mutex, key_LOCK_thread_cache,
+  key_LOCK_thread_count, key_LOCK_thread_cache,
   key_PARTITION_LOCK_auto_inc;
 PSI_mutex_key key_RELAYLOG_LOCK_index;
 PSI_mutex_key key_LOCK_relaylog_end_pos;
@@ -984,7 +984,6 @@ static PSI_mutex_info all_server_mutexes[]=
   { &key_LOCK_commit_ordered, "LOCK_commit_ordered", PSI_FLAG_GLOBAL},
   { &key_LOCK_slave_background, "LOCK_slave_background", PSI_FLAG_GLOBAL},
   { &key_LOCK_thread_count, "LOCK_thread_count", PSI_FLAG_GLOBAL},
-  { &key_Thread_map_mutex, "Thread_map::mutex", PSI_FLAG_GLOBAL },
   { &key_LOCK_thread_cache, "LOCK_thread_cache", PSI_FLAG_GLOBAL},
   { &key_PARTITION_LOCK_auto_inc, "HA_DATA_PARTITION::LOCK_auto_inc", 0},
   { &key_LOCK_slave_state, "LOCK_slave_state", 0},
@@ -1002,7 +1001,8 @@ PSI_rwlock_key key_rwlock_LOCK_grant, key_rwlock_LOCK_logger,
   key_rwlock_LOCK_system_variables_hash, key_rwlock_query_cache_query_lock,
   key_LOCK_SEQUENCE,
   key_rwlock_LOCK_vers_stats, key_rwlock_LOCK_stat_serial,
-  key_rwlock_LOCK_ssl_refresh;
+  key_rwlock_LOCK_ssl_refresh,
+  key_rwlock_THD_list;
 
 static PSI_rwlock_info all_server_rwlocks[]=
 {
@@ -1018,7 +1018,8 @@ static PSI_rwlock_info all_server_rwlocks[]=
   { &key_rwlock_query_cache_query_lock, "Query_cache_query::lock", 0},
   { &key_rwlock_LOCK_vers_stats, "Vers_field_stats::lock", 0},
   { &key_rwlock_LOCK_stat_serial, "TABLE_SHARE::LOCK_stat_serial", 0},
-  { &key_rwlock_LOCK_ssl_refresh, "LOCK_ssl_refresh", PSI_FLAG_GLOBAL }
+  { &key_rwlock_LOCK_ssl_refresh, "LOCK_ssl_refresh", PSI_FLAG_GLOBAL },
+  { &key_rwlock_THD_list, "THD_list::lock", PSI_FLAG_GLOBAL }
 };
 
 #ifdef HAVE_MMAP

@@ -344,7 +344,7 @@ extern PSI_mutex_key key_BINLOG_LOCK_index, key_BINLOG_LOCK_xid_list,
   key_rpl_group_info_sleep_lock,
   key_structure_guard_mutex, key_TABLE_SHARE_LOCK_ha_data,
   key_LOCK_start_thread,
-  key_LOCK_error_messages, key_LOCK_thread_count, key_Thread_map_mutex,
+  key_LOCK_error_messages,
   key_PARTITION_LOCK_auto_inc;
 extern PSI_mutex_key key_RELAYLOG_LOCK_index;
 extern PSI_mutex_key key_LOCK_relaylog_end_pos;
@@ -361,7 +361,8 @@ extern PSI_rwlock_key key_rwlock_LOCK_grant, key_rwlock_LOCK_logger,
   key_rwlock_LOCK_sys_init_connect, key_rwlock_LOCK_sys_init_slave,
   key_rwlock_LOCK_system_variables_hash, key_rwlock_query_cache_query_lock,
   key_LOCK_SEQUENCE,
-  key_rwlock_LOCK_vers_stats, key_rwlock_LOCK_stat_serial;
+  key_rwlock_LOCK_vers_stats, key_rwlock_LOCK_stat_serial,
+  key_rwlock_THD_list;
 
 #ifdef HAVE_MMAP
 extern PSI_cond_key key_PAGE_cond, key_COND_active, key_COND_pool;

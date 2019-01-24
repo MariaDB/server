@@ -6939,7 +6939,7 @@ private:
 class THD_list
 {
   I_List<THD> threads;
-  mutable mysql_mutex_t mutex;
+  mutable mysql_rwlock_t lock;
 
 public:
   /**
@@ -6951,13 +6951,13 @@ public:
   */
   void init()
   {
-    mysql_mutex_init(key_Thread_map_mutex, &mutex, MY_MUTEX_INIT_FAST);
+    mysql_rwlock_init(key_rwlock_THD_list, &lock);
   }
 
   /** Destructor replacement. */
   void destroy()
   {
-    mysql_mutex_destroy(&mutex);
+    mysql_rwlock_destroy(&lock);
   }
 
   /**
@@ -6969,9 +6969,9 @@ public:
   */
   void insert(THD *thd)
   {
-    mysql_mutex_lock(&mutex);
+    mysql_rwlock_wrlock(&lock);
     threads.append(thd);
-    mysql_mutex_unlock(&mutex);
+    mysql_rwlock_unlock(&lock);
   }
 
   /**
@@ -6984,9 +6984,9 @@ public:
   void erase(THD *thd)
   {
     thd->assert_linked();
-    mysql_mutex_lock(&mutex);
+    mysql_rwlock_wrlock(&lock);
     thd->unlink();
-    mysql_mutex_unlock(&mutex);
+    mysql_rwlock_unlock(&lock);
   }
 
   /**
@@ -7002,12 +7002,12 @@ public:
   template <typename T> int iterate(my_bool (*action)(THD *thd, T *arg), T *arg= 0)
   {
     int res= 0;
-    mysql_mutex_lock(&mutex);
+    mysql_rwlock_rdlock(&lock);
     I_List_iterator<THD> it(threads);
     while (auto tmp= it++)
       if ((res= action(tmp, arg)))
         break;
-    mysql_mutex_unlock(&mutex);
+    mysql_rwlock_unlock(&lock);
     return res;
   }
 };
