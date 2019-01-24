@@ -110,8 +110,8 @@ PQRYRES JSONColumns(PGLOBAL g, PCSZ db, PCSZ dsn, PTOS topt, bool info)
                           buftyp, fldtyp, length, false, false);
 
   crp = qrp->Colresp->Next->Next->Next->Next->Next->Next;
-  crp->Name = "Nullable";
-  crp->Next->Name = "Jpath";
+	crp->Name = PlugDup(g, "Nullable");
+	crp->Next->Name = PlugDup(g, "Jpath");
 
   if (info || !qrp)
     return qrp;

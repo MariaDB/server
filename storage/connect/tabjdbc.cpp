@@ -558,33 +558,42 @@ bool TDBJDBC::OpenDB(PGLOBAL g)
 		     this, Tdb_No, Use, Mode);
 
 	if (Use == USE_OPEN) {
-		/*******************************************************************/
-		/*  Table already open, just replace it at its beginning.          */
-		/*******************************************************************/
-		if (Memory == 1) {
-			if ((Qrp = Jcp->AllocateResult(g, this)))
-				Memory = 2;            // Must be filled
-			else
-				Memory = 0;            // Allocation failed, don't use it
+		if (Mode == MODE_READ || Mode == MODE_READX) {
+			/*****************************************************************/
+			/*  Table already open, just replace it at its beginning.        */
+			/*****************************************************************/
+			if (Memory == 1) {
+				if ((Qrp = Jcp->AllocateResult(g, this)))
+					Memory = 2;            // Must be filled
+				else
+					Memory = 0;            // Allocation failed, don't use it
 
-		} else if (Memory == 2)
-			Memory = 3;              // Ok to use memory result
+			} else if (Memory == 2)
+				Memory = 3;              // Ok to use memory result
 
-		if (Memory < 3) {
-			// Method will depend on cursor type
-			if ((Rbuf = Query ? Jcp->Rewind(Query->GetStr()) : 0) < 0)
-				if (Mode != MODE_READX) {
-					Jcp->Close();
-				  return true;
-			  } else
-				  Rbuf = 0;
+			if (Memory < 3) {
+				// Method will depend on cursor type
+				if ((Rbuf = Query ? Jcp->Rewind(Query->GetStr()) : 0) < 0)
+					if (Mode != MODE_READX) {
+						Jcp->Close();
+						return true;
+					} else
+						Rbuf = 0;
 
-		} else
-			Rbuf = Qrp->Nblin;
+			} else
+				Rbuf = Qrp->Nblin;
 
-		CurNum = 0;
-		Fpos = 0;
-		Curpos = 1;
+			CurNum = 0;
+			Fpos = 0;
+			Curpos = 1;
+		} else if (Mode == MODE_UPDATE || Mode == MODE_DELETE) {
+			// new update coming from a trigger or procedure
+			Query = NULL;
+			SetCondFil(NULL);
+			Qrystr = To_Def->GetStringCatInfo(g, "Query_String", "?");
+		} else {  //if (Mode == MODE_INSERT)
+		} // endif Mode
+
 		return false;
 	} // endif use
 

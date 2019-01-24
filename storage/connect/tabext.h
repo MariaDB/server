@@ -130,6 +130,7 @@ protected:
 	virtual bool MakeSQL(PGLOBAL g, bool cnt);
 	//virtual bool MakeInsert(PGLOBAL g);
 	virtual bool MakeCommand(PGLOBAL g);
+	void RemoveConst(PGLOBAL g, char *stmt);
 	int Decode(PCSZ utf, char *buf, size_t n);
 
 	// Members
