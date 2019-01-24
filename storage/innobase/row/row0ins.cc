@@ -966,11 +966,11 @@ row_ins_foreign_fill_virtual(
 
 	if (innobase_allocate_row_for_vcol(thd, index, &v_heap,
                                            &mysql_table,
-                                           &record, &vcol_storage))
-        {
+                                           &record, &vcol_storage)) {
+		if (v_heap) mem_heap_free(v_heap);
 		*err = DB_OUT_OF_MEMORY;
-                goto func_exit;
-        }
+		goto func_exit;
+	}
 
 	for (ulint i = 0; i < n_v_fld; i++) {
 

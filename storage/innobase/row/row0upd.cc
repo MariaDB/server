@@ -1162,6 +1162,7 @@ row_upd_build_difference_binary(
 				&v_heap, heap, NULL, thd, mysql_table, record,
 				NULL, NULL, NULL);
 			if (vfield == NULL) {
+				if (v_heap) mem_heap_free(v_heap);
 				*error = DB_COMPUTE_VALUE_FAILED;
 				return(NULL);
 			}
