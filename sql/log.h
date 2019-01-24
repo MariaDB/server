@@ -1168,6 +1168,14 @@ static inline TC_LOG *get_tc_log_implementation()
     return &tc_log_dummy;
   if (opt_bin_log)
     return &mysql_bin_log;
+#ifdef WITH_WSREP
+  if (wsrep_emulate_bin_log)
+  {
+    WSREP_DEBUG("Using tc_log_dummy due to binlog emulation, 2pc handlers %d",
+                total_ha_2pc);
+    return &tc_log_dummy;
+  }
+#endif /* WITH_WSREP */
   return &tc_log_mmap;
 }
 
