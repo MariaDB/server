@@ -204,7 +204,6 @@ static PSI_file_info wsrep_files[]=
 my_bool wsrep_inited= 0; // initialized ?
 
 static wsrep_uuid_t node_uuid= WSREP_UUID_UNDEFINED;
-static wsrep_uuid_t cluster_uuid= WSREP_UUID_UNDEFINED;
 static char         cluster_uuid_str[40]= { 0, };
 
 static char provider_name[256]= { 0, };

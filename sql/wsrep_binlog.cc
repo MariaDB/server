@@ -107,13 +107,6 @@ cleanup:
                          * many transactions would fit in there
                          * so there is no need to reach for the heap */
 
-/* Returns minimum multiple of HEAP_PAGE_SIZE that is >= length */
-static inline size_t
-heap_size(size_t length)
-{
-    return (length + HEAP_PAGE_SIZE - 1)/HEAP_PAGE_SIZE*HEAP_PAGE_SIZE;
-}
-
 /*
   Write the contents of a cache to wsrep provider.
 
