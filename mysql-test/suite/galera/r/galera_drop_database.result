@@ -1,3 +1,5 @@
+connection node_1;
+connection node_2;
 CREATE DATABASE fts;
 USE fts;
 CREATE TABLE fts_t1 (f1 INT PRIMARY KEY AUTO_INCREMENT, f2 VARCHAR(100), FULLTEXT (f2)) ENGINE=InnoDB;
@@ -9,6 +11,10 @@ INSERT INTO fts_t2 (f2) SELECT 'foobarbaz' FROM ten AS a1, ten AS a2, ten AS a3;
 DROP TABLE ten;
 UPDATE fts_t1 SET f2 = 'abcd';
 UPDATE fts_t2 SET f2 = 'efjh';
+connection node_2;
+connection node_1;
+connection node_2;
+connection node_1;
 USE fts;
 DROP TABLE fts_t1;
 DROP TABLE fts_t2;

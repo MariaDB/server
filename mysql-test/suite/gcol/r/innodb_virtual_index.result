@@ -239,3 +239,23 @@ KEY (a(1))
 INSERT INTO t1(b) VALUES(REPEAT('b',1000));
 DELETE FROM t1;
 DROP TABLE t1;
+#
+# Bug #22990029 GCOLS: INCORRECT BEHAVIOR
+# AFTER DATA INSERTED WITH IGNORE KEYWORD
+#
+CREATE TABLE t1(a INT PRIMARY KEY, b INT, vb DATE AS(b) VIRTUAL, KEY(vb))
+ENGINE=InnoDB;
+INSERT IGNORE INTO t1 (a,b) VALUES(1,20190132);
+Warnings:
+Warning	1265	Data truncated for column 'vb' at row 1
+BEGIN;
+DELETE FROM t1;
+INSERT INTO t1 (a,b) VALUES(1,20190123);
+ERROR 22007: Incorrect date value: '20190132' for column `test`.`t1`.`vb` at row 1
+SELECT * FROM t1;
+a	b	vb
+ROLLBACK;
+CHECK TABLE t1;
+Table	Op	Msg_type	Msg_text
+test.t1	check	status	OK
+DROP TABLE t1;

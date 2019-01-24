@@ -91,6 +91,9 @@ DATA="${WSREP_SST_OPT_DATA}"
 INFO_FILE="xtrabackup_galera_info"
 IST_FILE="xtrabackup_ist"
 MAGIC_FILE="${DATA}/${INFO_FILE}"
+INNOAPPLYLOG="${DATA}/mariabackup.prepare.log"
+INNOMOVELOG="${DATA}/mariabackup.move.log"
+INNOBACKUPLOG="${DATA}/mariabackup.backup.log"
 
 # Setting the path for ss and ip
 export PATH="/usr/sbin:/sbin:$PATH"
@@ -352,6 +355,8 @@ read_cnf()
     ssyslog=$(parse_cnf sst sst-syslog 0)
     ssystag=$(parse_cnf mysqld_safe syslog-tag "${SST_SYSLOG_TAG:-}")
     ssystag+="-"
+    sstlogarchive=$(parse_cnf sst sst-log-archive 1)
+    sstlogarchivedir=$(parse_cnf sst sst-log-archive-dir "/tmp/sst_log_archive")
 
     if [[ $speciald -eq 0 ]];then 
         wsrep_log_error "sst-special-dirs equal to 0 is not supported, falling back to 1"
@@ -744,10 +749,71 @@ if [[ $ssyslog -eq 1 ]];then
         INNOBACKUP="${INNOBACKUPEX_BIN} --innobackupex ${WSREP_SST_OPT_CONF} $disver $iopts \$tmpopts \$INNOEXTRA --galera-info --stream=\$sfmt \$itmpdir 2> >(logger -p daemon.err -t ${ssystag}innobackupex-backup)"
     fi
 
-else 
-    INNOAPPLY="${INNOBACKUPEX_BIN} --innobackupex $disver $iapts \$INNOEXTRA --apply-log \$rebuildcmd \${DATA} &>\${DATA}/innobackup.prepare.log"
+else
+
+if [[ "$sstlogarchive" -eq 1 ]]
+then
+    ARCHIVETIMESTAMP=$(date "+%Y.%m.%d-%H.%M.%S")
+    newfile=""    
+
+    if [[ ! -z "$sstlogarchivedir" ]]
+    then
+        if [[ ! -d "$sstlogarchivedir" ]]
+        then
+            mkdir -p "$sstlogarchivedir"
+        fi
+    fi
+
+    if [ -e "${INNOAPPLYLOG}" ]
+    then
+        if [[ ! -z "$sstlogarchivedir" ]]
+        then
+            newfile=$sstlogarchivedir/$(basename "${INNOAPPLYLOG}").${ARCHIVETIMESTAMP}
+        else
+            newfile=${INNOAPPLYLOG}.${ARCHIVETIMESTAMP}
+        fi
+   
+        wsrep_log_info "Moving ${INNOAPPLYLOG} to ${newfile}"
+        mv "${INNOAPPLYLOG}" "${newfile}"
+        gzip "${newfile}"
+    fi
+
+    if [ -e "${INNOMOVELOG}" ]
+    then
+        if [[ ! -z "$sstlogarchivedir" ]]
+        then
+            newfile=$sstlogarchivedir/$(basename "${INNOMOVELOG}").${ARCHIVETIMESTAMP}
+        else
+            newfile=${INNOMOVELOG}.${ARCHIVETIMESTAMP}
+        fi
+
+        wsrep_log_info "Moving ${INNOMOVELOG} to ${newfile}"
+        mv "${INNOMOVELOG}" "${newfile}"
+        gzip "${newfile}"
+    fi
+
+    if [ -e "${INNOBACKUPLOG}" ]
+    then
+        if [[ ! -z "$sstlogarchivedir" ]]
+        then
+            newfile=$sstlogarchivedir/$(basename "${INNOBACKUPLOG}").${ARCHIVETIMESTAMP}
+        else
+            newfile=${INNOBACKUPLOG}.${ARCHIVETIMESTAMP}
+        fi
+
+        wsrep_log_info "Moving ${INNOBACKUPLOG} to ${newfile}"
+        mv "${INNOBACKUPLOG}" "${newfile}"
+        gzip "${newfile}"
+    fi
+
+fi
+ 
     INNOMOVE="${INNOBACKUPEX_BIN} --innobackupex ${WSREP_SST_OPT_CONF} $disver $impts  --move-back --force-non-empty-directories \${DATA} &>\${DATA}/innobackup.move.log"
     INNOBACKUP="${INNOBACKUPEX_BIN} --innobackupex ${WSREP_SST_OPT_CONF} $disver $iopts \$tmpopts \$INNOEXTRA --galera-info --stream=\$sfmt \$itmpdir 2>\${DATA}/innobackup.backup.log"
+
+    INNOAPPLY="${INNOBACKUPEX_BIN} --innobackupex $disver $iapts \$INNOEXTRA --apply-log \$rebuildcmd \${DATA} &> ${INNOAPPLYLOG}"
+    INNOMOVE="${INNOBACKUPEX_BIN} --innobackupex ${WSREP_SST_OPT_CONF} $disver $impts  --move-back --force-non-empty-directories \${DATA} &> ${INNOMOVELOG}"
+    INNOBACKUP="${INNOBACKUPEX_BIN} --innobackupex ${WSREP_SST_OPT_CONF} $disver $iopts \$tmpopts \$INNOEXTRA --galera-info --stream=\$sfmt \$itmpdir 2> ${INNOBACKUPLOG}"
 fi
 
 get_stream
@@ -844,7 +910,7 @@ then
 
         if [ ${RC[0]} -ne 0 ]; then
           wsrep_log_error "${INNOBACKUPEX_BIN} finished with error: ${RC[0]}. " \
-                          "Check ${DATA}/innobackup.backup.log"
+                          "Check syslog or ${INNOBACKUPLOG} for details"
           exit 22
         elif [[ ${RC[$(( ${#RC[@]}-1 ))]} -eq 1 ]];then 
           wsrep_log_error "$tcmd finished with error: ${RC[1]}"
@@ -1073,13 +1139,12 @@ then
 
         if [ $? -ne 0 ];
         then
-            wsrep_log_error "${INNOBACKUPEX_BIN} apply finished with errors. Check ${DATA}/innobackup.prepare.log" 
+            wsrep_log_error "${INNOBACKUPEX_BIN} apply finished with errors. Check syslog or ${INNOAPPLYLOG} for details" 
             exit 22
         fi
 
         MAGIC_FILE="${TDATA}/${INFO_FILE}"
         set +e
-        rm $TDATA/innobackup.prepare.log $TDATA/innobackup.move.log
         set -e
         wsrep_log_info "Moving the backup to ${TDATA}"
         timeit "Xtrabackup move stage" "$INNOMOVE"
@@ -1089,7 +1154,7 @@ then
             DATA=${TDATA}
         else 
             wsrep_log_error "Move failed, keeping ${DATA} for further diagnosis"
-            wsrep_log_error "Check ${DATA}/innobackup.move.log for details"
+            wsrep_log_error "Check syslog or ${INNOMOVELOG} for details"
             exit 22
         fi
 
