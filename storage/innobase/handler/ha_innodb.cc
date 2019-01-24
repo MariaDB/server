@@ -3717,15 +3717,6 @@ static int innodb_init_params()
 		ib::info() << "For Galera, using innodb_lock_schedule_algorithm=fcfs";
 		innodb_lock_schedule_algorithm = INNODB_LOCK_SCHEDULE_ALGORITHM_FCFS;
 	}
-
-	/* Print deprecation info if xtrabackup is used for SST method */
-	if (global_system_variables.wsrep_on
-	    && wsrep_sst_method
-	    && (!strcmp(wsrep_sst_method, "xtrabackup")
-	        || !strcmp(wsrep_sst_method, "xtrabackup-v2"))) {
-		ib::info() << "Galera SST method xtrabackup is deprecated and the "
-			" support for it may be removed in future releases.";
-	}
 #endif /* WITH_WSREP */
 
 #ifndef HAVE_LZ4

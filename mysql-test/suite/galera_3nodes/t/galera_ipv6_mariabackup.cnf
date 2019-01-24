@@ -1,7 +1,8 @@
 !include ../galera_3nodes.cnf
 
 [mysqld]
-wsrep_sst_method=rsync
+wsrep_sst_method=mariabackup
+wsrep_sst_auth="root:"
 wsrep_node_address=::1
 
 [mysqld.1]
@@ -23,4 +24,6 @@ wsrep_sst_receive_address='[::1]:@mysqld.3.#sst_port'
 wsrep_node_incoming_address='[::1]:@mysqld.3.port'
 
 [SST]
+transferfmt=@ENV.MTR_GALERA_TFMT
+streamfmt=xbstream
 sockopt=",pf=ip6"

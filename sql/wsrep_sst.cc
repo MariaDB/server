@@ -60,12 +60,7 @@ bool wsrep_sst_method_check (sys_var *self, THD* thd, set_var* var)
   return 0;
 }
 
-bool wsrep_sst_method_update (sys_var *self, THD* thd, enum_var_type type)
-{
-    return 0;
-}
-
-static const char* data_home_dir= NULL;
+static const char* data_home_dir;
 
 void wsrep_set_data_home_dir(const char *data_dir)
 {

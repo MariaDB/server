@@ -2,7 +2,7 @@
 
 Copyright (c) 1996, 2016, Oracle and/or its affiliates. All Rights Reserved.
 Copyright (c) 2012, Facebook Inc.
-Copyright (c) 2013, 2018, MariaDB Corporation.
+Copyright (c) 2013, 2019, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -6973,32 +6973,16 @@ UNIV_INTERN
 ulint
 dict_sys_get_size()
 {
-	ulint size = 0;
+	/* No mutex; this is a very crude approximation anyway */
+	ulint size = UT_LIST_GET_LEN(dict_sys->table_LRU)
+		+ UT_LIST_GET_LEN(dict_sys->table_non_LRU);
+	size *= sizeof(dict_table_t)
+		+ sizeof(dict_index_t) * 2
+		+ (sizeof(dict_col_t) + sizeof(dict_field_t)) * 10
+		+ sizeof(dict_field_t) * 5 /* total number of key fields */
+		+ 200; /* arbitrary, covering names and overhead */
 
-	ut_ad(dict_sys);
-
-	mutex_enter(&dict_sys->mutex);
-
-	for(ulint i = 0; i < hash_get_n_cells(dict_sys->table_hash); i++) {
-		dict_table_t* table;
-
-		for (table = static_cast<dict_table_t*>(HASH_GET_FIRST(dict_sys->table_hash,i));
-		     table != NULL;
-		     table = static_cast<dict_table_t*>(HASH_GET_NEXT(name_hash, table))) {
-			dict_index_t* index;
-			size += mem_heap_get_size(table->heap) + strlen(table->name.m_name) +1;
-
-			for(index = dict_table_get_first_index(table);
-			    index != NULL;
-			    index = dict_table_get_next_index(index)) {
-				size += mem_heap_get_size(index->heap);
-			}
-		}
-	}
-
-	mutex_exit(&dict_sys->mutex);
-
-	return (size);
+	return size;
 }
 
 /** Look for any dictionary objects that are found in the given tablespace.

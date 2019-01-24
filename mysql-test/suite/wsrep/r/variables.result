@@ -139,9 +139,6 @@ wsrep_local_state_comment	#
 SHOW STATUS LIKE 'x';
 Variable_name	Value
 SET GLOBAL wsrep_provider=none;
-#
-# MDEV#6079: xtrabackup SST failing with maria-10.0-galera
-#
 
 SHOW STATUS LIKE 'wsrep_local_state_uuid';
 Variable_name	Value

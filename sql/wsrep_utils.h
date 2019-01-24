@@ -129,7 +129,8 @@ private:
           /* Hostname with port (host:port) */
           start= addr_in;
           end= colon;
-          parse_port(colon + 1);
+          if (parse_port(colon + 1))
+            return;                             /* Error: invalid port */
           break;
         default:
           /* IPv6 address */

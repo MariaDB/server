@@ -44,13 +44,15 @@ case "$1" in
             addr_no_bracket=${WSREP_SST_OPT_ADDR#\[}
             readonly WSREP_SST_OPT_HOST_UNESCAPED=${addr_no_bracket%%\]*}
             readonly WSREP_SST_OPT_HOST="[${WSREP_SST_OPT_HOST_UNESCAPED}]"
+            readonly WSREP_SST_OPT_HOST_ESCAPED="\\[${WSREP_SST_OPT_HOST_UNESCAPED}\\]"
             ;;
         *)
             readonly WSREP_SST_OPT_HOST=${WSREP_SST_OPT_ADDR%%[:/]*}
             readonly WSREP_SST_OPT_HOST_UNESCAPED=$WSREP_SST_OPT_HOST
+            readonly WSREP_SST_OPT_HOST_ESCAPED=$WSREP_SST_OPT_HOST
             ;;
         esac
-        remain=${WSREP_SST_OPT_ADDR#"${WSREP_SST_OPT_HOST}"}
+        remain=${WSREP_SST_OPT_ADDR#${WSREP_SST_OPT_HOST_ESCAPED}}
         remain=${remain#:}
         readonly WSREP_SST_OPT_ADDR_PORT=${remain%%/*}
         remain=${remain#*/}
@@ -274,7 +276,7 @@ wsrep_check_programs()
 }
 
 #
-# user can specify xtrabackup specific settings that will be used during sst
+# user can specify mariabackup specific settings that will be used during sst
 # process like encryption, etc.....
 # parse such configuration option. (group for xb settings is [sst] in my.cnf
 #

@@ -321,7 +321,7 @@ static bool page_is_corrupted(const byte *page, ulint page_no,
 	page_no first. */
 	if (page_no
 	    && mach_read_from_4(page + FIL_PAGE_FILE_FLUSH_LSN_OR_KEY_VERSION)
-	    && (opt_backup_encrypted
+	    && (opt_encrypted_backup
 		|| (space->crypt_data
 		    && space->crypt_data->type != CRYPT_SCHEME_UNENCRYPTED))) {
 

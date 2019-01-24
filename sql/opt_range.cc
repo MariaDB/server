@@ -1561,6 +1561,7 @@ failure:
   head->column_bitmaps_set(save_read_set, save_write_set);
   delete file;
   file= save_file;
+  free_file= false;
   DBUG_RETURN(1);
 }
 

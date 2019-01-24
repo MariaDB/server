@@ -1,4 +1,4 @@
-#!/bin/sh -ue
+#!/bin/bash -ue
 
 # Copyright (C) 2010-2014 Codership Oy
 #
@@ -88,7 +88,7 @@ check_pid_and_port()
     local is_listening_all="$(echo $port_info | \
         grep "*:$rsync_port" 2>/dev/null)"
     local is_listening_addr="$(echo $port_info | \
-        grep "$rsync_addr:$rsync_port" 2>/dev/null)"
+        grep -F "$rsync_addr:$rsync_port" 2>/dev/null)"
 
     if [ ! -z "$is_listening_all" -o ! -z "$is_listening_addr" ]; then
         if [ -z "$is_rsync" ]; then
@@ -119,7 +119,7 @@ is_local_ip()
     address="$address "
   fi
 
-  $get_addr_bin | grep "$address" > /dev/null
+  $get_addr_bin | grep -F "$address" > /dev/null
 }
 
 STUNNEL_CONF="$WSREP_SST_OPT_DATA/stunnel.conf"
@@ -399,12 +399,17 @@ then
     rm -rf "$RSYNC_PID"
 
     ADDR=$WSREP_SST_OPT_ADDR
-    RSYNC_PORT=$(echo $ADDR | awk -F ':' '{ print $2 }')
-    RSYNC_ADDR=$(echo $ADDR | awk -F ':' '{ print $1 }')
+    if [[ ${ADDR:0:1} == '[' ]]; then
+        RSYNC_PORT=$(echo $ADDR | awk -F '\\]:' '{ print $2 }')
+        RSYNC_ADDR=$(echo $ADDR | awk -F '\\]:' '{ print $1 }')"]"
+    else
+        RSYNC_PORT=$(echo $ADDR | awk -F ':' '{ print $2 }')
+        RSYNC_ADDR=$(echo $ADDR | awk -F ':' '{ print $1 }')
+    fi
     if [ -z "$RSYNC_PORT" ]
     then
         RSYNC_PORT=4444
-        ADDR="$(echo $ADDR | awk -F ':' '{ print $1 }'):$RSYNC_PORT"
+        ADDR="$RSYNC_ADDR:$RSYNC_PORT"
     fi
 
     trap "exit 32" HUP PIPE

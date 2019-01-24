@@ -1,6 +1,5 @@
-connection node_2;
-connection node_1;
-connect node_3, 127.0.0.1, root, , test, $NODE_MYPORT_3;
+call mtr.add_suppression("WSREP: wsrep_sst_method is set to 'mysqldump' yet mysqld bind_address is set to'");
+call mtr.add_suppression("Failed to load slave replication state from table mysql.gtid_slave_pos");
 connection node_1;
 connection node_2;
 connection node_3;
@@ -10,14 +9,13 @@ GRANT ALL PRIVILEGES ON *.* TO 'sst';
 SET GLOBAL wsrep_sst_auth = 'sst:';
 connection node_2;
 SET GLOBAL wsrep_sst_method = 'mysqldump';
-connection node_2;
-Unloading wsrep provider ...
-SET GLOBAL wsrep_provider = 'none';
+Shutting down server ...
 connection node_1;
+Cleaning var directory ...
 CREATE TABLE t1 (f1 INTEGER) ENGINE=InnoDB;
 INSERT INTO t1 VALUES (1);
 connection node_2;
-Loading wsrep provider ...
+Starting server ...
 SELECT COUNT(*) = 1 FROM t1;
 COUNT(*) = 1
 1
@@ -35,6 +33,5 @@ CALL mtr.add_suppression("Can't open and lock time zone table");
 CALL mtr.add_suppression("Can't open and lock privilege tables");
 CALL mtr.add_suppression("Info table is not ready to be used");
 CALL mtr.add_suppression("Native table .* has the wrong structure");
-CALL mtr.add_suppression("Table \'mysql.gtid_slave_pos\' doesn\'t exist");
 connection node_2;
 CALL mtr.add_suppression("Unsupported protocol downgrade: incremental data collection disabled. Expect abort");

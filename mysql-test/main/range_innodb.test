@@ -3,6 +3,7 @@
 --echo # 
 
 --source include/have_innodb.inc
+--source include/have_debug.inc
 
 --disable_warnings
 drop table if exists t0, t1, t2;
@@ -62,3 +63,27 @@ INSERT INTO t2 VALUES (4,'q'),(NULL,'j');
 SELECT * FROM t1 AS t1_1, t1 AS t1_2, t2
 WHERE f5 = t1_2.f2 AND ( t1_1.f1 = 103 AND t1_1.f2 = 'o' OR t1_1.pk < f4 );
 drop table t1,t2;
+
+--echo #
+--echo # MDEV-14440: Server crash in in handler::ha_external_lock or Assertion `inited==RND'
+--echo # failed in handler::ha_rnd_end upon SELECT from partitioned table
+--echo #
+
+set @optimizer_switch_save= @@optimizer_switch;
+set optimizer_switch='index_merge_sort_intersection=off';
+create table t0 (a int)engine=innodb;
+insert into t0 values (0),(1),(2),(3),(4),(5),(6),(7),(8),(9);
+create table t1 (
+  a int, b int, c int,
+  key(a),key(b),key(c)
+)engine=innodb;
+insert into t1
+select A.a+10*B.a, A.a+10*B.a, A.a+10*B.a+100*C.a
+from t0 A, t0 B, t0 C, t0 D where D.a<5;
+set @@global.debug_dbug="+d,ha_index_init_fail";
+explain select * from t1 where a=10 and b=10;
+--error ER_TABLE_DEF_CHANGED
+select * from t1 where a=10 and b=10;
+DROP TABLE t0,t1;
+set @@global.debug_dbug="-d";
+set @@optimizer_switch= @optimizer_switch_save;

@@ -1,0 +1,31 @@
+--- r/rpl_row_big_table_id.result	2019-01-23 19:58:07.204914873 +0200
++++ r/rpl_row_big_table_id_32bit.result	2019-01-23 19:43:54.590640934 +0200
+@@ -22,22 +22,22 @@
+ master-bin.000002	#	Query	1	#	use `test`; ALTER TABLE t comment ''
+ master-bin.000002	#	Gtid	1	#	BEGIN GTID #-#-#
+ master-bin.000002	#	Annotate_rows	1	#	INSERT INTO t SET a= 1
+-master-bin.000002	#	Table_map	1	#	table_id: 4294967295 (test.t)
+-master-bin.000002	#	Write_rows_v1	1	#	table_id: 4294967295 flags: STMT_END_F
++master-bin.000002	#	Table_map	1	#	table_id: 1 (test.t)
++master-bin.000002	#	Write_rows_v1	1	#	table_id: 1 flags: STMT_END_F
+ master-bin.000002	#	Query	1	#	COMMIT
+ master-bin.000002	#	Gtid	1	#	GTID #-#-#
+ master-bin.000002	#	Query	1	#	use `test`; ALTER TABLE t comment ''
+ master-bin.000002	#	Gtid	1	#	BEGIN GTID #-#-#
+ master-bin.000002	#	Annotate_rows	1	#	INSERT INTO t SET a= 2
+-master-bin.000002	#	Table_map	1	#	table_id: 4294967296 (test.t)
+-master-bin.000002	#	Write_rows_v1	1	#	table_id: 4294967296 flags: STMT_END_F
++master-bin.000002	#	Table_map	1	#	table_id: 2 (test.t)
++master-bin.000002	#	Write_rows_v1	1	#	table_id: 2 flags: STMT_END_F
+ master-bin.000002	#	Query	1	#	COMMIT
+ master-bin.000002	#	Gtid	1	#	GTID #-#-#
+ master-bin.000002	#	Query	1	#	use `test`; ALTER TABLE t comment ''
+ master-bin.000002	#	Gtid	1	#	BEGIN GTID #-#-#
+ master-bin.000002	#	Annotate_rows	1	#	INSERT INTO t SET a= 3
+-master-bin.000002	#	Table_map	1	#	table_id: 4294967297 (test.t)
+-master-bin.000002	#	Write_rows_v1	1	#	table_id: 4294967297 flags: STMT_END_F
++master-bin.000002	#	Table_map	1	#	table_id: 3 (test.t)
++master-bin.000002	#	Write_rows_v1	1	#	table_id: 3 flags: STMT_END_F
+ master-bin.000002	#	Query	1	#	COMMIT
+ connection slave;
+ connection master;
