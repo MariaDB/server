@@ -119,3 +119,29 @@ disconnect con1;
 connection default;
 DROP USER boo1;
 DROP USER boo2;
+#
+# MDEV-18440: Information_schema.check_constraints possible data leak
+#
+CREATE USER foo;
+CREATE DATABASE db;
+USE db;
+CREATE TABLE t1 (a int, b int, CONSTRAINT CHECK (b > 0));
+INSERT INTO t1 VALUES (1, 2), (2, 3);
+GRANT SELECT (a) ON t1 TO foo;
+SHOW GRANTS FOR foo;
+Grants for foo@%
+GRANT USAGE ON *.* TO 'foo'@'%'
+GRANT SELECT (a) ON `db`.`t1` TO 'foo'@'%'
+SELECT * FROM information_schema.check_constraints;
+CONSTRAINT_CATALOG	CONSTRAINT_SCHEMA	TABLE_NAME	CONSTRAINT_NAME	CHECK_CLAUSE
+def	db	t1	CONSTRAINT_1	`b` > 0
+CONNECT con1,localhost, foo,, db;
+SELECT a FROM t1;
+a
+1
+2
+SELECT * FROM information_schema.check_constraints;
+CONSTRAINT_CATALOG	CONSTRAINT_SCHEMA	TABLE_NAME	CONSTRAINT_NAME	CHECK_CLAUSE
+connection default;
+DROP USER foo;
+DROP DATABASE db;
