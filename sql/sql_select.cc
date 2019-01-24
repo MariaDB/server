@@ -27071,7 +27071,8 @@ test_if_cheaper_ordering(const JOIN_TAB *tab, ORDER *order, TABLE *table,
           // cond_selectivity=1 while refkey_rows_estimate has a better
           // estimate.
           refkey_rows_estimate= MY_MIN(refkey_rows_estimate,
-                                       table_records * table->cond_selectivity);
+                                       ha_rows(table_records * 
+                                               table->cond_selectivity));
         }
 
         /*
