@@ -6439,6 +6439,12 @@ static bool fill_alter_inplace_info(THD *thd,
   KEY *new_key;
   KEY *new_key_end=
     ha_alter_info->key_info_buffer + ha_alter_info->key_count;
+  /*
+    Primary key index for the new table
+  */
+  const KEY* const new_pk= (ha_alter_info->key_count > 0 &&
+                            is_candidate_key(ha_alter_info->key_info_buffer)) ?
+                           ha_alter_info->key_info_buffer : NULL;
 
   DBUG_PRINT("info", ("index count old: %d  new: %d",
                       table->s->keys, ha_alter_info->key_count));
@@ -6513,6 +6519,17 @@ static bool fill_alter_inplace_info(THD *thd,
           new_field->field->field_index != key_part->fieldnr - 1)
         goto index_changed;
     }
+
+    /*
+      Rebuild the index if following condition get satisfied:
+
+      (i) Old table doesn't have primary key, new table has it and vice-versa
+      (ii) Primary key changed to another existing index
+    */
+    if ((new_key == new_pk) !=
+        ((uint) (table_key - table->key_info) == table->s->primary_key))
+      goto index_changed;
+
     continue;
 
   index_changed:
