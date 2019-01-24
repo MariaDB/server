@@ -54,9 +54,9 @@ CREATE TABLE t2 (pk INT PRIMARY KEY, f1 INT, f2 INT, f3 INT, f4 INT, f5 MEDIUMIN
 BEGIN
 /*!*/;
 # at 781
-#<date> server id 1  end_log_pos 833 	Table_map: `test`.`t1` mapped to number 30
+#<date> server id 1  end_log_pos 833 	Table_map: `test`.`t1` mapped to number 31
 # at 833
-#<date> server id 1  end_log_pos 898 	Write_rows: table id 30 flags: STMT_END_F
+#<date> server id 1  end_log_pos 898 	Write_rows: table id 31 flags: STMT_END_F
 ### INSERT INTO `test`.`t1`
 ### SET
 ###   @1=10 /* INT meta=0 nullable=0 is_null=0 */
@@ -79,9 +79,9 @@ COMMIT
 BEGIN
 /*!*/;
 # at 1005
-#<date> server id 1  end_log_pos 1057 	Table_map: `test`.`t1` mapped to number 30
+#<date> server id 1  end_log_pos 1057 	Table_map: `test`.`t1` mapped to number 31
 # at 1057
-#<date> server id 1  end_log_pos 1121 	Write_rows: table id 30 flags: STMT_END_F
+#<date> server id 1  end_log_pos 1121 	Write_rows: table id 31 flags: STMT_END_F
 ### INSERT INTO `test`.`t1`
 ### SET
 ###   @1=11 /* INT meta=0 nullable=0 is_null=0 */
@@ -104,9 +104,9 @@ COMMIT
 BEGIN
 /*!*/;
 # at 1228
-#<date> server id 1  end_log_pos 1280 	Table_map: `test`.`t1` mapped to number 30
+#<date> server id 1  end_log_pos 1280 	Table_map: `test`.`t1` mapped to number 31
 # at 1280
-#<date> server id 1  end_log_pos 1343 	Write_rows: table id 30 flags: STMT_END_F
+#<date> server id 1  end_log_pos 1343 	Write_rows: table id 31 flags: STMT_END_F
 ### INSERT INTO `test`.`t1`
 ### SET
 ###   @1=12 /* INT meta=0 nullable=0 is_null=0 */
@@ -129,9 +129,9 @@ COMMIT
 BEGIN
 /*!*/;
 # at 1450
-#<date> server id 1  end_log_pos 1502 	Table_map: `test`.`t1` mapped to number 30
+#<date> server id 1  end_log_pos 1502 	Table_map: `test`.`t1` mapped to number 31
 # at 1502
-#<date> server id 1  end_log_pos 1568 	Write_rows: table id 30 flags: STMT_END_F
+#<date> server id 1  end_log_pos 1568 	Write_rows: table id 31 flags: STMT_END_F
 ### INSERT INTO `test`.`t1`
 ### SET
 ###   @1=13 /* INT meta=0 nullable=0 is_null=0 */
@@ -154,9 +154,9 @@ COMMIT
 BEGIN
 /*!*/;
 # at 1675
-#<date> server id 1  end_log_pos 1727 	Table_map: `test`.`t2` mapped to number 31
+#<date> server id 1  end_log_pos 1727 	Table_map: `test`.`t2` mapped to number 32
 # at 1727
-#<date> server id 1  end_log_pos 1890 	Write_rows: table id 31 flags: STMT_END_F
+#<date> server id 1  end_log_pos 1890 	Write_rows: table id 32 flags: STMT_END_F
 ### INSERT INTO `test`.`t2`
 ### SET
 ###   @1=10 /* INT meta=0 nullable=0 is_null=0 */
@@ -212,9 +212,9 @@ COMMIT
 BEGIN
 /*!*/;
 # at 1997
-#<date> server id 1  end_log_pos 2049 	Table_map: `test`.`t2` mapped to number 31
+#<date> server id 1  end_log_pos 2049 	Table_map: `test`.`t2` mapped to number 32
 # at 2049
-#<date> server id 1  end_log_pos 2119 	Update_rows: table id 31 flags: STMT_END_F
+#<date> server id 1  end_log_pos 2119 	Update_rows: table id 32 flags: STMT_END_F
 ### UPDATE `test`.`t2`
 ### WHERE
 ###   @1=10 /* INT meta=0 nullable=0 is_null=0 */
@@ -244,9 +244,9 @@ COMMIT
 BEGIN
 /*!*/;
 # at 2226
-#<date> server id 1  end_log_pos 2278 	Table_map: `test`.`t1` mapped to number 30
+#<date> server id 1  end_log_pos 2278 	Table_map: `test`.`t1` mapped to number 31
 # at 2278
-#<date> server id 1  end_log_pos 2328 	Delete_rows: table id 30 flags: STMT_END_F
+#<date> server id 1  end_log_pos 2328 	Delete_rows: table id 31 flags: STMT_END_F
 ### DELETE FROM `test`.`t1`
 ### WHERE
 ###   @1=10 /* INT meta=0 nullable=0 is_null=0 */
@@ -270,9 +270,9 @@ COMMIT
 BEGIN
 /*!*/;
 # at 2435
-#<date> server id 1  end_log_pos 2487 	Table_map: `test`.`t2` mapped to number 31
+#<date> server id 1  end_log_pos 2487 	Table_map: `test`.`t2` mapped to number 32
 # at 2487
-#<date> server id 1  end_log_pos 2537 	Delete_rows: table id 31 flags: STMT_END_F
+#<date> server id 1  end_log_pos 2537 	Delete_rows: table id 32 flags: STMT_END_F
 ### DELETE FROM `test`.`t2`
 ### WHERE
 ###   @1=10 /* INT meta=0 nullable=0 is_null=0 */
