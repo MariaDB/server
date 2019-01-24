@@ -337,6 +337,9 @@ TABLE_SHARE *alloc_table_share(const char *db, const char *table_name,
     mysql_mutex_init(key_TABLE_SHARE_LOCK_ha_data,
                      &share->LOCK_ha_data, MY_MUTEX_INIT_FAST);
 
+    DBUG_EXECUTE_IF("simulate_big_table_id",
+                    if (last_table_id < UINT_MAX32)
+                      last_table_id= UINT_MAX32 - 1;);
     /*
       There is one reserved number that cannot be used. Remember to
       change this when 6-byte global table id's are introduced.
@@ -345,7 +348,8 @@ TABLE_SHARE *alloc_table_share(const char *db, const char *table_name,
     {
       share->table_map_id=(ulong) my_atomic_add64_explicit(&last_table_id, 1,
                                                     MY_MEMORY_ORDER_RELAXED);
-    } while (unlikely(share->table_map_id == ~0UL));
+    } while (unlikely(share->table_map_id == ~0UL ||
+                      share->table_map_id == 0));
   }
   DBUG_RETURN(share);
 }

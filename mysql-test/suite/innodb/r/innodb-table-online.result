@@ -99,17 +99,6 @@ t1	CREATE TABLE `t1` (
   UNIQUE KEY `c2` (`c2`),
   UNIQUE KEY `c2_2` (`c2`)
 ) ENGINE=InnoDB DEFAULT CHARSET=latin1 ROW_FORMAT=COMPACT
-ALTER TABLE t1 DROP INDEX c2, ALGORITHM = INPLACE;
-ERROR 0A000: ALGORITHM=INPLACE is not supported. Reason: Dropping a primary key is not allowed without also adding a new primary key. Try ALGORITHM=COPY
-SHOW CREATE TABLE t1;
-Table	Create Table
-t1	CREATE TABLE `t1` (
-  `c1` int(11) NOT NULL,
-  `c2` int(11) NOT NULL,
-  `c3` char(255) NOT NULL,
-  UNIQUE KEY `c2` (`c2`),
-  UNIQUE KEY `c2_2` (`c2`)
-) ENGINE=InnoDB DEFAULT CHARSET=latin1 ROW_FORMAT=COMPACT
 ALTER TABLE t1 DROP INDEX c2, ADD PRIMARY KEY(c1);
 # session default
 connection default;
