@@ -11332,8 +11332,8 @@ int Table_map_log_event::do_apply_event(rpl_group_info *rgi)
   table_list->updating= 1;
   table_list->required_type= FRMTYPE_TABLE;
 
-  DBUG_PRINT("debug", ("table: %s is mapped to %u", table_list->table_name, 
-                                                    table_list->table_id));
+  DBUG_PRINT("debug", ("table: %s is mapped to %llu", table_list->table_name,
+                       table_list->table_id));
   table_list->master_had_triggers= ((m_flags & TM_BIT_HAS_TRIGGERS_F) ? 1 : 0);
   DBUG_PRINT("debug", ("table->master_had_triggers=%d", 
                        (int)table_list->master_had_triggers));
