@@ -1234,11 +1234,23 @@ debug_sync_point(const char *name)
 #endif
 }
 
-static const char *xb_client_default_groups[]=
-	{ "xtrabackup", "mariabackup", "client", 0, 0, 0 };
+static const char *xb_client_default_groups[]={ 
+   "xtrabackup", "mariabackup", 
+   "client", "client-server", 
+   "client-mariadb", 
+   0, 0, 0 
+};
 
-static const char *xb_server_default_groups[]=
-	{ "xtrabackup", "mariabackup", "mysqld", 0, 0, 0 };
+static const char *xb_server_default_groups[]={
+   "xtrabackup", "mariabackup",
+   "mysqld", "server", MYSQL_BASE_VERSION,
+   "mariadb", MARIADB_BASE_VERSION,
+   "client-server",
+   #ifdef WITH_WSREP
+   "galera",
+   #endif
+   0, 0, 0
+};
 
 static void print_version(void)
 {
