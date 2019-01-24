@@ -808,9 +808,6 @@ then
 
 fi
  
-    INNOMOVE="${INNOBACKUPEX_BIN} --innobackupex ${WSREP_SST_OPT_CONF} $disver $impts  --move-back --force-non-empty-directories \${DATA} &>\${DATA}/innobackup.move.log"
-    INNOBACKUP="${INNOBACKUPEX_BIN} --innobackupex ${WSREP_SST_OPT_CONF} $disver $iopts \$tmpopts \$INNOEXTRA --galera-info --stream=\$sfmt \$itmpdir 2>\${DATA}/innobackup.backup.log"
-
     INNOAPPLY="${INNOBACKUPEX_BIN} --innobackupex $disver $iapts \$INNOEXTRA --apply-log \$rebuildcmd \${DATA} &> ${INNOAPPLYLOG}"
     INNOMOVE="${INNOBACKUPEX_BIN} --innobackupex ${WSREP_SST_OPT_CONF} $disver $impts  --move-back --force-non-empty-directories \${DATA} &> ${INNOMOVELOG}"
     INNOBACKUP="${INNOBACKUPEX_BIN} --innobackupex ${WSREP_SST_OPT_CONF} $disver $iopts \$tmpopts \$INNOEXTRA --galera-info --stream=\$sfmt \$itmpdir 2> ${INNOBACKUPLOG}"
