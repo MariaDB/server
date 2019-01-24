@@ -593,7 +593,7 @@ static std::string wsrep_server_working_dir()
 static wsrep::gtid wsrep_server_initial_position()
 {
   wsrep::gtid ret;
-  WSREP_INFO("Server initial position: %s", wsrep_start_position);
+  WSREP_DEBUG("Server initial position: %s", wsrep_start_position);
   std::istringstream is(wsrep_start_position);
   is >> ret;
   return ret;
