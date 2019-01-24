@@ -214,7 +214,7 @@ uint _mi_make_key(register MI_INFO *info, uint keynr, uchar *key,
      last_use_keyseg    Store pointer to the keyseg after the last used one
 */
 
-uint _mi_pack_key(register MI_INFO *info, uint keynr, uchar *key, uchar *old,
+uint _mi_pack_key(register MI_INFO *info, uint keynr, uchar *key, const uchar *old,
                   key_part_map keypart_map, HA_KEYSEG **last_used_keyseg)
 {
   uchar *start_key=key;

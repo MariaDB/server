@@ -292,6 +292,9 @@ extern int mi_extra(struct st_myisam_info *file,
 extern int mi_reset(struct st_myisam_info *file);
 extern ha_rows mi_records_in_range(MI_INFO *info,int inx,
                                    key_range *min_key, key_range *max_key);
+extern int mi_random_sample_init(MYSQL_THD thd, MI_INFO *info, ha_rows estimate_rows_read);
+extern int mi_random_sample(MI_INFO *info, uchar *buf);
+extern int mi_random_sample_end(MI_INFO *info);
 extern int mi_log(int activate_log);
 extern int mi_is_changed(struct st_myisam_info *info);
 extern int mi_delete_all_rows(struct st_myisam_info *info);

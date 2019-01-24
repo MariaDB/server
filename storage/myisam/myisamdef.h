@@ -23,6 +23,7 @@
 #include <my_tree.h>
 #include <my_pthread.h>
 #include <thr_lock.h>
+#include <my_rnd.h>
 #include <mysql/psi/mysql_file.h>
 
 C_MODE_START
@@ -38,6 +39,7 @@ typedef struct st_mi_status_info
   ha_checksum checksum;
   my_bool uncacheable;                  /* Active concurrent insert */
 } MI_STATUS_INFO;
+
 
 typedef struct st_mi_state_info
 {
@@ -231,6 +233,21 @@ typedef struct st_mi_isam_share
   mysql_rwlock_t mmap_lock;
 } MYISAM_SHARE;
 
+struct st_sampling_state
+{
+  my_bool initialised;                  /* TODO(cvicentiu) delete if not necessary */
+  MYSQL_THD *thd;                       /* Used for the random number service. */
+  struct my_rnd_struct rand;
+
+  ha_rows estimate_rows_read;           /* How many rows will be sampled. */
+  int inx;                              /* If index is used for sampling,
+                                           the index number, otherwise -1 */
+  my_off_t last_record_offset;          /* Offset after the last record returned
+                                           as sample. */
+  int(*read_sample) (struct st_myisam_info *, uchar *buf);
+};
+
+
 
 struct st_myisam_info
 {
@@ -309,6 +326,7 @@ struct st_myisam_info
   THR_LOCK_DATA lock;
   uchar *rtree_recursion_state;         /* For RTREE */
   int rtree_recursion_depth;
+  struct st_sampling_state sampling_state;
 };
 
 #define USE_WHOLE_KEY   (HA_MAX_KEY_BUFF*2) /* Use whole key in _mi_search() */
@@ -557,7 +575,7 @@ extern my_off_t _mi_new(MI_INFO *info, MI_KEYDEF *keyinfo, int level);
 extern uint _mi_make_key(MI_INFO *info, uint keynr, uchar *key,
                          const uchar *record, my_off_t filepos);
 extern uint _mi_pack_key(MI_INFO *info, uint keynr, uchar *key,
-                         uchar *old, key_part_map keypart_map,
+                         const uchar *old, key_part_map keypart_map,
                          HA_KEYSEG ** last_used_keyseg);
 extern int _mi_read_key_record(MI_INFO *info, my_off_t filepos, uchar *buf);
 extern int _mi_read_cache(IO_CACHE *info, uchar *buff, my_off_t pos,
@@ -704,6 +722,7 @@ int _mi_cmp_static_unique(MI_INFO *info, MI_UNIQUEDEF *def,
                           const uchar *record, my_off_t pos);
 int _mi_cmp_dynamic_unique(MI_INFO *info, MI_UNIQUEDEF *def,
                            const uchar *record, my_off_t pos);
+int _mi_get_sample_static(MI_INFO *info);
 int mi_unique_comp(MI_UNIQUEDEF *def, const uchar *a, const uchar *b,
                    my_bool null_are_equal);
 void mi_get_status(void *param, my_bool concurrent_insert);

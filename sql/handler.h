@@ -2940,7 +2940,7 @@ public:
   /** Length of ref (1-8 or the clustered key length) */
   uint ref_length;
   FT_INFO *ft_handler;
-  enum init_stat { NONE=0, INDEX, RND };
+  enum init_stat { NONE=0, INDEX, RND, RANDOM };
   init_stat inited, pre_inited;
 
   const COND *pushed_cond;
@@ -3104,6 +3104,27 @@ public:
   { return 0; }
   virtual int prepare_range_scan(const key_range *start_key, const key_range *end_key)
   { return 0; }
+
+  virtual int ha_random_sample_init(THD *thd, ha_rows estimate_rows_read)
+    __attribute__((warn_unused_result))
+  {
+    DBUG_ENTER("ha_random_sample_init");
+    inited= RANDOM;
+    DBUG_RETURN(random_sample_init(thd, estimate_rows_read));
+  }
+  virtual int ha_random_sample(uchar *buf)
+    __attribute__((warn_unused_result))
+  {
+    DBUG_ENTER("ha_random_sample");
+    DBUG_ASSERT(inited == RANDOM);
+    DBUG_RETURN(random_sample(buf));
+  }
+  virtual int ha_random_sample_end() __attribute__((warn_unused_result))
+  {
+    DBUG_ENTER("ha_random_sample_end");
+    inited= NONE;
+    DBUG_RETURN(random_sample_end());
+  }
 
   int ha_rnd_init(bool scan) __attribute__ ((warn_unused_result))
   {
@@ -4418,6 +4439,12 @@ private:
   /* Note: ha_index_read_idx_map() may bypass index_init() */
   virtual int index_init(uint idx, bool sorted) { return 0; }
   virtual int index_end() { return 0; }
+  virtual int random_sample_init(MYSQL_THD thd, ha_rows estimate_rows_read) { return 0; } ;
+  virtual int random_sample(uchar *buf)
+  {
+    return HA_ERR_WRONG_COMMAND;
+  }
+  virtual int random_sample_end() { return 0; };
   /**
     rnd_init() can be called two times without rnd_end() in between
     (it only makes sense if scan=1).

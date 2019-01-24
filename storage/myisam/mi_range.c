@@ -285,3 +285,173 @@ static uint _mi_keynr(MI_INFO *info, register MI_KEYDEF *keyinfo, uchar *page,
   *ret_max_key=max_key;
   return(keynr);
 }
+
+static int _mi_read_sample_static_record(MI_INFO *info, uchar *buf)
+{
+  DBUG_ENTER("_mi_read_sample_static_record");
+  DBUG_ASSERT(info->s->read_rnd == _mi_read_rnd_static_record);
+
+  DBUG_RETURN(0);
+}
+
+static int _mi_read_sample_bernoulli(MI_INFO *info, uchar *buf)
+{
+  double select_probability;
+  int res;
+  DBUG_ENTER("_mi_get_sample_bernoulli");
+
+  if (fast_mi_readinfo(info))
+    DBUG_RETURN(-1);
+
+  if (!info->state->records)
+    DBUG_RETURN(HA_ERR_END_OF_FILE);
+
+  select_probability= (double) info->sampling_state.estimate_rows_read /
+                                      info->state->records;
+  do
+  {
+    res= mi_scan(info, buf);
+    /* Restart scan if we reached the end. */
+    if (res == HA_ERR_END_OF_FILE)
+    {
+      if ((res= mi_scan_init(info)))
+        DBUG_RETURN(res);
+      /* Second failure, abort. */
+      if ((res= mi_scan(info, buf)))
+        DBUG_RETURN(res);
+    }
+  } while (my_rnd_ssl(&info->sampling_state.rand) < select_probability);
+
+  fast_mi_writeinfo(info);
+  DBUG_RETURN(0);
+}
+
+int mi_random_sample_init(MYSQL_THD thd, MI_INFO *info,
+                          ha_rows estimate_rows_read)
+{
+  int res= 0;
+  DBUG_ENTER("mi_random_sample_init");
+  struct st_sampling_state *ss= &info->sampling_state;
+  ss->initialised= TRUE;
+  ss->estimate_rows_read= estimate_rows_read;
+  ss->thd= thd;
+  ss->rand.max_value= 1;
+  my_rnd_init(&ss->rand, 42, 32);
+
+  /* Fastest possible case, equal sized records. */
+  if (!(info->s->options & (HA_OPTION_COMPRESS_RECORD | HA_OPTION_PACK_RECORD)))
+  {
+    info->sampling_state.read_sample= _mi_read_sample_static_record;
+  }
+
+  /* Fallback revert to simple scan. */
+  info->sampling_state.read_sample= _mi_read_sample_bernoulli;
+  mi_scan_init(info);
+  DBUG_RETURN(res);
+}
+
+int mi_random_sample(MI_INFO *info, uchar *buf)
+{
+  int nod_flag;
+  int inx;
+  MI_KEYDEF *keyinfo;
+  my_off_t pos;
+  uchar *page;
+  uchar *key_buff;
+  uint key_len;
+  DBUG_ENTER("mi_random_sample");
+
+  DBUG_ASSERT(info->sampling_state.initialised == TRUE);
+  DBUG_RETURN(info->sampling_state.read_sample(info, buf));
+
+  /* TODO(cvicentiu): Use first index for now. */
+  if ((inx= _mi_check_index(info, 0)) < 0)
+    goto err;
+  if (fast_mi_readinfo(info))
+    goto err;
+  /* Don't clear if database-changed */
+  info->update&= (HA_STATE_CHANGED | HA_STATE_ROW_CHANGED);
+  if (info->s->concurrent_insert)
+    mysql_rwlock_rdlock(&info->s->key_root_lock[inx]);
+
+  /* TODO(cvicentiu): For now, only support BTREE random sampling. */
+  if (info->s->keyinfo[inx].key_alg != HA_KEY_ALG_BTREE)
+    goto err;
+
+  keyinfo= &info->s->keyinfo[inx];
+  pos= info->s->state.key_root[inx];
+
+  do
+  {
+    if (!_mi_fetch_keypage(info, keyinfo, pos, DFLT_INIT_HITS, info->buff, 0))
+    {
+      info->lastpos= HA_OFFSET_ERROR;
+      goto err;
+    }
+    nod_flag= mi_test_if_nod(info->buff);
+    page= info->buff + 2 + nod_flag;
+    info->lastkey_length= keyinfo->get_key(keyinfo, nod_flag, &page,
+                                                    info->lastkey);
+    info->lastpos= _mi_dpos(info, nod_flag, page);
+
+    info->read_record(info, info->lastpos, buf);
+  } while ((pos= _mi_kpos(nod_flag, page)) != HA_OFFSET_ERROR);
+
+  /*
+
+  do
+  {
+    if (!_mi_fetch_keypage(info, keyinfo, pos, DFLT_INIT_HITS, info->buff, 0))
+    {
+      info->lastpos= HA_OFFSET_ERROR;
+      DBUG_RETURN(HA_POS_ERROR);
+    }
+    nod_flag= mi_test_if_nod(info->buff);
+    page= info->buff + 2 + nod_flag;
+  } while ((pos= _mi_kpos(nod_flag, page)) != HA_OFFSET_ERROR);
+
+  if (!(info->lastkey_length= keyinfo->get_key(keyinfo, nod_flag, &page,
+                                               info->lastkey)))
+    DBUG_RETURN(-1);
+
+  info->lastpos= _mi_dpos(info, 0, info->lastkey + info->lastkey_length);
+  */
+
+  info->read_record(info, info->lastpos, buf);
+
+
+  if (info->s->concurrent_insert)
+    mysql_rwlock_unlock(&info->s->key_root_lock[inx]);
+  fast_mi_writeinfo(info);
+
+  /*
+  key_buff= info->lastkey + info->s->base.max_key_length;
+  key_len= _mi_pack_key(info, inx, key_buff, key, keypart_map,
+                        NULL);
+  */
+
+  /*
+  if (!(page= _mi_fetch_keypage(info, keyinfo, root_pos, DFLT_INIT_HITS,
+                                info->buff, 1)))
+    goto err;
+
+  */
+  /*
+  flag= keyinfo->bin_search(info, keyinfo, page_buff, key, key_len, nextflag,
+                                &keypos, info->lastkey, &after_key);
+  */
+
+  DBUG_RETURN(0);
+err:
+  DBUG_PRINT("exit", ("Error: %d", my_errno));
+  DBUG_RETURN(-1);
+}
+
+int mi_random_sample_end(MI_INFO *info)
+{
+  ha_rows res= 0;
+  DBUG_ENTER("mi_random_sample_end");
+  info->sampling_state.initialised= TRUE;
+  DBUG_RETURN(res);
+}
+
