@@ -1,0 +1,2 @@
+CREATE TABLE `#mysql50#q.q`(f1 INT KEY) ENGINE=TOKUDB;
+ERROR HY000: Got error 1632 from storage engine

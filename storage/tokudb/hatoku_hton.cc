@@ -575,10 +575,10 @@ static int tokudb_init_func(void *p) {
 
     db_env->set_update(db_env, tokudb_update_fun);
 
-    db_env_set_direct_io(tokudb::sysvars::directio == TRUE);
+    db_env_set_direct_io(tokudb::sysvars::directio);
 
     db_env_set_compress_buffers_before_eviction(
-        tokudb::sysvars::compress_buffers_before_eviction == TRUE);
+        tokudb::sysvars::compress_buffers_before_eviction);
 
     db_env->change_fsync_log_period(db_env, tokudb::sysvars::fsync_log_period);
 

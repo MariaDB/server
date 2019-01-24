@@ -190,7 +190,6 @@ inline bool tokudb_killed_thd_callback(void* extra,
     return thd_killed(thd) != 0;
 }
 
-extern HASH tokudb_open_tables;
 extern const char* tokudb_hton_name;
 extern int tokudb_hton_initialized;
 extern tokudb::thread::rwlock_t tokudb_hton_initialized_lock;
