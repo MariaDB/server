@@ -1,4 +1,5 @@
 --source include/have_innodb.inc
+--source include/not_embedded.inc
 --echo #
 --echo # MDEV-17323: Backport INFORMATION_SCHEMA.CHECK_CONSTRAINTS to 10.2
 --echo #
