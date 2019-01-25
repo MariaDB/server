@@ -89,6 +89,11 @@ then
   sed '/Package: mariadb-plugin-aws-key-management-10.2/,+12d' -i debian/control
 fi
 
+# Don't build cassandra package if thrift is not installed
+if [[ ! -f /usr/local/include/thrift/Thrift.h && ! -f /usr/include/thrift/Thrift.h ]]
+then
+  sed '/Package: mariadb-plugin-cassandra/,/^$/d' -i debian/control
+fi
 
 # Adjust changelog, add new version
 echo "Incrementing changelog and starting build scripts"
