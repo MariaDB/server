@@ -143,5 +143,14 @@ create or replace table t1 (pk integer primary key, a int, b int, v int as (a))
 with system versioning;
 alter table t1 force;
 alter table t1 drop column b;
+#
+# MDEV-18122 Assertion `table->versioned() == m_prebuilt->table->versioned()' failed in ha_innobase::open
+#
+create or replace table t1 (
+x int,
+v int as (x) virtual,
+y int
+) with system versioning;
+alter table t1 drop system versioning;
 drop database test;
 create database test;
