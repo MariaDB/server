@@ -1,3 +1,5 @@
+connection node_2;
+connection node_1;
 SELECT VARIABLE_VALUE LIKE '%[::1]%' FROM INFORMATION_SCHEMA.GLOBAL_STATUS WHERE VARIABLE_NAME = 'wsrep_incoming_addresses';
 VARIABLE_VALUE LIKE '%[::1]%'
 1
@@ -19,4 +21,4 @@ connection node_1;
 include/assert_grep.inc [Streaming the backup to joiner at \[::1\]]
 include/assert_grep.inc [async IST sender starting to serve tcp://\[::1\]:]
 include/assert_grep.inc [IST receiver addr using tcp://\[::1\]]
-include/assert_grep.inc [Prepared IST receiver, listening at: tcp://\[::1\]]
+include/assert_grep.inc [Prepared IST receiver for 3-6, listening at: tcp://\[::1\]]
