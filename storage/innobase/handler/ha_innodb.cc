@@ -1,6 +1,6 @@
 /*****************************************************************************
 
-Copyright (c) 2000, 2018, Oracle and/or its affiliates. All Rights Reserved.
+Copyright (c) 2000, 2019, Oracle and/or its affiliates. All Rights Reserved.
 Copyright (c) 2008, 2009 Google Inc.
 Copyright (c) 2009, Percona Inc.
 Copyright (c) 2012, Facebook Inc.
@@ -10977,7 +10977,7 @@ innodb_base_col_setup_for_stored(
 	for (uint i= 0; i < field->table->s->fields; ++i) {
 		const Field* base_field = field->table->field[i];
 
-		if (!base_field->vcol_info
+		if (base_field->stored_in_db()
 		    && bitmap_is_set(&field->table->tmp_set, i)) {
 			ulint	z;
 			for (z = 0; z < table->n_cols; z++) {
