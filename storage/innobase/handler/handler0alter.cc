@@ -4234,7 +4234,8 @@ innobase_build_col_map(
 				}
 
 				col_map[old_i - num_old_v] = i;
-				if (old_table->versioned()) {
+				if (old_table->versioned()
+				    && altered_table->versioned()) {
 					if (old_i == old_table->vers_start) {
 						new_table->vers_start = i + num_v;
 					} else if (old_i == old_table->vers_end) {
