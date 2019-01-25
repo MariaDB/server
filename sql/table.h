@@ -628,7 +628,7 @@ struct TABLE_SHARE
   const char* orig_table_name;          /* Original table name for this tmp table */
   const char* error_table_name() const  /* Get table name for error messages */
   {
-    return tmp_table ? (
+    return tmp_table && is_prefix(table_name.str, tmp_file_prefix) ? (
       orig_table_name ?
         orig_table_name :
         "(temporary)") :

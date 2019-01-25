@@ -548,3 +548,12 @@ DROP TABLE nonexisting_table, t1;
 ERROR 42S02: Unknown table 'temp_db.nonexisting_table'
 # Cleanup
 DROP DATABASE temp_db;
+USE test;
+#
+# MDEV-18083 ASAN heap-use-after-free in Field::set_warning_truncated_wrong_value upon inserting into temporary table
+#
+create or replace temporary table tmp (a int);
+alter table tmp add column f text;
+insert into tmp values ('x','foo');
+ERROR 22007: Incorrect integer value: 'x' for column `test`.`tmp`.`a` at row 1
+drop table tmp;
