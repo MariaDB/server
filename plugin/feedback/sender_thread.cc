@@ -137,7 +137,7 @@ static int prepare_for_fill(TABLE_LIST *tables)
 */
 static bool going_down()
 {
-  return shutdown_plugin || shutdown_in_progress || (thd && thd->killed);
+  return shutdown_plugin || abort_loop || (thd && thd->killed);
 }
 
 /**

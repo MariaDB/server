@@ -1436,7 +1436,7 @@ bool Master_info_index::add_master_info(Master_info *mi, bool write_to_file)
     We have to protect against shutdown to ensure we are not calling
     my_hash_insert() while my_hash_free() is in progress
   */
-  if (unlikely(shutdown_in_progress) ||
+  if (unlikely(abort_loop) ||
       !my_hash_insert(&master_info_hash, (uchar*) mi))
   {
     if (global_system_variables.log_warnings > 1)
@@ -1579,7 +1579,7 @@ uint any_slave_sql_running(bool already_locked)
 
   if (!already_locked)
     mysql_mutex_lock(&LOCK_active_mi);
-  if (unlikely(shutdown_in_progress || !master_info_index))
+  if (unlikely(abort_loop || !master_info_index))
     count= 1;
   else
   {

@@ -82,7 +82,7 @@ enum enum_slave_parallel_mode {
 };
 
 /* Function prototypes */
-void kill_mysql(THD *thd= 0);
+void kill_mysql(THD *thd);
 void close_connection(THD *thd, uint sql_errno= 0);
 void handle_connection_in_main_thread(CONNECT *thd);
 void create_thread_to_handle_connection(CONNECT *connect);
@@ -769,8 +769,6 @@ enum enum_query_type
 
 /* query_id */
 extern query_id_t global_query_id;
-
-void unireg_end(void);
 
 /* increment query_id and return it.  */
 inline __attribute__((warn_unused_result)) query_id_t next_query_id()
