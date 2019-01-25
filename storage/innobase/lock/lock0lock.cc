@@ -1,7 +1,7 @@
 /*****************************************************************************
 
 Copyright (c) 1996, 2017, Oracle and/or its affiliates. All Rights Reserved.
-Copyright (c) 2014, 2018, MariaDB Corporation.
+Copyright (c) 2014, 2019, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -6995,7 +6995,9 @@ DeadlockChecker::trx_rollback()
 
 	print("*** WE ROLL BACK TRANSACTION (1)\n");
 #ifdef WITH_WSREP
-        wsrep_handle_SR_rollback(m_start->mysql_thd, trx->mysql_thd);
+	if (wsrep_on(trx->mysql_thd)) {
+		wsrep_handle_SR_rollback(m_start->mysql_thd, trx->mysql_thd);
+	}
 #endif
 
 	trx_mutex_enter(trx);
