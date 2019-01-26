@@ -1233,21 +1233,23 @@ class User_table_json: public User_table
       access|= rights;
     set_int_value("access", access & GLOBAL_ACLS);
   }
+  const char *unsafe_str(const char *s) const
+  { return s[0] ? s : NULL; }
 
   SSL_type get_ssl_type () const
   { return (SSL_type)get_int_value("ssl_type"); }
   int set_ssl_type (SSL_type x) const
   { return set_int_value("ssl_type", x); }
   const char* get_ssl_cipher (MEM_ROOT *root) const
-  { return get_str_value(root, "ssl_cipher"); }
+  { return unsafe_str(get_str_value(root, "ssl_cipher")); }
   int set_ssl_cipher (const char *s, size_t l) const
   { return set_str_value("ssl_cipher", s, l); }
   const char* get_x509_issuer (MEM_ROOT *root) const
-  { return get_str_value(root, "x509_issuer"); }
+  { return unsafe_str(get_str_value(root, "x509_issuer")); }
   int set_x509_issuer (const char *s, size_t l) const
   { return set_str_value("x509_issuer", s, l); }
   const char* get_x509_subject (MEM_ROOT *root) const
-  { return get_str_value(root, "x509_subject"); }
+  { return unsafe_str(get_str_value(root, "x509_subject")); }
   int set_x509_subject (const char *s, size_t l) const
   { return set_str_value("x509_subject", s, l); }
   longlong get_max_questions () const
