@@ -364,11 +364,17 @@ then
     rm -rf "$RSYNC_PID"
 
     ADDR=$WSREP_SST_OPT_ADDR
-    RSYNC_PORT=$(echo $ADDR | awk -F ':' '{ print $2 }')
+    if [[ ${ADDR:0:1} == '[' ]]; then
+        RSYNC_PORT=$(echo $ADDR | awk -F '\\]:' '{ print $2 }')
+        RSYNC_ADDR=$(echo $ADDR | awk -F '\\]:' '{ print $1 }')"]"
+    else
+        RSYNC_PORT=$(echo $ADDR | awk -F ':' '{ print $2 }')
+        RSYNC_ADDR=$(echo $ADDR | awk -F ':' '{ print $1 }')
+    fi
     if [ -z "$RSYNC_PORT" ]
     then
         RSYNC_PORT=4444
-        ADDR="$(echo $ADDR | awk -F ':' '{ print $1 }'):$RSYNC_PORT"
+        ADDR="$RSYNC_ADDR:$RSYNC_PORT"
     fi
 
     trap "exit 32" HUP PIPE

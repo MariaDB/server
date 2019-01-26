@@ -106,6 +106,7 @@
     /usr/bin/wsrep_sst* rix,
     /usr/bin/wsrep_sst_common r,
     /usr/bin/xtrabackup* rix,
+    /usr/bin/mariabackup* rix,
     /var/lib/mysql/ r,
     /var/lib/mysql/** rw,
     /var/lib/mysql/*.log w,
