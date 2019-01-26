@@ -1694,7 +1694,7 @@ int TP_pool_generic::set_pool_size(uint size)
       success= (group->pollfd != INVALID_HANDLE_VALUE);
       if(!success)
       {
-        sql_print_error("io_poll_create() failed, errno=%d\n", errno);
+        sql_print_error("io_poll_create() failed, errno=%d", errno);
       }
     }  
     mysql_mutex_unlock(&group->mutex);

@@ -6088,7 +6088,7 @@ MYSQL_BIN_LOG::write_state_to_file()
   goto end;
 
 err:
-  sql_print_error("Error writing binlog state to file '%s'.\n", buf);
+  sql_print_error("Error writing binlog state to file '%s'.", buf);
   if (log_inited)
     end_io_cache(&cache);
 end:
@@ -6148,7 +6148,7 @@ MYSQL_BIN_LOG::read_state_from_file()
   goto end;
 
 err:
-  sql_print_error("Error reading binlog GTID state from file '%s'.\n", buf);
+  sql_print_error("Error reading binlog GTID state from file '%s'.", buf);
 end:
   if (log_inited)
     end_io_cache(&cache);
@@ -7272,7 +7272,7 @@ MYSQL_BIN_LOG::write_binlog_checkpoint_event_already_locked(const char *name_arg
       ability to do crash recovery - crash recovery will just have to scan a
       bit more of the binlog than strictly necessary.
     */
-    sql_print_error("Failed to write binlog checkpoint event to binary log\n");
+    sql_print_error("Failed to write binlog checkpoint event to binary log");
   }
 
   offset= my_b_tell(&log_file);

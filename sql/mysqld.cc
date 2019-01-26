@@ -1305,10 +1305,10 @@ void Buffered_log::print()
   switch(m_level)
   {
   case ERROR_LEVEL:
-    sql_print_error("Buffered error: %s\n", m_message.c_ptr_safe());
+    sql_print_error("Buffered error: %s", m_message.c_ptr_safe());
     break;
   case WARNING_LEVEL:
-    sql_print_warning("Buffered warning: %s\n", m_message.c_ptr_safe());
+    sql_print_warning("Buffered warning: %s", m_message.c_ptr_safe());
     break;
   case INFORMATION_LEVEL:
     /*
@@ -2032,7 +2032,7 @@ extern "C" void unireg_abort(int exit_code)
   if (opt_help)
     usage();
   if (exit_code)
-    sql_print_error("Aborting\n");
+    sql_print_error("Aborting");
   /* Don't write more notes to the log to not hide error message */
   disable_log_notes= 1;
 
@@ -8645,7 +8645,7 @@ mysqld_get_one_option(int optid, const struct my_option *opt, char *argument)
 
     if (!(p= strstr(argument, "->")))
     {
-      sql_print_error("Bad syntax in replicate-rewrite-db - missing '->'!\n");
+      sql_print_error("Bad syntax in replicate-rewrite-db - missing '->'!");
       return 1;
     }
     val= p--;
@@ -8653,7 +8653,7 @@ mysqld_get_one_option(int optid, const struct my_option *opt, char *argument)
       *p-- = 0;
     if (p == argument)
     {
-      sql_print_error("Bad syntax in replicate-rewrite-db - empty FROM db!\n");
+      sql_print_error("Bad syntax in replicate-rewrite-db - empty FROM db!");
       return 1;
     }
     *val= 0;
@@ -8662,7 +8662,7 @@ mysqld_get_one_option(int optid, const struct my_option *opt, char *argument)
       val++;
     if (!*val)
     {
-      sql_print_error("Bad syntax in replicate-rewrite-db - empty TO db!\n");
+      sql_print_error("Bad syntax in replicate-rewrite-db - empty TO db!");
       return 1;
     }
 
@@ -8691,7 +8691,7 @@ mysqld_get_one_option(int optid, const struct my_option *opt, char *argument)
   {
     if (cur_rpl_filter->add_do_table(argument))
     {
-      sql_print_error("Could not add do table rule '%s'!\n", argument);
+      sql_print_error("Could not add do table rule '%s'!", argument);
       return 1;
     }
     break;
@@ -8700,7 +8700,7 @@ mysqld_get_one_option(int optid, const struct my_option *opt, char *argument)
   {
     if (cur_rpl_filter->add_wild_do_table(argument))
     {
-      sql_print_error("Could not add do table rule '%s'!\n", argument);
+      sql_print_error("Could not add do table rule '%s'!", argument);
       return 1;
     }
     break;
@@ -8709,7 +8709,7 @@ mysqld_get_one_option(int optid, const struct my_option *opt, char *argument)
   {
     if (cur_rpl_filter->add_wild_ignore_table(argument))
     {
-      sql_print_error("Could not add ignore table rule '%s'!\n", argument);
+      sql_print_error("Could not add ignore table rule '%s'!", argument);
       return 1;
     }
     break;
@@ -8718,7 +8718,7 @@ mysqld_get_one_option(int optid, const struct my_option *opt, char *argument)
   {
     if (cur_rpl_filter->add_ignore_table(argument))
     {
-      sql_print_error("Could not add ignore table rule '%s'!\n", argument);
+      sql_print_error("Could not add ignore table rule '%s'!", argument);
       return 1;
     }
     break;
@@ -9075,7 +9075,7 @@ static int get_options(int *argc_ptr, char ***argv_ptr)
 
   if (ft_boolean_check_syntax_string((uchar*) ft_boolean_syntax))
   {
-    sql_print_error("Invalid ft-boolean-syntax string: %s\n",
+    sql_print_error("Invalid ft-boolean-syntax string: %s",
                     ft_boolean_syntax);
     return 1;
   }
