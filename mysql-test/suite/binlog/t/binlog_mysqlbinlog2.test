@@ -17,7 +17,7 @@ reset master;
 # binlog (including the Start_log_event). This test will work 
 # unchanged everywhere, because mysql-test-run has fixed TZ, which it
 # exports (so mysqlbinlog has same fixed TZ).
-set @a=UNIX_TIMESTAMP("2020-01-21 15:32:22");
+set @a=UNIX_TIMESTAMP("2035-01-21 15:32:22");
 set timestamp=@a;
 create table t1 (a int auto_increment not null primary key, b char(3));
 insert into t1 values(null, "a");
@@ -72,11 +72,11 @@ let $stop_pos= `select @binlog_start_pos + 857`;
 --disable_query_log
 select "--- start-datetime --" as "";
 --enable_query_log
---exec $MYSQL_BINLOG --short-form "--start-datetime=2020-01-21 15:32:24" $MYSQLD_DATADIR/master-bin.000001 
+--exec $MYSQL_BINLOG --short-form "--start-datetime=2035-01-21 15:32:24" $MYSQLD_DATADIR/master-bin.000001 
 --disable_query_log
 select "--- stop-datetime --" as "";
 --enable_query_log
---exec $MYSQL_BINLOG --short-form "--stop-datetime=2020-01-21 15:32:24" $MYSQLD_DATADIR/master-bin.000001 
+--exec $MYSQL_BINLOG --short-form "--stop-datetime=2035-01-21 15:32:24" $MYSQLD_DATADIR/master-bin.000001 
 
 --disable_query_log
 select "--- Local with 2 binlogs on command line --" as "";
@@ -104,11 +104,11 @@ let $stop_pos= `select @binlog_start_pos + 134`;
 --disable_query_log
 select "--- start-datetime --" as "";
 --enable_query_log
---exec $MYSQL_BINLOG --short-form "--start-datetime=2020-01-21 15:32:24" $MYSQLD_DATADIR/master-bin.000001 $MYSQLD_DATADIR/master-bin.000002
+--exec $MYSQL_BINLOG --short-form "--start-datetime=2035-01-21 15:32:24" $MYSQLD_DATADIR/master-bin.000001 $MYSQLD_DATADIR/master-bin.000002
 --disable_query_log
 select "--- stop-datetime --" as "";
 --enable_query_log
---exec $MYSQL_BINLOG --short-form "--stop-datetime=2020-01-21 15:32:24" $MYSQLD_DATADIR/master-bin.000001 $MYSQLD_DATADIR/master-bin.000002
+--exec $MYSQL_BINLOG --short-form "--stop-datetime=2035-01-21 15:32:24" $MYSQLD_DATADIR/master-bin.000001 $MYSQLD_DATADIR/master-bin.000002
 
 --disable_query_log
 select "--- Remote --" as "";
@@ -139,11 +139,11 @@ let $stop_pos= `select @binlog_start_pos + 812`;
 --disable_query_log
 select "--- start-datetime --" as "";
 --enable_query_log
---exec $MYSQL_BINLOG --short-form "--start-datetime=2020-01-21 15:32:24" --read-from-remote-server --user=root --host=127.0.0.1 --port=$MASTER_MYPORT master-bin.000001
+--exec $MYSQL_BINLOG --short-form "--start-datetime=2035-01-21 15:32:24" --read-from-remote-server --user=root --host=127.0.0.1 --port=$MASTER_MYPORT master-bin.000001
 --disable_query_log
 select "--- stop-datetime --" as "";
 --enable_query_log
---exec $MYSQL_BINLOG --short-form "--stop-datetime=2020-01-21 15:32:24" --read-from-remote-server --user=root --host=127.0.0.1 --port=$MASTER_MYPORT master-bin.000001
+--exec $MYSQL_BINLOG --short-form "--stop-datetime=2035-01-21 15:32:24" --read-from-remote-server --user=root --host=127.0.0.1 --port=$MASTER_MYPORT master-bin.000001
 
 --disable_query_log
 select "--- Remote with 2 binlogs on command line --" as "";
@@ -168,11 +168,11 @@ let $stop_pos= `select @binlog_start_pos + 109`;
 --disable_query_log
 select "--- start-datetime --" as "";
 --enable_query_log
---exec $MYSQL_BINLOG --short-form "--start-datetime=20200121153224" --read-from-remote-server --user=root --host=127.0.0.1 --port=$MASTER_MYPORT master-bin.000001 master-bin.000002
+--exec $MYSQL_BINLOG --short-form "--start-datetime=20350121153224" --read-from-remote-server --user=root --host=127.0.0.1 --port=$MASTER_MYPORT master-bin.000001 master-bin.000002
 --disable_query_log
 select "--- stop-datetime --" as "";
 --enable_query_log
---exec $MYSQL_BINLOG --short-form "--stop-datetime=2020/01/21 15@32@24" --read-from-remote-server --user=root --host=127.0.0.1 --port=$MASTER_MYPORT master-bin.000001 master-bin.000002
+--exec $MYSQL_BINLOG --short-form "--stop-datetime=2035/01/21 15@32@24" --read-from-remote-server --user=root --host=127.0.0.1 --port=$MASTER_MYPORT master-bin.000001 master-bin.000002
 
 --disable_query_log
 select "--- to-last-log --" as "";
