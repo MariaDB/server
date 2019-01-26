@@ -1,11 +1,11 @@
 /************* TabJDBC C++ Program Source Code File (.CPP) *************/
 /* PROGRAM NAME: TABJDBC                                               */
 /* -------------                                                       */
-/*  Version 1.2                                                        */
+/*  Version 1.3                                                        */
 /*                                                                     */
 /* COPYRIGHT:                                                          */
 /* ----------                                                          */
-/*  (C) Copyright to the author Olivier BERTRAND          2016-2017    */
+/*  (C) Copyright to the author Olivier BERTRAND          2016-2019    */
 /*                                                                     */
 /* WHAT THIS PROGRAM DOES:                                             */
 /* -----------------------                                             */
@@ -185,10 +185,10 @@ int JDBCDEF::ParseURL(PGLOBAL g, char *url, bool b)
 		} else		 // host is a URL
 			Url = PlugDup(g, server->host);
 
-		if (server->username)
+		if (!Username && server->username)
 			Username = PlugDup(g, server->username);
 
-		if (server->password)
+		if (!Password && server->password)
 			Password = PlugDup(g, server->password);
 
 		return RC_NF;

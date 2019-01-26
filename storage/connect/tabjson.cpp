@@ -1,6 +1,6 @@
 /************* tabjson C++ Program Source Code File (.CPP) *************/
-/* PROGRAM NAME: tabjson     Version 1.6                               */
-/*  (C) Copyright to the author Olivier BERTRAND          2014 - 2018  */
+/* PROGRAM NAME: tabjson     Version 1.7                               */
+/*  (C) Copyright to the author Olivier BERTRAND          2014 - 2019  */
 /*  This program are the JSON class DB execution routines.             */
 /***********************************************************************/
 

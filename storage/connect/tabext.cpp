@@ -1,7 +1,7 @@
 /************* Tabext C++ Functions Source Code File (.CPP) ************/
-/*  Name: TABEXT.CPP  Version 1.0                                      */
+/*  Name: TABEXT.CPP  Version 1.1                                      */
 /*                                                                     */
-/*  (C) Copyright to the author Olivier BERTRAND          2017         */
+/*  (C) Copyright to the author Olivier BERTRAND          2017 - 2019  */
 /*                                                                     */
 /*  This file contains the TBX, TDB and OPJOIN classes functions.      */
 /***********************************************************************/
