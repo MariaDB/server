@@ -8,7 +8,6 @@ import os
 import stat
 import sys
 import re
-import commands
 import subprocess
 import logging
 import logging.handlers

@@ -124,6 +124,12 @@ EOF
   sed -i -e "/-DPLUGIN_AWS_KEY_MANAGEMENT=NO/d" debian/rules
 fi
 
+# Don't build cassandra package if thrift is not installed
+if [[ ! -f /usr/local/include/thrift/Thrift.h && ! -f /usr/include/thrift/Thrift.h ]]
+then
+  sed '/Package: mariadb-plugin-cassandra/,/^$/d' -i debian/control
+fi
+
 # Mroonga, TokuDB never built on Travis CI anyway, see build flags above
 if [[ $TRAVIS ]]
 then
