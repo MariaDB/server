@@ -32,6 +32,8 @@ ELSE()
   SET(MYSQLD_GROUP "mysql")
   SET(ini_file_extension "cnf")
   SET(HOSTNAME "uname -n")
+  get_filename_component(MYSQL_UNIX_DIR ${MYSQL_UNIX_ADDR} DIRECTORY)
+  SET(mysqlunixdir ${MYSQL_UNIX_DIR})
 ENDIF()
 
 # XXX: shouldn't we just have variables for all this stuff and centralise

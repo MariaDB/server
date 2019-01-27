@@ -69,17 +69,23 @@ ProtectHome=true
 # Execute pre and post scripts as root, otherwise it does it as User=
 PermissionsStartOnly=true
 
+# Use an environment file to pass variable _WSREP_NEW_CLUSTER
+EnvironmentFile=-@mysqlunixdir@/wsrep-new-cluster
+
+# Use an environment file to pass variable _WSREP_START_POSITION
+EnvironmentFile=-@mysqlunixdir@/wsrep-start-position
+
 @SYSTEMD_EXECSTARTPRE@
 
 # Perform automatic wsrep recovery. When server is started without wsrep,
 # galera_recovery simply returns an empty string. In any case, however,
 # the script is not expected to return with a non-zero status.
-# It is always safe to unset _WSREP_START_POSITION environment variable.
+# It is always safe to remove @mysqlunixdir@/wsrep-start-position
+# environment file.
 # Do not panic if galera_recovery script is not available. (MDEV-10538)
-ExecStartPre=/bin/sh -c "systemctl unset-environment _WSREP_START_POSITION"
 ExecStartPre=/bin/sh -c "[ ! -e @bindir@/galera_recovery ] && VAR= || \
  VAR=`@bindir@/galera_recovery`; [ $? -eq 0 ] \
- && systemctl set-environment _WSREP_START_POSITION=$VAR || exit 1"
+ && echo _WSREP_START_POSITION=$VAR > @mysqlunixdir@/wsrep-start-position || exit 1"
 
 # Needed to create system tables etc.
 # ExecStartPre=@scriptdir@/mysql_install_db -u mysql
@@ -92,7 +98,7 @@ ExecStartPre=/bin/sh -c "[ ! -e @bindir@/galera_recovery ] && VAR= || \
 ExecStart=@sbindir@/mariadbd $MYSQLD_OPTS $_WSREP_NEW_CLUSTER $_WSREP_START_POSITION
 
 # Unset _WSREP_START_POSITION environment variable.
-ExecStartPost=/bin/sh -c "systemctl unset-environment _WSREP_START_POSITION"
+ExecStartPost=/bin/rm -f @mysqlunixdir@/wsrep-start-position
 
 @SYSTEMD_EXECSTARTPOST@
 
