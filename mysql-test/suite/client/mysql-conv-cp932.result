@@ -3,5 +3,21 @@
 SET NAMES cp932;
 @6e2c@8a66@8cc7@6599
 ‘ªŽŽŽ‘—¿
-‘ªŽŽŽ‘—¿
+‘ªŽŽŽ‘—¿ŒÉ
+@6e2c@8a66@8cc7@6599@5eab
+DROP TABLE IF EXISTS ‘ªŽŽŽ‘—¿,‘ªŽŽŽ‘—¿2;
+CREATE TABLE ‘ªŽŽŽ‘—¿ (foo INT);
+CREATE TABLE ‘ªŽŽŽ‘—¿2 (bar INT);
+DROP TABLE ‘ªŽŽŽ‘—¿,‘ªŽŽŽ‘—¿2;
+
+
 @6e2c@8a66@8cc7@6599
+
+@6e2c@8a66@8cc7@6599
+@6e2c@8a66@8cc7@65992
+
+@6e2c@8a66@8cc7@6599
+@6e2c@8a66@8cc7@65992
+
+@6e2c@8a66@8cc7@6599
+@6e2c@8a66@8cc7@65992

@@ -1,1 +1,4 @@
-mysql-conv: unknown option '-t'
+t1
+t1
+t1
+mysql-conv: unknown option '-r'

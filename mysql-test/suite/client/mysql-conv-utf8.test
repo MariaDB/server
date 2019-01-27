@@ -1,15 +1,52 @@
 --character_set utf8
 
 # simple I/O
---exec $MYSQL_CONV -c utf8 "測試資料"
---exec $MYSQL_CONV -c utf8 -r "@6e2c@8a66@8cc7@6599@5eab"
+--exec echo "測試資料" | $MYSQL_CONV -f utf8 -t filename
+--exec echo "@6e2c@8a66@8cc7@6599@5eab" | $MYSQL_CONV -f filename -t utf8
 
 # undo query result
 SET NAMES utf8;
-let $query_result=`SELECT CONVERT(CONVERT('測試資料' USING filename) USING binary);`;
+--let $query_result=`SELECT CONVERT(CONVERT('測試資料' USING filename) USING binary);`
 --echo $query_result
---exec $MYSQL_CONV -c utf8 -r $query_result
+--exec echo $query_result | $MYSQL_CONV -f filename -t utf8
 
-let $reverse_query_result=`SELECT CONVERT(_filename '@6e2c@8a66@8cc7@6599@5eab' USING utf8);`;
+--let $reverse_query_result=`SELECT CONVERT(_filename '@6e2c@8a66@8cc7@6599@5eab' USING utf8);`
 --echo $reverse_query_result
---exec $MYSQL_CONV -c utf8 $reverse_query_result
+--exec echo $reverse_query_result | $MYSQL_CONV -f utf8 -t filename
+
+# bulk convert with pipe
+--disable_warnings
+DROP TABLE IF EXISTS 測試資料,測試資料2;
+--enable_warnings
+CREATE TABLE 測試資料 (foo INT);
+CREATE TABLE 測試資料2 (bar INT);
+--let $MYSQLD_DATADIR= `select @@datadir`
+--error 1
+--exec ls $MYSQLD_DATADIR/test/*.frm | $MYSQL_CONV -f filename -t utf8
+DROP TABLE 測試資料,測試資料2;
+
+# bulk convert with file
+--write_file $MYSQL_TMP_DIR/mysql-conv-test-utf8.txt
+EOF
+--exec $MYSQL_CONV -f utf8 -t filename $MYSQL_TMP_DIR/mysql-conv-test-utf8.txt
+
+--append_file $MYSQL_TMP_DIR/mysql-conv-test-utf8.txt
+
+EOF
+--exec $MYSQL_CONV -f utf8 -t filename $MYSQL_TMP_DIR/mysql-conv-test-utf8.txt
+
+--append_file $MYSQL_TMP_DIR/mysql-conv-test-utf8.txt
+測試資料
+EOF
+--exec $MYSQL_CONV -f utf8 -t filename $MYSQL_TMP_DIR/mysql-conv-test-utf8.txt
+
+--append_file $MYSQL_TMP_DIR/mysql-conv-test-utf8.txt
+測試資料2
+EOF
+--exec $MYSQL_CONV -f utf8 -t filename $MYSQL_TMP_DIR/mysql-conv-test-utf8.txt
+
+--copy_file $MYSQL_TMP_DIR/mysql-conv-test-utf8.txt $MYSQL_TMP_DIR/mysql-conv-test-utf8-2.txt
+--exec $MYSQL_CONV -f utf8 -t filename $MYSQL_TMP_DIR/mysql-conv-test-utf8.txt $MYSQL_TMP_DIR/mysql-conv-test-utf8-2.txt
+
+--remove_file $MYSQL_TMP_DIR/mysql-conv-test-utf8.txt
+--remove_file $MYSQL_TMP_DIR/mysql-conv-test-utf8-2.txt

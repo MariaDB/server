@@ -16,103 +16,172 @@
    Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1301  USA
 */
 
-/* Convert identifier to filename */
+/*
+   Charactor set conversion utility
+*/
 
 #include "mariadb.h"
 #include "client_priv.h"
 
-#define LS_VERSION "1.0"
+#define CONV_VERSION "1.0"
 
 static my_bool debug_info_flag = 0;
 static my_bool debug_check_flag = 0;
 static uint my_end_arg;
 
-static my_bool opt_reverse = 0;
-static char *opt_charset = 0;
+static char *opt_charset_from = 0;
+static char *opt_charset_to = 0;
 
-static CHARSET_INFO *charset_info= &my_charset_latin1;
+static CHARSET_INFO *charset_info_from= &my_charset_latin1;
+static CHARSET_INFO *charset_info_to= &my_charset_latin1;
 
 static struct my_option long_options[] =
 {
-  {"reverse", 'r', "Convert filename to identifier.",
-   &opt_reverse, &opt_reverse, 0, GET_BOOL, NO_ARG, 0, 0, 0, 0, 0, 0},
-  {"character-set", 'c',
-   "Set the character set.", &opt_charset,
-   &opt_charset, 0, GET_STR, REQUIRED_ARG, 0, 0, 0, 0, 0, 0},
+  {"from", 'f', "Specifies the encoding of the input.", &opt_charset_from,
+   &opt_charset_from, 0, GET_STR, REQUIRED_ARG, 0, 0, 0, 0, 0, 0},
+  {"to", 't', "Specifies the encoding of the output.", &opt_charset_to,
+   &opt_charset_to, 0, GET_STR, REQUIRED_ARG, 0, 0, 0, 0, 0, 0},
   {0, 0, 0, 0, 0, 0, GET_NO_ARG, NO_ARG, 0, 0, 0, 0, 0, 0}
 };
 
 static void usage();
+static int load_charset(const char *charset_name, const CHARSET_INFO **charset_info);
+static int convert(FILE *infile);
 
 int main(int argc, char *argv[]) {
   MY_INIT(argv[0]);
-
-  CHARSET_INFO* system_charset_info= &my_charset_utf8_general_ci;
-  uint errors, length;
-  char *from = argv[argc-1];
-  char to[FN_REFLEN + 1];
-  const size_t to_length = sizeof(to) - 1;
 
   if (debug_info_flag)
     my_end_arg= MY_CHECK_ERROR | MY_GIVE_INFO;
   if (debug_check_flag)
     my_end_arg= MY_CHECK_ERROR;
 
-  if (handle_options(&argc, &argv, long_options, NULL) || argc == 0)
+  if (handle_options(&argc, &argv, long_options, NULL))
   {
     usage();
     my_end(my_end_arg);
     exit(1);
   }
 
-  if (opt_charset)
+  if (opt_charset_from)
   {
-    CHARSET_INFO *new_cs = get_charset_by_csname(opt_charset, MY_CS_PRIMARY, MYF(MY_WME));
-    if (new_cs)
+    if (load_charset(opt_charset_from, &charset_info_from))
     {
-      charset_info = new_cs;
-    }
-    else
-    {
-      puts("Charset is not found");
+      puts("From charset is not found");
       my_end(my_end_arg);
       exit(1);
     }
   }
 
-  if (opt_reverse)
+  if (opt_charset_to)
   {
-    length= strconvert(&my_charset_filename, from, FN_REFLEN,
-                charset_info,  to, to_length, &errors);
-  }
-  else
-  {
-    length= strconvert(charset_info, from, FN_REFLEN,
-                      &my_charset_filename, to, to_length, &errors);
+    if(load_charset(opt_charset_to, &charset_info_to))
+    {
+      puts("To charset is not found");
+      my_end(my_end_arg);
+      exit(1);
+    }
   }
 
-  if (unlikely(!length || errors))
+  if (isatty(fileno(stdin)))
   {
-    my_end(my_end_arg);
-    exit(1);
+    if (argc == 0)
+    {
+      usage();
+      my_end(my_end_arg);
+      exit(1);
+    }
+
+    for(int i = 0; i < argc; i++)
+    {
+      const char *filename = argv[i];
+
+      FILE *fp;
+      if ((fp = fopen(filename, "r")) == NULL)
+      {
+        printf("can't open file %s", filename);
+        my_end(my_end_arg);
+        exit(1);
+      }
+
+      if (convert(fp))
+      {
+        my_end(my_end_arg);
+        exit(1);
+      }
+
+      fclose(fp);
+    }
   }
   else
   {
-    puts(to);
-    my_end(my_end_arg);
-    exit(0);
+    if (convert(stdin))
+    {
+      my_end(my_end_arg);
+      exit(1);
+    }
   }
+
+  my_end(my_end_arg);
+  exit(0);
 } /* main */
 
 static void usage(void)
 {
-  printf("%s Ver %s Distrib %s for %s on %s", my_progname, LS_VERSION,
+  printf("%s Ver %s Distrib %s for %s on %s\n", my_progname, CONV_VERSION,
     MYSQL_SERVER_VERSION, SYSTEM_TYPE, MACHINE_TYPE);
-  puts("Utility program for the mariadb .");
+  puts("Charactor set conversion utility for MariaDB");
   puts("Usage:");
-  printf("%s identifier", my_progname);
-  puts("");
-  printf("%s -r filename", my_progname);
-  puts("");
+  printf("%s [-f encoding] [-t encoding] [inputfile ...]\n", my_progname);
   my_print_help(long_options);
 } /* usage */
+
+static int load_charset(const char *charset_name, const CHARSET_INFO **charset_info)
+{
+  CHARSET_INFO *cs = get_charset_by_csname(charset_name, MY_CS_PRIMARY, MYF(MY_WME));
+  if (cs)
+  {
+    *charset_info = cs;
+    return 0;
+  }
+  else
+  {
+    return 1;
+  }
+} /* load_charset */
+
+static int convert(FILE *infile)
+{
+  uint errors, length;
+  char from[FN_REFLEN + 1], to[FN_REFLEN + 1];
+
+  while (fgets(from, sizeof(from), infile) != NULL)
+  {
+    if (strchr(from, '\n'))
+    {
+      int pos_lf = strlen(from) - 1;
+      int pos_cr = pos_lf - 1;
+      from[pos_lf] = '\0';
+#ifdef _WIN32
+      if (from[pos_cr] == '\r')
+        from[strlen(from) - 2] = '\0';
+#endif
+    }
+
+    if (strlen(from) == 0)
+    {
+      puts("");
+      continue;
+    }
+
+    length= strconvert(charset_info_from, from, FN_REFLEN,
+                    charset_info_to, to, FN_REFLEN, &errors);
+
+    if (unlikely(!length || errors))
+      return 1;
+    else
+      puts(to);
+  }
+
+  return 0;
+} /* convert */

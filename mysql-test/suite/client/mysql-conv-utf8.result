@@ -5,3 +5,19 @@ SET NAMES utf8;
 測試資料
 測試資料庫
 @6e2c@8a66@8cc7@6599@5eab
+DROP TABLE IF EXISTS 測試資料,測試資料2;
+CREATE TABLE 測試資料 (foo INT);
+CREATE TABLE 測試資料2 (bar INT);
+DROP TABLE 測試資料,測試資料2;
+
+
+@6e2c@8a66@8cc7@6599
+
+@6e2c@8a66@8cc7@6599
+@6e2c@8a66@8cc7@65992
+
+@6e2c@8a66@8cc7@6599
+@6e2c@8a66@8cc7@65992
+
+@6e2c@8a66@8cc7@6599
+@6e2c@8a66@8cc7@65992
