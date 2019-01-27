@@ -130,7 +130,6 @@ IF(WIN32)
   OPTION(CONNECT_WITH_MSXML "Compile CONNECT storage engine with MSXML support" ON)
   IF(CONNECT_WITH_MSXML)
     add_definitions(-DMSX6 -DDOMDOC_SUPPORT)
-    message(STATUS "MSXML library version: msxml6")
     SET(MSXML_FOUND 1)
     SET(CONNECT_SOURCES ${CONNECT_SOURCES} domdoc.cpp domdoc.h)
   ENDIF(CONNECT_WITH_MSXML)
@@ -238,7 +237,7 @@ ENDIF(CONNECT_WITH_ODBC)
 #
 # JDBC with MongoDB Java Driver included but disabled if without MONGO
 #
-#OPTION(CONNECT_WITH_MONGO "Compile CONNECT storage engine with MONGO support" ON)
+OPTION(CONNECT_WITH_MONGO "Compile CONNECT storage engine with MONGO support" ON)
 OPTION(CONNECT_WITH_JDBC "Compile CONNECT storage engine with JDBC support" ON)
 
 IF(CONNECT_WITH_JDBC)
@@ -293,7 +292,7 @@ IF(CONNECT_WITH_MONGO)
         C:/mongo-c-driver/lib
         D:/mongo-c-driver/lib)
   ENDIF(WIN32)
-  FIND_PACKAGE(libmongoc-1.0 1.7)
+  FIND_PACKAGE(libmongoc-1.0 1.7 QUIET)
   IF (libmongoc-1.0_FOUND)
     INCLUDE_DIRECTORIES(${MONGOC_INCLUDE_DIRS})
     SET(MONGOC_LIBRARY  ${MONGOC_LIBRARIES})
