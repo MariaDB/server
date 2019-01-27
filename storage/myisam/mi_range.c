@@ -291,6 +291,11 @@ static int _mi_read_sample_static_record(MI_INFO *info, uchar *buf)
   DBUG_ENTER("_mi_read_sample_static_record");
   DBUG_ASSERT(info->s->read_rnd == _mi_read_rnd_static_record);
 
+  if (fast_mi_readinfo(info))
+    DBUG_RETURN(-1);
+
+
+  fast_mi_writeinfo(info);
   DBUG_RETURN(0);
 }
 
@@ -303,6 +308,7 @@ static int _mi_read_sample_bernoulli(MI_INFO *info, uchar *buf)
   if (fast_mi_readinfo(info))
     DBUG_RETURN(-1);
 
+  /* No rows to sample from. */
   if (!info->state->records)
     DBUG_RETURN(HA_ERR_END_OF_FILE);
 
@@ -310,20 +316,12 @@ static int _mi_read_sample_bernoulli(MI_INFO *info, uchar *buf)
                                       info->state->records;
   do
   {
-    res= mi_scan(info, buf);
-    /* Restart scan if we reached the end. */
-    if (res == HA_ERR_END_OF_FILE)
-    {
-      if ((res= mi_scan_init(info)))
-        DBUG_RETURN(res);
-      /* Second failure, abort. */
-      if ((res= mi_scan(info, buf)))
-        DBUG_RETURN(res);
-    }
+    if ((res= mi_scan(info, buf)))
+      break;
   } while (my_rnd_ssl(&info->sampling_state.rand) < select_probability);
 
   fast_mi_writeinfo(info);
-  DBUG_RETURN(0);
+  DBUG_RETURN(res);
 }
 
 int mi_random_sample_init(MYSQL_THD thd, MI_INFO *info,
@@ -332,21 +330,26 @@ int mi_random_sample_init(MYSQL_THD thd, MI_INFO *info,
   int res= 0;
   DBUG_ENTER("mi_random_sample_init");
   struct st_sampling_state *ss= &info->sampling_state;
+
   ss->initialised= TRUE;
   ss->estimate_rows_read= estimate_rows_read;
+  /* TODO(cvicentiu) use thd_rnd service instead. */
   ss->thd= thd;
   ss->rand.max_value= 1;
   my_rnd_init(&ss->rand, 42, 32);
 
   /* Fastest possible case, equal sized records. */
-  if (!(info->s->options & (HA_OPTION_COMPRESS_RECORD | HA_OPTION_PACK_RECORD)))
+  if (!(info->s->options & (HA_OPTION_COMPRESS_RECORD | HA_OPTION_PACK_RECORD))
+      && FALSE /* TODO(remove this once bernoulli is tested) */)
   {
     info->sampling_state.read_sample= _mi_read_sample_static_record;
   }
-
-  /* Fallback revert to simple scan. */
-  info->sampling_state.read_sample= _mi_read_sample_bernoulli;
-  mi_scan_init(info);
+  else
+  {
+    /* Fallback revert to simple scan. */
+    mi_scan_init(info);
+    info->sampling_state.read_sample= _mi_read_sample_bernoulli;
+  }
   DBUG_RETURN(res);
 }
 

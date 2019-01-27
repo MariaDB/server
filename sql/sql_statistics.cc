@@ -2745,10 +2745,12 @@ int collect_statistics_for_table(THD *thd, TABLE *table)
 
   rc= file->ha_random_sample_init(thd, 100);
   rc= file->ha_random_sample(table->record[0]);
+  table_field->collected_stats->add(0);
   rc= file->ha_random_sample_end();
 
 
   /* Perform a full table scan to collect statistics on 'table's columns */
+  /*
   if (!(rc= file->ha_rnd_init(TRUE)))
   {  
     DEBUG_SYNC(table->in_use, "statistics_collection_start");
@@ -2776,7 +2778,7 @@ int collect_statistics_for_table(THD *thd, TABLE *table)
     file->ha_rnd_end();
   }
   rc= (rc == HA_ERR_END_OF_FILE && !thd->killed) ? 0 : 1;
-
+  */
   /* 
     Calculate values for all statistical characteristics on columns and
     and for each field f of 'table' save them in the write_stat structure
