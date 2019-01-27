@@ -1,6 +1,6 @@
 /************* tabjson C++ Program Source Code File (.CPP) *************/
-/* PROGRAM NAME: tabjson     Version 1.6                               */
-/*  (C) Copyright to the author Olivier BERTRAND          2014 - 2018  */
+/* PROGRAM NAME: tabjson     Version 1.7                               */
+/*  (C) Copyright to the author Olivier BERTRAND          2014 - 2019  */
 /*  This program are the JSON class DB execution routines.             */
 /***********************************************************************/
 
@@ -110,8 +110,8 @@ PQRYRES JSONColumns(PGLOBAL g, PCSZ db, PCSZ dsn, PTOS topt, bool info)
                           buftyp, fldtyp, length, false, false);
 
   crp = qrp->Colresp->Next->Next->Next->Next->Next->Next;
-  crp->Name = "Nullable";
-  crp->Next->Name = "Jpath";
+	crp->Name = PlugDup(g, "Nullable");
+	crp->Next->Name = PlugDup(g, "Jpath");
 
   if (info || !qrp)
     return qrp;

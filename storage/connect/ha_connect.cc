@@ -170,9 +170,9 @@
 #define JSONMAX      10             // JSON Default max grp size
 
 extern "C" {
-       char version[]= "Version 1.06.0008 October 06, 2018";
+       char version[]= "Version 1.06.0009 January 27, 2019";
 #if defined(__WIN__)
-       char compver[]= "Version 1.06.0008 " __DATE__ " "  __TIME__;
+       char compver[]= "Version 1.06.0009 " __DATE__ " "  __TIME__;
        char slash= '\\';
 #else   // !__WIN__
        char slash= '/';
@@ -1914,9 +1914,11 @@ int ha_connect::OpenTable(PGLOBAL g, bool del)
         break;
       } // endswitch xmode
 
-  if (xmod != MODE_INSERT || tdbp->GetAmType() == TYPE_AM_MYSQL
-                          || tdbp->GetAmType() == TYPE_AM_ODBC
-													|| tdbp->GetAmType() == TYPE_AM_JDBC) {
+	// g->More is 1 when executing commands from triggers
+  if (!g->More && (xmod != MODE_INSERT
+		           || tdbp->GetAmType() == TYPE_AM_MYSQL
+               || tdbp->GetAmType() == TYPE_AM_ODBC
+							 || tdbp->GetAmType() == TYPE_AM_JDBC)) {
 		// Get the list of used fields (columns)
     char        *p;
     unsigned int k1, k2, n1, n2;
@@ -4631,7 +4633,9 @@ MODE ha_connect::CheckMode(PGLOBAL g, THD *thd,
         break;
       case SQLCOM_CREATE_VIEW:
       case SQLCOM_DROP_VIEW:
-        newmode= MODE_ANY;
+			case SQLCOM_CREATE_TRIGGER:
+			case SQLCOM_DROP_TRIGGER:
+				newmode= MODE_ANY;
         break;
       case SQLCOM_ALTER_TABLE:
         *chk= true;
@@ -4673,6 +4677,9 @@ int ha_connect::start_stmt(THD *thd, thr_lock_type lock_type)
   MODE    newmode;
   PGLOBAL g= GetPlug(thd, xp);
   DBUG_ENTER("ha_connect::start_stmt");
+
+	if (table->triggers)
+		g->More= 1;			// We don't know which columns are used by the trigger
 
   if (check_privileges(thd, GetTableOptionStruct(), table->s->db.str, true))
     DBUG_RETURN(HA_ERR_INTERNAL_ERROR);
@@ -7310,7 +7317,7 @@ maria_declare_plugin(connect)
   0x0106,                                       /* version number (1.06) */
   NULL,                                         /* status variables */
   connect_system_variables,                     /* system variables */
-  "1.06.0008",                                  /* string version */
+  "1.06.0009",                                  /* string version */
 	MariaDB_PLUGIN_MATURITY_STABLE                /* maturity */
 }
 maria_declare_plugin_end;
