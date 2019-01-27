@@ -1,0 +1,21 @@
+# create table t1 (a int PRIMARY KEY, b int);
+
+# insert into t1 VALUES (1, 10);
+# insert into t1 VALUES (2, 20);
+
+# ANALYZE TABLE t1 persistent for ALL;
+
+create table ten (a int);
+insert into ten (a) values (1), (2), (3), (4), (5), (6), (7), (8), (9), (10);
+
+create table hundred (a int);
+
+insert into hundred select t.a from ten t, ten t2, ten t3;
+
+select (count(*)) from hundred;
+
+create table t2 (a int, b int, PRIMARY KEY (a, b));
+
+insert into t2 (a, b) select row_number() over (), row_number() over () * 10 from hundred;
+
+ANALYZE TABLE t2 persistent for ALL;
