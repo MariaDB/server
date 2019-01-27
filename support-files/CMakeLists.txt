@@ -45,6 +45,8 @@ ELSE()
   IF(DEB)
     SET(su_user "#su mysql mysql")
   ENDIF()
+  get_filename_component(MYSQL_UNIX_DIR ${MYSQL_UNIX_ADDR} DIRECTORY)
+  SET(mysqlunixdir ${MYSQL_UNIX_DIR})
 ENDIF()
 
 # XXX: shouldn't we just have variables for all this stuff and centralise
