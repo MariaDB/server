@@ -1,0 +1,28 @@
+# Kill the server
+Expect seqno 0
+0
+CREATE TABLE t1 (f1 INT PRIMARY KEY) ENGINE=InnoDB;
+# Kill the server
+Expect seqno 1
+1
+INSERT INTO t1 VALUES (5);
+# Kill the server
+Expect seqno 2
+2
+SELECT VARIABLE_VALUE `expect 2` FROM INFORMATION_SCHEMA.GLOBAL_STATUS WHERE VARIABLE_NAME = 'wsrep_last_committed';
+expect 2
+2
+connect con1, localhost, root;
+SET DEBUG_SYNC = "ha_commit_trans_after_prepare SIGNAL after_prepare_reached WAIT_FOR continue";
+INSERT INTO t1 VALUES (7);
+connection default;
+SET DEBUG_SYNC = "now WAIT_FOR after_prepare_reached";
+# Kill the server
+Expect seqno 3
+3
+Expect 5 7
+SELECT * FROM t1;
+f1
+5
+7
+DROP TABLE t1;

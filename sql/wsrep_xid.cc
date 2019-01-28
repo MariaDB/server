@@ -20,6 +20,8 @@
 #include "sql_class.h"
 #include "wsrep_mysqld.h" // for logging macros
 
+#include <algorithm> /* std::sort() */
+
 /*
  * WSREPXid
  */
@@ -153,4 +155,36 @@ bool wsrep_get_SE_checkpoint(wsrep_uuid_t& uuid, wsrep_seqno_t& seqno)
   seqno= wsrep_xid_seqno(xid);
 
   return false;
+}
+
+/*
+  Sort order for XIDs. Wsrep XIDs are sorted according to
+  seqno in ascending order. Non-wsrep XIDs are considered
+  equal among themselves and greater than with respect
+  to wsrep XIDs.
+ */
+struct Wsrep_xid_cmp
+{
+  bool operator()(const XID& left, const XID& right) const
+  {
+    const bool left_is_wsrep= wsrep_is_wsrep_xid(&left);
+    const bool right_is_wsrep= wsrep_is_wsrep_xid(&right);
+    if (left_is_wsrep && right_is_wsrep)
+    {
+      return (wsrep_xid_seqno(left) < wsrep_xid_seqno(right));
+    }
+    else if (left_is_wsrep)
+    {
+      return true;
+    }
+    else
+    {
+      return false;
+    }
+  }
+};
+
+void wsrep_sort_xid_array(XID *array, int len)
+{
+  std::sort(array, array + len, Wsrep_xid_cmp());
 }
