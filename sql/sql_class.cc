@@ -786,11 +786,6 @@ THD::THD(my_thread_id id, bool is_wsrep_applier, bool skip_global_sys_var_lock)
   mysql_mutex_init(key_LOCK_wakeup_ready, &LOCK_wakeup_ready, MY_MUTEX_INIT_FAST);
   mysql_mutex_init(key_LOCK_thd_kill, &LOCK_thd_kill, MY_MUTEX_INIT_FAST);
   mysql_cond_init(key_COND_wakeup_ready, &COND_wakeup_ready, 0);
-  /*
-    LOCK_thread_count goes before LOCK_thd_data - the former is called around
-    'delete thd', the latter - in THD::~THD
-  */
-  mysql_mutex_record_order(&LOCK_thread_count, &LOCK_thd_data);
 
   /* Variables with default values */
   proc_info="login";
@@ -1640,8 +1635,6 @@ THD::~THD()
   DBUG_ENTER("~THD()");
   /* Make sure threads are not available via server_threads.  */
   assert_not_linked();
-  /* This takes a long time so we should not do this under LOCK_thread_count */
-  mysql_mutex_assert_not_owner(&LOCK_thread_count);
 
   /*
     In error cases, thd may not be current thd. We have to fix this so

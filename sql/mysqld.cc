@@ -689,10 +689,7 @@ static std::atomic<char*> shutdown_user;
 
 pthread_key(THD*, THR_THD);
 
-/*
-  LOCK_thread_count protects the following variables:
-  thread_count		Number of threads with THD that servers queries.
-*/
+/** To be removed */
 mysql_mutex_t LOCK_thread_count;
 
 /*
@@ -1794,13 +1791,9 @@ static void close_connections(void)
   /* All threads has now been aborted */
   DBUG_PRINT("quit", ("Waiting for threads to die (count=%u)",
                       uint32_t(thread_count)));
-  mysql_mutex_lock(&LOCK_thread_count);
+
   while (thread_count)
-  {
-    mysql_cond_wait(&COND_thread_count, &LOCK_thread_count);
-    DBUG_PRINT("quit",("One thread died (count=%u)", uint32_t(thread_count)));
-  }
-  mysql_mutex_unlock(&LOCK_thread_count);
+    my_sleep(1000);
 
   DBUG_PRINT("quit",("close_connections thread"));
   DBUG_VOID_RETURN;
@@ -4469,7 +4462,6 @@ static int init_thread_environment()
   mysql_mutex_init(key_LOCK_global_system_variables,
                    &LOCK_global_system_variables, MY_MUTEX_INIT_FAST);
   mysql_mutex_record_order(&LOCK_active_mi, &LOCK_global_system_variables);
-  mysql_mutex_record_order(&LOCK_status, &LOCK_thread_count);
   mysql_prlock_init(key_rwlock_LOCK_system_variables_hash,
                     &LOCK_system_variables_hash);
   mysql_mutex_init(key_LOCK_prepared_stmt_count,

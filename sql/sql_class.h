@@ -2152,14 +2152,11 @@ struct THD_count
   */
   ~THD_count()
   {
-    uint32_t t= thread_count--;
+#ifndef DBUG_OFF
+    uint32_t t=
+#endif
+    thread_count--;
     DBUG_ASSERT(t > 0);
-    if (t == 1)
-    {
-      mysql_mutex_lock(&LOCK_thread_count);
-      mysql_cond_broadcast(&COND_thread_count);
-      mysql_mutex_unlock(&LOCK_thread_count);
-    }
   }
 };
 

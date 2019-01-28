@@ -1077,10 +1077,6 @@ void bootstrap(MYSQL_FILE *file)
     thd->profiling.set_query_source(thd->query(), length);
 #endif
 
-    /*
-      We don't need to obtain LOCK_thread_count here because in bootstrap
-      mode we have only one thread.
-    */
     thd->set_time();
     Parser_state parser_state;
     if (parser_state.init(thd, thd->query(), length))
@@ -8994,9 +8990,6 @@ THD *find_thread_by_id(longlong id, bool query_id)
   @param id                     Thread id or query id
   @param kill_signal            Should it kill the query or the connection
   @param type                   Type of id: thread id or query id
-
-  @note
-    This is written such that we have a short lock on LOCK_thread_count
 */
 
 uint
@@ -9061,8 +9054,6 @@ kill_one_thread(THD *thd, longlong id, killed_state kill_signal, killed_type typ
   @param only_kill_query        Should it kill the query or the connection
 
   @note
-    This is written such that we have a short lock on LOCK_thread_count
-
     If we can't kill all threads because of security issues, no threads
     are killed.
 */
