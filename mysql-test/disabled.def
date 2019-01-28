@@ -19,3 +19,4 @@ ssl_crl                  : broken upstream
 ssl_crl_clrpath          : broken upstream
 file_contents            : MDEV-6526 these files are not installed anymore
 lowercase_fs_on          : lower_case_table_names=0 is not an error until 10.1
+partition_open_files_limit : open_files_limit check broken by MDEV-18360
