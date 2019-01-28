@@ -3,5 +3,5 @@ CREATE TABLE t1(c VARCHAR(128)) ENGINE INNODB, encrypted=yes;
 insert into t1 select repeat('a',100);
 # Corrupt the table
 # xtrabackup backup
-FOUND 1 /Database page corruption detected/ in backup.log
+FOUND 1 /Database page corruption detected.*/ in backup.log
 drop table t1;

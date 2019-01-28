@@ -200,6 +200,7 @@ static char*	log_ignored_opt;
 
 extern my_bool opt_use_ssl;
 my_bool opt_ssl_verify_server_cert;
+my_bool opt_extended_validation;
 
 /* === metadata of backup === */
 #define XTRABACKUP_METADATA_FILENAME "xtrabackup_checkpoints"
@@ -760,6 +761,7 @@ enum options_xtrabackup
   OPT_XTRA_DATABASES,
   OPT_XTRA_DATABASES_FILE,
   OPT_XTRA_PARALLEL,
+  OPT_XTRA_EXTENDED_VALIDATION,
   OPT_XTRA_STREAM,
   OPT_XTRA_COMPRESS,
   OPT_XTRA_COMPRESS_THREADS,
@@ -1220,6 +1222,14 @@ struct my_option xb_server_options[] =
    (G_PTR*) &xtrabackup_parallel, (G_PTR*) &xtrabackup_parallel, 0, GET_INT,
    REQUIRED_ARG, 1, 1, INT_MAX, 0, 0, 0},
 
+  {"extended_validation", OPT_XTRA_EXTENDED_VALIDATION,
+   "Enable extended validation for Innodb data pages during backup phase."
+   "Will slow down backup considerably, in case encryption is used.",
+   (G_PTR*)&opt_extended_validation,
+   (G_PTR*)&opt_extended_validation,
+   0, GET_BOOL, NO_ARG, FALSE, 0, 0, 0, 0, 0},
+
+
    {"log", OPT_LOG, "Ignored option for MySQL option compatibility",
    (G_PTR*) &log_ignored_opt, (G_PTR*) &log_ignored_opt, 0,
    GET_STR, OPT_ARG, 0, 0, 0, 0, 0, 0},
@@ -1459,7 +1469,7 @@ debug_sync_point(const char *name)
 }
 
 
-static std::vector<std::string> tables_for_export;
+static std::set<std::string> tables_for_export;
 
 static void append_export_table(const char *dbname, const char *tablename, bool is_remote)
 {
@@ -1471,7 +1481,15 @@ static void append_export_table(const char *dbname, const char *tablename, bool 
     char *p=strrchr(buf, '.');
     if (p) *p=0;
 
-    tables_for_export.push_back(ut_get_name(0,buf));
+    std::string name=ut_get_name(0, buf);
+    /* Strip partition name comment from table name, if any */
+    if (ends_with(name.c_str(), "*/"))
+    {
+      size_t pos= name.rfind("/*");
+      if (pos != std::string::npos)
+         name.resize(pos);
+    }
+    tables_for_export.insert(name);
   }
 }
 
@@ -1486,9 +1504,10 @@ static int create_bootstrap_file()
 
   fputs("SET NAMES UTF8;\n",f);
   enumerate_ibd_files(append_export_table);
-  for (size_t i= 0; i < tables_for_export.size(); i++)
+  for (std::set<std::string>::iterator it = tables_for_export.begin();
+       it != tables_for_export.end(); it++)
   {
-     const char *tab = tables_for_export[i].c_str();
+     const char *tab = it->c_str();
      fprintf(f,
      "BEGIN NOT ATOMIC "
        "DECLARE CONTINUE HANDLER FOR NOT FOUND,SQLEXCEPTION BEGIN END;"
@@ -1518,7 +1537,7 @@ static int prepare_export()
     snprintf(cmdline, sizeof cmdline,
      IF_WIN("\"","") "\"%s\" --mysqld \"%s\" "
       " --defaults-extra-file=./backup-my.cnf --defaults-group-suffix=%s --datadir=."
-      " --innodb --innodb-fast-shutdown=0"
+      " --innodb --innodb-fast-shutdown=0 --loose-partition"
       " --innodb_purge_rseg_truncate_frequency=1 --innodb-buffer-pool-size=%llu"
       " --console  --skip-log-error --bootstrap  < "  BOOTSTRAP_FILENAME IF_WIN("\"",""),
       mariabackup_exe, 
@@ -1530,7 +1549,7 @@ static int prepare_export()
     sprintf(cmdline,
      IF_WIN("\"","") "\"%s\" --mysqld"
       " --defaults-file=./backup-my.cnf --defaults-group-suffix=%s --datadir=."
-      " --innodb --innodb-fast-shutdown=0"
+      " --innodb --innodb-fast-shutdown=0 --loose-partition"
       " --innodb_purge_rseg_truncate_frequency=1 --innodb-buffer-pool-size=%llu"
       " --console  --log-error= --bootstrap  < "  BOOTSTRAP_FILENAME IF_WIN("\"",""),
       mariabackup_exe,
@@ -5841,7 +5860,6 @@ check_all_privileges()
 	mysql_free_result(result);
 
 	int check_result = PRIVILEGE_OK;
-	bool reload_checked = false;
 
 	/* FLUSH TABLES WITH READ LOCK */
 	if (!opt_no_lock)
@@ -5849,7 +5867,6 @@ check_all_privileges()
 		check_result |= check_privilege(
 			granted_privileges,
 			"RELOAD", "*", "*");
-		reload_checked = true;
 	}
 
 	if (!opt_no_lock)

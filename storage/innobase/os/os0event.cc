@@ -31,8 +31,6 @@ Created 2012-09-23 Sunny Bains
 #include <synchapi.h>
 #endif /* _WIN32 */
 
-#include <list>
-
 /** The number of microsecnds in a second. */
 static const ulint MICROSECS_IN_A_SECOND = 1000000;
 
@@ -43,9 +41,6 @@ typedef CONDITION_VARIABLE	os_cond_t;
 /** Native condition variable */
 typedef pthread_cond_t		os_cond_t;
 #endif /* _WIN32 */
-
-typedef std::list<os_event_t, ut_allocator<os_event_t> >	os_event_list_t;
-typedef os_event_list_t::iterator				event_iter_t;
 
 /** InnoDB condition variable. */
 struct os_event {
@@ -126,7 +121,10 @@ struct os_event {
 	/** @return true if the event is in the signalled state. */
 	bool is_set() const UNIV_NOTHROW
 	{
-		return(m_set);
+		mutex.enter();
+		bool is_set = m_set;
+		mutex.exit();
+		return is_set;
 	}
 
 private:
@@ -224,16 +222,13 @@ private:
 	int64_t			signal_count;	/*!< this is incremented
 						each time the event becomes
 						signaled */
-	EventMutex		mutex;		/*!< this mutex protects
+	mutable EventMutex	mutex;		/*!< this mutex protects
 						the next fields */
 
 
 	os_cond_t		cond_var;	/*!< condition variable is
 						used in waiting for the event */
 
-public:
-	event_iter_t		event_iter;	/*!< For O(1) removal from
-						list */
 protected:
 	// Disable copying
 	os_event(const os_event&);
@@ -541,8 +536,6 @@ os_event_destroy(
 	os_event_t&	event)			/*!< in/own: event to free */
 
 {
-	if (event != NULL) {
-		UT_DELETE(event);
-		event = NULL;
-	}
+	UT_DELETE(event);
+	event = NULL;
 }
