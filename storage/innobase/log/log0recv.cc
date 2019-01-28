@@ -152,9 +152,13 @@ struct file_name_t {
 	/** Status of the tablespace */
 	fil_status	status;
 
+	/** FSP_SIZE of tablespace */
+	ulint		size;
+
 	/** Constructor */
 	file_name_t(std::string name_, bool deleted) :
-		name(name_), space(NULL), status(deleted ? DELETED: NORMAL) {}
+		name(name_), space(NULL), status(deleted ? DELETED: NORMAL),
+		size(0) {}
 };
 
 /** Map of dirty tablespaces during recovery */
@@ -326,6 +330,11 @@ fil_name_process(
 			ut_ad(space != NULL);
 
 			if (f.space == NULL || f.space == space) {
+
+				if (f.size && f.space == NULL) {
+					fil_space_set_recv_size(space->id, f.size);
+				}
+
 				f.name = fname.name;
 				f.space = space;
 				f.status = file_name_t::NORMAL;
@@ -2394,11 +2403,24 @@ recv_parse_log_rec(
 	}
 
 	if (*page_no == 0 && *type == MLOG_4BYTES
+	    && apply
 	    && mach_read_from_2(old_ptr) == FSP_HEADER_OFFSET + FSP_SIZE) {
 		old_ptr += 2;
-		fil_space_set_recv_size(*space,
-					mach_parse_compressed(&old_ptr,
-							      end_ptr));
+
+		ulint size = mach_parse_compressed(&old_ptr, end_ptr);
+
+		recv_spaces_t::iterator it = recv_spaces.find(*space);
+
+		ut_ad(!recv_sys->mlog_checkpoint_lsn
+		      || *space == TRX_SYS_SPACE
+		      || srv_is_undo_tablespace(*space)
+		      || it != recv_spaces.end());
+
+		if (it != recv_spaces.end() && !it->second.space) {
+			it->second.size = size;
+		}
+
+		fil_space_set_recv_size(*space, size);
 	}
 
 	return(new_ptr - ptr);
