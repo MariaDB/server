@@ -3105,6 +3105,9 @@ row_sel_store_mysql_rec(
 			    || (!prebuilt->read_just_key
 				&& !prebuilt->m_read_virtual_key)
 			    || !rec_clust) {
+				// Initialize at least a NULL bit
+				mysql_rec[templ->mysql_null_byte_offset]
+					|= (byte) templ->mysql_null_bit_mask;
 				continue;
 			}
 

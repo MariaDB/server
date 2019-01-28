@@ -449,6 +449,23 @@ insert into t1 values (11),(12);
 set timestamp=1523466004.169435;
 delete from t1 where pk in (11, 12);
 
+CREATE OR REPLACE TABLE t1 (
+   pk INTEGER AUTO_INCREMENT,
+   f1 VARCHAR(3) NOT NULL DEFAULT '',
+   f2 MEDIUMTEXT NOT NULL DEFAULT '',
+   f3 VARCHAR(472) NULL,
+   f4 DECIMAL(44,0) UNSIGNED NULL,
+   v1 VARCHAR(3) AS (f1) VIRTUAL,
+   v2 LONGBLOB AS (f2) VIRTUAL,
+   PRIMARY KEY(pk)
+) ENGINE=InnoDB WITH SYSTEM VERSIONING PARTITION BY system_time INTERVAL 5 MONTH ( PARTITION p1 HISTORY, PARTITION pn CURRENT );
+
+INSERT INTO t1 (f1) VALUES ('foo');
+DELETE FROM t1 ORDER BY pk LIMIT 1;
+
+# Cleanup
+DROP TABLE t1;
+
 --echo # Test cleanup
 drop database test;
 create database test;
