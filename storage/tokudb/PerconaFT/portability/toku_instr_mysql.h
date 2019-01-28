@@ -16,7 +16,7 @@
 #include "mysql/psi/mysql_thread.h"  // PSI_mutex
 #include "mysql/psi/mysql_stage.h"   // PSI_stage
 
-#if (MYSQL_VERSION_ID >= 80000)
+#if (MYSQL_VERSION_ID >= 80000) && ( MYSQL_VERSION_ID <= 100000)
 #include "mysql/psi/mysql_cond.h"
 #include "mysql/psi/mysql_mutex.h"
 #include "mysql/psi/mysql_rwlock.h"
