@@ -6205,6 +6205,11 @@ void do_connect(struct st_command *command)
     if (con_slot == next_con)
       next_con++; /* if we used the next_con slot, advance the pointer */
   }
+  else // Failed to connect. Free the memory.
+  {
+    mysql_close(con_slot->mysql);
+    con_slot->mysql= NULL;
+  }
 
   dynstr_free(&ds_connection_name);
   dynstr_free(&ds_host);

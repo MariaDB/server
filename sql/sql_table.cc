@@ -9878,7 +9878,10 @@ bool mysql_checksum_table(THD *thd, TABLE_LIST *tables,
       {
 	/* calculating table's checksum */
 	ha_checksum crc= 0;
-        uchar null_mask=256 -  (1 << t->s->last_null_bit_pos);
+        DBUG_ASSERT(t->s->last_null_bit_pos < 8);
+        uchar null_mask= (t->s->last_null_bit_pos ?
+                          (256 -  (1 << t->s->last_null_bit_pos)):
+                          0);
 
         t->use_all_columns();
 
