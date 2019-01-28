@@ -206,6 +206,11 @@ static char*	innobase_reset_all_monitor_counter;
 
 static ulong	innodb_flush_method;
 
+/** Deprecated; no effect other than issuing a deprecation warning. */
+static char* innodb_file_format;
+/** Deprecated; no effect other than issuing a deprecation warning. */
+static char* innodb_large_prefix;
+
 /* This variable can be set in the server configure file, specifying
 stopword table to be used */
 static char*	innobase_server_stopword_table;
@@ -3704,6 +3709,17 @@ static int innodb_init_params()
 	static char	current_dir[3];
 	char		*default_path;
 	ulong		num_pll_degree;
+
+	if (innodb_large_prefix || innodb_file_format) {
+		const char* p = innodb_file_format
+			? "file_format"
+			: "large_prefix";
+		sql_print_warning("The parameter innodb_%s is deprecated"
+				  " and has no effect."
+				  " It may be removed in future releases."
+				  " See https://mariadb.com/kb/en/library/"
+				  "xtradbinnodb-file-format/", p);
+	}
 
 	/* Check that values don't overflow on 32-bit systems. */
 	if (sizeof(ulint) == 4) {
@@ -18989,6 +19005,13 @@ static MYSQL_SYSVAR_ENUM(flush_method, innodb_flush_method,
   NULL, NULL, IF_WIN(SRV_ALL_O_DIRECT_FSYNC, SRV_FSYNC),
   &innodb_flush_method_typelib);
 
+static MYSQL_SYSVAR_STR(file_format, innodb_file_format,
+  PLUGIN_VAR_RQCMDARG | PLUGIN_VAR_READONLY,
+  "Deprecated parameter with no effect.", NULL, NULL, NULL);
+static MYSQL_SYSVAR_STR(large_prefix, innodb_large_prefix,
+  PLUGIN_VAR_RQCMDARG | PLUGIN_VAR_READONLY,
+  "Deprecated parameter with no effect.", NULL, NULL, NULL);
+
 static MYSQL_SYSVAR_BOOL(force_load_corrupted, srv_load_corrupted,
   PLUGIN_VAR_NOCMDARG | PLUGIN_VAR_READONLY,
   "Force InnoDB to load metadata of corrupted table.",
@@ -20033,6 +20056,7 @@ static struct st_mysql_sys_var* innobase_system_variables[]= {
   MYSQL_SYSVAR(read_io_threads),
   MYSQL_SYSVAR(write_io_threads),
   MYSQL_SYSVAR(file_per_table),
+  MYSQL_SYSVAR(file_format), /* deprecated in MariaDB 10.2; no effect */
   MYSQL_SYSVAR(flush_log_at_timeout),
   MYSQL_SYSVAR(flush_log_at_trx_commit),
   MYSQL_SYSVAR(flush_method),
@@ -20046,6 +20070,7 @@ static struct st_mysql_sys_var* innobase_system_variables[]= {
   MYSQL_SYSVAR(ft_min_token_size),
   MYSQL_SYSVAR(ft_num_word_optimize),
   MYSQL_SYSVAR(ft_sort_pll_degree),
+  MYSQL_SYSVAR(large_prefix), /* deprecated in MariaDB 10.2; no effect */
   MYSQL_SYSVAR(force_load_corrupted),
   MYSQL_SYSVAR(lock_schedule_algorithm),
   MYSQL_SYSVAR(locks_unsafe_for_binlog),
