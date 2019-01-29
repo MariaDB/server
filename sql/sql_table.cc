@@ -4961,43 +4961,7 @@ int create_table_impl(THD *thd,
     thd->thread_specific_used= TRUE;
     create_info->table= table;                  // Store pointer to table
   }
-#ifdef WITH_PARTITION_STORAGE_ENGINE
-  else if (thd->work_part_info && frm_only)
-  {
-    /*
-      For partitioned tables we can't find some problems with table
-      until table is opened. Therefore in order to disallow creation
-      of corrupted tables we have to try to open table as the part
-      of its creation process.
-      In cases when both .FRM and SE part of table are created table
-      is implicitly open in ha_create_table() call.
-      In cases when we create .FRM without SE part we have to open
-      table explicitly.
-    */
-    TABLE table;
-    TABLE_SHARE share;
 
-    init_tmp_table_share(thd, &share, db->str, 0, table_name->str, path);
-
-    bool result= (open_table_def(thd, &share, GTS_TABLE) ||
-                  open_table_from_share(thd, &share, &empty_clex_str, 0,
-                                        (uint) READ_ALL, 0, &table, true));
-    if (!result)
-      (void) closefrm(&table);
-
-    free_table_share(&share);
-
-    if (result)
-    {
-      char frm_name[FN_REFLEN];
-      strxnmov(frm_name, sizeof(frm_name), path, reg_ext, NullS);
-      (void) mysql_file_delete(key_file_frm, frm_name, MYF(0));
-      (void) file->ha_create_partitioning_metadata(path, NULL, CHF_DELETE_FLAG);
-      goto err;
-    }
-  }
-#endif
-  
   error= 0;
 err:
   THD_STAGE_INFO(thd, stage_after_create);
