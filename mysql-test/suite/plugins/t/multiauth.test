@@ -13,7 +13,7 @@ if (!$AUTH_ED25519_SO) {
 install soname 'auth_socket';
 install soname 'auth_ed25519';
 
---let $try_auth=$MYSQL_TEST < $MYSQLTEST_VARDIR/tmp/peercred_test.txt
+--let $try_auth=$MYSQL_TEST < $MYSQLTEST_VARDIR/tmp/peercred_test.txt 2>&1
 
 --write_file $MYSQLTEST_VARDIR/tmp/peercred_test.txt
 --let $replace1=$USER@localhost
@@ -173,6 +173,24 @@ set password for mysqltest1 = password('bla');
 --exec $try_auth -u mysqltest1 -pbla
 --replace_result $dreplace "drop user USER"
 eval $dreplace, mysqltest1;
+
+#
+# missing client-side plugin
+#
+create user mysqltest1 identified via ed25519 as password("good");
+show create user mysqltest1;
+--echo # no plugin = failure
+--replace_result $plugindir <PLUGINDIR>
+--error 1
+--exec $try_auth -u mysqltest1 -pgood --plugin-dir=$plugindir/no
+alter user mysqltest1 identified via ed25519 as password("good") OR mysql_native_password as password("works");
+show create user mysqltest1;
+--echo # no plugin = failure
+--error 1
+--exec $try_auth -u mysqltest1 -pgood --plugin-dir=$plugindir/no
+--echo # no plugin, second password works = ok
+--exec $try_auth -u mysqltest1 -pworks --plugin-dir=$plugindir/no
+drop user mysqltest1;
 
 uninstall soname 'auth_socket';
 uninstall soname 'auth_ed25519';
