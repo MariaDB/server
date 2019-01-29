@@ -512,7 +512,7 @@ SPIDER_DB_ROW *spider_db_oracle_row::clone()
   spider_db_oracle_row *clone_row;
   DBUG_ENTER("spider_db_oracle_row::clone");
   DBUG_PRINT("info",("spider this=%p", this));
-  if (!(clone_row = new spider_db_oracle_row()))
+  if (!(clone_row = new spider_db_oracle_row(dbton_id)))
   {
     DBUG_RETURN(NULL);
   }
@@ -772,9 +772,9 @@ int spider_db_oracle_row::fetch()
 }
 
 spider_db_oracle_result::spider_db_oracle_result(SPIDER_DB_CONN *in_db_conn) :
-  spider_db_result(in_db_conn, spider_dbton_oracle.dbton_id),
+  spider_db_result(in_db_conn),
   db_conn(NULL), stmtp(NULL), field_count(0), access_charset(NULL),
-  fetched(FALSE)
+  fetched(FALSE), row(in_db_conn->dbton_id)
 {
   DBUG_ENTER("spider_db_oracle_result::spider_db_oracle_result");
   DBUG_PRINT("info",("spider this=%p", this));
@@ -4365,7 +4365,8 @@ int spider_db_oracle_util::append_having(
 spider_oracle_share::spider_oracle_share(
   st_spider_share *share
 ) : spider_db_share(
-  share
+  share,
+  spider_dbton_oracle.dbton_id
 ),
   table_select(NULL),
   table_select_pos(0),
