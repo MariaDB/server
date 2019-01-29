@@ -152,7 +152,7 @@ xb_mysql_connect()
 		return(NULL);
 	}
 
-	xb_mysql_query(connection, "SET SESSION wait_timeout=2147483",
+	xb_mysql_query(connection, "SET SESSION wait_timeout=2147483, max_statement_time=0",
 		       false, true);
 
 	return(connection);
