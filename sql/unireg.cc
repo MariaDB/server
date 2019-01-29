@@ -475,49 +475,6 @@ err:
 }
 
 
-/**
-  Create a frm (table definition) file and the tables
-
-  @param thd           Thread handler
-  @param frm           Binary frm image of the table to create
-  @param path          Name of file (including database, without .frm)
-  @param db            Data base name
-  @param table_name    Table name
-  @param create_info   create info parameters
-  @param file          Handler to use or NULL if only frm needs to be created
-
-  @retval 0   ok
-  @retval 1   error
-*/
-
-int rea_create_table(THD *thd, LEX_CUSTRING *frm,
-                     const char *path, const char *db, const char *table_name,
-                     HA_CREATE_INFO *create_info, handler *file,
-                     bool no_ha_create_table)
-{
-  DBUG_ENTER("rea_create_table");
-
-  if (thd->variables.keep_files_on_create)
-    create_info->options|= HA_CREATE_KEEP_FILES;
-
-  if (file->ha_create_partitioning_metadata(path, NULL, CHF_CREATE_FLAG))
-    goto err_part;
-
-  if (!no_ha_create_table)
-  {
-    if (ha_create_table(thd, path, db, table_name, create_info, frm))
-      goto err_part;
-  }
-
-  DBUG_RETURN(0);
-
-err_part:
-  file->ha_create_partitioning_metadata(path, NULL, CHF_DELETE_FLAG);
-  deletefrm(path);
-  DBUG_RETURN(1);
-} /* rea_create_table */
-
-
 /* Pack keyinfo and keynames to keybuff for save in form-file. */
 
 static uint pack_keys(uchar *keybuff, uint key_count, KEY *keyinfo,

@@ -4937,9 +4937,22 @@ int create_table_impl(THD *thd,
     */
     if (!file || thd->is_error())
       goto err;
-    if (rea_create_table(thd, frm, path, db->str, table_name->str, create_info,
-                         file, frm_only))
+
+    if (thd->variables.keep_files_on_create)
+      create_info->options|= HA_CREATE_KEEP_FILES;
+
+    if (file->ha_create_partitioning_metadata(path, NULL, CHF_CREATE_FLAG))
       goto err;
+
+    if (!frm_only)
+    {
+      if (ha_create_table(thd, path, db->str, table_name->str, create_info, frm))
+      {
+        file->ha_create_partitioning_metadata(path, NULL, CHF_DELETE_FLAG);
+        deletefrm(path);
+        goto err;
+      }
+    }
   }
 
   create_info->table= 0;
