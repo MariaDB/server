@@ -5654,7 +5654,6 @@ ha_innobase::commit_inplace_alter_table(
 	Alter_inplace_info*	ha_alter_info,
 	bool			commit)
 {
-	dberr_t				error;
 	ha_innobase_inplace_ctx*	ctx0
 		= static_cast<ha_innobase_inplace_ctx*>
 		(ha_alter_info->handler_ctx);
@@ -5721,7 +5720,7 @@ ha_innobase::commit_inplace_alter_table(
 		transactions collected during crash recovery could be
 		holding InnoDB locks only, not MySQL locks. */
 
-		error = row_merge_lock_table(
+		dberr_t error = row_merge_lock_table(
 			prebuilt->trx, ctx->old_table, LOCK_X);
 
 		if (error != DB_SUCCESS) {
@@ -5906,9 +5905,9 @@ rollback_trx:
 			file operations that will be performed in
 			commit_cache_rebuild(), and if none, generate
 			the redo log for these operations. */
-			error = fil_mtr_rename_log(ctx->old_table,
-						   ctx->new_table,
-						   ctx->tmp_name, &mtr);
+			dberr_t error = fil_mtr_rename_log(
+				ctx->old_table, ctx->new_table, ctx->tmp_name,
+				&mtr);
 			if (error != DB_SUCCESS) {
 				/* Out of memory or a problem will occur
 				when renaming files. */
@@ -6033,39 +6032,30 @@ rollback_trx:
 			/* Rename the tablespace files. */
 			commit_cache_rebuild(ctx);
 
-			error = innobase_update_foreign_cache(ctx, user_thd);
-			if (error != DB_SUCCESS) {
-				goto foreign_fail;
+			if (innobase_update_foreign_cache(ctx, user_thd)
+			    != DB_SUCCESS
+			    && prebuilt->trx->check_foreigns) {
+foreign_fail:
+				push_warning_printf(
+					user_thd,
+					Sql_condition::WARN_LEVEL_WARN,
+					ER_ALTER_INFO,
+					"failed to load FOREIGN KEY"
+					" constraints");
 			}
 		} else {
-			error = innobase_update_foreign_cache(ctx, user_thd);
+			bool fk_fail = innobase_update_foreign_cache(
+				ctx, user_thd) != DB_SUCCESS;
 
-			if (error != DB_SUCCESS) {
-foreign_fail:
-				/* The data dictionary cache
-				should be corrupted now.  The
-				best solution should be to
-				kill and restart the server,
-				but the *.frm file has not
-				been replaced yet. */
-				my_error(ER_CANNOT_ADD_FOREIGN,
-					 MYF(0));
-				sql_print_error(
-					"InnoDB: dict_load_foreigns()"
-					" returned %u for %s",
-					(unsigned) error,
-					thd_query_string(user_thd)
-					->str);
-				ut_ad(0);
-			} else {
-				if (!commit_cache_norebuild(
-					    ctx, table, trx)) {
-					ut_a(!prebuilt->trx->check_foreigns);
-				}
+			if (!commit_cache_norebuild(ctx, table, trx)) {
+				fk_fail = true;
+				ut_ad(!prebuilt->trx->check_foreigns);
+			}
 
-				innobase_rename_columns_cache(
-					ha_alter_info, table,
-					ctx->new_table);
+			innobase_rename_columns_cache(ha_alter_info, table,
+						      ctx->new_table);
+			if (fk_fail && prebuilt->trx->check_foreigns) {
+				goto foreign_fail;
 			}
 		}
 		DBUG_INJECT_CRASH("ib_commit_inplace_crash",
