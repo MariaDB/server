@@ -181,39 +181,24 @@ err:
   @param  thd   Thread context.
   @param  db    Name of the database to which the table belongs to.
   @param  name  Table name.
-  @param  path  For temporary tables only - path to table files.
-                Otherwise NULL (the path is calculated from db and table names).
 
   @retval  FALSE  Success.
   @retval  TRUE   Error.
 */
 
-bool dd_recreate_table(THD *thd, const char *db, const char *table_name,
-                       const char *path)
+bool dd_recreate_table(THD *thd, const char *db, const char *table_name)
 {
-  bool error= TRUE;
   HA_CREATE_INFO create_info;
   char path_buf[FN_REFLEN + 1];
   DBUG_ENTER("dd_recreate_table");
 
+  /* There should be a exclusive metadata lock on the table. */
+  DBUG_ASSERT(thd->mdl_context.is_lock_owner(MDL_key::TABLE, db, table_name,
+                                             MDL_EXCLUSIVE));
   create_info.init();
-
-  if (path)
-    create_info.options|= HA_LEX_CREATE_TMP_TABLE;
-  else
-  {
-    build_table_filename(path_buf, sizeof(path_buf) - 1,
-                         db, table_name, "", 0);
-    path= path_buf;
-
-    /* There should be a exclusive metadata lock on the table. */
-    DBUG_ASSERT(thd->mdl_context.is_lock_owner(MDL_key::TABLE, db, table_name,
-                                               MDL_EXCLUSIVE));
-  }
-
+  build_table_filename(path_buf, sizeof(path_buf) - 1,
+                       db, table_name, "", 0);
   /* Attempt to reconstruct the table. */
-  error= ha_create_table(thd, path, db, table_name, &create_info, NULL);
-
-  DBUG_RETURN(error);
+  DBUG_RETURN(ha_create_table(thd, path_buf, db, table_name, &create_info, 0));
 }
 
