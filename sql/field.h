@@ -4972,7 +4972,7 @@ public:
   /** structure with parsed options (for comparing fields in ALTER TABLE) */
   ha_field_option_struct *option_struct;
   uint	offset;
-  uint8 interval_id;                    // For rea_create_table
+  uint8 interval_id;
   bool create_if_not_exists;            // Used in ALTER TABLE IF NOT EXISTS
 
   Create_field():

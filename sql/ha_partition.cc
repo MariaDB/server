@@ -2828,6 +2828,8 @@ bool ha_partition::create_handler_file(const char *name)
       }
     }
     (void) mysql_file_close(file, MYF(0));
+    if (result)
+      mysql_file_delete(key_file_partition, file_name, MYF(MY_WME));
   }
   else
     result= TRUE;
