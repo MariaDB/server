@@ -214,6 +214,15 @@ IF (WITH_ASAN)
   ENDIF()
 ENDIF()
 
+OPTION(WITH_UBSAN "Enable undefined behavior sanitizer" OFF)
+IF (WITH_UBSAN)
+  IF(SECURITY_HARDENED)
+    MESSAGE(FATAL_ERROR "WITH_UBSAN and SECURITY_HARDENED are mutually exclusive")
+  ENDIF()
+  MY_CHECK_AND_SET_COMPILER_FLAG("-fsanitize=undefined" DEBUG RELWITHDEBINFO)
+ENDIF()
+
+
 # enable security hardening features, like most distributions do
 # in our benchmarks that costs about ~1% of performance, depending on the load
 IF(CMAKE_C_COMPILER_VERSION VERSION_LESS "4.6")
