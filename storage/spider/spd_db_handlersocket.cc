@@ -500,7 +500,7 @@ SPIDER_DB_ROW *spider_db_handlersocket_row::clone()
   uint i;
   DBUG_ENTER("spider_db_handlersocket_row::clone");
   DBUG_PRINT("info",("spider this=%p", this));
-  if (!(clone_row = new spider_db_handlersocket_row()))
+  if (!(clone_row = new spider_db_handlersocket_row(dbton_id)))
   {
     DBUG_RETURN(NULL);
   }
@@ -603,7 +603,7 @@ bool spider_db_handlersocket_result_buffer::check_size(
 
 spider_db_handlersocket_result::spider_db_handlersocket_result(
   SPIDER_DB_CONN *in_db_conn
-) : spider_db_result(in_db_conn, spider_dbton_handlersocket.dbton_id)
+) : spider_db_result(in_db_conn), row(in_db_conn->dbton_id)
 {
   DBUG_ENTER("spider_db_handlersocket_result::spider_db_handlersocket_result");
   DBUG_PRINT("info",("spider this=%p", this));
@@ -3953,7 +3953,8 @@ int spider_db_handlersocket_util::append_having(
 spider_handlersocket_share::spider_handlersocket_share(
   st_spider_share *share
 ) : spider_db_share(
-  share
+  share,
+  spider_dbton_handlersocket.dbton_id
 ),
   table_names_str(NULL),
   db_names_str(NULL),
