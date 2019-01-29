@@ -550,3 +550,27 @@ SELECT HEX(a) FROM t1;
 HEX(a)
 C3A4
 DROP TABLE t1;
+#
+# MDEV-15744: Assertion `derived->table' failed in mysql_derived_merge_for_insert
+#
+create table t1 (a int, b int);
+CREATE OR REPLACE VIEW t2 AS SELECT * FROM t1;
+CREATE VIEW v2 AS SELECT * FROM t2;
+LOAD DATA INFILE '../../std_data/loaddata7.dat' INTO TABLE v2
+FIELDS TERMINATED BY ',' LINES TERMINATED BY '\r\n';
+select * from v2;
+a	b
+2	2
+3	3
+4	4
+5	5
+6	6
+select * from t2;
+a	b
+2	2
+3	3
+4	4
+5	5
+6	6
+DROP VIEW IF EXISTS v2,t2;
+DROP TABLE IF EXISTS t1;
