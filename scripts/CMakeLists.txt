@@ -190,6 +190,9 @@ ELSE()
   SET(localstatedir ${MYSQL_DATADIR})
 ENDIF()
 
+get_filename_component(MYSQL_UNIX_DIR ${MYSQL_UNIX_ADDR} DIRECTORY)
+SET(mysqlunixdir ${MYSQL_UNIX_DIR})
+
 SET(resolveip_locations "$basedir/${INSTALL_BINDIR} $basedir/bin")
 SET(mysqld_locations "$basedir/${INSTALL_SBINDIR} $basedir/libexec $basedir/sbin $basedir/bin")
 SET(errmsg_locations "$basedir/${INSTALL_MYSQLSHAREDIR}/english $basedir/share/english $basedir/share/mysql/english")
@@ -204,6 +207,18 @@ CONFIGURE_FILE(${CMAKE_CURRENT_SOURCE_DIR}/mysql_install_db.sh
 
 INSTALL_SCRIPT(
  "${CMAKE_CURRENT_BINARY_DIR}/mysql_install_db"
+  DESTINATION ${INSTALL_SCRIPTDIR}
+  COMPONENT Server
+  )
+
+CONFIGURE_FILE(${CMAKE_CURRENT_SOURCE_DIR}/galera_new_cluster.sh
+  ${CMAKE_CURRENT_BINARY_DIR}/galera_new_cluster ESCAPE_QUOTES @ONLY)
+  EXECUTE_PROCESS(
+  COMMAND chmod +x ${CMAKE_CURRENT_BINARY_DIR}/galera_new_cluster
+  )
+
+INSTALL_SCRIPT(
+ "${CMAKE_CURRENT_BINARY_DIR}/galera_new_cluster"
   DESTINATION ${INSTALL_SCRIPTDIR}
   COMPONENT Server
   )
