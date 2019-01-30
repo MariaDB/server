@@ -2002,6 +2002,11 @@ public:
   static const HA_ALTER_FLAGS ALTER_DROP_CHECK_CONSTRAINT= 1ULL << 40;
 
   /**
+    Change in index length such that it doesn't require index rebuild.
+  */
+  static const HA_ALTER_FLAGS ALTER_COLUMN_INDEX_LENGTH= 1ULL << 41;
+
+  /**
     Create options (like MAX_ROWS) for the new version of table.
 
     @note The referenced instance of HA_CREATE_INFO object was already
