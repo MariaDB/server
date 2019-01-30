@@ -2401,8 +2401,11 @@ Locked_tables_list::reopen_tables(THD *thd)
                          mysql_lock_merge(thd->lock, lock)) == NULL)
     {
       unlink_all_closed_tables(thd, lock, reopen_count);
-      if (! thd->killed)
+      if (! thd->killed) {
         my_error(ER_LOCK_DEADLOCK, MYF(0));
+        if (global_system_variables.log_warnings > 2)
+          sql_print_information("deadlock in Locked_tables_list");
+      }
       DBUG_RETURN(TRUE);
     }
     thd->lock= merged_lock;
@@ -2825,6 +2828,8 @@ request_backoff_action(enum_open_table_action action_arg,
   if (action_arg == OT_BACKOFF_AND_RETRY && m_has_locks)
   {
     my_error(ER_LOCK_DEADLOCK, MYF(0));
+    if (global_system_variables.log_warnings > 2)
+      sql_print_information("deadlock in request_backoff_action");
     m_thd->mark_transaction_to_rollback(true);
     return TRUE;
   }

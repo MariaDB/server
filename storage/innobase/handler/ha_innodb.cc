@@ -2023,6 +2023,14 @@ convert_error_code_to_mysql(
 
 		if (thd != NULL) {
 			thd_mark_transaction_to_rollback(thd, 1);
+			if (global_system_variables.log_warnings > 2) {
+				size_t len;
+				const char* q = innobase_get_stmt_unsafe(
+					thd, &len);
+				sql_print_information(
+					"InnoDB deadlock for %s",
+					q ? q : "(unknown)");
+			}
 		}
 
 		return(HA_ERR_LOCK_DEADLOCK);

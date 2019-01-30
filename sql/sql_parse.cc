@@ -7841,7 +7841,8 @@ static void wsrep_mysql_parse(THD *thd, char *rawbuf, uint length,
                       thd->wsrep_retry_counter, 
                       thd->variables.wsrep_retry_autocommit, thd->query());
           my_message(ER_LOCK_DEADLOCK, "Deadlock: wsrep aborted transaction",
-                     MYF(0));
+                     global_system_variables.log_warnings > 2
+                     ? MYF(ME_ERROR_LOG) : MYF(0));
           thd->reset_killed();
           thd->wsrep_conflict_state= NO_CONFLICT;
           if (thd->wsrep_conflict_state != REPLAYING)

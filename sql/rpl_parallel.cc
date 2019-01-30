@@ -629,6 +629,8 @@ convert_kill_to_deadlock_error(rpl_group_info *rgi)
   {
     thd->clear_error();
     my_error(ER_LOCK_DEADLOCK, MYF(0));
+    if (global_system_variables.log_warnings > 2)
+      sql_print_information("convert_kill_to_deadlock_error");
     thd->reset_killed();
   }
 }

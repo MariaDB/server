@@ -2172,6 +2172,8 @@ MDL_context::acquire_lock(MDL_request *mdl_request, double lock_wait_timeout)
     {
     case MDL_wait::VICTIM:
       my_error(ER_LOCK_DEADLOCK, MYF(0));
+      if (global_system_variables.log_warnings > 2)
+        sql_print_information("MDL deadlock victim killed");
       break;
     case MDL_wait::TIMEOUT:
       my_error(ER_LOCK_WAIT_TIMEOUT, MYF(0));

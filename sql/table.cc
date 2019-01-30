@@ -4459,6 +4459,8 @@ bool TABLE_SHARE::wait_for_old_version(THD *thd, struct timespec *abstime,
     return FALSE;
   case MDL_wait::VICTIM:
     my_error(ER_LOCK_DEADLOCK, MYF(0));
+    if (global_system_variables.log_warnings > 2)
+      sql_print_information("deadlock in wait_for_old_version");
     return TRUE;
   case MDL_wait::TIMEOUT:
     my_error(ER_LOCK_WAIT_TIMEOUT, MYF(0));

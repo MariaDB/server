@@ -3669,6 +3669,7 @@ void handler::print_error(int error, myf errflag)
     get_error_message(error, &str);
     full_err_msg.append(str);
     my_printf_error(ER_LOCK_DEADLOCK, "%s", errflag, full_err_msg.c_ptr_safe());
+    if (global_system_variables.log_warnings > 2) errflag|= MYF(ME_ERROR_LOG);
     DBUG_VOID_RETURN;
   }
   case HA_ERR_READ_ONLY_TRANSACTION:

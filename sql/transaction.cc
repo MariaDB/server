@@ -106,7 +106,8 @@ static bool xa_trans_rolled_back(XID_STATE *xid_state)
       my_error(ER_XA_RBTIMEOUT, MYF(0));
       break;
     case ER_LOCK_DEADLOCK:
-      my_error(ER_XA_RBDEADLOCK, MYF(0));
+      my_error(ER_XA_RBDEADLOCK, global_system_variables.log_warnings > 2
+               ? MYF(ME_ERROR_LOG) : MYF(0));
       break;
     default:
       my_error(ER_XA_RBROLLBACK, MYF(0));
