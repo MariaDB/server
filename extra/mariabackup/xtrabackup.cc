@@ -250,7 +250,6 @@ static ulong innobase_log_block_size = 512;
 char*	innobase_doublewrite_file = NULL;
 char*	innobase_buffer_pool_filename = NULL;
 
-longlong innobase_buffer_pool_size = 8*1024*1024L;
 longlong innobase_log_file_size = 48*1024*1024L;
 
 /* The default values for the following char* start-up parameters
@@ -1023,11 +1022,6 @@ struct my_option xb_server_options[] =
    (G_PTR*) &srv_auto_extend_increment,
    (G_PTR*) &srv_auto_extend_increment,
    0, GET_ULONG, REQUIRED_ARG, 8L, 1L, 1000L, 0, 1L, 0},
-  {"innodb_buffer_pool_size", OPT_INNODB_BUFFER_POOL_SIZE,
-   "The size of the memory buffer InnoDB uses to cache data and indexes of its tables.",
-   (G_PTR*) &innobase_buffer_pool_size, (G_PTR*) &innobase_buffer_pool_size, 0,
-   GET_LL, REQUIRED_ARG, 8*1024*1024L, 1024*1024L, LONGLONG_MAX, 0,
-   1024*1024L, 0},
   {"innodb_checksums", OPT_INNODB_CHECKSUMS, "Enable InnoDB checksums validation (enabled by default). \
 Disable with --skip-innodb-checksums.", (G_PTR*) &innobase_use_checksums,
    (G_PTR*) &innobase_use_checksums, 0, GET_BOOL, NO_ARG, 1, 0, 0, 0, 0, 0},
@@ -1546,13 +1540,6 @@ innodb_init_param(void)
 			    " on 32-bit systems\n");
 		}
 
-		if (innobase_buffer_pool_size > UINT_MAX32) {
-			msg("mariabackup: innobase_buffer_pool_size can't be "
-			    "over 4GB on 32-bit systems\n");
-
-			goto error;
-		}
-
 		if (innobase_log_file_size > UINT_MAX32) {
 			msg("mariabackup: innobase_log_file_size can't be "
 			    "over 4GB on 32-bit systemsi\n");
@@ -1677,8 +1664,6 @@ mem_free_and_error:
 
         /* We set srv_pool_size here in units of 1 kB. InnoDB internally
         changes the value so that it becomes the number of database pages. */
-
-	//srv_buf_pool_size = (ulint) innobase_buffer_pool_size;
 	srv_buf_pool_size = (ulint) xtrabackup_use_memory;
 
 	srv_mem_pool_size = (ulint) innobase_additional_mem_pool_size;
