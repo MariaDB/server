@@ -20,13 +20,13 @@
 
 static int wsrep_plugin_init(void *p)
 {
-  WSREP_INFO("wsrep_plugin_init()");
+  WSREP_DEBUG("wsrep_plugin_init()");
   return 0;
 }
 
 static int wsrep_plugin_deinit(void *p)
 {
-  WSREP_INFO("wsrep_plugin_deinit()");
+  WSREP_DEBUG("wsrep_plugin_deinit()");
   return 0;
 }
 
