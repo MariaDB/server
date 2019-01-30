@@ -1061,7 +1061,6 @@ struct ha_innobase_inplace_ctx : public inplace_alter_handler_ctx
 
 		instant_table = new_table;
 		new_table = old_table;
-		export_vars.innodb_instant_alter_column++;
 
 		instant_table->prepare_instant(*old_table, col_map,
 					       first_alter_pos);
@@ -1332,12 +1331,15 @@ static bool alter_options_need_rebuild(
 (or perform instant operation).
 @param[in] ha_alter_info	the ALTER TABLE operation
 @param[in] table		metadata before ALTER TABLE
+@param[in] really_need_rebuild	whether we really must rebuild the table
+				(or convert to dict_table_t::is_instant())
 @return whether it is necessary to rebuild the table or to alter columns */
 static MY_ATTRIBUTE((nonnull, warn_unused_result))
 bool
 innobase_need_rebuild(
 	const Alter_inplace_info*	ha_alter_info,
-	const TABLE*			table)
+	const TABLE*			table,
+	bool				really_need_rebuild = false)
 {
 	if ((ha_alter_info->handler_flags & ~(INNOBASE_INPLACE_IGNORE
 					      | INNOBASE_ALTER_NOREBUILD
@@ -1346,10 +1348,14 @@ innobase_need_rebuild(
 		return alter_options_need_rebuild(ha_alter_info, table);
 	}
 
-	return !!(ha_alter_info->handler_flags & (
-			  INNOBASE_ALTER_REBUILD |
-			  ALTER_COLUMN_EQUAL_PACK_LENGTH |
-			  ALTER_COLUMN_UNVERSIONED));
+	if (!really_need_rebuild) {
+		return !!(ha_alter_info->handler_flags
+			  & (INNOBASE_ALTER_REBUILD |
+			     ALTER_COLUMN_EQUAL_PACK_LENGTH |
+			     ALTER_COLUMN_UNVERSIONED));
+	}
+
+	return !!(ha_alter_info->handler_flags & INNOBASE_ALTER_REBUILD);
 }
 
 /** Check if virtual column in old and new table are in order, excluding
@@ -6530,6 +6536,10 @@ new_clustered_failed:
 		if (altered_table->found_next_number_field) {
 			ctx->new_table->persistent_autoinc
 				= ctx->old_table->persistent_autoinc;
+		}
+
+		if (innobase_need_rebuild(ha_alter_info, old_table, true)) {
+			export_vars.innodb_instant_alter_column++;
 		}
 
 		ctx->prepare_instant();
