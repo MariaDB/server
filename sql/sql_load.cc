@@ -251,6 +251,11 @@ int mysql_load(THD *thd,sql_exchange *ex,TABLE_LIST *table_list,
     my_error(ER_NON_UPDATABLE_TABLE, MYF(0), table_list->alias, "LOAD");
     DBUG_RETURN(TRUE);
   }
+  if (table_list->is_multitable())
+  {
+    my_error(ER_WRONG_USAGE, MYF(0), "Multi-table VIEW", "LOAD");
+    DBUG_RETURN(TRUE);
+  }
   if (table_list->prepare_where(thd, 0, TRUE) ||
       table_list->prepare_check_option(thd))
   {
