@@ -159,6 +159,7 @@ typedef struct st_key {
 
   double actual_rec_per_key(uint i);
 
+  bool without_overlaps;
 } KEY;
 
 

@@ -1908,10 +1908,11 @@ enum vers_sys_type_t
 
 struct Table_period_info: Sql_alloc
 {
-  Table_period_info() {}
+  Table_period_info(): unique_keys(0) {}
   Table_period_info(const char *name_arg, size_t size) :
     name(name_arg, size),
-    create_if_not_exists(false){}
+    create_if_not_exists(false),
+    unique_keys(0){}
 
   Lex_ident name;
 
@@ -1926,6 +1927,7 @@ struct Table_period_info: Sql_alloc
   };
   start_end_t period;
   bool create_if_not_exists;
+  uint unique_keys;
 
   bool is_set() const
   {
@@ -2870,6 +2872,8 @@ protected:
   Table_flags cached_table_flags;       /* Set on init() and open() */
 
   ha_rows estimation_rows_to_insert;
+  uchar *check_overlaps_buffer;
+  handler *check_overlaps_handler;
 public:
   handlerton *ht;                 /* storage engine of this handler */
   uchar *ref;				/* Pointer to current row */
@@ -3004,8 +3008,9 @@ private:
 public:
   handler(handlerton *ht_arg, TABLE_SHARE *share_arg)
     :table_share(share_arg), table(0),
-    estimation_rows_to_insert(0), ht(ht_arg),
-    ref(0), end_range(NULL),
+    estimation_rows_to_insert(0),
+    check_overlaps_buffer(NULL), check_overlaps_handler(NULL),
+    ht(ht_arg), ref(0), end_range(NULL),
     implicit_emptied(0),
     mark_trx_read_write_done(0),
     check_table_binlog_row_based_done(0),
@@ -3109,6 +3114,8 @@ public:
     The cached_table_flags is set at ha_open and ha_external_lock
   */
   Table_flags ha_table_flags() const { return cached_table_flags; }
+  /** PRIMARY KEY WITHOUT OVERLAPS check is done globally */
+  int ha_check_overlaps(const uchar *old_data, const uchar* new_data);
   /**
     These functions represent the public interface to *users* of the
     handler class, hence they are *not* virtual. For the inheritance

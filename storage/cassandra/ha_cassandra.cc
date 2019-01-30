@@ -2171,7 +2171,7 @@ int ha_cassandra::info(uint flag)
 }
 
 
-void key_copy(uchar *to_key, const uchar *from_record, KEY *key_info,
+void key_copy(uchar *to_key, const uchar *from_record, const KEY *key_info,
               uint key_length, bool with_zerofill);
 
 

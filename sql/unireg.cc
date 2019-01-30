@@ -178,9 +178,10 @@ LEX_CUSTRING build_frm_image(THD *thd, const LEX_CSTRING *table,
   ulong data_offset;
   uint options_len;
   uint gis_extra2_len= 0;
-  size_t period_info_len= create_info->period_info.name
+  size_t period_info_len= create_info->period_info.is_set()
                           ? create_info->period_info.name.length
-                            + create_info->period_constr->name.length + 8
+                            + create_info->period_constr->name.length
+                            + create_info->period_info.unique_keys * 2 + 10
                           : 0;
   uchar fileinfo[FRM_HEADER_SIZE],forminfo[FRM_FORMINFO_SIZE];
   const partition_info *part_info= IF_PARTITIONING(thd->work_part_info, 0);
@@ -374,6 +375,16 @@ LEX_CUSTRING build_frm_image(THD *thd, const LEX_CSTRING *table,
     int2store(pos, get_fieldno_by_name(create_info, create_fields,
                                        create_info->period_info.period.end));
     pos+= korr2size;
+    int2store(pos, create_info->period_info.unique_keys);
+    pos+= korr2size;
+    for (uint key= 0; key < keys; key++)
+    {
+      if (key_info[key].without_overlaps)
+      {
+        int2store(pos, key);
+        pos+= korr2size;
+      }
+    }
   }
 
   if (create_info->versioned())

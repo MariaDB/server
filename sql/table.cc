@@ -1818,7 +1818,17 @@ int TABLE_SHARE::init_from_binary_frm_image(THD *thd, bool write,
     if (init_period_from_extra2(period, field_pos))
       goto err;
 
-    if (period.name.length + period.constr_name.length + 4 * korr2size
+    const uchar *key_pos= field_pos + 2 * korr2size;
+    period.unique_keys= uint2korr(key_pos);
+    for (uint k= 0; k < period.unique_keys; k++)
+    {
+      key_pos+= sizeof(uint16);
+      uint key_nr= uint2korr(key_pos);
+      key_info[key_nr].without_overlaps= true;
+    }
+
+    if (period.name.length + period.constr_name.length
+          + (period.unique_keys + 5) * korr2size
         != extra2.application_period.length)
       goto err;
   }
