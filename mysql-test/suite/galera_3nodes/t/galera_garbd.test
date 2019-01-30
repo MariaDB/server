@@ -11,6 +11,8 @@
 --let $galera_connection_name = node_3
 --let $galera_server_number = 3
 --source include/galera_connect.inc
+--let $gp3 = `SELECT SUBSTR(@@wsrep_provider_options, LOCATE('base_port =', @@wsrep_provider_options) + LENGTH('base_port = '))`
+--let $galera_port_3 = `SELECT SUBSTR('$gp3', 1, LOCATE(';', '$gp3') - 1)`
 --source include/shutdown_mysqld.inc
 
 --connection node_1
@@ -18,7 +20,9 @@
 --source include/wait_condition.inc
 
 --echo Starting garbd ...
---exec `dirname $WSREP_PROVIDER`/garb/garbd --address "gcomm://127.0.0.1:$NODE_GALERAPORT_1" --group my_wsrep_cluster --options 'base_port=$NODE_GALERAPORT_3' > $MYSQL_TMP_DIR/garbd.log 2>&1 &
+--let $gp1 = `SELECT SUBSTR(@@wsrep_provider_options, LOCATE('base_port =', @@wsrep_provider_options) + LENGTH('base_port = '))`
+--let $galera_port_1 = `SELECT SUBSTR('$gp1', 1, LOCATE(';', '$gp1') - 1)`
+--exec `dirname $WSREP_PROVIDER`/../../bin/garb/garbd --address "gcomm://127.0.0.1:$galera_port_1" --group my_wsrep_cluster --options 'base_port=$galera_port_3' > $MYSQL_TMP_DIR/garbd.log 2>&1 &
 
 --sleep 5
 
@@ -32,7 +36,7 @@ INSERT INTO t1 VALUES (1);
 SELECT COUNT(*) = 1 FROM t1;
 
 --echo Killing garbd ...
---exec pkill --oldest --full garbd.*$NODE_GALERAPORT_3
+--exec pkill --oldest --full garbd.*$galera_port_3
 
 --sleep 5
 
