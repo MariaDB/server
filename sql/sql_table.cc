@@ -4854,12 +4854,6 @@ static int discover_assisted(THD *thd,
   @param path                Path to table (i.e. to its .FRM file without
                              the extension).
   @param create_info         Create information (like MAX_ROWS)
-  @param alter_info          Description of fields and keys for new table
-  @param create_table_mode   C_ORDINARY_CREATE, C_ALTER_TABLE, C_ASSISTED_DISCOVERY
-                             or any positive number (for C_CREATE_SELECT).
-  @param[out] key_info       Array of KEY objects describing keys in table
-                             which was created.
-  @param[out] key_count      Number of keys in table which was created.
 
   If one creates a temporary table, its is automatically opened and its
   TABLE_SHARE is added to THD::all_temp_tables list.
@@ -4881,18 +4875,12 @@ int create_table_impl(THD *thd,
                       const LEX_CSTRING *db, const LEX_CSTRING *table_name,
                        const char *path,
                        const DDL_options_st options,
-                       HA_CREATE_INFO *create_info,
-                       Alter_info *alter_info,
-                       int create_table_mode,
-                       KEY **key_info,
-                       uint *key_count,
-                       LEX_CUSTRING *frm)
+                      HA_CREATE_INFO *create_info)
 {
   LEX_CSTRING	*alias;
   int		error= 1;
-  bool          frm_only= create_table_mode == C_ALTER_TABLE_FRM_ONLY;
-  bool          internal_tmp_table= create_table_mode == C_ALTER_TABLE || frm_only;
-  DBUG_ENTER("mysql_create_table_no_lock");
+  bool internal_tmp_table= create_info->options & HA_CREATE_TMP_ALTER;
+  DBUG_ENTER("create_table_impl");
   DBUG_PRINT("enter", ("db: '%s'  table: '%s'  tmp: %d  path: %s",
                        db->str, table_name->str, internal_tmp_table, path));
 
@@ -5012,38 +5000,12 @@ int create_table_impl(THD *thd,
     }
   }
 
-  THD_STAGE_INFO(thd, stage_creating_table);
-
   if (check_engine(thd, orig_db->str, orig_table_name->str, create_info))
     goto err;
 
   create_info->table= 0;
-  if (create_table_mode == C_ASSISTED_DISCOVERY)
-  {
-    if (discover_assisted(thd, db, table_name, path, create_info, frm))
-      goto err;
-  }
-  else
-  {
-    if (create_frm_only(thd, orig_db, orig_table_name, path, create_info,
-                        alter_info, create_table_mode, key_info, key_count,
-                        frm))
-      goto err;
-
-    if (!frm_only)
-    {
-      if (create_ordinary(thd, path, db->str, table_name->str, create_info, frm))
-      {
-        quick_rm_table(thd, create_info->db_type, db, table_name,
-                       FN_IS_TMP | NO_HA_TABLE, path);
-        goto err;
-      }
-    }
-  }
-
   error= 0;
 err:
-  THD_STAGE_INFO(thd, stage_after_create);
   DBUG_PRINT("exit", ("return: %d", error));
   DBUG_RETURN(error);
 
@@ -5062,6 +5024,8 @@ warn:
 
   @param[out] is_trans       Identifies the type of engine where the table
                              was created: either trans or non-trans.
+  @param create_table_mode   C_ORDINARY_CREATE, C_ASSISTED_DISCOVERY or any
+                             positive number (for C_CREATE_SELECT).
 
   @result
     1 unspefied error
@@ -5101,10 +5065,22 @@ int mysql_create_table_no_lock(THD *thd,
   }
 
   res= create_table_impl(thd, db, table_name, db, table_name, path,
-                         *create_info, create_info,
-                         alter_info, create_table_mode,
-                         &not_used_1, &not_used_2, &frm);
+                         *create_info, create_info);
+  if (!res)
   {
+    THD_STAGE_INFO(thd, stage_creating_table);
+    if (create_table_mode == C_ASSISTED_DISCOVERY)
+      res= discover_assisted(thd, db, table_name, path, create_info, &frm);
+    else
+    {
+      res= create_frm_only(thd, db, table_name, path, create_info, alter_info,
+                           create_table_mode, &not_used_1, &not_used_2, &frm) ||
+           create_ordinary(thd, path, db->str, table_name->str, create_info,
+                           &frm);
+      if (res)
+        quick_rm_table(thd, create_info->db_type, db, table_name,
+                       FN_IS_TMP | NO_HA_TABLE, path);
+    }
     if (!res && create_info->tmp_table())
     {
       DBUG_ASSERT(create_info->table);
@@ -5112,6 +5088,7 @@ int mysql_create_table_no_lock(THD *thd,
         *is_trans= create_info->table->file->has_transactions();
       thd->thread_specific_used= TRUE;
     }
+    THD_STAGE_INFO(thd, stage_after_create);
   }
   my_free(const_cast<uchar*>(frm.str));
 
@@ -9653,9 +9630,15 @@ bool mysql_alter_table(THD *thd, const LEX_CSTRING *new_db,
                            &alter_ctx.db, &alter_ctx.table_name,
                            &alter_ctx.new_db, &alter_ctx.tmp_name,
                            alter_ctx.get_tmp_path(),
-                           thd->lex->create_info, create_info, alter_info,
-                           C_ALTER_TABLE_FRM_ONLY,
-                           &key_info, &key_count, &frm);
+                           thd->lex->create_info, create_info);
+  if (!error)
+  {
+    THD_STAGE_INFO(thd, stage_creating_table);
+    error= create_frm_only(thd, &alter_ctx.db, &alter_ctx.table_name,
+                           alter_ctx.get_tmp_path(), create_info, alter_info,
+                           C_ALTER_TABLE_FRM_ONLY, &key_info, &key_count, &frm);
+    THD_STAGE_INFO(thd, stage_after_create);
+  }
   reenable_binlog(thd);
   if (unlikely(error))
   {
