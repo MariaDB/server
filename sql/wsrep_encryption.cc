@@ -19,6 +19,7 @@
 #include "wsrep_server_state.h"
 
 static const unsigned int key_version_preamble_size = 8;
+static bool encryption_used = false;
 
 /**
  * Serialize key_version and key into buffer
@@ -62,7 +63,14 @@ static int wsrep_key_deserialize(const void* input, const size_t& input_size,
   return ret;
 }
 
-int wsrep_set_encryption_key(const void* key, size_t size, unsigned int version)
+/**
+ * Set encryption key. Serialize it and send to provider.
+ * 
+ * @param key Pointer to encryption key
+ * @param size Length of encryption key
+ * @param version Key version used
+ */
+static int wsrep_set_encryption_key(const void* key, size_t size, unsigned int version)
 {
   std::vector<unsigned char> input;
   wsrep_key_serialize(input, key, size, version);
@@ -153,6 +161,6 @@ int Wsrep_encryption_service::do_crypt(void**                ctx,
 
 bool Wsrep_encryption_service::encryption_enabled()
 {
-  return encrypt_binlog;
+  return encryption_used;
 }
 

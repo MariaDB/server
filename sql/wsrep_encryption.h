@@ -19,14 +19,9 @@
 #include "wsrep/encryption_service.hpp"
 
 /**
- * Set encryption key. Serialize it and send to provider.
- * 
- * @param key Pointer to encryption key
- * @param size Length of encryption key
- * @param version Key version used
+ * Check if encryption is enabled and extract key.
  */
-int wsrep_set_encryption_key(const void* key, size_t size,
-                             unsigned int version);
+void wsrep_enable_encryption();
 
 class Wsrep_encryption_service : public wsrep::encryption_service
 {

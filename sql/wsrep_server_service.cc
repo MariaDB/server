@@ -309,7 +309,7 @@ void Wsrep_server_service::log_state_change(
 
 bool Wsrep_server_service::sst_before_init() const
 {
-  return wsrep_before_SE();
+  return wsrep_SST_before_SE();
 }
 
 std::string Wsrep_server_service::sst_request()

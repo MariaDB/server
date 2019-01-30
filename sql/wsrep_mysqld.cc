@@ -210,6 +210,7 @@ static PSI_file_info wsrep_files[]=
 #endif
 
 my_bool wsrep_inited= 0; // initialized ?
+enum enum_wsrep_startup_state wsrep_startup_state= WSREP_STARTUP_STATE_NONE;
 
 static wsrep_uuid_t node_uuid= WSREP_UUID_UNDEFINED;
 static char         cluster_uuid_str[40]= { 0, };
@@ -777,35 +778,32 @@ void wsrep_thr_init()
   DBUG_VOID_RETURN;
 }
 
-void wsrep_init_startup (bool sst_first)
+int wsrep_init_startup (bool sst_first)
 {
-  if (wsrep_init()) unireg_abort(1);
+  if (wsrep_init())
+  {
+    wsrep_startup_state= WSREP_STARTUP_STATE_MUST_ABORT;
+    return 1;
+  }
 
   wsrep_thr_lock_init(wsrep_thd_is_BF, wsrep_thd_bf_abort,
                       wsrep_debug, wsrep_convert_LOCK_to_trx, wsrep_on);
 
-  /*
-    Pre-initialize global_system_variables.table_plugin with a dummy engine
-    (placeholder) required during the initialization of wsrep threads (THDs).
-    (see: plugin_thdvar_init())
-    Note: This only needs to be done for rsync & mariabackup based SST methods.
-    In case of mysqldump SST method, the wsrep threads are created after the
-    server plugins & global system variables are initialized.
-  */
-  if (wsrep_before_SE())
-    wsrep_plugins_pre_init();
-
   /* Skip replication start if dummy wsrep provider is loaded */
-  if (!strcmp(wsrep_provider, WSREP_NONE)) return;
+  if (!strcmp(wsrep_provider, WSREP_NONE)) return 0;
 
   /* Skip replication start if no cluster address */
-  if (!wsrep_cluster_address || wsrep_cluster_address[0] == 0) return;
+  if (!wsrep_cluster_address || wsrep_cluster_address[0] == 0) return 0;
 
   /*
     Read value of wsrep_new_cluster before wsrep_start_replication(),
     the value is reset to FALSE inside wsrep_start_replication.
   */
-  if (!wsrep_start_replication()) unireg_abort(1);
+  if (!wsrep_start_replication())
+  {
+    wsrep_startup_state= WSREP_STARTUP_STATE_MUST_ABORT;
+    return 1;
+  }
 
   wsrep_create_rollbacker();
   wsrep_create_appliers(1);
@@ -827,6 +825,8 @@ void wsrep_init_startup (bool sst_first)
   {
     server_state.wait_until_state(Wsrep_server_state::s_joiner);
   }
+
+  return 0;
 }
 
 

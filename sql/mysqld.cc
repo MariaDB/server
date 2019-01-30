@@ -5130,11 +5130,20 @@ static int init_server_components()
       }
       my_afree(tmp_path);
 
-      if (wsrep_before_SE())
+      if (wsrep_SST_before_SE())
       {
         set_ports(); // this is also called in network_init() later but we need
                      // to know mysqld_port now - lp:1071882
-        wsrep_init_startup(true);
+        /*
+          Due encryption feature, if enabled, we require that encryption plugin
+          is initialized before starting SST methods which require to be executed
+          before SE. Initialization for this branch is moved to wsrep_plugin.
+        */
+        wsrep_startup_state= WSREP_STARTUP_STATE_INIT_BEFORE_SE;
+      }
+      else
+      {
+        wsrep_startup_state= WSREP_STARTUP_STATE_INIT_AFTER_SE;
       }
     }
   }
@@ -5344,7 +5353,7 @@ static int init_server_components()
     Note: This only needs to be done for rsync and mariabackup based SST
     methods.
   */
-  if (wsrep_before_SE())
+  if (wsrep_SST_before_SE())
     wsrep_plugins_post_init();
 
   if (WSREP_ON && !opt_bin_log)
@@ -5793,19 +5802,16 @@ int mysqld_main(int argc, char **argv)
 
   if (WSREP_ON)
   {
-    if (opt_bootstrap)
+    wsrep_init_globals();
+    if (wsrep_startup_state == WSREP_STARTUP_STATE_INIT_AFTER_SE)
     {
-      /*! bootstrap wsrep init was taken care of above */
-    }
-    else
-    {
-      wsrep_init_globals();
-      if (!wsrep_before_SE())
+      wsrep_init_startup(false);
+      if (wsrep_startup_state == WSREP_STARTUP_STATE_MUST_ABORT)
       {
-        wsrep_init_startup (false);
+        unireg_abort(1);
       }
-      wsrep_create_appliers(wsrep_slave_threads - 1);
     }
+    wsrep_create_appliers(wsrep_slave_threads - 1);
   }
 
   if (opt_bootstrap)

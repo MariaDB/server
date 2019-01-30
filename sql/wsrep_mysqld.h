@@ -127,6 +127,13 @@ enum enum_wsrep_ignore_apply_error {
     WSREP_IGNORE_ERRORS_MAX= 0x7
 };
 
+enum enum_wsrep_startup_state {
+    WSREP_STARTUP_STATE_NONE,
+    WSREP_STARTUP_STATE_INIT_BEFORE_SE,
+    WSREP_STARTUP_STATE_INIT_AFTER_SE,
+    WSREP_STARTUP_STATE_MUST_ABORT
+};
+
 // Streaming Replication
 #define WSREP_FRAG_BYTES      0
 #define WSREP_FRAG_ROWS       1
@@ -171,17 +178,17 @@ void wsrep_thr_init();
 void wsrep_thr_deinit();
 
 void wsrep_recover();
-bool wsrep_before_SE(); // initialize wsrep before storage
-                        // engines (true) or after (false)
+bool wsrep_SST_before_SE(); // initialize wsrep before storage engines (true) or after (false)
 /* wsrep initialization sequence at startup
- * @param before wsrep_before_SE() value */
-void wsrep_init_startup(bool before);
+ * @param before wsrep_SST_before_SE() value */
+int wsrep_init_startup(bool sst_first);
 
 /* Recover streaming transactions from fragment storage */
 void wsrep_recover_sr_from_storage(THD *);
 
 // Other wsrep global variables
-extern my_bool     wsrep_inited; // whether wsrep is initialized ?
+extern my_bool  wsrep_inited; // whether wsrep is initialized ?
+extern enum enum_wsrep_startup_state wsrep_startup_state;
 
 extern "C" void wsrep_fire_rollbacker(THD *thd);
 extern "C" uint32 wsrep_thd_wsrep_rand(THD *thd);
@@ -473,7 +480,7 @@ enum wsrep::streaming_context::fragment_unit wsrep_fragment_unit(ulong unit);
 #define WSREP_PROVIDER_EXISTS (0)
 #define wsrep_emulate_bin_log (0)
 #define wsrep_to_isolation (0)
-#define wsrep_before_SE() (0)
+#define wsrep_SST_before_SE() (0)
 #define wsrep_init_startup(X)
 #define wsrep_check_opts() (0)
 #define wsrep_thr_init() do {} while(0)
