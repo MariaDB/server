@@ -20,7 +20,7 @@
   Tool used for executing a .test file
 
   See the "MySQL Test framework manual" for more information
-  http://dev.mysql.com/doc/mysqltest/en/index.html
+  https://mariadb.com/kb/en/library/mysqltest/
 
   Please keep the test framework tools identical in all versions!
 
@@ -6045,7 +6045,6 @@ void do_connect(struct st_command *command)
 #endif
   if (opt_compress || con_compress)
     mysql_options(con_slot->mysql, MYSQL_OPT_COMPRESS, NullS);
-  mysql_options(con_slot->mysql, MYSQL_OPT_LOCAL_INFILE, 0);
   mysql_options(con_slot->mysql, MYSQL_SET_CHARSET_NAME,
                 charset_info->csname);
   if (opt_charsets_dir)
@@ -6128,6 +6127,11 @@ void do_connect(struct st_command *command)
 
     if (con_slot == next_con)
       next_con++; /* if we used the next_con slot, advance the pointer */
+  }
+  else // Failed to connect. Free the memory.
+  {
+    mysql_close(con_slot->mysql);
+    con_slot->mysql= NULL;
   }
 
   dynstr_free(&ds_connection_name);
@@ -6501,8 +6505,6 @@ static inline bool is_escape_char(char c, char in_string)
 
   SYNOPSIS
   read_line
-  buf     buffer for the read line
-  size    size of the buffer i.e max size to read
 
   DESCRIPTION
   This function actually reads several lines and adds them to the
@@ -6520,10 +6522,15 @@ static inline bool is_escape_char(char c, char in_string)
 
 */
 
-int read_line(char *buf, int size)
+static char *read_command_buf= NULL;
+static size_t read_command_buflen= 0;
+static const size_t max_multibyte_length= 6;
+
+int read_line()
 {
   char c, last_quote=0, last_char= 0;
-  char *p= buf, *buf_end= buf + size - 1;
+  char *p= read_command_buf;
+  char *buf_end= read_command_buf + read_command_buflen - max_multibyte_length;
   int skip_char= 0;
   my_bool have_slash= FALSE;
   
@@ -6531,10 +6538,21 @@ int read_line(char *buf, int size)
         R_COMMENT, R_LINE_START} state= R_LINE_START;
   DBUG_ENTER("read_line");
 
+  *p= 0;
   start_lineno= cur_file->lineno;
   DBUG_PRINT("info", ("Starting to read at lineno: %d", start_lineno));
-  for (; p < buf_end ;)
+  while (1)
   {
+    if (p >= buf_end)
+    {
+      my_ptrdiff_t off= p - read_command_buf;
+      read_command_buf= (char*)my_realloc(read_command_buf,
+                                          read_command_buflen*2, MYF(MY_FAE));
+      p= read_command_buf + off;
+      read_command_buflen*= 2;
+      buf_end= read_command_buf + read_command_buflen - max_multibyte_length;
+    }
+
     skip_char= 0;
     c= my_getc(cur_file->file);
     if (feof(cur_file->file))
@@ -6570,7 +6588,7 @@ int read_line(char *buf, int size)
       cur_file->lineno++;
 
       /* Convert cr/lf to lf */
-      if (p != buf && *(p-1) == '\r')
+      if (p != read_command_buf && *(p-1) == '\r')
         p--;
     }
 
@@ -6585,9 +6603,9 @@ int read_line(char *buf, int size)
       }
       else if ((c == '{' &&
                 (!my_strnncoll_simple(charset_info, (const uchar*) "while", 5,
-                                      (uchar*) buf, min(5, p - buf), 0) ||
+                                      (uchar*) read_command_buf, min(5, p - read_command_buf), 0) ||
                  !my_strnncoll_simple(charset_info, (const uchar*) "if", 2,
-                                      (uchar*) buf, min(2, p - buf), 0))))
+                                      (uchar*) read_command_buf, min(2, p - read_command_buf), 0))))
       {
         /* Only if and while commands can be terminated by { */
         *p++= c;
@@ -6721,8 +6739,6 @@ int read_line(char *buf, int size)
 	*p++= c;
     }
   }
-  die("The input buffer is too small for this query.x\n"      \
-      "check your query or increase MAX_QUERY and recompile");
   DBUG_RETURN(0);
 }
 
@@ -6867,12 +6883,8 @@ bool is_delimiter(const char* p)
   terminated by new line '\n' regardless how many "delimiter" it contain.
 */
 
-#define MAX_QUERY (256*1024*2) /* 256K -- a test in sp-big is >128K */
-static char read_command_buf[MAX_QUERY];
-
 int read_command(struct st_command** command_ptr)
 {
-  char *p= read_command_buf;
   struct st_command* command;
   DBUG_ENTER("read_command");
 
@@ -6888,8 +6900,7 @@ int read_command(struct st_command** command_ptr)
     die("Out of memory");
   command->type= Q_UNKNOWN;
 
-  read_command_buf[0]= 0;
-  if (read_line(read_command_buf, sizeof(read_command_buf)))
+  if (read_line())
   {
     check_eol_junk(read_command_buf);
     DBUG_RETURN(1);
@@ -6898,6 +6909,7 @@ int read_command(struct st_command** command_ptr)
   if (opt_result_format_version == 1)
     convert_to_format_v1(read_command_buf);
 
+  char *p= read_command_buf;
   DBUG_PRINT("info", ("query: '%s'", read_command_buf));
   if (*p == '#')
   {
@@ -9025,6 +9037,8 @@ int main(int argc, char **argv)
   init_win_path_patterns();
 #endif
 
+  read_command_buf= (char*)my_malloc(read_command_buflen= 65536, MYF(MY_FAE));
+
   init_dynamic_string(&ds_res, "", 2048, 2048);
   init_alloc_root(&require_file_root, 1024, 1024);
 
@@ -9095,7 +9109,6 @@ int main(int argc, char **argv)
                   (void *) &opt_connect_timeout);
   if (opt_compress)
     mysql_options(con->mysql,MYSQL_OPT_COMPRESS,NullS);
-  mysql_options(con->mysql, MYSQL_OPT_LOCAL_INFILE, 0);
   mysql_options(con->mysql, MYSQL_SET_CHARSET_NAME,
                 charset_info->csname);
   if (opt_charsets_dir)
