@@ -110,6 +110,10 @@ public:
   int log_and_order(THD *thd, my_xid xid, bool all,
                     bool need_prepare_ordered, bool need_commit_ordered)
   {
+#ifdef WITH_WSREP
+    /* when binlogging is disabled, we use TC_LOG_DUMMY in 2pc */
+    if (!wsrep_emulate_bin_log)
+#endif /* WITH_WSREP */
     DBUG_ASSERT(0);
     return 1;
   }
