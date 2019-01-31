@@ -116,7 +116,6 @@ if(NOT MINGW)
         win32/zlib1.rc # If present will override custom build rule below.
     )
 endif()
-
 # parse the full version number from zlib.h and include in ZLIB_FULL_VERSION
 file(READ ${CMAKE_CURRENT_SOURCE_DIR}/zlib.h _zlib_h_contents)
 string(REGEX REPLACE ".*#define[ \t]+ZLIB_VERSION[ \t]+\"([-0-9A-Za-z.]+)\".*"

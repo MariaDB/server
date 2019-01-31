@@ -4439,6 +4439,22 @@ int Query_log_event::do_apply_event(rpl_group_info *rgi,
       else
         thd->variables.collation_database= thd->db_charset;
 
+      {
+        const CHARSET_INFO *cs= thd->charset();
+        /*
+          We cannot ask for parsing a statement using a character set
+          without state_maps (parser internal data).
+        */
+        if (!cs->state_map)
+        {
+          rli->report(ERROR_LEVEL, ER_SLAVE_FATAL_ERROR,
+                      ER_THD(thd, ER_SLAVE_FATAL_ERROR),
+                      "character_set cannot be parsed");
+          thd->is_slave_error= true;
+          goto end;
+        }
+      }
+
       /*
         Record any GTID in the same transaction, so slave state is
         transactionally consistent.
@@ -7943,6 +7959,11 @@ User_var_log_event(const char* buf, uint event_len,
       we keep the flags set to UNDEF_F.
     */
     uint bytes_read= ((val + val_len) - buf_start);
+    if (bytes_read > event_len)
+    {
+      error= true;
+      goto err;
+    }
     if ((data_written - bytes_read) > 0)
     {
       flags= (uint) *(buf + UV_VAL_IS_NULL + UV_VAL_TYPE_SIZE +
