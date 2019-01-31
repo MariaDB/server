@@ -1791,7 +1791,7 @@ static void close_connections(void)
       */
       THD* save_thd= current_thd;
       set_current_thd(tmp);
-      close_connection(tmp,ER_SERVER_SHUTDOWN);
+      close_connection(tmp);
       set_current_thd(save_thd);
     }
 #endif
