@@ -5721,7 +5721,12 @@ int THD::decide_logging_format(TABLE_LIST *tables)
     binlogging is off, or if the statement is filtered out from the
     binlog by filtering rules.
   */
-  if (mysql_bin_log.is_open() && (variables.option_bits & OPTION_BIN_LOG) &&
+#ifdef WITH_WSREP
+  if ((wsrep_emulate_bin_log || mysql_bin_log.is_open())
+                               && (variables.option_bits & OPTION_BIN_LOG) &&
+#else
+   if (mysql_bin_log.is_open() && (variables.option_bits & OPTION_BIN_LOG) &&
+#endif /* WITH_WSREP */
       !(wsrep_binlog_format() == BINLOG_FORMAT_STMT &&
         !binlog_filter->db_ok(db)))
   {
