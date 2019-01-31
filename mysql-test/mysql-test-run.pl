@@ -139,6 +139,8 @@ my $opt_start_exit;
 my $start_only;
 my $file_wsrep_provider;
 
+our @global_suppressions;
+
 END {
   if ( defined $opt_tmpdir_pid and $opt_tmpdir_pid == $$ )
   {
@@ -193,6 +195,8 @@ my @DEFAULT_SUITES= qw(
     sys_vars-
     unit-
     vcol-
+    wsrep-
+    galera-
   );
 my $opt_suites;
 
@@ -353,6 +357,7 @@ my $opt_max_test_fail= env_or_val(MTR_MAX_TEST_FAIL => 10);
 my $opt_core_on_failure= 0;
 
 my $opt_parallel= $ENV{MTR_PARALLEL} || 1;
+my $opt_port_group_size = $ENV{MTR_PORT_GROUP_SIZE} || 20;
 
 # lock file to stop tests
 my $opt_stop_file= $ENV{MTR_STOP_FILE};
@@ -1113,6 +1118,7 @@ sub command_line_setup {
              # Specify ports
 	     'build-thread|mtr-build-thread=i' => \$opt_build_thread,
 	     'port-base|mtr-port-base=i'       => \$opt_port_base,
+	     'port-group-size=s'        => \$opt_port_group_size,
 
              # Test case authoring
              'record'                   => \$opt_record,
@@ -1818,16 +1824,16 @@ sub set_build_thread_ports($) {
   $ENV{MTR_BUILD_THREAD}= $build_thread;
 
   # Calculate baseport
-  $baseport= $build_thread * 20 + 10000;
-  if ( $baseport < 5001 or $baseport + 19 >= 32767 )
+  $baseport= $build_thread * $opt_port_group_size + 10000;
+  if ( $baseport < 5001 or $baseport + $opt_port_group_size >= 32767 )
   {
     mtr_error("MTR_BUILD_THREAD number results in a port",
               "outside 5001 - 32767",
-              "($baseport - $baseport + 19)");
+              "($baseport - $baseport + $opt_port_group_size)");
   }
 
   mtr_report("Using MTR_BUILD_THREAD $build_thread,",
-	     "with reserved ports $baseport..".($baseport+19));
+	     "with reserved ports $baseport..".($baseport+($opt_port_group_size-1)));
 
 }
 
@@ -2988,8 +2994,8 @@ sub kill_leftovers ($) {
 sub check_ports_free ($)
 {
   my $bthread= shift;
-  my $portbase = $bthread * 10 + 10000;
-  for ($portbase..$portbase+9){
+  my $portbase = $bthread * $opt_port_group_size + 10000;
+  for ($portbase..$portbase+($opt_port_group_size-1)){
     if (mtr_ping_port($_)){
       mtr_report(" - 'localhost:$_' was not free");
       return 0; # One port was not free
@@ -4401,6 +4407,7 @@ sub extract_warning_lines ($$) {
   # Perl code.
   my @antipatterns =
     (
+     @global_suppressions,
      qr/error .*connecting to master/,
      qr/InnoDB: Error: in ALTER TABLE `test`.`t[12]`/,
      qr/InnoDB: Error: table `test`.`t[12]` .*does not exist in the InnoDB internal/,
@@ -6110,6 +6117,8 @@ Options that specify ports
   build-thread=#        Can be set in environment variable MTR_BUILD_THREAD.
                         Set  MTR_BUILD_THREAD="auto" to automatically aquire
                         a build thread id that is unique to current host
+  port-group-size=N     Reserve groups of TCP ports of size N for each MTR thread
+
 
 Options for test case authoring
 

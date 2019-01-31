@@ -7941,12 +7941,7 @@ User_var_log_event(const char* buf, uint event_len,
     val_len= uint4korr(buf + UV_VAL_IS_NULL + UV_VAL_TYPE_SIZE +
                        UV_CHARSET_NUMBER_SIZE);
 
-    if (val + val_len > buf_end)
-    {
-      error= true;
-      goto err;
-    }
-
+   
     /**
       We need to check if this is from an old server
       that did not pack information for flags.
@@ -7959,11 +7954,6 @@ User_var_log_event(const char* buf, uint event_len,
       we keep the flags set to UNDEF_F.
     */
     uint bytes_read= ((val + val_len) - buf_start);
-    if (bytes_read > event_len)
-    {
-      error= true;
-      goto err;
-    }
     if ((data_written - bytes_read) > 0)
     {
       flags= (uint) *(buf + UV_VAL_IS_NULL + UV_VAL_TYPE_SIZE +
