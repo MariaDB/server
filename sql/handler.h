@@ -4765,9 +4765,7 @@ bool ha_flush_logs(handlerton *db_type);
 void ha_drop_database(char* path);
 void ha_checkpoint_state(bool disable);
 void ha_commit_checkpoint_request(void *cookie, void (*pre_hook)(void *));
-int ha_create_table(THD *thd, const char *path,
-                    const char *db, const char *table_name,
-                    HA_CREATE_INFO *create_info, LEX_CUSTRING *frm);
+int ha_create_table(THD *thd, TABLE_SHARE &share, HA_CREATE_INFO *create_info);
 int ha_delete_table(THD *thd, handlerton *db_type, const char *path,
                     const LEX_CSTRING *db, const LEX_CSTRING *alias, bool generate_warning);
 void ha_prepare_for_backup();

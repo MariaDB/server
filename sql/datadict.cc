@@ -188,8 +188,10 @@ err:
 
 bool dd_recreate_table(THD *thd, const char *db, const char *table_name)
 {
+  TABLE_SHARE share;
   HA_CREATE_INFO create_info;
   char path_buf[FN_REFLEN + 1];
+  bool result= true;
   DBUG_ENTER("dd_recreate_table");
 
   /* There should be a exclusive metadata lock on the table. */
@@ -198,7 +200,15 @@ bool dd_recreate_table(THD *thd, const char *db, const char *table_name)
   memset(&create_info, 0, sizeof(create_info));
   build_table_filename(path_buf, sizeof(path_buf) - 1,
                        db, table_name, "", 0);
+
+  init_tmp_table_share(thd, &share, db, 0, table_name, path_buf);
+  if (open_table_def(thd, &share))
+    goto err;
+
   /* Attempt to reconstruct the table. */
-  DBUG_RETURN(ha_create_table(thd, path_buf, db, table_name, &create_info, 0));
+  result= ha_create_table(thd, share, &create_info);
+err:
+  free_table_share(&share);
+  DBUG_RETURN(result);
 }
 

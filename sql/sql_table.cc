@@ -4699,6 +4699,29 @@ err:
 }
 
 
+static int create_ordinary(THD *thd, const char *path,
+                           const char *db, const char *table_name,
+                           HA_CREATE_INFO *create_info, LEX_CUSTRING *frm)
+{
+  int error= 1;
+  TABLE_SHARE share;
+  bool write_frm_now= !create_info->db_type->discover_table &&
+                      !create_info->tmp_table();
+  DBUG_ENTER("create_ordinary");
+
+  init_tmp_table_share(thd, &share, db, 0, table_name, path);
+  share.frm_image= frm;
+  // open an frm image
+  if (share.init_from_binary_frm_image(thd, write_frm_now,
+                                       frm->str, frm->length))
+    goto err;
+  error= ha_create_table(thd, share, create_info);
+err:
+  free_table_share(&share);
+  DBUG_RETURN(error);
+}
+
+
 /**
   Create a table
 
@@ -4946,7 +4969,7 @@ int create_table_impl(THD *thd,
 
     if (!frm_only)
     {
-      if (ha_create_table(thd, path, db->str, table_name->str, create_info, frm))
+      if (create_ordinary(thd, path, db->str, table_name->str, create_info, frm))
       {
         file->ha_create_partitioning_metadata(path, NULL, CHF_DELETE_FLAG);
         deletefrm(path);
@@ -9756,7 +9779,7 @@ bool mysql_alter_table(THD *thd, const LEX_CSTRING *new_db,
                   MYSQL_LOCK_USE_MALLOC))
     goto err_new_table_cleanup;
 
-  if (ha_create_table(thd, alter_ctx.get_tmp_path(),
+  if (create_ordinary(thd, alter_ctx.get_tmp_path(),
                       alter_ctx.new_db.str, alter_ctx.tmp_name.str,
                       create_info, &frm))
     goto err_new_table_cleanup;
