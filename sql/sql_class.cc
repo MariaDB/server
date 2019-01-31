@@ -4833,6 +4833,15 @@ extern "C" size_t thd_query_safe(MYSQL_THD thd, char *buf, size_t buflen)
 }
 
 
+extern "C" int thd_iterate_temporary_tables(MYSQL_THD thd,
+                                            int (*callback)(TABLE_SHARE *share,
+                                                            void *argument),
+                                            void *argument)
+{
+  return thd->iterate_temporary_tables(callback, argument);
+}
+
+
 extern "C" int thd_slave_thread(const MYSQL_THD thd)
 {
   return(thd->slave_thread);

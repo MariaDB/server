@@ -186,6 +186,10 @@ extern MYSQL_PLUGIN_IMPORT const char **errmesg;
 
 extern "C" LEX_STRING * thd_query_string (MYSQL_THD thd);
 extern "C" size_t thd_query_safe(MYSQL_THD thd, char *buf, size_t buflen);
+extern "C" int thd_iterate_temporary_tables(MYSQL_THD thd,
+                                            int (*callback)(TABLE_SHARE *share,
+                                                            void *argument),
+                                            void *argument);
 
 /**
   @class CSET_STRING
@@ -4737,6 +4741,8 @@ public:
                                         const char *table_name);
   TMP_TABLE_SHARE *find_tmp_table_share(const TABLE_LIST *tl);
   TMP_TABLE_SHARE *find_tmp_table_share(const char *key, size_t key_length);
+  int iterate_temporary_tables(int (*callback)(TABLE_SHARE *share,
+                                               void *arg), void *argument);
 
   bool open_temporary_table(TABLE_LIST *tl);
   bool open_temporary_tables(TABLE_LIST *tl);

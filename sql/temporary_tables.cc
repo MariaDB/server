@@ -292,6 +292,36 @@ TMP_TABLE_SHARE *THD::find_tmp_table_share(const char *key, size_t key_length)
 }
 
 
+int THD::iterate_temporary_tables(int (*callback)(TABLE_SHARE *share,
+                                                  void *argument),
+                                  void *argument)
+{
+  bool locked;
+  int result;
+  DBUG_ENTER("THD::iterate_temporary_tables");
+
+  if (!has_temporary_tables())
+    DBUG_RETURN(0);
+
+  locked= lock_temporary_tables();
+
+  All_tmp_tables_list::Iterator it(*temporary_tables);
+  while (TMP_TABLE_SHARE *share= it++)
+  {
+    if ((result= callback(share, argument)))
+      break;
+  }
+
+  if (locked)
+  {
+    DBUG_ASSERT(m_tmp_tables_locked);
+    unlock_temporary_tables();
+  }
+
+  DBUG_RETURN(result);
+}
+
+
 /**
   Find a temporary table specified by TABLE_LIST instance in the open table
   list and prepare its TABLE instance for use. If
