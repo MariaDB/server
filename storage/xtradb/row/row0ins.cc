@@ -1655,16 +1655,14 @@ run_again:
 				}
 
 				if (check_ref) {
-#ifdef WITH_WSREP
-					enum wsrep_key_type key_type = WSREP_KEY_EXCLUSIVE;
-#endif /* WITH_WSREP */
 					err = DB_SUCCESS;
-
 #ifdef WITH_WSREP
+					enum wsrep_key_type key_type;
 					if (upd_node != NULL) {
 						key_type = WSREP_KEY_SHARED;
 					} else {
 						switch (wsrep_certification_rules) {
+						default:
 						case WSREP_CERTIFICATION_RULES_STRICT:
 							key_type = WSREP_KEY_EXCLUSIVE;
 							break;
@@ -1681,8 +1679,7 @@ run_again:
 						check_index,
 						check_ref,
 						key_type);
- #endif /* WITH_WSREP */
-
+#endif /* WITH_WSREP */
 					goto end_scan;
 				} else if (foreign->type != 0) {
 					/* There is an ON UPDATE or ON DELETE
