@@ -4699,6 +4699,40 @@ err:
 }
 
 
+static int create_frm_only(THD *thd,
+                           const LEX_CSTRING *orig_db,
+                           const LEX_CSTRING *orig_table_name,
+                           const char *path,
+                           HA_CREATE_INFO *create_info,
+                           Alter_info *alter_info,
+                           int create_table_mode,
+                           KEY **key_info,
+                           uint *key_count,
+                           LEX_CUSTRING *frm)
+{
+  int result= 0;
+  handler *file= mysql_create_frm_image(thd, orig_db, orig_table_name,
+                                        create_info, alter_info,
+                                        create_table_mode, key_info, key_count,
+                                        frm);
+
+  if (!file)
+    return 1;
+
+  /*
+    TODO: remove this check of thd->is_error() (now it intercept
+    errors in some val_*() methoids and bring some single place to
+    such error interception).
+  */
+  if (thd->is_error() ||
+      file->ha_create_partitioning_metadata(path, NULL, CHF_CREATE_FLAG))
+    result= 1;
+
+  delete file;
+  return result;
+}
+
+
 static int create_ordinary(THD *thd, const char *path,
                            const char *db, const char *table_name,
                            HA_CREATE_INFO *create_info, LEX_CUSTRING *frm)
@@ -4715,10 +4749,65 @@ static int create_ordinary(THD *thd, const char *path,
   if (share.init_from_binary_frm_image(thd, write_frm_now,
                                        frm->str, frm->length))
     goto err;
+
+  if (thd->variables.keep_files_on_create)
+    create_info->options|= HA_CREATE_KEEP_FILES;
+
   error= ha_create_table(thd, share, create_info);
 err:
   free_table_share(&share);
   DBUG_RETURN(error);
+}
+
+
+static int discover_assisted(THD *thd,
+                             const LEX_CSTRING *db,
+                             const LEX_CSTRING *table_name,
+                             const char *path,
+                             HA_CREATE_INFO *create_info,
+                             LEX_CUSTRING *frm)
+{
+  TABLE_SHARE share;
+  handlerton *hton= create_info->db_type;
+  int ha_err;
+  Field *no_fields= 0;
+
+  if (!hton->discover_table_structure)
+  {
+    my_error(ER_TABLE_MUST_HAVE_COLUMNS, MYF(0));
+    return 1;
+  }
+
+  init_tmp_table_share(thd, &share, db->str, 0, table_name->str, path);
+
+  /* prepare everything for discovery */
+  share.field= &no_fields;
+  share.db_plugin= ha_lock_engine(thd, hton);
+  share.option_list= create_info->option_list;
+  share.connect_string= create_info->connect_string;
+
+  if (parse_engine_table_options(thd, hton, &share))
+    return 1;
+
+  ha_err= hton->discover_table_structure(hton, thd, &share, create_info);
+
+  /*
+    if discovery failed, the plugin will be auto-unlocked, as it
+    was locked on the THD, see above.
+    if discovery succeeded, the plugin was replaced by a globally
+    locked plugin, that will be unlocked by free_table_share()
+  */
+  if (ha_err)
+    share.db_plugin= 0; // will be auto-freed, locked above on the THD
+
+  free_table_share(&share);
+
+  if (ha_err)
+  {
+    my_error(ER_GET_ERRNO, MYF(0), ha_err, hton_name(hton)->str);
+    return 1;
+  }
+  return 0;
 }
 
 
@@ -4772,7 +4861,6 @@ int create_table_impl(THD *thd,
                        LEX_CUSTRING *frm)
 {
   LEX_CSTRING	*alias;
-  handler	*file= 0;
   int		error= 1;
   bool          frm_only= create_table_mode == C_ALTER_TABLE_FRM_ONLY;
   bool          internal_tmp_table= create_table_mode == C_ALTER_TABLE || frm_only;
@@ -4903,76 +4991,22 @@ int create_table_impl(THD *thd,
 
   if (create_table_mode == C_ASSISTED_DISCOVERY)
   {
-    /* check that it's used correctly */
-    DBUG_ASSERT(alter_info->create_list.elements == 0);
-    DBUG_ASSERT(alter_info->key_list.elements == 0);
-
-    TABLE_SHARE share;
-    handlerton *hton= create_info->db_type;
-    int ha_err;
-    Field *no_fields= 0;
-
-    if (!hton->discover_table_structure)
-    {
-      my_error(ER_TABLE_MUST_HAVE_COLUMNS, MYF(0));
+    if (discover_assisted(thd, db, table_name, path, create_info, frm))
       goto err;
-    }
-
-    init_tmp_table_share(thd, &share, db->str, 0, table_name->str, path);
-
-    /* prepare everything for discovery */
-    share.field= &no_fields;
-    share.db_plugin= ha_lock_engine(thd, hton);
-    share.option_list= create_info->option_list;
-    share.connect_string= create_info->connect_string;
-
-    if (parse_engine_table_options(thd, hton, &share))
-      goto err;
-
-    ha_err= hton->discover_table_structure(hton, thd, &share, create_info);
-
-    /*
-      if discovery failed, the plugin will be auto-unlocked, as it
-      was locked on the THD, see above.
-      if discovery succeeded, the plugin was replaced by a globally
-      locked plugin, that will be unlocked by free_table_share()
-    */
-    if (ha_err)
-      share.db_plugin= 0; // will be auto-freed, locked above on the THD
-
-    free_table_share(&share);
-
-    if (ha_err)
-    {
-      my_error(ER_GET_ERRNO, MYF(0), ha_err, hton_name(hton)->str);
-      goto err;
-    }
   }
   else
   {
-    file= mysql_create_frm_image(thd, orig_db, orig_table_name, create_info,
-                                 alter_info, create_table_mode, key_info,
-                                 key_count, frm);
-    /*
-    TODO: remove this check of thd->is_error() (now it intercept
-    errors in some val_*() methoids and bring some single place to
-    such error interception).
-    */
-    if (!file || thd->is_error())
-      goto err;
-
-    if (thd->variables.keep_files_on_create)
-      create_info->options|= HA_CREATE_KEEP_FILES;
-
-    if (file->ha_create_partitioning_metadata(path, NULL, CHF_CREATE_FLAG))
+    if (create_frm_only(thd, orig_db, orig_table_name, path, create_info,
+                        alter_info, create_table_mode, key_info, key_count,
+                        frm))
       goto err;
 
     if (!frm_only)
     {
       if (create_ordinary(thd, path, db->str, table_name->str, create_info, frm))
       {
-        file->ha_create_partitioning_metadata(path, NULL, CHF_DELETE_FLAG);
-        deletefrm(path);
+        quick_rm_table(thd, create_info->db_type, db, table_name,
+                       FN_IS_TMP | NO_HA_TABLE, path);
         goto err;
       }
     }
@@ -5001,7 +5035,6 @@ int create_table_impl(THD *thd,
   error= 0;
 err:
   THD_STAGE_INFO(thd, stage_after_create);
-  delete file;
   DBUG_PRINT("exit", ("return: %d", error));
   DBUG_RETURN(error);
 
