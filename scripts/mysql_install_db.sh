@@ -347,7 +347,8 @@ then
   bindir="$basedir/@INSTALL_SBINDIR@"
   resolveip="$bindir/resolveip"
   mysqld="$basedir/@INSTALL_SBINDIR@/mysqld"
-  pkgdatadir="$basedir/@INSTALL_MYSQLSHAREDIR@"
+  srcpkgdatadir="$basedir/@INSTALL_MYSQLSHAREDIR@"
+  buildpkgdatadir="$basedir/@INSTALL_MYSQLSHAREDIR@"
 else
   basedir="@prefix@"
   bindir="@bindir@"
