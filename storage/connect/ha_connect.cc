@@ -4191,7 +4191,7 @@ int ha_connect::rnd_pos(uchar *buf, uchar *pos)
     rc= rnd_next(buf);
 	} else {
 		PGLOBAL g = GetPlug((table) ? table->in_use : NULL, xp);
-		strcpy(g->Message, "Not supported by this table type");
+//	strcpy(g->Message, "Not supported by this table type");
 		my_message(ER_ILLEGAL_HA, g->Message, MYF(0));
 		rc= HA_ERR_INTERNAL_ERROR;
 	}	// endif SetRecpos
@@ -7307,7 +7307,7 @@ maria_declare_plugin(connect)
   PLUGIN_LICENSE_GPL,
   connect_init_func,                            /* Plugin Init */
   connect_done_func,                            /* Plugin Deinit */
-  0x0107,                                       /* version number (1.05) */
+  0x0106,                                       /* version number (1.06) */
   NULL,                                         /* status variables */
   connect_system_variables,                     /* system variables */
   "1.06.0008",                                  /* string version */

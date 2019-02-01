@@ -27,6 +27,8 @@
 #include <shellapi.h>
 #include <accctrl.h>
 #include <aclapi.h>
+struct IUnknown;
+#include <shlwapi.h>
 
 #define USAGETEXT \
 "mysql_install_db.exe  Ver 1.00 for Windows\n" \
@@ -549,20 +551,78 @@ static int create_db_instance()
   DWORD cwd_len= MAX_PATH;
   char cmdline[3*MAX_PATH];
   FILE *in;
+  bool cleanup_datadir= true;
+  DWORD last_error;
 
   verbose("Running bootstrap");
 
   GetCurrentDirectory(cwd_len, cwd);
-  CreateDirectory(opt_datadir, NULL); /*ignore error, it might already exist */
+
+  /* Create datadir and datadir/mysql, if they do not already exist. */
+
+  if (!CreateDirectory(opt_datadir, NULL) && (GetLastError() != ERROR_ALREADY_EXISTS))
+  {
+    last_error = GetLastError();
+    switch(last_error)
+    {
+      case ERROR_ACCESS_DENIED:
+        die("Can't create data directory '%s' (access denied)\n",
+            opt_datadir);
+        break;
+      case ERROR_PATH_NOT_FOUND:
+        die("Can't create data directory '%s' "
+            "(one or more intermediate directories do not exist)\n",
+            opt_datadir);
+        break;
+      default:
+        die("Can't create data directory '%s', last error %u\n",
+         opt_datadir, last_error);
+        break;
+    }
+  }
 
   if (!SetCurrentDirectory(opt_datadir))
   {
-    die("Cannot set current directory to '%s'\n",opt_datadir);
-    return -1;
+    last_error = GetLastError();
+    switch (last_error)
+    {
+      case ERROR_DIRECTORY:
+        die("Can't set current directory to '%s', the path is not a valid directory \n",
+            opt_datadir);
+        break;
+      default:
+        die("Can' set current directory to '%s', last error %u\n",
+            opt_datadir, last_error);
+        break;
+    }
   }
 
-  CreateDirectory("mysql",NULL);
-  CreateDirectory("test", NULL);
+  if (PathIsDirectoryEmpty(opt_datadir))
+  {
+    cleanup_datadir= false;
+  }
+
+  if (!CreateDirectory("mysql",NULL))
+  {
+    last_error = GetLastError();
+    DWORD attributes;
+    switch(last_error)
+    {
+      case ERROR_ACCESS_DENIED:
+        die("Can't create subdirectory 'mysql' in '%s' (access denied)\n",opt_datadir);
+        break;
+      case ERROR_ALREADY_EXISTS:
+       attributes = GetFileAttributes("mysql");
+
+       if (attributes == INVALID_FILE_ATTRIBUTES)
+         die("GetFileAttributes() failed for existing file '%s\\mysql', last error %u",
+            opt_datadir, GetLastError());
+       else if (!(attributes & FILE_ATTRIBUTE_DIRECTORY))
+         die("File '%s\\mysql' exists, but it is not a directory", opt_datadir);
+
+       break;
+    }
+  }
 
   /*
     Set data directory permissions for both current user and 
@@ -675,7 +735,7 @@ static int create_db_instance()
   }
 
 end:
-  if (ret)
+  if (ret && cleanup_datadir)
   {
     SetCurrentDirectory(cwd);
     clean_directory(opt_datadir);

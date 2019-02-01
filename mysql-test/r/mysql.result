@@ -600,3 +600,29 @@ a
 2
 drop table "a1\""b1";
 set sql_mode=default;
+create table t1 (a text);
+select count(*) from t1;
+count(*)
+41
+truncate table t1;
+select count(*) from t1;
+count(*)
+41
+truncate table t1;
+select count(*) from t1;
+count(*)
+0
+truncate table t1;
+select count(*) from t1;
+count(*)
+0
+truncate table t1;
+select count(*) from t1;
+count(*)
+41
+truncate table t1;
+select count(*) from t1;
+count(*)
+0
+truncate table t1;
+drop table t1;
