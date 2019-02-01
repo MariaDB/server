@@ -236,8 +236,6 @@ long innobase_open_files = 300L;
 longlong innobase_page_size = (1LL << 14); /* 16KB */
 char*	innobase_buffer_pool_filename = NULL;
 
-longlong innobase_buffer_pool_size = 8*1024*1024L;
-
 /* The default values for the following char* start-up parameters
 are determined in innobase_init below: */
 
@@ -1262,11 +1260,6 @@ struct my_option xb_server_options[] =
    (G_PTR*) &sys_tablespace_auto_extend_increment,
    (G_PTR*) &sys_tablespace_auto_extend_increment,
    0, GET_ULONG, REQUIRED_ARG, 8L, 1L, 1000L, 0, 1L, 0},
-  {"innodb_buffer_pool_size", OPT_INNODB_BUFFER_POOL_SIZE,
-   "The size of the memory buffer InnoDB uses to cache data and indexes of its tables.",
-   (G_PTR*) &innobase_buffer_pool_size, (G_PTR*) &innobase_buffer_pool_size, 0,
-   GET_LL, REQUIRED_ARG, 8*1024*1024L, 1024*1024L, LONGLONG_MAX, 0,
-   1024*1024L, 0},
   {"innodb_data_file_path", OPT_INNODB_DATA_FILE_PATH,
    "Path to individual files and their sizes.", &innobase_data_file_path,
    &innobase_data_file_path, 0, GET_STR, REQUIRED_ARG, 0, 0, 0, 0, 0, 0},
@@ -1583,11 +1576,23 @@ end:
 }
 
 
-static const char *xb_client_default_groups[]=
-	{ "xtrabackup", "mariabackup", "client", 0, 0, 0 };
+static const char *xb_client_default_groups[]={
+   "xtrabackup", "mariabackup",
+   "client", "client-server",
+   "client-mariadb",
+   0, 0, 0
+};
 
-static const char *xb_server_default_groups[]=
-	{ "xtrabackup", "mariabackup", "mysqld", 0, 0, 0 };
+static const char *xb_server_default_groups[]={
+   "xtrabackup", "mariabackup",
+   "mysqld", "server", MYSQL_BASE_VERSION,
+   "mariadb", MARIADB_BASE_VERSION,
+   "client-server",
+   #ifdef WITH_WSREP
+   "galera",
+   #endif
+   0, 0, 0
+};
 
 static void print_version(void)
 {
@@ -1822,13 +1827,6 @@ innodb_init_param(void)
 		if (xtrabackup_use_memory > UINT_MAX32) {
 			msg("mariabackup: use-memory can't be over 4GB"
 			    " on 32-bit systems");
-		}
-
-		if (innobase_buffer_pool_size > UINT_MAX32) {
-			msg("mariabackup: innobase_buffer_pool_size can't be "
-			    "over 4GB on 32-bit systems");
-
-			goto error;
 		}
 	}
 

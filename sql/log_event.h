@@ -836,7 +836,7 @@ typedef struct st_print_event_info
   bool domain_id_printed;
   bool allow_parallel;
   bool allow_parallel_printed;
-
+  static const uint max_delimiter_size= 16;
   /*
     Track when @@skip_replication changes so we need to output a SET
     statement for it.
@@ -872,7 +872,7 @@ typedef struct st_print_event_info
   bool printed_fd_event;
   my_off_t hexdump_from;
   uint8 common_header_len;
-  char delimiter[16];
+  char delimiter[max_delimiter_size];
 
   uint verbose;
   table_mapping m_table_map;
@@ -1235,7 +1235,7 @@ public:
   void print_header(IO_CACHE* file, PRINT_EVENT_INFO* print_event_info,
                     bool is_more);
   void print_base64(IO_CACHE* file, PRINT_EVENT_INFO* print_event_info,
-                    bool is_more);
+                    bool do_print_encoded);
 #endif
 
   /* The following code used for Flashback */
@@ -4267,7 +4267,7 @@ public:
   int rewrite_db(const char* new_name, size_t new_name_len,
                  const Format_description_log_event*);
 #endif
-  ulong get_table_id() const        { return m_table_id; }
+  ulonglong get_table_id() const        { return m_table_id; }
   const char *get_table_name() const { return m_tblnam; }
   const char *get_db_name() const    { return m_dbnam; }
 
@@ -4310,7 +4310,7 @@ private:
   uchar         *m_coltype;
 
   uchar         *m_memory;
-  ulong          m_table_id;
+  ulonglong      m_table_id;
   flag_set       m_flags;
 
   size_t         m_data_size;
@@ -4432,7 +4432,7 @@ public:
   MY_BITMAP const *get_cols() const { return &m_cols; }
   MY_BITMAP const *get_cols_ai() const { return &m_cols_ai; }
   size_t get_width() const          { return m_width; }
-  ulong get_table_id() const        { return m_table_id; }
+  ulonglong get_table_id() const        { return m_table_id; }
 
 #if defined(MYSQL_SERVER)
   /*
@@ -4533,7 +4533,7 @@ protected:
 #ifdef MYSQL_SERVER
   TABLE *m_table;		/* The table the rows belong to */
 #endif
-  ulong       m_table_id;	/* Table ID */
+  ulonglong       m_table_id;	/* Table ID */
   MY_BITMAP   m_cols;		/* Bitmap denoting columns available */
   ulong       m_width;          /* The width of the columns bitmap */
   /*
@@ -5091,6 +5091,13 @@ public:
   virtual int get_data_size() { return IGNORABLE_HEADER_LEN; }
 };
 
+#ifdef MYSQL_CLIENT
+void copy_cache_to_string_wrapped(IO_CACHE *body,
+                                  LEX_STRING *to,
+                                  bool do_wrap,
+                                  const char *delimiter,
+                                  bool is_verbose);
+#endif
 
 static inline bool copy_event_cache_to_string_and_reinit(IO_CACHE *cache, LEX_STRING *to)
 {
@@ -5118,10 +5125,11 @@ err:
 static inline bool copy_event_cache_to_file_and_reinit(IO_CACHE *cache,
                                                        FILE *file)
 {
-  return         
-    my_b_copy_to_file(cache, file) ||
+  return
+    my_b_copy_all_to_file(cache, file) ||
     reinit_io_cache(cache, WRITE_CACHE, 0, FALSE, TRUE);
 }
+
 
 #ifdef MYSQL_SERVER
 /*****************************************************************************

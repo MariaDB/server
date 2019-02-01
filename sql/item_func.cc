@@ -4818,7 +4818,7 @@ bool Item_func_set_user_var::register_field_in_bitmap(void *arg)
     true    failure
 */
 
-static bool
+bool
 update_hash(user_var_entry *entry, bool set_null, void *ptr, uint length,
             Item_result type, CHARSET_INFO *cs,
             bool unsigned_arg)
