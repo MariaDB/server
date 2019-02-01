@@ -127,3 +127,7 @@ Database (mysql_TE%)
 mysql_test
 drop database mysql_TEST;
 End of 10.0 tests
+create database db1;
+create table t1 (a int);
+drop database db1;
+drop table t1;
