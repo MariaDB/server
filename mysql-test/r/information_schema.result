@@ -1587,9 +1587,7 @@ id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 set global init_connect=repeat("drop table if exists t1;", 100);
 select length(@@global.init_connect), length(variable_value) from information_schema.global_variables where variable_name='init_connect';
 length(@@global.init_connect)	length(variable_value)
-2400	2048
-Warnings:
-Warning	1265	Data truncated for column 'VARIABLE_VALUE' at row 1
+2400	2400
 set global init_connect="";
 create table t0 select * from information_schema.global_status where VARIABLE_NAME='COM_SELECT';
 SELECT 1;

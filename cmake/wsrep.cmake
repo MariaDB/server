@@ -18,7 +18,7 @@
 # so WSREP_VERSION is produced regardless
 
 # Set the patch version
-SET(WSREP_PATCH_VERSION "24")
+SET(WSREP_PATCH_VERSION "25")
 
 # MariaDB addition: Revision number of the last revision merged from
 # codership branch visible in @@visible_comment.
@@ -54,7 +54,7 @@ ENDIF()
 
 OPTION(WITH_WSREP "WSREP replication API (to use, e.g. Galera Replication library)" ON)
 IF (WITH_WSREP)
-  SET(WSREP_C_FLAGS   "-DWITH_WSREP -DWSREP_PROC_INFO -DMYSQL_MAX_VARIABLE_VALUE_LEN=2048")
+  SET(WSREP_C_FLAGS   "-DWITH_WSREP -DWSREP_PROC_INFO -DMYSQL_MAX_VARIABLE_VALUE_LEN=4096")
   SET(CMAKE_C_FLAGS   "${CMAKE_C_FLAGS} ${WSREP_C_FLAGS}")
   SET(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} ${WSREP_C_FLAGS}")
   SET(COMPILATION_COMMENT "${COMPILATION_COMMENT}, wsrep_${WSREP_VERSION}")
