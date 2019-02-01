@@ -1,1 +1,1 @@
---bind-address=::
+--bind-address=:: --skip-innodb-safe-truncate

@@ -1,4 +1,2 @@
 galera_slave_options_do :MDEV-8798
 galera_slave_options_ignore : MDEV-8798
-galera_innobackupex_backup : xtrabackup is deprecated
-galera_ipv6_xtrabackup-v2 : xtrabackup is deprecated
