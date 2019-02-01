@@ -60,8 +60,7 @@ bool THD::has_thd_temporary_tables()
 TABLE *THD::create_and_open_tmp_table(LEX_CUSTRING *frm,
                                       const char *path,
                                       const char *db,
-                                      const char *table_name,
-                                      bool open_internal_tables)
+                                      const char *table_name)
 {
   DBUG_ENTER("THD::create_and_open_tmp_table");
 
@@ -86,15 +85,6 @@ TABLE *THD::create_and_open_tmp_table(LEX_CUSTRING *frm,
 
       /* Free the TMP_TABLE_SHARE. */
       free_tmp_table_share(share, false);
-      DBUG_RETURN(0);
-    }
-
-    /* Open any related tables */
-    if (open_internal_tables && table->internal_tables &&
-        open_and_lock_internal_tables(table, true))
-    {
-      drop_temporary_table(table, NULL, false);
-      DBUG_RETURN(0);
     }
   }
 

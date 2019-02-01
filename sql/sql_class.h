@@ -4727,8 +4727,7 @@ public:
   TABLE *create_and_open_tmp_table(LEX_CUSTRING *frm,
                                    const char *path,
                                    const char *db,
-                                   const char *table_name,
-                                   bool open_internal_tables);
+                                   const char *table_name);
 
   TABLE *find_temporary_table(const char *db, const char *table_name,
                               Temporary_table_state state= TMP_TABLE_IN_USE);

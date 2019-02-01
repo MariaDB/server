@@ -4758,9 +4758,7 @@ static int create_ordinary(THD *thd, const char *path,
 
   if (create_info->tmp_table() || (create_info->options & HA_CREATE_TMP_ALTER))
   {
-    TABLE *table= thd->create_and_open_tmp_table(frm, path, db, table_name,
-                                                 create_info->options &
-                                                 HA_CREATE_TMP_ALTER);
+    TABLE *table= thd->create_and_open_tmp_table(frm, path, db, table_name);
 
     if (!table)
     {
@@ -4828,8 +4826,7 @@ static int discover_assisted(THD *thd,
   if (create_info->tmp_table())
   {
     TABLE *table= thd->create_and_open_tmp_table(frm, path, db->str,
-                                                 table_name->str,
-                                                 false);
+                                                 table_name->str);
 
     if (!table)
     {
@@ -9826,6 +9823,10 @@ bool mysql_alter_table(THD *thd, const LEX_CSTRING *new_db,
 
   new_table= create_info->table;
   DBUG_ASSERT(new_table);
+
+  /* Open any related tables */
+  if (table->internal_tables && open_and_lock_internal_tables(new_table, true))
+    goto err_new_table_cleanup;
 
   if (table->s->tmp_table != NO_TMP_TABLE)
   {
