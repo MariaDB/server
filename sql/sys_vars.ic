@@ -596,7 +596,7 @@ public:
                       const char *comment,
                       CMD_LINE getopt,
                       enum charset_enum is_os_charset_arg,
-                      const char *def_val, PolyLock *lock) :
+                      const char *def_val, PolyLock *lock= 0) :
     Sys_var_charptr_base(name_arg, comment,
                          SESSION_VAR(session_track_system_variables),
                          getopt, is_os_charset_arg, def_val, lock,
