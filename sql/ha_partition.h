@@ -384,6 +384,8 @@ private:
   /** partitions that returned HA_ERR_KEY_NOT_FOUND. */
   MY_BITMAP m_key_not_found_partitions;
   bool m_key_not_found;
+  /* The key where the HA_ERR_FOUND_DUPP_KEY error happened. */
+  int m_errkey;
   List<String> *m_partitions_to_open;
   MY_BITMAP m_opened_partitions;
   /** This is one of the m_file-s that it guaranteed to be opened. */
@@ -522,7 +524,13 @@ private:
   void fix_data_dir(char* path);
   bool init_partition_bitmaps();
   void free_partition_bitmaps();
-
+  int check_files_for_key(uchar *key, int n_key,
+                          int part_begin, int part_end,
+                          int partition_to_skip, int *res);
+  int check_uniques_insert(uchar *buf, int part_begin, int part_end,
+                           KEY** dup_key, int *res);
+  int check_uniques_update(const uchar *old_data, const uchar *new_data,
+                           int new_part_id, int *res);
 public:
 
   /*

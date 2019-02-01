@@ -1,0 +1,76 @@
+CREATE TABLE t1 (
+id int(10) NOT NULL,
+status varchar(1) DEFAULT NULL,
+PRIMARY KEY (`id`)
+) ENGINE= InnoDB
+PARTITION BY LIST  COLUMNS(`status`)
+(
+PARTITION `a` VALUES IN ('A'),
+PARTITION `b` VALUES IN ('B'),
+PARTITION `c` VALUES IN ('C'),
+PARTITION `d` DEFAULT);
+SHOW CREATE TABLE t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `id` int(10) NOT NULL,
+  `status` varchar(1) DEFAULT NULL,
+  PRIMARY KEY (`id`)
+) ENGINE=InnoDB DEFAULT CHARSET=latin1
+ PARTITION BY LIST  COLUMNS(`status`)
+(PARTITION `a` VALUES IN ('A') ENGINE = InnoDB,
+ PARTITION `b` VALUES IN ('B') ENGINE = InnoDB,
+ PARTITION `c` VALUES IN ('C') ENGINE = InnoDB,
+ PARTITION `d` DEFAULT ENGINE = InnoDB)
+INSERT INTO t1 VALUES (4, 'A');
+INSERT INTO t1 VALUES (6, 'A');
+INSERT INTO t1 VALUES (4, 'C');
+ERROR 23000: Duplicate entry '4' for key 'PRIMARY'
+INSERT INTO t1 VALUES (5, 'C');
+UPDATE t1 SET id=4 WHERE id=5;
+ERROR 23000: Duplicate entry '4' for key 'PRIMARY'
+UPDATE t1 SET id=4 WHERE id=5 AND status='C';
+ERROR 23000: Duplicate entry '4' for key 'PRIMARY'
+UPDATE t1 SET id=6 WHERE id=4 AND status='A';
+ERROR 23000: Duplicate entry '6' for key 'PRIMARY'
+select * from t1;
+id	status
+4	A
+6	A
+5	C
+connect  con1,localhost,root,,test;
+connect  con2,localhost,root,,test;
+connection con1;
+SET DEBUG_SYNC= 'before_part_unique_check SIGNAL bpu_hit WAIT_FOR bpu_flushed';
+INSERT INTO t1 VALUES(7, 'A');
+connection con2;
+SET DEBUG_SYNC= 'now WAIT_FOR bpu_hit';
+INSERT INTO t1 VALUES(7, 'C');
+connection default;
+SET DEBUG_SYNC= 'now SIGNAL bpu_flushed';
+connection con1;
+connection con2;
+ERROR 23000: Duplicate entry '7' for key 'PRIMARY'
+connection con1;
+SET DEBUG_SYNC= 'before_part_unique_check SIGNAL bpu_hit WAIT_FOR bpu_flushed';
+INSERT INTO t1 VALUES(8, 'A');
+connection con2;
+SET DEBUG_SYNC= 'now WAIT_FOR bpu_hit';
+INSERT INTO t1 VALUES(9, 'C');
+INSERT INTO t1 VALUES(10, 'A');
+connection default;
+SET DEBUG_SYNC= 'now SIGNAL bpu_flushed';
+connection con1;
+disconnect con1;
+disconnect con2;
+connection default;
+select * from t1;
+id	status
+4	A
+6	A
+7	A
+8	A
+10	A
+5	C
+9	C
+DROP TABLE t1;
+set debug_sync= "RESET";

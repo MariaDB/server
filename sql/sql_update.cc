@@ -562,7 +562,8 @@ int mysql_update(THD *thd,
   query_plan.possible_keys= select? select->possible_keys: key_map(0);
   
   if (used_key_is_modified || order ||
-      partition_key_modified(table, table->write_set))
+      partition_key_modified(table, table->write_set) ||
+      partition_unique_modified(table, table->write_set))
   {
     if (order && need_sort)
       query_plan.using_filesort= true;

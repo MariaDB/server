@@ -368,6 +368,7 @@ void ha_partition::init_handler_variables()
   part_share= NULL;
   m_new_partitions_share_refs.empty();
   m_part_ids_sorted_by_num_of_records= NULL;
+  m_errkey= -1;
   m_partitions_to_open= NULL;
 
   m_range_info= NULL;
@@ -4204,6 +4205,95 @@ void ha_partition::try_semi_consistent_read(bool yes)
 }
 
 
+int ha_partition::check_files_for_key(uchar *key, int n_key,
+                                      int part_begin, int part_end,
+                                      int part_to_skip,
+                                      int *res)
+{
+  DBUG_ASSERT(inited == NONE ||
+              (inited == RND && !m_scan_value));
+
+  for (int n=part_begin; n < part_end; n++)
+  {
+    handler *f= m_file[n];
+    init_stat sav_inited;
+
+    if ((int) n == part_to_skip)
+      continue;
+
+    if ((sav_inited= f->inited) == RND)
+      f->ha_rnd_end();
+
+    *res= f->index_read_idx_map(m_part_info->table->record[0],
+        n_key, key, HA_WHOLE_KEY, HA_READ_KEY_EXACT);
+
+    f->ha_end_keyread();
+
+    if (sav_inited == RND)
+    {
+      int ires= f->ha_rnd_init(FALSE);
+      if (ires)
+        *res= ires;
+    }
+
+    if (*res == HA_ERR_KEY_NOT_FOUND)
+      continue;
+
+    if (*res == 0)
+      *res= HA_ERR_FOUND_DUPP_KEY;
+
+    m_last_part= n;
+    m_errkey= n_key;
+    return 1;
+  }
+
+  *res= 0;
+  return 0;
+}
+
+
+int ha_partition::check_uniques_insert(uchar *buf,
+                                       int part_begin, int part_end,
+                                       KEY **dup_key,
+                                       int *res)
+{
+  uint n_key;
+
+  for (n_key=0; n_key < m_part_info->n_uniques_to_check; n_key++)
+  {
+    uchar *cbuf= m_part_info->unique_key_buf[0];
+    KEY *ckey= m_part_info->uniques_to_check[n_key];
+    uint n;
+
+    for (n=0; n < ckey->user_defined_key_parts; n++)
+    {
+      const KEY_PART_INFO *cpart= ckey->key_part + n;
+      uint maybe_null= MY_TEST(cpart->null_bit);
+      Field *f= cpart->field;
+      my_ptrdiff_t ofs= buf-table->record[0];
+
+      f->move_field_offset(ofs);
+      if (maybe_null)
+        cbuf[0]= f->is_null();
+      f->get_key_image(cbuf+maybe_null, cpart->length, Field::itRAW);
+      cbuf+= cpart->store_length;
+      f->move_field_offset(-ofs);
+    }
+
+    if (check_files_for_key(m_part_info->unique_key_buf[0],
+                            table->key_info - ckey,
+                            part_begin, part_end, -1, res))
+    {
+      *dup_key= ckey;
+      return 1;
+    }
+  }
+
+  *res= 0;
+  return 0;
+}
+
+
 /****************************************************************************
                 MODULE change record
 ****************************************************************************/
@@ -4255,6 +4345,7 @@ int ha_partition::write_row(uchar * buf)
   THD *thd= ha_thd();
   sql_mode_t saved_sql_mode= thd->variables.sql_mode;
   bool saved_auto_inc_field_not_null= table->auto_increment_field_not_null;
+  KEY *dup_key;
   DBUG_ENTER("ha_partition::write_row");
   DBUG_PRINT("enter", ("partition this: %p", this));
 
@@ -4313,7 +4404,41 @@ int ha_partition::write_row(uchar * buf)
   start_part_bulk_insert(thd, part_id);
 
   tmp_disable_binlog(thd); /* Do not replicate the low-level changes. */
+
+  /*
+     Check unique keys (if there is any) for duplications in
+     partitions 0 .. inserted partition, then
+     do the write_row then check the unique in
+     partitions inserted partition +1 .. m_tot_parts.
+     We do so to keep the order of locking always same to
+     avoid deadlocks.
+  */
+  if (table->part_info->n_uniques_to_check &&
+      check_uniques_insert(buf, 0, part_id, &dup_key, &error))
+  {
+    goto exit;
+  }
+
   error= m_file[part_id]->ha_write_row(buf);
+
+  DEBUG_SYNC(thd, "before_part_unique_check");
+
+  if (!error && table->part_info->n_uniques_to_check &&
+      check_uniques_insert(buf, part_id+1, m_tot_parts, &dup_key, &error))
+  {
+    /*
+      Errors here are ignored, as the error already found.
+      and i don't have a good idea what to do if things go
+      wrong here.
+    */
+    if (!(m_file[part_id]->ha_index_read_idx_map(table->record[1],
+            dup_key - table->key_info, table->part_info->unique_key_buf[0],
+            HA_WHOLE_KEY, HA_READ_KEY_EXACT)))
+    {
+      (void) m_file[part_id]->ha_delete_row(buf);
+    }
+  }
+
   if (have_auto_increment && !table->s->next_number_keypart)
     set_auto_increment_if_higher(table->next_number_field);
   reenable_binlog(thd);
@@ -4322,6 +4447,59 @@ exit:
   thd->variables.sql_mode= saved_sql_mode;
   table->auto_increment_field_not_null= saved_auto_inc_field_not_null;
   DBUG_RETURN(error);
+}
+
+ 
+int ha_partition::check_uniques_update(const uchar *old_data,
+                                       const uchar *new_data,
+                                       int new_part_id, int *res)
+{
+  uint n_key;
+
+  for (n_key=0; n_key < m_part_info->n_uniques_to_check; n_key++)
+  {
+    uchar *buf0= m_part_info->unique_key_buf[0];
+    uchar *buf1= m_part_info->unique_key_buf[1];
+    KEY *ckey= m_part_info->uniques_to_check[n_key];
+    uint n;
+
+    for (n=0; n < ckey->user_defined_key_parts; n++)
+    {
+      const KEY_PART_INFO *cpart= ckey->key_part + n;
+      uint maybe_null= MY_TEST(cpart->null_bit);
+      Field *f= cpart->field;
+      my_ptrdiff_t dif;
+
+      dif= old_data - table->record[0];
+      f->move_field_offset(dif);
+      if (maybe_null)
+        buf0[0]= f->is_null();
+      f->get_key_image(buf0+maybe_null, cpart->length, Field::itRAW);
+      buf0+= cpart->store_length;
+      f->move_field_offset(-dif);
+
+      dif= new_data - table->record[0];
+      f->move_field_offset(dif);
+      if (maybe_null)
+        buf1[0]= f->is_null();
+      f->get_key_image(buf1+maybe_null, cpart->length, Field::itRAW);
+      buf1+= cpart->store_length;
+      f->move_field_offset(-dif);
+    }
+
+    if (memcmp(m_part_info->unique_key_buf[0], m_part_info->unique_key_buf[1],
+               buf0 - m_part_info->unique_key_buf[0]) == 0)
+    {
+      /* Key did not change. */
+      continue;
+    }
+
+    if (check_files_for_key(m_part_info->unique_key_buf[1],
+                    table->key_info - ckey, 0, m_tot_parts, new_part_id, res))
+      return 1;
+  }
+
+  return 0;
 }
 
 
@@ -4393,6 +4571,9 @@ int ha_partition::update_row(const uchar *old_data, const uchar *new_data)
     goto exit;
   }
 
+  if (table->part_info->n_uniques_to_check &&
+      check_uniques_update(old_data, new_data, new_part_id, &error))
+    goto exit;
 
   m_last_part= new_part_id;
   start_part_bulk_insert(thd, new_part_id);
@@ -5760,11 +5941,14 @@ int ha_partition::index_read_idx_map(uchar *buf, uint index,
     get_partition_set(table, buf, index, &m_start_key, &m_part_spec);
 
     /*
-      We have either found exactly 1 partition
+      If there is no 'unbound' unique keys where not all keyparts
+      are partition definition fields,
+      we have either found exactly 1 partition
       (in which case start_part == end_part)
       or no matching partitions (start_part > end_part)
     */
-    DBUG_ASSERT(m_part_spec.start_part >= m_part_spec.end_part);
+    DBUG_ASSERT(m_part_spec.start_part >= m_part_spec.end_part ||
+                m_part_info->n_uniques_to_check);
     /* The start part is must be marked as used. */
     DBUG_ASSERT(m_part_spec.start_part > m_part_spec.end_part ||
                 bitmap_is_set(&(m_part_info->read_partitions),
@@ -8321,15 +8505,20 @@ int ha_partition::info(uint flag)
   {
     handler *file= m_file[m_last_part];
     DBUG_PRINT("info", ("info: HA_STATUS_ERRKEY"));
-    /*
-      This flag is used to get index number of the unique index that
-      reported duplicate key
-      We will report the errkey on the last handler used and ignore the rest
-      Note: all engines does not support HA_STATUS_ERRKEY, so set errkey.
-    */
-    file->errkey= errkey;
-    file->info(HA_STATUS_ERRKEY | no_lock_flag);
-    errkey= file->errkey;
+    if (m_errkey >= 0)
+      errkey= (uint) m_errkey;
+    else
+    {
+      /*
+        This flag is used to get index number of the unique index that
+        reported duplicate key
+        We will report the errkey on the last handler used and ignore the rest
+        Note: all engines does not support HA_STATUS_ERRKEY, so set errkey.
+      */
+      file->errkey= errkey;
+      file->info(HA_STATUS_ERRKEY | no_lock_flag);
+      errkey= file->errkey;
+    }
   }
   if (flag & HA_STATUS_TIME)
   {
@@ -9751,6 +9940,18 @@ void ha_partition::print_error(int error, myf errflag)
   {
     m_part_info->print_no_partition_found(table, errflag);
     DBUG_VOID_RETURN;
+  }
+  else if (error == HA_ERR_FOUND_DUPP_KEY)
+  {
+    if (m_errkey >=0)
+    {
+      print_keydup_error(table,
+          m_errkey == MAX_KEY ? NULL :
+                                &table->key_info[m_errkey], errflag);
+      m_errkey= -1;
+      DBUG_VOID_RETURN;
+    }
+    /* fall through */
   }
   else if (error == HA_ERR_ROW_IN_WRONG_PARTITION)
   {

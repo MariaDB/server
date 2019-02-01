@@ -283,6 +283,14 @@ public:
   bool is_auto_partitioned;
   bool has_null_value;
   bool column_list;                          // COLUMNS PARTITIONING, 5.5+
+  /*
+    Unique keys that don't have all the partitioning fields in them
+    need to be checked when INSERT/UPDATE.
+    So they are collected here.
+  */
+  KEY **uniques_to_check;
+  uint n_uniques_to_check;
+  uchar *unique_key_buf[2];
 
   partition_info()
   : get_partition_id(NULL), get_part_partition_id(NULL),
@@ -314,7 +322,7 @@ public:
     list_of_part_fields(FALSE), list_of_subpart_fields(FALSE),
     linear_hash_ind(FALSE), fixed(FALSE),
     is_auto_partitioned(FALSE),
-    has_null_value(FALSE), column_list(FALSE)
+    has_null_value(FALSE), column_list(FALSE), n_uniques_to_check(0)
   {
     all_fields_in_PF.clear_all();
     all_fields_in_PPF.clear_all();

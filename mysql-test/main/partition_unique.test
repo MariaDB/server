@@ -1,0 +1,75 @@
+--source include/have_innodb.inc
+--source include/have_partition.inc
+
+CREATE TABLE t1 (
+      id int(10) NOT NULL,
+      status varchar(1) DEFAULT NULL,
+      PRIMARY KEY (`id`)
+    ) ENGINE= InnoDB
+   PARTITION BY LIST  COLUMNS(`status`)
+  (
+    PARTITION `a` VALUES IN ('A'),
+    PARTITION `b` VALUES IN ('B'),
+    PARTITION `c` VALUES IN ('C'),
+    PARTITION `d` DEFAULT);
+
+SHOW CREATE TABLE t1;
+
+INSERT INTO t1 VALUES (4, 'A');
+INSERT INTO t1 VALUES (6, 'A');
+--error ER_DUP_ENTRY
+INSERT INTO t1 VALUES (4, 'C');
+INSERT INTO t1 VALUES (5, 'C');
+--error ER_DUP_ENTRY
+UPDATE t1 SET id=4 WHERE id=5;
+--error ER_DUP_ENTRY
+UPDATE t1 SET id=4 WHERE id=5 AND status='C';
+--error ER_DUP_ENTRY
+UPDATE t1 SET id=6 WHERE id=4 AND status='A';
+select * from t1;
+
+connect (con1,localhost,root,,test);
+connect (con2,localhost,root,,test);
+connection con1;
+SET DEBUG_SYNC= 'before_part_unique_check SIGNAL bpu_hit WAIT_FOR bpu_flushed';
+send INSERT INTO t1 VALUES(7, 'A');
+
+connection con2;
+SET DEBUG_SYNC= 'now WAIT_FOR bpu_hit';
+send INSERT INTO t1 VALUES(7, 'C');
+
+connection default;
+SET DEBUG_SYNC= 'now SIGNAL bpu_flushed';
+
+connection con1;
+--reap
+connection con2;
+--error ER_DUP_ENTRY
+--reap
+
+connection con1;
+SET DEBUG_SYNC= 'before_part_unique_check SIGNAL bpu_hit WAIT_FOR bpu_flushed';
+send INSERT INTO t1 VALUES(8, 'A');
+
+connection con2;
+SET DEBUG_SYNC= 'now WAIT_FOR bpu_hit';
+INSERT INTO t1 VALUES(9, 'C');
+INSERT INTO t1 VALUES(10, 'A');
+
+connection default;
+SET DEBUG_SYNC= 'now SIGNAL bpu_flushed';
+
+connection con1;
+--reap
+
+disconnect con1;
+disconnect con2;
+
+connection default;
+
+select * from t1;
+
+DROP TABLE t1;
+
+set debug_sync= "RESET";
+

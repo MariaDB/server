@@ -910,53 +910,10 @@ end:
 
 
 /*
-  Check that the primary key contains all partition fields if defined
-
-  SYNOPSIS
-    check_primary_key()
-    table                TABLE object for which partition fields are set-up
-
-  RETURN VALUES
-    TRUE                 Not all fields in partitioning function was part
-                         of primary key
-    FALSE                Ok, all fields of partitioning function were part
-                         of primary key
-
-  DESCRIPTION
-    This function verifies that if there is a primary key that it contains
-    all the fields of the partition function.
-    This is a temporary limitation that will hopefully be removed after a
-    while.
-*/
-
-static bool check_primary_key(TABLE *table)
-{
-  uint primary_key= table->s->primary_key;
-  bool all_fields, some_fields;
-  bool result= FALSE;
-  DBUG_ENTER("check_primary_key");
-
-  if (primary_key < MAX_KEY)
-  {
-    set_indicator_in_key_fields(table->key_info+primary_key);
-    check_fields_in_PF(table->part_info->full_part_field_array,
-                        &all_fields, &some_fields);
-    clear_indicator_in_key_fields(table->key_info+primary_key);
-    if (unlikely(!all_fields))
-    {
-      my_error(ER_UNIQUE_KEY_NEED_ALL_FIELDS_IN_PF,MYF(0),"PRIMARY KEY");
-      result= TRUE;
-    }
-  }
-  DBUG_RETURN(result);
-}
-
-
-/*
   Check that unique keys contains all partition fields
 
   SYNOPSIS
-    check_unique_keys()
+    find_uniques_to_check()
     table                TABLE object for which partition fields are set-up
 
   RETURN VALUES
@@ -972,12 +929,12 @@ static bool check_primary_key(TABLE *table)
     while.
 */
 
-static bool check_unique_keys(TABLE *table)
+static uint find_uniques_to_check(TABLE *table)
 {
   bool all_fields, some_fields;
-  bool result= FALSE;
   uint keys= table->s->keys;
   uint i;
+  uint keys_found= 0;
   DBUG_ENTER("check_unique_keys");
 
   for (i= 0; i < keys; i++)
@@ -988,15 +945,15 @@ static bool check_unique_keys(TABLE *table)
       check_fields_in_PF(table->part_info->full_part_field_array,
                          &all_fields, &some_fields);
       clear_indicator_in_key_fields(table->key_info+i);
-      if (unlikely(!all_fields))
+      if (!all_fields)
       {
-        my_error(ER_UNIQUE_KEY_NEED_ALL_FIELDS_IN_PF,MYF(0),"UNIQUE INDEX");
-        result= TRUE;
-        break;
+        ++keys_found;
+        if (table->part_info->n_uniques_to_check >= keys_found)
+          table->part_info->uniques_to_check[keys_found-1]= table->key_info+i;
       }
     }
   }
-  DBUG_RETURN(result);
+  DBUG_RETURN(keys_found);
 }
 
 
@@ -2043,12 +2000,22 @@ bool fix_partition_func(THD *thd, TABLE *table, bool is_create_table_ind)
   }
   if (unlikely(create_full_part_field_array(thd, table, part_info)))
     goto end;
-  if (unlikely(check_primary_key(table)))
-    goto end;
-  if (unlikely((!(table->s->db_type()->partition_flags &&
-      (table->s->db_type()->partition_flags() & HA_CAN_PARTITION_UNIQUE))) &&
-               check_unique_keys(table)))
-    goto end;
+  if ((table->part_info->n_uniques_to_check= find_uniques_to_check(table)))
+  {
+    table->part_info->uniques_to_check=
+      (KEY **) alloc_root(&table->mem_root,
+                          sizeof(KEY *) * table->part_info->n_uniques_to_check);
+    table->part_info->unique_key_buf[0]=
+      (uchar *) alloc_root(&table->mem_root, MAX_KEY_LENGTH);
+    table->part_info->unique_key_buf[1]=
+      (uchar *) alloc_root(&table->mem_root, MAX_KEY_LENGTH);
+    if (unlikely(!table->part_info->uniques_to_check) ||
+                 !table->part_info->unique_key_buf[0] ||
+                 !table->part_info->unique_key_buf[1])
+      goto end;
+
+    (void) find_uniques_to_check(table);
+  }
   if (unlikely(set_up_partition_bitmaps(thd, part_info)))
     goto end;
   if (unlikely(part_info->set_up_charset_field_preps(thd)))
@@ -2806,6 +2773,47 @@ bool partition_key_modified(TABLE *table, const MY_BITMAP *fields)
   for (fld= part_info->full_part_field_array; *fld; fld++)
     if (bitmap_is_set(fields, (*fld)->field_index))
       DBUG_RETURN(TRUE);
+  DBUG_RETURN(FALSE);
+}
+
+
+ /*
+  Check if there are unique keys that not entirely 'inside' the partition
+  key and if any fields of such keys are modified.
+  If it's so, it usually means we have to use tamporary storage for records
+  handling the UPDATE command.
+
+  SYNOPSIS
+    partition_unique_modified
+    table                TABLE object for which partition fields are set-up
+    fields               Bitmap representing fields to be modified
+
+  RETURN VALUES
+    TRUE                 Need special handling of UPDATE
+    FALSE                Normal UPDATE handling is ok
+*/
+
+bool partition_unique_modified(TABLE *table, const MY_BITMAP *fields)
+{
+  partition_info *part_info= table->part_info;
+  DBUG_ENTER("partition_unique_modified");
+
+  if (!part_info)
+    DBUG_RETURN(FALSE);
+
+  if (part_info->uniques_to_check == 0)
+    DBUG_RETURN(FALSE);
+
+  for (uint n_key=0; n_key < part_info->n_uniques_to_check; n_key++)
+  {
+    KEY *ckey= part_info->uniques_to_check[n_key];
+    for (uint n_part=0; n_part < ckey->user_defined_key_parts; n_part++)
+    {
+      if (bitmap_is_set(fields, ckey->key_part[n_part].field->field_index))
+        DBUG_RETURN(TRUE);
+    }
+  }
+
   DBUG_RETURN(FALSE);
 }
 
