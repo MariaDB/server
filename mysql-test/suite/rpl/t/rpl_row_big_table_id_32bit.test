@@ -1,0 +1,11 @@
+##################################################################
+# rpl_row_big_table_id
+#
+# MDEV-17803 Row-based event is not applied when
+# table map id is greater 32 bit int
+#
+# Verify row-based events applying when table map id value is about and greater
+# than 1 << 32.
+##################################################################
+--source include/have_32bit.inc
+--source rpl_row_big_table_id.inc

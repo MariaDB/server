@@ -181,7 +181,11 @@ fi
 user='@MYSQLD_USER@'
 
 su_kill() {
-  su - $user -s /bin/sh -c "kill $*" >/dev/null 2>&1
+  if test "$USER" = "$user"; then
+    kill $* >/dev/null 2>&1
+  else
+    su - $user -s /bin/sh -c "kill $*" >/dev/null 2>&1
+  fi
 }
 
 #

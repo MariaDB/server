@@ -182,14 +182,14 @@ void* job_manager_t::real_thread_func() {
         if (res == tokudb::thread::semaphore_t::E_INTERRUPTED || _shutdown) {
                 break;
         } else if (res == tokudb::thread::semaphore_t::E_SIGNALLED) {
-#if TOKUDB_DEBUG
+#if defined(TOKUDB_DEBUG)
             if (TOKUDB_UNLIKELY(
                     tokudb::sysvars::debug_pause_background_job_manager)) {
                 _sem.signal();
                 tokudb::time::sleep_microsec(250000);
                 continue;
             }
-#endif  // TOKUDB_DEBUG
+#endif  // defined(TOKUDB_DEBUG)
 
             mutex_t_lock(_mutex);
             assert_debug(_background_jobs.size() > 0);

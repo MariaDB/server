@@ -1,7 +1,7 @@
 /*****************************************************************************
 
 Copyright (c) 1995, 2017, Oracle and/or its affiliates. All Rights Reserved.
-Copyright (c) 2014, 2017, MariaDB Corporation. All Rights Reserved.
+Copyright (c) 2014, 2019, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -4914,6 +4914,8 @@ retry:
 				" failed with error %d",
 				node->name, start_offset, len + start_offset,
 				err);
+		} else {
+			os_file_flush(node->handle);
 		}
 
 		DBUG_EXECUTE_IF("ib_os_aio_func_io_failure_28",
@@ -5025,7 +5027,7 @@ file_extended:
 	size_after_extend, *actual_size); */
 	mutex_exit(&fil_system->mutex);
 
-	fil_flush(space_id);
+	fil_flush(space_id, true);
 
 	return(success);
 }
@@ -5641,20 +5643,15 @@ fil_aio_wait(
 }
 #endif /* UNIV_HOTBACKUP */
 
-/**********************************************************************//**
-Flushes to disk possible writes cached by the OS. If the space does not exist
-or is being dropped, does not do anything. */
-UNIV_INTERN
-void
-fil_flush(
-/*======*/
-	ulint	space_id)	/*!< in: file space id (this can be a group of
-				log files or a tablespace of the database) */
+/** Make persistent possible writes cached by the OS.
+If the space does not exist or is being dropped, do nothing.
+@param[in]	space_id	tablespace identifier
+@param[in]	metadata	whether to update file system metadata */
+UNIV_INTERN void fil_flush(ulint space_id, bool metadata)
 {
 	fil_space_t*	space;
 	fil_node_t*	node;
 	pfs_os_file_t	file;
-
 
 	mutex_enter(&fil_system->mutex);
 
@@ -5684,8 +5681,10 @@ fil_flush(
 		}
 #endif /* UNIV_DEBUG */
 
-		mutex_exit(&fil_system->mutex);
-		return;
+		if (!metadata) {
+			mutex_exit(&fil_system->mutex);
+			return;
+		}
 	}
 
 	space->n_pending_flushes++;	/*!< prevent dropping of the space while

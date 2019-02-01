@@ -1,7 +1,7 @@
 /*****************************************************************************
 
 Copyright (c) 2000, 2017, Oracle and/or its affiliates. All Rights Reserved.
-Copyright (c) 2013, 2017, MariaDB Corporation.
+Copyright (c) 2013, 2018, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -164,7 +164,7 @@ class ha_innobase: public handler
 	int rnd_pos(uchar * buf, uchar *pos);
 
 	int ft_init();
-	void ft_end();
+	void ft_end() { rnd_end(); }
 	FT_INFO *ft_init_ext(uint flags, uint inx, String* key);
 	int ft_read(uchar* buf);
 
@@ -372,10 +372,6 @@ public:
 	* @return idx_cond if pushed; NULL if not pushed
 	*/
 	class Item* idx_cond_push(uint keyno, class Item* idx_cond);
-
-        /* An helper function for index_cond_func_innodb: */
-        bool is_thd_killed();
-
 private:
 	/** The multi range read session object */
 	DsMrr_impl ds_mrr;

@@ -2736,7 +2736,8 @@ row_sel_field_store_in_mysql_format_func(
 	case DATA_SYS:
 		/* These column types should never be shipped to MySQL. */
 		ut_ad(0);
-		break;
+		/* fall through */
+
 	case DATA_CHAR:
 	case DATA_FIXBINARY:
 	case DATA_FLOAT:
@@ -4566,7 +4567,7 @@ no_gap_lock:
 				prebuilt->new_rec_locks = 1;
 			}
 			err = DB_SUCCESS;
-			break;
+			/* fall through */
 		case DB_SUCCESS:
 			break;
 		case DB_LOCK_WAIT:

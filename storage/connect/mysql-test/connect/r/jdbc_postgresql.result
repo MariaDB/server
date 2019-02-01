@@ -1,4 +1,4 @@
-SET GLOBAL connect_class_path='C:/MariaDB-10.2/MariaDB/storage/connect/mysql-test/connect/std_data/JavaWrappers.jar;C:/Jconnectors/postgresql-42.2.1.jar';
+SET GLOBAL connect_class_path='C:/MariaDB-10.0/MariaDB/storage/connect/mysql-test/connect/std_data/JavaWrappers.jar;C:/Jconnectors/postgresql-42.2.1.jar';
 CREATE TABLE t2 (
 command varchar(128) not null,
 number int(5) not null flag=1,
@@ -9,12 +9,18 @@ OPTION_LIST='Execsrc=1';
 SELECT * FROM t2 WHERE command='drop table employee';
 command	number	message
 drop table employee	0	Execute: org.postgresql.util.PSQLException: ERREUR: la table Â« employee Â» n'existe pas
+Warnings:
+Warning	1105	Execute: org.postgresql.util.PSQLException: ERREUR: la table « employee » n'existe pas
 SELECT * FROM t2 WHERE command = 'create table employee (id int not null, name varchar(32), title char(16), salary decimal(8,2))';
 command	number	message
 create table employee (id int not null, name varchar(32), title char(16), salary decimal(8,2))	0	Affected rows
+Warnings:
+Warning	1105	Affected rows
 SELECT * FROM t2 WHERE command = "insert into employee values(4567,'Johnson', 'Engineer', 12560.50)";
 command	number	message
 insert into employee values(4567,'Johnson', 'Engineer', 12560.50)	1	Affected rows
+Warnings:
+Warning	1105	Affected rows
 CREATE TABLE t1 ENGINE=CONNECT TABLE_TYPE=JDBC CATFUNC=tables
 CONNECTION='jdbc:postgresql://localhost/test?user=postgres&password=tinono'
 OPTION_LIST='Tabtype=TABLE,Maxres=10';
@@ -63,4 +69,6 @@ DROP SERVER 'postgresql';
 SELECT * FROM t2 WHERE command='drop table employee';
 command	number	message
 drop table employee	0	Affected rows
+Warnings:
+Warning	1105	Affected rows
 DROP TABLE t2;

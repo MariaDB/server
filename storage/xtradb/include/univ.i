@@ -45,10 +45,10 @@ Created 1/20/1994 Heikki Tuuri
 
 #define INNODB_VERSION_MAJOR	5
 #define INNODB_VERSION_MINOR	6
-#define INNODB_VERSION_BUGFIX	39
+#define INNODB_VERSION_BUGFIX	42
 
 #ifndef PERCONA_INNODB_VERSION
-#define PERCONA_INNODB_VERSION 84.1
+#define PERCONA_INNODB_VERSION 84.2
 #endif
 
 /* Enable UNIV_LOG_ARCHIVE in XtraDB */
@@ -607,12 +607,14 @@ typedef void* os_thread_ret_t;
 #include "ut0dbg.h"
 #include "ut0ut.h"
 #include "db0err.h"
+#include <my_valgrind.h>
+/* define UNIV macros in terms of my_valgrind.h */
+#define UNIV_MEM_INVALID(addr, size) 	MEM_UNDEFINED(addr, size)
+#define UNIV_MEM_FREE(addr, size) 	MEM_NOACCESS(addr, size)
+#define UNIV_MEM_ALLOC(addr, size) 	UNIV_MEM_INVALID(addr, size)
 #ifdef UNIV_DEBUG_VALGRIND
 # include <valgrind/memcheck.h>
 # define UNIV_MEM_VALID(addr, size) VALGRIND_MAKE_MEM_DEFINED(addr, size)
-# define UNIV_MEM_INVALID(addr, size) VALGRIND_MAKE_MEM_UNDEFINED(addr, size)
-# define UNIV_MEM_FREE(addr, size) VALGRIND_MAKE_MEM_NOACCESS(addr, size)
-# define UNIV_MEM_ALLOC(addr, size) VALGRIND_MAKE_MEM_UNDEFINED(addr, size)
 # define UNIV_MEM_DESC(addr, size) VALGRIND_CREATE_BLOCK(addr, size, #addr)
 # define UNIV_MEM_UNDESC(b) VALGRIND_DISCARD(b)
 # define UNIV_MEM_ASSERT_RW_LOW(addr, size, should_abort) do {		\
@@ -647,9 +649,6 @@ typedef void* os_thread_ret_t;
 	} while (0)
 #else
 # define UNIV_MEM_VALID(addr, size) do {} while(0)
-# define UNIV_MEM_INVALID(addr, size) do {} while(0)
-# define UNIV_MEM_FREE(addr, size) do {} while(0)
-# define UNIV_MEM_ALLOC(addr, size) do {} while(0)
 # define UNIV_MEM_DESC(addr, size) do {} while(0)
 # define UNIV_MEM_UNDESC(b) do {} while(0)
 # define UNIV_MEM_ASSERT_RW_LOW(addr, size, should_abort) do {} while(0)

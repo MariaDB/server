@@ -4323,7 +4323,8 @@ do_drop:
 					char msg_tablename[MAX_FULL_NAME_LEN + 1];
 
 					innobase_format_name(
-						msg_tablename, sizeof(tablename),
+						msg_tablename,
+						sizeof msg_tablename,
 						tablename, FALSE);
 
 					ib_logf(IB_LOG_LEVEL_INFO,
@@ -5128,9 +5129,6 @@ row_rename_table_for_mysql(
 			"    = TO_BINARY(:old_table_name);\n"
 			"END;\n"
 			, FALSE, trx);
-		if (err != DB_SUCCESS) {
-			goto end;
-		}
 
 	} else if (n_constraints_to_drop > 0) {
 		/* Drop some constraints of tmp tables. */

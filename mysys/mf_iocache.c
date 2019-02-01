@@ -282,6 +282,10 @@ int init_io_cache(IO_CACHE *info, File file, size_t cachesize,
   }
   info->inited=info->aio_result.pending=0;
 #endif
+  if (type == READ_CACHE || type == WRITE_CACHE || type == SEQ_READ_APPEND)
+    info->myflags|= MY_FULL_IO;
+  else
+    info->myflags&= ~MY_FULL_IO;
   DBUG_RETURN(0);
 }						/* init_io_cache */
 

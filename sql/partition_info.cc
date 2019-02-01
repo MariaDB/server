@@ -1990,12 +1990,12 @@ bool partition_info::check_partition_field_length()
 
   for (i= 0; i < num_part_fields; i++)
     store_length+= get_partition_field_store_length(part_field_array[i]);
-  if (store_length > MAX_KEY_LENGTH)
+  if (store_length > MAX_DATA_LENGTH_FOR_KEY)
     DBUG_RETURN(TRUE);
   store_length= 0;
   for (i= 0; i < num_subpart_fields; i++)
     store_length+= get_partition_field_store_length(subpart_field_array[i]);
-  if (store_length > MAX_KEY_LENGTH)
+  if (store_length > MAX_DATA_LENGTH_FOR_KEY)
     DBUG_RETURN(TRUE);
   DBUG_RETURN(FALSE);
 }
@@ -2748,23 +2748,6 @@ end:
 }
 
 
-bool partition_info::error_if_requires_values() const
-{
-  switch (part_type) {
-  case NOT_A_PARTITION:
-  case HASH_PARTITION:
-    break;
-  case RANGE_PARTITION:
-    my_error(ER_PARTITION_REQUIRES_VALUES_ERROR, MYF(0), "RANGE", "LESS THAN");
-    return true;
-  case LIST_PARTITION:
-    my_error(ER_PARTITION_REQUIRES_VALUES_ERROR, MYF(0), "LIST", "IN");
-    return true;
-  }
-  return false;
-}
-
-
 /**
   Fix partition data from parser.
 
@@ -3164,6 +3147,23 @@ void partition_info::print_debug(const char *str, uint *value)
     DBUG_PRINT("info", ("parser: %s", str));
   DBUG_VOID_RETURN;
 }
+
+bool partition_info::field_in_partition_expr(Field *field) const
+{
+  uint i;
+  for (i= 0; i < num_part_fields; i++)
+  {
+    if (field->eq(part_field_array[i]))
+      return TRUE;
+  }
+  for (i= 0; i < num_subpart_fields; i++)
+  {
+    if (field->eq(subpart_field_array[i]))
+      return TRUE;
+  }
+  return FALSE;
+}
+
 #else /* WITH_PARTITION_STORAGE_ENGINE */
  /*
    For builds without partitioning we need to define these functions
@@ -3215,3 +3215,19 @@ bool check_partition_dirs(partition_info *part_info)
 }
 
 #endif /* WITH_PARTITION_STORAGE_ENGINE */
+
+bool partition_info::error_if_requires_values() const
+{
+  switch (part_type) {
+  case NOT_A_PARTITION:
+  case HASH_PARTITION:
+    break;
+  case RANGE_PARTITION:
+    my_error(ER_PARTITION_REQUIRES_VALUES_ERROR, MYF(0), "RANGE", "LESS THAN");
+    return true;
+  case LIST_PARTITION:
+    my_error(ER_PARTITION_REQUIRES_VALUES_ERROR, MYF(0), "LIST", "IN");
+    return true;
+  }
+  return false;
+}

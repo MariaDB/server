@@ -498,9 +498,7 @@ dict_mem_table_col_rename(
 		s += len + 1;
 	}
 
-	/* This could fail if the data dictionaries are out of sync.
-	Proceed with the renaming anyway. */
-	ut_ad(!strcmp(from, s));
+	ut_ad(!my_strcasecmp(system_charset_info, from, s));
 
 	dict_mem_table_col_rename_low(table, nth_col, to, s);
 }

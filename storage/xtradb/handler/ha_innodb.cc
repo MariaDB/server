@@ -6119,19 +6119,21 @@ ha_innobase::open(
 	ib_table = dict_table_open_on_name(norm_name, FALSE, TRUE, ignore_err);
 
 	if (ib_table
-	    && ((!DICT_TF2_FLAG_IS_SET(ib_table, DICT_TF2_FTS_HAS_DOC_ID)
-		 && table->s->stored_fields != dict_table_get_n_user_cols(ib_table))
-		|| (DICT_TF2_FLAG_IS_SET(ib_table, DICT_TF2_FTS_HAS_DOC_ID)
-		    && (table->s->fields
-			!= dict_table_get_n_user_cols(ib_table) - 1)))) {
+	    && (table->s->stored_fields != dict_table_get_n_user_cols(ib_table)
+		- (DICT_TF2_FLAG_IS_SET(ib_table, DICT_TF2_FTS_HAS_DOC_ID)
+		   ? 1 : 0))) {
 		ib_logf(IB_LOG_LEVEL_WARN,
 			"table %s contains %lu user defined columns "
 			"in InnoDB, but %lu columns in MySQL. Please "
 			"check INFORMATION_SCHEMA.INNODB_SYS_COLUMNS and "
 			REFMAN "innodb-troubleshooting.html "
 			"for how to resolve it",
-			norm_name, (ulong) dict_table_get_n_user_cols(ib_table),
-			(ulong) table->s->fields);
+			norm_name,
+			(ulong) (dict_table_get_n_user_cols(ib_table)
+				 - DICT_TF2_FLAG_IS_SET(ib_table,
+							DICT_TF2_FTS_HAS_DOC_ID)
+				 ? 1 : 0),
+			(ulong) table->s->stored_fields);
 
 		/* Mark this table as corrupted, so the drop table
 		or force recovery can still use it, but not others. */
@@ -10591,16 +10593,6 @@ next_record:
 	return(HA_ERR_END_OF_FILE);
 }
 
-/*************************************************************************
-*/
-
-void
-ha_innobase::ft_end()
-{
-	fprintf(stderr, "ft_end()\n");
-
-	rnd_end();
-}
 #ifdef WITH_WSREP
 extern dict_index_t*
 wsrep_dict_foreign_find_index(
@@ -11030,7 +11022,6 @@ ha_innobase::wsrep_append_keys(
 	DBUG_RETURN(0);
 }
 #endif /* WITH_WSREP */
-
 /*********************************************************************//**
 Stores a reference to the current row to 'ref' field of the handle. Note
 that in the case where we have generated the clustered index for the
@@ -11362,10 +11353,6 @@ err_col:
 		my_error(err == DB_DUPLICATE_KEY
 			 ? ER_TABLE_EXISTS_ERROR
 			 : ER_TABLESPACE_EXISTS, MYF(0), display_name);
-	}
-
-	if (err == DB_SUCCESS && (flags2 & DICT_TF2_FTS)) {
-		fts_optimize_add_table(table);
 	}
 
 error_ret:
@@ -12439,6 +12426,10 @@ ha_innobase::create(
 			trx_free_for_mysql(trx);
 			DBUG_RETURN(-1);
 		}
+
+		mutex_enter(&dict_sys->mutex);
+		fts_optimize_add_table(innobase_table);
+		mutex_exit(&dict_sys->mutex);
 	}
 
 	/* Note: We can't call update_thd() as prebuilt will not be
@@ -12931,36 +12922,35 @@ innobase_rename_table(
 
 	row_mysql_lock_data_dictionary(trx);
 
-	dict_table_t*   table                   = NULL;
-        table = dict_table_open_on_name(norm_from, TRUE, FALSE,
-                                        DICT_ERR_IGNORE_NONE);
+	dict_table_t*   table = dict_table_open_on_name(norm_from, TRUE, FALSE,
+							DICT_ERR_IGNORE_NONE);
 
-        /* Since DICT_BG_YIELD has sleep for 250 milliseconds,
+	/* Since DICT_BG_YIELD has sleep for 250 milliseconds,
 	Convert lock_wait_timeout unit from second to 250 milliseconds */
-        long int lock_wait_timeout = thd_lock_wait_timeout(thd) * 4;
-        if (table != NULL) {
-                for (dict_index_t* index = dict_table_get_first_index(table);
-                     index != NULL;
-                     index = dict_table_get_next_index(index)) {
+	long int lock_wait_timeout = thd_lock_wait_timeout(thd) * 4;
+	if (table != NULL) {
+		for (dict_index_t* index = dict_table_get_first_index(table);
+		     index != NULL;
+		     index = dict_table_get_next_index(index)) {
 
-                        if (index->type & DICT_FTS) {
-                                /* Found */
-                                while (index->index_fts_syncing
-                                        && !trx_is_interrupted(trx)
-                                        && (lock_wait_timeout--) > 0) {
-                                        DICT_BG_YIELD(trx);
-                                }
-                        }
-                }
-                dict_table_close(table, TRUE, FALSE);
-        }
+			if (index->type & DICT_FTS) {
+				/* Found */
+				while (index->index_fts_syncing
+					&& !trx_is_interrupted(trx)
+					&& (lock_wait_timeout--) > 0) {
+					DICT_BG_YIELD(trx);
+				}
+			}
+		}
+		dict_table_close(table, TRUE, FALSE);
+	}
 
-        /* FTS sync is in progress. We shall timeout this operation */
-        if (lock_wait_timeout < 0) {
-                error = DB_LOCK_WAIT_TIMEOUT;
-                row_mysql_unlock_data_dictionary(trx);
-                DBUG_RETURN(error);
-        }
+	/* FTS sync is in progress. We shall timeout this operation */
+	if (lock_wait_timeout < 0) {
+		error = DB_LOCK_WAIT_TIMEOUT;
+		row_mysql_unlock_data_dictionary(trx);
+		DBUG_RETURN(error);
+	}
 
 	/* Transaction must be flagged as a locking transaction or it hasn't
 	been started yet. */
@@ -13125,12 +13115,6 @@ ha_innobase::rename_table(
 
 		error = DB_LOCK_WAIT;
 	}
-
-	else if (error == DB_LOCK_WAIT_TIMEOUT) {
-                my_error(ER_LOCK_WAIT_TIMEOUT, MYF(0), to);
-
-                error = DB_LOCK_WAIT;
-        }
 
 	DBUG_RETURN(convert_error_code_to_mysql(error, 0, NULL));
 }
@@ -21192,15 +21176,6 @@ ha_rows ha_innobase::multi_range_read_info(uint keyno, uint n_ranges, uint keys,
 int ha_innobase::multi_range_read_explain_info(uint mrr_mode, char *str, size_t size)
 {
   return ds_mrr.dsmrr_explain_info(mrr_mode, str, size);
-}
-
-/* 
-  A helper function used only in index_cond_func_innodb
-*/
-
-bool ha_innobase::is_thd_killed()
-{ 
-  return thd_kill_level(user_thd);
 }
 
 /**********************************************************************

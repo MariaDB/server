@@ -1,7 +1,7 @@
 /*****************************************************************************
 
 Copyright (c) 2005, 2018, Oracle and/or its affiliates. All Rights Reserved.
-Copyright (c) 2017, 2018, MariaDB Corporation.
+Copyright (c) 2017, 2019, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -3586,9 +3586,8 @@ check_if_ok_to_rename:
 
 	/* Check each index's column length to make sure they do not
 	exceed limit */
-	for (ulint i = 0; i < ha_alter_info->index_add_count; i++) {
-		const KEY* key = &ha_alter_info->key_info_buffer[
-			ha_alter_info->index_add_buffer[i]];
+	for (ulint i = 0; i < ha_alter_info->key_count; i++) {
+		const KEY* key = &ha_alter_info->key_info_buffer[i];
 
 		if (key->flags & HA_FULLTEXT) {
 			/* The column length does not matter for
@@ -3695,12 +3694,14 @@ check_if_ok_to_rename:
 				continue;
 			}
 
+			dict_foreign_t* foreign;
+
 			for (dict_foreign_set::iterator it
 				= prebuilt->table->foreign_set.begin();
 			     it != prebuilt->table->foreign_set.end();
 			     ++it) {
 
-				dict_foreign_t*	foreign = *it;
+				foreign = *it;
 				const char* fid = strchr(foreign->id, '/');
 
 				DBUG_ASSERT(fid);
@@ -3711,7 +3712,6 @@ check_if_ok_to_rename:
 
 				if (!my_strcasecmp(system_charset_info,
 						   fid, drop->name)) {
-					drop_fk[n_drop_fk++] = foreign;
 					goto found_fk;
 				}
 			}
@@ -3720,12 +3720,19 @@ check_if_ok_to_rename:
 				 drop->name);
 			goto err_exit;
 found_fk:
+			for (ulint i = n_drop_fk; i--; ) {
+				if (drop_fk[i] == foreign) {
+					goto dup_fk;
+				}
+			}
+			drop_fk[n_drop_fk++] = foreign;
+dup_fk:
 			continue;
 		}
 
 		DBUG_ASSERT(n_drop_fk > 0);
 		DBUG_ASSERT(n_drop_fk
-			    == ha_alter_info->alter_info->drop_list.elements);
+			    <= ha_alter_info->alter_info->drop_list.elements);
 	} else {
 		drop_fk = NULL;
 	}
@@ -4177,23 +4184,11 @@ oom:
 			table. Either way, we should be seeing and
 			reporting a bogus duplicate key error. */
 			dup_key = NULL;
-		} else if (prebuilt->trx->error_key_num == 0) {
+		} else {
+			DBUG_ASSERT(prebuilt->trx->error_key_num
+				    < ha_alter_info->key_count);
 			dup_key = &ha_alter_info->key_info_buffer[
 				prebuilt->trx->error_key_num];
-		} else {
-			/* Check if there is generated cluster index column */
-			if (ctx->num_to_add_index > ha_alter_info->key_count) {
-				DBUG_ASSERT(prebuilt->trx->error_key_num
-					    <= ha_alter_info->key_count);
-				dup_key = &ha_alter_info->key_info_buffer[
-					prebuilt->trx->error_key_num - 1];
-			}
-			else {
-				DBUG_ASSERT(prebuilt->trx->error_key_num
-					    < ha_alter_info->key_count);
-				dup_key = &ha_alter_info->key_info_buffer[
-					prebuilt->trx->error_key_num];
-			}
 		}
 		print_keydup_error(altered_table, dup_key, MYF(0));
 		break;
@@ -4518,7 +4513,6 @@ innobase_rename_column_try(
 
 	pars_info_add_ull_literal(info, "tableid", user_table->id);
 	pars_info_add_int4_literal(info, "nth", nth_col);
-	pars_info_add_str_literal(info, "old", from);
 	pars_info_add_str_literal(info, "new", to);
 
 	trx->op_info = "renaming column in SYS_COLUMNS";
@@ -4528,7 +4522,7 @@ innobase_rename_column_try(
 		"PROCEDURE RENAME_SYS_COLUMNS_PROC () IS\n"
 		"BEGIN\n"
 		"UPDATE SYS_COLUMNS SET NAME=:new\n"
-		"WHERE TABLE_ID=:tableid AND NAME=:old\n"
+		"WHERE TABLE_ID=:tableid\n"
 		"AND POS=:nth;\n"
 		"END;\n",
 		FALSE, trx);
@@ -4551,35 +4545,40 @@ err_exit:
 	     index != NULL;
 	     index = dict_table_get_next_index(index)) {
 
+		bool has_prefixes = false;
+		for (size_t i = 0; i < dict_index_get_n_fields(index); i++) {
+			if (dict_index_get_nth_field(index, i)->prefix_len) {
+				has_prefixes = true;
+				break;
+			}
+		}
+
 		for (ulint i = 0; i < dict_index_get_n_fields(index); i++) {
-			if (strcmp(dict_index_get_nth_field(index, i)->name,
-				   from)) {
+			const dict_field_t* field
+			    = dict_index_get_nth_field(index, i);
+			if (my_strcasecmp(system_charset_info, field->name,
+					  from)) {
 				continue;
 			}
 
 			info = pars_info_create();
 
+			ulint pos = i;
+			if (has_prefixes) {
+				pos = (pos << 16) + field->prefix_len;
+			}
+
 			pars_info_add_ull_literal(info, "indexid", index->id);
-			pars_info_add_int4_literal(info, "nth", i);
-			pars_info_add_str_literal(info, "old", from);
+			pars_info_add_int4_literal(info, "nth", pos);
 			pars_info_add_str_literal(info, "new", to);
 
 			error = que_eval_sql(
 				info,
 				"PROCEDURE RENAME_SYS_FIELDS_PROC () IS\n"
 				"BEGIN\n"
-
 				"UPDATE SYS_FIELDS SET COL_NAME=:new\n"
-				"WHERE INDEX_ID=:indexid AND COL_NAME=:old\n"
+				"WHERE INDEX_ID=:indexid\n"
 				"AND POS=:nth;\n"
-
-				/* Try again, in case there is a prefix_len
-				encoded in SYS_FIELDS.POS */
-
-				"UPDATE SYS_FIELDS SET COL_NAME=:new\n"
-				"WHERE INDEX_ID=:indexid AND COL_NAME=:old\n"
-				"AND POS>=65536*:nth AND POS<65536*(:nth+1);\n"
-
 				"END;\n",
 				FALSE, trx);
 
@@ -4592,7 +4591,7 @@ err_exit:
 rename_foreign:
 	trx->op_info = "renaming column in SYS_FOREIGN_COLS";
 
-	std::list<dict_foreign_t*>	fk_evict;
+	std::set<dict_foreign_t*> fk_evict;
 	bool		foreign_modified;
 
 	for (dict_foreign_set::const_iterator it = user_table->foreign_set.begin();
@@ -4603,7 +4602,9 @@ rename_foreign:
 		foreign_modified = false;
 
 		for (unsigned i = 0; i < foreign->n_fields; i++) {
-			if (strcmp(foreign->foreign_col_names[i], from)) {
+			if (my_strcasecmp(system_charset_info,
+					  foreign->foreign_col_names[i],
+					  from)) {
 				continue;
 			}
 
@@ -4611,7 +4612,6 @@ rename_foreign:
 
 			pars_info_add_str_literal(info, "id", foreign->id);
 			pars_info_add_int4_literal(info, "nth", i);
-			pars_info_add_str_literal(info, "old", from);
 			pars_info_add_str_literal(info, "new", to);
 
 			error = que_eval_sql(
@@ -4620,8 +4620,7 @@ rename_foreign:
 				"BEGIN\n"
 				"UPDATE SYS_FOREIGN_COLS\n"
 				"SET FOR_COL_NAME=:new\n"
-				"WHERE ID=:id AND POS=:nth\n"
-				"AND FOR_COL_NAME=:old;\n"
+				"WHERE ID=:id AND POS=:nth;\n"
 				"END;\n",
 				FALSE, trx);
 
@@ -4632,7 +4631,7 @@ rename_foreign:
 		}
 
 		if (foreign_modified) {
-			fk_evict.push_back(foreign);
+			fk_evict.insert(foreign);
 		}
 	}
 
@@ -4645,7 +4644,9 @@ rename_foreign:
 		dict_foreign_t*	foreign = *it;
 
 		for (unsigned i = 0; i < foreign->n_fields; i++) {
-			if (strcmp(foreign->referenced_col_names[i], from)) {
+			if (my_strcasecmp(system_charset_info,
+					  foreign->referenced_col_names[i],
+					  from)) {
 				continue;
 			}
 
@@ -4653,7 +4654,6 @@ rename_foreign:
 
 			pars_info_add_str_literal(info, "id", foreign->id);
 			pars_info_add_int4_literal(info, "nth", i);
-			pars_info_add_str_literal(info, "old", from);
 			pars_info_add_str_literal(info, "new", to);
 
 			error = que_eval_sql(
@@ -4662,8 +4662,7 @@ rename_foreign:
 				"BEGIN\n"
 				"UPDATE SYS_FOREIGN_COLS\n"
 				"SET REF_COL_NAME=:new\n"
-				"WHERE ID=:id AND POS=:nth\n"
-				"AND REF_COL_NAME=:old;\n"
+				"WHERE ID=:id AND POS=:nth;\n"
 				"END;\n",
 				FALSE, trx);
 
@@ -4674,7 +4673,7 @@ rename_foreign:
 		}
 
 		if (foreign_modified) {
-			fk_evict.push_back(foreign);
+			fk_evict.insert(foreign);
 		}
 	}
 
@@ -5070,7 +5069,7 @@ commit_try_rebuild(
 		      & Alter_inplace_info::DROP_FOREIGN_KEY)
 		    || ctx->num_to_drop_fk > 0);
 	DBUG_ASSERT(ctx->num_to_drop_fk
-		    == ha_alter_info->alter_info->drop_list.elements);
+		    <= ha_alter_info->alter_info->drop_list.elements);
 
 	for (dict_index_t* index = dict_table_get_first_index(rebuilt_table);
 	     index;
@@ -5121,18 +5120,9 @@ commit_try_rebuild(
 				FTS_DOC_ID. */
 				dup_key = NULL;
 			} else {
-				if (ctx->num_to_add_index > ha_alter_info->key_count) {
-					DBUG_ASSERT(err_key <=
-						    ha_alter_info->key_count);
-					dup_key = &ha_alter_info
-						->key_info_buffer[err_key - 1];
-				}
-				else {
-					DBUG_ASSERT(err_key <
-						    ha_alter_info->key_count);
-					dup_key = &ha_alter_info
-						->key_info_buffer[err_key];
-				}
+				DBUG_ASSERT(err_key < ha_alter_info->key_count);
+				dup_key = &ha_alter_info
+					->key_info_buffer[err_key];
 			}
 
 			print_keydup_error(altered_table, dup_key, MYF(0));
@@ -5331,7 +5321,7 @@ commit_try_norebuild(
 		      & Alter_inplace_info::DROP_FOREIGN_KEY)
 		    || ctx->num_to_drop_fk > 0);
 	DBUG_ASSERT(ctx->num_to_drop_fk
-		    == ha_alter_info->alter_info->drop_list.elements);
+		    <= ha_alter_info->alter_info->drop_list.elements);
 
 	for (ulint i = 0; i < ctx->num_to_add_index; i++) {
 		dict_index_t*	index = ctx->add_index[i];
@@ -5652,7 +5642,6 @@ ha_innobase::commit_inplace_alter_table(
 	Alter_inplace_info*	ha_alter_info,
 	bool			commit)
 {
-	dberr_t				error;
 	ha_innobase_inplace_ctx*	ctx0
 		= static_cast<ha_innobase_inplace_ctx*>
 		(ha_alter_info->handler_ctx);
@@ -5719,7 +5708,7 @@ ha_innobase::commit_inplace_alter_table(
 		transactions collected during crash recovery could be
 		holding InnoDB locks only, not MySQL locks. */
 
-		error = row_merge_lock_table(
+		dberr_t error = row_merge_lock_table(
 			prebuilt->trx, ctx->old_table, LOCK_X);
 
 		if (error != DB_SUCCESS) {
@@ -5904,9 +5893,9 @@ rollback_trx:
 			file operations that will be performed in
 			commit_cache_rebuild(), and if none, generate
 			the redo log for these operations. */
-			error = fil_mtr_rename_log(ctx->old_table,
-						   ctx->new_table,
-						   ctx->tmp_name, &mtr);
+			dberr_t error = fil_mtr_rename_log(
+				ctx->old_table, ctx->new_table, ctx->tmp_name,
+				&mtr);
 			if (error != DB_SUCCESS) {
 				/* Out of memory or a problem will occur
 				when renaming files. */
@@ -6031,39 +6020,30 @@ rollback_trx:
 			/* Rename the tablespace files. */
 			commit_cache_rebuild(ctx);
 
-			error = innobase_update_foreign_cache(ctx, user_thd);
-			if (error != DB_SUCCESS) {
-				goto foreign_fail;
+			if (innobase_update_foreign_cache(ctx, user_thd)
+			    != DB_SUCCESS
+			    && prebuilt->trx->check_foreigns) {
+foreign_fail:
+				push_warning_printf(
+					user_thd,
+					Sql_condition::WARN_LEVEL_WARN,
+					ER_ALTER_INFO,
+					"failed to load FOREIGN KEY"
+					" constraints");
 			}
 		} else {
-			error = innobase_update_foreign_cache(ctx, user_thd);
+			bool fk_fail = innobase_update_foreign_cache(
+				ctx, user_thd) != DB_SUCCESS;
 
-			if (error != DB_SUCCESS) {
-foreign_fail:
-				/* The data dictionary cache
-				should be corrupted now.  The
-				best solution should be to
-				kill and restart the server,
-				but the *.frm file has not
-				been replaced yet. */
-				my_error(ER_CANNOT_ADD_FOREIGN,
-					 MYF(0));
-				sql_print_error(
-					"InnoDB: dict_load_foreigns()"
-					" returned %u for %s",
-					(unsigned) error,
-					thd_query_string(user_thd)
-					->str);
-				ut_ad(0);
-			} else {
-				if (!commit_cache_norebuild(
-					    ctx, table, trx)) {
-					ut_a(!prebuilt->trx->check_foreigns);
-				}
+			if (!commit_cache_norebuild(ctx, table, trx)) {
+				fk_fail = true;
+				ut_ad(!prebuilt->trx->check_foreigns);
+			}
 
-				innobase_rename_columns_cache(
-					ha_alter_info, table,
-					ctx->new_table);
+			innobase_rename_columns_cache(ha_alter_info, table,
+						      ctx->new_table);
+			if (fk_fail && prebuilt->trx->check_foreigns) {
+				goto foreign_fail;
 			}
 		}
 		DBUG_INJECT_CRASH("ib_commit_inplace_crash",

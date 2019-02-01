@@ -292,7 +292,8 @@ dict_mem_table_add_col(
 	const char*	name,	/*!< in: column name, or NULL */
 	ulint		mtype,	/*!< in: main datatype */
 	ulint		prtype,	/*!< in: precise type */
-	ulint		len);	/*!< in: precision */
+	ulint		len)	/*!< in: precision */
+	MY_ATTRIBUTE((nonnull(1)));
 /**********************************************************************//**
 Renames a column of a table in the data dictionary cache. */
 UNIV_INTERN
@@ -939,8 +940,10 @@ struct dict_table_t{
 
 
 	table_id_t	id;	/*!< id of the table */
+	hash_node_t	id_hash; /*!< hash chain node */
 	mem_heap_t*	heap;	/*!< memory heap */
 	char*		name;	/*!< table name */
+	hash_node_t	name_hash; /*!< hash chain node */
 	const char*	dir_path_of_temp_table;/*!< NULL or the directory path
 				where a TEMPORARY table that was explicitly
 				created by a user should be placed if
@@ -996,8 +999,6 @@ struct dict_table_t{
 				dictionary information and
 				MySQL FRM information mismatch. */
 #ifndef UNIV_HOTBACKUP
-	hash_node_t	name_hash; /*!< hash chain node */
-	hash_node_t	id_hash; /*!< hash chain node */
 	UT_LIST_BASE_NODE_T(dict_index_t)
 			indexes; /*!< list of indexes of the table */
 

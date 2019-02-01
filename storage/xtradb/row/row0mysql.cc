@@ -4347,7 +4347,8 @@ do_drop:
 					char msg_tablename[MAX_FULL_NAME_LEN + 1];
 
 					innobase_format_name(
-						msg_tablename, sizeof(tablename),
+						msg_tablename,
+						sizeof msg_tablename,
 						tablename, FALSE);
 
 					ib_logf(IB_LOG_LEVEL_INFO,
@@ -4993,18 +4994,6 @@ row_rename_table_for_mysql(
 			"InnoDB: Cannot rename table.\n");
 		err = DB_TABLE_IN_FK_CHECK;
 		goto funct_exit;
-	}
-
-	/* Wait for background fts sync to finish */
-	for (retry = 1; dict_fts_index_syncing(table); ++retry) {
-		DICT_BG_YIELD(trx);
-		if (retry % 100 == 0) {
-			ib_logf(IB_LOG_LEVEL_INFO,
-				"Unable to rename table %s to new name"
-				" %s because FTS sync is running on table."
-				" Retrying\n",
-				old_name, new_name);
-		}
 	}
 
 	/* We use the private SQL parser of Innobase to generate the query
