@@ -613,16 +613,5 @@ select count(*) from t1;
 count(*)
 0
 truncate table t1;
-select count(*) from t1;
-count(*)
-0
-truncate table t1;
-select count(*) from t1;
-count(*)
-41
-truncate table t1;
-select count(*) from t1;
-count(*)
-0
-truncate table t1;
+### FIXME: update libmariadb
 drop table t1;
