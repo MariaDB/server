@@ -4753,7 +4753,24 @@ static int create_ordinary(THD *thd, const char *path,
   if (thd->variables.keep_files_on_create)
     create_info->options|= HA_CREATE_KEEP_FILES;
 
-  error= ha_create_table(thd, share, create_info);
+  if (ha_create_table(thd, share, create_info))
+    goto err;
+
+  if (create_info->tmp_table() || (create_info->options & HA_CREATE_TMP_ALTER))
+  {
+    TABLE *table= thd->create_and_open_tmp_table(frm, path, db, table_name,
+                                                 create_info->options &
+                                                 HA_CREATE_TMP_ALTER);
+
+    if (!table)
+    {
+      (void) thd->rm_temporary_table(create_info->db_type, path);
+      goto err;
+    }
+    create_info->table= table;
+  }
+
+  error= 0;
 err:
   free_table_share(&share);
   DBUG_RETURN(error);
@@ -4807,6 +4824,20 @@ static int discover_assisted(THD *thd,
     my_error(ER_GET_ERRNO, MYF(0), ha_err, hton_name(hton)->str);
     return 1;
   }
+
+  if (create_info->tmp_table())
+  {
+    TABLE *table= thd->create_and_open_tmp_table(frm, path, db->str,
+                                                 table_name->str,
+                                                 false);
+
+    if (!table)
+    {
+      (void) thd->rm_temporary_table(create_info->db_type, path);
+      return 1;
+    }
+    create_info->table= table;
+  }
   return 0;
 }
 
@@ -4826,8 +4857,6 @@ static int discover_assisted(THD *thd,
   @param alter_info          Description of fields and keys for new table
   @param create_table_mode   C_ORDINARY_CREATE, C_ALTER_TABLE, C_ASSISTED_DISCOVERY
                              or any positive number (for C_CREATE_SELECT).
-  @param[out] is_trans       Identifies the type of engine where the table
-                             was created: either trans or non-trans.
   @param[out] key_info       Array of KEY objects describing keys in table
                              which was created.
   @param[out] key_count      Number of keys in table which was created.
@@ -4855,7 +4884,6 @@ int create_table_impl(THD *thd,
                        HA_CREATE_INFO *create_info,
                        Alter_info *alter_info,
                        int create_table_mode,
-                       bool *is_trans,
                        KEY **key_info,
                        uint *key_count,
                        LEX_CUSTRING *frm)
@@ -4989,6 +5017,7 @@ int create_table_impl(THD *thd,
   if (check_engine(thd, orig_db->str, orig_table_name->str, create_info))
     goto err;
 
+  create_info->table= 0;
   if (create_table_mode == C_ASSISTED_DISCOVERY)
   {
     if (discover_assisted(thd, db, table_name, path, create_info, frm))
@@ -5012,26 +5041,6 @@ int create_table_impl(THD *thd,
     }
   }
 
-  create_info->table= 0;
-  if (!frm_only && create_info->tmp_table())
-  {
-    TABLE *table= thd->create_and_open_tmp_table(frm, path, db->str,
-                                                 table_name->str,
-                                                 false);
-
-    if (!table)
-    {
-      (void) thd->rm_temporary_table(create_info->db_type, path);
-      goto err;
-    }
-
-    if (is_trans != NULL)
-      *is_trans= table->file->has_transactions();
-
-    thd->thread_specific_used= TRUE;
-    create_info->table= table;                  // Store pointer to table
-  }
-
   error= 0;
 err:
   THD_STAGE_INFO(thd, stage_after_create);
@@ -5050,6 +5059,9 @@ warn:
 /**
   Simple wrapper around create_table_impl() to be used
   in various version of CREATE TABLE statement.
+
+  @param[out] is_trans       Identifies the type of engine where the table
+                             was created: either trans or non-trans.
 
   @result
     1 unspefied error
@@ -5091,7 +5103,16 @@ int mysql_create_table_no_lock(THD *thd,
   res= create_table_impl(thd, db, table_name, db, table_name, path,
                          *create_info, create_info,
                          alter_info, create_table_mode,
-                         is_trans, &not_used_1, &not_used_2, &frm);
+                         &not_used_1, &not_used_2, &frm);
+  {
+    if (!res && create_info->tmp_table())
+    {
+      DBUG_ASSERT(create_info->table);
+      if (is_trans != NULL)
+        *is_trans= create_info->table->file->has_transactions();
+      thd->thread_specific_used= TRUE;
+    }
+  }
   my_free(const_cast<uchar*>(frm.str));
 
   if (!res && create_info->sequence)
@@ -9633,7 +9654,7 @@ bool mysql_alter_table(THD *thd, const LEX_CSTRING *new_db,
                            &alter_ctx.new_db, &alter_ctx.tmp_name,
                            alter_ctx.get_tmp_path(),
                            thd->lex->create_info, create_info, alter_info,
-                           C_ALTER_TABLE_FRM_ONLY, NULL,
+                           C_ALTER_TABLE_FRM_ONLY,
                            &key_info, &key_count, &frm);
   reenable_binlog(thd);
   if (unlikely(error))
@@ -9820,14 +9841,8 @@ bool mysql_alter_table(THD *thd, const LEX_CSTRING *new_db,
   /* Mark that we have created table in storage engine. */
   no_ha_table= false;
 
-  /* Open the table since we need to copy the data. */
-  new_table= thd->create_and_open_tmp_table(&frm,
-                                            alter_ctx.get_tmp_path(),
-                                            alter_ctx.new_db.str,
-                                            alter_ctx.tmp_name.str,
-                                            true);
-  if (!new_table)
-    goto err_new_table_cleanup;
+  new_table= create_info->table;
+  DBUG_ASSERT(new_table);
 
   if (table->s->tmp_table != NO_TMP_TABLE)
   {
