@@ -4229,12 +4229,14 @@ int ha_partition::check_files_for_key(uchar *key, int n_key,
 
     f->ha_end_keyread();
 
+    /*
     if (sav_inited == RND)
     {
       int ires= f->ha_rnd_init(FALSE);
       if (ires)
         *res= ires;
     }
+    */
 
     if (*res == HA_ERR_KEY_NOT_FOUND)
       continue;
