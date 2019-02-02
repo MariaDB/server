@@ -4761,10 +4761,7 @@ static int create_ordinary(THD *thd, const char *path,
     TABLE *table= thd->create_and_open_tmp_table(frm, path, db, table_name);
 
     if (!table)
-    {
-      (void) thd->rm_temporary_table(create_info->db_type, path);
       goto err;
-    }
     create_info->table= table;
   }
 
@@ -4829,10 +4826,7 @@ static int discover_assisted(THD *thd,
                                                  table_name->str);
 
     if (!table)
-    {
-      (void) thd->rm_temporary_table(create_info->db_type, path);
       return 1;
-    }
     create_info->table= table;
   }
   return 0;

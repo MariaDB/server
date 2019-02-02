@@ -4750,7 +4750,7 @@ public:
   bool rename_temporary_table(TABLE *table, const LEX_CSTRING *db,
                               const LEX_CSTRING *table_name);
   bool drop_temporary_table(TABLE *table, bool *is_trans, bool delete_table);
-  bool rm_temporary_table(handlerton *hton, const char *path);
+  bool rm_temporary_table(TABLE_SHARE *share);
   void mark_tmp_tables_as_free_for_reuse();
   void mark_tmp_table_as_free_for_reuse(TABLE *table);
 

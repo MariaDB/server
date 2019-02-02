@@ -84,7 +84,7 @@ TABLE *THD::create_and_open_tmp_table(LEX_CUSTRING *frm,
       temporary_tables->remove(share);
 
       /* Free the TMP_TABLE_SHARE. */
-      free_tmp_table_share(share, false);
+      free_tmp_table_share(share, true);
     }
   }
 
@@ -674,14 +674,12 @@ end:
 /**
   Delete the temporary table files.
 
-  @param base [IN]                    Handlerton for table to be deleted.
-  @param path [IN]                    Path to the table to be deleted (i.e. path
-                                      to its .frm without an extension).
+  @param share [IN]                    TABLE_SHARE for table to be deleted
 
   @return false                       Success
           true                        Error
 */
-bool THD::rm_temporary_table(handlerton *base, const char *path)
+bool THD::rm_temporary_table(TABLE_SHARE *share)
 {
   DBUG_ENTER("THD::rm_temporary_table");
 
@@ -689,17 +687,17 @@ bool THD::rm_temporary_table(handlerton *base, const char *path)
   handler *file;
   char frm_path[FN_REFLEN + 1];
 
-  strxnmov(frm_path, sizeof(frm_path) - 1, path, reg_ext, NullS);
+  strxnmov(frm_path, sizeof(frm_path) - 1, share->path.str, reg_ext, NullS);
   if (mysql_file_delete(key_file_frm, frm_path, MYF(0)))
   {
     error= true;
   }
-  file= get_new_handler((TABLE_SHARE*) 0, current_thd->mem_root, base);
-  if (file && file->ha_delete_table(path))
+  file= get_new_handler(share, current_thd->mem_root, share->db_type());
+  if (file && file->ha_delete_table(share->path.str))
   {
     error= true;
     sql_print_warning("Could not remove temporary table: '%s', error: %d",
-                      path, my_errno);
+                      share->path.str, my_errno);
   }
 
   delete file;
@@ -1372,7 +1370,7 @@ bool THD::log_events_and_free_tmp_shares()
         */
         append_identifier(this, &s_query, &share->table_name);
         s_query.append(',');
-        rm_temporary_table(share->db_type(), share->path.str);
+        rm_temporary_table(share);
         free_table_share(share);
         my_free(share);
       }
@@ -1449,7 +1447,7 @@ void THD::free_tmp_table_share(TMP_TABLE_SHARE *share,
 
   if (delete_table)
   {
-    rm_temporary_table(share->db_type(), share->path.str);
+    rm_temporary_table(share);
   }
   free_table_share(share);
   my_free(share);
