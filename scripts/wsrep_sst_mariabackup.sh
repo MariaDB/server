@@ -522,12 +522,24 @@ kill_xtrabackup()
 setup_ports()
 {
     if [[ "$WSREP_SST_OPT_ROLE"  == "donor" ]];then
-        SST_PORT=$(echo $WSREP_SST_OPT_ADDR | awk -F '[:/]' '{ print $2 }')
-        REMOTEIP=$(echo $WSREP_SST_OPT_ADDR | awk -F ':' '{ print $1 }')
-        lsn=$(echo $WSREP_SST_OPT_ADDR | awk -F '[:/]' '{ print $4 }')
-        sst_ver=$(echo $WSREP_SST_OPT_ADDR | awk -F '[:/]' '{ print $5 }')
+        if [[ ${WSREP_SST_OPT_ADDR:0:1} == '[' ]];then
+            remain=$(echo $WSREP_SST_OPT_ADDR | awk -F '\\][:/]' '{ print $2 }')
+            REMOTEIP=$(echo $WSREP_SST_OPT_ADDR | awk -F '\\]:' '{ print $1 }')"]"
+            SST_PORT=$(echo $remain | awk -F '[:/]' '{ print $1 }')
+            lsn=$(echo $remain | awk -F '[:/]' '{ print $3 }')
+            sst_ver=$(echo $remain | awk -F '[:/]' '{ print $4 }')
+        else
+            SST_PORT=$(echo $WSREP_SST_OPT_ADDR | awk -F '[:/]' '{ print $2 }')
+            REMOTEIP=$(echo $WSREP_SST_OPT_ADDR | awk -F ':' '{ print $1 }')
+            lsn=$(echo $WSREP_SST_OPT_ADDR | awk -F '[:/]' '{ print $4 }')
+            sst_ver=$(echo $WSREP_SST_OPT_ADDR | awk -F '[:/]' '{ print $5 }')
+        fi
     else
-        SST_PORT=$(echo ${WSREP_SST_OPT_ADDR} | awk -F ':' '{ print $2 }')
+        if [[ ${WSREP_SST_OPT_ADDR:0:1} == '[' ]];then
+            SST_PORT=$(echo ${WSREP_SST_OPT_ADDR} | awk -F '\\]:' '{ print $2 }')
+        else
+            SST_PORT=$(echo ${WSREP_SST_OPT_ADDR} | awk -F ':' '{ print $2 }')
+        fi
     fi
 }
 
@@ -945,7 +957,11 @@ then
     if [ -z "${SST_PORT}" ]
     then
         SST_PORT=4444
-        ADDR="$(echo ${WSREP_SST_OPT_ADDR} | awk -F ':' '{ print $1 }'):${SST_PORT}"
+        if [[ ${ADDR:0:1} == '[' ]];then
+            ADDR="$(echo ${WSREP_SST_OPT_ADDR} | awk -F '\\]:' '{ print $1 }')]:${SST_PORT}"
+        else
+            ADDR="$(echo ${WSREP_SST_OPT_ADDR} | awk -F ':' '{ print $1 }'):${SST_PORT}"
+        fi
     fi
 
     wait_for_listen ${SST_PORT} ${ADDR} ${MODULE} &

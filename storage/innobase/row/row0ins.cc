@@ -1,7 +1,7 @@
 /*****************************************************************************
 
 Copyright (c) 1996, 2016, Oracle and/or its affiliates. All Rights Reserved.
-Copyright (c) 2016, 2018, MariaDB Corporation.
+Copyright (c) 2016, 2019, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -44,6 +44,11 @@ Created 4/20/1996 Heikki Tuuri
 #include "buf0lru.h"
 #include "fts0fts.h"
 #include "fts0types.h"
+
+#ifdef WITH_WSREP
+#include "../../../wsrep/wsrep_api.h"
+#include "wsrep_mysqld_c.h"
+#endif /* WITH_WSREP */
 
 /*************************************************************************
 IMPORTANT NOTE: Any operation that generates redo MUST check that there
@@ -1043,11 +1048,11 @@ func_exit:
 
 #ifdef WITH_WSREP
 dberr_t wsrep_append_foreign_key(trx_t *trx,
-			       dict_foreign_t*	foreign,
-			       const rec_t*	clust_rec,
-			       dict_index_t*	clust_index,
-			       ibool		referenced,
-			       ibool            shared);
+				dict_foreign_t*	foreign,
+				const rec_t*	clust_rec,
+				dict_index_t*	clust_index,
+				ibool		referenced,
+				enum wsrep_key_type key_type);
 #endif /* WITH_WSREP */
 
 /*********************************************************************//**
@@ -1419,7 +1424,7 @@ row_ins_foreign_check_on_constraint(
 
 #ifdef WITH_WSREP
 	err = wsrep_append_foreign_key(trx, foreign, clust_rec, clust_index,
-				       FALSE, FALSE);
+				       FALSE, WSREP_KEY_EXCLUSIVE);
 	if (err != DB_SUCCESS) {
 		fprintf(stderr,
 			"WSREP: foreign key append failed: %d\n", err);
@@ -1760,13 +1765,28 @@ row_ins_check_foreign_constraint(
 				if (check_ref) {
 					err = DB_SUCCESS;
 #ifdef WITH_WSREP
+					enum wsrep_key_type key_type;
+					if (upd_node != NULL) {
+						key_type = WSREP_KEY_SHARED;
+					} else {
+						switch (wsrep_certification_rules) {
+						default:
+						case WSREP_CERTIFICATION_RULES_STRICT:
+							key_type = WSREP_KEY_EXCLUSIVE;
+							break;
+						case WSREP_CERTIFICATION_RULES_OPTIMIZED:
+							key_type = WSREP_KEY_SEMI;
+							break;
+						}
+					}
+
 					err = wsrep_append_foreign_key(
 						thr_get_trx(thr),
 						foreign,
 						rec,
 						check_index,
 						check_ref,
-						(upd_node) ? TRUE : FALSE);
+						key_type);
 #endif /* WITH_WSREP */
 					goto end_scan;
 				} else if (foreign->type != 0) {
