@@ -177,12 +177,20 @@ MACRO (MYSQL_CHECK_SSL)
     ENDIF()
 
     INCLUDE(CheckSymbolExists)
+    INCLUDE(CheckCSourceCompiles)
     SET(CMAKE_REQUIRED_INCLUDES ${OPENSSL_INCLUDE_DIR})
     CHECK_SYMBOL_EXISTS(SHA512_DIGEST_LENGTH "openssl/sha.h" 
                         HAVE_SHA512_DIGEST_LENGTH)
+    CHECK_C_SOURCE_COMPILES("
+      #include <openssl/dh.h>
+      int main()
+      {
+        DH dh;
+        return sizeof(dh.version);
+      }" OLD_OPENSSL_API)
     SET(CMAKE_REQUIRED_INCLUDES)
     IF(OPENSSL_INCLUDE_DIR AND OPENSSL_LIBRARIES AND
-       OPENSSL_MAJOR_VERSION STRLESS "101" AND
+       OLD_OPENSSL_API AND
        CRYPTO_LIBRARY AND HAVE_SHA512_DIGEST_LENGTH)
 
       SET(SSL_SOURCES "")
