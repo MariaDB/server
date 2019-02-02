@@ -5966,6 +5966,7 @@ void do_connect(struct st_command *command)
   int read_timeout= 0;
   int write_timeout= 0;
   int connect_timeout= 0;
+  char *csname=0;
   struct st_connection* con_slot;
 
   static DYNAMIC_STRING ds_connection_name;
@@ -6077,6 +6078,11 @@ void do_connect(struct st_command *command)
     {
       connect_timeout= atoi(con_options + sizeof("connect_timeout=")-1);
     }
+    else if (strncasecmp(con_options, "CHARSET=",
+      sizeof("CHARSET=") - 1) == 0)
+    {
+      csname= strdup(con_options + sizeof("CHARSET=") - 1);
+    }
     else
       die("Illegal option to connect: %.*s", 
           (int) (end - con_options), con_options);
@@ -6114,7 +6120,7 @@ void do_connect(struct st_command *command)
     mysql_options(con_slot->mysql, MYSQL_OPT_COMPRESS, NullS);
   mysql_options(con_slot->mysql, MYSQL_OPT_LOCAL_INFILE, 0);
   mysql_options(con_slot->mysql, MYSQL_SET_CHARSET_NAME,
-                charset_info->csname);
+                csname?csname: charset_info->csname);
   if (opt_charsets_dir)
     mysql_options(con_slot->mysql, MYSQL_SET_CHARSET_DIR,
                   opt_charsets_dir);
@@ -6225,6 +6231,7 @@ void do_connect(struct st_command *command)
 #ifdef HAVE_SMEM
   dynstr_free(&ds_shm);
 #endif
+  free(csname);
   DBUG_VOID_RETURN;
 }
 
