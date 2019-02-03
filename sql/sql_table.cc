@@ -8123,7 +8123,12 @@ mysql_prepare_alter_table(THD *thd, TABLE *table,
       }
       if (!drop)
       {
-        check->expr->walk(&Item::rename_fields_processor, 1, &column_rename_param);
+        if (alter_info->flags & Alter_info::ALTER_RENAME_COLUMN)
+        {
+          check->expr->walk(&Item::rename_fields_processor, 1,
+                            &column_rename_param);
+          table->m_needs_reopen= 1; // because new column name is on thd->mem_root
+        }
         new_constraint_list.push_back(check, thd->mem_root);
       }
     }
