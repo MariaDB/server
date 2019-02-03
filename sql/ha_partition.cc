@@ -4229,14 +4229,12 @@ int ha_partition::check_files_for_key(uchar *key, int n_key,
 
     f->ha_end_keyread();
 
-    /*
     if (sav_inited == RND)
     {
       int ires= f->ha_rnd_init(FALSE);
       if (ires)
         *res= ires;
     }
-    */
 
     if (*res == HA_ERR_KEY_NOT_FOUND)
       continue;
@@ -5949,8 +5947,8 @@ int ha_partition::index_read_idx_map(uchar *buf, uint index,
       (in which case start_part == end_part)
       or no matching partitions (start_part > end_part)
     */
-    DBUG_ASSERT(m_part_spec.start_part >= m_part_spec.end_part ||
-                m_part_info->n_uniques_to_check);
+    DBUG_ASSERT(m_part_spec.start_part >= m_part_spec.end_part/* ||
+                m_part_info->n_uniques_to_check*/);
     /* The start part is must be marked as used. */
     DBUG_ASSERT(m_part_spec.start_part > m_part_spec.end_part ||
                 bitmap_is_set(&(m_part_info->read_partitions),
