@@ -1,6 +1,6 @@
 #ifndef MYSQL_SERVICES_INCLUDED
 /* Copyright (c) 2009, 2010, Oracle and/or its affiliates.
-   Copyright (c) 2012, 2017, MariaDB
+   Copyright (c) 2012, 2019, MariaDB
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
