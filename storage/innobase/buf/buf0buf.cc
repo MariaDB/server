@@ -2,7 +2,7 @@
 
 Copyright (c) 1995, 2016, Oracle and/or its affiliates. All Rights Reserved.
 Copyright (c) 2008, Google Inc.
-Copyright (c) 2013, 2018, MariaDB Corporation.
+Copyright (c) 2013, 2019, MariaDB Corporation.
 
 Portions of this file contain modifications contributed and copyrighted by
 Google, Inc. Those modifications are gratefully acknowledged and are described
@@ -925,7 +925,10 @@ buf_page_is_corrupted(
 
 	/* Check whether the checksum fields have correct values */
 
-	if (srv_checksum_algorithm == SRV_CHECKSUM_ALGORITHM_NONE) {
+	const srv_checksum_algorithm_t curr_algo =
+		static_cast<srv_checksum_algorithm_t>(srv_checksum_algorithm);
+
+	if (curr_algo == SRV_CHECKSUM_ALGORITHM_NONE) {
 		return(false);
 	}
 
@@ -957,9 +960,6 @@ buf_page_is_corrupted(
 		return(false);
 	}
 
-	const srv_checksum_algorithm_t	curr_algo =
-		static_cast<srv_checksum_algorithm_t>(srv_checksum_algorithm);
-
 	switch (curr_algo) {
 	case SRV_CHECKSUM_ALGORITHM_STRICT_CRC32:
 		return !buf_page_is_checksum_valid_crc32(
@@ -988,9 +988,7 @@ buf_page_is_corrupted(
 			for writing checksums because we assume that the
 			chance of it matching is higher. */
 
-			if (srv_checksum_algorithm
-			    == SRV_CHECKSUM_ALGORITHM_CRC32) {
-
+			if (curr_algo == SRV_CHECKSUM_ALGORITHM_CRC32) {
 				crc32 = buf_calc_page_crc32(read_buf);
 				crc32_inited = true;
 
@@ -1000,7 +998,7 @@ buf_page_is_corrupted(
 					return true;
 				}
 			} else {
-				ut_ad(srv_checksum_algorithm
+				ut_ad(curr_algo
 				      == SRV_CHECKSUM_ALGORITHM_INNODB);
 
 				if (checksum_field2
@@ -1029,8 +1027,7 @@ buf_page_is_corrupted(
 			   for writing checksums because we assume that the
 			   chance of it matching is higher. */
 
-			if (srv_checksum_algorithm
-			    == SRV_CHECKSUM_ALGORITHM_CRC32) {
+			if (curr_algo == SRV_CHECKSUM_ALGORITHM_CRC32) {
 
 				if (!crc32_inited) {
 					crc32 = buf_calc_page_crc32(read_buf);
@@ -1043,7 +1040,7 @@ buf_page_is_corrupted(
 					return true;
 				}
 			} else {
-				ut_ad(srv_checksum_algorithm
+				ut_ad(curr_algo
 				      == SRV_CHECKSUM_ALGORITHM_INNODB);
 
 				if (checksum_field1
