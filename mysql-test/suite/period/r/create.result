@@ -1,5 +1,7 @@
 create or replace table t (id int primary key, s date, e date,
 period for mytime(s,e));
+# CONSTRAINT CHECK (s < e) is added implicitly, and shouldn't be shown
+# this is important for correct command-based replication
 show create table t;
 Table	Create Table
 t	CREATE TABLE `t` (
@@ -7,8 +9,7 @@ t	CREATE TABLE `t` (
   `s` date NOT NULL,
   `e` date NOT NULL,
   PRIMARY KEY (`id`),
-  PERIOD FOR `mytime` (`s`, `e`),
-  CONSTRAINT `CONSTRAINT_1` CHECK (`s` < `e`)
+  PERIOD FOR `mytime` (`s`, `e`)
 ) ENGINE=MyISAM DEFAULT CHARSET=latin1
 create or replace table t (id int primary key, s timestamp(6), e timestamp(6),
 period for mytime(s,e));
@@ -19,8 +20,7 @@ t	CREATE TABLE `t` (
   `s` timestamp(6) NOT NULL DEFAULT '0000-00-00 00:00:00.000000',
   `e` timestamp(6) NOT NULL DEFAULT '0000-00-00 00:00:00.000000',
   PRIMARY KEY (`id`),
-  PERIOD FOR `mytime` (`s`, `e`),
-  CONSTRAINT `CONSTRAINT_1` CHECK (`s` < `e`)
+  PERIOD FOR `mytime` (`s`, `e`)
 ) ENGINE=MyISAM DEFAULT CHARSET=latin1
 # SQL16, Part 2, 11.3  <table definition>, Syntax Rules, 2)a)
 # 2) If a <table period definition> TPD is specified, then:
@@ -86,7 +86,8 @@ t	CREATE TABLE `t` (
   `s` date NOT NULL,
   `e` date NOT NULL,
   PERIOD FOR `mytime` (`s`, `e`),
-  CONSTRAINT `CONSTRAINT_1` CHECK (`s` < `e`),
   CONSTRAINT `mytime` CHECK (`x` > 1)
 ) ENGINE=MyISAM DEFAULT CHARSET=latin1
+insert t values (2, '2001-01-01', '2001-01-01');
+ERROR 23000: CONSTRAINT `mytime_1` failed for `test`.`t`
 create or replace database test;

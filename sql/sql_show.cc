@@ -2417,8 +2417,12 @@ int show_create_table(THD *thd, TABLE_LIST *table_list, String *packet,
     for (uint i= share->field_check_constraints;
          i < share->table_check_constraints ; i++)
     {
-      StringBuffer<MAX_FIELD_WIDTH> str(&my_charset_utf8mb4_general_ci);
       Virtual_column_info *check= table->check_constraints[i];
+      // period constraint is implicit
+      if (share->period.constr_name.streq(check->name))
+        continue;
+
+      StringBuffer<MAX_FIELD_WIDTH> str(&my_charset_utf8mb4_general_ci);
       check->print(&str);
 
       packet->append(STRING_WITH_LEN(",\n  "));

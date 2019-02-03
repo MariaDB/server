@@ -1,5 +1,7 @@
 create or replace table t (id int primary key, s date, e date,
                            period for mytime(s,e));
+--echo # CONSTRAINT CHECK (s < e) is added implicitly, and shouldn't be shown
+--echo # this is important for correct command-based replication
 show create table t;
 create or replace table t (id int primary key, s timestamp(6), e timestamp(6),
                            period for mytime(s,e));
@@ -69,5 +71,7 @@ create or replace table t (x int, s date, e date,
                            period for mytime(s, e),
                            constraint mytime check (x > 1));
 show create table t;
+--error ER_CONSTRAINT_FAILED
+insert t values (2, '2001-01-01', '2001-01-01');
 
 create or replace database test;

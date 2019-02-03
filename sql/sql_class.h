@@ -288,7 +288,7 @@ public:
 
 class Alter_drop :public Sql_alloc {
 public:
-  enum drop_type {KEY, COLUMN, FOREIGN_KEY, CHECK_CONSTRAINT };
+  enum drop_type { KEY, COLUMN, FOREIGN_KEY, CHECK_CONSTRAINT, PERIOD };
   const char *name;
   enum drop_type type;
   bool drop_if_exists;
@@ -307,6 +307,7 @@ public:
   {
     return type == COLUMN ? "COLUMN" :
            type == CHECK_CONSTRAINT ? "CONSTRAINT" :
+           type == PERIOD ? "PERIOD" :
            type == KEY ? "INDEX" : "FOREIGN KEY";
   }
 };

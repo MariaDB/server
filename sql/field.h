@@ -540,7 +540,7 @@ public:
   bool stored_in_db;
   bool utf8;                                    /* Already in utf8 */
   Item *expr;
-  LEX_CSTRING name;                             /* Name of constraint */
+  Lex_ident name;                               /* Name of constraint */
   /* see VCOL_* (VCOL_FIELD_REF, ...) */
   uint flags;
 

@@ -7948,3 +7948,6 @@ ER_PERIOD_NOT_FOUND
         eng "Period %`s is not found in table"
 ER_PERIOD_COLUMNS_UPDATED
         eng "Column %`s used in period %`s specified in update SET list"
+
+ER_PERIOD_CONSTRAINT_DROP
+        eng "Can't DROP CONSTRAINT `%s`. Use DROP PERIOD `%s` for this"

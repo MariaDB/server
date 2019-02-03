@@ -4277,6 +4277,10 @@ public:
   int add_period(Lex_ident name, Lex_ident_sys_st start, Lex_ident_sys_st end)
   {
     Table_period_info &info= create_info.period_info;
+
+    if (check_exists && info.name.streq(name))
+      return 0;
+
     if (info.is_set())
     {
        my_error(ER_MORE_THAN_ONE_PERIOD, MYF(0));
@@ -4285,10 +4289,11 @@ public:
     info.set_period(start, end);
     info.name= name;
 
-    Virtual_column_info *constr= new Virtual_column_info();
-    constr->expr= lt_creator.create(thd, create_item_ident_nosp(thd, &start),
-                                    create_item_ident_nosp(thd, &end));
-    add_constraint(&null_clex_str, constr, false);
+    info.constr= new Virtual_column_info();
+    info.constr->expr= lt_creator.create(thd,
+                                         create_item_ident_nosp(thd, &start),
+                                         create_item_ident_nosp(thd, &end));
+    add_constraint(&null_clex_str, info.constr, false);
     return 0;
   }
 

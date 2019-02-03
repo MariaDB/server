@@ -774,6 +774,7 @@ struct TABLE_SHARE
     uint16 start_fieldno;
     uint16 end_fieldno;
     Lex_ident name;
+    Lex_ident constr_name;
     Field *start_field(TABLE_SHARE *s) const
     {
       return s->field[start_fieldno];
@@ -1782,6 +1783,8 @@ class IS_table_read_plan;
 
 /** number of bytes used by field positional indexes in frm */
 constexpr uint frm_fieldno_size= 2;
+/** number of bytes used by identifier length in frm */
+constexpr uint frm_ident_len_size= 2;
 
 class select_unit;
 class TMP_TABLE_PARAM;
