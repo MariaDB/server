@@ -512,6 +512,7 @@ bool my_yyoverflow(short **a, YYSTYPE **b, size_t *yystacksize);
 %token  PERCENT_RANK_SYM
 %token  PERCENTILE_CONT_SYM
 %token  PERCENTILE_DISC_SYM
+%token  PORTION_SYM                   /* SQL-2016-R */
 %token  POSITION_SYM                  /* SQL-2003-N */
 %token  PRECISION                     /* SQL-2003-R */
 %token  PRIMARY_SYM                   /* SQL-2003-R */
@@ -1290,7 +1291,7 @@ bool my_yyoverflow(short **a, YYSTYPE **b, size_t *yystacksize);
         opt_default_time_precision
         case_stmt_body opt_bin_mod opt_for_system_time_clause
         opt_if_exists_table_element opt_if_not_exists_table_element
-        opt_recursive opt_format_xid
+        opt_recursive opt_format_xid opt_for_portion_of_time_clause
 
 %type <object_ddl_options>
         create_or_replace
@@ -9423,6 +9424,23 @@ history_point:
           }
         ;
 
+opt_for_portion_of_time_clause:
+          /* empty */
+          {
+            $$= false;
+          }
+        | FOR_SYM PORTION_SYM OF_SYM ident FROM history_point TO_SYM history_point
+          {
+            if (unlikely(0 == strcasecmp($4.str, "SYSTEM_TIME")))
+            {
+              thd->parse_error(ER_SYNTAX_ERROR, $4.str);
+              MYSQL_YYABORT;
+            }
+            $$= true;
+            Lex->period_conditions.init(SYSTEM_TIME_FROM_TO, $6, $8, $4);
+          }
+        ;
+
 opt_for_system_time_clause:
           /* empty */
           {
@@ -13677,11 +13695,20 @@ delete_single_table:
               MYSQL_YYABORT;
             YYPS->m_lock_type= TL_READ_DEFAULT;
             YYPS->m_mdl_type= MDL_SHARED_READ;
+            Lex->last_table()->period_conditions= Lex->period_conditions;
           }
         ;
 
+delete_single_table_for_period:
+          delete_single_table opt_for_portion_of_time_clause
+          {
+            Lex->last_table()->period_conditions= Lex->period_conditions;
+          }
+        ;
+
+
 single_multi:
-          delete_single_table
+          delete_single_table_for_period
           opt_where_clause
           opt_order_clause
           delete_limit_clause

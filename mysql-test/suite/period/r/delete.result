@@ -1,0 +1,258 @@
+create or replace table t (id int, s date, e date, period for apptime(s,e));
+insert into t values(1, '1999-01-01', '2018-12-12');
+insert into t values(1, '1999-01-01', '2017-01-01');
+insert into t values(1, '2017-01-01', '2019-01-01');
+insert into t values(2, '1998-01-01', '2018-12-12');
+insert into t values(3, '1997-01-01', '2015-01-01');
+insert into t values(4, '2016-01-01', '2020-01-01');
+insert into t values(5, '2010-01-01', '2015-01-01');
+create or replace table t1 (id int, s date, e date, period for apptime(s,e));
+insert t1 select * from t;
+create or replace table t2 (id int, s date, e date, period for apptime(s,e));
+insert t2 select * from t;
+delete from t for portion of apptime from '2000-01-01' to '2018-01-01';
+delete from t1 for portion of APPTIME from '2000-01-01' to '2018-01-01';
+select * from t;
+id	s	e
+1	1999-01-01	2000-01-01
+1	1999-01-01	2000-01-01
+1	2018-01-01	2018-12-12
+1	2018-01-01	2019-01-01
+2	1998-01-01	2000-01-01
+2	2018-01-01	2018-12-12
+3	1997-01-01	2000-01-01
+4	2018-01-01	2020-01-01
+select * from t1;
+id	s	e
+1	1999-01-01	2000-01-01
+1	1999-01-01	2000-01-01
+1	2018-01-01	2018-12-12
+1	2018-01-01	2019-01-01
+2	1998-01-01	2000-01-01
+2	2018-01-01	2018-12-12
+3	1997-01-01	2000-01-01
+4	2018-01-01	2020-01-01
+select * from log_tbl;
+id	log
+1	>DEL: 1, 1999-01-01, 2018-12-12
+10	<INS: 1, 1999-01-01, 2000-01-01
+11	>DEL: 1, 2017-01-01, 2019-01-01
+12	<DEL: 1, 2017-01-01, 2019-01-01
+13	>INS: 1, 2018-01-01, 2019-01-01
+14	<INS: 1, 2018-01-01, 2019-01-01
+15	>DEL: 2, 1998-01-01, 2018-12-12
+16	<DEL: 2, 1998-01-01, 2018-12-12
+17	>INS: 2, 1998-01-01, 2000-01-01
+18	<INS: 2, 1998-01-01, 2000-01-01
+19	>INS: 2, 2018-01-01, 2018-12-12
+2	<DEL: 1, 1999-01-01, 2018-12-12
+20	<INS: 2, 2018-01-01, 2018-12-12
+21	>DEL: 3, 1997-01-01, 2015-01-01
+22	<DEL: 3, 1997-01-01, 2015-01-01
+23	>INS: 3, 1997-01-01, 2000-01-01
+24	<INS: 3, 1997-01-01, 2000-01-01
+25	>DEL: 4, 2016-01-01, 2020-01-01
+26	<DEL: 4, 2016-01-01, 2020-01-01
+27	>INS: 4, 2018-01-01, 2020-01-01
+28	<INS: 4, 2018-01-01, 2020-01-01
+29	>DEL: 5, 2010-01-01, 2015-01-01
+3	>INS: 1, 1999-01-01, 2000-01-01
+30	<DEL: 5, 2010-01-01, 2015-01-01
+4	<INS: 1, 1999-01-01, 2000-01-01
+5	>INS: 1, 2018-01-01, 2018-12-12
+6	<INS: 1, 2018-01-01, 2018-12-12
+7	>DEL: 1, 1999-01-01, 2017-01-01
+8	<DEL: 1, 1999-01-01, 2017-01-01
+9	>INS: 1, 1999-01-01, 2000-01-01
+# INSERT trigger only also works
+drop trigger tr1del_t2;
+drop trigger tr2del_t2;
+delete from t2 for portion of APPTIME from '2000-01-01' to '2018-01-01';
+select * from log_tbl;
+id	log
+1	>INS: 1, 1999-01-01, 2000-01-01
+10	<INS: 2, 1998-01-01, 2000-01-01
+11	>INS: 2, 2018-01-01, 2018-12-12
+12	<INS: 2, 2018-01-01, 2018-12-12
+13	>INS: 3, 1997-01-01, 2000-01-01
+14	<INS: 3, 1997-01-01, 2000-01-01
+15	>INS: 4, 2018-01-01, 2020-01-01
+16	<INS: 4, 2018-01-01, 2020-01-01
+2	<INS: 1, 1999-01-01, 2000-01-01
+3	>INS: 1, 2018-01-01, 2018-12-12
+4	<INS: 1, 2018-01-01, 2018-12-12
+5	>INS: 1, 1999-01-01, 2000-01-01
+6	<INS: 1, 1999-01-01, 2000-01-01
+7	>INS: 1, 2018-01-01, 2019-01-01
+8	<INS: 1, 2018-01-01, 2019-01-01
+9	>INS: 2, 1998-01-01, 2000-01-01
+# multi-table DELETE is not possible
+delete t, t1 from t1, t for portion of apptime from '2000-01-01' to '2018-01-01';
+ERROR 42000: You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near 'for portion of apptime from '2000-01-01' to '2018-01-01'' at line 1
+delete t for portion of apptime from '2000-01-01' to '2018-01-01', t1 from t, t1;
+ERROR 42000: You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near 'for portion of apptime from '2000-01-01' to '2018-01-01', t1 from t, t1' at line 1
+# Here another check fails before parsing ends
+delete t, t1 from t for portion of apptime from '2000-01-01' to '2018-01-01', t1;
+ERROR 42S02: Unknown table 't1' in MULTI DELETE
+delete history from t2 for portion of apptime from '2000-01-01' to '2018-01-01';
+ERROR 42000: You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near 'for portion of apptime from '2000-01-01' to '2018-01-01'' at line 1
+delete from t for portion of othertime from '2000-01-01' to '2018-01-01';
+ERROR HY000: Period `othertime` is not found in table
+delete from t for portion of system_time from '2000-01-01' to '2018-01-01';
+ERROR 42000: You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near 'system_time' at line 1
+create or replace table t (id int, str text, s date, e date,
+period for apptime(s,e));
+insert into t values(1, 'data', '1999-01-01', '2018-12-12');
+insert into t values(1, 'other data', '1999-01-01', '2018-12-12');
+insert into t values(1, 'deleted', '2000-01-01', '2018-01-01');
+delete from t for portion of apptime from '2000-01-01' to '2018-01-01';
+show warnings;
+Level	Code	Message
+select * from t;
+id	str	s	e
+1	data	1999-01-01	2000-01-01
+1	data	2018-01-01	2018-12-12
+1	other data	1999-01-01	2000-01-01
+1	other data	2018-01-01	2018-12-12
+drop table t1;
+# SQL16, Part 2, 15.7 <Effect of deleting rows from base tables>,
+#        General rules, 8)b)i)
+# If the column descriptor that corresponds to the i-th field of BR
+# describes an identity column, a generated column, a system-time period
+# start column, or a system-time period end column, then let V i be
+# DEFAULT.
+# auto_increment field is updated
+create or replace table t (id int primary key auto_increment, s date, e date,
+period for apptime(s, e));
+insert into t values (default, '1999-01-01', '2018-12-12');
+select * from t;
+id	s	e
+1	1999-01-01	2018-12-12
+delete from t for portion of apptime from '2000-01-01' to '2018-01-01';
+select * from t;
+id	s	e
+2	1999-01-01	2000-01-01
+3	2018-01-01	2018-12-12
+truncate t;
+# same for trigger case
+insert into t values (default, '1999-01-01', '2018-12-12');
+delete from t for portion of apptime from '2000-01-01' to '2018-01-01';
+select * from t;
+id	s	e
+2	1999-01-01	2000-01-01
+3	2018-01-01	2018-12-12
+select * from log_tbl;
+id	log
+1	>DEL: 1999-01-01, 2018-12-12
+2	<DEL: 1999-01-01, 2018-12-12
+3	>INS: 1999-01-01, 2000-01-01
+4	<INS: 1999-01-01, 2000-01-01
+5	>INS: 2018-01-01, 2018-12-12
+6	<INS: 2018-01-01, 2018-12-12
+# auto_increment field overflow
+create or replace table t (id tinyint auto_increment primary key,
+s date, e date, period for apptime(s,e));
+insert into t values(127, '1999-01-01', '2018-12-12');
+delete from t for portion of apptime from '2000-01-01' to '2018-01-01';
+ERROR 22003: Out of range value for column 'id' at row 1
+# same for trigger case
+delete from t for portion of apptime from '2000-01-01' to '2018-01-01';
+ERROR 22003: Out of range value for column 'id' at row 1
+# generated columns are updated
+create or replace table t (s date, e date,
+xs date as (s) stored, xe date as (e) stored,
+period for apptime(s, e));
+insert into t values('1999-01-01', '2018-12-12', default, default);
+select * from t;
+s	e	xs	xe
+1999-01-01	2018-12-12	1999-01-01	2018-12-12
+delete from t for portion of apptime from '2000-01-01' to '2018-01-01';
+select * from t;
+s	e	xs	xe
+1999-01-01	2000-01-01	1999-01-01	2000-01-01
+2018-01-01	2018-12-12	2018-01-01	2018-12-12
+truncate t;
+# same for trigger case
+insert into t values('1999-01-01', '2018-12-12', default, default);
+delete from t for portion of apptime from '2000-01-01' to '2018-01-01';
+select * from t;
+s	e	xs	xe
+1999-01-01	2000-01-01	1999-01-01	2000-01-01
+2018-01-01	2018-12-12	2018-01-01	2018-12-12
+select * from log_tbl;
+id	log
+1	>DEL: 1999-01-01, 2018-12-12
+2	<DEL: 1999-01-01, 2018-12-12
+3	>INS: 1999-01-01, 2000-01-01
+4	<INS: 1999-01-01, 2000-01-01
+5	>INS: 2018-01-01, 2018-12-12
+6	<INS: 2018-01-01, 2018-12-12
+# View can't be used
+create or replace view v as select * from t;
+delete from v for portion of p from '2000-01-01' to '2018-01-01';
+ERROR 42S02: 'v' is a view
+create or replace table t(id int, s date, e date, period for apptime(s,e),
+constraint dist2days check (datediff(e, s) >= 2));
+insert into t values(1, '1999-01-01', '2018-12-12'),
+(2, '1999-01-01', '1999-12-12');
+delete from t for portion of apptime from '1999-01-02' to '2018-12-12';
+ERROR 23000: CONSTRAINT `dist2days` failed for `test`.`t`
+delete from t for portion of apptime from '1999-01-01' to '2018-12-11';
+ERROR 23000: CONSTRAINT `dist2days` failed for `test`.`t`
+delete from t for portion of apptime from '1999-01-03' to '2018-12-10';
+select *, datediff(e, s) from t;
+id	s	e	datediff(e, s)
+1	1999-01-01	1999-01-03	2
+1	2018-12-10	2018-12-12	2
+2	1999-01-01	1999-01-03	2
+# system_time columns are updated
+create or replace table t (
+s date, e date,
+row_start SYS_TYPE as row start invisible,
+row_end SYS_TYPE as row end invisible,
+period for apptime(s, e),
+period for system_time (row_start, row_end)) with system versioning;
+insert into t values('1999-01-01', '2018-12-12'),
+('1999-01-01', '1999-12-12');
+select row_start into @ins_time from t limit 1;
+select * from t order by s, e;
+s	e
+1999-01-01	1999-12-12
+1999-01-01	2018-12-12
+delete from t for portion of apptime from '2000-01-01' to '2018-01-01';
+select *, if(row_start = @ins_time, "OLD", "NEW"), check_row(row_start, row_end)
+from t for system_time all
+order by s, e, row_start;
+s	e	if(row_start = @ins_time, "OLD", "NEW")	check_row(row_start, row_end)
+1999-01-01	1999-12-12	OLD	CURRENT ROW
+1999-01-01	2000-01-01	NEW	CURRENT ROW
+1999-01-01	2018-12-12	OLD	HISTORICAL ROW
+2018-01-01	2018-12-12	NEW	CURRENT ROW
+# same for trigger case
+delete from t;
+delete history from t;
+insert into t values('1999-01-01', '2018-12-12'),
+('1999-01-01', '1999-12-12');
+select row_start into @ins_time from t limit 1;
+select * from t order by s, e;
+s	e
+1999-01-01	1999-12-12
+1999-01-01	2018-12-12
+delete from t for portion of apptime from '2000-01-01' to '2018-01-01';
+select *, if(row_start = @ins_time, "OLD", "NEW"), check_row(row_start, row_end)
+from t for system_time all
+order by s, e, row_start;
+s	e	if(row_start = @ins_time, "OLD", "NEW")	check_row(row_start, row_end)
+1999-01-01	1999-12-12	OLD	CURRENT ROW
+1999-01-01	2000-01-01	NEW	CURRENT ROW
+1999-01-01	2018-12-12	OLD	HISTORICAL ROW
+2018-01-01	2018-12-12	NEW	CURRENT ROW
+select * from log_tbl;
+id	log
+1	>DEL: 1999-01-01, 2018-12-12
+2	<DEL: 1999-01-01, 2018-12-12
+3	>INS: 1999-01-01, 2000-01-01
+4	<INS: 1999-01-01, 2000-01-01
+5	>INS: 2018-01-01, 2018-12-12
+6	<INS: 2018-01-01, 2018-12-12
+create or replace database test;

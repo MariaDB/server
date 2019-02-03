@@ -766,6 +766,7 @@ void LEX::start(THD *thd_arg)
   win_spec= NULL;
 
   vers_conditions.empty();
+  period_conditions.empty();
 
   is_lex_started= TRUE;
 
@@ -3574,6 +3575,20 @@ void LEX::set_trg_event_type_for_tables()
   case DUP_ERROR:
   default:
     break;
+  }
+
+  if (period_conditions.is_set())
+  {
+    switch (sql_command)
+    {
+    case SQLCOM_DELETE:
+    case SQLCOM_UPDATE:
+    case SQLCOM_REPLACE:
+      new_trg_event_map |= static_cast<uint8>
+                             (1 << static_cast<int>(TRG_EVENT_INSERT));
+    default:
+      break;
+    }
   }
 
 

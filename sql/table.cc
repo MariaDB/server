@@ -6426,9 +6426,9 @@ void TABLE::mark_columns_needed_for_delete()
 
   if (s->versioned)
   {
-    bitmap_set_bit(read_set, s->vers.start_field(s)->field_index);
-    bitmap_set_bit(read_set, s->vers.end_field(s)->field_index);
-    bitmap_set_bit(write_set, s->vers.end_field(s)->field_index);
+    bitmap_set_bit(read_set, s->vers.start_fieldno);
+    bitmap_set_bit(read_set, s->vers.end_fieldno);
+    bitmap_set_bit(write_set, s->vers.end_fieldno);
   }
 }
 
@@ -7834,6 +7834,69 @@ int TABLE::update_default_fields(bool update_command, bool ignore_errors)
   DBUG_RETURN(res);
 }
 
+int TABLE::update_generated_fields()
+{
+  int res= 0;
+  if (found_next_number_field)
+  {
+    next_number_field= found_next_number_field;
+    res= found_next_number_field->set_default();
+    if (likely(!res))
+      res= file->update_auto_increment();
+  }
+
+  if (likely(!res) && vfield)
+    res= update_virtual_fields(file, VCOL_UPDATE_FOR_WRITE);
+  if (likely(!res) && versioned())
+    vers_update_fields();
+  if (likely(!res))
+    res= verify_constraints(false) == VIEW_CHECK_ERROR;
+  return res;
+}
+
+int TABLE::period_make_insert(Item *src, Field *dst)
+{
+  THD *thd= in_use;
+
+  store_record(this, record[1]);
+  int res= src->save_in_field(dst, true);
+
+  if (likely(!res))
+    res= update_generated_fields();
+
+  if (likely(!res) && triggers)
+    res= triggers->process_triggers(thd, TRG_EVENT_INSERT,
+                                    TRG_ACTION_BEFORE, true);
+
+  if (likely(!res))
+    res = file->ha_write_row(record[0]);
+
+  if (likely(!res) && triggers)
+    res= triggers->process_triggers(thd, TRG_EVENT_INSERT,
+                                    TRG_ACTION_AFTER, true);
+
+  restore_record(this, record[1]);
+  return res;
+}
+
+int TABLE::insert_portion_of_time(THD *thd,
+                                  const vers_select_conds_t &period_conds)
+{
+  bool lcond= period_conds.field_start->val_datetime_packed(thd)
+              < period_conds.start.item->val_datetime_packed(thd);
+  bool rcond= period_conds.field_end->val_datetime_packed(thd)
+              > period_conds.end.item->val_datetime_packed(thd);
+
+  int res= 0;
+  if (lcond)
+    res= period_make_insert(period_conds.start.item,
+                            field[s->period.end_fieldno]);
+  if (likely(!res) && rcond)
+    res= period_make_insert(period_conds.end.item,
+                            field[s->period.start_fieldno]);
+
+  return res;
+}
 
 void TABLE::vers_update_fields()
 {
