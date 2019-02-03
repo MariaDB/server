@@ -360,7 +360,8 @@ select * from t1 where txt >= 'Chevy';
 drop table t1;
 
 create table t1 (id integer primary key auto_increment, txt text, index txt_index (txt (20)));
-insert into t1 (txt) values ('Chevy'), ('Chevy '), (NULL);
+insert into t1 (txt) values
+  ('Chevy'), ('Chevy '), (NULL), ('Honda'), ('Subaru'), ('Honda');
 select * from t1 where txt='Chevy' or txt is NULL;
 explain select * from t1 where txt='Chevy' or txt is NULL;
 select * from t1 where txt='Chevy ';

@@ -6265,11 +6265,14 @@ ha_rows ha_partition::multi_range_read_info_const(uint keyno,
   uint ret_mrr_mode= 0;
   range_seq_t seq_it;
   part_id_range save_part_spec;
+  Cost_estimate part_cost;
   DBUG_ENTER("ha_partition::multi_range_read_info_const");
   DBUG_PRINT("enter", ("partition this: %p", this));
 
   m_mrr_new_full_buffer_size= 0;
   save_part_spec= m_part_spec;
+
+  cost->reset();
 
   seq_it= seq->init(seq_init_param, n_ranges, *mrr_mode);
   if (unlikely((error= multi_range_key_create_key(seq, seq_it))))
@@ -6277,7 +6280,7 @@ ha_rows ha_partition::multi_range_read_info_const(uint keyno,
     if (likely(error == HA_ERR_END_OF_FILE))    // No keys in range
     {
       rows= 0;
-      goto calc_cost;
+      goto end;
     }
     /*
       This error means that we can't do multi_range_read for the moment
@@ -6306,18 +6309,20 @@ ha_rows ha_partition::multi_range_read_info_const(uint keyno,
       ha_rows tmp_rows;
       uint tmp_mrr_mode;
       m_mrr_buffer_size[i]= 0;
+      part_cost.reset();
       tmp_mrr_mode= *mrr_mode;
       tmp_rows= (*file)->
         multi_range_read_info_const(keyno, &m_part_seq_if,
                                     &m_partition_part_key_multi_range_hld[i],
                                     m_part_mrr_range_length[i],
                                     &m_mrr_buffer_size[i],
-                                    &tmp_mrr_mode, cost);
+                                    &tmp_mrr_mode, &part_cost);
       if (tmp_rows == HA_POS_ERROR)
       {
         m_part_spec= save_part_spec;
         DBUG_RETURN(HA_POS_ERROR);
       }
+      cost->add(&part_cost);
       rows+= tmp_rows;
       ret_mrr_mode|= tmp_mrr_mode;
       m_mrr_new_full_buffer_size+= m_mrr_buffer_size[i];
@@ -6325,15 +6330,8 @@ ha_rows ha_partition::multi_range_read_info_const(uint keyno,
   } while (*(++file));
   *mrr_mode= ret_mrr_mode;
 
-calc_cost:
+end:
   m_part_spec= save_part_spec;
-  cost->reset();
-  cost->avg_io_cost= 1;
-  if ((*mrr_mode & HA_MRR_INDEX_ONLY) && rows > 2)
-    cost->io_count= keyread_time(keyno, n_ranges, (uint) rows);
-  else
-    cost->io_count= read_time(keyno, n_ranges, rows);
-  cost->cpu_cost= (double) rows / TIME_FOR_COMPARE + 0.01;
   DBUG_RETURN(rows);
 }
 
@@ -9337,6 +9335,43 @@ double ha_partition::scan_time()
        i= bitmap_get_next_set(&m_part_info->read_partitions, i))
     scan_time+= m_file[i]->scan_time();
   DBUG_RETURN(scan_time);
+}
+
+
+/**
+  @brief
+  Caculate time to scan the given index (index only scan)
+
+  @param inx      Index number to scan
+
+  @return time for scanning index inx
+*/
+
+double ha_partition::key_scan_time(uint inx)
+{
+  double scan_time= 0;
+  uint i;
+  DBUG_ENTER("ha_partition::key_scan_time");
+  for (i= bitmap_get_first_set(&m_part_info->read_partitions);
+       i < m_tot_parts;
+       i= bitmap_get_next_set(&m_part_info->read_partitions, i))
+    scan_time+= m_file[i]->key_scan_time(inx);
+  DBUG_RETURN(scan_time);
+}
+
+
+double ha_partition::keyread_time(uint inx, uint ranges, ha_rows rows)
+{
+  double read_time= 0;
+  uint i;
+  DBUG_ENTER("ha_partition::keyread_time");
+  if (!ranges)
+    DBUG_RETURN(handler::keyread_time(inx, ranges, rows));
+  for (i= bitmap_get_first_set(&m_part_info->read_partitions);
+       i < m_tot_parts;
+       i= bitmap_get_next_set(&m_part_info->read_partitions, i))
+    read_time+= m_file[i]->keyread_time(inx, ranges, rows);
+  DBUG_RETURN(read_time);
 }
 
 

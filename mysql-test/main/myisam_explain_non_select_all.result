@@ -696,12 +696,12 @@ Warnings:
 Warning	1287	'<select expression> INTO <destination>;' is deprecated and will be removed in a future release. Please use 'SELECT <select list> INTO <destination> FROM...' instead
 EXPLAIN DELETE   FROM t1 WHERE t1.a > 0 ORDER BY t1.a;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t1	range	PRIMARY	PRIMARY	4	NULL	1	Using where
+1	SIMPLE	NULL	NULL	NULL	NULL	NULL	NULL	NULL	Impossible WHERE
 FLUSH STATUS;
 FLUSH TABLES;
 EXPLAIN EXTENDED DELETE   FROM t1 WHERE t1.a > 0 ORDER BY t1.a;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
-1	SIMPLE	t1	range	PRIMARY	PRIMARY	4	NULL	1	100.00	Using where
+1	SIMPLE	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	Impossible WHERE
 # Status of EXPLAIN EXTENDED query
 Variable_name	Value
 FLUSH STATUS;
@@ -721,9 +721,8 @@ Variable_name	Value
 Handler_read_rnd_next	1
 # Status of testing query execution:
 Variable_name	Value
-Handler_read_key	1
 
-INSERT INTO t1 VALUES (1), (2), (3);
+INSERT INTO t1 VALUES (1), (2), (3), (-1), (-2), (-3);
 #
 # query:  DELETE   FROM t1 WHERE t1.a > 0 ORDER BY t1.a
 # select: SELECT * FROM t1 WHERE t1.a > 0 ORDER BY t1.a
@@ -2351,19 +2350,19 @@ Warnings:
 Warning	1287	'<select expression> INTO <destination>;' is deprecated and will be removed in a future release. Please use 'SELECT <select list> INTO <destination> FROM...' instead
 EXPLAIN UPDATE t1 SET a=a+10 WHERE a > 34;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t1	range	PRIMARY	PRIMARY	4	NULL	3	Using where; Using buffer
+1	SIMPLE	t1	range	PRIMARY	PRIMARY	4	NULL	2	Using where; Using buffer
 FLUSH STATUS;
 FLUSH TABLES;
 EXPLAIN EXTENDED UPDATE t1 SET a=a+10 WHERE a > 34;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
-1	SIMPLE	t1	range	PRIMARY	PRIMARY	4	NULL	3	100.00	Using where; Using buffer
+1	SIMPLE	t1	range	PRIMARY	PRIMARY	4	NULL	2	100.00	Using where; Using buffer
 # Status of EXPLAIN EXTENDED query
 Variable_name	Value
 FLUSH STATUS;
 FLUSH TABLES;
 EXPLAIN EXTENDED SELECT * FROM t1     WHERE a > 34;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
-1	SIMPLE	t1	range	PRIMARY	PRIMARY	4	NULL	3	100.00	Using where; Using index
+1	SIMPLE	t1	range	PRIMARY	PRIMARY	4	NULL	2	100.00	Using where; Using index
 Warnings:
 Note	1003	select `test`.`t1`.`a` AS `a` from `test`.`t1` where `test`.`t1`.`a` > 34
 # Status of EXPLAIN EXTENDED "equivalent" SELECT query execution
@@ -2627,7 +2626,7 @@ DROP TABLE t1;
 DROP VIEW v1;
 #63
 CREATE TABLE t1 (a INT, PRIMARY KEY(a));
-INSERT INTO t1 VALUES (1), (2), (3), (4), (5);
+INSERT INTO t1 VALUES (1), (2), (3), (4), (5), (6), (7), (8), (9);
 CREATE VIEW v1 (a) AS SELECT a FROM t1;
 #
 # query:  DELETE   FROM v1 WHERE a < 4

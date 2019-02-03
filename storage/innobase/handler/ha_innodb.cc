@@ -3461,6 +3461,10 @@ ha_innobase::reset_template(void)
 		in ha_innobase::write_row(). */
 		m_prebuilt->template_type = ROW_MYSQL_NO_TEMPLATE;
 	}
+        if (m_prebuilt->pk_filter) {
+	        m_prebuilt->pk_filter = NULL;
+                m_prebuilt->template_type = ROW_MYSQL_NO_TEMPLATE;
+        }
 }
 
 /*****************************************************************//**
@@ -5246,7 +5250,8 @@ ha_innobase::index_flags(
 	ulong flags = HA_READ_NEXT | HA_READ_PREV | HA_READ_ORDER
 		      | HA_READ_RANGE | HA_KEYREAD_ONLY
 		      | extra_flag
-		      | HA_DO_INDEX_COND_PUSHDOWN;
+		      | HA_DO_INDEX_COND_PUSHDOWN
+                      | HA_DO_RANGE_FILTER_PUSHDOWN;
 
 	/* For spatial index, we don't support descending scan
 	and ICP so far. */
@@ -7553,6 +7558,13 @@ ha_innobase::build_template(
 	/* Below we check column by column if we need to access
 	the clustered index. */
 
+        if (pushed_rowid_filter && rowid_filter_is_active) {
+	        fetch_primary_key_cols = TRUE;
+                m_prebuilt->pk_filter = this;
+        } else {
+	        m_prebuilt->pk_filter = NULL;
+        }
+
 	n_fields = (ulint) mysql_fields(table);
 
 	if (!m_prebuilt->mysql_template) {
@@ -7573,8 +7585,9 @@ ha_innobase::build_template(
 	/* Note that in InnoDB, i is the column number in the table.
 	MySQL calls columns 'fields'. */
 
-	if (active_index != MAX_KEY
-	    && active_index == pushed_idx_cond_keyno) {
+	if ((active_index != MAX_KEY
+             && active_index == pushed_idx_cond_keyno) ||
+            (pushed_rowid_filter && rowid_filter_is_active)) {
 		ulint	num_v = 0;
 
 		/* Push down an index condition or an end_range check. */
@@ -7768,8 +7781,9 @@ ha_innobase::build_template(
 				}
 			}
 		}
-
-		m_prebuilt->idx_cond = this;
+                if (active_index == pushed_idx_cond_keyno) {
+		        m_prebuilt->idx_cond = this;
+                }
 	} else {
 no_icp:
 		mysql_row_templ_t*	templ;
@@ -20318,6 +20332,22 @@ innobase_index_cond(
 	return handler_index_cond_check(file);
 }
 
+bool
+innobase_pk_filter(
+/*===============*/
+	void* file)     /*!< in/out: pointer to ha_innobase */
+{
+        return handler_rowid_filter_check(file);
+}
+
+bool
+innobase_pk_filter_is_active(
+/*==========================*/
+	void* file)     /*!< in/out: pointer to ha_innobase */
+{
+        return handler_rowid_filter_is_active(file);
+}
+
 /** Parse the table file name into table name and database name.
 @param[in]	tbl_name	InnoDB table name
 @param[out]	dbname		database name buffer (NAME_LEN + 1 bytes)
@@ -20851,6 +20881,21 @@ ha_innobase::idx_cond_push(
 	in_range_check_pushed_down = TRUE;
 	/* We will evaluate the condition entirely */
 	DBUG_RETURN(NULL);
+}
+
+
+/** Push primary key filter.
+@param[in] pk_filter  PK filter against which primary keys
+                      are to be checked */
+
+bool
+ha_innobase::rowid_filter_push(
+        class Rowid_filter* pk_filter)
+{
+        DBUG_ENTER("ha_innobase::rowid_filter_push");
+        DBUG_ASSERT(pk_filter != NULL);
+        pushed_rowid_filter= pk_filter;
+        DBUG_RETURN(FALSE);
 }
 
 /******************************************************************//**

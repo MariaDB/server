@@ -828,6 +828,10 @@ struct row_prebuilt_t {
 					0 if and only if idx_cond == NULL. */
 	/*----------------------*/
 
+        void*           pk_filter;      /*!< In PK-filters, pointer to a ha_innobase,
+                                        passed to innobase_pk_filter().
+                                        NULL if no PK-filter is pushed. */
+
 	/*----------------------*/
 	rtr_info_t*	rtr_info;	/*!< R-tree Search Info */
 	/*----------------------*/

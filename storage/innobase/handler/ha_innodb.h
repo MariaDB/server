@@ -417,6 +417,12 @@ public:
 	Item* idx_cond_push(uint keyno, Item* idx_cond);
 	/* @} */
 
+        /** Attempt to push down a rowid filter
+        @param[in] pk_filter Handle of the rowid filter to be pushed.
+        #return 0 pk-filter is pushed; NULL if not pushed */
+	bool rowid_filter_push(class Rowid_filter *rowid_filter);
+	/* @} */
+
 protected:
 
 	/**

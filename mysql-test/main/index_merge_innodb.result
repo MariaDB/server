@@ -1,5 +1,6 @@
 set @optimizer_switch_save= @@optimizer_switch;
 set optimizer_switch='index_merge_sort_intersection=off';
+set optimizer_switch='rowid_filter=off';
 #---------------- Index merge test 2 -------------------------------------------
 SET SESSION STORAGE_ENGINE = InnoDB;
 drop table if exists t1,t2;

@@ -739,7 +739,7 @@ EXPLAIN
       "key": "a",
       "key_length": "5",
       "used_key_parts": ["a"],
-      "rows": 1,
+      "rows": 2,
       "filtered": 100,
       "index_condition": "t1.a < 3",
       "mrr_type": "Rowid-ordered scan"

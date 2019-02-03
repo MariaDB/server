@@ -4248,7 +4248,8 @@ DROP TABLE t1;
 
 CREATE TABLE t1 (a varchar(10), KEY (a)) ;
 INSERT INTO t1 VALUES
-  ('DD'), ('ZZ'), ('ZZ'), ('KK'), ('FF'), ('HH'),('MM');
+  ('DD'), ('ZZ'), ('ZZ'), ('KK'), ('FF'), ('HH'), ('MM'),
+  ('AA'), ('DD'), ('CC'), ('GG');
 
 CREATE VIEW v1 AS SELECT * FROM t1;
 

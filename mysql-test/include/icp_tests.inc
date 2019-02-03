@@ -633,6 +633,8 @@ CREATE TABLE t2 (
 );
 INSERT INTO t2 VALUES (4,1);
 
+ANALYZE TABLE t1,t2;
+
 EXPLAIN
 SELECT t1.d1, t2.pk, t2.i1 FROM t1 STRAIGHT_JOIN t2 ON t2.i1
   WHERE t2.pk <> t1.d1 AND t2.pk = 4;
@@ -839,6 +841,8 @@ INSERT INTO t2 (g,h) VALUES
 (0,'p'),(0,'f'),(0,'p'),(7,'d'),(7,'f'),(5,'j'),
 (3,'e'),(1,'u'),(4,'v'),(9,'u'),(6,'i'),(1,'x'),
 (7,'f'),(5,'j'),(3,'e'),(1,'u'),(4,'v'),(9,'u');
+
+ANALYZE TABLE t1,t2;
 
 SET @save_optimize_switch=@@optimizer_switch;
 SET optimizer_switch='materialization=on';

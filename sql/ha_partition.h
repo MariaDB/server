@@ -912,6 +912,10 @@ public:
   */
   virtual double scan_time();
 
+  virtual double key_scan_time(uint inx);
+
+  virtual double keyread_time(uint inx, uint ranges, ha_rows rows);
+
   /*
     The next method will never be called if you do not implement indexes.
   */

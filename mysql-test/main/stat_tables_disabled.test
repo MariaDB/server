@@ -1,3 +1,9 @@
+set @innodb_stats_persistent_save= @@innodb_stats_persistent;
+set @innodb_stats_persistent_sample_pages_save=
+      @@innodb_stats_persistent_sample_pages;
+
+set global innodb_stats_persistent= 1;
+set global innodb_stats_persistent_sample_pages=100;
 --source include/have_innodb.inc
 
 SET SESSION STORAGE_ENGINE='InnoDB';
@@ -19,6 +25,7 @@ use dbt3_s001;
 
 set @save_optimizer_switch=@@optimizer_switch;
 set optimizer_switch='extended_keys=off';
+set optimizer_switch='rowid_filter=off';
  
 --disable_query_log
 --disable_result_log
@@ -76,3 +83,7 @@ set use_stat_tables=@save_use_stat_tables;
 
 
 SET SESSION STORAGE_ENGINE=DEFAULT;
+
+set global innodb_stats_persistent= @innodb_stats_persistent_save;
+set global innodb_stats_persistent_sample_pages=
+             @innodb_stats_persistent_sample_pages_save;

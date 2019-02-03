@@ -1227,6 +1227,44 @@ static const Type_handler *old_frm_type_handler(uint pack_flag,
   return Type_handler::get_handler_by_real_type(field_type);
 }
 
+/* Set overlapped bitmaps for each index */
+
+void TABLE_SHARE::set_overlapped_keys()
+{
+  KEY *key1= key_info;
+  for (uint i= 0; i < keys; i++, key1++)
+  {
+    key1->overlapped.clear_all();
+    key1->overlapped.set_bit(i);
+  }
+  key1= key_info;
+  for (uint i= 0; i < keys; i++, key1++)
+  {
+    KEY *key2= key1 + 1;
+    for (uint j= i+1; j < keys; j++, key2++)
+    {
+      KEY_PART_INFO *key_part1= key1->key_part;
+      uint n1= key1->user_defined_key_parts;
+      uint n2= key2->user_defined_key_parts;
+      for (uint k= 0; k < n1; k++, key_part1++)
+      {
+        KEY_PART_INFO *key_part2= key2->key_part;
+        for (uint l= 0; l < n2; l++, key_part2++)
+	{
+          if (key_part1->fieldnr == key_part2->fieldnr)
+	  {
+            key1->overlapped.set_bit(j);
+            key2->overlapped.set_bit(i);
+            goto end_checking_overlap;
+          }
+        }
+      }
+    end_checking_overlap:
+      ;
+    }
+  }
+}
+
 
 /**
   Read data from a binary .frm file image into a TABLE_SHARE
@@ -2521,6 +2559,8 @@ int TABLE_SHARE::init_from_binary_frm_image(THD *thd, bool write,
     bfill(share->default_values + (null_flags - (uchar*) record),
           null_length, 255);
   }
+
+  set_overlapped_keys();
 
   /* Handle virtual expressions */
   if (vcol_screen_length && share->frm_version >= FRM_VER_EXPRESSSIONS)
@@ -4656,8 +4696,9 @@ void TABLE::init(THD *thd, TABLE_LIST *tl)
   created= TRUE;
   cond_selectivity= 1.0;
   cond_selectivity_sampling_explain= NULL;
-  best_filter_count= 0;
-  range_filter_cost_info_elements= 0;
+  range_rowid_filter_cost_info_elems= 0;
+  range_rowid_filter_cost_info_ptr= NULL;
+  range_rowid_filter_cost_info= NULL;
 #ifdef HAVE_REPLICATION
   /* used in RBR Triggers */
   master_had_triggers= 0;

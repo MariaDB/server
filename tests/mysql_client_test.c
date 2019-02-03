@@ -7606,8 +7606,8 @@ static void test_explain_bug()
   verify_prepare_field(result, 7, "ref", "", MYSQL_TYPE_VAR_STRING,
                        "", "", "", NAME_CHAR_LEN * HA_MAX_KEY_SEG, 0);
 
-  verify_prepare_field(result, 8, "rows", "", MYSQL_TYPE_LONGLONG,
-                       "", "", "", 10, 0);
+  verify_prepare_field(result, 8, "rows", "", MYSQL_TYPE_VAR_STRING,
+                       "", "", "", NAME_CHAR_LEN, 0);
 
   verify_prepare_field(result, 9, "Extra", "", MYSQL_TYPE_VAR_STRING,
                        "", "", "", 255, 0);

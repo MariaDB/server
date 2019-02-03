@@ -305,6 +305,9 @@ struct st_myisam_info
   my_bool create_unique_index_by_sort;
   index_cond_func_t index_cond_func;   /* Index condition function */
   void *index_cond_func_arg;           /* parameter for the func */
+  rowid_filter_func_t rowid_filter_func;   /* rowid filter check function */
+  rowid_filter_func_t rowid_filter_is_active_func;  /* is activefunction */
+  void *rowid_filter_func_arg;             /* parameter for the func */
   THR_LOCK_DATA lock;
   uchar *rtree_recursion_state;         /* For RTREE */
   int rtree_recursion_depth;
@@ -724,14 +727,20 @@ int mi_munmap_file(MI_INFO *info);
 void mi_remap_file(MI_INFO *info, my_off_t size);
 
 ICP_RESULT mi_check_index_cond(MI_INFO *info, uint keynr, uchar *record);
+int mi_check_rowid_filter(MI_INFO *info);
+int mi_check_rowid_filter_is_active(MI_INFO *info);
     /* Functions needed by mi_check */
 int killed_ptr(HA_CHECK *param);
 void mi_check_print_error(HA_CHECK *param, const char *fmt, ...);
 void mi_check_print_warning(HA_CHECK *param, const char *fmt, ...);
 void mi_check_print_info(HA_CHECK *param, const char *fmt, ...);
 pthread_handler_t thr_find_all_keys(void *arg);
-extern void mi_set_index_cond_func(MI_INFO *info, index_cond_func_t func,
+extern void mi_set_index_cond_func(MI_INFO *info, index_cond_func_t check_func,
                                    void *func_arg);
+extern void mi_set_rowid_filter_func(MI_INFO *info,
+                                     rowid_filter_func_t check_func,
+                                     rowid_filter_func_t is_active_func,
+                                     void *func_arg);
 int flush_blocks(HA_CHECK *param, KEY_CACHE *key_cache, File file,
                  ulonglong *dirty_part_map);
 

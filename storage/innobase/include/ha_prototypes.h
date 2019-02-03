@@ -556,6 +556,23 @@ innobase_index_cond(
 	void*	file)	/*!< in/out: pointer to ha_innobase */
 	MY_ATTRIBUTE((warn_unused_result));
 
+/*************************************************************//**
+InnoDB Rowid filter check defined in ha_innodb.cc */
+
+bool
+innobase_pk_filter(
+/*================*/
+	void*	file)	/*!< in/out: pointer to ha_innobase */
+	MY_ATTRIBUTE((warn_unused_result));
+
+/*************************************************************//**
+InnoDB check whether pk-filter is active */
+
+bool
+innobase_pk_filter_is_active(
+/*==========================*/
+	void*	file);	/*!< in/out: pointer to ha_innobase */
+
 /******************************************************************//**
 Gets information on the durability property requested by thread.
 Used when writing either a prepare or commit record to the log

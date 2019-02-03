@@ -1,6 +1,13 @@
 #
 # DuplicateElimination strategy test
 #
+
+set @innodb_stats_persistent_save= @@innodb_stats_persistent;
+set @innodb_stats_persistent_sample_pages_save=
+      @@innodb_stats_persistent_sample_pages;
+
+set global innodb_stats_persistent= 1;
+set global innodb_stats_persistent_sample_pages=100;
 --source include/have_innodb.inc
 
 set @subselect_sj2_tmp= @@optimizer_switch;
@@ -56,6 +63,8 @@ create table t3 (
 ) engine=innodb;
 insert into t3 select a,a, a,a,a from t0;
 insert into t3 select a,a, a+100,a+100,a+100 from t0;
+
+analyze table t1,t2,t3;
 
 explain select * from t3 where b in (select a from t1);
 select * from t3 where b in (select a from t1);
@@ -1113,6 +1122,8 @@ INSERT INTO t2 VALUES
 (11,'m',2),(12,'q',3),(13,'m',4),(14,'d',5),
 (15,'g',6),(16,'x',7),(17,'f',8);
 
+analyze table t1,t2;
+
 explain
 SELECT * FROM t1 WHERE b IN (
   SELECT d FROM t2, t1
@@ -1139,6 +1150,8 @@ INSERT INTO t1 VALUES
 ('m','m'),('b','b'),('x','x'),('g','g'),('p','p'),
 ('q','q'),('w','w'),('d','d'),('e','e');
 
+ANALYZE TABLE t1;
+
 CREATE ALGORITHM=TEMPTABLE VIEW v1 AS SELECT * FROM t1;
 
 --echo # This query returned 6 rows instead of 19
@@ -1155,6 +1168,9 @@ WHERE ( a, a ) IN (
 CREATE TABLE t2 (a VARCHAR(1), b VARCHAR(1) NOT NULL, KEY(a)) ENGINE=InnoDB;
 INSERT INTO t2 SELECT * FROM t1;
 INSERT INTO t2 SELECT * FROM t1;
+
+ANALYZE TABLE t2;
+
 EXPLAIN 
 SELECT * FROM t2 
  WHERE (a, a) IN (SELECT alias2.b, alias2.a FROM t1 AS alias1, t1 AS alias2 
@@ -1379,6 +1395,8 @@ INSERT IGNORE INTO t1 VALUES (200001, 'a');
 INSERT IGNORE INTO t2 (t2id, t1idref) VALUES (200011, 200001),(200012, 200001),(200013, 200001);
 INSERT IGNORE INTO t3 VALUES (1, 200011, 1),  (1, 200012, 2), (1, 200013, 3);
 
+ANALYZE TABLE t1,t2,t3;
+
 set @tmp7474= @@optimizer_search_depth;
 SET SESSION optimizer_search_depth = 1;
 
@@ -1465,4 +1483,7 @@ DROP TABLE t1,t2,t3;
 DROP VIEW v3;
 
 --echo # This must be the last in the file:
+set global innodb_stats_persistent= @innodb_stats_persistent_save;
+set global innodb_stats_persistent_sample_pages=
+             @innodb_stats_persistent_sample_pages_save;
 set optimizer_switch=@subselect_sj2_tmp;

@@ -2520,6 +2520,7 @@ int SQL_SELECT::test_quick_select(THD *thd, key_map keys_to_use,
   quick=0;
   needed_reg.clear_all();
   quick_keys.clear_all();
+  head->with_impossible_ranges.clear_all();
   DBUG_ASSERT(!head->is_filled_at_execution());
   if (keys_to_use.is_clear_all() || head->is_filled_at_execution())
     DBUG_RETURN(0);
@@ -2639,8 +2640,8 @@ int SQL_SELECT::test_quick_select(THD *thd, key_map keys_to_use,
     if (!force_quick_range && !head->covering_keys.is_clear_all())
     {
       int key_for_use= find_shortest_key(head, &head->covering_keys);
-      double key_read_time= head->file->keyread_time(key_for_use, 1, records) +
-                            (double) records / TIME_FOR_COMPARE;
+      double key_read_time= head->file->key_scan_time(key_for_use) +
+                            (double) records / TIME_FOR_COMPARE_IDX;
       DBUG_PRINT("info",  ("'all'+'using index' scan will be using key %d, "
                            "read time %g", key_for_use, key_read_time));
       if (key_read_time < read_time)
@@ -4790,6 +4791,7 @@ TABLE_READ_PLAN *get_best_disjunct_quick(PARAM *param, SEL_IMERGE *imerge,
   double roru_index_costs;
   ha_rows roru_total_records;
   double roru_intersect_part= 1.0;
+  double limit_read_time= read_time;
   size_t n_child_scans;
   DBUG_ENTER("get_best_disjunct_quick");
   DBUG_PRINT("info", ("Full table scan cost: %g", read_time));
@@ -4936,7 +4938,7 @@ TABLE_READ_PLAN *get_best_disjunct_quick(PARAM *param, SEL_IMERGE *imerge,
     if (imerge_trp)
     {
       TABLE_READ_PLAN *trp= merge_same_index_scans(param, imerge, imerge_trp,
-                                                   read_time);
+                                                   limit_read_time);
       if (trp != imerge_trp)
         DBUG_RETURN(trp);
     }
@@ -5409,9 +5411,8 @@ bool prepare_search_best_index_intersect(PARAM *param,
         same_index_prefix(cpk_scan->key_info, key_info, used_key_parts))
       continue;
 
-    cost= table->file->keyread_time((*index_scan)->keynr,
-                                    (*index_scan)->range_count,
-                                    (*index_scan)->records);
+    cost= table->quick_index_only_costs[(*index_scan)->keynr];
+
     if (cost >= cutoff_cost)
       continue;
    
@@ -8556,6 +8557,7 @@ int and_range_trees(RANGE_OPT_PARAM *param, SEL_TREE *tree1, SEL_TREE *tree2,
       if (key && key->type == SEL_ARG::IMPOSSIBLE)
       {
 	result->type= SEL_TREE::IMPOSSIBLE;
+        param->table->with_impossible_ranges.set_bit(param->real_keynr[key_no]);
         DBUG_RETURN(1);
       }
       result_keys.set_bit(key_no);
@@ -10541,7 +10543,6 @@ ha_rows check_quick_select(PARAM *param, uint idx, bool index_only,
   handler *file= param->table->file;
   ha_rows rows= HA_POS_ERROR;
   uint keynr= param->real_keynr[idx];
-  uint length;
   DBUG_ENTER("check_quick_select");
   
   /* Handle cases when we don't have a valid non-empty list of range */
@@ -10600,8 +10601,10 @@ ha_rows check_quick_select(PARAM *param, uint idx, bool index_only,
         MY_MIN(param->table->quick_condition_rows, rows);
       param->table->quick_rows[keynr]= rows;
       param->table->quick_costs[keynr]= cost->total_cost();
-      param->table->quick_key_io[keynr]=
-        file->get_io_cost(keynr, param->table->quick_rows[keynr], &length);
+      if (keynr == param->table->s->primary_key && pk_is_clustered)
+	param->table->quick_index_only_costs[keynr]= 0;
+      else
+        param->table->quick_index_only_costs[keynr]= cost->index_only_cost();
     }
   }
   /* Figure out if the key scan is ROR (returns rows in ROWID order) or not */
@@ -13656,7 +13659,7 @@ void cost_group_min_max(TABLE* table, KEY *index_info, uint used_key_parts,
     1/double(2*TIME_FOR_COMPARE); 
 
   const double cpu_cost= num_groups *
-                         (tree_traversal_cost + 1/double(TIME_FOR_COMPARE));
+                         (tree_traversal_cost + 1/double(TIME_FOR_COMPARE_IDX));
 
   *read_cost= io_cost + cpu_cost;
   *records= num_groups;

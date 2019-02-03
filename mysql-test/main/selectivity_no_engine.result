@@ -161,7 +161,7 @@ Note	1003	select `test`.`t1`.`key1` AS `key1`,`test`.`t1`.`col1` AS `col1` from 
 # Must show 100%, not 10%
 explain extended select * from t1 where key1=2;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
-1	SIMPLE	t1	ref	key1	key1	5	const	98	100.00	
+1	SIMPLE	t1	ref	key1	key1	5	const	99	100.00	
 Warnings:
 Note	1003	select `test`.`t1`.`key1` AS `key1`,`test`.`t1`.`col1` AS `col1` from `test`.`t1` where `test`.`t1`.`key1` = 2
 drop table t0, t1;
@@ -231,11 +231,12 @@ f2 varchar(1024),
 KEY (f1,f2(255))
 );
 INSERT INTO t2 VALUES ('foo','baz','qux'),('bar','baz','qux');
+INSERT INTO t2 VALUES ('foo','bazz','qux'),('bar','bazz','qux');
 set optimizer_use_condition_selectivity=2;
 explain
 select * from t1,t2 where t1.id = t2.t1_id and t2.f2='qux' and t2.f1='baz';
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t2	ref	f1	f1	325	const,const	1	Using index condition; Using where
+1	SIMPLE	t2	ref	f1	f1	325	const,const	2	Using index condition; Using where
 1	SIMPLE	t1	eq_ref	PRIMARY	PRIMARY	122	test.t2.t1_id	1	
 select * from t1,t2 where t1.id = t2.t1_id and t2.f2='qux' and t2.f1='baz';
 id	dt	t1_id	f1	f2

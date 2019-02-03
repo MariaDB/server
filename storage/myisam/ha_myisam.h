@@ -172,6 +172,8 @@ public:
 
   /* Index condition pushdown implementation */
   Item *idx_cond_push(uint keyno, Item* idx_cond);
+  bool rowid_filter_push(Rowid_filter* rowid_filter);
+
 private:
   DsMrr_impl ds_mrr;
   friend ICP_RESULT index_cond_func_myisam(void *arg);

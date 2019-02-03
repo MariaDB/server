@@ -529,6 +529,19 @@ ICP_RESULT mi_check_index_cond(register MI_INFO *info, uint keynr,
   return res;
 }
 
+
+int mi_check_rowid_filter(MI_INFO *info)
+{
+  return info->rowid_filter_func(info->rowid_filter_func_arg);
+}
+
+int mi_check_rowid_filter_is_active(MI_INFO *info)
+{
+  if (info->rowid_filter_is_active_func == NULL)
+    return 0;
+  return info->rowid_filter_is_active_func(info->rowid_filter_func_arg);
+}
+
 /*
   Retrieve auto_increment info
 

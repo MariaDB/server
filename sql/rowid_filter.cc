@@ -1,218 +1,556 @@
+/*
+   Copyright (c) 2018, 2019 MariaDB
+
+   This program is free software; you can redistribute it and/or modify
+   it under the terms of the GNU General Public License as published by
+   the Free Software Foundation; version 2 of the License.
+
+   This program is distributed in the hope that it will be useful,
+   but WITHOUT ANY WARRANTY; without even the implied warranty of
+   MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+   GNU General Public License for more details.
+
+   You should have received a copy of the GNU General Public License
+   along with this program; if not, write to the Free Software
+   Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1301  USA */
+
+#include "mariadb.h"
+#include "table.h"
+#include "sql_class.h"
+#include "opt_range.h"
 #include "rowid_filter.h"
+#include "sql_select.h"
 
 
-/**
-  Sets information about filter with key_numb index.
-  It sets a cardinality of filter, calculates its selectivity
-  and gets slope and interscept values.
-*/
-
-void Range_filter_cost_info::init(TABLE *tab, uint key_numb)
+inline
+double Range_rowid_filter_cost_info::lookup_cost(
+                                     Rowid_filter_container_type cont_type)
 {
-  table= tab;
-  key_no= key_numb;
-  cardinality= table->quick_rows[key_no];
-  b= filter_io_cost() + filter_write_cost() + filter_sort_cost();
-  selectivity= cardinality/((double) table->stat_records());
-  a= (1 + COST_COND_EVAL)*(1 - selectivity) - lookup_cost();
-  intersect_x_axis_abcissa= b/a;
-}
-
-
-/**
-  @brief
-    Sort available filters by their building cost in the increasing order
-
-  @details
-    The method starts sorting available filters from the first filter that
-    is not defined as the best filter. If there are two filters that are
-    defined as the best filters there is no need to sort other filters.
-    Best filters are already sorted by their building cost and have the
-    smallest bulding cost in comparison with other filters by definition.
-
-    As the sorting method bubble sort is used.
-*/
-
-void TABLE::sort_range_filter_cost_info_array()
-{
-  if (best_filter_count == 2)
-    return;
-
-  for (uint i= best_filter_count; i < range_filter_cost_info_elements-1; i++)
-  {
-    for (uint j= i+1; j < range_filter_cost_info_elements; j++)
-    {
-      if (range_filter_cost_info[i].intersect_x_axis_abcissa >
-          range_filter_cost_info[j].intersect_x_axis_abcissa)
-        swap_variables(Range_filter_cost_info,
-                       range_filter_cost_info[i],
-                       range_filter_cost_info[j]);
-    }
+  switch (cont_type) {
+  case SORTED_ARRAY_CONTAINER:
+    return log(est_elements)*0.01;
+  default:
+    DBUG_ASSERT(0);
+    return 0;
   }
 }
 
 
 /**
   @brief
-    The method searches for the filters that can reduce the join cost the most
-
-  @details
-    The method looks through the available filters trying to choose the best
-    filter and eliminate as many filters as possible.
-
-    Filters are considered as a linear functions. The best filter is the linear
-    function that intersects all other linear functions not in the I quadrant
-    and has the biggest a (slope) value. This filter will reduce the partial
-    join cost the most. If it is possible the second best filter is also
-    chosen. The second best filter can be used if the ref access is made on
-    the index of the first best filter.
-
-    So there is no need to store all other filters except filters that
-    intersect in the I quadrant. It is impossible to say on this step which
-    filter is better and will give the biggest gain.
-
-    The number of filters that can be used is stored in the
-    range_filter_cost_info_elements variable.
+    The average gain in cost per row to use the range filter with this cost info
 */
 
-void TABLE::prune_range_filters()
+inline
+double Range_rowid_filter_cost_info::avg_access_and_eval_gain_per_row(
+                                     Rowid_filter_container_type cont_type)
 {
-  key_map pruned_filter_map;
-  pruned_filter_map.clear_all();
-  Range_filter_cost_info *max_slope_filters[2] = {0, 0};
+  return (1+1.0/TIME_FOR_COMPARE) * (1 - selectivity) -
+         lookup_cost(cont_type);
+}
 
-  for (uint i= 0; i < range_filter_cost_info_elements; i++)
+/**
+  @brief
+    Initialize the cost info structure for a range filter
+
+  @param cont_type  The type of the container of the range filter
+  @param tab        The table for which the range filter is evaluated
+  @param idx        The index used to create this range filter
+*/
+
+void Range_rowid_filter_cost_info::init(Rowid_filter_container_type cont_type,
+                                        TABLE *tab, uint idx)
+{
+  container_type= cont_type;
+  table= tab;
+  key_no= idx;
+  est_elements= table->quick_rows[key_no];
+  b= build_cost(container_type);
+  selectivity= est_elements/((double) table->stat_records());
+  a= avg_access_and_eval_gain_per_row(container_type);
+  if (a > 0)
+    cross_x= b/a;
+  abs_independent.clear_all();
+}
+
+
+/**
+  @brief
+   Return the cost of building a range filter of a certain type
+*/
+
+double
+Range_rowid_filter_cost_info::build_cost(Rowid_filter_container_type cont_type)
+{
+  double cost= 0;
+
+  cost+= table->quick_index_only_costs[key_no];
+
+  switch (cont_type) {
+
+  case SORTED_ARRAY_CONTAINER:
+    cost+= ARRAY_WRITE_COST * est_elements; /* cost filling the container */
+    cost+= ARRAY_SORT_C * est_elements * log(est_elements); /* sorting cost */
+    break;
+  default:
+    DBUG_ASSERT(0);
+  }
+
+  return cost;
+}
+
+
+Rowid_filter_container *Range_rowid_filter_cost_info::create_container()
+{
+  THD *thd= table->in_use;
+  uint elem_sz= table->file->ref_length;
+  Rowid_filter_container *res= 0;
+
+  switch (container_type) {
+  case SORTED_ARRAY_CONTAINER:
+    res= new (thd->mem_root) Rowid_filter_sorted_array(est_elements, elem_sz);
+    break;
+  default:
+    DBUG_ASSERT(0);
+  }
+  return res;
+}
+
+
+static
+int compare_range_rowid_filter_cost_info_by_a(
+                        Range_rowid_filter_cost_info **filter_ptr_1,
+                        Range_rowid_filter_cost_info **filter_ptr_2)
+{
+  double diff= (*filter_ptr_2)->get_a() - (*filter_ptr_1)->get_a();
+  return (diff < 0 ? -1 : (diff > 0 ? 1 : 0));
+}
+
+
+/**
+  @brief
+    Prepare the array with cost info on range filters to be used by optimizer
+
+  @details
+    The function removes the array of cost info on range filters the elements
+    for those range filters that won't be ever chosen as the best filter, no
+    matter what index will be used to access the table and at what step the
+    table will be joined.
+*/
+
+void TABLE::prune_range_rowid_filters()
+{
+  uint i, j;
+
+  /*
+    For the elements of the array with cost info on range filters
+    build a bit matrix of absolutely independent elements.
+    Two elements are absolutely independent if they such indexes that
+    there is no other index that overlaps both of them or is constraint
+    correlated with both of them. Use abs_independent key maps to store
+    the elements if this bit matrix.
+  */
+
+  Range_rowid_filter_cost_info **filter_ptr_1= range_rowid_filter_cost_info_ptr;
+  for (i= 0; i < range_rowid_filter_cost_info_elems; i++, filter_ptr_1++)
   {
-    Range_filter_cost_info *filter= &range_filter_cost_info[i];
-    if (filter->a < 0)
+    uint key_no= (*filter_ptr_1)->key_no;
+    Range_rowid_filter_cost_info **filter_ptr_2= filter_ptr_1 + 1;
+    for (j= i+1; j < range_rowid_filter_cost_info_elems; j++, filter_ptr_2++)
     {
-      range_filter_cost_info_elements--;
-      swap_variables(Range_filter_cost_info, range_filter_cost_info[i],
-                     range_filter_cost_info[range_filter_cost_info_elements]);
-      continue;
-    }
-    for (uint j= i+1; j < range_filter_cost_info_elements; j++)
-    {
-      Range_filter_cost_info *cand_filter= &range_filter_cost_info[j];
-
-      double intersect_x= filter->get_intersect_x(cand_filter);
-      double intersect_y= filter->get_intersect_y(intersect_x);
-
-      if (intersect_x > 0 && intersect_y > 0)
+      key_map map= key_info[key_no].overlapped;
+      map.intersect(key_info[(*filter_ptr_2)->key_no].overlapped);
+      if (map.is_clear_all())
       {
-        pruned_filter_map.set_bit(cand_filter->key_no);
-        pruned_filter_map.set_bit(filter->key_no);
+        (*filter_ptr_1)->abs_independent.set_bit((*filter_ptr_2)->key_no);
+        (*filter_ptr_2)->abs_independent.set_bit(key_no);
       }
     }
-    if (!pruned_filter_map.is_set(filter->key_no))
+  }
+
+  /* Sort the array range_filter_cost_info by 'a' in descending order */
+  my_qsort(range_rowid_filter_cost_info_ptr,
+           range_rowid_filter_cost_info_elems,
+           sizeof(Range_rowid_filter_cost_info *),
+           (qsort_cmp) compare_range_rowid_filter_cost_info_by_a);
+
+  /*
+    For each element check whether it is created for the filter that
+    can be ever chosen as the best one. If it's not the case remove
+    from the array. Otherwise put it in the array in such a place
+    that all already checked elements left the array are ordered by
+    cross_x.
+  */
+
+  Range_rowid_filter_cost_info **cand_filter_ptr=
+                                   range_rowid_filter_cost_info_ptr;
+  for (i= 0; i < range_rowid_filter_cost_info_elems; i++, cand_filter_ptr++)
+  {
+    bool is_pruned= false;
+    Range_rowid_filter_cost_info **usable_filter_ptr=
+                                     range_rowid_filter_cost_info_ptr;
+    key_map abs_indep;
+    abs_indep.clear_all();
+    for (uint j= 0; j < i; j++, usable_filter_ptr++)
     {
-      if (!max_slope_filters[0])
-        max_slope_filters[0]= filter;
+      if ((*cand_filter_ptr)->cross_x >= (*usable_filter_ptr)->cross_x)
+      {
+        if (abs_indep.is_set((*usable_filter_ptr)->key_no))
+	{
+          /*
+            The following is true here for the element e being checked:
+            There are at 2 elements e1 and e2 among already selected such that
+            e1.cross_x < e.cross_x and e1.a > e.a
+            and
+            e2.cross_x < e_cross_x and e2.a > e.a,
+            i.e. the range filters f1, f2 of both e1 and e2 always promise
+            better gains then the range filter of e.
+            As e1 and e2 are absolutely independent one of the range filters
+            f1, f2 will be always a better choice than f no matter what index
+            is chosen to access the table. Because of this the element e
+            can be safely removed from the array.
+	  */
+
+	  is_pruned= true;
+          break;
+        }
+        abs_indep.merge((*usable_filter_ptr)->abs_independent);
+      }
       else
       {
-        if (!max_slope_filters[1] ||
-            max_slope_filters[1]->a < filter->a)
-          max_slope_filters[1]= filter;
-        if (max_slope_filters[0]->a < max_slope_filters[1]->a)
-          swap_variables(Range_filter_cost_info*, max_slope_filters[0],
-                                                  max_slope_filters[1]);
+        /*
+          Move the element being checked to the proper position to have all
+          elements that have been already checked to be sorted by cross_x
+	*/
+        Range_rowid_filter_cost_info *moved= *cand_filter_ptr;
+        memmove(usable_filter_ptr+1, usable_filter_ptr,
+                sizeof(Range_rowid_filter_cost_info *) * (i-j-1));
+        *usable_filter_ptr= moved;
       }
     }
-  }
-
-  for (uint i= 0; i<2; i++)
-  {
-    if (max_slope_filters[i])
+    if (is_pruned)
     {
-      swap_variables(Range_filter_cost_info,
-                     range_filter_cost_info[i],
-                     *max_slope_filters[i]);
-      if (i == 0 &&
-          max_slope_filters[1] == &range_filter_cost_info[0])
-        max_slope_filters[1]= max_slope_filters[0];
-
-      best_filter_count++;
-      max_slope_filters[i]= &range_filter_cost_info[i];
+      /* Remove the checked element from the array */
+      memmove(cand_filter_ptr, cand_filter_ptr+1,
+              sizeof(Range_rowid_filter_cost_info *) *
+              (range_rowid_filter_cost_info_elems - 1 - i));
+      range_rowid_filter_cost_info_elems--;
     }
   }
-  sort_range_filter_cost_info_array();
 }
 
 
-void TABLE::select_usable_range_filters(THD *thd)
+/**
+   @brief
+     Return maximum number of elements that a container allowed to have
+ */
+
+static uint
+get_max_range_rowid_filter_elems_for_table(
+                                 THD *thd, TABLE *tab,
+                                 Rowid_filter_container_type cont_type)
+{
+  switch (cont_type) {
+  case SORTED_ARRAY_CONTAINER :
+    return thd->variables.max_rowid_filter_size/tab->file->ref_length;
+  default :
+    DBUG_ASSERT(0);
+    return 0;
+  }
+}
+
+
+/**
+  @brief
+    Prepare info on possible range filters used by optimizer
+
+  @param table    The thread handler
+
+  @details
+    The function first selects the indexes of the table that potentially
+    can be used for range filters and allocates an array of the objects
+    of the Range_rowid_filter_cost_info type to store cost info on
+    possible range filters and an array of pointers to these objects.
+    The latter is created for easy sorting of the objects with cost info
+    by different sort criteria. Then the function initializes the allocated
+    array with cost info for each possible range filter. After this
+    the function calls the method TABLE::prune_range_rowid_filters().
+    The method removes the elements of the array for the filters that
+    promise less gain then others remaining in the array in any situation
+    and optimizes the order of the elements for faster choice of the best
+    range filter.
+*/
+
+void TABLE::init_cost_info_for_usable_range_rowid_filters(THD *thd)
 {
   uint key_no;
   key_map usable_range_filter_keys;
   usable_range_filter_keys.clear_all();
   key_map::Iterator it(quick_keys);
+
+  /*
+    From all indexes that can be used for range accesses select only such that
+    - range filter pushdown is supported by the engine for them     (1)
+    - they are not clustered primary                                (2)
+    - the range filter containers for them are not too large        (3)
+  */
   while ((key_no= it++) != key_map::Iterator::BITMAP_END)
   {
-    if (quick_rows[key_no] >
-        thd->variables.max_rowid_filter_size/file->ref_length)
+    if (!(file->index_flags(key_no, 0, 1) & HA_DO_RANGE_FILTER_PUSHDOWN))  // !1
+      continue;
+    if (key_no == s->primary_key && file->primary_key_is_clustered())      // !2
+      continue;
+   if (quick_rows[key_no] >
+       get_max_range_rowid_filter_elems_for_table(thd, this,
+                                                  SORTED_ARRAY_CONTAINER)) // !3
       continue;
     usable_range_filter_keys.set_bit(key_no);
   }
 
-  if (usable_range_filter_keys.is_clear_all())
+  /*
+    Allocate an array of objects to store cost info for the selected filters
+    and allocate an array of pointers to these objects
+  */
+
+  range_rowid_filter_cost_info_elems= usable_range_filter_keys.bits_set();
+  if (!range_rowid_filter_cost_info_elems)
     return;
 
-  range_filter_cost_info_elements= usable_range_filter_keys.bits_set();
-  range_filter_cost_info=
-    new (thd->mem_root) Range_filter_cost_info [range_filter_cost_info_elements];
-  Range_filter_cost_info *curr_filter_cost_info= range_filter_cost_info;
+  range_rowid_filter_cost_info_ptr=
+    (Range_rowid_filter_cost_info **)
+      thd->calloc(sizeof(Range_rowid_filter_cost_info *) *
+                  range_rowid_filter_cost_info_elems);
+  range_rowid_filter_cost_info=
+    new (thd->mem_root)
+      Range_rowid_filter_cost_info[range_rowid_filter_cost_info_elems];
+  if (!range_rowid_filter_cost_info_ptr || !range_rowid_filter_cost_info)
+  {
+    range_rowid_filter_cost_info_elems= 0;
+    return;
+  }
+
+  /* Fill the allocated array with cost info on the selected range filters */
+
+  Range_rowid_filter_cost_info **curr_ptr= range_rowid_filter_cost_info_ptr;
+  Range_rowid_filter_cost_info *curr_filter_cost_info=
+                                                 range_rowid_filter_cost_info;
 
   key_map::Iterator li(usable_range_filter_keys);
   while ((key_no= li++) != key_map::Iterator::BITMAP_END)
   {
-    curr_filter_cost_info->init(this, key_no);
+    *curr_ptr= curr_filter_cost_info;
+    curr_filter_cost_info->init(SORTED_ARRAY_CONTAINER, this, key_no);
+    curr_ptr++;
     curr_filter_cost_info++;
   }
-  prune_range_filters();
+
+  prune_range_rowid_filters();
 }
 
 
-Range_filter_cost_info
-*TABLE::best_filter_for_current_join_order(uint ref_key_no,
-                                           double record_count,
-                                           double records)
+/**
+  @brief
+    Choose the best range filter for the given access of the table
+
+  @param access_key_no    The index by which the table is accessed
+  @param records   The estimated total number of key tuples with this access
+
+  @details
+    The function looks through the array of cost info for range filters
+    and chooses the element for the range filter that promise the greatest
+    gain with the the ref or range access of the table by access_key_no.
+    As the array is sorted by cross_x in ascending order the function stops
+    the look through as soon as it reaches the first element with
+    cross_x > records because the range filter for this element and the
+    range filters for all remaining elements do not promise positive gains
+
+  @retval  Pointer to the cost info for the range filter that promises
+           the greatest gain, NULL if there is no such range filter
+*/
+
+Range_rowid_filter_cost_info *
+TABLE::best_range_rowid_filter_for_partial_join(uint access_key_no,
+                                                double records)
 {
-  if (!this || range_filter_cost_info_elements == 0)
+  if (!this || range_rowid_filter_cost_info_elems == 0 ||
+      covering_keys.is_set(access_key_no))
     return 0;
 
-  double card= record_count*records;
-  Range_filter_cost_info *best_filter= &range_filter_cost_info[0];
-
-  if (card < best_filter->intersect_x_axis_abcissa)
+  /*
+    Currently we do not support usage of range filters if the table
+    is accessed by the clustered primary key. It does not make sense
+    if a full key is used. If the table is accessed by a partial
+    clustered primary key it would, but the current InnoDB code does not
+    allow it. Later this limitation will be lifted
+  */
+  if (access_key_no == s->primary_key && file->primary_key_is_clustered())
     return 0;
-  if (best_filter_count != 0)
+
+  Range_rowid_filter_cost_info *best_filter= 0;
+  double best_filter_gain= 0;
+
+  key_map *overlapped= &key_info[access_key_no].overlapped;
+  for (uint i= 0; i < range_rowid_filter_cost_info_elems ;  i++)
   {
-    if (best_filter->key_no == ref_key_no)
+    double curr_gain = 0;
+    Range_rowid_filter_cost_info *filter= range_rowid_filter_cost_info_ptr[i];
+
+    /*
+      Do not use a range filter that uses an in index correlated with
+      the index by which the table is accessed
+    */
+    if ((filter->key_no == access_key_no) ||
+        overlapped->is_set(filter->key_no))
+      continue;
+
+    if (records < filter->cross_x)
     {
-      if (best_filter_count == 2)
-      {
-        best_filter= &range_filter_cost_info[1];
-        if (card < best_filter->intersect_x_axis_abcissa)
-          return 0;
-        return best_filter;
-      }
-    }
-    else
-      return best_filter;
-  }
-
-  double best_filter_improvement= 0.0;
-  best_filter= 0;
-
-  for (uint i= best_filter_count; i < range_filter_cost_info_elements; i++)
-  {
-    Range_filter_cost_info *filter= &range_filter_cost_info[i];
-    if (card < filter->intersect_x_axis_abcissa)
+      /* Does not make sense to look through the remaining filters */
       break;
-    if (best_filter_improvement < filter->get_filter_gain(card))
+    }
+
+    curr_gain= filter->get_gain(records);
+    if (best_filter_gain < curr_gain)
     {
-      best_filter_improvement= filter->get_filter_gain(card);
+      best_filter_gain= curr_gain;
       best_filter= filter;
     }
   }
   return best_filter;
+}
+
+
+/**
+  @brief
+    Fill the range rowid filter performing the associated range index scan
+
+  @details
+    This function performs the range index scan associated with this
+    range filter and place into the filter the rowids / primary keys
+    read from key tuples when doing this scan.
+  @retval
+    false  on success
+    true   otherwise
+
+  @note
+    The function assumes that the quick select object to perform
+    the index range scan has been already created.
+
+  @note
+    Currently the same table handler is used to access the joined table
+    and to perform range index scan filling the filter.
+    In the future two different handlers will be used for this
+    purposes to facilitate a lazy building of the filter.
+*/
+
+bool Range_rowid_filter::fill()
+{
+  int rc= 0;
+  handler *file= table->file;
+  THD *thd= table->in_use;
+  QUICK_RANGE_SELECT* quick= (QUICK_RANGE_SELECT*) select->quick;
+
+  uint table_status_save= table->status;
+  Item *pushed_idx_cond_save= file->pushed_idx_cond;
+  uint pushed_idx_cond_keyno_save= file->pushed_idx_cond_keyno;
+  bool in_range_check_pushed_down_save= file->in_range_check_pushed_down;
+
+  table->status= 0;
+  file->pushed_idx_cond= 0;
+  file->pushed_idx_cond_keyno= MAX_KEY;
+  file->in_range_check_pushed_down= false;
+
+  /* We're going to just read rowids / primary keys */
+  table->prepare_for_position();
+
+  table->file->ha_start_keyread(quick->index);
+
+  if (quick->init() || quick->reset())
+    rc= 1;
+
+  while (!rc)
+  {
+    rc= quick->get_next();
+    if (thd->killed)
+      rc= 1;
+    if (!rc)
+    {
+      file->position(quick->record);
+      if (container->add(NULL, (char*) file->ref))
+        rc= 1;
+    }
+  }
+
+  quick->range_end();
+  table->file->ha_end_keyread();
+
+  table->status= table_status_save;
+  file->pushed_idx_cond= pushed_idx_cond_save;
+  file->pushed_idx_cond_keyno= pushed_idx_cond_keyno_save;
+  file->in_range_check_pushed_down= in_range_check_pushed_down_save;
+
+  if (rc != HA_ERR_END_OF_FILE)
+    return 1;
+  table->file->rowid_filter_is_active= true;
+  return 0;
+}
+
+
+/**
+  @brief
+    Binary search in the sorted array of a rowid filter
+
+  @param ctxt   context of the search
+  @parab elem   rowid / primary key to look for
+
+  @details
+    The function looks for the rowid / primary key ' elem' in this container
+    assuming that ctxt contains a pointer to the TABLE structure created
+    for the table to whose row elem refers to.
+
+  @retval
+    true    elem is found in the container
+    false   otherwise
+*/
+
+bool Rowid_filter_sorted_array::check(void *ctxt, char *elem)
+{
+  TABLE *table= (TABLE *) ctxt;
+  if (!is_checked)
+  {
+    refpos_container.sort(refpos_order_cmp, (void *) (table->file));
+    is_checked= true;
+  }
+  int l= 0;
+  int r= refpos_container.elements()-1;
+  while (l <= r)
+  {
+    int m= (l + r) / 2;
+    int cmp= refpos_order_cmp((void *) (table->file),
+                              refpos_container.get_pos(m), elem);
+    if (cmp == 0)
+      return true;
+    if (cmp < 0)
+      l= m + 1;
+    else
+      r= m-1;
+  }
+  return false;
+}
+
+
+Range_rowid_filter::~Range_rowid_filter()
+{
+  delete container;
+  container= 0;
+  if (select)
+  {
+    if (select->quick)
+    {
+      delete select->quick;
+      select->quick= 0;
+    }
+    delete select;
+    select= 0;
+  }
 }

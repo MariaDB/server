@@ -1405,6 +1405,24 @@ static monitor_info_t	innodb_counter_info[] =
 	 MONITOR_NONE,
 	 MONITOR_DEFAULT_START, MONITOR_ICP_MATCH},
 
+	/* ===== Counters for PK-filters Module ===== */
+	{"module_pk-filter", "pk-filter", "Primary Keys Filtering",
+	 MONITOR_MODULE,
+	 MONITOR_DEFAULT_START, MONITOR_MODULE_PK_FILTER},
+
+	{"pk-filter checks", "pk-filter",
+	 "Number of lookups into PK-filters",
+	 MONITOR_NONE,
+	 MONITOR_DEFAULT_START, MONITOR_PK_FILTER_CHECKS},
+
+	{"pk-filter_positive", "pk-filter", "PK-filter test is positive",
+	 MONITOR_NONE,
+	 MONITOR_DEFAULT_START, MONITOR_PK_FILTER_POSITIVE},
+
+	{"pk-filter_negarive", "pk-filter", "PK-filter test is negative",
+	 MONITOR_NONE,
+	 MONITOR_DEFAULT_START, MONITOR_PK_FILTER_NEGATIVE},
+
 	/* ========== Mutex monitoring on/off ========== */
 	{"latch_status", "Latch counters",
 	 "Collect latch counters to display via SHOW ENGING INNODB MUTEX",

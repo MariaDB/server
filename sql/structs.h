@@ -27,6 +27,15 @@
 #include "thr_lock.h"                  /* thr_lock_type */
 #include "my_base.h"                   /* ha_rows, ha_key_alg */
 #include <mysql_com.h>                  /* USERNAME_LENGTH */
+#include "sql_bitmap.h"
+
+#if MAX_INDEXES <= 64
+typedef Bitmap<64>  key_map;          /* Used for finding keys */
+#elif MAX_INDEXES > 128
+#error "MAX_INDEXES values greater than 128 is not supported."
+#else
+typedef Bitmap<((MAX_INDEXES+7)/8*8)> key_map; /* Used for finding keys */
+#endif
 
 struct TABLE;
 class Type_handler;
@@ -111,6 +120,11 @@ typedef struct st_key {
   */
   LEX_CSTRING name;
   key_part_map ext_key_part_map;
+  /*
+    Bitmap of indexes having common parts with this index
+    (only key parts from key definitions are taken into account)
+  */
+  key_map overlapped;
   uint  block_size;
   enum  ha_key_alg algorithm;
   /* 

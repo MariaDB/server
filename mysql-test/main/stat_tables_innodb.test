@@ -5,7 +5,16 @@ SET SESSION STORAGE_ENGINE='InnoDB';
 set @save_optimizer_switch_for_stat_tables_test=@@optimizer_switch;
 set optimizer_switch='extended_keys=on';
 
+set @innodb_stats_persistent_save= @@innodb_stats_persistent;
+set @innodb_stats_persistent_sample_pages_save=
+      @@innodb_stats_persistent_sample_pages;
+
+set global innodb_stats_persistent= 1;
+set global innodb_stats_persistent_sample_pages=100;
 --source stat_tables.test
+set global innodb_stats_persistent= @innodb_stats_persistent_save;
+set global innodb_stats_persistent_sample_pages=
+             @innodb_stats_persistent_sample_pages_save;
 
 set optimizer_switch=@save_optimizer_switch_for_stat_tables_test;
 

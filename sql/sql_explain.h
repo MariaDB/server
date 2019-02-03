@@ -583,7 +583,8 @@ class Explain_index_use : public Sql_alloc
 {
   char *key_name;
   uint key_len;
-  uint key_len_for_filter;
+  char *filter_name;
+  uint filter_len;
 public:
   String_list key_parts_list;
   
@@ -596,16 +597,43 @@ public:
   {
     key_name= NULL;
     key_len= (uint)-1;
-    key_len_for_filter= (uint)-1;
+    filter_name= NULL;
+    filter_len= (uint)-1;
   }
   bool set(MEM_ROOT *root, KEY *key_name, uint key_len_arg);
   bool set_pseudo_key(MEM_ROOT *root, const char *key_name);
-  void set_filter_key_length(uint key_length_arg)
-  { key_len_for_filter= key_length_arg; }
 
   inline const char *get_key_name() const { return key_name; }
   inline uint get_key_len() const { return key_len; }
-  inline uint get_filter_key_length() const { return key_len_for_filter; }
+  //inline const char *get_filter_name() const { return filter_name; }
+};
+
+
+/*
+  Query Plan data structure for Rowid filter.
+*/
+class Explain_rowid_filter : public Sql_alloc
+{
+public:
+  /* Quick select used to collect the rowids into filter */
+  Explain_quick_select *quick;
+
+  /* How many rows the above quick select is expected to return */
+  ha_rows rows;
+
+  /* Expected selectivity for the filter */
+  double selectivity;
+
+  void print_explain_json(Explain_query *query, Json_writer *writer,
+                          bool is_analyze);
+
+  /*
+    TODO:
+      Here should be ANALYZE members:
+      - r_rows for the quick select
+      - An object that tracked the table access time
+      - real selectivity of the filter.
+  */
 };
 
 
@@ -675,6 +703,7 @@ public:
   void print_json(Json_writer *writer, bool is_analyze);
 };
 
+
 /*
   EXPLAIN data structure for a single JOIN_TAB.
 */
@@ -695,7 +724,7 @@ public:
     pushed_index_cond(NULL),
     sjm_nest(NULL),
     pre_join_sort(NULL),
-    filter_perc(UINT_MAX)
+    rowid_filter(NULL)
   {}
   ~Explain_table_access() { delete sjm_nest; }
 
@@ -802,12 +831,7 @@ public:
   Exec_time_tracker op_tracker;
   Table_access_tracker jbuf_tracker;
   
-  /**
-    How many rows are left after the filter was applied
-    to the initial rows count in percentages.
-  */
-  double filter_perc;
-  inline bool is_filter_set() const { return (filter_perc != UINT_MAX); }
+  Explain_rowid_filter *rowid_filter;
 
   int print_explain(select_result_sink *output, uint8 explain_flags, 
                     bool is_analyze,
@@ -819,7 +843,7 @@ public:
 private:
   void append_tag_name(String *str, enum explain_extra_tag tag);
   void fill_key_str(String *key_str, bool is_json) const;
-  void fill_key_len_str(String *key_len_str) const;
+  void fill_key_len_str(String *key_len_str, bool is_json) const;
   double get_r_filtered();
   void tag_to_json(Json_writer *writer, enum explain_extra_tag tag);
 };

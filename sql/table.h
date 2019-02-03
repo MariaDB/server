@@ -55,7 +55,7 @@ class Virtual_column_info;
 class Table_triggers_list;
 class TMP_TABLE_PARAM;
 class SEQUENCE;
-class Range_filter_cost_info;
+class Range_rowid_filter_cost_info;
 
 /*
   Used to identify NESTED_JOIN structures within a join (applicable only to
@@ -1002,6 +1002,8 @@ struct TABLE_SHARE
 
   /* frees the memory allocated in read_frm_image */
   void free_frm_image(const uchar *frm);
+
+  void set_overlapped_keys();
 };
 
 
@@ -1193,7 +1195,14 @@ public:
     and max #key parts that range access would use.
   */
   ha_rows	quick_rows[MAX_KEY];
+  uint          quick_key_parts[MAX_KEY];
+
   double 	quick_costs[MAX_KEY];
+  /*
+    If there is a range access by i-th index then the cost of
+    index only access for it is stored in quick_index_only_costs[i]
+  */
+  double 	quick_index_only_costs[MAX_KEY];
 
   /* 
     Bitmaps of key parts that =const for the duration of join execution. If
@@ -1202,10 +1211,7 @@ public:
   */
   key_part_map  const_key_parts[MAX_KEY];
 
-  uint    quick_key_parts[MAX_KEY];
   uint    quick_n_ranges[MAX_KEY];
-  /* For each key I/O access cost is stored */
-  double  quick_key_io[MAX_KEY];
 
   /* 
     Estimate of number of records that satisfy SARGable part of the table
@@ -1497,21 +1503,21 @@ public:
   double get_materialization_cost(); // Now used only if is_splittable()==true
   void add_splitting_info_for_key_field(struct KEY_FIELD *key_field);
 
+  key_map with_impossible_ranges;
 
-  /**
-    Range filter info
-  */
-  /* Minimum possible #T value to apply filter*/
-  uint best_filter_count;
-  uint range_filter_cost_info_elements;
-  Range_filter_cost_info *range_filter_cost_info;
-  Range_filter_cost_info
-    *best_filter_for_current_join_order(uint ref_key_no,
-                                        double record_count,
-                                        double records);
-  void sort_range_filter_cost_info_array();
-  void prune_range_filters();
-  void select_usable_range_filters(THD *thd);
+  /* Number of cost info elements for possible range filters */
+  uint range_rowid_filter_cost_info_elems;
+  /* Pointer to the array of cost info elements for range filters */
+  Range_rowid_filter_cost_info *range_rowid_filter_cost_info;
+  /* The array of pointers to cost info elements for range filters */
+  Range_rowid_filter_cost_info **range_rowid_filter_cost_info_ptr;
+
+  void init_cost_info_for_usable_range_rowid_filters(THD *thd);
+  void prune_range_rowid_filters();
+  Range_rowid_filter_cost_info *
+  best_range_rowid_filter_for_partial_join(uint access_key_no,
+                                           double records);
+
   /**
     System Versioning support
    */

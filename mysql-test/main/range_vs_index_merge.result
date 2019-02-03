@@ -64,7 +64,7 @@ Country IN ('CAN', 'ARG') AND  ID BETWEEN 120 AND 130 OR
 Country <= 'ALB' AND Name LIKE 'L%' OR
 ID BETWEEN 3807 AND 3810;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	City	index_merge	PRIMARY,Population,Country,Name	Name,PRIMARY,Country	35,4,3	NULL	31	Using sort_union(Name,PRIMARY,Country); Using where
+1	SIMPLE	City	index_merge	PRIMARY,Population,Country,Name	Name,PRIMARY,Country	35,4,3	NULL	30	Using sort_union(Name,PRIMARY,Country); Using where
 EXPLAIN 
 SELECT * FROM City
 WHERE (Population > 101000 AND Population < 115000);
@@ -175,7 +175,7 @@ id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 EXPLAIN
 SELECT  * FROM City WHERE (Name < 'Bb');
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	City	range	Name	Name	35	NULL	208	Using index condition
+1	SIMPLE	City	range	Name	Name	35	NULL	207	Using index condition
 EXPLAIN
 SELECT  * FROM City WHERE (Country > 'A' AND Country < 'B');
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
@@ -327,11 +327,11 @@ ID	Name	Country	Population
 EXPLAIN
 SELECT * FROM City WHERE (ID < 10) OR (ID BETWEEN 100 AND 110);
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	City	range	PRIMARY	PRIMARY	4	NULL	21	Using index condition; Using where
+1	SIMPLE	City	range	PRIMARY	PRIMARY	4	NULL	20	Using index condition; Using where
 EXPLAIN
 SELECT * FROM City WHERE (ID < 200) OR (ID BETWEEN 100 AND 200);
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	City	range	PRIMARY	PRIMARY	4	NULL	201	Using index condition; Using where
+1	SIMPLE	City	range	PRIMARY	PRIMARY	4	NULL	200	Using index condition; Using where
 EXPLAIN
 SELECT * FROM City WHERE (ID < 600) OR (ID BETWEEN 900 AND 1500);
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
@@ -339,11 +339,11 @@ id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 EXPLAIN
 SELECT * FROM City WHERE Country > 'A' AND Country < 'ARG';
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	City	range	Country	Country	3	NULL	19	Using index condition
+1	SIMPLE	City	range	Country	Country	3	NULL	20	Using index condition
 EXPLAIN
 SELECT * FROM City WHERE Name LIKE 'H%' OR Name LIKE 'P%' ;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	City	range	Name	Name	35	NULL	222	Using index condition; Using where
+1	SIMPLE	City	range	Name	Name	35	NULL	223	Using index condition; Using where
 EXPLAIN
 SELECT * FROM City WHERE Name LIKE 'Ha%' OR Name LIKE 'Pa%' ;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
@@ -354,21 +354,21 @@ WHERE ((ID < 10) AND (Name LIKE 'H%' OR (Country > 'A' AND Country < 'ARG')))
 OR ((ID BETWEEN 100 AND 110) AND 
 (Name LIKE 'P%' OR (Population > 103000 AND Population < 104000)));
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	City	range	PRIMARY,Population,Country,Name	PRIMARY	4	NULL	21	Using index condition; Using where
+1	SIMPLE	City	range	PRIMARY,Population,Country,Name	PRIMARY	4	NULL	20	Using index condition; Using where
 EXPLAIN
 SELECT * FROM City
 WHERE ((ID < 800) AND (Name LIKE 'Ha%' OR (Country > 'A' AND Country < 'ARG')))
 OR ((ID BETWEEN 900 AND 1500) AND 
-(Name LIKE 'Pa%' OR (Population > 103000 AND Population < 104000)));
+(Name LIKE 'Pa%' OR (Population > 103000 AND Population < 105000)));
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	City	index_merge	PRIMARY,Population,Country,Name	Name,Country,Population	35,3,4	NULL	128	Using sort_union(Name,Country,Population); Using where
+1	SIMPLE	City	index_merge	PRIMARY,Population,Country,Name	Name,Country,Population	35,3,4	NULL	151	Using sort_union(Name,Country,Population); Using where
 EXPLAIN
 SELECT * FROM City
 WHERE ((ID < 200) AND (Name LIKE 'Ha%' OR (Country > 'A' AND Country < 'ARG')))
 OR ((ID BETWEEN 100 AND 200) AND 
-(Name LIKE 'Pa%' OR (Population > 103000 AND Population < 104000)));
+(Name LIKE 'Pa%' OR (Population > 103200 AND Population < 104000)));
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	City	index_merge	PRIMARY,Population,Country,Name	Name,Country,Population	35,3,4	NULL	128	Using sort_union(Name,Country,Population); Using where
+1	SIMPLE	City	index_merge	PRIMARY,Population,Country,Name	Name,Country,Population	35,3,4	NULL	124	Using sort_union(Name,Country,Population); Using where
 SELECT * FROM City USE INDEX ()
 WHERE ((ID < 10) AND (Name LIKE 'H%' OR (Country > 'A' AND Country < 'ARG')))
 OR ((ID BETWEEN 100 AND 110) AND 
@@ -584,11 +584,11 @@ id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 EXPLAIN 
 SELECT * FROM City WHERE Country < 'C';
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	City	range	Country	Country	3	NULL	436	Using index condition
+1	SIMPLE	City	range	Country	Country	3	NULL	435	Using index condition
 EXPLAIN 
 SELECT * FROM City WHERE Country < 'AGO';
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	City	range	Country	Country	3	NULL	6	Using index condition
+1	SIMPLE	City	range	Country	Country	3	NULL	5	Using index condition
 EXPLAIN 
 SELECT * FROM City WHERE Name BETWEEN 'P' AND 'S';
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
@@ -616,7 +616,7 @@ WHERE ((Population > 101000 AND Population < 102000) AND
 ((ID BETWEEN 3400 AND 3800) AND 
 (Country < 'AGO' OR Name LIKE 'Pa%'));
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	City	index_merge	PRIMARY,Population,Country,Name	Country,Name,Population	3,35,4	NULL	84	Using sort_union(Country,Name,Population); Using where
+1	SIMPLE	City	index_merge	PRIMARY,Population,Country,Name	Country,Name,Population	3,35,4	NULL	83	Using sort_union(Country,Name,Population); Using where
 EXPLAIN
 SELECT * FROM City
 WHERE ((Population > 101000 AND Population < 110000) AND
@@ -624,7 +624,7 @@ WHERE ((Population > 101000 AND Population < 110000) AND
 ((ID BETWEEN 3790 AND 3800) AND 
 (Country < 'C' OR Name LIKE 'P%'));
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	City	index_merge	PRIMARY,Population,Country,Name	Country,Name,PRIMARY	3,35,4	NULL	56	Using sort_union(Country,Name,PRIMARY); Using where
+1	SIMPLE	City	index_merge	PRIMARY,Population,Country,Name	Country,Name,PRIMARY	3,35,4	NULL	55	Using sort_union(Country,Name,PRIMARY); Using where
 SELECT * FROM City USE INDEX ()
 WHERE ((Population > 101000 AND Population < 102000) AND
 (Country < 'C' OR Name BETWEEN 'P' AND 'S')) OR
@@ -679,7 +679,7 @@ CREATE INDEX CountryPopulation ON City(Country,Population);
 EXPLAIN
 SELECT * FROM City WHERE Name LIKE 'Pas%';
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	City	range	Name	Name	35	NULL	5	Using index condition
+1	SIMPLE	City	range	Name	Name	35	NULL	4	Using index condition
 EXPLAIN
 SELECT * FROM City WHERE Name LIKE 'P%';
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
@@ -695,19 +695,19 @@ id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 EXPLAIN
 SELECT * FROM City WHERE Country='FIN';
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	City	ref	Country,CountryPopulation	Country	3	const	6	Using index condition
+1	SIMPLE	City	ref	Country,CountryPopulation	Country	3	const	7	Using index condition
 EXPLAIN
 SELECT * FROM City 
 WHERE ((Population > 101000 AND Population < 103000) OR Name LIKE 'Pas%')
 AND Country='USA';
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	City	index_merge	Population,Country,Name,CountryPopulation	CountryPopulation,Name	7,35	NULL	15	Using sort_union(CountryPopulation,Name); Using where
+1	SIMPLE	City	index_merge	Population,Country,Name,CountryPopulation	CountryPopulation,Name	7,35	NULL	14	Using sort_union(CountryPopulation,Name); Using where
 EXPLAIN
 SELECT * FROM City 
 WHERE ((Population > 101000 AND Population < 103000) OR Name LIKE 'P%')
 AND Country='FIN';
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	City	ref	Population,Country,Name,CountryPopulation	Country	3	const	6	Using index condition; Using where
+1	SIMPLE	City	ref	Population,Country,Name,CountryPopulation	Country	3	const	7	Using index condition; Using where
 SELECT * FROM City 
 WHERE ((Population > 101000 AND Population < 103000) OR Name LIKE 'Pas%')
 AND Country='USA';
@@ -1166,7 +1166,7 @@ EXPLAIN SELECT Name, Country, Population FROM City WHERE
 (Name='Samara' AND Country='RUS') OR  
 (Name='Seattle' AND Country='USA');
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	City	range	Country,CountryPopulation,CountryName,CityName	CountryName	38	NULL	29	Using index condition; Using where
+1	SIMPLE	City	range	Country,CountryPopulation,CountryName,CityName	CountryName	38	NULL	28	Using index condition; Using where
 SELECT Name, Country, Population FROM City WHERE
 (Name='Manila' AND Country='PHL') OR
 (Name='Addis Abeba' AND Country='ETH') OR          
@@ -1620,7 +1620,7 @@ SELECT COUNT(*) FROM t1
 WHERE c  = 'i'  OR b IN ( 'Arkansas' , 'd' , 'pdib' , 'can' )  OR
 (pk BETWEEN 120 AND 79 + 255 OR a IN ( 4 , 179 , 1 ) ) AND a > 8 ;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t1	index_merge	PRIMARY,idx1,idx2,idx3	idx3,idx2,PRIMARY,idx1	67,13,4,3	NULL	8	Using sort_union(idx3,idx2,PRIMARY,idx1); Using where
+1	SIMPLE	t1	index_merge	PRIMARY,idx1,idx2,idx3	idx3,idx2,PRIMARY,idx1	67,13,4,3	NULL	9	Using sort_union(idx3,idx2,PRIMARY,idx1); Using where
 DROP TABLE t1;
 CREATE TABLE t1 (
 f1 int, f2 int, f3 int, f4 int, f5 int,
@@ -1659,7 +1659,7 @@ SELECT * FROM t1 FORCE KEY (PRIMARY,f3,f4)
 WHERE ( f3 = 1 OR f1 = 7 ) AND f1 < 10
 OR f3 BETWEEN 2 AND 2 AND ( f3 = 1 OR f4 != 1 );
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t1	ALL	PRIMARY,f3,f4	NULL	NULL	NULL	2	Using where
+1	SIMPLE	t1	index_merge	PRIMARY,f3,f4	f3,PRIMARY,f3	5,4,5	NULL	3	Using union(f3,PRIMARY,f3); Using where
 SELECT * FROM t1 FORCE KEY (PRIMARY,f3,f4)
 WHERE ( f3 = 1 OR f1 = 7 ) AND f1 < 10
 OR f3 BETWEEN 2 AND 2 AND ( f3 = 1 OR f4 != 1 );
@@ -1713,6 +1713,9 @@ PRIMARY KEY(b), INDEX idx1(d), INDEX idx2(d,b,c)
 INSERT INTO t1 VALUES 
 (0,58,7,7),(0,63,2,0),(0,64,186,8),(0,65,1,-2), (0,71,190,-3),
 (0,72,321,-7),(0,73,0,3),(0,74,5,25),(0,75,5,3);
+ANALYZE TABLE t1;
+Table	Op	Msg_type	Msg_text
+test.t1	analyze	status	OK
 SET SESSION optimizer_switch='index_merge_sort_union=off';
 EXPLAIN
 SELECT * FROM t1 
@@ -1762,7 +1765,7 @@ EXPLAIN
 SELECT * FROM t1
 WHERE a BETWEEN 4 AND 5 AND b IN (255,4) OR a IN (2,14,25) OR a!=2;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t1	ALL	PRIMARY,idx	NULL	NULL	NULL	2	Using where
+1	SIMPLE	t1	range	PRIMARY,idx	PRIMARY	0	NULL	2	Using index condition; Using where
 SELECT * FROM t1
 WHERE a BETWEEN 4 AND 5 AND b IN (255,4) OR a IN (2,14,25) OR a!=2;
 a	b
@@ -1790,12 +1793,15 @@ INSERT INTO t1 VALUES
 (7,'Pennsylvania','Harrisburg'),
 (8,'Virginia','Richmond')
 ;
+ANALYZE TABLE t1;
+Table	Op	Msg_type	Msg_text
+test.t1	analyze	status	OK
 EXPLAIN
 SELECT * FROM t1 FORCE KEY (state,capital) 
 WHERE ( state = 'Alabama' OR state >= 'Colorado' ) AND id != 9 
 OR ( capital >= 'Topeka' OR state = 'Kansas' ) AND state != 'Texas';
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t1	range	state,capital	state	71	NULL	12	Using index condition; Using where
+1	SIMPLE	t1	range	state,capital	state	71	NULL	8	Using index condition; Using where
 SELECT * FROM t1 FORCE KEY (state,capital) 
 WHERE ( state = 'Alabama' OR state >= 'Colorado' ) AND id != 9 
 OR ( capital >= 'Topeka' OR state = 'Kansas' ) AND state != 'Texas';
@@ -1886,6 +1892,6 @@ Country='POL' AND Name IN ('Warszawa', 'Wroclaw') OR
 Country='NOR' AND Name IN ('Oslo', 'Bergen') OR
 Country='ITA' AND Name IN ('Napoli', 'Venezia');
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	City	range	CountryName,Name	CountryName	38	NULL	22	Using index condition; Using where
+1	SIMPLE	City	range	CountryName,Name	CountryName	38	NULL	20	Using index condition; Using where
 DROP DATABASE world;
 set session optimizer_switch='index_merge_sort_intersection=default';

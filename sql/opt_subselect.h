@@ -303,6 +303,7 @@ public:
       pos->loosescan_picker.loosescan_parts= best_max_loose_keypart + 1;
       pos->use_join_buffer= FALSE;
       pos->table=           tab;
+      pos->range_rowid_filter_info= tab->range_rowid_filter_info;
       // todo need ref_depend_map ?
       DBUG_PRINT("info", ("Produced a LooseScan plan, key %s, %s",
                           tab->table->key_info[best_loose_scan_key].name.str,

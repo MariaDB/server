@@ -2673,7 +2673,7 @@ void THD::make_explain_field_list(List<Item> &field_list, uint8 explain_flags,
                        mem_root);
   item->maybe_null=1;
   field_list.push_back(item=new (mem_root)
-                       Item_empty_string(this, "ref|filter",
+                       Item_empty_string(this, "ref",
                                          NAME_CHAR_LEN*MAX_REF_PARTS, cs),
                        mem_root);
   item->maybe_null=1;
