@@ -204,6 +204,26 @@ pthread_mutex_t parmut;
 pthread_mutex_t usrmut;
 pthread_mutex_t tblmut;
 
+#if defined(DEVELOPMENT)
+char *GetUserVariable(PGLOBAL g, const uchar *varname);
+
+char *GetUserVariable(PGLOBAL g, const uchar *varname)
+{
+	char buf[1024];
+	bool b;
+	THD *thd= current_thd;
+	CHARSET_INFO *cs = system_charset_info;
+	String *str= NULL, tmp(buf, sizeof(buf), cs);
+	HASH uvars = thd->user_vars;
+	user_var_entry *uvar = (user_var_entry*)my_hash_search(&uvars, varname, 0);
+
+	if (uvar)
+		str = uvar->val_str(&b, &tmp, NOT_FIXED_DEC);
+
+	return str ? PlugDup(g, str->ptr()) : NULL;
+}; // end of GetUserVariable
+#endif   // DEVELOPMENT
+
 /***********************************************************************/
 /*  Utility functions.                                                 */
 /***********************************************************************/
@@ -4633,7 +4653,9 @@ MODE ha_connect::CheckMode(PGLOBAL g, THD *thd,
         break;
       case SQLCOM_CREATE_VIEW:
       case SQLCOM_DROP_VIEW:
-        newmode= MODE_ANY;
+			case SQLCOM_CREATE_TRIGGER:
+			case SQLCOM_DROP_TRIGGER:
+				newmode= MODE_ANY;
         break;
       case SQLCOM_ALTER_TABLE:
         *chk= true;
@@ -6255,12 +6277,12 @@ int ha_connect::create(const char *name, TABLE *table_arg,
   TABLE  *st= table;                       // Probably unuseful
   THD    *thd= ha_thd();
   LEX_CSTRING cnc = table_arg->s->connect_string;
-#ifdef WITH_PARTITION_STORAGE_ENGINE
-  partition_info *part_info= table_arg->part_info;
-#else
+#if defined(WITH_PARTITION_STORAGE_ENGINE)
+	partition_info *part_info= table_arg->part_info;
+#else		// !WITH_PARTITION_STORAGE_ENGINE
 #define part_info 0
-#endif   // WITH_PARTITION_STORAGE_ENGINE
-  xp= GetUser(thd, xp);
+#endif  // !WITH_PARTITION_STORAGE_ENGINE
+	xp= GetUser(thd, xp);
   PGLOBAL g= xp->g;
 
   DBUG_ENTER("ha_connect::create");
