@@ -880,7 +880,7 @@ void make_truncated_value_warning(THD *thd,
   if (field_name)
   {
     const char *db_name= s->db.str;
-    const char *table_name= s->error_table_name();
+    const char *table_name= s->table_name.str;
 
     if (!db_name)
       db_name= "";

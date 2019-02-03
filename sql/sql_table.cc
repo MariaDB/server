@@ -9440,7 +9440,7 @@ bool mysql_alter_table(THD *thd,char *new_db, char *new_name,
     goto err_new_table_cleanup;
 
   if (ha_create_table(thd, alter_ctx.get_tmp_path(),
-                      alter_ctx.new_db, alter_ctx.tmp_name,
+                      alter_ctx.new_db, alter_ctx.new_name,
                       create_info, &frm))
     goto err_new_table_cleanup;
 
@@ -9449,7 +9449,7 @@ bool mysql_alter_table(THD *thd,char *new_db, char *new_name,
 
   new_table=
     thd->create_and_open_tmp_table(new_db_type, &frm, alter_ctx.get_tmp_path(),
-                                   alter_ctx.new_db, alter_ctx.tmp_name, true);
+                                   alter_ctx.new_db, alter_ctx.new_name, true);
   if (!new_table)
     goto err_new_table_cleanup;
 
@@ -9511,7 +9511,6 @@ bool mysql_alter_table(THD *thd,char *new_db, char *new_name,
         goto err_new_table_cleanup;
     }
   }
-  new_table->s->orig_table_name= table->s->table_name.str;
 
   /*
     Note: In case of MERGE table, we do not attach children. We do not
