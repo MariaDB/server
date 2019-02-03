@@ -92,10 +92,8 @@ SHOW CREATE TABLE t1;
 DROP TABLE t1;
 
 CREATE TABLE t2 (a int not null primary key) engine=innodb;
---replace_regex /#sql-[0-9a-f_]*`/#sql-temporary`/
 --error ER_CANT_CREATE_TABLE
 ALTER TABLE t2 ENCRYPTION_KEY_ID=4, ALGORITHM=COPY;
---replace_regex /#sql-[0-9a-f_]*`/#sql-temporary`/
 SHOW WARNINGS;
 SHOW CREATE TABLE t2;
 

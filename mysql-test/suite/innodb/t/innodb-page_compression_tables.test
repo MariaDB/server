@@ -9,20 +9,16 @@ set global innodb_compression_algorithm = 1;
 create table innodb_normal(c1 bigint not null, b char(200)) engine=innodb;
 create table innodb_compact(c1 bigint not null, b char(200)) engine=innodb row_format=compact page_compressed=1;
 create table innodb_dynamic(c1 bigint not null, b char(200)) engine=innodb row_format=dynamic page_compressed=1;
---replace_regex /#sql-[0-9a-f_]*`/#sql-temporary`/
 --error 1005
 create table innodb_compressed(c1 bigint not null, b char(200)) engine=innodb row_format=compressed page_compressed=1;
---replace_regex /#sql-[0-9a-f_]*`/#sql-temporary`/
 show warnings;
 show create table innodb_compact;
 show create table innodb_dynamic;
 
 # MDEV-7133: InnoDB: Assertion failure in thread 140737091569408 in file dict0mem.cc line 74 
 # InnoDB: Failing assertion: dict_tf_is_valid(flags)
---replace_regex /#sql-[0-9a-f_]*`/#sql-temporary`/
 --error 1005
 create table innodb_redundant(c1 bigint not null, b char(200)) engine=innodb row_format=redundant page_compressed=1;
---replace_regex /#sql-[0-9a-f_]*`/#sql-temporary`/
 show warnings;
 create table innodb_redundant(c1 bigint not null, b char(200)) engine=innodb row_format=redundant;
 show create table innodb_redundant;

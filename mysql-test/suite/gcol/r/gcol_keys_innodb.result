@@ -153,7 +153,7 @@ foreign key (b) references t2(a));
 ERROR HY000: Can't create table `test`.`t1` (errno: 150 "Foreign key constraint is incorrectly formed")
 create table t1 (a int, b int generated always as (a+1) virtual);
 alter table t1 add foreign key (b) references t2(a);
-ERROR HY000: Can't create table `test`.`#sql-temporary` (errno: 150 "Foreign key constraint is incorrectly formed")
+ERROR HY000: Can't create table `test`.`t1` (errno: 150 "Foreign key constraint is incorrectly formed")
 drop table t1;
 # Allowed FK options.
 create table t2 (a int primary key, b char(5));

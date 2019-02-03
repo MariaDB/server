@@ -590,7 +590,6 @@ CREATE TABLE t1 (
   v3 TIME AS (c3) VIRTUAL,
   v4 CHAR(10) AS (c4) VIRTUAL
 ) ENGINE=InnoDB;
---replace_regex /#sql-[0-9a-f_]*/#sql-temporary/
 --error ER_CANT_CREATE_TABLE
 ALTER TABLE t1 ADD CONSTRAINT fk FOREIGN KEY (v4) REFERENCES nosuch(col);
 SET foreign_key_checks=0;
@@ -601,7 +600,6 @@ ALTER TABLE t1 ADD CONSTRAINT fk FOREIGN KEY (v4) REFERENCES nosuch(col);
 SET foreign_key_checks=1;
 SHOW CREATE TABLE t1;
 ALTER TABLE t1 DROP FOREIGN KEY fk;
---replace_regex /#sql-[0-9a-f_]*/#sql-temporary/
 --error ER_CANT_CREATE_TABLE
 ALTER TABLE t1 ADD CONSTRAINT fk FOREIGN KEY (v4) REFERENCES nosuch(col);
 SHOW CREATE TABLE t1;

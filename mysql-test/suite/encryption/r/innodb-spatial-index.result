@@ -10,7 +10,7 @@ DROP TABLE t1;
 CREATE TABLE t1 (pk INT PRIMARY KEY AUTO_INCREMENT,
 c VARCHAR(256), coordinate POINT NOT NULL) ENCRYPTED=YES ENGINE=INNODB;
 ALTER TABLE t1 ADD SPATIAL INDEX b(coordinate), ALGORITHM=COPY;
-ERROR HY000: Can't create table `test`.`#sql-temporary` (errno: 140 "Wrong create options")
+ERROR HY000: Can't create table `test`.`t1` (errno: 140 "Wrong create options")
 ALTER TABLE t1 ADD SPATIAL INDEX b(coordinate), FORCE, ALGORITHM=INPLACE;
 ERROR HY000: Table storage engine 'InnoDB' does not support the create option 'ENCRYPTED'
 ALTER TABLE t1 ADD SPATIAL INDEX(coordinate);
