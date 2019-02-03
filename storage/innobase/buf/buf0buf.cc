@@ -2,7 +2,7 @@
 
 Copyright (c) 1995, 2018, Oracle and/or its affiliates. All Rights Reserved.
 Copyright (c) 2008, Google Inc.
-Copyright (c) 2013, 2018, MariaDB Corporation.
+Copyright (c) 2013, 2019, MariaDB Corporation.
 
 Portions of this file contain modifications contributed and copyrighted by
 Google, Inc. Those modifications are gratefully acknowledged and are described
@@ -1013,7 +1013,10 @@ buf_page_is_corrupted(
 
 	/* Check whether the checksum fields have correct values */
 
-	if (srv_checksum_algorithm == SRV_CHECKSUM_ALGORITHM_NONE) {
+	const srv_checksum_algorithm_t curr_algo =
+		static_cast<srv_checksum_algorithm_t>(srv_checksum_algorithm);
+
+	if (curr_algo == SRV_CHECKSUM_ALGORITHM_NONE) {
 		return(false);
 	}
 
@@ -1053,9 +1056,6 @@ buf_page_is_corrupted(
 #endif /* UNIV_INNOCHECKSUM */
 		return(false);
 	}
-
-	const srv_checksum_algorithm_t	curr_algo =
-		static_cast<srv_checksum_algorithm_t>(srv_checksum_algorithm);
 
 	switch (curr_algo) {
 	case SRV_CHECKSUM_ALGORITHM_STRICT_CRC32:
@@ -1101,9 +1101,7 @@ buf_page_is_corrupted(
 		    != mach_read_from_4(read_buf + FIL_PAGE_LSN)
 		    && checksum_field2 != BUF_NO_CHECKSUM_MAGIC) {
 
-			if (srv_checksum_algorithm
-			    == SRV_CHECKSUM_ALGORITHM_CRC32) {
-
+			if (curr_algo == SRV_CHECKSUM_ALGORITHM_CRC32) {
 				DBUG_EXECUTE_IF(
 					"page_intermittent_checksum_mismatch", {
 					static int page_counter;
@@ -1111,7 +1109,6 @@ buf_page_is_corrupted(
 						checksum_field2++;
 					}
 				});
-
 
 				crc32 = buf_page_check_crc32(read_buf,
 							     checksum_field2);
@@ -1123,7 +1120,7 @@ buf_page_is_corrupted(
 					return true;
 				}
 			} else {
-				ut_ad(srv_checksum_algorithm
+				ut_ad(curr_algo
 				      == SRV_CHECKSUM_ALGORITHM_INNODB);
 
 				if (checksum_field2
@@ -1141,9 +1138,7 @@ buf_page_is_corrupted(
 
 		if (checksum_field1 == 0
 		    || checksum_field1 == BUF_NO_CHECKSUM_MAGIC) {
-		} else if (srv_checksum_algorithm
-			   == SRV_CHECKSUM_ALGORITHM_CRC32) {
-
+		} else if (curr_algo == SRV_CHECKSUM_ALGORITHM_CRC32) {
 			if (!crc32_inited) {
 				crc32 = buf_page_check_crc32(
 					read_buf, checksum_field2);
@@ -1156,8 +1151,7 @@ buf_page_is_corrupted(
 				return true;
 			}
 		} else {
-			ut_ad(srv_checksum_algorithm
-			      == SRV_CHECKSUM_ALGORITHM_INNODB);
+			ut_ad(curr_algo == SRV_CHECKSUM_ALGORITHM_INNODB);
 
 			if (checksum_field1
 			    != buf_calc_page_new_checksum(read_buf)) {

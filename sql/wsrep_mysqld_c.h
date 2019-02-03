@@ -21,6 +21,10 @@ enum enum_wsrep_certification_rules {
     WSREP_CERTIFICATION_RULES_OPTIMIZED
 };
 
-extern ulong wsrep_certification_rules;
+/* This is intentionally declared as a weak global symbol, so that
+the same ha_innodb.so can be used with the embedded server
+(which does not link to the definition of this variable)
+and with the regular server built WITH_WSREP. */
+extern ulong wsrep_certification_rules __attribute__((weak));
 
 #endif /* WSREP_MYSQLD_C_H */

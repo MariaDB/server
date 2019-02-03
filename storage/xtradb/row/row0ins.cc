@@ -56,6 +56,7 @@ Created 4/20/1996 Heikki Tuuri
 #include "m_string.h"
 
 #ifdef WITH_WSREP
+#include <mysql/service_wsrep.h>
 #include "../../../wsrep/wsrep_api.h"
 #include "wsrep_mysqld_c.h"
 #endif /* WITH_WSREP */
@@ -1657,6 +1658,9 @@ run_again:
 				if (check_ref) {
 					err = DB_SUCCESS;
 #ifdef WITH_WSREP
+					if (!wsrep_on(trx->mysql_thd)) {
+						goto end_scan;
+					}
 					enum wsrep_key_type key_type;
 					if (upd_node != NULL) {
 						key_type = WSREP_KEY_SHARED;
@@ -1673,7 +1677,7 @@ run_again:
 					}
 
 					err = wsrep_append_foreign_key(
-						thr_get_trx(thr),
+						trx,
 						foreign,
 						rec,
 						check_index,

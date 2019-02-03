@@ -3857,7 +3857,8 @@ bool st_select_lex::optimize_unflattened_subqueries(bool const_only)
           inner_join->select_options|= SELECT_DESCRIBE;
         }
         res= inner_join->optimize();
-        sl->update_used_tables();
+        if (!inner_join->cleaned)
+          sl->update_used_tables();
         sl->update_correlated_cache();
         is_correlated_unit|= sl->is_correlated;
         inner_join->select_options= save_options;
