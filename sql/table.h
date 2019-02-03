@@ -773,6 +773,7 @@ struct TABLE_SHARE
     uint16 start_fieldno;
     uint16 end_fieldno;
     Lex_ident name;
+    Lex_ident constr_name;
     Field *start_field(TABLE_SHARE *s) const
     {
       return s->field[start_fieldno];

@@ -5956,6 +5956,7 @@ static bool is_candidate_key(KEY *key)
        thd                       Thread object.
        table                     The altered table.
        alter_info                List of columns and indexes to create
+       create_info               Used to retreive Application-time period info
 
    DESCRIPTION
      Looks for the IF [NOT] EXISTS options, checks the states and remove items
@@ -5966,7 +5967,8 @@ static bool is_candidate_key(KEY *key)
 */
 
 static void
-handle_if_exists_options(THD *thd, TABLE *table, Alter_info *alter_info)
+handle_if_exists_options(THD *thd, TABLE *table, Alter_info *alter_info,
+                         HA_CREATE_INFO *create_info)
 {
   Field **f_ptr;
   DBUG_ENTER("handle_if_exists_option");
@@ -6151,6 +6153,11 @@ drop_create_field:
             break;
           }
         }
+      }
+      else if (drop->type == Alter_drop::PERIOD)
+      {
+        if (table->s->period.name.streq(drop->name))
+          remove_drop= FALSE;
       }
       else /* Alter_drop::KEY and Alter_drop::FOREIGN_KEY */
       {
@@ -6430,6 +6437,26 @@ remove_key:
         }
       }
     }
+  }
+
+  /* ADD PERIOD */
+
+  if (create_info->period_info.create_if_not_exists && table->s->period.name
+      && table->s->period.name.streq(create_info->period_info.name))
+  {
+    DBUG_ASSERT(create_info->period_info.is_set());
+    push_warning_printf(thd, Sql_condition::WARN_LEVEL_NOTE,
+                        ER_DUP_FIELDNAME, ER_THD(thd, ER_DUP_FIELDNAME),
+                        create_info->period_info.name.str, table->s->table_name.str);
+    create_info->period_info= {};
+
+    List_iterator<Virtual_column_info> vit(alter_info->check_constraint_list);
+    while (vit++ != create_info->period_constr)
+    {
+      // do nothing
+    }
+    vit.remove();
+    create_info->period_constr= NULL;
   }
 
   DBUG_VOID_RETURN;
@@ -7842,6 +7869,7 @@ mysql_prepare_alter_table(THD *thd, TABLE *table,
   Create_field *def;
   Field **f_ptr,*field;
   MY_BITMAP *dropped_fields= NULL; // if it's NULL - no dropped fields
+  bool drop_period= false;
   DBUG_ENTER("mysql_prepare_alter_table");
 
   /*
@@ -8406,6 +8434,34 @@ mysql_prepare_alter_table(THD *thd, TABLE *table,
     }
   }
 
+  if (table->s->period.name)
+  {
+    drop_it.rewind();
+    Alter_drop *drop;
+    for (bool found= false; !found && (drop= drop_it++); )
+    {
+      found= table->s->period.name.streq(drop->name);
+    }
+
+    if (drop)
+    {
+      drop_period= true;
+      drop_it.remove();
+    }
+    else if (create_info->period_info.is_set() && table->s->period.name)
+    {
+      my_error(ER_MORE_THAN_ONE_PERIOD, MYF(0));
+      goto err;
+    }
+    else
+    {
+      Field *s= table->s->period.start_field(table->s);
+      Field *e= table->s->period.end_field(table->s);
+      create_info->period_info.set_period(s->field_name, e->field_name);
+      create_info->period_info.name= table->s->period.name;
+    }
+  }
+
   /* Add all table level constraints which are not in the drop list */
   if (table->s->table_check_constraints)
   {
@@ -8416,6 +8472,7 @@ mysql_prepare_alter_table(THD *thd, TABLE *table,
     {
       Virtual_column_info *check= table->check_constraints[i];
       Alter_drop *drop;
+      bool keep= true;
       drop_it.rewind();
       while ((drop=drop_it++))
       {
@@ -8423,17 +8480,33 @@ mysql_prepare_alter_table(THD *thd, TABLE *table,
             !my_strcasecmp(system_charset_info, check->name.str, drop->name))
         {
           drop_it.remove();
+          keep= false;
           break;
         }
       }
+
+      if (share->period.constr_name.streq(check->name.str))
+      {
+        if (!drop_period && !keep)
+        {
+          my_error(ER_PERIOD_CONSTRAINT_DROP, MYF(0), check->name.str,
+                   share->period.name.str);
+          goto err;
+        }
+        keep= keep && !drop_period;
+
+        DBUG_ASSERT(create_info->period_constr == NULL || drop_period);
+        if (!create_info->period_constr)
+          create_info->period_constr= check;
+      }
       /* see if the constraint depends on *only* on dropped fields */
-      if (!drop && dropped_fields)
+      if (keep && dropped_fields)
       {
         table->default_column_bitmaps();
         bitmap_clear_all(table->read_set);
         check->expr->walk(&Item::register_field_in_read_map, 1, 0);
         if (bitmap_is_subset(table->read_set, dropped_fields))
-          drop= (Alter_drop*)1;
+          keep= false;
         else if (bitmap_is_overlapping(dropped_fields, table->read_set))
         {
           bitmap_intersect(table->read_set, dropped_fields);
@@ -8443,7 +8516,7 @@ mysql_prepare_alter_table(THD *thd, TABLE *table,
           goto err;
         }
       }
-      if (!drop)
+      if (keep)
       {
         check->expr->walk(&Item::rename_fields_processor, 1, &column_rename_param);
         new_constraint_list.push_back(check, thd->mem_root);
@@ -8462,8 +8535,9 @@ mysql_prepare_alter_table(THD *thd, TABLE *table,
       case Alter_drop::KEY:
       case Alter_drop::COLUMN:
       case Alter_drop::CHECK_CONSTRAINT:
-          my_error(ER_CANT_DROP_FIELD_OR_KEY, MYF(0), drop->type_name(),
-                   alter_info->drop_list.head()->name);
+      case Alter_drop::PERIOD:
+        my_error(ER_CANT_DROP_FIELD_OR_KEY, MYF(0), drop->type_name(),
+                 alter_info->drop_list.head()->name);
         goto err;
       case Alter_drop::FOREIGN_KEY:
         // Leave the DROP FOREIGN KEY names in the alter_info->drop_list.
@@ -9327,7 +9401,7 @@ bool mysql_alter_table(THD *thd, const LEX_CSTRING *new_db,
 
   THD_STAGE_INFO(thd, stage_setup);
 
-  handle_if_exists_options(thd, table, alter_info);
+  handle_if_exists_options(thd, table, alter_info, create_info);
 
   /*
     Look if we have to do anything at all.
@@ -9408,6 +9482,10 @@ bool mysql_alter_table(THD *thd, const LEX_CSTRING *new_db,
   }
 
   set_table_default_charset(thd, create_info, &alter_ctx.db);
+
+  if (create_info->check_period_fields(thd, alter_info)
+      || create_info->fix_period_fields(thd, alter_info))
+    DBUG_RETURN(true);
 
   if (!opt_explicit_defaults_for_timestamp)
     promote_first_timestamp_column(&alter_info->create_list);

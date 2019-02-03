@@ -143,6 +143,14 @@ bool has_extra2_field_flags(List<Create_field> &create_fields)
   return false;
 }
 
+static inline
+uchar* store_str(uchar *buf, const Lex_ident &str)
+{
+  int2store(buf, str.length);
+  memcpy(buf + korr2size, str.str, str.length);
+  return buf + str.length + korr2size;
+}
+
 /**
   Create a frm (table definition) file
 
@@ -170,7 +178,10 @@ LEX_CUSTRING build_frm_image(THD *thd, const LEX_CSTRING *table,
   ulong data_offset;
   uint options_len;
   uint gis_extra2_len= 0;
-  uint period_info_len= create_info->period_info.name.length + 2 * korr2size;
+  size_t period_info_len= create_info->period_info.name
+                          ? create_info->period_info.name.length
+                            + create_info->period_constr->name.length + 8
+                          : 0;
   uchar fileinfo[FRM_HEADER_SIZE],forminfo[FRM_FORMINFO_SIZE];
   const partition_info *part_info= IF_PARTITIONING(thd->work_part_info, 0);
   bool error;
@@ -350,14 +361,12 @@ LEX_CUSTRING build_frm_image(THD *thd, const LEX_CSTRING *table,
 #endif /*HAVE_SPATIAL*/
 
   // PERIOD
-  if (create_info->period_info.name)
+  if (create_info->period_info.is_set())
   {
     *pos++= EXTRA2_APPLICATION_TIME_PERIOD;
-
-    Lex_ident &period_name= create_info->period_info.name;
     pos= extra2_write_len(pos, period_info_len);
-    memcpy(pos, period_name.str, period_name.length);
-    pos+= period_name.length;
+    pos= store_str(pos, create_info->period_info.name);
+    pos= store_str(pos, create_info->period_constr->name);
 
     int2store(pos, get_fieldno_by_name(create_info, create_fields,
                                        create_info->period_info.period.start));

@@ -2052,6 +2052,7 @@ bool my_yyoverflow(short **a, YYSTYPE **b, size_t *yystacksize);
         key_using_alg
         part_column_list
         period_for_system_time
+        period_for_application_time
         server_def server_options_list server_option
         definer_opt no_definer definer get_diagnostics
         parse_vcol_expr vcol_opt_specifier vcol_opt_attribute
@@ -6444,6 +6445,7 @@ field_list_item:
         | key_def
         | constraint_def
         | period_for_system_time
+        | PERIOD_SYM period_for_application_time { }
         ;
 
 column_def:
@@ -6551,9 +6553,12 @@ period_for_system_time:
             Vers_parse_info &info= Lex->vers_get_info();
             info.set_period($4, $6);
           }
-        | PERIOD_SYM FOR_SYM ident '(' ident ',' ident ')'
+        ;
+
+period_for_application_time:
+          FOR_SYM ident '(' ident ',' ident ')'
           {
-            if (Lex->add_period($3, $5, $7))
+            if (Lex->add_period($2, $4, $6))
               MYSQL_YYABORT;
           }
         ;
@@ -8186,6 +8191,13 @@ alter_list_item:
           {
             Lex->alter_info.flags|= ALTER_ADD_PERIOD;
           }
+        | ADD
+          PERIOD_SYM opt_if_not_exists_table_element period_for_application_time
+          {
+            Table_period_info &period= Lex->create_info.period_info;
+            period.create_if_not_exists= Lex->check_exists;
+            Lex->alter_info.flags|= ALTER_ADD_CHECK_CONSTRAINT;
+          }
         | add_column '(' create_field_list ')'
           {
             LEX *lex=Lex;
@@ -8354,6 +8366,14 @@ alter_list_item:
         | DROP PERIOD_SYM FOR_SYSTEM_TIME_SYM
           {
             Lex->alter_info.flags|= ALTER_DROP_PERIOD;
+          }
+        | DROP PERIOD_SYM opt_if_exists_table_element FOR_SYM ident
+          {
+            Alter_drop *ad= new Alter_drop(Alter_drop::PERIOD, $5.str, $3);
+            if (unlikely(ad == NULL))
+              MYSQL_YYABORT;
+            Lex->alter_info.drop_list.push_back(ad, thd->mem_root);
+            Lex->alter_info.flags|= ALTER_DROP_CHECK_CONSTRAINT;
           }
         ;
 

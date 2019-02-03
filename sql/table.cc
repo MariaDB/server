@@ -1802,12 +1802,24 @@ int TABLE_SHARE::init_from_binary_frm_image(THD *thd, bool write,
 
   if (extra2.application_period.str)
   {
-    period.name.length= extra2.application_period.length - 2 * korr2size;
+    const uchar *name_pos= extra2.application_period.str + korr2size;
+    period.name.length= uint2korr(extra2.application_period.str);
     period.name.str= strmake_root(&mem_root,
-                                  (char*)extra2.application_period.str,
+                                  (char*)name_pos,
                                   period.name.length);
-    const uchar *field_pos= extra2.application_period.str + period.name.length;
+
+    const uchar *constr_pos= name_pos + period.name.length + korr2size;
+    period.constr_name.length= uint2korr(name_pos + period.name.length);
+    period.constr_name.str= strmake_root(&mem_root,
+                                         (char*)constr_pos,
+                                         period.constr_name.length);
+
+    const uchar *field_pos= constr_pos + period.constr_name.length;
     if (init_period_from_extra2(period, field_pos))
+      goto err;
+
+    if (period.name.length + period.constr_name.length + 4 * korr2size
+        != extra2.application_period.length)
       goto err;
   }
 
