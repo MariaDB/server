@@ -1,4 +1,4 @@
-/* Copyright (c) 2011, 2017, MariaDB Corporation.
+/* Copyright (c) 2011, 2019, MariaDB Corporation.
    Copyright (c) 2011, 2012, Oleksandr Byelkin
 
    Redistribution and use in source and binary forms, with or without
