@@ -6480,8 +6480,8 @@ static int get_check_constraints_record(THD *thd, TABLE_LIST *tables,
       push_warning(thd, Sql_condition::WARN_LEVEL_WARN,
                    thd->get_stmt_da()->sql_errno(),
                    thd->get_stmt_da()->message());
-      thd->clear_error();
-      DBUG_RETURN(0);
+    thd->clear_error();
+    DBUG_RETURN(0);
   }
   if(!tables->view)
   {
