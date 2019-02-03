@@ -9447,52 +9447,20 @@ bool mysql_alter_table(THD *thd,char *new_db, char *new_name,
   /* Mark that we have created table in storage engine. */
   no_ha_table= false;
 
-  if (create_info->tmp_table())
-  {
-    TABLE *tmp_table=
-      thd->create_and_open_tmp_table(new_db_type, &frm,
-                                     alter_ctx.get_tmp_path(),
-                                     alter_ctx.new_db, alter_ctx.tmp_name,
-                                     true);
-    if (!tmp_table)
-    {
-      goto err_new_table_cleanup;
-    }
-    /* in case of alter temp table send the tracker in OK packet */
-    SESSION_TRACKER_CHANGED(thd, SESSION_STATE_CHANGE_TRACKER, NULL);
-  }
-
+  new_table=
+    thd->create_and_open_tmp_table(new_db_type, &frm, alter_ctx.get_tmp_path(),
+                                   alter_ctx.new_db, alter_ctx.tmp_name, true);
+  if (!new_table)
+    goto err_new_table_cleanup;
 
   /* Open the table since we need to copy the data. */
   if (table->s->tmp_table != NO_TMP_TABLE)
   {
-    TABLE_LIST tbl;
-    tbl.init_one_table(alter_ctx.new_db, strlen(alter_ctx.new_db),
-                       alter_ctx.tmp_name, strlen(alter_ctx.tmp_name),
-                       alter_ctx.tmp_name, TL_READ_NO_INSERT);
-    /*
-      Table can be found in the list of open tables in THD::all_temp_tables
-      list.
-    */
-    if ((tbl.table= thd->find_temporary_table(&tbl)) == NULL)
-      goto err_new_table_cleanup;
-    new_table= tbl.table;
-    DBUG_ASSERT(new_table);
+    /* in case of alter temp table send the tracker in OK packet */
+    SESSION_TRACKER_CHANGED(thd, SESSION_STATE_CHANGE_TRACKER, NULL);
   }
   else
   {
-    /*
-      table is a normal table: Create temporary table in same directory.
-      Open our intermediate table.
-    */
-    new_table=
-      thd->create_and_open_tmp_table(new_db_type, &frm,
-                                     alter_ctx.get_tmp_path(),
-                                     alter_ctx.new_db, alter_ctx.tmp_name,
-                                     true);
-    if (!new_table)
-      goto err_new_table_cleanup;
-
     /*
       Normally, an attempt to modify an FK parent table will cause
       FK children to be prelocked, so the table-being-altered cannot
