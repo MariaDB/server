@@ -204,6 +204,26 @@ pthread_mutex_t parmut;
 pthread_mutex_t usrmut;
 pthread_mutex_t tblmut;
 
+#if defined(DEVELOPMENT)
+char *GetUserVariable(PGLOBAL g, const uchar *varname);
+
+char *GetUserVariable(PGLOBAL g, const uchar *varname)
+{
+	char buf[1024];
+	bool b;
+	THD *thd = current_thd;
+	CHARSET_INFO *cs = system_charset_info;
+	String *str = NULL, tmp(buf, sizeof(buf), cs);
+	HASH uvars = thd->user_vars;
+	user_var_entry *uvar = (user_var_entry*)my_hash_search(&uvars, varname, 0);
+
+	if (uvar)
+		str = uvar->val_str(&b, &tmp, NOT_FIXED_DEC);
+
+	return str ? PlugDup(g, str->ptr()) : NULL;
+}; // end of GetUserVariable
+#endif   // DEVELOPMENT
+
 /***********************************************************************/
 /*  Utility functions.                                                 */
 /***********************************************************************/
