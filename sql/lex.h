@@ -477,6 +477,7 @@ static SYMBOL symbols[] = {
   { "POINT",		SYM(POINT_SYM)},
   { "POLYGON",		SYM(POLYGON)},
   { "PORT",		SYM(PORT_SYM)},
+  { "PORTION",		SYM(PORTION_SYM)},
   { "PRECEDES",         SYM(PRECEDES_SYM)},
   { "PRECEDING",        SYM(PRECEDING_SYM)},
   { "PRECISION",	SYM(PRECISION)},

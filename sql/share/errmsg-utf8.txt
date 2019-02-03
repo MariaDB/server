@@ -7944,3 +7944,5 @@ ER_MORE_THAN_ONE_PERIOD
         eng "Cannot specify more than one application-time period"
 ER_PERIOD_FIELD_WRONG_ATTRIBUTES
         eng "Period field %`s cannot be %s"
+ER_PERIOD_NOT_FOUND
+        eng "Period %`s is not found in table"

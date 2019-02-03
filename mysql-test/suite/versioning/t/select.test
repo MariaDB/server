@@ -107,6 +107,32 @@ for system_time as of timestamp @t0 as t;
 drop table t1;
 drop table t2;
 
+# Query conditions check
+
+create or replace table t1(x int) with system versioning;
+insert into t1 values (1);
+delete from t1;
+insert into t1 values (2);
+delete from t1;
+insert into t1 values (3);
+delete from t1;
+
+select row_start into @start1 from t1 for system_time all where x = 1;
+select row_end into @end1 from t1 for system_time all where x = 1;
+select row_start into @start2 from t1 for system_time all where x = 2;
+select row_end into @end2 from t1 for system_time all where x = 2;
+select row_start into @start3 from t1 for system_time all where x = 3;
+select row_end into @end3 from t1 for system_time all where x = 3;
+
+select x as ASOF_x from t1 for system_time as of @start2;
+select x as ASOF_x from t1 for system_time as of @end2;
+select x as FROMTO_x from t1 for system_time from @start1 to @end3;
+select x as FROMTO_x from t1 for system_time from @end1 to @start2;
+select x as BETWAND_x from t1 for system_time between @start1 and @end3;
+select x as BETWAND_x from t1 for system_time between @end1 and @start2;
+
+drop table t1;
+
 # Wildcard expansion on hidden fields
 
 create table t1(
