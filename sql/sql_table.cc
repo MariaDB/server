@@ -7837,6 +7837,7 @@ mysql_prepare_alter_table(THD *thd, TABLE *table,
   Create_field *def;
   Field **f_ptr,*field;
   MY_BITMAP *dropped_fields= NULL; // if it's NULL - no dropped fields
+  bool save_reopen= table->m_needs_reopen;
   DBUG_ENTER("mysql_prepare_alter_table");
 
   /*
@@ -8516,7 +8517,9 @@ mysql_prepare_alter_table(THD *thd, TABLE *table,
   alter_info->create_list.swap(new_create_list);
   alter_info->key_list.swap(new_key_list);
   alter_info->check_constraint_list.swap(new_constraint_list);
+  DBUG_RETURN(rc);
 err:
+  table->m_needs_reopen= save_reopen;
   DBUG_RETURN(rc);
 }
 
@@ -10195,7 +10198,8 @@ err_with_mdl:
     tables and release the exclusive metadata lock.
   */
   thd->locked_tables_list.unlink_all_closed_tables(thd, NULL, 0);
-  thd->mdl_context.release_all_locks_for_name(mdl_ticket);
+  if (!table_list->table)
+    thd->mdl_context.release_all_locks_for_name(mdl_ticket);
   DBUG_RETURN(true);
 }
 
