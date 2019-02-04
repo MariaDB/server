@@ -1,0 +1,26 @@
+# Galera cache encryption
+# When node uses encryption, search for pattern in galera cache should fail
+
+
+--source include/galera_cluster.inc
+--source include/have_innodb.inc
+
+CREATE TABLE encryption(a INT);
+
+--let SEARCH_PATTERN= CREATE TABLE encryption\(a INT\)
+
+# galera.page.xxxxxx should contain encrypted writesets
+--let $MYSQLD_DATADIR_1= `select @@datadir`
+--let SEARCH_FILE= $MYSQLD_DATADIR_1/galera.page.00000*
+--source include/search_pattern_in_file.inc
+
+--let SEARCH_FILE= $MYSQLD_DATADIR_1/galera.cache
+--source include/search_pattern_in_file.inc
+
+--connection node_2
+--let $MYSQLD_DATADIR_2= `select @@datadir`
+--let SEARCH_FILE= $MYSQLD_DATADIR_2/galera.cache
+--source include/search_pattern_in_file.inc
+
+--connection node_1
+DROP TABLE encryption;

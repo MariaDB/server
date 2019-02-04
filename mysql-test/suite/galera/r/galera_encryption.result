@@ -1,0 +1,9 @@
+connection node_2;
+connection node_1;
+CREATE TABLE encryption(a INT);
+NOT FOUND /CREATE TABLE encryption\(a INT\)/ in galera.page.00000*
+NOT FOUND /CREATE TABLE encryption\(a INT\)/ in galera.cache
+connection node_2;
+FOUND 1 /CREATE TABLE encryption\(a INT\)/ in galera.cache
+connection node_1;
+DROP TABLE encryption;

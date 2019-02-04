@@ -1,0 +1,7 @@
+!include ../galera_2nodes.cnf
+
+[mysqld.1]
+encrypt-binlog= 1
+plugin_load_add= file_key_management
+file_key_management_filename= @ENV.MYSQL_TEST_DIR/suite/galera/t/galera_encryption.key
+file_key_management_encryption_algorithm= aes_cbc
