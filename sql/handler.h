@@ -721,6 +721,11 @@ typedef ulonglong alter_table_operations;
 */
 #define ALTER_PARTITIONED                    (1ULL << 59)
 
+/**
+   Change in index length such that it doesn't require index rebuild.
+*/
+#define ALTER_COLUMN_INDEX_LENGTH            (1ULL << 60)
+
 /*
   Flags set in partition_flags when altering partitions
 */

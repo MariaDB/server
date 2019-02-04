@@ -3087,7 +3087,16 @@ xb_load_single_table_tablespace(
 		die("Can't open datafile %s", name);
 	}
 
-	err = file->validate_first_page(&flush_lsn);
+	for (int i = 0; i < 10; i++) {
+		err = file->validate_first_page(&flush_lsn);
+		if (err != DB_CORRUPTION) {
+			break;
+		}
+
+		my_sleep(1000);
+	}
+
+	bool is_empty_file = file->exists() && file->is_empty_file();
 
 	if (err == DB_SUCCESS && file->space_id() != SRV_TMP_SPACE_ID) {
 		os_offset_t	node_size = os_file_get_size(file->handle());
@@ -3119,9 +3128,7 @@ xb_load_single_table_tablespace(
 
 	delete file;
 
-	if (err != DB_SUCCESS && err != DB_CORRUPTION && xtrabackup_backup) {
-		/* allow corrupted first page for xtrabackup, it could be just
-		zero-filled page, which we restore from redo log later */
+	if (err != DB_SUCCESS && xtrabackup_backup && !is_empty_file) {
 		die("Failed to not validate first page of the file %s, error %d",name, (int)err);
 	}
 }

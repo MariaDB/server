@@ -6497,7 +6497,7 @@ static bool fill_alter_inplace_info(THD *thd,
                                     bool varchar,
                                     Alter_inplace_info *ha_alter_info)
 {
-  Field **f_ptr, *field;
+  Field **f_ptr, *field, *old_field;
   List_iterator_fast<Create_field> new_field_it;
   Create_field *new_field;
   KEY_PART_INFO *key_part, *new_part;
@@ -6796,6 +6796,7 @@ static bool fill_alter_inplace_info(THD *thd,
     Go through keys and check if the original ones are compatible
     with new table.
   */
+  uint old_field_len= 0;
   KEY *table_key;
   KEY *table_key_end= table->key_info + table->s->keys;
   KEY *new_key;
@@ -6861,17 +6862,34 @@ static bool fill_alter_inplace_info(THD *thd,
          key_part < end;
          key_part++, new_part++)
     {
-      /*
-        Key definition has changed if we are using a different field or
-        if the used key part length is different. It makes sense to
-        check lengths first as in case when fields differ it is likely
-        that lengths differ too and checking fields is more expensive
-        in general case.
-      */
-      if (key_part->length != new_part->length)
-        goto index_changed;
-
       new_field= get_field_by_index(alter_info, new_part->fieldnr);
+      old_field= table->field[key_part->fieldnr - 1];
+      /*
+        If there is a change in index length due to column expansion
+        like varchar(X) changed to varchar(X + N) and has a compatible
+        packed data representation, we mark it for fast/INPLACE change
+        in index definition. InnoDB supports INPLACE for this cases
+
+        Key definition has changed if we are using a different field or
+        if the user key part length is different.
+      */
+      old_field_len= old_field->pack_length();
+
+      if (old_field->type() == MYSQL_TYPE_VARCHAR)
+      {
+        old_field_len= (old_field->pack_length()
+                        - ((Field_varstring*) old_field)->length_bytes);
+      }
+
+      if (key_part->length == old_field_len &&
+          key_part->length < new_part->length &&
+	  (key_part->field->is_equal((Create_field*) new_field)
+           == IS_EQUAL_PACK_LENGTH))
+      {
+        ha_alter_info->handler_flags |= ALTER_COLUMN_INDEX_LENGTH;
+      }
+      else if (key_part->length != new_part->length)
+        goto index_changed;
 
       /*
         For prefix keys KEY_PART_INFO::field points to cloned Field
