@@ -2569,6 +2569,7 @@ unlink_all_closed_tables(THD *thd, MYSQL_LOCK *lock, size_t reopen_count)
       DBUG_ASSERT(thd->open_tables == m_reopen_array[reopen_count]);
 
       thd->open_tables->pos_in_locked_tables->table= NULL;
+      thd->open_tables->pos_in_locked_tables= NULL;
 
       close_thread_table(thd, &thd->open_tables);
     }
