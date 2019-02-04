@@ -3112,6 +3112,7 @@ insert into t2(a, c, b) values (1,10,'359'), (2,10,'35988'), (3,10,'35989');
 insert into t2(a, c, b) values (4,10,'360'), (5,10,'35998'), (6,10,'35999');
 analyze table t1;
 Table	Op	Msg_type	Msg_text
+test.t1	analyze	status	Engine-independent statistics collected
 test.t1	analyze	status	OK
 explain SELECT sql_no_cache t1.a, r.a, r.b FROM t1 LEFT JOIN t2 r
 ON r.a = (SELECT t2.a FROM t2 WHERE t2.c = t1.a AND t2.b <= '359899'

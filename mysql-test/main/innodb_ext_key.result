@@ -1036,7 +1036,9 @@ insert into t1 (b) values (null), (null), (null);
 insert into t2 (b) values (null), (null), (null);
 analyze table t1,t2;
 Table	Op	Msg_type	Msg_text
+test.t1	analyze	status	Engine-independent statistics collected
 test.t1	analyze	status	OK
+test.t2	analyze	status	Engine-independent statistics collected
 test.t2	analyze	status	OK
 set optimizer_switch='extended_keys=on';
 explain select a from t1 where b is null order by a desc limit 2;

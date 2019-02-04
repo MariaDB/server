@@ -3119,13 +3119,13 @@ explain
 select a from t1, t2 where b between 1 and 2 and a in (select b from t2);
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 1	PRIMARY	t1	ALL	NULL	NULL	NULL	NULL	5	Using where
-1	PRIMARY	t2	ref	idx	idx	5	test.t1.a	1463	Using index; FirstMatch(t1)
+1	PRIMARY	t2	ref	idx	idx	5	test.t1.a	1462	Using index; FirstMatch(t1)
 1	PRIMARY	t2	range	idx	idx	5	NULL	5	Using where; Using index; Using join buffer (flat, BNL join)
 explain 
 select a from t1 join t2 on b between 1 and 2 and a in (select b from t2);
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 1	PRIMARY	t1	ALL	NULL	NULL	NULL	NULL	5	Using where
-1	PRIMARY	t2	ref	idx	idx	5	test.t1.a	1463	Using index; FirstMatch(t1)
+1	PRIMARY	t2	ref	idx	idx	5	test.t1.a	1462	Using index; FirstMatch(t1)
 1	PRIMARY	t2	range	idx	idx	5	NULL	5	Using where; Using index; Using join buffer (flat, BNL join)
 drop table t1,t2;
 set optimizer_switch= @tmp_mdev12675;

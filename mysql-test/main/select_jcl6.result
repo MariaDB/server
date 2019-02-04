@@ -3712,6 +3712,7 @@ INSERT INTO t1 SELECT * FROM t1 WHERE ID1_with_null IS NULL;
 INSERT INTO t1 SELECT * FROM t1 WHERE ID2_with_null IS NULL;
 ANALYZE TABLE t1;
 Table	Op	Msg_type	Msg_text
+test.t1	analyze	status	Engine-independent statistics collected
 test.t1	analyze	status	OK
 SELECT COUNT(*) FROM t1 WHERE ID1_with_null IS NULL AND ID2_with_null=3;
 COUNT(*)
