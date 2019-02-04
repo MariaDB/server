@@ -9,9 +9,9 @@ return "Not run for embedded server" if $::opt_embedded_server;
 return "WSREP is not compiled in" unless defined $::mysqld_variables{'wsrep-on'};
 
 my ($provider) = grep { -f $_ } $ENV{WSREP_PROVIDER},
-                                "/usr/lib64/galera-3/libgalera_smm.so",
+                                "/usr/lib64/galera-4/libgalera_smm.so",
                                 "/usr/lib64/galera/libgalera_smm.so",
-                                "/usr/lib/galera-3/libgalera_smm.so",
+                                "/usr/lib/galera-4/libgalera_smm.so",
                                 "/usr/lib/galera/libgalera_smm.so";
 
 return "No wsrep provider library" unless -f $provider;
@@ -81,6 +81,8 @@ push @::global_suppressions,
      qr|WSREP: .*core_handle_uuid_msg.*|,
      qr(WSREP: --wsrep-causal-reads=ON takes precedence over --wsrep-sync-wait=0. WSREP_SYNC_WAIT_BEFORE_READ is on),
      qr|WSREP: JOIN message from member .* in non-primary configuration. Ignored.|,
+     qr|Query apply failed:*|,
+     qr(WSREP: Ignoring error*),
      qr(WSREP: Failed to remove page file .*),
      qr(WSREP: wsrep_sst_method is set to 'mysqldump' yet mysqld bind_address is set to .*),
    );
@@ -98,10 +100,8 @@ if (which(socat)) {
 
 sub skip_combinations {
   my %skip = ();
-  $skip{'include/have_xtrabackup.inc'} = 'Need innobackupex'
-             unless which(innobackupex);
-  $skip{'include/have_xtrabackup.inc'} = 'Need socat or nc'
-             unless $ENV{MTR_GALERA_TFMT};
+  $skip{'include/have_filekeymanagement.inc'} = 'needs file_key_management plugin'
+             unless $ENV{FILE_KEY_MANAGEMENT_SO};
   $skip{'include/have_mariabackup.inc'} = 'Need mariabackup'
              unless which(mariabackup);
   $skip{'include/have_mariabackup.inc'} = 'Need ss'

@@ -191,7 +191,7 @@ memo_slot_release(mtr_memo_slot_t* slot)
 
 		block = reinterpret_cast<buf_block_t*>(slot->object);
 
-		buf_block_unfix(block);
+		block->unfix();
 		buf_page_release_latch(block, slot->type);
 		break;
 	}
@@ -228,7 +228,7 @@ memo_block_unfix(mtr_memo_slot_t* slot)
 	case MTR_MEMO_PAGE_S_FIX:
 	case MTR_MEMO_PAGE_X_FIX:
 	case MTR_MEMO_PAGE_SX_FIX: {
-		buf_block_unfix(reinterpret_cast<buf_block_t*>(slot->object));
+		reinterpret_cast<buf_block_t*>(slot->object)->unfix();
 		break;
 	}
 
@@ -677,7 +677,7 @@ mtr_t::x_lock_space(ulint space_id, const char* file, unsigned line)
 		ut_ad(get_log_mode() != MTR_LOG_NO_REDO
 		      || space->purpose == FIL_TYPE_TEMPORARY
 		      || space->purpose == FIL_TYPE_IMPORT
-		      || my_atomic_loadlint(&space->redo_skipped_count) > 0);
+		      || space->redo_skipped_count > 0);
 	}
 
 	ut_ad(space);

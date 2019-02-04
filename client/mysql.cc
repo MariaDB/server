@@ -278,9 +278,9 @@ static COMMANDS commands[] = {
   { "edit",   'e', com_edit,   0, "Edit command with $EDITOR."},
 #endif
   { "ego",    'G', com_ego,    0,
-    "Send command to mysql server, display result vertically."},
+    "Send command to MariaDB server, display result vertically."},
   { "exit",   'q', com_quit,   0, "Exit mysql. Same as quit."},
-  { "go",     'g', com_go,     0, "Send command to mysql server." },
+  { "go",     'g', com_go,     0, "Send command to MariaDB server." },
   { "help",   'h', com_help,   1, "Display this help." },
 #ifdef USE_POPEN
   { "nopager",'n', com_nopager,0, "Disable pager, print to stdout." },
@@ -1537,7 +1537,7 @@ static struct my_option my_long_options[] =
    &ignore_spaces, &ignore_spaces, 0, GET_BOOL, NO_ARG, 0, 0,
    0, 0, 0, 0},
   {"init-command", OPT_INIT_COMMAND,
-   "SQL Command to execute when connecting to MySQL server. Will "
+   "SQL Command to execute when connecting to MariaDB server. Will "
    "automatically be re-executed when reconnecting.",
    &opt_init_command, &opt_init_command, 0,
    GET_STR, REQUIRED_ARG, 0, 0, 0, 0, 0, 0},
@@ -1599,7 +1599,7 @@ static struct my_option my_long_options[] =
    "Get progress reports for long running commands (like ALTER TABLE)",
    &opt_progress_reports, &opt_progress_reports, 0, GET_BOOL, NO_ARG, 1, 0,
    0, 0, 0, 0},
-  {"prompt", OPT_PROMPT, "Set the mysql prompt to this value.",
+  {"prompt", OPT_PROMPT, "Set the command line prompt to this value.",
    &current_prompt, &current_prompt, 0, GET_STR_ALLOC,
    REQUIRED_ARG, 0, 0, 0, 0, 0, 0},
   {"protocol", OPT_MYSQL_PROTOCOL, "The protocol to use for connection (tcp, socket, pipe).",
@@ -3127,7 +3127,7 @@ com_help(String *buffer __attribute__((unused)),
 
   put_info("\nGeneral information about MariaDB can be found at\n"
            "http://mariadb.org\n", INFO_INFO);
-  put_info("List of all MySQL commands:", INFO_INFO);
+  put_info("List of all client commands:", INFO_INFO);
   if (!named_cmds)
     put_info("Note that all text commands must be first on line and end with ';'",INFO_INFO);
   for (i = 0; commands[i].name; i++)

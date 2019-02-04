@@ -767,7 +767,7 @@ static bool mysql_admin_table(THD* thd, TABLE_LIST* tables,
       }
       collect_eis=
         (table->table->s->table_category == TABLE_CATEGORY_USER &&
-         (get_use_stat_tables_mode(thd) > NEVER ||
+         (check_eits_collection_allowed(thd) ||
           lex->with_persistent_for_clause));
 
 

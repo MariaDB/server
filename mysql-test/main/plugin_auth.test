@@ -445,6 +445,10 @@ connection default;
 disconnect cleartext_con;
 DROP USER uplain@localhost;
 
+# prepare for two tests that use mysql.user table
+source include/switch_to_mysql_user.inc;
+drop view mysql.user_bak;
+
 --echo #
 --echo # Bug #59038 : mysql.user.authentication_string column 
 --echo #   causes configuration wizard to fail
@@ -502,7 +506,6 @@ SELECT IS_NULLABLE, COLUMN_NAME FROM INFORMATION_SCHEMA.COLUMNS WHERE
   TABLE_SCHEMA='mysql'
 ORDER BY COLUMN_NAME;
 
-
 --echo #
 --echo # Bug #11936829: diff. between mysql.user (authentication_string) 
 --echo #   in fresh and upgraded 5.5.11
@@ -524,7 +527,8 @@ SELECT IS_NULLABLE, COLUMN_NAME FROM INFORMATION_SCHEMA.COLUMNS
   ORDER BY COLUMN_NAME;
 let $datadir= `select @@datadir`;
 remove_file $datadir/mysql_upgrade_info;
-
+drop table mysql.global_priv;
+rename table mysql.global_priv_bak to mysql.global_priv;
 
 --echo #
 --echo # Bug # 11766641: 59792: BIN/MYSQL -UUNKNOWN -PUNKNOWN 

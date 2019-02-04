@@ -473,7 +473,13 @@ int maria_apply_log(LSN from_lsn, LSN end_lsn,
     fflush(stderr);
   }
 
-  set_if_bigger(max_trid_in_control_file, max_long_trid);
+  if (max_long_trid > max_trid_in_control_file)
+  {
+    if (ma_control_file_write_and_force(last_checkpoint_lsn, last_logno,
+                                        max_long_trid, recovery_failures))
+      goto err;
+  }
+
   if (take_checkpoints && checkpoint_useful)
   {
     /* No dirty pages, all tables are closed, no active transactions, save: */

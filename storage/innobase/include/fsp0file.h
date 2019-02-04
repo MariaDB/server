@@ -27,12 +27,9 @@ Created 2013-7-26 by Kevin Lewis
 #ifndef fsp0file_h
 #define fsp0file_h
 
-#include "ha_prototypes.h"
-#include "log0log.h"
 #include "mem0mem.h"
 #include "os0file.h"
-#include "fil0crypt.h"
-#include <vector>
+#include "fil0fil.h"
 
 /** Types of raw partitions in innodb_data_file_path */
 enum device_t {

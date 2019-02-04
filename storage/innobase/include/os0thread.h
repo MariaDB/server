@@ -73,7 +73,7 @@ typedef unsigned int    mysql_pfs_key_t;
 #endif /* HAVE_PSI_INTERFACE */
 
 /** Number of threads active. */
-extern	ulint	os_thread_count;
+extern	Atomic_counter<ulint>	os_thread_count;
 
 /***************************************************************//**
 Compares two thread ids for equality.

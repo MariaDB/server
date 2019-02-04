@@ -1,0 +1,13 @@
+#
+# Assertion `retval == WSREP_OK || retval == WSREP_TRX_FAIL || retval == WSREP_BF_ABORT || retval == WSREP_CONN_FAIL' failed with SR
+#
+
+--source include/galera_cluster.inc
+
+--let $count = 1000;
+--let $wsrep_trx_fragment_size = 1;
+--let $query_node_1 = DELETE FROM t1
+--let $query_node_1a = REPLACE INTO t1 VALUES (1,'y'),(2,'x')
+--let $query_node_2 = REPLACE INTO t1 VALUES (1,'y'),(2,'y'),(3,'y')
+
+--source suite/galera/include/galera_concurrent_test.inc

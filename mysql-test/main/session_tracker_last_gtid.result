@@ -2,13 +2,7 @@
 # MDEV-15477: SESSION_SYSVARS_TRACKER does not track last_gtid
 #
 SET gtid_seq_no=1000;
--- Tracker : SESSION_TRACK_SCHEMA
--- test
-
 SET @@session.session_track_system_variables='last_gtid';
--- Tracker : SESSION_TRACK_SCHEMA
--- test
-
 create table t1 (a int) engine=innodb;
 -- Tracker : SESSION_TRACK_SYSTEM_VARIABLES
 -- last_gtid

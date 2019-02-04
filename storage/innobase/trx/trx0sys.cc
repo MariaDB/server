@@ -24,10 +24,8 @@ Transaction system
 Created 3/26/1996 Heikki Tuuri
 *******************************************************/
 
-#include "ha_prototypes.h"
-
-#include "mysqld.h"
 #include "trx0sys.h"
+#include "mysqld.h"
 #include "sql_error.h"
 
 #include "fsp0fsp.h"
@@ -42,9 +40,6 @@ Created 3/26/1996 Heikki Tuuri
 #include "log0log.h"
 #include "log0recv.h"
 #include "os0file.h"
-#include "fsp0sysspace.h"
-
-#include <mysql/service_wsrep.h>
 
 /** The transaction system */
 trx_sys_t		trx_sys;
@@ -217,7 +212,7 @@ trx_sys_t::create()
 	m_initialised = true;
 	mutex_create(LATCH_ID_TRX_SYS, &mutex);
 	UT_LIST_INIT(trx_list, &trx_t::trx_list);
-	my_atomic_store32(&rseg_history_len, 0);
+	rseg_history_len= 0;
 
 	rw_trx_hash.init();
 }

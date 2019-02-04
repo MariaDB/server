@@ -2021,3 +2021,22 @@ DROP TABLE t1;
 --echo #
 --echo # End of 10.2 tests
 --echo #
+
+--echo #
+--echo # MDEV-17778: Alter table leads to a truncation warning with ANALYZE command
+--echo #
+
+set @save_use_stat_tables= @@use_stat_tables;
+set @save_optimizer_use_condition_selectivity= @@optimizer_use_condition_selectivity;
+set @@optimizer_use_condition_selectivity=4;
+set @@use_stat_tables=PREFERABLY;
+
+create table t1 (a int)engine=InnoDB;
+insert into t1 values (1),(1),(2),(3);
+
+analyze table t1;
+alter table t1 change a b int;
+analyze table t1;
+set @@use_stat_tables= @save_use_stat_tables;
+set @@optimizer_use_condition_selectivity= @save_optimizer_use_condition_selectivity;
+drop table t1;

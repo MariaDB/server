@@ -25,8 +25,6 @@ Created May 26, 2014 Vasil Dimov
 
 #include "univ.i"
 
-#include "ut0new.h"
-
 /** Maximum number of retries to allocate memory. */
 const size_t	alloc_max_retries = 60;
 

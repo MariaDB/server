@@ -243,7 +243,7 @@ static THD* threadpool_add_connection(CONNECT *connect, void *scheduler_data)
     return NULL;
   }
   delete connect;
-  add_to_active_threads(thd);
+  server_threads.insert(thd);
   thd->set_mysys_var(mysys_var);
   thd->event_scheduler.data= scheduler_data;
 

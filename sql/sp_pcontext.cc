@@ -409,6 +409,19 @@ sp_condition_value *sp_pcontext::find_condition(const LEX_CSTRING *name,
     NULL;
 }
 
+sp_condition_value *
+sp_pcontext::find_declared_or_predefined_condition(THD *thd,
+                                                   const LEX_CSTRING *name)
+                                                   const
+{
+  sp_condition_value *p= find_condition(name, false);
+  if (p)
+    return p;
+  if (thd->variables.sql_mode & MODE_ORACLE)
+    return find_predefined_condition(name);
+  return NULL;
+}
+
 
 static sp_condition_value
   // Warnings

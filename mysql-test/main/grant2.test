@@ -4,7 +4,7 @@
 # Save the initial number of concurrent sessions
 --source include/count_sessions.inc
 
-
+select priv into @root_priv from mysql.global_priv where user='root' and host='localhost';
 set GLOBAL sql_mode="";
 set LOCAL sql_mode="";
 SET NAMES binary;
@@ -361,7 +361,7 @@ connection user4;
 show grants;
 --error ER_TABLEACCESS_DENIED_ERROR
 select host,user,password,plugin,authentication_string from mysql.user where user like 'mysqltest_%' ;
-insert into mysql.user set host='%', user='mysqltest_B';
+insert into mysql.global_priv set host='%', user='mysqltest_B';
 create user mysqltest_A@'%';
 rename user mysqltest_B@'%' to mysqltest_C@'%';
 drop user mysqltest_C@'%';
@@ -481,10 +481,10 @@ disconnect con3root;
 
 create database TESTDB;
 create table t2(a int);
-create temporary table t1 as select * from mysql.user;
-delete from mysql.user where host='localhost';
-INSERT INTO mysql.user (host, user, password) VALUES
-('%','mysqltest_1',password('password'));
+create temporary table t1 as select * from mysql.global_priv;
+delete from mysql.global_priv where host='localhost';
+INSERT INTO mysql.global_priv (host, user, priv) VALUES
+('%','mysqltest_1',json_object('authentication_string', password('password')));
 INSERT INTO mysql.db (host, db, user, select_priv) VALUES
 ('%','TESTDB','mysqltest_1','Y');
 FLUSH PRIVILEGES;
@@ -500,9 +500,9 @@ create database TEStdb;
 # Clean-up
 connection default;
 disconnect con1;
-delete from mysql.user;
+delete from mysql.global_priv;
 delete from mysql.db where host='%' and user='mysqltest_1' and db='TESTDB';
-insert into mysql.user select * from t1;
+insert into mysql.global_priv select * from t1;
 drop table t1, t2;
 drop database TESTDB;
 flush privileges;
@@ -661,22 +661,15 @@ SELECT MID(CURRENT_USER(),INSTR(CURRENT_USER(),'@')+1)  INTO @h;
 # show current privs.
 SELECT user,host,password,plugin,authentication_string,insert_priv FROM user WHERE user=@u AND host=@h;
 
-# toggle INSERT
-UPDATE user SET insert_priv='N' WHERE user=@u AND host=@h;
-SELECT user,host,password,plugin,authentication_string,insert_priv FROM user WHERE user=@u AND host=@h;
-
 # show that GRANT ... TO CURRENT_USER() no longer crashes
 GRANT INSERT ON *.* TO CURRENT_USER();
 SELECT user,host,password,plugin,authentication_string,insert_priv FROM user WHERE user=@u AND host=@h;
-UPDATE user SET insert_priv='N' WHERE user=@u AND host=@h;
 
 # show that GRANT ... TO CURRENT_USER() IDENTIFIED BY ... works now
 GRANT INSERT ON *.* TO CURRENT_USER() IDENTIFIED BY 'keksdose';
 SELECT user,host,password,plugin,authentication_string,insert_priv FROM user WHERE user=@u AND host=@h;
 
-UPDATE user SET plugin='', authentication_string='' WHERE user=@u AND host=@h;
-SELECT user,host,password,plugin,authentication_string,insert_priv FROM user WHERE user=@u AND host=@h;
-
+UPDATE global_priv SET priv=@root_priv;
 FLUSH PRIVILEGES;
 
 USE test;

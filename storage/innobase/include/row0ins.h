@@ -27,10 +27,8 @@ Created 4/20/1996 Heikki Tuuri
 #ifndef row0ins_h
 #define row0ins_h
 
-#include "univ.i"
 #include "data0data.h"
 #include "que0types.h"
-#include "dict0types.h"
 #include "trx0types.h"
 #include "row0types.h"
 

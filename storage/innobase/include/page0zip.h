@@ -28,28 +28,11 @@ Created June 2005 by Marko Makela
 #ifndef page0zip_h
 #define page0zip_h
 
-#ifdef UNIV_MATERIALIZE
-# undef UNIV_INLINE
-# define UNIV_INLINE
-#endif
-
-#ifdef UNIV_INNOCHECKSUM
-#include "univ.i"
-#include "buf0buf.h"
-#include "ut0crc32.h"
-#include "buf0checksum.h"
-#include "mach0data.h"
-#include "zlib.h"
-#endif /* UNIV_INNOCHECKSUM */
+#include "buf0types.h"
 
 #ifndef UNIV_INNOCHECKSUM
 #include "mtr0types.h"
 #include "page0types.h"
-#endif /* !UNIV_INNOCHECKSUM */
-
-#include "buf0types.h"
-
-#ifndef UNIV_INNOCHECKSUM
 #include "dict0types.h"
 #include "srv0srv.h"
 #include "trx0types.h"
@@ -510,16 +493,12 @@ page_zip_parse_compress(
 @param[in]	data			compressed page
 @param[in]	size			size of compressed page
 @param[in]	algo			algorithm to use
-@param[in]	use_legacy_big_endian	only used if algo is
-SRV_CHECKSUM_ALGORITHM_CRC32 or SRV_CHECKSUM_ALGORITHM_STRICT_CRC32 - if true
-then use big endian byteorder when converting byte strings to integers.
 @return page checksum */
 uint32_t
 page_zip_calc_checksum(
 	const void*			data,
 	ulint				size,
-	srv_checksum_algorithm_t	algo,
-	bool				use_legacy_big_endian = false);
+	srv_checksum_algorithm_t	algo);
 
 /**********************************************************************//**
 Verify a compressed page's checksum.
@@ -563,11 +542,6 @@ UNIV_INLINE
 void
 page_zip_reset_stat_per_index();
 /*===========================*/
-
-#ifdef UNIV_MATERIALIZE
-# undef UNIV_INLINE
-# define UNIV_INLINE	UNIV_INLINE_ORIGINAL
-#endif
 
 #include "page0zip.ic"
 #endif /* !UNIV_INNOCHECKSUM */

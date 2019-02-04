@@ -1,6 +1,6 @@
 CREATE DATABASE test_user_db;
 SELECT user,plugin,authentication_string FROM mysql.user WHERE user != 'root';
-user	plugin	authentication_string
+User	plugin	authentication_string
 ========== test 1.1.3.2 ====================================
 CREATE USER plug_user IDENTIFIED WITH test_plugin_server AS 'plug_dest';
 CREATE USER plug_dest IDENTIFIED BY 'plug_dest_passwd';
@@ -19,7 +19,7 @@ IDENTIFIED WITH test_plugin_server AS 'plug_dest';
 GRANT ALL PRIVILEGES ON test_user_db.* TO plug_dest IDENTIFIED BY 'plug_dest_passwd';
 GRANT PROXY ON plug_dest TO plug_user;
 SELECT user,plugin,authentication_string FROM mysql.user WHERE user != 'root';
-user	plugin	authentication_string
+User	plugin	authentication_string
 plug_dest	mysql_native_password	*939AEE68989794C0F408277411C26055CDF41119
 plug_user	test_plugin_server	plug_dest
 1)
@@ -70,7 +70,7 @@ ERROR 1045 (28000): Access denied for user 'plug_user'@'localhost' (using passwo
 GRANT PROXY ON new_dest TO plug_user;
 ERROR 1045 (28000): Access denied for user 'plug_user'@'localhost' (using password: YES)
 SELECT user,plugin,authentication_string FROM mysql.user WHERE user != 'root';
-user	plugin	authentication_string
+User	plugin	authentication_string
 new_dest	mysql_native_password	*939AEE68989794C0F408277411C26055CDF41119
 plug_user	test_plugin_server	plug_dest
 DROP USER plug_user,new_dest;
@@ -88,7 +88,7 @@ ERROR 1045 (28000): Access denied for user 'plug_user'@'localhost' (using passwo
 GRANT PROXY ON new_dest TO plug_user;
 ERROR 1045 (28000): Access denied for user 'plug_user'@'localhost' (using password: YES)
 SELECT user,plugin,authentication_string FROM mysql.user WHERE user != 'root';
-user	plugin	authentication_string
+User	plugin	authentication_string
 new_dest	mysql_native_password	*939AEE68989794C0F408277411C26055CDF41119
 plug_user	test_plugin_server	plug_dest
 DROP USER plug_user,new_dest;
@@ -109,14 +109,14 @@ USER()	CURRENT_USER()
 new_user@localhost	plug_dest@%
 connection default;
 SELECT user,plugin,authentication_string FROM mysql.user WHERE user != 'root';
-user	plugin	authentication_string
+User	plugin	authentication_string
 new_user	test_plugin_server	plug_dest
 plug_dest	mysql_native_password	*939AEE68989794C0F408277411C26055CDF41119
 disconnect plug_user;
-UPDATE mysql.user SET user='plug_user' WHERE user='new_user';
+UPDATE mysql.global_priv SET user='plug_user' WHERE user='new_user';
 FLUSH PRIVILEGES;
 SELECT user,plugin,authentication_string FROM mysql.user WHERE user != 'root';
-user	plugin	authentication_string
+User	plugin	authentication_string
 plug_dest	mysql_native_password	*939AEE68989794C0F408277411C26055CDF41119
 plug_user	test_plugin_server	plug_dest
 DROP USER plug_dest,plug_user;
@@ -132,36 +132,36 @@ plug_user@localhost	plug_dest@%
 connection default;
 disconnect plug_user;
 SELECT user,plugin,authentication_string FROM mysql.user WHERE user != 'root';
-user	plugin	authentication_string
+User	plugin	authentication_string
 plug_dest	mysql_native_password	*939AEE68989794C0F408277411C26055CDF41119
 plug_user	test_plugin_server	plug_dest
-UPDATE mysql.user SET user='new_user' WHERE user='plug_user';
+UPDATE mysql.global_priv SET user='new_user' WHERE user='plug_user';
 FLUSH PRIVILEGES;
 SELECT user,plugin,authentication_string FROM mysql.user WHERE user != 'root';
-user	plugin	authentication_string
+User	plugin	authentication_string
 new_user	test_plugin_server	plug_dest
 plug_dest	mysql_native_password	*939AEE68989794C0F408277411C26055CDF41119
-UPDATE mysql.user SET authentication_string='new_dest' WHERE user='new_user';
+UPDATE mysql.global_priv SET priv=JSON_SET(priv, '$.authentication_string', 'new_dest') WHERE user='new_user';
 FLUSH PRIVILEGES;
 SELECT user,plugin,authentication_string FROM mysql.user WHERE user != 'root';
-user	plugin	authentication_string
+User	plugin	authentication_string
 new_user	test_plugin_server	new_dest
 plug_dest	mysql_native_password	*939AEE68989794C0F408277411C26055CDF41119
-UPDATE mysql.user SET plugin='new_plugin_server' WHERE user='new_user';
+UPDATE mysql.global_priv SET priv=JSON_SET(priv, '$.plugin', 'new_plugin_server') WHERE user='new_user';
 FLUSH PRIVILEGES;
 Warnings:
 Warning	1524	Plugin 'new_plugin_server' is not loaded
 SELECT user,plugin,authentication_string FROM mysql.user WHERE user != 'root';
-user	plugin	authentication_string
+User	plugin	authentication_string
 new_user	new_plugin_server	new_dest
 plug_dest	mysql_native_password	*939AEE68989794C0F408277411C26055CDF41119
 ERROR 28000: Access denied for user 'new_user'@'localhost' (using password: YES)
-UPDATE mysql.user SET plugin='test_plugin_server' WHERE user='new_user';
-UPDATE mysql.user SET USER='new_dest' WHERE user='plug_dest';
+UPDATE mysql.global_priv SET priv=JSON_SET(priv, '$.plugin', 'test_plugin_server') WHERE user='new_user';
+UPDATE mysql.global_priv SET user='new_dest' WHERE user='plug_dest';
 FLUSH PRIVILEGES;
 GRANT PROXY ON new_dest TO new_user;
 SELECT user,plugin,authentication_string FROM mysql.user WHERE user != 'root';
-user	plugin	authentication_string
+User	plugin	authentication_string
 new_dest	mysql_native_password	*939AEE68989794C0F408277411C26055CDF41119
 new_user	test_plugin_server	new_dest
 connect plug_user,localhost,new_user,new_dest;
@@ -170,11 +170,11 @@ USER()	CURRENT_USER()
 new_user@localhost	new_dest@%
 connection default;
 disconnect plug_user;
-UPDATE mysql.user SET USER='plug_dest' WHERE user='new_dest';
+UPDATE mysql.global_priv SET user='plug_dest' WHERE user='new_dest';
 FLUSH PRIVILEGES;
 CREATE USER new_dest IDENTIFIED BY 'new_dest_passwd';
 SELECT user,plugin,authentication_string FROM mysql.user WHERE user != 'root';
-user	plugin	authentication_string
+User	plugin	authentication_string
 new_dest	mysql_native_password	*01422E86A6FFF84618914AF149F9AEF64B84170A
 new_user	test_plugin_server	new_dest
 plug_dest	mysql_native_password	*939AEE68989794C0F408277411C26055CDF41119
@@ -190,7 +190,7 @@ DROP USER new_user,new_dest,plug_dest;
 CREATE USER ''@'%%' IDENTIFIED WITH test_plugin_server AS 'proxied_user';
 CREATE USER proxied_user IDENTIFIED BY 'proxied_user_passwd';
 SELECT user,plugin,authentication_string FROM mysql.user WHERE user != 'root';
-user	plugin	authentication_string
+User	plugin	authentication_string
 	test_plugin_server	proxied_user
 proxied_user	mysql_native_password	*D7A51428CD38DB3C5293B9321DA1228BFB1611DD
 connect proxy_con,localhost,proxied_user,proxied_user_passwd;
@@ -226,7 +226,7 @@ GRANT ALL PRIVILEGES ON test_user_db.* TO ''@'%%'
 IDENTIFIED WITH test_plugin_server AS 'proxied_user';
 CREATE USER proxied_user IDENTIFIED BY 'proxied_user_passwd';
 SELECT user,plugin,authentication_string FROM mysql.user WHERE user != 'root';
-user	plugin	authentication_string
+User	plugin	authentication_string
 	test_plugin_server	proxied_user
 proxied_user	mysql_native_password	*D7A51428CD38DB3C5293B9321DA1228BFB1611DD
 connect proxy_con,localhost,proxied_user,proxied_user_passwd;
@@ -268,7 +268,7 @@ GRANT PROXY ON proxied_user_3 TO ''@'%%';
 GRANT PROXY ON proxied_user_4 TO ''@'%%';
 GRANT PROXY ON proxied_user_5 TO ''@'%%';
 SELECT user,plugin,authentication_string FROM mysql.user WHERE user != 'root';
-user	plugin	authentication_string
+User	plugin	authentication_string
 	test_plugin_server	proxied_user
 proxied_user_1	mysql_native_password	*551D5A5177FCC3340F7D2FB0F4D8D1EEA7F7EF71
 proxied_user_2	mysql_native_password	*3D948F77C6A988AFDCA9755AB2A6724362557220

@@ -34,11 +34,6 @@ ENDMACRO()
 
 MACRO (MYSQL_CHECK_ZLIB_WITH_COMPRESS)
 
-    # For NDBCLUSTER: Use bundled zlib by default
-    IF (NOT WITH_ZLIB)
-      SET(WITH_ZLIB "bundled"  CACHE STRING "By default use bundled zlib on this platform")
-    ENDIF()
-  
   IF(WITH_ZLIB STREQUAL "bundled")
     MYSQL_USE_BUNDLED_ZLIB()
   ELSE()

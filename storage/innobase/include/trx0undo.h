@@ -79,27 +79,22 @@ trx_undo_trx_id_is_insert(
 /*======================*/
 	const byte*	trx_id)	/*!< in: DB_TRX_ID, followed by DB_ROLL_PTR */
 	MY_ATTRIBUTE((warn_unused_result));
-/*****************************************************************//**
-Writes a roll ptr to an index page. In case that the size changes in
-some future version, this function should be used instead of
-mach_write_... */
-UNIV_INLINE
-void
-trx_write_roll_ptr(
-/*===============*/
-	byte*		ptr,		/*!< in: pointer to memory where
-					written */
-	roll_ptr_t	roll_ptr);	/*!< in: roll ptr */
-/*****************************************************************//**
-Reads a roll ptr from an index page. In case that the roll ptr size
-changes in some future version, this function should be used instead of
-mach_read_...
+/** Write DB_ROLL_PTR.
+@param[out]	ptr		buffer
+@param[in]	roll_ptr	DB_ROLL_PTR value */
+inline void trx_write_roll_ptr(byte* ptr, roll_ptr_t roll_ptr)
+{
+	compile_time_assert(DATA_ROLL_PTR_LEN == 7);
+	mach_write_to_7(ptr, roll_ptr);
+}
+/** Read DB_ROLL_PTR.
+@param[in]	ptr	buffer
 @return roll ptr */
-UNIV_INLINE
-roll_ptr_t
-trx_read_roll_ptr(
-/*==============*/
-	const byte*	ptr);	/*!< in: pointer to memory from where to read */
+inline roll_ptr_t trx_read_roll_ptr(const byte* ptr)
+{
+	compile_time_assert(DATA_ROLL_PTR_LEN == 7);
+	return mach_read_from_7(ptr);
+}
 
 /** Gets an undo log page and x-latches it.
 @param[in]	page_id		page id
@@ -185,9 +180,7 @@ trx_undo_free_last_page(trx_undo_t* undo, mtr_t* mtr)
 @param[in,out]	undo	undo log
 @param[in]	limit	all undo logs after this limit will be discarded
 @param[in]	is_temp	whether this is temporary undo log */
-void
-trx_undo_truncate_end(trx_undo_t* undo, undo_no_t limit, bool is_temp)
-	MY_ATTRIBUTE((nonnull));
+void trx_undo_truncate_end(trx_undo_t& undo, undo_no_t limit, bool is_temp);
 
 /** Truncate the head of an undo log.
 NOTE that only whole pages are freed; the header page is not

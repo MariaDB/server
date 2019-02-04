@@ -27,7 +27,6 @@ Created 5/27/1996 Heikki Tuuri
 #define que0types_h
 
 #include "data0data.h"
-#include "dict0types.h"
 
 /* Pseudotype for all graph nodes */
 typedef void	que_node_t;

@@ -473,6 +473,13 @@ then
   args="$args --user=$user"
 fi
 
+if test -f "$ldata/mysql/user.frm"
+then
+    echo "mysql.user table already exists!"
+    echo "Run mysql_upgrade, not mysql_install_db"
+    exit 0
+fi
+
 # When doing a "cross bootstrap" install, no reference to the current
 # host should be added to the system tables.  So we filter out any
 # lines which contain the current host name.

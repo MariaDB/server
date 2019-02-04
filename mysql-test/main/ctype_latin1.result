@@ -7987,12 +7987,12 @@ SET NAMES utf8;
 CREATE TABLE t1 (a VARCHAR(10) CHARACTER SET latin1);
 INSERT IGNORE INTO t1 VALUES ('Â'),('Â#');
 Warnings:
-Warning	1366	Incorrect string value: '\xC2' for column 'a' at row 1
-Warning	1366	Incorrect string value: '\xC2#' for column 'a' at row 2
+Warning	1366	Incorrect string value: '\xC2' for column `test`.`t1`.`a` at row 1
+Warning	1366	Incorrect string value: '\xC2#' for column `test`.`t1`.`a` at row 2
 SHOW WARNINGS;
 Level	Code	Message
-Warning	1366	Incorrect string value: '\xC2' for column 'a' at row 1
-Warning	1366	Incorrect string value: '\xC2#' for column 'a' at row 2
+Warning	1366	Incorrect string value: '\xC2' for column `test`.`t1`.`a` at row 1
+Warning	1366	Incorrect string value: '\xC2#' for column `test`.`t1`.`a` at row 2
 SELECT HEX(a),a FROM t1;
 HEX(a)	a
 3F	?

@@ -61,9 +61,6 @@ void thd_set_mysys_var(THD *thd, st_my_thread_var *mysys_var);
 my_socket thd_get_fd(THD *thd);
 int thd_store_globals(THD* thd);
 
-THD *first_global_thread();
-THD *next_global_thread(THD *thd);
-
 /* Print to the MySQL error log */
 void sql_print_error(const char *format, ...);
 

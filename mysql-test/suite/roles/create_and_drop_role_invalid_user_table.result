@@ -15,7 +15,6 @@ create role test_role;
 create user test_user@localhost;
 grant test_role to test_user@localhost;
 set default role test_role for root@localhost;
-ERROR HY000: Column count of mysql.user is wrong. Expected 46, found 45. Created with MariaDB MYSQL_VERSION_ID, now running MYSQL_VERSION_ID. Please use mysql_upgrade to fix this error
 drop role test_role;
 drop user test_user@localhost;
 alter table user add column default_role char(80) binary default '' not null

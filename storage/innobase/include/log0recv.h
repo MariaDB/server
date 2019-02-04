@@ -27,13 +27,11 @@ Created 9/20/1997 Heikki Tuuri
 #ifndef log0recv_h
 #define log0recv_h
 
-#include "univ.i"
 #include "ut0byte.h"
 #include "buf0types.h"
 #include "hash0hash.h"
 #include "log0log.h"
 #include "mtr0types.h"
-#include "ut0new.h"
 
 #include <list>
 #include <vector>

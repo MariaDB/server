@@ -737,7 +737,7 @@ rtr_adjust_upper_level(
 	new_prdt.op = 0;
 
 	lock_prdt_update_parent(block, new_block, &prdt, &new_prdt,
-				index->table->space->id,
+				index->table->space_id,
 				page_cursor->block->page.id.page_no());
 
 	mem_heap_free(heap);
@@ -746,14 +746,15 @@ rtr_adjust_upper_level(
 	prev_page_no = btr_page_get_prev(page, mtr);
 	next_page_no = btr_page_get_next(page, mtr);
 	space = block->page.id.space();
-	const page_size_t&	page_size = dict_table_page_size(index->table);
+	ut_ad(block->page.size.equals_to(dict_table_page_size(index->table)));
 
 	/* Update page links of the level */
 	if (prev_page_no != FIL_NULL) {
 		page_id_t	prev_page_id(space, prev_page_no);
 
 		buf_block_t*	prev_block = btr_block_get(
-			prev_page_id, page_size, RW_X_LATCH, index, mtr);
+			prev_page_id, block->page.size, RW_X_LATCH,
+			index, mtr);
 #ifdef UNIV_BTR_DEBUG
 		ut_a(page_is_comp(prev_block->frame) == page_is_comp(page));
 		ut_a(btr_page_get_next(prev_block->frame, mtr)
@@ -769,7 +770,8 @@ rtr_adjust_upper_level(
 		page_id_t	next_page_id(space, next_page_no);
 
 		buf_block_t*	next_block = btr_block_get(
-			next_page_id, page_size, RW_X_LATCH, index, mtr);
+			next_page_id, block->page.size, RW_X_LATCH,
+			index, mtr);
 #ifdef UNIV_BTR_DEBUG
 		ut_a(page_is_comp(next_block->frame) == page_is_comp(page));
 		ut_a(btr_page_get_prev(next_block->frame, mtr)
@@ -1258,7 +1260,7 @@ after_insert:
 	/* Check any predicate locks need to be moved/copied to the
 	new page */
 	lock_prdt_update_split(new_block, &prdt, &new_prdt,
-			       cursor->index->table->space->id, page_no);
+			       cursor->index->table->space_id, page_no);
 
 	/* Adjust the upper level. */
 	rtr_adjust_upper_level(cursor, flags, block, new_block,
@@ -1872,7 +1874,7 @@ rtr_estimate_n_rows_in_range(
 	mtr_s_lock(&index->lock, &mtr);
 
 	buf_block_t* block = btr_block_get(
-		page_id_t(index->table->space->id, index->page),
+		page_id_t(index->table->space_id, index->page),
 		page_size_t(index->table->space->flags),
 		RW_S_LATCH, index, &mtr);
 	const page_t* page = buf_block_get_frame(block);

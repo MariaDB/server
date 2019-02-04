@@ -24,8 +24,6 @@ File space management
 Created 11/29/1995 Heikki Tuuri
 ***********************************************************************/
 
-#include "ha_prototypes.h"
-
 #include "fsp0fsp.h"
 #include "buf0buf.h"
 #include "fil0fil.h"
@@ -41,7 +39,6 @@ Created 11/29/1995 Heikki Tuuri
 #include "btr0sea.h"
 #include "dict0boot.h"
 #include "log0log.h"
-#include "fsp0sysspace.h"
 #include "dict0mem.h"
 #include "fsp0types.h"
 
@@ -624,7 +621,7 @@ fsp_space_modify_check(
 	case MTR_LOG_NO_REDO:
 		ut_ad(space->purpose == FIL_TYPE_TEMPORARY
 		      || space->purpose == FIL_TYPE_IMPORT
-		      || my_atomic_loadlint(&space->redo_skipped_count));
+		      || space->redo_skipped_count);
 		return;
 	case MTR_LOG_ALL:
 		/* We may only write redo log for a persistent tablespace. */

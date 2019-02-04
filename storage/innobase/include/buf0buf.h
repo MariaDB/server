@@ -41,7 +41,6 @@ Created 11/5/1995 Heikki Tuuri
 #include "os0proc.h"
 #include "log0log.h"
 #include "srv0srv.h"
-#include "my_atomic.h"
 #include <ostream>
 
 // Forward declaration
@@ -666,37 +665,6 @@ buf_block_buf_fix_inc_func(
 	buf_block_t*	block)	/*!< in/out: block to bufferfix */
 	MY_ATTRIBUTE((nonnull));
 
-/** Increments the bufferfix count.
-@param[in,out]	bpage	block to bufferfix
-@return the count */
-UNIV_INLINE
-ulint
-buf_block_fix(
-	buf_page_t*	bpage);
-
-/** Increments the bufferfix count.
-@param[in,out]	block	block to bufferfix
-@return the count */
-UNIV_INLINE
-ulint
-buf_block_fix(
-	buf_block_t*	block);
-
-/** Decrements the bufferfix count.
-@param[in,out]	bpage	block to bufferunfix
-@return	the remaining buffer-fix count */
-UNIV_INLINE
-ulint
-buf_block_unfix(
-	buf_page_t*	bpage);
-/** Decrements the bufferfix count.
-@param[in,out]	block	block to bufferunfix
-@return	the remaining buffer-fix count */
-UNIV_INLINE
-ulint
-buf_block_unfix(
-	buf_block_t*	block);
-
 # ifdef UNIV_DEBUG
 /** Increments the bufferfix count.
 @param[in,out]	b	block to bufferfix
@@ -716,14 +684,12 @@ buf_block_unfix(
 @param[in]	read_buf		database page
 @param[in]	checksum_field1		new checksum field
 @param[in]	checksum_field2		old checksum field
-@param[in]	use_legacy_big_endian   use legacy big endian algorithm
 @return true if the page is in crc32 checksum format. */
 bool
 buf_page_is_checksum_valid_crc32(
 	const byte*			read_buf,
 	ulint				checksum_field1,
-	ulint				checksum_field2,
-	bool				use_legacy_big_endian)
+	ulint				checksum_field2)
 	MY_ATTRIBUTE((nonnull(1), warn_unused_result));
 
 /** Checks if the page is in innodb checksum format.
@@ -750,15 +716,6 @@ buf_page_is_checksum_valid_none(
 	ulint				checksum_field2)
 	MY_ATTRIBUTE((nonnull(1), warn_unused_result));
 
-/** Checks if a page contains only zeroes.
-@param[in]	read_buf	database page
-@param[in]	page_size	page size
-@return true if page is filled with zeroes */
-bool
-buf_page_is_zeroes(
-	const byte*		read_buf,
-	const page_size_t&	page_size);
-
 /** Check if a page is corrupt.
 @param[in]	check_lsn	whether the LSN should be checked
 @param[in]	read_buf	database page
@@ -777,9 +734,7 @@ buf_page_is_corrupted(
 #endif
 	MY_ATTRIBUTE((warn_unused_result));
 
-
 #ifndef UNIV_INNOCHECKSUM
-
 /**********************************************************************//**
 Gets the space id, page offset, and byte offset within page of a
 pointer pointing to a buffer frame containing a file page. */
@@ -1452,10 +1407,9 @@ buf_page_encrypt_before_write(
 NOTE! The definition appears here only for other modules of this
 directory (buf) to see it. Do not use from outside! */
 
-typedef struct {
-private:
-	int32		reserved;	/*!< true if this slot is reserved
-					*/
+class buf_tmp_buffer_t {
+	/** whether this slot is reserved */
+	std::atomic<bool> reserved;
 public:
 	byte*           crypt_buf;	/*!< for encryption the data needs to be
 					copied to a separate buffer before it's
@@ -1471,18 +1425,16 @@ public:
 	/** Release the slot */
 	void release()
 	{
-		my_atomic_store32_explicit(&reserved, false,
-					   MY_MEMORY_ORDER_RELAXED);
+		reserved.store(false, std::memory_order_relaxed);
 	}
 
 	/** Acquire the slot
 	@return whether the slot was acquired */
 	bool acquire()
 	{
-		return !my_atomic_fas32_explicit(&reserved, true,
-						 MY_MEMORY_ORDER_RELAXED);
+		return !reserved.exchange(true, std::memory_order_relaxed);
 	}
-} buf_tmp_buffer_t;
+};
 
 /** The common buffer control block structure
 for compressed and uncompressed frames */
@@ -1502,12 +1454,15 @@ public:
 
 	/** Page id. Protected by buf_pool mutex. */
 	page_id_t	id;
+	buf_page_t*	hash;		/*!< node used in chaining to
+					buf_pool->page_hash or
+					buf_pool->zip_hash */
 
 	/** Page size. Protected by buf_pool mutex. */
 	page_size_t	size;
 
 	/** Count of how manyfold this block is currently bufferfixed. */
-	ib_uint32_t	buf_fix_count;
+	Atomic_counter<uint32_t>	buf_fix_count;
 
 	/** type of pending I/O operation; also protected by
 	buf_pool->mutex for writes only */
@@ -1549,9 +1504,6 @@ public:
 	buf_tmp_buffer_t* slot;		/*!< Slot for temporary memory
 					used for encryption/compression
 					or NULL */
-	buf_page_t*	hash;		/*!< node used in chaining to
-					buf_pool->page_hash or
-					buf_pool->zip_hash */
 #ifdef UNIV_DEBUG
 	ibool		in_page_hash;	/*!< TRUE if in buf_pool->page_hash */
 	ibool		in_zip_hash;	/*!< TRUE if in buf_pool->zip_hash */
@@ -1662,6 +1614,14 @@ public:
 					protected by buf_pool->zip_mutex
 					or buf_block_t::mutex. */
 # endif /* UNIV_DEBUG */
+
+  void fix() { buf_fix_count++; }
+  uint32_t unfix()
+  {
+    uint32_t count= buf_fix_count--;
+    ut_ad(count != 0);
+    return count - 1;
+  }
 };
 
 /** The buffer control block structure */
@@ -1768,20 +1728,20 @@ struct buf_block_t{
 	/* @{ */
 
 # if defined UNIV_AHI_DEBUG || defined UNIV_DEBUG
-	ulint		n_pointers;	/*!< used in debugging: the number of
+	Atomic_counter<ulint>
+			n_pointers;	/*!< used in debugging: the number of
 					pointers in the adaptive hash index
 					pointing to this frame;
 					protected by atomic memory access
 					or btr_search_own_all(). */
 #  define assert_block_ahi_empty(block)					\
-	ut_a(my_atomic_addlint(&(block)->n_pointers, 0) == 0)
+	ut_a((block)->n_pointers == 0)
 #  define assert_block_ahi_empty_on_init(block) do {			\
 	UNIV_MEM_VALID(&(block)->n_pointers, sizeof (block)->n_pointers); \
 	assert_block_ahi_empty(block);					\
 } while (0)
 #  define assert_block_ahi_valid(block)					\
-	ut_a((block)->index						\
-	     || my_atomic_loadlint(&(block)->n_pointers) == 0)
+	ut_a((block)->index || (block)->n_pointers == 0)
 # else /* UNIV_AHI_DEBUG || UNIV_DEBUG */
 #  define assert_block_ahi_empty(block) /* nothing */
 #  define assert_block_ahi_empty_on_init(block) /* nothing */
@@ -1813,7 +1773,7 @@ struct buf_block_t{
 # ifdef UNIV_DEBUG
 	/** @name Debug fields */
 	/* @{ */
-	rw_lock_t	debug_latch;	/*!< in the debug version, each thread
+	rw_lock_t*	debug_latch;	/*!< in the debug version, each thread
 					which bufferfixes the block acquires
 					an s-latch here; so we can use the
 					debug utilities in sync0rw */
@@ -1825,6 +1785,9 @@ struct buf_block_t{
 					and accessed; we introduce this new
 					mutex in InnoDB-5.1 to relieve
 					contention on the buffer pool mutex */
+
+  void fix() { page.fix(); }
+  uint32_t unfix() { return page.unfix(); }
 };
 
 /** Check if a buf_block_t object is in a valid state
@@ -2099,7 +2062,8 @@ struct buf_pool_t{
 					indexed by block->frame */
 	ulint		n_pend_reads;	/*!< number of pending read
 					operations */
-	ulint		n_pend_unzip;	/*!< number of pending decompressions */
+	Atomic_counter<ulint>
+			n_pend_unzip;	/*!< number of pending decompressions */
 
 	time_t		last_printout_time;
 					/*!< when buf_print_io was last time

@@ -54,11 +54,11 @@ static uint32 maria_page_crc(uint32 start, uchar *data, uint length)
   @retval 1 Error
 */
 
-static my_bool maria_page_crc_check(uchar *page,
-                                    pgcache_page_no_t page_no,
-                                    MARIA_SHARE *share,
-                                    uint32 no_crc_val,
-                                    int data_length)
+my_bool maria_page_crc_check(uchar *page,
+                             pgcache_page_no_t page_no,
+                             MARIA_SHARE *share,
+                             uint32 no_crc_val,
+                             int data_length)
 {
   uint32 crc= uint4korr(page + share->block_size - CRC_SIZE), new_crc;
   my_bool res;

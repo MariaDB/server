@@ -142,7 +142,9 @@ Item_func_trt_id::val_int()
   else
   {
     MYSQL_TIME commit_ts;
-    if (args[0]->get_date(current_thd, &commit_ts, date_mode_t(0)))
+    THD *thd= current_thd;
+    Datetime::Options opt(TIME_CONV_NONE, thd);
+    if (args[0]->get_date(thd, &commit_ts, opt))
     {
       null_value= true;
       return 0;

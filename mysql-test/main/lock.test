@@ -609,8 +609,8 @@ LOCK TABLE t1 READ;
 --connect (con1,localhost,root,,test)
 LOCK TABLE t2 WRITE;
 SET lock_wait_timeout= 1;
---error ER_LOCK_WAIT_TIMEOUT
 FLUSH TABLES;
+FLUSH TABLES t2;
  
 # Cleanup
 UNLOCK TABLES;

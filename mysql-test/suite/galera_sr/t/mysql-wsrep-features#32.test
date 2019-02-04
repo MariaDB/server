@@ -1,0 +1,44 @@
+--source include/galera_cluster.inc
+--source include/have_innodb.inc
+
+#
+# mysql-wsrep-features#32 Assertion `meta->gtid.seqno == wsrep_thd_trx_seqno(thd)' failed in wsrep_commit_cb with SR
+#
+
+--connection node_1
+CREATE TABLE t1 (f1 INTEGER PRIMARY KEY) ENGINE=InnoDB;
+
+SET SESSION wsrep_trx_fragment_size = 1;
+
+SET AUTOCOMMIT=OFF;
+START TRANSACTION;
+
+INSERT INTO t1 VALUES (1);
+INSERT INTO t1 VALUES (2);
+INSERT INTO t1 VALUES (3);
+INSERT INTO t1 VALUES (4);
+INSERT INTO t1 VALUES (5);
+
+--connection node_2
+SET SESSION TRANSACTION ISOLATION LEVEL READ UNCOMMITTED;
+--let $wait_condition = SELECT COUNT(*) > 0 FROM t1;
+--source include/wait_condition.inc
+
+SET AUTOCOMMIT=OFF;
+
+SET SESSION TRANSACTION ISOLATION LEVEL REPEATABLE READ;
+START TRANSACTION;
+
+INSERT INTO t1 VALUES (9);
+INSERT INTO t1 VALUES (8);
+INSERT INTO t1 VALUES (7);
+INSERT INTO t1 VALUES (6);
+
+--error ER_LOCK_WAIT_TIMEOUT
+INSERT INTO t1 VALUES (5);
+ROLLBACK;
+
+--connection node_1
+COMMIT;
+
+DROP TABLE t1;

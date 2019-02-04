@@ -668,7 +668,7 @@ mysql_ha_fix_cond_and_key(SQL_HANDLER *handler,
             (HA_READ_NEXT | HA_READ_PREV | HA_READ_RANGE)) == 0))
       {
         my_error(ER_KEY_DOESNT_SUPPORT, MYF(0),
-                 table->file->index_type(handler->keyno), keyinfo->name);
+                 table->file->index_type(handler->keyno), keyinfo->name.str);
         return 1;
       }
 
@@ -1196,10 +1196,10 @@ void mysql_ha_flush(THD *thd)
   @note Broadcasts refresh if it closed a table with old version.
 */
 
-void mysql_ha_cleanup(THD *thd)
+void mysql_ha_cleanup_no_free(THD *thd)
 {
   SQL_HANDLER *hash_tables;
-  DBUG_ENTER("mysql_ha_cleanup");
+  DBUG_ENTER("mysql_ha_cleanup_no_free");
 
   for (uint i= 0; i < thd->handler_tables_hash.records; i++)
   {
@@ -1207,9 +1207,15 @@ void mysql_ha_cleanup(THD *thd)
     if (hash_tables->table)
       mysql_ha_close_table(hash_tables);
   }
+  DBUG_VOID_RETURN;
+}
 
+
+void mysql_ha_cleanup(THD *thd)
+{
+  DBUG_ENTER("mysql_ha_cleanup");
+  mysql_ha_cleanup_no_free(thd);
   my_hash_free(&thd->handler_tables_hash);
-
   DBUG_VOID_RETURN;
 }
 

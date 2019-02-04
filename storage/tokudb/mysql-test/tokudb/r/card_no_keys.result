@@ -6,6 +6,7 @@ show indexes from tt;
 Table	Non_unique	Key_name	Seq_in_index	Column_name	Collation	Cardinality	Sub_part	Packed	Null	Index_type	Comment	Index_comment
 analyze table tt;
 Table	Op	Msg_type	Msg_text
+test.tt	analyze	status	Engine-independent statistics collected
 test.tt	analyze	status	OK
 show indexes from tt;
 Table	Non_unique	Key_name	Seq_in_index	Column_name	Collation	Cardinality	Sub_part	Packed	Null	Index_type	Comment	Index_comment

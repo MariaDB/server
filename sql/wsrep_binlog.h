@@ -16,6 +16,7 @@
 #ifndef WSREP_BINLOG_H
 #define WSREP_BINLOG_H
 
+#include "my_global.h"
 #include "sql_class.h" // THD, IO_CACHE
 
 #define HEAP_PAGE_SIZE 65536 /* 64K */
@@ -38,23 +39,39 @@ int wsrep_write_cache_buf(IO_CACHE *cache, uchar **buf, size_t *buf_len);
   @param len  total amount of data written
   @return     wsrep error status
  */
-int wsrep_write_cache (wsrep_t*  const wsrep,
-                       THD*      const thd,
-                       IO_CACHE* const cache,
-                       size_t*   const len);
+int  wsrep_write_cache(THD*      thd,
+                       IO_CACHE* cache,
+                       size_t*   len);
 
 /* Dump replication buffer to disk */
 void wsrep_dump_rbr_buf(THD *thd, const void* rbr_buf, size_t buf_len);
-
-/* Dump replication buffer to disk without intermediate buffer */
-void wsrep_dump_rbr_direct(THD* thd, IO_CACHE* cache);
 
 /* Dump replication buffer along with header to a file */
 void wsrep_dump_rbr_buf_with_header(THD *thd, const void *rbr_buf,
                                     size_t buf_len);
 
 int wsrep_binlog_close_connection(THD* thd);
-int wsrep_binlog_savepoint_set(THD *thd,  void *sv);
-int wsrep_binlog_savepoint_rollback(THD *thd, void *sv);
+
+/**
+   Write a skip event into binlog.
+
+   @param thd Thread object pointer
+   @return Zero in case of success, non-zero on failure.
+*/
+int wsrep_write_skip_event(THD* thd);
+
+/*
+  Write dummy event into binlog in place of unused GTID.
+  The binlog write is done in thd context.
+*/
+int wsrep_write_dummy_event_low(THD *thd, const char *msg);
+/*
+  Write dummy event to binlog in place of unused GTID and
+  commit. The binlog write and commit are done in temporary
+  thd context, the original thd state is not altered.
+*/
+int wsrep_write_dummy_event(THD* thd, const char *msg);
+
+void wsrep_register_binlog_handler(THD *thd, bool trx);
 
 #endif /* WSREP_BINLOG_H */

@@ -2381,6 +2381,15 @@ Item_sum_hybrid::val_str(String *str)
 }
 
 
+bool Item_sum_hybrid::val_native(THD *thd, Native *to)
+{
+  DBUG_ASSERT(fixed == 1);
+  if (null_value)
+    return true;
+  return val_native_from_item(thd, value, to);
+}
+
+
 void Item_sum_hybrid::cleanup()
 {
   DBUG_ENTER("Item_sum_hybrid::cleanup");
@@ -3234,6 +3243,25 @@ bool Item_udf_sum::add()
   null_value= tmp_null_value;
   DBUG_RETURN(0);
 }
+
+
+bool Item_udf_sum::supports_removal() const
+{
+  DBUG_ENTER("Item_udf_sum::supports_remove");
+  DBUG_PRINT("info", ("support: %d", udf.supports_removal()));
+  DBUG_RETURN(udf.supports_removal());
+}
+
+
+void Item_udf_sum::remove()
+{
+  my_bool tmp_null_value;
+  DBUG_ENTER("Item_udf_sum::remove");
+  udf.remove(&tmp_null_value);
+  null_value= tmp_null_value;
+  DBUG_VOID_RETURN;
+}
+
 
 void Item_udf_sum::cleanup()
 {

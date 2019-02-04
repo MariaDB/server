@@ -1,7 +1,7 @@
 #ifndef TABLE_INCLUDED
 #define TABLE_INCLUDED
 /* Copyright (c) 2000, 2017, Oracle and/or its affiliates.
-   Copyright (c) 2009, 2018, MariaDB
+   Copyright (c) 2009, 2019, MariaDB
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -396,28 +396,6 @@ enum enum_table_category
   TABLE_CATEGORY_SYSTEM=3,
 
   /**
-    Information schema tables.
-    These tables are an interface provided by the system
-    to inspect the system metadata.
-    These tables do *not* honor:
-    - LOCK TABLE t FOR READ/WRITE
-    - FLUSH TABLES WITH READ LOCK
-    - SET GLOBAL READ_ONLY = ON
-    as there is no point in locking explicitly
-    an INFORMATION_SCHEMA table.
-    Nothing is directly written to information schema tables.
-    Note that this value is not used currently,
-    since information schema tables are not shared,
-    but implemented as session specific temporary tables.
-  */
-  /*
-    TODO: Fixing the performance issues of I_S will lead
-    to I_S tables in the table cache, which should use
-    this table type.
-  */
-  TABLE_CATEGORY_INFORMATION=4,
-
-  /**
     Log tables.
     These tables are an interface provided by the system
     to inspect the system logs.
@@ -437,7 +415,33 @@ enum enum_table_category
     The server implementation perform writes.
     Log tables are cached in the table cache.
   */
-  TABLE_CATEGORY_LOG=5,
+  TABLE_CATEGORY_LOG=4,
+
+  /*
+    Types below are read only tables, not affected by FLUSH TABLES or
+    MDL locks.
+  */
+  /**
+    Information schema tables.
+    These tables are an interface provided by the system
+    to inspect the system metadata.
+    These tables do *not* honor:
+    - LOCK TABLE t FOR READ/WRITE
+    - FLUSH TABLES WITH READ LOCK
+    - SET GLOBAL READ_ONLY = ON
+    as there is no point in locking explicitly
+    an INFORMATION_SCHEMA table.
+    Nothing is directly written to information schema tables.
+    Note that this value is not used currently,
+    since information schema tables are not shared,
+    but implemented as session specific temporary tables.
+  */
+  /*
+    TODO: Fixing the performance issues of I_S will lead
+    to I_S tables in the table cache, which should use
+    this table type.
+  */
+  TABLE_CATEGORY_INFORMATION=5,
 
   /**
     Performance schema tables.
@@ -461,6 +465,7 @@ enum enum_table_category
   */
   TABLE_CATEGORY_PERFORMANCE=6
 };
+
 typedef enum enum_table_category TABLE_CATEGORY;
 
 TABLE_CATEGORY get_table_category(const LEX_CSTRING *db,
@@ -728,6 +733,7 @@ struct TABLE_SHARE
   bool null_field_first;
   bool system;                          /* Set if system table (one record) */
   bool not_usable_by_query_cache;
+  bool online_backup;                   /* Set if on-line backup supported */
   bool no_replicate;
   bool crashed;
   bool is_view;
@@ -2088,7 +2094,7 @@ struct TABLE_LIST
   /* Index names in a "... JOIN ... USE/IGNORE INDEX ..." clause. */
   List<Index_hint> *index_hints;
   TABLE        *table;                          /* opened table */
-  uint          table_id; /* table id (from binlog) for opened table */
+  ulong         table_id; /* table id (from binlog) for opened table */
   /*
     select_result for derived table to pass it from table creation to table
     filling procedure
@@ -2970,7 +2976,7 @@ extern LEX_CSTRING INFORMATION_SCHEMA_NAME;
 extern LEX_CSTRING MYSQL_SCHEMA_NAME;
 
 /* table names */
-extern LEX_CSTRING MYSQL_USER_NAME, MYSQL_DB_NAME, MYSQL_PROC_NAME;
+extern LEX_CSTRING MYSQL_PROC_NAME;
 
 inline bool is_infoschema_db(const LEX_CSTRING *name)
 {

@@ -1,6 +1,6 @@
 /*
    Copyright (c) 2000, 2018, Oracle and/or its affiliates.
-   Copyright (c) 2009, 2018, MariaDB
+   Copyright (c) 2009, 2019, MariaDB
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -53,7 +53,6 @@
 #include "rpl_constants.h"
 #include "sql_digest.h"
 #include "zlib.h"
-#include "my_atomic.h"
 
 #define my_b_write_string(A, B) my_b_write((A), (uchar*)(B), (uint) (sizeof(B) - 1))
 
@@ -101,16 +100,11 @@ TYPELIB binlog_checksum_typelib=
    TODO: correct the constant when it has been determined 
    (which main tree to push and when) 
 */
-const uchar checksum_version_split_mysql[3]= {5, 6, 1};
-const ulong checksum_version_product_mysql=
-  (checksum_version_split_mysql[0] * 256 +
-   checksum_version_split_mysql[1]) * 256 +
-  checksum_version_split_mysql[2];
-const uchar checksum_version_split_mariadb[3]= {5, 3, 0};
-const ulong checksum_version_product_mariadb=
-  (checksum_version_split_mariadb[0] * 256 +
-   checksum_version_split_mariadb[1]) * 256 +
-  checksum_version_split_mariadb[2];
+const Version checksum_version_split_mysql(5, 6, 1);
+const Version checksum_version_split_mariadb(5, 3, 0);
+
+// First MySQL version with fraction seconds
+const Version fsp_version_split_mysql(5, 6, 0);
 
 #if !defined(MYSQL_CLIENT) && defined(HAVE_REPLICATION)
 static int rows_event_stmt_cleanup(rpl_group_info *rgi, THD* thd);
@@ -4541,6 +4535,7 @@ code_name(int code)
 }
 #endif
 
+
 /**
    Macro to check that there is enough space to read from memory.
 
@@ -4763,6 +4758,30 @@ Query_log_event::Query_log_event(const char* buf, uint event_len,
       pos= (const uchar*) end;                         // Break loop
     }
   }
+
+#if !defined(MYSQL_CLIENT)
+  if (description_event->server_version_split.kind ==
+      Format_description_log_event::master_version_split::KIND_MYSQL)
+  {
+    // Handle MariaDB/MySQL incompatible sql_mode bits
+    sql_mode_t mysql_sql_mode= sql_mode;
+    sql_mode&= MODE_MASK_MYSQL_COMPATIBLE; // Unset MySQL specific bits
+
+    /*
+      sql_mode flags related to fraction second rounding/truncation
+      have opposite meaning in MySQL vs MariaDB.
+      MySQL:
+       - rounds fractional seconds by default
+       - truncates if TIME_TRUNCATE_FRACTIONAL is set
+      MariaDB:
+       - truncates fractional seconds by default
+       - rounds if TIME_ROUND_FRACTIONAL is set
+    */
+    if (description_event->server_version_split >= fsp_version_split_mysql &&
+       !(mysql_sql_mode & MODE_MYSQL80_TIME_TRUNCATE_FRACTIONAL))
+      sql_mode|= MODE_TIME_ROUND_FRACTIONAL;
+  }
+#endif
 
   /**
     Layout for the data buffer is as follows
@@ -5581,7 +5600,7 @@ int Query_log_event::do_apply_event(rpl_group_info *rgi,
           gtid= rgi->current_gtid;
           if (unlikely(rpl_global_gtid_slave_state->record_gtid(thd, &gtid,
                                                                 sub_id,
-                                                                rgi, false,
+                                                                true, false,
                                                                 &hton)))
           {
             int errcode= thd->get_stmt_da()->sql_errno();
@@ -5761,6 +5780,14 @@ compare_errors:
                      "unexpected success or fatal error"),
                     thd->get_db(), query_arg);
       thd->is_slave_error= 1;
+#ifdef WITH_WSREP
+      if (thd->wsrep_apply_toi && wsrep_must_ignore_error(thd))
+      {
+        thd->clear_error(1);
+        thd->killed= NOT_KILLED;
+        thd->wsrep_has_ignored_error= true;
+      }
+#endif /* WITH_WSREP */
     }
 
     /*
@@ -6549,26 +6576,24 @@ bool Format_description_log_event::start_decryption(Start_encryption_log_event* 
   return crypto_data.init(sele->crypto_scheme, sele->key_version);
 }
 
-static inline void
-do_server_version_split(char* version,
-                        Format_description_log_event::master_version_split *split_versions)
+
+Version::Version(const char *version, const char **endptr)
 {
-  char *p= version, *r;
+  const char *p= version;
   ulong number;
   for (uint i= 0; i<=2; i++)
   {
+    char *r;
     number= strtoul(p, &r, 10);
     /*
       It is an invalid version if any version number greater than 255 or
       first number is not followed by '.'.
     */
     if (number < 256 && (*r == '.' || i != 0))
-      split_versions->ver[i]= (uchar) number;
+      m_ver[i]= (uchar) number;
     else
     {
-      split_versions->ver[0]= 0;
-      split_versions->ver[1]= 0;
-      split_versions->ver[2]= 0;
+      *this= Version();
       break;
     }
 
@@ -6576,12 +6601,19 @@ do_server_version_split(char* version,
     if (*r == '.')
       p++; // skip the dot
   }
+  endptr[0]= p;
+}
+
+
+Format_description_log_event::
+  master_version_split::master_version_split(const char *version)
+{
+  const char *p;
+  static_cast<Version*>(this)[0]= Version(version, &p);
   if (strstr(p, "MariaDB") != 0 || strstr(p, "-maria-") != 0)
-    split_versions->kind=
-      Format_description_log_event::master_version_split::KIND_MARIADB;
+    kind= KIND_MARIADB;
   else
-    split_versions->kind=
-      Format_description_log_event::master_version_split::KIND_MYSQL;
+    kind= KIND_MYSQL;
 }
 
 
@@ -6595,20 +6627,14 @@ do_server_version_split(char* version,
 */
 void Format_description_log_event::calc_server_version_split()
 {
-  do_server_version_split(server_version, &server_version_split);
+  server_version_split= master_version_split(server_version);
 
   DBUG_PRINT("info",("Format_description_log_event::server_version_split:"
                      " '%s' %d %d %d", server_version,
-                     server_version_split.ver[0],
-                     server_version_split.ver[1], server_version_split.ver[2]));
+                     server_version_split[0],
+                     server_version_split[1], server_version_split[2]));
 }
 
-static inline ulong
-version_product(const Format_description_log_event::master_version_split* version_split)
-{
-  return ((version_split->ver[0] * 256 + version_split->ver[1]) * 256
-          + version_split->ver[2]);
-}
 
 /**
    @return TRUE is the event's version is earlier than one that introduced
@@ -6618,9 +6644,9 @@ bool
 Format_description_log_event::is_version_before_checksum(const master_version_split
                                                          *version_split)
 {
-  return version_product(version_split) <
+  return *version_split <
     (version_split->kind == master_version_split::KIND_MARIADB ?
-     checksum_version_product_mariadb : checksum_version_product_mysql);
+     checksum_version_split_mariadb : checksum_version_split_mysql);
 }
 
 /**
@@ -6636,7 +6662,6 @@ enum enum_binlog_checksum_alg get_checksum_alg(const char* buf, ulong len)
 {
   enum enum_binlog_checksum_alg ret;
   char version[ST_SERVER_VER_LEN];
-  Format_description_log_event::master_version_split version_split;
 
   DBUG_ENTER("get_checksum_alg");
   DBUG_ASSERT(buf[EVENT_TYPE_OFFSET] == FORMAT_DESCRIPTION_EVENT);
@@ -6646,7 +6671,7 @@ enum enum_binlog_checksum_alg get_checksum_alg(const char* buf, ulong len)
          ST_SERVER_VER_LEN);
   version[ST_SERVER_VER_LEN - 1]= 0;
   
-  do_server_version_split(version, &version_split);
+  Format_description_log_event::master_version_split version_split(version);
   ret= Format_description_log_event::is_version_before_checksum(&version_split)
     ? BINLOG_CHECKSUM_ALG_UNDEF
     : (enum_binlog_checksum_alg)buf[len - BINLOG_CHECKSUM_LEN - BINLOG_CHECKSUM_ALG_DESC_LEN];
@@ -8037,16 +8062,13 @@ Gtid_log_event::do_apply_event(rpl_group_info *rgi)
   switch (flags2 & (FL_DDL | FL_TRANSACTIONAL))
   {
     case FL_TRANSACTIONAL:
-      my_atomic_add64_explicit((volatile int64 *)&mi->total_trans_groups, 1,
-                 MY_MEMORY_ORDER_RELAXED);
+      mi->total_trans_groups++;
       break;
     case FL_DDL:
-      my_atomic_add64_explicit((volatile int64 *)&mi->total_ddl_groups, 1,
-                 MY_MEMORY_ORDER_RELAXED);
+      mi->total_ddl_groups++;
     break;
     default:
-      my_atomic_add64_explicit((volatile int64 *)&mi->total_non_trans_groups, 1,
-                 MY_MEMORY_ORDER_RELAXED);
+      mi->total_non_trans_groups++;
   }
 
   if (flags2 & FL_STANDALONE)
@@ -8378,7 +8400,7 @@ Gtid_list_log_event::do_apply_event(rpl_group_info *rgi)
     {
       if ((ret= rpl_global_gtid_slave_state->record_gtid(thd, &list[i],
                                                          sub_id_list[i],
-                                                         NULL, false, &hton)))
+                                                         false, false, &hton)))
         return ret;
       rpl_global_gtid_slave_state->update_state_hash(sub_id_list[i], &list[i],
                                                      hton, NULL);
@@ -8915,7 +8937,7 @@ int Xid_log_event::do_apply_event(rpl_group_info *rgi)
     rgi->gtid_pending= false;
 
     gtid= rgi->current_gtid;
-    err= rpl_global_gtid_slave_state->record_gtid(thd, &gtid, sub_id, rgi,
+    err= rpl_global_gtid_slave_state->record_gtid(thd, &gtid, sub_id, true,
                                                   false, &hton);
     if (unlikely(err))
     {
@@ -11273,13 +11295,13 @@ int Rows_log_event::do_apply_event(rpl_group_info *rgi)
       {
         WSREP_WARN("BF applier failed to open_and_lock_tables: %u, fatal: %d "
                    "wsrep = (exec_mode: %d conflict_state: %d seqno: %lld)",
-		   thd->get_stmt_da()->sql_errno(),
-                   thd->is_fatal_error,
-                   thd->wsrep_exec_mode,
-                   thd->wsrep_conflict_state,
-                   (long long)wsrep_thd_trx_seqno(thd));
+                    thd->get_stmt_da()->sql_errno(),
+                    thd->is_fatal_error,
+                    thd->wsrep_cs().mode(),
+                    thd->wsrep_trx().state(),
+                    (long long) wsrep_thd_trx_seqno(thd));
       }
-#endif
+#endif /* WITH_WSREP */
       if ((thd->is_slave_error || thd->is_fatal_error) &&
           !is_parallel_retry_error(rgi, actual_error))
       {
@@ -11416,10 +11438,10 @@ int Rows_log_event::do_apply_event(rpl_group_info *rgi)
 #ifdef HAVE_QUERY_CACHE
 #ifdef WITH_WSREP
     /*
-       Moved invalidation right before the call to rows_event_stmt_cleanup(),
-       to avoid query cache being polluted with stale entries.
+      Moved invalidation right before the call to rows_event_stmt_cleanup(),
+      to avoid query cache being polluted with stale entries,
     */
-    if (! (WSREP(thd) && (thd->wsrep_exec_mode == REPL_RECV)))
+    if (! (WSREP(thd) && wsrep_thd_is_applying(thd)))
     {
 #endif /* WITH_WSREP */
     query_cache.invalidate_locked_for_write(thd, rgi->tables_to_lock);
@@ -11532,6 +11554,13 @@ int Rows_log_event::do_apply_event(rpl_group_info *rgi)
         bool ignored_error= (idempotent_error == 0 ?
                              ignored_error_code(actual_error) : 0);
 
+#ifdef WITH_WSREP
+        if (WSREP(thd) && wsrep_ignored_error_code(this, actual_error))
+        {
+          idempotent_error= true;
+          thd->wsrep_has_ignored_error= true;
+        }
+#endif /* WITH_WSREP */
         if (idempotent_error || ignored_error)
         {
           if (global_system_variables.log_warnings)
@@ -11619,7 +11648,7 @@ int Rows_log_event::do_apply_event(rpl_group_info *rgi)
     restore_empty_query_table_list(thd->lex);
 
 #if defined(WITH_WSREP) && defined(HAVE_QUERY_CACHE)
-    if (WSREP(thd) && thd->wsrep_exec_mode == REPL_RECV)
+    if (WSREP(thd) && wsrep_thd_is_applying(thd))
     {
       query_cache.invalidate_locked_for_write(thd, rgi->tables_to_lock);
     }
@@ -12630,7 +12659,7 @@ int Table_map_log_event::do_apply_event(rpl_group_info *rgi)
   table_list->updating= 1;
   table_list->required_type= TABLE_TYPE_NORMAL;
 
-  DBUG_PRINT("debug", ("table: %s is mapped to %u",
+  DBUG_PRINT("debug", ("table: %s is mapped to %lu",
                        table_list->table_name.str,
                        table_list->table_id));
   table_list->master_had_triggers= ((m_flags & TM_BIT_HAS_TRIGGERS_F) ? 1 : 0);
@@ -13441,9 +13470,8 @@ err:
 #if defined(MYSQL_SERVER) && defined(HAVE_REPLICATION)
 uint8 Write_rows_log_event::get_trg_event_map()
 {
-  return (static_cast<uint8> (1 << static_cast<int>(TRG_EVENT_INSERT)) |
-          static_cast<uint8> (1 << static_cast<int>(TRG_EVENT_UPDATE)) |
-          static_cast<uint8> (1 << static_cast<int>(TRG_EVENT_DELETE)));
+  return trg2bit(TRG_EVENT_INSERT) | trg2bit(TRG_EVENT_UPDATE) |
+         trg2bit(TRG_EVENT_DELETE);
 }
 #endif
 
@@ -14150,7 +14178,7 @@ err:
 #if defined(MYSQL_SERVER) && defined(HAVE_REPLICATION)
 uint8 Delete_rows_log_event::get_trg_event_map()
 {
-  return static_cast<uint8> (1 << static_cast<int>(TRG_EVENT_DELETE));
+  return trg2bit(TRG_EVENT_DELETE);
 }
 #endif
 
@@ -14425,7 +14453,7 @@ err:
 #if defined(MYSQL_SERVER) && defined(HAVE_REPLICATION)
 uint8 Update_rows_log_event::get_trg_event_map()
 {
-  return static_cast<uint8> (1 << static_cast<int>(TRG_EVENT_UPDATE));
+  return trg2bit(TRG_EVENT_UPDATE);
 }
 #endif
 

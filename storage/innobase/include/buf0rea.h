@@ -27,9 +27,7 @@ Created 11/5/1995 Heikki Tuuri
 #ifndef buf0rea_h
 #define buf0rea_h
 
-#include "univ.i"
 #include "buf0buf.h"
-#include "buf0types.h"
 
 /** High-level function which reads a page asynchronously from a file to the
 buffer buf_pool if it is not already there. Sets the io_fix flag and sets

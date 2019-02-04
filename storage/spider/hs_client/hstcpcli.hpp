@@ -46,6 +46,7 @@ struct hstresult {
   size_t response_end_offset;
   size_t num_flds;
   size_t cur_row_offset;
+  size_t cur_row_size;
   DYNAMIC_ARRAY flds;
 };
 
@@ -71,6 +72,8 @@ struct hstcpcli_i {
   virtual int get_result(hstresult& result) = 0;
   virtual const string_ref *get_next_row() = 0;
   virtual const string_ref *get_next_row_from_result(hstresult& result) = 0;
+  virtual size_t get_row_size() = 0;
+  virtual size_t get_row_size_from_result(hstresult& result) = 0;
   virtual void response_buf_remove() = 0;
   virtual int get_error_code() = 0;
   virtual String& get_error() = 0;

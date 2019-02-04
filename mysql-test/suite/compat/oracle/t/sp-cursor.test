@@ -952,3 +952,38 @@ $$
 DELIMITER ;$$
 --enable_ps_protocol
 --disable_metadata
+
+
+--echo #
+--echo # MDEV-17387 MariaDB Server giving wrong error while executing select query from procedure
+--echo #
+
+CREATE TABLE t1
+(
+  JOBN varchar(18) NOT NULL,
+  pk int(11) NOT NULL,
+  PRIMARY KEY (pk),
+  KEY (JOBN)
+);
+
+DELIMITER $$;
+CREATE PROCEDURE p1
+AS
+  lS NUMBER(10) :=0;
+  CURSOR cBPD IS SELECT * FROM t1 WHERE JOBN='x';
+BEGIN
+  FOR lbpd IN cBPD LOOP
+    lS:=lS+1;
+  END LOOP;
+EXCEPTION
+  WHEN OTHERS THEN
+    BEGIN
+      SELECT SQLERRM;
+    END;
+END;
+$$
+DELIMITER ;$$
+
+CALL p1();
+DROP PROCEDURE p1;
+DROP TABLE t1;

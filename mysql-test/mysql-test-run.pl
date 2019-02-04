@@ -102,6 +102,7 @@ use mtr_unique;
 use mtr_results;
 use IO::Socket::INET;
 use IO::Select;
+use Time::HiRes qw(gettimeofday);
 
 require "mtr_process.pl";
 require "mtr_io.pl";
@@ -2292,6 +2293,10 @@ sub environment_setup {
   $ENV{'EXE_MYSQL'}=                $exe_mysql;
   $ENV{'MYSQL_PLUGIN'}=             $exe_mysql_plugin;
   $ENV{'MYSQL_EMBEDDED'}=           $exe_mysql_embedded;
+  if(IS_WINDOWS)
+  {
+     $ENV{'MYSQL_INSTALL_DB_EXE'}=  mtr_exe_exists("$bindir/sql$opt_vs_config/mysql_install_db");
+  }
 
   my $client_config_exe=
     mtr_exe_maybe_exists(
@@ -2891,15 +2896,44 @@ sub mysql_server_start($) {
     # Save this test case information, so next can examine it
     $mysqld->{'started_tinfo'}= $tinfo;
   }
+
+  # If wsrep is on, we need to wait until the first
+  # server starts and bootstraps the cluster before
+  # starting other servers. The bootsrap server in the
+  # configuration should always be the first which has
+  # wsrep_on=ON
+  if (wsrep_on($mysqld) && wsrep_is_bootstrap_server($mysqld))
+  {
+    mtr_verbose("Waiting for wsrep bootstrap server to start");
+    if ($mysqld->{WAIT}->($mysqld))
+    {
+      return 1;
+    }
+  }
 }
 
 sub mysql_server_wait {
-  my ($mysqld) = @_;
+  my ($mysqld, $tinfo) = @_;
 
-  return not sleep_until_file_created($mysqld->value('pid-file'),
-                                      $opt_start_timeout,
-                                      $mysqld->{'proc'},
-                                      $warn_seconds);
+  if (!sleep_until_file_created($mysqld->value('pid-file'),
+                                $opt_start_timeout,
+                                $mysqld->{'proc'},
+                                $warn_seconds))
+  {
+    $tinfo->{comment}= "Failed to start ".$mysqld->name() . "\n";
+    return 1;
+  }
+
+  if (wsrep_on($mysqld))
+  {
+    mtr_verbose("Waiting for wsrep server " . $mysqld->name() . " to be ready");
+    if (!wait_wsrep_ready($tinfo, $mysqld))
+    {
+      return 1;
+    }
+  }
+
+  return 0;
 }
 
 sub create_config_file_for_extern {
@@ -3258,7 +3292,7 @@ sub mysql_install_db {
 
     # Remove anonymous users
     mtr_tofile($bootstrap_sql_file,
-         "DELETE FROM mysql.user where user= '';\n");
+         "DELETE FROM mysql.global_priv where user= '';\n");
 
     # Create mtr database
     mtr_tofile($bootstrap_sql_file,
@@ -3281,6 +3315,7 @@ sub mysql_install_db {
   # Create directories mysql and test
   mkpath("$install_datadir/mysql");
 
+  my $realtime= gettimeofday();
   if ( My::SafeProcess->run
        (
 	name          => "bootstrap",
@@ -3297,6 +3332,10 @@ sub mysql_install_db {
     mtr_error("Error executing mysqld --bootstrap\n" .
               "Could not install system database from $bootstrap_sql_file\n" .
 	      "The $path_bootstrap_log file contains:\n$data\n");
+  }
+  else
+  {
+    mtr_verbose("Spent " . sprintf("%.3f", (gettimeofday() - $realtime)) . " seconds in bootstrap");
   }
 }
 
@@ -5304,6 +5343,7 @@ sub server_need_restart {
     {
       delete $server->{'restart_opts'};
       my $use_dynamic_option_switch= 0;
+      delete $server->{'restart_opts'};
       if (!$use_dynamic_option_switch)
       {
 	mtr_verbose_restart($server, "running with different options '" .
@@ -5398,6 +5438,118 @@ sub stop_servers($$) {
   }
 }
 
+#
+# run_query_output
+#
+# Run a query against a server using mysql client. The output of
+# the query will be written into outfile.
+#
+sub run_query_output {
+  my ($mysqld, $query, $outfile)= @_;
+  my $args;
+
+  mtr_init_args(\$args);
+  mtr_add_arg($args, "--defaults-file=%s", $path_config_file);
+  mtr_add_arg($args, "--defaults-group-suffix=%s", $mysqld->after('mysqld'));
+  mtr_add_arg($args, "--silent");
+  mtr_add_arg($args, "--execute=%s", $query);
+
+  my $res= My::SafeProcess->run
+  (
+    name          => "run_query_output -> ".$mysqld->name(),
+    path          => $exe_mysql,
+    args          => \$args,
+    output        => $outfile,
+    error         => $outfile
+  );
+
+  return $res
+}
+
+
+#
+# wsrep_wait_ready
+#
+# Wait until the server has been joined to the cluster and is
+# ready for operation.
+#
+# RETURN
+# 1 Server is ready
+# 0 Server didn't transition to ready state within start timeout
+#
+sub wait_wsrep_ready($$) {
+  my ($tinfo, $mysqld)= @_;
+
+  my $sleeptime= 100; # Milliseconds
+  my $loops= ($opt_start_timeout * 1000) / $sleeptime;
+
+  my $name= $mysqld->name();
+  my $outfile= "$opt_vardir/tmp/$name.wsrep_ready";
+  my $query= "SET SESSION wsrep_sync_wait = 0;
+              SELECT VARIABLE_NAME, VARIABLE_VALUE
+              FROM INFORMATION_SCHEMA.GLOBAL_STATUS
+              WHERE VARIABLE_NAME = 'wsrep_ready'";
+
+  for (my $loop= 1; $loop <= $loops; $loop++)
+  {
+    # Careful... if MTR runs with option 'verbose' then the
+    # file contains also SafeProcess verbose output
+    if (run_query_output($mysqld, $query, $outfile) == 0 &&
+        mtr_grab_file($outfile) =~ /WSREP_READY\s+ON/)
+    {
+      unlink($outfile);
+      return 1;
+    }
+    mtr_milli_sleep($sleeptime);
+  }
+
+  $tinfo->{logfile}= "WSREP did not transition to state READY";
+  return 0;
+}
+
+#
+# wsrep_is_bootstrap_server
+#
+# Check if the server is the first one to be started in the
+# cluster.
+#
+# RETURN
+# 1 The server is a bootstrap server
+# 0 The server is not a bootstrap server
+#
+sub wsrep_is_bootstrap_server($) {
+  my $mysqld= shift;
+
+  my $cluster_address= $mysqld->if_exist('wsrep-cluster-address') ||
+                       $mysqld->if_exist('wsrep_cluster_address');
+  if (defined $cluster_address)
+  {
+    return $cluster_address eq "gcomm://" || $cluster_address eq "'gcomm://'";
+  }
+  return 0;
+}
+
+#
+# wsrep_on
+#
+# Check if wsrep has been enabled for a server.
+#
+# RETURN
+# 1 Wsrep has been enabled
+# 0 Wsrep is not enabled
+#
+sub wsrep_on($) {
+  my $mysqld= shift;
+  #check if wsrep_on=  is set in configuration
+  if ($mysqld->if_exist('wsrep-on')) {
+    my $on= "".$mysqld->value('wsrep-on');
+    if ($on eq "1" || $on eq "ON") {
+      return 1;
+    }
+  }
+  return 0;
+}
+
 
 #
 # start_servers
@@ -5417,8 +5569,7 @@ sub start_servers($) {
 
   for (all_servers()) {
     next unless $_->{WAIT} and started($_);
-    if ($_->{WAIT}->($_)) {
-      $tinfo->{comment}= "Failed to start ".$_->name() . "\n";
+    if ($_->{WAIT}->($_, $tinfo)) {
       return 1;
     }
   }

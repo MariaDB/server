@@ -319,9 +319,7 @@ bool mysql_delete(THD *thd, TABLE_LIST *table_list, COND *conds,
       DBUG_RETURN(true);
     }
 
-    TABLE *table= table_list->table;
-    DBUG_ASSERT(table);
-
+    DBUG_ASSERT(table_list->table);
     DBUG_ASSERT(!conds || thd->stmt_arena->is_stmt_execute());
 
     // conds could be cached from previous SP call

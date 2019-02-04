@@ -27,8 +27,6 @@ Created Jan 06, 2010 Vasil Dimov
 #ifndef dict0stats_h
 #define dict0stats_h
 
-#include "univ.i"
-
 #include "dict0types.h"
 #include "trx0types.h"
 

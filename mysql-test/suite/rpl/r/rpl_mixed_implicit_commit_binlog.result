@@ -30,6 +30,7 @@ test.tt_2	preload_keys	note	The storage engine for the table doesn't support pre
 INSERT INTO tt_1(ddl_case) VALUES (39);
 ANALYZE TABLE nt_1;
 Table	Op	Msg_type	Msg_text
+test.nt_1	analyze	status	Engine-independent statistics collected
 test.nt_1	analyze	status	Table is already up to date
 INSERT INTO tt_1(ddl_case) VALUES (38);
 CHECK TABLE nt_1;

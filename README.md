@@ -1,20 +1,21 @@
 Code status:
 ------------
 
-* [![tests status](https://secure.travis-ci.org/MariaDB/server.png?branch=10.4)](https://travis-ci.org/MariaDB/server) travis-ci.org (10.4 branch)
+* [![Travis CI status](https://secure.travis-ci.org/MariaDB/server.png?branch=10.4)](https://travis-ci.org/MariaDB/server) travis-ci.org (10.4 branch)
+* [![Appveyor CI status](https://ci.appveyor.com/api/projects/status/4u6pexmtpuf8jq66?svg=true)](https://ci.appveyor.com/project/rasmushoj/server) ci.appveyor.com
 
 ## MariaDB: drop-in replacement for MySQL
 
 MariaDB is designed as a drop-in replacement of MySQL(R) with more
 features, new storage engines, fewer bugs, and better performance.
 
-MariaDB is brought to you by the MariaDB Foundation.
+MariaDB is brought to you by the MariaDB Foundation and the MariaDB corporation.
 Please read the CREDITS file for details about the MariaDB Foundation,
 and who is developing MariaDB.
 
 MariaDB is developed by many of the original developers of MySQL who
-now work for the MariaDB Foundation and the MariaDB Corporation, 
-and by many people in the community.
+now work for the MariaDB Corporation, the MariaDB Foundation and by
+many people in the community.
 
 MySQL, which is the base of MariaDB, is a product and trademark of Oracle
 Corporation, Inc. For a list of developers and other contributors,
@@ -23,28 +24,35 @@ list of active contributors.
 
 A description of the MariaDB project and a manual can be found at:
 
-https://mariadb.org/
-
 https://mariadb.com/kb/en/
 
 https://mariadb.com/kb/en/mariadb-vs-mysql-features/
 
-https://mariadb.com/kb/en/mariadb-versus-mysql-features/
-
 https://mariadb.com/kb/en/mariadb-versus-mysql-compatibility/
+
+https://mariadb.com/kb/en/library/new-and-old-releases/
+
+https://mariadb.org/
 
 As MariaDB is a full replacement of MySQL, the MySQL manual at
 http://dev.mysql.com/doc is generally applicable.
 
-Help:
+Help
 -----
 
 More help is available from the Maria Discuss mailing list
 https://launchpad.net/~maria-discuss
 and the #maria IRC channel on Freenode.
 
+Live QA for beginner contributors
+----
+MariaDB has a dedicated time each week when we answer new contributor questions live on Zulip and IRC.
+From 8:00 to 10:00 UTC on Mondays, and 10:00 to 12:00 UTC on Thursdays,
+anyone can ask any questions they’d like, and a live developer will be available to assist.
 
-License:
+New contributors can ask questions any time, but we will provide immediate feedback during that interval.
+
+License
 --------
 
 ***************************************************************************
@@ -61,7 +69,7 @@ and COPYING.thirdparty files.
 
 ***************************************************************************
 
-Bug Reports:
+Bug Reports
 ------------
 
 Bug and/or error reports regarding MariaDB should be submitted at:

@@ -1,6 +1,6 @@
 /*****************************************************************************
 
-Copyright (c) 1996, 2016, Oracle and/or its affiliates. All Rights Reserved.
+Copyright (c) 1996, 2018, Oracle and/or its affiliates. All Rights Reserved.
 Copyright (c) 2017, 2018, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
@@ -30,7 +30,6 @@ Created 12/27/1996 Heikki Tuuri
 #include "data0data.h"
 #include "row0types.h"
 #include "btr0types.h"
-#include "dict0types.h"
 #include "trx0types.h"
 #include "btr0pcur.h"
 #include "que0types.h"
@@ -101,19 +100,6 @@ upd_get_field_by_field_no(
 	bool		is_virtual) /*!< in: if it is a virtual column */
 	MY_ATTRIBUTE((warn_unused_result));
 /*********************************************************************//**
-Writes into the redo log the values of trx id and roll ptr and enough info
-to determine their positions within a clustered index record.
-@return new pointer to mlog */
-byte*
-row_upd_write_sys_vals_to_log(
-/*==========================*/
-	dict_index_t*	index,	/*!< in: clustered index */
-	trx_id_t	trx_id,	/*!< in: transaction id */
-	roll_ptr_t	roll_ptr,/*!< in: roll ptr of the undo log record */
-	byte*		log_ptr,/*!< pointer to a buffer of size > 20 opened
-				in mlog */
-	mtr_t*		mtr);	/*!< in: mtr */
-/*********************************************************************//**
 Updates the trx id and roll ptr field in a clustered index record when
 a row is updated or marked deleted. */
 UNIV_INLINE
@@ -127,18 +113,6 @@ row_upd_rec_sys_fields(
 	const ulint*	offsets,/*!< in: rec_get_offsets(rec, index) */
 	const trx_t*	trx,	/*!< in: transaction */
 	roll_ptr_t	roll_ptr);/*!< in: DB_ROLL_PTR to the undo log */
-/*********************************************************************//**
-Sets the trx id or roll ptr field of a clustered index entry. */
-void
-row_upd_index_entry_sys_field(
-/*==========================*/
-	dtuple_t*	entry,	/*!< in/out: index entry, where the memory
-				buffers for sys fields are already allocated:
-				the function just copies the new values to
-				them */
-	dict_index_t*	index,	/*!< in: clustered index */
-	ulint		type,	/*!< in: DATA_TRX_ID or DATA_ROLL_PTR */
-	ib_uint64_t	val);	/*!< in: value to write */
 /*********************************************************************//**
 Creates an update node for a query graph.
 @return own: update node */
@@ -220,6 +194,7 @@ the equal ordering fields. NOTE: we compare the fields as binary strings!
 @param[in]	heap		memory heap from which allocated
 @param[in,out]	mysql_table	NULL, or mysql table object when
 				user thread invokes dml
+@param[out]	error		error number in case of failure
 @return own: update vector of differing fields, excluding roll ptr and
 trx id */
 upd_t*
@@ -231,8 +206,9 @@ row_upd_build_difference_binary(
 	bool		no_sys,
 	trx_t*		trx,
 	mem_heap_t*	heap,
-	TABLE*		mysql_table)
-	MY_ATTRIBUTE((nonnull(1,2,3,7), warn_unused_result));
+	TABLE*		mysql_table,
+	dberr_t*	error)
+	MY_ATTRIBUTE((nonnull(1,2,3,7,9), warn_unused_result));
 /** Apply an update vector to an index entry.
 @param[in,out]	entry	index entry to be updated; the clustered index record
 			must be covered by a lock or a page latch to prevent

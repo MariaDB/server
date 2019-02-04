@@ -1,0 +1,54 @@
+--echo #
+--echo # Start of 10.4 tests
+--echo #
+
+--echo #
+--echo # MDEV-17776 CAST(x AS INTERVAL DAY_SECOND(N))
+--echo #
+
+CREATE TABLE t1 (a VARCHAR(128));
+INSERT INTO t1 VALUES
+('00:00:00'),
+('+00:00:01'),
+('-00:00:01'),
+('838:59:59'),
+('839:00:00'),
+('2018:01:02'),
+('87649415:59:59'),
+('3652058 23:59:59'),
+('87649416:00:00'),
+('3652059 00:00:00');
+
+SELECT
+  EXTRACT(DAY FROM a) AS d,
+  EXTRACT(HOUR FROM a) AS h,
+  a,
+  CAST(a AS INTERVAL DAY_SECOND(6)) AS cast_itds
+FROM t1;
+
+DROP TABLE t1;
+
+
+CREATE TABLE t1 (a DECIMAL(32,9));
+INSERT INTO t1 VALUES
+(0),
+(1),
+(-1),
+(8385959),
+(8390000),
+(20180102),
+(876494155959),
+(876494160000);
+
+SELECT
+  EXTRACT(DAY FROM a) AS d,
+  EXTRACT(HOUR FROM a) AS h,
+  a,
+  CAST(a AS INTERVAL DAY_SECOND(6)) AS cast_itds
+FROM t1;
+
+DROP TABLE t1;
+
+--echo #
+--echo # End of 10.4 tests
+--echo #

@@ -25,9 +25,8 @@ The database buffer buf_pool flush algorithm
 Created 11/11/1995 Heikki Tuuri
 *******************************************************/
 
-#include "ha_prototypes.h"
+#include "univ.i"
 #include <mysql/service_thd_wait.h>
-#include <my_dbug.h>
 #include <sql_class.h>
 
 #include "buf0flu.h"
@@ -46,7 +45,6 @@ Created 11/11/1995 Heikki Tuuri
 #include "os0file.h"
 #include "trx0sys.h"
 #include "srv0mon.h"
-#include "fsp0sysspace.h"
 #include "ut0stage.h"
 #include "fil0pagecompress.h"
 #ifdef UNIV_LINUX
@@ -429,137 +427,44 @@ buf_flush_insert_into_flush_list(
 	ut_ad(buf_page_mutex_own(block));
 
 	buf_flush_list_mutex_enter(buf_pool);
-
-	ut_ad((UT_LIST_GET_FIRST(buf_pool->flush_list) == NULL)
-	      || (UT_LIST_GET_FIRST(buf_pool->flush_list)->oldest_modification
-		  <= lsn));
-
-	/* If we are in the recovery then we need to update the flush
-	red-black tree as well. */
-	if (buf_pool->flush_rbt != NULL) {
-		buf_flush_list_mutex_exit(buf_pool);
-		buf_flush_insert_sorted_into_flush_list(buf_pool, block, lsn);
-		return;
-	}
-
-	ut_ad(buf_block_get_state(block) == BUF_BLOCK_FILE_PAGE);
 	ut_ad(!block->page.in_flush_list);
-
 	ut_d(block->page.in_flush_list = TRUE);
+	ut_ad(!block->page.oldest_modification);
 	block->page.oldest_modification = lsn;
-
-	UT_LIST_ADD_FIRST(buf_pool->flush_list, &block->page);
-
+	UNIV_MEM_ASSERT_RW(block->page.zip.data
+			   ? block->page.zip.data : block->frame,
+			   block->page.size.physical());
 	incr_flush_list_size_in_bytes(block, buf_pool);
 
-#ifdef UNIV_DEBUG_VALGRIND
-	void*	p;
+	if (UNIV_LIKELY_NULL(buf_pool->flush_rbt)) {
+		ut_ad(srv_shutdown_state != SRV_SHUTDOWN_FLUSH_PHASE);
+		/* The field in_LRU_list is protected by buf_pool->mutex, which
+		we are not holding.  However, while a block is in the flush
+		list, it is dirty and cannot be discarded, not from the
+		page_hash or from the LRU list.  At most, the uncompressed
+		page frame of a compressed block may be discarded or created
+		(copying the block->page to or from a buf_page_t that is
+		dynamically allocated from buf_buddy_alloc()).  Because those
+		transitions hold block->mutex and the flush list mutex (via
+		buf_flush_relocate_on_flush_list()), there is no possibility
+		of a race condition in the assertions below. */
+		ut_ad(block->page.in_LRU_list);
+		ut_ad(block->page.in_page_hash);
+		/* buf_buddy_block_register() will take a block in the
+		BUF_BLOCK_MEMORY state, not a file page. */
+		ut_ad(!block->page.in_zip_hash);
 
-	if (block->page.size.is_compressed()) {
-		p = block->page.zip.data;
-	} else {
-		p = block->frame;
-	}
-
-	UNIV_MEM_ASSERT_RW(p, block->page.size.physical());
-#endif /* UNIV_DEBUG_VALGRIND */
-
-#if defined UNIV_DEBUG || defined UNIV_BUF_DEBUG
-	ut_a(buf_flush_validate_skip(buf_pool));
-#endif /* UNIV_DEBUG || UNIV_BUF_DEBUG */
-
-	buf_flush_list_mutex_exit(buf_pool);
-}
-
-/********************************************************************//**
-Inserts a modified block into the flush list in the right sorted position.
-This function is used by recovery, because there the modifications do not
-necessarily come in the order of lsn's. */
-void
-buf_flush_insert_sorted_into_flush_list(
-/*====================================*/
-	buf_pool_t*	buf_pool,	/*!< in: buffer pool instance */
-	buf_block_t*	block,		/*!< in/out: block which is modified */
-	lsn_t		lsn)		/*!< in: oldest modification */
-{
-	buf_page_t*	prev_b;
-	buf_page_t*	b;
-
-	ut_ad(srv_shutdown_state != SRV_SHUTDOWN_FLUSH_PHASE);
-	ut_ad(!buf_pool_mutex_own(buf_pool));
-	ut_ad(log_flush_order_mutex_own());
-	ut_ad(buf_page_mutex_own(block));
-	ut_ad(buf_block_get_state(block) == BUF_BLOCK_FILE_PAGE);
-
-	buf_flush_list_mutex_enter(buf_pool);
-
-	/* The field in_LRU_list is protected by buf_pool->mutex, which
-	we are not holding.  However, while a block is in the flush
-	list, it is dirty and cannot be discarded, not from the
-	page_hash or from the LRU list.  At most, the uncompressed
-	page frame of a compressed block may be discarded or created
-	(copying the block->page to or from a buf_page_t that is
-	dynamically allocated from buf_buddy_alloc()).  Because those
-	transitions hold block->mutex and the flush list mutex (via
-	buf_flush_relocate_on_flush_list()), there is no possibility
-	of a race condition in the assertions below. */
-	ut_ad(block->page.in_LRU_list);
-	ut_ad(block->page.in_page_hash);
-	/* buf_buddy_block_register() will take a block in the
-	BUF_BLOCK_MEMORY state, not a file page. */
-	ut_ad(!block->page.in_zip_hash);
-
-	ut_ad(!block->page.in_flush_list);
-	ut_d(block->page.in_flush_list = TRUE);
-	block->page.oldest_modification = lsn;
-
-#ifdef UNIV_DEBUG_VALGRIND
-	void*	p;
-
-	if (block->page.size.is_compressed()) {
-		p = block->page.zip.data;
-	} else {
-		p = block->frame;
-	}
-
-	UNIV_MEM_ASSERT_RW(p, block->page.size.physical());
-#endif /* UNIV_DEBUG_VALGRIND */
-
-	prev_b = NULL;
-
-	/* For the most part when this function is called the flush_rbt
-	should not be NULL. In a very rare boundary case it is possible
-	that the flush_rbt has already been freed by the recovery thread
-	before the last page was hooked up in the flush_list by the
-	io-handler thread. In that case we'll just do a simple
-	linear search in the else block. */
-	if (buf_pool->flush_rbt != NULL) {
-
-		prev_b = buf_flush_insert_in_flush_rbt(&block->page);
-
-	} else {
-
-		b = UT_LIST_GET_FIRST(buf_pool->flush_list);
-
-		while (b != NULL && b->oldest_modification
-		       > block->page.oldest_modification) {
-
-			ut_ad(b->in_flush_list);
-			prev_b = b;
-			b = UT_LIST_GET_NEXT(list, b);
+		if (buf_page_t* prev_b =
+		    buf_flush_insert_in_flush_rbt(&block->page)) {
+			UT_LIST_INSERT_AFTER(buf_pool->flush_list, prev_b, &block->page);
+			goto func_exit;
 		}
 	}
 
-	if (prev_b == NULL) {
-		UT_LIST_ADD_FIRST(buf_pool->flush_list, &block->page);
-	} else {
-		UT_LIST_INSERT_AFTER(buf_pool->flush_list, prev_b, &block->page);
-	}
-
-	incr_flush_list_size_in_bytes(block, buf_pool);
-
+	UT_LIST_ADD_FIRST(buf_pool->flush_list, &block->page);
+func_exit:
 #if defined UNIV_DEBUG || defined UNIV_BUF_DEBUG
-	ut_a(buf_flush_validate_low(buf_pool));
+	ut_a(buf_flush_validate_skip(buf_pool));
 #endif /* UNIV_DEBUG || UNIV_BUF_DEBUG */
 
 	buf_flush_list_mutex_exit(buf_pool);
@@ -688,7 +593,7 @@ buf_flush_remove(
 	}
 
 	/* If the flush_rbt is active then delete from there as well. */
-	if (buf_pool->flush_rbt != NULL) {
+	if (UNIV_LIKELY_NULL(buf_pool->flush_rbt)) {
 		buf_flush_delete_from_flush_rbt(bpage);
 	}
 
@@ -756,7 +661,7 @@ buf_flush_relocate_on_flush_list(
 
 	/* If recovery is active we must swap the control blocks in
 	the flush_rbt as well. */
-	if (buf_pool->flush_rbt != NULL) {
+	if (UNIV_LIKELY_NULL(buf_pool->flush_rbt)) {
 		buf_flush_delete_from_flush_rbt(bpage);
 		prev_b = buf_flush_insert_in_flush_rbt(dpage);
 	}
@@ -3602,7 +3507,7 @@ buf_flush_validate_low(
 	/* If we are in recovery mode i.e.: flush_rbt != NULL
 	then each block in the flush_list must also be present
 	in the flush_rbt. */
-	if (buf_pool->flush_rbt != NULL) {
+	if (UNIV_LIKELY_NULL(buf_pool->flush_rbt)) {
 		rnode = rbt_first(buf_pool->flush_rbt);
 	}
 
@@ -3623,7 +3528,7 @@ buf_flush_validate_low(
 		     || buf_page_get_state(bpage) == BUF_BLOCK_REMOVE_HASH);
 		ut_a(om > 0);
 
-		if (buf_pool->flush_rbt != NULL) {
+		if (UNIV_LIKELY_NULL(buf_pool->flush_rbt)) {
 			buf_page_t**	prpage;
 
 			ut_a(rnode != NULL);

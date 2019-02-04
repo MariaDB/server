@@ -53,7 +53,8 @@ int mi_lock_database(MI_INFO *info, int lock_type)
 
   error= 0;
   DBUG_EXECUTE_IF ("mi_lock_database_failure", error= EINVAL;);
-  mysql_mutex_lock(&share->intern_lock);
+  if (!info->intern_lock_locked)
+    mysql_mutex_lock(&share->intern_lock);
   if (share->kfile >= 0)		/* May only be false on windows */
   {
     switch (lock_type) {
@@ -261,7 +262,8 @@ int mi_lock_database(MI_INFO *info, int lock_type)
     }
   }
 #endif
-  mysql_mutex_unlock(&share->intern_lock);
+  if (!info->intern_lock_locked)
+    mysql_mutex_unlock(&share->intern_lock);
   if (mark_crashed)
     mi_mark_crashed(info);
   DBUG_RETURN(error);

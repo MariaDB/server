@@ -1,14 +1,6 @@
 include/master-slave.inc
 [connection master]
 connection master;
-delete from mysql.user where user=_binary'rpl_do_grant';
-delete from mysql.db where user=_binary'rpl_do_grant';
-flush privileges;
-connection slave;
-delete from mysql.user where user=_binary'rpl_ignore_grant';
-delete from mysql.db where user=_binary'rpl_ignore_grant';
-flush privileges;
-connection master;
 create user rpl_do_grant@localhost;
 grant select on *.* to rpl_do_grant@localhost;
 grant drop on test.* to rpl_do_grant@localhost;
@@ -20,11 +12,11 @@ GRANT DROP ON `test`.* TO 'rpl_do_grant'@'localhost'
 connection master;
 set password for rpl_do_grant@localhost=password("does it work?");
 connection slave;
-select authentication_string<>_binary'' from mysql.user where user=_binary'rpl_do_grant';
-authentication_string<>_binary''
+select authentication_string<>'' from mysql.user where user='rpl_do_grant';
+authentication_string<>''
 1
 connection master;
-update mysql.user set authentication_string='' where user='rpl_do_grant';
+update mysql.global_priv set priv=json_remove(priv, '$.authentication_string') where user='rpl_do_grant';
 flush privileges;
 select authentication_string<>'' from mysql.user where user='rpl_do_grant';
 authentication_string<>''
@@ -37,13 +29,8 @@ select authentication_string<>'' from mysql.user where user='rpl_do_grant';
 authentication_string<>''
 1
 connection master;
-delete from mysql.user where user=_binary'rpl_do_grant';
-delete from mysql.db where user=_binary'rpl_do_grant';
-flush privileges;
+drop user rpl_do_grant@localhost;
 connection slave;
-delete from mysql.user where user=_binary'rpl_do_grant';
-delete from mysql.db where user=_binary'rpl_do_grant';
-flush privileges;
 connection master;
 show grants for rpl_do_grant@localhost;
 ERROR 42000: There is no such grant defined for user 'rpl_do_grant' on host 'localhost'
@@ -328,5 +315,6 @@ Grantor
 root@localhost
 connection master;
 DROP USER user_bug27606@localhost;
-update mysql.user set plugin='';
+select priv into @root_priv from mysql.global_priv where user='root' and host='127.0.0.1';
+update mysql.global_priv set priv=@root_priv where user='root' and host='localhost';
 include/rpl_end.inc

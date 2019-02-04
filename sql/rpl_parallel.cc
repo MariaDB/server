@@ -1023,7 +1023,7 @@ handle_rpl_parallel_thread(void *arg)
   my_thread_init();
   thd = new THD(next_thread_id());
   thd->thread_stack = (char*)&thd;
-  add_to_active_threads(thd);
+  server_threads.insert(thd);
   set_current_thd(thd);
   pthread_detach_this_thread();
   thd->init_for_queries();
@@ -1432,7 +1432,7 @@ handle_rpl_parallel_thread(void *arg)
   thd->temporary_tables= 0;
 
   THD_CHECK_SENTRY(thd);
-  unlink_not_visible_thd(thd);
+  server_threads.erase(thd);
   delete thd;
 
   mysql_mutex_lock(&rpt->LOCK_rpl_thread);

@@ -782,7 +782,7 @@ SET DEBUG_SYNC= 'now WAIT_FOR opened';
 SET DEBUG_SYNC= 'now SIGNAL dropped';
 SET DEBUG_SYNC= 'now WAIT_FOR opened';
 # Sending:
-FLUSH TABLES;
+FLUSH TABLES t1;
 connection default;
 # Waiting for FLUSH TABLES to be blocked.
 SET DEBUG_SYNC= 'now SIGNAL dropped';

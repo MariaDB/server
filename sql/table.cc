@@ -44,7 +44,6 @@
 #include "sql_cte.h"
 #include "ha_sequence.h"
 #include "sql_show.h"
-#include <atomic>
 
 /* For MySQL 5.7 virtual fields */
 #define MYSQL57_GENERATED_FIELD 128
@@ -70,8 +69,6 @@ LEX_CSTRING GENERAL_LOG_NAME= {STRING_WITH_LEN("general_log")};
 LEX_CSTRING SLOW_LOG_NAME= {STRING_WITH_LEN("slow_log")};
 
 LEX_CSTRING TRANSACTION_REG_NAME= {STRING_WITH_LEN("transaction_registry")};
-LEX_CSTRING MYSQL_USER_NAME= {STRING_WITH_LEN("user")};
-LEX_CSTRING MYSQL_DB_NAME= {STRING_WITH_LEN("db")};
 LEX_CSTRING MYSQL_PROC_NAME= {STRING_WITH_LEN("proc")};
 
 /* 
@@ -250,6 +247,13 @@ TABLE_CATEGORY get_table_category(const LEX_CSTRING *db,
   DBUG_ASSERT(db != NULL);
   DBUG_ASSERT(name != NULL);
 
+#ifdef WITH_WSREP
+  if (my_strcasecmp(system_charset_info, db->str, "mysql") == 0 &&
+      my_strcasecmp(system_charset_info, name->str, "wsrep_streaming_log") == 0)
+  {
+    return TABLE_CATEGORY_INFORMATION;
+  }
+#endif /* WITH_WSREP */
   if (is_infoschema_db(db))
     return TABLE_CATEGORY_INFORMATION;
 
@@ -339,6 +343,9 @@ TABLE_SHARE *alloc_table_share(const char *db, const char *table_name,
     mysql_mutex_init(key_TABLE_SHARE_LOCK_ha_data,
                      &share->LOCK_ha_data, MY_MUTEX_INIT_FAST);
 
+    DBUG_EXECUTE_IF("simulate_big_table_id",
+                    if (last_table_id < UINT_MAX32)
+                      last_table_id= UINT_MAX32 - 1;);
     /*
       There is one reserved number that cannot be used. Remember to
       change this when 6-byte global table id's are introduced.
@@ -347,7 +354,8 @@ TABLE_SHARE *alloc_table_share(const char *db, const char *table_name,
     {
       share->table_map_id=
         last_table_id.fetch_add(1, std::memory_order_relaxed);
-    } while (unlikely(share->table_map_id == ~0UL));
+    } while (unlikely(share->table_map_id == ~0UL ||
+                      share->table_map_id == 0));
   }
   DBUG_RETURN(share);
 }
@@ -1078,7 +1086,7 @@ bool parse_vcol_defs(THD *thd, MEM_ROOT *mem_root, TABLE *table,
   while (pos < end)
   {
     uint type, expr_length;
-    if (table->s->mysql_version >= 100202)
+    if (table->s->frm_version >= FRM_VER_EXPRESSSIONS)
     {
       uint field_nr, name_length;
       /* see pack_expression() for how data is stored */
@@ -2349,7 +2357,7 @@ int TABLE_SHARE::init_from_binary_frm_image(THD *thd, bool write,
             uint pk_part_length= key_first_info->key_part[i].store_length;
             if (keyinfo->ext_key_part_map & 1<<i)
             {
-              if (ext_key_length + pk_part_length > MAX_KEY_LENGTH)
+              if (ext_key_length + pk_part_length > MAX_DATA_LENGTH_FOR_KEY)
               {
                 add_keyparts_for_this_key= i;
                 break;
@@ -2359,9 +2367,9 @@ int TABLE_SHARE::init_from_binary_frm_image(THD *thd, bool write,
           }
         }
 
-        if (add_keyparts_for_this_key < (keyinfo->ext_key_parts -
-                                        keyinfo->user_defined_key_parts))
-	{
+        if (add_keyparts_for_this_key < keyinfo->ext_key_parts -
+                                        keyinfo->user_defined_key_parts)
+        {
           share->ext_key_parts-= keyinfo->ext_key_parts;
           key_part_map ext_key_part_map= keyinfo->ext_key_part_map;
           keyinfo->ext_key_parts= keyinfo->user_defined_key_parts;
@@ -3601,6 +3609,8 @@ partititon_err:
       share->no_replicate= TRUE;
     if (outparam->file->table_cache_type() & HA_CACHE_TBL_NOCACHE)
       share->not_usable_by_query_cache= TRUE;
+    if (outparam->file->ha_table_flags() & HA_CAN_ONLINE_BACKUPS)
+      share->online_backup= 1;
   }
 
   if (share->no_replicate || !binlog_filter->db_ok(share->db.str))
@@ -3998,6 +4008,7 @@ void update_create_info_from_table(HA_CREATE_INFO *create_info, TABLE *table)
   create_info->table_options= share->db_create_options;
   create_info->avg_row_length= share->avg_row_length;
   create_info->row_type= share->row_type;
+  create_info->key_block_size= share->key_block_size;
   create_info->default_table_charset= share->table_charset;
   create_info->table_charset= 0;
   create_info->comment= share->comment;

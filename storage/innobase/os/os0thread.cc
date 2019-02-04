@@ -1,7 +1,7 @@
 /*****************************************************************************
 
 Copyright (c) 1995, 2016, Oracle and/or its affiliates. All Rights Reserved.
-Copyright (c) 2017, MariaDB Corporation.
+Copyright (c) 2017, 2018, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -24,16 +24,11 @@ The interface to the operating system thread control primitives
 Created 9/8/1995 Heikki Tuuri
 *******************************************************/
 
-#include "ha_prototypes.h"
-
-#include "os0thread.h"
-#include "ut0new.h"
+#include "univ.i"
 #include "srv0srv.h"
-#include "os0event.h"
-#include <map>
 
 /** Number of threads active. */
-ulint	os_thread_count;
+Atomic_counter<ulint>	os_thread_count;
 
 /***************************************************************//**
 Compares two thread ids for equality.
@@ -123,7 +118,7 @@ os_thread_create_func(
 
 	CloseHandle(handle);
 
-	my_atomic_addlint(&os_thread_count, 1);
+	os_thread_count++;
 
 	return((os_thread_t)new_thread_id);
 #else /* _WIN32 else */
@@ -132,7 +127,7 @@ os_thread_create_func(
 
 	pthread_attr_init(&attr);
 
-	my_atomic_addlint(&os_thread_count, 1);
+	os_thread_count++;
 
 	int	ret = pthread_create(&new_thread_id, &attr, func, arg);
 
@@ -187,7 +182,7 @@ os_thread_exit(bool detach)
 	pfs_delete_thread();
 #endif
 
-	my_atomic_addlint(&os_thread_count, ulint(-1));
+	os_thread_count--;
 
 #ifdef _WIN32
 	ExitThread(0);

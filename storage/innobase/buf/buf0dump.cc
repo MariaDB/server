@@ -30,8 +30,6 @@ Created April 08, 2011 Vasil Dimov
 #include "mysql/psi/mysql_stage.h"
 #include "mysql/psi/psi.h"
 
-#include "univ.i"
-
 #include "buf0buf.h"
 #include "buf0dump.h"
 #include "dict0dict.h"
@@ -824,7 +822,7 @@ DECLARE_THREAD(buf_dump_thread)(void*)
 	if (srv_buffer_pool_load_at_startup) {
 
 #ifdef WITH_WSREP
-		if (!wsrep_recovery) {
+		if (!get_wsrep_recovery()) {
 #endif /* WITH_WSREP */
 			buf_load();
 #ifdef WITH_WSREP
@@ -858,7 +856,7 @@ DECLARE_THREAD(buf_dump_thread)(void*)
 				"Dumping of buffer pool not started"
 				" as load was incomplete");
 #ifdef WITH_WSREP
-		} else if (wsrep_recovery) {
+		} else if (get_wsrep_recovery()) {
 #endif /* WITH_WSREP */
 		} else {
 			buf_dump(FALSE/* do complete dump at shutdown */);

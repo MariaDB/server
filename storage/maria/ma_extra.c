@@ -420,7 +420,11 @@ int maria_extra(MARIA_HA *info, enum ha_extra_function function,
       error= _ma_flush_table_files(info, MARIA_FLUSH_DATA | MARIA_FLUSH_INDEX,
                                    FLUSH_KEEP, FLUSH_KEEP);
 
+    mysql_mutex_lock(&share->intern_lock);
+    /* Tell maria_lock_database() that we locked the intern_lock mutex */
+    info->intern_lock_locked= 1;
     _ma_decrement_open_count(info, 1);
+    info->intern_lock_locked= 0;
     if (share->not_flushed)
     {
       share->not_flushed= 0;
@@ -433,6 +437,7 @@ int maria_extra(MARIA_HA *info, enum ha_extra_function function,
         _ma_set_fatal_error(share, HA_ERR_CRASHED);
       }
     }
+    mysql_mutex_unlock(&share->intern_lock);
     break;
   case HA_EXTRA_NORMAL:				/* Theese isn't in use */
     info->quick_mode= 0;

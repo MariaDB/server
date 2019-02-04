@@ -63,14 +63,14 @@ UNIV_INTERN mysql_pfs_key_t	btr_defragment_mutex_key;
 
 /* Number of compression failures caused by defragmentation since server
 start. */
-ulint btr_defragment_compression_failures = 0;
+Atomic_counter<ulint> btr_defragment_compression_failures;
 /* Number of btr_defragment_n_pages calls that altered page but didn't
 manage to release any page. */
-ulint btr_defragment_failures = 0;
+Atomic_counter<ulint> btr_defragment_failures;
 /* Total number of btr_defragment_n_pages calls that altered page.
 The difference between btr_defragment_count and btr_defragment_failures shows
 the amount of effort wasted. */
-ulint btr_defragment_count = 0;
+Atomic_counter<ulint> btr_defragment_count;
 
 /******************************************************************//**
 Constructor for btr_defragment_item_t. */
@@ -166,7 +166,7 @@ btr_defragment_add_index(
 	mtr_start(&mtr);
 	// Load index rood page.
 	buf_block_t* block = btr_block_get(
-		page_id_t(index->table->space->id, index->page),
+		page_id_t(index->table->space_id, index->page),
 		page_size_t(index->table->space->flags),
 		RW_NO_LATCH, index, &mtr);
 	page_t* page = NULL;
@@ -314,7 +314,7 @@ btr_defragment_save_defrag_stats_if_needed(
 	dict_index_t*	index)	/*!< in: index */
 {
 	if (srv_defragment_stats_accuracy != 0 // stats tracking disabled
-	    && index->table->space->id != 0 // do not track system tables
+	    && index->table->space_id != 0 // do not track system tables
 	    && index->stat_defrag_modified_counter
 	       >= srv_defragment_stats_accuracy) {
 		dict_stats_defrag_pool_add(index);
@@ -448,8 +448,7 @@ btr_defragment_merge_pages(
 		// n_recs_to_move number of records to to_page. We try to reduce
 		// the targeted data size on the to_page by
 		// BTR_DEFRAGMENT_PAGE_REDUCTION_STEP_SIZE and try again.
-		my_atomic_addlint(
-			&btr_defragment_compression_failures, 1);
+		btr_defragment_compression_failures++;
 		max_ins_size_to_use =
 			move_size > BTR_DEFRAGMENT_PAGE_REDUCTION_STEP_SIZE
 			? move_size - BTR_DEFRAGMENT_PAGE_REDUCTION_STEP_SIZE
@@ -489,7 +488,7 @@ btr_defragment_merge_pages(
 				       from_block);
 		btr_search_drop_page_hash_index(from_block);
 		btr_level_list_remove(
-			index->table->space->id,
+			index->table->space_id,
 			page_size, from_page, index, mtr);
 		btr_node_ptr_delete(index, from_block, mtr);
 		/* btr_blob_dbg_remove(from_page, index,
@@ -564,7 +563,7 @@ btr_defragment_n_pages(
 		return NULL;
 	}
 
-	if (!index->table->space || !index->table->space->id) {
+	if (!index->table->space || !index->table->space_id) {
 		/* Ignore space 0. */
 		return NULL;
 	}
@@ -589,7 +588,7 @@ btr_defragment_n_pages(
 			break;
 		}
 
-		blocks[i] = btr_block_get(page_id_t(index->table->space->id,
+		blocks[i] = btr_block_get(page_id_t(index->table->space_id,
 						    page_no), page_size,
 					  RW_X_LATCH, index, mtr);
 	}
@@ -668,11 +667,9 @@ btr_defragment_n_pages(
 	}
 	mem_heap_free(heap);
 	n_defragmented ++;
-	my_atomic_addlint(
-		&btr_defragment_count, 1);
+	btr_defragment_count++;
 	if (n_pages == n_defragmented) {
-		my_atomic_addlint(
-			&btr_defragment_failures, 1);
+		btr_defragment_failures++;
 	} else {
 		index->stat_defrag_n_pages_freed += (n_pages - n_defragmented);
 	}

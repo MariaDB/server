@@ -100,7 +100,7 @@ DROP TABLE t1, t2, t3;
 CREATE TABLE t1 (y YEAR);
 INSERT INTO t1 VALUES ('abc');
 Warnings:
-Warning	1366	Incorrect integer value: 'abc' for column 'y' at row 1
+Warning	1366	Incorrect integer value: 'abc' for column `test`.`t1`.`y` at row 1
 SELECT * FROM t1;
 y
 0000
@@ -211,7 +211,7 @@ a
 0000-00-00
 0000-00-00
 INSERT INTO t1 VALUES ('0000-00-00');
-ERROR 22007: Incorrect date value: '0000-00-00' for column 'a' at row 1
+ERROR 22007: Incorrect date value: '0000-00-00' for column `test`.`t1`.`a` at row 1
 SET SQL_MODE=DEFAULT;
 DROP TABLE t1,t2;
 CREATE TABLE t1 (a DATE);
@@ -240,7 +240,7 @@ a
 1000-00-00
 1000-00-00
 INSERT INTO t1 VALUES ('1000-00-00');
-ERROR 22007: Incorrect date value: '1000-00-00' for column 'a' at row 1
+ERROR 22007: Incorrect date value: '1000-00-00' for column `test`.`t1`.`a` at row 1
 SET SQL_MODE=DEFAULT;
 DROP TABLE t1,t2;
 CREATE TABLE t1 SELECT curdate() AS f1;

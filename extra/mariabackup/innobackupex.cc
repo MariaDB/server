@@ -738,7 +738,7 @@ ibx_get_one_option(int optid,
 		exit(0);
 		break;
 	case 'v':
-		msg("innobackupex version %s %s (%s)\n",
+		printf("innobackupex version %s %s (%s)",
 			MYSQL_SERVER_VERSION,
 			SYSTEM_TYPE, MACHINE_TYPE);
 		exit(0);

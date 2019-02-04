@@ -118,17 +118,17 @@ LOCK TABLES columns_priv WRITE, db WRITE, user WRITE;
 FLUSH TABLES;
 connection reader;
 USE mysql;
-SELECT user.Select_priv FROM user, db WHERE user.user = db.user LIMIT 1;
+SELECT global_priv.host FROM global_priv, db WHERE global_priv.user = db.user LIMIT 1;
 connection locker;
-OPTIMIZE TABLES columns_priv, db, user;
+OPTIMIZE TABLES columns_priv, db, global_priv;
 Table	Op	Msg_type	Msg_text
 mysql.columns_priv	optimize	status	OK
 mysql.db	optimize	status	OK
-mysql.user	optimize	status	OK
+mysql.global_priv	optimize	status	OK
 UNLOCK TABLES;
 connection reader;
-Select_priv
-N
+host
+localhost
 USE test;
 connection locker;
 use test;
@@ -218,6 +218,7 @@ connection con2;
 unlock tables;
 connection con3;
 a
+connection con4;
 connection default;
 disconnect con5;
 disconnect con4;
@@ -247,6 +248,7 @@ flush table t2;
 connection default;
 unlock tables;
 connection con1;
+connection con2;
 #
 # LOCK TABLES .. WRITE
 #
@@ -299,7 +301,7 @@ connection default;
 alter table t1 add column j int;
 connect  insert,localhost,root,,test,,;
 connection insert;
-insert into t1 values (1,2);;
+insert into t1 values (1,2);
 connection default;
 unlock tables;
 connection flush;
@@ -531,8 +533,9 @@ connect con3, localhost, root;
 connection default;
 LOCK TABLE t1 READ;
 connection con3;
-# Sending:
 FLUSH TABLES;
+# Sending:
+FLUSH TABLES t1;
 connection con2;
 SELECT * FROM t1;
 ERROR HY000: Lock wait timeout exceeded; try restarting transaction

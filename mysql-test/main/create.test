@@ -323,7 +323,7 @@ create table t3 like mysqltest.t3;
 --error 1049
 create table non_existing_database.t1 like t1;
 --error ER_NO_SUCH_TABLE
-create table t3 like non_existing_table;
+create table t4 like non_existing_table;
 --error 1050
 create temporary table t3 like t1;
 drop table t1, t2, t3;
@@ -768,7 +768,6 @@ drop table t1;
 --error ER_CANT_AGGREGATE_2COLLATIONS
 create table t1 select coalesce('a' collate latin1_swedish_ci,'b' collate latin1_bin);
 
-
 # Base vs temporary tables dillema (a.k.a. bug#24508 "Inconsistent
 # results of CREATE TABLE ... SELECT when temporary table exists").
 # In this situation we either have to create non-temporary table and
@@ -776,13 +775,13 @@ create table t1 select coalesce('a' collate latin1_swedish_ci,'b' collate latin1
 # permanent table. After patch for Bug#47418, we create the base table and
 # instert data into it, even though a temporary table exists with the same
 # name.
+
 create temporary table t1 (j int);
 create table if not exists t1 select 1;
 select * from t1;
 drop temporary table t1;
 select * from t1;
 drop table t1;
-
 
 #
 # CREATE TABLE ... SELECT and LOCK TABLES
@@ -792,6 +791,7 @@ drop table t1;
 # the server doesn't crash, hang and produces sensible errors.
 # Includes test for bug #20662 "Infinite loop in CREATE TABLE
 # IF NOT EXISTS ... SELECT with locked tables".
+
 create table t1 (i int);
 insert into t1 values (1), (2);
 lock tables t1 read;
@@ -812,8 +812,12 @@ unlock tables;
 lock table t1 read, t2 read;
 --error ER_TABLE_NOT_LOCKED_FOR_WRITE
 create table t2 select * from t1;
+--error ER_TABLE_NOT_LOCKED
+create table t3 select * from t1;
 --error ER_TABLE_NOT_LOCKED_FOR_WRITE
 create table if not exists t2 select * from t1;
+--error ER_TABLE_NOT_LOCKED
+create table if not exists t3 select * from t1;
 unlock tables;
 lock table t1 read, t2 write;
 --error ER_TABLE_EXISTS_ERROR
@@ -989,87 +993,6 @@ DROP DATABASE aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
 USE aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa;
 --error 1102
 SHOW CREATE DATABASE aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa;
-
-#
-# Bug#21432 Database/Table name limited to 64 bytes, not chars, problems with multi-byte
-#
-set names utf8;
-
-create database имя_базы_в_кодировке_утф8_длиной_больше_чем_45;
-use имя_базы_в_кодировке_утф8_длиной_больше_чем_45;
-select database();
-use test;
-
-select SCHEMA_NAME from information_schema.schemata
-where schema_name='имя_базы_в_кодировке_утф8_длиной_больше_чем_45';
-
-drop database имя_базы_в_кодировке_утф8_длиной_больше_чем_45;
-create table имя_таблицы_в_кодировке_утф8_длиной_больше_чем_48
-(
-  имя_поля_в_кодировке_утф8_длиной_больше_чем_45 int,
-  index имя_индекса_в_кодировке_утф8_длиной_больше_чем_48 (имя_поля_в_кодировке_утф8_длиной_больше_чем_45)
-);
-
-create view имя_вью_кодировке_утф8_длиной_больше_чем_42 as
-select имя_поля_в_кодировке_утф8_длиной_больше_чем_45
-from имя_таблицы_в_кодировке_утф8_длиной_больше_чем_48;
-
-# database, table, field, key, view
-select * from имя_таблицы_в_кодировке_утф8_длиной_больше_чем_48;
-
---sorted_result
-select TABLE_NAME from information_schema.tables where
-table_schema='test';
-
-select COLUMN_NAME from information_schema.columns where
-table_schema='test';
-
-select INDEX_NAME from information_schema.statistics where
-table_schema='test';
-
-select TABLE_NAME from information_schema.views where
-table_schema='test';
-
-show create table имя_таблицы_в_кодировке_утф8_длиной_больше_чем_48;
-show create view имя_вью_кодировке_утф8_длиной_больше_чем_42;
-
-create trigger имя_триггера_в_кодировке_утф8_длиной_больше_чем_49
-before insert on имя_таблицы_в_кодировке_утф8_длиной_больше_чем_48 for each row set @a:=1;
-select TRIGGER_NAME from information_schema.triggers where
-trigger_schema='test';
-drop trigger имя_триггера_в_кодировке_утф8_длиной_больше_чем_49;
---error 1059
-create trigger
-очень_очень_очень_очень_очень_очень_очень_очень_длинная_строка_66
-before insert on имя_таблицы_в_кодировке_утф8_длиной_больше_чем_48 for each row set @a:=1;
---error 1059
-drop trigger очень_очень_очень_очень_очень_очень_очень_очень_длинная_строка_66;
-
-create procedure имя_процедуры_в_кодировке_утф8_длиной_больше_чем_50()
-begin
-end;
-select ROUTINE_NAME from information_schema.routines where
-routine_schema='test';
-drop procedure имя_процедуры_в_кодировке_утф8_длиной_больше_чем_50;
---error 1059
-create procedure очень_очень_очень_очень_очень_очень_очень_очень_длинная_строка_66()
-begin
-end;
-
-create function имя_функции_в_кодировке_утф8_длиной_больше_чем_49()
-   returns int
-return 0;
-select ROUTINE_NAME from information_schema.routines where
-routine_schema='test';
-drop function имя_функции_в_кодировке_утф8_длиной_больше_чем_49;
---error 1059
-create function очень_очень_очень_очень_очень_очень_очень_очень_длинная_строка_66()
-   returns int
-return 0;
-
-drop view имя_вью_кодировке_утф8_длиной_больше_чем_42;
-drop table имя_таблицы_в_кодировке_утф8_длиной_больше_чем_48;
-set names default;
 
 #
 # Bug#21136 CREATE TABLE SELECT within CREATE TABLE SELECT causes server crash

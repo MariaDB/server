@@ -1515,6 +1515,14 @@ static Sys_var_ulong Sys_max_connect_errors(
        VALID_RANGE(1, UINT_MAX), DEFAULT(MAX_CONNECT_ERRORS),
        BLOCK_SIZE(1));
 
+static Sys_var_uint Sys_max_password_errors(
+       "max_password_errors",
+       "If there is more than this number of failed connect attempts "
+       "due to invalid password, user will be blocked from further connections until FLUSH_PRIVILEGES.",
+       GLOBAL_VAR(max_password_errors), CMD_LINE(REQUIRED_ARG),
+       VALID_RANGE(1, UINT_MAX), DEFAULT(UINT_MAX),
+       BLOCK_SIZE(1));
+
 static Sys_var_uint Sys_max_digest_length(
        "max_digest_length", "Maximum length considered for digest text.",
        READ_ONLY GLOBAL_VAR(max_digest_length),
@@ -1940,6 +1948,19 @@ Sys_var_last_gtid::session_value_ptr(THD *thd, const LEX_CSTRING *base)
 
   return (uchar *)p;
 }
+
+
+static Sys_var_uint Sys_gtid_cleanup_batch_size(
+       "gtid_cleanup_batch_size",
+       "Normally does not need tuning. How many old rows must accumulate in "
+       "the mysql.gtid_slave_pos table before a background job will be run to "
+       "delete them. Can be increased to reduce number of commits if "
+       "using many different engines with --gtid_pos_auto_engines, or to "
+       "reduce CPU overhead if using a huge number of different "
+       "gtid_domain_ids. Can be decreased to reduce number of old rows in the "
+       "table.",
+       GLOBAL_VAR(opt_gtid_cleanup_batch_size), CMD_LINE(REQUIRED_ARG),
+       VALID_RANGE(0,2147483647), DEFAULT(64), BLOCK_SIZE(1));
 
 
 static bool
@@ -2456,7 +2477,7 @@ static Sys_var_ulong Sys_optimizer_use_condition_selectivity(
        "5 - additionally use selectivity of certain non-range predicates "
        "calculated on record samples",
        SESSION_VAR(optimizer_use_condition_selectivity), CMD_LINE(REQUIRED_ARG),
-       VALID_RANGE(1, 5), DEFAULT(1), BLOCK_SIZE(1));
+       VALID_RANGE(1, 5), DEFAULT(4), BLOCK_SIZE(1));
 
 static Sys_var_ulong Sys_optimizer_search_depth(
        "optimizer_search_depth",
@@ -2573,13 +2594,15 @@ static Sys_var_ulong Sys_read_buff_size(
 static bool check_read_only(sys_var *self, THD *thd, set_var *var)
 {
   /* Prevent self dead-lock */
-  if (thd->locked_tables_mode || thd->in_active_multi_stmt_transaction())
+  if (thd->locked_tables_mode || thd->in_active_multi_stmt_transaction() ||
+      thd->current_backup_stage != BACKUP_FINISHED)
   {
     my_error(ER_LOCK_OR_ACTIVE_TRANSACTION, MYF(0));
     return true;
   }
   return false;
 }
+
 static bool fix_read_only(sys_var *self, THD *thd, enum_var_type type)
 {
   bool result= true;
@@ -2680,7 +2703,7 @@ static Sys_var_uint Sys_eq_range_index_dive_limit(
        "ranges for the index is larger than or equal to this number. "
        "If set to 0, index dives are always used.",
        SESSION_VAR(eq_range_index_dive_limit), CMD_LINE(REQUIRED_ARG),
-       VALID_RANGE(0, UINT_MAX32), DEFAULT(0),
+       VALID_RANGE(0, UINT_MAX32), DEFAULT(10),
        BLOCK_SIZE(1));
 
 static Sys_var_ulong Sys_range_alloc_block_size(
@@ -3354,6 +3377,7 @@ static const char *sql_mode_names[]=
   "ALLOW_INVALID_DATES", "ERROR_FOR_DIVISION_BY_ZERO", "TRADITIONAL",
   "NO_AUTO_CREATE_USER", "HIGH_NOT_PRECEDENCE", "NO_ENGINE_SUBSTITUTION",
   "PAD_CHAR_TO_FULL_LENGTH", "EMPTY_STRING_IS_NULL", "SIMULTANEOUS_ASSIGNMENT",
+  "TIME_ROUND_FRACTIONAL",
   0
 };
 
@@ -3474,11 +3498,15 @@ static Sys_var_charptr Sys_system_time_zone(
        CMD_LINE_HELP_ONLY,
        IN_SYSTEM_CHARSET, DEFAULT(system_time_zone));
 
+/*
+  If One use views with prepared statements this should be bigger than
+  table_open_cache (now we allow 2 times bigger value)
+*/
 static Sys_var_ulong Sys_table_def_size(
        "table_definition_cache",
        "The number of cached table definitions",
        GLOBAL_VAR(tdc_size), CMD_LINE(REQUIRED_ARG),
-       VALID_RANGE(TABLE_DEF_CACHE_MIN, 512*1024),
+       VALID_RANGE(TABLE_DEF_CACHE_MIN, 2*1024*1024),
        DEFAULT(TABLE_DEF_CACHE_DEFAULT), BLOCK_SIZE(1));
 
 
@@ -3490,7 +3518,7 @@ static bool fix_table_open_cache(sys_var *, THD *, enum_var_type)
   return false;
 }
 
-
+/* Check the table_definition_cache comment if makes changes */
 static Sys_var_ulong Sys_table_cache_size(
        "table_open_cache", "The number of cached open tables",
        GLOBAL_VAR(tc_size), CMD_LINE(REQUIRED_ARG),
@@ -5350,8 +5378,7 @@ static Sys_var_charptr sys_wsrep_sst_method(
        "wsrep_sst_method", "State snapshot transfer method",
        GLOBAL_VAR(wsrep_sst_method),CMD_LINE(REQUIRED_ARG),
        IN_SYSTEM_CHARSET, DEFAULT(WSREP_SST_DEFAULT), NO_MUTEX_GUARD, NOT_IN_BINLOG,
-       ON_CHECK(wsrep_sst_method_check),
-       ON_UPDATE(wsrep_sst_method_update)); 
+       ON_CHECK(wsrep_sst_method_check));
 
 static Sys_var_charptr Sys_wsrep_sst_receive_address( 
        "wsrep_sst_receive_address", "Address where node is waiting for "
@@ -5492,7 +5519,7 @@ static Sys_var_ulong Sys_wsrep_mysql_replication_bundle(
 
 static Sys_var_mybool Sys_wsrep_load_data_splitting(
        "wsrep_load_data_splitting", "To commit LOAD DATA "
-       "transaction after every 10K rows inserted",
+       "transaction after every 10K rows inserted (deprecating)",
        GLOBAL_VAR(wsrep_load_data_splitting), 
        CMD_LINE(OPT_ARG), DEFAULT(TRUE));
 
@@ -5512,11 +5539,47 @@ static Sys_var_mybool Sys_wsrep_restart_slave(
        "wsrep_restart_slave", "Should MariaDB slave be restarted automatically, when node joins back to cluster",
        GLOBAL_VAR(wsrep_restart_slave), CMD_LINE(OPT_ARG), DEFAULT(FALSE));
 
+static Sys_var_ulonglong Sys_wsrep_trx_fragment_size(
+      "wsrep_trx_fragment_size",
+      "Size of transaction fragments for streaming replication (measured in "
+      "units of 'wsrep_trx_fragment_unit')",
+      SESSION_VAR(wsrep_trx_fragment_size), CMD_LINE(REQUIRED_ARG),
+      VALID_RANGE(0, WSREP_MAX_WS_SIZE), DEFAULT(0), BLOCK_SIZE(1),
+      NO_MUTEX_GUARD, NOT_IN_BINLOG,
+      ON_CHECK(wsrep_trx_fragment_size_check),
+      ON_UPDATE(wsrep_trx_fragment_size_update));
+
+extern const char *wsrep_fragment_units[];
+
+static Sys_var_enum Sys_wsrep_trx_fragment_unit(
+      "wsrep_trx_fragment_unit",
+      "Unit for streaming replication transaction fragments' size: bytes, "
+      "rows, statements",
+      SESSION_VAR(wsrep_trx_fragment_unit), CMD_LINE(REQUIRED_ARG),
+      wsrep_fragment_units,
+      DEFAULT(WSREP_FRAG_BYTES),
+      NO_MUTEX_GUARD, NOT_IN_BINLOG,
+      ON_CHECK(0),
+      ON_UPDATE(wsrep_trx_fragment_unit_update));
+
+extern const char *wsrep_SR_store_types[];
+static Sys_var_enum Sys_wsrep_SR_store(
+       "wsrep_SR_store", "Storage for streaming replication fragments",
+       READ_ONLY GLOBAL_VAR(wsrep_SR_store_type), CMD_LINE(REQUIRED_ARG),
+       wsrep_SR_store_types, DEFAULT(WSREP_SR_STORE_TABLE),
+       NO_MUTEX_GUARD, NOT_IN_BINLOG);
+
 static Sys_var_mybool Sys_wsrep_dirty_reads(
        "wsrep_dirty_reads",
        "Allow reads even when the node is not in the primary component.",
        SESSION_VAR(wsrep_dirty_reads), CMD_LINE(OPT_ARG),
        DEFAULT(FALSE), NO_MUTEX_GUARD, NOT_IN_BINLOG);
+
+static Sys_var_uint Sys_wsrep_ignore_apply_errors (
+       "wsrep_ignore_apply_errors", "Ignore replication errors",
+       GLOBAL_VAR(wsrep_ignore_apply_errors), CMD_LINE(REQUIRED_ARG),
+       VALID_RANGE(WSREP_IGNORE_ERRORS_NONE, WSREP_IGNORE_ERRORS_MAX),
+       DEFAULT(7), BLOCK_SIZE(1));
 
 static Sys_var_uint Sys_wsrep_gtid_domain_id(
        "wsrep_gtid_domain_id", "When wsrep_gtid_mode is set, this value is "
@@ -5842,12 +5905,13 @@ static Sys_var_ulong Sys_progress_report_time(
        VALID_RANGE(0, UINT_MAX), DEFAULT(5), BLOCK_SIZE(1));
 
 const char *use_stat_tables_modes[] =
-           {"NEVER", "COMPLEMENTARY", "PREFERABLY", 0};
+           {"NEVER", "COMPLEMENTARY", "PREFERABLY",
+           "COMPLEMENTARY_FOR_QUERIES", "PREFERABLY_FOR_QUERIES", 0};
 static Sys_var_enum Sys_optimizer_use_stat_tables(
        "use_stat_tables",
        "Specifies how to use system statistics tables",
        SESSION_VAR(use_stat_tables), CMD_LINE(REQUIRED_ARG),
-       use_stat_tables_modes, DEFAULT(0));
+       use_stat_tables_modes, DEFAULT(4));
 
 static Sys_var_ulong Sys_histogram_size(
        "histogram_size",

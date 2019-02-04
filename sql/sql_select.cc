@@ -2618,7 +2618,7 @@ int JOIN::optimize_stage2()
   {
      JOIN_TAB *tab= &join_tab[const_tables];
 
-    if (order)
+    if (order && !need_tmp)
     {
       /*
         Force using of tmp table if sorting by a SP or UDF function due to
@@ -2775,6 +2775,18 @@ setup_subq_exit:
   if (!tables_list || !table_count)
   {
     choose_tableless_subquery_plan();
+
+    /* The output has atmost one row */
+    if (group_list)
+    {
+      group_list= NULL;
+      group_optimized_away= 1;
+      rollup.state= ROLLUP::STATE_NONE;
+    }
+    order= NULL;
+    simple_order= TRUE;
+    select_distinct= FALSE;
+
     if (select_lex->have_window_funcs())
     {
       if (!(join_tab= (JOIN_TAB*) thd->alloc(sizeof(JOIN_TAB))))
@@ -3314,7 +3326,7 @@ bool JOIN::make_aggr_tables_info()
         or end_write_group()) if JOIN::group is set to false.
       */
       // the temporary table was explicitly requested
-      DBUG_ASSERT(MY_TEST(select_options & OPTION_BUFFER_RESULT));
+      DBUG_ASSERT(select_options & OPTION_BUFFER_RESULT);
       // the temporary table does not have a grouping expression
       DBUG_ASSERT(!curr_tab->table->group); 
     }
@@ -4199,7 +4211,7 @@ void JOIN::exec_inner()
                  procedure ? procedure_fields_list : *fields,
                  Protocol::SEND_NUM_ROWS | Protocol::SEND_EOF);
 
-  error= do_select(this, procedure);
+  error= result->view_structure_only() ? false : do_select(this, procedure);
   /* Accumulate the counts from all join iterations of all join parts. */
   thd->inc_examined_row_count(join_examined_rows);
   DBUG_PRINT("counts", ("thd->examined_row_count: %lu",
@@ -13378,7 +13390,23 @@ remove_const(JOIN *join,ORDER *first_order, COND *cond,
          tab++)
       tab->cached_eq_ref_table= FALSE;
 
-    *simple_order= *join->join_tab[join->const_tables].on_expr_ref ? 0 : 1;
+    JOIN_TAB *head= join->join_tab + join->const_tables;
+    *simple_order= head->on_expr_ref[0] == NULL;
+    if (*simple_order && head->table->file->ha_table_flags() & HA_SLOW_RND_POS)
+    {
+      uint u1, u2, u3;
+      /*
+        normally the condition is (see filesort_use_addons())
+
+          length + sortlength <= max_length_for_sort_data
+
+        but for HA_SLOW_RND_POS tables we relax it a bit, as the alternative
+        is to use a temporary table, which is rather expensive.
+
+        TODO proper cost estimations
+      */
+      *simple_order= filesort_use_addons(head->table, 0, &u1, &u2, &u3);
+    }
   }
   else
   {
@@ -20448,6 +20476,10 @@ test_if_quick_select(JOIN_TAB *tab)
 
   delete tab->select->quick;
   tab->select->quick=0;
+
+  if (tab->table->file->inited != handler::NONE)
+    tab->table->file->ha_index_or_rnd_end();
+
   int res= tab->select->test_quick_select(tab->join->thd, tab->keys,
                                           (table_map) 0, HA_POS_ERROR, 0,
                                           FALSE, /*remove where parts*/FALSE);
@@ -22954,9 +22986,11 @@ static int remove_dup_with_compare(THD *thd, TABLE *table, Field **first_field,
   }
 
   file->extra(HA_EXTRA_NO_CACHE);
+  (void) file->ha_rnd_end();
   DBUG_RETURN(0);
 err:
   file->extra(HA_EXTRA_NO_CACHE);
+  (void) file->ha_rnd_end();
   if (error)
     file->print_error(error,MYF(0));
   DBUG_RETURN(1);
@@ -24090,7 +24124,7 @@ setup_copy_fields(THD *thd, TMP_TABLE_PARAM *param,
 	 on how the value is to be used: In some cases this may be an
 	 argument in a group function, like: IF(ISNULL(col),0,COUNT(*))
       */
-      if (!(pos=new (thd->mem_root) Item_copy_string(thd, pos)))
+      if (!(pos= pos->type_handler()->create_item_copy(thd, pos)))
 	goto err;
       if (i < border)                           // HAVING, ORDER and GROUP BY
       {
@@ -25936,13 +25970,13 @@ int JOIN::save_explain_data_intern(Explain_query *output,
       (1) they are not parts of ON clauses that were eliminated by table 
           elimination.
       (2) they are not merged derived tables
-      (3) they are not unreferenced CTE
+      (3) they are not hanging CTEs (they are needed for execution)
     */
     if (!(tmp_unit->item && tmp_unit->item->eliminated) &&    // (1)
         (!tmp_unit->derived ||
          tmp_unit->derived->is_materialized_derived()) &&     // (2)
-        !(tmp_unit->with_element && 
-          !tmp_unit->with_element->is_referenced()))          // (3)
+        !(tmp_unit->with_element &&
+          (!tmp_unit->derived || !tmp_unit->derived->derived_result))) // (3)
    {
       explain->add_child(tmp_unit->first_select()->select_number);
     }
@@ -26003,11 +26037,12 @@ static void select_describe(JOIN *join, bool need_tmp_table, bool need_order,
       Save plans for child subqueries, when
       (1) they are not parts of eliminated WHERE/ON clauses.
       (2) they are not VIEWs that were "merged for INSERT".
-      (3) they are not unreferenced CTE.
+      (3) they are not hanging CTEs (they are needed for execution)
     */
     if (!(unit->item && unit->item->eliminated) &&                     // (1)
         !(unit->derived && unit->derived->merged_for_insert) &&        // (2)
-        !(unit->with_element && !unit->with_element->is_referenced())) // (3)  
+        !(unit->with_element &&
+          (!unit->derived || !unit->derived->derived_result)))         // (3)
     {
       if (mysql_explain_union(thd, unit, result))
         DBUG_VOID_RETURN;
@@ -26877,16 +26912,22 @@ void JOIN::cache_const_exprs()
 
  
 /*
-  Get a cost of reading rows_limit rows through index keynr.
+  Get the cost of using index keynr to read #LIMIT matching rows
 
   @detail
    - If there is a quick select, we try to use it.
    - if there is a ref(const) access, we try to use it, too.
    - quick and ref(const) use different cost formulas, so if both are possible
       we should make a cost-based choice.
-  
+
+  rows_limit is the number of rows we would need to read when using a full
+  index scan. This is generally higher than the N from "LIMIT N" clause,
+  because there's a WHERE condition (a part of which is used to construct a
+  range access we are considering using here)
+
   @param  tab              JOIN_TAB with table access (is NULL for single-table
                            UPDATE/DELETE)
+  @param  rows_limit       See explanation above
   @param  read_time OUT    Cost of reading using quick or ref(const) access.
 
 
@@ -26899,6 +26940,7 @@ void JOIN::cache_const_exprs()
 
 static bool get_range_limit_read_cost(const JOIN_TAB *tab, 
                                       const TABLE *table, 
+                                      ha_rows table_records,
                                       uint keynr, 
                                       ha_rows rows_limit,
                                       double *read_time)
@@ -26965,8 +27007,32 @@ static bool get_range_limit_read_cost(const JOIN_TAB *tab,
         }
       }
     }
+
+    /*
+      Consider an example:
+
+        SELECT *
+        FROM t1
+        WHERE key1 BETWEEN 10 AND 20 AND col2='foo'
+        ORDER BY key1 LIMIT 10
+
+      If we were using a full index scan on key1, we would need to read this
+      many rows to get 10 matches:
+
+        10 / selectivity(key1 BETWEEN 10 AND 20 AND col2='foo')
+
+      This is the number we get in rows_limit.
+      But we intend to use range access on key1. The rows returned by quick
+      select will satisfy the range part of the condition,
+      "key1 BETWEEN 10 and 20". We will still need to filter them with
+      the remainder condition, (col2='foo').
+
+      The selectivity of the range access is (best_rows/table_records). We need
+      to discount it from the rows_limit:
+    */
+    double rows_limit_for_quick= rows_limit * (best_rows / table_records);
  
-    if (best_rows > rows_limit)
+    if (best_rows > rows_limit_for_quick)
     {
       /*
         LIMIT clause specifies that we will need to read fewer records than
@@ -26975,7 +27041,7 @@ static bool get_range_limit_read_cost(const JOIN_TAB *tab,
         only need 1/3rd of records, it will cost us 1/3rd of quick select's
         read time)
       */
-      best_cost *= rows_limit / best_rows;
+      best_cost *= rows_limit_for_quick / best_rows;
     }
     *read_time= best_cost;
     res= true;
@@ -27076,7 +27142,11 @@ test_if_cheaper_ordering(const JOIN_TAB *tab, ORDER *order, TABLE *table,
     uint tablenr= (uint)(tab - join->join_tab);
     read_time= join->best_positions[tablenr].read_time;
     for (uint i= tablenr+1; i < join->table_count; i++)
+    {
       fanout*= join->best_positions[i].records_read; // fanout is always >= 1
+      // But selectivity is =< 1 :
+      fanout*= join->best_positions[i].cond_selectivity;
+    }
   }
   else
     read_time= table->file->scan_time();
@@ -27214,6 +27284,24 @@ test_if_cheaper_ordering(const JOIN_TAB *tab, ORDER *order, TABLE *table,
         */
         select_limit= (ha_rows) (select_limit < fanout ?
                                  1 : select_limit/fanout);
+
+        /*
+          refkey_rows_estimate is E(#rows) produced by the table access
+          strategy that was picked without regard to ORDER BY ... LIMIT.
+
+          It will be used as the source of selectivity data. 
+          Use table->cond_selectivity as a better estimate which includes
+          condition selectivity too.
+        */
+        {
+          // we use MIN(...), because "Using LooseScan" queries have
+          // cond_selectivity=1 while refkey_rows_estimate has a better
+          // estimate.
+          refkey_rows_estimate= MY_MIN(refkey_rows_estimate,
+                                       ha_rows(table_records * 
+                                               table->cond_selectivity));
+        }
+
         /*
           We assume that each of the tested indexes is not correlated
           with ref_key. Thus, to select first N records we have to scan
@@ -27224,6 +27312,7 @@ test_if_cheaper_ordering(const JOIN_TAB *tab, ORDER *order, TABLE *table,
           N/(refkey_rows_estimate/table_records) > table_records
           <=> N > refkey_rows_estimate.
          */
+
         if (select_limit > refkey_rows_estimate)
           select_limit= table_records;
         else
@@ -27246,8 +27335,8 @@ test_if_cheaper_ordering(const JOIN_TAB *tab, ORDER *order, TABLE *table,
         index_scan_time= select_limit/rec_per_key *
                          MY_MIN(rec_per_key, table->file->scan_time());
         double range_scan_time;
-        if (get_range_limit_read_cost(tab, table, nr, select_limit, 
-                                       &range_scan_time))
+        if (get_range_limit_read_cost(tab, table, table_records, nr,
+                                      select_limit, &range_scan_time))
         {
           if (range_scan_time < index_scan_time)
             index_scan_time= range_scan_time;

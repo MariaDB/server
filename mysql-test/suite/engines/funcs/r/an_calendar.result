@@ -11,6 +11,7 @@ Note	1265	Data truncated for column 'c1' at row 1
 Note	1265	Data truncated for column 'c2' at row 1
 ANALYZE TABLE t1;
 Table	Op	Msg_type	Msg_text
+test.t1	analyze	status	Engine-independent statistics collected
 test.t1	analyze	status	OK
 DROP TABLE t1;
 CREATE TABLE t1(c1 TIME NULL, c2 TIME NULL);
@@ -25,6 +26,7 @@ Note	1265	Data truncated for column 'c1' at row 1
 Note	1265	Data truncated for column 'c2' at row 1
 ANALYZE TABLE t1;
 Table	Op	Msg_type	Msg_text
+test.t1	analyze	status	Engine-independent statistics collected
 test.t1	analyze	status	OK
 DROP TABLE t1;
 CREATE TABLE t1(c1 DATETIME NULL, c2 DATETIME NULL);
@@ -33,6 +35,7 @@ INSERT INTO t1 VALUES(NOW(),NOW());
 INSERT INTO t1 VALUES(NOW(),NOW());
 ANALYZE TABLE t1;
 Table	Op	Msg_type	Msg_text
+test.t1	analyze	status	Engine-independent statistics collected
 test.t1	analyze	status	OK
 DROP TABLE t1;
 CREATE TABLE t1(c1 TIMESTAMP NULL, c2 TIMESTAMP NULL);
@@ -41,5 +44,6 @@ INSERT INTO t1 VALUES(NOW(),NOW());
 INSERT INTO t1 VALUES(NOW(),NOW());
 ANALYZE TABLE t1;
 Table	Op	Msg_type	Msg_text
+test.t1	analyze	status	Engine-independent statistics collected
 test.t1	analyze	status	OK
 DROP TABLE t1;

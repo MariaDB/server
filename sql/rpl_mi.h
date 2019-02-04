@@ -329,13 +329,13 @@ class Master_info : public Slave_reporting_capability
 
 
   /* No of DDL event group */
-  volatile uint64 total_ddl_groups;
+  Atomic_counter<uint64> total_ddl_groups;
 
   /* No of non-transactional event group*/
-  volatile uint64 total_non_trans_groups;
+  Atomic_counter<uint64> total_non_trans_groups;
 
   /* No of transactional event group*/
-  volatile uint64 total_trans_groups;
+  Atomic_counter<uint64> total_trans_groups;
 
   /* domain-id based filter */
   Domain_id_filter domain_id_filter;

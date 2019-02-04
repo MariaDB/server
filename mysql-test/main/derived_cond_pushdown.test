@@ -2075,6 +2075,33 @@ SELECT * FROM t1;
 DROP VIEW v1;
 DROP TABLE t1;
 
+--echo #
+--echo # MDEV-17574: pushdown into derived from mergeable view
+--echo #             used in multi-table UPDATE
+--echo #             pushdown into materialized derived from mergeable view
+--echo #             used in SELECT
+--echo #
+
+CREATE TABLE t1 (f1 text, f2 int);
+INSERT INTO t1 VALUES ('x',1), ('y',2);
+
+CREATE VIEW v1 AS SELECT f2 FROM ( SELECT f2 FROM t1 ) AS t;
+let $q1 =
+UPDATE v1, t1 SET t1.f1 = 'z' WHERE v1.f2 < 2 AND t1.f2 = v1.f2;
+eval $q1;
+eval EXPLAIN FORMAT=JSON $q1;
+
+SELECT * FROM t1;
+
+CREATE VIEW v2 AS SELECT f2 FROM ( SELECT DISTINCT f2 FROM t1 ) AS t;
+let $q2 =
+SELECT * FROM v2, t1 WHERE v2.f2 < 2 AND t1.f2 = v2.f2;
+eval $q2;
+eval EXPLAIN FORMAT=JSON $q2;
+
+DROP VIEW v1,v2;
+DROP TABLE t1;
+
 --echo # End of 10.2 tests
 
 --echo #

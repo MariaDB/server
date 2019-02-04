@@ -897,3 +897,36 @@ LOAD DATA INFILE '../../std_data/loaddata_utf8.dat' INTO TABLE t1 CHARACTER SET 
 SELECT HEX(a), CRC32(a) from t1;
 DROP TABLE t1;
 SET NAMES default;
+
+--echo #
+--echo # MDEV-17759 Assertion `precision > 0' failed in decimal_bin_size upon CREATE TABLE .. SELECT
+--echo #
+
+SET sql_mode='';
+CREATE TABLE t1 (d DECIMAL(43,0) UNSIGNED);
+INSERT INTO t1 VALUES (1);
+CREATE TABLE t2 AS SELECT
+  NULL DIV d AS d_null,
+  '' DIV d AS d_empty_string,
+  X'32' DIV d AS d_hex_string2,
+  X'3232' DIV d AS d_hex_string4,
+  TIME(0) DIV d AS d_time,
+  CURRENT_DATE DIV d AS d_date,
+  CURRENT_TIMESTAMP DIV d AS d_datetime
+FROM t1;
+SHOW CREATE TABLE t2;
+DROP TABLE t1, t2;
+SET sql_mode=DEFAULT;
+
+
+--echo #
+--echo # MDEV-18150 Assertion `decimals_to_set <= 38' failed in Item_func_round::fix_length_and_dec_decimal
+--echo #
+
+CREATE TABLE t1 (i INT(23));
+SELECT ROUND( i, 18446744073709551594 ) AS f FROM t1;
+DROP TABLE t1;
+
+--echo #
+--echo # End of 10.3 tests
+--echo #

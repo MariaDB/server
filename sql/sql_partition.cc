@@ -8217,6 +8217,7 @@ static int get_part_iter_for_interval_via_mapping(partition_info *part_info,
              field->type() == MYSQL_TYPE_DATETIME))
         {
           /* Monotonic, but return NULL for dates with zeros in month/day. */
+          DBUG_ASSERT(field->cmp_type() == TIME_RESULT); // No rounding/truncation
           zero_in_start_date= field->get_date(&start_date, date_mode_t(0));
           DBUG_PRINT("info", ("zero start %u %04d-%02d-%02d",
                               zero_in_start_date, start_date.year,
@@ -8241,6 +8242,7 @@ static int get_part_iter_for_interval_via_mapping(partition_info *part_info,
         !part_info->part_expr->null_value)
     {
       MYSQL_TIME end_date;
+      DBUG_ASSERT(field->cmp_type() == TIME_RESULT); // No rounding/truncation
       bool zero_in_end_date= field->get_date(&end_date, date_mode_t(0));
       /*
         This is an optimization for TO_DAYS()/TO_SECONDS() to avoid scanning

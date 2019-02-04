@@ -145,6 +145,11 @@ foreach my $option (@ARGV)
     $cmakeargs = $cmakeargs." -DPLUGIN_".uc($1)."=".uc($2);
     next;
   }
+  if($option =~ /without-wsrep/)
+  {
+    $cmakeargs = $cmakeargs." -DWITH_WSREP=OFF";
+    next;
+  }
   if($option =~ /with-zlib-dir=bundled/)
   {
     $cmakeargs = $cmakeargs." -DWITH_ZLIB=bundled";
@@ -183,6 +188,16 @@ foreach my $option (@ARGV)
   if($option =~ /with-debug/)
   {
     $cmakeargs = $cmakeargs." -DCMAKE_BUILD_TYPE=Debug -DSECURITY_HARDENED=OFF";
+    next;
+  }
+  if($option =~ /with-(.*)=(.*)/)
+  {
+    $cmakeargs = $cmakeargs. " -DWITH_" . uc($1) . "=" . uc($2);
+    next;
+  }
+  if($option =~ /without-(.*)=(.*)/)
+  {
+    $cmakeargs = $cmakeargs. " -DWITHOUT_" . uc($1) . "=" . uc($2);
     next;
   }
   if($option =~ /prefix=/)

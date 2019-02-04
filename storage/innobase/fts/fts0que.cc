@@ -25,8 +25,6 @@ Created 2007/03/27 Sunny Bains
 Completed 2011/7/10 Sunny and Jimmy Yang
 *******************************************************/
 
-#include "ha_prototypes.h"
-
 #include "dict0dict.h"
 #include "ut0rbt.h"
 #include "row0sel.h"
@@ -36,7 +34,6 @@ Completed 2011/7/10 Sunny and Jimmy Yang
 #include "fts0pars.h"
 #include "fts0types.h"
 #include "fts0plugin.h"
-#include "ut0new.h"
 
 #include <iomanip>
 #include <vector>

@@ -49,15 +49,11 @@ SHOW STATUS LIKE 'x';
 # Reset it back.
 SET GLOBAL wsrep_provider=none;
 
---echo #
---echo # MDEV#6079: xtrabackup SST failing with maria-10.0-galera
---echo #
-
 --disable_query_log
 eval SET GLOBAL wsrep_provider= '$WSREP_PROVIDER';
 --enable_query_log
 
-# The following 2 variables are used in innobackupex during xtrabackup-based
+# The following 2 variables are used by mariabackup
 # SST.
 --echo
 --replace_column 2 #

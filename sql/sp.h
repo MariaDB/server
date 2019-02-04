@@ -522,12 +522,11 @@ inline const Sp_handler *Sp_handler::handler(MDL_key::enum_mdl_namespace type)
     return &sp_handler_procedure;
   case MDL_key::PACKAGE_BODY:
     return &sp_handler_package_body;
-  case MDL_key::GLOBAL:
+  case MDL_key::BACKUP:
   case MDL_key::SCHEMA:
   case MDL_key::TABLE:
   case MDL_key::TRIGGER:
   case MDL_key::EVENT:
-  case MDL_key::COMMIT:
   case MDL_key::USER_LOCK:
   case MDL_key::NAMESPACE_END:
     break;

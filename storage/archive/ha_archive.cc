@@ -1737,6 +1737,20 @@ int ha_archive::info(uint flag)
 }
 
 
+int ha_archive::extra(enum ha_extra_function operation)
+{
+  switch (operation) {
+  case HA_EXTRA_FLUSH:
+    mysql_mutex_lock(&share->mutex);
+    share->close_archive_writer();
+    mysql_mutex_unlock(&share->mutex);
+    break;
+  default:
+    break;
+  }
+  return 0;
+}
+
 /*
   This method tells us that a bulk insert operation is about to occur. We set
   a flag which will keep write_row from saying that its data is dirty. This in

@@ -24,8 +24,6 @@ Insert buffer
 Created 7/19/1997 Heikki Tuuri
 *******************************************************/
 
-#include "ha_prototypes.h"
-
 #include "ibuf0ibuf.h"
 #include "sync0sync.h"
 #include "btr0sea.h"
@@ -55,7 +53,6 @@ my_bool	srv_ibuf_disable_background_merge;
 #include "log0recv.h"
 #include "que0que.h"
 #include "srv0start.h" /* srv_shutdown_state */
-#include "fsp0sysspace.h"
 #include "rem0cmp.h"
 
 /*	STRUCTURE OF AN INSERT BUFFER RECORD
@@ -1430,23 +1427,17 @@ ibuf_rec_get_counter(
 	}
 }
 
-/****************************************************************//**
-Add accumulated operation counts to a permanent array. Both arrays must be
-of size IBUF_OP_COUNT. */
-static
-void
-ibuf_add_ops(
-/*=========*/
-	ulint*		arr,	/*!< in/out: array to modify */
-	const ulint*	ops)	/*!< in: operation counts */
 
+/**
+  Add accumulated operation counts to a permanent array.
+  Both arrays must be of size IBUF_OP_COUNT.
+*/
+static void ibuf_add_ops(Atomic_counter<ulint> *out, const ulint *in)
 {
-	ulint	i;
-
-	for (i = 0; i < IBUF_OP_COUNT; i++) {
-		my_atomic_addlint(&arr[i], ops[i]);
-	}
+  for (auto i = 0; i < IBUF_OP_COUNT; i++)
+    out[i]+= in[i];
 }
+
 
 /****************************************************************//**
 Print operation counts. The array must be of size IBUF_OP_COUNT. */
@@ -1454,8 +1445,8 @@ static
 void
 ibuf_print_ops(
 /*===========*/
-	const ulint*	ops,	/*!< in: operation counts */
-	FILE*		file)	/*!< in: file where to print */
+	const Atomic_counter<ulint>*	ops,	/*!< in: operation counts */
+	FILE*				file)	/*!< in: file where to print */
 {
 	static const char* op_names[] = {
 		"insert",
@@ -1468,7 +1459,7 @@ ibuf_print_ops(
 
 	for (i = 0; i < IBUF_OP_COUNT; i++) {
 		fprintf(file, "%s " ULINTPF "%s", op_names[i],
-			ops[i], (i < (IBUF_OP_COUNT - 1)) ? ", " : "");
+			ulint{ops[i]}, (i < (IBUF_OP_COUNT - 1)) ? ", " : "");
 	}
 
 	putc('\n', file);
@@ -3372,7 +3363,7 @@ ibuf_insert_low(
 	ut_ad(!dict_index_is_spatial(index));
 	ut_ad(dtuple_check_typed(entry));
 	ut_ad(!no_counter || op == IBUF_OP_INSERT);
-	ut_ad(page_id.space() == index->table->space->id);
+	ut_ad(page_id.space() == index->table->space_id);
 	ut_a(op < IBUF_OP_COUNT);
 
 	do_merge = FALSE;
@@ -4763,7 +4754,7 @@ reset_bit:
 	btr_pcur_close(&pcur);
 	mem_heap_free(heap);
 
-	my_atomic_addlint(&ibuf->n_merges, 1);
+	ibuf->n_merges++;
 	ibuf_add_ops(ibuf->n_merged_ops, mops);
 	ibuf_add_ops(ibuf->n_discarded_ops, dops);
 
@@ -4900,7 +4891,7 @@ ibuf_print(
 		ibuf->size,
 		ibuf->free_list_len,
 		ibuf->seg_size,
-		ibuf->n_merges);
+		ulint{ibuf->n_merges});
 
 	fputs("merged operations:\n ", file);
 	ibuf_print_ops(ibuf->n_merged_ops, file);
@@ -4925,6 +4916,20 @@ ibuf_print(
 #endif /* UNIV_IBUF_COUNT_DEBUG */
 
 	mutex_exit(&ibuf_mutex);
+}
+
+/** Check if a page is all zeroes.
+@param[in]	read_buf	database page
+@param[in]	size		page size
+@return	whether the page is all zeroes */
+static bool buf_page_is_zeroes(const byte* read_buf, const page_size_t& size)
+{
+	for (ulint i = 0; i < size.physical(); i++) {
+		if (read_buf[i] != 0) {
+			return false;
+		}
+	}
+	return true;
 }
 
 /** Check the insert buffer bitmaps on IMPORT TABLESPACE.

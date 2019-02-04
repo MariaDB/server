@@ -1124,7 +1124,7 @@ INSERT INTO t1 VALUES (0xDF84);
 SET STATEMENT sql_mode = 'NO_ENGINE_SUBSTITUTION' FOR
 ALTER TABLE t1 MODIFY column s1 VARCHAR(50) CHARACTER SET utf16le;
 Warnings:
-Warning	1366	Incorrect string value: '\xDF\x84' for column 's1' at row 1
+Warning	1366	Incorrect string value: '\xDF\x84' for column `test`.`t1`.`s1` at row 1
 SELECT HEX(s1) FROM t1;
 HEX(s1)
 3F00
@@ -1136,7 +1136,7 @@ CREATE TABLE t1 (s1 VARCHAR(5) CHARACTER SET ucs2, s2 VARCHAR(5) CHARACTER SET u
 INSERT INTO t1 (s1) VALUES (0xdf84);
 UPDATE IGNORE t1 set s2 = s1;
 Warnings:
-Warning	1366	Incorrect string value: '\xDF\x84' for column 's2' at row 1
+Warning	1366	Incorrect string value: '\xDF\x84' for column `test`.`t1`.`s2` at row 1
 SELECT HEX(s2) FROM t1;
 HEX(s2)
 3F00

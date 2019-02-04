@@ -541,6 +541,7 @@ public:
   bool utf8;                                    /* Already in utf8 */
   Item *expr;
   LEX_CSTRING name;                             /* Name of constraint */
+  /* see VCOL_* (VCOL_FIELD_REF, ...) */
   uint flags;
 
   Virtual_column_info()
@@ -609,7 +610,9 @@ protected:
   static void do_field_int(Copy_field *copy);
   static void do_field_real(Copy_field *copy);
   static void do_field_string(Copy_field *copy);
-  static void do_field_temporal(Copy_field *copy);
+  static void do_field_date(Copy_field *copy);
+  static void do_field_temporal(Copy_field *copy, date_mode_t fuzzydate);
+  static void do_field_datetime(Copy_field *copy);
   static void do_field_timestamp(Copy_field *copy);
   static void do_field_decimal(Copy_field *copy);
 public:
@@ -781,7 +784,21 @@ public:
   virtual int  store(longlong nr, bool unsigned_val)=0;
   virtual int  store_decimal(const my_decimal *d)=0;
   virtual int  store_time_dec(const MYSQL_TIME *ltime, uint dec);
-  virtual int  store_timestamp(my_time_t timestamp, ulong sec_part);
+  virtual int  store_timestamp_dec(const timeval &ts, uint dec);
+  int store_timestamp(my_time_t timestamp, ulong sec_part)
+  {
+    return store_timestamp_dec(Timeval(timestamp, sec_part),
+                               TIME_SECOND_PART_DIGITS);
+  }
+  /**
+    Store a value represented in native format
+  */
+  virtual int store_native(const Native &value)
+  {
+    DBUG_ASSERT(0);
+    reset();
+    return 0;
+  }
   int store_time(const MYSQL_TIME *ltime)
   { return store_time_dec(ltime, TIME_SECOND_PART_DIGITS); }
   int store(const char *to, size_t length, CHARSET_INFO *cs,
@@ -828,6 +845,11 @@ public:
      This trickery is used to decrease a number of malloc calls.
   */
   virtual String *val_str(String*,String *)=0;
+  virtual bool val_native(Native *to)
+  {
+    DBUG_ASSERT(!is_null());
+    return to->copy((const char *) ptr, pack_length());
+  }
   String *val_int_as_str(String *val_buffer, bool unsigned_flag);
   /*
     Return the field value as a LEX_CSTRING, without padding to full length
@@ -1343,7 +1365,6 @@ public:
   void copy_from_tmp(int offset);
   uint fill_cache_field(struct st_cache_field *copy);
   virtual bool get_date(MYSQL_TIME *ltime, date_mode_t fuzzydate);
-  bool get_time(MYSQL_TIME *ltime) { return get_date(ltime, TIME_TIME_ONLY); }
   virtual TYPELIB *get_typelib() const { return NULL; }
   virtual CHARSET_INFO *charset(void) const { return &my_charset_bin; }
   virtual CHARSET_INFO *charset_for_protocol(void) const
@@ -1366,13 +1387,13 @@ protected:
     return set_warning(Sql_condition::WARN_LEVEL_NOTE, code, cuted_increment);
   }
   void set_datetime_warning(Sql_condition::enum_warning_level, uint code,
-                            const ErrConv *str, timestamp_type ts_type,
+                            const ErrConv *str, const char *typestr,
                             int cuted_increment) const;
   void set_datetime_warning(uint code,
-                            const ErrConv *str, timestamp_type ts_type,
+                            const ErrConv *str, const char *typestr,
                             int cuted_increment) const
   {
-    set_datetime_warning(Sql_condition::WARN_LEVEL_WARN, code, str, ts_type,
+    set_datetime_warning(Sql_condition::WARN_LEVEL_WARN, code, str, typestr,
                          cuted_increment);
   }
   void set_warning_truncated_wrong_value(const char *type, const char *value);
@@ -2079,7 +2100,7 @@ public:
   {
     my_decimal nr(ptr, precision, dec);
     return decimal_to_datetime_with_warn(get_thd(), &nr, ltime,
-                                         fuzzydate, field_name.str);
+                                         fuzzydate, table->s, field_name.str);
   }
   bool val_bool()
   {
@@ -2596,33 +2617,32 @@ protected:
   Item *get_equal_const_item_datetime(THD *thd, const Context &ctx,
                                       Item *const_item);
   void set_warnings(Sql_condition::enum_warning_level trunc_level,
-                    const ErrConv *str, int was_cut, timestamp_type ts_type);
+                    const ErrConv *str, int was_cut, const char *typestr);
   int store_TIME_return_code_with_warnings(int warn, const ErrConv *str,
-                                           timestamp_type ts_type)
+                                           const char *typestr)
   {
     if (!MYSQL_TIME_WARN_HAVE_WARNINGS(warn) &&
         MYSQL_TIME_WARN_HAVE_NOTES(warn))
     {
       set_warnings(Sql_condition::WARN_LEVEL_NOTE, str,
-                   warn | MYSQL_TIME_WARN_TRUNCATED, ts_type);
+                   warn | MYSQL_TIME_WARN_TRUNCATED, typestr);
       return 3;
     }
-    set_warnings(Sql_condition::WARN_LEVEL_WARN, str, warn, ts_type);
+    set_warnings(Sql_condition::WARN_LEVEL_WARN, str, warn, typestr);
     return warn ? 2 : 0;
   }
   int store_invalid_with_warning(const ErrConv *str, int was_cut,
-                                 timestamp_type ts_type)
+                                 const char *typestr)
   {
     DBUG_ASSERT(was_cut);
     reset();
     Sql_condition::enum_warning_level level= Sql_condition::WARN_LEVEL_WARN;
     if (was_cut & MYSQL_TIME_WARN_ZERO_DATE)
     {
-      DBUG_ASSERT(ts_type != MYSQL_TIMESTAMP_TIME);
-      set_warnings(level, str, MYSQL_TIME_WARN_OUT_OF_RANGE, ts_type);
+      set_warnings(level, str, MYSQL_TIME_WARN_OUT_OF_RANGE, typestr);
       return 2;
     }
-    set_warnings(level, str, MYSQL_TIME_WARN_TRUNCATED, ts_type);
+    set_warnings(level, str, MYSQL_TIME_WARN_TRUNCATED, typestr);
     return 1;
   }
 public:
@@ -2640,7 +2660,8 @@ public:
   int save_in_field(Field *to)
   {
     MYSQL_TIME ltime;
-    if (get_date(&ltime, date_mode_t(0)))
+    // For temporal types no truncation needed. Rounding mode is not important.
+    if (get_date(&ltime, TIME_CONV_NONE | TIME_FRAC_NONE))
       return to->reset();
     return to->store_time_dec(&ltime, decimals());
   }
@@ -2689,6 +2710,10 @@ public:
 class Field_temporal_with_date: public Field_temporal {
 protected:
   virtual void store_TIME(const MYSQL_TIME *ltime) = 0;
+  void store_datetime(const Datetime &dt)
+  {
+    return store_TIME(dt.get_mysql_time());
+  }
   virtual bool get_TIME(MYSQL_TIME *ltime, const uchar *pos,
                         date_mode_t fuzzydate) const = 0;
   bool validate_MMDD(bool not_zero_date, uint month, uint day,
@@ -2714,13 +2739,17 @@ public:
 
 class Field_timestamp :public Field_temporal {
 protected:
-  date_mode_t sql_mode_for_timestamp(THD *thd) const;
   int store_TIME_with_warning(THD *, const Datetime *,
                               const ErrConv *, int warn);
   virtual void store_TIMEVAL(const timeval &tv)
   {
     int4store(ptr, tv.tv_sec);
   }
+  void store_TIMESTAMP(const Timestamp &ts)
+  {
+    store_TIMEVAL(ts.tv());
+  }
+  int zero_time_stored_return_code_with_warning();
 public:
   Field_timestamp(uchar *ptr_arg, uint32 len_arg,
                   uchar *null_ptr_arg, uchar null_bit_arg,
@@ -2735,7 +2764,7 @@ public:
   int  store(longlong nr, bool unsigned_val);
   int  store_time_dec(const MYSQL_TIME *ltime, uint dec);
   int  store_decimal(const my_decimal *);
-  int  store_timestamp(my_time_t timestamp, ulong sec_part);
+  int  store_timestamp_dec(const timeval &ts, uint dec);
   int  save_in_field(Field *to);
   double val_real(void);
   longlong val_int(void);
@@ -2760,11 +2789,19 @@ public:
   {
     return get_timestamp(ptr, sec_part);
   }
-  void store_TIME(my_time_t timestamp, ulong sec_part)
+  /*
+    This method is used by storage/perfschema and
+    Item_func_now_local::save_in_field().
+  */
+  void store_TIME(my_time_t ts, ulong sec_part)
   {
-    store_TIMEVAL(Timeval(timestamp, sec_part).trunc(decimals()));
+    int warn;
+    time_round_mode_t mode= Datetime::default_round_mode(get_thd());
+    store_TIMESTAMP(Timestamp(ts, sec_part).round(decimals(), mode, &warn));
   }
   bool get_date(MYSQL_TIME *ltime, date_mode_t fuzzydate);
+  int store_native(const Native &value);
+  bool val_native(Native *to);
   uchar *pack(uchar *to, const uchar *from,
               uint max_length __attribute__((unused)))
   {
@@ -2844,6 +2881,7 @@ public:
   {
     DBUG_ASSERT(dec);
   }
+  bool val_native(Native *to);
   my_time_t get_timestamp(const uchar *pos, ulong *sec_part) const;
   int cmp(const uchar *,const uchar *);
   uint32 pack_length() const { return 4 + sec_part_bytes(dec); }
@@ -2894,6 +2932,7 @@ public:
   {
     return get_timestamp(ptr, sec_part);
   }
+  bool val_native(Native *to);
   uint size_of() const { return sizeof(*this); }
 };
 
@@ -2923,7 +2962,7 @@ public:
       return do_field_string;
     }
     case TIME_RESULT:
-      return do_field_temporal;
+      return do_field_date;
     case DECIMAL_RESULT:
       return do_field_decimal;
     case REAL_RESULT:
@@ -2969,6 +3008,7 @@ public:
                               null_ptr_arg, null_bit_arg,
                               unireg_check_arg, field_name_arg)
   {}
+  Copy_func *get_copy_func(const Field *from) const;
   SEL_ARG *get_mm_leaf(RANGE_OPT_PARAM *param, KEY_PART *key_part,
                        const Item_bool_func *cond,
                        scalar_comparison_op op, Item *value);
@@ -3053,6 +3093,10 @@ class Field_time :public Field_temporal {
   long curdays;
 protected:
   virtual void store_TIME(const MYSQL_TIME *ltime);
+  void store_TIME(const Time &t)
+  {
+    return store_TIME(t.get_mysql_time());
+  }
   int store_TIME_with_warning(const Time *ltime, const ErrConv *str, int warn);
   bool check_zero_in_date_with_warn(date_mode_t fuzzydate);
   static void do_field_time(Copy_field *copy);

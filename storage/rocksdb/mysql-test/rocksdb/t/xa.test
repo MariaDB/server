@@ -1,0 +1,38 @@
+--echo # 
+--echo # MDEV-13155: XA recovery not supported for RocksDB (Just a testcase)
+--echo #
+ 
+call mtr.add_suppression("Found .* prepared XA transactions");
+
+--connect (con1,localhost,root,,test)
+--disable_warnings
+DROP TABLE IF EXISTS t1;
+--enable_warnings
+
+CREATE TABLE t1 (a INT) ENGINE=RocksDB;
+ 
+XA START 'xa1';
+INSERT INTO t1 (a) VALUES (1),(2);
+XA END 'xa1';
+XA PREPARE 'xa1';
+ 
+--connect (con2,localhost,root,,test)
+XA START 'xa2';
+INSERT INTO t1 (a) VALUES (3);
+INSERT INTO t1 (a) VALUES (4);
+XA END 'xa2';
+XA PREPARE 'xa2';
+ 
+--connection default
+SELECT * FROM t1;
+
+--let $shutdown_timeout= 0
+--source include/restart_mysqld.inc
+ 
+--connect (con3,localhost,root,,test)
+--disable_abort_on_error
+XA RECOVER;
+XA ROLLBACK 'xa1';
+XA COMMIT 'xa2';
+SELECT a FROM t1;
+DROP TABLE t1;

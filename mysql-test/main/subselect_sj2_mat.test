@@ -475,6 +475,8 @@ INSERT INTO `t5` VALUES
 (677),(679),(680),(681),(682),(683),(684),(685),(686);
 
 ANALYZE TABLE t1,t2,t3,t,t5;
+
+set optimizer_switch='rowid_filter=off';
  
 explain
 SELECT * FROM t3 
@@ -488,6 +490,8 @@ AND t3.id_product IN (SELECT id_product FROM t2 t2_3 WHERE t2_3.id_t2 = 18 OR t2
 AND t3.id_product IN (SELECT id_product FROM t2 t2_4 WHERE t2_4.id_t2 = 34 OR t2_4.id_t2 = 23) 
 AND t3.id_product IN (SELECT id_product FROM t2 t2_5 WHERE t2_5.id_t2 = 29 OR t2_5.id_t2 = 28 OR t2_5.id_t2 = 26);
  
+set optimizer_switch='rowid_filter=default';
+
 drop table t1,t2,t3,t4,t5;
 
 set global innodb_stats_persistent= @innodb_stats_persistent_save;

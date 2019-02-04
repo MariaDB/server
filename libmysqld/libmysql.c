@@ -3215,7 +3215,8 @@ static void fetch_string_with_conversion(MYSQL_BIND *param, char *value, size_t 
   {
     MYSQL_TIME *tm= (MYSQL_TIME *)buffer;
     MYSQL_TIME_STATUS status;
-    str_to_time(value, length, tm, 0, &status);
+    str_to_datetime_or_date_or_time(value, length, tm, 0, &status,
+                                    TIME_MAX_HOUR, UINT_MAX32);
     err= status.warnings;
     *param->error= MY_TEST(err);
     break;
@@ -3226,7 +3227,7 @@ static void fetch_string_with_conversion(MYSQL_BIND *param, char *value, size_t 
   {
     MYSQL_TIME *tm= (MYSQL_TIME *)buffer;
     MYSQL_TIME_STATUS status;
-    (void) str_to_datetime(value, length, tm, 0, &status);
+    (void) str_to_datetime_or_date(value, length, tm, 0, &status);
     err= status.warnings;
     *param->error= MY_TEST(err) && (param->buffer_type == MYSQL_TYPE_DATE &&
                                     tm->time_type != MYSQL_TIMESTAMP_DATE);
@@ -3350,7 +3351,7 @@ static void fetch_long_with_conversion(MYSQL_BIND *param, MYSQL_FIELD *field,
   case MYSQL_TYPE_DATETIME:
   {
     int error;
-    value= number_to_datetime(value, 0, (MYSQL_TIME *) buffer, 0, &error);
+    value= number_to_datetime_or_date(value, 0, (MYSQL_TIME *) buffer, 0, &error);
     *param->error= MY_TEST(error);
     break;
   }

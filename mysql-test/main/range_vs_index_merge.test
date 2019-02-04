@@ -718,6 +718,23 @@ SELECT * FROM City
 ORDER BY Population LIMIT 5;
 SHOW STATUS LIKE 'Handler_read_%';
 
+set @tmp_mdev585=@@optimizer_use_condition_selectivity;
+set optimizer_use_condition_selectivity=1;
+--replace_column 9 #
+EXPLAIN 
+SELECT * FROM City
+  WHERE ((Name > 'Ca' AND Name < 'Cf') OR (Country > 'E' AND Country < 'H'))
+        AND (Population >= 100000 AND Population < 120000)
+ORDER BY Population LIMIT 5;
+
+FLUSH STATUS;
+SELECT * FROM City
+  WHERE ((Name > 'Ca' AND Name < 'Cf') OR (Country > 'E' AND Country < 'H'))
+        AND (Population >= 100000 AND Population < 120000)
+ORDER BY Population LIMIT 5;
+SHOW STATUS LIKE 'Handler_read_%';
+
+set optimizer_use_condition_selectivity=@tmp_mdev585;
 
 set optimizer_switch='index_merge=off';
 

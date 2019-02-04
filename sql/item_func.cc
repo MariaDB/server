@@ -1615,13 +1615,9 @@ longlong Item_func_int_div::val_int()
 
 bool Item_func_int_div::fix_length_and_dec()
 {
-  Item_result argtype= args[0]->result_type();
-  /* use precision ony for the data type it is applicable for and valid */
-  uint32 char_length= args[0]->max_char_length() -
-                      (argtype == DECIMAL_RESULT || argtype == INT_RESULT ?
-                       args[0]->decimals : 0);
-  fix_char_length(char_length > MY_INT64_NUM_DECIMAL_DIGITS ?
-                  MY_INT64_NUM_DECIMAL_DIGITS : char_length);
+  uint32 prec= args[0]->decimal_int_part();
+  set_if_smaller(prec, MY_INT64_NUM_DECIMAL_DIGITS);
+  fix_char_length(prec);
   maybe_null=1;
   unsigned_flag=args[0]->unsigned_flag | args[1]->unsigned_flag;
   return false;
@@ -2276,11 +2272,11 @@ void Item_func_round::fix_arg_decimal()
 {
   if (args[1]->const_item())
   {
-    uint dec= (uint) args[1]->val_uint_from_val_int(DECIMAL_MAX_SCALE);
+    Longlong_hybrid dec= args[1]->to_longlong_hybrid();
     if (args[1]->null_value)
       fix_length_and_dec_double(NOT_FIXED_DEC);
     else
-      fix_length_and_dec_decimal(dec);
+      fix_length_and_dec_decimal(dec.to_uint(DECIMAL_MAX_SCALE));
   }
   else
   {
@@ -2296,8 +2292,9 @@ void Item_func_round::fix_arg_double()
 {
   if (args[1]->const_item())
   {
-    uint dec= (uint) args[1]->val_uint_from_val_int(NOT_FIXED_DEC);
-    fix_length_and_dec_double(args[1]->null_value ? NOT_FIXED_DEC : dec);
+    Longlong_hybrid dec= args[1]->to_longlong_hybrid();
+    fix_length_and_dec_double(args[1]->null_value ? NOT_FIXED_DEC :
+                              dec.to_uint(NOT_FIXED_DEC));
   }
   else
     fix_length_and_dec_double(args[0]->decimals);
@@ -2308,17 +2305,14 @@ void Item_func_round::fix_arg_int()
 {
   if (args[1]->const_item())
   {
-    longlong val1= args[1]->val_int();
-    bool val1_is_negative= val1 < 0 && !args[1]->unsigned_flag;
-    uint decimals_to_set= val1_is_negative ?
-                          0 : (uint) MY_MIN(val1, DECIMAL_MAX_SCALE);
+    Longlong_hybrid val1= args[1]->to_longlong_hybrid();
     if (args[1]->null_value)
       fix_length_and_dec_double(NOT_FIXED_DEC);
-    else if ((!decimals_to_set && truncate) ||
+    else if ((!val1.to_uint(DECIMAL_MAX_SCALE) && truncate) ||
              args[0]->decimal_precision() < DECIMAL_LONGLONG_DIGITS)
     {
       // Length can increase in some cases: ROUND(9,-1) -> 10
-      int length_can_increase= MY_TEST(!truncate && val1_is_negative);
+      int length_can_increase= MY_TEST(!truncate && val1.neg());
       max_length= args[0]->max_length + length_can_increase;
       // Here we can keep INT_RESULT
       unsigned_flag= args[0]->unsigned_flag;
@@ -2326,7 +2320,7 @@ void Item_func_round::fix_arg_int()
       set_handler(type_handler_long_or_longlong());
     }
     else
-      fix_length_and_dec_decimal(decimals_to_set);
+      fix_length_and_dec_decimal(val1.to_uint(DECIMAL_MAX_SCALE));
   }
   else
     fix_length_and_dec_double(args[0]->decimals);
@@ -2457,7 +2451,7 @@ void Item_func_rand::seed_random(Item *arg)
   THD *thd= current_thd;
   if (WSREP(thd))
   {
-    if (thd->wsrep_exec_mode==REPL_RECV)
+    if (wsrep_thd_is_applying(thd))
       tmp= thd->wsrep_rand;
     else
       tmp= thd->wsrep_rand= (uint32) arg->val_int();
@@ -2610,13 +2604,13 @@ bool Item_func_min_max::get_time_native(THD *thd, MYSQL_TIME *ltime)
 {
   DBUG_ASSERT(fixed == 1);
 
-  Time value(thd, args[0], Time::Options(), decimals);
+  Time value(thd, args[0], Time::Options(thd), decimals);
   if (!value.is_valid_time())
     return (null_value= true);
 
   for (uint i= 1; i < arg_count ; i++)
   {
-    Time tmp(thd, args[i], Time::Options(), decimals);
+    Time tmp(thd, args[i], Time::Options(thd), decimals);
     if (!tmp.is_valid_time())
       return (null_value= true);
 
@@ -2727,6 +2721,28 @@ my_decimal *Item_func_min_max::val_decimal_native(my_decimal *dec)
     }
   }
   return res;
+}
+
+
+bool Item_func_min_max::val_native(THD *thd, Native *native)
+{
+  DBUG_ASSERT(fixed == 1);
+  const Type_handler *handler= Item_hybrid_func::type_handler();
+  NativeBuffer<STRING_BUFFER_USUAL_SIZE> cur;
+  for (uint i= 0; i < arg_count; i++)
+  {
+    if (val_native_with_conversion_from_item(thd, args[i],
+                                             i == 0 ? native : &cur,
+                                             handler))
+      return true;
+    if (i > 0)
+    {
+      int cmp= handler->cmp_native(*native, cur);
+      if ((cmp_sign < 0 ? cmp : -cmp) < 0 && native->copy(cur))
+        return null_value= true;
+    }
+  }
+  return null_value= false;
 }
 
 
@@ -3147,6 +3163,8 @@ udf_handler::fix_fields(THD *thd, Item_func_or_sum *func,
 	func->maybe_null=1;
       if (with_sum_func_cache)
         with_sum_func_cache->join_with_sum_func(item);
+      func->with_window_func= func->with_window_func ||
+                              item->with_window_func;
       func->with_field= func->with_field || item->with_field;
       func->with_param= func->with_param || item->with_param;
       func->With_subquery_cache::join(item);
@@ -6452,6 +6470,14 @@ String *Item_func_last_value::val_str(String *str)
   null_value= last_value->null_value;
   return tmp;
 }
+
+
+bool Item_func_last_value::val_native(THD *thd, Native *to)
+{
+  evaluate_sideeffects();
+  return val_native_from_item(thd, last_value, to);
+}
+
 
 longlong Item_func_last_value::val_int()
 {

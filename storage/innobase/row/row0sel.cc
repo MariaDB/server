@@ -53,9 +53,10 @@ Created 12/19/1997 Heikki Tuuri
 #include "row0mysql.h"
 #include "buf0lru.h"
 #include "srv0srv.h"
-#include "ha_prototypes.h"
 #include "srv0mon.h"
-#include "ut0new.h"
+#ifdef WITH_WSREP
+#include "mysql/service_wsrep.h" /* For wsrep_thd_skip_locking */
+#endif
 
 /* Maximum number of rows to prefetch; MySQL interface has another parameter */
 #define SEL_MAX_N_PREFETCH	16
@@ -256,9 +257,9 @@ row_sel_sec_rec_is_for_clust_rec(
 			clust_field = static_cast<byte*>(vfield->data);
 		} else {
 			clust_pos = dict_col_get_clust_pos(col, clust_index);
-			ut_ad(!rec_offs_nth_default(clust_offs, clust_pos));
-			clust_field = rec_get_nth_field(
-				clust_rec, clust_offs, clust_pos, &clust_len);
+			clust_field = rec_get_nth_cfield(
+				clust_rec, clust_index, clust_offs,
+				clust_pos, &clust_len);
 		}
 
 		sec_field = rec_get_nth_field(sec_rec, sec_offs, i, &sec_len);
@@ -1133,7 +1134,7 @@ re_scan:
 				btr_pcur_get_page(pcur));
 
 			cur_block = buf_page_get_gen(
-				page_id_t(index->table->space->id, page_no),
+				page_id_t(index->table->space_id, page_no),
 				page_size_t(index->table->space->flags),
 				RW_X_LATCH, NULL, BUF_GET,
 				__FILE__, __LINE__, mtr, &err);
@@ -2695,44 +2696,6 @@ row_sel_convert_mysql_key_to_innobase(
 }
 
 /**************************************************************//**
-Stores the row id to the prebuilt struct. */
-static
-void
-row_sel_store_row_id_to_prebuilt(
-/*=============================*/
-	row_prebuilt_t*		prebuilt,	/*!< in/out: prebuilt */
-	const rec_t*		index_rec,	/*!< in: record */
-	const dict_index_t*	index,		/*!< in: index of the record */
-	const ulint*		offsets)	/*!< in: rec_get_offsets
-						(index_rec, index) */
-{
-	const byte*	data;
-	ulint		len;
-
-	ut_ad(rec_offs_validate(index_rec, index, offsets));
-
-	data = rec_get_nth_field(
-		index_rec, offsets,
-		dict_index_get_sys_col_pos(index, DATA_ROW_ID), &len);
-
-	if (UNIV_UNLIKELY(len != DATA_ROW_ID_LEN)) {
-
-		ib::error() << "Row id field is wrong length " << len << " in"
-			" index " << index->name
-			<< " of table " << index->table->name
-			<< ", Field number "
-			<< dict_index_get_sys_col_pos(index, DATA_ROW_ID)
-			<< ", record:";
-
-		rec_print_new(stderr, index_rec, offsets);
-		putc('\n', stderr);
-		ut_error;
-	}
-
-	ut_memcpy(prebuilt->row_id, data, len);
-}
-
-/**************************************************************//**
 Stores a non-SQL-NULL field in the MySQL format. The counterpart of this
 function is row_mysql_store_col_in_innobase_format() in row0mysql.cc. */
 void
@@ -2910,15 +2873,6 @@ row_sel_field_store_in_mysql_format_func(
 	}
 }
 
-#ifdef UNIV_DEBUG
-/** Convert a field from Innobase format to MySQL format. */
-# define row_sel_store_mysql_field(m,p,r,i,o,f,t) \
-	row_sel_store_mysql_field_func(m,p,r,i,o,f,t)
-#else /* UNIV_DEBUG */
-/** Convert a field from Innobase format to MySQL format. */
-# define row_sel_store_mysql_field(m,p,r,i,o,f,t) \
-	row_sel_store_mysql_field_func(m,p,r,o,f,t)
-#endif /* UNIV_DEBUG */
 /** Convert a field in the Innobase format to a field in the MySQL format.
 @param[out]	mysql_rec		record in the MySQL format
 @param[in,out]	prebuilt		prebuilt struct
@@ -2933,13 +2887,11 @@ row_sel_field_store_in_mysql_format_func(
 */
 static MY_ATTRIBUTE((warn_unused_result))
 ibool
-row_sel_store_mysql_field_func(
+row_sel_store_mysql_field(
 	byte*			mysql_rec,
 	row_prebuilt_t*		prebuilt,
 	const rec_t*		rec,
-#ifdef UNIV_DEBUG
 	const dict_index_t*	index,
-#endif
 	const ulint*		offsets,
 	ulint			field_no,
 	const mysql_row_templ_t*templ)
@@ -3012,17 +2964,7 @@ row_sel_store_mysql_field_func(
 	} else {
 		/* The field is stored in the index record, or
 		in the metadata for instant ADD COLUMN. */
-
-		if (rec_offs_nth_default(offsets, field_no)) {
-			ut_ad(dict_index_is_clust(index));
-			ut_ad(index->is_instant());
-			const dict_index_t* clust_index
-				= dict_table_get_first_index(prebuilt->table);
-			ut_ad(index == clust_index);
-			data = clust_index->instant_field_value(field_no,&len);
-		} else {
-			data = rec_get_nth_field(rec, offsets, field_no, &len);
-		}
+		data = rec_get_nth_cfield(rec, index, offsets, field_no, &len);
 
 		if (len == UNIV_SQL_NULL) {
 			/* MySQL assumes that the field for an SQL
@@ -3214,7 +3156,7 @@ row_sel_store_mysql_rec(
 		if (dict_index_is_clust(index)
 		    || prebuilt->fts_doc_id_in_read_set) {
 			prebuilt->fts_doc_id = fts_get_doc_id_from_rec(
-				prebuilt->table, rec, index, NULL);
+				rec, index, offsets);
 		}
 	}
 
@@ -3366,7 +3308,7 @@ row_sel_get_clust_rec_for_mysql(
 			and is it not unsafe to use RW_NO_LATCH here? */
 			buf_block_t*	block = buf_page_get_gen(
 				btr_pcur_get_block(prebuilt->pcur)->page.id,
-				dict_table_page_size(sec_index->table),
+				btr_pcur_get_block(prebuilt->pcur)->page.size,
 				RW_NO_LATCH, NULL, BUF_GET,
 				__FILE__, __LINE__, mtr, &err);
 			mem_heap_t*	heap = mem_heap_create(256);
@@ -4521,6 +4463,13 @@ row_search_mvcc(
 
 		set_also_gap_locks = FALSE;
 	}
+#ifdef WITH_WSREP
+	else if (wsrep_thd_skip_locking(trx->mysql_thd)) {
+		ut_ad(!strcmp(wsrep_get_sr_table_name(),
+			      prebuilt->table->name.m_name));
+		set_also_gap_locks = FALSE;
+	}
+#endif /* WITH_WSREP */
 
 	/* Note that if the search mode was GE or G, then the cursor
 	naturally moves upward (in fetch next) in alphabetical order,
@@ -5512,11 +5461,19 @@ use_covering_index:
 			}
 		}
 
-		if (prebuilt->clust_index_was_generated) {
-			row_sel_store_row_id_to_prebuilt(
-				prebuilt, result_rec,
-				result_rec == rec ? index : clust_index,
-				offsets);
+		if (!prebuilt->clust_index_was_generated) {
+		} else if (result_rec != rec || index->is_primary()) {
+			memcpy(prebuilt->row_id, result_rec, DATA_ROW_ID_LEN);
+		} else {
+			ulint len;
+			const byte* data = rec_get_nth_field(
+				result_rec, offsets, index->n_fields - 1,
+				&len);
+			ut_ad(dict_index_get_nth_col(index,
+						     index->n_fields - 1)
+			      ->prtype == (DATA_ROW_ID | DATA_NOT_NULL));
+			ut_ad(len == DATA_ROW_ID_LEN);
+			memcpy(prebuilt->row_id, data, DATA_ROW_ID_LEN);
 		}
 	}
 

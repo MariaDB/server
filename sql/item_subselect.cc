@@ -1084,7 +1084,7 @@ void Item_maxmin_subselect::no_rows_in_result()
   */
   if (parsing_place != SELECT_LIST || const_item())
     return;
-  value= (new (thd->mem_root) Item_null(thd))->get_cache(thd);
+  value= get_cache(thd);
   null_value= 0;
   was_values= 0;
   make_const();
@@ -1102,7 +1102,7 @@ void Item_singlerow_subselect::no_rows_in_result()
   */
   if (parsing_place != SELECT_LIST || const_item())
     return;
-  value= (new (thd->mem_root) Item_null(thd))->get_cache(thd);
+  value= get_cache(thd);
   reset();
   make_const();
 }
@@ -1348,6 +1348,24 @@ String *Item_singlerow_subselect::val_str(String *str)
   {
     reset();
     return 0;
+  }
+}
+
+
+bool Item_singlerow_subselect::val_native(THD *thd, Native *to)
+{
+  DBUG_ASSERT(fixed == 1);
+  if (forced_const)
+    return value->val_native(thd, to);
+  if (!exec() && !value->null_value)
+  {
+    null_value= false;
+    return value->val_native(thd, to);
+  }
+  else
+  {
+    reset();
+    return true;
   }
 }
 
@@ -5795,7 +5813,7 @@ int
 Ordered_key::cmp_keys_by_row_data(ha_rows a, ha_rows b)
 {
   uchar *rowid_a, *rowid_b;
-  int __attribute__((unused)) error;
+  int error;
   int cmp_res;
   /* The length in bytes of the rowids (positions) of tmp_table. */
   uint rowid_length= tbl->file->ref_length;
@@ -5892,7 +5910,7 @@ int Ordered_key::cmp_key_with_search_key(rownum_t row_num)
   /* The length in bytes of the rowids (positions) of tmp_table. */
   uint rowid_length= tbl->file->ref_length;
   uchar *cur_rowid= row_num_to_rowid + row_num * rowid_length;
-  int __attribute__((unused)) error;
+  int error;
   int cmp_res;
 
   if (unlikely((error= tbl->file->ha_rnd_pos(tbl->record[0], cur_rowid))))

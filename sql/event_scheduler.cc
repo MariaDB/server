@@ -150,7 +150,7 @@ deinit_event_thread(THD *thd)
 {
   thd->proc_info= "Clearing";
   DBUG_PRINT("exit", ("Event thread finishing"));
-  unlink_not_visible_thd(thd);
+  server_threads.erase(thd);
   delete thd;
 }
 
@@ -185,7 +185,7 @@ pre_init_event_thread(THD* thd)
   thd->net.read_timeout= slave_net_timeout;
   thd->variables.option_bits|= OPTION_AUTO_IS_NULL;
   thd->client_capabilities|= CLIENT_MULTI_RESULTS;
-  add_to_active_threads(thd);
+  server_threads.insert(thd);
 
   /*
     Guarantees that we will see the thread in SHOW PROCESSLIST though its
@@ -679,20 +679,20 @@ end:
     Event_scheduler::workers_count()
 */
 
+static my_bool workers_count_callback(THD *thd, uint32_t *count)
+{
+  if (thd->system_thread == SYSTEM_THREAD_EVENT_WORKER)
+    ++*count;
+  return 0;
+}
+
+
 uint
 Event_scheduler::workers_count()
 {
-  THD *tmp;
-  uint count= 0;
-
+  uint32_t count= 0;
   DBUG_ENTER("Event_scheduler::workers_count");
-  mysql_mutex_lock(&LOCK_thread_count);       // For unlink from list
-  I_List_iterator<THD> it(threads);
-  while ((tmp=it++))
-    if (tmp->system_thread == SYSTEM_THREAD_EVENT_WORKER)
-      ++count;
-  mysql_mutex_unlock(&LOCK_thread_count);
-  DBUG_PRINT("exit", ("%d", count));
+  server_threads.iterate(workers_count_callback, &count);
   DBUG_RETURN(count);
 }
 

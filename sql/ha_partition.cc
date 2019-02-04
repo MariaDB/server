@@ -1367,7 +1367,7 @@ bool print_admin_msg(THD* thd, uint len,
   protocol->store(msgbuf, msg_length, system_charset_info);
   if (protocol->write())
   {
-    sql_print_error("Failed on my_net_write, writing to stderr instead: %s\n",
+    sql_print_error("Failed on my_net_write, writing to stderr instead: %s",
                     msgbuf);
     goto err;
   }
@@ -3516,7 +3516,8 @@ int ha_partition::open(const char *name, int mode, uint test_if_locked)
   if (init_partition_bitmaps())
     goto err_alloc;
 
-  if (unlikely((error=
+  if (!MY_TEST(m_is_clone_of) &&
+      unlikely((error=
                 m_part_info->set_partition_bitmaps(m_partitions_to_open))))
     goto err_alloc;
 
@@ -5280,7 +5281,7 @@ bool ha_partition::init_record_priority_queue()
     /* Initialize priority queue, initialized to reading forward. */
     int (*cmp_func)(void *, uchar *, uchar *);
     void *cmp_arg= (void*) this;
-    if (!m_using_extended_keys && !(table_flags() & HA_CMP_REF_IS_EXPENSIVE))
+    if (!m_using_extended_keys && !(table_flags() & HA_SLOW_CMP_REF))
       cmp_func= cmp_key_rowid_part_id;
     else
       cmp_func= cmp_key_part_id;
@@ -9812,7 +9813,7 @@ void ha_partition::print_error(int error, myf errflag)
       append_row_to_str(str);
 
       /* Log this error, so the DBA can notice it and fix it! */
-      sql_print_error("Table '%-192s' corrupted: row in wrong partition: %s\n"
+      sql_print_error("Table '%-192s' corrupted: row in wrong partition: %s"
                       "Please REPAIR the table!",
                       table->s->table_name.str,
                       str.c_ptr_safe());

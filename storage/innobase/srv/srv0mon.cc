@@ -796,11 +796,6 @@ static monitor_info_t	innodb_counter_info[] =
 	 MONITOR_NONE,
 	 MONITOR_DEFAULT_START, MONITOR_TRX_ROLLBACK_SAVEPOINT},
 
-	{"trx_rollback_active", "transaction",
-	 "Number of resurrected active transactions rolled back",
-	 MONITOR_NONE,
-	 MONITOR_DEFAULT_START, MONITOR_TRX_ROLLBACK_ACTIVE},
-
 	{"trx_active_transactions", "transaction",
 	 "Number of active transactions",
 	 MONITOR_NONE,
@@ -1959,7 +1954,7 @@ srv_mon_process_existing_counter(
 		break;
 
 	case MONITOR_RSEG_HISTORY_LEN:
-		value = trx_sys.history_size();
+		value = trx_sys.rseg_history_len;
 		break;
 
 	case MONITOR_RSEG_CUR_SIZE:
@@ -1967,7 +1962,7 @@ srv_mon_process_existing_counter(
 		break;
 
 	case MONITOR_OVLD_N_FILE_OPENED:
-		value = fil_n_file_opened;
+		value = fil_system.n_open;
 		break;
 
 	case MONITOR_OVLD_IBUF_MERGE_INSERT:

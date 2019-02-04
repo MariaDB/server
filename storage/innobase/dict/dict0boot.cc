@@ -1,7 +1,7 @@
 /*****************************************************************************
 
 Copyright (c) 1996, 2017, Oracle and/or its affiliates. All Rights Reserved.
-Copyright (c) 2016, MariaDB Corporation.
+Copyright (c) 2016, 2018, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -23,8 +23,6 @@ Data dictionary creation and booting
 
 Created 4/18/1996 Heikki Tuuri
 *******************************************************/
-
-#include "ha_prototypes.h"
 
 #include "dict0boot.h"
 #include "dict0crea.h"
@@ -66,52 +64,14 @@ dict_hdr_get_new_id(
 						(not assigned if NULL) */
 	index_id_t*		index_id,	/*!< out: index id
 						(not assigned if NULL) */
-	ulint*			space_id,	/*!< out: space id
+	ulint*			space_id)	/*!< out: space id
 						(not assigned if NULL) */
-	const dict_table_t*	table,		/*!< in: table */
-	bool			disable_redo)	/*!< in: if true and table
-						object is NULL
-						then disable-redo */
 {
 	dict_hdr_t*	dict_hdr;
 	ib_id_t		id;
 	mtr_t		mtr;
 
 	mtr_start(&mtr);
-	if (table) {
-		if (table->is_temporary()) {
-			mtr.set_log_mode(MTR_LOG_NO_REDO);
-		}
-	} else if (disable_redo) {
-		/* In non-read-only mode we need to ensure that space-id header
-		page is written to disk else if page is removed from buffer
-		cache and re-loaded it would assign temporary tablespace id
-		to another tablespace.
-		This is not a case with read-only mode as there is no new object
-		that is created except temporary tablespace. */
-		mtr.set_log_mode(srv_read_only_mode
-				 ? MTR_LOG_NONE : MTR_LOG_NO_REDO);
-	}
-
-	/* Server started and let's say space-id = x
-	- table created with file-per-table
-	- space-id = x + 1
-	- crash
-	Case 1: If it was redo logged then we know that it will be
-		restored to x + 1
-	Case 2: if not redo-logged
-		Header will have the old space-id = x
-		This is OK because on restart there is no object with
-		space id = x + 1
-	Case 3:
-		space-id = x (on start)
-		space-id = x+1 (temp-table allocation) - no redo logging
-		space-id = x+2 (non-temp-table allocation), this get's
-			   redo logged.
-		If there is a crash there will be only 2 entries
-		x (original) and x+2 (new) and disk hdr will be updated
-		to reflect x + 2 entry.
-		We cannot allocate the same space id to different objects. */
 	dict_hdr = dict_hdr_get(&mtr);
 
 	if (table_id) {

@@ -1,3 +1,5 @@
+connection node_2;
+connection node_1;
 CREATE TABLE t1 (f1 INTEGER);
 connect node_1a, 127.0.0.1, root, , test, $NODE_MYPORT_1;
 connection node_1;
@@ -7,7 +9,6 @@ SET GLOBAL wsrep_reject_queries = ALL;
 SELECT * FROM t1;
 ERROR 08S01: WSREP has not yet prepared node for application use
 SET GLOBAL wsrep_reject_queries = ALL_KILL;
-ERROR HY000: Lost connection to MySQL server during query
 connection node_1a;
 SELECT * FROM t1;
 Got one of the listed errors

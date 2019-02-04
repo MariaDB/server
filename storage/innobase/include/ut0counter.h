@@ -1,7 +1,7 @@
 /*****************************************************************************
 
 Copyright (c) 2012, 2015, Oracle and/or its affiliates. All Rights Reserved.
-Copyright (c) 2017, MariaDB Corporation.
+Copyright (c) 2017, 2018, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -28,10 +28,8 @@ Created 2012/04/12 by Sunny Bains
 #ifndef ut0counter_h
 #define ut0counter_h
 
-#include <my_rdtsc.h>
-#include "univ.i"
 #include "os0thread.h"
-#include <atomic>
+#include "my_rdtsc.h"
 
 /** CPU cache line size */
 #ifdef CPU_LEVEL1_DCACHE_LINESIZE
@@ -108,14 +106,14 @@ struct ib_counter_t {
 
 private:
 	/** Atomic which occupies whole CPU cache line */
-	struct MY_ALIGNED(CACHE_LINE_SIZE) ib_counter_element_t {
+	union ib_counter_element_t {
 		std::atomic<Type> value;
-		byte padding[CACHE_LINE_SIZE - sizeof(value)];
+		byte padding[CACHE_LINE_SIZE];
 	};
 	static_assert(sizeof(ib_counter_element_t) == CACHE_LINE_SIZE, "");
 
 	/** Array of counter elements */
-	ib_counter_element_t m_counter[N];
+	MY_ALIGNED(CACHE_LINE_SIZE) ib_counter_element_t m_counter[N];
 };
 
 #endif /* ut0counter_h */

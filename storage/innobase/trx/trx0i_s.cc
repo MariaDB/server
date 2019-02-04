@@ -29,16 +29,7 @@ table cache" for later retrieval.
 Created July 17, 2007 Vasil Dimov
 *******************************************************/
 
-/* Found during the build of 5.5.3 on Linux 2.4 and early 2.6 kernels:
-   The includes "univ.i" -> "my_global.h" cause a different path
-   to be taken further down with pthread functions and types,
-   so they must come first.
-   From the symptoms, this is related to bug#46587 in the MySQL bug DB.
-*/
-
-#include "ha_prototypes.h"
-#include <sql_class.h>
-
+#include "trx0i_s.h"
 #include "buf0buf.h"
 #include "dict0dict.h"
 #include "ha0storage.h"
@@ -52,10 +43,7 @@ Created July 17, 2007 Vasil Dimov
 #include "srv0srv.h"
 #include "sync0rw.h"
 #include "sync0sync.h"
-#include "trx0i_s.h"
 #include "trx0sys.h"
-#include "trx0trx.h"
-#include "ut0mem.h"
 #include "que0que.h"
 #include "trx0purge.h"
 

@@ -75,7 +75,7 @@ static void print_version(void)
 static void usage()
 {
   print_version();
-  printf("MySQL AB, by Sasha Pachev\n");
+  printf("MariaDB Corporation, originally created by Sasha Pachev\n");
   printf("This software comes with ABSOLUTELY NO WARRANTY\n\n");
   printf("Resolve numeric stack strace dump into symbols.\n\n");
   printf("Usage: %s [OPTIONS] symbols-file [numeric-dump-file]\n",

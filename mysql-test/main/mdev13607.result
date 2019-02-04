@@ -14,8 +14,11 @@ CREATE TABLE t3 (id INT) ENGINE=InnoDB;
 INSERT INTO t3 VALUES (1),(2);
 ANALYZE TABLE t1, t2, t3;
 Table	Op	Msg_type	Msg_text
+test.t1	analyze	status	Engine-independent statistics collected
 test.t1	analyze	status	OK
+test.t2	analyze	status	Engine-independent statistics collected
 test.t2	analyze	status	OK
+test.t3	analyze	status	Engine-independent statistics collected
 test.t3	analyze	status	OK
 explain SELECT * FROM 
 (SELECT p1.* FROM t1 p1 NATURAL JOIN t2 r1 NATURAL JOIN t3 d1 NATURAL JOIN t1 p2 NATURAL JOIN t2 r2 NATURAL JOIN t3 d2 NATURAL JOIN t1 p3 NATURAL JOIN t2 r3 NATURAL JOIN t3 d3 NATURAL JOIN t1 p4 NATURAL JOIN t2 r4 NATURAL JOIN t3 d4 NATURAL JOIN t1 p5 NATURAL JOIN t2 r5 NATURAL JOIN t3 d5 NATURAL JOIN t1 p6 NATURAL JOIN t2 r6 NATURAL JOIN t3 d6 NATURAL JOIN t1 p7 NATURAL JOIN t2 r7 NATURAL JOIN t3 d7 NATURAL JOIN t1 p8 NATURAL JOIN t2 r8 NATURAL JOIN t3 d8 NATURAL JOIN t1 p9 ) gp_1

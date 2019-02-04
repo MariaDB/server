@@ -1,4 +1,6 @@
 connection node_2;
+connection node_1;
+connection node_2;
 SET GLOBAL wsrep_slave_threads = 0;
 Warnings:
 Warning	1292	Truncated incorrect wsrep_slave_threads value: '0'
