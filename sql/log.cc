@@ -5687,20 +5687,39 @@ THD::binlog_start_trans_and_stmt()
     Ha_trx_info *ha_info;
     ha_info= this->ha_data[binlog_hton->slot].ha_info + (mstmt_mode ? 1 : 0);
 
-    if (!ha_info->is_started() && wsrep_gtid_mode
-            && this->variables.gtid_seq_no)
+    if (!ha_info->is_started())
     {
       binlog_cache_mngr *const cache_mngr=
         (binlog_cache_mngr*) thd_get_ha_data(this, binlog_hton);
       binlog_cache_data *cache_data= cache_mngr->get_binlog_cache_data(1);
       IO_CACHE *file= &cache_data->cache_log;
       Log_event_writer writer(file, cache_data);
+
+      if (wsrep_gtid_mode && this->variables.gtid_seq_no)
+      {
         Gtid_log_event gtid_event(this, this->variables.gtid_seq_no,
                             this->variables.gtid_domain_id,
                             true, LOG_EVENT_SUPPRESS_USE_F,
                             true, 0);
-      gtid_event.server_id= this->variables.server_id;
-      writer.write(&gtid_event);
+        gtid_event.server_id= this->variables.server_id;
+        writer.write(&gtid_event);
+      }
+
+      if (this->transaction.xid_state.xa_state == XA_ACTIVE)
+      {
+        Format_description_log_event fd_ev(4);
+        fd_ev.checksum_alg= BINLOG_CHECKSUM_ALG_OFF; //(enum_binlog_checksum_alg)binlog_checksum_options;
+
+        String xa_start;
+        xa_start.append(STRING_WITH_LEN("XA START "));
+        wsrep_append_xid_string(xa_start, &this->transaction.xid_state.xid);
+        Query_log_event qinfo(this, "XA START 'test'", strlen("XA START 'test'"),
+                              TRUE, FALSE, TRUE, 0);
+        qinfo.checksum_alg= BINLOG_CHECKSUM_ALG_OFF;
+
+        writer.write(&fd_ev);
+        writer.write(&qinfo);
+       }
     }
 #endif
     if (mstmt_mode)
@@ -10736,4 +10755,51 @@ void wsrep_register_binlog_handler(THD *thd, bool trx)
   DBUG_VOID_RETURN;
 }
 
+void wsrep_append_xid_string(String &xid_string, const XID* xid)
+{
+  DBUG_ASSERT(xid && !xid->is_null());
+  xid_string.reserve(xid->gtrid_length + xid->bqual_length + 9);
+  xid_string.append(STRING_WITH_LEN("'"));
+  xid_string.append(xid->data, xid->gtrid_length);
+  xid_string.append(STRING_WITH_LEN("','"));
+  xid_string.append(&xid->data[xid->gtrid_length], xid->bqual_length);
+  xid_string.append(STRING_WITH_LEN("',"));
+  xid_string.qs_append((int)xid->formatID);
+}
+
+int wsrep_write_events_for_xa_prepare(THD* thd)
+{
+  DBUG_ASSERT(thd->lex->sql_command == SQLCOM_XA_PREPARE);
+
+  binlog_cache_mngr *const cache_mngr=
+    (binlog_cache_mngr*) thd_get_ha_data(thd, binlog_hton);
+  binlog_cache_data *cache_data= cache_mngr->get_binlog_cache_data(1);
+  IO_CACHE *file= &cache_data->cache_log;
+  Log_event_writer writer(file, cache_data);
+
+  String xid_string;
+  wsrep_append_xid_string(xid_string, &thd->transaction.xid_state.xid);
+
+  String xa_end(STRING_WITH_LEN("XA END "), &my_charset_bin);
+  xa_end.append(xid_string);
+  Query_log_event end_ev(thd,
+                         xa_end.c_ptr_safe(),
+                         xa_end.length(),
+                         TRUE, FALSE, TRUE, 0);
+  end_ev.checksum_alg= BINLOG_CHECKSUM_ALG_OFF;
+
+
+  String xa_prepare(STRING_WITH_LEN("XA PREPARE "), &my_charset_bin);
+  xa_prepare.append(xid_string);
+  Query_log_event prepare_ev(thd,
+                             xa_prepare.c_ptr_safe(),
+                             xa_prepare.length(),
+                             TRUE, FALSE, TRUE, 0);
+  prepare_ev.checksum_alg= BINLOG_CHECKSUM_ALG_OFF;
+
+  writer.write(&end_ev);
+  writer.write(&prepare_ev);
+
+  return 0;
+}
 #endif /* WITH_WSREP */

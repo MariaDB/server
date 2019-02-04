@@ -74,4 +74,14 @@ int wsrep_write_dummy_event(THD* thd, const char *msg);
 
 void wsrep_register_binlog_handler(THD *thd, bool trx);
 
+/*
+  Append string representation of xid to xid_string
+ */
+void wsrep_append_xid_string(String &xid_string, const XID* xid);
+
+/*
+  Write XA END and XA PREPARE events to binlog
+ */
+int wsrep_write_events_for_xa_prepare(THD* thd);
+
 #endif /* WSREP_BINLOG_H */

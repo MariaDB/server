@@ -26,6 +26,7 @@
 #include "slave.h" // opt_log_slave_updates
 #include "log_event.h" // class THD, EVENT_LEN_OFFSET, etc.
 #include "debug_sync.h"
+#include <string.h>
 
 /*
   read the first event from (*buf). The size of the (*buf) is (*buf_len).
@@ -160,6 +161,8 @@ int wsrep_apply_events(THD*        thd,
 
     typ= ev->get_type_code();
 
+    WSREP_DEBUG("applying event type: %d %s", ev->get_type_code(), ev->get_type_str());
+
     switch (typ) {
     case FORMAT_DESCRIPTION_EVENT:
       wsrep_set_apply_format(thd, (Format_description_log_event*)ev);
@@ -176,6 +179,18 @@ int wsrep_apply_events(THD*        thd,
       }
     }
 #endif /* GTID_SUPPORT */
+    case QUERY_EVENT:
+      WSREP_DEBUG("query event: %s len: %d", ((Query_log_event*)ev)->query, ((Query_log_event*)ev)->q_len);
+      // Ugly hack coming next...
+      // We are going to explicitly start a transaction using
+      // XA START. Which does not like to find a thd in active
+      // multi statement transaction
+      if (!strncmp(((Query_log_event*)ev)->query, "XA START", 8))
+      {
+        thd->variables.option_bits&= ~OPTION_BEGIN;
+        thd->server_status&= ~SERVER_STATUS_IN_TRANS;
+      }
+      break;
     default:
       break;
     }

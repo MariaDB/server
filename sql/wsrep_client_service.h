@@ -36,6 +36,7 @@ class Wsrep_client_service : public wsrep::client_service
 public:
   Wsrep_client_service(THD*, Wsrep_client_state&);
 
+  const char* query() const;
   bool interrupted() const;
   void reset_globals();
   void store_globals();
@@ -53,6 +54,7 @@ public:
   void debug_sync(const char*);
   void debug_crash(const char*);
   int bf_rollback();
+  bool is_xa() const;
 private:
   friend class Wsrep_server_service;
   THD* m_thd;

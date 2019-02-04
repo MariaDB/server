@@ -3692,9 +3692,9 @@ mysql_execute_command(THD *thd)
     start a multi STMT transaction, the wsrep_transaction is
     committed as empty at the end of this function.
 
-    Transaction is started for BEGIN in trans_begin(), for DDL the
-    implicit commit took care of committing previous transaction
-    above and a new transaction should not be started.
+    For BEGIN and XA_START transaction is started in trans_begin().
+    For DDL the implicit commit took care of committing previous
+    transaction above and a new transaction should not be started.
 
     Do not start transaction for stored procedures, it will be handled
     internally in SP processing.
@@ -3702,6 +3702,7 @@ mysql_execute_command(THD *thd)
   if (WSREP(thd)                          &&
       wsrep_thd_is_local(thd)             &&
       lex->sql_command != SQLCOM_BEGIN    &&
+      lex->sql_command != SQLCOM_XA_START &&
       lex->sql_command != SQLCOM_CALL     &&
       lex->sql_command != SQLCOM_EXECUTE  &&
       !(sql_command_flags[lex->sql_command] & CF_AUTO_COMMIT_TRANS))

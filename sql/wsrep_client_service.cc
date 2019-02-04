@@ -54,6 +54,11 @@ Wsrep_client_service::Wsrep_client_service(THD* thd,
   , m_client_state(client_state)
 { }
 
+const char* Wsrep_client_service::query() const
+{
+  return m_thd->query();
+}
+
 void Wsrep_client_service::store_globals()
 {
   DBUG_ENTER("Wsrep_client_service::store_globals");
@@ -140,12 +145,23 @@ void Wsrep_client_service::cleanup_transaction()
   m_thd->wsrep_affected_rows= 0;
 }
 
+bool Wsrep_client_service::is_xa() const
+{
+  DBUG_ASSERT(m_thd == current_thd);
+  return m_thd->transaction.xid_state.xa_state != XA_NOTR;
+}
 
 int Wsrep_client_service::prepare_fragment_for_replication(wsrep::mutable_buffer& buffer)
 {
   DBUG_ASSERT(m_thd == current_thd);
   THD* thd= m_thd;
   DBUG_ENTER("Wsrep_client_service::prepare_fragment_for_replication");
+
+  if (thd->lex->sql_command == SQLCOM_XA_PREPARE)
+  {
+    wsrep_write_events_for_xa_prepare(thd);
+  }
+
   IO_CACHE* cache= wsrep_get_trans_cache(thd);
   thd->binlog_flush_pending_rows_event(true);
 

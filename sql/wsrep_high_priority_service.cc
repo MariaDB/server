@@ -298,15 +298,21 @@ int Wsrep_high_priority_service::commit(const wsrep::ws_handle& ws_handle,
   thd->wsrep_cs().prepare_for_ordering(ws_handle, ws_meta, true);
   thd_proc_info(thd, "committing");
 
+  DBUG_ASSERT(thd->wsrep_trx().is_xa() ==
+              (thd->transaction.xid_state.xa_state == XA_PREPARED));
+
   int ret= 0;
   const bool is_ordered= !ws_meta.seqno().is_undefined();
   /* If opt_log_slave_updates is not on, applier does not write
      anything to binlog cache and neither wsrep_before_commit()
-     nor wsrep_after_commit() we be reached from binlog code
+     nor wsrep_after_commit() will be reached from binlog code
      path for applier. Therefore run wsrep_before_commit()
      and wsrep_after_commit() here. wsrep_ordered_commit()
      will be called from wsrep_ordered_commit_if_no_binlog(). */
-  if (!opt_log_slave_updates && !opt_bin_log && is_ordered)
+  const bool no_binlog_commit= is_ordered && !opt_log_slave_updates &&
+    !opt_bin_log && !thd->wsrep_trx().is_xa();
+
+  if (no_binlog_commit)
   {
     if (m_thd->transaction.all.no_2pc == false)
     {
@@ -315,14 +321,31 @@ int Wsrep_high_priority_service::commit(const wsrep::ws_handle& ws_handle,
     }
     ret= ret || wsrep_before_commit(thd, true);
   }
-  ret= ret || trans_commit(thd);
+
+  if (ret == 0)
+  {
+    if (!thd->wsrep_trx().is_xa())
+    {
+      ret= trans_commit(thd);
+    }
+    else
+    {
+      thd->lex->xid->set(&m_thd->transaction.xid_state.xid);
+      ret= trans_xa_commit(thd);
+    }
+
+    if (ret)
+    {
+      WSREP_DEBUG("Failed to commit high priority transaction");
+    }
+  }
 
   if (ret == 0)
   {
     m_rgi->cleanup_context(thd, 0);
   }
 
-  if (ret == 0 && !opt_log_slave_updates && !opt_bin_log && is_ordered)
+  if (ret == 0 && no_binlog_commit)
   {
     ret= wsrep_after_commit(thd, true);
   }
@@ -466,6 +489,13 @@ int Wsrep_applier_service::apply_write_set(const wsrep::ws_meta& ws_meta,
 {
   DBUG_ENTER("Wsrep_applier_service::apply_write_set");
   THD* thd= m_thd;
+
+  // The following line is a workaround to avoid a segfault
+  // in rpl_sql_thread_info while applying log events for XA.
+  // XA TODO figure out what causes the segfault and figure
+  // out an fix.
+  thd->system_thread_info.rpl_sql_info=
+    new rpl_sql_thread_info(thd->wsrep_rgi->rli->mi->rpl_filter);
 
   thd->variables.option_bits |= OPTION_BEGIN;
   thd->variables.option_bits |= OPTION_NOT_AUTOCOMMIT;
