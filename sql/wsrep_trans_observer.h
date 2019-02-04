@@ -148,11 +148,11 @@ static inline int wsrep_before_prepare(THD* thd, bool all)
   int ret= 0;
   if (wsrep_run_commit_hook(thd, all))
   {
-    if ((ret= thd->wsrep_cs().before_prepare()) == 0)
+    ret= thd->wsrep_cs().before_prepare();
+    if (ret == 0 && !thd->wsrep_trx().is_xa())
     {
       DBUG_ASSERT(!thd->wsrep_trx().ws_meta().gtid().is_undefined());
-      wsrep_xid_init(&thd->wsrep_xid,
-                     thd->wsrep_trx().ws_meta().gtid());
+      wsrep_xid_init(&thd->wsrep_xid, thd->wsrep_trx().ws_meta().gtid());
     }
   }
   DBUG_RETURN(ret);
@@ -376,18 +376,6 @@ static inline void wsrep_after_command_ignore_result(THD* thd)
   DBUG_ASSERT(!thd->wsrep_cs().current_error());
   wsrep_after_command_after_result(thd);
 }
-
-static inline enum wsrep::client_error wsrep_current_error(THD* thd)
-{
-  return thd->wsrep_cs().current_error();
-}
-
-static inline enum wsrep::provider::status
-wsrep_current_error_status(THD* thd)
-{
-  return thd->wsrep_cs().current_error_status();
-}
-
 
 /*
   Commit an empty transaction.

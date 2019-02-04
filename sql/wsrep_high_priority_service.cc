@@ -62,48 +62,6 @@ private:
 };
 }
 
-static rpl_group_info* wsrep_relay_group_init(THD* thd, const char* log_fname)
-{
-  Relay_log_info* rli= new Relay_log_info(false);
-
-  if (!rli->relay_log.description_event_for_exec)
-  {
-    rli->relay_log.description_event_for_exec=
-      new Format_description_log_event(4);
-  }
-
-  static LEX_CSTRING connection_name= { STRING_WITH_LEN("wsrep") };
-
-  /*
-    Master_info's constructor initializes rpl_filter by either an already
-    constructed Rpl_filter object from global 'rpl_filters' list if the
-    specified connection name is same, or it constructs a new Rpl_filter
-    object and adds it to rpl_filters. This object is later destructed by
-    Mater_info's destructor by looking it up based on connection name in
-    rpl_filters list.
-
-    However, since all Master_info objects created here would share same
-    connection name ("wsrep"), destruction of any of the existing Master_info
-    objects (in wsrep_return_from_bf_mode()) would free rpl_filter referenced
-    by any/all existing Master_info objects.
-
-    In order to avoid that, we have added a check in Master_info's destructor
-    to not free the "wsrep" rpl_filter. It will eventually be freed by
-    free_all_rpl_filters() when server terminates.
-  */
-  rli->mi= new Master_info(&connection_name, false);
-
-  struct rpl_group_info *rgi= new rpl_group_info(rli);
-  rgi->thd= rli->sql_driver_thd= thd;
-
-  if ((rgi->deferred_events_collecting= rli->mi->rpl_filter->is_on()))
-  {
-    rgi->deferred_events= new Deferred_log_events(rli);
-  }
-
-  return rgi;
-}
-
 static void wsrep_setup_uk_and_fk_checks(THD* thd)
 {
   /* Tune FK and UK checking policy. These are reset back to original
@@ -191,26 +149,10 @@ Wsrep_high_priority_service::~Wsrep_high_priority_service()
   thd->wsrep_applier         = m_shadow.wsrep_applier;
 }
 
-int Wsrep_high_priority_service::start_transaction(
-  const wsrep::ws_handle& ws_handle, const wsrep::ws_meta& ws_meta)
+wsrep::client_state& Wsrep_high_priority_service::client_state()
 {
-  DBUG_ENTER(" Wsrep_high_priority_service::start_transaction");
-  DBUG_RETURN(m_thd->wsrep_cs().start_transaction(ws_handle, ws_meta));
+  return m_thd->wsrep_cs();
 }
-
-const wsrep::transaction& Wsrep_high_priority_service::transaction() const
-{
-  DBUG_ENTER(" Wsrep_high_priority_service::transaction");
-  DBUG_RETURN(m_thd->wsrep_trx());
-}
-
-void Wsrep_high_priority_service::adopt_transaction(const wsrep::transaction& transaction)
-{
-  DBUG_ENTER(" Wsrep_high_priority_service::adopt_transaction");
-  m_thd->wsrep_cs().adopt_transaction(transaction);
-  DBUG_VOID_RETURN;
-}
-
 
 int Wsrep_high_priority_service::append_fragment_and_commit(
   const wsrep::ws_handle& ws_handle,
@@ -218,7 +160,7 @@ int Wsrep_high_priority_service::append_fragment_and_commit(
   const wsrep::const_buffer& data)
 {
   DBUG_ENTER("Wsrep_high_priority_service::append_fragment_and_commit");
-  int ret= start_transaction(ws_handle, ws_meta);
+  int ret= m_thd->wsrep_cs().start_transaction(ws_handle, ws_meta);
   /*
     Start transaction explicitly to avoid early commit via
     trans_commit_stmt() in append_fragment()
@@ -298,15 +240,21 @@ int Wsrep_high_priority_service::commit(const wsrep::ws_handle& ws_handle,
   thd->wsrep_cs().prepare_for_ordering(ws_handle, ws_meta, true);
   thd_proc_info(thd, "committing");
 
+  DBUG_ASSERT(thd->wsrep_trx().is_xa() ==
+              (thd->transaction.xid_state.xa_state == XA_PREPARED));
+
   int ret= 0;
   const bool is_ordered= !ws_meta.seqno().is_undefined();
   /* If opt_log_slave_updates is not on, applier does not write
      anything to binlog cache and neither wsrep_before_commit()
-     nor wsrep_after_commit() we be reached from binlog code
+     nor wsrep_after_commit() will be reached from binlog code
      path for applier. Therefore run wsrep_before_commit()
      and wsrep_after_commit() here. wsrep_ordered_commit()
      will be called from wsrep_ordered_commit_if_no_binlog(). */
-  if (!opt_log_slave_updates && !opt_bin_log && is_ordered)
+  const bool no_binlog_commit= is_ordered && !opt_log_slave_updates &&
+    !opt_bin_log && !thd->wsrep_trx().is_xa();
+
+  if (no_binlog_commit)
   {
     if (m_thd->transaction.all.no_2pc == false)
     {
@@ -315,14 +263,31 @@ int Wsrep_high_priority_service::commit(const wsrep::ws_handle& ws_handle,
     }
     ret= ret || wsrep_before_commit(thd, true);
   }
-  ret= ret || trans_commit(thd);
+
+  if (ret == 0)
+  {
+    if (!thd->wsrep_trx().is_xa())
+    {
+      ret= trans_commit(thd);
+    }
+    else
+    {
+      thd->lex->xid= &thd->transaction.xid_state.xid;
+      ret= trans_xa_commit(thd);
+    }
+
+    if (ret)
+    {
+      WSREP_DEBUG("Failed to commit high priority transaction");
+    }
+  }
 
   if (ret == 0)
   {
     m_rgi->cleanup_context(thd, 0);
   }
 
-  if (ret == 0 && !opt_log_slave_updates && !opt_bin_log && is_ordered)
+  if (ret == 0 && no_binlog_commit)
   {
     ret= wsrep_after_commit(thd, true);
   }
@@ -349,7 +314,25 @@ int Wsrep_high_priority_service::rollback(const wsrep::ws_handle& ws_handle,
 {
   DBUG_ENTER("Wsrep_high_priority_service::rollback");
   m_thd->wsrep_cs().prepare_for_ordering(ws_handle, ws_meta, false);
-  int ret= (trans_rollback_stmt(m_thd) || trans_rollback(m_thd));
+  int ret(1);
+  if (m_thd->transaction.xid_state.xa_state == XA_NOTR)
+  {
+    ret= (trans_rollback_stmt(m_thd) || trans_rollback(m_thd));
+  }
+  else
+  {
+    m_thd->lex->xid= &m_thd->transaction.xid_state.xid;
+    // the following may happen if XA ABORT is issued before XA PREPARE
+    // in the master.  With streaming turned on, the XA END is
+    // only sent to slaves with the XA PREPARE fragment, and the transaction may
+    // still be XA_ACTIVE when the rollback happens.
+    // In that case, we issue the XA END here.
+    if (m_thd->transaction.xid_state.xa_state == XA_ACTIVE)
+    {
+      trans_xa_end(m_thd);
+    }
+    ret= trans_xa_rollback(m_thd);
+  }
   m_thd->mdl_context.release_transactional_locks();
   m_thd->mdl_context.release_explicit_locks();
   DBUG_RETURN(ret);

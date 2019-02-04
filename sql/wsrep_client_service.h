@@ -36,6 +36,7 @@ class Wsrep_client_service : public wsrep::client_service
 public:
   Wsrep_client_service(THD*, Wsrep_client_state&);
 
+  std::string query() const;
   bool interrupted() const;
   void reset_globals();
   void store_globals();
@@ -43,7 +44,7 @@ public:
   void cleanup_transaction();
   bool statement_allowed_for_streaming() const;
   size_t bytes_generated() const;
-  int prepare_fragment_for_replication(wsrep::mutable_buffer&);
+  int prepare_fragment_for_replication(wsrep::mutable_buffer&, size_t&);
   int remove_fragments();
   void emergency_shutdown()
   { throw wsrep::not_implemented_error(); }
@@ -53,6 +54,8 @@ public:
   void debug_sync(const char*);
   void debug_crash(const char*);
   int bf_rollback();
+  bool is_xa() const;
+  bool is_xa_prepare() const;
 private:
   friend class Wsrep_server_service;
   THD* m_thd;

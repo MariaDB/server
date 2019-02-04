@@ -70,4 +70,6 @@ int wsrep_apply(void*                   ctx,
 wsrep_cb_status_t wsrep_unordered_cb(void*              ctx,
                                      const wsrep_buf_t* data);
 
+rpl_group_info* wsrep_relay_group_init(THD* thd, const char* log_fname);
+
 #endif /* WSREP_APPLIER_H */

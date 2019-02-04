@@ -33,10 +33,8 @@ class Wsrep_high_priority_service :
 public:
   Wsrep_high_priority_service(THD*);
   ~Wsrep_high_priority_service();
-  int start_transaction(const wsrep::ws_handle&,
-                        const wsrep::ws_meta&);
-  const wsrep::transaction& transaction() const;
-  void adopt_transaction(const wsrep::transaction&);
+
+  wsrep::client_state& client_state();
   int apply_write_set(const wsrep::ws_meta&, const wsrep::const_buffer&) = 0;
   int append_fragment_and_commit(const wsrep::ws_handle&,
                                  const wsrep::ws_meta&,

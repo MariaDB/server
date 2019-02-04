@@ -1379,10 +1379,8 @@ int wsrep_to_buf_helper(
   enum enum_binlog_checksum_alg current_binlog_check_alg=
     (enum_binlog_checksum_alg) binlog_checksum_options;
 
-  Format_description_log_event *tmp_fd= new Format_description_log_event(4);
-  tmp_fd->checksum_alg= current_binlog_check_alg;
-  writer.write(tmp_fd);
-  delete tmp_fd;
+  Format_description_log_event tmp_fd(BINLOG_VERSION);
+  tmp_fd.checksum_alg= current_binlog_check_alg;
 
 #ifdef GTID_SUPPORT
   if (thd->variables.gtid_next.type == GTID_GROUP)
@@ -1394,6 +1392,7 @@ int wsrep_to_buf_helper(
 #endif /* GTID_SUPPORT */
   if (wsrep_gtid_mode && thd->variables.gtid_seq_no)
   {
+    if (writer.write(&tmp_fd)) ret= 1;
     Gtid_log_event gtid_event(thd, thd->variables.gtid_seq_no,
                           thd->variables.gtid_domain_id,
                           true, LOG_EVENT_SUPPRESS_USE_F,
@@ -1406,6 +1405,7 @@ int wsrep_to_buf_helper(
   /* if there is prepare query, add event for it */
   if (!ret && thd->wsrep_TOI_pre_query)
   {
+    if (writer.write(&tmp_fd)) ret= 1;
     Query_log_event ev(thd, thd->wsrep_TOI_pre_query,
 		       thd->wsrep_TOI_pre_query_len,
 		       FALSE, FALSE, FALSE, 0);
@@ -1413,6 +1413,7 @@ int wsrep_to_buf_helper(
     if (writer.write(&ev)) ret= 1;
   }
 
+  if (writer.write(&tmp_fd)) ret= 1;
   /* continue to append the actual query */
   Query_log_event ev(thd, query, query_len, FALSE, FALSE, FALSE, 0);
   ev.checksum_alg= current_binlog_check_alg;

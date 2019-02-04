@@ -1300,7 +1300,17 @@ bool do_command(THD *thd)
     if (command != COM_STMT_CLOSE &&
         command != COM_QUIT)
     {
-      my_error(ER_LOCK_DEADLOCK, MYF(0));
+      xa_states state= thd->transaction.xid_state.xa_state;
+      DBUG_ASSERT(state == XA_NOTR || state == XA_ROLLBACK_ONLY);
+      if (state == XA_ROLLBACK_ONLY)
+      {
+        my_error(ER_XA_RBDEADLOCK, MYF(0));
+        thd->transaction.xid_state.xa_state= XA_NOTR;
+      }
+      else
+      {
+        my_error(ER_LOCK_DEADLOCK, MYF(0));
+      }
       WSREP_DEBUG("Deadlock error for: %s", thd->query());
       thd->reset_killed();
       thd->mysys_var->abort     = 0;
@@ -2374,9 +2384,15 @@ com_multi_end:
         command == COM_STMT_CLOSE
         ))
   {
-    /* todo: Pass wsrep client state current error to override */
-    wsrep_override_error(thd, wsrep_current_error(thd),
-                         wsrep_current_error_status(thd));
+    wsrep_override_current_error(thd);
+
+    xa_states state= thd->transaction.xid_state.xa_state;
+    DBUG_ASSERT(state == XA_NOTR || state == XA_ROLLBACK_ONLY);
+    if (state == XA_ROLLBACK_ONLY)
+    {
+      thd->transaction.xid_state.xa_state= XA_NOTR;
+    }
+
     WSREP_LOG_THD(thd, "leave");
   }
   if (WSREP(thd))
@@ -3716,9 +3732,9 @@ mysql_execute_command(THD *thd)
     start a multi STMT transaction, the wsrep_transaction is
     committed as empty at the end of this function.
 
-    Transaction is started for BEGIN in trans_begin(), for DDL the
-    implicit commit took care of committing previous transaction
-    above and a new transaction should not be started.
+    For BEGIN and XA_START transaction is started in trans_begin().
+    For DDL the implicit commit took care of committing previous
+    transaction above and a new transaction should not be started.
 
     Do not start transaction for stored procedures, it will be handled
     internally in SP processing.
@@ -3726,6 +3742,7 @@ mysql_execute_command(THD *thd)
   if (WSREP(thd)                          &&
       wsrep_thd_is_local(thd)             &&
       lex->sql_command != SQLCOM_BEGIN    &&
+      lex->sql_command != SQLCOM_XA_START &&
       lex->sql_command != SQLCOM_CALL     &&
       lex->sql_command != SQLCOM_EXECUTE  &&
       !(sql_command_flags[lex->sql_command] & CF_AUTO_COMMIT_TRANS))

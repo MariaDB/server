@@ -1,0 +1,84 @@
+--source include/galera_cluster.inc
+
+--connect node_1a, 127.0.0.1, root, , test, $NODE_MYPORT_1
+
+
+#
+# Test A: BF abort XA transaction
+#
+
+--connection node_1
+CREATE TABLE t1 (f1 INTEGER PRIMARY KEY, f2 CHAR(64)) ENGINE=InnoDB;
+
+XA START 'test';
+INSERT INTO t1 VALUES (1, 'node1');
+
+--connection node_2
+INSERT INTO t1 VALUES (1, 'node2');
+SELECT * FROM t1;
+
+--connection node_1
+--error ER_XA_RBDEADLOCK
+SELECT * FROM t1;
+
+--echo expect (1, node2)
+SELECT * FROM t1;
+
+DROP TABLE t1;
+
+
+#
+# Test B: BF abort XA transaction on XA END
+#
+
+--connection node_1
+CREATE TABLE t1 (f1 INTEGER PRIMARY KEY, f2 CHAR(64)) ENGINE=InnoDB;
+
+XA START 'test';
+INSERT INTO t1 VALUES (1, 'node1');
+
+--connection node_2
+INSERT INTO t1 VALUES (1, 'node2');
+SELECT * FROM t1;
+
+--connection node_1a
+# sync wait
+SELECT * FROM t1;
+
+--connection node_1
+--error ER_XA_RBDEADLOCK
+XA END 'test';
+
+--echo expect (1, node2)
+SELECT * FROM t1;
+
+DROP TABLE t1;
+
+
+#
+# Test C: BF abort XA transaction on XA PREPARE
+#
+
+--connection node_1
+CREATE TABLE t1 (f1 INTEGER PRIMARY KEY, f2 CHAR(64)) ENGINE=InnoDB;
+
+XA START 'test';
+INSERT INTO t1 VALUES (1, 'node1');
+XA END 'test';
+
+--connection node_2
+INSERT INTO t1 VALUES (1, 'node2');
+SELECT * FROM t1;
+
+--connection node_1a
+# sync wait
+SELECT * FROM t1;
+
+--connection node_1
+--error ER_XA_RBDEADLOCK
+XA PREPARE 'test';
+
+--echo expect (1, node2)
+SELECT * FROM t1;
+
+DROP TABLE t1;

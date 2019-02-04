@@ -32,6 +32,10 @@
 #include "transaction.h" /* trans_xxx */
 #include "sql_base.h" /* close_thread_tables */
 
+#include "rpl_rli.h"
+#include "rpl_mi.h"
+#include "wsrep_applier.h" /* wsrep_relay_group_init() */
+
 static void init_service_thd(THD* thd, char* thread_stack)
 {
   thd->thread_stack= thread_stack;
@@ -96,6 +100,14 @@ Wsrep_server_service::streaming_applier_service(
     orig_hps(static_cast<Wsrep_high_priority_service&>(orig_high_priority_service));
   THD* thd= new THD(next_thread_id(), true, true);
   init_service_thd(thd, orig_hps.m_thd->thread_stack);
+
+  if (!thd->wsrep_rgi)
+  {
+    thd->wsrep_rgi= wsrep_relay_group_init(thd, "wsrep_relay");
+    thd->system_thread_info.rpl_sql_info=
+      new rpl_sql_thread_info(thd->wsrep_rgi->rli->mi->rpl_filter);
+  }
+
   WSREP_DEBUG("Created streaming applier service in high priority "
               "context with thread id %llu", thd->thread_id);
   return new Wsrep_applier_service(thd);
@@ -107,6 +119,16 @@ void Wsrep_server_service::release_high_priority_service(wsrep::high_priority_se
     static_cast<Wsrep_high_priority_service*>(high_priority_service);
   THD* thd= hps->m_thd;
   delete hps;
+  if (thd->wsrep_rgi)
+  {
+    delete thd->system_thread_info.rpl_sql_info;
+    delete thd->wsrep_rgi->rli->mi;
+    delete thd->wsrep_rgi->rli;
+
+    thd->wsrep_rgi->cleanup_after_session();
+    delete thd->wsrep_rgi;
+    thd->wsrep_rgi= NULL;
+  }
   delete thd;
 }
 

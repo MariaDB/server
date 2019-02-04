@@ -1211,6 +1211,16 @@ static int prepare_or_error(handlerton *ht, THD *thd, bool all)
   if (WSREP(thd) && ht->flags & HTON_WSREP_REPLICATION &&
       wsrep_before_prepare(thd, all))
   {
+    if (thd->transaction.xid_state.xa_state != XA_NOTR)
+    {
+      /*
+        If XA is BF aborted here, then the following rollback
+        is going to clear the xa_state. So must we must set
+        the error here because it may be specific to XA
+        (i.e. ER_XA_RBDEADLOCK vs ER_LOCK_DEADLOCK)
+      */
+      wsrep_override_current_error(thd);
+    }
     return(1);
   }
 #endif /* WITH_WSREP */
