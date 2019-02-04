@@ -2540,3 +2540,21 @@ test.t1	analyze	status	OK
 set @@use_stat_tables= @save_use_stat_tables;
 set @@optimizer_use_condition_selectivity= @save_optimizer_use_condition_selectivity;
 drop table t1;
+#
+# MDEV-18154 Deadlock and assertion upon no-op ALTER under LOCK TABLES
+#
+create or replace table t1 (pk int, i int, primary key (pk)) engine myisam;
+create or replace view v1 as select * from t1;
+lock table v1 read, t1 write;
+alter table t1 change f1 f2 int;
+ERROR 42S22: Unknown column 'f1' in 't1'
+set max_statement_time= 1;
+alter table t1 add column if not exists i int after pk;
+Warnings:
+Note	1060	Duplicate column name 'i'
+set max_statement_time= 0;
+drop table t1;
+drop view v1;
+#
+# End of 10.3 tests
+#
