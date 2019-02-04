@@ -1,0 +1,112 @@
+--source include/galera_cluster.inc
+--source include/have_innodb.inc
+
+#
+# Test a transient failure on XA COMMIT
+# The test uses gmcast.isolate to temporarily drop the node out
+# of the cluster, while a XA COMMIT is attempted.
+#
+
+# Save original auto_increment_offset values.
+--let $node_1=node_1
+--let $node_2=node_2
+--source ../galera/include/auto_increment_offset_save.inc
+
+CREATE TABLE t1 (f1 INTEGER) ENGINE=InnoDB;
+
+XA START 'test';
+INSERT INTO t1 VALUES (1);
+INSERT INTO t1 VALUES (2);
+INSERT INTO t1 VALUES (3);
+INSERT INTO t1 VALUES (4);
+INSERT INTO t1 VALUES (5);
+XA END 'test';
+XA PREPARE 'test';
+
+--connection node_1
+--echo Expect 1 fragment
+SELECT COUNT(*) FROM mysql.wsrep_streaming_log;
+
+
+#
+# Disconnect node_2 from the group
+#
+--connect node_2b, 127.0.0.1, root, , test, $NODE_MYPORT_2
+--connection node_2b
+SET SESSION wsrep_sync_wait = 0;
+SET GLOBAL wsrep_provider_options = 'gmcast.isolate=1';
+
+--let $wait_condition = SELECT VARIABLE_VALUE = 'non-Primary' FROM INFORMATION_SCHEMA.GLOBAL_STATUS WHERE VARIABLE_NAME = 'wsrep_cluster_status';
+--source include/wait_condition.inc
+
+#
+# Client fails to XA COMMIT the transaction while 'non-Primary'
+#
+--connection node_2
+--error ER_ERROR_DURING_COMMIT
+XA COMMIT 'test';
+
+#
+# Reconnect node_2 to the group
+#
+--connection node_2b
+SET GLOBAL wsrep_provider_options = 'gmcast.isolate=0';
+
+--let $wait_condition = SELECT VARIABLE_VALUE = 2 FROM INFORMATION_SCHEMA.GLOBAL_STATUS WHERE VARIABLE_NAME = 'wsrep_cluster_size';
+--source include/wait_condition.inc
+
+--let $wait_condition = SELECT VARIABLE_VALUE = 'Primary' FROM INFORMATION_SCHEMA.GLOBAL_STATUS WHERE VARIABLE_NAME = 'wsrep_cluster_status';
+--source include/wait_condition.inc
+
+--connection node_1
+--let $wait_condition = SELECT VARIABLE_VALUE = 2 FROM INFORMATION_SCHEMA.GLOBAL_STATUS WHERE VARIABLE_NAME = 'wsrep_cluster_size';
+--source include/wait_condition.inc
+
+--let $wait_condition = SELECT VARIABLE_VALUE = 'Primary' FROM INFORMATION_SCHEMA.GLOBAL_STATUS WHERE VARIABLE_NAME = 'wsrep_cluster_status';
+--source include/wait_condition.inc
+
+--echo Expect transaction 'test' to be in prepared state
+XA RECOVER;
+--echo Expect 1 fragment
+SELECT COUNT(*) FROM mysql.wsrep_streaming_log;
+
+--connection node_2b
+--echo Expect transaction 'test' to be in prepared state
+XA RECOVER;
+
+#
+# The following `disconnect` is a workaround due to
+# wsrep_trans_xa_detach() not working as expected.
+# Remove the line once the issue is fixed.
+#
+--disconnect node_2
+
+#
+# XA COMMIT should now complete
+#
+--connection node_2b
+XA RECOVER;
+XA COMMIT 'test';
+
+#
+# Check that the transaction is committed and cleanup
+#
+--connection node_1
+SELECT * FROM t1;
+XA RECOVER;
+--echo Expect 0 fragments
+SELECT COUNT(*) FROM mysql.wsrep_streaming_log;
+
+call mtr.add_suppression('Quorum: No node with complete state');
+
+
+--connection node_2b
+SET SESSION wsrep_sync_wait = DEFAULT;
+SELECT * FROM t1;
+XA RECOVER;
+--echo Expect 0 fragments
+SELECT COUNT(*) FROM mysql.wsrep_streaming_log;
+
+DROP TABLE t1;
+
+call mtr.add_suppression('Quorum: No node with complete state');

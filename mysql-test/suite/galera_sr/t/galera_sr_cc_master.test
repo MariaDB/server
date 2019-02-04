@@ -69,7 +69,6 @@ SELECT COUNT(*) FROM mysql.wsrep_streaming_log;
 --connect node_2b, 127.0.0.1, root, , test, $NODE_MYPORT_2
 --connection node_2b
 --source include/galera_wait_ready.inc
-SELECT * FROM mysql.wsrep_streaming_log;
 SELECT COUNT(*) FROM mysql.wsrep_streaming_log;
 
 # Repeat transaction to confirm no locks are left from previous transaction

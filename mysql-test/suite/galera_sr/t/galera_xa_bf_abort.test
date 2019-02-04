@@ -1,0 +1,167 @@
+--source include/galera_cluster.inc
+
+--connect node_1a, 127.0.0.1, root, , test, $NODE_MYPORT_1
+
+
+#
+# Test A: BF abort XA transaction
+#
+
+--connection node_1
+CREATE TABLE t1 (f1 INTEGER PRIMARY KEY, f2 CHAR(64)) ENGINE=InnoDB;
+
+XA START 'test';
+INSERT INTO t1 VALUES (1, 'node1');
+
+--connection node_2
+INSERT INTO t1 VALUES (1, 'node2');
+SELECT * FROM t1;
+
+--connection node_1a
+# sync wait
+SELECT * FROM t1;
+
+--connection node_1
+--error ER_LOCK_DEADLOCK
+SELECT * FROM t1;
+
+--error ER_XA_RBDEADLOCK
+XA END 'test';
+XA ROLLBACK 'test';
+
+--echo expect (1, node2)
+SELECT * FROM t1;
+
+DROP TABLE t1;
+
+
+#
+# Test B: BF abort XA transaction on XA END
+#
+
+--connection node_1
+CREATE TABLE t1 (f1 INTEGER PRIMARY KEY, f2 CHAR(64)) ENGINE=InnoDB;
+
+XA START 'test';
+INSERT INTO t1 VALUES (1, 'node1');
+
+--connection node_2
+INSERT INTO t1 VALUES (1, 'node2');
+SELECT * FROM t1;
+
+--connection node_1a
+# sync wait
+SELECT * FROM t1;
+
+--connection node_1
+--error ER_XA_RBDEADLOCK
+XA END 'test';
+XA ROLLBACK 'test';
+
+--echo expect (1, node2)
+SELECT * FROM t1;
+
+DROP TABLE t1;
+
+
+#
+# Test C: BF abort XA transaction on XA PREPARE
+#
+
+--connection node_1
+CREATE TABLE t1 (f1 INTEGER PRIMARY KEY, f2 CHAR(64)) ENGINE=InnoDB;
+
+XA START 'test';
+INSERT INTO t1 VALUES (1, 'node1');
+XA END 'test';
+
+--connection node_2
+INSERT INTO t1 VALUES (1, 'node2');
+SELECT * FROM t1;
+
+--connection node_1a
+# sync wait
+SELECT * FROM t1;
+
+--connection node_1
+--error ER_XA_RBDEADLOCK
+XA PREPARE 'test';
+XA ROLLBACK 'test';
+
+--echo expect (1, node2)
+SELECT * FROM t1;
+
+DROP TABLE t1;
+
+
+#
+# Test D: Attempt XA COMMIT after BF abort
+#
+
+--connection node_1
+CREATE TABLE t1 (f1 INTEGER PRIMARY KEY, f2 CHAR(64)) ENGINE=InnoDB;
+
+XA START 'test';
+INSERT INTO t1 VALUES (1, 'node1');
+XA END 'test';
+
+--connection node_2
+INSERT INTO t1 VALUES (1, 'node2');
+SELECT * FROM t1;
+
+--connection node_1a
+# sync wait
+SELECT * FROM t1;
+
+--connection node_1
+--error ER_XA_RBDEADLOCK
+XA PREPARE 'test';
+--error ER_XA_RBDEADLOCK
+XA COMMIT 'test';
+
+--echo expect (1, node2)
+SELECT * FROM t1;
+
+DROP TABLE t1;
+
+
+#
+# Test E: BF abort with streaming
+#
+
+--connection node_1
+CREATE TABLE t1 (f1 INTEGER PRIMARY KEY, f2 CHAR(64)) ENGINE=InnoDB;
+
+SET SESSION wsrep_trx_fragment_unit=statements;
+SET SESSION wsrep_trx_fragment_size=3;
+XA START 'test';
+INSERT INTO t1 VALUES (1, 'node1');
+
+--connection node_2
+INSERT INTO t1 VALUES (1, 'node2');
+
+--connection node_1
+--error ER_LOCK_DEADLOCK
+SELECT * FROM t1;
+
+INSERT INTO t1 VALUES (10, 'node1');
+INSERT INTO t1 VALUES (20, 'node1');
+INSERT INTO t1 VALUES (30, 'node1');
+INSERT INTO t1 VALUES (40, 'node1');
+INSERT INTO t1 VALUES (50, 'node1');
+
+--connection node_1
+--error ER_XA_RBDEADLOCK
+XA END 'test';
+XA ROLLBACK 'test';
+
+--echo expect (1, node2)
+SELECT * FROM t1;
+SELECT COUNT(*) `expect 0` FROM mysql.wsrep_streaming_log;
+
+--connection node_2
+--echo expect (1, node2)
+SELECT * FROM t1;
+SELECT COUNT(*) `expect 0` FROM mysql.wsrep_streaming_log;
+
+DROP TABLE t1;

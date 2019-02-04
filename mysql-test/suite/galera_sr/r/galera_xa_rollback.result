@@ -1,0 +1,126 @@
+connection node_2;
+connection node_1;
+connect node_1a, 127.0.0.1, root, , test, $NODE_MYPORT_1;
+connection node_1;
+CREATE TABLE t1 (f1 INTEGER PRIMARY KEY);
+XA START 'test';
+INSERT INTO t1 VALUES (1);
+XA END 'test';
+XA PREPARE 'test';
+connection node_1a;
+SELECT COUNT(*) `expect 1` FROM mysql.wsrep_streaming_log;
+expect 1
+1
+connection node_2;
+SELECT COUNT(*) `expect 1` FROM mysql.wsrep_streaming_log;
+expect 1
+1
+connection node_1;
+XA ROLLBACK 'test';
+SELECT COUNT(*) `expect 0` FROM mysql.wsrep_streaming_log;
+expect 0
+0
+connection node_2;
+SELECT * FROM t1;
+f1
+SELECT COUNT(*) `expect 0` FROM mysql.wsrep_streaming_log;
+expect 0
+0
+DROP TABLE t1;
+connection node_1;
+CREATE TABLE t1 (f1 INTEGER PRIMARY KEY);
+XA START 'test';
+INSERT INTO t1 VALUES (1);
+XA END 'test';
+connection node_2;
+SELECT COUNT(*) `expect 0` FROM mysql.wsrep_streaming_log;
+expect 0
+0
+connection node_1;
+XA ROLLBACK 'test';
+SELECT COUNT(*) `expect 0` FROM mysql.wsrep_streaming_log;
+expect 0
+0
+connection node_2;
+SELECT * FROM t1;
+f1
+SELECT COUNT(*) `expect 0` FROM mysql.wsrep_streaming_log;
+expect 0
+0
+DROP TABLE t1;
+connection node_1;
+CREATE TABLE t1 (f1 INTEGER PRIMARY KEY);
+XA START 'test';
+INSERT INTO t1 VALUES (1);
+connection node_2;
+SELECT COUNT(*) `expect 0` FROM mysql.wsrep_streaming_log;
+expect 0
+0
+connection node_1;
+XA ROLLBACK 'test';
+ERROR XAE07: XAER_RMFAIL: The command cannot be executed when global transaction is in the  ACTIVE state
+SELECT COUNT(*) `expect 0` FROM mysql.wsrep_streaming_log;
+expect 0
+0
+connection node_2;
+SELECT * FROM t1;
+f1
+SELECT COUNT(*) `expect 0` FROM mysql.wsrep_streaming_log;
+expect 0
+0
+connection node_1;
+XA END 'test';
+XA ROLLBACK 'test';
+DROP TABLE t1;
+connection node_1;
+CREATE TABLE t1 (f1 INTEGER PRIMARY KEY);
+SET SESSION wsrep_trx_fragment_size=1;
+XA START 'test';
+INSERT INTO t1 VALUES (1);
+XA END 'test';
+XA PREPARE 'test';
+connection node_1a;
+SELECT COUNT(*) `expect 2` FROM mysql.wsrep_streaming_log;
+expect 2
+2
+connection node_2;
+SELECT COUNT(*) `expect 2` FROM mysql.wsrep_streaming_log;
+expect 2
+2
+connection node_1;
+XA ROLLBACK 'test';
+SELECT COUNT(*) `expect 0` FROM mysql.wsrep_streaming_log;
+expect 0
+0
+connection node_2;
+SELECT * FROM t1;
+f1
+SELECT COUNT(*) `expect 0` FROM mysql.wsrep_streaming_log;
+expect 0
+0
+DROP TABLE t1;
+connection node_1;
+CREATE TABLE t1 (f1 INTEGER PRIMARY KEY);
+SET SESSION wsrep_trx_fragment_size=1;
+XA START 'test';
+INSERT INTO t1 VALUES (1);
+XA END 'test';
+connection node_2;
+SELECT COUNT(*) `expect 1` FROM mysql.wsrep_streaming_log;
+expect 1
+1
+connection node_1;
+XA ROLLBACK 'test';
+SELECT COUNT(*) `expect 0` FROM mysql.wsrep_streaming_log;
+expect 0
+0
+connection node_1a;
+SELECT * FROM t1;
+f1
+connection node_2;
+SELECT * FROM t1;
+f1
+SELECT COUNT(*) `expect 0` FROM mysql.wsrep_streaming_log;
+expect 0
+0
+DROP TABLE t1;

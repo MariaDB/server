@@ -62,48 +62,6 @@ private:
 };
 }
 
-static rpl_group_info* wsrep_relay_group_init(THD* thd, const char* log_fname)
-{
-  Relay_log_info* rli= new Relay_log_info(false);
-
-  if (!rli->relay_log.description_event_for_exec)
-  {
-    rli->relay_log.description_event_for_exec=
-      new Format_description_log_event(4);
-  }
-
-  static LEX_CSTRING connection_name= { STRING_WITH_LEN("wsrep") };
-
-  /*
-    Master_info's constructor initializes rpl_filter by either an already
-    constructed Rpl_filter object from global 'rpl_filters' list if the
-    specified connection name is same, or it constructs a new Rpl_filter
-    object and adds it to rpl_filters. This object is later destructed by
-    Mater_info's destructor by looking it up based on connection name in
-    rpl_filters list.
-
-    However, since all Master_info objects created here would share same
-    connection name ("wsrep"), destruction of any of the existing Master_info
-    objects (in wsrep_return_from_bf_mode()) would free rpl_filter referenced
-    by any/all existing Master_info objects.
-
-    In order to avoid that, we have added a check in Master_info's destructor
-    to not free the "wsrep" rpl_filter. It will eventually be freed by
-    free_all_rpl_filters() when server terminates.
-  */
-  rli->mi= new Master_info(&connection_name, false);
-
-  struct rpl_group_info *rgi= new rpl_group_info(rli);
-  rgi->thd= rli->sql_driver_thd= thd;
-
-  if ((rgi->deferred_events_collecting= rli->mi->rpl_filter->is_on()))
-  {
-    rgi->deferred_events= new Deferred_log_events(rli);
-  }
-
-  return rgi;
-}
-
 static void wsrep_setup_uk_and_fk_checks(THD* thd)
 {
   /* Tune FK and UK checking policy. These are reset back to original
@@ -249,7 +207,7 @@ int Wsrep_high_priority_service::append_fragment_and_commit(
   const wsrep::ws_handle& ws_handle,
   const wsrep::ws_meta& ws_meta,
   const wsrep::const_buffer& data,
-  const wsrep::xid& xid WSREP_UNUSED)
+  const wsrep::xid& xid)
 {
   DBUG_ENTER("Wsrep_high_priority_service::append_fragment_and_commit");
   int ret= start_transaction(ws_handle, ws_meta);
@@ -263,7 +221,8 @@ int Wsrep_high_priority_service::append_fragment_and_commit(
                                             ws_meta.transaction_id(),
                                             ws_meta.seqno(),
                                             ws_meta.flags(),
-                                            data);
+                                            data,
+                                            xid);
 
   /*
     Note: The commit code below seems to be identical to
@@ -311,22 +270,34 @@ int Wsrep_high_priority_service::commit(const wsrep::ws_handle& ws_handle,
                                         const wsrep::ws_meta& ws_meta)
 {
   DBUG_ENTER("Wsrep_high_priority_service::commit");
-  THD* thd= m_thd;
-  DBUG_ASSERT(thd->wsrep_trx().active());
-  thd->wsrep_cs().prepare_for_ordering(ws_handle, ws_meta, true);
-  thd_proc_info(thd, "committing");
+  DBUG_ASSERT(m_thd->wsrep_trx().active());
+
+  m_thd->wsrep_cs().prepare_for_ordering(ws_handle, ws_meta, true);
+  thd_proc_info(m_thd, "committing");
 
   const bool is_ordered= !ws_meta.seqno().is_undefined();
-  int ret= trans_commit(thd);
+  int ret;
+  if (m_thd->wsrep_trx().state() == wsrep::transaction::s_prepared)
+  {
+    if (m_thd->transaction.xid_state.is_explicit_XA())
+    {
+      m_thd->lex->xid= m_thd->transaction.xid_state.get_xid();
+    }
+    ret= trans_xa_commit(m_thd);
+  }
+  else
+  {
+    ret= trans_commit(m_thd);
+  }
 
   if (ret == 0)
   {
-    m_rgi->cleanup_context(thd, 0);
+    m_rgi->cleanup_context(m_thd, 0);
   }
 
   m_thd->mdl_context.release_transactional_locks();
 
-  thd_proc_info(thd, "wsrep applier committed");
+  thd_proc_info(m_thd, "wsrep applier committed");
 
   if (!is_ordered)
   {
@@ -342,13 +313,13 @@ int Wsrep_high_priority_service::commit(const wsrep::ws_handle& ws_handle,
 
       This is a workaround for CTAS with empty result set.
     */
-    WSREP_DEBUG("Commit not finished for applier %llu", thd->thread_id);
+    WSREP_DEBUG("Commit not finished for applier %llu", m_thd->thread_id);
     ret= ret || m_thd->wsrep_cs().before_commit() ||
       m_thd->wsrep_cs().ordered_commit() ||
       m_thd->wsrep_cs().after_commit();
   }
 
-  thd->lex->sql_command= SQLCOM_END;
+  m_thd->lex->sql_command= SQLCOM_END;
 
   must_exit_= check_exit_status();
   DBUG_RETURN(ret);
@@ -367,7 +338,20 @@ int Wsrep_high_priority_service::rollback(const wsrep::ws_handle& ws_handle,
      assert(ws_meta == wsrep::ws_meta());
      assert(ws_handle == wsrep::ws_handle());
   }
-  int ret= (trans_rollback_stmt(m_thd) || trans_rollback(m_thd));
+  int ret(1);
+  if (m_thd->wsrep_trx().is_xa() ||
+      m_thd->wsrep_trx().state() == wsrep::transaction::s_prepared)
+  {
+    if (m_thd->transaction.xid_state.is_explicit_XA())
+    {
+      m_thd->lex->xid= m_thd->transaction.xid_state.get_xid();
+    }
+    ret= wsrep_trans_xa_end_and_rollback(m_thd);
+  }
+  else
+  {
+    ret= (trans_rollback_stmt(m_thd) || trans_rollback(m_thd));
+  }
   m_thd->mdl_context.release_transactional_locks();
   m_thd->mdl_context.release_explicit_locks();
   DBUG_RETURN(ret);
@@ -500,7 +484,9 @@ int Wsrep_applier_service::apply_write_set(const wsrep::ws_meta& ws_meta,
   thd->variables.option_bits |= OPTION_BEGIN;
   thd->variables.option_bits |= OPTION_NOT_AUTOCOMMIT;
   DBUG_ASSERT(thd->wsrep_trx().active());
-  DBUG_ASSERT(thd->wsrep_trx().state() == wsrep::transaction::s_executing);
+  DBUG_ASSERT(thd->wsrep_trx().state() == wsrep::transaction::s_executing ||
+              (thd->wsrep_trx().state() == wsrep::transaction::s_prepared &&
+               thd->wsrep_trx().is_xa()));
 
   thd_proc_info(thd, "applying write set");
   /* moved dbug sync point here, after possible THD switch for SR transactions

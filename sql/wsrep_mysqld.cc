@@ -1503,10 +1503,8 @@ int wsrep_to_buf_helper(
   enum enum_binlog_checksum_alg current_binlog_check_alg=
     (enum_binlog_checksum_alg) binlog_checksum_options;
 
-  Format_description_log_event *tmp_fd= new Format_description_log_event(4);
-  tmp_fd->checksum_alg= current_binlog_check_alg;
-  writer.write(tmp_fd);
-  delete tmp_fd;
+  Format_description_log_event tmp_fd(BINLOG_VERSION);
+  tmp_fd.checksum_alg= current_binlog_check_alg;
 
 #ifdef GTID_SUPPORT
   if (thd->variables.gtid_next.type == GTID_GROUP)
@@ -1523,6 +1521,7 @@ int wsrep_to_buf_helper(
   if (thd->slave_thread || wsrep_thd_is_applying(thd) || 
       thd->variables.wsrep_gtid_seq_no)
   {
+    if (writer.write(&tmp_fd)) ret= 1;
     uint64 seqno= thd->variables.gtid_seq_no;
     uint32 domain_id= thd->variables.gtid_domain_id;
     uint32 server_id= thd->variables.server_id;
@@ -1550,6 +1549,7 @@ int wsrep_to_buf_helper(
   /* if there is prepare query, add event for it */
   if (!ret && thd->wsrep_TOI_pre_query)
   {
+    if (writer.write(&tmp_fd)) ret= 1;
     Query_log_event ev(thd, thd->wsrep_TOI_pre_query,
 		       thd->wsrep_TOI_pre_query_len,
 		       FALSE, FALSE, FALSE, 0);
@@ -1557,6 +1557,7 @@ int wsrep_to_buf_helper(
     if (writer.write(&ev)) ret= 1;
   }
 
+  if (!ret && writer.write(&tmp_fd)) ret= 1;
   /* continue to append the actual query */
   Query_log_event ev(thd, query, query_len, FALSE, FALSE, FALSE, 0);
   /* WSREP GTID mode, we need to change server_id */
@@ -2259,13 +2260,15 @@ void wsrep_to_isolation_end(THD *thd)
   @retval TRUE   Lock request can be granted
   @retval FALSE  Lock request cannot be granted
 */
-
-void wsrep_handle_mdl_conflict(MDL_context *requestor_ctx,
+bool wsrep_handle_mdl_conflict(MDL_context *requestor_ctx,
                                MDL_ticket *ticket,
                                const MDL_key *key)
 {
+  bool ret(TRUE);
+
   /* Fallback to the non-wsrep behaviour */
-  if (!WSREP_ON) return;
+  if (!WSREP_ON)
+    return ret;
 
   THD *request_thd= requestor_ctx->get_thd();
   THD *granted_thd= ticket->get_ctx()->get_thd();
@@ -2294,10 +2297,21 @@ void wsrep_handle_mdl_conflict(MDL_context *requestor_ctx,
       }
       else if (wsrep_thd_is_SR(granted_thd) && !wsrep_thd_is_SR(request_thd))
       {
-        WSREP_MDL_LOG(INFO, "MDL conflict, DDL vs SR", 
-                      schema, schema_len, request_thd, granted_thd);
-        mysql_mutex_unlock(&granted_thd->LOCK_thd_data);
-        wsrep_abort_thd(request_thd, granted_thd, 1);
+        if (granted_thd->wsrep_trx().state() ==
+            wsrep::transaction::s_prepared)
+        {
+          WSREP_MDL_LOG(DEBUG, "MDL conflict, DDL vs prepared XA",
+                        schema, schema_len, request_thd, granted_thd);
+          mysql_mutex_unlock(&granted_thd->LOCK_thd_data);
+          ret= FALSE;
+        }
+        else
+        {
+          WSREP_MDL_LOG(DEBUG, "MDL conflict, DDL vs SR",
+                        schema, schema_len, request_thd, granted_thd);
+          mysql_mutex_unlock(&granted_thd->LOCK_thd_data);
+          wsrep_abort_thd(request_thd, granted_thd, 1);
+        }
       }
       else
       {
@@ -2325,13 +2339,24 @@ void wsrep_handle_mdl_conflict(MDL_context *requestor_ctx,
     }
     else
     {
-      WSREP_MDL_LOG(DEBUG, "MDL conflict-> BF abort", schema, schema_len,
-                    request_thd, granted_thd);
       ticket->wsrep_report(wsrep_debug);
       if (granted_thd->wsrep_trx().active())
       {
-        mysql_mutex_unlock(&granted_thd->LOCK_thd_data);
-        wsrep_abort_thd(request_thd, granted_thd, 1);
+        if (granted_thd->wsrep_trx().state() ==
+            wsrep::transaction::s_prepared)
+        {
+          WSREP_MDL_LOG(DEBUG, "MDL conflict, DDL vs prepared XA",
+                        schema, schema_len, request_thd, granted_thd);
+          mysql_mutex_unlock(&granted_thd->LOCK_thd_data);
+          ret= FALSE;
+        }
+        else
+        {
+          WSREP_MDL_LOG(DEBUG, "MDL conflict-> BF abort",
+                        schema, schema_len, request_thd, granted_thd);
+          mysql_mutex_unlock(&granted_thd->LOCK_thd_data);
+          wsrep_abort_thd(request_thd, granted_thd, 1);
+        }
       }
       else
       {
@@ -2358,6 +2383,8 @@ void wsrep_handle_mdl_conflict(MDL_context *requestor_ctx,
   {
     mysql_mutex_unlock(&request_thd->LOCK_thd_data);
   }
+
+  return ret;
 }
 
 /**/

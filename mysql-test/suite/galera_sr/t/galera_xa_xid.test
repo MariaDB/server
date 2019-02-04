@@ -1,0 +1,125 @@
+#
+# Test that the output of XA RECOVER shows the same xid on master and slaves
+#
+
+--source include/galera_cluster.inc
+
+--connection node_1
+CREATE TABLE t1 (f1 INTEGER PRIMARY KEY);
+
+#
+# Test A: xid contains gtrid
+#
+
+--connection node_1
+XA START 'gtrid';
+INSERT INTO t1 VALUES (1);
+XA END 'gtrid';
+XA PREPARE 'gtrid';
+XA RECOVER;
+
+--connection node_2
+SELECT * FROM t1;
+XA RECOVER;
+
+--connection node_1
+XA ROLLBACK 'gtrid';
+
+
+#
+# Test B: xid contains gtrid and bqual
+#
+
+--connection node_1
+XA START 'gtrid', 'bqaul';
+INSERT INTO t1 VALUES (1);
+XA END 'gtrid', 'bqaul', 1;
+XA PREPARE 'gtrid', 'bqaul';
+XA RECOVER;
+
+--connection node_2
+SELECT * FROM t1;
+XA RECOVER;
+
+--connection node_1
+XA ROLLBACK 'gtrid', 'bqaul';
+
+
+#
+# Test C: xid contains gtrid, bqual and format id
+#
+
+--connection node_1
+XA START 'gtrid', 'bqaul', 2;
+INSERT INTO t1 VALUES (1);
+XA END 'gtrid', 'bqaul', 1;
+XA PREPARE 'gtrid', 'bqaul', 2;
+XA RECOVER;
+
+--connection node_2
+SELECT * FROM t1;
+XA RECOVER;
+
+--connection node_1
+XA ROLLBACK 'gtrid', 'bqaul', 2;
+
+
+#
+# Test D: xid using hex format
+#
+
+--connection node_1
+XA START X'6162', 0x6364;
+INSERT INTO t1 VALUES (1);
+XA END X'6162', 0x6364;
+XA PREPARE X'6162', 0x6364;
+XA RECOVER;
+
+--connection node_2
+SELECT * FROM t1;
+XA RECOVER;
+
+--connection node_1
+XA ROLLBACK X'6162', 0x6364;
+
+
+#
+# Test E: xid using bit format
+#
+
+--connection node_1
+XA START 'abc', b'01100001';
+INSERT INTO t1 VALUES (1);
+XA END 'abc', b'01100001';
+XA PREPARE 'abc', b'01100001';
+XA RECOVER;
+
+--connection node_2
+SELECT * FROM t1;
+XA RECOVER;
+
+--connection node_1
+XA ROLLBACK 'abc', b'01100001';
+
+
+#
+# Test F: xid using unicode characters
+#
+
+--connection node_1
+# xid with Cyrillic characters
+XA START 'ЁЂЃЄЅІЇ', 'ЈЉЊЋЌЎЏ';
+INSERT INTO t1 VALUES (1);
+XA END 'ЁЂЃЄЅІЇ', 'ЈЉЊЋЌЎЏ';
+XA PREPARE 'ЁЂЃЄЅІЇ', 'ЈЉЊЋЌЎЏ';
+XA RECOVER;
+
+--connection node_2
+SELECT * FROM t1;
+XA RECOVER;
+
+--connection node_1
+XA ROLLBACK 'ЁЂЃЄЅІЇ', 'ЈЉЊЋЌЎЏ';
+
+
+DROP TABLE t1;

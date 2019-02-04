@@ -516,7 +516,7 @@ bool wsrep_prepare_keys_for_isolation(THD*              thd,
                                       wsrep_key_arr_t*  ka);
 void wsrep_keys_free(wsrep_key_arr_t* key_arr);
 
-extern void
+extern bool
 wsrep_handle_mdl_conflict(MDL_context *requestor_ctx,
                           MDL_ticket *ticket,
                           const MDL_key *key);

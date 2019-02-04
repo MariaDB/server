@@ -92,6 +92,63 @@ public:
   bool check_exit_status() const;
 };
 
+class Wsrep_prepared_applier_service : public Wsrep_applier_service
+{
+public:
+  Wsrep_prepared_applier_service(THD* thd, XID* xid)
+    : Wsrep_applier_service(thd)
+  {
+    m_xid.set(xid);
+  }
+  ~Wsrep_prepared_applier_service() { };
+  int start_transaction(const wsrep::ws_handle& ws_handle,
+                        const wsrep::ws_meta& ws_meta)
+  {
+    DBUG_ENTER("Wsrep_prepared_applier_service::start_transaction");
+    DBUG_RETURN(m_thd->wsrep_cs().start_transaction(ws_handle, ws_meta));
+  }
+  int apply_write_set(const wsrep::ws_meta& ws_meta,
+                      const wsrep::const_buffer& data,
+                      wsrep::mutable_buffer&)
+  {
+    DBUG_ENTER("Wsrep_prepared_applier_service::apply_write_set");
+    if (!wsrep::commits_transaction(ws_meta.flags()))
+    {
+      m_thd->wsrep_cs().fragment_applied(ws_meta.seqno());
+    }
+    if (wsrep::prepares_transaction(ws_meta.flags()))
+    {
+      wsrep_trans_xa_attach(m_thd, &m_xid);
+    }
+    DBUG_RETURN(0);
+  }
+  int commit(const wsrep::ws_handle& ws_handle, const wsrep::ws_meta& ws_meta)
+  {
+    DBUG_ENTER("Wsrep_prepared_applier_service::commit");
+    DBUG_ASSERT(m_thd->wsrep_trx().state() == wsrep::transaction::s_prepared);
+    m_thd->lex->xid= &m_xid;
+    m_thd->transaction.xid_state.xid_cache_element= 0;
+    DBUG_RETURN(Wsrep_applier_service::commit(ws_handle, ws_meta));
+  }
+  int rollback(const wsrep::ws_handle& ws_handle, const wsrep::ws_meta& ws_meta)
+  {
+    DBUG_ENTER("Wsrep_prepared_applier_service::rollback");
+    DBUG_ASSERT(m_thd->wsrep_trx().state() == wsrep::transaction::s_prepared);
+    m_thd->lex->xid= &m_xid;
+    m_thd->transaction.xid_state.xid_cache_element= 0;
+    DBUG_RETURN(Wsrep_applier_service::rollback(ws_handle, ws_meta));
+  }
+  int adopt_transaction(const wsrep::transaction& transaction)
+  {
+    DBUG_ENTER("Wsrep_prepared_applier_service::adopt_transaction");
+    m_thd->wsrep_cs().adopt_transaction(transaction);
+    int ret= wsrep_trans_xa_attach(m_thd, &m_xid);
+    DBUG_RETURN(ret);
+  }
+private:
+  XID m_xid;
+};
+
 class Wsrep_replayer_service : public Wsrep_high_priority_service
 {
 public:

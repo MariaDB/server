@@ -1770,7 +1770,11 @@ MDL_lock::can_grant_lock(enum_mdl_type type_arg,
             requestor_ctx->get_thd()->wsrep_cs().mode() ==
             wsrep::client_state::m_rsu)
         {
-          wsrep_handle_mdl_conflict(requestor_ctx, ticket, &key);
+          if (!wsrep_handle_mdl_conflict(requestor_ctx, ticket, &key))
+          {
+            my_error(ER_LOCK_DEADLOCK, MYF(0));
+            break;
+          }
           if (wsrep_log_conflicts)
           {
             auto key= ticket->get_key();
@@ -2269,6 +2273,23 @@ MDL_context::acquire_lock(MDL_request *mdl_request, double lock_wait_timeout)
     has MDL_lock::m_rwlock write-locked.
   */
   lock= ticket->m_lock;
+
+#ifdef WITH_WSREP
+  if (WSREP(get_thd()) &&
+      get_thd()->get_stmt_da()->is_error() &&
+      get_thd()->get_stmt_da()->sql_errno() == ER_LOCK_DEADLOCK)
+  {
+    /*
+      Attempt to acquire lock resulted in a deadlock error.
+      This happens when there is a MDL conflict between DDL
+      and XA transaction in prepared state.
+      The DDL must be retried.
+    */
+    mysql_prlock_unlock(&lock->m_rwlock);
+    MDL_ticket::destroy(ticket);
+    DBUG_RETURN(TRUE);
+  }
+#endif /* WITH_WSREP */
 
   if (lock_wait_timeout == 0)
   {

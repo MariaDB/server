@@ -169,6 +169,18 @@ int wsrep_store_threadvars(THD *);
 */
 void wsrep_reset_threadvars(THD *);
 
+
+static inline enum wsrep::client_error wsrep_current_error(THD* thd)
+{
+  return thd->wsrep_cs().current_error();
+}
+
+static inline enum wsrep::provider::status
+wsrep_current_error_status(THD* thd)
+{
+  return thd->wsrep_cs().current_error_status();
+}
+
 /**
    Helper functions to override error status
 
@@ -194,7 +206,8 @@ static inline void wsrep_override_error(THD *thd, uint error)
       (da->is_error() &&
        da->sql_errno() != error &&
        da->sql_errno() != ER_ERROR_DURING_COMMIT &&
-       da->sql_errno() != ER_LOCK_DEADLOCK))
+       da->sql_errno() != ER_LOCK_DEADLOCK &&
+       da->sql_errno() != ER_XA_RBDEADLOCK))
   {
     da->reset_diagnostics_area();
     my_error(error, MYF(0));
@@ -213,7 +226,8 @@ static inline void wsrep_override_error(THD *thd, uint error,
       (da->is_error() &&
        da->sql_errno() != error &&
        da->sql_errno() != ER_ERROR_DURING_COMMIT &&
-       da->sql_errno() != ER_LOCK_DEADLOCK))
+       da->sql_errno() != ER_LOCK_DEADLOCK &&
+       da->sql_errno() != ER_XA_RBDEADLOCK))
   {
     da->reset_diagnostics_area();
     my_error(error, MYF(0), status);
@@ -224,35 +238,50 @@ static inline void wsrep_override_error(THD* thd,
                                         wsrep::client_error ce,
                                         enum wsrep::provider::status status)
 {
-    DBUG_ASSERT(ce != wsrep::e_success);
-    switch (ce)
+  switch (ce)
+  {
+  case wsrep::e_success:
+    DBUG_ASSERT(0);
+    break;
+  case wsrep::e_error_during_commit:
+    wsrep_override_error(thd, ER_ERROR_DURING_COMMIT, status);
+    break;
+  case wsrep::e_deadlock_error:
+    switch (thd->lex->sql_command)
     {
-    case wsrep::e_error_during_commit:
-      wsrep_override_error(thd, ER_ERROR_DURING_COMMIT, status);
-      break;
-    case wsrep::e_deadlock_error:
-      wsrep_override_error(thd, ER_LOCK_DEADLOCK);
-      break;
-    case wsrep::e_interrupted_error:
-      wsrep_override_error(thd, ER_QUERY_INTERRUPTED);
-      break;
-    case wsrep::e_size_exceeded_error:
-      wsrep_override_error(thd, ER_ERROR_DURING_COMMIT, status);
-      break;
-    case wsrep::e_append_fragment_error:
-      /* TODO: Figure out better error number */
-      wsrep_override_error(thd, ER_ERROR_DURING_COMMIT, status);
-      break;
-    case wsrep::e_not_supported_error:
-      wsrep_override_error(thd, ER_NOT_SUPPORTED_YET);
-      break;
-    case wsrep::e_timeout_error:
-      wsrep_override_error(thd, ER_LOCK_WAIT_TIMEOUT);
+    case SQLCOM_XA_END:
+    case SQLCOM_XA_PREPARE:
+      wsrep_override_error(thd, ER_XA_RBDEADLOCK);
       break;
     default:
-      wsrep_override_error(thd, ER_UNKNOWN_ERROR);
+      wsrep_override_error(thd, ER_LOCK_DEADLOCK);
       break;
     }
+    break;
+  case wsrep::e_interrupted_error:
+    wsrep_override_error(thd, ER_QUERY_INTERRUPTED);
+    break;
+  case wsrep::e_size_exceeded_error:
+    wsrep_override_error(thd, ER_ERROR_DURING_COMMIT, status);
+    break;
+  case wsrep::e_append_fragment_error:
+    /* TODO: Figure out better error number */
+    wsrep_override_error(thd, ER_ERROR_DURING_COMMIT, status);
+    break;
+  case wsrep::e_not_supported_error:
+    wsrep_override_error(thd, ER_NOT_SUPPORTED_YET);
+    break;
+  case wsrep::e_timeout_error:
+    wsrep_override_error(thd, ER_LOCK_WAIT_TIMEOUT);
+    break;
+  }
+}
+
+static inline void wsrep_override_current_error(THD* thd)
+{
+  wsrep_override_error(thd,
+                       wsrep_current_error(thd),
+                       wsrep_current_error_status(thd));
 }
 
 /**

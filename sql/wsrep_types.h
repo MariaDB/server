@@ -19,6 +19,7 @@
 #ifndef WSREP_TYPES_H
 #define WSREP_TYPES_H
 
+#include "wsrep/xid.hpp"
 #include "wsrep/seqno.hpp"
 #include "wsrep/view.hpp"
 

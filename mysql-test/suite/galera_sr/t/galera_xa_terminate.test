@@ -1,0 +1,127 @@
+--source include/galera_cluster.inc
+
+--connect node_1a, 127.0.0.1, root, , test, $NODE_MYPORT_1
+--connect node_2a, 127.0.0.1, root, , test, $NODE_MYPORT_2
+
+
+#
+# Test termination of prepared XA transaction on behalf of another
+# node in the cluster.
+#
+
+
+# Save original auto_increment_offset values.
+--let $node_1=node_1
+--let $node_2=node_2
+--source ../galera/include/auto_increment_offset_save.inc
+
+
+--connection node_1
+SET GLOBAL wsrep_provider_options = 'pc.ignore_sb=true';
+
+--connection node_2
+SET GLOBAL wsrep_provider_options = 'pc.ignore_sb=true';
+
+CREATE TABLE t1 (f1 INTEGER PRIMARY KEY) Engine=InnoDB;
+INSERT INTO t1 VALUES (1);
+
+
+#
+# Create XA transaction 'test' up to prepared state
+#
+--connection node_2
+XA START 'test';
+INSERT INTO t1 VALUES (2);
+INSERT INTO t1 VALUES (3);
+XA END 'test';
+XA PREPARE 'test';
+
+
+#
+# Verify that transaction 'test' is in prepared state in node_1
+#
+--connection node_1
+--echo expect 1
+SELECT * FROM t1;
+--echo expect transaction 'test'
+XA RECOVER;
+
+
+#
+# Kill node_2 and wait for the cluster to shrink
+#
+--connection node_2a
+SET SESSION wsrep_sync_wait = 0;
+--source include/kill_galera.inc
+
+--connection node_1a
+SET SESSION wsrep_sync_wait = 0;
+--let $wait_condition = SELECT VARIABLE_VALUE = 1 FROM INFORMATION_SCHEMA.GLOBAL_STATUS WHERE VARIABLE_NAME = 'wsrep_cluster_size';
+--source include/wait_condition.inc
+
+
+#
+# Transaction 'test' is still in prepared state
+# and we can commit it.
+#
+--connection node_1
+--echo expect transaction 'test'
+XA RECOVER;
+XA COMMIT 'test';
+
+--echo expect 1,2,3
+SELECT * FROM t1;
+--echo expect empty set
+XA RECOVER;
+--echo expect empty set
+SELECT flags, xid FROM mysql.wsrep_streaming_log;
+
+
+#
+# Recover node_2 and wait for it to rejoin
+#
+--connection node_2a
+--let $galera_wsrep_recover_server_id=2
+--source suite/galera/include/galera_wsrep_recover.inc
+
+--let $_expect_file_name= $MYSQLTEST_VARDIR/tmp/mysqld.2.expect
+--source suite/galera/include/start_mysqld.inc
+
+--let $wait_condition = SELECT VARIABLE_VALUE = 2 FROM INFORMATION_SCHEMA.GLOBAL_STATUS WHERE VARIABLE_NAME = 'wsrep_cluster_size';
+--source include/wait_condition.inc
+
+--connection node_1a
+--let $wait_condition = SELECT VARIABLE_VALUE = 2 FROM INFORMATION_SCHEMA.GLOBAL_STATUS WHERE VARIABLE_NAME = 'wsrep_cluster_size';
+--source include/wait_condition.inc
+
+
+#
+# Check that 'test' is committed
+#
+--connection node_2
+--enable_reconnect
+--source include/wait_until_connected_again.inc
+--disable_reconnect
+--echo expect 1,2,3
+SELECT * FROM t1;
+--echo expect empty set
+XA RECOVER;
+--echo expect empty set
+SELECT flags, xid FROM mysql.wsrep_streaming_log;
+--error ER_XAER_NOTA
+XA COMMIT 'test';
+
+
+#
+# Cleanup
+#
+--connection node_1
+SET GLOBAL wsrep_provider_options = 'pc.ignore_sb=false';
+
+--connection node_2
+DROP TABLE t1;
+SET GLOBAL wsrep_provider_options = 'pc.ignore_sb=false';
+call mtr.add_suppression('Found 1 prepared XA transactions');
+call mtr.add_suppression('Discovered discontinuity in recovered wsrep transaction XIDs.');
+
+--source ../galera/include/auto_increment_offset_restore.inc

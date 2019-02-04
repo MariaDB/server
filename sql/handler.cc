@@ -1242,6 +1242,10 @@ static int prepare_or_error(handlerton *ht, THD *thd, bool all)
   if (run_wsrep_hooks && ht->flags & HTON_WSREP_REPLICATION &&
       wsrep_before_prepare(thd, all))
   {
+    if (thd->transaction.xid_state.is_explicit_XA())
+    {
+      thd->transaction.xid_state.set_error(ER_LOCK_DEADLOCK);
+    }
     return(1);
   }
 #endif /* WITH_WSREP */

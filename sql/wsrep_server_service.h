@@ -20,6 +20,7 @@
 #include "wsrep/server_service.hpp"
 #include "wsrep/exception.hpp" // not_impemented_error(), remove when finished
 #include "wsrep/storage_service.hpp"
+#include "handler.h" // XID
 
 class Wsrep_server_state;
 
@@ -83,10 +84,11 @@ private:
 
    @param orig_thd Original thd context to copy operation context from.
    @param ctx Context string for debug logging.
+   @param xid if non-NULL, xid is used for creating a prepared streaming applier
  */
 class Wsrep_applier_service;
 Wsrep_applier_service*
-wsrep_create_streaming_applier(THD *orig_thd, const char *ctx);
+wsrep_create_streaming_applier(THD *orig_thd, const char *ctx, XID *xid= NULL);
 
 /**
    Helper method to create new storage service.

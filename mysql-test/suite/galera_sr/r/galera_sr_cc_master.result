@@ -36,8 +36,6 @@ connection node_2a;
 connection node_1;
 connect node_2b, 127.0.0.1, root, , test, $NODE_MYPORT_2;
 connection node_2b;
-SELECT * FROM mysql.wsrep_streaming_log;
-node_uuid	trx_id	seqno	flags	frag
 SELECT COUNT(*) FROM mysql.wsrep_streaming_log;
 COUNT(*)
 0

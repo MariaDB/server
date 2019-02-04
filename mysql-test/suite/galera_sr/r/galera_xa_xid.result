@@ -1,0 +1,101 @@
+connection node_2;
+connection node_1;
+connection node_1;
+CREATE TABLE t1 (f1 INTEGER PRIMARY KEY);
+connection node_1;
+XA START 'gtrid';
+INSERT INTO t1 VALUES (1);
+XA END 'gtrid';
+XA PREPARE 'gtrid';
+XA RECOVER;
+formatID	gtrid_length	bqual_length	data
+1	5	0	gtrid
+connection node_2;
+SELECT * FROM t1;
+f1
+XA RECOVER;
+formatID	gtrid_length	bqual_length	data
+1	5	0	gtrid
+connection node_1;
+XA ROLLBACK 'gtrid';
+connection node_1;
+XA START 'gtrid', 'bqaul';
+INSERT INTO t1 VALUES (1);
+XA END 'gtrid', 'bqaul', 1;
+XA PREPARE 'gtrid', 'bqaul';
+XA RECOVER;
+formatID	gtrid_length	bqual_length	data
+1	5	5	gtridbqaul
+connection node_2;
+SELECT * FROM t1;
+f1
+XA RECOVER;
+formatID	gtrid_length	bqual_length	data
+1	5	5	gtridbqaul
+connection node_1;
+XA ROLLBACK 'gtrid', 'bqaul';
+connection node_1;
+XA START 'gtrid', 'bqaul', 2;
+INSERT INTO t1 VALUES (1);
+XA END 'gtrid', 'bqaul', 1;
+XA PREPARE 'gtrid', 'bqaul', 2;
+XA RECOVER;
+formatID	gtrid_length	bqual_length	data
+2	5	5	gtridbqaul
+connection node_2;
+SELECT * FROM t1;
+f1
+XA RECOVER;
+formatID	gtrid_length	bqual_length	data
+2	5	5	gtridbqaul
+connection node_1;
+XA ROLLBACK 'gtrid', 'bqaul', 2;
+connection node_1;
+XA START X'6162', 0x6364;
+INSERT INTO t1 VALUES (1);
+XA END X'6162', 0x6364;
+XA PREPARE X'6162', 0x6364;
+XA RECOVER;
+formatID	gtrid_length	bqual_length	data
+1	2	2	abcd
+connection node_2;
+SELECT * FROM t1;
+f1
+XA RECOVER;
+formatID	gtrid_length	bqual_length	data
+1	2	2	abcd
+connection node_1;
+XA ROLLBACK X'6162', 0x6364;
+connection node_1;
+XA START 'abc', b'01100001';
+INSERT INTO t1 VALUES (1);
+XA END 'abc', b'01100001';
+XA PREPARE 'abc', b'01100001';
+XA RECOVER;
+formatID	gtrid_length	bqual_length	data
+1	3	1	abca
+connection node_2;
+SELECT * FROM t1;
+f1
+XA RECOVER;
+formatID	gtrid_length	bqual_length	data
+1	3	1	abca
+connection node_1;
+XA ROLLBACK 'abc', b'01100001';
+connection node_1;
+XA START 'ЁЂЃЄЅІЇ', 'ЈЉЊЋЌЎЏ';
+INSERT INTO t1 VALUES (1);
+XA END 'ЁЂЃЄЅІЇ', 'ЈЉЊЋЌЎЏ';
+XA PREPARE 'ЁЂЃЄЅІЇ', 'ЈЉЊЋЌЎЏ';
+XA RECOVER;
+formatID	gtrid_length	bqual_length	data
+1	14	14	ЁЂЃЄЅІЇЈЉЊЋЌЎЏ
+connection node_2;
+SELECT * FROM t1;
+f1
+XA RECOVER;
+formatID	gtrid_length	bqual_length	data
+1	14	14	ЁЂЃЄЅІЇЈЉЊЋЌЎЏ
+connection node_1;
+XA ROLLBACK 'ЁЂЃЄЅІЇ', 'ЈЉЊЋЌЎЏ';
+DROP TABLE t1;

@@ -33,6 +33,10 @@
 #include "transaction.h" /* trans_xxx */
 #include "sql_base.h" /* close_thread_tables */
 
+#include "rpl_rli.h"
+#include "rpl_mi.h"
+#include "wsrep_applier.h" /* wsrep_relay_group_init() */
+
 static void init_service_thd(THD* thd, char* thread_stack)
 {
   thd->thread_stack= thread_stack;
@@ -84,7 +88,7 @@ void Wsrep_server_service::release_storage_service(
 }
 
 Wsrep_applier_service*
-wsrep_create_streaming_applier(THD *orig_thd, const char *ctx)
+wsrep_create_streaming_applier(THD *orig_thd, const char *ctx, XID* xid)
 {
   /* Reset variables to allow creating new variables in thread local
      storage for new THD if needed. Note that reset must be done for
@@ -99,11 +103,30 @@ wsrep_create_streaming_applier(THD *orig_thd, const char *ctx)
       (thd= new THD(next_thread_id(), true)))
   {
     init_service_thd(thd, orig_thd->thread_stack);
+    thd->wsrep_rgi= wsrep_relay_group_init(thd, "wsrep_relay");
+    thd->system_thread_info.rpl_sql_info=
+      new rpl_sql_thread_info(thd->wsrep_rgi->rli->mi->rpl_filter);
+
     wsrep_assign_from_threadvars(thd);
     WSREP_DEBUG("Created streaming applier service in %s context with "
                 "thread id %llu", ctx, thd->thread_id);
-    if (!(ret= new (std::nothrow) Wsrep_applier_service(thd)))
+    if (xid)
     {
+      ret= new (std::nothrow) Wsrep_prepared_applier_service(thd, xid);
+    }
+    else
+    {
+      ret= new (std::nothrow) Wsrep_applier_service(thd);
+    }
+
+    if (!ret)
+    {
+      delete thd->system_thread_info.rpl_sql_info;
+      delete thd->wsrep_rgi->rli->mi;
+      delete thd->wsrep_rgi->rli;
+      thd->wsrep_rgi->cleanup_after_session();
+      delete thd->wsrep_rgi;
+      thd->wsrep_rgi= NULL;
       delete thd;
     }
   }
@@ -119,7 +142,13 @@ Wsrep_server_service::streaming_applier_service(
 {
   Wsrep_client_service& orig_cs=
     static_cast<Wsrep_client_service&>(orig_client_service);
-  return wsrep_create_streaming_applier(orig_cs.m_thd, "local");
+  XID* xid= NULL;
+  if (orig_cs.m_thd->wsrep_cs().current_error() &&
+      orig_cs.m_thd->wsrep_trx().state() == wsrep::transaction::s_prepared)
+  {
+    xid= orig_cs.m_thd->transaction.xid_state.get_xid();
+  }
+  return wsrep_create_streaming_applier(orig_cs.m_thd, "local", xid);
 }
 
 wsrep::high_priority_service*
@@ -138,6 +167,16 @@ void Wsrep_server_service::release_high_priority_service(wsrep::high_priority_se
   THD* thd= hps->m_thd;
   delete hps;
   wsrep_store_threadvars(thd);
+  if (thd->wsrep_rgi)
+  {
+    delete thd->system_thread_info.rpl_sql_info;
+    delete thd->wsrep_rgi->rli->mi;
+    delete thd->wsrep_rgi->rli;
+
+    thd->wsrep_rgi->cleanup_after_session();
+    delete thd->wsrep_rgi;
+    thd->wsrep_rgi= NULL;
+  }
   delete thd;
   wsrep_delete_threadvars();
 }

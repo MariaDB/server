@@ -41,4 +41,6 @@ class Format_description_log_event;
 void wsrep_set_apply_format(THD*, Format_description_log_event*);
 Format_description_log_event* wsrep_get_apply_format(THD* thd);
 
+rpl_group_info* wsrep_relay_group_init(THD* thd, const char* log_fname);
+
 #endif /* WSREP_APPLIER_H */

@@ -79,7 +79,8 @@ class Wsrep_schema
                       wsrep::transaction_id transaction_id,
                       wsrep::seqno seqno,
                       int flags,
-                      const wsrep::const_buffer& data);
+                      const wsrep::const_buffer& data,
+                      const wsrep::xid& xid);
   /**
      Update existing fragment meta data. The fragment must have been
      inserted before using append_fragment().

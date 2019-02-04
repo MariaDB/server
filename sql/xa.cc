@@ -19,6 +19,9 @@
 #include "mariadb.h"
 #include "sql_class.h"
 #include "transaction.h"
+#ifdef WITH_WSREP
+#include "wsrep_trans_observer.h"
+#endif /* WITH_WSREP */
 
 
 /***************************************************************************
@@ -443,6 +446,12 @@ bool trans_xa_start(THD *thd)
       trans_rollback(thd);
       DBUG_RETURN(true);
     }
+#ifdef WITH_WSREP
+    if (WSREP(thd))
+    {
+      wsrep_assign_xid(thd);
+    }
+#endif /* WITH_WSREP */
     DBUG_RETURN(FALSE);
   }
 
@@ -499,6 +508,12 @@ bool trans_xa_prepare(THD *thd)
     my_error(ER_XAER_NOTA, MYF(0));
   else if (ha_prepare(thd))
   {
+#ifdef WITH_WSREP
+    /* Galera may BF abort or fail certification on XA PREPARE */
+    if (wsrep_current_error(thd) == wsrep::e_deadlock_error &&
+        xa_trans_rolled_back(thd->transaction.xid_state.xid_cache_element))
+      DBUG_RETURN(TRUE);
+#endif /* WITH_WSREP */
     xid_cache_delete(thd, &thd->transaction.xid_state);
     my_error(ER_XA_RBROLLBACK, MYF(0));
   }
@@ -508,6 +523,66 @@ bool trans_xa_prepare(THD *thd)
   DBUG_RETURN(thd->is_error() ||
     thd->transaction.xid_state.xid_cache_element->xa_state != XA_PREPARED);
 }
+
+
+#ifdef WITH_WSREP
+static int wsrep_ha_commit_or_rollback_by_xid(THD *thd, bool commit)
+{
+  const bool run_wsrep_hooks= wsrep_run_commit_hook(thd, TRUE);
+  if (run_wsrep_hooks)
+  {
+    const int res= commit ?
+      wsrep_before_commit(thd, TRUE) :
+      wsrep_before_rollback(thd, TRUE);
+    if (res)
+      return res;
+  }
+  ha_commit_or_rollback_by_xid(thd->lex->xid, commit);
+  if (run_wsrep_hooks)
+  {
+    commit ?
+      wsrep_after_commit(thd, TRUE) :
+      wsrep_after_rollback(thd, TRUE);
+  }
+  return FALSE;
+}
+
+
+/*
+  This function is very similar to trans_xa_detach().
+  It should be replaced whit trans_xa_detach() when
+  completed (i.e. when the `#ifdef 1` is removed from
+  there). Also, wsrep_trans_xa_detach() is not quite
+  working as expected, currently there is a workaround
+  in test galera_xa_failed_commit, see comment there.
+ */
+static bool wsrep_trans_xa_detach(THD *thd)
+{
+  DBUG_ASSERT(thd->transaction.xid_state.is_explicit_XA());
+  if (thd->transaction.xid_state.xid_cache_element->xa_state != XA_PREPARED)
+    return ha_rollback_trans(thd, true);
+
+  thd->transaction.xid_state.xid_cache_element->acquired_to_recovered();
+  wsrep_before_rollback(thd, true);
+
+  thd->transaction.xid_state.xid_cache_element= 0;
+  thd->transaction.cleanup();
+
+  Ha_trx_info *ha_info, *ha_info_next;
+  for (ha_info= thd->transaction.all.ha_list;
+       ha_info;
+       ha_info= ha_info_next)
+  {
+    ha_info_next= ha_info->next();
+    ha_info->reset(); /* keep it conveniently zero-filled */
+  }
+
+  thd->transaction.all.ha_list= 0;
+
+  wsrep_after_rollback(thd, TRUE);
+  return false;
+}
+#endif /* WITH_WSREP */
 
 
 /**
@@ -532,11 +607,23 @@ bool trans_xa_commit(THD *thd)
       my_error(ER_OUT_OF_RESOURCES, MYF(0));
       DBUG_RETURN(TRUE);
     }
+#ifdef WITH_WSREP
+    if (WSREP(thd) && wsrep_must_commit_or_rollback_by_xid(thd))
+    {
+      res= wsrep_commit_or_rollback_by_xid(thd, TRUE);
+      DBUG_RETURN(res);
+    }
+#endif /* WITH_WSREP */
 
     if (auto xs= xid_cache_search(thd, thd->lex->xid))
     {
       res= xa_trans_rolled_back(xs);
+#ifdef WITH_WSREP
+      if (wsrep_ha_commit_or_rollback_by_xid(thd, !res))
+        DBUG_RETURN(TRUE);
+#else
       ha_commit_or_rollback_by_xid(thd->lex->xid, !res);
+#endif /* WITH_WSREP */
       xid_cache_delete(thd, xs);
     }
     else
@@ -580,10 +667,28 @@ bool trans_xa_commit(THD *thd)
     else
     {
       DEBUG_SYNC(thd, "trans_xa_commit_after_acquire_commit_lock");
+#ifdef WITH_WSREP
+      const bool run_wsrep_hooks= wsrep_run_commit_hook(thd, 1);
+      if (run_wsrep_hooks)
+      {
+        res= wsrep_before_commit(thd, TRUE);
+        if (res)
+        {
+          wsrep_trans_xa_detach(thd);
+          DBUG_RETURN(TRUE);
+        }
+      }
+#endif /* WITH_WSREP */
 
       res= MY_TEST(ha_commit_one_phase(thd, 1));
       if (res)
         my_error(ER_XAER_RMERR, MYF(0));
+#ifdef WITH_WSREP
+      if (run_wsrep_hooks)
+      {
+        wsrep_after_commit(thd, 1);
+      }
+#endif /* WITH_WSREP */
     }
   }
   else
@@ -626,11 +731,23 @@ bool trans_xa_rollback(THD *thd)
       my_error(ER_OUT_OF_RESOURCES, MYF(0));
       DBUG_RETURN(TRUE);
     }
+#ifdef WITH_WSREP
+    if (WSREP(thd) && wsrep_must_commit_or_rollback_by_xid(thd))
+    {
+      bool res= wsrep_commit_or_rollback_by_xid(thd, FALSE);
+      DBUG_RETURN(res);
+    }
+#endif /* WITH_WSREP */
 
     if (auto xs= xid_cache_search(thd, thd->lex->xid))
     {
       xa_trans_rolled_back(xs);
+#ifdef WITH_WSREP
+      if (wsrep_ha_commit_or_rollback_by_xid(thd, 0))
+        DBUG_RETURN(TRUE);
+#else
       ha_commit_or_rollback_by_xid(thd->lex->xid, 0);
+#endif /* WITH_WSREP */
       xid_cache_delete(thd, xs);
     }
     else
@@ -865,3 +982,74 @@ bool mysql_xa_recover(THD *thd)
   my_eof(thd);
   DBUG_RETURN(0);
 }
+
+#ifdef WITH_WSREP
+bool wsrep_trans_xa_attach(THD *thd, XID *xid)
+{
+  bool ret= true;
+  DBUG_ASSERT(!thd->transaction.xid_state.is_explicit_XA());
+  if (thd->fix_xid_hash_pins())
+    return ret;
+  if (auto xs= xid_cache_search(thd, xid))
+  {
+    thd->transaction.xid_state.xid_cache_element= xs;
+    thd->transaction.xid_state.xid_cache_element->acquired_to_recovered();
+    ret= wsrep_restore_prepared_transaction(thd, xid);
+  }
+  return ret;
+}
+
+bool wsrep_trans_xa_end_and_rollback(THD *thd)
+{
+  // XA END is sent to slaves with the XA PREPARE fragment.
+  // If XA ROLLBACK is issued before XA PREPARE in the master,
+  // and streaming is enable, then the transaction may still
+  // be in the ACTIVE state when the rollback happens.
+  // In that case, we XA END the transaction here.
+  if (thd->transaction.xid_state.is_explicit_XA() &&
+      thd->transaction.xid_state.xid_cache_element->xa_state == XA_ACTIVE)
+  {
+    bool ret(trans_xa_end(thd));
+    DBUG_ASSERT(!ret);
+  }
+  return trans_xa_rollback(thd);
+}
+
+void wsrep_get_sql_xid(XID *xid, std::string &xid_string)
+{
+  char xid_buf[SQL_XIDSIZE];
+  const uint xid_len(get_sql_xid(xid, xid_buf));
+  xid_string.append(xid_buf, xid_len);
+}
+
+struct xid_finder_arg
+{
+  bool found;
+  XID* xid;
+  const std::string &xid_match;
+};
+
+static my_bool xid_cache_finder(XID_cache_element *xs,
+                                struct xid_finder_arg *arg)
+{
+  char buf[SQL_XIDSIZE];
+  const uint len(get_sql_xid(&xs->xid, buf));
+  if (!strncmp(arg->xid_match.c_str(), buf, len))
+  {
+    arg->found= true;
+    arg->xid->set(&xs->xid);
+    return TRUE;
+  }
+  return FALSE;
+}
+
+bool wsrep_find_prepared_xid(THD *thd,
+                             const std::string &xid_string,
+                             XID *xid)
+{
+  struct xid_finder_arg arg= {false, xid, xid_string};
+  my_hash_walk_action action= (my_hash_walk_action) xid_cache_finder;
+  xid_cache_iterate(thd, action, &arg);
+  return arg.found;
+}
+#endif /* WITH_WSREP */

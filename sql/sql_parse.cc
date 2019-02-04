@@ -1301,12 +1301,18 @@ bool do_command(THD *thd)
     thd->store_globals();
     WSREP_LOG_THD(thd, "enter found BF aborted");
     DBUG_ASSERT(!thd->mdl_context.has_locks());
-    DBUG_ASSERT(!thd->get_stmt_da()->is_set());
-    /* We let COM_QUIT and COM_STMT_CLOSE to execute even if wsrep aborted. */
+    /*
+       We let COM_QUIT and COM_STMT_CLOSE to execute even if wsrep aborted.
+       XA statements need to go through as well, so that the transaction
+       transitions to XA_ROLLLBACK_ONLY state, and is explicitly rolled
+       back by the client.
+    */
     if (command != COM_STMT_CLOSE &&
-        command != COM_QUIT)
+        command != COM_QUIT &&
+        !thd->transaction.xid_state.is_explicit_XA())
     {
-      my_error(ER_LOCK_DEADLOCK, MYF(0));
+      wsrep_override_error(thd, ER_LOCK_DEADLOCK);
+
       WSREP_DEBUG("Deadlock error for: %s", thd->query());
       thd->reset_killed();
       thd->mysys_var->abort     = 0;
@@ -2399,9 +2405,11 @@ dispatch_end:
         command == COM_STMT_CLOSE
         ))
   {
-    /* todo: Pass wsrep client state current error to override */
-    wsrep_override_error(thd, wsrep_current_error(thd),
-                         wsrep_current_error_status(thd));
+    wsrep_override_current_error(thd);
+    if (thd->transaction.xid_state.is_explicit_XA())
+    {
+      thd->wsrep_cs().reset_error();
+    }
     WSREP_LOG_THD(thd, "leave");
   }
   if (WSREP(thd))
@@ -3791,9 +3799,9 @@ mysql_execute_command(THD *thd)
     start a multi STMT transaction, the wsrep_transaction is
     committed as empty at the end of this function.
 
-    Transaction is started for BEGIN in trans_begin(), for DDL the
-    implicit commit took care of committing previous transaction
-    above and a new transaction should not be started.
+    For BEGIN and XA_START transaction is started in trans_begin().
+    For DDL the implicit commit took care of committing previous
+    transaction above and a new transaction should not be started.
 
     Do not start transaction for stored procedures, it will be handled
     internally in SP processing.
@@ -3801,6 +3809,7 @@ mysql_execute_command(THD *thd)
   if (WSREP(thd)                          &&
       wsrep_thd_is_local(thd)             &&
       lex->sql_command != SQLCOM_BEGIN    &&
+      lex->sql_command != SQLCOM_XA_START &&
       lex->sql_command != SQLCOM_CALL     &&
       lex->sql_command != SQLCOM_EXECUTE  &&
       !(sql_command_flags[lex->sql_command] & CF_AUTO_COMMIT_TRANS))

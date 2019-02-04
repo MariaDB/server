@@ -1,0 +1,76 @@
+connection node_2;
+connection node_1;
+connect node_1a, 127.0.0.1, root, , test, $NODE_MYPORT_1;
+connect node_2a, 127.0.0.1, root, , test, $NODE_MYPORT_2;
+connection node_1;
+connection node_2;
+connection node_1;
+SET GLOBAL wsrep_provider_options = 'pc.ignore_sb=true';
+connection node_2;
+SET GLOBAL wsrep_provider_options = 'pc.ignore_sb=true';
+CREATE TABLE t1 (f1 INTEGER PRIMARY KEY) Engine=InnoDB;
+INSERT INTO t1 VALUES (1);
+connection node_2;
+XA START 'test';
+INSERT INTO t1 VALUES (2);
+INSERT INTO t1 VALUES (3);
+XA END 'test';
+XA PREPARE 'test';
+connection node_1;
+expect 1
+SELECT * FROM t1;
+f1
+1
+expect transaction 'test'
+XA RECOVER;
+formatID	gtrid_length	bqual_length	data
+1	4	0	test
+connection node_2a;
+SET SESSION wsrep_sync_wait = 0;
+Killing server ...
+connection node_1a;
+SET SESSION wsrep_sync_wait = 0;
+connection node_1;
+expect transaction 'test'
+XA RECOVER;
+formatID	gtrid_length	bqual_length	data
+1	4	0	test
+XA COMMIT 'test';
+expect 1,2,3
+SELECT * FROM t1;
+f1
+1
+2
+3
+expect empty set
+XA RECOVER;
+formatID	gtrid_length	bqual_length	data
+expect empty set
+SELECT flags, xid FROM mysql.wsrep_streaming_log;
+flags	xid
+connection node_2a;
+Performing --wsrep-recover ...
+Using --wsrep-start-position when starting mysqld ...
+connection node_1a;
+connection node_2;
+expect 1,2,3
+SELECT * FROM t1;
+f1
+1
+2
+3
+expect empty set
+XA RECOVER;
+formatID	gtrid_length	bqual_length	data
+expect empty set
+SELECT flags, xid FROM mysql.wsrep_streaming_log;
+flags	xid
+XA COMMIT 'test';
+ERROR XAE04: XAER_NOTA: Unknown XID
+connection node_1;
+SET GLOBAL wsrep_provider_options = 'pc.ignore_sb=false';
+connection node_2;
+DROP TABLE t1;
+SET GLOBAL wsrep_provider_options = 'pc.ignore_sb=false';
+call mtr.add_suppression('Found 1 prepared XA transactions');
+call mtr.add_suppression('Discovered discontinuity in recovered wsrep transaction XIDs.');

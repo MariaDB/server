@@ -42,3 +42,12 @@ bool trans_xa_commit(THD *thd);
 bool trans_xa_rollback(THD *thd);
 bool trans_xa_detach(THD *thd);
 bool mysql_xa_recover(THD *thd);
+
+#ifdef WITH_WSREP
+bool wsrep_trans_xa_attach(THD *thd, XID *xid);
+bool wsrep_trans_xa_end_and_rollback(THD *thd);
+void wsrep_get_sql_xid(XID *xid, std::string &xid_string);
+bool wsrep_find_prepared_xid(THD *thd,
+                             const std::string &xid_string,
+                             XID *xid);
+#endif /* WITH_WSREP */

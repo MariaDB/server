@@ -24,7 +24,10 @@
 #include "wsrep_trans_observer.h"
 
 #include "slave.h" // opt_log_slave_updates
+#include "rpl_mi.h" // Master_info
+#include "log_event.h" // class THD, EVENT_LEN_OFFSET, etc.
 #include "debug_sync.h"
+#include <string.h>
 
 /*
   read the first event from (*buf). The size of the (*buf) is (*buf_len).
@@ -173,10 +176,22 @@ int wsrep_apply_events(THD*        thd,
         delete ev;
       }
       continue;
+    case QUERY_EVENT:
+      if (!strncmp(((Query_log_event*)ev)->query, STRING_WITH_LEN("XA START")))
+      {
+        // We are going to explicitly start a transaction using
+        // XA START. Streaming applier thd's are in active multi
+        // statement transaction by default, but trans_xa_start()
+        // will fail if find the thd already in that state.
+        // Consider introducing a specialized streaming applier
+        // which takes this into account.
+        thd->variables.option_bits&= ~OPTION_BEGIN;
+        thd->server_status&= ~SERVER_STATUS_IN_TRANS;
+      }
+      break;
     default:
       break;
     }
-
 
     if (!thd->variables.gtid_seq_no && wsrep_thd_is_toi(thd) && 
         (ev->get_type_code() == QUERY_EVENT))
@@ -221,6 +236,7 @@ int wsrep_apply_events(THD*        thd,
     event++;
 
     delete_or_keep_event_post_apply(thd->wsrep_rgi, typ, ev);
+    wsrep_set_apply_format(thd, NULL);
   }
 
 error:
@@ -230,4 +246,46 @@ error:
   wsrep_set_apply_format(thd, NULL);
 
   DBUG_RETURN(rcode);
+}
+
+rpl_group_info* wsrep_relay_group_init(THD* thd, const char* log_fname)
+{
+  Relay_log_info* rli= new Relay_log_info(false);
+
+  if (!rli->relay_log.description_event_for_exec)
+  {
+    rli->relay_log.description_event_for_exec=
+      new Format_description_log_event(4);
+  }
+
+  static LEX_CSTRING connection_name= { STRING_WITH_LEN("wsrep") };
+
+  /*
+    Master_info's constructor initializes rpl_filter by either an already
+    constructed Rpl_filter object from global 'rpl_filters' list if the
+    specified connection name is same, or it constructs a new Rpl_filter
+    object and adds it to rpl_filters. This object is later destructed by
+    Mater_info's destructor by looking it up based on connection name in
+    rpl_filters list.
+
+    However, since all Master_info objects created here would share same
+    connection name ("wsrep"), destruction of any of the existing Master_info
+    objects (in wsrep_return_from_bf_mode()) would free rpl_filter referenced
+    by any/all existing Master_info objects.
+
+    In order to avoid that, we have added a check in Master_info's destructor
+    to not free the "wsrep" rpl_filter. It will eventually be freed by
+    free_all_rpl_filters() when server terminates.
+  */
+  rli->mi= new Master_info(&connection_name, false);
+
+  struct rpl_group_info *rgi= new rpl_group_info(rli);
+  rgi->thd= rli->sql_driver_thd= thd;
+
+  if ((rgi->deferred_events_collecting= rli->mi->rpl_filter->is_on()))
+  {
+    rgi->deferred_events= new Deferred_log_events(rli);
+  }
+
+  return rgi;
 }

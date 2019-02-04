@@ -1,0 +1,163 @@
+--source include/galera_cluster.inc
+
+--connect node_1a, 127.0.0.1, root, , test, $NODE_MYPORT_1
+
+#
+# Test A: XA transaction replicates a fragment on XA PREPARE
+#
+
+--connection node_1
+CREATE TABLE t1 (f1 INTEGER PRIMARY KEY);
+
+XA START 'test';
+INSERT INTO t1 VALUES (10);
+XA END 'test';
+XA PREPARE 'test';
+
+# Expect one fragment after XA PREPARE
+--connection node_1a
+SELECT COUNT(*) `expect 1` FROM mysql.wsrep_streaming_log;
+
+--connection node_2
+--echo expect empty set
+SELECT * FROM t1;
+SET TRANSACTION ISOLATION LEVEL READ UNCOMMITTED;
+--echo expect 10
+SELECT * FROM t1;
+SELECT COUNT(*) `expect 1` FROM mysql.wsrep_streaming_log;
+
+--connection node_1
+XA COMMIT 'test';
+--echo expect 10
+SELECT * FROM t1;
+SELECT COUNT(*) `expect 0` FROM mysql.wsrep_streaming_log;
+
+--connection node_2
+--echo expect 10
+SELECT * FROM t1;
+SELECT COUNT(*) `expect 0` FROM mysql.wsrep_streaming_log;
+
+--connection node_1
+DROP TABLE t1;
+
+
+#
+# Test B: XA transaction with streaming replication enabled
+#
+
+--connection node_1
+CREATE TABLE t1 (f1 INTEGER PRIMARY KEY);
+
+# Explicitly set fragmentation before XA START
+SET SESSION wsrep_trx_fragment_size=1;
+
+XA START 'test';
+INSERT INTO t1 VALUES (10);
+# First fragment should have been replicated
+SELECT COUNT(*) `expect 1` FROM mysql.wsrep_streaming_log;
+
+--connection node_2
+--echo expect empty set
+SELECT * FROM t1;
+SET TRANSACTION ISOLATION LEVEL READ UNCOMMITTED;
+--echo expect 10
+SELECT * FROM t1;
+SELECT COUNT(*) `expect 1` FROM mysql.wsrep_streaming_log;
+
+--connection node_1
+XA END 'test';
+XA PREPARE 'test';
+
+--connection node_1a
+# Expect two fragments after XA PREPARE
+SELECT COUNT(*) `expect 2` FROM mysql.wsrep_streaming_log;
+
+--connection node_1
+XA COMMIT 'test';
+--echo expect 10
+SELECT * FROM t1;
+SELECT COUNT(*) `expect 0` FROM mysql.wsrep_streaming_log;
+
+--connection node_2
+--echo expect 10
+SELECT * FROM t1;
+SELECT COUNT(*) `expect 0` FROM mysql.wsrep_streaming_log;
+
+--connection node_1
+# unset fragmentation
+SET SESSION wsrep_trx_fragment_size=0;
+DROP TABLE t1;
+
+
+#
+# Test C: Read-only XA does not replicate
+#
+
+--connection node_1
+CREATE TABLE t1 (f1 INTEGER PRIMARY KEY) Engine=InnoDB;
+INSERT INTO t1 VALUES (1);
+
+XA START 'test';
+SELECT * FROM t1;
+XA END 'test';
+XA PREPARE 'test';
+
+--connection node_1a
+SELECT COUNT(*) `expect 0` FROM mysql.wsrep_streaming_log;
+
+--connection node_2
+SELECT COUNT(*) `expect 0` FROM mysql.wsrep_streaming_log;
+
+--connection node_1
+XA COMMIT 'test';
+
+DROP TABLE t1;
+
+
+#
+# Test D: XA transaction with streaming replication enabled, multiple
+# fragments before XA prepare.
+#
+
+--connection node_1
+CREATE TABLE t1 (f1 INTEGER PRIMARY KEY);
+
+# Explicitly set fragmentation before XA START
+SET SESSION wsrep_trx_fragment_size=1;
+
+XA START 'test';
+INSERT INTO t1 VALUES (10);
+INSERT INTO t1 VALUES (20);
+INSERT INTO t1 VALUES (30);
+INSERT INTO t1 VALUES (40);
+# Four fragments should have been replicated
+SELECT COUNT(*) `expect 4` FROM mysql.wsrep_streaming_log;
+
+--connection node_2
+--echo expect empty set
+SELECT * FROM t1;
+SET TRANSACTION ISOLATION LEVEL READ UNCOMMITTED;
+SELECT * FROM t1;
+SELECT COUNT(*) `expect 4` FROM mysql.wsrep_streaming_log;
+
+--connection node_1
+XA END 'test';
+XA PREPARE 'test';
+
+--connection node_1a
+# Another fragment after XA PREPARE
+SELECT COUNT(*) `expect 5` FROM mysql.wsrep_streaming_log;
+
+--connection node_1
+XA COMMIT 'test';
+SELECT * FROM t1;
+SELECT COUNT(*) `expect 0` FROM mysql.wsrep_streaming_log;
+
+--connection node_2
+SELECT * FROM t1;
+SELECT COUNT(*) `expect 0` FROM mysql.wsrep_streaming_log;
+
+--connection node_1
+# unset fragmentation
+SET SESSION wsrep_trx_fragment_size=0;
+DROP TABLE t1;

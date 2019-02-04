@@ -1,0 +1,79 @@
+connection node_2;
+connection node_1;
+connection node_1;
+connection node_2;
+CREATE TABLE t1 (f1 INTEGER) ENGINE=InnoDB;
+XA START 'test';
+INSERT INTO t1 VALUES (1);
+INSERT INTO t1 VALUES (2);
+INSERT INTO t1 VALUES (3);
+INSERT INTO t1 VALUES (4);
+INSERT INTO t1 VALUES (5);
+XA END 'test';
+XA PREPARE 'test';
+connection node_1;
+Expect 1 fragment
+SELECT COUNT(*) FROM mysql.wsrep_streaming_log;
+COUNT(*)
+1
+connect node_2b, 127.0.0.1, root, , test, $NODE_MYPORT_2;
+connection node_2b;
+SET SESSION wsrep_sync_wait = 0;
+SET GLOBAL wsrep_provider_options = 'gmcast.isolate=1';
+connection node_2;
+XA COMMIT 'test';
+ERROR HY000: Got error 6 "No such device or address" during COMMIT
+connection node_2b;
+SET GLOBAL wsrep_provider_options = 'gmcast.isolate=0';
+connection node_1;
+Expect transaction 'test' to be in prepared state
+XA RECOVER;
+formatID	gtrid_length	bqual_length	data
+1	4	0	test
+Expect 1 fragment
+SELECT COUNT(*) FROM mysql.wsrep_streaming_log;
+COUNT(*)
+1
+connection node_2b;
+Expect transaction 'test' to be in prepared state
+XA RECOVER;
+formatID	gtrid_length	bqual_length	data
+1	4	0	test
+disconnect node_2;
+connection node_2b;
+XA RECOVER;
+formatID	gtrid_length	bqual_length	data
+1	4	0	test
+XA COMMIT 'test';
+connection node_1;
+SELECT * FROM t1;
+f1
+1
+2
+3
+4
+5
+XA RECOVER;
+formatID	gtrid_length	bqual_length	data
+Expect 0 fragments
+SELECT COUNT(*) FROM mysql.wsrep_streaming_log;
+COUNT(*)
+0
+call mtr.add_suppression('Quorum: No node with complete state');
+connection node_2b;
+SET SESSION wsrep_sync_wait = DEFAULT;
+SELECT * FROM t1;
+f1
+1
+2
+3
+4
+5
+XA RECOVER;
+formatID	gtrid_length	bqual_length	data
+Expect 0 fragments
+SELECT COUNT(*) FROM mysql.wsrep_streaming_log;
+COUNT(*)
+0
+DROP TABLE t1;
+call mtr.add_suppression('Quorum: No node with complete state');
