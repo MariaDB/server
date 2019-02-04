@@ -1,8 +1,0 @@
---source include/have_innodb.inc
-
-# LEN must increase here
-create table t (a varchar(100)) engine=innodb;
-select name, pos, mtype, prtype, len from information_schema.innodb_sys_columns where name='a';
-alter table t modify a varchar(110), algorithm=inplace;
-select name, pos, mtype, prtype, len from information_schema.innodb_sys_columns where name='a';
-drop table t;
