@@ -13,6 +13,7 @@
 # or if plugin is explicitly requested to build. Then bail out.
 MACRO(SKIP_AWS_PLUGIN msg)
   MESSAGE_ONCE(SKIP_AWS_PLUGIN "Skip aws_key_management - ${msg}")
+  add_feature_info(AWS_PLUGIN "OFF" "AWS Encryption Key Management Plugin")
   RETURN()
 ENDMACRO()
 SET(CMAKE_CXX_STANDARD 11)
@@ -68,12 +69,20 @@ ELSE()
     SKIP_AWS_PLUGIN("CMake is too old")
   ENDIF()
   FIND_PACKAGE(Git)
+  SET_PACKAGE_PROPERTIES(Git PROPERTIES
+    PURPOSE "Used to clone the AWS C++ SDK needed for the AWS Key Management plugin"
+    TYPE OPTIONAL
+  )
   IF(NOT GIT_FOUND)
     SKIP_AWS_PLUGIN("no GIT")
   ENDIF()
   INCLUDE(ExternalProject)
   IF(UNIX)
     FIND_PACKAGE(CURL)
+    SET_PACKAGE_PROPERTIES(CURL PROPERTIES
+      PURPOSE "Needed for the AWS Key Management plugin"
+      TYPE REQUIRED
+    )
     IF(NOT CURL_FOUND)
       SKIP_AWS_PLUGIN("AWS C++ SDK requires libcurl development package")
     ENDIF()
@@ -84,10 +93,18 @@ ELSE()
     ENDIF()
     IF(NOT APPLE)
       FIND_LIBRARY(UUID_LIBRARIES uuid)
+      SET_PACKAGE_PROPERTIES(UUID_LIBRARIES PROPERTIES
+        PURPOSE "Needed for the AWS Key Management plugin"
+        TYPE REQUIRED
+      )
       IF(NOT UUID_LIBRARIES)
         SKIP_AWS_PLUGIN("AWS C++ SDK requires uuid development package")
       ENDIF()
       FIND_PACKAGE(OpenSSL)
+      SET_PACKAGE_PROPERTIES(OpenSSL PROPERTIES
+        PURPOSE "Needed for the AWS Key Management plugin"
+        TYPE REQUIRED
+      )
       IF(NOT OPENSSL_FOUND)
         SKIP_AWS_PLUGIN("AWS C++ SDK requires openssl development package")
       ENDIF()
@@ -167,4 +184,5 @@ MYSQL_ADD_PLUGIN(aws_key_management aws_key_management_plugin.cc
                  LINK_LIBRARIES ${AWS_SDK_LIBS} ${AWS_CPP_SDK_DEPENDENCIES}
                  COMPONENT aws-key-management)
 
+add_feature_info(AWS_PLUGIN "ON" "AWS Encryption Key Management Plugin")
 

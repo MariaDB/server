@@ -16,6 +16,7 @@
 
 OPTION(WITH_MARIABACKUP "Include mariabackup" ON)
 IF(NOT WITH_MARIABACKUP)
+  add_feature_info(MARIABACKUP "OFF" "MariaDB Backup Utility")
   RETURN()
 ENDIF()
 
@@ -116,3 +117,5 @@ ADD_DEPENDENCIES(mbstream GenError)
 IF(MSVC)
   SET_TARGET_PROPERTIES(mbstream PROPERTIES LINK_FLAGS setargv.obj)
 ENDIF()
+
+add_feature_info(MARIABACKUP "ON" "MariaDB Backup Utility")
