@@ -560,7 +560,7 @@ The following specify which files/extra groups are read (specified before remain
  exceeds this value.  If 0 at startup, it's set to
  max_binlog_size
  --max-rowid-filter-size=# 
- The maximum number of rows that fit in memory
+ The maximum size of the container of a rowid filter
  --max-seeks-for-key=# 
  Limit assumed max number of seeks when looking up rows
  based on a key
