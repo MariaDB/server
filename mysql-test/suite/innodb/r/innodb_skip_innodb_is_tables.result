@@ -286,9 +286,6 @@ icp_attempts	icp	0	NULL	NULL	NULL	0	NULL	NULL	NULL	NULL	NULL	NULL	NULL	disabled	
 icp_no_match	icp	0	NULL	NULL	NULL	0	NULL	NULL	NULL	NULL	NULL	NULL	NULL	disabled	counter	Index push-down condition does not match
 icp_out_of_range	icp	0	NULL	NULL	NULL	0	NULL	NULL	NULL	NULL	NULL	NULL	NULL	disabled	counter	Index push-down condition out of range
 icp_match	icp	0	NULL	NULL	NULL	0	NULL	NULL	NULL	NULL	NULL	NULL	NULL	disabled	counter	Index push-down condition matches
-pk-filter checks	pk-filter	0	NULL	NULL	NULL	0	NULL	NULL	NULL	NULL	NULL	NULL	NULL	disabled	counter	Number of lookups into PK-filters
-pk-filter_positive	pk-filter	0	NULL	NULL	NULL	0	NULL	NULL	NULL	NULL	NULL	NULL	NULL	disabled	counter	PK-filter test is positive
-pk-filter_negative	pk-filter	0	NULL	NULL	NULL	0	NULL	NULL	NULL	NULL	NULL	NULL	NULL	disabled	counter	PK-filter test is negative
 select * from information_schema.innodb_ft_default_stopword;
 value
 a

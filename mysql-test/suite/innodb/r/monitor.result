@@ -251,9 +251,6 @@ icp_attempts	disabled
 icp_no_match	disabled
 icp_out_of_range	disabled
 icp_match	disabled
-pk-filter checks	disabled
-pk-filter_positive	disabled
-pk-filter_negative	disabled
 set global innodb_monitor_enable = all;
 select name from information_schema.innodb_metrics where status!='enabled';
 name
