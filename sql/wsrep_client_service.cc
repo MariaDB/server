@@ -301,12 +301,44 @@ void Wsrep_client_service::debug_crash(const char* crash_point)
   DBUG_EXECUTE_IF(crash_point, DBUG_SUICIDE(); );
 }
 
+/*
+  Rollback XA transaction
+  Based on xa_trans_force_rollback() and trans_xa_rollback()
+*/
+static bool wsrep_trans_xa_rollback(THD *thd)
+{
+  DBUG_ASSERT(thd->transaction.xid_state.xa_state != XA_NOTR);
+
+  thd->transaction.xid_state.rm_error= 0;
+  if (ha_rollback_trans(thd, true))
+  {
+    return 1;
+  }
+
+  thd->variables.option_bits&= ~(OPTION_BEGIN | OPTION_KEEP_LOG);
+  thd->transaction.all.reset();
+  thd->server_status&=
+    ~(SERVER_STATUS_IN_TRANS | SERVER_STATUS_IN_TRANS_READONLY);
+  xid_cache_delete(thd, &thd->transaction.xid_state);
+
+  thd->transaction.xid_state.xa_state= XA_ROLLBACK_ONLY;
+
+  return 0;
+}
+
 int Wsrep_client_service::bf_rollback()
 {
   DBUG_ASSERT(m_thd == current_thd);
   DBUG_ENTER("Wsrep_client_service::rollback");
-
-  int ret= (trans_rollback_stmt(m_thd) || trans_rollback(m_thd));
+  int ret(1);
+  if (is_xa())
+  {
+    ret= wsrep_trans_xa_rollback(m_thd);
+  }
+  else
+  {
+    ret= (trans_rollback_stmt(m_thd) || trans_rollback(m_thd));
+  }
   if (m_thd->locked_tables_mode && m_thd->lock)
   {
     m_thd->locked_tables_list.unlock_locked_tables(m_thd);

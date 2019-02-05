@@ -1298,7 +1298,17 @@ bool do_command(THD *thd)
     if (command != COM_STMT_CLOSE &&
         command != COM_QUIT)
     {
-      my_error(ER_LOCK_DEADLOCK, MYF(0));
+      xa_states state= thd->transaction.xid_state.xa_state;
+      DBUG_ASSERT(state == XA_NOTR || state == XA_ROLLBACK_ONLY);
+      if (state == XA_ROLLBACK_ONLY)
+      {
+        my_error(ER_XA_RBDEADLOCK, MYF(0));
+        thd->transaction.xid_state.xa_state= XA_NOTR;
+      }
+      else
+      {
+        my_error(ER_LOCK_DEADLOCK, MYF(0));
+      }
       WSREP_DEBUG("Deadlock error for: %s", thd->query());
       thd->reset_killed();
       thd->mysys_var->abort     = 0;
@@ -2358,8 +2368,17 @@ com_multi_end:
         ))
   {
     /* todo: Pass wsrep client state current error to override */
-    wsrep_override_error(thd, wsrep_current_error(thd),
-                         wsrep_current_error_status(thd));
+    xa_states state= thd->transaction.xid_state.xa_state;
+    DBUG_ASSERT(state == XA_NOTR || state == XA_ROLLBACK_ONLY);
+    if (state == XA_ROLLBACK_ONLY)
+    {
+      wsrep_override_error(thd, ER_XA_RBDEADLOCK);
+      thd->transaction.xid_state.xa_state= XA_NOTR;
+    }
+    else
+    {
+      wsrep_override_error(thd, ER_LOCK_DEADLOCK);
+    }
     WSREP_LOG_THD(thd, "leave");
   }
   if (WSREP(thd))
