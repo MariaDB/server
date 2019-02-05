@@ -507,11 +507,9 @@ cat_sql()
 
   case "$auth_root_authentication_method" in
     normal)
-      echo "SET @skip_auth_root_nopasswd=NULL;"
       echo "SET @auth_root_socket=NULL;"
       ;;
     socket)
-      echo "SET @skip_auth_root_nopasswd=1;"
       echo "SET @auth_root_socket='$auth_root_socket_user';"
       ;;
   esac
