@@ -6184,7 +6184,7 @@ static Sys_var_enum Sys_secure_timestamp(
 
 static Sys_var_ulonglong Sys_max_rowid_filter_size(
        "max_rowid_filter_size",
-       "The maximum number of rows that fit in memory",
+       "The maximum size of the container of a rowid filter",
        SESSION_VAR(max_rowid_filter_size), CMD_LINE(REQUIRED_ARG),
        VALID_RANGE(1024, (ulonglong)~(intptr)0), DEFAULT(128*1024),
        BLOCK_SIZE(1));

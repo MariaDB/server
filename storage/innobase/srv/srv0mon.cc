@@ -1414,7 +1414,7 @@ static monitor_info_t	innodb_counter_info[] =
 	 MONITOR_NONE,
 	 MONITOR_DEFAULT_START, MONITOR_PK_FILTER_POSITIVE},
 
-	{"pk-filter_negarive", "pk-filter", "PK-filter test is negative",
+	{"pk-filter_negative", "pk-filter", "PK-filter test is negative",
 	 MONITOR_NONE,
 	 MONITOR_DEFAULT_START, MONITOR_PK_FILTER_NEGATIVE},
 

@@ -251,6 +251,9 @@ icp_attempts	disabled
 icp_no_match	disabled
 icp_out_of_range	disabled
 icp_match	disabled
+pk-filter checks	disabled
+pk-filter_positive	disabled
+pk-filter_negative	disabled
 set global innodb_monitor_enable = all;
 select name from information_schema.innodb_metrics where status!='enabled';
 name
@@ -461,7 +464,7 @@ max_count_reset, min_count_reset, count_reset, status
 from information_schema.innodb_metrics
 where name like "dml%";
 name	max_count	min_count	count	max_count_reset	min_count_reset	count_reset	status
-dml_reads	4	NULL	4	4	NULL	4	enabled
+dml_reads	2	NULL	2	2	NULL	2	enabled
 dml_inserts	1	NULL	1	1	NULL	1	enabled
 dml_deletes	0	NULL	0	0	NULL	0	enabled
 dml_updates	2	NULL	2	2	NULL	2	enabled
@@ -475,7 +478,7 @@ max_count_reset, min_count_reset, count_reset, status
 from information_schema.innodb_metrics
 where name like "dml%";
 name	max_count	min_count	count	max_count_reset	min_count_reset	count_reset	status
-dml_reads	6	NULL	6	6	NULL	6	enabled
+dml_reads	4	NULL	4	4	NULL	4	enabled
 dml_inserts	1	NULL	1	1	NULL	1	enabled
 dml_deletes	2	NULL	2	2	NULL	2	enabled
 dml_updates	2	NULL	2	2	NULL	2	enabled
@@ -489,7 +492,7 @@ max_count_reset, min_count_reset, count_reset, status
 from information_schema.innodb_metrics
 where name like "dml%";
 name	max_count	min_count	count	max_count_reset	min_count_reset	count_reset	status
-dml_reads	6	NULL	6	0	NULL	0	enabled
+dml_reads	4	NULL	4	0	NULL	0	enabled
 dml_inserts	1	NULL	1	0	NULL	0	enabled
 dml_deletes	2	NULL	2	0	NULL	0	enabled
 dml_updates	2	NULL	2	0	NULL	0	enabled
@@ -505,7 +508,7 @@ max_count_reset, min_count_reset, count_reset, status
 from information_schema.innodb_metrics
 where name like "dml%";
 name	max_count	min_count	count	max_count_reset	min_count_reset	count_reset	status
-dml_reads	8	NULL	8	2	NULL	2	enabled
+dml_reads	6	NULL	6	2	NULL	2	enabled
 dml_inserts	3	NULL	3	2	NULL	2	enabled
 dml_deletes	4	NULL	4	2	NULL	2	enabled
 dml_updates	2	NULL	2	0	NULL	0	enabled
@@ -519,7 +522,7 @@ max_count_reset, min_count_reset, count_reset, status
 from information_schema.innodb_metrics
 where name like "dml%";
 name	max_count	min_count	count	max_count_reset	min_count_reset	count_reset	status
-dml_reads	8	NULL	8	2	NULL	2	enabled
+dml_reads	6	NULL	6	2	NULL	2	enabled
 dml_inserts	3	NULL	3	2	NULL	2	enabled
 dml_deletes	4	NULL	4	2	NULL	2	enabled
 dml_updates	2	NULL	2	0	NULL	0	enabled
@@ -533,7 +536,7 @@ max_count_reset, min_count_reset, count_reset, status
 from information_schema.innodb_metrics
 where name like "dml%";
 name	max_count	min_count	count	max_count_reset	min_count_reset	count_reset	status
-dml_reads	8	NULL	8	2	NULL	2	disabled
+dml_reads	6	NULL	6	2	NULL	2	disabled
 dml_inserts	3	NULL	3	2	NULL	2	disabled
 dml_deletes	4	NULL	4	2	NULL	2	disabled
 dml_updates	2	NULL	2	0	NULL	0	disabled

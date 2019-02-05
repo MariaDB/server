@@ -35,7 +35,7 @@ insert into t2 (a) values (1);
 create table t3 (a int primary key,
                  b int generated always as (-a) virtual,
                  c int generated always as (-a) stored unique);
-insert into t3 (a) values (2),(1),(3);
+insert into t3 (a) values (2),(1),(3),(5),(4),(7);
 analyze table t1,t2,t3;
 
 --echo # select_type=SIMPLE, type=system

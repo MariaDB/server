@@ -103,7 +103,7 @@ ha_rows mi_records_in_range(MI_INFO *info, int inx,
                                           max_key->keypart_map, max_key->flag)
 		        : (double) info->state->records);
     res= (end_pos < start_pos ? (ha_rows) 0 :
-          (end_pos == start_pos ? (ha_rows) 1 : end_pos-start_pos));
+          (end_pos == start_pos ? (ha_rows) 1 : (ha_rows) (end_pos-start_pos)));
     if (start_pos == HA_POS_ERROR || end_pos == HA_POS_ERROR)
       res=HA_POS_ERROR;
     else
@@ -111,7 +111,7 @@ ha_rows mi_records_in_range(MI_INFO *info, int inx,
       diff= end_pos - start_pos;
       if (diff >= 0)
       {
-        if (!(res= (diff + 0.5)))
+        if (!(res= (ha_rows) (diff + 0.5)))
 	  res= 1;
       }
       else
@@ -208,7 +208,7 @@ static double _mi_record_pos(MI_INFO *info, const uchar *key,
     DBUG_PRINT("exit",("pos: %g",(pos*info->state->records)));
     DBUG_RETURN(pos*info->state->records);
   }
-  DBUG_RETURN(HA_POS_ERROR);
+  DBUG_RETURN((double) (HA_POS_ERROR));
 }
 
 
