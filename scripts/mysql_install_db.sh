@@ -37,8 +37,8 @@ force=0
 in_rpm=0
 ip_only=0
 cross_bootstrap=0
-auth_root_authentication_method=normal
-auth_root_socket_user='root'
+auth_root_authentication_method=socket
+auth_root_socket_user=""
 skip_test_db=0
 
 usage()
@@ -46,17 +46,17 @@ usage()
   cat <<EOF
 Usage: $0 [OPTIONS]
   --auth-root-authentication-method=normal|socket
-                       Chooses the authentication method for the created initial
-                       root user. The default is 'normal' to creates a root user
-                       that can login without password, which can be insecure.
-                       The alternative 'socket' allows only the system root user
-                       to login as MariaDB root; this requires the unix socket
-                       authentication plugin.
+                       Chooses the authentication method for the created
+                       initial root user. The historical behavior is 'normal'
+                       to creates a root user that can login without password,
+                       which can be insecure. The default behavior 'socket'
+                       sets an invalid root password but allows the system root
+                       user to login as MariaDB root without a password.
   --auth-root-socket-user=user
                        Used with --auth-root-authentication-method=socket. It
-                       specifies the name of the MariaDB root account, as well
-                       as of the system account allowed to access it. Defaults
-                       to 'root'.
+                       specifies the name of the second MariaDB root account,
+                       as well as of the system account allowed to access it.
+                       Defaults to the value of --user.
   --basedir=path       The path to the MariaDB installation directory.
   --builddir=path      If using --srcdir with out-of-directory builds, you
                        will need to set this to the location of the build
@@ -504,6 +504,11 @@ mysqld_install_cmd_line()
 cat_sql()
 {
   echo "use mysql;"
+
+  # Use $auth_root_socket_user if explicitly specified.
+  # Otherwise use the owner of datadir - ${user:-$USER}
+  # Use 'root' as a fallback
+  auth_root_socket_user=${auth_root_socket_user:-${user:-${USER:-root}}}
 
   case "$auth_root_authentication_method" in
     normal)

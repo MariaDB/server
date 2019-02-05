@@ -25,7 +25,9 @@
 -- add escape character in front of wildcard character to convert "_" or "%" to
 -- a plain character
 SELECT LOWER( REPLACE((SELECT REPLACE(@@hostname,'_','\_')),'%','\%') )INTO @current_hostname;
-SELECT json_object('access',cast(-1 as unsigned)) INTO @all_privileges;
+SELECT '{"access":18446744073709551615}' INTO @all_privileges;
+SELECT '{"access":18446744073709551615,"plugin":"mysql_native_password","authentication_string":"invalid","auth_or":[{},{"plugin":"unix_socket"}]}' into @all_with_auth;
+
 
 -- Fill "global_priv" table with default users allowing root access
 -- from local machine if "global_priv" table didn't exist before
@@ -37,7 +39,8 @@ REPLACE INTO tmp_user_nopasswd SELECT @current_hostname,'root',@all_privileges F
 REPLACE INTO tmp_user_nopasswd VALUES ('127.0.0.1','root',@all_privileges);
 REPLACE INTO tmp_user_nopasswd VALUES ('::1','root',@all_privileges);
 -- More secure root account using unix socket auth.
-INSERT INTO tmp_user_socket VALUES ('localhost',IFNULL(@auth_root_socket, 'root'),json_set(@all_privileges, '$.plugin', 'unix_socket'));
+INSERT INTO tmp_user_socket VALUES ('localhost', 'root',@all_with_auth);
+REPLACE INTO tmp_user_socket VALUES ('localhost',IFNULL(@auth_root_socket, 'root'),@all_with_auth);
 IF @auth_root_socket is not null THEN
   IF not exists(select 1 from information_schema.plugins where plugin_name='unix_socket') THEN
      INSTALL SONAME 'auth_socket'; END IF; END IF;
