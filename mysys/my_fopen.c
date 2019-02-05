@@ -171,10 +171,7 @@ int my_fclose(FILE *fd, myf MyFlags)
     my_file_info[file].type= UNOPEN;
   }
 #ifndef _WIN32
-  do
-  {
-    err= fclose(fd);
-  } while (err == -1 && errno == EINTR);
+  err= fclose(fd);
 #else
   err= my_win_fclose(fd);
 #endif
