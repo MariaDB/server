@@ -1465,9 +1465,6 @@ instant_alter_column_possible(
 	const TABLE*			table,
 	const TABLE*			altered_table)
 {
-	if (!ib_table.supports_instant()) {
-		return false;
-	}
 #if 1 // MDEV-17459: adjust fts_fetch_doc_from_rec() and friends; remove this
 	if (ib_table.fts) {
 		return false;
@@ -1521,6 +1518,8 @@ instant_alter_column_possible(
 		    && alter_options_need_rebuild(ha_alter_info, table)) {
 			return false;
 		}
+	} else if (!ib_table.supports_instant()) {
+		return false;
 	}
 
 	/* At the moment, we disallow ADD [UNIQUE] INDEX together with
