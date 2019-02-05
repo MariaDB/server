@@ -89,10 +89,7 @@ int my_close(File fd, myf MyFlags)
     my_file_info[fd].type= UNOPEN;
   }
 #ifndef _WIN32
-  do
-  {
-    err= close(fd);
-  } while (err == -1 && errno == EINTR);
+  err= close(fd);
 #else
   err= my_win_close(fd);
 #endif
