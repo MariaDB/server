@@ -144,6 +144,8 @@ mysql_cond_t  COND_wsrep_sst_init;
 mysql_mutex_t LOCK_wsrep_replaying;
 mysql_cond_t  COND_wsrep_replaying;
 mysql_mutex_t LOCK_wsrep_slave_threads;
+mysql_cond_t  COND_wsrep_slave_threads;
+mysql_mutex_t LOCK_wsrep_cluster_config;
 mysql_mutex_t LOCK_wsrep_desync;
 mysql_mutex_t LOCK_wsrep_config_state;
 mysql_mutex_t LOCK_wsrep_SR_pool;
@@ -158,7 +160,7 @@ PSI_mutex_key
   key_LOCK_wsrep_replaying, key_LOCK_wsrep_ready, key_LOCK_wsrep_sst,
   key_LOCK_wsrep_sst_thread, key_LOCK_wsrep_sst_init,
   key_LOCK_wsrep_slave_threads, key_LOCK_wsrep_desync,
-  key_LOCK_wsrep_config_state,
+  key_LOCK_wsrep_config_state, key_LOCK_wsrep_cluster_config,
   key_LOCK_wsrep_SR_pool,
   key_LOCK_wsrep_SR_store,
   key_LOCK_wsrep_thd_queue;
@@ -166,7 +168,7 @@ PSI_mutex_key
 PSI_cond_key key_COND_wsrep_thd,
   key_COND_wsrep_replaying, key_COND_wsrep_ready, key_COND_wsrep_sst,
   key_COND_wsrep_sst_init, key_COND_wsrep_sst_thread,
-  key_COND_wsrep_thd_queue;
+  key_COND_wsrep_thd_queue, key_COND_wsrep_slave_threads;
   
 
 PSI_file_key key_file_wsrep_gra_log;
@@ -180,6 +182,7 @@ static PSI_mutex_info wsrep_mutexes[]=
   { &key_LOCK_wsrep_sst, "LOCK_wsrep_sst", PSI_FLAG_GLOBAL},
   { &key_LOCK_wsrep_replaying, "LOCK_wsrep_replaying", PSI_FLAG_GLOBAL},
   { &key_LOCK_wsrep_slave_threads, "LOCK_wsrep_slave_threads", PSI_FLAG_GLOBAL},
+  { &key_LOCK_wsrep_cluster_config, "LOCK_wsrep_cluster_config", PSI_FLAG_GLOBAL},
   { &key_LOCK_wsrep_desync, "LOCK_wsrep_desync", PSI_FLAG_GLOBAL},
   { &key_LOCK_wsrep_config_state, "LOCK_wsrep_config_state", PSI_FLAG_GLOBAL},
   { &key_LOCK_wsrep_SR_pool, "LOCK_wsrep_SR_pool", PSI_FLAG_GLOBAL},
@@ -193,7 +196,8 @@ static PSI_cond_info wsrep_conds[]=
   { &key_COND_wsrep_sst_init, "COND_wsrep_sst_init", PSI_FLAG_GLOBAL},
   { &key_COND_wsrep_sst_thread, "wsrep_sst_thread", 0},
   { &key_COND_wsrep_thd, "THD::COND_wsrep_thd", 0},
-  { &key_COND_wsrep_replaying, "COND_wsrep_replaying", PSI_FLAG_GLOBAL}
+  { &key_COND_wsrep_replaying, "COND_wsrep_replaying", PSI_FLAG_GLOBAL},
+  { &key_COND_wsrep_slave_threads, "COND_wsrep_wsrep_slave_threads", PSI_FLAG_GLOBAL}
 };
 
 static PSI_file_info wsrep_files[]=
@@ -758,6 +762,7 @@ void wsrep_thr_init()
   mysql_mutex_init(key_LOCK_wsrep_replaying, &LOCK_wsrep_replaying, MY_MUTEX_INIT_FAST);
   mysql_cond_init(key_COND_wsrep_replaying, &COND_wsrep_replaying, NULL);
   mysql_mutex_init(key_LOCK_wsrep_slave_threads, &LOCK_wsrep_slave_threads, MY_MUTEX_INIT_FAST);
+  mysql_mutex_init(key_LOCK_wsrep_cluster_config, &LOCK_wsrep_cluster_config, MY_MUTEX_INIT_FAST);
   mysql_mutex_init(key_LOCK_wsrep_desync, &LOCK_wsrep_desync, MY_MUTEX_INIT_FAST);
   mysql_mutex_init(key_LOCK_wsrep_config_state, &LOCK_wsrep_config_state, MY_MUTEX_INIT_FAST);
   mysql_mutex_init(key_LOCK_wsrep_SR_pool,
@@ -860,6 +865,7 @@ void wsrep_thr_deinit()
   mysql_mutex_destroy(&LOCK_wsrep_replaying);
   mysql_cond_destroy(&COND_wsrep_replaying);
   mysql_mutex_destroy(&LOCK_wsrep_slave_threads);
+  mysql_mutex_destroy(&LOCK_wsrep_cluster_config);
   mysql_mutex_destroy(&LOCK_wsrep_desync);
   mysql_mutex_destroy(&LOCK_wsrep_config_state);
   mysql_mutex_destroy(&LOCK_wsrep_SR_pool);
@@ -897,7 +903,7 @@ void wsrep_recover()
 
 void wsrep_stop_replication(THD *thd)
 {
-  WSREP_INFO("Stop replication");
+  WSREP_INFO("Stop replication by %llu", (thd) ? thd->thread_id : 0);
   if (Wsrep_server_state::instance().state() !=
       Wsrep_server_state::s_disconnected)
   {
@@ -956,6 +962,7 @@ bool wsrep_start_replication()
   if (!wsrep_cluster_address || wsrep_cluster_address[0]== 0)
   {
     // if provider is non-trivial, but no address is specified, wait for address
+    WSREP_DEBUG("wsrep_start_replication exit due to empty address");
     return true;
   }
 
@@ -2280,23 +2287,15 @@ static my_bool kill_remaining_threads(THD *thd, THD *caller_thd)
 
 void wsrep_close_client_connections(my_bool wait_to_end, THD* except_caller_thd)
 {
+  /* Clear thread cache */
+  kill_cached_threads++;
+  flush_thread_cache();
+  
   /*
     First signal all threads that it's time to die
   */
-
-  mysql_mutex_lock(&LOCK_thread_count); // For unlink from list
-
-  bool kill_cached_threads_saved= kill_cached_threads;
-  kill_cached_threads= true; // prevent future threads caching
-  mysql_cond_broadcast(&COND_thread_cache); // tell cached threads to die
-
   server_threads.iterate(kill_all_threads, except_caller_thd);
-  mysql_mutex_unlock(&LOCK_thread_count);
 
-  if (thread_count)
-    sleep(2);                               // Give threads time to die
-
-  mysql_mutex_lock(&LOCK_thread_count);
   /*
     Force remaining threads to die by closing the connection to the client
   */
@@ -2309,13 +2308,9 @@ void wsrep_close_client_connections(my_bool wait_to_end, THD* except_caller_thd)
 
   while (wait_to_end && server_threads.iterate(have_client_connections))
   {
-    mysql_cond_wait(&COND_thread_count, &LOCK_thread_count);
+    sleep(1);
     DBUG_PRINT("quit",("One thread died (count=%u)", uint32_t(thread_count)));
   }
-
-  kill_cached_threads= kill_cached_threads_saved;
-
-  mysql_mutex_unlock(&LOCK_thread_count);
 
   /* All client connection threads have now been aborted */
 }
@@ -2348,7 +2343,7 @@ void wsrep_close_threads(THD *thd)
 void wsrep_wait_appliers_close(THD *thd)
 {
   /* Wait for wsrep appliers to gracefully exit */
-  mysql_mutex_lock(&LOCK_thread_count);
+  mysql_mutex_lock(&LOCK_wsrep_slave_threads);
   while (wsrep_running_threads > 2)
     /*
       2 is for rollbacker thread which needs to be killed explicitly.
@@ -2356,34 +2351,22 @@ void wsrep_wait_appliers_close(THD *thd)
       number of non-applier wsrep threads.
     */
   {
-    if (thread_handling > SCHEDULER_ONE_THREAD_PER_CONNECTION)
-    {
-      mysql_mutex_unlock(&LOCK_thread_count);
-      my_sleep(100);
-      mysql_mutex_lock(&LOCK_thread_count);
-    }
-    else
-      mysql_cond_wait(&COND_thread_count,&LOCK_thread_count);
-    DBUG_PRINT("quit",("One applier died (count=%u)", uint32_t(thread_count)));
+    mysql_cond_wait(&COND_wsrep_slave_threads, &LOCK_wsrep_slave_threads);
   }
-  mysql_mutex_unlock(&LOCK_thread_count);
+  mysql_mutex_unlock(&LOCK_wsrep_slave_threads);
+  DBUG_PRINT("quit",("applier threads have died (count=%u)",
+                     uint32_t(wsrep_running_threads)));
+
   /* Now kill remaining wsrep threads: rollbacker */
   wsrep_close_threads (thd);
   /* and wait for them to die */
-  mysql_mutex_lock(&LOCK_thread_count);
+  mysql_mutex_lock(&LOCK_wsrep_slave_threads);
   while (wsrep_running_threads > 0)
   {
-   if (thread_handling > SCHEDULER_ONE_THREAD_PER_CONNECTION)
-    {
-      mysql_mutex_unlock(&LOCK_thread_count);
-      my_sleep(100);
-      mysql_mutex_lock(&LOCK_thread_count);
-    }
-    else
-      mysql_cond_wait(&COND_thread_count,&LOCK_thread_count);
-    DBUG_PRINT("quit",("One thread died (count=%u)", uint32_t(thread_count)));
+    mysql_cond_wait(&COND_wsrep_slave_threads, &LOCK_wsrep_slave_threads);
   }
-  mysql_mutex_unlock(&LOCK_thread_count);
+  mysql_mutex_unlock(&LOCK_wsrep_slave_threads);
+  DBUG_PRINT("quit",("all wsrep system threads have died"));
 
   /* All wsrep applier threads have now been aborted. However, if this thread
      is also applier, we are still running...
@@ -2698,10 +2681,10 @@ void* start_wsrep_THD(void *arg)
   thd->proc_info= 0;
   thd->set_command(COM_SLEEP);
   thd->init_for_queries();
-  mysql_mutex_lock(&LOCK_thread_count);
+  mysql_mutex_lock(&LOCK_wsrep_slave_threads);
   wsrep_running_threads++;
-  mysql_cond_broadcast(&COND_thread_count);
-  mysql_mutex_unlock(&LOCK_thread_count);
+  mysql_cond_broadcast(&COND_wsrep_slave_threads);
+  mysql_mutex_unlock(&LOCK_wsrep_slave_threads);
 
   WSREP_DEBUG("wsrep system thread %llu, %p starting",
               thd->thread_id, thd);
@@ -2718,11 +2701,11 @@ void* start_wsrep_THD(void *arg)
 
   delete thd_args;
 
-  mysql_mutex_lock(&LOCK_thread_count);
+  mysql_mutex_lock(&LOCK_wsrep_slave_threads);
   wsrep_running_threads--;
   WSREP_DEBUG("wsrep running threads now: %lu", wsrep_running_threads);
-  mysql_cond_broadcast(&COND_thread_count);
-  mysql_mutex_unlock(&LOCK_thread_count);
+  mysql_cond_broadcast(&COND_wsrep_slave_threads);
+  mysql_mutex_unlock(&LOCK_wsrep_slave_threads);
   /*
     Note: We can't call THD destructor without crashing
     if plugins have not been initialized. However, in most of the
