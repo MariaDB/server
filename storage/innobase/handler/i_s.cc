@@ -1,7 +1,7 @@
 /*****************************************************************************
 
 Copyright (c) 2007, 2016, Oracle and/or its affiliates. All Rights Reserved.
-Copyright (c) 2014, 2018, MariaDB Corporation.
+Copyright (c) 2014, 2019, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -8819,77 +8819,104 @@ i_s_innodb_mutexes_fill_table(
 		DBUG_RETURN(0);
 	}
 
-	mutex_enter(&mutex_list_mutex);
+	{
+		struct Locking
+		{
+			Locking() { mutex_enter(&mutex_list_mutex); }
+			~Locking() { mutex_exit(&mutex_list_mutex); }
+		} locking;
 
-	for (mutex = UT_LIST_GET_FIRST(mutex_list); mutex != NULL;
-	     mutex = UT_LIST_GET_NEXT(list, mutex)) {
-		if (mutex->count_os_wait == 0) {
-			continue;
+		for (mutex = UT_LIST_GET_FIRST(mutex_list); mutex != NULL;
+		     mutex = UT_LIST_GET_NEXT(list, mutex)) {
+			if (mutex->count_os_wait == 0) {
+				continue;
+			}
+
+			if (buf_pool_is_block_mutex(mutex)) {
+				block_mutex = mutex;
+				block_mutex_oswait_count
+					+= mutex->count_os_wait;
+				continue;
+			}
+
+			OK(field_store_string(fields[MUTEXES_NAME],
+					      mutex->cmutex_name));
+			OK(field_store_string(
+				   fields[MUTEXES_CREATE_FILE],
+				   innobase_basename(mutex->cfile_name)));
+			OK(field_store_ulint(fields[MUTEXES_CREATE_LINE],
+					     mutex->cline));
+			OK(field_store_ulint(fields[MUTEXES_OS_WAITS],
+					     mutex->count_os_wait));
+			OK(schema_table_store_record(thd, tables->table));
 		}
 
-		if (buf_pool_is_block_mutex(mutex)) {
-			block_mutex = mutex;
-			block_mutex_oswait_count += mutex->count_os_wait;
-			continue;
+		if (block_mutex) {
+			char buf1[IO_SIZE];
+
+			my_snprintf(buf1, sizeof buf1, "combined %s",
+				    innobase_basename(block_mutex->cfile_name));
+
+			OK(field_store_string(fields[MUTEXES_NAME],
+					      block_mutex->cmutex_name));
+			OK(field_store_string(fields[MUTEXES_CREATE_FILE],
+					      buf1));
+			OK(field_store_ulint(fields[MUTEXES_CREATE_LINE],
+					     block_mutex->cline));
+			OK(field_store_ulint(fields[MUTEXES_OS_WAITS],
+					     block_mutex_oswait_count));
+			OK(schema_table_store_record(thd, tables->table));
+		}
+	}
+
+	{
+		struct Locking
+		{
+			Locking() { mutex_enter(&rw_lock_list_mutex); }
+			~Locking() { mutex_exit(&rw_lock_list_mutex); }
+		} locking;
+
+		for (lock = UT_LIST_GET_FIRST(rw_lock_list); lock != NULL;
+		     lock = UT_LIST_GET_NEXT(list, lock)) {
+			if (lock->count_os_wait == 0) {
+				continue;
+			}
+
+			if (buf_pool_is_block_lock(lock)) {
+				block_lock = lock;
+				block_lock_oswait_count += lock->count_os_wait;
+				continue;
+			}
+
+			OK(field_store_string(fields[MUTEXES_NAME],
+					      lock->lock_name));
+			OK(field_store_string(
+				   fields[MUTEXES_CREATE_FILE],
+				   innobase_basename(lock->cfile_name)));
+			OK(field_store_ulint(fields[MUTEXES_CREATE_LINE],
+					     lock->cline));
+			OK(field_store_ulint(fields[MUTEXES_OS_WAITS],
+					     lock->count_os_wait));
+			OK(schema_table_store_record(thd, tables->table));
 		}
 
-		OK(field_store_string(fields[MUTEXES_NAME], mutex->cmutex_name));
-		OK(field_store_string(fields[MUTEXES_CREATE_FILE], innobase_basename(mutex->cfile_name)));
-		OK(field_store_ulint(fields[MUTEXES_CREATE_LINE], mutex->cline));
-		OK(field_store_ulint(fields[MUTEXES_OS_WAITS], (longlong)mutex->count_os_wait));
-		OK(schema_table_store_record(thd, tables->table));
-	}
+		if (block_lock) {
+			char buf1[IO_SIZE];
 
-	if (block_mutex) {
-		char buf1[IO_SIZE];
+			my_snprintf(buf1, sizeof buf1, "combined %s",
+				    innobase_basename(block_lock->cfile_name));
 
-		my_snprintf(buf1, sizeof buf1, "combined %s",
-			    innobase_basename(block_mutex->cfile_name));
-
-		OK(field_store_string(fields[MUTEXES_NAME], block_mutex->cmutex_name));
-		OK(field_store_string(fields[MUTEXES_CREATE_FILE], buf1));
-		OK(field_store_ulint(fields[MUTEXES_CREATE_LINE], block_mutex->cline));
-		OK(field_store_ulint(fields[MUTEXES_OS_WAITS], (longlong)block_mutex_oswait_count));
-		OK(schema_table_store_record(thd, tables->table));
-	}
-
-	mutex_exit(&mutex_list_mutex);
-
-	mutex_enter(&rw_lock_list_mutex);
-
-	for (lock = UT_LIST_GET_FIRST(rw_lock_list); lock != NULL;
-	     lock = UT_LIST_GET_NEXT(list, lock)) {
-		if (lock->count_os_wait == 0) {
-			continue;
+			OK(field_store_string(fields[MUTEXES_NAME],
+					      block_lock->lock_name));
+			OK(field_store_string(fields[MUTEXES_CREATE_FILE],
+					      buf1));
+			OK(field_store_ulint(fields[MUTEXES_CREATE_LINE],
+					     block_lock->cline));
+			OK(field_store_ulint(fields[MUTEXES_OS_WAITS],
+					     block_lock_oswait_count));
+			OK(schema_table_store_record(thd, tables->table));
 		}
-
-		if (buf_pool_is_block_lock(lock)) {
-			block_lock = lock;
-			block_lock_oswait_count += lock->count_os_wait;
-			continue;
-		}
-
-		OK(field_store_string(fields[MUTEXES_NAME], lock->lock_name));
-		OK(field_store_string(fields[MUTEXES_CREATE_FILE], innobase_basename(lock->cfile_name)));
-		OK(field_store_ulint(fields[MUTEXES_CREATE_LINE], lock->cline));
-		OK(field_store_ulint(fields[MUTEXES_OS_WAITS], (longlong)lock->count_os_wait));
-		OK(schema_table_store_record(thd, tables->table));
 	}
-
-	if (block_lock) {
-		char buf1[IO_SIZE];
-
-		my_snprintf(buf1, sizeof buf1, "combined %s",
-			    innobase_basename(block_lock->cfile_name));
-
-		OK(field_store_string(fields[MUTEXES_NAME], block_lock->lock_name));
-		OK(field_store_string(fields[MUTEXES_CREATE_FILE], buf1));
-		OK(field_store_ulint(fields[MUTEXES_CREATE_LINE], block_lock->cline));
-		OK(field_store_ulint(fields[MUTEXES_OS_WAITS], (longlong)block_lock_oswait_count));
-		OK(schema_table_store_record(thd, tables->table));
-	}
-
-	mutex_exit(&rw_lock_list_mutex);
 
 	DBUG_RETURN(0);
 }
