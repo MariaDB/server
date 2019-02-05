@@ -1741,7 +1741,7 @@ bool my_yyoverflow(short **a, YYSTYPE **b, ulong *yystacksize);
         IDENT_sys TEXT_STRING_sys TEXT_STRING_literal
         NCHAR_STRING opt_component key_cache_name
         sp_opt_label BIN_NUM label_ident TEXT_STRING_filesystem ident_or_empty
-        opt_constraint constraint opt_ident ident_table_alias
+        opt_constraint opt_constraint_no_id constraint opt_ident ident_table_alias
 
 %type <lex_str_ptr>
         opt_table_alias
@@ -6123,6 +6123,11 @@ check_constraint:
           }
         ;
 
+opt_constraint_no_id:
+          /* Empty */  {}
+        | CONSTRAINT   {}
+        ;
+
 opt_constraint:
           /* empty */ { $$= null_lex_str; }
         | constraint { $$= $1; }
@@ -7653,7 +7658,7 @@ alter_list_item:
             lex->alter_info.drop_list.push_back(ad, thd->mem_root);
             lex->alter_info.flags|= Alter_info::DROP_FOREIGN_KEY;
           }
-        | DROP PRIMARY_SYM KEY_SYM
+        | DROP opt_constraint_no_id PRIMARY_SYM KEY_SYM
           {
             LEX *lex=Lex;
             Alter_drop *ad= (new (thd->mem_root)

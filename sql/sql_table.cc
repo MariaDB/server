@@ -8979,6 +8979,64 @@ bool mysql_alter_table(THD *thd,char *new_db, char *new_name,
 
   THD_STAGE_INFO(thd, stage_setup);
 
+  if (alter_info->flags & Alter_info::ALTER_DROP_CHECK_CONSTRAINT)
+  {
+    /*
+      ALTER TABLE DROP CONSTRAINT
+      should be replaced with ... DROP [FOREIGN] KEY
+      if the constraint is the FOREIGN KEY or UNIQUE one.
+    */
+
+    List_iterator<Alter_drop> drop_it(alter_info->drop_list);
+    Alter_drop *drop;
+    List <FOREIGN_KEY_INFO> fk_child_key_list;
+    table->file->get_foreign_key_list(thd, &fk_child_key_list);
+
+    alter_info->flags&= ~Alter_info::ALTER_DROP_CHECK_CONSTRAINT;
+
+    while ((drop= drop_it++))
+    {
+      if (drop->type == Alter_drop::CHECK_CONSTRAINT)
+      {
+        {
+          /* Test if there is a FOREIGN KEY with this name. */
+          FOREIGN_KEY_INFO *f_key;
+          List_iterator<FOREIGN_KEY_INFO> fk_key_it(fk_child_key_list);
+
+          while ((f_key= fk_key_it++))
+          {
+            if (my_strcasecmp(system_charset_info, f_key->foreign_id->str,
+                  drop->name) == 0)
+            {
+              drop->type= Alter_drop::FOREIGN_KEY;
+              alter_info->flags|= Alter_info::DROP_FOREIGN_KEY;
+              goto do_continue;
+            }
+          }
+        }
+
+        {
+          /* Test if there is an UNIQUE with this name. */
+          uint n_key;
+
+          for (n_key=0; n_key < table->s->keys; n_key++)
+          {
+            if ((table->key_info[n_key].flags & HA_NOSAME) &&
+                my_strcasecmp(system_charset_info,
+                  drop->name, table->key_info[n_key].name) == 0)
+            {
+              drop->type= Alter_drop::KEY;
+              alter_info->flags|= Alter_info::ALTER_DROP_INDEX;
+              goto do_continue;
+            }
+          }
+        }
+      }
+      alter_info->flags|= Alter_info::ALTER_DROP_CHECK_CONSTRAINT;
+do_continue:;
+    }
+  }
+
   handle_if_exists_options(thd, table, alter_info);
 
   /*
