@@ -53,8 +53,6 @@ bool THD::has_thd_temporary_tables()
   @param path [IN]                    File path (without extension)
   @param db   [IN]                    Schema name
   @param table_name [IN]              Table name
-  @param open_in_engine [IN]          Whether open table in SE
-
 
   @return Success                     A pointer to table object
           Failure                     NULL
@@ -63,7 +61,6 @@ TABLE *THD::create_and_open_tmp_table(LEX_CUSTRING *frm,
                                       const char *path,
                                       const char *db,
                                       const char *table_name,
-                                      bool open_in_engine,
                                       bool open_internal_tables)
 {
   DBUG_ENTER("THD::create_and_open_tmp_table");
@@ -74,7 +71,7 @@ TABLE *THD::create_and_open_tmp_table(LEX_CUSTRING *frm,
   if ((share= create_temporary_table(frm, path, db, table_name)))
   {
     open_options|= HA_OPEN_FOR_CREATE;
-    table= open_temporary_table(share, table_name, open_in_engine);
+    table= open_temporary_table(share, table_name);
     open_options&= ~HA_OPEN_FOR_CREATE;
 
     /*
@@ -94,7 +91,7 @@ TABLE *THD::create_and_open_tmp_table(LEX_CUSTRING *frm,
 
     /* Open any related tables */
     if (open_internal_tables && table->internal_tables &&
-        open_and_lock_internal_tables(table, open_in_engine))
+        open_and_lock_internal_tables(table, true))
     {
       drop_temporary_table(table, NULL, false);
       DBUG_RETURN(0);
@@ -379,7 +376,7 @@ bool THD::open_temporary_table(TABLE_LIST *tl)
   */
   if (!table && (share= find_tmp_table_share(tl)))
   {
-    table= open_temporary_table(share, tl->get_table_name(), true);
+    table= open_temporary_table(share, tl->get_table_name());
   }
 
   if (!table)
@@ -1075,14 +1072,12 @@ TABLE *THD::find_temporary_table(const char *key, uint key_length,
 
   @param share [IN]                   Table share
   @param alias [IN]                   Table alias
-  @param open_in_engine [IN]          Whether open table in SE
 
   @return Success                     A pointer to table object
           Failure                     NULL
 */
 TABLE *THD::open_temporary_table(TMP_TABLE_SHARE *share,
-                                 const char *alias_arg,
-                                 bool open_in_engine)
+                                 const char *alias_arg)
 {
   TABLE *table;
   LEX_CSTRING alias= {alias_arg, strlen(alias_arg) };
@@ -1095,11 +1090,11 @@ TABLE *THD::open_temporary_table(TMP_TABLE_SHARE *share,
   }
 
   if (open_table_from_share(this, share, &alias,
-                            open_in_engine ? (uint)HA_OPEN_KEYFILE : 0,
+                            (uint) HA_OPEN_KEYFILE,
                             EXTRA_RECORD,
                             (ha_open_options |
                              (open_options & HA_OPEN_FOR_CREATE)),
-                            table, open_in_engine ? false : true))
+                            table, false))
   {
     my_free(table);
     DBUG_RETURN(NULL);

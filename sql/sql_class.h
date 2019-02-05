@@ -4742,7 +4742,6 @@ public:
                                    const char *path,
                                    const char *db,
                                    const char *table_name,
-                                   bool open_in_engine,
                                    bool open_internal_tables);
 
   TABLE *find_temporary_table(const char *db, const char *table_name,
@@ -4784,8 +4783,7 @@ private:
                                           const char *table_name);
   TABLE *find_temporary_table(const char *key, uint key_length,
                               Temporary_table_state state);
-  TABLE *open_temporary_table(TMP_TABLE_SHARE *share, const char *alias,
-                              bool open_in_engine);
+  TABLE *open_temporary_table(TMP_TABLE_SHARE *share, const char *alias);
   bool find_and_use_tmp_table(const TABLE_LIST *tl, TABLE **out_table);
   bool use_temporary_table(TABLE *table, TABLE **out_table);
   void close_temporary_table(TABLE *table);

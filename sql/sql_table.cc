@@ -5040,7 +5040,7 @@ int create_table_impl(THD *thd, const LEX_CSTRING &orig_db,
   if (!frm_only && create_info->tmp_table())
   {
     TABLE *table= thd->create_and_open_tmp_table(frm, path, db.str,
-                                                 table_name.str, true,
+                                                 table_name.str,
                                                  false);
 
     if (!table)
@@ -7455,7 +7455,6 @@ static bool mysql_inplace_alter_table(THD *thd,
   Open_table_context ot_ctx(thd, MYSQL_OPEN_REOPEN | MYSQL_OPEN_IGNORE_KILLED);
   handlerton *db_type= table->s->db_type();
   MDL_ticket *mdl_ticket= table->mdl_ticket;
-  HA_CREATE_INFO *create_info= ha_alter_info->create_info;
   Alter_info *alter_info= ha_alter_info->alter_info;
   bool reopen_tables= false;
   bool res;
@@ -7663,8 +7662,6 @@ static bool mysql_inplace_alter_table(THD *thd,
     {
       goto rollback;
     }
-
-    thd->drop_temporary_table(altered_table, NULL, false);
   }
 
   close_all_tables_for_name(thd, table->s,
@@ -7688,9 +7685,6 @@ static bool mysql_inplace_alter_table(THD *thd,
                          thd->is_error())
   {
     // Since changes were done in-place, we can't revert them.
-    (void) quick_rm_table(thd, db_type,
-                          &alter_ctx->new_db, &alter_ctx->tmp_name,
-                          FN_IS_TMP | NO_HA_TABLE);
     DBUG_RETURN(true);
   }
 
@@ -7767,10 +7761,6 @@ static bool mysql_inplace_alter_table(THD *thd,
       thd->locked_tables_list.unlink_all_closed_tables(thd, NULL, 0);
     /* QQ; do something about metadata locks ? */
   }
-  thd->drop_temporary_table(altered_table, NULL, false);
-  // Delete temporary .frm/.par
-  (void) quick_rm_table(thd, create_info->db_type, &alter_ctx->new_db,
-                        &alter_ctx->tmp_name, FN_IS_TMP | NO_HA_TABLE);
   DBUG_RETURN(true);
 }
 
@@ -9125,6 +9115,49 @@ simple_rename_or_index_change(THD *thd, TABLE_LIST *table_list,
 }
 
 
+static void cleanup_table_after_inplace_alter_keep_files(TABLE *table)
+{
+  TABLE_SHARE *share= table->s;
+  closefrm(table);
+  free_table_share(share);
+}
+
+
+static void cleanup_table_after_inplace_alter(TABLE *table)
+{
+  table->file->ha_create_partitioning_metadata(table->s->normalized_path.str, 0,
+                                               CHF_DELETE_FLAG);
+  deletefrm(table->s->normalized_path.str);
+  cleanup_table_after_inplace_alter_keep_files(table);
+}
+
+
+static int create_table_for_inplace_alter(THD *thd,
+                                          const Alter_table_ctx &alter_ctx,
+                                          LEX_CUSTRING *frm,
+                                          TABLE_SHARE *share,
+                                          TABLE *table)
+{
+  init_tmp_table_share(thd, share, alter_ctx.new_db.str, 0,
+                       alter_ctx.new_name.str, alter_ctx.get_tmp_path());
+  if (share->init_from_binary_frm_image(thd, true, frm->str, frm->length) ||
+      open_table_from_share(thd, share, &alter_ctx.new_name, 0,
+                            EXTRA_RECORD, thd->open_options,
+                            table, false))
+  {
+    free_table_share(share);
+    deletefrm(alter_ctx.get_tmp_path());
+    return 1;
+  }
+  if (table->internal_tables && open_and_lock_internal_tables(table, false))
+  {
+    cleanup_table_after_inplace_alter(table);
+    return 1;
+  }
+  return 0;
+}
+
+
 /**
   Alter table
 
@@ -9785,7 +9818,8 @@ do_continue:;
                                      key_info, key_count,
                                      IF_PARTITIONING(thd->work_part_info, NULL),
                                      ignore);
-    TABLE *altered_table;
+    TABLE_SHARE altered_share;
+    TABLE altered_table;
     bool use_inplace= true;
 
     /* Fill the Alter_inplace_info structure. */
@@ -9814,11 +9848,10 @@ do_continue:;
 
         Also note that we ignore the LOCK clause here.
 
-         TODO don't create the frm in the first place
+        TODO don't create partitioning metadata in the first place
       */
-      const char *path= alter_ctx.get_tmp_path();
-      table->file->ha_create_partitioning_metadata(path, NULL, CHF_DELETE_FLAG);
-      deletefrm(path);
+      table->file->ha_create_partitioning_metadata(alter_ctx.get_tmp_path(),
+                                                   NULL, CHF_DELETE_FLAG);
       my_free(const_cast<uchar*>(frm.str));
       goto end_inplace;
     }
@@ -9826,44 +9859,43 @@ do_continue:;
     // We assume that the table is non-temporary.
     DBUG_ASSERT(!table->s->tmp_table);
 
-    if (!(altered_table=
-          thd->create_and_open_tmp_table(&frm,
-                                         alter_ctx.get_tmp_path(),
-                                         alter_ctx.new_db.str,
-                                         alter_ctx.new_name.str,
-                                         false, true)))
+    if (create_table_for_inplace_alter(thd, alter_ctx, &frm, &altered_share,
+                                       &altered_table))
       goto err_new_table_cleanup;
 
     /* Set markers for fields in TABLE object for altered table. */
-    update_altered_table(ha_alter_info, altered_table);
+    update_altered_table(ha_alter_info, &altered_table);
 
     /*
       Mark all columns in 'altered_table' as used to allow usage
       of its record[0] buffer and Field objects during in-place
       ALTER TABLE.
     */
-    altered_table->column_bitmaps_set_no_signal(&altered_table->s->all_set,
-                                                &altered_table->s->all_set);
-    restore_record(altered_table, s->default_values); // Create empty record
+    altered_table.column_bitmaps_set_no_signal(&altered_table.s->all_set,
+                                               &altered_table.s->all_set);
+    restore_record(&altered_table, s->default_values); // Create empty record
     /* Check that we can call default functions with default field values */
     thd->count_cuted_fields= CHECK_FIELD_EXPRESSION;
-    altered_table->reset_default_fields();
-    if (altered_table->default_field &&
-        altered_table->update_default_fields(0, 1))
+    altered_table.reset_default_fields();
+    if (altered_table.default_field &&
+        altered_table.update_default_fields(0, 1))
+    {
+      cleanup_table_after_inplace_alter(&altered_table);
       goto err_new_table_cleanup;
+    }
     thd->count_cuted_fields= CHECK_FIELD_IGNORE;
 
     if (alter_info->requested_lock == Alter_info::ALTER_TABLE_LOCK_NONE)
       ha_alter_info.online= true;
     // Ask storage engine whether to use copy or in-place
     enum_alter_inplace_result inplace_supported=
-      table->file->check_if_supported_inplace_alter(altered_table,
+      table->file->check_if_supported_inplace_alter(&altered_table,
                                                     &ha_alter_info);
 
     if (alter_info->supports_algorithm(thd, inplace_supported, &ha_alter_info) ||
         alter_info->supports_lock(thd, inplace_supported, &ha_alter_info))
     {
-      thd->drop_temporary_table(altered_table, NULL, false);
+      cleanup_table_after_inplace_alter(&altered_table);
       goto err_new_table_cleanup;
     }
 
@@ -9888,21 +9920,23 @@ do_continue:;
         for alter table.
       */
       thd->count_cuted_fields = CHECK_FIELD_WARN;
-      int res= mysql_inplace_alter_table(thd, table_list, table, altered_table,
+      int res= mysql_inplace_alter_table(thd, table_list, table, &altered_table,
                                          &ha_alter_info, inplace_supported,
                                          &target_mdl_request, &alter_ctx);
       thd->count_cuted_fields= save_count_cuted_fields;
       my_free(const_cast<uchar*>(frm.str));
 
       if (res)
+      {
+        cleanup_table_after_inplace_alter(&altered_table);
         DBUG_RETURN(true);
+      }
+      cleanup_table_after_inplace_alter_keep_files(&altered_table);
 
       goto end_inplace;
     }
     else
-    {
-      thd->drop_temporary_table(altered_table, NULL, false);
-    }
+      cleanup_table_after_inplace_alter_keep_files(&altered_table);
   }
 
   /* ALTER TABLE using copy algorithm. */
@@ -9958,7 +9992,7 @@ do_continue:;
                                             alter_ctx.get_tmp_path(),
                                             alter_ctx.new_db.str,
                                             alter_ctx.new_name.str,
-                                            true, true);
+                                            true);
   if (!new_table)
     goto err_new_table_cleanup;
 
