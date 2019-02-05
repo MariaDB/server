@@ -497,12 +497,6 @@ int rea_create_table(THD *thd, LEX_CUSTRING *frm,
 {
   DBUG_ENTER("rea_create_table");
 
-  if (no_ha_create_table)
-  {
-    if (writefrm(path, db, table_name, true, frm->str, frm->length))
-      goto err_frm;
-  }
-
   if (thd->variables.keep_files_on_create)
     create_info->options|= HA_CREATE_KEEP_FILES;
 
@@ -519,7 +513,6 @@ int rea_create_table(THD *thd, LEX_CUSTRING *frm,
 
 err_part:
   file->ha_create_partitioning_metadata(path, NULL, CHF_DELETE_FLAG);
-err_frm:
   deletefrm(path);
   DBUG_RETURN(1);
 } /* rea_create_table */
