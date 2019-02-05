@@ -50,7 +50,6 @@ galera.galera_encrypt_tmp_files : Get error failed to enable encryption of tempo
 galera.galera_var_reject_queries : assertion in inline_mysql_socket_send
 query_cache : MDEV-18137: Galera test failure on query_cache
 galera.galera_autoinc_sst_mariabackup : MDEV-18177 Galera test failure on galera_autoinc_sst_mariabackup
-galera_gcache_recover_manytrx : MDEV-15740
 galera.galera_ist_mariabackup : Leaves port open
 galera.galera_sst_rsync2 : MDEV-18178 Galera test failure on galera_sst_rsync2
 galera.galera_kill_largechanges : MDEV-18179 Galera test failure on galera.galera_kill_largechanges

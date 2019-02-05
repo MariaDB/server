@@ -1653,6 +1653,9 @@ bool dispatch_command(enum enum_server_command command, THD *thd,
     thd->status_var.com_other++;
     thd->change_user();
     thd->clear_error();                         // if errors from rollback
+    /* Restore original charset from client authentication packet.*/
+    if(thd->org_charset)
+      thd->update_charset(thd->org_charset,thd->org_charset,thd->org_charset);
     my_ok(thd, 0, 0, 0);
     break;
   }

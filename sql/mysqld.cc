@@ -1589,7 +1589,7 @@ static my_bool kill_all_threads_once_again(THD *thd, void *)
     */
     THD *save_thd= current_thd;
     set_current_thd(thd);
-    close_connection(thd, ER_SERVER_SHUTDOWN);
+    close_connection(thd);
     set_current_thd(save_thd);
   }
 #endif

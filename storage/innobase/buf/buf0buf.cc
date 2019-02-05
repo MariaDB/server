@@ -1064,6 +1064,13 @@ buf_page_is_corrupted(
 
 			if (srv_checksum_algorithm
 			    == SRV_CHECKSUM_ALGORITHM_CRC32) {
+				DBUG_EXECUTE_IF(
+					"page_intermittent_checksum_mismatch", {
+					static int page_counter;
+					if (page_counter++ == 2) {
+						checksum_field2++;
+					}
+				});
 				crc32 = buf_calc_page_crc32(read_buf);
 				crc32_inited = true;
 

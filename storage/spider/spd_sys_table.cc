@@ -3489,3 +3489,20 @@ void spider_rm_sys_tmp_table_for_result(
   tmp_tbl_prm->field_count = 3;
   DBUG_VOID_RETURN;
 }
+
+TABLE *spider_find_temporary_table(
+  THD *thd,
+  TABLE_LIST *table_list
+) {
+  DBUG_ENTER("spider_find_temporary_table");
+#ifdef SPIDER_open_temporary_table
+  if (thd->open_temporary_table(table_list))
+  {
+    DBUG_RETURN(NULL);
+  } else {
+    DBUG_RETURN(table_list->table);
+  }
+#else
+  DBUG_RETURN(find_temporary_table(A,B));
+#endif
+}

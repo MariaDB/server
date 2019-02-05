@@ -3,7 +3,6 @@
 --echo drop and create databases
 --connection master_1
 --disable_warnings
-DROP DATABASE IF EXISTS auto_test_local;
 CREATE DATABASE auto_test_local;
 USE auto_test_local;
 if ($USE_CHILD_GROUP2)
@@ -14,7 +13,6 @@ if ($USE_CHILD_GROUP2)
     SET @old_log_output = @@global.log_output;
     SET GLOBAL log_output = 'TABLE,FILE';
   }
-  DROP DATABASE IF EXISTS auto_test_remote;
   CREATE DATABASE auto_test_remote;
   USE auto_test_remote;
   --connection child2_2
@@ -23,7 +21,6 @@ if ($USE_CHILD_GROUP2)
     SET @old_log_output = @@global.log_output;
     SET GLOBAL log_output = 'TABLE,FILE';
   }
-  DROP DATABASE IF EXISTS auto_test_remote2;
   CREATE DATABASE auto_test_remote2;
   USE auto_test_remote2;
 }
@@ -42,12 +39,8 @@ if ($USE_CHILD_GROUP2)
   if ($OUTPUT_CHILD_GROUP2)
   {
     --disable_query_log
-    echo CHILD2_1_DROP_TABLES;
     echo CHILD2_1_CREATE_TABLES;
   }
-  --disable_warnings
-  eval $CHILD2_1_DROP_TABLES;
-  --enable_warnings
   eval $CHILD2_1_CREATE_TABLES;
   if ($OUTPUT_CHILD_GROUP2)
   {
@@ -61,12 +54,8 @@ if ($USE_CHILD_GROUP2)
   if ($OUTPUT_CHILD_GROUP2)
   {
     --disable_query_log
-    echo CHILD2_2_DROP_TABLES;
     echo CHILD2_2_CREATE_TABLES;
   }
-  --disable_warnings
-  eval $CHILD2_2_DROP_TABLES;
-  --enable_warnings
   eval $CHILD2_2_CREATE_TABLES;
   if ($OUTPUT_CHILD_GROUP2)
   {
@@ -83,10 +72,6 @@ if ($USE_CHILD_GROUP2)
   }
 }
 --connection master_1
---disable_warnings
-DROP TABLE IF EXISTS tbl_a;
-DROP TABLE IF EXISTS tbl_b;
---enable_warnings
 --disable_query_log
 echo CREATE TABLE tbl_a (
     pkey int NOT NULL,

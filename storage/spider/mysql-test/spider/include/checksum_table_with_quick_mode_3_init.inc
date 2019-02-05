@@ -29,3 +29,5 @@ let $CHILD2_1_SELECT_ARGUMENT1=
 --connection master_1
 set @old_spider_quick_mode= @@spider_quick_mode;
 set session spider_quick_mode= 3;
+set @old_spider_quick_page_size= @@spider_quick_page_size;
+set session spider_quick_page_size= 3;

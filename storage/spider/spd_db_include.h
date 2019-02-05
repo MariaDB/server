@@ -21,6 +21,7 @@
 #define SPIDER_DBTON_SIZE 15
 
 #define SPIDER_DB_WRAPPER_MYSQL "mysql"
+#define SPIDER_DB_WRAPPER_MARIADB "mariadb"
 
 #if defined(MARIADB_BASE_VERSION) && MYSQL_VERSION_ID >= 100204
 #define PLUGIN_VAR_CAN_MEMALLOC
@@ -795,6 +796,7 @@ struct st_spider_db_request_key
 class spider_db_util
 {
 public:
+  uint dbton_id;
   spider_db_util() {}
   virtual ~spider_db_util() {}
   virtual int append_name(
@@ -961,8 +963,7 @@ protected:
   SPIDER_DB_CONN *db_conn;
 public:
   uint dbton_id;
-  spider_db_result(SPIDER_DB_CONN *in_db_conn, uint in_dbton_id) :
-    db_conn(in_db_conn), dbton_id(in_dbton_id) {}
+  spider_db_result(SPIDER_DB_CONN *in_db_conn);
   virtual ~spider_db_result() {}
   virtual bool has_result() = 0;
   virtual void free_result() = 0;
@@ -1028,9 +1029,10 @@ class spider_db_conn
 protected:
   SPIDER_CONN    *conn;
 public:
+  uint dbton_id;
   spider_db_conn(
-    SPIDER_CONN *conn
-  ) : conn(conn) {}
+    SPIDER_CONN *in_conn
+  );
   virtual ~spider_db_conn() {}
   virtual int init() = 0;
   virtual bool is_connected() = 0;
@@ -1229,8 +1231,12 @@ protected:
   const char         *mem_calc_file_name;
   ulong              mem_calc_line_no;
 public:
+  uint dbton_id;
   st_spider_share *spider_share;
-  spider_db_share(st_spider_share *share) : spider_share(share) {}
+  spider_db_share(
+    st_spider_share *share,
+    uint dbton_id
+  ) : dbton_id(dbton_id), spider_share(share) {}
   virtual ~spider_db_share() {}
   virtual int init() = 0;
   virtual uint get_column_name_length(
@@ -1264,6 +1270,7 @@ protected:
   const char         *mem_calc_file_name;
   ulong              mem_calc_line_no;
 public:
+  uint dbton_id;
   ha_spider *spider;
   spider_db_share *db_share;
   int first_link_idx;
@@ -1271,7 +1278,8 @@ public:
   SPIDER_LINK_IDX_CHAIN *link_idx_chain;
 #endif
   spider_db_handler(ha_spider *spider, spider_db_share *db_share) :
-    spider(spider), db_share(db_share), first_link_idx(-1) {}
+    dbton_id(db_share->dbton_id), spider(spider), db_share(db_share),
+    first_link_idx(-1) {}
   virtual ~spider_db_handler() {}
   virtual int init() = 0;
   virtual int append_index_hint(
@@ -1750,9 +1758,10 @@ public:
 class spider_db_copy_table
 {
 public:
+  uint dbton_id;
   spider_db_share *db_share;
   spider_db_copy_table(spider_db_share *db_share) :
-    db_share(db_share) {}
+    dbton_id(db_share->dbton_id), db_share(db_share) {}
   virtual ~spider_db_copy_table() {}
   virtual int init() = 0;
   virtual void set_sql_charset(
