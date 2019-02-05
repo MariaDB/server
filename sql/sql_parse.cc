@@ -8292,11 +8292,19 @@ kill_one_thread(THD *thd, longlong id, killed_state kill_signal, killed_type typ
       It's ok to also kill DELAYED threads with KILL_CONNECTION instead of
       KILL_SYSTEM_THREAD; The difference is that KILL_CONNECTION may be
       faster and do a harder kill than KILL_SYSTEM_THREAD;
+
+      Note that if thread is wsrep Brute Force or applier thread we
+      allow killing it only when we're SUPER.
     */
 
-    if (((thd->security_ctx->master_access & SUPER_ACL) ||
-        thd->security_ctx->user_matches(tmp->security_ctx)) &&
-	!wsrep_thd_is_BF(tmp, false))
+    if ((thd->security_ctx->master_access & SUPER_ACL) ||
+	(thd->security_ctx->user_matches(tmp->security_ctx)
+#ifdef WITH_WSREP
+	 &&
+	 !tmp->wsrep_applier &&
+	 !wsrep_thd_is_BF(tmp, false)
+#endif
+	))
     {
       tmp->awake(kill_signal);
       error=0;

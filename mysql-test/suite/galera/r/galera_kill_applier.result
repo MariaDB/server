@@ -1,4 +1,8 @@
+CREATE USER foo@localhost;
+GRANT SELECT on test.* TO foo@localhost;
+# Open connection to the 1st node using 'test_user1' user.
 Got one of the listed errors
 Got one of the listed errors
 Got one of the listed errors
 Got one of the listed errors
+DROP USER foo@localhost;

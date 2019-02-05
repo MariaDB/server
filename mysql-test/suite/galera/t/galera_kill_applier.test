@@ -1,13 +1,24 @@
 #
 # This test checks that applier threads are immune to KILL QUERY and KILL STATEMENT
+# when USER is not SUPER
 #
 
 --source include/galera_cluster.inc
---source include/have_innodb.inc
 
 --connection node_1
 
+CREATE USER foo@localhost;
+GRANT SELECT on test.* TO foo@localhost;
+
 --let $applier_thread = `SELECT ID FROM INFORMATION_SCHEMA.PROCESSLIST WHERE USER = 'system user' AND STATE != 'wsrep aborter idle' OR STATE IS NULL LIMIT 1`
+
+--let $aborter_thread = `SELECT ID FROM INFORMATION_SCHEMA.PROCESSLIST WHERE USER = 'system user' AND STATE = 'wsrep aborter idle' LIMIT 1`
+
+--echo # Open connection to the 1st node using 'test_user1' user.
+--let $port_1= \$NODE_MYPORT_1
+--connect(foo_node_1,localhost,foo,,test,$port_1,)
+
+--connection foo_node_1
 
 --disable_query_log
 --error ER_KILL_DENIED_ERROR,ER_KILL_DENIED_ERROR
@@ -16,11 +27,48 @@
 --error ER_KILL_DENIED_ERROR,ER_KILL_DENIED_ERROR
 --eval KILL QUERY $applier_thread
 
---let $aborter_thread = `SELECT ID FROM INFORMATION_SCHEMA.PROCESSLIST WHERE USER = 'system user' AND STATE = 'wsrep aborter idle' LIMIT 1`
-
 --error ER_KILL_DENIED_ERROR,ER_KILL_DENIED_ERROR
 --eval KILL $aborter_thread
 
 --error ER_KILL_DENIED_ERROR,ER_KILL_DENIED_ERROR
 --eval KILL QUERY $aborter_thread
 --enable_query_log
+
+#
+# SUPER can kill applier threads
+#
+--connection node_2
+
+--let $applier_thread = `SELECT ID FROM INFORMATION_SCHEMA.PROCESSLIST WHERE USER = 'system user' AND STATE != 'wsrep aborter idle' OR STATE IS NULL LIMIT 1`
+
+--disable_query_log
+--eval KILL $applier_thread
+--enable_query_log
+
+--let $aborter_thread = `SELECT ID FROM INFORMATION_SCHEMA.PROCESSLIST WHERE USER = 'system user' AND STATE = 'wsrep aborter idle' LIMIT 1`
+
+--disable_query_log
+--eval KILL $aborter_thread
+--enable_query_log
+
+--source include/restart_mysqld.inc
+
+--connection node_2
+--let $applier_thread = `SELECT ID FROM INFORMATION_SCHEMA.PROCESSLIST WHERE USER = 'system user' AND STATE != 'wsrep aborter idle' OR STATE IS NULL LIMIT 1`
+
+--disable_query_log
+--eval KILL QUERY $applier_thread
+--enable_query_log
+
+--let $aborter_thread = `SELECT ID FROM INFORMATION_SCHEMA.PROCESSLIST WHERE USER = 'system user' AND STATE = 'wsrep aborter idle' LIMIT 1`
+
+--disable_query_log
+--eval KILL QUERY $aborter_thread
+--enable_query_log
+
+--source include/restart_mysqld.inc
+
+--connection node_1
+--disconnect foo_node_1
+DROP USER foo@localhost;
+

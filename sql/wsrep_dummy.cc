@@ -20,6 +20,9 @@
 my_bool wsrep_thd_is_BF(THD *, my_bool)
 { return 0; }
 
+my_bool wsrep_thd_is_applier(THD *)
+{ return 0; }
+
 int wsrep_trx_order_before(THD *, THD *)
 { return 0; }
 

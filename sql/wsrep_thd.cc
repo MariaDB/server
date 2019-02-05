@@ -596,6 +596,15 @@ my_bool wsrep_thd_is_BF(THD *thd, my_bool sync)
   return status;
 }
 
+my_bool wsrep_thd_is_applier(THD *thd)
+{
+  my_bool ret = FALSE;
+  if (thd) {
+      ret = thd->wsrep_applier;
+  }
+  return ret;
+}
+
 extern "C"
 my_bool wsrep_thd_is_BF_or_commit(void *thd_ptr, my_bool sync)
 {
