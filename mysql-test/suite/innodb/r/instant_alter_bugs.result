@@ -128,3 +128,21 @@ HANDLER h READ `PRIMARY` PREV WHERE 0;
 pk	f1	f2	f3	f4	f5	f6	f7	f8	filler
 HANDLER h CLOSE;
 DROP TABLE t1;
+create table t (
+a varchar(9),
+b int,
+c int,
+row_start bigint unsigned generated always as row start invisible,
+row_end bigint unsigned generated always as row end invisible,
+period for system_time (row_start, row_end)
+) engine=innodb row_format=compressed with system versioning;
+insert into t values (repeat('a', 9), 1, 1);
+set @@system_versioning_alter_history = keep;
+alter table t modify a varchar(10), algorithm=instant;
+alter table t change b bb int, algorithm=instant;
+alter table t modify c int without system versioning, algorithm=instant;
+set @@system_versioning_alter_history = error;
+check table t;
+Table	Op	Msg_type	Msg_text
+test.t	check	status	OK
+drop table t;

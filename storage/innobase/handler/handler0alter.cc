@@ -1465,7 +1465,14 @@ instant_alter_column_possible(
 	const TABLE*			table,
 	const TABLE*			altered_table)
 {
-	if (!ib_table.supports_instant()) {
+	static constexpr alter_table_operations avoid_rebuild
+		= ALTER_ADD_STORED_BASE_COLUMN
+		| ALTER_DROP_STORED_COLUMN
+		| ALTER_STORED_COLUMN_ORDER
+		| ALTER_COLUMN_NULLABLE;
+
+	if (!ib_table.supports_instant()
+	    && ha_alter_info->handler_flags & avoid_rebuild) {
 		return false;
 	}
 #if 1 // MDEV-17459: adjust fts_fetch_doc_from_rec() and friends; remove this
@@ -1500,12 +1507,6 @@ instant_alter_column_possible(
 	if (ha_alter_info->handler_flags & ALTER_ADD_SYSTEM_VERSIONING) {
 		return false;
 	}
-
-	static constexpr alter_table_operations avoid_rebuild
-		= ALTER_ADD_STORED_BASE_COLUMN
-		| ALTER_DROP_STORED_COLUMN
-		| ALTER_STORED_COLUMN_ORDER
-		| ALTER_COLUMN_NULLABLE;
 
 	if (!(ha_alter_info->handler_flags & avoid_rebuild)) {
 		alter_table_operations flags = ha_alter_info->handler_flags
