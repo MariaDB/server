@@ -10755,6 +10755,11 @@ int ha_rocksdb::info(uint flag) {
         stats.data_file_length += m_table_handler->m_mtcache_size;
       }
 
+      // Do like InnoDB does. stats.records=0 confuses the optimizer
+      if (stats.records == 0 && !(flag & (HA_STATUS_TIME | HA_STATUS_OPEN))) {
+        stats.records++;
+      }
+
       if (rocksdb_debug_optimizer_n_rows > 0)
         stats.records = rocksdb_debug_optimizer_n_rows;
     }
