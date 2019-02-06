@@ -10216,7 +10216,7 @@ commit_cache_norebuild(
 				mtr.start();
 				if (buf_block_t* b = buf_page_get(
 					    page_id_t(space->id, 0),
-					    page_size_t(space->flags),
+					    space->zip_size(),
 					    RW_X_LATCH, &mtr)) {
 					mtr.set_named_space(space);
 					mlog_write_ulint(

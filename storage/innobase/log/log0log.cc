@@ -719,7 +719,7 @@ log_file_header_flush(
 
 	fil_io(IORequestLogWrite, true,
 	       page_id_t(SRV_LOG_SPACE_FIRST_ID, page_no),
-	       univ_page_size,
+	       0,
 	       ulint(dest_offset & (srv_page_size - 1)),
 	       OS_FILE_LOG_BLOCK_SIZE, buf, NULL);
 
@@ -838,7 +838,7 @@ loop:
 
 	fil_io(IORequestLogWrite, true,
 	       page_id_t(SRV_LOG_SPACE_FIRST_ID, page_no),
-	       univ_page_size,
+	       0,
 	       ulint(next_offset & (srv_page_size - 1)), write_len, buf, NULL);
 
 	srv_stats.os_log_pending_writes.dec();
@@ -1341,7 +1341,7 @@ log_group_checkpoint(lsn_t end_lsn)
 
 	fil_io(IORequestLogWrite, false,
 	       page_id_t(SRV_LOG_SPACE_FIRST_ID, 0),
-	       univ_page_size,
+	       0,
 	       (log_sys.next_checkpoint_no & 1)
 	       ? LOG_CHECKPOINT_2 : LOG_CHECKPOINT_1,
 	       OS_FILE_LOG_BLOCK_SIZE,
@@ -1361,7 +1361,7 @@ void log_header_read(ulint header)
 	fil_io(IORequestLogRead, true,
 	       page_id_t(SRV_LOG_SPACE_FIRST_ID,
 			 header >> srv_page_size_shift),
-	       univ_page_size, header & (srv_page_size - 1),
+	       0, header & (srv_page_size - 1),
 	       OS_FILE_LOG_BLOCK_SIZE, log_sys.checkpoint_buf, NULL);
 }
 

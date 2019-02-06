@@ -1,7 +1,7 @@
 /*****************************************************************************
 
 Copyright (c) 1995, 2017, Oracle and/or its affiliates. All Rights Reserved.
-Copyright (c) 2013, 2018, MariaDB Corporation.
+Copyright (c) 2013, 2019, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -27,7 +27,7 @@ Created 10/25/1995 Heikki Tuuri
 #ifndef fil0fil_h
 #define fil0fil_h
 
-#include "page0size.h"
+#include "fsp0types.h"
 
 #ifndef UNIV_INNOCHECKSUM
 
@@ -120,8 +120,7 @@ struct fil_space_t {
 				or if the size change was implemented */
 	ulint		flags;	/*!< FSP_SPACE_FLAGS and FSP_FLAGS_MEM_ flags;
 				see fsp0types.h,
-				fsp_flags_is_valid(),
-				page_size_t(ulint) (constructor) */
+				fsp_flags_is_valid() */
 	ulint		n_reserved_extents;
 				/*!< number of reserved free extents for
 				ongoing operations like B-tree page split */
@@ -256,6 +255,44 @@ struct fil_space_t {
 	void release_for_io() { ut_ad(pending_io()); n_pending_ios--; }
 	/** @return whether I/O is pending */
 	bool pending_io() const { return n_pending_ios; }
+
+	/** Determine the logical page size.
+	@param	flags	tablespace flags (FSP_FLAGS)
+	@return the logical page size
+	@retval 0 if the flags are invalid */
+	static ulint logical_size(ulint flags) {
+		switch (FSP_FLAGS_GET_PAGE_SSIZE(flags)) {
+		case 3: return 4096;
+		case 4: return 8192;
+		case 0: return 16384;
+		case 6: return 32768;
+		case 7: return 65536;
+		default: return 0;
+		}
+	}
+	/** Determine the ROW_FORMAT=COMPRESSED page size.
+	@param	flags	tablespace flags (FSP_FLAGS)
+	@return the ROW_FORMAT=COMPRESSED page size
+	@retval 0	if ROW_FORMAT=COMPRESSED is not used */
+	static ulint zip_size(ulint flags) {
+		ulint zip_ssize = FSP_FLAGS_GET_ZIP_SSIZE(flags);
+		return zip_ssize
+			? (UNIV_ZIP_SIZE_MIN >> 1) << zip_ssize : 0;
+	}
+	/** Determine the physical page size.
+	@param	flags	tablespace flags (FSP_FLAGS)
+	@return the physical page size */
+	static ulint physical_size(ulint flags) {
+		ulint zip_ssize = FSP_FLAGS_GET_ZIP_SSIZE(flags);
+		return zip_ssize
+			? (UNIV_ZIP_SIZE_MIN >> 1) << zip_ssize
+			: srv_page_size;
+	}
+	/** @return the ROW_FORMAT=COMPRESSED page size
+	@retval 0	if ROW_FORMAT=COMPRESSED is not used */
+	ulint zip_size() const { return zip_size(flags); }
+	/** @return the physical page size */
+	ulint physical_size() const { return physical_size(flags); }
 };
 
 /** Value of fil_space_t::magic_n */
@@ -688,16 +725,6 @@ fil_space_get_flags(
 /*================*/
 	ulint	id);	/*!< in: space id */
 
-/** Returns the page size of the space and whether it is compressed or not.
-The tablespace must be cached in the memory cache.
-@param[in]	id	space id
-@param[out]	found	true if tablespace was found
-@return page size */
-const page_size_t
-fil_space_get_page_size(
-	ulint	id,
-	bool*	found);
-
 /*******************************************************************//**
 Opens all log files and system tablespace data files. They stay open until the
 database server shutdown. This should be called at a server startup after the
@@ -1033,7 +1060,7 @@ fil_space_extend(
 @param[in]	type		IO context
 @param[in]	sync		true if synchronous aio is desired
 @param[in]	page_id		page id
-@param[in]	page_size	page size
+@param[in]	zip_size	ROW_FORMAT=COMPRESSED page size, or 0
 @param[in]	byte_offset	remainder of offset in bytes; in aio this
 				must be divisible by the OS block size
 @param[in]	len		how many bytes to read or write; this must
@@ -1052,7 +1079,7 @@ fil_io(
 	const IORequest&	type,
 	bool			sync,
 	const page_id_t		page_id,
-	const page_size_t&	page_size,
+	ulint			zip_size,
 	ulint			byte_offset,
 	ulint			len,
 	void*			buf,

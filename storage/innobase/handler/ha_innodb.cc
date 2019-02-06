@@ -3842,11 +3842,6 @@ static int innodb_init_params()
 		DBUG_RETURN(HA_ERR_INITIALIZATION);
 	}
 
-	/* This is the first time univ_page_size is used.
-	It was initialized to 16k pages before srv_page_size was set */
-	univ_page_size.copy_from(
-		page_size_t(srv_page_size, srv_page_size, false));
-
 	srv_sys_space.set_space_id(TRX_SYS_SPACE);
 	srv_sys_space.set_flags(FSP_FLAGS_PAGE_SSIZE());
 	srv_sys_space.set_name("innodb_system");
@@ -13834,7 +13829,7 @@ fsp_get_available_space_in_free_extents(const fil_space_t& space)
 	ulint	n_free_up =
 		(size_in_header - space.free_limit) / FSP_EXTENT_SIZE;
 
-	const ulint size = page_size_t(space.flags).physical();
+	const ulint size = space.physical_size();
 	if (n_free_up > 0) {
 		n_free_up--;
 		n_free_up -= n_free_up / (size / FSP_EXTENT_SIZE);
@@ -13984,8 +13979,7 @@ ha_innobase::info_low(
 		stats.records = (ha_rows) n_rows;
 		stats.deleted = 0;
 		if (fil_space_t* space = ib_table->space) {
-			const ulint size = page_size_t(space->flags)
-				.physical();
+			const ulint size = space->physical_size();
 			stats.data_file_length
 				= ulonglong(stat_clustered_index_size)
 				* size;
@@ -17446,7 +17440,7 @@ innodb_make_page_dirty(THD*, st_mysql_sys_var*, void*, const void* save)
 
 	buf_block_t*	block = buf_page_get(
 		page_id_t(space_id, srv_saved_page_number_debug),
-		page_size_t(space->flags), RW_X_LATCH, &mtr);
+		space->zip_size(), RW_X_LATCH, &mtr);
 
 	if (block != NULL) {
 		byte*	page = block->frame;
@@ -20637,9 +20631,9 @@ innobase_get_computed_value(
 	dfield_t*	field;
 	ulint		len;
 
-	const page_size_t page_size = (old_table == NULL)
-		? dict_table_page_size(index->table)
-		: dict_table_page_size(old_table);
+	const ulint zip_size = old_table
+		? old_table->space->zip_size()
+		: dict_tf_get_zip_size(index->table->flags);
 
 	ulint		ret = 0;
 
@@ -20691,7 +20685,7 @@ innobase_get_computed_value(
 			}
 
 			data = btr_copy_externally_stored_field(
-				&len, data, page_size,
+				&len, data, zip_size,
 				dfield_get_len(row_field), *local_heap);
 		}
 

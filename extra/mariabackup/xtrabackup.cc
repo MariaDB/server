@@ -1861,11 +1861,6 @@ static bool innodb_init_param()
 	msg("innodb_data_file_path = %s",
 	    innobase_data_file_path);
 
-	/* This is the first time univ_page_size is used.
-	It was initialized to 16k pages before srv_page_size was set */
-	univ_page_size.copy_from(
-		page_size_t(srv_page_size, srv_page_size, false));
-
 	srv_sys_space.set_space_id(TRX_SYS_SPACE);
 	srv_sys_space.set_name("innodb_system");
 	srv_sys_space.set_path(srv_data_home);
@@ -2173,8 +2168,7 @@ xb_read_delta_metadata(const char *filepath, xb_delta_info_t *info)
 		msg("page_size is required in %s", filepath);
 		r = FALSE;
 	} else {
-		info->page_size = page_size_t(zip_size ? zip_size : page_size,
-					      page_size, zip_size != 0);
+		info->page_size = zip_size ? zip_size : page_size;
 	}
 
 	if (info->space_id == ULINT_UNDEFINED) {
@@ -2202,9 +2196,8 @@ xb_write_delta_metadata(const char *filename, const xb_delta_info_t *info)
 		 "page_size = " ULINTPF "\n"
 		 "zip_size = " ULINTPF " \n"
 		 "space_id = " ULINTPF "\n",
-		 info->page_size.logical(),
-		 info->page_size.is_compressed()
-		 ? info->page_size.physical() : 0,
+		 info->page_size,
+		 info->zip_size,
 		 info->space_id);
 	len = strlen(buf);
 
@@ -3107,7 +3100,7 @@ xb_load_single_table_tablespace(
 
 		ut_a(node_size != (os_offset_t) -1);
 
-		n_pages = node_size / page_size_t(file->flags()).physical();
+		n_pages = node_size / fil_space_t::physical_size(file->flags());
 
 		space = fil_space_create(
 			name, file->space_id(), file->flags(),
@@ -3312,7 +3305,7 @@ retry:
 	}
 
 	/* TRX_SYS page can't be compressed or encrypted. */
-	if (buf_page_is_corrupted(false, page, univ_page_size)) {
+	if (buf_page_is_corrupted(false, page, 0)) {
 		if (n_retries--) {
 			os_thread_sleep(1000);
 			goto retry;
@@ -4590,16 +4583,15 @@ xb_space_create_file(
 	fsp_header_init_fields(page, space_id, flags);
 	mach_write_to_4(page + FIL_PAGE_ARCH_LOG_NO_OR_SPACE_ID, space_id);
 
-	const page_size_t page_size(flags);
+	const ulint zip_size = fil_space_t::zip_size(flags);
 
-	if (!page_size.is_compressed()) {
+	if (!zip_size) {
 		buf_flush_init_for_writing(NULL, page, NULL, 0);
 
 		ret = os_file_write(IORequestWrite, path, *file, page, 0,
 				    srv_page_size);
 	} else {
 		page_zip_des_t	page_zip;
-		ulint zip_size = page_size.physical();
 		page_zip_set_size(&page_zip, zip_size);
 		page_zip.data = page + srv_page_size;
 		fprintf(stderr, "zip_size = " ULINTPF "\n", zip_size);
@@ -4776,19 +4768,20 @@ exit:
 	}
 
 	/* No matching space found. create the new one.  */
-	const ulint flags = info.page_size.is_compressed()
-		? get_bit_shift(info.page_size.physical()
+	const ulint flags = info.zip_size
+		? get_bit_shift(info.page_size
 				>> (UNIV_ZIP_SIZE_SHIFT_MIN - 1))
 		<< FSP_FLAGS_POS_ZIP_SSIZE
 		| FSP_FLAGS_MASK_POST_ANTELOPE
 		| FSP_FLAGS_MASK_ATOMIC_BLOBS
-		| (info.page_size.logical() == UNIV_PAGE_SIZE_ORIG
+		| (srv_page_size == UNIV_PAGE_SIZE_ORIG
 		   ? 0
-		   : get_bit_shift(info.page_size.logical()
+		   : get_bit_shift(srv_page_size
 				   >> (UNIV_ZIP_SIZE_SHIFT_MIN - 1))
 		   << FSP_FLAGS_POS_PAGE_SSIZE)
 		: FSP_FLAGS_PAGE_SSIZE();
-	ut_ad(page_size_t(flags).equals_to(info.page_size));
+	ut_ad(fil_space_t::zip_size(flags) == info.zip_size);
+	ut_ad(fil_space_t::physical_size(flags) == info.page_size);
 
 	if (fil_space_create(dest_space_name, info.space_id, flags,
 			      FIL_TYPE_TABLESPACE, 0)) {
@@ -4825,7 +4818,7 @@ xtrabackup_apply_delta(
 	ulint	page_in_buffer;
 	ulint	incremental_buffers = 0;
 
-	xb_delta_info_t info(univ_page_size, SRV_TMP_SPACE_ID);
+	xb_delta_info_t info(srv_page_size, 0, SRV_TMP_SPACE_ID);
 	ulint		page_size;
 	ulint		page_size_shift;
 	byte*		incremental_buffer_base = NULL;
@@ -4863,7 +4856,7 @@ xtrabackup_apply_delta(
 		goto error;
 	}
 
-	page_size = info.page_size.physical();
+	page_size = info.page_size;
 	page_size_shift = get_bit_shift(page_size);
 	msg("page size for %s is %zu bytes",
 	    src_path, page_size);

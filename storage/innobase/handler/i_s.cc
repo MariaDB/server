@@ -5978,7 +5978,7 @@ i_s_dict_fill_sys_tables(
 	ulint			compact = DICT_TF_GET_COMPACT(table->flags);
 	ulint			atomic_blobs = DICT_TF_HAS_ATOMIC_BLOBS(
 								table->flags);
-	const page_size_t&	page_size = dict_tf_get_page_size(table->flags);
+	const ulint zip_size = dict_tf_get_zip_size(table->flags);
 	const char*		row_format;
 
 	if (!compact) {
@@ -6007,10 +6007,7 @@ i_s_dict_fill_sys_tables(
 
 	OK(field_store_string(fields[SYS_TABLES_ROW_FORMAT], row_format));
 
-	OK(fields[SYS_TABLES_ZIP_PAGE_SIZE]->store(
-				page_size.is_compressed()
-				? page_size.physical()
-				: 0, true));
+	OK(fields[SYS_TABLES_ZIP_PAGE_SIZE]->store(zip_size, true));
 
 	OK(field_store_string(fields[SYS_TABLES_SPACE_TYPE],
 			      table->space_id ? "Single" : "System"));
@@ -8003,13 +8000,11 @@ i_s_dict_fill_sys_tablespaces(
 		DBUG_RETURN(0);
 	}
 
-	const page_size_t page_size(cflags);
-
 	OK(fields[SYS_TABLESPACES_PAGE_SIZE]->store(
-		   page_size.logical(), true));
+		   fil_space_t::logical_size(cflags), true));
 
 	OK(fields[SYS_TABLESPACES_ZIP_PAGE_SIZE]->store(
-		   page_size.physical(), true));
+		   fil_space_t::physical_size(cflags), true));
 
 	char*	filepath = NULL;
 	if (FSP_FLAGS_HAS_DATA_DIR(cflags)) {
