@@ -4945,8 +4945,7 @@ int create_table_impl(THD *thd,
   create_info->table= 0;
   if (!frm_only && create_info->tmp_table())
   {
-    TABLE *table= thd->create_and_open_tmp_table(create_info->db_type, frm,
-                                                 path, db->str,
+    TABLE *table= thd->create_and_open_tmp_table(frm, path, db->str,
                                                  table_name->str, true,
                                                  false);
 
@@ -9628,7 +9627,7 @@ bool mysql_alter_table(THD *thd, const LEX_CSTRING *new_db,
     DBUG_ASSERT(!table->s->tmp_table);
 
     if (!(altered_table=
-          thd->create_and_open_tmp_table(new_db_type, &frm,
+          thd->create_and_open_tmp_table(&frm,
                                          alter_ctx.get_tmp_path(),
                                          alter_ctx.new_db.str,
                                          alter_ctx.tmp_name.str,
@@ -9755,7 +9754,7 @@ bool mysql_alter_table(THD *thd, const LEX_CSTRING *new_db,
   no_ha_table= false;
 
   /* Open the table since we need to copy the data. */
-  new_table= thd->create_and_open_tmp_table(new_db_type, &frm,
+  new_table= thd->create_and_open_tmp_table(&frm,
                                             alter_ctx.get_tmp_path(),
                                             alter_ctx.new_db.str,
                                             alter_ctx.tmp_name.str,

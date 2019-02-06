@@ -49,7 +49,6 @@ bool THD::has_thd_temporary_tables()
 /**
   Create a temporary table, open it and return the TABLE handle.
 
-  @param hton [IN]                    Handlerton
   @param frm  [IN]                    Binary frm image
   @param path [IN]                    File path (without extension)
   @param db   [IN]                    Schema name
@@ -60,8 +59,7 @@ bool THD::has_thd_temporary_tables()
   @return Success                     A pointer to table object
           Failure                     NULL
 */
-TABLE *THD::create_and_open_tmp_table(handlerton *hton,
-                                      LEX_CUSTRING *frm,
+TABLE *THD::create_and_open_tmp_table(LEX_CUSTRING *frm,
                                       const char *path,
                                       const char *db,
                                       const char *table_name,
@@ -73,7 +71,7 @@ TABLE *THD::create_and_open_tmp_table(handlerton *hton,
   TMP_TABLE_SHARE *share;
   TABLE *table= NULL;
 
-  if ((share= create_temporary_table(hton, frm, path, db, table_name)))
+  if ((share= create_temporary_table(frm, path, db, table_name)))
   {
     open_options|= HA_OPEN_FOR_CREATE;
     table= open_temporary_table(share, table_name, open_in_engine);
@@ -903,7 +901,6 @@ uint THD::create_tmp_table_def_key(char *key, const char *db,
 /**
   Create a temporary table.
 
-  @param hton [IN]                    Handlerton
   @param frm  [IN]                    Binary frm image
   @param path [IN]                    File path (without extension)
   @param db   [IN]                    Schema name
@@ -912,8 +909,7 @@ uint THD::create_tmp_table_def_key(char *key, const char *db,
   @return Success                     A pointer to table share object
           Failure                     NULL
 */
-TMP_TABLE_SHARE *THD::create_temporary_table(handlerton *hton,
-                                             LEX_CUSTRING *frm,
+TMP_TABLE_SHARE *THD::create_temporary_table(LEX_CUSTRING *frm,
                                              const char *path,
                                              const char *db,
                                              const char *table_name)
@@ -950,8 +946,6 @@ TMP_TABLE_SHARE *THD::create_temporary_table(handlerton *hton,
 
   init_tmp_table_share(this, share, saved_key_cache, key_length,
                        strend(saved_key_cache) + 1, tmp_path);
-
-  share->db_plugin= ha_lock_engine(this, hton);
 
   /*
     Prefer using frm image over file. The image might not be available in
