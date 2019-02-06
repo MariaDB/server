@@ -4738,8 +4738,7 @@ public:
   };
   bool has_thd_temporary_tables();
 
-  TABLE *create_and_open_tmp_table(handlerton *hton,
-                                   LEX_CUSTRING *frm,
+  TABLE *create_and_open_tmp_table(LEX_CUSTRING *frm,
                                    const char *path,
                                    const char *db,
                                    const char *table_name,
@@ -4780,7 +4779,7 @@ private:
   bool has_temporary_tables();
   uint create_tmp_table_def_key(char *key, const char *db,
                                 const char *table_name);
-  TMP_TABLE_SHARE *create_temporary_table(handlerton *hton, LEX_CUSTRING *frm,
+  TMP_TABLE_SHARE *create_temporary_table(LEX_CUSTRING *frm,
                                           const char *path, const char *db,
                                           const char *table_name);
   TABLE *find_temporary_table(const char *key, uint key_length,

@@ -5039,9 +5039,9 @@ int create_table_impl(THD *thd, const LEX_CSTRING &orig_db,
   create_info->table= 0;
   if (!frm_only && create_info->tmp_table())
   {
-    TABLE *table= thd->create_and_open_tmp_table(create_info->db_type, frm,
-                                                 path, db.str,
-                                                 table_name.str, true, false);
+    TABLE *table= thd->create_and_open_tmp_table(frm, path, db.str,
+                                                 table_name.str, true,
+                                                 false);
 
     if (!table)
     {
@@ -9863,7 +9863,7 @@ do_continue:;
     DBUG_ASSERT(!table->s->tmp_table);
 
     if (!(altered_table=
-          thd->create_and_open_tmp_table(new_db_type, &frm,
+          thd->create_and_open_tmp_table(&frm,
                                          alter_ctx.get_tmp_path(),
                                          alter_ctx.new_db.str,
                                          alter_ctx.new_name.str,
@@ -9990,11 +9990,11 @@ do_continue:;
   no_ha_table= false;
 
   /* Open the table since we need to copy the data. */
-  new_table=
-    thd->create_and_open_tmp_table(new_db_type, &frm, alter_ctx.get_tmp_path(),
-                                   alter_ctx.new_db.str,
-                                   alter_ctx.new_name.str,
-                                   true, true);
+  new_table= thd->create_and_open_tmp_table(&frm,
+                                            alter_ctx.get_tmp_path(),
+                                            alter_ctx.new_db.str,
+                                            alter_ctx.new_name.str,
+                                            true, true);
   if (!new_table)
     goto err_new_table_cleanup;
 

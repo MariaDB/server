@@ -267,3 +267,19 @@ RENAME TABLE t1 TO t2;
 DROP TABLE t1;
 
 --source include/install_plugin_if_exists.inc
+
+
+--echo #
+--echo # Make sure temporary tables maintain plugin references properly
+--echo #
+INSTALL PLUGIN example SONAME 'ha_example';
+CREATE TEMPORARY TABLE t1(a INT) ENGINE=example;
+UNINSTALL PLUGIN example;
+--error ER_PLUGIN_INSTALLED
+INSTALL PLUGIN example SONAME 'ha_example';
+DROP TABLE t1;
+
+INSTALL PLUGIN example SONAME 'ha_example';
+CREATE TEMPORARY TABLE t1(a INT) ENGINE=example;
+DROP TABLE t1;
+UNINSTALL PLUGIN example;
