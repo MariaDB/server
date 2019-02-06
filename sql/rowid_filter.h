@@ -383,7 +383,7 @@ class Range_rowid_filter_cost_info : public Sql_alloc
   /* The table for which the range filter is to be built (if needed) */
   TABLE *table;
   /* Estimated number of elements in the filter */
-  double est_elements;
+  ulonglong est_elements;
   /* The cost of building the range filter */
   double b;
   /*

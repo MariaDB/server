@@ -1313,7 +1313,8 @@ int Explain_table_access::print_explain(select_result_sink *output, uint8 explai
     if (rowid_filter)
     {
       rows_str.append(" (");
-      rows_str.append_ulonglong(round(rowid_filter->selectivity * 100.0));
+      rows_str.append_ulonglong((ulonglong) (round(rowid_filter->selectivity *
+						   100.0)));
       rows_str.append("%)");
     }
     item_list.push_back(new (mem_root)

@@ -20,7 +20,7 @@
 #include "key.h"
 #include "sql_statistics.h"
 
-static ulonglong key_block_no(handler *h, uint keyno, uint keyentry_pos)
+static ulonglong key_block_no(handler *h, uint keyno, ha_rows keyentry_pos)
 {
   return (ulonglong) (h->keyread_time(keyno, 1, keyentry_pos + 1) -
 	              h->keyread_time(keyno, 0, keyentry_pos + 1) + 0.5) + 1;
@@ -217,7 +217,9 @@ handler::multi_range_read_info_const(uint keyno, RANGE_SEQ_IF *seq,
     }
     else
     {
-      cost->io_count= read_time(keyno, total_touched_blocks, (uint) total_rows);
+      cost->io_count= read_time(keyno,
+                                (uint)total_touched_blocks,
+                                (uint) total_rows);
       cost->cpu_cost= (double) total_rows / TIME_FOR_COMPARE + 0.01;
     }
   }

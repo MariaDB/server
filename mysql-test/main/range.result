@@ -2589,7 +2589,7 @@ insert into t2 values
 explain select * from t1,t2
 where a = d and (a,e) in ((3,3),(7,7),(8,8)) and length(f) = 1;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t2	range|filter	idx1,idx2	idx1|idx2	5|5	NULL	8 (14%)	Using index condition; Using where; Using filter
+1	SIMPLE	t2	range|filter	idx1,idx2	idx1|idx2	5|5	NULL	8 (14%)	Using index condition; Using where; Using rowid filter
 1	SIMPLE	t1	ref	idx	idx	5	test.t2.d	8	
 explain format=json select * from t1,t2
 where a = d and (a,e) in ((3,3),(7,7),(8,8)) and length(f) = 1;
@@ -2694,7 +2694,7 @@ insert into t1 select * from t1;
 explain select * from t1,t2 
 where a = d and (a,e) in ((4,4),(7,7),(8,8)) and length(f) = 1;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t2	range|filter	idx1,idx2	idx1|idx2	5|5	NULL	7 (7%)	Using index condition; Using where; Using filter
+1	SIMPLE	t2	range|filter	idx1,idx2	idx1|idx2	5|5	NULL	7 (7%)	Using index condition; Using where; Using rowid filter
 1	SIMPLE	t1	ref	idx	idx	5	test.t2.d	11	
 explain format=json select * from t1,t2 
 where a = d and (a,e) in ((4,4),(7,7),(8,8)) and length(f) = 1;

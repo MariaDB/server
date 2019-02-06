@@ -64,7 +64,7 @@ void Range_rowid_filter_cost_info::init(Rowid_filter_container_type cont_type,
   container_type= cont_type;
   table= tab;
   key_no= idx;
-  est_elements= table->quick_rows[key_no];
+  est_elements= (ulonglong) (table->quick_rows[key_no]);
   b= build_cost(container_type);
   selectivity= est_elements/((double) table->stat_records());
   a= avg_access_and_eval_gain_per_row(container_type);
@@ -108,7 +108,8 @@ Rowid_filter_container *Range_rowid_filter_cost_info::create_container()
 
   switch (container_type) {
   case SORTED_ARRAY_CONTAINER:
-    res= new (thd->mem_root) Rowid_filter_sorted_array(est_elements, elem_sz);
+    res= new (thd->mem_root) Rowid_filter_sorted_array((uint) est_elements,
+                                                       elem_sz);
     break;
   default:
     DBUG_ASSERT(0);
@@ -245,7 +246,7 @@ void TABLE::prune_range_rowid_filters()
      Return maximum number of elements that a container allowed to have
  */
 
-static uint
+static ulonglong
 get_max_range_rowid_filter_elems_for_table(
                                  THD *thd, TABLE *tab,
                                  Rowid_filter_container_type cont_type)

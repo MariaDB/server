@@ -739,13 +739,13 @@ p
 1019
 explain select i from t2 where a='yyyy' and i=3;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t2	ref|filter	k1,k2	k1|k2	5|11	const	189 (27%)	Using where; Using filter
+1	SIMPLE	t2	ref|filter	k1,k2	k1|k2	5|11	const	189 (27%)	Using where; Using rowid filter
 select i from t2 where a='yyyy' and i=3;
 i
 3
 explain select a from t2 where a='yyyy' and i=3;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t2	ref|filter	k1,k2	k1|k2	5|11	const	189 (27%)	Using where; Using filter
+1	SIMPLE	t2	ref|filter	k1,k2	k1|k2	5|11	const	189 (27%)	Using where; Using rowid filter
 select a from t2 where a='yyyy' and i=3 ;
 a
 yyyy
