@@ -2728,7 +2728,7 @@ void THD::make_explain_field_list(List<Item> &field_list, uint8 explain_flags,
   if (is_analyze)
   {
     field_list.push_back(item= new (mem_root)
-                         Item_float(this, "r_rows", 0.1234, 10, 4),
+                         Item_empty_string(this, "r_rows", NAME_CHAR_LEN, cs),
                          mem_root);
     item->maybe_null=1;
   }

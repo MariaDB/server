@@ -46,11 +46,17 @@ SELECT l_orderkey, l_linenumber, l_shipdate, l_quantity FROM lineitem
 
 eval $with_filter EXPLAIN $q1;
 eval $with_filter EXPLAIN FORMAT=JSON $q1;
+eval $with_filter ANALYZE $q1;
+--source include/analyze-format.inc
+eval $with_filter ANALYZE FORMAT=JSON $q1;
 --sorted_result
 eval $with_filter $q1;
 
 eval $without_filter EXPLAIN $q1;
 eval $without_filter EXPLAIN FORMAT=JSON $q1;
+eval $without_filter ANALYZE $q1;
+--source include/analyze-format.inc
+eval $without_filter ANALYZE FORMAT=JSON $q1;
 --sorted_result
 eval $without_filter $q1;
 
@@ -62,11 +68,17 @@ SELECT o_orderkey, l_linenumber, l_shipdate, o_totalprice
 
 eval $with_filter EXPLAIN $q2;
 eval $with_filter EXPLAIN FORMAT=JSON $q2;
+eval $with_filter ANALYZE $q2;
+--source include/analyze-format.inc
+eval $with_filter ANALYZE FORMAT=JSON $q2;
 --sorted_result
 eval $with_filter $q2;
 
 eval $without_filter EXPLAIN $q2;
 eval $without_filter EXPLAIN FORMAT=JSON $q2;
+eval $without_filter ANALYZE $q2;
+--source include/analyze-format.inc
+eval $without_filter ANALYZE FORMAT=JSON $q2;
 --sorted_result
 eval $without_filter $q2;
 
@@ -79,11 +91,17 @@ SELECT o_orderkey, l_linenumber, l_shipdate, l_quantity, o_totalprice
 
 eval $with_filter EXPLAIN $q3;
 eval $with_filter EXPLAIN FORMAT=JSON $q3;
+eval $with_filter ANALYZE $q3;
+--source include/analyze-format.inc
+eval $with_filter ANALYZE FORMAT=JSON $q3;
 --sorted_result
 eval $with_filter $q3;
 
 eval $without_filter EXPLAIN $q3;
 eval $without_filter EXPLAIN FORMAT=JSON $q3;
+eval $without_filter ANALYZE $q3;
+--source include/analyze-format.inc
+eval $without_filter ANALYZE FORMAT=JSON $q3;
 --sorted_result
 eval $without_filter $q3;
 
@@ -95,11 +113,17 @@ SELECT o_orderkey, l_linenumber, l_shipdate, o_totalprice
 
 eval $with_filter EXPLAIN $q4;
 eval $with_filter EXPLAIN FORMAT=JSON $q4;
+eval $with_filter ANALYZE $q4;
+--source include/analyze-format.inc
+eval $with_filter ANALYZE FORMAT=JSON $q4;
 --sorted_result
 eval $with_filter $q4;
 
 eval $without_filter EXPLAIN $q4;
 eval $without_filter EXPLAIN FORMAT=JSON $q4;
+eval $without_filter ANALYZE $q4;
+--source include/analyze-format.inc
+eval $without_filter ANALYZE FORMAT=JSON $q4;
 --sorted_result
 eval $without_filter $q4;
 

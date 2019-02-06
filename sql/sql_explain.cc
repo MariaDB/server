@@ -1324,6 +1324,7 @@ int Explain_table_access::print_explain(select_result_sink *output, uint8 explai
     item_list.push_back(item_null, mem_root);
 
   /* `r_rows` */
+  StringBuffer<64> r_rows_str;
   if (is_analyze)
   {
     if (!tracker.has_scans())
@@ -1333,8 +1334,19 @@ int Explain_table_access::print_explain(select_result_sink *output, uint8 explai
     else
     {
       double avg_rows= tracker.get_avg_rows();
-      item_list.push_back(new (mem_root) Item_float(thd, avg_rows, 2),
-                          mem_root);
+      Item_float *fl= new (mem_root) Item_float(thd, avg_rows, 2);
+      String tmp;
+      String *res= fl->val_str(&tmp);
+      r_rows_str.append(res->ptr());
+      if (rowid_filter)
+      {
+        r_rows_str.append(" (");
+        r_rows_str.append_ulonglong(rowid_filter->tracker->get_r_selectivity_pct() * 100.0);
+        r_rows_str.append("%)");
+      }
+      item_list.push_back(new (mem_root)
+                          Item_string_sys(thd, r_rows_str.ptr(),
+                                          r_rows_str.length()), mem_root);
     }
   }
 
@@ -1404,7 +1416,7 @@ int Explain_table_access::print_explain(select_result_sink *output, uint8 explai
       first= false;
     else
       extra_buf.append(STRING_WITH_LEN("; "));
-    extra_buf.append(STRING_WITH_LEN("Using filter"));
+    extra_buf.append(STRING_WITH_LEN("Using rowid filter"));
   }
 
   item_list.push_back(new (mem_root)
@@ -1604,6 +1616,16 @@ void Explain_rowid_filter::print_explain_json(Explain_query *query,
   quick->print_json(writer);
   writer->add_member("rows").add_ll(rows);
   writer->add_member("selectivity_pct").add_double(selectivity * 100.0);
+  if (is_analyze)
+  {
+    writer->add_member("r_rows").add_double(tracker->get_container_elements());
+    writer->add_member("r_selectivity_pct").
+      add_double(tracker->get_r_selectivity_pct() * 100.0);
+    writer->add_member("r_buffer_size").
+      add_double(tracker->get_container_buff_size());
+    writer->add_member("r_filling_time_ms").
+      add_double(tracker->get_time_fill_container_ms());
+  }
   writer->end_object(); // rowid_filter
 }
 
@@ -1742,8 +1764,10 @@ void Explain_table_access::print_explain_json(Explain_query *query,
 
     if (op_tracker.get_loops())
     {
-      writer->add_member("r_total_time_ms").
-              add_double(op_tracker.get_time_ms());
+      double total_time= op_tracker.get_time_ms();
+      if (rowid_filter)
+        total_time+= rowid_filter->tracker->get_time_fill_container_ms();
+      writer->add_member("r_total_time_ms").add_double(total_time);
     }
   }
   

@@ -624,6 +624,9 @@ public:
   /* Expected selectivity for the filter */
   double selectivity;
 
+  /* Tracker with the information about how rowid filter is executed */
+  Rowid_filter_tracker *tracker;
+
   void print_explain_json(Explain_query *query, Json_writer *writer,
                           bool is_analyze);
 

@@ -211,6 +211,8 @@ protected:
   /* The container to store info the set of elements in the filter */
   Rowid_filter_container *container;
 
+  Rowid_filter_tracker *tracker;
+
 public:
   Rowid_filter(Rowid_filter_container *container_arg)
     : container(container_arg) {}
@@ -230,6 +232,9 @@ public:
   virtual ~Rowid_filter() {}
 
   Rowid_filter_container *get_container() { return container; }
+
+  void set_tracker(Rowid_filter_tracker *track_arg) { tracker= track_arg; }
+  Rowid_filter_tracker *get_tracker() { return tracker; }
 };
 
 
@@ -261,7 +266,12 @@ public:
 
   bool build() { return fill(); }
 
-  bool check(char *elem) { return container->check(table, elem); }
+  bool check(char *elem)
+  {
+    bool was_checked= container->check(table, elem);
+    tracker->increment_checked_elements_count(was_checked);
+    return was_checked;
+  }
 
   bool fill();
 

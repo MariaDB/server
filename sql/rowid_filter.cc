@@ -478,6 +478,8 @@ bool Range_rowid_filter::fill()
       file->position(quick->record);
       if (container->add(NULL, (char*) file->ref))
         rc= 1;
+      else
+        tracker->increment_container_elements_count();
     }
   }
 
@@ -488,6 +490,7 @@ bool Range_rowid_filter::fill()
   file->pushed_idx_cond= pushed_idx_cond_save;
   file->pushed_idx_cond_keyno= pushed_idx_cond_keyno_save;
   file->in_range_check_pushed_down= in_range_check_pushed_down_save;
+  tracker->report_container_buff_size(table->file->ref_length);
 
   if (rc != HA_ERR_END_OF_FILE)
     return 1;
