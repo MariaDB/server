@@ -1741,7 +1741,7 @@ bool my_yyoverflow(short **a, YYSTYPE **b, ulong *yystacksize);
         IDENT_sys TEXT_STRING_sys TEXT_STRING_literal
         NCHAR_STRING opt_component key_cache_name
         sp_opt_label BIN_NUM label_ident TEXT_STRING_filesystem ident_or_empty
-        opt_constraint opt_constraint_no_id constraint opt_ident ident_table_alias
+        opt_constraint constraint opt_ident ident_table_alias
 
 %type <lex_str_ptr>
         opt_table_alias
