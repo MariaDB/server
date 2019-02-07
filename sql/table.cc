@@ -1129,7 +1129,7 @@ bool parse_vcol_defs(THD *thd, MEM_ROOT *mem_root, TABLE *table,
   if (check_constraint_ptr)
     *check_constraint_ptr= 0;
 
-  /* Check that expressions aren't refering to not yet initialized fields */
+  /* Check that expressions aren't referring to not yet initialized fields */
   for (field_ptr= table->field; *field_ptr; field_ptr++)
   {
     Field *field= *field_ptr;
