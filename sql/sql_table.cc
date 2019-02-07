@@ -8423,7 +8423,7 @@ mysql_prepare_alter_table(THD *thd, TABLE *table,
       }
       if (!drop)
       {
-        if (alter_info->flags & Alter_info::ALTER_RENAME_COLUMN)
+        if (alter_info->flags & ALTER_RENAME_COLUMN)
         {
           check->expr->walk(&Item::rename_fields_processor, 1,
                             &column_rename_param);
@@ -9310,7 +9310,7 @@ bool mysql_alter_table(THD *thd, const LEX_CSTRING *new_db,
 
   THD_STAGE_INFO(thd, stage_setup);
 
-  if (alter_info->flags & Alter_info::ALTER_DROP_CHECK_CONSTRAINT)
+  if (alter_info->flags & ALTER_DROP_CHECK_CONSTRAINT)
   {
     /*
       ALTER TABLE DROP CONSTRAINT
@@ -9323,7 +9323,7 @@ bool mysql_alter_table(THD *thd, const LEX_CSTRING *new_db,
     List <FOREIGN_KEY_INFO> fk_child_key_list;
     table->file->get_foreign_key_list(thd, &fk_child_key_list);
 
-    alter_info->flags&= ~Alter_info::ALTER_DROP_CHECK_CONSTRAINT;
+    alter_info->flags&= ~ALTER_DROP_CHECK_CONSTRAINT;
 
     while ((drop= drop_it++))
     {
@@ -9340,7 +9340,7 @@ bool mysql_alter_table(THD *thd, const LEX_CSTRING *new_db,
                   drop->name) == 0)
             {
               drop->type= Alter_drop::FOREIGN_KEY;
-              alter_info->flags|= Alter_info::DROP_FOREIGN_KEY;
+              alter_info->flags|= ALTER_DROP_FOREIGN_KEY;
               goto do_continue;
             }
           }
@@ -9354,16 +9354,16 @@ bool mysql_alter_table(THD *thd, const LEX_CSTRING *new_db,
           {
             if ((table->key_info[n_key].flags & HA_NOSAME) &&
                 my_strcasecmp(system_charset_info,
-                  drop->name, table->key_info[n_key].name) == 0)
+                              drop->name, table->key_info[n_key].name.str) == 0) // Merge todo: review '.str'
             {
               drop->type= Alter_drop::KEY;
-              alter_info->flags|= Alter_info::ALTER_DROP_INDEX;
+              alter_info->flags|= ALTER_DROP_INDEX;
               goto do_continue;
             }
           }
         }
       }
-      alter_info->flags|= Alter_info::ALTER_DROP_CHECK_CONSTRAINT;
+      alter_info->flags|= ALTER_DROP_CHECK_CONSTRAINT;
 do_continue:;
     }
   }
