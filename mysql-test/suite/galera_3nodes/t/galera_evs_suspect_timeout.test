@@ -56,8 +56,8 @@ DROP TABLE t1;
 
 # Reconnect node #3 so that MTR's end-of-test checks can run
 
---connection node_3
 --source include/galera_resume.inc
+--connection node_3
 --source include/wait_until_connected_again.inc
 
 CALL mtr.add_suppression("WSREP: gcs_caused() returned -1 \\(Operation not permitted\\)");
