@@ -5415,7 +5415,7 @@ static bool execute_rename_table(THD *thd, TABLE_LIST *first_table,
                      0, 0))
       return 1;
 
-    /* check if these are refering to temporary tables */
+    /* check if these are referring to temporary tables */
     table->table= find_temporary_table_for_rename(thd, first_table, table);
     table->next_local->table= table->table;
 
