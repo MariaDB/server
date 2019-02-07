@@ -4189,7 +4189,7 @@ public:
   void add_key_to_list(LEX_CSTRING *field_name,
                        enum Key::Keytype type, bool check_exists);
   // Add a constraint as a part of CREATE TABLE or ALTER TABLE
-  bool add_constraint(LEX_CSTRING *name, Virtual_column_info *constr,
+  bool add_constraint(const LEX_CSTRING *name, Virtual_column_info *constr,
                       bool if_not_exists)
   {
     constr->name= *name;
@@ -4271,6 +4271,25 @@ public:
   {
     return create_info.vers_info;
   }
+
+  int add_period(Lex_ident name, Lex_ident_sys_st start, Lex_ident_sys_st end)
+  {
+    Table_period_info &info= create_info.period_info;
+    if (info.is_set())
+    {
+       my_error(ER_MORE_THAN_ONE_PERIOD, MYF(0));
+       return 1;
+    }
+    info.set_period(start, end);
+    info.name= name;
+
+    Virtual_column_info *constr= new Virtual_column_info();
+    constr->expr= lt_creator.create(thd, create_item_ident_nosp(thd, &start),
+                                    create_item_ident_nosp(thd, &end));
+    add_constraint(&null_clex_str, constr, false);
+    return 0;
+  }
+
   sp_package *get_sp_package() const;
 
   /**

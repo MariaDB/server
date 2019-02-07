@@ -2998,7 +2998,8 @@ CHARSET_INFO* get_sql_field_charset(Column_definition *sql_field,
    by adding the features DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP.
 
    If the first TIMESTAMP column appears to be nullable, or to have an
-   explicit default, or to be a virtual column, then no promition is done.
+   explicit default, or to be a virtual column, or to be part of table period,
+   then no promotion is done.
 
    @param column_definitions The list of column definitions, in the physical
                              order in which they appear in the table.
@@ -3019,6 +3020,7 @@ void promote_first_timestamp_column(List<Create_field> *column_definitions)
           column_definition->default_value == NULL &&   // no constant default,
           column_definition->unireg_check == Field::NONE && // no function default
           column_definition->vcol_info == NULL &&
+          column_definition->period == NULL &&
           !(column_definition->flags & VERS_SYSTEM_FIELD)) // column isn't generated
       {
         DBUG_PRINT("info", ("First TIMESTAMP column '%s' was promoted to "

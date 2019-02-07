@@ -6233,10 +6233,10 @@ new_clustered_failed:
 			}
 
 			if (altered_table->versioned()) {
-				if (i == altered_table->s->row_start_field) {
+				if (i == altered_table->s->vers.start_fieldno) {
 					field_type |= DATA_VERS_START;
 				} else if (i ==
-					   altered_table->s->row_end_field) {
+					   altered_table->s->vers.end_fieldno) {
 					field_type |= DATA_VERS_END;
 				} else if (!(field->flags
 					     & VERS_UPDATE_UNVERSIONED_FLAG)) {
@@ -9007,9 +9007,9 @@ static void get_type(const Field& f, ulint& prtype, ulint& mtype, ulint& len)
 	if (!f.real_maybe_null()) prtype |= DATA_NOT_NULL;
 	if (f.binary()) prtype |= DATA_BINARY_TYPE;
 	if (f.table->versioned()) {
-		if (&f == f.table->field[f.table->s->row_start_field]) {
+		if (&f == f.table->field[f.table->s->vers.start_fieldno]) {
 			prtype |= DATA_VERS_START;
-		} else if (&f == f.table->field[f.table->s->row_end_field]) {
+		} else if (&f == f.table->field[f.table->s->vers.end_fieldno]) {
 			prtype |= DATA_VERS_END;
 		} else if (!(f.flags & VERS_UPDATE_UNVERSIONED_FLAG)) {
 			prtype |= DATA_VERSIONED;

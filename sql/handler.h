@@ -1968,57 +1968,61 @@ enum vers_sys_type_t
   VERS_TRX_ID
 };
 
-extern const LEX_CSTRING null_clex_str;
-
-struct Vers_parse_info
+struct Table_period_info
 {
-  Vers_parse_info() :
-    check_unit(VERS_UNDEFINED),
-    versioned_fields(false),
-    unversioned_fields(false)
-  {}
+  Table_period_info() {}
+  Table_period_info(const char *name_arg, size_t size) :
+    name(name_arg, size) {}
 
-  void init() // Deep initialization
-  {
-    system_time= start_end_t(null_clex_str, null_clex_str);
-    as_row= start_end_t(null_clex_str, null_clex_str);
-    check_unit= VERS_UNDEFINED;
-    versioned_fields= false;
-    unversioned_fields= false;
-  }
+  Lex_ident name;
 
   struct start_end_t
   {
-    start_end_t()
-    {}
-    start_end_t(LEX_CSTRING _start, LEX_CSTRING _end) :
+    start_end_t() {};
+    start_end_t(const LEX_CSTRING& _start, const LEX_CSTRING& _end) :
       start(_start),
       end(_end) {}
     Lex_ident start;
     Lex_ident end;
   };
+  start_end_t period;
 
-  start_end_t system_time;
-  start_end_t as_row;
-  vers_sys_type_t check_unit;
-
-  void set_system_time(Lex_ident start, Lex_ident end)
+  bool is_set() const
   {
-    system_time.start= start;
-    system_time.end= end;
+    DBUG_ASSERT(bool(period.start) == bool(period.end));
+    return period.start;
   }
+
+  void set_period(const Lex_ident& start, const Lex_ident& end)
+  {
+    period.start= start;
+    period.end= end;
+  }
+};
+
+struct Vers_parse_info: public Table_period_info
+{
+  Vers_parse_info() :
+    Table_period_info(STRING_WITH_LEN("SYSTEM_TIME")),
+    check_unit(VERS_UNDEFINED),
+    versioned_fields(false),
+    unversioned_fields(false)
+  {}
+
+  Table_period_info::start_end_t as_row;
+  vers_sys_type_t check_unit;
 
 protected:
   friend struct Table_scope_and_contents_source_st;
   void set_start(const LEX_CSTRING field_name)
   {
     as_row.start= field_name;
-    system_time.start= field_name;
+    period.start= field_name;
   }
   void set_end(const LEX_CSTRING field_name)
   {
     as_row.end= field_name;
-    system_time.end= field_name;
+    period.end= field_name;
   }
   bool is_start(const char *name) const;
   bool is_end(const char *name) const;
@@ -2027,7 +2031,7 @@ protected:
   bool fix_implicit(THD *thd, Alter_info *alter_info);
   operator bool() const
   {
-    return as_row.start || as_row.end || system_time.start || system_time.end;
+    return as_row.start || as_row.end || period.start || period.end;
   }
   bool need_check(const Alter_info *alter_info) const;
   bool check_conditions(const Lex_table_name &table_name,
@@ -2151,21 +2155,27 @@ struct Table_scope_and_contents_source_st:
   SQL_I_List<TABLE_LIST> merge_list;
 
   Vers_parse_info vers_info;
+  Table_period_info period_info;
 
   void init()
   {
     Table_scope_and_contents_source_pod_st::init();
     merge_list.empty();
-    vers_info.init();
+    vers_info= {};
+    period_info= {};
   }
 
-  bool vers_fix_system_fields(THD *thd, Alter_info *alter_info,
+  bool fix_create_fields(THD *thd, Alter_info *alter_info,
                          const TABLE_LIST &create_table,
                          bool create_select= false);
+  bool check_fields(THD *thd, Alter_info *alter_info, TABLE_LIST &create_table);
+
+  bool vers_fix_system_fields(THD *thd, Alter_info *alter_info,
+                              const TABLE_LIST &create_table,
+                              bool create_select= false);
 
   bool vers_check_system_fields(THD *thd, Alter_info *alter_info,
                                 const TABLE_LIST &create_table);
-
 };
 
 

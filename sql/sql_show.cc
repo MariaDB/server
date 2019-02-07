@@ -2047,6 +2047,22 @@ end_options:
   append_directory(thd, packet, "INDEX", create_info.index_file_name);
 }
 
+static void append_period(THD *thd, String *packet, const LEX_CSTRING &start,
+                          const LEX_CSTRING &end, const LEX_CSTRING &period,
+                          bool ident)
+{
+  packet->append(STRING_WITH_LEN(",\n  PERIOD FOR "));
+  if (ident)
+    append_identifier(thd, packet, period.str, period.length);
+  else
+    packet->append(period);
+  packet->append(STRING_WITH_LEN(" ("));
+  append_identifier(thd, packet, start.str, start.length);
+  packet->append(STRING_WITH_LEN(", "));
+  append_identifier(thd, packet, end.str, end.length);
+  packet->append(STRING_WITH_LEN(")"));
+}
+
 /*
   Build a CREATE TABLE statement for a table.
 
@@ -2085,6 +2101,7 @@ int show_create_table(THD *thd, TABLE_LIST *table_list, String *packet,
   KEY *key_info;
   TABLE *table= table_list->table;
   TABLE_SHARE *share= table->s;
+  TABLE_SHARE::period_info_t &period= share->period;
   sql_mode_t sql_mode= thd->variables.sql_mode;
   bool explicit_fields= false;
   bool foreign_db_mode=  sql_mode & (MODE_POSTGRESQL | MODE_ORACLE |
@@ -2364,11 +2381,8 @@ int show_create_table(THD *thd, TABLE_LIST *table_list, String *packet,
     DBUG_ASSERT(!explicit_fields || fe->invisible < INVISIBLE_SYSTEM);
     if (explicit_fields)
     {
-      packet->append(STRING_WITH_LEN(",\n  PERIOD FOR SYSTEM_TIME ("));
-      append_identifier(thd,packet,fs->field_name.str, fs->field_name.length);
-      packet->append(STRING_WITH_LEN(", "));
-      append_identifier(thd,packet,fe->field_name.str, fe->field_name.length);
-      packet->append(STRING_WITH_LEN(")"));
+      append_period(thd, packet, fs->field_name, fe->field_name,
+                    table->s->vers.name, false);
     }
     else
     {
@@ -2376,6 +2390,15 @@ int show_create_table(THD *thd, TABLE_LIST *table_list, String *packet,
       DBUG_ASSERT(fe->invisible == INVISIBLE_SYSTEM);
     }
   }
+
+  if (period.name)
+  {
+    append_period(thd, packet,
+                  period.start_field(share)->field_name,
+                  period.end_field(share)->field_name,
+                  period.name, true);
+  }
+
 
   /*
     Get possible foreign key definitions stored in InnoDB and append them
