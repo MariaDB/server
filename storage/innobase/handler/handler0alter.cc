@@ -2120,9 +2120,11 @@ ha_innobase::check_if_supported_inplace_alter(
 	cf_it.rewind();
 	Field **af = altered_table->field;
 	bool fts_need_rebuild = false;
-	need_rebuild = need_rebuild
-		|| innobase_need_rebuild(ha_alter_info, table,
-					 !m_prebuilt->table->supports_instant());
+	need_rebuild
+	    = need_rebuild
+	      || innobase_need_rebuild(ha_alter_info, table,
+				       !m_prebuilt->table->supports_instant()
+					   || m_prebuilt->table->fts);
 
 	while (Create_field* cf = cf_it++) {
 		DBUG_ASSERT(cf->field
@@ -7937,7 +7939,7 @@ err_exit:
 		*ha_alter_info->create_info->option_struct;
 
 	alter_table_operations options = INNOBASE_ALTER_DATA;
-	if (m_prebuilt->table->supports_instant()) {
+	if (m_prebuilt->table->supports_instant() && !m_prebuilt->table->fts) {
 		options |= ALTER_COLUMN_EQUAL_PACK_LENGTH;
 		options |= ALTER_COLUMN_UNVERSIONED;
 	}
