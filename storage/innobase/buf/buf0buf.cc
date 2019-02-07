@@ -4889,7 +4889,7 @@ buf_page_optimistic_get(
 	buf_page_make_young_if_needed(&block->page);
 
 	ut_ad(!ibuf_inside(mtr)
-	      || ibuf_page(block->page.id, block->physical_size(), NULL));
+	      || ibuf_page(block->page.id, block->zip_size(), NULL));
 
 	mtr_memo_type_t	fix_type;
 
