@@ -125,7 +125,7 @@ static int check_event_type(int type, Relay_log_info *rli)
 int binlog_defragment(THD *thd)
 {
   user_var_entry *entry[2];
-  LEX_STRING name[2]= { thd->lex->comment, thd->lex->ident };
+  LEX_CSTRING name[2]= { thd->lex->comment, thd->lex->ident };
 
   /* compute the total size */
   thd->lex->comment.str= NULL;
@@ -155,7 +155,7 @@ int binlog_defragment(THD *thd)
   size_t gathered_length= 0;
   for (uint k=0; k < 2; k++)
   {
-    memcpy(thd->lex->comment.str + gathered_length, entry[k]->value,
+    memcpy(const_cast<char*>(thd->lex->comment.str) + gathered_length, entry[k]->value,
            entry[k]->length);
     gathered_length += entry[k]->length;
     update_hash(entry[k], true, NULL, 0, STRING_RESULT, &my_charset_bin, 0);
@@ -387,7 +387,7 @@ void mysql_client_binlog_statement(THD* thd)
 
 end:
   if (unlikely(is_fragmented))
-    my_free(thd->lex->comment.str);
+    my_free(const_cast<char*>(thd->lex->comment.str));
   thd->variables.option_bits= thd_options;
   rgi->slave_close_thread_tables(thd);
   my_free(buf);
