@@ -1483,6 +1483,14 @@ ip_full_addr
 2000::
 DROP PROCEDURE p1;
 #
+# MDEV-18195 ASAN use-after-poison in my_strcasecmp_utf8 / Item::eq upon prepared statement with ORDER BY NAME_CONST
+#
+PREPARE stmt FROM "SELECT 'x' ORDER BY NAME_CONST( 'f', 'foo' )";
+EXECUTE stmt;
+x
+x
+DEALLOCATE PREPARE stmt;
+#
 # Start of 10.2 tests
 #
 #

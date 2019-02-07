@@ -41,6 +41,9 @@ auth_root_authentication_method=normal
 auth_root_socket_user='root'
 skip_test_db=0
 
+dirname0=`dirname $0 2>/dev/null`
+dirname0=`dirname $dirname0 2>/dev/null`
+
 usage()
 {
   cat <<EOF
@@ -242,11 +245,6 @@ cannot_find_file()
   echo "If you don't want to do a full install, you can use the --srcdir"
   echo "option to only install the mysql database and privilege tables"
   echo
-  echo "If you compiled from source, you need to either run 'make install' to"
-  echo "copy the software into the correct location ready for operation."
-  echo "If you don't want to do a full install, you can use the --srcdir"
-  echo "option to only install the mysql database and privilege tables"
-  echo
   echo "If you are using a binary release, you must either be at the top"
   echo "level of the extracted archive, or pass the --basedir option"
   echo "pointing to that location."
@@ -287,6 +285,9 @@ then
     cannot_find_file my_print_defaults $basedir/bin $basedir/extra
     exit 1
   fi
+elif test -n "$dirname0" -a -x "$dirname0/@bindir@/my_print_defaults"
+then
+  print_defaults="$dirname0/@bindir@/my_print_defaults"
 else
   print_defaults="@bindir@/my_print_defaults"
 fi
@@ -342,6 +343,16 @@ then
     exit 1
   fi
   plugindir=`find_in_dirs --dir auth_socket.so $basedir/lib*/plugin $basedir/lib*/mysql/plugin`
+# relative from where the script was run for a relocatable install
+elif test -n "$dirname0" -a -x "$dirname0/@INSTALL_SBINDIR@/mysqld"
+then
+  basedir="$dirname0"
+  bindir="$basedir/@INSTALL_SBINDIR@"
+  resolveip="$bindir/resolveip"
+  mysqld="$basedir/@INSTALL_SBINDIR@/mysqld"
+  srcpkgdatadir="$basedir/@INSTALL_MYSQLSHAREDIR@"
+  buildpkgdatadir="$basedir/@INSTALL_MYSQLSHAREDIR@"
+  plugindir="$basedir/@INSTALL_PLUGINDIR@"
 else
   basedir="@prefix@"
   bindir="@bindir@"

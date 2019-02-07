@@ -115,3 +115,12 @@ insert into t1 () values ();
 alter ignore table t1 add constraint check (f > 0);
 alter table t1;
 drop table t1;
+
+#
+# MDEV-16905 ASAN heap-use-after-free in __interceptor_strnlen / ... / TABLE::verify_constraints upon INSERT into temporary table with CHECK constraint
+#
+create temporary table t1 (a int default 0, check (a > 0));
+alter table t1 drop constraint if exists non_existing_constraint;
+--error ER_CONSTRAINT_FAILED
+insert into t1 () values ();
+drop table t1;

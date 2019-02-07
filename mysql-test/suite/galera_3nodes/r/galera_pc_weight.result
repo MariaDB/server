@@ -1,9 +1,11 @@
 connection node_1;
 SELECT VARIABLE_VALUE = 3 FROM INFORMATION_SCHEMA.GLOBAL_STATUS WHERE VARIABLE_NAME = 'wsrep_cluster_weight';
 VARIABLE_VALUE = 3
+1
 SET GLOBAL wsrep_provider_options = 'pc.weight=3';
 SELECT VARIABLE_VALUE = 5 FROM INFORMATION_SCHEMA.GLOBAL_STATUS WHERE VARIABLE_NAME = 'wsrep_cluster_weight';
 VARIABLE_VALUE = 5
+1
 SET GLOBAL wsrep_provider_options = 'gmcast.isolate=1';
 connection node_2;
 SET SESSION wsrep_sync_wait=0;
@@ -14,6 +16,7 @@ Variable_name	Value
 wsrep_cluster_size	2
 SHOW STATUS LIKE 'wsrep_cluster_weight';
 Variable_name	Value
+wsrep_cluster_weight	0
 SHOW STATUS LIKE 'wsrep_cluster_status';
 Variable_name	Value
 wsrep_cluster_status	non-Primary
@@ -38,6 +41,7 @@ Variable_name	Value
 wsrep_cluster_size	2
 SHOW STATUS LIKE 'wsrep_cluster_weight';
 Variable_name	Value
+wsrep_cluster_weight	0
 SHOW STATUS LIKE 'wsrep_cluster_status';
 Variable_name	Value
 wsrep_cluster_status	non-Primary
@@ -56,6 +60,7 @@ wsrep_local_state_comment	Initialized
 connection node_1;
 SELECT VARIABLE_VALUE = 3 FROM INFORMATION_SCHEMA.GLOBAL_STATUS WHERE VARIABLE_NAME = 'wsrep_cluster_weight';
 VARIABLE_VALUE = 3
+1
 SELECT VARIABLE_VALUE = 'Primary' FROM INFORMATION_SCHEMA.GLOBAL_STATUS WHERE VARIABLE_NAME = 'wsrep_cluster_status';
 VARIABLE_VALUE = 'Primary'
 1
@@ -74,7 +79,13 @@ VARIABLE_VALUE = 'Synced'
 SET GLOBAL wsrep_provider_options = 'pc.weight=1';
 SELECT VARIABLE_VALUE = 1 FROM INFORMATION_SCHEMA.GLOBAL_STATUS WHERE VARIABLE_NAME = 'wsrep_cluster_weight';
 VARIABLE_VALUE = 1
+<<<<<<< HEAD
 connection node_1;
+||||||| merged common ancestors
+=======
+1
+connection node_1;
+>>>>>>> 10.2
 SET GLOBAL wsrep_provider_options = 'gmcast.isolate=0';
 connection node_2;
 connection node_3;
@@ -84,6 +95,7 @@ VARIABLE_VALUE = 3
 1
 SELECT VARIABLE_VALUE = 3 FROM INFORMATION_SCHEMA.GLOBAL_STATUS WHERE VARIABLE_NAME = 'wsrep_cluster_weight';
 VARIABLE_VALUE = 3
+1
 SELECT VARIABLE_VALUE = 'Primary' FROM INFORMATION_SCHEMA.GLOBAL_STATUS WHERE VARIABLE_NAME = 'wsrep_cluster_status';
 VARIABLE_VALUE = 'Primary'
 1
@@ -105,6 +117,7 @@ VARIABLE_VALUE = 3
 1
 SELECT VARIABLE_VALUE = 3 FROM INFORMATION_SCHEMA.GLOBAL_STATUS WHERE VARIABLE_NAME = 'wsrep_cluster_weight';
 VARIABLE_VALUE = 3
+1
 SELECT VARIABLE_VALUE = 'Primary' FROM INFORMATION_SCHEMA.GLOBAL_STATUS WHERE VARIABLE_NAME = 'wsrep_cluster_status';
 VARIABLE_VALUE = 'Primary'
 1
@@ -126,6 +139,7 @@ VARIABLE_VALUE = 3
 1
 SELECT VARIABLE_VALUE = 3 FROM INFORMATION_SCHEMA.GLOBAL_STATUS WHERE VARIABLE_NAME = 'wsrep_cluster_weight';
 VARIABLE_VALUE = 3
+1
 SELECT VARIABLE_VALUE = 'Primary' FROM INFORMATION_SCHEMA.GLOBAL_STATUS WHERE VARIABLE_NAME = 'wsrep_cluster_status';
 VARIABLE_VALUE = 'Primary'
 1

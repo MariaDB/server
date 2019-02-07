@@ -1,0 +1,9 @@
+create table t1 (a int, b smallint) engine=innodb;
+connect con1,localhost,root,,test;
+alter table t1 add constraint check (b < 8);
+alter table t1 modify column b int, algorithm=inplace;
+ERROR 0A000: ALGORITHM=INPLACE is not supported. Reason: Cannot change column type INPLACE. Try ALGORITHM=COPY
+connection default;
+alter table t1 add primary key (a);
+drop table t1;
+disconnect con1;

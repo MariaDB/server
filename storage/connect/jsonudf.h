@@ -238,6 +238,11 @@ extern "C" {
 	DllExport my_bool envar_init(UDF_INIT*, UDF_ARGS*, char*);
 	DllExport char *envar(UDF_EXEC_ARGS);
 
+#if defined(DEVELOPMENT)
+	DllExport my_bool uvar_init(UDF_INIT*, UDF_ARGS*, char*);
+	DllExport char *uvar(UDF_EXEC_ARGS);
+#endif   // DEVELOPMENT
+
 	DllExport my_bool countin_init(UDF_INIT*, UDF_ARGS*, char*);
 	DllExport long long countin(UDF_EXEC_ARGS);
 } // extern "C"

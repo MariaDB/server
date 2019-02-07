@@ -52,10 +52,9 @@ static uint set_max_open_files(uint max_file_limit)
     DBUG_PRINT("info", ("rlim_cur: %u  rlim_max: %u",
 			(uint) rlimit.rlim_cur,
 			(uint) rlimit.rlim_max));
-    if ((ulonglong) rlimit.rlim_cur == (ulonglong) RLIM_INFINITY)
-      rlimit.rlim_cur = max_file_limit;
-    if (rlimit.rlim_cur >= max_file_limit)
-      DBUG_RETURN(rlimit.rlim_cur);		/* purecov: inspected */
+    if ((ulonglong) rlimit.rlim_cur == (ulonglong) RLIM_INFINITY ||
+        rlimit.rlim_cur >= max_file_limit)
+      DBUG_RETURN(max_file_limit);
     rlimit.rlim_cur= rlimit.rlim_max= max_file_limit;
     if (setrlimit(RLIMIT_NOFILE, &rlimit))
       max_file_limit= old_cur;			/* Use original value */
