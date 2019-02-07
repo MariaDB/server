@@ -17,6 +17,7 @@
 
 config=".my.cnf.$$"
 command=".mysql.$$"
+output=".my.output.$$"
 
 trap "interrupt" 1 2 3 6 15
 
@@ -216,7 +217,7 @@ prepare() {
 do_query() {
     echo "$1" >$command
     #sed 's,^,> ,' < $command  # Debugging
-    $mysql_command --defaults-file=$config $defaults_extra_file $no_defaults $args <$command
+    $mysql_command --defaults-file=$config $defaults_extra_file $no_defaults $args <$command >$output
     return $?
 }
 
@@ -268,15 +269,18 @@ get_root_password() {
 	echo
 	stty echo
 	if [ "x$password" = "x" ]; then
-	    hadpass=0
+	    emptypass=1
 	else
-	    hadpass=1
+	    emptypass=0
 	fi
 	rootpass=$password
 	make_config
-	do_query ""
+	do_query "show create user root@localhost"
 	status=$?
     done
+    if grep -q unix_socket $output; then
+      emptypass=0
+    fi
     echo "OK, successfully used password, moving on..."
     echo
 }
@@ -386,7 +390,7 @@ interrupt() {
 
 cleanup() {
     echo "Cleaning up..."
-    rm -f $config $command
+    rm -f $config $command $output
 }
 
 # Remove the files before exiting.
@@ -405,9 +409,8 @@ echo "NOTE: RUNNING ALL PARTS OF THIS SCRIPT IS RECOMMENDED FOR ALL MariaDB"
 echo "      SERVERS IN PRODUCTION USE!  PLEASE READ EACH STEP CAREFULLY!"
 echo
 echo "In order to log into MariaDB to secure it, we'll need the current"
-echo "password for the root user.  If you've just installed MariaDB, and"
-echo "you haven't set the root password yet, the password will be blank,"
-echo "so you should just press enter here."
+echo "password for the root user. If you've just installed MariaDB, and"
+echo "haven't set the root password yet, you should just press enter here."
 echo
 
 get_root_password
@@ -422,10 +425,10 @@ echo "root user without the proper authorisation."
 echo
 
 while true ; do
-    if [ $hadpass -eq 0 ]; then
+    if [ $emptypass -eq 1 ]; then
 	echo $echo_n "Set root password? [Y/n] $echo_c"
     else
-	echo "You already have a root password set, so you can safely answer 'n'."
+	echo "You already have your root account protected, so you can safely answer 'n'."
 	echo
 	echo $echo_n "Change the root password? [Y/n] $echo_c"
     fi
