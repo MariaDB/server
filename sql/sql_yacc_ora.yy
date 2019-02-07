@@ -1340,7 +1340,7 @@ bool my_yyoverflow(short **a, YYSTYPE **b, size_t *yystacksize);
 
 %type <ulong_num>
         ulong_num real_ulong_num merge_insert_types
-        ws_nweights opt_versioning_interval_start
+        ws_nweights
         ws_level_flag_desc ws_level_flag_reverse ws_level_flags
         opt_ws_levels ws_level_list ws_level_list_item ws_level_number
         ws_level_range ws_level_list_or_range bool
@@ -1387,6 +1387,7 @@ bool my_yyoverflow(short **a, YYSTYPE **b, size_t *yystacksize);
         simple_target_specification
         condition_number
         reset_lex_expr
+        opt_versioning_interval_start
 
 %type <item_param> param_marker
 
@@ -5998,7 +5999,8 @@ opt_versioning_rotation:
        | INTERVAL_SYM expr interval opt_versioning_interval_start
          {
            partition_info *part_info= Lex->part_info;
-           if (unlikely(part_info->vers_set_interval(thd, $2, $3, $4)))
+           const char *table_name= Lex->create_last_non_select_table->table_name.str;
+           if (unlikely(part_info->vers_set_interval(thd, $2, $3, $4, table_name)))
              MYSQL_YYABORT;
          }
        | LIMIT ulonglong_num
@@ -6018,17 +6020,11 @@ opt_versioning_rotation:
 opt_versioning_interval_start:
          /* empty */
          {
-           $$= thd->query_start();
+           $$= NULL;
          }
-       | STARTS_SYM ulong_num
+       | STARTS_SYM literal
          {
-           /* only allowed from mysql_unpack_partition() */
-           if (unlikely(!Lex->part_info->table))
-           {
-             thd->parse_error(ER_SYNTAX_ERROR, $1.pos());
-             MYSQL_YYABORT;
-           }
-           $$= (ulong)$2;
+           $$= $2;
          }
        ;
 

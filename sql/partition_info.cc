@@ -851,8 +851,13 @@ void partition_info::vers_set_hist_part(THD *thd)
     if (records > vers_info->limit)
     {
       if (next == vers_info->now_part)
-        goto warn;
-      vers_info->hist_part= next;
+      {
+        my_error(WARN_VERS_PART_FULL, MYF(ME_WARNING|ME_ERROR_LOG),
+                table->s->db.str, table->s->table_name.str,
+                vers_info->hist_part->partition_name, "LIMIT");
+      }
+      else
+        vers_info->hist_part= next;
     }
     return;
   }
@@ -873,13 +878,10 @@ void partition_info::vers_set_hist_part(THD *thd)
       if (next->range_value > thd->query_start())
         return;
     }
-    goto warn;
+    my_error(WARN_VERS_PART_FULL, MYF(ME_WARNING|ME_ERROR_LOG),
+            table->s->db.str, table->s->table_name.str,
+            vers_info->hist_part->partition_name, "INTERVAL");
   }
-  return;
-warn:
-  my_error(WARN_VERS_PART_FULL, MYF(ME_WARNING|ME_ERROR_LOG),
-           table->s->db.str, table->s->table_name.str,
-           vers_info->hist_part->partition_name);
 }
 
 
@@ -2378,6 +2380,111 @@ static bool strcmp_null(const char *a, const char *b)
     return false;
   if (a && b && !strcmp(a, b))
     return false;
+  return true;
+}
+
+/**
+  Assign INTERVAL and STARTS for SYSTEM_TIME partitions.
+
+  @return true on error
+*/
+
+bool partition_info::vers_set_interval(THD* thd, Item* interval,
+                                       interval_type int_type, Item* starts,
+                                       const char *table_name)
+{
+  DBUG_ASSERT(part_type == VERSIONING_PARTITION);
+
+  const bool interactive= !table;
+  MYSQL_TIME ltime;
+  uint err;
+  vers_info->interval.type= int_type;
+
+  /* 1. assign INTERVAL to interval.step */
+  if (interval->fix_fields_if_needed_for_scalar(thd, &interval))
+    return true;
+  bool error= get_interval_value(thd, interval, int_type, &vers_info->interval.step) ||
+          vers_info->interval.step.neg || vers_info->interval.step.second_part ||
+        !(vers_info->interval.step.year || vers_info->interval.step.month ||
+          vers_info->interval.step.day || vers_info->interval.step.hour ||
+          vers_info->interval.step.minute || vers_info->interval.step.second);
+  if (error) {
+    my_error(ER_PART_WRONG_VALUE, MYF(0), table_name, "INTERVAL");
+    return true;
+  }
+
+  /* 2. assign STARTS to interval.start */
+  if (starts)
+  {
+    if (starts->fix_fields_if_needed_for_scalar(thd, &starts))
+      return true;
+    switch (starts->result_type())
+    {
+      case INT_RESULT:
+      case DECIMAL_RESULT:
+      case REAL_RESULT:
+        if (starts->val_int() > TIMESTAMP_MAX_VALUE)
+          goto interval_starts_error;
+        vers_info->interval.start= (time_t) starts->val_int();
+        break;
+      case STRING_RESULT:
+      case TIME_RESULT:
+      {
+        Datetime::Options opt(TIME_NO_ZERO_DATE | TIME_NO_ZERO_IN_DATE, thd);
+        starts->get_date(thd, &ltime, opt);
+        vers_info->interval.start= TIME_to_timestamp(thd, &ltime, &err);
+        if (err)
+          goto interval_starts_error;
+        break;
+      }
+      case ROW_RESULT:
+      default:
+        goto interval_starts_error;
+    }
+    if (interactive)
+    {
+      my_tz_OFFSET0->gmt_sec_to_TIME(&ltime, thd->query_start());
+      if (date_add_interval(thd, &ltime, int_type, vers_info->interval.step))
+        return true;
+      my_time_t boundary= my_tz_OFFSET0->TIME_to_gmt_sec(&ltime, &err);
+      if (vers_info->interval.start > boundary) {
+        push_warning_printf(thd, Sql_condition::WARN_LEVEL_WARN,
+                            ER_PART_STARTS_BEYOND_INTERVAL,
+                            ER_THD(thd, ER_PART_STARTS_BEYOND_INTERVAL),
+                            table_name);
+      }
+    }
+  }
+  else // calculate default STARTS depending on INTERVAL
+  {
+    thd->variables.time_zone->gmt_sec_to_TIME(&ltime, thd->query_start());
+    if (vers_info->interval.step.second)
+      goto interval_set_starts;
+    ltime.second= 0;
+    if (vers_info->interval.step.minute)
+      goto interval_set_starts;
+    ltime.minute= 0;
+    if (vers_info->interval.step.hour)
+      goto interval_set_starts;
+    ltime.hour= 0;
+    if (vers_info->interval.step.day)
+      goto interval_set_starts;
+    ltime.day= 1;
+    if (vers_info->interval.step.month)
+      goto interval_set_starts;
+    ltime.month= 1;
+    DBUG_ASSERT(vers_info->interval.step.year);
+
+interval_set_starts:
+    vers_info->interval.start= TIME_to_timestamp(thd, &ltime, &err);
+    if (err)
+      goto interval_starts_error;
+  }
+
+  return false;
+
+interval_starts_error:
+  my_error(ER_PART_WRONG_VALUE, MYF(0), table_name, "STARTS");
   return true;
 }
 

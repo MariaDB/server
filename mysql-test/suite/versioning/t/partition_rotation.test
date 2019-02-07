@@ -1,5 +1,8 @@
 --source include/have_partition.inc
 
+set time_zone= "+00:00";
+call mtr.add_suppression("need more HISTORY partitions");
+
 #
 # partition rotation
 #
@@ -37,4 +40,162 @@ select * from t1 for system_time all where row_end = @ts;
 --replace_column 5 # 10 # 11 #
 explain partitions select * from t1 for system_time all where row_end = @ts;
 
-drop table t1;
+--echo ## INTERVAL ... STARTS
+--error ER_PART_WRONG_VALUE
+create or replace table t1 (i int) with system versioning
+partition by system_time interval 1 day starts 'a'
+(partition p0 history, partition pn current);
+
+--error ER_PART_WRONG_VALUE
+create or replace table t1 (i int) with system versioning
+partition by system_time interval 1 day starts '00:00:00'
+(partition p0 history, partition pn current);
+
+--error ER_PART_WRONG_VALUE
+create or replace table t1 (i int) with system versioning
+partition by system_time interval 1 day starts '2000-00-01 00:00:00'
+(partition p0 history, partition pn current);
+
+create or replace table t1 (i int) with system versioning
+partition by system_time interval 1 day starts '2000-01-01 00:00:00'
+(partition p0 history, partition pn current);
+show create table t1;
+
+--let $starts_sec= `select unix_timestamp('2000-01-01 00:00:00')`
+eval create or replace table t1 (i int) with system versioning
+partition by system_time interval 1 day starts $starts_sec
+(partition p0 history, partition pn current);
+show create table t1;
+
+--echo # Test STARTS warning
+set timestamp= unix_timestamp('2000-01-01 00:00:00');
+create or replace table t1 (i int) with system versioning
+partition by system_time interval 1 day
+(partition p0 history, partition pn current);
+show create table t1;
+
+--echo # no warning
+create or replace table t1 (i int) with system versioning
+partition by system_time interval 1 day starts '2000-01-02 00:00:00'
+(partition p0 history, partition pn current);
+
+--echo # warn about STARTS
+create or replace table t1 (i int) with system versioning
+partition by system_time interval 1 day starts '2000-01-02 00:00:01'
+(partition p0 history, partition pn current);
+
+--echo # Test default STARTS rounding
+set timestamp= unix_timestamp('1999-12-15 13:33:33');
+create or replace table t1 (i int) with system versioning
+partition by system_time interval 1 second
+(partition p0 history, partition pn current);
+show create table t1;
+
+create or replace table t1 (i int) with system versioning
+partition by system_time interval 1 minute
+(partition p0 history, partition pn current);
+show create table t1;
+
+create or replace table t1 (i int) with system versioning
+partition by system_time interval 1 hour
+(partition p0 history, partition pn current);
+show create table t1;
+
+create or replace table t1 (i int) with system versioning
+partition by system_time interval 1 day
+(partition p0 history, partition pn current);
+show create table t1;
+
+create or replace table t1 (i int) with system versioning
+partition by system_time interval 1 month
+(partition p0 history, partition pn current);
+show create table t1;
+
+create or replace table t1 (i int) with system versioning
+partition by system_time interval 1 year
+(partition p0 history, partition pn current);
+show create table t1;
+
+--echo # seconds equivalent of 1 day does not round:
+create or replace table t1 (i int) with system versioning
+partition by system_time interval 86400 second
+(partition p0 history, partition pn current);
+show create table t1;
+
+--echo # STARTS value is in local time_zone:
+set time_zone="+03:00";
+create or replace table t1 (i int) with system versioning
+partition by system_time interval 1 day starts '2000-01-01 00:00:00'
+(partition p0 history, partition pn current);
+
+set timestamp= unix_timestamp('2000-01-01 00:00:00');
+create or replace table t2 (i int) with system versioning
+partition by system_time interval 1 day
+(partition p0 history, partition pn current);
+
+show create table t1;
+show create table t2;
+set time_zone="+00:00";
+show create table t1;
+show create table t2;
+
+--echo # Test rotation
+set timestamp= unix_timestamp('2001-01-01 00:00:00');
+--echo # it's ok to add partitions for past:
+create or replace table t1 (i int) with system versioning
+partition by system_time interval 1 day starts '2000-01-01 00:00:00'
+(partition p0 history, partition p1 history, partition pn current);
+
+--echo # we are warned when we push to present:
+insert into t1 values (0);
+set timestamp= unix_timestamp('2001-01-01 00:00:01');
+update t1 set i= i + 1;
+set timestamp= unix_timestamp('2001-01-01 00:00:02');
+update t1 set i= i + 1;
+
+select *, row_end from t1 partition (p0);
+select *, row_end from t1 partition (p1);
+
+set timestamp= unix_timestamp('2000-01-01 00:00:00');
+--echo # now we "overflow" first partition a bit:
+create or replace table t1 (i int) with system versioning
+partition by system_time interval 1 day starts '2000-01-03 00:00:00'
+(partition p0 history, partition p1 history, partition pn current);
+
+insert into t1 values (0);
+set timestamp= unix_timestamp('2000-01-01 00:00:01');
+update t1 set i= i + 1;
+set timestamp= unix_timestamp('2000-01-02 00:00:01');
+update t1 set i= i + 1;
+set timestamp= unix_timestamp('2000-01-03 00:00:01');
+update t1 set i= i + 1;
+set timestamp= unix_timestamp('2000-01-04 00:00:01');
+update t1 set i= i + 1;
+
+select *, row_end from t1 partition (p0);
+select *, row_end from t1 partition (p1);
+
+set timestamp= unix_timestamp('2000-01-01 00:00:00');
+--echo # and this is how it usually goes:
+create or replace table t1 (i int) with system versioning
+partition by system_time interval 1 day
+(partition p0 history, partition p1 history, partition pn current);
+
+insert into t1 values (0);
+set timestamp= unix_timestamp('2000-01-01 00:00:01');
+update t1 set i= i + 1;
+set timestamp= unix_timestamp('2000-01-02 00:00:01');
+update t1 set i= i + 1;
+set timestamp= unix_timestamp('2000-01-03 00:00:01');
+update t1 set i= i + 1;
+set timestamp= unix_timestamp('2000-01-04 00:00:01');
+update t1 set i= i + 1;
+
+alter table t1 add partition (partition p2 history, partition p3 history);
+
+select *, row_end from t1 partition (p0);
+select *, row_end from t1 partition (p1);
+select *, row_end from t1 partition (p2);
+select *, row_end from t1 partition (p3);
+
+drop tables t1, t2;

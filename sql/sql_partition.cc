@@ -2672,10 +2672,20 @@ char *generate_partition_syntax(THD *thd, partition_info *part_info,
       err+= str.append(STRING_WITH_LEN("INTERVAL "));
       err+= append_interval(&str, vers_info->interval.type,
                                   vers_info->interval.step);
+      err+= str.append(STRING_WITH_LEN(" STARTS "));
       if (create_info) // not SHOW CREATE
       {
-        err+= str.append(STRING_WITH_LEN(" STARTS "));
         err+= str.append_ulonglong(vers_info->interval.start);
+      }
+      else
+      {
+        MYSQL_TIME ltime;
+        char ctime[MAX_DATETIME_WIDTH + 1];
+        thd->variables.time_zone->gmt_sec_to_TIME(&ltime, vers_info->interval.start);
+        uint ctime_len= my_datetime_to_str(&ltime, ctime, 0);
+        err+= str.append(STRING_WITH_LEN("TIMESTAMP'"));
+        err+= str.append(ctime, ctime_len);
+        err+= str.append('\'');
       }
     }
     if (vers_info->limit)
