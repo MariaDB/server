@@ -1,3 +1,5 @@
+set time_zone= "+00:00";
+call mtr.add_suppression("need more HISTORY partitions");
 set timestamp=unix_timestamp('2001-02-03 10:20:30');
 create or replace table t1 (i int) with system versioning
 partition by system_time interval 1 day
@@ -9,14 +11,14 @@ delete from t1;
 set timestamp=unix_timestamp('2001-02-04 10:20:50');
 insert t1 values (2);
 Warnings:
-Warning	4114	Versioned table `test`.`t1`: partition `p1` is full, add more HISTORY partitions
+Warning	4114	Versioned table `test`.`t1`: last HISTORY partition (`p1`) is out of INTERVAL, need more HISTORY partitions
 delete from t1;
 Warnings:
-Warning	4114	Versioned table `test`.`t1`: partition `p1` is full, add more HISTORY partitions
+Warning	4114	Versioned table `test`.`t1`: last HISTORY partition (`p1`) is out of INTERVAL, need more HISTORY partitions
 select subpartition_name,partition_description,table_rows from information_schema.partitions where table_schema='test' and table_name='t1';
 subpartition_name	partition_description	table_rows
-p1sp0	2001-02-04 10:20:30	1
-p1sp1	2001-02-04 10:20:30	1
+p1sp0	2001-02-04 00:00:00	1
+p1sp1	2001-02-04 00:00:00	1
 pnsp0	CURRENT	0
 pnsp1	CURRENT	0
 set timestamp=unix_timestamp('2001-02-04 10:20:55');
@@ -27,12 +29,12 @@ set timestamp=unix_timestamp('2001-02-04 10:30:10');
 update t1 set i=6 where i=5;
 select subpartition_name,partition_description,table_rows from information_schema.partitions where table_schema='test' and table_name='t1';
 subpartition_name	partition_description	table_rows
-p1sp0	2001-02-04 10:20:30	1
-p1sp1	2001-02-04 10:20:30	0
-p0sp0	2001-02-05 10:20:30	1
-p0sp1	2001-02-05 10:20:30	1
-p2sp0	2001-02-06 10:20:30	0
-p2sp1	2001-02-06 10:20:30	0
+p1sp0	2001-02-04 00:00:00	1
+p1sp1	2001-02-04 00:00:00	0
+p0sp0	2001-02-05 00:00:00	1
+p0sp1	2001-02-05 00:00:00	1
+p2sp0	2001-02-06 00:00:00	0
+p2sp1	2001-02-06 00:00:00	0
 pnsp0	CURRENT	0
 pnsp1	CURRENT	2
 ## pruning check
@@ -55,4 +57,265 @@ i
 explain partitions select * from t1 for system_time all where row_end = @ts;
 id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
 1	SIMPLE	t1	p1_p1sp0,p1_p1sp1	#	NULL	NULL	NULL	NULL	#	#
-drop table t1;
+## INTERVAL ... STARTS
+create or replace table t1 (i int) with system versioning
+partition by system_time interval 1 day starts 'a'
+(partition p0 history, partition pn current);
+ERROR HY000: Wrong parameters for partitioned `t1`: wrong value for 'STARTS'
+create or replace table t1 (i int) with system versioning
+partition by system_time interval 1 day starts '00:00:00'
+(partition p0 history, partition pn current);
+ERROR HY000: Wrong parameters for partitioned `t1`: wrong value for 'STARTS'
+create or replace table t1 (i int) with system versioning
+partition by system_time interval 1 day starts '2000-00-01 00:00:00'
+(partition p0 history, partition pn current);
+ERROR HY000: Wrong parameters for partitioned `t1`: wrong value for 'STARTS'
+create or replace table t1 (i int) with system versioning
+partition by system_time interval 1 day starts '2000-01-01 00:00:00'
+(partition p0 history, partition pn current);
+show create table t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `i` int(11) DEFAULT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=latin1 WITH SYSTEM VERSIONING
+ PARTITION BY SYSTEM_TIME INTERVAL 1 DAY STARTS TIMESTAMP'2000-01-01 00:00:00'
+(PARTITION `p0` HISTORY ENGINE = MyISAM,
+ PARTITION `pn` CURRENT ENGINE = MyISAM)
+create or replace table t1 (i int) with system versioning
+partition by system_time interval 1 day starts 946684800
+(partition p0 history, partition pn current);
+show create table t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `i` int(11) DEFAULT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=latin1 WITH SYSTEM VERSIONING
+ PARTITION BY SYSTEM_TIME INTERVAL 1 DAY STARTS TIMESTAMP'2000-01-01 00:00:00'
+(PARTITION `p0` HISTORY ENGINE = MyISAM,
+ PARTITION `pn` CURRENT ENGINE = MyISAM)
+# Test STARTS warning
+set timestamp= unix_timestamp('2000-01-01 00:00:00');
+create or replace table t1 (i int) with system versioning
+partition by system_time interval 1 day
+(partition p0 history, partition pn current);
+show create table t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `i` int(11) DEFAULT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=latin1 WITH SYSTEM VERSIONING
+ PARTITION BY SYSTEM_TIME INTERVAL 1 DAY STARTS TIMESTAMP'2000-01-01 00:00:00'
+(PARTITION `p0` HISTORY ENGINE = MyISAM,
+ PARTITION `pn` CURRENT ENGINE = MyISAM)
+# no warning
+create or replace table t1 (i int) with system versioning
+partition by system_time interval 1 day starts '2000-01-02 00:00:00'
+(partition p0 history, partition pn current);
+# warn about STARTS
+create or replace table t1 (i int) with system versioning
+partition by system_time interval 1 day starts '2000-01-02 00:00:01'
+(partition p0 history, partition pn current);
+Warnings:
+Warning	4161	`t1`: STARTS is too late, first history partition may exceed INTERVAL value
+# Test default STARTS rounding
+set timestamp= unix_timestamp('1999-12-15 13:33:33');
+create or replace table t1 (i int) with system versioning
+partition by system_time interval 1 second
+(partition p0 history, partition pn current);
+show create table t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `i` int(11) DEFAULT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=latin1 WITH SYSTEM VERSIONING
+ PARTITION BY SYSTEM_TIME INTERVAL 1 SECOND STARTS TIMESTAMP'1999-12-15 13:33:33'
+(PARTITION `p0` HISTORY ENGINE = MyISAM,
+ PARTITION `pn` CURRENT ENGINE = MyISAM)
+create or replace table t1 (i int) with system versioning
+partition by system_time interval 1 minute
+(partition p0 history, partition pn current);
+show create table t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `i` int(11) DEFAULT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=latin1 WITH SYSTEM VERSIONING
+ PARTITION BY SYSTEM_TIME INTERVAL 1 MINUTE STARTS TIMESTAMP'1999-12-15 13:33:00'
+(PARTITION `p0` HISTORY ENGINE = MyISAM,
+ PARTITION `pn` CURRENT ENGINE = MyISAM)
+create or replace table t1 (i int) with system versioning
+partition by system_time interval 1 hour
+(partition p0 history, partition pn current);
+show create table t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `i` int(11) DEFAULT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=latin1 WITH SYSTEM VERSIONING
+ PARTITION BY SYSTEM_TIME INTERVAL 1 HOUR STARTS TIMESTAMP'1999-12-15 13:00:00'
+(PARTITION `p0` HISTORY ENGINE = MyISAM,
+ PARTITION `pn` CURRENT ENGINE = MyISAM)
+create or replace table t1 (i int) with system versioning
+partition by system_time interval 1 day
+(partition p0 history, partition pn current);
+show create table t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `i` int(11) DEFAULT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=latin1 WITH SYSTEM VERSIONING
+ PARTITION BY SYSTEM_TIME INTERVAL 1 DAY STARTS TIMESTAMP'1999-12-15 00:00:00'
+(PARTITION `p0` HISTORY ENGINE = MyISAM,
+ PARTITION `pn` CURRENT ENGINE = MyISAM)
+create or replace table t1 (i int) with system versioning
+partition by system_time interval 1 month
+(partition p0 history, partition pn current);
+show create table t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `i` int(11) DEFAULT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=latin1 WITH SYSTEM VERSIONING
+ PARTITION BY SYSTEM_TIME INTERVAL 1 MONTH STARTS TIMESTAMP'1999-12-01 00:00:00'
+(PARTITION `p0` HISTORY ENGINE = MyISAM,
+ PARTITION `pn` CURRENT ENGINE = MyISAM)
+create or replace table t1 (i int) with system versioning
+partition by system_time interval 1 year
+(partition p0 history, partition pn current);
+show create table t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `i` int(11) DEFAULT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=latin1 WITH SYSTEM VERSIONING
+ PARTITION BY SYSTEM_TIME INTERVAL 1 YEAR STARTS TIMESTAMP'1999-01-01 00:00:00'
+(PARTITION `p0` HISTORY ENGINE = MyISAM,
+ PARTITION `pn` CURRENT ENGINE = MyISAM)
+# seconds equivalent of 1 day does not round:
+create or replace table t1 (i int) with system versioning
+partition by system_time interval 86400 second
+(partition p0 history, partition pn current);
+show create table t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `i` int(11) DEFAULT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=latin1 WITH SYSTEM VERSIONING
+ PARTITION BY SYSTEM_TIME INTERVAL 86400 SECOND STARTS TIMESTAMP'1999-12-15 13:33:33'
+(PARTITION `p0` HISTORY ENGINE = MyISAM,
+ PARTITION `pn` CURRENT ENGINE = MyISAM)
+# STARTS value is in local time_zone:
+set time_zone="+03:00";
+create or replace table t1 (i int) with system versioning
+partition by system_time interval 1 day starts '2000-01-01 00:00:00'
+(partition p0 history, partition pn current);
+Warnings:
+Warning	4161	`t1`: STARTS is too late, first history partition may exceed INTERVAL value
+set timestamp= unix_timestamp('2000-01-01 00:00:00');
+create or replace table t2 (i int) with system versioning
+partition by system_time interval 1 day
+(partition p0 history, partition pn current);
+show create table t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `i` int(11) DEFAULT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=latin1 WITH SYSTEM VERSIONING
+ PARTITION BY SYSTEM_TIME INTERVAL 1 DAY STARTS TIMESTAMP'2000-01-01 00:00:00'
+(PARTITION `p0` HISTORY ENGINE = MyISAM,
+ PARTITION `pn` CURRENT ENGINE = MyISAM)
+show create table t2;
+Table	Create Table
+t2	CREATE TABLE `t2` (
+  `i` int(11) DEFAULT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=latin1 WITH SYSTEM VERSIONING
+ PARTITION BY SYSTEM_TIME INTERVAL 1 DAY STARTS TIMESTAMP'2000-01-01 00:00:00'
+(PARTITION `p0` HISTORY ENGINE = MyISAM,
+ PARTITION `pn` CURRENT ENGINE = MyISAM)
+set time_zone="+00:00";
+show create table t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `i` int(11) DEFAULT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=latin1 WITH SYSTEM VERSIONING
+ PARTITION BY SYSTEM_TIME INTERVAL 1 DAY STARTS TIMESTAMP'1999-12-31 21:00:00'
+(PARTITION `p0` HISTORY ENGINE = MyISAM,
+ PARTITION `pn` CURRENT ENGINE = MyISAM)
+show create table t2;
+Table	Create Table
+t2	CREATE TABLE `t2` (
+  `i` int(11) DEFAULT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=latin1 WITH SYSTEM VERSIONING
+ PARTITION BY SYSTEM_TIME INTERVAL 1 DAY STARTS TIMESTAMP'1999-12-31 21:00:00'
+(PARTITION `p0` HISTORY ENGINE = MyISAM,
+ PARTITION `pn` CURRENT ENGINE = MyISAM)
+# Test rotation
+set timestamp= unix_timestamp('2001-01-01 00:00:00');
+# it's ok to add partitions for past:
+create or replace table t1 (i int) with system versioning
+partition by system_time interval 1 day starts '2000-01-01 00:00:00'
+(partition p0 history, partition p1 history, partition pn current);
+# we are warned when we push to present:
+insert into t1 values (0);
+Warnings:
+Warning	4114	Versioned table `test`.`t1`: last HISTORY partition (`p1`) is out of INTERVAL, need more HISTORY partitions
+set timestamp= unix_timestamp('2001-01-01 00:00:01');
+update t1 set i= i + 1;
+Warnings:
+Warning	4114	Versioned table `test`.`t1`: last HISTORY partition (`p1`) is out of INTERVAL, need more HISTORY partitions
+set timestamp= unix_timestamp('2001-01-01 00:00:02');
+update t1 set i= i + 1;
+Warnings:
+Warning	4114	Versioned table `test`.`t1`: last HISTORY partition (`p1`) is out of INTERVAL, need more HISTORY partitions
+select *, row_end from t1 partition (p0);
+i	row_end
+select *, row_end from t1 partition (p1);
+i	row_end
+0	2001-01-01 00:00:01.000000
+1	2001-01-01 00:00:02.000000
+set timestamp= unix_timestamp('2000-01-01 00:00:00');
+# now we "overflow" first partition a bit:
+create or replace table t1 (i int) with system versioning
+partition by system_time interval 1 day starts '2000-01-03 00:00:00'
+(partition p0 history, partition p1 history, partition pn current);
+Warnings:
+Warning	4161	`t1`: STARTS is too late, first history partition may exceed INTERVAL value
+insert into t1 values (0);
+set timestamp= unix_timestamp('2000-01-01 00:00:01');
+update t1 set i= i + 1;
+set timestamp= unix_timestamp('2000-01-02 00:00:01');
+update t1 set i= i + 1;
+set timestamp= unix_timestamp('2000-01-03 00:00:01');
+update t1 set i= i + 1;
+set timestamp= unix_timestamp('2000-01-04 00:00:01');
+update t1 set i= i + 1;
+select *, row_end from t1 partition (p0);
+i	row_end
+0	2000-01-01 00:00:01.000000
+1	2000-01-02 00:00:01.000000
+2	2000-01-03 00:00:01.000000
+select *, row_end from t1 partition (p1);
+i	row_end
+3	2000-01-04 00:00:01.000000
+set timestamp= unix_timestamp('2000-01-01 00:00:00');
+# and this is how it usually goes:
+create or replace table t1 (i int) with system versioning
+partition by system_time interval 1 day
+(partition p0 history, partition p1 history, partition pn current);
+insert into t1 values (0);
+set timestamp= unix_timestamp('2000-01-01 00:00:01');
+update t1 set i= i + 1;
+set timestamp= unix_timestamp('2000-01-02 00:00:01');
+update t1 set i= i + 1;
+set timestamp= unix_timestamp('2000-01-03 00:00:01');
+update t1 set i= i + 1;
+Warnings:
+Warning	4114	Versioned table `test`.`t1`: last HISTORY partition (`p1`) is out of INTERVAL, need more HISTORY partitions
+set timestamp= unix_timestamp('2000-01-04 00:00:01');
+update t1 set i= i + 1;
+Warnings:
+Warning	4114	Versioned table `test`.`t1`: last HISTORY partition (`p1`) is out of INTERVAL, need more HISTORY partitions
+alter table t1 add partition (partition p2 history, partition p3 history);
+select *, row_end from t1 partition (p0);
+i	row_end
+0	2000-01-01 00:00:01.000000
+select *, row_end from t1 partition (p1);
+i	row_end
+1	2000-01-02 00:00:01.000000
+select *, row_end from t1 partition (p2);
+i	row_end
+2	2000-01-03 00:00:01.000000
+select *, row_end from t1 partition (p3);
+i	row_end
+3	2000-01-04 00:00:01.000000
+drop tables t1, t2;
