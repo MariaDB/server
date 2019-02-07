@@ -420,8 +420,40 @@ get_root_password
 # Set the root password
 #
 
-echo "Setting the root password ensures that nobody can log into the MariaDB"
-echo "root user without the proper authorisation."
+echo "Setting the root password or using the unix_socket ensures that nobody"
+echo "can log into the MariaDB root user without the proper authorisation."
+echo
+
+while true ; do
+    if [ $emptypass -eq 1 ]; then
+	echo $echo_n "Enable unix_socket authentication? [Y/n] $echo_c"
+    else
+	echo "You already have your root account protected, so you can safely answer 'n'."
+	echo
+	echo $echo_n "Switch to unix_socket authentication [Y/n] $echo_c"
+    fi
+    read reply
+    validate_reply $reply && break
+done
+
+if [ "$reply" = "n" ]; then
+  echo " ... skipping."
+else
+  emptypass=0
+  do_query "UPDATE mysql.global_priv SET priv=json_set(priv, '$.plugin', 'mysql_native_password', '$.authentication_string', 'invalid', '$.auth_or', json_array(json_object(), json_object('plugin', 'unix_socket'))) WHERE User='root';"
+  if [ $? -eq 0 ]; then
+   echo "Enabled successfully!"
+   echo "Reloading privilege tables.."
+   reload_privilege_tables
+   if [ $? -eq 1 ]; then
+     clean_and_exit
+   fi
+   echo
+  else
+   echo "Failed!"
+   clean_and_exit
+  fi
+fi
 echo
 
 while true ; do
