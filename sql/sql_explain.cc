@@ -392,11 +392,19 @@ int print_explain_row(select_result_sink *result,
     item_list.push_back(item_null, mem_root);
   
   /* 'r_rows' */
+  StringBuffer<64> r_rows_str;
   if (is_analyze)
   {
     if (r_rows)
-      item_list.push_back(new (mem_root) Item_float(thd, *r_rows, 2),
-                          mem_root);
+    {
+      Item_float *fl= new (mem_root) Item_float(thd, *r_rows, 2);
+      String tmp;
+      String *res= fl->val_str(&tmp);
+      r_rows_str.append(res->ptr());
+      item_list.push_back(new (mem_root)
+                          Item_string_sys(thd, r_rows_str.ptr(),
+                                          r_rows_str.length()), mem_root);
+    }
     else
       item_list.push_back(item_null, mem_root);
   }
@@ -529,10 +537,17 @@ int Explain_union::print_explain(Explain_query *query,
   item_list.push_back(item_null, mem_root);
   
   /* `r_rows` */
+  StringBuffer<64> r_rows_str;
   if (is_analyze)
   {
     double avg_rows= fake_select_lex_tracker.get_avg_rows();
-    item_list.push_back(new (mem_root) Item_float(thd, avg_rows, 2), mem_root);
+    Item_float *fl= new (mem_root) Item_float(thd, avg_rows, 2);
+    String tmp;
+    String *res= fl->val_str(&tmp);
+    r_rows_str.append(res->ptr());
+    item_list.push_back(new (mem_root)
+                        Item_string_sys(thd, r_rows_str.ptr(),
+                                        r_rows_str.length()), mem_root);
   }
 
   /* `filtered` */
