@@ -24,8 +24,6 @@ The memory management
 Created 6/9/1994 Heikki Tuuri
 *************************************************************************/
 
-#include "ha_prototypes.h"
-
 #include "mem0mem.h"
 #include "buf0buf.h"
 #include "srv0srv.h"

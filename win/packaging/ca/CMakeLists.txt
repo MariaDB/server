@@ -18,7 +18,8 @@ SET(WIXCA_SOURCES CustomAction.cpp CustomAction.def)
 
 INCLUDE_DIRECTORIES(${CMAKE_SOURCE_DIR}/sql)
 
+# Custom action should not depend on C runtime, since we do not know if CRT is installed.
+FORCE_STATIC_CRT()
 ADD_VERSION_INFO(wixca SHARED WIXCA_SOURCES)
-ADD_LIBRARY(wixca SHARED EXCLUDE_FROM_ALL ${WIXCA_SOURCES})
-TARGET_LINK_LIBRARIES(wixca ${WIX_WCAUTIL_LIBRARY} ${WIX_DUTIL_LIBRARY} 
-  msi version winservice)
+ADD_LIBRARY(wixca SHARED EXCLUDE_FROM_ALL ${WIXCA_SOURCES} ${CMAKE_SOURCE_DIR}/sql/winservice.c)
+TARGET_LINK_LIBRARIES(wixca ${WIX_WCAUTIL_LIBRARY} ${WIX_DUTIL_LIBRARY} msi version)

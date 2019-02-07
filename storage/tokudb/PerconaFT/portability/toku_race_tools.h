@@ -45,7 +45,7 @@ Copyright (c) 2006, 2015, Percona and/or its affiliates. All rights reserved.
 #define USE_VALGRIND 1
 #endif
 
-#if defined(__linux__) && USE_VALGRIND
+#if defined(__linux__) && defined(USE_VALGRIND) && USE_VALGRIND
 
 # include <valgrind/helgrind.h>
 # include <valgrind/drd.h>

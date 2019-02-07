@@ -27,12 +27,9 @@ Created 2013-7-26 by Kevin Lewis
 #ifndef fsp0file_h
 #define fsp0file_h
 
-#include "ha_prototypes.h"
-#include "log0log.h"
 #include "mem0mem.h"
 #include "os0file.h"
-#include "fil0crypt.h"
-#include <vector>
+#include "fil0fil.h"
 
 /** Types of raw partitions in innodb_data_file_path */
 enum device_t {
@@ -316,6 +313,25 @@ public:
 	{
 		return(m_last_os_error);
 	}
+
+	/** Check whether the file is empty.
+	@return true if file is empty */
+	bool	is_empty_file()		const
+	{
+#ifdef _WIN32
+		os_offset_t	offset =
+			(os_offset_t) m_file_info.nFileSizeLow
+			| ((os_offset_t) m_file_info.nFileSizeHigh << 32);
+
+		return (offset == 0);
+#else
+		return (m_file_info.st_size == 0);
+#endif
+	}
+
+	/** Check if the file exist.
+	@return true if file exists. */
+	bool exists()	const { return m_exists; }
 
 	/** Test if the filepath provided looks the same as this filepath
 	by string comparison. If they are two different paths to the same

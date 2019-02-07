@@ -24,8 +24,6 @@ Purge old versions
 Created 3/26/1996 Heikki Tuuri
 *******************************************************/
 
-#include "ha_prototypes.h"
-
 #include "trx0purge.h"
 #include "fsp0fsp.h"
 #include "fut0fut.h"
@@ -36,7 +34,6 @@ Created 3/26/1996 Heikki Tuuri
 #include "row0purge.h"
 #include "row0upd.h"
 #include "srv0mon.h"
-#include "fsp0sysspace.h"
 #include "srv0srv.h"
 #include "srv0start.h"
 #include "sync0sync.h"
@@ -167,8 +164,6 @@ void purge_sys_t::create()
   ut_ad(event);
   m_paused= 0;
   query= purge_graph_build();
-  n_submitted= 0;
-  n_completed= 0;
   next_stored= false;
   rseg= NULL;
   page_no= 0;
@@ -187,7 +182,8 @@ void purge_sys_t::close()
   ut_ad(this == &purge_sys);
   if (!event) return;
 
-  m_enabled= false;
+  ut_ad(!enabled());
+  ut_ad(n_tasks.load(std::memory_order_relaxed) == 0);
   trx_t* trx = query->trx;
   que_graph_free(query);
   ut_ad(!trx->id);
@@ -279,7 +275,7 @@ trx_purge_add_undo_to_history(const trx_t* trx, trx_undo_t*& undo, mtr_t* mtr)
 	ut_ad(srv_undo_sources
 	      || trx->undo_no == 0
 	      || (!purge_sys.enabled()
-		  && (srv_startup_is_before_trx_rollback_phase
+		  && (srv_is_being_started
 		      || trx_rollback_is_active
 		      || srv_force_recovery >= SRV_FORCE_NO_BACKGROUND))
 	      || ((trx->mysql_thd || trx->internal)
@@ -318,7 +314,7 @@ trx_purge_add_undo_to_history(const trx_t* trx, trx_undo_t*& undo, mtr_t* mtr)
 		rseg->needs_purge = true;
 	}
 
-	trx_sys.history_insert();
+	trx_sys.rseg_history_len++;
 
 	if (undo->state == TRX_UNDO_CACHED) {
 		UT_LIST_ADD_FIRST(rseg->undo_cached, undo);
@@ -344,7 +340,7 @@ trx_purge_remove_log_hdr(
 {
 	flst_remove(rseg_hdr + TRX_RSEG_HISTORY,
 		    log_hdr + TRX_UNDO_HISTORY_NODE, mtr);
-	trx_sys.history_remove();
+	trx_sys.rseg_history_len--;
 }
 
 /** Free an undo log segment, and remove the header from the history list.
@@ -783,7 +779,7 @@ not_free:
 				 os_offset_t(size) << srv_page_size_shift,
 				 true);
 
-		/* This is only executed by the srv_coordinator_thread. */
+		/* This is only executed by srv_purge_coordinator_thread. */
 		export_vars.innodb_undo_truncations++;
 
 		/* TODO: PUNCH_HOLE the garbage (with write-ahead logging) */
@@ -1243,7 +1239,7 @@ trx_purge_dml_delay(void)
 	if (srv_max_purge_lag > 0) {
 		float	ratio;
 
-		ratio = float(trx_sys.history_size()) / srv_max_purge_lag;
+		ratio = float(trx_sys.rseg_history_len) / srv_max_purge_lag;
 
 		if (ratio > 1.0) {
 			/* If the history list length exceeds the
@@ -1269,8 +1265,7 @@ void
 trx_purge_wait_for_workers_to_complete()
 {
 	/* Ensure that the work queue empties out. */
-	while (my_atomic_loadlint(&purge_sys.n_completed)
-	       != purge_sys.n_submitted) {
+	while (purge_sys.n_tasks.load(std::memory_order_acquire)) {
 
 		if (srv_get_task_queue_length() > 0) {
 			srv_release_threads(SRV_WORKER, 1);
@@ -1301,9 +1296,8 @@ trx_purge(
 
 	srv_dml_needed_delay = trx_purge_dml_delay();
 
-	/* The number of tasks submitted should be completed. */
-	ut_a(purge_sys.n_submitted
-	     == my_atomic_loadlint(&purge_sys.n_completed));
+	/* All submitted tasks should be completed. */
+	ut_ad(purge_sys.n_tasks.load(std::memory_order_relaxed) == 0);
 
 	rw_lock_x_lock(&purge_sys.latch);
 	trx_sys.clone_oldest_view();
@@ -1317,7 +1311,7 @@ trx_purge(
 
 	/* Fetch the UNDO recs that need to be purged. */
 	n_pages_handled = trx_purge_attach_undo_recs(n_purge_threads);
-	purge_sys.n_submitted += n_purge_threads;
+	purge_sys.n_tasks.store(n_purge_threads - 1, std::memory_order_relaxed);
 
 	/* Submit tasks to workers queue if using multi-threaded purge. */
 	for (ulint i = n_purge_threads; --i; ) {
@@ -1330,14 +1324,9 @@ trx_purge(
 
 	que_run_threads(thr);
 
-	my_atomic_addlint(&purge_sys.n_completed, 1);
+	trx_purge_wait_for_workers_to_complete();
 
-	if (n_purge_threads > 1) {
-		trx_purge_wait_for_workers_to_complete();
-	}
-
-	ut_a(purge_sys.n_submitted
-	     == my_atomic_loadlint(&purge_sys.n_completed));
+	ut_ad(purge_sys.n_tasks.load(std::memory_order_relaxed) == 0);
 
 	if (truncate) {
 		trx_purge_truncate_history();
@@ -1354,7 +1343,7 @@ void purge_sys_t::stop()
 {
   rw_lock_x_lock(&latch);
 
-  if (!enabled_latched())
+  if (!enabled())
   {
     /* Shutdown must have been initiated during FLUSH TABLES FOR EXPORT. */
     ut_ad(!srv_undo_sources);
@@ -1364,7 +1353,7 @@ void purge_sys_t::stop()
 
   ut_ad(srv_n_purge_threads > 0);
 
-  if (0 == my_atomic_add32_explicit(&m_paused, 1, MY_MEMORY_ORDER_RELAXED))
+  if (m_paused++ == 0)
   {
     /* We need to wakeup the purge thread in case it is suspended, so
     that it can acknowledge the state change. */
@@ -1398,8 +1387,7 @@ void purge_sys_t::resume()
      return;
    }
 
-   int32_t paused= my_atomic_add32_explicit(&m_paused, -1,
-                                            MY_MEMORY_ORDER_RELAXED);
+   int32_t paused= m_paused--;
    ut_a(paused);
 
    if (paused == 1)

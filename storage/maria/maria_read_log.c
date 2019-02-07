@@ -31,6 +31,7 @@ const char *default_dbug_option= "d:t:o,/tmp/aria_read_log.trace";
 #endif /* DBUG_OFF */
 static my_bool opt_display_only, opt_apply, opt_apply_undo, opt_silent;
 static my_bool opt_check;
+static my_bool opt_print_aria_log_control;
 static const char *opt_tmpdir;
 static ulong opt_translog_buffer_size;
 static ulonglong opt_page_buffer_size;
@@ -59,6 +60,12 @@ int main(int argc, char **argv)
     goto err;
   }
   maria_block_size= 0;                          /* Use block size from file */
+  if (opt_print_aria_log_control)
+  {
+    if (print_aria_log_control())
+      goto err;
+    goto end;
+  }
   /* we don't want to create a control file, it MUST exist */
   if (ma_control_file_open(FALSE, TRUE))
   {
@@ -209,6 +216,10 @@ static struct my_option my_long_options[] =
     &opt_page_buffer_size, &opt_page_buffer_size, 0,
     GET_ULL, REQUIRED_ARG, PAGE_BUFFER_INIT,
     PAGE_BUFFER_INIT, SIZE_T_MAX, MALLOC_OVERHEAD, (long) IO_SIZE, 0},
+  { "print-log-control-file", 'l',
+    "Print the content of the aria_log_control_file",
+    &opt_print_aria_log_control, &opt_print_aria_log_control, 0,
+    GET_BOOL, NO_ARG, 0, 0, 0, 0, 0, 0},
   { "start-from-lsn", 'o', "Start reading log from this lsn",
     &opt_start_from_lsn, &opt_start_from_lsn,
     0, GET_ULL, REQUIRED_ARG, 0, 0, ~(longlong) 0, 0, 0, 0 },
@@ -249,7 +260,7 @@ static struct my_option my_long_options[] =
 
 static void print_version(void)
 {
-  printf("%s Ver 1.3 for %s on %s\n",
+  printf("%s Ver 1.4 for %s on %s\n",
               my_progname_short, SYSTEM_TYPE, MACHINE_TYPE);
 }
 
@@ -271,6 +282,11 @@ static void usage(void)
 #endif
   printf("\nUsage: %s OPTIONS [-d | -a] -h `aria_log_directory`\n",
          my_progname_short);
+  printf("or\n");
+  printf("Usage: %s OPTIONS -h `aria_log_directory` "
+         "--print-aria-log-control\n\n",
+         my_progname_short);
+
   my_print_help(my_long_options);
   print_defaults("my", load_default_groups);
   my_print_variables(my_long_options);
@@ -339,12 +355,12 @@ static void get_options(int *argc,char ***argv)
     need_help= 1;
     fprintf(stderr, "Too many arguments given\n");
   }
-  if ((opt_display_only + opt_apply) != 1)
+  if ((opt_display_only + opt_apply + opt_print_aria_log_control) != 1)
   {
     need_help= 1;
     fprintf(stderr,
-            "You must use one and only one of the options 'display-only' or "
-            "'apply'\n");
+            "You must use one and only one of the options 'display-only', \n"
+            "'print-log-control-file' and 'apply'\n");
   }
 
   if (need_help)

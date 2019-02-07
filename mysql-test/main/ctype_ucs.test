@@ -1094,3 +1094,18 @@ DEALLOCATE PREPARE stmt;
 --echo #
 --echo # End of 10.2 tests
 --echo #
+
+--echo #
+--echo # Start of 10.4 tests
+--echo #
+
+--echo #
+--echo # MDEV-17995 INET6_NTOA(ucs2_input) erroneously returns NULL
+--echo #
+
+SELECT HEX(INET6_ATON('1::1')), HEX(INET6_ATON(CONVERT('1::1' USING ucs2)));
+
+
+--echo #
+--echo # End of 10.4 tests
+--echo #

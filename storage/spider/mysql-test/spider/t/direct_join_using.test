@@ -1,0 +1,197 @@
+--source ../include/direct_join_using_init.inc
+
+--echo
+--echo drop and create databases
+--connection master_1
+--disable_warnings
+DROP DATABASE IF EXISTS auto_test_local;
+CREATE DATABASE auto_test_local;
+USE auto_test_local;
+if ($USE_CHILD_GROUP2)
+{
+  --connection child2_1
+  if ($USE_GENERAL_LOG)
+  {
+    SET @old_log_output = @@global.log_output;
+    SET GLOBAL log_output = 'TABLE,FILE';
+  }
+  DROP DATABASE IF EXISTS auto_test_remote;
+  CREATE DATABASE auto_test_remote;
+  USE auto_test_remote;
+}
+--enable_warnings
+
+--echo
+--echo test select 1
+--connection master_1
+SELECT 1;
+if ($USE_CHILD_GROUP2)
+{
+  if (!$OUTPUT_CHILD_GROUP2)
+  {
+    --disable_query_log
+    --disable_result_log
+  }
+  --connection child2_1
+  SELECT 1;
+  if (!$OUTPUT_CHILD_GROUP2)
+  {
+    --enable_query_log
+    --enable_result_log
+  }
+}
+
+--echo
+--echo create table and insert
+if ($USE_CHILD_GROUP2)
+{
+  if (!$OUTPUT_CHILD_GROUP2)
+  {
+    --disable_query_log
+    --disable_result_log
+  }
+  --connection child2_1
+  if ($OUTPUT_CHILD_GROUP2)
+  {
+    --disable_query_log
+    echo CHILD2_1_DROP_TABLES;
+    echo CHILD2_1_DROP_TABLES6;
+    echo CHILD2_1_DROP_TABLES5;
+    echo CHILD2_1_CREATE_TABLES;
+    echo CHILD2_1_CREATE_TABLES6;
+    echo CHILD2_1_CREATE_TABLES5;
+  }
+  --disable_warnings
+  eval $CHILD2_1_DROP_TABLES;
+  eval $CHILD2_1_DROP_TABLES6;
+  eval $CHILD2_1_DROP_TABLES5;
+  --enable_warnings
+  eval $CHILD2_1_CREATE_TABLES;
+  eval $CHILD2_1_CREATE_TABLES6;
+  eval $CHILD2_1_CREATE_TABLES5;
+  if ($OUTPUT_CHILD_GROUP2)
+  {
+    --enable_query_log
+  }
+  if ($USE_GENERAL_LOG)
+  {
+    TRUNCATE TABLE mysql.general_log;
+  }
+  if (!$OUTPUT_CHILD_GROUP2)
+  {
+    --enable_query_log
+    --enable_result_log
+  }
+}
+--connection master_1
+--disable_warnings
+DROP TABLE IF EXISTS tbl_a;
+--enable_warnings
+--disable_query_log
+echo CREATE TABLE tbl_a (
+    a INT DEFAULT 10,
+    b CHAR(1) DEFAULT 'c',
+    c DATETIME DEFAULT '1999-10-10 10:10:10',
+    PRIMARY KEY(a),
+    KEY idx1(b)
+) MASTER_1_ENGINE MASTER_1_CHARSET MASTER_1_COMMENT_2_1;
+eval CREATE TABLE tbl_a (
+    a INT DEFAULT 10,
+    b CHAR(1) DEFAULT 'c',
+    c DATETIME DEFAULT '1999-10-10 10:10:10',
+    PRIMARY KEY(a),
+    KEY idx1(b)
+) $MASTER_1_ENGINE $MASTER_1_CHARSET $MASTER_1_COMMENT_2_1;
+echo CREATE TABLE tbl_b (
+    a INT DEFAULT 10,
+    b CHAR(1) DEFAULT 'c',
+    c DATETIME DEFAULT '1999-10-10 10:10:10'
+) MASTER_1_ENGINE MASTER_1_CHARSET MASTER_1_COMMENT5_2_1;
+eval CREATE TABLE tbl_b (
+    a INT DEFAULT 10,
+    b CHAR(1) DEFAULT 'c',
+    c DATETIME DEFAULT '1999-10-10 10:10:10'
+) $MASTER_1_ENGINE $MASTER_1_CHARSET $MASTER_1_COMMENT5_2_1;
+echo CREATE TABLE tbl_c (
+    a INT AUTO_INCREMENT,
+    b INT DEFAULT 10,
+    c INT DEFAULT 11,
+    PRIMARY KEY(a),
+    KEY idx1(b),
+    KEY idx2(c)
+) MASTER_1_ENGINE MASTER_1_CHARSET MASTER_1_COMMENT4_2_1;
+eval CREATE TABLE tbl_c (
+    a INT AUTO_INCREMENT,
+    b INT DEFAULT 10,
+    c INT DEFAULT 11,
+    PRIMARY KEY(a),
+    KEY idx1(b),
+    KEY idx2(c)
+) $MASTER_1_ENGINE $MASTER_1_CHARSET $MASTER_1_COMMENT4_2_1;
+--enable_query_log
+insert into tbl_a values (1,'a','2000/01/01'),(2,'b','2000/01/02'),(3,'c','2000/01/03'),(4,'d','2000/01/04'),(5,'e','2000/01/05');
+insert into tbl_b values (1,'a','2000/01/01'),(2,'b','2000/01/02'),(3,'c','2000/01/03'),(4,'d','2000/01/04'),(5,'e','2000/01/05');
+insert into tbl_c values (1,10,100),(2,20,200),(3,30,300),(4,40,400),(5,50,500);
+
+--echo
+--echo select test
+if ($USE_CHILD_GROUP2)
+{
+  if (!$OUTPUT_CHILD_GROUP2)
+  {
+    --disable_query_log
+    --disable_result_log
+  }
+  --connection child2_1
+  if ($USE_GENERAL_LOG)
+  {
+    TRUNCATE TABLE mysql.general_log;
+  }
+  if (!$OUTPUT_CHILD_GROUP2)
+  {
+    --enable_query_log
+    --enable_result_log
+  }
+}
+
+--connection master_1
+SELECT a.a, c.b, c.c FROM tbl_a a join tbl_b b using(a) join tbl_c c using(a) ORDER BY a.b DESC;
+
+if ($USE_CHILD_GROUP2)
+{
+  if (!$OUTPUT_CHILD_GROUP2)
+  {
+    --disable_query_log
+    --disable_result_log
+  }
+  --connection child2_1
+  if ($USE_GENERAL_LOG)
+  {
+    eval $CHILD2_1_SELECT_ARGUMENT1;
+  }
+  eval $CHILD2_1_SELECT_TABLES;
+  if (!$OUTPUT_CHILD_GROUP2)
+  {
+    --enable_query_log
+    --enable_result_log
+  }
+}
+
+--echo
+--echo deinit
+--disable_warnings
+--connection master_1
+DROP DATABASE IF EXISTS auto_test_local;
+if ($USE_CHILD_GROUP2)
+{
+  --connection child2_1
+  DROP DATABASE IF EXISTS auto_test_remote;
+  if ($USE_GENERAL_LOG)
+  {
+    SET GLOBAL log_output = @old_log_output;
+  }
+}
+--enable_warnings
+--source ../include/direct_join_using_deinit.inc
+--echo
+--echo end of test

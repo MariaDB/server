@@ -74,24 +74,12 @@ UPDATE t SET c2 = '0' WHERE c4 = '0';
 UPDATE t SET c2 = '2' WHERE c4 = '2';
 include/rpl_sync.inc
 include/diff_tables.inc [server_1:test.t, server_2:test.t, server_3:test.t]
-Warnings:
-Warning	1287	'<select expression> INTO <destination>;' is deprecated and will be removed in a future release. Please use 'SELECT <select list> INTO <destination> FROM...' instead
-Warnings:
-Warning	1287	'<select expression> INTO <destination>;' is deprecated and will be removed in a future release. Please use 'SELECT <select list> INTO <destination> FROM...' instead
-Warnings:
-Warning	1287	'<select expression> INTO <destination>;' is deprecated and will be removed in a future release. Please use 'SELECT <select list> INTO <destination> FROM...' instead
 connection server_1;
 DELETE FROM t WHERE c1 = 7;
 DELETE FROM t WHERE c1 = 8;
 DELETE FROM t;
 include/rpl_sync.inc
 include/diff_tables.inc [server_1:test.t, server_2:test.t, server_3:test.t]
-Warnings:
-Warning	1287	'<select expression> INTO <destination>;' is deprecated and will be removed in a future release. Please use 'SELECT <select list> INTO <destination> FROM...' instead
-Warnings:
-Warning	1287	'<select expression> INTO <destination>;' is deprecated and will be removed in a future release. Please use 'SELECT <select list> INTO <destination> FROM...' instead
-Warnings:
-Warning	1287	'<select expression> INTO <destination>;' is deprecated and will be removed in a future release. Please use 'SELECT <select list> INTO <destination> FROM...' instead
 connection server_1;
 DROP TABLE t;
 include/rpl_sync.inc
@@ -135,24 +123,12 @@ UPDATE t SET c2 = '0' WHERE c4 = '0';
 UPDATE t SET c2 = '2' WHERE c4 = '2';
 include/rpl_sync.inc
 include/diff_tables.inc [server_1:test.t, server_2:test.t, server_3:test.t]
-Warnings:
-Warning	1287	'<select expression> INTO <destination>;' is deprecated and will be removed in a future release. Please use 'SELECT <select list> INTO <destination> FROM...' instead
-Warnings:
-Warning	1287	'<select expression> INTO <destination>;' is deprecated and will be removed in a future release. Please use 'SELECT <select list> INTO <destination> FROM...' instead
-Warnings:
-Warning	1287	'<select expression> INTO <destination>;' is deprecated and will be removed in a future release. Please use 'SELECT <select list> INTO <destination> FROM...' instead
 connection server_1;
 DELETE FROM t WHERE c1 = 7;
 DELETE FROM t WHERE c1 = 8;
 DELETE FROM t;
 include/rpl_sync.inc
 include/diff_tables.inc [server_1:test.t, server_2:test.t, server_3:test.t]
-Warnings:
-Warning	1287	'<select expression> INTO <destination>;' is deprecated and will be removed in a future release. Please use 'SELECT <select list> INTO <destination> FROM...' instead
-Warnings:
-Warning	1287	'<select expression> INTO <destination>;' is deprecated and will be removed in a future release. Please use 'SELECT <select list> INTO <destination> FROM...' instead
-Warnings:
-Warning	1287	'<select expression> INTO <destination>;' is deprecated and will be removed in a future release. Please use 'SELECT <select list> INTO <destination> FROM...' instead
 connection server_1;
 DROP TABLE t;
 include/rpl_sync.inc
@@ -196,24 +172,12 @@ UPDATE t SET c2 = '0' WHERE c4 = '0';
 UPDATE t SET c2 = '2' WHERE c4 = '2';
 include/rpl_sync.inc
 include/diff_tables.inc [server_1:test.t, server_2:test.t, server_3:test.t]
-Warnings:
-Warning	1287	'<select expression> INTO <destination>;' is deprecated and will be removed in a future release. Please use 'SELECT <select list> INTO <destination> FROM...' instead
-Warnings:
-Warning	1287	'<select expression> INTO <destination>;' is deprecated and will be removed in a future release. Please use 'SELECT <select list> INTO <destination> FROM...' instead
-Warnings:
-Warning	1287	'<select expression> INTO <destination>;' is deprecated and will be removed in a future release. Please use 'SELECT <select list> INTO <destination> FROM...' instead
 connection server_1;
 DELETE FROM t WHERE c1 = 7;
 DELETE FROM t WHERE c1 = 8;
 DELETE FROM t;
 include/rpl_sync.inc
 include/diff_tables.inc [server_1:test.t, server_2:test.t, server_3:test.t]
-Warnings:
-Warning	1287	'<select expression> INTO <destination>;' is deprecated and will be removed in a future release. Please use 'SELECT <select list> INTO <destination> FROM...' instead
-Warnings:
-Warning	1287	'<select expression> INTO <destination>;' is deprecated and will be removed in a future release. Please use 'SELECT <select list> INTO <destination> FROM...' instead
-Warnings:
-Warning	1287	'<select expression> INTO <destination>;' is deprecated and will be removed in a future release. Please use 'SELECT <select list> INTO <destination> FROM...' instead
 connection server_1;
 DROP TABLE t;
 include/rpl_sync.inc
@@ -257,24 +221,12 @@ UPDATE t SET c2 = '0' WHERE c4 = '0';
 UPDATE t SET c2 = '2' WHERE c4 = '2';
 include/rpl_sync.inc
 include/diff_tables.inc [server_1:test.t, server_2:test.t, server_3:test.t]
-Warnings:
-Warning	1287	'<select expression> INTO <destination>;' is deprecated and will be removed in a future release. Please use 'SELECT <select list> INTO <destination> FROM...' instead
-Warnings:
-Warning	1287	'<select expression> INTO <destination>;' is deprecated and will be removed in a future release. Please use 'SELECT <select list> INTO <destination> FROM...' instead
-Warnings:
-Warning	1287	'<select expression> INTO <destination>;' is deprecated and will be removed in a future release. Please use 'SELECT <select list> INTO <destination> FROM...' instead
 connection server_1;
 DELETE FROM t WHERE c1 = 7;
 DELETE FROM t WHERE c1 = 8;
 DELETE FROM t;
 include/rpl_sync.inc
 include/diff_tables.inc [server_1:test.t, server_2:test.t, server_3:test.t]
-Warnings:
-Warning	1287	'<select expression> INTO <destination>;' is deprecated and will be removed in a future release. Please use 'SELECT <select list> INTO <destination> FROM...' instead
-Warnings:
-Warning	1287	'<select expression> INTO <destination>;' is deprecated and will be removed in a future release. Please use 'SELECT <select list> INTO <destination> FROM...' instead
-Warnings:
-Warning	1287	'<select expression> INTO <destination>;' is deprecated and will be removed in a future release. Please use 'SELECT <select list> INTO <destination> FROM...' instead
 connection server_1;
 DROP TABLE t;
 include/rpl_sync.inc
@@ -318,24 +270,12 @@ UPDATE t SET c2 = '0' WHERE c4 = '0';
 UPDATE t SET c2 = '2' WHERE c4 = '2';
 include/rpl_sync.inc
 include/diff_tables.inc [server_1:test.t, server_2:test.t, server_3:test.t]
-Warnings:
-Warning	1287	'<select expression> INTO <destination>;' is deprecated and will be removed in a future release. Please use 'SELECT <select list> INTO <destination> FROM...' instead
-Warnings:
-Warning	1287	'<select expression> INTO <destination>;' is deprecated and will be removed in a future release. Please use 'SELECT <select list> INTO <destination> FROM...' instead
-Warnings:
-Warning	1287	'<select expression> INTO <destination>;' is deprecated and will be removed in a future release. Please use 'SELECT <select list> INTO <destination> FROM...' instead
 connection server_1;
 DELETE FROM t WHERE c1 = 7;
 DELETE FROM t WHERE c1 = 8;
 DELETE FROM t;
 include/rpl_sync.inc
 include/diff_tables.inc [server_1:test.t, server_2:test.t, server_3:test.t]
-Warnings:
-Warning	1287	'<select expression> INTO <destination>;' is deprecated and will be removed in a future release. Please use 'SELECT <select list> INTO <destination> FROM...' instead
-Warnings:
-Warning	1287	'<select expression> INTO <destination>;' is deprecated and will be removed in a future release. Please use 'SELECT <select list> INTO <destination> FROM...' instead
-Warnings:
-Warning	1287	'<select expression> INTO <destination>;' is deprecated and will be removed in a future release. Please use 'SELECT <select list> INTO <destination> FROM...' instead
 connection server_1;
 DROP TABLE t;
 include/rpl_sync.inc
@@ -379,24 +319,12 @@ UPDATE t SET c2 = '0' WHERE c4 = '0';
 UPDATE t SET c2 = '2' WHERE c4 = '2';
 include/rpl_sync.inc
 include/diff_tables.inc [server_1:test.t, server_2:test.t, server_3:test.t]
-Warnings:
-Warning	1287	'<select expression> INTO <destination>;' is deprecated and will be removed in a future release. Please use 'SELECT <select list> INTO <destination> FROM...' instead
-Warnings:
-Warning	1287	'<select expression> INTO <destination>;' is deprecated and will be removed in a future release. Please use 'SELECT <select list> INTO <destination> FROM...' instead
-Warnings:
-Warning	1287	'<select expression> INTO <destination>;' is deprecated and will be removed in a future release. Please use 'SELECT <select list> INTO <destination> FROM...' instead
 connection server_1;
 DELETE FROM t WHERE c1 = 7;
 DELETE FROM t WHERE c1 = 8;
 DELETE FROM t;
 include/rpl_sync.inc
 include/diff_tables.inc [server_1:test.t, server_2:test.t, server_3:test.t]
-Warnings:
-Warning	1287	'<select expression> INTO <destination>;' is deprecated and will be removed in a future release. Please use 'SELECT <select list> INTO <destination> FROM...' instead
-Warnings:
-Warning	1287	'<select expression> INTO <destination>;' is deprecated and will be removed in a future release. Please use 'SELECT <select list> INTO <destination> FROM...' instead
-Warnings:
-Warning	1287	'<select expression> INTO <destination>;' is deprecated and will be removed in a future release. Please use 'SELECT <select list> INTO <destination> FROM...' instead
 connection server_1;
 DROP TABLE t;
 include/rpl_sync.inc
@@ -440,24 +368,12 @@ UPDATE t SET c2 = '0' WHERE c4 = '0';
 UPDATE t SET c2 = '2' WHERE c4 = '2';
 include/rpl_sync.inc
 include/diff_tables.inc [server_1:test.t, server_2:test.t, server_3:test.t]
-Warnings:
-Warning	1287	'<select expression> INTO <destination>;' is deprecated and will be removed in a future release. Please use 'SELECT <select list> INTO <destination> FROM...' instead
-Warnings:
-Warning	1287	'<select expression> INTO <destination>;' is deprecated and will be removed in a future release. Please use 'SELECT <select list> INTO <destination> FROM...' instead
-Warnings:
-Warning	1287	'<select expression> INTO <destination>;' is deprecated and will be removed in a future release. Please use 'SELECT <select list> INTO <destination> FROM...' instead
 connection server_1;
 DELETE FROM t WHERE c1 = 7;
 DELETE FROM t WHERE c1 = 8;
 DELETE FROM t;
 include/rpl_sync.inc
 include/diff_tables.inc [server_1:test.t, server_2:test.t, server_3:test.t]
-Warnings:
-Warning	1287	'<select expression> INTO <destination>;' is deprecated and will be removed in a future release. Please use 'SELECT <select list> INTO <destination> FROM...' instead
-Warnings:
-Warning	1287	'<select expression> INTO <destination>;' is deprecated and will be removed in a future release. Please use 'SELECT <select list> INTO <destination> FROM...' instead
-Warnings:
-Warning	1287	'<select expression> INTO <destination>;' is deprecated and will be removed in a future release. Please use 'SELECT <select list> INTO <destination> FROM...' instead
 connection server_1;
 DROP TABLE t;
 include/rpl_sync.inc
@@ -501,24 +417,12 @@ UPDATE t SET c2 = '0' WHERE c4 = '0';
 UPDATE t SET c2 = '2' WHERE c4 = '2';
 include/rpl_sync.inc
 include/diff_tables.inc [server_1:test.t, server_2:test.t, server_3:test.t]
-Warnings:
-Warning	1287	'<select expression> INTO <destination>;' is deprecated and will be removed in a future release. Please use 'SELECT <select list> INTO <destination> FROM...' instead
-Warnings:
-Warning	1287	'<select expression> INTO <destination>;' is deprecated and will be removed in a future release. Please use 'SELECT <select list> INTO <destination> FROM...' instead
-Warnings:
-Warning	1287	'<select expression> INTO <destination>;' is deprecated and will be removed in a future release. Please use 'SELECT <select list> INTO <destination> FROM...' instead
 connection server_1;
 DELETE FROM t WHERE c1 = 7;
 DELETE FROM t WHERE c1 = 8;
 DELETE FROM t;
 include/rpl_sync.inc
 include/diff_tables.inc [server_1:test.t, server_2:test.t, server_3:test.t]
-Warnings:
-Warning	1287	'<select expression> INTO <destination>;' is deprecated and will be removed in a future release. Please use 'SELECT <select list> INTO <destination> FROM...' instead
-Warnings:
-Warning	1287	'<select expression> INTO <destination>;' is deprecated and will be removed in a future release. Please use 'SELECT <select list> INTO <destination> FROM...' instead
-Warnings:
-Warning	1287	'<select expression> INTO <destination>;' is deprecated and will be removed in a future release. Please use 'SELECT <select list> INTO <destination> FROM...' instead
 connection server_1;
 DROP TABLE t;
 include/rpl_sync.inc
@@ -562,24 +466,12 @@ UPDATE t SET c2 = '0' WHERE c4 = '0';
 UPDATE t SET c2 = '2' WHERE c4 = '2';
 include/rpl_sync.inc
 include/diff_tables.inc [server_1:test.t, server_2:test.t, server_3:test.t]
-Warnings:
-Warning	1287	'<select expression> INTO <destination>;' is deprecated and will be removed in a future release. Please use 'SELECT <select list> INTO <destination> FROM...' instead
-Warnings:
-Warning	1287	'<select expression> INTO <destination>;' is deprecated and will be removed in a future release. Please use 'SELECT <select list> INTO <destination> FROM...' instead
-Warnings:
-Warning	1287	'<select expression> INTO <destination>;' is deprecated and will be removed in a future release. Please use 'SELECT <select list> INTO <destination> FROM...' instead
 connection server_1;
 DELETE FROM t WHERE c1 = 7;
 DELETE FROM t WHERE c1 = 8;
 DELETE FROM t;
 include/rpl_sync.inc
 include/diff_tables.inc [server_1:test.t, server_2:test.t, server_3:test.t]
-Warnings:
-Warning	1287	'<select expression> INTO <destination>;' is deprecated and will be removed in a future release. Please use 'SELECT <select list> INTO <destination> FROM...' instead
-Warnings:
-Warning	1287	'<select expression> INTO <destination>;' is deprecated and will be removed in a future release. Please use 'SELECT <select list> INTO <destination> FROM...' instead
-Warnings:
-Warning	1287	'<select expression> INTO <destination>;' is deprecated and will be removed in a future release. Please use 'SELECT <select list> INTO <destination> FROM...' instead
 connection server_1;
 DROP TABLE t;
 include/rpl_sync.inc
@@ -623,24 +515,12 @@ UPDATE t SET c2 = '0' WHERE c4 = '0';
 UPDATE t SET c2 = '2' WHERE c4 = '2';
 include/rpl_sync.inc
 include/diff_tables.inc [server_1:test.t, server_2:test.t, server_3:test.t]
-Warnings:
-Warning	1287	'<select expression> INTO <destination>;' is deprecated and will be removed in a future release. Please use 'SELECT <select list> INTO <destination> FROM...' instead
-Warnings:
-Warning	1287	'<select expression> INTO <destination>;' is deprecated and will be removed in a future release. Please use 'SELECT <select list> INTO <destination> FROM...' instead
-Warnings:
-Warning	1287	'<select expression> INTO <destination>;' is deprecated and will be removed in a future release. Please use 'SELECT <select list> INTO <destination> FROM...' instead
 connection server_1;
 DELETE FROM t WHERE c1 = 7;
 DELETE FROM t WHERE c1 = 8;
 DELETE FROM t;
 include/rpl_sync.inc
 include/diff_tables.inc [server_1:test.t, server_2:test.t, server_3:test.t]
-Warnings:
-Warning	1287	'<select expression> INTO <destination>;' is deprecated and will be removed in a future release. Please use 'SELECT <select list> INTO <destination> FROM...' instead
-Warnings:
-Warning	1287	'<select expression> INTO <destination>;' is deprecated and will be removed in a future release. Please use 'SELECT <select list> INTO <destination> FROM...' instead
-Warnings:
-Warning	1287	'<select expression> INTO <destination>;' is deprecated and will be removed in a future release. Please use 'SELECT <select list> INTO <destination> FROM...' instead
 connection server_1;
 DROP TABLE t;
 include/rpl_sync.inc
@@ -684,24 +564,12 @@ UPDATE t SET c2 = '0' WHERE c4 = '0';
 UPDATE t SET c2 = '2' WHERE c4 = '2';
 include/rpl_sync.inc
 include/diff_tables.inc [server_1:test.t, server_2:test.t, server_3:test.t]
-Warnings:
-Warning	1287	'<select expression> INTO <destination>;' is deprecated and will be removed in a future release. Please use 'SELECT <select list> INTO <destination> FROM...' instead
-Warnings:
-Warning	1287	'<select expression> INTO <destination>;' is deprecated and will be removed in a future release. Please use 'SELECT <select list> INTO <destination> FROM...' instead
-Warnings:
-Warning	1287	'<select expression> INTO <destination>;' is deprecated and will be removed in a future release. Please use 'SELECT <select list> INTO <destination> FROM...' instead
 connection server_1;
 DELETE FROM t WHERE c1 = 7;
 DELETE FROM t WHERE c1 = 8;
 DELETE FROM t;
 include/rpl_sync.inc
 include/diff_tables.inc [server_1:test.t, server_2:test.t, server_3:test.t]
-Warnings:
-Warning	1287	'<select expression> INTO <destination>;' is deprecated and will be removed in a future release. Please use 'SELECT <select list> INTO <destination> FROM...' instead
-Warnings:
-Warning	1287	'<select expression> INTO <destination>;' is deprecated and will be removed in a future release. Please use 'SELECT <select list> INTO <destination> FROM...' instead
-Warnings:
-Warning	1287	'<select expression> INTO <destination>;' is deprecated and will be removed in a future release. Please use 'SELECT <select list> INTO <destination> FROM...' instead
 connection server_1;
 DROP TABLE t;
 include/rpl_sync.inc
@@ -745,24 +613,12 @@ UPDATE t SET c2 = '0' WHERE c4 = '0';
 UPDATE t SET c2 = '2' WHERE c4 = '2';
 include/rpl_sync.inc
 include/diff_tables.inc [server_1:test.t, server_2:test.t, server_3:test.t]
-Warnings:
-Warning	1287	'<select expression> INTO <destination>;' is deprecated and will be removed in a future release. Please use 'SELECT <select list> INTO <destination> FROM...' instead
-Warnings:
-Warning	1287	'<select expression> INTO <destination>;' is deprecated and will be removed in a future release. Please use 'SELECT <select list> INTO <destination> FROM...' instead
-Warnings:
-Warning	1287	'<select expression> INTO <destination>;' is deprecated and will be removed in a future release. Please use 'SELECT <select list> INTO <destination> FROM...' instead
 connection server_1;
 DELETE FROM t WHERE c1 = 7;
 DELETE FROM t WHERE c1 = 8;
 DELETE FROM t;
 include/rpl_sync.inc
 include/diff_tables.inc [server_1:test.t, server_2:test.t, server_3:test.t]
-Warnings:
-Warning	1287	'<select expression> INTO <destination>;' is deprecated and will be removed in a future release. Please use 'SELECT <select list> INTO <destination> FROM...' instead
-Warnings:
-Warning	1287	'<select expression> INTO <destination>;' is deprecated and will be removed in a future release. Please use 'SELECT <select list> INTO <destination> FROM...' instead
-Warnings:
-Warning	1287	'<select expression> INTO <destination>;' is deprecated and will be removed in a future release. Please use 'SELECT <select list> INTO <destination> FROM...' instead
 connection server_1;
 DROP TABLE t;
 include/rpl_sync.inc
@@ -808,24 +664,12 @@ UPDATE t SET c2 = '0' WHERE c4 = '0';
 UPDATE t SET c2 = '2' WHERE c4 = '2';
 include/rpl_sync.inc
 include/diff_tables.inc [server_1:test.t, server_2:test.t, server_3:test.t]
-Warnings:
-Warning	1287	'<select expression> INTO <destination>;' is deprecated and will be removed in a future release. Please use 'SELECT <select list> INTO <destination> FROM...' instead
-Warnings:
-Warning	1287	'<select expression> INTO <destination>;' is deprecated and will be removed in a future release. Please use 'SELECT <select list> INTO <destination> FROM...' instead
-Warnings:
-Warning	1287	'<select expression> INTO <destination>;' is deprecated and will be removed in a future release. Please use 'SELECT <select list> INTO <destination> FROM...' instead
 connection server_1;
 DELETE FROM t WHERE c1 = 7;
 DELETE FROM t WHERE c1 = 8;
 DELETE FROM t;
 include/rpl_sync.inc
 include/diff_tables.inc [server_1:test.t, server_2:test.t, server_3:test.t]
-Warnings:
-Warning	1287	'<select expression> INTO <destination>;' is deprecated and will be removed in a future release. Please use 'SELECT <select list> INTO <destination> FROM...' instead
-Warnings:
-Warning	1287	'<select expression> INTO <destination>;' is deprecated and will be removed in a future release. Please use 'SELECT <select list> INTO <destination> FROM...' instead
-Warnings:
-Warning	1287	'<select expression> INTO <destination>;' is deprecated and will be removed in a future release. Please use 'SELECT <select list> INTO <destination> FROM...' instead
 connection server_1;
 DROP TABLE t;
 include/rpl_sync.inc
@@ -869,24 +713,12 @@ UPDATE t SET c2 = '0' WHERE c4 = '0';
 UPDATE t SET c2 = '2' WHERE c4 = '2';
 include/rpl_sync.inc
 include/diff_tables.inc [server_1:test.t, server_2:test.t, server_3:test.t]
-Warnings:
-Warning	1287	'<select expression> INTO <destination>;' is deprecated and will be removed in a future release. Please use 'SELECT <select list> INTO <destination> FROM...' instead
-Warnings:
-Warning	1287	'<select expression> INTO <destination>;' is deprecated and will be removed in a future release. Please use 'SELECT <select list> INTO <destination> FROM...' instead
-Warnings:
-Warning	1287	'<select expression> INTO <destination>;' is deprecated and will be removed in a future release. Please use 'SELECT <select list> INTO <destination> FROM...' instead
 connection server_1;
 DELETE FROM t WHERE c1 = 7;
 DELETE FROM t WHERE c1 = 8;
 DELETE FROM t;
 include/rpl_sync.inc
 include/diff_tables.inc [server_1:test.t, server_2:test.t, server_3:test.t]
-Warnings:
-Warning	1287	'<select expression> INTO <destination>;' is deprecated and will be removed in a future release. Please use 'SELECT <select list> INTO <destination> FROM...' instead
-Warnings:
-Warning	1287	'<select expression> INTO <destination>;' is deprecated and will be removed in a future release. Please use 'SELECT <select list> INTO <destination> FROM...' instead
-Warnings:
-Warning	1287	'<select expression> INTO <destination>;' is deprecated and will be removed in a future release. Please use 'SELECT <select list> INTO <destination> FROM...' instead
 connection server_1;
 DROP TABLE t;
 include/rpl_sync.inc
@@ -930,24 +762,12 @@ UPDATE t SET c2 = '0' WHERE c4 = '0';
 UPDATE t SET c2 = '2' WHERE c4 = '2';
 include/rpl_sync.inc
 include/diff_tables.inc [server_1:test.t, server_2:test.t, server_3:test.t]
-Warnings:
-Warning	1287	'<select expression> INTO <destination>;' is deprecated and will be removed in a future release. Please use 'SELECT <select list> INTO <destination> FROM...' instead
-Warnings:
-Warning	1287	'<select expression> INTO <destination>;' is deprecated and will be removed in a future release. Please use 'SELECT <select list> INTO <destination> FROM...' instead
-Warnings:
-Warning	1287	'<select expression> INTO <destination>;' is deprecated and will be removed in a future release. Please use 'SELECT <select list> INTO <destination> FROM...' instead
 connection server_1;
 DELETE FROM t WHERE c1 = 7;
 DELETE FROM t WHERE c1 = 8;
 DELETE FROM t;
 include/rpl_sync.inc
 include/diff_tables.inc [server_1:test.t, server_2:test.t, server_3:test.t]
-Warnings:
-Warning	1287	'<select expression> INTO <destination>;' is deprecated and will be removed in a future release. Please use 'SELECT <select list> INTO <destination> FROM...' instead
-Warnings:
-Warning	1287	'<select expression> INTO <destination>;' is deprecated and will be removed in a future release. Please use 'SELECT <select list> INTO <destination> FROM...' instead
-Warnings:
-Warning	1287	'<select expression> INTO <destination>;' is deprecated and will be removed in a future release. Please use 'SELECT <select list> INTO <destination> FROM...' instead
 connection server_1;
 DROP TABLE t;
 include/rpl_sync.inc
@@ -991,24 +811,12 @@ UPDATE t SET c2 = '0' WHERE c4 = '0';
 UPDATE t SET c2 = '2' WHERE c4 = '2';
 include/rpl_sync.inc
 include/diff_tables.inc [server_1:test.t, server_2:test.t, server_3:test.t]
-Warnings:
-Warning	1287	'<select expression> INTO <destination>;' is deprecated and will be removed in a future release. Please use 'SELECT <select list> INTO <destination> FROM...' instead
-Warnings:
-Warning	1287	'<select expression> INTO <destination>;' is deprecated and will be removed in a future release. Please use 'SELECT <select list> INTO <destination> FROM...' instead
-Warnings:
-Warning	1287	'<select expression> INTO <destination>;' is deprecated and will be removed in a future release. Please use 'SELECT <select list> INTO <destination> FROM...' instead
 connection server_1;
 DELETE FROM t WHERE c1 = 7;
 DELETE FROM t WHERE c1 = 8;
 DELETE FROM t;
 include/rpl_sync.inc
 include/diff_tables.inc [server_1:test.t, server_2:test.t, server_3:test.t]
-Warnings:
-Warning	1287	'<select expression> INTO <destination>;' is deprecated and will be removed in a future release. Please use 'SELECT <select list> INTO <destination> FROM...' instead
-Warnings:
-Warning	1287	'<select expression> INTO <destination>;' is deprecated and will be removed in a future release. Please use 'SELECT <select list> INTO <destination> FROM...' instead
-Warnings:
-Warning	1287	'<select expression> INTO <destination>;' is deprecated and will be removed in a future release. Please use 'SELECT <select list> INTO <destination> FROM...' instead
 connection server_1;
 DROP TABLE t;
 include/rpl_sync.inc
@@ -1052,24 +860,12 @@ UPDATE t SET c2 = '0' WHERE c4 = '0';
 UPDATE t SET c2 = '2' WHERE c4 = '2';
 include/rpl_sync.inc
 include/diff_tables.inc [server_1:test.t, server_2:test.t, server_3:test.t]
-Warnings:
-Warning	1287	'<select expression> INTO <destination>;' is deprecated and will be removed in a future release. Please use 'SELECT <select list> INTO <destination> FROM...' instead
-Warnings:
-Warning	1287	'<select expression> INTO <destination>;' is deprecated and will be removed in a future release. Please use 'SELECT <select list> INTO <destination> FROM...' instead
-Warnings:
-Warning	1287	'<select expression> INTO <destination>;' is deprecated and will be removed in a future release. Please use 'SELECT <select list> INTO <destination> FROM...' instead
 connection server_1;
 DELETE FROM t WHERE c1 = 7;
 DELETE FROM t WHERE c1 = 8;
 DELETE FROM t;
 include/rpl_sync.inc
 include/diff_tables.inc [server_1:test.t, server_2:test.t, server_3:test.t]
-Warnings:
-Warning	1287	'<select expression> INTO <destination>;' is deprecated and will be removed in a future release. Please use 'SELECT <select list> INTO <destination> FROM...' instead
-Warnings:
-Warning	1287	'<select expression> INTO <destination>;' is deprecated and will be removed in a future release. Please use 'SELECT <select list> INTO <destination> FROM...' instead
-Warnings:
-Warning	1287	'<select expression> INTO <destination>;' is deprecated and will be removed in a future release. Please use 'SELECT <select list> INTO <destination> FROM...' instead
 connection server_1;
 DROP TABLE t;
 include/rpl_sync.inc
@@ -1113,24 +909,12 @@ UPDATE t SET c2 = '0' WHERE c4 = '0';
 UPDATE t SET c2 = '2' WHERE c4 = '2';
 include/rpl_sync.inc
 include/diff_tables.inc [server_1:test.t, server_2:test.t, server_3:test.t]
-Warnings:
-Warning	1287	'<select expression> INTO <destination>;' is deprecated and will be removed in a future release. Please use 'SELECT <select list> INTO <destination> FROM...' instead
-Warnings:
-Warning	1287	'<select expression> INTO <destination>;' is deprecated and will be removed in a future release. Please use 'SELECT <select list> INTO <destination> FROM...' instead
-Warnings:
-Warning	1287	'<select expression> INTO <destination>;' is deprecated and will be removed in a future release. Please use 'SELECT <select list> INTO <destination> FROM...' instead
 connection server_1;
 DELETE FROM t WHERE c1 = 7;
 DELETE FROM t WHERE c1 = 8;
 DELETE FROM t;
 include/rpl_sync.inc
 include/diff_tables.inc [server_1:test.t, server_2:test.t, server_3:test.t]
-Warnings:
-Warning	1287	'<select expression> INTO <destination>;' is deprecated and will be removed in a future release. Please use 'SELECT <select list> INTO <destination> FROM...' instead
-Warnings:
-Warning	1287	'<select expression> INTO <destination>;' is deprecated and will be removed in a future release. Please use 'SELECT <select list> INTO <destination> FROM...' instead
-Warnings:
-Warning	1287	'<select expression> INTO <destination>;' is deprecated and will be removed in a future release. Please use 'SELECT <select list> INTO <destination> FROM...' instead
 connection server_1;
 DROP TABLE t;
 include/rpl_sync.inc
@@ -1174,24 +958,12 @@ UPDATE t SET c2 = '0' WHERE c4 = '0';
 UPDATE t SET c2 = '2' WHERE c4 = '2';
 include/rpl_sync.inc
 include/diff_tables.inc [server_1:test.t, server_2:test.t, server_3:test.t]
-Warnings:
-Warning	1287	'<select expression> INTO <destination>;' is deprecated and will be removed in a future release. Please use 'SELECT <select list> INTO <destination> FROM...' instead
-Warnings:
-Warning	1287	'<select expression> INTO <destination>;' is deprecated and will be removed in a future release. Please use 'SELECT <select list> INTO <destination> FROM...' instead
-Warnings:
-Warning	1287	'<select expression> INTO <destination>;' is deprecated and will be removed in a future release. Please use 'SELECT <select list> INTO <destination> FROM...' instead
 connection server_1;
 DELETE FROM t WHERE c1 = 7;
 DELETE FROM t WHERE c1 = 8;
 DELETE FROM t;
 include/rpl_sync.inc
 include/diff_tables.inc [server_1:test.t, server_2:test.t, server_3:test.t]
-Warnings:
-Warning	1287	'<select expression> INTO <destination>;' is deprecated and will be removed in a future release. Please use 'SELECT <select list> INTO <destination> FROM...' instead
-Warnings:
-Warning	1287	'<select expression> INTO <destination>;' is deprecated and will be removed in a future release. Please use 'SELECT <select list> INTO <destination> FROM...' instead
-Warnings:
-Warning	1287	'<select expression> INTO <destination>;' is deprecated and will be removed in a future release. Please use 'SELECT <select list> INTO <destination> FROM...' instead
 connection server_1;
 DROP TABLE t;
 include/rpl_sync.inc
@@ -1235,24 +1007,12 @@ UPDATE t SET c2 = '0' WHERE c4 = '0';
 UPDATE t SET c2 = '2' WHERE c4 = '2';
 include/rpl_sync.inc
 include/diff_tables.inc [server_1:test.t, server_2:test.t, server_3:test.t]
-Warnings:
-Warning	1287	'<select expression> INTO <destination>;' is deprecated and will be removed in a future release. Please use 'SELECT <select list> INTO <destination> FROM...' instead
-Warnings:
-Warning	1287	'<select expression> INTO <destination>;' is deprecated and will be removed in a future release. Please use 'SELECT <select list> INTO <destination> FROM...' instead
-Warnings:
-Warning	1287	'<select expression> INTO <destination>;' is deprecated and will be removed in a future release. Please use 'SELECT <select list> INTO <destination> FROM...' instead
 connection server_1;
 DELETE FROM t WHERE c1 = 7;
 DELETE FROM t WHERE c1 = 8;
 DELETE FROM t;
 include/rpl_sync.inc
 include/diff_tables.inc [server_1:test.t, server_2:test.t, server_3:test.t]
-Warnings:
-Warning	1287	'<select expression> INTO <destination>;' is deprecated and will be removed in a future release. Please use 'SELECT <select list> INTO <destination> FROM...' instead
-Warnings:
-Warning	1287	'<select expression> INTO <destination>;' is deprecated and will be removed in a future release. Please use 'SELECT <select list> INTO <destination> FROM...' instead
-Warnings:
-Warning	1287	'<select expression> INTO <destination>;' is deprecated and will be removed in a future release. Please use 'SELECT <select list> INTO <destination> FROM...' instead
 connection server_1;
 DROP TABLE t;
 include/rpl_sync.inc
@@ -1296,24 +1056,12 @@ UPDATE t SET c2 = '0' WHERE c4 = '0';
 UPDATE t SET c2 = '2' WHERE c4 = '2';
 include/rpl_sync.inc
 include/diff_tables.inc [server_1:test.t, server_2:test.t, server_3:test.t]
-Warnings:
-Warning	1287	'<select expression> INTO <destination>;' is deprecated and will be removed in a future release. Please use 'SELECT <select list> INTO <destination> FROM...' instead
-Warnings:
-Warning	1287	'<select expression> INTO <destination>;' is deprecated and will be removed in a future release. Please use 'SELECT <select list> INTO <destination> FROM...' instead
-Warnings:
-Warning	1287	'<select expression> INTO <destination>;' is deprecated and will be removed in a future release. Please use 'SELECT <select list> INTO <destination> FROM...' instead
 connection server_1;
 DELETE FROM t WHERE c1 = 7;
 DELETE FROM t WHERE c1 = 8;
 DELETE FROM t;
 include/rpl_sync.inc
 include/diff_tables.inc [server_1:test.t, server_2:test.t, server_3:test.t]
-Warnings:
-Warning	1287	'<select expression> INTO <destination>;' is deprecated and will be removed in a future release. Please use 'SELECT <select list> INTO <destination> FROM...' instead
-Warnings:
-Warning	1287	'<select expression> INTO <destination>;' is deprecated and will be removed in a future release. Please use 'SELECT <select list> INTO <destination> FROM...' instead
-Warnings:
-Warning	1287	'<select expression> INTO <destination>;' is deprecated and will be removed in a future release. Please use 'SELECT <select list> INTO <destination> FROM...' instead
 connection server_1;
 DROP TABLE t;
 include/rpl_sync.inc
@@ -1357,24 +1105,12 @@ UPDATE t SET c2 = '0' WHERE c4 = '0';
 UPDATE t SET c2 = '2' WHERE c4 = '2';
 include/rpl_sync.inc
 include/diff_tables.inc [server_1:test.t, server_2:test.t, server_3:test.t]
-Warnings:
-Warning	1287	'<select expression> INTO <destination>;' is deprecated and will be removed in a future release. Please use 'SELECT <select list> INTO <destination> FROM...' instead
-Warnings:
-Warning	1287	'<select expression> INTO <destination>;' is deprecated and will be removed in a future release. Please use 'SELECT <select list> INTO <destination> FROM...' instead
-Warnings:
-Warning	1287	'<select expression> INTO <destination>;' is deprecated and will be removed in a future release. Please use 'SELECT <select list> INTO <destination> FROM...' instead
 connection server_1;
 DELETE FROM t WHERE c1 = 7;
 DELETE FROM t WHERE c1 = 8;
 DELETE FROM t;
 include/rpl_sync.inc
 include/diff_tables.inc [server_1:test.t, server_2:test.t, server_3:test.t]
-Warnings:
-Warning	1287	'<select expression> INTO <destination>;' is deprecated and will be removed in a future release. Please use 'SELECT <select list> INTO <destination> FROM...' instead
-Warnings:
-Warning	1287	'<select expression> INTO <destination>;' is deprecated and will be removed in a future release. Please use 'SELECT <select list> INTO <destination> FROM...' instead
-Warnings:
-Warning	1287	'<select expression> INTO <destination>;' is deprecated and will be removed in a future release. Please use 'SELECT <select list> INTO <destination> FROM...' instead
 connection server_1;
 DROP TABLE t;
 include/rpl_sync.inc
@@ -1418,24 +1154,12 @@ UPDATE t SET c2 = '0' WHERE c4 = '0';
 UPDATE t SET c2 = '2' WHERE c4 = '2';
 include/rpl_sync.inc
 include/diff_tables.inc [server_1:test.t, server_2:test.t, server_3:test.t]
-Warnings:
-Warning	1287	'<select expression> INTO <destination>;' is deprecated and will be removed in a future release. Please use 'SELECT <select list> INTO <destination> FROM...' instead
-Warnings:
-Warning	1287	'<select expression> INTO <destination>;' is deprecated and will be removed in a future release. Please use 'SELECT <select list> INTO <destination> FROM...' instead
-Warnings:
-Warning	1287	'<select expression> INTO <destination>;' is deprecated and will be removed in a future release. Please use 'SELECT <select list> INTO <destination> FROM...' instead
 connection server_1;
 DELETE FROM t WHERE c1 = 7;
 DELETE FROM t WHERE c1 = 8;
 DELETE FROM t;
 include/rpl_sync.inc
 include/diff_tables.inc [server_1:test.t, server_2:test.t, server_3:test.t]
-Warnings:
-Warning	1287	'<select expression> INTO <destination>;' is deprecated and will be removed in a future release. Please use 'SELECT <select list> INTO <destination> FROM...' instead
-Warnings:
-Warning	1287	'<select expression> INTO <destination>;' is deprecated and will be removed in a future release. Please use 'SELECT <select list> INTO <destination> FROM...' instead
-Warnings:
-Warning	1287	'<select expression> INTO <destination>;' is deprecated and will be removed in a future release. Please use 'SELECT <select list> INTO <destination> FROM...' instead
 connection server_1;
 DROP TABLE t;
 include/rpl_sync.inc
@@ -1479,24 +1203,12 @@ UPDATE t SET c2 = '0' WHERE c4 = '0';
 UPDATE t SET c2 = '2' WHERE c4 = '2';
 include/rpl_sync.inc
 include/diff_tables.inc [server_1:test.t, server_2:test.t, server_3:test.t]
-Warnings:
-Warning	1287	'<select expression> INTO <destination>;' is deprecated and will be removed in a future release. Please use 'SELECT <select list> INTO <destination> FROM...' instead
-Warnings:
-Warning	1287	'<select expression> INTO <destination>;' is deprecated and will be removed in a future release. Please use 'SELECT <select list> INTO <destination> FROM...' instead
-Warnings:
-Warning	1287	'<select expression> INTO <destination>;' is deprecated and will be removed in a future release. Please use 'SELECT <select list> INTO <destination> FROM...' instead
 connection server_1;
 DELETE FROM t WHERE c1 = 7;
 DELETE FROM t WHERE c1 = 8;
 DELETE FROM t;
 include/rpl_sync.inc
 include/diff_tables.inc [server_1:test.t, server_2:test.t, server_3:test.t]
-Warnings:
-Warning	1287	'<select expression> INTO <destination>;' is deprecated and will be removed in a future release. Please use 'SELECT <select list> INTO <destination> FROM...' instead
-Warnings:
-Warning	1287	'<select expression> INTO <destination>;' is deprecated and will be removed in a future release. Please use 'SELECT <select list> INTO <destination> FROM...' instead
-Warnings:
-Warning	1287	'<select expression> INTO <destination>;' is deprecated and will be removed in a future release. Please use 'SELECT <select list> INTO <destination> FROM...' instead
 connection server_1;
 DROP TABLE t;
 include/rpl_sync.inc
@@ -1542,24 +1254,12 @@ UPDATE t SET c2 = '0' WHERE c4 = '0';
 UPDATE t SET c2 = '2' WHERE c4 = '2';
 include/rpl_sync.inc
 include/diff_tables.inc [server_1:test.t, server_2:test.t, server_3:test.t]
-Warnings:
-Warning	1287	'<select expression> INTO <destination>;' is deprecated and will be removed in a future release. Please use 'SELECT <select list> INTO <destination> FROM...' instead
-Warnings:
-Warning	1287	'<select expression> INTO <destination>;' is deprecated and will be removed in a future release. Please use 'SELECT <select list> INTO <destination> FROM...' instead
-Warnings:
-Warning	1287	'<select expression> INTO <destination>;' is deprecated and will be removed in a future release. Please use 'SELECT <select list> INTO <destination> FROM...' instead
 connection server_1;
 DELETE FROM t WHERE c1 = 7;
 DELETE FROM t WHERE c1 = 8;
 DELETE FROM t;
 include/rpl_sync.inc
 include/diff_tables.inc [server_1:test.t, server_2:test.t, server_3:test.t]
-Warnings:
-Warning	1287	'<select expression> INTO <destination>;' is deprecated and will be removed in a future release. Please use 'SELECT <select list> INTO <destination> FROM...' instead
-Warnings:
-Warning	1287	'<select expression> INTO <destination>;' is deprecated and will be removed in a future release. Please use 'SELECT <select list> INTO <destination> FROM...' instead
-Warnings:
-Warning	1287	'<select expression> INTO <destination>;' is deprecated and will be removed in a future release. Please use 'SELECT <select list> INTO <destination> FROM...' instead
 connection server_1;
 DROP TABLE t;
 include/rpl_sync.inc
@@ -1603,24 +1303,12 @@ UPDATE t SET c2 = '0' WHERE c4 = '0';
 UPDATE t SET c2 = '2' WHERE c4 = '2';
 include/rpl_sync.inc
 include/diff_tables.inc [server_1:test.t, server_2:test.t, server_3:test.t]
-Warnings:
-Warning	1287	'<select expression> INTO <destination>;' is deprecated and will be removed in a future release. Please use 'SELECT <select list> INTO <destination> FROM...' instead
-Warnings:
-Warning	1287	'<select expression> INTO <destination>;' is deprecated and will be removed in a future release. Please use 'SELECT <select list> INTO <destination> FROM...' instead
-Warnings:
-Warning	1287	'<select expression> INTO <destination>;' is deprecated and will be removed in a future release. Please use 'SELECT <select list> INTO <destination> FROM...' instead
 connection server_1;
 DELETE FROM t WHERE c1 = 7;
 DELETE FROM t WHERE c1 = 8;
 DELETE FROM t;
 include/rpl_sync.inc
 include/diff_tables.inc [server_1:test.t, server_2:test.t, server_3:test.t]
-Warnings:
-Warning	1287	'<select expression> INTO <destination>;' is deprecated and will be removed in a future release. Please use 'SELECT <select list> INTO <destination> FROM...' instead
-Warnings:
-Warning	1287	'<select expression> INTO <destination>;' is deprecated and will be removed in a future release. Please use 'SELECT <select list> INTO <destination> FROM...' instead
-Warnings:
-Warning	1287	'<select expression> INTO <destination>;' is deprecated and will be removed in a future release. Please use 'SELECT <select list> INTO <destination> FROM...' instead
 connection server_1;
 DROP TABLE t;
 include/rpl_sync.inc
@@ -1664,24 +1352,12 @@ UPDATE t SET c2 = '0' WHERE c4 = '0';
 UPDATE t SET c2 = '2' WHERE c4 = '2';
 include/rpl_sync.inc
 include/diff_tables.inc [server_1:test.t, server_2:test.t, server_3:test.t]
-Warnings:
-Warning	1287	'<select expression> INTO <destination>;' is deprecated and will be removed in a future release. Please use 'SELECT <select list> INTO <destination> FROM...' instead
-Warnings:
-Warning	1287	'<select expression> INTO <destination>;' is deprecated and will be removed in a future release. Please use 'SELECT <select list> INTO <destination> FROM...' instead
-Warnings:
-Warning	1287	'<select expression> INTO <destination>;' is deprecated and will be removed in a future release. Please use 'SELECT <select list> INTO <destination> FROM...' instead
 connection server_1;
 DELETE FROM t WHERE c1 = 7;
 DELETE FROM t WHERE c1 = 8;
 DELETE FROM t;
 include/rpl_sync.inc
 include/diff_tables.inc [server_1:test.t, server_2:test.t, server_3:test.t]
-Warnings:
-Warning	1287	'<select expression> INTO <destination>;' is deprecated and will be removed in a future release. Please use 'SELECT <select list> INTO <destination> FROM...' instead
-Warnings:
-Warning	1287	'<select expression> INTO <destination>;' is deprecated and will be removed in a future release. Please use 'SELECT <select list> INTO <destination> FROM...' instead
-Warnings:
-Warning	1287	'<select expression> INTO <destination>;' is deprecated and will be removed in a future release. Please use 'SELECT <select list> INTO <destination> FROM...' instead
 connection server_1;
 DROP TABLE t;
 include/rpl_sync.inc
@@ -1725,24 +1401,12 @@ UPDATE t SET c2 = '0' WHERE c4 = '0';
 UPDATE t SET c2 = '2' WHERE c4 = '2';
 include/rpl_sync.inc
 include/diff_tables.inc [server_1:test.t, server_2:test.t, server_3:test.t]
-Warnings:
-Warning	1287	'<select expression> INTO <destination>;' is deprecated and will be removed in a future release. Please use 'SELECT <select list> INTO <destination> FROM...' instead
-Warnings:
-Warning	1287	'<select expression> INTO <destination>;' is deprecated and will be removed in a future release. Please use 'SELECT <select list> INTO <destination> FROM...' instead
-Warnings:
-Warning	1287	'<select expression> INTO <destination>;' is deprecated and will be removed in a future release. Please use 'SELECT <select list> INTO <destination> FROM...' instead
 connection server_1;
 DELETE FROM t WHERE c1 = 7;
 DELETE FROM t WHERE c1 = 8;
 DELETE FROM t;
 include/rpl_sync.inc
 include/diff_tables.inc [server_1:test.t, server_2:test.t, server_3:test.t]
-Warnings:
-Warning	1287	'<select expression> INTO <destination>;' is deprecated and will be removed in a future release. Please use 'SELECT <select list> INTO <destination> FROM...' instead
-Warnings:
-Warning	1287	'<select expression> INTO <destination>;' is deprecated and will be removed in a future release. Please use 'SELECT <select list> INTO <destination> FROM...' instead
-Warnings:
-Warning	1287	'<select expression> INTO <destination>;' is deprecated and will be removed in a future release. Please use 'SELECT <select list> INTO <destination> FROM...' instead
 connection server_1;
 DROP TABLE t;
 include/rpl_sync.inc
@@ -1786,24 +1450,12 @@ UPDATE t SET c2 = '0' WHERE c4 = '0';
 UPDATE t SET c2 = '2' WHERE c4 = '2';
 include/rpl_sync.inc
 include/diff_tables.inc [server_1:test.t, server_2:test.t, server_3:test.t]
-Warnings:
-Warning	1287	'<select expression> INTO <destination>;' is deprecated and will be removed in a future release. Please use 'SELECT <select list> INTO <destination> FROM...' instead
-Warnings:
-Warning	1287	'<select expression> INTO <destination>;' is deprecated and will be removed in a future release. Please use 'SELECT <select list> INTO <destination> FROM...' instead
-Warnings:
-Warning	1287	'<select expression> INTO <destination>;' is deprecated and will be removed in a future release. Please use 'SELECT <select list> INTO <destination> FROM...' instead
 connection server_1;
 DELETE FROM t WHERE c1 = 7;
 DELETE FROM t WHERE c1 = 8;
 DELETE FROM t;
 include/rpl_sync.inc
 include/diff_tables.inc [server_1:test.t, server_2:test.t, server_3:test.t]
-Warnings:
-Warning	1287	'<select expression> INTO <destination>;' is deprecated and will be removed in a future release. Please use 'SELECT <select list> INTO <destination> FROM...' instead
-Warnings:
-Warning	1287	'<select expression> INTO <destination>;' is deprecated and will be removed in a future release. Please use 'SELECT <select list> INTO <destination> FROM...' instead
-Warnings:
-Warning	1287	'<select expression> INTO <destination>;' is deprecated and will be removed in a future release. Please use 'SELECT <select list> INTO <destination> FROM...' instead
 connection server_1;
 DROP TABLE t;
 include/rpl_sync.inc
@@ -1847,24 +1499,12 @@ UPDATE t SET c2 = '0' WHERE c4 = '0';
 UPDATE t SET c2 = '2' WHERE c4 = '2';
 include/rpl_sync.inc
 include/diff_tables.inc [server_1:test.t, server_2:test.t, server_3:test.t]
-Warnings:
-Warning	1287	'<select expression> INTO <destination>;' is deprecated and will be removed in a future release. Please use 'SELECT <select list> INTO <destination> FROM...' instead
-Warnings:
-Warning	1287	'<select expression> INTO <destination>;' is deprecated and will be removed in a future release. Please use 'SELECT <select list> INTO <destination> FROM...' instead
-Warnings:
-Warning	1287	'<select expression> INTO <destination>;' is deprecated and will be removed in a future release. Please use 'SELECT <select list> INTO <destination> FROM...' instead
 connection server_1;
 DELETE FROM t WHERE c1 = 7;
 DELETE FROM t WHERE c1 = 8;
 DELETE FROM t;
 include/rpl_sync.inc
 include/diff_tables.inc [server_1:test.t, server_2:test.t, server_3:test.t]
-Warnings:
-Warning	1287	'<select expression> INTO <destination>;' is deprecated and will be removed in a future release. Please use 'SELECT <select list> INTO <destination> FROM...' instead
-Warnings:
-Warning	1287	'<select expression> INTO <destination>;' is deprecated and will be removed in a future release. Please use 'SELECT <select list> INTO <destination> FROM...' instead
-Warnings:
-Warning	1287	'<select expression> INTO <destination>;' is deprecated and will be removed in a future release. Please use 'SELECT <select list> INTO <destination> FROM...' instead
 connection server_1;
 DROP TABLE t;
 include/rpl_sync.inc
@@ -1908,24 +1548,12 @@ UPDATE t SET c2 = '0' WHERE c4 = '0';
 UPDATE t SET c2 = '2' WHERE c4 = '2';
 include/rpl_sync.inc
 include/diff_tables.inc [server_1:test.t, server_2:test.t, server_3:test.t]
-Warnings:
-Warning	1287	'<select expression> INTO <destination>;' is deprecated and will be removed in a future release. Please use 'SELECT <select list> INTO <destination> FROM...' instead
-Warnings:
-Warning	1287	'<select expression> INTO <destination>;' is deprecated and will be removed in a future release. Please use 'SELECT <select list> INTO <destination> FROM...' instead
-Warnings:
-Warning	1287	'<select expression> INTO <destination>;' is deprecated and will be removed in a future release. Please use 'SELECT <select list> INTO <destination> FROM...' instead
 connection server_1;
 DELETE FROM t WHERE c1 = 7;
 DELETE FROM t WHERE c1 = 8;
 DELETE FROM t;
 include/rpl_sync.inc
 include/diff_tables.inc [server_1:test.t, server_2:test.t, server_3:test.t]
-Warnings:
-Warning	1287	'<select expression> INTO <destination>;' is deprecated and will be removed in a future release. Please use 'SELECT <select list> INTO <destination> FROM...' instead
-Warnings:
-Warning	1287	'<select expression> INTO <destination>;' is deprecated and will be removed in a future release. Please use 'SELECT <select list> INTO <destination> FROM...' instead
-Warnings:
-Warning	1287	'<select expression> INTO <destination>;' is deprecated and will be removed in a future release. Please use 'SELECT <select list> INTO <destination> FROM...' instead
 connection server_1;
 DROP TABLE t;
 include/rpl_sync.inc
@@ -1969,24 +1597,12 @@ UPDATE t SET c2 = '0' WHERE c4 = '0';
 UPDATE t SET c2 = '2' WHERE c4 = '2';
 include/rpl_sync.inc
 include/diff_tables.inc [server_1:test.t, server_2:test.t, server_3:test.t]
-Warnings:
-Warning	1287	'<select expression> INTO <destination>;' is deprecated and will be removed in a future release. Please use 'SELECT <select list> INTO <destination> FROM...' instead
-Warnings:
-Warning	1287	'<select expression> INTO <destination>;' is deprecated and will be removed in a future release. Please use 'SELECT <select list> INTO <destination> FROM...' instead
-Warnings:
-Warning	1287	'<select expression> INTO <destination>;' is deprecated and will be removed in a future release. Please use 'SELECT <select list> INTO <destination> FROM...' instead
 connection server_1;
 DELETE FROM t WHERE c1 = 7;
 DELETE FROM t WHERE c1 = 8;
 DELETE FROM t;
 include/rpl_sync.inc
 include/diff_tables.inc [server_1:test.t, server_2:test.t, server_3:test.t]
-Warnings:
-Warning	1287	'<select expression> INTO <destination>;' is deprecated and will be removed in a future release. Please use 'SELECT <select list> INTO <destination> FROM...' instead
-Warnings:
-Warning	1287	'<select expression> INTO <destination>;' is deprecated and will be removed in a future release. Please use 'SELECT <select list> INTO <destination> FROM...' instead
-Warnings:
-Warning	1287	'<select expression> INTO <destination>;' is deprecated and will be removed in a future release. Please use 'SELECT <select list> INTO <destination> FROM...' instead
 connection server_1;
 DROP TABLE t;
 include/rpl_sync.inc
@@ -2030,24 +1646,12 @@ UPDATE t SET c2 = '0' WHERE c4 = '0';
 UPDATE t SET c2 = '2' WHERE c4 = '2';
 include/rpl_sync.inc
 include/diff_tables.inc [server_1:test.t, server_2:test.t, server_3:test.t]
-Warnings:
-Warning	1287	'<select expression> INTO <destination>;' is deprecated and will be removed in a future release. Please use 'SELECT <select list> INTO <destination> FROM...' instead
-Warnings:
-Warning	1287	'<select expression> INTO <destination>;' is deprecated and will be removed in a future release. Please use 'SELECT <select list> INTO <destination> FROM...' instead
-Warnings:
-Warning	1287	'<select expression> INTO <destination>;' is deprecated and will be removed in a future release. Please use 'SELECT <select list> INTO <destination> FROM...' instead
 connection server_1;
 DELETE FROM t WHERE c1 = 7;
 DELETE FROM t WHERE c1 = 8;
 DELETE FROM t;
 include/rpl_sync.inc
 include/diff_tables.inc [server_1:test.t, server_2:test.t, server_3:test.t]
-Warnings:
-Warning	1287	'<select expression> INTO <destination>;' is deprecated and will be removed in a future release. Please use 'SELECT <select list> INTO <destination> FROM...' instead
-Warnings:
-Warning	1287	'<select expression> INTO <destination>;' is deprecated and will be removed in a future release. Please use 'SELECT <select list> INTO <destination> FROM...' instead
-Warnings:
-Warning	1287	'<select expression> INTO <destination>;' is deprecated and will be removed in a future release. Please use 'SELECT <select list> INTO <destination> FROM...' instead
 connection server_1;
 DROP TABLE t;
 include/rpl_sync.inc
@@ -2091,24 +1695,12 @@ UPDATE t SET c2 = '0' WHERE c4 = '0';
 UPDATE t SET c2 = '2' WHERE c4 = '2';
 include/rpl_sync.inc
 include/diff_tables.inc [server_1:test.t, server_2:test.t, server_3:test.t]
-Warnings:
-Warning	1287	'<select expression> INTO <destination>;' is deprecated and will be removed in a future release. Please use 'SELECT <select list> INTO <destination> FROM...' instead
-Warnings:
-Warning	1287	'<select expression> INTO <destination>;' is deprecated and will be removed in a future release. Please use 'SELECT <select list> INTO <destination> FROM...' instead
-Warnings:
-Warning	1287	'<select expression> INTO <destination>;' is deprecated and will be removed in a future release. Please use 'SELECT <select list> INTO <destination> FROM...' instead
 connection server_1;
 DELETE FROM t WHERE c1 = 7;
 DELETE FROM t WHERE c1 = 8;
 DELETE FROM t;
 include/rpl_sync.inc
 include/diff_tables.inc [server_1:test.t, server_2:test.t, server_3:test.t]
-Warnings:
-Warning	1287	'<select expression> INTO <destination>;' is deprecated and will be removed in a future release. Please use 'SELECT <select list> INTO <destination> FROM...' instead
-Warnings:
-Warning	1287	'<select expression> INTO <destination>;' is deprecated and will be removed in a future release. Please use 'SELECT <select list> INTO <destination> FROM...' instead
-Warnings:
-Warning	1287	'<select expression> INTO <destination>;' is deprecated and will be removed in a future release. Please use 'SELECT <select list> INTO <destination> FROM...' instead
 connection server_1;
 DROP TABLE t;
 include/rpl_sync.inc
@@ -2152,24 +1744,12 @@ UPDATE t SET c2 = '0' WHERE c4 = '0';
 UPDATE t SET c2 = '2' WHERE c4 = '2';
 include/rpl_sync.inc
 include/diff_tables.inc [server_1:test.t, server_2:test.t, server_3:test.t]
-Warnings:
-Warning	1287	'<select expression> INTO <destination>;' is deprecated and will be removed in a future release. Please use 'SELECT <select list> INTO <destination> FROM...' instead
-Warnings:
-Warning	1287	'<select expression> INTO <destination>;' is deprecated and will be removed in a future release. Please use 'SELECT <select list> INTO <destination> FROM...' instead
-Warnings:
-Warning	1287	'<select expression> INTO <destination>;' is deprecated and will be removed in a future release. Please use 'SELECT <select list> INTO <destination> FROM...' instead
 connection server_1;
 DELETE FROM t WHERE c1 = 7;
 DELETE FROM t WHERE c1 = 8;
 DELETE FROM t;
 include/rpl_sync.inc
 include/diff_tables.inc [server_1:test.t, server_2:test.t, server_3:test.t]
-Warnings:
-Warning	1287	'<select expression> INTO <destination>;' is deprecated and will be removed in a future release. Please use 'SELECT <select list> INTO <destination> FROM...' instead
-Warnings:
-Warning	1287	'<select expression> INTO <destination>;' is deprecated and will be removed in a future release. Please use 'SELECT <select list> INTO <destination> FROM...' instead
-Warnings:
-Warning	1287	'<select expression> INTO <destination>;' is deprecated and will be removed in a future release. Please use 'SELECT <select list> INTO <destination> FROM...' instead
 connection server_1;
 DROP TABLE t;
 include/rpl_sync.inc
@@ -2213,24 +1793,12 @@ UPDATE t SET c2 = '0' WHERE c4 = '0';
 UPDATE t SET c2 = '2' WHERE c4 = '2';
 include/rpl_sync.inc
 include/diff_tables.inc [server_1:test.t, server_2:test.t, server_3:test.t]
-Warnings:
-Warning	1287	'<select expression> INTO <destination>;' is deprecated and will be removed in a future release. Please use 'SELECT <select list> INTO <destination> FROM...' instead
-Warnings:
-Warning	1287	'<select expression> INTO <destination>;' is deprecated and will be removed in a future release. Please use 'SELECT <select list> INTO <destination> FROM...' instead
-Warnings:
-Warning	1287	'<select expression> INTO <destination>;' is deprecated and will be removed in a future release. Please use 'SELECT <select list> INTO <destination> FROM...' instead
 connection server_1;
 DELETE FROM t WHERE c1 = 7;
 DELETE FROM t WHERE c1 = 8;
 DELETE FROM t;
 include/rpl_sync.inc
 include/diff_tables.inc [server_1:test.t, server_2:test.t, server_3:test.t]
-Warnings:
-Warning	1287	'<select expression> INTO <destination>;' is deprecated and will be removed in a future release. Please use 'SELECT <select list> INTO <destination> FROM...' instead
-Warnings:
-Warning	1287	'<select expression> INTO <destination>;' is deprecated and will be removed in a future release. Please use 'SELECT <select list> INTO <destination> FROM...' instead
-Warnings:
-Warning	1287	'<select expression> INTO <destination>;' is deprecated and will be removed in a future release. Please use 'SELECT <select list> INTO <destination> FROM...' instead
 connection server_1;
 DROP TABLE t;
 include/rpl_sync.inc
@@ -2276,24 +1844,12 @@ UPDATE t SET c2 = '0' WHERE c4 = '0';
 UPDATE t SET c2 = '2' WHERE c4 = '2';
 include/rpl_sync.inc
 include/diff_tables.inc [server_1:test.t, server_2:test.t, server_3:test.t]
-Warnings:
-Warning	1287	'<select expression> INTO <destination>;' is deprecated and will be removed in a future release. Please use 'SELECT <select list> INTO <destination> FROM...' instead
-Warnings:
-Warning	1287	'<select expression> INTO <destination>;' is deprecated and will be removed in a future release. Please use 'SELECT <select list> INTO <destination> FROM...' instead
-Warnings:
-Warning	1287	'<select expression> INTO <destination>;' is deprecated and will be removed in a future release. Please use 'SELECT <select list> INTO <destination> FROM...' instead
 connection server_1;
 DELETE FROM t WHERE c1 = 7;
 DELETE FROM t WHERE c1 = 8;
 DELETE FROM t;
 include/rpl_sync.inc
 include/diff_tables.inc [server_1:test.t, server_2:test.t, server_3:test.t]
-Warnings:
-Warning	1287	'<select expression> INTO <destination>;' is deprecated and will be removed in a future release. Please use 'SELECT <select list> INTO <destination> FROM...' instead
-Warnings:
-Warning	1287	'<select expression> INTO <destination>;' is deprecated and will be removed in a future release. Please use 'SELECT <select list> INTO <destination> FROM...' instead
-Warnings:
-Warning	1287	'<select expression> INTO <destination>;' is deprecated and will be removed in a future release. Please use 'SELECT <select list> INTO <destination> FROM...' instead
 connection server_1;
 DROP TABLE t;
 include/rpl_sync.inc
@@ -2337,24 +1893,12 @@ UPDATE t SET c2 = '0' WHERE c4 = '0';
 UPDATE t SET c2 = '2' WHERE c4 = '2';
 include/rpl_sync.inc
 include/diff_tables.inc [server_1:test.t, server_2:test.t, server_3:test.t]
-Warnings:
-Warning	1287	'<select expression> INTO <destination>;' is deprecated and will be removed in a future release. Please use 'SELECT <select list> INTO <destination> FROM...' instead
-Warnings:
-Warning	1287	'<select expression> INTO <destination>;' is deprecated and will be removed in a future release. Please use 'SELECT <select list> INTO <destination> FROM...' instead
-Warnings:
-Warning	1287	'<select expression> INTO <destination>;' is deprecated and will be removed in a future release. Please use 'SELECT <select list> INTO <destination> FROM...' instead
 connection server_1;
 DELETE FROM t WHERE c1 = 7;
 DELETE FROM t WHERE c1 = 8;
 DELETE FROM t;
 include/rpl_sync.inc
 include/diff_tables.inc [server_1:test.t, server_2:test.t, server_3:test.t]
-Warnings:
-Warning	1287	'<select expression> INTO <destination>;' is deprecated and will be removed in a future release. Please use 'SELECT <select list> INTO <destination> FROM...' instead
-Warnings:
-Warning	1287	'<select expression> INTO <destination>;' is deprecated and will be removed in a future release. Please use 'SELECT <select list> INTO <destination> FROM...' instead
-Warnings:
-Warning	1287	'<select expression> INTO <destination>;' is deprecated and will be removed in a future release. Please use 'SELECT <select list> INTO <destination> FROM...' instead
 connection server_1;
 DROP TABLE t;
 include/rpl_sync.inc
@@ -2398,24 +1942,12 @@ UPDATE t SET c2 = '0' WHERE c4 = '0';
 UPDATE t SET c2 = '2' WHERE c4 = '2';
 include/rpl_sync.inc
 include/diff_tables.inc [server_1:test.t, server_2:test.t, server_3:test.t]
-Warnings:
-Warning	1287	'<select expression> INTO <destination>;' is deprecated and will be removed in a future release. Please use 'SELECT <select list> INTO <destination> FROM...' instead
-Warnings:
-Warning	1287	'<select expression> INTO <destination>;' is deprecated and will be removed in a future release. Please use 'SELECT <select list> INTO <destination> FROM...' instead
-Warnings:
-Warning	1287	'<select expression> INTO <destination>;' is deprecated and will be removed in a future release. Please use 'SELECT <select list> INTO <destination> FROM...' instead
 connection server_1;
 DELETE FROM t WHERE c1 = 7;
 DELETE FROM t WHERE c1 = 8;
 DELETE FROM t;
 include/rpl_sync.inc
 include/diff_tables.inc [server_1:test.t, server_2:test.t, server_3:test.t]
-Warnings:
-Warning	1287	'<select expression> INTO <destination>;' is deprecated and will be removed in a future release. Please use 'SELECT <select list> INTO <destination> FROM...' instead
-Warnings:
-Warning	1287	'<select expression> INTO <destination>;' is deprecated and will be removed in a future release. Please use 'SELECT <select list> INTO <destination> FROM...' instead
-Warnings:
-Warning	1287	'<select expression> INTO <destination>;' is deprecated and will be removed in a future release. Please use 'SELECT <select list> INTO <destination> FROM...' instead
 connection server_1;
 DROP TABLE t;
 include/rpl_sync.inc
@@ -2459,24 +1991,12 @@ UPDATE t SET c2 = '0' WHERE c4 = '0';
 UPDATE t SET c2 = '2' WHERE c4 = '2';
 include/rpl_sync.inc
 include/diff_tables.inc [server_1:test.t, server_2:test.t, server_3:test.t]
-Warnings:
-Warning	1287	'<select expression> INTO <destination>;' is deprecated and will be removed in a future release. Please use 'SELECT <select list> INTO <destination> FROM...' instead
-Warnings:
-Warning	1287	'<select expression> INTO <destination>;' is deprecated and will be removed in a future release. Please use 'SELECT <select list> INTO <destination> FROM...' instead
-Warnings:
-Warning	1287	'<select expression> INTO <destination>;' is deprecated and will be removed in a future release. Please use 'SELECT <select list> INTO <destination> FROM...' instead
 connection server_1;
 DELETE FROM t WHERE c1 = 7;
 DELETE FROM t WHERE c1 = 8;
 DELETE FROM t;
 include/rpl_sync.inc
 include/diff_tables.inc [server_1:test.t, server_2:test.t, server_3:test.t]
-Warnings:
-Warning	1287	'<select expression> INTO <destination>;' is deprecated and will be removed in a future release. Please use 'SELECT <select list> INTO <destination> FROM...' instead
-Warnings:
-Warning	1287	'<select expression> INTO <destination>;' is deprecated and will be removed in a future release. Please use 'SELECT <select list> INTO <destination> FROM...' instead
-Warnings:
-Warning	1287	'<select expression> INTO <destination>;' is deprecated and will be removed in a future release. Please use 'SELECT <select list> INTO <destination> FROM...' instead
 connection server_1;
 DROP TABLE t;
 include/rpl_sync.inc
@@ -2520,24 +2040,12 @@ UPDATE t SET c2 = '0' WHERE c4 = '0';
 UPDATE t SET c2 = '2' WHERE c4 = '2';
 include/rpl_sync.inc
 include/diff_tables.inc [server_1:test.t, server_2:test.t, server_3:test.t]
-Warnings:
-Warning	1287	'<select expression> INTO <destination>;' is deprecated and will be removed in a future release. Please use 'SELECT <select list> INTO <destination> FROM...' instead
-Warnings:
-Warning	1287	'<select expression> INTO <destination>;' is deprecated and will be removed in a future release. Please use 'SELECT <select list> INTO <destination> FROM...' instead
-Warnings:
-Warning	1287	'<select expression> INTO <destination>;' is deprecated and will be removed in a future release. Please use 'SELECT <select list> INTO <destination> FROM...' instead
 connection server_1;
 DELETE FROM t WHERE c1 = 7;
 DELETE FROM t WHERE c1 = 8;
 DELETE FROM t;
 include/rpl_sync.inc
 include/diff_tables.inc [server_1:test.t, server_2:test.t, server_3:test.t]
-Warnings:
-Warning	1287	'<select expression> INTO <destination>;' is deprecated and will be removed in a future release. Please use 'SELECT <select list> INTO <destination> FROM...' instead
-Warnings:
-Warning	1287	'<select expression> INTO <destination>;' is deprecated and will be removed in a future release. Please use 'SELECT <select list> INTO <destination> FROM...' instead
-Warnings:
-Warning	1287	'<select expression> INTO <destination>;' is deprecated and will be removed in a future release. Please use 'SELECT <select list> INTO <destination> FROM...' instead
 connection server_1;
 DROP TABLE t;
 include/rpl_sync.inc
@@ -2581,24 +2089,12 @@ UPDATE t SET c2 = '0' WHERE c4 = '0';
 UPDATE t SET c2 = '2' WHERE c4 = '2';
 include/rpl_sync.inc
 include/diff_tables.inc [server_1:test.t, server_2:test.t, server_3:test.t]
-Warnings:
-Warning	1287	'<select expression> INTO <destination>;' is deprecated and will be removed in a future release. Please use 'SELECT <select list> INTO <destination> FROM...' instead
-Warnings:
-Warning	1287	'<select expression> INTO <destination>;' is deprecated and will be removed in a future release. Please use 'SELECT <select list> INTO <destination> FROM...' instead
-Warnings:
-Warning	1287	'<select expression> INTO <destination>;' is deprecated and will be removed in a future release. Please use 'SELECT <select list> INTO <destination> FROM...' instead
 connection server_1;
 DELETE FROM t WHERE c1 = 7;
 DELETE FROM t WHERE c1 = 8;
 DELETE FROM t;
 include/rpl_sync.inc
 include/diff_tables.inc [server_1:test.t, server_2:test.t, server_3:test.t]
-Warnings:
-Warning	1287	'<select expression> INTO <destination>;' is deprecated and will be removed in a future release. Please use 'SELECT <select list> INTO <destination> FROM...' instead
-Warnings:
-Warning	1287	'<select expression> INTO <destination>;' is deprecated and will be removed in a future release. Please use 'SELECT <select list> INTO <destination> FROM...' instead
-Warnings:
-Warning	1287	'<select expression> INTO <destination>;' is deprecated and will be removed in a future release. Please use 'SELECT <select list> INTO <destination> FROM...' instead
 connection server_1;
 DROP TABLE t;
 include/rpl_sync.inc
@@ -2642,24 +2138,12 @@ UPDATE t SET c2 = '0' WHERE c4 = '0';
 UPDATE t SET c2 = '2' WHERE c4 = '2';
 include/rpl_sync.inc
 include/diff_tables.inc [server_1:test.t, server_2:test.t, server_3:test.t]
-Warnings:
-Warning	1287	'<select expression> INTO <destination>;' is deprecated and will be removed in a future release. Please use 'SELECT <select list> INTO <destination> FROM...' instead
-Warnings:
-Warning	1287	'<select expression> INTO <destination>;' is deprecated and will be removed in a future release. Please use 'SELECT <select list> INTO <destination> FROM...' instead
-Warnings:
-Warning	1287	'<select expression> INTO <destination>;' is deprecated and will be removed in a future release. Please use 'SELECT <select list> INTO <destination> FROM...' instead
 connection server_1;
 DELETE FROM t WHERE c1 = 7;
 DELETE FROM t WHERE c1 = 8;
 DELETE FROM t;
 include/rpl_sync.inc
 include/diff_tables.inc [server_1:test.t, server_2:test.t, server_3:test.t]
-Warnings:
-Warning	1287	'<select expression> INTO <destination>;' is deprecated and will be removed in a future release. Please use 'SELECT <select list> INTO <destination> FROM...' instead
-Warnings:
-Warning	1287	'<select expression> INTO <destination>;' is deprecated and will be removed in a future release. Please use 'SELECT <select list> INTO <destination> FROM...' instead
-Warnings:
-Warning	1287	'<select expression> INTO <destination>;' is deprecated and will be removed in a future release. Please use 'SELECT <select list> INTO <destination> FROM...' instead
 connection server_1;
 DROP TABLE t;
 include/rpl_sync.inc
@@ -2703,24 +2187,12 @@ UPDATE t SET c2 = '0' WHERE c4 = '0';
 UPDATE t SET c2 = '2' WHERE c4 = '2';
 include/rpl_sync.inc
 include/diff_tables.inc [server_1:test.t, server_2:test.t, server_3:test.t]
-Warnings:
-Warning	1287	'<select expression> INTO <destination>;' is deprecated and will be removed in a future release. Please use 'SELECT <select list> INTO <destination> FROM...' instead
-Warnings:
-Warning	1287	'<select expression> INTO <destination>;' is deprecated and will be removed in a future release. Please use 'SELECT <select list> INTO <destination> FROM...' instead
-Warnings:
-Warning	1287	'<select expression> INTO <destination>;' is deprecated and will be removed in a future release. Please use 'SELECT <select list> INTO <destination> FROM...' instead
 connection server_1;
 DELETE FROM t WHERE c1 = 7;
 DELETE FROM t WHERE c1 = 8;
 DELETE FROM t;
 include/rpl_sync.inc
 include/diff_tables.inc [server_1:test.t, server_2:test.t, server_3:test.t]
-Warnings:
-Warning	1287	'<select expression> INTO <destination>;' is deprecated and will be removed in a future release. Please use 'SELECT <select list> INTO <destination> FROM...' instead
-Warnings:
-Warning	1287	'<select expression> INTO <destination>;' is deprecated and will be removed in a future release. Please use 'SELECT <select list> INTO <destination> FROM...' instead
-Warnings:
-Warning	1287	'<select expression> INTO <destination>;' is deprecated and will be removed in a future release. Please use 'SELECT <select list> INTO <destination> FROM...' instead
 connection server_1;
 DROP TABLE t;
 include/rpl_sync.inc
@@ -2764,24 +2236,12 @@ UPDATE t SET c2 = '0' WHERE c4 = '0';
 UPDATE t SET c2 = '2' WHERE c4 = '2';
 include/rpl_sync.inc
 include/diff_tables.inc [server_1:test.t, server_2:test.t, server_3:test.t]
-Warnings:
-Warning	1287	'<select expression> INTO <destination>;' is deprecated and will be removed in a future release. Please use 'SELECT <select list> INTO <destination> FROM...' instead
-Warnings:
-Warning	1287	'<select expression> INTO <destination>;' is deprecated and will be removed in a future release. Please use 'SELECT <select list> INTO <destination> FROM...' instead
-Warnings:
-Warning	1287	'<select expression> INTO <destination>;' is deprecated and will be removed in a future release. Please use 'SELECT <select list> INTO <destination> FROM...' instead
 connection server_1;
 DELETE FROM t WHERE c1 = 7;
 DELETE FROM t WHERE c1 = 8;
 DELETE FROM t;
 include/rpl_sync.inc
 include/diff_tables.inc [server_1:test.t, server_2:test.t, server_3:test.t]
-Warnings:
-Warning	1287	'<select expression> INTO <destination>;' is deprecated and will be removed in a future release. Please use 'SELECT <select list> INTO <destination> FROM...' instead
-Warnings:
-Warning	1287	'<select expression> INTO <destination>;' is deprecated and will be removed in a future release. Please use 'SELECT <select list> INTO <destination> FROM...' instead
-Warnings:
-Warning	1287	'<select expression> INTO <destination>;' is deprecated and will be removed in a future release. Please use 'SELECT <select list> INTO <destination> FROM...' instead
 connection server_1;
 DROP TABLE t;
 include/rpl_sync.inc
@@ -2825,24 +2285,12 @@ UPDATE t SET c2 = '0' WHERE c4 = '0';
 UPDATE t SET c2 = '2' WHERE c4 = '2';
 include/rpl_sync.inc
 include/diff_tables.inc [server_1:test.t, server_2:test.t, server_3:test.t]
-Warnings:
-Warning	1287	'<select expression> INTO <destination>;' is deprecated and will be removed in a future release. Please use 'SELECT <select list> INTO <destination> FROM...' instead
-Warnings:
-Warning	1287	'<select expression> INTO <destination>;' is deprecated and will be removed in a future release. Please use 'SELECT <select list> INTO <destination> FROM...' instead
-Warnings:
-Warning	1287	'<select expression> INTO <destination>;' is deprecated and will be removed in a future release. Please use 'SELECT <select list> INTO <destination> FROM...' instead
 connection server_1;
 DELETE FROM t WHERE c1 = 7;
 DELETE FROM t WHERE c1 = 8;
 DELETE FROM t;
 include/rpl_sync.inc
 include/diff_tables.inc [server_1:test.t, server_2:test.t, server_3:test.t]
-Warnings:
-Warning	1287	'<select expression> INTO <destination>;' is deprecated and will be removed in a future release. Please use 'SELECT <select list> INTO <destination> FROM...' instead
-Warnings:
-Warning	1287	'<select expression> INTO <destination>;' is deprecated and will be removed in a future release. Please use 'SELECT <select list> INTO <destination> FROM...' instead
-Warnings:
-Warning	1287	'<select expression> INTO <destination>;' is deprecated and will be removed in a future release. Please use 'SELECT <select list> INTO <destination> FROM...' instead
 connection server_1;
 DROP TABLE t;
 include/rpl_sync.inc
@@ -2886,24 +2334,12 @@ UPDATE t SET c2 = '0' WHERE c4 = '0';
 UPDATE t SET c2 = '2' WHERE c4 = '2';
 include/rpl_sync.inc
 include/diff_tables.inc [server_1:test.t, server_2:test.t, server_3:test.t]
-Warnings:
-Warning	1287	'<select expression> INTO <destination>;' is deprecated and will be removed in a future release. Please use 'SELECT <select list> INTO <destination> FROM...' instead
-Warnings:
-Warning	1287	'<select expression> INTO <destination>;' is deprecated and will be removed in a future release. Please use 'SELECT <select list> INTO <destination> FROM...' instead
-Warnings:
-Warning	1287	'<select expression> INTO <destination>;' is deprecated and will be removed in a future release. Please use 'SELECT <select list> INTO <destination> FROM...' instead
 connection server_1;
 DELETE FROM t WHERE c1 = 7;
 DELETE FROM t WHERE c1 = 8;
 DELETE FROM t;
 include/rpl_sync.inc
 include/diff_tables.inc [server_1:test.t, server_2:test.t, server_3:test.t]
-Warnings:
-Warning	1287	'<select expression> INTO <destination>;' is deprecated and will be removed in a future release. Please use 'SELECT <select list> INTO <destination> FROM...' instead
-Warnings:
-Warning	1287	'<select expression> INTO <destination>;' is deprecated and will be removed in a future release. Please use 'SELECT <select list> INTO <destination> FROM...' instead
-Warnings:
-Warning	1287	'<select expression> INTO <destination>;' is deprecated and will be removed in a future release. Please use 'SELECT <select list> INTO <destination> FROM...' instead
 connection server_1;
 DROP TABLE t;
 include/rpl_sync.inc
@@ -2947,24 +2383,12 @@ UPDATE t SET c2 = '0' WHERE c4 = '0';
 UPDATE t SET c2 = '2' WHERE c4 = '2';
 include/rpl_sync.inc
 include/diff_tables.inc [server_1:test.t, server_2:test.t, server_3:test.t]
-Warnings:
-Warning	1287	'<select expression> INTO <destination>;' is deprecated and will be removed in a future release. Please use 'SELECT <select list> INTO <destination> FROM...' instead
-Warnings:
-Warning	1287	'<select expression> INTO <destination>;' is deprecated and will be removed in a future release. Please use 'SELECT <select list> INTO <destination> FROM...' instead
-Warnings:
-Warning	1287	'<select expression> INTO <destination>;' is deprecated and will be removed in a future release. Please use 'SELECT <select list> INTO <destination> FROM...' instead
 connection server_1;
 DELETE FROM t WHERE c1 = 7;
 DELETE FROM t WHERE c1 = 8;
 DELETE FROM t;
 include/rpl_sync.inc
 include/diff_tables.inc [server_1:test.t, server_2:test.t, server_3:test.t]
-Warnings:
-Warning	1287	'<select expression> INTO <destination>;' is deprecated and will be removed in a future release. Please use 'SELECT <select list> INTO <destination> FROM...' instead
-Warnings:
-Warning	1287	'<select expression> INTO <destination>;' is deprecated and will be removed in a future release. Please use 'SELECT <select list> INTO <destination> FROM...' instead
-Warnings:
-Warning	1287	'<select expression> INTO <destination>;' is deprecated and will be removed in a future release. Please use 'SELECT <select list> INTO <destination> FROM...' instead
 connection server_1;
 DROP TABLE t;
 include/rpl_sync.inc
@@ -3010,24 +2434,12 @@ UPDATE t SET c2 = '0' WHERE c4 = '0';
 UPDATE t SET c2 = '2' WHERE c4 = '2';
 include/rpl_sync.inc
 include/diff_tables.inc [server_1:test.t, server_2:test.t, server_3:test.t]
-Warnings:
-Warning	1287	'<select expression> INTO <destination>;' is deprecated and will be removed in a future release. Please use 'SELECT <select list> INTO <destination> FROM...' instead
-Warnings:
-Warning	1287	'<select expression> INTO <destination>;' is deprecated and will be removed in a future release. Please use 'SELECT <select list> INTO <destination> FROM...' instead
-Warnings:
-Warning	1287	'<select expression> INTO <destination>;' is deprecated and will be removed in a future release. Please use 'SELECT <select list> INTO <destination> FROM...' instead
 connection server_1;
 DELETE FROM t WHERE c1 = 7;
 DELETE FROM t WHERE c1 = 8;
 DELETE FROM t;
 include/rpl_sync.inc
 include/diff_tables.inc [server_1:test.t, server_2:test.t, server_3:test.t]
-Warnings:
-Warning	1287	'<select expression> INTO <destination>;' is deprecated and will be removed in a future release. Please use 'SELECT <select list> INTO <destination> FROM...' instead
-Warnings:
-Warning	1287	'<select expression> INTO <destination>;' is deprecated and will be removed in a future release. Please use 'SELECT <select list> INTO <destination> FROM...' instead
-Warnings:
-Warning	1287	'<select expression> INTO <destination>;' is deprecated and will be removed in a future release. Please use 'SELECT <select list> INTO <destination> FROM...' instead
 connection server_1;
 DROP TABLE t;
 include/rpl_sync.inc
@@ -3071,24 +2483,12 @@ UPDATE t SET c2 = '0' WHERE c4 = '0';
 UPDATE t SET c2 = '2' WHERE c4 = '2';
 include/rpl_sync.inc
 include/diff_tables.inc [server_1:test.t, server_2:test.t, server_3:test.t]
-Warnings:
-Warning	1287	'<select expression> INTO <destination>;' is deprecated and will be removed in a future release. Please use 'SELECT <select list> INTO <destination> FROM...' instead
-Warnings:
-Warning	1287	'<select expression> INTO <destination>;' is deprecated and will be removed in a future release. Please use 'SELECT <select list> INTO <destination> FROM...' instead
-Warnings:
-Warning	1287	'<select expression> INTO <destination>;' is deprecated and will be removed in a future release. Please use 'SELECT <select list> INTO <destination> FROM...' instead
 connection server_1;
 DELETE FROM t WHERE c1 = 7;
 DELETE FROM t WHERE c1 = 8;
 DELETE FROM t;
 include/rpl_sync.inc
 include/diff_tables.inc [server_1:test.t, server_2:test.t, server_3:test.t]
-Warnings:
-Warning	1287	'<select expression> INTO <destination>;' is deprecated and will be removed in a future release. Please use 'SELECT <select list> INTO <destination> FROM...' instead
-Warnings:
-Warning	1287	'<select expression> INTO <destination>;' is deprecated and will be removed in a future release. Please use 'SELECT <select list> INTO <destination> FROM...' instead
-Warnings:
-Warning	1287	'<select expression> INTO <destination>;' is deprecated and will be removed in a future release. Please use 'SELECT <select list> INTO <destination> FROM...' instead
 connection server_1;
 DROP TABLE t;
 include/rpl_sync.inc
@@ -3132,24 +2532,12 @@ UPDATE t SET c2 = '0' WHERE c4 = '0';
 UPDATE t SET c2 = '2' WHERE c4 = '2';
 include/rpl_sync.inc
 include/diff_tables.inc [server_1:test.t, server_2:test.t, server_3:test.t]
-Warnings:
-Warning	1287	'<select expression> INTO <destination>;' is deprecated and will be removed in a future release. Please use 'SELECT <select list> INTO <destination> FROM...' instead
-Warnings:
-Warning	1287	'<select expression> INTO <destination>;' is deprecated and will be removed in a future release. Please use 'SELECT <select list> INTO <destination> FROM...' instead
-Warnings:
-Warning	1287	'<select expression> INTO <destination>;' is deprecated and will be removed in a future release. Please use 'SELECT <select list> INTO <destination> FROM...' instead
 connection server_1;
 DELETE FROM t WHERE c1 = 7;
 DELETE FROM t WHERE c1 = 8;
 DELETE FROM t;
 include/rpl_sync.inc
 include/diff_tables.inc [server_1:test.t, server_2:test.t, server_3:test.t]
-Warnings:
-Warning	1287	'<select expression> INTO <destination>;' is deprecated and will be removed in a future release. Please use 'SELECT <select list> INTO <destination> FROM...' instead
-Warnings:
-Warning	1287	'<select expression> INTO <destination>;' is deprecated and will be removed in a future release. Please use 'SELECT <select list> INTO <destination> FROM...' instead
-Warnings:
-Warning	1287	'<select expression> INTO <destination>;' is deprecated and will be removed in a future release. Please use 'SELECT <select list> INTO <destination> FROM...' instead
 connection server_1;
 DROP TABLE t;
 include/rpl_sync.inc
@@ -3193,24 +2581,12 @@ UPDATE t SET c2 = '0' WHERE c4 = '0';
 UPDATE t SET c2 = '2' WHERE c4 = '2';
 include/rpl_sync.inc
 include/diff_tables.inc [server_1:test.t, server_2:test.t, server_3:test.t]
-Warnings:
-Warning	1287	'<select expression> INTO <destination>;' is deprecated and will be removed in a future release. Please use 'SELECT <select list> INTO <destination> FROM...' instead
-Warnings:
-Warning	1287	'<select expression> INTO <destination>;' is deprecated and will be removed in a future release. Please use 'SELECT <select list> INTO <destination> FROM...' instead
-Warnings:
-Warning	1287	'<select expression> INTO <destination>;' is deprecated and will be removed in a future release. Please use 'SELECT <select list> INTO <destination> FROM...' instead
 connection server_1;
 DELETE FROM t WHERE c1 = 7;
 DELETE FROM t WHERE c1 = 8;
 DELETE FROM t;
 include/rpl_sync.inc
 include/diff_tables.inc [server_1:test.t, server_2:test.t, server_3:test.t]
-Warnings:
-Warning	1287	'<select expression> INTO <destination>;' is deprecated and will be removed in a future release. Please use 'SELECT <select list> INTO <destination> FROM...' instead
-Warnings:
-Warning	1287	'<select expression> INTO <destination>;' is deprecated and will be removed in a future release. Please use 'SELECT <select list> INTO <destination> FROM...' instead
-Warnings:
-Warning	1287	'<select expression> INTO <destination>;' is deprecated and will be removed in a future release. Please use 'SELECT <select list> INTO <destination> FROM...' instead
 connection server_1;
 DROP TABLE t;
 include/rpl_sync.inc
@@ -3254,24 +2630,12 @@ UPDATE t SET c2 = '0' WHERE c4 = '0';
 UPDATE t SET c2 = '2' WHERE c4 = '2';
 include/rpl_sync.inc
 include/diff_tables.inc [server_1:test.t, server_2:test.t, server_3:test.t]
-Warnings:
-Warning	1287	'<select expression> INTO <destination>;' is deprecated and will be removed in a future release. Please use 'SELECT <select list> INTO <destination> FROM...' instead
-Warnings:
-Warning	1287	'<select expression> INTO <destination>;' is deprecated and will be removed in a future release. Please use 'SELECT <select list> INTO <destination> FROM...' instead
-Warnings:
-Warning	1287	'<select expression> INTO <destination>;' is deprecated and will be removed in a future release. Please use 'SELECT <select list> INTO <destination> FROM...' instead
 connection server_1;
 DELETE FROM t WHERE c1 = 7;
 DELETE FROM t WHERE c1 = 8;
 DELETE FROM t;
 include/rpl_sync.inc
 include/diff_tables.inc [server_1:test.t, server_2:test.t, server_3:test.t]
-Warnings:
-Warning	1287	'<select expression> INTO <destination>;' is deprecated and will be removed in a future release. Please use 'SELECT <select list> INTO <destination> FROM...' instead
-Warnings:
-Warning	1287	'<select expression> INTO <destination>;' is deprecated and will be removed in a future release. Please use 'SELECT <select list> INTO <destination> FROM...' instead
-Warnings:
-Warning	1287	'<select expression> INTO <destination>;' is deprecated and will be removed in a future release. Please use 'SELECT <select list> INTO <destination> FROM...' instead
 connection server_1;
 DROP TABLE t;
 include/rpl_sync.inc
@@ -3315,24 +2679,12 @@ UPDATE t SET c2 = '0' WHERE c4 = '0';
 UPDATE t SET c2 = '2' WHERE c4 = '2';
 include/rpl_sync.inc
 include/diff_tables.inc [server_1:test.t, server_2:test.t, server_3:test.t]
-Warnings:
-Warning	1287	'<select expression> INTO <destination>;' is deprecated and will be removed in a future release. Please use 'SELECT <select list> INTO <destination> FROM...' instead
-Warnings:
-Warning	1287	'<select expression> INTO <destination>;' is deprecated and will be removed in a future release. Please use 'SELECT <select list> INTO <destination> FROM...' instead
-Warnings:
-Warning	1287	'<select expression> INTO <destination>;' is deprecated and will be removed in a future release. Please use 'SELECT <select list> INTO <destination> FROM...' instead
 connection server_1;
 DELETE FROM t WHERE c1 = 7;
 DELETE FROM t WHERE c1 = 8;
 DELETE FROM t;
 include/rpl_sync.inc
 include/diff_tables.inc [server_1:test.t, server_2:test.t, server_3:test.t]
-Warnings:
-Warning	1287	'<select expression> INTO <destination>;' is deprecated and will be removed in a future release. Please use 'SELECT <select list> INTO <destination> FROM...' instead
-Warnings:
-Warning	1287	'<select expression> INTO <destination>;' is deprecated and will be removed in a future release. Please use 'SELECT <select list> INTO <destination> FROM...' instead
-Warnings:
-Warning	1287	'<select expression> INTO <destination>;' is deprecated and will be removed in a future release. Please use 'SELECT <select list> INTO <destination> FROM...' instead
 connection server_1;
 DROP TABLE t;
 include/rpl_sync.inc
@@ -3376,24 +2728,12 @@ UPDATE t SET c2 = '0' WHERE c4 = '0';
 UPDATE t SET c2 = '2' WHERE c4 = '2';
 include/rpl_sync.inc
 include/diff_tables.inc [server_1:test.t, server_2:test.t, server_3:test.t]
-Warnings:
-Warning	1287	'<select expression> INTO <destination>;' is deprecated and will be removed in a future release. Please use 'SELECT <select list> INTO <destination> FROM...' instead
-Warnings:
-Warning	1287	'<select expression> INTO <destination>;' is deprecated and will be removed in a future release. Please use 'SELECT <select list> INTO <destination> FROM...' instead
-Warnings:
-Warning	1287	'<select expression> INTO <destination>;' is deprecated and will be removed in a future release. Please use 'SELECT <select list> INTO <destination> FROM...' instead
 connection server_1;
 DELETE FROM t WHERE c1 = 7;
 DELETE FROM t WHERE c1 = 8;
 DELETE FROM t;
 include/rpl_sync.inc
 include/diff_tables.inc [server_1:test.t, server_2:test.t, server_3:test.t]
-Warnings:
-Warning	1287	'<select expression> INTO <destination>;' is deprecated and will be removed in a future release. Please use 'SELECT <select list> INTO <destination> FROM...' instead
-Warnings:
-Warning	1287	'<select expression> INTO <destination>;' is deprecated and will be removed in a future release. Please use 'SELECT <select list> INTO <destination> FROM...' instead
-Warnings:
-Warning	1287	'<select expression> INTO <destination>;' is deprecated and will be removed in a future release. Please use 'SELECT <select list> INTO <destination> FROM...' instead
 connection server_1;
 DROP TABLE t;
 include/rpl_sync.inc
@@ -3437,24 +2777,12 @@ UPDATE t SET c2 = '0' WHERE c4 = '0';
 UPDATE t SET c2 = '2' WHERE c4 = '2';
 include/rpl_sync.inc
 include/diff_tables.inc [server_1:test.t, server_2:test.t, server_3:test.t]
-Warnings:
-Warning	1287	'<select expression> INTO <destination>;' is deprecated and will be removed in a future release. Please use 'SELECT <select list> INTO <destination> FROM...' instead
-Warnings:
-Warning	1287	'<select expression> INTO <destination>;' is deprecated and will be removed in a future release. Please use 'SELECT <select list> INTO <destination> FROM...' instead
-Warnings:
-Warning	1287	'<select expression> INTO <destination>;' is deprecated and will be removed in a future release. Please use 'SELECT <select list> INTO <destination> FROM...' instead
 connection server_1;
 DELETE FROM t WHERE c1 = 7;
 DELETE FROM t WHERE c1 = 8;
 DELETE FROM t;
 include/rpl_sync.inc
 include/diff_tables.inc [server_1:test.t, server_2:test.t, server_3:test.t]
-Warnings:
-Warning	1287	'<select expression> INTO <destination>;' is deprecated and will be removed in a future release. Please use 'SELECT <select list> INTO <destination> FROM...' instead
-Warnings:
-Warning	1287	'<select expression> INTO <destination>;' is deprecated and will be removed in a future release. Please use 'SELECT <select list> INTO <destination> FROM...' instead
-Warnings:
-Warning	1287	'<select expression> INTO <destination>;' is deprecated and will be removed in a future release. Please use 'SELECT <select list> INTO <destination> FROM...' instead
 connection server_1;
 DROP TABLE t;
 include/rpl_sync.inc
@@ -3498,24 +2826,12 @@ UPDATE t SET c2 = '0' WHERE c4 = '0';
 UPDATE t SET c2 = '2' WHERE c4 = '2';
 include/rpl_sync.inc
 include/diff_tables.inc [server_1:test.t, server_2:test.t, server_3:test.t]
-Warnings:
-Warning	1287	'<select expression> INTO <destination>;' is deprecated and will be removed in a future release. Please use 'SELECT <select list> INTO <destination> FROM...' instead
-Warnings:
-Warning	1287	'<select expression> INTO <destination>;' is deprecated and will be removed in a future release. Please use 'SELECT <select list> INTO <destination> FROM...' instead
-Warnings:
-Warning	1287	'<select expression> INTO <destination>;' is deprecated and will be removed in a future release. Please use 'SELECT <select list> INTO <destination> FROM...' instead
 connection server_1;
 DELETE FROM t WHERE c1 = 7;
 DELETE FROM t WHERE c1 = 8;
 DELETE FROM t;
 include/rpl_sync.inc
 include/diff_tables.inc [server_1:test.t, server_2:test.t, server_3:test.t]
-Warnings:
-Warning	1287	'<select expression> INTO <destination>;' is deprecated and will be removed in a future release. Please use 'SELECT <select list> INTO <destination> FROM...' instead
-Warnings:
-Warning	1287	'<select expression> INTO <destination>;' is deprecated and will be removed in a future release. Please use 'SELECT <select list> INTO <destination> FROM...' instead
-Warnings:
-Warning	1287	'<select expression> INTO <destination>;' is deprecated and will be removed in a future release. Please use 'SELECT <select list> INTO <destination> FROM...' instead
 connection server_1;
 DROP TABLE t;
 include/rpl_sync.inc
@@ -3559,24 +2875,12 @@ UPDATE t SET c2 = '0' WHERE c4 = '0';
 UPDATE t SET c2 = '2' WHERE c4 = '2';
 include/rpl_sync.inc
 include/diff_tables.inc [server_1:test.t, server_2:test.t, server_3:test.t]
-Warnings:
-Warning	1287	'<select expression> INTO <destination>;' is deprecated and will be removed in a future release. Please use 'SELECT <select list> INTO <destination> FROM...' instead
-Warnings:
-Warning	1287	'<select expression> INTO <destination>;' is deprecated and will be removed in a future release. Please use 'SELECT <select list> INTO <destination> FROM...' instead
-Warnings:
-Warning	1287	'<select expression> INTO <destination>;' is deprecated and will be removed in a future release. Please use 'SELECT <select list> INTO <destination> FROM...' instead
 connection server_1;
 DELETE FROM t WHERE c1 = 7;
 DELETE FROM t WHERE c1 = 8;
 DELETE FROM t;
 include/rpl_sync.inc
 include/diff_tables.inc [server_1:test.t, server_2:test.t, server_3:test.t]
-Warnings:
-Warning	1287	'<select expression> INTO <destination>;' is deprecated and will be removed in a future release. Please use 'SELECT <select list> INTO <destination> FROM...' instead
-Warnings:
-Warning	1287	'<select expression> INTO <destination>;' is deprecated and will be removed in a future release. Please use 'SELECT <select list> INTO <destination> FROM...' instead
-Warnings:
-Warning	1287	'<select expression> INTO <destination>;' is deprecated and will be removed in a future release. Please use 'SELECT <select list> INTO <destination> FROM...' instead
 connection server_1;
 DROP TABLE t;
 include/rpl_sync.inc
@@ -3620,24 +2924,12 @@ UPDATE t SET c2 = '0' WHERE c4 = '0';
 UPDATE t SET c2 = '2' WHERE c4 = '2';
 include/rpl_sync.inc
 include/diff_tables.inc [server_1:test.t, server_2:test.t, server_3:test.t]
-Warnings:
-Warning	1287	'<select expression> INTO <destination>;' is deprecated and will be removed in a future release. Please use 'SELECT <select list> INTO <destination> FROM...' instead
-Warnings:
-Warning	1287	'<select expression> INTO <destination>;' is deprecated and will be removed in a future release. Please use 'SELECT <select list> INTO <destination> FROM...' instead
-Warnings:
-Warning	1287	'<select expression> INTO <destination>;' is deprecated and will be removed in a future release. Please use 'SELECT <select list> INTO <destination> FROM...' instead
 connection server_1;
 DELETE FROM t WHERE c1 = 7;
 DELETE FROM t WHERE c1 = 8;
 DELETE FROM t;
 include/rpl_sync.inc
 include/diff_tables.inc [server_1:test.t, server_2:test.t, server_3:test.t]
-Warnings:
-Warning	1287	'<select expression> INTO <destination>;' is deprecated and will be removed in a future release. Please use 'SELECT <select list> INTO <destination> FROM...' instead
-Warnings:
-Warning	1287	'<select expression> INTO <destination>;' is deprecated and will be removed in a future release. Please use 'SELECT <select list> INTO <destination> FROM...' instead
-Warnings:
-Warning	1287	'<select expression> INTO <destination>;' is deprecated and will be removed in a future release. Please use 'SELECT <select list> INTO <destination> FROM...' instead
 connection server_1;
 DROP TABLE t;
 include/rpl_sync.inc
@@ -3681,24 +2973,12 @@ UPDATE t SET c2 = '0' WHERE c4 = '0';
 UPDATE t SET c2 = '2' WHERE c4 = '2';
 include/rpl_sync.inc
 include/diff_tables.inc [server_1:test.t, server_2:test.t, server_3:test.t]
-Warnings:
-Warning	1287	'<select expression> INTO <destination>;' is deprecated and will be removed in a future release. Please use 'SELECT <select list> INTO <destination> FROM...' instead
-Warnings:
-Warning	1287	'<select expression> INTO <destination>;' is deprecated and will be removed in a future release. Please use 'SELECT <select list> INTO <destination> FROM...' instead
-Warnings:
-Warning	1287	'<select expression> INTO <destination>;' is deprecated and will be removed in a future release. Please use 'SELECT <select list> INTO <destination> FROM...' instead
 connection server_1;
 DELETE FROM t WHERE c1 = 7;
 DELETE FROM t WHERE c1 = 8;
 DELETE FROM t;
 include/rpl_sync.inc
 include/diff_tables.inc [server_1:test.t, server_2:test.t, server_3:test.t]
-Warnings:
-Warning	1287	'<select expression> INTO <destination>;' is deprecated and will be removed in a future release. Please use 'SELECT <select list> INTO <destination> FROM...' instead
-Warnings:
-Warning	1287	'<select expression> INTO <destination>;' is deprecated and will be removed in a future release. Please use 'SELECT <select list> INTO <destination> FROM...' instead
-Warnings:
-Warning	1287	'<select expression> INTO <destination>;' is deprecated and will be removed in a future release. Please use 'SELECT <select list> INTO <destination> FROM...' instead
 connection server_1;
 DROP TABLE t;
 include/rpl_sync.inc
@@ -3744,24 +3024,12 @@ UPDATE t SET c2 = '0' WHERE c4 = '0';
 UPDATE t SET c2 = '2' WHERE c4 = '2';
 include/rpl_sync.inc
 include/diff_tables.inc [server_1:test.t, server_2:test.t, server_3:test.t]
-Warnings:
-Warning	1287	'<select expression> INTO <destination>;' is deprecated and will be removed in a future release. Please use 'SELECT <select list> INTO <destination> FROM...' instead
-Warnings:
-Warning	1287	'<select expression> INTO <destination>;' is deprecated and will be removed in a future release. Please use 'SELECT <select list> INTO <destination> FROM...' instead
-Warnings:
-Warning	1287	'<select expression> INTO <destination>;' is deprecated and will be removed in a future release. Please use 'SELECT <select list> INTO <destination> FROM...' instead
 connection server_1;
 DELETE FROM t WHERE c1 = 7;
 DELETE FROM t WHERE c1 = 8;
 DELETE FROM t;
 include/rpl_sync.inc
 include/diff_tables.inc [server_1:test.t, server_2:test.t, server_3:test.t]
-Warnings:
-Warning	1287	'<select expression> INTO <destination>;' is deprecated and will be removed in a future release. Please use 'SELECT <select list> INTO <destination> FROM...' instead
-Warnings:
-Warning	1287	'<select expression> INTO <destination>;' is deprecated and will be removed in a future release. Please use 'SELECT <select list> INTO <destination> FROM...' instead
-Warnings:
-Warning	1287	'<select expression> INTO <destination>;' is deprecated and will be removed in a future release. Please use 'SELECT <select list> INTO <destination> FROM...' instead
 connection server_1;
 DROP TABLE t;
 include/rpl_sync.inc
@@ -3805,24 +3073,12 @@ UPDATE t SET c2 = '0' WHERE c4 = '0';
 UPDATE t SET c2 = '2' WHERE c4 = '2';
 include/rpl_sync.inc
 include/diff_tables.inc [server_1:test.t, server_2:test.t, server_3:test.t]
-Warnings:
-Warning	1287	'<select expression> INTO <destination>;' is deprecated and will be removed in a future release. Please use 'SELECT <select list> INTO <destination> FROM...' instead
-Warnings:
-Warning	1287	'<select expression> INTO <destination>;' is deprecated and will be removed in a future release. Please use 'SELECT <select list> INTO <destination> FROM...' instead
-Warnings:
-Warning	1287	'<select expression> INTO <destination>;' is deprecated and will be removed in a future release. Please use 'SELECT <select list> INTO <destination> FROM...' instead
 connection server_1;
 DELETE FROM t WHERE c1 = 7;
 DELETE FROM t WHERE c1 = 8;
 DELETE FROM t;
 include/rpl_sync.inc
 include/diff_tables.inc [server_1:test.t, server_2:test.t, server_3:test.t]
-Warnings:
-Warning	1287	'<select expression> INTO <destination>;' is deprecated and will be removed in a future release. Please use 'SELECT <select list> INTO <destination> FROM...' instead
-Warnings:
-Warning	1287	'<select expression> INTO <destination>;' is deprecated and will be removed in a future release. Please use 'SELECT <select list> INTO <destination> FROM...' instead
-Warnings:
-Warning	1287	'<select expression> INTO <destination>;' is deprecated and will be removed in a future release. Please use 'SELECT <select list> INTO <destination> FROM...' instead
 connection server_1;
 DROP TABLE t;
 include/rpl_sync.inc
@@ -3866,24 +3122,12 @@ UPDATE t SET c2 = '0' WHERE c4 = '0';
 UPDATE t SET c2 = '2' WHERE c4 = '2';
 include/rpl_sync.inc
 include/diff_tables.inc [server_1:test.t, server_2:test.t, server_3:test.t]
-Warnings:
-Warning	1287	'<select expression> INTO <destination>;' is deprecated and will be removed in a future release. Please use 'SELECT <select list> INTO <destination> FROM...' instead
-Warnings:
-Warning	1287	'<select expression> INTO <destination>;' is deprecated and will be removed in a future release. Please use 'SELECT <select list> INTO <destination> FROM...' instead
-Warnings:
-Warning	1287	'<select expression> INTO <destination>;' is deprecated and will be removed in a future release. Please use 'SELECT <select list> INTO <destination> FROM...' instead
 connection server_1;
 DELETE FROM t WHERE c1 = 7;
 DELETE FROM t WHERE c1 = 8;
 DELETE FROM t;
 include/rpl_sync.inc
 include/diff_tables.inc [server_1:test.t, server_2:test.t, server_3:test.t]
-Warnings:
-Warning	1287	'<select expression> INTO <destination>;' is deprecated and will be removed in a future release. Please use 'SELECT <select list> INTO <destination> FROM...' instead
-Warnings:
-Warning	1287	'<select expression> INTO <destination>;' is deprecated and will be removed in a future release. Please use 'SELECT <select list> INTO <destination> FROM...' instead
-Warnings:
-Warning	1287	'<select expression> INTO <destination>;' is deprecated and will be removed in a future release. Please use 'SELECT <select list> INTO <destination> FROM...' instead
 connection server_1;
 DROP TABLE t;
 include/rpl_sync.inc
@@ -3927,24 +3171,12 @@ UPDATE t SET c2 = '0' WHERE c4 = '0';
 UPDATE t SET c2 = '2' WHERE c4 = '2';
 include/rpl_sync.inc
 include/diff_tables.inc [server_1:test.t, server_2:test.t, server_3:test.t]
-Warnings:
-Warning	1287	'<select expression> INTO <destination>;' is deprecated and will be removed in a future release. Please use 'SELECT <select list> INTO <destination> FROM...' instead
-Warnings:
-Warning	1287	'<select expression> INTO <destination>;' is deprecated and will be removed in a future release. Please use 'SELECT <select list> INTO <destination> FROM...' instead
-Warnings:
-Warning	1287	'<select expression> INTO <destination>;' is deprecated and will be removed in a future release. Please use 'SELECT <select list> INTO <destination> FROM...' instead
 connection server_1;
 DELETE FROM t WHERE c1 = 7;
 DELETE FROM t WHERE c1 = 8;
 DELETE FROM t;
 include/rpl_sync.inc
 include/diff_tables.inc [server_1:test.t, server_2:test.t, server_3:test.t]
-Warnings:
-Warning	1287	'<select expression> INTO <destination>;' is deprecated and will be removed in a future release. Please use 'SELECT <select list> INTO <destination> FROM...' instead
-Warnings:
-Warning	1287	'<select expression> INTO <destination>;' is deprecated and will be removed in a future release. Please use 'SELECT <select list> INTO <destination> FROM...' instead
-Warnings:
-Warning	1287	'<select expression> INTO <destination>;' is deprecated and will be removed in a future release. Please use 'SELECT <select list> INTO <destination> FROM...' instead
 connection server_1;
 DROP TABLE t;
 include/rpl_sync.inc
@@ -3988,24 +3220,12 @@ UPDATE t SET c2 = '0' WHERE c4 = '0';
 UPDATE t SET c2 = '2' WHERE c4 = '2';
 include/rpl_sync.inc
 include/diff_tables.inc [server_1:test.t, server_2:test.t, server_3:test.t]
-Warnings:
-Warning	1287	'<select expression> INTO <destination>;' is deprecated and will be removed in a future release. Please use 'SELECT <select list> INTO <destination> FROM...' instead
-Warnings:
-Warning	1287	'<select expression> INTO <destination>;' is deprecated and will be removed in a future release. Please use 'SELECT <select list> INTO <destination> FROM...' instead
-Warnings:
-Warning	1287	'<select expression> INTO <destination>;' is deprecated and will be removed in a future release. Please use 'SELECT <select list> INTO <destination> FROM...' instead
 connection server_1;
 DELETE FROM t WHERE c1 = 7;
 DELETE FROM t WHERE c1 = 8;
 DELETE FROM t;
 include/rpl_sync.inc
 include/diff_tables.inc [server_1:test.t, server_2:test.t, server_3:test.t]
-Warnings:
-Warning	1287	'<select expression> INTO <destination>;' is deprecated and will be removed in a future release. Please use 'SELECT <select list> INTO <destination> FROM...' instead
-Warnings:
-Warning	1287	'<select expression> INTO <destination>;' is deprecated and will be removed in a future release. Please use 'SELECT <select list> INTO <destination> FROM...' instead
-Warnings:
-Warning	1287	'<select expression> INTO <destination>;' is deprecated and will be removed in a future release. Please use 'SELECT <select list> INTO <destination> FROM...' instead
 connection server_1;
 DROP TABLE t;
 include/rpl_sync.inc
@@ -4049,24 +3269,12 @@ UPDATE t SET c2 = '0' WHERE c4 = '0';
 UPDATE t SET c2 = '2' WHERE c4 = '2';
 include/rpl_sync.inc
 include/diff_tables.inc [server_1:test.t, server_2:test.t, server_3:test.t]
-Warnings:
-Warning	1287	'<select expression> INTO <destination>;' is deprecated and will be removed in a future release. Please use 'SELECT <select list> INTO <destination> FROM...' instead
-Warnings:
-Warning	1287	'<select expression> INTO <destination>;' is deprecated and will be removed in a future release. Please use 'SELECT <select list> INTO <destination> FROM...' instead
-Warnings:
-Warning	1287	'<select expression> INTO <destination>;' is deprecated and will be removed in a future release. Please use 'SELECT <select list> INTO <destination> FROM...' instead
 connection server_1;
 DELETE FROM t WHERE c1 = 7;
 DELETE FROM t WHERE c1 = 8;
 DELETE FROM t;
 include/rpl_sync.inc
 include/diff_tables.inc [server_1:test.t, server_2:test.t, server_3:test.t]
-Warnings:
-Warning	1287	'<select expression> INTO <destination>;' is deprecated and will be removed in a future release. Please use 'SELECT <select list> INTO <destination> FROM...' instead
-Warnings:
-Warning	1287	'<select expression> INTO <destination>;' is deprecated and will be removed in a future release. Please use 'SELECT <select list> INTO <destination> FROM...' instead
-Warnings:
-Warning	1287	'<select expression> INTO <destination>;' is deprecated and will be removed in a future release. Please use 'SELECT <select list> INTO <destination> FROM...' instead
 connection server_1;
 DROP TABLE t;
 include/rpl_sync.inc
@@ -4110,24 +3318,12 @@ UPDATE t SET c2 = '0' WHERE c4 = '0';
 UPDATE t SET c2 = '2' WHERE c4 = '2';
 include/rpl_sync.inc
 include/diff_tables.inc [server_1:test.t, server_2:test.t, server_3:test.t]
-Warnings:
-Warning	1287	'<select expression> INTO <destination>;' is deprecated and will be removed in a future release. Please use 'SELECT <select list> INTO <destination> FROM...' instead
-Warnings:
-Warning	1287	'<select expression> INTO <destination>;' is deprecated and will be removed in a future release. Please use 'SELECT <select list> INTO <destination> FROM...' instead
-Warnings:
-Warning	1287	'<select expression> INTO <destination>;' is deprecated and will be removed in a future release. Please use 'SELECT <select list> INTO <destination> FROM...' instead
 connection server_1;
 DELETE FROM t WHERE c1 = 7;
 DELETE FROM t WHERE c1 = 8;
 DELETE FROM t;
 include/rpl_sync.inc
 include/diff_tables.inc [server_1:test.t, server_2:test.t, server_3:test.t]
-Warnings:
-Warning	1287	'<select expression> INTO <destination>;' is deprecated and will be removed in a future release. Please use 'SELECT <select list> INTO <destination> FROM...' instead
-Warnings:
-Warning	1287	'<select expression> INTO <destination>;' is deprecated and will be removed in a future release. Please use 'SELECT <select list> INTO <destination> FROM...' instead
-Warnings:
-Warning	1287	'<select expression> INTO <destination>;' is deprecated and will be removed in a future release. Please use 'SELECT <select list> INTO <destination> FROM...' instead
 connection server_1;
 DROP TABLE t;
 include/rpl_sync.inc
@@ -4171,24 +3367,12 @@ UPDATE t SET c2 = '0' WHERE c4 = '0';
 UPDATE t SET c2 = '2' WHERE c4 = '2';
 include/rpl_sync.inc
 include/diff_tables.inc [server_1:test.t, server_2:test.t, server_3:test.t]
-Warnings:
-Warning	1287	'<select expression> INTO <destination>;' is deprecated and will be removed in a future release. Please use 'SELECT <select list> INTO <destination> FROM...' instead
-Warnings:
-Warning	1287	'<select expression> INTO <destination>;' is deprecated and will be removed in a future release. Please use 'SELECT <select list> INTO <destination> FROM...' instead
-Warnings:
-Warning	1287	'<select expression> INTO <destination>;' is deprecated and will be removed in a future release. Please use 'SELECT <select list> INTO <destination> FROM...' instead
 connection server_1;
 DELETE FROM t WHERE c1 = 7;
 DELETE FROM t WHERE c1 = 8;
 DELETE FROM t;
 include/rpl_sync.inc
 include/diff_tables.inc [server_1:test.t, server_2:test.t, server_3:test.t]
-Warnings:
-Warning	1287	'<select expression> INTO <destination>;' is deprecated and will be removed in a future release. Please use 'SELECT <select list> INTO <destination> FROM...' instead
-Warnings:
-Warning	1287	'<select expression> INTO <destination>;' is deprecated and will be removed in a future release. Please use 'SELECT <select list> INTO <destination> FROM...' instead
-Warnings:
-Warning	1287	'<select expression> INTO <destination>;' is deprecated and will be removed in a future release. Please use 'SELECT <select list> INTO <destination> FROM...' instead
 connection server_1;
 DROP TABLE t;
 include/rpl_sync.inc
@@ -4232,24 +3416,12 @@ UPDATE t SET c2 = '0' WHERE c4 = '0';
 UPDATE t SET c2 = '2' WHERE c4 = '2';
 include/rpl_sync.inc
 include/diff_tables.inc [server_1:test.t, server_2:test.t, server_3:test.t]
-Warnings:
-Warning	1287	'<select expression> INTO <destination>;' is deprecated and will be removed in a future release. Please use 'SELECT <select list> INTO <destination> FROM...' instead
-Warnings:
-Warning	1287	'<select expression> INTO <destination>;' is deprecated and will be removed in a future release. Please use 'SELECT <select list> INTO <destination> FROM...' instead
-Warnings:
-Warning	1287	'<select expression> INTO <destination>;' is deprecated and will be removed in a future release. Please use 'SELECT <select list> INTO <destination> FROM...' instead
 connection server_1;
 DELETE FROM t WHERE c1 = 7;
 DELETE FROM t WHERE c1 = 8;
 DELETE FROM t;
 include/rpl_sync.inc
 include/diff_tables.inc [server_1:test.t, server_2:test.t, server_3:test.t]
-Warnings:
-Warning	1287	'<select expression> INTO <destination>;' is deprecated and will be removed in a future release. Please use 'SELECT <select list> INTO <destination> FROM...' instead
-Warnings:
-Warning	1287	'<select expression> INTO <destination>;' is deprecated and will be removed in a future release. Please use 'SELECT <select list> INTO <destination> FROM...' instead
-Warnings:
-Warning	1287	'<select expression> INTO <destination>;' is deprecated and will be removed in a future release. Please use 'SELECT <select list> INTO <destination> FROM...' instead
 connection server_1;
 DROP TABLE t;
 include/rpl_sync.inc
@@ -4293,24 +3465,12 @@ UPDATE t SET c2 = '0' WHERE c4 = '0';
 UPDATE t SET c2 = '2' WHERE c4 = '2';
 include/rpl_sync.inc
 include/diff_tables.inc [server_1:test.t, server_2:test.t, server_3:test.t]
-Warnings:
-Warning	1287	'<select expression> INTO <destination>;' is deprecated and will be removed in a future release. Please use 'SELECT <select list> INTO <destination> FROM...' instead
-Warnings:
-Warning	1287	'<select expression> INTO <destination>;' is deprecated and will be removed in a future release. Please use 'SELECT <select list> INTO <destination> FROM...' instead
-Warnings:
-Warning	1287	'<select expression> INTO <destination>;' is deprecated and will be removed in a future release. Please use 'SELECT <select list> INTO <destination> FROM...' instead
 connection server_1;
 DELETE FROM t WHERE c1 = 7;
 DELETE FROM t WHERE c1 = 8;
 DELETE FROM t;
 include/rpl_sync.inc
 include/diff_tables.inc [server_1:test.t, server_2:test.t, server_3:test.t]
-Warnings:
-Warning	1287	'<select expression> INTO <destination>;' is deprecated and will be removed in a future release. Please use 'SELECT <select list> INTO <destination> FROM...' instead
-Warnings:
-Warning	1287	'<select expression> INTO <destination>;' is deprecated and will be removed in a future release. Please use 'SELECT <select list> INTO <destination> FROM...' instead
-Warnings:
-Warning	1287	'<select expression> INTO <destination>;' is deprecated and will be removed in a future release. Please use 'SELECT <select list> INTO <destination> FROM...' instead
 connection server_1;
 DROP TABLE t;
 include/rpl_sync.inc
@@ -4354,24 +3514,12 @@ UPDATE t SET c2 = '0' WHERE c4 = '0';
 UPDATE t SET c2 = '2' WHERE c4 = '2';
 include/rpl_sync.inc
 include/diff_tables.inc [server_1:test.t, server_2:test.t, server_3:test.t]
-Warnings:
-Warning	1287	'<select expression> INTO <destination>;' is deprecated and will be removed in a future release. Please use 'SELECT <select list> INTO <destination> FROM...' instead
-Warnings:
-Warning	1287	'<select expression> INTO <destination>;' is deprecated and will be removed in a future release. Please use 'SELECT <select list> INTO <destination> FROM...' instead
-Warnings:
-Warning	1287	'<select expression> INTO <destination>;' is deprecated and will be removed in a future release. Please use 'SELECT <select list> INTO <destination> FROM...' instead
 connection server_1;
 DELETE FROM t WHERE c1 = 7;
 DELETE FROM t WHERE c1 = 8;
 DELETE FROM t;
 include/rpl_sync.inc
 include/diff_tables.inc [server_1:test.t, server_2:test.t, server_3:test.t]
-Warnings:
-Warning	1287	'<select expression> INTO <destination>;' is deprecated and will be removed in a future release. Please use 'SELECT <select list> INTO <destination> FROM...' instead
-Warnings:
-Warning	1287	'<select expression> INTO <destination>;' is deprecated and will be removed in a future release. Please use 'SELECT <select list> INTO <destination> FROM...' instead
-Warnings:
-Warning	1287	'<select expression> INTO <destination>;' is deprecated and will be removed in a future release. Please use 'SELECT <select list> INTO <destination> FROM...' instead
 connection server_1;
 DROP TABLE t;
 include/rpl_sync.inc
@@ -4415,24 +3563,12 @@ UPDATE t SET c2 = '0' WHERE c4 = '0';
 UPDATE t SET c2 = '2' WHERE c4 = '2';
 include/rpl_sync.inc
 include/diff_tables.inc [server_1:test.t, server_2:test.t, server_3:test.t]
-Warnings:
-Warning	1287	'<select expression> INTO <destination>;' is deprecated and will be removed in a future release. Please use 'SELECT <select list> INTO <destination> FROM...' instead
-Warnings:
-Warning	1287	'<select expression> INTO <destination>;' is deprecated and will be removed in a future release. Please use 'SELECT <select list> INTO <destination> FROM...' instead
-Warnings:
-Warning	1287	'<select expression> INTO <destination>;' is deprecated and will be removed in a future release. Please use 'SELECT <select list> INTO <destination> FROM...' instead
 connection server_1;
 DELETE FROM t WHERE c1 = 7;
 DELETE FROM t WHERE c1 = 8;
 DELETE FROM t;
 include/rpl_sync.inc
 include/diff_tables.inc [server_1:test.t, server_2:test.t, server_3:test.t]
-Warnings:
-Warning	1287	'<select expression> INTO <destination>;' is deprecated and will be removed in a future release. Please use 'SELECT <select list> INTO <destination> FROM...' instead
-Warnings:
-Warning	1287	'<select expression> INTO <destination>;' is deprecated and will be removed in a future release. Please use 'SELECT <select list> INTO <destination> FROM...' instead
-Warnings:
-Warning	1287	'<select expression> INTO <destination>;' is deprecated and will be removed in a future release. Please use 'SELECT <select list> INTO <destination> FROM...' instead
 connection server_1;
 DROP TABLE t;
 include/rpl_sync.inc
@@ -4478,24 +3614,12 @@ UPDATE t SET c2 = '0' WHERE c4 = '0';
 UPDATE t SET c2 = '2' WHERE c4 = '2';
 include/rpl_sync.inc
 include/diff_tables.inc [server_1:test.t, server_2:test.t, server_3:test.t]
-Warnings:
-Warning	1287	'<select expression> INTO <destination>;' is deprecated and will be removed in a future release. Please use 'SELECT <select list> INTO <destination> FROM...' instead
-Warnings:
-Warning	1287	'<select expression> INTO <destination>;' is deprecated and will be removed in a future release. Please use 'SELECT <select list> INTO <destination> FROM...' instead
-Warnings:
-Warning	1287	'<select expression> INTO <destination>;' is deprecated and will be removed in a future release. Please use 'SELECT <select list> INTO <destination> FROM...' instead
 connection server_1;
 DELETE FROM t WHERE c1 = 7;
 DELETE FROM t WHERE c1 = 8;
 DELETE FROM t;
 include/rpl_sync.inc
 include/diff_tables.inc [server_1:test.t, server_2:test.t, server_3:test.t]
-Warnings:
-Warning	1287	'<select expression> INTO <destination>;' is deprecated and will be removed in a future release. Please use 'SELECT <select list> INTO <destination> FROM...' instead
-Warnings:
-Warning	1287	'<select expression> INTO <destination>;' is deprecated and will be removed in a future release. Please use 'SELECT <select list> INTO <destination> FROM...' instead
-Warnings:
-Warning	1287	'<select expression> INTO <destination>;' is deprecated and will be removed in a future release. Please use 'SELECT <select list> INTO <destination> FROM...' instead
 connection server_1;
 DROP TABLE t;
 include/rpl_sync.inc
@@ -4539,24 +3663,12 @@ UPDATE t SET c2 = '0' WHERE c4 = '0';
 UPDATE t SET c2 = '2' WHERE c4 = '2';
 include/rpl_sync.inc
 include/diff_tables.inc [server_1:test.t, server_2:test.t, server_3:test.t]
-Warnings:
-Warning	1287	'<select expression> INTO <destination>;' is deprecated and will be removed in a future release. Please use 'SELECT <select list> INTO <destination> FROM...' instead
-Warnings:
-Warning	1287	'<select expression> INTO <destination>;' is deprecated and will be removed in a future release. Please use 'SELECT <select list> INTO <destination> FROM...' instead
-Warnings:
-Warning	1287	'<select expression> INTO <destination>;' is deprecated and will be removed in a future release. Please use 'SELECT <select list> INTO <destination> FROM...' instead
 connection server_1;
 DELETE FROM t WHERE c1 = 7;
 DELETE FROM t WHERE c1 = 8;
 DELETE FROM t;
 include/rpl_sync.inc
 include/diff_tables.inc [server_1:test.t, server_2:test.t, server_3:test.t]
-Warnings:
-Warning	1287	'<select expression> INTO <destination>;' is deprecated and will be removed in a future release. Please use 'SELECT <select list> INTO <destination> FROM...' instead
-Warnings:
-Warning	1287	'<select expression> INTO <destination>;' is deprecated and will be removed in a future release. Please use 'SELECT <select list> INTO <destination> FROM...' instead
-Warnings:
-Warning	1287	'<select expression> INTO <destination>;' is deprecated and will be removed in a future release. Please use 'SELECT <select list> INTO <destination> FROM...' instead
 connection server_1;
 DROP TABLE t;
 include/rpl_sync.inc
@@ -4600,24 +3712,12 @@ UPDATE t SET c2 = '0' WHERE c4 = '0';
 UPDATE t SET c2 = '2' WHERE c4 = '2';
 include/rpl_sync.inc
 include/diff_tables.inc [server_1:test.t, server_2:test.t, server_3:test.t]
-Warnings:
-Warning	1287	'<select expression> INTO <destination>;' is deprecated and will be removed in a future release. Please use 'SELECT <select list> INTO <destination> FROM...' instead
-Warnings:
-Warning	1287	'<select expression> INTO <destination>;' is deprecated and will be removed in a future release. Please use 'SELECT <select list> INTO <destination> FROM...' instead
-Warnings:
-Warning	1287	'<select expression> INTO <destination>;' is deprecated and will be removed in a future release. Please use 'SELECT <select list> INTO <destination> FROM...' instead
 connection server_1;
 DELETE FROM t WHERE c1 = 7;
 DELETE FROM t WHERE c1 = 8;
 DELETE FROM t;
 include/rpl_sync.inc
 include/diff_tables.inc [server_1:test.t, server_2:test.t, server_3:test.t]
-Warnings:
-Warning	1287	'<select expression> INTO <destination>;' is deprecated and will be removed in a future release. Please use 'SELECT <select list> INTO <destination> FROM...' instead
-Warnings:
-Warning	1287	'<select expression> INTO <destination>;' is deprecated and will be removed in a future release. Please use 'SELECT <select list> INTO <destination> FROM...' instead
-Warnings:
-Warning	1287	'<select expression> INTO <destination>;' is deprecated and will be removed in a future release. Please use 'SELECT <select list> INTO <destination> FROM...' instead
 connection server_1;
 DROP TABLE t;
 include/rpl_sync.inc
@@ -4661,24 +3761,12 @@ UPDATE t SET c2 = '0' WHERE c4 = '0';
 UPDATE t SET c2 = '2' WHERE c4 = '2';
 include/rpl_sync.inc
 include/diff_tables.inc [server_1:test.t, server_2:test.t, server_3:test.t]
-Warnings:
-Warning	1287	'<select expression> INTO <destination>;' is deprecated and will be removed in a future release. Please use 'SELECT <select list> INTO <destination> FROM...' instead
-Warnings:
-Warning	1287	'<select expression> INTO <destination>;' is deprecated and will be removed in a future release. Please use 'SELECT <select list> INTO <destination> FROM...' instead
-Warnings:
-Warning	1287	'<select expression> INTO <destination>;' is deprecated and will be removed in a future release. Please use 'SELECT <select list> INTO <destination> FROM...' instead
 connection server_1;
 DELETE FROM t WHERE c1 = 7;
 DELETE FROM t WHERE c1 = 8;
 DELETE FROM t;
 include/rpl_sync.inc
 include/diff_tables.inc [server_1:test.t, server_2:test.t, server_3:test.t]
-Warnings:
-Warning	1287	'<select expression> INTO <destination>;' is deprecated and will be removed in a future release. Please use 'SELECT <select list> INTO <destination> FROM...' instead
-Warnings:
-Warning	1287	'<select expression> INTO <destination>;' is deprecated and will be removed in a future release. Please use 'SELECT <select list> INTO <destination> FROM...' instead
-Warnings:
-Warning	1287	'<select expression> INTO <destination>;' is deprecated and will be removed in a future release. Please use 'SELECT <select list> INTO <destination> FROM...' instead
 connection server_1;
 DROP TABLE t;
 include/rpl_sync.inc
@@ -4722,24 +3810,12 @@ UPDATE t SET c2 = '0' WHERE c4 = '0';
 UPDATE t SET c2 = '2' WHERE c4 = '2';
 include/rpl_sync.inc
 include/diff_tables.inc [server_1:test.t, server_2:test.t, server_3:test.t]
-Warnings:
-Warning	1287	'<select expression> INTO <destination>;' is deprecated and will be removed in a future release. Please use 'SELECT <select list> INTO <destination> FROM...' instead
-Warnings:
-Warning	1287	'<select expression> INTO <destination>;' is deprecated and will be removed in a future release. Please use 'SELECT <select list> INTO <destination> FROM...' instead
-Warnings:
-Warning	1287	'<select expression> INTO <destination>;' is deprecated and will be removed in a future release. Please use 'SELECT <select list> INTO <destination> FROM...' instead
 connection server_1;
 DELETE FROM t WHERE c1 = 7;
 DELETE FROM t WHERE c1 = 8;
 DELETE FROM t;
 include/rpl_sync.inc
 include/diff_tables.inc [server_1:test.t, server_2:test.t, server_3:test.t]
-Warnings:
-Warning	1287	'<select expression> INTO <destination>;' is deprecated and will be removed in a future release. Please use 'SELECT <select list> INTO <destination> FROM...' instead
-Warnings:
-Warning	1287	'<select expression> INTO <destination>;' is deprecated and will be removed in a future release. Please use 'SELECT <select list> INTO <destination> FROM...' instead
-Warnings:
-Warning	1287	'<select expression> INTO <destination>;' is deprecated and will be removed in a future release. Please use 'SELECT <select list> INTO <destination> FROM...' instead
 connection server_1;
 DROP TABLE t;
 include/rpl_sync.inc
@@ -4783,24 +3859,12 @@ UPDATE t SET c2 = '0' WHERE c4 = '0';
 UPDATE t SET c2 = '2' WHERE c4 = '2';
 include/rpl_sync.inc
 include/diff_tables.inc [server_1:test.t, server_2:test.t, server_3:test.t]
-Warnings:
-Warning	1287	'<select expression> INTO <destination>;' is deprecated and will be removed in a future release. Please use 'SELECT <select list> INTO <destination> FROM...' instead
-Warnings:
-Warning	1287	'<select expression> INTO <destination>;' is deprecated and will be removed in a future release. Please use 'SELECT <select list> INTO <destination> FROM...' instead
-Warnings:
-Warning	1287	'<select expression> INTO <destination>;' is deprecated and will be removed in a future release. Please use 'SELECT <select list> INTO <destination> FROM...' instead
 connection server_1;
 DELETE FROM t WHERE c1 = 7;
 DELETE FROM t WHERE c1 = 8;
 DELETE FROM t;
 include/rpl_sync.inc
 include/diff_tables.inc [server_1:test.t, server_2:test.t, server_3:test.t]
-Warnings:
-Warning	1287	'<select expression> INTO <destination>;' is deprecated and will be removed in a future release. Please use 'SELECT <select list> INTO <destination> FROM...' instead
-Warnings:
-Warning	1287	'<select expression> INTO <destination>;' is deprecated and will be removed in a future release. Please use 'SELECT <select list> INTO <destination> FROM...' instead
-Warnings:
-Warning	1287	'<select expression> INTO <destination>;' is deprecated and will be removed in a future release. Please use 'SELECT <select list> INTO <destination> FROM...' instead
 connection server_1;
 DROP TABLE t;
 include/rpl_sync.inc
@@ -4844,24 +3908,12 @@ UPDATE t SET c2 = '0' WHERE c4 = '0';
 UPDATE t SET c2 = '2' WHERE c4 = '2';
 include/rpl_sync.inc
 include/diff_tables.inc [server_1:test.t, server_2:test.t, server_3:test.t]
-Warnings:
-Warning	1287	'<select expression> INTO <destination>;' is deprecated and will be removed in a future release. Please use 'SELECT <select list> INTO <destination> FROM...' instead
-Warnings:
-Warning	1287	'<select expression> INTO <destination>;' is deprecated and will be removed in a future release. Please use 'SELECT <select list> INTO <destination> FROM...' instead
-Warnings:
-Warning	1287	'<select expression> INTO <destination>;' is deprecated and will be removed in a future release. Please use 'SELECT <select list> INTO <destination> FROM...' instead
 connection server_1;
 DELETE FROM t WHERE c1 = 7;
 DELETE FROM t WHERE c1 = 8;
 DELETE FROM t;
 include/rpl_sync.inc
 include/diff_tables.inc [server_1:test.t, server_2:test.t, server_3:test.t]
-Warnings:
-Warning	1287	'<select expression> INTO <destination>;' is deprecated and will be removed in a future release. Please use 'SELECT <select list> INTO <destination> FROM...' instead
-Warnings:
-Warning	1287	'<select expression> INTO <destination>;' is deprecated and will be removed in a future release. Please use 'SELECT <select list> INTO <destination> FROM...' instead
-Warnings:
-Warning	1287	'<select expression> INTO <destination>;' is deprecated and will be removed in a future release. Please use 'SELECT <select list> INTO <destination> FROM...' instead
 connection server_1;
 DROP TABLE t;
 include/rpl_sync.inc
@@ -4905,24 +3957,12 @@ UPDATE t SET c2 = '0' WHERE c4 = '0';
 UPDATE t SET c2 = '2' WHERE c4 = '2';
 include/rpl_sync.inc
 include/diff_tables.inc [server_1:test.t, server_2:test.t, server_3:test.t]
-Warnings:
-Warning	1287	'<select expression> INTO <destination>;' is deprecated and will be removed in a future release. Please use 'SELECT <select list> INTO <destination> FROM...' instead
-Warnings:
-Warning	1287	'<select expression> INTO <destination>;' is deprecated and will be removed in a future release. Please use 'SELECT <select list> INTO <destination> FROM...' instead
-Warnings:
-Warning	1287	'<select expression> INTO <destination>;' is deprecated and will be removed in a future release. Please use 'SELECT <select list> INTO <destination> FROM...' instead
 connection server_1;
 DELETE FROM t WHERE c1 = 7;
 DELETE FROM t WHERE c1 = 8;
 DELETE FROM t;
 include/rpl_sync.inc
 include/diff_tables.inc [server_1:test.t, server_2:test.t, server_3:test.t]
-Warnings:
-Warning	1287	'<select expression> INTO <destination>;' is deprecated and will be removed in a future release. Please use 'SELECT <select list> INTO <destination> FROM...' instead
-Warnings:
-Warning	1287	'<select expression> INTO <destination>;' is deprecated and will be removed in a future release. Please use 'SELECT <select list> INTO <destination> FROM...' instead
-Warnings:
-Warning	1287	'<select expression> INTO <destination>;' is deprecated and will be removed in a future release. Please use 'SELECT <select list> INTO <destination> FROM...' instead
 connection server_1;
 DROP TABLE t;
 include/rpl_sync.inc
@@ -4966,24 +4006,12 @@ UPDATE t SET c2 = '0' WHERE c4 = '0';
 UPDATE t SET c2 = '2' WHERE c4 = '2';
 include/rpl_sync.inc
 include/diff_tables.inc [server_1:test.t, server_2:test.t, server_3:test.t]
-Warnings:
-Warning	1287	'<select expression> INTO <destination>;' is deprecated and will be removed in a future release. Please use 'SELECT <select list> INTO <destination> FROM...' instead
-Warnings:
-Warning	1287	'<select expression> INTO <destination>;' is deprecated and will be removed in a future release. Please use 'SELECT <select list> INTO <destination> FROM...' instead
-Warnings:
-Warning	1287	'<select expression> INTO <destination>;' is deprecated and will be removed in a future release. Please use 'SELECT <select list> INTO <destination> FROM...' instead
 connection server_1;
 DELETE FROM t WHERE c1 = 7;
 DELETE FROM t WHERE c1 = 8;
 DELETE FROM t;
 include/rpl_sync.inc
 include/diff_tables.inc [server_1:test.t, server_2:test.t, server_3:test.t]
-Warnings:
-Warning	1287	'<select expression> INTO <destination>;' is deprecated and will be removed in a future release. Please use 'SELECT <select list> INTO <destination> FROM...' instead
-Warnings:
-Warning	1287	'<select expression> INTO <destination>;' is deprecated and will be removed in a future release. Please use 'SELECT <select list> INTO <destination> FROM...' instead
-Warnings:
-Warning	1287	'<select expression> INTO <destination>;' is deprecated and will be removed in a future release. Please use 'SELECT <select list> INTO <destination> FROM...' instead
 connection server_1;
 DROP TABLE t;
 include/rpl_sync.inc
@@ -5027,24 +4055,12 @@ UPDATE t SET c2 = '0' WHERE c4 = '0';
 UPDATE t SET c2 = '2' WHERE c4 = '2';
 include/rpl_sync.inc
 include/diff_tables.inc [server_1:test.t, server_2:test.t, server_3:test.t]
-Warnings:
-Warning	1287	'<select expression> INTO <destination>;' is deprecated and will be removed in a future release. Please use 'SELECT <select list> INTO <destination> FROM...' instead
-Warnings:
-Warning	1287	'<select expression> INTO <destination>;' is deprecated and will be removed in a future release. Please use 'SELECT <select list> INTO <destination> FROM...' instead
-Warnings:
-Warning	1287	'<select expression> INTO <destination>;' is deprecated and will be removed in a future release. Please use 'SELECT <select list> INTO <destination> FROM...' instead
 connection server_1;
 DELETE FROM t WHERE c1 = 7;
 DELETE FROM t WHERE c1 = 8;
 DELETE FROM t;
 include/rpl_sync.inc
 include/diff_tables.inc [server_1:test.t, server_2:test.t, server_3:test.t]
-Warnings:
-Warning	1287	'<select expression> INTO <destination>;' is deprecated and will be removed in a future release. Please use 'SELECT <select list> INTO <destination> FROM...' instead
-Warnings:
-Warning	1287	'<select expression> INTO <destination>;' is deprecated and will be removed in a future release. Please use 'SELECT <select list> INTO <destination> FROM...' instead
-Warnings:
-Warning	1287	'<select expression> INTO <destination>;' is deprecated and will be removed in a future release. Please use 'SELECT <select list> INTO <destination> FROM...' instead
 connection server_1;
 DROP TABLE t;
 include/rpl_sync.inc
@@ -5088,24 +4104,12 @@ UPDATE t SET c2 = '0' WHERE c4 = '0';
 UPDATE t SET c2 = '2' WHERE c4 = '2';
 include/rpl_sync.inc
 include/diff_tables.inc [server_1:test.t, server_2:test.t, server_3:test.t]
-Warnings:
-Warning	1287	'<select expression> INTO <destination>;' is deprecated and will be removed in a future release. Please use 'SELECT <select list> INTO <destination> FROM...' instead
-Warnings:
-Warning	1287	'<select expression> INTO <destination>;' is deprecated and will be removed in a future release. Please use 'SELECT <select list> INTO <destination> FROM...' instead
-Warnings:
-Warning	1287	'<select expression> INTO <destination>;' is deprecated and will be removed in a future release. Please use 'SELECT <select list> INTO <destination> FROM...' instead
 connection server_1;
 DELETE FROM t WHERE c1 = 7;
 DELETE FROM t WHERE c1 = 8;
 DELETE FROM t;
 include/rpl_sync.inc
 include/diff_tables.inc [server_1:test.t, server_2:test.t, server_3:test.t]
-Warnings:
-Warning	1287	'<select expression> INTO <destination>;' is deprecated and will be removed in a future release. Please use 'SELECT <select list> INTO <destination> FROM...' instead
-Warnings:
-Warning	1287	'<select expression> INTO <destination>;' is deprecated and will be removed in a future release. Please use 'SELECT <select list> INTO <destination> FROM...' instead
-Warnings:
-Warning	1287	'<select expression> INTO <destination>;' is deprecated and will be removed in a future release. Please use 'SELECT <select list> INTO <destination> FROM...' instead
 connection server_1;
 DROP TABLE t;
 include/rpl_sync.inc
@@ -5149,24 +4153,12 @@ UPDATE t SET c2 = '0' WHERE c4 = '0';
 UPDATE t SET c2 = '2' WHERE c4 = '2';
 include/rpl_sync.inc
 include/diff_tables.inc [server_1:test.t, server_2:test.t, server_3:test.t]
-Warnings:
-Warning	1287	'<select expression> INTO <destination>;' is deprecated and will be removed in a future release. Please use 'SELECT <select list> INTO <destination> FROM...' instead
-Warnings:
-Warning	1287	'<select expression> INTO <destination>;' is deprecated and will be removed in a future release. Please use 'SELECT <select list> INTO <destination> FROM...' instead
-Warnings:
-Warning	1287	'<select expression> INTO <destination>;' is deprecated and will be removed in a future release. Please use 'SELECT <select list> INTO <destination> FROM...' instead
 connection server_1;
 DELETE FROM t WHERE c1 = 7;
 DELETE FROM t WHERE c1 = 8;
 DELETE FROM t;
 include/rpl_sync.inc
 include/diff_tables.inc [server_1:test.t, server_2:test.t, server_3:test.t]
-Warnings:
-Warning	1287	'<select expression> INTO <destination>;' is deprecated and will be removed in a future release. Please use 'SELECT <select list> INTO <destination> FROM...' instead
-Warnings:
-Warning	1287	'<select expression> INTO <destination>;' is deprecated and will be removed in a future release. Please use 'SELECT <select list> INTO <destination> FROM...' instead
-Warnings:
-Warning	1287	'<select expression> INTO <destination>;' is deprecated and will be removed in a future release. Please use 'SELECT <select list> INTO <destination> FROM...' instead
 connection server_1;
 DROP TABLE t;
 include/rpl_sync.inc
@@ -5212,24 +4204,12 @@ UPDATE t SET c2 = '0' WHERE c4 = '0';
 UPDATE t SET c2 = '2' WHERE c4 = '2';
 include/rpl_sync.inc
 include/diff_tables.inc [server_1:test.t, server_2:test.t, server_3:test.t]
-Warnings:
-Warning	1287	'<select expression> INTO <destination>;' is deprecated and will be removed in a future release. Please use 'SELECT <select list> INTO <destination> FROM...' instead
-Warnings:
-Warning	1287	'<select expression> INTO <destination>;' is deprecated and will be removed in a future release. Please use 'SELECT <select list> INTO <destination> FROM...' instead
-Warnings:
-Warning	1287	'<select expression> INTO <destination>;' is deprecated and will be removed in a future release. Please use 'SELECT <select list> INTO <destination> FROM...' instead
 connection server_1;
 DELETE FROM t WHERE c1 = 7;
 DELETE FROM t WHERE c1 = 8;
 DELETE FROM t;
 include/rpl_sync.inc
 include/diff_tables.inc [server_1:test.t, server_2:test.t, server_3:test.t]
-Warnings:
-Warning	1287	'<select expression> INTO <destination>;' is deprecated and will be removed in a future release. Please use 'SELECT <select list> INTO <destination> FROM...' instead
-Warnings:
-Warning	1287	'<select expression> INTO <destination>;' is deprecated and will be removed in a future release. Please use 'SELECT <select list> INTO <destination> FROM...' instead
-Warnings:
-Warning	1287	'<select expression> INTO <destination>;' is deprecated and will be removed in a future release. Please use 'SELECT <select list> INTO <destination> FROM...' instead
 connection server_1;
 DROP TABLE t;
 include/rpl_sync.inc
@@ -5273,24 +4253,12 @@ UPDATE t SET c2 = '0' WHERE c4 = '0';
 UPDATE t SET c2 = '2' WHERE c4 = '2';
 include/rpl_sync.inc
 include/diff_tables.inc [server_1:test.t, server_2:test.t, server_3:test.t]
-Warnings:
-Warning	1287	'<select expression> INTO <destination>;' is deprecated and will be removed in a future release. Please use 'SELECT <select list> INTO <destination> FROM...' instead
-Warnings:
-Warning	1287	'<select expression> INTO <destination>;' is deprecated and will be removed in a future release. Please use 'SELECT <select list> INTO <destination> FROM...' instead
-Warnings:
-Warning	1287	'<select expression> INTO <destination>;' is deprecated and will be removed in a future release. Please use 'SELECT <select list> INTO <destination> FROM...' instead
 connection server_1;
 DELETE FROM t WHERE c1 = 7;
 DELETE FROM t WHERE c1 = 8;
 DELETE FROM t;
 include/rpl_sync.inc
 include/diff_tables.inc [server_1:test.t, server_2:test.t, server_3:test.t]
-Warnings:
-Warning	1287	'<select expression> INTO <destination>;' is deprecated and will be removed in a future release. Please use 'SELECT <select list> INTO <destination> FROM...' instead
-Warnings:
-Warning	1287	'<select expression> INTO <destination>;' is deprecated and will be removed in a future release. Please use 'SELECT <select list> INTO <destination> FROM...' instead
-Warnings:
-Warning	1287	'<select expression> INTO <destination>;' is deprecated and will be removed in a future release. Please use 'SELECT <select list> INTO <destination> FROM...' instead
 connection server_1;
 DROP TABLE t;
 include/rpl_sync.inc
@@ -5334,24 +4302,12 @@ UPDATE t SET c2 = '0' WHERE c4 = '0';
 UPDATE t SET c2 = '2' WHERE c4 = '2';
 include/rpl_sync.inc
 include/diff_tables.inc [server_1:test.t, server_2:test.t, server_3:test.t]
-Warnings:
-Warning	1287	'<select expression> INTO <destination>;' is deprecated and will be removed in a future release. Please use 'SELECT <select list> INTO <destination> FROM...' instead
-Warnings:
-Warning	1287	'<select expression> INTO <destination>;' is deprecated and will be removed in a future release. Please use 'SELECT <select list> INTO <destination> FROM...' instead
-Warnings:
-Warning	1287	'<select expression> INTO <destination>;' is deprecated and will be removed in a future release. Please use 'SELECT <select list> INTO <destination> FROM...' instead
 connection server_1;
 DELETE FROM t WHERE c1 = 7;
 DELETE FROM t WHERE c1 = 8;
 DELETE FROM t;
 include/rpl_sync.inc
 include/diff_tables.inc [server_1:test.t, server_2:test.t, server_3:test.t]
-Warnings:
-Warning	1287	'<select expression> INTO <destination>;' is deprecated and will be removed in a future release. Please use 'SELECT <select list> INTO <destination> FROM...' instead
-Warnings:
-Warning	1287	'<select expression> INTO <destination>;' is deprecated and will be removed in a future release. Please use 'SELECT <select list> INTO <destination> FROM...' instead
-Warnings:
-Warning	1287	'<select expression> INTO <destination>;' is deprecated and will be removed in a future release. Please use 'SELECT <select list> INTO <destination> FROM...' instead
 connection server_1;
 DROP TABLE t;
 include/rpl_sync.inc
@@ -5395,24 +4351,12 @@ UPDATE t SET c2 = '0' WHERE c4 = '0';
 UPDATE t SET c2 = '2' WHERE c4 = '2';
 include/rpl_sync.inc
 include/diff_tables.inc [server_1:test.t, server_2:test.t, server_3:test.t]
-Warnings:
-Warning	1287	'<select expression> INTO <destination>;' is deprecated and will be removed in a future release. Please use 'SELECT <select list> INTO <destination> FROM...' instead
-Warnings:
-Warning	1287	'<select expression> INTO <destination>;' is deprecated and will be removed in a future release. Please use 'SELECT <select list> INTO <destination> FROM...' instead
-Warnings:
-Warning	1287	'<select expression> INTO <destination>;' is deprecated and will be removed in a future release. Please use 'SELECT <select list> INTO <destination> FROM...' instead
 connection server_1;
 DELETE FROM t WHERE c1 = 7;
 DELETE FROM t WHERE c1 = 8;
 DELETE FROM t;
 include/rpl_sync.inc
 include/diff_tables.inc [server_1:test.t, server_2:test.t, server_3:test.t]
-Warnings:
-Warning	1287	'<select expression> INTO <destination>;' is deprecated and will be removed in a future release. Please use 'SELECT <select list> INTO <destination> FROM...' instead
-Warnings:
-Warning	1287	'<select expression> INTO <destination>;' is deprecated and will be removed in a future release. Please use 'SELECT <select list> INTO <destination> FROM...' instead
-Warnings:
-Warning	1287	'<select expression> INTO <destination>;' is deprecated and will be removed in a future release. Please use 'SELECT <select list> INTO <destination> FROM...' instead
 connection server_1;
 DROP TABLE t;
 include/rpl_sync.inc
@@ -5456,24 +4400,12 @@ UPDATE t SET c2 = '0' WHERE c4 = '0';
 UPDATE t SET c2 = '2' WHERE c4 = '2';
 include/rpl_sync.inc
 include/diff_tables.inc [server_1:test.t, server_2:test.t, server_3:test.t]
-Warnings:
-Warning	1287	'<select expression> INTO <destination>;' is deprecated and will be removed in a future release. Please use 'SELECT <select list> INTO <destination> FROM...' instead
-Warnings:
-Warning	1287	'<select expression> INTO <destination>;' is deprecated and will be removed in a future release. Please use 'SELECT <select list> INTO <destination> FROM...' instead
-Warnings:
-Warning	1287	'<select expression> INTO <destination>;' is deprecated and will be removed in a future release. Please use 'SELECT <select list> INTO <destination> FROM...' instead
 connection server_1;
 DELETE FROM t WHERE c1 = 7;
 DELETE FROM t WHERE c1 = 8;
 DELETE FROM t;
 include/rpl_sync.inc
 include/diff_tables.inc [server_1:test.t, server_2:test.t, server_3:test.t]
-Warnings:
-Warning	1287	'<select expression> INTO <destination>;' is deprecated and will be removed in a future release. Please use 'SELECT <select list> INTO <destination> FROM...' instead
-Warnings:
-Warning	1287	'<select expression> INTO <destination>;' is deprecated and will be removed in a future release. Please use 'SELECT <select list> INTO <destination> FROM...' instead
-Warnings:
-Warning	1287	'<select expression> INTO <destination>;' is deprecated and will be removed in a future release. Please use 'SELECT <select list> INTO <destination> FROM...' instead
 connection server_1;
 DROP TABLE t;
 include/rpl_sync.inc
@@ -5517,24 +4449,12 @@ UPDATE t SET c2 = '0' WHERE c4 = '0';
 UPDATE t SET c2 = '2' WHERE c4 = '2';
 include/rpl_sync.inc
 include/diff_tables.inc [server_1:test.t, server_2:test.t, server_3:test.t]
-Warnings:
-Warning	1287	'<select expression> INTO <destination>;' is deprecated and will be removed in a future release. Please use 'SELECT <select list> INTO <destination> FROM...' instead
-Warnings:
-Warning	1287	'<select expression> INTO <destination>;' is deprecated and will be removed in a future release. Please use 'SELECT <select list> INTO <destination> FROM...' instead
-Warnings:
-Warning	1287	'<select expression> INTO <destination>;' is deprecated and will be removed in a future release. Please use 'SELECT <select list> INTO <destination> FROM...' instead
 connection server_1;
 DELETE FROM t WHERE c1 = 7;
 DELETE FROM t WHERE c1 = 8;
 DELETE FROM t;
 include/rpl_sync.inc
 include/diff_tables.inc [server_1:test.t, server_2:test.t, server_3:test.t]
-Warnings:
-Warning	1287	'<select expression> INTO <destination>;' is deprecated and will be removed in a future release. Please use 'SELECT <select list> INTO <destination> FROM...' instead
-Warnings:
-Warning	1287	'<select expression> INTO <destination>;' is deprecated and will be removed in a future release. Please use 'SELECT <select list> INTO <destination> FROM...' instead
-Warnings:
-Warning	1287	'<select expression> INTO <destination>;' is deprecated and will be removed in a future release. Please use 'SELECT <select list> INTO <destination> FROM...' instead
 connection server_1;
 DROP TABLE t;
 include/rpl_sync.inc
@@ -5578,24 +4498,12 @@ UPDATE t SET c2 = '0' WHERE c4 = '0';
 UPDATE t SET c2 = '2' WHERE c4 = '2';
 include/rpl_sync.inc
 include/diff_tables.inc [server_1:test.t, server_2:test.t, server_3:test.t]
-Warnings:
-Warning	1287	'<select expression> INTO <destination>;' is deprecated and will be removed in a future release. Please use 'SELECT <select list> INTO <destination> FROM...' instead
-Warnings:
-Warning	1287	'<select expression> INTO <destination>;' is deprecated and will be removed in a future release. Please use 'SELECT <select list> INTO <destination> FROM...' instead
-Warnings:
-Warning	1287	'<select expression> INTO <destination>;' is deprecated and will be removed in a future release. Please use 'SELECT <select list> INTO <destination> FROM...' instead
 connection server_1;
 DELETE FROM t WHERE c1 = 7;
 DELETE FROM t WHERE c1 = 8;
 DELETE FROM t;
 include/rpl_sync.inc
 include/diff_tables.inc [server_1:test.t, server_2:test.t, server_3:test.t]
-Warnings:
-Warning	1287	'<select expression> INTO <destination>;' is deprecated and will be removed in a future release. Please use 'SELECT <select list> INTO <destination> FROM...' instead
-Warnings:
-Warning	1287	'<select expression> INTO <destination>;' is deprecated and will be removed in a future release. Please use 'SELECT <select list> INTO <destination> FROM...' instead
-Warnings:
-Warning	1287	'<select expression> INTO <destination>;' is deprecated and will be removed in a future release. Please use 'SELECT <select list> INTO <destination> FROM...' instead
 connection server_1;
 DROP TABLE t;
 include/rpl_sync.inc
@@ -5639,24 +4547,12 @@ UPDATE t SET c2 = '0' WHERE c4 = '0';
 UPDATE t SET c2 = '2' WHERE c4 = '2';
 include/rpl_sync.inc
 include/diff_tables.inc [server_1:test.t, server_2:test.t, server_3:test.t]
-Warnings:
-Warning	1287	'<select expression> INTO <destination>;' is deprecated and will be removed in a future release. Please use 'SELECT <select list> INTO <destination> FROM...' instead
-Warnings:
-Warning	1287	'<select expression> INTO <destination>;' is deprecated and will be removed in a future release. Please use 'SELECT <select list> INTO <destination> FROM...' instead
-Warnings:
-Warning	1287	'<select expression> INTO <destination>;' is deprecated and will be removed in a future release. Please use 'SELECT <select list> INTO <destination> FROM...' instead
 connection server_1;
 DELETE FROM t WHERE c1 = 7;
 DELETE FROM t WHERE c1 = 8;
 DELETE FROM t;
 include/rpl_sync.inc
 include/diff_tables.inc [server_1:test.t, server_2:test.t, server_3:test.t]
-Warnings:
-Warning	1287	'<select expression> INTO <destination>;' is deprecated and will be removed in a future release. Please use 'SELECT <select list> INTO <destination> FROM...' instead
-Warnings:
-Warning	1287	'<select expression> INTO <destination>;' is deprecated and will be removed in a future release. Please use 'SELECT <select list> INTO <destination> FROM...' instead
-Warnings:
-Warning	1287	'<select expression> INTO <destination>;' is deprecated and will be removed in a future release. Please use 'SELECT <select list> INTO <destination> FROM...' instead
 connection server_1;
 DROP TABLE t;
 include/rpl_sync.inc
@@ -5700,24 +4596,12 @@ UPDATE t SET c2 = '0' WHERE c4 = '0';
 UPDATE t SET c2 = '2' WHERE c4 = '2';
 include/rpl_sync.inc
 include/diff_tables.inc [server_1:test.t, server_2:test.t, server_3:test.t]
-Warnings:
-Warning	1287	'<select expression> INTO <destination>;' is deprecated and will be removed in a future release. Please use 'SELECT <select list> INTO <destination> FROM...' instead
-Warnings:
-Warning	1287	'<select expression> INTO <destination>;' is deprecated and will be removed in a future release. Please use 'SELECT <select list> INTO <destination> FROM...' instead
-Warnings:
-Warning	1287	'<select expression> INTO <destination>;' is deprecated and will be removed in a future release. Please use 'SELECT <select list> INTO <destination> FROM...' instead
 connection server_1;
 DELETE FROM t WHERE c1 = 7;
 DELETE FROM t WHERE c1 = 8;
 DELETE FROM t;
 include/rpl_sync.inc
 include/diff_tables.inc [server_1:test.t, server_2:test.t, server_3:test.t]
-Warnings:
-Warning	1287	'<select expression> INTO <destination>;' is deprecated and will be removed in a future release. Please use 'SELECT <select list> INTO <destination> FROM...' instead
-Warnings:
-Warning	1287	'<select expression> INTO <destination>;' is deprecated and will be removed in a future release. Please use 'SELECT <select list> INTO <destination> FROM...' instead
-Warnings:
-Warning	1287	'<select expression> INTO <destination>;' is deprecated and will be removed in a future release. Please use 'SELECT <select list> INTO <destination> FROM...' instead
 connection server_1;
 DROP TABLE t;
 include/rpl_sync.inc
@@ -5761,24 +4645,12 @@ UPDATE t SET c2 = '0' WHERE c4 = '0';
 UPDATE t SET c2 = '2' WHERE c4 = '2';
 include/rpl_sync.inc
 include/diff_tables.inc [server_1:test.t, server_2:test.t, server_3:test.t]
-Warnings:
-Warning	1287	'<select expression> INTO <destination>;' is deprecated and will be removed in a future release. Please use 'SELECT <select list> INTO <destination> FROM...' instead
-Warnings:
-Warning	1287	'<select expression> INTO <destination>;' is deprecated and will be removed in a future release. Please use 'SELECT <select list> INTO <destination> FROM...' instead
-Warnings:
-Warning	1287	'<select expression> INTO <destination>;' is deprecated and will be removed in a future release. Please use 'SELECT <select list> INTO <destination> FROM...' instead
 connection server_1;
 DELETE FROM t WHERE c1 = 7;
 DELETE FROM t WHERE c1 = 8;
 DELETE FROM t;
 include/rpl_sync.inc
 include/diff_tables.inc [server_1:test.t, server_2:test.t, server_3:test.t]
-Warnings:
-Warning	1287	'<select expression> INTO <destination>;' is deprecated and will be removed in a future release. Please use 'SELECT <select list> INTO <destination> FROM...' instead
-Warnings:
-Warning	1287	'<select expression> INTO <destination>;' is deprecated and will be removed in a future release. Please use 'SELECT <select list> INTO <destination> FROM...' instead
-Warnings:
-Warning	1287	'<select expression> INTO <destination>;' is deprecated and will be removed in a future release. Please use 'SELECT <select list> INTO <destination> FROM...' instead
 connection server_1;
 DROP TABLE t;
 include/rpl_sync.inc
@@ -5822,24 +4694,12 @@ UPDATE t SET c2 = '0' WHERE c4 = '0';
 UPDATE t SET c2 = '2' WHERE c4 = '2';
 include/rpl_sync.inc
 include/diff_tables.inc [server_1:test.t, server_2:test.t, server_3:test.t]
-Warnings:
-Warning	1287	'<select expression> INTO <destination>;' is deprecated and will be removed in a future release. Please use 'SELECT <select list> INTO <destination> FROM...' instead
-Warnings:
-Warning	1287	'<select expression> INTO <destination>;' is deprecated and will be removed in a future release. Please use 'SELECT <select list> INTO <destination> FROM...' instead
-Warnings:
-Warning	1287	'<select expression> INTO <destination>;' is deprecated and will be removed in a future release. Please use 'SELECT <select list> INTO <destination> FROM...' instead
 connection server_1;
 DELETE FROM t WHERE c1 = 7;
 DELETE FROM t WHERE c1 = 8;
 DELETE FROM t;
 include/rpl_sync.inc
 include/diff_tables.inc [server_1:test.t, server_2:test.t, server_3:test.t]
-Warnings:
-Warning	1287	'<select expression> INTO <destination>;' is deprecated and will be removed in a future release. Please use 'SELECT <select list> INTO <destination> FROM...' instead
-Warnings:
-Warning	1287	'<select expression> INTO <destination>;' is deprecated and will be removed in a future release. Please use 'SELECT <select list> INTO <destination> FROM...' instead
-Warnings:
-Warning	1287	'<select expression> INTO <destination>;' is deprecated and will be removed in a future release. Please use 'SELECT <select list> INTO <destination> FROM...' instead
 connection server_1;
 DROP TABLE t;
 include/rpl_sync.inc
@@ -5883,24 +4743,12 @@ UPDATE t SET c2 = '0' WHERE c4 = '0';
 UPDATE t SET c2 = '2' WHERE c4 = '2';
 include/rpl_sync.inc
 include/diff_tables.inc [server_1:test.t, server_2:test.t, server_3:test.t]
-Warnings:
-Warning	1287	'<select expression> INTO <destination>;' is deprecated and will be removed in a future release. Please use 'SELECT <select list> INTO <destination> FROM...' instead
-Warnings:
-Warning	1287	'<select expression> INTO <destination>;' is deprecated and will be removed in a future release. Please use 'SELECT <select list> INTO <destination> FROM...' instead
-Warnings:
-Warning	1287	'<select expression> INTO <destination>;' is deprecated and will be removed in a future release. Please use 'SELECT <select list> INTO <destination> FROM...' instead
 connection server_1;
 DELETE FROM t WHERE c1 = 7;
 DELETE FROM t WHERE c1 = 8;
 DELETE FROM t;
 include/rpl_sync.inc
 include/diff_tables.inc [server_1:test.t, server_2:test.t, server_3:test.t]
-Warnings:
-Warning	1287	'<select expression> INTO <destination>;' is deprecated and will be removed in a future release. Please use 'SELECT <select list> INTO <destination> FROM...' instead
-Warnings:
-Warning	1287	'<select expression> INTO <destination>;' is deprecated and will be removed in a future release. Please use 'SELECT <select list> INTO <destination> FROM...' instead
-Warnings:
-Warning	1287	'<select expression> INTO <destination>;' is deprecated and will be removed in a future release. Please use 'SELECT <select list> INTO <destination> FROM...' instead
 connection server_1;
 DROP TABLE t;
 include/rpl_sync.inc

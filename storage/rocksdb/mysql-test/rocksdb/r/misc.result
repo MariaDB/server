@@ -46,6 +46,8 @@ db	User	NULL	NULL
 event	db	NULL	NULL
 event	name	NULL	NULL
 func	name	NULL	NULL
+global_priv	Host	NULL	NULL
+global_priv	User	NULL	NULL
 gtid_slave_pos	domain_id	NULL	NULL
 gtid_slave_pos	sub_id	NULL	NULL
 help_category	help_category_id	NULL	NULL
@@ -90,5 +92,3 @@ time_zone_transition	Time_zone_id	NULL	NULL
 time_zone_transition	Transition_time	NULL	NULL
 time_zone_transition_type	Time_zone_id	NULL	NULL
 time_zone_transition_type	Transition_type_id	NULL	NULL
-user	Host	NULL	NULL
-user	User	NULL	NULL

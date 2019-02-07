@@ -82,19 +82,32 @@ void
 Window_spec::print(String *str, enum_query_type query_type)
 {
   str->append('(');
+  print_partition(str, query_type);
+  print_order(str, query_type);
+
+  if (window_frame)
+    window_frame->print(str, query_type);
+  str->append(')');
+}
+
+void
+Window_spec::print_partition(String *str, enum_query_type query_type)
+{
   if (partition_list->first)
   {
     str->append(STRING_WITH_LEN(" partition by "));
     st_select_lex::print_order(str, partition_list->first, query_type);
   }
+}
+
+void
+Window_spec::print_order(String *str, enum_query_type query_type)
+{
   if (order_list->first)
   {
     str->append(STRING_WITH_LEN(" order by "));
     st_select_lex::print_order(str, order_list->first, query_type);
   }
-  if (window_frame)
-    window_frame->print(str, query_type);
-  str->append(')');
 }
 
 bool
@@ -2928,7 +2941,7 @@ bool Window_func_runner::exec(THD *thd, TABLE *tbl, SORT_INFO *filesort_result)
 }
 
 
-bool Window_funcs_sort::exec(JOIN *join)
+bool Window_funcs_sort::exec(JOIN *join, bool keep_filesort_result)
 {
   THD *thd= join->thd;
   JOIN_TAB *join_tab= join->join_tab + join->total_join_tab_cnt();
@@ -2943,8 +2956,11 @@ bool Window_funcs_sort::exec(JOIN *join)
 
   bool is_error= runner.exec(thd, tbl, filesort_result);
 
-  delete join_tab->filesort_result;
-  join_tab->filesort_result= NULL;
+  if (!keep_filesort_result)
+  {
+    delete join_tab->filesort_result;
+    join_tab->filesort_result= NULL;
+  }
   return is_error;
 }
 
@@ -3053,14 +3069,18 @@ bool Window_funcs_computation::setup(THD *thd,
 }
 
 
-bool Window_funcs_computation::exec(JOIN *join)
+bool Window_funcs_computation::exec(JOIN *join, bool keep_last_filesort_result)
 {
   List_iterator<Window_funcs_sort> it(win_func_sorts);
   Window_funcs_sort *srt;
+  uint counter= 0; /* Count how many sorts we've executed. */
   /* Execute each sort */
   while ((srt = it++))
   {
-    if (srt->exec(join))
+    counter++;
+    bool keep_filesort_result= keep_last_filesort_result &&
+                               counter == win_func_sorts.elements;
+    if (srt->exec(join, keep_filesort_result))
       return true;
   }
   return false;

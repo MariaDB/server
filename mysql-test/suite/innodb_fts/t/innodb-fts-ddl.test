@@ -276,3 +276,13 @@ ALTER TABLE t1 ADD FULLTEXT KEY(a), ADD COLUMN b VARCHAR(3), ADD FULLTEXT KEY(b)
 
 # Cleanup
 DROP TABLE t1;
+
+--echo #
+--echo # MDEV-18152 Assertion 'num_fts_index <= 1' failed
+--echo # in prepare_inplace_alter_table_dict
+--echo #
+CREATE TABLE t1
+(a VARCHAR(128), b VARCHAR(128), FULLTEXT INDEX(a), FULLTEXT INDEX(b))
+ENGINE=InnoDB;
+ALTER TABLE t1 ADD c SERIAL;
+DROP TABLE t1;

@@ -439,12 +439,12 @@ Item_sum_hybrid_simple::val_str(String *str)
   return retval;
 }
 
-bool Item_sum_hybrid_simple::get_date(MYSQL_TIME *ltime, ulonglong fuzzydate)
+bool Item_sum_hybrid_simple::get_date(THD *thd, MYSQL_TIME *ltime, date_mode_t fuzzydate)
 {
   DBUG_ASSERT(fixed == 1);
   if (null_value)
     return true;
-  bool retval= value->get_date(ltime, fuzzydate);
+  bool retval= value->get_date(thd, ltime, fuzzydate);
   if ((null_value= value->null_value))
     DBUG_ASSERT(retval == true);
   return retval;
@@ -542,6 +542,11 @@ void Item_sum_hybrid_simple::update_field()
 
 void Item_window_func::print(String *str, enum_query_type query_type)
 {
+  if (only_single_element_order_list())
+  {
+    print_for_percentile_functions(str, query_type);
+    return;
+  }
   window_func()->print(str, query_type);
   str->append(" over ");
 #ifndef DBUG_OFF
@@ -550,4 +555,16 @@ void Item_window_func::print(String *str, enum_query_type query_type)
   else
 #endif
   window_spec->print(str, query_type);
+}
+void Item_window_func::print_for_percentile_functions(String *str, enum_query_type query_type)
+{
+  window_func()->print(str, query_type);
+  str->append(" within group ");
+  str->append('(');
+  window_spec->print_order(str,query_type);
+  str->append(')');
+  str->append(" over ");
+  str->append('(');
+  window_spec->print_partition(str,query_type);
+  str->append(')');
 }

@@ -1,0 +1,108 @@
+--source include/have_innodb.inc
+
+create table t1(f1 int not null, f2 int not null, f3 int not null)engine=innodb;
+insert into t1 values(1, 2, 3),(4, 5, 6);
+alter table t1 drop column f2, algorithm=instant;
+select * from t1;
+insert into t1 values(1,2);
+select * from t1;
+alter table t1 add column f4 int not null default 5, algorithm=instant;
+select * from t1;
+alter table t1 drop column f1, algorithm=instant;
+select * from t1;
+insert into t1 values(7, 9);
+select * from t1;
+alter table t1 add column f5 blob default repeat('aaa', 950), drop column f4, algorithm=instant;
+select * from t1;
+select f3 from t1;
+update t1 set f3 = 10 where f3 > 2;
+select * from t1;
+delete from t1 where f3 = 10;
+show create table t1;
+select f3 from t1;
+update t1 set f5 = 'world';
+select * from t1;
+drop table t1;
+
+create table t1(f1 int, f2 int not null, index idx(f2))engine=innodb;
+insert into t1 values(1, 2);
+alter table t1 drop column f1, add column f3 varchar(100) default 'thiru', algorithm=instant;
+select * from t1 force index (idx);
+alter table t1 drop column f3, algorithm=instant;
+select * from t1;
+begin;
+insert into t1 values(10);
+select * from t1;
+update t1 set f2 = 100;
+select * from t1;
+delete from t1 where f2 = 100;
+select * from t1;
+rollback;
+select * from t1;
+show create table t1;
+drop table t1;
+
+create table t1(f1 int, f2 int not null)engine=innodb;
+insert into t1 values(1, 2);
+alter table t1 drop column f2, algorithm=instant;
+insert into t1 values(NULL);
+select * from t1;
+drop table t1;
+
+create table t1(f1 int not null, f2 int not null)engine=innodb;
+insert into t1 values(1, 2);
+alter table t1 add column f5 int default 10, algorithm=instant;
+alter table t1 add column f3 int not null default 100, algorithm=instant;
+alter table t1 add column f4 int default 100, drop column f3, algorithm=instant;
+insert into t1 values(2, 3, 20, 100);
+select * from t1;
+drop table t1;
+
+create table t1(f1 int not null, f2 int not null) engine=innodb;
+insert into t1 values(1, 1);
+alter table t1 drop column f2, add column f3 int default 3, algorithm=instant;
+select * from t1;
+update t1 set f3 = 19;
+select * from t1;
+alter table t1 drop column f1, add column f5 tinyint default 10 first,
+algorithm=instant;
+insert into t1 values(4, 10);
+select * from t1;
+
+create table t2(f1 int, f2 int not null) engine=innodb;
+insert into t2(f1, f2) values(1, 2);
+alter table t2 drop column f2, add column f4 varchar(100) default repeat('a', 20), add column f5 int default 10,  algorithm=instant;
+select * from t2;
+show create table t2;
+alter table t2 add column f6 char(100) default repeat('a', 99), algorithm=instant;
+
+create table t3(f1 int, f2 int not null)engine=innodb;
+insert into t3 values(1, 2);
+alter table t3 drop column f2, add column f3 int default 1, add column f4 int default 4, algorithm=instant;
+
+create table t4(a varchar(1), b int, c int, primary key(a,b))engine=innodb;
+insert into t4 values('4',5,6);
+alter table t4 drop column c;
+
+--source include/restart_mysqld.inc
+select * from t1;
+alter table t1 add column f6 int default 9,drop column f5, algorithm = instant;
+insert into t1 values(4, 9);
+alter table t1 force, algorithm=inplace;
+select * from t1;
+
+select * from t2;
+alter table t2 force, algorithm=inplace;
+select * from t2;
+show create table t2;
+
+select * from t3;
+alter table t3 add column f5 char(100) default repeat('a', 99), algorithm=instant;
+
+select * from t4;
+alter table t4 add column d varchar(5) default 'fubar';
+insert into t4 values('',0,'snafu');
+--source include/restart_mysqld.inc
+select * from t3;
+select * from t4;
+drop table t1,t2,t3,t4;

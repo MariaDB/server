@@ -1,0 +1,9 @@
+use mysql;
+insert db (db,user,select_priv) values ('foo','dwr_foo','Y'), ('bar','dwr_bar','Y');
+insert roles_mapping (user,role) values ('dwr_qux_dev','dwr_foo'),('dwr_qux_dev','dwr_bar');
+insert global_priv values ('','dwr_foo','{"is_role":true}'), ('','dwr_bar','{"is_role":true}'),
+('','dwr_qux_dev','{"access":16384,"is_role":true}');
+flush privileges;
+drop role dwr_foo;
+drop role dwr_bar;
+drop role dwr_qux_dev;

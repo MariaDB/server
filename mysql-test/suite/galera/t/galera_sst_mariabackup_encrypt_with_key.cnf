@@ -1,0 +1,12 @@
+!include ../galera_2nodes.cnf
+
+[mysqld]
+wsrep_sst_method=mariabackup
+wsrep_sst_auth="root:"
+wsrep_debug=ON
+
+[SST]
+tkey=@ENV.MYSQL_TEST_DIR/std_data/cakey.pem
+tcert=@ENV.MYSQL_TEST_DIR/std_data/cacert.pem
+encrypt=3
+transferfmt=@ENV.MTR_GALERA_TFMT

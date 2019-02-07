@@ -16425,6 +16425,7 @@ static void test_change_user()
   const char *db= "mysqltest_user_test_database";
   int rc;
   MYSQL*       conn;
+  MYSQL_RES* res;
   DBUG_ENTER("test_change_user");
   myheader("test_change_user");
 
@@ -16560,6 +16561,20 @@ static void test_change_user()
 
   rc= mysql_change_user(conn, user_pw, pw, "");
   myquery(rc);
+
+  /* MDEV-14581 : Check that there are no warnings after change user.*/
+  rc = mysql_query(conn,"SIGNAL SQLSTATE '01000'");
+  myquery(rc);
+
+  rc = mysql_change_user(conn, user_pw, pw, "");
+  myquery(rc);
+
+  rc = mysql_query(conn, "SHOW WARNINGS");
+  myquery(rc);
+  res = mysql_store_result(conn);
+  rc = my_process_result_set(res);
+  DIE_UNLESS(rc == 0);
+  mysql_free_result(res);
 
   rc= mysql_change_user(conn, user_no_pw, pw, db);
   DIE_UNLESS(rc);
@@ -20290,8 +20305,67 @@ static void test_bulk_autoinc()
   myquery(rc);
 }
 
-#endif
+static void test_bulk_delete()
+{
+  int rc;
+  MYSQL_STMT *stmt;
+  MYSQL_BIND bind[1];
+  MYSQL_ROW  row;
+  char       indicator[]= {0, 0, 0};
+  my_bool   error[1];
+  int        i, id[]= {1, 2, 4}, count= sizeof(id)/sizeof(id[0]);
+  MYSQL_RES *result;
 
+  rc= mysql_query(mysql, "DROP TABLE IF EXISTS t1");
+  myquery(rc);
+  rc= mysql_query(mysql, "CREATE TABLE t1 (id int not null primary key)");
+  myquery(rc);
+  rc= mysql_query(mysql, "INSERT INTO t1 VALUES (1),(2),(3),(4)");
+  myquery(rc);
+  verify_affected_rows(4);
+
+  stmt= mysql_stmt_init(mysql);
+  rc= mysql_stmt_prepare(stmt, "DELETE FROM t1 where id=?", -1);
+  check_execute(stmt, rc);
+
+  memset(bind, 0, sizeof(bind));
+  bind[0].buffer_type = MYSQL_TYPE_LONG;
+  bind[0].buffer = (void *)id;
+  bind[0].buffer_length = 0;
+  bind[0].is_null = NULL;
+  bind[0].length = NULL;
+  bind[0].error = error;
+  bind[0].u.indicator= indicator;
+
+  mysql_stmt_attr_set(stmt, STMT_ATTR_ARRAY_SIZE, (void*)&count);
+  rc= mysql_stmt_bind_param(stmt, bind);
+  check_execute(stmt, rc);
+
+  rc= mysql_stmt_execute(stmt);
+  check_execute(stmt, rc);
+  verify_affected_rows(3);
+
+  mysql_stmt_close(stmt);
+
+  rc= mysql_query(mysql, "SELECT id FROM t1");
+  myquery(rc);
+
+  result= mysql_store_result(mysql);
+  mytest(result);
+
+  i= 0;
+  while ((row= mysql_fetch_row(result)))
+  {
+    i++;
+    DIE_IF(atoi(row[0]) != 3);
+  }
+  DIE_IF(i != 1);
+
+  rc= mysql_query(mysql, "DROP TABLE t1");
+  myquery(rc);
+}
+
+#endif
 
 static void print_metadata(MYSQL_RES *rs_metadata, int num_fields)
 {
@@ -20900,6 +20974,7 @@ static struct my_tests_st my_tests[]= {
 #ifndef EMBEDDED_LIBRARY
   { "test_proxy_header", test_proxy_header},
   { "test_bulk_autoinc", test_bulk_autoinc},
+  { "test_bulk_delete", test_bulk_delete },
 #endif
   { "test_explain_meta", test_explain_meta },
   { 0, 0 }

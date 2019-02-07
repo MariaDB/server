@@ -191,8 +191,8 @@ min(7)
 7
 explain select min(7) from t2i join t1i;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t2i	ALL	NULL	NULL	NULL	NULL	1	
-1	SIMPLE	t1i	ALL	NULL	NULL	NULL	NULL	1	Using join buffer (flat, BNL join)
+1	SIMPLE	t1i	ALL	NULL	NULL	NULL	NULL	0	
+1	SIMPLE	t2i	ALL	NULL	NULL	NULL	NULL	1	Using join buffer (flat, BNL join)
 select min(7) from t2i join t1i;
 min(7)
 NULL
@@ -207,8 +207,8 @@ max(7)
 7
 explain select max(7) from t2i join t1i;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t2i	ALL	NULL	NULL	NULL	NULL	1	
-1	SIMPLE	t1i	ALL	NULL	NULL	NULL	NULL	1	Using join buffer (flat, BNL join)
+1	SIMPLE	t1i	ALL	NULL	NULL	NULL	NULL	0	
+1	SIMPLE	t2i	ALL	NULL	NULL	NULL	NULL	1	Using join buffer (flat, BNL join)
 select max(7) from t2i join t1i;
 max(7)
 NULL
@@ -239,7 +239,7 @@ select 1, max(1) from t1i where 1=99;
 explain select count(*), min(7), max(7) from t1m, t1i;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 1	SIMPLE	t1m	system	NULL	NULL	NULL	NULL	0	Const row not found
-1	SIMPLE	t1i	ALL	NULL	NULL	NULL	NULL	1	
+1	SIMPLE	t1i	ALL	NULL	NULL	NULL	NULL	0	
 select count(*), min(7), max(7) from t1m, t1i;
 count(*)	min(7)	max(7)
 0	NULL	NULL
@@ -253,7 +253,7 @@ count(*)	min(7)	max(7)
 explain select count(*), min(7), max(7) from t2m, t1i;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 1	SIMPLE	t2m	system	NULL	NULL	NULL	NULL	1	
-1	SIMPLE	t1i	ALL	NULL	NULL	NULL	NULL	1	
+1	SIMPLE	t1i	ALL	NULL	NULL	NULL	NULL	0	
 select count(*), min(7), max(7) from t2m, t1i;
 count(*)	min(7)	max(7)
 0	NULL	NULL
@@ -303,6 +303,7 @@ create index idx12672_1 on t4 (a1,a2,b,c);
 create index idx12672_2 on t4 (a1,a2,b);
 analyze table t4;
 Table	Op	Msg_type	Msg_text
+test.t4	analyze	status	Engine-independent statistics collected
 test.t4	analyze	status	OK
 select distinct a1 from t4 where pk_col not in (1,2,3,4);
 a1
@@ -2699,6 +2700,7 @@ INSERT INTO t1 SELECT c1+100000,c2+100000,c3+100000 from t1;
 INSERT INTO t1 SELECT c1+1000000,c2+1000000,c3+1000000 from t1;
 ANALYZE TABLE t1;
 Table	Op	Msg_type	Msg_text
+test.t1	analyze	status	Engine-independent statistics collected
 test.t1	analyze	status	OK
 SELECT * FROM t1 WHERE c1 = 99999999 AND c3 > 1 ORDER BY c3;
 c1	c2	c3
@@ -2851,6 +2853,7 @@ INSERT INTO t1 VALUES (1,1,1,1,1,1), (2,2,2,2,2,2), (3,3,3,3,3,3),
 (11,11,11,11,11,11);
 ANALYZE TABLE t1;
 Table	Op	Msg_type	Msg_text
+test.t1	analyze	status	Engine-independent statistics collected
 test.t1	analyze	status	OK
 EXPLAIN SELECT COUNT(*) FROM t1;
 id	1
@@ -3126,7 +3129,7 @@ INSERT INTO t1 VALUES (0);
 SET SQL_MODE='STRICT_ALL_TABLES';
 CREATE TABLE t2 
 SELECT LEAST((SELECT '' FROM t1),NOW()) FROM `t1`;
-ERROR 22007: Incorrect datetime value: ''
+ERROR 22007: Truncated incorrect datetime value: ''
 DROP TABLE t1;
 SET SQL_MODE=DEFAULT;
 #

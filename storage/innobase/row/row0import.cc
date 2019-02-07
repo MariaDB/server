@@ -24,13 +24,11 @@ Import a tablespace to a running instance.
 Created 2012-02-08 by Sunny Bains.
 *******************************************************/
 
-#include "ha_prototypes.h"
-
 #include "row0import.h"
 #include "btr0pcur.h"
-#include "btr0sea.h"
 #include "que0que.h"
 #include "dict0boot.h"
+#include "dict0load.h"
 #include "ibuf0ibuf.h"
 #include "pars0pars.h"
 #include "row0sel.h"
@@ -39,7 +37,6 @@ Created 2012-02-08 by Sunny Bains.
 #include "row0quiesce.h"
 #include "fil0pagecompress.h"
 #include "trx0undo.h"
-#include "ut0new.h"
 #ifdef HAVE_LZO
 #include "lzo/lzo1x.h"
 #endif
@@ -1462,9 +1459,9 @@ IndexPurge::open() UNIV_NOTHROW
 	btr_pcur_open_at_index_side(
 		true, m_index, BTR_MODIFY_LEAF, &m_pcur, true, 0, &m_mtr);
 	btr_pcur_move_to_next_user_rec(&m_pcur, &m_mtr);
-	if (rec_is_default_row(btr_pcur_get_rec(&m_pcur), m_index)) {
+	if (rec_is_metadata(btr_pcur_get_rec(&m_pcur), *m_index)) {
 		ut_ad(btr_pcur_is_on_user_rec(&m_pcur));
-		/* Skip the 'default row' pseudo-record. */
+		/* Skip the metadata pseudo-record. */
 	} else {
 		btr_pcur_move_to_prev_on_page(&m_pcur);
 	}
@@ -2053,7 +2050,7 @@ row_import_discard_changes(
 
 	table->file_unreadable = true;
 	if (table->space) {
-		fil_close_tablespace(trx, table->space->id);
+		fil_close_tablespace(trx, table->space_id);
 		table->space = NULL;
 	}
 }
@@ -2227,17 +2224,15 @@ row_import_adjust_root_pages_of_secondary_indexes(
 }
 
 /*****************************************************************//**
-Ensure that dict_sys->row_id exceeds SELECT MAX(DB_ROW_ID).
-@return error code */
-static	MY_ATTRIBUTE((nonnull, warn_unused_result))
-dberr_t
+Ensure that dict_sys->row_id exceeds SELECT MAX(DB_ROW_ID). */
+MY_ATTRIBUTE((nonnull)) static
+void
 row_import_set_sys_max_row_id(
 /*==========================*/
 	row_prebuilt_t*		prebuilt,	/*!< in/out: prebuilt from
 						handler */
 	const dict_table_t*	table)		/*!< in: table to import */
 {
-	dberr_t			err;
 	const rec_t*		rec;
 	mtr_t			mtr;
 	btr_pcur_t		pcur;
@@ -2245,7 +2240,8 @@ row_import_set_sys_max_row_id(
 	dict_index_t*		index;
 
 	index = dict_table_get_first_index(table);
-	ut_a(dict_index_is_clust(index));
+	ut_ad(index->is_primary());
+	ut_ad(dict_index_is_auto_gen_clust(index));
 
 	mtr_start(&mtr);
 
@@ -2266,57 +2262,17 @@ row_import_set_sys_max_row_id(
 	/* Check for empty table. */
 	if (page_rec_is_infimum(rec)) {
 		/* The table is empty. */
-		err = DB_SUCCESS;
-	} else if (rec_is_default_row(rec, index)) {
-		/* The clustered index contains the 'default row',
+	} else if (rec_is_metadata(rec, *index)) {
+		/* The clustered index contains the metadata record only,
 		that is, the table is empty. */
-		err = DB_SUCCESS;
 	} else {
-		ulint		len;
-		const byte*	field;
-		mem_heap_t*	heap = NULL;
-		ulint		offsets_[1 + REC_OFFS_HEADER_SIZE];
-		ulint*		offsets;
-
-		rec_offs_init(offsets_);
-
-		offsets = rec_get_offsets(
-			rec, index, offsets_, true, ULINT_UNDEFINED, &heap);
-
-		field = rec_get_nth_field(
-			rec, offsets,
-			dict_index_get_sys_col_pos(index, DATA_ROW_ID),
-			&len);
-
-		if (len == DATA_ROW_ID_LEN) {
-			row_id = mach_read_from_6(field);
-			err = DB_SUCCESS;
-		} else {
-			err = DB_CORRUPTION;
-		}
-
-		if (heap != NULL) {
-			mem_heap_free(heap);
-		}
+		row_id = mach_read_from_6(rec);
 	}
 
 	btr_pcur_close(&pcur);
 	mtr_commit(&mtr);
 
-	DBUG_EXECUTE_IF("ib_import_set_max_rowid_failure",
-			err = DB_CORRUPTION;);
-
-	if (err != DB_SUCCESS) {
-		ib_errf(prebuilt->trx->mysql_thd,
-			IB_LOG_LEVEL_WARN,
-			ER_INNODB_INDEX_CORRUPT,
-			"Index `%s` corruption detected, invalid DB_ROW_ID"
-			" in index.", index->name());
-
-		return(err);
-
-	} else if (row_id > 0) {
-
+	if (row_id) {
 		/* Update the system row id if the imported index row id is
 		greater than the max system row id. */
 
@@ -2329,8 +2285,6 @@ row_import_set_sys_max_row_id(
 
 		mutex_exit(&dict_sys->mutex);
 	}
-
-	return(DB_SUCCESS);
 }
 
 /*****************************************************************//**
@@ -3436,9 +3390,7 @@ not_encrypted:
 				}
 			} else {
 				if (!fil_space_verify_crypt_checksum(
-					    src, callback.get_page_size(),
-					    block->page.id.space(),
-					    block->page.id.page_no())) {
+					    src, callback.get_page_size())) {
 					goto page_corrupted;
 				}
 
@@ -3654,7 +3606,7 @@ fil_tablespace_iterate(
 	buf_block_t* block = reinterpret_cast<buf_block_t*>
 		(ut_zalloc_nokey(sizeof *block));
 	block->frame = page;
-	block->page.id.copy_from(page_id_t(0, 0));
+	block->page.id = page_id_t(0, 0);
 	block->page.io_fix = BUF_IO_NONE;
 	block->page.buf_fix_count = 1;
 	block->page.state = BUF_BLOCK_FILE_PAGE;
@@ -3672,8 +3624,7 @@ fil_tablespace_iterate(
 	}
 
 	if (err == DB_SUCCESS) {
-		block->page.id.copy_from(
-			page_id_t(callback.get_space_id(), 0));
+		block->page.id = page_id_t(callback.get_space_id(), 0);
 		block->page.size.copy_from(callback.get_page_size());
 		if (block->page.size.is_compressed()) {
 			page_zip_set_size(&block->page.zip,
@@ -4077,12 +4028,7 @@ row_import_for_mysql(
 	any DB_ROW_ID stored in the table. */
 
 	if (prebuilt->clust_index_was_generated) {
-
-		err = row_import_set_sys_max_row_id(prebuilt, table);
-
-		if (err != DB_SUCCESS) {
-			return(row_import_error(prebuilt, trx, err));
-		}
+		row_import_set_sys_max_row_id(prebuilt, table);
 	}
 
 	ib::info() << "Phase III - Flush changes to disk";

@@ -92,7 +92,7 @@ xb_write_galera_info(bool incremental_prepare)
 	fp = fopen(XB_GALERA_INFO_FILENAME, "w");
 	if (fp == NULL) {
 
-		msg("mariabackup: error: "
+		die(
 		    "could not create " XB_GALERA_INFO_FILENAME
 		    ", errno = %d\n",
 		    errno);
@@ -106,11 +106,10 @@ xb_write_galera_info(bool incremental_prepare)
 
 	if (fprintf(fp, "%s:%lld", uuid_str, (long long) seqno) < 0) {
 
-		msg("mariabackup: error: "
+		die(
 		    "could not write to " XB_GALERA_INFO_FILENAME
 		    ", errno = %d\n",
-		    errno);
-		exit(EXIT_FAILURE);
+		    errno);;
 	}
 
 	fclose(fp);

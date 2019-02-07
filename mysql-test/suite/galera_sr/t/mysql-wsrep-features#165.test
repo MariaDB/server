@@ -1,0 +1,41 @@
+--source include/galera_cluster.inc
+--source include/have_debug_sync.inc
+
+#
+# This test attempts to catch a race condition between autocommit
+# transaction and transaction which is rolling back due to
+# deadlock.
+#
+# Since it is trying to catch a race condition which may not reliably
+# occur, several runs are necessary for certainty. Hence the body of
+# the test was placed into the .inc file and sourced several times below
+#
+# Test outline:
+# * Trx 1a makes updates
+# * SR trx 1b writes a row 3, then makes updates
+# * AC trx 1c will attempt to write row 3 and will wait for lock
+#   held by 1b
+# * Sync point is set for 1b to delay SR rollback
+# * SR trx 1b makes an update which makes it conflict with trx 1a
+# * Slave shows BF - BF conflict and fails in applying write event
+
+--connect node_1a, 127.0.0.1, root, , test, $NODE_MYPORT_1
+--connect node_1b, 127.0.0.1, root, , test, $NODE_MYPORT_1
+--connect node_1c, 127.0.0.1, root, , test, $NODE_MYPORT_1
+
+--source mysql-wsrep-features#165.inc
+--source mysql-wsrep-features#165.inc
+--source mysql-wsrep-features#165.inc
+--source mysql-wsrep-features#165.inc
+--source mysql-wsrep-features#165.inc
+--source mysql-wsrep-features#165.inc
+--source mysql-wsrep-features#165.inc
+--source mysql-wsrep-features#165.inc
+--source mysql-wsrep-features#165.inc
+--source mysql-wsrep-features#165.inc
+--source mysql-wsrep-features#165.inc
+--source mysql-wsrep-features#165.inc
+--source mysql-wsrep-features#165.inc
+--source mysql-wsrep-features#165.inc
+--source mysql-wsrep-features#165.inc
+--source mysql-wsrep-features#165.inc

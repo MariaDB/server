@@ -32,7 +32,9 @@
 #include "event_db_repository.h"
 #include "sp_head.h"
 #include "sql_show.h"                // append_definer, append_identifier
-
+#ifdef WITH_WSREP
+#include "wsrep_trans_observer.h"
+#endif /* WITH_WSREP */
 /**
   @addtogroup Event_Scheduler
   @{
@@ -479,14 +481,24 @@ Event_queue_element::load_from_row(THD *thd, TABLE *table)
   uint not_used;
   if (!starts_null)
   {
-    table->field[ET_FIELD_STARTS]->get_date(&time, TIME_NO_ZERO_DATE);
+    /*
+      The expected data type for these columns in mysql.events:
+        starts, ends, execute_at, last_executed
+      is DATETIME. No nanosecond truncation should normally be needed,
+      unless the DBA changes them, e.g. to VARCHAR, DECIMAL, etc.
+      For this unexpected case let's use the default round mode,
+      according to the current session settings.
+    */
+    table->field[ET_FIELD_STARTS]->get_date(&time, TIME_NO_ZERO_DATE |
+                                                   thd->temporal_round_mode());
     starts= my_tz_OFFSET0->TIME_to_gmt_sec(&time,&not_used);
   }
 
   ends_null= table->field[ET_FIELD_ENDS]->is_null();
   if (!ends_null)
   {
-    table->field[ET_FIELD_ENDS]->get_date(&time, TIME_NO_ZERO_DATE);
+    table->field[ET_FIELD_ENDS]->get_date(&time, TIME_NO_ZERO_DATE |
+                                                 thd->temporal_round_mode());
     ends= my_tz_OFFSET0->TIME_to_gmt_sec(&time,&not_used);
   }
 
@@ -502,8 +514,8 @@ Event_queue_element::load_from_row(THD *thd, TABLE *table)
   DBUG_ASSERT(!(starts_null && ends_null && !expression && execute_at_null));
   if (!expression && !execute_at_null)
   {
-    if (table->field[ET_FIELD_EXECUTE_AT]->get_date(&time,
-                                                    TIME_NO_ZERO_DATE))
+    if (table->field[ET_FIELD_EXECUTE_AT]->get_date(&time, TIME_NO_ZERO_DATE |
+                                                    thd->temporal_round_mode()))
       DBUG_RETURN(TRUE);
     execute_at= my_tz_OFFSET0->TIME_to_gmt_sec(&time,&not_used);
   }
@@ -535,8 +547,8 @@ Event_queue_element::load_from_row(THD *thd, TABLE *table)
 
   if (!table->field[ET_FIELD_LAST_EXECUTED]->is_null())
   {
-    table->field[ET_FIELD_LAST_EXECUTED]->get_date(&time,
-                                                   TIME_NO_ZERO_DATE);
+    table->field[ET_FIELD_LAST_EXECUTED]->get_date(&time, TIME_NO_ZERO_DATE |
+                                                   thd->temporal_round_mode());
     last_executed= my_tz_OFFSET0->TIME_to_gmt_sec(&time,&not_used);
   }
 
@@ -654,7 +666,7 @@ my_time_t
 add_interval(MYSQL_TIME *ltime, const Time_zone *time_zone,
              interval_type scale, INTERVAL interval)
 {
-  if (date_add_interval(ltime, scale, interval))
+  if (date_add_interval(current_thd, ltime, scale, interval))
     return 0;
 
   uint not_used;
@@ -1343,6 +1355,10 @@ Event_job_data::execute(THD *thd, bool drop)
 
   thd->reset_for_next_command();
 
+#ifdef WITH_WSREP
+  wsrep_open(thd);
+  wsrep_before_command(thd);
+#endif /* WITH_WSREP */
   /*
     MySQL parser currently assumes that current database is either
     present in THD or all names in all statements are fully specified.
@@ -1517,6 +1533,10 @@ end:
   if (save_sctx)
     event_sctx.restore_security_context(thd, save_sctx);
 #endif
+#ifdef WITH_WSREP
+  wsrep_after_command_ignore_result(thd);
+  wsrep_close(thd);
+#endif /* WITH_WSREP */
   thd->lex->unit.cleanup();
   thd->end_statement();
   thd->cleanup_after_query();

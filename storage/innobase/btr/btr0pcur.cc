@@ -1,7 +1,7 @@
 /*****************************************************************************
 
 Copyright (c) 1996, 2016, Oracle and/or its affiliates. All Rights Reserved.
-Copyright (c) 2016, 2017, MariaDB Corporation.
+Copyright (c) 2016, 2019, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -141,6 +141,7 @@ btr_pcur_store_position(
 		if (page_rec_is_supremum_low(offs)) {
 			cursor->rel_pos = BTR_PCUR_AFTER_LAST_IN_TREE;
 		} else {
+before_first:
 			cursor->rel_pos = BTR_PCUR_BEFORE_FIRST_IN_TREE;
 		}
 
@@ -151,15 +152,28 @@ btr_pcur_store_position(
 		rec = page_rec_get_prev(rec);
 
 		ut_ad(!page_rec_is_infimum(rec));
-		ut_ad(!rec_is_default_row(rec, index));
+		if (UNIV_UNLIKELY(rec_is_metadata(rec, *index))) {
+			ut_ad(index->table->instant);
+			ut_ad(page_get_n_recs(block->frame) == 1);
+			ut_ad(page_is_leaf(page));
+			ut_ad(page_get_page_no(page) == index->page);
+			cursor->rel_pos = BTR_PCUR_AFTER_LAST_IN_TREE;
+			return;
+		}
 
 		cursor->rel_pos = BTR_PCUR_AFTER;
 	} else if (page_rec_is_infimum_low(offs)) {
 		rec = page_rec_get_next(rec);
 
-		if (rec_is_default_row(rec, index)) {
+		if (rec_is_metadata(rec, *index)) {
+			ut_ad(!page_has_prev(page));
+			ut_d(const rec_t* p = rec);
 			rec = page_rec_get_next(rec);
-			ut_ad(!page_rec_is_supremum(rec));
+			if (page_rec_is_supremum(rec)) {
+				ut_ad(page_has_next(page)
+				      || rec_is_alter_metadata(p, *index));
+				goto before_first;
+			}
 		}
 
 		cursor->rel_pos = BTR_PCUR_BEFORE;
@@ -167,10 +181,25 @@ btr_pcur_store_position(
 		cursor->rel_pos = BTR_PCUR_ON;
 	}
 
-	cursor->old_rec = dict_index_copy_rec_order_prefix(
-		index, rec, &cursor->old_n_fields,
-		&cursor->old_rec_buf, &cursor->buf_size);
+	if (index->is_ibuf()) {
+		ut_ad(!index->table->not_redundant());
+		cursor->old_n_fields = rec_get_n_fields_old(rec);
+	} else if (page_rec_is_leaf(rec)) {
+		cursor->old_n_fields = dict_index_get_n_unique_in_tree(index);
+	} else if (index->is_spatial()) {
+		ut_ad(dict_index_get_n_unique_in_tree_nonleaf(index)
+		      == DICT_INDEX_SPATIAL_NODEPTR_SIZE);
+		/* For R-tree, we have to compare
+		the child page numbers as well. */
+		cursor->old_n_fields = DICT_INDEX_SPATIAL_NODEPTR_SIZE + 1;
+	} else {
+		cursor->old_n_fields = dict_index_get_n_unique_in_tree(index);
+	}
 
+	cursor->old_rec = rec_copy_prefix_to_buf(rec, index,
+						 cursor->old_n_fields,
+						 &cursor->old_rec_buf,
+						 &cursor->buf_size);
 	cursor->block_when_stored = block;
 
 	/* Function try to check if block is S/X latch. */

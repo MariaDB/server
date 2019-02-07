@@ -289,7 +289,6 @@ DROP TRIGGER tr1;
 --echo
 --echo
 --echo ******************** EVENTS ********************
-GRANT EVENT ON *.* TO 'root'@'localhost';
 INSERT INTO t1 VALUES(1, 'test1');
 CREATE EVENT e1 ON SCHEDULE EVERY '1' SECOND COMMENT 'e_second_comment' DO DELETE FROM t1;
 --source suite/rpl/include/rpl_mixed_check_event.inc

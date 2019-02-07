@@ -74,3 +74,40 @@ CREATE TABLE t_illegal (col_1 INT CHECK something (whatever));
 ERROR 42000: You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near 'something (whatever))' at line 1
 CREATE TABLE t_illegal (col_1 INT CHECK something);
 ERROR 42000: You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near 'something)' at line 1
+CREATE TABLE long_enough_name (
+pk int(11) NOT NULL,
+f1 int(11) DEFAULT NULL,
+f2 int(11) NOT NULL,
+f3 int(11) DEFAULT NULL,
+f4 timestamp NOT NULL DEFAULT current_timestamp(),
+f5 varchar(32) COLLATE utf8_bin NOT NULL DEFAULT 'foo',
+f6 smallint(6) NOT NULL DEFAULT 1,
+f7 int(11) DEFAULT NULL,
+PRIMARY KEY (pk),
+KEY idx1 (f7),
+KEY idx2 (f1),
+KEY idx3 (f2),
+KEY idx4 (f3),
+CONSTRAINT constr CHECK (f6 >= 0)
+);
+SELECT * FROM long_enough_name AS tbl;
+pk	f1	f2	f3	f4	f5	f6	f7
+SHOW CREATE TABLE long_enough_name;
+Table	Create Table
+long_enough_name	CREATE TABLE `long_enough_name` (
+  `pk` int(11) NOT NULL,
+  `f1` int(11) DEFAULT NULL,
+  `f2` int(11) NOT NULL,
+  `f3` int(11) DEFAULT NULL,
+  `f4` timestamp NOT NULL DEFAULT current_timestamp(),
+  `f5` varchar(32) CHARACTER SET utf8 COLLATE utf8_bin NOT NULL DEFAULT 'foo',
+  `f6` smallint(6) NOT NULL DEFAULT 1,
+  `f7` int(11) DEFAULT NULL,
+  PRIMARY KEY (`pk`),
+  KEY `idx1` (`f7`),
+  KEY `idx2` (`f1`),
+  KEY `idx3` (`f2`),
+  KEY `idx4` (`f3`),
+  CONSTRAINT `constr` CHECK (`f6` >= 0)
+) ENGINE=MyISAM DEFAULT CHARSET=latin1
+DROP TABLE long_enough_name;

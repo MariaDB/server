@@ -26,78 +26,10 @@
 #define EILSEQ ENOENT
 #endif
 
-/* Detect special bytes and sequences */
-#define IS_CONTINUATION_BYTE(c)   (((uchar) (c) ^ 0x80) < 0x40)
 
-/*
-  Check MB2 character assuming that b0 is alredy known to be >= 0xC2.
-  Use this macro if the caller already checked b0 for:
-  - an MB1 character
-  - an unused gap between MB1 and MB2HEAD
-*/
-#define IS_UTF8MB2_STEP2(b0,b1)     (((uchar) (b0) < 0xE0) && \
-                                     IS_CONTINUATION_BYTE((uchar) b1))
+#include "ctype-utf8.h"
+#include "ctype-unidata.h"
 
-/*
-  Check MB3 character assuming that b0 is already known to be
-  in the valid MB3HEAD range [0xE0..0xEF].
-*/
-#define IS_UTF8MB3_STEP2(b0,b1,b2) (IS_CONTINUATION_BYTE(b1) && \
-                                    IS_CONTINUATION_BYTE(b2) && \
-                                    ((uchar) b0 >= 0xe1 || (uchar) b1 >= 0xa0))
-
-/*
-  Check MB3 character assuming that b0 is already known to be >= 0xE0,
-  but is not checked for the high end 0xF0 yet.
-  Use this macro if the caller already checked b0 for:
-  - an MB1 character
-  - an unused gap between MB1 and MB2HEAD
-  - an MB2HEAD
-*/
-#define IS_UTF8MB3_STEP3(b0,b1,b2) (((uchar) (b0) < 0xF0) && \
-                                    IS_UTF8MB3_STEP2(b0,b1,b2))
-
-/*
-  UTF-8 quick four-byte mask:
-  11110xxx 10xxxxxx 10xxxxxx 10xxxxxx
-  Encoding allows to encode U+00010000..U+001FFFFF
-
-  The maximum character defined in the Unicode standard is U+0010FFFF.
-  Higher characters U+00110000..U+001FFFFF are not used.
-
-  11110000.10010000.10xxxxxx.10xxxxxx == F0.90.80.80 == U+00010000 (min)
-  11110100.10001111.10111111.10111111 == F4.8F.BF.BF == U+0010FFFF (max)
-
-  Valid codes:
-  [F0][90..BF][80..BF][80..BF]
-  [F1][80..BF][80..BF][80..BF]
-  [F2][80..BF][80..BF][80..BF]
-  [F3][80..BF][80..BF][80..BF]
-  [F4][80..8F][80..BF][80..BF]
-*/
-
-/*
-  Check MB4 character assuming that b0 is already
-  known to be in the range [0xF0..0xF4]
-*/
-#define IS_UTF8MB4_STEP2(b0,b1,b2,b3) (IS_CONTINUATION_BYTE(b1) && \
-                                       IS_CONTINUATION_BYTE(b2) && \
-                                       IS_CONTINUATION_BYTE(b3) && \
-                                       (b0 >= 0xf1 || b1 >= 0x90) && \
-                                       (b0 <= 0xf3 || b1 <= 0x8F))
-#define IS_UTF8MB4_STEP3(b0,b1,b2,b3) (((uchar) (b0) < 0xF5) && \
-                                       IS_UTF8MB4_STEP2(b0,b1,b2,b3))
-
-/* Convert individual bytes to Unicode code points */
-#define UTF8MB2_CODE(b0,b1)       (((my_wc_t) ((uchar) b0 & 0x1f) << 6)  |\
-                                   ((my_wc_t) ((uchar) b1 ^ 0x80)))
-#define UTF8MB3_CODE(b0,b1,b2)    (((my_wc_t) ((uchar) b0 & 0x0f) << 12) |\
-                                   ((my_wc_t) ((uchar) b1 ^ 0x80) << 6)  |\
-                                   ((my_wc_t) ((uchar) b2 ^ 0x80)))
-#define UTF8MB4_CODE(b0,b1,b2,b3) (((my_wc_t) ((uchar) b0 & 0x07) << 18) |\
-                                   ((my_wc_t) ((uchar) b1 ^ 0x80) << 12) |\
-                                   ((my_wc_t) ((uchar) b2 ^ 0x80) << 6)  |\
-                                    (my_wc_t) ((uchar) b3 ^ 0x80))
 
 /* Definitions for strcoll.ic */
 #define IS_MB1_CHAR(x)              ((uchar) (x) < 0x80)
@@ -180,7 +112,7 @@ int my_valid_mbcharlen_utf8mb3(const uchar *s, const uchar *e)
 
 #include "my_uctype.h"
 
-static MY_UNICASE_CHARACTER plane00[]={
+MY_UNICASE_CHARACTER my_unicase_default_page00[]={
   {0x0000,0x0000,0x0000},  {0x0001,0x0001,0x0001},
   {0x0002,0x0002,0x0002},  {0x0003,0x0003,0x0003},
   {0x0004,0x0004,0x0004},  {0x0005,0x0005,0x0005},
@@ -313,7 +245,7 @@ static MY_UNICASE_CHARACTER plane00[]={
 
 
 /*
-  Almost similar to plane00, but maps sorting order
+  Almost similar to my_unicase_default_page00, but maps sorting order
   for U+00DF to 0x00DF instead of 0x0053.
 */
 static MY_UNICASE_CHARACTER plane00_mysql500[]={
@@ -1759,9 +1691,10 @@ static MY_UNICASE_CHARACTER planeFF[]={
 };
 
 
-static MY_UNICASE_CHARACTER *my_unicase_pages_default[256]=
+MY_UNICASE_CHARACTER *my_unicase_default_pages[256]=
 {
- plane00, plane01, plane02, plane03, plane04, plane05,    NULL,    NULL,
+    my_unicase_default_page00,
+             plane01, plane02, plane03, plane04, plane05, NULL,    NULL,
     NULL,    NULL,    NULL,    NULL,    NULL,    NULL,    NULL,    NULL,
     NULL,    NULL,    NULL,    NULL,    NULL,    NULL,    NULL,    NULL,
     NULL,    NULL,    NULL,    NULL,    NULL,    NULL, plane1E, plane1F,
@@ -1798,8 +1731,8 @@ static MY_UNICASE_CHARACTER *my_unicase_pages_default[256]=
 
 MY_UNICASE_INFO my_unicase_default=
 {
-  0xFFFF,
-  my_unicase_pages_default
+  MY_UNICASE_INFO_DEFAULT_MAXCHAR,
+  my_unicase_default_pages
 };
 
 
@@ -4479,9 +4412,7 @@ int my_wildcmp_unicode_impl(CHARSET_INFO *cs,
   int result= -1;                             /* Not found, using wildcards */
   my_wc_t s_wc, w_wc;
   int scan;
-  int (*mb_wc)(CHARSET_INFO *, my_wc_t *,
-               const uchar *, const uchar *);
-  mb_wc= cs->cset->mb_wc;
+  my_charset_conv_mb_wc mb_wc= cs->cset->mb_wc;
 
   if (my_string_stack_guard && my_string_stack_guard(recurse_level))
     return 1;
@@ -4509,12 +4440,12 @@ int my_wildcmp_unicode_impl(CHARSET_INFO *cs,
         wildstr+= scan;
         escaped= 1;
       }
-      
+
       if ((scan= mb_wc(cs, &s_wc, (const uchar*)str,
                        (const uchar*)str_end)) <= 0)
         return 1;
       str+= scan;
-      
+
       if (!escaped && w_wc == (my_wc_t) w_one)
       {
         result= 1;                                /* Found an anchor char */
@@ -4532,86 +4463,84 @@ int my_wildcmp_unicode_impl(CHARSET_INFO *cs,
       if (wildstr == wildend)
         return (str != str_end);                  /* Match if both are at end */
     }
-    
-    
+
     if (w_wc == (my_wc_t) w_many)
     {                                             /* Found w_many */
-    
       /* Remove any '%' and '_' from the wild search string */
       for ( ; wildstr != wildend ; )
       {
         if ((scan= mb_wc(cs, &w_wc, (const uchar*)wildstr,
                          (const uchar*)wildend)) <= 0)
           return 1;
-        
-        if (w_wc == (my_wc_t)w_many)
+
+        if (w_wc == (my_wc_t) w_many)
         {
           wildstr+= scan;
           continue;
         } 
-        
-        if (w_wc == (my_wc_t)w_one)
+
+        if (w_wc == (my_wc_t) w_one)
         {
           wildstr+= scan;
           if ((scan= mb_wc(cs, &s_wc, (const uchar*)str,
-                           (const uchar*)str_end)) <=0)
+                           (const uchar*)str_end)) <= 0)
             return 1;
           str+= scan;
           continue;
         }
         break;                                        /* Not a wild character */
       }
-      
+
       if (wildstr == wildend)
         return 0;                                /* Ok if w_many is last */
-      
+
       if (str == str_end)
         return -1;
-      
+
       if ((scan= mb_wc(cs, &w_wc, (const uchar*)wildstr,
-                       (const uchar*)wildend)) <=0)
+                       (const uchar*)wildend)) <= 0)
         return 1;
       wildstr+= scan;
-      
-      if (w_wc ==  (my_wc_t)escape)
+
+      if (w_wc ==  (my_wc_t) escape)
       {
         if (wildstr < wildend)
         {
           if ((scan= mb_wc(cs, &w_wc, (const uchar*)wildstr,
-                           (const uchar*)wildend)) <=0)
+                           (const uchar*)wildend)) <= 0)
             return 1;
           wildstr+= scan;
         }
       }
-      
+
       while (1)
       {
         /* Skip until the first character from wildstr is found */
         while (str != str_end)
         {
           if ((scan= mb_wc(cs, &s_wc, (const uchar*)str,
-                           (const uchar*)str_end)) <=0)
+                           (const uchar*)str_end)) <= 0)
             return 1;
           if (weights)
           {
             my_tosort_unicode(weights, &s_wc, cs->state);
             my_tosort_unicode(weights, &w_wc, cs->state);
           }
-          
+
           if (s_wc == w_wc)
             break;
           str+= scan;
         }
         if (str == str_end)
           return -1;
-        
+
         str+= scan;
         result= my_wildcmp_unicode_impl(cs, str, str_end, wildstr, wildend,
                                         escape, w_one, w_many,
                                         weights, recurse_level + 1);
         if (result <= 0)
           return result;
-      } 
+      }
     }
   }
   return (str != str_end ? 1 : 0);
@@ -4650,7 +4579,7 @@ my_wildcmp_unicode(CHARSET_INFO *cs,
   @return Result length
 */
 
-static size_t
+size_t
 my_strxfrm_pad_nweights_unicode(uchar *str, uchar *strend, size_t nweights)
 {
   uchar *str0;
@@ -4679,7 +4608,7 @@ my_strxfrm_pad_nweights_unicode(uchar *str, uchar *strend, size_t nweights)
   @return Result length
 */
 
-static size_t
+size_t
 my_strxfrm_pad_unicode(uchar *str, uchar *strend)
 {
   uchar *str0= str;
@@ -4693,95 +4622,6 @@ my_strxfrm_pad_unicode(uchar *str, uchar *strend)
   return str - str0;
 }
 
-
-size_t my_strnxfrm_unicode_internal(CHARSET_INFO *cs,
-                                    uchar *dst, uchar *de, uint *nweights,
-                                    const uchar *src, const uchar *se)
-{
-  my_wc_t UNINIT_VAR(wc);
-  int res;
-  uchar *dst0= dst;
-  MY_UNICASE_INFO *uni_plane= (cs->state & MY_CS_BINSORT) ?
-                               NULL : cs->caseinfo;
-
-  DBUG_ASSERT(src || !se);
-
-  for (; dst < de && *nweights; (*nweights)--)
-  {
-    if ((res= cs->cset->mb_wc(cs, &wc, src, se)) <= 0)
-      break;
-    src+= res;
-
-    if (uni_plane)
-      my_tosort_unicode(uni_plane, &wc, cs->state);
-
-    *dst++= (uchar) (wc >> 8);
-    if (dst < de)
-      *dst++= (uchar) (wc & 0xFF);
-  }
-  return dst - dst0;
-}
-
-
-/*
-  Store sorting weights using 2 bytes per character.
-
-  This function is shared between
-  - utf8mb3_general_ci, utf8_bin, ucs2_general_ci, ucs2_bin
-    which support BMP only (U+0000..U+FFFF).
-  - utf8mb4_general_ci, utf16_general_ci, utf32_general_ci,
-    which map all supplementary characters to weight 0xFFFD.
-*/
-size_t
-my_strnxfrm_unicode(CHARSET_INFO *cs,
-                    uchar *dst, size_t dstlen, uint nweights,
-                    const uchar *src, size_t srclen, uint flags)
-{
-  uchar *dst0= dst;
-  uchar *de= dst + dstlen;
-  dst+= my_strnxfrm_unicode_internal(cs, dst, de, &nweights,
-                                         src, src + srclen);
-  DBUG_ASSERT(dst <= de); /* Safety */
-
-  if (dst < de && nweights && (flags & MY_STRXFRM_PAD_WITH_SPACE))
-    dst+= my_strxfrm_pad_nweights_unicode(dst, de, nweights);
-
-  my_strxfrm_desc_and_reverse(dst0, dst, flags, 0);
-
-  if ((flags & MY_STRXFRM_PAD_TO_MAXLEN) && dst < de)
-    dst+= my_strxfrm_pad_unicode(dst, de);
-  return dst - dst0;
-}
-
-
-size_t
-my_strnxfrm_unicode_nopad(CHARSET_INFO *cs,
-                          uchar *dst, size_t dstlen, uint nweights,
-                          const uchar *src, size_t srclen, uint flags)
-{
-  uchar *dst0= dst;
-  uchar *de= dst + dstlen;
-  dst+= my_strnxfrm_unicode_internal(cs, dst, de, &nweights,
-                                         src, src + srclen);
-  DBUG_ASSERT(dst <= de); /* Safety */
-
-  if (dst < de && nweights && (flags & MY_STRXFRM_PAD_WITH_SPACE))
-  {
-    size_t len= de - dst;
-    set_if_smaller(len, nweights * 2);
-    memset(dst, 0x00, len);
-    dst+= len;
-  }
-
-  my_strxfrm_desc_and_reverse(dst0, dst, flags, 0);
-
-  if ((flags & MY_STRXFRM_PAD_TO_MAXLEN) && dst < de)
-  {
-    memset(dst, 0x00, de - dst);
-    dst= de;
-  }
-  return dst - dst0;
-}
 
 /*
   For BMP-only collations that use 2 bytes per weight.
@@ -4981,42 +4821,7 @@ static const uchar to_upper_utf8[] = {
 static int my_utf8_uni(CHARSET_INFO *cs __attribute__((unused)),
                        my_wc_t * pwc, const uchar *s, const uchar *e)
 {
-  uchar c;
-
-  if (s >= e)
-    return MY_CS_TOOSMALL;
-
-  c= s[0];
-  if (c < 0x80)
-  {
-    *pwc = c;
-    return 1;
-  }
-  else if (c < 0xc2)
-    return MY_CS_ILSEQ;
-  else if (c < 0xe0)
-  {
-    if (s+2 > e) /* We need 2 characters */
-      return MY_CS_TOOSMALL2;
-
-    if (!(IS_CONTINUATION_BYTE(s[1])))
-      return MY_CS_ILSEQ;
-
-    *pwc= UTF8MB2_CODE(c, s[1]);
-    return 2;
-  }
-  else if (c < 0xf0)
-  {
-    if (s+3 > e) /* We need 3 characters */
-      return MY_CS_TOOSMALL3;
-
-    if (!IS_UTF8MB3_STEP2(c, s[1], s[2]))
-      return MY_CS_ILSEQ;
-
-    *pwc= UTF8MB3_CODE(c, s[1], s[2]);
-    return 3;
-  }
-  return MY_CS_ILSEQ;
+  return my_mb_wc_utf8mb3_quick(pwc, s, e);
 }
 
 
@@ -5312,7 +5117,7 @@ int my_strcasecmp_utf8(CHARSET_INFO *cs, const char *s, const char *t)
         It represents a single byte character.
         Convert it into weight according to collation.
       */
-      s_wc= plane00[(uchar) s[0]].tolower;
+      s_wc= my_unicase_default_page00[(uchar) s[0]].tolower;
       s++;
     }
     else
@@ -5354,7 +5159,7 @@ int my_strcasecmp_utf8(CHARSET_INFO *cs, const char *s, const char *t)
     if ((uchar) t[0] < 128)
     {
       /* Convert single byte character into weight */
-      t_wc= plane00[(uchar) t[0]].tolower;
+      t_wc= my_unicase_default_page00[(uchar) t[0]].tolower;
       t++;
     }
     else
@@ -5417,14 +5222,14 @@ int my_charlen_utf8(CHARSET_INFO *cs __attribute__((unused)),
 
 static inline int my_weight_mb1_utf8_general_ci(uchar b)
 {
-  return (int) plane00[b & 0xFF].sort;
+  return (int) my_unicase_default_page00[b & 0xFF].sort;
 }
 
 
 static inline int my_weight_mb2_utf8_general_ci(uchar b0, uchar b1)
 {
   my_wc_t wc= UTF8MB2_CODE(b0, b1);
-  MY_UNICASE_CHARACTER *page= my_unicase_pages_default[wc >> 8];
+  MY_UNICASE_CHARACTER *page= my_unicase_default_pages[wc >> 8];
   return (int) (page ? page[wc & 0xFF].sort : wc);
 }
 
@@ -5432,16 +5237,23 @@ static inline int my_weight_mb2_utf8_general_ci(uchar b0, uchar b1)
 static inline int my_weight_mb3_utf8_general_ci(uchar b0, uchar b1, uchar b2)
 {
   my_wc_t wc= UTF8MB3_CODE(b0, b1, b2);
-  MY_UNICASE_CHARACTER *page= my_unicase_pages_default[wc >> 8];
+  MY_UNICASE_CHARACTER *page= my_unicase_default_pages[wc >> 8];
   return (int) (page ? page[wc & 0xFF].sort : wc);
 }
 
 
-#define MY_FUNCTION_NAME(x)    my_ ## x ## _utf8_general_ci
-#define WEIGHT_ILSEQ(x)        (0xFF0000 + (uchar) (x))
-#define WEIGHT_MB1(x)          my_weight_mb1_utf8_general_ci(x)
-#define WEIGHT_MB2(x,y)        my_weight_mb2_utf8_general_ci(x,y)
-#define WEIGHT_MB3(x,y,z)      my_weight_mb3_utf8_general_ci(x,y,z)
+#define MY_FUNCTION_NAME(x)      my_ ## x ## _utf8_general_ci
+#define DEFINE_STRNXFRM_UNICODE
+#define DEFINE_STRNXFRM_UNICODE_NOPAD
+#define MY_MB_WC(cs, pwc, s, e)  my_mb_wc_utf8mb3_quick(pwc, s, e)
+#define OPTIMIZE_ASCII           1
+#define UNICASE_MAXCHAR          MY_UNICASE_INFO_DEFAULT_MAXCHAR
+#define UNICASE_PAGE0            my_unicase_default_page00
+#define UNICASE_PAGES            my_unicase_default_pages
+#define WEIGHT_ILSEQ(x)          (0xFF0000 + (uchar) (x))
+#define WEIGHT_MB1(x)            my_weight_mb1_utf8_general_ci(x)
+#define WEIGHT_MB2(x,y)          my_weight_mb2_utf8_general_ci(x,y)
+#define WEIGHT_MB3(x,y,z)        my_weight_mb3_utf8_general_ci(x,y,z)
 #include "strcoll.ic"
 
 
@@ -5477,19 +5289,28 @@ my_weight_mb3_utf8_general_mysql500_ci(uchar b0, uchar b1, uchar b2)
 }
 
 
-#define MY_FUNCTION_NAME(x)    my_ ## x ## _utf8_general_mysql500_ci
-#define WEIGHT_ILSEQ(x)        (0xFF0000 + (uchar) (x))
-#define WEIGHT_MB1(x)          my_weight_mb1_utf8_general_mysql500_ci(x)
-#define WEIGHT_MB2(x,y)        my_weight_mb2_utf8_general_mysql500_ci(x,y)
-#define WEIGHT_MB3(x,y,z)      my_weight_mb3_utf8_general_mysql500_ci(x,y,z)
+#define MY_FUNCTION_NAME(x)      my_ ## x ## _utf8_general_mysql500_ci
+#define DEFINE_STRNXFRM_UNICODE
+#define MY_MB_WC(cs, pwc, s, e)  my_mb_wc_utf8mb3_quick(pwc, s, e)
+#define OPTIMIZE_ASCII           1
+#define UNICASE_MAXCHAR          MY_UNICASE_INFO_DEFAULT_MAXCHAR
+#define UNICASE_PAGE0            plane00_mysql500
+#define UNICASE_PAGES            my_unicase_pages_mysql500
+#define WEIGHT_ILSEQ(x)          (0xFF0000 + (uchar) (x))
+#define WEIGHT_MB1(x)            my_weight_mb1_utf8_general_mysql500_ci(x)
+#define WEIGHT_MB2(x,y)          my_weight_mb2_utf8_general_mysql500_ci(x,y)
+#define WEIGHT_MB3(x,y,z)        my_weight_mb3_utf8_general_mysql500_ci(x,y,z)
 #include "strcoll.ic"
 
 
-#define MY_FUNCTION_NAME(x)    my_ ## x ## _utf8_bin
-#define WEIGHT_ILSEQ(x)        (0xFF0000 + (uchar) (x))
-#define WEIGHT_MB1(x)          ((int) (uchar) (x))
-#define WEIGHT_MB2(x,y)        ((int) UTF8MB2_CODE(x,y))
-#define WEIGHT_MB3(x,y,z)      ((int) UTF8MB3_CODE(x,y,z))
+#define MY_FUNCTION_NAME(x)      my_ ## x ## _utf8_bin
+#define DEFINE_STRNXFRM_UNICODE_BIN2
+#define MY_MB_WC(cs, pwc, s, e)  my_mb_wc_utf8mb3_quick(pwc, s, e)
+#define OPTIMIZE_ASCII           1
+#define WEIGHT_ILSEQ(x)          (0xFF0000 + (uchar) (x))
+#define WEIGHT_MB1(x)            ((int) (uchar) (x))
+#define WEIGHT_MB2(x,y)          ((int) UTF8MB2_CODE(x,y))
+#define WEIGHT_MB3(x,y,z)        ((int) UTF8MB3_CODE(x,y,z))
 #include "strcoll.ic"
 
 
@@ -5538,7 +5359,7 @@ static MY_COLLATION_HANDLER my_collation_utf8_general_ci_handler =
     NULL,               /* init */
     my_strnncoll_utf8_general_ci,
     my_strnncollsp_utf8_general_ci,
-    my_strnxfrm_unicode,
+    my_strnxfrm_utf8_general_ci,
     my_strnxfrmlen_unicode,
     my_like_range_mb,
     my_wildcmp_utf8,
@@ -5554,7 +5375,7 @@ static MY_COLLATION_HANDLER my_collation_utf8_general_mysql500_ci_handler =
     NULL,               /* init */
     my_strnncoll_utf8_general_mysql500_ci,
     my_strnncollsp_utf8_general_mysql500_ci,
-    my_strnxfrm_unicode,
+    my_strnxfrm_utf8_general_mysql500_ci,
     my_strnxfrmlen_unicode,
     my_like_range_mb,
     my_wildcmp_utf8,
@@ -5570,7 +5391,7 @@ static MY_COLLATION_HANDLER my_collation_utf8_bin_handler =
     NULL,		/* init */
     my_strnncoll_utf8_bin,
     my_strnncollsp_utf8_bin,
-    my_strnxfrm_unicode,
+    my_strnxfrm_utf8_bin,
     my_strnxfrmlen_unicode,
     my_like_range_mb,
     my_wildcmp_mb_bin,
@@ -5586,7 +5407,7 @@ static MY_COLLATION_HANDLER my_collation_utf8_general_nopad_ci_handler =
   NULL,               /* init */
   my_strnncoll_utf8_general_ci,
   my_strnncollsp_utf8_general_nopad_ci,
-  my_strnxfrm_unicode_nopad,
+  my_strnxfrm_nopad_utf8_general_ci,
   my_strnxfrmlen_unicode,
   my_like_range_mb,
   my_wildcmp_utf8,
@@ -5602,7 +5423,7 @@ static MY_COLLATION_HANDLER my_collation_utf8_nopad_bin_handler =
   NULL,		/* init */
   my_strnncoll_utf8_bin,
   my_strnncollsp_utf8_nopad_bin,
-  my_strnxfrm_unicode_nopad,
+  my_strnxfrm_nopad_utf8_bin,
   my_strnxfrmlen_unicode,
   my_like_range_mb,
   my_wildcmp_mb_bin,
@@ -5931,7 +5752,7 @@ static MY_COLLATION_HANDLER my_collation_cs_handler =
     NULL,		/* init */
     my_strnncoll_utf8_cs,
     my_strnncollsp_utf8_cs,
-    my_strnxfrm_unicode,
+    my_strnxfrm_utf8_general_ci,
     my_strnxfrmlen_unicode,
     my_like_range_simple,
     my_wildcmp_mb,
@@ -7216,13 +7037,30 @@ my_charlen_filename(CHARSET_INFO *cs, const uchar *str, const uchar *end)
 #undef DEFINE_WELL_FORMED_CHAR_LENGTH_USING_CHARLEN
 /* my_well_formed_char_length_filename */
 
+#define MY_FUNCTION_NAME(x)      my_ ## x ## _filename
+#define DEFINE_STRNNCOLL         0
+#define DEFINE_STRNXFRM_UNICODE
+#define MY_MB_WC(cs, pwc, s, e)  my_mb_wc_filename(cs, pwc, s, e)
+#define OPTIMIZE_ASCII           0
+#define UNICASE_MAXCHAR          MY_UNICASE_INFO_DEFAULT_MAXCHAR
+#define UNICASE_PAGE0            my_unicase_default_page00
+#define UNICASE_PAGES            my_unicase_default_pages
+
+/*
+#define WEIGHT_ILSEQ(x)          (0xFF0000 + (uchar) (x))
+#define WEIGHT_MB1(x)            my_weight_mb1_utf8_general_ci(x)
+#define WEIGHT_MB2(x,y)          my_weight_mb2_utf8_general_ci(x,y)
+#define WEIGHT_MB3(x,y,z)        my_weight_mb3_utf8_general_ci(x,y,z)
+*/
+#include "strcoll.ic"
+
 
 static MY_COLLATION_HANDLER my_collation_filename_handler =
 {
     NULL,               /* init */
     my_strnncoll_simple,
     my_strnncollsp_simple,
-    my_strnxfrm_unicode,
+    my_strnxfrm_filename,
     my_strnxfrmlen_unicode,
     my_like_range_mb,
     my_wildcmp_utf8,
@@ -7379,52 +7217,7 @@ static int
 my_mb_wc_utf8mb4(CHARSET_INFO *cs __attribute__((unused)),
                  my_wc_t * pwc, const uchar *s, const uchar *e)
 {
-  uchar c;
-
-  if (s >= e)
-    return MY_CS_TOOSMALL;
-
-  c= s[0];
-  if (c < 0x80)
-  {
-    *pwc= c;
-    return 1;
-  }
-  else if (c < 0xc2)
-    return MY_CS_ILSEQ;
-  else if (c < 0xe0)
-  {
-    if (s + 2 > e) /* We need 2 characters */
-      return MY_CS_TOOSMALL2;
-
-    if (!(IS_CONTINUATION_BYTE(s[1])))
-      return MY_CS_ILSEQ;
-
-    *pwc= UTF8MB2_CODE(c, s[1]);
-    return 2;
-  }
-  else if (c < 0xf0)
-  {
-    if (s + 3 > e) /* We need 3 characters */
-      return MY_CS_TOOSMALL3;
-
-    if (!IS_UTF8MB3_STEP2(c, s[1], s[2]))
-      return MY_CS_ILSEQ;
-
-    *pwc= UTF8MB3_CODE(c, s[1], s[2]);
-    return 3;
-  }
-  else if (c < 0xf5)
-  {
-    if (s + 4 > e) /* We need 4 characters */
-      return MY_CS_TOOSMALL4;
-
-    if (!IS_UTF8MB4_STEP2(c, s[1], s[2], s[3]))
-      return MY_CS_ILSEQ;
-    *pwc= UTF8MB4_CODE(c, s[1], s[2], s[3]);
-    return 4;
-  }
-  return MY_CS_ILSEQ;
+  return my_mb_wc_utf8mb4_quick(pwc, s, e);
 }
 
 
@@ -7756,7 +7549,7 @@ my_strcasecmp_utf8mb4(CHARSET_INFO *cs, const char *s, const char *t)
         It represents a single byte character.
         Convert it into weight according to collation.
       */
-      s_wc= plane00[(uchar) s[0]].tolower;
+      s_wc= my_unicase_default_page00[(uchar) s[0]].tolower;
       s++;
     }
     else
@@ -7780,7 +7573,7 @@ my_strcasecmp_utf8mb4(CHARSET_INFO *cs, const char *s, const char *t)
     if ((uchar) t[0] < 128)
     {
       /* Convert single byte character into weight */
-      t_wc= plane00[(uchar) t[0]].tolower;
+      t_wc= my_unicase_default_page00[(uchar) t[0]].tolower;
       t++;
     }
     else
@@ -7851,6 +7644,13 @@ my_charlen_utf8mb4(CHARSET_INFO *cs __attribute__((unused)),
 
 
 #define MY_FUNCTION_NAME(x)      my_ ## x ## _utf8mb4_general_ci
+#define DEFINE_STRNXFRM_UNICODE
+#define DEFINE_STRNXFRM_UNICODE_NOPAD
+#define MY_MB_WC(cs, pwc, s, e)  my_mb_wc_utf8mb4_quick(pwc, s, e)
+#define OPTIMIZE_ASCII           1
+#define UNICASE_MAXCHAR          MY_UNICASE_INFO_DEFAULT_MAXCHAR
+#define UNICASE_PAGE0            my_unicase_default_page00
+#define UNICASE_PAGES            my_unicase_default_pages
 #define IS_MB4_CHAR(b0,b1,b2,b3) IS_UTF8MB4_STEP3(b0,b1,b2,b3)
 #define WEIGHT_ILSEQ(x)          (0xFF0000 + (uchar) (x))
 #define WEIGHT_MB1(b0)           my_weight_mb1_utf8_general_ci(b0)
@@ -7901,7 +7701,7 @@ static MY_COLLATION_HANDLER my_collation_utf8mb4_general_ci_handler=
   NULL,               /* init */
   my_strnncoll_utf8mb4_general_ci,
   my_strnncollsp_utf8mb4_general_ci,
-  my_strnxfrm_unicode,
+  my_strnxfrm_utf8mb4_general_ci,
   my_strnxfrmlen_unicode,
   my_like_range_mb,
   my_wildcmp_utf8mb4,
@@ -7933,7 +7733,7 @@ static MY_COLLATION_HANDLER my_collation_utf8mb4_general_nopad_ci_handler=
   NULL,               /* init */
   my_strnncoll_utf8mb4_general_ci,
   my_strnncollsp_utf8mb4_general_nopad_ci,
-  my_strnxfrm_unicode_nopad,
+  my_strnxfrm_nopad_utf8mb4_general_ci,
   my_strnxfrmlen_unicode,
   my_like_range_mb,
   my_wildcmp_utf8mb4,

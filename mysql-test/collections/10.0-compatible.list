@@ -1,3 +1,5 @@
+# All lines which have a hash sign *anywhere* will be ignored
+
 main.1st
 main.adddate_454
 main.almost_full
@@ -500,7 +502,8 @@ main.subselect-crash_15755
 main.subselect_exists2in
 main.subselect_exists2in_costmat
 main.subselect_extra
-main.subselect_extra_no_semijoin
+# Disabled due to connect log output
+# main.subselect_extra_no_semijoin
 main.subselect_gis
 main.subselect_innodb
 main.subselect_mat
@@ -579,7 +582,8 @@ main.win_empty_over
 main.win_first_last_value
 main.win_insert_select
 main.win_i_s
-main.win_lead_lag
+# Disabled due to unknown SQL error name
+# main.win_lead_lag
 main.win_min_max
 main.win_nth_value
 main.win_orderby

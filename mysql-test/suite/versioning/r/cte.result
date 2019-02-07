@@ -138,7 +138,7 @@ where e.mgr = a.emp_id
 select name from emp where emp_id in (select emp_id from ancestors for system_time as of timestamp @ts_1);
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
 1	PRIMARY	<subquery4>	ALL	distinct_key	NULL	NULL	NULL	4	100.00	
-1	PRIMARY	emp	ALL	PRIMARY	NULL	NULL	NULL	4	75.00	Using where; Using join buffer (flat, BNL join)
+1	PRIMARY	emp	ALL	PRIMARY	NULL	NULL	NULL	4	100.00	Using where; Using join buffer (flat, BNL join)
 4	MATERIALIZED	<derived2>	ALL	NULL	NULL	NULL	NULL	4	100.00	
 2	DERIVED	e	ALL	NULL	NULL	NULL	NULL	4	100.00	Using where
 3	RECURSIVE UNION	e	ALL	mgr-fk	NULL	NULL	NULL	4	100.00	Using where

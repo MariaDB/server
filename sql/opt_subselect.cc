@@ -5512,7 +5512,7 @@ int select_value_catcher::send_data(List<Item> &items)
 
 /**
   @brief
-    Conjugate conditions after optimize_cond() call
+    Add new conditions after optimize_cond() call
 
   @param thd         the thread handle
   @param cond        the condition where to attach new conditions
@@ -5561,8 +5561,8 @@ Item *and_new_conditions_to_optimized_cond(THD *thd, Item *cond,
                              Item::Context(Item::ANY_SUBST,
                              ((Item_func_equal *)item)->compare_type_handler(),
                              ((Item_func_equal *)item)->compare_collation()),
-                             ((Item_func *)item)->arguments()[0]->real_item(),
-                             ((Item_func *)item)->arguments()[1]->real_item(),
+                             ((Item_func *)item)->arguments()[0],
+                             ((Item_func *)item)->arguments()[1],
                              &new_cond_equal))
       li.remove();
   }
@@ -5667,31 +5667,31 @@ Item *and_new_conditions_to_optimized_cond(THD *thd, Item *cond,
       }
     }
 
+    if (is_mult_eq)
+    {
+      Item_equal *eq_cond= (Item_equal *)cond;
+      eq_cond->upper_levels= 0;
+      eq_cond->merge_into_list(thd, &new_cond_equal.current_level,
+                               false, false);
+
+       while ((equality= it++))
+       {
+         if (equality->const_item() && !equality->val_int())
+           is_simplified_cond= true;
+       }
+       (*cond_eq)->copy(new_cond_equal);
+    }
+
     if (new_cond_equal.current_level.elements > 0)
     {
-      if (is_mult_eq)
+      if (new_cond_equal.current_level.elements +
+          new_conds_list.elements == 1)
       {
-        Item_equal *eq_cond= (Item_equal *)cond;
-        eq_cond->upper_levels= 0;
-        eq_cond->merge_into_list(thd, &new_cond_equal.current_level,
-                                 false, false);
-
-        while ((equality= it++))
-        {
-          if (equality->const_item() && !equality->val_int())
-            is_simplified_cond= true;
-        }
-
-        if (new_cond_equal.current_level.elements +
-            new_conds_list.elements == 1)
-        {
-          it.rewind();
-          equality= it++;
-          equality->fixed= 0;
-          if (equality->fix_fields(thd, NULL))
-            return NULL;
-        }
-        (*cond_eq)->copy(new_cond_equal);
+        it.rewind();
+        equality= it++;
+        equality->fixed= 0;
+        if (equality->fix_fields(thd, NULL))
+          return NULL;
       }
       new_conds_list.append((List<Item> *)&new_cond_equal.current_level);
     }

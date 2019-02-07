@@ -5,18 +5,19 @@
 #
 
 --source include/have_innodb.inc
-
-# As node #1 is not a Galera node, we connect to node #2 in order to run include/galera_cluster.inc
---connect node_2a, 127.0.0.1, root, , test, $NODE_MYPORT_2
 --source include/galera_cluster.inc
+
+# As node #3 is not a Galera node, and galera_cluster.inc does not open connetion to it
+# we open the node_3 connection here
+--connect node_3, 127.0.0.1, root, , test, $NODE_MYPORT_3
 
 --connection node_2
 --disable_query_log
---eval CHANGE MASTER TO  MASTER_HOST='127.0.0.1', MASTER_USER='root', MASTER_PORT=$NODE_MYPORT_1;
+--eval CHANGE MASTER TO  MASTER_HOST='127.0.0.1', MASTER_USER='root', MASTER_PORT=$NODE_MYPORT_3;
 --enable_query_log
 START SLAVE;
 
---connection node_1
+--connection node_3
 
 ##
 ## Verify the correct operation of the auto-increment when
@@ -62,14 +63,13 @@ select * from t1;
 show variables like 'binlog_format';
 show variables like 'auto_increment_increment';
 
---connect node_3, 127.0.0.1, root, , test, $NODE_MYPORT_3
-
+--connection node_1
 select * from t1;
 
 show variables like 'binlog_format';
 show variables like 'auto_increment_increment';
 
---connection node_1
+--connection node_3
 DROP TABLE t1;
 
 --connection node_2
@@ -79,5 +79,5 @@ DROP TABLE t1;
 STOP SLAVE;
 RESET SLAVE ALL;
 
---connection node_1
+--connection node_3
 RESET MASTER;

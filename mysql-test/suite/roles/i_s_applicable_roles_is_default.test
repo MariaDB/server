@@ -51,7 +51,6 @@ set default role role3;
 --sorted_result
 select * from information_schema.applicable_roles;
 
-
 set default role none;
 --sorted_result
 select * from information_schema.applicable_roles;
@@ -60,3 +59,4 @@ drop role role3;
 drop role role2;
 drop role role1;
 drop user foo;
+update mysql.global_priv set priv=json_remove(priv, '$.default_role');

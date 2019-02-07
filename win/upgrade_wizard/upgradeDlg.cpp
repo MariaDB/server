@@ -422,21 +422,22 @@ void CUpgradeDlg::UpgradeOneService(const string& servicename)
     {
       allMessages[lines%MAX_MESSAGES] = output_line;
       m_DataDir.SetWindowText(allMessages[lines%MAX_MESSAGES].c_str());
-      output_line.clear();
       lines++;
 
-      /* 
-        Updating progress dialog.There are currently 9 messages from 
-        mysql_upgrade_service (actually it also writes Phase N/M but 
-        we do not parse the output right now).
-      */
-#define EXPRECTED_MYSQL_UPGRADE_MESSAGES 9
+      int curPhase, numPhases;
 
-      int stepsTotal= m_ProgressTotal*EXPRECTED_MYSQL_UPGRADE_MESSAGES;
-      int stepsCurrent= m_ProgressCurrent*EXPRECTED_MYSQL_UPGRADE_MESSAGES
-        + lines;
-      int percentDone= stepsCurrent*100/stepsTotal;
-      m_Progress.SetPos(percentDone);
+      // Parse output line to update progress indicator
+      if (strncmp(output_line.c_str(),"Phase ",6) == 0 &&
+          sscanf(output_line.c_str() +6 ,"%d/%d",&curPhase,&numPhases) == 2
+          && numPhases > 0 )
+      {
+        int stepsTotal= m_ProgressTotal*numPhases;
+        int stepsCurrent= m_ProgressCurrent*numPhases+ curPhase;
+        int percentDone= stepsCurrent*100/stepsTotal;
+        m_Progress.SetPos(percentDone);
+        m_Progress.SetPos(stepsCurrent * 100 / stepsTotal);
+      }
+      output_line.clear();
     }
     else
     {

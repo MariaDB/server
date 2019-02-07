@@ -464,6 +464,7 @@ ST_GeomFromText('POLYGON((5010 5010,5020 5020,5030 5030,5040 5030,5020 5010,5010
 ST_GeomFromText('POLYGON((5010 5010,5020 5020,5030 5030,5040 5030,5020 5010,5010 5010))'));
 ANALYZE TABLE tab;
 Table	Op	Msg_type	Msg_text
+test.tab	analyze	status	Engine-independent statistics collected
 test.tab	analyze	status	OK
 ALTER TABLE tab ADD SPATIAL INDEX idx2(c2 ASC);
 affected rows: 0
@@ -521,7 +522,7 @@ HEX(c8)
 
 ROLLBACK;
 ALTER TABLE tab add COLUMN c9 POINT NOT NULL AFTER c5, ALGORITHM = INPLACE, LOCK=NONE;
-ERROR 0A000: LOCK=NONE is not supported. Reason: Do not support online operation on table with GIS index. Try LOCK=SHARED
+ALTER TABLE tab DROP COLUMN c9, ALGORITHM=INSTANT;
 SHOW CREATE TABLE tab;
 Table	Create Table
 tab	CREATE TABLE `tab` (
@@ -586,6 +587,7 @@ tab	1	idx5	1	c5	A	#	32	NULL		SPATIAL		testing spatial index on Geometry
 tab	1	idx6	1	c4	A	#	10	NULL		BTREE		
 ANALYZE TABLE tab;
 Table	Op	Msg_type	Msg_text
+test.tab	analyze	status	Engine-independent statistics collected
 test.tab	analyze	status	OK
 SET @g1 = ST_GeomFromText('POLYGON((5010 5010,5020 5020,5030 5030,5040 5030,5020 5010,5010 5010))');
 SET @g2 = ST_GeomFromText('LINESTRING(140 140,150 150,160 160)');
@@ -605,6 +607,7 @@ AND MBREquals(tab.c3,@g2) ORDER BY c1;
 c1	ST_Astext(c2)	ST_AsText(c3)	ST_Astext(c4)
 ANALYZE TABLE tab;
 Table	Op	Msg_type	Msg_text
+test.tab	analyze	status	Engine-independent statistics collected
 test.tab	analyze	status	OK
 SET @g1 = ST_GeomFromText('POLYGON((4010 4010,4020 4020,4030 4030,4040 4030,4020 4010,4010 4010))');
 SET @g2 = ST_GeomFromText('LINESTRING(1 1,2 2,3 3)');
@@ -644,6 +647,7 @@ tab	1	idx5	1	c5	A	#	32	NULL		SPATIAL		testing spatial index on Geometry
 tab	1	idx6	1	c4	A	#	10	NULL		BTREE		
 ANALYZE TABLE tab;
 Table	Op	Msg_type	Msg_text
+test.tab	analyze	status	Engine-independent statistics collected
 test.tab	analyze	status	OK
 SET @g1 = ST_GeomFromText( 'POLYGON((0 0,0 30,30 40,40 50,50 30,0 0))');
 SET @g2 = ST_GeomFromText('LINESTRING(1 1,2 2,3 3)');
@@ -678,6 +682,7 @@ ALTER TABLE tab  ENGINE Myisam;
 ALTER TABLE tab  ENGINE InnoDB;
 ANALYZE TABLE tab;
 Table	Op	Msg_type	Msg_text
+test.tab	analyze	status	Engine-independent statistics collected
 test.tab	analyze	status	OK
 SET @g1 = ST_GeomFromText('POLYGON((1010 1010,1020 1020,1030 1030,1040 1030,1020 1010,1010 1010))');
 SET @g2 = ST_GeomFromText('LINESTRING(400 400,500 500,600 700)');
@@ -789,13 +794,13 @@ DROP TABLE t1;
 create table t1 (p point not null default if(unix_timestamp()>10,POINT(1,1),LineString(Point(0,0),Point(1,1)))) ENGINE=innodb;
 set timestamp=10;
 insert into t1 values(default);
-ERROR 22007: Incorrect POINT value: 'GEOMETRYCOLLECTION' for column 'p' at row 1
+ERROR 22007: Incorrect POINT value: 'GEOMETRYCOLLECTION' for column `test`.`t1`.`p` at row 1
 drop table t1;
 SET timestamp=default;
 create table t1 (p point not null default if(unix_timestamp()>10,POINT(1,1),LineString(Point(0,0),Point(1,1)))) ENGINE=innodb;
 set timestamp=10;
 alter table t1 add column i int;
-ERROR 22007: Incorrect POINT value: 'GEOMETRYCOLLECTION' for column 'p' at row 1
+ERROR 22007: Incorrect POINT value: 'GEOMETRYCOLLECTION' for column `test`.`(temporary)`.`p` at row 1
 drop table t1;
 SET timestamp=default;
 CREATE OR REPLACE TABLE t1 (a INT) ENGINE=InnoDB;

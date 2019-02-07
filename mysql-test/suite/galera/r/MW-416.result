@@ -109,6 +109,5 @@ mtr
 mysql
 performance_schema
 test
-SHOW GLOBAL STATUS LIKE 'wsrep_replicated';
-Variable_name	Value
-wsrep_replicated	3
+wsrep_replicated_after_diff
+1

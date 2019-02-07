@@ -1,4 +1,4 @@
-#!/bin/sh -ue
+#!/bin/bash -ue
 
 # Copyright (C) 2010-2014 Codership Oy
 #
@@ -88,7 +88,7 @@ check_pid_and_port()
     local is_listening_all="$(echo $port_info | \
         grep "*:$rsync_port" 2>/dev/null)"
     local is_listening_addr="$(echo $port_info | \
-        grep "$rsync_addr:$rsync_port" 2>/dev/null)"
+        grep -F "$rsync_addr:$rsync_port" 2>/dev/null)"
 
     if [ ! -z "$is_listening_all" -o ! -z "$is_listening_addr" ]; then
         if [ -z "$is_rsync" ]; then
@@ -119,7 +119,7 @@ is_local_ip()
     address="$address "
   fi
 
-  $get_addr_bin | grep "$address" > /dev/null
+  $get_addr_bin | grep -F "$address" > /dev/null
 }
 
 STUNNEL_CONF="$WSREP_SST_OPT_DATA/stunnel.conf"
@@ -139,6 +139,14 @@ if ! [ -z $WSREP_SST_OPT_BINLOG ]
 then
     BINLOG_DIRNAME=$(dirname $WSREP_SST_OPT_BINLOG)
     BINLOG_FILENAME=$(basename $WSREP_SST_OPT_BINLOG)
+    BINLOG_INDEX_DIRNAME=$(dirname $WSREP_SST_OPT_BINLOG)
+    BINLOG_INDEX_FILENAME=$(basename $WSREP_SST_OPT_BINLOG)
+fi
+
+if ! [ -z $WSREP_SST_OPT_BINLOG_INDEX ]
+then
+    BINLOG_INDEX_DIRNAME=$(dirname $WSREP_SST_OPT_BINLOG_INDEX)
+    BINLOG_INDEX_FILENAME=$(basename $WSREP_SST_OPT_BINLOG_INDEX)
 fi
 
 WSREP_LOG_DIR=${WSREP_LOG_DIR:-""}
@@ -156,9 +164,16 @@ else
 fi
 
 INNODB_DATA_HOME_DIR=${INNODB_DATA_HOME_DIR:-""}
+# Try to set INNODB_DATA_HOME_DIR from the command line:
+if [ ! -z "$INNODB_DATA_HOME_DIR_ARG" ]; then
+    INNODB_DATA_HOME_DIR=$INNODB_DATA_HOME_DIR_ARG
+fi
 # if INNODB_DATA_HOME_DIR env. variable is not set, try to get it from my.cnf
 if [ -z "$INNODB_DATA_HOME_DIR" ]; then
     INNODB_DATA_HOME_DIR=$(parse_cnf mysqld$WSREP_SST_OPT_SUFFIX_VALUE innodb-data-home-dir '')
+fi
+if [ -z "$INNODB_DATA_HOME_DIR" ]; then
+    INNODB_DATA_HOME_DIR=$(parse_cnf --mysqld innodb-data-home-dir "")
 fi
 
 if [ -n "$INNODB_DATA_HOME_DIR" ]; then
@@ -176,8 +191,15 @@ fi
 #         --exclude '*.[0-9][0-9][0-9][0-9][0-9][0-9]' --exclude '*.index')
 
 # New filter - exclude everything except dirs (schemas) and innodb files
-FILTER="-f '- /lost+found' -f '- /.fseventsd' -f '- /.Trashes'
-        -f '+ /wsrep_sst_binlog.tar' -f '- $INNODB_DATA_HOME_DIR/ib_lru_dump' -f '- $INNODB_DATA_HOME_DIR/ibdata*' -f '+ /*/' -f '- /*'"
+FILTER="-f '- /lost+found'
+        -f '- /.fseventsd'
+        -f '- /.Trashes'
+        -f '+ /wsrep_sst_binlog.tar'
+        -f '- $INNODB_DATA_HOME_DIR/ib_lru_dump'
+        -f '- $INNODB_DATA_HOME_DIR/ibdata*'
+        -f '+ /undo*'
+        -f '+ /*/'
+        -f '- /*'"
 
 SSTKEY=$(parse_cnf sst tkey "")
 SSTCERT=$(parse_cnf sst tcert "")
@@ -246,12 +268,21 @@ EOF
             OLD_PWD="$(pwd)"
             cd $BINLOG_DIRNAME
 
-            binlog_files_full=$(tail -n $BINLOG_N_FILES ${BINLOG_FILENAME}.index)
+            if ! [ -z $WSREP_SST_OPT_BINLOG_INDEX ]
+            then
+               binlog_files_full=$(tail -n $BINLOG_N_FILES ${BINLOG_FILENAME}.index)
+            else
+               cd $BINLOG_INDEX_DIRNAME
+               binlog_files_full=$(tail -n $BINLOG_N_FILES ${BINLOG_INDEX_FILENAME}.index)
+            fi
+
+            cd $BINLOG_DIRNAME
             binlog_files=""
             for ii in $binlog_files_full
             do
                 binlog_files="$binlog_files $(basename $ii)"
             done
+
             if ! [ -z "$binlog_files" ]
             then
                 wsrep_log_info "Preparing binlog files for transfer:"
@@ -368,12 +399,17 @@ then
     rm -rf "$RSYNC_PID"
 
     ADDR=$WSREP_SST_OPT_ADDR
-    RSYNC_PORT=$(echo $ADDR | awk -F ':' '{ print $2 }')
-    RSYNC_ADDR=$(echo $ADDR | awk -F ':' '{ print $1 }')
+    if [[ ${ADDR:0:1} == '[' ]]; then
+        RSYNC_PORT=$(echo $ADDR | awk -F '\\]:' '{ print $2 }')
+        RSYNC_ADDR=$(echo $ADDR | awk -F '\\]:' '{ print $1 }')"]"
+    else
+        RSYNC_PORT=$(echo $ADDR | awk -F ':' '{ print $2 }')
+        RSYNC_ADDR=$(echo $ADDR | awk -F ':' '{ print $1 }')
+    fi
     if [ -z "$RSYNC_PORT" ]
     then
         RSYNC_PORT=4444
-        ADDR="$(echo $ADDR | awk -F ':' '{ print $1 }'):$RSYNC_PORT"
+        ADDR="$RSYNC_ADDR:$RSYNC_PORT"
     fi
 
     trap "exit 32" HUP PIPE
@@ -477,7 +513,12 @@ EOF
             tar -xvf $BINLOG_TAR_FILE >&2
             for ii in $(ls -1 ${BINLOG_FILENAME}.*)
             do
-                echo ${BINLOG_DIRNAME}/${ii} >> ${BINLOG_FILENAME}.index
+                if ! [ -z $WSREP_SST_OPT_BINLOG_INDEX ]
+                then
+                    echo ${BINLOG_DIRNAME}/${ii} >> ${BINLOG_FILENAME}.index
+                else
+                    echo ${BINLOG_DIRNAME}/${ii} >> ${BINLOG_INDEX_DIRNAME}/${BINLOG_INDEX_FILENAME}.index
+                fi
             done
         fi
         cd "$OLD_PWD"

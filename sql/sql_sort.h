@@ -92,7 +92,6 @@ public:
     memset(this, 0, sizeof(*this));
   }
   void init_for_filesort(uint sortlen, TABLE *table,
-                         ulong max_length_for_sort_data,
                          ha_rows maxrows, bool sort_positions);
 };
 

@@ -24,8 +24,6 @@ Undo modify of a row
 Created 2/27/1997 Heikki Tuuri
 *******************************************************/
 
-#include "ha_prototypes.h"
-
 #include "row0umod.h"
 #include "dict0dict.h"
 #include "dict0stats.h"
@@ -113,6 +111,9 @@ row_undo_mod_clust_low(
 	ut_ad(rec_get_trx_id(btr_cur_get_rec(btr_cur),
 			     btr_cur_get_index(btr_cur))
 	      == thr_get_trx(thr)->id);
+	ut_ad(node->ref != &trx_undo_metadata
+	      || node->update->info_bits == REC_INFO_METADATA_ADD
+	      || node->update->info_bits == REC_INFO_METADATA_ALTER);
 
 	if (mode != BTR_MODIFY_LEAF
 	    && dict_index_is_online_ddl(btr_cur_get_index(btr_cur))) {
@@ -133,6 +134,7 @@ row_undo_mod_clust_low(
 			btr_cur, offsets, offsets_heap,
 			node->update, node->cmpl_info,
 			thr, thr_get_trx(thr)->id, mtr);
+		ut_ad(err != DB_SUCCESS || node->ref != &trx_undo_metadata);
 	} else {
 		big_rec_t*	dummy_big_rec;
 
@@ -145,6 +147,52 @@ row_undo_mod_clust_low(
 			node->cmpl_info, thr, thr_get_trx(thr)->id, mtr);
 
 		ut_a(!dummy_big_rec);
+
+		static const byte
+			INFIMUM[8] = {'i','n','f','i','m','u','m',0},
+			SUPREMUM[8] = {'s','u','p','r','e','m','u','m'};
+
+		if (err == DB_SUCCESS
+		    && node->ref == &trx_undo_metadata
+		    && btr_cur_get_index(btr_cur)->table->instant
+		    && node->update->info_bits == REC_INFO_METADATA_ADD) {
+			if (page_t* root = btr_root_get(
+				    btr_cur_get_index(btr_cur), mtr)) {
+				byte* infimum;
+				byte *supremum;
+				if (page_is_comp(root)) {
+					infimum = PAGE_NEW_INFIMUM + root;
+					supremum = PAGE_NEW_SUPREMUM + root;
+				} else {
+					infimum = PAGE_OLD_INFIMUM + root;
+					supremum = PAGE_OLD_SUPREMUM + root;
+				}
+
+				ut_ad(!memcmp(infimum, INFIMUM, 8)
+				      == !memcmp(supremum, SUPREMUM, 8));
+
+				if (memcmp(infimum, INFIMUM, 8)) {
+					mlog_write_string(infimum, INFIMUM,
+							  8, mtr);
+					mlog_write_string(supremum, SUPREMUM,
+							  8, mtr);
+				}
+			}
+		}
+	}
+
+	if (err == DB_SUCCESS
+	    && btr_cur_get_index(btr_cur)->table->id == DICT_COLUMNS_ID) {
+		/* This is rolling back an UPDATE or DELETE on SYS_COLUMNS.
+		If it was part of an instant ALTER TABLE operation, we
+		must evict the table definition, so that it can be
+		reloaded after the dictionary operation has been
+		completed. At this point, any corresponding operation
+		to the metadata record will have been rolled back. */
+		const dfield_t& table_id = *dtuple_get_nth_field(node->row, 0);
+		ut_ad(dfield_get_len(&table_id) == 8);
+		node->trx->evict_table(mach_read_from_8(static_cast<byte*>(
+					table_id.data)));
 	}
 
 	return(err);
@@ -401,22 +449,34 @@ row_undo_mod_clust(
 			goto mtr_commit_exit;
 		}
 
+		ulint trx_id_offset = index->trx_id_offset;
 		ulint trx_id_pos = index->n_uniq ? index->n_uniq : 1;
-		ut_ad(index->n_uniq <= MAX_REF_PARTS);
-		/* Reserve enough offsets for the PRIMARY KEY and 2 columns
-		so that we can access DB_TRX_ID, DB_ROLL_PTR. */
+		/* Reserve enough offsets for the PRIMARY KEY and
+		2 columns so that we can access DB_TRX_ID, DB_ROLL_PTR. */
 		ulint	offsets_[REC_OFFS_HEADER_SIZE + MAX_REF_PARTS + 2];
-		rec_offs_init(offsets_);
-		offsets = rec_get_offsets(
-			rec, index, offsets_, true, trx_id_pos + 2, &heap);
-		ulint len;
-		ulint trx_id_offset = rec_get_nth_field_offs(
-			offsets, trx_id_pos, &len);
-		ut_ad(len == DATA_TRX_ID_LEN);
+		if (trx_id_offset) {
+		} else if (rec_is_metadata(rec, *index)) {
+			ut_ad(!buf_block_get_page_zip(btr_pcur_get_block(
+							      &node->pcur)));
+			for (unsigned i = index->first_user_field(); i--; ) {
+				trx_id_offset += index->fields[i].fixed_len;
+			}
+		} else {
+			ut_ad(index->n_uniq <= MAX_REF_PARTS);
+			rec_offs_init(offsets_);
+			offsets = rec_get_offsets(
+				rec, index, offsets_, true, trx_id_pos + 2,
+				&heap);
+			ulint len;
+			trx_id_offset = rec_get_nth_field_offs(
+				offsets, trx_id_pos, &len);
+			ut_ad(len == DATA_TRX_ID_LEN);
+		}
 
 		if (trx_read_trx_id(rec + trx_id_offset) == node->new_trx_id) {
 			ut_ad(!rec_get_deleted_flag(
-				      rec, dict_table_is_comp(node->table)));
+				      rec, dict_table_is_comp(node->table))
+			      || rec_is_alter_metadata(rec, *index));
 			index->set_modified(mtr);
 			if (page_zip_des_t* page_zip = buf_block_get_page_zip(
 				    btr_pcur_get_block(&node->pcur))) {
@@ -438,8 +498,6 @@ mtr_commit_exit:
 	btr_pcur_commit_specify_mtr(pcur, &mtr);
 
 func_exit:
-	node->state = UNDO_NODE_FETCH_NEXT;
-
 	if (offsets_heap) {
 		mem_heap_free(offsets_heap);
 	}
@@ -1141,14 +1199,10 @@ row_undo_mod_upd_exist_sec(
 	return(err);
 }
 
-/***********************************************************//**
-Parses the row reference and other info in a modify undo log record. */
-static MY_ATTRIBUTE((nonnull))
-void
-row_undo_mod_parse_undo_rec(
-/*========================*/
-	undo_node_t*	node,		/*!< in: row undo node */
-	ibool		dict_locked)	/*!< in: TRUE if own dict_sys->mutex */
+/** Parse an update undo record.
+@param[in,out]	node		row rollback state
+@param[in]	dict_locked	whether the data dictionary cache is locked */
+static bool row_undo_mod_parse_undo_rec(undo_node_t* node, bool dict_locked)
 {
 	dict_index_t*	clust_index;
 	byte*		ptr;
@@ -1161,19 +1215,28 @@ row_undo_mod_parse_undo_rec(
 	ulint		cmpl_info;
 	bool		dummy_extern;
 
+	ut_ad(node->state == UNDO_UPDATE_PERSISTENT
+	      || node->state == UNDO_UPDATE_TEMPORARY);
+	ut_ad(node->trx->in_rollback);
+	ut_ad(!trx_undo_roll_ptr_is_insert(node->roll_ptr));
+
 	ptr = trx_undo_rec_get_pars(node->undo_rec, &type, &cmpl_info,
 				    &dummy_extern, &undo_no, &table_id);
 	node->rec_type = type;
 
-	node->table = dict_table_open_on_id(
-		table_id, dict_locked, DICT_TABLE_OP_NORMAL);
+	if (node->state == UNDO_UPDATE_PERSISTENT) {
+		node->table = dict_table_open_on_id(table_id, dict_locked,
+						    DICT_TABLE_OP_NORMAL);
+	} else if (!dict_locked) {
+		mutex_enter(&dict_sys->mutex);
+		node->table = dict_sys->get_temporary_table(table_id);
+		mutex_exit(&dict_sys->mutex);
+	} else {
+		node->table = dict_sys->get_temporary_table(table_id);
+	}
 
-	/* TODO: other fixes associated with DROP TABLE + rollback in the
-	same table by another user */
-
-	if (node->table == NULL) {
-		/* Table was dropped */
-		return;
+	if (!node->table) {
+		return false;
 	}
 
 	ut_ad(!node->table->skip_alter_undo);
@@ -1191,7 +1254,7 @@ close_table:
 		connection, instead of doing this rollback. */
 		dict_table_close(node->table, dict_locked, FALSE);
 		node->table = NULL;
-		return;
+		return false;
 	}
 
 	clust_index = dict_table_get_first_index(node->table);
@@ -1210,17 +1273,21 @@ close_table:
 	ut_ad(!node->ref->info_bits);
 
 	if (node->update->info_bits & REC_INFO_MIN_REC_FLAG) {
-		/* This must be an undo log record for a subsequent
-		instant ADD COLUMN on a table, extending the
-		'default value' record. */
-		ut_ad(clust_index->is_instant());
-		if (node->update->info_bits != REC_INFO_MIN_REC_FLAG) {
+		if ((node->update->info_bits & ~REC_INFO_DELETED_FLAG)
+		    != REC_INFO_MIN_REC_FLAG) {
 			ut_ad(!"wrong info_bits in undo log record");
 			goto close_table;
 		}
-		node->update->info_bits = REC_INFO_DEFAULT_ROW;
-		const_cast<dtuple_t*>(node->ref)->info_bits
-			= REC_INFO_DEFAULT_ROW;
+		/* This must be an undo log record for a subsequent
+		instant ALTER TABLE, extending the metadata record. */
+		ut_ad(clust_index->is_instant());
+		ut_ad(clust_index->table->instant
+		      || !(node->update->info_bits & REC_INFO_DELETED_FLAG));
+		node->ref = &trx_undo_metadata;
+		node->update->info_bits = (node->update->info_bits
+					   & REC_INFO_DELETED_FLAG)
+			? REC_INFO_METADATA_ALTER
+			: REC_INFO_METADATA_ADD;
 	}
 
 	if (!row_undo_search_clust_to_pcur(node)) {
@@ -1258,6 +1325,8 @@ close_table:
 				     (node->cmpl_info & UPD_NODE_NO_ORD_CHANGE)
 					? NULL : ptr);
 	}
+
+	return true;
 }
 
 /***********************************************************//**
@@ -1270,34 +1339,19 @@ row_undo_mod(
 	que_thr_t*	thr)	/*!< in: query thread */
 {
 	dberr_t	err;
-	ibool	dict_locked;
-
-	ut_ad(node != NULL);
-	ut_ad(thr != NULL);
-	ut_ad(node->state == UNDO_NODE_MODIFY);
-	ut_ad(node->trx->in_rollback);
-	ut_ad(!trx_undo_roll_ptr_is_insert(node->roll_ptr));
-
-	dict_locked = thr_get_trx(thr)->dict_operation_lock_mode == RW_X_LATCH;
-
 	ut_ad(thr_get_trx(thr) == node->trx);
+	const bool dict_locked = node->trx->dict_operation_lock_mode
+		== RW_X_LATCH;
 
-	row_undo_mod_parse_undo_rec(node, dict_locked);
-
-	if (node->table == NULL) {
-		/* It is already undone, or will be undone by another query
-		thread, or table was dropped */
-
-		node->state = UNDO_NODE_FETCH_NEXT;
-
-		return(DB_SUCCESS);
+	if (!row_undo_mod_parse_undo_rec(node, dict_locked)) {
+		return DB_SUCCESS;
 	}
 
 	node->index = dict_table_get_first_index(node->table);
 	ut_ad(dict_index_is_clust(node->index));
 
 	if (node->ref->info_bits) {
-		ut_ad(node->ref->info_bits == REC_INFO_DEFAULT_ROW);
+		ut_ad(node->ref->is_metadata());
 		goto rollback_clust;
 	}
 

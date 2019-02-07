@@ -1,3 +1,5 @@
+connection node_2;
+connection node_1;
 connection node_1;
 CREATE TABLE t1 (id INT PRIMARY KEY) ENGINE=InnoDB;
 connection node_2;
@@ -22,7 +24,7 @@ connection node_2;
 SET SESSION lock_wait_timeout = 1;
 SET SESSION innodb_lock_wait_timeout=1;
 SET SESSION wait_timeout=1;
-INSERT INTO t2 VALUES (2);
+INSERT INTO t1 VALUES (2);
 ERROR HY000: Lock wait timeout exceeded; try restarting transaction
 connection node_2a;
 UNLOCK TABLES;

@@ -16,12 +16,26 @@
 #ifndef SQL_STATISTICS_H
 #define SQL_STATISTICS_H
 
+/*
+  For COMPLEMENTARY_FOR_QUERIES and PREFERABLY_FOR_QUERIES they are
+  similar to the COMPLEMENTARY and PREFERABLY respectively except that
+  with these values we would not be collecting EITS for queries like
+    ANALYZE TABLE t1;
+  To collect EITS with these values, we have to use PERSISITENT FOR
+  analyze table t1 persistent for
+     columns (col1,col2...) index (idx1, idx2...)
+     or
+  analyze table t1 persistent for all
+*/
+
 typedef
 enum enum_use_stat_tables_mode
 {
   NEVER,
   COMPLEMENTARY,
   PREFERABLY,
+  COMPLEMENTARY_FOR_QUERIES,
+  PREFERABLY_FOR_QUERIES
 } Use_stat_tables_mode;
 
 typedef
@@ -87,6 +101,19 @@ Use_stat_tables_mode get_use_stat_tables_mode(THD *thd)
 { 
   return (Use_stat_tables_mode) (thd->variables.use_stat_tables);
 }
+inline
+bool check_eits_collection_allowed(THD *thd)
+{
+  return (get_use_stat_tables_mode(thd) == COMPLEMENTARY ||
+          get_use_stat_tables_mode(thd) == PREFERABLY);
+}
+
+inline
+bool check_eits_preferred(THD *thd)
+{
+  return (get_use_stat_tables_mode(thd) == PREFERABLY ||
+          get_use_stat_tables_mode(thd) == PREFERABLY_FOR_QUERIES);
+}
 
 int read_statistics_for_tables_if_needed(THD *thd, TABLE_LIST *tables);
 int collect_statistics_for_table(THD *thd, TABLE *table);
@@ -112,6 +139,7 @@ double get_column_range_cardinality(Field *field,
                                     key_range *max_endp,
                                     uint range_flag);
 bool is_stat_table(const LEX_CSTRING *db, LEX_CSTRING *table);
+bool is_eits_usable(Field* field);
 
 class Histogram
 {
@@ -333,12 +361,17 @@ private:
 public:
 
   Histogram histogram;
+
+  uint32 no_values_provided_bitmap()
+  {
+    return
+     ((1 << (COLUMN_STAT_HISTOGRAM-COLUMN_STAT_COLUMN_NAME))-1) <<
+      (COLUMN_STAT_COLUMN_NAME+1);
+  }
  
   void set_all_nulls()
   {
-    column_stat_nulls= 
-      ((1 << (COLUMN_STAT_HISTOGRAM-COLUMN_STAT_COLUMN_NAME))-1) <<
-      (COLUMN_STAT_COLUMN_NAME+1);
+    column_stat_nulls= no_values_provided_bitmap();
   }
 
   void set_not_null(uint stat_field_no)
@@ -384,8 +417,22 @@ public:
   bool min_max_values_are_provided()
   {
     return !is_null(COLUMN_STAT_MIN_VALUE) && 
-      !is_null(COLUMN_STAT_MIN_VALUE);
-  }          
+      !is_null(COLUMN_STAT_MAX_VALUE);
+  }
+  /*
+    This function checks whether the values for the fields of the statistical
+    tables that were NULL by DEFAULT for a column have changed or not.
+
+    @retval
+    TRUE: Statistics are not present for a column
+    FALSE: Statisitics are present for a column
+  */
+  bool no_stat_values_provided()
+  {
+    if (column_stat_nulls == no_values_provided_bitmap())
+      return true;
+    return false;
+  }
 };
 
 

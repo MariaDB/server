@@ -27,8 +27,6 @@ Created 8/18/1994 Heikki Tuuri
 #ifndef ha0ha_h
 #define ha0ha_h
 
-#include "univ.i"
-
 #include "hash0hash.h"
 #include "page0types.h"
 #include "buf0types.h"

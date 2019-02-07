@@ -419,7 +419,7 @@ const char *ha_partition::table_type() const
 
 ha_partition::~ha_partition()
 {
-  DBUG_ENTER("ha_partition::~ha_partition()");
+  DBUG_ENTER("ha_partition::~ha_partition");
   if (m_new_partitions_share_refs.elements)
     m_new_partitions_share_refs.delete_elements();
   if (m_file != NULL)
@@ -634,7 +634,7 @@ int ha_partition::create_partitioning_metadata(const char *path,
                                        const char *old_path,
                                        int action_flag)
 {
-  DBUG_ENTER("ha_partition::create_partitioning_metadata()");
+  DBUG_ENTER("ha_partition::create_partitioning_metadata");
 
   /*
     We need to update total number of parts since we might write the handler
@@ -1367,7 +1367,7 @@ bool print_admin_msg(THD* thd, uint len,
   protocol->store(msgbuf, msg_length, system_charset_info);
   if (protocol->write())
   {
-    sql_print_error("Failed on my_net_write, writing to stderr instead: %s\n",
+    sql_print_error("Failed on my_net_write, writing to stderr instead: %s",
                     msgbuf);
     goto err;
   }
@@ -3516,7 +3516,8 @@ int ha_partition::open(const char *name, int mode, uint test_if_locked)
   if (init_partition_bitmaps())
     goto err_alloc;
 
-  if (unlikely((error=
+  if (!MY_TEST(m_is_clone_of) &&
+      unlikely((error=
                 m_part_info->set_partition_bitmaps(m_partitions_to_open))))
     goto err_alloc;
 
@@ -4034,9 +4035,14 @@ THR_LOCK_DATA **ha_partition::store_lock(THD *thd,
   }
   else
   {
-    for (i= bitmap_get_first_set(&(m_part_info->lock_partitions));
+    MY_BITMAP *used_partitions= lock_type == TL_UNLOCK ||
+                                lock_type == TL_IGNORE ?
+                                &m_locked_partitions :
+                                &m_part_info->lock_partitions;
+
+    for (i= bitmap_get_first_set(used_partitions);
          i < m_tot_parts;
-         i= bitmap_get_next_set(&m_part_info->lock_partitions, i))
+         i= bitmap_get_next_set(used_partitions, i))
     {
       DBUG_PRINT("info", ("store lock %u iteration", i));
       to= m_file[i]->store_lock(thd, to, lock_type);
@@ -5275,7 +5281,7 @@ bool ha_partition::init_record_priority_queue()
     /* Initialize priority queue, initialized to reading forward. */
     int (*cmp_func)(void *, uchar *, uchar *);
     void *cmp_arg= (void*) this;
-    if (!m_using_extended_keys && !(table_flags() & HA_CMP_REF_IS_EXPENSIVE))
+    if (!m_using_extended_keys && !(table_flags() & HA_SLOW_CMP_REF))
       cmp_func= cmp_key_rowid_part_id;
     else
       cmp_func= cmp_key_part_id;
@@ -8471,6 +8477,24 @@ err_handler:
 }
 
 
+static int extra_cb(handler *h, void *operation)
+{
+  return h->extra(*(enum ha_extra_function*)operation);
+}
+
+
+static int start_keyread_cb(handler* h, void *p)
+{
+  return h->ha_start_keyread(*(uint*)p);
+}
+
+
+static int end_keyread_cb(handler* h, void *unused)
+{
+  return h->ha_end_keyread();
+}
+
+
 /**
   General function to prepare handler for certain behavior.
 
@@ -8799,11 +8823,12 @@ int ha_partition::extra(enum ha_extra_function operation)
 
   switch (operation) {
     /* Category 1), used by most handlers */
-  case HA_EXTRA_KEYREAD:
   case HA_EXTRA_NO_KEYREAD:
+    DBUG_RETURN(loop_partitions(end_keyread_cb, NULL));
+  case HA_EXTRA_KEYREAD:
   case HA_EXTRA_FLUSH:
   case HA_EXTRA_PREPARE_FOR_FORCED_CLOSE:
-    DBUG_RETURN(loop_extra(operation));
+    DBUG_RETURN(loop_partitions(extra_cb, &operation));
   case HA_EXTRA_PREPARE_FOR_RENAME:
   case HA_EXTRA_FORCE_REOPEN:
     DBUG_RETURN(loop_extra_alter(operation));
@@ -8815,7 +8840,7 @@ int ha_partition::extra(enum ha_extra_function operation)
   case HA_EXTRA_KEYREAD_PRESERVE_FIELDS:
   {
     if (!m_myisam)
-      DBUG_RETURN(loop_extra(operation));
+      DBUG_RETURN(loop_partitions(extra_cb, &operation));
   }
   break;
 
@@ -8842,7 +8867,7 @@ int ha_partition::extra(enum ha_extra_function operation)
   case HA_EXTRA_REMEMBER_POS:
   case HA_EXTRA_RESTORE_POS:
   {
-    DBUG_RETURN(loop_extra(operation));
+    DBUG_RETURN(loop_partitions(extra_cb, &operation));
   }
   case HA_EXTRA_NO_READCHECK:
   {
@@ -8874,7 +8899,7 @@ int ha_partition::extra(enum ha_extra_function operation)
     m_extra_cache_size= 0;
     m_extra_prepare_for_update= FALSE;
     m_extra_cache_part_id= NO_CURRENT_PART_ID;
-    DBUG_RETURN(loop_extra(operation));
+    DBUG_RETURN(loop_partitions(extra_cb, &operation));
   }
   case HA_EXTRA_IGNORE_NO_KEY:
   case HA_EXTRA_NO_IGNORE_NO_KEY:
@@ -8895,11 +8920,11 @@ int ha_partition::extra(enum ha_extra_function operation)
 
       At this time, this is safe by limitation of ha_partition
     */
-    DBUG_RETURN(loop_extra(operation));
+    DBUG_RETURN(loop_partitions(extra_cb, &operation));
   }
     /* Category 7), used by federated handlers */
   case HA_EXTRA_INSERT_WITH_UPDATE:
-    DBUG_RETURN(loop_extra(operation));
+    DBUG_RETURN(loop_partitions(extra_cb, &operation));
     /* Category 8) Operations only used by NDB */
   case HA_EXTRA_DELETE_CANNOT_BATCH:
   case HA_EXTRA_UPDATE_CANNOT_BATCH:
@@ -8909,13 +8934,13 @@ int ha_partition::extra(enum ha_extra_function operation)
   }
     /* Category 9) Operations only used by MERGE */
   case HA_EXTRA_ADD_CHILDREN_LIST:
-    DBUG_RETURN(loop_extra(operation));
+    DBUG_RETURN(loop_partitions(extra_cb, &operation));
   case HA_EXTRA_ATTACH_CHILDREN:
   {
     int result;
     uint num_locks;
     handler **file;
-    if ((result= loop_extra(operation)))
+    if ((result= loop_partitions(extra_cb, &operation)))
       DBUG_RETURN(result);
 
     /* Recalculate lock count as each child may have different set of locks */
@@ -8930,9 +8955,9 @@ int ha_partition::extra(enum ha_extra_function operation)
     break;
   }
   case HA_EXTRA_IS_ATTACHED_CHILDREN:
-    DBUG_RETURN(loop_extra(operation));
+    DBUG_RETURN(loop_partitions(extra_cb, &operation));
   case HA_EXTRA_DETACH_CHILDREN:
-    DBUG_RETURN(loop_extra(operation));
+    DBUG_RETURN(loop_partitions(extra_cb, &operation));
   case HA_EXTRA_MARK_AS_LOG_TABLE:
   /*
     http://dev.mysql.com/doc/refman/5.1/en/partitioning-limitations.html
@@ -8944,7 +8969,7 @@ int ha_partition::extra(enum ha_extra_function operation)
   case HA_EXTRA_BEGIN_ALTER_COPY:
   case HA_EXTRA_END_ALTER_COPY:
   case HA_EXTRA_FAKE_START_STMT:
-    DBUG_RETURN(loop_extra(operation));
+    DBUG_RETURN(loop_partitions(extra_cb, &operation));
   default:
   {
     /* Temporary crash to discover what is wrong */
@@ -8952,7 +8977,7 @@ int ha_partition::extra(enum ha_extra_function operation)
     break;
   }
   }
-  DBUG_RETURN(0);
+  DBUG_RETURN(1);
 }
 
 
@@ -8989,26 +9014,42 @@ int ha_partition::reset(void)
   DBUG_RETURN(result);
 }
 
-/*
-  Special extra method for HA_EXTRA_CACHE with cachesize as extra parameter
+/**
+  Special extra method with additional parameter
+  See @ref ha_partition::extra
 
-  SYNOPSIS
-    extra_opt()
-    operation                      Must be HA_EXTRA_CACHE
-    cachesize                      Size of cache in full table scan
+  @param[in]    operation       operation to execute
+  @param[in]    arg             extra argument
 
-  RETURN VALUE
-    >0                   Error code
-    0                    Success
+  @return       status
+    @retval     0               success
+    @retval     >0              error code
+
+  @detail
+    Operations supported by extra_opt:
+    HA_EXTRA_KEYREAD:
+      arg is interpreted as key index
+    HA_EXTRA_CACHE:
+      arg is interpreted as size of cache in full table scan
+
+    For detailed description refer to @ref ha_partition::extra
 */
 
-int ha_partition::extra_opt(enum ha_extra_function operation, ulong cachesize)
+int ha_partition::extra_opt(enum ha_extra_function operation, ulong arg)
 {
-  DBUG_ENTER("ha_partition::extra_opt()");
+  DBUG_ENTER("ha_partition::extra_opt");
 
-  DBUG_ASSERT(HA_EXTRA_CACHE == operation);
-  prepare_extra_cache(cachesize);
-  DBUG_RETURN(0);
+  switch (operation)
+  {
+    case HA_EXTRA_KEYREAD:
+      DBUG_RETURN(loop_partitions(start_keyread_cb, &arg));
+    case HA_EXTRA_CACHE:
+      prepare_extra_cache(arg);
+      DBUG_RETURN(0);
+    default:
+      DBUG_ASSERT(0);
+  }
+  DBUG_RETURN(1);
 }
 
 
@@ -9025,7 +9066,7 @@ int ha_partition::extra_opt(enum ha_extra_function operation, ulong cachesize)
 
 void ha_partition::prepare_extra_cache(uint cachesize)
 {
-  DBUG_ENTER("ha_partition::prepare_extra_cache()");
+  DBUG_ENTER("ha_partition::prepare_extra_cache");
   DBUG_PRINT("enter", ("cachesize %u", cachesize));
 
   m_extra_cache= TRUE;
@@ -9055,7 +9096,7 @@ int ha_partition::loop_extra_alter(enum ha_extra_function operation)
 {
   int result= 0, tmp;
   handler **file;
-  DBUG_ENTER("ha_partition::loop_extra_alter()");
+  DBUG_ENTER("ha_partition::loop_extra_alter");
   DBUG_ASSERT(operation == HA_EXTRA_PREPARE_FOR_RENAME ||
               operation == HA_EXTRA_FORCE_REOPEN);
 
@@ -9071,28 +9112,28 @@ int ha_partition::loop_extra_alter(enum ha_extra_function operation)
       if ((tmp= (*file)->extra(operation)))
         result= tmp;
   }
-  if ((tmp= loop_extra(operation)))
+  if ((tmp= loop_partitions(extra_cb, &operation)))
     result= tmp;
   DBUG_RETURN(result);
 }
 
-/*
-  Call extra on all partitions
 
-  SYNOPSIS
-    loop_extra()
-    operation             extra operation type
+/**
+  Call callback(part, param) on all partitions
 
-  RETURN VALUE
-    >0                    Error code
-    0                     Success
+    @param callback                 a callback to call for each partition
+    @param param                    a void*-parameter passed to callback
+
+    @return Operation status
+      @retval >0                    Error code
+      @retval 0                     Success
 */
 
-int ha_partition::loop_extra(enum ha_extra_function operation)
+int ha_partition::loop_partitions(handler_callback callback, void *param)
 {
   int result= 0, tmp;
   uint i;
-  DBUG_ENTER("ha_partition::loop_extra()");
+  DBUG_ENTER("ha_partition::loop_partitions");
 
   for (i= bitmap_get_first_set(&m_part_info->lock_partitions);
        i < m_tot_parts;
@@ -9103,7 +9144,7 @@ int ha_partition::loop_extra(enum ha_extra_function operation)
       In this case calling 'extra' can crash.
     */
     if (bitmap_is_set(&m_opened_partitions, i) &&
-        (tmp= m_file[i]->extra(operation)))
+        (tmp= callback(m_file[i], param)))
       result= tmp;
   }
   /* Add all used partitions to be called in reset(). */
@@ -9737,7 +9778,7 @@ void ha_partition::print_error(int error, myf errflag)
       append_row_to_str(str);
 
       /* Log this error, so the DBA can notice it and fix it! */
-      sql_print_error("Table '%-192s' corrupted: row in wrong partition: %s\n"
+      sql_print_error("Table '%-192s' corrupted: row in wrong partition: %s"
                       "Please REPAIR the table!",
                       table->s->table_name.str,
                       str.c_ptr_safe());
@@ -10856,11 +10897,9 @@ int ha_partition::check_for_upgrade(HA_CHECK_OPT *check_opt)
           }
           m_part_info->key_algorithm= partition_info::KEY_ALGORITHM_51;
           if (skip_generation ||
-              !(part_buf= generate_partition_syntax(thd, m_part_info,
-                                                    &part_buf_len,
-                                                    true,
-                                                    NULL,
-                                                    NULL)) ||
+              !(part_buf= generate_partition_syntax_for_frm(thd, m_part_info,
+                                                            &part_buf_len,
+                                                            NULL, NULL)) ||
 	      print_admin_msg(thd, SQL_ADMIN_MSG_TEXT_SIZE + 1, "error",
 	                      table_share->db.str,
 	                      table->alias,

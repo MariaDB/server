@@ -2187,3 +2187,40 @@ eval explain extended $q;
 set optimizer_switch= @save_optimizer_switch;
 
 DROP TABLE books, wings;
+
+--echo #
+--echo # MDEV-17761: Odd optimizer choice with ORDER BY LIMIT and condition selectivity
+--echo #
+create table t1(a int);
+insert into t1 values (0),(1),(2),(3),(4),(5),(6),(7),(8),(9);
+create table t2(a int);
+insert into t2 select A.a + B.a* 10 + C.a * 100 from t1 A, t1 B, t1 C;
+create table t3(a int);
+insert into t3 select A.a + 1000 *B.a from t2 A, t1 B;
+ 
+create table t4 (
+  a int,
+  b int,
+  c int,
+  filler1 char(255),
+  filler2 char(255),
+  key(a)
+);
+insert into t4 select a,a,a, a,a from t3;
+
+set @tmp_h=@@histogram_size, @tmp_u=@@use_stat_tables, 
+    @tmp_o=@@optimizer_use_condition_selectivity; 
+set histogram_size=100;
+set use_stat_tables=preferably;
+set optimizer_use_condition_selectivity=4;
+analyze table t4 persistent for columns(b) indexes ();
+
+--echo # rows must be around 1200, not 600:
+explain extended 
+select * from t4 where b < 5000 order by a limit 600;
+
+set histogram_size=@tmp_h, use_stat_tables=@tmp_u,
+    optimizer_use_condition_selectivity=@tmp_o; 
+
+drop table t1,t2,t3,t4;
+

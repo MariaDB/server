@@ -44,7 +44,6 @@ Created 11/5/1995 Heikki Tuuri
 #include "log0recv.h"
 #include "srv0srv.h"
 #include "srv0mon.h"
-#include "lock0lock.h"
 
 /** The number of blocks from the LRU_old pointer onward, including
 the block pointed to, must be buf_pool->LRU_old_ratio/BUF_LRU_OLD_RATIO_DIV
@@ -2160,7 +2159,8 @@ buf_LRU_block_free_hashed_page(
 	buf_page_mutex_enter(block);
 
 	if (buf_pool->flush_rbt == NULL) {
-		block->page.id.reset();
+		block->page.id
+		    = page_id_t(ULINT32_UNDEFINED, ULINT32_UNDEFINED);
 	}
 
 	buf_block_set_state(block, BUF_BLOCK_MEMORY);
@@ -2459,7 +2459,7 @@ buf_LRU_print_instance(
 
 		if (bpage->buf_fix_count) {
 			fprintf(stderr, "buffix count %u ",
-				bpage->buf_fix_count);
+				uint32_t(bpage->buf_fix_count));
 		}
 
 		if (buf_page_get_io_fix(bpage)) {

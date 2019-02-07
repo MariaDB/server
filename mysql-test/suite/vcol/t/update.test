@@ -93,10 +93,10 @@ check table t; select * from t;
 insert t(a,b,d) select 10,4,4 on duplicate key update b=5, d=5;
 check table t; select * from t;
 replace delayed t (a,b,d) values (10,6,6);
-flush tables;
+flush tables t;
 check table t; select * from t;
 insert delayed t(a,b,d) values (10,6,6) on duplicate key update b=7, d=7;
-flush tables;
+flush tables t;
 check table t; select * from t;
 --write_file $MYSQLTEST_VARDIR/tmp/vblobs.txt
 10	8	foo	8	foo

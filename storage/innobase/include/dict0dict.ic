@@ -24,13 +24,8 @@ Data dictionary system
 Created 1/8/1996 Heikki Tuuri
 ***********************************************************************/
 
-#include "data0type.h"
-#include "dict0load.h"
-#include "rem0types.h"
-#include "fsp0fsp.h"
-#include "srv0srv.h"
-#include "sync0rw.h"
 #include "fsp0sysspace.h"
+#include "dict0pagecompress.h"
 
 /*********************************************************************//**
 Gets the minimum number of bytes per character.
@@ -261,89 +256,6 @@ dict_table_get_next_index(
 #endif /* UNIV_DEBUG */
 
 /********************************************************************//**
-Check whether the index is the clustered index.
-@return nonzero for clustered index, zero for other indexes */
-UNIV_INLINE
-ulint
-dict_index_is_clust(
-/*================*/
-	const dict_index_t*	index)	/*!< in: index */
-{
-	ut_ad(index->magic_n == DICT_INDEX_MAGIC_N);
-	return(index->type & DICT_CLUSTERED);
-}
-
-/** Check if index is auto-generated clustered index.
-@param[in]	index	index
-
-@return true if index is auto-generated clustered index. */
-UNIV_INLINE
-bool
-dict_index_is_auto_gen_clust(
-	const dict_index_t*	index)
-{
-	return(index->type == DICT_CLUSTERED);
-}
-
-/********************************************************************//**
-Check whether the index is unique.
-@return nonzero for unique index, zero for other indexes */
-UNIV_INLINE
-ulint
-dict_index_is_unique(
-/*=================*/
-	const dict_index_t*	index)	/*!< in: index */
-{
-	ut_ad(index->magic_n == DICT_INDEX_MAGIC_N);
-
-	return(index->type & DICT_UNIQUE);
-}
-
-/********************************************************************//**
-Check whether the index is a Spatial Index.
-@return	nonzero for Spatial Index, zero for other indexes */
-UNIV_INLINE
-ulint
-dict_index_is_spatial(
-/*==================*/
-	const dict_index_t*	index)	/*!< in: index */
-{
-	ut_ad(index);
-	ut_ad(index->magic_n == DICT_INDEX_MAGIC_N);
-
-	return ulint(UNIV_EXPECT(index->type & DICT_SPATIAL, 0));
-}
-
-/********************************************************************//**
-Check whether the index is the insert buffer tree.
-@return nonzero for insert buffer, zero for other indexes */
-UNIV_INLINE
-ulint
-dict_index_is_ibuf(
-/*===============*/
-	const dict_index_t*	index)	/*!< in: index */
-{
-	ut_ad(index);
-	ut_ad(index->magic_n == DICT_INDEX_MAGIC_N);
-
-	return(index->type & DICT_IBUF);
-}
-
-/********************************************************************//**
-Check whether the index is a secondary index or the insert buffer tree.
-@return nonzero for insert buffer, zero for other indexes */
-UNIV_INLINE
-ulint
-dict_index_is_sec_or_ibuf(
-/*======================*/
-	const dict_index_t*	index)	/*!< in: index */
-{
-	ut_ad(index->magic_n == DICT_INDEX_MAGIC_N);
-
-	return((index->type & (DICT_CLUSTERED | DICT_IBUF)) != DICT_CLUSTERED);
-}
-
-/********************************************************************//**
 Gets the number of user-defined non-virtual columns in a table in the
 dictionary cache.
 @return number of user-defined (e.g., not ROW_ID) non-virtual
@@ -490,7 +402,8 @@ dict_table_get_nth_v_col(
 	ut_ad(table);
 	ut_ad(pos < table->n_v_def);
 	ut_ad(table->magic_n == DICT_TABLE_MAGIC_N);
-	ut_ad(!table->v_cols[pos].m_col.is_instant());
+	ut_ad(!table->v_cols[pos].m_col.is_added());
+	ut_ad(!table->v_cols[pos].m_col.is_dropped());
 	return &table->v_cols[pos];
 }
 
@@ -529,19 +442,6 @@ dict_table_get_sys_col_no(
 	ut_ad(table->magic_n == DICT_TABLE_MAGIC_N);
 
 	return unsigned(table->n_cols) + (sys - DATA_N_SYS_COLS);
-}
-
-/********************************************************************//**
-Check whether the table uses the compact page format.
-@return TRUE if table uses the compact page format */
-UNIV_INLINE
-bool
-dict_table_is_comp(
-/*===============*/
-	const dict_table_t*	table)	/*!< in: table */
-{
-	ut_ad(table);
-	return (table->flags & DICT_TF_COMPACT) != 0;
 }
 
 /************************************************************************
@@ -691,29 +591,28 @@ dict_tf_set(
 	bool		page_compressed,
 	ulint		page_compression_level)
 {
+	*flags = use_data_dir ? 1 << DICT_TF_POS_DATA_DIR : 0;
+
 	switch (format) {
 	case REC_FORMAT_REDUNDANT:
-		*flags = 0;
 		ut_ad(zip_ssize == 0);
-		break;
+		/* no other options are allowed */
+		ut_ad(!page_compressed);
+		return;
 	case REC_FORMAT_COMPACT:
-		*flags = DICT_TF_COMPACT;
+		*flags |= DICT_TF_COMPACT;
 		ut_ad(zip_ssize == 0);
 		break;
 	case REC_FORMAT_COMPRESSED:
-		*flags = DICT_TF_COMPACT
+		*flags |= DICT_TF_COMPACT
 			| (1 << DICT_TF_POS_ATOMIC_BLOBS)
 			| (zip_ssize << DICT_TF_POS_ZIP_SSIZE);
 		break;
 	case REC_FORMAT_DYNAMIC:
-		*flags = DICT_TF_COMPACT
+		*flags |= DICT_TF_COMPACT
 			| (1 << DICT_TF_POS_ATOMIC_BLOBS);
 		ut_ad(zip_ssize == 0);
 		break;
-	}
-
-	if (use_data_dir) {
-		*flags |= (1 << DICT_TF_POS_DATA_DIR);
 	}
 
 	if (page_compressed) {
@@ -1020,31 +919,6 @@ dict_index_get_nth_field(
 }
 #endif /* UNIV_DEBUG */
 
-/********************************************************************//**
-Returns the position of a system column in an index.
-@return position, ULINT_UNDEFINED if not contained */
-UNIV_INLINE
-ulint
-dict_index_get_sys_col_pos(
-/*=======================*/
-	const dict_index_t*	index,	/*!< in: index */
-	ulint			type)	/*!< in: DATA_ROW_ID, ... */
-{
-	ut_ad(index);
-	ut_ad(index->magic_n == DICT_INDEX_MAGIC_N);
-	ut_ad(!dict_index_is_ibuf(index));
-
-	if (dict_index_is_clust(index)) {
-
-		return(dict_col_get_clust_pos(
-			       dict_table_get_sys_col(index->table, type),
-			       index));
-	}
-
-	return(dict_index_get_nth_col_pos(
-			index, dict_table_get_sys_col_no(index->table, type), NULL));
-}
-
 /*********************************************************************//**
 Gets the field column.
 @return field->col, pointer to the table column */
@@ -1279,9 +1153,7 @@ dict_table_is_fts_column(
 
 		index = (dict_index_t*) ib_vector_getp(indexes, i);
 
-		if (dict_index_contains_col_or_prefix(
-			index, col_no, is_virtual)) {
-
+		if (index->contains_col_or_prefix(col_no, is_virtual)) {
 			return(i);
 		}
 	}
@@ -1407,7 +1279,7 @@ void
 dict_table_t::acquire()
 {
 	ut_ad(mutex_own(&dict_sys->mutex));
-	my_atomic_add32_explicit(&n_ref_count, 1, MY_MEMORY_ORDER_RELAXED);
+	n_ref_count++;
 }
 
 /** Release the table handle.
@@ -1416,8 +1288,7 @@ inline
 bool
 dict_table_t::release()
 {
-	int32 n = my_atomic_add32_explicit(
-			&n_ref_count, -1, MY_MEMORY_ORDER_RELAXED);
+	auto n = n_ref_count--;
 	ut_ad(n > 0);
 	return n == 1;
 }

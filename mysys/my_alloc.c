@@ -212,6 +212,7 @@ void *alloc_root(MEM_ROOT *mem_root, size_t length)
   uchar* point;
   reg1 USED_MEM *next= 0;
   reg2 USED_MEM **prev;
+  size_t original_length = length;
   DBUG_ENTER("alloc_root");
   DBUG_PRINT("enter",("root: %p  name: %s", mem_root, mem_root->name));
   DBUG_ASSERT(alloc_root_inited(mem_root));
@@ -273,7 +274,7 @@ void *alloc_root(MEM_ROOT *mem_root, size_t length)
     mem_root->used= next;
     mem_root->first_block_usage= 0;
   }
-  TRASH_ALLOC(point, length);
+  TRASH_ALLOC(point, original_length);
   DBUG_PRINT("exit",("ptr: %p", point));
   DBUG_RETURN((void*) point);
 #endif
@@ -490,4 +491,15 @@ void *memdup_root(MEM_ROOT *root, const void *str, size_t len)
   if ((pos=alloc_root(root,len)))
     memcpy(pos,str,len);
   return pos;
+}
+
+LEX_CSTRING safe_lexcstrdup_root(MEM_ROOT *root, const LEX_CSTRING str)
+{
+  LEX_CSTRING res;
+  if (str.length)
+    res.str= strmake_root(root, str.str, str.length);
+  else
+    res.str= (const char *)"";
+  res.length= str.length;
+  return res;
 }

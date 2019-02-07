@@ -9207,7 +9207,7 @@ void ha_mroonga::remove_related_files(const char *base_path)
       if (stat(entry->d_name, &file_status) != 0) {
         continue;
       }
-      if (!((file_status.st_mode & S_IFMT) && S_IFREG)) {
+      if (!((file_status.st_mode & S_IFMT) == S_IFREG)) {
         continue;
       }
       if (strncmp(entry->d_name, base_path, base_path_length) == 0) {
@@ -10576,7 +10576,7 @@ int ha_mroonga::generic_store_bulk_time(Field *field, grn_obj *buf)
   bool truncated = false;
   Field_time *time_field = (Field_time *)field;
   MYSQL_TIME mysql_time;
-  time_field->get_time(&mysql_time);
+  time_field->get_date(&mysql_time, Time::Options(current_thd));
   mrn::TimeConverter time_converter;
   long long int time = time_converter.mysql_time_to_grn_time(&mysql_time,
                                                              &truncated);
@@ -10596,7 +10596,7 @@ int ha_mroonga::generic_store_bulk_datetime(Field *field, grn_obj *buf)
   bool truncated = false;
   Field_datetime *datetime_field = (Field_datetime *)field;
   MYSQL_TIME mysql_time;
-  datetime_field->get_time(&mysql_time);
+  datetime_field->get_date(&mysql_time, Time::Options(current_thd));
   mrn::TimeConverter time_converter;
   long long int time = time_converter.mysql_time_to_grn_time(&mysql_time,
                                                              &truncated);
@@ -10657,7 +10657,7 @@ int ha_mroonga::generic_store_bulk_datetime2(Field *field, grn_obj *buf)
   bool truncated = false;
   Field_datetimef *datetimef_field = (Field_datetimef *)field;
   MYSQL_TIME mysql_time;
-  datetimef_field->get_time(&mysql_time);
+  datetimef_field->get_date(&mysql_time, Time::Options(current_thd));
   mrn::TimeConverter time_converter;
   long long int time = time_converter.mysql_time_to_grn_time(&mysql_time,
                                                              &truncated);
@@ -10682,7 +10682,7 @@ int ha_mroonga::generic_store_bulk_time2(Field *field, grn_obj *buf)
   int error = 0;
   bool truncated = false;
   MYSQL_TIME mysql_time;
-  field->get_time(&mysql_time);
+  field->get_date(&mysql_time, Time::Options(current_thd));
   mrn::TimeConverter time_converter;
   long long int time = time_converter.mysql_time_to_grn_time(&mysql_time,
                                                              &truncated);
@@ -10707,7 +10707,7 @@ int ha_mroonga::generic_store_bulk_new_date(Field *field, grn_obj *buf)
   bool truncated = false;
   Field_newdate *newdate_field = (Field_newdate *)field;
   MYSQL_TIME mysql_date;
-  newdate_field->get_time(&mysql_date);
+  newdate_field->get_date(&mysql_date, Time::Options(current_thd));
   mrn::TimeConverter time_converter;
   long long int time = time_converter.mysql_time_to_grn_time(&mysql_date,
                                                              &truncated);
@@ -11617,14 +11617,14 @@ int ha_mroonga::storage_encode_key_timestamp(Field *field, const uchar *key,
   } else {
     Field_timestamp_hires *timestamp_hires_field =
       (Field_timestamp_hires *)field;
-    uint fuzzy_date = 0;
     uchar *ptr_backup = field->ptr;
     uchar *null_ptr_backup = field->null_ptr;
     TABLE *table_backup = field->table;
     field->ptr = (uchar *)key;
     field->null_ptr = (uchar *)(key - 1);
     field->table = table;
-    timestamp_hires_field->get_date(&mysql_time, fuzzy_date);
+    Temporal::Options opt(TIME_CONV_NONE, current_thd);
+    timestamp_hires_field->get_date(&mysql_time, opt);
     field->ptr = ptr_backup;
     field->null_ptr = null_ptr_backup;
     field->table = table_backup;
@@ -11675,12 +11675,12 @@ int ha_mroonga::storage_encode_key_time(Field *field, const uchar *key,
     mysql_time.time_type = MYSQL_TIMESTAMP_TIME;
   } else {
     Field_time_hires *time_hires_field = (Field_time_hires *)field;
-    uint fuzzy_date = 0;
     uchar *ptr_backup = field->ptr;
     uchar *null_ptr_backup = field->null_ptr;
     field->ptr = (uchar *)key;
     field->null_ptr = (uchar *)(key - 1);
-    time_hires_field->get_date(&mysql_time, fuzzy_date);
+    Temporal::Options opt(TIME_CONV_NONE, current_thd);
+    time_hires_field->get_date(&mysql_time, opt);
     field->ptr = ptr_backup;
     field->null_ptr = null_ptr_backup;
   }
@@ -11749,12 +11749,12 @@ int ha_mroonga::storage_encode_key_datetime(Field *field, const uchar *key,
   if (field->decimals() > 0) {
     Field_datetime_hires *datetime_hires_field = (Field_datetime_hires *)field;
     MYSQL_TIME mysql_time;
-    uint fuzzy_date = 0;
     uchar *ptr_backup = field->ptr;
     uchar *null_ptr_backup = field->null_ptr;
     field->ptr = (uchar *)key;
     field->null_ptr = (uchar *)(key - 1);
-    datetime_hires_field->get_date(&mysql_time, fuzzy_date);
+    Temporal::Options opt(TIME_CONV_NONE, current_thd);
+    datetime_hires_field->get_date(&mysql_time, opt);
     field->ptr = ptr_backup;
     field->null_ptr = null_ptr_backup;
     mrn::TimeConverter time_converter;
@@ -11824,7 +11824,8 @@ int ha_mroonga::storage_encode_key_timestamp2(Field *field, const uchar *key,
 #endif
 
 #ifdef MRN_HAVE_MYSQL_TYPE_DATETIME2
-int ha_mroonga::storage_encode_key_datetime2(Field *field, const uchar *key,
+int ha_mroonga::storage_encode_key_datetime2(Field *field, bool is_null,
+                                             const uchar *key,
                                              uchar *buf, uint *size)
 {
   MRN_DBUG_ENTER_METHOD();
@@ -11832,7 +11833,7 @@ int ha_mroonga::storage_encode_key_datetime2(Field *field, const uchar *key,
   bool truncated = false;
 
   Field_datetimef *datetime2_field = (Field_datetimef *)field;
-  longlong packed_time =
+  longlong packed_time = is_null ? 0 :
     my_datetime_packed_from_binary(key, datetime2_field->decimals());
   MYSQL_TIME mysql_time;
   TIME_from_longlong_datetime_packed(&mysql_time, packed_time);
@@ -11960,6 +11961,7 @@ int ha_mroonga::storage_encode_key(Field *field, const uchar *key,
   MRN_DBUG_ENTER_METHOD();
   int error;
   bool truncated = false;
+  bool is_null = false;
   const uchar *ptr = key;
 
   error = mrn_change_encoding(ctx, field->charset());
@@ -11967,6 +11969,7 @@ int ha_mroonga::storage_encode_key(Field *field, const uchar *key,
     DBUG_RETURN(error);
 
   if (field->null_bit) {
+    is_null = *ptr;
     ptr += 1;
   }
 
@@ -12064,7 +12067,7 @@ int ha_mroonga::storage_encode_key(Field *field, const uchar *key,
 #endif
 #ifdef MRN_HAVE_MYSQL_TYPE_DATETIME2
   case MYSQL_TYPE_DATETIME2:
-    error = storage_encode_key_datetime2(field, ptr, buf, size);
+    error = storage_encode_key_datetime2(field, is_null, ptr, buf, size);
     break;
 #endif
 #ifdef MRN_HAVE_MYSQL_TYPE_TIME2
@@ -16795,15 +16798,8 @@ int ha_mroonga::storage_get_foreign_key_list(THD *thd,
                                                        ref_table_buff,
                                                        ref_table_name_length,
                                                        TRUE);
-#ifdef MRN_FOREIGN_KEY_USE_METHOD_ENUM
     f_key_info.update_method = FK_OPTION_RESTRICT;
     f_key_info.delete_method = FK_OPTION_RESTRICT;
-#else
-    f_key_info.update_method = thd_make_lex_string(thd, NULL, "RESTRICT",
-                                                    8, TRUE);
-    f_key_info.delete_method = thd_make_lex_string(thd, NULL, "RESTRICT",
-                                                    8, TRUE);
-#endif
     f_key_info.referenced_key_name = thd_make_lex_string(thd, NULL, "PRIMARY",
                                                           7, TRUE);
     LEX_CSTRING *field_name = thd_make_lex_string(thd,

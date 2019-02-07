@@ -102,7 +102,7 @@ fi
 # AWS SDK also requires the build machine to have network access and git, so
 # it cannot be part of the base version included in Linux distros, but a pure
 # custom built plugin.
-if [[ $GCCVERSION -gt 40800 ]] && [[ ! $TRAVIS ]] && ping -c 1 github.com
+if [[ $GCCVERSION -gt 40800 ]] && [[ ! $TRAVIS ]] && [[ -x "$(command -v git)" ]] && timeout 3s bash -c 'sed -n q </dev/tcp/github.com/22'
 then
   cat <<EOF >> debian/control
 
@@ -122,6 +122,12 @@ Description: Amazon Web Service Key Management Service Plugin for MariaDB
 EOF
 
   sed -i -e "/-DPLUGIN_AWS_KEY_MANAGEMENT=NO/d" debian/rules
+fi
+
+# Don't build cassandra package if thrift is not installed
+if [[ ! -f /usr/local/include/thrift/Thrift.h && ! -f /usr/include/thrift/Thrift.h ]]
+then
+  sed '/Package: mariadb-plugin-cassandra/,/^$/d' -i debian/control
 fi
 
 # Mroonga, TokuDB never built on Travis CI anyway, see build flags above

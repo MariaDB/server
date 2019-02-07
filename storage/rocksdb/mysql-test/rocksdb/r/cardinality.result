@@ -88,6 +88,7 @@ ENGINE=ROCKSDB;
 SET GLOBAL rocksdb_force_flush_memtable_now = 1;
 ANALYZE TABLE t2;
 Table	Op	Msg_type	Msg_text
+test.t2	analyze	status	Engine-independent statistics collected
 test.t2	analyze	status	OK
 cardinality of the columns after 'a' must be equal to the cardinality of column 'a'
 SELECT CARDINALITY INTO @c FROM information_schema.statistics WHERE TABLE_NAME='t2' AND INDEX_NAME='c' AND COLUMN_NAME='a';

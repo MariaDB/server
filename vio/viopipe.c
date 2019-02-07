@@ -131,7 +131,6 @@ int vio_close_pipe(Vio *vio)
 
   CancelIo(vio->hPipe);
   CloseHandle(vio->overlapped.hEvent);
-  DisconnectNamedPipe(vio->hPipe);
   ret= CloseHandle(vio->hPipe);
 
   vio->type= VIO_CLOSED;

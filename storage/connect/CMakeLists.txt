@@ -113,6 +113,7 @@ IF(CONNECT_WITH_LIBXML2)
   FIND_PACKAGE(LibXml2)
   IF (LIBXML2_FOUND)
     INCLUDE_DIRECTORIES(${LIBXML2_INCLUDE_DIR})
+    SET(ZLIB_LIBRARY "z") # see ZLIB_INCLUDE_DIR below
     SET(XML_LIBRARY  ${LIBXML2_LIBRARIES})
     SET(CONNECT_SOURCES ${CONNECT_SOURCES} libdoc.cpp libdoc.h)
     add_definitions(-DLIBXML2_SUPPORT)
@@ -128,7 +129,6 @@ IF(WIN32)
   OPTION(CONNECT_WITH_MSXML "Compile CONNECT storage engine with MSXML support" ON)
   IF(CONNECT_WITH_MSXML)
     add_definitions(-DMSX6 -DDOMDOC_SUPPORT)
-    message(STATUS "MSXML library version: msxml6")
     SET(MSXML_FOUND 1)
     SET(CONNECT_SOURCES ${CONNECT_SOURCES} domdoc.cpp domdoc.h)
   ENDIF(CONNECT_WITH_MSXML)
@@ -328,6 +328,14 @@ MYSQL_ADD_PLUGIN(connect ${CONNECT_SOURCES}
 
 IF(NOT TARGET connect)
   RETURN()
+ENDIF()
+
+# Don't link with bundled zlib and systel libxml2 at the same time.
+# System libxml2 uses system zlib, might conflict with the bundled one.
+IF (XML_LIBRARY AND BUILD_BUNDLED_ZLIB)
+  GET_PROPERTY(INCS TARGET connect PROPERTY INCLUDE_DIRECTORIES)
+  LIST(REMOVE_ITEM INCS ${ZLIB_INCLUDE_DIR})
+  SET_PROPERTY(TARGET connect PROPERTY INCLUDE_DIRECTORIES ${INCS})
 ENDIF()
 
 IF(WIN32)

@@ -24,12 +24,7 @@ The page cursor
 Created 10/4/1994 Heikki Tuuri
 *************************************************************************/
 
-#include "page0page.h"
-#include "buf0types.h"
-
 #ifdef UNIV_DEBUG
-# include "rem0cmp.h"
-
 /*********************************************************//**
 Gets pointer to the page frame where the cursor is positioned.
 @return page */
@@ -280,6 +275,7 @@ page_cur_tuple_insert(
 	*offsets = rec_get_offsets(rec, index, *offsets,
 				   page_is_leaf(cursor->block->frame),
 				   ULINT_UNDEFINED, heap);
+	ut_ad(size == rec_offs_size(*offsets));
 
 	if (buf_block_get_page_zip(cursor->block)) {
 		rec = page_cur_insert_rec_zip(

@@ -1,5 +1,5 @@
 # Copyright (c) 2006, 2017, Oracle and/or its affiliates.
-# Copyright (c) 2008, 2017, MariaDB
+# Copyright (c) 2008, 2018, MariaDB Corporation
 # 
 # This program is free software; you can redistribute it and/or modify
 # it under the terms of the GNU General Public License as published by
@@ -143,6 +143,7 @@ INCLUDE(misc)
 INCLUDE(mysql_version)
 INCLUDE(cpack_source_ignore_files)
 INCLUDE(install_layout)
+INCLUDE(submodules)
 INCLUDE(wsrep)
 INCLUDE(cpack_rpm)
 INCLUDE(cpack_deb)
@@ -342,6 +343,8 @@ MYSQL_CHECK_SSL()
 MYSQL_CHECK_READLINE()
 
 SET(MALLOC_LIBRARY "system")
+SET(PYTHON_SHEBANG "/usr/bin/env python" CACHE STRING "python shebang")
+MARK_AS_ADVANCED(PYTHON_SHEBANG)
 
 CHECK_PCRE()
 
@@ -376,7 +379,6 @@ ENDIF()
 
 SET (MYSQLD_STATIC_PLUGIN_LIBS "" CACHE INTERNAL "")
 
-INCLUDE(submodules)
 INCLUDE(mariadb_connector_c) # this does ADD_SUBDIRECTORY(libmariadb)
 
 # Add storage engines and plugins.
@@ -404,7 +406,7 @@ IF(NOT WITHOUT_SERVER)
   ENDIF(WITH_EMBEDDED_SERVER)
 
   IF(WITH_WSREP)
-    ADD_SUBDIRECTORY(wsrep)
+    ADD_SUBDIRECTORY(wsrep-lib)
   ENDIF()
 
   ADD_SUBDIRECTORY(mysql-test)

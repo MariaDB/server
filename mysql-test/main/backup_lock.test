@@ -1,0 +1,284 @@
+########################################################################
+# Tests BACKUP STAGE locking
+########################################################################
+
+--source include/have_innodb.inc
+--source include/have_metadata_lock_info.inc
+--source include/not_embedded.inc
+
+--echo #
+--echo # Testing which locks we get from all stages
+--echo #
+
+BACKUP STAGE START;
+SELECT LOCK_MODE, LOCK_TYPE, TABLE_SCHEMA, TABLE_NAME FROM information_schema.metadata_lock_info;
+BACKUP STAGE FLUSH;
+SELECT LOCK_MODE, LOCK_TYPE, TABLE_SCHEMA, TABLE_NAME FROM information_schema.metadata_lock_info;
+BACKUP STAGE BLOCK_DDL;
+SELECT LOCK_MODE, LOCK_TYPE, TABLE_SCHEMA, TABLE_NAME FROM information_schema.metadata_lock_info;
+BACKUP STAGE BLOCK_COMMIT;
+SELECT LOCK_MODE, LOCK_TYPE, TABLE_SCHEMA, TABLE_NAME FROM information_schema.metadata_lock_info;
+BACKUP STAGE END;
+SELECT LOCK_MODE, LOCK_TYPE, TABLE_SCHEMA, TABLE_NAME FROM information_schema.metadata_lock_info;
+
+--echo #
+--echo # testing BACKUP STAGE LOCK's
+--echo #
+
+# Following connections are used in a few of the following tests
+connect (con1,localhost,root,,);
+connect (con2,localhost,root,,);
+connection default;
+
+--echo #
+--echo # testing if BACKUP STAGE FLUSH causes deadlocks with ALTER TABLE
+--echo #
+
+create table t1 (a int) engine=innodb;
+
+start transaction;
+# Acquires MDL lock
+insert into t1 values (1);
+
+connection con1;
+# Waits on MDL
+--send alter table t1 add column (j int), algorithm copy
+
+connection con2;
+let $wait_condition=
+    select count(*) = 1 from information_schema.processlist
+    where state = "Waiting for table metadata lock";
+--source include/wait_condition.inc
+backup stage start;
+backup stage flush;
+SELECT LOCK_MODE, LOCK_TYPE, TABLE_SCHEMA, TABLE_NAME FROM information_schema.metadata_lock_info;
+#
+# Do first test with max_statement_time, other tests later are done with
+# lock_wait_timeout. This is mostly to ensure that both methods works
+#
+--error ER_STATEMENT_TIMEOUT
+SET STATEMENT max_statement_time=1 FOR backup stage block_ddl;
+--send backup stage block_ddl
+
+connection default;
+let $wait_condition=
+    select count(*) = 1 from information_schema.processlist
+    where state = "Waiting for backup lock";
+--source include/wait_condition.inc
+commit;
+# The following select works because alter table is waiting for DDL lock
+SELECT * FROM t1;
+--error ER_LOCK_WAIT_TIMEOUT
+SET STATEMENT lock_wait_timeout=0 FOR INSERT INTO t1 values (2);
+--send INSERT INTO t1 values (2,0);
+connection con2;
+--reap # BLOCK_DDL
+backup stage end;
+connection con1;
+--reap  # ALTER TABLE
+connection default;
+--reap  # INSERT
+select * from t1;
+drop table t1;
+
+--echo # Test with inline alter table, which doesn't block block_commit
+
+create table t1 (a int) engine=innodb;
+
+start transaction;
+# Acquires MDL lock
+insert into t1 values (1);
+
+connection con1;
+# Waits on MDL
+--send alter table t1 add column (j int)
+
+connection con2;
+let $wait_condition=
+    select count(*) = 1 from information_schema.processlist
+    where state = "Waiting for table metadata lock";
+--source include/wait_condition.inc
+backup stage start;
+backup stage flush;
+SELECT LOCK_MODE, LOCK_TYPE, TABLE_SCHEMA, TABLE_NAME FROM information_schema.metadata_lock_info;
+backup stage block_ddl;
+backup stage block_commit;
+connection default;
+SELECT * FROM t1;
+--send commit
+connection con2;
+let $wait_condition=
+    select count(*) = 1 from information_schema.processlist
+    where state = "Waiting for backup lock";
+backup stage end;
+connection con1;
+--reap  # ALTER TABLE
+connection default;
+--reap # commit
+drop table t1;
+
+--echo #
+--echo # testing if BACKUP STAGE FLUSH causes deadlocks with DROP TABLE
+--echo #
+
+create table t1 (a int) engine=innodb;
+start transaction;
+# Acquires MDL lock
+insert into t1 values (1);
+
+connection con1;
+# Waits on MDL
+--error ER_LOCK_WAIT_TIMEOUT
+SET STATEMENT lock_wait_timeout=0 FOR DROP TABLE t1;
+--send DROP TABLE t1
+
+connection con2;
+backup stage start;
+backup stage flush;
+let $wait_condition=
+    select count(*) = 1 from information_schema.processlist
+    where state = "Waiting for table metadata lock";
+--source include/wait_condition.inc
+--error ER_LOCK_WAIT_TIMEOUT
+SET STATEMENT lock_wait_timeout=0 FOR SELECT * FROM t1;
+
+backup stage block_ddl;
+SELECT LOCK_MODE, LOCK_TYPE, TABLE_SCHEMA, TABLE_NAME FROM information_schema.metadata_lock_info;
+backup stage end;
+
+connection default;
+commit;
+connection con1;
+--reap  # DROP TABLE
+connection default;
+
+--echo #
+--echo # Check if backup stage block_dll + concurrent drop table blocks select
+--echo #
+
+create table t1 (a int) engine=innodb;
+backup stage start;
+backup stage block_ddl;
+connection con1;
+--send DROP TABLE t1
+connection con2;
+let $wait_condition=
+    select count(*) = 1 from information_schema.processlist
+    where state = "Waiting for backup lock";
+--source include/wait_condition.inc
+connection con2;
+SELECT LOCK_MODE, LOCK_TYPE, TABLE_SCHEMA, TABLE_NAME FROM information_schema.metadata_lock_info;
+# Check that select's are not blocked
+SELECT * FROM t1;
+connection default;
+backup stage end;
+connection con1;
+--reap
+connection default;
+
+--echo #
+--echo # Check if backup stage block_dll overrides ddl lock for drop table
+--echo #
+
+create table t1 (a int) engine=innodb;
+start transaction;
+# Acquires MDL lock
+insert into t1 values (1);
+
+connection con1;
+# Waits on MDL
+--error ER_LOCK_WAIT_TIMEOUT
+SET STATEMENT lock_wait_timeout=0 FOR DROP TABLE t1;
+--send DROP TABLE t1
+
+connection con2;
+backup stage start;
+backup stage flush;
+backup stage block_ddl;
+connection default;
+commit;
+connection con2;
+backup stage end;
+connection con1;
+--reap  # DROP TABLE
+connection default;
+
+--echo #
+--echo # Check if BACKUP STAGE BLOCK_COMMIT blocks commit
+--echo #
+
+create table t1 (a int) engine=innodb;
+start transaction;
+# Acquires MDL lock
+insert into t1 values (1);
+
+connection con1;
+backup stage start;
+backup stage block_commit;
+connection default;
+--send commit
+connection con1;
+let $wait_condition=
+    select count(*) = 1 from information_schema.processlist
+    where state = "Waiting for backup lock";
+backup stage end;
+connection default;
+--reap # commit
+select * from t1;
+drop table t1;
+
+#
+# End of tests using con1 and con2
+#
+disconnect con1;
+disconnect con2;
+
+--echo #
+--echo # Test backup stage and flush tables
+--echo #
+
+BACKUP STAGE START ;
+BACKUP STAGE BLOCK_DDL ;
+FLUSH TABLES;
+CREATE TEMPORARY TABLE t12345678_tmp (col1 INT);
+drop table t12345678_tmp;
+BACKUP STAGE END;
+
+--echo #
+--echo # Test BACKUP STAGES with lock timeouts
+--echo #
+
+SET GLOBAL lock_wait_timeout=0;
+CREATE TABLE t_permanent_innodb (col1 INT) ENGINE = InnoDB;
+CREATE TABLE t_permanent_myisam (col1 INT) ENGINE = MyISAM;
+INSERT INTO t_permanent_innodb SET col1 = 1;
+
+INSERT INTO t_permanent_myisam SET col1 = 1;
+CREATE TABLE t_con1_innodb (col1 INT) ENGINE = InnoDB;
+CREATE TABLE t_con1_myisam (col1 INT) ENGINE = MyISAM;
+
+--connect(con1,localhost,root,,)
+SET AUTOCOMMIT = 0;
+
+--connection default
+BACKUP STAGE START;
+BACKUP STAGE FLUSH;
+BACKUP STAGE BLOCK_DDL;
+BACKUP STAGE BLOCK_COMMIT;
+
+--connection con1
+UPDATE t_permanent_innodb SET col1 = 8;
+--error ER_LOCK_WAIT_TIMEOUT
+UPDATE t_permanent_myisam SET col1 = 8;
+--error ER_LOCK_WAIT_TIMEOUT
+DROP TABLE t_con1_innodb;
+
+--error ER_LOCK_WAIT_TIMEOUT
+DROP TABLE t_con1_myisam;
+
+--connection default
+BACKUP STAGE END;
+DROP TABLE t_permanent_myisam, t_permanent_innodb;
+DROP TABLE t_con1_innodb, t_con1_myisam;
+--disconnect con1
+set global lock_wait_timeout=default;

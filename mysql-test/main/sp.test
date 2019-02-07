@@ -2918,7 +2918,7 @@ create procedure bug4904()
 begin
   declare continue handler for sqlstate 'HY000' begin end;
 
-  create table t2 as select * from t3;
+  create table not_existing_table as select * from t3;
 end|
 
 -- error 1146
@@ -9332,6 +9332,27 @@ where 1=1;
 drop function if exists f1;
 drop table t1,t2;
 
+--echo #
+--echo # MDEV-16957: Server crashes in Field_iterator_natural_join::next
+--echo # upon 2nd execution of SP
+--echo #
+
+CREATE TABLE t1 (a INT, b VARCHAR(32));
+CREATE PROCEDURE sp() SELECT * FROM t1 AS t1x JOIN t1 AS t1y USING (c);
+--error ER_BAD_FIELD_ERROR
+CALL sp;
+--error ER_BAD_FIELD_ERROR
+CALL sp;
+--error ER_BAD_FIELD_ERROR
+CALL sp;
+alter table t1 add column c int;
+CALL sp;
+
+# Cleanup
+DROP PROCEDURE sp;
+DROP TABLE t1;
+
+
 --echo # End of 5.5 test
 
 --echo #
@@ -10218,3 +10239,37 @@ CREATE TABLE t1 AS SELECT f1() AS c1, COALESCE(f1()) AS c2, CONCAT(f1()) AS c3;
 SHOW CREATE TABLE t1;
 DROP TABLE t1;
 DROP FUNCTION f1;
+
+--echo #
+--echo # MDEV-16036: Debug assertion failed in resignal on create
+--echo # temporary table 
+--echo #
+
+set @save_sql_mode= @@sql_mode;
+set sql_mode='ORACLE';
+delimiter /;
+CREATE or replace procedure p4()
+AS
+  CONTINUE HANDLER FOR SQLWARNING
+  BEGIN
+    NULL;
+  END;
+  EXIT HANDLER FOR OTHERS -- SQLEXCEPTION
+  BEGIN
+      GET DIAGNOSTICS CONDITION 1 @sqlstate = RETURNED_SQLSTATE, @errno = MYSQL_ERRNO, @text = MESSAGE_TEXT;
+      SELECT @sqlstate, @errno, @text;
+      SHOW WARNINGS;
+      RESIGNAL;  -- cause DBG_ASSERT failed
+  END;
+BEGIN
+  CREATE TEMPORARY TABLE IF NOT EXISTS t1(origine VARCHAR2(10) NOT NULL);
+END
+/
+delimiter ;/
+call p4();
+call p4();
+drop procedure p4;
+drop table t1;
+set @@sql_mode=@save_sql_mode;
+
+--echo # End of 10.3 tests

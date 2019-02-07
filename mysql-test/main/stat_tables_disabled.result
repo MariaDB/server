@@ -1,10 +1,10 @@
 SET SESSION STORAGE_ENGINE='InnoDB';
 select @@global.use_stat_tables;
 @@global.use_stat_tables
-NEVER
+PREFERABLY
 select @@session.use_stat_tables;
 @@session.use_stat_tables
-NEVER
+PREFERABLY
 set @save_use_stat_tables=@@use_stat_tables;
 set use_stat_tables='preferably';
 DROP DATABASE IF EXISTS dbt3_s001;

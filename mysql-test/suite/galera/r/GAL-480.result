@@ -1,3 +1,5 @@
+connection node_2;
+connection node_1;
 connection node_1;
 CREATE TABLE t1 (f1 CHAR(10), f0 integer) ENGINE=InnoDB;
 FLUSH TABLE t1 FOR EXPORT;

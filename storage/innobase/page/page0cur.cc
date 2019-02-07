@@ -25,8 +25,6 @@ The page cursor
 Created 10/4/1994 Heikki Tuuri
 *************************************************************************/
 
-#include "ha_prototypes.h"
-
 #include "page0cur.h"
 #include "page0zip.h"
 #include "btr0btr.h"
@@ -737,7 +735,7 @@ up_slot_match:
 				  & REC_INFO_MIN_REC_FLAG)) {
 			ut_ad(!page_has_prev(page_align(mid_rec)));
 			ut_ad(!page_rec_is_leaf(mid_rec)
-			      || rec_is_default_row(mid_rec, index));
+			      || rec_is_metadata(mid_rec, *index));
 			cmp = 1;
 			goto low_rec_match;
 		}
@@ -1370,7 +1368,7 @@ use_heap:
 			switch (rec_get_status(current_rec)) {
 			case REC_STATUS_ORDINARY:
 			case REC_STATUS_NODE_PTR:
-			case REC_STATUS_COLUMNS_ADDED:
+			case REC_STATUS_INSTANT:
 			case REC_STATUS_INFIMUM:
 				break;
 			case REC_STATUS_SUPREMUM:
@@ -1379,7 +1377,7 @@ use_heap:
 			switch (rec_get_status(insert_rec)) {
 			case REC_STATUS_ORDINARY:
 			case REC_STATUS_NODE_PTR:
-			case REC_STATUS_COLUMNS_ADDED:
+			case REC_STATUS_INSTANT:
 				break;
 			case REC_STATUS_INFIMUM:
 			case REC_STATUS_SUPREMUM:
@@ -1787,17 +1785,11 @@ too_small:
 			columns of free_rec, in case it will not be
 			overwritten by insert_rec. */
 
-			ulint	trx_id_col;
 			ulint	trx_id_offs;
 			ulint	len;
 
-			trx_id_col = dict_index_get_sys_col_pos(index,
-								DATA_TRX_ID);
-			ut_ad(trx_id_col > 0);
-			ut_ad(trx_id_col != ULINT_UNDEFINED);
-
-			trx_id_offs = rec_get_nth_field_offs(foffsets,
-							     trx_id_col, &len);
+			trx_id_offs = rec_get_nth_field_offs(
+				foffsets, index->db_trx_id(), &len);
 			ut_ad(len == DATA_TRX_ID_LEN);
 
 			if (DATA_TRX_ID_LEN + DATA_ROLL_PTR_LEN + trx_id_offs
@@ -1813,7 +1805,7 @@ too_small:
 
 			ut_ad(free_rec + trx_id_offs + DATA_TRX_ID_LEN
 			      == rec_get_nth_field(free_rec, foffsets,
-						   trx_id_col + 1, &len));
+						   index->db_roll_ptr(), &len));
 			ut_ad(len == DATA_ROLL_PTR_LEN);
 		}
 

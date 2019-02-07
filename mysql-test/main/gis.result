@@ -1679,7 +1679,7 @@ NULL
 #
 create table t1 (pt point);
 insert into t1 values(Geomfromtext('POLYGON((1 1, 2 2, 2 1, 1 1))'));
-ERROR 22007: Incorrect POINT value: 'POLYGON' for column 'pt' at row 1
+ERROR 22007: Incorrect POINT value: 'POLYGON' for column `test`.`t1`.`pt` at row 1
 drop table t1;
 SELECT st_astext(ST_Buffer(ST_PolygonFromText('POLYGON((3 5, 2 4, 2 5, 3 5))'), -100));
 st_astext(ST_Buffer(ST_PolygonFromText('POLYGON((3 5, 2 4, 2 5, 3 5))'), -100))
@@ -1720,6 +1720,22 @@ c2
 52
 DROP TABLE t1;
 SET optimizer_switch=@save_optimizer_switch;
+#
+# MDEV-16995: ER_CANT_CREATE_GEOMETRY_OBJECT encountered for a query with
+# optimizer_use_condition_selectivity>=3
+#
+CREATE TABLE t1 (a POINT);
+INSERT INTO t1 VALUES (POINT(1,1)),(POINT(1,2)),(POINT(1,3));
+set @save_use_stat_tables= @@use_stat_tables;
+set @save_optimizer_use_condition_selectivity= @@optimizer_use_condition_selectivity;
+set @@use_stat_tables= PREFERABLY;
+set @@optimizer_use_condition_selectivity=3;
+SELECT COUNT(*) FROM t1 WHERE a IN ('test','test1');
+COUNT(*)
+0
+set @@use_stat_tables= @save_use_stat_tables;
+set @@optimizer_use_condition_selectivity= @save_optimizer_use_condition_selectivity;
+drop table t1;
 #
 # End 10.0 tests
 #

@@ -435,7 +435,7 @@ partition_name	partition_ordinal_position	partition_method	timediff(partition_de
 p0	1	SYSTEM_TIME	00:00:00.000000
 pn	2	SYSTEM_TIME	NULL
 Warnings:
-Warning	1292	Truncated incorrect time value: 'CURRENT'
+Warning	1292	Incorrect time value: 'CURRENT'
 alter table t1 add partition (partition p1 history, partition p2 history);
 select partition_name,partition_ordinal_position,partition_method,timediff(partition_description, @ts) from information_schema.partitions where table_schema='test' and table_name='t1';
 partition_name	partition_ordinal_position	partition_method	timediff(partition_description, @ts)
@@ -444,7 +444,7 @@ p1	2	SYSTEM_TIME	01:00:00.000000
 p2	3	SYSTEM_TIME	02:00:00.000000
 pn	4	SYSTEM_TIME	NULL
 Warnings:
-Warning	1292	Truncated incorrect time value: 'CURRENT'
+Warning	1292	Incorrect time value: 'CURRENT'
 alter table t1 drop partition p0;
 select partition_name,partition_ordinal_position,partition_method,timediff(partition_description, @ts) from information_schema.partitions where table_schema='test' and table_name='t1';
 partition_name	partition_ordinal_position	partition_method	timediff(partition_description, @ts)
@@ -452,7 +452,7 @@ p1	1	SYSTEM_TIME	01:00:00.000000
 p2	2	SYSTEM_TIME	02:00:00.000000
 pn	3	SYSTEM_TIME	NULL
 Warnings:
-Warning	1292	Truncated incorrect time value: 'CURRENT'
+Warning	1292	Incorrect time value: 'CURRENT'
 alter table t1 drop partition p2;
 ERROR HY000: Can only drop oldest partitions when rotating by INTERVAL
 select partition_name,partition_ordinal_position,partition_method,timediff(partition_description, @ts) from information_schema.partitions where table_schema='test' and table_name='t1';
@@ -461,7 +461,7 @@ p1	1	SYSTEM_TIME	01:00:00.000000
 p2	2	SYSTEM_TIME	02:00:00.000000
 pn	3	SYSTEM_TIME	NULL
 Warnings:
-Warning	1292	Truncated incorrect time value: 'CURRENT'
+Warning	1292	Incorrect time value: 'CURRENT'
 #
 # MDEV-15103 Assertion in ha_partition::part_records() for updating VIEW
 #

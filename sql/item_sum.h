@@ -384,7 +384,9 @@ protected:
   Item **orig_args, *tmp_orig_args[2];
   
   static size_t ram_limitation(THD *thd);
-
+public:
+  // Methods used by ColumnStore
+  Item **get_orig_args() const { return orig_args; }
 public:  
 
   void mark_as_sum_func();
@@ -742,9 +744,9 @@ public:
   longlong val_int() { return val_int_from_real();  /* Real as default */ }
   String *val_str(String*str);
   my_decimal *val_decimal(my_decimal *);
-  bool get_date(MYSQL_TIME *ltime, ulonglong fuzzydate)
+  bool get_date(THD *thd, MYSQL_TIME *ltime, date_mode_t fuzzydate)
   {
-    return type_handler()->Item_get_date(this, ltime, fuzzydate);
+    return type_handler()->Item_get_date_with_warn(thd, this, ltime, fuzzydate);
   }
   void reset_field();
 };
@@ -1067,9 +1069,10 @@ protected:
   double val_real();
   longlong val_int();
   my_decimal *val_decimal(my_decimal *);
-  bool get_date(MYSQL_TIME *ltime, ulonglong fuzzydate);
+  bool get_date(THD *thd, MYSQL_TIME *ltime, date_mode_t fuzzydate);
   void reset_field();
   String *val_str(String *);
+  bool val_native(THD *thd, Native *);
   const Type_handler *real_type_handler() const
   {
     return get_arg(0)->real_type_handler();
@@ -1363,7 +1366,7 @@ public:
   void update_field(){DBUG_ASSERT(0);}
   void clear();
   void cleanup();
-  bool get_date(MYSQL_TIME *ltime, ulonglong fuzzydate)
+  bool get_date(THD *thd, MYSQL_TIME *ltime, date_mode_t fuzzydate)
   {
     return execute() || sp_result_field->get_date(ltime, fuzzydate);
   }
@@ -1403,9 +1406,9 @@ public:
   {
     return mark_unsupported_function(name.str, arg, VCOL_IMPOSSIBLE);
   }
-  bool get_date(MYSQL_TIME *ltime, ulonglong fuzzydate)
+  bool get_date(THD *thd, MYSQL_TIME *ltime, date_mode_t fuzzydate)
   {
-    return type_handler()->Item_get_date(this, ltime, fuzzydate);
+    return type_handler()->Item_get_date_with_warn(thd, this, ltime, fuzzydate);
   }
 };
 
@@ -1561,13 +1564,15 @@ public:
 
   void clear();
   bool add();
+  bool supports_removal() const;
+  void remove();
   void reset_field() {};
   void update_field() {};
   void cleanup();
   virtual void print(String *str, enum_query_type query_type);
-  bool get_date(MYSQL_TIME *ltime, ulonglong fuzzydate)
+  bool get_date(THD *thd, MYSQL_TIME *ltime, date_mode_t fuzzydate)
   {
-    return type_handler()->Item_get_date(this, ltime, fuzzydate);
+    return type_handler()->Item_get_date_with_warn(thd, this, ltime, fuzzydate);
   }
 };
 
@@ -1826,6 +1831,14 @@ class Item_func_group_concat : public Item_sum
                            element_count count __attribute__((unused)),
 			   void* item_arg);
 public:
+  // Methods used by ColumnStore
+  bool get_distinct() const { return distinct; }
+  uint get_count_field() const { return arg_count_field; }
+  uint get_order_field() const { return arg_count_order; }
+  const String* get_separator() const { return separator; }
+  ORDER** get_order() const { return order; }
+
+public:
   Item_func_group_concat(THD *thd, Name_resolution_context *context_arg,
                          bool is_distinct, List<Item> *is_select,
                          const SQL_I_List<ORDER> &is_order, String *is_separator,
@@ -1874,9 +1887,9 @@ public:
   {
     return val_decimal_from_string(decimal_value);
   }
-  bool get_date(MYSQL_TIME *ltime, ulonglong fuzzydate)
+  bool get_date(THD *thd, MYSQL_TIME *ltime, date_mode_t fuzzydate)
   {
-    return get_date_from_string(ltime, fuzzydate);
+    return get_date_from_string(thd, ltime, fuzzydate);
   }
   String* val_str(String* str);
   Item *copy_or_same(THD* thd);

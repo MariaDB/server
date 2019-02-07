@@ -255,7 +255,7 @@ bool CntOpenTable(PGLOBAL g, PTDB tdbp, MODE mode, char *c1, char *c2,
 
 	try {
 		if (!c1) {
-			if (mode == MODE_INSERT)
+//		if (mode == MODE_INSERT)	 or CHECK TABLE
 				// Allocate all column blocks for that table
 				tdbp->ColDB(g, NULL, 0);
 

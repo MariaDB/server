@@ -1,0 +1,26 @@
+--source include/have_tokudb.inc
+--source include/have_debug.inc
+
+--let SEARCH_FILE=$MYSQLTEST_VARDIR/tmp/tokudb.bugs.PS-3773.log
+--let $restart_parameters="--log-error=$SEARCH_FILE"
+--source include/restart_mysqld.inc
+
+CREATE TABLE t1(a INT, b INT, c INT, PRIMARY KEY(a), KEY(b)) ENGINE=TokuDB;
+SET tokudb_auto_analyze=0;
+INSERT INTO t1 VALUES(0,0,0), (1,1,1), (2,2,2), (3,3,3), (4,4,4), (5,5,5);
+
+SET GLOBAL debug_dbug = "+d,tokudb_fake_db_notfound_error_in_read_full_row";
+--error ER_NOT_KEYFILE
+SELECT * FROM t1 WHERE b = 2;
+
+DROP TABLE t1;
+
+--let SEARCH_PATTERN=ha_tokudb::read_full_row on table
+--source include/search_pattern_in_file.inc
+
+--let $restart_parameters=
+--source include/restart_mysqld.inc
+
+--remove_file $SEARCH_FILE
+--let SEARCH_PATTERN=
+--let SEARCH_FILE=

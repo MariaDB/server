@@ -30,6 +30,7 @@ test.tt_2	preload_keys	note	The storage engine for the table doesn't support pre
 INSERT INTO tt_1(ddl_case) VALUES (39);
 ANALYZE TABLE nt_1;
 Table	Op	Msg_type	Msg_text
+test.nt_1	analyze	status	Engine-independent statistics collected
 test.nt_1	analyze	status	Table is already up to date
 INSERT INTO tt_1(ddl_case) VALUES (38);
 CHECK TABLE nt_1;
@@ -332,10 +333,6 @@ SET AUTOCOMMIT= 1;
 ###################################################################################
 connection slave;
 include/diff_tables.inc [master:tt_1,slave:tt_1]
-Warnings:
-Warning	1287	'<select expression> INTO <destination>;' is deprecated and will be removed in a future release. Please use 'SELECT <select list> INTO <destination> FROM...' instead
-Warnings:
-Warning	1287	'<select expression> INTO <destination>;' is deprecated and will be removed in a future release. Please use 'SELECT <select list> INTO <destination> FROM...' instead
 ###################################################################################
 #                                        CLEAN
 ###################################################################################

@@ -27,7 +27,7 @@
 
 #include <mysql/plugin.h>
 
-#define MYSQL_AUTHENTICATION_INTERFACE_VERSION 0x0201
+#define MYSQL_AUTHENTICATION_INTERFACE_VERSION 0x0202
 
 #include <mysql/plugin_auth_common.h>
 
@@ -60,7 +60,8 @@ typedef struct st_mysql_server_auth_info
 
   /**
     A corresponding column value from the mysql.user table for the
-    matching account name
+    matching account name or the preprocessed value, if preprocess_hash
+    method is not NULL
   */
   const char *auth_string;
 
@@ -130,6 +131,47 @@ struct st_mysql_auth
     used for authorization.
   */
   int (*authenticate_user)(MYSQL_PLUGIN_VIO *vio, MYSQL_SERVER_AUTH_INFO *info);
+  /**
+    Create a password hash (or digest) out of a plain-text password
+
+    Used in SET PASSWORD, GRANT, and CREATE USER to convert user specified
+    plain-text password into a value that will be stored in mysql.user table.
+
+    @see preprocess_hash
+
+    @param password        plain-text password
+    @param password_length plain-text password length
+    @param hash            the digest will be stored there
+    @param hash_length     in: hash buffer size
+                           out: the actual length of the hash
+
+    @return 0 for ok, 1 for error
+
+    Can be NULL.
+  */
+  int (*hash_password)(const char *password, size_t password_length,
+                       char *hash, size_t *hash_length);
+
+  /**
+    Prepare the password hash for authentication.
+
+    Password hash is stored in the authentication_string column of the
+    mysql.user table in a text form. If a plugin needs to preprocess the
+    value somehow before the authentication (e.g. convert from hex or base64
+    to binary), it can do it in this method. This way the conversion
+    will happen only once, not for every authentication attempt.
+
+    The value written to the out buffer will be cached and later made
+    available to the authenticate_user() method in the
+    MYSQL_SERVER_AUTH_INFO::auth_string[] buffer.
+
+    @return 0 for ok, 1 for error
+
+    Can be NULL, in this case the mysql.user.authentication_string value will
+    be given to the authenticate_user() method as is, unconverted.
+  */
+  int (*preprocess_hash)(const char *hash, size_t hash_length,
+                         unsigned char *out, size_t *out_length);
 };
 
 #ifdef __cplusplus

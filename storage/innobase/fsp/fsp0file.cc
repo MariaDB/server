@@ -24,16 +24,11 @@ Tablespace data file implementation
 Created 2013-7-26 by Kevin Lewis
 *******************************************************/
 
-#include "ha_prototypes.h"
-
 #include "fil0fil.h"
 #include "fsp0types.h"
-#include "fsp0sysspace.h"
 #include "os0file.h"
 #include "page0page.h"
 #include "srv0start.h"
-#include "ut0new.h"
-#include "fil0crypt.h"
 
 /** Initialize the name, size and order of this datafile
 @param[in]	name	tablespace name, will be copied

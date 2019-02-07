@@ -693,6 +693,7 @@ void LEX::start(THD *thd_arg)
   curr_with_clause= 0;
   with_clauses_list= 0;
   with_clauses_list_last_next= &with_clauses_list;
+  clone_spec_offset= 0;
   create_view= NULL;
   field_list.empty();
   value_list.empty();
@@ -744,7 +745,7 @@ void LEX::start(THD *thd_arg)
   profile_options= PROFILE_NONE;
   nest_level= 0;
   builtin_select.nest_level_base= &unit;
-  allow_sum_func= 0;
+  allow_sum_func.clear_all();
   in_sum_func= NULL;
 
   used_tables= 0;
@@ -854,6 +855,32 @@ int Lex_input_stream::find_keyword(Lex_ident_cli_st *kwd,
     kwd->set_keyword(tok, len);
     DBUG_ASSERT(tok >= get_buf());
     DBUG_ASSERT(tok < get_end_of_query());
+
+    if (m_thd->variables.sql_mode & MODE_ORACLE)
+    {
+      switch (symbol->tok) {
+      case BEGIN_MARIADB_SYM:          return BEGIN_ORACLE_SYM;
+      case BLOB_MARIADB_SYM:           return BLOB_ORACLE_SYM;
+      case BODY_MARIADB_SYM:           return BODY_ORACLE_SYM;
+      case CLOB_MARIADB_SYM:           return CLOB_ORACLE_SYM;
+      case CONTINUE_MARIADB_SYM:       return CONTINUE_ORACLE_SYM;
+      case DECLARE_MARIADB_SYM:        return DECLARE_ORACLE_SYM;
+      case DECODE_MARIADB_SYM:         return DECODE_ORACLE_SYM;
+      case ELSEIF_MARIADB_SYM:         return ELSEIF_ORACLE_SYM;
+      case ELSIF_MARIADB_SYM:          return ELSIF_ORACLE_SYM;
+      case EXCEPTION_MARIADB_SYM:      return EXCEPTION_ORACLE_SYM;
+      case EXIT_MARIADB_SYM:           return EXIT_ORACLE_SYM;
+      case GOTO_MARIADB_SYM:           return GOTO_ORACLE_SYM;
+      case NUMBER_MARIADB_SYM:         return NUMBER_ORACLE_SYM;
+      case OTHERS_MARIADB_SYM:         return OTHERS_ORACLE_SYM;
+      case PACKAGE_MARIADB_SYM:        return PACKAGE_ORACLE_SYM;
+      case RAISE_MARIADB_SYM:          return RAISE_ORACLE_SYM;
+      case RAW_MARIADB_SYM:            return RAW_ORACLE_SYM;
+      case RETURN_MARIADB_SYM:         return RETURN_ORACLE_SYM;
+      case ROWTYPE_MARIADB_SYM:        return ROWTYPE_ORACLE_SYM;
+      case VARCHAR2_MARIADB_SYM:       return VARCHAR2_ORACLE_SYM;
+      }
+    }
 
     if ((symbol->tok == NOT_SYM) &&
         (m_thd->variables.sql_mode & MODE_HIGH_NOT_PRECEDENCE))
@@ -1469,6 +1496,12 @@ int Lex_input_stream::lex_one_token(YYSTYPE *yylval, THD *thd)
       }
       /* Fall through */
     case MY_LEX_CHAR:                          // Unknown or single char token
+      if (c == '%' && (m_thd->variables.sql_mode & MODE_ORACLE))
+      {
+        next_state= MY_LEX_START;
+        return PERCENT_ORACLE_SYM;
+      }
+      /* Fall through */
     case MY_LEX_SKIP:                          // This should not happen
       if (c != ')')
         next_state= MY_LEX_START;         // Allow signed numbers
@@ -1827,7 +1860,7 @@ int Lex_input_stream::lex_one_token(YYSTYPE *yylval, THD *thd)
           else
           {
 #ifdef WITH_WSREP
-            if (WSREP(thd) && version == 99997 && thd->wsrep_exec_mode == LOCAL_STATE)
+            if (WSREP(thd) && version == 99997 && wsrep_thd_is_local(thd))
             {
               WSREP_DEBUG("consistency check: %s", thd->query());
               thd->wsrep_consistency_check= CONSISTENCY_CHECK_DECLARED;
@@ -1907,8 +1940,13 @@ int Lex_input_stream::lex_one_token(YYSTYPE *yylval, THD *thd)
     case MY_LEX_SET_VAR:                // Check if ':='
       if (yyPeek() != '=')
       {
-        state= MY_LEX_CHAR;              // Return ':'
-        break;
+        next_state= MY_LEX_START;
+        if (m_thd->variables.sql_mode & MODE_ORACLE)
+        {
+          yylval->kwd.set_keyword(m_tok_start, 1);
+          return COLON_ORACLE_SYM;
+        }
+        return (int) ':';
       }
       yySkip();
       return (SET_VAR);
@@ -2389,7 +2427,7 @@ void st_select_lex::init_select()
   m_non_agg_field_used= false;
   m_agg_func_used= false;
   m_custom_agg_func_used= false;
-  name_visibility_map= 0;
+  name_visibility_map.clear_all();
   with_dep= 0;
   join= 0;
   lock_type= TL_READ_DEFAULT;
@@ -3170,7 +3208,7 @@ LEX::LEX()
                       INITIAL_LEX_PLUGIN_LIST_SIZE, 0);
   reset_query_tables_list(TRUE);
   mi.init();
-  init_dynamic_array2(&delete_gtid_domain, sizeof(ulong*),
+  init_dynamic_array2(&delete_gtid_domain, sizeof(uint32),
                       gtid_domain_static_buffer,
                       initial_gtid_domain_buffer_size,
                       initial_gtid_domain_buffer_size, 0);
@@ -3507,12 +3545,8 @@ void LEX::set_trg_event_type_for_tables()
     On a LOCK TABLE, all triggers must be pre-loaded for this TABLE_LIST
     when opening an associated TABLE.
   */
-    new_trg_event_map= static_cast<uint8>
-                        (1 << static_cast<int>(TRG_EVENT_INSERT)) |
-                      static_cast<uint8>
-                        (1 << static_cast<int>(TRG_EVENT_UPDATE)) |
-                      static_cast<uint8>
-                        (1 << static_cast<int>(TRG_EVENT_DELETE));
+    new_trg_event_map= trg2bit(TRG_EVENT_INSERT) | trg2bit(TRG_EVENT_UPDATE) |
+                       trg2bit(TRG_EVENT_DELETE);
     break;
   /*
     Basic INSERT. If there is an additional ON DUPLIATE KEY UPDATE
@@ -3543,20 +3577,17 @@ void LEX::set_trg_event_type_for_tables()
   */
   case SQLCOM_CREATE_TABLE:
   case SQLCOM_CREATE_SEQUENCE:
-    new_trg_event_map|= static_cast<uint8>
-                          (1 << static_cast<int>(TRG_EVENT_INSERT));
+    new_trg_event_map|= trg2bit(TRG_EVENT_INSERT);
     break;
   /* Basic update and multi-update */
   case SQLCOM_UPDATE:                           /* fall through */
   case SQLCOM_UPDATE_MULTI:
-    new_trg_event_map|= static_cast<uint8>
-                          (1 << static_cast<int>(TRG_EVENT_UPDATE));
+    new_trg_event_map|= trg2bit(TRG_EVENT_UPDATE);
     break;
   /* Basic delete and multi-delete */
   case SQLCOM_DELETE:                           /* fall through */
   case SQLCOM_DELETE_MULTI:
-    new_trg_event_map|= static_cast<uint8>
-                          (1 << static_cast<int>(TRG_EVENT_DELETE));
+    new_trg_event_map|= trg2bit(TRG_EVENT_DELETE);
     break;
   default:
     break;
@@ -3564,12 +3595,10 @@ void LEX::set_trg_event_type_for_tables()
 
   switch (duplicates) {
   case DUP_UPDATE:
-    new_trg_event_map|= static_cast<uint8>
-                          (1 << static_cast<int>(TRG_EVENT_UPDATE));
+    new_trg_event_map|= trg2bit(TRG_EVENT_UPDATE);
     break;
   case DUP_REPLACE:
-    new_trg_event_map|= static_cast<uint8>
-                          (1 << static_cast<int>(TRG_EVENT_DELETE));
+    new_trg_event_map|= trg2bit(TRG_EVENT_DELETE);
     break;
   case DUP_ERROR:
   default:
@@ -4101,6 +4130,7 @@ bool st_select_lex::optimize_unflattened_subqueries(bool const_only)
           inner_join->select_options|= SELECT_DESCRIBE;
         }
         res= inner_join->optimize();
+        sl->update_used_tables();
         sl->update_correlated_cache();
         is_correlated_unit|= sl->is_correlated;
         inner_join->select_options= save_options;
@@ -5257,6 +5287,9 @@ LEX::create_unit(SELECT_LEX *first_sel)
   SELECT_LEX_UNIT *unit;
   DBUG_ENTER("LEX::create_unit");
 
+  if (first_sel->master_unit())
+    DBUG_RETURN(first_sel->master_unit());
+
   if (!(unit= alloc_unit()))
     DBUG_RETURN(NULL);
 
@@ -5930,7 +5963,7 @@ bool LEX::sp_for_loop_implicit_cursor_statement(THD *thd,
     return true;
   DBUG_ASSERT(thd->lex == this);
   bounds->m_direction= 1;
-  bounds->m_upper_bound= NULL;
+  bounds->m_target_bound= NULL;
   bounds->m_implicit_cursor= true;
   return false;
 }
@@ -5974,7 +6007,7 @@ bool LEX::sp_for_loop_condition(THD *thd, const Lex_for_loop_st &loop)
   Item_splocal *args[2];
   for (uint i= 0 ; i < 2; i++)
   {
-    sp_variable *src= i == 0 ? loop.m_index : loop.m_upper_bound;
+    sp_variable *src= i == 0 ? loop.m_index : loop.m_target_bound;
     args[i]= new (thd->mem_root)
               Item_splocal(thd, &sp_rcontext_handler_local,
                            &src->name, src->offset, src->type_handler());
@@ -6037,7 +6070,7 @@ bool LEX::sp_for_loop_intrange_declarations(THD *thd, Lex_for_loop_st *loop,
     my_error(ER_SP_UNDECLARED_VAR, MYF(0), item->full_name());
     return true;
   }
-  if ((item= bounds.m_upper_bound->get_item())->type() == Item::FIELD_ITEM)
+  if ((item= bounds.m_target_bound->get_item())->type() == Item::FIELD_ITEM)
   {
     // We're here is the upper bound is unknown identifier
     my_error(ER_SP_UNDECLARED_VAR, MYF(0), item->full_name());
@@ -6047,11 +6080,11 @@ bool LEX::sp_for_loop_intrange_declarations(THD *thd, Lex_for_loop_st *loop,
         bounds.m_index->sp_add_for_loop_variable(thd, index,
                                                  bounds.m_index->get_item())))
     return true;
-  if (unlikely(!(loop->m_upper_bound=
-                 bounds.m_upper_bound->
-                 sp_add_for_loop_upper_bound(thd,
-                                             bounds.
-                                             m_upper_bound->get_item()))))
+  if (unlikely(!(loop->m_target_bound=
+                 bounds.m_target_bound->
+                 sp_add_for_loop_target_bound(thd,
+                                              bounds.
+                                              m_target_bound->get_item()))))
      return true;
   loop->m_direction= bounds.m_direction;
   loop->m_implicit_cursor= 0;
@@ -6114,7 +6147,7 @@ bool LEX::sp_for_loop_cursor_declarations(THD *thd,
                                                        bounds.m_index,
                                                        item_func_sp)))
     return true;
-  loop->m_upper_bound= NULL;
+  loop->m_target_bound= NULL;
   loop->m_direction= bounds.m_direction;
   loop->m_cursor_offset= coffs;
   loop->m_implicit_cursor= bounds.m_implicit_cursor;
@@ -6920,6 +6953,30 @@ Item *LEX::make_item_colon_ident_ident(THD *thd,
 }
 
 
+Item *LEX::make_item_plsql_cursor_attr(THD *thd, const LEX_CSTRING *name,
+                                       plsql_cursor_attr_t attr)
+{
+  uint offset;
+  if (unlikely(!spcont || !spcont->find_cursor(name, &offset, false)))
+  {
+    my_error(ER_SP_CURSOR_MISMATCH, MYF(0), name->str);
+    return NULL;
+  }
+  switch (attr) {
+  case PLSQL_CURSOR_ATTR_ISOPEN:
+    return new (thd->mem_root) Item_func_cursor_isopen(thd, name, offset);
+  case PLSQL_CURSOR_ATTR_FOUND:
+    return new (thd->mem_root) Item_func_cursor_found(thd, name, offset);
+  case PLSQL_CURSOR_ATTR_NOTFOUND:
+    return new (thd->mem_root) Item_func_cursor_notfound(thd, name, offset);
+  case PLSQL_CURSOR_ATTR_ROWCOUNT:
+    return new (thd->mem_root) Item_func_cursor_rowcount(thd, name, offset);
+  }
+  DBUG_ASSERT(0);
+  return NULL;
+}
+
+
 Item *LEX::make_item_sysvar(THD *thd,
                             enum_var_type type,
                             const LEX_CSTRING *name,
@@ -6945,6 +7002,14 @@ Item *LEX::make_item_sysvar(THD *thd,
 }
 
 
+static bool param_push_or_clone(THD *thd, LEX *lex, Item_param *item)
+{
+  return !lex->clone_spec_offset ?
+         lex->param_list.push_back(item, thd->mem_root) :
+         item->add_as_clone(thd);
+}
+
+
 Item_param *LEX::add_placeholder(THD *thd, const LEX_CSTRING *name,
                                  const char *start, const char *end)
 {
@@ -6961,7 +7026,7 @@ Item_param *LEX::add_placeholder(THD *thd, const LEX_CSTRING *name,
   Query_fragment pos(thd, sphead, start, end);
   Item_param *item= new (thd->mem_root) Item_param(thd, name,
                                                    pos.pos(), pos.length());
-  if (unlikely(!item) || unlikely(param_list.push_back(item, thd->mem_root)))
+  if (unlikely(!item) || unlikely(param_push_or_clone(thd, this, item)))
   {
     my_error(ER_OUT_OF_RESOURCES, MYF(0));
     return NULL;
@@ -9277,7 +9342,7 @@ bool LEX::parsed_insert_select(SELECT_LEX *first_select)
     return true;
 
   // fix "main" select
-  SELECT_LEX *blt= pop_select();
+  SELECT_LEX *blt __attribute__((unused))= pop_select();
   DBUG_ASSERT(blt == &builtin_select);
   push_select(first_select);
   return false;
@@ -9466,4 +9531,59 @@ bool SELECT_LEX::make_unique_derived_name(THD *thd, LEX_CSTRING *alias)
   alias->str= thd->strmake(buff, alias->length);
   return !alias->str;
 }
-    
+
+
+/*
+  Make a new sp_instr_stmt and set its m_query to a concatenation
+  of two strings.
+*/
+bool LEX::new_sp_instr_stmt(THD *thd,
+                            const LEX_CSTRING &prefix,
+                            const LEX_CSTRING &suffix)
+{
+  LEX_STRING qbuff;
+  sp_instr_stmt *i;
+
+  if (!(i= new (thd->mem_root) sp_instr_stmt(sphead->instructions(),
+                                             spcont, this)))
+    return true;
+
+  qbuff.length= prefix.length + suffix.length;
+  if (!(qbuff.str= (char*) alloc_root(thd->mem_root, qbuff.length + 1)))
+    return true;
+  memcpy(qbuff.str, prefix.str, prefix.length);
+  strmake(qbuff.str + prefix.length, suffix.str, suffix.length);
+  i->m_query= qbuff;
+  return sphead->add_instr(i);
+}
+
+
+bool LEX::sp_proc_stmt_statement_finalize_buf(THD *thd, const LEX_CSTRING &qbuf)
+{
+  sphead->m_flags|= sp_get_flags_for_command(this);
+  /* "USE db" doesn't work in a procedure */
+  if (unlikely(sql_command == SQLCOM_CHANGE_DB))
+  {
+    my_error(ER_SP_BADSTATEMENT, MYF(0), "USE");
+    return true;
+  }
+  /*
+    Don't add an instruction for SET statements, since all
+    instructions for them were already added during processing
+    of "set" rule.
+  */
+  DBUG_ASSERT(sql_command != SQLCOM_SET_OPTION || var_list.is_empty());
+  if (sql_command != SQLCOM_SET_OPTION)
+    return new_sp_instr_stmt(thd, empty_clex_str, qbuf);
+  return false;
+}
+
+
+bool LEX::sp_proc_stmt_statement_finalize(THD *thd, bool no_lookahead)
+{
+  // Extract the query statement from the tokenizer
+  Lex_input_stream *lip= &thd->m_parser_state->m_lip;
+  Lex_cstring qbuf(sphead->m_tmp_query, no_lookahead ? lip->get_ptr() :
+                                                       lip->get_tok_start());
+  return LEX::sp_proc_stmt_statement_finalize_buf(thd, qbuf);
+}

@@ -28,8 +28,6 @@ Created 1/8/1996 Heikki Tuuri
 #ifndef dict0mem_h
 #define dict0mem_h
 
-#include "univ.i"
-#include "dict0types.h"
 #include "data0type.h"
 #include "mem0mem.h"
 #include "row0types.h"
@@ -47,9 +45,9 @@ Created 1/8/1996 Heikki Tuuri
 #include "buf0buf.h"
 #include "gis0type.h"
 #include "os0once.h"
-#include "ut0new.h"
 #include "fil0fil.h"
 #include "fil0crypt.h"
+#include <sql_const.h>
 #include <set>
 #include <algorithm>
 #include <iterator>
@@ -497,10 +495,6 @@ dict_mem_create_temporary_tablename(
 	const char*	dbtab,
 	table_id_t	id);
 
-/** Initialize dict memory variables */
-void
-dict_mem_init(void);
-
 /** SQL identifier name wrapper for pretty-printing */
 class id_name_t
 {
@@ -587,6 +581,10 @@ struct dict_col_t{
 					this column. Our current max limit is
 					3072 (REC_VERSION_56_MAX_INDEX_COL_LEN)
 					bytes. */
+private:
+	/** Special value of ind for a dropped column */
+	static const unsigned DROPPED = 1023;
+public:
 
 	/** Detach the column from an index.
 	@param[in]	index	index to be detached from */
@@ -601,7 +599,7 @@ struct dict_col_t{
 	} def_val;
 
 	/** Retrieve the column name.
-	@param[in]	table	table name */
+	@param[in]	table	the table of this column */
 	const char* name(const dict_table_t& table) const;
 
 	/** @return whether this is a virtual column */
@@ -616,7 +614,8 @@ struct dict_col_t{
 		ut_ad(mtype == DATA_INT || mtype == DATA_FIXBINARY);
 		return mtype == DATA_INT;
 	}
-	/** @return whether this is system versioned */
+	/** @return whether this user column (not row_start, row_end)
+		    has System Versioning property */
 	bool is_versioned() const { return !(~prtype & DATA_VERSIONED); }
 	/** @return whether this is the system version start */
 	bool vers_sys_start() const
@@ -630,28 +629,71 @@ struct dict_col_t{
 	}
 
 	/** @return whether this is an instantly-added column */
-	bool is_instant() const
+	bool is_added() const
 	{
 		DBUG_ASSERT(def_val.len != UNIV_SQL_DEFAULT || !def_val.data);
 		return def_val.len != UNIV_SQL_DEFAULT;
 	}
+	/** Flag the column instantly dropped */
+	void set_dropped() { ind = DROPPED; }
+	/** Flag the column instantly dropped.
+	@param[in]	not_null	whether the column was NOT NULL
+	@param[in]	len2		whether the length exceeds 255 bytes
+	@param[in]	fixed_len	the fixed length in bytes, or 0 */
+	void set_dropped(bool not_null, bool len2, unsigned fixed)
+	{
+		DBUG_ASSERT(!len2 || !fixed);
+		prtype = not_null
+			? DATA_NOT_NULL | DATA_BINARY_TYPE
+			: DATA_BINARY_TYPE;
+		if (fixed) {
+			mtype = DATA_FIXBINARY;
+			len = fixed;
+		} else {
+			mtype = DATA_BINARY;
+			len = len2 ? 65535 : 255;
+		}
+		mbminlen = mbmaxlen = 0;
+		ind = DROPPED;
+		ord_part = 0;
+		max_prefix = 0;
+	}
+	/** @return whether the column was instantly dropped */
+	bool is_dropped() const { return ind == DROPPED; }
+	/** @return whether the column was instantly dropped
+	@param[in] index	the clustered index */
+	inline bool is_dropped(const dict_index_t& index) const;
+
 	/** Get the default value of an instantly-added column.
 	@param[out]	len	value length (in bytes), or UNIV_SQL_NULL
 	@return	default value
 	@retval	NULL	if the default value is SQL NULL (len=UNIV_SQL_NULL) */
 	const byte* instant_value(ulint* len) const
 	{
-		DBUG_ASSERT(is_instant());
+		DBUG_ASSERT(is_added());
 		*len = def_val.len;
 		return static_cast<const byte*>(def_val.data);
 	}
 
 	/** Remove the 'instant ADD' status of the column */
-	void remove_instant()
+	void clear_instant()
 	{
-		DBUG_ASSERT(is_instant());
 		def_val.len = UNIV_SQL_DEFAULT;
 		def_val.data = NULL;
+	}
+
+	/** Determine if the columns have the same format
+	except for is_nullable() and is_versioned().
+	@param[in]	other	column to compare to
+	@return	whether the columns have the same format */
+	bool same_format(const dict_col_t& other) const
+	{
+		return mtype == other.mtype
+			&& len >= other.len
+			&& mbminlen == other.mbminlen
+			&& mbmaxlen == other.mbmaxlen
+			&& !((prtype ^ other.prtype)
+			     & ~(DATA_NOT_NULL | DATA_VERSIONED));
 	}
 };
 
@@ -687,8 +729,7 @@ struct dict_v_col_t{
 	ulint			v_pos;
 
 	/** Virtual index list, and column position in the index,
-	the allocated memory is not from table->heap, nor it is
-	tracked by dict_sys->size */
+	the allocated memory is not from table->heap */
 	dict_v_idx_list*	v_indexes;
 
 };
@@ -827,7 +868,8 @@ an uncompressed page should be left as padding to avoid compression
 failures. This estimate is based on a self-adapting heuristic. */
 struct zip_pad_info_t {
 	SysMutex*	mutex;	/*!< mutex protecting the info */
-	ulint		pad;	/*!< number of bytes used as pad */
+	Atomic_counter<ulint>
+			pad;	/*!< number of bytes used as pad */
 	ulint		success;/*!< successful compression ops during
 				current round */
 	ulint		failure;/*!< failed compression ops during
@@ -853,7 +895,7 @@ to start with. */
 
 /** Data structure for an index.  Most fields will be
 initialized to 0, NULL or FALSE in dict_mem_index_create(). */
-struct dict_index_t{
+struct dict_index_t {
 	index_id_t	id;	/*!< id of the index */
 	mem_heap_t*	heap;	/*!< memory heap */
 	id_name_t	name;	/*!< index name */
@@ -1042,7 +1084,7 @@ struct dict_index_t{
 			page cannot be read or decrypted */
 	inline bool is_readable() const;
 
-	/** @return whether instant ADD COLUMN is in effect */
+	/** @return whether instant ALTER TABLE is in effect */
 	inline bool is_instant() const;
 
 	/** @return whether the index is the primary key index
@@ -1052,8 +1094,37 @@ struct dict_index_t{
 		return DICT_CLUSTERED == (type & (DICT_CLUSTERED | DICT_IBUF));
 	}
 
+	/** @return whether this is a generated clustered index */
+	bool is_gen_clust() const { return type == DICT_CLUSTERED; }
+
+	/** @return whether this is a clustered index */
+	bool is_clust() const { return type & DICT_CLUSTERED; }
+
+	/** @return whether this is a unique index */
+	bool is_unique() const { return type & DICT_UNIQUE; }
+
+	/** @return whether this is a spatial index */
+	bool is_spatial() const { return UNIV_UNLIKELY(type & DICT_SPATIAL); }
+
+	/** @return whether this is the change buffer */
+	bool is_ibuf() const { return UNIV_UNLIKELY(type & DICT_IBUF); }
+
 	/** @return whether the index includes virtual columns */
 	bool has_virtual() const { return type & DICT_VIRTUAL; }
+
+	/** @return the position of DB_TRX_ID */
+	unsigned db_trx_id() const {
+		DBUG_ASSERT(is_primary());
+		DBUG_ASSERT(n_uniq);
+		DBUG_ASSERT(n_uniq <= MAX_REF_PARTS);
+		return n_uniq;
+	}
+	/** @return the position of DB_ROLL_PTR */
+	unsigned db_roll_ptr() const { return db_trx_id() + 1; }
+
+	/** @return the offset of the metadata BLOB field,
+	or the first user field after the PRIMARY KEY,DB_TRX_ID,DB_ROLL_PTR */
+	unsigned first_user_field() const { return db_trx_id() + 2; }
 
 	/** @return whether the index is corrupted */
 	inline bool is_corrupted() const;
@@ -1100,24 +1171,20 @@ struct dict_index_t{
 		return fields[n].col->instant_value(len);
 	}
 
-	/** Adjust clustered index metadata for instant ADD COLUMN.
-	@param[in]	clustered index definition after instant ADD COLUMN */
-	void instant_add_field(const dict_index_t& instant);
+	/** Adjust index metadata for instant ADD/DROP/reorder COLUMN.
+	@param[in]	clustered index definition after instant ALTER TABLE */
+	inline void instant_add_field(const dict_index_t& instant);
+	/** Remove instant ADD COLUMN metadata. */
+	inline void clear_instant_add();
+	/** Remove instant ALTER TABLE metadata. */
+	inline void clear_instant_alter();
 
-	/** Remove the 'instant ADD' status of a clustered index.
-	Protected by index root page x-latch or table X-lock. */
-	void remove_instant()
-	{
-		DBUG_ASSERT(is_primary());
-		if (!is_instant()) {
-			return;
-		}
-		for (unsigned i = n_core_fields; i < n_fields; i++) {
-			fields[i].col->remove_instant();
-		}
-		n_core_fields = n_fields;
-		n_core_null_bytes = UT_BITS_IN_BYTES(unsigned(n_nullable));
-	}
+	/** Construct the metadata record for instant ALTER TABLE.
+	@param[in]	row	dummy or default values for existing columns
+	@param[in,out]	heap	memory heap for allocations
+	@return	metadata record */
+	inline dtuple_t*
+	instant_metadata(const dtuple_t& row, mem_heap_t* heap) const;
 
 	/** Check if record in clustered index is historical row.
 	@param[in]	rec	clustered row
@@ -1132,6 +1199,16 @@ struct dict_index_t{
 	@return true on error */
 	bool
 	vers_history_row(const rec_t* rec, bool &history_row);
+
+	/** Reconstruct the clustered index fields. */
+	inline void reconstruct_fields();
+
+	/** Check if the index contains a column or a prefix of that column.
+	@param[in]	n		column number
+	@param[in]	is_virtual	whether it is a virtual col
+	@return whether the index contains the column or its prefix */
+	bool contains_col_or_prefix(ulint n, bool is_virtual) const
+	MY_ATTRIBUTE((warn_unused_result));
 };
 
 /** Detach a column from an index.
@@ -1466,6 +1543,64 @@ struct dict_vcol_templ_t {
 	dict_vcol_templ_t() : vtempl(0), mysql_table_query_id(~0ULL) {}
 };
 
+/** Metadata on clustered index fields starting from first_user_field() */
+class field_map_element_t
+{
+	/** Number of bits for representing a column number */
+	static constexpr uint16_t IND_BITS = 10;
+
+	/** Set if the column of the field has been instantly dropped */
+	static constexpr uint16_t DROPPED = 1U << (IND_BITS + 5);
+
+	/** Set if the column was dropped and originally declared NOT NULL */
+	static constexpr uint16_t NOT_NULL = 1U << (IND_BITS + 4);
+
+	/** Column index (if !(data & DROPPED)): table->cols[data & IND],
+	or field length (if (data & DROPPED)):
+	(data & IND) = 0 if variable-length with max_len < 256 bytes;
+	(data & IND) = 1 if variable-length with max_len > 255 bytes;
+	(data & IND) = 1 + L otherwise, with L=fixed length of the column */
+	static constexpr uint16_t IND = (1U << IND_BITS) - 1;
+
+	/** Field metadata */
+	uint16_t data;
+
+	void clear_not_null() { data &= ~NOT_NULL; }
+public:
+	bool is_dropped() const { return data & DROPPED; }
+	void set_dropped() { data |= DROPPED; }
+	bool is_not_null() const { return data & NOT_NULL; }
+	void set_not_null() { ut_ad(is_dropped()); data |= NOT_NULL; }
+	uint16_t ind() const { return data & IND; }
+	void set_ind(uint16_t i)
+	{
+		DBUG_ASSERT(i <= IND);
+		DBUG_ASSERT(!ind());
+		data |= i;
+	}
+	field_map_element_t& operator= (uint16_t value)
+	{
+		data = value;
+		return *this;
+	}
+	operator uint16_t() { return data; }
+};
+
+static_assert(sizeof(field_map_element_t) == 2,
+	      "Size mismatch for a persistent data item!");
+
+/** Instantly dropped or reordered columns */
+struct dict_instant_t
+{
+	/** Number of dropped columns */
+	unsigned n_dropped;
+	/** Dropped columns */
+	dict_col_t* dropped;
+	/** Map of clustered index non-PK fields[i - first_user_field()]
+	to table columns */
+	field_map_element_t* field_map;
+};
+
 /** These are used when MySQL FRM and InnoDB data dictionary are
 in inconsistent state. */
 typedef enum {
@@ -1484,11 +1619,7 @@ struct dict_table_t {
 
 	/** Get reference count.
 	@return current value of n_ref_count */
-	inline int32 get_ref_count()
-	{
-		return my_atomic_load32_explicit(&n_ref_count,
-						 MY_MEMORY_ORDER_RELAXED);
-	}
+	inline uint32_t get_ref_count() const { return n_ref_count; }
 
 	/** Acquire the table handle. */
 	inline void acquire();
@@ -1508,6 +1639,9 @@ struct dict_table_t {
 		return flags2 & DICT_TF2_TEMPORARY;
 	}
 
+	/** @return whether the table is not in ROW_FORMAT=REDUNDANT */
+	bool not_redundant() const { return flags & DICT_TF_COMPACT; }
+
 	/** @return whether this table is readable
 	@retval	true	normally
 	@retval	false	if this is a single-table tablespace
@@ -1519,35 +1653,92 @@ struct dict_table_t {
 		return(UNIV_LIKELY(!file_unreadable));
 	}
 
-	/** @return whether instant ADD COLUMN is in effect */
+	/** @return whether instant ALTER TABLE is in effect */
 	bool is_instant() const
 	{
 		return(UT_LIST_GET_FIRST(indexes)->is_instant());
 	}
 
-	/** @return whether the table supports instant ADD COLUMN */
+	/** @return whether the table supports instant ALTER TABLE */
 	bool supports_instant() const
 	{
 		return(!(flags & DICT_TF_MASK_ZIP_SSIZE));
 	}
 
-	/** Adjust metadata for instant ADD COLUMN.
-	@param[in]	table	table definition after instant ADD COLUMN */
-	void instant_add_column(const dict_table_t& table);
+	/** @return the number of instantly dropped columns */
+	unsigned n_dropped() const { return instant ? instant->n_dropped : 0; }
 
-	/** Roll back instant_add_column().
-	@param[in]	old_n_cols	original n_cols
-	@param[in]	old_cols	original cols
-	@param[in]	old_col_names	original col_names */
-	void rollback_instant(
+	/** Look up an old column.
+	@param[in]	cols	the old columns of the table
+	@param[in]	col_map	map from old table columns to altered ones
+	@param[in]	n_cols	number of old columns
+	@param[in]	i	the number of the new column
+	@return	old column
+	@retval	NULL	if column i was added to the table */
+	static const dict_col_t* find(const dict_col_t* cols,
+				      const ulint* col_map, ulint n_cols,
+				      ulint i)
+	{
+		for (ulint o = n_cols; o--; ) {
+			if (col_map[o] == i) {
+				return &cols[o];
+			}
+		}
+		return NULL;
+	}
+
+	/** Serialise metadata of dropped or reordered columns.
+	@param[in,out]	heap	memory heap for allocation
+	@param[out]	field	data field with the metadata */
+	inline void serialise_columns(mem_heap_t* heap, dfield_t* field) const;
+
+	/** Reconstruct dropped or reordered columns.
+	@param[in]	metadata	data from serialise_columns()
+	@param[in]	len		length of the metadata, in bytes
+	@return whether parsing the metadata failed */
+	bool deserialise_columns(const byte* metadata, ulint len);
+
+	/** Set is_instant() before instant_column().
+	@param[in]	old		previous table definition
+	@param[in]	col_map		map from old.cols[]
+					and old.v_cols[] to this
+	@param[out]	first_alter_pos	0, or
+					1 + first changed column position */
+	inline void prepare_instant(const dict_table_t& old,
+				    const ulint* col_map,
+				    unsigned& first_alter_pos);
+
+	/** Adjust table metadata for instant ADD/DROP/reorder COLUMN.
+	@param[in]	table	table on which prepare_instant() was invoked
+	@param[in]	col_map	mapping from cols[] and v_cols[] to table
+	@return		whether the metadata record must be updated */
+	inline bool instant_column(const dict_table_t& table,
+				   const ulint* col_map);
+
+	/** Roll back instant_column().
+	@param[in]	old_n_cols		original n_cols
+	@param[in]	old_cols		original cols
+	@param[in]	old_col_names		original col_names
+	@param[in]	old_instant		original instant structure
+	@param[in]	old_fields		original fields
+	@param[in]	old_n_fields		original number of fields
+	@param[in]	old_n_core_fields	original number of core fields
+	@param[in]	old_n_v_cols		original n_v_cols
+	@param[in]	old_v_cols		original v_cols
+	@param[in]	old_v_col_names		original v_col_names
+	@param[in]	col_map			column map */
+	inline void rollback_instant(
 		unsigned	old_n_cols,
 		dict_col_t*	old_cols,
-		const char*	old_col_names);
-
-	/** Trim the instantly added columns when an insert into SYS_COLUMNS
-	is rolled back during ALTER TABLE or recovery.
-	@param[in]	n	number of surviving non-system columns */
-	void rollback_instant(unsigned n);
+		const char*	old_col_names,
+		dict_instant_t*	old_instant,
+		dict_field_t*	old_fields,
+		unsigned	old_n_fields,
+		unsigned	old_n_core_fields,
+		unsigned	old_n_v_cols,
+		dict_v_col_t*	old_v_cols,
+		const char*	old_v_col_names,
+		const ulint*	col_map);
 
 	/** Add the table definition to the data dictionary cache */
 	void add_to_cache();
@@ -1561,36 +1752,39 @@ struct dict_table_t {
 	void inc_fk_checks()
 	{
 #ifdef UNIV_DEBUG
-		lint fk_checks= (lint)
+		int32_t fk_checks=
 #endif
-		my_atomic_addlint(&n_foreign_key_checks_running, 1);
+		n_foreign_key_checks_running++;
 		ut_ad(fk_checks >= 0);
 	}
 	void dec_fk_checks()
 	{
 #ifdef UNIV_DEBUG
-		lint fk_checks= (lint)
+		int32_t fk_checks=
 #endif
-		my_atomic_addlint(&n_foreign_key_checks_running, ulint(-1));
+		n_foreign_key_checks_running--;
 		ut_ad(fk_checks > 0);
 	}
 
+private:
+	/** Initialize instant->field_map.
+	@tparam	replace_dropped	whether to point clustered index fields
+				to instant->dropped[]
+	@param[in]	table	table definition to copy from */
+	template<bool replace_dropped = false>
+	inline void init_instant(const dict_table_t& table);
+public:
 	/** Id of the table. */
 	table_id_t				id;
-
-	/** Memory heap. If you allocate from this heap after the table has
-	been created then be sure to account the allocation into
-	dict_sys->size. When closing the table we do something like
-	dict_sys->size -= mem_heap_get_size(table->heap) and if that is going
-	to become negative then we would assert. Something like this should do:
-	old_size = mem_heap_get_size()
-	mem_heap_alloc()
-	new_size = mem_heap_get_size()
-	dict_sys->size += new_size - old_size. */
-	mem_heap_t*				heap;
-
+	/** Hash chain node. */
+	hash_node_t				id_hash;
 	/** Table name. */
 	table_name_t				name;
+	/** Hash chain node. */
+	hash_node_t				name_hash;
+
+	/** Memory heap */
+	mem_heap_t*				heap;
 
 	/** NULL or the directory path specified by DATA DIRECTORY. */
 	char*					data_dir_path;
@@ -1689,6 +1883,9 @@ struct dict_table_t {
 	reason s_cols is a part of dict_table_t */
 	dict_s_col_list*			s_cols;
 
+	/** Instantly dropped or reordered columns, or NULL if none */
+	dict_instant_t*				instant;
+
 	/** Column names packed in a character string
 	"name1\0name2\0...nameN\0". Until the string contains n_cols, it will
 	be allocated from a temporary heap. The final string will be allocated
@@ -1709,12 +1906,6 @@ struct dict_table_t {
 				/*!< !DICT_FRM_CONSISTENT==0 if data
 				dictionary information and
 				MySQL FRM information mismatch. */
-	/** Hash chain node. */
-	hash_node_t				name_hash;
-
-	/** Hash chain node. */
-	hash_node_t				id_hash;
-
 	/** The FTS_DOC_ID_INDEX, or NULL if no fulltext indexes exist */
 	dict_index_t*				fts_doc_id_index;
 
@@ -1739,7 +1930,7 @@ struct dict_table_t {
 	/** Count of how many foreign key check operations are currently being
 	performed on the table. We cannot drop the table while there are
 	foreign key checks running on it. */
-	ulint					n_foreign_key_checks_running;
+	Atomic_counter<int32_t>			n_foreign_key_checks_running;
 
 	/** Transactions whose view low limit is greater than this number are
 	not allowed to store to the MySQL query cache or retrieve from it.
@@ -1939,7 +2130,7 @@ private:
 	/** Count of how many handles are opened to this table. Dropping of the
 	table is NOT allowed until this count gets to zero. MySQL does NOT
 	itself check the number of open handles at DROP. */
-	int32					n_ref_count;
+	Atomic_counter<uint32_t>		n_ref_count;
 
 public:
 	/** List of locks on the table. Protected by lock_sys.mutex. */
@@ -1970,12 +2161,15 @@ inline bool dict_index_t::is_readable() const { return table->is_readable(); }
 inline bool dict_index_t::is_instant() const
 {
 	ut_ad(n_core_fields > 0);
-	ut_ad(n_core_fields <= n_fields);
+	ut_ad(n_core_fields <= n_fields || table->n_dropped());
 	ut_ad(n_core_fields == n_fields
 	      || (type & ~(DICT_UNIQUE | DICT_CORRUPT)) == DICT_CLUSTERED);
 	ut_ad(n_core_fields == n_fields || table->supports_instant());
 	ut_ad(n_core_fields == n_fields || !table->is_temporary());
-	return(n_core_fields != n_fields);
+	ut_ad(!table->instant || !table->is_temporary());
+
+	return n_core_fields != n_fields
+		|| (is_primary() && table->instant);
 }
 
 inline bool dict_index_t::is_corrupted() const
@@ -1983,6 +2177,81 @@ inline bool dict_index_t::is_corrupted() const
 	return UNIV_UNLIKELY(online_status >= ONLINE_INDEX_ABORTED
 			     || (type & DICT_CORRUPT)
 			     || (table && table->corrupted));
+}
+
+inline void dict_index_t::clear_instant_add()
+{
+	DBUG_ASSERT(is_primary());
+	DBUG_ASSERT(is_instant());
+	DBUG_ASSERT(!table->instant);
+	for (unsigned i = n_core_fields; i < n_fields; i++) {
+		fields[i].col->clear_instant();
+	}
+	n_core_fields = n_fields;
+	n_core_null_bytes = UT_BITS_IN_BYTES(unsigned(n_nullable));
+}
+
+inline void dict_index_t::clear_instant_alter()
+{
+	DBUG_ASSERT(is_primary());
+	DBUG_ASSERT(n_fields == n_def);
+
+	if (!table->instant) {
+		if (is_instant()) {
+			clear_instant_add();
+		}
+		return;
+	}
+
+#ifndef DBUG_OFF
+	for (unsigned i = first_user_field(); i--; ) {
+		DBUG_ASSERT(!fields[i].col->is_dropped());
+		DBUG_ASSERT(!fields[i].col->is_nullable());
+	}
+#endif
+	const dict_col_t* ai_col = table->persistent_autoinc
+		? fields[table->persistent_autoinc - 1].col
+		: NULL;
+	dict_field_t* const begin = &fields[first_user_field()];
+	dict_field_t* end = &fields[n_fields];
+
+	for (dict_field_t* d = begin; d < end; ) {
+		/* Move fields for dropped columns to the end. */
+		if (!d->col->is_dropped()) {
+			d++;
+		} else {
+			if (d->col->is_nullable()) {
+				n_nullable--;
+			}
+
+			std::swap(*d, *--end);
+		}
+	}
+
+	DBUG_ASSERT(&fields[n_fields - table->n_dropped()] == end);
+	n_core_fields = n_fields = n_def = end - fields;
+	n_core_null_bytes = UT_BITS_IN_BYTES(n_nullable);
+	std::sort(begin, end, [](const dict_field_t& a, const dict_field_t& b)
+			      { return a.col->ind < b.col->ind; });
+	table->instant = NULL;
+	if (ai_col) {
+		auto a = std::find_if(begin, end,
+				      [ai_col](const dict_field_t& f)
+				      { return f.col == ai_col; });
+		table->persistent_autoinc = (a == end) ? 0 : 1 + (a - fields);
+	}
+}
+
+/** @return whether the column was instantly dropped
+@param[in] index	the clustered index */
+inline bool dict_col_t::is_dropped(const dict_index_t& index) const
+{
+	DBUG_ASSERT(index.is_primary());
+	DBUG_ASSERT(!is_dropped() == !index.table->instant);
+	DBUG_ASSERT(!is_dropped() || (this >= index.table->instant->dropped
+				      && this < index.table->instant->dropped
+				      + index.table->instant->n_dropped));
+	return is_dropped();
 }
 
 /*******************************************************************//**

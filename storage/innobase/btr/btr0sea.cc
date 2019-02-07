@@ -111,7 +111,7 @@ rec_fold(
 	ut_ad(rec_offs_validate(rec, NULL, offsets));
 	ut_ad(rec_validate(rec, offsets));
 	ut_ad(page_rec_is_leaf(rec));
-	ut_ad(!page_rec_is_default_row(rec));
+	ut_ad(!page_rec_is_metadata(rec));
 	ut_ad(n_fields > 0 || n_bytes > 0);
 
 	n_fields_rec = rec_offs_n_fields(offsets);
@@ -660,7 +660,7 @@ btr_search_update_hash_ref(
 		return;
 	}
 
-	ut_ad(block->page.id.space() == index->table->space->id);
+	ut_ad(block->page.id.space() == index->table->space_id);
 	ut_ad(index == cursor->index);
 	ut_ad(!dict_index_is_ibuf(index));
 
@@ -1190,7 +1190,7 @@ retry:
 
 	rec = page_get_infimum_rec(page);
 	rec = page_rec_get_next_low(rec, page_is_comp(page));
-	if (rec_is_default_row(rec, index)) {
+	if (rec_is_metadata(rec, *index)) {
 		rec = page_rec_get_next_low(rec, page_is_comp(page));
 	}
 
@@ -1273,7 +1273,7 @@ cleanup:
 /** Drop possible adaptive hash index entries when a page is evicted
 from the buffer pool or freed in a file, or the index is being dropped.
 @param[in]	page_id		page id */
-void btr_search_drop_page_hash_when_freed(const page_id_t& page_id)
+void btr_search_drop_page_hash_when_freed(const page_id_t page_id)
 {
 	buf_block_t*	block;
 	mtr_t		mtr;
@@ -1356,7 +1356,7 @@ btr_search_build_page_hash_index(
 	rec_offs_init(offsets_);
 	ut_ad(ahi_latch == btr_get_search_latch(index));
 	ut_ad(index);
-	ut_ad(block->page.id.space() == index->table->space->id);
+	ut_ad(block->page.id.space() == index->table->space_id);
 	ut_a(!dict_index_is_ibuf(index));
 	ut_ad(page_is_leaf(block->frame));
 
@@ -1398,7 +1398,7 @@ btr_search_build_page_hash_index(
 
 	rec = page_rec_get_next_const(page_get_infimum_rec(page));
 
-	if (rec_is_default_row(rec, index)) {
+	if (rec_is_metadata(rec, *index)) {
 		rec = page_rec_get_next_const(rec);
 		if (!--n_recs) return;
 	}
@@ -1673,7 +1673,7 @@ void btr_search_update_hash_on_delete(btr_cur_t* cursor)
 		return;
 	}
 
-	ut_ad(block->page.id.space() == index->table->space->id);
+	ut_ad(block->page.id.space() == index->table->space_id);
 	ut_a(index == cursor->index);
 	ut_a(block->curr_n_fields > 0 || block->curr_n_bytes > 0);
 	ut_a(!dict_index_is_ibuf(index));
@@ -1830,7 +1830,7 @@ btr_search_update_hash_on_insert(btr_cur_t* cursor, rw_lock_t* ahi_latch)
 		return;
 	}
 
-	ut_ad(block->page.id.space() == index->table->space->id);
+	ut_ad(block->page.id.space() == index->table->space_id);
 	btr_search_check_free_space_in_heap(index);
 
 	table = btr_get_search_table(index);
@@ -1862,7 +1862,7 @@ btr_search_update_hash_on_insert(btr_cur_t* cursor, rw_lock_t* ahi_latch)
 				     n_bytes, index->id);
 	}
 
-	if (!page_rec_is_infimum(rec) && !rec_is_default_row(rec, index)) {
+	if (!page_rec_is_infimum(rec) && !rec_is_metadata(rec, *index)) {
 		offsets = rec_get_offsets(
 			rec, index, offsets, true,
 			btr_search_get_n_fields(n_fields, n_bytes), &heap);

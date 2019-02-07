@@ -114,6 +114,11 @@ show status like "Qcache_queries_in_cache";
 show status like "Qcache_hits";
 
 #
+# RESET QUERY CACHE
+#
+--source include/reset_query_cache.inc
+
+#
 # MERGE TABLES with INSERT/UPDATE and DELETE
 #
 --echo
@@ -181,6 +186,11 @@ show status like "Qcache_hits";
 drop table t1, t2, t3;
 
 #
+# RESET QUERY CACHE
+#
+--source include/reset_query_cache.inc
+
+#
 # SELECT SQL_CACHE ...
 #
 --echo # On node-1
@@ -214,16 +224,7 @@ set query_cache_type=on;
 #
 # RESET QUERY CACHE
 #
---echo # On node-1
---connection node_1
-reset query cache;
-show status like "Qcache_queries_in_cache";
-show status like "Qcache_hits";
---echo # On node-2
---connection node_2
-reset query cache;
-show status like "Qcache_queries_in_cache";
-show status like "Qcache_hits";
+--source include/reset_query_cache.inc
 
 #
 # SELECT SQL_NO_CACHE
@@ -239,6 +240,11 @@ select sql_no_cache * from t1;
 show status like "Qcache_queries_in_cache";
 show status like "Qcache_hits";
 drop table t1;
+
+#
+# RESET QUERY CACHE
+#
+--source include/reset_query_cache.inc
 
 #
 # Check that queries that uses NOW(), LAST_INSERT_ID()... are not cached.
@@ -283,6 +289,11 @@ show status like "Qcache_hits";
 drop table t1;
 
 #
+# RESET QUERY CACHE
+#
+--source include/reset_query_cache.inc
+
+#
 # Non-cachable ODBC work around (and prepare cache for drop database)
 #
 --echo # On node-1
@@ -317,6 +328,11 @@ show status like "Qcache_hits";
 drop table t1;
 
 #
+# RESET QUERY CACHE
+#
+--source include/reset_query_cache.inc
+
+#
 # Charset conversion (cp1251_koi8 always present)
 # Note: Queries using different default character sets are cached separately.
 #
@@ -342,6 +358,11 @@ set CHARACTER SET DEFAULT;
 show status like "Qcache_queries_in_cache";
 show status like "Qcache_hits";
 drop table t1;
+
+#
+# RESET QUERY CACHE
+#
+--source include/reset_query_cache.inc
 
 #
 # Same tables in different dbs
@@ -375,6 +396,11 @@ show status like "Qcache_queries_in_cache";
 show status like "Qcache_hits";
 drop database mysqltest;
 drop table t1;
+
+#
+# RESET QUERY CACHE
+#
+--source include/reset_query_cache.inc
 
 #
 # FOUND_ROWS()
@@ -427,6 +453,11 @@ show status like "Qcache_hits";
 show status like "Qcache_queries_in_cache";
 
 drop table t1;
+
+#
+# RESET QUERY CACHE
+#
+--source include/reset_query_cache.inc
 
 #
 # Test insert delayed (MYISAM)
@@ -532,6 +563,11 @@ set GLOBAL query_cache_min_res_unit=default;
 show global variables like "query_cache_min_res_unit";
 
 #
+# RESET QUERY CACHE
+#
+--source include/reset_query_cache.inc
+
+#
 # Case sensitive test
 #
 --echo # On node-1
@@ -552,6 +588,11 @@ show status like "Qcache_queries_in_cache";
 show status like "Qcache_hits";
 show status like "Qcache_inserts";
 drop table t1;
+
+#
+# RESET QUERY CACHE
+#
+--source include/reset_query_cache.inc
 
 #
 # Test of query cache resizing
@@ -620,6 +661,11 @@ select * from t1;
 drop table t1;
 
 #
+# RESET QUERY CACHE
+#
+--source include/reset_query_cache.inc
+
+#
 # Temporary tables (ignored by Galera)
 #
 --echo # On node-1
@@ -651,6 +697,11 @@ show status like "Qcache_queries_in_cache";
 show status like "Qcache_hits";
 
 drop table t1, t2;
+
+#
+# RESET QUERY CACHE
+#
+--source include/reset_query_cache.inc
 
 #
 # System databse test (no need to perform it on node_2)
@@ -705,6 +756,11 @@ show status like "Qcache_hits";
 drop table t2;
 
 #
+# RESET QUERY CACHE
+#
+--source include/reset_query_cache.inc
+
+#
 # Load data invalidation test
 #
 --echo # On node-1
@@ -717,13 +773,13 @@ show status like "Qcache_hits";
 eval load data infile '$MYSQLTEST_VARDIR/std_data/words.dat' into table t1;
 show status like "Qcache_queries_in_cache";
 show status like "Qcache_hits";
-select count(*) from t1;
-
-# Wait for "load data" to replicate.
---sleep 5
+--let $wait_condition = SELECT COUNT(*) = 70 FROM t1;
+--source include/wait_condition.inc
 
 --echo # On node-2
 --connection node_2
+--let $wait_condition = SELECT COUNT(*) = 70 FROM t1;
+--source include/wait_condition.inc
 select count(*) from t1;
 show status like "Qcache_queries_in_cache";
 show status like "Qcache_hits";
@@ -734,6 +790,11 @@ show status like "Qcache_hits";
 select count(*) from t1;
 
 drop table t1;
+
+#
+# RESET QUERY CACHE
+#
+--source include/reset_query_cache.inc
 
 --echo #
 --echo # INTO OUTFILE/DUMPFILE test
@@ -755,6 +816,11 @@ drop table t1;
 let $datadir=`select @@datadir`;
 --remove_file $datadir/test/query_cache.dump.file
 --remove_file $datadir/test/query_cache.out.file
+
+#
+# RESET QUERY CACHE
+#
+--source include/reset_query_cache.inc
 
 --echo #
 --echo # Test of SQL_SELECT_LIMIT
@@ -785,6 +851,11 @@ show status like "Qcache_hits";
 SET SQL_SELECT_LIMIT=DEFAULT;
 
 drop table t1;
+
+#
+# RESET QUERY CACHE
+#
+--source include/reset_query_cache.inc
 
 --echo #
 --echo # WRITE LOCK & QC
@@ -855,6 +926,11 @@ create temporary table t1 (a int not null auto_increment primary key);
 select * from t1;
 drop table t1;
 drop table t1;
+
+#
+# RESET QUERY CACHE
+#
+--source include/reset_query_cache.inc
 
 #
 # Test character set related variables:
@@ -944,6 +1020,11 @@ show status like "Qcache_inserts";
 
 drop table t1;
 
+#
+# RESET QUERY CACHE
+#
+--source include/reset_query_cache.inc
+
 --echo #
 --echo # Comments before command
 --echo #
@@ -952,26 +1033,27 @@ drop table t1;
 --connection node_1
 create table t1 (a int) engine=innodb;
 show status like "Qcache_queries_in_cache";
-show status like "Qcache_inserts";
 show status like "Qcache_hits";
 /**/ select * from t1;
 /**/ select * from t1;
 show status like "Qcache_queries_in_cache";
-show status like "Qcache_inserts";
 show status like "Qcache_hits";
 
 --echo # On node-2
 --connection node_2
 show status like "Qcache_queries_in_cache";
-show status like "Qcache_inserts";
 show status like "Qcache_hits";
 /**/ select * from t1;
 /**/ select * from t1;
 show status like "Qcache_queries_in_cache";
-show status like "Qcache_inserts";
 show status like "Qcache_hits";
 
 drop table t1;
+
+#
+# RESET QUERY CACHE
+#
+--source include/reset_query_cache.inc
 
 --echo #
 --echo # Information schema & query cache test
@@ -1010,6 +1092,11 @@ repair table t1;
 show status like 'qcache_queries_in_cache';
 show status like "Qcache_hits";
 drop table t1;
+
+#
+# RESET QUERY CACHE
+#
+--source include/reset_query_cache.inc
 
 --echo # Restore original settings.
 --echo # On node-1

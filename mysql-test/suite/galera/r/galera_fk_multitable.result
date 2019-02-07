@@ -1,3 +1,5 @@
+connection node_2;
+connection node_1;
 CREATE TABLE t0 (
 f0 INT PRIMARY KEY
 );

@@ -29,8 +29,8 @@
 #include "sql_statistics.h"
 #include "opt_range.h"
 #include "uniques.h"
-#include "my_atomic.h"
 #include "sql_show.h"
+#include "sql_partition.h"
 
 /*
   The system variable 'use_stat_tables' can take one of the
@@ -3253,7 +3253,7 @@ int read_statistics_for_tables_if_needed(THD *thd, TABLE_LIST *tables)
 {
   TABLE_LIST stat_tables[STATISTICS_TABLES];
   Open_tables_backup open_tables_backup;
-
+  bool has_error_active= thd->is_error();
   DBUG_ENTER("read_statistics_for_tables_if_needed");
 
   DEBUG_SYNC(thd, "statistics_read_start");
@@ -3263,7 +3263,8 @@ int read_statistics_for_tables_if_needed(THD *thd, TABLE_LIST *tables)
 
   if (open_stat_tables(thd, stat_tables, &open_tables_backup, FALSE))
   {
-    thd->clear_error();
+    if (!has_error_active)
+      thd->clear_error();
     DBUG_RETURN(1);
   }
 
@@ -3272,6 +3273,9 @@ int read_statistics_for_tables_if_needed(THD *thd, TABLE_LIST *tables)
     if (!tl->is_view_or_derived() && !is_temporary_table(tl) && tl->table)
     { 
       TABLE_SHARE *table_share= tl->table->s;
+      if (table_share && !(table_share->table_category == TABLE_CATEGORY_USER))
+        continue;
+
       if (table_share && 
           table_share->stats_cb.stats_can_be_read &&
 	  !table_share->stats_cb.stats_is_read)
@@ -3314,7 +3318,7 @@ int read_statistics_for_tables_if_needed(THD *thd, TABLE_LIST *tables)
   'db' from all statistical tables: table_stats, column_stats, index_stats.
 
   @retval
-  0         If all deletions are successful  
+  0         If all deletions are successful or we couldn't open statistics table
   @retval
   1         Otherwise
 
@@ -3322,7 +3326,8 @@ int read_statistics_for_tables_if_needed(THD *thd, TABLE_LIST *tables)
   The function is called when executing the statement DROP TABLE 'tab'.
 */
 
-int delete_statistics_for_table(THD *thd, const LEX_CSTRING *db, const LEX_CSTRING *tab)
+int delete_statistics_for_table(THD *thd, const LEX_CSTRING *db,
+                                const LEX_CSTRING *tab)
 {
   int err;
   enum_binlog_format save_binlog_format;
@@ -3330,11 +3335,15 @@ int delete_statistics_for_table(THD *thd, const LEX_CSTRING *db, const LEX_CSTRI
   TABLE_LIST tables[STATISTICS_TABLES];
   Open_tables_backup open_tables_backup;
   int rc= 0;
-
+  bool has_error_active= thd->is_error();
   DBUG_ENTER("delete_statistics_for_table");
    
   if (open_stat_tables(thd, tables, &open_tables_backup, TRUE))
-    DBUG_RETURN(rc);
+  {
+    if (!has_error_active)
+      thd->clear_error();
+    DBUG_RETURN(0);
+  }
 
   save_binlog_format= thd->set_current_stmt_binlog_format_stmt();
 
@@ -3399,7 +3408,7 @@ int delete_statistics_for_table(THD *thd, const LEX_CSTRING *db, const LEX_CSTRI
   'tab' from the statistical table column_stats. 
 
   @retval
-  0         If the deletion is successful  
+  0         If all deletions are successful or we couldn't open statistics table
   @retval
   1         Otherwise
 
@@ -3416,14 +3425,15 @@ int delete_statistics_for_column(THD *thd, TABLE *tab, Field *col)
   TABLE_LIST tables;
   Open_tables_backup open_tables_backup;
   int rc= 0;
-
+  bool has_error_active= thd->is_error();
   DBUG_ENTER("delete_statistics_for_column");
    
   if (open_single_stat_table(thd, &tables, &stat_table_name[1],
                              &open_tables_backup, TRUE))
   {
-    thd->clear_error();
-    DBUG_RETURN(rc);
+    if (!has_error_active)
+      thd->clear_error();
+    DBUG_RETURN(0);
   }
 
   save_binlog_format= thd->set_current_stmt_binlog_format_stmt();
@@ -3465,7 +3475,7 @@ int delete_statistics_for_column(THD *thd, TABLE *tab, Field *col)
   defined on the table 'tab' from the statistical table index_stats.
 
   @retval
-  0         If the deletion is successful  
+  0         If all deletions are successful or we couldn't open statistics table
   @retval
   1         Otherwise
 
@@ -3483,14 +3493,15 @@ int delete_statistics_for_index(THD *thd, TABLE *tab, KEY *key_info,
   TABLE_LIST tables;
   Open_tables_backup open_tables_backup;
   int rc= 0;
-
+  bool has_error_active= thd->is_error();
   DBUG_ENTER("delete_statistics_for_index");
    
   if (open_single_stat_table(thd, &tables, &stat_table_name[2],
 			     &open_tables_backup, TRUE))
   {
-    thd->clear_error();
-    DBUG_RETURN(rc);
+    if (!has_error_active)
+      thd->clear_error();
+    DBUG_RETURN(0);
   }
 
   save_binlog_format= thd->set_current_stmt_binlog_format_stmt();
@@ -3560,8 +3571,10 @@ int delete_statistics_for_index(THD *thd, TABLE *tab, KEY *key_info,
   The function is called when executing any statement that renames a table
 */
 
-int rename_table_in_stat_tables(THD *thd, const LEX_CSTRING *db, const LEX_CSTRING *tab,
-                                const LEX_CSTRING *new_db, const LEX_CSTRING *new_tab)
+int rename_table_in_stat_tables(THD *thd, const LEX_CSTRING *db,
+                                const LEX_CSTRING *tab,
+                                const LEX_CSTRING *new_db,
+                                const LEX_CSTRING *new_tab)
 {
   int err;
   enum_binlog_format save_binlog_format;
@@ -3572,7 +3585,9 @@ int rename_table_in_stat_tables(THD *thd, const LEX_CSTRING *db, const LEX_CSTRI
   DBUG_ENTER("rename_table_in_stat_tables");
    
   if (open_stat_tables(thd, tables, &open_tables_backup, TRUE))
+  {
     DBUG_RETURN(0); // not an error
+  }
 
   save_binlog_format= thd->set_current_stmt_binlog_format_stmt();
 
@@ -3664,7 +3679,7 @@ int rename_column_in_stat_tables(THD *thd, TABLE *tab, Field *col,
   TABLE_LIST tables;
   Open_tables_backup open_tables_backup;
   int rc= 0;
-
+  bool has_error_active= thd->is_error();
   DBUG_ENTER("rename_column_in_stat_tables");
   
   if (tab->s->tmp_table != NO_TMP_TABLE)
@@ -3673,7 +3688,8 @@ int rename_column_in_stat_tables(THD *thd, TABLE *tab, Field *col,
   if (open_single_stat_table(thd, &tables, &stat_table_name[1],
                              &open_tables_backup, TRUE))
   {
-    thd->clear_error();
+    if (!has_error_active)
+      thd->clear_error();
     DBUG_RETURN(rc);
   }
 
@@ -3717,17 +3733,32 @@ void set_statistics_for_table(THD *thd, TABLE *table)
 {
   TABLE_STATISTICS_CB *stats_cb= &table->s->stats_cb;
   Table_statistics *read_stats= stats_cb->table_stats;
-  Use_stat_tables_mode use_stat_table_mode= get_use_stat_tables_mode(thd);
   table->used_stat_records= 
-    (use_stat_table_mode <= COMPLEMENTARY ||
+    (!check_eits_preferred(thd) ||
      !table->stats_is_read || read_stats->cardinality_is_null) ?
     table->file->stats.records : read_stats->cardinality;
+
+  /*
+    For partitioned table, EITS statistics is based on data from all partitions.
+
+    On the other hand, Partition Pruning figures which partitions will be
+    accessed and then computes the estimate of rows in used_partitions.
+
+    Use the estimate from Partition Pruning as it is typically more precise.
+    Ideally, EITS should provide per-partition statistics but this is not
+    implemented currently.
+  */
+#ifdef WITH_PARTITION_STORAGE_ENGINE
+    if (table->part_info)
+      table->used_stat_records= table->file->stats.records;
+#endif
+
   KEY *key_info, *key_info_end;
   for (key_info= table->key_info, key_info_end= key_info+table->s->keys;
        key_info < key_info_end; key_info++)
   {
     key_info->is_statistics_from_stat_tables=
-      (use_stat_table_mode > COMPLEMENTARY &&
+      (check_eits_preferred(thd) &&
        table->stats_is_read &&
        key_info->read_stats->avg_frequency_is_inited() &&
        key_info->read_stats->get_avg_frequency(0) > 0.5);
@@ -4039,4 +4070,30 @@ bool is_stat_table(const LEX_CSTRING *db, LEX_CSTRING *table)
     }
   }
   return false;
+}
+
+/*
+  Check wheter we can use EITS statistics for a field or not
+
+  TRUE : Use EITS for the columns
+  FALSE: Otherwise
+*/
+
+bool is_eits_usable(Field *field)
+{
+  /*
+    (1): checks if we have EITS statistics for a particular column
+    (2): Don't use EITS for GEOMETRY columns
+    (3): Disabling reading EITS statistics for columns involved in the
+         partition list of a table. We assume the selecticivity for
+         such columns would be handled during partition pruning.
+  */
+  Column_statistics* col_stats= field->read_stats;
+  return col_stats && !col_stats->no_stat_values_provided() &&        //(1)
+    field->type() != MYSQL_TYPE_GEOMETRY &&                           //(2)
+#ifdef WITH_PARTITION_STORAGE_ENGINE
+    (!field->table->part_info ||
+     !field->table->part_info->field_in_partition_expr(field)) &&     //(3)
+#endif
+    true;
 }

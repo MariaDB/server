@@ -29,6 +29,7 @@ Created 2/2/1994 Heikki Tuuri
 #include "page0cur.h"
 #include "page0zip.h"
 #include "buf0buf.h"
+#include "buf0checksum.h"
 #include "btr0btr.h"
 #include "srv0srv.h"
 #include "lock0lock.h"
@@ -235,7 +236,7 @@ page_set_autoinc(
 		      mtr, block, MTR_MEMO_PAGE_X_FIX | MTR_MEMO_PAGE_SX_FIX));
 	ut_ad(index->is_primary());
 	ut_ad(index->page == block->page.id.page_no());
-	ut_ad(index->table->space->id == block->page.id.space());
+	ut_ad(index->table->space_id == block->page.id.space());
 
 	byte*	field = PAGE_HEADER + PAGE_ROOT_AUTO_INC
 		+ buf_block_get_frame(block);
@@ -1804,6 +1805,7 @@ page_print_list(
 	count = 0;
 	for (;;) {
 		offsets = rec_get_offsets(cur.rec, index, offsets,
+					  page_rec_is_leaf(cur.rec),
 					  ULINT_UNDEFINED, &heap);
 		page_rec_print(cur.rec, offsets);
 
@@ -1826,6 +1828,7 @@ page_print_list(
 
 		if (count + pr_n >= n_recs) {
 			offsets = rec_get_offsets(cur.rec, index, offsets,
+						  page_rec_is_leaf(cur.rec),
 						  ULINT_UNDEFINED, &heap);
 			page_rec_print(cur.rec, offsets);
 		}
@@ -2788,7 +2791,7 @@ page_find_rec_max_not_deleted(
 	const rec_t*	prev_rec = NULL; // remove warning
 
 	/* Because the page infimum is never delete-marked
-	and never the 'default row' pseudo-record (MIN_REC_FLAG)),
+	and never the metadata pseudo-record (MIN_REC_FLAG)),
 	prev_rec will always be assigned to it first. */
 	ut_ad(!rec_get_info_bits(rec, page_rec_is_comp(rec)));
 	ut_ad(page_is_leaf(page));
@@ -2813,43 +2816,4 @@ page_find_rec_max_not_deleted(
 		} while (rec != page + PAGE_OLD_SUPREMUM);
 	}
 	return(prev_rec);
-}
-
-/** Issue a warning when the checksum that is stored in the page is valid,
-but different than the global setting innodb_checksum_algorithm.
-@param[in]	current_algo	current checksum algorithm
-@param[in]	page_checksum	page valid checksum
-@param[in]	page_id		page identifier */
-void
-page_warn_strict_checksum(
-	srv_checksum_algorithm_t	curr_algo,
-	srv_checksum_algorithm_t	page_checksum,
-	const page_id_t&		page_id)
-{
-	srv_checksum_algorithm_t	curr_algo_nonstrict;
-	switch (curr_algo) {
-	case SRV_CHECKSUM_ALGORITHM_STRICT_CRC32:
-		curr_algo_nonstrict = SRV_CHECKSUM_ALGORITHM_CRC32;
-		break;
-	case SRV_CHECKSUM_ALGORITHM_STRICT_INNODB:
-		curr_algo_nonstrict = SRV_CHECKSUM_ALGORITHM_INNODB;
-		break;
-	case SRV_CHECKSUM_ALGORITHM_STRICT_NONE:
-		curr_algo_nonstrict = SRV_CHECKSUM_ALGORITHM_NONE;
-		break;
-	default:
-		ut_error;
-	}
-
-	ib::warn() << "innodb_checksum_algorithm is set to \""
-		<< buf_checksum_algorithm_name(curr_algo) << "\""
-		<< " but the page " << page_id << " contains a valid checksum \""
-		<< buf_checksum_algorithm_name(page_checksum) << "\". "
-		<< " Accepting the page as valid. Change"
-		<< " innodb_checksum_algorithm to \""
-		<< buf_checksum_algorithm_name(curr_algo_nonstrict)
-		<< "\" to silently accept such pages or rewrite all pages"
-		<< " so that they contain \""
-		<< buf_checksum_algorithm_name(curr_algo_nonstrict)
-		<< "\" checksum.";
 }

@@ -171,7 +171,6 @@ static void *move_numbers(void *arg) {
         */
 
         void* v1;
-        long s1;
         CACHEKEY less_key;
         less_key.b = less;
         uint32_t less_fullhash = less;
@@ -184,7 +183,6 @@ static void *move_numbers(void *arg) {
             less_key,
             less,
             &v1,
-            &s1,
             wc, fetch, def_pf_req_callback, def_pf_callback,
             PL_WRITE_CHEAP,
             NULL,
@@ -205,7 +203,6 @@ static void *move_numbers(void *arg) {
             make_blocknum(greater),
             greater,
             &v1,
-            &s1,
             wc, fetch, def_pf_req_callback, def_pf_callback, 
             PL_WRITE_CHEAP,
             NULL,
@@ -238,7 +235,6 @@ static void *move_numbers(void *arg) {
                 make_blocknum(third),
                 third,
                 &v1,
-                &s1,
                 wc, fetch, def_pf_req_callback, def_pf_callback,
                 PL_WRITE_CHEAP,
                 NULL,
@@ -264,7 +260,6 @@ static void *read_random_numbers(void *arg) {
     while(run_test) {
         int rand_key1 = random() % NUM_ELEMENTS;
         void* v1;
-        long s1;
         int r1;
         CACHETABLE_WRITE_CALLBACK wc = def_write_callback(NULL);
         wc.flush_callback = flush;
@@ -274,7 +269,6 @@ static void *read_random_numbers(void *arg) {
             make_blocknum(rand_key1),
             rand_key1,
             &v1,
-            &s1,
             wc, fetch, def_pf_req_callback, def_pf_callback, 
             PL_READ,
             NULL,

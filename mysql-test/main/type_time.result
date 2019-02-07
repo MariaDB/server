@@ -320,7 +320,7 @@ DROP TABLE t2,t1;
 SET sql_mode=traditional;
 CREATE TABLE t1 (a TIME(6));
 INSERT INTO t1 VALUES (CAST(0xFFFFFFFF00000000 AS UNSIGNED));
-ERROR 22007: Incorrect time value: '18446744069414584320' for column 'a' at row 1
+ERROR 22007: Incorrect time value: '18446744069414584320' for column `test`.`t1`.`a` at row 1
 SET sql_mode=DEFAULT;
 INSERT IGNORE INTO t1 VALUES (CAST(0xFFFFFFFF00000000 AS UNSIGNED));
 Warnings:
@@ -1179,7 +1179,7 @@ SELECT CAST(a AS TIME), CAST(-9223372036854775808 AS TIME) FROM t1;
 CAST(a AS TIME)	CAST(-9223372036854775808 AS TIME)
 -838:59:59	-838:59:59
 Warnings:
-Warning	1292	Incorrect time value: '-9223372036854775808' for column 'a' at row 1
+Warning	1292	Incorrect time value: '-9223372036854775808' for column `test`.`t1`.`a` at row 1
 Warning	1292	Truncated incorrect time value: '-9223372036854775808'
 DROP TABLE t1;
 CREATE TABLE t1 (a INT, b DECIMAL, c DOUBLE);
@@ -1196,12 +1196,12 @@ a	TIME(a)	TIME(b)	TIME(c)
 9	00:00:09	00:00:09	00:00:09.000000
 9000000	838:59:59	838:59:59	838:59:59.999999
 Warnings:
-Warning	1292	Incorrect time value: '-9000000' for column 'a' at row 1
-Warning	1292	Incorrect time value: '-9000000' for column 'b' at row 1
-Warning	1292	Incorrect time value: '-9000000' for column 'c' at row 1
-Warning	1292	Incorrect time value: '9000000' for column 'a' at row 6
-Warning	1292	Incorrect time value: '9000000' for column 'b' at row 6
-Warning	1292	Incorrect time value: '9000000' for column 'c' at row 6
+Warning	1292	Incorrect time value: '-9000000' for column `test`.`t1`.`a` at row 1
+Warning	1292	Incorrect time value: '-9000000' for column `test`.`t1`.`b` at row 1
+Warning	1292	Incorrect time value: '-9000000' for column `test`.`t1`.`c` at row 1
+Warning	1292	Incorrect time value: '9000000' for column `test`.`t1`.`a` at row 6
+Warning	1292	Incorrect time value: '9000000' for column `test`.`t1`.`b` at row 6
+Warning	1292	Incorrect time value: '9000000' for column `test`.`t1`.`c` at row 6
 DROP TABLE t1;
 CREATE TABLE t1 (a INT, b DECIMAL, c DOUBLE);
 INSERT INTO t1 VALUES (0,0,0),(1,1,1),(9,9,9);
@@ -1213,9 +1213,9 @@ a	TIME(a)	TIME(b)	TIME(c)
 9	00:00:09	00:00:09	00:00:09.000000
 9000000	838:59:59	838:59:59	838:59:59.999999
 Warnings:
-Warning	1292	Incorrect time value: '9000000' for column 'a' at row 4
-Warning	1292	Incorrect time value: '9000000' for column 'b' at row 4
-Warning	1292	Incorrect time value: '9000000' for column 'c' at row 4
+Warning	1292	Incorrect time value: '9000000' for column `test`.`t1`.`a` at row 4
+Warning	1292	Incorrect time value: '9000000' for column `test`.`t1`.`b` at row 4
+Warning	1292	Incorrect time value: '9000000' for column `test`.`t1`.`c` at row 4
 DROP TABLE t1;
 #
 # MDEV-8862 Wrong field type for MAX(COALESCE(datetime_column))
@@ -1463,9 +1463,9 @@ GREATEST('2010-01-01 10:10:10',TIME('-20:20:20')) AS gt_minus20_implicit,
 GREATEST(CAST('2010-01-01 10:10:10' AS TIME(6)),TIME('-20:20:20')) AS gt_minis20_explicit,
 GREATEST('2010-01-01 10:10:10',TIME('20:20:20')) AS gt_plus20_implicit,
 GREATEST(CAST('2010-01-01 10:10:10' AS TIME(6)),TIME('20:20:20')) AS gt_plus20_explicit;
-gt_minus20_implicit	10:10:10.000000
+gt_minus20_implicit	10:10:10
 gt_minis20_explicit	10:10:10.000000
-gt_plus20_implicit	20:20:20.000000
+gt_plus20_implicit	20:20:20
 gt_plus20_explicit	20:20:20.000000
 SELECT
 HOUR(GREATEST('2010-01-01 10:10:10',TIME('-20:20:20'))) AS gt_minus20_implicit,
@@ -1481,9 +1481,9 @@ LEAST('2010-01-01 10:10:10',TIME('-20:20:20')) AS lt_minus20_implicit,
 LEAST(CAST('2010-01-01 10:10:10' AS TIME(6)),TIME('-20:20:20')) AS lt_minus20_explicit,
 LEAST('2010-01-01 10:10:10',TIME('20:20:20')) AS lt_plus20_implicit,
 LEAST(CAST('2010-01-01 10:10:10' AS TIME(6)),TIME('20:20:20')) AS lt_plus20_explicit;
-lt_minus20_implicit	-20:20:20.000000
+lt_minus20_implicit	-20:20:20
 lt_minus20_explicit	-20:20:20.000000
-lt_plus20_implicit	10:10:10.000000
+lt_plus20_implicit	10:10:10
 lt_plus20_explicit	10:10:10.000000
 SELECT
 HOUR(LEAST('2010-01-01 10:10:10',TIME('-20:20:20'))) AS lt_minus20_implicit,
@@ -1499,9 +1499,9 @@ GREATEST('2010-01-01 10:10:10',TIME('-200:20:20')) AS gt_minus200_implicit,
 GREATEST(CAST('2010-01-01 10:10:10' AS TIME(6)),TIME('-200:20:20')) AS gt_minus200_explictit,
 GREATEST('2010-01-01 10:10:10',TIME('200:20:20')) AS gt_plus200_implicit,
 GREATEST(CAST('2010-01-01 10:10:10' AS TIME(6)),TIME('200:20:20')) AS gt_plus200_explicit;
-gt_minus200_implicit	10:10:10.000000
+gt_minus200_implicit	10:10:10
 gt_minus200_explictit	10:10:10.000000
-gt_plus200_implicit	200:20:20.000000
+gt_plus200_implicit	200:20:20
 gt_plus200_explicit	200:20:20.000000
 SELECT
 HOUR(GREATEST('2010-01-01 10:10:10',TIME('-200:20:20'))) AS gt_minus200_implicit,
@@ -1517,9 +1517,9 @@ LEAST('2010-01-01 10:10:10',TIME('-200:20:20')) AS lt_minus200_implicit,
 LEAST(CAST('2010-01-01 10:10:10' AS TIME(6)),TIME('-200:20:20')) AS lt_minus200_explictit,
 LEAST('2010-01-01 10:10:10',TIME('200:20:20')) AS lt_plus200_implicit,
 LEAST(CAST('2010-01-01 10:10:10' AS TIME(6)),TIME('200:20:20')) AS lt_plus200_explicit;
-lt_minus200_implicit	-200:20:20.000000
+lt_minus200_implicit	-200:20:20
 lt_minus200_explictit	-200:20:20.000000
-lt_plus200_implicit	10:10:10.000000
+lt_plus200_implicit	10:10:10
 lt_plus200_explicit	10:10:10.000000
 SELECT
 HOUR(LEAST('2010-01-01 10:10:10',TIME('-200:20:20'))) AS lt_minus200_implicit,
@@ -2075,6 +2075,116 @@ SELECT * FROM (t1 JOIN t2 ON (t2.d1 = t1.t1))  WHERE (t1.d1 > 70 );
 d1	t1	d1
 UPDATE (t1 JOIN t2 ON (t2.d1 = t1.t1)) SET t1.d1 = '2018-07-07' WHERE (t1.d1 > 70 );
 DROP TABLE t1,t2;
+#
+# MDEV-17219 Assertion `!t->fraction_remainder(decimals())' failed in Field_time::store_TIME_with_warning
+#
+SET optimizer_use_condition_selectivity=3;
+CREATE TABLE t1 (it TIME NOT NULL);
+INSERT INTO t1 VALUES ('07:25:13'),('05:15:55'),('09:58:01'),('04:23:57'),('19:37:28'),('01:38:05'),('20:50:52');
+SELECT 1 FROM t1 WHERE it < -7487797330456870912;
+1
+Warnings:
+Warning	1292	Truncated incorrect time value: '-7487797330456870912'
+DROP TABLE t1;
+SET optimizer_use_condition_selectivity=DEFAULT;
+#
+# MDEV-17417 TIME(99991231235959) returns 838:59:59 instead of 23:59:58
+#
+SELECT TIME(99991231235957), TIME(99991231235958), TIME(99991231235959);
+TIME(99991231235957)	TIME(99991231235958)	TIME(99991231235959)
+23:59:57	23:59:58	23:59:59
+#
+# MDEV-17634 Regression: TIME(0)=TIME('z') returns NULL vs 1
+#
+SELECT
+TIMESTAMP(0)=TIMESTAMP('z') AS ts,
+DATE(0)=DATE('z') AS d,
+TIME(0)=TIME('z') AS t;
+ts	d	t
+1	1	1
+Warnings:
+Warning	1292	Truncated incorrect datetime value: 'z'
+Warning	1292	Truncated incorrect datetime value: 'z'
+Warning	1292	Truncated incorrect time value: 'z'
+SELECT
+TIMESTAMP(0)=TIMESTAMP('') AS ts,
+DATE(0)=DATE('') AS d,
+TIME(0)=TIME('') AS t;
+ts	d	t
+1	1	1
+Warnings:
+Warning	1292	Truncated incorrect datetime value: ''
+Warning	1292	Truncated incorrect datetime value: ''
+Warning	1292	Truncated incorrect time value: ''
+#
+# MDEV-17563 Different results using table or view when comparing values of time type
+#
+CREATE TABLE t1 (pk int, x1 time, x2 varchar(1));
+INSERT INTO t1 VALUES (17,'09:16:37','k'),(70,'19:44:22','k');
+CREATE VIEW v1 AS SELECT * FROM t1;
+SELECT pk FROM t1 WHERE x1 >x2;
+pk
+17
+70
+Warnings:
+Warning	1292	Truncated incorrect time value: 'k'
+Warning	1292	Truncated incorrect time value: 'k'
+SELECT pk FROM v1 WHERE x1 >x2;
+pk
+17
+70
+Warnings:
+Warning	1292	Truncated incorrect time value: 'k'
+Warning	1292	Truncated incorrect time value: 'k'
+DROP VIEW v1;
+DROP TABLE t1;
+CREATE TABLE t1 (pk int, x1 time, x2 varchar(1));
+INSERT INTO t1 VALUES (17,'09:16:37',''),(70,'19:44:22','k');
+CREATE VIEW v1 AS SELECT * FROM t1;
+SELECT pk FROM t1 WHERE x1 >x2;
+pk
+17
+70
+Warnings:
+Warning	1292	Truncated incorrect time value: ''
+Warning	1292	Truncated incorrect time value: 'k'
+SELECT pk FROM v1 WHERE x1 >x2;
+pk
+17
+70
+Warnings:
+Warning	1292	Truncated incorrect time value: ''
+Warning	1292	Truncated incorrect time value: 'k'
+DROP VIEW IF EXISTS v1;
+DROP TABLE IF EXISTS t1;
+#
+# MDEV-17625 Different warnings when comparing a garbage to DATETIME vs TIME
+#
+SELECT TIMESTAMP(0)='z', DATE(0)='z', TIME(0)='z';
+TIMESTAMP(0)='z'	DATE(0)='z'	TIME(0)='z'
+1	1	1
+Warnings:
+Warning	1292	Truncated incorrect datetime value: 'z'
+Warning	1292	Truncated incorrect datetime value: 'z'
+Warning	1292	Truncated incorrect time value: 'z'
+#
+# MDEV-17319 Assertion `ts_type != MYSQL_TIMESTAMP_TIME' failed upon inserting into TIME field
+#
+CREATE TABLE t1 (t TIME);
+SET SESSION SQL_MODE='TRADITIONAL';
+INSERT INTO t1 VALUES ('0000-00-00 00:00:00'),('0000-00-00 00:00:00');
+ERROR 22007: Incorrect time value: '0000-00-00 00:00:00' for column `test`.`t1`.`t` at row 1
+SET sql_mode=DEFAULT;
+DROP TABLE t1;
+#
+# MDEV-18070 Assertion `nanoseconds <= 1000000000' failed in Temporal::add_nanoseconds_ssff with TIME_ROUND_FRACTIONAL
+#
+CREATE TABLE t1 (t TIME);
+SET SQL_MODE= 'TIME_ROUND_FRACTIONAL';
+INSERT INTO t1 VALUES (3e19);
+Warnings:
+Warning	1264	Out of range value for column 't' at row 1
+DROP TABLE t1;
 #
 # End of 10.4 tests
 #

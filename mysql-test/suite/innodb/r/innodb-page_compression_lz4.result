@@ -147,7 +147,8 @@ count(*)
 select count(*) from innodb_page_compressed9 where c1 < 500000;
 count(*)
 5000
-alter table innodb_normal page_compressed=1 page_compression_level=8;
+alter table innodb_normal page_compressed=1 page_compression_level=8,
+algorithm=instant;
 show warnings;
 Level	Code	Message
 show create table innodb_normal;
@@ -156,6 +157,10 @@ innodb_normal	CREATE TABLE `innodb_normal` (
   `c1` int(11) DEFAULT NULL,
   `b` char(20) DEFAULT NULL
 ) ENGINE=InnoDB DEFAULT CHARSET=latin1 `page_compressed`=1 `page_compression_level`=8
+alter table innodb_compressed row_format=default page_compressed=1 page_compression_level=8 key_block_size=0, algorithm=instant;
+ERROR 0A000: ALGORITHM=INSTANT is not supported. Reason: Changing table options requires the table to be rebuilt. Try ALGORITHM=INPLACE
+alter table innodb_compressed row_format=default page_compressed=1 page_compression_level=8 key_block_size=0, algorithm=nocopy;
+ERROR 0A000: ALGORITHM=NOCOPY is not supported. Reason: Changing table options requires the table to be rebuilt. Try ALGORITHM=INPLACE
 alter table innodb_compressed row_format=default page_compressed=1 page_compression_level=8 key_block_size=0;
 show warnings;
 Level	Code	Message

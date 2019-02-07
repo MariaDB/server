@@ -127,33 +127,32 @@ row_purge_remove_clust_if_poss_low(
 	purge_node_t*	node,	/*!< in/out: row purge node */
 	ulint		mode)	/*!< in: BTR_MODIFY_LEAF or BTR_MODIFY_TREE */
 {
-	dict_index_t*		index;
-	bool			success		= true;
-	mtr_t			mtr;
-	rec_t*			rec;
-	mem_heap_t*		heap		= NULL;
-	ulint*			offsets;
-	ulint			offsets_[REC_OFFS_NORMAL_SIZE];
-	rec_offs_init(offsets_);
-
 	ut_ad(rw_lock_own(dict_operation_lock, RW_LOCK_S)
 	      || node->vcol_info.is_used());
 
-	index = dict_table_get_first_index(node->table);
+	dict_index_t* index = dict_table_get_first_index(node->table);
 
 	log_free_check();
-	mtr_start(&mtr);
-	index->set_modified(mtr);
+
+	mtr_t mtr;
+	mtr.start();
 
 	if (!row_purge_reposition_pcur(mode, node, &mtr)) {
 		/* The record was already removed. */
-		goto func_exit;
+		mtr.commit();
+		return true;
 	}
 
-	rec = btr_pcur_get_rec(&node->pcur);
+	ut_d(const bool was_instant = !!index->table->instant);
+	index->set_modified(mtr);
 
-	offsets = rec_get_offsets(
+	rec_t* rec = btr_pcur_get_rec(&node->pcur);
+	ulint offsets_[REC_OFFS_NORMAL_SIZE];
+	rec_offs_init(offsets_);
+	mem_heap_t* heap = NULL;
+	ulint* offsets = rec_get_offsets(
 		rec, index, offsets_, true, ULINT_UNDEFINED, &heap);
+	bool success = true;
 
 	if (node->roll_ptr != row_get_rec_roll_ptr(rec, index, offsets)) {
 		/* Someone else has modified the record later: do not remove */
@@ -185,6 +184,10 @@ row_purge_remove_clust_if_poss_low(
 			ut_error;
 		}
 	}
+
+	/* Prove that dict_index_t::clear_instant_alter() was
+	not called with index->table->instant != NULL. */
+	ut_ad(!was_instant || index->table->instant);
 
 func_exit:
 	if (heap) {
@@ -374,6 +377,13 @@ retry_purge_sec:
 	}
 
 	ut_ad(mtr.has_committed());
+
+	/* If the virtual column info is not used then reset the virtual column
+	info. */
+	if (node->vcol_info.is_requested()
+	    && !node->vcol_info.is_used()) {
+		node->vcol_info.reset();
+	}
 
 	if (store_cur && !row_purge_restore_vsec_cur(
 		    node, index, sec_pcur, sec_mtr, is_tree)) {
@@ -838,8 +848,9 @@ static void row_purge_reset_trx_id(purge_node_t* node, mtr_t* mtr)
 		became purgeable) */
 		if (node->roll_ptr
 		    == row_get_rec_roll_ptr(rec, index, offsets)) {
-			ut_ad(!rec_get_deleted_flag(rec,
-						    rec_offs_comp(offsets)));
+			ut_ad(!rec_get_deleted_flag(
+					rec, rec_offs_comp(offsets))
+			      || rec_is_alter_metadata(rec, *index));
 			DBUG_LOG("purge", "reset DB_TRX_ID="
 				 << ib::hex(row_get_rec_trx_id(
 						    rec, index, offsets)));
@@ -1043,7 +1054,7 @@ row_purge_parse_undo_rec(
 	switch (type) {
 	case TRX_UNDO_RENAME_TABLE:
 		return false;
-	case TRX_UNDO_INSERT_DEFAULT:
+	case TRX_UNDO_INSERT_METADATA:
 	case TRX_UNDO_INSERT_REC:
 		break;
 	default:
@@ -1080,7 +1091,7 @@ try_again:
 	}
 
 	switch (type) {
-	case TRX_UNDO_INSERT_DEFAULT:
+	case TRX_UNDO_INSERT_METADATA:
 	case TRX_UNDO_INSERT_REC:
 		break;
 	default:
@@ -1100,8 +1111,10 @@ try_again:
 			goto try_again;
 		}
 
-		/* Initialize the template for the table */
-		innobase_init_vc_templ(node->table);
+		node->vcol_info.set_requested();
+		node->vcol_info.set_used();
+		node->vcol_info.set_table(innobase_init_vc_templ(node->table));
+		node->vcol_info.set_used();
 	}
 
 	clust_index = dict_table_get_first_index(node->table);
@@ -1118,8 +1131,8 @@ err_exit:
 		return(false);
 	}
 
-	if (type == TRX_UNDO_INSERT_DEFAULT) {
-		node->ref = &trx_undo_default_rec;
+	if (type == TRX_UNDO_INSERT_METADATA) {
+		node->ref = &trx_undo_metadata;
 		return(true);
 	}
 
@@ -1138,10 +1151,13 @@ err_exit:
 	/* Read to the partial row the fields that occur in indexes */
 
 	if (!(node->cmpl_info & UPD_NODE_NO_ORD_CHANGE)) {
+		ut_ad(!(node->update->info_bits & REC_INFO_MIN_REC_FLAG));
 		ptr = trx_undo_rec_get_partial_row(
 			ptr, clust_index, node->update, &node->row,
 			type == TRX_UNDO_UPD_DEL_REC,
 			node->heap);
+	} else if (node->update->info_bits & REC_INFO_MIN_REC_FLAG) {
+		node->ref = &trx_undo_metadata;
 	}
 
 	return(true);
@@ -1186,7 +1202,7 @@ row_purge_record_func(
 			MONITOR_INC(MONITOR_N_DEL_ROW_PURGE);
 		}
 		break;
-	case TRX_UNDO_INSERT_DEFAULT:
+	case TRX_UNDO_INSERT_METADATA:
 	case TRX_UNDO_INSERT_REC:
 		node->roll_ptr |= 1ULL << ROLL_PTR_INSERT_FLAG_POS;
 		/* fall through */

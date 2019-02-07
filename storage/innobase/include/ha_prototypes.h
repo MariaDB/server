@@ -120,6 +120,9 @@ thd_is_replication_slave_thread(
 /*============================*/
 	THD*	thd);	/*!< in: thread handle */
 
+/** @return whether statement-based replication is active */
+extern "C" int thd_rpl_stmt_based(const THD* thd);
+
 /******************************************************************//**
 Returns true if the transaction this thread is processing has edited
 non-transactional tables. Used by the deadlock detector when deciding

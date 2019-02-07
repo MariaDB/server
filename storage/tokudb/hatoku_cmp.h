@@ -354,11 +354,7 @@ static uint32_t create_toku_clustering_val_pack_descriptor (
     bool is_clustering
     );
 
-static inline bool is_key_clustering(
-    void* row_desc,
-    uint32_t row_desc_size
-    ) 
-{
+static inline bool is_key_clustering(uint32_t row_desc_size) {
     return (row_desc_size > 0);
 }
 
@@ -384,12 +380,8 @@ static uint32_t create_toku_secondary_key_pack_descriptor (
     KEY* prim_key
     );
 
-static inline bool is_key_pk(
-    void* row_desc,
-    uint32_t row_desc_size
-    ) 
-{
-    uchar* buf = (uchar *)row_desc;
+static inline bool is_key_pk(void* row_desc) {
+    uchar* buf = (uchar*)row_desc;
     return buf[0];
 }
 

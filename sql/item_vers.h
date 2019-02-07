@@ -35,7 +35,7 @@ public:
     }
     return "trt_commit_ts";
   }
-  bool get_date(MYSQL_TIME *res, ulonglong fuzzy_date);
+  bool get_date(THD *thd, MYSQL_TIME *res, date_mode_t fuzzydate);
   Item *get_copy(THD *thd)
   { return get_item_copy<Item_func_trt_ts>(thd, this); }
   bool fix_length_and_dec()

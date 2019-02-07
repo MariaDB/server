@@ -1561,6 +1561,7 @@ failure:
   head->column_bitmaps_set(save_read_set, save_write_set);
   delete file;
   file= save_file;
+  free_file= false;
   DBUG_RETURN(1);
 }
 
@@ -2845,12 +2846,17 @@ bool create_key_parts_for_pseudo_indexes(RANGE_OPT_PARAM *param,
 
   for (field_ptr= table->field; *field_ptr; field_ptr++)
   {
-    if (bitmap_is_set(used_fields, (*field_ptr)->field_index))
+    Field *field= *field_ptr;
+    if (bitmap_is_set(used_fields, field->field_index) &&
+        is_eits_usable(field))
       parts++;
   }
 
   KEY_PART *key_part;
   uint keys= 0;
+
+  if (!parts)
+    return TRUE;
 
   if (!(key_part= (KEY_PART *)  alloc_root(param->mem_root,
                                            sizeof(KEY_PART) * parts)))
@@ -2860,9 +2866,12 @@ bool create_key_parts_for_pseudo_indexes(RANGE_OPT_PARAM *param,
   uint max_key_len= 0;
   for (field_ptr= table->field; *field_ptr; field_ptr++)
   {
-    if (bitmap_is_set(used_fields, (*field_ptr)->field_index))
+    Field *field= *field_ptr;
+    if (bitmap_is_set(used_fields, field->field_index))
     {
-      Field *field= *field_ptr;
+      if (!is_eits_usable(field))
+        continue;
+
       uint16 store_length;
       uint16 max_key_part_length= (uint16) table->file->max_key_part_length();
       key_part->key= keys;
@@ -3020,7 +3029,18 @@ bool calculate_cond_selectivity_for_table(THD *thd, TABLE *table, Item **cond)
 
   table->cond_selectivity= 1.0;
 
-  if (!*cond || table_records == 0)
+  if (table_records == 0)
+    DBUG_RETURN(FALSE);
+
+  QUICK_SELECT_I *quick;
+  if ((quick=table->reginfo.join_tab->quick) &&
+      quick->get_type() == QUICK_SELECT_I::QS_TYPE_GROUP_MIN_MAX)
+  {
+    table->cond_selectivity*= (quick->records/table_records);
+    DBUG_RETURN(FALSE);
+  }
+
+  if (!*cond)
     DBUG_RETURN(FALSE);
 
   if (table->pos_in_table_list->schema_table)
@@ -3137,7 +3157,8 @@ bool calculate_cond_selectivity_for_table(THD *thd, TABLE *table, Item **cond)
   */
 
   if (thd->variables.optimizer_use_condition_selectivity > 2 &&
-      !bitmap_is_clear_all(used_fields))
+      !bitmap_is_clear_all(used_fields) &&
+      thd->variables.use_stat_tables > 0)
   {
     PARAM param;
     MEM_ROOT alloc;
@@ -3224,6 +3245,12 @@ bool calculate_cond_selectivity_for_table(THD *thd, TABLE *table, Item **cond)
     thd->mem_root= param.old_root;
     free_root(&alloc, MYF(0));
 
+  }
+
+  if (quick && (quick->get_type() == QUICK_SELECT_I::QS_TYPE_ROR_UNION || 
+     quick->get_type() == QUICK_SELECT_I::QS_TYPE_INDEX_MERGE))
+  {
+    table->cond_selectivity*= (quick->records/table_records);
   }
 
   bitmap_union(used_fields, &handled_columns);

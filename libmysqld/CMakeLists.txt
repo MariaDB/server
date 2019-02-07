@@ -1,4 +1,5 @@
 # Copyright (c) 2006, 2011, Oracle and/or its affiliates.
+# Copyright (c) 2009, 2018, MariaDB Corporation
 # 
 # This program is free software; you can redistribute it and/or modify
 # it under the terms of the GNU General Public License as published by
@@ -118,7 +119,7 @@ SET(SQL_EMBEDDED_SOURCES emb_qcache.cc libmysqld.c lib_sql.cc
            ../sql/ha_sequence.cc ../sql/ha_sequence.h
            ../sql/temporary_tables.cc
            ../sql/session_tracker.cc
-           ../sql/proxy_protocol.cc
+           ../sql/proxy_protocol.cc ../sql/backup.cc
            ../sql/sql_tvc.cc ../sql/sql_tvc.h
            ../sql/opt_split.cc
            ../sql/item_vers.cc
@@ -453,4 +454,3 @@ IF(NOT DISABLE_SHARED)
     ENDIF()
   ENDIF()
 ENDIF()
-

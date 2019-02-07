@@ -767,7 +767,7 @@ static bool mysql_admin_table(THD* thd, TABLE_LIST* tables,
       }
       collect_eis=
         (table->table->s->table_category == TABLE_CATEGORY_USER &&
-         (get_use_stat_tables_mode(thd) > NEVER ||
+         (check_eits_collection_allowed(thd) ||
           lex->with_persistent_for_clause));
 
 
@@ -1325,6 +1325,9 @@ bool Sql_cmd_analyze_table::execute(THD *thd)
   m_lex->query_tables= first_table;
 
 error:
+#ifdef WITH_WSREP
+wsrep_error_label:
+#endif
   DBUG_RETURN(res);
 }
 
@@ -1382,6 +1385,9 @@ bool Sql_cmd_optimize_table::execute(THD *thd)
   m_lex->query_tables= first_table;
 
 error:
+#ifdef WITH_WSREP
+wsrep_error_label:
+#endif
   DBUG_RETURN(res);
 }
 
@@ -1417,5 +1423,8 @@ bool Sql_cmd_repair_table::execute(THD *thd)
   m_lex->query_tables= first_table;
 
 error:
+#ifdef WITH_WSREP
+wsrep_error_label:
+#endif
   DBUG_RETURN(res);
 }

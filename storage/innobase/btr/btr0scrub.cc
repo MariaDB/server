@@ -450,14 +450,14 @@ btr_pessimistic_scrub(
 		mtr->release_block_at_savepoint(scrub_data->savepoint, block);
 
 		buf_block_t* get_block __attribute__((unused)) = btr_block_get(
-			page_id_t(index->table->space->id, left_page_no),
+			page_id_t(index->table->space_id, left_page_no),
 			page_size, RW_X_LATCH, index, mtr);
 
 		/**
 		* Refetch block and re-initialize page
 		*/
 		block = btr_block_get(
-			page_id_t(index->table->space->id, page_no),
+			page_id_t(index->table->space_id, page_no),
 			page_size, RW_X_LATCH, index, mtr);
 
 		page = buf_block_get_frame(block);
@@ -471,7 +471,7 @@ btr_pessimistic_scrub(
 
 	if (right_page_no != FIL_NULL) {
 		buf_block_t* get_block __attribute__((unused))= btr_block_get(
-			page_id_t(index->table->space->id, right_page_no),
+			page_id_t(index->table->space_id, right_page_no),
 			page_size, RW_X_LATCH, index, mtr);
 	}
 
@@ -787,7 +787,7 @@ btr_scrub_page(
 	/* check that table/index still match now that they are loaded */
 
 	if (!scrub_data->current_table->space
-	    || scrub_data->current_table->space->id != scrub_data->space) {
+	    || scrub_data->current_table->space_id != scrub_data->space) {
 		/* this is truncate table */
 		mtr_commit(mtr);
 		return BTR_SCRUB_SKIP_PAGE_AND_CLOSE_TABLE;

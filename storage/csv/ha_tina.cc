@@ -1311,12 +1311,28 @@ int ha_tina::info(uint flag)
 int ha_tina::extra(enum ha_extra_function operation)
 {
   DBUG_ENTER("ha_tina::extra");
- if (operation == HA_EXTRA_MARK_AS_LOG_TABLE)
- {
-   mysql_mutex_lock(&share->mutex);
-   share->is_log_table= TRUE;
-   mysql_mutex_unlock(&share->mutex);
- }
+  switch (operation) {
+  case HA_EXTRA_MARK_AS_LOG_TABLE:
+  {
+    mysql_mutex_lock(&share->mutex);
+    share->is_log_table= TRUE;
+    mysql_mutex_unlock(&share->mutex);
+  }
+  break;
+  case HA_EXTRA_FLUSH:
+    mysql_mutex_lock(&share->mutex);
+    if (share->tina_write_opened)
+    {
+      (void)write_meta_file(share->meta_file, share->rows_recorded,
+                            share->crashed ? TRUE :FALSE);
+      mysql_file_close(share->tina_write_filedes, MYF(0));
+      share->tina_write_opened= FALSE;
+    }
+    mysql_mutex_unlock(&share->mutex);
+    break;
+  default:
+    break;
+  }
   DBUG_RETURN(0);
 }
 

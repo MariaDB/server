@@ -469,6 +469,7 @@ bool Item_func_in::create_value_list_for_tvc(THD *thd,
 
   for (uint i=1; i < arg_count; i++)
   {
+    char col_name[8];
     List<Item> *tvc_value;
     if (!(tvc_value= new (thd->mem_root) List<Item>()))
       return true;
@@ -479,13 +480,27 @@ bool Item_func_in::create_value_list_for_tvc(THD *thd,
 
       for (uint j=0; j < row_list->cols(); j++)
       {
+        if (i == 1)
+	{
+          sprintf(col_name, "_col_%i", j+1);
+          row_list->element_index(j)->set_name(thd, col_name, strlen(col_name),
+                                               thd->charset());
+        }
 	if (tvc_value->push_back(row_list->element_index(j),
 				 thd->mem_root))
 	  return true;
       }
     }
-    else if (tvc_value->push_back(args[i]->real_item()))
-      return true;
+    else
+    {
+      if (i == 1)
+      {
+        sprintf(col_name, "_col_%i", 1);
+        args[i]->set_name(thd, col_name, strlen(col_name), thd->charset());
+      }
+      if (tvc_value->push_back(args[i]->real_item()))
+        return true;
+    }
 
     if (values->push_back(tvc_value, thd->mem_root))
       return true;

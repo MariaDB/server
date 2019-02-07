@@ -45,7 +45,6 @@ Created 1/20/1994 Heikki Tuuri
 #include <stdarg.h>
 
 #include <string>
-#include <my_atomic.h>
 
 /** Index name prefix in fast index creation, as a string constant */
 #define TEMP_INDEX_PREFIX_STR	"\377"
@@ -175,12 +174,6 @@ ut_2_power_up(
 	ulint	n)	/*!< in: number != 0 */
 	MY_ATTRIBUTE((const));
 
-/** Determine how many bytes (groups of 8 bits) are needed to
-store the given number of bits.
-@param b in: bits
-@return number of bytes (octets) needed to represent b */
-#define UT_BITS_IN_BYTES(b) (((b) + 7) / 8)
-
 /**********************************************************//**
 Returns system time. We do not specify the format of the time returned:
 the only way to manipulate it is to use the function ut_difftime.
@@ -238,6 +231,12 @@ ut_difftime(
 	ib_time_t	time1);	/*!< in: time */
 
 #endif /* !UNIV_INNOCHECKSUM */
+
+/** Determine how many bytes (groups of 8 bits) are needed to
+store the given number of bits.
+@param b in: bits
+@return number of bytes (octets) needed to represent b */
+#define UT_BITS_IN_BYTES(b) (((b) + 7) / 8)
 
 /** Determines if a number is zero or a power of two.
 @param[in]	n	number

@@ -1,44 +1,6 @@
 include/master-slave.inc
 [connection master]
-CREATE TABLE t1 (word CHAR(20) NOT NULL);
-LOAD DATA INFILE 'LOAD_FILE' INTO TABLE t1;
-LOAD DATA INFILE 'LOAD_FILE' INTO TABLE t1;
-SELECT * FROM t1  ORDER BY word LIMIT 10;
-word
-Aarhus
-Aarhus
-Aarhus
-Aarhus
-Aaron
-Aaron
-Aaron
-Aaron
-Ababa
-Ababa
-create temporary table tmp select * from mysql.user where host="localhost" and user="root";
-connection slave;
-STOP SLAVE;
-connection master;
-UPDATE mysql.user SET password=password('foo') WHERE host='localhost' AND user='root';
-connection slave;
-START SLAVE;
-connection master;
-UPDATE mysql.user SET password=password('') WHERE host='localhost' AND user='root';
-CREATE TABLE t3(n INT);
-INSERT INTO t3 VALUES(1),(2);
-connection slave;
-SELECT * FROM t3 ORDER BY n;
-n
-1
-2
-SELECT SUM(LENGTH(word)) FROM t1;
-SUM(LENGTH(word))
-1022
-connection master;
-DROP TABLE t1,t3;
-connection slave;
-connection master;
-CREATE TABLE t1 (n INT) ENGINE=MYISAM;
+CREATE TABLE t1 (n INT);
 connection slave;
 connection master;
 RESET MASTER;
@@ -66,7 +28,5 @@ n
 3456
 connection master;
 DROP TABLE t1;
-replace into mysql.user select * from tmp;
-drop temporary table tmp;
 connection slave;
 include/rpl_end.inc

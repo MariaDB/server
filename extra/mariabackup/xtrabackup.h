@@ -71,7 +71,7 @@ extern char		*xtrabackup_databases_file;
 extern char		*xtrabackup_tables_exclude;
 extern char		*xtrabackup_databases_exclude;
 
-extern ibool		xtrabackup_compress;
+extern uint		xtrabackup_compress;
 
 extern my_bool		xtrabackup_backup;
 extern my_bool		xtrabackup_prepare;
@@ -86,14 +86,10 @@ extern int		xtrabackup_parallel;
 
 extern my_bool		xb_close_files;
 extern const char	*xtrabackup_compress_alg;
-#ifdef __cplusplus
-extern "C"{
-#endif
-  extern uint		xtrabackup_compress_threads;
-  extern ulonglong	xtrabackup_compress_chunk_size;
-#ifdef __cplusplus
-}
-#endif
+
+extern uint		xtrabackup_compress_threads;
+extern ulonglong	xtrabackup_compress_chunk_size;
+
 extern my_bool		xtrabackup_export;
 extern char		*xtrabackup_extra_lsndir;
 extern ulint		xtrabackup_log_copy_interval;
@@ -111,6 +107,8 @@ extern my_bool		opt_noversioncheck;
 extern my_bool		opt_no_backup_locks;
 extern my_bool		opt_decompress;
 extern my_bool		opt_remove_original;
+extern my_bool		opt_extended_validation;
+extern my_bool		opt_encrypted_backup;
 extern my_bool		opt_lock_ddl_per_table;
 
 extern char		*opt_incremental_history_name;

@@ -573,7 +573,7 @@ static my_bool sql_connect(MYSQL *mysql, uint wait)
       if (!info)
       {
 	info=1;
-	fputs("Waiting for MySQL server to answer",stderr);
+	fputs("Waiting for MariaDB server to answer",stderr);
 	(void) fflush(stderr);
       }
       else

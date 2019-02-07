@@ -20,6 +20,7 @@ PARTITION BY LIST (a)
 PARTITION p10 VALUES IN (11,12,13,14,15,16,17,18,19));
 INSERT INTO t1 VALUES (1, "Original from partition p0"), (2, "Original from partition p0"), (3, "Original from partition p0"), (4, "Original from partition p0"), (11, "Original from partition p1"), (12, "Original from partition p1"), (13, "Original from partition p1"), (14, "Original from partition p1");
 # State before crash
+db.opt
 t1.frm
 t1.par
 SHOW CREATE TABLE t1;
@@ -45,9 +46,11 @@ ALTER TABLE t1 ADD PARTITION
 (PARTITION p20 VALUES IN (20,21,22,23,24,25,26,27,28,29));
 ERROR HY000: Lost connection to MySQL server during query
 # State after crash (before recovery)
+db.opt
 t1.frm
 t1.par
 # State after crash recovery
+db.opt
 t1.frm
 t1.par
 SHOW CREATE TABLE t1;
@@ -79,6 +82,7 @@ PARTITION BY LIST (a)
 PARTITION p10 VALUES IN (11,12,13,14,15,16,17,18,19));
 INSERT INTO t1 VALUES (1, "Original from partition p0"), (2, "Original from partition p0"), (3, "Original from partition p0"), (4, "Original from partition p0"), (11, "Original from partition p1"), (12, "Original from partition p1"), (13, "Original from partition p1"), (14, "Original from partition p1");
 # State before crash
+db.opt
 t1.frm
 t1.par
 SHOW CREATE TABLE t1;
@@ -106,9 +110,11 @@ ERROR HY000: Lost connection to MySQL server during query
 # State after crash (before recovery)
 #sql-t1.frm
 #sql-t1.par
+db.opt
 t1.frm
 t1.par
 # State after crash recovery
+db.opt
 t1.frm
 t1.par
 SHOW CREATE TABLE t1;
@@ -140,6 +146,7 @@ PARTITION BY LIST (a)
 PARTITION p10 VALUES IN (11,12,13,14,15,16,17,18,19));
 INSERT INTO t1 VALUES (1, "Original from partition p0"), (2, "Original from partition p0"), (3, "Original from partition p0"), (4, "Original from partition p0"), (11, "Original from partition p1"), (12, "Original from partition p1"), (13, "Original from partition p1"), (14, "Original from partition p1");
 # State before crash
+db.opt
 t1.frm
 t1.par
 SHOW CREATE TABLE t1;
@@ -167,9 +174,11 @@ ERROR HY000: Lost connection to MySQL server during query
 # State after crash (before recovery)
 #sql-t1.frm
 #sql-t1.par
+db.opt
 t1.frm
 t1.par
 # State after crash recovery
+db.opt
 t1.frm
 t1.par
 SHOW CREATE TABLE t1;
@@ -201,6 +210,7 @@ PARTITION BY LIST (a)
 PARTITION p10 VALUES IN (11,12,13,14,15,16,17,18,19));
 INSERT INTO t1 VALUES (1, "Original from partition p0"), (2, "Original from partition p0"), (3, "Original from partition p0"), (4, "Original from partition p0"), (11, "Original from partition p1"), (12, "Original from partition p1"), (13, "Original from partition p1"), (14, "Original from partition p1");
 # State before crash
+db.opt
 t1.frm
 t1.par
 SHOW CREATE TABLE t1;
@@ -228,9 +238,11 @@ ERROR HY000: Lost connection to MySQL server during query
 # State after crash (before recovery)
 #sql-t1.frm
 #sql-t1.par
+db.opt
 t1.frm
 t1.par
 # State after crash recovery
+db.opt
 t1.frm
 t1.par
 SHOW CREATE TABLE t1;
@@ -262,6 +274,7 @@ PARTITION BY LIST (a)
 PARTITION p10 VALUES IN (11,12,13,14,15,16,17,18,19));
 INSERT INTO t1 VALUES (1, "Original from partition p0"), (2, "Original from partition p0"), (3, "Original from partition p0"), (4, "Original from partition p0"), (11, "Original from partition p1"), (12, "Original from partition p1"), (13, "Original from partition p1"), (14, "Original from partition p1");
 # State before crash
+db.opt
 t1.frm
 t1.par
 SHOW CREATE TABLE t1;
@@ -289,9 +302,11 @@ ERROR HY000: Lost connection to MySQL server during query
 # State after crash (before recovery)
 #sql-t1.frm
 #sql-t1.par
+db.opt
 t1.frm
 t1.par
 # State after crash recovery
+db.opt
 t1.frm
 t1.par
 SHOW CREATE TABLE t1;
@@ -323,6 +338,7 @@ PARTITION BY LIST (a)
 PARTITION p10 VALUES IN (11,12,13,14,15,16,17,18,19));
 INSERT INTO t1 VALUES (1, "Original from partition p0"), (2, "Original from partition p0"), (3, "Original from partition p0"), (4, "Original from partition p0"), (11, "Original from partition p1"), (12, "Original from partition p1"), (13, "Original from partition p1"), (14, "Original from partition p1");
 # State before crash
+db.opt
 t1.frm
 t1.par
 SHOW CREATE TABLE t1;
@@ -350,9 +366,11 @@ ERROR HY000: Lost connection to MySQL server during query
 # State after crash (before recovery)
 #sql-t1.frm
 #sql-t1.par
+db.opt
 t1.frm
 t1.par
 # State after crash recovery
+db.opt
 t1.frm
 t1.par
 SHOW CREATE TABLE t1;
@@ -384,6 +402,7 @@ PARTITION BY LIST (a)
 PARTITION p10 VALUES IN (11,12,13,14,15,16,17,18,19));
 INSERT INTO t1 VALUES (1, "Original from partition p0"), (2, "Original from partition p0"), (3, "Original from partition p0"), (4, "Original from partition p0"), (11, "Original from partition p1"), (12, "Original from partition p1"), (13, "Original from partition p1"), (14, "Original from partition p1");
 # State before crash
+db.opt
 t1.frm
 t1.par
 SHOW CREATE TABLE t1;
@@ -411,9 +430,11 @@ ERROR HY000: Lost connection to MySQL server during query
 # State after crash (before recovery)
 #sql-t1.frm
 #sql-t1.par
+db.opt
 t1.frm
 t1.par
 # State after crash recovery
+db.opt
 t1.frm
 t1.par
 SHOW CREATE TABLE t1;
@@ -445,6 +466,7 @@ PARTITION BY LIST (a)
 PARTITION p10 VALUES IN (11,12,13,14,15,16,17,18,19));
 INSERT INTO t1 VALUES (1, "Original from partition p0"), (2, "Original from partition p0"), (3, "Original from partition p0"), (4, "Original from partition p0"), (11, "Original from partition p1"), (12, "Original from partition p1"), (13, "Original from partition p1"), (14, "Original from partition p1");
 # State before crash
+db.opt
 t1.frm
 t1.par
 SHOW CREATE TABLE t1;
@@ -472,9 +494,11 @@ ERROR HY000: Lost connection to MySQL server during query
 # State after crash (before recovery)
 #sql-t1.frm
 #sql-t1.par
+db.opt
 t1.frm
 t1.par
 # State after crash recovery
+db.opt
 t1.frm
 t1.par
 SHOW CREATE TABLE t1;
@@ -507,6 +531,7 @@ PARTITION BY LIST (a)
 PARTITION p10 VALUES IN (11,12,13,14,15,16,17,18,19));
 INSERT INTO t1 VALUES (1, "Original from partition p0"), (2, "Original from partition p0"), (3, "Original from partition p0"), (4, "Original from partition p0"), (11, "Original from partition p1"), (12, "Original from partition p1"), (13, "Original from partition p1"), (14, "Original from partition p1");
 # State before crash
+db.opt
 t1.frm
 t1.par
 SHOW CREATE TABLE t1;
@@ -532,9 +557,11 @@ ALTER TABLE t1 ADD PARTITION
 (PARTITION p20 VALUES IN (20,21,22,23,24,25,26,27,28,29));
 ERROR HY000: Lost connection to MySQL server during query
 # State after crash (before recovery)
+db.opt
 t1.frm
 t1.par
 # State after crash recovery
+db.opt
 t1.frm
 t1.par
 SHOW CREATE TABLE t1;
@@ -567,6 +594,7 @@ PARTITION BY LIST (a)
 PARTITION p10 VALUES IN (11,12,13,14,15,16,17,18,19));
 INSERT INTO t1 VALUES (1, "Original from partition p0"), (2, "Original from partition p0"), (3, "Original from partition p0"), (4, "Original from partition p0"), (11, "Original from partition p1"), (12, "Original from partition p1"), (13, "Original from partition p1"), (14, "Original from partition p1");
 # State before crash
+db.opt
 t1.frm
 t1.par
 SHOW CREATE TABLE t1;
@@ -592,9 +620,11 @@ ALTER TABLE t1 ADD PARTITION
 (PARTITION p20 VALUES IN (20,21,22,23,24,25,26,27,28,29));
 ERROR HY000: Lost connection to MySQL server during query
 # State after crash (before recovery)
+db.opt
 t1.frm
 t1.par
 # State after crash recovery
+db.opt
 t1.frm
 t1.par
 SHOW CREATE TABLE t1;
@@ -628,6 +658,7 @@ PARTITION BY LIST (a)
 PARTITION p10 VALUES IN (11,12,13,14,15,16,17,18,19));
 INSERT INTO t1 VALUES (1, "Original from partition p0"), (2, "Original from partition p0"), (3, "Original from partition p0"), (4, "Original from partition p0"), (11, "Original from partition p1"), (12, "Original from partition p1"), (13, "Original from partition p1"), (14, "Original from partition p1");
 # State before failure
+db.opt
 t1.frm
 t1.par
 SHOW CREATE TABLE t1;
@@ -653,6 +684,7 @@ ALTER TABLE t1 ADD PARTITION
 (PARTITION p20 VALUES IN (20,21,22,23,24,25,26,27,28,29));
 ERROR HY000: Unknown error
 # State after failure
+db.opt
 t1.frm
 t1.par
 SHOW CREATE TABLE t1;
@@ -683,6 +715,7 @@ PARTITION BY LIST (a)
 PARTITION p10 VALUES IN (11,12,13,14,15,16,17,18,19));
 INSERT INTO t1 VALUES (1, "Original from partition p0"), (2, "Original from partition p0"), (3, "Original from partition p0"), (4, "Original from partition p0"), (11, "Original from partition p1"), (12, "Original from partition p1"), (13, "Original from partition p1"), (14, "Original from partition p1");
 # State before failure
+db.opt
 t1.frm
 t1.par
 SHOW CREATE TABLE t1;
@@ -709,6 +742,7 @@ ALTER TABLE t1 ADD PARTITION
 (PARTITION p20 VALUES IN (20,21,22,23,24,25,26,27,28,29));
 ERROR HY000: Unknown error
 # State after failure
+db.opt
 t1.frm
 t1.par
 SHOW CREATE TABLE t1;
@@ -741,6 +775,7 @@ PARTITION BY LIST (a)
 PARTITION p10 VALUES IN (11,12,13,14,15,16,17,18,19));
 INSERT INTO t1 VALUES (1, "Original from partition p0"), (2, "Original from partition p0"), (3, "Original from partition p0"), (4, "Original from partition p0"), (11, "Original from partition p1"), (12, "Original from partition p1"), (13, "Original from partition p1"), (14, "Original from partition p1");
 # State before failure
+db.opt
 t1.frm
 t1.par
 SHOW CREATE TABLE t1;
@@ -766,6 +801,7 @@ ALTER TABLE t1 ADD PARTITION
 (PARTITION p20 VALUES IN (20,21,22,23,24,25,26,27,28,29));
 ERROR HY000: Unknown error
 # State after failure
+db.opt
 t1.frm
 t1.par
 SHOW CREATE TABLE t1;
@@ -796,6 +832,7 @@ PARTITION BY LIST (a)
 PARTITION p10 VALUES IN (11,12,13,14,15,16,17,18,19));
 INSERT INTO t1 VALUES (1, "Original from partition p0"), (2, "Original from partition p0"), (3, "Original from partition p0"), (4, "Original from partition p0"), (11, "Original from partition p1"), (12, "Original from partition p1"), (13, "Original from partition p1"), (14, "Original from partition p1");
 # State before failure
+db.opt
 t1.frm
 t1.par
 SHOW CREATE TABLE t1;
@@ -822,6 +859,7 @@ ALTER TABLE t1 ADD PARTITION
 (PARTITION p20 VALUES IN (20,21,22,23,24,25,26,27,28,29));
 ERROR HY000: Unknown error
 # State after failure
+db.opt
 t1.frm
 t1.par
 SHOW CREATE TABLE t1;
@@ -854,6 +892,7 @@ PARTITION BY LIST (a)
 PARTITION p10 VALUES IN (11,12,13,14,15,16,17,18,19));
 INSERT INTO t1 VALUES (1, "Original from partition p0"), (2, "Original from partition p0"), (3, "Original from partition p0"), (4, "Original from partition p0"), (11, "Original from partition p1"), (12, "Original from partition p1"), (13, "Original from partition p1"), (14, "Original from partition p1");
 # State before failure
+db.opt
 t1.frm
 t1.par
 SHOW CREATE TABLE t1;
@@ -879,6 +918,7 @@ ALTER TABLE t1 ADD PARTITION
 (PARTITION p20 VALUES IN (20,21,22,23,24,25,26,27,28,29));
 ERROR HY000: Unknown error
 # State after failure
+db.opt
 t1.frm
 t1.par
 SHOW CREATE TABLE t1;
@@ -909,6 +949,7 @@ PARTITION BY LIST (a)
 PARTITION p10 VALUES IN (11,12,13,14,15,16,17,18,19));
 INSERT INTO t1 VALUES (1, "Original from partition p0"), (2, "Original from partition p0"), (3, "Original from partition p0"), (4, "Original from partition p0"), (11, "Original from partition p1"), (12, "Original from partition p1"), (13, "Original from partition p1"), (14, "Original from partition p1");
 # State before failure
+db.opt
 t1.frm
 t1.par
 SHOW CREATE TABLE t1;
@@ -935,6 +976,7 @@ ALTER TABLE t1 ADD PARTITION
 (PARTITION p20 VALUES IN (20,21,22,23,24,25,26,27,28,29));
 ERROR HY000: Unknown error
 # State after failure
+db.opt
 t1.frm
 t1.par
 SHOW CREATE TABLE t1;
@@ -967,6 +1009,7 @@ PARTITION BY LIST (a)
 PARTITION p10 VALUES IN (11,12,13,14,15,16,17,18,19));
 INSERT INTO t1 VALUES (1, "Original from partition p0"), (2, "Original from partition p0"), (3, "Original from partition p0"), (4, "Original from partition p0"), (11, "Original from partition p1"), (12, "Original from partition p1"), (13, "Original from partition p1"), (14, "Original from partition p1");
 # State before failure
+db.opt
 t1.frm
 t1.par
 SHOW CREATE TABLE t1;
@@ -992,6 +1035,7 @@ ALTER TABLE t1 ADD PARTITION
 (PARTITION p20 VALUES IN (20,21,22,23,24,25,26,27,28,29));
 ERROR HY000: Unknown error
 # State after failure
+db.opt
 t1.frm
 t1.par
 SHOW CREATE TABLE t1;
@@ -1022,6 +1066,7 @@ PARTITION BY LIST (a)
 PARTITION p10 VALUES IN (11,12,13,14,15,16,17,18,19));
 INSERT INTO t1 VALUES (1, "Original from partition p0"), (2, "Original from partition p0"), (3, "Original from partition p0"), (4, "Original from partition p0"), (11, "Original from partition p1"), (12, "Original from partition p1"), (13, "Original from partition p1"), (14, "Original from partition p1");
 # State before failure
+db.opt
 t1.frm
 t1.par
 SHOW CREATE TABLE t1;
@@ -1048,6 +1093,7 @@ ALTER TABLE t1 ADD PARTITION
 (PARTITION p20 VALUES IN (20,21,22,23,24,25,26,27,28,29));
 ERROR HY000: Unknown error
 # State after failure
+db.opt
 t1.frm
 t1.par
 SHOW CREATE TABLE t1;
@@ -1080,6 +1126,7 @@ PARTITION BY LIST (a)
 PARTITION p10 VALUES IN (11,12,13,14,15,16,17,18,19));
 INSERT INTO t1 VALUES (1, "Original from partition p0"), (2, "Original from partition p0"), (3, "Original from partition p0"), (4, "Original from partition p0"), (11, "Original from partition p1"), (12, "Original from partition p1"), (13, "Original from partition p1"), (14, "Original from partition p1");
 # State before failure
+db.opt
 t1.frm
 t1.par
 SHOW CREATE TABLE t1;
@@ -1105,6 +1152,7 @@ ALTER TABLE t1 ADD PARTITION
 (PARTITION p20 VALUES IN (20,21,22,23,24,25,26,27,28,29));
 ERROR HY000: Unknown error
 # State after failure
+db.opt
 t1.frm
 t1.par
 SHOW CREATE TABLE t1;
@@ -1135,6 +1183,7 @@ PARTITION BY LIST (a)
 PARTITION p10 VALUES IN (11,12,13,14,15,16,17,18,19));
 INSERT INTO t1 VALUES (1, "Original from partition p0"), (2, "Original from partition p0"), (3, "Original from partition p0"), (4, "Original from partition p0"), (11, "Original from partition p1"), (12, "Original from partition p1"), (13, "Original from partition p1"), (14, "Original from partition p1");
 # State before failure
+db.opt
 t1.frm
 t1.par
 SHOW CREATE TABLE t1;
@@ -1161,6 +1210,7 @@ ALTER TABLE t1 ADD PARTITION
 (PARTITION p20 VALUES IN (20,21,22,23,24,25,26,27,28,29));
 ERROR HY000: Unknown error
 # State after failure
+db.opt
 t1.frm
 t1.par
 SHOW CREATE TABLE t1;
@@ -1193,6 +1243,7 @@ PARTITION BY LIST (a)
 PARTITION p10 VALUES IN (11,12,13,14,15,16,17,18,19));
 INSERT INTO t1 VALUES (1, "Original from partition p0"), (2, "Original from partition p0"), (3, "Original from partition p0"), (4, "Original from partition p0"), (11, "Original from partition p1"), (12, "Original from partition p1"), (13, "Original from partition p1"), (14, "Original from partition p1");
 # State before failure
+db.opt
 t1.frm
 t1.par
 SHOW CREATE TABLE t1;
@@ -1218,6 +1269,7 @@ ALTER TABLE t1 ADD PARTITION
 (PARTITION p20 VALUES IN (20,21,22,23,24,25,26,27,28,29));
 ERROR HY000: Unknown error
 # State after failure
+db.opt
 t1.frm
 t1.par
 SHOW CREATE TABLE t1;
@@ -1248,6 +1300,7 @@ PARTITION BY LIST (a)
 PARTITION p10 VALUES IN (11,12,13,14,15,16,17,18,19));
 INSERT INTO t1 VALUES (1, "Original from partition p0"), (2, "Original from partition p0"), (3, "Original from partition p0"), (4, "Original from partition p0"), (11, "Original from partition p1"), (12, "Original from partition p1"), (13, "Original from partition p1"), (14, "Original from partition p1");
 # State before failure
+db.opt
 t1.frm
 t1.par
 SHOW CREATE TABLE t1;
@@ -1274,6 +1327,7 @@ ALTER TABLE t1 ADD PARTITION
 (PARTITION p20 VALUES IN (20,21,22,23,24,25,26,27,28,29));
 ERROR HY000: Unknown error
 # State after failure
+db.opt
 t1.frm
 t1.par
 SHOW CREATE TABLE t1;
@@ -1306,6 +1360,7 @@ PARTITION BY LIST (a)
 PARTITION p10 VALUES IN (11,12,13,14,15,16,17,18,19));
 INSERT INTO t1 VALUES (1, "Original from partition p0"), (2, "Original from partition p0"), (3, "Original from partition p0"), (4, "Original from partition p0"), (11, "Original from partition p1"), (12, "Original from partition p1"), (13, "Original from partition p1"), (14, "Original from partition p1");
 # State before failure
+db.opt
 t1.frm
 t1.par
 SHOW CREATE TABLE t1;
@@ -1331,6 +1386,7 @@ ALTER TABLE t1 ADD PARTITION
 (PARTITION p20 VALUES IN (20,21,22,23,24,25,26,27,28,29));
 ERROR HY000: Unknown error
 # State after failure
+db.opt
 t1.frm
 t1.par
 SHOW CREATE TABLE t1;
@@ -1361,6 +1417,7 @@ PARTITION BY LIST (a)
 PARTITION p10 VALUES IN (11,12,13,14,15,16,17,18,19));
 INSERT INTO t1 VALUES (1, "Original from partition p0"), (2, "Original from partition p0"), (3, "Original from partition p0"), (4, "Original from partition p0"), (11, "Original from partition p1"), (12, "Original from partition p1"), (13, "Original from partition p1"), (14, "Original from partition p1");
 # State before failure
+db.opt
 t1.frm
 t1.par
 SHOW CREATE TABLE t1;
@@ -1387,6 +1444,7 @@ ALTER TABLE t1 ADD PARTITION
 (PARTITION p20 VALUES IN (20,21,22,23,24,25,26,27,28,29));
 ERROR HY000: Unknown error
 # State after failure
+db.opt
 t1.frm
 t1.par
 SHOW CREATE TABLE t1;
@@ -1419,6 +1477,7 @@ PARTITION BY LIST (a)
 PARTITION p10 VALUES IN (11,12,13,14,15,16,17,18,19));
 INSERT INTO t1 VALUES (1, "Original from partition p0"), (2, "Original from partition p0"), (3, "Original from partition p0"), (4, "Original from partition p0"), (11, "Original from partition p1"), (12, "Original from partition p1"), (13, "Original from partition p1"), (14, "Original from partition p1");
 # State before failure
+db.opt
 t1.frm
 t1.par
 SHOW CREATE TABLE t1;
@@ -1444,6 +1503,7 @@ ALTER TABLE t1 ADD PARTITION
 (PARTITION p20 VALUES IN (20,21,22,23,24,25,26,27,28,29));
 ERROR HY000: Unknown error
 # State after failure
+db.opt
 t1.frm
 t1.par
 SHOW CREATE TABLE t1;
@@ -1475,6 +1535,7 @@ PARTITION BY LIST (a)
 PARTITION p10 VALUES IN (11,12,13,14,15,16,17,18,19));
 INSERT INTO t1 VALUES (1, "Original from partition p0"), (2, "Original from partition p0"), (3, "Original from partition p0"), (4, "Original from partition p0"), (11, "Original from partition p1"), (12, "Original from partition p1"), (13, "Original from partition p1"), (14, "Original from partition p1");
 # State before failure
+db.opt
 t1.frm
 t1.par
 SHOW CREATE TABLE t1;
@@ -1501,6 +1562,7 @@ ALTER TABLE t1 ADD PARTITION
 (PARTITION p20 VALUES IN (20,21,22,23,24,25,26,27,28,29));
 ERROR HY000: Unknown error
 # State after failure
+db.opt
 t1.frm
 t1.par
 SHOW CREATE TABLE t1;
@@ -1534,6 +1596,7 @@ PARTITION BY LIST (a)
 PARTITION p10 VALUES IN (11,12,13,14,15,16,17,18,19));
 INSERT INTO t1 VALUES (1, "Original from partition p0"), (2, "Original from partition p0"), (3, "Original from partition p0"), (4, "Original from partition p0"), (11, "Original from partition p1"), (12, "Original from partition p1"), (13, "Original from partition p1"), (14, "Original from partition p1");
 # State before failure
+db.opt
 t1.frm
 t1.par
 SHOW CREATE TABLE t1;
@@ -1559,6 +1622,7 @@ ALTER TABLE t1 ADD PARTITION
 (PARTITION p20 VALUES IN (20,21,22,23,24,25,26,27,28,29));
 ERROR HY000: Unknown error
 # State after failure
+db.opt
 t1.frm
 t1.par
 SHOW CREATE TABLE t1;
@@ -1590,6 +1654,7 @@ PARTITION BY LIST (a)
 PARTITION p10 VALUES IN (11,12,13,14,15,16,17,18,19));
 INSERT INTO t1 VALUES (1, "Original from partition p0"), (2, "Original from partition p0"), (3, "Original from partition p0"), (4, "Original from partition p0"), (11, "Original from partition p1"), (12, "Original from partition p1"), (13, "Original from partition p1"), (14, "Original from partition p1");
 # State before failure
+db.opt
 t1.frm
 t1.par
 SHOW CREATE TABLE t1;
@@ -1616,6 +1681,7 @@ ALTER TABLE t1 ADD PARTITION
 (PARTITION p20 VALUES IN (20,21,22,23,24,25,26,27,28,29));
 ERROR HY000: Unknown error
 # State after failure
+db.opt
 t1.frm
 t1.par
 SHOW CREATE TABLE t1;
@@ -1649,6 +1715,7 @@ PARTITION BY LIST (a)
 PARTITION p10 VALUES IN (11,12,13,14,15,16,17,18,19));
 INSERT INTO t1 VALUES (1, "Original from partition p0"), (2, "Original from partition p0"), (3, "Original from partition p0"), (4, "Original from partition p0"), (11, "Original from partition p1"), (12, "Original from partition p1"), (13, "Original from partition p1"), (14, "Original from partition p1");
 # State before failure
+db.opt
 t1.frm
 t1.par
 SHOW CREATE TABLE t1;
@@ -1674,6 +1741,7 @@ ALTER TABLE t1 ADD PARTITION
 (PARTITION p20 VALUES IN (20,21,22,23,24,25,26,27,28,29));
 ERROR HY000: Unknown error
 # State after failure
+db.opt
 t1.frm
 t1.par
 SHOW CREATE TABLE t1;
@@ -1705,6 +1773,7 @@ PARTITION BY LIST (a)
 PARTITION p10 VALUES IN (11,12,13,14,15,16,17,18,19));
 INSERT INTO t1 VALUES (1, "Original from partition p0"), (2, "Original from partition p0"), (3, "Original from partition p0"), (4, "Original from partition p0"), (11, "Original from partition p1"), (12, "Original from partition p1"), (13, "Original from partition p1"), (14, "Original from partition p1");
 # State before failure
+db.opt
 t1.frm
 t1.par
 SHOW CREATE TABLE t1;
@@ -1731,6 +1800,7 @@ ALTER TABLE t1 ADD PARTITION
 (PARTITION p20 VALUES IN (20,21,22,23,24,25,26,27,28,29));
 ERROR HY000: Unknown error
 # State after failure
+db.opt
 t1.frm
 t1.par
 SHOW CREATE TABLE t1;
@@ -1765,6 +1835,7 @@ PARTITION BY LIST (a)
 PARTITION p10 VALUES IN (11,12,13,14,15,16,17,18,19));
 INSERT INTO t1 VALUES (1, "Original from partition p0"), (2, "Original from partition p0"), (3, "Original from partition p0"), (4, "Original from partition p0"), (11, "Original from partition p1"), (12, "Original from partition p1"), (13, "Original from partition p1"), (14, "Original from partition p1");
 # State before crash
+db.opt
 t1.frm
 t1.par
 SHOW CREATE TABLE t1;
@@ -1789,9 +1860,11 @@ a	b
 ALTER TABLE t1 DROP PARTITION p10;
 ERROR HY000: Lost connection to MySQL server during query
 # State after crash (before recovery)
+db.opt
 t1.frm
 t1.par
 # State after crash recovery
+db.opt
 t1.frm
 t1.par
 SHOW CREATE TABLE t1;
@@ -1823,6 +1896,7 @@ PARTITION BY LIST (a)
 PARTITION p10 VALUES IN (11,12,13,14,15,16,17,18,19));
 INSERT INTO t1 VALUES (1, "Original from partition p0"), (2, "Original from partition p0"), (3, "Original from partition p0"), (4, "Original from partition p0"), (11, "Original from partition p1"), (12, "Original from partition p1"), (13, "Original from partition p1"), (14, "Original from partition p1");
 # State before crash
+db.opt
 t1.frm
 t1.par
 SHOW CREATE TABLE t1;
@@ -1849,9 +1923,11 @@ ERROR HY000: Lost connection to MySQL server during query
 # State after crash (before recovery)
 #sql-t1.frm
 #sql-t1.par
+db.opt
 t1.frm
 t1.par
 # State after crash recovery
+db.opt
 t1.frm
 t1.par
 SHOW CREATE TABLE t1;
@@ -1883,6 +1959,7 @@ PARTITION BY LIST (a)
 PARTITION p10 VALUES IN (11,12,13,14,15,16,17,18,19));
 INSERT INTO t1 VALUES (1, "Original from partition p0"), (2, "Original from partition p0"), (3, "Original from partition p0"), (4, "Original from partition p0"), (11, "Original from partition p1"), (12, "Original from partition p1"), (13, "Original from partition p1"), (14, "Original from partition p1");
 # State before crash
+db.opt
 t1.frm
 t1.par
 SHOW CREATE TABLE t1;
@@ -1909,9 +1986,11 @@ ERROR HY000: Lost connection to MySQL server during query
 # State after crash (before recovery)
 #sql-t1.frm
 #sql-t1.par
+db.opt
 t1.frm
 t1.par
 # State after crash recovery
+db.opt
 t1.frm
 t1.par
 SHOW CREATE TABLE t1;
@@ -1943,6 +2022,7 @@ PARTITION BY LIST (a)
 PARTITION p10 VALUES IN (11,12,13,14,15,16,17,18,19));
 INSERT INTO t1 VALUES (1, "Original from partition p0"), (2, "Original from partition p0"), (3, "Original from partition p0"), (4, "Original from partition p0"), (11, "Original from partition p1"), (12, "Original from partition p1"), (13, "Original from partition p1"), (14, "Original from partition p1");
 # State before crash
+db.opt
 t1.frm
 t1.par
 SHOW CREATE TABLE t1;
@@ -1969,9 +2049,11 @@ ERROR HY000: Lost connection to MySQL server during query
 # State after crash (before recovery)
 #sql-t1.frm
 #sql-t1.par
+db.opt
 t1.frm
 t1.par
 # State after crash recovery
+db.opt
 t1.frm
 t1.par
 SHOW CREATE TABLE t1;
@@ -1998,6 +2080,7 @@ PARTITION BY LIST (a)
 PARTITION p10 VALUES IN (11,12,13,14,15,16,17,18,19));
 INSERT INTO t1 VALUES (1, "Original from partition p0"), (2, "Original from partition p0"), (3, "Original from partition p0"), (4, "Original from partition p0"), (11, "Original from partition p1"), (12, "Original from partition p1"), (13, "Original from partition p1"), (14, "Original from partition p1");
 # State before crash
+db.opt
 t1.frm
 t1.par
 SHOW CREATE TABLE t1;
@@ -2024,9 +2107,11 @@ ERROR HY000: Lost connection to MySQL server during query
 # State after crash (before recovery)
 #sql-t1.frm
 #sql-t1.par
+db.opt
 t1.frm
 t1.par
 # State after crash recovery
+db.opt
 t1.frm
 t1.par
 SHOW CREATE TABLE t1;
@@ -2053,6 +2138,7 @@ PARTITION BY LIST (a)
 PARTITION p10 VALUES IN (11,12,13,14,15,16,17,18,19));
 INSERT INTO t1 VALUES (1, "Original from partition p0"), (2, "Original from partition p0"), (3, "Original from partition p0"), (4, "Original from partition p0"), (11, "Original from partition p1"), (12, "Original from partition p1"), (13, "Original from partition p1"), (14, "Original from partition p1");
 # State before crash
+db.opt
 t1.frm
 t1.par
 SHOW CREATE TABLE t1;
@@ -2079,9 +2165,11 @@ ERROR HY000: Lost connection to MySQL server during query
 # State after crash (before recovery)
 #sql-t1.frm
 #sql-t1.par
+db.opt
 t1.frm
 t1.par
 # State after crash recovery
+db.opt
 t1.frm
 t1.par
 SHOW CREATE TABLE t1;
@@ -2108,6 +2196,7 @@ PARTITION BY LIST (a)
 PARTITION p10 VALUES IN (11,12,13,14,15,16,17,18,19));
 INSERT INTO t1 VALUES (1, "Original from partition p0"), (2, "Original from partition p0"), (3, "Original from partition p0"), (4, "Original from partition p0"), (11, "Original from partition p1"), (12, "Original from partition p1"), (13, "Original from partition p1"), (14, "Original from partition p1");
 # State before crash
+db.opt
 t1.frm
 t1.par
 SHOW CREATE TABLE t1;
@@ -2132,9 +2221,11 @@ a	b
 ALTER TABLE t1 DROP PARTITION p10;
 ERROR HY000: Lost connection to MySQL server during query
 # State after crash (before recovery)
+db.opt
 t1.frm
 t1.par
 # State after crash recovery
+db.opt
 t1.frm
 t1.par
 SHOW CREATE TABLE t1;
@@ -2161,6 +2252,7 @@ PARTITION BY LIST (a)
 PARTITION p10 VALUES IN (11,12,13,14,15,16,17,18,19));
 INSERT INTO t1 VALUES (1, "Original from partition p0"), (2, "Original from partition p0"), (3, "Original from partition p0"), (4, "Original from partition p0"), (11, "Original from partition p1"), (12, "Original from partition p1"), (13, "Original from partition p1"), (14, "Original from partition p1");
 # State before crash
+db.opt
 t1.frm
 t1.par
 SHOW CREATE TABLE t1;
@@ -2185,9 +2277,11 @@ a	b
 ALTER TABLE t1 DROP PARTITION p10;
 ERROR HY000: Lost connection to MySQL server during query
 # State after crash (before recovery)
+db.opt
 t1.frm
 t1.par
 # State after crash recovery
+db.opt
 t1.frm
 t1.par
 SHOW CREATE TABLE t1;
@@ -2214,6 +2308,7 @@ PARTITION BY LIST (a)
 PARTITION p10 VALUES IN (11,12,13,14,15,16,17,18,19));
 INSERT INTO t1 VALUES (1, "Original from partition p0"), (2, "Original from partition p0"), (3, "Original from partition p0"), (4, "Original from partition p0"), (11, "Original from partition p1"), (12, "Original from partition p1"), (13, "Original from partition p1"), (14, "Original from partition p1");
 # State before crash
+db.opt
 t1.frm
 t1.par
 SHOW CREATE TABLE t1;
@@ -2238,9 +2333,11 @@ a	b
 ALTER TABLE t1 DROP PARTITION p10;
 ERROR HY000: Lost connection to MySQL server during query
 # State after crash (before recovery)
+db.opt
 t1.frm
 t1.par
 # State after crash recovery
+db.opt
 t1.frm
 t1.par
 SHOW CREATE TABLE t1;
@@ -2268,6 +2365,7 @@ PARTITION BY LIST (a)
 PARTITION p10 VALUES IN (11,12,13,14,15,16,17,18,19));
 INSERT INTO t1 VALUES (1, "Original from partition p0"), (2, "Original from partition p0"), (3, "Original from partition p0"), (4, "Original from partition p0"), (11, "Original from partition p1"), (12, "Original from partition p1"), (13, "Original from partition p1"), (14, "Original from partition p1");
 # State before failure
+db.opt
 t1.frm
 t1.par
 SHOW CREATE TABLE t1;
@@ -2292,6 +2390,7 @@ a	b
 ALTER TABLE t1 DROP PARTITION p10;
 ERROR HY000: Unknown error
 # State after failure
+db.opt
 t1.frm
 t1.par
 SHOW CREATE TABLE t1;
@@ -2322,6 +2421,7 @@ PARTITION BY LIST (a)
 PARTITION p10 VALUES IN (11,12,13,14,15,16,17,18,19));
 INSERT INTO t1 VALUES (1, "Original from partition p0"), (2, "Original from partition p0"), (3, "Original from partition p0"), (4, "Original from partition p0"), (11, "Original from partition p1"), (12, "Original from partition p1"), (13, "Original from partition p1"), (14, "Original from partition p1");
 # State before failure
+db.opt
 t1.frm
 t1.par
 SHOW CREATE TABLE t1;
@@ -2347,6 +2447,7 @@ LOCK TABLE t1 WRITE;
 ALTER TABLE t1 DROP PARTITION p10;
 ERROR HY000: Unknown error
 # State after failure
+db.opt
 t1.frm
 t1.par
 SHOW CREATE TABLE t1;
@@ -2379,6 +2480,7 @@ PARTITION BY LIST (a)
 PARTITION p10 VALUES IN (11,12,13,14,15,16,17,18,19));
 INSERT INTO t1 VALUES (1, "Original from partition p0"), (2, "Original from partition p0"), (3, "Original from partition p0"), (4, "Original from partition p0"), (11, "Original from partition p1"), (12, "Original from partition p1"), (13, "Original from partition p1"), (14, "Original from partition p1");
 # State before failure
+db.opt
 t1.frm
 t1.par
 SHOW CREATE TABLE t1;
@@ -2403,6 +2505,7 @@ a	b
 ALTER TABLE t1 DROP PARTITION p10;
 ERROR HY000: Unknown error
 # State after failure
+db.opt
 t1.frm
 t1.par
 SHOW CREATE TABLE t1;
@@ -2433,6 +2536,7 @@ PARTITION BY LIST (a)
 PARTITION p10 VALUES IN (11,12,13,14,15,16,17,18,19));
 INSERT INTO t1 VALUES (1, "Original from partition p0"), (2, "Original from partition p0"), (3, "Original from partition p0"), (4, "Original from partition p0"), (11, "Original from partition p1"), (12, "Original from partition p1"), (13, "Original from partition p1"), (14, "Original from partition p1");
 # State before failure
+db.opt
 t1.frm
 t1.par
 SHOW CREATE TABLE t1;
@@ -2458,6 +2562,7 @@ LOCK TABLE t1 WRITE;
 ALTER TABLE t1 DROP PARTITION p10;
 ERROR HY000: Unknown error
 # State after failure
+db.opt
 t1.frm
 t1.par
 SHOW CREATE TABLE t1;
@@ -2490,6 +2595,7 @@ PARTITION BY LIST (a)
 PARTITION p10 VALUES IN (11,12,13,14,15,16,17,18,19));
 INSERT INTO t1 VALUES (1, "Original from partition p0"), (2, "Original from partition p0"), (3, "Original from partition p0"), (4, "Original from partition p0"), (11, "Original from partition p1"), (12, "Original from partition p1"), (13, "Original from partition p1"), (14, "Original from partition p1");
 # State before failure
+db.opt
 t1.frm
 t1.par
 SHOW CREATE TABLE t1;
@@ -2514,6 +2620,7 @@ a	b
 ALTER TABLE t1 DROP PARTITION p10;
 ERROR HY000: Unknown error
 # State after failure
+db.opt
 t1.frm
 t1.par
 SHOW CREATE TABLE t1;
@@ -2544,6 +2651,7 @@ PARTITION BY LIST (a)
 PARTITION p10 VALUES IN (11,12,13,14,15,16,17,18,19));
 INSERT INTO t1 VALUES (1, "Original from partition p0"), (2, "Original from partition p0"), (3, "Original from partition p0"), (4, "Original from partition p0"), (11, "Original from partition p1"), (12, "Original from partition p1"), (13, "Original from partition p1"), (14, "Original from partition p1");
 # State before failure
+db.opt
 t1.frm
 t1.par
 SHOW CREATE TABLE t1;
@@ -2569,6 +2677,7 @@ LOCK TABLE t1 WRITE;
 ALTER TABLE t1 DROP PARTITION p10;
 ERROR HY000: Unknown error
 # State after failure
+db.opt
 t1.frm
 t1.par
 SHOW CREATE TABLE t1;
@@ -2601,6 +2710,7 @@ PARTITION BY LIST (a)
 PARTITION p10 VALUES IN (11,12,13,14,15,16,17,18,19));
 INSERT INTO t1 VALUES (1, "Original from partition p0"), (2, "Original from partition p0"), (3, "Original from partition p0"), (4, "Original from partition p0"), (11, "Original from partition p1"), (12, "Original from partition p1"), (13, "Original from partition p1"), (14, "Original from partition p1");
 # State before failure
+db.opt
 t1.frm
 t1.par
 SHOW CREATE TABLE t1;
@@ -2625,6 +2735,7 @@ a	b
 ALTER TABLE t1 DROP PARTITION p10;
 ERROR HY000: Unknown error
 # State after failure
+db.opt
 t1.frm
 t1.par
 SHOW CREATE TABLE t1;
@@ -2650,6 +2761,7 @@ PARTITION BY LIST (a)
 PARTITION p10 VALUES IN (11,12,13,14,15,16,17,18,19));
 INSERT INTO t1 VALUES (1, "Original from partition p0"), (2, "Original from partition p0"), (3, "Original from partition p0"), (4, "Original from partition p0"), (11, "Original from partition p1"), (12, "Original from partition p1"), (13, "Original from partition p1"), (14, "Original from partition p1");
 # State before failure
+db.opt
 t1.frm
 t1.par
 SHOW CREATE TABLE t1;
@@ -2675,6 +2787,7 @@ LOCK TABLE t1 WRITE;
 ALTER TABLE t1 DROP PARTITION p10;
 ERROR HY000: Unknown error
 # State after failure
+db.opt
 t1.frm
 t1.par
 SHOW CREATE TABLE t1;
@@ -2702,6 +2815,7 @@ PARTITION BY LIST (a)
 PARTITION p10 VALUES IN (11,12,13,14,15,16,17,18,19));
 INSERT INTO t1 VALUES (1, "Original from partition p0"), (2, "Original from partition p0"), (3, "Original from partition p0"), (4, "Original from partition p0"), (11, "Original from partition p1"), (12, "Original from partition p1"), (13, "Original from partition p1"), (14, "Original from partition p1");
 # State before failure
+db.opt
 t1.frm
 t1.par
 SHOW CREATE TABLE t1;
@@ -2726,6 +2840,7 @@ a	b
 ALTER TABLE t1 DROP PARTITION p10;
 ERROR HY000: Unknown error
 # State after failure
+db.opt
 t1.frm
 t1.par
 SHOW CREATE TABLE t1;
@@ -2751,6 +2866,7 @@ PARTITION BY LIST (a)
 PARTITION p10 VALUES IN (11,12,13,14,15,16,17,18,19));
 INSERT INTO t1 VALUES (1, "Original from partition p0"), (2, "Original from partition p0"), (3, "Original from partition p0"), (4, "Original from partition p0"), (11, "Original from partition p1"), (12, "Original from partition p1"), (13, "Original from partition p1"), (14, "Original from partition p1");
 # State before failure
+db.opt
 t1.frm
 t1.par
 SHOW CREATE TABLE t1;
@@ -2776,6 +2892,7 @@ LOCK TABLE t1 WRITE;
 ALTER TABLE t1 DROP PARTITION p10;
 ERROR HY000: Unknown error
 # State after failure
+db.opt
 t1.frm
 t1.par
 SHOW CREATE TABLE t1;
@@ -2803,6 +2920,7 @@ PARTITION BY LIST (a)
 PARTITION p10 VALUES IN (11,12,13,14,15,16,17,18,19));
 INSERT INTO t1 VALUES (1, "Original from partition p0"), (2, "Original from partition p0"), (3, "Original from partition p0"), (4, "Original from partition p0"), (11, "Original from partition p1"), (12, "Original from partition p1"), (13, "Original from partition p1"), (14, "Original from partition p1");
 # State before failure
+db.opt
 t1.frm
 t1.par
 SHOW CREATE TABLE t1;
@@ -2827,6 +2945,7 @@ a	b
 ALTER TABLE t1 DROP PARTITION p10;
 ERROR HY000: Unknown error
 # State after failure
+db.opt
 t1.frm
 t1.par
 SHOW CREATE TABLE t1;
@@ -2852,6 +2971,7 @@ PARTITION BY LIST (a)
 PARTITION p10 VALUES IN (11,12,13,14,15,16,17,18,19));
 INSERT INTO t1 VALUES (1, "Original from partition p0"), (2, "Original from partition p0"), (3, "Original from partition p0"), (4, "Original from partition p0"), (11, "Original from partition p1"), (12, "Original from partition p1"), (13, "Original from partition p1"), (14, "Original from partition p1");
 # State before failure
+db.opt
 t1.frm
 t1.par
 SHOW CREATE TABLE t1;
@@ -2877,6 +2997,7 @@ LOCK TABLE t1 WRITE;
 ALTER TABLE t1 DROP PARTITION p10;
 ERROR HY000: Unknown error
 # State after failure
+db.opt
 t1.frm
 t1.par
 SHOW CREATE TABLE t1;
@@ -2904,6 +3025,7 @@ PARTITION BY LIST (a)
 PARTITION p10 VALUES IN (11,12,13,14,15,16,17,18,19));
 INSERT INTO t1 VALUES (1, "Original from partition p0"), (2, "Original from partition p0"), (3, "Original from partition p0"), (4, "Original from partition p0"), (11, "Original from partition p1"), (12, "Original from partition p1"), (13, "Original from partition p1"), (14, "Original from partition p1");
 # State before failure
+db.opt
 t1.frm
 t1.par
 SHOW CREATE TABLE t1;
@@ -2928,6 +3050,7 @@ a	b
 ALTER TABLE t1 DROP PARTITION p10;
 ERROR HY000: Unknown error
 # State after failure
+db.opt
 t1.frm
 t1.par
 SHOW CREATE TABLE t1;
@@ -2953,6 +3076,7 @@ PARTITION BY LIST (a)
 PARTITION p10 VALUES IN (11,12,13,14,15,16,17,18,19));
 INSERT INTO t1 VALUES (1, "Original from partition p0"), (2, "Original from partition p0"), (3, "Original from partition p0"), (4, "Original from partition p0"), (11, "Original from partition p1"), (12, "Original from partition p1"), (13, "Original from partition p1"), (14, "Original from partition p1");
 # State before failure
+db.opt
 t1.frm
 t1.par
 SHOW CREATE TABLE t1;
@@ -2978,6 +3102,7 @@ LOCK TABLE t1 WRITE;
 ALTER TABLE t1 DROP PARTITION p10;
 ERROR HY000: Unknown error
 # State after failure
+db.opt
 t1.frm
 t1.par
 SHOW CREATE TABLE t1;
@@ -3005,6 +3130,7 @@ PARTITION BY LIST (a)
 PARTITION p10 VALUES IN (11,12,13,14,15,16,17,18,19));
 INSERT INTO t1 VALUES (1, "Original from partition p0"), (2, "Original from partition p0"), (3, "Original from partition p0"), (4, "Original from partition p0"), (11, "Original from partition p1"), (12, "Original from partition p1"), (13, "Original from partition p1"), (14, "Original from partition p1");
 # State before failure
+db.opt
 t1.frm
 t1.par
 SHOW CREATE TABLE t1;
@@ -3029,6 +3155,7 @@ a	b
 ALTER TABLE t1 DROP PARTITION p10;
 ERROR HY000: Unknown error
 # State after failure
+db.opt
 t1.frm
 t1.par
 SHOW CREATE TABLE t1;
@@ -3054,6 +3181,7 @@ PARTITION BY LIST (a)
 PARTITION p10 VALUES IN (11,12,13,14,15,16,17,18,19));
 INSERT INTO t1 VALUES (1, "Original from partition p0"), (2, "Original from partition p0"), (3, "Original from partition p0"), (4, "Original from partition p0"), (11, "Original from partition p1"), (12, "Original from partition p1"), (13, "Original from partition p1"), (14, "Original from partition p1");
 # State before failure
+db.opt
 t1.frm
 t1.par
 SHOW CREATE TABLE t1;
@@ -3079,6 +3207,7 @@ LOCK TABLE t1 WRITE;
 ALTER TABLE t1 DROP PARTITION p10;
 ERROR HY000: Unknown error
 # State after failure
+db.opt
 t1.frm
 t1.par
 SHOW CREATE TABLE t1;
@@ -3106,6 +3235,7 @@ PARTITION BY LIST (a)
 PARTITION p10 VALUES IN (11,12,13,14,15,16,17,18,19));
 INSERT INTO t1 VALUES (1, "Original from partition p0"), (2, "Original from partition p0"), (3, "Original from partition p0"), (4, "Original from partition p0"), (11, "Original from partition p1"), (12, "Original from partition p1"), (13, "Original from partition p1"), (14, "Original from partition p1");
 # State before failure
+db.opt
 t1.frm
 t1.par
 SHOW CREATE TABLE t1;
@@ -3130,6 +3260,7 @@ a	b
 ALTER TABLE t1 DROP PARTITION p10;
 ERROR HY000: Unknown error
 # State after failure
+db.opt
 t1.frm
 t1.par
 SHOW CREATE TABLE t1;
@@ -3155,6 +3286,7 @@ PARTITION BY LIST (a)
 PARTITION p10 VALUES IN (11,12,13,14,15,16,17,18,19));
 INSERT INTO t1 VALUES (1, "Original from partition p0"), (2, "Original from partition p0"), (3, "Original from partition p0"), (4, "Original from partition p0"), (11, "Original from partition p1"), (12, "Original from partition p1"), (13, "Original from partition p1"), (14, "Original from partition p1");
 # State before failure
+db.opt
 t1.frm
 t1.par
 SHOW CREATE TABLE t1;
@@ -3180,6 +3312,7 @@ LOCK TABLE t1 WRITE;
 ALTER TABLE t1 DROP PARTITION p10;
 ERROR HY000: Unknown error
 # State after failure
+db.opt
 t1.frm
 t1.par
 SHOW CREATE TABLE t1;
@@ -3209,6 +3342,7 @@ PARTITION BY LIST (a)
 PARTITION p10 VALUES IN (11,12,13,14,15,16,17,18,19));
 INSERT INTO t1 VALUES (1, "Original from partition p0"), (2, "Original from partition p0"), (3, "Original from partition p0"), (4, "Original from partition p0"), (11, "Original from partition p1"), (12, "Original from partition p1"), (13, "Original from partition p1"), (14, "Original from partition p1");
 # State before crash
+db.opt
 t1.frm
 t1.par
 SHOW CREATE TABLE t1;
@@ -3235,9 +3369,11 @@ ALTER TABLE t1 REORGANIZE PARTITION p10 INTO
 PARTITION p20 VALUES IN (20,21,22,23,24,25,26,27,28,29));
 ERROR HY000: Lost connection to MySQL server during query
 # State after crash (before recovery)
+db.opt
 t1.frm
 t1.par
 # State after crash recovery
+db.opt
 t1.frm
 t1.par
 SHOW CREATE TABLE t1;
@@ -3269,6 +3405,7 @@ PARTITION BY LIST (a)
 PARTITION p10 VALUES IN (11,12,13,14,15,16,17,18,19));
 INSERT INTO t1 VALUES (1, "Original from partition p0"), (2, "Original from partition p0"), (3, "Original from partition p0"), (4, "Original from partition p0"), (11, "Original from partition p1"), (12, "Original from partition p1"), (13, "Original from partition p1"), (14, "Original from partition p1");
 # State before crash
+db.opt
 t1.frm
 t1.par
 SHOW CREATE TABLE t1;
@@ -3297,9 +3434,11 @@ ERROR HY000: Lost connection to MySQL server during query
 # State after crash (before recovery)
 #sql-t1.frm
 #sql-t1.par
+db.opt
 t1.frm
 t1.par
 # State after crash recovery
+db.opt
 t1.frm
 t1.par
 SHOW CREATE TABLE t1;
@@ -3331,6 +3470,7 @@ PARTITION BY LIST (a)
 PARTITION p10 VALUES IN (11,12,13,14,15,16,17,18,19));
 INSERT INTO t1 VALUES (1, "Original from partition p0"), (2, "Original from partition p0"), (3, "Original from partition p0"), (4, "Original from partition p0"), (11, "Original from partition p1"), (12, "Original from partition p1"), (13, "Original from partition p1"), (14, "Original from partition p1");
 # State before crash
+db.opt
 t1.frm
 t1.par
 SHOW CREATE TABLE t1;
@@ -3359,9 +3499,11 @@ ERROR HY000: Lost connection to MySQL server during query
 # State after crash (before recovery)
 #sql-t1.frm
 #sql-t1.par
+db.opt
 t1.frm
 t1.par
 # State after crash recovery
+db.opt
 t1.frm
 t1.par
 SHOW CREATE TABLE t1;
@@ -3393,6 +3535,7 @@ PARTITION BY LIST (a)
 PARTITION p10 VALUES IN (11,12,13,14,15,16,17,18,19));
 INSERT INTO t1 VALUES (1, "Original from partition p0"), (2, "Original from partition p0"), (3, "Original from partition p0"), (4, "Original from partition p0"), (11, "Original from partition p1"), (12, "Original from partition p1"), (13, "Original from partition p1"), (14, "Original from partition p1");
 # State before crash
+db.opt
 t1.frm
 t1.par
 SHOW CREATE TABLE t1;
@@ -3421,9 +3564,11 @@ ERROR HY000: Lost connection to MySQL server during query
 # State after crash (before recovery)
 #sql-t1.frm
 #sql-t1.par
+db.opt
 t1.frm
 t1.par
 # State after crash recovery
+db.opt
 t1.frm
 t1.par
 SHOW CREATE TABLE t1;
@@ -3455,6 +3600,7 @@ PARTITION BY LIST (a)
 PARTITION p10 VALUES IN (11,12,13,14,15,16,17,18,19));
 INSERT INTO t1 VALUES (1, "Original from partition p0"), (2, "Original from partition p0"), (3, "Original from partition p0"), (4, "Original from partition p0"), (11, "Original from partition p1"), (12, "Original from partition p1"), (13, "Original from partition p1"), (14, "Original from partition p1");
 # State before crash
+db.opt
 t1.frm
 t1.par
 SHOW CREATE TABLE t1;
@@ -3483,9 +3629,11 @@ ERROR HY000: Lost connection to MySQL server during query
 # State after crash (before recovery)
 #sql-t1.frm
 #sql-t1.par
+db.opt
 t1.frm
 t1.par
 # State after crash recovery
+db.opt
 t1.frm
 t1.par
 SHOW CREATE TABLE t1;
@@ -3517,6 +3665,7 @@ PARTITION BY LIST (a)
 PARTITION p10 VALUES IN (11,12,13,14,15,16,17,18,19));
 INSERT INTO t1 VALUES (1, "Original from partition p0"), (2, "Original from partition p0"), (3, "Original from partition p0"), (4, "Original from partition p0"), (11, "Original from partition p1"), (12, "Original from partition p1"), (13, "Original from partition p1"), (14, "Original from partition p1");
 # State before crash
+db.opt
 t1.frm
 t1.par
 SHOW CREATE TABLE t1;
@@ -3545,9 +3694,11 @@ ERROR HY000: Lost connection to MySQL server during query
 # State after crash (before recovery)
 #sql-t1.frm
 #sql-t1.par
+db.opt
 t1.frm
 t1.par
 # State after crash recovery
+db.opt
 t1.frm
 t1.par
 SHOW CREATE TABLE t1;
@@ -3579,6 +3730,7 @@ PARTITION BY LIST (a)
 PARTITION p10 VALUES IN (11,12,13,14,15,16,17,18,19));
 INSERT INTO t1 VALUES (1, "Original from partition p0"), (2, "Original from partition p0"), (3, "Original from partition p0"), (4, "Original from partition p0"), (11, "Original from partition p1"), (12, "Original from partition p1"), (13, "Original from partition p1"), (14, "Original from partition p1");
 # State before crash
+db.opt
 t1.frm
 t1.par
 SHOW CREATE TABLE t1;
@@ -3607,9 +3759,11 @@ ERROR HY000: Lost connection to MySQL server during query
 # State after crash (before recovery)
 #sql-t1.frm
 #sql-t1.par
+db.opt
 t1.frm
 t1.par
 # State after crash recovery
+db.opt
 t1.frm
 t1.par
 SHOW CREATE TABLE t1;
@@ -3642,6 +3796,7 @@ PARTITION BY LIST (a)
 PARTITION p10 VALUES IN (11,12,13,14,15,16,17,18,19));
 INSERT INTO t1 VALUES (1, "Original from partition p0"), (2, "Original from partition p0"), (3, "Original from partition p0"), (4, "Original from partition p0"), (11, "Original from partition p1"), (12, "Original from partition p1"), (13, "Original from partition p1"), (14, "Original from partition p1");
 # State before crash
+db.opt
 t1.frm
 t1.par
 SHOW CREATE TABLE t1;
@@ -3670,9 +3825,11 @@ ERROR HY000: Lost connection to MySQL server during query
 # State after crash (before recovery)
 #sql-t1.frm
 #sql-t1.par
+db.opt
 t1.frm
 t1.par
 # State after crash recovery
+db.opt
 t1.frm
 t1.par
 SHOW CREATE TABLE t1;
@@ -3705,6 +3862,7 @@ PARTITION BY LIST (a)
 PARTITION p10 VALUES IN (11,12,13,14,15,16,17,18,19));
 INSERT INTO t1 VALUES (1, "Original from partition p0"), (2, "Original from partition p0"), (3, "Original from partition p0"), (4, "Original from partition p0"), (11, "Original from partition p1"), (12, "Original from partition p1"), (13, "Original from partition p1"), (14, "Original from partition p1");
 # State before crash
+db.opt
 t1.frm
 t1.par
 SHOW CREATE TABLE t1;
@@ -3731,9 +3889,11 @@ ALTER TABLE t1 REORGANIZE PARTITION p10 INTO
 PARTITION p20 VALUES IN (20,21,22,23,24,25,26,27,28,29));
 ERROR HY000: Lost connection to MySQL server during query
 # State after crash (before recovery)
+db.opt
 t1.frm
 t1.par
 # State after crash recovery
+db.opt
 t1.frm
 t1.par
 SHOW CREATE TABLE t1;
@@ -3766,6 +3926,7 @@ PARTITION BY LIST (a)
 PARTITION p10 VALUES IN (11,12,13,14,15,16,17,18,19));
 INSERT INTO t1 VALUES (1, "Original from partition p0"), (2, "Original from partition p0"), (3, "Original from partition p0"), (4, "Original from partition p0"), (11, "Original from partition p1"), (12, "Original from partition p1"), (13, "Original from partition p1"), (14, "Original from partition p1");
 # State before crash
+db.opt
 t1.frm
 t1.par
 SHOW CREATE TABLE t1;
@@ -3792,9 +3953,11 @@ ALTER TABLE t1 REORGANIZE PARTITION p10 INTO
 PARTITION p20 VALUES IN (20,21,22,23,24,25,26,27,28,29));
 ERROR HY000: Lost connection to MySQL server during query
 # State after crash (before recovery)
+db.opt
 t1.frm
 t1.par
 # State after crash recovery
+db.opt
 t1.frm
 t1.par
 SHOW CREATE TABLE t1;
@@ -3827,6 +3990,7 @@ PARTITION BY LIST (a)
 PARTITION p10 VALUES IN (11,12,13,14,15,16,17,18,19));
 INSERT INTO t1 VALUES (1, "Original from partition p0"), (2, "Original from partition p0"), (3, "Original from partition p0"), (4, "Original from partition p0"), (11, "Original from partition p1"), (12, "Original from partition p1"), (13, "Original from partition p1"), (14, "Original from partition p1");
 # State before crash
+db.opt
 t1.frm
 t1.par
 SHOW CREATE TABLE t1;
@@ -3853,9 +4017,11 @@ ALTER TABLE t1 REORGANIZE PARTITION p10 INTO
 PARTITION p20 VALUES IN (20,21,22,23,24,25,26,27,28,29));
 ERROR HY000: Lost connection to MySQL server during query
 # State after crash (before recovery)
+db.opt
 t1.frm
 t1.par
 # State after crash recovery
+db.opt
 t1.frm
 t1.par
 SHOW CREATE TABLE t1;
@@ -3888,6 +4054,7 @@ PARTITION BY LIST (a)
 PARTITION p10 VALUES IN (11,12,13,14,15,16,17,18,19));
 INSERT INTO t1 VALUES (1, "Original from partition p0"), (2, "Original from partition p0"), (3, "Original from partition p0"), (4, "Original from partition p0"), (11, "Original from partition p1"), (12, "Original from partition p1"), (13, "Original from partition p1"), (14, "Original from partition p1");
 # State before crash
+db.opt
 t1.frm
 t1.par
 SHOW CREATE TABLE t1;
@@ -3914,9 +4081,11 @@ ALTER TABLE t1 REORGANIZE PARTITION p10 INTO
 PARTITION p20 VALUES IN (20,21,22,23,24,25,26,27,28,29));
 ERROR HY000: Lost connection to MySQL server during query
 # State after crash (before recovery)
+db.opt
 t1.frm
 t1.par
 # State after crash recovery
+db.opt
 t1.frm
 t1.par
 SHOW CREATE TABLE t1;
@@ -3951,6 +4120,7 @@ PARTITION BY LIST (a)
 PARTITION p10 VALUES IN (11,12,13,14,15,16,17,18,19));
 INSERT INTO t1 VALUES (1, "Original from partition p0"), (2, "Original from partition p0"), (3, "Original from partition p0"), (4, "Original from partition p0"), (11, "Original from partition p1"), (12, "Original from partition p1"), (13, "Original from partition p1"), (14, "Original from partition p1");
 # State before failure
+db.opt
 t1.frm
 t1.par
 SHOW CREATE TABLE t1;
@@ -3977,6 +4147,7 @@ ALTER TABLE t1 REORGANIZE PARTITION p10 INTO
 PARTITION p20 VALUES IN (20,21,22,23,24,25,26,27,28,29));
 ERROR HY000: Unknown error
 # State after failure
+db.opt
 t1.frm
 t1.par
 SHOW CREATE TABLE t1;
@@ -4007,6 +4178,7 @@ PARTITION BY LIST (a)
 PARTITION p10 VALUES IN (11,12,13,14,15,16,17,18,19));
 INSERT INTO t1 VALUES (1, "Original from partition p0"), (2, "Original from partition p0"), (3, "Original from partition p0"), (4, "Original from partition p0"), (11, "Original from partition p1"), (12, "Original from partition p1"), (13, "Original from partition p1"), (14, "Original from partition p1");
 # State before failure
+db.opt
 t1.frm
 t1.par
 SHOW CREATE TABLE t1;
@@ -4034,6 +4206,7 @@ ALTER TABLE t1 REORGANIZE PARTITION p10 INTO
 PARTITION p20 VALUES IN (20,21,22,23,24,25,26,27,28,29));
 ERROR HY000: Unknown error
 # State after failure
+db.opt
 t1.frm
 t1.par
 SHOW CREATE TABLE t1;
@@ -4066,6 +4239,7 @@ PARTITION BY LIST (a)
 PARTITION p10 VALUES IN (11,12,13,14,15,16,17,18,19));
 INSERT INTO t1 VALUES (1, "Original from partition p0"), (2, "Original from partition p0"), (3, "Original from partition p0"), (4, "Original from partition p0"), (11, "Original from partition p1"), (12, "Original from partition p1"), (13, "Original from partition p1"), (14, "Original from partition p1");
 # State before failure
+db.opt
 t1.frm
 t1.par
 SHOW CREATE TABLE t1;
@@ -4092,6 +4266,7 @@ ALTER TABLE t1 REORGANIZE PARTITION p10 INTO
 PARTITION p20 VALUES IN (20,21,22,23,24,25,26,27,28,29));
 ERROR HY000: Unknown error
 # State after failure
+db.opt
 t1.frm
 t1.par
 SHOW CREATE TABLE t1;
@@ -4122,6 +4297,7 @@ PARTITION BY LIST (a)
 PARTITION p10 VALUES IN (11,12,13,14,15,16,17,18,19));
 INSERT INTO t1 VALUES (1, "Original from partition p0"), (2, "Original from partition p0"), (3, "Original from partition p0"), (4, "Original from partition p0"), (11, "Original from partition p1"), (12, "Original from partition p1"), (13, "Original from partition p1"), (14, "Original from partition p1");
 # State before failure
+db.opt
 t1.frm
 t1.par
 SHOW CREATE TABLE t1;
@@ -4149,6 +4325,7 @@ ALTER TABLE t1 REORGANIZE PARTITION p10 INTO
 PARTITION p20 VALUES IN (20,21,22,23,24,25,26,27,28,29));
 ERROR HY000: Unknown error
 # State after failure
+db.opt
 t1.frm
 t1.par
 SHOW CREATE TABLE t1;
@@ -4181,6 +4358,7 @@ PARTITION BY LIST (a)
 PARTITION p10 VALUES IN (11,12,13,14,15,16,17,18,19));
 INSERT INTO t1 VALUES (1, "Original from partition p0"), (2, "Original from partition p0"), (3, "Original from partition p0"), (4, "Original from partition p0"), (11, "Original from partition p1"), (12, "Original from partition p1"), (13, "Original from partition p1"), (14, "Original from partition p1");
 # State before failure
+db.opt
 t1.frm
 t1.par
 SHOW CREATE TABLE t1;
@@ -4207,6 +4385,7 @@ ALTER TABLE t1 REORGANIZE PARTITION p10 INTO
 PARTITION p20 VALUES IN (20,21,22,23,24,25,26,27,28,29));
 ERROR HY000: Unknown error
 # State after failure
+db.opt
 t1.frm
 t1.par
 SHOW CREATE TABLE t1;
@@ -4237,6 +4416,7 @@ PARTITION BY LIST (a)
 PARTITION p10 VALUES IN (11,12,13,14,15,16,17,18,19));
 INSERT INTO t1 VALUES (1, "Original from partition p0"), (2, "Original from partition p0"), (3, "Original from partition p0"), (4, "Original from partition p0"), (11, "Original from partition p1"), (12, "Original from partition p1"), (13, "Original from partition p1"), (14, "Original from partition p1");
 # State before failure
+db.opt
 t1.frm
 t1.par
 SHOW CREATE TABLE t1;
@@ -4264,6 +4444,7 @@ ALTER TABLE t1 REORGANIZE PARTITION p10 INTO
 PARTITION p20 VALUES IN (20,21,22,23,24,25,26,27,28,29));
 ERROR HY000: Unknown error
 # State after failure
+db.opt
 t1.frm
 t1.par
 SHOW CREATE TABLE t1;
@@ -4296,6 +4477,7 @@ PARTITION BY LIST (a)
 PARTITION p10 VALUES IN (11,12,13,14,15,16,17,18,19));
 INSERT INTO t1 VALUES (1, "Original from partition p0"), (2, "Original from partition p0"), (3, "Original from partition p0"), (4, "Original from partition p0"), (11, "Original from partition p1"), (12, "Original from partition p1"), (13, "Original from partition p1"), (14, "Original from partition p1");
 # State before failure
+db.opt
 t1.frm
 t1.par
 SHOW CREATE TABLE t1;
@@ -4322,6 +4504,7 @@ ALTER TABLE t1 REORGANIZE PARTITION p10 INTO
 PARTITION p20 VALUES IN (20,21,22,23,24,25,26,27,28,29));
 ERROR HY000: Unknown error
 # State after failure
+db.opt
 t1.frm
 t1.par
 SHOW CREATE TABLE t1;
@@ -4352,6 +4535,7 @@ PARTITION BY LIST (a)
 PARTITION p10 VALUES IN (11,12,13,14,15,16,17,18,19));
 INSERT INTO t1 VALUES (1, "Original from partition p0"), (2, "Original from partition p0"), (3, "Original from partition p0"), (4, "Original from partition p0"), (11, "Original from partition p1"), (12, "Original from partition p1"), (13, "Original from partition p1"), (14, "Original from partition p1");
 # State before failure
+db.opt
 t1.frm
 t1.par
 SHOW CREATE TABLE t1;
@@ -4379,6 +4563,7 @@ ALTER TABLE t1 REORGANIZE PARTITION p10 INTO
 PARTITION p20 VALUES IN (20,21,22,23,24,25,26,27,28,29));
 ERROR HY000: Unknown error
 # State after failure
+db.opt
 t1.frm
 t1.par
 SHOW CREATE TABLE t1;
@@ -4411,6 +4596,7 @@ PARTITION BY LIST (a)
 PARTITION p10 VALUES IN (11,12,13,14,15,16,17,18,19));
 INSERT INTO t1 VALUES (1, "Original from partition p0"), (2, "Original from partition p0"), (3, "Original from partition p0"), (4, "Original from partition p0"), (11, "Original from partition p1"), (12, "Original from partition p1"), (13, "Original from partition p1"), (14, "Original from partition p1");
 # State before failure
+db.opt
 t1.frm
 t1.par
 SHOW CREATE TABLE t1;
@@ -4437,6 +4623,7 @@ ALTER TABLE t1 REORGANIZE PARTITION p10 INTO
 PARTITION p20 VALUES IN (20,21,22,23,24,25,26,27,28,29));
 ERROR HY000: Unknown error
 # State after failure
+db.opt
 t1.frm
 t1.par
 SHOW CREATE TABLE t1;
@@ -4467,6 +4654,7 @@ PARTITION BY LIST (a)
 PARTITION p10 VALUES IN (11,12,13,14,15,16,17,18,19));
 INSERT INTO t1 VALUES (1, "Original from partition p0"), (2, "Original from partition p0"), (3, "Original from partition p0"), (4, "Original from partition p0"), (11, "Original from partition p1"), (12, "Original from partition p1"), (13, "Original from partition p1"), (14, "Original from partition p1");
 # State before failure
+db.opt
 t1.frm
 t1.par
 SHOW CREATE TABLE t1;
@@ -4494,6 +4682,7 @@ ALTER TABLE t1 REORGANIZE PARTITION p10 INTO
 PARTITION p20 VALUES IN (20,21,22,23,24,25,26,27,28,29));
 ERROR HY000: Unknown error
 # State after failure
+db.opt
 t1.frm
 t1.par
 SHOW CREATE TABLE t1;
@@ -4526,6 +4715,7 @@ PARTITION BY LIST (a)
 PARTITION p10 VALUES IN (11,12,13,14,15,16,17,18,19));
 INSERT INTO t1 VALUES (1, "Original from partition p0"), (2, "Original from partition p0"), (3, "Original from partition p0"), (4, "Original from partition p0"), (11, "Original from partition p1"), (12, "Original from partition p1"), (13, "Original from partition p1"), (14, "Original from partition p1");
 # State before failure
+db.opt
 t1.frm
 t1.par
 SHOW CREATE TABLE t1;
@@ -4552,6 +4742,7 @@ ALTER TABLE t1 REORGANIZE PARTITION p10 INTO
 PARTITION p20 VALUES IN (20,21,22,23,24,25,26,27,28,29));
 ERROR HY000: Unknown error
 # State after failure
+db.opt
 t1.frm
 t1.par
 SHOW CREATE TABLE t1;
@@ -4582,6 +4773,7 @@ PARTITION BY LIST (a)
 PARTITION p10 VALUES IN (11,12,13,14,15,16,17,18,19));
 INSERT INTO t1 VALUES (1, "Original from partition p0"), (2, "Original from partition p0"), (3, "Original from partition p0"), (4, "Original from partition p0"), (11, "Original from partition p1"), (12, "Original from partition p1"), (13, "Original from partition p1"), (14, "Original from partition p1");
 # State before failure
+db.opt
 t1.frm
 t1.par
 SHOW CREATE TABLE t1;
@@ -4609,6 +4801,7 @@ ALTER TABLE t1 REORGANIZE PARTITION p10 INTO
 PARTITION p20 VALUES IN (20,21,22,23,24,25,26,27,28,29));
 ERROR HY000: Unknown error
 # State after failure
+db.opt
 t1.frm
 t1.par
 SHOW CREATE TABLE t1;
@@ -4641,6 +4834,7 @@ PARTITION BY LIST (a)
 PARTITION p10 VALUES IN (11,12,13,14,15,16,17,18,19));
 INSERT INTO t1 VALUES (1, "Original from partition p0"), (2, "Original from partition p0"), (3, "Original from partition p0"), (4, "Original from partition p0"), (11, "Original from partition p1"), (12, "Original from partition p1"), (13, "Original from partition p1"), (14, "Original from partition p1");
 # State before failure
+db.opt
 t1.frm
 t1.par
 SHOW CREATE TABLE t1;
@@ -4667,6 +4861,7 @@ ALTER TABLE t1 REORGANIZE PARTITION p10 INTO
 PARTITION p20 VALUES IN (20,21,22,23,24,25,26,27,28,29));
 ERROR HY000: Unknown error
 # State after failure
+db.opt
 t1.frm
 t1.par
 SHOW CREATE TABLE t1;
@@ -4698,6 +4893,7 @@ PARTITION BY LIST (a)
 PARTITION p10 VALUES IN (11,12,13,14,15,16,17,18,19));
 INSERT INTO t1 VALUES (1, "Original from partition p0"), (2, "Original from partition p0"), (3, "Original from partition p0"), (4, "Original from partition p0"), (11, "Original from partition p1"), (12, "Original from partition p1"), (13, "Original from partition p1"), (14, "Original from partition p1");
 # State before failure
+db.opt
 t1.frm
 t1.par
 SHOW CREATE TABLE t1;
@@ -4725,6 +4921,7 @@ ALTER TABLE t1 REORGANIZE PARTITION p10 INTO
 PARTITION p20 VALUES IN (20,21,22,23,24,25,26,27,28,29));
 ERROR HY000: Unknown error
 # State after failure
+db.opt
 t1.frm
 t1.par
 SHOW CREATE TABLE t1;
@@ -4758,6 +4955,7 @@ PARTITION BY LIST (a)
 PARTITION p10 VALUES IN (11,12,13,14,15,16,17,18,19));
 INSERT INTO t1 VALUES (1, "Original from partition p0"), (2, "Original from partition p0"), (3, "Original from partition p0"), (4, "Original from partition p0"), (11, "Original from partition p1"), (12, "Original from partition p1"), (13, "Original from partition p1"), (14, "Original from partition p1");
 # State before failure
+db.opt
 t1.frm
 t1.par
 SHOW CREATE TABLE t1;
@@ -4784,6 +4982,7 @@ ALTER TABLE t1 REORGANIZE PARTITION p10 INTO
 PARTITION p20 VALUES IN (20,21,22,23,24,25,26,27,28,29));
 ERROR HY000: Unknown error
 # State after failure
+db.opt
 t1.frm
 t1.par
 SHOW CREATE TABLE t1;
@@ -4815,6 +5014,7 @@ PARTITION BY LIST (a)
 PARTITION p10 VALUES IN (11,12,13,14,15,16,17,18,19));
 INSERT INTO t1 VALUES (1, "Original from partition p0"), (2, "Original from partition p0"), (3, "Original from partition p0"), (4, "Original from partition p0"), (11, "Original from partition p1"), (12, "Original from partition p1"), (13, "Original from partition p1"), (14, "Original from partition p1");
 # State before failure
+db.opt
 t1.frm
 t1.par
 SHOW CREATE TABLE t1;
@@ -4842,6 +5042,7 @@ ALTER TABLE t1 REORGANIZE PARTITION p10 INTO
 PARTITION p20 VALUES IN (20,21,22,23,24,25,26,27,28,29));
 ERROR HY000: Unknown error
 # State after failure
+db.opt
 t1.frm
 t1.par
 SHOW CREATE TABLE t1;
@@ -4875,6 +5076,7 @@ PARTITION BY LIST (a)
 PARTITION p10 VALUES IN (11,12,13,14,15,16,17,18,19));
 INSERT INTO t1 VALUES (1, "Original from partition p0"), (2, "Original from partition p0"), (3, "Original from partition p0"), (4, "Original from partition p0"), (11, "Original from partition p1"), (12, "Original from partition p1"), (13, "Original from partition p1"), (14, "Original from partition p1");
 # State before failure
+db.opt
 t1.frm
 t1.par
 SHOW CREATE TABLE t1;
@@ -4901,6 +5103,7 @@ ALTER TABLE t1 REORGANIZE PARTITION p10 INTO
 PARTITION p20 VALUES IN (20,21,22,23,24,25,26,27,28,29));
 ERROR HY000: Unknown error
 # State after failure
+db.opt
 t1.frm
 t1.par
 SHOW CREATE TABLE t1;
@@ -4932,6 +5135,7 @@ PARTITION BY LIST (a)
 PARTITION p10 VALUES IN (11,12,13,14,15,16,17,18,19));
 INSERT INTO t1 VALUES (1, "Original from partition p0"), (2, "Original from partition p0"), (3, "Original from partition p0"), (4, "Original from partition p0"), (11, "Original from partition p1"), (12, "Original from partition p1"), (13, "Original from partition p1"), (14, "Original from partition p1");
 # State before failure
+db.opt
 t1.frm
 t1.par
 SHOW CREATE TABLE t1;
@@ -4959,6 +5163,7 @@ ALTER TABLE t1 REORGANIZE PARTITION p10 INTO
 PARTITION p20 VALUES IN (20,21,22,23,24,25,26,27,28,29));
 ERROR HY000: Unknown error
 # State after failure
+db.opt
 t1.frm
 t1.par
 SHOW CREATE TABLE t1;
@@ -4992,6 +5197,7 @@ PARTITION BY LIST (a)
 PARTITION p10 VALUES IN (11,12,13,14,15,16,17,18,19));
 INSERT INTO t1 VALUES (1, "Original from partition p0"), (2, "Original from partition p0"), (3, "Original from partition p0"), (4, "Original from partition p0"), (11, "Original from partition p1"), (12, "Original from partition p1"), (13, "Original from partition p1"), (14, "Original from partition p1");
 # State before failure
+db.opt
 t1.frm
 t1.par
 SHOW CREATE TABLE t1;
@@ -5018,6 +5224,7 @@ ALTER TABLE t1 REORGANIZE PARTITION p10 INTO
 PARTITION p20 VALUES IN (20,21,22,23,24,25,26,27,28,29));
 ERROR HY000: Unknown error
 # State after failure
+db.opt
 t1.frm
 t1.par
 SHOW CREATE TABLE t1;
@@ -5049,6 +5256,7 @@ PARTITION BY LIST (a)
 PARTITION p10 VALUES IN (11,12,13,14,15,16,17,18,19));
 INSERT INTO t1 VALUES (1, "Original from partition p0"), (2, "Original from partition p0"), (3, "Original from partition p0"), (4, "Original from partition p0"), (11, "Original from partition p1"), (12, "Original from partition p1"), (13, "Original from partition p1"), (14, "Original from partition p1");
 # State before failure
+db.opt
 t1.frm
 t1.par
 SHOW CREATE TABLE t1;
@@ -5076,6 +5284,7 @@ ALTER TABLE t1 REORGANIZE PARTITION p10 INTO
 PARTITION p20 VALUES IN (20,21,22,23,24,25,26,27,28,29));
 ERROR HY000: Unknown error
 # State after failure
+db.opt
 t1.frm
 t1.par
 SHOW CREATE TABLE t1;
@@ -5109,6 +5318,7 @@ PARTITION BY LIST (a)
 PARTITION p10 VALUES IN (11,12,13,14,15,16,17,18,19));
 INSERT INTO t1 VALUES (1, "Original from partition p0"), (2, "Original from partition p0"), (3, "Original from partition p0"), (4, "Original from partition p0"), (11, "Original from partition p1"), (12, "Original from partition p1"), (13, "Original from partition p1"), (14, "Original from partition p1");
 # State before failure
+db.opt
 t1.frm
 t1.par
 SHOW CREATE TABLE t1;
@@ -5135,6 +5345,7 @@ ALTER TABLE t1 REORGANIZE PARTITION p10 INTO
 PARTITION p20 VALUES IN (20,21,22,23,24,25,26,27,28,29));
 ERROR HY000: Unknown error
 # State after failure
+db.opt
 t1.frm
 t1.par
 SHOW CREATE TABLE t1;
@@ -5166,6 +5377,7 @@ PARTITION BY LIST (a)
 PARTITION p10 VALUES IN (11,12,13,14,15,16,17,18,19));
 INSERT INTO t1 VALUES (1, "Original from partition p0"), (2, "Original from partition p0"), (3, "Original from partition p0"), (4, "Original from partition p0"), (11, "Original from partition p1"), (12, "Original from partition p1"), (13, "Original from partition p1"), (14, "Original from partition p1");
 # State before failure
+db.opt
 t1.frm
 t1.par
 SHOW CREATE TABLE t1;
@@ -5193,6 +5405,7 @@ ALTER TABLE t1 REORGANIZE PARTITION p10 INTO
 PARTITION p20 VALUES IN (20,21,22,23,24,25,26,27,28,29));
 ERROR HY000: Unknown error
 # State after failure
+db.opt
 t1.frm
 t1.par
 SHOW CREATE TABLE t1;
@@ -5226,6 +5439,7 @@ PARTITION BY LIST (a)
 PARTITION p10 VALUES IN (11,12,13,14,15,16,17,18,19));
 INSERT INTO t1 VALUES (1, "Original from partition p0"), (2, "Original from partition p0"), (3, "Original from partition p0"), (4, "Original from partition p0"), (11, "Original from partition p1"), (12, "Original from partition p1"), (13, "Original from partition p1"), (14, "Original from partition p1");
 # State before failure
+db.opt
 t1.frm
 t1.par
 SHOW CREATE TABLE t1;
@@ -5252,6 +5466,7 @@ ALTER TABLE t1 REORGANIZE PARTITION p10 INTO
 PARTITION p20 VALUES IN (20,21,22,23,24,25,26,27,28,29));
 ERROR HY000: Unknown error
 # State after failure
+db.opt
 t1.frm
 t1.par
 SHOW CREATE TABLE t1;
@@ -5283,6 +5498,7 @@ PARTITION BY LIST (a)
 PARTITION p10 VALUES IN (11,12,13,14,15,16,17,18,19));
 INSERT INTO t1 VALUES (1, "Original from partition p0"), (2, "Original from partition p0"), (3, "Original from partition p0"), (4, "Original from partition p0"), (11, "Original from partition p1"), (12, "Original from partition p1"), (13, "Original from partition p1"), (14, "Original from partition p1");
 # State before failure
+db.opt
 t1.frm
 t1.par
 SHOW CREATE TABLE t1;
@@ -5310,6 +5526,7 @@ ALTER TABLE t1 REORGANIZE PARTITION p10 INTO
 PARTITION p20 VALUES IN (20,21,22,23,24,25,26,27,28,29));
 ERROR HY000: Unknown error
 # State after failure
+db.opt
 t1.frm
 t1.par
 SHOW CREATE TABLE t1;
@@ -5363,6 +5580,7 @@ PARTITION BY RANGE (a)
 PARTITION p1 VALUES LESS THAN MAXVALUE);
 INSERT INTO t1 VALUES (1, "Original from partition p0"), (2, "Original from partition p0"), (3, "Original from partition p0"), (4, "Original from partition p0"), (11, "Original from partition p1"), (12, "Original from partition p1"), (13, "Original from partition p1"), (14, "Original from partition p1"), (21, "Original from partition p1"), (22, "Original from partition p1"), (23, "Original from partition p1"), (24, "Original from partition p1");
 # State before crash
+db.opt
 t1.frm
 t1.par
 t2.frm
@@ -5392,10 +5610,12 @@ a	b
 ALTER TABLE t1 EXCHANGE PARTITION p0 WITH TABLE t2;
 ERROR HY000: Lost connection to MySQL server during query
 # State after crash (before recovery)
+db.opt
 t1.frm
 t1.par
 t2.frm
 # State after crash recovery
+db.opt
 t1.frm
 t1.par
 t2.frm
@@ -5459,6 +5679,7 @@ PARTITION BY RANGE (a)
 PARTITION p1 VALUES LESS THAN MAXVALUE);
 INSERT INTO t1 VALUES (1, "Original from partition p0"), (2, "Original from partition p0"), (3, "Original from partition p0"), (4, "Original from partition p0"), (11, "Original from partition p1"), (12, "Original from partition p1"), (13, "Original from partition p1"), (14, "Original from partition p1"), (21, "Original from partition p1"), (22, "Original from partition p1"), (23, "Original from partition p1"), (24, "Original from partition p1");
 # State before crash
+db.opt
 t1.frm
 t1.par
 t2.frm
@@ -5488,10 +5709,12 @@ a	b
 ALTER TABLE t1 EXCHANGE PARTITION p0 WITH TABLE t2;
 ERROR HY000: Lost connection to MySQL server during query
 # State after crash (before recovery)
+db.opt
 t1.frm
 t1.par
 t2.frm
 # State after crash recovery
+db.opt
 t1.frm
 t1.par
 t2.frm
@@ -5555,6 +5778,7 @@ PARTITION BY RANGE (a)
 PARTITION p1 VALUES LESS THAN MAXVALUE);
 INSERT INTO t1 VALUES (1, "Original from partition p0"), (2, "Original from partition p0"), (3, "Original from partition p0"), (4, "Original from partition p0"), (11, "Original from partition p1"), (12, "Original from partition p1"), (13, "Original from partition p1"), (14, "Original from partition p1"), (21, "Original from partition p1"), (22, "Original from partition p1"), (23, "Original from partition p1"), (24, "Original from partition p1");
 # State before crash
+db.opt
 t1.frm
 t1.par
 t2.frm
@@ -5584,10 +5808,12 @@ a	b
 ALTER TABLE t1 EXCHANGE PARTITION p0 WITH TABLE t2;
 ERROR HY000: Lost connection to MySQL server during query
 # State after crash (before recovery)
+db.opt
 t1.frm
 t1.par
 t2.frm
 # State after crash recovery
+db.opt
 t1.frm
 t1.par
 t2.frm
@@ -5651,6 +5877,7 @@ PARTITION BY RANGE (a)
 PARTITION p1 VALUES LESS THAN MAXVALUE);
 INSERT INTO t1 VALUES (1, "Original from partition p0"), (2, "Original from partition p0"), (3, "Original from partition p0"), (4, "Original from partition p0"), (11, "Original from partition p1"), (12, "Original from partition p1"), (13, "Original from partition p1"), (14, "Original from partition p1"), (21, "Original from partition p1"), (22, "Original from partition p1"), (23, "Original from partition p1"), (24, "Original from partition p1");
 # State before crash
+db.opt
 t1.frm
 t1.par
 t2.frm
@@ -5680,10 +5907,12 @@ a	b
 ALTER TABLE t1 EXCHANGE PARTITION p0 WITH TABLE t2;
 ERROR HY000: Lost connection to MySQL server during query
 # State after crash (before recovery)
+db.opt
 t1.frm
 t1.par
 t2.frm
 # State after crash recovery
+db.opt
 t1.frm
 t1.par
 t2.frm
@@ -5747,6 +5976,7 @@ PARTITION BY RANGE (a)
 PARTITION p1 VALUES LESS THAN MAXVALUE);
 INSERT INTO t1 VALUES (1, "Original from partition p0"), (2, "Original from partition p0"), (3, "Original from partition p0"), (4, "Original from partition p0"), (11, "Original from partition p1"), (12, "Original from partition p1"), (13, "Original from partition p1"), (14, "Original from partition p1"), (21, "Original from partition p1"), (22, "Original from partition p1"), (23, "Original from partition p1"), (24, "Original from partition p1");
 # State before crash
+db.opt
 t1.frm
 t1.par
 t2.frm
@@ -5776,10 +6006,12 @@ a	b
 ALTER TABLE t1 EXCHANGE PARTITION p0 WITH TABLE t2;
 ERROR HY000: Lost connection to MySQL server during query
 # State after crash (before recovery)
+db.opt
 t1.frm
 t1.par
 t2.frm
 # State after crash recovery
+db.opt
 t1.frm
 t1.par
 t2.frm
@@ -5843,6 +6075,7 @@ PARTITION BY RANGE (a)
 PARTITION p1 VALUES LESS THAN MAXVALUE);
 INSERT INTO t1 VALUES (1, "Original from partition p0"), (2, "Original from partition p0"), (3, "Original from partition p0"), (4, "Original from partition p0"), (11, "Original from partition p1"), (12, "Original from partition p1"), (13, "Original from partition p1"), (14, "Original from partition p1"), (21, "Original from partition p1"), (22, "Original from partition p1"), (23, "Original from partition p1"), (24, "Original from partition p1");
 # State before crash
+db.opt
 t1.frm
 t1.par
 t2.frm
@@ -5872,10 +6105,12 @@ a	b
 ALTER TABLE t1 EXCHANGE PARTITION p0 WITH TABLE t2;
 ERROR HY000: Lost connection to MySQL server during query
 # State after crash (before recovery)
+db.opt
 t1.frm
 t1.par
 t2.frm
 # State after crash recovery
+db.opt
 t1.frm
 t1.par
 t2.frm
@@ -5939,6 +6174,7 @@ PARTITION BY RANGE (a)
 PARTITION p1 VALUES LESS THAN MAXVALUE);
 INSERT INTO t1 VALUES (1, "Original from partition p0"), (2, "Original from partition p0"), (3, "Original from partition p0"), (4, "Original from partition p0"), (11, "Original from partition p1"), (12, "Original from partition p1"), (13, "Original from partition p1"), (14, "Original from partition p1"), (21, "Original from partition p1"), (22, "Original from partition p1"), (23, "Original from partition p1"), (24, "Original from partition p1");
 # State before crash
+db.opt
 t1.frm
 t1.par
 t2.frm
@@ -5968,10 +6204,12 @@ a	b
 ALTER TABLE t1 EXCHANGE PARTITION p0 WITH TABLE t2;
 ERROR HY000: Lost connection to MySQL server during query
 # State after crash (before recovery)
+db.opt
 t1.frm
 t1.par
 t2.frm
 # State after crash recovery
+db.opt
 t1.frm
 t1.par
 t2.frm
@@ -6035,6 +6273,7 @@ PARTITION BY RANGE (a)
 PARTITION p1 VALUES LESS THAN MAXVALUE);
 INSERT INTO t1 VALUES (1, "Original from partition p0"), (2, "Original from partition p0"), (3, "Original from partition p0"), (4, "Original from partition p0"), (11, "Original from partition p1"), (12, "Original from partition p1"), (13, "Original from partition p1"), (14, "Original from partition p1"), (21, "Original from partition p1"), (22, "Original from partition p1"), (23, "Original from partition p1"), (24, "Original from partition p1");
 # State before crash
+db.opt
 t1.frm
 t1.par
 t2.frm
@@ -6064,10 +6303,12 @@ a	b
 ALTER TABLE t1 EXCHANGE PARTITION p0 WITH TABLE t2;
 ERROR HY000: Lost connection to MySQL server during query
 # State after crash (before recovery)
+db.opt
 t1.frm
 t1.par
 t2.frm
 # State after crash recovery
+db.opt
 t1.frm
 t1.par
 t2.frm
@@ -6131,6 +6372,7 @@ PARTITION BY RANGE (a)
 PARTITION p1 VALUES LESS THAN MAXVALUE);
 INSERT INTO t1 VALUES (1, "Original from partition p0"), (2, "Original from partition p0"), (3, "Original from partition p0"), (4, "Original from partition p0"), (11, "Original from partition p1"), (12, "Original from partition p1"), (13, "Original from partition p1"), (14, "Original from partition p1"), (21, "Original from partition p1"), (22, "Original from partition p1"), (23, "Original from partition p1"), (24, "Original from partition p1");
 # State before crash
+db.opt
 t1.frm
 t1.par
 t2.frm
@@ -6160,10 +6402,12 @@ a	b
 ALTER TABLE t1 EXCHANGE PARTITION p0 WITH TABLE t2;
 ERROR HY000: Lost connection to MySQL server during query
 # State after crash (before recovery)
+db.opt
 t1.frm
 t1.par
 t2.frm
 # State after crash recovery
+db.opt
 t1.frm
 t1.par
 t2.frm
@@ -6227,6 +6471,7 @@ PARTITION BY RANGE (a)
 PARTITION p1 VALUES LESS THAN MAXVALUE);
 INSERT INTO t1 VALUES (1, "Original from partition p0"), (2, "Original from partition p0"), (3, "Original from partition p0"), (4, "Original from partition p0"), (11, "Original from partition p1"), (12, "Original from partition p1"), (13, "Original from partition p1"), (14, "Original from partition p1"), (21, "Original from partition p1"), (22, "Original from partition p1"), (23, "Original from partition p1"), (24, "Original from partition p1");
 # State before failure
+db.opt
 t1.frm
 t1.par
 t2.frm
@@ -6256,6 +6501,7 @@ a	b
 ALTER TABLE t1 EXCHANGE PARTITION p0 WITH TABLE t2;
 ERROR HY000: Error in DDL log
 # State after failure
+db.opt
 t1.frm
 t1.par
 t2.frm
@@ -6319,6 +6565,7 @@ PARTITION BY RANGE (a)
 PARTITION p1 VALUES LESS THAN MAXVALUE);
 INSERT INTO t1 VALUES (1, "Original from partition p0"), (2, "Original from partition p0"), (3, "Original from partition p0"), (4, "Original from partition p0"), (11, "Original from partition p1"), (12, "Original from partition p1"), (13, "Original from partition p1"), (14, "Original from partition p1"), (21, "Original from partition p1"), (22, "Original from partition p1"), (23, "Original from partition p1"), (24, "Original from partition p1");
 # State before failure
+db.opt
 t1.frm
 t1.par
 t2.frm
@@ -6348,6 +6595,7 @@ a	b
 ALTER TABLE t1 EXCHANGE PARTITION p0 WITH TABLE t2;
 ERROR HY000: Error in DDL log
 # State after failure
+db.opt
 t1.frm
 t1.par
 t2.frm
@@ -6411,6 +6659,7 @@ PARTITION BY RANGE (a)
 PARTITION p1 VALUES LESS THAN MAXVALUE);
 INSERT INTO t1 VALUES (1, "Original from partition p0"), (2, "Original from partition p0"), (3, "Original from partition p0"), (4, "Original from partition p0"), (11, "Original from partition p1"), (12, "Original from partition p1"), (13, "Original from partition p1"), (14, "Original from partition p1"), (21, "Original from partition p1"), (22, "Original from partition p1"), (23, "Original from partition p1"), (24, "Original from partition p1");
 # State before failure
+db.opt
 t1.frm
 t1.par
 t2.frm
@@ -6440,6 +6689,7 @@ a	b
 ALTER TABLE t1 EXCHANGE PARTITION p0 WITH TABLE t2;
 ERROR HY000: Error on rename of './test/t2' to './test/#sqlx-nnnn_nnnn' (errno: 0 "Internal error/check (Not system error)")
 # State after failure
+db.opt
 t1.frm
 t1.par
 t2.frm
@@ -6503,6 +6753,7 @@ PARTITION BY RANGE (a)
 PARTITION p1 VALUES LESS THAN MAXVALUE);
 INSERT INTO t1 VALUES (1, "Original from partition p0"), (2, "Original from partition p0"), (3, "Original from partition p0"), (4, "Original from partition p0"), (11, "Original from partition p1"), (12, "Original from partition p1"), (13, "Original from partition p1"), (14, "Original from partition p1"), (21, "Original from partition p1"), (22, "Original from partition p1"), (23, "Original from partition p1"), (24, "Original from partition p1");
 # State before failure
+db.opt
 t1.frm
 t1.par
 t2.frm
@@ -6532,6 +6783,7 @@ a	b
 ALTER TABLE t1 EXCHANGE PARTITION p0 WITH TABLE t2;
 ERROR HY000: Error in DDL log
 # State after failure
+db.opt
 t1.frm
 t1.par
 t2.frm
@@ -6595,6 +6847,7 @@ PARTITION BY RANGE (a)
 PARTITION p1 VALUES LESS THAN MAXVALUE);
 INSERT INTO t1 VALUES (1, "Original from partition p0"), (2, "Original from partition p0"), (3, "Original from partition p0"), (4, "Original from partition p0"), (11, "Original from partition p1"), (12, "Original from partition p1"), (13, "Original from partition p1"), (14, "Original from partition p1"), (21, "Original from partition p1"), (22, "Original from partition p1"), (23, "Original from partition p1"), (24, "Original from partition p1");
 # State before failure
+db.opt
 t1.frm
 t1.par
 t2.frm
@@ -6624,6 +6877,7 @@ a	b
 ALTER TABLE t1 EXCHANGE PARTITION p0 WITH TABLE t2;
 ERROR HY000: Error on rename of './test/t1#P#p0' to './test/t2' (errno: 0 "Internal error/check (Not system error)")
 # State after failure
+db.opt
 t1.frm
 t1.par
 t2.frm
@@ -6687,6 +6941,7 @@ PARTITION BY RANGE (a)
 PARTITION p1 VALUES LESS THAN MAXVALUE);
 INSERT INTO t1 VALUES (1, "Original from partition p0"), (2, "Original from partition p0"), (3, "Original from partition p0"), (4, "Original from partition p0"), (11, "Original from partition p1"), (12, "Original from partition p1"), (13, "Original from partition p1"), (14, "Original from partition p1"), (21, "Original from partition p1"), (22, "Original from partition p1"), (23, "Original from partition p1"), (24, "Original from partition p1");
 # State before failure
+db.opt
 t1.frm
 t1.par
 t2.frm
@@ -6716,6 +6971,7 @@ a	b
 ALTER TABLE t1 EXCHANGE PARTITION p0 WITH TABLE t2;
 ERROR HY000: Error in DDL log
 # State after failure
+db.opt
 t1.frm
 t1.par
 t2.frm
@@ -6779,6 +7035,7 @@ PARTITION BY RANGE (a)
 PARTITION p1 VALUES LESS THAN MAXVALUE);
 INSERT INTO t1 VALUES (1, "Original from partition p0"), (2, "Original from partition p0"), (3, "Original from partition p0"), (4, "Original from partition p0"), (11, "Original from partition p1"), (12, "Original from partition p1"), (13, "Original from partition p1"), (14, "Original from partition p1"), (21, "Original from partition p1"), (22, "Original from partition p1"), (23, "Original from partition p1"), (24, "Original from partition p1");
 # State before failure
+db.opt
 t1.frm
 t1.par
 t2.frm
@@ -6808,6 +7065,7 @@ a	b
 ALTER TABLE t1 EXCHANGE PARTITION p0 WITH TABLE t2;
 ERROR HY000: Error on rename of './test/#sqlx-nnnn_nnnn' to './test/t1#P#p0' (errno: 0 "Internal error/check (Not system error)")
 # State after failure
+db.opt
 t1.frm
 t1.par
 t2.frm
@@ -6871,6 +7129,7 @@ PARTITION BY RANGE (a)
 PARTITION p1 VALUES LESS THAN MAXVALUE);
 INSERT INTO t1 VALUES (1, "Original from partition p0"), (2, "Original from partition p0"), (3, "Original from partition p0"), (4, "Original from partition p0"), (11, "Original from partition p1"), (12, "Original from partition p1"), (13, "Original from partition p1"), (14, "Original from partition p1"), (21, "Original from partition p1"), (22, "Original from partition p1"), (23, "Original from partition p1"), (24, "Original from partition p1");
 # State before failure
+db.opt
 t1.frm
 t1.par
 t2.frm
@@ -6900,6 +7159,7 @@ a	b
 ALTER TABLE t1 EXCHANGE PARTITION p0 WITH TABLE t2;
 ERROR HY000: Error in DDL log
 # State after failure
+db.opt
 t1.frm
 t1.par
 t2.frm
@@ -6963,6 +7223,7 @@ PARTITION BY RANGE (a)
 PARTITION p1 VALUES LESS THAN MAXVALUE);
 INSERT INTO t1 VALUES (1, "Original from partition p0"), (2, "Original from partition p0"), (3, "Original from partition p0"), (4, "Original from partition p0"), (11, "Original from partition p1"), (12, "Original from partition p1"), (13, "Original from partition p1"), (14, "Original from partition p1"), (21, "Original from partition p1"), (22, "Original from partition p1"), (23, "Original from partition p1"), (24, "Original from partition p1");
 # State before failure
+db.opt
 t1.frm
 t1.par
 t2.frm
@@ -6992,6 +7253,7 @@ a	b
 ALTER TABLE t1 EXCHANGE PARTITION p0 WITH TABLE t2;
 ERROR HY000: Error in DDL log
 # State after failure
+db.opt
 t1.frm
 t1.par
 t2.frm

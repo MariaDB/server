@@ -293,6 +293,9 @@ static bool find_order_in_list(THD *, Ref_ptr_array, TABLE_LIST *, ORDER *,
 static double table_cond_selectivity(JOIN *join, uint idx, JOIN_TAB *s,
                                      table_map rem_tables);
 void set_postjoin_aggr_write_func(JOIN_TAB *tab);
+
+static Item **get_sargable_cond(JOIN *join, TABLE *table);
+
 #ifndef DBUG_OFF
 
 /*
@@ -643,7 +646,7 @@ setup_without_group(THD *thd, Ref_ptr_array ref_pointer_array,
   const bool saved_non_agg_field_used= select->non_agg_field_used();
   DBUG_ENTER("setup_without_group");
 
-  thd->lex->allow_sum_func&= ~((nesting_map)1 << select->nest_level);
+  thd->lex->allow_sum_func.clear_bit(select->nest_level);
   res= setup_conds(thd, tables, leaves, conds);
   if (thd->lex->current_select->first_cond_optimization)
   {
@@ -656,18 +659,18 @@ setup_without_group(THD *thd, Ref_ptr_array ref_pointer_array,
   /* it's not wrong to have non-aggregated columns in a WHERE */
   select->set_non_agg_field_used(saved_non_agg_field_used);
 
-  thd->lex->allow_sum_func|= (nesting_map)1 << select->nest_level;
+  thd->lex->allow_sum_func.set_bit(select->nest_level);
   
   save_place= thd->lex->current_select->context_analysis_place;
   thd->lex->current_select->context_analysis_place= IN_ORDER_BY;
   res= res || setup_order(thd, ref_pointer_array, tables, fields, all_fields,
                           order);
-  thd->lex->allow_sum_func&= ~((nesting_map)1 << select->nest_level);
+  thd->lex->allow_sum_func.clear_bit(select->nest_level);
   thd->lex->current_select->context_analysis_place= IN_GROUP_BY;
   res= res || setup_group(thd, ref_pointer_array, tables, fields, all_fields,
                           group, hidden_group_fields);
   thd->lex->current_select->context_analysis_place= save_place;
-  thd->lex->allow_sum_func|= (nesting_map)1 << select->nest_level;
+  thd->lex->allow_sum_func.set_bit(select->nest_level);
   res= res || setup_windows(thd, ref_pointer_array, tables, fields, all_fields,
                             win_specs, win_funcs);
   thd->lex->allow_sum_func= save_allow_sum_func;
@@ -1115,7 +1118,7 @@ JOIN::prepare(TABLE_LIST *tables_init,
                        select_lex->master_unit()->global_parameters())
   {
     nesting_map save_allow_sum_func= thd->lex->allow_sum_func;
-    thd->lex->allow_sum_func|= (nesting_map)1 << select_lex->nest_level;
+    thd->lex->allow_sum_func.set_bit(select_lex->nest_level);
     thd->where= "order clause";
     for (ORDER *order= select_lex->order_list.first; order; order= order->next)
     {
@@ -1133,7 +1136,7 @@ JOIN::prepare(TABLE_LIST *tables_init,
   {
     nesting_map save_allow_sum_func= thd->lex->allow_sum_func;
     thd->where="having clause";
-    thd->lex->allow_sum_func|= (nesting_map)1 << select_lex_arg->nest_level;
+    thd->lex->allow_sum_func.set_bit(select_lex_arg->nest_level);
     select_lex->having_fix_field= 1;
     /*
       Wrap alone field in HAVING clause in case it will be outer field
@@ -1821,19 +1824,9 @@ JOIN::optimize_inner()
     List_iterator_fast<TABLE_LIST> li(select_lex->leaf_tables);
     while ((tbl= li++))
     {
-      /* 
-        If tbl->embedding!=NULL that means that this table is in the inner
-        part of the nested outer join, and we can't do partition pruning
-        (TODO: check if this limitation can be lifted)
-      */
-      if (!tbl->embedding ||
-          (tbl->embedding && tbl->embedding->sj_on_expr))
-      {
-        Item *prune_cond= tbl->on_expr? tbl->on_expr : conds;
-        tbl->table->all_partitions_pruned_away= prune_partitions(thd,
-                                                                 tbl->table,
-	                                                         prune_cond);
-       }
+      Item **prune_cond= get_sargable_cond(this, tbl->table);
+      tbl->table->all_partitions_pruned_away=
+        prune_partitions(thd, tbl->table, *prune_cond);
     }
   }
 #endif
@@ -2515,7 +2508,7 @@ int JOIN::optimize_stage2()
   {
      JOIN_TAB *tab= &join_tab[const_tables];
 
-    if (order)
+    if (order && !need_tmp)
     {
       /*
         Force using of tmp table if sorting by a SP or UDF function due to
@@ -2669,6 +2662,18 @@ setup_subq_exit:
   if (!tables_list || !table_count)
   {
     choose_tableless_subquery_plan();
+
+    /* The output has atmost one row */
+    if (group_list)
+    {
+      group_list= NULL;
+      group_optimized_away= 1;
+      rollup.state= ROLLUP::STATE_NONE;
+    }
+    order= NULL;
+    simple_order= TRUE;
+    select_distinct= FALSE;
+
     if (select_lex->have_window_funcs())
     {
       if (!(join_tab= (JOIN_TAB*) thd->alloc(sizeof(JOIN_TAB))))
@@ -3178,7 +3183,7 @@ bool JOIN::make_aggr_tables_info()
         remove_duplicates() assumes there is a preceding computation step (and
         in the degenerate join, there's none)
       */
-      if (top_join_tab_count)
+      if (top_join_tab_count && tables_list)
         curr_tab->distinct= true;
 
       having= NULL;
@@ -3208,7 +3213,7 @@ bool JOIN::make_aggr_tables_info()
         or end_write_group()) if JOIN::group is set to false.
       */
       // the temporary table was explicitly requested
-      DBUG_ASSERT(MY_TEST(select_options & OPTION_BUFFER_RESULT));
+      DBUG_ASSERT(select_options & OPTION_BUFFER_RESULT);
       // the temporary table does not have a grouping expression
       DBUG_ASSERT(!curr_tab->table->group); 
     }
@@ -4098,7 +4103,7 @@ void JOIN::exec_inner()
                  procedure ? procedure_fields_list : *fields,
                  Protocol::SEND_NUM_ROWS | Protocol::SEND_EOF);
 
-  error= do_select(this, procedure);
+  error= result->view_structure_only() ? false : do_select(this, procedure);
   /* Accumulate the counts from all join iterations of all join parts. */
   thd->inc_examined_row_count(join_examined_rows);
   DBUG_PRINT("counts", ("thd->examined_row_count: %lu",
@@ -4384,6 +4389,84 @@ struct SARGABLE_PARAM
   Item **arg_value;          /* values of potential keys for lookups     */
   uint num_values;           /* number of values in the above array      */
 };
+
+
+/*
+  Mark all tables inside a join nest as constant.
+
+  @detail  This is called when there is a local "Impossible WHERE" inside
+           a multi-table LEFT JOIN.
+*/
+
+void mark_join_nest_as_const(JOIN *join,
+                             TABLE_LIST *join_nest,
+                             table_map *found_const_table_map,
+                             uint *const_count)
+{
+  List_iterator<TABLE_LIST> it(join_nest->nested_join->join_list);
+  TABLE_LIST *tbl;
+  while ((tbl= it++))
+  {
+    if (tbl->nested_join)
+    {
+      mark_join_nest_as_const(join, tbl, found_const_table_map, const_count);
+      continue;
+    }
+    JOIN_TAB *tab= tbl->table->reginfo.join_tab;
+
+    if (!(join->const_table_map & tab->table->map))
+    {
+      tab->type= JT_CONST;
+      tab->info= ET_IMPOSSIBLE_ON_CONDITION;
+      tab->table->const_table= 1;
+
+      join->const_table_map|= tab->table->map;
+      *found_const_table_map|= tab->table->map;
+      set_position(join,(*const_count)++,tab,(KEYUSE*) 0);
+      mark_as_null_row(tab->table);		// All fields are NULL
+    }
+  }
+}
+
+
+/*
+  @brief Get the condition that can be used to do range analysis/partition
+    pruning/etc
+
+  @detail
+    Figure out which condition we can use:
+    - For INNER JOIN, we use the WHERE,
+    - "t1 LEFT JOIN t2 ON ..." uses t2's ON expression
+    - "t1 LEFT JOIN (...) ON ..." uses the join nest's ON expression.
+*/
+
+static Item **get_sargable_cond(JOIN *join, TABLE *table)
+{
+  Item **retval;
+  if (table->pos_in_table_list->on_expr)
+  {
+    /*
+      This is an inner table from a single-table LEFT JOIN, "t1 LEFT JOIN
+      t2 ON cond". Use the condition cond.
+    */
+    retval= &table->pos_in_table_list->on_expr;
+  }
+  else if (table->pos_in_table_list->embedding &&
+           !table->pos_in_table_list->embedding->sj_on_expr)
+  {
+    /*
+      This is the inner side of a multi-table outer join. Use the
+      appropriate ON expression.
+    */
+    retval= &(table->pos_in_table_list->embedding->on_expr);
+  }
+  else
+  {
+    /* The table is not inner wrt some LEFT JOIN. Use the WHERE clause */
+    retval= &join->conds;
+  }
+  return retval;
+}
 
 
 /**
@@ -4957,39 +5040,38 @@ make_join_statistics(JOIN *join, List<TABLE_LIST> &tables_list,
     
     /*
       Perform range analysis if there are keys it could use (1). 
-      Don't do range analysis if we're on the inner side of an outer join (2).
-      Do range analysis if we're on the inner side of a semi-join (3).
-      Don't do range analysis for materialized subqueries (4).
-      Don't do range analysis for materialized derived tables (5)
+      Don't do range analysis for materialized subqueries (2).
+      Don't do range analysis for materialized derived tables (3)
     */
     if ((!s->const_keys.is_clear_all() ||
 	 !bitmap_is_clear_all(&s->table->cond_set)) &&              // (1)
-        (!s->table->pos_in_table_list->embedding ||                 // (2)
-         (s->table->pos_in_table_list->embedding &&                 // (3)
-          s->table->pos_in_table_list->embedding->sj_on_expr)) &&   // (3)
-        !s->table->is_filled_at_execution() &&                      // (4)
-        !(s->table->pos_in_table_list->derived &&                   // (5)
-          s->table->pos_in_table_list->is_materialized_derived()))  // (5)
+        !s->table->is_filled_at_execution() &&                      // (2)
+        !(s->table->pos_in_table_list->derived &&                   // (3)
+          s->table->pos_in_table_list->is_materialized_derived()))  // (3)
     {
       bool impossible_range= FALSE;
       ha_rows records= HA_POS_ERROR;
       SQL_SELECT *select= 0;
+      Item **sargable_cond= NULL;
       if (!s->const_keys.is_clear_all())
       {
+        sargable_cond= get_sargable_cond(join, s->table);
+
         select= make_select(s->table, found_const_table_map,
 			    found_const_table_map,
-			    *s->on_expr_ref ? *s->on_expr_ref : join->conds,
+                            *sargable_cond,
                             (SORT_INFO*) 0,
 			    1, &error);
         if (!select)
           goto error;
         records= get_quick_record_count(join->thd, select, s->table,
 				        &s->const_keys, join->row_limit);
-        /* Range analyzer could modify the condition. */
-        if (*s->on_expr_ref)
-          *s->on_expr_ref= select->cond;
-        else
-          join->conds= select->cond;
+
+        /*
+          Range analyzer might have modified the condition. Put it the new
+          condition to where we got it from.
+        */
+        *sargable_cond= select->cond;
 
         s->quick=select->quick;
         s->needed_reg=select->needed_reg;
@@ -4998,10 +5080,11 @@ make_join_statistics(JOIN *join, List<TABLE_LIST> &tables_list,
       }
       if (!impossible_range)
       {
+        if (!sargable_cond)
+          sargable_cond= get_sargable_cond(join, s->table);
         if (join->thd->variables.optimizer_use_condition_selectivity > 1)
           calculate_cond_selectivity_for_table(join->thd, s->table, 
-                                               *s->on_expr_ref ?
-                                               s->on_expr_ref : &join->conds);
+                                               sargable_cond);
         if (s->table->reginfo.impossible_range)
 	{
           impossible_range= TRUE;
@@ -5010,23 +5093,33 @@ make_join_statistics(JOIN *join, List<TABLE_LIST> &tables_list,
       }
       if (impossible_range)
       {
-	/*
-	  Impossible WHERE or ON expression
-	  In case of ON, we mark that the we match one empty NULL row.
-	  In case of WHERE, don't set found_const_table_map to get the
-	  caller to abort with a zero row result.
-	*/
-	join->const_table_map|= s->table->map;
-	set_position(join,const_count++,s,(KEYUSE*) 0);
-	s->type= JT_CONST;
-        s->table->const_table= 1;
-	if (*s->on_expr_ref)
-	{
-	  /* Generate empty row */
-	  s->info= ET_IMPOSSIBLE_ON_CONDITION;
-	  found_const_table_map|= s->table->map;
-	  mark_as_null_row(s->table);		// All fields are NULL
-	}
+        /*
+          Impossible WHERE or ON expression
+          In case of ON, we mark that the we match one empty NULL row.
+          In case of WHERE, don't set found_const_table_map to get the
+          caller to abort with a zero row result.
+        */
+        TABLE_LIST *emb= s->table->pos_in_table_list->embedding;
+        if (emb && !emb->sj_on_expr)
+        {
+          /* Mark all tables in a multi-table join nest as const */
+          mark_join_nest_as_const(join, emb, &found_const_table_map,
+                                &const_count);
+        }
+        else
+        {
+          join->const_table_map|= s->table->map;
+          set_position(join,const_count++,s,(KEYUSE*) 0);
+          s->type= JT_CONST;
+          s->table->const_table= 1;
+          if (*s->on_expr_ref)
+          {
+            /* Generate empty row */
+            s->info= ET_IMPOSSIBLE_ON_CONDITION;
+            found_const_table_map|= s->table->map;
+            mark_as_null_row(s->table);		// All fields are NULL
+          }
+        }
       }
       if (records != HA_POS_ERROR)
       {
@@ -7340,7 +7433,11 @@ best_access_path(JOIN      *join,
       }
     }
 
-    tmp += s->startup_cost;
+    /* Splitting technique cannot be used with join cache */
+    if (s->table->is_splittable())
+      tmp+= s->table->get_materialization_cost();
+    else
+      tmp+= s->startup_cost;
     /*
       We estimate the cost of evaluating WHERE clause for found records
       as record_count * rnd_records / TIME_FOR_COMPARE. This cost plus
@@ -7362,6 +7459,7 @@ best_access_path(JOIN      *join,
       best_ref_depends_map= 0;
       best_uses_jbuf= MY_TEST(!disable_jbuf && !((s->table->map &
                                                   join->outer_join)));
+      spl_plan= 0;
     }
   }
 
@@ -11699,7 +11797,15 @@ uint check_join_cache_usage(JOIN_TAB *tab,
     effort now.
   */
   if (tab->table->pos_in_table_list->is_materialized_derived())
+  {
     no_bka_cache= true;
+    /*
+      Don't use hash join algorithm if the temporary table for the rows
+      of the derived table will be created with an equi-join key.
+    */
+    if (tab->table->s->keys)
+      no_hashed_cache= true;
+  }
 
   /*
     Don't use join buffering if we're dictated not to by no_jbuf_after
@@ -13117,7 +13223,23 @@ remove_const(JOIN *join,ORDER *first_order, COND *cond,
          tab++)
       tab->cached_eq_ref_table= FALSE;
 
-    *simple_order= *join->join_tab[join->const_tables].on_expr_ref ? 0 : 1;
+    JOIN_TAB *head= join->join_tab + join->const_tables;
+    *simple_order= head->on_expr_ref[0] == NULL;
+    if (*simple_order && head->table->file->ha_table_flags() & HA_SLOW_RND_POS)
+    {
+      uint u1, u2, u3;
+      /*
+        normally the condition is (see filesort_use_addons())
+
+          length + sortlength <= max_length_for_sort_data
+
+        but for HA_SLOW_RND_POS tables we relax it a bit, as the alternative
+        is to use a temporary table, which is rather expensive.
+
+        TODO proper cost estimations
+      */
+      *simple_order= filesort_use_addons(head->table, 0, &u1, &u2, &u3);
+    }
   }
   else
   {
@@ -20185,6 +20307,10 @@ test_if_quick_select(JOIN_TAB *tab)
 
   delete tab->select->quick;
   tab->select->quick=0;
+
+  if (tab->table->file->inited != handler::NONE)
+    tab->table->file->ha_index_or_rnd_end();
+
   int res= tab->select->test_quick_select(tab->join->thd, tab->keys,
                                           (table_map) 0, HA_POS_ERROR, 0,
                                           FALSE, /*remove where parts*/FALSE);
@@ -22131,11 +22257,30 @@ test_if_skip_sort_order(JOIN_TAB *tab,ORDER *order,ha_rows select_limit,
       tmp_map.clear_all();       // Force the creation of quick select
       tmp_map.set_bit(best_key); // only best_key.
       select->quick= 0;
+
+      bool cond_saved= false;
+      Item *saved_cond;
+
+      /*
+        Index Condition Pushdown may have removed parts of the condition for
+        this table. Temporarily put them back because we want the whole
+        condition for the range analysis.
+      */
+      if (select->pre_idx_push_select_cond)
+      {
+        saved_cond= select->cond;
+        select->cond= select->pre_idx_push_select_cond;
+        cond_saved= true;
+      }
+
       select->test_quick_select(join->thd, tmp_map, 0,
                                 join->select_options & OPTION_FOUND_ROWS ?
                                 HA_POS_ERROR :
                                 join->unit->select_limit_cnt,
                                 TRUE, FALSE, FALSE);
+
+      if (cond_saved)
+        select->cond= saved_cond;
     }
     order_direction= best_key_direction;
     /*
@@ -22662,9 +22807,11 @@ static int remove_dup_with_compare(THD *thd, TABLE *table, Field **first_field,
   }
 
   file->extra(HA_EXTRA_NO_CACHE);
+  (void) file->ha_rnd_end();
   DBUG_RETURN(0);
 err:
   file->extra(HA_EXTRA_NO_CACHE);
+  (void) file->ha_rnd_end();
   if (error)
     file->print_error(error,MYF(0));
   DBUG_RETURN(1);
@@ -23139,7 +23286,8 @@ setup_group(THD *thd, Ref_ptr_array ref_pointer_array, TABLE_LIST *tables,
       return 1;
     }
   }
-  if (thd->variables.sql_mode & MODE_ONLY_FULL_GROUP_BY)
+  if (thd->variables.sql_mode & MODE_ONLY_FULL_GROUP_BY &&
+      context_analysis_place == IN_GROUP_BY)
   {
     /*
       Don't allow one to use fields that is not used in GROUP BY
@@ -23797,7 +23945,7 @@ setup_copy_fields(THD *thd, TMP_TABLE_PARAM *param,
 	 on how the value is to be used: In some cases this may be an
 	 argument in a group function, like: IF(ISNULL(col),0,COUNT(*))
       */
-      if (!(pos=new (thd->mem_root) Item_copy_string(thd, pos)))
+      if (!(pos= pos->type_handler()->create_item_copy(thd, pos)))
 	goto err;
       if (i < border)                           // HAVING, ORDER and GROUP BY
       {
@@ -25627,13 +25775,13 @@ int JOIN::save_explain_data_intern(Explain_query *output,
       (1) they are not parts of ON clauses that were eliminated by table 
           elimination.
       (2) they are not merged derived tables
-      (3) they are not unreferenced CTE
+      (3) they are not hanging CTEs (they are needed for execution)
     */
     if (!(tmp_unit->item && tmp_unit->item->eliminated) &&    // (1)
         (!tmp_unit->derived ||
          tmp_unit->derived->is_materialized_derived()) &&     // (2)
-        !(tmp_unit->with_element && 
-          !tmp_unit->with_element->is_referenced()))          // (3)
+        !(tmp_unit->with_element &&
+          (!tmp_unit->derived || !tmp_unit->derived->derived_result))) // (3)
    {
       explain->add_child(tmp_unit->first_select()->select_number);
     }
@@ -25694,11 +25842,12 @@ static void select_describe(JOIN *join, bool need_tmp_table, bool need_order,
       Save plans for child subqueries, when
       (1) they are not parts of eliminated WHERE/ON clauses.
       (2) they are not VIEWs that were "merged for INSERT".
-      (3) they are not unreferenced CTE.
+      (3) they are not hanging CTEs (they are needed for execution)
     */
     if (!(unit->item && unit->item->eliminated) &&                     // (1)
         !(unit->derived && unit->derived->merged_for_insert) &&        // (2)
-        !(unit->with_element && !unit->with_element->is_referenced())) // (3)  
+        !(unit->with_element &&
+          (!unit->derived || !unit->derived->derived_result)))         // (3)
     {
       if (mysql_explain_union(thd, unit, result))
         DBUG_VOID_RETURN;
@@ -26086,7 +26235,7 @@ void TABLE_LIST::print(THD *thd, table_map eliminated_tables, String *str,
       LEX_CSTRING t_alias= alias;
 
       str->append(' ');
-      if (lower_case_table_names== 1)
+      if (lower_case_table_names == 1)
       {
         if (alias.str && alias.str[0])
         {
@@ -26579,16 +26728,22 @@ void JOIN::cache_const_exprs()
 
  
 /*
-  Get a cost of reading rows_limit rows through index keynr.
+  Get the cost of using index keynr to read #LIMIT matching rows
 
   @detail
    - If there is a quick select, we try to use it.
    - if there is a ref(const) access, we try to use it, too.
    - quick and ref(const) use different cost formulas, so if both are possible
       we should make a cost-based choice.
-  
+
+  rows_limit is the number of rows we would need to read when using a full
+  index scan. This is generally higher than the N from "LIMIT N" clause,
+  because there's a WHERE condition (a part of which is used to construct a
+  range access we are considering using here)
+
   @param  tab              JOIN_TAB with table access (is NULL for single-table
                            UPDATE/DELETE)
+  @param  rows_limit       See explanation above
   @param  read_time OUT    Cost of reading using quick or ref(const) access.
 
 
@@ -26601,6 +26756,7 @@ void JOIN::cache_const_exprs()
 
 static bool get_range_limit_read_cost(const JOIN_TAB *tab, 
                                       const TABLE *table, 
+                                      ha_rows table_records,
                                       uint keynr, 
                                       ha_rows rows_limit,
                                       double *read_time)
@@ -26667,8 +26823,32 @@ static bool get_range_limit_read_cost(const JOIN_TAB *tab,
         }
       }
     }
+
+    /*
+      Consider an example:
+
+        SELECT *
+        FROM t1
+        WHERE key1 BETWEEN 10 AND 20 AND col2='foo'
+        ORDER BY key1 LIMIT 10
+
+      If we were using a full index scan on key1, we would need to read this
+      many rows to get 10 matches:
+
+        10 / selectivity(key1 BETWEEN 10 AND 20 AND col2='foo')
+
+      This is the number we get in rows_limit.
+      But we intend to use range access on key1. The rows returned by quick
+      select will satisfy the range part of the condition,
+      "key1 BETWEEN 10 and 20". We will still need to filter them with
+      the remainder condition, (col2='foo').
+
+      The selectivity of the range access is (best_rows/table_records). We need
+      to discount it from the rows_limit:
+    */
+    double rows_limit_for_quick= rows_limit * (best_rows / table_records);
  
-    if (best_rows > rows_limit)
+    if (best_rows > rows_limit_for_quick)
     {
       /*
         LIMIT clause specifies that we will need to read fewer records than
@@ -26677,7 +26857,7 @@ static bool get_range_limit_read_cost(const JOIN_TAB *tab,
         only need 1/3rd of records, it will cost us 1/3rd of quick select's
         read time)
       */
-      best_cost *= rows_limit / best_rows;
+      best_cost *= rows_limit_for_quick / best_rows;
     }
     *read_time= best_cost;
     res= true;
@@ -26778,7 +26958,11 @@ test_if_cheaper_ordering(const JOIN_TAB *tab, ORDER *order, TABLE *table,
     uint tablenr= (uint)(tab - join->join_tab);
     read_time= join->best_positions[tablenr].read_time;
     for (uint i= tablenr+1; i < join->table_count; i++)
+    {
       fanout*= join->best_positions[i].records_read; // fanout is always >= 1
+      // But selectivity is =< 1 :
+      fanout*= join->best_positions[i].cond_selectivity;
+    }
   }
   else
     read_time= table->file->scan_time();
@@ -26916,6 +27100,24 @@ test_if_cheaper_ordering(const JOIN_TAB *tab, ORDER *order, TABLE *table,
         */
         select_limit= (ha_rows) (select_limit < fanout ?
                                  1 : select_limit/fanout);
+
+        /*
+          refkey_rows_estimate is E(#rows) produced by the table access
+          strategy that was picked without regard to ORDER BY ... LIMIT.
+
+          It will be used as the source of selectivity data. 
+          Use table->cond_selectivity as a better estimate which includes
+          condition selectivity too.
+        */
+        {
+          // we use MIN(...), because "Using LooseScan" queries have
+          // cond_selectivity=1 while refkey_rows_estimate has a better
+          // estimate.
+          refkey_rows_estimate= MY_MIN(refkey_rows_estimate,
+                                       ha_rows(table_records * 
+                                               table->cond_selectivity));
+        }
+
         /*
           We assume that each of the tested indexes is not correlated
           with ref_key. Thus, to select first N records we have to scan
@@ -26926,6 +27128,7 @@ test_if_cheaper_ordering(const JOIN_TAB *tab, ORDER *order, TABLE *table,
           N/(refkey_rows_estimate/table_records) > table_records
           <=> N > refkey_rows_estimate.
          */
+
         if (select_limit > refkey_rows_estimate)
           select_limit= table_records;
         else
@@ -26948,8 +27151,8 @@ test_if_cheaper_ordering(const JOIN_TAB *tab, ORDER *order, TABLE *table,
         index_scan_time= select_limit/rec_per_key *
                          MY_MIN(rec_per_key, table->file->scan_time());
         double range_scan_time;
-        if (get_range_limit_read_cost(tab, table, nr, select_limit, 
-                                       &range_scan_time))
+        if (get_range_limit_read_cost(tab, table, table_records, nr,
+                                      select_limit, &range_scan_time))
         {
           if (range_scan_time < index_scan_time)
             index_scan_time= range_scan_time;
@@ -27291,9 +27494,10 @@ AGGR_OP::end_send()
 
   // Update ref array
   join_tab->join->set_items_ref_array(*join_tab->ref_array);
+  bool keep_last_filesort_result = join_tab->filesort ? false : true;
   if (join_tab->window_funcs_step)
   {
-    if (join_tab->window_funcs_step->exec(join))
+    if (join_tab->window_funcs_step->exec(join, keep_last_filesort_result))
       return NESTED_LOOP_ERROR;
   }
 
@@ -27345,6 +27549,12 @@ AGGR_OP::end_send()
       }
       rc= evaluate_join_record(join, join_tab, 0);
     }
+  }
+
+  if (keep_last_filesort_result)
+  {
+    delete join_tab->filesort_result;
+    join_tab->filesort_result= NULL;
   }
 
   // Finish rnd scn after sending records

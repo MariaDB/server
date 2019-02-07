@@ -4984,7 +4984,7 @@ grn_scan_info_build_full(grn_ctx *ctx, grn_obj *expr, int *n,
   next_code_op = -1;
   for (i = 0, stat = SCAN_START, c = e->codes, ce = &e->codes[e->codes_curr]; c < ce; c++) {
     grn_operator code_op;
-    if (next_code_op == -1) {
+    if (next_code_op == (grn_operator)-1) {
       code_op = c->op;
     } else {
       code_op = next_code_op;

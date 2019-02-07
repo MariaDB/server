@@ -669,13 +669,18 @@ static int w_search(register MARIA_HA *info, uint32 comp_flag, MARIA_KEY *key,
       else
       {
         /* popular word. two-level tree. going down */
-        my_off_t root=dup_key_pos;
-        keyinfo= &share->ft2_keyinfo;
-        get_key_full_length_rdonly(off, key);
-        key+=off;
+        my_off_t root= dup_key_pos;
+        MARIA_KEY subkey;
+        get_key_full_length_rdonly(off, key->data);
+        subkey.keyinfo= keyinfo= &share->ft2_keyinfo;
+        subkey.data= key->data + off;
+        subkey.data_length= key->data_length - off;
+        subkey.ref_length= key->ref_length;
+        subkey.flag= key->flag;
+
         /* we'll modify key entry 'in vivo' */
         keypos-= keyinfo->keylength + page.node;
-        error= _ma_ck_real_write_btree(info, key, &root, comp_flag);
+        error= _ma_ck_real_write_btree(info, &subkey, &root, comp_flag);
         _ma_dpointer(share, keypos+HA_FT_WLEN, root);
         subkeys--; /* should there be underflow protection ? */
         DBUG_ASSERT(subkeys < 0);

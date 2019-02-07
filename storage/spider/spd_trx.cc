@@ -1,4 +1,4 @@
-/* Copyright (C) 2008-2017 Kentoku Shiba
+/* Copyright (C) 2008-2018 Kentoku Shiba
 
   This program is free software; you can redistribute it and/or modify
   it under the terms of the GNU General Public License as published by
@@ -26,7 +26,6 @@
 #include "sql_class.h"
 #include "sql_partition.h"
 #include "records.h"
-#include "tztime.h"
 #endif
 #include "spd_err.h"
 #include "spd_param.h"
@@ -1587,21 +1586,23 @@ int spider_check_and_set_trx_isolation(
   SPIDER_CONN *conn,
   int *need_mon
 ) {
+  THD *thd = conn->thd;
   int trx_isolation;
   DBUG_ENTER("spider_check_and_set_trx_isolation");
-
-  trx_isolation = thd_tx_isolation(conn->thd);
-  DBUG_PRINT("info",("spider local trx_isolation=%d", trx_isolation));
-/*
-  DBUG_PRINT("info",("spider conn->trx_isolation=%d", conn->trx_isolation));
-  if (conn->trx_isolation != trx_isolation)
+  if (thd->system_thread == SYSTEM_THREAD_SLAVE_SQL)
   {
-*/
-    spider_conn_queue_trx_isolation(conn, trx_isolation);
-/*
-    conn->trx_isolation = trx_isolation;
+    if ((trx_isolation = spider_param_slave_trx_isolation()) == -1)
+    {
+      trx_isolation = thd_tx_isolation(thd);
+      DBUG_PRINT("info",("spider local trx_isolation=%d", trx_isolation));
+    } else {
+      DBUG_PRINT("info",("spider slave trx_isolation=%d", trx_isolation));
+    }
+  } else {
+    trx_isolation = thd_tx_isolation(thd);
+    DBUG_PRINT("info",("spider local trx_isolation=%d", trx_isolation));
   }
-*/
+  spider_conn_queue_trx_isolation(conn, trx_isolation);
   DBUG_RETURN(0);
 }
 
@@ -1648,9 +1649,7 @@ int spider_check_and_set_sql_log_off(
     if (internal_sql_log_off)
     {
       spider_conn_queue_sql_log_off(conn, TRUE);
-    }
-    else
-    {
+    } else {
       spider_conn_queue_sql_log_off(conn, FALSE);
     }
   }
@@ -2764,7 +2763,8 @@ int spider_initinal_xa_recover(
       FALSE, FALSE);
   }
   SPD_INIT_ALLOC_ROOT(&mem_root, 4096, 0, MYF(MY_WME));
-  while ((!(read_record->read_record())) && cnt < (int) len)
+  while ((!(read_record->SPIDER_read_record_read_record(read_record))) &&
+    cnt < (int) len)
   {
     spider_get_sys_xid(table_xa, &xid_list[cnt], &mem_root);
     cnt++;
@@ -2813,7 +2813,7 @@ int spider_internal_xa_commit_by_xid(
   SPIDER_TRX *trx,
   XID* xid
 ) {
-  TABLE *table_xa, *table_xa_member= 0;
+  TABLE *table_xa, *table_xa_member = 0;
   int error_num;
   char xa_key[MAX_KEY_LENGTH];
   char xa_member_key[MAX_KEY_LENGTH];
@@ -3048,7 +3048,7 @@ int spider_internal_xa_rollback_by_xid(
   SPIDER_TRX *trx,
   XID* xid
 ) {
-  TABLE *table_xa, *table_xa_member= 0;
+  TABLE *table_xa, *table_xa_member = 0;
   int error_num;
   char xa_key[MAX_KEY_LENGTH];
   char xa_member_key[MAX_KEY_LENGTH];

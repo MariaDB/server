@@ -16,6 +16,10 @@ this program; if not, write to the Free Software Foundation, Inc.,
 51 Franklin Street, Suite 500, Boston, MA 02110-1335 USA
 
 *****************************************************************************/
+#ifdef WITH_WSREP
+#include "wsrep_api.h"
+#include <mysql/service_wsrep.h>
+#endif /* WITH_WSREP */
 
 /* The InnoDB handler: the interface between MySQL and InnoDB. */
 
@@ -155,11 +159,8 @@ public:
 	int rnd_pos(uchar * buf, uchar *pos);
 
 	int ft_init();
-
-	void ft_end();
-
-	FT_INFO* ft_init_ext(uint flags, uint inx, String* key);
-
+	void ft_end() { rnd_end(); }
+	FT_INFO *ft_init_ext(uint flags, uint inx, String* key);
 	int ft_read(uchar* buf);
 
 	void position(const uchar *record);
@@ -420,9 +421,6 @@ public:
 	Item* idx_cond_push(uint keyno, Item* idx_cond);
 	/* @} */
 
-	/* An helper function for index_cond_func_innodb: */
-	bool is_thd_killed();
-
 protected:
 
 	/**
@@ -450,8 +448,11 @@ protected:
 	dict_index_t* innobase_get_index(uint keynr);
 
 #ifdef WITH_WSREP
-	int wsrep_append_keys(THD *thd, bool shared,
-			      const uchar* record0, const uchar* record1);
+	int wsrep_append_keys(
+		THD *thd,
+		Wsrep_service_key_type key_type,
+		const uchar* record0,
+		const uchar* record1);
 #endif
 	/** Builds a 'template' to the prebuilt struct.
 
@@ -476,8 +477,6 @@ protected:
 	/** Thread handle of the user currently using the handler;
 	this is set in external_lock function */
 	THD*			m_user_thd;
-
-	THR_LOCK_DATA	lock;
 
 	/** buffer used in updates */
 	uchar*			m_upd_buf;
@@ -579,23 +578,7 @@ thd_get_work_part_info(
 struct trx_t;
 #ifdef WITH_WSREP
 #include <mysql/service_wsrep.h>
-//extern "C" int wsrep_trx_order_before(void *thd1, void *thd2);
-
-extern "C" bool wsrep_thd_is_wsrep_on(THD *thd);
-
-
-extern "C" void wsrep_thd_set_exec_mode(THD *thd, enum wsrep_exec_mode mode);
-extern "C" void wsrep_thd_set_query_state(
-	THD *thd, enum wsrep_query_state state);
-
-extern "C" void wsrep_thd_set_trx_to_replay(THD *thd, uint64 trx_id);
-
-extern "C" uint32 wsrep_thd_wsrep_rand(THD *thd);
-extern "C" time_t wsrep_thd_query_start(THD *thd);
-extern "C" query_id_t wsrep_thd_query_id(THD *thd);
-extern "C" query_id_t wsrep_thd_wsrep_last_query_id(THD *thd);
-extern "C" void wsrep_thd_set_wsrep_last_query_id(THD *thd, query_id_t id);
-#endif
+#endif /* WITH_WSREP */
 
 extern const struct _ft_vft ft_vft_result;
 
@@ -629,10 +612,6 @@ innobase_index_name_is_reserved(
 					be created. */
 	MY_ATTRIBUTE((nonnull(1), warn_unused_result));
 
-#ifdef WITH_WSREP
-//extern "C" int wsrep_trx_is_aborting(void *thd_ptr);
-#endif
-
 /** Parse hint for table and its indexes, and update the information
 in dictionary.
 @param[in]	thd		Connection thread
@@ -659,15 +638,7 @@ public:
 		char*		table_name,
 		char*		remote_path,
 		bool		file_per_table,
-		trx_t*		trx = NULL)
-	:m_thd(thd),
-	m_trx(trx),
-	m_form(form),
-	m_create_info(create_info),
-	m_table_name(table_name), m_table(NULL),
-	m_remote_path(remote_path),
-	m_innodb_file_per_table(file_per_table)
-	{}
+		trx_t*		trx = NULL);
 
 	/** Initialize the object. */
 	int initialize();
@@ -737,6 +708,9 @@ public:
 	const char* table_name() const
 	{ return(m_table_name); }
 
+	/** @return whether the table needs to be dropped on rollback */
+	bool drop_before_rollback() const { return m_drop_before_rollback; }
+
 	THD* thd() const
 	{ return(m_thd); }
 
@@ -773,6 +747,9 @@ private:
 	/** Information on table columns and indexes. */
 	const TABLE*	m_form;
 
+	/** Value of innodb_default_row_format */
+	const ulong	m_default_row_format;
+
 	/** Create options. */
 	HA_CREATE_INFO*	m_create_info;
 
@@ -780,6 +757,8 @@ private:
 	char*		m_table_name;
 	/** Table */
 	dict_table_t*	m_table;
+	/** Whether the table needs to be dropped before rollback */
+	bool		m_drop_before_rollback;
 
 	/** Remote path (DATA DIRECTORY) or zero length-string */
 	char*		m_remote_path;

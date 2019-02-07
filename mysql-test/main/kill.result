@@ -324,7 +324,7 @@ connection blocker;
 lock tables t1 read;
 connection ddl;
 # Let us mark locked table t1 as old
-flush tables;
+flush tables t1;
 connection dml;
 select * from t1;
 connection default;

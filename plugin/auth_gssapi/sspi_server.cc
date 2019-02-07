@@ -40,7 +40,7 @@ static void log_error(SECURITY_STATUS err, const char *msg)
   {
     char buf[1024];
     sspi_errmsg(err, buf, sizeof(buf));
-    my_printf_error(ER_UNKNOWN_ERROR, "SSPI server error 0x%x - %s - %s", 0, msg, buf);
+    my_printf_error(ER_UNKNOWN_ERROR, "SSPI server error 0x%x - %s - %s", 0, err, msg, buf);
   }
   else
   {
@@ -101,7 +101,12 @@ static int get_client_name_from_context(CtxtHandle *ctxt,
         *p = 0;
     }
     strncpy(name, native_names.sClientName, name_len);
-    FreeContextBuffer(&native_names);
+
+    if (native_names.sClientName)
+      FreeContextBuffer(native_names.sClientName);
+    if (native_names.sServerName)
+      FreeContextBuffer(native_names.sServerName);
+
     return CR_OK;
   }
 
@@ -135,7 +140,7 @@ static int get_client_name_from_context(CtxtHandle *ctxt,
 }
 
 
-int auth_server(MYSQL_PLUGIN_VIO *vio, const char *user, size_t user_len, int compare_full_name)
+int auth_server(MYSQL_PLUGIN_VIO *vio, MYSQL_SERVER_AUTH_INFO *auth_info)
 {
   int ret;
   SECURITY_STATUS sspi_ret;
@@ -150,6 +155,8 @@ int auth_server(MYSQL_PLUGIN_VIO *vio, const char *user, size_t user_len, int co
   SecBuffer     outbuf;
   void*         out= NULL;
   char client_name[MYSQL_USERNAME_LENGTH + 1];
+  const char *user= 0;
+  int compare_full_name;
 
   ret= CR_ERROR;
   SecInvalidateHandle(&cred);
@@ -201,6 +208,19 @@ int auth_server(MYSQL_PLUGIN_VIO *vio, const char *user, size_t user_len, int co
     {
       log_error(SEC_E_OK, "communication error(read)");
       goto cleanup;
+    }
+    if (!user)
+    {
+      if (auth_info->auth_string_length > 0)
+      {
+        compare_full_name= 1;
+        user= auth_info->auth_string;
+      }
+      else
+      {
+        compare_full_name= 0;
+        user= auth_info->user_name;
+      }
     }
     inbuf.cbBuffer= len;
     outbuf.cbBuffer= SSPI_MAX_TOKEN_SIZE;

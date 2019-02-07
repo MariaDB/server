@@ -893,6 +893,7 @@ static bool insert_params(Prepared_statement *stmt, uchar *null_array,
       DBUG_RETURN(1);
     if (param->convert_str_value(stmt->thd))
       DBUG_RETURN(1);                           /* out of memory */
+    param->sync_clones();
   }
   DBUG_RETURN(0);
 }
@@ -941,6 +942,7 @@ static bool insert_bulk_params(Prepared_statement *stmt,
     }
     else
       DBUG_RETURN(1); // long is not supported here
+    param->sync_clones();
   }
   DBUG_RETURN(0);
 }
@@ -969,6 +971,7 @@ static bool set_conversion_functions(Prepared_statement *stmt,
     read_pos+= 2;
     (**it).unsigned_flag= MY_TEST(typecode & signed_bit);
     (*it)->setup_conversion(thd, (uchar) (typecode & 0xff));
+    (*it)->sync_clones();
   }
   *data= read_pos;
   DBUG_RETURN(0);
@@ -1039,6 +1042,7 @@ static bool emb_insert_params(Prepared_statement *stmt, String *expanded_query)
         if (param->has_no_value())
           DBUG_RETURN(1);
       }
+      param->sync_clones();
     }
     if (param->convert_str_value(thd))
       DBUG_RETURN(1);                           /* out of memory */
@@ -1081,6 +1085,7 @@ static bool emb_insert_params_with_log(Prepared_statement *stmt, String *query)
 
     if (param->convert_str_value(thd))
       DBUG_RETURN(1);                           /* out of memory */
+    param->sync_clones();
   }
   if (acc.finalize())
     DBUG_RETURN(1);
@@ -1136,7 +1141,11 @@ swap_parameter_array(Item_param **param_array_dst,
   Item_param **end= param_array_dst + param_count;
 
   for (; dst < end; ++src, ++dst)
+  {
     (*dst)->set_param_type_and_swap_value(*src);
+    (*dst)->sync_clones();
+    (*src)->sync_clones();
+  }
 }
 
 
@@ -1167,6 +1176,7 @@ insert_params_from_actual_params(Prepared_statement *stmt,
     if (ps_param->save_in_param(stmt->thd, param) ||
         param->convert_str_value(stmt->thd))
       DBUG_RETURN(1);
+    param->sync_clones();
   }
   DBUG_RETURN(0);
 }
@@ -1209,6 +1219,8 @@ insert_params_from_actual_params_with_log(Prepared_statement *stmt,
 
     if (param->convert_str_value(thd))
       DBUG_RETURN(1);
+
+    param->sync_clones();
   }
   if (acc.finalize())
     DBUG_RETURN(1);
@@ -2903,6 +2915,7 @@ void reinit_stmt_before_use(THD *thd, LEX *lex)
 {
   SELECT_LEX *sl= lex->all_selects_list;
   DBUG_ENTER("reinit_stmt_before_use");
+  Window_spec *win_spec;
 
   /*
     We have to update "thd" pointer in LEX, all its units and in LEX::result,
@@ -2971,6 +2984,17 @@ void reinit_stmt_before_use(THD *thd, LEX *lex)
       /* Fix ORDER list */
       for (order= sl->order_list.first; order; order= order->next)
         order->item= &order->item_ptr;
+      /* Fix window functions too */
+      List_iterator<Window_spec> it(sl->window_specs);
+
+      while ((win_spec= it++))
+      {
+        for (order= win_spec->partition_list->first; order; order= order->next)
+          order->item= &order->item_ptr;
+        for (order= win_spec->order_list->first; order; order= order->next)
+          order->item= &order->item_ptr;
+      }
+
       {
 #ifdef DBUG_ASSERT_EXISTS
         bool res=
@@ -3031,7 +3055,7 @@ void reinit_stmt_before_use(THD *thd, LEX *lex)
     lex->result->cleanup();
     lex->result->set_thd(thd);
   }
-  lex->allow_sum_func= 0;
+  lex->allow_sum_func.clear_all();
   lex->in_sum_func= NULL;
   DBUG_VOID_RETURN;
 }
@@ -3202,7 +3226,7 @@ static void mysql_stmt_execute_common(THD *thd,
   sp_cache_enforce_limit(thd->sp_package_body_cache, stored_program_cache_size);
 
   /* Close connection socket; for use with client testing (Bug#43560). */
-  DBUG_EXECUTE_IF("close_conn_after_stmt_execute", vio_close(thd->net.vio););
+  DBUG_EXECUTE_IF("close_conn_after_stmt_execute", vio_shutdown(thd->net.vio,SHUT_RD););
 
   DBUG_VOID_RETURN;
 }
@@ -4194,30 +4218,6 @@ reexecute:
   error= execute(expanded_query, open_cursor) || thd->is_error();
 
   thd->m_reprepare_observer= NULL;
-#ifdef WITH_WSREP
-
-  if (WSREP_ON)
-  {
-    mysql_mutex_lock(&thd->LOCK_thd_data);
-    switch (thd->wsrep_conflict_state)
-    {
-      case CERT_FAILURE:
-        WSREP_DEBUG("PS execute fail for CERT_FAILURE: thd: %lld  err: %d",
-	            (longlong) thd->thread_id,
-                    thd->get_stmt_da()->sql_errno() );
-        thd->wsrep_conflict_state = NO_CONFLICT;
-        break;
-
-      case MUST_REPLAY:
-        (void) wsrep_replay_transaction(thd);
-        break;
-
-      default:
-        break;
-    }
-    mysql_mutex_unlock(&thd->LOCK_thd_data);
-  }
-#endif /* WITH_WSREP */
 
   if (unlikely(error) &&
       (sql_command_flags[lex->sql_command] & CF_REEXECUTION_FRAGILE) &&
@@ -4390,30 +4390,6 @@ reexecute:
     error= execute(expanded_query, open_cursor) || thd->is_error();
 
     thd->m_reprepare_observer= NULL;
-#ifdef WITH_WSREP
-
-    if (WSREP_ON)
-    {
-      mysql_mutex_lock(&thd->LOCK_thd_data);
-      switch (thd->wsrep_conflict_state)
-      {
-      case CERT_FAILURE:
-        WSREP_DEBUG("PS execute fail for CERT_FAILURE: thd: %lld  err: %d",
-	            (longlong) thd->thread_id,
-                    thd->get_stmt_da()->sql_errno() );
-        thd->wsrep_conflict_state = NO_CONFLICT;
-        break;
-
-      case MUST_REPLAY:
-        (void) wsrep_replay_transaction(thd);
-        break;
-
-      default:
-        break;
-      }
-      mysql_mutex_unlock(&thd->LOCK_thd_data);
-    }
-#endif /* WITH_WSREP */
 
     if (unlikely(error) &&
         (sql_command_flags[lex->sql_command] & CF_REEXECUTION_FRAGILE) &&

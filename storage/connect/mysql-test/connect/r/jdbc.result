@@ -239,22 +239,34 @@ CREATE TABLE t2 (command varchar(128) not null,number int(5) not null flag=1,mes
 SELECT * FROM t2 WHERE command='drop table tx1';
 command	number	message
 drop table tx1	0	Execute: java.sql.SQLSyntaxErrorException: (conn:24) Unknown table 'connect.tx1'
+Warnings:
+Warning	1105	Execute: java.sql.SQLSyntaxErrorException: (conn:24) Unknown table 'connect.tx1'
 SELECT * FROM t2 WHERE command = 'create table tx1 (a int not null, b char(32), c double(8,2))';
 command	number	message
 create table tx1 (a int not null, b char(32), c double(8,2))	0	Affected rows
+Warnings:
+Warning	1105	Affected rows
 SELECT * FROM t2 WHERE command in ('insert into tx1 values(1,''The number one'',456.12)',"insert into tx1(a,b) values(2,'The number two'),(3,'The number three')");
 command	number	message
 insert into tx1 values(1,'The number one',456.12)	1	Affected rows
 insert into tx1(a,b) values(2,'The number two'),(3,'The number three')	2	Affected rows
+Warnings:
+Warning	1105	Affected rows
 SELECT * FROM t2 WHERE command='update tx1 set c = 3.1416 where a = 2';
 command	number	message
 update tx1 set c = 3.1416 where a = 2	1	Affected rows
+Warnings:
+Warning	1105	Affected rows
 SELECT * FROM t2 WHERE command='select * from tx1';
 command	number	message
 select * from tx1	3	Result set column number
+Warnings:
+Warning	1105	Result set column number
 SELECT * FROM t2 WHERE command='delete from tx1 where a = 2';
 command	number	message
 delete from tx1 where a = 2	1	Affected rows
+Warnings:
+Warning	1105	Affected rows
 SELECT * FROM connect.tx1;
 a	b	c
 1	The number one	456.12

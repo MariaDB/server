@@ -83,7 +83,7 @@ public:
 
   // Columns and keys to be dropped.
   List<Alter_drop>              drop_list;
-  // Columns for ALTER_COLUMN_CHANGE_DEFAULT.
+  // Columns for ALTER_CHANGE_COLUMN_DEFAULT.
   List<Alter_column>            alter_list;
   // List of keys, used by both CREATE and ALTER TABLE.
   List<Key>                     key_list;

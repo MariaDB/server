@@ -200,7 +200,8 @@ TABLE_FIELD_TYPE proc_table_fields[MYSQL_PROC_FIELD_COUNT] =
     "'STRICT_ALL_TABLES','NO_ZERO_IN_DATE','NO_ZERO_DATE','INVALID_DATES',"
     "'ERROR_FOR_DIVISION_BY_ZERO','TRADITIONAL','NO_AUTO_CREATE_USER',"
     "'HIGH_NOT_PRECEDENCE','NO_ENGINE_SUBSTITUTION','PAD_CHAR_TO_FULL_LENGTH',"
-    "'EMPTY_STRING_IS_NULL','SIMULTANEOUS_ASSIGNMENT')") },
+    "'EMPTY_STRING_IS_NULL','SIMULTANEOUS_ASSIGNMENT',"
+    "'TIME_ROUND_FRACTIONAL')") },
     { NULL, 0 }
   },
   {
@@ -1793,8 +1794,8 @@ bool lock_db_routines(THD *thd, const char *db)
   close_system_tables(thd, &open_tables_state_backup);
 
   /* We should already hold a global IX lock and a schema X lock. */
-  DBUG_ASSERT(thd->mdl_context.is_lock_owner(MDL_key::GLOBAL, "", "",
-                                             MDL_INTENTION_EXCLUSIVE) &&
+  DBUG_ASSERT(thd->mdl_context.is_lock_owner(MDL_key::BACKUP, "", "",
+                                             MDL_BACKUP_DDL) &&
               thd->mdl_context.is_lock_owner(MDL_key::SCHEMA, db, "",
                                              MDL_EXCLUSIVE));
   DBUG_RETURN(thd->mdl_context.acquire_locks(&mdl_requests,

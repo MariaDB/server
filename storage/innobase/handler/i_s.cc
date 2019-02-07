@@ -25,10 +25,9 @@ Created July 18, 2007 Vasil Dimov
 Modified Dec 29, 2014 Jan Lindström (Added sys_semaphore_waits)
 *******************************************************/
 
-#include "ha_prototypes.h"
+#include "univ.i"
 #include <mysql_version.h>
 #include <field.h>
-#include "univ.i"
 
 #include <sql_acl.h>
 #include <sql_show.h>
@@ -58,8 +57,6 @@ Modified Dec 29, 2014 Jan Lindström (Added sys_semaphore_waits)
 #include "sync0arr.h"
 #include "fil0fil.h"
 #include "fil0crypt.h"
-#include "fsp0sysspace.h"
-#include "ut0new.h"
 #include "dict0crea.h"
 
 /** structure associates a name string with a file page type and/or buffer

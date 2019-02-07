@@ -70,6 +70,11 @@ static DWORD fls;
 
 static bool skip_completion_port_on_success = false;
 
+PTP_CALLBACK_ENVIRON get_threadpool_win_callback_environ()
+{
+  return pool? &callback_environ: 0;
+}
+
 /*
   Threadpool callbacks.
 
@@ -134,7 +139,15 @@ struct TP_connection *new_TP_connection(CONNECT *connect)
 
 void TP_pool_win::add(TP_connection *c)
 {
-  SubmitThreadpoolWork(((TP_connection_win *)c)->work);
+  if(FlsGetValue(fls))
+  {
+    /* Inside threadpool(), execute callback directly. */
+    tp_callback(c);
+  }
+  else
+  {
+    SubmitThreadpoolWork(((TP_connection_win *)c)->work);
+  }
 }
 
 
@@ -288,14 +301,13 @@ TP_connection_win::~TP_connection_win()
 
 void TP_connection_win::wait_begin(int type)
 {
- 
   /*
     Signal to the threadpool whenever callback can run long. Currently, binlog
     waits are a good candidate, its waits are really long
   */
   if (type == THD_WAIT_BINLOG)
   {
-    if (!long_callback)
+    if (!long_callback && callback_instance)
     {
       CallbackMayRunLong(callback_instance);
       long_callback= true;
@@ -308,12 +320,11 @@ void TP_connection_win::wait_end()
   /* Do we need to do anything ? */
 }
 
-/* 
-  This function should be called first whenever a callback is invoked in the 
+/*
+  This function should be called first whenever a callback is invoked in the
   threadpool, does my_thread_init() if not yet done
 */
-extern ulong thread_created;
-static void pre_callback(PVOID context, PTP_CALLBACK_INSTANCE instance)
+void tp_win_callback_prolog()
 {
   if (FlsGetValue(fls) == NULL)
   {
@@ -323,6 +334,12 @@ static void pre_callback(PVOID context, PTP_CALLBACK_INSTANCE instance)
     InterlockedIncrement((volatile long *)&tp_stats.num_worker_threads);
     my_thread_init();
   }
+}
+
+extern ulong thread_created;
+static void pre_callback(PVOID context, PTP_CALLBACK_INSTANCE instance)
+{
+  tp_win_callback_prolog();
   TP_connection_win *c = (TP_connection_win *)context;
   c->callback_instance = instance;
   c->long_callback = false;

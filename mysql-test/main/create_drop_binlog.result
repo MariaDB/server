@@ -322,8 +322,6 @@ Log_name	Pos	Event_type	Server_id	End_log_pos	Info
 #	#	Gtid	1	#	GTID #-#-#
 #	#	Query	1	#	use `test`; CREATE TABLE t1(a INT, b INT)
 #	#	Gtid	1	#	GTID #-#-#
-#	#	Query	1	#	use `test`; CREATE TABLE IF NOT EXISTS t1(a INT, b INT)
-#	#	Gtid	1	#	GTID #-#-#
 #	#	Query	1	#	use `test`; CREATE OR REPLACE INDEX i1 ON t1(a)
 #	#	Gtid	1	#	GTID #-#-#
 #	#	Query	1	#	use `test`; CREATE OR REPLACE INDEX i1 ON t1(a)
@@ -376,8 +374,6 @@ Log_name	Pos	Event_type	Server_id	End_log_pos	Info
 #	#	Binlog_checkpoint	1	#	master-bin.000001
 #	#	Gtid	1	#	GTID #-#-#
 #	#	Query	1	#	use `test`; CREATE TABLE t1(a INT, b INT)
-#	#	Gtid	1	#	GTID #-#-#
-#	#	Query	1	#	use `test`; CREATE TABLE IF NOT EXISTS t1(a INT, b INT)
 #	#	Gtid	1	#	GTID #-#-#
 #	#	Query	1	#	use `test`; CREATE INDEX IF NOT EXISTS i1 ON t1(a)
 #	#	Gtid	1	#	GTID #-#-#

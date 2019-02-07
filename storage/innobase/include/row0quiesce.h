@@ -28,7 +28,6 @@ Created 2012-02-08 by Sunny Bains
 #ifndef row0quiesce_h
 #define row0quiesce_h
 
-#include "univ.i"
 #include "dict0types.h"
 
 struct trx_t;

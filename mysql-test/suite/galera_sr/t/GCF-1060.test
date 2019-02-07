@@ -1,0 +1,9 @@
+--source include/galera_cluster.inc
+
+--let $count = 100;
+--let $wsrep_trx_fragment_size = 1;
+--let $query_node_1 = TRUNCATE TABLE t1
+--let $query_node_1a = INSERT INTO t1 VALUE (1,'x'),(2,'x'),(3,'x')
+--let $query_node_2 = INSERT INTO t1 VALUE (4, 'z');
+
+--source suite/galera/include/galera_concurrent_test.inc

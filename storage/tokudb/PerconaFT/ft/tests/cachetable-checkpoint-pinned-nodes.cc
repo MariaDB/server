@@ -110,13 +110,11 @@ cachetable_test (void) {
 
   void* v1;
   void* v2;
-  long s1;
-  long s2;
   CACHETABLE_WRITE_CALLBACK wc = def_write_callback(&dirty_val);
   wc.flush_callback = flush;
-  r = toku_cachetable_get_and_pin(f1, make_blocknum(1), 1, &v1, &s1, wc, fetch, def_pf_req_callback, def_pf_callback, true, &dirty_val);
+  r = toku_cachetable_get_and_pin(f1, make_blocknum(1), 1, &v1, wc, fetch, def_pf_req_callback, def_pf_callback, true, &dirty_val);
   wc.write_extraargs = NULL;
-  r = toku_cachetable_get_and_pin(f1, make_blocknum(2), 2, &v2, &s2, wc, fetch, def_pf_req_callback, def_pf_callback, true, NULL);
+  r = toku_cachetable_get_and_pin(f1, make_blocknum(2), 2, &v2, wc, fetch, def_pf_req_callback, def_pf_callback, true, NULL);
 
   //
   // Here is the test, we have two pairs, v1 is dirty, v2 is clean, but both are currently pinned

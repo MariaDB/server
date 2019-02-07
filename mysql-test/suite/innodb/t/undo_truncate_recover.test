@@ -38,13 +38,9 @@ update t1 set c = 'MariaDB';
 update t1 set c = 'InnoDB';
 eval set global debug_dbug = '+d,$SEARCH_PATTERN';
 commit;
-# FIXME: remove this work-around, and generate less log!
-call mtr.add_suppression("InnoDB: The redo log transaction size ");
 SET GLOBAL innodb_fast_shutdown=0;
 --source include/shutdown_mysqld.inc
 --source include/search_pattern_in_file.inc
-# FIXME: remove this work-around, and generate less log!
---let $restart_parameters= --innodb-buffer-pool-size=16m
 --source include/start_mysqld.inc
 
 drop table t1;

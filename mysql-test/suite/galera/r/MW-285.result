@@ -1,3 +1,5 @@
+connection node_2;
+connection node_1;
 CREATE TABLE parent1 ( id INT PRIMARY KEY, KEY (id) ) ENGINE=InnoDB;
 CREATE TABLE parent2 ( id INT PRIMARY KEY, KEY (id) ) ENGINE=InnoDB;
 CREATE TABLE child (

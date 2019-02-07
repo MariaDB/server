@@ -39,10 +39,6 @@ Created 1/20/1994 Heikki Tuuri
 #define _IB_TO_STR(s)	#s
 #define IB_TO_STR(s)	_IB_TO_STR(s)
 
-#define INNODB_VERSION_MAJOR	5
-#define INNODB_VERSION_MINOR	7
-#define INNODB_VERSION_BUGFIX	23
-
 /* The following is the InnoDB version as shown in
 SELECT plugin_version FROM information_schema.plugins;
 calculated in make_version_string() in sql/sql_show.cc like this:
@@ -83,6 +79,7 @@ used throughout InnoDB but do not include too much themselves.  They
 support cross-platform development and expose comonly used SQL names. */
 
 #include <my_global.h>
+#include "my_counter.h"
 
 /* JAN: TODO: missing 5.7 header */
 #ifdef HAVE_MY_THREAD_H
@@ -104,7 +101,6 @@ support cross-platform development and expose comonly used SQL names. */
 #endif
 
 #include <stdint.h>
-#define __STDC_FORMAT_MACROS    /* Enable C99 printf format macros */
 #include <inttypes.h>
 #ifdef HAVE_UNISTD_H
 #include <unistd.h>
@@ -591,12 +587,14 @@ typedef void* os_thread_ret_t;
 #include "ut0ut.h"
 #include "sync0types.h"
 
+#include <my_valgrind.h>
+/* define UNIV macros in terms of my_valgrind.h */
+#define UNIV_MEM_INVALID(addr, size) 	MEM_UNDEFINED(addr, size)
+#define UNIV_MEM_FREE(addr, size) 	MEM_NOACCESS(addr, size)
+#define UNIV_MEM_ALLOC(addr, size) 	UNIV_MEM_INVALID(addr, size)
 #ifdef UNIV_DEBUG_VALGRIND
 # include <valgrind/memcheck.h>
 # define UNIV_MEM_VALID(addr, size) VALGRIND_MAKE_MEM_DEFINED(addr, size)
-# define UNIV_MEM_INVALID(addr, size) VALGRIND_MAKE_MEM_UNDEFINED(addr, size)
-# define UNIV_MEM_FREE(addr, size) VALGRIND_MAKE_MEM_NOACCESS(addr, size)
-# define UNIV_MEM_ALLOC(addr, size) VALGRIND_MAKE_MEM_UNDEFINED(addr, size)
 # define UNIV_MEM_DESC(addr, size) VALGRIND_CREATE_BLOCK(addr, size, #addr)
 # define UNIV_MEM_UNDESC(b) VALGRIND_DISCARD(b)
 # define UNIV_MEM_ASSERT_RW_LOW(addr, size, should_abort) do {		\
@@ -631,9 +629,6 @@ typedef void* os_thread_ret_t;
 	} while (0)
 #else
 # define UNIV_MEM_VALID(addr, size) do {} while(0)
-# define UNIV_MEM_INVALID(addr, size) do {} while(0)
-# define UNIV_MEM_FREE(addr, size) do {} while(0)
-# define UNIV_MEM_ALLOC(addr, size) do {} while(0)
 # define UNIV_MEM_DESC(addr, size) do {} while(0)
 # define UNIV_MEM_UNDESC(b) do {} while(0)
 # define UNIV_MEM_ASSERT_RW_LOW(addr, size, should_abort) do {} while(0)

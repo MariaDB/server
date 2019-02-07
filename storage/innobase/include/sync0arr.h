@@ -28,7 +28,6 @@ Created 9/5/1995 Heikki Tuuri
 #define sync0arr_h
 
 #include "univ.i"
-#include "os0thread.h"
 
 /** Synchronization wait array cell */
 struct sync_cell_t;

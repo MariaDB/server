@@ -1608,6 +1608,44 @@ id	name	dob	father	mother
 8	Grandpa Ben	1940-10-21	NULL	NULL
 6	Grandgrandma Martha	1923-05-17	NULL	NULL
 drop table my_ancestors;
+WITH RECURSIVE
+positions(i) AS (
+VALUES(0)
+UNION SELECT ALL
+i+1 FROM positions WHERE i < 4*4-1
+),
+solutions(board, n_queens) AS (
+SELECT REPEAT('-', 4*4), 0
+FROM positions
+UNION
+SELECT
+concat(substr(board, 1, i),'*',substr(board, i+2)),n_queens + 1 AS n_queens
+FROM positions AS ps, solutions
+WHERE n_queens < 4
+AND substr(board,1,i) != '*'
+      AND NOT EXISTS (
+SELECT 1 FROM positions WHERE
+substr(board,i+1,1) = '*' AND
+(
+i % 4 = ps.i % 4 OR
+i div 4 = ps.i div 4 OR
+i div 4 + (i % 4) = ps.i div 4 + (ps.i % 4) OR
+i div 4 - (i % 4) = ps.i div 4 - (ps.i % 4)
+)
+)
+)
+SELECT regexp_replace(board,concat('(',REPEAT('.', 4),')'),'\\1\n') n_queens FROM solutions WHERE n_queens = 4;
+n_queens
+-*--
+---*
+*---
+--*-
+
+--*-
+*---
+---*
+-*--
+
 #
 # MDEV-10883: execution of prepared statement from SELECT
 #             with recursive CTE that renames columns
@@ -3306,7 +3344,355 @@ SELECT func();
 func()
 1
 DROP FUNCTION func;
-# Start of 10.3 tests
+#
+# MDEV-17024: two materialized CTEs using the same recursive CTE
+#
+create table t1 (id int);
+insert into t1 values (1), (2), (3);
+with recursive
+rcte(a) as
+(select 1 union select cast(a+1 as unsigned) from rcte where a < 10),
+cte1 as
+(select count(*) as c1 from rcte,t1 where a between 3 and 5 and id=a-3),
+cte2 as
+(select count(*) as c2 from rcte,t1 where a between 7 and 8 and id=a-7)
+select * from cte1, cte2;
+c1	c2
+2	1
+explain extended with recursive
+rcte(a) as
+(select 1 union select cast(a+1 as unsigned) from rcte where a < 10),
+cte1 as
+(select count(*) as c1 from rcte,t1 where a between 3 and 5 and id=a-3),
+cte2 as
+(select count(*) as c2 from rcte,t1 where a between 7 and 8 and id=a-7)
+select * from cte1, cte2;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	PRIMARY	<derived4>	ALL	NULL	NULL	NULL	NULL	6	100.00	
+1	PRIMARY	<derived5>	ALL	NULL	NULL	NULL	NULL	6	100.00	Using join buffer (flat, BNL join)
+4	DERIVED	<derived2>	ALL	NULL	NULL	NULL	NULL	2	100.00	Using where
+4	DERIVED	t1	ALL	NULL	NULL	NULL	NULL	3	100.00	Using where; Using join buffer (flat, BNL join)
+5	DERIVED	<derived2>	ALL	NULL	NULL	NULL	NULL	2	100.00	Using where
+5	DERIVED	t1	ALL	NULL	NULL	NULL	NULL	3	100.00	Using where; Using join buffer (flat, BNL join)
+2	DERIVED	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	No tables used
+3	RECURSIVE UNION	<derived2>	ALL	NULL	NULL	NULL	NULL	2	100.00	Using where
+NULL	UNION RESULT	<union2,3>	ALL	NULL	NULL	NULL	NULL	NULL	NULL	
+Warnings:
+Note	1003	with recursive rcte as (/* select#2 */ select 1 AS `a` union /* select#3 */ select cast(`rcte`.`a` + 1 as unsigned) AS `cast(a+1 as unsigned)` from `rcte` where `rcte`.`a` < 10), cte1 as (/* select#4 */ select count(0) AS `c1` from `rcte` join `test`.`t1` where `rcte`.`a` between 3 and 5 and `test`.`t1`.`id` = `rcte`.`a` - 3), cte2 as (/* select#5 */ select count(0) AS `c2` from `rcte` join `test`.`t1` where `rcte`.`a` between 7 and 8 and `test`.`t1`.`id` = `rcte`.`a` - 7)/* select#1 */ select `cte1`.`c1` AS `c1`,`cte2`.`c2` AS `c2` from `cte1` join `cte2`
+prepare stmt from "with recursive
+rcte(a) as
+(select 1 union select cast(a+1 as unsigned) from rcte where a < 10),
+cte1 as
+(select count(*) as c1 from rcte,t1 where a between 3 and 5 and id=a-3),
+cte2 as
+(select count(*) as c2 from rcte,t1 where a between 7 and 8 and id=a-7)
+select * from cte1, cte2";
+execute stmt;
+c1	c2
+2	1
+execute stmt;
+c1	c2
+2	1
+create table t2 (c1 int, c2 int);
+create procedure p() insert into t2 with recursive
+rcte(a) as
+(select 1 union select cast(a+1 as unsigned) from rcte where a < 10),
+cte1 as
+(select count(*) as c1 from rcte,t1 where a between 3 and 5 and id=a-3),
+cte2 as
+(select count(*) as c2 from rcte,t1 where a between 7 and 8 and id=a-7)
+select * from cte1, cte2;
+call p();
+select * from t2;
+c1	c2
+2	1
+with recursive
+rcte(a) as
+(select 1 union select cast(a+1 as unsigned) from rcte where a < 10),
+cte1 as
+(select count(*) as c1 from rcte,t1 where a between 3 and 5 and id=a-3),
+cte2 as
+(select count(*) as c2 from rcte,t1 where a between 7 and 8 and id=a-7)
+select * from cte1;
+c1
+2
+with recursive
+rcte(a) as
+(select 1 union select cast(a+1 as unsigned) from rcte where a < 10),
+cte1 as
+(select count(*) as c1 from t1),
+cte2 as
+(select count(*) as c2 from t2)
+select * from cte1,cte2;
+c1	c2
+3	1
+with recursive
+rcte(a) as
+(select 1 union select cast(a+1 as unsigned) from rcte where a < 10),
+cte1 as
+(select count(*) as c1 from rcte,t1 where a between 3 and 5 and id=a-3),
+cte2 as
+(select count(*) as c2 from rcte,t1 where a between 7 and 8 and id=a-7)
+select * from cte1, cte2 where cte1.c1 = 3;
+c1	c2
+drop procedure p;
+drop table t1,t2;
+#
+# MDEV-17201: recursive part with LIMIT
+#
+CREATE TABLE purchases (
+id int unsigned NOT NULL AUTO_INCREMENT,
+pdate date NOT NULL,
+quantity int unsigned NOT NULL,
+p_id int unsigned NOT NULL,
+PRIMARY KEY (id)
+);
+INSERT INTO purchases(pdate, quantity, p_id) VALUES
+('2014-11-01',5 ,1),('2014-11-03', 3 ,1),
+('2014-11-01',2 ,2),('2014-11-03', 4 ,2);
+CREATE TABLE expired (
+edate date NOT NULL,
+quantity int unsigned NOT NULL,
+p_id int unsigned NOT NULL,
+PRIMARY KEY (edate,p_id)
+);
+INSERT INTO expired VALUES ('2014-11-12', 5 ,1),('2014-11-08', 1 ,2);
+WITH RECURSIVE expired_map AS (
+SELECT edate AS expired_date,
+CAST(NULL AS date) AS purchase_date,
+0 AS quantity,
+e.p_id,
+(SELECT MAX(id)+1 FROM purchases p
+WHERE pdate <= edate AND p.p_id =p_id) AS purchase_processed,
+quantity AS unresolved
+FROM expired e
+UNION
+( SELECT expired_date,
+pdate,
+IF(p.quantity < m.unresolved, p.quantity, m.unresolved),
+p.p_id,
+p.id,
+IF(p.quantity < m.unresolved, m.unresolved - p.quantity, 0)
+FROM purchases p JOIN expired_map m ON p.p_id = m.p_id
+WHERE p.id < m.purchase_processed AND m.unresolved > 0
+ORDER BY p.id DESC
+LIMIT 1
+)
+)
+SELECT  * FROM expired_map;
+expired_date	purchase_date	quantity	p_id	purchase_processed	unresolved
+2014-11-12	NULL	0	1	5	5
+2014-11-08	NULL	0	2	5	1
+2014-11-08	2014-11-03	1	2	4	0
+DROP TABLE purchases, expired;
+#
+# MDEV-17635: Two recursive CTEs, the second using the first
+#
+WITH RECURSIVE
+x AS (SELECT 0 as k UNION ALL SELECT k + 1 FROM x WHERE k < 1),
+z AS
+( SELECT  k1 AS cx, k2 AS cy, k1, k2
+FROM (SELECT k  AS k1 FROM x) x1 JOIN (SELECT k  AS k2 FROM x) y1
+UNION
+SELECT 1,1,1,1 FROM z)
+SELECT * FROM z;
+cx	cy	k1	k2
+0	0	0	0
+1	0	1	0
+0	1	0	1
+1	1	1	1
+# https://wiki.postgresql.org/wiki/Mandelbrot_set:
+WITH RECURSIVE x(i) AS (
+SELECT CAST(0 AS DECIMAL(13, 10))
+UNION ALL
+SELECT i + 1
+FROM x
+WHERE i < 101
+),
+Z(Ix, Iy, Cx, Cy, X, Y, I) AS (
+SELECT Ix, Iy, X, Y, X, Y, 0
+FROM (SELECT CAST(-2.2 + 0.031 * i AS DECIMAL(13, 10)) AS X,
+i AS Ix FROM x) AS xgen
+CROSS JOIN (
+SELECT CAST(-1.5 + 0.031 * i AS DECIMAL(13, 10)) AS Y,
+i AS iY FROM x
+) AS ygen
+UNION ALL
+SELECT Ix, Iy, Cx, Cy,
+CAST(X * X - Y * Y + Cx AS DECIMAL(13, 10)) AS X,
+CAST(Y * X * 2 + Cy AS DECIMAL(13, 10)), I + 1
+FROM Z
+WHERE X * X + Y * Y < 16.0
+AND I < 27
+),
+Zt (Ix, Iy, I) AS (
+SELECT Ix, Iy, MAX(I) AS I
+FROM Z
+GROUP BY Iy, Ix
+ORDER BY Iy, Ix
+)
+SELECT GROUP_CONCAT(
+SUBSTRING(
+' .,,,-----++++%%%%@@@@#### ',
+GREATEST(I, 1),
+1
+) ORDER BY Ix SEPARATOR ''
+       ) AS 'Mandelbrot Set'
+  FROM Zt
+GROUP BY Iy
+ORDER BY Iy;
+Mandelbrot Set
+             ....................................................................................     
+            .......................................................................................   
+           .........................................................................................  
+          ........................................................................................... 
+        ....................................................,,,,,,,,,.................................
+       ................................................,,,,,,,,,,,,,,,,,,.............................
+      ..............................................,,,,,,,,,,,,,,,,,,,,,,,,..........................
+     ............................................,,,,,,,,,,,,,,,,,,,,,,,,,,,,,........................
+     ..........................................,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,......................
+    .........................................,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,....................
+   ........................................,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,...................
+  .......................................,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,.................
+ .......................................,,,,,,,,,,,,,,,,,,,,,,,,--,,,,,,,,,,,,,,,,,,,,................
+......................................,,,,,,,,,,,,,,,,,,,,,,,,,,-+--,,,,,,,,,,,,,,,,,,,...............
+....................................,,,,,,,,,,,,,,,,,,,,,,,,,,,,-----,,,,,,,,,,,,,,,,,,,..............
+...................................,,,,,,,,,,,,,,,,,,,,,,,,,,,,--- -----,,,,,,,,,,,,,,,,,.............
+.................................,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,---++--++,,,,,,,,,,,,,,,,,,............
+................................,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,-----%++---,,,,,,,,,,,,,,,,,............
+..............................,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,-----+%----,,,,,,,,,,,,,,,,,,...........
+.............................,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,----- %%+----,,,,,,,,,,,,,,,,,,..........
+...........................,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,---%-+%   ----,,,,,,,,,,,,,,,,,,,.........
+..........................,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,---+ +##  %+%---,,,,,,,,,,,,,,,,,,.........
+........................,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,-----#      # +---,,,,,,,,,,,,,,,,,,........
+.......................,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,-------%       %-----,,,,,,,,,,,,,,,,,........
+.....................,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,---------+         ------,,,,,,,,,,,,,,,,,.......
+....................,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,-----------+@       +-----------,,,,,,,,,,,,.......
+..................,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,----@-------++       ++-----------,,,,,,,,,,,,......
+.................,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,--+@% ---+ +@%%@     %%+@+@%------+-,,,,,,,,,,,......
+................,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,----  # ++%               % @-----++--,,,,,,,,,,,.....
+..............,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,----+    %                  %%++ %+%@-,,,,,,,,,,,.....
+.............,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,-----+#                       #%    ++-,,,,,,,,,,,,....
+............,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,------+                             @---,,,,,,,,,,,,....
+..........,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,-------++%                             ---,,,,,,,,,,,,....
+.........,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,--------+ +                             %+---,,,,,,,,,,,,,...
+........,,,,,,,,,,,,,,,,,,,,,--------------------@                                +----,,,,,,,,,,,,...
+.......,,,,,,,,,,,,,,,,,,,,,,- +-----------------+                                 ----,,,,,,,,,,,,...
+.......,,,,,,,,,,,,,,,,,,,,,--++------+---------+%                                 +++--,,,,,,,,,,,,..
+......,,,,,,,,,,,,,,,,,,,,,,--%+-----++---------                                     #+-,,,,,,,,,,,,..
+.....,,,,,,,,,,,,,,,,,,,,,,----#%++--+@ -+-----+%                                     --,,,,,,,,,,,,..
+.....,,,,,,,,,,,,,,,,,,,,,,-----+## ++@ + +----%                                    +--,,,,,,,,,,,,,..
+....,,,,,,,,,,,,,,,,,,,,,,------+@  @     @@++++#                                   +--,,,,,,,,,,,,,..
+....,,,,,,,,,,,,,,,,,,,,,-------%           #++%                                      -,,,,,,,,,,,,,..
+...,,,,,,,,,,,,,,,,,,,,,------++%#           %%@                                     %-,,,,,,,,,,,,,,.
+...,,,,,,,,,,,,,,,,,,,--------+               %                                     +--,,,,,,,,,,,,,,.
+...,,,,,,,,,,,,,,,,,,-----+--++@              #                                      --,,,,,,,,,,,,,,.
+..,,,,,,,,,,,,,,,,,-------%+++%                                                    @--,,,,,,,,,,,,,,,.
+..,,,,,,,,,,,-------------+ @#@                                                    ---,,,,,,,,,,,,,,,.
+..,,,,,,,,,---@--------@-+%                                                       +---,,,,,,,,,,,,,,,.
+..,,,,,------- +-++++-+%%%                                                       +----,,,,,,,,,,,,,,,.
+..,,,,,,------%--------++%                                                       +----,,,,,,,,,,,,,,,.
+..,,,,,,,,,,--+----------++#                                                       ---,,,,,,,,,,,,,,,.
+..,,,,,,,,,,,,------------+@@@%                                                    +--,,,,,,,,,,,,,,,.
+..,,,,,,,,,,,,,,,,,------- +++%                                                    %--,,,,,,,,,,,,,,,.
+...,,,,,,,,,,,,,,,,,,---------+@              @                                      --,,,,,,,,,,,,,,.
+...,,,,,,,,,,,,,,,,,,,,------- #              %@                                    +--,,,,,,,,,,,,,,.
+...,,,,,,,,,,,,,,,,,,,,,-------++@           %+                                      %-,,,,,,,,,,,,,,.
+....,,,,,,,,,,,,,,,,,,,,,-------            %++%                                     %-,,,,,,,,,,,,,..
+....,,,,,,,,,,,,,,,,,,,,,,------+#  %#   #@ ++++                                    +--,,,,,,,,,,,,,..
+.....,,,,,,,,,,,,,,,,,,,,,,-----+ %%++% +@+----+                                    +--,,,,,,,,,,,,,..
+.....,,,,,,,,,,,,,,,,,,,,,,,---%+++--+#+--------%                                    #--,,,,,,,,,,,,..
+......,,,,,,,,,,,,,,,,,,,,,,--++-----%%---------                                    @#--,,,,,,,,,,,,..
+.......,,,,,,,,,,,,,,,,,,,,,---------------------+@                                +-++,,,,,,,,,,,,...
+........,,,,,,,,,,,,,,,,,,,,,--------------------+                                 ----,,,,,,,,,,,,...
+.........,,,,,,,,,,,,,,,,,,,,----,,,-------------                                #+----,,,,,,,,,,,,...
+..........,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,-------+ +                              +---,,,,,,,,,,,,,...
+...........,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,--------+%#                           #---,,,,,,,,,,,,....
+............,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,------+#                        @   @---,,,,,,,,,,,,....
+.............,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,-----+#                        +    @--,,,,,,,,,,,,....
+..............,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,---+%   %+@                 %+-+ +++%-,,,,,,,,,,,.....
+................,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,----% %@++              # %  -----++-,,,,,,,,,,,,.....
+.................,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,-- ++ ---+ + +%@     %++++++------%-,,,,,,,,,,,......
+...................,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,---- -------++       +------------,,,,,,,,,,,,......
+....................,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,-----------+%       +--------,,,,,,,,,,,,,,,.......
+......................,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,--------+#        -----,,,,,,,,,,,,,,,,,,.......
+.......................,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,-------+       #----,,,,,,,,,,,,,,,,,,........
+.........................,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,----+%      %#---,,,,,,,,,,,,,,,,,,,........
+..........................,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,---+%+%@  %+%%--,,,,,,,,,,,,,,,,,,.........
+............................,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,---+-+%  %----,,,,,,,,,,,,,,,,,,..........
+.............................,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,-----+%@+---,,,,,,,,,,,,,,,,,,,..........
+...............................,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,-----+%----,,,,,,,,,,,,,,,,,,...........
+................................,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,-----%+ +--,,,,,,,,,,,,,,,,,............
+..................................,,,,,,,,,,,,,,,,,,,,,,,,,,,,,---++----,,,,,,,,,,,,,,,,,.............
+...................................,,,,,,,,,,,,,,,,,,,,,,,,,,,,---@-----,,,,,,,,,,,,,,,,,.............
+.....................................,,,,,,,,,,,,,,,,,,,,,,,,,,,-----,,,,,,,,,,,,,,,,,,,..............
+ .....................................,,,,,,,,,,,,,,,,,,,,,,,,,,--%,,,,,,,,,,,,,,,,,,,,...............
+ .......................................,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,.................
+  ........................................,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,..................
+   ........................................,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,...................
+    .........................................,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,....................
+     ..........................................,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,......................
+      ............................................,,,,,,,,,,,,,,,,,,,,,,,,,,,,........................
+       .............................................,,,,,,,,,,,,,,,,,,,,,,,,..........................
+        ................................................,,,,,,,,,,,,,,,,,.............................
+         .....................................................,,,,....................................
+          ........................................................................................... 
+           .........................................................................................  
+            ......................................................................................    
+             ....................................................................................     
+               .................................................................................      
+                ..............................................................................        
+                  ...........................................................................         
+                   ........................................................................           
+#
+# MDEV-17871: EXPLAIN for query with not used recursive cte
+#
+create table t1 (a int);
+insert into t1 values (2), (1), (4), (3);
+explain extended
+with recursive cte as
+(select * from t1 where a=1 union select a+1 from cte where a<3)
+select * from cte as t;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	PRIMARY	<derived2>	ALL	NULL	NULL	NULL	NULL	4	100.00	
+2	DERIVED	t1	ALL	NULL	NULL	NULL	NULL	4	100.00	Using where
+3	RECURSIVE UNION	<derived2>	ALL	NULL	NULL	NULL	NULL	4	100.00	Using where
+NULL	UNION RESULT	<union2,3>	ALL	NULL	NULL	NULL	NULL	NULL	NULL	
+Warnings:
+Note	1003	with recursive cte as (/* select#2 */ select `test`.`t1`.`a` AS `a` from `test`.`t1` where `test`.`t1`.`a` = 1 union /* select#3 */ select `cte`.`a` + 1 AS `a+1` from `cte` where `cte`.`a` < 3)/* select#1 */ select `t`.`a` AS `a` from `cte` `t`
+with recursive cte as
+(select * from t1 where a=1 union select a+1 from cte where a<3)
+select * from cte as t;
+a
+1
+2
+3
+explain extended
+with recursive cte as
+(select * from t1 where a=1 union select a+1 from cte where a<3)
+select * from t1 as t;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	PRIMARY	t	ALL	NULL	NULL	NULL	NULL	4	100.00	
+Warnings:
+Note	1003	with recursive cte as (/* select#2 */ select `*` AS `*` from `test`.`t1` where `a` = 1 union /* select#3 */ select `a` + 1 AS `a+1` from `cte` where `a` < 3)/* select#1 */ select `test`.`t`.`a` AS `a` from `test`.`t1` `t`
+with recursive cte as
+(select * from t1 where a=1 union select a+1 from cte where a<3)
+select * from t1 as t;
+a
+2
+1
+4
+3
+create table t2 ( i1 int, i2 int);
+insert into t2 values (1,1),(2,2);
+explain
+with recursive cte as
+( select * from t1 union select s1.* from t1 as s1, cte where s1.i1 = cte.i2 )
+select * from t1 as t;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	PRIMARY	t	ALL	NULL	NULL	NULL	NULL	4	
+drop table t1,t2;
+# End of 10.2 tests
 #
 # MDEV-14217 [db crash] Recursive CTE when SELECT includes new field
 #
@@ -3595,3 +3981,4 @@ a
 0
 NULL
 DROP TABLE t1;
+# End of 10.3 tests

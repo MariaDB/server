@@ -1,7 +1,7 @@
 /*****************************************************************************
 
 Copyright (c) 1994, 2016, Oracle and/or its affiliates. All Rights Reserved.
-Copyright (c) 2017, 2018, MariaDB Corporation.
+Copyright (c) 2017, 2019, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -24,8 +24,6 @@ SQL data field and tuple
 Created 5/30/1994 Heikki Tuuri
 *************************************************************************/
 
-#include "ha_prototypes.h"
-
 #include "data0data.h"
 #include "rem0rec.h"
 #include "rem0cmp.h"
@@ -44,7 +42,8 @@ byte	data_error;
 
 /** Trim the tail of an index tuple before insert or update.
 After instant ADD COLUMN, if the last fields of a clustered index tuple
-match the 'default row', there will be no need to store them.
+match the default values that were explicitly specified or implied during
+ADD COLUMN, there will be no need to store them.
 NOTE: A page latch in the index must be held, so that the index
 may not lose 'instantness' before the trimmed tuple has been
 inserted or updated.
@@ -59,7 +58,12 @@ void dtuple_t::trim(const dict_index_t& index)
 	for (; i > index.n_core_fields; i--) {
 		const dfield_t* dfield = dtuple_get_nth_field(this, i - 1);
 		const dict_col_t* col = dict_index_get_nth_col(&index, i - 1);
-		ut_ad(col->is_instant());
+
+		if (col->is_dropped()) {
+			continue;
+		}
+
+		ut_ad(col->is_added());
 		ulint len = dfield_get_len(dfield);
 		if (len != col->def_val.len) {
 			break;
@@ -597,7 +601,6 @@ dtuple_convert_big_rec(
 	mem_heap_t*	heap;
 	big_rec_t*	vector;
 	dfield_t*	dfield;
-	dict_field_t*	ifield;
 	ulint		size;
 	ulint		n_fields;
 	ulint		local_len;
@@ -607,14 +610,7 @@ dtuple_convert_big_rec(
 		return(NULL);
 	}
 
-	if (!dict_table_has_atomic_blobs(index->table)) {
-		/* up to MySQL 5.1: store a 768-byte prefix locally */
-		local_len = BTR_EXTERN_FIELD_REF_SIZE
-			+ DICT_ANTELOPE_MAX_INDEX_COL_LEN;
-	} else {
-		/* new-format table: do not store any BLOB prefix locally */
-		local_len = BTR_EXTERN_FIELD_REF_SIZE;
-	}
+	ut_ad(index->n_uniq > 0);
 
 	ut_a(dtuple_check_typed_no_assert(entry));
 
@@ -637,24 +633,42 @@ dtuple_convert_big_rec(
 	stored externally */
 
 	n_fields = 0;
+	ulint longest_i;
+
+	const bool mblob = entry->is_alter_metadata();
+	ut_ad(entry->n_fields >= index->first_user_field() + mblob);
+	ut_ad(entry->n_fields - mblob <= index->n_fields);
+
+	if (mblob) {
+		longest_i = index->first_user_field();
+		dfield = dtuple_get_nth_field(entry, longest_i);
+		local_len = BTR_EXTERN_FIELD_REF_SIZE;
+		ut_ad(!dfield_is_ext(dfield));
+		goto ext_write;
+	}
+
+	if (!dict_table_has_atomic_blobs(index->table)) {
+		/* up to MySQL 5.1: store a 768-byte prefix locally */
+		local_len = BTR_EXTERN_FIELD_REF_SIZE
+			+ DICT_ANTELOPE_MAX_INDEX_COL_LEN;
+	} else {
+		/* new-format table: do not store any BLOB prefix locally */
+		local_len = BTR_EXTERN_FIELD_REF_SIZE;
+	}
 
 	while (page_zip_rec_needs_ext(rec_get_converted_size(index, entry,
 							     *n_ext),
-				      dict_table_is_comp(index->table),
+				      index->table->not_redundant(),
 				      dict_index_get_n_fields(index),
 				      dict_table_page_size(index->table))) {
-
-		ulint			i;
-		ulint			longest		= 0;
-		ulint			longest_i	= ULINT_MAX;
-		byte*			data;
-
-		for (i = dict_index_get_n_unique_in_tree(index);
-		     i < dtuple_get_n_fields(entry); i++) {
+		longest_i = 0;
+		for (ulint i = index->first_user_field(), longest = 0;
+		     i + mblob < entry->n_fields; i++) {
 			ulint	savings;
+			dfield = dtuple_get_nth_field(entry, i + mblob);
 
-			dfield = dtuple_get_nth_field(entry, i);
-			ifield = dict_index_get_nth_field(index, i);
+			const dict_field_t* ifield = dict_index_get_nth_field(
+				index, i);
 
 			/* Skip fixed-length, NULL, externally stored,
 			or short columns */
@@ -696,7 +710,7 @@ skip_field:
 			continue;
 		}
 
-		if (!longest) {
+		if (!longest_i) {
 			/* Cannot shorten more */
 
 			mem_heap_free(heap);
@@ -709,9 +723,8 @@ skip_field:
 		We store the first bytes locally to the record. Then
 		we can calculate all ordering fields in all indexes
 		from locally stored data. */
-
 		dfield = dtuple_get_nth_field(entry, longest_i);
-		ifield = dict_index_get_nth_field(index, longest_i);
+ext_write:
 		local_prefix_len = local_len - BTR_EXTERN_FIELD_REF_SIZE;
 
 		vector->append(
@@ -722,7 +735,8 @@ skip_field:
 				+ local_prefix_len));
 
 		/* Allocate the locally stored part of the column. */
-		data = static_cast<byte*>(mem_heap_alloc(heap, local_len));
+		byte* data = static_cast<byte*>(
+			mem_heap_alloc(heap, local_len));
 
 		/* Copy the local prefix. */
 		memcpy(data, dfield_get_data(dfield), local_prefix_len);
@@ -736,7 +750,6 @@ skip_field:
 		UNIV_MEM_ALLOC(data + local_prefix_len,
 			       BTR_EXTERN_FIELD_REF_SIZE);
 #endif
-
 		dfield_set_data(dfield, data, local_len);
 		dfield_set_ext(dfield);
 

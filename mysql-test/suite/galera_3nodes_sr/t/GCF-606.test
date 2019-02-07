@@ -1,0 +1,80 @@
+--source include/galera_cluster.inc
+--source include/have_innodb.inc
+
+#
+# Test the case where the cluster splits 3 ways.
+# The master transitions to a non-prim view and back to prim. Its ongoing
+# should fail to commit.
+#
+
+--connect node_2a, 127.0.0.1, root, , test, $NODE_MYPORT_2
+
+--connection node_1
+CREATE TABLE t1 (f1 INTEGER) ENGINE=InnoDB;
+
+--connection node_2
+SET SESSION wsrep_trx_fragment_size = 1;
+SET AUTOCOMMIT=OFF;
+START TRANSACTION;
+INSERT INTO t1 VALUES (20);
+INSERT INTO t1 VALUES (21);
+INSERT INTO t1 VALUES (22);
+INSERT INTO t1 VALUES (23);
+INSERT INTO t1 VALUES (24);
+
+--connection node_1
+--let $wait_condition = SELECT COUNT(DISTINCT node_uuid) = 1 FROM mysql.wsrep_streaming_log
+--source include/wait_condition.inc
+
+#
+# Isolate node_2 into a separate non-primary component
+#
+
+--connection node_2a
+SET GLOBAL wsrep_provider_options='gmcast.isolate=1';
+--disable_query_log
+SET WSREP_ON=OFF;
+--let $wait_condition = SELECT VARIABLE_VALUE = 1 FROM INFORMATION_SCHEMA.GLOBAL_STATUS WHERE VARIABLE_NAME = 'wsrep_cluster_size'
+--source include/wait_condition.inc
+SET WSREP_ON=ON;
+--enable_query_log
+
+--connection node_1
+--let $wait_condition = SELECT VARIABLE_VALUE = 2 FROM INFORMATION_SCHEMA.GLOBAL_STATUS WHERE VARIABLE_NAME = 'wsrep_cluster_size'
+--source include/wait_condition.inc
+
+#
+# Confirm that node_1 has no transactions in SR table
+#
+
+--let $wait_condition = SELECT COUNT(DISTINCT node_uuid) = 0 FROM mysql.wsrep_streaming_log;
+--source include/wait_condition.inc
+
+#
+# Restore cluster
+#
+
+--connection node_2a
+SET GLOBAL wsrep_provider_options='gmcast.isolate=0';
+--source include/galera_wait_ready.inc
+
+--connection node_1
+--let $wait_condition = SELECT VARIABLE_VALUE = 3 FROM INFORMATION_SCHEMA.GLOBAL_STATUS WHERE VARIABLE_NAME = 'wsrep_cluster_size'
+--source include/wait_condition.inc
+
+--connection node_1
+SELECT COUNT(DISTINCT node_uuid) = 1 FROM mysql.wsrep_streaming_log;
+
+--connection node_2
+--error ER_LOCK_DEADLOCK
+COMMIT;
+SELECT * FROM t1;
+COMMIT;
+
+--connection node_1
+SELECT * FROM t1;
+
+DROP TABLE t1;
+
+--connection node_2
+CALL mtr.add_suppression("WSREP: failed to send SR rollback for ");

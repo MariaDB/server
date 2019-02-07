@@ -35,6 +35,7 @@ BEGIN
      AND variable_name != 'INNODB_BUFFER_POOL_LOAD_AT_STARTUP'
      AND variable_name not like 'GTID%POS'
      AND variable_name != 'GTID_BINLOG_STATE'
+     AND variable_name != 'AUTO_INCREMENT_INCREMENT'
    ORDER BY variable_name;
 
   -- Dump all databases, there should be none
@@ -95,7 +96,7 @@ BEGIN
     mysql.time_zone_name,
     mysql.time_zone_transition,
     mysql.time_zone_transition_type,
-    mysql.user;
+    mysql.global_priv;
 
   -- verify that no plugin changed its disabled/enabled state
   SELECT * FROM INFORMATION_SCHEMA.PLUGINS;

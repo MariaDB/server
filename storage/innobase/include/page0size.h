@@ -27,7 +27,6 @@ Created Nov 14, 2013 Vasil Dimov
 #ifndef page0size_t
 #define page0size_t
 
-#include "univ.i"
 #include "fsp0types.h"
 
 #define FIELD_REF_SIZE 20U
@@ -35,7 +34,7 @@ Created Nov 14, 2013 Vasil Dimov
 /** A BLOB field reference full of zero, for use in assertions and
 tests.Initially, BLOB field references are set to zero, in
 dtuple_convert_big_rec(). */
-extern const byte field_ref_zero[FIELD_REF_SIZE];
+extern const byte field_ref_zero[UNIV_PAGE_SIZE_MAX];
 
 #define PAGE_SIZE_T_SIZE_BITS	17
 

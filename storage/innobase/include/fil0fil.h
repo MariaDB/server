@@ -26,19 +26,17 @@ Created 10/25/1995 Heikki Tuuri
 
 #ifndef fil0fil_h
 #define fil0fil_h
-#include "univ.i"
+
+#include "page0size.h"
 
 #ifndef UNIV_INNOCHECKSUM
 
 #include "log0recv.h"
 #include "dict0types.h"
-#include "page0size.h"
-#include "ibuf0types.h"
 
 // Forward declaration
 extern my_bool srv_use_doublewrite_buf;
 extern struct buf_dblwr_t* buf_dblwr;
-struct trx_t;
 class page_id_t;
 
 /** Structure containing encryption specification */
@@ -75,8 +73,9 @@ struct fil_node_t;
 
 /** Tablespace or log data space */
 struct fil_space_t {
-	char*		name;	/*!< Tablespace name */
 	ulint		id;	/*!< space id */
+	hash_node_t	hash;	/*!< hash chain node */
+	char*		name;	/*!< Tablespace name */
 	lsn_t		max_lsn;
 				/*!< LSN of the most recent
 				fil_names_write_if_was_clean().
@@ -99,11 +98,9 @@ struct fil_space_t {
 	/** whether undo tablespace truncation is in progress */
 	bool		is_being_truncated;
 #ifdef UNIV_DEBUG
-	ulint		redo_skipped_count;
-				/*!< reference count for operations who want
-				to skip redo log in the file space in order
-				to make fsp_space_modify_check pass.
-				Uses my_atomic_loadlint() and friends. */
+	/** reference count for operations who want to skip redo log in the
+	file space in order to make fsp_space_modify_check pass. */
+	Atomic_counter<ulint> redo_skipped_count;
 #endif
 	fil_type_t	purpose;/*!< purpose */
 	UT_LIST_BASE_NODE_T(fil_node_t) chain;
@@ -137,17 +134,15 @@ struct fil_space_t {
 	dropped. An example is change buffer merge.
 	The tablespace cannot be dropped while this is nonzero,
 	or while fil_node_t::n_pending is nonzero.
-	Protected by fil_system.mutex and my_atomic_loadlint() and friends. */
-	ulint		n_pending_ops;
+	Protected by fil_system.mutex and std::atomic. */
+	std::atomic<ulint>		n_pending_ops;
 	/** Number of pending block read or write operations
 	(when a write is imminent or a read has recently completed).
 	The tablespace object cannot be freed while this is nonzero,
 	but it can be detached from fil_system.
 	Note that fil_node_t::n_pending tracks actual pending I/O requests.
-	Protected by fil_system.mutex and my_atomic_loadlint() and friends. */
-	ulint		n_pending_ios;
-	hash_node_t	hash;	/*!< hash chain node */
-	hash_node_t	name_hash;/*!< hash chain the name_hash table */
+	Protected by fil_system.mutex and std::atomic. */
+	std::atomic<ulint>		n_pending_ios;
 	rw_lock_t	latch;	/*!< latch protecting the file space storage
 				allocation */
 	UT_LIST_NODE_T(fil_space_t) unflushed_spaces;
@@ -156,15 +151,16 @@ struct fil_space_t {
 	UT_LIST_NODE_T(fil_space_t) named_spaces;
 				/*!< list of spaces for which MLOG_FILE_NAME
 				records have been issued */
-	bool		is_in_unflushed_spaces;
-				/*!< true if this space is currently in
-				unflushed_spaces */
+	/** Checks that this tablespace in a list of unflushed tablespaces.
+	@return true if in a list */
+	bool is_in_unflushed_spaces() const;
 	UT_LIST_NODE_T(fil_space_t) space_list;
 				/*!< list of all spaces */
 	/** other tablespaces needing key rotation */
 	UT_LIST_NODE_T(fil_space_t) rotation_list;
-	/** whether this tablespace needs key rotation */
-	bool		is_in_rotation_list;
+	/** Checks that this tablespace needs key rotation.
+	@return true if in a rotation list */
+	bool is_in_rotation_list() const;
 
 	/** MariaDB encryption data */
 	fil_space_crypt_t* crypt_data;
@@ -187,6 +183,19 @@ struct fil_space_t {
 		return !atomic_write_supported
 			&& srv_use_doublewrite_buf && buf_dblwr;
 	}
+
+	/** Append a file to the chain of files of a space.
+	@param[in]	name		file name of a file that is not open
+	@param[in]	handle		file handle, or OS_FILE_CLOSED
+	@param[in]	size		file size in entire database pages
+	@param[in]	is_raw		whether this is a raw device
+	@param[in]	atomic_write	true if atomic write could be enabled
+	@param[in]	max_pages	maximum number of pages in file,
+	or ULINT_MAX for unlimited
+	@return file object */
+	fil_node_t* add(const char* name, pfs_os_file_t handle,
+			ulint size, bool is_raw, bool atomic_write,
+			ulint max_pages = ULINT_MAX);
 
 	/** Try to reserve free extents.
 	@param[in]	n_free_now	current number of free extents
@@ -235,36 +244,18 @@ struct fil_space_t {
 	void close();
 
 	/** Acquire a tablespace reference. */
-	void acquire() { my_atomic_addlint(&n_pending_ops, 1); }
+	void acquire() { n_pending_ops++; }
 	/** Release a tablespace reference. */
-	void release()
-	{
-		ut_ad(referenced());
-		my_atomic_addlint(&n_pending_ops, ulint(-1));
-	}
+	void release() { ut_ad(referenced()); n_pending_ops--; }
 	/** @return whether references are being held */
-	bool referenced() { return my_atomic_loadlint(&n_pending_ops); }
-	/** @return whether references are being held */
-	bool referenced() const
-	{
-		return const_cast<fil_space_t*>(this)->referenced();
-	}
+	bool referenced() const { return n_pending_ops; }
 
 	/** Acquire a tablespace reference for I/O. */
-	void acquire_for_io() { my_atomic_addlint(&n_pending_ios, 1); }
+	void acquire_for_io() { n_pending_ios++; }
 	/** Release a tablespace reference for I/O. */
-	void release_for_io()
-	{
-		ut_ad(pending_io());
-		my_atomic_addlint(&n_pending_ios, ulint(-1));
-	}
+	void release_for_io() { ut_ad(pending_io()); n_pending_ios--; }
 	/** @return whether I/O is pending */
-	bool pending_io() { return my_atomic_loadlint(&n_pending_ios); }
-	/** @return whether I/O is pending */
-	bool pending_io() const
-	{
-		return const_cast<fil_space_t*>(this)->pending_io();
-	}
+	bool pending_io() const { return n_pending_ios; }
 };
 
 /** Value of fil_space_t::magic_n */
@@ -278,10 +269,6 @@ struct fil_node_t {
 	char*		name;
 	/** file handle (valid if is_open) */
 	pfs_os_file_t	handle;
-	/** event that groups and serializes calls to fsync;
-	os_event_set() and os_event_reset() are protected by
-	fil_system.mutex */
-	os_event_t	sync_event;
 	/** whether the file actually is a raw device or disk partition */
 	bool		is_raw_disk;
 	/** size of the file in database pages (0 if not known yet);
@@ -299,10 +286,8 @@ struct fil_node_t {
 	ulint		n_pending_flushes;
 	/** whether the file is currently being extended */
 	bool		being_extended;
-	/** number of writes to the file since the system was started */
-	int64_t		modification_counter;
-	/** the modification_counter of the latest flush to disk */
-	int64_t		flush_counter;
+	/** whether this file had writes after lasy fsync() */
+	bool		needs_flush;
 	/** link to other files in this tablespace */
 	UT_LIST_NODE_T(fil_node_t) chain;
 	/** link to the fil_system.LRU list (keeping track of open files) */
@@ -322,6 +307,11 @@ struct fil_node_t {
 	{
 		return(handle != OS_FILE_CLOSED);
 	}
+
+	/** Read the first page of a data file.
+	@param[in]	first	whether this is the very first read
+	@return	whether the page was found valid */
+	bool read_page0(bool first);
 
 	/** Close the file handle. */
 	void close();
@@ -353,6 +343,8 @@ of the address is FIL_NULL, the address is considered undefined. */
 
 typedef	byte	fil_faddr_t;	/*!< 'type' definition in C: an address
 				stored in a file page is a string of bytes */
+#else
+# include "univ.i"
 #endif /* !UNIV_INNOCHECKSUM */
 
 /** Initial size of a single-table tablespace in pages */
@@ -512,6 +504,8 @@ enum fil_encryption_t {
 	FIL_ENCRYPTION_OFF
 };
 
+#ifndef UNIV_INNOCHECKSUM
+
 /** The number of fsyncs done to the log */
 extern ulint	fil_n_log_flushes;
 
@@ -519,11 +513,6 @@ extern ulint	fil_n_log_flushes;
 extern ulint	fil_n_pending_log_flushes;
 /** Number of pending tablespace flushes */
 extern ulint	fil_n_pending_tablespace_flushes;
-
-/** Number of files currently open */
-extern ulint	fil_n_file_opened;
-
-#ifndef UNIV_INNOCHECKSUM
 
 /** Look up a tablespace.
 The caller should hold an InnoDB table lock or a MDL that prevents
@@ -595,10 +584,8 @@ public:
 					tablespaces whose files contain
 					unflushed writes; those spaces have
 					at least one file node where
-					modification_counter > flush_counter */
+					needs_flush == true */
 	ulint		n_open;		/*!< number of files currently open */
-	int64_t		modification_counter;/*!< when we write to a file we
-					increment this by one */
 	ulint		max_assigned_id;/*!< maximum space id in the existing
 					tables, or assigned during the time
 					mysqld has been up; at an InnoDB
@@ -637,26 +624,6 @@ fil_space_get_latch(
 	ulint	id,
 	ulint*	flags);
 
-/** Append a file to the chain of files of a space.
-@param[in]	name		file name of a file that is not open
-@param[in]	size		file size in entire database blocks
-@param[in,out]	space		tablespace from fil_space_create()
-@param[in]	is_raw		whether this is a raw device or partition
-@param[in]	atomic_write	true if atomic write could be enabled
-@param[in]	max_pages	maximum number of pages in file,
-ULINT_MAX means the file size is unlimited.
-@return pointer to the file name
-@retval NULL if error */
-char*
-fil_node_create(
-	const char*	name,
-	ulint		size,
-	fil_space_t*	space,
-	bool		is_raw,
-	bool		atomic_write,
-	ulint		max_pages = ULINT_MAX)
-	MY_ATTRIBUTE((warn_unused_result));
-
 /** Create a space memory object and put it to the fil_system hash table.
 Error messages are issued to the server log.
 @param[in]	name		tablespace name
@@ -665,7 +632,7 @@ Error messages are issued to the server log.
 @param[in]	purpose		tablespace purpose
 @param[in,out]	crypt_data	encryption information
 @param[in]	mode		encryption mode
-@return pointer to created tablespace, to be filled in with fil_node_create()
+@return pointer to created tablespace, to be filled in with fil_space_t::add()
 @retval NULL on failure (such as when the same tablespace exists) */
 fil_space_t*
 fil_space_create(
@@ -1084,7 +1051,7 @@ dberr_t
 fil_io(
 	const IORequest&	type,
 	bool			sync,
-	const page_id_t&	page_id,
+	const page_id_t		page_id,
 	const page_size_t&	page_size,
 	ulint			byte_offset,
 	ulint			len,
@@ -1155,65 +1122,6 @@ fil_page_set_type(
 /*==============*/
 	byte*	page,	/*!< in/out: file page */
 	ulint	type);	/*!< in: type */
-/** Reset the page type.
-Data files created before MySQL 5.1 may contain garbage in FIL_PAGE_TYPE.
-In MySQL 3.23.53, only undo log pages and index pages were tagged.
-Any other pages were written with uninitialized bytes in FIL_PAGE_TYPE.
-@param[in]	page_id	page number
-@param[in,out]	page	page with invalid FIL_PAGE_TYPE
-@param[in]	type	expected page type
-@param[in,out]	mtr	mini-transaction */
-void
-fil_page_reset_type(
-	const page_id_t&	page_id,
-	byte*			page,
-	ulint			type,
-	mtr_t*			mtr);
-
-/** Get the file page type.
-@param[in]	page	file page
-@return page type */
-inline
-uint16_t
-fil_page_get_type(const byte*	page)
-{
-	return(mach_read_from_2(page + FIL_PAGE_TYPE));
-}
-
-/** Check (and if needed, reset) the page type.
-Data files created before MySQL 5.1 may contain
-garbage in the FIL_PAGE_TYPE field.
-In MySQL 3.23.53, only undo log pages and index pages were tagged.
-Any other pages were written with uninitialized bytes in FIL_PAGE_TYPE.
-@param[in]	page_id	page number
-@param[in,out]	page	page with possibly invalid FIL_PAGE_TYPE
-@param[in]	type	expected page type
-@param[in,out]	mtr	mini-transaction */
-inline
-void
-fil_page_check_type(
-	const page_id_t&	page_id,
-	byte*			page,
-	ulint			type,
-	mtr_t*			mtr)
-{
-	ulint	page_type	= fil_page_get_type(page);
-
-	if (page_type != type) {
-		fil_page_reset_type(page_id, page, type, mtr);
-	}
-}
-
-/** Check (and if needed, reset) the page type.
-Data files created before MySQL 5.1 may contain
-garbage in the FIL_PAGE_TYPE field.
-In MySQL 3.23.53, only undo log pages and index pages were tagged.
-Any other pages were written with uninitialized bytes in FIL_PAGE_TYPE.
-@param[in,out]	block	block with possibly invalid FIL_PAGE_TYPE
-@param[in]	type	expected page type
-@param[in,out]	mtr	mini-transaction */
-#define fil_block_check_type(block, type, mtr)				\
-	fil_page_check_type(block->page.id, block->frame, type, mtr)
 
 /********************************************************************//**
 Delete the tablespace file and any related files like .cfg.

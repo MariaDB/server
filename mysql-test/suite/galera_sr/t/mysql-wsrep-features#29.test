@@ -1,0 +1,23 @@
+#
+# mysql-wsrep-features#29 Unwarranted deadlock error with SR and a single-node cluster
+#
+
+SET SESSION wsrep_trx_fragment_size = 1;
+SET SESSION binlog_format = STATEMENT;
+
+create table t1 (id int not null, f_id int not null, f int not null,
+primary key(f_id, id)) engine=innodb;
+
+create table t2 (id int not null,s_id int not null,s varchar(200),
+primary key(id)) engine=innodb;
+
+INSERT INTO t1 VALUES (8, 1, 3);
+INSERT INTO t1 VALUES (1, 2, 1);
+INSERT INTO t2 VALUES (1, 0, '');
+INSERT INTO t2 VALUES (8, 1, '');
+
+DELETE ml.* FROM t1 AS ml LEFT JOIN t2 AS mm ON (mm.id=ml.id)
+WHERE mm.id IS NULL;
+
+DROP TABLE t1;
+DROP TABLE t2;

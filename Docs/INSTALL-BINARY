@@ -1,7 +1,9 @@
 MariaDB and MySQL have identical install methods. In this document we
-describe how to install MariaDB; However all documentation at www.mysql.com
-also applies.
+describe how to install MariaDB.
 
+The full documentation for installing MariaDB can be found at
+https://mariadb.com/kb/en/library/binary-packages/
+However most documentation at www.mysql.com also applies.
 
 2.2. Installing MariaDB from Generic Binaries on Unix/Linux
 
@@ -33,7 +35,8 @@ also applies.
    If you run into problems and need to file a bug report,
    please report them to: http://mariadb.org/jira
 
-   See the instructions in Section 1.6, "How to Report Bugs or Problems."
+   See the instructions at
+   https://mariadb.com/kb/en/mariadb-community-bug-reporting
 
    The basic commands that you must execute to install and use a
    MariaDB binary distribution are:
@@ -79,10 +82,9 @@ shell> useradd -g mysql mysql
        is protected, you must perform the installation as root.)
 shell> cd /usr/local
 
-    3. Obtain a distribution file using the instructions in Section
-       2.1.3, "How to Get MariaDB." For a given release, binary
-       distributions for all platforms are built from the same MariaDB
-       source distribution.
+    3. Obtain a distribution file using the instructions at
+       https://mariadb.com/kb/en/library/where-to-download-mariadb/
+       The description below describes how to install a MariaDB tar file.
 
     4. Unpack the distribution, which creates the installation
        directory. Then create a symbolic link to that directory:
@@ -149,8 +151,8 @@ shell> chown -R mysql data
        machine, you can copy support-files/mysql.server to the
        location where your system has its startup files. More
        information can be found in the support-files/mysql.server
-       script itself and in Section 2.13.1.2, "Starting and Stopping
-       MariaDB Automatically."
+       script itself and at
+       https://mariadb.com/kb/en/starting-and-stopping-mariadb-automatically.
    10. You can set up new accounts using the bin/mysql_setpermission
        script if you install the DBI and DBD::mysql Perl modules. See
        Section 4.6.14, "mysql_setpermission --- Interactively Set
@@ -181,8 +183,8 @@ shell> bin/mysqld_safe --user=mysql &
    find some information in the host_name.err file in the data
    directory.
 
-   More information about mysqld_safe is given in Section 4.3.2,
-   "mysqld_safe --- MySQL Server Startup Script."
+   More information about mysqld_safe can be found at
+   https://mariadb.com/kb/en/mysqld_safe
 
 Note
 

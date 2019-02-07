@@ -57,6 +57,13 @@ enum enum_resolution_type {
   RESOLVED_AGAINST_ALIAS
 };
 
+/* Argument to flush_tables() of what to flush */
+enum flush_tables_type {
+  FLUSH_ALL,
+  FLUSH_NON_TRANS_TABLES,
+  FLUSH_SYS_TABLES
+};
+
 enum find_item_error_report_type {REPORT_ALL_ERRORS, REPORT_EXCEPT_NOT_FOUND,
 				  IGNORE_ERRORS, REPORT_EXCEPT_NON_UNIQUE,
                                   IGNORE_EXCEPT_NON_UNIQUE};
@@ -126,6 +133,7 @@ TABLE *open_ltable(THD *thd, TABLE_LIST *table_list, thr_lock_type update,
                             MYSQL_OPEN_GET_NEW_TABLE |\
                             MYSQL_OPEN_HAS_MDL_LOCK)
 
+bool is_locked_view(THD *thd, TABLE_LIST *t);
 bool open_table(THD *thd, TABLE_LIST *table_list, Open_table_context *ot_ctx);
 
 bool get_key_map_from_key_list(key_map *map, TABLE *table,
@@ -141,6 +149,8 @@ thr_lock_type read_lock_type_for_table(THD *thd,
 my_bool mysql_rm_tmp_tables(void);
 void close_tables_for_reopen(THD *thd, TABLE_LIST **tables,
                              const MDL_savepoint &start_of_statement_svp);
+bool table_already_fk_prelocked(TABLE_LIST *tl, LEX_CSTRING *db,
+                                LEX_CSTRING *table, thr_lock_type lock_type);
 TABLE_LIST *find_table_in_list(TABLE_LIST *table,
                                TABLE_LIST *TABLE_LIST::*link,
                                const LEX_CSTRING *db_name,
@@ -285,12 +295,10 @@ TABLE *open_system_table_for_update(THD *thd, TABLE_LIST *one_table);
 TABLE *open_log_table(THD *thd, TABLE_LIST *one_table, Open_tables_backup *backup);
 void close_log_table(THD *thd, Open_tables_backup *backup);
 
-TABLE *open_performance_schema_table(THD *thd, TABLE_LIST *one_table,
-                                     Open_tables_state *backup);
-void close_performance_schema_table(THD *thd, Open_tables_state *backup);
-
 bool close_cached_tables(THD *thd, TABLE_LIST *tables,
                          bool wait_for_refresh, ulong timeout);
+void purge_tables(bool purge_flag);
+bool flush_tables(THD *thd, flush_tables_type flag);
 bool close_cached_connection_tables(THD *thd, LEX_CSTRING *connect_string);
 void close_all_tables_for_name(THD *thd, TABLE_SHARE *share,
                                ha_extra_function extra,
@@ -300,7 +308,8 @@ bool tdc_open_view(THD *thd, TABLE_LIST *table_list, uint flags);
 
 TABLE *find_table_for_mdl_upgrade(THD *thd, const char *db,
                                   const char *table_name,
-                                  bool no_error);
+                                  int *p_error);
+void mark_tmp_table_for_reuse(TABLE *table);
 
 int dynamic_column_error_message(enum_dyncol_func_result rc);
 
@@ -550,14 +559,14 @@ public:
     Set flag indicating that we have already acquired metadata lock
     protecting this statement against GRL while opening tables.
   */
-  void set_has_protection_against_grl()
+  void set_has_protection_against_grl(enum_mdl_type mdl_type)
   {
-    m_has_protection_against_grl= TRUE;
+    m_has_protection_against_grl|= MDL_BIT(mdl_type);
   }
 
-  bool has_protection_against_grl() const
+  bool has_protection_against_grl(enum_mdl_type mdl_type) const
   {
-    return m_has_protection_against_grl;
+    return (bool) (m_has_protection_against_grl & MDL_BIT(mdl_type));
   }
 
 private:
@@ -589,7 +598,7 @@ private:
     Indicates that in the process of opening tables we have acquired
     protection against global read lock.
   */
-  bool m_has_protection_against_grl;
+  mdl_bitmap_t m_has_protection_against_grl;
 };
 
 

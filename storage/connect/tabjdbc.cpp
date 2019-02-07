@@ -1157,8 +1157,9 @@ bool TDBXJDC::OpenDB(PGLOBAL g)
 	/*  Get the command to execute.                                      */
 	/*********************************************************************/
 	if (!(Cmdlist = MakeCMD(g))) {
-		Jcp->Close();
-		return true;
+		// Next lines commented out because of CHECK TABLE
+		//Jcp->Close();
+		//return true;
 	} // endif Query
 
 	Rows = 1;
@@ -1189,8 +1190,10 @@ int TDBXJDC::ReadDB(PGLOBAL g)
 		Fpos++;                // Used for progress info
 		Cmdlist = (Nerr > Mxr) ? NULL : Cmdlist->Next;
 		return RC_OK;
-	} else
+	} else {
+		PushWarning(g, this, 1);
 		return RC_EF;
+	}	// endif Cmdlist
 
 } // end of ReadDB
 

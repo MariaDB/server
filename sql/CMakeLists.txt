@@ -16,21 +16,27 @@
 
 
 IF(WITH_WSREP AND NOT EMBEDDED_LIBRARY)
-  SET(WSREP_INCLUDES ${CMAKE_SOURCE_DIR}/wsrep)
   SET(WSREP_SOURCES
+    wsrep_client_service.cc
+    wsrep_high_priority_service.cc
+    wsrep_server_service.cc
+    wsrep_storage_service.cc
+    wsrep_server_state.cc
+    wsrep_utils.cc
+    wsrep_xid.cc
     wsrep_check_opts.cc
-    wsrep_hton.cc
-    wsrep_mysqld.cc 
+    wsrep_mysqld.cc
     wsrep_notify.cc
     wsrep_sst.cc
-    wsrep_utils.cc
     wsrep_var.cc
     wsrep_binlog.cc
     wsrep_applier.cc
     wsrep_thd.cc
-    wsrep_xid.cc
+    wsrep_schema.cc
+    wsrep_plugin.cc
+    service_wsrep.cc
   )
-  SET(WSREP_LIB wsrep)
+  SET(WSREP_LIB wsrep-lib wsrep_api_v26)
 ELSE()
   SET(WSREP_SOURCES wsrep_dummy.cc)
 ENDIF()
@@ -42,7 +48,6 @@ ${PCRE_INCLUDES}
 ${ZLIB_INCLUDE_DIR}
 ${SSL_INCLUDE_DIRS}
 ${CMAKE_BINARY_DIR}/sql
-${WSREP_INCLUDES}
 )
 
 
@@ -136,7 +141,7 @@ SET (SQL_SOURCE
                opt_split.cc
 	       ${WSREP_SOURCES}
                table_cache.cc encryption.cc temporary_tables.cc
-               proxy_protocol.cc
+               proxy_protocol.cc backup.cc
                ${CMAKE_CURRENT_BINARY_DIR}/sql_builtin.cc
                ${CMAKE_CURRENT_BINARY_DIR}/sql_yacc.cc
                ${CMAKE_CURRENT_BINARY_DIR}/sql_yacc_ora.cc
@@ -152,6 +157,7 @@ IF (CMAKE_SYSTEM_NAME MATCHES "Linux" OR
  ADD_DEFINITIONS(-DHAVE_POOL_OF_THREADS)
  IF(WIN32)
    SET(SQL_SOURCE ${SQL_SOURCE} threadpool_win.cc)
+   SET(SQL_SOURCE ${SQL_SOURCE} handle_connections_win.cc)
  ENDIF()
  SET(SQL_SOURCE ${SQL_SOURCE} threadpool_generic.cc)
 
@@ -279,7 +285,7 @@ IF(APPLE)
   # Add CoreServices framework since some dloadable plugins may need it 
   FIND_LIBRARY(CORESERVICES NAMES CoreServices) 
   IF(CORESERVICES) 
-    TARGET_LINK_LIBRARIES(mysqld ${CORESERVICES}) 
+    TARGET_LINK_LIBRARIES(mysqld LINK_PRIVATE ${CORESERVICES})
   ENDIF() 
 ENDIF() 
 
@@ -300,7 +306,7 @@ IF(NOT WITHOUT_DYNAMIC_PLUGINS)
   ENDIF()
 ENDIF(NOT WITHOUT_DYNAMIC_PLUGINS)
 
-TARGET_LINK_LIBRARIES(mysqld sql)
+TARGET_LINK_LIBRARIES(mysqld LINK_PRIVATE sql)
 
 # Provide plugins with minimal set of libraries
 SET(INTERFACE_LIBS ${LIBRT})
@@ -317,7 +323,7 @@ DTRACE_INSTRUMENT_STATIC_LIBS(mysqld
 SET(WITH_MYSQLD_LDFLAGS "" CACHE STRING "Additional linker flags for mysqld")
 MARK_AS_ADVANCED(WITH_MYSQLD_LDFLAGS)
 IF(WITH_MYSQLD_LDFLAGS)
-  GET_TARGET_PROPERTY(mysqld LINK_FLAGS MYSQLD_LINK_FLAGS)
+  GET_TARGET_PROPERTY(MYSQLD_LINK_FLAGS mysqld LINK_FLAGS)
   IF(NOT MYSQLD_LINK_FLAGS)
     SET(MYSQLD_LINK_FLAGS) 
   ENDIF() 
@@ -485,13 +491,15 @@ IF(WIN32)
     COMPONENT Server
   )
   SET_TARGET_PROPERTIES(mysql_install_db PROPERTIES COMPILE_FLAGS -DINSTALL_PLUGINDIR=${INSTALL_PLUGINDIR})
-  TARGET_LINK_LIBRARIES(mysql_install_db mysys)
+  TARGET_LINK_LIBRARIES(mysql_install_db mysys shlwapi)
 
   ADD_LIBRARY(winservice STATIC winservice.c)
   TARGET_LINK_LIBRARIES(winservice shell32)
+
   MYSQL_ADD_EXECUTABLE(mysql_upgrade_service
     mysql_upgrade_service.cc
-    COMPONENT Server)	
+    upgrade_conf_file.cc
+    COMPONENT Server)
   TARGET_LINK_LIBRARIES(mysql_upgrade_service mysys winservice)
 ENDIF(WIN32)
 

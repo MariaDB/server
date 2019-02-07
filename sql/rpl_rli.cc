@@ -1820,6 +1820,7 @@ rpl_load_gtid_slave_state(THD *thd)
   int err= 0;
   uint32 i;
   load_gtid_state_cb_data cb_data;
+  rpl_slave_state::list_element *old_gtids_list;
   DBUG_ENTER("rpl_load_gtid_slave_state");
 
   mysql_mutex_lock(&rpl_global_gtid_slave_state->LOCK_slave_state);
@@ -1904,6 +1905,13 @@ rpl_load_gtid_slave_state(THD *thd)
   cb_data.table_list= NULL;
   rpl_global_gtid_slave_state->loaded= true;
   mysql_mutex_unlock(&rpl_global_gtid_slave_state->LOCK_slave_state);
+
+  /* Clear out no longer needed elements now. */
+  old_gtids_list=
+    rpl_global_gtid_slave_state->gtid_grab_pending_delete_list();
+  rpl_global_gtid_slave_state->gtid_delete_pending(thd, &old_gtids_list);
+  if (old_gtids_list)
+    rpl_global_gtid_slave_state->put_back_list(old_gtids_list);
 
 end:
   if (array_inited)

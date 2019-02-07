@@ -1587,8 +1587,9 @@ bool TDBMYEXC::OpenDB(PGLOBAL g)
   /*  Get the command to execute.                                      */
   /*********************************************************************/
   if (!(Cmdlist = MakeCMD(g))) {
-    Myc.Close();
-    return true;
+		// Next lines commented out because of CHECK TABLE
+		//Myc.Close();
+    //return true;
     } // endif Cmdlist
 
   return false;
@@ -1647,8 +1648,10 @@ int TDBMYEXC::ReadDB(PGLOBAL g)
 
     ++N;
     return RC_OK;
-  } else
-    return RC_EF;
+	} else {
+		PushWarning(g, this, 1);
+		return RC_EF;
+	}	// endif Cmdlist
 
   } // end of ReadDB
 

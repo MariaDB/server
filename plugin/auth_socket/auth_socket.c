@@ -102,7 +102,8 @@ static struct st_mysql_auth socket_auth_handler=
 {
   MYSQL_AUTHENTICATION_INTERFACE_VERSION,
   0,
-  socket_auth
+  socket_auth,
+  NULL, NULL /* no PASSWORD() */
 };
 
 maria_declare_plugin(auth_socket)

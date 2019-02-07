@@ -15,9 +15,11 @@ SELECT CURRENT_USER;
 disconnect user_a;
 
 connection master;
-SELECT user, password FROM mysql.user WHERE user LIKE 'u%' ORDER BY user;
+--sorted_result
+SELECT user,password,plugin,authentication_string FROM mysql.user WHERE user LIKE 'u%' ;
 sync_slave_with_master;
-SELECT user, password FROM mysql.user WHERE user LIKE 'u%' ORDER BY user;
+--sorted_result
+SELECT user,password,plugin,authentication_string FROM mysql.user WHERE user LIKE 'u%' ;
 
 connection master;
 CREATE OR REPLACE USER u1@localhost IDENTIFIED BY 'abcdefghijk2';
@@ -26,9 +28,11 @@ connection user_a;
 SELECT CURRENT_USER;
 disconnect user_a;
 connection master;
-SELECT user, password FROM mysql.user WHERE user LIKE 'u%' ORDER BY user;
+--sorted_result
+SELECT user,password,plugin,authentication_string FROM mysql.user WHERE user LIKE 'u%' ;
 sync_slave_with_master;
-SELECT user, password FROM mysql.user WHERE user LIKE 'u%' ORDER BY user;
+--sorted_result
+SELECT user,password,plugin,authentication_string FROM mysql.user WHERE user LIKE 'u%' ;
 
 connection master;
 --error ER_CANNOT_USER
@@ -38,7 +42,8 @@ CREATE USER u1@localhost;
 DROP USER u3@localhost;
 
 sync_slave_with_master;
-SELECT user, password FROM mysql.user WHERE user LIKE 'u%' ORDER BY user;
+--sorted_result
+SELECT user,password,plugin,authentication_string FROM mysql.user WHERE user LIKE 'u%' ;
 
 connection master;
 DROP USER IF EXISTS u1@localhost;
@@ -46,6 +51,7 @@ DROP USER u2@localhost;
 DROP USER IF EXISTS u3@localhost;
 sync_slave_with_master;
 
-SELECT user, password FROM mysql.user WHERE user LIKE 'u%' ORDER BY user;
+--sorted_result
+SELECT user,password,plugin,authentication_string FROM mysql.user WHERE user LIKE 'u%' ;
 
 --source include/rpl_end.inc

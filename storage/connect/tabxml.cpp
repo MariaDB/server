@@ -682,6 +682,14 @@ PTDB TDBXML::Clone(PTABS t)
   } // end of Clone
 
 /***********************************************************************/
+/*  Must not be in tabxml.h because of OEM tables                      */
+/***********************************************************************/
+const CHARSET_INFO *TDBXML::data_charset()
+{
+	return &my_charset_utf8_general_ci;
+}	// end of data_charset
+
+/***********************************************************************/
 /*  Allocate XML column description block.                             */
 /***********************************************************************/
 PCOL TDBXML::MakeCol(PGLOBAL g, PCOLDEF cdp, PCOL cprec, int n)
@@ -2209,8 +2217,9 @@ void XPOSCOL::WriteColumn(PGLOBAL g)
 TDBXCT::TDBXCT(PXMLDEF tdp) : TDBCAT(tdp)
   {
   Topt = tdp->GetTopt();
-  Db = (char*)tdp->GetDB();
-  Tabn = tdp->Tabname;
+  //Db = (char*)tdp->GetDB();
+	Db = (char*)tdp->Schema;
+	Tabn = tdp->Tabname;
   } // end of TDBXCT constructor
 
 /***********************************************************************/

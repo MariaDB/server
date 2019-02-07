@@ -1084,7 +1084,7 @@ void Item_maxmin_subselect::no_rows_in_result()
   */
   if (parsing_place != SELECT_LIST || const_item())
     return;
-  value= (new (thd->mem_root) Item_null(thd))->get_cache(thd);
+  value= get_cache(thd);
   null_value= 0;
   was_values= 0;
   make_const();
@@ -1102,7 +1102,7 @@ void Item_singlerow_subselect::no_rows_in_result()
   */
   if (parsing_place != SELECT_LIST || const_item())
     return;
-  value= (new (thd->mem_root) Item_null(thd))->get_cache(thd);
+  value= get_cache(thd);
   reset();
   make_const();
 }
@@ -1352,6 +1352,24 @@ String *Item_singlerow_subselect::val_str(String *str)
 }
 
 
+bool Item_singlerow_subselect::val_native(THD *thd, Native *to)
+{
+  DBUG_ASSERT(fixed == 1);
+  if (forced_const)
+    return value->val_native(thd, to);
+  if (!exec() && !value->null_value)
+  {
+    null_value= false;
+    return value->val_native(thd, to);
+  }
+  else
+  {
+    reset();
+    return true;
+  }
+}
+
+
 my_decimal *Item_singlerow_subselect::val_decimal(my_decimal *decimal_value)
 {
   DBUG_ASSERT(fixed == 1);
@@ -1388,15 +1406,15 @@ bool Item_singlerow_subselect::val_bool()
 }
 
 
-bool Item_singlerow_subselect::get_date(MYSQL_TIME *ltime,ulonglong fuzzydate)
+bool Item_singlerow_subselect::get_date(THD *thd, MYSQL_TIME *ltime, date_mode_t fuzzydate)
 {
   DBUG_ASSERT(fixed == 1);
   if (forced_const)
-    return value->get_date(ltime, fuzzydate);
+    return value->get_date(thd, ltime, fuzzydate);
   if (!exec() && !value->null_value)
   {
     null_value= FALSE;
-    return value->get_date(ltime, fuzzydate);
+    return value->get_date(thd, ltime, fuzzydate);
   }
   else
   {
@@ -1991,8 +2009,7 @@ bool Item_allany_subselect::transform_into_max_min(JOIN *join)
                  print_where(item, "rewrite with MIN/MAX", QT_ORDINARY););
 
     save_allow_sum_func= thd->lex->allow_sum_func;
-    thd->lex->allow_sum_func|=
-        (nesting_map)1 << thd->lex->current_select->nest_level;
+    thd->lex->allow_sum_func.set_bit(thd->lex->current_select->nest_level);
     /*
       Item_sum_(max|min) can't substitute other item => we can use 0 as
       reference, also Item_sum_(max|min) can't be fixed after creation, so
@@ -5796,7 +5813,7 @@ int
 Ordered_key::cmp_keys_by_row_data(ha_rows a, ha_rows b)
 {
   uchar *rowid_a, *rowid_b;
-  int __attribute__((unused)) error;
+  int error;
   int cmp_res;
   /* The length in bytes of the rowids (positions) of tmp_table. */
   uint rowid_length= tbl->file->ref_length;
@@ -5893,7 +5910,7 @@ int Ordered_key::cmp_key_with_search_key(rownum_t row_num)
   /* The length in bytes of the rowids (positions) of tmp_table. */
   uint rowid_length= tbl->file->ref_length;
   uchar *cur_rowid= row_num_to_rowid + row_num * rowid_length;
-  int __attribute__((unused)) error;
+  int error;
   int cmp_res;
 
   if (unlikely((error= tbl->file->ha_rnd_pos(tbl->record[0], cur_rowid))))

@@ -20,8 +20,11 @@ c int generated always as (-a) stored unique);
 insert into t3 (a) values (2),(1),(3);
 analyze table t1,t2,t3;
 Table	Op	Msg_type	Msg_text
+test.t1	analyze	status	Engine-independent statistics collected
 test.t1	analyze	status	OK
+test.t2	analyze	status	Engine-independent statistics collected
 test.t2	analyze	status	OK
+test.t3	analyze	status	Engine-independent statistics collected
 test.t3	analyze	status	OK
 # select_type=SIMPLE, type=system
 select * from t2;
@@ -853,7 +856,9 @@ Warnings:
 Note	1265	Data truncated for column 'col_time_key' at row 1
 ANALYZE TABLE a, c;
 Table	Op	Msg_type	Msg_text
+test.a	analyze	status	Engine-independent statistics collected
 test.a	analyze	status	OK
+test.c	analyze	status	Engine-independent statistics collected
 test.c	analyze	status	OK
 EXPLAIN
 SELECT
@@ -931,7 +936,9 @@ col_varchar_nokey
 (5, 'b'),(8,'m'),(7, 'j'),(2, 'v');
 ANALYZE TABLE c, cc;
 Table	Op	Msg_type	Msg_text
+test.c	analyze	status	Engine-independent statistics collected
 test.c	analyze	status	OK
+test.cc	analyze	status	Engine-independent statistics collected
 test.cc	analyze	status	OK
 EXPLAIN SELECT
 alias2 . col_varchar_key AS field1
@@ -1298,9 +1305,13 @@ INSERT INTO t4
 VALUES (1, 'j'), (2, 'c'), (0, 'a');
 ANALYZE TABLE t1, t2, t3, t4;
 Table	Op	Msg_type	Msg_text
+test.t1	analyze	status	Engine-independent statistics collected
 test.t1	analyze	status	OK
+test.t2	analyze	status	Engine-independent statistics collected
 test.t2	analyze	status	OK
+test.t3	analyze	status	Engine-independent statistics collected
 test.t3	analyze	status	OK
+test.t4	analyze	status	Engine-independent statistics collected
 test.t4	analyze	status	OK
 EXPLAIN SELECT /*+ NO_SEMIJOIN(@subq1) */ t1.c1, t2.i1
 FROM t1 STRAIGHT_JOIN t3 STRAIGHT_JOIN t2

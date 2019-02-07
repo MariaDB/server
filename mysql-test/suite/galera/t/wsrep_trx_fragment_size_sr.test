@@ -1,0 +1,22 @@
+-- source include/galera_cluster.inc
+
+-- let $sr = `SELECT variable_value LIKE '%:STREAMING:%' FROM information_schema.session_status WHERE variable_name = 'wsrep_provider_capabilities'`
+
+if (!$sr)
+{
+  -- skip The test requires a wsrep provider that supports streaming replication.
+}
+
+SELECT variable_value FROM information_schema.session_variables
+WHERE variable_name = 'wsrep_trx_fragment_size';
+
+SET SESSION wsrep_trx_fragment_size = 0;
+SET SESSION wsrep_trx_fragment_size = 123;
+
+SELECT variable_value FROM information_schema.global_variables
+WHERE variable_name = 'wsrep_trx_fragment_size';
+
+SET GLOBAL wsrep_trx_fragment_size = 0;
+SET GLOBAL wsrep_trx_fragment_size = 123;
+
+SET GLOBAL wsrep_trx_fragment_size = default;

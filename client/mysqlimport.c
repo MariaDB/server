@@ -195,13 +195,14 @@ static void usage(void)
 {
   puts("Copyright 2000-2008 MySQL AB, 2008 Sun Microsystems, Inc.");
   puts("Copyright 2008-2011 Oracle and Monty Program Ab.");
+  puts("Copyright 2012-2019 MariaDB Corporation Ab.");
   print_version();
   puts(ORACLE_WELCOME_COPYRIGHT_NOTICE("2000"));
   printf("\
 Loads tables from text files in various formats.  The base name of the\n\
 text file must be the name of the table that should be used.\n\
-If one uses sockets to connect to the MySQL server, the server will open and\n\
-read the text file directly. In other cases the client will open the text\n\
+If one uses sockets to connect to the MariaDB server, the server will open\n\
+and read the text file directly. In other cases the client will open the text\n\
 file. The SQL command 'LOAD DATA INFILE' is used to import the rows.\n");
 
   printf("\nUsage: %s [OPTIONS] database textfile...\n",my_progname);

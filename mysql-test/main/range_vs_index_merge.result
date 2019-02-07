@@ -1079,7 +1079,7 @@ EXPLAIN SELECT Name, Country, Population FROM City WHERE
 (Name='Samara' AND Country='RUS') OR  
 (Name='Seattle' AND Country='USA');
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	City	index_merge	Country,CountryPopulation,CountryName,CityName	CountryName,CityName	38,35	NULL	28	Using sort_union(CountryName,CityName); Using where
+1	SIMPLE	City	index_merge	Country,CountryPopulation,CountryName,CityName	CityName,CountryName	35,38	NULL	27	Using sort_union(CityName,CountryName); Using where
 SELECT Name, Country, Population FROM City WHERE
 (Name='Manila' AND Country='PHL') OR
 (Name='Addis Abeba' AND Country='ETH') OR          
@@ -1166,7 +1166,7 @@ EXPLAIN SELECT Name, Country, Population FROM City WHERE
 (Name='Samara' AND Country='RUS') OR  
 (Name='Seattle' AND Country='USA');
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	City	range	Country,CountryPopulation,CountryName,CityName	CountryName	38	NULL	29	Using index condition; Using where
+1	SIMPLE	City	range	Country,CountryPopulation,CountryName,CityName	CountryName	38	NULL	27	Using index condition; Using where
 SELECT Name, Country, Population FROM City WHERE
 (Name='Manila' AND Country='PHL') OR
 (Name='Addis Abeba' AND Country='ETH') OR          
@@ -1343,6 +1343,38 @@ Handler_read_retry	0
 Handler_read_rnd	0
 Handler_read_rnd_deleted	0
 Handler_read_rnd_next	0
+set @tmp_mdev585=@@optimizer_use_condition_selectivity;
+set optimizer_use_condition_selectivity=1;
+EXPLAIN 
+SELECT * FROM City
+WHERE ((Name > 'Ca' AND Name < 'Cf') OR (Country > 'E' AND Country < 'H'))
+AND (Population >= 100000 AND Population < 120000)
+ORDER BY Population LIMIT 5;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	City	range	Country,Name,Population	Population	4	NULL	#	Using where
+FLUSH STATUS;
+SELECT * FROM City
+WHERE ((Name > 'Ca' AND Name < 'Cf') OR (Country > 'E' AND Country < 'H'))
+AND (Population >= 100000 AND Population < 120000)
+ORDER BY Population LIMIT 5;
+ID	Name	Country	Population
+519	Worthing	GBR	100000
+638	al-Arish	EGY	100447
+518	Basildon	GBR	100924
+707	Marbella	ESP	101144
+3792	Tartu	EST	101246
+SHOW STATUS LIKE 'Handler_read_%';
+Variable_name	Value
+Handler_read_first	0
+Handler_read_key	1
+Handler_read_last	0
+Handler_read_next	59
+Handler_read_prev	0
+Handler_read_retry	0
+Handler_read_rnd	0
+Handler_read_rnd_deleted	0
+Handler_read_rnd_next	0
+set optimizer_use_condition_selectivity=@tmp_mdev585;
 set optimizer_switch='index_merge=off';
 EXPLAIN 
 SELECT * FROM City
@@ -1430,6 +1462,7 @@ insert into t1(account_id, login, home_state, work_state)
 select 1, 'pw', 'ak', 'ak' from t1;
 analyze table t1;
 Table	Op	Msg_type	Msg_text
+test.t1	analyze	status	Engine-independent statistics collected
 test.t1	analyze	status	OK
 select count(*) from t1 where account_id = 1;
 count(*)
@@ -1491,6 +1524,7 @@ insert into t1 (c2, c3, c4, c5, cp)
 select c2, c3, c4, c5, cp from t1 where cp = 4;
 analyze table t1;
 Table	Op	Msg_type	Msg_text
+test.t1	analyze	status	Engine-independent statistics collected
 test.t1	analyze	status	OK
 explain
 select * from t1 where (c2=1 and c3=1) or (c4=2 and c5=1);
@@ -1543,6 +1577,7 @@ insert into t1 (c2,c3,c4) select c2,c3,3 from t1 where c2 != 'a';
 insert into t1 (c2,c3,c4) select c2,c3,4 from t1 where c2 != 'a';
 analyze table t1;
 Table	Op	Msg_type	Msg_text
+test.t1	analyze	status	Engine-independent statistics collected
 test.t1	analyze	status	OK
 select count(*) from t1 where (c2='e' OR c3='q');
 count(*)
@@ -1582,6 +1617,7 @@ update t1 set c1=lpad(id+1000, 12, ' '), c2=lpad(id+10000, 15, ' ');
 alter table t1 add unique index (c1), add unique index (c2), add index (c3);
 analyze table t1;
 Table	Op	Msg_type	Msg_text
+test.t1	analyze	status	Engine-independent statistics collected
 test.t1	analyze	status	Table is already up to date
 explain
 select * from t1 where (c1='      100000' or c2='         2000000');
@@ -1886,6 +1922,6 @@ Country='POL' AND Name IN ('Warszawa', 'Wroclaw') OR
 Country='NOR' AND Name IN ('Oslo', 'Bergen') OR
 Country='ITA' AND Name IN ('Napoli', 'Venezia');
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	City	range	CountryName,Name	CountryName	38	NULL	22	Using index condition; Using where
+1	SIMPLE	City	range	CountryName,Name	CountryName	38	NULL	20	Using index condition; Using where
 DROP DATABASE world;
 set session optimizer_switch='index_merge_sort_intersection=default';
