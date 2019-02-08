@@ -1522,6 +1522,11 @@ parse_log:
 		/* Allow anything in page_type when creating a page. */
 		ptr = fsp_parse_init_file_page(ptr, end_ptr, block);
 		break;
+	case MLOG_INIT_FREE_PAGE:
+		/* The page can be zero-filled and its previous
+		contents can be ignored. We do not write or apply
+		this record yet. */
+		break;
 	case MLOG_WRITE_STRING:
 		ptr = mlog_parse_string(ptr, end_ptr, page, page_zip);
 		break;
@@ -3860,6 +3865,9 @@ static const char* get_mlog_string(mlog_id_t type)
 
 	case MLOG_MEMSET:
 		return("MLOG_MEMSET");
+
+	case MLOG_INIT_FREE_PAGE:
+		return("MLOG_INIT_FREE_PAGE");
 
 	case MLOG_FILE_WRITE_CRYPT_DATA:
 		return("MLOG_FILE_WRITE_CRYPT_DATA");

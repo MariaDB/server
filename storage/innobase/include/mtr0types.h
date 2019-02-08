@@ -231,8 +231,11 @@ enum mlog_id_t {
 	/** initialize a page with a string of identical bytes */
 	MLOG_MEMSET = 63,
 
+	/** Zero-fill a page that is not allocated. */
+	MLOG_INIT_FREE_PAGE = 64,
+
 	/** biggest value (used in assertions) */
-	MLOG_BIGGEST_TYPE = MLOG_MEMSET,
+	MLOG_BIGGEST_TYPE = MLOG_INIT_FREE_PAGE,
 
 	/** log record for writing/updating crypt data of
 	a tablespace */
