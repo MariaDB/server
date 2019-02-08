@@ -48,8 +48,8 @@ a
 alter table t1 add unique uniq_id using BTREE (a);
 select * from t1 where a > 736494;
 a
-869751
 802616
+869751
 select * from t1 where a = 736494;
 a
 736494

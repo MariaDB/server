@@ -1357,7 +1357,8 @@ int Explain_table_access::print_explain(select_result_sink *output, uint8 explai
       if (rowid_filter)
       {
         r_rows_str.append(" (");
-        r_rows_str.append_ulonglong(rowid_filter->tracker->get_r_selectivity_pct() * 100.0);
+        r_rows_str.append_ulonglong(
+	  (ulonglong) (rowid_filter->tracker->get_r_selectivity_pct() * 100.0));
         r_rows_str.append("%)");
       }
       item_list.push_back(new (mem_root)
