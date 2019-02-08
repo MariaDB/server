@@ -10,7 +10,7 @@ from information_schema.session_status join t1 using (variable_name);
 variable_name	session_status.variable_value - t1.variable_value
 OPENED_FILES	0
 OPENED_PLUGIN_LIBRARIES	0
-OPENED_TABLE_DEFINITIONS	2
+OPENED_TABLE_DEFINITIONS	1
 OPENED_TABLES	1
 OPENED_VIEWS	0
 truncate table t2;
@@ -19,7 +19,7 @@ from information_schema.session_status join t1 using (variable_name);
 variable_name	session_status.variable_value - t1.variable_value
 OPENED_FILES	0
 OPENED_PLUGIN_LIBRARIES	0
-OPENED_TABLE_DEFINITIONS	2
+OPENED_TABLE_DEFINITIONS	1
 OPENED_TABLES	1
 OPENED_VIEWS	0
 set @@use_stat_tables= @save_use_stat_tables;

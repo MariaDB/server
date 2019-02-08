@@ -4737,38 +4737,36 @@ static int create_ordinary(THD *thd, const char *path,
                            const char *db, const char *table_name,
                            HA_CREATE_INFO *create_info, LEX_CUSTRING *frm)
 {
-  int error= 1;
-  TABLE_SHARE share;
-  bool write_frm_now= !create_info->db_type->discover_table &&
-                      !create_info->tmp_table();
   DBUG_ENTER("create_ordinary");
-
-  init_tmp_table_share(thd, &share, db, 0, table_name, path);
-  share.frm_image= frm;
-  // open an frm image
-  if (share.init_from_binary_frm_image(thd, write_frm_now,
-                                       frm->str, frm->length))
-    goto err;
 
   if (thd->variables.keep_files_on_create)
     create_info->options|= HA_CREATE_KEEP_FILES;
 
-  if (ha_create_table(thd, share, create_info))
-    goto err;
-
   if (create_info->tmp_table() || (create_info->options & HA_CREATE_TMP_ALTER))
   {
-    TABLE *table= thd->create_and_open_tmp_table(frm, path, db, table_name);
+    TABLE *table= thd->create_and_open_tmp_table(frm, path, db, table_name,
+                                                 create_info);
 
     if (!table)
-      goto err;
+      DBUG_RETURN(1);
     create_info->table= table;
   }
-
-  error= 0;
-err:
-  free_table_share(&share);
-  DBUG_RETURN(error);
+  else
+  {
+    bool result;
+    TABLE_SHARE share;
+    bool write_frm_now= !create_info->db_type->discover_table;
+    init_tmp_table_share(thd, &share, db, 0, table_name, path);
+    share.frm_image= frm;
+    // open an frm image
+    result= share.init_from_binary_frm_image(thd, write_frm_now,
+                                             frm->str, frm->length) ||
+            ha_create_table(thd, share, create_info);
+    free_table_share(&share);
+    if (result)
+      DBUG_RETURN(1);
+  }
+  DBUG_RETURN(0);
 }
 
 
@@ -4823,7 +4821,7 @@ static int discover_assisted(THD *thd,
   if (create_info->tmp_table())
   {
     TABLE *table= thd->create_and_open_tmp_table(frm, path, db->str,
-                                                 table_name->str);
+                                                 table_name->str, 0);
 
     if (!table)
       return 1;

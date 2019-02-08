@@ -4727,7 +4727,8 @@ public:
   TABLE *create_and_open_tmp_table(LEX_CUSTRING *frm,
                                    const char *path,
                                    const char *db,
-                                   const char *table_name);
+                                   const char *table_name,
+                                   HA_CREATE_INFO *create_info);
 
   TABLE *find_temporary_table(const char *db, const char *table_name,
                               Temporary_table_state state= TMP_TABLE_IN_USE);
@@ -4767,7 +4768,8 @@ private:
                                 const char *table_name);
   TMP_TABLE_SHARE *create_temporary_table(LEX_CUSTRING *frm,
                                           const char *path, const char *db,
-                                          const char *table_name);
+                                          const char *table_name,
+                                          bool write_frm);
   TABLE *find_temporary_table(const char *key, uint key_length,
                               Temporary_table_state state);
   TABLE *open_temporary_table(TMP_TABLE_SHARE *share, const char *alias);

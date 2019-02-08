@@ -27,6 +27,7 @@
 #include "sql_show.h"                           /* append_identifier */
 #include "sql_handler.h"                        /* mysql_ha_rm_temporary_tables */
 #include "rpl_rli.h"                            /* rpl_group_info */
+#include "discover.h"
 
 #define IS_USER_TABLE(A) ((A->tmp_table == TRANSACTIONAL_TMP_TABLE) || \
                           (A->tmp_table == NON_TRANSACTIONAL_TMP_TABLE))
@@ -60,15 +61,28 @@ bool THD::has_thd_temporary_tables()
 TABLE *THD::create_and_open_tmp_table(LEX_CUSTRING *frm,
                                       const char *path,
                                       const char *db,
-                                      const char *table_name)
+                                      const char *table_name,
+                                      HA_CREATE_INFO *create_info)
 {
   DBUG_ENTER("THD::create_and_open_tmp_table");
 
   TMP_TABLE_SHARE *share;
   TABLE *table= NULL;
 
-  if ((share= create_temporary_table(frm, path, db, table_name)))
+  if ((share= create_temporary_table(frm, path, db, table_name,
+                                     !create_info->tmp_table())))
   {
+    if (create_info)
+    {
+      if (ha_create_table(this, *share, create_info))
+      {
+        deletefrm(share->normalized_path.str);
+        temporary_tables->remove(share);
+        free_tmp_table_share(share, false);
+        DBUG_RETURN(0);
+      }
+    }
+
     open_options|= HA_OPEN_FOR_CREATE;
     table= open_temporary_table(share, table_name);
     open_options&= ~HA_OPEN_FOR_CREATE;
@@ -927,7 +941,8 @@ uint THD::create_tmp_table_def_key(char *key, const char *db,
 TMP_TABLE_SHARE *THD::create_temporary_table(LEX_CUSTRING *frm,
                                              const char *path,
                                              const char *db,
-                                             const char *table_name)
+                                             const char *table_name,
+                                             bool write_frm)
 {
   DBUG_ENTER("THD::create_temporary_table");
 
@@ -961,6 +976,7 @@ TMP_TABLE_SHARE *THD::create_temporary_table(LEX_CUSTRING *frm,
 
   init_tmp_table_share(this, share, saved_key_cache, key_length,
                        strend(saved_key_cache) + 1, tmp_path);
+  share->frm_image= frm;
 
   /*
     Prefer using frm image over file. The image might not be available in
@@ -968,7 +984,7 @@ TMP_TABLE_SHARE *THD::create_temporary_table(LEX_CUSTRING *frm,
     TABLE::read_frm_image).
   */
   res= (frm->str)
-    ? share->init_from_binary_frm_image(this, false, frm->str, frm->length)
+    ? share->init_from_binary_frm_image(this, write_frm, frm->str, frm->length)
     : open_table_def(this, share, GTS_TABLE | GTS_USE_DISCOVERY);
 
   if (res)
