@@ -1516,7 +1516,7 @@ parse_log:
 		break;
 	case MLOG_IBUF_BITMAP_INIT:
 		/* Allow anything in page_type when creating a page. */
-		ptr = ibuf_parse_bitmap_init(ptr, end_ptr, block, mtr);
+		if (block) ibuf_bitmap_init_apply(block);
 		break;
 	case MLOG_INIT_FILE_PAGE2:
 		/* Allow anything in page_type when creating a page. */

@@ -1065,9 +1065,9 @@ fsp_fill_free_list(
 				buf_block_dbg_add_level(block, SYNC_FSP_PAGE);
 
 				fsp_init_file_page(space, block, &ibuf_mtr);
-
-				ibuf_bitmap_page_init(block, &ibuf_mtr);
-
+				mlog_write_ulint(block->frame + FIL_PAGE_TYPE,
+						 FIL_PAGE_IBUF_BITMAP,
+						 MLOG_2BYTES, &ibuf_mtr);
 				mtr_commit(&ibuf_mtr);
 			}
 		}

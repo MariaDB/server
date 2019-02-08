@@ -584,13 +584,8 @@ ibuf_max_size_update(
 }
 
 
-/*********************************************************************//**
-Initializes an ibuf bitmap page. */
-void
-ibuf_bitmap_page_init(
-/*==================*/
-	buf_block_t*	block,	/*!< in: bitmap page */
-	mtr_t*		mtr)	/*!< in: mtr */
+/** Apply MLOG_IBUF_BITMAP_INIT when crash-upgrading */
+ATTRIBUTE_COLD void ibuf_bitmap_init_apply(buf_block_t* block)
 {
 	page_t*	page;
 	ulint	byte_offset;
@@ -605,30 +600,6 @@ ibuf_bitmap_page_init(
 				       * IBUF_BITS_PER_PAGE);
 
 	memset(page + IBUF_BITMAP, 0, byte_offset);
-
-	/* The remaining area (up to the page trailer) is uninitialized. */
-	mlog_write_initial_log_record(page, MLOG_IBUF_BITMAP_INIT, mtr);
-}
-
-/*********************************************************************//**
-Parses a redo log record of an ibuf bitmap page init.
-@return end of log record or NULL */
-byte*
-ibuf_parse_bitmap_init(
-/*===================*/
-	byte*		ptr,	/*!< in: buffer */
-	byte*		end_ptr MY_ATTRIBUTE((unused)), /*!< in: buffer end */
-	buf_block_t*	block,	/*!< in: block or NULL */
-	mtr_t*		mtr)	/*!< in: mtr or NULL */
-{
-	ut_ad(ptr != NULL);
-	ut_ad(end_ptr != NULL);
-
-	if (block) {
-		ibuf_bitmap_page_init(block, mtr);
-	}
-
-	return(ptr);
 }
 
 # ifdef UNIV_DEBUG

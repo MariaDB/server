@@ -119,13 +119,6 @@ ibuf_mtr_commit(
 /*============*/
 	mtr_t*	mtr)	/*!< in/out: mini-transaction */
 	MY_ATTRIBUTE((nonnull));
-/*********************************************************************//**
-Initializes an ibuf bitmap page. */
-void
-ibuf_bitmap_page_init(
-/*==================*/
-	buf_block_t*	block,	/*!< in: bitmap page */
-	mtr_t*		mtr);	/*!< in: mtr */
 /************************************************************************//**
 Resets the free bits of the page in the ibuf bitmap. This is done in a
 separate mini-transaction, hence this operation does not restrict
@@ -372,16 +365,8 @@ ibuf_merge_space(
 /*=============*/
 	ulint	space);	/*!< in: space id */
 
-/*********************************************************************//**
-Parses a redo log record of an ibuf bitmap page init.
-@return end of log record or NULL */
-byte*
-ibuf_parse_bitmap_init(
-/*===================*/
-	byte*		ptr,	/*!< in: buffer */
-	byte*		end_ptr,/*!< in: buffer end */
-	buf_block_t*	block,	/*!< in: block or NULL */
-	mtr_t*		mtr);	/*!< in: mtr or NULL */
+/** Apply MLOG_IBUF_BITMAP_INIT when crash-upgrading */
+ATTRIBUTE_COLD void ibuf_bitmap_init_apply(buf_block_t* block);
 
 #ifdef UNIV_IBUF_COUNT_DEBUG
 /** Gets the ibuf count for a given page.
