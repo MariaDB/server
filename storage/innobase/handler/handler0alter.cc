@@ -2121,7 +2121,7 @@ ha_innobase::check_if_supported_inplace_alter(
 	Field **af = altered_table->field;
 	bool fts_need_rebuild = false;
 	need_rebuild = need_rebuild
-		       || innobase_need_rebuild(ha_alter_info, table);
+		|| innobase_need_rebuild(ha_alter_info, table);
 
 	while (Create_field* cf = cf_it++) {
 		DBUG_ASSERT(cf->field
