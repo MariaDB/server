@@ -4748,6 +4748,8 @@ public:
   virtual void update_partition(uint	part_id)
   {}
 
+  virtual bool is_clustering_key(uint index) { return false; }
+
 protected:
   Handler_share *get_ha_share_ptr();
   void set_ha_share_ptr(Handler_share *arg_ha_share);

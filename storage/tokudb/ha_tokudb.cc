@@ -7775,13 +7775,18 @@ double ha_tokudb::scan_time() {
     DBUG_RETURN(ret_val);
 }
 
+bool ha_tokudb::is_clustering_key(uint index)
+{
+    return index == primary_key || key_is_clustering(&table->key_info[index]);
+}
+
 double ha_tokudb::keyread_time(uint index, uint ranges, ha_rows rows)
 {
     TOKUDB_HANDLER_DBUG_ENTER("%u %u %" PRIu64, index, ranges, (uint64_t) rows);
-    double ret_val;
-    if (index == primary_key || key_is_clustering(&table->key_info[index])) {
-        ret_val = read_time(index, ranges, rows);
-        DBUG_RETURN(ret_val);
+    double cost;
+    if (index == primary_key || is_clustering_key(index)) {
+        cost = read_time(index, ranges, rows);
+        DBUG_RETURN(cost);
     }
     /*
       It is assumed that we will read trough the whole key range and that all
@@ -7791,11 +7796,8 @@ double ha_tokudb::keyread_time(uint index, uint ranges, ha_rows rows)
       blocks read. This model does not take into account clustered indexes -
       engines that support that (e.g. InnoDB) may want to overwrite this method.
     */
-    double keys_per_block= (stats.block_size/2.0/
-                            (table->key_info[index].key_length +
-                             ref_length) + 1);
-    ret_val = (rows + keys_per_block - 1)/ keys_per_block;
-    TOKUDB_HANDLER_DBUG_RETURN_DOUBLE(ret_val);
+    cost= handler::keyread_time(index, ranges, rows);
+    TOKUDB_HANDLER_DBUG_RETURN_DOUBLE(cost);
 }
 
 //

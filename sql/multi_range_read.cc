@@ -20,10 +20,16 @@
 #include "key.h"
 #include "sql_statistics.h"
 
-static ulonglong key_block_no(handler *h, uint keyno, ha_rows keyentry_pos)
+static ulonglong key_block_no(TABLE *table, uint keyno, ha_rows keyentry_pos)
 {
-  return (ulonglong) (h->keyread_time(keyno, 1, keyentry_pos + 1) -
-	              h->keyread_time(keyno, 0, keyentry_pos + 1) + 0.5) + 1;
+  size_t len= table->key_info[keyno].key_length + table->file->ref_length;
+  if (keyno == table->s->primary_key &&
+      table->file->primary_key_is_clustered())
+    len= table->s->stored_rec_length;
+  uint keys_per_block= (uint) (table->file->stats.block_size/2.0/len+1);
+  ulonglong block_no= !keyentry_pos ? 0 :
+                      (keyentry_pos - 1) / keys_per_block + 1;
+  return block_no;
 }
 
 /****************************************************************************
@@ -177,8 +183,8 @@ handler::multi_range_read_info_const(uint keyno, RANGE_SEQ_IF *seq,
         }
         min_pos+= r - rows;
       }
-      min_block_no= key_block_no(this, keyno, min_pos);
-      max_block_no= key_block_no(this, keyno, min_pos + rows);
+      min_block_no= key_block_no(this->table, keyno, min_pos);
+      max_block_no= key_block_no(this->table, keyno, min_pos + rows);
       new_touched_blocks= max_block_no - min_block_no +
 	                  MY_TEST(min_block_no != prev_max_block_no);
       prev_max_block_no= max_block_no;
@@ -202,7 +208,8 @@ handler::multi_range_read_info_const(uint keyno, RANGE_SEQ_IF *seq,
     cost->reset();
     cost->avg_io_cost= 1; /* assume random seeks */
     cost->idx_avg_io_cost= 1;
-    if (!(keyno == table->s->primary_key && primary_key_is_clustered()))
+    if (!((keyno == table->s->primary_key && primary_key_is_clustered()) ||
+	   is_clustering_key(keyno)))
     {
       cost->idx_io_count= total_touched_blocks +
 	                  keyread_time(keyno, 0, total_rows);
