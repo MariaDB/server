@@ -9,6 +9,7 @@ innodb-autoinc-lock-mode=2
 default-storage-engine=innodb
 wsrep_gtid_mode=1
 gtid_ignore_duplicates
+auto_increment_increment=3
 
 wsrep-on=1
 wsrep-provider=@ENV.WSREP_PROVIDER
