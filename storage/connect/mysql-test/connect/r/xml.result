@@ -323,7 +323,7 @@ HEX(c)	3F3F3F3F3F3F3F
 Warnings:
 Level	Warning
 Code	1366
-Message	Incorrect string value: '\xC3\x81\xC3\x82\xC3\x83...' for column 'c' at row 1
+Message	Incorrect string value: '\xC3\x81\xC3\x82\xC3\x83...' for column `test`.`t1`.`c` at row 1
 Level	Warning
 Code	1105
 Message	Out of range value ÁÂÃÄÅÆÇ for column 'c' at row 1
