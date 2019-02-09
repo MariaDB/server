@@ -138,7 +138,7 @@
 
 */
 
-class TABLE;
+struct TABLE;
 class SQL_SELECT;
 class Rowid_filter_container;
 class Range_rowid_filter_cost_info;
@@ -331,7 +331,7 @@ public:
     return array->get_pos(n * elem_size);
   }
 
-  uint elements() { return array->elements() / elem_size; }
+  uint elements() { return (uint) (array->elements() / elem_size); }
 
   void sort (int (*cmp) (void *ctxt, const void *el1, const void *el2),
                          void *cmp_arg)

@@ -1639,7 +1639,7 @@ void Explain_rowid_filter::print_explain_json(Explain_query *query,
     writer->add_member("r_selectivity_pct").
       add_double(tracker->get_r_selectivity_pct() * 100.0);
     writer->add_member("r_buffer_size").
-      add_double(tracker->get_container_buff_size());
+      add_double((double) (tracker->get_container_buff_size()));
     writer->add_member("r_filling_time_ms").
       add_double(tracker->get_time_fill_container_ms());
   }
