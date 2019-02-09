@@ -2727,11 +2727,14 @@ int collect_statistics_for_table(THD *thd, TABLE *table)
   Field *table_field;
   ha_rows rows= 0;
   handler *file=table->file;
+  double sample_fraction;
 
   DBUG_ENTER("collect_statistics_for_table");
 
   table->collected_stats->cardinality_is_null= TRUE;
   table->collected_stats->cardinality= 0;
+
+  table->file->info(HA_STATUS_VARIABLE);
 
   for (field_ptr= table->field; *field_ptr; field_ptr++)
   {
@@ -2743,19 +2746,27 @@ int collect_statistics_for_table(THD *thd, TABLE *table)
 
   restore_record(table, s->default_values);
 
-  rc= file->ha_random_sample_init(thd, 100);
-  rc= file->ha_random_sample(table->record[0]);
-  table_field->collected_stats->add(0);
-  rc= file->ha_random_sample_end();
+
+  if (file->records() < 30000)
+  {
+    sample_fraction= 1;
+  }
+  else
+  {
+    sample_fraction= std::fmin(
+                (30000 + 4096 * log(200 * file->records())) /
+                  (file->records() + 1), 1);
+  }
 
 
-  /* Perform a full table scan to collect statistics on 'table's columns */
-  /*
-  if (!(rc= file->ha_rnd_init(TRUE)))
-  {  
+  /* Fetch samples from the table to collect statistics on table's columns */
+
+  if (!(rc= file->ha_random_sample_init(thd, HA_SAMPLE_BERNOULLI,
+                                        sample_fraction)))
+  {
     DEBUG_SYNC(table->in_use, "statistics_collection_start");
 
-    while ((rc= file->ha_rnd_next(table->record[0])) != HA_ERR_END_OF_FILE)
+    while ((rc= file->ha_random_sample(table->record[0])) != HA_ERR_END_OF_FILE)
     {
       if (thd->killed)
         break;
@@ -2775,10 +2786,9 @@ int collect_statistics_for_table(THD *thd, TABLE *table)
         break;
       rows++;
     }
-    file->ha_rnd_end();
+    file->ha_random_sample_end();
   }
   rc= (rc == HA_ERR_END_OF_FILE && !thd->killed) ? 0 : 1;
-  */
   /* 
     Calculate values for all statistical characteristics on columns and
     and for each field f of 'table' save them in the write_stat structure
@@ -2787,7 +2797,7 @@ int collect_statistics_for_table(THD *thd, TABLE *table)
   if (!rc)
   {
     table->collected_stats->cardinality_is_null= FALSE;
-    table->collected_stats->cardinality= rows;
+    table->collected_stats->cardinality= rows / sample_fraction;
   }
 
   bitmap_clear_all(table->write_set);

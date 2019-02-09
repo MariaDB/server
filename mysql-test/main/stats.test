@@ -10,12 +10,16 @@ insert into ten (a) values (1), (2), (3), (4), (5), (6), (7), (8), (9), (10);
 
 create table hundred (a int);
 
-insert into hundred select t.a from ten t, ten t2, ten t3;
+insert into hundred select t.a from ten t, ten t2, ten t3, ten t4, ten t5, ten t6;
 
 select (count(*)) from hundred;
 
-create table t2 (a int, b int, PRIMARY KEY (a, b));
+create table t2 (a int, b int, c int, d int, PRIMARY KEY (a, b));
 
-insert into t2 (a, b) select row_number() over (), row_number() over () * 10 from hundred;
+insert into t2 (a, b, c, d) select row_number() over (), row_number() over () * 10,
+                             row_number() over () * 100, row_number() over () * 1000 from hundred;
 
 ANALYZE TABLE t2 persistent for ALL;
+
+select * from mysql.table_stats;
+SELECT * from mysql.column_stats;

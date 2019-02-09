@@ -2723,6 +2723,7 @@ my_bool ha_myisam::register_query_cache_table(THD *thd, const char *table_name,
   DBUG_RETURN(TRUE);
 }
 
+/*
 int ha_myisam::random_sample_init(MYSQL_THD thd, ha_rows estimate_rows_read)
 {
   DBUG_ENTER("ha_myisam::random_sample_init");
@@ -2740,4 +2741,5 @@ int ha_myisam::random_sample_end()
   DBUG_ENTER("ha_myisam::random_sample_end");
   DBUG_RETURN(mi_random_sample_end(file));
 }
+*/
 #endif

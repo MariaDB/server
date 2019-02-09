@@ -97,9 +97,6 @@ class ha_myisam: public handler
                           table->record[0]);
   }
   int ft_read(uchar *buf);
-  int random_sample_init(MYSQL_THD thd, ha_rows estimate_rows_read) override;
-  int random_sample(uchar *buf) override;
-  int random_sample_end() override;
   int rnd_init(bool scan);
   int rnd_next(uchar *buf);
   int rnd_pos(uchar * buf, uchar *pos);

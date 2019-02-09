@@ -288,12 +288,18 @@ static uint _mi_keynr(MI_INFO *info, register MI_KEYDEF *keyinfo, uchar *page,
 
 static int _mi_read_sample_static_record(MI_INFO *info, uchar *buf)
 {
+  my_off_t record_offset;
   DBUG_ENTER("_mi_read_sample_static_record");
   DBUG_ASSERT(info->s->read_rnd == _mi_read_rnd_static_record);
 
   if (fast_mi_readinfo(info))
     DBUG_RETURN(-1);
 
+  record_offset= info->s->pack.header_length +
+    ((ha_rows) (my_rnd_ssl(&info->sampling_state.rand) *
+                info->state->records)) * info->s->base.reclength;
+
+  info->s->read_rnd(info, buf, record_offset, 1);
 
   fast_mi_writeinfo(info);
   DBUG_RETURN(0);
@@ -314,11 +320,12 @@ static int _mi_read_sample_bernoulli(MI_INFO *info, uchar *buf)
 
   select_probability= (double) info->sampling_state.estimate_rows_read /
                                       info->state->records;
+
   do
   {
     if ((res= mi_scan(info, buf)))
       break;
-  } while (my_rnd_ssl(&info->sampling_state.rand) < select_probability);
+  } while (my_rnd_ssl(&info->sampling_state.rand) > select_probability);
 
   fast_mi_writeinfo(info);
   DBUG_RETURN(res);
