@@ -124,6 +124,8 @@ typedef struct st_key {
     (only key parts from key definitions are taken into account)
   */
   key_map overlapped;
+  /* Set of keys constraint correlated with this key */
+  key_map constraint_correlated;
   LEX_CSTRING name;
   uint  block_size;
   enum  ha_key_alg algorithm;

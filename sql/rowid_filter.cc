@@ -159,9 +159,12 @@ void TABLE::prune_range_rowid_filters()
     Range_rowid_filter_cost_info **filter_ptr_2= filter_ptr_1 + 1;
     for (j= i+1; j < range_rowid_filter_cost_info_elems; j++, filter_ptr_2++)
     {
-      key_map map= key_info[key_no].overlapped;
-      map.intersect(key_info[(*filter_ptr_2)->key_no].overlapped);
-      if (map.is_clear_all())
+      key_map map_1= key_info[key_no].overlapped;
+      map_1.merge(key_info[key_no].constraint_correlated);
+      key_map map_2= key_info[(*filter_ptr_2)->key_no].overlapped;
+      map_2.merge(key_info[(*filter_ptr_2)->key_no].constraint_correlated);
+      map_1.intersect(map_2);
+      if (map_1.is_clear_all())
       {
         (*filter_ptr_1)->abs_independent.set_bit((*filter_ptr_2)->key_no);
         (*filter_ptr_2)->abs_independent.set_bit(key_no);
@@ -390,7 +393,8 @@ TABLE::best_range_rowid_filter_for_partial_join(uint access_key_no,
   Range_rowid_filter_cost_info *best_filter= 0;
   double best_filter_gain= 0;
 
-  key_map *overlapped= &key_info[access_key_no].overlapped;
+  key_map no_filter_usage= key_info[access_key_no].overlapped;
+  no_filter_usage.merge(key_info[access_key_no].constraint_correlated);
   for (uint i= 0; i < range_rowid_filter_cost_info_elems ;  i++)
   {
     double curr_gain = 0;
@@ -401,7 +405,7 @@ TABLE::best_range_rowid_filter_for_partial_join(uint access_key_no,
       the index by which the table is accessed
     */
     if ((filter->key_no == access_key_no) ||
-        overlapped->is_set(filter->key_no))
+        no_filter_usage.is_set(filter->key_no))
       continue;
 
     if (records < filter->cross_x)

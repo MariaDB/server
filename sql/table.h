@@ -1133,6 +1133,8 @@ public:
   key_map keys_in_use_for_group_by;
   /* Map of keys that can be used to calculate ORDER BY without sorting */
   key_map keys_in_use_for_order_by;
+  /* Map of keys dependent on some constraint */
+  key_map constraint_dependent_keys;
   KEY  *key_info;			/* data of keys in database */
 
   Field **field;                        /* Pointer to fields */
@@ -1566,6 +1568,7 @@ public:
   int delete_row();
   void vers_update_fields();
   void vers_update_end();
+  void find_constraint_correlated_indexes();
 
 /** Number of additional fields used in versioned tables */
 #define VERSIONING_FIELDS 2

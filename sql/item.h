@@ -1962,6 +1962,12 @@ public:
   virtual bool check_valid_arguments_processor(void *arg) { return 0; }
   virtual bool update_vcol_processor(void *arg) { return 0; }
   virtual bool set_fields_as_dependent_processor(void *arg) { return 0; }
+  /*
+    Find if some of the key parts of table keys (the reference on table is
+    passed as an argument) participate in the expression.
+    If there is some, sets a bit for this key in the proper key map.
+  */
+  virtual bool check_index_dependence(void *arg) { return 0; }
   /*============== End of Item processor list ======================*/
 
   virtual Item *get_copy(THD *thd)=0;
@@ -3464,6 +3470,7 @@ public:
     DBUG_ASSERT(field_type() == MYSQL_TYPE_GEOMETRY);
     return field->get_geometry_type();
   }
+  bool check_index_dependence(void *arg);
   friend class Item_default_value;
   friend class Item_insert_value;
   friend class st_select_lex_unit;

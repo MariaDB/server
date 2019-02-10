@@ -1194,6 +1194,8 @@ bool parse_vcol_defs(THD *thd, MEM_ROOT *mem_root, TABLE *table,
       goto end;
   }
 
+  table->find_constraint_correlated_indexes();
+
   res=0;
 end:
   thd->restore_active_arena(table->expr_arena, &backup_arena);
@@ -1270,6 +1272,80 @@ void TABLE_SHARE::set_overlapped_keys()
     end_checking_overlap:
       ;
     }
+  }
+}
+
+
+bool Item_field::check_index_dependence(void *arg)
+{
+  TABLE *table= (TABLE *)arg;
+
+  KEY *key= table->key_info;
+  for (uint j= 0; j < table->s->keys; j++, key++)
+  {
+    if (table->constraint_dependent_keys.is_set(j))
+      continue;
+
+    KEY_PART_INFO *key_part= key->key_part;
+    uint n= key->user_defined_key_parts;
+
+    for (uint k= 0; k < n; k++, key_part++)
+    {
+      if (this->field == key_part->field)
+      {
+        table->constraint_dependent_keys.set_bit(j);
+        break;
+      }
+    }
+  }
+  return false;
+}
+
+
+/**
+  @brief
+    Find keys that occur in the same constraint on this table
+
+  @details
+    Constraints on this table are checked only.
+
+    The method goes through constraints list trying to find at
+    least two keys which parts participate in some constraint.
+    These keys are called constraint correlated.
+
+    Each key has its own key map with the information about with
+    which keys it is constraint correlated. Bit in this map is set
+    only if keys are constraint correlated.
+    This method fills each keys constraint correlated key map.
+*/
+
+void TABLE::find_constraint_correlated_indexes()
+{
+  if (s->keys == 0)
+    return;
+
+  KEY *key= key_info;
+  for (uint i= 0; i < s->keys; i++, key++)
+  {
+    key->constraint_correlated.clear_all();
+    key->constraint_correlated.set_bit(i);
+  }
+
+  if (!check_constraints)
+    return;
+
+  for (Virtual_column_info **chk= check_constraints ; *chk ; chk++)
+  {
+    constraint_dependent_keys.clear_all();
+    (*chk)->expr->walk(&Item::check_index_dependence, 0, this);
+
+    if (constraint_dependent_keys.bits_set() <= 1)
+      continue;
+
+    uint key_no= 0;
+    key_map::Iterator ki(constraint_dependent_keys);
+    while ((key_no= ki++) != key_map::Iterator::BITMAP_END)
+      key_info[key_no].constraint_correlated.merge(constraint_dependent_keys);
   }
 }
 

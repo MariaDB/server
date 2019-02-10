@@ -127,7 +127,105 @@ eval $without_filter ANALYZE FORMAT=JSON $q4;
 --sorted_result
 eval $without_filter $q4;
 
+--echo #
+--echo # MDEV-18413: find constraint correlated indexes
+--echo #
+
+ALTER TABLE lineitem ADD CONSTRAINT l_date CHECK(l_shipdate < l_receiptdate);
+
+--echo # Filter on l_shipdate is not used because it participates in
+--echo # the same constraint as l_receiptdate.
+--echo # Access is made on l_receiptdate.
+let $q5=
+SELECT l_shipdate, l_receiptdate, o_totalprice
+FROM orders, lineitem
+WHERE o_orderkey=l_orderkey AND
+      l_shipdate BETWEEN '1996-10-01' AND '1996-10-10' AND
+      l_receiptdate BETWEEN '1996-10-05' AND '1996-10-10' AND
+      o_totalprice BETWEEN 200000 AND 250000;
+
+eval $with_filter EXPLAIN $q5;
+eval $with_filter EXPLAIN FORMAT=JSON $q5;
+eval $with_filter ANALYZE $q5;
+--source include/analyze-format.inc
+eval $with_filter ANALYZE FORMAT=JSON $q5;
+--sorted_result
+eval $with_filter $q5;
+
+eval $without_filter EXPLAIN $q5;
+eval $without_filter EXPLAIN FORMAT=JSON $q5;
+eval $without_filter ANALYZE $q5;
+--source include/analyze-format.inc
+eval $without_filter ANALYZE FORMAT=JSON $q5;
+--sorted_result
+eval $without_filter $q5;
+
+ALTER TABLE orders ADD COLUMN o_totaldiscount double;
+UPDATE orders SET o_totaldiscount = o_totalprice*(o_custkey/1000);
+CREATE INDEX i_o_totaldiscount on orders(o_totaldiscount);
+
+ALTER TABLE orders ADD CONSTRAINT o_price CHECK(o_totalprice > o_totaldiscount);
+
+--echo # Filter on o_totalprice is not used because it participates in
+--echo # the same constraint as o_discount.
+--echo # Access is made on o_discount.
+let $q6=
+SELECT o_totaldiscount, o_totalprice, l_shipdate
+FROM orders, lineitem
+WHERE o_orderkey=l_orderkey AND
+      o_totaldiscount BETWEEN 18000 AND 20000 AND
+      o_totalprice BETWEEN 200000 AND 220000 AND
+      l_shipdate BETWEEN '1996-10-01' AND '1996-12-01';
+
+eval $with_filter EXPLAIN $q6;
+eval $with_filter EXPLAIN FORMAT=JSON $q6;
+eval $with_filter ANALYZE $q6;
+--source include/analyze-format.inc
+eval $with_filter ANALYZE FORMAT=JSON $q6;
+--sorted_result
+eval $with_filter $q6;
+
+eval $without_filter EXPLAIN $q6;
+eval $without_filter EXPLAIN FORMAT=JSON $q6;
+eval $without_filter ANALYZE $q6;
+--source include/analyze-format.inc
+eval $without_filter ANALYZE FORMAT=JSON $q6;
+--sorted_result
+eval $without_filter $q6;
+
+CREATE VIEW v1 AS
+SELECT * FROM orders
+WHERE o_orderdate BETWEEN '1992-12-01' AND '1997-01-01';
+
+let $q7=
+SELECT o_totaldiscount, o_totalprice, l_shipdate
+FROM v1, lineitem
+WHERE o_orderkey=l_orderkey AND
+      o_totaldiscount BETWEEN 18000 AND 20000 AND
+      o_totalprice BETWEEN 200000 AND 220000 AND
+      l_shipdate BETWEEN '1996-10-01' AND '1996-12-01';
+
+eval $with_filter EXPLAIN $q7;
+eval $with_filter EXPLAIN FORMAT=JSON $q7;
+eval $with_filter ANALYZE $q7;
+--source include/analyze-format.inc
+eval $with_filter ANALYZE FORMAT=JSON $q7;
+--sorted_result
+eval $with_filter $q7;
+
+eval $without_filter EXPLAIN $q7;
+eval $without_filter EXPLAIN FORMAT=JSON $q7;
+eval $without_filter ANALYZE $q7;
+--source include/analyze-format.inc
+eval $without_filter ANALYZE FORMAT=JSON $q7;
+--sorted_result
+eval $without_filter $q7;
+
+ALTER TABLE lineitem DROP CONSTRAINT l_date;
+ALTER TABLE orders DROP CONSTRAINT o_price;
+ALTER TABLE orders DROP COLUMN o_totaldiscount;
+DROP VIEW v1;
+
 DROP DATABASE dbt3_s001;
 
 set @@use_stat_tables=@save_use_stat_tables;
-
