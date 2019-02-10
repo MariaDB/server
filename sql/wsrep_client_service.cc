@@ -54,9 +54,12 @@ Wsrep_client_service::Wsrep_client_service(THD* thd,
   , m_client_state(client_state)
 { }
 
-const char* Wsrep_client_service::query() const
+std::string Wsrep_client_service::query() const
 {
-  return m_thd->query();
+  if (m_thd->query())
+    return m_thd->query();
+  else
+    return "";
 }
 
 void Wsrep_client_service::store_globals()

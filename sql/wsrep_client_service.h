@@ -36,7 +36,7 @@ class Wsrep_client_service : public wsrep::client_service
 public:
   Wsrep_client_service(THD*, Wsrep_client_state&);
 
-  const char* query() const;
+  std::string query() const;
   bool interrupted() const;
   void reset_globals();
   void store_globals();
