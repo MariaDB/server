@@ -38,14 +38,14 @@ create_federatedx_derived_handler(THD* thd, TABLE_LIST *derived)
         return 0;
     }
   }
-  
+
   handler= new ha_federatedx_derived_handler(thd, derived);
 
   return handler;
 }
 
 
-/* 
+/*
   Implementation class of the derived_handler interface for FEDERATEDX:
   class implementation
 */
@@ -62,7 +62,6 @@ ha_federatedx_derived_handler::~ha_federatedx_derived_handler() {}
 
 int ha_federatedx_derived_handler::init_scan()
 {
-  char query_buff[4096];
   THD *thd;
   int rc= 0;
 
@@ -76,12 +75,8 @@ int ha_federatedx_derived_handler::init_scan()
   txn= h->get_txn(thd);
   if ((rc= txn->acquire(share, thd, TRUE, iop)))
     DBUG_RETURN(rc);
-  
-  String derived_query(query_buff, sizeof(query_buff), thd->charset());
-  derived_query.length(0);
-  derived->derived->print(&derived_query, QT_ORDINARY);
-  
-  if ((*iop)->query(derived_query.ptr(), derived_query.length()))
+
+  if ((*iop)->query(derived->derived_spec.str, derived->derived_spec.length))
     goto err;
 
   stored_result= (*iop)->store_result();
@@ -93,7 +88,7 @@ int ha_federatedx_derived_handler::init_scan()
 err:
   DBUG_RETURN(HA_FEDERATEDX_ERROR_WITH_REMOTE_SYSTEM);
 }
-      
+
 int ha_federatedx_derived_handler::next_row()
 {
   int rc;
@@ -167,7 +162,7 @@ create_federatedx_select_handler(THD* thd, SELECT_LEX *sel)
   return handler;
 }
 
-/* 
+/*
   Implementation class of the select_handler interface for FEDERATEDX:
   class implementation
 */
@@ -175,7 +170,7 @@ create_federatedx_select_handler(THD* thd, SELECT_LEX *sel)
 ha_federatedx_select_handler::ha_federatedx_select_handler(THD *thd,
                                                            SELECT_LEX *sel)
   : select_handler(thd, federatedx_hton),
-    share(NULL), txn(NULL), iop(NULL), stored_result(NULL) 
+    share(NULL), txn(NULL), iop(NULL), stored_result(NULL)
 {
   select= sel;
 }

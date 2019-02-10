@@ -6,7 +6,7 @@
 
 Pushdown_select::Pushdown_select(SELECT_LEX *sel, select_handler *h)
   : select(sel), handler(h)
-{ 
+{
   is_analyze= handler->thd->lex->analyze_stmt;
 }
 
@@ -35,7 +35,7 @@ bool Pushdown_select::init()
     DBUG_RETURN(true);
   if (handler->table->fill_item_list(&result_columns))
     DBUG_RETURN(true);
-  DBUG_RETURN(false);  
+  DBUG_RETURN(false);
 }
 
 bool Pushdown_select::send_result_set_metadata()
@@ -74,7 +74,7 @@ bool Pushdown_select::send_data()
     protocol->remove_last_row();
     DBUG_RETURN(true);
   }
- 
+
   thd->inc_sent_row_count(1);
 
   if (thd->vio_ok())
@@ -88,13 +88,13 @@ bool Pushdown_select::send_eof()
   THD *thd= handler->thd;
   DBUG_ENTER("Pushdown_select::send_eof");
 
-  /* 
+  /*
     Don't send EOF if we're in error condition (which implies we've already
     sent or are sending an error)
   */
   if (thd->is_error())
     DBUG_RETURN(true);
-  ::my_eof(thd);  
+  ::my_eof(thd);
   DBUG_RETURN(false);
 }
 
@@ -113,10 +113,10 @@ int Pushdown_select::execute()
     handler->end_scan();
     DBUG_RETURN(0);
   }
-  
+
   if (send_result_set_metadata())
     DBUG_RETURN(-1);
-  
+
   while (!(err= handler->next_row()))
   {
     if (thd->check_killed() || send_data())

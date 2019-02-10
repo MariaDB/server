@@ -4044,7 +4044,7 @@ void JOIN::exec_inner()
     not the case.
   */
   if (exec_const_order_group_cond.elements &&
-      !(select_options & SELECT_DESCRIBE) && 
+      !(select_options & SELECT_DESCRIBE) &&
       !select_lex->pushdown_select)
   {
     List_iterator_fast<Item> const_item_it(exec_const_order_group_cond);
@@ -4300,7 +4300,7 @@ mysql_select(THD *thd,
       DBUG_RETURN(TRUE);
     }
   }
-      
+
   if ((err= join->optimize()))
   {
     goto err;					// 1
@@ -4322,7 +4322,7 @@ mysql_select(THD *thd,
     select_lex->where= join->conds_history;
     select_lex->having= join->having_history;
   }
-    
+
 err:
 
   if (select_lex->pushdown_select)
@@ -25885,7 +25885,7 @@ bool mysql_explain_union(THD *thd, SELECT_LEX_UNIT *unit, select_result *result)
         res= unit->exec();
     }
   }
-  else 
+  else
   {
     thd->lex->current_select= first;
     unit->set_limit(unit->global_parameters());

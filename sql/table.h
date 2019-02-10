@@ -2137,6 +2137,7 @@ struct TABLE_LIST
   bool is_derived_with_recursive_reference;
   bool block_handle_derived;
   derived_handler *dt_handler;
+  LEX_CSTRING derived_spec;
   Pushdown_derived *pushdown_derived;
   ST_SCHEMA_TABLE *schema_table;        /* Information_schema table */
   st_select_lex	*schema_select_lex;

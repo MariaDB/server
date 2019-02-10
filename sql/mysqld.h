@@ -745,6 +745,8 @@ enum enum_query_type
   /// SHOW CREATE {VIEW|PROCEDURE|FUNCTION} and other cases where the
   /// original representation is required, should set this flag.
   QT_ITEM_ORIGINAL_FUNC_NULLIF= (1 << 7),
+  /// good for parsing
+  QT_PARSABLE= (1 << 8),
 
   /// This value means focus on readability, not on ability to parse back, etc.
   QT_EXPLAIN=           QT_TO_SYSTEM_CHARSET |

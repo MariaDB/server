@@ -385,7 +385,7 @@ bool mysql_derived_merge(THD *thd, LEX *lex, TABLE_LIST *derived)
     DBUG_RETURN(FALSE);
   }
 
-  if ((derived->dt_handler= derived->find_derived_handler(thd)))
+  if (derived->dt_handler)
   {
     derived->change_refs_to_fields();
     derived->set_materialized_derived();
@@ -820,6 +820,24 @@ bool mysql_derived_prepare(THD *thd, LEX *lex, TABLE_LIST *derived)
   if (derived->is_derived() && derived->is_merged_derived())
     first_select->mark_as_belong_to_derived(derived);
 
+  derived->dt_handler= derived->find_derived_handler(thd);
+  if (derived->dt_handler)
+  {
+    char query_buff[4096];
+    String derived_query(query_buff, sizeof(query_buff), thd->charset());
+    derived_query.length(0);
+    derived->derived->print(&derived_query,
+                            enum_query_type(QT_VIEW_INTERNAL | 
+                                            QT_ITEM_ORIGINAL_FUNC_NULLIF |
+                                            QT_PARSABLE));
+    if (!thd->make_lex_string(&derived->derived_spec,
+                              derived_query.ptr(), derived_query.length()))
+    {
+      delete derived->dt_handler;
+      derived->dt_handler= NULL;
+    }
+  }
+
 exit:
   /* Hide "Unknown column" or "Unknown function" error */
   if (derived->view)
@@ -912,19 +930,17 @@ bool mysql_derived_optimize(THD *thd, LEX *lex, TABLE_LIST *derived)
     DBUG_RETURN(FALSE);
   }
 
-  if (derived->is_materialized_derived() && !derived->dt_handler)
-    derived->dt_handler= derived->find_derived_handler(thd);
-  if (derived->dt_handler)
+  if (derived->is_materialized_derived() && derived->dt_handler)
   {
     if (!(derived->pushdown_derived=
             new (thd->mem_root) Pushdown_derived(derived, derived->dt_handler)))
     {
       delete derived->dt_handler;
-      derived->dt_handler= NULL; 
-      DBUG_RETURN(1);
+      derived->dt_handler= NULL;
+      DBUG_RETURN(TRUE);
     }
-  }    
-  
+  }
+
   lex->current_select= first_select;
 
   if (unit->is_unit_op())
@@ -1136,7 +1152,7 @@ bool mysql_derived_fill(THD *thd, LEX *lex, TABLE_LIST *derived)
     if (unit->executed)
       DBUG_RETURN(FALSE);
     res= derived->pushdown_derived->execute();
-    unit->executed= true; 
+    unit->executed= true;
     delete derived->pushdown_derived;
       DBUG_RETURN(res);
   }

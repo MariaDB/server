@@ -20,9 +20,9 @@ class select_handler
 
   select_handler(THD *thd_arg, handlerton *ht_arg)
     : thd(thd_arg), ht(ht_arg), table(0) {}
-  
-  virtual ~select_handler() {} 
- 
+
+  virtual ~select_handler() {}
+
   /*
     Functions to scan the select result set.
     All these returns 0 if ok, error code in case of error.
@@ -32,7 +32,7 @@ class select_handler
   virtual int init_scan() = 0;
 
   /*
-    Put the next produced row of the result set in table->record[0] 
+    Put the next produced row of the result set in table->record[0]
     and return 0. Return HA_ERR_END_OF_FILE if there are no more rows,
     return other error number in case of fatal error.
   */
@@ -40,7 +40,7 @@ class select_handler
 
   /* Finish scanning */
   virtual int end_scan() = 0;
-  
+
   /* Report errors */
   virtual void print_error(int error, myf errflag) = 0;
 };

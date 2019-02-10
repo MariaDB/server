@@ -16,7 +16,7 @@ void derived_handler::set_derived(TABLE_LIST *tbl)
 
 Pushdown_derived::Pushdown_derived(TABLE_LIST *tbl, derived_handler *h)
  : derived(tbl), handler(h)
-{ 
+{
   is_analyze= handler->thd->lex->analyze_stmt;
 }
 
@@ -42,7 +42,7 @@ int Pushdown_derived::execute()
     handler->end_scan();
     DBUG_RETURN(0);
   }
-  
+
   while (!(err= handler->next_row()))
   {
     if (unlikely(thd->check_killed()))
@@ -50,7 +50,7 @@ int Pushdown_derived::execute()
       handler->end_scan();
       DBUG_RETURN(-1);
     }
-  
+
     if ((err= table->file->ha_write_tmp_row(table->record[0])))
     {
       bool is_duplicate;
@@ -81,4 +81,4 @@ error_2:
   handler->print_error(err, MYF(0));
   DBUG_RETURN(-1);                              // Error not sent to client
 }
-  
+

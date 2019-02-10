@@ -17,7 +17,7 @@
 #include "derived_handler.h"
 #include "select_handler.h"
 
-/* 
+/*
   Implementation class of the derived_handler interface for FEDERATEDX:
   class declaration
 */
@@ -40,7 +40,7 @@ public:
 };
 
 
-/* 
+/*
   Implementation class of the select_handler interface for FEDERATEDX:
   class declaration
 */

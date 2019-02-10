@@ -339,7 +339,7 @@ int print_explain_row(select_result_sink *result,
 
   if (!select_type[0])
     return 0;
-  
+
   item_list.push_back(new (mem_root) Item_int(thd, (int32) select_number),
                       mem_root);
   item_list.push_back(new (mem_root) Item_string_sys(thd, select_type),
@@ -756,7 +756,7 @@ int Explain_select::print_explain(Explain_query *query,
   {
      print_explain_message_line(output, explain_flags, is_analyze,
                                 select_id /*select number*/,
-                                select_type, 
+                                select_type,
                                 NULL, /* rows */
                                 NULL);
   }
@@ -1225,7 +1225,7 @@ int Explain_table_access::print_explain(select_result_sink *output, uint8 explai
 {
   THD *thd= output->thd;
   MEM_ROOT *mem_root= thd->mem_root;
-  
+
   List<Item> item_list;
   Item *item_null= new (mem_root) Item_null(thd);
   
