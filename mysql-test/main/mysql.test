@@ -680,3 +680,8 @@ show create table "a1\""b1";
 select * from "a1\""b1";
 drop table "a1\""b1";
 set sql_mode=default;
+
+#
+# MDEV-15538 '-N' Produce html output wrong
+#
+--exec $MYSQL -NHe "select 1 as a"

@@ -600,3 +600,4 @@ a
 2
 drop table "a1\""b1";
 set sql_mode=default;
+<TABLE BORDER=1><TR><TD>1</TD></TR></TABLE>
