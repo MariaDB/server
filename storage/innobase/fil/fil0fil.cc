@@ -261,7 +261,7 @@ fil_node_complete_io(fil_node_t* node, const IORequest& type);
 blocks at the end of file are ignored: they are not taken into account when
 calculating the byte offset within a space.
 @param[in]	page_id		page id
-@param[in]	page_size	page size
+@param[in]	zip_size	ROW_FORMAT=COMPRESSED page size, or 0
 @param[in]	byte_offset	remainder of offset in bytes; in aio this
 must be divisible by the OS block size
 @param[in]	len		how many bytes to read; this must not cross a
@@ -274,12 +274,12 @@ UNIV_INLINE
 dberr_t
 fil_read(
 	const page_id_t		page_id,
-	const page_size_t&	page_size,
+	ulint			zip_size,
 	ulint			byte_offset,
 	ulint			len,
 	void*			buf)
 {
-	return(fil_io(IORequestRead, true, page_id, page_size,
+	return(fil_io(IORequestRead, true, page_id, zip_size,
 			byte_offset, len, buf, NULL));
 }
 
@@ -287,7 +287,7 @@ fil_read(
 blocks at the end of file are ignored: they are not taken into account when
 calculating the byte offset within a space.
 @param[in]	page_id		page id
-@param[in]	page_size	page size
+@param[in]	zip_size	ROW_FORMAT=COMPRESSED page size, or 0
 @param[in]	byte_offset	remainder of offset in bytes; in aio this
 must be divisible by the OS block size
 @param[in]	len		how many bytes to write; this must not cross
@@ -300,14 +300,14 @@ UNIV_INLINE
 dberr_t
 fil_write(
 	const page_id_t		page_id,
-	const page_size_t&	page_size,
+	ulint			zip_size,
 	ulint			byte_offset,
 	ulint			len,
 	void*			buf)
 {
 	ut_ad(!srv_read_only_mode);
 
-	return(fil_io(IORequestWrite, true, page_id, page_size,
+	return(fil_io(IORequestWrite, true, page_id, zip_size,
 		      byte_offset, len, buf, NULL));
 }
 
@@ -389,8 +389,7 @@ void fil_space_t::set_imported()
 	const fil_node_t* node = UT_LIST_GET_FIRST(chain);
 	atomic_write_supported = node->atomic_write
 		&& srv_use_atomic_writes
-		&& my_test_if_atomic_write(node->handle,
-					   int(page_size_t(flags).physical()));
+		&& my_test_if_atomic_write(node->handle, physical_size());
 	purpose = FIL_TYPE_TABLESPACE;
 }
 
@@ -477,8 +476,7 @@ bool fil_node_t::read_page0(bool first)
 {
 	ut_ad(mutex_own(&fil_system.mutex));
 	ut_a(space->purpose != FIL_TYPE_LOG);
-	const page_size_t page_size(space->flags);
-	const ulint psize = page_size.physical();
+	const ulint psize = space->physical_size();
 
 	os_offset_t size_bytes = os_file_get_size(handle);
 	ut_a(size_bytes != (os_offset_t) -1);
@@ -507,12 +505,6 @@ bool fil_node_t::read_page0(bool first)
 	const ulint free_limit = fsp_header_get_field(page, FSP_FREE_LIMIT);
 	const ulint free_len = flst_get_len(FSP_HEADER_OFFSET + FSP_FREE
 					    + page);
-	/* Try to read crypt_data from page 0 if it is not yet read. */
-	if (!space->crypt_data) {
-		space->crypt_data = fil_space_read_crypt_data(page_size, page);
-	}
-	ut_free(buf2);
-
 	if (!fsp_flags_is_valid(flags, space->id)) {
 		ulint cflags = fsp_flags_convert_from_101(flags);
 		if (cflags == ULINT_UNDEFINED
@@ -522,11 +514,19 @@ bool fil_node_t::read_page0(bool first)
 				<< ib::hex(space->flags)
 				<< " but found " << ib::hex(flags)
 				<< " in the file " << name;
+			ut_free(buf2);
 			return false;
 		}
 
 		flags = cflags;
 	}
+
+	/* Try to read crypt_data from page 0 if it is not yet read. */
+	if (!space->crypt_data) {
+		space->crypt_data = fil_space_read_crypt_data(
+			fil_space_t::zip_size(flags), page);
+	}
+	ut_free(buf2);
 
 	if (UNIV_UNLIKELY(space_id != space->id)) {
 		ib::error() << "Expected tablespace id " << space->id
@@ -647,9 +647,7 @@ retry:
 			|| (node->atomic_write
 			    && srv_use_atomic_writes
 			    && my_test_if_atomic_write(
-				    node->handle,
-				    int(page_size_t(space->flags)
-					.physical())));
+				    node->handle, space->physical_size()));
 	}
 
 	ut_a(success);
@@ -910,7 +908,7 @@ fil_space_extend_must_retry(
 	we have set the node->being_extended flag. */
 	mutex_exit(&fil_system.mutex);
 
-	ut_ad(size > space->size);
+	ut_ad(size >= space->size);
 
 	ulint		last_page_no		= space->size;
 	const ulint	file_start_page_no	= last_page_no - node->size;
@@ -921,8 +919,7 @@ fil_space_extend_must_retry(
 			node->handle, node->name);
 	}
 
-	const page_size_t	pageSize(space->flags);
-	const ulint		page_size = pageSize.physical();
+	const ulint	page_size = space->physical_size();
 
 	/* fil_read_first_page() expects srv_page_size bytes.
 	fil_node_open_file() expects at least 4 * srv_page_size bytes.*/
@@ -982,7 +979,6 @@ fil_space_extend_must_retry(
 		srv_tmp_space.set_last_file_size(pages_in_MiB);
 		return(false);
 	}
-
 }
 
 /*******************************************************************//**
@@ -1637,28 +1633,6 @@ void fil_space_t::close()
 	mutex_exit(&fil_system.mutex);
 }
 
-/** Returns the page size of the space and whether it is compressed or not.
-The tablespace must be cached in the memory cache.
-@param[in]	id	space id
-@param[out]	found	true if tablespace was found
-@return page size */
-const page_size_t
-fil_space_get_page_size(
-	ulint	id,
-	bool*	found)
-{
-	const ulint	flags = fil_space_get_flags(id);
-
-	if (flags == ULINT_UNDEFINED) {
-		*found = false;
-		return(univ_page_size);
-	}
-
-	*found = true;
-
-	return(page_size_t(flags));
-}
-
 void fil_system_t::create(ulint hash_size)
 {
 	ut_ad(this == &fil_system);
@@ -1896,13 +1870,11 @@ fil_write_flushed_lsn(
 
 	const page_id_t	page_id(TRX_SYS_SPACE, 0);
 
-	err = fil_read(page_id, univ_page_size, 0, srv_page_size,
-		       buf);
+	err = fil_read(page_id, 0, 0, srv_page_size, buf);
 
 	if (err == DB_SUCCESS) {
 		mach_write_to_8(buf + FIL_PAGE_FILE_FLUSH_LSN_OR_KEY_VERSION, lsn);
-		err = fil_write(page_id, univ_page_size, 0,
-				srv_page_size, buf);
+		err = fil_write(page_id, 0, 0, srv_page_size, buf);
 		fil_flush_file_spaces(FIL_TYPE_TABLESPACE);
 	}
 
@@ -3050,18 +3022,9 @@ err_exit:
 	fsp_header_init_fields(page, space_id, flags);
 	mach_write_to_4(page + FIL_PAGE_ARCH_LOG_NO_OR_SPACE_ID, space_id);
 
-	const page_size_t	page_size(flags);
-	IORequest		request(IORequest::WRITE);
-
-	if (!page_size.is_compressed()) {
-
-		buf_flush_init_for_writing(NULL, page, NULL, 0);
-
-		*err = os_file_write(
-			request, path, file, page, 0, page_size.physical());
-	} else {
+	if (ulint zip_size = fil_space_t::zip_size(flags)) {
 		page_zip_des_t	page_zip;
-		page_zip_set_size(&page_zip, page_size.physical());
+		page_zip_set_size(&page_zip, zip_size);
 		page_zip.data = page + srv_page_size;
 #ifdef UNIV_DEBUG
 		page_zip.m_start =
@@ -3072,8 +3035,12 @@ err_exit:
 		buf_flush_init_for_writing(NULL, page, &page_zip, 0);
 
 		*err = os_file_write(
-			request, path, file, page_zip.data, 0,
-			page_size.physical());
+			IORequestWrite, path, file, page_zip.data, 0, zip_size);
+	} else {
+		buf_flush_init_for_writing(NULL, page, NULL, 0);
+
+		*err = os_file_write(
+			IORequestWrite, path, file, page, 0, srv_page_size);
 	}
 
 	ut_free(buf2);
@@ -3487,7 +3454,8 @@ skip_validate:
 		df_remote.get_first_page();
 
 	fil_space_crypt_t* crypt_data = first_page
-		? fil_space_read_crypt_data(page_size_t(flags), first_page)
+		? fil_space_read_crypt_data(fil_space_t::zip_size(flags),
+					    first_page)
 		: NULL;
 
 	fil_space_t* space = fil_space_create(
@@ -3835,7 +3803,8 @@ fil_ibd_load(
 
 	const byte* first_page = file.get_first_page();
 	fil_space_crypt_t* crypt_data = first_page
-		? fil_space_read_crypt_data(page_size_t(flags), first_page)
+		? fil_space_read_crypt_data(fil_space_t::zip_size(flags),
+					    first_page)
 		: NULL;
 	space = fil_space_create(
 		file.name(), space_id, flags, FIL_TYPE_TABLESPACE, crypt_data);
@@ -3909,7 +3878,7 @@ void fsp_flags_try_adjust(fil_space_t* space, ulint flags)
 	mtr_t	mtr;
 	mtr.start();
 	if (buf_block_t* b = buf_page_get(
-		    page_id_t(space->id, 0), page_size_t(flags),
+		    page_id_t(space->id, 0), space->zip_size(),
 		    RW_X_LATCH, &mtr)) {
 		ulint f = fsp_header_get_flags(b->frame);
 		/* Suppress the message if only the DATA_DIR flag to differs. */
@@ -4110,7 +4079,7 @@ fil_report_invalid_page_access(
 @param[in,out] type	IO context
 @param[in] sync		true if synchronous aio is desired
 @param[in] page_id	page id
-@param[in] page_size	page size
+@param[in] zip_size	ROW_FORMAT=COMPRESSED page size, or 0
 @param[in] byte_offset	remainder of offset in bytes; in aio this
 			must be divisible by the OS block size
 @param[in] len		how many bytes to read or write; this must
@@ -4129,7 +4098,7 @@ fil_io(
 	const IORequest&	type,
 	bool			sync,
 	const page_id_t		page_id,
-	const page_size_t&	page_size,
+	ulint			zip_size,
 	ulint			byte_offset,
 	ulint			len,
 	void*			buf,
@@ -4143,7 +4112,7 @@ fil_io(
 
 	ut_ad(len > 0);
 	ut_ad(byte_offset < srv_page_size);
-	ut_ad(!page_size.is_compressed() || byte_offset == 0);
+	ut_ad(!zip_size || byte_offset == 0);
 	ut_ad(srv_page_size == 1UL << srv_page_size_shift);
 	compile_time_assert((1U << UNIV_PAGE_SIZE_SHIFT_MAX)
 			    == UNIV_PAGE_SIZE_MAX);
@@ -4154,7 +4123,7 @@ fil_io(
 	/* ibuf bitmap pages must be read in the sync AIO mode: */
 	ut_ad(recv_no_ibuf_operations
 	      || req_type.is_write()
-	      || !ibuf_bitmap_page(page_id, page_size)
+	      || !ibuf_bitmap_page(page_id, zip_size)
 	      || sync
 	      || req_type.is_log());
 
@@ -4170,7 +4139,7 @@ fil_io(
 
 	} else if (req_type.is_read()
 		   && !recv_no_ibuf_operations
-		   && ibuf_page(page_id, page_size, NULL)) {
+		   && ibuf_page(page_id, zip_size, NULL)) {
 
 		mode = OS_AIO_IBUF;
 
@@ -4312,37 +4281,10 @@ fil_io(
 	/* Now we have made the changes in the data structures of fil_system */
 	mutex_exit(&fil_system.mutex);
 
-	/* Calculate the low 32 bits and the high 32 bits of the file offset */
+	if (!zip_size) zip_size = srv_page_size;
 
-	if (!page_size.is_compressed()) {
-
-		offset = ((os_offset_t) cur_page_no
-			  << srv_page_size_shift) + byte_offset;
-
-		ut_a(node->size - cur_page_no
-		     >= ((byte_offset + len + (srv_page_size - 1))
-			 >> srv_page_size_shift));
-	} else {
-		ulint	size_shift;
-
-		switch (page_size.physical()) {
-		case 1024: size_shift = 10; break;
-		case 2048: size_shift = 11; break;
-		case 4096: size_shift = 12; break;
-		case 8192: size_shift = 13; break;
-		case 16384: size_shift = 14; break;
-		case 32768: size_shift = 15; break;
-		case 65536: size_shift = 16; break;
-		default: ut_error;
-		}
-
-		offset = ((os_offset_t) cur_page_no << size_shift)
-			+ byte_offset;
-
-		ut_a(node->size - cur_page_no
-		     >= (len + (page_size.physical() - 1))
-		     / page_size.physical());
-	}
+	offset = os_offset_t(cur_page_no) * zip_size + byte_offset;
+	ut_ad(node->size - cur_page_no >= (len + (zip_size - 1)) / zip_size);
 
 	/* Do AIO */
 

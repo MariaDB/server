@@ -1,7 +1,7 @@
 /*****************************************************************************
 
 Copyright (c) 1995, 2016, Oracle and/or its affiliates. All Rights Reserved.
-Copyright (c) 2013, 2018, MariaDB Corporation.
+Copyright (c) 2013, 2019, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -488,15 +488,13 @@ be implemented at a higher level.  In other words, all possible
 accesses to a given page through this function must be protected by
 the same set of mutexes or latches.
 @param[in]	page_id		page id
-@param[in]	page_size	page size
+@param[in]	zip_size	ROW_FORMAT=COMPRESSED page size
 @return pointer to the block */
-buf_page_t*
-buf_page_get_zip(
-	const page_id_t		page_id,
-	const page_size_t&	page_size);
+buf_page_t* buf_page_get_zip(const page_id_t page_id, ulint zip_size);
 
 /** This is the general function used to get access to a database page.
 @param[in]	page_id		page id
+@param[in]	zip_size	ROW_FORMAT=COMPRESSED page size, or 0
 @param[in]	rw_latch	RW_S_LATCH, RW_X_LATCH, RW_NO_LATCH
 @param[in]	guess		guessed block or NULL
 @param[in]	mode		BUF_GET, BUF_GET_IF_IN_POOL,
@@ -509,7 +507,7 @@ BUF_PEEK_IF_IN_POOL, BUF_GET_NO_LATCH, or BUF_GET_IF_IN_POOL_OR_WATCH
 buf_block_t*
 buf_page_get_gen(
 	const page_id_t		page_id,
-	const page_size_t&	page_size,
+	ulint			zip_size,
 	ulint			rw_latch,
 	buf_block_t*		guess,
 	ulint			mode,
@@ -518,18 +516,18 @@ buf_page_get_gen(
 	mtr_t*			mtr,
 	dberr_t*		err);
 
-/** Initializes a page to the buffer buf_pool. The page is usually not read
+/** Initialize a page in the buffer pool. The page is usually not read
 from a file even if it cannot be found in the buffer buf_pool. This is one
 of the functions which perform to a block a state transition NOT_USED =>
 FILE_PAGE (the other is buf_page_get_gen).
 @param[in]	page_id		page id
-@param[in]	page_size	page size
-@param[in]	mtr		mini-transaction
+@param[in]	zip_size	ROW_FORMAT=COMPRESSED page size, or 0
+@param[in,out]	mtr		mini-transaction
 @return pointer to the block, page bufferfixed */
 buf_block_t*
 buf_page_create(
 	const page_id_t		page_id,
-	const page_size_t&	page_size,
+	ulint			zip_size,
 	mtr_t*			mtr);
 
 /********************************************************************//**
@@ -719,14 +717,14 @@ buf_page_is_checksum_valid_none(
 /** Check if a page is corrupt.
 @param[in]	check_lsn	whether the LSN should be checked
 @param[in]	read_buf	database page
-@param[in]	page_size	page size
+@param[in]	zip_size	ROW_FORMAT=COMPRESSED page size, or 0
 @param[in]	space		tablespace
 @return whether the page is corrupted */
 bool
 buf_page_is_corrupted(
 	bool			check_lsn,
 	const byte*		read_buf,
-	const page_size_t&	page_size,
+	ulint			zip_size,
 #ifndef UNIV_INNOCHECKSUM
 	const fil_space_t* 	space = NULL)
 #else
@@ -795,10 +793,8 @@ buf_print(void);
 
 /** Dump a page to stderr.
 @param[in]	read_buf	database page
-@param[in]	page_size	page size */
-UNIV_INTERN
-void
-buf_page_print(const byte* read_buf, const page_size_t& page_size)
+@param[in]	zip_size	compressed page size, or 0 */
+void buf_page_print(const byte* read_buf, ulint zip_size = 0)
 	ATTRIBUTE_COLD __attribute__((nonnull));
 /********************************************************************//**
 Decompress a block.
@@ -1157,6 +1153,7 @@ and the lock released later.
 @param[out]	err			DB_SUCCESS or DB_TABLESPACE_DELETED
 @param[in]	mode			BUF_READ_IBUF_PAGES_ONLY, ...
 @param[in]	page_id			page id
+@param[in]	zip_size		ROW_FORMAT=COMPRESSED page size, or 0
 @param[in]	unzip			whether the uncompressed page is
 					requested (for ROW_FORMAT=COMPRESSED)
 @return pointer to the block
@@ -1166,7 +1163,7 @@ buf_page_init_for_read(
 	dberr_t*		err,
 	ulint			mode,
 	const page_id_t		page_id,
-	const page_size_t&	page_size,
+	ulint			zip_size,
 	bool			unzip);
 
 /** Complete a read or write request of a file page to or from the buffer pool.
@@ -1458,9 +1455,6 @@ public:
 					buf_pool->page_hash or
 					buf_pool->zip_hash */
 
-	/** Page size. Protected by buf_pool mutex. */
-	page_size_t	size;
-
 	/** Count of how manyfold this block is currently bufferfixed. */
 	Atomic_counter<uint32_t>	buf_fix_count;
 
@@ -1621,6 +1615,19 @@ public:
     uint32_t count= buf_fix_count--;
     ut_ad(count != 0);
     return count - 1;
+  }
+
+  /** @return the physical size, in bytes */
+  ulint physical_size() const
+  {
+    return zip.ssize ? (UNIV_ZIP_SIZE_MIN >> 1) << zip.ssize : srv_page_size;
+  }
+
+  /** @return the ROW_FORMAT=COMPRESSED physical size, in bytes
+  @retval 0 if not compressed */
+  ulint zip_size() const
+  {
+    return zip.ssize ? (UNIV_ZIP_SIZE_MIN >> 1) << zip.ssize : 0;
   }
 };
 
@@ -1788,6 +1795,13 @@ struct buf_block_t{
 
   void fix() { page.fix(); }
   uint32_t unfix() { return page.unfix(); }
+
+  /** @return the physical size, in bytes */
+  ulint physical_size() const { return page.physical_size(); }
+
+  /** @return the ROW_FORMAT=COMPRESSED physical size, in bytes
+  @retval 0 if not compressed */
+  ulint zip_size() const { return page.zip_size(); }
 };
 
 /** Check if a buf_block_t object is in a valid state

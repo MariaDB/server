@@ -1428,7 +1428,7 @@ encrypt-binlog FALSE
 encrypt-tmp-disk-tables FALSE
 encrypt-tmp-files FALSE
 enforce-storage-engine (No default value)
-eq-range-index-dive-limit 0
+eq-range-index-dive-limit 10
 event-scheduler OFF
 expensive-subquery-limit 100
 expire-logs-days 0

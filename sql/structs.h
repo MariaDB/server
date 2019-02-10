@@ -1,8 +1,8 @@
 #ifndef STRUCTS_INCLUDED
 #define STRUCTS_INCLUDED
 
-/* Copyright (c) 2000, 2010, Oracle and/or its affiliates. All rights reserved.
-   Copyright (c) 2017, MariaDB Corporation.
+/* Copyright (c) 2000, 2010, Oracle and/or its affiliates.
+   Copyright (c) 2009, 2019, MariaDB Corporation.
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -203,6 +203,17 @@ extern const char *show_comp_option_name[];
 
 typedef int *(*update_var)(THD *, struct st_mysql_show_var *);
 
+struct USER_AUTH : public Sql_alloc
+{
+  LEX_CSTRING plugin, auth_str, pwtext;
+  USER_AUTH *next;
+  USER_AUTH() : next(NULL)
+  {
+    plugin.str= auth_str.str= "";
+    pwtext.str= NULL;
+    plugin.length= auth_str.length= pwtext.length= 0;
+  }
+};
 
 struct AUTHID
 {
@@ -227,12 +238,10 @@ struct AUTHID
 
 struct LEX_USER: public AUTHID
 {
-  LEX_CSTRING plugin, auth, pwtext;
-  void reset_auth()
+  USER_AUTH *auth;
+  bool has_auth()
   {
-    pwtext.length= plugin.length= auth.length= 0;
-    pwtext.str= 0;
-    plugin.str= auth.str= "";
+    return auth && (auth->plugin.length || auth->auth_str.length || auth->pwtext.length);
   }
 };
 

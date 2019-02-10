@@ -28,11 +28,12 @@ Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA
 
 struct xb_delta_info_t
 {
-	xb_delta_info_t(page_size_t page_size, ulint space_id)
-	: page_size(page_size), space_id(space_id) {}
+	xb_delta_info_t(ulint page_size, ulint zip_size, ulint space_id)
+	: page_size(page_size), zip_size(zip_size), space_id(space_id) {}
 
-	page_size_t	page_size;
-	ulint		space_id;
+	ulint	page_size;
+	ulint	zip_size;
+	ulint	space_id;
 };
 
 /* value of the --incremental option */

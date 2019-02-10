@@ -1,0 +1,38 @@
+[mysqld.2.2]
+loose_handlersocket_port=                20004
+loose_handlersocket_port_wr=             20005
+loose_handlersocket_threads=             2
+loose_handlersocket_threads_wr=          1
+loose_handlersocket_support_merge_table= 0
+loose_handlersocket_direct_update_mode=  2
+loose_handlersocket_unlimited_boundary=  65536
+loose_handlersocket_bulk_insert=         0
+loose_handlersocket_bulk_insert_timeout= 0
+loose_handlersocket_general_log=         1
+loose_handlersocket_timeout=             30
+loose_handlersocket_close_table_interval=2
+open_files_limit=                        4096
+
+[ENV]
+CHILD2_2_MYPORT=          @mysqld.2.2.port
+CHILD2_2_HSRPORT=         20004
+CHILD2_2_HSWPORT=         20005
+CHILD2_2_MYSOCK=          @mysqld.2.2.socket
+CHILD2_2_ENGINE_TYPE=     InnoDB
+CHILD2_2_ENGINE=          ENGINE=InnoDB
+CHILD2_2_CHARSET=         DEFAULT CHARSET=utf8
+CHILD2_2_FT_MYPORT=       @mysqld.2.2.port
+CHILD2_2_FT_MYSOCK=       @mysqld.2.2.socket
+CHILD2_2_FT_ENGINE_TYPE=  MyISAM
+CHILD2_2_FT_ENGINE=       ENGINE=MyISAM
+CHILD2_2_FT_CHARSET=      DEFAULT CHARSET=utf8
+CHILD2_2_GM_MYPORT=       @mysqld.2.2.port
+CHILD2_2_GM_MYSOCK=       @mysqld.2.2.socket
+CHILD2_2_GM_ENGINE_TYPE=  MyISAM
+CHILD2_2_GM_ENGINE=       ENGINE=MyISAM
+CHILD2_2_GM_CHARSET=      DEFAULT CHARSET=utf8
+
+#The followings are set in include/init_xxx.inc files
+# CHILD2_2_DROP_TABLES
+# CHILD2_2_CREATE_TABLES
+# CHILD2_2_SELECT_TABLES

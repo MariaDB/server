@@ -106,7 +106,8 @@ static const alter_table_operations INNOBASE_INPLACE_IGNORE
 	| ALTER_COLUMN_STORAGE_TYPE
 	| ALTER_VIRTUAL_GCOL_EXPR
 	| ALTER_DROP_CHECK_CONSTRAINT
-	| ALTER_RENAME;
+	| ALTER_RENAME
+	| ALTER_COLUMN_INDEX_LENGTH;
 
 /** Operations on foreign key definitions (changing the schema only) */
 static const alter_table_operations INNOBASE_FOREIGN_OPERATIONS
@@ -1464,9 +1465,6 @@ instant_alter_column_possible(
 	const TABLE*			table,
 	const TABLE*			altered_table)
 {
-	if (!ib_table.supports_instant()) {
-		return false;
-	}
 #if 1 // MDEV-17459: adjust fts_fetch_doc_from_rec() and friends; remove this
 	if (ib_table.fts) {
 		return false;
@@ -1520,6 +1518,8 @@ instant_alter_column_possible(
 		    && alter_options_need_rebuild(ha_alter_info, table)) {
 			return false;
 		}
+	} else if (!ib_table.supports_instant()) {
+		return false;
 	}
 
 	/* At the moment, we disallow ADD [UNIQUE] INDEX together with
@@ -10216,7 +10216,7 @@ commit_cache_norebuild(
 				mtr.start();
 				if (buf_block_t* b = buf_page_get(
 					    page_id_t(space->id, 0),
-					    page_size_t(space->flags),
+					    space->zip_size(),
 					    RW_X_LATCH, &mtr)) {
 					mtr.set_named_space(space);
 					mlog_write_ulint(

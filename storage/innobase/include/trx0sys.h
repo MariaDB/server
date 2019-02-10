@@ -74,7 +74,7 @@ trx_sysf_get(mtr_t* mtr, bool rw = true)
 {
 	buf_block_t* block = buf_page_get(
 		page_id_t(TRX_SYS_SPACE, TRX_SYS_PAGE_NO),
-		univ_page_size, rw ? RW_X_LATCH : RW_S_LATCH, mtr);
+		0, rw ? RW_X_LATCH : RW_S_LATCH, mtr);
 	if (block) {
 		buf_block_dbg_add_level(block, SYNC_TRX_SYS_HEADER);
 	}

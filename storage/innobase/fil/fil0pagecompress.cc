@@ -250,8 +250,7 @@ success:
 		page_t page[UNIV_PAGE_SIZE_MAX];
 		memcpy(page, out_buf, srv_page_size);
 		ut_ad(fil_page_decompress(tmp_buf, page));
-		ut_ad(!buf_page_is_corrupted(false, page, univ_page_size,
-					     NULL));
+		ut_ad(!buf_page_is_corrupted(false, page, 0, NULL));
 	}
 #endif /* UNIV_DEBUG */
 

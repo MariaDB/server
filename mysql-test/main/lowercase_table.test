@@ -118,3 +118,15 @@ show databases like "mysql_TE%";
 drop database mysql_TEST;
 
 --echo End of 10.0 tests
+
+#
+# MDEV-17148 DROP DATABASE throw "Directory not empty" after changed lower_case_table_names.
+#
+
+let $datadir=`select @@datadir`;
+create database db1;
+create table t1 (a int);
+copy_file $datadir/test/t1.frm $datadir/db1/T1.frm;
+drop database db1;
+drop table t1;
+

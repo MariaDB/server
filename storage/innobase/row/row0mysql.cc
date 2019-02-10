@@ -3361,8 +3361,7 @@ row_drop_table_for_mysql(
 		for (dict_index_t* index = dict_table_get_first_index(table);
 		     index != NULL;
 		     index = dict_table_get_next_index(index)) {
-			btr_free(page_id_t(SRV_TMP_SPACE_ID, index->page),
-				 univ_page_size);
+			btr_free(page_id_t(SRV_TMP_SPACE_ID, index->page));
 		}
 		/* Remove the pointer to this table object from the list
 		of modified tables by the transaction because the object

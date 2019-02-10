@@ -190,6 +190,11 @@ static char*	innobase_reset_all_monitor_counter;
 
 static ulong	innodb_flush_method;
 
+/** Deprecated; no effect other than issuing a deprecation warning. */
+static char* innodb_file_format;
+/** Deprecated; no effect other than issuing a deprecation warning. */
+static char* innodb_large_prefix;
+
 /* This variable can be set in the server configure file, specifying
 stopword table to be used */
 static char*	innobase_server_stopword_table;
@@ -3689,6 +3694,17 @@ static int innodb_init_params()
 	char		*default_path;
 	ulong		num_pll_degree;
 
+	if (innodb_large_prefix || innodb_file_format) {
+		const char* p = innodb_file_format
+			? "file_format"
+			: "large_prefix";
+		sql_print_warning("The parameter innodb_%s is deprecated"
+				  " and has no effect."
+				  " It may be removed in future releases."
+				  " See https://mariadb.com/kb/en/library/"
+				  "xtradbinnodb-file-format/", p);
+	}
+
 	/* Check that values don't overflow on 32-bit systems. */
 	if (sizeof(ulint) == 4) {
 		if (innobase_buffer_pool_size > UINT_MAX32) {
@@ -3825,11 +3841,6 @@ static int innodb_init_params()
 				srv_page_size);
 		DBUG_RETURN(HA_ERR_INITIALIZATION);
 	}
-
-	/* This is the first time univ_page_size is used.
-	It was initialized to 16k pages before srv_page_size was set */
-	univ_page_size.copy_from(
-		page_size_t(srv_page_size, srv_page_size, false));
 
 	srv_sys_space.set_space_id(TRX_SYS_SPACE);
 	srv_sys_space.set_flags(FSP_FLAGS_PAGE_SSIZE());
@@ -13818,7 +13829,7 @@ fsp_get_available_space_in_free_extents(const fil_space_t& space)
 	ulint	n_free_up =
 		(size_in_header - space.free_limit) / FSP_EXTENT_SIZE;
 
-	const ulint size = page_size_t(space.flags).physical();
+	const ulint size = space.physical_size();
 	if (n_free_up > 0) {
 		n_free_up--;
 		n_free_up -= n_free_up / (size / FSP_EXTENT_SIZE);
@@ -13968,8 +13979,7 @@ ha_innobase::info_low(
 		stats.records = (ha_rows) n_rows;
 		stats.deleted = 0;
 		if (fil_space_t* space = ib_table->space) {
-			const ulint size = page_size_t(space->flags)
-				.physical();
+			const ulint size = space->physical_size();
 			stats.data_file_length
 				= ulonglong(stat_clustered_index_size)
 				* size;
@@ -17430,7 +17440,7 @@ innodb_make_page_dirty(THD*, st_mysql_sys_var*, void*, const void* save)
 
 	buf_block_t*	block = buf_page_get(
 		page_id_t(space_id, srv_saved_page_number_debug),
-		page_size_t(space->flags), RW_X_LATCH, &mtr);
+		space->zip_size(), RW_X_LATCH, &mtr);
 
 	if (block != NULL) {
 		byte*	page = block->frame;
@@ -18859,6 +18869,13 @@ static MYSQL_SYSVAR_ENUM(flush_method, innodb_flush_method,
   NULL, NULL, IF_WIN(SRV_ALL_O_DIRECT_FSYNC, SRV_FSYNC),
   &innodb_flush_method_typelib);
 
+static MYSQL_SYSVAR_STR(file_format, innodb_file_format,
+  PLUGIN_VAR_RQCMDARG | PLUGIN_VAR_READONLY,
+  "Deprecated parameter with no effect.", NULL, NULL, NULL);
+static MYSQL_SYSVAR_STR(large_prefix, innodb_large_prefix,
+  PLUGIN_VAR_RQCMDARG | PLUGIN_VAR_READONLY,
+  "Deprecated parameter with no effect.", NULL, NULL, NULL);
+
 static MYSQL_SYSVAR_BOOL(force_load_corrupted, srv_load_corrupted,
   PLUGIN_VAR_NOCMDARG | PLUGIN_VAR_READONLY,
   "Force InnoDB to load metadata of corrupted table.",
@@ -19903,6 +19920,7 @@ static struct st_mysql_sys_var* innobase_system_variables[]= {
   MYSQL_SYSVAR(read_io_threads),
   MYSQL_SYSVAR(write_io_threads),
   MYSQL_SYSVAR(file_per_table),
+  MYSQL_SYSVAR(file_format), /* deprecated in MariaDB 10.2; no effect */
   MYSQL_SYSVAR(flush_log_at_timeout),
   MYSQL_SYSVAR(flush_log_at_trx_commit),
   MYSQL_SYSVAR(flush_method),
@@ -19916,6 +19934,7 @@ static struct st_mysql_sys_var* innobase_system_variables[]= {
   MYSQL_SYSVAR(ft_min_token_size),
   MYSQL_SYSVAR(ft_num_word_optimize),
   MYSQL_SYSVAR(ft_sort_pll_degree),
+  MYSQL_SYSVAR(large_prefix), /* deprecated in MariaDB 10.2; no effect */
   MYSQL_SYSVAR(force_load_corrupted),
   MYSQL_SYSVAR(lock_schedule_algorithm),
   MYSQL_SYSVAR(locks_unsafe_for_binlog),
@@ -20612,9 +20631,9 @@ innobase_get_computed_value(
 	dfield_t*	field;
 	ulint		len;
 
-	const page_size_t page_size = (old_table == NULL)
-		? dict_table_page_size(index->table)
-		: dict_table_page_size(old_table);
+	const ulint zip_size = old_table
+		? old_table->space->zip_size()
+		: dict_tf_get_zip_size(index->table->flags);
 
 	ulint		ret = 0;
 
@@ -20666,7 +20685,7 @@ innobase_get_computed_value(
 			}
 
 			data = btr_copy_externally_stored_field(
-				&len, data, page_size,
+				&len, data, zip_size,
 				dfield_get_len(row_field), *local_heap);
 		}
 

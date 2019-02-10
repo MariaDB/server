@@ -211,7 +211,7 @@ incr_flush_list_size_in_bytes(
 {
 	ut_ad(buf_flush_list_mutex_own(buf_pool));
 
-	buf_pool->stat.flush_list_bytes += block->page.size.physical();
+	buf_pool->stat.flush_list_bytes += block->physical_size();
 
 	ut_ad(buf_pool->stat.flush_list_bytes <= buf_pool->curr_pool_size);
 }
@@ -433,7 +433,7 @@ buf_flush_insert_into_flush_list(
 	block->page.oldest_modification = lsn;
 	UNIV_MEM_ASSERT_RW(block->page.zip.data
 			   ? block->page.zip.data : block->frame,
-			   block->page.size.physical());
+			   block->physical_size());
 	incr_flush_list_size_in_bytes(block, buf_pool);
 
 	if (UNIV_LIKELY_NULL(buf_pool->flush_rbt)) {
@@ -601,7 +601,7 @@ buf_flush_remove(
 	because we assert on in_flush_list in comparison function. */
 	ut_d(bpage->in_flush_list = FALSE);
 
-	buf_pool->stat.flush_list_bytes -= bpage->size.physical();
+	buf_pool->stat.flush_list_bytes -= bpage->physical_size();
 
 	bpage->oldest_modification = 0;
 
@@ -977,7 +977,7 @@ buf_flush_write_block_low(
 		mach_write_to_8(frame + FIL_PAGE_LSN,
 				bpage->newest_modification);
 
-		ut_a(page_zip_verify_checksum(frame, bpage->size.physical()));
+		ut_a(page_zip_verify_checksum(frame, bpage->zip_size()));
 		break;
 	case BUF_BLOCK_FILE_PAGE:
 		frame = bpage->zip.data;
@@ -1004,7 +1004,8 @@ buf_flush_write_block_low(
 
 		/* TODO: pass the tablespace to fil_io() */
 		fil_io(request,
-		       sync, bpage->id, bpage->size, 0, bpage->size.physical(),
+		       sync, bpage->id, bpage->zip_size(), 0,
+		       bpage->physical_size(),
 		       frame, bpage);
 	} else {
 		ut_ad(!srv_read_only_mode);

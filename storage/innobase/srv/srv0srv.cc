@@ -194,8 +194,6 @@ ulong		srv_page_size_shift;
 /** innodb_log_write_ahead_size */
 ulong		srv_log_write_ahead_size;
 
-page_size_t	univ_page_size(0, 0, false);
-
 /** innodb_adaptive_flushing; try to flush dirty pages so as to avoid
 IO bursts at the checkpoints. */
 my_bool	srv_adaptive_flushing;

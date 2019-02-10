@@ -25,4 +25,5 @@ COUNT(*) = 1
 DROP TABLE t1;
 connection node_3;
 Resuming node ...
+connection node_3;
 CALL mtr.add_suppression("WSREP: gcs_caused() returned -1 \\(Operation not permitted\\)");

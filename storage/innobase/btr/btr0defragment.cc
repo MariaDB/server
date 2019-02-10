@@ -167,7 +167,7 @@ btr_defragment_add_index(
 	// Load index rood page.
 	buf_block_t* block = btr_block_get(
 		page_id_t(index->table->space_id, index->page),
-		page_size_t(index->table->space->flags),
+		index->table->space->zip_size(),
 		RW_NO_LATCH, index, &mtr);
 	page_t* page = NULL;
 
@@ -376,7 +376,7 @@ btr_defragment_merge_pages(
 	dict_index_t*	index,		/*!< in: index tree */
 	buf_block_t*	from_block,	/*!< in: origin of merge */
 	buf_block_t*	to_block,	/*!< in: destination of merge */
-	const page_size_t	page_size,	/*!< in: page size of the block */
+	ulint		zip_size,	/*!< in: ROW_FORMAT=COMPRESSED size */
 	ulint		reserved_space,	/*!< in: space reserved for future
 					insert to avoid immediate page split */
 	ulint*		max_data_size,	/*!< in/out: max data size to
@@ -404,7 +404,7 @@ btr_defragment_merge_pages(
 
 	// Estimate how many records can be moved from the from_page to
 	// the to_page.
-	if (page_size.is_compressed()) {
+	if (zip_size) {
 		ulint page_diff = srv_page_size - *max_data_size;
 		max_ins_size_to_use = (max_ins_size_to_use > page_diff)
 			       ? max_ins_size_to_use - page_diff : 0;
@@ -472,7 +472,7 @@ btr_defragment_merge_pages(
 	// Set ibuf free bits if necessary.
 	if (!dict_index_is_clust(index)
 	    && page_is_leaf(to_page)) {
-		if (page_size.is_compressed()) {
+		if (zip_size) {
 			ibuf_reset_free_bits(to_block);
 		} else {
 			ibuf_update_free_bits_if_full(
@@ -489,7 +489,7 @@ btr_defragment_merge_pages(
 		btr_search_drop_page_hash_index(from_block);
 		btr_level_list_remove(
 			index->table->space_id,
-			page_size, from_page, index, mtr);
+			zip_size, from_page, index, mtr);
 		btr_node_ptr_delete(index, from_block, mtr);
 		/* btr_blob_dbg_remove(from_page, index,
 		"btr_defragment_n_pages"); */
@@ -573,7 +573,7 @@ btr_defragment_n_pages(
 	}
 
 	first_page = buf_block_get_frame(block);
-	const page_size_t page_size(index->table->space->flags);
+	const ulint zip_size = index->table->space->zip_size();
 
 	/* 1. Load the pages and calculate the total data size. */
 	blocks[0] = block;
@@ -589,7 +589,7 @@ btr_defragment_n_pages(
 		}
 
 		blocks[i] = btr_block_get(page_id_t(index->table->space_id,
-						    page_no), page_size,
+						    page_no), zip_size,
 					  RW_X_LATCH, index, mtr);
 	}
 
@@ -615,7 +615,7 @@ btr_defragment_n_pages(
 	optimal_page_size = page_get_free_space_of_empty(
 		page_is_comp(first_page));
 	// For compressed pages, we take compression failures into account.
-	if (page_size.is_compressed()) {
+	if (zip_size) {
 		ulint size = 0;
 		uint i = 0;
 		// We estimate the optimal data size of the index use samples of
@@ -658,7 +658,7 @@ btr_defragment_n_pages(
 	// Start from the second page.
 	for (uint i = 1; i < n_pages; i ++) {
 		buf_block_t* new_block = btr_defragment_merge_pages(
-			index, blocks[i], current_block, page_size,
+			index, blocks[i], current_block, zip_size,
 			reserved_space, &max_data_size, heap, mtr);
 		if (new_block != current_block) {
 			n_defragmented ++;

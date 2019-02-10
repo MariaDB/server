@@ -960,21 +960,19 @@ dict_drop_index_tree(
 
 	ut_ad(len == 8);
 
-	bool			found;
-	const page_size_t	page_size(fil_space_get_page_size(space,
-								  &found));
-
-	if (!found) {
-		/* It is a single table tablespace and the .ibd file is
-		missing: do nothing */
-
-		return(false);
+	if (fil_space_t* s = fil_space_acquire_silent(space)) {
+		/* Ensure that the tablespace file exists
+		in order to avoid a crash in buf_page_get_gen(). */
+		if (s->size || fil_space_get_size(space)) {
+			btr_free_if_exists(page_id_t(space, root_page_no),
+					   s->zip_size(),
+					   mach_read_from_8(ptr), mtr);
+		}
+		s->release();
+		return true;
 	}
 
-	btr_free_if_exists(page_id_t(space, root_page_no), page_size,
-			   mach_read_from_8(ptr), mtr);
-
-	return(true);
+	return false;
 }
 
 /*******************************************************************//**

@@ -808,7 +808,7 @@ DECLARE_THREAD(fts_parallel_tokenization)(
 	block = psort_info->merge_block;
 	crypt_block = psort_info->crypt_block;
 
-	const page_size_t&	page_size = dict_table_page_size(table);
+	const ulint zip_size = table->space->zip_size();
 
 	row_merge_fts_get_next_doc_item(psort_info, &doc_item);
 
@@ -838,7 +838,7 @@ loop:
 				doc.text.f_str =
 					btr_copy_externally_stored_field(
 						&doc.text.f_len, data,
-						page_size, data_len, blob_heap);
+						zip_size, data_len, blob_heap);
 			} else {
 				doc.text.f_str = data;
 				doc.text.f_len = data_len;

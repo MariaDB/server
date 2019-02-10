@@ -14,12 +14,12 @@ let $replace=Access denied for user '$USER';
 --echo connect(localhost,USER,,test,MASTER_PORT,MASTER_SOCKET);
 --replace_result $replace "Access denied for user 'USER'"
 --disable_query_log
---error ER_ACCESS_DENIED_ERROR
+--error ER_PLUGIN_IS_NOT_LOADED
 connect (fail,localhost,$USER);
 --enable_query_log
 
 --replace_result $replace "Access denied for user 'USER'"
---error ER_ACCESS_DENIED_ERROR
+--error ER_PLUGIN_IS_NOT_LOADED
 change_user $USER;
 
 eval install plugin unix_socket soname '$AUTH_SOCKET_SO';

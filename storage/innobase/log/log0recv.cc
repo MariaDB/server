@@ -151,9 +151,13 @@ struct file_name_t {
 	/** Status of the tablespace */
 	fil_status	status;
 
+	/** FSP_SIZE of tablespace */
+	ulint		size;
+
 	/** Constructor */
 	file_name_t(std::string name_, bool deleted) :
-		name(name_), space(NULL), status(deleted ? DELETED: NORMAL) {}
+		name(name_), space(NULL), status(deleted ? DELETED: NORMAL),
+		size(0) {}
 };
 
 /** Map of dirty tablespaces during recovery */
@@ -321,6 +325,11 @@ fil_name_process(
 			ut_ad(space != NULL);
 
 			if (f.space == NULL || f.space == space) {
+
+				if (f.size && f.space == NULL) {
+					fil_space_set_recv_size(space->id, f.size);
+				}
+
 				f.name = fname.name;
 				f.space = space;
 				f.status = file_name_t::NORMAL;
@@ -771,7 +780,7 @@ loop:
 
 	fil_io(IORequestLogRead, true,
 	       page_id_t(SRV_LOG_SPACE_FIRST_ID, page_no),
-	       univ_page_size,
+	       0,
 	       ulint(source_offset & (srv_page_size - 1)),
 	       len, buf, NULL);
 
@@ -988,7 +997,7 @@ static dberr_t recv_log_format_0_recover(lsn_t lsn, bool crypt)
 
 	fil_io(IORequestLogRead, true,
 	       page_id_t(SRV_LOG_SPACE_FIRST_ID, page_no),
-	       univ_page_size,
+	       0,
 	       ulint((source_offset & ~(OS_FILE_LOG_BLOCK_SIZE - 1))
 		     & (srv_page_size - 1)),
 	       OS_FILE_LOG_BLOCK_SIZE, buf, NULL);
@@ -2072,19 +2081,21 @@ void recv_apply_hashed_log_recs(bool last_batch)
 
 			if (recv_addr->state == RECV_DISCARDED
 			    || !UT_LIST_GET_LEN(recv_addr->rec_list)) {
+not_found:
 				ut_a(recv_sys->n_addrs);
 				recv_sys->n_addrs--;
 				continue;
 			}
 
+			fil_space_t* space = fil_space_acquire_for_io(
+				recv_addr->space);
+			if (!space) {
+				goto not_found;
+			}
+
 			const page_id_t		page_id(recv_addr->space,
 							recv_addr->page_no);
-			bool			found;
-			const page_size_t&	page_size
-				= fil_space_get_page_size(recv_addr->space,
-							  &found);
-
-			ut_ad(found);
+			const ulint zip_size = space->zip_size();
 
 			if (recv_addr->state == RECV_NOT_PROCESSED) {
 				mutex_exit(&recv_sys->mutex);
@@ -2094,7 +2105,7 @@ void recv_apply_hashed_log_recs(bool last_batch)
 					mtr.start();
 
 					buf_block_t* block = buf_page_get(
-						page_id, page_size,
+						page_id, zip_size,
 						RW_X_LATCH, &mtr);
 
 					buf_block_dbg_add_level(
@@ -2108,6 +2119,8 @@ void recv_apply_hashed_log_recs(bool last_batch)
 
 				mutex_enter(&recv_sys->mutex);
 			}
+
+			space->release_for_io();
 		}
 	}
 
@@ -2249,11 +2262,24 @@ recv_parse_log_rec(
 	}
 
 	if (*page_no == 0 && *type == MLOG_4BYTES
+	    && apply
 	    && mach_read_from_2(old_ptr) == FSP_HEADER_OFFSET + FSP_SIZE) {
 		old_ptr += 2;
-		fil_space_set_recv_size(*space,
-					mach_parse_compressed(&old_ptr,
-							      end_ptr));
+
+		ulint size = mach_parse_compressed(&old_ptr, end_ptr);
+
+		recv_spaces_t::iterator it = recv_spaces.find(*space);
+
+		ut_ad(!recv_sys->mlog_checkpoint_lsn
+		      || *space == TRX_SYS_SPACE
+		      || srv_is_undo_tablespace(*space)
+		      || it != recv_spaces.end());
+
+		if (it != recv_spaces.end() && !it->second.space) {
+			it->second.size = size;
+		}
+
+		fil_space_set_recv_size(*space, size);
 	}
 
 	return ulint(new_ptr - ptr);

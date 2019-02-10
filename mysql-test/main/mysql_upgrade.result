@@ -316,7 +316,7 @@ Grants for user3@%
 GRANT USAGE ON *.* TO 'user3'@'%'
 GRANT ALL PRIVILEGES ON `roelt`.`test2` TO 'user3'@'%'
 DROP USER 'user3'@'%';
-End of 5.1 tests
+# End of 5.1 tests
 The --upgrade-system-tables option was used, user tables won't be touched.
 Phase 1/7: Checking and upgrading mysql database
 Processing databases
@@ -505,7 +505,7 @@ length(table_name)
 79
 79
 drop table extralongname_extralongname_extralongname_extralongname_ext;
-End of 10.0 tests
+# End of 10.0 tests
 set sql_mode=default;
 # Droping the previously created mysql_upgrade_info file..
 create table test.t1(a int) engine=MyISAM;
@@ -569,8 +569,8 @@ t1	CREATE TABLE `t1` (
 ) ENGINE=MyISAM DEFAULT CHARSET=latin1
 DROP TABLE test.t1;
 SET GLOBAL enforce_storage_engine=NULL;
-End of 10.1 tests
-Start of 10.3 tests
+# End of 10.1 tests
+# End of 10.2 tests
 #
 # Ensure that mysql_upgrade correctly sets truncate_versioning_priv
 # on upgrade from 10.2
@@ -589,5 +589,38 @@ GRANT USAGE ON *.* TO 'user3'@'%'
 GRANT ALL PRIVILEGES ON `roelt`.`test2` TO 'user3'@'%'
 DROP USER 'user3'@'%';
 update mysql.db set Delete_history_priv='Y' where db like 'test%';
+drop table mysql.global_priv;
+rename table mysql.global_priv_bak to mysql.global_priv;
+# End of 10.3 tests
+drop view mysql.user_bak;
+create user 'user3'@'localhost' identified with mysql_native_password as password('a_password');
+show create user user3@localhost;
+CREATE USER for user3@localhost
+CREATE USER 'user3'@'localhost' IDENTIFIED BY PASSWORD '*5DC1D11F45824A9DD613961F05C1EC1E7A1601AA'
+update mysql.user set password=authentication_string, authentication_string='' where user='user3';
+select password,plugin,authentication_string from mysql.user where user='user3';
+password	plugin	authentication_string
+*5DC1D11F45824A9DD613961F05C1EC1E7A1601AA	mysql_native_password	
+flush privileges;
+show create user user3@localhost;
+CREATE USER for user3@localhost
+CREATE USER 'user3'@'localhost' IDENTIFIED BY PASSWORD '*5DC1D11F45824A9DD613961F05C1EC1E7A1601AA'
+connect con1,localhost,user3,a_password;
+select current_user();
+current_user()
+user3@localhost
+disconnect con1;
+connection default;
+# mysql_upgrade --force --silent 2>&1
+show create user user3@localhost;
+CREATE USER for user3@localhost
+CREATE USER 'user3'@'localhost' IDENTIFIED BY PASSWORD '*5DC1D11F45824A9DD613961F05C1EC1E7A1601AA'
+connect con1,localhost,user3,a_password;
+select current_user();
+current_user()
+user3@localhost
+disconnect con1;
+connection default;
+drop user user3@localhost;
 drop table mysql.global_priv;
 rename table mysql.global_priv_bak to mysql.global_priv;
