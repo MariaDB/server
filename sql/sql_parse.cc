@@ -2370,18 +2370,16 @@ com_multi_end:
         command == COM_STMT_CLOSE
         ))
   {
-    /* todo: Pass wsrep client state current error to override */
+    wsrep_override_error(thd, wsrep_current_error(thd),
+                         wsrep_current_error_status(thd));
+
     xa_states state= thd->transaction.xid_state.xa_state;
     DBUG_ASSERT(state == XA_NOTR || state == XA_ROLLBACK_ONLY);
     if (state == XA_ROLLBACK_ONLY)
     {
-      wsrep_override_error(thd, ER_XA_RBDEADLOCK);
       thd->transaction.xid_state.xa_state= XA_NOTR;
     }
-    else
-    {
-      wsrep_override_error(thd, ER_LOCK_DEADLOCK);
-    }
+
     WSREP_LOG_THD(thd, "leave");
   }
   if (WSREP(thd))
