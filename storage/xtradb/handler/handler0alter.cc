@@ -6181,7 +6181,6 @@ foreign_fail:
 
 			if (!commit_cache_norebuild(ctx, table, trx)) {
 				fk_fail = true;
-				ut_ad(!prebuilt->trx->check_foreigns);
 			}
 
 			innobase_rename_columns_cache(ha_alter_info, table,
