@@ -1884,7 +1884,6 @@ static int wsrep_TOI_begin(THD *thd, const char *db, const char *table,
 }
 
 static void wsrep_TOI_end(THD *thd) {
-  int ret;
   wsrep_to_isolation--;
   wsrep::client_state& client_state(thd->wsrep_cs());
   DBUG_ASSERT(wsrep_thd_is_local_toi(thd));
@@ -1894,18 +1893,8 @@ static void wsrep_TOI_end(THD *thd) {
   if (wsrep_thd_is_local_toi(thd))
   {
     wsrep_set_SE_checkpoint(client_state.toi_meta().gtid());
-    if (thd->is_error() && !wsrep_must_ignore_error(thd))
-    {
-      wsrep_apply_error err;
-      err.store(thd);
-      client_state.leave_toi();
-    }
-    else
-    {
-      ret= client_state.leave_toi();
-    }
-
-    if (ret == 0)
+    int ret= client_state.leave_toi();
+    if (!ret)
     {
       WSREP_DEBUG("TO END: %lld", client_state.toi_meta().seqno().get());
     }
