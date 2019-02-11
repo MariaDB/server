@@ -6346,8 +6346,11 @@ ha_rows ha_partition::multi_range_read_info(uint keyno, uint n_ranges,
   uint i;
   handler **file;
   ha_rows rows;
+  Cost_estimate part_cost;
   DBUG_ENTER("ha_partition::multi_range_read_info");
   DBUG_PRINT("enter", ("partition this: %p", this));
+
+  cost->reset();
 
   m_mrr_new_full_buffer_size= 0;
   file= m_file;
@@ -6356,22 +6359,20 @@ ha_rows ha_partition::multi_range_read_info(uint keyno, uint n_ranges,
     i= (uint)(file - m_file);
     if (bitmap_is_set(&(m_part_info->read_partitions), (i)))
     {
+      ha_rows tmp_rows;
       m_mrr_buffer_size[i]= 0;
-      if ((rows= (*file)->multi_range_read_info(keyno, n_ranges, keys,
-                                                key_parts,
-                                                &m_mrr_buffer_size[i],
-                                                mrr_mode, cost)))
+      part_cost.reset();
+      if ((tmp_rows= (*file)->multi_range_read_info(keyno, n_ranges, keys,
+                                                    key_parts,
+                                                    &m_mrr_buffer_size[i],
+                                                    mrr_mode, &part_cost)))
         DBUG_RETURN(rows);
+      cost->add(&part_cost);
+      rows+= tmp_rows;
       m_mrr_new_full_buffer_size+= m_mrr_buffer_size[i];
     }
   } while (*(++file));
 
-  cost->reset();
-  cost->avg_io_cost= 1;
-  if (*mrr_mode & HA_MRR_INDEX_ONLY)
-    cost->io_count= keyread_time(keyno, n_ranges, (uint) rows);
-  else
-    cost->io_count= read_time(keyno, n_ranges, rows);
   DBUG_RETURN(0);
 }
 
