@@ -1,7 +1,7 @@
 /*****************************************************************************
 
 Copyright (c) 2012, 2016, Oracle and/or its affiliates. All Rights Reserved.
-Copyright (c) 2015, 2018, MariaDB Corporation.
+Copyright (c) 2015, 2019, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -1820,13 +1820,22 @@ PageConverter::update_index_page(
 
 	if (dict_index_is_clust(m_index->m_srv_index)) {
 		if (page_is_root(page)) {
+			dict_index_t* index = const_cast<dict_index_t*>(
+				m_index->m_srv_index);
 			/* Preserve the PAGE_ROOT_AUTO_INC. */
-			if (m_index->m_srv_index->table->supports_instant()
-			    && btr_cur_instant_root_init(
-				    const_cast<dict_index_t*>(
-					    m_index->m_srv_index),
-				    page)) {
-				return(DB_CORRUPTION);
+			if (index->table->supports_instant()) {
+				if (btr_cur_instant_root_init(index, page)) {
+					return(DB_CORRUPTION);
+				}
+
+				/* Provisionally set all instantly
+				added columns to be DEFAULT NULL. */
+				for (unsigned i = index->n_core_fields;
+				     i < index->n_fields; i++) {
+					dict_col_t* col = index->fields[i].col;
+					col->def_val.len = UNIV_SQL_NULL;
+					col->def_val.data = NULL;
+				}
 			}
 		} else {
 			/* Clear PAGE_MAX_TRX_ID so that it can be
