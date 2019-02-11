@@ -2499,57 +2499,6 @@ int wsrep_ordered_commit_if_no_binlog(THD* thd, bool all)
   return 0;
 }
 
-wsrep_status_t wsrep_tc_log_commit(THD* thd)
-{
-  int cookie;
-  my_xid xid= thd->transaction.xid_state.xid.get_my_xid();
-
-  DBUG_ASSERT(thd->lex->sql_command == SQLCOM_LOAD);
-  if (wsrep_before_commit(thd, true))
-  {
-    WSREP_DEBUG("wsrep_tc_log_commit: wsrep_before_commit failed %llu",
-                thd->thread_id);
-    return WSREP_TRX_FAIL;
-  }
-  cookie= tc_log->log_and_order(thd, xid, 1, false, true);
-  if (wsrep_after_commit(thd, true))
-  {
-    WSREP_DEBUG("wsrep_tc_log_commit: wsrep_after_commit failed %llu",
-                thd->thread_id);
-    return WSREP_TRX_FAIL;
-  }
-  if (!cookie)
-  {
-    WSREP_DEBUG("log_and_order has failed %llu %d", thd->thread_id, cookie);
-    return WSREP_TRX_FAIL;
-  }
-  if (tc_log->unlog(cookie, xid))
-  {
-    WSREP_DEBUG("log_and_order has failed %llu %d", thd->thread_id, cookie);
-    return WSREP_TRX_FAIL;
-  }
-
-  if (wsrep_after_statement(thd))
-  {
-    return WSREP_TRX_FAIL;
-  }
-  /* Set wsrep transaction id if not set. */
-  if (thd->wsrep_trx_id() == WSREP_UNDEFINED_TRX_ID)
-  {
-    if (thd->wsrep_next_trx_id() == WSREP_UNDEFINED_TRX_ID)
-    {
-      thd->set_wsrep_next_trx_id(thd->query_id);
-    }
-    DBUG_ASSERT(thd->wsrep_next_trx_id() != WSREP_UNDEFINED_TRX_ID);
-  }
-  if (wsrep_start_transaction(thd, thd->wsrep_next_trx_id()))
-  {
-    return WSREP_TRX_FAIL;
-  }
-  DBUG_ASSERT(thd->wsrep_trx_id() != WSREP_UNDEFINED_TRX_ID);
-  return WSREP_OK;
-}
-
 int wsrep_thd_retry_counter(const THD *thd)
 {
   return thd->wsrep_retry_counter;
