@@ -9084,9 +9084,10 @@ after a successful commit_try_norebuild() call.
 @param ctx In-place ALTER TABLE context for the current partition
 @param table the TABLE before the ALTER
 @param trx Data dictionary transaction
-(will be started and committed, for DROP INDEX) */
+(will be started and committed, for DROP INDEX)
+@return whether all replacements were found for dropped indexes */
 inline MY_ATTRIBUTE((nonnull))
-void
+bool
 commit_cache_norebuild(
 /*===================*/
 	Alter_inplace_info*	ha_alter_info,
@@ -9098,6 +9099,8 @@ commit_cache_norebuild(
 	DBUG_ASSERT(!ctx->need_rebuild());
 	DBUG_ASSERT(ctx->new_table->space != fil_system.temp_space);
 	DBUG_ASSERT(!ctx->new_table->is_temporary());
+
+	bool found = true;
 
 	if (ctx->page_compression_level) {
 		DBUG_ASSERT(ctx->new_table->space != fil_system.sys_space);
@@ -9201,7 +9204,7 @@ commit_cache_norebuild(
 
 			if (!dict_foreign_replace_index(
 				    index->table, ctx->col_names, index)) {
-				ut_a(!ctx->prebuilt->trx->check_foreigns);
+				found = false;
 			}
 
 			/* Mark the index dropped
@@ -9253,7 +9256,7 @@ commit_cache_norebuild(
 		: NULL;
 	DBUG_ASSERT((ctx->new_table->fts == NULL)
 		    == (ctx->new_table->fts_doc_id_index == NULL));
-	DBUG_VOID_RETURN;
+	DBUG_RETURN(found);
 }
 
 /** Adjust the persistent statistics after non-rebuilding ALTER TABLE.
@@ -9868,13 +9871,11 @@ foreign_fail:
 			bool fk_fail = innobase_update_foreign_cache(
 				ctx, m_user_thd) != DB_SUCCESS;
 
-			commit_cache_norebuild(ha_alter_info, ctx,
-                                               table, trx);
-			innobase_rename_or_enlarge_columns_cache(
-				ha_alter_info, table, ctx->new_table);
-#ifdef MYSQL_RENAME_INDEX
-			rename_indexes_in_cache(ctx, ha_alter_info);
-#endif
+			if (!commit_cache_norebuild(ha_alter_info, ctx, table,
+						    trx)) {
+				fk_fail = true;
+			}
+
 			if (fk_fail && m_prebuilt->trx->check_foreigns) {
 				goto foreign_fail;
 			}

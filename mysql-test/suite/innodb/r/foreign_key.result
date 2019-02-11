@@ -233,7 +233,6 @@ ALTER TABLE t1 ADD FOREIGN KEY (f) REFERENCES non_existing_table (x);
 SET SESSION FOREIGN_KEY_CHECKS = ON;
 ALTER TABLE t1 ADD FULLTEXT INDEX ft1 (f);
 Warnings:
-Warning	124	InnoDB rebuilding table to add column FTS_DOC_ID
 Warning	1088	failed to load FOREIGN KEY constraints
 ALTER TABLE t1 ADD FULLTEXT INDEX ft2 (f);
 Warnings:
