@@ -1829,13 +1829,39 @@ PageConverter::update_index_page(
 
 	if (dict_index_is_clust(m_index->m_srv_index)) {
 		if (page_is_root(page)) {
+			dict_index_t* index = const_cast<dict_index_t*>(
+				m_index->m_srv_index);
 			/* Preserve the PAGE_ROOT_AUTO_INC. */
-			if (m_index->m_srv_index->table->supports_instant()
-			    && btr_cur_instant_root_init(
-				    const_cast<dict_index_t*>(
-					    m_index->m_srv_index),
-				    page)) {
-				return(DB_CORRUPTION);
+			if (index->table->supports_instant()) {
+				if (btr_cur_instant_root_init(index, page)) {
+					return(DB_CORRUPTION);
+				}
+
+				if (index->n_core_fields > index->n_fields) {
+					/* Some columns have been dropped.
+					Refuse to IMPORT TABLESPACE for now.
+
+					NOTE: This is not an accurate check.
+					Columns could have been both
+					added and dropped instantly.
+					For an accurate check, we must read
+					the metadata BLOB page pointed to
+					by the leftmost leaf page.
+
+					But we would have to read
+					those pages in a special way,
+					bypassing the buffer pool! */
+					return DB_UNSUPPORTED;
+				}
+
+				/* Provisionally set all instantly
+				added columns to be DEFAULT NULL. */
+				for (unsigned i = index->n_core_fields;
+				     i < index->n_fields; i++) {
+					dict_col_t* col = index->fields[i].col;
+					col->def_val.len = UNIV_SQL_NULL;
+					col->def_val.data = NULL;
+				}
 			}
 		} else {
 			/* Clear PAGE_MAX_TRX_ID so that it can be

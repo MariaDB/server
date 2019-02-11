@@ -1465,12 +1465,25 @@ instant_alter_column_possible(
 	const TABLE*			table,
 	const TABLE*			altered_table)
 {
+	if (ha_alter_info->handler_flags
+	    & (ALTER_STORED_COLUMN_ORDER | ALTER_DROP_STORED_COLUMN
+	       | ALTER_ADD_STORED_BASE_COLUMN)) {
 #if 1 // MDEV-17459: adjust fts_fetch_doc_from_rec() and friends; remove this
-	if (ib_table.fts) {
-		return false;
-	}
+		if (ib_table.fts) return false;
 #endif
-	const dict_index_t* index = ib_table.indexes.start;
+#if 1 // MDEV-17468: fix bugs with indexed virtual columns & remove this
+		for (const dict_index_t* index = ib_table.indexes.start;
+		     index; index = index->indexes.next) {
+			if (index->has_virtual()) {
+				ut_ad(ib_table.n_v_cols);
+				return false;
+			}
+		}
+#endif
+	}
+	const dict_index_t* const pk = ib_table.indexes.start;
+	ut_ad(pk->is_primary());
+	ut_ad(!pk->has_virtual());
 	if (ha_alter_info->handler_flags & ALTER_ADD_STORED_BASE_COLUMN) {
 		List_iterator_fast<Create_field> cf_it(
 			ha_alter_info->alter_info->create_list);
@@ -1478,21 +1491,11 @@ instant_alter_column_possible(
 		while (const Create_field* cf = cf_it++) {
 			n_add += !cf->field;
 		}
-		if (index->n_fields >= REC_MAX_N_USER_FIELDS + DATA_N_SYS_COLS
+		if (pk->n_fields >= REC_MAX_N_USER_FIELDS + DATA_N_SYS_COLS
 		    - n_add) {
 			return false;
 		}
 	}
-#if 1 // MDEV-17468: fix bugs with indexed virtual columns & remove this
-	ut_ad(index->is_primary());
-	ut_ad(!index->has_virtual());
-	while ((index = index->indexes.next) != NULL) {
-		if (index->has_virtual()) {
-			ut_ad(ib_table.n_v_cols);
-			return false;
-		}
-	}
-#endif
 	// Making table system-versioned instantly is not implemented yet.
 	if (ha_alter_info->handler_flags & ALTER_ADD_SYSTEM_VERSIONING) {
 		return false;
@@ -1559,7 +1562,6 @@ instant_alter_column_possible(
 			return false;
 		}
 
-		const dict_index_t* pk = ib_table.indexes.start;
 		Field** af = altered_table->field;
 		Field** const end = altered_table->field
 			+ altered_table->s->fields;
