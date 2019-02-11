@@ -1851,6 +1851,7 @@ bool Old_rows_log_event::print_helper(FILE *file,
   IO_CACHE *const body= &print_event_info->body_cache;
   bool do_print_encoded=
     print_event_info->base64_output_mode != BASE64_OUTPUT_DECODE_ROWS &&
+    print_event_info->base64_output_mode != BASE64_OUTPUT_NEVER &&
     !print_event_info->short_form;
 
   if (!print_event_info->short_form)

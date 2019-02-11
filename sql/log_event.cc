@@ -3897,7 +3897,7 @@ bool Log_event::print_base64(IO_CACHE* file,
         if (print_event_info->base64_output_mode !=
             BASE64_OUTPUT_DECODE_ROWS)
           my_b_printf(file, "'%s\n", print_event_info->delimiter);
-        ev->print_verbose(file, print_event_info);
+        error= ev->print_verbose(file, print_event_info);
       }
       else
       {
@@ -13077,7 +13077,13 @@ bool Table_map_log_event::print(FILE *file, PRINT_EVENT_INFO *print_event_info)
   }
   if (!print_event_info->short_form || print_event_info->print_row_count)
   {
-    if (print_base64(&print_event_info->body_cache, print_event_info, TRUE) ||
+    bool do_print_encoded=
+      print_event_info->base64_output_mode != BASE64_OUTPUT_NEVER &&
+      print_event_info->base64_output_mode != BASE64_OUTPUT_DECODE_ROWS &&
+      !print_event_info->short_form;
+
+    if (print_base64(&print_event_info->body_cache, print_event_info,
+                     do_print_encoded) ||
         copy_event_cache_to_file_and_reinit(&print_event_info->head_cache,
                                             file))
       goto err;

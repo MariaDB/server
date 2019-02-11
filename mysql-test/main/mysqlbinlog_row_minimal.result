@@ -237,13 +237,7 @@ BEGIN
 #Q> UPDATE t2 SET f4=5 WHERE f4>0 or f4 is NULL
 #<date> server id 1  end_log_pos 2591 CRC32 XXX 	Table_map: `test`.`t2` mapped to number num
 # at 2591
-<<<<<<< HEAD:mysql-test/main/mysqlbinlog_row_minimal.result
-#<date> server id 1  end_log_pos 2665 CRC32 XXX 	Update_rows: table id 33 flags: STMT_END_F
-||||||| merged common ancestors
-#<date> server id 1  end_log_pos 2665 CRC32 XXX 	Update_rows: table id 32 flags: STMT_END_F
-=======
-#<date> server id 1  end_log_pos 2657 CRC32 XXX 	Update_rows: table id 32 flags: STMT_END_F
->>>>>>> 10.2:mysql-test/r/mysqlbinlog_row_minimal.result
+#<date> server id 1  end_log_pos 2657 CRC32 XXX 	Update_rows: table id 33 flags: STMT_END_F
 ### UPDATE `test`.`t2`
 ### WHERE
 ###   @1=10 /* INT meta=0 nullable=0 is_null=0 */
@@ -259,17 +253,9 @@ BEGIN
 ###   @1=12 /* INT meta=0 nullable=0 is_null=0 */
 ### SET
 ###   @5=5 /* INT meta=0 nullable=1 is_null=0 */
-<<<<<<< HEAD:mysql-test/main/mysqlbinlog_row_minimal.result
 # Number of rows: 3
-# at 2665
-#<date> server id 1  end_log_pos 2738 CRC32 XXX 	Query	thread_id=5	exec_time=x	error_code=0
-||||||| merged common ancestors
-# at 2665
-#<date> server id 1  end_log_pos 2738 CRC32 XXX 	Query	thread_id=5	exec_time=x	error_code=0
-=======
 # at 2657
 #<date> server id 1  end_log_pos 2730 CRC32 XXX 	Query	thread_id=5	exec_time=x	error_code=0
->>>>>>> 10.2:mysql-test/r/mysqlbinlog_row_minimal.result
 SET TIMESTAMP=X/*!*/;
 COMMIT
 /*!*/;
@@ -282,19 +268,9 @@ BEGIN
 # at 2809
 #<date> server id 1  end_log_pos 2809 CRC32 XXX 	Annotate_rows:
 #Q> DELETE FROM t1
-<<<<<<< HEAD:mysql-test/main/mysqlbinlog_row_minimal.result
-#<date> server id 1  end_log_pos 2873 CRC32 XXX 	Table_map: `test`.`t1` mapped to number num
-# at 2873
-#<date> server id 1  end_log_pos 2927 CRC32 XXX 	Delete_rows: table id 32 flags: STMT_END_F
-||||||| merged common ancestors
-#<date> server id 1  end_log_pos 2873 CRC32 XXX 	Table_map: `test`.`t1` mapped to number num
-# at 2873
-#<date> server id 1  end_log_pos 2927 CRC32 XXX 	Delete_rows: table id 31 flags: STMT_END_F
-=======
 #<date> server id 1  end_log_pos 2865 CRC32 XXX 	Table_map: `test`.`t1` mapped to number num
 # at 2865
-#<date> server id 1  end_log_pos 2919 CRC32 XXX 	Delete_rows: table id 31 flags: STMT_END_F
->>>>>>> 10.2:mysql-test/r/mysqlbinlog_row_minimal.result
+#<date> server id 1  end_log_pos 2919 CRC32 XXX 	Delete_rows: table id 32 flags: STMT_END_F
 ### DELETE FROM `test`.`t1`
 ### WHERE
 ###   @1=10 /* INT meta=0 nullable=0 is_null=0 */
@@ -307,17 +283,9 @@ BEGIN
 ### DELETE FROM `test`.`t1`
 ### WHERE
 ###   @1=13 /* INT meta=0 nullable=0 is_null=0 */
-<<<<<<< HEAD:mysql-test/main/mysqlbinlog_row_minimal.result
 # Number of rows: 4
-# at 2927
-#<date> server id 1  end_log_pos 3000 CRC32 XXX 	Query	thread_id=5	exec_time=x	error_code=0
-||||||| merged common ancestors
-# at 2927
-#<date> server id 1  end_log_pos 3000 CRC32 XXX 	Query	thread_id=5	exec_time=x	error_code=0
-=======
 # at 2919
 #<date> server id 1  end_log_pos 2992 CRC32 XXX 	Query	thread_id=5	exec_time=x	error_code=0
->>>>>>> 10.2:mysql-test/r/mysqlbinlog_row_minimal.result
 SET TIMESTAMP=X/*!*/;
 COMMIT
 /*!*/;
@@ -330,19 +298,9 @@ BEGIN
 # at 3071
 #<date> server id 1  end_log_pos 3071 CRC32 XXX 	Annotate_rows:
 #Q> DELETE FROM t2
-<<<<<<< HEAD:mysql-test/main/mysqlbinlog_row_minimal.result
-#<date> server id 1  end_log_pos 3135 CRC32 XXX 	Table_map: `test`.`t2` mapped to number num
-# at 3135
-#<date> server id 1  end_log_pos 3189 CRC32 XXX 	Delete_rows: table id 33 flags: STMT_END_F
-||||||| merged common ancestors
-#<date> server id 1  end_log_pos 3135 CRC32 XXX 	Table_map: `test`.`t2` mapped to number num
-# at 3135
-#<date> server id 1  end_log_pos 3189 CRC32 XXX 	Delete_rows: table id 32 flags: STMT_END_F
-=======
 #<date> server id 1  end_log_pos 3127 CRC32 XXX 	Table_map: `test`.`t2` mapped to number num
 # at 3127
-#<date> server id 1  end_log_pos 3181 CRC32 XXX 	Delete_rows: table id 32 flags: STMT_END_F
->>>>>>> 10.2:mysql-test/r/mysqlbinlog_row_minimal.result
+#<date> server id 1  end_log_pos 3181 CRC32 XXX 	Delete_rows: table id 33 flags: STMT_END_F
 ### DELETE FROM `test`.`t2`
 ### WHERE
 ###   @1=10 /* INT meta=0 nullable=0 is_null=0 */
@@ -355,17 +313,9 @@ BEGIN
 ### DELETE FROM `test`.`t2`
 ### WHERE
 ###   @1=13 /* INT meta=0 nullable=0 is_null=0 */
-<<<<<<< HEAD:mysql-test/main/mysqlbinlog_row_minimal.result
 # Number of rows: 4
-# at 3189
-#<date> server id 1  end_log_pos 3262 CRC32 XXX 	Query	thread_id=5	exec_time=x	error_code=0
-||||||| merged common ancestors
-# at 3189
-#<date> server id 1  end_log_pos 3262 CRC32 XXX 	Query	thread_id=5	exec_time=x	error_code=0
-=======
 # at 3181
 #<date> server id 1  end_log_pos 3254 CRC32 XXX 	Query	thread_id=5	exec_time=x	error_code=0
->>>>>>> 10.2:mysql-test/r/mysqlbinlog_row_minimal.result
 SET TIMESTAMP=X/*!*/;
 COMMIT
 /*!*/;
@@ -415,15 +365,16 @@ BEGIN
 #Q> UPDATE t1 t1 INNER JOIN t2 t2 ON t1.ref_id = t2.id
 #Q> SET t1.is_deleted = TRUE
 #Q> WHERE t1.id =
-#<date> server id 1  end_log_pos 594 CRC32 XXX 	Table_map: `test`.`t1` mapped to number 34
+#<date> server id 1  end_log_pos 594 CRC32 XXX 	Table_map: `test`.`t1` mapped to number 35
 # at 594
-#<date> server id 1  end_log_pos 643 CRC32 XXX 	Update_rows: table id 34 flags: STMT_END_F
+#<date> server id 1  end_log_pos 643 CRC32 XXX 	Update_rows: table id 35 flags: STMT_END_F
 ### UPDATE `test`.`t1`
 ### WHERE
 ###   @1=1 /* LONGINT meta=0 nullable=0 is_null=0 */
 ### SET
 ###   @2=b'1' /* BIT(1) meta=1 nullable=1 is_null=0 */
 ###   @3=X /* TIMESTAMP(0) meta=0 nullable=0 is_null=0 */
+# Number of rows: 1
 # at 643
 #<date> server id 1  end_log_pos 725 CRC32 XXX 	Query	thread_id=5	exec_time=x	error_code=0
 SET TIMESTAMP=X/*!*/;

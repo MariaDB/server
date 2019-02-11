@@ -896,10 +896,8 @@ static bool print_base64(PRINT_EVENT_INFO *print_event_info, Log_event *ev)
             type_str);
     return 1;
   }
-  ev->print(result_file, print_event_info);
-  return
-    print_event_info->head_cache.error == -1 ||
-    print_event_info->body_cache.error == -1;
+
+  return ev->print(result_file, print_event_info);
 }
 
 
