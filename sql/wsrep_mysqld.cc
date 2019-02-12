@@ -85,7 +85,7 @@ const char *wsrep_data_home_dir;
 const char *wsrep_dbug_option;
 const char *wsrep_notify_cmd;
 
-my_bool wsrep_debug;                            // Enable debug level logging
+ulong   wsrep_debug;                            // Debug level logging
 my_bool wsrep_convert_LOCK_to_trx;              // Convert locking sessions to trx
 my_bool wsrep_auto_increment_control;           // Control auto increment variables
 my_bool wsrep_drupal_282555_workaround;         // Retry autoinc insert after dupkey
@@ -638,6 +638,7 @@ int wsrep_init_server()
                                   working_dir,
                                   initial_position,
                                   wsrep_max_protocol_version);
+    Wsrep_server_state::instance().debug_log_level(wsrep_debug);
   }
   catch (const wsrep::runtime_error& e)
   {

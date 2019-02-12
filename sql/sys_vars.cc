@@ -5364,9 +5364,14 @@ static Sys_var_charptr Sys_wsrep_dbug_option(
        GLOBAL_VAR(wsrep_dbug_option),CMD_LINE(REQUIRED_ARG),
        IN_SYSTEM_CHARSET, DEFAULT(""));
 
-static Sys_var_mybool Sys_wsrep_debug(
-       "wsrep_debug", "To enable debug level logging",
-       GLOBAL_VAR(wsrep_debug), CMD_LINE(OPT_ARG), DEFAULT(FALSE));
+static const char *wsrep_debug_names[]=
+{ "NONE", "SERVER", "TRANSACTION", "STREAMING", "CLIENT", NullS };
+static Sys_var_enum Sys_wsrep_debug(
+       "wsrep_debug", "WSREP debug level logging",
+       GLOBAL_VAR(wsrep_debug), CMD_LINE(REQUIRED_ARG),
+       wsrep_debug_names, DEFAULT(0),
+       NO_MUTEX_GUARD, NOT_IN_BINLOG,
+       ON_CHECK(0), ON_UPDATE(wsrep_debug_update));
 
 static Sys_var_mybool Sys_wsrep_convert_LOCK_to_trx(
        "wsrep_convert_LOCK_to_trx", "To convert locking sessions "

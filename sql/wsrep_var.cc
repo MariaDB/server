@@ -430,6 +430,12 @@ bool wsrep_reject_queries_update(sys_var *self, THD* thd, enum_var_type type)
     return false;
 }
 
+bool wsrep_debug_update(sys_var *self, THD* thd, enum_var_type type)
+{
+    Wsrep_server_state::instance().debug_log_level(wsrep_debug);
+    return false;
+}
+
 static int wsrep_cluster_address_verify (const char* cluster_address_str)
 {
   /* There is no predefined address format, it depends on provider. */
