@@ -4,6 +4,8 @@ connection master;
 CREATE DATABASE federated;
 connection slave;
 CREATE DATABASE federated;
+connection default;
+set global federated_pushdown=1;
 connection slave;
 DROP TABLE IF EXISTS federated.t1;
 Warnings:
@@ -301,6 +303,7 @@ DROP TABLE federated.t1, federated.t2, federated.t3;
 connection slave;
 DROP TABLE federated.t1, federated.t2;
 connection default;
+set global federated_pushdown=0;
 connection master;
 DROP TABLE IF EXISTS federated.t1;
 DROP DATABASE IF EXISTS federated;

@@ -1,6 +1,8 @@
 --source have_federatedx.inc
 --source include/federated.inc
 
+connection default;
+
 set global federated_pushdown=1;
 
 connection slave;
@@ -153,6 +155,7 @@ DROP TABLE federated.t1, federated.t2;
 
 connection default;
 
+set global federated_pushdown=0;
+
 source include/federated_cleanup.inc;
 
-set global federated_pushdown=0;
