@@ -79,13 +79,8 @@ VARIABLE_VALUE = 'Synced'
 SET GLOBAL wsrep_provider_options = 'pc.weight=1';
 SELECT VARIABLE_VALUE = 1 FROM INFORMATION_SCHEMA.GLOBAL_STATUS WHERE VARIABLE_NAME = 'wsrep_cluster_weight';
 VARIABLE_VALUE = 1
-<<<<<<< HEAD
-connection node_1;
-||||||| merged common ancestors
-=======
 1
 connection node_1;
->>>>>>> 10.2
 SET GLOBAL wsrep_provider_options = 'gmcast.isolate=0';
 connection node_2;
 connection node_3;

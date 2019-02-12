@@ -10,6 +10,7 @@
 --let $galera_connection_name = node_3
 --let $galera_server_number = 3
 --source include/galera_connect.inc
+
 # Save original auto_increment_offset values.
 --let $node_1=node_1
 --let $node_2=node_2
