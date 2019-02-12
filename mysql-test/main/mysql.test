@@ -693,13 +693,12 @@ select count(*) from t1; truncate table t1;
 --error 1
 --exec $MYSQL --disable-local-infile -e "$ldli"
 select count(*) from t1; truncate table t1;
---echo ### FIXME: update libmariadb
-#--error 1
-#--exec $MYSQL -e "/*q*/$ldli"
-#select count(*) from t1; truncate table t1;
-#--exec $MYSQL --enable-local-infile -e "/*q*/$ldli"
-#select count(*) from t1; truncate table t1;
-# --error 1
-# --exec $MYSQL --disable-local-infile -e "/*q*/$ldli"
-#select count(*) from t1; truncate table t1;
+--error 1
+--exec $MYSQL -e "/*q*/$ldli"
+select count(*) from t1; truncate table t1;
+--exec $MYSQL --enable-local-infile -e "/*q*/$ldli"
+select count(*) from t1; truncate table t1;
+ --error 1
+ --exec $MYSQL --disable-local-infile -e "/*q*/$ldli"
+select count(*) from t1; truncate table t1;
 drop table t1;

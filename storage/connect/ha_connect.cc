@@ -1814,7 +1814,7 @@ PCSZ ha_connect::GetDBName(PCSZ name)
 const char *ha_connect::GetTableName(void)
 {
   const char *path= tshp ? tshp->path.str : table_share->path.str;
-  const char *name= strrchr(path, '/');
+  const char *name= strrchr(path, slash);
   return name ? name+1 : path;
 } // end of GetTableName
 

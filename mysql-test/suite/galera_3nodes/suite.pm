@@ -49,25 +49,14 @@ push @::global_suppressions,
      qr|WSREP: discarding established \(time wait\) .*|,
      qr(WSREP: There are no nodes in the same segment that will ever be able to become donors, yet there is a suitable donor outside. Will use that one.),
      qr(WSREP: evs::proto.*),
-<<<<<<< HEAD
      qr|WSREP: Ignoring possible split-brain \(allowed by configuration\) from view:.*|,
-||||||| merged common ancestors
-     qr|WSREP: Ignoring possible split-brain (allowed by configuration) from view:.*|,
-=======
      qr|WSREP: Ignoring possible split-brain \(allowed by configuration\) from view:.*|,
      qr(WSREP: no nodes coming from prim view, prim not possible),
->>>>>>> 10.2
      qr(WSREP: Member .* requested state transfer from .* but it is impossible to select State Transfer donor: Resource temporarily unavailable),
-<<<<<<< HEAD
-     qr(WSREP: .* sending install message failed: Transport endpoint is not connected),
-     qr(WSREP: .* sending install message failed: Resource temporarily unavailable),
-||||||| merged common ancestors
-=======
      qr(WSREP: user message in state LEAVING),
      qr(WSREP: .* sending install message failed: Transport endpoint is not connected),
      qr(WSREP: .* sending install message failed: Resource temporarily unavailable),
      qr(WSREP: Sending JOIN failed: -107 \(Transport endpoint is not connected\). Will retry in new primary component.),
->>>>>>> 10.2
      qr(WSREP: Could not find peer:),
      qr|WSREP: gcs_caused\(\) returned .*|,
      qr|WSREP: Protocol violation. JOIN message sender .* is not in state transfer \(SYNCED\). Message ignored.|,
@@ -80,30 +69,6 @@ push @::global_suppressions,
 
 $ENV{PATH}="$epath:$ENV{PATH}";
 $ENV{PATH}="$spath:$ENV{PATH}" unless $epath eq $spath;
-<<<<<<< HEAD
-$ENV{PATH}="$cpath:$ENV{PATH}" unless $cpath eq $spath;
-$ENV{PATH}="$bpath:$ENV{PATH}" unless $bpath eq $spath;
-
-if (which(socat)) {
-  $ENV{MTR_GALERA_TFMT}='socat';
-} elsif (which(nc)) {
-  $ENV{MTR_GALERA_TFMT}='nc';
-}
-
-sub skip_combinations {
-  my %skip = ();
-  $skip{'include/have_filekeymanagement.inc'} = 'needs file_key_management plugin'
-             unless $ENV{FILE_KEY_MANAGEMENT_SO};
-  $skip{'include/have_mariabackup.inc'} = 'Need mariabackup'
-             unless which(mariabackup);
-  $skip{'include/have_mariabackup.inc'} = 'Need ss'
-             unless which(ss);
-  $skip{'include/have_mariabackup.inc'} = 'Need socat or nc'
-             unless $ENV{MTR_GALERA_TFMT};
-  %skip;
-}
-||||||| merged common ancestors
-=======
 $ENV{PATH}="$cpath:$ENV{PATH}" unless $cpath eq $spath;
 $ENV{PATH}="$bpath:$ENV{PATH}" unless $bpath eq $spath;
 
@@ -125,7 +90,6 @@ sub skip_combinations {
              unless $ENV{MTR_GALERA_TFMT};
   %skip;
 }
->>>>>>> 10.2
 
 bless { };
 
