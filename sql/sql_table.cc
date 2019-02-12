@@ -9695,7 +9695,7 @@ do_continue:;
           thd->create_and_open_tmp_table(new_db_type, &frm,
                                          alter_ctx.get_tmp_path(),
                                          alter_ctx.new_db.str,
-                                         alter_ctx.tmp_name.str,
+                                         alter_ctx.new_name.str,
                                          false, true)))
       goto err_new_table_cleanup;
 
