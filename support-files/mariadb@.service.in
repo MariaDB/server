@@ -23,7 +23,7 @@
 # controls each instance to ensure it is run independently. It is passed to
 # mysqld and mysql_install
 #
-# By default, a group suffix exists andw ithin the default configuration
+# By default, a group suffix exists and within the default configuration
 # files, a group [mysqld.{instancename}] is read for each service. Other
 # default groups, like [server.{instancename}] and [mariadb.{instancename}],
 # are also read. For each instance, one of the groups will need to contain
