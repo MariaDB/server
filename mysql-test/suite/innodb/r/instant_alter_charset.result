@@ -1,7 +1,4 @@
 set names utf8;
-SET @old_instant=
-(SELECT variable_value FROM information_schema.global_status
-WHERE variable_name = 'innodb_instant_alter_column');
 create table no_rebuild (
 a char(150) charset utf8mb3 collate utf8mb3_general_ci
 ) engine=innodb;
@@ -291,6 +288,16 @@ insert into fully_compatible (from_charset, from_collate, to_charset, to_collate
 ('utf8mb3', 'utf8mb3_nopad_bin',            'utf8mb4', 'utf8mb4_nopad_bin'),
 ('utf8mb3', 'utf8mb3_unicode_nopad_ci',     'utf8mb4', 'utf8mb4_unicode_nopad_ci'),
 ('utf8mb3', 'utf8mb3_unicode_520_nopad_ci', 'utf8mb4', 'utf8mb4_unicode_520_nopad_ci'),
+('ucs2',    'ucs2_general_ci',       'utf16',   'utf16_general_ci'),
+('ucs2',    'ucs2_unicode_ci',       'utf16',   'utf16_unicode_ci'),
+('ucs2',    'ucs2_icelandic_ci',     'utf16',   'utf16_icelandic_ci'),
+('ucs2',    'ucs2_latvian_ci',       'utf16',   'utf16_latvian_ci'),
+('ucs2',    'ucs2_romanian_ci',      'utf16',   'utf16_romanian_ci'),
+('ucs2',    'ucs2_slovenian_ci',     'utf16',   'utf16_slovenian_ci'),
+('ucs2',    'ucs2_polish_ci',        'utf16',   'utf16_polish_ci'),
+('ucs2',    'ucs2_estonian_ci',      'utf16',   'utf16_estonian_ci'),
+('ucs2',    'ucs2_spanish_ci',       'utf16',   'utf16_spanish_ci'),
+('ucs2',    'ucs2_general_ci',       'utf16',   'utf16_general_ci'),
 ('ascii', 'ascii_general_ci',       'utf8mb3', 'utf8mb3_general_ci'),
 ('ascii', 'ascii_general_ci',       'utf8mb4', 'utf8mb4_general_ci'),
 ('ascii', 'ascii_general_ci',       'latin1', 'latin1_general_ci'),
@@ -733,6 +740,136 @@ Table	Op	Msg_type	Msg_text
 test.tmp	check	status	OK
 drop table tmp;
 create table tmp (
+a varchar(50) charset ucs2 collate ucs2_general_ci,
+b varchar(50) charset ucs2 collate ucs2_general_ci primary key
+) engine=innodb;
+insert into tmp values ('AAA', 'AAA'), ('bbb', 'bbb');
+alter table tmp
+change a a varchar(50) charset utf16 collate utf16_general_ci,
+modify b varchar(50) charset utf16 collate utf16_general_ci,
+algorithm=instant;
+check table tmp;
+Table	Op	Msg_type	Msg_text
+test.tmp	check	status	OK
+drop table tmp;
+create table tmp (
+a varchar(50) charset ucs2 collate ucs2_unicode_ci,
+b varchar(50) charset ucs2 collate ucs2_unicode_ci primary key
+) engine=innodb;
+insert into tmp values ('AAA', 'AAA'), ('bbb', 'bbb');
+alter table tmp
+change a a varchar(50) charset utf16 collate utf16_unicode_ci,
+modify b varchar(50) charset utf16 collate utf16_unicode_ci,
+algorithm=instant;
+check table tmp;
+Table	Op	Msg_type	Msg_text
+test.tmp	check	status	OK
+drop table tmp;
+create table tmp (
+a varchar(50) charset ucs2 collate ucs2_icelandic_ci,
+b varchar(50) charset ucs2 collate ucs2_icelandic_ci primary key
+) engine=innodb;
+insert into tmp values ('AAA', 'AAA'), ('bbb', 'bbb');
+alter table tmp
+change a a varchar(50) charset utf16 collate utf16_icelandic_ci,
+modify b varchar(50) charset utf16 collate utf16_icelandic_ci,
+algorithm=instant;
+check table tmp;
+Table	Op	Msg_type	Msg_text
+test.tmp	check	status	OK
+drop table tmp;
+create table tmp (
+a varchar(50) charset ucs2 collate ucs2_latvian_ci,
+b varchar(50) charset ucs2 collate ucs2_latvian_ci primary key
+) engine=innodb;
+insert into tmp values ('AAA', 'AAA'), ('bbb', 'bbb');
+alter table tmp
+change a a varchar(50) charset utf16 collate utf16_latvian_ci,
+modify b varchar(50) charset utf16 collate utf16_latvian_ci,
+algorithm=instant;
+check table tmp;
+Table	Op	Msg_type	Msg_text
+test.tmp	check	status	OK
+drop table tmp;
+create table tmp (
+a varchar(50) charset ucs2 collate ucs2_romanian_ci,
+b varchar(50) charset ucs2 collate ucs2_romanian_ci primary key
+) engine=innodb;
+insert into tmp values ('AAA', 'AAA'), ('bbb', 'bbb');
+alter table tmp
+change a a varchar(50) charset utf16 collate utf16_romanian_ci,
+modify b varchar(50) charset utf16 collate utf16_romanian_ci,
+algorithm=instant;
+check table tmp;
+Table	Op	Msg_type	Msg_text
+test.tmp	check	status	OK
+drop table tmp;
+create table tmp (
+a varchar(50) charset ucs2 collate ucs2_slovenian_ci,
+b varchar(50) charset ucs2 collate ucs2_slovenian_ci primary key
+) engine=innodb;
+insert into tmp values ('AAA', 'AAA'), ('bbb', 'bbb');
+alter table tmp
+change a a varchar(50) charset utf16 collate utf16_slovenian_ci,
+modify b varchar(50) charset utf16 collate utf16_slovenian_ci,
+algorithm=instant;
+check table tmp;
+Table	Op	Msg_type	Msg_text
+test.tmp	check	status	OK
+drop table tmp;
+create table tmp (
+a varchar(50) charset ucs2 collate ucs2_polish_ci,
+b varchar(50) charset ucs2 collate ucs2_polish_ci primary key
+) engine=innodb;
+insert into tmp values ('AAA', 'AAA'), ('bbb', 'bbb');
+alter table tmp
+change a a varchar(50) charset utf16 collate utf16_polish_ci,
+modify b varchar(50) charset utf16 collate utf16_polish_ci,
+algorithm=instant;
+check table tmp;
+Table	Op	Msg_type	Msg_text
+test.tmp	check	status	OK
+drop table tmp;
+create table tmp (
+a varchar(50) charset ucs2 collate ucs2_estonian_ci,
+b varchar(50) charset ucs2 collate ucs2_estonian_ci primary key
+) engine=innodb;
+insert into tmp values ('AAA', 'AAA'), ('bbb', 'bbb');
+alter table tmp
+change a a varchar(50) charset utf16 collate utf16_estonian_ci,
+modify b varchar(50) charset utf16 collate utf16_estonian_ci,
+algorithm=instant;
+check table tmp;
+Table	Op	Msg_type	Msg_text
+test.tmp	check	status	OK
+drop table tmp;
+create table tmp (
+a varchar(50) charset ucs2 collate ucs2_spanish_ci,
+b varchar(50) charset ucs2 collate ucs2_spanish_ci primary key
+) engine=innodb;
+insert into tmp values ('AAA', 'AAA'), ('bbb', 'bbb');
+alter table tmp
+change a a varchar(50) charset utf16 collate utf16_spanish_ci,
+modify b varchar(50) charset utf16 collate utf16_spanish_ci,
+algorithm=instant;
+check table tmp;
+Table	Op	Msg_type	Msg_text
+test.tmp	check	status	OK
+drop table tmp;
+create table tmp (
+a varchar(50) charset ucs2 collate ucs2_general_ci,
+b varchar(50) charset ucs2 collate ucs2_general_ci primary key
+) engine=innodb;
+insert into tmp values ('AAA', 'AAA'), ('bbb', 'bbb');
+alter table tmp
+change a a varchar(50) charset utf16 collate utf16_general_ci,
+modify b varchar(50) charset utf16 collate utf16_general_ci,
+algorithm=instant;
+check table tmp;
+Table	Op	Msg_type	Msg_text
+test.tmp	check	status	OK
+drop table tmp;
+create table tmp (
 a varchar(50) charset ascii collate ascii_general_ci,
 b varchar(50) charset ascii collate ascii_general_ci primary key
 ) engine=innodb;
@@ -905,6 +1042,9 @@ insert into compatible_without_index (from_charset, from_collate, to_charset, to
 ('utf8mb3', 'utf8mb3_nopad_bin',        'utf8mb4', 'utf8mb4_vietnamese_ci'),
 ('ascii',  'ascii_general_ci',     'gbk',  'gbk_chinese_ci'),
 ('ascii',  'ascii_general_ci',     'gbk',  'gbk_chinese_nopad_ci'),
+('ucs2',  'ucs2_myanmar_ci',          'utf16', 'utf16_thai_520_w2'),
+('ucs2',  'ucs2_general_ci',          'utf16', 'utf16_unicode_nopad_ci'),
+('ucs2',  'ucs2_general_mysql500_ci', 'utf16', 'utf16_spanish2_ci'),
 ('ascii',   'ascii_general_ci',      'ascii',   'ascii_bin'),
 ('utf8mb3', 'utf8mb3_roman_ci',      'utf8mb3', 'utf8mb3_lithuanian_ci'),
 ('utf8mb4', 'utf8mb4_thai_520_w2',   'utf8mb4', 'utf8mb4_persian_ci'),
@@ -1275,6 +1415,57 @@ algorithm=instant;
 ERROR 0A000: ALGORITHM=INSTANT is not supported. Reason: Cannot change column type INPLACE. Try ALGORITHM=COPY
 drop table tmp;
 create table tmp (
+a varchar(50) charset ucs2 collate ucs2_myanmar_ci,
+b varchar(50) charset ucs2 collate ucs2_myanmar_ci unique key,
+c varchar(50) charset ucs2 collate ucs2_myanmar_ci primary key
+) engine=innodb;
+alter table tmp
+change a a varchar(50) charset utf16 collate utf16_thai_520_w2,
+algorithm=instant;
+alter table tmp
+modify b varchar(50) charset utf16 collate utf16_thai_520_w2,
+algorithm=instant;
+ERROR 0A000: ALGORITHM=INSTANT is not supported. Reason: Cannot change column type INPLACE. Try ALGORITHM=COPY
+alter table tmp
+modify c varchar(50) charset utf16 collate utf16_thai_520_w2,
+algorithm=instant;
+ERROR 0A000: ALGORITHM=INSTANT is not supported. Reason: Cannot change column type INPLACE. Try ALGORITHM=COPY
+drop table tmp;
+create table tmp (
+a varchar(50) charset ucs2 collate ucs2_general_ci,
+b varchar(50) charset ucs2 collate ucs2_general_ci unique key,
+c varchar(50) charset ucs2 collate ucs2_general_ci primary key
+) engine=innodb;
+alter table tmp
+change a a varchar(50) charset utf16 collate utf16_unicode_nopad_ci,
+algorithm=instant;
+alter table tmp
+modify b varchar(50) charset utf16 collate utf16_unicode_nopad_ci,
+algorithm=instant;
+ERROR 0A000: ALGORITHM=INSTANT is not supported. Reason: Cannot change column type INPLACE. Try ALGORITHM=COPY
+alter table tmp
+modify c varchar(50) charset utf16 collate utf16_unicode_nopad_ci,
+algorithm=instant;
+ERROR 0A000: ALGORITHM=INSTANT is not supported. Reason: Cannot change column type INPLACE. Try ALGORITHM=COPY
+drop table tmp;
+create table tmp (
+a varchar(50) charset ucs2 collate ucs2_general_mysql500_ci,
+b varchar(50) charset ucs2 collate ucs2_general_mysql500_ci unique key,
+c varchar(50) charset ucs2 collate ucs2_general_mysql500_ci primary key
+) engine=innodb;
+alter table tmp
+change a a varchar(50) charset utf16 collate utf16_spanish2_ci,
+algorithm=instant;
+alter table tmp
+modify b varchar(50) charset utf16 collate utf16_spanish2_ci,
+algorithm=instant;
+ERROR 0A000: ALGORITHM=INSTANT is not supported. Reason: Cannot change column type INPLACE. Try ALGORITHM=COPY
+alter table tmp
+modify c varchar(50) charset utf16 collate utf16_spanish2_ci,
+algorithm=instant;
+ERROR 0A000: ALGORITHM=INSTANT is not supported. Reason: Cannot change column type INPLACE. Try ALGORITHM=COPY
+drop table tmp;
+create table tmp (
 a varchar(50) charset ascii collate ascii_general_ci,
 b varchar(50) charset ascii collate ascii_general_ci unique key,
 c varchar(50) charset ascii collate ascii_general_ci primary key
@@ -1607,8 +1798,3 @@ algorithm=instant;
 ERROR 0A000: ALGORITHM=INSTANT is not supported. Reason: Cannot change column type INPLACE. Try ALGORITHM=COPY
 drop table tmp;
 drop table fully_incompatible;
-SELECT variable_value-@old_instant instants
-FROM information_schema.global_status
-WHERE variable_name = 'innodb_instant_alter_column';
-instants
-0

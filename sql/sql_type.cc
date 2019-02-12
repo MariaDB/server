@@ -8219,6 +8219,9 @@ static bool charsets_are_compatible(const char *old_cs_name,
     }
   }
 
+  if (!strcmp(old_cs_name, "ucs2") && !strcmp(new_cs_name, "utf16"))
+    return true;
+
   return false;
 }
 

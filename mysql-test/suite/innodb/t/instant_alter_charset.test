@@ -3,10 +3,6 @@
 
 set names utf8;
 
-SET @old_instant=
-  (SELECT variable_value FROM information_schema.global_status
-   WHERE variable_name = 'innodb_instant_alter_column');
-
 create table no_rebuild (
   a char(150) charset utf8mb3 collate utf8mb3_general_ci
 ) engine=innodb;
@@ -323,6 +319,17 @@ insert into fully_compatible (from_charset, from_collate, to_charset, to_collate
   ('utf8mb3', 'utf8mb3_unicode_nopad_ci',     'utf8mb4', 'utf8mb4_unicode_nopad_ci'),
   ('utf8mb3', 'utf8mb3_unicode_520_nopad_ci', 'utf8mb4', 'utf8mb4_unicode_520_nopad_ci'),
 
+  ('ucs2',    'ucs2_general_ci',       'utf16',   'utf16_general_ci'),
+  ('ucs2',    'ucs2_unicode_ci',       'utf16',   'utf16_unicode_ci'),
+  ('ucs2',    'ucs2_icelandic_ci',     'utf16',   'utf16_icelandic_ci'),
+  ('ucs2',    'ucs2_latvian_ci',       'utf16',   'utf16_latvian_ci'),
+  ('ucs2',    'ucs2_romanian_ci',      'utf16',   'utf16_romanian_ci'),
+  ('ucs2',    'ucs2_slovenian_ci',     'utf16',   'utf16_slovenian_ci'),
+  ('ucs2',    'ucs2_polish_ci',        'utf16',   'utf16_polish_ci'),
+  ('ucs2',    'ucs2_estonian_ci',      'utf16',   'utf16_estonian_ci'),
+  ('ucs2',    'ucs2_spanish_ci',       'utf16',   'utf16_spanish_ci'),
+  ('ucs2',    'ucs2_general_ci',       'utf16',   'utf16_general_ci'),
+
   ('ascii', 'ascii_general_ci',       'utf8mb3', 'utf8mb3_general_ci'),
   ('ascii', 'ascii_general_ci',       'utf8mb4', 'utf8mb4_general_ci'),
   ('ascii', 'ascii_general_ci',       'latin1', 'latin1_general_ci'),
@@ -402,6 +409,10 @@ insert into compatible_without_index (from_charset, from_collate, to_charset, to
 
   ('ascii',  'ascii_general_ci',     'gbk',  'gbk_chinese_ci'),
   ('ascii',  'ascii_general_ci',     'gbk',  'gbk_chinese_nopad_ci'),
+
+  ('ucs2',  'ucs2_myanmar_ci',          'utf16', 'utf16_thai_520_w2'),
+  ('ucs2',  'ucs2_general_ci',          'utf16', 'utf16_unicode_nopad_ci'),
+  ('ucs2',  'ucs2_general_mysql500_ci', 'utf16', 'utf16_spanish2_ci'),
 
   ('ascii',   'ascii_general_ci',      'ascii',   'ascii_bin'),
   ('utf8mb3', 'utf8mb3_roman_ci',      'utf8mb3', 'utf8mb3_lithuanian_ci'),
@@ -504,7 +515,3 @@ while ($counter <= $data_size) {
 }
 
 drop table fully_incompatible;
-
-SELECT variable_value-@old_instant instants
-  FROM information_schema.global_status
-  WHERE variable_name = 'innodb_instant_alter_column';
