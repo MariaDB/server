@@ -5,6 +5,7 @@
 binlog-format=row
 innodb-autoinc-lock-mode=2
 default-storage-engine=innodb
+auto_increment_increment=3
 
 wsrep-on=1
 wsrep-provider=@ENV.WSREP_PROVIDER
