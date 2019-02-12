@@ -31,6 +31,7 @@ static uint my_end_arg;
 
 static char *opt_charset_from = 0;
 static char *opt_charset_to = 0;
+static my_bool opt_continue = 0;
 
 static CHARSET_INFO *charset_info_from= &my_charset_latin1;
 static CHARSET_INFO *charset_info_to= &my_charset_latin1;
@@ -41,6 +42,9 @@ static struct my_option long_options[] =
    &opt_charset_from, 0, GET_STR, REQUIRED_ARG, 0, 0, 0, 0, 0, 0},
   {"to", 't', "Specifies the encoding of the output.", &opt_charset_to,
    &opt_charset_to, 0, GET_STR, REQUIRED_ARG, 0, 0, 0, 0, 0, 0},
+  {"continue", 'c', "When this option is given, characters that cannot be "
+   "converted are silently discarded, instead of leading to a conversion error.",
+   &opt_continue, &opt_continue, 0, GET_BOOL, NO_ARG, 0, 0, 0, 0, 0, 0},
   {0, 0, 0, 0, 0, 0, GET_NO_ARG, NO_ARG, 0, 0, 0, 0, 0, 0}
 };
 
@@ -159,8 +163,8 @@ static int convert(FILE *infile)
   {
     if (strchr(from, '\n'))
     {
-      int pos_lf = strlen(from) - 1;
-      int pos_cr = pos_lf - 1;
+      size_t pos_lf = strlen(from) - 1;
+      size_t pos_cr = pos_lf - 1;
       from[pos_lf] = '\0';
 #ifdef _WIN32
       if (from[pos_cr] == '\r')
@@ -177,7 +181,7 @@ static int convert(FILE *infile)
     length= strconvert(charset_info_from, from, FN_REFLEN,
                     charset_info_to, to, FN_REFLEN, &errors);
 
-    if (unlikely(!length || errors))
+    if (unlikely(!length || errors) && !opt_continue)
       return 1;
     else
       puts(to);

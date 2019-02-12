@@ -21,8 +21,10 @@ DROP TABLE IF EXISTS 測試資料,測試資料2;
 CREATE TABLE 測試資料 (foo INT);
 CREATE TABLE 測試資料2 (bar INT);
 --let $MYSQLD_DATADIR= `select @@datadir`
+--exec cd $MYSQLD_DATADIR && ls test/*.frm | sed -e s/\\./@002e/g -e s/\\//@002f/g | $MYSQL_CONV -f filename -t utf8
+--exec cd $MYSQLD_DATADIR && ls test/*.frm | $MYSQL_CONV -f filename -t utf8 -c
 --error 1
---exec ls $MYSQLD_DATADIR/test/*.frm | $MYSQL_CONV -f filename -t utf8
+--exec cd $MYSQLD_DATADIR && ls test/*.frm | $MYSQL_CONV -f filename -t utf8
 DROP TABLE 測試資料,測試資料2;
 
 # bulk convert with file

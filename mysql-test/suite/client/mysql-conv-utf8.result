@@ -8,6 +8,10 @@ SET NAMES utf8;
 DROP TABLE IF EXISTS 測試資料,測試資料2;
 CREATE TABLE 測試資料 (foo INT);
 CREATE TABLE 測試資料2 (bar INT);
+test/測試資料.frm
+test/測試資料2.frm
+test?測試資料?frm
+test?測試資料2?frm
 DROP TABLE 測試資料,測試資料2;
 
 

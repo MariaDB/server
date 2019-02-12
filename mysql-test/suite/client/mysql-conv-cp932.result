@@ -8,6 +8,10 @@ SET NAMES cp932;
 DROP TABLE IF EXISTS ‘ªŽŽŽ‘—¿,‘ªŽŽŽ‘—¿2;
 CREATE TABLE ‘ªŽŽŽ‘—¿ (foo INT);
 CREATE TABLE ‘ªŽŽŽ‘—¿2 (bar INT);
+test/‘ªŽŽŽ‘—¿.frm
+test/‘ªŽŽŽ‘—¿2.frm
+test?‘ªŽŽŽ‘—¿?frm
+test?‘ªŽŽŽ‘—¿2?frm
 DROP TABLE ‘ªŽŽŽ‘—¿,‘ªŽŽŽ‘—¿2;
 
 
