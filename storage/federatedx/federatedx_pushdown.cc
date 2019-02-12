@@ -19,6 +19,9 @@
 static derived_handler*
 create_federatedx_derived_handler(THD* thd, TABLE_LIST *derived)
 {
+  if (!use_pushdown)
+    return 0;
+
   ha_federatedx_derived_handler* handler = NULL;
   handlerton *ht= 0;
 
@@ -144,6 +147,9 @@ void ha_federatedx_derived_handler::print_error(int, unsigned long)
 static select_handler*
 create_federatedx_select_handler(THD* thd, SELECT_LEX *sel)
 {
+  if (!use_pushdown)
+    return 0;
+
   ha_federatedx_select_handler* handler = NULL;
   handlerton *ht= 0;
 

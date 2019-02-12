@@ -3677,10 +3677,16 @@ err1:
   return error;
 }
 
-#include "federatedx_pushdown.cc"
 
 struct st_mysql_storage_engine federatedx_storage_engine=
 { MYSQL_HANDLERTON_INTERFACE_VERSION };
+
+my_bool use_pushdown;
+static MYSQL_SYSVAR_BOOL(pushdown, use_pushdown, 0,
+  "Use query fragments pushdown capabilities", NULL, NULL, FALSE);
+static struct st_mysql_sys_var* sysvars[]= { MYSQL_SYSVAR(pushdown) };
+
+#include "federatedx_pushdown.cc"
 
 maria_declare_plugin(federatedx)
 {
@@ -3694,7 +3700,7 @@ maria_declare_plugin(federatedx)
   federatedx_done, /* Plugin Deinit */
   0x0201 /* 2.1 */,
   NULL,                       /* status variables                */
-  NULL,                       /* system variables                */
+  sysvars,                    /* system variables                */
   "2.1",                      /* string version */
   MariaDB_PLUGIN_MATURITY_STABLE /* maturity */
 }
