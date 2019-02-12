@@ -10,7 +10,12 @@ IF(GIT_EXECUTABLE AND EXISTS "${CMAKE_SOURCE_DIR}/.git")
                   WORKING_DIRECTORY "${CMAKE_SOURCE_DIR}"
                   OUTPUT_VARIABLE cmake_update_submodules
                   RESULT_VARIABLE git_config_get_result)
-  IF(git_config_get_result EQUAL 128 OR cmake_update_submodules MATCHES no)
+  IF(cmake_update_submodules MATCHES no)
+    SET(update_result 0)
+    SET(SUBMODULE_UPDATE_CONFIG_MESSAGE
+"\n\nTo update submodules automaticly, set cmake.update-submodules to 'yes', or 'force' to update automaticly:
+    ${GIT_EXECUTABLE} config cmake.update-submodules yes")
+  ELSEIF(git_config_get_result EQUAL 128)
     SET(update_result 0)
   ELSEIF (cmake_update_submodules MATCHES force)
     MESSAGE(STATUS "Updating submodules (forced)")
@@ -31,7 +36,6 @@ ENDIF()
 
 IF(update_result OR NOT EXISTS ${CMAKE_SOURCE_DIR}/libmariadb/CMakeLists.txt)
   MESSAGE(FATAL_ERROR "No MariaDB Connector/C! Run
-    git submodule update --init
-Then restart the build.
-")
+    ${GIT_EXECUTABLE} submodule update --init
+Then restart the build.${SUBMODULE_UPDATE_CONFIG_MESSAGE}")
 ENDIF()
