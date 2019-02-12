@@ -297,7 +297,6 @@ extern "C" MYSQL_PLUGIN_IMPORT char **orig_argv;
 extern pthread_attr_t connection_attrib;
 extern my_bool old_mode;
 extern LEX_STRING opt_init_connect, opt_init_slave;
-extern int bootstrap_error;
 extern char err_shared_dir[];
 extern ulong connection_errors_select;
 extern ulong connection_errors_accept;
@@ -394,7 +393,7 @@ extern PSI_cond_key key_COND_rpl_thread, key_COND_rpl_thread_queue,
 extern PSI_cond_key key_COND_wait_gtid, key_COND_gtid_ignore_duplicates;
 extern PSI_cond_key key_TABLE_SHARE_COND_rotation;
 
-extern PSI_thread_key key_thread_bootstrap, key_thread_delayed_insert,
+extern PSI_thread_key key_thread_delayed_insert,
   key_thread_handle_manager, key_thread_kill_server, key_thread_main,
   key_thread_one_connection, key_thread_signal_hand,
   key_thread_slave_background, key_rpl_parallel_thread;

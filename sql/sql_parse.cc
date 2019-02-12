@@ -979,8 +979,9 @@ static char *fgets_fn(char *buffer, size_t size, fgets_input_t input, int *error
 }
 
 
-void bootstrap(MYSQL_FILE *file)
+int bootstrap(MYSQL_FILE *file)
 {
+  int bootstrap_error= 0;
   DBUG_ENTER("handle_bootstrap");
 
   THD *thd= new THD(next_thread_id());
@@ -1105,7 +1106,7 @@ void bootstrap(MYSQL_FILE *file)
     thd->lex->restore_set_statement_var();
   }
   delete thd;
-  DBUG_VOID_RETURN;
+  DBUG_RETURN(bootstrap_error);
 }
 
 
