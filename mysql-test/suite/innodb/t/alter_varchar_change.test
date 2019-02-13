@@ -307,6 +307,30 @@ SHOW CREATE TABLE t1;
 DROP TABLE t1;
 
 CREATE TABLE t1(f1 INT NOT NULL,
+		f2 VARCHAR(128),
+		INDEX idx(f2(40)))ENGINE=InnoDB;
+
+CALL get_table_id("test/t1", @tbl_id);
+ALTER TABLE t1 MODIFY f2 VARCHAR(300);
+CALL get_table_id("test/t1", @tbl1_id);
+
+SELECT @tbl1_id = @tbl_id;
+SHOW CREATE TABLE t1;
+DROP TABLE t1;
+
+CREATE TABLE t1(f1 INT NOT NULL,
+		f2 VARCHAR(128),
+		INDEX idx(f2(40)))ENGINE=InnoDB ROW_FORMAT=REDUNDANT;
+
+CALL get_table_id("test/t1", @tbl_id);
+ALTER TABLE t1 MODIFY f2 VARCHAR(300);
+CALL get_table_id("test/t1", @tbl1_id);
+
+SELECT @tbl1_id = @tbl_id;
+SHOW CREATE TABLE t1;
+DROP TABLE t1;
+
+CREATE TABLE t1(f1 INT NOT NULL,
 		f2 VARCHAR(100),
 		INDEX idx(f2(40)))ENGINE=InnoDB;
 

@@ -1,6 +1,6 @@
 /*
    Copyright (c) 2000, 2017, Oracle and/or its affiliates.
-   Copyright (c) 2008, 2017, MariaDB
+   Copyright (c) 2008, 2019, MariaDB
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -7063,9 +7063,16 @@ uint Field::is_equal(Create_field *new_field)
 
 uint Field_str::is_equal(Create_field *new_field)
 {
-  return new_field->type_handler() == type_handler() &&
-         new_field->charset == field_charset &&
-         new_field->length == max_display_length();
+  if (new_field->type_handler() == type_handler() &&
+      new_field->charset == field_charset)
+  {
+    if (new_field->length == max_display_length())
+      return IS_EQUAL_YES;
+    if (new_field->length > max_display_length() &&
+        (table->file->ha_table_flags() & HA_EXTENDED_TYPES_CONVERSION))
+      return IS_EQUAL_PACK_LENGTH_EXT;
+  }
+  return IS_EQUAL_NO;
 }
 
 
@@ -7901,16 +7908,28 @@ Field *Field_varstring::new_key_field(MEM_ROOT *root, TABLE *new_table,
 
 uint Field_varstring::is_equal(Create_field *new_field)
 {
-  if (new_field->type_handler() == type_handler() &&
-      new_field->charset == field_charset &&
+  if (new_field->length < field_length)
+    return IS_EQUAL_NO;
+
+  if (new_field->charset == field_charset &&
       !new_field->compression_method() == !compression_method())
   {
-    if (new_field->length == field_length)
-      return IS_EQUAL_YES;
-    if (new_field->length > field_length &&
-	((new_field->length <= 255 && field_length <= 255) ||
-	 (new_field->length > 255 && field_length > 255)))
-      return IS_EQUAL_PACK_LENGTH; // VARCHAR, longer variable length
+    const Type_handler *new_type_handler= new_field->type_handler();
+    if (new_type_handler == type_handler())
+    {
+      if (new_field->length == field_length)
+        return IS_EQUAL_YES;
+      if (field_length <= 127 ||
+          new_field->length <= 255 ||
+          field_length > 255 ||
+	  (table->file->ha_table_flags() & HA_EXTENDED_TYPES_CONVERSION))
+        return IS_EQUAL_PACK_LENGTH; // VARCHAR, longer length
+    }
+    else if (new_type_handler == &type_handler_string) // converting to CHAR
+    {
+      if (table->file->ha_table_flags() & HA_EXTENDED_TYPES_CONVERSION)
+        return IS_EQUAL_PACK_LENGTH_EXT;
+    }
   }
   return IS_EQUAL_NO;
 }
@@ -9480,12 +9499,22 @@ bool Field_num::eq_def(const Field *field) const
 
 uint Field_num::is_equal(Create_field *new_field)
 {
-  return ((new_field->type_handler() == type_handler()) &&
-          ((new_field->flags & UNSIGNED_FLAG) == 
-           (uint) (flags & UNSIGNED_FLAG)) &&
-	  ((new_field->flags & AUTO_INCREMENT_FLAG) ==
-	   (uint) (flags & AUTO_INCREMENT_FLAG)) &&
-          (new_field->pack_length == pack_length()));
+  if ((new_field->flags ^ flags) & (UNSIGNED_FLAG | AUTO_INCREMENT_FLAG))
+    return IS_EQUAL_NO;
+
+  const Type_handler *th= type_handler(), *new_th = new_field->type_handler();
+
+  if (th == new_th && new_field->pack_length == pack_length())
+    return IS_EQUAL_YES;
+
+  if (table->file->ha_table_flags() & HA_EXTENDED_TYPES_CONVERSION)
+  {
+    if (th->result_type() == new_th->result_type() &&
+        new_field->pack_length >= pack_length())
+      return IS_EQUAL_PACK_LENGTH_EXT;
+  }
+
+  return IS_EQUAL_NO;
 }
 
 
@@ -10733,6 +10762,7 @@ Column_definition::redefine_stage1_common(const Column_definition *dup_field,
   interval=     dup_field->interval;
   vcol_info=    dup_field->vcol_info;
   invisible=    dup_field->invisible;
+  check_constraint= dup_field->check_constraint;
 }
 
 

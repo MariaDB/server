@@ -33,7 +33,7 @@ CREATE TABLE t1 (f1 INTEGER PRIMARY KEY) ENGINE=InnoDB;
 SELECT COUNT(*) = 20000 FROM t1;
 # LOAD-ing 20K rows causes 3 commits to be registered
 --disable_query_log
---eval SELECT $wsrep_last_committed_after - $wsrep_last_committed_before = 3 AS wsrep_last_committed_diff;
+--eval SELECT $wsrep_last_committed_after - $wsrep_last_committed_before = 3 AS wsrep_last_committed_diff
 --enable_query_log
 
 DROP TABLE t1;

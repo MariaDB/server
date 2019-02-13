@@ -84,6 +84,7 @@ static const alter_table_operations INNOBASE_ALTER_REBUILD
 	| ALTER_OPTIONS
 	/* ALTER_OPTIONS needs to check alter_options_need_rebuild() */
 	| ALTER_COLUMN_NULLABLE
+	| ALTER_COLUMN_EQUAL_PACK_LENGTH_EXT
 	| INNOBASE_DEFAULTS
 	| ALTER_STORED_COLUMN_ORDER
 	| ALTER_DROP_STORED_COLUMN
@@ -268,7 +269,7 @@ inline void dict_table_t::prepare_instant(const dict_table_t& old,
 			ut_ad(!not_redundant());
 			for (unsigned i = index.n_fields; i--; ) {
 				ut_ad(index.fields[i].col->same_format(
-					      *oindex.fields[i].col));
+					      *oindex.fields[i].col, true));
 			}
 		}
 #endif
@@ -456,9 +457,13 @@ inline void dict_index_t::instant_add_field(const dict_index_t& instant)
 	as this index. Fields for any added columns are appended at the end. */
 #ifndef DBUG_OFF
 	for (unsigned i = 0; i < n_fields; i++) {
-		DBUG_ASSERT(fields[i].same(instant.fields[i]));
-		DBUG_ASSERT(instant.fields[i].col->same_format(*fields[i]
-							       .col));
+		DBUG_ASSERT(fields[i].prefix_len
+			    == instant.fields[i].prefix_len);
+		DBUG_ASSERT(fields[i].fixed_len
+			    == instant.fields[i].fixed_len
+			    || !table->not_redundant());
+		DBUG_ASSERT(instant.fields[i].col->same_format(
+				    *fields[i].col, !table->not_redundant()));
 		/* Instant conversion from NULL to NOT NULL is not allowed. */
 		DBUG_ASSERT(!fields[i].col->is_nullable()
 			    || instant.fields[i].col->is_nullable());
@@ -534,10 +539,7 @@ inline bool dict_table_t::instant_column(const dict_table_t& table,
 
 		if (const dict_col_t* o = find(old_cols, col_map, n_cols, i)) {
 			c.def_val = o->def_val;
-			DBUG_ASSERT(!((c.prtype ^ o->prtype)
-				      & ~(DATA_NOT_NULL | DATA_VERSIONED)));
-			DBUG_ASSERT(c.mtype == o->mtype);
-			DBUG_ASSERT(c.len >= o->len);
+			ut_ad(c.same_format(*o, !not_redundant()));
 
 			if (o->vers_sys_start()) {
 				ut_ad(o->ind == vers_start);
@@ -1505,7 +1507,8 @@ instant_alter_column_possible(
 		= ALTER_ADD_STORED_BASE_COLUMN
 		| ALTER_DROP_STORED_COLUMN
 		| ALTER_STORED_COLUMN_ORDER
-		| ALTER_COLUMN_NULLABLE;
+		| ALTER_COLUMN_NULLABLE
+		| ALTER_COLUMN_EQUAL_PACK_LENGTH_EXT;
 
 	if (!(ha_alter_info->handler_flags & avoid_rebuild)) {
 		alter_table_operations flags = ha_alter_info->handler_flags
@@ -1548,6 +1551,7 @@ instant_alter_column_possible(
 	       & ~ALTER_STORED_COLUMN_ORDER
 	       & ~ALTER_ADD_STORED_BASE_COLUMN
 	       & ~ALTER_COLUMN_NULLABLE
+	       & ~ALTER_COLUMN_EQUAL_PACK_LENGTH_EXT
 	       & ~ALTER_OPTIONS)) {
 		return false;
 	}
@@ -1747,6 +1751,10 @@ ha_innobase::check_if_supported_inplace_alter(
 	Alter_inplace_info*	ha_alter_info)
 {
 	DBUG_ENTER("check_if_supported_inplace_alter");
+
+	DBUG_ASSERT(!(ALTER_COLUMN_EQUAL_PACK_LENGTH_EXT
+		      & ha_alter_info->handler_flags)
+		    || !m_prebuilt->table->not_redundant());
 
 	if ((ha_alter_info->handler_flags
 	     & INNOBASE_ALTER_VERSIONED_REBUILD)
@@ -2943,7 +2951,7 @@ innobase_col_to_mysql(
 
 	switch (col->mtype) {
 	case DATA_INT:
-		ut_ad(len == flen);
+		ut_ad(len <= flen);
 
 		/* Convert integer data from Innobase to little-endian
 		format, sign bit restored to normal */
@@ -5583,7 +5591,8 @@ static bool innobase_instant_try(
 
 		bool update = old && (!ctx->first_alter_pos
 				      || i < ctx->first_alter_pos - 1);
-		DBUG_ASSERT(!old || col->same_format(*old));
+		ut_ad(!old || col->same_format(
+			      *old, !user_table->not_redundant()));
 		if (update
 		    && old->prtype == d->type.prtype) {
 			/* The record is already present in SYS_COLUMNS. */
@@ -5672,6 +5681,8 @@ add_all_virtual:
 		NULL, trx, ctx->heap, NULL);
 
 	dberr_t err = DB_SUCCESS;
+	DBUG_EXECUTE_IF("ib_instant_error",
+			err = DB_OUT_OF_FILE_SPACE; goto func_exit;);
 	if (rec_is_metadata(rec, *index)) {
 		ut_ad(page_rec_is_user_rec(rec));
 		if (!page_has_next(block->frame)
@@ -9050,12 +9061,16 @@ innobase_enlarge_column_try(
 #ifdef UNIV_DEBUG
 	ut_ad(col->len < new_len);
 	switch (col->mtype) {
+	case DATA_FIXBINARY:
+	case DATA_CHAR:
 	case DATA_MYSQL:
 		/* NOTE: we could allow this when !(prtype & DATA_BINARY_TYPE)
 		and ROW_FORMAT is not REDUNDANT and mbminlen<mbmaxlen.
 		That is, we treat a UTF-8 CHAR(n) column somewhat like
 		a VARCHAR. */
-		ut_error;
+		if (user_table->not_redundant()) {
+			ut_error;
+		}
 	case DATA_BINARY:
 	case DATA_VARCHAR:
 	case DATA_VARMYSQL:
@@ -9188,14 +9203,16 @@ innobase_rename_or_enlarge_columns_cache(
 			ulint	col_n = is_virtual ? num_v : i - num_v;
 
 			if ((*fp)->is_equal(cf) == IS_EQUAL_PACK_LENGTH) {
-				if (is_virtual) {
-					dict_table_get_nth_v_col(
-						user_table, col_n)->m_col.len
-					= cf->length;
-				} else {
-					dict_table_get_nth_col(
-						user_table, col_n)->len
-					= cf->length;
+				dict_col_t *col = is_virtual ?
+					&dict_table_get_nth_v_col(
+						user_table, col_n)->m_col
+					: dict_table_get_nth_col(
+						user_table, col_n);
+				col->len = cf->length;
+				if (col->len > 255
+				    && (col->prtype & DATA_MYSQL_TRUE_VARCHAR)
+				    == DATA_MYSQL_TRUE_VARCHAR) {
+					col->prtype |= DATA_LONG_TRUE_VARCHAR;
 				}
 			}
 

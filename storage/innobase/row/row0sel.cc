@@ -2742,12 +2742,15 @@ row_sel_field_store_in_mysql_format_func(
 			dest[len - 1] = (byte) (dest[len - 1] ^ 128);
 		}
 
-		ut_ad(templ->mysql_col_len == len);
+		ut_ad(templ->mysql_col_len == len
+		      || !index->table->not_redundant());
 		break;
 
 	case DATA_VARCHAR:
 	case DATA_VARMYSQL:
 	case DATA_BINARY:
+	case DATA_CHAR:
+	case DATA_FIXBINARY:
 		field_end = dest + templ->mysql_col_len;
 
 		if (templ->mysql_type == DATA_MYSQL_TRUE_VARCHAR) {
@@ -2835,7 +2838,8 @@ row_sel_field_store_in_mysql_format_func(
 		ut_ad(len * templ->mbmaxlen >= templ->mysql_col_len
 		      || (field_no == templ->icp_rec_field_no
 			  && field->prefix_len > 0)
-		      || templ->rec_field_is_prefix);
+		      || templ->rec_field_is_prefix
+		      || !index->table->not_redundant());
 
 		ut_ad(templ->is_virtual
 		      || !(field->prefix_len % templ->mbmaxlen));
@@ -2857,8 +2861,6 @@ row_sel_field_store_in_mysql_format_func(
 		ut_ad(0);
 		/* fall through */
 
-	case DATA_CHAR:
-	case DATA_FIXBINARY:
 	case DATA_FLOAT:
 	case DATA_DOUBLE:
 	case DATA_DECIMAL:

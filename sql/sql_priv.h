@@ -1,5 +1,5 @@
 /* Copyright (c) 2000, 2018, Oracle and/or its affiliates.
-   Copyright (c) 2010, 2018, Monty Program Ab.
+   Copyright (c) 2010, 2019, MariaDB
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -345,11 +345,21 @@
 #ifndef MYSQL_CLIENT
 
 /*
-  Some defines for exit codes for ::is_equal class functions.
+  Field::is_equal() return codes.
 */
 #define IS_EQUAL_NO 0
 #define IS_EQUAL_YES 1
+/**
+  new_field has compatible packed representation with old type,
+  so it is theoretically possible to perform change by only updating
+  data dictionary without changing table rows
+*/
 #define IS_EQUAL_PACK_LENGTH 2
+/**
+  new_field has a representation that is compatible with the old type
+  when the storage engine advertises HA_EXTENDED_TYPES_CONVERSION
+*/
+#define IS_EQUAL_PACK_LENGTH_EXT 3
 
 enum enum_parsing_place
 {

@@ -1,7 +1,7 @@
 /*****************************************************************************
 
 Copyright (c) 1996, 2015, Oracle and/or its affiliates. All Rights Reserved.
-Copyright (c) 2017, 2018, MariaDB Corporation.
+Copyright (c) 2017, 2019, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -24,7 +24,8 @@ Data types
 Created 1/16/1996 Heikki Tuuri
 *******************************************************/
 
-#include "data0type.h"
+#include "dict0mem.h"
+#include "my_sys.h"
 
 /** The DB_TRX_ID,DB_ROLL_PTR values for "no history is available" */
 const byte reset_trx_id[DATA_TRX_ID_LEN + DATA_ROLL_PTR_LEN] = {
@@ -158,6 +159,22 @@ dtype_validate(
 	ut_a(dtype_get_mbminlen(type) <= dtype_get_mbmaxlen(type));
 
 	return(TRUE);
+}
+
+bool dict_col_t::same_charset(const dict_col_t& other) const
+{
+	if (dtype_is_non_binary_string_type(mtype, prtype)
+	    && dtype_is_non_binary_string_type(other.mtype, other.prtype)) {
+		uint csn1 = (uint) dtype_get_charset_coll(prtype);
+		uint csn2 = (uint) dtype_get_charset_coll(other.prtype);
+		CHARSET_INFO* cs1 = get_charset(csn1, MYF(MY_WME));
+		CHARSET_INFO* cs2 = get_charset(csn2, MYF(MY_WME));
+		if (!my_charset_same(cs1, cs2)) {
+			return false;
+		}
+	}
+
+	return true;
 }
 
 #ifdef UNIV_DEBUG

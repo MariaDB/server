@@ -6690,6 +6690,10 @@ field_spec:
             $$= $<create_field>2;
 
             $$->check_constraint= $4;
+            if (!$4 && lex->last_field->type_handler()->is_json_type() &&
+                !($$->check_constraint= make_json_valid_expr(thd,
+                                                             &$$->field_name)))
+              MYSQL_YYABORT;
 
             if (unlikely($$->check(thd)))
               MYSQL_YYABORT;
@@ -7083,7 +7087,7 @@ field_type_lob:
         | JSON_SYM
           {
             Lex->charset= &my_charset_utf8mb4_bin;
-            $$.set(&type_handler_long_blob);
+            $$.set(&type_handler_json);
           }
         ;
 
