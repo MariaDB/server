@@ -6796,7 +6796,12 @@ int Field_datetime::set_time()
   THD *thd= table->in_use;
   set_notnull();
   // Here we always truncate (not round), no matter what sql_mode is
-  store_datetime(Datetime(thd, thd->query_start_timeval()).trunc(decimals()));
+  if (decimals())
+    store_datetime(Datetime(thd, Timeval(thd->query_start(),
+                                         thd->query_start_sec_part())
+                            ).trunc(decimals()));
+  else
+    store_datetime(Datetime(thd, Timeval(thd->query_start(), 0)));
   return 0;
 }
 
