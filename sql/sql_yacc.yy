@@ -1151,6 +1151,7 @@ bool my_yyoverflow(short **a, YYSTYPE **b, size_t *yystacksize);
   Non-reserved keywords
 */
 
+%token  <kwd>  ACCOUNT_SYM                   /* MYSQL */
 %token  <kwd>  ACTION                        /* SQL-2003-N */
 %token  <kwd>  ADMIN_SYM                     /* SQL-2003-N */
 %token  <kwd>  ADDDATE_SYM                   /* MYSQL-FUNC */
@@ -2911,7 +2912,7 @@ create:
             Lex->pop_select(); //main select
           }
         | create_or_replace USER_SYM opt_if_not_exists clear_privileges
-          grant_list opt_require_clause opt_resource_options
+          grant_list opt_require_clause opt_resource_options opt_account_locking
           {
             if (unlikely(Lex->set_command_with_check(SQLCOM_CREATE_USER,
                                                      $1 | $3)))
@@ -3318,6 +3319,7 @@ clear_privileges:
            lex->ssl_type= SSL_TYPE_NOT_SPECIFIED;
            lex->ssl_cipher= lex->x509_subject= lex->x509_issuer= 0;
            bzero((char *)&(lex->mqh),sizeof(lex->mqh));
+           lex->account_options.reset();
          }
         ;
 
@@ -7979,7 +7981,7 @@ alter:
           } OPTIONS_SYM '(' server_options_list ')' { }
           /* ALTER USER foo is allowed for MySQL compatibility. */
         | ALTER opt_if_exists USER_SYM clear_privileges grant_list
-          opt_require_clause opt_resource_options
+          opt_require_clause opt_resource_options opt_account_locking
           {
             Lex->create_info.set($2);
             Lex->sql_command= SQLCOM_ALTER_USER;
@@ -8015,6 +8017,18 @@ alter:
             Lex->pop_select(); //main select
             if (Lex->check_main_unit_semantics())
               MYSQL_YYABORT;
+          }
+        ;
+
+opt_account_locking:
+        /* Nothing */ {}
+        | ACCOUNT_SYM LOCK_SYM
+          {
+            Lex->account_options.account_locked= ACCOUNTLOCK_LOCKED;
+          }
+        | ACCOUNT_SYM UNLOCK_SYM
+          {
+            Lex->account_options.account_locked= ACCOUNTLOCK_UNLOCKED;
           }
         ;
 
@@ -15855,6 +15869,7 @@ keyword_data_type:
 */
 keyword_sp_var_and_label:
           ACTION
+        | ACCOUNT_SYM
         | ADDDATE_SYM
         | ADMIN_SYM
         | AFTER_SYM

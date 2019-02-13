@@ -643,6 +643,7 @@ ALTER TABLE user ADD plugin char(64) CHARACTER SET latin1 DEFAULT '' NOT NULL,
 ALTER TABLE user MODIFY plugin char(64) CHARACTER SET latin1 DEFAULT '' NOT NULL,
                  MODIFY authentication_string TEXT NOT NULL;
 ALTER TABLE user ADD password_expired ENUM('N', 'Y') COLLATE utf8_general_ci DEFAULT 'N' NOT NULL;
+ALTER TABLE user ADD account_locked enum('N', 'Y') COLLATE utf8_general_ci DEFAULT 'N' NOT NULL after password_expired;
 ALTER TABLE user ADD is_role enum('N', 'Y') COLLATE utf8_general_ci DEFAULT 'N' NOT NULL;
 ALTER TABLE user ADD default_role char(80) binary DEFAULT '' NOT NULL;
 ALTER TABLE user ADD max_statement_time decimal(12,6) DEFAULT 0 NOT NULL;
@@ -804,6 +805,7 @@ IF 'BASE TABLE' = (select table_type from information_schema.tables where table_
                     'max_statement_time', max_statement_time,
                     'plugin', if(plugin>'',plugin,if(length(password)=16,'mysql_old_password','mysql_native_password')),
                     'authentication_string', if(plugin>'' and authentication_string>'',authentication_string,password),
+                    'account_locked', 'Y'=account_locked,
                     'default_role', default_role,
                     'is_role', 'Y'=is_role)) as Priv
   FROM user;
