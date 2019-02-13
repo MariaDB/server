@@ -3684,7 +3684,7 @@ struct st_mysql_storage_engine federatedx_storage_engine=
 my_bool use_pushdown;
 static MYSQL_SYSVAR_BOOL(pushdown, use_pushdown, 0,
   "Use query fragments pushdown capabilities", NULL, NULL, FALSE);
-static struct st_mysql_sys_var* sysvars[]= { MYSQL_SYSVAR(pushdown) };
+static struct st_mysql_sys_var* sysvars[]= { MYSQL_SYSVAR(pushdown), NULL };
 
 #include "federatedx_pushdown.cc"
 
