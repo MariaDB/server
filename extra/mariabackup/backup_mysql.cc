@@ -867,83 +867,6 @@ stop_query_killer()
 	os_event_wait_time(kill_query_thread_stopped, 60000);
 }
 
-
-/*
-Killing connections that wait for MDL lock.
-If lock-ddl-per-table is used, there can be some DDL statements
-
-FLUSH TABLES would hang infinitely, if DDL statements are waiting for
-MDL lock, which mariabackup currently holds. Therefore we start killing
-those  statements from a dedicated thread, until FLUSH TABLES WITH READ LOCK
-succeeds.
-*/
-
-static os_event_t mdl_killer_stop_event;
-static os_event_t mdl_killer_finished_event;
-
-static
-os_thread_ret_t
-DECLARE_THREAD(kill_mdl_waiters_thread(void *))
-{
-	MYSQL	*mysql;
-	if ((mysql = xb_mysql_connect()) == NULL) {
-		msg("Error: kill mdl waiters thread failed to connect");
-		goto stop_thread;
-	}
-
-	for(;;){
-		if (os_event_wait_time(mdl_killer_stop_event, 1000) == 0)
-			break;
-
-		MYSQL_RES *result = xb_mysql_query(mysql,
-			"SELECT ID, COMMAND, INFO FROM INFORMATION_SCHEMA.PROCESSLIST "
-			" WHERE State='Waiting for table metadata lock'",
-			true, true);
-		while (MYSQL_ROW row = mysql_fetch_row(result))
-		{
-			char query[64];
-
-			if (row[1] && !strcmp(row[1], "Killed"))
-				continue;
-
-			msg("Killing MDL waiting %s ('%s') on connection %s",
-				row[1], row[2], row[0]);
-			snprintf(query, sizeof(query), "KILL QUERY %s", row[0]);
-			if (mysql_query(mysql, query) && (mysql_errno(mysql) != ER_NO_SUCH_THREAD)) {
-				die("failed to execute query %s: %s", query,mysql_error(mysql));
-			}
-		}
-		mysql_free_result(result);
-	}
-
-	mysql_close(mysql);
-
-stop_thread:
-	msg("Kill mdl waiters thread stopped");
-	os_event_set(mdl_killer_finished_event);
-	os_thread_exit();
-	return os_thread_ret_t(0);
-}
-
-
-static void start_mdl_waiters_killer()
-{
-	mdl_killer_stop_event = os_event_create(0);
-	mdl_killer_finished_event = os_event_create(0);
-	os_thread_create(kill_mdl_waiters_thread, 0, 0);
-}
-
-
-/* Tell MDL killer to stop and finish for its completion*/
-static void stop_mdl_waiters_killer()
-{
-	os_event_set(mdl_killer_stop_event);
-	os_event_wait(mdl_killer_finished_event);
-
-	os_event_destroy(mdl_killer_stop_event);
-	os_event_destroy(mdl_killer_finished_event);
-}
-
 /*********************************************************************//**
 Function acquires either a backup tables lock, if supported
 by the server, or a global read lock (FLUSH TABLES WITH READ LOCK)
@@ -964,10 +887,6 @@ lock_tables(MYSQL *connection)
 		msg("Executing LOCK TABLES FOR BACKUP...");
 		xb_mysql_query(connection, "LOCK TABLES FOR BACKUP", false);
 		return(true);
-	}
-
-	if (opt_lock_ddl_per_table) {
-		start_mdl_waiters_killer();
 	}
 
 	if (!opt_lock_wait_timeout && !opt_kill_long_queries_timeout) {
@@ -1009,11 +928,6 @@ lock_tables(MYSQL *connection)
 	}
 
 	xb_mysql_query(connection, "FLUSH TABLES WITH READ LOCK", false);
-
-	if (opt_lock_ddl_per_table) {
-		stop_mdl_waiters_killer();
-	}
-
 	if (opt_kill_long_queries_timeout) {
 		stop_query_killer();
 	}
@@ -1029,7 +943,7 @@ not in the --no-lock mode and the lock has not been acquired already.
 bool
 lock_binlog_maybe(MYSQL *connection)
 {
-	if (have_backup_locks && !opt_no_lock && !binlog_locked) {
+	if (have_backup_locks && !binlog_locked) {
 		msg("Executing LOCK BINLOG FOR BACKUP...");
 		xb_mysql_query(connection, "LOCK BINLOG FOR BACKUP", false);
 		binlog_locked = true;
@@ -1779,37 +1693,3 @@ mdl_lock_init()
 
   xb_mysql_query(mdl_con, "BEGIN", false, true);
 }
-
-void
-mdl_lock_table(ulint space_id)
-{
-  if (space_id == 0)
-    return;
-
-  std::string full_table_name = spaceid_to_tablename[space_id];
-
-  DBUG_EXECUTE_IF("rename_during_mdl_lock_table",
-    if (full_table_name == "`test`.`t1`")
-      xb_mysql_query(mysql_connection, "RENAME TABLE test.t1 to test.t2", false, true);
-  );
-
-  std::ostringstream lock_query;
-  lock_query << "SELECT 1 FROM " << full_table_name  << " LIMIT 0";
-  msg("Locking MDL for %s", full_table_name.c_str());
-  if (mysql_query(mdl_con, lock_query.str().c_str())) {
-      msg("Warning : locking MDL failed for space id %zu, name %s", space_id, full_table_name.c_str());
-  } else {
-      MYSQL_RES *r = mysql_store_result(mdl_con);
-      mysql_free_result(r);
-  }
-}
-
-void
-mdl_unlock_all()
-{
-  msg("Unlocking MDL for all tables");
-  xb_mysql_query(mdl_con, "COMMIT", false, true);
-  mysql_close(mdl_con);
-  spaceid_to_tablename.clear();
-}
-

@@ -295,7 +295,7 @@ extern LOGGER logger;
 
 my_bool opt_galera_info = FALSE;
 my_bool opt_slave_info = FALSE;
-my_bool opt_no_lock = FALSE;
+my_bool opt_no_lock_deprecated = FALSE;
 my_bool opt_safe_slave_backup = FALSE;
 my_bool opt_rsync = FALSE;
 my_bool opt_force_non_empty_dirs = FALSE;
@@ -304,7 +304,7 @@ my_bool opt_no_backup_locks = FALSE;
 my_bool opt_decompress = FALSE;
 my_bool opt_remove_original;
 
-my_bool opt_lock_ddl_per_table = FALSE;
+my_bool opt_lock_ddl_per_table_deprecated = FALSE;
 static my_bool opt_check_privileges;
 
 static const char *binlog_info_values[] = {"off", "lockless", "on", "auto",
@@ -499,6 +499,9 @@ Execute query from a new connection, in own thread.
 @param expected_errno - if not 0, and query finished with error,
 	expected mysql_errno()
 */
+// TODO: remove "unused" attribute when use it, the function can be used in
+// the future for debug and testing
+__attribute__((unused))
 static os_event_t dbug_start_query_thread(
 	const char *query,
 	const char *wait_state,
@@ -542,24 +545,6 @@ end:
 
 os_event_t dbug_alter_thread_done;
 #endif
-
-void mdl_lock_all()
-{
-	mdl_lock_init();
-	datafiles_iter_t *it = datafiles_iter_new(fil_system);
-	if (!it)
-		return;
-
-	while (fil_node_t *node = datafiles_iter_next(it)){
-		if (fil_is_user_tablespace_id(node->space->id)
-			&& check_if_skip_table(node->space->name))
-			continue;
-
-		mdl_lock_table(node->space->id);
-	}
-	datafiles_iter_free(it);
-}
-
 
 // Convert non-null terminated filename to space name
 std::string filename_to_spacename(const byte *filename, size_t len)
@@ -625,8 +610,7 @@ static void backup_file_op(ulint space_id, const byte* flags,
  This callback is called if DDL operation is detected,
  at the end of backup
 
- Normally, DDL operations are blocked due to FTWRL,
- but in rare cases of --no-lock, they are not.
+ Normally, DDL operations are blocked due to FTWRL.
 
  We will abort backup in this case.
 */
@@ -634,30 +618,8 @@ static void backup_file_op_fail(ulint space_id, const byte* flags,
 	const byte* name, ulint len,
 	const byte* new_name, ulint new_len)
 {
-	ut_a(opt_no_lock);
-	bool fail;
-	if (flags) {
-		msg("DDL tracking :  create %zu \"%.*s\": %x",
-			space_id, int(len), name, mach_read_from_4(flags));
-		std::string  spacename = filename_to_spacename(name, len);
-		fail = !check_if_skip_table(spacename.c_str());
-	}
-	else if (new_name) {
-		msg("DDL tracking : rename %zu \"%.*s\",\"%.*s\"",
-			space_id, int(len), name, int(new_len), new_name);
-		std::string  spacename = filename_to_spacename(name, len);
-		std::string  new_spacename = filename_to_spacename(new_name, new_len);
-		fail = !check_if_skip_table(spacename.c_str()) || !check_if_skip_table(new_spacename.c_str());
-	}
-	else {
-		std::string  spacename = filename_to_spacename(name, len);
-		fail = !check_if_skip_table(spacename.c_str());
-		msg("DDL tracking : delete %zu \"%.*s\"", space_id, int(len), name);
-	}
-	if (fail) {
-		die("DDL operation detected in the late phase of backup."
-			"Backup is inconsistent. Remove --no-lock option to fix.");
-	}
+	die("DDL operation detected in the late phase of backup."
+		"Backup is inconsistent.");
 }
 
 
@@ -675,23 +637,15 @@ static void backup_optimized_ddl_op(ulint space_id)
   run with --no-lock. Usually aborts the backup.
 */
 static void backup_optimized_ddl_op_fail(ulint space_id) {
-	ut_a(opt_no_lock);
-	msg("DDL tracking : optimized DDL on space %zu", space_id);
-	if (ddl_tracker.tables_in_backup.find(space_id) != ddl_tracker.tables_in_backup.end()) {
-		msg("ERROR : Optimized DDL operation detected in the late phase of backup."
-			"Backup is inconsistent. Remove --no-lock option to fix.");
-		exit(EXIT_FAILURE);
-	}
+	die("ERROR : Optimized DDL operation detected in the late phase of backup."
+			"Backup is inconsistent.");
 }
 
 
 /** Callback whenever MLOG_TRUNCATE happens. */
 static void backup_truncate_fail()
 {
-	msg("mariabackup: Incompatible TRUNCATE operation detected.%s",
-	    opt_lock_ddl_per_table
-	    ? ""
-	    : " Use --lock-ddl-per-table to lock all tables before backup.");
+	msg("mariabackup: Incompatible TRUNCATE operation detected.");
 }
 
 
@@ -981,21 +935,8 @@ struct my_option xb_client_options[] =
    (uchar *) &opt_slave_info, (uchar *) &opt_slave_info, 0,
    GET_BOOL, NO_ARG, 0, 0, 0, 0, 0, 0},
 
-  {"no-lock", OPT_NO_LOCK, "Use this option to disable table lock "
-   "with \"FLUSH TABLES WITH READ LOCK\". Use it only if ALL your "
-   "tables are InnoDB and you DO NOT CARE about the binary log "
-   "position of the backup. This option shouldn't be used if there "
-   "are any DDL statements being executed or if any updates are "
-   "happening on non-InnoDB tables (this includes the system MyISAM "
-   "tables in the mysql database), otherwise it could lead to an "
-   "inconsistent backup. If you are considering to use --no-lock "
-   "because your backups are failing to acquire the lock, this could "
-   "be because of incoming replication events preventing the lock "
-   "from succeeding. Please try using --safe-slave-backup to "
-   "momentarily stop the replication slave thread, this may help "
-   "the backup to succeed and you then don't need to resort to "
-   "using this option.",
-   (uchar *) &opt_no_lock, (uchar *) &opt_no_lock, 0,
+  {"no-lock", OPT_NO_LOCK, "Deprecated option",
+   (uchar *) &opt_no_lock_deprecated, (uchar *) &opt_no_lock_deprecated, 0,
    GET_BOOL, NO_ARG, 0, 0, 0, 0, 0, 0},
 
   {"safe-slave-backup", OPT_SAFE_SLAVE_BACKUP, "Stop slave SQL thread "
@@ -1390,9 +1331,9 @@ struct my_option xb_server_options[] =
    (G_PTR*) &xb_open_files_limit, (G_PTR*) &xb_open_files_limit, 0, GET_ULONG,
    REQUIRED_ARG, 0, 0, UINT_MAX, 0, 1, 0},
 
-  {"lock-ddl-per-table", OPT_LOCK_DDL_PER_TABLE, "Lock DDL for each table "
-   "before xtrabackup starts to copy it and until the backup is completed.",
-   (uchar*) &opt_lock_ddl_per_table, (uchar*) &opt_lock_ddl_per_table, 0,
+  {"lock-ddl-per-table", OPT_LOCK_DDL_PER_TABLE, "Deprecated option",
+   (uchar*) &opt_lock_ddl_per_table_deprecated,
+	 (uchar*) &opt_lock_ddl_per_table_deprecated, 0,
    GET_BOOL, NO_ARG, 0, 0, 0, 0, 0, 0},
 
   {"rocksdb-datadir", OPT_ROCKSDB_DATADIR, "RocksDB data directory."
@@ -1782,6 +1723,12 @@ xb_get_one_option(int optid,
   case 'v':
     print_version();
     exit(EXIT_SUCCESS);
+    break;
+  case OPT_NO_LOCK:
+    die("Deprecated option --no-lock");
+    break;
+  case OPT_LOCK_DDL_PER_TABLE:
+    die("Deprecated option --lock-ddl-per-table");
     break;
   default:
     break;
@@ -4307,15 +4254,6 @@ fail_before_log_copying_thread_start:
 		    "files transfer", xtrabackup_parallel);
 	}
 
-	if (opt_lock_ddl_per_table) {
-		mdl_lock_all();
-
-		DBUG_EXECUTE_IF("check_mdl_lock_works",
-			dbug_alter_thread_done =
-			dbug_start_query_thread("ALTER TABLE test.t ADD COLUMN mdl_lock_column int",
-				"Waiting for table metadata lock", 1, ER_QUERY_INTERRUPTED););
-	}
-
 	datafiles_iter_t *it = datafiles_iter_new(fil_system);
 	if (it == NULL) {
 		msg("mariabackup: Error: datafiles_iter_new() failed.");
@@ -5825,22 +5763,16 @@ check_all_privileges()
 	int check_result = PRIVILEGE_OK;
 
 	/* FLUSH TABLES WITH READ LOCK */
-	if (!opt_no_lock)
-	{
-		check_result |= check_privilege(
-			granted_privileges,
-			"RELOAD", "*", "*");
-	}
+	check_result |= check_privilege(
+		granted_privileges,
+		"RELOAD", "*", "*");
 
-	if (!opt_no_lock)
-	{
-		check_result |= check_privilege(
-			granted_privileges,
-		"PROCESS", "*", "*");
-	}
+	check_result |= check_privilege(
+		granted_privileges,
+	"PROCESS", "*", "*");
 
 	/* KILL ... */
-	if ((!opt_no_lock && (opt_kill_long_queries_timeout || opt_lock_ddl_per_table))
+	if (opt_kill_long_queries_timeout
 		/* START SLAVE SQL_THREAD */
 		/* STOP SLAVE SQL_THREAD */
 		|| opt_safe_slave_backup) {
@@ -5852,8 +5784,7 @@ check_all_privileges()
 
 	/* SHOW MASTER STATUS */
 	/* SHOW SLAVE STATUS */
-	if (opt_galera_info || opt_slave_info
-		|| (opt_no_lock && opt_safe_slave_backup)) {
+	if (opt_galera_info || opt_slave_info) {
 		check_result |= check_privilege(granted_privileges,
 			"REPLICATION CLIENT", "*", "*",
 			PRIVILEGE_WARNING);
@@ -5872,15 +5803,6 @@ xb_init()
 	int n_mixed_options;
 
 	/* sanity checks */
-
-	if (opt_slave_info
-		&& opt_no_lock
-		&& !opt_safe_slave_backup) {
-		msg("Error: --slave-info is used with --no-lock but "
-			"without --safe-slave-backup. The binlog position "
-			"cannot be consistent with the backup data.");
-		return(false);
-	}
 
 	if (xtrabackup_backup && opt_rsync)
 	{

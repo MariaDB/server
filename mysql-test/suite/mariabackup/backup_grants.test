@@ -1,12 +1,6 @@
 let $targetdir=$MYSQLTEST_VARDIR/tmp/backup;
 CREATE user backup@localhost;
 
-# backup possible for unprivileges user, with --no-lock
---disable_result_log
-exec $XTRABACKUP --defaults-file=$MYSQLTEST_VARDIR/my.cnf --backup -ubackup --no-lock  --target-dir=$targetdir;
---enable_result_log
-rmdir $targetdir;
-
 # backup fails without --no-lock, because of FTWRL
 --disable_result_log
 error 1;

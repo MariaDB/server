@@ -1325,7 +1325,7 @@ backup_files(const char *from, bool prep_mode)
 		}
 		msg("rsync finished successfully.");
 
-		if (!prep_mode && !opt_no_lock) {
+		if (!prep_mode) {
 			char path[FN_REFLEN];
 			char dst_path[FN_REFLEN];
 			char *newline;
@@ -1406,24 +1406,22 @@ extern void backup_wait_for_lsn(lsn_t lsn);
 /** Start --backup */
 bool backup_start()
 {
-	if (!opt_no_lock) {
-		if (opt_safe_slave_backup) {
-			if (!wait_for_safe_slave(mysql_connection)) {
-				return(false);
-			}
-		}
-
-		if (!backup_files(fil_path_to_mysql_datadir, true)) {
+	if (opt_safe_slave_backup) {
+		if (!wait_for_safe_slave(mysql_connection)) {
 			return(false);
 		}
-
-		history_lock_time = time(NULL);
-
-		if (!lock_tables(mysql_connection)) {
-			return(false);
-		}
-		server_lsn_after_lock = get_current_lsn(mysql_connection);
 	}
+
+	if (!backup_files(fil_path_to_mysql_datadir, true)) {
+		return(false);
+	}
+
+	history_lock_time = time(NULL);
+
+	if (!lock_tables(mysql_connection)) {
+		return(false);
+	}
+	server_lsn_after_lock = get_current_lsn(mysql_connection);
 
 	if (!backup_files(fil_path_to_mysql_datadir, false)) {
 		return(false);
@@ -1440,17 +1438,6 @@ bool backup_start()
 	msg("Waiting for log copy thread to read lsn %llu", (ulonglong)server_lsn_after_lock);
 	backup_wait_for_lsn(server_lsn_after_lock);
 	backup_fix_ddl();
-
-	// There is no need to stop slave thread before coping non-Innodb data when
-	// --no-lock option is used because --no-lock option requires that no DDL or
-	// DML to non-transaction tables can occur.
-	if (opt_no_lock) {
-		if (opt_safe_slave_backup) {
-			if (!wait_for_safe_slave(mysql_connection)) {
-				return(false);
-			}
-		}
-	}
 
 	if (opt_slave_info) {
 		lock_binlog_maybe(mysql_connection);
@@ -1479,7 +1466,7 @@ bool backup_start()
 		write_binlog_info(mysql_connection);
 	}
 
-	if (have_flush_engine_logs && !opt_no_lock) {
+	if (have_flush_engine_logs) {
 		msg("Executing FLUSH NO_WRITE_TO_BINLOG ENGINE LOGS...");
 		xb_mysql_query(mysql_connection,
 			"FLUSH NO_WRITE_TO_BINLOG ENGINE LOGS", false);
@@ -1492,16 +1479,8 @@ bool backup_start()
 void backup_release()
 {
 	/* release all locks */
-	if (!opt_no_lock) {
-		unlock_all(mysql_connection);
-		history_lock_time = 0;
-	} else {
-		history_lock_time = time(NULL) - history_lock_time;
-	}
-
-	if (opt_lock_ddl_per_table) {
-		mdl_unlock_all();
-	}
+	unlock_all(mysql_connection);
+	history_lock_time = 0;
 
 	if (opt_safe_slave_backup && sql_thread_started) {
 		msg("Starting slave SQL thread");
@@ -2091,6 +2070,13 @@ decrypt_decompress()
 */
 static bool backup_files_from_datadir(const char *dir_path)
 {
+	std::string aria_ctrl_file(dir_path);
+	aria_ctrl_file.append("/aria_log_control");
+	if (file_exists(aria_ctrl_file.c_str()) &&
+		!copy_file(ds_data, aria_ctrl_file.c_str(), "aria_log_control", 1)) {
+		return false;
+	}
+
 	os_file_dir_t dir = os_file_opendir(dir_path, TRUE);
 	os_file_stat_t info;
 	bool ret = true;
@@ -2104,7 +2090,7 @@ static bool backup_files_from_datadir(const char *dir_path)
 			pname = info.name;
 
 		/* Copy aria log files, and aws keys for encryption plugins.*/
-		const char *prefixes[] = { "aria_log", "aws-kms-key" };
+		const char *prefixes[] = { "aria_log.", "aws-kms-key" };
 		for (size_t i = 0; i < array_elements(prefixes); i++) {
 			if (starts_with(pname, prefixes[i])) {
 				ret = copy_file(ds_data, info.name, info.name, 1);

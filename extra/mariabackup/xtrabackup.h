@@ -99,7 +99,6 @@ extern longlong		xtrabackup_use_memory;
 
 extern my_bool		opt_galera_info;
 extern my_bool		opt_slave_info;
-extern my_bool		opt_no_lock;
 extern my_bool		opt_safe_slave_backup;
 extern my_bool		opt_rsync;
 extern my_bool		opt_force_non_empty_dirs;
@@ -109,7 +108,6 @@ extern my_bool		opt_decompress;
 extern my_bool		opt_remove_original;
 extern my_bool		opt_extended_validation;
 extern my_bool		opt_encrypted_backup;
-extern my_bool		opt_lock_ddl_per_table;
 
 extern char		*opt_incremental_history_name;
 extern char		*opt_incremental_history_uuid;

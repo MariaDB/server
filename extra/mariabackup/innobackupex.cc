@@ -76,7 +76,7 @@ my_bool opt_ibx_copy_back = FALSE;
 my_bool opt_ibx_move_back = FALSE;
 my_bool opt_ibx_galera_info = FALSE;
 my_bool opt_ibx_slave_info = FALSE;
-my_bool opt_ibx_no_lock = FALSE;
+my_bool opt_ibx_no_lock_deprecated = FALSE;
 my_bool opt_ibx_safe_slave_backup = FALSE;
 my_bool opt_ibx_rsync = FALSE;
 my_bool opt_ibx_force_non_empty_dirs = FALSE;
@@ -266,21 +266,9 @@ static struct my_option ibx_long_options[] =
 	 (uchar *) &opt_ibx_incremental, (uchar *) &opt_ibx_incremental, 0,
 	 GET_BOOL, NO_ARG, 0, 0, 0, 0, 0, 0},
 
-	{"no-lock", OPT_NO_LOCK, "Use this option to disable table lock "
-	 "with \"FLUSH TABLES WITH READ LOCK\". Use it only if ALL your "
-	 "tables are InnoDB and you DO NOT CARE about the binary log "
-	 "position of the backup. This option shouldn't be used if there "
-	 "are any DDL statements being executed or if any updates are "
-	 "happening on non-InnoDB tables (this includes the system MyISAM "
-	 "tables in the mysql database), otherwise it could lead to an "
-	 "inconsistent backup. If you are considering to use --no-lock "
-	 "because your backups are failing to acquire the lock, this could "
-	 "be because of incoming replication events preventing the lock "
-	 "from succeeding. Please try using --safe-slave-backup to "
-	 "momentarily stop the replication slave thread, this may help "
-	 "the backup to succeed and you then don't need to resort to "
-	 "using this option.",
-	 (uchar *) &opt_ibx_no_lock, (uchar *) &opt_ibx_no_lock, 0,
+	{"no-lock", OPT_NO_LOCK, "Deprecated option.",
+	 (uchar *) &opt_ibx_no_lock_deprecated,
+	 (uchar *) &opt_ibx_no_lock_deprecated, 0,
 	 GET_BOOL, NO_ARG, 0, 0, 0, 0, 0, 0},
 
 	{"safe-slave-backup", OPT_SAFE_SLAVE_BACKUP, "Stop slave SQL thread "
@@ -782,6 +770,9 @@ ibx_get_one_option(int optid,
 				start[1]=0 ;
 		}
 		break;
+	case OPT_NO_LOCK:
+		die("option --no-lock is deprecated");
+		break;
         }
 	return(0);
 }
@@ -878,7 +869,6 @@ ibx_init()
 	xtrabackup_move_back = opt_ibx_move_back;
 	opt_galera_info = opt_ibx_galera_info;
 	opt_slave_info = opt_ibx_slave_info;
-	opt_no_lock = opt_ibx_no_lock;
 	opt_safe_slave_backup = opt_ibx_safe_slave_backup;
 	opt_rsync = opt_ibx_rsync;
 	opt_force_non_empty_dirs = opt_ibx_force_non_empty_dirs;

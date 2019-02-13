@@ -1,0 +1,11 @@
+let $targetdir=$MYSQLTEST_VARDIR/tmp/backup;
+mkdir $targetdir;
+
+echo # xtrabackup backup;
+--disable_result_log
+error 1;
+exec $XTRABACKUP --defaults-file=$MYSQLTEST_VARDIR/my.cnf  --backup  --target-dir=$targetdir  --no-lock;
+error 1;
+exec $XTRABACKUP --defaults-file=$MYSQLTEST_VARDIR/my.cnf  --backup  --target-dir=$targetdir  --lock-ddl-per-table;
+--enable_result_log
+rmdir $targetdir;
