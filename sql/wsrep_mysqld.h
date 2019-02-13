@@ -445,15 +445,6 @@ bool wsrep_provider_is_SR_capable();
 int wsrep_ordered_commit_if_no_binlog(THD*, bool);
 
 /**
- * Commit the current transaction with the
- * MySQL "Transaction Coordinator Log" (see `class TC_LOG` in sql/log.h).
- * Calling this function will generate and assign a new wsrep transaction id
- * for `thd`.
- * @return WSREP_OK on success or other WSREP_* error code on failure
- */
-wsrep_status_t wsrep_tc_log_commit(THD* thd);
-
-/**
  * Initialize WSREP server instance.
  *
  * @return Zero on success, non-zero on error.
