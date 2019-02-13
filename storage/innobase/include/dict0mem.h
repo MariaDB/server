@@ -682,6 +682,12 @@ public:
 		def_val.data = NULL;
 	}
 
+private:
+	/** Determine if the columns have the same character set
+	@param[in]	other	column to compare to
+	@return	whether the columns have the same character set */
+	bool same_charset(const dict_col_t& other) const;
+public:
 	/** Determine if the columns have the same format
 	except for is_nullable() and is_versioned().
 	@param[in]	other	column to compare to
@@ -693,17 +699,6 @@ public:
 		    || mbminlen != other.mbminlen
 		    || mbmaxlen != other.mbmaxlen) {
 			return false;
-		}
-		if (dtype_is_non_binary_string_type(mtype, prtype)
-		    && dtype_is_non_binary_string_type(other.mtype,
-						       other.prtype)) {
-			uint csn1 = (uint) dtype_get_charset_coll(prtype);
-			uint csn2 = (uint) dtype_get_charset_coll(other.prtype);
-			CHARSET_INFO* cs1 = get_charset(csn1, MYF(MY_WME));
-			CHARSET_INFO* cs2 = get_charset(csn2, MYF(MY_WME));
-			if (!my_charset_same(cs1, cs2)) {
-				return false;
-			}
 		}
 
 		if (!((prtype ^ other.prtype)
@@ -717,14 +712,16 @@ public:
 			case DATA_MYSQL:
 			case DATA_VARCHAR:
 			case DATA_VARMYSQL:
-				return mtype == DATA_CHAR
+				return (mtype == DATA_CHAR
 					|| mtype == DATA_MYSQL
 					|| mtype == DATA_VARCHAR
-					|| mtype == DATA_VARMYSQL;
+					|| mtype == DATA_VARMYSQL)
+					&& same_charset(other);
 			case DATA_FIXBINARY:
 			case DATA_BINARY:
-				return mtype == DATA_FIXBINARY
-					|| mtype == DATA_BINARY;
+				return (mtype == DATA_FIXBINARY
+					|| mtype == DATA_BINARY)
+					&& same_charset(other);
 			case DATA_INT:
 				return mtype == DATA_INT;
 			}
