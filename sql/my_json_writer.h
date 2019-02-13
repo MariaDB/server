@@ -101,6 +101,80 @@ public:
 
 
 /*
+  Something that looks like class String, but has an internal limit of
+  how many bytes one can append to it.
+
+  Bytes that were truncated due to the size limitation are counted.
+*/
+
+class String_with_limit
+{
+public:
+
+  String_with_limit() : size_limit(SIZE_MAX), truncated_len(0)
+  {
+    str.length(0);
+  }
+
+  size_t get_truncated_bytes() const { return truncated_len; }
+  size_t get_size_limit() { return size_limit; }
+
+  void set_size_limit(size_t limit_arg)
+  {
+    // Setting size limit to be shorter than length will not have the desired
+    // effect
+    DBUG_ASSERT(str.length() < size_limit);
+    size_limit= limit_arg;
+  }
+
+  void append(const char *s, size_t size)
+  {
+    if (str.length() + size <= size_limit)
+    {
+      // Whole string can be added, just do it
+      str.append(s, size);
+    }
+    else
+    {
+      // We cannot add the whole string
+      if (str.length() < size_limit)
+      {
+        // But we can still add something
+        size_t bytes_to_add = size_limit - str.length();
+        str.append(s, bytes_to_add);
+        truncated_len += size - bytes_to_add;
+      }
+      else
+        truncated_len += size;
+    }
+  }
+
+  void append(const char *s)
+  {
+    append(s, strlen(s));
+  }
+
+  void append(char c)
+  {
+    if (str.length() + 1 > size_limit)
+      truncated_len++;
+    else
+      str.append(c);
+  }
+
+  const String *get_string() { return &str; }
+  size_t length() { return str.length(); }
+private:
+  String str;
+
+  // str must not get longer than this many bytes.
+  size_t size_limit;
+
+  // How many bytes were truncated from the string
+  size_t truncated_len;
+};
+
+/*
   A class to write well-formed JSON documents. The documents are also formatted
   for human readability.
 */
@@ -116,7 +190,8 @@ public:
   void add_str(const char* val, size_t num_bytes);
   void add_str(const String &str);
   void add_str(Item *item);
-  void add_table_name(JOIN_TAB *tab);
+  void add_table_name(const JOIN_TAB *tab);
+  void add_table_name(const TABLE* table);
 
   void add_ll(longlong val);
   void add_size(longlong val);
@@ -134,9 +209,18 @@ public:
   void end_object();
   void end_array();
   
+  /*
+    One can set a limit of how large a JSON document should be.
+    Writes beyond that size will be counted, but will not be collected.
+  */
+  void set_size_limit(size_t mem_size) { output.set_size_limit(mem_size); }
+
+  // psergey: return how many bytes would be required to store everything
+  size_t get_truncated_bytes() { return output.get_truncated_bytes(); }
+
   Json_writer() : 
     indent_level(0), document_start(true), element_started(false), 
-    first_child(true)
+    first_child(true), allowed_mem_size(0)
   {
     fmt_helper.init(this);
   }
@@ -151,22 +235,28 @@ private:
   bool element_started;
   bool first_child;
 
+  /*
+    True when we are using the optimizer trace
+    FALSE otherwise
+  */
+  size_t allowed_mem_size;
+
   Single_line_formatting_helper fmt_helper;
 
   void append_indent();
   void start_element();
   void start_sub_element();
 
-  //const char *new_member_name;
 public:
-  String output;
+  String_with_limit output;
 };
 
 /* A class to add values to Json_writer_object and Json_writer_array */
-class Json_value_context
+class Json_value_helper
 {
   Json_writer* writer;
-  public:
+
+public:
   void init(Json_writer *my_writer) { writer= my_writer; }
   void add_str(const char* val)
   {
@@ -219,10 +309,15 @@ class Json_value_context
     if (writer)
       writer->add_null();
   }
-  void add_table_name(JOIN_TAB *tab)
+  void add_table_name(const JOIN_TAB *tab)
   {
     if (writer)
       writer->add_table_name(tab);
+  }
+  void add_table_name(const TABLE* table)
+  {
+    if (writer)
+      writer->add_table_name(table);
   }
 };
 
@@ -231,17 +326,17 @@ class Json_writer_struct
 {
 protected:
   Json_writer* my_writer;
-  Json_value_context context;
+  Json_value_helper context;
   /*
     Tells when a json_writer_struct has been closed or not
   */
   bool closed;
 
 public:
-  Json_writer_struct(Json_writer* writer)
+  explicit Json_writer_struct(THD *thd)
   {
-    my_writer= writer;
-    context.init(writer);
+    my_writer= thd->opt_trace.get_current_json();
+    context.init(my_writer);
     closed= false;
   }
 };
@@ -249,9 +344,13 @@ public:
 
 /*
   RAII-based class to start/end writing a JSON object into the JSON document
+
+  There is "ignore mode": one can initialize Json_writer_object with a NULL
+  Json_writer argument, and then all its calls will do nothing. This is used
+  by optimizer trace which can be enabled or disabled.
 */
 
-class Json_writer_object:public Json_writer_struct
+class Json_writer_object : public Json_writer_struct
 {
 private:
   void add_member(const char *name)
@@ -260,46 +359,49 @@ private:
       my_writer->add_member(name);
   }
 public:
-  Json_writer_object(Json_writer *w);
-  Json_writer_object(Json_writer *w, const char *str);
+  explicit Json_writer_object(THD *thd);
+  explicit Json_writer_object(THD *thd, const char *str);
+
   Json_writer_object& add(const char *name, bool value)
   {
+    DBUG_ASSERT(!closed);
     add_member(name);
     context.add_bool(value);
     return *this;
   }
-  Json_writer_object& add(const char* name, uint value)
+  Json_writer_object& add(const char *name, ulonglong value)
   {
+    DBUG_ASSERT(!closed);
     add_member(name);
-    context.add_ll(value);
-    return *this;
-  }
-  Json_writer_object& add(const char* name, ha_rows value)
-  {
-    add_member(name);
-    context.add_ll(value);
+    context.add_ll(static_cast<longlong>(value));
     return *this;
   }
   Json_writer_object& add(const char *name, longlong value)
   {
+    DBUG_ASSERT(!closed);
     add_member(name);
     context.add_ll(value);
     return *this;
   }
   Json_writer_object& add(const char *name, double value)
   {
+    DBUG_ASSERT(!closed);
     add_member(name);
     context.add_double(value);
     return *this;
   }
+  #ifndef _WIN64
   Json_writer_object& add(const char *name, size_t value)
   {
+    DBUG_ASSERT(!closed);
     add_member(name);
-    context.add_ll(value);
+    context.add_ll(static_cast<longlong>(value));
     return *this;
   }
+  #endif
   Json_writer_object& add(const char *name, const char *value)
   {
+    DBUG_ASSERT(!closed);
     add_member(name);
     context.add_str(value);
     return *this;
@@ -310,38 +412,54 @@ public:
     context.add_str(value, num_bytes);
     return *this;
   }
-  Json_writer_object& add(const char *name, const String &value)
-  {
-    add_member(name);
-    context.add_str(value);
-    return *this;
-  }
   Json_writer_object& add(const char *name, LEX_CSTRING value)
   {
+    DBUG_ASSERT(!closed);
     add_member(name);
     context.add_str(value.str);
     return *this;
   }
   Json_writer_object& add(const char *name, Item *value)
   {
+    DBUG_ASSERT(!closed);
     add_member(name);
     context.add_str(value);
     return *this;
   }
   Json_writer_object& add_null(const char*name)
   {
+    DBUG_ASSERT(!closed);
     add_member(name);
     context.add_null();
     return *this;
   }
-  Json_writer_object& add_table_name(JOIN_TAB *tab)
+  Json_writer_object& add_table_name(const JOIN_TAB *tab)
   {
+    DBUG_ASSERT(!closed);
     add_member("table");
     context.add_table_name(tab);
     return *this;
   }
+  Json_writer_object& add_table_name(const TABLE *table)
+  {
+    DBUG_ASSERT(!closed);
+    add_member("table");
+    context.add_table_name(table);
+    return *this;
+  }
+  Json_writer_object& add_select_number(uint select_number)
+  {
+    DBUG_ASSERT(!closed);
+    add_member("select_id");
+    if (unlikely(select_number >= INT_MAX))
+      context.add_str("fake");
+    else
+      context.add_ll(static_cast<longlong>(select_number));
+    return *this;
+  }
   void end()
   {
+    DBUG_ASSERT(!closed);
     if (my_writer)
       my_writer->end_object();
     closed= TRUE;
@@ -352,81 +470,97 @@ public:
 
 /*
   RAII-based class to start/end writing a JSON array into the JSON document
+
+  There is "ignore mode": one can initialize Json_writer_array with a NULL
+  Json_writer argument, and then all its calls will do nothing. This is used
+  by optimizer trace which can be enabled or disabled.
 */
-class Json_writer_array:public Json_writer_struct
+
+class Json_writer_array : public Json_writer_struct
 {
 public:
-  Json_writer_array(Json_writer *w);
-  Json_writer_array(Json_writer *w, const char *str);
+  Json_writer_array(THD *thd);
+  Json_writer_array(THD *thd, const char *str);
   void end()
   {
+    DBUG_ASSERT(!closed);
     if (my_writer)
       my_writer->end_array();
     closed= TRUE;
   }
+
   Json_writer_array& add(bool value)
   {
+    DBUG_ASSERT(!closed);
     context.add_bool(value);
     return *this;
   }
-  Json_writer_array& add(uint value)
+  Json_writer_array& add(ulonglong value)
   {
-    context.add_ll(value);
-    return *this;
-  }
-  Json_writer_array& add(ha_rows value)
-  {
-    context.add_ll(value);
+    DBUG_ASSERT(!closed);
+    context.add_ll(static_cast<longlong>(value));
     return *this;
   }
   Json_writer_array& add(longlong value)
   {
+    DBUG_ASSERT(!closed);
     context.add_ll(value);
     return *this;
   }
   Json_writer_array& add(double value)
   {
+    DBUG_ASSERT(!closed);
     context.add_double(value);
     return *this;
   }
+  #ifndef _WIN64
   Json_writer_array& add(size_t value)
   {
-    context.add_ll(value);
+    DBUG_ASSERT(!closed);
+    context.add_ll(static_cast<longlong>(value));
     return *this;
   }
+  #endif
   Json_writer_array& add(const char *value)
   {
+    DBUG_ASSERT(!closed);
     context.add_str(value);
     return *this;
   }
   Json_writer_array& add(const char *value, size_t num_bytes)
   {
+    DBUG_ASSERT(!closed);
     context.add_str(value, num_bytes);
-    return *this;
-  }
-  Json_writer_array& add(const String &value)
-  {
-    context.add_str(value);
     return *this;
   }
   Json_writer_array& add(LEX_CSTRING value)
   {
+    DBUG_ASSERT(!closed);
     context.add_str(value.str);
     return *this;
   }
   Json_writer_array& add(Item *value)
   {
+    DBUG_ASSERT(!closed);
     context.add_str(value);
     return *this;
   }
   Json_writer_array& add_null()
   {
+    DBUG_ASSERT(!closed);
     context.add_null();
     return *this;
   }
-  Json_writer_array& add_table_name(JOIN_TAB *tab)
+  Json_writer_array& add_table_name(const JOIN_TAB *tab)
   {
+    DBUG_ASSERT(!closed);
     context.add_table_name(tab);
+    return *this;
+  }
+  Json_writer_array& add_table_name(const TABLE *table)
+  {
+    DBUG_ASSERT(!closed);
+    context.add_table_name(table);
     return *this;
   }
   ~Json_writer_array();

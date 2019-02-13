@@ -63,6 +63,7 @@
 #include "ha_partition.h"
 #endif
 #include "transaction.h"
+#include "opt_trace.h"
 
 enum enum_i_s_events_fields
 {
@@ -9764,6 +9765,10 @@ ST_FIELD_INFO check_constraints_fields_info[]=
    OPEN_FULL_TABLE},
   {0, 0, MYSQL_TYPE_STRING, 0, 0, 0, SKIP_OPEN_TABLE}
 };
+
+/** For creating fields of information_schema.OPTIMIZER_TRACE */
+extern ST_FIELD_INFO optimizer_trace_info[];
+
 /*
   Description of ST_FIELD_INFO in table.h
 
@@ -9816,6 +9821,8 @@ ST_SCHEMA_TABLE schema_tables[]=
    OPTIMIZE_I_S_TABLE|OPEN_TABLE_ONLY},
   {"OPEN_TABLES", open_tables_fields_info, 0,
    fill_open_tables, make_old_format, 0, -1, -1, 1, 0},
+  {"OPTIMIZER_TRACE", optimizer_trace_info, 0,
+     fill_optimizer_trace_info, NULL, NULL, -1, -1, false, 0},
   {"PARAMETERS", parameters_fields_info, 0,
    fill_schema_proc, 0, 0, -1, -1, 0, 0},
   {"PARTITIONS", partitions_fields_info, 0,

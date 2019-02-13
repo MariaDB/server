@@ -53,6 +53,7 @@
 #include <myisam.h>
 #include "debug_sync.h"                         // DEBUG_SYNC
 #include "sql_show.h"
+#include "opt_trace_context.h"
 
 #include "log_event.h"
 #ifdef WITH_PERFSCHEMA_STORAGE_ENGINE
@@ -2541,6 +2542,23 @@ static Sys_var_flagset Sys_optimizer_switch(
        optimizer_switch_names, DEFAULT(OPTIMIZER_SWITCH_DEFAULT),
        NO_MUTEX_GUARD, NOT_IN_BINLOG, ON_CHECK(0),
        ON_UPDATE(fix_optimizer_switch));
+
+static Sys_var_flagset Sys_optimizer_trace(
+    "optimizer_trace",
+    "Controls tracing of the Optimizer:"
+    " optimizer_trace=option=val[,option=val...], where option is one of"
+    " {enabled}"
+    " and val is one of {on, off, default}",
+    SESSION_VAR(optimizer_trace), CMD_LINE(REQUIRED_ARG),
+    Opt_trace_context::flag_names, DEFAULT(Opt_trace_context::FLAG_DEFAULT));
+    // @see set_var::is_var_optimizer_trace()
+export sys_var *Sys_optimizer_trace_ptr = &Sys_optimizer_trace;
+
+static Sys_var_ulong Sys_optimizer_trace_max_mem_size(
+    "optimizer_trace_max_mem_size",
+    "Maximum allowed size of an optimizer trace",
+    SESSION_VAR(optimizer_trace_max_mem_size), CMD_LINE(REQUIRED_ARG),
+    VALID_RANGE(0, ULONG_MAX), DEFAULT(1024 * 1024), BLOCK_SIZE(1));
 
 static Sys_var_charptr Sys_pid_file(
        "pid_file", "Pid file used by safe_mysqld",

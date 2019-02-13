@@ -122,6 +122,7 @@ SET(SQL_EMBEDDED_SOURCES emb_qcache.cc libmysqld.c lib_sql.cc
            ../sql/sql_tvc.cc ../sql/sql_tvc.h
            ../sql/opt_split.cc
            ../sql/item_vers.cc
+           ../sql/opt_trace.cc
            ${GEN_SOURCES}
            ${MYSYS_LIBWRAP_SOURCE}
 )

@@ -1,0 +1,31 @@
+--source include/not_embedded.inc
+--source include/have_innodb.inc
+create table t1
+( 
+  pk1 int not null,
+  pk2 int not null,
+  key1 int not null,
+  key2 int not null,
+  key (key1),
+  key (key2),
+  primary key (pk1, pk2)
+)engine=Innodb;
+
+--disable_query_log
+let $1=1000;
+while ($1)
+{
+  eval insert into t1 values (1+$1/10,$1 mod 100,$1,$1/100);
+  dec $1;
+}
+--enable_query_log
+analyze table t1;
+
+set optimizer_trace="enabled=on";
+set @tmp_index_merge_ror_cpk=@@optimizer_switch;
+set optimizer_switch='extended_keys=off';
+explain select * from t1 where pk1 != 0  and key1 = 1;
+select * from information_schema.OPTIMIZER_TRACE;
+drop table t1;
+set @@optimizer_switch= @tmp_index_merge_ror_cpk;
+set optimizer_trace="enabled=off";
