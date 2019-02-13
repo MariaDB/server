@@ -346,7 +346,7 @@ IF(NOT HAVE_CXX_NEW)
 ENDIF()
 
 # Find header files from the bundled libraries
-# (yassl, readline, pcre, etc)
+# (wolfssl, readline, pcre, etc)
 # before the ones installed in the system
 SET(CMAKE_INCLUDE_DIRECTORIES_PROJECT_BEFORE ON)
 
@@ -359,7 +359,7 @@ INCLUDE_DIRECTORIES(${CMAKE_CURRENT_BINARY_DIR}/include)
 
 # Add bundled or system zlib.
 MYSQL_CHECK_ZLIB_WITH_COMPRESS()
-# Add bundled yassl/taocrypt or system openssl.
+# Add bundled wolfssl/wolfcrypt or system openssl.
 MYSQL_CHECK_SSL()
 # Add readline or libedit.
 MYSQL_CHECK_READLINE()

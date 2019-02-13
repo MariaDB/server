@@ -29,8 +29,8 @@
       One can disable SSL later by using --skip-ssl or --ssl=0
     */
       opt_use_ssl= 1;
-    /* crl has no effect in yaSSL */  
-#ifdef HAVE_YASSL
+#ifdef HAVE_WOLFSSL
+      /* CRL does not work with WolfSSL */ 
       opt_ssl_crl= NULL;
       opt_ssl_crlpath= NULL;
 #endif

@@ -1453,7 +1453,7 @@ scheduler_functions *thread_scheduler= &thread_scheduler_struct,
 
 #ifdef HAVE_OPENSSL
 #include <openssl/crypto.h>
-#ifdef HAVE_OPENSSL10
+#if defined(HAVE_OPENSSL10) && !defined(HAVE_WOLFSSL)
 typedef struct CRYPTO_dynlock_value
 {
   mysql_rwlock_t lock;
@@ -2112,7 +2112,7 @@ static void clean_up_mutexes()
   mysql_mutex_destroy(&LOCK_global_index_stats);
 #ifdef HAVE_OPENSSL
   mysql_mutex_destroy(&LOCK_des_key_file);
-#ifdef HAVE_OPENSSL10
+#if defined(HAVE_OPENSSL10) && !defined(HAVE_WOLFSSL)
   for (int i= 0; i < CRYPTO_num_locks(); ++i)
     mysql_rwlock_destroy(&openssl_stdlocks[i].lock);
   OPENSSL_free(openssl_stdlocks);
@@ -4550,7 +4550,7 @@ static int init_thread_environment()
 #ifdef HAVE_OPENSSL
   mysql_mutex_init(key_LOCK_des_key_file,
                    &LOCK_des_key_file, MY_MUTEX_INIT_FAST);
-#ifdef HAVE_OPENSSL10
+#if defined(HAVE_OPENSSL10) && !defined(HAVE_WOLFSSL)
   openssl_stdlocks= (openssl_lock_t*) OPENSSL_malloc(CRYPTO_num_locks() *
                                                      sizeof(openssl_lock_t));
   for (int i= 0; i < CRYPTO_num_locks(); ++i)
@@ -4595,7 +4595,7 @@ static int init_thread_environment()
 }
 
 
-#ifdef HAVE_OPENSSL10
+#if defined(HAVE_OPENSSL10) && !defined(HAVE_WOLFSSL)
 static openssl_lock_t *openssl_dynlock_create(const char *file, int line)
 {
   openssl_lock_t *lock= new openssl_lock_t;
@@ -4767,9 +4767,7 @@ int reinit_ssl()
   {
     my_printf_error(ER_UNKNOWN_ERROR, "Failed to refresh SSL, error: %s", MYF(0),
       sslGetErrString(error));
-#ifndef HAVE_YASSL
     ERR_clear_error();
-#endif
     return 1;
   }
   mysql_rwlock_wrlock(&LOCK_ssl_refresh);
@@ -5943,7 +5941,7 @@ int mysqld_main(int argc, char **argv)
       CloseHandle(hEventShutdown);
   }
 #endif
-#if (defined(HAVE_OPENSSL) && !defined(HAVE_YASSL)) && !defined(EMBEDDED_LIBRARY)
+#if (defined(HAVE_OPENSSL) && !defined(EMBEDDED_LIBRARY))
   ERR_remove_state(0);
 #endif
   mysqld_exit(0);
@@ -7105,8 +7103,8 @@ struct my_option my_long_options[]=
   MYSQL_COMPATIBILITY_OPTION("slave-checkpoint-period"),      // HAVE_REPLICATION
   MYSQL_COMPATIBILITY_OPTION("slave-checkpoint-group"),       // HAVE_REPLICATION
   MYSQL_SUGGEST_ANALOG_OPTION("slave-pending-jobs-size-max", "--slave-parallel-max-queued"),  // HAVE_REPLICATION
-  MYSQL_TO_BE_IMPLEMENTED_OPTION("sha256-password-private-key-path"), // HAVE_OPENSSL && !HAVE_YASSL
-  MYSQL_TO_BE_IMPLEMENTED_OPTION("sha256-password-public-key-path"),  // HAVE_OPENSSL && !HAVE_YASSL
+  MYSQL_TO_BE_IMPLEMENTED_OPTION("sha256-password-private-key-path"), // HAVE_OPENSSL
+  MYSQL_TO_BE_IMPLEMENTED_OPTION("sha256-password-public-key-path"),  // HAVE_OPENSSL
 
   /* The following options exist in 5.5 and 5.6 but not in 10.0 */
   MYSQL_SUGGEST_ANALOG_OPTION("abort-slave-event-count", "--debug-abort-slave-event-count"),
@@ -7338,13 +7336,13 @@ static int show_ssl_get_verify_mode(THD *thd, SHOW_VAR *var, char *buff,
 {
   var->type= SHOW_LONG;
   var->value= buff;
-#ifndef HAVE_YASSL
+#ifndef HAVE_WOLFSSL
   if( thd->net.vio && thd->net.vio->ssl_arg )
     *((long *)buff)= (long)SSL_get_verify_mode((SSL*)thd->net.vio->ssl_arg);
   else
     *((long *)buff)= 0;
 #else
-  *((long *)buff) = 0;
+  *((long *)buff)= 0;
 #endif
   return 0;
 }
@@ -7354,14 +7352,10 @@ static int show_ssl_get_verify_depth(THD *thd, SHOW_VAR *var, char *buff,
 {
   var->type= SHOW_LONG;
   var->value= buff;
-#ifndef HAVE_YASSL
   if( thd->vio_ok() && thd->net.vio->ssl_arg )
     *((long *)buff)= (long)SSL_get_verify_depth((SSL*)thd->net.vio->ssl_arg);
   else
     *((long *)buff)= 0;
-#else
-  *((long *)buff)= 0;
-#endif
 
   return 0;
 }
@@ -7422,15 +7416,6 @@ DEF_SHOW_FUNC(net_wait_num, SHOW_LONGLONG)
 DEF_SHOW_FUNC(avg_net_wait_time, SHOW_LONG)
 DEF_SHOW_FUNC(avg_trx_wait_time, SHOW_LONG)
 
-#ifdef HAVE_YASSL
-
-static char *
-my_asn1_time_to_string(const ASN1_TIME *time, char *buf, size_t len)
-{
-  return yaSSL_ASN1_TIME_to_string(time, buf, len);
-}
-
-#else /* openssl */
 
 static char *
 my_asn1_time_to_string(const ASN1_TIME *time, char *buf, size_t len)
@@ -7457,8 +7442,6 @@ end:
   BIO_free(bio);
   return res;
 }
-
-#endif
 
 
 /**
@@ -8145,7 +8128,7 @@ static int mysql_init_variables(void)
 
 #if defined(HAVE_OPENSSL) && !defined(EMBEDDED_LIBRARY)
   have_ssl=SHOW_OPTION_YES;
-#if defined(HAVE_YASSL)
+#if defined(HAVE_WOLFSSL)
   have_openssl= SHOW_OPTION_NO;
 #else
   have_openssl= SHOW_OPTION_YES;

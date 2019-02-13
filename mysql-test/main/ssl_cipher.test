@@ -43,7 +43,7 @@ drop user ssl_user1@localhost, ssl_user2@localhost, ssl_user3@localhost, ssl_use
 #
 # Bug#21611 Slave can't connect when master-ssl-cipher specified
 # - Apparently selecting a cipher doesn't work at all
-# - Use a cipher that both yaSSL and OpenSSL supports
+# - Use a cipher that both WolfSSL and OpenSSL supports
 #
 --write_file $MYSQLTEST_VARDIR/tmp/test.sql
 SHOW STATUS LIKE 'Ssl_cipher';

@@ -380,6 +380,7 @@
 #cmakedefine HAVE_SVR3_SIGNALS 1
 #cmakedefine HAVE_V7_SIGNALS 1
 #cmakedefine HAVE_ERR_remove_thread_state 1
+#cmakedefine HAVE_X509_check_host 1
 
 #cmakedefine HAVE_SOLARIS_STYLE_GETHOST 1
 

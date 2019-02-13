@@ -317,7 +317,7 @@ ELSEIF(UNIX)
   ENDIF()
 ENDIF()
 
-# We try to hide the symbols in yassl/zlib to avoid name clashes with
+# We try to hide the symbols in bundled libraries to avoid name clashes with
 # other libraries like openssl.
 FUNCTION(RESTRICT_SYMBOL_EXPORTS target)
   IF(VISIBILITY_HIDDEN_FLAG)

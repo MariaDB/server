@@ -989,7 +989,6 @@ typedef struct st_mysql_lex_string LEX_STRING;
 #if defined(__WIN__)
 #define socket_errno	WSAGetLastError()
 #define SOCKET_EINTR	WSAEINTR
-#define SOCKET_EAGAIN	WSAEINPROGRESS
 #define SOCKET_ETIMEDOUT WSAETIMEDOUT
 #define SOCKET_EWOULDBLOCK WSAEWOULDBLOCK
 #define SOCKET_EADDRINUSE WSAEADDRINUSE

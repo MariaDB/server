@@ -78,20 +78,11 @@ double my_rnd(struct my_rnd_struct *rand_st)
 
 double my_rnd_ssl(struct my_rnd_struct *rand_st)
 {
-
-#if defined(HAVE_YASSL) || defined(HAVE_OPENSSL)
-  int rc;
-  unsigned int res;
-
-#if defined(HAVE_YASSL)
-  rc= yaSSL::RAND_bytes((unsigned char *) &res, sizeof (unsigned int));
-#else
+#if defined(HAVE_OPENSSL)
   rc= RAND_bytes((unsigned char *) &res, sizeof (unsigned int));
-#endif /* HAVE_YASSL */
-
   if (rc)
     return (double)res / (double)UINT_MAX;
-#endif /* defined(HAVE_YASSL) || defined(HAVE_OPENSSL) */
+#endif /* defined(HAVE_OPENSSL) */
 
   return my_rnd(rand_st);
 }
