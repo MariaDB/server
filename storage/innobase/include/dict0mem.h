@@ -2,7 +2,7 @@
 
 Copyright (c) 1996, 2017, Oracle and/or its affiliates. All Rights Reserved.
 Copyright (c) 2012, Facebook Inc.
-Copyright (c) 2013, 2018, MariaDB Corporation.
+Copyright (c) 2013, 2019, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -685,15 +685,52 @@ public:
 	/** Determine if the columns have the same format
 	except for is_nullable() and is_versioned().
 	@param[in]	other	column to compare to
+	@param[in]	redundant table is redundant row format
 	@return	whether the columns have the same format */
-	bool same_format(const dict_col_t& other) const
+	bool same_format(const dict_col_t& other, bool redundant = false) const
 	{
-		return mtype == other.mtype
-			&& len >= other.len
-			&& mbminlen == other.mbminlen
-			&& mbmaxlen == other.mbmaxlen
-			&& !((prtype ^ other.prtype)
-			     & ~(DATA_NOT_NULL | DATA_VERSIONED));
+		if (len < other.len
+		    || mbminlen != other.mbminlen
+		    || mbmaxlen != other.mbmaxlen) {
+			return false;
+		}
+		if (dtype_is_non_binary_string_type(mtype, prtype)
+		    && dtype_is_non_binary_string_type(other.mtype,
+						       other.prtype)) {
+			uint csn1 = (uint) dtype_get_charset_coll(prtype);
+			uint csn2 = (uint) dtype_get_charset_coll(other.prtype);
+			CHARSET_INFO* cs1 = get_charset(csn1, MYF(MY_WME));
+			CHARSET_INFO* cs2 = get_charset(csn2, MYF(MY_WME));
+			if (!my_charset_same(cs1, cs2)) {
+				return false;
+			}
+		}
+
+		if (!((prtype ^ other.prtype)
+		      & ~(DATA_NOT_NULL | DATA_VERSIONED))) {
+			return mtype == other.mtype;
+		}
+
+		if (redundant) {
+			switch (other.mtype) {
+			case DATA_CHAR:
+			case DATA_MYSQL:
+			case DATA_VARCHAR:
+			case DATA_VARMYSQL:
+				return mtype == DATA_CHAR
+					|| mtype == DATA_MYSQL
+					|| mtype == DATA_VARCHAR
+					|| mtype == DATA_VARMYSQL;
+			case DATA_FIXBINARY:
+			case DATA_BINARY:
+				return mtype == DATA_FIXBINARY
+					|| mtype == DATA_BINARY;
+			case DATA_INT:
+				return mtype == DATA_INT;
+			}
+		}
+
+		return false;
 	}
 };
 
