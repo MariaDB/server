@@ -8206,18 +8206,8 @@ static bool charsets_are_compatible(const char *old_cs_name,
   if (!strcmp(old_cs_name, MY_UTF8MB3) && !strcmp(new_cs_name, MY_UTF8MB4))
     return true;
 
-  if (!strcmp(old_cs_name, "ascii"))
-  {
-    if (!strcmp(new_cs_name, MY_UTF8MB3) || !strcmp(new_cs_name, MY_UTF8MB4) ||
-        !strcmp(new_cs_name, "latin1") || !strcmp(new_cs_name, "latin2") ||
-        !strcmp(new_cs_name, "latin7") || !strcmp(new_cs_name, "koi8") ||
-        !strcmp(new_cs_name, "koi8u") || !strcmp(new_cs_name, "gbk") ||
-        !strcmp(new_cs_name, "ujis") || !strcmp(new_cs_name, "big5"))
-    {
-      DBUG_ASSERT(!(new_ci->state & MY_CS_NONASCII));
-      return true;
-    }
-  }
+  if (!strcmp(old_cs_name, "ascii") && !(new_ci->state & MY_CS_NONASCII))
+    return true;
 
   if (!strcmp(old_cs_name, "ucs2") && !strcmp(new_cs_name, "utf16"))
     return true;
