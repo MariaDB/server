@@ -111,7 +111,7 @@ class String_with_limit
 {
 public:
 
-  String_with_limit() : size_limit(SIZE_MAX), truncated_len(0)
+  String_with_limit() : size_limit(SIZE_T_MAX), truncated_len(0)
   {
     str.length(0);
   }
