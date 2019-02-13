@@ -3039,9 +3039,7 @@ static void acl_update_role(const char *rolename, ulong privileges)
 
 static int acl_user_update(THD *thd, ACL_USER *acl_user, uint nauth,
                            const ACL_USER *from, const LEX_USER &combo,
-                           const enum SSL_type ssl_type,
-                           const char *ssl_cipher, const char *x509_issuer,
-                           const char *x509_subject, const USER_RESOURCES *mqh,
+                           const Account_options &options,
                            const ulong privileges)
 {
   if (from)
@@ -3077,23 +3075,27 @@ static int acl_user_update(THD *thd, ACL_USER *acl_user, uint nauth,
   }
 
   acl_user->access= privileges;
-  if (mqh->specified_limits & USER_RESOURCES::QUERIES_PER_HOUR)
-    acl_user->user_resource.questions= mqh->questions;
-  if (mqh->specified_limits & USER_RESOURCES::UPDATES_PER_HOUR)
-    acl_user->user_resource.updates= mqh->updates;
-  if (mqh->specified_limits & USER_RESOURCES::CONNECTIONS_PER_HOUR)
-    acl_user->user_resource.conn_per_hour= mqh->conn_per_hour;
-  if (mqh->specified_limits & USER_RESOURCES::USER_CONNECTIONS)
-    acl_user->user_resource.user_conn= mqh->user_conn;
-  if (mqh->specified_limits & USER_RESOURCES::MAX_STATEMENT_TIME)
-    acl_user->user_resource.max_statement_time= mqh->max_statement_time;
-  if (ssl_type != SSL_TYPE_NOT_SPECIFIED)
+  if (options.specified_limits & USER_RESOURCES::QUERIES_PER_HOUR)
+    acl_user->user_resource.questions= options.questions;
+  if (options.specified_limits & USER_RESOURCES::UPDATES_PER_HOUR)
+    acl_user->user_resource.updates= options.updates;
+  if (options.specified_limits & USER_RESOURCES::CONNECTIONS_PER_HOUR)
+    acl_user->user_resource.conn_per_hour= options.conn_per_hour;
+  if (options.specified_limits & USER_RESOURCES::USER_CONNECTIONS)
+    acl_user->user_resource.user_conn= options.user_conn;
+  if (options.specified_limits & USER_RESOURCES::MAX_STATEMENT_TIME)
+    acl_user->user_resource.max_statement_time= options.max_statement_time;
+  if (options.ssl_type != SSL_TYPE_NOT_SPECIFIED)
   {
-    acl_user->ssl_type= ssl_type;
-    acl_user->ssl_cipher= safe_strdup_root(&acl_memroot, ssl_cipher);
-    acl_user->x509_issuer= safe_strdup_root(&acl_memroot, safe_str(x509_issuer));
-    acl_user->x509_subject= safe_strdup_root(&acl_memroot, safe_str(x509_subject));
+    acl_user->ssl_type= options.ssl_type;
+    acl_user->ssl_cipher= safe_strdup_root(&acl_memroot, options.ssl_cipher.str);
+    acl_user->x509_issuer= safe_strdup_root(&acl_memroot,
+                                            safe_str(options.x509_issuer.str));
+    acl_user->x509_subject= safe_strdup_root(&acl_memroot,
+                                             safe_str(options.x509_subject.str));
   }
+  if (options.account_locked != ACCOUNTLOCK_UNSPECIFIED)
+    acl_user->account_locked= options.account_locked == ACCOUNTLOCK_LOCKED;
   return 0;
 }
 
@@ -4296,9 +4298,7 @@ static int replace_user_table(THD *thd, const User_table &user_table,
     }
     if (acl_user_update(thd, &new_acl_user, nauth,
                         old_row_exists ? old_acl_user : NULL,
-                        *combo, lex->ssl_type, lex->ssl_cipher,
-                        lex->x509_issuer, lex->x509_subject, &lex->mqh,
-                        rights))
+                        *combo, lex->account_options, rights))
       goto end;
 
     if (user_table.set_auth(new_acl_user))
@@ -4309,55 +4309,54 @@ static int replace_user_table(THD *thd, const User_table &user_table,
       DBUG_RETURN(1);
     }
 
-    switch (lex->ssl_type) {
+    switch (lex->account_options.ssl_type) {
     case SSL_TYPE_NOT_SPECIFIED:
       break;
     case SSL_TYPE_NONE:
     case SSL_TYPE_ANY:
     case SSL_TYPE_X509:
-      user_table.set_ssl_type(lex->ssl_type);
+      user_table.set_ssl_type(lex->account_options.ssl_type);
       user_table.set_ssl_cipher("", 0);
       user_table.set_x509_issuer("", 0);
       user_table.set_x509_subject("", 0);
       break;
     case SSL_TYPE_SPECIFIED:
-      user_table.set_ssl_type(lex->ssl_type);
-      if (lex->ssl_cipher)
-        user_table.set_ssl_cipher(lex->ssl_cipher, strlen(lex->ssl_cipher));
+      user_table.set_ssl_type(lex->account_options.ssl_type);
+      if (lex->account_options.ssl_cipher.str)
+        user_table.set_ssl_cipher(lex->account_options.ssl_cipher.str,
+                                  lex->account_options.ssl_cipher.length);
       else
         user_table.set_ssl_cipher("", 0);
-      if (lex->x509_issuer)
-        user_table.set_x509_issuer(lex->x509_issuer, strlen(lex->x509_issuer));
+      if (lex->account_options.x509_issuer.str)
+        user_table.set_x509_issuer(lex->account_options.x509_issuer.str,
+                                   lex->account_options.x509_issuer.length);
       else
         user_table.set_x509_issuer("", 0);
-      if (lex->x509_subject)
-        user_table.set_x509_subject(lex->x509_subject, strlen(lex->x509_subject));
+      if (lex->account_options.x509_subject.str)
+        user_table.set_x509_subject(lex->account_options.x509_subject.str,
+                                    lex->account_options.x509_subject.length);
       else
         user_table.set_x509_subject("", 0);
       break;
     }
 
-    if (lex->mqh.specified_limits & USER_RESOURCES::QUERIES_PER_HOUR)
-      user_table.set_max_questions(lex->mqh.questions);
-    if (lex->mqh.specified_limits & USER_RESOURCES::UPDATES_PER_HOUR)
-      user_table.set_max_updates(lex->mqh.updates);
-    if (lex->mqh.specified_limits & USER_RESOURCES::CONNECTIONS_PER_HOUR)
-      user_table.set_max_connections(lex->mqh.conn_per_hour);
-    if (lex->mqh.specified_limits & USER_RESOURCES::USER_CONNECTIONS)
-      user_table.set_max_user_connections(lex->mqh.user_conn);
-    if (lex->mqh.specified_limits & USER_RESOURCES::MAX_STATEMENT_TIME)
-      user_table.set_max_statement_time(lex->mqh.max_statement_time);
+    if (lex->account_options.specified_limits & USER_RESOURCES::QUERIES_PER_HOUR)
+      user_table.set_max_questions(lex->account_options.questions);
+    if (lex->account_options.specified_limits & USER_RESOURCES::UPDATES_PER_HOUR)
+      user_table.set_max_updates(lex->account_options.updates);
+    if (lex->account_options.specified_limits & USER_RESOURCES::CONNECTIONS_PER_HOUR)
+      user_table.set_max_connections(lex->account_options.conn_per_hour);
+    if (lex->account_options.specified_limits & USER_RESOURCES::USER_CONNECTIONS)
+      user_table.set_max_user_connections(lex->account_options.user_conn);
+    if (lex->account_options.specified_limits & USER_RESOURCES::MAX_STATEMENT_TIME)
+      user_table.set_max_statement_time(lex->account_options.max_statement_time);
 
-    mqh_used= (mqh_used || lex->mqh.questions || lex->mqh.updates ||
-               lex->mqh.conn_per_hour || lex->mqh.user_conn ||
-               lex->mqh.max_statement_time != 0.0);
+    mqh_used= (mqh_used || lex->account_options.questions || lex->account_options.updates ||
+               lex->account_options.conn_per_hour || lex->account_options.user_conn ||
+               lex->account_options.max_statement_time != 0.0);
 
     if (lex->account_options.account_locked != ACCOUNTLOCK_UNSPECIFIED)
-    {
-      bool lock_value= lex->account_options.account_locked == ACCOUNTLOCK_LOCKED;
-      user_table.set_account_locked(lock_value);
-      new_acl_user.account_locked= lock_value;
-    }
+      user_table.set_account_locked(new_acl_user.account_locked);
   }
 
   if (old_row_exists)
@@ -6543,8 +6542,11 @@ static bool merge_one_role_privileges(ACL_ROLE *grantee)
 static bool has_auth(LEX_USER *user, LEX *lex)
 {
   return user->has_auth() ||
-         lex->ssl_type != SSL_TYPE_NOT_SPECIFIED || lex->ssl_cipher ||
-         lex->x509_issuer || lex->x509_subject || lex->mqh.specified_limits;
+         lex->account_options.ssl_type != SSL_TYPE_NOT_SPECIFIED ||
+         lex->account_options.ssl_cipher.str ||
+         lex->account_options.x509_issuer.str ||
+         lex->account_options.x509_subject.str ||
+         lex->account_options.specified_limits;
 }
 
 static bool copy_and_check_auth(LEX_USER *to, LEX_USER *from, THD *thd)
@@ -11240,9 +11242,7 @@ bool sp_grant_privileges(THD *thd, const char *sp_db, const char *sp_name,
   if (user_list.push_back(combo, thd->mem_root))
     DBUG_RETURN(TRUE);
 
-  thd->lex->ssl_type= SSL_TYPE_NOT_SPECIFIED;
-  thd->lex->ssl_cipher= thd->lex->x509_subject= thd->lex->x509_issuer= 0;
-  bzero(&thd->lex->mqh, sizeof(thd->lex->mqh));
+  thd->lex->account_options.reset();
 
   /*
     Only care about whether the operation failed or succeeded

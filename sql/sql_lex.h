@@ -2946,7 +2946,7 @@ enum account_lock_type
   ACCOUNTLOCK_UNLOCKED
 };
 
-struct Account_options
+struct Account_options: public USER_RESOURCES
 {
   Account_options()
     : account_locked(ACCOUNTLOCK_UNSPECIFIED)
@@ -2954,9 +2954,12 @@ struct Account_options
 
   void reset()
   {
-    account_locked= ACCOUNTLOCK_UNSPECIFIED;
+    bzero(this, sizeof(*this));
+    ssl_type= SSL_TYPE_NOT_SPECIFIED;
   }
 
+  enum SSL_type ssl_type;                       // defined in violite.h
+  LEX_CSTRING x509_subject, x509_issuer, ssl_cipher;
   account_lock_type account_locked;
 };
 
@@ -3019,7 +3022,6 @@ public:
   const char *help_arg;
   const char *backup_dir;                       /* For RESTORE/BACKUP */
   const char* to_log;                           /* For PURGE MASTER LOGS TO */
-  const char* x509_subject,*x509_issuer,*ssl_cipher;
   String *wild; /* Wildcard in SHOW {something} LIKE 'wild'*/ 
   sql_exchange *exchange;
   select_result *result;
@@ -3125,7 +3127,6 @@ public:
   LEX_MASTER_INFO mi;                              // used by CHANGE MASTER
   LEX_SERVER_OPTIONS server_options;
   LEX_CSTRING relay_log_connection_name;
-  USER_RESOURCES mqh;
   LEX_RESET_SLAVE reset_slave_info;
   ulonglong type;
   ulong next_binlog_file_number;
@@ -3163,7 +3164,6 @@ public:
   */
   bool parse_vcol_expr;
 
-  enum SSL_type ssl_type;                       // defined in violite.h
   enum enum_duplicates duplicates;
   enum enum_tx_isolation tx_isolation;
   enum enum_ha_read_modes ha_read_mode;
