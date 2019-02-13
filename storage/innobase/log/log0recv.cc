@@ -780,7 +780,7 @@ loop:
 
 	fil_io(IORequestLogRead, true,
 	       page_id_t(SRV_LOG_SPACE_FIRST_ID, page_no),
-	       univ_page_size,
+	       0,
 	       ulint(source_offset & (srv_page_size - 1)),
 	       len, buf, NULL);
 
@@ -997,7 +997,7 @@ static dberr_t recv_log_format_0_recover(lsn_t lsn, bool crypt)
 
 	fil_io(IORequestLogRead, true,
 	       page_id_t(SRV_LOG_SPACE_FIRST_ID, page_no),
-	       univ_page_size,
+	       0,
 	       ulint((source_offset & ~(OS_FILE_LOG_BLOCK_SIZE - 1))
 		     & (srv_page_size - 1)),
 	       OS_FILE_LOG_BLOCK_SIZE, buf, NULL);
@@ -1516,11 +1516,16 @@ parse_log:
 		break;
 	case MLOG_IBUF_BITMAP_INIT:
 		/* Allow anything in page_type when creating a page. */
-		ptr = ibuf_parse_bitmap_init(ptr, end_ptr, block, mtr);
+		if (block) ibuf_bitmap_init_apply(block);
 		break;
 	case MLOG_INIT_FILE_PAGE2:
 		/* Allow anything in page_type when creating a page. */
 		ptr = fsp_parse_init_file_page(ptr, end_ptr, block);
+		break;
+	case MLOG_INIT_FREE_PAGE:
+		/* The page can be zero-filled and its previous
+		contents can be ignored. We do not write or apply
+		this record yet. */
 		break;
 	case MLOG_WRITE_STRING:
 		ptr = mlog_parse_string(ptr, end_ptr, page, page_zip);
@@ -2081,19 +2086,21 @@ void recv_apply_hashed_log_recs(bool last_batch)
 
 			if (recv_addr->state == RECV_DISCARDED
 			    || !UT_LIST_GET_LEN(recv_addr->rec_list)) {
+not_found:
 				ut_a(recv_sys->n_addrs);
 				recv_sys->n_addrs--;
 				continue;
 			}
 
+			fil_space_t* space = fil_space_acquire_for_io(
+				recv_addr->space);
+			if (!space) {
+				goto not_found;
+			}
+
 			const page_id_t		page_id(recv_addr->space,
 							recv_addr->page_no);
-			bool			found;
-			const page_size_t&	page_size
-				= fil_space_get_page_size(recv_addr->space,
-							  &found);
-
-			ut_ad(found);
+			const ulint zip_size = space->zip_size();
 
 			if (recv_addr->state == RECV_NOT_PROCESSED) {
 				mutex_exit(&recv_sys->mutex);
@@ -2103,7 +2110,7 @@ void recv_apply_hashed_log_recs(bool last_batch)
 					mtr.start();
 
 					buf_block_t* block = buf_page_get(
-						page_id, page_size,
+						page_id, zip_size,
 						RW_X_LATCH, &mtr);
 
 					buf_block_dbg_add_level(
@@ -2117,6 +2124,8 @@ void recv_apply_hashed_log_recs(bool last_batch)
 
 				mutex_enter(&recv_sys->mutex);
 			}
+
+			space->release_for_io();
 		}
 	}
 
@@ -3856,6 +3865,9 @@ static const char* get_mlog_string(mlog_id_t type)
 
 	case MLOG_MEMSET:
 		return("MLOG_MEMSET");
+
+	case MLOG_INIT_FREE_PAGE:
+		return("MLOG_INIT_FREE_PAGE");
 
 	case MLOG_FILE_WRITE_CRYPT_DATA:
 		return("MLOG_FILE_WRITE_CRYPT_DATA");

@@ -15,7 +15,7 @@ SET @idx1_id = 0;
 CREATE TABLE t1(f1 INT NOT NULL,
 f2 VARCHAR(100) PRIMARY KEY)ENGINE=InnoDB;
 CALL get_table_id("test/t1", @tbl_id);
-ALTER TABLE t1 MODIFY f2 VARCHAR(200);
+ALTER TABLE t1 MODIFY f2 VARCHAR(200), ALGORITHM=INSTANT;
 CALL get_table_id("test/t1", @tbl1_id);
 SELECT @tbl1_id = @tbl_id;
 @tbl1_id = @tbl_id
@@ -32,7 +32,7 @@ CREATE TABLE t1(f1 INT NOT NULL,
 f2 VARCHAR(100),
 INDEX idx(f2))ENGINE=InnoDB;
 CALL get_table_id("test/t1", @tbl_id);
-ALTER TABLE t1 MODIFY f2 VARCHAR(200);
+ALTER TABLE t1 MODIFY f2 VARCHAR(200), ALGORITHM=INSTANT;
 CALL get_table_id("test/t1", @tbl1_id);
 SELECT @tbl1_id = @tbl_id;
 @tbl1_id = @tbl_id
@@ -49,7 +49,7 @@ CREATE TABLE t1(f1 INT NOT NULL, f2 VARCHAR(100), f3 VARCHAR(100),
 INDEX idx(f2, f3), index idx1(f3, f2))ENGINE=InnoDB;
 CALL get_table_id("test/t1", @tbl_id);
 CALL get_index_id(@tbl_id, "idx", @idx_id);
-ALTER TABLE t1 MODIFY f2 VARCHAR(200), MODIFY f3 VARCHAR(150);
+ALTER TABLE t1 MODIFY f2 VARCHAR(200), MODIFY f3 VARCHAR(150), ALGORITHM=INSTANT;
 CALL get_table_id("test/t1", @tbl1_id);
 CALL get_index_id(@tbl1_id, "idx", @idx1_id);
 SELECT @tbl1_id = @tbl_id;
@@ -72,7 +72,7 @@ CREATE TABLE t1(f1 INT NOT NULL, f2 VARCHAR(100),
 INDEX idx(f2(40)))ENGINE=InnoDB;
 CALL get_table_id("test/t1", @tbl_id);
 CALL get_index_id(@tbl_id, "idx", @idx_id);
-ALTER TABLE t1 MODIFY f2 VARCHAR(200);
+ALTER TABLE t1 MODIFY f2 VARCHAR(200), ALGORITHM=INSTANT;
 CALL get_table_id("test/t1", @tbl1_id);
 CALL get_index_id(@tbl1_id, "idx", @idx1_id);
 SELECT @tbl1_id = @tbl_id;
@@ -93,7 +93,7 @@ CREATE TABLE t1(f1 INT NOT NULL,
 f2 VARCHAR(100), FULLTEXT idx(f2))ENGINE=InnoDB;
 CALL get_table_id("test/t1", @tbl_id);
 CALL get_index_id(@tbl_id, "idx", @idx_id);
-ALTER TABLE t1 MODIFY f2 VARCHAR(200);
+ALTER TABLE t1 MODIFY f2 VARCHAR(200), ALGORITHM=INSTANT;
 CALL get_table_id("test/t1", @tbl1_id);
 CALL get_index_id(@tbl1_id, "idx", @idx1_id);
 SELECT @tbl1_id = @tbl_id;
@@ -117,7 +117,7 @@ INDEX idx(f3))ENGINE=InnoDB;
 INSERT INTO t1(f1, f2) VALUES(1, repeat('a', 40));
 CALL get_table_id("test/t1", @tbl_id);
 CALL get_index_id(@tbl_id, "idx", @idx_id);
-ALTER TABLE t1 MODIFY f2 VARCHAR(100);
+ALTER TABLE t1 MODIFY f2 VARCHAR(100), ALGORITHM=INSTANT;
 CALL get_table_id("test/t1", @tbl1_id);
 CALL get_index_id(@tbl1_id, "idx", @idx1_id);
 SELECT @tbl1_id = @tbl_id;
@@ -163,7 +163,7 @@ f2 VARCHAR(100),
 INDEX idx(f2(10)))ENGINE=InnoDB;
 CALL get_table_id("test/t1", @tbl_id);
 CALL get_index_id(@tbl_id, "idx", @idx_id);
-ALTER TABLE t1 MODIFY f2 VARCHAR(200), DROP INDEX idx, ADD INDEX idx(f2(10));
+ALTER TABLE t1 MODIFY f2 VARCHAR(200), DROP INDEX idx, ADD INDEX idx(f2(10)), ALGORITHM=INSTANT;
 CALL get_table_id("test/t1", @tbl1_id);
 CALL get_index_id(@tbl1_id, "idx", @idx1_id);
 SELECT @tbl1_id = @tbl_id;
@@ -251,7 +251,7 @@ CREATE TABLE t1(f1 INT NOT NULL,
 f2 VARCHAR(100),
 INDEX idx(f2))ENGINE=InnoDB;
 CALL get_table_id("test/t1", @tbl_id);
-ALTER TABLE t1 MODIFY f2 VARCHAR(200), ADD COLUMN f3 INT;
+ALTER TABLE t1 MODIFY f2 VARCHAR(200), ADD COLUMN f3 INT, ALGORITHM=INSTANT;
 CALL get_table_id("test/t1", @tbl1_id);
 SELECT @tbl1_id = @tbl_id;
 @tbl1_id = @tbl_id
@@ -267,7 +267,7 @@ t1	CREATE TABLE `t1` (
 DROP TABLE t1;
 CREATE TABLE t1(f1 INT NOT NULL, f2 VARCHAR(100) PRIMARY KEY)ENGINE=InnoDB;
 CALL get_table_id("test/t1", @tbl_id);
-ALTER TABLE t1 MODIFY f2 VARCHAR(200), ADD COLUMN f3 INT;
+ALTER TABLE t1 MODIFY f2 VARCHAR(200), ADD COLUMN f3 INT, ALGORITHM=INSTANT;
 CALL get_table_id("test/t1", @tbl1_id);
 SELECT @tbl1_id = @tbl_id;
 @tbl1_id = @tbl_id

@@ -610,6 +610,12 @@ dtuple_convert_big_rec(
 		return(NULL);
 	}
 
+	if (!index->table->space) {
+		return NULL;
+	}
+
+	const auto zip_size = index->table->space->zip_size();
+
 	ut_ad(index->n_uniq > 0);
 
 	ut_a(dtuple_check_typed_no_assert(entry));
@@ -660,7 +666,7 @@ dtuple_convert_big_rec(
 							     *n_ext),
 				      index->table->not_redundant(),
 				      dict_index_get_n_fields(index),
-				      dict_table_page_size(index->table))) {
+				      zip_size)) {
 		longest_i = 0;
 		for (ulint i = index->first_user_field(), longest = 0;
 		     i + mblob < entry->n_fields; i++) {

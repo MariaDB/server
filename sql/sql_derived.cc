@@ -33,6 +33,7 @@
 #include "sql_acl.h"                          // SELECT_ACL
 #include "sql_class.h"
 #include "sql_cte.h"
+#include "my_json_writer.h"
 
 typedef bool (*dt_processor)(THD *thd, LEX *lex, TABLE_LIST *derived);
 
@@ -199,6 +200,7 @@ mysql_handle_single_derived(LEX *lex, TABLE_LIST *derived, uint phases)
     if ((res= (*processors[phase])(lex->thd, lex, derived)))
       break;
   }
+
   lex->thd->derived_tables_processing= FALSE;
   DBUG_RETURN(res);
 }
@@ -369,6 +371,7 @@ bool mysql_derived_merge(THD *thd, LEX *lex, TABLE_LIST *derived)
   DBUG_PRINT("enter", ("Alias: '%s'  Unit: %p",
                        (derived->alias.str ? derived->alias.str : "<NULL>"),
                        derived->get_unit()));
+  const char *cause= NULL;
 
   if (derived->merged)
   {
@@ -380,6 +383,7 @@ bool mysql_derived_merge(THD *thd, LEX *lex, TABLE_LIST *derived)
   if (dt_select->uncacheable & UNCACHEABLE_RAND)
   {
     /* There is random function => fall back to materialization. */
+    cause= "Random function in the select";
     derived->change_refs_to_fields();
     derived->set_materialized_derived();
     DBUG_RETURN(FALSE);
@@ -409,15 +413,11 @@ bool mysql_derived_merge(THD *thd, LEX *lex, TABLE_LIST *derived)
       and small subqueries, and the bigger one can't be merged it wouldn't
       block the smaller one.
     */
-    if (parent_lex->get_free_table_map(&map, &tablenr))
+    if (parent_lex->get_free_table_map(&map, &tablenr) ||
+       dt_select->leaf_tables.elements + tablenr > MAX_TABLES)
     {
       /* There is no enough table bits, fall back to materialization. */
-      goto unconditional_materialization;
-    }
-
-    if (dt_select->leaf_tables.elements + tablenr > MAX_TABLES)
-    {
-      /* There is no enough table bits, fall back to materialization. */
+      cause= "Not enough table bits to merge subquery";
       goto unconditional_materialization;
     }
 
@@ -494,6 +494,24 @@ exit_merge:
   DBUG_RETURN(res);
 
 unconditional_materialization:
+
+  if (unlikely(thd->trace_started()))
+  {
+    /*
+     Add to the optimizer trace the change in choice for merged
+     derived tables/views to materialised ones.
+    */
+    Json_writer_object trace_wrapper(thd);
+    Json_writer_object trace_derived(thd, derived->is_derived() ?
+                                       "derived" : "view");
+    trace_derived.add("table", derived->alias.str ? derived->alias.str : "<NULL>")
+                 .add_select_number(derived->get_unit()->
+                                    first_select()->select_number)
+                 .add("initial_choice", "merged")
+                 .add("final_choice", "materialized")
+                 .add("cause", cause);
+  }
+
   derived->change_refs_to_fields();
   derived->set_materialized_derived();
   if (!derived->table || !derived->table->is_created())
@@ -662,7 +680,6 @@ bool mysql_derived_prepare(THD *thd, LEX *lex, TABLE_LIST *derived)
   DBUG_ENTER("mysql_derived_prepare");
   DBUG_PRINT("enter", ("unit: %p  table_list: %p  alias: '%s'",
                        unit, derived, derived->alias.str));
-
   if (!unit)
     DBUG_RETURN(FALSE);
 
@@ -755,6 +772,22 @@ bool mysql_derived_prepare(THD *thd, LEX *lex, TABLE_LIST *derived)
     }
   }
 
+  if (unlikely(thd->trace_started()))
+  {
+    /*
+      Add to optimizer trace whether a derived table/view
+      is merged into the parent select or not.
+    */
+    Json_writer_object trace_wrapper(thd);
+    Json_writer_object trace_derived(thd, derived->is_derived() ?
+                                       "derived" : "view");
+    trace_derived.add("table", derived->alias.str ? derived->alias.str : "<NULL>")
+            .add_select_number(derived->get_unit()->first_select()->select_number);
+    if (derived->is_materialized_derived())
+      trace_derived.add("materialized", true);
+    if (derived->is_merged_derived())
+      trace_derived.add("merged", true);
+  }
   /*
     Above cascade call of prepare is important for PS protocol, but after it
     is called we can check if we really need prepare for this derived

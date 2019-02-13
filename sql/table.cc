@@ -44,6 +44,7 @@
 #include "sql_cte.h"
 #include "ha_sequence.h"
 #include "sql_show.h"
+#include "opt_trace.h"
 
 /* For MySQL 5.7 virtual fields */
 #define MYSQL57_GENERATED_FIELD 128
@@ -5714,6 +5715,7 @@ bool TABLE_LIST::prepare_security(THD *thd)
   if (prepare_view_security_context(thd))
     DBUG_RETURN(TRUE);
   thd->security_ctx= find_view_security_context(thd);
+  opt_trace_disable_if_no_security_context_access(thd);
   while ((tbl= tb++))
   {
     DBUG_ASSERT(tbl->referencing_view);

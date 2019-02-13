@@ -356,8 +356,14 @@ Datafile::read_first_page(bool read_only_mode)
 		}
 	}
 
-	const page_size_t ps(m_flags);
-	if (ps.physical() > page_size) {
+	ulint ssize = FSP_FLAGS_GET_PAGE_SSIZE(m_flags);
+	if (!ssize) ssize = UNIV_PAGE_SSIZE_ORIG;
+	const ulint zip_ssize = FSP_FLAGS_GET_ZIP_SSIZE(m_flags);
+	const size_t logical_size = ((UNIV_ZIP_SIZE_MIN >> 1) << ssize);
+	const size_t physical_size = zip_ssize
+		? (UNIV_ZIP_SIZE_MIN >> 1) << zip_ssize : logical_size;
+
+	if (physical_size > page_size) {
 		ib::error() << "File " << m_filepath
 			<< " should be longer than "
 			<< page_size << " bytes";
@@ -543,13 +549,13 @@ err_exit:
 		goto err_exit;
 	}
 
-	const page_size_t	page_size(m_flags);
+	ulint logical_size = fil_space_t::logical_size(m_flags);
 
-	if (srv_page_size != page_size.logical()) {
+	if (srv_page_size != logical_size) {
 		/* Logical size must be innodb_page_size. */
 		ib::error()
 			<< "Data file '" << m_filepath << "' uses page size "
-			<< page_size.logical() << ", but the innodb_page_size"
+			<< logical_size << ", but the innodb_page_size"
 			" start-up parameter is "
 			<< srv_page_size;
 		free_first_page();
@@ -568,7 +574,8 @@ err_exit:
 		goto err_exit;
 	}
 
-	if (buf_page_is_corrupted(false, m_first_page, page_size)) {
+	if (buf_page_is_corrupted(false, m_first_page,
+				  fil_space_t::zip_size(m_flags))) {
 		/* Look for checksum and other corruptions. */
 		error_txt = "Checksum mismatch";
 		goto err_exit;
@@ -630,7 +637,6 @@ Datafile::find_space_id()
 	for (ulint page_size = UNIV_ZIP_SIZE_MIN;
 	     page_size <= UNIV_PAGE_SIZE_MAX;
 	     page_size <<= 1) {
-
 		/* map[space_id] = count of pages */
 		typedef std::map<
 			ulint,
@@ -681,27 +687,16 @@ Datafile::find_space_id()
 			equal to srv_page_size. */
 			if (page_size == srv_page_size) {
 				noncompressed_ok = !buf_page_is_corrupted(
-					false, page, univ_page_size, NULL);
+					false, page, 0, NULL);
 			}
 
 			bool	compressed_ok = false;
 
-			/* file-per-table tablespaces can be compressed with
-			the same physical and logical page size.  General
-			tablespaces must have different physical and logical
-			page sizes in order to be compressed. For this check,
-			assume the page is compressed if univ_page_size.
-			logical() is equal to or less than 16k and the
-			page_size we are checking is equal to or less than
-			srv_page_size. */
 			if (srv_page_size <= UNIV_PAGE_SIZE_DEF
 			    && page_size <= srv_page_size) {
-				const page_size_t	compr_page_size(
-					page_size, srv_page_size,
-					true);
-
 				compressed_ok = !buf_page_is_corrupted(
-					false, page, compr_page_size, NULL);
+					false, page,
+					page_size, NULL);
 			}
 
 			if (noncompressed_ok || compressed_ok) {
@@ -801,21 +796,21 @@ Datafile::restore_from_doublewrite()
 		/* The flags on the page should be converted later. */
 	}
 
-	const page_size_t	page_size(flags);
+	ulint physical_size = fil_space_t::physical_size(flags);
 
 	ut_a(page_get_page_no(page) == page_id.page_no());
 
 	ib::info() << "Restoring page " << page_id
 		<< " of datafile '" << m_filepath
 		<< "' from the doublewrite buffer. Writing "
-		<< page_size.physical() << " bytes into file '"
+		<< physical_size << " bytes into file '"
 		<< m_filepath << "'";
 
 	IORequest	request(IORequest::WRITE);
 
 	return(os_file_write(
 			request,
-			m_filepath, m_handle, page, 0, page_size.physical())
+			m_filepath, m_handle, page, 0, physical_size)
 	       != DB_SUCCESS);
 }
 

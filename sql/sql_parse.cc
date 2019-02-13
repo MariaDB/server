@@ -100,6 +100,7 @@
 #include "set_var.h"
 #include "sql_bootstrap.h"
 #include "sql_sequence.h"
+#include "opt_trace.h"
 
 #include "my_json_writer.h" 
 
@@ -979,8 +980,9 @@ static char *fgets_fn(char *buffer, size_t size, fgets_input_t input, int *error
 }
 
 
-void bootstrap(MYSQL_FILE *file)
+int bootstrap(MYSQL_FILE *file)
 {
+  int bootstrap_error= 0;
   DBUG_ENTER("handle_bootstrap");
 
   THD *thd= new THD(next_thread_id());
@@ -1105,7 +1107,7 @@ void bootstrap(MYSQL_FILE *file)
     thd->lex->restore_set_statement_var();
   }
   delete thd;
-  DBUG_VOID_RETURN;
+  DBUG_RETURN(bootstrap_error);
 }
 
 
@@ -3411,6 +3413,13 @@ mysql_execute_command(THD *thd)
 #ifdef HAVE_REPLICATION
   } /* endif unlikely slave */
 #endif
+  Opt_trace_start ots(thd, all_tables, lex->sql_command, &lex->var_list,
+                      thd->query(), thd->query_length(),
+                      thd->variables.character_set_client);
+
+  Json_writer_object trace_command(thd);
+  Json_writer_array trace_command_steps(thd, "steps");
+
 #ifdef WITH_WSREP
   if (WSREP(thd))
   {

@@ -206,7 +206,7 @@ struct fts_phrase_t {
 		distance(0),
 		charset(NULL),
 		heap(NULL),
-		page_size(dict_table_page_size(table)),
+		zip_size(table->space->zip_size()),
 		proximity_pos(NULL),
 		parser(NULL)
 	{
@@ -230,8 +230,8 @@ struct fts_phrase_t {
 	/** Heap for word processing */
 	mem_heap_t*		heap;
 
-	/** Row page size */
-	const page_size_t	page_size;
+	/** ROW_FORMAT=COMPRESSED page size, or 0 */
+	const ulint		zip_size;
 
 	/** Position info for proximity search verification. Records the
 	min and max position of words matched */
@@ -2013,7 +2013,7 @@ fts_query_fetch_document(
 
 		if (dfield_is_ext(dfield)) {
 			data = btr_copy_externally_stored_field(
-				&cur_len, data, phrase->page_size,
+				&cur_len, data, phrase->zip_size,
 				dfield_get_len(dfield), phrase->heap);
 		} else {
 			cur_len = dfield_get_len(dfield);

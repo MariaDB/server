@@ -28,6 +28,7 @@
 #include "rpl_tblmap.h"
 #include "mdl.h"
 #include "field.h"                              // Create_field
+#include "opt_trace_context.h"
 #include "probes_mysql.h"
 #include "sql_locale.h"     /* my_locale_st */
 #include "sql_profile.h"    /* PROFILING */
@@ -569,6 +570,8 @@ typedef struct system_variables
   ulonglong long_query_time;
   ulonglong max_statement_time;
   ulonglong optimizer_switch;
+  ulonglong optimizer_trace;
+  ulong optimizer_trace_max_mem_size;
   sql_mode_t sql_mode; ///< which non-standard SQL behaviour should be enabled
   sql_mode_t old_behavior; ///< which old SQL behaviour should be enabled
   ulonglong option_bits; ///< OPTION_xxx constants, e.g. OPTION_PROFILING
@@ -1350,6 +1353,14 @@ public:
   restore_security_context(THD *thd, Security_context *backup);
 #endif
   bool user_matches(Security_context *);
+  /**
+    Check global access
+    @param want_access The required privileges
+    @param match_any if the security context must match all or any of the req.
+   *                 privileges.
+    @return True if the security context fulfills the access requirements.
+  */
+  bool check_access(ulong want_access, bool match_any = false);
 };
 
 
@@ -2306,6 +2317,8 @@ public:
 
   Security_context main_security_ctx;
   Security_context *security_ctx;
+  Security_context *security_context() const { return security_ctx; }
+  void set_security_context(Security_context *sctx) { security_ctx = sctx; }
 
   /*
     Points to info-string that we show in SHOW PROCESSLIST
@@ -2989,6 +3002,7 @@ public:
   ulonglong  bytes_sent_old;
   ulonglong  affected_rows;                     /* Number of changed rows */
 
+  Opt_trace_context opt_trace;
   pthread_t  real_id;                           /* For debugging */
   my_thread_id  thread_id, thread_dbug_id;
   uint32      os_thread_id;
@@ -3297,6 +3311,7 @@ public:
   void reset_for_reuse();
   bool store_globals();
   void reset_globals();
+  bool trace_started();
 #ifdef SIGNAL_WITH_VIO_CLOSE
   inline void set_active_vio(Vio* vio)
   {

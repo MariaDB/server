@@ -236,7 +236,7 @@ void Explain_query::print_explain_json(select_result_sink *output,
 
   CHARSET_INFO *cs= system_charset_info;
   List<Item> item_list;
-  String *buf= &writer.output;
+  const String *buf= writer.output.get_string();
   item_list.push_back(new (thd->mem_root)
                       Item_string(thd, buf->ptr(), buf->length(), cs),
                       thd->mem_root);

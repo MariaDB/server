@@ -1,7 +1,7 @@
 /*****************************************************************************
 
 Copyright (c) 1995, 2016, Oracle and/or its affiliates. All Rights Reserved.
-Copyright (c) 2013, 2018, MariaDB Corporation.
+Copyright (c) 2013, 2019, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -201,11 +201,6 @@ typedef	byte	fseg_inode_t;
 	(16 + 3 * FLST_BASE_NODE_SIZE			\
 	 + FSEG_FRAG_ARR_N_SLOTS * FSEG_FRAG_SLOT_SIZE)
 
-#define FSP_SEG_INODES_PER_PAGE(page_size)		\
-	((page_size.physical() - FSEG_ARR_OFFSET - 10) / FSEG_INODE_SIZE)
-				/* Number of segment inodes which fit on a
-				single page */
-
 #define FSEG_MAGIC_N_VALUE	97937874
 
 #define	FSEG_FILLFACTOR		8	/* If this value is x, then if
@@ -290,33 +285,6 @@ the extent are free and which contain old tuple version to clean. */
 #ifndef UNIV_INNOCHECKSUM
 /* @} */
 
-/** Calculate the number of pages to extend a datafile.
-We extend single-table tablespaces first one extent at a time,
-but 4 at a time for bigger tablespaces. It is not enough to extend always
-by one extent, because we need to add at least one extent to FSP_FREE.
-A single extent descriptor page will track many extents. And the extent
-that uses its extent descriptor page is put onto the FSP_FREE_FRAG list.
-Extents that do not use their extent descriptor page are added to FSP_FREE.
-The physical page size is used to determine how many extents are tracked
-on one extent descriptor page. See xdes_calc_descriptor_page().
-@param[in]	page_size	page_size of the datafile
-@param[in]	size		current number of pages in the datafile
-@return number of pages to extend the file. */
-ulint
-fsp_get_pages_to_extend_ibd(
-	const page_size_t&	page_size,
-	ulint			size);
-
-/** Calculate the number of physical pages in an extent for this file.
-@param[in]	page_size	page_size of the datafile
-@return number of pages in an extent for this file. */
-UNIV_INLINE
-ulint
-fsp_get_extent_size_in_pages(const page_size_t&	page_size)
-{
-	return (FSP_EXTENT_SIZE << srv_page_size_shift) / page_size.physical();
-}
-
 /**********************************************************************//**
 Reads the space id from the first page of a tablespace.
 @return space id, ULINT UNDEFINED if error */
@@ -347,13 +315,15 @@ fsp_header_get_flags(const page_t* page)
 }
 
 /** Get the byte offset of encryption information in page 0.
-@param[in]	ps	page size
+@param[in]	zip_size	ROW_FORMAT=COMPRESSED page size, or 0
 @return	byte offset relative to FSP_HEADER_OFFSET */
 inline MY_ATTRIBUTE((pure, warn_unused_result))
-ulint
-fsp_header_get_encryption_offset(const page_size_t& ps)
+ulint fsp_header_get_encryption_offset(ulint zip_size)
 {
-	return XDES_ARR_OFFSET + XDES_SIZE * ps.physical() / FSP_EXTENT_SIZE;
+	return zip_size
+		? XDES_ARR_OFFSET + XDES_SIZE * zip_size / FSP_EXTENT_SIZE
+		: XDES_ARR_OFFSET + (XDES_SIZE << srv_page_size_shift)
+		/ FSP_EXTENT_SIZE;
 }
 
 /** Check the encryption key from the first page of a tablespace.
@@ -619,13 +589,12 @@ fil_block_check_type(
 
 /** Checks if a page address is an extent descriptor page address.
 @param[in]	page_id		page id
-@param[in]	page_size	page size
-@return TRUE if a descriptor page */
-UNIV_INLINE
-ibool
-fsp_descr_page(
-	const page_id_t		page_id,
-	const page_size_t&	page_size);
+@param[in]	physical_size	page size
+@return whether a descriptor page */
+inline bool fsp_descr_page(const page_id_t page_id, ulint physical_size)
+{
+	return (page_id.page_no() & (physical_size - 1)) == FSP_XDES_OFFSET;
+}
 
 /***********************************************************//**
 Parses a redo log record of a file page init.
@@ -776,16 +745,6 @@ fsp_flags_match(ulint expected, ulint actual)
 	return(actual == expected);
 }
 
-/** Calculates the descriptor index within a descriptor page.
-@param[in]	page_size	page size
-@param[in]	offset		page offset
-@return descriptor index */
-UNIV_INLINE
-ulint
-xdes_calc_descriptor_index(
-	const page_size_t&	page_size,
-	ulint			offset);
-
 /**********************************************************************//**
 Gets a descriptor bit of a page.
 @return TRUE if free */
@@ -798,15 +757,40 @@ xdes_get_bit(
 	ulint		offset);/*!< in: page offset within extent:
 				0 ... FSP_EXTENT_SIZE - 1 */
 
-/** Calculates the page where the descriptor of a page resides.
-@param[in]	page_size	page size
+/** Determine the descriptor index within a descriptor page.
+@param[in]	zip_size	ROW_FORMAT=COMPRESSED page size, or 0
+@param[in]	offset		page offset
+@return descriptor index */
+inline ulint xdes_calc_descriptor_index(ulint zip_size, ulint offset)
+{
+	return(ut_2pow_remainder(offset, zip_size ? zip_size : srv_page_size)
+	       / FSP_EXTENT_SIZE);
+}
+
+/** Determine the descriptor page number for a page.
+@param[in]	zip_size	ROW_FORMAT=COMPRESSED page size, or 0
 @param[in]	offset		page offset
 @return descriptor page offset */
-UNIV_INLINE
-ulint
-xdes_calc_descriptor_page(
-	const page_size_t&	page_size,
-	ulint			offset);
+inline ulint xdes_calc_descriptor_page(ulint zip_size, ulint offset)
+{
+	compile_time_assert(UNIV_PAGE_SIZE_MAX > XDES_ARR_OFFSET
+			    + (UNIV_PAGE_SIZE_MAX / FSP_EXTENT_SIZE_MAX)
+			    * XDES_SIZE_MAX);
+	compile_time_assert(UNIV_PAGE_SIZE_MIN > XDES_ARR_OFFSET
+			    + (UNIV_PAGE_SIZE_MIN / FSP_EXTENT_SIZE_MIN)
+			    * XDES_SIZE_MIN);
+
+	ut_ad(srv_page_size > XDES_ARR_OFFSET
+	      + (srv_page_size / FSP_EXTENT_SIZE)
+	      * XDES_SIZE);
+	ut_ad(UNIV_ZIP_SIZE_MIN > XDES_ARR_OFFSET
+	      + (UNIV_ZIP_SIZE_MIN / FSP_EXTENT_SIZE)
+	      * XDES_SIZE);
+	ut_ad(!zip_size
+	      || zip_size > XDES_ARR_OFFSET
+	      + (zip_size / FSP_EXTENT_SIZE) * XDES_SIZE);
+	return ut_2pow_round(offset, zip_size ? zip_size : srv_page_size);
+}
 
 #endif /* UNIV_INNOCHECKSUM */
 

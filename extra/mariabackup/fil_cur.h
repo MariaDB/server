@@ -38,7 +38,9 @@ struct xb_fil_cur_t {
 	char		abs_path[FN_REFLEN];
 					/*!< absolute file path */
 	MY_STAT		statinfo;	/*!< information about the file */
-	page_size_t	page_size;	/*!< page size */
+	ulint		zip_size;	/*!< compressed page size in bytes or 0
+					for uncompressed pages */
+	ulint		page_size;	/*!< physical page size */
 	xb_read_filt_t*	read_filter;	/*!< read filter */
 	xb_read_filt_ctxt_t	read_filter_ctxt;
 					/*!< read filter context */
@@ -56,9 +58,6 @@ struct xb_fil_cur_t {
 	uint		thread_n;	/*!< thread number for diagnostics */
 	ulint		space_id;	/*!< ID of tablespace */
 	ulint		space_size;	/*!< space size in pages */
-
-	/** TODO: remove this default constructor */
-	xb_fil_cur_t() : page_size(0), read_filter(0), read_filter_ctxt() {}
 
 	/** @return whether this is not a file-per-table tablespace */
 	bool is_system() const

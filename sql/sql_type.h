@@ -2435,6 +2435,12 @@ public:
       length(0); // safety
   }
   int save_in_field(Field *field, uint decimals) const;
+  Datetime to_datetime(THD *thd) const
+  {
+    return is_zero_datetime() ?
+           Datetime() :
+           Datetime(thd, Timestamp_or_zero_datetime(*this).tv());
+  }
   bool is_zero_datetime() const
   {
     return length() == 0;
@@ -2459,7 +2465,7 @@ public:
   Datetime to_datetime(THD *thd) const
   {
     return is_null() ? Datetime() :
-                       Datetime(thd, Timestamp_or_zero_datetime(*this).tv());
+                       Timestamp_or_zero_datetime_native::to_datetime(thd);
   }
   void to_TIME(THD *thd, MYSQL_TIME *to)
   {

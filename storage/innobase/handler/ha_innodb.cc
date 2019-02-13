@@ -4,7 +4,7 @@ Copyright (c) 2000, 2018, Oracle and/or its affiliates. All Rights Reserved.
 Copyright (c) 2008, 2009 Google Inc.
 Copyright (c) 2009, Percona Inc.
 Copyright (c) 2012, Facebook Inc.
-Copyright (c) 2013, 2018, MariaDB Corporation.
+Copyright (c) 2013, 2019, MariaDB Corporation.
 
 Portions of this file contain modifications contributed and copyrighted by
 Google, Inc. Those modifications are gratefully acknowledged and are described
@@ -3841,11 +3841,6 @@ static int innodb_init_params()
 				srv_page_size);
 		DBUG_RETURN(HA_ERR_INITIALIZATION);
 	}
-
-	/* This is the first time univ_page_size is used.
-	It was initialized to 16k pages before srv_page_size was set */
-	univ_page_size.copy_from(
-		page_size_t(srv_page_size, srv_page_size, false));
 
 	srv_sys_space.set_space_id(TRX_SYS_SPACE);
 	srv_sys_space.set_flags(FSP_FLAGS_PAGE_SSIZE());
@@ -12722,10 +12717,7 @@ ha_innobase::discard_or_import_tablespace(
 		DBUG_RETURN(HA_ERR_TABLE_READONLY);
 	}
 
-	dict_table_t*	dict_table = m_prebuilt->table;
-
-	if (dict_table->is_temporary()) {
-
+	if (m_prebuilt->table->is_temporary()) {
 		ib_senderrf(
 			m_prebuilt->trx->mysql_thd, IB_LOG_LEVEL_ERROR,
 			ER_CANNOT_DISCARD_TEMPORARY_TABLE);
@@ -12733,11 +12725,11 @@ ha_innobase::discard_or_import_tablespace(
 		DBUG_RETURN(HA_ERR_TABLE_NEEDS_UPGRADE);
 	}
 
-	if (dict_table->space == fil_system.sys_space) {
+	if (m_prebuilt->table->space == fil_system.sys_space) {
 		ib_senderrf(
 			m_prebuilt->trx->mysql_thd, IB_LOG_LEVEL_ERROR,
 			ER_TABLE_IN_SYSTEM_TABLESPACE,
-			dict_table->name.m_name);
+			m_prebuilt->table->name.m_name);
 
 		DBUG_RETURN(HA_ERR_TABLE_NEEDS_UPGRADE);
 	}
@@ -12746,7 +12738,7 @@ ha_innobase::discard_or_import_tablespace(
 
 	/* Obtain an exclusive lock on the table. */
 	dberr_t	err = row_mysql_lock_table(
-		m_prebuilt->trx, dict_table, LOCK_X,
+		m_prebuilt->trx, m_prebuilt->table, LOCK_X,
 		discard ? "setting table lock for DISCARD TABLESPACE"
 			: "setting table lock for IMPORT TABLESPACE");
 
@@ -12759,32 +12751,32 @@ ha_innobase::discard_or_import_tablespace(
 		user may want to set the DISCARD flag in order to IMPORT
 		a new tablespace. */
 
-		if (!dict_table->is_readable()) {
+		if (!m_prebuilt->table->is_readable()) {
 			ib_senderrf(
 				m_prebuilt->trx->mysql_thd,
 				IB_LOG_LEVEL_WARN, ER_TABLESPACE_MISSING,
-				dict_table->name.m_name);
+				m_prebuilt->table->name.m_name);
 		}
 
 		err = row_discard_tablespace_for_mysql(
-			dict_table->name.m_name, m_prebuilt->trx);
+			m_prebuilt->table->name.m_name, m_prebuilt->trx);
 
-	} else if (dict_table->is_readable()) {
+	} else if (m_prebuilt->table->is_readable()) {
 		/* Commit the transaction in order to
 		release the table lock. */
 		trx_commit_for_mysql(m_prebuilt->trx);
 
 		ib::error() << "Unable to import tablespace "
-			<< dict_table->name << " because it already"
+			<< m_prebuilt->table->name << " because it already"
 			" exists.  Please DISCARD the tablespace"
 			" before IMPORT.";
 		ib_senderrf(
 			m_prebuilt->trx->mysql_thd, IB_LOG_LEVEL_ERROR,
-			ER_TABLESPACE_EXISTS, dict_table->name.m_name);
+			ER_TABLESPACE_EXISTS, m_prebuilt->table->name.m_name);
 
 		DBUG_RETURN(HA_ERR_TABLE_EXIST);
 	} else {
-		err = row_import_for_mysql(dict_table, m_prebuilt);
+		err = row_import_for_mysql(m_prebuilt->table, m_prebuilt);
 
 		if (err == DB_SUCCESS) {
 
@@ -12800,12 +12792,35 @@ ha_innobase::discard_or_import_tablespace(
 	/* Commit the transaction in order to release the table lock. */
 	trx_commit_for_mysql(m_prebuilt->trx);
 
-	if (err == DB_SUCCESS && !discard
-	    && dict_stats_is_persistent_enabled(dict_table)) {
+	if (discard || err != DB_SUCCESS) {
+		DBUG_RETURN(convert_error_code_to_mysql(
+				    err, m_prebuilt->table->flags, NULL));
+	}
+
+	/* Evict and reload the table definition in order to invoke
+	btr_cur_instant_init(). */
+	table_id_t id = m_prebuilt->table->id;
+	ut_ad(id);
+	mutex_enter(&dict_sys->mutex);
+	dict_table_close(m_prebuilt->table, TRUE, FALSE);
+	dict_table_remove_from_cache(m_prebuilt->table);
+	m_prebuilt->table = dict_table_open_on_id(id, TRUE,
+						  DICT_TABLE_OP_NORMAL);
+	mutex_exit(&dict_sys->mutex);
+	if (!m_prebuilt->table) {
+		err = DB_TABLE_NOT_FOUND;
+	} else {
+		if (const Field* ai = table->found_next_number_field) {
+			initialize_auto_increment(m_prebuilt->table, ai);
+		}
+		dict_stats_init(m_prebuilt->table);
+	}
+
+	if (dict_stats_is_persistent_enabled(m_prebuilt->table)) {
 		dberr_t		ret;
 
 		/* Adjust the persistent statistics. */
-		ret = dict_stats_update(dict_table,
+		ret = dict_stats_update(m_prebuilt->table,
 					DICT_STATS_RECALC_PERSISTENT);
 
 		if (ret != DB_SUCCESS) {
@@ -12815,11 +12830,12 @@ ha_innobase::discard_or_import_tablespace(
 				ER_ALTER_INFO,
 				"Error updating stats for table '%s'"
 				" after table rebuild: %s",
-				dict_table->name.m_name, ut_strerr(ret));
+				m_prebuilt->table->name.m_name,
+				ut_strerr(ret));
 		}
 	}
 
-	DBUG_RETURN(convert_error_code_to_mysql(err, dict_table->flags, NULL));
+	DBUG_RETURN(0);
 }
 
 /**
@@ -13834,7 +13850,7 @@ fsp_get_available_space_in_free_extents(const fil_space_t& space)
 	ulint	n_free_up =
 		(size_in_header - space.free_limit) / FSP_EXTENT_SIZE;
 
-	const ulint size = page_size_t(space.flags).physical();
+	const ulint size = space.physical_size();
 	if (n_free_up > 0) {
 		n_free_up--;
 		n_free_up -= n_free_up / (size / FSP_EXTENT_SIZE);
@@ -13984,8 +14000,7 @@ ha_innobase::info_low(
 		stats.records = (ha_rows) n_rows;
 		stats.deleted = 0;
 		if (fil_space_t* space = ib_table->space) {
-			const ulint size = page_size_t(space->flags)
-				.physical();
+			const ulint size = space->physical_size();
 			stats.data_file_length
 				= ulonglong(stat_clustered_index_size)
 				* size;
@@ -17446,7 +17461,7 @@ innodb_make_page_dirty(THD*, st_mysql_sys_var*, void*, const void* save)
 
 	buf_block_t*	block = buf_page_get(
 		page_id_t(space_id, srv_saved_page_number_debug),
-		page_size_t(space->flags), RW_X_LATCH, &mtr);
+		space->zip_size(), RW_X_LATCH, &mtr);
 
 	if (block != NULL) {
 		byte*	page = block->frame;
@@ -20637,9 +20652,9 @@ innobase_get_computed_value(
 	dfield_t*	field;
 	ulint		len;
 
-	const page_size_t page_size = (old_table == NULL)
-		? dict_table_page_size(index->table)
-		: dict_table_page_size(old_table);
+	const ulint zip_size = old_table
+		? old_table->space->zip_size()
+		: dict_tf_get_zip_size(index->table->flags);
 
 	ulint		ret = 0;
 
@@ -20691,7 +20706,7 @@ innobase_get_computed_value(
 			}
 
 			data = btr_copy_externally_stored_field(
-				&len, data, page_size,
+				&len, data, zip_size,
 				dfield_get_len(row_field), *local_heap);
 		}
 

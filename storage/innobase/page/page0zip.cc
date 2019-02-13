@@ -26,19 +26,19 @@ Created June 2005 by Marko Makela
 *******************************************************/
 
 #include "page0zip.h"
-#include "page0size.h"
+#include "fsp0types.h"
 #include "page0page.h"
 #include "buf0checksum.h"
+#include "ut0crc32.h"
+#include "zlib.h"
+
+#ifndef UNIV_INNOCHECKSUM
 
 /** A BLOB field reference full of zero, for use in assertions and tests.
 Initially, BLOB field references are set to zero, in
 dtuple_convert_big_rec(). */
 const byte field_ref_zero[UNIV_PAGE_SIZE_MAX] = { 0, };
 
-#include "ut0crc32.h"
-#include "zlib.h"
-
-#ifndef UNIV_INNOCHECKSUM
 #include "mtr0log.h"
 #include "dict0dict.h"
 #include "btr0cur.h"
@@ -170,18 +170,17 @@ page_zip_is_too_big(
 	const dict_index_t*	index,
 	const dtuple_t*		entry)
 {
-	const page_size_t&	page_size =
-		dict_table_page_size(index->table);
+	const ulint zip_size = index->table->space->zip_size();
 
 	/* Estimate the free space of an empty compressed page.
 	Subtract one byte for the encoded heap_no in the
 	modification log. */
 	ulint	free_space_zip = page_zip_empty_size(
-		index->n_fields, page_size.physical());
+		index->n_fields, zip_size);
 	ulint	n_uniq = dict_index_get_n_unique_in_tree(index);
 
 	ut_ad(dict_table_is_comp(index->table));
-	ut_ad(page_size.is_compressed());
+	ut_ad(zip_size);
 
 	if (free_space_zip == 0) {
 		return(true);

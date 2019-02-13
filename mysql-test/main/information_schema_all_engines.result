@@ -43,6 +43,7 @@ INNODB_TABLESPACES_SCRUBBING
 INNODB_TRX
 KEY_CACHES
 KEY_COLUMN_USAGE
+OPTIMIZER_TRACE
 PARAMETERS
 PARTITIONS
 PLUGINS
@@ -123,6 +124,7 @@ INNODB_TABLESPACES_SCRUBBING	SPACE
 INNODB_TRX	trx_id
 KEY_CACHES	KEY_CACHE_NAME
 KEY_COLUMN_USAGE	CONSTRAINT_SCHEMA
+OPTIMIZER_TRACE	QUERY
 PARAMETERS	SPECIFIC_SCHEMA
 PARTITIONS	TABLE_SCHEMA
 PLUGINS	PLUGIN_NAME
@@ -203,6 +205,7 @@ INNODB_TABLESPACES_SCRUBBING	SPACE
 INNODB_TRX	trx_id
 KEY_CACHES	KEY_CACHE_NAME
 KEY_COLUMN_USAGE	CONSTRAINT_SCHEMA
+OPTIMIZER_TRACE	QUERY
 PARAMETERS	SPECIFIC_SCHEMA
 PARTITIONS	TABLE_SCHEMA
 PLUGINS	PLUGIN_NAME
@@ -288,6 +291,7 @@ INNODB_TABLESPACES_SCRUBBING	information_schema.INNODB_TABLESPACES_SCRUBBING	1
 INNODB_TRX	information_schema.INNODB_TRX	1
 KEY_CACHES	information_schema.KEY_CACHES	1
 KEY_COLUMN_USAGE	information_schema.KEY_COLUMN_USAGE	1
+OPTIMIZER_TRACE	information_schema.OPTIMIZER_TRACE	1
 PARAMETERS	information_schema.PARAMETERS	1
 PARTITIONS	information_schema.PARTITIONS	1
 PLUGINS	information_schema.PLUGINS	1
@@ -358,6 +362,7 @@ Database: information_schema
 | INNODB_TRX                            |
 | KEY_CACHES                            |
 | KEY_COLUMN_USAGE                      |
+| OPTIMIZER_TRACE                       |
 | PARAMETERS                            |
 | PARTITIONS                            |
 | PLUGINS                               |
@@ -428,6 +433,7 @@ Database: INFORMATION_SCHEMA
 | INNODB_TRX                            |
 | KEY_CACHES                            |
 | KEY_COLUMN_USAGE                      |
+| OPTIMIZER_TRACE                       |
 | PARAMETERS                            |
 | PARTITIONS                            |
 | PLUGINS                               |
@@ -459,5 +465,5 @@ Wildcard: inf_rmation_schema
 | information_schema |
 SELECT table_schema, count(*) FROM information_schema.TABLES WHERE table_schema IN ('mysql', 'INFORMATION_SCHEMA', 'test', 'mysqltest') GROUP BY TABLE_SCHEMA;
 table_schema	count(*)
-information_schema	65
+information_schema	66
 mysql	31
