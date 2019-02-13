@@ -7901,17 +7901,21 @@ Field *Field_varstring::new_key_field(MEM_ROOT *root, TABLE *new_table,
 
 uint Field_varstring::is_equal(Create_field *new_field)
 {
+  if (new_field->length < field_length)
+    return IS_EQUAL_NO;
+
   if (new_field->type_handler() == type_handler() &&
       new_field->charset == field_charset &&
       !new_field->compression_method() == !compression_method())
   {
     if (new_field->length == field_length)
       return IS_EQUAL_YES;
-    if (new_field->length > field_length &&
-	((new_field->length <= 255 && field_length <= 255) ||
-	 (new_field->length > 255 && field_length > 255)))
-      return IS_EQUAL_PACK_LENGTH; // VARCHAR, longer variable length
+    if (field_length <= 127 ||
+        new_field->length <= 255 ||
+        field_length > 255)
+      return IS_EQUAL_PACK_LENGTH; // VARCHAR, longer length
   }
+
   return IS_EQUAL_NO;
 }
 
