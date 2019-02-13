@@ -932,6 +932,7 @@ bool mysql_derived_optimize(THD *thd, LEX *lex, TABLE_LIST *derived)
 
   if (derived->is_materialized_derived() && derived->dt_handler)
   {
+    /* Create an object for execution of the query specifying the table */
     if (!(derived->pushdown_derived=
             new (thd->mem_root) Pushdown_derived(derived, derived->dt_handler)))
     {
@@ -1151,6 +1152,7 @@ bool mysql_derived_fill(THD *thd, LEX *lex, TABLE_LIST *derived)
     int res;
     if (unit->executed)
       DBUG_RETURN(FALSE);
+    /* Execute the query that specifies the derived table by a foreign engine */
     res= derived->pushdown_derived->execute();
     unit->executed= true;
     delete derived->pushdown_derived;
@@ -1456,6 +1458,25 @@ bool pushdown_cond_for_derived(THD *thd, Item *cond, TABLE_LIST *derived)
   DBUG_RETURN(false);
 }
 
+
+/**
+  @brief
+    Look for provision of the derived_handler interface by a foreign engine
+
+  @param thd   The thread handler
+
+  @details
+    The function looks through its tables of the query that specifies this
+    derived table searching for a table whose handlerton owns a
+    create_derived call-back function. If the call of this function returns
+    a derived_handler interface object then the server will push the query
+    specifying the derived table into this engine.
+    This is a responsibility of the create_derived call-back function to
+    check whether the engine can execute the query.
+
+  @retval the found derived_handler if the search is successful
+          0  otherwise
+*/
 
 derived_handler *TABLE_LIST::find_derived_handler(THD *thd)
 {

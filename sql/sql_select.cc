@@ -1444,7 +1444,10 @@ int JOIN::optimize()
   if (select_lex->pushdown_select)
   {
     if (!(select_options & SELECT_DESCRIBE))
+    {
+      /* Prepare to execute the query pushed into a foreign engine */
       res= select_lex->pushdown_select->init();
+    }
     with_two_phase_optimization= false;
   }
   else if (optimization_state == JOIN::OPTIMIZATION_PHASE_1_DONE)
@@ -4074,6 +4077,7 @@ void JOIN::exec_inner()
   }
   else if (select_lex->pushdown_select)
   {
+    /* Execute the query pushed into a foreign engine */
     error= select_lex->pushdown_select->execute();
     DBUG_VOID_RETURN;
   }
@@ -4288,9 +4292,11 @@ mysql_select(THD *thd,
     }
   }
 
+  /* Look for a table owned by an engine with the select_handler interface */
   select_lex->select_h= select_lex->find_select_handler(thd);
   if (select_lex->select_h)
   {
+    /* Create a Pushdown_select object for later execution of the query */
     if (!(select_lex->pushdown_select=
       new (thd->mem_root) Pushdown_select(select_lex,
                                           select_lex->select_h)))
@@ -27619,6 +27625,26 @@ Item *remove_pushed_top_conjuncts(THD *thd, Item *cond)
   }
   return cond;
 }
+
+
+/**
+  @brief
+    Look for provision of the select_handler interface by a foreign engine
+
+  @param thd   The thread handler
+
+  @details
+    The function checks that this is an upper level select and if so looks
+    through its tables searching for one whose handlerton owns a
+    create_select call-back function. If the call of this function returns
+    a select_handler interface object then the server will push the select
+    query into this engine.
+    This is a responsibility of the create_select call-back function to
+    check whether the engine can execute the query.
+
+  @retval the found select_handler if the search is successful
+          0  otherwise
+*/
 
 select_handler *SELECT_LEX::find_select_handler(THD *thd)
 {

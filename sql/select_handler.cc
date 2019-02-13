@@ -1,7 +1,39 @@
+/*
+   Copyright (c) 2018, 2019 MariaDB
+
+   This program is free software; you can redistribute it and/or modify
+   it under the terms of the GNU General Public License as published by
+   the Free Software Foundation; version 2 of the License.
+
+   This program is distributed in the hope that it will be useful,
+   but WITHOUT ANY WARRANTY; without even the implied warranty of
+   MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+   GNU General Public License for more details.
+
+   You should have received a copy of the GNU General Public License
+   along with this program; if not, write to the Free Software
+   Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02111-1301 USA */
+
 #include "mariadb.h"
 #include "sql_priv.h"
 #include "sql_select.h"
 #include "select_handler.h"
+
+
+/**
+  The methods of the Pushdown_select class.
+
+  The objects of this class are used for pushdown of the select queries
+  into engines. The main  method of the class is Pushdown_select::execute()
+  that initiates execution of a select query by a foreign engine, receives the
+  rows of the result set, put it in a buffer of a temporary table and send
+  them from the buffer directly into output.
+
+  The method uses the functions of the select_handle interface to do this.
+  It also employes plus some helper functions to create the needed temporary
+  table and to send rows from the temporary table into output.
+  The constructor of the class gets the select_handler interface as a parameter.
+*/
 
 
 Pushdown_select::Pushdown_select(SELECT_LEX *sel, select_handler *h)
@@ -10,11 +42,13 @@ Pushdown_select::Pushdown_select(SELECT_LEX *sel, select_handler *h)
   is_analyze= handler->thd->lex->analyze_stmt;
 }
 
+
 Pushdown_select::~Pushdown_select()
 {
   delete handler;
   select->select_h= NULL;
 }
+
 
 bool Pushdown_select::init()
 {
@@ -38,6 +72,7 @@ bool Pushdown_select::init()
   DBUG_RETURN(false);
 }
 
+
 bool Pushdown_select::send_result_set_metadata()
 {
   THD *thd= handler->thd;
@@ -58,6 +93,7 @@ bool Pushdown_select::send_result_set_metadata()
 
   DBUG_RETURN(false);
 }
+
 
 bool Pushdown_select::send_data()
 {
@@ -83,6 +119,7 @@ bool Pushdown_select::send_data()
   DBUG_RETURN(false);
 }
 
+
 bool Pushdown_select::send_eof()
 {
   THD *thd= handler->thd;
@@ -97,6 +134,7 @@ bool Pushdown_select::send_eof()
   ::my_eof(thd);
   DBUG_RETURN(false);
 }
+
 
 int Pushdown_select::execute()
 {
@@ -142,4 +180,9 @@ error:
 error_2:
   handler->print_error(err, MYF(0));
   DBUG_RETURN(-1);                              // Error not sent to client
+}
+
+void select_handler::print_error(int error, myf errflag)
+{
+  my_error(ER_GET_ERRNO, MYF(0), error, hton_name(ht)->str);
 }

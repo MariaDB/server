@@ -2136,8 +2136,14 @@ struct TABLE_LIST
   TABLE_LIST * next_with_rec_ref;
   bool is_derived_with_recursive_reference;
   bool block_handle_derived;
+  /* The interface employed to materialize the table by a foreign engine */
   derived_handler *dt_handler;
+  /* The text of the query specifying the derived table */
   LEX_CSTRING derived_spec;
+  /*
+    The object used to organize execution of the query that specifies
+    the derived table by a foreign engine
+  */
   Pushdown_derived *pushdown_derived;
   ST_SCHEMA_TABLE *schema_table;        /* Information_schema table */
   st_select_lex	*schema_select_lex;

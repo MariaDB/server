@@ -16,6 +16,25 @@
 
 /* !!! For inclusion into ha_federatedx.cc */
 
+
+/*
+  This is a quick a dirty implemention of the derived_handler and select_handler
+  interfaces to be used to push select queries and the queries specifying
+  derived tables into FEDERATEDX engine.
+  The functions
+    create_federatedx_derived_handler and
+    create_federatedx_select_handler
+  that return the corresponding interfaces for pushdown capabilities do
+  not check a lot of things. In particular they do not check that the tables
+  of the pushed queries belong to the same foreign server.
+
+  The implementation is provided purely for testing purposes.
+  The pushdown capabilities are enabled by turning on the plugin system
+  variable federated_pushdown:
+    set global federated_pushdown=1;
+*/
+
+
 static derived_handler*
 create_federatedx_derived_handler(THD* thd, TABLE_LIST *derived)
 {
