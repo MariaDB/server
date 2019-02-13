@@ -10768,6 +10768,9 @@ Column_definition::redefine_stage1_common(const Column_definition *dup_field,
   vcol_info=    dup_field->vcol_info;
   invisible=    dup_field->invisible;
   check_constraint= dup_field->check_constraint;
+  comment=      dup_field->comment;
+  option_list=  dup_field->option_list;
+  versioning=   dup_field->versioning;
 }
 
 
