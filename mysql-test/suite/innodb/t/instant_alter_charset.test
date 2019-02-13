@@ -139,6 +139,19 @@ alter table all_strings modify e varbinary(150), algorithm=instant;
 --error ER_ALTER_OPERATION_NOT_SUPPORTED_REASON
 alter table all_strings modify f binary(150), algorithm=instant;
 
+--error ER_ALTER_OPERATION_NOT_SUPPORTED_REASON
+alter table all_strings modify a tinytext charset binary, algorithm=instant;
+--error ER_ALTER_OPERATION_NOT_SUPPORTED_REASON
+alter table all_strings modify b text charset binary, algorithm=instant;
+--error ER_ALTER_OPERATION_NOT_SUPPORTED_REASON
+alter table all_strings modify c mediumtext charset binary, algorithm=instant;
+--error ER_ALTER_OPERATION_NOT_SUPPORTED_REASON
+alter table all_strings modify d longtext charset binary, algorithm=instant;
+--error ER_ALTER_OPERATION_NOT_SUPPORTED_REASON
+alter table all_strings modify e varchar(150) charset binary, algorithm=instant;
+--error ER_ALTER_OPERATION_NOT_SUPPORTED_REASON
+alter table all_strings modify f char(150) charset binary, algorithm=instant;
+
 drop table all_strings;
 
 create table key_part_change (
