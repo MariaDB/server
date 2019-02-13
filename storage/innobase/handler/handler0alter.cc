@@ -9993,9 +9993,7 @@ to the data dictionary cache and the file system.
 @param ctx In-place ALTER TABLE context */
 inline MY_ATTRIBUTE((nonnull))
 void
-commit_cache_rebuild(
-	Alter_inplace_info*		ha_alter_info,
-	ha_innobase_inplace_ctx*	ctx)
+commit_cache_rebuild(ha_innobase_inplace_ctx* ctx)
 {
 	dberr_t		error;
 
@@ -11120,7 +11118,7 @@ ha_innobase::commit_inplace_alter_table(
 				   ("table: %s", ctx->old_table->name.m_name));
 
 			/* Rename the tablespace files. */
-			commit_cache_rebuild(ha_alter_info, ctx);
+			commit_cache_rebuild(ctx);
 
 			error = innobase_update_foreign_cache(ctx, m_user_thd);
 			if (error != DB_SUCCESS) {
