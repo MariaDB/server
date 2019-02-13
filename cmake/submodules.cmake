@@ -13,7 +13,7 @@ IF(GIT_EXECUTABLE AND EXISTS "${CMAKE_SOURCE_DIR}/.git")
   IF(cmake_update_submodules MATCHES no)
     SET(update_result 0)
     SET(SUBMODULE_UPDATE_CONFIG_MESSAGE
-"\n\nTo update submodules automaticly, set cmake.update-submodules to 'yes', or 'force' to update automaticly:
+"\n\nTo update submodules automatically, set cmake.update-submodules to 'yes', or 'force' to update automatically:
     ${GIT_EXECUTABLE} config cmake.update-submodules yes")
   ELSEIF(git_config_get_result EQUAL 128)
     SET(update_result 0)
