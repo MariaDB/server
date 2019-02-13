@@ -4438,12 +4438,11 @@ static bool vers_prepare_keys(THD *thd, HA_CREATE_INFO *create_info,
   return false;
 }
 
-handler *mysql_create_frm_image(THD *thd,
-                                const LEX_CSTRING *db, const LEX_CSTRING *table_name,
+handler *mysql_create_frm_image(THD *thd, const LEX_CSTRING *db,
+                                const LEX_CSTRING *table_name,
                                 HA_CREATE_INFO *create_info,
                                 Alter_info *alter_info, int create_table_mode,
-                                KEY **key_info,
-                                uint *key_count,
+                                KEY **key_info, uint *key_count,
                                 LEX_CUSTRING *frm)
 {
   uint		db_options;
@@ -4681,8 +4680,7 @@ handler *mysql_create_frm_image(THD *thd,
   }
 
   if (mysql_prepare_create_table(thd, create_info, alter_info, &db_options,
-                                 file, key_info, key_count,
-                                 create_table_mode))
+                                 file, key_info, key_count, create_table_mode))
     goto err;
   create_info->table_options=db_options;
 
@@ -4734,19 +4732,13 @@ err:
 */
 
 static
-int create_table_impl(THD *thd,
-                      const LEX_CSTRING *orig_db,
+int create_table_impl(THD *thd, const LEX_CSTRING *orig_db,
                       const LEX_CSTRING *orig_table_name,
                       const LEX_CSTRING *db, const LEX_CSTRING *table_name,
-                       const char *path,
-                       const DDL_options_st options,
-                       HA_CREATE_INFO *create_info,
-                       Alter_info *alter_info,
-                       int create_table_mode,
-                       bool *is_trans,
-                       KEY **key_info,
-                       uint *key_count,
-                       LEX_CUSTRING *frm)
+                      const char *path, const DDL_options_st options,
+                      HA_CREATE_INFO *create_info, Alter_info *alter_info,
+                      int create_table_mode, bool *is_trans, KEY **key_info,
+                      uint *key_count, LEX_CUSTRING *frm)
 {
   LEX_CSTRING	*alias;
   handler	*file= 0;
@@ -5026,13 +5018,11 @@ warn:
     -1 Table was used with IF NOT EXISTS and table existed (warning, not error)
 */
 
-int mysql_create_table_no_lock(THD *thd,
-                               const LEX_CSTRING *db,
+int mysql_create_table_no_lock(THD *thd, const LEX_CSTRING *db,
                                const LEX_CSTRING *table_name,
                                Table_specification_st *create_info,
                                Alter_info *alter_info, bool *is_trans,
-                               int create_table_mode,
-                               TABLE_LIST *table_list)
+                               int create_table_mode, TABLE_LIST *table_list)
 {
   KEY *not_used_1;
   uint not_used_2;
