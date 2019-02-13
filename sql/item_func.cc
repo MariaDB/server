@@ -6522,12 +6522,9 @@ Item_func_sp::fix_fields(THD *thd, Item **ref)
     if (arg_count)
     {
       List<Item> list;
-      list.empty();
-      for (uint i=0; i < arg_count; i++)
-        list.push_back(*(args+i));
-
+      for (uint i= 0; i < arg_count; i++)
+        list.push_back(args[i]);
       item_sp= new (thd->mem_root) Item_sum_sp(thd, context, m_name, sp, list);
-      list.empty();
     }
     else
       item_sp= new (thd->mem_root) Item_sum_sp(thd, context, m_name, sp);
