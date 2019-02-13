@@ -6121,6 +6121,11 @@ no_such_table:
 		DBUG_RETURN(HA_ERR_NO_SUCH_TABLE);
 	}
 
+	if (!ib_table->not_redundant()) {
+		m_int_table_flags |= HA_EXTENDED_TYPES_CONVERSION;
+		cached_table_flags |= HA_EXTENDED_TYPES_CONVERSION;
+	}
+
 	size_t n_fields = omits_virtual_cols(*table_share)
 		? table_share->stored_fields : table_share->fields;
 	size_t n_cols = dict_table_get_n_user_cols(ib_table)

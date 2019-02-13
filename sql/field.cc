@@ -1,6 +1,6 @@
 /*
    Copyright (c) 2000, 2017, Oracle and/or its affiliates.
-   Copyright (c) 2008, 2017, MariaDB
+   Copyright (c) 2008, 2019, MariaDB
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -7912,7 +7912,8 @@ uint Field_varstring::is_equal(Create_field *new_field)
       return IS_EQUAL_YES;
     if (field_length <= 127 ||
         new_field->length <= 255 ||
-        field_length > 255)
+        field_length > 255 ||
+	(table->file->ha_table_flags() & HA_EXTENDED_TYPES_CONVERSION))
       return IS_EQUAL_PACK_LENGTH; // VARCHAR, longer length
   }
 

@@ -2,7 +2,7 @@
 #define HANDLER_INCLUDED
 /*
    Copyright (c) 2000, 2016, Oracle and/or its affiliates.
-   Copyright (c) 2009, 2018, MariaDB
+   Copyright (c) 2009, 2019, MariaDB
 
    This program is free software; you can redistribute it and/or
    modify it under the terms of the GNU General Public License
@@ -318,6 +318,11 @@ enum enum_alter_inplace_result {
 
 /* Safe for online backup */
 #define HA_CAN_ONLINE_BACKUPS (1ULL << 56)
+
+/** whether every data field explicitly stores length
+(holds for InnoDB ROW_FORMAT=REDUNDANT) */
+#define HA_EXTENDED_TYPES_CONVERSION (1ULL << 57)
+#define HA_LAST_TABLE_FLAG HA_EXTENDED_TYPES_CONVERSION
 
 /* bits in index_flags(index_number) for what you can do with index */
 #define HA_READ_NEXT            1       /* TODO really use this flag */
@@ -3141,7 +3146,11 @@ public:
   /**
     The cached_table_flags is set at ha_open and ha_external_lock
   */
-  Table_flags ha_table_flags() const { return cached_table_flags; }
+  Table_flags ha_table_flags() const
+  {
+    DBUG_ASSERT(cached_table_flags < (HA_LAST_TABLE_FLAG << 1));
+    return cached_table_flags;
+  }
   /**
     These functions represent the public interface to *users* of the
     handler class, hence they are *not* virtual. For the inheritance
