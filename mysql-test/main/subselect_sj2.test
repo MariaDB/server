@@ -995,6 +995,8 @@ CREATE TABLE t3 (f12 varchar(1) NOT NULL) ENGINE=InnoDB;
 INSERT INTO t3 VALUES ('r'),('s'),('t'),('v'),('w'),('x'),('y');
 
 --echo # The following must use LooseScan but not join buffering
+
+--replace_column 9 #
 explain
 SELECT * FROM t3 
 WHERE f12 IN (SELECT alias2.f12 FROM t1 AS alias1, t2 AS alias2, t1 WHERE alias1.f13 = 24);

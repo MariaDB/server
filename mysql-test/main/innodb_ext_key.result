@@ -824,8 +824,8 @@ set optimizer_switch='extended_keys=off';
 explain 
 select * from t1, t2 where t2.a=t1.a and t2.b < 2;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	10	
-1	SIMPLE	t2	eq_ref	a	a	4	test.t1.a	1	Using where
+1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	#	
+1	SIMPLE	t2	eq_ref	a	a	4	test.t1.a	#	Using where
 flush status;
 select * from t1, t2 where t2.a=t1.a and t2.b < 2;
 a	pk	a	b
@@ -846,8 +846,8 @@ set optimizer_switch='extended_keys=on';
 explain 
 select * from t1, t2 where t2.a=t1.a and t2.b < 2;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	10	
-1	SIMPLE	t2	eq_ref	a	a	4	test.t1.a	1	Using where
+1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	#	
+1	SIMPLE	t2	eq_ref	a	a	4	test.t1.a	#	Using where
 flush status;
 select * from t1, t2 where t2.a=t1.a and t2.b < 2;
 a	pk	a	b

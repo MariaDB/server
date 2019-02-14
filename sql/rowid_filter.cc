@@ -189,8 +189,6 @@ int compare_range_rowid_filter_cost_info_by_a(
 
 void TABLE::prune_range_rowid_filters()
 {
-  uint i, j;
-
   /*
     For the elements of the array with cost info on range filters
     build a bit matrix of absolutely independent elements.
@@ -201,11 +199,15 @@ void TABLE::prune_range_rowid_filters()
   */
 
   Range_rowid_filter_cost_info **filter_ptr_1= range_rowid_filter_cost_info_ptr;
-  for (i= 0; i < range_rowid_filter_cost_info_elems; i++, filter_ptr_1++)
+  for (uint i= 0;
+       i < range_rowid_filter_cost_info_elems;
+       i++, filter_ptr_1++)
   {
     uint key_no= (*filter_ptr_1)->key_no;
     Range_rowid_filter_cost_info **filter_ptr_2= filter_ptr_1 + 1;
-    for (j= i+1; j < range_rowid_filter_cost_info_elems; j++, filter_ptr_2++)
+    for (uint j= i+1;
+         j < range_rowid_filter_cost_info_elems;
+         j++, filter_ptr_2++)
     {
       key_map map_1= key_info[key_no].overlapped;
       map_1.merge(key_info[key_no].constraint_correlated);
@@ -236,7 +238,9 @@ void TABLE::prune_range_rowid_filters()
 
   Range_rowid_filter_cost_info **cand_filter_ptr=
                                    range_rowid_filter_cost_info_ptr;
-  for (i= 0; i < range_rowid_filter_cost_info_elems; i++, cand_filter_ptr++)
+  for (uint i= 0;
+       i < range_rowid_filter_cost_info_elems;
+       i++, cand_filter_ptr++)
   {
     bool is_pruned= false;
     Range_rowid_filter_cost_info **usable_filter_ptr=

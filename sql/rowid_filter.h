@@ -153,7 +153,7 @@ class Range_rowid_filter_cost_info;
 typedef enum
 {
   SORTED_ARRAY_CONTAINER,
-  BLOOM_FILTER_CONTAINER
+  BLOOM_FILTER_CONTAINER      // Not used yet
 } Rowid_filter_container_type;
 
 /**

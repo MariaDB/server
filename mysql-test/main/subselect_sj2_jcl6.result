@@ -831,10 +831,10 @@ explain
 SELECT * FROM t3 
 WHERE f12 IN (SELECT alias2.f12 FROM t1 AS alias1, t2 AS alias2, t1 WHERE alias1.f13 = 24);
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	PRIMARY	alias1	const	PRIMARY	PRIMARY	4	const	1	Using index
-1	PRIMARY	alias2	index	f12	f12	7	NULL	1	Using index; LooseScan
-1	PRIMARY	t1	index	NULL	PRIMARY	4	NULL	2	Using index; FirstMatch(alias2)
-1	PRIMARY	t3	ALL	NULL	NULL	NULL	NULL	7	Using where; Using join buffer (flat, BNL join)
+1	PRIMARY	alias1	const	PRIMARY	PRIMARY	4	const	#	Using index
+1	PRIMARY	alias2	index	f12	f12	7	NULL	#	Using index; LooseScan
+1	PRIMARY	t1	index	NULL	PRIMARY	4	NULL	#	Using index; FirstMatch(alias2)
+1	PRIMARY	t3	ALL	NULL	NULL	NULL	NULL	#	Using where; Using join buffer (flat, BNL join)
 SELECT * FROM t3 
 WHERE f12 IN (SELECT alias2.f12 FROM t1 AS alias1, t2 AS alias2, t1 WHERE alias1.f13 = 24);
 f12

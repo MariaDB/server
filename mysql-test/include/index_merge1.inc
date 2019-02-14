@@ -479,6 +479,7 @@ create table t2(
 ) ENGINE=MEMORY DEFAULT CHARSET=latin1;
 insert into t2 select * from t1;
 
+
 --echo must use sort-union rather than union:
 --replace_column 9 #
 explain select * from t1 where a=4 or b=4;
@@ -489,9 +490,9 @@ select * from t1 ignore index(a,b) where a=4 or b=4;
 
 --echo must use union, not sort-union:
 --replace_column 9 #
-explain select * from t2 where a=4 or b=4;
+explain select * from t2 where a=2 or b=2;
 --sorted_result
-select * from t2 where a=4 or b=4;
+select * from t2 where a=2 or b=2;
 
 drop table t1, t2;
 
