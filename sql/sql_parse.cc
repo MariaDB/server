@@ -1729,11 +1729,23 @@ bool dispatch_command(enum enum_server_command command, THD *thd,
   case COM_STMT_BULK_EXECUTE:
   {
     mysqld_stmt_bulk_execute(thd, packet, packet_length);
+#ifdef WITH_WSREP
+    if (WSREP_ON)
+    {
+        (void)wsrep_after_statement(thd);
+    }
+#endif /* WITH_WSREP */
     break;
   }
   case COM_STMT_EXECUTE:
   {
     mysqld_stmt_execute(thd, packet, packet_length);
+#ifdef WITH_WSREP
+    if (WSREP_ON)
+    {
+        (void)wsrep_after_statement(thd);
+    }
+#endif /* WITH_WSREP */
     break;
   }
   case COM_STMT_FETCH:
