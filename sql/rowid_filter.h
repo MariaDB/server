@@ -396,6 +396,13 @@ class Range_rowid_filter_cost_info : public Sql_alloc
   /* Used for pruning of the potential range filters */
   key_map abs_independent;
 
+  /*
+    These two parameters are used to choose the best range filter
+    in the function TABLE::best_range_rowid_filter_for_partial_join
+  */
+  double a_adj;
+  double cross_x_adj;
+
 public:
   /* The type of the container of the range filter */
   Rowid_filter_container_type container_type;
@@ -416,30 +423,29 @@ public:
   inline double
   avg_access_and_eval_gain_per_row(Rowid_filter_container_type cont_type);
 
-  /* Get the gain that usage of filter promises for 'rows' key tuples */
-  inline double get_gain(double rows)
+  inline double avg_adjusted_gain_per_row(double access_cost_factor);
+
+  inline void set_adjusted_gain_param(double access_cost_factor);
+
+  /* Get the gain that usage of filter promises for r key tuples */
+  inline double get_gain(double r)
   {
-    return rows * a - b;
+    return r * a - b;
+  }
+
+  /* Get the adjusted gain that usage of filter promises for r key tuples */
+  inline double get_adjusted_gain(double r)
+  {
+    return r * a_adj - b;
   }
 
   /*
-    The gain promised by usage of the filter at the assumption that
-    when the table is accessed without the filter at most worst_seeks
-    pages are fetched from disk to access the data rows of the table
-  */
-  inline double get_adjusted_gain(double rows, double worst_seeks)
-  {
-    return get_gain(rows) -
-           (1 - selectivity) * (rows - MY_MIN(rows, worst_seeks));
-  }
-
-  /*
-    The gain promised by usage of the filter
+    The gain promised by usage of the filter for r key tuples
     due to less condition evaluations
   */
-  inline double get_cmp_gain(double rows)
+  inline double get_cmp_gain(double r)
   {
-    return rows * (1 - selectivity) / TIME_FOR_COMPARE;
+    return r * (1 - selectivity) / TIME_FOR_COMPARE;
   }
 
   Rowid_filter_container *create_container();
@@ -455,7 +461,8 @@ public:
   friend
   Range_rowid_filter_cost_info *
   TABLE::best_range_rowid_filter_for_partial_join(uint access_key_no,
-                                                  double records);
+                                                  double records,
+                                                  double access_cost_factor);
 };
 
 #endif /* ROWID_FILTER_INCLUDED */

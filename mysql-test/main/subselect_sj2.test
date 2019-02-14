@@ -1223,6 +1223,7 @@ INSERT INTO t2 VALUES
   (13,'b','b'),(14,'x','x'),(15,'g','g'),(16,'p','p'),
   (17,'q','q'),(18,'w','w'),(19,'d','d');
 
+--replace_column 9 #
 EXPLAIN
 SELECT COUNT(*) FROM t1 AS alias1, t1 AS alias2, t2 AS alias3
 WHERE alias3.d IN (
@@ -1242,6 +1243,7 @@ WHERE alias3.d IN (
 # Do the same EXPLAIN SELECT and SELECT
 # with "alias3.c != alias5.c" instead of "alias5.c != alias3.c"
 
+--replace_column 9 #
 EXPLAIN
 SELECT COUNT(*) FROM t1 AS alias1, t1 AS alias2, t2 AS alias3
 WHERE alias3.d IN (

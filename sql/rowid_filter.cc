@@ -49,6 +49,54 @@ double Range_rowid_filter_cost_info::avg_access_and_eval_gain_per_row(
          lookup_cost(cont_type);
 }
 
+
+/**
+  @brief
+    The average adjusted gain in cost per row of using the filter
+
+  @param access_cost_factor the adjusted cost of access a row
+
+  @details
+    The current code to estimate the cost of a ref access is quite inconsistent:
+    in some cases the effect of page buffers is taken into account, for others
+    just the engine dependent read_time() is employed. That's why the average
+    cost of one random seek might differ from 1.
+    The parameter access_cost_factor can be considered as the cost of a random
+    seek that is used for the given ref access. Changing the cost of a random
+    seek we have to change the first coefficient in the linear formula by which
+    we calculate the gain of usage the given filter for a_adj. This function
+    calculates the value of a_adj.
+
+   @note
+     Currently we require that access_cost_factor should be a number between
+     0.0 and 1.0
+*/
+
+inline
+double Range_rowid_filter_cost_info::avg_adjusted_gain_per_row(
+				         double access_cost_factor)
+{
+  return a - (1 - access_cost_factor) * (1 - selectivity);
+}
+
+
+/**
+  @brief
+    Set the parameters used to choose the filter with the best adjusted gain
+
+  @note
+    This function must be called before the call of get_adjusted_gain()
+    for the given filter.
+*/
+
+inline void
+Range_rowid_filter_cost_info::set_adjusted_gain_param(double access_cost_factor)
+{
+  a_adj= avg_adjusted_gain_per_row(access_cost_factor);
+  cross_x_adj= b / a_adj;
+}
+
+
 /**
   @brief
     Initialize the cost info structure for a range filter
@@ -358,6 +406,7 @@ void TABLE::init_cost_info_for_usable_range_rowid_filters(THD *thd)
 
   @param access_key_no    The index by which the table is accessed
   @param records   The estimated total number of key tuples with this access
+  @param access_cost_factor the cost of a random seek to access the table
 
   @details
     The function looks through the array of cost info for range filters
@@ -365,8 +414,12 @@ void TABLE::init_cost_info_for_usable_range_rowid_filters(THD *thd)
     gain with the the ref or range access of the table by access_key_no.
     As the array is sorted by cross_x in ascending order the function stops
     the look through as soon as it reaches the first element with
-    cross_x > records because the range filter for this element and the
-    range filters for all remaining elements do not promise positive gains
+    cross_x_adj > records because the range filter for this element and the
+    range filters for all remaining elements do not promise positive gains.
+
+  @note
+    It is easy to see that if cross_x[i] > cross_x[j] then
+    cross_x_adj[i] > cross_x_adj[j]
 
   @retval  Pointer to the cost info for the range filter that promises
            the greatest gain, NULL if there is no such range filter
@@ -374,7 +427,8 @@ void TABLE::init_cost_info_for_usable_range_rowid_filters(THD *thd)
 
 Range_rowid_filter_cost_info *
 TABLE::best_range_rowid_filter_for_partial_join(uint access_key_no,
-                                                double records)
+                                                double records,
+                                                double access_cost_factor)
 {
   if (!this || range_rowid_filter_cost_info_elems == 0 ||
       covering_keys.is_set(access_key_no))
@@ -408,13 +462,15 @@ TABLE::best_range_rowid_filter_for_partial_join(uint access_key_no,
         no_filter_usage.is_set(filter->key_no))
       continue;
 
-    if (records < filter->cross_x)
+    filter->set_adjusted_gain_param(access_cost_factor);
+
+    if (records < filter->cross_x_adj)
     {
       /* Does not make sense to look through the remaining filters */
       break;
     }
 
-    curr_gain= filter->get_gain(records);
+    curr_gain= filter->get_adjusted_gain(records);
     if (best_filter_gain < curr_gain)
     {
       best_filter_gain= curr_gain;

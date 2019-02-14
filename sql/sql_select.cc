@@ -6981,6 +6981,7 @@ best_access_path(JOIN      *join,
   KEYUSE *hj_start_key= 0;
   SplM_plan_info *spl_plan= 0;
   Range_rowid_filter_cost_info *filter= 0;
+  double filter_cmp_gain= 0;
 
   disable_jbuf= disable_jbuf || idx == join->const_tables;  
 
@@ -7376,12 +7377,14 @@ best_access_path(JOIN      *join,
       if (records < DBL_MAX)
       {
         double rows= record_count * records;
+        double access_cost_factor= MY_MIN(tmp / rows, 1.0);
         filter=
-          table->best_range_rowid_filter_for_partial_join(start_key->key, rows);
+          table->best_range_rowid_filter_for_partial_join(start_key->key, rows,
+                                                          access_cost_factor);
         if (filter)
 	{
-          tmp-= filter->get_adjusted_gain(rows, s->worst_seeks) -
-	        filter->get_cmp_gain(rows);
+          filter->get_cmp_gain(rows);
+          tmp-= filter->get_adjusted_gain(rows) - filter->get_cmp_gain(rows);
           DBUG_ASSERT(tmp >= 0);
         }
       }
@@ -7508,12 +7511,14 @@ best_access_path(JOIN      *join,
       if ( s->quick->get_type() == QUICK_SELECT_I::QS_TYPE_RANGE)
       {
         double rows= record_count * s->found_records;
+        double access_cost_factor= MY_MIN(tmp / rows, 1.0);
         uint key_no= s->quick->index;
-        filter= s->table->best_range_rowid_filter_for_partial_join(key_no,
-                                                                   rows);
+        filter=
+        s->table->best_range_rowid_filter_for_partial_join(key_no, rows,
+                                                           access_cost_factor);
         if (filter)
         {
-          tmp-= filter->get_gain(rows);
+          tmp-= filter->get_adjusted_gain(rows);
           DBUG_ASSERT(tmp >= 0);
 	}
       }
@@ -7556,7 +7561,6 @@ best_access_path(JOIN      *join,
       }
     }
 
-    double best_records= rnd_records;
     /* Splitting technique cannot be used with join cache */
     if (s->table->is_splittable())
       tmp+= s->table->get_materialization_cost();
@@ -7569,28 +7573,32 @@ best_access_path(JOIN      *join,
       tmp give us total cost of using TABLE SCAN
     */
 
-    double filter_cmp_gain= 0;
-    if (filter)
+    double best_filter_cmp_gain= 0;
+    if (best_filter)
     {
-      filter_cmp_gain= filter->get_cmp_gain(record_count * s->found_records);
+      best_filter_cmp_gain= best_filter->get_cmp_gain(record_count * records);
     }
 
     if (best == DBL_MAX ||
         (tmp  + record_count/(double) TIME_FOR_COMPARE*rnd_records <
          (best_key->is_for_hash_join() ? best_time :
           best + record_count/(double) TIME_FOR_COMPARE*records -
-          filter_cmp_gain)))
+          best_filter_cmp_gain)))
     {
       /*
         If the table has a range (s->quick is set) make_join_select()
         will ensure that this will be used
       */
       best= tmp;
-      records= best_records;
+      records= rnd_records;
       best_key= 0;
       best_filter= 0;
-      if (s->quick && s->quick->get_type() == QUICK_SELECT_I::QS_TYPE_RANGE)
+      if (s->quick && s->quick->get_type() == QUICK_SELECT_I::QS_TYPE_RANGE &&
+          filter)
+      {
         best_filter= filter;
+        best_filter_cmp_gain= filter_cmp_gain;
+      }
       /* range/index_merge/ALL/index access method are "independent", so: */
       best_ref_depends_map= 0;
       best_uses_jbuf= MY_TEST(!disable_jbuf && !((s->table->map &
@@ -8091,14 +8099,22 @@ optimize_straight_join(JOIN *join, table_map join_tables)
 
   for (JOIN_TAB **pos= join->best_ref + idx ; (s= *pos) ; pos++)
   {
-    /* Find the best access method from 's' to the current partial plan */
+    POSITION *position= join->positions + idx;
+   /* Find the best access method from 's' to the current partial plan */
     best_access_path(join, s, join_tables, idx, disable_jbuf, record_count,
-                     join->positions + idx, &loose_scan_pos);
+                     position, &loose_scan_pos);
 
     /* compute the cost of the new plan extended with 's' */
-    record_count*= join->positions[idx].records_read;
-    read_time+= join->positions[idx].read_time +
-                record_count / (double) TIME_FOR_COMPARE;
+    record_count*= position->records_read;
+    double filter_cmp_gain= 0;
+    if (position->range_rowid_filter_info)
+    {
+      filter_cmp_gain=
+        position->range_rowid_filter_info->get_cmp_gain(record_count);
+    }
+    read_time+= position->read_time +
+                record_count / (double) TIME_FOR_COMPARE -
+                filter_cmp_gain;
     advance_sj_state(join, join_tables, idx, &record_count, &read_time,
                      &loose_scan_pos);
 
@@ -8107,7 +8123,7 @@ optimize_straight_join(JOIN *join, table_map join_tables)
     if (use_cond_selectivity > 1)
       pushdown_cond_selectivity= table_cond_selectivity(join, idx, s,
                                                         join_tables);
-    join->positions[idx].cond_selectivity= pushdown_cond_selectivity;
+    position->cond_selectivity= pushdown_cond_selectivity;
     ++idx;
   }
 
@@ -9006,8 +9022,15 @@ best_extension_by_limited_search(JOIN      *join,
         current_record_count= record_count * position->records_read;
       else
         current_record_count= DBL_MAX;
+      double filter_cmp_gain= 0;
+      if (position->range_rowid_filter_info)
+      {
+        filter_cmp_gain=
+          position->range_rowid_filter_info->get_cmp_gain(current_record_count);
+      }
       current_read_time=read_time + position->read_time +
-                        current_record_count / (double) TIME_FOR_COMPARE;
+                        current_record_count / (double) TIME_FOR_COMPARE -
+	                filter_cmp_gain;
 
       advance_sj_state(join, remaining_tables, idx, &current_record_count,
                        &current_read_time, &loose_scan_pos);

@@ -1524,7 +1524,8 @@ public:
   void prune_range_rowid_filters();
   Range_rowid_filter_cost_info *
   best_range_rowid_filter_for_partial_join(uint access_key_no,
-                                           double records);
+                                           double records,
+                                           double access_cost_factor);
 
   /**
     System Versioning support
