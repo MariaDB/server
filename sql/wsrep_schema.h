@@ -1,4 +1,4 @@
-/* Copyright (C) 2015-2018 Codership Oy <info@codership.com>
+/* Copyright (C) 2015-2019 Codership Oy <info@codership.com>
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -20,12 +20,8 @@
 /* wsrep-lib */
 #include "wsrep_types.h"
 
-
 #include "mysqld.h"
-#include "thr_lock.h" /* enum thr_lock_type */
 #include "wsrep_mysqld.h"
-
-#include <string>
 
 /*
   Forward decls
@@ -64,14 +60,6 @@ class Wsrep_schema
   */
   Wsrep_view restore_view(THD* thd, const Wsrep_id& own_id) const;
 
-  /*
-    Append transaction fragment to fragment storage.
-    Starts a trx using a THD from thd_pool, does not commit.
-    Should be followed by a call to update_frag_seqno(), or
-    release_SR_thd() if wsrep->certify() fails.
-   */
-  THD* append_frag(const wsrep_trx_meta_t&, uint32_t,
-                   const unsigned char*, size_t);
   /**
     Append transaction fragment to fragment storage.
     Transaction must have been started for THD before this call.
@@ -144,11 +132,6 @@ class Wsrep_schema
      @return Zero on success, non-zero on failure.
   */
   int recover_sr_transactions(THD* orig_thd);
-
-  /*
-    Close wsrep schema.
-  */
-  void close();
 
  private:
   /* Non-copyable */
