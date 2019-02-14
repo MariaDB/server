@@ -9587,21 +9587,3 @@ bool LEX::sp_proc_stmt_statement_finalize(THD *thd, bool no_lookahead)
                                                        lip->get_tok_start());
   return LEX::sp_proc_stmt_statement_finalize_buf(thd, qbuf);
 }
-
-
-/**
-   Create JSON_VALID(field_name) expression
-*/
-
-Virtual_column_info *make_json_valid_expr(THD *thd, LEX_CSTRING *field_name)
-{
-  Lex_ident_sys_st str;
-  Item *field, *expr;
-  str.set_valid_utf8(field_name);
-  if (unlikely(!(field= thd->lex->create_item_ident_field(thd, NullS, NullS,
-                                                          &str))))
-    return 0;
-  if (unlikely(!(expr= new (thd->mem_root) Item_func_json_valid(thd, field))))
-    return 0;
-  return add_virtual_expression(thd, expr);
-}

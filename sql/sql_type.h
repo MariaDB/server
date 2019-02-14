@@ -78,6 +78,7 @@ struct Schema_specification_st;
 struct TABLE;
 struct SORT_FIELD_ATTR;
 class Vers_history_point;
+class Virtual_column_info;
 
 #define my_charset_numeric      my_charset_latin1
 
@@ -3280,7 +3281,6 @@ public:
     return true;
   }
   virtual bool is_scalar_type() const { return true; }
-  virtual bool is_json_type() const { return false; }
   virtual bool can_return_int() const { return true; }
   virtual bool can_return_decimal() const { return true; }
   virtual bool can_return_real() const { return true; }
@@ -3338,6 +3338,10 @@ public:
   // Automatic upgrade, e.g. for ALTER TABLE t1 FORCE
   virtual void Column_definition_implicit_upgrade(Column_definition *c) const
   { }
+  // Validate CHECK constraint after the parser
+  virtual bool Column_definition_validate_check_constraint(THD *thd,
+                                                           Column_definition *c)
+                                                           const;
   // Fix attributes after the parser
   virtual bool Column_definition_fix_attributes(Column_definition *c) const= 0;
   /*
@@ -5895,14 +5899,6 @@ public:
 };
 
 
-class Type_handler_json: public Type_handler_long_blob
-{
-public:
-  virtual ~Type_handler_json() {}
-  virtual bool is_json_type() const { return true; }
-};
-
-
 class Type_handler_blob: public Type_handler_blob_common
 {
   static const Name m_name_blob;
@@ -6231,7 +6227,6 @@ extern MYSQL_PLUGIN_IMPORT Type_handler_hex_hybrid  type_handler_hex_hybrid;
 extern MYSQL_PLUGIN_IMPORT Type_handler_tiny_blob   type_handler_tiny_blob;
 extern MYSQL_PLUGIN_IMPORT Type_handler_medium_blob type_handler_medium_blob;
 extern MYSQL_PLUGIN_IMPORT Type_handler_long_blob   type_handler_long_blob;
-extern MYSQL_PLUGIN_IMPORT Type_handler_json        type_handler_json;
 extern MYSQL_PLUGIN_IMPORT Type_handler_blob        type_handler_blob;
 
 extern MYSQL_PLUGIN_IMPORT Type_handler_bool        type_handler_bool;

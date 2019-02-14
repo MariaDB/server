@@ -66,7 +66,6 @@ Type_handler_tiny_blob   type_handler_tiny_blob;
 Type_handler_medium_blob type_handler_medium_blob;
 Type_handler_long_blob   type_handler_long_blob;
 Type_handler_blob        type_handler_blob;
-Type_handler_json        type_handler_json;
 static Type_handler_blob_compressed type_handler_blob_compressed;
 
 Type_handler_interval_DDhhmmssff type_handler_interval_DDhhmmssff;
@@ -2327,6 +2326,17 @@ Field *Type_handler_set::make_conversion_table_field(TABLE *table,
                    metadata & 0x00ff/*pack_length()*/,
                    ((const Field_enum*) target)->typelib, target->charset());
 }
+
+
+/*************************************************************************/
+
+bool Type_handler::
+       Column_definition_validate_check_constraint(THD *thd,
+                                                   Column_definition * c) const
+{
+  return c->validate_check_constraint(thd);
+}
+
 
 /*************************************************************************/
 bool Type_handler_null::
