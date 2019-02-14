@@ -5034,7 +5034,9 @@ new_clustered_failed:
 			goto err_exit;
 		}
 
-		size_t	prefixlen= strlen(mysql_data_home) + 1;
+		size_t	prefixlen= strlen(mysql_data_home);
+                if (mysql_data_home[prefixlen-1] != FN_LIBCHAR)
+                  prefixlen++;
 		size_t	tablen = altered_table->s->path.length - prefixlen;
 		const char* part = ctx->old_table->name.part();
 		size_t	partlen = part ? strlen(part) : 0;
