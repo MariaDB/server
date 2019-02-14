@@ -13,8 +13,8 @@
  test.t	check	status	OK
  call check_table('t');
  name	mtype	prtype	len
--a	2	800FE	200
-+a	13	2100FE	600
+-a	2	800FE	220
++a	13	2100FE	660
  # Convert from VARCHAR to a bigger CHAR
  alter table t modify a varchar(200), algorithm=instant;
  ERROR 0A000: ALGORITHM=INSTANT is not supported. Reason: Cannot change column type INPLACE. Try ALGORITHM=COPY

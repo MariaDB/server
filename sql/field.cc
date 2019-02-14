@@ -7068,15 +7068,25 @@ uint Field::is_equal(Create_field *new_field)
 
 uint Field_str::is_equal(Create_field *new_field)
 {
-  if (new_field->type_handler() == type_handler() &&
-      new_field->charset == field_charset)
-  {
-    if (new_field->length == max_display_length())
-      return IS_EQUAL_YES;
-    if (new_field->length > max_display_length() &&
-        (table->file->ha_table_flags() & HA_EXTENDED_TYPES_CONVERSION))
-      return IS_EQUAL_PACK_LENGTH_EXT;
-  }
+  if (new_field->type_handler() != type_handler())
+    return IS_EQUAL_NO;
+  if (new_field->length < max_display_length())
+    return IS_EQUAL_NO;
+  if (new_field->char_length < char_length())
+    return IS_EQUAL_NO;
+
+  const bool part_of_a_key= !new_field->field->part_of_key.is_clear_all();
+  if (!Type_handler::Charsets_are_compatible(field_charset, new_field->charset,
+					     part_of_a_key))
+    return IS_EQUAL_NO;
+
+  if (new_field->length == max_display_length())
+    return new_field->charset == field_charset
+      ? IS_EQUAL_YES : IS_EQUAL_PACK_LENGTH;
+
+  if (table->file->ha_table_flags() & HA_EXTENDED_TYPES_CONVERSION)
+    return IS_EQUAL_PACK_LENGTH_EXT;
+
   return IS_EQUAL_NO;
 }
 
@@ -7915,27 +7925,34 @@ uint Field_varstring::is_equal(Create_field *new_field)
 {
   if (new_field->length < field_length)
     return IS_EQUAL_NO;
+  if (new_field->char_length < char_length())
+    return IS_EQUAL_NO;
+  if (!new_field->compression_method() != !compression_method())
+    return IS_EQUAL_NO;
 
-  if (new_field->charset == field_charset &&
-      !new_field->compression_method() == !compression_method())
+  bool part_of_a_key= !new_field->field->part_of_key.is_clear_all();
+  if (!Type_handler::Charsets_are_compatible(field_charset, new_field->charset,
+                                             part_of_a_key))
+    return IS_EQUAL_NO;
+
+  const Type_handler *new_type_handler= new_field->type_handler();
+  if (new_type_handler == type_handler())
   {
-    const Type_handler *new_type_handler= new_field->type_handler();
-    if (new_type_handler == type_handler())
-    {
-      if (new_field->length == field_length)
-        return IS_EQUAL_YES;
-      if (field_length <= 127 ||
-          new_field->length <= 255 ||
-          field_length > 255 ||
-	  (table->file->ha_table_flags() & HA_EXTENDED_TYPES_CONVERSION))
-        return IS_EQUAL_PACK_LENGTH; // VARCHAR, longer length
-    }
-    else if (new_type_handler == &type_handler_string) // converting to CHAR
-    {
-      if (table->file->ha_table_flags() & HA_EXTENDED_TYPES_CONVERSION)
-        return IS_EQUAL_PACK_LENGTH_EXT;
-    }
+    if (new_field->length == field_length)
+      return new_field->charset == field_charset
+        ? IS_EQUAL_YES : IS_EQUAL_PACK_LENGTH;
+    if (field_length <= 127 ||
+        new_field->length <= 255 ||
+        field_length > 255 ||
+        (table->file->ha_table_flags() & HA_EXTENDED_TYPES_CONVERSION))
+      return IS_EQUAL_PACK_LENGTH; // VARCHAR, longer length
   }
+  else if (new_type_handler == &type_handler_string) // converting to CHAR
+  {
+    if (table->file->ha_table_flags() & HA_EXTENDED_TYPES_CONVERSION)
+      return IS_EQUAL_PACK_LENGTH_EXT;
+  }
+
   return IS_EQUAL_NO;
 }
 
@@ -8702,10 +8719,32 @@ uint Field_blob::max_packed_col_length(uint max_length)
 
 uint Field_blob::is_equal(Create_field *new_field)
 {
-  return new_field->type_handler() == type_handler() &&
-         new_field->charset == field_charset &&
-         new_field->pack_length == pack_length() &&
-         !new_field->compression_method() == !compression_method();
+  if (new_field->type_handler() != type_handler())
+  {
+    return IS_EQUAL_NO;
+  }
+  if (!new_field->compression_method() != !compression_method())
+  {
+    return IS_EQUAL_NO;
+  }
+  if (new_field->pack_length != pack_length())
+  {
+    return IS_EQUAL_NO;
+  }
+
+  bool part_of_a_key= !new_field->field->part_of_key.is_clear_all();
+  if (!Type_handler::Charsets_are_compatible(field_charset, new_field->charset,
+                                             part_of_a_key))
+  {
+    return IS_EQUAL_NO;
+  }
+
+  if (field_charset != new_field->charset)
+  {
+    return IS_EQUAL_PACK_LENGTH;
+  }
+
+  return IS_EQUAL_YES;
 }
 
 

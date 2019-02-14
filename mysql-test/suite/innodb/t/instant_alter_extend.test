@@ -36,18 +36,15 @@ alter table t modify a char(255), algorithm=instant;
 alter table t modify a char(255), algorithm=copy;
 
 create or replace table t (a varchar(200));
-if ($have_debug) {
---disable_query_log
---disable_result_log
-set debug_dbug= '+d,ib_instant_error';
---error ER_RECORD_FILE_FULL
-alter table t modify a char(200);
-set debug_dbug= default;
---enable_query_log
---enable_result_log
-}
 insert into t values (@bigval);
 insert into t values ('z');
+if ($have_debug) {
+--disable_query_log
+# This should not be reachable.
+set @save_debug= @@SESSION.debug_dbug;
+set debug_dbug= '+d,ib_instant_error';
+--enable_query_log
+}
 alter table t modify a char(200), algorithm=instant;
 select count(a) from t where a = @bigval;
 select a, length(a) from t where a = 'z';
@@ -82,16 +79,6 @@ alter table t modify a binary(255), algorithm=instant;
 alter table t modify a binary(255), algorithm=copy;
 
 create or replace table t (a varbinary(200));
-if ($have_debug) {
---disable_query_log
---disable_result_log
-set debug_dbug= '+d,ib_instant_error';
---error ER_RECORD_FILE_FULL
-alter table t modify a binary(200);
-set debug_dbug= default;
---enable_query_log
---enable_result_log
-}
 insert into t values (@bigval);
 insert into t values ('z');
 alter table t modify a binary(200), algorithm=instant;
@@ -122,16 +109,6 @@ call check_table('t');
 
 --echo # Integer conversions
 create or replace table t (x tinyint);
-if ($have_debug) {
---disable_query_log
---disable_result_log
-set debug_dbug= '+d,ib_instant_error';
---error ER_RECORD_FILE_FULL
-alter table t modify x smallint;
-set debug_dbug= default;
---enable_query_log
---enable_result_log
-}
 insert into t values (127);
 alter table t modify x smallint, algorithm=instant;
 select * from t;
@@ -155,6 +132,13 @@ alter table t modify x bigint, algorithm=instant;
 select * from t;
 check table t extended;
 call check_table('t');
+
+if ($have_debug) {
+--disable_query_log
+# This should not be reachable.
+set debug_dbug= @save_debug;
+--enable_query_log
+}
 
 --echo # Check IMPORT TABLESPACE
 --let $MYSQLD_DATADIR= `select @@datadir`

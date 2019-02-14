@@ -51,7 +51,7 @@ Table	Op	Msg_type	Msg_text
 test.t	check	status	OK
 call check_table('t');
 name	mtype	prtype	len
-a	2	800FE	200
+a	2	800FE	220
 # Convert from VARCHAR to a bigger CHAR
 alter table t modify a varchar(200), algorithm=instant;
 ERROR 0A000: ALGORITHM=INSTANT is not supported. Reason: Cannot change column type INPLACE. Try ALGORITHM=COPY
@@ -101,7 +101,7 @@ Table	Op	Msg_type	Msg_text
 test.t	check	status	OK
 call check_table('t');
 name	mtype	prtype	len
-a	3	3F04FE	200
+a	3	3F04FE	220
 # Convert from VARBINARY to a bigger BINARY
 alter table t modify a varbinary(220), algorithm=instant;
 ERROR 0A000: ALGORITHM=INSTANT is not supported. Reason: Cannot change column type INPLACE. Try ALGORITHM=COPY
