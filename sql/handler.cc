@@ -6256,7 +6256,9 @@ static int write_locked_table_maps(THD *thd)
   MYSQL_LOCK *locks[2];
   locks[0]= thd->extra_lock;
   locks[1]= thd->lock;
-  my_bool with_annotate= thd->variables.binlog_annotate_row_events &&
+  my_bool with_annotate= IF_WSREP(!wsrep_fragments_certified_for_stmt(thd),
+                                  true) &&
+    thd->variables.binlog_annotate_row_events &&
     thd->query() && thd->query_length();
 
   for (uint i= 0 ; i < sizeof(locks)/sizeof(*locks) ; ++i )
