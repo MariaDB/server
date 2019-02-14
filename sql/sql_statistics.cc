@@ -324,7 +324,7 @@ private:
 public:
 
   inline void init(THD *thd, Field * table_field);
-  inline bool add(ha_rows rowno);
+  inline bool add();
   inline void finish(ha_rows rows); 
   inline void cleanup();
 };
@@ -2483,7 +2483,7 @@ void Column_statistics_collected::init(THD *thd, Field *table_field)
 */
 
 inline
-bool Column_statistics_collected::add(ha_rows rowno)
+bool Column_statistics_collected::add()
 {
 
   bool err= 0;
@@ -2492,9 +2492,11 @@ bool Column_statistics_collected::add(ha_rows rowno)
   else
   {
     column_total_length+= column->value_length();
-    if (min_value && column->update_min(min_value, rowno == nulls))
+    if (min_value && column->update_min(min_value,
+                                        is_null(COLUMN_STAT_MIN_VALUE)))
       set_not_null(COLUMN_STAT_MIN_VALUE);
-    if (max_value && column->update_max(max_value, rowno == nulls))
+    if (max_value && column->update_max(max_value,
+                                        is_null(COLUMN_STAT_MAX_VALUE)))
       set_not_null(COLUMN_STAT_MAX_VALUE);
     if (count_distinct)
       err= count_distinct->add();
@@ -2761,7 +2763,7 @@ int collect_statistics_for_table(THD *thd, TABLE *table)
         table_field= *field_ptr;
         if (!bitmap_is_set(table->read_set, table_field->field_index))
           continue;  
-        if ((rc= table_field->collected_stats->add(rows)))
+        if ((rc= table_field->collected_stats->add()))
           break;
       }
       if (rc)
