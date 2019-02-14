@@ -803,7 +803,6 @@ enum options_xtrabackup
   OPT_INNODB_LOG_CHECKSUMS,
   OPT_XTRA_INCREMENTAL_FORCE_SCAN,
   OPT_DEFAULTS_GROUP,
-  OPT_INNODB_ENCRYPT_LOG,
   OPT_CLOSE_FILES,
   OPT_CORE_FILE,
 
@@ -1375,10 +1374,6 @@ struct my_option xb_server_options[] =
   "Has no effect in the 'backup' phase (plugin directory during backup is the same as server's)",
   &xb_plugin_dir, &xb_plugin_dir,
   0, GET_STR, REQUIRED_ARG, 0, 0, 0, 0, 0, 0 },
-
-  { "innodb-encrypt-log", OPT_INNODB_ENCRYPT_LOG, "Whether to encrypt innodb log",
-  &srv_encrypt_log, &srv_encrypt_log,
-  0, GET_BOOL, REQUIRED_ARG, 0, 0, 0, 0, 0, 0 },
 
   {"innodb-log-checksums", OPT_INNODB_LOG_CHECKSUMS,
    "Whether to require checksums for InnoDB redo log blocks",
