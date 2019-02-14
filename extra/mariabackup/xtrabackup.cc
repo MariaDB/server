@@ -644,7 +644,6 @@ static void backup_file_op_fail(ulint space_id, const byte* flags,
 	const byte* name, ulint len,
 	const byte* new_name, ulint new_len)
 {
-	ut_a(opt_no_lock);
 	bool fail;
 	if (flags) {
 		msg("DDL tracking :  create %zu \"%.*s\": %x",
@@ -665,6 +664,7 @@ static void backup_file_op_fail(ulint space_id, const byte* flags,
 		msg("DDL tracking : delete %zu \"%.*s\"", space_id, int(len), name);
 	}
 	if (fail) {
+		ut_a(opt_no_lock);
 		die("DDL operation detected in the late phase of backup."
 			"Backup is inconsistent. Remove --no-lock option to fix.");
 	}
@@ -685,9 +685,9 @@ static void backup_optimized_ddl_op(ulint space_id)
   run with --no-lock. Usually aborts the backup.
 */
 static void backup_optimized_ddl_op_fail(ulint space_id) {
-	ut_a(opt_no_lock);
 	msg("DDL tracking : optimized DDL on space %zu", space_id);
 	if (ddl_tracker.tables_in_backup.find(space_id) != ddl_tracker.tables_in_backup.end()) {
+		ut_a(opt_no_lock);
 		msg("ERROR : Optimized DDL operation detected in the late phase of backup."
 			"Backup is inconsistent. Remove --no-lock option to fix.");
 		exit(EXIT_FAILURE);
