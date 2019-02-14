@@ -11959,7 +11959,7 @@ bool copy_cache_to_file_wrapped(IO_CACHE *body,
       contribution of non-compressed packet.
     */
     my_fprintf(file, fmt_frag, 0);
-    if (my_b_copy_to_file(body, file, cache_size/2 + 1))
+    if (my_b_copy_to_file(body, file, (size_t) cache_size/2 + 1))
       goto err;
     my_fprintf(file, fmt_n_delim, delimiter);
 
@@ -12018,7 +12018,8 @@ bool copy_cache_to_string_wrapped(IO_CACHE *cache,
   if (reinit_io_cache(cache, READ_CACHE, 0L, FALSE, FALSE))
     goto err;
 
-  if (!(to->str= (char*) my_malloc(cache->end_of_file + fmt_size, MYF(0))))
+  if (!(to->str= (char*) my_malloc((size_t)cache->end_of_file + fmt_size,
+                                   MYF(0))))
   {
     perror("Out of memory: can't allocate memory in "
            "copy_cache_to_string_wrapped().");
@@ -12027,7 +12028,8 @@ bool copy_cache_to_string_wrapped(IO_CACHE *cache,
 
   if (!do_wrap)
   {
-    if (my_b_read(cache, (uchar*) to->str, (to->length= cache->end_of_file)))
+    if (my_b_read(cache, (uchar*) to->str,
+                  (to->length= (size_t)cache->end_of_file)))
       goto err;
   }
   else if (4 + sizeof(str_binlog) + cache_size + sizeof(fmt_delim) >
@@ -12073,10 +12075,10 @@ bool copy_cache_to_string_wrapped(IO_CACHE *cache,
     char *str= to->str;
 
     str += (to->length= sprintf(str, str_binlog));
-    if (my_b_read(cache, (uchar*) str, cache->end_of_file))
+    if (my_b_read(cache, (uchar*) str, (size_t)cache->end_of_file))
       goto err;
     str += cache->end_of_file;
-    to->length += cache->end_of_file;
+    to->length += (size_t)cache->end_of_file;
     if (!is_verbose)
       to->length += sprintf(str , fmt_delim, delimiter);
   }
