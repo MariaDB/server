@@ -122,7 +122,7 @@ extern struct wsrep_service_st {
 #else
 
 #define MYSQL_SERVICE_WSREP_STATIC_INCLUDED
-extern my_bool wsrep_debug;
+extern ulong   wsrep_debug;
 extern my_bool wsrep_log_conflicts;
 extern my_bool wsrep_certify_nonPK;
 extern my_bool wsrep_load_data_splitting;
