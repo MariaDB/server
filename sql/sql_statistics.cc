@@ -2729,11 +2729,27 @@ int collect_statistics_for_table(THD *thd, TABLE *table)
   Field *table_field;
   ha_rows rows= 0;
   handler *file=table->file;
+  double sample_fraction= thd->variables.sample_percentage / 100;
+  const ha_rows MIN_THRESHOLD_FOR_SAMPLING= 50000;
 
   DBUG_ENTER("collect_statistics_for_table");
 
   table->collected_stats->cardinality_is_null= TRUE;
   table->collected_stats->cardinality= 0;
+
+  if (thd->variables.sample_percentage == 0)
+  {
+    if (file->records() < MIN_THRESHOLD_FOR_SAMPLING)
+    {
+      sample_fraction= 1;
+    }
+    else
+    {
+      sample_fraction= std::fmin(
+                  (MIN_THRESHOLD_FOR_SAMPLING + 4096 *
+                   log(200 * file->records())) / file->records(), 1);
+    }
+  }
 
   for (field_ptr= table->field; *field_ptr; field_ptr++)
   {
@@ -2747,7 +2763,7 @@ int collect_statistics_for_table(THD *thd, TABLE *table)
 
   /* Perform a full table scan to collect statistics on 'table's columns */
   if (!(rc= file->ha_rnd_init(TRUE)))
-  {  
+  {
     DEBUG_SYNC(table->in_use, "statistics_collection_start");
 
     while ((rc= file->ha_rnd_next(table->record[0])) != HA_ERR_END_OF_FILE)
@@ -2758,17 +2774,20 @@ int collect_statistics_for_table(THD *thd, TABLE *table)
       if (rc)
         break;
 
-      for (field_ptr= table->field; *field_ptr; field_ptr++)
+      if (thd_rnd(thd) <= sample_fraction)
       {
-        table_field= *field_ptr;
-        if (!bitmap_is_set(table->read_set, table_field->field_index))
-          continue;  
-        if ((rc= table_field->collected_stats->add()))
+        for (field_ptr= table->field; *field_ptr; field_ptr++)
+        {
+          table_field= *field_ptr;
+          if (!bitmap_is_set(table->read_set, table_field->field_index))
+            continue;
+          if ((rc= table_field->collected_stats->add()))
+            break;
+        }
+        if (rc)
           break;
+        rows++;
       }
-      if (rc)
-        break;
-      rows++;
     }
     file->ha_rnd_end();
   }
@@ -2782,7 +2801,8 @@ int collect_statistics_for_table(THD *thd, TABLE *table)
   if (!rc)
   {
     table->collected_stats->cardinality_is_null= FALSE;
-    table->collected_stats->cardinality= rows;
+    table->collected_stats->cardinality=
+      static_cast<ha_rows>(rows / sample_fraction);
   }
 
   bitmap_clear_all(table->write_set);

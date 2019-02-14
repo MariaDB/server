@@ -15,6 +15,10 @@ The following specify which files/extra groups are read (specified before remain
  --alter-algorithm[=name] 
  Specify the alter table algorithm. One of: DEFAULT, COPY,
  INPLACE, NOCOPY, INSTANT
+ --analyze-sample-percentage=# 
+ Percentage of rows from the table ANALYZE TABLE will
+ sample to collect table statistics. Set to 0 to let
+ MariaDB decide what percentage of rows to sample.
  -a, --ansi          Use ANSI SQL syntax instead of MySQL syntax. This mode
  will also set transaction isolation level 'serializable'.
  --auto-increment-increment[=#] 
@@ -1385,6 +1389,7 @@ The following specify which files/extra groups are read (specified before remain
 Variables (--variable-name=value)
 allow-suspicious-udfs FALSE
 alter-algorithm DEFAULT
+analyze-sample-percentage 100
 auto-increment-increment 1
 auto-increment-offset 1
 autocommit TRUE
