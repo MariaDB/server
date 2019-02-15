@@ -633,6 +633,11 @@ ALTER TABLE t1 ADD COLUMN f INT AFTER a;
 ALTER TABLE t1 DROP b, DROP f;
 DROP TABLE t1;
 
+# MDEV-18579 Assertion !ctx->online || num_fts_index == 0
+eval CREATE TABLE t1(t TEXT NOT NULL, FULLTEXT(t)) $engine;
+ALTER TABLE t1 MODIFY COLUMN t TEXT;
+DROP TABLE t1;
+
 dec $format;
 }
 disconnect analyze;
