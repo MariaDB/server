@@ -1,3 +1,5 @@
+connection node_2;
+connection node_1;
 CREATE TABLE t1 (f1 INTEGER PRIMARY KEY) ENGINE=InnoDB;
 INSERT INTO t1 VALUES (1),(2),(3);
 CREATE TABLE t2 (f1 INTEGER PRIMARY KEY) ENGINE=InnoDB;
@@ -9,16 +11,12 @@ START TRANSACTION;
 Start of Simple Insert
 INSERT INTO t1 VALUES (4);
 DELIMITER /*!*/;
-# at 120
-<ISO TIMESTAMP> server id 1  end_log_pos 73 	Query	thread_id=<QUERY_THREAD_ID>	exec_time=<EXEC_TIME>	error_code=0
-SET TIMESTAMP=<TIMESTAMP>/*!*/;
-/*!\C latin1 *//*!*/;
-BEGIN
-/*!*/;
-# at 193
-<ISO TIMESTAMP> server id 1  end_log_pos 114 	Table_map: `test`.`t1` mapped to number <TABLE_ID>
-# at 234
-<ISO TIMESTAMP> server id 1  end_log_pos 150 	Write_rows: table id <TABLE_ID> flags: STMT_END_F
+# at 256
+# at 300
+<ISO TIMESTAMP> server id 1  end_log_pos 85 CRC32 0x00000301 	Table_map: `test`.`t1` mapped to number <TABLE_ID>
+# at 341
+<ISO TIMESTAMP> server id 1  end_log_pos 119 CRC32 0x00000004 	Write_rows: table id <TABLE_ID> flags: STMT_END_F
+# Number of rows: 1
 DELIMITER ;
 # End of log file
 ROLLBACK /* added by mysqlbinlog */;
@@ -29,34 +27,34 @@ ROLLBACK;
 Start of Multi-row Update
 UPDATE t1 SET f1 = f1 + 10;
 DELIMITER /*!*/;
-# at 120
-<ISO TIMESTAMP> server id 1  end_log_pos 73 	Query	thread_id=<QUERY_THREAD_ID>	exec_time=<EXEC_TIME>	error_code=0
-SET TIMESTAMP=<TIMESTAMP>/*!*/;
-/*!\C latin1 *//*!*/;
-BEGIN
-/*!*/;
-# at 193
-<ISO TIMESTAMP> server id 1  end_log_pos 114 	Table_map: `test`.`t1` mapped to number <TABLE_ID>
-# at 234
-<ISO TIMESTAMP> server id 1  end_log_pos 156 	Update_rows: table id <TABLE_ID> flags: STMT_END_F
+# at 256
+# at 301
+<ISO TIMESTAMP> server id 1  end_log_pos 86 CRC32 0x00000301 	Table_map: `test`.`t1` mapped to number <TABLE_ID>
+# at 342
+<ISO TIMESTAMP> server id 1  end_log_pos 126 CRC32 0x0000000b 	Update_rows: table id <TABLE_ID> flags: STMT_END_F
+# Number of rows: 1
 DELIMITER ;
 # End of log file
 ROLLBACK /* added by mysqlbinlog */;
 /*!50003 SET COMPLETION_TYPE=@OLD_COMPLETION_TYPE*/;
 DELIMITER /*!*/;
-# at 120
-<ISO TIMESTAMP> server id 1  end_log_pos 197 	Table_map: `test`.`t1` mapped to number <TABLE_ID>
-# at 161
-<ISO TIMESTAMP> server id 1  end_log_pos 239 	Update_rows: table id <TABLE_ID> flags: STMT_END_F
+# at 256
+# at 301
+<ISO TIMESTAMP> server id 1  end_log_pos 212 CRC32 0x00000301 	Table_map: `test`.`t1` mapped to number <TABLE_ID>
+# at 342
+<ISO TIMESTAMP> server id 1  end_log_pos 252 CRC32 0x0000000c 	Update_rows: table id <TABLE_ID> flags: STMT_END_F
+# Number of rows: 1
 DELIMITER ;
 # End of log file
 ROLLBACK /* added by mysqlbinlog */;
 /*!50003 SET COMPLETION_TYPE=@OLD_COMPLETION_TYPE*/;
 DELIMITER /*!*/;
-# at 120
-<ISO TIMESTAMP> server id 1  end_log_pos 280 	Table_map: `test`.`t1` mapped to number <TABLE_ID>
-# at 161
-<ISO TIMESTAMP> server id 1  end_log_pos 322 	Update_rows: table id <TABLE_ID> flags: STMT_END_F
+# at 256
+# at 301
+<ISO TIMESTAMP> server id 1  end_log_pos 338 CRC32 0x00000301 	Table_map: `test`.`t1` mapped to number <TABLE_ID>
+# at 342
+<ISO TIMESTAMP> server id 1  end_log_pos 378 CRC32 0x0000000d 	Update_rows: table id <TABLE_ID> flags: STMT_END_F
+# Number of rows: 1
 DELIMITER ;
 # End of log file
 ROLLBACK /* added by mysqlbinlog */;
@@ -67,73 +65,79 @@ ROLLBACK;
 Start of Multi-table Update
 UPDATE t1, t2 SET t1.f1 = t1.f1 + 100, t2.f1 = t2.f1 + 100;
 DELIMITER /*!*/;
-# at 120
-<ISO TIMESTAMP> server id 1  end_log_pos 82 	Query	thread_id=<QUERY_THREAD_ID>	exec_time=<EXEC_TIME>	error_code=0
-SET TIMESTAMP=<TIMESTAMP>/*!*/;
-/*!\C latin1 *//*!*/;
-BEGIN
-/*!*/;
-# at 202
-<ISO TIMESTAMP> server id 1  end_log_pos 123 	Table_map: `test`.`t1` mapped to number <TABLE_ID>
-# at 243
-<ISO TIMESTAMP> server id 1  end_log_pos 164 	Table_map: `test`.`t2` mapped to number <TABLE_ID>
-# at 284
-<ISO TIMESTAMP> server id 1  end_log_pos 206 	Update_rows: table id <TABLE_ID> flags: STMT_END_F
+# at 256
+# at 333
+<ISO TIMESTAMP> server id 1  end_log_pos 118 CRC32 0x00000301 	Table_map: `test`.`t1` mapped to number <TABLE_ID>
+# at 374
+<ISO TIMESTAMP> server id 1  end_log_pos 159 CRC32 0x00000301 	Table_map: `test`.`t2` mapped to number <TABLE_ID>
+# at 415
+<ISO TIMESTAMP> server id 1  end_log_pos 199 CRC32 0x00000065 	Update_rows: table id <TABLE_ID> flags: STMT_END_F
+# Number of rows: 1
 DELIMITER ;
 # End of log file
 ROLLBACK /* added by mysqlbinlog */;
 /*!50003 SET COMPLETION_TYPE=@OLD_COMPLETION_TYPE*/;
 DELIMITER /*!*/;
-# at 120
-<ISO TIMESTAMP> server id 1  end_log_pos 247 	Table_map: `test`.`t1` mapped to number <TABLE_ID>
-# at 161
-<ISO TIMESTAMP> server id 1  end_log_pos 288 	Table_map: `test`.`t2` mapped to number <TABLE_ID>
-# at 202
-<ISO TIMESTAMP> server id 1  end_log_pos 330 	Update_rows: table id <TABLE_ID> flags: STMT_END_F
+# at 256
+# at 333
+<ISO TIMESTAMP> server id 1  end_log_pos 317 CRC32 0x00000301 	Table_map: `test`.`t1` mapped to number <TABLE_ID>
+# at 374
+<ISO TIMESTAMP> server id 1  end_log_pos 358 CRC32 0x00000301 	Table_map: `test`.`t2` mapped to number <TABLE_ID>
+# at 415
+<ISO TIMESTAMP> server id 1  end_log_pos 398 CRC32 0x00000066 	Update_rows: table id <TABLE_ID> flags: STMT_END_F
+# Number of rows: 1
 DELIMITER ;
 # End of log file
 ROLLBACK /* added by mysqlbinlog */;
 /*!50003 SET COMPLETION_TYPE=@OLD_COMPLETION_TYPE*/;
 DELIMITER /*!*/;
-# at 120
-<ISO TIMESTAMP> server id 1  end_log_pos 371 	Table_map: `test`.`t1` mapped to number <TABLE_ID>
-# at 161
-<ISO TIMESTAMP> server id 1  end_log_pos 412 	Table_map: `test`.`t2` mapped to number <TABLE_ID>
-# at 202
-<ISO TIMESTAMP> server id 1  end_log_pos 454 	Update_rows: table id <TABLE_ID> flags: STMT_END_F
+# at 256
+# at 333
+<ISO TIMESTAMP> server id 1  end_log_pos 516 CRC32 0x00000301 	Table_map: `test`.`t1` mapped to number <TABLE_ID>
+# at 374
+<ISO TIMESTAMP> server id 1  end_log_pos 557 CRC32 0x00000301 	Table_map: `test`.`t2` mapped to number <TABLE_ID>
+# at 415
+<ISO TIMESTAMP> server id 1  end_log_pos 597 CRC32 0x00000067 	Update_rows: table id <TABLE_ID> flags: STMT_END_F
+# Number of rows: 1
 DELIMITER ;
 # End of log file
 ROLLBACK /* added by mysqlbinlog */;
 /*!50003 SET COMPLETION_TYPE=@OLD_COMPLETION_TYPE*/;
 DELIMITER /*!*/;
-# at 120
-<ISO TIMESTAMP> server id 1  end_log_pos 495 	Table_map: `test`.`t1` mapped to number <TABLE_ID>
-# at 161
-<ISO TIMESTAMP> server id 1  end_log_pos 536 	Table_map: `test`.`t2` mapped to number <TABLE_ID>
-# at 202
-<ISO TIMESTAMP> server id 1  end_log_pos 578 	Update_rows: table id <TABLE_ID> flags: STMT_END_F
+# at 256
+# at 333
+<ISO TIMESTAMP> server id 1  end_log_pos 715 CRC32 0x00000301 	Table_map: `test`.`t1` mapped to number <TABLE_ID>
+# at 374
+<ISO TIMESTAMP> server id 1  end_log_pos 756 CRC32 0x00000301 	Table_map: `test`.`t2` mapped to number <TABLE_ID>
+# at 415
+<ISO TIMESTAMP> server id 1  end_log_pos 796 CRC32 0x00000065 	Update_rows: table id <TABLE_ID> flags: STMT_END_F
+# Number of rows: 1
 DELIMITER ;
 # End of log file
 ROLLBACK /* added by mysqlbinlog */;
 /*!50003 SET COMPLETION_TYPE=@OLD_COMPLETION_TYPE*/;
 DELIMITER /*!*/;
-# at 120
-<ISO TIMESTAMP> server id 1  end_log_pos 619 	Table_map: `test`.`t1` mapped to number <TABLE_ID>
-# at 161
-<ISO TIMESTAMP> server id 1  end_log_pos 660 	Table_map: `test`.`t2` mapped to number <TABLE_ID>
-# at 202
-<ISO TIMESTAMP> server id 1  end_log_pos 702 	Update_rows: table id <TABLE_ID> flags: STMT_END_F
+# at 256
+# at 333
+<ISO TIMESTAMP> server id 1  end_log_pos 914 CRC32 0x00000301 	Table_map: `test`.`t1` mapped to number <TABLE_ID>
+# at 374
+<ISO TIMESTAMP> server id 1  end_log_pos 955 CRC32 0x00000301 	Table_map: `test`.`t2` mapped to number <TABLE_ID>
+# at 415
+<ISO TIMESTAMP> server id 1  end_log_pos 995 CRC32 0x00000066 	Update_rows: table id <TABLE_ID> flags: STMT_END_F
+# Number of rows: 1
 DELIMITER ;
 # End of log file
 ROLLBACK /* added by mysqlbinlog */;
 /*!50003 SET COMPLETION_TYPE=@OLD_COMPLETION_TYPE*/;
 DELIMITER /*!*/;
-# at 120
-<ISO TIMESTAMP> server id 1  end_log_pos 743 	Table_map: `test`.`t1` mapped to number <TABLE_ID>
-# at 161
-<ISO TIMESTAMP> server id 1  end_log_pos 784 	Table_map: `test`.`t2` mapped to number <TABLE_ID>
-# at 202
-<ISO TIMESTAMP> server id 1  end_log_pos 826 	Update_rows: table id <TABLE_ID> flags: STMT_END_F
+# at 256
+# at 333
+<ISO TIMESTAMP> server id 1  end_log_pos 1113 CRC32 0x00000301 	Table_map: `test`.`t1` mapped to number <TABLE_ID>
+# at 374
+<ISO TIMESTAMP> server id 1  end_log_pos 1154 CRC32 0x00000301 	Table_map: `test`.`t2` mapped to number <TABLE_ID>
+# at 415
+<ISO TIMESTAMP> server id 1  end_log_pos 1194 CRC32 0x00000067 	Update_rows: table id <TABLE_ID> flags: STMT_END_F
+# Number of rows: 1
 DELIMITER ;
 # End of log file
 ROLLBACK /* added by mysqlbinlog */;
@@ -147,47 +151,23 @@ SAVEPOINT X;
 INSERT INTO t1 VALUES (2000);
 ROLLBACK TO SAVEPOINT X;
 DELIMITER /*!*/;
-# at 120
-<ISO TIMESTAMP> server id 1  end_log_pos 73 	Query	thread_id=<QUERY_THREAD_ID>	exec_time=<EXEC_TIME>	error_code=0
-SET TIMESTAMP=<TIMESTAMP>/*!*/;
-/*!\C latin1 *//*!*/;
-BEGIN
-/*!*/;
-# at 193
-<ISO TIMESTAMP> server id 1  end_log_pos 114 	Table_map: `test`.`t1` mapped to number <TABLE_ID>
-# at 234
-<ISO TIMESTAMP> server id 1  end_log_pos 150 	Write_rows: table id <TABLE_ID> flags: STMT_END_F
+# at 256
+# at 303
+<ISO TIMESTAMP> server id 1  end_log_pos 88 CRC32 0x00000301 	Table_map: `test`.`t1` mapped to number <TABLE_ID>
+# at 344
+<ISO TIMESTAMP> server id 1  end_log_pos 122 CRC32 0x000003e8 	Write_rows: table id <TABLE_ID> flags: STMT_END_F
+# Number of rows: 1
 DELIMITER ;
 # End of log file
 ROLLBACK /* added by mysqlbinlog */;
 /*!50003 SET COMPLETION_TYPE=@OLD_COMPLETION_TYPE*/;
 DELIMITER /*!*/;
-# at 120
-<ISO TIMESTAMP> server id 1  end_log_pos 231 	Query	thread_id=<QUERY_THREAD_ID>	exec_time=<EXEC_TIME>	error_code=0
-SET TIMESTAMP=<TIMESTAMP>/*!*/;
-/*!\C latin1 *//*!*/;
-SAVEPOINT `X`
-/*!*/;
-DELIMITER ;
-# End of log file
-ROLLBACK /* added by mysqlbinlog */;
-/*!50003 SET COMPLETION_TYPE=@OLD_COMPLETION_TYPE*/;
-DELIMITER /*!*/;
-# at 120
-<ISO TIMESTAMP> server id 1  end_log_pos 272 	Table_map: `test`.`t1` mapped to number <TABLE_ID>
-# at 161
-<ISO TIMESTAMP> server id 1  end_log_pos 308 	Write_rows: table id <TABLE_ID> flags: STMT_END_F
-DELIMITER ;
-# End of log file
-ROLLBACK /* added by mysqlbinlog */;
-/*!50003 SET COMPLETION_TYPE=@OLD_COMPLETION_TYPE*/;
-DELIMITER /*!*/;
-# at 120
-<ISO TIMESTAMP> server id 1  end_log_pos 391 	Query	thread_id=<QUERY_THREAD_ID>	exec_time=<EXEC_TIME>	error_code=0
-SET TIMESTAMP=<TIMESTAMP>/*!*/;
-/*!\C latin1 *//*!*/;
-ROLLBACK TO `X`
-/*!*/;
+# at 256
+# at 303
+<ISO TIMESTAMP> server id 1  end_log_pos 210 CRC32 0x00000301 	Table_map: `test`.`t1` mapped to number <TABLE_ID>
+# at 344
+<ISO TIMESTAMP> server id 1  end_log_pos 244 CRC32 0x000007d0 	Write_rows: table id <TABLE_ID> flags: STMT_END_F
+# Number of rows: 1
 DELIMITER ;
 # End of log file
 ROLLBACK /* added by mysqlbinlog */;
