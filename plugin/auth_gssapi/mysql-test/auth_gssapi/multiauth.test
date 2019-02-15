@@ -1,0 +1,36 @@
+--replace_regex /name '[^']+'/name 'localhost'/
+INSTALL SONAME 'auth_gssapi';
+
+# gssapi,password
+CREATE USER 'nosuchuser' IDENTIFIED WITH gssapi OR mysql_native_password as password("good");
+replace_result $MASTER_MYSOCK MASTER_MYSOCK $MASTER_MYPORT MASTER_MYPORT;
+error ER_ACCESS_DENIED_ERROR;
+connect (con1,localhost,nosuchuser,,);
+connect (con1,localhost,nosuchuser,good,);
+SELECT USER(),CURRENT_USER();
+disconnect con1;
+connection default;
+DROP USER nosuchuser;
+
+# password,gssapi
+CREATE USER 'nosuchuser' IDENTIFIED WITH mysql_native_password as password("good") OR gssapi;
+replace_result $MASTER_MYSOCK MASTER_MYSOCK $MASTER_MYPORT MASTER_MYPORT $GSSAPI_SHORTNAME GSSAPI_SHORTNAME;
+error ER_ACCESS_DENIED_ERROR;
+connect (con1,localhost,nosuchuser,,);
+connect (con1,localhost,nosuchuser,good,);
+SELECT USER(),CURRENT_USER();
+disconnect con1;
+connection default;
+DROP USER nosuchuser;
+
+replace_result $GSSAPI_SHORTNAME GSSAPI_SHORTNAME;
+eval CREATE USER '$GSSAPI_SHORTNAME' IDENTIFIED WITH mysql_native_password as password("good") OR gssapi;
+connect (con1,localhost,$GSSAPI_SHORTNAME,,);
+replace_result $GSSAPI_SHORTNAME GSSAPI_SHORTNAME;
+SELECT USER(),CURRENT_USER();
+disconnect con1;
+connection default;
+replace_result $GSSAPI_SHORTNAME GSSAPI_SHORTNAME;
+eval DROP USER '$GSSAPI_SHORTNAME';
+
+UNINSTALL SONAME 'auth_gssapi';

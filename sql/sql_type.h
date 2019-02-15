@@ -2435,6 +2435,12 @@ public:
       length(0); // safety
   }
   int save_in_field(Field *field, uint decimals) const;
+  Datetime to_datetime(THD *thd) const
+  {
+    return is_zero_datetime() ?
+           Datetime() :
+           Datetime(thd, Timestamp_or_zero_datetime(*this).tv());
+  }
   bool is_zero_datetime() const
   {
     return length() == 0;
@@ -2459,7 +2465,7 @@ public:
   Datetime to_datetime(THD *thd) const
   {
     return is_null() ? Datetime() :
-                       Datetime(thd, Timestamp_or_zero_datetime(*this).tv());
+                       Timestamp_or_zero_datetime_native::to_datetime(thd);
   }
   void to_TIME(THD *thd, MYSQL_TIME *to)
   {
@@ -3274,6 +3280,7 @@ public:
     return true;
   }
   virtual bool is_scalar_type() const { return true; }
+  virtual bool is_json_type() const { return false; }
   virtual bool can_return_int() const { return true; }
   virtual bool can_return_decimal() const { return true; }
   virtual bool can_return_real() const { return true; }
@@ -3665,6 +3672,10 @@ public:
 
   virtual bool
   Vers_history_point_resolve_unit(THD *thd, Vers_history_point *point) const;
+
+  static bool Charsets_are_compatible(const CHARSET_INFO *old_ci,
+                                      const CHARSET_INFO *new_ci,
+                                      bool part_of_a_key);
 };
 
 
@@ -5884,6 +5895,14 @@ public:
 };
 
 
+class Type_handler_json: public Type_handler_long_blob
+{
+public:
+  virtual ~Type_handler_json() {}
+  virtual bool is_json_type() const { return true; }
+};
+
+
 class Type_handler_blob: public Type_handler_blob_common
 {
   static const Name m_name_blob;
@@ -6212,6 +6231,7 @@ extern MYSQL_PLUGIN_IMPORT Type_handler_hex_hybrid  type_handler_hex_hybrid;
 extern MYSQL_PLUGIN_IMPORT Type_handler_tiny_blob   type_handler_tiny_blob;
 extern MYSQL_PLUGIN_IMPORT Type_handler_medium_blob type_handler_medium_blob;
 extern MYSQL_PLUGIN_IMPORT Type_handler_long_blob   type_handler_long_blob;
+extern MYSQL_PLUGIN_IMPORT Type_handler_json        type_handler_json;
 extern MYSQL_PLUGIN_IMPORT Type_handler_blob        type_handler_blob;
 
 extern MYSQL_PLUGIN_IMPORT Type_handler_bool        type_handler_bool;
@@ -6236,11 +6256,6 @@ extern MYSQL_PLUGIN_IMPORT Type_handler_datetime    type_handler_datetime;
 extern MYSQL_PLUGIN_IMPORT Type_handler_datetime2   type_handler_datetime2;
 extern MYSQL_PLUGIN_IMPORT Type_handler_timestamp   type_handler_timestamp;
 extern MYSQL_PLUGIN_IMPORT Type_handler_timestamp2  type_handler_timestamp2;
-
-extern MYSQL_PLUGIN_IMPORT Type_handler_tiny_blob   type_handler_tiny_blob;
-extern MYSQL_PLUGIN_IMPORT Type_handler_blob        type_handler_blob;
-extern MYSQL_PLUGIN_IMPORT Type_handler_medium_blob type_handler_medium_blob;
-extern MYSQL_PLUGIN_IMPORT Type_handler_long_blob   type_handler_long_blob;
 
 extern MYSQL_PLUGIN_IMPORT Type_handler_interval_DDhhmmssff
   type_handler_interval_DDhhmmssff;

@@ -2024,6 +2024,7 @@ private:
 
 }; // class sp_instr_set_case_expr : public sp_instr_opt_meta
 
+bool check_show_routine_access(THD *thd, sp_head *sp, bool *full_access);
 
 #ifndef NO_EMBEDDED_ACCESS_CHECKS
 bool

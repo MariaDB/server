@@ -1,0 +1,312 @@
+connect  master,127.0.0.1,root,,test,$MASTER_MYPORT,;
+connect  slave,127.0.0.1,root,,test,$SLAVE_MYPORT,;
+connection master;
+CREATE DATABASE federated;
+connection slave;
+CREATE DATABASE federated;
+connection default;
+set global federated_pushdown=1;
+connection slave;
+DROP TABLE IF EXISTS federated.t1;
+Warnings:
+Note	1051	Unknown table 'federated.t1'
+CREATE TABLE federated.t1 (
+id int(20) NOT NULL,
+name varchar(16) NOT NULL default ''
+)
+DEFAULT CHARSET=latin1;
+INSERT INTO federated.t1 VALUES
+(3,'xxx'), (7,'yyy'), (4,'xxx'), (1,'zzz'), (5,'yyy');
+DROP TABLE IF EXISTS federated.t2;
+Warnings:
+Note	1051	Unknown table 'federated.t2'
+CREATE TABLE federated.t2 (
+name varchar(16) NOT NULL default ''
+)
+DEFAULT CHARSET=latin1;
+INSERT INTO federated.t2 VALUES
+('yyy'), ('www'), ('yyy'), ('xxx'), ('www'), ('yyy'), ('www');
+connection master;
+DROP TABLE IF EXISTS federated.t1;
+Warnings:
+Note	1051	Unknown table 'federated.t1'
+CREATE TABLE federated.t1 (
+id int(20) NOT NULL,
+name varchar(16) NOT NULL default ''
+)
+ENGINE="FEDERATED" DEFAULT CHARSET=latin1
+CONNECTION='mysql://root@127.0.0.1:SLAVE_PORT/federated/t1';
+DROP TABLE IF EXISTS federated.t2;
+Warnings:
+Note	1051	Unknown table 'federated.t2'
+CREATE TABLE federated.t2 (
+name varchar(16) NOT NULL default ''
+)
+ENGINE="FEDERATED" DEFAULT CHARSET=latin1
+CONNECTION='mysql://root@127.0.0.1:SLAVE_PORT/federated/t2';
+SELECT * FROM federated.t1;
+id	name
+3	xxx
+7	yyy
+4	xxx
+1	zzz
+5	yyy
+SELECT id FROM federated.t1 WHERE id < 5;
+id
+3
+4
+1
+SELECT count(*), name FROM federated.t1 WHERE id < 5 GROUP BY name;
+count(*)	name
+2	xxx
+1	zzz
+SELECT * FROM federated.t1, federated.t2
+WHERE federated.t1.name = federated.t2.name;
+id	name	name
+7	yyy	yyy
+5	yyy	yyy
+7	yyy	yyy
+5	yyy	yyy
+3	xxx	xxx
+4	xxx	xxx
+7	yyy	yyy
+5	yyy	yyy
+SELECT * FROM federated.t1 LEFT JOIN federated.t2
+ON federated.t1.name = federated.t2.name
+WHERE federated.t1.id > 1;
+id	name	name
+7	yyy	yyy
+5	yyy	yyy
+7	yyy	yyy
+5	yyy	yyy
+3	xxx	xxx
+4	xxx	xxx
+7	yyy	yyy
+5	yyy	yyy
+SELECT * FROM federated.t1
+WHERE id IN (SELECT count(*) FROM federated.t2 GROUP BY name);
+id	name
+3	xxx
+1	zzz
+EXPLAIN
+SELECT id FROM federated.t1 WHERE id < 5;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	PUSHED SELECT	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL
+EXPLAIN EXTENDED
+SELECT id FROM federated.t1 WHERE id < 5;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	PUSHED SELECT	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL
+Warnings:
+Note	1003	select `federated`.`t1`.`id` AS `id` from `federated`.`t1` where `federated`.`t1`.`id` < 5
+EXPLAIN FORMAT=JSON
+SELECT id FROM federated.t1 WHERE id < 5;
+EXPLAIN
+{
+  "query_block": {
+    "select_id": 1,
+    "table": {
+      "message": "Pushed select"
+    }
+  }
+}
+ANALYZE
+SELECT id FROM federated.t1 WHERE id < 5;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	r_rows	filtered	r_filtered	Extra
+1	PUSHED SELECT	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL
+ANALYZE FORMAT=JSON
+SELECT id FROM federated.t1 WHERE id < 5;
+ANALYZE
+{
+  "query_block": {
+    "select_id": 1,
+    "table": {
+      "message": "Pushed select"
+    }
+  }
+}
+CREATE TABLE federated.t3 (
+name varchar(16) NOT NULL default ''
+)
+DEFAULT CHARSET=latin1;
+INSERT INTO federated.t3 VALUES
+('yyy'), ('www'), ('yyy'), ('xxx'), ('www'), ('yyy'), ('www');
+SELECT *
+FROM federated.t3, (SELECT * FROM federated.t1 WHERE id > 3) t
+WHERE federated.t3.name=t.name;
+name	id	name
+yyy	5	yyy
+yyy	7	yyy
+yyy	5	yyy
+yyy	7	yyy
+xxx	4	xxx
+yyy	5	yyy
+yyy	7	yyy
+EXPLAIN
+SELECT *
+FROM federated.t3, (SELECT * FROM federated.t1 WHERE id > 3) t
+WHERE federated.t3.name=t.name;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	PRIMARY	t3	ALL	NULL	NULL	NULL	NULL	7	
+1	PRIMARY	<derived2>	ref	key0	key0	18	federated.t3.name	2	
+2	PUSHED DERIVED	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL
+EXPLAIN FORMAT=JSON
+SELECT *
+FROM federated.t3, (SELECT * FROM federated.t1 WHERE id > 3) t
+WHERE federated.t3.name=t.name;
+EXPLAIN
+{
+  "query_block": {
+    "select_id": 1,
+    "table": {
+      "table_name": "t3",
+      "access_type": "ALL",
+      "rows": 7,
+      "filtered": 100
+    },
+    "table": {
+      "table_name": "<derived2>",
+      "access_type": "ref",
+      "possible_keys": ["key0"],
+      "key": "key0",
+      "key_length": "18",
+      "used_key_parts": ["name"],
+      "ref": ["federated.t3.name"],
+      "rows": 2,
+      "filtered": 100,
+      "materialized": {
+        "query_block": {
+          "select_id": 2,
+          "table": {
+            "message": "Pushed derived"
+          }
+        }
+      }
+    }
+  }
+}
+ANALYZE
+SELECT *
+FROM federated.t3, (SELECT * FROM federated.t1 WHERE id > 3) t
+WHERE federated.t3.name=t.name;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	r_rows	filtered	r_filtered	Extra
+1	PRIMARY	t3	ALL	NULL	NULL	NULL	NULL	7	7.00	100.00	100.00	
+1	PRIMARY	<derived2>	ref	key0	key0	18	federated.t3.name	2	0.00	100.00	100.00	
+2	PUSHED DERIVED	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL
+SELECT *
+FROM federated.t3, (SELECT t1.name FROM federated.t1
+WHERE id IN (SELECT count(*)
+FROM federated.t2 GROUP BY name)) t
+WHERE federated.t3.name=t.name;
+name	name
+xxx	xxx
+EXPLAIN
+SELECT *
+FROM federated.t3, (SELECT t1.name FROM federated.t1
+WHERE id IN (SELECT count(*)
+FROM federated.t2 GROUP BY name)) t
+WHERE federated.t3.name=t.name;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	PRIMARY	t3	ALL	NULL	NULL	NULL	NULL	7	
+1	PRIMARY	<derived2>	ref	key0	key0	18	federated.t3.name	2	
+2	PUSHED DERIVED	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL
+3	MATERIALIZED	t2	ALL	NULL	NULL	NULL	NULL	7	Using temporary
+ANALYZE FORMAT=JSON
+SELECT *
+FROM federated.t3, (SELECT t1.name FROM federated.t1
+WHERE id IN (SELECT count(*)
+FROM federated.t2 GROUP BY name)) t
+WHERE federated.t3.name=t.name;
+ANALYZE
+{
+  "query_block": {
+    "select_id": 1,
+    "r_loops": 1,
+    "r_total_time_ms": "REPLACED",
+    "table": {
+      "table_name": "t3",
+      "access_type": "ALL",
+      "r_loops": 1,
+      "rows": 7,
+      "r_rows": 7,
+      "r_total_time_ms": "REPLACED",
+      "filtered": 100,
+      "r_filtered": 100
+    },
+    "table": {
+      "table_name": "<derived2>",
+      "access_type": "ref",
+      "possible_keys": ["key0"],
+      "key": "key0",
+      "key_length": "18",
+      "used_key_parts": ["name"],
+      "ref": ["federated.t3.name"],
+      "r_loops": 7,
+      "rows": 2,
+      "r_rows": 0,
+      "r_total_time_ms": "REPLACED",
+      "filtered": 100,
+      "r_filtered": 100,
+      "materialized": {
+        "query_block": {
+          "select_id": 2,
+          "table": {
+            "message": "Pushed derived"
+          },
+          "subqueries": [
+            {
+              "query_block": {
+                "select_id": 3,
+                "temporary_table": {
+                  "table": {
+                    "table_name": "t2",
+                    "access_type": "ALL",
+                    "r_loops": 0,
+                    "rows": 7,
+                    "r_rows": null,
+                    "filtered": 100,
+                    "r_filtered": null
+                  }
+                }
+              }
+            }
+          ]
+        }
+      }
+    }
+  }
+}
+SELECT t.id, federated.t3.name
+FROM federated.t3,
+( SELECT * FROM federated.t1 WHERE id < 3
+UNION
+SELECT * FROM federated.t1 WHERE id >= 5) t
+WHERE federated.t3.name=t.name;
+id	name
+5	yyy
+7	yyy
+5	yyy
+7	yyy
+5	yyy
+7	yyy
+EXPLAIN
+SELECT t.id, federated.t3.name
+FROM federated.t3,
+( SELECT * FROM federated.t1 WHERE id < 3
+UNION
+SELECT * FROM federated.t1 WHERE id >= 5) t
+WHERE federated.t3.name=t.name;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	PRIMARY	t3	ALL	NULL	NULL	NULL	NULL	7	
+1	PRIMARY	<derived2>	ref	key0	key0	18	federated.t3.name	2	
+2	PUSHED DERIVED	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL
+DROP TABLE federated.t1, federated.t2, federated.t3;
+connection slave;
+DROP TABLE federated.t1, federated.t2;
+connection default;
+set global federated_pushdown=0;
+connection master;
+DROP TABLE IF EXISTS federated.t1;
+DROP DATABASE IF EXISTS federated;
+connection slave;
+DROP TABLE IF EXISTS federated.t1;
+DROP DATABASE IF EXISTS federated;

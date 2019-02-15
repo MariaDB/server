@@ -128,6 +128,7 @@ extern long spider_conn_mutex_id;
 handlerton *spider_hton_ptr;
 SPIDER_DBTON spider_dbton[SPIDER_DBTON_SIZE];
 extern SPIDER_DBTON spider_dbton_mysql;
+extern SPIDER_DBTON spider_dbton_mariadb;
 #if defined(HS_HAS_SQLCOM) && defined(HAVE_HANDLERSOCKET)
 extern SPIDER_DBTON spider_dbton_handlersocket;
 #endif
@@ -7362,15 +7363,22 @@ int spider_db_init(
 #endif
 
   spider_dbton_mysql.dbton_id = dbton_id;
+  spider_dbton_mysql.db_util->dbton_id = dbton_id;
   spider_dbton[dbton_id] = spider_dbton_mysql;
+  ++dbton_id;
+  spider_dbton_mariadb.dbton_id = dbton_id;
+  spider_dbton_mariadb.db_util->dbton_id = dbton_id;
+  spider_dbton[dbton_id] = spider_dbton_mariadb;
   ++dbton_id;
 #if defined(HS_HAS_SQLCOM) && defined(HAVE_HANDLERSOCKET)
   spider_dbton_handlersocket.dbton_id = dbton_id;
+  spider_dbton_handlersocket.db_util->dbton_id = dbton_id;
   spider_dbton[dbton_id] = spider_dbton_handlersocket;
   ++dbton_id;
 #endif
 #ifdef HAVE_ORACLE_OCI
   spider_dbton_oracle.dbton_id = dbton_id;
+  spider_dbton_oracle.db_util->dbton_id = dbton_id;
   spider_dbton[dbton_id] = spider_dbton_oracle;
   ++dbton_id;
 #endif

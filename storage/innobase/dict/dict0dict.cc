@@ -2118,10 +2118,9 @@ dict_index_too_big_for_tree(
 
 	comp = dict_table_is_comp(table);
 
-	const page_size_t page_size(dict_tf_get_page_size(table->flags));
+	const ulint zip_size = dict_tf_get_zip_size(table->flags);
 
-	if (page_size.is_compressed()
-	    && page_size.physical() < srv_page_size) {
+	if (zip_size && zip_size < srv_page_size) {
 		/* On a compressed page, two records must fit in the
 		uncompressed page modification log. On compressed pages
 		with size.physical() == srv_page_size,
@@ -2132,7 +2131,7 @@ dict_index_too_big_for_tree(
 		number in the page modification log.  The maximum
 		allowed node pointer size is half that. */
 		page_rec_max = page_zip_empty_size(new_index->n_fields,
-						   page_size.physical());
+						   zip_size);
 		if (page_rec_max) {
 			page_rec_max--;
 		}
@@ -2204,6 +2203,14 @@ dict_index_too_big_for_tree(
 		}
 
 		field_max_size = dict_col_get_max_size(col);
+		if (!comp && (col->mtype == DATA_INT
+			      || col->mtype == DATA_CHAR
+			      || col->mtype == DATA_FIXBINARY)) {
+			/* DATA_INT, DATA_FIXBINARY and DATA_CHAR are variable-
+			length (enlarged instantly), but are stored locally. */
+			field_ext_max_size = 0;
+			goto add_field_size;
+		}
 		field_ext_max_size = field_max_size < 256 ? 1 : 2;
 
 		if (field->prefix_len) {
@@ -7072,53 +7079,4 @@ dict_space_get_id(
 	rw_lock_x_unlock(dict_operation_lock);
 
 	return(id);
-}
-
-/** Determine the extent size (in pages) for the given table
-@param[in]	table	the table whose extent size is being
-			calculated.
-@return extent size in pages (256, 128 or 64) */
-ulint
-dict_table_extent_size(
-	const dict_table_t*	table)
-{
-	const ulint	mb_1 = 1024 * 1024;
-	const ulint	mb_2 = 2 * mb_1;
-	const ulint	mb_4 = 4 * mb_1;
-
-	page_size_t	page_size = dict_table_page_size(table);
-	ulint	pages_in_extent = FSP_EXTENT_SIZE;
-
-	if (page_size.is_compressed()) {
-
-		ulint	disk_page_size	= page_size.physical();
-
-		switch (disk_page_size) {
-		case 1024:
-			pages_in_extent = mb_1/1024;
-			break;
-		case 2048:
-			pages_in_extent = mb_1/2048;
-			break;
-		case 4096:
-			pages_in_extent = mb_1/4096;
-			break;
-		case 8192:
-			pages_in_extent = mb_1/8192;
-			break;
-		case 16384:
-			pages_in_extent = mb_1/16384;
-			break;
-		case 32768:
-			pages_in_extent = mb_2/32768;
-			break;
-		case 65536:
-			pages_in_extent = mb_4/65536;
-			break;
-		default:
-			ut_ad(0);
-		}
-	}
-
-	return(pages_in_extent);
 }

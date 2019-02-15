@@ -2392,6 +2392,7 @@ void st_select_lex::init_query()
   tvc= 0;
   in_tvc= false;
   versioned_tables= 0;
+  pushdown_select= 0;
 }
 
 void st_select_lex::init_select()
@@ -4680,7 +4681,10 @@ void st_select_lex::set_explain_type(bool on_the_fly)
 
   if (master_unit()->thd->lex->first_select_lex() == this)
   {
-     type= is_primary ? "PRIMARY" : "SIMPLE";
+    if (pushdown_select)
+      type= pushed_select_text;
+    else
+      type= is_primary ? "PRIMARY" : "SIMPLE";
   }
   else
   {
@@ -4689,7 +4693,11 @@ void st_select_lex::set_explain_type(bool on_the_fly)
       /* If we're a direct child of a UNION, we're the first sibling there */
       if (linkage == DERIVED_TABLE_TYPE)
       {
-        if (is_uncacheable & UNCACHEABLE_DEPENDENT)
+        bool is_pushed_master_unit= master_unit()->derived &&
+	                            master_unit()->derived->pushdown_derived;
+        if (is_pushed_master_unit)
+          type= pushed_derived_text;
+        else if (is_uncacheable & UNCACHEABLE_DEPENDENT)
           type= "LATERAL DERIVED";
         else
           type= "DERIVED";
@@ -9578,4 +9586,22 @@ bool LEX::sp_proc_stmt_statement_finalize(THD *thd, bool no_lookahead)
   Lex_cstring qbuf(sphead->m_tmp_query, no_lookahead ? lip->get_ptr() :
                                                        lip->get_tok_start());
   return LEX::sp_proc_stmt_statement_finalize_buf(thd, qbuf);
+}
+
+
+/**
+   Create JSON_VALID(field_name) expression
+*/
+
+Virtual_column_info *make_json_valid_expr(THD *thd, LEX_CSTRING *field_name)
+{
+  Lex_ident_sys_st str;
+  Item *field, *expr;
+  str.set_valid_utf8(field_name);
+  if (unlikely(!(field= thd->lex->create_item_ident_field(thd, NullS, NullS,
+                                                          &str))))
+    return 0;
+  if (unlikely(!(expr= new (thd->mem_root) Item_func_json_valid(thd, field))))
+    return 0;
+  return add_virtual_expression(thd, expr);
 }

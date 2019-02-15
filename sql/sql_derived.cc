@@ -27,11 +27,13 @@
 #include "unireg.h"
 #include "sql_derived.h"
 #include "sql_select.h"
+#include "derived_handler.h"
 #include "sql_base.h"
 #include "sql_view.h"                         // check_duplicate_names
 #include "sql_acl.h"                          // SELECT_ACL
 #include "sql_class.h"
 #include "sql_cte.h"
+#include "my_json_writer.h"
 
 typedef bool (*dt_processor)(THD *thd, LEX *lex, TABLE_LIST *derived);
 
@@ -198,6 +200,7 @@ mysql_handle_single_derived(LEX *lex, TABLE_LIST *derived, uint phases)
     if ((res= (*processors[phase])(lex->thd, lex, derived)))
       break;
   }
+
   lex->thd->derived_tables_processing= FALSE;
   DBUG_RETURN(res);
 }
@@ -368,6 +371,7 @@ bool mysql_derived_merge(THD *thd, LEX *lex, TABLE_LIST *derived)
   DBUG_PRINT("enter", ("Alias: '%s'  Unit: %p",
                        (derived->alias.str ? derived->alias.str : "<NULL>"),
                        derived->get_unit()));
+  const char *cause= NULL;
 
   if (derived->merged)
   {
@@ -379,14 +383,22 @@ bool mysql_derived_merge(THD *thd, LEX *lex, TABLE_LIST *derived)
   if (dt_select->uncacheable & UNCACHEABLE_RAND)
   {
     /* There is random function => fall back to materialization. */
+    cause= "Random function in the select";
     derived->change_refs_to_fields();
     derived->set_materialized_derived();
     DBUG_RETURN(FALSE);
   }
 
- if (thd->lex->sql_command == SQLCOM_UPDATE_MULTI ||
-     thd->lex->sql_command == SQLCOM_DELETE_MULTI)
-   thd->save_prep_leaf_list= TRUE;
+  if (derived->dt_handler)
+  {
+    derived->change_refs_to_fields();
+    derived->set_materialized_derived();
+    DBUG_RETURN(FALSE);
+  }
+
+  if (thd->lex->sql_command == SQLCOM_UPDATE_MULTI ||
+      thd->lex->sql_command == SQLCOM_DELETE_MULTI)
+    thd->save_prep_leaf_list= TRUE;
 
   arena= thd->activate_stmt_arena_if_needed(&backup);  // For easier test
 
@@ -401,15 +413,11 @@ bool mysql_derived_merge(THD *thd, LEX *lex, TABLE_LIST *derived)
       and small subqueries, and the bigger one can't be merged it wouldn't
       block the smaller one.
     */
-    if (parent_lex->get_free_table_map(&map, &tablenr))
+    if (parent_lex->get_free_table_map(&map, &tablenr) ||
+       dt_select->leaf_tables.elements + tablenr > MAX_TABLES)
     {
       /* There is no enough table bits, fall back to materialization. */
-      goto unconditional_materialization;
-    }
-
-    if (dt_select->leaf_tables.elements + tablenr > MAX_TABLES)
-    {
-      /* There is no enough table bits, fall back to materialization. */
+      cause= "Not enough table bits to merge subquery";
       goto unconditional_materialization;
     }
 
@@ -486,6 +494,24 @@ exit_merge:
   DBUG_RETURN(res);
 
 unconditional_materialization:
+
+  if (unlikely(thd->trace_started()))
+  {
+    /*
+     Add to the optimizer trace the change in choice for merged
+     derived tables/views to materialised ones.
+    */
+    Json_writer_object trace_wrapper(thd);
+    Json_writer_object trace_derived(thd, derived->is_derived() ?
+                                       "derived" : "view");
+    trace_derived.add("table", derived->alias.str ? derived->alias.str : "<NULL>")
+                 .add_select_number(derived->get_unit()->
+                                    first_select()->select_number)
+                 .add("initial_choice", "merged")
+                 .add("final_choice", "materialized")
+                 .add("cause", cause);
+  }
+
   derived->change_refs_to_fields();
   derived->set_materialized_derived();
   if (!derived->table || !derived->table->is_created())
@@ -654,7 +680,6 @@ bool mysql_derived_prepare(THD *thd, LEX *lex, TABLE_LIST *derived)
   DBUG_ENTER("mysql_derived_prepare");
   DBUG_PRINT("enter", ("unit: %p  table_list: %p  alias: '%s'",
                        unit, derived, derived->alias.str));
-
   if (!unit)
     DBUG_RETURN(FALSE);
 
@@ -747,6 +772,22 @@ bool mysql_derived_prepare(THD *thd, LEX *lex, TABLE_LIST *derived)
     }
   }
 
+  if (unlikely(thd->trace_started()))
+  {
+    /*
+      Add to optimizer trace whether a derived table/view
+      is merged into the parent select or not.
+    */
+    Json_writer_object trace_wrapper(thd);
+    Json_writer_object trace_derived(thd, derived->is_derived() ?
+                                       "derived" : "view");
+    trace_derived.add("table", derived->alias.str ? derived->alias.str : "<NULL>")
+            .add_select_number(derived->get_unit()->first_select()->select_number);
+    if (derived->is_materialized_derived())
+      trace_derived.add("materialized", true);
+    if (derived->is_merged_derived())
+      trace_derived.add("merged", true);
+  }
   /*
     Above cascade call of prepare is important for PS protocol, but after it
     is called we can check if we really need prepare for this derived
@@ -811,6 +852,24 @@ bool mysql_derived_prepare(THD *thd, LEX *lex, TABLE_LIST *derived)
   DBUG_ASSERT(derived->table);
   if (derived->is_derived() && derived->is_merged_derived())
     first_select->mark_as_belong_to_derived(derived);
+
+  derived->dt_handler= derived->find_derived_handler(thd);
+  if (derived->dt_handler)
+  {
+    char query_buff[4096];
+    String derived_query(query_buff, sizeof(query_buff), thd->charset());
+    derived_query.length(0);
+    derived->derived->print(&derived_query,
+                            enum_query_type(QT_VIEW_INTERNAL | 
+                                            QT_ITEM_ORIGINAL_FUNC_NULLIF |
+                                            QT_PARSABLE));
+    if (!thd->make_lex_string(&derived->derived_spec,
+                              derived_query.ptr(), derived_query.length()))
+    {
+      delete derived->dt_handler;
+      derived->dt_handler= NULL;
+    }
+  }
 
 exit:
   /* Hide "Unknown column" or "Unknown function" error */
@@ -902,6 +961,18 @@ bool mysql_derived_optimize(THD *thd, LEX *lex, TABLE_LIST *derived)
   {
     DBUG_PRINT("info", ("Irreversibly merged: exit"));
     DBUG_RETURN(FALSE);
+  }
+
+  if (derived->is_materialized_derived() && derived->dt_handler)
+  {
+    /* Create an object for execution of the query specifying the table */
+    if (!(derived->pushdown_derived=
+            new (thd->mem_root) Pushdown_derived(derived, derived->dt_handler)))
+    {
+      delete derived->dt_handler;
+      derived->dt_handler= NULL;
+      DBUG_RETURN(TRUE);
+    }
   }
 
   lex->current_select= first_select;
@@ -1108,6 +1179,18 @@ bool mysql_derived_fill(THD *thd, LEX *lex, TABLE_LIST *derived)
   select_unit *derived_result= derived->derived_result;
   SELECT_LEX *save_current_select= lex->current_select;
   bool derived_recursive_is_filled= false;
+
+  if (derived->pushdown_derived)
+  {
+    int res;
+    if (unit->executed)
+      DBUG_RETURN(FALSE);
+    /* Execute the query that specifies the derived table by a foreign engine */
+    res= derived->pushdown_derived->execute();
+    unit->executed= true;
+    delete derived->pushdown_derived;
+      DBUG_RETURN(res);
+  }
 
   if (unit->executed && !derived_is_recursive &&
       (unit->uncacheable & UNCACHEABLE_DEPENDENT))
@@ -1406,4 +1489,67 @@ bool pushdown_cond_for_derived(THD *thd, Item *cond, TABLE_LIST *derived)
   }
   thd->lex->current_select= save_curr_select;
   DBUG_RETURN(false);
+}
+
+
+/**
+  @brief
+    Look for provision of the derived_handler interface by a foreign engine
+
+  @param thd   The thread handler
+
+  @details
+    The function looks through its tables of the query that specifies this
+    derived table searching for a table whose handlerton owns a
+    create_derived call-back function. If the call of this function returns
+    a derived_handler interface object then the server will push the query
+    specifying the derived table into this engine.
+    This is a responsibility of the create_derived call-back function to
+    check whether the engine can execute the query.
+
+  @retval the found derived_handler if the search is successful
+          0  otherwise
+*/
+
+derived_handler *TABLE_LIST::find_derived_handler(THD *thd)
+{
+  if (!derived || is_recursive_with_table())
+    return 0;
+  for (SELECT_LEX *sl= derived->first_select(); sl; sl= sl->next_select())
+  {
+    if (!(sl->join))
+      continue;
+    for (TABLE_LIST *tbl= sl->join->tables_list; tbl; tbl= tbl->next_local)
+    {
+      if (!tbl->table)
+	continue;
+      handlerton *ht= tbl->table->file->partition_ht();
+      if (!ht->create_derived)
+        continue;
+      derived_handler *dh= ht->create_derived(thd, this);
+      if (dh)
+      {
+        dh->set_derived(this);
+        return dh;
+      }
+    }
+  }
+  return 0;
+}
+
+
+TABLE_LIST *TABLE_LIST::get_first_table()
+{
+  for (SELECT_LEX *sl= derived->first_select(); sl; sl= sl->next_select())
+  {
+    if (!(sl->join))
+      continue;
+    for (TABLE_LIST *tbl= sl->join->tables_list; tbl; tbl= tbl->next_local)
+    {
+      if (!tbl->table)
+	continue;
+      return tbl;
+    }
+  }
+  return 0;
 }

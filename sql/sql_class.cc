@@ -1,6 +1,6 @@
 /*
    Copyright (c) 2000, 2015, Oracle and/or its affiliates.
-   Copyright (c) 2008, 2018, MariaDB Corporation.
+   Copyright (c) 2008, 2019, MariaDB Corporation.
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -71,6 +71,7 @@
 #include "wsrep_thd.h"
 #include "wsrep_trans_observer.h"
 #endif /* WITH_WSREP */
+#include "opt_trace.h"
 
 #ifdef HAVE_SYS_SYSCALL_H
 #include <sys/syscall.h>
@@ -857,6 +858,7 @@ THD::THD(my_thread_id id, bool is_wsrep_applier, bool skip_global_sys_var_lock)
   prepare_derived_at_open= FALSE;
   create_tmp_table_for_derived= FALSE;
   save_prep_leaf_list= FALSE;
+  org_charset= 0;
   /* Restore THR_THD */
   set_current_thd(old_THR_THD);
 }
@@ -1409,6 +1411,7 @@ void THD::change_user(void)
   sp_cache_clear(&sp_func_cache);
   sp_cache_clear(&sp_package_spec_cache);
   sp_cache_clear(&sp_package_body_cache);
+  opt_trace.flush_optimizer_trace();
 }
 
 /**
@@ -2184,6 +2187,11 @@ void THD::reset_globals()
   /* Undocking the thread specific data. */
   set_current_thd(0);
   net.thd= 0;
+}
+
+bool THD::trace_started()
+{
+  return opt_trace.is_started();
 }
 
 /*
@@ -4336,6 +4344,13 @@ bool Security_context::set_user(char *user_arg)
   return user == 0;
 }
 
+bool Security_context::check_access(ulong want_access, bool match_any)
+{
+  DBUG_ENTER("Security_context::check_access");
+  DBUG_RETURN((match_any ? (master_access & want_access)
+                         : ((master_access & want_access) == want_access)));
+}
+
 #ifndef NO_EMBEDDED_ACCESS_CHECKS
 /**
   Initialize this security context from the passed in credentials
@@ -5577,7 +5592,7 @@ void THD::get_definer(LEX_USER *definer, bool role)
   {
     definer->user= invoker.user;
     definer->host= invoker.host;
-    definer->reset_auth();
+    definer->auth= NULL;
   }
   else
 #endif

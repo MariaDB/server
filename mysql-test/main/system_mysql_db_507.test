@@ -89,6 +89,24 @@ where user like "%oo"
 order by user;
 
 --echo #
+--echo # Test account locking
+--echo #
+create user user1@localhost account lock;
+--replace_result $MASTER_MYPORT MYSQL_PORT $MASTER_MYSOCK MYSQL_SOCK
+--error ER_ACCOUNT_HAS_BEEN_LOCKED
+connect(con1,localhost,user1);
+flush privileges;
+--replace_result $MASTER_MYPORT MYSQL_PORT $MASTER_MYSOCK MYSQL_SOCK
+--error ER_ACCOUNT_HAS_BEEN_LOCKED
+connect(con1,localhost,user1);
+show create user user1@localhost;
+alter user user1@localhost account unlock;
+connect(con1,localhost,user1);
+disconnect con1;
+connection default;
+show create user user1@localhost;
+
+--echo #
 --echo # Reset to final original state.
 --echo #
 --source include/switch_to_mysql_global_priv.inc

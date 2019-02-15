@@ -887,10 +887,15 @@ row_create_prebuilt(
 						== MAX_REF_PARTS););
 		uint temp_len = 0;
 		for (uint i = 0; i < temp_index->n_uniq; i++) {
-			ulint type = temp_index->fields[i].col->mtype;
-			if (type == DATA_INT) {
-				temp_len +=
-					temp_index->fields[i].fixed_len;
+			const dict_field_t& f = temp_index->fields[i];
+			if (f.col->mtype == DATA_INT) {
+				ut_ad(f.col->len >= f.fixed_len);
+				/* dtype_get_fixed_size_low() returns 0
+				for ROW_FORMAT=REDUNDANT */
+				ut_ad(table->not_redundant()
+				      ? f.col->len == f.fixed_len
+				      : f.fixed_len == 0);
+				temp_len += f.col->len;
 			}
 		}
 		srch_key_len = std::max(srch_key_len,temp_len);
@@ -3079,13 +3084,14 @@ row_discard_tablespace(
 	table->flags2 |= DICT_TF2_DISCARDED;
 	dict_table_change_id_in_cache(table, new_id);
 
-	/* Reset the root page numbers. */
+	dict_index_t* index = UT_LIST_GET_FIRST(table->indexes);
+	if (index) index->clear_instant_alter();
 
-	for (dict_index_t* index = UT_LIST_GET_FIRST(table->indexes);
-	     index != 0;
-	     index = UT_LIST_GET_NEXT(indexes, index)) {
+	/* Reset the root page numbers. */
+	for (; index; index = UT_LIST_GET_NEXT(indexes, index)) {
 		index->page = FIL_NULL;
 	}
+
 	/* If the tablespace did not already exist or we couldn't
 	write to it, we treat that as a successful DISCARD. It is
 	unusable anyway. */
@@ -3361,8 +3367,7 @@ row_drop_table_for_mysql(
 		for (dict_index_t* index = dict_table_get_first_index(table);
 		     index != NULL;
 		     index = dict_table_get_next_index(index)) {
-			btr_free(page_id_t(SRV_TMP_SPACE_ID, index->page),
-				 univ_page_size);
+			btr_free(page_id_t(SRV_TMP_SPACE_ID, index->page));
 		}
 		/* Remove the pointer to this table object from the list
 		of modified tables by the transaction because the object

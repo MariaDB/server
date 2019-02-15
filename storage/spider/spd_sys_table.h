@@ -678,3 +678,8 @@ void spider_rm_sys_tmp_table_for_result(
   TABLE *tmp_table,
   TMP_TABLE_PARAM *tmp_tbl_prm
 );
+
+TABLE *spider_find_temporary_table(
+  THD *thd,
+  TABLE_LIST *table_list
+);

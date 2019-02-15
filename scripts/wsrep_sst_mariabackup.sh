@@ -753,8 +753,8 @@ else
 
 if [[ "$sstlogarchive" -eq 1 ]]
 then
-    ARCHIVETIMESTAMP=$(date "+%Y.%m.%d-%H.%M.%S")
-    newfile=""    
+    ARCHIVETIMESTAMP=$(date "+%Y.%m.%d-%H.%M.%S.%N")
+    newfile=""
 
     if [[ ! -z "$sstlogarchivedir" ]]
     then

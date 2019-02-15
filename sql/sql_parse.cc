@@ -1,5 +1,5 @@
 /* Copyright (c) 2000, 2017, Oracle and/or its affiliates.
-   Copyright (c) 2008, 2018, MariaDB
+   Copyright (c) 2008, 2019, MariaDB Corporation.
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -100,6 +100,7 @@
 #include "set_var.h"
 #include "sql_bootstrap.h"
 #include "sql_sequence.h"
+#include "opt_trace.h"
 
 #include "my_json_writer.h" 
 
@@ -979,8 +980,9 @@ static char *fgets_fn(char *buffer, size_t size, fgets_input_t input, int *error
 }
 
 
-void bootstrap(MYSQL_FILE *file)
+int bootstrap(MYSQL_FILE *file)
 {
+  int bootstrap_error= 0;
   DBUG_ENTER("handle_bootstrap");
 
   THD *thd= new THD(next_thread_id());
@@ -1105,7 +1107,7 @@ void bootstrap(MYSQL_FILE *file)
     thd->lex->restore_set_statement_var();
   }
   delete thd;
-  DBUG_VOID_RETURN;
+  DBUG_RETURN(bootstrap_error);
 }
 
 
@@ -1653,6 +1655,9 @@ bool dispatch_command(enum enum_server_command command, THD *thd,
     thd->status_var.com_other++;
     thd->change_user();
     thd->clear_error();                         // if errors from rollback
+    /* Restore original charset from client authentication packet.*/
+    if(thd->org_charset)
+      thd->update_charset(thd->org_charset,thd->org_charset,thd->org_charset);
     my_ok(thd, 0, 0, 0);
     break;
   }
@@ -3408,6 +3413,13 @@ mysql_execute_command(THD *thd)
 #ifdef HAVE_REPLICATION
   } /* endif unlikely slave */
 #endif
+  Opt_trace_start ots(thd, all_tables, lex->sql_command, &lex->var_list,
+                      thd->query(), thd->query_length(),
+                      thd->variables.character_set_client);
+
+  Json_writer_object trace_command(thd);
+  Json_writer_array trace_command_steps(thd, "steps");
+
 #ifdef WITH_WSREP
   if (WSREP(thd))
   {
@@ -9829,8 +9841,7 @@ void get_default_definer(THD *thd, LEX_USER *definer, bool role)
     definer->host.length= strlen(definer->host.str);
   }
   definer->user.length= strlen(definer->user.str);
-
-  definer->reset_auth();
+  definer->auth= NULL;
 }
 
 
@@ -9889,7 +9900,7 @@ LEX_USER *create_definer(THD *thd, LEX_CSTRING *user_name,
 
   definer->user= *user_name;
   definer->host= *host_name;
-  definer->reset_auth();
+  definer->auth= NULL;
 
   return definer;
 }

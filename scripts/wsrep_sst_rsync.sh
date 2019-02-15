@@ -147,6 +147,7 @@ if ! [ -z $WSREP_SST_OPT_BINLOG_INDEX ]
 then
     BINLOG_INDEX_DIRNAME=$(dirname $WSREP_SST_OPT_BINLOG_INDEX)
     BINLOG_INDEX_FILENAME=$(basename $WSREP_SST_OPT_BINLOG_INDEX)
+    BINLOG_INDEX_FILENAME=${BINLOG_INDEX_FILENAME%.index}.index
 fi
 
 WSREP_LOG_DIR=${WSREP_LOG_DIR:-""}
@@ -268,12 +269,12 @@ EOF
             OLD_PWD="$(pwd)"
             cd $BINLOG_DIRNAME
 
-            if ! [ -z $WSREP_SST_OPT_BINLOG_INDEX ]
+            if [ -z $WSREP_SST_OPT_BINLOG_INDEX ]
             then
-               binlog_files_full=$(tail -n $BINLOG_N_FILES ${BINLOG_FILENAME}.index)
+                binlog_files_full=$(tail -n $BINLOG_N_FILES ${BINLOG_FILENAME}.index)
             else
-               cd $BINLOG_INDEX_DIRNAME
-               binlog_files_full=$(tail -n $BINLOG_N_FILES ${BINLOG_INDEX_FILENAME}.index)
+                cd $BINLOG_INDEX_DIRNAME
+                binlog_files_full=$(tail -n $BINLOG_N_FILES ${BINLOG_INDEX_FILENAME})
             fi
 
             cd $BINLOG_DIRNAME
@@ -510,16 +511,16 @@ EOF
             # Clean up old binlog files first
             rm -f ${BINLOG_FILENAME}.*
             wsrep_log_info "Extracting binlog files:"
-            tar -xvf $BINLOG_TAR_FILE >&2
-            for ii in $(ls -1 ${BINLOG_FILENAME}.*)
-            do
-                if ! [ -z $WSREP_SST_OPT_BINLOG_INDEX ]
+            tar -xvf $BINLOG_TAR_FILE >> _binlog_tmp_files_$!
+            while read bin_file; do
+                if [ -z $WSREP_SST_OPT_BINLOG_INDEX ]
                 then
-                    echo ${BINLOG_DIRNAME}/${ii} >> ${BINLOG_FILENAME}.index
+                    echo ${BINLOG_DIRNAME}/${bin_file} >> ${BINLOG_FILENAME}.index
                 else
-                    echo ${BINLOG_DIRNAME}/${ii} >> ${BINLOG_INDEX_DIRNAME}/${BINLOG_INDEX_FILENAME}.index
+                    echo ${BINLOG_DIRNAME}/${bin_file} >> ${BINLOG_INDEX_DIRNAME}/${BINLOG_INDEX_FILENAME}
                 fi
-            done
+            done < _binlog_tmp_files_$!
+            rm -f _binlog_tmp_files_$!
         fi
         cd "$OLD_PWD"
 

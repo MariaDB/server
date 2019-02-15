@@ -112,6 +112,7 @@ When one supplies long data for a placeholder:
 #include "sp_cache.h"
 #include "sql_handler.h"  // mysql_ha_rm_tables
 #include "probes_mysql.h"
+#include "opt_trace.h"
 #ifdef EMBEDDED_LIBRARY
 /* include MYSQL_BIND headers */
 #include <mysql.h>
@@ -2272,6 +2273,17 @@ static bool check_prepared_statement(Prepared_statement *stmt)
   /* set context for commands which do not use setup_tables */
   lex->first_select_lex()->context.resolve_in_table_list_only(select_lex->
                                                      get_table_list());
+
+  /*
+    For the optimizer trace, this is the symmetric, for statement preparation,
+    of what is done at statement execution (in mysql_execute_command()).
+  */
+  Opt_trace_start ots(thd, tables, lex->sql_command, &lex->var_list,
+                      thd->query(), thd->query_length(),
+                      thd->variables.character_set_client);
+
+  Json_writer_object trace_command(thd);
+  Json_writer_array trace_command_steps(thd, "steps");
 
   /* Reset warning count for each query that uses tables */
   if (tables)

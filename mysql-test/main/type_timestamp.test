@@ -764,6 +764,14 @@ CREATE TABLE t3 (pk INT PRIMARY KEY, b TIMESTAMP) ENGINE=MyISAM;
 SELECT ( SELECT b FROM t1 LIMIT 1 ) AS sq FROM t2 LEFT JOIN t3 USING (pk);
 DROP TABLE t1, t2, t3;
 
+--echo #
+--echo # MDEV-18447 Assertion `!is_zero_datetime()' failed in Timestamp_or_zero_datetime::tv
+--echo #
+
+CREATE TABLE t1 (a TIMESTAMP DEFAULT 0, b TIMESTAMP DEFAULT 0, c TIME DEFAULT 0);
+INSERT INTO t1 VALUES (0,0,0);
+SELECT c IN (GREATEST(a,b)) FROM t1;
+DROP TABLE t1;
 
 --echo #
 --echo # End of 10.4 tests

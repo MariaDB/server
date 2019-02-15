@@ -59,4 +59,4 @@ drop role role3;
 drop role role2;
 drop role role1;
 drop user foo;
-update mysql.global_priv set priv=json_remove(priv, '$.default_role');
+update mysql.global_priv set priv=json_compact(json_remove(priv, '$.default_role'));

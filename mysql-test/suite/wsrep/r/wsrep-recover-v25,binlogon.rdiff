@@ -1,0 +1,17 @@
+--- r/wsrep-recover-v25.result	2019-02-05 12:33:42.681586950 +0200
++++ r/wsrep-recover-v25.reject	2019-02-05 12:34:41.661752903 +0200
+@@ -18,11 +18,10 @@
+ connection default;
+ SET DEBUG_SYNC = "now WAIT_FOR after_prepare_reached";
+ # Kill the server
+-Expect seqno 7
+-7
+-Expect 5 7
++Expect seqno 6
++6
++Expect 5
+ SELECT * FROM t1;
+ f1
+ 5
+-7
+ DROP TABLE t1;

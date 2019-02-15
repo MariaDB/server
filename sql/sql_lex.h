@@ -148,6 +148,12 @@ public:
   bool copy_or_convert(THD *thd, const Lex_ident_cli_st *str, CHARSET_INFO *cs);
   bool is_null() const { return str == NULL; }
   bool to_size_number(ulonglong *to) const;
+  void set_valid_utf8(LEX_CSTRING *name)
+  {
+    DBUG_ASSERT(Well_formed_prefix(system_charset_info, name->str,
+                                   name->length).length() == name->length);
+    str= name->str ; length= name->length;
+  }
 };
 
 
@@ -239,6 +245,8 @@ class Item_window_func;
 struct sql_digest_state;
 class With_clause;
 class my_var;
+class select_handler;
+class Pushdown_select;
 
 #define ALLOC_ROOT_SET 1024
 
@@ -826,11 +834,12 @@ protected:
   bool prepare_join(THD *thd, SELECT_LEX *sl, select_result *result,
                     ulong additional_options,
                     bool is_union_select);
-  bool join_union_item_types(THD *thd, List<Item> &types, uint count);
   bool join_union_type_handlers(THD *thd,
                                 class Type_holder *holders, uint count);
   bool join_union_type_attributes(THD *thd,
                                   class Type_holder *holders, uint count);
+public:
+  bool join_union_item_types(THD *thd, List<Item> &types, uint count);
 public:
   // Ensures that at least all members used during cleanup() are initialized.
   st_select_lex_unit()
@@ -1254,6 +1263,11 @@ public:
   table_value_constr *tvc;
   bool in_tvc;
 
+  /* The interface employed to execute the select query by a foreign engine */
+  select_handler *select_h;
+  /* The object used to organize execution of the query by a foreign engine */
+  Pushdown_select *pushdown_select;
+
   /** System Versioning */
 public:
   uint versioned_tables;
@@ -1484,6 +1498,8 @@ public:
                                        Item **remaining_cond,
                                        Item_transformer transformer,
                                        uchar *arg);
+
+  select_handler *find_select_handler(THD *thd);
 
 private:
   bool m_non_agg_field_used;
@@ -2923,6 +2939,30 @@ public:
   Explain_delete* save_explain_delete_data(MEM_ROOT *mem_root, THD *thd);
 };
 
+enum account_lock_type
+{
+  ACCOUNTLOCK_UNSPECIFIED,
+  ACCOUNTLOCK_LOCKED,
+  ACCOUNTLOCK_UNLOCKED
+};
+
+struct Account_options: public USER_RESOURCES
+{
+  Account_options()
+    : account_locked(ACCOUNTLOCK_UNSPECIFIED)
+  { }
+
+  void reset()
+  {
+    bzero(this, sizeof(*this));
+    ssl_type= SSL_TYPE_NOT_SPECIFIED;
+  }
+
+  enum SSL_type ssl_type;                       // defined in violite.h
+  LEX_CSTRING x509_subject, x509_issuer, ssl_cipher;
+  account_lock_type account_locked;
+};
+
 
 class Query_arena_memroot;
 /* The state of the lex parsing. This is saved in the THD struct */
@@ -2982,7 +3022,6 @@ public:
   const char *help_arg;
   const char *backup_dir;                       /* For RESTORE/BACKUP */
   const char* to_log;                           /* For PURGE MASTER LOGS TO */
-  const char* x509_subject,*x509_issuer,*ssl_cipher;
   String *wild; /* Wildcard in SHOW {something} LIKE 'wild'*/ 
   sql_exchange *exchange;
   select_result *result;
@@ -3013,6 +3052,9 @@ public:
     I.e. the value of DEFINER clause.
   */
   LEX_USER *definer;
+
+  /* Used in ALTER/CREATE user to store account locking options */
+  Account_options account_options;
 
   Table_type table_type;                        /* Used for SHOW CREATE */
   List<Key_part_spec> ref_list;
@@ -3085,7 +3127,6 @@ public:
   LEX_MASTER_INFO mi;                              // used by CHANGE MASTER
   LEX_SERVER_OPTIONS server_options;
   LEX_CSTRING relay_log_connection_name;
-  USER_RESOURCES mqh;
   LEX_RESET_SLAVE reset_slave_info;
   ulonglong type;
   ulong next_binlog_file_number;
@@ -3123,7 +3164,6 @@ public:
   */
   bool parse_vcol_expr;
 
-  enum SSL_type ssl_type;                       // defined in violite.h
   enum enum_duplicates duplicates;
   enum enum_tx_isolation tx_isolation;
   enum enum_ha_read_modes ha_read_mode;
@@ -4600,5 +4640,6 @@ Item* handle_sql2003_note184_exception(THD *thd, Item* left, bool equal,
 void sp_create_assignment_lex(THD *thd, bool no_lookahead);
 bool sp_create_assignment_instr(THD *thd, bool no_lookahead);
 
+Virtual_column_info *make_json_valid_expr(THD *thd, LEX_CSTRING *field_name);
 #endif /* MYSQL_SERVER */
 #endif /* SQL_LEX_INCLUDED */

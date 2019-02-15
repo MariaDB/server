@@ -800,6 +800,7 @@ bool thd_init_client_charset(THD *thd, uint cs_number)
                cs->csname);
       return true;
     }
+    thd->org_charset= cs;
     thd->update_charset(cs,cs,cs);
   }
   return false;

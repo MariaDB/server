@@ -9,5 +9,5 @@ SELECT COUNT(*) = 20000 FROM t1;
 COUNT(*) = 20000
 1
 wsrep_last_committed_diff
-0
+1
 DROP TABLE t1;

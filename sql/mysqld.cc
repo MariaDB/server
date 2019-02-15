@@ -647,8 +647,6 @@ Lt_creator lt_creator;
 Ge_creator ge_creator;
 Le_creator le_creator;
 
-int bootstrap_error;
-
 THD_list server_threads;
 Rpl_filter* cur_rpl_filter;
 Rpl_filter* global_rpl_filter;
@@ -1105,7 +1103,7 @@ static PSI_cond_info all_server_conds[]=
   { &key_TABLE_SHARE_COND_rotation, "TABLE_SHARE::COND_rotation", 0}
 };
 
-PSI_thread_key key_thread_bootstrap, key_thread_delayed_insert,
+PSI_thread_key key_thread_delayed_insert,
   key_thread_handle_manager, key_thread_main,
   key_thread_one_connection, key_thread_signal_hand,
   key_thread_slave_background, key_rpl_parallel_thread;
@@ -1113,7 +1111,6 @@ PSI_thread_key key_thread_ack_receiver;
 
 static PSI_thread_info all_server_threads[]=
 {
-  { &key_thread_bootstrap, "bootstrap", PSI_FLAG_GLOBAL},
   { &key_thread_delayed_insert, "delayed_insert", 0},
   { &key_thread_handle_manager, "manager", PSI_FLAG_GLOBAL},
   { &key_thread_main, "main", PSI_FLAG_GLOBAL},
@@ -1589,7 +1586,7 @@ static my_bool kill_all_threads_once_again(THD *thd, void *)
     */
     THD *save_thd= current_thd;
     set_current_thd(thd);
-    close_connection(thd, ER_SERVER_SHUTDOWN);
+    close_connection(thd);
     set_current_thd(save_thd);
   }
 #endif
@@ -5768,9 +5765,9 @@ int mysqld_main(int argc, char **argv)
   if (opt_bootstrap)
   {
     select_thread_in_use= 0;                    // Allow 'kill' to work
-    bootstrap(mysql_stdin);
+    int bootstrap_error= bootstrap(mysql_stdin);
     if (!abort_loop)
-      unireg_abort(bootstrap_error ? 1 : 0);
+      unireg_abort(bootstrap_error);
     else
     {
       sleep(2);                                 // Wait for kill

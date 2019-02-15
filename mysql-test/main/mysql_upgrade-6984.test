@@ -17,7 +17,7 @@ update mysql.global_priv set priv=json_set(priv, '$.plugin', 'mysql_native_passw
 
 connect(con1,localhost,root,foo,,,);
 
-update mysql.global_priv set priv=json_remove(priv, '$.plugin', '$.authentication_string');
+update mysql.global_priv set priv=json_compact(json_remove(priv, '$.plugin', '$.authentication_string'));
 flush privileges;
 # Load event table
 set global event_scheduler=OFF;

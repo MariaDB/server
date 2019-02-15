@@ -100,6 +100,8 @@ extern bool wsrep_max_ws_size_update         UPDATE_ARGS;
 
 extern bool wsrep_reject_queries_update      UPDATE_ARGS;
 
+extern bool wsrep_debug_update               UPDATE_ARGS;
+
 #else  /* WITH_WSREP */
 
 #define wsrep_provider_init(X)

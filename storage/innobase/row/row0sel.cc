@@ -2,7 +2,7 @@
 
 Copyright (c) 1997, 2017, Oracle and/or its affiliates. All Rights Reserved.
 Copyright (c) 2008, Google Inc.
-Copyright (c) 2015, 2018, MariaDB Corporation.
+Copyright (c) 2015, 2019, MariaDB Corporation.
 
 Portions of this file contain modifications contributed and copyrighted by
 Google, Inc. Those modifications are gratefully acknowledged and are described
@@ -127,7 +127,7 @@ row_sel_sec_rec_is_for_blob(
 	}
 
 	len = btr_copy_externally_stored_field_prefix(
-		buf, prefix_len, page_size_t(table->space->flags),
+		buf, prefix_len, table->space->zip_size(),
 		clust_field, clust_len);
 
 	if (len == 0) {
@@ -308,8 +308,7 @@ row_sel_sec_rec_is_for_clust_rec(
 			if (rec_offs_nth_extern(clust_offs, clust_pos)) {
 				dptr = btr_copy_externally_stored_field(
 					&clust_len, dptr,
-					page_size_t(clust_index->table->space
-						    ->flags),
+					clust_index->table->space->zip_size(),
 					len, heap);
 			}
 
@@ -532,7 +531,7 @@ row_sel_fetch_columns(
 
 				data = btr_rec_copy_externally_stored_field(
 					rec, offsets,
-					dict_table_page_size(index->table),
+					index->table->space->zip_size(),
 					field_no, &len, heap);
 
 				/* data == NULL means that the
@@ -1135,7 +1134,7 @@ re_scan:
 
 			cur_block = buf_page_get_gen(
 				page_id_t(index->table->space_id, page_no),
-				page_size_t(index->table->space->flags),
+				index->table->space->zip_size(),
 				RW_X_LATCH, NULL, BUF_GET,
 				__FILE__, __LINE__, mtr, &err);
 		} else {
@@ -2743,12 +2742,15 @@ row_sel_field_store_in_mysql_format_func(
 			dest[len - 1] = (byte) (dest[len - 1] ^ 128);
 		}
 
-		ut_ad(templ->mysql_col_len == len);
+		ut_ad(templ->mysql_col_len == len
+		      || !index->table->not_redundant());
 		break;
 
 	case DATA_VARCHAR:
 	case DATA_VARMYSQL:
 	case DATA_BINARY:
+	case DATA_CHAR:
+	case DATA_FIXBINARY:
 		field_end = dest + templ->mysql_col_len;
 
 		if (templ->mysql_type == DATA_MYSQL_TRUE_VARCHAR) {
@@ -2836,7 +2838,8 @@ row_sel_field_store_in_mysql_format_func(
 		ut_ad(len * templ->mbmaxlen >= templ->mysql_col_len
 		      || (field_no == templ->icp_rec_field_no
 			  && field->prefix_len > 0)
-		      || templ->rec_field_is_prefix);
+		      || templ->rec_field_is_prefix
+		      || !index->table->not_redundant());
 
 		ut_ad(templ->is_virtual
 		      || !(field->prefix_len % templ->mbmaxlen));
@@ -2858,8 +2861,6 @@ row_sel_field_store_in_mysql_format_func(
 		ut_ad(0);
 		/* fall through */
 
-	case DATA_CHAR:
-	case DATA_FIXBINARY:
 	case DATA_FLOAT:
 	case DATA_DOUBLE:
 	case DATA_DECIMAL:
@@ -2933,8 +2934,7 @@ row_sel_store_mysql_field(
 		causes an assert */
 
 		data = btr_rec_copy_externally_stored_field(
-			rec, offsets,
-			dict_table_page_size(prebuilt->table),
+			rec, offsets, prebuilt->table->space->zip_size(),
 			field_no, &len, heap);
 
 		if (UNIV_UNLIKELY(!data)) {
@@ -3309,7 +3309,7 @@ row_sel_get_clust_rec_for_mysql(
 			and is it not unsafe to use RW_NO_LATCH here? */
 			buf_block_t*	block = buf_page_get_gen(
 				btr_pcur_get_block(prebuilt->pcur)->page.id,
-				btr_pcur_get_block(prebuilt->pcur)->page.size,
+				btr_pcur_get_block(prebuilt->pcur)->zip_size(),
 				RW_NO_LATCH, NULL, BUF_GET,
 				__FILE__, __LINE__, mtr, &err);
 			mem_heap_t*	heap = mem_heap_create(256);

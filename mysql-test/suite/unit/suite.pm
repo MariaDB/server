@@ -44,6 +44,8 @@ sub start_test {
   my (@ctest_list)= `cd "$bin" && ctest $ctest_vs --show-only --verbose`;
   return "No ctest" if $?;
 
+  $ENV{MYSQL_TEST_PLUGINDIR}=$::plugindir;
+
   my ($command, %tests, $prefix);
   for (@ctest_list) {
     chomp;

@@ -1,7 +1,6 @@
 #
 # Test the safe_to_bootstrap in grastate.dat 
 #
-
 --source include/galera_cluster.inc
 
 #
@@ -144,9 +143,9 @@ SET SESSION wsrep_on = OFF;
 #
 
 --error 1
---exec $MYSQLD --defaults-group-suffix=.2 --defaults-file=$MYSQLTEST_VARDIR/my.cnf --wsrep-new-cluster | grep 'This node is not safe to bootstrap the cluster'
+--exec $MYSQLD --defaults-group-suffix=.2 --defaults-file=$MYSQLTEST_VARDIR/my.cnf --wsrep-new-cluster --wsrep-cluster-address='gcomm://' | grep 'This node is not safe to bootstrap the cluster'
 --error 1
---exec $MYSQLD --defaults-group-suffix=.3 --defaults-file=$MYSQLTEST_VARDIR/my.cnf --wsrep-new-cluster | grep 'This node is not safe to bootstrap the cluster'
+--exec $MYSQLD --defaults-group-suffix=.3 --defaults-file=$MYSQLTEST_VARDIR/my.cnf --wsrep-new-cluster --wsrep-cluster-address='gcomm://' | grep 'This node is not safe to bootstrap the cluster'
 
 #
 # Attempt to bootstrap starting from node #1, should succeed
@@ -169,11 +168,21 @@ SET SESSION wsrep_on = OFF;
 --source include/wait_condition.inc
 
 --connection node_2
+CALL mtr.add_suppression("WSREP: no nodes coming from prim view, prim not possible");
+CALL mtr.add_suppression("WSREP: It may not be safe to bootstrap the cluster from this node");
+CALL mtr.add_suppression("WSREP: wsrep::connect(.*) failed: 7");
+CALL mtr.add_suppression("Aborting");
+CALL mtr.add_suppression("WSREP: moving position backwards: [0-9]+ -> 0");
 CALL mtr.add_suppression("Failed to prepare for incremental state transfer");
 CALL mtr.add_suppression("It may not be safe to bootstrap the cluster from this node");
 CALL mtr.add_suppression("Aborting");
 
 --connection node_3
+CALL mtr.add_suppression("WSREP: no nodes coming from prim view, prim not possible");
+CALL mtr.add_suppression("WSREP: It may not be safe to bootstrap the cluster from this node");
+CALL mtr.add_suppression("WSREP: wsrep::connect(.*) failed: 7");
+CALL mtr.add_suppression("Aborting");
+CALL mtr.add_suppression("WSREP: moving position backwards: [0-9]+ -> 0");
 CALL mtr.add_suppression("Failed to prepare for incremental state transfer");
 CALL mtr.add_suppression("It may not be safe to bootstrap the cluster from this node");
 CALL mtr.add_suppression("Aborting");

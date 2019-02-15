@@ -13,11 +13,11 @@
   along with this program; if not, write to the Free Software
   Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307  USA */
 
-class spider_db_mysql_util: public spider_db_util
+class spider_db_mbase_util: public spider_db_util
 {
 public:
-  spider_db_mysql_util();
-  ~spider_db_mysql_util();
+  spider_db_mbase_util();
+  virtual ~spider_db_mbase_util();
   int append_name(
     spider_string *str,
     const char *name,
@@ -174,7 +174,21 @@ public:
 #endif
 };
 
-class spider_db_mysql_row: public spider_db_row
+class spider_db_mysql_util: public spider_db_mbase_util
+{
+public:
+  spider_db_mysql_util();
+  ~spider_db_mysql_util();
+};
+
+class spider_db_mariadb_util: public spider_db_mbase_util
+{
+public:
+  spider_db_mariadb_util();
+  ~spider_db_mariadb_util();
+};
+
+class spider_db_mbase_row: public spider_db_row
 {
 public:
   MYSQL_ROW           row;
@@ -184,8 +198,10 @@ public:
   uint                field_count;
   uint                record_size;
   bool                cloned;
-  spider_db_mysql_row();
-  ~spider_db_mysql_row();
+  spider_db_mbase_row(
+    uint dbton_id
+  );
+  virtual ~spider_db_mbase_row();
   int store_to_field(
     Field *field,
     CHARSET_INFO *access_charset
@@ -214,15 +230,31 @@ public:
   uint get_byte_size();
 };
 
-class spider_db_mysql_result: public spider_db_result
+class spider_db_mysql_row: public spider_db_mbase_row
+{
+public:
+  spider_db_mysql_row();
+  ~spider_db_mysql_row();
+};
+
+class spider_db_mariadb_row: public spider_db_mbase_row
+{
+public:
+  spider_db_mariadb_row();
+  ~spider_db_mariadb_row();
+};
+
+class spider_db_mbase_result: public spider_db_result
 {
 public:
   MYSQL_RES           *db_result;
-  spider_db_mysql_row row;
+  spider_db_mbase_row row;
   MYSQL_ROW_OFFSET    first_row;
   int                 store_error_num;
-  spider_db_mysql_result(SPIDER_DB_CONN *in_db_conn);
-  ~spider_db_mysql_result();
+  spider_db_mbase_result(
+    SPIDER_DB_CONN *in_db_conn
+  );
+  virtual ~spider_db_mbase_result();
   bool has_result();
   void free_result();
   SPIDER_DB_ROW *current_row();
@@ -289,9 +321,29 @@ public:
 #endif
 };
 
-class spider_db_mysql: public spider_db_conn
+class spider_db_mysql_result: public spider_db_mbase_result
 {
-  int            stored_error;
+public:
+  spider_db_mysql_result(
+    SPIDER_DB_CONN *in_db_conn
+  );
+  ~spider_db_mysql_result();
+};
+
+class spider_db_mariadb_result: public spider_db_mbase_result
+{
+public:
+  spider_db_mariadb_result(
+    SPIDER_DB_CONN *in_db_conn
+  );
+  ~spider_db_mariadb_result();
+};
+
+class spider_db_mbase: public spider_db_conn
+{
+protected:
+  int                  stored_error;
+  spider_db_mbase_util *spider_db_mbase_utility;
 public:
   MYSQL          *db_conn;
   HASH           lock_table_hash;
@@ -306,10 +358,11 @@ public:
   const char     *handler_open_array_func_name;
   const char     *handler_open_array_file_name;
   ulong          handler_open_array_line_no;
-  spider_db_mysql(
-    SPIDER_CONN *conn
+  spider_db_mbase(
+    SPIDER_CONN *conn,
+    spider_db_mbase_util *spider_db_mbase_utility
   );
-  ~spider_db_mysql();
+  virtual ~spider_db_mbase();
   int init();
   bool is_connected();
   void bg_connect();
@@ -524,8 +577,28 @@ public:
   );
 };
 
-class spider_mysql_share: public spider_db_share
+class spider_db_mysql: public spider_db_mbase
 {
+public:
+  spider_db_mysql(
+    SPIDER_CONN *conn
+  );
+  ~spider_db_mysql();
+};
+
+class spider_db_mariadb: public spider_db_mbase
+{
+public:
+  spider_db_mariadb(
+    SPIDER_CONN *conn
+  );
+  ~spider_db_mariadb();
+};
+
+class spider_mbase_share: public spider_db_share
+{
+protected:
+  spider_db_mbase_util *spider_db_mbase_utility;
 public:
   spider_string      *table_select;
   int                table_select_pos;
@@ -547,10 +620,12 @@ public:
   bool               same_db_table_name;
   int                first_all_link_idx;
 
-  spider_mysql_share(
-    st_spider_share *share
+  spider_mbase_share(
+    st_spider_share *share,
+    uint dbton_id,
+    spider_db_mbase_util *spider_db_mbase_utility
   );
-  ~spider_mysql_share();
+  virtual ~spider_mbase_share();
   int init();
   uint get_column_name_length(
     uint field_index
@@ -585,7 +660,7 @@ public:
     spider_string *str
   );
 #endif
-private:
+protected:
   int create_table_names_str();
   void free_table_names_str();
   int create_column_name_str();
@@ -603,8 +678,28 @@ private:
   );
 };
 
-class spider_mysql_handler: public spider_db_handler
+class spider_mysql_share: public spider_mbase_share
 {
+public:
+  spider_mysql_share(
+    st_spider_share *share
+  );
+  ~spider_mysql_share();
+};
+
+class spider_mariadb_share: public spider_mbase_share
+{
+public:
+  spider_mariadb_share(
+    st_spider_share *share
+  );
+  ~spider_mariadb_share();
+};
+
+class spider_mbase_handler: public spider_db_handler
+{
+protected:
+  spider_db_mbase_util    *spider_db_mbase_utility;
   spider_string           sql;
   spider_string           sql_part;
   spider_string           sql_part2;
@@ -614,7 +709,7 @@ class spider_mysql_handler: public spider_db_handler
   int                     limit_pos;
 public:
   int                     table_name_pos;
-private:
+protected:
   int                     ha_read_pos;
   int                     ha_next_pos;
   int                     ha_where_pos;
@@ -647,14 +742,15 @@ private:
   SPIDER_INT_HLD          *union_table_name_pos_first;
   SPIDER_INT_HLD          *union_table_name_pos_current;
 public:
-  spider_mysql_share      *mysql_share;
+  spider_mbase_share      *mysql_share;
   SPIDER_LINK_FOR_HASH    *link_for_hash;
   uchar                   *minimum_select_bitmap;
-  spider_mysql_handler(
+  spider_mbase_handler(
     ha_spider *spider,
-    spider_mysql_share *share
+    spider_mbase_share *share,
+    spider_db_mbase_util *spider_db_mbase_utility
   );
-  ~spider_mysql_handler();
+  virtual ~spider_mbase_handler();
   int init();
   int append_index_hint(
     spider_string *str,
@@ -1498,16 +1594,36 @@ public:
 #endif
 };
 
-class spider_mysql_copy_table: public spider_db_copy_table
+class spider_mysql_handler: public spider_mbase_handler
 {
 public:
-  spider_mysql_share      *mysql_share;
+  spider_mysql_handler(
+    ha_spider *spider,
+    spider_mbase_share *share
+  );
+  ~spider_mysql_handler();
+};
+
+class spider_mariadb_handler: public spider_mbase_handler
+{
+public:
+  spider_mariadb_handler(
+    ha_spider *spider,
+    spider_mbase_share *share
+  );
+  ~spider_mariadb_handler();
+};
+
+class spider_mbase_copy_table: public spider_db_copy_table
+{
+public:
+  spider_mbase_share      *mysql_share;
   spider_string           sql;
   uint                    pos;
-  spider_mysql_copy_table(
-    spider_mysql_share *db_share
+  spider_mbase_copy_table(
+    spider_mbase_share *db_share
   );
-  ~spider_mysql_copy_table();
+  virtual ~spider_mbase_copy_table();
   int init();
   void set_sql_charset(
     CHARSET_INFO *cs
@@ -1577,4 +1693,22 @@ public:
   int copy_insert_values(
     spider_db_copy_table *source_ct
   );
+};
+
+class spider_mysql_copy_table: public spider_mbase_copy_table
+{
+public:
+  spider_mysql_copy_table(
+    spider_mbase_share *db_share
+  );
+  ~spider_mysql_copy_table();
+};
+
+class spider_mariadb_copy_table: public spider_mbase_copy_table
+{
+public:
+  spider_mariadb_copy_table(
+    spider_mbase_share *db_share
+  );
+  ~spider_mariadb_copy_table();
 };

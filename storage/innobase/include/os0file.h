@@ -36,7 +36,7 @@ Created 10/21/1995 Heikki Tuuri
 #ifndef os0file_h
 #define os0file_h
 
-#include "page0size.h"
+#include "fsp0types.h"
 #include "os0api.h"
 
 #ifndef _WIN32
