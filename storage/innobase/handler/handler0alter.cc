@@ -1472,7 +1472,8 @@ instant_alter_column_possible(
 	    & (ALTER_STORED_COLUMN_ORDER | ALTER_DROP_STORED_COLUMN
 	       | ALTER_ADD_STORED_BASE_COLUMN)) {
 #if 1 // MDEV-17459: adjust fts_fetch_doc_from_rec() and friends; remove this
-		if (ib_table.fts) return false;
+		if (ib_table.fts || innobase_fulltext_exist(altered_table))
+			return false;
 #endif
 #if 1 // MDEV-17468: fix bugs with indexed virtual columns & remove this
 		for (const dict_index_t* index = ib_table.indexes.start;
@@ -6408,11 +6409,7 @@ new_clustered_failed:
 		    || !ctx->new_table->persistent_autoinc);
 
 	if (ctx->need_rebuild() && instant_alter_column_possible(
-		    *user_table, ha_alter_info, old_table, altered_table)
-#if 1 // MDEV-17459: adjust fts_fetch_doc_from_rec() and friends; remove this
-		&& !innobase_fulltext_exist(altered_table)
-#endif
-	    ) {
+		    *user_table, ha_alter_info, old_table, altered_table)) {
 		for (uint a = 0; a < ctx->num_to_add_index; a++) {
 			ctx->add_index[a]->table = ctx->new_table;
 			ctx->add_index[a] = dict_index_add_to_cache(
