@@ -337,7 +337,7 @@ static int generate_binlog_index_opt_val(char** ret)
 {
   DBUG_ASSERT(ret);
   *ret= NULL;
-  if (opt_bin_log)
+  if (opt_binlog_index_name)
   {
     *ret= strcmp(opt_binlog_index_name, "0") ?
       my_strdup(opt_binlog_index_name, MYF(0)) : my_strdup("", MYF(0));
