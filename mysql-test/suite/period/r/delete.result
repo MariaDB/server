@@ -12,6 +12,21 @@ create or replace table t2 (id int, s date, e date, period for apptime(s,e));
 insert t2 select * from t;
 create or replace table t3 (id int, s date, e date, period for apptime(s,e));
 insert t3 select * from t;
+create or replace table log_tbl(id int auto_increment primary key, log text) engine=myisam;
+create or replace procedure log(s text)
+insert into log_tbl(log) values(s);
+create trigger tr1upd_t1 before update on t1
+for each row call log(CONCAT('>UPD: ', old.id, ", ",  old.s, ", ",  old.e, ' -> ', new.id, ", ",  new.s, ", ",  new.e));
+create trigger tr2upd_t1 after  update on t1
+for each row call log(CONCAT('<UPD: ', old.id, ", ",  old.s, ", ",  old.e, ' -> ', new.id, ", ",  new.s, ", ",  new.e));
+create trigger tr1del_t1 before delete on t1
+for each row call log(CONCAT('>DEL: ', old.id, ", ",  old.s, ", ",  old.e));
+create trigger tr2del_t1 after  delete on t1
+for each row call log(CONCAT('<DEL: ', old.id, ", ",  old.s, ", ",  old.e));
+create trigger tr1ins_t1 before insert on t1
+for each row call log(CONCAT('>INS: ', new.id, ", ",  new.s, ", ",  new.e));
+create trigger tr2ins_t1 after  insert on t1
+for each row call log(CONCAT('<INS: ', new.id, ", ",  new.s, ", ",  new.e));
 delete from t for portion of apptime from '2000-01-01' to '2018-01-01';
 delete from t1 for portion of APPTIME from '2000-01-01' to '2018-01-01';
 select * from t;
@@ -67,6 +82,21 @@ id	log
 29	>DEL: 5, 2010-01-01, 2015-01-01
 30	<DEL: 5, 2010-01-01, 2015-01-01
 # INSERT trigger only also works
+create or replace table log_tbl(id int auto_increment primary key, log text) engine=myisam;
+create or replace procedure log(s text)
+insert into log_tbl(log) values(s);
+create trigger tr1upd_t2 before update on t2
+for each row call log(CONCAT('>UPD: ', old.id, ", ",  old.s, ", ",  old.e, ' -> ', new.id, ", ",  new.s, ", ",  new.e));
+create trigger tr2upd_t2 after  update on t2
+for each row call log(CONCAT('<UPD: ', old.id, ", ",  old.s, ", ",  old.e, ' -> ', new.id, ", ",  new.s, ", ",  new.e));
+create trigger tr1del_t2 before delete on t2
+for each row call log(CONCAT('>DEL: ', old.id, ", ",  old.s, ", ",  old.e));
+create trigger tr2del_t2 after  delete on t2
+for each row call log(CONCAT('<DEL: ', old.id, ", ",  old.s, ", ",  old.e));
+create trigger tr1ins_t2 before insert on t2
+for each row call log(CONCAT('>INS: ', new.id, ", ",  new.s, ", ",  new.e));
+create trigger tr2ins_t2 after  insert on t2
+for each row call log(CONCAT('<INS: ', new.id, ", ",  new.s, ", ",  new.e));
 drop trigger tr1del_t2;
 drop trigger tr2del_t2;
 delete from t2 for portion of APPTIME from '2000-01-01' to '2018-01-01';
@@ -91,6 +121,21 @@ id	log
 # removing BEFORE INSERT trigger enables internal substitution
 # DELETE+INSERT -> UPDATE, but without any side effects.
 # The optimization is disabled for non-transactional engines
+create or replace table log_tbl(id int auto_increment primary key, log text) engine=myisam;
+create or replace procedure log(s text)
+insert into log_tbl(log) values(s);
+create trigger tr1upd_t3 before update on t3
+for each row call log(CONCAT('>UPD: ', old.s, ", ",  old.e, ' -> ', new.s, ", ",  new.e));
+create trigger tr2upd_t3 after  update on t3
+for each row call log(CONCAT('<UPD: ', old.s, ", ",  old.e, ' -> ', new.s, ", ",  new.e));
+create trigger tr1del_t3 before delete on t3
+for each row call log(CONCAT('>DEL: ', old.s, ", ",  old.e));
+create trigger tr2del_t3 after  delete on t3
+for each row call log(CONCAT('<DEL: ', old.s, ", ",  old.e));
+create trigger tr1ins_t3 before insert on t3
+for each row call log(CONCAT('>INS: ', new.s, ", ",  new.e));
+create trigger tr2ins_t3 after  insert on t3
+for each row call log(CONCAT('<INS: ', new.s, ", ",  new.e));
 drop trigger tr1ins_t3;
 delete from t3 for portion of APPTIME from '2000-01-01' to '2018-01-01';
 select * from log_tbl order by id;
@@ -167,6 +212,21 @@ id	s	e
 truncate t;
 # same for trigger case
 insert into t values (default, '1999-01-01', '2018-12-12');
+create or replace table log_tbl(id int auto_increment primary key, log text) engine=myisam;
+create or replace procedure log(s text)
+insert into log_tbl(log) values(s);
+create trigger tr1upd_t before update on t
+for each row call log(CONCAT('>UPD: ', old.s, ", ",  old.e, ' -> ', new.s, ", ",  new.e));
+create trigger tr2upd_t after  update on t
+for each row call log(CONCAT('<UPD: ', old.s, ", ",  old.e, ' -> ', new.s, ", ",  new.e));
+create trigger tr1del_t before delete on t
+for each row call log(CONCAT('>DEL: ', old.s, ", ",  old.e));
+create trigger tr2del_t after  delete on t
+for each row call log(CONCAT('<DEL: ', old.s, ", ",  old.e));
+create trigger tr1ins_t before insert on t
+for each row call log(CONCAT('>INS: ', new.s, ", ",  new.e));
+create trigger tr2ins_t after  insert on t
+for each row call log(CONCAT('<INS: ', new.s, ", ",  new.e));
 delete from t for portion of apptime from '2000-01-01' to '2018-01-01';
 select * from t;
 id	s	e
@@ -196,6 +256,21 @@ s	e	xs	xe
 truncate t;
 # same for trigger case
 insert into t values('1999-01-01', '2018-12-12', default, default);
+create or replace table log_tbl(id int auto_increment primary key, log text) engine=myisam;
+create or replace procedure log(s text)
+insert into log_tbl(log) values(s);
+create trigger tr1upd_t before update on t
+for each row call log(CONCAT('>UPD: ', old.s, ", ",  old.e, ' -> ', new.s, ", ",  new.e));
+create trigger tr2upd_t after  update on t
+for each row call log(CONCAT('<UPD: ', old.s, ", ",  old.e, ' -> ', new.s, ", ",  new.e));
+create trigger tr1del_t before delete on t
+for each row call log(CONCAT('>DEL: ', old.s, ", ",  old.e));
+create trigger tr2del_t after  delete on t
+for each row call log(CONCAT('<DEL: ', old.s, ", ",  old.e));
+create trigger tr1ins_t before insert on t
+for each row call log(CONCAT('>INS: ', new.s, ", ",  new.e));
+create trigger tr2ins_t after  insert on t
+for each row call log(CONCAT('<INS: ', new.s, ", ",  new.e));
 delete from t for portion of apptime from '2000-01-01' to '2018-01-01';
 select * from t;
 s	e	xs	xe
@@ -219,11 +294,39 @@ s date, e date, period for apptime(s,e));
 insert into t values(127, '1999-01-01', '2018-12-12');
 delete from t for portion of apptime from '2000-01-01' to '2018-01-01';
 ERROR 22003: Out of range value for column 'id' at row 1
+select * from t;
+id	s	e
+127	1999-01-01	2018-12-12
 # same for trigger case
+create or replace table log_tbl(id int auto_increment primary key, log text) engine=myisam;
+create or replace procedure log(s text)
+insert into log_tbl(log) values(s);
+create trigger tr1upd_t before update on t
+for each row call log(CONCAT('>UPD: ', old.s, ", ",  old.e, ' -> ', new.s, ", ",  new.e));
+create trigger tr2upd_t after  update on t
+for each row call log(CONCAT('<UPD: ', old.s, ", ",  old.e, ' -> ', new.s, ", ",  new.e));
+create trigger tr1del_t before delete on t
+for each row call log(CONCAT('>DEL: ', old.s, ", ",  old.e));
+create trigger tr2del_t after  delete on t
+for each row call log(CONCAT('<DEL: ', old.s, ", ",  old.e));
+create trigger tr1ins_t before insert on t
+for each row call log(CONCAT('>INS: ', new.s, ", ",  new.e));
+create trigger tr2ins_t after  insert on t
+for each row call log(CONCAT('<INS: ', new.s, ", ",  new.e));
 # negotiate side effects of non-transactional MyISAM engine
 replace into t values(127, '1999-01-01', '2018-12-12');
+select * from t;
+id	s	e
+127	1999-01-01	2018-12-12
+truncate table log_tbl;
 delete from t for portion of apptime from '2000-01-01' to '2018-01-01';
 ERROR 22003: Out of range value for column 'id' at row 1
+select * from t;
+id	s	e
+127	1999-01-01	2018-12-12
+select * from log_tbl order by id;
+id	log
+1	>DEL: 1999-01-01, 2018-12-12
 # custom constraint for period fields
 create or replace table t(id int, s date, e date, period for apptime(s,e),
 constraint dist2days check (datediff(e, s) >= 2));
@@ -246,54 +349,4 @@ id	s	e	datediff(e, s)
 1	1999-01-01	1999-01-03	2
 1	2018-12-10	2018-12-12	2
 2	1999-01-01	1999-01-03	2
-# system_time columns are updated
-create or replace table t (
-s date, e date,
-row_start SYS_TYPE as row start invisible,
-row_end SYS_TYPE as row end invisible,
-period for apptime(s, e),
-period for system_time (row_start, row_end)) with system versioning;
-insert into t values('1999-01-01', '2018-12-12'),
-('1999-01-01', '1999-12-12');
-select row_start into @ins_time from t limit 1;
-select * from t order by s, e;
-s	e
-1999-01-01	1999-12-12
-1999-01-01	2018-12-12
-delete from t for portion of apptime from '2000-01-01' to '2018-01-01';
-select *, if(row_start = @ins_time, "OLD", "NEW"), check_row(row_start, row_end)
-from t for system_time all
-order by s, e, row_start;
-s	e	if(row_start = @ins_time, "OLD", "NEW")	check_row(row_start, row_end)
-1999-01-01	1999-12-12	OLD	CURRENT ROW
-1999-01-01	2000-01-01	NEW	CURRENT ROW
-1999-01-01	2018-12-12	OLD	HISTORICAL ROW
-2018-01-01	2018-12-12	NEW	CURRENT ROW
-# same for trigger case
-delete from t;
-delete history from t;
-insert into t values('1999-01-01', '2018-12-12'),
-('1999-01-01', '1999-12-12');
-select row_start into @ins_time from t limit 1;
-select * from t order by s, e;
-s	e
-1999-01-01	1999-12-12
-1999-01-01	2018-12-12
-delete from t for portion of apptime from '2000-01-01' to '2018-01-01';
-select *, if(row_start = @ins_time, "OLD", "NEW"), check_row(row_start, row_end)
-from t for system_time all
-order by s, e, row_start;
-s	e	if(row_start = @ins_time, "OLD", "NEW")	check_row(row_start, row_end)
-1999-01-01	1999-12-12	OLD	CURRENT ROW
-1999-01-01	2000-01-01	NEW	CURRENT ROW
-1999-01-01	2018-12-12	OLD	HISTORICAL ROW
-2018-01-01	2018-12-12	NEW	CURRENT ROW
-select * from log_tbl order by id;
-id	log
-1	>DEL: 1999-01-01, 2018-12-12
-2	>INS: 1999-01-01, 2000-01-01
-3	<INS: 1999-01-01, 2000-01-01
-4	>INS: 2018-01-01, 2018-12-12
-5	<INS: 2018-01-01, 2018-12-12
-6	<DEL: 1999-01-01, 2018-12-12
 create or replace database test;

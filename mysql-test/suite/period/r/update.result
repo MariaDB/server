@@ -30,6 +30,21 @@ id	s	e
 8	2000-01-01	2018-01-01
 9	2000-01-01	2015-01-01
 # Check triggers
+create or replace table log_tbl(id int auto_increment primary key, log text) engine=myisam;
+create or replace procedure log(s text)
+insert into log_tbl(log) values(s);
+create trigger tr1upd_t1 before update on t1
+for each row call log(CONCAT('>UPD: ', old.id, ", ",  old.s, ", ",  old.e, ' -> ', new.id, ", ",  new.s, ", ",  new.e));
+create trigger tr2upd_t1 after  update on t1
+for each row call log(CONCAT('<UPD: ', old.id, ", ",  old.s, ", ",  old.e, ' -> ', new.id, ", ",  new.s, ", ",  new.e));
+create trigger tr1del_t1 before delete on t1
+for each row call log(CONCAT('>DEL: ', old.id, ", ",  old.s, ", ",  old.e));
+create trigger tr2del_t1 after  delete on t1
+for each row call log(CONCAT('<DEL: ', old.id, ", ",  old.s, ", ",  old.e));
+create trigger tr1ins_t1 before insert on t1
+for each row call log(CONCAT('>INS: ', new.id, ", ",  new.s, ", ",  new.e));
+create trigger tr2ins_t1 after  insert on t1
+for each row call log(CONCAT('<INS: ', new.id, ", ",  new.s, ", ",  new.e));
 update t1 for portion of apptime from '2000-01-01' to '2018-01-01'
        set id=id + 6;
 select * from t1;
@@ -82,6 +97,21 @@ id	log
 29	>UPD: 5, 2010-01-01, 2015-01-01 -> 11, 2010-01-01, 2015-01-01
 30	<UPD: 5, 2010-01-01, 2015-01-01 -> 11, 2010-01-01, 2015-01-01
 # INSERT trigger only also works
+create or replace table log_tbl(id int auto_increment primary key, log text) engine=myisam;
+create or replace procedure log(s text)
+insert into log_tbl(log) values(s);
+create trigger tr1upd_t2 before update on t2
+for each row call log(CONCAT('>UPD: ', old.id, ", ",  old.s, ", ",  old.e, ' -> ', new.id, ", ",  new.s, ", ",  new.e));
+create trigger tr2upd_t2 after  update on t2
+for each row call log(CONCAT('<UPD: ', old.id, ", ",  old.s, ", ",  old.e, ' -> ', new.id, ", ",  new.s, ", ",  new.e));
+create trigger tr1del_t2 before delete on t2
+for each row call log(CONCAT('>DEL: ', old.id, ", ",  old.s, ", ",  old.e));
+create trigger tr2del_t2 after  delete on t2
+for each row call log(CONCAT('<DEL: ', old.id, ", ",  old.s, ", ",  old.e));
+create trigger tr1ins_t2 before insert on t2
+for each row call log(CONCAT('>INS: ', new.id, ", ",  new.s, ", ",  new.e));
+create trigger tr2ins_t2 after  insert on t2
+for each row call log(CONCAT('<INS: ', new.id, ", ",  new.s, ", ",  new.e));
 drop trigger tr1upd_t2;
 drop trigger tr2upd_t2;
 update t2 for portion of apptime from '2000-01-01' to '2018-01-01'
@@ -225,27 +255,4 @@ x	s	e	xs	xe	xs=s and xe=e
 1	1999-01-01	2000-01-01	1999-01-01	2000-01-01	1
 1	2018-01-01	2018-12-12	2018-01-01	2018-12-12	1
 6	2000-01-01	2018-01-01	2000-01-01	2018-01-01	1
-# system_time columns are updated
-create or replace table t (x int, s date, e date,
-row_start SYS_TYPE as row start invisible,
-row_end SYS_TYPE as row end invisible,
-period for apptime(s, e),
-period for system_time(row_start, row_end)) with system versioning;
-insert into t values(1, '1999-01-01', '2018-12-12'),
-(2, '1999-01-01', '1999-12-12');
-select row_start into @ins_time from t limit 1;
-select * from t;
-x	s	e
-1	1999-01-01	2018-12-12
-2	1999-01-01	1999-12-12
-update t for portion of apptime from '2000-01-01' to '2018-01-01' set x= x + 5;
-select *, if(row_start = @ins_time, "OLD", "NEW"), check_row(row_start, row_end)
-from t for system_time all
-order by x, s, e, row_start;
-x	s	e	if(row_start = @ins_time, "OLD", "NEW")	check_row(row_start, row_end)
-1	1999-01-01	2000-01-01	NEW	CURRENT ROW
-1	1999-01-01	2018-12-12	OLD	HISTORICAL ROW
-1	2018-01-01	2018-12-12	NEW	CURRENT ROW
-2	1999-01-01	1999-12-12	OLD	CURRENT ROW
-6	2000-01-01	2018-01-01	NEW	CURRENT ROW
 create or replace database test;

@@ -1,6 +1,4 @@
-disable_query_log;
-
-create or replace table log_tbl(id int auto_increment primary key, log text);
+create or replace table log_tbl(id int auto_increment primary key, log text) engine=myisam;
 
 create or replace procedure log(s text)
   insert into log_tbl(log) values(s);
@@ -38,4 +36,3 @@ eval create trigger tr2ins_$trig_table after  insert on $trig_table
 
 let trig_cols= 0;
 let trig_table= 0;
-enable_query_log;
