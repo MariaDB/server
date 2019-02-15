@@ -9034,9 +9034,7 @@ innobase_rename_or_enlarge_column_try(
 	const Create_field&	cf,
 	bool			is_v)
 {
-#ifdef UNIV_DEBUG
 	dict_col_t*	col;
-#endif /* UNIV_DEBUG */
 	dict_v_col_t*	v_col;
 
 	DBUG_ENTER("innobase_rename_or_enlarge_column_try");
@@ -9049,13 +9047,9 @@ innobase_rename_or_enlarge_column_try(
 	if (is_v) {
 		v_col = dict_table_get_nth_v_col(user_table, pos);
 		pos = dict_create_v_col_pos(v_col->v_pos, v_col->m_col.ind);
-#ifdef UNIV_DEBUG
 		col = &v_col->m_col;
-#endif /* UNIV_DEBUG */
 	} else {
-#ifdef UNIV_DEBUG
 		col = dict_table_get_nth_col(user_table, pos);
-#endif /* UNIV_DEBUG */
 	}
 
 	ulint prtype, mtype, len;
