@@ -2854,11 +2854,17 @@ compute_next_insert_id(ulonglong nr,struct system_variables *variables)
     nr= nr + 1; // optimization of the formula below
   else
   {
-    nr= (((nr+ variables->auto_increment_increment -
-           variables->auto_increment_offset)) /
-         (ulonglong) variables->auto_increment_increment);
-    nr= (nr* (ulonglong) variables->auto_increment_increment +
-         variables->auto_increment_offset);
+    /*
+       Calculating the number of complete auto_increment_increment extents:
+    */
+    nr= (nr + variables->auto_increment_increment -
+         variables->auto_increment_offset) /
+        (ulonglong) variables->auto_increment_increment;
+    /*
+       Adding an offset to the auto_increment_increment extent boundary:
+    */
+    nr= nr * (ulonglong) variables->auto_increment_increment +
+        variables->auto_increment_offset;
   }
 
   if (unlikely(nr <= save_nr))
@@ -2912,8 +2918,14 @@ prev_insert_id(ulonglong nr, struct system_variables *variables)
   }
   if (variables->auto_increment_increment == 1)
     return nr; // optimization of the formula below
-  nr= (((nr - variables->auto_increment_offset)) /
-       (ulonglong) variables->auto_increment_increment);
+  /*
+     Calculating the number of complete auto_increment_increment extents:
+  */
+  nr= (nr - variables->auto_increment_offset) /
+      (ulonglong) variables->auto_increment_increment;
+  /*
+     Adding an offset to the auto_increment_increment extent boundary:
+  */
   return (nr * (ulonglong) variables->auto_increment_increment +
           variables->auto_increment_offset);
 }
@@ -3004,7 +3016,7 @@ int handler::update_auto_increment()
   bool append= FALSE;
   THD *thd= table->in_use;
   struct system_variables *variables= &thd->variables;
-  int result=0, tmp;
+  int tmp;
   enum enum_check_fields save_count_cuted_fields;
   DBUG_ENTER("handler::update_auto_increment");
 
@@ -3135,10 +3147,23 @@ int handler::update_auto_increment()
   if (unlikely(tmp))                            // Out of range value in store
   {
     /*
-      It's better to return an error here than getting a confusing
-      'duplicate key error' later.
+      First, test if the query was aborted due to strict mode constraints
+      or new field value greater than maximum integer value:
     */
-    result= HA_ERR_AUTOINC_ERANGE;
+    if (thd->killed == KILL_BAD_DATA ||
+        nr > table->next_number_field->get_max_int_value())
+      DBUG_RETURN(HA_ERR_AUTOINC_ERANGE);
+    /*
+      Field refused this value (overflow) and truncated it, use the result
+      of the truncation (which is going to be inserted); however we try to
+      decrease it to honour auto_increment_* variables.
+      That will shift the left bound of the reserved interval, we don't
+      bother shifting the right bound (anyway any other value from this
+      interval will cause a duplicate key).
+    */
+    nr= prev_insert_id(table->next_number_field->val_int(), variables);
+    if (unlikely(table->next_number_field->store((longlong)nr, TRUE)))
+      nr= table->next_number_field->val_int();
   }
   if (append)
   {
@@ -3162,9 +3187,6 @@ int handler::update_auto_increment()
     already set.
   */
   insert_id_for_cur_row= nr;
-
-  if (result)                                   // overflow
-    DBUG_RETURN(result);
 
   /*
     Set next insert id to point to next auto-increment value to be able to
