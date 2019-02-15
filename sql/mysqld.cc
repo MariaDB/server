@@ -4563,6 +4563,20 @@ static int init_common_variables()
     return 1;
   }
 
+#ifdef WITH_WSREP
+  /*
+    We need to initialize auxiliary variables, that will be
+    further keep the original values of auto-increment options
+    as they set by the user. These variables used to restore
+    user-defined values of the auto-increment options after
+    setting of the wsrep_auto_increment_control to 'OFF'.
+  */
+  global_system_variables.saved_auto_increment_increment=
+    global_system_variables.auto_increment_increment;
+  global_system_variables.saved_auto_increment_offset=
+    global_system_variables.auto_increment_offset;
+#endif /* WITH_WSREP */
+
   return 0;
 }
 
