@@ -170,8 +170,8 @@ enum extra2_frm_value_type {
   EXTRA2_TABLEDEF_VERSION=0,
   EXTRA2_DEFAULT_PART_ENGINE=1,
   EXTRA2_GIS=2,
+  EXTRA2_APPLICATION_TIME_PERIOD=3,
   EXTRA2_PERIOD_FOR_SYSTEM_TIME=4,
-  EXTRA2_APPLICATION_TIME_PERIOD=8,
 
 #define EXTRA2_ENGINE_IMPORTANT 128
 
@@ -187,7 +187,7 @@ int rea_create_table(THD *thd, LEX_CUSTRING *frm,
                      const char *path, const char *db, const char *table_name,
                      HA_CREATE_INFO *create_info, handler *file,
                      bool no_ha_create_table);
-LEX_CUSTRING build_frm_image(THD *thd, const LEX_CSTRING *table,
+LEX_CUSTRING build_frm_image(THD *thd, const LEX_CSTRING &table,
                              HA_CREATE_INFO *create_info,
                              List<Create_field> &create_fields,
                              uint keys, KEY *key_info, handler *db_file);

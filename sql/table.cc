@@ -1366,8 +1366,8 @@ void TABLE::find_constraint_correlated_indexes()
 bool TABLE_SHARE::init_period_from_extra2(period_info_t &period,
                                           const uchar *data)
 {
-  period.start_fieldno= uint2korr(data);
-  period.end_fieldno= uint2korr(data + frm_fieldno_size);
+  period.start_fieldno= read_frm_fieldno(data);
+  period.end_fieldno= read_frm_fieldno(data + frm_fieldno_size);
   return period.start_fieldno >= fields || period.end_fieldno >= fields;
 }
 
@@ -1419,18 +1419,16 @@ bool read_extra2(const uchar *frm_image, size_t len, extra2_fields *fields)
           fields->options.length= length;
           break;
         case EXTRA2_DEFAULT_PART_ENGINE:
-          fields->engine.set((char*)extra2, length);
+          fields->engine.set((const char*)extra2, length);
           break;
         case EXTRA2_GIS:
-#ifdef HAVE_SPATIAL
           if (fields->gis.str)
             DBUG_RETURN(true);
           fields->gis.str= extra2;
           fields->gis.length= length;
-#endif /*HAVE_SPATIAL*/
           break;
         case EXTRA2_PERIOD_FOR_SYSTEM_TIME:
-          if (fields->system_period || length != 2 * sizeof(uint16))
+          if (fields->system_period || length != 2 * frm_fieldno_size)
             DBUG_RETURN(true);
           fields->system_period = extra2;
           break;
@@ -3014,7 +3012,7 @@ int TABLE_SHARE::init_from_sql_statement_string(THD *thd, bool write,
     thd->lex->create_info.tabledef_version= tabledef_version;
 
   promote_first_timestamp_column(&thd->lex->alter_info.create_list);
-  file= mysql_create_frm_image(thd, &db, &table_name,
+  file= mysql_create_frm_image(thd, db, table_name,
                                &thd->lex->create_info, &thd->lex->alter_info,
                                C_ORDINARY_CREATE, &unused1, &unused2, &frm);
   error|= file == 0;

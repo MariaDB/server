@@ -1783,6 +1783,11 @@ class IS_table_read_plan;
 
 /** number of bytes used by field positional indexes in frm */
 constexpr uint frm_fieldno_size= 2;
+static inline uint16 read_frm_fieldno(const uchar *data)
+{ return uint2korr(data); }
+static inline void store_frm_fieldno(const uchar *data, uint16 fieldno)
+{ int2store(data, fieldno); }
+
 /** number of bytes used by identifier length in frm */
 constexpr uint frm_ident_len_size= 2;
 

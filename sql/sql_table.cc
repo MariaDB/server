@@ -63,23 +63,16 @@
 const char *primary_key_name="PRIMARY";
 
 static int check_if_keyname_exists(const char *name,KEY *start, KEY *end);
-static char *make_unique_key_name(THD *thd, const char *field_name, KEY *start,
-                                  KEY *end);
-static void make_unique_constraint_name(THD *thd, LEX_CSTRING *name,
-                                        const char *own_name_base,
-                                        List<Virtual_column_info> *vcol,
-                                        uint *nr);
-static const
-char * make_unique_invisible_field_name(THD *thd, const char *field_name,
-                        List<Create_field> *fields);
-
-static int copy_data_between_tables(THD *thd, TABLE *from,TABLE *to,
-                                    List<Create_field> &create, bool ignore,
-				    uint order_num, ORDER *order,
-				    ha_rows *copied,ha_rows *deleted,
-                                    Alter_info::enum_enable_or_disable keys_onoff,
-                                    Alter_table_ctx *alter_ctx);
-
+static char *make_unique_key_name(THD *, const char *, KEY *, KEY *);
+static void make_unique_constraint_name(THD *, LEX_CSTRING *, const char *,
+                                        List<Virtual_column_info> *, uint *);
+static const char *make_unique_invisible_field_name(THD *, const char *,
+                                                    List<Create_field> *);
+static int copy_data_between_tables(THD *, TABLE *,TABLE *,
+                                    List<Create_field> &, bool, uint, ORDER *,
+                                    ha_rows *, ha_rows *,
+                                    Alter_info::enum_enable_or_disable,
+                                    Alter_table_ctx *);
 static int mysql_prepare_create_table(THD *, HA_CREATE_INFO *, Alter_info *,
                                       uint *, handler *, KEY **, uint *, int);
 static uint blob_length_by_type(enum_field_types type);
@@ -1849,7 +1842,7 @@ bool mysql_write_frm(ALTER_PARTITION_PARAM_TYPE *lpt, uint flags)
 #endif
     /* Write shadow frm file */
     lpt->create_info->table_options= lpt->db_options;
-    LEX_CUSTRING frm= build_frm_image(lpt->thd, &lpt->table_name,
+    LEX_CUSTRING frm= build_frm_image(lpt->thd, lpt->table_name,
                                       lpt->create_info,
                                       lpt->alter_info->create_list,
                                       lpt->key_count, lpt->key_info_buffer,
@@ -4310,9 +4303,8 @@ bool validate_comment_length(THD *thd, LEX_CSTRING *comment, size_t max_len,
     apply it to the table.
 */
 
-static void set_table_default_charset(THD *thd,
-				      HA_CREATE_INFO *create_info,
-                                      const LEX_CSTRING *db)
+static void set_table_default_charset(THD *thd, HA_CREATE_INFO *create_info,
+                                      const LEX_CSTRING &db)
 {
   /*
     If the table character set was not given explicitly,
@@ -4323,7 +4315,7 @@ static void set_table_default_charset(THD *thd,
   {
     Schema_specification_st db_info;
 
-    load_db_opt_by_name(thd, db->str, &db_info);
+    load_db_opt_by_name(thd, db.str, &db_info);
 
     create_info->default_table_charset= db_info.default_table_charset;
   }
@@ -4446,8 +4438,8 @@ static bool vers_prepare_keys(THD *thd, HA_CREATE_INFO *create_info,
   return false;
 }
 
-handler *mysql_create_frm_image(THD *thd, const LEX_CSTRING *db,
-                                const LEX_CSTRING *table_name,
+handler *mysql_create_frm_image(THD *thd, const LEX_CSTRING &db,
+                                const LEX_CSTRING &table_name,
                                 HA_CREATE_INFO *create_info,
                                 Alter_info *alter_info, int create_table_mode,
                                 KEY **key_info, uint *key_count,
@@ -4584,7 +4576,7 @@ handler *mysql_create_frm_image(THD *thd, const LEX_CSTRING *db,
 
     if (part_info->vers_info && !create_info->versioned())
     {
-      my_error(ER_VERS_NOT_VERSIONED, MYF(0), table_name->str);
+      my_error(ER_VERS_NOT_VERSIONED, MYF(0), table_name.str);
       goto err;
     }
 
@@ -4740,9 +4732,9 @@ err:
 */
 
 static
-int create_table_impl(THD *thd, const LEX_CSTRING *orig_db,
-                      const LEX_CSTRING *orig_table_name,
-                      const LEX_CSTRING *db, const LEX_CSTRING *table_name,
+int create_table_impl(THD *thd, const LEX_CSTRING &orig_db,
+                      const LEX_CSTRING &orig_table_name,
+                      const LEX_CSTRING &db, const LEX_CSTRING &table_name,
                       const char *path, const DDL_options_st options,
                       HA_CREATE_INFO *create_info, Alter_info *alter_info,
                       int create_table_mode, bool *is_trans, KEY **key_info,
@@ -4755,7 +4747,7 @@ int create_table_impl(THD *thd, const LEX_CSTRING *orig_db,
   bool          internal_tmp_table= create_table_mode == C_ALTER_TABLE || frm_only;
   DBUG_ENTER("mysql_create_table_no_lock");
   DBUG_PRINT("enter", ("db: '%s'  table: '%s'  tmp: %d  path: %s",
-                       db->str, table_name->str, internal_tmp_table, path));
+                       db.str, table_name.str, internal_tmp_table, path));
 
   if (thd->variables.sql_mode & MODE_NO_DIR_IN_CREATE)
   {
@@ -4781,7 +4773,7 @@ int create_table_impl(THD *thd, const LEX_CSTRING *orig_db,
       goto err;
   }
 
-  alias= const_cast<LEX_CSTRING*>(table_case_name(create_info, table_name));
+  alias= const_cast<LEX_CSTRING*>(table_case_name(create_info, &table_name));
 
   /* Check if table exists */
   if (create_info->tmp_table())
@@ -4790,7 +4782,7 @@ int create_table_impl(THD *thd, const LEX_CSTRING *orig_db,
       If a table exists, it must have been pre-opened. Try looking for one
       in-use in THD::all_temp_tables list of TABLE_SHAREs.
     */
-    TABLE *tmp_table= thd->find_temporary_table(db->str, table_name->str);
+    TABLE *tmp_table= thd->find_temporary_table(db.str, table_name.str);
 
     if (tmp_table)
     {
@@ -4825,14 +4817,14 @@ int create_table_impl(THD *thd, const LEX_CSTRING *orig_db,
   }
   else
   {
-    if (!internal_tmp_table && ha_table_exists(thd, db, table_name))
+    if (!internal_tmp_table && ha_table_exists(thd, &db, &table_name))
     {
       if (options.or_replace())
       {
-        (void) delete_statistics_for_table(thd, db, table_name);
+        (void) delete_statistics_for_table(thd, &db, &table_name);
 
         TABLE_LIST table_list;
-        table_list.init_one_table(db, table_name, 0, TL_WRITE_ALLOW_WRITE);
+        table_list.init_one_table(&db, &table_name, 0, TL_WRITE_ALLOW_WRITE);
         table_list.table= create_info->table;
 
         if (check_if_log_table(&table_list, TRUE, "CREATE OR REPLACE"))
@@ -4867,7 +4859,7 @@ int create_table_impl(THD *thd, const LEX_CSTRING *orig_db,
         goto warn;
       else
       {
-        my_error(ER_TABLE_EXISTS_ERROR, MYF(0), table_name->str);
+        my_error(ER_TABLE_EXISTS_ERROR, MYF(0), table_name.str);
         goto err;
       }
     }
@@ -4875,7 +4867,7 @@ int create_table_impl(THD *thd, const LEX_CSTRING *orig_db,
 
   THD_STAGE_INFO(thd, stage_creating_table);
 
-  if (check_engine(thd, orig_db->str, orig_table_name->str, create_info))
+  if (check_engine(thd, orig_db.str, orig_table_name.str, create_info))
     goto err;
 
   if (create_table_mode == C_ASSISTED_DISCOVERY)
@@ -4895,7 +4887,7 @@ int create_table_impl(THD *thd, const LEX_CSTRING *orig_db,
       goto err;
     }
 
-    init_tmp_table_share(thd, &share, db->str, 0, table_name->str, path);
+    init_tmp_table_share(thd, &share, db.str, 0, table_name.str, path);
 
     /* prepare everything for discovery */
     share.field= &no_fields;
@@ -4937,7 +4929,7 @@ int create_table_impl(THD *thd, const LEX_CSTRING *orig_db,
     */
     if (!file || thd->is_error())
       goto err;
-    if (rea_create_table(thd, frm, path, db->str, table_name->str, create_info,
+    if (rea_create_table(thd, frm, path, db.str, table_name.str, create_info,
                          file, frm_only))
       goto err;
   }
@@ -4946,9 +4938,8 @@ int create_table_impl(THD *thd, const LEX_CSTRING *orig_db,
   if (!frm_only && create_info->tmp_table())
   {
     TABLE *table= thd->create_and_open_tmp_table(create_info->db_type, frm,
-                                                 path, db->str,
-                                                 table_name->str, true,
-                                                 false);
+                                                 path, db.str,
+                                                 table_name.str, true, false);
 
     if (!table)
     {
@@ -4978,7 +4969,7 @@ int create_table_impl(THD *thd, const LEX_CSTRING *orig_db,
     TABLE table;
     TABLE_SHARE share;
 
-    init_tmp_table_share(thd, &share, db->str, 0, table_name->str, path);
+    init_tmp_table_share(thd, &share, db.str, 0, table_name.str, path);
 
     bool result= (open_table_def(thd, &share, GTS_TABLE) ||
                   open_table_from_share(thd, &share, &empty_clex_str, 0,
@@ -5054,7 +5045,7 @@ int mysql_create_table_no_lock(THD *thd, const LEX_CSTRING *db,
     }
   }
 
-  res= create_table_impl(thd, db, table_name, db, table_name, path,
+  res= create_table_impl(thd, *db, *table_name, *db, *table_name, path,
                          *create_info, create_info,
                          alter_info, create_table_mode,
                          is_trans, &not_used_1, &not_used_2, &frm);
@@ -9513,7 +9504,7 @@ do_continue:;
     DBUG_RETURN(true);
   }
 
-  set_table_default_charset(thd, create_info, &alter_ctx.db);
+  set_table_default_charset(thd, create_info, alter_ctx.db);
 
   if (create_info->check_period_fields(thd, alter_info)
       || create_info->fix_period_fields(thd, alter_info))
@@ -9693,9 +9684,8 @@ do_continue:;
 
   tmp_disable_binlog(thd);
   create_info->options|=HA_CREATE_TMP_ALTER;
-  error= create_table_impl(thd,
-                           &alter_ctx.db, &alter_ctx.table_name,
-                           &alter_ctx.new_db, &alter_ctx.tmp_name,
+  error= create_table_impl(thd, alter_ctx.db, alter_ctx.table_name,
+                           alter_ctx.new_db, alter_ctx.tmp_name,
                            alter_ctx.get_tmp_path(),
                            thd->lex->create_info, create_info, alter_info,
                            C_ALTER_TABLE_FRM_ONLY, NULL,
@@ -10971,10 +10961,10 @@ bool check_engine(THD *thd, const char *db_name,
   if (req_engine && req_engine != *new_engine)
   {
     push_warning_printf(thd, Sql_condition::WARN_LEVEL_NOTE,
-                       ER_WARN_USING_OTHER_HANDLER,
+                        ER_WARN_USING_OTHER_HANDLER,
                         ER_THD(thd, ER_WARN_USING_OTHER_HANDLER),
-                       ha_resolve_storage_engine_name(*new_engine),
-                       table_name);
+                        ha_resolve_storage_engine_name(*new_engine),
+                        table_name);
   }
   if (create_info->tmp_table() &&
       ha_check_storage_engine_flag(*new_engine, HTON_TEMPORARY_NOT_SUPPORTED))
