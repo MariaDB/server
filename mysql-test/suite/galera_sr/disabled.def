@@ -1,3 +1,1 @@
-mysql-wsrep-features#29 : binlog_format=STATEMENT not supported with SR
-GCF-574 : CTAS is not supported together with SR
-galera_sr_sbr : binlog_format=STATEMENT not supported with SR
+galera_sr_table_contents : missing file

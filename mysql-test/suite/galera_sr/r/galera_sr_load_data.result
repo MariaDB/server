@@ -10,4 +10,5 @@ COUNT(*) = 20000
 1
 wsrep_last_committed_diff
 1
+connection node_1;
 DROP TABLE t1;
