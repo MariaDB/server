@@ -1431,6 +1431,7 @@ bool my_yyoverflow(short **a, YYSTYPE **b, size_t *yystacksize);
         table_primary_ident table_primary_derived
         derived_table_list table_reference_list_parens
         nested_table_reference_list join_table_parens
+        update_table_list
 %type <date_time_type> date_time_type;
 %type <interval> interval
 
@@ -1569,6 +1570,7 @@ bool my_yyoverflow(short **a, YYSTYPE **b, size_t *yystacksize);
         key_using_alg
         part_column_list
         period_for_system_time
+        period_for_application_time
         server_def server_options_list server_option
         definer_opt no_definer definer get_diagnostics
         parse_vcol_expr vcol_opt_specifier vcol_opt_attribute
@@ -6475,6 +6477,7 @@ field_list_item:
         | key_def
         | constraint_def
         | period_for_system_time
+        | PERIOD_SYM period_for_application_time { }
         ;
 
 column_def:
@@ -6582,9 +6585,12 @@ period_for_system_time:
             Vers_parse_info &info= Lex->vers_get_info();
             info.set_period($4, $6);
           }
-        | PERIOD_SYM FOR_SYM ident '(' ident ',' ident ')'
+        ;
+
+period_for_application_time:
+          FOR_SYM ident '(' ident ',' ident ')'
           {
-            if (Lex->add_period($3, $5, $7))
+            if (Lex->add_period($2, $4, $6))
               MYSQL_YYABORT;
           }
         ;
@@ -8350,6 +8356,13 @@ alter_list_item:
           {
             Lex->alter_info.flags|= ALTER_ADD_PERIOD;
           }
+        | ADD
+          PERIOD_SYM opt_if_not_exists_table_element period_for_application_time
+          {
+            Table_period_info &period= Lex->create_info.period_info;
+            period.create_if_not_exists= Lex->check_exists;
+            Lex->alter_info.flags|= ALTER_ADD_CHECK_CONSTRAINT;
+          }
         | add_column '(' create_field_list ')'
           {
             LEX *lex=Lex;
@@ -8518,6 +8531,14 @@ alter_list_item:
         | DROP PERIOD_SYM FOR_SYSTEM_TIME_SYM
           {
             Lex->alter_info.flags|= ALTER_DROP_PERIOD;
+          }
+        | DROP PERIOD_SYM opt_if_exists_table_element FOR_SYM ident
+          {
+            Alter_drop *ad= new Alter_drop(Alter_drop::PERIOD, $5.str, $3);
+            if (unlikely(ad == NULL))
+              MYSQL_YYABORT;
+            Lex->alter_info.drop_list.push_back(ad, thd->mem_root);
+            Lex->alter_info.flags|= ALTER_DROP_CHECK_CONSTRAINT;
           }
         ;
 
@@ -9468,20 +9489,29 @@ history_point:
           }
         ;
 
+for_portion_of_time_clause:
+          FOR_SYM PORTION_SYM OF_SYM remember_tok_start ident FROM
+          bit_expr TO_SYM bit_expr
+          {
+            if (unlikely(0 == strcasecmp($5.str, "SYSTEM_TIME")))
+            {
+              thd->parse_error(ER_SYNTAX_ERROR, $4);
+              MYSQL_YYABORT;
+            }
+            Lex->period_conditions.init(SYSTEM_TIME_FROM_TO,
+                                        Vers_history_point(VERS_TIMESTAMP, $7),
+                                        Vers_history_point(VERS_TIMESTAMP, $9),
+                                        $5);
+          }
+
 opt_for_portion_of_time_clause:
           /* empty */
           {
             $$= false;
           }
-        | FOR_SYM PORTION_SYM OF_SYM ident FROM history_point TO_SYM history_point
-          {
-            if (unlikely(0 == strcasecmp($4.str, "SYSTEM_TIME")))
+        | for_portion_of_time_clause
             {
-              thd->parse_error(ER_SYNTAX_ERROR, $4.str);
-              MYSQL_YYABORT;
-            }
             $$= true;
-            Lex->period_conditions.init(SYSTEM_TIME_FROM_TO, $6, $8, $4);
           }
         ;
 
@@ -13620,6 +13650,24 @@ opt_insert_update:
           }
         ;
 
+update_table_list:
+          table_ident opt_use_partition for_portion_of_time_clause
+          opt_table_alias_clause opt_key_definition
+          {
+            SELECT_LEX *sel= Select;
+            sel->table_join_options= 0;
+            if (!($$= Select->add_table_to_list(thd, $1, $4,
+                                                Select->get_table_join_options(),
+                                                YYPS->m_lock_type,
+                                                YYPS->m_mdl_type,
+                                                Select->pop_index_hints(),
+                                                $2)))
+              MYSQL_YYABORT;
+            $$->period_conditions= Lex->period_conditions;
+          }
+        | join_table_list { $$= $1; }
+        ;
+
 /* Update rows in a table */
 
 update:
@@ -13632,7 +13680,7 @@ update:
             lex->sql_command= SQLCOM_UPDATE;
             lex->duplicates= DUP_ERROR; 
           }
-          opt_low_priority opt_ignore join_table_list
+          opt_low_priority opt_ignore update_table_list
           SET update_list
           {
             LEX *lex= Lex;
@@ -13748,17 +13796,16 @@ delete_single_table:
               MYSQL_YYABORT;
             YYPS->m_lock_type= TL_READ_DEFAULT;
             YYPS->m_mdl_type= MDL_SHARED_READ;
-            Lex->last_table()->period_conditions= Lex->period_conditions;
           }
         ;
 
 delete_single_table_for_period:
           delete_single_table opt_for_portion_of_time_clause
           {
+          if ($2)
             Lex->last_table()->period_conditions= Lex->period_conditions;
           }
         ;
-
 
 single_multi:
           delete_single_table_for_period
