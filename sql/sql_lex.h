@@ -148,7 +148,7 @@ public:
   bool copy_or_convert(THD *thd, const Lex_ident_cli_st *str, CHARSET_INFO *cs);
   bool is_null() const { return str == NULL; }
   bool to_size_number(ulonglong *to) const;
-  void set_valid_utf8(LEX_CSTRING *name)
+  void set_valid_utf8(const LEX_CSTRING *name)
   {
     DBUG_ASSERT(Well_formed_prefix(system_charset_info, name->str,
                                    name->length).length() == name->length);
@@ -4640,6 +4640,5 @@ Item* handle_sql2003_note184_exception(THD *thd, Item* left, bool equal,
 void sp_create_assignment_lex(THD *thd, bool no_lookahead);
 bool sp_create_assignment_instr(THD *thd, bool no_lookahead);
 
-Virtual_column_info *make_json_valid_expr(THD *thd, LEX_CSTRING *field_name);
 #endif /* MYSQL_SERVER */
 #endif /* SQL_LEX_INCLUDED */

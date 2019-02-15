@@ -10501,6 +10501,13 @@ bool Column_definition::fix_attributes_temporal_with_time(uint int_part_length)
 }
 
 
+bool Column_definition::validate_check_constraint(THD *thd)
+{
+  return check_constraint &&
+         check_expression(check_constraint, &field_name, VCOL_CHECK_FIELD);
+}
+
+
 bool Column_definition::check(THD *thd)
 {
   DBUG_ENTER("Column_definition::check");
@@ -10515,9 +10522,8 @@ bool Column_definition::check(THD *thd)
       DBUG_RETURN(TRUE);
   }
 
-  if (check_constraint &&
-      check_expression(check_constraint, &field_name, VCOL_CHECK_FIELD))
-      DBUG_RETURN(1);
+  if (type_handler()->Column_definition_validate_check_constraint(thd, this))
+    DBUG_RETURN(TRUE);
 
   if (default_value)
   {
