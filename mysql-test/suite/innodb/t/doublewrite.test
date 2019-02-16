@@ -73,6 +73,9 @@ set global innodb_buf_flush_list_now = 1;
 
 perl;
 use IO::Handle;
+do "$ENV{MTR_SUITE_DIR}/include/crc32.pl";
+my $polynomial = 0x82f63b78; # CRC-32C
+
 my $fname= "$ENV{'MYSQLD_DATADIR'}test/t1.ibd";
 my $page_size = $ENV{INNODB_PAGE_SIZE};
 my $page;
@@ -102,9 +105,12 @@ for (my $d = $d1; $d < $d2 + 64; $d++)
     $badflags |= ($flags & 15 << 6) << 7; # PAGE_SSIZE
 
     substr ($_, 54, 4) = pack("N", $badflags);
-    # Replace the innodb_checksum_algorithm=none checksum
-    substr ($_, 0, 4) = pack("N", 0xdeadbeef);
-    substr ($_, $page_size - 8, 4) = pack("N", 0xdeadbeef);
+    # Replace the innodb_checksum_algorithm=crc32 checksum
+    my $ck= pack("N",
+		 mycrc32(substr($_, 4, 22), 0, $polynomial) ^
+		 mycrc32(substr($_, 38, $page_size - 38 - 8), 0, $polynomial));
+    substr ($_, 0, 4) = $ck;
+    substr ($_, $page_size - 8, 4) = $ck;
     syswrite(FILE, $_, $page_size)==$page_size||die;
     close(FILE);
     exit 0;

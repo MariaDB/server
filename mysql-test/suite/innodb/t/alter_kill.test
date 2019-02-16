@@ -44,13 +44,23 @@ connection default;
 disconnect con1;
 
 -- echo # Corrupt FIL_PAGE_OFFSET in bug16720368.ibd,
--- echo # and update the checksum to the "don't care" value.
+-- echo # and recompute innodb_checksum_algorithm=crc32
 perl;
+do "$ENV{MTR_SUITE_DIR}/include/crc32.pl";
 my $file = "$ENV{MYSQLD_DATADIR}/test/bug16720368.ibd";
 open(FILE, "+<$file") || die "Unable to open $file";
-print FILE pack("H*","deadbeefc001cafe") || die "Unable to write $file";
-seek(FILE, $ENV{PAGE_SIZE}-8, 0) || die "Unable to seek $file";
-print FILE pack("H*","deadbeef") || die "Unable to write $file";
+binmode FILE;
+my $ps= $ENV{PAGE_SIZE};
+my $page;
+die "Unable to read $file" unless sysread(FILE, $page, $ps) == $ps;
+substr($page,4,4)=pack("N",0xc001cafe);
+my $polynomial = 0x82f63b78; # CRC-32C
+my $ck= pack("N",mycrc32(substr($page, 4, 22), 0, $polynomial) ^
+		 mycrc32(substr($page, 38, $ps - 38 - 8), 0, $polynomial));
+substr($page,0,4)=$ck;
+substr($page,$ps-8,4)=$ck;
+sysseek(FILE, 0, 0) || die "Unable to rewind $file\n";
+syswrite(FILE, $page, $ps)==$ps || die "Unable to write $file\n";
 close(FILE) || die "Unable to close $file";
 EOF
 
@@ -97,10 +107,21 @@ SELECT COUNT(*) FROM bug16720368;
 
 # Uncorrupt the FIL_PAGE_OFFSET.
 perl;
+do "$ENV{MTR_SUITE_DIR}/include/crc32.pl";
 my $file = "$ENV{MYSQLD_DATADIR}/test/bug16720368.ibd";
 open(FILE, "+<$file") || die "Unable to open $file";
-# Uncorrupt FIL_PAGE_OFFSET.
-print FILE pack("H*","deadbeef00000000") || die "Unable to write $file";
+binmode FILE;
+my $ps= $ENV{PAGE_SIZE};
+my $page;
+die "Unable to read $file" unless sysread(FILE, $page, $ps) == $ps;
+substr($page,4,4)=pack("N",0);
+my $polynomial = 0x82f63b78; # CRC-32C
+my $ck= pack("N",mycrc32(substr($page, 4, 22), 0, $polynomial) ^
+		 mycrc32(substr($page, 38, $ps - 38 - 8), 0, $polynomial));
+substr($page,0,4)=$ck;
+substr($page,$ps-8,4)=$ck;
+sysseek(FILE, 0, 0) || die "Unable to rewind $file\n";
+syswrite(FILE, $page, $ps)==$ps || die "Unable to write $file\n";
 close(FILE) || die "Unable to close $file";
 EOF
 
