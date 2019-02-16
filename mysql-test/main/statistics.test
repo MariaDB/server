@@ -912,6 +912,7 @@ set histogram_size=@save_hist_size, histogram_type=@save_hist_type;
 --echo #
 set @save_use_stat_tables=@@use_stat_tables;
 set @save_analyze_sample_percentage=@@analyze_sample_percentage;
+set @save_hist_size=@@histogram_size;
 
 set session rand_seed1=42;
 set session rand_seed2=62;
@@ -986,6 +987,8 @@ select table_name, column_name, min_value, max_value, nulls_ratio, avg_length, a
 from mysql.column_stats;
 explain select * from t1;
 
-set use_stat_tables=@save_use_stat_tables;
 
 drop table t1;
+set analyze_sample_percentage=@save_analyze_sample_percentage;
+set histogram_size=@save_hist_size;
+set use_stat_tables=@save_use_stat_tables;
