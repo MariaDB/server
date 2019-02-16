@@ -384,6 +384,12 @@ int mysql_update(THD *thd,
   if (mysql_handle_derived(thd->lex, DT_INIT))
     DBUG_RETURN(1);
 
+  if (table_list->has_period() && table_list->is_view_or_derived())
+  {
+    my_error(ER_IT_IS_A_VIEW, MYF(0), table_list->table_name.str);
+    DBUG_RETURN(TRUE);
+  }
+
   if (((update_source_table=unique_table(thd, table_list,
                                         table_list->next_global, 0)) ||
         table_list->is_multitable()))
@@ -1337,12 +1343,6 @@ bool mysql_prepare_update(THD *thd, TABLE_LIST *table_list,
 
   if (table_list->has_period())
   {
-    if (table_list->is_view_or_derived())
-    {
-      my_error(ER_IT_IS_A_VIEW, MYF(0), table_list->table_name.str);
-      DBUG_RETURN(true);
-    }
-
     *conds= select_lex->period_setup_conds(thd, table_list, *conds);
     if (!*conds)
       DBUG_RETURN(true);

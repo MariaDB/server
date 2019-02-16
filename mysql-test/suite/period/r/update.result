@@ -200,6 +200,14 @@ ERROR 42000: You have an error in your SQL syntax; check the manual that corresp
 set t.id= t.id + 5' at line 1
 update t1 set x= (select id from t for portion of apptime from '2000-01-01' to '2018-01-01');
 ERROR 42000: You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near 'portion of apptime from '2000-01-01' to '2018-01-01')' at line 1
+# single-table views
+create or replace view v1 as select * from t where id<10;
+update v1 for portion of apptime from '2000-01-01' to '2018-01-01' set id= id + 5;
+ERROR 42S02: 'v1' is a view
+# multi-table views
+create or replace view v1 as select * from t, t1 where x=id;
+update v1 for portion of apptime from '2000-01-01' to '2018-01-01' set id= id + 5;
+ERROR 42S02: 'v1' is a view
 # SQL16: 14.14 <update statement: searched>, Syntax Rules, 7)a) iii-iv)
 # Let FROMVAL be <point in time 1>. FROMVAL shall not generally contain a
 # reference to a column of T or a <routine invocation>

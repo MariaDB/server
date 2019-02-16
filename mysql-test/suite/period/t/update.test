@@ -87,6 +87,16 @@ update t for portion of apptime from '2000-01-01' to '2018-01-01', t1
 --error ER_PARSE_ERROR
 update t1 set x= (select id from t for portion of apptime from '2000-01-01' to '2018-01-01');
 
+--echo # single-table views
+create or replace view v1 as select * from t where id<10;
+--error ER_IT_IS_A_VIEW
+update v1 for portion of apptime from '2000-01-01' to '2018-01-01' set id= id + 5;
+
+--echo # multi-table views
+create or replace view v1 as select * from t, t1 where x=id;
+--error ER_IT_IS_A_VIEW
+update v1 for portion of apptime from '2000-01-01' to '2018-01-01' set id= id + 5;
+
 --echo # SQL16: 14.14 <update statement: searched>, Syntax Rules, 7)a) iii-iv)
 --echo # Let FROMVAL be <point in time 1>. FROMVAL shall not generally contain a
 --echo # reference to a column of T or a <routine invocation>
