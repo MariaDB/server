@@ -26,6 +26,9 @@ create or replace table t (s timestamp(2), e timestamp(6),
 --error ER_WRONG_FIELD_SPEC
 create or replace table t (id int primary key, s int, e date,
                            period for mytime(s,e));
+--error ER_WRONG_FIELD_SPEC
+create or replace table t (id int primary key, s time, e time,
+                           period for mytime(s,e));
 --error ER_BAD_FIELD_ERROR
 create or replace table t (id int primary key, s date, e date,
                            period for mytime(s,x));
