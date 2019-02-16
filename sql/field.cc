@@ -9550,9 +9550,35 @@ uint Field_num::is_equal(Create_field *new_field)
 
   if (th == new_th && new_field->pack_length == pack_length())
     return IS_EQUAL_YES;
+  /* FIXME: Test and consider returning IS_EQUAL_YES for the following:
+  TINYINT UNSIGNED to BIT(8)
+  SMALLINT UNSIGNED to BIT(16)
+  MEDIUMINT UNSIGNED to BIT(24)
+  INT UNSIGNED to BIT(32)
+  BIGINT UNSIGNED to BIT(64)
+
+  BIT(1..7) to TINYINT, or BIT(1..8) to TINYINT UNSIGNED
+  BIT(9..15) to SMALLINT, or BIT(9..16) to SMALLINT UNSIGNED
+  BIT(17..23) to MEDIUMINT, or BIT(17..24) to MEDIUMINT UNSIGNED
+  BIT(25..31) to INT, or BIT(25..32) to INT UNSIGNED
+  BIT(57..63) to BIGINT, or BIT(57..64) to BIGINT UNSIGNED
+
+  Note: InnoDB stores integers in big-endian format, and BIT appears
+  to use big-endian format. For storage engines that use little-endian
+  format for integers, we can only return IS_EQUAL_YES for the TINYINT
+  conversion. */
 
   if (table->file->ha_table_flags() & HA_EXTENDED_TYPES_CONVERSION)
   {
+    /* For now, prohibit instant conversion between BIT and integers.
+    Note: pack_length(), which is compared below, is measured in
+    bytes, and for BIT the last byte may be partially occupied.  We
+    must not allow instant conversion to BIT such that the last byte
+    is partially occupied.
+    We could allow converting TINYINT UNSIGNED to BIT(8) or wider. */
+    if (th != new_th &&
+        (th == &type_handler_bit || new_th == &type_handler_bit))
+      return IS_EQUAL_NO;
     if (th->result_type() == new_th->result_type() &&
         new_field->pack_length >= pack_length())
       return IS_EQUAL_PACK_LENGTH_EXT;
