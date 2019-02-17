@@ -5936,7 +5936,7 @@ static Sys_var_ulong Sys_histogram_size(
        "Number of bytes used for a histogram. "
        "If set to 0, no histograms are created by ANALYZE.",
        SESSION_VAR(histogram_size), CMD_LINE(REQUIRED_ARG),
-       VALID_RANGE(0, 255), DEFAULT(0), BLOCK_SIZE(1));
+       VALID_RANGE(0, 255), DEFAULT(254), BLOCK_SIZE(1));
 
 extern const char *histogram_types[];
 static Sys_var_enum Sys_histogram_type(
@@ -5946,7 +5946,7 @@ static Sys_var_enum Sys_histogram_type(
        "SINGLE_PREC_HB - single precision height-balanced, "
        "DOUBLE_PREC_HB - double precision height-balanced.",
        SESSION_VAR(histogram_type), CMD_LINE(REQUIRED_ARG),
-       histogram_types, DEFAULT(0));
+       histogram_types, DEFAULT(1));
 
 static Sys_var_mybool Sys_no_thread_alarm(
        "debug_no_thread_alarm",

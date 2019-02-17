@@ -3347,9 +3347,9 @@ filler2 char(255),
 key(a)
 );
 insert into t4 select a,a,a, a,a from t3;
-set @tmp_h=@@histogram_size, @tmp_u=@@use_stat_tables, 
+set @tmp_h=@@histogram_size, @tmp_ht=@@histogram_type, @tmp_u=@@use_stat_tables, 
 @tmp_o=@@optimizer_use_condition_selectivity;
-set histogram_size=100;
+set histogram_size=100, histogram_type='single_prec_hb';
 set use_stat_tables=preferably;
 set optimizer_use_condition_selectivity=4;
 analyze table t4 persistent for columns(b) indexes ();
@@ -3363,6 +3363,6 @@ id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
 1	SIMPLE	t4	index	NULL	a	5	NULL	1188	100.00	Using where
 Warnings:
 Note	1003	select `test`.`t4`.`a` AS `a`,`test`.`t4`.`b` AS `b`,`test`.`t4`.`c` AS `c`,`test`.`t4`.`filler1` AS `filler1`,`test`.`t4`.`filler2` AS `filler2` from `test`.`t4` where `test`.`t4`.`b` < 5000 order by `test`.`t4`.`a` limit 600
-set histogram_size=@tmp_h, use_stat_tables=@tmp_u,
+set histogram_size=@tmp_h, histogram_type=@tmp_ht, use_stat_tables=@tmp_u,
 optimizer_use_condition_selectivity=@tmp_o;
 drop table t1,t2,t3,t4;

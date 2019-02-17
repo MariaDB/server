@@ -1324,11 +1324,11 @@ EXPLAIN SELECT MIN(d) FROM t1 where b=2 and c=3  group by a	{
                 "selectivity_for_columns": [
                   {
                     "column_name": "b",
-                    "selectivity_from_histograms": 0.1667
+                    "selectivity_from_histograms": 0.2891
                   },
                   {
                     "column_name": "c",
-                    "selectivity_from_histograms": 0.25
+                    "selectivity_from_histograms": 0.2891
                   }
                 ]
               }
@@ -1348,8 +1348,8 @@ EXPLAIN SELECT MIN(d) FROM t1 where b=2 and c=3  group by a	{
                   "considered_access_paths": [
                     {
                       "access_type": "scan",
-                      "resulting_rows": 0.2917,
-                      "cost": 3.3707,
+                      "resulting_rows": 0.5849,
+                      "cost": 3.3121,
                       "chosen": true,
                       "use_tmp_table": true
                     }
@@ -1374,7 +1374,7 @@ EXPLAIN SELECT MIN(d) FROM t1 where b=2 and c=3  group by a	{
             "reconsidering_access_paths_for_index_ordering": {
               "clause": "GROUP BY",
               "fanout": 1,
-              "read_time": 3.3717,
+              "read_time": 3.3131,
               "table": "t1",
               "rows_estimation": 7,
               "possible_keys": [
@@ -1957,11 +1957,11 @@ explain  select * from t1 where a=1 and b=2 order by c limit 1	{
                 "selectivity_for_columns": [
                   {
                     "column_name": "a",
-                    "selectivity_from_histograms": 0.0012
+                    "selectivity_from_histograms": 0.1797
                   },
                   {
                     "column_name": "b",
-                    "selectivity_from_histograms": 0.001
+                    "selectivity_from_histograms": 0.0156
                   }
                 ]
               }
