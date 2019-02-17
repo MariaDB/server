@@ -57,7 +57,7 @@ struct extra2_fields
   Lex_ident engine;
   LEX_CUSTRING gis;
   LEX_CUSTRING field_flags;
-  const uchar *system_period;
+  LEX_CUSTRING system_period;
   LEX_CUSTRING application_period;
 };
 
@@ -1363,12 +1363,30 @@ void TABLE::find_constraint_correlated_indexes()
 }
 
 
-bool TABLE_SHARE::init_period_from_extra2(period_info_t &period,
-                                          const uchar *data)
+bool TABLE_SHARE::init_period_from_extra2(period_info_t *period,
+                                          const uchar *data, const uchar *end)
 {
-  period.start_fieldno= read_frm_fieldno(data);
-  period.end_fieldno= read_frm_fieldno(data + frm_fieldno_size);
-  return period.start_fieldno >= fields || period.end_fieldno >= fields;
+  if (data + 2*frm_fieldno_size > end)
+    return 1;
+  period->start_fieldno= read_frm_fieldno(data);
+  period->end_fieldno= read_frm_fieldno(data + frm_fieldno_size);
+  return period->start_fieldno >= fields || period->end_fieldno >= fields;
+}
+
+
+static size_t extra2_read_len(const uchar **extra2, const uchar *extra2_end)
+{
+  size_t length= *(*extra2)++;
+  if (length)
+    return length;
+
+  if ((*extra2) + 2 >= extra2_end)
+    return 0;
+  length= uint2korr(*extra2);
+  (*extra2)+= 2;
+  if (length < 256 || *extra2 + length > extra2_end)
+    return 0;
+  return length;
 }
 
 
@@ -1386,18 +1404,9 @@ bool read_extra2(const uchar *frm_image, size_t len, extra2_fields *fields)
     const uchar *e2end= extra2 + len;
     while (extra2 + 3 <= e2end)
     {
-      uchar type= *extra2++;
-      size_t length= *extra2++;
+      extra2_frm_value_type type= (extra2_frm_value_type)*extra2++;
+      size_t length= extra2_read_len(&extra2, e2end);
       if (!length)
-      {
-        if (extra2 + 2 >= e2end)
-          DBUG_RETURN(true);
-        length= uint2korr(extra2);
-        extra2+= 2;
-        if (length < 256)
-          DBUG_RETURN(true);
-      }
-      if (extra2 + length > e2end)
         DBUG_RETURN(true);
       switch (type) {
         case EXTRA2_TABLEDEF_VERSION:
@@ -1428,9 +1437,10 @@ bool read_extra2(const uchar *frm_image, size_t len, extra2_fields *fields)
           fields->gis.length= length;
           break;
         case EXTRA2_PERIOD_FOR_SYSTEM_TIME:
-          if (fields->system_period || length != 2 * frm_fieldno_size)
+          if (fields->system_period.str || length != 2 * frm_fieldno_size)
             DBUG_RETURN(true);
-          fields->system_period = extra2;
+          fields->system_period.str = extra2;
+          fields->system_period.length= length;
           break;
         case EXTRA2_FIELD_FLAGS:
           if (fields->field_flags.str)
@@ -2006,7 +2016,7 @@ int TABLE_SHARE::init_from_binary_frm_image(THD *thd, bool write,
 
   /* Set system versioning information. */
   vers.name= Lex_ident(STRING_WITH_LEN("SYSTEM_TIME"));
-  if (extra2.system_period == NULL)
+  if (extra2.system_period.str == NULL)
   {
     versioned= VERS_UNDEFINED;
     vers.start_fieldno= 0;
@@ -2015,7 +2025,8 @@ int TABLE_SHARE::init_from_binary_frm_image(THD *thd, bool write,
   else
   {
     DBUG_PRINT("info", ("Setting system versioning informations"));
-    if (init_period_from_extra2(vers, extra2.system_period))
+    if (init_period_from_extra2(&vers, extra2.system_period.str,
+                  extra2.system_period.str + extra2.system_period.length))
       goto err;
     DBUG_PRINT("info", ("Columns with system versioning: [%d, %d]",
                         vers.start_fieldno, vers.end_fieldno));
@@ -2026,25 +2037,18 @@ int TABLE_SHARE::init_from_binary_frm_image(THD *thd, bool write,
 
   if (extra2.application_period.str)
   {
-    const uchar *name_pos= extra2.application_period.str + frm_ident_len_size;
-    period.name.length= uint2korr(extra2.application_period.str);
-    period.name.str= strmake_root(&mem_root,
-                                  (char*)name_pos,
-                                  period.name.length);
+    const uchar *pos= extra2.application_period.str;
+    const uchar *end= pos + extra2.application_period.length;
+    period.name.length= extra2_read_len(&pos, end);
+    period.name.str= strmake_root(&mem_root, (char*)pos, period.name.length);
+    pos+= period.name.length;
 
-    const uchar *constr_pos= name_pos + period.name.length + frm_ident_len_size;
-    period.constr_name.length= uint2korr(name_pos + period.name.length);
-    period.constr_name.str= strmake_root(&mem_root,
-                                         (char*)constr_pos,
+    period.constr_name.length= extra2_read_len(&pos, end);
+    period.constr_name.str= strmake_root(&mem_root, (char*)pos,
                                          period.constr_name.length);
+    pos+= period.constr_name.length;
 
-    const uchar *field_pos= constr_pos + period.constr_name.length;
-    if (init_period_from_extra2(period, field_pos))
-      goto err;
-
-    if (period.name.length + period.constr_name.length
-          + 2 * frm_ident_len_size + 2 * frm_fieldno_size
-        != extra2.application_period.length)
+    if (init_period_from_extra2(&period, pos, end))
       goto err;
   }
 

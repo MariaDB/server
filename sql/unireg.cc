@@ -72,13 +72,18 @@ static uchar *extra2_write_len(uchar *pos, size_t len)
   return pos;
 }
 
+static uchar* extra2_write_str(uchar *pos, const LEX_CSTRING &str)
+{
+  pos= extra2_write_len(pos, str.length);
+  memcpy(pos, str.str, str.length);
+  return pos + str.length;
+}
+
 static uchar *extra2_write(uchar *pos, enum extra2_frm_value_type type,
                            const LEX_CSTRING &str)
 {
   *pos++ = type;
-  pos= extra2_write_len(pos, str.length);
-  memcpy(pos, str.str, str.length);
-  return pos + str.length;
+  return extra2_write_str(pos, str);
 }
 
 static uchar *extra2_write(uchar *pos, enum extra2_frm_value_type type,
@@ -142,17 +147,9 @@ bool has_extra2_field_flags(List<Create_field> &create_fields)
   return false;
 }
 
-static inline
-uchar* store_str(uchar *buf, const Lex_ident &str)
+static size_t extra2_str_size(size_t len)
 {
-  int2store(buf, str.length);
-  memcpy(buf + frm_ident_len_size, str.str, str.length);
-  return buf + str.length + frm_ident_len_size;
-}
-
-static size_t extra2_size_needed(size_t len)
-{
-  return 1 + (len > 255 ? 3 : 1) + len;
+  return (len > 255 ? 3 : 1) + len;
 }
 
 /**
@@ -183,9 +180,9 @@ LEX_CUSTRING build_frm_image(THD *thd, const LEX_CSTRING &table,
   uint options_len;
   uint gis_extra2_len= 0;
   size_t period_info_len= create_info->period_info.name
-                          ? create_info->period_info.name.length
-                            + create_info->period_info.constr->name.length
-                            + 2 * frm_ident_len_size + 2 * frm_fieldno_size
+                          ? extra2_str_size(create_info->period_info.name.length)
+                            + extra2_str_size(create_info->period_info.constr->name.length)
+                            + 2 * frm_fieldno_size
                           : 0;
   uchar fileinfo[FRM_HEADER_SIZE],forminfo[FRM_FORMINFO_SIZE];
   const partition_info *part_info= IF_PARTITIONING(thd->work_part_info, 0);
@@ -283,30 +280,30 @@ LEX_CUSTRING build_frm_image(THD *thd, const LEX_CSTRING &table,
   prepare_frm_header(thd, reclength, fileinfo, create_info, keys, key_info);
 
   /* one byte for a type, one or three for a length */
-  size_t extra2_size= extra2_size_needed(create_info->tabledef_version.length);
+  size_t extra2_size= 1 + extra2_str_size(create_info->tabledef_version.length);
   if (options_len)
-    extra2_size+= extra2_size_needed(options_len);
+    extra2_size+= 1 + extra2_str_size(options_len);
 
   if (part_info)
-    extra2_size+= extra2_size_needed(hton_name(part_info->default_engine_type)->length);
+    extra2_size+= 1 + extra2_str_size(hton_name(part_info->default_engine_type)->length);
 
   if (gis_extra2_len)
-    extra2_size+= extra2_size_needed(gis_extra2_len);
+    extra2_size+= 1 + extra2_str_size(gis_extra2_len);
 
   if (create_info->versioned())
   {
-    extra2_size+= extra2_size_needed(2 * frm_fieldno_size);
+    extra2_size+= 1 + extra2_str_size(2 * frm_fieldno_size);
   }
 
   if (create_info->period_info.name)
   {
-    extra2_size+= extra2_size_needed(period_info_len);
+    extra2_size+= 1 + extra2_str_size(period_info_len);
   }
 
   bool has_extra2_field_flags_= has_extra2_field_flags(create_fields);
   if (has_extra2_field_flags_)
   {
-    extra2_size+= extra2_size_needed(create_fields.elements);
+    extra2_size+= 1 + extra2_str_size(create_fields.elements);
   }
 
   key_buff_length= uint4korr(fileinfo+47);
@@ -369,8 +366,8 @@ LEX_CUSTRING build_frm_image(THD *thd, const LEX_CSTRING &table,
   {
     *pos++= EXTRA2_APPLICATION_TIME_PERIOD;
     pos= extra2_write_len(pos, period_info_len);
-    pos= store_str(pos, create_info->period_info.name);
-    pos= store_str(pos, create_info->period_info.constr->name);
+    pos= extra2_write_str(pos, create_info->period_info.name);
+    pos= extra2_write_str(pos, create_info->period_info.constr->name);
 
     store_frm_fieldno(pos, get_fieldno_by_name(create_info, create_fields,
                                        create_info->period_info.period.start));

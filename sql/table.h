@@ -789,7 +789,8 @@ struct TABLE_SHARE
   period_info_t vers;
   period_info_t period;
 
-  bool init_period_from_extra2(period_info_t &period, const uchar *data);
+  bool init_period_from_extra2(period_info_t *period, const uchar *data,
+                               const uchar *end);
 
   Field *vers_start_field()
   {
@@ -1787,9 +1788,6 @@ static inline uint16 read_frm_fieldno(const uchar *data)
 { return uint2korr(data); }
 static inline void store_frm_fieldno(const uchar *data, uint16 fieldno)
 { int2store(data, fieldno); }
-
-/** number of bytes used by identifier length in frm */
-constexpr uint frm_ident_len_size= 2;
 
 class select_unit;
 class TMP_TABLE_PARAM;
