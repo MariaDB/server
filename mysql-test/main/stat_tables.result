@@ -6,6 +6,8 @@ select @@session.use_stat_tables;
 COMPLEMENTARY
 set @save_use_stat_tables=@@use_stat_tables;
 set use_stat_tables='preferably';
+set @tmp_stt_hs=@@histogram_size, @tmp_stt_ht=@@histogram_type;
+set histogram_size=0, histogram_type='single_prec_hb';
 DROP DATABASE IF EXISTS dbt3_s001;
 CREATE DATABASE dbt3_s001;
 use dbt3_s001;
@@ -680,4 +682,5 @@ select * from t1 where a=1 and b=3;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	r_rows	filtered	r_filtered	Extra
 1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	10	10.00	2.78	10.00	Using where
 drop table t1;
+set histogram_size=@tmp_stt_hs, histogram_type=@tmp_stt_ht;
 set use_stat_tables=@save_use_stat_tables;

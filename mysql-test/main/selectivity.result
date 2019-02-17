@@ -10,6 +10,8 @@ set use_stat_tables='preferably';
 set @save_optimizer_use_condition_selectivity=@@optimizer_use_condition_selectivity;
 set @save_histogram_size=@@histogram_size;
 set @save_histogram_type=@@histogram_type;
+set histogram_size=0;
+set histogram_type='single_prec_hb';
 set optimizer_use_condition_selectivity=3;
 create table t1 (a int);
 insert into t1 values
@@ -1369,14 +1371,14 @@ test.t2	analyze	status	Table is already up to date
 explain extended 
 select * from t1 straight_join t2 where t1.a=t2.a and t1.a<10;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
-1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	1000	0.99	Using where
+1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	1000	1.96	Using where
 1	SIMPLE	t2	ref	a	a	5	test.t1.a	10	100.00	
 Warnings:
 Note	1003	select `test`.`t1`.`a` AS `a`,`test`.`t2`.`a` AS `a`,`test`.`t2`.`b` AS `b` from `test`.`t1` straight_join `test`.`t2` where `test`.`t2`.`a` = `test`.`t1`.`a` and `test`.`t1`.`a` < 10
 explain extended 
 select * from t1 straight_join t2 where t1.a=t2.a and t2.a<10;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
-1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	1000	0.99	Using where
+1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	1000	1.96	Using where
 1	SIMPLE	t2	ref	a	a	5	test.t1.a	10	100.00	
 Warnings:
 Note	1003	select `test`.`t1`.`a` AS `a`,`test`.`t2`.`a` AS `a`,`test`.`t2`.`b` AS `b` from `test`.`t1` straight_join `test`.`t2` where `test`.`t2`.`a` = `test`.`t1`.`a` and `test`.`t1`.`a` < 10
