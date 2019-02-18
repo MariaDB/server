@@ -715,6 +715,19 @@ INSERT IGNORE INTO t1 VALUES(32768, 2147483648);
 SELECT * FROM t1;
 DROP TABLE t1;
 
+eval CREATE TABLE t1 (a SERIAL, b INT, c TINYINT UNIQUE) $engine;
+INSERT INTO t1 (c) VALUES(1),(2),(3);
+--enable_info
+ALTER TABLE t1 MODIFY c BIGINT;
+--disable_info
+UPDATE t1 SET b=1 WHERE c=2;
+UPDATE t1 SET c=4 WHERE a=3;
+UPDATE t1 SET b=2 WHERE c>3;
+--error ER_DUP_ENTRY
+UPDATE t1 SET c=c+1;
+SELECT * FROM t1;
+DROP TABLE t1;
+
 dec $format;
 }
 disconnect analyze;

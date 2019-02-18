@@ -2723,8 +2723,6 @@ row_sel_field_store_in_mysql_format_func(
 
 	switch (templ->type) {
 		const byte*	field_end;
-	case DATA_CHAR:
-	case DATA_FIXBINARY:
 	case DATA_VARCHAR:
 	case DATA_VARMYSQL:
 	case DATA_BINARY:
@@ -2822,8 +2820,7 @@ row_sel_field_store_in_mysql_format_func(
 		ut_ad(len * templ->mbmaxlen >= templ->mysql_col_len
 		      || (field_no == templ->icp_rec_field_no
 			  && field->prefix_len > 0)
-		      || templ->rec_field_is_prefix
-		      || !index->table->not_redundant());
+		      || templ->rec_field_is_prefix);
 
 		ut_ad(templ->is_virtual
 		      || !(field->prefix_len % templ->mbmaxlen));
@@ -2845,6 +2842,8 @@ row_sel_field_store_in_mysql_format_func(
 		ut_ad(0);
 		/* fall through */
 
+	case DATA_CHAR:
+	case DATA_FIXBINARY:
 	case DATA_FLOAT:
 	case DATA_DOUBLE:
 	case DATA_DECIMAL:
@@ -2859,18 +2858,13 @@ row_sel_field_store_in_mysql_format_func(
 	case DATA_INT:
 		/* Convert InnoDB big-endian integer to little-endian
 		format, sign bit restored to 2's complement form */
-		DBUG_ASSERT(templ->mysql_col_len >= len);
+		DBUG_ASSERT(templ->mysql_col_len == len);
 
 		byte* ptr = pad;
 		do *--ptr = *data++; while (ptr != dest);
-		byte b = templ->is_unsigned || !((pad[-1] ^= 0x80) & 0x80)
-			? 0 : 0xff;
-
-		if (ulint l = templ->mysql_col_len - len) {
-			DBUG_ASSERT(!index->table->not_redundant());
-			memset(pad, b, l);
+		if (!templ->is_unsigned) {
+			pad[-1] ^= 0x80;
 		}
-		break;
 	}
 }
 

@@ -6605,9 +6605,6 @@ static bool fill_alter_inplace_info(THD *thd,
         */
         ha_alter_info->handler_flags|= ALTER_COLUMN_EQUAL_PACK_LENGTH;
         break;
-      case IS_EQUAL_PACK_LENGTH_EXT:
-        ha_alter_info->handler_flags|= ALTER_COLUMN_EQUAL_PACK_LENGTH_EXT;
-        break;
       default:
         DBUG_ASSERT(0);
         /* Safety. */

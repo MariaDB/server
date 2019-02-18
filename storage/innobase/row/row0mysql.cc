@@ -887,15 +887,10 @@ row_create_prebuilt(
 						== MAX_REF_PARTS););
 		uint temp_len = 0;
 		for (uint i = 0; i < temp_index->n_uniq; i++) {
-			const dict_field_t& f = temp_index->fields[i];
-			if (f.col->mtype == DATA_INT) {
-				ut_ad(f.col->len >= f.fixed_len);
-				/* dtype_get_fixed_size_low() returns 0
-				for ROW_FORMAT=REDUNDANT */
-				ut_ad(table->not_redundant()
-				      ? f.col->len == f.fixed_len
-				      : f.fixed_len == 0);
-				temp_len += f.col->len;
+			ulint type = temp_index->fields[i].col->mtype;
+			if (type == DATA_INT) {
+				temp_len +=
+					temp_index->fields[i].fixed_len;
 			}
 		}
 		srch_key_len = std::max(srch_key_len,temp_len);

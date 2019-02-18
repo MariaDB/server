@@ -100,22 +100,6 @@ dtype_validate(
 	return(TRUE);
 }
 
-bool dict_col_t::same_charset(const dict_col_t& other) const
-{
-	if (dtype_is_non_binary_string_type(mtype, prtype)
-	    && dtype_is_non_binary_string_type(other.mtype, other.prtype)) {
-		uint csn1 = (uint) dtype_get_charset_coll(prtype);
-		uint csn2 = (uint) dtype_get_charset_coll(other.prtype);
-		CHARSET_INFO* cs1 = get_charset(csn1, MYF(MY_WME));
-		CHARSET_INFO* cs2 = get_charset(csn2, MYF(MY_WME));
-		if (!my_charset_same(cs1, cs2)) {
-			return false;
-		}
-	}
-
-	return true;
-}
-
 #ifdef UNIV_DEBUG
 /** Print a data type structure.
 @param[in]	type	data type */

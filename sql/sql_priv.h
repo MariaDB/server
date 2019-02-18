@@ -358,11 +358,6 @@
   data dictionary without changing table rows
 */
 #define IS_EQUAL_PACK_LENGTH 2
-/**
-  new_field has a representation that is compatible with the old type
-  when the storage engine advertises HA_EXTENDED_TYPES_CONVERSION
-*/
-#define IS_EQUAL_PACK_LENGTH_EXT 3
 
 enum enum_parsing_place
 {
