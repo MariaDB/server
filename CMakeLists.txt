@@ -500,5 +500,5 @@ ENDIF()
 
 IF(NON_DISTRIBUTABLE_WARNING)
   MESSAGE(WARNING "
-You have linked MariaDB with GPLv3 libraries!  You may not distribute the resulting binary. If you do, you will put yourself into a legal problem with Free Software Foundation.")
+You have linked MariaDB with ${NON_DISTRIBUTABLE_WARNING} libraries!  You may not distribute the resulting binary. If you do, you will put yourself into a legal problem with the Free Software Foundation.")
 ENDIF()
