@@ -596,7 +596,7 @@ drop view mysql.user_bak;
 create user 'user3'@'localhost' identified with mysql_native_password as password('a_password');
 show create user user3@localhost;
 CREATE USER for user3@localhost
-CREATE USER 'user3'@'localhost' IDENTIFIED BY PASSWORD '*5DC1D11F45824A9DD613961F05C1EC1E7A1601AA' PASSWORD EXPIRE NEVER
+CREATE USER 'user3'@'localhost' IDENTIFIED BY PASSWORD '*5DC1D11F45824A9DD613961F05C1EC1E7A1601AA'
 update mysql.user set password=authentication_string, authentication_string='' where user='user3';
 select password,plugin,authentication_string from mysql.user where user='user3';
 password	plugin	authentication_string

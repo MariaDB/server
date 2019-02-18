@@ -92,8 +92,7 @@ json_detailed(priv)	{
     "access": 0,
     "plugin": "mysql_native_password",
     "authentication_string": "",
-    "password_last_changed": 0,
-    "password_lifetime": -1
+    "password_last_changed": #
 }
 host	localhost
 user	testuser2
@@ -101,8 +100,7 @@ json_detailed(priv)	{
     "access": 6,
     "plugin": "mysql_native_password",
     "authentication_string": "",
-    "password_last_changed": 0,
-    "password_lifetime": -1
+    "password_last_changed": #
 }
 host	localhost
 user	testuser3
@@ -110,8 +108,7 @@ json_detailed(priv)	{
     "access": 0,
     "plugin": "mysql_native_password",
     "authentication_string": "",
-    "password_last_changed": 0,
-    "password_lifetime": -1
+    "password_last_changed": #
 }
 #
 # Add GRANT OPTION db_datadict.* to testuser1;
@@ -143,8 +140,7 @@ json_detailed(priv)	{
     "access": 0,
     "plugin": "mysql_native_password",
     "authentication_string": "",
-    "password_last_changed": 0,
-    "password_lifetime": -1
+    "password_last_changed": #
 }
 host	localhost
 user	testuser2
@@ -152,8 +148,7 @@ json_detailed(priv)	{
     "access": 6,
     "plugin": "mysql_native_password",
     "authentication_string": "",
-    "password_last_changed": 0,
-    "password_lifetime": -1
+    "password_last_changed": #
 }
 host	localhost
 user	testuser3
@@ -161,8 +156,7 @@ json_detailed(priv)	{
     "access": 0,
     "plugin": "mysql_native_password",
     "authentication_string": "",
-    "password_last_changed": 0,
-    "password_lifetime": -1
+    "password_last_changed": #
 }
 connect  testuser1, localhost, testuser1, , db_datadict;
 SELECT * FROM information_schema.user_privileges
@@ -180,8 +174,7 @@ json_detailed(priv)	{
     "access": 0,
     "plugin": "mysql_native_password",
     "authentication_string": "",
-    "password_last_changed": 0,
-    "password_lifetime": -1
+    "password_last_changed": #
 }
 host	localhost
 user	testuser2
@@ -189,8 +182,7 @@ json_detailed(priv)	{
     "access": 6,
     "plugin": "mysql_native_password",
     "authentication_string": "",
-    "password_last_changed": 0,
-    "password_lifetime": -1
+    "password_last_changed": #
 }
 host	localhost
 user	testuser3
@@ -198,8 +190,7 @@ json_detailed(priv)	{
     "access": 0,
     "plugin": "mysql_native_password",
     "authentication_string": "",
-    "password_last_changed": 0,
-    "password_lifetime": -1
+    "password_last_changed": #
 }
 SHOW GRANTS;
 Grants for testuser1@localhost
@@ -239,8 +230,7 @@ json_detailed(priv)	{
     "access": 1,
     "plugin": "mysql_native_password",
     "authentication_string": "",
-    "password_last_changed": 0,
-    "password_lifetime": -1
+    "password_last_changed": #
 }
 host	localhost
 user	testuser2
@@ -248,8 +238,7 @@ json_detailed(priv)	{
     "access": 6,
     "plugin": "mysql_native_password",
     "authentication_string": "",
-    "password_last_changed": 0,
-    "password_lifetime": -1
+    "password_last_changed": #
 }
 host	localhost
 user	testuser3
@@ -257,8 +246,7 @@ json_detailed(priv)	{
     "access": 0,
     "plugin": "mysql_native_password",
     "authentication_string": "",
-    "password_last_changed": 0,
-    "password_lifetime": -1
+    "password_last_changed": #
 }
 GRANT SELECT ON *.* TO 'testuser1'@'localhost' WITH GRANT OPTION;
 #
@@ -290,8 +278,7 @@ json_detailed(priv)	{
     "access": 1025,
     "plugin": "mysql_native_password",
     "authentication_string": "",
-    "password_last_changed": 0,
-    "password_lifetime": -1
+    "password_last_changed": #
 }
 host	localhost
 user	testuser2
@@ -299,8 +286,7 @@ json_detailed(priv)	{
     "access": 6,
     "plugin": "mysql_native_password",
     "authentication_string": "",
-    "password_last_changed": 0,
-    "password_lifetime": -1
+    "password_last_changed": #
 }
 host	localhost
 user	testuser3
@@ -308,8 +294,7 @@ json_detailed(priv)	{
     "access": 0,
     "plugin": "mysql_native_password",
     "authentication_string": "",
-    "password_last_changed": 0,
-    "password_lifetime": -1
+    "password_last_changed": #
 }
 connection testuser1;
 SELECT * FROM information_schema.user_privileges
@@ -327,8 +312,7 @@ json_detailed(priv)	{
     "access": 1025,
     "plugin": "mysql_native_password",
     "authentication_string": "",
-    "password_last_changed": 0,
-    "password_lifetime": -1
+    "password_last_changed": #
 }
 host	localhost
 user	testuser2
@@ -336,8 +320,7 @@ json_detailed(priv)	{
     "access": 6,
     "plugin": "mysql_native_password",
     "authentication_string": "",
-    "password_last_changed": 0,
-    "password_lifetime": -1
+    "password_last_changed": #
 }
 host	localhost
 user	testuser3
@@ -345,8 +328,7 @@ json_detailed(priv)	{
     "access": 0,
     "plugin": "mysql_native_password",
     "authentication_string": "",
-    "password_last_changed": 0,
-    "password_lifetime": -1
+    "password_last_changed": #
 }
 SHOW GRANTS;
 Grants for testuser1@localhost
@@ -416,8 +398,7 @@ json_detailed(priv)	{
     "access": 0,
     "plugin": "mysql_native_password",
     "authentication_string": "",
-    "password_last_changed": 0,
-    "password_lifetime": -1
+    "password_last_changed": #
 }
 host	localhost
 user	testuser2
@@ -425,8 +406,7 @@ json_detailed(priv)	{
     "access": 6,
     "plugin": "mysql_native_password",
     "authentication_string": "",
-    "password_last_changed": 0,
-    "password_lifetime": -1
+    "password_last_changed": #
 }
 host	localhost
 user	testuser3
@@ -434,8 +414,7 @@ json_detailed(priv)	{
     "access": 0,
     "plugin": "mysql_native_password",
     "authentication_string": "",
-    "password_last_changed": 0,
-    "password_lifetime": -1
+    "password_last_changed": #
 }
 connection testuser1;
 SELECT * FROM information_schema.user_privileges
@@ -500,8 +479,7 @@ json_detailed(priv)	{
     "access": 0,
     "plugin": "mysql_native_password",
     "authentication_string": "",
-    "password_last_changed": 0,
-    "password_lifetime": -1
+    "password_last_changed": #
 }
 host	localhost
 user	testuser2
@@ -509,8 +487,7 @@ json_detailed(priv)	{
     "access": 6,
     "plugin": "mysql_native_password",
     "authentication_string": "",
-    "password_last_changed": 0,
-    "password_lifetime": -1
+    "password_last_changed": #
 }
 host	localhost
 user	testuser3
@@ -518,8 +495,7 @@ json_detailed(priv)	{
     "access": 0,
     "plugin": "mysql_native_password",
     "authentication_string": "",
-    "password_last_changed": 0,
-    "password_lifetime": -1
+    "password_last_changed": #
 }
 connection testuser1;
 SELECT * FROM information_schema.user_privileges
@@ -537,8 +513,7 @@ json_detailed(priv)	{
     "access": 0,
     "plugin": "mysql_native_password",
     "authentication_string": "",
-    "password_last_changed": 0,
-    "password_lifetime": -1
+    "password_last_changed": #
 }
 host	localhost
 user	testuser2
@@ -546,8 +521,7 @@ json_detailed(priv)	{
     "access": 6,
     "plugin": "mysql_native_password",
     "authentication_string": "",
-    "password_last_changed": 0,
-    "password_lifetime": -1
+    "password_last_changed": #
 }
 host	localhost
 user	testuser3
@@ -555,8 +529,7 @@ json_detailed(priv)	{
     "access": 0,
     "plugin": "mysql_native_password",
     "authentication_string": "",
-    "password_last_changed": 0,
-    "password_lifetime": -1
+    "password_last_changed": #
 }
 SHOW GRANTS;
 Grants for testuser1@localhost
@@ -581,8 +554,7 @@ json_detailed(priv)	{
     "access": 0,
     "plugin": "mysql_native_password",
     "authentication_string": "",
-    "password_last_changed": 0,
-    "password_lifetime": -1
+    "password_last_changed": #
 }
 host	localhost
 user	testuser2
@@ -590,8 +562,7 @@ json_detailed(priv)	{
     "access": 6,
     "plugin": "mysql_native_password",
     "authentication_string": "",
-    "password_last_changed": 0,
-    "password_lifetime": -1
+    "password_last_changed": #
 }
 host	localhost
 user	testuser3
@@ -599,8 +570,7 @@ json_detailed(priv)	{
     "access": 0,
     "plugin": "mysql_native_password",
     "authentication_string": "",
-    "password_last_changed": 0,
-    "password_lifetime": -1
+    "password_last_changed": #
 }
 SHOW GRANTS;
 Grants for testuser1@localhost
@@ -640,8 +610,7 @@ json_detailed(priv)	{
     "access": 0,
     "plugin": "mysql_native_password",
     "authentication_string": "",
-    "password_last_changed": 0,
-    "password_lifetime": -1
+    "password_last_changed": #
 }
 host	localhost
 user	testuser2
@@ -649,8 +618,7 @@ json_detailed(priv)	{
     "access": 6,
     "plugin": "mysql_native_password",
     "authentication_string": "",
-    "password_last_changed": 0,
-    "password_lifetime": -1
+    "password_last_changed": #
 }
 host	localhost
 user	testuser3
@@ -658,8 +626,7 @@ json_detailed(priv)	{
     "access": 0,
     "plugin": "mysql_native_password",
     "authentication_string": "",
-    "password_last_changed": 0,
-    "password_lifetime": -1
+    "password_last_changed": #
 }
 connection testuser1;
 SELECT * FROM information_schema.user_privileges

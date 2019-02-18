@@ -2955,14 +2955,14 @@ public:
 
 enum account_lock_type
 {
-  ACCOUNTLOCK_UNSPECIFIED,
+  ACCOUNTLOCK_UNSPECIFIED= 0,
   ACCOUNTLOCK_LOCKED,
   ACCOUNTLOCK_UNLOCKED
 };
 
 enum password_exp_type
 {
-  PASSWORD_EXPIRE_UNSPECIFIED,
+  PASSWORD_EXPIRE_UNSPECIFIED= 0,
   PASSWORD_EXPIRE_NOW,
   PASSWORD_EXPIRE_NEVER,
   PASSWORD_EXPIRE_DEFAULT,
@@ -2971,11 +2971,7 @@ enum password_exp_type
 
 struct Account_options: public USER_RESOURCES
 {
-  Account_options()
-    : account_locked(ACCOUNTLOCK_UNSPECIFIED)
-    , password_expire(PASSWORD_EXPIRE_UNSPECIFIED)
-    , num_expiration_days(0)
-  { }
+  Account_options() { }
 
   void reset()
   {

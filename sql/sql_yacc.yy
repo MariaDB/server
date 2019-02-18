@@ -8061,17 +8061,9 @@ opt_password_expiration:
           }
         | PASSWORD_SYM EXPIRE_SYM INTERVAL_SYM NUM DAY_SYM
           {
-            int error;
-            longlong interval= my_strtoll10($4.str, (char**) 0, &error);
-            if (!interval)
-            {
-              char num[MAX_BIGINT_WIDTH + 1];
-              my_snprintf(num, sizeof(num), "%lu", interval);
-              my_yyabort_error((ER_WRONG_VALUE, MYF(0), "DAY", num));
-            }
-
             Lex->account_options.password_expire= PASSWORD_EXPIRE_INTERVAL;
-            Lex->account_options.num_expiration_days= interval;
+            if (!(Lex->account_options.num_expiration_days= atoi($4.str)))
+              my_yyabort_error((ER_WRONG_VALUE, MYF(0), "DAY", $4.str));
           }
         ;
 
@@ -17300,25 +17292,21 @@ grant_user:
             $$= $1;
             $1->auth= new (thd->mem_root) USER_AUTH();
             $1->auth->pwtext= $4;
-            $1->is_changing_password= true;
           }
         | user IDENTIFIED_SYM BY PASSWORD_SYM TEXT_STRING
           { 
             $$= $1; 
             $1->auth= new (thd->mem_root) USER_AUTH();
             $1->auth->auth_str= $5;
-            $1->is_changing_password= true;
           }
         | user IDENTIFIED_SYM via_or_with auth_expression
           {
             $$= $1;
             $1->auth= $4;
-            $1->is_changing_password= false;
           }
         | user_or_role
           {
             $$= $1;
-            $1->is_changing_password= false;
           }
         ;
 

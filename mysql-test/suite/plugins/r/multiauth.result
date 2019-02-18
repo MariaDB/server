@@ -123,8 +123,7 @@ json_detailed(priv)
         {
         }
     ],
-    "password_last_changed": 0,
-    "password_lifetime": -1
+    "password_last_changed": #
 }
 select password,plugin,authentication_string from mysql.user where user='mysqltest1';
 Password	plugin	authentication_string

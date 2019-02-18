@@ -1517,7 +1517,7 @@ static Sys_var_ulong Sys_max_connections(
        DEFAULT(MAX_CONNECTIONS_DEFAULT), BLOCK_SIZE(1), NO_MUTEX_GUARD,
        NOT_IN_BINLOG, ON_CHECK(0), ON_UPDATE(fix_max_connections));
 
-static Sys_var_ulong Sys_default_password_lifetime(
+static Sys_var_uint Sys_default_password_lifetime(
        "default_password_lifetime",
        "This defines the global password expiration policy. 0 means "
        "automatic password expiration is disabled. If the value is a "
