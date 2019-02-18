@@ -241,7 +241,7 @@ void mysql_client_binlog_statement(THD* thd)
     goto end;
   }
 
-  decoded_len= my_base64_needed_decoded_length(coded_len);
+  decoded_len= my_base64_needed_decoded_length((int)coded_len);
   if (!(buf= (char *) my_malloc(decoded_len, MYF(MY_WME))))
   {
     my_error(ER_OUTOFMEMORY, MYF(ME_FATALERROR), 1);
