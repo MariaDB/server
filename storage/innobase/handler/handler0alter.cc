@@ -57,6 +57,8 @@ Smart ALTER TABLE
 #include "ha_innodb.h"
 #include "ut0stage.h"
 
+#include <tuple>
+
 static const char *MSG_UNSUPPORTED_ALTER_ONLINE_ON_VIRTUAL_COLUMN=
 			"INPLACE ADD or DROP of virtual columns cannot be "
 			"combined with other ALTER TABLE actions";
@@ -8982,10 +8984,11 @@ processed_field:
 }
 
 /** Convert field type and length to InnoDB format */
-static void get_type(const Field& f, ulint& prtype, ulint& mtype, ulint& len)
+static std::tuple<ulint, ulint, ulint> get_type(const Field& f)
 {
-	mtype = get_innobase_type_from_mysql_type(&prtype, &f);
-	len = f.pack_length();
+	ulint prtype = 0;
+	ulint mtype = get_innobase_type_from_mysql_type(&prtype, &f);
+	ulint len = f.pack_length();
 	prtype |= f.type();
 	if (f.type() == MYSQL_TYPE_VARCHAR) {
 		auto l = static_cast<const Field_varstring&>(f).length_bytes;
@@ -9008,6 +9011,7 @@ static void get_type(const Field& f, ulint& prtype, ulint& mtype, ulint& len)
 	if (dtype_is_string_type(mtype)) {
 		prtype |= ulint(f.charset()->number) << 16;
 	}
+	return {prtype, mtype, len};
 }
 
 /** Enlarge a column in the data dictionary tables.
@@ -9050,7 +9054,7 @@ innobase_rename_or_enlarge_column_try(
 	}
 
 	ulint prtype, mtype, len;
-	get_type(f, prtype, mtype, len);
+	std::tie(prtype, mtype, len) = get_type(f);
 	DBUG_ASSERT(!dtype_is_string_type(col->mtype)
 		    || col->mbminlen == cf.charset->mbminlen);
 	DBUG_ASSERT(col->len <= len);
@@ -9214,7 +9218,7 @@ innobase_rename_or_enlarge_columns_cache(
 				    == (is_string
 					? (*af)->charset()->mbminlen : 0));
 			ulint prtype, mtype, len;
-			get_type(**af, prtype, mtype, len);
+			std::tie(prtype, mtype, len) = get_type(**af);
 			DBUG_ASSERT(is_string == dtype_is_string_type(mtype));
 
 			col->prtype = prtype;
