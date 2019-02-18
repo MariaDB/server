@@ -4122,7 +4122,7 @@ innobase_check_foreigns(
 @param[in,out]	heap		Memory heap where allocated
 @param[out]	dfield		InnoDB data field to copy to
 @param[in]	field		MySQL value for the column
-@param[in]	old_field	Old field or NULL if new col is added	
+@param[in]	old_field	Old column if altering; NULL for ADD COLUMN
 @param[in]	comp		nonzero if in compact format. */
 static void innobase_build_col_map_add(
 	mem_heap_t*	heap,
@@ -4141,14 +4141,13 @@ static void innobase_build_col_map_add(
 		return;
 	}
 
-	ulint	size	= field->pack_length();
+	const Field& from = old_field ? *old_field : *field;
+	ulint	size	= from.pack_length();
 
 	byte*	buf	= static_cast<byte*>(mem_heap_alloc(heap, size));
 
-	const byte*	mysql_data = old_field ? old_field->ptr : field->ptr;
-
 	row_mysql_store_col_in_innobase_format(
-		dfield, buf, true, mysql_data, size, comp);
+		dfield, buf, true, from.ptr, size, comp);
 }
 
 /** Construct the translation table for reordering, dropping or
@@ -5547,6 +5546,11 @@ static bool innobase_instant_try(
 				    dict_table_get_col_name(user_table, i)));
 		DBUG_ASSERT(old || col->is_added());
 
+		ut_d(const Create_field* new_field = cf_it++);
+		/* new_field->field would point to an existing column.
+		If it is NULL, the column was added by this ALTER TABLE. */
+		ut_ad(!new_field->field == !old);
+
 		if (col->is_added()) {
 			dfield_set_data(d, col->def_val.data,
 					col->def_val.len);
@@ -5580,13 +5584,11 @@ static bool innobase_instant_try(
 						mem_heap_alloc(ctx->heap, len))
 					: NULL, true, (*af)->ptr, len,
 					dict_table_is_comp(user_table));
+				ut_ad(new_field->field->pack_length() == len
+				      || !user_table->not_redundant());
+
 			}
 		}
-
-		ut_d(const Create_field* new_field = cf_it++);
-		/* new_field->field would point to an existing column.
-		If it is NULL, the column was added by this ALTER TABLE. */
-		ut_ad(!new_field->field == !old);
 
 		bool update = old && (!ctx->first_alter_pos
 				      || i < ctx->first_alter_pos - 1);
