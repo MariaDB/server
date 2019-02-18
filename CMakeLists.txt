@@ -430,14 +430,10 @@ ENDIF()
 
 INCLUDE(cmake/abi_check.cmake)
 INCLUDE(cmake/tags.cmake)
-
-
-
-
 INCLUDE(for_clients)
 ADD_SUBDIRECTORY(scripts)
 ADD_SUBDIRECTORY(support-files)
-ADD_SUBDIRECTORY(aws_sdk)
+ADD_SUBDIRECTORY(extra/aws_sdk)
 
 IF(NOT CMAKE_CROSSCOMPILING)
   SET(EXPORTED comp_err comp_sql factorial)

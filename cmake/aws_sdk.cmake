@@ -35,7 +35,7 @@ FUNCTION (CHECK_AWS_SDK RETVAL REASON)
   IF (NOT(WIN32 OR APPLE  OR (CMAKE_SYSTEM_NAME MATCHES "Linux")))
     SKIP_AWS_SDK("OS unsupported by AWS SDK")
   ENDIF()
-  
+
   # Build from source, using ExternalProject_Add
   # AWS C++ SDK requires cmake 2.8.12
   IF(CMAKE_VERSION VERSION_LESS "2.8.12")
@@ -83,7 +83,7 @@ FUNCTION(USE_AWS_SDK_LIBS)
     TARGET_LINK_LIBRARIES(${target} aws-cpp-sdk-${comp})
   ENDFOREACH()
   TARGET_LINK_LIBRARIES(${target} aws-cpp-sdk-core)
-  TARGET_INCLUDE_DIRECTORIES(${target} PRIVATE ${PROJECT_BINARY_DIR}/aws_sdk/aws_sdk_cpp/include)
+  TARGET_INCLUDE_DIRECTORIES(${target} PRIVATE ${PROJECT_BINARY_DIR}/extra/aws_sdk/aws_sdk_cpp/include)
   # Link OS libraries that AWS SDK depends on
   IF(WIN32)
     TARGET_LINK_LIBRARIES(${target} bcrypt winhttp wininet userenv version)
