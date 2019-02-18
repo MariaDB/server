@@ -121,6 +121,7 @@ static bool best_extension_by_limited_search(JOIN *join,
                                              double read_time, uint depth,
                                              uint prune_level,
                                              uint use_cond_selectivity);
+void trace_plan_prefix(JOIN *join, uint idx, table_map remaining_tables);
 static uint determine_search_depth(JOIN* join);
 C_MODE_START
 static int join_tab_cmp(const void *dummy, const void* ptr1, const void* ptr2);
@@ -302,8 +303,6 @@ void set_postjoin_aggr_write_func(JOIN_TAB *tab);
 
 static Item **get_sargable_cond(JOIN *join, TABLE *table);
 
-static void trace_plan_prefix(JOIN *join, uint idx, table_map remaining_tables);
-
 #ifndef DBUG_OFF
 
 /*
@@ -359,16 +358,16 @@ static void trace_table_dependencies(THD *thd,
 {
   Json_writer_object trace_wrapper(thd);
   Json_writer_array trace_dep(thd, "table_dependencies");
-  for (uint i = 0; i < table_count; i++)
+  for (uint i= 0; i < table_count; i++)
   {
-    TABLE_LIST *table_ref = join_tabs[i].tab_list;
+    TABLE_LIST *table_ref= join_tabs[i].tab_list;
     Json_writer_object trace_one_table(thd);
     trace_one_table.add_table_name(&join_tabs[i]);
     trace_one_table.add("row_may_be_null",
                        (bool)table_ref->table->maybe_null);
-    const table_map map = table_ref->get_map();
+    const table_map map= table_ref->get_map();
     DBUG_ASSERT(map < (1ULL << table_count));
-    for (uint j = 0; j < table_count; j++)
+    for (uint j= 0; j < table_count; j++)
     {
       if (map & (1ULL << j))
       {
@@ -377,14 +376,10 @@ static void trace_table_dependencies(THD *thd,
       }
     }
     Json_writer_array depends_on(thd, "depends_on_map_bits");
-    static_assert(sizeof(table_ref->get_map()) <= 64,
-                  "RAND_TABLE_BIT may be in join_tabs[i].dependent, so we test "
-                  "all 64 bits.");
-    for (uint j = 0; j < 64; j++)
-    {
-      if (join_tabs[i].dependent & (1ULL << j))
-        depends_on.add(static_cast<longlong>(j));
-    }
+    Table_map_iterator it(join_tabs[i].dependent);
+    uint dep_bit;
+    while ((dep_bit= it++) != Table_map_iterator::BITMAP_END)
+       depends_on.add(static_cast<longlong>(dep_bit));
   }
 }
 
@@ -9045,13 +9040,13 @@ double table_cond_selectivity(JOIN *join, uint idx, JOIN_TAB *s,
 }
 
 
-static void trace_plan_prefix(JOIN *join, uint idx, table_map remaining_tables)
+void trace_plan_prefix(JOIN *join, uint idx, table_map remaining_tables)
 {
-  THD *const thd = join->thd;
+  THD *const thd= join->thd;
   Json_writer_array plan_prefix(thd, "plan_prefix");
-  for (uint i = 0; i < idx; i++)
+  for (uint i= 0; i < idx; i++)
   {
-    TABLE_LIST *const tr = join->positions[i].table->tab_list;
+    TABLE_LIST *const tr= join->positions[i].table->tab_list;
     if (!(tr->map & remaining_tables))
       plan_prefix.add_table_name(join->positions[i].table);
   }
@@ -9261,9 +9256,6 @@ best_extension_by_limited_search(JOIN      *join,
                         current_record_count / (double) TIME_FOR_COMPARE -
 	                filter_cmp_gain;
 
-      /*
-        TODO add filtering estimates here
-      */
       advance_sj_state(join, remaining_tables, idx, &current_record_count,
                        &current_read_time, &loose_scan_pos);
 
@@ -11070,12 +11062,6 @@ make_join_select(JOIN *join,SQL_SELECT *select,COND *cond)
             tab->table->intersect_keys.is_set(tab->ref.key))))
       {
         /* Range uses longer key;  Use this instead of ref on key */
-
-        /*
-          We can trace here, changing ref access to range access here
-          have a range that uses longer key.
-          Lets take @spetrunia's opinion
-        */
         Json_writer_object ref_to_range(thd);
         ref_to_range.add("ref_to_range", true);
         ref_to_range.add("cause", "range uses longer key");
@@ -16413,6 +16399,8 @@ void optimize_wo_join_buffering(JOIN *join, uint first_tab, uint last_tab,
   double cost, rec_count;
   table_map reopt_remaining_tables= last_remaining_tables;
   uint i;
+  THD *thd= join->thd;
+  Json_writer_temp_disable trace_wo_join_buffering(thd);
 
   if (first_tab > join->const_tables)
   {
@@ -16447,7 +16435,7 @@ void optimize_wo_join_buffering(JOIN *join, uint first_tab, uint last_tab,
   {
     JOIN_TAB *rs= join->positions[i].table;
     POSITION pos, loose_scan_pos;
-    
+
     if ((i == first_tab && first_alt) || join->positions[i].use_join_buffer)
     {
       /* Find the best access method that would not use join buffering */

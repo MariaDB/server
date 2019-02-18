@@ -456,6 +456,7 @@ void best_access_path(JOIN *join, JOIN_TAB *s,
                              table_map remaining_tables, uint idx, 
                              bool disable_jbuf, double record_count,
                              POSITION *pos, POSITION *loose_scan_pos);
+void trace_plan_prefix(JOIN *join, uint idx, table_map remaining_tables);
 
 static Item *create_subq_in_equalities(THD *thd, SJ_MATERIALIZATION_INFO *sjm, 
                                 Item_in_subselect *subq_pred);
@@ -697,9 +698,10 @@ int check_and_do_in_subquery_rewrites(JOIN *join)
         if (arena)
           thd->restore_active_arena(arena, &backup);
         in_subs->is_registered_semijoin= TRUE;
-        OPT_TRACE_TRANSFORM(thd, oto0, oto1, select_lex->select_number,
+        OPT_TRACE_TRANSFORM(thd, trace_wrapper, trace_transform,
+                            select_lex->select_number,
                             "IN (SELECT)", "semijoin");
-        oto1.add("chosen", true);
+        trace_transform.add("chosen", true);
       }
     }
     else
@@ -840,7 +842,7 @@ bool subquery_types_allow_materialization(THD* thd, Item_in_subselect *in_subs)
   in_subs->types_allow_materialization= FALSE;  // Assign default values
   in_subs->sjm_scan_allowed= FALSE;
 
-  OPT_TRACE_TRANSFORM(thd, oto0, oto1,
+  OPT_TRACE_TRANSFORM(thd, trace_wrapper, trace_transform,
                      in_subs->get_select_lex()->select_number,
                       "IN (SELECT)", "materialization");
   
@@ -856,8 +858,8 @@ bool subquery_types_allow_materialization(THD* thd, Item_in_subselect *in_subs)
     if (!inner->type_handler()->subquery_type_allows_materialization(inner,
                                                                      outer))
     {
-      oto1.add("possible", false);
-      oto1.add("cause", "types mismatch");
+      trace_transform.add("possible", false);
+      trace_transform.add("cause", "types mismatch");
       DBUG_RETURN(FALSE);
     }
   }
@@ -879,12 +881,12 @@ bool subquery_types_allow_materialization(THD* thd, Item_in_subselect *in_subs)
   {
     in_subs->types_allow_materialization= TRUE;
     in_subs->sjm_scan_allowed= all_are_fields;
-    oto1.add("sjm_scan_allowed", all_are_fields)
-        .add("possible", true);
+    trace_transform.add("sjm_scan_allowed", all_are_fields)
+                   .add("possible", true);
     DBUG_PRINT("info",("subquery_types_allow_materialization: ok, allowed"));
     DBUG_RETURN(TRUE);
   }
-  oto1.add("possible", false).add("cause", cause);
+  trace_transform.add("possible", false).add("cause", cause);
   DBUG_RETURN(FALSE);
 }
 
@@ -1236,29 +1238,30 @@ bool convert_join_subqueries_to_semijoins(JOIN *join)
     /* Stop processing if we've reached a subquery that's attached to the ON clause */
     if (in_subq->do_not_convert_to_sj)
     {
-      OPT_TRACE_TRANSFORM(thd, oto0, oto1,
+      OPT_TRACE_TRANSFORM(thd, trace_wrapper, trace_transform,
                           in_subq->get_select_lex()->select_number,
                           "IN (SELECT)", "semijoin");
-      oto1.add("converted_to_semi_join", false)
-          .add("cause", "subquery attached to the ON clause");
+      trace_transform.add("converted_to_semi_join", false)
+                     .add("cause", "subquery attached to the ON clause");
       break;
     }
 
     if (in_subq->is_flattenable_semijoin) 
     {
-      OPT_TRACE_TRANSFORM(thd, oto0, oto1,
+      OPT_TRACE_TRANSFORM(thd, trace_wrapper, trace_transform,
                           in_subq->get_select_lex()->select_number,
                           "IN (SELECT)", "semijoin");
       if (join->table_count + 
           in_subq->unit->first_select()->join->table_count >= MAX_TABLES)
       {
-        oto1.add("converted_to_semi_join", false);
-        oto1.add("cause", "table in parent join now exceeds MAX_TABLES");
+        trace_transform.add("converted_to_semi_join", false);
+        trace_transform.add("cause",
+                            "table in parent join now exceeds MAX_TABLES");
         break;
       }
       if (convert_subq_to_sj(join, in_subq))
         goto restore_arena_and_fail;
-      oto1.add("converted_to_semi_join", true);
+      trace_transform.add("converted_to_semi_join", true);
     }
     else
     {
@@ -2380,6 +2383,8 @@ bool optimize_semijoin_nests(JOIN *join, table_map all_table_map)
   THD *thd= join->thd;
   List_iterator<TABLE_LIST> sj_list_it(join->select_lex->sj_nests);
   TABLE_LIST *sj_nest;
+  if (!join->select_lex->sj_nests.elements)
+    DBUG_RETURN(FALSE);
   Json_writer_object wrapper(thd);
   Json_writer_object trace_semijoin_nest(thd,
                               "execution_plan_for_potential_materialization");
@@ -2939,6 +2944,7 @@ bool Sj_materialization_picker::check_qep(JOIN *join,
 {
   bool sjm_scan;
   SJ_MATERIALIZATION_INFO *mat_info;
+  THD *thd= join->thd;
   if ((mat_info= at_sjmat_pos(join, remaining_tables,
                               new_join_tab, idx, &sjm_scan)))
   {
@@ -3040,6 +3046,7 @@ bool Sj_materialization_picker::check_qep(JOIN *join,
     POSITION curpos, dummy;
     /* Need to re-run best-access-path as we prefix_rec_count has changed */
     bool disable_jbuf= (join->thd->variables.join_cache_level == 0);
+    Json_writer_temp_disable trace_semijoin_mat_scan(thd);
     for (i= first_tab + mat_info->tables; i <= idx; i++)
     {
       best_access_path(join, join->positions[i].table, rem_tables, i,
@@ -3590,6 +3597,12 @@ void fix_semijoin_strategies_for_picked_join_order(JOIN *join)
   table_map handled_tabs= 0;
   join->sjm_lookup_tables= 0;
   join->sjm_scan_tables= 0;
+  THD *thd= join->thd;
+  if (!join->select_lex->sj_nests.elements)
+    return;
+  Json_writer_object trace_wrapper(thd);
+  Json_writer_array trace_semijoin_strategies(thd,
+                                   "fix_semijoin_strategies_for_picked_join_order");
   for (tablenr= table_count - 1 ; tablenr != join->const_tables - 1; tablenr--)
   {
     POSITION *pos= join->best_positions + tablenr;
@@ -3614,8 +3627,18 @@ void fix_semijoin_strategies_for_picked_join_order(JOIN *join)
       first= tablenr - sjm->tables + 1;
       join->best_positions[first].n_sj_tables= sjm->tables;
       join->best_positions[first].sj_strategy= SJ_OPT_MATERIALIZE;
+      Json_writer_object semijoin_strategy(thd);
+      semijoin_strategy.add("semi_join_strategy","sj_materialize");
+      Json_writer_array semijoin_plan(thd, "join_order");
       for (uint i= first; i < first+ sjm->tables; i++)
+      {
+        if (unlikely(thd->trace_started()))
+        {
+          Json_writer_object trace_one_table(thd);
+          trace_one_table.add_table_name(join->best_positions[i].table);
+        }
         join->sjm_lookup_tables |= join->best_positions[i].table->table->map;
+      }
     }
     else if (pos->sj_strategy == SJ_OPT_MATERIALIZE_SCAN)
     {
@@ -3653,8 +3676,16 @@ void fix_semijoin_strategies_for_picked_join_order(JOIN *join)
 
       POSITION dummy;
       join->cur_sj_inner_tables= 0;
+      Json_writer_object semijoin_strategy(thd);
+      semijoin_strategy.add("semi_join_strategy","sj_materialize_scan");
+      Json_writer_array semijoin_plan(thd, "join_order");
       for (i= first + sjm->tables; i <= tablenr; i++)
       {
+        if (unlikely(thd->trace_started()))
+        {
+          Json_writer_object trace_one_table(thd);
+          trace_one_table.add_table_name(join->best_positions[i].table);
+        }
         best_access_path(join, join->best_positions[i].table, rem_tables, i, 
                          FALSE, prefix_rec_count,
                          join->best_positions + i, &dummy);
@@ -3683,8 +3714,16 @@ void fix_semijoin_strategies_for_picked_join_order(JOIN *join)
         join buffering
       */ 
       join->cur_sj_inner_tables= 0;
+      Json_writer_object semijoin_strategy(thd);
+      semijoin_strategy.add("semi_join_strategy","firstmatch");
+      Json_writer_array semijoin_plan(thd, "join_order");
       for (idx= first; idx <= tablenr; idx++)
       {
+        if (unlikely(thd->trace_started()))
+        {
+          Json_writer_object trace_one_table(thd);
+          trace_one_table.add_table_name(join->best_positions[idx].table);
+        }
         if (join->best_positions[idx].use_join_buffer)
         {
            best_access_path(join, join->best_positions[idx].table, 
@@ -3713,8 +3752,16 @@ void fix_semijoin_strategies_for_picked_join_order(JOIN *join)
         join buffering
       */ 
       join->cur_sj_inner_tables= 0;
+      Json_writer_object semijoin_strategy(thd);
+      semijoin_strategy.add("semi_join_strategy","sj_materialize");
+      Json_writer_array semijoin_plan(thd, "join_order");      
       for (idx= first; idx <= tablenr; idx++)
       {
+        if (unlikely(thd->trace_started()))
+        {
+          Json_writer_object trace_one_table(thd);
+          trace_one_table.add_table_name(join->best_positions[idx].table);
+        }
         if (join->best_positions[idx].use_join_buffer || (idx == first))
         {
            best_access_path(join, join->best_positions[idx].table,

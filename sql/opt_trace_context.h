@@ -19,14 +19,14 @@ public:
              ulong max_mem_size_arg);
   void end();
   void set_query(const char *query, size_t length, const CHARSET_INFO *charset);
-  void flush_optimizer_trace();
+  void delete_traces();
   void set_allowed_mem_size(size_t mem_size);
   size_t remaining_mem_size();
 
 private:
   Opt_trace_stmt* top_trace()
   {
-    return *(traces->front());
+    return *(traces.front());
   }
 
 public:
@@ -39,7 +39,7 @@ public:
 
   Opt_trace_stmt* get_top_trace()
   {
-    if (!traces || !traces->elements())
+    if (!traces.elements())
       return NULL;
     return top_trace();
   }
@@ -52,7 +52,7 @@ public:
 
   bool empty()
   {
-    return traces && (static_cast<uint>(traces->elements()) != 0);
+    return static_cast<uint>(traces.elements()) == 0;
   }
 
   bool is_started()
@@ -79,13 +79,8 @@ private:
   /*
     List of traces (currently it stores only 1 trace)
   */
-  Dynamic_array<Opt_trace_stmt*> *traces;
+  Dynamic_array<Opt_trace_stmt*> traces;
   Opt_trace_stmt *current_trace;
-  /*
-    TRUE: if we allocate memory for list of traces
-    FALSE: otherwise
-  */
-  bool inited;
   size_t max_mem_size;
 };
 

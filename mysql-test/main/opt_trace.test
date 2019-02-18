@@ -323,6 +323,7 @@ set optimizer_trace='enabled=off';
 --echo # MDEV-18528: Optimizer trace support for multi-table UPDATE and DELETE
 --echo #
 
+set optimizer_trace=1;
 create table ten(a int);
 insert into ten values (0),(1),(2),(3),(4),(5),(6),(7),(8),(9);
 create table t0 (a int, b int);
@@ -333,3 +334,43 @@ insert into t1 select * from t0;
 explain delete t0,t1 from t0, t1 where t0.a=t1.a and t1.a<3;
 select * from information_schema.optimizer_trace;
 drop table ten,t0,t1;
+set optimizer_trace='enabled=off';
+
+--echo #
+--echo # Merged to Materialized for derived tables
+--echo #
+
+set optimizer_trace=1;
+create table t1 (a int);
+insert into t1 values (1),(2),(3);
+explain select * from (select rand() from t1)q;
+select * from INFORMATION_SCHEMA.OPTIMIZER_TRACE;
+drop table t1;
+set optimizer_trace='enabled=off';
+
+--echo #
+--echo # Semi-join nest
+--echo #
+
+set optimizer_trace=1;
+create table t1 (a int);
+insert into t1 values (1),(2),(3);
+create table t2(a int);
+insert into t2 values (1),(2),(3),(1),(2),(3),(1),(2),(3);
+set @save_optimizer_switch= @@optimizer_switch;
+explain select * from t1 where a in (select t_inner_1.a from t1 t_inner_1, t1 t_inner_2);
+select * from INFORMATION_SCHEMA.OPTIMIZER_TRACE;
+
+--echo # with Firstmatch, mostly for tracing fix_semijoin_strategies_for_picked_join_order
+
+set optimizer_switch='materialization=off';
+explain select * from t1 t_outer_1,t2 t_outer_2  where t_outer_1.a in (select t_inner_1.a from t2 t_inner_2, t1 t_inner_1) and
+                                                 t_outer_2.a in (select t_inner_3.a from t2 t_inner_3, t1 t_inner_4);
+select * from INFORMATION_SCHEMA.OPTIMIZER_TRACE;
+set optimizer_switch='materialization=on';
+explain select * from t1 t_outer_1,t2 t_outer_2  where t_outer_1.a in (select t_inner_1.a from t2 t_inner_2, t1 t_inner_1) and
+                                                 t_outer_2.a in (select t_inner_3.a from t2 t_inner_3, t1 t_inner_4);
+select * from INFORMATION_SCHEMA.OPTIMIZER_TRACE;
+set @@optimizer_switch= @save_optimizer_switch;
+drop table t1,t2;
+set optimizer_trace='enabled=off';

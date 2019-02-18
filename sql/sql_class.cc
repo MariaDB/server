@@ -1411,7 +1411,7 @@ void THD::change_user(void)
   sp_cache_clear(&sp_func_cache);
   sp_cache_clear(&sp_package_spec_cache);
   sp_cache_clear(&sp_package_body_cache);
-  opt_trace.flush_optimizer_trace();
+  opt_trace.delete_traces();
 }
 
 /**

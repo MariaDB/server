@@ -525,7 +525,7 @@ eliminate_tables_for_list(JOIN *join,
                           table_map tables_in_list,
                           Item *on_expr,
                           table_map tables_used_elsewhere,
-                          Json_writer_array* eliminate_tables);
+                          Json_writer_array* trace_eliminate_tables);
 static
 bool check_func_dependency(JOIN *join, 
                            table_map dep_tables,
@@ -545,7 +545,7 @@ Dep_module_expr *merge_eq_mods(Dep_module_expr *start,
                                  Dep_module_expr *new_fields, 
                                  Dep_module_expr *end, uint and_level);
 static void mark_as_eliminated(JOIN *join, TABLE_LIST *tbl,
-                               Json_writer_array* eliminate_tables);
+                               Json_writer_array* trace_eliminate_tables);
 static 
 void add_module_expr(Dep_analysis_context *dac, Dep_module_expr **eq_mod,
                      uint and_level, Dep_value_field *field_val, Item *right,
@@ -671,12 +671,12 @@ void eliminate_tables(JOIN *join)
   }
 
   table_map all_tables= join->all_tables_map();
-  Json_writer_array eliminated_tables(thd,"eliminated_tables");
+  Json_writer_array trace_eliminated_tables(thd,"eliminated_tables");
   if (all_tables & ~used_tables)
   {
     /* There are some tables that we probably could eliminate. Try it. */
     eliminate_tables_for_list(join, join->join_list, all_tables, NULL,
-                              used_tables, &eliminated_tables);
+                              used_tables, &trace_eliminated_tables);
   }
   DBUG_VOID_RETURN;
 }
@@ -720,7 +720,7 @@ static bool
 eliminate_tables_for_list(JOIN *join, List<TABLE_LIST> *join_list,
                           table_map list_tables, Item *on_expr,
                           table_map tables_used_elsewhere,
-                          Json_writer_array *eliminate_tables)
+                          Json_writer_array *trace_eliminate_tables)
 {
   TABLE_LIST *tbl;
   List_iterator<TABLE_LIST> it(*join_list);
@@ -742,9 +742,10 @@ eliminate_tables_for_list(JOIN *join, List<TABLE_LIST> *join_list,
                                       &tbl->nested_join->join_list, 
                                       tbl->nested_join->used_tables, 
                                       tbl->on_expr,
-                                      outside_used_tables, eliminate_tables))
+                                      outside_used_tables,
+                                      trace_eliminate_tables))
         {
-          mark_as_eliminated(join, tbl, eliminate_tables);
+          mark_as_eliminated(join, tbl, trace_eliminate_tables);
         }
         else
           all_eliminated= FALSE;
@@ -756,7 +757,7 @@ eliminate_tables_for_list(JOIN *join, List<TABLE_LIST> *join_list,
             check_func_dependency(join, tbl->table->map, NULL, tbl, 
                                   tbl->on_expr))
         {
-          mark_as_eliminated(join, tbl, eliminate_tables);
+          mark_as_eliminated(join, tbl, trace_eliminate_tables);
         }
         else
           all_eliminated= FALSE;
@@ -1797,7 +1798,7 @@ Dep_module* Dep_value_field::get_next_unbound_module(Dep_analysis_context *dac,
 */
 
 static void mark_as_eliminated(JOIN *join, TABLE_LIST *tbl,
-                               Json_writer_array* eliminate_tables)
+                               Json_writer_array* trace_eliminate_tables)
 {
   TABLE *table;
   /*
@@ -1810,7 +1811,7 @@ static void mark_as_eliminated(JOIN *join, TABLE_LIST *tbl,
     TABLE_LIST *child;
     List_iterator<TABLE_LIST> it(tbl->nested_join->join_list);
     while ((child= it++))
-      mark_as_eliminated(join, child, eliminate_tables);
+      mark_as_eliminated(join, child, trace_eliminate_tables);
   }
   else if ((table= tbl->table))
   {
@@ -1821,7 +1822,7 @@ static void mark_as_eliminated(JOIN *join, TABLE_LIST *tbl,
       tab->type= JT_CONST;
       tab->table->const_table= 1;
       join->eliminated_tables |= table->map;
-      eliminate_tables->add(table->alias.c_ptr_safe());
+      trace_eliminate_tables->add(table->alias.c_ptr_safe());
       join->const_table_map|= table->map;
       set_position(join, join->const_tables++, tab, (KEYUSE*)0);
     }

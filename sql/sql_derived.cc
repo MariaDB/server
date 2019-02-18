@@ -34,6 +34,7 @@
 #include "sql_class.h"
 #include "sql_cte.h"
 #include "my_json_writer.h"
+#include "opt_trace.h"
 
 typedef bool (*dt_processor)(THD *thd, LEX *lex, TABLE_LIST *derived);
 
@@ -384,6 +385,15 @@ bool mysql_derived_merge(THD *thd, LEX *lex, TABLE_LIST *derived)
   {
     /* There is random function => fall back to materialization. */
     cause= "Random function in the select";
+    if (unlikely(thd->trace_started()))
+    {
+      OPT_TRACE_VIEWS_TRANSFORM(thd, trace_wrapper, trace_derived,
+                          derived->is_derived() ? "derived" : "view",
+                          derived->alias.str ? derived->alias.str : "<NULL>",
+                          derived->get_unit()->first_select()->select_number,
+                          "materialized");
+      trace_derived.add("cause", cause);
+    }
     derived->change_refs_to_fields();
     derived->set_materialized_derived();
     DBUG_RETURN(FALSE);
@@ -497,19 +507,12 @@ unconditional_materialization:
 
   if (unlikely(thd->trace_started()))
   {
-    /*
-     Add to the optimizer trace the change in choice for merged
-     derived tables/views to materialised ones.
-    */
-    Json_writer_object trace_wrapper(thd);
-    Json_writer_object trace_derived(thd, derived->is_derived() ?
-                                       "derived" : "view");
-    trace_derived.add("table", derived->alias.str ? derived->alias.str : "<NULL>")
-                 .add_select_number(derived->get_unit()->
-                                    first_select()->select_number)
-                 .add("initial_choice", "merged")
-                 .add("final_choice", "materialized")
-                 .add("cause", cause);
+    OPT_TRACE_VIEWS_TRANSFORM(thd,trace_wrapper, trace_derived,
+                        derived->is_derived() ? "derived" : "view",
+                        derived->alias.str ? derived->alias.str : "<NULL>",
+                        derived->get_unit()->first_select()->select_number,
+                        "materialized");
+    trace_derived.add("cause", cause);
   }
 
   derived->change_refs_to_fields();
@@ -778,15 +781,11 @@ bool mysql_derived_prepare(THD *thd, LEX *lex, TABLE_LIST *derived)
       Add to optimizer trace whether a derived table/view
       is merged into the parent select or not.
     */
-    Json_writer_object trace_wrapper(thd);
-    Json_writer_object trace_derived(thd, derived->is_derived() ?
-                                       "derived" : "view");
-    trace_derived.add("table", derived->alias.str ? derived->alias.str : "<NULL>")
-            .add_select_number(derived->get_unit()->first_select()->select_number);
-    if (derived->is_materialized_derived())
-      trace_derived.add("materialized", true);
-    if (derived->is_merged_derived())
-      trace_derived.add("merged", true);
+    OPT_TRACE_VIEWS_TRANSFORM(thd, trace_wrapper, trace_derived,
+                    derived->is_derived() ? "derived" : "view",
+                    derived->alias.str ? derived->alias.str : "<NULL>",
+                    derived->get_unit()->first_select()->select_number,
+                    derived->is_merged_derived() ? "merged" : "materialized");
   }
   /*
     Above cascade call of prepare is important for PS protocol, but after it
