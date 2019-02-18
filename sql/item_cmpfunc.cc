@@ -5222,6 +5222,22 @@ bool Item_cond::excl_dep_on_grouping_fields(st_select_lex *sel)
 }
 
 
+bool
+Item_cond::excl_dep_on_group_fields_for_having_pushdown(st_select_lex *sel)
+{
+  if (has_rand_bit())
+    return false;
+  List_iterator_fast<Item> li(list);
+  Item *item;
+  while ((item= li++))
+  {
+    if (!item->excl_dep_on_group_fields_for_having_pushdown(sel))
+      return false;
+  }
+  return true;
+}
+
+
 void Item_cond_and::mark_as_condition_AND_part(TABLE_LIST *embedding)
 {
   List_iterator<Item> li(list);
