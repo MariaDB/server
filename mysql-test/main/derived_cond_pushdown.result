@@ -136,7 +136,7 @@ EXPLAIN
         "attached_condition": "v1.max_c > 214"
       },
       "buffer_type": "flat",
-      "buffer_size": "256Kb",
+      "buffer_size": "238",
       "join_type": "BNL",
       "attached_condition": "t2.a > v1.a",
       "materialized": {
@@ -291,7 +291,7 @@ EXPLAIN
         "attached_condition": "v1.max_c > 400 or v1.max_c < 135"
       },
       "buffer_type": "flat",
-      "buffer_size": "256Kb",
+      "buffer_size": "238",
       "join_type": "BNL",
       "attached_condition": "v1.max_c > 400 and t2.a > v1.a or v1.max_c < 135 and t2.a < v1.a",
       "materialized": {
@@ -359,7 +359,7 @@ EXPLAIN
         "attached_condition": "v1.max_c > 300 or v1.max_c < 135"
       },
       "buffer_type": "flat",
-      "buffer_size": "256Kb",
+      "buffer_size": "238",
       "join_type": "BNL",
       "attached_condition": "v1.b = t2.b and v1.max_c > 300 and v1.avg_c > t2.d or v1.a = t2.a and v1.max_c < 135 and v1.max_c < t2.c",
       "materialized": {
@@ -416,7 +416,7 @@ EXPLAIN
         "attached_condition": "v1.a > 6"
       },
       "buffer_type": "flat",
-      "buffer_size": "256Kb",
+      "buffer_size": "238",
       "join_type": "BNL",
       "attached_condition": "t2.b > v1.b",
       "materialized": {
@@ -483,7 +483,7 @@ EXPLAIN
         "attached_condition": "v2.b > 25"
       },
       "buffer_type": "flat",
-      "buffer_size": "256Kb",
+      "buffer_size": "238",
       "join_type": "BNL",
       "attached_condition": "t2.a < v2.a",
       "materialized": {
@@ -571,7 +571,7 @@ EXPLAIN
         "attached_condition": "v1.a > 7 or v1.a < 2"
       },
       "buffer_type": "flat",
-      "buffer_size": "256Kb",
+      "buffer_size": "238",
       "join_type": "BNL",
       "attached_condition": "v1.a > 7 and t2.c < v1.max_c or v1.a < 2 and t2.b < v1.b",
       "materialized": {
@@ -652,7 +652,7 @@ EXPLAIN
         "attached_condition": "v2.a > 7 or v2.a > 5"
       },
       "buffer_type": "flat",
-      "buffer_size": "256Kb",
+      "buffer_size": "238",
       "join_type": "BNL",
       "attached_condition": "v2.a > 7 and t2.c < v2.max_c or v2.a > 5 and t2.b < v2.b",
       "materialized": {
@@ -719,7 +719,7 @@ EXPLAIN
         "attached_condition": "v1.a > 4 or v1.a < 2"
       },
       "buffer_type": "flat",
-      "buffer_size": "256Kb",
+      "buffer_size": "238",
       "join_type": "BNL",
       "attached_condition": "v1.a > 4 and v1.b > t2.b and v1.max_c = t2.d or v1.a < 2 and v1.max_c < t2.c and v1.max_c = t2.d",
       "materialized": {
@@ -779,7 +779,7 @@ EXPLAIN
         "attached_condition": "v1.a < 2 and v1.max_c > 400"
       },
       "buffer_type": "flat",
-      "buffer_size": "256Kb",
+      "buffer_size": "238",
       "join_type": "BNL",
       "attached_condition": "t2.b > v1.b",
       "materialized": {
@@ -991,7 +991,7 @@ EXPLAIN
         "attached_condition": "v1.a > 7 and v1.max_c > 300 or v1.a < 4 and v1.max_c < 500"
       },
       "buffer_type": "flat",
-      "buffer_size": "256Kb",
+      "buffer_size": "238",
       "join_type": "BNL",
       "attached_condition": "v1.a > 7 and v1.max_c > 300 and t2.c < v1.max_c or v1.a < 4 and v1.max_c < 500 and t2.b < v1.b",
       "materialized": {
@@ -1080,7 +1080,7 @@ EXPLAIN
         "attached_condition": "v1.a < 2 and v1.max_c > 120 or v1.a > 7"
       },
       "buffer_type": "flat",
-      "buffer_size": "256Kb",
+      "buffer_size": "238",
       "join_type": "BNL",
       "attached_condition": "v1.a < 2 and v1.max_c > 120 or v1.a > 7",
       "materialized": {
@@ -1158,7 +1158,7 @@ EXPLAIN
         "attached_condition": "v1.a < 2 and v1.max_c > 120 or v1.a > 7"
       },
       "buffer_type": "flat",
-      "buffer_size": "256Kb",
+      "buffer_size": "238",
       "join_type": "BNL",
       "attached_condition": "v1.b = t2.b and v1.a < 2 and v1.max_c > 120 or v1.a > 7",
       "materialized": {
@@ -1225,7 +1225,7 @@ EXPLAIN
         "attached_condition": "v1.a < 2 and v1.max_c < 200 or v1.a > 4"
       },
       "buffer_type": "flat",
-      "buffer_size": "256Kb",
+      "buffer_size": "238",
       "join_type": "BNL",
       "attached_condition": "v1.a < 2 and v1.max_c < 200 and t2.c > v1.max_c and v1.max_c = t2.d or v1.max_c = t2.c and v1.a > 4 and t2.c < 500 and t2.b < v1.b",
       "materialized": {
@@ -1302,7 +1302,7 @@ EXPLAIN
         "attached_condition": "v1.max_c > 400 or v1.max_c < 135"
       },
       "buffer_type": "flat",
-      "buffer_size": "256Kb",
+      "buffer_size": "238",
       "join_type": "BNL",
       "attached_condition": "v1.max_c > 400 and t2.a > v1.a or v1.max_c < 135 and t2.a < v1.a",
       "materialized": {
@@ -1345,7 +1345,7 @@ EXPLAIN
         "attached_condition": "v1.max_c > 400 or v1.max_c < 135"
       },
       "buffer_type": "flat",
-      "buffer_size": "256Kb",
+      "buffer_size": "238",
       "join_type": "BNL",
       "attached_condition": "v1.max_c > 400 and t2.a > v1.a or v1.max_c < 135 and t2.a < v1.a",
       "materialized": {
@@ -1684,7 +1684,7 @@ EXPLAIN
         "attached_condition": "v1.a = 3 and v1.b = 3"
       },
       "buffer_type": "flat",
-      "buffer_size": "256Kb",
+      "buffer_size": "238",
       "join_type": "BNL",
       "materialized": {
         "query_block": {
@@ -1734,7 +1734,7 @@ EXPLAIN
         "attached_condition": "v1.a = 1 and v1.b = 21"
       },
       "buffer_type": "flat",
-      "buffer_size": "256Kb",
+      "buffer_size": "238",
       "join_type": "BNL",
       "materialized": {
         "query_block": {
@@ -1807,7 +1807,7 @@ EXPLAIN
         "filtered": 100
       },
       "buffer_type": "flat",
-      "buffer_size": "256Kb",
+      "buffer_size": "220",
       "join_type": "BNL",
       "attached_condition": "t.b = v.b or v.max_c > 20"
     }
@@ -1931,7 +1931,7 @@ EXPLAIN
         "filtered": 100
       },
       "buffer_type": "flat",
-      "buffer_size": "256Kb",
+      "buffer_size": "238",
       "join_type": "BNL",
       "attached_condition": "v1.a = t2.a and t2.a < 4 or v1.max_c = t2.c and t2.c > 150",
       "materialized": {
@@ -2061,7 +2061,7 @@ EXPLAIN
         "attached_condition": "v1.a = 8 and v1.max_c = 404"
       },
       "buffer_type": "flat",
-      "buffer_size": "256Kb",
+      "buffer_size": "238",
       "join_type": "BNL",
       "materialized": {
         "query_block": {
@@ -2359,7 +2359,7 @@ EXPLAIN
         "filtered": 100
       },
       "buffer_type": "flat",
-      "buffer_size": "256Kb",
+      "buffer_size": "162",
       "join_type": "BNL"
     }
   }
@@ -2471,7 +2471,7 @@ EXPLAIN
         "filtered": 100
       },
       "buffer_type": "flat",
-      "buffer_size": "256Kb",
+      "buffer_size": "238",
       "join_type": "BNL",
       "materialized": {
         "query_block": {
@@ -2598,7 +2598,7 @@ EXPLAIN
         "filtered": 100
       },
       "buffer_type": "flat",
-      "buffer_size": "256Kb",
+      "buffer_size": "238",
       "join_type": "BNL",
       "attached_condition": "v1.a = t2.a or v1.b = t2.b and (v1.a = 1 or v1.a = 6)",
       "materialized": {
@@ -2693,7 +2693,7 @@ EXPLAIN
         "filtered": 100
       },
       "buffer_type": "flat",
-      "buffer_size": "256Kb",
+      "buffer_size": "238",
       "join_type": "BNL",
       "attached_condition": "v1.a = 1 or v1.b = 21 or t2.a = 2",
       "materialized": {
@@ -2761,7 +2761,7 @@ EXPLAIN
         "filtered": 100
       },
       "buffer_type": "flat",
-      "buffer_size": "256Kb",
+      "buffer_size": "238",
       "join_type": "BNL",
       "attached_condition": "v1.a < t2.a or t2.a < 11",
       "materialized": {
@@ -2943,7 +2943,7 @@ EXPLAIN
         "filtered": 100
       },
       "buffer_type": "flat",
-      "buffer_size": "256Kb",
+      "buffer_size": "238",
       "join_type": "BNL",
       "attached_condition": "v1.b is not null",
       "materialized": {
@@ -3038,7 +3038,7 @@ EXPLAIN
         "filtered": 100
       },
       "buffer_type": "flat",
-      "buffer_size": "256Kb",
+      "buffer_size": "238",
       "join_type": "BNL",
       "attached_condition": "v1.a = t2.a or t2.c < 115",
       "materialized": {
@@ -3067,7 +3067,7 @@ EXPLAIN
         "filtered": 100
       },
       "buffer_type": "incremental",
-      "buffer_size": "256Kb",
+      "buffer_size": "4Kb",
       "join_type": "BNL",
       "attached_condition": "v1.a = t2.a and v2.a = t2.a or v2.b > 13 and t2.c < 115",
       "materialized": {
@@ -3138,7 +3138,7 @@ EXPLAIN
         "attached_condition": "v1.max_c < 300"
       },
       "buffer_type": "flat",
-      "buffer_size": "256Kb",
+      "buffer_size": "238",
       "join_type": "BNL",
       "materialized": {
         "query_block": {
@@ -3167,7 +3167,7 @@ EXPLAIN
         "attached_condition": "v2.b < 50 or v2.b = 19"
       },
       "buffer_type": "incremental",
-      "buffer_size": "256Kb",
+      "buffer_size": "4Kb",
       "join_type": "BNL",
       "attached_condition": "(v2.a = v1.a or v1.a = t2.a) and (v2.b < 50 or v2.b = 19)",
       "materialized": {
@@ -3317,7 +3317,7 @@ EXPLAIN
         "attached_condition": "v1.a = 1 and v1.b > 10"
       },
       "buffer_type": "flat",
-      "buffer_size": "256Kb",
+      "buffer_size": "238",
       "join_type": "BNL",
       "attached_condition": "v1.b is not null",
       "materialized": {
@@ -3435,7 +3435,7 @@ EXPLAIN
         "attached_condition": "t.a = 'b'"
       },
       "buffer_type": "flat",
-      "buffer_size": "256Kb",
+      "buffer_size": "220",
       "join_type": "BNL"
     }
   }
@@ -3544,7 +3544,7 @@ EXPLAIN
         "attached_condition": "v2.max_c > 300"
       },
       "buffer_type": "flat",
-      "buffer_size": "256Kb",
+      "buffer_size": "715",
       "join_type": "BNL",
       "materialized": {
         "query_block": {
@@ -3574,7 +3574,7 @@ EXPLAIN
         "attached_condition": "v1.max_c < 500"
       },
       "buffer_type": "incremental",
-      "buffer_size": "256Kb",
+      "buffer_size": "9Kb",
       "join_type": "BNL",
       "attached_condition": "v1.a = v2.a or v1.a = t2.a",
       "materialized": {
@@ -3790,7 +3790,7 @@ EXPLAIN
         "attached_condition": "v1.avg_c < 400 or v1.a > 1"
       },
       "buffer_type": "flat",
-      "buffer_size": "256Kb",
+      "buffer_size": "238",
       "join_type": "BNL",
       "attached_condition": "(v1.avg_c < 400 or v1.a > 1) and v1.a is not null and v1.b is not null",
       "materialized": {
@@ -3935,7 +3935,7 @@ EXPLAIN
         "attached_condition": "(v1.a = 1 or v1.max_c < 300) and v1.b > 25"
       },
       "buffer_type": "flat",
-      "buffer_size": "256Kb",
+      "buffer_size": "238",
       "join_type": "BNL",
       "attached_condition": "v1.a = 1 or v1.max_c < 300",
       "materialized": {
@@ -4128,7 +4128,7 @@ EXPLAIN
                 "attached_condition": "v1.max_c > 100 and v1.a > 7"
               },
               "buffer_type": "flat",
-              "buffer_size": "256Kb",
+              "buffer_size": "238",
               "join_type": "BNL",
               "materialized": {
                 "query_block": {
@@ -4229,7 +4229,7 @@ EXPLAIN
                 "attached_condition": "v1.b = 19 and v1.a < 5"
               },
               "buffer_type": "flat",
-              "buffer_size": "256Kb",
+              "buffer_size": "238",
               "join_type": "BNL",
               "materialized": {
                 "query_block": {
@@ -4271,7 +4271,7 @@ EXPLAIN
                 "attached_condition": "v1.max_c > 400 or v1.avg_c > 270"
               },
               "buffer_type": "flat",
-              "buffer_size": "256Kb",
+              "buffer_size": "238",
               "join_type": "BNL",
               "attached_condition": "(v1.max_c > 400 or v1.avg_c > 270) and v1.a < t2.a",
               "materialized": {
@@ -4383,7 +4383,7 @@ EXPLAIN
                 "attached_condition": "v1.a = 1 or v1.a = 6"
               },
               "buffer_type": "flat",
-              "buffer_size": "256Kb",
+              "buffer_size": "238",
               "join_type": "BNL",
               "attached_condition": "(v1.a = t2.a or v1.b = t2.b) and (v1.a = 1 or v1.a = 6)",
               "materialized": {
@@ -4426,7 +4426,7 @@ EXPLAIN
                 "attached_condition": "v1.a > 3 and v1.b > 27 or v1.max_c > 550"
               },
               "buffer_type": "flat",
-              "buffer_size": "256Kb",
+              "buffer_size": "238",
               "join_type": "BNL",
               "attached_condition": "v1.a > 3 and v1.b > 27 or v1.max_c > 550",
               "materialized": {
@@ -4540,7 +4540,7 @@ EXPLAIN
                 "attached_condition": "v1.a = 1 and (v1.max_c < 500 or v1.avg_c > 500)"
               },
               "buffer_type": "flat",
-              "buffer_size": "256Kb",
+              "buffer_size": "238",
               "join_type": "BNL",
               "attached_condition": "v1.max_c < 500 or v1.avg_c > 500",
               "materialized": {
@@ -4584,7 +4584,7 @@ EXPLAIN
                 "attached_condition": "v2.b > 10"
               },
               "buffer_type": "flat",
-              "buffer_size": "256Kb",
+              "buffer_size": "238",
               "join_type": "BNL",
               "attached_condition": "v2.a < t2.b or v2.max_c > 200",
               "materialized": {
@@ -4706,7 +4706,7 @@ EXPLAIN
         "attached_condition": "v_union.a < 3 and v_union.c > 100"
       },
       "buffer_type": "flat",
-      "buffer_size": "256Kb",
+      "buffer_size": "238",
       "join_type": "BNL",
       "materialized": {
         "query_block": {
@@ -4814,7 +4814,7 @@ EXPLAIN
         "attached_condition": "(v_union.a < 2 or v_union.c > 800) and v_union.b > 12"
       },
       "buffer_type": "flat",
-      "buffer_size": "256Kb",
+      "buffer_size": "238",
       "join_type": "BNL",
       "attached_condition": "v_union.a < 2 or v_union.c > 800",
       "materialized": {
@@ -4911,7 +4911,7 @@ EXPLAIN
         "attached_condition": "v_union.a = 1 and v_union.c < 200"
       },
       "buffer_type": "flat",
-      "buffer_size": "256Kb",
+      "buffer_size": "238",
       "join_type": "BNL",
       "materialized": {
         "query_block": {
@@ -5078,7 +5078,7 @@ EXPLAIN
         "attached_condition": "v1.a = 1"
       },
       "buffer_type": "flat",
-      "buffer_size": "256Kb",
+      "buffer_size": "238",
       "join_type": "BNL",
       "materialized": {
         "query_block": {
@@ -5108,7 +5108,7 @@ EXPLAIN
         "attached_condition": "v_union.a = 1"
       },
       "buffer_type": "incremental",
-      "buffer_size": "256Kb",
+      "buffer_size": "4Kb",
       "join_type": "BNL",
       "attached_condition": "v_union.c > 800 or v1.max_c > 200",
       "materialized": {
@@ -5923,7 +5923,7 @@ EXPLAIN
         "attached_condition": "v1.a > 5 and v1.b > 12"
       },
       "buffer_type": "flat",
-      "buffer_size": "256Kb",
+      "buffer_size": "333",
       "join_type": "BNL",
       "materialized": {
         "query_block": {
@@ -6306,7 +6306,7 @@ EXPLAIN
         "attached_condition": "v4.b > 10 and v4.a > 1 or v4.b < 20"
       },
       "buffer_type": "flat",
-      "buffer_size": "256Kb",
+      "buffer_size": "238",
       "join_type": "BNL",
       "attached_condition": "(v4.b > 10 and v4.a > 1 or v4.b < 20) and v4.a is not null",
       "materialized": {
@@ -6451,7 +6451,7 @@ EXPLAIN
         "filtered": 100
       },
       "buffer_type": "flat",
-      "buffer_size": "256Kb",
+      "buffer_size": "333",
       "join_type": "BNL",
       "materialized": {
         "query_block": {
@@ -6971,7 +6971,7 @@ EXPLAIN
         "filtered": 100
       },
       "buffer_type": "flat",
-      "buffer_size": "256Kb",
+      "buffer_size": "715",
       "join_type": "BNL",
       "materialized": {
         "query_block": {
@@ -7766,7 +7766,7 @@ EXPLAIN
         "attached_condition": "v2.pk > 2"
       },
       "buffer_type": "flat",
-      "buffer_size": "256Kb",
+      "buffer_size": "119",
       "join_type": "BNL",
       "materialized": {
         "query_block": {
@@ -8763,7 +8763,7 @@ EXPLAIN
         "attached_condition": "v2.i2 = 1"
       },
       "buffer_type": "flat",
-      "buffer_size": "256Kb",
+      "buffer_size": "65",
       "join_type": "BNL",
       "materialized": {
         "query_block": {
@@ -8879,7 +8879,7 @@ EXPLAIN
         "filtered": 100
       },
       "buffer_type": "flat",
-      "buffer_size": "256Kb",
+      "buffer_size": "163",
       "join_type": "BNL",
       "attached_condition": "t1.id2 = vc.id2"
     }
@@ -8952,7 +8952,7 @@ EXPLAIN
         "attached_condition": "v1.a = 1 and v1.b = 1 and v1.max_c > 30"
       },
       "buffer_type": "flat",
-      "buffer_size": "256Kb",
+      "buffer_size": "173",
       "join_type": "BNL",
       "materialized": {
         "query_block": {
@@ -9027,7 +9027,7 @@ EXPLAIN
         "attached_condition": "v1.a = 1 and v1.b = 1 and v1.d = 1 and v1.max_c > 30"
       },
       "buffer_type": "flat",
-      "buffer_size": "256Kb",
+      "buffer_size": "173",
       "join_type": "BNL",
       "materialized": {
         "query_block": {
@@ -9758,7 +9758,7 @@ EXPLAIN
         "filtered": 100
       },
       "buffer_type": "flat",
-      "buffer_size": "256Kb",
+      "buffer_size": "65",
       "join_type": "BNL",
       "attached_condition": "t1.a = dt1.a"
     }
@@ -9817,7 +9817,7 @@ EXPLAIN
         "filtered": 100
       },
       "buffer_type": "flat",
-      "buffer_size": "256Kb",
+      "buffer_size": "119",
       "join_type": "BNL",
       "attached_condition": "t1.a = dt.a"
     }
@@ -10313,7 +10313,7 @@ EXPLAIN
               "attached_condition": "t1.f is not null"
             },
             "buffer_type": "flat",
-            "buffer_size": "256Kb",
+            "buffer_size": "64",
             "join_type": "BNL"
           }
         }
@@ -10488,7 +10488,7 @@ EXPLAIN
         "filtered": 100
       },
       "buffer_type": "flat",
-      "buffer_size": "256Kb",
+      "buffer_size": "65",
       "join_type": "BNL",
       "attached_condition": "t1.f2 = t.f2"
     }
@@ -10647,7 +10647,7 @@ EXPLAIN
         "attached_condition": "v1.a = 8"
       },
       "buffer_type": "flat",
-      "buffer_size": "256Kb",
+      "buffer_size": "173",
       "join_type": "BNL",
       "materialized": {
         "query_block": {
@@ -10735,7 +10735,7 @@ EXPLAIN
         "attached_condition": "v1.a = 8"
       },
       "buffer_type": "flat",
-      "buffer_size": "256Kb",
+      "buffer_size": "173",
       "join_type": "BNL",
       "materialized": {
         "query_block": {
@@ -11225,7 +11225,7 @@ EXPLAIN
         "attached_condition": "v1.a > 3 or v1.a = 1 and v1.c < 110"
       },
       "buffer_type": "flat",
-      "buffer_size": "256Kb",
+      "buffer_size": "173",
       "join_type": "BNL",
       "attached_condition": "v1.c = t2.c and v1.a > 3 and t2.c > 110 or v1.a = 1 and v1.c < 110",
       "materialized": {
@@ -11566,7 +11566,7 @@ EXPLAIN
         "attached_condition": "v1.a = 6"
       },
       "buffer_type": "flat",
-      "buffer_size": "256Kb",
+      "buffer_size": "173",
       "join_type": "BNL",
       "materialized": {
         "query_block": {
@@ -11656,7 +11656,7 @@ EXPLAIN
         "attached_condition": "v1.a = 6"
       },
       "buffer_type": "flat",
-      "buffer_size": "256Kb",
+      "buffer_size": "173",
       "join_type": "BNL",
       "materialized": {
         "query_block": {
@@ -12150,7 +12150,7 @@ EXPLAIN
         "attached_condition": "v1.a > 1 or v1.a = 1 and v1.c > 500"
       },
       "buffer_type": "flat",
-      "buffer_size": "256Kb",
+      "buffer_size": "173",
       "join_type": "BNL",
       "attached_condition": "v1.c = t2.c and v1.a > 1 and t2.c < 500 or v1.a = 1 and v1.c > 500",
       "materialized": {
@@ -14010,7 +14010,7 @@ EXPLAIN
         "filtered": 100
       },
       "buffer_type": "flat",
-      "buffer_size": "256Kb",
+      "buffer_size": "173",
       "join_type": "BNL",
       "attached_condition": "t2.b = v1.b"
     }
@@ -14106,7 +14106,7 @@ EXPLAIN
         "filtered": 100
       },
       "buffer_type": "flat",
-      "buffer_size": "256Kb",
+      "buffer_size": "173",
       "join_type": "BNL",
       "attached_condition": "t2.b = v1.b"
     }
@@ -16413,7 +16413,7 @@ EXPLAIN
                     "filtered": 100
                   },
                   "buffer_type": "flat",
-                  "buffer_size": "256Kb",
+                  "buffer_size": "65",
                   "join_type": "BNL",
                   "attached_condition": "t2.i = t1.i and t2.i = t1.i"
                 }
