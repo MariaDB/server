@@ -5044,6 +5044,12 @@ new_clustered_failed:
 			mem_heap_alloc(ctx->heap, tablen + partlen + 1));
 		memcpy(new_table_name,
 		       altered_table->s->path.str + prefixlen, tablen);
+#ifdef _WIN32
+                {
+                  char *sep= strchr(new_table_name, FN_LIBCHAR);
+                  sep[0]= '/';
+                }
+#endif
 		memcpy(new_table_name + tablen, part ? part : "", partlen + 1);
 		ulint		n_cols = 0;
 		ulint		n_v_cols = 0;
