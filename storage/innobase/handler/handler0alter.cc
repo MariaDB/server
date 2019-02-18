@@ -9016,7 +9016,6 @@ static void get_type(const Field& f, ulint& prtype, ulint& mtype, ulint& len)
 @param table_name Table name in MySQL
 @param pos 0-based index to user_table->cols[] or user_table->v_cols[]
 @param f new column
-@param cf column modification
 @param is_v if it's a virtual column
 @retval true Failure
 @retval false Success */
@@ -9028,7 +9027,6 @@ innobase_rename_or_enlarge_column_try(
 	const char*		table_name,
 	ulint			pos,
 	const Field&		f,
-	const Create_field&	cf,
 	bool			is_v)
 {
 	dict_col_t*	col;
@@ -9052,7 +9050,7 @@ innobase_rename_or_enlarge_column_try(
 	ulint prtype, mtype, len;
 	get_type(f, prtype, mtype, len);
 	DBUG_ASSERT(!dtype_is_string_type(col->mtype)
-		    || col->mbminlen == cf.charset->mbminlen);
+		    || col->mbminlen == f.charset()->mbminlen);
 	DBUG_ASSERT(col->len <= len);
 
 #ifdef UNIV_DEBUG
@@ -9152,7 +9150,7 @@ innobase_rename_or_enlarge_columns_try(
 			if (cf->field == *fp) {
 				if (innobase_rename_or_enlarge_column_try(
 					    ctx->old_table, trx, table_name,
-					    idx, **af, *cf, is_v)) {
+					    idx, **af, is_v)) {
 					DBUG_RETURN(true);
 				}
 				break;
@@ -9208,8 +9206,6 @@ innobase_rename_or_enlarge_columns_cache(
 				->m_col
 				: dict_table_get_nth_col(user_table, col_n);
 			const bool is_string= dtype_is_string_type(col->mtype);
-			DBUG_ASSERT(!is_string
-				    || (*af)->charset() == cf->charset);
 			DBUG_ASSERT(col->mbminlen
 				    == (is_string
 					? (*af)->charset()->mbminlen : 0));
@@ -9227,7 +9223,7 @@ innobase_rename_or_enlarge_columns_cache(
 				dict_mem_table_col_rename(
 					user_table, col_n,
 					cf->field->field_name.str,
-					cf->field_name.str, is_virtual);
+					(*af)->field_name.str, is_virtual);
 			}
 
 			break;
