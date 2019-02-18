@@ -8748,7 +8748,6 @@ innobase_rename_column_try(
 	const char*		to,
 	bool			new_clustered)
 {
-	pars_info_t*	info;
 	dberr_t		error;
 
 	DBUG_ENTER("innobase_rename_column_try");
@@ -8762,7 +8761,6 @@ innobase_rename_column_try(
 		goto rename_foreign;
 	}
 
-	info = pars_info_create();
 	error = DB_SUCCESS;
 
 	trx->op_info = "renaming column in SYS_FIELDS";
@@ -8789,8 +8787,7 @@ innobase_rename_column_try(
 				continue;
 			}
 
-			info = pars_info_create();
-
+			pars_info_t* info = pars_info_create();
 			ulint pos = has_prefixes ? i << 16 | f.prefix_len : i;
 
 			pars_info_add_ull_literal(info, "indexid", index->id);
@@ -8843,7 +8840,7 @@ rename_foreign:
 				continue;
 			}
 
-			info = pars_info_create();
+			pars_info_t* info = pars_info_create();
 
 			pars_info_add_str_literal(info, "id", foreign->id);
 			pars_info_add_int4_literal(info, "nth", i);
@@ -8885,7 +8882,7 @@ rename_foreign:
 				continue;
 			}
 
-			info = pars_info_create();
+			pars_info_t* info = pars_info_create();
 
 			pars_info_add_str_literal(info, "id", foreign->id);
 			pars_info_add_int4_literal(info, "nth", i);
