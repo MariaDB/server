@@ -757,7 +757,7 @@ static int show_var_cmp(const void *var1, const void *var2)
 {
   return strcasecmp(((SHOW_VAR*)var1)->name, ((SHOW_VAR*)var2)->name);
 }
-#endif /* UNUSED */
+
 /*
  * Status variables stuff below
  */
@@ -780,6 +780,7 @@ wsrep_assign_to_mysql (SHOW_VAR* mysql, wsrep_stats_var* wsrep_var)
     break;
   }
 }
+#endif /* UNUSED */
 
 #if DYNAMIC
 // somehow this mysql status thing works only with statically allocated arrays.
