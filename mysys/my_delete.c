@@ -18,6 +18,7 @@
 #include <my_sys.h>
 
 #ifdef _WIN32
+#include <direct.h> /* rmdir */
 static int my_win_unlink(const char *name);
 #endif
 
@@ -160,3 +161,62 @@ error:
   DBUG_RETURN(-1);
 }
 #endif
+
+/*
+   Remove directory recursively.
+*/
+int my_rmtree(const char *dir, myf MyFlags)
+{
+  char path[FN_REFLEN];
+  char sep[] = { FN_LIBCHAR, 0 };
+  int err = 0;
+
+  MY_DIR *dir_info = my_dir(dir, MYF(MY_DONT_SORT | MY_WANT_STAT));
+  if (!dir_info)
+    return 1;
+
+  for (uint i = 0; i < dir_info->number_of_files; i++)
+  {
+    FILEINFO *file = dir_info->dir_entry + i;
+    /* Skip "." and ".." */
+    if (!strcmp(file->name, ".") || !strcmp(file->name, ".."))
+      continue;
+
+    strxnmov(path, sizeof(path), dir, sep, file->name, NULL);
+
+    if (!MY_S_ISDIR(file->mystat->st_mode))
+    {
+      err = my_delete(path, MyFlags);
+#ifdef _WIN32
+      /*
+        On Windows, check and possible reset readonly attribute.
+        my_delete(), or DeleteFile does not remove theses files.
+      */
+      if (err)
+      {
+        DWORD attr = GetFileAttributes(path);
+        if (attr != INVALID_FILE_ATTRIBUTES &&
+          (attr & FILE_ATTRIBUTE_READONLY))
+        {
+          SetFileAttributes(path, attr &~FILE_ATTRIBUTE_READONLY);
+          err = my_delete(path, MyFlags);
+        }
+      }
+#endif
+    }
+    else
+      err = my_rmtree(path, MyFlags);
+
+    if (err)
+      break;
+  }
+
+  my_dirend(dir_info);
+
+  if (!err)
+    err = rmdir(dir);
+
+  return err;
+}
+
+
