@@ -9108,6 +9108,23 @@ bool Item_direct_view_ref::excl_dep_on_group_fields_for_having_pushdown(st_selec
 }
 
 
+bool Item_args::excl_dep_on_group_fields_for_having_pushdown(st_select_lex *sel)
+{
+  for (uint i= 0; i < arg_count; i++)
+  {
+    if (args[i]->type() == Item::SUBSELECT_ITEM ||
+        (args[i]->type() == Item::FUNC_ITEM &&
+         ((Item_func *)args[i])->functype() == Item_func::UDF_FUNC))
+      return false;
+    if (args[i]->const_item())
+      continue;
+    if (!args[i]->excl_dep_on_group_fields_for_having_pushdown(sel))
+      return false;
+  }
+  return true;
+}
+
+
 bool Item_default_value::eq(const Item *item, bool binary_cmp) const
 {
   return item->type() == DEFAULT_VALUE_ITEM && 

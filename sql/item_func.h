@@ -2327,6 +2327,8 @@ public:
   }
   bool excl_dep_on_grouping_fields(st_select_lex *sel)
   { return false; }
+  bool excl_dep_on_group_fields_for_having_pushdown(st_select_lex *sel)
+  { return false;}
 };
 
 
