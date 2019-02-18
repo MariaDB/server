@@ -5578,8 +5578,7 @@ static bool innobase_instant_try(
 						mem_heap_alloc(ctx->heap, len))
 					: NULL, true, (*af)->ptr, len,
 					dict_table_is_comp(user_table));
-				ut_ad(new_field->field->pack_length() == len
-				      || !user_table->not_redundant());
+				ut_ad(new_field->field->pack_length() == len);
 
 			}
 		}
