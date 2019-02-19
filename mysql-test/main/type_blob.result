@@ -369,8 +369,6 @@ HELLO MY	1
 a	1
 hello	1
 drop table t1;
-create table t1 (a text, unique (a(2100)));
-ERROR 42000: Specified key was too long; max key length is 1000 bytes
 create table t1 (a text, key (a(2100)));
 Warnings:
 Note	1071	Specified key was too long; max key length is 1000 bytes

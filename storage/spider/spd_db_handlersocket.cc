@@ -5145,7 +5145,7 @@ int spider_handlersocket_handler::append_open_handler(
     share->tgt_dbs[spider->conn_link_idx[link_idx]],
     share->tgt_table_names[spider->conn_link_idx[link_idx]],
     spider->active_index < MAX_KEY ?
-      table->s->key_info[spider->active_index].name :
+      table->key_info[spider->active_index].name :
       "0",
     str->c_ptr_safe(),
     &request_key

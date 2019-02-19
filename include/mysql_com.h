@@ -203,6 +203,8 @@ enum enum_indicator_type
 #define VERS_UPDATE_UNVERSIONED_FLAG (1 << 29) /* column that doesn't support
                                                 system versioning when table
                                                 itself supports it*/
+#define LONG_UNIQUE_HASH_FIELD       (1<< 30) /* This field will store hash for unique
+                                                column */
 
 #define REFRESH_GRANT           (1ULL << 0)  /* Refresh grant tables */
 #define REFRESH_LOG             (1ULL << 1)  /* Start on new log file */

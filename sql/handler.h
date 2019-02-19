@@ -323,7 +323,10 @@ enum enum_alter_inplace_result {
 /** whether every data field explicitly stores length
 (holds for InnoDB ROW_FORMAT=REDUNDANT) */
 #define HA_EXTENDED_TYPES_CONVERSION (1ULL << 57)
-#define HA_LAST_TABLE_FLAG HA_EXTENDED_TYPES_CONVERSION
+
+/* Support native hash index */
+#define HA_CAN_HASH_KEYS        (1ULL << 58)
+#define HA_LAST_TABLE_FLAG HA_CAN_HASH_KEYS
 
 /* bits in index_flags(index_number) for what you can do with index */
 #define HA_READ_NEXT            1       /* TODO really use this flag */
@@ -3128,7 +3131,7 @@ public:
     check_table_binlog_row_based_done(0),
     check_table_binlog_row_based_result(0),
     row_already_logged(0),
-    in_range_check_pushed_down(FALSE),
+    in_range_check_pushed_down(FALSE), errkey(-1),
     key_used_on_scan(MAX_KEY),
     active_index(MAX_KEY), keyread(MAX_KEY),
     ref_length(sizeof(my_off_t)),

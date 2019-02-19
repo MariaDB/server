@@ -9428,7 +9428,7 @@ ulonglong ha_spider::table_flags() const
 const char *ha_spider::index_type(
   uint key_number
 ) {
-  KEY *key_info = &table->s->key_info[key_number];
+  KEY *key_info = &table->key_info[key_number];
   DBUG_ENTER("ha_spider::index_type");
   DBUG_PRINT("info",("spider this=%p", this));
   DBUG_PRINT("info",("spider flags=%ld", key_info->flags));
@@ -11186,9 +11186,9 @@ double ha_spider::read_time(
   if (keyread)
   {
     DBUG_PRINT("info",("spider read_time(keyread) = %.6f",
-      share->read_rate * table->s->key_info[index].key_length *
+      share->read_rate * table->key_info[index].key_length *
       rows / 2 + 2));
-    DBUG_RETURN(share->read_rate * table->s->key_info[index].key_length *
+    DBUG_RETURN(share->read_rate * table->key_info[index].key_length *
       rows / 2 + 2);
   } else {
     DBUG_PRINT("info",("spider read_time = %.6f",

@@ -1606,7 +1606,7 @@ int ha_tokudb::new_row_descriptor(TABLE* altered_table,
     } else {
         KEY* prim_key =
             hidden_primary_key ? NULL :
-            &altered_table->s->key_info[primary_key];
+            &altered_table->key_info[primary_key];
         if (idx == primary_key) {
             row_descriptor->size = create_main_key_descriptor(
                 (uchar*)row_descriptor->data,

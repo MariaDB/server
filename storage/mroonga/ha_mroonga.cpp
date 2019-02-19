@@ -2856,6 +2856,7 @@ ulonglong ha_mroonga::wrapper_table_flags() const
 #ifdef HA_CAN_VIRTUAL_COLUMNS
   table_flags |= HA_CAN_VIRTUAL_COLUMNS;
 #endif
+  table_flags |= HA_CAN_HASH_KEYS;
   DBUG_RETURN(table_flags);
 }
 
@@ -2891,6 +2892,7 @@ ulonglong ha_mroonga::storage_table_flags() const
 #ifdef HA_CAN_VIRTUAL_COLUMNS
   flags |= HA_CAN_VIRTUAL_COLUMNS;
 #endif
+  flags |= HA_CAN_HASH_KEYS;
   DBUG_RETURN(flags);
 }
 

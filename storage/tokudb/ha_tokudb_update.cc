@@ -451,7 +451,7 @@ static bool check_all_update_expressions(
 
 static bool full_field_in_key(TABLE* table, Field* field) {
     assert_always(table->s->primary_key < table->s->keys);
-    KEY* key = &table->s->key_info[table->s->primary_key];
+    KEY* key = &table->key_info[table->s->primary_key];
     for (uint i = 0; i < key->user_defined_key_parts; i++) {
         KEY_PART_INFO* key_part = &key->key_part[i];
         if (strcmp(field->field_name.str, key_part->field->field_name.str) == 0) {
@@ -517,7 +517,7 @@ static bool check_point_update(Item* conds, TABLE* table) {
     MY_BITMAP pk_fields;
     if (bitmap_init(&pk_fields, NULL, table->s->fields, FALSE)) // 1 -> failure
         return false;
-    KEY *key = &table->s->key_info[table->s->primary_key];
+    KEY *key = &table->key_info[table->s->primary_key];
     for (uint i = 0; i < key->user_defined_key_parts; i++)
         bitmap_set_bit(&pk_fields, key->key_part[i].field->field_index);
 
@@ -555,7 +555,7 @@ static bool check_point_update(Item* conds, TABLE* table) {
 static bool clustering_keys_exist(TABLE *table) {
     for (uint keynr = 0; keynr < table->s->keys; keynr++) {
         if (keynr != table->s->primary_key &&
-            key_is_clustering(&table->s->key_info[keynr]))
+            key_is_clustering(&table->key_info[keynr]))
             return true;
     }
     return false;

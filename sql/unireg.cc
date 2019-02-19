@@ -39,7 +39,7 @@
 /* threshold for safe_alloca */
 #define ALLOCA_THRESHOLD       2048
 
-static uint pack_keys(uchar *,uint, KEY *, ulong);
+static uint pack_keys(uchar *,uint, KEY *, ulong, uint);
 static bool pack_header(THD *, uchar *, List<Create_field> &, HA_CREATE_INFO *,
                         ulong, handler *);
 static bool pack_vcols(String *, List<Create_field> &, List<Virtual_column_info> *);
@@ -184,6 +184,7 @@ LEX_CUSTRING build_frm_image(THD *thd, const LEX_CSTRING &table,
                             + extra2_str_size(create_info->period_info.constr->name.length)
                             + 2 * frm_fieldno_size
                           : 0;
+  uint e_unique_hash_extra_parts= 0;
   uchar fileinfo[FRM_HEADER_SIZE],forminfo[FRM_FORMINFO_SIZE];
   const partition_info *part_info= IF_PARTITIONING(thd->work_part_info, 0);
   bool error;
@@ -306,6 +307,9 @@ LEX_CUSTRING build_frm_image(THD *thd, const LEX_CSTRING &table,
     extra2_size+= 1 + extra2_str_size(create_fields.elements);
   }
 
+  for (i= 0; i < keys; i++)
+    if (key_info[i].algorithm == HA_KEY_ALG_LONG_HASH)
+      e_unique_hash_extra_parts++;
   key_buff_length= uint4korr(fileinfo+47);
 
   frm.length= FRM_HEADER_SIZE;                  // fileinfo;
@@ -396,7 +400,7 @@ LEX_CUSTRING build_frm_image(THD *thd, const LEX_CSTRING &table,
   pos+= 4;
 
   DBUG_ASSERT(pos == frm_ptr + uint2korr(fileinfo+6));
-  key_info_length= pack_keys(pos, keys, key_info, data_offset);
+  key_info_length= pack_keys(pos, keys, key_info, data_offset, e_unique_hash_extra_parts);
   if (key_info_length > UINT_MAX16)
   {
     my_printf_error(ER_CANT_CREATE_TABLE,
@@ -558,7 +562,7 @@ err_frm:
 /* Pack keyinfo and keynames to keybuff for save in form-file. */
 
 static uint pack_keys(uchar *keybuff, uint key_count, KEY *keyinfo,
-                      ulong data_offset)
+                      ulong data_offset, uint e_unique_hash_extra_parts)
 {
   uint key_parts,length;
   uchar *pos, *keyname_pos;
@@ -620,6 +624,7 @@ static uint pack_keys(uchar *keybuff, uint key_count, KEY *keyinfo,
     }
   }
 
+  key_parts+= e_unique_hash_extra_parts;
   if (key_count > 127 || key_parts > 127)
   {
     keybuff[0]= (key_count & 0x7f) | 0x80;

@@ -2304,7 +2304,7 @@ int show_create_table(THD *thd, TABLE_LIST *table_list, String *packet,
                           hton->field_options);
   }
 
-  key_info= table->key_info;
+  key_info= table->s->key_info;
   primary_key= share->primary_key;
 
   for (uint i=0 ; i < share->keys ; i++,key_info++)
@@ -2352,14 +2352,16 @@ int show_create_table(THD *thd, TABLE_LIST *table_list, String *packet,
       if (key_part->field &&
           (key_part->length !=
            table->field[key_part->fieldnr-1]->key_length() &&
-           !(key_info->flags & (HA_FULLTEXT | HA_SPATIAL))))
+           !(key_info->flags & (HA_FULLTEXT | HA_SPATIAL))) &&
+          (key_info->algorithm != HA_KEY_ALG_LONG_HASH ||
+           key_info->algorithm == HA_KEY_ALG_LONG_HASH && key_part->length))
       {
         packet->append_parenthesized((long) key_part->length /
                                       key_part->field->charset()->mbmaxlen);
       }
     }
     packet->append(')');
-    store_key_options(thd, packet, table, key_info);
+    store_key_options(thd, packet, table, &table->key_info[i]);
     if (key_info->parser)
     {
       LEX_CSTRING *parser_name= plugin_name(key_info->parser);
@@ -2494,7 +2496,8 @@ static void store_key_options(THD *thd, String *packet, TABLE *table,
     if (key_info->algorithm == HA_KEY_ALG_BTREE)
       packet->append(STRING_WITH_LEN(" USING BTREE"));
 
-    if (key_info->algorithm == HA_KEY_ALG_HASH)
+    if (key_info->algorithm == HA_KEY_ALG_HASH ||
+            key_info->algorithm == HA_KEY_ALG_LONG_HASH)
       packet->append(STRING_WITH_LEN(" USING HASH"));
 
     /* send USING only in non-default case: non-spatial rtree */
@@ -6623,20 +6626,27 @@ static int get_schema_stat_record(THD *thd, TABLE_LIST *tables,
             table->field[8]->set_notnull();
           }
           KEY *key=show_table->key_info+i;
-          if (key->rec_per_key[j])
+          if (key->rec_per_key[j] && key->algorithm != HA_KEY_ALG_LONG_HASH)
           {
             ha_rows records= (ha_rows) ((double) show_table->stat_records() /
                                         key->actual_rec_per_key(j));
             table->field[9]->store((longlong) records, TRUE);
             table->field[9]->set_notnull();
           }
-          const char *tmp= show_table->file->index_type(i);
-          table->field[13]->store(tmp, strlen(tmp), cs);
+          if (key->algorithm == HA_KEY_ALG_LONG_HASH)
+            table->field[13]->store(STRING_WITH_LEN("HASH"), cs);
+          else
+          {
+            const char *tmp= show_table->file->index_type(i);
+            table->field[13]->store(tmp, strlen(tmp), cs);
+          }
         }
         if (!(key_info->flags & HA_FULLTEXT) &&
             (key_part->field &&
              key_part->length !=
-             show_table->s->field[key_part->fieldnr-1]->key_length()))
+             show_table->s->field[key_part->fieldnr-1]->key_length()) &&
+          (key_info->algorithm != HA_KEY_ALG_LONG_HASH ||
+           key_info->algorithm == HA_KEY_ALG_LONG_HASH && key_part->length))
         {
           table->field[10]->store((longlong) key_part->length /
                                   key_part->field->charset()->mbmaxlen, TRUE);
@@ -6882,7 +6892,7 @@ static int get_schema_constraints_record(THD *thd, TABLE_LIST *tables,
   {
     List<FOREIGN_KEY_INFO> f_key_list;
     TABLE *show_table= tables->table;
-    KEY *key_info=show_table->key_info;
+    KEY *key_info=show_table->s->key_info;
     uint primary_key= show_table->s->primary_key;
     show_table->file->info(HA_STATUS_VARIABLE |
                            HA_STATUS_NO_LOCK |
@@ -7080,7 +7090,7 @@ static int get_schema_key_column_usage_record(THD *thd,
   {
     List<FOREIGN_KEY_INFO> f_key_list;
     TABLE *show_table= tables->table;
-    KEY *key_info=show_table->key_info;
+    KEY *key_info=show_table->s->key_info;
     uint primary_key= show_table->s->primary_key;
     show_table->file->info(HA_STATUS_VARIABLE |
                            HA_STATUS_NO_LOCK |

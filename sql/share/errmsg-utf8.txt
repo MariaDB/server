@@ -7953,3 +7953,5 @@ ER_PERIOD_COLUMNS_UPDATED
 
 ER_PERIOD_CONSTRAINT_DROP
         eng "Can't DROP CONSTRAINT `%s`. Use DROP PERIOD `%s` for this"
+ER_TOO_LONG_HASH_KEYSEG
+        eng "Max key segment length is 65535"

@@ -349,8 +349,17 @@ enum field_visibility_t {
   INVISIBLE_FULL
 };
 
-#define INVISIBLE_MAX_BITS 3
+#define INVISIBLE_MAX_BITS              3
+#define HA_HASH_FIELD_LENGTH            8
+#define HA_HASH_KEY_LENGTH_WITHOUT_NULL 8
+#define HA_HASH_KEY_LENGTH_WITH_NULL    9
 
+
+int fields_in_hash_keyinfo(KEY *keyinfo);
+
+void setup_keyinfo_hash(KEY *key_info);
+
+void re_setup_keyinfo_hash(KEY *key_info);
 
 /**
   Category of table found in the table share.
@@ -735,6 +744,7 @@ struct TABLE_SHARE
   bool vcols_need_refixing;
   bool has_update_default_function;
   bool can_do_row_logging;              /* 1 if table supports RBR */
+  bool long_unique_table;
 
   ulong table_map_id;                   /* for row-based replication */
 
@@ -1120,6 +1130,9 @@ public:
   THD	*in_use;                        /* Which thread uses this */
 
   uchar *record[3];			/* Pointer to records */
+  /* record buf to resolve hash collisions for long UNIQUE constraints */
+  uchar *check_unique_buf;
+  handler *update_handler;  /* Handler used in case of update */
   uchar *write_row_record;		/* Used as optimisation in
 					   THD::write_row */
   uchar *insert_values;                  /* used by INSERT ... UPDATE */
@@ -1586,6 +1599,8 @@ public:
   void vers_update_fields();
   void vers_update_end();
   void find_constraint_correlated_indexes();
+  void clone_handler_for_update();
+  void delete_update_handler();
 
 /** Number of additional fields used in versioned tables */
 #define VERSIONING_FIELDS 2
