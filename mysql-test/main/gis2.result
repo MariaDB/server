@@ -33,6 +33,6 @@ SET timestamp=default;
 create table t1 (p point not null default if(unix_timestamp()>10,POINT(1,1),LineString(Point(0,0),Point(1,1))));
 set timestamp=10;
 alter table t1 add column i int;
-ERROR 22007: Incorrect POINT value: 'GEOMETRYCOLLECTION' for column `test`.`(temporary)`.`p` at row 1
+ERROR 22007: Incorrect POINT value: 'GEOMETRYCOLLECTION' for column `test`.`t1`.`p` at row 1
 drop table t1;
 SET timestamp=default;

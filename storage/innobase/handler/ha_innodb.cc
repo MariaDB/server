@@ -8201,7 +8201,8 @@ report_error:
 	    && wsrep_thd_exec_mode(m_user_thd) == LOCAL_STATE
 	    && !wsrep_consistency_check(m_user_thd)
 	    && !wsrep_thd_ignore_table(m_user_thd)) {
-		if (wsrep_append_keys(m_user_thd, false, record, NULL)) {
+		if (wsrep_append_keys(m_user_thd, WSREP_KEY_EXCLUSIVE, record,
+				      NULL)) {
 			DBUG_PRINT("wsrep", ("row key failed"));
 			error_result = HA_ERR_INTERNAL_ERROR;
 			goto wsrep_error;
@@ -8893,7 +8894,8 @@ func_exit:
 	    !wsrep_thd_ignore_table(m_user_thd)) {
 		DBUG_PRINT("wsrep", ("update row key"));
 
-		if (wsrep_append_keys(m_user_thd, false, old_row, new_row)) {
+		if (wsrep_append_keys(m_user_thd, WSREP_KEY_EXCLUSIVE, old_row,
+				      new_row)) {
 			WSREP_DEBUG("WSREP: UPDATE_ROW_KEY FAILED");
 			DBUG_PRINT("wsrep", ("row key failed"));
 			err = HA_ERR_INTERNAL_ERROR;
@@ -8953,11 +8955,12 @@ ha_innobase::delete_row(
 	innobase_active_small();
 
 #ifdef WITH_WSREP
-	if (error == DB_SUCCESS                            &&
-	    wsrep_thd_exec_mode(m_user_thd) == LOCAL_STATE &&
-	    wsrep_on(m_user_thd)                           &&
-	    !wsrep_thd_ignore_table(m_user_thd)) {
-		if (wsrep_append_keys(m_user_thd, false, record, NULL)) {
+	if (error == DB_SUCCESS
+	    && wsrep_thd_exec_mode(m_user_thd) == LOCAL_STATE
+	    && wsrep_on(m_user_thd)
+	    && !wsrep_thd_ignore_table(m_user_thd)) {
+		if (wsrep_append_keys(m_user_thd, WSREP_KEY_EXCLUSIVE, record,
+			              NULL)) {
 			DBUG_PRINT("wsrep", ("delete fail"));
 			error = (dberr_t) HA_ERR_INTERNAL_ERROR;
 			goto wsrep_error;
@@ -10138,8 +10141,22 @@ wsrep_dict_foreign_find_index(
 	ibool		check_charsets,
 	ulint		check_null);
 
+inline
+const char*
+wsrep_key_type_to_str(wsrep_key_type type)
+{
+	switch (type) {
+	case WSREP_KEY_SHARED:
+		return "shared";
+	case WSREP_KEY_SEMI:
+		return "semi";
+	case WSREP_KEY_EXCLUSIVE:
+		return "exclusive";
+	};
+	return "unknown";
+}
 
-extern dberr_t
+ulint
 wsrep_append_foreign_key(
 /*===========================*/
 	trx_t*		trx,		/*!< in: trx */
@@ -10147,7 +10164,8 @@ wsrep_append_foreign_key(
 	const rec_t*	rec,		/*!<in: clustered index record */
 	dict_index_t*	index,		/*!<in: clustered index */
 	ibool		referenced,	/*!<in: is check for referenced table */
-	ibool		shared)		/*!<in: is shared access */
+	wsrep_key_type	key_type)	/*!< in: access type of this key
+					(shared, exclusive, semi...) */
 {
 	ut_a(trx);
 	THD*  thd = (THD*)trx->mysql_thd;
@@ -10247,11 +10265,11 @@ wsrep_append_foreign_key(
 	if (rcode != DB_SUCCESS) {
 		WSREP_ERROR(
 			"FK key set failed: " ULINTPF
-			" (" ULINTPF " " ULINTPF "), index: %s %s, %s",
-			rcode, referenced, shared,
-			(index)       ? index->name() : "void index",
+			" (" ULINTPF " %s), index: %s %s, %s",
+			rcode, referenced, wsrep_key_type_to_str(key_type),
+			index ? index->name() : "void index",
 			(index && index->table) ? index->table->name.m_name :
-				"void table",
+			"void table",
 			wsrep_thd_query(thd));
 		return DB_ERROR;
 	}
@@ -10305,7 +10323,7 @@ wsrep_append_foreign_key(
 		wsrep_ws_handle(thd, trx),
 		&wkey,
 		1,
-		shared ? WSREP_KEY_SHARED : WSREP_KEY_EXCLUSIVE,
+		key_type,
                 copy);
 
 	if (rcode) {
@@ -10328,15 +10346,16 @@ wsrep_append_key(
 	TABLE_SHARE 	*table_share,
 	const char*	key,
 	uint16_t        key_len,
-	bool            shared
+	wsrep_key_type	key_type	/*!< in: access type of this key
+					(shared, exclusive, semi...) */
 )
 {
 	DBUG_ENTER("wsrep_append_key");
 	bool const copy = true;
 #ifdef WSREP_DEBUG_PRINT
 	fprintf(stderr, "%s conn %ld, trx %llu, keylen %d, table %s\n Query: %s ",
-		(shared) ? "Shared" : "Exclusive",
-		thd_get_thread_id(thd), (long long)trx->id, key_len,
+		wsrep_key_type_to_str(key_type),
+		wsrep_thd_thread_id(thd), trx->id, key_len,
 		table_share->table_name.str, wsrep_thd_query(thd));
 	for (int i=0; i<key_len; i++) {
 		fprintf(stderr, "%hhX, ", key[i]);
@@ -10365,7 +10384,7 @@ wsrep_append_key(
 			       wsrep_ws_handle(thd, trx),
 			       &wkey,
 			       1,
-			       shared ? WSREP_KEY_SHARED : WSREP_KEY_EXCLUSIVE,
+			       key_type,
                                copy);
 	if (rcode) {
 		DBUG_PRINT("wsrep", ("row key failed: %d", rcode));
@@ -10407,7 +10426,8 @@ int
 ha_innobase::wsrep_append_keys(
 /*===========================*/
 	THD 		*thd,
-	bool		shared,
+	wsrep_key_type	key_type,	/*!< in: access type of this key
+					(shared, exclusive, semi...) */
 	const uchar*	record0,	/* in: row in MySQL format */
 	const uchar*	record1)	/* in: row in MySQL format */
 {
@@ -10439,11 +10459,9 @@ ha_innobase::wsrep_append_keys(
 		if (!is_null) {
 			rcode = wsrep_append_key(
 				thd, trx, table_share, keyval,
-				len, shared);
+				len, key_type);
 
-			if (rcode) {
-				DBUG_RETURN(rcode);
-			}
+			if (rcode) DBUG_RETURN(rcode);
 		} else {
 			WSREP_DEBUG("NULL key skipped (proto 0): %s",
 				    wsrep_thd_query(thd));
@@ -10493,13 +10511,11 @@ ha_innobase::wsrep_append_keys(
 				if (!is_null) {
 					rcode = wsrep_append_key(
 						thd, trx, table_share,
-						keyval0, len+1, shared);
+						keyval0, len+1, key_type);
+					if (rcode) DBUG_RETURN(rcode);
 
-					if (rcode) {
-						DBUG_RETURN(rcode);
-					}
-
-				if (key_info->flags & HA_NOSAME || shared)
+					if (key_info->flags & HA_NOSAME ||
+					    key_type == WSREP_KEY_SHARED)
 			  		key_appended = true;
 				} else {
 					WSREP_DEBUG("NULL key skipped: %s",
@@ -10512,10 +10528,12 @@ ha_innobase::wsrep_append_keys(
 						WSREP_MAX_SUPPORTED_KEY_LENGTH,
 						record1, &is_null);
 
-					if (!is_null && memcmp(key0, key1, len)) {
+					if (!is_null
+					    && memcmp(key0, key1, len)) {
 						rcode = wsrep_append_key(
 							thd, trx, table_share,
-							keyval1, len+1, shared);
+							keyval1, len+1,
+                                                        key_type);
 						if (rcode) DBUG_RETURN(rcode);
 					}
 				}
@@ -10532,7 +10550,7 @@ ha_innobase::wsrep_append_keys(
 
 		if ((rcode = wsrep_append_key(thd, trx, table_share,
 					      (const char*) digest, 16,
-					      shared))) {
+					      key_type))) {
 			DBUG_RETURN(rcode);
 		}
 
@@ -10541,7 +10559,7 @@ ha_innobase::wsrep_append_keys(
 				digest, record1, table, m_prebuilt);
 			if ((rcode = wsrep_append_key(thd, trx, table_share,
 						      (const char*) digest,
-						      16, shared))) {
+						      16, key_type))) {
 				DBUG_RETURN(rcode);
 			}
 		}

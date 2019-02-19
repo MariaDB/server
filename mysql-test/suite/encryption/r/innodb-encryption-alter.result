@@ -65,11 +65,11 @@ t1	CREATE TABLE `t1` (
 DROP TABLE t1;
 CREATE TABLE t2 (a int not null primary key) engine=innodb;
 ALTER TABLE t2 ENCRYPTION_KEY_ID=4, ALGORITHM=COPY;
-ERROR HY000: Can't create table `test`.`#sql-temporary` (errno: 140 "Wrong create options")
+ERROR HY000: Can't create table `test`.`t2` (errno: 140 "Wrong create options")
 SHOW WARNINGS;
 Level	Code	Message
 Warning	140	InnoDB: innodb_encrypt_tables=OFF only allows ENCRYPTION_KEY_ID=1
-Error	1005	Can't create table `test`.`#sql-temporary` (errno: 140 "Wrong create options")
+Error	1005	Can't create table `test`.`t2` (errno: 140 "Wrong create options")
 Warning	1030	Got error 140 "Wrong create options" from storage engine InnoDB
 SHOW CREATE TABLE t2;
 Table	Create Table

@@ -382,7 +382,7 @@ typedef struct st_mysql
   my_bool free_me;
   my_bool reconnect;
   char scramble[20 +1];
-  my_bool unused1;
+  my_bool auto_local_infile;
   void *unused2, *unused3, *unused4, *unused5;
   LIST *stmts;
   const struct st_mysql_methods *methods;

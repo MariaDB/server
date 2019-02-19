@@ -680,3 +680,25 @@ show create table "a1\""b1";
 select * from "a1\""b1";
 drop table "a1\""b1";
 set sql_mode=default;
+
+#
+# mysql --local-infile
+#
+--let $ldli = load data local infile '$MYSQLTEST_VARDIR/tmp/bug.sql' into table test.t1;
+create table t1 (a text);
+--exec $MYSQL -e "$ldli"
+select count(*) from t1; truncate table t1;
+--exec $MYSQL --enable-local-infile -e "$ldli"
+select count(*) from t1; truncate table t1;
+--error 1
+--exec $MYSQL --disable-local-infile -e "$ldli"
+select count(*) from t1; truncate table t1;
+--error 1
+--exec $MYSQL -e "/*q*/$ldli"
+select count(*) from t1; truncate table t1;
+--exec $MYSQL --enable-local-infile -e "/*q*/$ldli"
+select count(*) from t1; truncate table t1;
+ --error 1
+ --exec $MYSQL --disable-local-infile -e "/*q*/$ldli"
+select count(*) from t1; truncate table t1;
+drop table t1;

@@ -34,7 +34,7 @@ void test_concurrently(const char *test, pthread_handler handler, int n, int m)
   bad= 0;
 
   diag("Testing %s with %d threads, %d iterations... ", test, n, m);
-  for (i= n; i; i--)
+  for (i= 0; i < n; i++)
   {
     if (pthread_create(&threads[i], 0, handler, &m) != 0)
     {
@@ -43,7 +43,7 @@ void test_concurrently(const char *test, pthread_handler handler, int n, int m)
     }
   }
 
-  for (i= n; i; i--)
+  for (i= 0; i < n; i++)
     pthread_join(threads[i], 0);
 
   now= my_interval_timer() - now;

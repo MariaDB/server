@@ -1,7 +1,7 @@
 /*****************************************************************************
 
 Copyright (c) 2000, 2017, Oracle and/or its affiliates. All Rights Reserved.
-Copyright (c) 2013, 2018, MariaDB Corporation.
+Copyright (c) 2013, 2019, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -16,6 +16,11 @@ this program; if not, write to the Free Software Foundation, Inc.,
 51 Franklin Street, Suite 500, Boston, MA 02110-1335 USA
 
 *****************************************************************************/
+
+#ifdef WITH_WSREP
+# include <mysql/service_wsrep.h>
+# include "../../../wsrep/wsrep_api.h"
+#endif /* WITH_WSREP */
 
 /* The InnoDB handler: the interface between MySQL and InnoDB. */
 
@@ -444,7 +449,7 @@ protected:
 	dict_index_t* innobase_get_index(uint keynr);
 
 #ifdef WITH_WSREP
-	int wsrep_append_keys(THD *thd, bool shared,
+	int wsrep_append_keys(THD *thd, wsrep_key_type key_type,
 			      const uchar* record0, const uchar* record1);
 #endif
 	/** Builds a 'template' to the prebuilt struct.
@@ -570,7 +575,6 @@ thd_get_work_part_info(
 
 struct trx_t;
 #ifdef WITH_WSREP
-#include <mysql/service_wsrep.h>
 //extern "C" int wsrep_trx_order_before(void *thd1, void *thd2);
 
 extern "C" bool wsrep_thd_is_wsrep_on(THD *thd);
@@ -620,10 +624,6 @@ innobase_index_name_is_reserved(
 	ulint		num_of_keys)	/*!< in: Number of indexes to
 					be created. */
 	MY_ATTRIBUTE((nonnull(1), warn_unused_result));
-
-#ifdef WITH_WSREP
-//extern "C" int wsrep_trx_is_aborting(void *thd_ptr);
-#endif
 
 /** Parse hint for table and its indexes, and update the information
 in dictionary.
