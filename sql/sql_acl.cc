@@ -13843,8 +13843,9 @@ bool acl_authenticate(THD *thd, uint com_change_user_pkt_len)
 
     bool client_can_handle_exp_pass= thd->client_capabilities &
                                      CLIENT_CAN_HANDLE_EXPIRED_PASSWORDS;
-    bool password_expired= acl_user->password_expired ||
-                           check_password_lifetime(thd, *acl_user);
+    bool password_expired= thd->password != PASSWORD_USED_NO_MENTION
+                           && (acl_user->password_expired ||
+                               check_password_lifetime(thd, *acl_user));
 
     if (!client_can_handle_exp_pass && disconnect_on_expired_password &&
         password_expired)
