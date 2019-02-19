@@ -537,18 +537,17 @@ fil_parse_write_crypt_data(
 	return ptr;
 }
 
-/** Encrypt a buffer.
-@param[in,out]		crypt_data	Crypt data
-@param[in]		space		space_id
-@param[in]		offset		Page offset
-@param[in]		lsn		Log sequence number
-@param[in]		src_frame	Page to encrypt
-@param[in]		zip_size	ROW_FORMAT=COMPRESSED page size, or 0
-@param[in,out]		dst_frame	Output buffer
+/** Encrypt a buffer for non full checksum.
+@param[in,out]		crypt_data		Crypt data
+@param[in]		space			space_id
+@param[in]		offset			Page offset
+@param[in]		lsn			Log sequence number
+@param[in]		src_frame		Page to encrypt
+@param[in]		zip_size		ROW_FORMAT=COMPRESSED
+						page size, or 0
+@param[in,out]		dst_frame		Output buffer
 @return encrypted buffer or NULL */
-UNIV_INTERN
-byte*
-fil_encrypt_buf(
+static byte* fil_encrypt_buf_for_non_full_checksum(
 	fil_space_crypt_t*	crypt_data,
 	ulint			space,
 	ulint			offset,
@@ -559,7 +558,6 @@ fil_encrypt_buf(
 {
 	uint size = uint(zip_size ? zip_size : srv_page_size);
 	uint key_version = fil_crypt_get_latest_key_version(crypt_data);
-
 	ut_a(key_version != ENCRYPTION_KEY_VERSION_INVALID);
 
 	ulint orig_page_type = mach_read_from_2(src_frame+FIL_PAGE_TYPE);
@@ -572,16 +570,16 @@ fil_encrypt_buf(
 
 	/* FIL page header is not encrypted */
 	memcpy(dst_frame, src_frame, header_len);
-
-	/* Store key version */
-	mach_write_to_4(dst_frame + FIL_PAGE_FILE_FLUSH_LSN_OR_KEY_VERSION, key_version);
+	mach_write_to_4(dst_frame + FIL_PAGE_FILE_FLUSH_LSN_OR_KEY_VERSION,
+			key_version);
 
 	/* Calculate the start offset in a page */
-	uint unencrypted_bytes = header_len + FIL_PAGE_DATA_END;
-	uint srclen = size - unencrypted_bytes;
-	const byte* src = src_frame + header_len;
-	byte* dst = dst_frame + header_len;
-	uint32 dstlen = 0;
+	uint		unencrypted_bytes = header_len + FIL_PAGE_DATA_END;
+	uint		srclen = size - unencrypted_bytes;
+	const byte*	src = src_frame + header_len;
+	byte*		dst = dst_frame + header_len;
+	uint32		dstlen = 0;
+	ib_uint32_t	checksum = 0;
 
 	if (page_compressed) {
 		srclen = mach_read_from_2(src_frame + FIL_PAGE_DATA);
@@ -608,19 +606,116 @@ fil_encrypt_buf(
 		       size - (header_len + srclen));
 	}
 
-	/* handle post encryption checksum */
-	ib_uint32_t checksum = 0;
-
 	checksum = fil_crypt_calculate_checksum(zip_size, dst_frame);
 
-	// store the post-encryption checksum after the key-version
-	mach_write_to_4(dst_frame + FIL_PAGE_FILE_FLUSH_LSN_OR_KEY_VERSION + 4, checksum);
+	/* store the post-encryption checksum after the key-version */
+	mach_write_to_4(dst_frame + FIL_PAGE_FILE_FLUSH_LSN_OR_KEY_VERSION + 4,
+			checksum);
 
 	ut_ad(fil_space_verify_crypt_checksum(dst_frame, zip_size));
 
 	srv_stats.pages_encrypted.inc();
 
 	return dst_frame;
+}
+
+/** Encrypt a buffer for full checksum format.
+@param[in,out]		crypt_data		Crypt data
+@param[in]		space			space_id
+@param[in]		offset			Page offset
+@param[in]		lsn			Log sequence number
+@param[in]		src_frame		Page to encrypt
+@param[in,out]		dst_frame		Output buffer
+@return encrypted buffer or NULL */
+static byte* fil_encrypt_buf_for_full_checksum(
+	fil_space_crypt_t*	crypt_data,
+	ulint			space,
+	ulint			offset,
+	lsn_t			lsn,
+	const byte*		src_frame,
+	byte*			dst_frame)
+{
+	const uint size = uint(srv_page_size);
+	uint key_version = fil_crypt_get_latest_key_version(crypt_data);
+	uint srclen = size - (FIL_PAGE_FILE_FLUSH_LSN_OR_KEY_VERSION
+			      + FIL_PAGE_FCRC32_CHECKSUM);
+	const byte* src = src_frame + FIL_PAGE_FILE_FLUSH_LSN_OR_KEY_VERSION;
+	byte* dst = dst_frame + FIL_PAGE_FILE_FLUSH_LSN_OR_KEY_VERSION;
+	uint dstlen = 0;
+
+	ut_a(key_version != ENCRYPTION_KEY_VERSION_INVALID);
+
+	/* Till FIL_PAGE_LSN, page is not encrypted */
+	memcpy(dst_frame, src_frame, FIL_PAGE_FILE_FLUSH_LSN_OR_KEY_VERSION);
+
+	/* Write key version to the page. */
+	mach_write_to_4(dst_frame + FIL_PAGE_FCRC32_KEY_VERSION, key_version);
+
+	int rc = encryption_scheme_encrypt(src, srclen, dst, &dstlen,
+					   crypt_data, key_version,
+					   uint(space), uint(offset), lsn);
+	ut_a(rc == MY_AES_OK);
+	ut_a(dstlen == srclen);
+
+	ib_uint32_t checksum = buf_calc_page_full_crc32(dst_frame);
+	mach_write_to_4(dst_frame + size - FIL_PAGE_FCRC32_CHECKSUM, checksum);
+
+	srv_stats.pages_encrypted.inc();
+
+	return dst_frame;
+}
+
+/** Encrypt a buffer.
+@param[in,out]		crypt_data		Crypt data
+@param[in]		space			space_id
+@param[in]		offset			Page offset
+@param[in]		lsn			Log sequence number
+@param[in]		src_frame		Page to encrypt
+@param[in]		zip_size		ROW_FORMAT=COMPRESSED
+						page size, or 0
+@param[in,out]		dst_frame		Output buffer
+@param[in]		use_full_checksum	full crc32 algo is used
+@return encrypted buffer or NULL */
+UNIV_INTERN
+byte*
+fil_encrypt_buf(
+	fil_space_crypt_t*	crypt_data,
+	ulint			space,
+	ulint			offset,
+	lsn_t			lsn,
+	const byte*		src_frame,
+	ulint			zip_size,
+	byte*			dst_frame,
+	bool			use_full_checksum)
+{
+	if (use_full_checksum) {
+		return fil_encrypt_buf_for_full_checksum(
+				crypt_data, space, offset,
+				lsn, src_frame, dst_frame);
+	}
+
+	return fil_encrypt_buf_for_non_full_checksum(
+			crypt_data, space, offset, lsn,
+			src_frame, zip_size, dst_frame);
+}
+
+/** Check whether these page types are allowed to encrypt.
+@param[in]	space		tablespace object
+@param[in]	src_frame	source page
+@return true if it is valid page type */
+static bool fil_space_encrypt_valid_page_type(
+	const fil_space_t*	space,
+	byte*			src_frame)
+{
+	switch (mach_read_from_2(src_frame+FIL_PAGE_TYPE)) {
+	case FIL_PAGE_RTREE:
+		return space->full_crc32();
+	case FIL_PAGE_TYPE_FSP_HDR:
+	case FIL_PAGE_TYPE_XDES:
+		return false;
+	}
+
+	return true;
 }
 
 /******************************************************************
@@ -641,12 +736,7 @@ fil_space_encrypt(
 	byte*			src_frame,
 	byte*			dst_frame)
 {
-	switch (mach_read_from_2(src_frame+FIL_PAGE_TYPE)) {
-	case FIL_PAGE_TYPE_FSP_HDR:
-	case FIL_PAGE_TYPE_XDES:
-	case FIL_PAGE_RTREE:
-		/* File space header, extent descriptor or spatial index
-		are not encrypted. */
+	if (!fil_space_encrypt_valid_page_type(space, src_frame)) {
 		return src_frame;
 	}
 
@@ -657,8 +747,21 @@ fil_space_encrypt(
 	fil_space_crypt_t* crypt_data = space->crypt_data;
 	const ulint zip_size = space->zip_size();
 	ut_ad(space->pending_io());
+
+	const bool full_crc32 = space->full_crc32();
+
+	if (full_crc32) {
+		/* Write LSN for the full crc32 checksum before
+		encryption. Because lsn is one of the input for encryption. */
+		mach_write_to_8(src_frame + FIL_PAGE_LSN, lsn);
+		mach_write_to_4(
+			src_frame + srv_page_size - FIL_PAGE_FCRC32_END_LSN,
+			(ulint) lsn);
+	}
+
 	byte* tmp = fil_encrypt_buf(crypt_data, space->id, offset, lsn,
-				    src_frame, zip_size, dst_frame);
+				    src_frame, zip_size, dst_frame,
+				    full_crc32);
 
 #ifdef UNIV_DEBUG
 	if (tmp) {
@@ -679,10 +782,12 @@ fil_space_encrypt(
 			}
 		}
 
-		ut_ad(!buf_page_is_corrupted(true, src, zip_size, space));
-		ut_ad(fil_space_decrypt(crypt_data, tmp_mem,
-					space->physical_size(), tmp,
-					&err));
+		ut_ad(full_crc32
+		      || !buf_page_is_corrupted(true, src, space->flags));
+
+		ut_ad(fil_space_decrypt(space->id, crypt_data, tmp_mem,
+					space->physical_size(), space->flags,
+					tmp, &err));
 		ut_ad(err == DB_SUCCESS);
 
 		/* Need to decompress the page if it was also compressed */
@@ -693,25 +798,93 @@ fil_space_encrypt(
 			ut_ad(unzipped2);
 		}
 
-		memcpy(tmp_mem + FIL_PAGE_FILE_FLUSH_LSN_OR_KEY_VERSION,
-		       src + FIL_PAGE_FILE_FLUSH_LSN_OR_KEY_VERSION, 8);
-		ut_ad(!memcmp(src, tmp_mem, space->physical_size()));
+		if (full_crc32) {
+			memcpy(tmp_mem, src, FIL_PAGE_OFFSET);
+			ut_ad(!memcmp(src, tmp_mem,
+				      (space->physical_size()
+				       - FIL_PAGE_FCRC32_CHECKSUM)));
+		} else {
+			memcpy(tmp_mem + FIL_PAGE_FILE_FLUSH_LSN_OR_KEY_VERSION,
+			       src + FIL_PAGE_FILE_FLUSH_LSN_OR_KEY_VERSION, 8);
+			ut_ad(!memcmp(src, tmp_mem, space->physical_size()));
+		}
 	}
 #endif /* UNIV_DEBUG */
 
 	return tmp;
 }
 
-/** Decrypt a page.
+/** Decrypt a page for full checksum format.
+@param[in]	space			space id
+@param[in]	crypt_data		crypt_data
+@param[in]	tmp_frame		Temporary buffer
+@param[in,out]	src_frame		Page to decrypt
+@param[out]	err			DB_SUCCESS or DB_DECRYPTION_FAILED
+@return true if page decrypted, false if not.*/
+static bool fil_space_decrypt_for_full_checksum(
+	ulint			space,
+	fil_space_crypt_t*	crypt_data,
+	byte*			tmp_frame,
+	byte*			src_frame,
+	dberr_t*		err)
+{
+	uint key_version = mach_read_from_4(
+		src_frame + FIL_PAGE_FCRC32_KEY_VERSION);
+	lsn_t lsn = mach_read_from_8(src_frame + FIL_PAGE_LSN);
+	uint offset = mach_read_from_4(src_frame + FIL_PAGE_OFFSET);
+	*err = DB_SUCCESS;
+
+	if (key_version == ENCRYPTION_KEY_NOT_ENCRYPTED) {
+		return false;
+	}
+
+	ut_a(crypt_data != NULL && crypt_data->is_encrypted());
+
+	memcpy(tmp_frame, src_frame, FIL_PAGE_FILE_FLUSH_LSN_OR_KEY_VERSION);
+
+	/* Calculate the offset where decryption starts */
+	const byte* src = src_frame + FIL_PAGE_FILE_FLUSH_LSN_OR_KEY_VERSION;
+	byte* dst = tmp_frame + FIL_PAGE_FILE_FLUSH_LSN_OR_KEY_VERSION;
+	uint dstlen = 0;
+	uint srclen = uint(srv_page_size)
+		- (FIL_PAGE_FILE_FLUSH_LSN_OR_KEY_VERSION
+		   + FIL_PAGE_FCRC32_CHECKSUM);
+
+	int rc = encryption_scheme_decrypt(src, srclen, dst, &dstlen,
+					   crypt_data, key_version,
+					   (uint) space, offset, lsn);
+
+	if (rc != MY_AES_OK || dstlen != srclen) {
+		if (rc == -1) {
+			*err = DB_DECRYPTION_FAILED;
+			return false;
+		}
+
+		ib::fatal() << "Unable to decrypt data-block "
+			    << " src: " << src << "srclen: "
+			    << srclen << " buf: " << dst << "buflen: "
+			    << dstlen << " return-code: " << rc
+			    << " Can't continue!";
+	}
+
+	/* Copy only checksum part in the trailer */
+	memcpy(tmp_frame + srv_page_size - FIL_PAGE_FCRC32_CHECKSUM,
+	       src_frame + srv_page_size - FIL_PAGE_FCRC32_CHECKSUM,
+	       FIL_PAGE_FCRC32_CHECKSUM);
+
+	srv_stats.pages_decrypted.inc();
+
+	return true; /* page was decrypted */
+}
+
+/** Decrypt a page for non full checksum format.
 @param[in]	crypt_data		crypt_data
 @param[in]	tmp_frame		Temporary buffer
 @param[in]	physical_size		page size
 @param[in,out]	src_frame		Page to decrypt
 @param[out]	err			DB_SUCCESS or DB_DECRYPTION_FAILED
 @return true if page decrypted, false if not.*/
-UNIV_INTERN
-bool
-fil_space_decrypt(
+static bool fil_space_decrypt_for_non_full_checksum(
 	fil_space_crypt_t*	crypt_data,
 	byte*			tmp_frame,
 	ulint			physical_size,
@@ -719,10 +892,13 @@ fil_space_decrypt(
 	dberr_t*		err)
 {
 	ulint page_type = mach_read_from_2(src_frame+FIL_PAGE_TYPE);
-	uint key_version = mach_read_from_4(src_frame + FIL_PAGE_FILE_FLUSH_LSN_OR_KEY_VERSION);
-	bool page_compressed = (page_type == FIL_PAGE_PAGE_COMPRESSED_ENCRYPTED);
+	uint key_version = mach_read_from_4(
+			src_frame + FIL_PAGE_FILE_FLUSH_LSN_OR_KEY_VERSION);
+	bool page_compressed = (page_type
+				== FIL_PAGE_PAGE_COMPRESSED_ENCRYPTED);
 	uint offset = mach_read_from_4(src_frame + FIL_PAGE_OFFSET);
-	uint space = mach_read_from_4(src_frame + FIL_PAGE_ARCH_LOG_NO_OR_SPACE_ID);
+	uint space = mach_read_from_4(
+			src_frame + FIL_PAGE_ARCH_LOG_NO_OR_SPACE_ID);
 	ib_uint64_t lsn = mach_read_from_8(src_frame + FIL_PAGE_LSN);
 
 	*err = DB_SUCCESS;
@@ -737,7 +913,8 @@ fil_space_decrypt(
 	uint header_len = FIL_PAGE_DATA;
 
 	if (page_compressed) {
-		header_len += (FIL_PAGE_COMPRESSED_SIZE + FIL_PAGE_COMPRESSION_METHOD_SIZE);
+		header_len += (FIL_PAGE_COMPRESSED_SIZE
+			       + FIL_PAGE_COMPRESSION_METHOD_SIZE);
 	}
 
 	/* Copy FIL page header, it is not encrypted */
@@ -787,6 +964,36 @@ fil_space_decrypt(
 	return true; /* page was decrypted */
 }
 
+/** Decrypt a page.
+@param[in]	space_id		tablespace id
+@param[in]	crypt_data		crypt_data
+@param[in]	tmp_frame		Temporary buffer
+@param[in]	physical_size		page size
+@param[in]	fsp_flags		Tablespace flags
+@param[in,out]	src_frame		Page to decrypt
+@param[out]	err			DB_SUCCESS or DB_DECRYPTION_FAILED
+@return true if page decrypted, false if not.*/
+UNIV_INTERN
+bool
+fil_space_decrypt(
+	ulint			space_id,
+	fil_space_crypt_t*	crypt_data,
+	byte*			tmp_frame,
+	ulint			physical_size,
+	ulint			fsp_flags,
+	byte*			src_frame,
+	dberr_t*		err)
+{
+	if (fil_space_t::full_crc32(fsp_flags)) {
+		return fil_space_decrypt_for_full_checksum(
+			space_id, crypt_data, tmp_frame, src_frame, err);
+	}
+
+	return fil_space_decrypt_for_non_full_checksum(crypt_data, tmp_frame,
+						       physical_size, src_frame,
+						       err);
+}
+
 /**
 Decrypt a page.
 @param[in]	space			Tablespace
@@ -811,8 +1018,10 @@ fil_space_decrypt(
 	ut_ad(space->crypt_data != NULL && space->crypt_data->is_encrypted());
 	ut_ad(space->pending_io());
 
-	bool encrypted = fil_space_decrypt(space->crypt_data, tmp_frame,
-					   physical_size, src_frame, &err);
+	bool encrypted = fil_space_decrypt(space->id, space->crypt_data,
+					   tmp_frame, physical_size,
+					   space->flags,
+					   src_frame, &err);
 
 	if (err == DB_SUCCESS) {
 		if (encrypted) {
@@ -1782,7 +1991,7 @@ fil_crypt_rotate_page(
 		int needs_scrubbing = BTR_SCRUB_SKIP_PAGE;
 		lsn_t block_lsn = block->page.newest_modification;
 		byte* frame = buf_block_get_frame(block);
-		uint kv =  mach_read_from_4(frame+FIL_PAGE_FILE_FLUSH_LSN_OR_KEY_VERSION);
+		uint kv = buf_page_get_key_version(frame, space->flags);
 
 		if (space->is_stopping()) {
 			/* The tablespace is closing (in DROP TABLE or
@@ -2544,6 +2753,7 @@ bool fil_space_verify_crypt_checksum(const byte* page, ulint zip_size)
 	page is not corrupted. */
 
 	switch (srv_checksum_algorithm_t(srv_checksum_algorithm)) {
+	case SRV_CHECKSUM_ALGORITHM_STRICT_FULL_CRC32:
 	case SRV_CHECKSUM_ALGORITHM_STRICT_CRC32:
 		if (zip_size) {
 			return checksum == page_zip_calc_checksum(
@@ -2565,6 +2775,7 @@ bool fil_space_verify_crypt_checksum(const byte* page, ulint zip_size)
 		Due to this, we must treat "strict_innodb" as "innodb". */
 	case SRV_CHECKSUM_ALGORITHM_INNODB:
 	case SRV_CHECKSUM_ALGORITHM_CRC32:
+	case SRV_CHECKSUM_ALGORITHM_FULL_CRC32:
 		if (checksum == BUF_NO_CHECKSUM_MAGIC) {
 			return true;
 		}

@@ -20,10 +20,12 @@ my $page;
 die "Unable to read $file" unless sysread(FILE, $page, $ps) == $ps;
 substr($page,26,8) = pack("NN", 4096, ~1024);
 my $polynomial = 0x82f63b78; # CRC-32C
-my $ck= pack("N",mycrc32(substr($page, 4, 22), 0, $polynomial) ^
-		 mycrc32(substr($page, 38, $ps - 38 - 8), 0, $polynomial));
-substr($page,0,4)=$ck;
-substr($page,$ps-8,4)=$ck;
+my $full_crc32 = unpack("N",substr($page,54,4)) & 0x10; # FIL_SPACE_FLAGS
+if ($full_crc32)
+{
+    my $ck = mycrc32(substr($page, 0, $ps-4), 0, $polynomial);
+    substr($page, $ps-4, 4) = pack("N", $ck);
+}
 sysseek(FILE, 0, 0) || die "Unable to rewind $file\n";
 syswrite(FILE, $page, $ps)==$ps || die "Unable to write $file\n";
 close(FILE) || die "Unable to close $file\n";

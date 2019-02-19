@@ -1,6 +1,6 @@
 /*****************************************************************************
 
-Copyright (C) 2013, 2018 MariaDB Corporation.
+Copyright (C) 2013, 2019 MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -33,13 +33,17 @@ Created 11/12/2013 Jan Lindström jan.lindstrom@skysql.com
 /** Compress a page_compressed page before writing to a data file.
 @param[in]	buf		page to be compressed
 @param[out]	out_buf		compressed page
-@param[in]	level		compression level
+@param[in]	flags		tablespace flags
 @param[in]	block_size	file system block size
 @param[in]	encrypted	whether the page will be subsequently encrypted
 @return actual length of compressed page
 @retval	0	if the page was not compressed */
-ulint fil_page_compress(const byte* buf, byte* out_buf, ulint level,
-			ulint block_size, bool encrypted)
+ulint fil_page_compress(
+	const byte*	buf,
+	byte*		out_buf,
+	ulint		flags,
+	ulint		block_size,
+	bool		encrypted)
 	MY_ATTRIBUTE((nonnull, warn_unused_result));
 
 /** Decompress a page that may be subject to page_compressed compression.

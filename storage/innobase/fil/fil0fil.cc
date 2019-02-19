@@ -505,7 +505,7 @@ bool fil_node_t::read_page0(bool first)
 	const ulint free_limit = fsp_header_get_field(page, FSP_FREE_LIMIT);
 	const ulint free_len = flst_get_len(FSP_HEADER_OFFSET + FSP_FREE
 					    + page);
-	if (!fsp_flags_is_valid(flags, space->id)) {
+	if (!fil_space_t::is_valid_flags(flags, space->id)) {
 		ulint cflags = fsp_flags_convert_from_101(flags);
 		if (cflags == ULINT_UNDEFINED
 		    || (cflags ^ space->flags) & ~FSP_FLAGS_MEM_MASK) {
@@ -550,6 +550,11 @@ bool fil_node_t::read_page0(bool first)
 			extent size. Do not truncate valid data. */
 		} else {
 			size_bytes &= ~os_offset_t(mask);
+		}
+
+		if (space->flags != flags
+		    && fil_space_t::is_flags_equal(flags, space->flags)) {
+			space->flags = flags;
 		}
 
 		this->size = ulint(size_bytes / psize);
@@ -1298,7 +1303,7 @@ fil_space_create(
 	fil_space_t*	space;
 
 	ut_ad(fil_system.is_initialised());
-	ut_ad(fsp_flags_is_valid(flags & ~FSP_FLAGS_MEM_MASK, id));
+	ut_ad(fil_space_t::is_valid_flags(flags & ~FSP_FLAGS_MEM_MASK, id));
 	ut_ad(purpose == FIL_TYPE_LOG
 	      || srv_page_size == UNIV_PAGE_SIZE_ORIG || flags != 0);
 
@@ -1874,6 +1879,14 @@ fil_write_flushed_lsn(
 
 	if (err == DB_SUCCESS) {
 		mach_write_to_8(buf + FIL_PAGE_FILE_FLUSH_LSN_OR_KEY_VERSION, lsn);
+
+		ulint fsp_flags = mach_read_from_4(
+			buf + FSP_HEADER_OFFSET + FSP_SPACE_FLAGS);
+
+		if (fil_space_t::full_crc32(fsp_flags)) {
+			buf_flush_assign_full_crc32_checksum(buf);
+		}
+
 		err = fil_write(page_id, 0, 0, srv_page_size, buf);
 		fil_flush_file_spaces(FIL_TYPE_TABLESPACE);
 	}
@@ -1991,7 +2004,7 @@ fil_op_write_log(
 	ulint		len;
 
 	ut_ad(first_page_no == 0 || type == MLOG_FILE_CREATE2);
-	ut_ad(fsp_flags_is_valid(flags, space_id));
+	ut_ad(fil_space_t::is_valid_flags(flags, space_id));
 
 	/* fil_name_parse() requires that there be at least one path
 	separator and that the file path end with ".ibd". */
@@ -2942,7 +2955,7 @@ fil_ibd_create(
 	ut_ad(!srv_read_only_mode);
 	ut_a(space_id < SRV_LOG_SPACE_FIRST_ID);
 	ut_a(size >= FIL_IBD_FILE_INITIAL_SIZE);
-	ut_a(fsp_flags_is_valid(flags & ~FSP_FLAGS_MEM_MASK, space_id));
+	ut_a(fil_space_t::is_valid_flags(flags & ~FSP_FLAGS_MEM_MASK, space_id));
 
 	/* Create the subdirectories in the path, if they are
 	not there already. */
@@ -3018,7 +3031,12 @@ err_exit:
 
 	memset(page, '\0', srv_page_size);
 
-	flags |= FSP_FLAGS_PAGE_SSIZE();
+	if (fil_space_t::full_crc32(flags)) {
+		flags |= FSP_FLAGS_FCRC32_PAGE_SSIZE();
+	} else {
+		flags |= FSP_FLAGS_PAGE_SSIZE();
+	}
+
 	fsp_header_init_fields(page, space_id, flags);
 	mach_write_to_4(page + FIL_PAGE_ARCH_LOG_NO_OR_SPACE_ID, space_id);
 
@@ -3032,12 +3050,13 @@ err_exit:
 			page_zip.m_end = page_zip.m_nonempty =
 			page_zip.n_blobs = 0;
 
-		buf_flush_init_for_writing(NULL, page, &page_zip, 0);
+		buf_flush_init_for_writing(NULL, page, &page_zip, 0, false);
 
 		*err = os_file_write(
 			IORequestWrite, path, file, page_zip.data, 0, zip_size);
 	} else {
-		buf_flush_init_for_writing(NULL, page, NULL, 0);
+		buf_flush_init_for_writing(NULL, page, NULL, 0,
+					   fil_space_t::full_crc32(flags));
 
 		*err = os_file_write(
 			IORequestWrite, path, file, page, 0, srv_page_size);
@@ -3200,7 +3219,7 @@ corrupted:
 		return NULL;
 	}
 
-	ut_ad(fsp_flags_is_valid(flags & ~FSP_FLAGS_MEM_MASK, id));
+	ut_ad(fil_space_t::is_valid_flags(flags & ~FSP_FLAGS_MEM_MASK, id));
 	df_default.init(tablename.m_name, flags);
 	df_dict.init(tablename.m_name, flags);
 	df_remote.init(tablename.m_name, flags);
@@ -3867,7 +3886,10 @@ fil_file_readdir_next_file(
 void fsp_flags_try_adjust(fil_space_t* space, ulint flags)
 {
 	ut_ad(!srv_read_only_mode);
-	ut_ad(fsp_flags_is_valid(flags, space->id));
+	ut_ad(fil_space_t::is_valid_flags(flags, space->id));
+	if (space->full_crc32()) {
+		return;
+	}
 	if (!space->size && (space->purpose != FIL_TYPE_TABLESPACE
 			     || !fil_space_get_size(space->id))) {
 		return;
@@ -3881,6 +3903,12 @@ void fsp_flags_try_adjust(fil_space_t* space, ulint flags)
 		    page_id_t(space->id, 0), space->zip_size(),
 		    RW_X_LATCH, &mtr)) {
 		ulint f = fsp_header_get_flags(b->frame);
+		if (fil_space_t::full_crc32(f)) {
+			goto func_exit;
+		}
+		if (fil_space_t::is_flags_equal(f, flags)) {
+			goto func_exit;
+		}
 		/* Suppress the message if only the DATA_DIR flag to differs. */
 		if ((f ^ flags) & ~(1U << FSP_FLAGS_POS_RESERVED)) {
 			ib::warn()
@@ -3889,13 +3917,11 @@ void fsp_flags_try_adjust(fil_space_t* space, ulint flags)
 				<< "' from " << ib::hex(f)
 				<< " to " << ib::hex(flags);
 		}
-		if (f != flags) {
-			mtr.set_named_space(space);
-			mlog_write_ulint(FSP_HEADER_OFFSET
-					 + FSP_SPACE_FLAGS + b->frame,
-					 flags, MLOG_4BYTES, &mtr);
-		}
+		mtr.set_named_space(space);
+		mlog_write_ulint(FSP_HEADER_OFFSET + FSP_SPACE_FLAGS
+				 + b->frame, flags, MLOG_4BYTES, &mtr);
 	}
+func_exit:
 	mtr.commit();
 }
 

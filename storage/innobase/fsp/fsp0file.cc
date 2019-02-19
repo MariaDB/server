@@ -343,7 +343,7 @@ Datafile::read_first_page(bool read_only_mode)
 	if (m_order == 0) {
 		m_space_id = fsp_header_get_space_id(m_first_page);
 		m_flags = fsp_header_get_flags(m_first_page);
-		if (!fsp_flags_is_valid(m_flags, m_space_id)) {
+		if (!fil_space_t::is_valid_flags(m_flags, m_space_id)) {
 			ulint cflags = fsp_flags_convert_from_101(m_flags);
 			if (cflags == ULINT_UNDEFINED) {
 				ib::error()
@@ -356,12 +356,7 @@ Datafile::read_first_page(bool read_only_mode)
 		}
 	}
 
-	ulint ssize = FSP_FLAGS_GET_PAGE_SSIZE(m_flags);
-	if (!ssize) ssize = UNIV_PAGE_SSIZE_ORIG;
-	const ulint zip_ssize = FSP_FLAGS_GET_ZIP_SSIZE(m_flags);
-	const size_t logical_size = ((UNIV_ZIP_SIZE_MIN >> 1) << ssize);
-	const size_t physical_size = zip_ssize
-		? (UNIV_ZIP_SIZE_MIN >> 1) << zip_ssize : logical_size;
+	const size_t physical_size = fil_space_t::physical_size(m_flags);
 
 	if (physical_size > page_size) {
 		ib::error() << "File " << m_filepath
@@ -413,7 +408,8 @@ Datafile::validate_to_dd(ulint space_id, ulint flags)
 	/* Make sure the datafile we found matched the space ID.
 	If the datafile is a file-per-table tablespace then also match
 	the row format and zip page size. */
-	if (m_space_id == space_id && m_flags == flags) {
+	if (m_space_id == space_id
+	    && fil_space_t::is_flags_equal(m_flags, flags)) {
 		/* Datafile matches the tablespace expected. */
 		return(DB_SUCCESS);
 	}
@@ -543,7 +539,7 @@ err_exit:
 		}
 	}
 
-	if (!fsp_flags_is_valid(m_flags, m_space_id)) {
+	if (!fil_space_t::is_valid_flags(m_flags, m_space_id)) {
 		/* Tablespace flags must be valid. */
 		error_txt = "Tablespace flags are invalid";
 		goto err_exit;
@@ -574,8 +570,7 @@ err_exit:
 		goto err_exit;
 	}
 
-	if (buf_page_is_corrupted(false, m_first_page,
-				  fil_space_t::zip_size(m_flags))) {
+	if (buf_page_is_corrupted(false, m_first_page, m_flags)) {
 		/* Look for checksum and other corruptions. */
 		error_txt = "Checksum mismatch";
 		goto err_exit;
@@ -664,6 +659,8 @@ Datafile::find_space_id()
 		byte*	page = static_cast<byte*>(
 			ut_align(buf, UNIV_SECTOR_SIZE));
 
+		ulint fsp_flags;
+
 		for (ulint j = 0; j < page_count; ++j) {
 
 			dberr_t		err;
@@ -681,13 +678,18 @@ Datafile::find_space_id()
 				continue;
 			}
 
+			if (j == 0) {
+				fsp_flags = mach_read_from_4(
+					page + FSP_HEADER_OFFSET + FSP_SPACE_FLAGS);
+			}
+
 			bool	noncompressed_ok = false;
 
 			/* For noncompressed pages, the page size must be
 			equal to srv_page_size. */
 			if (page_size == srv_page_size) {
 				noncompressed_ok = !buf_page_is_corrupted(
-					false, page, 0, NULL);
+					false, page, fsp_flags);
 			}
 
 			bool	compressed_ok = false;
@@ -695,8 +697,7 @@ Datafile::find_space_id()
 			if (srv_page_size <= UNIV_PAGE_SIZE_DEF
 			    && page_size <= srv_page_size) {
 				compressed_ok = !buf_page_is_corrupted(
-					false, page,
-					page_size, NULL);
+					false, page, fsp_flags);
 			}
 
 			if (noncompressed_ok || compressed_ok) {
@@ -783,7 +784,7 @@ Datafile::restore_from_doublewrite()
 	ulint	flags = mach_read_from_4(
 		FSP_HEADER_OFFSET + FSP_SPACE_FLAGS + page);
 
-	if (!fsp_flags_is_valid(flags, m_space_id)) {
+	if (!fil_space_t::is_valid_flags(flags, m_space_id)) {
 		ulint cflags = fsp_flags_convert_from_101(flags);
 		if (cflags == ULINT_UNDEFINED) {
 			ib::warn()

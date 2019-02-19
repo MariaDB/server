@@ -34,7 +34,6 @@ exec $XTRABACKUP --prepare --verbose --apply-log-only --target-dir=$basedir --in
 
 echo # Restore and check results;
 let $targetdir=$basedir;
-#-- source include/restart_and_restore.inc
 
 let $_datadir= `SELECT @@datadir`;
 let $innodb_data_file_path=`SELECT @@innodb_data_file_path`;

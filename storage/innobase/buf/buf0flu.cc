@@ -747,18 +747,40 @@ buf_flush_update_zip_checksum(
 	mach_write_to_4(page + FIL_PAGE_SPACE_OR_CHKSUM, checksum);
 }
 
+/** Assign the full crc32 checksum for non-compressed page.
+@param[in,out]	page	page to be updated */
+void buf_flush_assign_full_crc32_checksum(byte* page)
+{
+	uint32_t checksum = buf_calc_page_full_crc32(page);
+	mach_write_to_4(page + srv_page_size - FIL_PAGE_FCRC32_CHECKSUM,
+			checksum);
+}
+
 /** Initialize a page for writing to the tablespace.
-@param[in]	block		buffer block; NULL if bypassing the buffer pool
-@param[in,out]	page		page frame
-@param[in,out]	page_zip_	compressed page, or NULL if uncompressed
-@param[in]	newest_lsn	newest modification LSN to the page */
+@param[in]	block			buffer block; NULL if bypassing
+					the buffer pool
+@param[in,out]	page			page frame
+@param[in,out]	page_zip_		compressed page, or NULL if
+					uncompressed
+@param[in]	newest_lsn		newest modification LSN to the page
+@param[in]	use_full_checksum	whether tablespace uses full checksum */
 void
 buf_flush_init_for_writing(
 	const buf_block_t*	block,
 	byte*			page,
 	void*			page_zip_,
-	lsn_t			newest_lsn)
+	lsn_t			newest_lsn,
+	bool			use_full_checksum)
 {
+	if (block != NULL && block->frame != page) {
+		/* If page is encrypted in full crc32 format then
+		checksum stored already as a part of fil_encrypt_buf() */
+		ut_ad(use_full_checksum);
+		ut_ad(mach_read_from_4(
+			page + FIL_PAGE_FCRC32_KEY_VERSION));
+		return;
+	}
+
 	ut_ad(block == NULL || block->frame == page);
 	ut_ad(block == NULL || page_zip_ == NULL
 	      || &block->page.zip == page_zip_);
@@ -807,8 +829,13 @@ buf_flush_init_for_writing(
 	/* Write the newest modification lsn to the page header and trailer */
 	mach_write_to_8(page + FIL_PAGE_LSN, newest_lsn);
 
-	mach_write_to_8(page + srv_page_size - FIL_PAGE_END_LSN_OLD_CHKSUM,
-			newest_lsn);
+	if (use_full_checksum) {
+		mach_write_to_4(page + srv_page_size - FIL_PAGE_FCRC32_END_LSN,
+				(ulint) newest_lsn);
+	} else {
+		mach_write_to_8(page + srv_page_size - FIL_PAGE_END_LSN_OLD_CHKSUM,
+				newest_lsn);
+	}
 
 	if (block && srv_page_size == 16384) {
 		/* The page type could be garbage in old files
@@ -874,6 +901,10 @@ buf_flush_init_for_writing(
 
 	uint32_t checksum = BUF_NO_CHECKSUM_MAGIC;
 
+	if (use_full_checksum) {
+		return buf_flush_assign_full_crc32_checksum(page);
+	}
+
 	switch (srv_checksum_algorithm_t(srv_checksum_algorithm)) {
 	case SRV_CHECKSUM_ALGORITHM_INNODB:
 	case SRV_CHECKSUM_ALGORITHM_STRICT_INNODB:
@@ -886,6 +917,8 @@ buf_flush_init_for_writing(
 		be calculated after storing the new formula checksum. */
 		checksum = buf_calc_page_old_checksum(page);
 		break;
+	case SRV_CHECKSUM_ALGORITHM_FULL_CRC32:
+	case SRV_CHECKSUM_ALGORITHM_STRICT_FULL_CRC32:
 	case SRV_CHECKSUM_ALGORITHM_CRC32:
 	case SRV_CHECKSUM_ALGORITHM_STRICT_CRC32:
 		/* In other cases we write the same checksum to both fields. */
@@ -928,7 +961,10 @@ buf_flush_write_block_low(
 	      || space->purpose == FIL_TYPE_TABLESPACE);
 	ut_ad((space->purpose == FIL_TYPE_TEMPORARY)
 	      == (space == fil_system.temp_space));
+
 	page_t*	frame = NULL;
+	const bool full_crc32 = space->full_crc32();
+
 #ifdef UNIV_DEBUG
 	buf_pool_t*	buf_pool = buf_pool_from_bpage(bpage);
 	ut_ad(!buf_pool_mutex_own(buf_pool));
@@ -985,15 +1021,23 @@ buf_flush_write_block_low(
 			frame = ((buf_block_t*) bpage)->frame;
 		}
 
+		byte* page = reinterpret_cast<const buf_block_t*>(bpage)->frame;
+
+		if (full_crc32) {
+			page = buf_page_encrypt(space, bpage, page);
+			frame = page;
+		}
+
 		buf_flush_init_for_writing(
-			reinterpret_cast<const buf_block_t*>(bpage),
-			reinterpret_cast<const buf_block_t*>(bpage)->frame,
+			reinterpret_cast<const buf_block_t*>(bpage), page,
 			bpage->zip.data ? &bpage->zip : NULL,
-			bpage->newest_modification);
+			bpage->newest_modification, full_crc32);
 		break;
 	}
 
-	frame = buf_page_encrypt_before_write(space, bpage, frame);
+	if (!full_crc32) {
+		frame = buf_page_encrypt(space, bpage, frame);
+	}
 
 	ut_ad(space->purpose == FIL_TYPE_TABLESPACE
 	      || space->atomic_write_supported);

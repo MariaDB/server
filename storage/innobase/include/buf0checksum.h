@@ -56,6 +56,11 @@ because this takes that field as an input!
 uint32_t
 buf_calc_page_old_checksum(const byte* page);
 
+/** Calculate the CRC32 checksum for the whole page.
+@param[in]	page	buffer page (srv_page_size bytes)
+@return CRC32 value */
+uint32_t buf_calc_page_full_crc32(const byte* page);
+
 /** Return a printable string describing the checksum algorithm.
 @param[in]	algo	algorithm
 @return algorithm name */

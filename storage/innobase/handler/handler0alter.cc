@@ -1784,6 +1784,16 @@ ha_innobase::check_if_supported_inplace_alter(
 
 	update_thd();
 
+	/* MDEV-12026 FIXME: Implement and allow
+	innodb_checksum_algorithm=full_crc32 for page_compressed! */
+	if (m_prebuilt->table->space
+	    && m_prebuilt->table->space->full_crc32()
+	    && altered_table->s->option_struct
+	    && altered_table->s->option_struct->page_compressed) {
+		ut_ad(!table->s->option_struct->page_compressed);
+		DBUG_RETURN(HA_ALTER_INPLACE_NOT_SUPPORTED);
+	}
+
 	if (ha_alter_info->handler_flags
 	    & ~(INNOBASE_INPLACE_IGNORE
 		| INNOBASE_ALTER_INSTANT

@@ -491,6 +491,7 @@ static bool buf_page_decrypt_after_read(buf_page_t* bpage, fil_space_t* space)
 	also for pages first compressed and then encrypted. */
 
 	buf_tmp_buffer_t* slot;
+	uint key_version = buf_page_get_key_version(dst_frame, space->flags);
 
 	if (page_compressed) {
 		/* the page we read is unencrypted */
@@ -500,31 +501,26 @@ decompress:
 		/* For decompression, use crypt_buf. */
 		buf_tmp_reserve_crypt_buf(slot);
 decompress_with_slot:
-		ut_d(fil_page_type_validate(dst_frame));
+		ut_d(fil_page_type_validate(space, dst_frame));
 
 		bpage->write_size = fil_page_decompress(slot->crypt_buf,
 							dst_frame);
 		slot->release();
 
-		ut_ad(!bpage->write_size || fil_page_type_validate(dst_frame));
+		ut_ad(!bpage->write_size || fil_page_type_validate(space, dst_frame));
 		ut_ad(space->pending_io());
 		return bpage->write_size != 0;
 	}
 
-	if (space->crypt_data
-	    && mach_read_from_4(FIL_PAGE_FILE_FLUSH_LSN_OR_KEY_VERSION
-			       + dst_frame)) {
+	if (key_version && space->crypt_data) {
 		/* Verify encryption checksum before we even try to
 		decrypt. */
-		if (!fil_space_verify_crypt_checksum(
-			    dst_frame, space->zip_size())) {
+		if (!buf_page_verify_crypt_checksum(dst_frame, space->flags)) {
 decrypt_failed:
 			ib::error() << "Encrypted page " << bpage->id
 				    << " in file " << space->chain.start->name
 				    << " looks corrupted; key_version="
-				    << mach_read_from_4(
-					    FIL_PAGE_FILE_FLUSH_LSN_OR_KEY_VERSION
-					    + dst_frame);
+				    << key_version;
 			/* Mark page encrypted in case it should be. */
 			if (space->crypt_data->type
 			    != CRYPT_SCHEME_UNENCRYPTED) {
@@ -538,7 +534,7 @@ decrypt_failed:
 		slot = buf_pool_reserve_tmp_slot(buf_pool);
 		buf_tmp_reserve_crypt_buf(slot);
 
-		ut_d(fil_page_type_validate(dst_frame));
+		ut_d(fil_page_type_validate(space, dst_frame));
 
 		/* decrypt using crypt_buf to dst_frame */
 		if (!fil_space_decrypt(space, slot->crypt_buf,
@@ -547,7 +543,7 @@ decrypt_failed:
 			goto decrypt_failed;
 		}
 
-		ut_d(fil_page_type_validate(dst_frame));
+		ut_d(fil_page_type_validate(space, dst_frame));
 
 		if (fil_page_is_compressed_encrypted(dst_frame)) {
 			goto decompress_with_slot;
@@ -886,62 +882,25 @@ buf_page_is_checksum_valid_none(
 	       && checksum_field1 == BUF_NO_CHECKSUM_MAGIC);
 }
 
-/** Check if a page is corrupt.
-@param[in]	check_lsn	whether the LSN should be checked
+/** Checks if the page is in full crc32 checksum format.
 @param[in]	read_buf	database page
-@param[in]	zip_size	ROW_FORMAT=COMPRESSED page size, or 0
-@param[in]	space		tablespace
-@return whether the page is corrupted */
-bool
-buf_page_is_corrupted(
-	bool			check_lsn,
-	const byte*		read_buf,
-	ulint			zip_size,
-#ifndef UNIV_INNOCHECKSUM
-	const fil_space_t* 	space)
-#else
-	const void* 	 	space)
-#endif
+@param[in]	checksum_field	checksum field
+@return true if the page is in full crc32 checksum format. */
+bool buf_page_is_checksum_valid_full_crc32(
+	const byte*	read_buf,
+	size_t		checksum_field)
 {
-#ifndef UNIV_INNOCHECKSUM
-	DBUG_EXECUTE_IF("buf_page_import_corrupt_failure", return(true); );
-#endif
-	size_t		checksum_field1 = 0;
-	size_t		checksum_field2 = 0;
-	uint32_t	crc32 = 0;
-	bool		crc32_inited = false;
+	const uint32_t  full_crc32 = buf_calc_page_full_crc32(read_buf);
 
-	ulint page_type = mach_read_from_2(read_buf + FIL_PAGE_TYPE);
+	return checksum_field == full_crc32;
+}
 
-	/* We can trust page type if page compression is set on tablespace
-	flags because page compression flag means file must have been
-	created with 10.1 (later than 5.5 code base). In 10.1 page
-	compressed tables do not contain post compression checksum and
-	FIL_PAGE_END_LSN_OLD_CHKSUM field stored. Note that space can
-	be null if we are in fil_check_first_page() and first page
-	is not compressed or encrypted. Page checksum is verified
-	after decompression (i.e. normally pages are already
-	decompressed at this stage). */
-	if ((page_type == FIL_PAGE_PAGE_COMPRESSED ||
-	     page_type == FIL_PAGE_PAGE_COMPRESSED_ENCRYPTED)
-#ifndef UNIV_INNOCHECKSUM
-	    && space && FSP_FLAGS_HAS_PAGE_COMPRESSION(space->flags)
-#endif
-	) {
-		return(false);
-	}
-
-	if (!zip_size
-	    && memcmp(read_buf + FIL_PAGE_LSN + 4,
-		      read_buf + srv_page_size
-		      - FIL_PAGE_END_LSN_OLD_CHKSUM + 4, 4)) {
-
-		/* Stored log sequence numbers at the start and the end
-		of page do not match */
-
-		return(true);
-	}
-
+/** Checks whether the lsn present in the page is lesser than the
+peek current lsn.
+@param[in]	check_lsn	lsn to check
+@param[in]	read_buf	page. */
+static void buf_page_check_lsn(bool check_lsn, const byte* read_buf)
+{
 #ifndef UNIV_INNOCHECKSUM
 	if (check_lsn && recv_lsn_checks_on) {
 		lsn_t		current_lsn;
@@ -973,10 +932,106 @@ buf_page_is_corrupted(
 		}
 	}
 #endif /* !UNIV_INNOCHECKSUM */
+}
+
+/** Check if a page is corrupt.
+@param[in]	check_lsn	whether the LSN should be checked
+@param[in]	read_buf	database page
+@param[in]	zip_size	ROW_FORMAT=COMPRESSED page size, or 0
+@param[in]	space		tablespace
+@return whether the page is corrupted */
+bool
+buf_page_is_corrupted(
+	bool			check_lsn,
+	const byte*		read_buf,
+	ulint			fsp_flags)
+{
+#ifndef UNIV_INNOCHECKSUM
+	DBUG_EXECUTE_IF("buf_page_import_corrupt_failure", return(true); );
+#endif
+	if (FSP_FLAGS_FCRC32_HAS_MARKER(fsp_flags)) {
+		const byte* end = read_buf + srv_page_size;
+		uint crc32 = mach_read_from_4(end - FIL_PAGE_FCRC32_CHECKSUM);
+
+		if (!crc32) {
+			const byte* b = read_buf;
+			while (b != end) if (*b++) goto nonzero;
+			/* An all-zero page is not corrupted. */
+			return false;
+		}
+
+		DBUG_EXECUTE_IF(
+			"page_intermittent_checksum_mismatch", {
+			static int page_counter;
+			if (page_counter++ == 2) {
+				crc32++;
+			}
+		});
+nonzero:
+		if (!buf_page_is_checksum_valid_full_crc32(read_buf, crc32)) {
+			return true;
+		}
+
+		if (!mach_read_from_4(read_buf + FIL_PAGE_FCRC32_KEY_VERSION)
+		    && memcmp(read_buf + (FIL_PAGE_LSN + 4),
+			      end - FIL_PAGE_FCRC32_END_LSN, 4)) {
+			return true;
+		}
+
+		buf_page_check_lsn(check_lsn, read_buf);
+		return false;
+	}
+
+	size_t		checksum_field1 = 0;
+	size_t		checksum_field2 = 0;
+	uint32_t	crc32 = 0;
+	bool		crc32_inited = false;
+	ulint		zip_size = 0;
+	bool		crc32_chksum = false;
+
+	zip_size = FSP_FLAGS_GET_ZIP_SSIZE(fsp_flags);
+	if (zip_size) {
+		zip_size = (UNIV_ZIP_SIZE_MIN >> 1) << zip_size;
+	}
+
+	ulint page_type = mach_read_from_2(read_buf + FIL_PAGE_TYPE);
+
+	/* We can trust page type if page compression is set on tablespace
+	flags because page compression flag means file must have been
+	created with 10.1 (later than 5.5 code base). In 10.1 page
+	compressed tables do not contain post compression checksum and
+	FIL_PAGE_END_LSN_OLD_CHKSUM field stored. Note that space can
+	be null if we are in fil_check_first_page() and first page
+	is not compressed or encrypted. Page checksum is verified
+	after decompression (i.e. normally pages are already
+	decompressed at this stage). */
+	if ((page_type == FIL_PAGE_PAGE_COMPRESSED ||
+	     page_type == FIL_PAGE_PAGE_COMPRESSED_ENCRYPTED)
+#ifndef UNIV_INNOCHECKSUM
+	    && FSP_FLAGS_HAS_PAGE_COMPRESSION(fsp_flags)
+#endif
+	) {
+		return(false);
+	}
+
+	if (!zip_size && memcmp(read_buf + FIL_PAGE_LSN + 4,
+				read_buf + srv_page_size
+				- FIL_PAGE_END_LSN_OLD_CHKSUM + 4, 4)) {
+
+		/* Stored log sequence numbers at the start and the end
+		of page do not match */
+
+		return(true);
+	}
+
+	buf_page_check_lsn(check_lsn, read_buf);
 
 	/* Check whether the checksum fields have correct values */
 
-	if (srv_checksum_algorithm == SRV_CHECKSUM_ALGORITHM_NONE) {
+	const srv_checksum_algorithm_t curr_algo =
+		static_cast<srv_checksum_algorithm_t>(srv_checksum_algorithm);
+
+	if (curr_algo == SRV_CHECKSUM_ALGORITHM_NONE) {
 		return(false);
 	}
 
@@ -1014,10 +1069,8 @@ buf_page_is_corrupted(
 		return(false);
 	}
 
-	const srv_checksum_algorithm_t	curr_algo =
-		static_cast<srv_checksum_algorithm_t>(srv_checksum_algorithm);
-
 	switch (curr_algo) {
+	case SRV_CHECKSUM_ALGORITHM_STRICT_FULL_CRC32:
 	case SRV_CHECKSUM_ALGORITHM_STRICT_CRC32:
 		return !buf_page_is_checksum_valid_crc32(
 			read_buf, checksum_field1, checksum_field2);
@@ -1027,6 +1080,7 @@ buf_page_is_corrupted(
 	case SRV_CHECKSUM_ALGORITHM_STRICT_NONE:
 		return !buf_page_is_checksum_valid_none(
 			read_buf, checksum_field1, checksum_field2);
+	case SRV_CHECKSUM_ALGORITHM_FULL_CRC32:
 	case SRV_CHECKSUM_ALGORITHM_CRC32:
 	case SRV_CHECKSUM_ALGORITHM_INNODB:
 		if (buf_page_is_checksum_valid_none(read_buf,
@@ -1051,6 +1105,9 @@ buf_page_is_corrupted(
 			return false;
 		}
 
+		crc32_chksum = curr_algo == SRV_CHECKSUM_ALGORITHM_CRC32
+			|| curr_algo == SRV_CHECKSUM_ALGORITHM_FULL_CRC32;
+
 		/* Very old versions of InnoDB only stored 8 byte lsn to the
 		start and the end of the page. */
 
@@ -1061,17 +1118,17 @@ buf_page_is_corrupted(
 		    != mach_read_from_4(read_buf + FIL_PAGE_LSN)
 		    && checksum_field2 != BUF_NO_CHECKSUM_MAGIC) {
 
-			if (srv_checksum_algorithm
-			    == SRV_CHECKSUM_ALGORITHM_CRC32) {
+			if (crc32_chksum) {
+				crc32 = buf_calc_page_crc32(read_buf);
+				crc32_inited = true;
+
 				DBUG_EXECUTE_IF(
 					"page_intermittent_checksum_mismatch", {
 					static int page_counter;
 					if (page_counter++ == 2) {
-						checksum_field2++;
+						crc32++;
 					}
 				});
-				crc32 = buf_calc_page_crc32(read_buf);
-				crc32_inited = true;
 
 				if (checksum_field2 != crc32
 				    && checksum_field2
@@ -1079,7 +1136,7 @@ buf_page_is_corrupted(
 					return true;
 				}
 			} else {
-				ut_ad(srv_checksum_algorithm
+				ut_ad(curr_algo
 				      == SRV_CHECKSUM_ALGORITHM_INNODB);
 
 				if (checksum_field2
@@ -1096,8 +1153,7 @@ buf_page_is_corrupted(
 
 		if (checksum_field1 == 0
 		    || checksum_field1 == BUF_NO_CHECKSUM_MAGIC) {
-		} else if (srv_checksum_algorithm
-			   == SRV_CHECKSUM_ALGORITHM_CRC32) {
+		} else if (crc32_chksum) {
 
 			if (!crc32_inited) {
 				crc32 = buf_calc_page_crc32(read_buf);
@@ -1110,8 +1166,7 @@ buf_page_is_corrupted(
 				return true;
 			}
 		} else {
-			ut_ad(srv_checksum_algorithm
-			      == SRV_CHECKSUM_ALGORITHM_INNODB);
+			ut_ad(curr_algo == SRV_CHECKSUM_ALGORITHM_INNODB);
 
 			if (checksum_field1
 			    != buf_calc_page_new_checksum(read_buf)) {
@@ -5808,6 +5863,26 @@ buf_mark_space_corrupt(buf_page_t* bpage, const fil_space_t* space)
 	buf_pool_mutex_exit(buf_pool);
 }
 
+/** Check if the encrypted page is corrupted for the full crc32 format.
+@param[in]	space_id	page belongs to space id
+@param[in]	dst_frame	page
+@return true if page is corrupted or false if it isn't */
+static bool buf_encrypted_full_crc32_page_is_corrupted(
+	ulint		space_id,
+	const byte*	dst_frame)
+{
+	if (memcmp(dst_frame + FIL_PAGE_LSN + 4,
+	           dst_frame + srv_page_size - FIL_PAGE_FCRC32_END_LSN, 4)) {
+		return true;
+	}
+
+	if (space_id != mach_read_from_4(dst_frame + FIL_PAGE_SPACE_ID)) {
+		return true;
+	}
+
+	return false;
+}
+
 /** Check if page is maybe compressed, encrypted or both when we encounter
 corrupted page. Note that we can't be 100% sure if page is corrupted
 or decrypt/decompress just failed.
@@ -5827,6 +5902,7 @@ static dberr_t buf_page_check_corrupt(buf_page_t* bpage, fil_space_t* space)
 		((buf_block_t*) bpage)->frame;
 	dberr_t err = DB_SUCCESS;
 	bool corrupted = false;
+	uint key_version = buf_page_get_key_version(dst_frame, space->flags);
 
 	/* In buf_decrypt_after_read we have either decrypted the page if
 	page post encryption checksum matches and used key_id is found
@@ -5834,8 +5910,7 @@ static dberr_t buf_page_check_corrupt(buf_page_t* bpage, fil_space_t* space)
 	not decrypted and it could be either encrypted and corrupted
 	or corrupted or good page. If we decrypted, there page could
 	still be corrupted if used key does not match. */
-	const bool still_encrypted = mach_read_from_4(
-		dst_frame + FIL_PAGE_FILE_FLUSH_LSN_OR_KEY_VERSION)
+	const bool still_encrypted = key_version
 		&& space->crypt_data
 		&& space->crypt_data->type != CRYPT_SCHEME_UNENCRYPTED
 		&& !bpage->encrypted
@@ -5845,8 +5920,13 @@ static dberr_t buf_page_check_corrupt(buf_page_t* bpage, fil_space_t* space)
 	if (!still_encrypted) {
 		/* If traditional checksums match, we assume that page is
 		not anymore encrypted. */
-		corrupted = buf_page_is_corrupted(
-			true, dst_frame, bpage->zip_size(), space);
+		if (key_version && space->full_crc32()) {
+			corrupted = buf_encrypted_full_crc32_page_is_corrupted(
+					space->id, dst_frame);
+		} else {
+			corrupted = buf_page_is_corrupted(
+				true, dst_frame, space->flags);
+		}
 
 		if (!corrupted) {
 			bpage->encrypted = false;
@@ -5871,8 +5951,7 @@ static dberr_t buf_page_check_corrupt(buf_page_t* bpage, fil_space_t* space)
 
 		ib::info()
 			<< "However key management plugin or used key_version "
-			<< mach_read_from_4(dst_frame
-					    + FIL_PAGE_FILE_FLUSH_LSN_OR_KEY_VERSION)
+			<< key_version
 			<< " is not found or"
 			" used encryption algorithm or method does not match.";
 
@@ -5963,8 +6042,7 @@ buf_page_io_complete(buf_page_t* bpage, bool dblwr, bool evict)
 		read_page_no = mach_read_from_4(frame + FIL_PAGE_OFFSET);
 		read_space_id = mach_read_from_4(
 			frame + FIL_PAGE_ARCH_LOG_NO_OR_SPACE_ID);
-		key_version = mach_read_from_4(
-			frame + FIL_PAGE_FILE_FLUSH_LSN_OR_KEY_VERSION);
+		key_version = buf_page_get_key_version(frame, space->flags);
 
 		if (bpage->id.space() == TRX_SYS_SPACE
 		    && buf_dblwr_page_inside(bpage->id.page_no())) {
@@ -7190,6 +7268,21 @@ buf_all_freed(void)
 	return(TRUE);
 }
 
+/** Verify that post encryption checksum match with the calculated checksum.
+This function should be called only if tablespace contains crypt data metadata.
+@param[in]	page		page frame
+@param[in]	fsp_flags	tablespace flags
+@return true if true if page is encrypted and OK, false otherwise */
+bool buf_page_verify_crypt_checksum(const byte* page, ulint fsp_flags)
+{
+	if (!fil_space_t::full_crc32(fsp_flags)) {
+		return fil_space_verify_crypt_checksum(
+			page, fil_space_t::zip_size(fsp_flags));
+	}
+
+	return !buf_page_is_corrupted(true, page, fsp_flags);
+}
+
 /*********************************************************************//**
 Checks that there currently are no pending i/o-operations for the buffer
 pool.
@@ -7271,7 +7364,7 @@ a page is written to disk.
 (may be src_frame or an encrypted/compressed copy of it) */
 UNIV_INTERN
 byte*
-buf_page_encrypt_before_write(
+buf_page_encrypt(
 	fil_space_t*	space,
 	buf_page_t*	bpage,
 	byte*		src_frame)
@@ -7279,7 +7372,7 @@ buf_page_encrypt_before_write(
 	ut_ad(space->id == bpage->id.space());
 	bpage->real_size = srv_page_size;
 
-	fil_page_type_validate(src_frame);
+	ut_d(fil_page_type_validate(space, src_frame));
 
 	switch (bpage->id.page_no()) {
 	case 0:
@@ -7306,7 +7399,13 @@ buf_page_encrypt_before_write(
 	if (!encrypted && !page_compressed) {
 		/* No need to encrypt or page compress the page.
 		Clear key-version & crypt-checksum. */
-		memset(src_frame + FIL_PAGE_FILE_FLUSH_LSN_OR_KEY_VERSION, 0, 8);
+		if (space->full_crc32()) {
+			memset(src_frame + FIL_PAGE_FCRC32_KEY_VERSION, 0, 4);
+		} else {
+			memset(src_frame + FIL_PAGE_FILE_FLUSH_LSN_OR_KEY_VERSION,
+			       0, 8);
+		}
+
 		return src_frame;
 	}
 
@@ -7332,16 +7431,16 @@ not_compressed:
 		bpage->real_size = srv_page_size;
 		slot->out_buf = dst_frame = tmp;
 
-		ut_d(fil_page_type_validate(tmp));
+		ut_d(fil_page_type_validate(space, tmp));
 	} else {
 		/* First we compress the page content */
 		buf_tmp_reserve_compression_buf(slot);
 		byte* tmp = slot->comp_buf;
 		ulint out_len = fil_page_compress(
-			src_frame, tmp,
-			fsp_flags_get_page_compression_level(space->flags),
+			src_frame, tmp, space->flags,
 			fil_space_get_block_size(space, bpage->id.page_no()),
 			encrypted);
+
 		if (!out_len) {
 			goto not_compressed;
 		}
@@ -7350,7 +7449,7 @@ not_compressed:
 
 		/* Workaround for MDEV-15527. */
 		memset(tmp + out_len, 0 , srv_page_size - out_len);
-		ut_d(fil_page_type_validate(tmp));
+		ut_d(fil_page_type_validate(space, tmp));
 
 		if (encrypted) {
 			/* And then we encrypt the page content */
@@ -7364,7 +7463,7 @@ not_compressed:
 		slot->out_buf = dst_frame = tmp;
 	}
 
-	ut_d(fil_page_type_validate(dst_frame));
+	ut_d(fil_page_type_validate(space, dst_frame));
 
 	// return dst_frame which will be written
 	return dst_frame;

@@ -654,9 +654,19 @@ static bool srv_undo_tablespace_open(const char* name, ulint space_id,
 
 	fil_set_max_space_id_if_bigger(space_id);
 
-	fil_space_t* space = fil_space_create(
-		undo_name, space_id, FSP_FLAGS_PAGE_SSIZE(),
-		FIL_TYPE_TABLESPACE, NULL);
+	ulint fsp_flags;
+	switch (srv_checksum_algorithm) {
+	case SRV_CHECKSUM_ALGORITHM_FULL_CRC32:
+	case SRV_CHECKSUM_ALGORITHM_STRICT_FULL_CRC32:
+		fsp_flags = (FSP_FLAGS_FCRC32_MASK_MARKER
+			     | FSP_FLAGS_FCRC32_PAGE_SSIZE());
+		break;
+	default:
+		fsp_flags = FSP_FLAGS_PAGE_SSIZE();
+	}
+
+	fil_space_t* space = fil_space_create(undo_name, space_id, fsp_flags,
+					      FIL_TYPE_TABLESPACE, NULL);
 
 	ut_a(fil_validate());
 	ut_a(space);

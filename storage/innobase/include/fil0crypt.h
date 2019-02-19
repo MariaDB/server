@@ -303,13 +303,14 @@ fil_parse_write_crypt_data(
 	MY_ATTRIBUTE((warn_unused_result));
 
 /** Encrypt a buffer.
-@param[in,out]		crypt_data	Crypt data
-@param[in]		space		space_id
-@param[in]		offset		Page offset
-@param[in]		lsn		Log sequence number
-@param[in]		src_frame	Page to encrypt
-@param[in]		zip_size	ROW_FORMAT=COMPRESSED page size, or 0
-@param[in,out]		dst_frame	Output buffer
+@param[in,out]		crypt_data		Crypt data
+@param[in]		space			space_id
+@param[in]		offset			Page offset
+@param[in]		lsn			Log sequence number
+@param[in]		src_frame		Page to encrypt
+@param[in]		zip_size		ROW_FORMAT=COMPRESSED page size, or 0
+@param[in,out]		dst_frame		Output buffer
+@param[in]		use_full_checksum	full crc32 algo is used
 @return encrypted buffer or NULL */
 UNIV_INTERN
 byte*
@@ -320,7 +321,8 @@ fil_encrypt_buf(
 	lsn_t			lsn,
 	const byte*		src_frame,
 	ulint			zip_size,
-	byte*			dst_frame)
+	byte*			dst_frame,
+	bool			use_full_checksum)
 	MY_ATTRIBUTE((warn_unused_result));
 
 /**
@@ -344,18 +346,22 @@ fil_space_encrypt(
 
 
 /** Decrypt a page.
+@param]in]	space_id		space id
 @param[in]	crypt_data		crypt_data
 @param[in]	tmp_frame		Temporary buffer
 @param[in]	physical_size		page size
+@param[in]	fsp_flags		Tablespace flags
 @param[in,out]	src_frame		Page to decrypt
 @param[out]	err			DB_SUCCESS or DB_DECRYPTION_FAILED
 @return true if page decrypted, false if not.*/
 UNIV_INTERN
 bool
 fil_space_decrypt(
+	ulint			space_id,
 	fil_space_crypt_t*	crypt_data,
 	byte*			tmp_frame,
 	ulint			physical_size,
+	ulint			fsp_flags,
 	byte*			src_frame,
 	dberr_t*		err);
 

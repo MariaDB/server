@@ -2,6 +2,8 @@
 
 --source include/have_innodb.inc
 --source include/have_innodb_8k.inc
+--source include/innodb_checksum_algorithm.inc
+
 SET default_storage_engine=InnoDB;
 
 --disable_query_log

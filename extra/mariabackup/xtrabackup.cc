@@ -1689,7 +1689,7 @@ xb_get_one_option(int optid,
 
   case OPT_INNODB_CHECKSUM_ALGORITHM:
 
-    ut_a(srv_checksum_algorithm <= SRV_CHECKSUM_ALGORITHM_STRICT_NONE);
+    ut_a(srv_checksum_algorithm <= SRV_CHECKSUM_ALGORITHM_STRICT_FULL_CRC32);
 
     ADD_PRINT_PARAM_OPT(innodb_checksum_algorithm_names[srv_checksum_algorithm]);
     break;
@@ -1864,7 +1864,15 @@ static bool innodb_init_param()
 	srv_sys_space.set_space_id(TRX_SYS_SPACE);
 	srv_sys_space.set_name("innodb_system");
 	srv_sys_space.set_path(srv_data_home);
-	srv_sys_space.set_flags(FSP_FLAGS_PAGE_SSIZE());
+	switch (srv_checksum_algorithm) {
+	case SRV_CHECKSUM_ALGORITHM_FULL_CRC32:
+	case SRV_CHECKSUM_ALGORITHM_STRICT_FULL_CRC32:
+		srv_sys_space.set_flags(FSP_FLAGS_FCRC32_MASK_MARKER
+					| FSP_FLAGS_FCRC32_PAGE_SSIZE());
+		break;
+	default:
+		srv_sys_space.set_flags(FSP_FLAGS_PAGE_SSIZE());
+	}
 
 	if (!srv_sys_space.parse_params(innobase_data_file_path, true)) {
 		goto error;
@@ -3278,7 +3286,8 @@ static dberr_t xb_assign_undo_space_start()
 	bool		ret;
 	dberr_t		error = DB_SUCCESS;
 	ulint		space, page_no __attribute__((unused));
-	int n_retries = 5;
+	int		n_retries = 5;
+	ulint		fsp_flags;
 
 	if (srv_undo_tablespaces == 0) {
 		return error;
@@ -3295,6 +3304,15 @@ static dberr_t xb_assign_undo_space_start()
 	buf = static_cast<byte*>(ut_malloc_nokey(2U << srv_page_size_shift));
 	page = static_cast<byte*>(ut_align(buf, srv_page_size));
 
+	if (!os_file_read(IORequestRead, file, page,
+			  0, srv_page_size)) {
+		msg("Reading first page failed.\n");
+		error = DB_ERROR;
+		goto func_exit;
+	}
+
+	fsp_flags = mach_read_from_4(
+			page + FSP_HEADER_OFFSET + FSP_SPACE_FLAGS);
 retry:
 	if (!os_file_read(IORequestRead, file, page,
 			  TRX_SYS_PAGE_NO << srv_page_size_shift,
@@ -3305,7 +3323,7 @@ retry:
 	}
 
 	/* TRX_SYS page can't be compressed or encrypted. */
-	if (buf_page_is_corrupted(false, page, 0)) {
+	if (buf_page_is_corrupted(false, page, fsp_flags)) {
 		if (n_retries--) {
 			os_thread_sleep(1000);
 			goto retry;
@@ -4586,7 +4604,9 @@ xb_space_create_file(
 	const ulint zip_size = fil_space_t::zip_size(flags);
 
 	if (!zip_size) {
-		buf_flush_init_for_writing(NULL, page, NULL, 0);
+		buf_flush_init_for_writing(
+			NULL, page, NULL, 0,
+			fil_space_t::full_crc32(flags));
 
 		ret = os_file_write(IORequestWrite, path, *file, page, 0,
 				    srv_page_size);
@@ -4602,7 +4622,7 @@ xb_space_create_file(
 			page_zip.m_end = page_zip.m_nonempty =
 			page_zip.n_blobs = 0;
 
-		buf_flush_init_for_writing(NULL, page, &page_zip, 0);
+		buf_flush_init_for_writing(NULL, page, &page_zip, 0, false);
 
 		ret = os_file_write(IORequestWrite, path, *file,
 				    page_zip.data, 0, zip_size);

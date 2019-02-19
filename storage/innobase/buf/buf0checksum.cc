@@ -102,6 +102,14 @@ buf_calc_page_old_checksum(const byte* page)
 	       (ut_fold_binary(page, FIL_PAGE_FILE_FLUSH_LSN_OR_KEY_VERSION)));
 }
 
+/** Calculate the CRC32 checksum for the whole page.
+@param[in]	page	buffer page (srv_page_size bytes)
+@return CRC32 value */
+uint32_t buf_calc_page_full_crc32(const byte* page)
+{
+	return ut_crc32(page, srv_page_size - FIL_PAGE_FCRC32_CHECKSUM);
+}
+
 /** Return a printable string describing the checksum algorithm.
 @param[in]	algo	algorithm
 @return algorithm name */
@@ -121,6 +129,10 @@ buf_checksum_algorithm_name(srv_checksum_algorithm_t algo)
 		return("none");
 	case SRV_CHECKSUM_ALGORITHM_STRICT_NONE:
 		return("strict_none");
+	case SRV_CHECKSUM_ALGORITHM_FULL_CRC32:
+		return("full_crc32");
+	case SRV_CHECKSUM_ALGORITHM_STRICT_FULL_CRC32:
+		return("strict_full_crc32");
 	}
 
 	ut_error;

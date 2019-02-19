@@ -914,7 +914,7 @@ SysTablespace::open_or_create(
 			ut_ad(!fil_system.sys_space);
 			ut_ad(space_id() == TRX_SYS_SPACE);
 			space = fil_system.sys_space = fil_space_create(
-				name(), TRX_SYS_SPACE, flags(),
+				name(), TRX_SYS_SPACE, it->flags(),
 				FIL_TYPE_TABLESPACE, NULL);
 			if (!space) {
 				return DB_ERROR;

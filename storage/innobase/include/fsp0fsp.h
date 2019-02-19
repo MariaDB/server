@@ -45,6 +45,12 @@ Created 12/18/1995 Heikki Tuuri
 	 0U : (srv_page_size_shift - UNIV_ZIP_SIZE_SHIFT_MIN + 1)	\
 	 << FSP_FLAGS_POS_PAGE_SSIZE)
 
+/** @return the PAGE_SSIZE flags for the current innodb_page_size in
+full checksum format */
+#define FSP_FLAGS_FCRC32_PAGE_SSIZE()					\
+	((srv_page_size_shift - UNIV_ZIP_SIZE_SHIFT_MIN + 1)		\
+	<< FSP_FLAGS_FCRC32_POS_PAGE_SSIZE)
+
 /* @defgroup Compatibility macros for MariaDB 10.1.0 through 10.1.20;
 see the table in fsp0types.h @{ */
 /** Zero relative shift position of the PAGE_COMPRESSION field */
@@ -626,7 +632,7 @@ fsp_flags_convert_from_101(ulint flags)
 {
 	DBUG_EXECUTE_IF("fsp_flags_is_valid_failure",
 			return(ULINT_UNDEFINED););
-	if (flags == 0) {
+	if (flags == 0 || fil_space_t::full_crc32(flags)) {
 		return(flags);
 	}
 
@@ -721,7 +727,7 @@ fsp_flags_convert_from_101(ulint flags)
 	flags = ((flags & 0x3f) | ssize << FSP_FLAGS_POS_PAGE_SSIZE
 		 | FSP_FLAGS_GET_PAGE_COMPRESSION_MARIADB101(flags)
 		 << FSP_FLAGS_POS_PAGE_COMPRESSION);
-	ut_ad(fsp_flags_is_valid(flags, false));
+	ut_ad(fil_space_t::is_valid_flags(flags, false));
 	return(flags);
 }
 
@@ -735,7 +741,7 @@ bool
 fsp_flags_match(ulint expected, ulint actual)
 {
 	expected &= ~FSP_FLAGS_MEM_MASK;
-	ut_ad(fsp_flags_is_valid(expected, false));
+	ut_ad(fil_space_t::is_valid_flags(expected, false));
 
 	if (actual == expected) {
 		return(true);

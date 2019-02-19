@@ -312,6 +312,10 @@ static bool page_is_corrupted(const byte *page, ulint page_no,
 		return false;
 	}
 
+	if (space->full_crc32()) {
+		return buf_page_is_corrupted(true, page, space->flags);
+	}
+
 	/* Validate encrypted pages. The first page is never encrypted.
 	In the system tablespace, the first page would be written with
 	FIL_PAGE_FILE_FLUSH_LSN at shutdown, and if the LSN exceeds
@@ -344,7 +348,8 @@ static bool page_is_corrupted(const byte *page, ulint page_no,
 		}
 
 		if (page_type != FIL_PAGE_PAGE_COMPRESSED_ENCRYPTED) {
-			return buf_page_is_corrupted(true, tmp_page, 0, space);
+			return buf_page_is_corrupted(true, tmp_page,
+						     space->flags);
 		}
 	}
 
@@ -363,10 +368,10 @@ static bool page_is_corrupted(const byte *page, ulint page_no,
 			|| page_type == FIL_PAGE_PAGE_COMPRESSED
 			|| page_type == FIL_PAGE_PAGE_COMPRESSED_ENCRYPTED
 			|| buf_page_is_corrupted(true, tmp_page,
-						 space->zip_size(), space));
+						 space->flags));
 	}
 
-	return buf_page_is_corrupted(true, page, space->zip_size(), space);
+	return buf_page_is_corrupted(true, page, space->flags);
 }
 
 /************************************************************************

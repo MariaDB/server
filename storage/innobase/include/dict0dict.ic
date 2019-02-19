@@ -652,20 +652,30 @@ dict_tf_to_fsp_flags(ulint table_flags)
 	DBUG_EXECUTE_IF("dict_tf_to_fsp_flags_failure",
 			return(ULINT_UNDEFINED););
 
-	/* Adjust bit zero. */
-	fsp_flags = DICT_TF_HAS_ATOMIC_BLOBS(table_flags) ? 1 : 0;
+	/* Don't allow compressed row format for full crc32 algorithm */
+	if ((srv_checksum_algorithm == SRV_CHECKSUM_ALGORITHM_STRICT_FULL_CRC32
+	     || srv_checksum_algorithm == SRV_CHECKSUM_ALGORITHM_FULL_CRC32)
+	    && !(table_flags & DICT_TF_MASK_ZIP_SSIZE)
+	    && !page_compression_level) {
 
-	/* ZIP_SSIZE and ATOMIC_BLOBS are at the same position. */
-	fsp_flags |= table_flags
-		& (DICT_TF_MASK_ZIP_SSIZE | DICT_TF_MASK_ATOMIC_BLOBS);
+		fsp_flags = 1U << FSP_FLAGS_FCRC32_POS_MARKER;
+		fsp_flags |= FSP_FLAGS_FCRC32_PAGE_SSIZE();
+	} else {
+		/* Adjust bit zero. */
+		fsp_flags = DICT_TF_HAS_ATOMIC_BLOBS(table_flags) ? 1 : 0;
 
-	fsp_flags |= FSP_FLAGS_PAGE_SSIZE();
+		/* ZIP_SSIZE and ATOMIC_BLOBS are at the same position. */
+		fsp_flags |= table_flags
+			& (DICT_TF_MASK_ZIP_SSIZE | DICT_TF_MASK_ATOMIC_BLOBS);
 
-	if (page_compression_level) {
-		fsp_flags |= FSP_FLAGS_MASK_PAGE_COMPRESSION;
+		fsp_flags |= FSP_FLAGS_PAGE_SSIZE();
+
+		if (page_compression_level) {
+			fsp_flags |= FSP_FLAGS_MASK_PAGE_COMPRESSION;
+		}
 	}
 
-	ut_a(fsp_flags_is_valid(fsp_flags, false));
+	ut_a(fil_space_t::is_valid_flags(fsp_flags, false));
 
 	if (DICT_TF_HAS_DATA_DIR(table_flags)) {
 		fsp_flags |= 1U << FSP_FLAGS_MEM_DATA_DIR;

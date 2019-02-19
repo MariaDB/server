@@ -714,23 +714,39 @@ buf_page_is_checksum_valid_none(
 	ulint				checksum_field2)
 	MY_ATTRIBUTE((nonnull(1), warn_unused_result));
 
+/** Checks if the page is in full crc32 checksum format.
+@param[in]	read_buf	database page
+@param[in]	checksum_field	checksum field
+@return true if the page is in full crc32 checksum format */
+bool buf_page_is_checksum_valid_full_crc32(
+	const byte*	read_buf,
+	size_t		checksum_field);
+
 /** Check if a page is corrupt.
 @param[in]	check_lsn	whether the LSN should be checked
 @param[in]	read_buf	database page
-@param[in]	zip_size	ROW_FORMAT=COMPRESSED page size, or 0
-@param[in]	space		tablespace
+@param[in]	fsp_flags	tablespace flags
 @return whether the page is corrupted */
 bool
 buf_page_is_corrupted(
 	bool			check_lsn,
 	const byte*		read_buf,
-	ulint			zip_size,
-#ifndef UNIV_INNOCHECKSUM
-	const fil_space_t* 	space = NULL)
-#else
-	const void* 	 	space = NULL)
-#endif
+	ulint			fsp_flags)
 	MY_ATTRIBUTE((warn_unused_result));
+
+/** Read the key version from the page. In full crc32 format,
+key version is stored at {0-3th} bytes. In other format, it is
+stored in 26th position.
+@param[in]	read_buf	database page
+@param[in]	fsp_flags	tablespace flags
+@return key version of the page. */
+inline uint32_t buf_page_get_key_version(const byte* read_buf, ulint fsp_flags)
+{
+	return FSP_FLAGS_FCRC32_HAS_MARKER(fsp_flags)
+		? mach_read_from_4(read_buf + FIL_PAGE_FCRC32_KEY_VERSION)
+		: mach_read_from_4(read_buf
+				   + FIL_PAGE_FILE_FLUSH_LSN_OR_KEY_VERSION);
+}
 
 #ifndef UNIV_INNOCHECKSUM
 /**********************************************************************//**
@@ -1374,6 +1390,15 @@ ulint
 buf_pool_size_align(
 	ulint	size);
 
+/** Verify that post encryption checksum match with the calculated checksum.
+This function should be called only if tablespace contains crypt data metadata.
+@param[in]	page		page frame
+@param[in]	fsp_flags	tablespace flags
+@return true if page is encrypted and OK, false otherwise */
+bool buf_page_verify_crypt_checksum(
+	const byte*	page,
+	ulint		fsp_flags);
+
 /** Calculate the checksum of a page from compressed table and update the
 page.
 @param[in,out]	page	page to update
@@ -1394,7 +1419,7 @@ a page is written to disk.
 (may be src_frame or an encrypted/compressed copy of it) */
 UNIV_INTERN
 byte*
-buf_page_encrypt_before_write(
+buf_page_encrypt(
 	fil_space_t*	space,
 	buf_page_t*	bpage,
 	byte*		src_frame);
