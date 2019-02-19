@@ -248,6 +248,19 @@ Warnings:
 Warning	1088	failed to load FOREIGN KEY constraints
 ALTER TABLE t1 ADD FULLTEXT INDEX ft2 (f);
 DROP TABLE t1;
+#
+# MDEV-18630 Conditional jump or move depends on uninitialised value
+# in ib_push_warning / dict_create_foreign_constraints_low
+#
+CREATE TABLE t1 (a INT) ENGINE=InnoDB;
+ALTER IGNORE TABLE t1 ADD FOREIGN KEY (a) REFERENCES t2 (b);
+ERROR HY000: Can't create table `test`.`t1` (errno: 150 "Foreign key constraint is incorrectly formed")
+SHOW WARNINGS;
+Level	Code	Message
+Warning	150	Alter  table test/#sql-temporary with foreign key constraint failed. Referenced table `test`.`t2` not found in the data dictionary near 'FOREIGN KEY (a) REFERENCES t2 (b)'.
+Error	1005	Can't create table `test`.`t1` (errno: 150 "Foreign key constraint is incorrectly formed")
+Warning	1215	Cannot add foreign key constraint for `t1`
+DROP TABLE t1;
 # Start of 10.2 tests
 #
 # MDEV-13246 Stale rows despite ON DELETE CASCADE constraint

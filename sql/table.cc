@@ -51,7 +51,8 @@
 
 static Virtual_column_info * unpack_vcol_info_from_frm(THD *, MEM_ROOT *,
               TABLE *, String *, Virtual_column_info **, bool *);
-static bool check_vcol_forward_refs(Field *, Virtual_column_info *);
+static bool check_vcol_forward_refs(Field *, Virtual_column_info *,
+                                    bool check_constraint);
 
 /* INFORMATION_SCHEMA name */
 LEX_CSTRING INFORMATION_SCHEMA_NAME= {STRING_WITH_LEN("information_schema")};
@@ -1135,9 +1136,9 @@ bool parse_vcol_defs(THD *thd, MEM_ROOT *mem_root, TABLE *table,
   for (field_ptr= table->field; *field_ptr; field_ptr++)
   {
     Field *field= *field_ptr;
-    if (check_vcol_forward_refs(field, field->vcol_info) ||
-        check_vcol_forward_refs(field, field->check_constraint) ||
-        check_vcol_forward_refs(field, field->default_value))
+    if (check_vcol_forward_refs(field, field->vcol_info, 0) ||
+        check_vcol_forward_refs(field, field->check_constraint, 1) ||
+        check_vcol_forward_refs(field, field->default_value, 0))
       goto end;
   }
 
@@ -3087,11 +3088,19 @@ end:
   DBUG_RETURN(vcol_info);
 }
 
-static bool check_vcol_forward_refs(Field *field, Virtual_column_info *vcol)
+static bool check_vcol_forward_refs(Field *field, Virtual_column_info *vcol,
+                                    bool check_constraint)
 {
-  bool res= vcol &&
-            vcol->expr->walk(&Item::check_field_expression_processor, 0,
-                                  field);
+  bool res;
+  uint32 flags= field->flags;
+  if (check_constraint)
+  {
+    /* Check constraints can refer it itself */
+    field->flags|= NO_DEFAULT_VALUE_FLAG;
+  }
+  res= (vcol &&
+        vcol->expr->walk(&Item::check_field_expression_processor, 0, field));
+  field->flags= flags;
   return res;
 }
 

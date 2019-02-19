@@ -11047,6 +11047,7 @@ Column_definition::redefine_stage1_common(const Column_definition *dup_field,
   interval=     dup_field->interval;
   vcol_info=    dup_field->vcol_info;
   invisible=    dup_field->invisible;
+  check_constraint= dup_field->check_constraint;
 }
 
 

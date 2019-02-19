@@ -12,7 +12,7 @@ connection default;
 # Cleanly shutdown mysqld
 disconnect con1;
 # Corrupt FIL_PAGE_OFFSET in bug16720368.ibd,
-# and update the checksum to the "don't care" value.
+# and recompute innodb_checksum_algorithm=crc32
 # Restart mysqld
 # This will succeed after a clean shutdown, due to
 # fil_open_single_table_tablespace(check_space_id=FALSE).
