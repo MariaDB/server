@@ -145,8 +145,11 @@ extern "C" void wsrep_handle_SR_rollback(THD *bf_thd,
               victim_thd->wsrep_trx_id(),
               victim_thd->wsrep_sr().fragments_certified(),
               wsrep_thd_transaction_state_str(victim_thd));
-  if (bf_thd) victim_thd->store_globals();
-  if (!bf_thd)
+  if (bf_thd && bf_thd != victim_thd)
+  {
+    victim_thd->store_globals();
+  }
+  else
   {
     DEBUG_SYNC(victim_thd, "wsrep_before_SR_rollback");
   }
@@ -158,7 +161,10 @@ extern "C" void wsrep_handle_SR_rollback(THD *bf_thd,
   {
     wsrep_thd_self_abort(victim_thd);
   }
-  if (bf_thd) bf_thd->store_globals();
+  if (bf_thd && bf_thd != victim_thd)
+  {
+    bf_thd->store_globals();
+  }
 }
 
 extern "C" my_bool wsrep_thd_bf_abort(const THD *bf_thd, THD *victim_thd,
