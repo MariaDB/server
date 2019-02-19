@@ -2756,7 +2756,10 @@ static bool xtrabackup_copy_logfile(bool last = false)
 		log_mutex_exit();
 
 		if (!start_lsn) {
-			die("xtrabackup_copy_logfile() failed.");
+			msg(recv_sys->found_corrupt_log
+			    ? "xtrabackup_copy_logfile() failed: corrupt log."
+			    : "xtrabackup_copy_logfile() failed.");
+			return true;
 		}
 	} while (start_lsn == end_lsn);
 
