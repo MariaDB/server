@@ -844,9 +844,8 @@ int _ma_insert(register MARIA_HA *info, MARIA_KEY *key,
   a_length+=t_length;
 
   if (key->flag & (SEARCH_USER_KEY_HAS_TRANSID | SEARCH_PAGE_KEY_HAS_TRANSID))
-  {
     _ma_mark_page_with_transid(share, anc_page);
-  }
+
   anc_page->size= a_length;
   page_store_size(share, anc_page);
 
