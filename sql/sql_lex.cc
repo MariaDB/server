@@ -7754,13 +7754,13 @@ void binlog_unsafe_map_init()
 
 /**
   @brief
-  Finding fiels that are used in the GROUP BY of this st_select_lex
+    Collect fiels that are used in the GROUP BY of this st_select_lex
     
   @param thd  The thread handle
 
   @details
-    This method looks through the fields which are used in the GROUP BY of this 
-    st_select_lex and saves this fields. 
+    This method looks through the fields that are used in the GROUP BY of this 
+    st_select_lex and saves onfo on these fields. 
 */
 
 void st_select_lex::collect_grouping_fields_for_derived(THD *thd,
@@ -7826,7 +7826,7 @@ bool st_select_lex::collect_grouping_fields(THD *thd)
     This method traverses the AND-OR condition cond and for each subformula of
     the condition it checks whether it can be usable for the extraction of a
     condition over the grouping fields of this select. The method uses
-    the call-back parameter checker to ckeck whether a primary formula
+    the call-back parameter checker to check whether a primary formula
     depends only on grouping fields.
     The subformulas that are not usable are marked with the flag NO_EXTRACTION_FL.
     The subformulas that can be entierly extracted are marked with the flag 
@@ -7870,7 +7870,7 @@ st_select_lex::check_cond_extraction_for_grouping_fields(THD *thd, Item *cond,
       else if (!and_cond)
         break;
     }
-    if (item)
+    if ((and_cond && count == 0) || item)
       cond->set_extraction_flag(NO_EXTRACTION_FL);
     if (count_full == arg_list->elements)
     {
@@ -9723,7 +9723,7 @@ void st_select_lex::mark_or_conds_to_avoid_pushdown(Item *cond)
   @details
     The method finds out what conditions can be extracted from cond depended
     only on the grouping fields of this SELECT or fields equal to them.
-    If the condition that can be pushed is AND-condition it is splitted out
+    If the condition that can be pushed is AND-condition it is splitted up
     and for each its element it is checked if it can be pushed.
     Pushable elements are attached to the attach_to_conds list.
     If the condition isn't AND-condition it is entirely pushed into
@@ -9745,9 +9745,11 @@ void st_select_lex::mark_or_conds_to_avoid_pushdown(Item *cond)
 
 bool
 st_select_lex::build_pushable_cond_for_having_pushdown(THD *thd,
-                                                       Item *cond,
-                                                       Pushdown_checker checker)
+                                                       Item *cond)
 {
+  Pushdown_checker checker=
+    &Item::pushable_equality_checker_for_having_pushdown;
+
   bool is_multiple_equality= cond->type() == Item::FUNC_ITEM &&
   ((Item_func*) cond)->functype() == Item_func::MULT_EQUAL_FUNC;
 
@@ -9862,33 +9864,15 @@ Field_pair *get_corresponding_field_pair(Item *item,
 
 /**
   @brief
-    Find fields in WHERE clause multiple equalities that can be used in pushdown
+    Collect fields in multiple equalities usable for pushdown from having
 
   @param thd  The thread handle
 
   @details
     This method looks through the multiple equalities of the WHERE clause
-    trying to find any of them which fields are used in the GROUP BY of the
-    SELECT. If such multiple equality exists conditions in the HAVING
-    clause that use fields of this multiple equality can be pushed down
-    into the WHERE clause as well as the conditions depended on the fields
-    from the GROUP BY or fields equal to them that are taken from the HAVING
-    clause multiple equalities.
-
-    Example:
-
-    SELECT a,MAX(b),c
-    FROM t1
-    WHERE (t1.a=t1.c)
-    GROUP BY t1.a
-    HAVING (t1.c>1)
-
-    =>
-
-    SELECT a,MAX(b),c
-    FROM t1
-    WHERE (t1.a=t1.c) AND (t1.c>1)
-    GROUP BY t1.a
+    trying to find any of them whose fields are used in the GROUP BY of the
+    SELECT. Any field from these multiple equality is included into the
+    the list of fields against which any candidate for pushing is checked.
 
   @retval
     true  - if an error occurs
@@ -9909,22 +9893,16 @@ bool st_select_lex::collect_fields_equal_to_grouping(THD *thd)
     Item *item;
     while ((item= it++))
     {
-      if (item->type() != Item::FIELD_ITEM &&
-          item->type() != Item::REF_ITEM)
-        continue;
-
       if (get_corresponding_field_pair(item, grouping_tmp_fields))
         break;
     }
     if (!item)
       break;
-    it.rewind();
 
+    it.rewind();
     while ((item= it++))
     {
-      if ((item->type() != Item::FIELD_ITEM &&
-          item->type() != Item::REF_ITEM) ||
-          get_corresponding_field_pair(item, grouping_tmp_fields))
+      if (get_corresponding_field_pair(item, grouping_tmp_fields))
         continue;
       Field_pair *grouping_tmp_field=
         new Field_pair(((Item_field *)item->real_item())->field, item);
@@ -9937,7 +9915,7 @@ bool st_select_lex::collect_fields_equal_to_grouping(THD *thd)
 
 /**
   @brief
-    Cleanup and fix for the condition that is ready to be pushed down
+    Cleanup and fix of the condition that is ready to be pushed down
 
   @param thd   The thread handle
   @param cond  The condition to be processed
@@ -9954,7 +9932,7 @@ bool st_select_lex::collect_fields_equal_to_grouping(THD *thd)
 */
 
 static
-bool cleanup_inequalities_for_having_pushdown(THD *thd, Item *cond)
+bool cleanup_condition_pushed_from_having(THD *thd, Item *cond)
 {
   if (cond->type() == Item::FUNC_ITEM &&
       ((Item_func*) cond)->functype() == Item_func::MULT_EQUAL_FUNC)
@@ -9966,7 +9944,7 @@ bool cleanup_inequalities_for_having_pushdown(THD *thd, Item *cond)
     Item *item;
 
     while ((item=it++))
-      cleanup_inequalities_for_having_pushdown(thd, item);
+      cleanup_condition_pushed_from_having(thd, item);
   }
   else
   {
@@ -10075,7 +10053,7 @@ Item *remove_pushed_top_conjuncts_for_having(THD *thd, Item *cond)
     This function builds the most restrictive condition depending only on
     the fields used in the GROUP BY of this select (directly or indirectly
     through equality) that can be extracted from the HAVING clause of this
-    select having and pushes it into the WHERE clause of this select.
+    select and pushes it into the WHERE clause of this select.
 
     Example of the transformation:
 
@@ -10095,11 +10073,11 @@ Item *remove_pushed_top_conjuncts_for_having(THD *thd, Item *cond)
     In details:
     1. Collect fields used in the GROUP BY grouping_fields of this SELECT
     2. Collect fields equal to grouping_fields from the WHERE clause
-       of this SELECT and attach them to the grouping_fields list.
-    3. Search for the conditions in the HAVING clause of this select
-       that depends only on grouping_fields. Store them in the
-       attach_to_conds list.
-    4. Remove pushable conditions from the HAVING clause having.
+       of this SELECT and add them to the grouping_fields list.
+    3. Extract the most restrictive condition from the HAVING clause of this
+       select that depends only on the grouping fields (directly or indirectly
+       through equality). Store it in the attach_to_conds list.
+    4. Remove pushable conditions from the HAVING clause if it's possible.
 
   @note
     This method is similar to st_select_lex::pushdown_cond_into_where_clause().
@@ -10119,37 +10097,25 @@ Item *st_select_lex::pushdown_from_having_into_where(THD *thd, Item *having)
   thd->lex->current_select= this;
 
   /*
-    1. Collect fields used in the GROUP BY grouping_fields of this SELECT
+    1. Collect fields used in the GROUP BY grouping fields of this SELECT
     2. Collect fields equal to grouping_fields from the WHERE clause
-       of this SELECT and attach them to the grouping_fields list.
+       of this SELECT and add them to the grouping fields list.
   */
-  if (have_window_funcs())
-  {
-    if (group_list.first || join->implicit_grouping)
-      return having;
-    ORDER *common_partition_fields=
-       find_common_window_func_partition_fields(thd);
-    if (!common_partition_fields ||
-        collect_grouping_fields(thd) ||
-        collect_fields_equal_to_grouping(thd))
-      return having;
-  }
-  else if (collect_grouping_fields(thd) ||
-           collect_fields_equal_to_grouping(thd))
+  if (collect_grouping_fields(thd) ||
+      collect_fields_equal_to_grouping(thd))
     return having;
 
   /*
-    3. Search for the conditions in the HAVING clause of this select
-       that depends only on grouping_fields. Store them in the
-       attach_to_conds list.
+    3. Extract the most restrictive condition from the HAVING clause of this
+       select that depends only on the grouping fields (directly or indirectly
+       through equality). Store it in the attach_to_conds list.
   */
   thd->having_pushdown= true;
   List_iterator_fast<Item> it(attach_to_conds);
   Item *item;
   check_cond_extraction_for_grouping_fields(thd, having,
     &Item::dep_on_grouping_fields_checker_for_having_pushdown);
-  if (build_pushable_cond_for_having_pushdown(thd, having,
-      &Item::pushable_equality_checker_for_having_pushdown))
+  if (build_pushable_cond_for_having_pushdown(thd, having))
   {
     attach_to_conds.empty();
     goto exit;
@@ -10157,14 +10123,14 @@ Item *st_select_lex::pushdown_from_having_into_where(THD *thd, Item *having)
   if (attach_to_conds.elements != 0)
   {
     /*
-      4. Remove pushable conditions from the HAVING clause having.
+      4. Remove pushable conditions from the HAVING clause if it's possible.
     */
     having= remove_pushed_top_conjuncts_for_having(thd, having);
 
     it.rewind();
     while ((item=it++))
     {
-      if (cleanup_inequalities_for_having_pushdown(thd, item))
+      if (cleanup_condition_pushed_from_having(thd, item))
       {
         attach_to_conds.empty();
         goto exit;

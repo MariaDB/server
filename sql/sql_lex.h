@@ -1504,8 +1504,7 @@ public:
   { return !olap && !explicit_limit && !tvc; }
   
   bool build_pushable_cond_for_having_pushdown(THD *thd,
-                                               Item *cond,
-                                               Pushdown_checker checker);
+                                               Item *cond);
   void pushdown_cond_into_where_clause(THD *thd, Item *extracted_cond,
                                        Item **remaining_cond,
                                        Item_transformer transformer,
