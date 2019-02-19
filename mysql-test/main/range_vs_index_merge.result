@@ -1079,7 +1079,7 @@ EXPLAIN SELECT Name, Country, Population FROM City WHERE
 (Name='Samara' AND Country='RUS') OR  
 (Name='Seattle' AND Country='USA');
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	City	range	Country,CountryPopulation,CountryName,CityName	CityName	35	NULL	27	Using index condition; Using where
+1	SIMPLE	City	range	Country,CountryPopulation,CountryName,CityName	CountryName	38	NULL	28	Using index condition; Using where
 SELECT Name, Country, Population FROM City WHERE
 (Name='Manila' AND Country='PHL') OR
 (Name='Addis Abeba' AND Country='ETH') OR          
@@ -1109,33 +1109,33 @@ SELECT Name, Country, Population FROM City WHERE
 (Name='Samara' AND Country='RUS') OR  
 (Name='Seattle' AND Country='USA');
 Name	Country	Population
-Addis Abeba	ETH	2495000
-Ankara	TUR	3038159
-Bangalore	IND	2660088
-Basel	CHE	166700
-Caracas	VEN	1975294
-Dakar	SEN	785071
-Delhi	IND	7206704
-Dresden	DEU	476668
-Jakarta	IDN	9604900
-Kaunas	LTU	412639
-Lagos	NGA	1518000
-Lugansk	UKR	469000
-Manila	PHL	1581082
-Paris	FRA	2125246
-Peking	CHN	7472000
-Praha	CZE	1181126
-Rabat	MAR	623457
-Roma	ITA	2643581
-Samara	RUS	1156100
-Seattle	USA	563374
-Seoul	KOR	9981619
-Teheran	IRN	6758845
-Tijuana	MEX	1212232
-Tokyo	JPN	7980230
 Toronto	CAN	688275
 Vancouver	CAN	514008
+Basel	CHE	166700
+Peking	CHN	7472000
+Praha	CZE	1181126
+Dresden	DEU	476668
+Addis Abeba	ETH	2495000
+Paris	FRA	2125246
+Jakarta	IDN	9604900
+Bangalore	IND	2660088
+Delhi	IND	7206704
+Teheran	IRN	6758845
+Roma	ITA	2643581
 Venezia	ITA	277305
+Tokyo	JPN	7980230
+Seoul	KOR	9981619
+Kaunas	LTU	412639
+Rabat	MAR	623457
+Tijuana	MEX	1212232
+Lagos	NGA	1518000
+Manila	PHL	1581082
+Samara	RUS	1156100
+Dakar	SEN	785071
+Ankara	TUR	3038159
+Lugansk	UKR	469000
+Seattle	USA	563374
+Caracas	VEN	1975294
 set optimizer_switch='index_merge=off';
 EXPLAIN SELECT Name, Country, Population FROM City WHERE
 (Name='Manila' AND Country='PHL') OR
@@ -1166,7 +1166,7 @@ EXPLAIN SELECT Name, Country, Population FROM City WHERE
 (Name='Samara' AND Country='RUS') OR  
 (Name='Seattle' AND Country='USA');
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	City	range	Country,CountryPopulation,CountryName,CityName	CityName	35	NULL	27	Using index condition; Using where
+1	SIMPLE	City	range	Country,CountryPopulation,CountryName,CityName	CountryName	38	NULL	28	Using index condition; Using where
 SELECT Name, Country, Population FROM City WHERE
 (Name='Manila' AND Country='PHL') OR
 (Name='Addis Abeba' AND Country='ETH') OR          
@@ -1196,33 +1196,33 @@ SELECT Name, Country, Population FROM City WHERE
 (Name='Samara' AND Country='RUS') OR  
 (Name='Seattle' AND Country='USA');
 Name	Country	Population
-Addis Abeba	ETH	2495000
-Ankara	TUR	3038159
-Bangalore	IND	2660088
-Basel	CHE	166700
-Caracas	VEN	1975294
-Dakar	SEN	785071
-Delhi	IND	7206704
-Dresden	DEU	476668
-Jakarta	IDN	9604900
-Kaunas	LTU	412639
-Lagos	NGA	1518000
-Lugansk	UKR	469000
-Manila	PHL	1581082
-Paris	FRA	2125246
-Peking	CHN	7472000
-Praha	CZE	1181126
-Rabat	MAR	623457
-Roma	ITA	2643581
-Samara	RUS	1156100
-Seattle	USA	563374
-Seoul	KOR	9981619
-Teheran	IRN	6758845
-Tijuana	MEX	1212232
-Tokyo	JPN	7980230
 Toronto	CAN	688275
 Vancouver	CAN	514008
+Basel	CHE	166700
+Peking	CHN	7472000
+Praha	CZE	1181126
+Dresden	DEU	476668
+Addis Abeba	ETH	2495000
+Paris	FRA	2125246
+Jakarta	IDN	9604900
+Bangalore	IND	2660088
+Delhi	IND	7206704
+Teheran	IRN	6758845
+Roma	ITA	2643581
 Venezia	ITA	277305
+Tokyo	JPN	7980230
+Seoul	KOR	9981619
+Kaunas	LTU	412639
+Rabat	MAR	623457
+Tijuana	MEX	1212232
+Lagos	NGA	1518000
+Manila	PHL	1581082
+Samara	RUS	1156100
+Dakar	SEN	785071
+Ankara	TUR	3038159
+Lugansk	UKR	469000
+Seattle	USA	563374
+Caracas	VEN	1975294
 set optimizer_switch=@save_optimizer_switch;
 # 
 # Bug mdev-585: range vs index-merge with ORDER BY ... LIMIT n
@@ -1900,23 +1900,23 @@ Country='NOR' AND Name IN ('Oslo', 'Bergen') OR
 Country='ITA' AND Name IN ('Napoli', 'Venezia');
 ID	Name	Country	Population
 175	Antwerpen	BEL	446525
-2808	Bergen	NOR	230948
+176	Gent	BEL	224180
 3068	Berlin	DEU	3386667
 3087	Bonn	DEU	301048
-2918	Braga	PRT	90535
-176	Gent	BEL	224180
 3242	Lahti	FIN	96921
-3580	Moscow	RUS	8389200
-1466	Napoli	ITA	1002619
-2807	Oslo	NOR	508726
 2974	Paris	FRA	2125246
+1466	Napoli	ITA	1002619
+1474	Venezia	ITA	277305
+2808	Bergen	NOR	230948
+2807	Oslo	NOR	508726
+2928	Warszawa	POL	1615369
+2931	Wroclaw	POL	636765
+2918	Braga	PRT	90535
 2915	Porto	PRT	273060
+3580	Moscow	RUS	8389200
 3581	St Petersburg	RUS	4694000
 3048	Stockholm	SWE	750348
 3051	Uppsala	SWE	189569
-1474	Venezia	ITA	277305
-2928	Warszawa	POL	1615369
-2931	Wroclaw	POL	636765
 explain select * from City
 where
 Country='FIN' AND Name IN ('Lahti','Imatra') OR
@@ -1930,6 +1930,6 @@ Country='POL' AND Name IN ('Warszawa', 'Wroclaw') OR
 Country='NOR' AND Name IN ('Oslo', 'Bergen') OR
 Country='ITA' AND Name IN ('Napoli', 'Venezia');
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	City	range	CountryName,Name	Name	35	NULL	20	Using index condition; Using where
+1	SIMPLE	City	range	CountryName,Name	CountryName	38	NULL	20	Using index condition; Using where
 DROP DATABASE world;
 set session optimizer_switch='index_merge_sort_intersection=default';

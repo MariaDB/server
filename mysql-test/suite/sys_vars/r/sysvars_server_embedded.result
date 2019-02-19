@@ -881,10 +881,10 @@ ENUM_VALUE_LIST	NULL
 READ_ONLY	NO
 COMMAND_LINE_ARGUMENT	NULL
 VARIABLE_NAME	EQ_RANGE_INDEX_DIVE_LIMIT
-SESSION_VALUE	10
-GLOBAL_VALUE	10
+SESSION_VALUE	200
+GLOBAL_VALUE	200
 GLOBAL_VALUE_ORIGIN	COMPILE-TIME
-DEFAULT_VALUE	10
+DEFAULT_VALUE	200
 VARIABLE_SCOPE	SESSION
 VARIABLE_TYPE	INT UNSIGNED
 VARIABLE_COMMENT	The optimizer will use existing index statistics instead of doing index dives for equality ranges if the number of equality ranges for the index is larger than or equal to this number. If set to 0, index dives are always used.
