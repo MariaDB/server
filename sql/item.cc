@@ -7309,7 +7309,6 @@ Item *Item::build_pushable_cond(THD *thd,
   {
     List<Item> equalities;
     Item *new_cond= NULL;
-    Item_equal *item_equal= (Item_equal *)this;
     if (((Item_equal *)this)->create_pushable_equalities(thd, &equalities,
                                                          checker, arg) ||
         (equalities.elements == 0))
@@ -7325,9 +7324,6 @@ Item *Item::build_pushable_cond(THD *thd,
                                                      equalities,
                                                      &cond_value,
                                                      false);
-      if (equalities.elements ==
-          (item_equal->elements_count()-1) && item_equal->upper_levels)
-        item_equal->upper_levels->work_references--;
       return new_cond;
     }
 

@@ -2285,7 +2285,8 @@ int JOIN::optimize_stage2()
       DBUG_PRINT("error",("Error from substitute_for_best_equal"));
       DBUG_RETURN(1);
     }
-    having->update_used_tables();
+    if (having)
+      having->update_used_tables();
     DBUG_EXECUTE("having",
                  print_where(having,
                              "after substitute_best_equal",
@@ -5205,11 +5206,7 @@ make_join_statistics(JOIN *join, List<TABLE_LIST> &tables_list,
       {
         if (*s->on_expr_ref && s->cond_equal &&
 	    s->cond_equal->upper_levels == orig_cond_equal)
-        {
           s->cond_equal->upper_levels= join->cond_equal;
-          if (s->cond_equal->upper_levels)
-            s->cond_equal->upper_levels->references++;
-        }
       }
     }
   }
@@ -14761,8 +14758,6 @@ COND *Item_func_eq::build_equal_items(THD *thd,
         set_if_bigger(thd->lex->current_select->max_equal_elems,
                       item_equal->n_field_items());  
         item_equal->upper_levels= inherited;
-        if (inherited)
-          inherited->increase_references();
         if (cond_equal_ref)
           *cond_equal_ref= new (thd->mem_root) COND_EQUAL(item_equal,
                                                           thd->mem_root);
@@ -14797,8 +14792,6 @@ COND *Item_func_eq::build_equal_items(THD *thd,
       and_cond->update_used_tables();
       if (cond_equal_ref)
         *cond_equal_ref= &and_cond->m_cond_equal;
-      if (inherited)
-        inherited->increase_references();
       return and_cond;
     }
   }
@@ -14924,8 +14917,6 @@ static COND *build_equal_items(JOIN *join, COND *cond,
     if (*cond_equal_ref)
     {
       (*cond_equal_ref)->upper_levels= inherited;
-      if (inherited)
-        inherited->increase_references();
       inherited= *cond_equal_ref;
     }
   }
@@ -15161,7 +15152,7 @@ Item *eliminate_item_equal(THD *thd, COND *cond, COND_EQUAL *upper_levels,
                ((Item_func *) cond)->functype() == Item_func::EQ_FUNC) ||  
               (cond->type() == Item::COND_ITEM  && 
                ((Item_func *) cond)->functype() == Item_func::COND_AND_FUNC));
-       
+
   /* 
     Pick the "head" item: the constant one or the first in the join order
     (if the first in the join order happends to be inside an SJM nest, that's
@@ -15428,8 +15419,12 @@ static COND* substitute_for_best_equal_field(THD *thd, JOIN_TAB *context_tab,
       COND *eq_cond= 0;
       List_iterator_fast<Item_equal> it(cond_equal->current_level);
       bool false_eq_cond= FALSE;
+      bool all_deleted= true;
       while ((item_equal= it++))
       {
+        if (item_equal->get_extraction_flag() == DELETION_FL)
+          continue;
+        all_deleted= false;
         eq_cond= eliminate_item_equal(thd, eq_cond, cond_equal->upper_levels,
                                       item_equal);
         if (!eq_cond)
@@ -15468,7 +15463,7 @@ static COND* substitute_for_best_equal_field(THD *thd, JOIN_TAB *context_tab,
           }
 	}
       }
-      if (!eq_cond)
+      if (!eq_cond && !all_deleted)
       {
         /* 
           We are out of memory doing the transformation.
@@ -15487,6 +15482,8 @@ static COND* substitute_for_best_equal_field(THD *thd, JOIN_TAB *context_tab,
     cond_equal= item_equal->upper_levels;
     if (cond_equal && cond_equal->current_level.head() == item_equal)
       cond_equal= cond_equal->upper_levels;
+    if (item_equal->get_extraction_flag() == DELETION_FL)
+      return 0;
     cond= eliminate_item_equal(thd, 0, cond_equal, item_equal);
     return cond ? cond : org_cond;
   }

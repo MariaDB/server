@@ -7759,8 +7759,8 @@ void binlog_unsafe_map_init()
   @param thd  The thread handle
 
   @details
-    This method looks through the fields that are used in the GROUP BY of this 
-    st_select_lex and saves onfo on these fields. 
+    This method looks through the fields that are used in the GROUP BY of this
+    st_select_lex and saves info on these fields.
 */
 
 void st_select_lex::collect_grouping_fields_for_derived(THD *thd,
@@ -7874,9 +7874,6 @@ st_select_lex::check_cond_extraction_for_grouping_fields(THD *thd, Item *cond,
       cond->set_extraction_flag(NO_EXTRACTION_FL);
     if (count_full == arg_list->elements)
     {
-      if (and_cond != 0 && !and_cond->m_cond_equal.is_empty() &&
-          and_cond->m_cond_equal.upper_levels)
-        and_cond->m_cond_equal.upper_levels->work_references--;
       cond->set_extraction_flag(FULL_EXTRACTION_FL);
     }
     if (cond->get_extraction_flag() != 0)
@@ -9969,9 +9966,12 @@ bool cleanup_condition_pushed_from_having(THD *thd, Item *cond)
     As in the pushdown from HAVING into WHERE conditions are not just cloned
     so they can be later pushed down as it is for pushdown into materialized
     derived tables/views or IN subqueries, but also should be removed from
-    the HAVING clause there comes a problem with multiple equalities removal.
-    It is solved with the removal from multiple equalities list 'm_cond_equal'
-    of 'cond' conditions that are marked with the FULL_EXTRACTION_FLAG flag.
+    the HAVING clause.
+    The multiple equalities of the HAVING clause are not removed in this
+    function, but rather marked as to be removed later. Their removal is
+    done in substitute_for_best_equal_field() called for HAVING at the moment
+    when all multiple equalities referencing the top level multiple equalities
+    have been already eliminated.
 
   @retval
      condition without removed subformulas
@@ -9983,6 +9983,12 @@ Item *remove_pushed_top_conjuncts_for_having(THD *thd, Item *cond)
   if (cond->get_extraction_flag() == FULL_EXTRACTION_FL)
   {
     cond->clear_extraction_flag();
+    if (cond->type() == Item::FUNC_ITEM &&
+        ((Item_func*) cond)->functype() == Item_func::MULT_EQUAL_FUNC)
+    {
+      cond->set_extraction_flag(DELETION_FL);
+      return cond;
+    }
     return 0;
   }
   if (cond->type() != Item::COND_ITEM)
@@ -9991,32 +9997,6 @@ Item *remove_pushed_top_conjuncts_for_having(THD *thd, Item *cond)
   if (((Item_cond*) cond)->functype() == Item_func::COND_AND_FUNC)
   {
     List<Item> *cond_arg_list= ((Item_cond_and *)cond)->argument_list();
-    List<Item_equal> *cond_equalities=
-      &((Item_cond_and*) cond)->m_cond_equal.current_level;
-    cond_arg_list->disjoin((List<Item> *) cond_equalities);
-    List_iterator<Item_equal> it(*cond_equalities);
-    Item_equal *eq_item;
-
-    if (((Item_cond_and*) cond)->m_cond_equal.work_references == 0)
-    {
-      while ((eq_item= it++))
-      {
-        if (eq_item->get_extraction_flag() == FULL_EXTRACTION_FL)
-        {
-          eq_item->clear_extraction_flag();
-          it.remove();
-        }
-      }
-      ((Item_cond_and*) cond)->m_cond_equal.clean_references();
-    }
-    else
-    {
-      while ((eq_item= it++))
-        eq_item->clear_extraction_flag();
-      ((Item_cond_and*) cond)->m_cond_equal.work_references=
-        ((Item_cond_and*) cond)->m_cond_equal.references;
-    }
-    cond_arg_list->append((List<Item> *) cond_equalities);
     List_iterator<Item> li(*cond_arg_list);
     Item *item;
     while ((item= li++))
@@ -10024,7 +10004,11 @@ Item *remove_pushed_top_conjuncts_for_having(THD *thd, Item *cond)
       if (item->get_extraction_flag() == FULL_EXTRACTION_FL)
       {
         item->clear_extraction_flag();
-        li.remove();
+        if (item->type() == Item::FUNC_ITEM &&
+            ((Item_func*) item)->functype() == Item_func::MULT_EQUAL_FUNC)
+          item->set_extraction_flag(DELETION_FL);
+        else
+          li.remove();
       }
     }
     switch (cond_arg_list->elements)

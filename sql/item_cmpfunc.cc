@@ -6509,8 +6509,6 @@ Item_equal::Item_equal(THD *thd, Item_equal *item_equal):
   with_const= item_equal->with_const;
   cond_false= item_equal->cond_false;
   upper_levels= item_equal->upper_levels;
-  if (item_equal->upper_levels)
-    item_equal->upper_levels->increase_references();
 }
 
 
@@ -7353,8 +7351,6 @@ Item_equal::excl_dep_on_group_fields_for_having_pushdown(st_select_lex *sel)
   {
     if (item->excl_dep_on_group_fields_for_having_pushdown(sel))
     {
-      if (upper_levels)
-        upper_levels->references--;
       set_extraction_flag(FULL_EXTRACTION_FL);
       return true;
     }

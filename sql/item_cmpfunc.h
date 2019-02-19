@@ -3223,17 +3223,12 @@ public:
   COND_EQUAL *upper_levels;       /* multiple equalities of upper and levels */
   List<Item_equal> current_level; /* list of multiple equalities of 
                                      the current and level           */
-  uint references;                /* number of conditions that have
-                                     reference on this COND_EQUAL */
-  uint work_references;           /* same as references */
   COND_EQUAL()
   { 
     upper_levels= 0;
-    references= 0;
-    work_references= 0;
   }
   COND_EQUAL(Item_equal *item, MEM_ROOT *mem_root)
-   :upper_levels(0), references(0), work_references(0)
+   :upper_levels(0)
   {
     current_level.push_back(item, mem_root);
   }
@@ -3241,8 +3236,6 @@ public:
   {
     max_members= cond_equal.max_members;
     upper_levels= cond_equal.upper_levels;
-    references= cond_equal.references;
-    work_references= cond_equal.work_references;
     if (cond_equal.current_level.is_empty())
       current_level.empty();
     else
@@ -3251,16 +3244,6 @@ public:
   bool is_empty()
   {
     return (current_level.elements == 0);
-  }
-  void increase_references()
-  {
-    references++;
-    work_references++;
-  }
-  void clean_references()
-  {
-    references= 0;
-    work_references= 0;
   }
 };
 

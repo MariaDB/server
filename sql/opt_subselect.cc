@@ -5601,82 +5601,6 @@ int select_value_catcher::send_data(List<Item> &items)
 
 /**
   @brief
-    Set missing links on multiply equalities
-
-  @param thd               the thread handle
-  @param cond              the condition to set links for
-  @param inherited         path to all inherited multiple equality items
-  @param build_cond_equal  flag to control if COND_EQUAL for AND-condition
-                           should be built
-
-  @details
-    The method traverses cond and set links for the upper COND_EQUAL levels
-    where needed.
-    If build_cond_equal is set to true it builds for each AND-level except the
-    external one COND_EQUAL.
-*/
-
-static
-void set_cond_equal_links(THD *thd, Item *cond, COND_EQUAL *inherited,
-                          bool build_cond_equal)
-{
-  if (cond->type() == Item::FUNC_ITEM &&
-      ((Item_func*) cond)->functype() == Item_func::MULT_EQUAL_FUNC)
-  {
-    ((Item_equal *)cond)->upper_levels= inherited;
-    if (inherited)
-      inherited->increase_references();
-  }
-
-  if (cond->type() != Item::COND_ITEM)
-    return;
-
-  List_iterator<Item> it(*((Item_cond *)cond)->argument_list());
-  Item *item;
-  while ((item=it++))
-  {
-    if (item->type() != Item::COND_ITEM ||
-        ((Item_cond*) item)->functype() != Item_func::COND_AND_FUNC)
-    {
-      set_cond_equal_links(thd, item, inherited, build_cond_equal);
-      continue;
-    }
-    Item_cond_and *and_item= (Item_cond_and *)item;
-    if (build_cond_equal)
-    {
-      COND_EQUAL new_cond_equal;
-      List_iterator<Item> li(*and_item->argument_list());
-      Item *elem;
-
-      while ((elem=li++))
-      {
-        if (elem->type() == Item::FUNC_ITEM &&
-            ((Item_func*) elem)->functype() == Item_func::MULT_EQUAL_FUNC)
-        {
-          if (new_cond_equal.current_level.push_back((Item_equal *)elem,
-                                                     thd->mem_root))
-            return;
-          li.remove();
-        }
-      }
-      List<Item> *equal_list=
-        (List<Item> *)&and_item->m_cond_equal.current_level;
-      and_item->m_cond_equal.copy(new_cond_equal);
-      and_item->argument_list()->append(equal_list);
-    }
-    and_item->m_cond_equal.upper_levels= inherited;
-    and_item->m_cond_equal.clean_references();
-    if (inherited)
-      inherited->increase_references();
-
-    set_cond_equal_links(thd, item, &and_item->m_cond_equal,
-                         build_cond_equal);
-  }
-}
-
-
-/**
-  @brief
     Conjunct conditions after optimize_cond() call
 
   @param thd               the thread handle
@@ -5705,7 +5629,6 @@ Item *and_new_conditions_to_optimized_cond(THD *thd, Item *cond,
                                            bool build_cond_equal)
 {
   COND_EQUAL new_cond_equal;
-  COND_EQUAL *inherited= 0;
   Item *item;
   Item_equal *equality;
   bool is_simplified_cond= false;
@@ -5778,7 +5701,6 @@ Item *and_new_conditions_to_optimized_cond(THD *thd, Item *cond,
 
     and_args->append((List<Item> *) cond_equalities);
     *cond_eq= &((Item_cond_and *) cond)->m_cond_equal;
-    inherited= &((Item_cond_and *)cond)->m_cond_equal;
 
     propagate_new_equalities(thd, cond, cond_equalities,
                              cond_equal->upper_levels,
@@ -5862,7 +5784,6 @@ Item *and_new_conditions_to_optimized_cond(THD *thd, Item *cond,
       and_cond->m_cond_equal.copy(new_cond_equal);
       cond= (Item *)and_cond;
       *cond_eq= &((Item_cond_and *)cond)->m_cond_equal;
-      inherited= &((Item_cond_and *)cond)->m_cond_equal;
     }
     else
     {
@@ -5886,11 +5807,6 @@ Item *and_new_conditions_to_optimized_cond(THD *thd, Item *cond,
   */
   if (is_simplified_cond)
     cond= cond->remove_eq_conds(thd, cond_value, true);
-
-  if (cond)
-  {
-    set_cond_equal_links(thd, cond, inherited, build_cond_equal);
-  }
 
   return cond;
 }
