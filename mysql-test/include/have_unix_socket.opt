@@ -1,0 +1,1 @@
+--plugin-load-add=$AUTH_SOCKET_SO --loose-enable-unix-socket

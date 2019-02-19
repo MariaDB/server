@@ -1,7 +1,8 @@
 --source include/not_embedded.inc
 
-if (!$AUTH_SOCKET_SO) {
-  skip No unix_socket plugin;
+if (`select count(*) = 0 from information_schema.plugins where plugin_name = 'unix_socket' and plugin_status='active'`)
+{
+  --skip Needs unix_socket plugin
 }
 
 if (!$USER) {

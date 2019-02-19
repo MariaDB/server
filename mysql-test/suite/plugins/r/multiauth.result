@@ -1,4 +1,3 @@
-install soname 'auth_socket';
 install soname 'auth_ed25519';
 create user USER         identified via unix_socket OR mysql_native_password as password("GOOD");
 create user mysqltest1 identified via unix_socket OR mysql_native_password as password("good");
@@ -190,5 +189,4 @@ select user(), current_user(), database();
 user()	current_user()	database()
 mysqltest1@localhost	mysqltest1@%	test
 drop user mysqltest1;
-uninstall soname 'auth_socket';
 uninstall soname 'auth_ed25519';
