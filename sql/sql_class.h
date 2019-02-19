@@ -2152,25 +2152,13 @@ extern "C" void my_message_sql(uint error, const char *str, myf MyFlags);
   It must be specified as a first base class of THD, so that increment is
   done before any other THD constructors and decrement - after any other THD
   destructors.
+
+  Destructor unblocks close_conneciton() if there are no more THD's left.
 */
 struct THD_count
 {
   THD_count() { thread_count++; }
-
-
-  /**
-    Decrements thread_count.
-
-    Unblocks close_conneciton() if there are no more THD's left.
-  */
-  ~THD_count()
-  {
-#ifndef DBUG_OFF
-    uint32_t t=
-#endif
-    thread_count--;
-    DBUG_ASSERT(t > 0);
-  }
+  ~THD_count() { thread_count--; }
 };
 
 
