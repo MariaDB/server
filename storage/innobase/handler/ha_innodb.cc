@@ -4712,7 +4712,7 @@ innobase_rollback(
 	trx is being rolled back due to BF abort, clear XID in order
 	to avoid writing it to rollback segment out of order. The XID
 	will be reassigned when the transaction is replayed. */
-	if (wsrep_is_wsrep_xid(trx->xid)) {
+	if (trx->state != TRX_STATE_NOT_STARTED && wsrep_is_wsrep_xid(trx->xid)) {
 		trx->xid->null();
 	}
 #endif /* WITH_WSREP */
