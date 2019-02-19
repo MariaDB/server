@@ -213,7 +213,7 @@ struct trx_rseg_t {
 		      || (srv_undo_space_id_start > 0
 			  && space >= srv_undo_space_id_start
 			  && space <= srv_undo_space_id_start
-			  + srv_undo_tablespaces_active)
+			  + srv_undo_tablespaces_open)
 		      || !srv_was_started);
 		return(space != SRV_TMP_SPACE_ID);
 	}
