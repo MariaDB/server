@@ -303,6 +303,8 @@ fi
 parse_arguments `"$print_defaults" $defaults $defaults_group_suffix --mysqld mysql_install_db`
 parse_arguments PICK-ARGS-FROM-ARGV "$@"
 
+rel_mysqld="$dirname0/@INSTALL_SBINDIR@/mysqld"
+
 # Configure paths to support files
 if test -n "$srcdir"
 then
@@ -344,12 +346,12 @@ then
   fi
   plugindir=`find_in_dirs --dir auth_socket.so $basedir/lib*/plugin $basedir/lib*/mysql/plugin`
 # relative from where the script was run for a relocatable install
-elif test -n "$dirname0" -a -x "$dirname0/@INSTALL_SBINDIR@/mysqld"
+elif test -n "$dirname0" -a -x "$rel_mysqld" -a ! "$rel_mysqld" -ef "@sbindir@/mysqld"
 then
   basedir="$dirname0"
-  bindir="$basedir/@INSTALL_SBINDIR@"
+  bindir="$basedir/@INSTALL_BINDIR@"
   resolveip="$bindir/resolveip"
-  mysqld="$basedir/@INSTALL_SBINDIR@/mysqld"
+  mysqld="$rel_mysqld"
   srcpkgdatadir="$basedir/@INSTALL_MYSQLSHAREDIR@"
   buildpkgdatadir="$basedir/@INSTALL_MYSQLSHAREDIR@"
   plugindir="$basedir/@INSTALL_PLUGINDIR@"
