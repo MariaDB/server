@@ -170,12 +170,13 @@ int my_rmtree(const char *dir, myf MyFlags)
   char path[FN_REFLEN];
   char sep[] = { FN_LIBCHAR, 0 };
   int err = 0;
+  uint i;
 
   MY_DIR *dir_info = my_dir(dir, MYF(MY_DONT_SORT | MY_WANT_STAT));
   if (!dir_info)
     return 1;
 
-  for (uint i = 0; i < dir_info->number_of_files; i++)
+  for (i = 0; i < dir_info->number_of_files; i++)
   {
     FILEINFO *file = dir_info->dir_entry + i;
     /* Skip "." and ".." */
