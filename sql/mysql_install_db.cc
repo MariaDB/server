@@ -39,7 +39,8 @@ struct IUnknown;
 
 extern "C" const char* mysql_bootstrap_sql[];
 
-char default_os_user[]= "NT AUTHORITY\\NetworkService";
+static char default_os_user[]= "NT AUTHORITY\\NetworkService";
+static char default_datadir[MAX_PATH];
 static int create_db_instance();
 static uint opt_silent;
 static char datadir_buffer[FN_REFLEN];
@@ -169,8 +170,27 @@ int main(int argc, char **argv)
     exit(error);
   if (!opt_datadir)
   {
-    my_print_help(my_long_options);
-    die("parameter --datadir=# is mandatory");
+    /*
+      Figure out default data directory. It "data" directory, next to "bin" directory, where
+      mysql_install_db.exe resides.
+    */
+    strcpy(default_datadir, self_name);
+    p = strrchr(default_datadir, FN_LIBCHAR);
+    if (p)
+    {
+      *p= 0;
+      p= strrchr(default_datadir, FN_LIBCHAR);
+      if (p)
+        *p= 0;
+    }
+    if (!p)
+    {
+      die("--datadir option not provided, and default datadir not found");
+      my_print_help(my_long_options);
+    }
+    strncat(default_datadir, "\\data", sizeof(default_datadir));
+    opt_datadir= default_datadir;
+    printf("Default data directory is %s\n",opt_datadir);
   }
 
   /* Print some help on errors */

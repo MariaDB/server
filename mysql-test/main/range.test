@@ -2075,6 +2075,29 @@ set eq_range_index_dive_limit=default;
 drop table t1;
 
 --echo #
+--echo # MDEV-18551: New defaults for eq_range_index_dive_limit
+--echo #
+
+create table ten(a int);
+insert into ten values (0),(1),(2),(3),(4),(5),(6),(7),(8),(9);
+create table t1(a int, key(a));
+insert into t1 select A.a + B.a*10 + C.a*100 from ten A, ten B,ten C;
+insert into t1 select 1 from ten A, ten B,ten C;
+
+create table t2(a int, key(a));
+insert into t2 select A.a + B.a*10 + C.a*100 from ten A, ten B,ten C where A.a + B.a*10 + C.a*100 < 199;
+
+let $a= `select group_concat(a) from t2`;
+
+--echo # expected type=range, rows=1487 , reason=using index dives
+eval analyze SELECT * FROM t1 where a in ($a);
+insert into t2 values (200),(201);
+let $a= `select group_concat(a) from t2`;
+--echo # expected type=range, rows=201 , reason=using index statistics
+eval analyze SELECT * FROM t1 where a in ($a);
+drop table t1,ten,t2;
+
+--echo #
 --echo # End of 10.2 tests
 --echo #
 

@@ -262,9 +262,10 @@
                                     OPTIMIZER_SWITCH_ORDERBY_EQ_PROP | \
                                     OPTIMIZER_SWITCH_COND_PUSHDOWN_FOR_DERIVED | \
                                     OPTIMIZER_SWITCH_SPLIT_MATERIALIZED | \
-                                    OPTIMIZER_SWITCH_COND_PUSHDOWN_FOR_SUBQUERY |\
+                                    OPTIMIZER_SWITCH_COND_PUSHDOWN_FOR_SUBQUERY | \
                                     OPTIMIZER_SWITCH_USE_ROWID_FILTER | \
-                                    OPTIMIZER_SWITCH_COND_PUSHDOWN_FROM_HAVING)
+                                    OPTIMIZER_SWITCH_COND_PUSHDOWN_FROM_HAVING | \
+                                    OPTIMIZER_SWITCH_OPTIMIZE_JOIN_BUFFER_SIZE)
 
 /*
   Replication uses 8 bytes to store SQL_MODE in the binary log. The day you

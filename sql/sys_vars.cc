@@ -350,6 +350,15 @@ static Sys_var_long Sys_pfs_connect_attrs_size(
 
 #endif /* WITH_PERFSCHEMA_STORAGE_ENGINE */
 
+static Sys_var_double Sys_analyze_sample_percentage(
+       "analyze_sample_percentage",
+       "Percentage of rows from the table ANALYZE TABLE will sample "
+       "to collect table statistics. Set to 0 to let MariaDB decide "
+       "what percentage of rows to sample.",
+       SESSION_VAR(sample_percentage),
+       CMD_LINE(REQUIRED_ARG), VALID_RANGE(0, 100),
+       DEFAULT(100));
+
 static Sys_var_ulong Sys_auto_increment_increment(
        "auto_increment_increment",
        "Auto-increment columns are incremented by this",
@@ -2724,7 +2733,7 @@ static Sys_var_uint Sys_eq_range_index_dive_limit(
        "ranges for the index is larger than or equal to this number. "
        "If set to 0, index dives are always used.",
        SESSION_VAR(eq_range_index_dive_limit), CMD_LINE(REQUIRED_ARG),
-       VALID_RANGE(0, UINT_MAX32), DEFAULT(10),
+       VALID_RANGE(0, UINT_MAX32), DEFAULT(200),
        BLOCK_SIZE(1));
 
 static Sys_var_ulong Sys_range_alloc_block_size(
