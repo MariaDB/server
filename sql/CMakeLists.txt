@@ -448,12 +448,6 @@ IF(WIN32 AND TARGET mysqld AND NOT CMAKE_CROSSCOMPILING)
     ALL
     DEPENDS ${CMAKE_CURRENT_BINARY_DIR}/initdb.dep
   )
-  INSTALL(DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}/data DESTINATION . 
-  COMPONENT DataFiles 
-  PATTERN "initdb.dep" EXCLUDE  
-  PATTERN "bootstrap.sql" EXCLUDE
-  PATTERN "aria*" EXCLUDE
-  )
 ELSE()
   # Not windows or cross compiling, just install an empty directory
   INSTALL(FILES ${DUMMY_FILE} DESTINATION data/mysql COMPONENT DataFiles)
